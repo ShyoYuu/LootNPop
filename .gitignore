@@ -1,0 +1,10 @@
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+Content/__ExternalActors__/
+Content/__ExternalObjects__/
+
+.vsconfig
+LootNPop.sln
