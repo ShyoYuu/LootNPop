@@ -45,6 +45,9 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	CameraBoom->SetupAttachment(Mesh);
 	CameraBoom->TargetArmLength = 400.0f;
 	CameraBoom->bUsePawnControlRotation = true;
+	CameraBoom->bInheritPitch = true;
+	CameraBoom->bInheritYaw = true;
+	CameraBoom->bInheritRoll = true;
 
 	// 4. Create Follow Camera
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
@@ -53,8 +56,6 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 
 	// 5. Create Mover Component
 	MoverComponent = CreateDefaultSubobject<ULNPCharacterMoverComponent>(TEXT("MoverComponent"));
-	// Note: SharedSettings are automatically managed by the Mover framework based on the MovementModes' SharedSettingsClasses.
-	// Please configure these in the Blueprint editor (BP_LNPCharacter -> MoverComponent -> MovementModes).
 
 	// 6. Create GAS Ability System Component
 	AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
@@ -69,6 +70,11 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 
 	// 9. Create Interaction Component
 	InteractionComponent = CreateDefaultSubobject<ULNPInteractionComponent>(TEXT("InteractionComponent"));
+
+	// Disable default Pawn rotation logic to avoid interference with custom gravity system
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
 }
 
 UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
@@ -102,9 +108,6 @@ void ALNPCharacterBase::BeginPlay()
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
-
-		PC->PlayerCameraManager->ViewPitchMax = 89.0f;
-		PC->PlayerCameraManager->ViewPitchMin = -89.0f;
 	}
 }
 
@@ -112,13 +115,10 @@ void ALNPCharacterBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Process Look Input via standard Controller methods
-	if (!CachedLookInput.IsNearlyZero())
+	// Forward look input to GravityComponent to handle orientation correctly in custom gravity
+	if (!CachedLookInput.IsNearlyZero() && GravityComponent)
 	{
-		const float YawRateScale = 1.0f;
-		const float PitchRateScale = 1.0f;
-		AddControllerYawInput(CachedLookInput.Yaw * YawRateScale);
-		AddControllerPitchInput(-CachedLookInput.Pitch * PitchRateScale);
+		GravityComponent->InputLook(CachedLookInput);
 	}
 
 	// Reset cached look input after consumption
@@ -167,9 +167,19 @@ void ALNPCharacterBase::OnProduceInput(float DeltaMs, FMoverInputCmdContext& Out
 		LNPMover->SetWantsToRun(bIsDashPressed);
 	}
 
-	// 3. Calculate Move Intent
-	// Transform move vector to world space based on control rotation
-	const FVector FinalDirectionalIntent = CharacterInputs.ControlRotation.RotateVector(CachedMoveInputIntent);
+	// 3. Calculate Move Intent projected onto the gravity surface
+	FVector UpDir = GravityComponent ? GravityComponent->GetUpDirection() : FVector::UpVector;
+	FQuat ControlQuat = CharacterInputs.ControlRotation.Quaternion();
+	FVector ControlForward = ControlQuat.GetForwardVector();
+
+	FVector RightDir = FVector::CrossProduct(UpDir, ControlForward).GetSafeNormal();
+	if (RightDir.IsNearlyZero())
+	{
+		RightDir = FVector::CrossProduct(UpDir, ControlQuat.GetUpVector()).GetSafeNormal();
+	}
+	FVector HorizonForward = FVector::CrossProduct(RightDir, UpDir).GetSafeNormal();
+
+	const FVector FinalDirectionalIntent = (HorizonForward * CachedMoveInputIntent.X) + (RightDir * CachedMoveInputIntent.Y);
 	CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, FinalDirectionalIntent);
 
 	// 4. Calculate Orientation Intent
@@ -186,7 +196,7 @@ void ALNPCharacterBase::OnProduceInput(float DeltaMs, FMoverInputCmdContext& Out
 		}
 		else
 		{
-			CharacterInputs.OrientationIntent = CharacterInputs.ControlRotation.Vector().GetSafeNormal();
+			CharacterInputs.OrientationIntent = HorizonForward;
 		}
 		LastAffirmativeMoveInput = CharacterInputs.GetMoveInput();
 	}
@@ -245,10 +255,8 @@ void ALNPCharacterBase::OnMoveCompleted(const FInputActionValue& Value)
 void ALNPCharacterBase::OnLookTriggered(const FInputActionValue& Value)
 {
 	const FVector2D LookVector = Value.Get<FVector2D>();
-	CachedLookInput.Yaw = FMath::Clamp(LookVector.X, -1.0f, 1.0f);
-	CachedLookInput.Pitch = FMath::Clamp(LookVector.Y, -1.0f, 1.0f);
-
-	//UE_LOG(LogTemp, Log, TEXT("Look Input: Yaw=%.2f, Pitch=%.2f"), CachedLookInput.Yaw, CachedLookInput.Pitch);
+	CachedLookInput.Yaw = LookVector.X;
+	CachedLookInput.Pitch = LookVector.Y;
 }
 
 void ALNPCharacterBase::OnLookCompleted(const FInputActionValue& Value)

@@ -2,7 +2,7 @@
 
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPCharacterMovementSettings.h"
-#include "Movement/LNPAsyncSmoothWalkingMode.h"
+#include "Movement/LNPAsyncWalkingMode.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "DefaultMovementSet/Modes/AsyncFallingMode.h"
 
@@ -14,7 +14,7 @@ ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 	bWantsToRun = 0;
 
 	// Default movement modes
-	MovementModes.Add(TEXT("LNPAsyncSmoothWalking"), CreateDefaultSubobject<ULNPAsyncSmoothWalkingMode>(TEXT("AsyncSmoothWalkingMode")));
+	MovementModes.Add(TEXT("LNPAsyncWalking"), CreateDefaultSubobject<ULNPAsyncWalkingMode>(TEXT("AsyncWalkingMode")));
 	MovementModes.Add(TEXT("AsyncFalling"), CreateDefaultSubobject<UAsyncFallingMode>(TEXT("AsyncFallingMode")));
 
 	StartingMovementMode = TEXT("AsyncFalling");
@@ -58,15 +58,15 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 	}
 
 	// Call Super to handle standard features (Jump, Crouch)
-	//Super::OnMoverPreSimulationTick(TimeStep, InputCmd);
+	Super::OnMoverPreSimulationTick(TimeStep, InputCmd);
 }
 
 void ULNPCharacterMoverComponent::OnHandlerSettingChanged()
 {
 	// Super will add/remove OnMoverPreSimulationTick based on handle jump/stance settings.
-	Super::OnHandlerSettingChanged();
+	//Super::OnHandlerSettingChanged();
 
-	const bool bIsHandlingAnySettings = bHandleSprintChanges;
+	const bool bIsHandlingAnySettings = bHandleSprintChanges || bHandleJump || bHandleStanceChanges;
 
 	if (bIsHandlingAnySettings)
 	{
