@@ -1,4 +1,7 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿/// 구체(Sphere) 형태의 지형(Landscape)을 수많은 Plane들의 조합으로 만들어내는 PCG 노드.
+/// 수백만개의 Plane을 HISM으로 생성하여 프록시 메시로 에디터 플레이가 가능한 것까지는 확인.
+/// 그러나 HLOD 베이킹 등을 위해 실제 메시까지 생성하는건 성능상 무리라고 판단되어 이 노드는 안쓰는 것으로 최종 결정.
+/// 자세한 히스토리는 @DiscardedApproaches.md Case 01과 @TechDesign_WorldGeneration.md 참고
 
 #include "PCG/PCGSphereWorldSettings.h"
 #include "PCGContext.h"
@@ -9,25 +12,25 @@
 
 #if WITH_EDITOR
 // The label the node is known as internally.
-FName UPCGSphereWorldSettingsSettings::GetDefaultNodeName() const
+FName UPCGSphereWorldSettings::GetDefaultNodeName() const
 {
 	return FName(TEXT("PCGSphereWorldSettings"));
 }
 
 // Default node name shown in the graph editor. Include spaces.
-FText UPCGSphereWorldSettingsSettings::GetDefaultNodeTitle() const
+FText UPCGSphereWorldSettings::GetDefaultNodeTitle() const
 {
 	return LOCTEXT("NodeTitle", "Sphere World Generator");
 }
 
 // Default tooltip for the node
-FText UPCGSphereWorldSettingsSettings::GetNodeTooltipText() const
+FText UPCGSphereWorldSettings::GetNodeTooltipText() const
 {
 	return LOCTEXT("NodeTooltip", "Generates a sphere of points based on mathematical formulas.");
 }
 #endif //WITH_EDITOR
 
-TArray<FPCGPinProperties> UPCGSphereWorldSettingsSettings::OutputPinProperties() const
+TArray<FPCGPinProperties> UPCGSphereWorldSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point);
@@ -35,7 +38,7 @@ TArray<FPCGPinProperties> UPCGSphereWorldSettingsSettings::OutputPinProperties()
 }
 
 // Creates the Element to be used for ExecuteInternal.
-FPCGElementPtr UPCGSphereWorldSettingsSettings::CreateElement() const
+FPCGElementPtr UPCGSphereWorldSettings::CreateElement() const
 {
 	return MakeShared<FPCGSphereWorldSettingsElement>();
 }
@@ -46,7 +49,7 @@ bool FPCGSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
 
 	check(Context);
 
-	const UPCGSphereWorldSettingsSettings* Settings = Context->GetInputSettings<UPCGSphereWorldSettingsSettings>();
+	const UPCGSphereWorldSettings* Settings = Context->GetInputSettings<UPCGSphereWorldSettings>();
 	check(Settings);
 
 	// 1. Get Target Bounds for Partitioning

@@ -1,47 +1,41 @@
 # LootPod System 기술 설계 (MassEntity + SmartObject)
 
 ## 1. 아키텍처 개요
-**LootPod**은 `MassEntity`를 통해 대규모 데이터를 관리하고, `SmartObjectSubsystem`에 핸들을 등록하여 상호작용을 지원합니다. 이는 액터 오버헤드 없이 수많은 상호작용 객체를 효율적으로 처리하기 위함입니다.
+**LootPod**은 `MassEntity`를 통해 대규모 데이터를 관리하고, `SmartObjectSubsystem`에 핸들을 등록하여 상호작용을 지원합니다. 시각적 연출과 개별 상태 관리를 위해 `ALNPLootPod` 액터와 `MassAgentComponent`를 결합한 하이브리드 방식을 사용합니다.
 
 ## 2. MassEntity 구성 요소
-### 2.1 Fragments (데이터)
+### 2.1 Fragments & Tags (데이터)
 - **`FLNPLootPodFragment`:**
-    - `float CurrentGauge`: 현재 루팅 진행도 (0.0 ~ 1.0).
     - `ELNPLootPodState State`: 현재 상태 (Idle, Looting, Interrupted, Popped).
-    - `FSmartObjectHandle SOHandle`: 등록된 SmartObject 핸들.
-- **`FTransformFragment`:** 엔티티의 위치 및 회전 (Sphere World 정렬 포함).
-- **`FMassTag_LootPod`:** LootPod 엔티티를 식별하기 위한 태그.
+    - `float CurrentGauge / MaxGauge`: 루팅 진행도 관리.
+    - `float LootableDistSquared`: 루팅 유효 거리 (최적화를 위해 제곱값 사용).
+    - `int32 PodID`: 보상 데이터 조회를 위한 고유 ID.
+- **`FLNPPlayerLootingFragment` (Player Entity):**
+    - `float BuffedLootSpeed`: 플레이어별 루팅 속도 배율.
+- **Tags:** `FLNPLootPodTag`, `FLNPLootPodIdleTag`, `FLNPLootPodLootingTag`, `FLNPPlayerLootingTag` 등을 사용하여 프로세서의 쿼리 효율 최적화.
 
 ### 2.2 Processors (로직)
-- **`ULNPLootPodProcessor`:**
-    - 매 프레임 모든 LootPod의 상태를 업데이트합니다.
-    - 루팅 중인 엔티티의 게이지를 증가시키고, 완료 시 보상 스폰 이벤트를 트리거합니다.
-- **`ULNPLootPodGravityProcessor`:**
-    - `SphereWorld` 중심점을 기준으로 엔티티의 `UpVector`를 계산하여 정렬합니다.
+- **`ULNPIdleToLootingProcessor`:**
+    - `Idle` 상태의 Pod 주변에 `PlayerLootingTag`를 가진 엔티티가 있는지 체크하여 상태 전환을 트리거합니다.
+- **`ULNPLootingProcessor`:**
+    - 루팅 중인 모든 Pod의 게이지를 `DeltaTime`과 플레이어의 `BuffedLootSpeed`를 합산하여 업데이트합니다.
+    - 완료 시 `Popped` 상태로 전환하거나 엔티티를 파괴하고 보상을 드랍합니다.
 
-## 3. SmartObject 연동 (MassSmartObject)
-- **Registration:** 엔티티가 생성(Spawn)될 때 `SmartObjectSubsystem`에 위치와 `SmartObjectDefinition`을 등록하고 받은 핸들을 `SOHandle`에 저장합니다.
-- **Interaction:** 플레이어가 `SmartObject`를 쿼리하면 시스템은 엔티티의 위치를 반환합니다.
-- **LOD (Level of Detail):** 
-    - 멀리 있는 LootPod은 순수 엔티티로 존재.
-    - 가까이 가거나 상호작용이 시작되면 시각적 연출을 위해 **고성능 ISMC(Instanced Static Mesh)** 또는 **Actor Representation**으로 전환될 수 있습니다.
+## 3. 상호작용 및 시각화 (Actor Bridge)
+### 3.1 `ULNPInteractionComponent`
+- 플레이어 캐릭터에 부착되어 `SmartObjectSubsystem`을 통해 주변의 `ALNPLootPod`을 검색합니다.
+- 상호작용 시작 시 플레이어 엔티티에 `FLNPPlayerLootingTag`를 추가하여 Mass 프로세서가 인지하도록 합니다.
+
+### 3.2 `FLNPPodStateTransitionCommand`
+- Mass 프로세서(C++)에서 상태 변화가 발생했을 때, 이를 실제 월드의 `ALNPLootPod` 액터에게 전달하기 위한 **Batched Command**입니다.
+- 이를 통해 Niagara VFX(Pillar Color) 및 메시 상태를 성능 저하 없이 동기화합니다.
 
 ## 4. 수비형 루팅 로직 구현
-- **Proximity Check:** `MassEntity`의 `FMassSpatialHashGrid`를 사용하여 주변 플레이어를 빠르게 검색, 루팅 구역 이탈 여부를 체크합니다.
-- **Hit Detection:** 플레이어가 피격 시 해당 플레이어와 상호작용 중인 `SmartObjectHandle`을 찾아 엔티티의 상태를 `Interrupted`로 변경합니다.
+- **Proximity Check:** `ULNPLootingProcessor`에서 매 프레임 플레이어와의 거리를 체크하여, 범위를 벗어나면 즉시 `Idle` 상태로 되돌리고 태그를 교체합니다.
+- **Interruption:** (구현 예정) 플레이어 피격 시 플레이어 엔티티의 `LootingTag`를 제거하여 모든 관련 루팅 프로세스를 중단시킵니다.
 
-## 5. 미래 확장성 (Future Considerations)
-### 5.1 루팅 속도 버프 (Loot Speed Buff)
-- **개요:** 특정 아이템이나 스킬을 통해 게이지 상승 속도를 일시적으로 증가시킴.
-- **Mass 구현 계획:** 
-    - `FLNPLootPodFragment`에 `BaseLootSpeed` 필드를 활용.
-    - `ULNPLootingUpdateProcessor`에서 게이지 계산 시 버프 태그나 추가 프레그먼트의 배율을 적용하도록 설계.
-
-### 5.2 멀티플레이어 협동 루팅
-- 여러 플레이어가 동시에 루팅할 경우 속도가 중첩되거나 보너스를 주는 로직 확장 가능.
-
-## 6. 구현 장점 (Learning Point)
-- **확장성:** 나중에 LootPod이 수만 개로 늘어나도 성능 저하가 거의 없습니다.
-- **데이터 중심 설계:** 모든 로직이 가벼운 구조체(Fragment) 단위로 처리됩니다.
-- **최신 스택 활용:** `Mass` + `SmartObject` + `SphereWorld`의 결합을 통해 언리얼 엔진 5.x의 핵심 기술을 모두 학습할 수 있습니다.
+## 5. 구현 특징 (Key Implementations)
+- **효율적인 검색:** `SmartObject`를 사용하여 상호작용 대상을 찾고, 실제 로직 처리는 `Mass`에서 수행하여 수천 개의 Pod 대응 가능.
+- **확장성:** `BuffedLootSpeed` 프래그먼트를 통해 아이템이나 스킬에 의한 루팅 속도 변화를 쉽게 적용.
+- **시각적 피드백:** Niagara 시스템의 `User.Color` 파라미터를 Mass 상태와 연동하여 직관적인 상태 표시.
 

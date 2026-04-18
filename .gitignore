@@ -1,3 +1,4 @@
+#폴더
 Binaries/
 DerivedDataCache/
 Intermediate/
@@ -6,5 +7,7 @@ Saved/
 Content/__ExternalActors__/
 Content/__ExternalObjects__/
 
+#파일
 .vsconfig
 LootNPop.sln
+sample.png
