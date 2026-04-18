@@ -7,7 +7,7 @@
 #include "LNPAnimInstance.generated.h"
 
 class ALNPCharacterBase;
-class UCharacterMoverComponent;
+class ULNPCharacterMoverComponent;
 
 /**
  * ULNPAnimInstance
@@ -30,7 +30,7 @@ protected:
 
 	/** Reference to the character's mover component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Character")
-	TObjectPtr<UCharacterMoverComponent> MoverComponent;
+	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
 
 	/** Current velocity of the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")

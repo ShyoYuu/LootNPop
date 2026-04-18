@@ -30,8 +30,7 @@ void ULNPPawnGravityComponent::BeginPlay()
 			SetGravity(ELNPGravityType::Fixed, FVector::DownVector);
 	}
 
-	// Establish tick order: GravityComponent updates first, then Character/Pawn
-	GetOwner()->AddTickPrerequisiteComponent(this);
+	AddTickPrerequisiteActor(GetOwner());
 	LastGravityType = GravityType;
 	LastUpDir = FVector::UpVector;
 }
@@ -59,8 +58,8 @@ void ULNPPawnGravityComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		break;
 
 	case ELNPGravityType::RadialInward:
-		PawnUpDir = (GravityOrigin - OwnerPawn->GetActorLocation()).GetSafeNormal();
-		PawnDownDir = -PawnUpDir;
+		PawnDownDir = (GravityOrigin - OwnerPawn->GetActorLocation()).GetSafeNormal();
+		PawnUpDir = -PawnDownDir;
 		break;
 
 	case ELNPGravityType::RadialOutward:
@@ -106,6 +105,34 @@ void ULNPPawnGravityComponent::SetGravity(const ELNPGravityType NewType, const F
 	}
 }
 
+FVector ULNPPawnGravityComponent::GetUpDirection() const
+{
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return FVector::UpVector;
+	}
+
+	switch (GravityType)
+	{
+	case ELNPGravityType::Fixed:
+		return -FixedGravityDirection.GetSafeNormal();
+
+	case ELNPGravityType::RadialInward:
+		return (Owner->GetActorLocation() - GravityOrigin).GetSafeNormal();
+
+	case ELNPGravityType::RadialOutward:
+		return (GravityOrigin - Owner->GetActorLocation()).GetSafeNormal();
+	}
+
+	return FVector::UpVector;
+}
+
+void ULNPPawnGravityComponent::InputLook(const FRotator& LookDelta)
+{
+	PendingLookInput += LookDelta;
+}
+
 void ULNPPawnGravityComponent::UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir)
 {
 	const FVector CustomGravityVector = PawnDownDir * GravityStrength;
@@ -113,13 +140,8 @@ void ULNPPawnGravityComponent::UpdatePawnOrientation(const FVector& PawnUpDir, c
 	CachedMoverComponent->SetGravityOverride(true, CustomGravityVector);
 	CachedMoverComponent->SetUpDirectionOverride(true, PawnUpDir);
 
-	// Align the actor's vertical axis with the surface normal
-	const FQuat CurrentQuat = GetOwner()->GetActorQuat();
-	if (!CurrentQuat.GetUpVector().Equals(PawnUpDir, 0.001f))
-	{
-		const FQuat AlignmentDelta = FQuat::FindBetweenNormals(CurrentQuat.GetUpVector(), PawnUpDir);
-		GetOwner()->SetActorRotation(AlignmentDelta * CurrentQuat);
-	}
+	// We no longer call SetActorRotation here. 
+	// The Mover component handles capsule orientation smoothly via UpDirectionOverride.
 }
 
 void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, const FVector& TargetUpDir)
@@ -134,18 +156,36 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 
 	FQuat CurrentControlQuat = PC->GetControlRotation().Quaternion();
 	
-	// 1. Compensate for surface curvature by adjusting the entire view frame
-	if (!LastUpDir.Equals(TargetUpDir, 0.001f))
+	// 1. Curvature Compensation
+	if (!LastUpDir.Equals(TargetUpDir, 0.0001f))
 	{
 		const FQuat CurvatureDelta = FQuat::FindBetweenNormals(LastUpDir, TargetUpDir);
 		CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
 	}
 
-	// 2. Stabilization & Pitch Clamping
+	// 2. Apply Look Input (Yaw and Pitch)
+	if (!PendingLookInput.IsNearlyZero())
+	{
+		// Yaw: Rotate around the local Up axis
+		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * 2.0));
+		CurrentControlQuat = YawQuat * CurrentControlQuat;
+
+		// Pitch: Rotate around the local Right axis
+		const FVector CurrentRight = FVector::CrossProduct(TargetUpDir, CurrentControlQuat.GetForwardVector()).GetSafeNormal();
+		if (!CurrentRight.IsNearlyZero())
+		{
+			const FQuat PitchQuat(CurrentRight, FMath::DegreesToRadians(-PendingLookInput.Pitch));
+			CurrentControlQuat = PitchQuat * CurrentControlQuat;
+		}
+
+		PendingLookInput = FRotator::ZeroRotator;
+	}
+
+	// 3. Stabilization & Pitch Clamping relative to local Up
 	FVector ViewForward = CurrentControlQuat.GetForwardVector();
 	const float CosAngleFromUp = FVector::DotProduct(ViewForward, TargetUpDir);
 	
-	const float MaxCosLimit = 0.996f;  // Approx 85 degrees up/down limit
+	const float MaxCosLimit = 0.996f;  // Approx 85 degrees
 	const float MinCosLimit = -0.996f;
 
 	if (CosAngleFromUp > MaxCosLimit || CosAngleFromUp < MinCosLimit)
@@ -157,8 +197,11 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 		ViewForward = (HorizonForward * ClampedSin) + (TargetUpDir * ClampedCos);
 	}
 
-	// 4. Final Reconstruction: Ensure vertical stabilization relative to Gravity
-	// MakeFromXZ ensures that Z (Up) is exactly aligned with TargetUpDir, removing roll relative to gravity.
-	const FRotator FinalControlRotation = FRotationMatrix::MakeFromXZ(ViewForward, TargetUpDir).Rotator();
+	// 4. Final Reconstruction: Preserve ViewForward while forcing a stable Right axis relative to Gravity
+	// This keeps the Pitch intact while ensuring the camera doesn't roll relative to the surface.
+	FVector FinalRight = FVector::CrossProduct(TargetUpDir, ViewForward).GetSafeNormal();
+	FVector FinalUp = FVector::CrossProduct(ViewForward, FinalRight).GetSafeNormal();
+	
+	const FRotator FinalControlRotation = FMatrix(ViewForward, FinalRight, FinalUp, FVector::ZeroVector).Rotator();
 	PC->SetControlRotation(FinalControlRotation);
 }

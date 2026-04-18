@@ -36,7 +36,7 @@ public:
 
 protected:
 	/** Fired just before a simulation tick. Used to apply state-driven modifier changes. */
-	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd);
+	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd) override;
 
 	/** Overridden to ensure our custom simulation logic is always registered. */
 	virtual void OnHandlerSettingChanged() override;

@@ -59,11 +59,7 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bIsFalling = MoverComponent->IsFalling();
 	bIsSwimming = MoverComponent->IsSwimming();
 	bIsCrouching = MoverComponent->IsCrouching();
-
-	if (const ULNPCharacterMoverComponent* LNPMover = Cast<ULNPCharacterMoverComponent>(MoverComponent))
-		bIsSprinting = LNPMover->IsSprinting();
-	else
-		bIsSprinting = false;
+	bIsSprinting = MoverComponent->IsSprinting();
 
 	// 4. Calculate Movement Direction
 	Direction = UKismetAnimationLibrary::CalculateDirection(Velocity, OwningMoverCharacter->GetActorRotation());

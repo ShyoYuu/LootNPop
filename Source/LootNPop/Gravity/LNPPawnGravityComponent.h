@@ -41,6 +41,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	void SetGravity(const ELNPGravityType NewType, const FVector& NewDirectionOrOrigin);
 
+	/** Returns the current calculated Up direction based on the current gravity type and owner location */
+	UFUNCTION(BlueprintPure, Category = "LNP|Gravity")
+	FVector GetUpDirection() const;
+
+	/** Input look delta to be processed in the next tick */
+	void InputLook(const FRotator& LookDelta);
+
 protected:
 	/** Currently active gravity mode */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Gravity")
@@ -56,12 +63,15 @@ protected:
 
 	/** Acceleration magnitude for gravity */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Gravity")
-	float GravityStrength = 980.0f;
+	float GravityStrength = 2000.0f;
 
 private:
 	/** Cached reference to the owner's mover component */
 	UPROPERTY(Transient)
 	TObjectPtr<UCharacterMoverComponent> CachedMoverComponent;
+
+	/** Accumulated look input from the character */
+	FRotator PendingLookInput = FRotator::ZeroRotator;
 
 	/** Keeps track of the previous mode to detect transitions */
 	ELNPGravityType LastGravityType = ELNPGravityType::None;
