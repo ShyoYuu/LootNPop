@@ -1,24 +1,23 @@
-# LootNPop 프로젝트 개요
+﻿# LootNPop 프로젝트 개요
 
 **LootNPop**은 언리얼 엔진의 최신 스택을 활용한 경쾌한 분위기의 멀티플레이어 파티 게임입니다. 대규모 엔티티 처리와 정교한 이동 시스템을 핵심으로 합니다. 가급적 C++을 사용하여 핵심 로직을 구현하는 것을 원칙으로 합니다.
 
 ## 1. 핵심 기술 스택
-| 구분 | 기술 스택 | 비고 |
+| 구분 | 기술 스택 | 주요 구현 클래스 |
 | :--- | :--- | :--- |
-| **Input** | Enhanced Input | 복합 액션 및 컨텍스트 제어 |
-| **Movement** | Mover Plugin | 구형 지형 대응 커스텀 중력 구현 |
-| **Combat** | GAS + MassEntity | 수학적 계산 기반 히트 판정 |
-| **AI/Entity** | MassEntity + StateTree | 대규모 NPC 및 최적화된 로직 |
-| **Network** | Iris Replication | 최신 복제 시스템 활용 |
-| **World** | World Partition | 심리스 대형 지형 |
-| **UI** | MVVM Plugin | 데이터 중심 UI 바인딩 |
+| **Input** | Enhanced Input | `ALNPCharacterBase` |
+| **Movement** | Mover Plugin | `ULNPPawnGravityComponent` |
+| **Combat** | GAS + MassEntity | `ULNPLootingProcessor` |
+| **AI/Entity** | MassEntity + StateTree | `ULNPLootPodTrait`, `ALNPLootPod` |
+| **World** | PCG + World Partition | `UPCGSphereWorldSettings` |
+| **UI** | MVVM Plugin | (구현 예정) |
 
 ## 2. 기술적 가이드라인 (Implementation Rules)
 - Unreal Engine 버전은 5.7.
-- **Movement:** Mover Plugin 기반의 Custom Gravity 시스템을 최우선으로 구현.
-- **Gravity Logic:** 세부 지형(언덕 등)의 법선이 아닌, **거대 기하학적 구체(Sphere)의 중심점**을 기준으로 중력 방향 결정.
-- **Combat:** 물리 엔진(Chaos)을 사용하지 않고 MassEntity 상에서 수학적(Dot Product, Swept Area 등)으로 피격/패링 판정.
-- **Individual HitStop:** 개별 엔티티의 `ExecutionSpeed` 프래그먼트 또는 애니메이션 재생 속도를 조정하여 타격감 구현.
+- **Movement:** `UCharacterMoverComponent`와 연동되는 `ULNPPawnGravityComponent`를 통해 구형 지형에 대응하는 커스텀 중력을 최우선으로 구현.
+- **Gravity Logic:** `RadialInward/Outward` 모드를 통해 구체의 중심점을 기준으로 중력 방향을 실시간 결정하고, 이에 맞춰 플레이어의 컨트롤러 회전을 보정함.
+- **Combat:** 물리 엔진보다는 MassEntity의 프로세서를 활용한 수학적 계산을 우선시함.
+- **Interaction:** `SmartObject` 시스템과 `MassAgent`를 결합하여 대규모 오브젝트에 대한 효율적인 쿼리 및 상태 관리 수행.
 
 ## 3. 상세 기획 및 메커니즘
 
@@ -48,9 +47,11 @@
 
 ## 99. 상세 문서 인덱스
 - [개발 계획 (Milestone)](@DevelopmentPlan.md)
+- [시도했으나 결과적으로 제외된 아이디어들 기록](@DiscardedApproaches.md)
 - [WorldGeneration 기술 설계](@TechDesign_WorldGeneration.md)
 - [LootPod System 게임 기획](@GameDesign_LootPod.md)
 - [LootPod System 기술 설계](@TechDesign_LootPod.md)
 - [HitDetection 기술 설계](@TechDesign_HitDetection.md)
 - [ParrySystem 게임 기획](@GameDesign_ParrySystem.md)
 - [ParrySystem 기술 설계](@TechDesign_ParrySystem.md)
+- [CharacterMovement 기술 설계](@TechDesign_CharacterMovement.md)

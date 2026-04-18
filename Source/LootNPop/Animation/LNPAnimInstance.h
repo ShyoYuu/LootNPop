@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -63,4 +63,10 @@ protected:
 	/** Is the character currently swimming? */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bIsSwimming;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
+	bool bIsCrouching;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
+	bool bIsSprinting;
 };

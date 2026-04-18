@@ -9,7 +9,7 @@
 #include "MassAgentComponent.h"
 #include "LNPCharacterBase.generated.h"
 
-class UCharacterMoverComponent;
+class ULNPCharacterMoverComponent;
 class UCapsuleComponent;
 class USkeletalMeshComponent;
 class USpringArmComponent;
@@ -36,7 +36,7 @@ public:
 
 	// --- Component Accessors ---
 	UFUNCTION(BlueprintPure, Category = "LNP|Mover")
-	UCharacterMoverComponent* GetMoverComponent() const { return MoverComponent; }
+	ULNPCharacterMoverComponent* GetMoverComponent() const { return MoverComponent; }
 
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool GetOrientRotationToMovement() const { return bOrientRotationToMovement; }
@@ -76,7 +76,7 @@ private:
 	TObjectPtr<UCameraComponent> FollowCamera;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCharacterMoverComponent> MoverComponent;
+	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
@@ -105,9 +105,45 @@ protected:
 	TObjectPtr<UInputAction> JumpAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> DashAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
 
 	// Movement settings
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	float WalkSpeed = 400.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	float RunSpeed = 800.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	float DashSpeed = 1600.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	float DashDuration = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	float DashImpulseMagnitude = 2000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	float DashCooldown = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	TObjectPtr<UAnimMontage> DashForwardMontage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	TObjectPtr<UAnimMontage> DashBackwardMontage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	TObjectPtr<UAnimMontage> DashLeftMontage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	TObjectPtr<UAnimMontage> DashRightMontage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	bool bIsAiming = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
 	bool bUseBaseRelativeMovement = true;
 
@@ -124,8 +160,12 @@ private:
 
 	bool bIsJumpPressed = false;
 	bool bIsJumpJustPressed = false;
+	bool bIsDashPressed = false;
+	bool bIsDashJustPressed = false;
 	bool bIsInteractPressed = false;
 	bool bIsInteractJustPressed = false;
+
+	float LastDashTime = -1.0f;
 
 	// Input event handlers
 	void OnMoveTriggered(const FInputActionValue& Value);
@@ -134,6 +174,8 @@ private:
 	void OnLookCompleted(const FInputActionValue& Value);
 	void OnJumpStarted(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
+	void OnDashStarted(const FInputActionValue& Value);
+	void OnDashReleased(const FInputActionValue& Value);
 	void OnInteractStarted(const FInputActionValue& Value);
 	void OnInteractReleased(const FInputActionValue& Value);
 };

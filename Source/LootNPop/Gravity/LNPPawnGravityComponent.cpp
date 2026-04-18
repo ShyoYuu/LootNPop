@@ -1,10 +1,10 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Component/LNPPawnGravityComponent.h"
+#include "Gravity/LNPPawnGravityComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "DefaultMovementSet/CharacterMoverComponent.h"
-#include "Gameplay/LNPGameState.h"
+#include "GameMode/LNPGameState.h"
 
 ULNPPawnGravityComponent::ULNPPawnGravityComponent()
 {
@@ -30,8 +30,8 @@ void ULNPPawnGravityComponent::BeginPlay()
 			SetGravity(ELNPGravityType::Fixed, FVector::DownVector);
 	}
 
-	// ALNPCharacterBase::Tick()에 적어둔 ToDo 작업을 완료하면 이 주석을 풀어야 한다.
-	//GetOwner()->AddTickPrerequisiteComponent(this);
+	// Establish tick order: GravityComponent updates first, then Character/Pawn
+	GetOwner()->AddTickPrerequisiteComponent(this);
 	LastGravityType = GravityType;
 	LastUpDir = FVector::UpVector;
 }
@@ -80,19 +80,17 @@ void ULNPPawnGravityComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		LastGravityType = GravityType;
 	}
 
-	// 2. Update orientations if needed (Direction changed or User is looking)
-	// For Dynamic modes, this always runs. For Fixed mode, only when moving/looking.
+	// 2. Update orientations if needed (Direction changed or it's a dynamic gravity world)
+	// For Dynamic modes, this always runs to ensure smooth transition as pawn moves.
 	const bool bDirectionChanged = !LastUpDir.Equals(PawnUpDir, 0.001f);
-	const bool bLooking = !CachedLookInput.IsNearlyZero();
 
-	if (GravityType != ELNPGravityType::Fixed || bDirectionChanged || bLooking)
+	if (GravityType != ELNPGravityType::Fixed || bDirectionChanged)
 	{
 		UpdatePawnOrientation(PawnUpDir, PawnDownDir);
 		UpdateControllerOrientation(DeltaTime, PawnUpDir);
 	}
 
 	LastUpDir = PawnUpDir;
-	CachedLookInput = FRotator::ZeroRotator;
 }
 
 void ULNPPawnGravityComponent::SetGravity(const ELNPGravityType NewType, const FVector& NewDirectionOrOrigin)
@@ -106,11 +104,6 @@ void ULNPPawnGravityComponent::SetGravity(const ELNPGravityType NewType, const F
 	{
 		GravityOrigin = NewDirectionOrOrigin;
 	}
-}
-
-void ULNPPawnGravityComponent::InputLook(const FRotator& LookInput)
-{
-	CachedLookInput = LookInput;
 }
 
 void ULNPPawnGravityComponent::UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir)
@@ -148,22 +141,7 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 		CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
 	}
 
-	// 2. Add raw mouse/analog look input to the orientation
-	if (!CachedLookInput.IsNearlyZero())
-	{
-		const float YawRateScale = 200.0f;
-		const float PitchRateScale = 100.0f;
-		const float YawAmountDegrees = CachedLookInput.Yaw * YawRateScale * DeltaTime;
-		const float PitchAmountDegrees = -CachedLookInput.Pitch * PitchRateScale * DeltaTime;
-
-		const FQuat YawRotation(TargetUpDir, FMath::DegreesToRadians(YawAmountDegrees));
-		const FVector ViewRight = CurrentControlQuat.GetRightVector();
-		const FQuat PitchRotation(ViewRight, FMath::DegreesToRadians(PitchAmountDegrees));
-
-		CurrentControlQuat = YawRotation * PitchRotation * CurrentControlQuat;
-	}
-
-	// 3. Stabilization & Pitch Clamping
+	// 2. Stabilization & Pitch Clamping
 	FVector ViewForward = CurrentControlQuat.GetForwardVector();
 	const float CosAngleFromUp = FVector::DotProduct(ViewForward, TargetUpDir);
 	

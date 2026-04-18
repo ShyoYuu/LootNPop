@@ -1,7 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Animations/LNPAnimInstance.h"
-#include "Player/LNPCharacterBase.h"
+#include "Animation/LNPAnimInstance.h"
+#include "Character/LNPCharacterBase.h"
+#include "Movement/LNPCharacterMoverComponent.h"
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "KismetAnimationLibrary.h"
 
@@ -51,12 +52,18 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	// 2. Determine if the character should move
 	// Logic: Character has enough horizontal speed and intentional movement input
-	bShouldMove = (3.0f < GroundSpeed) && (!MoverComponent->GetMovementIntent().IsZero());
+	bShouldMove = (3.0f < GroundSpeed) && (!MoverComponent->GetMovementIntent().IsZero()); // 
 
 	// 3. Air and Falling State via Mover Component
 	bIsAirborne = MoverComponent->IsAirborne();
 	bIsFalling = MoverComponent->IsFalling();
 	bIsSwimming = MoverComponent->IsSwimming();
+	bIsCrouching = MoverComponent->IsCrouching();
+
+	if (const ULNPCharacterMoverComponent* LNPMover = Cast<ULNPCharacterMoverComponent>(MoverComponent))
+		bIsSprinting = LNPMover->IsSprinting();
+	else
+		bIsSprinting = false;
 
 	// 4. Calculate Movement Direction
 	Direction = UKismetAnimationLibrary::CalculateDirection(Velocity, OwningMoverCharacter->GetActorRotation());

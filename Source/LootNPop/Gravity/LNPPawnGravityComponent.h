@@ -41,9 +41,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	void SetGravity(const ELNPGravityType NewType, const FVector& NewDirectionOrOrigin);
 
-	/** Feed raw look inputs from Character/Input here to handle custom orientation camera control */
-	void InputLook(const FRotator& LookInput);
-
 protected:
 	/** Currently active gravity mode */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Gravity")
@@ -71,9 +68,6 @@ private:
 
 	/** Cached Up direction for camera curvature compensation */
 	FVector LastUpDir = FVector::UpVector;
-
-	/** Raw look input to be processed in the next tick */
-	FRotator CachedLookInput = FRotator::ZeroRotator;
 
 	/** Updates physical gravity and capsule orientation based on new directions */
 	void UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir);

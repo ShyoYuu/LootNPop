@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Component/LNPInteractionComponent.h"
+#include "Interaction/LNPInteractionComponent.h"
 #include "GameLogic/LNPLootPod.h"
 #include "SmartObjectSubsystem.h"
 #include "SmartObjectComponent.h"
