@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassProcessor.h"
-#include "LootPodProcessor.generated.h"
+#include "LNPLootPodProcessor.generated.h"
 
 /**
  * 1. Idle -> Looting State Transition Processor

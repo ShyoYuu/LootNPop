@@ -50,19 +50,19 @@ public:
 
 protected:
 	/** Currently active gravity mode */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Gravity")
+	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	ELNPGravityType GravityType = ELNPGravityType::None;
 
 	/** Center of gravity origin (used in Radial modes) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Gravity")
+	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	FVector GravityOrigin = FVector::ZeroVector;
 
 	/** Desired gravity direction for Fixed mode (default is world down) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Gravity")
+	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	FVector FixedGravityDirection = FVector::DownVector;
 
 	/** Acceleration magnitude for gravity */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Gravity")
+	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	float GravityStrength = 2000.0f;
 
 private:

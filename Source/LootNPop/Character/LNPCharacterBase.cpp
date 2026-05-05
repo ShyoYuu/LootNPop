@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LNPCharacterBase.h"
 #include "EngineUtils.h"
@@ -100,15 +100,6 @@ void ALNPCharacterBase::PostInitializeComponents()
 void ALNPCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// Add Input Mapping Context
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
-		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
-		}
-	}
 }
 
 void ALNPCharacterBase::Tick(float DeltaTime)
@@ -128,6 +119,15 @@ void ALNPCharacterBase::Tick(float DeltaTime)
 void ALNPCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	// Add Input Mapping Context
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+		{
+			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+		}
+	}
 
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
@@ -153,13 +153,19 @@ void ALNPCharacterBase::OnProduceInput(float DeltaMs, FMoverInputCmdContext& Out
 {
 	FCharacterDefaultInputs& CharacterInputs = OutInputCmd.InputCollection.FindOrAddMutableDataByType<FCharacterDefaultInputs>();
 
-	if (GetController() == nullptr)
+	// If we have AI intent but no controller, we proceed. Otherwise check controller.
+	const bool bHasAIIntent = !AIMoveInput.IsNearlyZero() || !AIOrientationIntent.IsNearlyZero();
+
+	if (GetController() == nullptr && !bHasAIIntent)
 	{
 		return;
 	}
 
-	// 1. Capture Control Rotation
-	CharacterInputs.ControlRotation = GetControlRotation();
+	// 1. Capture Control Rotation (Relevant for players)
+	if (GetController())
+	{
+		CharacterInputs.ControlRotation = GetControlRotation();
+	}
 
 	// 2. Handle Sprinting Intent
 	if (ULNPCharacterMoverComponent* LNPMover = Cast<ULNPCharacterMoverComponent>(MoverComponent))
@@ -167,47 +173,74 @@ void ALNPCharacterBase::OnProduceInput(float DeltaMs, FMoverInputCmdContext& Out
 		LNPMover->SetWantsToRun(bIsDashPressed);
 	}
 
-	// 3. Calculate Move Intent projected onto the gravity surface
-	FVector UpDir = GravityComponent ? GravityComponent->GetUpDirection() : FVector::UpVector;
-	FQuat ControlQuat = CharacterInputs.ControlRotation.Quaternion();
-	FVector ControlForward = ControlQuat.GetForwardVector();
-
-	FVector RightDir = FVector::CrossProduct(UpDir, ControlForward).GetSafeNormal();
-	if (RightDir.IsNearlyZero())
+	if (GetController())
 	{
-		RightDir = FVector::CrossProduct(UpDir, ControlQuat.GetUpVector()).GetSafeNormal();
-	}
-	FVector HorizonForward = FVector::CrossProduct(RightDir, UpDir).GetSafeNormal();
+		// --- Player Input Logic ---
+		
+		// 3. Calculate Move Intent projected onto the gravity surface
+		FVector UpDir = GravityComponent ? GravityComponent->GetUpDirection() : FVector::UpVector;
+		FQuat ControlQuat = CharacterInputs.ControlRotation.Quaternion();
+		FVector ControlForward = ControlQuat.GetForwardVector();
 
-	const FVector FinalDirectionalIntent = (HorizonForward * CachedMoveInputIntent.X) + (RightDir * CachedMoveInputIntent.Y);
-	CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, FinalDirectionalIntent);
-
-	// 4. Calculate Orientation Intent
-	static float RotationMagMin(1e-3);
-	const bool bHasAffirmativeMoveInput = (CharacterInputs.GetMoveInput().Size() >= RotationMagMin);
-	
-	CharacterInputs.OrientationIntent = FVector::ZeroVector;
-
-	if (bHasAffirmativeMoveInput)
-	{
-		if (bOrientRotationToMovement)
+		FVector RightDir = FVector::CrossProduct(UpDir, ControlForward).GetSafeNormal();
+		if (RightDir.IsNearlyZero())
 		{
-			CharacterInputs.OrientationIntent = CharacterInputs.GetMoveInput().GetSafeNormal();
+			RightDir = FVector::CrossProduct(UpDir, ControlQuat.GetUpVector()).GetSafeNormal();
 		}
-		else
+		FVector HorizonForward = FVector::CrossProduct(RightDir, UpDir).GetSafeNormal();
+
+		const FVector FinalDirectionalIntent = (HorizonForward * CachedMoveInputIntent.X) + (RightDir * CachedMoveInputIntent.Y);
+		CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, FinalDirectionalIntent);
+
+		// 4. Calculate Orientation Intent
+		static float RotationMagMin(1e-3);
+		const bool bHasAffirmativeMoveInput = (CharacterInputs.GetMoveInput().Size() >= RotationMagMin);
+		
+		CharacterInputs.OrientationIntent = FVector::ZeroVector;
+
+		if (bHasAffirmativeMoveInput)
 		{
-			CharacterInputs.OrientationIntent = HorizonForward;
+			if (bOrientRotationToMovement)
+			{
+				CharacterInputs.OrientationIntent = CharacterInputs.GetMoveInput().GetSafeNormal();
+			}
+			else
+			{
+				CharacterInputs.OrientationIntent = HorizonForward;
+			}
+			LastAffirmativeMoveInput = CharacterInputs.GetMoveInput();
 		}
-		LastAffirmativeMoveInput = CharacterInputs.GetMoveInput();
+		else if (bMaintainLastInputOrientation)
+		{
+			CharacterInputs.OrientationIntent = LastAffirmativeMoveInput;
+		}
 	}
-	else if (bMaintainLastInputOrientation)
+	else
 	{
-		CharacterInputs.OrientationIntent = LastAffirmativeMoveInput;
+		// --- AI Intent Logic (StateTree) ---
+		
+		CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, AIMoveInput);
+		
+		if (!AIOrientationIntent.IsNearlyZero())
+		{
+			CharacterInputs.OrientationIntent = AIOrientationIntent;
+		}
+		else if (!AIMoveInput.IsNearlyZero())
+		{
+			CharacterInputs.OrientationIntent = AIMoveInput.GetSafeNormal();
+		}
+
+		// Optional: Clear intents after use if you want one-shot behavior, 
+		// but StateTree tasks usually update this every frame.
+		// AIMoveInput = FVector::ZeroVector;
+		// AIOrientationIntent = FVector::ZeroVector;
 	}
 
 	// 5. Jump Input
 	CharacterInputs.bIsJumpPressed = bIsJumpPressed;
 	CharacterInputs.bIsJumpJustPressed = bIsJumpJustPressed;
+	// ... (Base-Relative Movement follows) ...
+
 
 	// 6. Base-Relative Movement (Optional)
 	CharacterInputs.bUsingMovementBase = false;
@@ -384,4 +417,3 @@ void ALNPCharacterBase::OnInteractReleased(const FInputActionValue& Value)
 	bIsInteractPressed = false;
 	bIsInteractJustPressed = false;
 }
-

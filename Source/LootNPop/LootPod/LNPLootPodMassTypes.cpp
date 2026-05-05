@@ -1,8 +1,9 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-#include "GameLogic/LootPodMassTypes.h"
+#include "LootPod/LNPLootPodMassTypes.h"
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
+#include "MassActorSubsystem.h"
 
 void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
@@ -15,4 +16,6 @@ void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildConte
 
 	// 3. Add Transform Fragment (Used by Mass Representation system)
 	BuildContext.AddFragment<FTransformFragment>();
+
+	BuildContext.AddFragment<FMassActorFragment>();
 }

@@ -3,6 +3,7 @@ Binaries/
 DerivedDataCache/
 Intermediate/
 Saved/
+docs/
 .vs/
 Content/__ExternalActors__/
 Content/__ExternalObjects__/
@@ -11,3 +12,4 @@ Content/__ExternalObjects__/
 .vsconfig
 LootNPop.sln
 sample.png
+Update-UE-Docs-Custom.ps1

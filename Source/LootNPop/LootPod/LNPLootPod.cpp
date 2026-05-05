@@ -1,7 +1,8 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "GameLogic/LNPLootPod.h"
+#include "LootPod/LNPLootPod.h"
+#include "LootPod/LNPLootPodMassTypes.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "SmartObjectComponent.h"
@@ -9,7 +10,6 @@
 #include "MassAgentComponent.h"
 #include "MassEntityManager.h"
 #include "MassEntityUtils.h"
-#include "GameLogic/LootPodMassTypes.h"
 
 // Sets default values
 ALNPLootPod::ALNPLootPod()

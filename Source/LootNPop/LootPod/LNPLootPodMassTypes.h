@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "MassEntityTraitBase.h"
-#include "LootPodMassTypes.generated.h"
+#include "LNPLootPodMassTypes.generated.h"
 
 // 1. LootPod State Definition
 UENUM(BlueprintType)
@@ -36,16 +36,16 @@ struct LOOTNPOP_API FLNPLootPodFragment : public FMassFragment
 	UPROPERTY(Transient)
 	ELNPLootPodState State = ELNPLootPodState::Idle;
 
-	UPROPERTY(EditAnywhere, Category = "LootPod")
+	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
 	float CurrentGauge = 0.0f;
 
-	UPROPERTY(EditAnywhere, Category = "LootPod")
+	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
 	float MaxGauge = 100.0f;
 
-	UPROPERTY(EditAnywhere, Category = "LootPod")
+	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
 	float LootableDistSquared = 90000.0f;
 
-	UPROPERTY(EditAnywhere, Category = "LootPod")
+	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
 	int32 PodID = 0; // Unique identifier for reward lookup
 };
 
@@ -55,7 +55,7 @@ struct LOOTNPOP_API FLNPPlayerLootingFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = "LootPod")
+	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
 	float BuffedLootSpeed = 1.0f;
 };
 

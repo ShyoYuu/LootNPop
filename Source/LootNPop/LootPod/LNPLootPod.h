@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "GameLogic/LootPodMassTypes.h"
+#include "LootPod/LNPLootPodMassTypes.h"
 #include "LNPLootPod.generated.h"
 
 UCLASS()

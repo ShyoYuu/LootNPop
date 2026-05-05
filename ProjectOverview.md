@@ -49,6 +49,8 @@
 - [개발 계획 (Milestone)](@DevelopmentPlan.md)
 - [시도했으나 결과적으로 제외된 아이디어들 기록](@DiscardedApproaches.md)
 - [WorldGeneration 기술 설계](@TechDesign_WorldGeneration.md)
+- [Enemy NPC 게임 기획](@GameDesign_EnemyNPC.md)
+- [Enemy NPC 기술 설계](@TechDesign_EnemyNPC.md)
 - [LootPod System 게임 기획](@GameDesign_LootPod.md)
 - [LootPod System 기술 설계](@TechDesign_LootPod.md)
 - [HitDetection 기술 설계](@TechDesign_HitDetection.md)

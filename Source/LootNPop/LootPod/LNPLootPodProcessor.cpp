@@ -1,7 +1,7 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-#include "LootPodProcessor.h"
-#include "LootPodMassTypes.h"
+#include "LNPLootPodProcessor.h"
+#include "LNPLootPodMassTypes.h"
 #include "MassCommonTypes.h"
 #include "MassExecutionContext.h"
 #include "MassCommonFragments.h"
@@ -25,9 +25,9 @@ struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
 		: FMassBatchedCommand(EMassCommandOperationType::None)
 	{}
 
-	void Add(const ALNPLootPod* InPod, int32 InPodID, ELNPLootPodState InOldState, ELNPLootPodState InNewState, const FVector& InLocation)
+	void Add(ALNPLootPod* InPod, int32 InPodID, ELNPLootPodState InOldState, ELNPLootPodState InNewState, const FVector& InLocation)
 	{
-		Entries.Add({ const_cast<ALNPLootPod*>(InPod), InPodID, InOldState, InNewState, InLocation });
+		Entries.Add({ InPod, InPodID, InOldState, InNewState, InLocation });
 		bHasWork = true;
 	}
 
@@ -90,7 +90,7 @@ void ULNPIdleToLootingProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	EntityQuery.AddTagRequirement<FLNPLootPodIdleTag>(EMassFragmentPresence::All);
 	EntityQuery.AddRequirement<FLNPLootPodFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	EntityQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
+	EntityQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 
 	// Query for potential looters
 	PlayerQuery.AddTagRequirement<FLNPPlayerLootingTag>(EMassFragmentPresence::All);
@@ -120,14 +120,14 @@ void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const int32 NumEntities = IterContext.GetNumEntities();
 		const TArrayView<FLNPLootPodFragment> LootPods = IterContext.GetMutableFragmentView<FLNPLootPodFragment>();
 		const TConstArrayView<FTransformFragment> Transforms = IterContext.GetFragmentView<FTransformFragment>();
-		const TConstArrayView<FMassActorFragment> ActorFragments = IterContext.GetFragmentView<FMassActorFragment>();
+		const TArrayView<FMassActorFragment> ActorFragments = IterContext.GetMutableFragmentView<FMassActorFragment>();
 
-		for (int32 i = 0; i < NumEntities; ++i)
+		for (FMassExecutionContext::FEntityIterator i = IterContext.CreateEntityIterator(); i; ++i)
 		{
 			const FVector PodLocation = Transforms[i].GetTransform().GetLocation();
 			const float MaxDistSq = LootPods[i].LootableDistSquared;
 
-			bool bPlayerDetected = false; 
+			bool bPlayerDetected = false;
 			for (const FLooterInfo& Looter : ActiveLooters)
 			{
 				if (FVector::DistSquared(PodLocation, Looter.Location) <= MaxDistSq)
@@ -140,9 +140,9 @@ void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			if (bPlayerDetected)
 			{
 				LootPods[i].State = ELNPLootPodState::Looting;
-				
+
 				// Notify State Transition
-				const ALNPLootPod* PodActor = Cast<ALNPLootPod>(ActorFragments[i].Get());
+				ALNPLootPod* PodActor = Cast<ALNPLootPod>(ActorFragments[i].GetMutable());
 				IterContext.Defer().PushCommand<FLNPPodStateTransitionCommand>(PodActor, LootPods[i].PodID, ELNPLootPodState::Idle, ELNPLootPodState::Looting, PodLocation);
 
 				// Defer tag changes
@@ -200,11 +200,11 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 		const int32 NumEntities = IterContext.GetNumEntities();
 		const TArrayView<FLNPLootPodFragment> LootPods = IterContext.GetMutableFragmentView<FLNPLootPodFragment>();
 		const TConstArrayView<FTransformFragment> Transforms = IterContext.GetFragmentView<FTransformFragment>();
-		const TConstArrayView<FMassActorFragment> ActorFragments = IterContext.GetFragmentView<FMassActorFragment>();
+		const TArrayView<FMassActorFragment> ActorFragments = IterContext.GetMutableFragmentView<FMassActorFragment>();
 
 		for (int32 i = 0; i < NumEntities; ++i)
 		{
-			const ALNPLootPod* PodActor = Cast<ALNPLootPod>(ActorFragments[i].Get());
+			ALNPLootPod* PodActor = Cast<ALNPLootPod>(ActorFragments[i].GetMutable());
 			const FVector PodLocation = Transforms[i].GetTransform().GetLocation();
 			const int32 PodID = LootPods[i].PodID;
 			const float MaxDistSq = LootPods[i].LootableDistSquared;

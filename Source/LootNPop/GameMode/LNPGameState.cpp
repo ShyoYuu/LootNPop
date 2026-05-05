@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "LNPGameState.h"
 #include "Net/UnrealNetwork.h"
@@ -6,7 +6,8 @@
 ALNPGameState::ALNPGameState()
 {
 	bIsSphereWorld = false;
-	SeedOffset = 0;
+	OctantGenSeed = 0;
+	PCGSeedOffset = 0;
 }
 
 void ALNPGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -14,5 +15,6 @@ void ALNPGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ALNPGameState, bIsSphereWorld);
-	DOREPLIFETIME(ALNPGameState, SeedOffset);
+	DOREPLIFETIME(ALNPGameState, OctantGenSeed);
+	DOREPLIFETIME(ALNPGameState, PCGSeedOffset);
 }

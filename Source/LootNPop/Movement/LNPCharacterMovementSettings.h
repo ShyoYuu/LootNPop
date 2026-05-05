@@ -19,10 +19,10 @@ public:
 	virtual FString GetDisplayName() const override { return TEXT("LNP Character Movement Settings"); }
 
 	/** Sprinting speed */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement", meta = (ClampMin = "0", ForceUnits = "cm/s"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (ClampMin = "0", ForceUnits = "cm/s"))
 	float SprintSpeed = 1200.0f;
 
 	/** Acceleration while sprinting */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement", meta = (ClampMin = "0", ForceUnits = "cm/s^2"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (ClampMin = "0", ForceUnits = "cm/s^2"))
 	float SprintAcceleration = 6000.0f;
 };
