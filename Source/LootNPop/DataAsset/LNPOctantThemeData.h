@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -15,10 +15,10 @@ struct FLNPPropEntry
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Theme")
 	TObjectPtr<UStaticMesh> Mesh = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Theme", meta = (ClampMin = "0.0"))
 	float Weight = 1.0f;
 };
 
@@ -31,6 +31,6 @@ class LOOTNPOP_API ULNPOctantThemeData : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Theme")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Theme")
 	TArray<FLNPPropEntry> PropEntries;
 };

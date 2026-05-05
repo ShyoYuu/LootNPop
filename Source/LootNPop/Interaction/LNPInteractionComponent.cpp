@@ -1,7 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Interaction/LNPInteractionComponent.h"
-#include "GameLogic/LNPLootPod.h"
+#include "LootPod/LNPLootPod.h"
+#include "LootPod/LNPLootPodMassTypes.h"
 #include "SmartObjectSubsystem.h"
 #include "SmartObjectComponent.h"
 #include "SmartObjectRequestTypes.h"
@@ -10,7 +11,6 @@
 #include "MassEntityManager.h"
 #include "MassEntityUtils.h"
 #include "MassCommands.h"
-#include "GameLogic/LootPodMassTypes.h"
 #include "Engine/World.h"
 
 ULNPInteractionComponent::ULNPInteractionComponent()

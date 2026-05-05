@@ -37,7 +37,7 @@ public:
 
 protected:
 	/** Distance to search for interactable objects */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Interaction")
+	UPROPERTY(EditAnywhere, Category = "LNP|Interaction")
 	float InteractionRadius = 500.0f;
 
 	/** The pods/actors this character is currently looking at/near (Potential targets) */

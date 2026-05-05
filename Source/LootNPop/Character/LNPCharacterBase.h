@@ -52,6 +52,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	AActor* GetInteractionCandidate() const;
 
+	USkeletalMeshComponent* GetMesh() const { return Mesh; }
+
+	/** Sets the movement intent from AI systems (Mass StateTree, etc.) */
+	void SetAIMoveInput(FVector InMoveInput) { AIMoveInput = InMoveInput; }
+
+	/** Sets the orientation intent from AI systems (Mass StateTree, etc.) */
+	void SetAIOrientationIntent(FVector InOrientationIntent) { AIOrientationIntent = InOrientationIntent; }
+
 protected:
 	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
@@ -75,7 +83,7 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FollowCamera;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities", meta = (AllowPrivateAccess = "true"))
@@ -84,11 +92,17 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMassAgentComponent> MassAgentComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gravity", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Gravity", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPPawnGravityComponent> GravityComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPInteractionComponent> InteractionComponent;
+
+	/** External AI move intent, consumed by Mover every frame */
+	FVector AIMoveInput = FVector::ZeroVector;
+
+	/** External AI orientation intent, consumed by Mover every frame */
+	FVector AIOrientationIntent = FVector::ZeroVector;
 
 protected:
 	// --- Input Settings ---

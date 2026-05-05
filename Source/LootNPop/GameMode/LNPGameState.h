@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -21,9 +21,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "LNP|World Settings")
 	bool bIsSphereWorld = false;
 
+	/** Default seed for world generation. 0 means random. */
+	UPROPERTY(Config, EditAnywhere, Category = "LNP|World Settings")
+	int32 OctantGenSeed = 0;
+
 	/** Global seed offset for PCG generation consistency */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "LNP|PCG")
-	int32 SeedOffset = 0;
+	int32 PCGSeedOffset = 0;
 
 	// Replication setup
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;

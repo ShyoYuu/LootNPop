@@ -9,7 +9,7 @@ public class LootNPop : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] {
+		PublicDependencyModuleNames.AddRange([
 			"Core",
 			"CoreUObject",
 			"Engine",
@@ -30,18 +30,23 @@ public class LootNPop : ModuleRules
             "MassSpawner",
             "MassMovement",
             "MassActors",
+            "MassNavigation",
+            "MassAIBehavior",
+            "MassLOD",
+            "MassSignals",
+            "MassGameplayDebug",
             "Niagara",
             "ModelViewViewModel",
 			"PCG",
 			"AnimGraphRuntime",
-            "SmartObjectsModule"
-        });
+			"SmartObjectsModule",
+			"DeveloperSettings"
+			]);
+		PrivateDependencyModuleNames.AddRange([]);
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
-
-		PublicIncludePaths.AddRange(new string[] {
+		PublicIncludePaths.AddRange([
 			"LootNPop"
-		});
+		]);
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
