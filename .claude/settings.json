@@ -1,0 +1,67 @@
+{
+  "respectGitignore": false,
+  "permissions": {
+    "allow": [
+      "Read(F:/Program Files/Epic Games/UE_5.7)"
+    ],
+    "deny": [
+      "Read(./Binaries/)",
+      "Read(./Build/)",
+      "Read(./DerivedDataCache/)",
+      "Read(./Intermediate/)",
+      "Read(./Saved/)",
+      "Read(./.vs/)",
+      "Read(./docs/)",
+      "Read(./.git/)",
+      "Read(./.github/)",
+      "Read(./.gemini/)",
+      "Read(*.uasset)",
+      "Read(*.umap)",
+      "Read(*.pdb)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "serena-hooks remind --client=claude-code"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__serena__*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "serena-hooks auto-approve --client=claude-code"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "serena-hooks activate --client=claude-code"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "serena-hooks cleanup --client=claude-code"
+          }
+        ]
+      }
+    ]
+  }
+}

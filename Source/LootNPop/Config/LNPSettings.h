@@ -31,4 +31,11 @@ public:
 	/** Default configuration for initial mass entity spawning. */
 	UPROPERTY(Config, EditAnywhere, Category = "Mass Spawning")
 	TSoftObjectPtr<ULNPMassSpawnConfig> MassSpawnConfig;
+
+	/** Target arc-length distance between adjacent cache cells at the equator (cm). */
+	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1.0", Units="cm"))
+	float SurfaceCacheCellSpacing = 200.0f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache")
+	int32 SurfaceCacheTracesPerFrame = 256;
 };

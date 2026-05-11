@@ -1,38 +1,94 @@
 # LootNPop 개발 계획 (Development Plan)
 
+---
+
 ## Phase 1: Foundation (핵심 시스템 & 구형 월드)
-- [x] Mover 플러그인 기반 캐릭터 이동 구현 (C++)
-- [x] **World Partition 기반 거대 구체(Sphere) 월드 구축**
-    - *완료: PCG 커스텀 노드를 통한 피보나치 구체 지형 생성 로직 구현.*
-- [x] **구형 지형 대응 커스텀 중력 시스템 개발**
-    - *완료: `LNPPawnGravityComponent`를 통한 Radial 중력 및 카메라 보정 로직 구현.*
-- [x] **ALNPGameState 시드 동기화 구현**
-    - *완료: 서버 생성 시드 리플리케이션 및 PCG 결정론적 생성 보장.*
-- [x] Enhanced Input 매핑 및 기본 액션 정의
+
+- [x] **Mover 플러그인 기반 캐릭터 이동**
+    - `ULNPCharacterMoverComponent` + `ALNPCharacterBase` 구현. Enhanced Input 매핑 포함.
+- [x] **구형 중력 시스템** (`ULNPPawnGravityComponent`)
+    - `RadialOutward` 모드로 Dyson Sphere 내벽 중력 구현. 곡률 보정(`UpdateControllerOrientation`) 및 Pitch 클램프 완료.
+- [x] **질주 시스템** (`LNPSprintModifier`)
+    - Mover의 Stance 패턴 적용. 수정자(Modifier) 기반 설계로 네트워크 롤백 안정성 확보.
+- [x] **게임 초기화 시퀀스** (`ALNPGameMode`, `ALNPGameState`)
+    - 4단계 서버 주도 초기화: `WorldGeneration → SurfaceBaking → EntitySpawning → Complete`
+    - 서버: `GameMode::BeginPlay()` 기점으로 단계 진행 및 `ServerPhase` 복제.
+    - 클라이언트: `OnRep_OctantGenSeed` → 월드 생성, `OnRep_ServerPhase` → TryBeginClientBaking() (투게이트 패턴).
+    - 플레이어 스폰 게이팅: `bServerInitComplete = true`까지 `PendingPlayers` 큐 보관.
+- [x] **Octant 기반 월드 분할 스폰** (`ULNPOctantSpawnSubsystem`)
+    - 8개 Level Instance를 결정론적 시드(`FRandomStream(OctantGenSeed)`)로 배치.
+    - 서버 GameMode → 클라이언트 OnRep 경유로 동일 seed 보장.
+- [x] **표면 캐시 시스템** (`ULNPSurfaceCacheSubsystem`)
+    - 게임 시작 전 구형 내벽 표면 좌표를 등장방형(Equirectangular) 그리드로 사전 계산.
+    - Mass 워커 스레드에서 O(1) 안전 조회. NavMesh 및 인라인 라인 트레이스를 대체.
+- [x] **로딩 스크린 흐름** (`ALNPPlayerController`)
+    - 클라이언트 로컬 베이킹 완료 시 로딩 스크린 해제 후 서버에 Ready 신호 전송.
+
+---
 
 ## Phase 2: Environment (환경 및 상세화)
-- [x] PCG 기반 세부 지형(언덕, 절벽) 및 식생 생성 (노이즈 기반 변조 구현)
-- [x] SmartObject 베이스 및 상호작용 인터페이스 구현 (`ALNPLootPod` & `SmartObjectComponent`)
-- [ ] 오브젝트 랜덤 스폰 로직 개발 (Mass Spawner 연동 필요)
+
+- [x] **PCG 기반 구체 지형 생성** (`UPCGSphereWorldSettings`)
+    - Spherified Octant 투영 + 3D Perlin Noise 변조 + 경사면 정렬 구현.
+    - 결과물은 HISM으로 Bake하여 런타임 계산 제거.
+- [x] **SmartObject 기반 상호작용 인프라** (`ALNPLootPod`)
+    - `SmartObjectComponent` + `UMassAgentComponent` 구성. Niagara VFX 연동.
+- [ ] **LootPod 랜덤 스폰 로직**
+    - Mass Spawner와 연동한 LootPod 위치 결정 및 동적 스폰.
+
+---
 
 ## Phase 3: Gameplay (전투 및 상호작용)
-- [ ] GAS (Gameplay Ability System) 기본 인프라 구축
-    - *전략: MassEntity와의 연동을 위한 Lightweight Actor 또는 Bridge Component 설계.*
-- [x] MassEntity 기반 상호작용 로직 구현 (`ULNPLootingProcessor`)
-- [ ] MassEntity 기반 수학적 히트 판정 프로세서 구현
-- [ ] 아이템 획득/장착 및 피격 시 물리적 이탈(Launch) 시스템
+
+- [x] **MassEntity 기반 루팅 시스템** (`ULNPLootingProcessor`, `ULNPIdleToLootingProcessor`)
+    - 상태 전환(Idle ↔ Looting ↔ Popped), 게이지 누적, 거리 체크 완료.
+- [ ] **GAS 기본 인프라**
+    - MassEntity-GAS 브릿지: Lightweight Actor 경유 또는 `FLNPPendingEffectFragment` 중계 방식.
+    - 패링, 넉백(Launch), HitStop 등 전투 어빌리티의 전제 조건.
+- [ ] **HitDetection 프로세서** (`ULNPHitDetectionProcessor`)
+    - 근거리: 칼날 Swept Volume vs. 타겟 캡슐 최단 거리.
+    - 원거리: 투사체 이동 선분 vs. 타겟 중심점 거리.
+    - 피격 시 `FLNPPlayerLootingTag` 제거 → LootPod 루팅 취소 연동.
+- [ ] **투사체 이동 프로세서** (`ULNPProjectileMovementProcessor`)
+    - Linear / Guided / Lobbed 타입 이동 처리.
+- [ ] **피격 반응 시스템**
+    - 넉백 Launch (구형 곡률 기반 궤적), HitStop, 아이템 드랍.
+- [ ] **패링 시스템** (`FLNPParryStateFragment`)
+    - HitDetection 프로세서 내부에서 방향·거리 조건 검사.
+    - GAS 어빌리티로 입력 윈도우(`bIsParrying`) 관리.
+
+---
 
 ## Phase 4: AI & Scale (대규모 AI)
-- [ ] MassEntity 기반 NPC 로직 및 시각화 (구형 이동 지원)
-- [ ] StateTree를 활용한 복합 행동(배회, 방해, 추적) 설계
-- [ ] 잔여 오브젝트 수에 따른 NPC 성장/난이도 조절 시스템
+
+- [x] **MassEntity 기반 적 NPC 스폰** (`ULNPMassSpawnSubsystem`)
+    - 데이터 에셋(`DA_MassSpawnConfig`) 기반 배치. 스폰 완료 시 `OnSpawningComplete` 델리게이트 발행.
+- [x] **적 이동 프로세서** (`ULNPEnemyMovementProcessor`)
+    - 구형 표면을 따른 이동. `ULNPSurfaceCacheSubsystem`에서 표면 노멀 조회 (스레드 안전).
+- [x] **슬롯 기반 타겟팅 서브시스템** (`ULNPTargetingSubsystem`)
+    - Melee/Ranged 슬롯 풀 관리. `DistanceToTargetSq` 기반 우선순위 경쟁.
+- [x] **StateTree 기반 적 AI** (`ULNPEnemyStateTreeProcessors`)
+    - Leash / Chase / Attack 상태 전환. Mass-StateTree 통합.
+- [ ] **시야각·상태 기반 타겟팅 가중치 보강**
+    - 현재 거리 기반만 구현. 시야각(Angle) 및 공격 상태 가중치 추가.
+- [ ] **난이도 스케일링**
+    - 활성 LootPod 수 추적 → 슬롯 한도 또는 적 능력치 단계적 조정.
+- [ ] **LOD 기반 Actor ↔ Entity 전환**
+    - 근거리 High LOD Actor 전환 및 상태(HP, 타겟, 슬롯) 보존.
+
+---
 
 ## Phase 5: Loop (멀티플레이어 완성)
-- [ ] Iris 기반 네트워킹 최적화 및 동기화
-- [ ] 승리 조건(메달 수집) 및 세션 관리 로직
-- [ ] 게임 시작/종료 시퀀스 및 결과 처리
+
+- [ ] **Iris 기반 네트워킹 최적화**
+    - MassEntity 상태 복제 및 예측 보정.
+- [ ] **승리 조건 및 세션 관리**
+    - 메달(가칭) 4개 수집 시 승리. 게임 시작/종료/결과 처리 흐름.
+
+---
 
 ## Phase 6: Polish (최종 폴리싱)
-- [ ] MVVM 기반 HUD 및 반응형 UI 구현
-- [ ] VFX(나이아가라) 및 사운드 통합
-- [ ] 전반적인 게임 플레이 밸런싱
+
+- [ ] **MVVM 기반 HUD 및 반응형 UI**
+- [ ] **VFX(Niagara) 및 사운드 통합**
+- [ ] **게임플레이 밸런싱**

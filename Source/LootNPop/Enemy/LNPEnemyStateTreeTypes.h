@@ -24,13 +24,16 @@ struct LOOTNPOP_API FLNPEnemyStateEvaluatorInstanceData
 	float AttackRange = 0.0f;
 };
 
-/** Shared data structure for Tasks (if needed for output/state) */
+/**
+ * Required instance data for all LNP Mass StateTree tasks.
+ *
+ * The Mass StateTree framework requires GetInstanceDataType() to return a non-null UScriptStruct.
+ * Returning nullptr causes a "Malformed task, missing instance value" compile error in the StateTree editor.
+ * Do NOT remove this struct or change GetInstanceDataType() to return nullptr.
+ */
 USTRUCT(BlueprintType)
 struct LOOTNPOP_API FLNPEnemyTaskInstanceData
 {
 	GENERATED_BODY()
-
-	/** Next update time to throttle logic if needed */
-	UPROPERTY()
-	double NextUpdate = 0.0;
 };
+

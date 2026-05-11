@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -27,7 +27,11 @@ struct FLNPEnemyTargetingConfig
 
 	/** Maximum distance to even consider targeting */
 	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
-	float MaxTargetingDistance = 5000.0f;
+	float MaxTargetingDistance = 10000.0f;
+
+	/** Maximum distance from the LootPod before scoring drops to zero */
+	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
+	float MaxLeashDistance = 2000.0f;
 
 	/** Distance within which the enemy can detect the player */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
@@ -39,7 +43,7 @@ struct FLNPEnemyTargetingConfig
 
 	/** Distance within which the enemy always detects the player regardless of FOV */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
-	float AwarenessDistance = 0.0f;
+	float AwarenessDistance = 200.0f;
 };
 
 /** Configuration for movement and rotation */
@@ -62,6 +66,14 @@ struct FLNPEnemyMovementConfig
 	/** Center of gravity origin (center of the sphere world) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	FVector GravityOrigin = FVector::ZeroVector;
+
+	/** Minimum wander distance from the parent Pod */
+	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
+	float WanderMinDistance = 300.0f;
+
+	/** Maximum wander distance from the parent Pod */
+	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
+	float WanderMaxDistance = 800.0f;
 
 	/** Distance within which the enemy will start attacking */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")

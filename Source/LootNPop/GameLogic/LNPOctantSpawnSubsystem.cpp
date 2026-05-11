@@ -18,15 +18,10 @@ const FRotator ULNPOctantSpawnSubsystem::OctantRotations[8] = {
 	FRotator(180.f, 270.f, 0.f)
 };
 
-void ULNPOctantSpawnSubsystem::OnWorldBeginPlay(UWorld& InWorld)
-{
-	Super::OnWorldBeginPlay(InWorld);
-	StartWorldGeneration();
-}
-
 void ULNPOctantSpawnSubsystem::Tick(float DeltaTime)
 {
-	if (!bIsGenerating) return;
+	if (!bIsGenerating)
+		return;
 
 	bool bAllLoaded = true;
 	for (ALevelInstance* Octant : SpawnedOctants)
@@ -41,9 +36,10 @@ void ULNPOctantSpawnSubsystem::Tick(float DeltaTime)
 	if (bAllLoaded && SpawnedOctants.Num() >= 8)
 	{
 		bIsGenerating = false;
+		bGenerationComplete = true;
 		UE_LOG(LogTemp, Log, TEXT("LNPOctantSpawnSubsystem: All 8 octants are fully loaded. Broadcasting Finished event."));
 		OnWorldGenerationFinished.Broadcast();
-		SpawnedOctants.Empty(); // Clear references
+		SpawnedOctants.Empty();
 	}
 }
 

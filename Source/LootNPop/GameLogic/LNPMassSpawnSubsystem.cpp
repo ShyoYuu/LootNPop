@@ -1,7 +1,6 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GameLogic/LNPMassSpawnSubsystem.h"
-#include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "DataAsset/LNPMassSpawnConfig.h"
 #include "MassEntityConfigAsset.h"
 #include "MassSpawnerSubsystem.h"
@@ -15,16 +14,10 @@
 void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-
 	RandomStream.GenerateNewSeed();
-
-	if (ULNPOctantSpawnSubsystem* OctantSubsystem = Collection.InitializeDependency<ULNPOctantSpawnSubsystem>())
-	{
-		OctantSubsystem->OnWorldGenerationFinished.AddDynamic(this, &ULNPMassSpawnSubsystem::OnOctantGenerationFinished);
-	}
 }
 
-void ULNPMassSpawnSubsystem::OnOctantGenerationFinished()
+void ULNPMassSpawnSubsystem::BeginSpawning()
 {
 	UE_LOG(LogTemp, Log, TEXT("LNPMassSpawnSubsystem: World ready. Loading config from LNPSettings."));
 
@@ -63,13 +56,14 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	ActiveConfig = InConfig;
 	OccupiedPodLocations.Empty();
 	SpawnQueue.Empty();
+	SpawnQueueHead = 0;
 
 	for (const FLNPLootPodSpawnEntry& PodSet : InConfig->LootPodSpawnSets)
 	{
 		for (int32 i = 0; i < PodSet.PodSetCount; ++i)
 		{
 			FVector PodLocation;
-			FVector RandomDir = RandomStream.GetUnitVector();
+			FVector RandomDir = FVector::DownVector; //RandomStream.GetUnitVector();
 
 			if (FindValidSurfacePoint(RandomDir, SphereRadius, InConfig->MinDistanceBetweenPods, InConfig->MaxRetryCount, PodLocation))
 			{
@@ -175,7 +169,8 @@ bool ULNPMassSpawnSubsystem::FindValidSurfacePoint(const FVector& SearchDir, flo
 		if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_WorldStatic, Params))
 		{
 			float Dot = FVector::DotProduct(Hit.ImpactNormal, -CurrentDir);
-			if (Dot < 0.766f) continue; 
+			if (Dot < 0.766f)
+				continue; 
 
 			if (MinDistance > 0.0f)
 			{
@@ -188,7 +183,8 @@ bool ULNPMassSpawnSubsystem::FindValidSurfacePoint(const FVector& SearchDir, flo
 						break;
 					}
 				}
-				if (bTooClose) continue;
+				if (bTooClose)
+					continue;
 			}
 
 			OutLocation = Hit.ImpactPoint;
@@ -201,7 +197,7 @@ bool ULNPMassSpawnSubsystem::FindValidSurfacePoint(const FVector& SearchDir, flo
 
 void ULNPMassSpawnSubsystem::ProcessQueue()
 {
-	if (SpawnQueue.IsEmpty() || ActiveConfig == nullptr)
+	if (SpawnQueueHead >= SpawnQueue.Num() || ActiveConfig == nullptr)
 		return;
 
 	UMassSpawnerSubsystem* SpawnerSubsystem = UWorld::GetSubsystem<UMassSpawnerSubsystem>(GetWorld());
@@ -214,9 +210,9 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 	int32 SpawnsThisFrame = 0;
 	int32 MaxPerFrame = ActiveConfig->MaxSpawnsPerFrame;
 
-	while (!SpawnQueue.IsEmpty() && SpawnsThisFrame < MaxPerFrame)
+	while (SpawnQueueHead < SpawnQueue.Num() && SpawnsThisFrame < MaxPerFrame)
 	{
-		FLNPMassSpawnRequest& Request = SpawnQueue[0];
+		FLNPMassSpawnRequest& Request = SpawnQueue[SpawnQueueHead];
 		
 		int32 RemainingInBatch = Request.TargetTransforms.Num() - Request.ProcessedCount;
 		int32 ToSpawn = FMath::Min(RemainingInBatch, MaxPerFrame - SpawnsThisFrame);
@@ -261,8 +257,18 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 
 		if (Request.IsComplete())
 		{
-			SpawnQueue.RemoveAt(0);
+			++SpawnQueueHead;
 		}
+	}
+
+	// All processed: release memory and notify
+	if (SpawnQueueHead >= SpawnQueue.Num())
+	{
+		SpawnQueue.Empty();
+		SpawnQueueHead = 0;
+		ActiveConfig = nullptr;
+		UE_LOG(LogTemp, Log, TEXT("LNPMassSpawnSubsystem: All entities spawned."));
+		OnSpawningComplete.Broadcast();
 	}
 }
 

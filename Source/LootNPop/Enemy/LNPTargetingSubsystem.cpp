@@ -10,9 +10,7 @@ void ULNPTargetingSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void ULNPTargetingSubsystem::RegisterEnemyInterest(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle, float Score, bool bIsMelee)
 {
 	FScopeLock Lock(&DataLock);
-
-	FLNPPlayerSlotData& SlotData = PlayerSlots.FindOrAdd(PlayerHandle);
-	SlotData.PendingEnemies.Add({ EnemyHandle, Score, bIsMelee });
+	PendingEntries.Add({ EnemyHandle, PlayerHandle, Score, bIsMelee });
 }
 
 bool ULNPTargetingSubsystem::IsSlotConfirmed(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle) const
@@ -30,40 +28,46 @@ void ULNPTargetingSubsystem::RebalanceSlots()
 {
 	FScopeLock Lock(&DataLock);
 
+	// 1. Sort all interests by Score descending
+	PendingEntries.Sort();
+
+	// 2. Clear current assignments and prepare to re-assign
+	TSet<FMassEntityHandle> AssignedEnemies;
 	for (auto& It : PlayerSlots)
 	{
-		FLNPPlayerSlotData& SlotData = It.Value;
-
-		// 1. Separate Melee and Ranged candidates from Pending
-		TArray<FLNPEnemyScoreEntry> MeleeCandidates;
-		TArray<FLNPEnemyScoreEntry> RangedCandidates;
-
-		for (const auto& Entry : SlotData.PendingEnemies)
-		{
-			if (Entry.bIsMelee)
-				MeleeCandidates.Add(Entry);
-			else
-				RangedCandidates.Add(Entry);
-		}
-
-		// 2. Sort by Score (Descending)
-		MeleeCandidates.Sort();
-		RangedCandidates.Sort();
-
-		// 3. Update Occupied Sets based on Max Slots
-		SlotData.OccupiedMelee.Empty();
-		for (int32 i = 0; i < FMath::Min(MeleeCandidates.Num(), SlotData.MaxMeleeSlots); ++i)
-		{
-			SlotData.OccupiedMelee.Add(MeleeCandidates[i].EnemyHandle);
-		}
-
-		SlotData.OccupiedRanged.Empty();
-		for (int32 i = 0; i < FMath::Min(RangedCandidates.Num(), SlotData.MaxRangedSlots); ++i)
-		{
-			SlotData.OccupiedRanged.Add(RangedCandidates[i].EnemyHandle);
-		}
-
-		// 4. Clear Pending for next frame
-		SlotData.PendingEnemies.Reset();
+		It.Value.OccupiedMelee.Empty();
+		It.Value.OccupiedRanged.Empty();
 	}
+
+	// 3. Greedy allocation based on global score
+	for (const FLNPPendingTargetEntry& Entry : PendingEntries)
+	{
+		// Skip if this enemy is already assigned to a player
+		if (AssignedEnemies.Contains(Entry.EnemyHandle))
+		{
+			continue;
+		}
+
+		FLNPPlayerSlotData& SlotData = PlayerSlots.FindOrAdd(Entry.PlayerHandle);
+
+		if (Entry.bIsMelee)
+		{
+			if (SlotData.OccupiedMelee.Num() < MaxMeleeSlotsPerPlayer)
+			{
+				SlotData.OccupiedMelee.Add(Entry.EnemyHandle);
+				AssignedEnemies.Add(Entry.EnemyHandle);
+			}
+		}
+		else
+		{
+			if (SlotData.OccupiedRanged.Num() < MaxRangedSlotsPerPlayer)
+			{
+				SlotData.OccupiedRanged.Add(Entry.EnemyHandle);
+				AssignedEnemies.Add(Entry.EnemyHandle);
+			}
+		}
+	}
+
+	// 4. Clear for next frame
+	PendingEntries.Reset();
 }

@@ -17,10 +17,11 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 {
 	// 1. Core Data Fragments
 	BuildContext.AddFragment<FLNPEnemyFragment>();
+	BuildContext.AddFragment<FLNPEnemyIdleFragment>();
 	BuildContext.AddFragment<FLNPEnemyTargetingFragment>();
 	BuildContext.AddFragment<FLNPEnemyTargetingCandidateFragment>();
 	BuildContext.AddFragment<FMassMoveTargetFragment>();
-	BuildContext.AddFragment<FMassVelocityFragment>();
+	//BuildContext.AddFragment<FMassVelocityFragment>();
 
 	// 2. Shared Config Fragments
 	if (EnemyConfig != nullptr)

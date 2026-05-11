@@ -4,21 +4,28 @@
 /DerivedDataCache/
 /Intermediate/
 /Saved/
-/.vs/
-/.idea/
-/FileOpenOrder/
 
 # 에셋 파일 (AI가 바이너리 데이터를 읽을 순 없으므로)
 *.uasset
 *.umap
 
-# 로그 및 데이터베이스
-*.log
+# 데이터베이스
 *.pdb
-*.sln
 
 # 인덱스 폴더 (mcp-unreal이 만든 docs 등)
 /docs/
+
+# vs 관련
+/.vs/
+.vsconfig
+
+# git 관련
+/.git/
+/.github/
+
+# Claude Code 관련
+/.claude/
+.mcp.json
 
 # 예외 처리: 하지만 내가 짠 소스 코드는 반드시 읽어야 함
 !/Source/
