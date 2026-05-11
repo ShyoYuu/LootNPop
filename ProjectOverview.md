@@ -1,59 +1,84 @@
-﻿# LootNPop 프로젝트 개요
+# LootNPop 프로젝트 개요
 
-**LootNPop**은 언리얼 엔진의 최신 스택을 활용한 경쾌한 분위기의 멀티플레이어 파티 게임입니다. 대규모 엔티티 처리와 정교한 이동 시스템을 핵심으로 합니다. 가급적 C++을 사용하여 핵심 로직을 구현하는 것을 원칙으로 합니다.
+**LootNPop**은 Unreal Engine 5.7 최신 스택을 활용한 경쾌한 분위기의 멀티플레이어 파티 게임. 거대한 구체의 내부 표면(Dyson Sphere)이 플레이 공간이며, 수백~수천 규모의 MassEntity 적을 상대로 LootPod를 쟁취하는 것이 핵심 루프. 핵심 로직은 가급적 C++로 구현.
+
+---
 
 ## 1. 핵심 기술 스택
+
 | 구분 | 기술 스택 | 주요 구현 클래스 |
-| :--- | :--- | :--- |
+|:---|:---|:---|
 | **Input** | Enhanced Input | `ALNPCharacterBase` |
-| **Movement** | Mover Plugin | `ULNPPawnGravityComponent` |
-| **Combat** | GAS + MassEntity | `ULNPLootingProcessor` |
-| **AI/Entity** | MassEntity + StateTree | `ULNPLootPodTrait`, `ALNPLootPod` |
-| **World** | PCG + World Partition | `UPCGSphereWorldSettings` |
+| **Movement** | Mover Plugin | `ULNPCharacterMoverComponent`, `ULNPPawnGravityComponent` |
+| **World** | PCG + Level Instance + World Partition | `UPCGSphereWorldSettings`, `ULNPOctantSpawnSubsystem` |
+| **Surface Query** | SurfaceCacheSubsystem (커스텀) | `ULNPSurfaceCacheSubsystem` |
+| **Interaction** | SmartObject + MassEntity | `ALNPLootPod`, `ULNPLootingProcessor` |
+| **AI/Entity** | MassEntity + StateTree | `ULNPEnemyMovementProcessor`, `ULNPTargetingSubsystem` |
+| **Combat** | GAS + MassEntity | (구현 예정) |
+| **Networking** | Iris Replication System | (구현 예정) |
 | **UI** | MVVM Plugin | (구현 예정) |
 
-## 2. 기술적 가이드라인 (Implementation Rules)
-- Unreal Engine 버전은 5.7.
-- **Movement:** `UCharacterMoverComponent`와 연동되는 `ULNPPawnGravityComponent`를 통해 구형 지형에 대응하는 커스텀 중력을 최우선으로 구현.
-- **Gravity Logic:** `RadialInward/Outward` 모드를 통해 구체의 중심점을 기준으로 중력 방향을 실시간 결정하고, 이에 맞춰 플레이어의 컨트롤러 회전을 보정함.
-- **Combat:** 물리 엔진보다는 MassEntity의 프로세서를 활용한 수학적 계산을 우선시함.
-- **Interaction:** `SmartObject` 시스템과 `MassAgent`를 결합하여 대규모 오브젝트에 대한 효율적인 쿼리 및 상태 관리 수행.
+---
 
-## 3. 상세 기획 및 메커니즘
+## 2. 기술적 가이드라인
 
-### 3.1 월드 구성 (Inverted Sphere World)
-- **메인 월드:** 거대한 구체의 **내부 표면**이 주 플레이 공간입니다. (Dyson Sphere 컨셉)
-- **메인 중력:** 구체의 중심에서 바깥쪽 표면을 향해 작용합니다. 플레이어는 구 내부 벽면에 서서 활동합니다.
-- **부유 지형:** 구 내부 공중에 떠 있는 작은 구체 형태의 행성들입니다.
-- **부유 지형 중력:** 메인 월드와 반대로 구체 중심 방향(지구와 동일)으로 중력이 작용하며, 플레이어는 구 외부 표면에 서서 활동합니다.
-- **심리스 환경:** World Partition을 통해 이 거대한 구형 공간 전체를 스트리밍 관리합니다.
+### 이동 및 중력
+- `ULNPPawnGravityComponent`가 `RadialOutward` 모드로 Dyson Sphere 내벽 중력 구현. 위치마다 달라지는 Up 벡터를 매 프레임 컨트롤러 회전에 누적 보정하여 화면 기울어짐 방지.
 
-### 3.2 게임 플레이 및 상호작용
-- **LootPod (SmartObject):** 월드 곳곳(메인 내벽 및 부유 행성)에 랜덤 스폰되는 상호작용 객체입니다. 
-- **획득 요소:** 스킬, 무기, 버프 또는 고정형 터렛 탑승 기믹 등을 포함하며, 상호작용 시 '팝' 하고 터지는 연출을 가집니다.
-- **승리 조건:** 플레이어들이 '메달(가칭)' 4개를 모두 수집하면 승리.
+### 구형 표면 쿼리
+- NavMesh는 Z축 고정 설계로 구형 환경에 적용 불가. Mass 프로세서 내 인라인 라인 트레이스는 스레드 안전성 문제로 기각. (→ `DiscardedApproaches.md`)
+- 대신 게임 시작 전 `ULNPSurfaceCacheSubsystem`이 구형 내벽 전체를 등장방형 그리드로 사전 계산(Baking). `bBakingComplete` 이후 읽기 전용이므로 Mass 워커 스레드에서 O(1) 안전 조회 가능.
 
-### 3.3 대규모 AI 및 방해 기믹
-- **MassEntity 적 NPC:** 수백~수천 단위의 대규모 적 유닛을 StateTree로 제어. 구형 지형에 맞춰 이동 로직 구현.
-- **난이도 스케일링:** 월드에 남은 **LootPod**의 수가 줄어들수록 적 NPC가 점진적으로 강화됨.
+### 전투 판정
+- 물리 엔진 콜리전 이벤트 미사용. 모든 히트 판정은 `FMassProcessor::Execute()` 내에서 수학적으로 일괄 계산(Swept Volume, Line Segment 거리).
 
-### 3.4 전투 및 아이템 드랍
-- **피격 효과:** 적에게 피격 시 물리 충돌(Launch)로 인해 멀리 튕겨 나가는 과장된 연출. (구형 지형의 곡률에 따른 궤적 발생)
-- **드랍 시스템:** 피격 시 보유한 무기 및 버프를 모두 바닥에 드랍.
+### 대규모 엔티티
+- MassEntity + StateTree로 수백~수천 개 NPC를 게임스레드 부담 없이 처리. SmartObject로 상호작용 쿼리, Mass 프로세서로 상태 갱신.
 
-## 4. 게임 톤앤매너
-- 유쾌하고 신나는 분위기의 멀티플레이어 파티 게임.
-- 캐릭터 거대화, 초고속 이동 등 과장되고 재미있는 능력 위주의 플레이 지향.
+### 멀티플레이어 초기화
+- `ALNPGameMode`(서버 전용)가 `WorldGeneration → SurfaceBaking → EntitySpawning → Complete` 4단계를 순차 진행. `ALNPGameState`가 `ServerPhase`와 `OctantGenSeed`를 복제하여 클라이언트와 동기화. (→ `TechDesign_InitSequence.md`)
 
-## 99. 상세 문서 인덱스
-- [개발 계획 (Milestone)](@DevelopmentPlan.md)
-- [시도했으나 결과적으로 제외된 아이디어들 기록](@DiscardedApproaches.md)
-- [WorldGeneration 기술 설계](@TechDesign_WorldGeneration.md)
-- [Enemy NPC 게임 기획](@GameDesign_EnemyNPC.md)
-- [Enemy NPC 기술 설계](@TechDesign_EnemyNPC.md)
-- [LootPod System 게임 기획](@GameDesign_LootPod.md)
-- [LootPod System 기술 설계](@TechDesign_LootPod.md)
-- [HitDetection 기술 설계](@TechDesign_HitDetection.md)
-- [ParrySystem 게임 기획](@GameDesign_ParrySystem.md)
-- [ParrySystem 기술 설계](@TechDesign_ParrySystem.md)
-- [CharacterMovement 기술 설계](@TechDesign_CharacterMovement.md)
+---
+
+## 3. 게임플레이 개요
+
+### 3.1 월드 구성 (Dyson Sphere)
+
+- **메인 월드:** 거대한 구체의 내부 표면이 주 플레이 공간. 중력은 구 중심 반대 방향(원심).
+- **부유 지형:** 구 내부 공중에 떠 있는 작은 구체형 행성들. 중력은 구 중심 방향(인력). 플레이어는 외부 표면에서 활동.
+- **8분할 Octant:** 전체 구체를 8개 Level Instance로 관리. 결정론적 시드로 게임마다 다른 조합 생성.
+
+### 3.2 핵심 루프: "Find → Loot → Pop!"
+
+- **LootPod** 발견 → 적의 방해를 버티며 루팅 → Pod 파열 시 무기·버프·스킬 획득 → 획득한 힘으로 적을 날려버림.
+- 피격 시 보유 아이템을 모두 바닥에 드랍. 구형 지형 곡률에 따른 포물선 궤적으로 날아감.
+- 승리 조건: 메달(가칭) 4개 수집.
+
+### 3.3 난이도 연계
+
+- 활성 LootPod 수가 줄어들수록 적 NPC가 점진적으로 강화. 자연스러운 게임 후반 긴장감 형성.
+
+### 3.4 전투 분위기
+
+- 캐릭터 거대화, 초고속 이동, 광역 넉백 등 **과장된 물리 연출** 지향.
+- 패링 성공 시 공격자를 포물선으로 날려버리는 시원한 피드백.
+
+---
+
+## 4. 상세 문서 인덱스
+
+| 문서 | 내용 |
+|:---|:---|
+| [개발 계획](@DevelopmentPlan.md) | Phase별 구현 현황 및 마일스톤 |
+| [기각된 접근 이력](@DiscardedApproaches.md) | 시도 후 제외된 기술적 접근과 사유 |
+| [WorldGeneration 기술 설계](@TechDesign_WorldGeneration.md) | Octant 분할, PCG 지형 생성, 런타임 스폰 흐름 |
+| [초기화 시퀀스 기술 설계](@TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 레이스 컨디션 해결, 폰 스폰 게이팅 |
+| [표면 캐시 기술 설계](@TechDesign_SurfaceCache.md) | 등장방형 베이킹, Mass 스레드 안전 조회, NavMesh 대체 이유 |
+| [CharacterMovement 기술 설계](@TechDesign_CharacterMovement.md) | 구형 중력, 곡률 보정, 질주/대시 시스템 |
+| [Enemy NPC 게임 기획](@GameDesign_EnemyNPC.md) | 슬롯 기반 타겟팅, 행동 상태, LOD 전환 |
+| [Enemy NPC 기술 설계](@TechDesign_EnemyNPC.md) | Fragment/Tag 구조, Mass 프로세서, StateTree 연동 |
+| [LootPod System 게임 기획](@GameDesign_LootPod.md) | 루팅 흐름, 취소 조건, 보상 유형 |
+| [LootPod System 기술 설계](@TechDesign_LootPod.md) | MassEntity 구성, SmartObject 연동, 미구현 항목 |
+| [HitDetection 기술 설계](@TechDesign_HitDetection.md) | Swept Volume, Line Segment 판정, 공간 쿼리 최적화 |
+| [ParrySystem 게임 기획](@GameDesign_ParrySystem.md) | 패링 조건, 투사체 반사, 플레이어 경험 의도 |
+| [ParrySystem 기술 설계](@TechDesign_ParrySystem.md) | Fragment 구조, HitDetection 연계, Mass-GAS 브릿지 |

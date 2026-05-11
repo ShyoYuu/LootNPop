@@ -33,23 +33,15 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	float Defense = 0.0f;
 
-	/** Cache whether this enemy is a melee type to avoid string checks in hot paths */
-	UPROPERTY(Transient)
-	bool bIsMelee = true;
-
 	/** Identifies the type of enemy (Melee, Ranged, Elite, etc.) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	FGameplayTag EnemyTypeTag;
 
 	/** --- Leash Data --- */
-	
+
 	/** Center of the leash area (assigned LootPod location) */
 	UPROPERTY(Transient)
 	FVector ParentPodLocation = FVector::ZeroVector;
-
-	/** Maximum distance allowed from the LootPod before forcing return or stopping chase */
-	UPROPERTY(EditAnywhere, Category = "LNP|Leash")
-	float MaxLeashDistance = 2000.0f;
 
 	/** The LootPod this enemy belongs to */
 	UPROPERTY(Transient)
@@ -107,6 +99,19 @@ struct LOOTNPOP_API FLNPEnemyTargetingFragment : public FMassFragment
 		LastKnownTargetLocation = FVector::ZeroVector;
 		DistanceToTargetSq = 0.0f;
 	}
+};
+
+/** Fragment for persistent idle behavior state */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	double LastWanderTime = 0.0;
+
+	UPROPERTY(Transient)
+	uint8 bNeedNewWanderTarget : 1 = true;
 };
 
 /** Tag to identify an entity as an Enemy */

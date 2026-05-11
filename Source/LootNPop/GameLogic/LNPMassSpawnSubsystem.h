@@ -11,6 +11,8 @@
 class ULNPMassSpawnConfig;
 class UMassEntityConfigAsset;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLNPOnSpawningComplete);
+
 /** Defines the type of entity being requested for spawn */
 enum class ELNPSpawnRequestType : uint8
 {
@@ -58,7 +60,7 @@ public:
 
 	// FTickableGameObject interface
 	virtual void Tick(float DeltaTime) override;
-	virtual bool IsTickable() const override { return !SpawnQueue.IsEmpty(); }
+	virtual bool IsTickable() const override { return SpawnQueueHead < SpawnQueue.Num(); }
 	virtual TStatId GetStatId() const override;
 	// End FTickableGameObject
 
@@ -66,10 +68,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Mass Spawning")
 	void EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, const float SphereRadius);
 
+	/** Called by GameMode after surface baking completes to begin entity spawning */
+	void BeginSpawning();
+
+	/** Fired when all queued entities have been spawned */
+	UPROPERTY(BlueprintAssignable, Category = "LNP|Mass Spawning")
+	FLNPOnSpawningComplete OnSpawningComplete;
+
 protected:
-	/** Called when octants are ready */
-	UFUNCTION()
-	void OnOctantGenerationFinished();
 
 	/** 
 	 * Initializes spawned entities with transforms and optional metadata (leash, etc.).
@@ -88,6 +94,7 @@ private:
 	TObjectPtr<ULNPMassSpawnConfig> ActiveConfig;
 
 	TArray<FLNPMassSpawnRequest> SpawnQueue;
+	int32 SpawnQueueHead = 0;
 	
 	/** Tracks locations of already placed major entities (Pods) for distance validation */
 	TArray<FVector> OccupiedPodLocations;

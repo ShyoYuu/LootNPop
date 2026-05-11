@@ -174,7 +174,7 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 		const FVector CurrentRight = FVector::CrossProduct(TargetUpDir, CurrentControlQuat.GetForwardVector()).GetSafeNormal();
 		if (!CurrentRight.IsNearlyZero())
 		{
-			const FQuat PitchQuat(CurrentRight, FMath::DegreesToRadians(-PendingLookInput.Pitch));
+			const FQuat PitchQuat(CurrentRight, FMath::DegreesToRadians(-PendingLookInput.Pitch * 2.0));
 			CurrentControlQuat = PitchQuat * CurrentControlQuat;
 		}
 

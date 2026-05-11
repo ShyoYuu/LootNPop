@@ -22,10 +22,6 @@ class LOOTNPOP_API ULNPOctantSpawnSubsystem : public UWorldSubsystem, public FTi
 	GENERATED_BODY()
 
 public:
-	// USubsystem interface
-	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
-	// End USubsystem
-
 	// FTickableGameObject interface
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override { return bIsGenerating; }
@@ -39,6 +35,8 @@ public:
 	/** Event fired when all octants have been spawned and FULLY LOADED. */
 	UPROPERTY(BlueprintAssignable, Category = "LNP|World Generation")
 	FLNPOnWorldGenerationFinished OnWorldGenerationFinished;
+
+	bool bGenerationComplete = false;
 
 private:
 	static const FRotator OctantRotations[8];

@@ -80,7 +80,6 @@ protected:
 	TStateTreeExternalDataHandle<struct FLNPEnemySharedFragment> SharedConfigHandle;
 	TStateTreeExternalDataHandle<struct FLNPEnemyTargetingFragment> TargetingHandle;
 	TStateTreeExternalDataHandle<struct FMassMoveTargetFragment> MoveTargetHandle;
-	TStateTreeExternalDataHandle<struct FMassActorFragment> ActorHandle;
 };
 
 /**
@@ -101,7 +100,9 @@ protected:
 	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override;
 	virtual void GetDependencies(UE::MassBehavior::FStateTreeDependencyBuilder& Builder) const override;
 
+	TStateTreeExternalDataHandle<struct FLNPEnemySharedFragment> SharedConfigHandle;
 	TStateTreeExternalDataHandle<struct FLNPEnemyFragment> EnemyHandle;
+	TStateTreeExternalDataHandle<struct FLNPEnemyIdleFragment> IdleFragmentHandle;
 	TStateTreeExternalDataHandle<struct FTransformFragment> TransformHandle;
 	TStateTreeExternalDataHandle<struct FLNPEnemyTargetingFragment> TargetingHandle;
 	TStateTreeExternalDataHandle<struct FMassMoveTargetFragment> MoveTargetHandle;

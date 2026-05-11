@@ -41,6 +41,7 @@ protected:
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
 	FMassEntityQuery TargetingQuery;
+	FMassEntityQuery PlayerQuery;
 };
 
 /**

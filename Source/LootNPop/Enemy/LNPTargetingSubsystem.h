@@ -9,13 +9,14 @@
 #include "LNPTargetingSubsystem.generated.h"
 
 /** Information about an enemy competing for a slot */
-struct FLNPEnemyScoreEntry
+struct FLNPPendingTargetEntry
 {
 	FMassEntityHandle EnemyHandle;
+	FMassEntityHandle PlayerHandle;
 	float Score;
 	bool bIsMelee;
 
-	bool operator<(const FLNPEnemyScoreEntry& Other) const
+	bool operator<(const FLNPPendingTargetEntry& Other) const
 	{
 		return Score > Other.Score; // Sort descending
 	}
@@ -27,16 +28,9 @@ struct FLNPPlayerSlotData
 {
 	GENERATED_BODY()
 
-	/** Maximum allowed slots */
-	int32 MaxMeleeSlots = 3;
-	int32 MaxRangedSlots = 20;
-
 	/** Entities currently occupying slots (Confirmed state) */
 	TSet<FMassEntityHandle> OccupiedMelee;
 	TSet<FMassEntityHandle> OccupiedRanged;
-
-	/** Entities wanting to enter (scored but not yet processed) */
-	TArray<FLNPEnemyScoreEntry> PendingEnemies;
 };
 
 /**
@@ -60,9 +54,18 @@ public:
 	/** Performs rebalancing: Promotes high-score enemies and demotes low-score ones */
 	void RebalanceSlots();
 
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Targeting")
+	int32 MaxMeleeSlotsPerPlayer = 10;
+
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Targeting")
+	int32 MaxRangedSlotsPerPlayer = 20;
+
 protected:
 	/** Map of Player Entity -> Their Slot Data */
 	TMap<FMassEntityHandle, FLNPPlayerSlotData> PlayerSlots;
+
+	/** All enemy interests registered this frame */
+	TArray<FLNPPendingTargetEntry> PendingEntries;
 
 	/** Lock for thread safety during parallel Mass processing */
 	mutable FCriticalSection DataLock;

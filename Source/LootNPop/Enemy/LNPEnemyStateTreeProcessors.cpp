@@ -14,6 +14,7 @@
 #include "MassStateTreeSubsystem.h"
 #include "MassStateTreeFragments.h"
 #include "MassActorSubsystem.h"
+#include "GameLogic/LNPSurfaceCacheSubsystem.h"
 
 // --- State Evaluator ---
 
@@ -71,13 +72,13 @@ void FLNPEnemyLookAtTask::GetDependencies(UE::MassBehavior::FStateTreeDependency
 
 EStateTreeRunStatus FLNPEnemyLookAtTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	UE_LOG(LogTemp, Log, TEXT("Entering LookAtTask"));
+	//UE_LOG(LogTemp, Log, TEXT("Entering LookAtTask"));
 	return EStateTreeRunStatus::Running;
 }
 
 void FLNPEnemyLookAtTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	UE_LOG(LogTemp, Log, TEXT("Exiting LookAtTask"));
+	//UE_LOG(LogTemp, Log, TEXT("Exiting LookAtTask"));
 }
 
 EStateTreeRunStatus FLNPEnemyLookAtTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
@@ -110,7 +111,6 @@ bool FLNPEnemySteeringTask::Link(FStateTreeLinker& Linker)
 	Linker.LinkExternalData(SharedConfigHandle);
 	Linker.LinkExternalData(TargetingHandle);
 	Linker.LinkExternalData(MoveTargetHandle);
-	Linker.LinkExternalData(ActorHandle);
 	return true;
 }
 
@@ -119,18 +119,17 @@ void FLNPEnemySteeringTask::GetDependencies(UE::MassBehavior::FStateTreeDependen
 	Builder.AddReadOnly(SharedConfigHandle);
 	Builder.AddReadOnly(TargetingHandle);
 	Builder.AddReadWrite(MoveTargetHandle);
-	Builder.AddReadOnly(ActorHandle);
 }
 
 EStateTreeRunStatus FLNPEnemySteeringTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transitions) const
 {
-	UE_LOG(LogTemp, Log, TEXT("Entering SteeringTask"));
+	//UE_LOG(LogTemp, Log, TEXT("Entering SteeringTask"));
 	return EStateTreeRunStatus::Running;
 }
 
 void FLNPEnemySteeringTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	UE_LOG(LogTemp, Log, TEXT("Exiting SteeringTask"));
+	//UE_LOG(LogTemp, Log, TEXT("Exiting SteeringTask"));
 }
 
 EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
@@ -178,7 +177,9 @@ EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Cont
 
 bool FLNPEnemyIdleTask::Link(FStateTreeLinker& Linker)
 {
+	Linker.LinkExternalData(SharedConfigHandle);
 	Linker.LinkExternalData(EnemyHandle);
+	Linker.LinkExternalData(IdleFragmentHandle);
 	Linker.LinkExternalData(TransformHandle);
 	Linker.LinkExternalData(TargetingHandle);
 	Linker.LinkExternalData(MoveTargetHandle);
@@ -187,7 +188,9 @@ bool FLNPEnemyIdleTask::Link(FStateTreeLinker& Linker)
 
 void FLNPEnemyIdleTask::GetDependencies(UE::MassBehavior::FStateTreeDependencyBuilder& Builder) const
 {
+	Builder.AddReadOnly(SharedConfigHandle);
 	Builder.AddReadOnly(EnemyHandle);
+	Builder.AddReadWrite(IdleFragmentHandle);
 	Builder.AddReadOnly(TransformHandle);
 	Builder.AddReadOnly(TargetingHandle);
 	Builder.AddReadWrite(MoveTargetHandle);
@@ -195,57 +198,96 @@ void FLNPEnemyIdleTask::GetDependencies(UE::MassBehavior::FStateTreeDependencyBu
 
 EStateTreeRunStatus FLNPEnemyIdleTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transitions) const
 {
-	//FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-	//InstanceData.NextUpdate = 0.0; // Force immediate update on enter
-	UE_LOG(LogTemp, Log, TEXT("Entering IdleTask"));
+	//UE_LOG(LogTemp, Log, TEXT("Entering IdleTask"));
+
+	FLNPEnemyIdleFragment& IdleData = Context.GetExternalData(IdleFragmentHandle);
+	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
+	const FTransformFragment& Transform = Context.GetExternalData(TransformHandle);
+
+	// Reset wander state so next Tick immediately picks a new target
+	IdleData.bNeedNewWanderTarget = true;
+	IdleData.LastWanderTime = 0.0;
+
+	// Set destination to current position so MovementProcessor detects "arrival" next frame,
+	// triggering a StateTreeActivate signal and calling Tick() within 1-2 frames.
+	MoveTarget.Center = Transform.GetTransform().GetLocation();
+
 	return EStateTreeRunStatus::Running;
 }
 
 void FLNPEnemyIdleTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	UE_LOG(LogTemp, Log, TEXT("Exiting IdleTask"));
+	//UE_LOG(LogTemp, Log, TEXT("Exiting IdleTask"));
 }
 
 EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
 {
+	const FLNPEnemySharedFragment& SharedConfig = Context.GetExternalData(SharedConfigHandle);
 	const FLNPEnemyFragment& Enemy = Context.GetExternalData(EnemyHandle);
+	FLNPEnemyIdleFragment& IdleData = Context.GetExternalData(IdleFragmentHandle);
 	const FTransformFragment& Transform = Context.GetExternalData(TransformHandle);
 	const FLNPEnemyTargetingFragment& Targeting = Context.GetExternalData(TargetingHandle);
 	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
-	//FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+
+	const double CurrentTime = Context.GetWorld()->GetTimeSeconds();
+	const double TimeSinceLastWander = CurrentTime - IdleData.LastWanderTime;
+	const double WANDER_INTERVAL = 3.0;
 
 	// 1. Immediate Interruption: If targeting state changed from None, bail out!
 	if (Targeting.State != ELNPTargetingState::None)
 	{
+		//UE_LOG(LogTemp, Log, TEXT("IdleTask: Targeting state changed to %d, exiting Idle state"), static_cast<int32>(Targeting.State));
 		return EStateTreeRunStatus::Failed;
 	}
 
-	const double CurrentTime = Context.GetWorld()->GetTimeSeconds();
-
-	// 2. Completion Check: If we reached the current wander target, succeed
-	const float DistSq = FVector::DistSquared(MoveTarget.Center, Transform.GetTransform().GetLocation());
-	if (DistSq < FMath::Square(150.0f))
+	if (IdleData.bNeedNewWanderTarget && WANDER_INTERVAL < TimeSinceLastWander)
 	{
-		return EStateTreeRunStatus::Succeeded;
+		const float WanderMinDist = SharedConfig.Config ? SharedConfig.Config->MovementConfig.WanderMinDistance : 200.0f;
+		const float WanderMaxDist = SharedConfig.Config ? SharedConfig.Config->MovementConfig.WanderMaxDistance : 800.0f;
+		const FVector GravityOrigin = SharedConfig.Config ? SharedConfig.Config->MovementConfig.GravityOrigin : FVector::ZeroVector;
+		const FVector PodOutDir = (Enemy.ParentPodLocation - GravityOrigin).GetSafeNormal();
+		const FVector ArbitraryAxis = FMath::Abs(FVector::DotProduct(PodOutDir, FVector::ForwardVector)) < 0.9f ? FVector::ForwardVector : FVector::RightVector;
+		const FVector Tangent1 = FVector::CrossProduct(PodOutDir, ArbitraryAxis).GetSafeNormal();
+		const FVector Tangent2 = FVector::CrossProduct(PodOutDir, Tangent1).GetSafeNormal();
+
+		const float Angle = FMath::FRandRange(0.0f, 2.0f * PI);
+		const float Dist = FMath::FRandRange(WanderMinDist, WanderMaxDist);
+		const FVector TangentOffset = (Tangent1 * FMath::Cos(Angle) + Tangent2 * FMath::Sin(Angle)) * Dist;
+
+		const float PodRadius = (Enemy.ParentPodLocation - GravityOrigin).Size();
+		const FVector QueryDir = (PodOutDir * PodRadius + TangentOffset).GetSafeNormal();
+
+		ULNPSurfaceCacheSubsystem* SurfaceCache = Context.GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
+		FVector WanderPoint;
+		if (SurfaceCache && SurfaceCache->GetSurfacePoint(QueryDir, WanderPoint))
+		{
+			MoveTarget.Center = WanderPoint;
+		}
+		else
+		{
+			MoveTarget.Center = Enemy.ParentPodLocation + TangentOffset;
+			//UE_LOG(LogTemp, Warning, TEXT("IdleTask: Surface cache unavailable, using fallback wander target at %s"), *MoveTarget.Center.ToString());
+		}
+
+		MoveTarget.DistanceToGoal = 50.0f;
+		MoveTarget.DesiredSpeed = FMassInt16Real(0.0f);
+
+		IdleData.bNeedNewWanderTarget = false;
+		//UE_LOG(LogTemp, Log, TEXT("IdleTask: New wander target set at %s"), *MoveTarget.Center.ToString());
 	}
 
-	// 3. Waiting Logic: If we are still in the random wait period, keep running
-	//if (CurrentTime < InstanceData.NextUpdate)
-	//{
-	//	return EStateTreeRunStatus::Running;
-	//}
+	// 2. Completion Check: If we reached the current wander target, wait for next interval
+	const float DistSq = FVector::DistSquared(MoveTarget.Center, Transform.GetTransform().GetLocation());
+	if (DistSq < FMath::Square(100.0f))
+	{
+		if (IdleData.bNeedNewWanderTarget == false)
+		{
+			IdleData.LastWanderTime = CurrentTime;
+			IdleData.bNeedNewWanderTarget = true;
+		}
+		//UE_LOG(LogTemp, Log, TEXT("IdleTask: Reached wander target at %s"), *MoveTarget.Center.ToString());
+	}
 
-	// 4. Update Target: Pick a new random point near the pod
-	const float WanderRadius = 500.0f;
-	const FVector Directions[] = { FVector::ForwardVector, FVector::RightVector, -FVector::ForwardVector, -FVector::RightVector };
-	const FVector RandomOffset = Directions[FMath::RandHelper(4)] * FMath::FRandRange(200.0f, WanderRadius);
-	
-	MoveTarget.Center = Enemy.ParentPodLocation + RandomOffset;
-	MoveTarget.DistanceToGoal = 50.0f; 
-	MoveTarget.DesiredSpeed = FMassInt16Real(0.0f); // Use Idle speed
-
-	//InstanceData.NextUpdate = CurrentTime + FMath::FRandRange(5.0f, 10.0f);
-
-	UE_LOG(LogTemp, Log, TEXT("IdleTask: New wander target set at %s"), *MoveTarget.Center.ToString());
+	// Always return Running to keep InstanceData (and logic) persistent while in Idle state
 	return EStateTreeRunStatus::Running;
 }
