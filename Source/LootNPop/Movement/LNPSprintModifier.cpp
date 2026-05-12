@@ -45,10 +45,10 @@ bool FLNPSprintModifier::HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch
 {
 	if (bExactMatch)
 	{
-		return TagToFind.MatchesTagExact(LNP_Mover_IsSprinting);
+		return TagToFind.MatchesTagExact(LNPTAG_Mover_IsSprinting);
 	}
 
-	return TagToFind.MatchesTag(LNP_Mover_IsSprinting);
+	return TagToFind.MatchesTag(LNPTAG_Mover_IsSprinting);
 }
 
 FMovementModifierBase* FLNPSprintModifier::Clone() const

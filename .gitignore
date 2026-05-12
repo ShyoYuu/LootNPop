@@ -5,6 +5,7 @@ Intermediate/
 Saved/
 docs/
 .vs/
+.serena/
 Content/__ExternalActors__/
 Content/__ExternalObjects__/
 
@@ -13,3 +14,4 @@ Content/__ExternalObjects__/
 LootNPop.sln
 sample.png
 Update-UE-Docs-Custom.ps1
+launch_claude.ps1

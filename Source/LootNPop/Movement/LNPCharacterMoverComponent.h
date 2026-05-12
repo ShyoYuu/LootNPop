@@ -8,7 +8,7 @@
 #include "LNPSprintModifier.h"
 #include "LNPCharacterMoverComponent.generated.h"
 
-LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsSprinting);
+LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNPTAG_Mover_IsSprinting);
 
 /**
  * Custom Mover component for LootNPop characters.

@@ -12,7 +12,18 @@
       "Bash(xargs grep -l \"MassDistanceLODProcessor\")",
       "Bash(xargs grep -l \"ConstructUClass\\\\|FClassParams\")",
       "mcp__mcp-unreal__lookup_docs",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(Move-Item F:\\\\UnrealProjects\\\\LootNPop\\\\Source\\\\LootNPop\\\\Projectile *)",
+      "Bash(sed -n '360,380p' \"/c/Users/arkep/AppData/Local/uv/cache/archive-v0/4-LntUK1YJxbODFYPDn9x/serena/project.py\")",
+      "Bash(sed -n '485,520p' \"/c/Users/arkep/AppData/Local/uv/cache/archive-v0/4-LntUK1YJxbODFYPDn9x/serena/project.py\")",
+      "Bash(python3 *)",
+      "Bash(uv python *)",
+      "Bash(uv run *)",
+      "mcp__serena__list_queryable_projects",
+      "mcp__serena__query_project",
+      "Bash(serena start-mcp-server *)",
+      "Bash(serena start-project-server *)"
     ]
   },
   "enabledMcpjsonServers": [

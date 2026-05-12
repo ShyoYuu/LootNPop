@@ -20,7 +20,7 @@ const FRotator ULNPOctantSpawnSubsystem::OctantRotations[8] = {
 
 void ULNPOctantSpawnSubsystem::Tick(float DeltaTime)
 {
-	if (!bIsGenerating)
+	if (false == bIsGenerating)
 		return;
 
 	bool bAllLoaded = true;

@@ -17,7 +17,9 @@
 #include "MassSignalSubsystem.h"
 #include "MassStateTreeFragments.h"
 #include "MassNavigationFragments.h"
+#if WITH_EDITOR
 #include "MassDebugDrawHelpers.h"
+#endif
 
 // --- Scoring Processor ---
 
@@ -456,7 +458,6 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			// Signal StateTree if reached destination (for None/Confirmed states)
 			if (EffectiveSpeed > 0.0f && DistSq < FMath::Square(100.0f)) // Arrival threshold
 			{
-				UE_LOG(LogTemp, Log, TEXT("Entity %d reached destination"), EnemyContext.GetEntity(i).Index);
 				EntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				EffectiveSpeed = 0.0f;
 			}

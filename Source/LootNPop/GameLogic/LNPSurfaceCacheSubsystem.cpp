@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "Config/LNPSettings.h"
@@ -29,7 +29,7 @@ void ULNPSurfaceCacheSubsystem::BeginBaking()
 
 void ULNPSurfaceCacheSubsystem::Tick(float DeltaTime)
 {
-	if (!bIsBaking)
+	if (false == bIsBaking)
 		return;
 
 	UWorld* World = GetWorld();
@@ -72,7 +72,7 @@ TStatId ULNPSurfaceCacheSubsystem::GetStatId() const
 
 bool ULNPSurfaceCacheSubsystem::GetSurfacePoint(const FVector& WorldDirection, FVector& OutPoint) const
 {
-	if (!bBakingComplete)
+	if (false == bBakingComplete)
 		return false;
 
 	const FVector Dir = WorldDirection.GetSafeNormal();
