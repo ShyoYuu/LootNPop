@@ -128,6 +128,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	FLNPEnemyMovementConfig MovementConfig;
 
+	/** Collision capsule dimensions used by hit detection processors. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))
+	float CapsuleHalfHeight = 88.f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))
+	float CapsuleRadius = 35.f;
+
 	/** Required for Asset Manager to identify this asset by ID */
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{

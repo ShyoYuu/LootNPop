@@ -6,7 +6,7 @@
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "DefaultMovementSet/Modes/AsyncFallingMode.h"
 
-UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 
 ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 {
@@ -22,7 +22,7 @@ ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 
 bool ULNPCharacterMoverComponent::IsSprinting() const
 {
-	return HasGameplayTag(LNP_Mover_IsSprinting, true);
+	return HasGameplayTag(LNPTAG_Mover_IsSprinting, true);
 }
 
 bool ULNPCharacterMoverComponent::CanSprint() const

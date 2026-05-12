@@ -86,9 +86,6 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMassAgentComponent> MassAgentComponent;
 
@@ -123,6 +120,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> AttackAction;
 
 	// Movement settings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
@@ -178,6 +178,8 @@ private:
 	bool bIsDashJustPressed = false;
 	bool bIsInteractPressed = false;
 	bool bIsInteractJustPressed = false;
+	bool bIsAttackPressed = false;
+	bool bIsAttackJustPressed = false;
 
 	float LastDashTime = -1.0f;
 
@@ -192,4 +194,6 @@ private:
 	void OnDashReleased(const FInputActionValue& Value);
 	void OnInteractStarted(const FInputActionValue& Value);
 	void OnInteractReleased(const FInputActionValue& Value);
+	void OnAttackStarted(const FInputActionValue& Value);
+	void OnAttackReleased(const FInputActionValue& Value);
 };

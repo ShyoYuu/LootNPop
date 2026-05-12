@@ -2,6 +2,7 @@
 
 #include "GameMode/LNPGameMode.h"
 #include "GameMode/LNPGameState.h"
+#include "Player/LNPPlayerState.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
@@ -11,6 +12,7 @@ ALNPGameMode::ALNPGameMode()
 {
 	GameStateClass = ALNPGameState::StaticClass();
 	PlayerControllerClass = ALNPPlayerController::StaticClass();
+	PlayerStateClass = ALNPPlayerState::StaticClass();
 }
 
 void ALNPGameMode::BeginPlay()

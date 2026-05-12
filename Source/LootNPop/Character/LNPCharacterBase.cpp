@@ -1,6 +1,7 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LNPCharacterBase.h"
+
 #include "EngineUtils.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -22,6 +23,9 @@
 #include "GameMode/LNPGameState.h"
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "Interaction/LNPInteractionComponent.h"
+#include "Player/LNPPlayerState.h"
+#include "Item/LNPEquipmentComponent.h"
+#include "Item/LNPItemInstance.h"
 
 ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -57,12 +61,7 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	// 5. Create Mover Component
 	MoverComponent = CreateDefaultSubobject<ULNPCharacterMoverComponent>(TEXT("MoverComponent"));
 
-	// 6. Create GAS Ability System Component
-	AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
-	AbilitySystemComponent->SetIsReplicated(true);
-	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
-
-	// 7. Create Mass Agent Component
+	// 6. Create Mass Agent Component
 	MassAgentComponent = CreateDefaultSubobject<UMassAgentComponent>(TEXT("MassAgentComponent"));
 
 	// 8. Create Gravity Component
@@ -79,7 +78,9 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 
 UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 {
-	return AbilitySystemComponent;
+	if (const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
+		return PS->GetAbilitySystemComponent();
+	return nullptr;
 }
 
 TArray<AActor*> ALNPCharacterBase::GetInteractionCandidates() const
@@ -141,6 +142,8 @@ void ALNPCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		EIC->BindAction(DashAction, ETriggerEvent::Completed, this, &ALNPCharacterBase::OnDashReleased);
 		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &ALNPCharacterBase::OnInteractStarted);
 		EIC->BindAction(InteractAction, ETriggerEvent::Completed, this, &ALNPCharacterBase::OnInteractReleased);
+		EIC->BindAction(AttackAction, ETriggerEvent::Started, this, &ALNPCharacterBase::OnAttackStarted);
+		EIC->BindAction(AttackAction, ETriggerEvent::Completed, this, &ALNPCharacterBase::OnAttackReleased);
 	}
 }
 
@@ -416,4 +419,34 @@ void ALNPCharacterBase::OnInteractReleased(const FInputActionValue& Value)
 {
 	bIsInteractPressed = false;
 	bIsInteractJustPressed = false;
+}
+
+void ALNPCharacterBase::OnAttackStarted(const FInputActionValue& Value)
+{
+	bIsAttackJustPressed = !bIsAttackPressed;
+	bIsAttackPressed = true;
+
+	const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+	if (nullptr == PS)
+		return;
+
+	UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
+	if (nullptr == ASC)
+		return;
+
+	const ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent();
+	if (nullptr == EqComp)
+		return;
+
+	const FLNPWeaponInstance& WeaponSlot = EqComp->GetWeaponSlot();
+	if (!WeaponSlot.IsValid() || !WeaponSlot.GrantedAbilities.IsValidIndex(0))
+		return;
+
+	ASC->TryActivateAbility(WeaponSlot.GrantedAbilities[0]);
+}
+
+void ALNPCharacterBase::OnAttackReleased(const FInputActionValue& Value)
+{
+	bIsAttackPressed = false;
+	bIsAttackJustPressed = false;
 }

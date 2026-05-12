@@ -15,6 +15,7 @@
       "Read(./.git/)",
       "Read(./.github/)",
       "Read(./.gemini/)",
+      "Read(./.serena/)",
       "Read(*.uasset)",
       "Read(*.umap)",
       "Read(*.pdb)"
