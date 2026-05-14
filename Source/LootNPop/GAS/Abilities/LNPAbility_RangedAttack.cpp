@@ -1,10 +1,11 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GAS/Abilities/LNPAbility_RangedAttack.h"
 #include "GAS/Effects/LNPGameplayEffect_Cooldown.h"
 #include "Item/LNPWeaponData.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "Character/LNPCharacterBase.h"
+
 #include "MassEntitySubsystem.h"
 #include "MassEntityManager.h"
 #include "MassAgentComponent.h"
@@ -23,8 +24,6 @@ void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle 
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
-
-	UE_LOG(LogTemp, Log, TEXT("ULNPAbility_RangedAttack: Activated by %s"), *GetOwningActorFromActorInfo()->GetName());
 
 	SpawnProjectile();
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
@@ -50,7 +49,7 @@ void ULNPAbility_RangedAttack::ApplyCooldown(const FGameplayAbilitySpecHandle Ha
 	if (!SpecHandle.IsValid())
 		return;
 
-	SpecHandle.Data->Duration = WeaponDef->FireCooldown;
+	SpecHandle.Data->SetDuration(WeaponDef->FireCooldown, true);
 	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
 }
 
@@ -76,10 +75,11 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 
 	// --- Shared fragment (weapon-type constants, shared across all projectiles of this weapon) ---
 	FLNPProjectileSharedFragment SharedData;
-	SharedData.VFXData     = WeaponDef->ProjectileVFXData;
-	SharedData.Type        = WeaponDef->ProjectileType;
-	SharedData.Damage      = WeaponDef->ProjectileDamage;
-	SharedData.HitRadiusSq = FMath::Square(WeaponDef->ProjectileHitRadius);
+	SharedData.VFXData          = WeaponDef->ProjectileVFXData;
+	SharedData.DamageEffectClass= WeaponDef->ProjectileDamageEffect;
+	SharedData.Type             = WeaponDef->ProjectileType;
+	SharedData.Damage           = WeaponDef->ProjectileDamage;
+	SharedData.HitRadiusSq      = FMath::Square(WeaponDef->ProjectileHitRadius);
 
 	FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(SharedData);
 	FMassArchetypeSharedFragmentValues SharedValues;
@@ -120,7 +120,4 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 		FragData,
 		VisualFrag,
 		TransFrag);
-
-	UE_LOG(LogTemp, Log, TEXT("ULNPAbility_RangedAttack: Spawned projectile entity %d at %s with velocity %s"),
-		Entity.Index, *SpawnPos.ToString(), *FragData.Velocity.ToString());
 }

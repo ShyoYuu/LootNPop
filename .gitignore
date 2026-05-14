@@ -15,3 +15,8 @@ LootNPop.sln
 sample.png
 Update-UE-Docs-Custom.ps1
 launch_claude.ps1
+
+# AI Agent Local Configs
+.claude/
+.gemini/
+.mcp.json

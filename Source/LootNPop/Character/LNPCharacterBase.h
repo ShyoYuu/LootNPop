@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
-#include "MoverSimulationTypes.h"
 #include "AbilitySystemInterface.h"
 #include "MassAgentComponent.h"
 #include "LNPCharacterBase.generated.h"
@@ -14,20 +13,18 @@ class UCapsuleComponent;
 class USkeletalMeshComponent;
 class USpringArmComponent;
 class UCameraComponent;
-class UInputAction;
-class UInputMappingContext;
 class UAbilitySystemComponent;
+class ULNPPawnInputComponent;
 class UMassAgentComponent;
 class ULNPPawnGravityComponent;
 class ULNPInteractionComponent;
 class ALNPLootPod;
-struct FInputActionValue;
 
 /**
  * ALNPCharacterBase
  */
 UCLASS(Abstract)
-class LOOTNPOP_API ALNPCharacterBase : public APawn, public IMoverInputProducerInterface, public IAbilitySystemInterface
+class LOOTNPOP_API ALNPCharacterBase : public APawn, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
 
@@ -39,36 +36,30 @@ public:
 	ULNPCharacterMoverComponent* GetMoverComponent() const { return MoverComponent; }
 
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
-	bool GetOrientRotationToMovement() const { return bOrientRotationToMovement; }
+	bool GetOrientRotationToMovement() const;
 
 	// IAbilitySystemInterface implementation
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	/** Returns all currently highlighted interaction targets (for UI) */
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	TArray<AActor*> GetInteractionCandidates() const;
 
-	/** Returns the first valid interaction target (for backward compatibility) */
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	AActor* GetInteractionCandidate() const;
 
-	USkeletalMeshComponent* GetMesh() const { return Mesh; }
+	USkeletalMeshComponent* GetMesh()                  const { return Mesh; }
+	UCapsuleComponent*      GetCapsule()               const { return CapsuleComponent; }
+	ULNPPawnInputComponent* GetInputHandlerComponent() const { return InputHandlerComponent; }
 
-	/** Sets the movement intent from AI systems (Mass StateTree, etc.) */
-	void SetAIMoveInput(FVector InMoveInput) { AIMoveInput = InMoveInput; }
+	void SetAIMoveInput(FVector InMoveInput);
+	void SetAIOrientationIntent(FVector InOrientationIntent);
 
-	/** Sets the orientation intent from AI systems (Mass StateTree, etc.) */
-	void SetAIOrientationIntent(FVector InOrientationIntent) { AIOrientationIntent = InOrientationIntent; }
+	bool TryActivateAttack();
 
 protected:
 	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
-	// --- Mover Input Generation Logic ---
-	virtual void ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult) override;
-	virtual void OnProduceInput(float DeltaMs, FMoverInputCmdContext& OutInputCmd);
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -86,6 +77,9 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULNPPawnInputComponent> InputHandlerComponent;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMassAgentComponent> MassAgentComponent;
 
@@ -94,106 +88,4 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPInteractionComponent> InteractionComponent;
-
-	/** External AI move intent, consumed by Mover every frame */
-	FVector AIMoveInput = FVector::ZeroVector;
-
-	/** External AI orientation intent, consumed by Mover every frame */
-	FVector AIOrientationIntent = FVector::ZeroVector;
-
-protected:
-	// --- Input Settings ---
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputMappingContext> DefaultMappingContext;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputAction> MoveAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputAction> LookAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputAction> JumpAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputAction> DashAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputAction> InteractAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	TObjectPtr<UInputAction> AttackAction;
-
-	// Movement settings
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	float WalkSpeed = 400.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	float RunSpeed = 800.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	float DashSpeed = 1600.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	float DashDuration = 0.2f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	float DashImpulseMagnitude = 2000.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	float DashCooldown = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	TObjectPtr<UAnimMontage> DashForwardMontage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	TObjectPtr<UAnimMontage> DashBackwardMontage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	TObjectPtr<UAnimMontage> DashLeftMontage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	TObjectPtr<UAnimMontage> DashRightMontage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	bool bIsAiming = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	bool bUseBaseRelativeMovement = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	bool bOrientRotationToMovement = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	bool bMaintainLastInputOrientation = false;
-
-private:
-	FVector CachedMoveInputIntent = FVector::ZeroVector;
-	FRotator CachedLookInput = FRotator::ZeroRotator;
-	FVector LastAffirmativeMoveInput = FVector::ZeroVector;
-
-	bool bIsJumpPressed = false;
-	bool bIsJumpJustPressed = false;
-	bool bIsDashPressed = false;
-	bool bIsDashJustPressed = false;
-	bool bIsInteractPressed = false;
-	bool bIsInteractJustPressed = false;
-	bool bIsAttackPressed = false;
-	bool bIsAttackJustPressed = false;
-
-	float LastDashTime = -1.0f;
-
-	// Input event handlers
-	void OnMoveTriggered(const FInputActionValue& Value);
-	void OnMoveCompleted(const FInputActionValue& Value);
-	void OnLookTriggered(const FInputActionValue& Value);
-	void OnLookCompleted(const FInputActionValue& Value);
-	void OnJumpStarted(const FInputActionValue& Value);
-	void OnJumpReleased(const FInputActionValue& Value);
-	void OnDashStarted(const FInputActionValue& Value);
-	void OnDashReleased(const FInputActionValue& Value);
-	void OnInteractStarted(const FInputActionValue& Value);
-	void OnInteractReleased(const FInputActionValue& Value);
-	void OnAttackStarted(const FInputActionValue& Value);
-	void OnAttackReleased(const FInputActionValue& Value);
 };

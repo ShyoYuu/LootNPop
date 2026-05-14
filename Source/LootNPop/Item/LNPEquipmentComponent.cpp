@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Item/LNPEquipmentComponent.h"
 #include "Item/LNPItemDefinitionBase.h"
@@ -6,9 +6,10 @@
 #include "Item/LNPSkillData.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "Player/LNPPlayerState.h"
+#include "Config/LNPSettings.h"
+
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
-#include "Config/LNPSettings.h"
 
 ULNPEquipmentComponent::ULNPEquipmentComponent()
 {

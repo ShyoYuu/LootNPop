@@ -33,6 +33,9 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	float Defense = 0.0f;
 
+	/** Seconds remaining before a dying entity is destroyed. Set when Health hits 0. */
+	float DeathCountdown = 0.f;
+
 	/** Identifies the type of enemy (Melee, Ranged, Elite, etc.) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	FGameplayTag EnemyTypeTag;
@@ -122,6 +125,9 @@ USTRUCT() struct LOOTNPOP_API FLNPPlayerTag : public FMassTag { GENERATED_BODY()
 
 /** Tag to mark that the actor for this entity has been initialized */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyActorInitializedTag : public FMassTag { GENERATED_BODY() };
+
+/** Tag marking an enemy whose Health hit 0; entity is waiting for DeathCountdown before being destroyed */
+USTRUCT() struct LOOTNPOP_API FLNPEnemyDyingTag : public FMassTag { GENERATED_BODY() };
 
 class ULNPEnemyConfig;
 

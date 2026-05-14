@@ -61,6 +61,24 @@ private:
 	FMassEntityQuery ProjectileQuery;
 };
 
+/**
+ * Queries all FLNPProjectileDeadTag entities and defers their destruction.
+ * Runs in PostPhysics, after the StartPhysics command buffer flush has applied Dead tags
+ * from both MovementProcessor and HitDetectionProcessor.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPProjectileDestructionProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+public:
+	ULNPProjectileDestructionProcessor();
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+private:
+	FMassEntityQuery DeadProjectileQuery;
+};
+
 #if WITH_EDITOR
 /**
  * Per-frame debug draw for live projectiles (cyan sphere + velocity arrow).
@@ -73,9 +91,6 @@ class LOOTNPOP_API ULNPProjectileDebugDrawProcessor : public UMassProcessor
 	GENERATED_BODY()
 public:
 	ULNPProjectileDebugDrawProcessor();
-
-	float LiveProjectileRadius = 15.f;
-	float SurfaceImpactRadius = 25.f;
 
 protected:
 	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;

@@ -2,6 +2,8 @@
 
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "Config/LNPSettings.h"
+#include "LootNPop.h"
+
 #include "Engine/World.h"
 
 void ULNPSurfaceCacheSubsystem::BeginBaking()
@@ -23,7 +25,7 @@ void ULNPSurfaceCacheSubsystem::BeginBaking()
 	NextSampleIndex = 0;
 	bIsBaking = true;
 
-	UE_LOG(LogTemp, Log, TEXT("LNPSurfaceCacheSubsystem: Baking %d samples (%dx%d) at %.1f cm spacing, %d traces/frame."),
+	UE_LOG(LogLootNPop, Log, TEXT("LNPSurfaceCacheSubsystem: Baking %d samples (%dx%d) at %.1f cm spacing, %d traces/frame."),
 		TotalSamples, LatResolution, LonResolution, CellSpacing, TracesPerFrame);
 }
 
@@ -60,7 +62,7 @@ void ULNPSurfaceCacheSubsystem::Tick(float DeltaTime)
 	{
 		bIsBaking = false;
 		bBakingComplete = true;
-		UE_LOG(LogTemp, Log, TEXT("LNPSurfaceCacheSubsystem: Baking complete."));
+		UE_LOG(LogLootNPop, Log, TEXT("LNPSurfaceCacheSubsystem: Baking complete."));
 		OnBakingComplete.Broadcast();
 	}
 }

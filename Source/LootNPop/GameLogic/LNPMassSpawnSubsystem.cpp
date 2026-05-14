@@ -2,14 +2,16 @@
 
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "DataAsset/LNPMassSpawnConfig.h"
+#include "Config/LNPSettings.h"
+#include "Enemy/LNPEnemyMassTypes.h"
+#include "LootNPop.h"
+
 #include "MassEntityConfigAsset.h"
 #include "MassSpawnerSubsystem.h"
 #include "MassEntityManager.h"
 #include "MassCommonFragments.h"
 #include "Engine/World.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "Config/LNPSettings.h"
-#include "Enemy/LNPEnemyMassTypes.h"
 
 void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -19,7 +21,7 @@ void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void ULNPMassSpawnSubsystem::BeginSpawning()
 {
-	UE_LOG(LogTemp, Log, TEXT("LNPMassSpawnSubsystem: World ready. Loading config from LNPSettings."));
+	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: World ready. Loading config from LNPSettings."));
 
 	if (const ULNPSettings* Settings = GetDefault<ULNPSettings>())
 	{
@@ -29,7 +31,7 @@ void ULNPMassSpawnSubsystem::BeginSpawning()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("LNPMassSpawnSubsystem: MassSpawnConfig is null in LNPSettings!"));
+			UE_LOG(LogLootNPop, Warning, TEXT("LNPMassSpawnSubsystem: MassSpawnConfig is null in LNPSettings!"));
 		}
 	}
 }
@@ -267,7 +269,7 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 		SpawnQueue.Empty();
 		SpawnQueueHead = 0;
 		ActiveConfig = nullptr;
-		UE_LOG(LogTemp, Log, TEXT("LNPMassSpawnSubsystem: All entities spawned."));
+		UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: All entities spawned."));
 		OnSpawningComplete.Broadcast();
 	}
 }
@@ -301,5 +303,5 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 		}
 	}
 	
-	UE_LOG(LogTemp, Verbose, TEXT("LNPMassSpawnSubsystem: Initialized %d spawned entities."), NumToProcess);
+	UE_LOG(LogLootNPop, Verbose, TEXT("LNPMassSpawnSubsystem: Initialized %d spawned entities."), NumToProcess);
 }

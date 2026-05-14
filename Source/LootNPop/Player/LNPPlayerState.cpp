@@ -1,10 +1,11 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Player/LNPPlayerState.h"
-#include "AbilitySystemComponent.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "Item/LNPEquipmentComponent.h"
 #include "Item/LNPInventoryComponent.h"
+
+#include "AbilitySystemComponent.h"
 
 ALNPPlayerState::ALNPPlayerState()
 {

@@ -156,3 +156,45 @@ protected:
 
 	FMassEntityQuery InitializerQuery;
 };
+
+/**
+ * Runs after the Representation group on the game thread.
+ * - Actor valid:  syncs ASC health back to FLNPEnemyFragment (SyncToEntity).
+ * - Actor null:   removes FLNPEnemyActorInitializedTag so ActorInitializer re-runs on the next spawn.
+ *
+ * Trade-off vs two separate processors: if an entity takes GE damage and gets LOD-despawned in the
+ * same frame, that frame's damage won't be flushed to the fragment. Acceptable because the two
+ * events (fatal hit + LOD boundary crossing) are extremely unlikely to coincide.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPEnemyActorSyncProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	ULNPEnemyActorSyncProcessor();
+
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+
+	FMassEntityQuery SyncQuery;
+};
+
+/**
+ * Ticks DeathCountdown for dying enemies and destroys entities when the timer reaches zero.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPEnemyDeathTimerProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	ULNPEnemyDeathTimerProcessor();
+
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+
+	FMassEntityQuery DeathTimerQuery;
+};

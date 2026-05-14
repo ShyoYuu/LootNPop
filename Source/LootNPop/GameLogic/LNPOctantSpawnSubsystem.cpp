@@ -1,11 +1,13 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
-#include "Kismet/KismetMathLibrary.h"
-#include "LevelInstance/LevelInstanceActor.h"
 #include "DataAsset/LNPOctantPoolData.h"
 #include "Config/LNPSettings.h"
 #include "GameMode/LNPGameState.h"
+#include "LootNPop.h"
+
+#include "Kismet/KismetMathLibrary.h"
+#include "LevelInstance/LevelInstanceActor.h"
 
 const FRotator ULNPOctantSpawnSubsystem::OctantRotations[8] = {
 	FRotator(0.f, 0.f, 0.f),
@@ -37,7 +39,7 @@ void ULNPOctantSpawnSubsystem::Tick(float DeltaTime)
 	{
 		bIsGenerating = false;
 		bGenerationComplete = true;
-		UE_LOG(LogTemp, Log, TEXT("LNPOctantSpawnSubsystem: All 8 octants are fully loaded. Broadcasting Finished event."));
+		UE_LOG(LogLootNPop, Log, TEXT("LNPOctantSpawnSubsystem: All 8 octants are fully loaded. Broadcasting Finished event."));
 		OnWorldGenerationFinished.Broadcast();
 		SpawnedOctants.Empty();
 	}
@@ -57,7 +59,7 @@ void ULNPOctantSpawnSubsystem::StartWorldGeneration()
 	ULNPOctantPoolData* PoolData = Settings->OctantPool.LoadSynchronous();
 	if (PoolData == nullptr || PoolData->OctantPool.Num() == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("LNPOctantSpawnSubsystem: OctantPool is empty or not set in LNPSettings!"));
+		UE_LOG(LogLootNPop, Warning, TEXT("LNPOctantSpawnSubsystem: OctantPool is empty or not set in LNPSettings!"));
 		return;
 	}
 
@@ -106,5 +108,5 @@ void ULNPOctantSpawnSubsystem::StartWorldGeneration()
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("LNPOctantSpawnSubsystem: Spawned 8 LevelInstances. Waiting for load..."));
+	UE_LOG(LogLootNPop, Log, TEXT("LNPOctantSpawnSubsystem: Spawned 8 LevelInstances. Waiting for load..."));
 }
