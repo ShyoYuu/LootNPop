@@ -3,8 +3,13 @@
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPCharacterMovementSettings.h"
 #include "Movement/LNPAsyncWalkingMode.h"
+
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "DefaultMovementSet/Modes/AsyncFallingMode.h"
+#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/LayeredMoves/AnimRootMotionLayeredMove.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/Pawn.h"
 
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 
@@ -27,8 +32,66 @@ bool ULNPCharacterMoverComponent::IsSprinting() const
 
 bool ULNPCharacterMoverComponent::CanSprint() const
 {
-	// Character can sprint if they are on the ground.
 	return IsOnGround();
+}
+
+bool ULNPCharacterMoverComponent::CanDash() const
+{
+	return IsOnGround() && !bIsAiming &&
+		(LastDashTime <= 0.0f || (GetWorld()->GetTimeSeconds() - LastDashTime) >= DashCooldown);
+}
+
+void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
+{
+	APawn* Pawn = CastChecked<APawn>(GetOwner());
+	const bool bHasMoveInput = !MoveInputIntent.IsNearlyZero();
+
+	TObjectPtr<UAnimMontage> SelectedMontage = nullptr;
+	FVector DashDirection = FVector::ZeroVector;
+
+	if (bHasMoveInput)
+	{
+		DashDirection = Pawn->GetControlRotation().RotateVector(MoveInputIntent).GetSafeNormal();
+		SelectedMontage = DashForwardMontage;
+	}
+	else
+	{
+		DashDirection = -Pawn->GetActorForwardVector();
+		SelectedMontage = DashBackwardMontage;
+	}
+
+	if (!SelectedMontage)
+		return;
+
+	LastDashTime = GetWorld()->GetTimeSeconds();
+
+	const float DashDurationMs = DashDuration * 1000.0f;
+
+	TSharedPtr<FLayeredMove_LinearVelocity> DashMove = MakeShared<FLayeredMove_LinearVelocity>();
+	DashMove->Velocity = DashDirection * DashImpulseMagnitude;
+	DashMove->DurationMs = DashDurationMs;
+	DashMove->MixMode = EMoveMixMode::OverrideVelocity;
+	DashMove->FinishVelocitySettings.FinishVelocityMode = ELayeredMoveFinishVelocityMode::MaintainLastRootMotionVelocity;
+	QueueLayeredMove(DashMove);
+
+	float ActualStartingPos = 0.0f;
+	if (USkeletalMeshComponent* Mesh = Pawn->FindComponentByClass<USkeletalMeshComponent>())
+	{
+		if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
+		{
+			AnimInstance->Montage_Play(SelectedMontage, 1.0f);
+			if (FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(SelectedMontage))
+				ActualStartingPos = MontageInstance->GetPosition();
+		}
+	}
+
+	TSharedPtr<FLayeredMove_AnimRootMotion> AnimSyncMove = MakeShared<FLayeredMove_AnimRootMotion>();
+	AnimSyncMove->MontageState.Montage = SelectedMontage;
+	AnimSyncMove->MontageState.PlayRate = 1.0f;
+	AnimSyncMove->MontageState.StartingMontagePosition = ActualStartingPos;
+	AnimSyncMove->MontageState.CurrentPosition = ActualStartingPos;
+	AnimSyncMove->DurationMs = DashDurationMs;
+	QueueLayeredMove(AnimSyncMove);
 }
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
@@ -77,4 +140,3 @@ void ULNPCharacterMoverComponent::OnHandlerSettingChanged()
 		OnPreSimulationTick.RemoveDynamic(this, &ULNPCharacterMoverComponent::OnMoverPreSimulationTick);
 	}
 }
-

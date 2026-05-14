@@ -2,6 +2,7 @@
 
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
+
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
 #include "MassRepresentationFragments.h"

@@ -9,6 +9,8 @@
 #include "LNPEnemyCharacter.generated.h"
 
 class ULNPEnemyConfig;
+class UAbilitySystemComponent;
+class ULNPBaseAttributeSet;
 struct FMassEntityHandle;
 
 /**
@@ -23,6 +25,8 @@ class LOOTNPOP_API ALNPEnemyCharacter : public ALNPCharacterBase
 public:
 	ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer);
 
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+
 	/** Initializes the character using the provided configuration asset */
 	void InitializeFromConfig(ULNPEnemyConfig* InConfig);
 
@@ -30,7 +34,10 @@ public:
 	void SyncFromEntity(FMassEntityHandle InEntityHandle, float InHealth, ELNPTargetingState InTargetingState);
 
 	/** Actor -> Mass sync: Called when actor is about to be deactivated/destroyed back to Mass */
-	void SyncToEntity(float& OutHealth);
+	void SyncToEntity(float& OutHealth) const;
+
+	/** Activates physics ragdoll and disables movement. Safe to call multiple times. */
+	void TriggerRagdoll();
 
 protected:
 	virtual void BeginPlay() override;
@@ -38,4 +45,10 @@ protected:
 	/** The configuration asset used to initialize this enemy */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Enemy")
 	TObjectPtr<ULNPEnemyConfig> EnemyConfig;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|GAS")
+	TObjectPtr<UAbilitySystemComponent> ASC;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|GAS")
+	TObjectPtr<ULNPBaseAttributeSet> AttributeSet;
 };

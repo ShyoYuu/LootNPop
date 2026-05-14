@@ -1,9 +1,11 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "LNPGameState.h"
-#include "Net/UnrealNetwork.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "LootNPop.h"
+
+#include "Net/UnrealNetwork.h"
 
 ALNPGameState::ALNPGameState()
 {
@@ -38,7 +40,7 @@ void ALNPGameState::OnRep_OctantGenSeed()
 
 void ALNPGameState::OnRep_ServerPhase()
 {
-	UE_LOG(LogTemp, Log, TEXT("LNPGameState: Server phase changed to %d"), (int32)ServerPhase);
+	UE_LOG(LogLootNPop, Log, TEXT("LNPGameState: Server phase changed to %d"), (int32)ServerPhase);
 
 	if (ServerPhase == ELNPInitPhase::SurfaceBaking)
 	{

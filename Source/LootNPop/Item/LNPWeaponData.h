@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -19,7 +19,7 @@ public:
 	TObjectPtr<UAnimMontage> AttackMontage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0"))
-	float FireCooldown = 0.5f;
+	float FireCooldown = 0.2f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile")
 	ELNPProjectileType ProjectileType = ELNPProjectileType::Linear;
@@ -38,6 +38,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile")
 	FVector MuzzleOffset = FVector(100.f, 0.f, 0.f);
+
+	/** GE applied to the hit target when in Actor (GAS) state. Must use TAG_GE_Data_Damage via SetByCaller. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile")
+	TSubclassOf<UGameplayEffect> ProjectileDamageEffect;
 
 	/** VFX played at spawn, during flight (trail), and on impact. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|VFX")

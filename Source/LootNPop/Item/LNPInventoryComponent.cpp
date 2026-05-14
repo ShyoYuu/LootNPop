@@ -1,8 +1,9 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Item/LNPInventoryComponent.h"
 #include "Item/LNPBuffData.h"
 #include "Player/LNPPlayerState.h"
+
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
 

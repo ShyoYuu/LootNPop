@@ -1,6 +1,7 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
+
 #include "GameplayEffectExtension.h"
 
 ULNPBaseAttributeSet::ULNPBaseAttributeSet()

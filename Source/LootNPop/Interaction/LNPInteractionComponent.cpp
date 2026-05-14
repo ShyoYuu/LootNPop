@@ -3,6 +3,8 @@
 #include "Interaction/LNPInteractionComponent.h"
 #include "LootPod/LNPLootPod.h"
 #include "LootPod/LNPLootPodMassTypes.h"
+#include "LootNPop.h"
+
 #include "SmartObjectSubsystem.h"
 #include "SmartObjectComponent.h"
 #include "SmartObjectRequestTypes.h"
@@ -101,7 +103,7 @@ void ULNPInteractionComponent::PerformInteraction()
 			// Check if the player is already looting
 			if (EntityManager.GetFragmentDataPtr<FLNPPlayerLootingFragment>(PlayerEntity) == nullptr)
 			{
-				UE_LOG(LogTemp, Log, TEXT("Interacting with LootPod: %s"), *Pod->GetName());
+				UE_LOG(LogLootNPop, Log, TEXT("Interacting with LootPod: %s"), *Pod->GetName());
 
 				// 1. Signal Player is looting
 				EntityManager.Defer().AddTag<FLNPPlayerLootingTag>(PlayerEntity);
@@ -116,7 +118,7 @@ void ULNPInteractionComponent::PerformInteraction()
 			}
 			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Player is already looting another pod."));
+				UE_LOG(LogLootNPop, Warning, TEXT("Player is already looting another pod."));
 			}
 		}
 	}

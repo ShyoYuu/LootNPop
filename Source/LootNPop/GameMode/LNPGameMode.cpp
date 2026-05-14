@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "GameMode/LNPGameMode.h"
 #include "GameMode/LNPGameState.h"
@@ -7,6 +7,7 @@
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "Player/LNPPlayerController.h"
+#include "LootNPop.h"
 
 ALNPGameMode::ALNPGameMode()
 {
@@ -73,7 +74,7 @@ void ALNPGameMode::OnEntitySpawningComplete()
 	GS->ServerPhase = ELNPInitPhase::Complete;
 	bServerInitComplete = true;
 
-	UE_LOG(LogTemp, Log, TEXT("ALNPGameMode: Server init complete. Spawning %d pending players."), PendingPlayers.Num());
+	UE_LOG(LogLootNPop, Log, TEXT("ALNPGameMode: Server init complete. Spawning %d pending players."), PendingPlayers.Num());
 
 	for (TWeakObjectPtr<AController>& Ctrl : PendingPlayers)
 	{

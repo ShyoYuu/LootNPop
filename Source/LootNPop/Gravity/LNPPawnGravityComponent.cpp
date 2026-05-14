@@ -1,10 +1,11 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Gravity/LNPPawnGravityComponent.h"
+#include "GameMode/LNPGameState.h"
+
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "DefaultMovementSet/CharacterMoverComponent.h"
-#include "GameMode/LNPGameState.h"
 
 ULNPPawnGravityComponent::ULNPPawnGravityComponent()
 {
@@ -38,9 +39,6 @@ void ULNPPawnGravityComponent::BeginPlay()
 void ULNPPawnGravityComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (CachedMoverComponent == nullptr)
-		return;
 
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (OwnerPawn == nullptr)
@@ -135,8 +133,11 @@ void ULNPPawnGravityComponent::InputLook(const FRotator& LookDelta)
 
 void ULNPPawnGravityComponent::UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir)
 {
+	if (CachedMoverComponent == nullptr)
+		return;
+
 	const FVector CustomGravityVector = PawnDownDir * GravityStrength;
-	
+
 	CachedMoverComponent->SetGravityOverride(true, CustomGravityVector);
 	CachedMoverComponent->SetUpDirectionOverride(true, PawnUpDir);
 
@@ -167,7 +168,7 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 	if (!PendingLookInput.IsNearlyZero())
 	{
 		// Yaw: Rotate around the local Up axis
-		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * 2.0));
+		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * 4.0));
 		CurrentControlQuat = YawQuat * CurrentControlQuat;
 
 		// Pitch: Rotate around the local Right axis

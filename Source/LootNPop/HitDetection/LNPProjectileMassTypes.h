@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "MassEntityHandle.h"
+#include "GameplayEffect.h"
 #include "LNPProjectileMassTypes.generated.h"
 
 class ULNPVFXData;
@@ -29,9 +30,17 @@ struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragme
 	UPROPERTY()
 	TObjectPtr<ULNPVFXData> VFXData = nullptr;
 
-	ELNPProjectileType Type      = ELNPProjectileType::Linear;
-	float              Damage    = 10.0f;
-	float              HitRadiusSq = 25.0f;
+	UPROPERTY()
+	TSubclassOf<UGameplayEffect> DamageEffectClass;
+
+	UPROPERTY()
+	ELNPProjectileType Type        = ELNPProjectileType::Linear;
+
+	UPROPERTY()
+	float Damage      = 10.0f;
+
+	UPROPERTY()
+	float HitRadiusSq = 25.0f;
 };
 
 /**
@@ -60,4 +69,11 @@ struct LOOTNPOP_API FLNPProjectileVisualFragment : public FMassFragment
 	GENERATED_BODY()
 
 	bool bInitialized = false;
+};
+
+/** Tag marking a projectile for destruction at end of StartPhysics phase. */
+USTRUCT()
+struct LOOTNPOP_API FLNPProjectileDeadTag : public FMassTag
+{
+	GENERATED_BODY()
 };

@@ -2,11 +2,13 @@
 
 #include "Character/LNPPlayerCharacter.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "Player/LNPPlayerState.h"
+#include "Character/LNPPawnInputComponent.h"
+
 #include "MassAgentComponent.h"
 #include "MassEntitySubsystem.h"
 #include "MassLODSubsystem.h"
 #include "AbilitySystemComponent.h"
-#include "Player/LNPPlayerState.h"
 
 ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

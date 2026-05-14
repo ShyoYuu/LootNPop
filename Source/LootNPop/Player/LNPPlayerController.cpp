@@ -1,8 +1,25 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Player/LNPPlayerController.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameMode/LNPGameMode.h"
+#include "GameMode/LNPGameState.h"
+#include "Character/LNPPawnInputComponent.h"
+
+bool ALNPPlayerController::IsLoadingComplete() const
+{
+	if (HasAuthority())
+	{
+		const ALNPGameState* GS = GetWorld()->GetGameState<ALNPGameState>();
+		return GS && GS->ServerPhase == ELNPInitPhase::Complete;
+	}
+	return bLoadingComplete;
+}
+
+void ALNPPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+}
 
 void ALNPPlayerController::BeginPlay()
 {
@@ -32,6 +49,7 @@ void ALNPPlayerController::BeginPlay()
 
 void ALNPPlayerController::OnLocalBakingComplete()
 {
+	bLoadingComplete = true;
 	HideLoadingScreen();
 	ServerNotifyClientReady();
 }

@@ -6,6 +6,8 @@
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "LootNPop.h"
+
 #include "MassCommonFragments.h"
 #include "MassExecutionContext.h"
 #include "MassCommonTypes.h"
@@ -27,6 +29,7 @@ ULNPEnemyScoringProcessor::ULNPEnemyScoringProcessor()
 	: ScoringQuery(*this), PlayerQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
+	ProcessingPhase = EMassProcessingPhase::PostPhysics;
 	// Prepare candidates for the NEXT frame after everyone has moved
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::UpdateWorldFromMass;
 }
@@ -39,6 +42,8 @@ void ULNPEnemyScoringProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 	ScoringQuery.AddRequirement<FLNPEnemyTargetingCandidateFragment>(EMassFragmentAccess::ReadWrite);
 	ScoringQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	ScoringQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	ScoringQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	ScoringQuery.RegisterWithProcessor(*this);
 
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
@@ -181,21 +186,21 @@ void ULNPEnemyTargetingProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 	TargetingQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadWrite);
 	TargetingQuery.AddRequirement<FLNPEnemyTargetingCandidateFragment>(EMassFragmentAccess::ReadOnly);
 	TargetingQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	TargetingQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	TargetingQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
+	TargetingQuery.RegisterWithProcessor(*this);
 
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPTargetingSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
 void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	ULNPTargetingSubsystem* TargetingSubsystem = GetWorld()->GetSubsystem<ULNPTargetingSubsystem>();
+	ULNPTargetingSubsystem& TargetingSubsystem = Context.GetMutableSubsystemChecked<ULNPTargetingSubsystem>();
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
-
-	if (nullptr == TargetingSubsystem)
-		return;
 
 	// 1. Gather player locations
 	TMap<FMassEntityHandle, FVector> PlayerLocations;
@@ -209,7 +214,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 	});
 
 	// 2. Perform global rebalance
-	TargetingSubsystem->RebalanceSlots();
+	TargetingSubsystem.RebalanceSlots();
 
 	TArray<FMassEntityHandle> EntitiesToSignal;
 
@@ -235,7 +240,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 			for (int32 TargetIdx = 0; TargetIdx < CandidateData.NumPotentialTargets; ++TargetIdx)
 			{
 				FMassEntityHandle PotentialTarget = CandidateData.PotentialTargets[TargetIdx];
-				if (TargetingSubsystem->IsSlotConfirmed(EnemyContext.GetEntity(i), PotentialTarget))
+				if (TargetingSubsystem.IsSlotConfirmed(EnemyContext.GetEntity(i), PotentialTarget))
 				{
 					Targeting.TargetPlayer = PotentialTarget;
 					Targeting.State = ELNPTargetingState::Confirmed;
@@ -276,7 +281,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 
 			if (OldState != Targeting.State)
 			{
-				UE_LOG(LogTemp, Log, TEXT("Entity %d changed state from %s to %s"), EnemyContext.GetEntity(i).Index, *UEnum::GetValueAsString(OldState), *UEnum::GetValueAsString(Targeting.State));
+				UE_LOG(LogLootNPop, Log, TEXT("Entity %d changed state from %s to %s"), EnemyContext.GetEntity(i).Index, *UEnum::GetValueAsString(OldState), *UEnum::GetValueAsString(Targeting.State));
 			}
 
 			if (OldState != Targeting.State || OldTarget != Targeting.TargetPlayer)
@@ -310,8 +315,9 @@ void ULNPEnemyTargetFollowProcessor::ConfigureQueries(const TSharedRef<FMassEnti
 	FollowQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	FollowQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	FollowQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
-	
+	FollowQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	FollowQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
+	FollowQuery.RegisterWithProcessor(*this);
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
@@ -387,16 +393,19 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	MovementQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	MovementQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	MovementQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	MovementQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
+	MovementQuery.RegisterWithProcessor(*this);
 
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceCacheSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	const ULNPSurfaceCacheSubsystem& SurfaceCache = Context.GetSubsystemChecked<ULNPSurfaceCacheSubsystem>();
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
-	ULNPSurfaceCacheSubsystem* SurfaceCache = GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
 	TArray<FMassEntityHandle> EntitiesToSignal;
 
 	MovementQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& EnemyContext)
@@ -471,11 +480,18 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 			if (AActor* Actor = ActorFragments[i].GetMutable())
 			{
-				if (ALNPCharacterBase* LNPCharacter = Cast<ALNPCharacterBase>(Actor))
-				{
-					LNPCharacter->SetAIOrientationIntent(OrientationIntent);
-					LNPCharacter->SetAIMoveInput(EffectiveSpeed > 0.0f ? OrientationIntent : FVector::ZeroVector);
-				}
+				TWeakObjectPtr<AActor> WeakActor(Actor);
+				const FVector CapturedOrientation = OrientationIntent;
+				const FVector CapturedMoveInput   = EffectiveSpeed > 0.0f ? OrientationIntent : FVector::ZeroVector;
+				EnemyContext.Defer().PushCommand<FMassDeferredSetCommand>(
+					[WeakActor, CapturedOrientation, CapturedMoveInput](const FMassEntityManager&)
+					{
+						if (ALNPCharacterBase* LNPCharacter = Cast<ALNPCharacterBase>(WeakActor.Get()))
+						{
+							LNPCharacter->SetAIOrientationIntent(CapturedOrientation);
+							LNPCharacter->SetAIMoveInput(CapturedMoveInput);
+						}
+					});
 			}
 			else
 			{
@@ -501,15 +517,12 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				const FVector DirToSurface = (DesiredPos - GravityOrigin).GetSafeNormal();
 
 				FVector FinalPos = DesiredPos;
-				if (SurfaceCache != nullptr)
+				FVector SurfacePoint;
+				if (SurfaceCache.GetSurfacePoint(DirToSurface, SurfacePoint))
 				{
-					FVector SurfacePoint;
-					if (SurfaceCache->GetSurfacePoint(DirToSurface, SurfacePoint))
-					{
-						// Use cache only for surface radius; angular position comes from continuous DesiredPos
-						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
-						FinalPos = GravityOrigin + DirToSurface * SurfaceRadius;
-					}
+					// Use cache only for surface radius; angular position comes from continuous DesiredPos
+					const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
+					FinalPos = GravityOrigin + DirToSurface * SurfaceRadius;
 				}
 				EntityTransform.SetLocation(FinalPos);
 			}
@@ -529,9 +542,9 @@ ULNPEnemyDebugDrawProcessor::ULNPEnemyDebugDrawProcessor()
 	: DebugQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
+	bRequiresGameThreadExecution = true;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Behavior;
 	ExecutionOrder.ExecuteAfter.Add(ULNPEnemyTargetingProcessor::StaticClass()->GetFName());
-	ExecutionOrder.ExecuteBefore.Add(ULNPEnemyScoringProcessor::StaticClass()->GetFName());
 }
 
 void ULNPEnemyDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -545,7 +558,7 @@ void ULNPEnemyDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 
 void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	UWorld* World = GetWorld();
+	UWorld* World = EntityManager.GetWorld();
 	UE::Mass::Debug::FLineBatcher LineBatcher = UE::Mass::Debug::FLineBatcher::MakeLineBatcher(World);
 
 	DebugQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& EnemyContext)
@@ -603,36 +616,52 @@ ULNPHealthProcessor::ULNPHealthProcessor()
 	: HealthQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
-	ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::Tasks);
+	ProcessingPhase = EMassProcessingPhase::PostPhysics;
 }
 
 void ULNPHealthProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
 	HealthQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
+	HealthQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
 	HealthQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	HealthQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	HealthQuery.RegisterWithProcessor(*this);
 }
 
 void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	TArray<FMassEntityHandle> EntitiesToDestroy;
+	TArray<FMassEntityHandle> DyingEntities;
 
-	HealthQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& EnemyContext)
+	HealthQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
-		const TArrayView<FLNPEnemyFragment> Enemies = EnemyContext.GetMutableFragmentView<FLNPEnemyFragment>();
+		TArrayView<FLNPEnemyFragment>  Enemies    = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
+		TArrayView<FMassActorFragment> ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 
-		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			if (Enemies[i].Health <= 0.0f)
+			if (Enemies[i].Health > 0.f)
+				continue;
+
+			Enemies[i].DeathCountdown = 2.5f;
+			DyingEntities.Add(Ctx.GetEntity(i));
+
+			if (!ActorFrags.IsEmpty())
 			{
-				EntitiesToDestroy.Add(EnemyContext.GetEntity(i));
+				if (AActor* RawActor = ActorFrags[i].GetMutable())
+				{
+					TWeakObjectPtr<AActor> WeakActor(RawActor);
+					Ctx.Defer().PushCommand<FMassDeferredSetCommand>([WeakActor](const FMassEntityManager&)
+					{
+						if (ALNPEnemyCharacter* EnemyChar = Cast<ALNPEnemyCharacter>(WeakActor.Get()))
+							EnemyChar->TriggerRagdoll();
+					});
+				}
 			}
 		}
 	});
 
-	if (EntitiesToDestroy.Num() > 0)
-	{
-		Context.Defer().DestroyEntities(EntitiesToDestroy);
-	}
+	for (const FMassEntityHandle Entity : DyingEntities)
+		Context.Defer().AddTag<FLNPEnemyDyingTag>(Entity);
 }
 
 // --- LOD Override Processor ---
@@ -641,6 +670,7 @@ ULNPEnemyLODOverrideProcessor::ULNPEnemyLODOverrideProcessor()
 	: LODOverrideQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
+	ProcessingPhase = EMassProcessingPhase::PostPhysics;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::LOD;
 	ExecutionOrder.ExecuteAfter.Add(TEXT("MassDistanceLODProcessor"));
 	ExecutionOrder.ExecuteBefore.Add(UE::Mass::ProcessorGroupNames::Representation);
@@ -676,6 +706,7 @@ ULNPEnemyActorInitializerProcessor::ULNPEnemyActorInitializerProcessor()
 	: InitializerQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
+	ProcessingPhase = EMassProcessingPhase::PostPhysics;
 	ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::Representation);
 }
 
@@ -719,4 +750,84 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 			}
 		}
 	});
+}
+
+// --- ActorSync Processor ---
+
+ULNPEnemyActorSyncProcessor::ULNPEnemyActorSyncProcessor()
+	: SyncQuery(*this)
+{
+	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
+	bAutoRegisterWithProcessingPhases = true;
+	bRequiresGameThreadExecution = true;
+	ProcessingPhase = EMassProcessingPhase::PostPhysics;
+	ExecutionOrder.ExecuteBefore.Add(UE::Mass::ProcessorGroupNames::LOD);
+}
+
+void ULNPEnemyActorSyncProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
+{
+	SyncQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
+	SyncQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
+	SyncQuery.AddTagRequirement<FLNPEnemyActorInitializedTag>(EMassFragmentPresence::All);
+	SyncQuery.RegisterWithProcessor(*this);
+}
+
+void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
+	TArray<FMassEntityHandle> ToCleanup;
+
+	SyncQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FMassActorFragment> ActorFrags = Ctx.GetFragmentView<FMassActorFragment>();
+		TArrayView<FLNPEnemyFragment>             EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
+
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			if (const ALNPEnemyCharacter* EnemyChar = Cast<ALNPEnemyCharacter>(ActorFrags[i].Get()))
+				EnemyChar->SyncToEntity(EnemyFrags[i].Health);
+			else
+				ToCleanup.Add(Ctx.GetEntity(i));
+		}
+	});
+
+	for (const FMassEntityHandle Entity : ToCleanup)
+		Context.Defer().RemoveTag<FLNPEnemyActorInitializedTag>(Entity);
+}
+
+// --- DeathTimer Processor ---
+
+ULNPEnemyDeathTimerProcessor::ULNPEnemyDeathTimerProcessor()
+	: DeathTimerQuery(*this)
+{
+	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
+	bAutoRegisterWithProcessingPhases = true;
+	ProcessingPhase = EMassProcessingPhase::PostPhysics;
+	ExecutionOrder.ExecuteAfter.Add(ULNPHealthProcessor::StaticClass()->GetFName());
+}
+
+void ULNPEnemyDeathTimerProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
+{
+	DeathTimerQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
+	DeathTimerQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::All);
+	DeathTimerQuery.RegisterWithProcessor(*this);
+}
+
+void ULNPEnemyDeathTimerProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
+	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	TArray<FMassEntityHandle> ToDestroy;
+
+	DeathTimerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		TArrayView<FLNPEnemyFragment> Enemies = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			Enemies[i].DeathCountdown -= DeltaTime;
+			if (Enemies[i].DeathCountdown <= 0.f)
+				ToDestroy.Add(Ctx.GetEntity(i));
+		}
+	});
+
+	if (ToDestroy.Num() > 0)
+		Context.Defer().DestroyEntities(MoveTemp(ToDestroy));
 }

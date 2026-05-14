@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,7 @@ class LOOTNPOP_API ALNPPlayerController : public APlayerController
 
 public:
 	virtual void BeginPlay() override;
+	virtual void OnPossess(APawn* InPawn) override;
 
 	/** Override in Blueprint to show a loading screen widget */
 	UFUNCTION(BlueprintImplementableEvent, Category = "LNP|UI")
@@ -29,4 +30,11 @@ protected:
 	/** Notifies the server that this client has finished local initialization */
 	UFUNCTION(Server, Reliable)
 	void ServerNotifyClientReady();
+
+private:
+	bool bLoadingComplete = false;
+
+public:
+	/** Server: checks ServerPhase == Complete. Client: checks bLoadingComplete. */
+	bool IsLoadingComplete() const;
 };

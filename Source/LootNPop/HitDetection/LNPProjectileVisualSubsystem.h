@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -48,10 +48,10 @@ public:
 
 #if WITH_EDITOR
 	/** Thread-safe: queues a surface impact position for debug visualization. */
-	void EnqueueSurfaceImpactDebug(FVector Location);
+	void EnqueueSurfaceImpactDebug(FVector Location, FColor Color, float SphereRadius);
 
 	/** Drains the surface impact debug queue and draws persistent spheres. Game thread only. */
-	void FlushSurfaceImpactDebug(UWorld* World, float SphereRadius);
+	void FlushSurfaceImpactDebug(UWorld* World);
 #endif
 
 private:
@@ -70,6 +70,13 @@ private:
 	TQueue<FPendingImpact,    EQueueMode::Mpsc>                    ImpactQueue;
 
 #if WITH_EDITOR
-	TQueue<FVector, EQueueMode::Mpsc> SurfaceImpactDebugQueue;
+	struct FImpactDebug
+	{
+		FVector Location;
+		FColor  Color;
+		float   SphereRadius;
+	};
+
+	TQueue<FImpactDebug, EQueueMode::Mpsc> SurfaceImpactDebugQueue;
 #endif
 };

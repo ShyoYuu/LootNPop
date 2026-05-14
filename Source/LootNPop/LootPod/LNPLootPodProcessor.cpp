@@ -2,12 +2,14 @@
 
 #include "LNPLootPodProcessor.h"
 #include "LNPLootPodMassTypes.h"
+#include "LNPLootPod.h"
+#include "LootNPop.h"
+
 #include "MassCommonTypes.h"
 #include "MassExecutionContext.h"
 #include "MassCommonFragments.h"
 #include "MassCommandBuffer.h"
 #include "MassActorSubsystem.h"
-#include "LNPLootPod.h"
 
 // --- Integrated Command for notifying Actor of state transitions and handling logic ---
 struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
@@ -43,20 +45,26 @@ struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
 				Pod->UpdateVisuals(Entry.NewState);
 			}
 
+			if (Entry.OldState != Entry.NewState)
+			{
+				UE_LOG(LogLootNPop, Log, TEXT("[LootPod] PodID %d transitioned from %s to %s at location %s"), 
+					Entry.PodID, 
+					*UEnum::GetValueAsString(Entry.OldState), 
+					*UEnum::GetValueAsString(Entry.NewState), 
+					*Entry.Location.ToString());
+			}
+
 			// 2. Specialized Processing based on State Transition
 			if (Entry.NewState == ELNPLootPodState::Popped)
 			{
 				// Integrated reward dropping logic
-				UE_LOG(LogTemp, Log, TEXT("LootPod [%d] Transitioned to Popped at %s! Dropping rewards..."), Entry.PodID, *Entry.Location.ToString());
 				// TODO: Spawn actual reward actors/items here
 			}
 			else if (Entry.NewState == ELNPLootPodState::Looting)
 			{
-				UE_LOG(LogTemp, Log, TEXT("LootPod [%d] started looting."), Entry.PodID);
 			}
 			else if (Entry.NewState == ELNPLootPodState::Idle && Entry.OldState == ELNPLootPodState::Looting)
 			{
-				UE_LOG(LogTemp, Log, TEXT("LootPod [%d] was interrupted and returned to Idle."), Entry.PodID);
 			}
 		}
 	}

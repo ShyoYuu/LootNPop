@@ -2,8 +2,9 @@
 
 #include "Movement/LNPSprintModifier.h"
 #include "Movement/LNPCharacterMoverComponent.h"
-#include "MoverComponent.h"
 #include "Movement/LNPCharacterMovementSettings.h"
+
+#include "MoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoveLibrary/MovementUtils.h"
 

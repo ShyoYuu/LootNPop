@@ -3,20 +3,34 @@
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+
+#include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "AbilitySystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "MassAgentComponent.h"
 
 ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	// Default settings for enemies
 	PrimaryActorTick.bCanEverTick = true;
+
+	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("ASC"));
+	ASC->SetIsReplicated(false);
+
+	AttributeSet = CreateDefaultSubobject<ULNPBaseAttributeSet>(TEXT("AttributeSet"));
+}
+
+UAbilitySystemComponent* ALNPEnemyCharacter::GetAbilitySystemComponent() const
+{
+	return ASC;
 }
 
 void ALNPEnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	if (ASC)
+		ASC->InitAbilityActorInfo(this, this);
 }
 
 void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
@@ -41,14 +55,14 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 	}
 
 	// 2. Setup GAS (Abilities & Attributes)
-	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	if (UAbilitySystemComponent* EnemyASC = GetAbilitySystemComponent())
 	{
 		// Grant Default Abilities
 		for (const TSubclassOf<UGameplayAbility>& AbilityClass : InConfig->DefaultAbilities)
 		{
 			if (AbilityClass)
 			{
-				ASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+				EnemyASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
 			}
 		}
 
@@ -63,19 +77,25 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 
 void ALNPEnemyCharacter::SyncFromEntity(FMassEntityHandle InEntityHandle, float InHealth, ELNPTargetingState InTargetingState)
 {
-	// Link the actor to the Mass Entity via the Agent Component
-	if (UMassAgentComponent* AgentComp = FindComponentByClass<UMassAgentComponent>())
+	if (AttributeSet)
 	{
-		// Force set the entity handle to ensure the actor knows its owner
-		// AgentComp->SetEntityHandle(InEntityHandle);
+		AttributeSet->SetHealth(InHealth);
 	}
-
-	// TODO: Set Health to ASC or local variables
-	// TODO: Handle AI activation based on TargetingState
 }
 
-void ALNPEnemyCharacter::SyncToEntity(float& OutHealth)
+void ALNPEnemyCharacter::TriggerRagdoll()
 {
-	// TODO: Get Health from ASC or local variables
-	OutHealth = 100.0f; // Placeholder
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->SetAllBodiesSimulatePhysics(true);
+		MeshComp->SetCollisionProfileName(TEXT("Ragdoll"));
+		MeshComp->WakeAllRigidBodies();
+	}
+	if (UCapsuleComponent* Capsule = FindComponentByClass<UCapsuleComponent>())
+		Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void ALNPEnemyCharacter::SyncToEntity(float& OutHealth) const
+{
+	OutHealth = AttributeSet ? AttributeSet->GetHealth() : 0.f;
 }
