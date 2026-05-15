@@ -96,7 +96,7 @@ EStateTreeRunStatus FLNPEnemyLookAtTask::Tick(FStateTreeExecutionContext& Contex
 
 	if (Targeting.TargetPlayer.IsValid())
 	{
-		MoveTarget.Center = Targeting.LastKnownTargetLocation;
+		MoveTarget.Center = Targeting.TargetLocation;
 		MoveTarget.DesiredSpeed = FMassInt16Real(0.0f); // Face target without moving
 		
 		// This task stays Running while in Alert state to keep the orientation intent updated
@@ -112,6 +112,7 @@ bool FLNPEnemySteeringTask::Link(FStateTreeLinker& Linker)
 {
 	Linker.LinkExternalData(SharedConfigHandle);
 	Linker.LinkExternalData(TargetingHandle);
+	Linker.LinkExternalData(TransformHandle);
 	Linker.LinkExternalData(MoveTargetHandle);
 	return true;
 }
@@ -120,18 +121,19 @@ void FLNPEnemySteeringTask::GetDependencies(UE::MassBehavior::FStateTreeDependen
 {
 	Builder.AddReadOnly(SharedConfigHandle);
 	Builder.AddReadOnly(TargetingHandle);
+	Builder.AddReadOnly(TransformHandle);
 	Builder.AddReadWrite(MoveTargetHandle);
 }
 
 EStateTreeRunStatus FLNPEnemySteeringTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transitions) const
 {
-	//UE_LOG(LogLootNPop, Log, TEXT("Entering SteeringTask"));
+	UE_LOG(LogLootNPop, Log, TEXT("Entering SteeringTask"));
 	return EStateTreeRunStatus::Running;
 }
 
 void FLNPEnemySteeringTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	//UE_LOG(LogLootNPop, Log, TEXT("Exiting SteeringTask"));
+	UE_LOG(LogLootNPop, Log, TEXT("Exiting SteeringTask"));
 }
 
 EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
@@ -163,16 +165,97 @@ EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Cont
 			DesiredSpeed = SharedConfig.Config->MovementConfig.MoveSpeed;
 		}
 
-		// 3. Keep Moving
-		MoveTarget.Center = Targeting.LastKnownTargetLocation;
+		// 3. Keep Moving — stop StopBuffer inside AttackRange so arrival signal reliably fires
+		// within AttackRange. StopBuffer >= 30 (ArrivalBuffer) is enforced.
+		const FVector EntityLocation = Context.GetExternalData(TransformHandle).GetTransform().GetLocation();
+		const FVector DirToTarget = (Targeting.TargetLocation - EntityLocation).GetSafeNormal();
+		const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
+		const float StopDist = FMath::Max(0.f, AttackRange - StopBuffer);
+		MoveTarget.Center = Targeting.TargetLocation - DirToTarget * StopDist;
 		MoveTarget.IntentAtGoal = EMassMovementAction::Stand;
-		MoveTarget.DistanceToGoal = DistanceToTarget;
+		MoveTarget.DistanceToGoal = FMath::Max(0.f, DistanceToTarget - StopDist);
 		MoveTarget.DesiredSpeed = FMassInt16Real(DesiredSpeed);
 
 		return EStateTreeRunStatus::Running;
 	}
 
 	return EStateTreeRunStatus::Failed;
+}
+
+// --- Attack Task ---
+
+bool FLNPEnemyAttackTask::Link(FStateTreeLinker& Linker)
+{
+	Linker.LinkExternalData(SharedConfigHandle);
+	Linker.LinkExternalData(TargetingHandle);
+	Linker.LinkExternalData(TransformHandle);
+	Linker.LinkExternalData(MoveTargetHandle);
+	Linker.LinkExternalData(ActorHandle);
+	return true;
+}
+
+void FLNPEnemyAttackTask::GetDependencies(UE::MassBehavior::FStateTreeDependencyBuilder& Builder) const
+{
+	Builder.AddReadOnly(SharedConfigHandle);
+	Builder.AddReadOnly(TargetingHandle);
+	Builder.AddReadOnly(TransformHandle);
+	Builder.AddReadWrite(MoveTargetHandle);
+	Builder.AddReadOnly(ActorHandle);
+}
+
+EStateTreeRunStatus FLNPEnemyAttackTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
+{
+	// Stop movement and face the target (TargetFollowProcessor signals StateTree each frame
+	// while ActualDistance <= StopDist, driving the attack loop).
+	const FLNPEnemyTargetingFragment& Targeting = Context.GetExternalData(TargetingHandle);
+	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
+	MoveTarget.Center       = Targeting.TargetLocation;
+	MoveTarget.DesiredSpeed = FMassInt16Real(0.f);
+
+	UE_LOG(LogLootNPop, Log, TEXT("Entering AttackTask"));
+	return EStateTreeRunStatus::Running;
+}
+
+void FLNPEnemyAttackTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
+{
+	UE_LOG(LogLootNPop, Log, TEXT("Exiting AttackTask"));
+}
+
+EStateTreeRunStatus FLNPEnemyAttackTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
+{
+	const FLNPEnemyTargetingFragment& Targeting = Context.GetExternalData(TargetingHandle);
+
+	if (Targeting.State != ELNPTargetingState::Confirmed)
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("AttackTask: Targeting state changed to %d, exiting Attack state"), static_cast<int32>(Targeting.State));
+		return EStateTreeRunStatus::Failed;
+	}
+
+	const FLNPEnemySharedFragment& SharedConfig = Context.GetExternalData(SharedConfigHandle);
+	const float AttackRange = SharedConfig.Config ? SharedConfig.Config->MovementConfig.AttackRange : 200.f;
+
+	if (Targeting.DistanceToTargetSq > FMath::Square(AttackRange))
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("AttackTask: Target moved out of range, exiting Attack state"));
+		return EStateTreeRunStatus::Failed;
+	}
+
+	// Keep facing target; movement is stopped by MovementProcessor (ActualDistance <= StopDist)
+	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
+	MoveTarget.Center       = Targeting.TargetLocation;
+	MoveTarget.DesiredSpeed = FMassInt16Real(0.f);
+
+	const FMassActorFragment& ActorFrag = Context.GetExternalData(ActorHandle);
+	if (ALNPEnemyCharacter* Enemy = Cast<ALNPEnemyCharacter>(const_cast<AActor*>(ActorFrag.Get())))
+	{
+		Enemy->TryActivateAttack();
+	}
+	else
+	{
+		UE_LOG(LogLootNPop, Warning, TEXT("AttackTask: Failed to cast actor to ALNPEnemyCharacter"));
+	}
+
+	return EStateTreeRunStatus::Running;
 }
 
 // --- Idle Task ---

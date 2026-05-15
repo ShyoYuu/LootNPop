@@ -79,7 +79,34 @@ protected:
 
 	TStateTreeExternalDataHandle<struct FLNPEnemySharedFragment> SharedConfigHandle;
 	TStateTreeExternalDataHandle<struct FLNPEnemyTargetingFragment> TargetingHandle;
+	TStateTreeExternalDataHandle<struct FTransformFragment> TransformHandle;
 	TStateTreeExternalDataHandle<struct FMassMoveTargetFragment> MoveTargetHandle;
+};
+
+/**
+ * Fires the configured attack ability via GAS while the enemy is within attack range.
+ * Returns Failed when targeting is lost or target moves out of range (triggers re-chase).
+ */
+USTRUCT(meta = (DisplayName = "LNP Attack Task"))
+struct LOOTNPOP_API FLNPEnemyAttackTask : public FMassStateTreeTaskBase
+{
+	GENERATED_BODY()
+
+	using FInstanceDataType = FLNPEnemyTaskInstanceData;
+
+protected:
+	virtual bool Link(FStateTreeLinker& Linker) override;
+	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
+	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
+	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override;
+	virtual void GetDependencies(UE::MassBehavior::FStateTreeDependencyBuilder& Builder) const override;
+
+	TStateTreeExternalDataHandle<struct FLNPEnemySharedFragment> SharedConfigHandle;
+	TStateTreeExternalDataHandle<struct FLNPEnemyTargetingFragment> TargetingHandle;
+	TStateTreeExternalDataHandle<struct FTransformFragment> TransformHandle;
+	TStateTreeExternalDataHandle<struct FMassMoveTargetFragment> MoveTargetHandle;
+	TStateTreeExternalDataHandle<struct FMassActorFragment> ActorHandle;
 };
 
 /**
@@ -107,4 +134,3 @@ protected:
 	TStateTreeExternalDataHandle<struct FLNPEnemyTargetingFragment> TargetingHandle;
 	TStateTreeExternalDataHandle<struct FMassMoveTargetFragment> MoveTargetHandle;
 };
-

@@ -13,8 +13,6 @@
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "Interaction/LNPInteractionComponent.h"
 #include "Player/LNPPlayerState.h"
-#include "Item/LNPEquipmentComponent.h"
-#include "Item/LNPItemInstance.h"
 
 ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -97,25 +95,10 @@ void ALNPCharacterBase::BeginPlay()
 	Super::BeginPlay();
 }
 
+
 bool ALNPCharacterBase::TryActivateAttack()
 {
-	const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
-	if (!PS)
-		return false;
-
-	UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
-	if (!ASC)
-		return false;
-
-	const ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent();
-	if (!EqComp)
-		return false;
-
-	const FLNPWeaponInstance& WeaponSlot = EqComp->GetWeaponSlot();
-	if (!WeaponSlot.IsValid() || !WeaponSlot.GrantedAbilities.IsValidIndex(0))
-		return false;
-
-	return ASC->TryActivateAbility(WeaponSlot.GrantedAbilities[0]);
+	return false;
 }
 
 void ALNPCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

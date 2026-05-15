@@ -6,6 +6,7 @@
 #include "MassEntityTypes.h"
 #include "Character/LNPCharacterBase.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "GameplayAbilitySpec.h"
 #include "LNPEnemyCharacter.generated.h"
 
 class ULNPEnemyConfig;
@@ -26,6 +27,7 @@ public:
 	ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer);
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	virtual bool TryActivateAttack() override;
 
 	/** Initializes the character using the provided configuration asset */
 	void InitializeFromConfig(ULNPEnemyConfig* InConfig);
@@ -41,10 +43,14 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual const ULNPWeaponData* GetActiveWeaponDef() const override;
 
 	/** The configuration asset used to initialize this enemy */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Enemy")
 	TObjectPtr<ULNPEnemyConfig> EnemyConfig;
+
+	/** Handle to the weapon attack ability granted from DefaultAbilities[0] */
+	FGameplayAbilitySpecHandle WeaponAbilityHandle;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|GAS")
 	TObjectPtr<UAbilitySystemComponent> ASC;

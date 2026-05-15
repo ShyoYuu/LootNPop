@@ -22,4 +22,7 @@ public:
 protected:
 	/** Returns the currently equipped weapon's DataAsset, or null if none. */
 	const ULNPWeaponData* GetEquippedWeaponDef() const;
+
+	/** Base damage formula: (AttackPower + WeaponDamage) * AttackMultiplier. Override per ability for variations. */
+	virtual float ComputeDamage() const;
 };

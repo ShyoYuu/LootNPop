@@ -46,4 +46,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes")
 	FGameplayAttributeData MoveSpeed;
 	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, MoveSpeed)
+
+	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes")
+	FGameplayAttributeData AttackMultiplier;
+	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, AttackMultiplier)
 };

@@ -3,6 +3,7 @@
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "GAS/Abilities/LNPGameplayAbility.h"
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "AbilitySystemComponent.h"
@@ -57,13 +58,25 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 	// 2. Setup GAS (Abilities & Attributes)
 	if (UAbilitySystemComponent* EnemyASC = GetAbilitySystemComponent())
 	{
-		// Grant Default Abilities
+		// Grant weapon abilities from WeaponData; first handle becomes the attack handle
+		if (InConfig->WeaponData)
+		{
+			for (const TSubclassOf<ULNPGameplayAbility>& AbilityClass : InConfig->WeaponData->AbilitiesToGrant)
+			{
+				if (AbilityClass)
+				{
+					FGameplayAbilitySpecHandle Handle = EnemyASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+					if (!WeaponAbilityHandle.IsValid())
+						WeaponAbilityHandle = Handle;
+				}
+			}
+		}
+
+		// Grant additional non-weapon abilities (dodge, block, etc.)
 		for (const TSubclassOf<UGameplayAbility>& AbilityClass : InConfig->DefaultAbilities)
 		{
 			if (AbilityClass)
-			{
 				EnemyASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
-			}
 		}
 
 		// Apply Initial Attributes
@@ -93,6 +106,19 @@ void ALNPEnemyCharacter::TriggerRagdoll()
 	}
 	if (UCapsuleComponent* Capsule = FindComponentByClass<UCapsuleComponent>())
 		Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+bool ALNPEnemyCharacter::TryActivateAttack()
+{
+	if (!WeaponAbilityHandle.IsValid() || !ASC)
+		return false;
+
+	return ASC->TryActivateAbility(WeaponAbilityHandle);
+}
+
+const ULNPWeaponData* ALNPEnemyCharacter::GetActiveWeaponDef() const
+{
+	return EnemyConfig ? EnemyConfig->WeaponData.Get() : nullptr;
 }
 
 void ALNPEnemyCharacter::SyncToEntity(float& OutHealth) const

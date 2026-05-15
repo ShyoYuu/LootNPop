@@ -18,6 +18,13 @@ enum class ELNPProjectileType : uint8
 	Lobbed UMETA(DisplayName = "Lobbed"),
 };
 
+UENUM(BlueprintType)
+enum class ELNPInstigatorTeam : uint8
+{
+	Enemy,
+	Player,
+};
+
 /**
  * Weapon-type constants shared across all projectiles spawned from the same weapon.
  * Stored as a ConstSharedFragment so entities with the same values share a chunk.
@@ -60,6 +67,8 @@ struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
 
 	UPROPERTY()
 	FMassEntityHandle Instigator;
+
+	ELNPInstigatorTeam InstigatorTeam = ELNPInstigatorTeam::Enemy;
 };
 
 /** Tracks whether Niagara trail components have been allocated for this projectile. */

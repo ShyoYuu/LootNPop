@@ -86,6 +86,8 @@ void ULNPPawnInputComponent::SetupPlayerInputComponent(UInputComponent* PlayerIn
 		EIC->BindAction(InteractAction, ETriggerEvent::Completed, this, &ULNPPawnInputComponent::OnInteractReleased);
 		EIC->BindAction(AttackAction, ETriggerEvent::Started, this, &ULNPPawnInputComponent::OnAttackStarted);
 		EIC->BindAction(AttackAction, ETriggerEvent::Completed, this, &ULNPPawnInputComponent::OnAttackReleased);
+		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ULNPPawnInputComponent::OnGuardStarted);
+		EIC->BindAction(GuardAction, ETriggerEvent::Completed, this, &ULNPPawnInputComponent::OnGuardReleased);
 	}
 }
 
@@ -199,6 +201,7 @@ void ULNPPawnInputComponent::OnProduceInput(float DeltaMs, FMoverInputCmdContext
 	bIsDashJustPressed = false;
 	bIsInteractJustPressed = false;
 	bIsAttackJustPressed = false;
+	bIsGuardJustPressed = false;
 }
 
 // --- Input Event Implementation ---
@@ -296,4 +299,16 @@ void ULNPPawnInputComponent::OnAttackReleased(const FInputActionValue& Value)
 {
 	bIsAttackPressed = false;
 	bIsAttackJustPressed = false;
+}
+
+void ULNPPawnInputComponent::OnGuardStarted(const FInputActionValue& Value)
+{
+	bIsGuardJustPressed = !bIsGuardPressed;
+	bIsGuardPressed = true;
+}
+
+void ULNPPawnInputComponent::OnGuardReleased(const FInputActionValue& Value)
+{
+	bIsGuardPressed = false;
+	bIsGuardJustPressed = false;
 }

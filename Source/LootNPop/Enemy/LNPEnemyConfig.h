@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "Abilities/GameplayAbility.h"
+#include "Item/LNPWeaponData.h"
 #include "LNPEnemyConfig.generated.h"
 
 class ALNPEnemyCharacter;
@@ -111,6 +112,10 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "LNP|Visuals")
 	TSubclassOf<UAnimInstance> AnimBlueprint;
+
+	/** Static weapon used for all attacks (enemies cannot swap weapons) */
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
+	TObjectPtr<ULNPWeaponData> WeaponData;
 
 	/** Gameplay Ability System setup */
 	UPROPERTY(EditAnywhere, Category = "LNP|Abilities")
