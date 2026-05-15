@@ -1,10 +1,10 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GAS/Abilities/LNPAbility_BasicAttack.h"
-#include "Player/LNPPlayerState.h"
-#include "Item/LNPEquipmentComponent.h"
-#include "Item/LNPItemInstance.h"
+#include "Character/LNPCharacterBase.h"
 #include "Item/LNPWeaponData.h"
+#include "GAS/Attributes/LNPBaseAttributeSet.h"
+#include "AbilitySystemComponent.h"
 
 ULNPAbility_BasicAttack::ULNPAbility_BasicAttack()
 {
@@ -13,13 +13,25 @@ ULNPAbility_BasicAttack::ULNPAbility_BasicAttack()
 
 const ULNPWeaponData* ULNPAbility_BasicAttack::GetEquippedWeaponDef() const
 {
-	const ALNPPlayerState* PS = GetOwningLNPPlayerState();
-	if (nullptr == PS)
-		return nullptr;
+	const ALNPCharacterBase* Ch = GetOwningCharacter();
+	return Ch ? Ch->GetActiveWeaponDef() : nullptr;
+}
 
-	const ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent();
-	if (nullptr == EqComp)
-		return nullptr;
+float ULNPAbility_BasicAttack::ComputeDamage() const
+{
+	const ALNPCharacterBase* Ch = GetOwningCharacter();
+	if (!Ch)
+		return 0.f;
 
-	return EqComp->GetWeaponSlot().Definition;
+	const UAbilitySystemComponent* ASCLocal = Ch->GetAbilitySystemComponent();
+	if (!ASCLocal)
+		return 0.f;
+
+	const ULNPBaseAttributeSet* Attrs = ASCLocal->GetSet<ULNPBaseAttributeSet>();
+	if (!Attrs)
+		return 0.f;
+
+	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDef();
+	const float WeaponBonus = WeaponDef ? WeaponDef->ProjectileDamage : 0.f;
+	return (Attrs->GetAttackPower() + WeaponBonus) * Attrs->GetAttackMultiplier();
 }

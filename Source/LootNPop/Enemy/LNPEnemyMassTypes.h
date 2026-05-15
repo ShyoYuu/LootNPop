@@ -89,7 +89,7 @@ struct LOOTNPOP_API FLNPEnemyTargetingFragment : public FMassFragment
 
 	/** Last known location of the target player */
 	UPROPERTY(Transient)
-	FVector LastKnownTargetLocation = FVector::ZeroVector;
+	FVector TargetLocation = FVector::ZeroVector;
 
 	/** Squared distance to target for sorting optimization */
 	UPROPERTY(Transient)
@@ -99,7 +99,7 @@ struct LOOTNPOP_API FLNPEnemyTargetingFragment : public FMassFragment
 	{
 		TargetPlayer.Reset();
 		State = ELNPTargetingState::None;
-		LastKnownTargetLocation = FVector::ZeroVector;
+		TargetLocation = FVector::ZeroVector;
 		DistanceToTargetSq = 0.0f;
 	}
 };

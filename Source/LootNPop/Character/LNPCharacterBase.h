@@ -19,6 +19,7 @@ class UMassAgentComponent;
 class ULNPPawnGravityComponent;
 class ULNPInteractionComponent;
 class ALNPLootPod;
+class ULNPWeaponData;
 
 /**
  * ALNPCharacterBase
@@ -54,7 +55,10 @@ public:
 	void SetAIMoveInput(FVector InMoveInput);
 	void SetAIOrientationIntent(FVector InOrientationIntent);
 
-	bool TryActivateAttack();
+	virtual bool TryActivateAttack();
+
+	/** Returns the weapon data currently equipped/configured for this character. */
+	virtual const ULNPWeaponData* GetActiveWeaponDef() const { return nullptr; }
 
 protected:
 	virtual void PostInitializeComponents() override;

@@ -149,7 +149,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					float Score = 1000000.0f / (FMath::Sqrt(Candidate.DistSq) + 1.0f);
 					Score *= LeashFactor;
 
-					if (Score > KINDA_SMALL_NUMBER)
+					//if (Score > KINDA_SMALL_NUMBER)
 					{
 						//bool bIsMelee = SharedFragment.Config->EnemyTypeTag.ToString().Contains(TEXT("Melee"), ESearchCase::IgnoreCase);
 						bool bIsMelee = true; // For testing
@@ -248,7 +248,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 					// Update precise info for the chosen target
 					if (const FVector* PLoc = PlayerLocations.Find(PotentialTarget))
 					{
-						Targeting.LastKnownTargetLocation = *PLoc;
+						Targeting.TargetLocation = *PLoc;
 						Targeting.DistanceToTargetSq = FVector::DistSquared(EnemyLocation, *PLoc);
 					}
 
@@ -267,7 +267,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 
 					if (const FVector* PLoc = PlayerLocations.Find(Targeting.TargetPlayer))
 					{
-						Targeting.LastKnownTargetLocation = *PLoc;
+						Targeting.TargetLocation = *PLoc;
 						Targeting.DistanceToTargetSq = FVector::DistSquared(EnemyLocation, *PLoc);
 					}
 
@@ -347,24 +347,25 @@ void ULNPEnemyTargetFollowProcessor::Execute(FMassEntityManager& EntityManager, 
 			// 1. Sync MoveTarget with Targeting data
 			if (Targeting.TargetPlayer.IsValid())
 			{
-				MoveTarget.Center = Targeting.LastKnownTargetLocation;
-				
 				const float ActualDistance = FMath::Sqrt(Targeting.DistanceToTargetSq);
-				MoveTarget.DistanceToGoal = ActualDistance - AttackRange;
+				// StopBuffer >= ArrivalBuffer(30) ensures arrival signal fires within AttackRange
+				const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
+				const float StopDist = FMath::Max(0.f, AttackRange - StopBuffer);
 
-				// 2. Distance-based Signaling for StateTree
-				if (Targeting.State == ELNPTargetingState::Confirmed)
+				if (ActualDistance <= StopDist)
 				{
-					const float ExitBuffer = AttackRange * 0.1f;
-
-					if (MoveTarget.DistanceToGoal <= 0.0f)
-					{
+					// In stop zone: face target (orientation uses MoveTarget.Center direction)
+					MoveTarget.Center = Targeting.TargetLocation;
+					MoveTarget.DistanceToGoal = 0.f;
+					// Signal StateTree so SteeringTask can evaluate DistanceToTarget <= AttackRange
+					if (Targeting.State == ELNPTargetingState::Confirmed)
 						EntitiesToSignal.Add(EnemyContext.GetEntity(i));
-					}
-					else if (ActualDistance > AttackRange + ExitBuffer)
-					{
-						EntitiesToSignal.Add(EnemyContext.GetEntity(i));
-					}
+				}
+				else
+				{
+					const FVector DirToTarget = (Targeting.TargetLocation - EntityLocation).GetSafeNormal();
+					MoveTarget.Center = Targeting.TargetLocation - DirToTarget * StopDist;
+					MoveTarget.DistanceToGoal = ActualDistance - StopDist;
 				}
 			}
 		}
@@ -457,15 +458,18 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				break;
 
 			case ELNPTargetingState::Confirmed:
-				// Aggressive: Run to target
+			{
 				const float ActualDistance = Targeting.TargetPlayer.IsValid() ? FMath::Sqrt(Targeting.DistanceToTargetSq) : 0.0f;
-				EffectiveSpeed = (ActualDistance <= AttackRange) ? 0.0f : BaseMoveSpeed;
+				const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
+				const float StopDist = FMath::Max(0.f, AttackRange - StopBuffer);
+				EffectiveSpeed = (ActualDistance <= StopDist) ? 0.0f : BaseMoveSpeed;
 				OrientationIntent = TargetDirOnPlane;
 				break;
 			}
+			}
 
 			// Signal StateTree if reached destination (for None/Confirmed states)
-			if (EffectiveSpeed > 0.0f && DistSq < FMath::Square(100.0f)) // Arrival threshold
+			if (EffectiveSpeed > 0.0f && DistSq < FMath::Square(30.0f)) // Arrival threshold
 			{
 				EntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				EffectiveSpeed = 0.0f;

@@ -25,7 +25,7 @@ private:
 };
 
 /**
- * Checks projectile line segments against enemy capsules each frame.
+ * Checks projectile line segments against enemy and player capsules each frame.
  * On hit: applies damage, enqueues trail release and impact effect, defers destruction.
  * Runs after MovementProcessor.
  */
@@ -41,6 +41,7 @@ protected:
 private:
 	FMassEntityQuery ProjectileQuery;
 	FMassEntityQuery EnemyQuery;
+	FMassEntityQuery PlayerQuery;
 };
 
 /**
@@ -97,5 +98,6 @@ protected:
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 private:
 	FMassEntityQuery ProjectileQuery;
+	FMassEntityQuery PlayerQuery;
 };
 #endif

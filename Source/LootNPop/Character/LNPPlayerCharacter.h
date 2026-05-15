@@ -20,4 +20,6 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
+	virtual const ULNPWeaponData* GetActiveWeaponDef() const override;
+	virtual bool TryActivateAttack() override;
 };

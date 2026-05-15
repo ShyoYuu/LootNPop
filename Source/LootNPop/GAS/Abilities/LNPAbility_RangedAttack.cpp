@@ -5,6 +5,7 @@
 #include "Item/LNPWeaponData.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "Character/LNPCharacterBase.h"
+#include "Enemy/LNPEnemyCharacter.h"
 
 #include "MassEntitySubsystem.h"
 #include "MassEntityManager.h"
@@ -75,11 +76,11 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 
 	// --- Shared fragment (weapon-type constants, shared across all projectiles of this weapon) ---
 	FLNPProjectileSharedFragment SharedData;
-	SharedData.VFXData          = WeaponDef->ProjectileVFXData;
-	SharedData.DamageEffectClass= WeaponDef->ProjectileDamageEffect;
-	SharedData.Type             = WeaponDef->ProjectileType;
-	SharedData.Damage           = WeaponDef->ProjectileDamage;
-	SharedData.HitRadiusSq      = FMath::Square(WeaponDef->ProjectileHitRadius);
+	SharedData.VFXData           = WeaponDef->ProjectileVFXData;
+	SharedData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
+	SharedData.Type              = WeaponDef->ProjectileType;
+	SharedData.Damage            = ComputeDamage();
+	SharedData.HitRadiusSq       = FMath::Square(WeaponDef->ProjectileHitRadius);
 
 	FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(SharedData);
 	FMassArchetypeSharedFragmentValues SharedValues;
@@ -104,6 +105,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 	FragData.Velocity          = Direction * WeaponDef->ProjectileSpeed;
 	FragData.LifetimeRemaining = WeaponDef->ProjectileLifetime;
 	FragData.Instigator        = InstigatorHandle;
+	FragData.InstigatorTeam    = Cast<ALNPEnemyCharacter>(Character) ? ELNPInstigatorTeam::Enemy : ELNPInstigatorTeam::Player;
 
 	FLNPProjectileVisualFragment VisualFrag; // bInitialized = false by default
 

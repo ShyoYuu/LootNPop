@@ -58,6 +58,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> AttackAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> GuardAction;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
 	bool bUseBaseRelativeMovement = true;
 
@@ -92,6 +95,8 @@ private:
 	bool bIsInteractJustPressed = false;
 	bool bIsAttackPressed = false;
 	bool bIsAttackJustPressed = false;
+	bool bIsGuardPressed = false;
+	bool bIsGuardJustPressed = false;
 
 	bool bIsDashBuffered = false;
 	float DashBufferTime = -1.0f;
@@ -111,4 +116,6 @@ private:
 	void OnInteractReleased(const FInputActionValue& Value);
 	void OnAttackStarted(const FInputActionValue& Value);
 	void OnAttackReleased(const FInputActionValue& Value);
+	void OnGuardStarted(const FInputActionValue& Value);
+	void OnGuardReleased(const FInputActionValue& Value);
 };

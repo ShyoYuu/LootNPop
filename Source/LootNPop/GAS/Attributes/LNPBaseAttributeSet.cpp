@@ -12,6 +12,7 @@ ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 	InitAttackSpeed(1.0f);
 	InitDefensePower(0.0f);
 	InitMoveSpeed(1.0f);
+	InitAttackMultiplier(1.0f);
 }
 
 void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -20,7 +21,7 @@ void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribut
 
 	if (Attribute == GetMaxHealthAttribute())
 		NewValue = FMath::Max(1.0f, NewValue);
-	else if (Attribute == GetAttackSpeedAttribute() || Attribute == GetMoveSpeedAttribute())
+	else if (Attribute == GetAttackSpeedAttribute() || Attribute == GetMoveSpeedAttribute() || Attribute == GetAttackMultiplierAttribute())
 		NewValue = FMath::Max(0.01f, NewValue);
 }
 
