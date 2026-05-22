@@ -40,6 +40,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	float GroundSpeed;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
+	bool bIsOnGround;
+
 	/** Indicates if the character should be playing movement animations */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bShouldMove;

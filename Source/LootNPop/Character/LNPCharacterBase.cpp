@@ -1,6 +1,11 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LNPCharacterBase.h"
+#include "Movement/LNPCharacterMoverComponent.h"
+#include "Character/LNPPawnInputComponent.h"
+#include "Gravity/LNPPawnGravityComponent.h"
+#include "Interaction/LNPInteractionComponent.h"
+#include "Player/LNPPlayerState.h"
 
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -8,11 +13,7 @@
 #include "Camera/CameraComponent.h"
 #include "AbilitySystemComponent.h"
 #include "MassAgentComponent.h"
-#include "Movement/LNPCharacterMoverComponent.h"
-#include "Character/LNPPawnInputComponent.h"
-#include "Gravity/LNPPawnGravityComponent.h"
-#include "Interaction/LNPInteractionComponent.h"
-#include "Player/LNPPlayerState.h"
+
 
 ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -41,8 +42,8 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	FollowCamera->bUsePawnControlRotation = false;
 
 	MoverComponent = CreateDefaultSubobject<ULNPCharacterMoverComponent>(TEXT("MoverComponent"));
-	InputHandlerComponent = CreateDefaultSubobject<ULNPPawnInputComponent>(TEXT("InputHandlerComponent"));
 	MassAgentComponent = CreateDefaultSubobject<UMassAgentComponent>(TEXT("MassAgentComponent"));
+	InputHandlerComponent = CreateDefaultSubobject<ULNPPawnInputComponent>(TEXT("InputHandlerComponent"));
 	GravityComponent = CreateDefaultSubobject<ULNPPawnGravityComponent>(TEXT("GravityComponent"));
 	InteractionComponent = CreateDefaultSubobject<ULNPInteractionComponent>(TEXT("InteractionComponent"));
 
