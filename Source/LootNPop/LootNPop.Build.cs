@@ -40,8 +40,9 @@ public class LootNPop : ModuleRules
 			"PCG",
 			"AnimGraphRuntime",
 			"SmartObjectsModule",
-			"DeveloperSettings"
-			]);
+			"DeveloperSettings",
+            "MotionTrajectory"
+            ]);
 		PrivateDependencyModuleNames.AddRange([]);
 
 		PublicIncludePaths.AddRange([

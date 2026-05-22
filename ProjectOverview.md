@@ -70,7 +70,8 @@
 | 문서 | 내용 |
 |:---|:---|
 | [개발 계획](@DevelopmentPlan.md) | Phase별 구현 현황 및 마일스톤 |
-| [기각된 접근 이력](@DiscardedApproaches.md) | 시도 후 제외된 기술적 접근과 사유 |
+| [폐기된 시도들](@DiscardedApproaches.md) | 시도 후 제외된 기술적 접근과 사유 |
+| [추가 스펙 아이디어](@Idea_Backlog.md) | 정규 스펙으로 채택되기 전 아이디어 후보 모음 |
 | [WorldGeneration 기술 설계](@TechDesign_WorldGeneration.md) | Octant 분할, PCG 지형 생성, 런타임 스폰 흐름 |
 | [초기화 시퀀스 기술 설계](@TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | [표면 캐시 기술 설계](@TechDesign_SurfaceCache.md) | 등장방형 베이킹, Mass 스레드 안전 조회, NavMesh 대체 이유 |

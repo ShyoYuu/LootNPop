@@ -8,18 +8,20 @@
 #include "MassAgentComponent.h"
 #include "LNPCharacterBase.generated.h"
 
-class ULNPCharacterMoverComponent;
 class UCapsuleComponent;
 class USkeletalMeshComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class UAbilitySystemComponent;
-class ULNPPawnInputComponent;
 class UMassAgentComponent;
+
+class ULNPCharacterMoverComponent;
+class ULNPPawnInputComponent;
 class ULNPPawnGravityComponent;
 class ULNPInteractionComponent;
 class ALNPLootPod;
 class ULNPWeaponData;
+
 
 /**
  * ALNPCharacterBase
@@ -48,9 +50,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	AActor* GetInteractionCandidate() const;
 
-	USkeletalMeshComponent* GetMesh()                  const { return Mesh; }
-	UCapsuleComponent*      GetCapsule()               const { return CapsuleComponent; }
-	ULNPPawnInputComponent* GetInputHandlerComponent() const { return InputHandlerComponent; }
+	USkeletalMeshComponent*        GetMesh()                  const { return Mesh; }
+	UCapsuleComponent*             GetCapsule()               const { return CapsuleComponent; }
+	ULNPPawnInputComponent*        GetInputHandlerComponent() const { return InputHandlerComponent; }
 
 	void SetAIMoveInput(FVector InMoveInput);
 	void SetAIOrientationIntent(FVector InOrientationIntent);
@@ -81,11 +83,11 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<ULNPPawnInputComponent> InputHandlerComponent;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMassAgentComponent> MassAgentComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULNPPawnInputComponent> InputHandlerComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Gravity", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPPawnGravityComponent> GravityComponent;

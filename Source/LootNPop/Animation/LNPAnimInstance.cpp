@@ -3,6 +3,7 @@
 #include "Animation/LNPAnimInstance.h"
 #include "Character/LNPCharacterBase.h"
 #include "Movement/LNPCharacterMoverComponent.h"
+
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "KismetAnimationLibrary.h"
 
@@ -55,6 +56,7 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bShouldMove = (3.0f < GroundSpeed) && (!MoverComponent->GetMovementIntent().IsZero()); // 
 
 	// 3. Air and Falling State via Mover Component
+	bIsOnGround = MoverComponent->IsOnGround();
 	bIsAirborne = MoverComponent->IsAirborne();
 	bIsFalling = MoverComponent->IsFalling();
 	bIsSwimming = MoverComponent->IsSwimming();
