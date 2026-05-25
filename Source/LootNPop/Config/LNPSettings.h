@@ -36,9 +36,6 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1.0", Units="cm"))
 	float SurfaceCacheCellSpacing = 200.0f;
 
-	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache")
-	int32 SurfaceCacheTracesPerFrame = 256;
-
 	/** Maximum number of key-mapped Active Skill slots per player character. */
 	UPROPERTY(Config, EditAnywhere, Category = "Ability System", meta = (ClampMin = "1", ClampMax = "8"))
 	int32 MaxActiveSkillSlots = 4;

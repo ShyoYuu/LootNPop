@@ -4,7 +4,6 @@
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameMode/LNPGameMode.h"
 #include "GameMode/LNPGameState.h"
-#include "Character/LNPPawnInputComponent.h"
 
 bool ALNPPlayerController::IsLoadingComplete() const
 {

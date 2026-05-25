@@ -1,22 +1,21 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Character/LNPPlayerCharacter.h"
-#include "Enemy/LNPEnemyMassTypes.h"
 #include "Player/LNPPlayerState.h"
 #include "Item/LNPEquipmentComponent.h"
 #include "Item/LNPItemInstance.h"
 #include "Item/LNPWeaponData.h"
 #include "AbilitySystemComponent.h"
-#include "Character/LNPPawnInputComponent.h"
-
-#include "MassAgentComponent.h"
-#include "MassEntitySubsystem.h"
-#include "MassLODSubsystem.h"
-#include "AbilitySystemComponent.h"
+#include "GameFramework/GameplayCameraComponent.h"
+#include "Interaction/LNPInteractionComponent.h"
 
 ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	GameplayCamera = CreateDefaultSubobject<UGameplayCameraComponent>(TEXT("GameplayCamera"));
+	GameplayCamera->SetupAttachment(AnimSourceMesh);
+
+	InteractionComponent = CreateDefaultSubobject<ULNPInteractionComponent>(TEXT("InteractionComponent"));
 }
 
 void ALNPPlayerCharacter::BeginPlay()
@@ -35,6 +34,9 @@ void ALNPPlayerCharacter::PossessedBy(AController* NewController)
 
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 		PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, this);
+
+	if (GameplayCamera)
+		GameplayCamera->ActivateCameraForPlayerController(Cast<APlayerController>(NewController));
 }
 
 void ALNPPlayerCharacter::OnRep_PlayerState()
@@ -43,6 +45,19 @@ void ALNPPlayerCharacter::OnRep_PlayerState()
 
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 		PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, this);
+}
+
+const ULNPWeaponData* ALNPPlayerCharacter::GetActiveWeaponDef() const
+{
+	const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+	if (!PS)
+		return nullptr;
+
+	const ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent();
+	if (!EqComp)
+		return nullptr;
+
+	return EqComp->GetWeaponSlot().Definition;
 }
 
 bool ALNPPlayerCharacter::TryActivateAttack()
@@ -66,15 +81,12 @@ bool ALNPPlayerCharacter::TryActivateAttack()
 	return ASC->TryActivateAbility(WeaponSlot.GrantedAbilities[0]);
 }
 
-const ULNPWeaponData* ALNPPlayerCharacter::GetActiveWeaponDef() const
+TArray<AActor*> ALNPPlayerCharacter::GetInteractionCandidates() const
 {
-	const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
-	if (!PS)
-		return nullptr;
+	return InteractionComponent ? InteractionComponent->GetInteractionCandidates() : TArray<AActor*>();
+}
 
-	const ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent();
-	if (!EqComp)
-		return nullptr;
-
-	return EqComp->GetWeaponSlot().Definition;
+AActor* ALNPPlayerCharacter::GetInteractionCandidate() const
+{
+	return InteractionComponent ? InteractionComponent->GetFirstInteractionCandidate() : nullptr;
 }

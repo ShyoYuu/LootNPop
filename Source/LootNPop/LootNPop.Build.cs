@@ -41,7 +41,7 @@ public class LootNPop : ModuleRules
 			"AnimGraphRuntime",
 			"SmartObjectsModule",
 			"DeveloperSettings",
-            "MotionTrajectory"
+            "GameplayCameras"
             ]);
 		PrivateDependencyModuleNames.AddRange([]);
 

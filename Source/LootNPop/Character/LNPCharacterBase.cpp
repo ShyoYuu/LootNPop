@@ -2,15 +2,12 @@
 
 #include "LNPCharacterBase.h"
 #include "Movement/LNPCharacterMoverComponent.h"
-#include "Character/LNPPawnInputComponent.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "Gravity/LNPPawnGravityComponent.h"
-#include "Interaction/LNPInteractionComponent.h"
 #include "Player/LNPPlayerState.h"
 
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "GameFramework/SpringArmComponent.h"
-#include "Camera/CameraComponent.h"
 #include "AbilitySystemComponent.h"
 #include "MassAgentComponent.h"
 
@@ -26,26 +23,16 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	CapsuleComponent->InitCapsuleSize(42.f, 96.0f);
 	SetRootComponent(CapsuleComponent);
 
-	Mesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Mesh"));
-	Mesh->SetupAttachment(CapsuleComponent);
+	AnimSourceMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("AnimSourceMesh"));
+	AnimSourceMesh->SetupAttachment(CapsuleComponent);
+	VisualMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("VisualMesh"));
+	VisualMesh->SetupAttachment(AnimSourceMesh);
 
-	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
-	CameraBoom->SetupAttachment(Mesh);
-	CameraBoom->TargetArmLength = 400.0f;
-	CameraBoom->bUsePawnControlRotation = true;
-	CameraBoom->bInheritPitch = true;
-	CameraBoom->bInheritYaw = true;
-	CameraBoom->bInheritRoll = true;
-
-	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
-	FollowCamera->bUsePawnControlRotation = false;
+	MassAgentComponent = CreateDefaultSubobject<UMassAgentComponent>(TEXT("MassAgentComponent"));
 
 	MoverComponent = CreateDefaultSubobject<ULNPCharacterMoverComponent>(TEXT("MoverComponent"));
-	MassAgentComponent = CreateDefaultSubobject<UMassAgentComponent>(TEXT("MassAgentComponent"));
-	InputHandlerComponent = CreateDefaultSubobject<ULNPPawnInputComponent>(TEXT("InputHandlerComponent"));
+	InputHandlerComponent = CreateDefaultSubobject<ULNPInputHandlerComponent>(TEXT("InputHandlerComponent"));
 	GravityComponent = CreateDefaultSubobject<ULNPPawnGravityComponent>(TEXT("GravityComponent"));
-	InteractionComponent = CreateDefaultSubobject<ULNPInteractionComponent>(TEXT("InteractionComponent"));
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -64,16 +51,6 @@ UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 	return nullptr;
 }
 
-TArray<AActor*> ALNPCharacterBase::GetInteractionCandidates() const
-{
-	return InteractionComponent ? InteractionComponent->GetInteractionCandidates() : TArray<AActor*>();
-}
-
-AActor* ALNPCharacterBase::GetInteractionCandidate() const
-{
-	return InteractionComponent ? InteractionComponent->GetFirstInteractionCandidate() : nullptr;
-}
-
 void ALNPCharacterBase::SetAIMoveInput(FVector InMoveInput)
 {
 	if (InputHandlerComponent)
@@ -86,6 +63,11 @@ void ALNPCharacterBase::SetAIOrientationIntent(FVector InOrientationIntent)
 		InputHandlerComponent->SetAIOrientationIntent(InOrientationIntent);
 }
 
+bool ALNPCharacterBase::TryActivateAttack()
+{
+	return false;
+}
+
 void ALNPCharacterBase::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
@@ -94,12 +76,6 @@ void ALNPCharacterBase::PostInitializeComponents()
 void ALNPCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
-}
-
-
-bool ALNPCharacterBase::TryActivateAttack()
-{
-	return false;
 }
 
 void ALNPCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
