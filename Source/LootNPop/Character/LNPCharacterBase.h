@@ -10,15 +10,12 @@
 
 class UCapsuleComponent;
 class USkeletalMeshComponent;
-class USpringArmComponent;
-class UCameraComponent;
 class UAbilitySystemComponent;
 class UMassAgentComponent;
 
 class ULNPCharacterMoverComponent;
-class ULNPPawnInputComponent;
+class ULNPInputHandlerComponent;
 class ULNPPawnGravityComponent;
-class ULNPInteractionComponent;
 class ALNPLootPod;
 class ULNPWeaponData;
 
@@ -44,15 +41,7 @@ public:
 	// IAbilitySystemInterface implementation
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
-	TArray<AActor*> GetInteractionCandidates() const;
-
-	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
-	AActor* GetInteractionCandidate() const;
-
-	USkeletalMeshComponent*        GetMesh()                  const { return Mesh; }
 	UCapsuleComponent*             GetCapsule()               const { return CapsuleComponent; }
-	ULNPPawnInputComponent*        GetInputHandlerComponent() const { return InputHandlerComponent; }
 
 	void SetAIMoveInput(FVector InMoveInput);
 	void SetAIOrientationIntent(FVector InOrientationIntent);
@@ -67,31 +56,24 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCapsuleComponent> CapsuleComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<USkeletalMeshComponent> Mesh;
+	TObjectPtr<USkeletalMeshComponent> AnimSourceMesh;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<USpringArmComponent> CameraBoom;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UCameraComponent> FollowCamera;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
+	TObjectPtr<USkeletalMeshComponent> VisualMesh;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mass", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UMassAgentComponent> MassAgentComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<ULNPPawnInputComponent> InputHandlerComponent;
+	TObjectPtr<ULNPInputHandlerComponent> InputHandlerComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Gravity", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPPawnGravityComponent> GravityComponent;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Interaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<ULNPInteractionComponent> InteractionComponent;
 };

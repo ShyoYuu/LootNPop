@@ -6,6 +6,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
 #include "MassEntityHandle.h"
+#include "Async/Future.h"
 #include "LNPMassSpawnSubsystem.generated.h"
 
 class ULNPMassSpawnConfig;
@@ -44,6 +45,18 @@ struct FLNPMassSpawnRequest
 };
 
 /**
+ * Output of the async queue-build task: one entry per spawn request, without UObject refs.
+ * UObject refs (ConfigAsset) are resolved on the game thread via CapturedAssets index.
+ */
+struct FLNPAsyncSpawnEntry
+{
+	TArray<FTransform> Transforms;
+	ELNPSpawnRequestType RequestType = ELNPSpawnRequestType::Enemy;
+	TSharedPtr<FLNPSpawnLink> SpawnLink;
+	int32 AssetIndex = -1;
+};
+
+/**
  * Subsystem responsible for hierarchical spawning of Mass Entities (LootPods and Enemies).
  * Handles frame-budgeting, surface validation, and manual transform application post-spawn.
  * Uses global settings from ULNPSettings.
@@ -60,7 +73,7 @@ public:
 
 	// FTickableGameObject interface
 	virtual void Tick(float DeltaTime) override;
-	virtual bool IsTickable() const override { return SpawnQueueHead < SpawnQueue.Num(); }
+	virtual bool IsTickable() const override { return SpawnBuildFuture.IsValid() || SpawnQueueHead < SpawnQueue.Num(); }
 	virtual TStatId GetStatId() const override;
 	// End FTickableGameObject
 
@@ -83,21 +96,28 @@ protected:
 	void SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms, FMassEntityHandle ParentLootPod = FMassEntityHandle(), const FVector& ParentPodLocation = FVector::ZeroVector);
 
 private:
-	/** Validates and finds a spawn point on the sphere surface using raycasts */
-	bool FindValidSurfacePoint(const FVector& SearchDir, float SphereRadius, float MinDistance, int32 MaxRetries, FVector& OutLocation);
-
 	/** Processes a chunk of the spawn queue */
 	void ProcessQueue();
+
+	/** Assembles SpawnQueue from the completed async build result. Called on game thread. */
+	void AssembleSpawnQueueFromAsyncResult();
 
 	/** Current active configuration being processed */
 	UPROPERTY(Transient)
 	TObjectPtr<ULNPMassSpawnConfig> ActiveConfig;
 
+	/** Pre-captured UObject refs; kept alive (GC-safe) while async task runs */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMassEntityConfigAsset>> CapturedAssets;
+
 	TArray<FLNPMassSpawnRequest> SpawnQueue;
 	int32 SpawnQueueHead = 0;
-	
-	/** Tracks locations of already placed major entities (Pods) for distance validation */
-	TArray<FVector> OccupiedPodLocations;
+
+	/** Result written by the async build task; read on game thread after IsReady() */
+	TArray<FLNPAsyncSpawnEntry> AsyncBuildResult;
+
+	/** Future for the background queue-build task */
+	TFuture<void> SpawnBuildFuture;
 
 	FRandomStream RandomStream;
 };

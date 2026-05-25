@@ -106,13 +106,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|AI")
 	TObjectPtr<UStateTree> StateTree;
 
-	/** Visual setup */
-	UPROPERTY(EditAnywhere, Category = "LNP|Visuals")
-	TObjectPtr<USkeletalMesh> SkeletalMesh;
-
-	UPROPERTY(EditAnywhere, Category = "LNP|Visuals")
-	TSubclassOf<UAnimInstance> AnimBlueprint;
-
 	/** Static weapon used for all attacks (enemies cannot swap weapons) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	TObjectPtr<ULNPWeaponData> WeaponData;

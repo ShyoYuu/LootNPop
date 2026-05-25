@@ -1,10 +1,13 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GameLogic/LNPMassSpawnSubsystem.h"
+#include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "DataAsset/LNPMassSpawnConfig.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "LootNPop.h"
+
+#include "Async/Async.h"
 
 #include "MassEntityConfigAsset.h"
 #include "MassSpawnerSubsystem.h"
@@ -38,6 +41,15 @@ void ULNPMassSpawnSubsystem::BeginSpawning()
 
 void ULNPMassSpawnSubsystem::Tick(float DeltaTime)
 {
+	if (SpawnBuildFuture.IsValid())
+	{
+		if (!SpawnBuildFuture.IsReady())
+			return;
+
+		SpawnBuildFuture = TFuture<void>{};
+		AssembleSpawnQueueFromAsyncResult();
+	}
+
 	ProcessQueue();
 }
 
@@ -48,153 +60,208 @@ TStatId ULNPMassSpawnSubsystem::GetStatId() const
 
 void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, const float SphereRadius)
 {
-	if (InConfig == nullptr)
+	if (!InConfig)
+		return;
+	if (!GetWorld())
 		return;
 
-	UWorld* World = GetWorld();
-	if (!World)
+	if (SpawnBuildFuture.IsValid() && !SpawnBuildFuture.IsReady())
+	{
+		UE_LOG(LogLootNPop, Warning, TEXT("LNPMassSpawnSubsystem: EnqueueSpawnProject called while async build is in progress. Ignoring."));
 		return;
+	}
 
 	ActiveConfig = InConfig;
-	OccupiedPodLocations.Empty();
 	SpawnQueue.Empty();
+	AsyncBuildResult.Empty();
+	CapturedAssets.Empty();
 	SpawnQueueHead = 0;
 
+	// Pre-capture UObject refs (game thread only) and assign integer indices.
+	// Layout per pod set: [pod_config, enemy_config_0, enemy_config_1, ...]
+	struct FPodSetBuildParams
+	{
+		int32 PodSetCount;
+		int32 PodAssetIndex;
+		struct FEnemyEntry { int32 Count; int32 AssetIndex; };
+		TArray<FEnemyEntry> Enemies;
+	};
+
+	TArray<FPodSetBuildParams> SetParams;
 	for (const FLNPLootPodSpawnEntry& PodSet : InConfig->LootPodSpawnSets)
 	{
-		for (int32 i = 0; i < PodSet.PodSetCount; ++i)
+		FPodSetBuildParams P;
+		P.PodSetCount = PodSet.PodSetCount;
+		P.PodAssetIndex = CapturedAssets.Num();
+		CapturedAssets.Add(PodSet.LootPodEntityConfig);
+
+		for (const FLNPEnemySpawnEntry& Enemy : PodSet.AssociatedEnemies)
 		{
-			FVector PodLocation;
-			FVector RandomDir = FVector::DownVector; //RandomStream.GetUnitVector();
+			P.Enemies.Add({ Enemy.Count, CapturedAssets.Num() });
+			CapturedAssets.Add(Enemy.EnemyEntityConfig);
+		}
+		SetParams.Add(MoveTemp(P));
+	}
 
-			if (FindValidSurfacePoint(RandomDir, SphereRadius, InConfig->MinDistanceBetweenPods, InConfig->MaxRetryCount, PodLocation))
+	// Take a read-only snapshot of the surface cache — no UObject access needed in the task
+	ULNPSurfaceCacheSubsystem* SurfaceCache = GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
+	FLNPSurfaceCacheSnapshot CacheSnap = SurfaceCache->TakeSnapshot();
+
+	const float MinDist          = InConfig->MinDistanceBetweenPods;
+	const float EnemyRadius      = InConfig->EnemySpawnRadiusAroundPod;
+	const int32 MaxRetry         = InConfig->MaxRetryCount;
+	const FRandomStream Rand     = RandomStream;
+
+	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: Launching async queue build."));
+
+	SpawnBuildFuture = Async(EAsyncExecution::TaskGraph,
+		[this,
+		 Sets    = MoveTemp(SetParams),
+		 Cache   = MoveTemp(CacheSnap),
+		 Rand,
+		 SR      = SphereRadius,
+		 MinDist,
+		 EnemyRadius,
+		 MaxRetry]() mutable
+		{
+			TArray<FVector> OccupiedPods;
+			TArray<FLNPAsyncSpawnEntry> Results;
+
+			for (const auto& Set : Sets)
 			{
-				OccupiedPodLocations.Add(PodLocation);
-
-				// Create a shared link for this Pod and its associated enemies
-				TSharedPtr<FLNPSpawnLink> SpawnLink = MakeShared<FLNPSpawnLink>();
-				SpawnLink->PodLocation = PodLocation;
-
-				// 1. Queue Pod Spawn
-				if (PodSet.LootPodEntityConfig)
+				for (int32 i = 0; i < Set.PodSetCount; ++i)
 				{
-					FLNPMassSpawnRequest PodRequest;
-					PodRequest.ConfigAsset = PodSet.LootPodEntityConfig;
-					PodRequest.RequestType = ELNPSpawnRequestType::LootPod;
-					PodRequest.SpawnLink = SpawnLink;
-					
-					FVector PodUpVector = -PodLocation.GetSafeNormal();
-					FRotator PodRotation = UKismetMathLibrary::MakeRotFromZ(PodUpVector);
-					PodRequest.TargetTransforms.Add(FTransform(PodRotation, PodLocation));
-					
-					SpawnQueue.Add(PodRequest);
-				}
+					// Find pod surface point using cache lookup + min-distance check
+					FVector PodLocation;
+					bool bFoundPod = false;
+					FVector BaseDir = FVector::DownVector;
 
-				// 2. Queue Associated Enemy Spawn Requests
-				for (const FLNPEnemySpawnEntry& EnemyEntry : PodSet.AssociatedEnemies)
-				{
-					FLNPMassSpawnRequest EnemyRequest;
-					EnemyRequest.ConfigAsset = EnemyEntry.EnemyEntityConfig;
-					EnemyRequest.RequestType = ELNPSpawnRequestType::Enemy;
-					EnemyRequest.SpawnLink = SpawnLink;
-
-					FVector PodNormal = PodLocation.GetSafeNormal();
-					TArray<FVector> CurrentBatchEnemyLocations;
-
-					for (int32 j = 0; j < EnemyEntry.Count; ++j)
+					for (int32 Retry = 0; Retry < MaxRetry; ++Retry)
 					{
-						FVector EnemyPos;
-						bool bFoundValidSpot = false;
+						FVector SearchDir = (Retry == 0) ? BaseDir : (BaseDir + Rand.GetUnitVector() * 0.05f).GetSafeNormal();
+						FVector Candidate;
+						if (!Cache.GetPoint(SearchDir, Candidate))
+							continue;
 
-						for (int32 Retry = 0; Retry < 10; ++Retry)
+						if (MinDist > 0.0f)
 						{
-							FVector RandomTangent = RandomStream.GetUnitVector();
-							RandomTangent = FVector::VectorPlaneProject(RandomTangent, PodNormal).GetSafeNormal();
-							
-							float DistFromPod = RandomStream.FRandRange(400.0f, InConfig->EnemySpawnRadiusAroundPod);
-							FVector EnemyDir = (PodNormal + (RandomTangent * (DistFromPod / SphereRadius))).GetSafeNormal();
-							
-							if (FindValidSurfacePoint(EnemyDir, SphereRadius, 0.0f, 5, EnemyPos))
+							bool bTooClose = false;
+							for (const FVector& Occ : OccupiedPods)
 							{
-								bool bTooCloseToOthers = false;
-								for (const FVector& OtherPos : CurrentBatchEnemyLocations)
+								if (FVector::DistSquared(Candidate, Occ) < FMath::Square(MinDist))
 								{
-									if (FVector::DistSquared(EnemyPos, OtherPos) < FMath::Square(200.0f))
-									{
-										bTooCloseToOthers = true;
-										break;
-									}
-								}
-
-								if (!bTooCloseToOthers)
-								{
-									bFoundValidSpot = true;
+									bTooClose = true;
 									break;
 								}
 							}
+							if (bTooClose)
+								continue;
 						}
 
-						if (bFoundValidSpot)
-						{
-							CurrentBatchEnemyLocations.Add(EnemyPos);
-							FVector EnemyUpVector = -EnemyPos.GetSafeNormal();
-							FRotator EnemyRot = UKismetMathLibrary::MakeRotFromZ(EnemyUpVector);
-							EnemyRequest.TargetTransforms.Add(FTransform(EnemyRot, EnemyPos));
-						}
-					}
-					
-					if (EnemyRequest.TargetTransforms.Num() > 0)
-					{
-						SpawnQueue.Add(EnemyRequest);
-					}
-				}
-			}
-		}
-	}
-}
-
-bool ULNPMassSpawnSubsystem::FindValidSurfacePoint(const FVector& SearchDir, float SphereRadius, float MinDistance, int32 MaxRetries, FVector& OutLocation)
-{
-	UWorld* World = GetWorld();
-	check(World);
-
-	for (int32 i = 0; i < MaxRetries; ++i)
-	{
-		FVector CurrentDir = (i == 0) ? SearchDir : (SearchDir + RandomStream.GetUnitVector() * 0.05f).GetSafeNormal();
-		
-		FVector Start = CurrentDir * (SphereRadius * 0.5f); 
-		FVector End = CurrentDir * (SphereRadius * 1.5f);
-
-		FHitResult Hit;
-		FCollisionQueryParams Params;
-		
-		if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_WorldStatic, Params))
-		{
-			float Dot = FVector::DotProduct(Hit.ImpactNormal, -CurrentDir);
-			if (Dot < 0.766f)
-				continue; 
-
-			if (MinDistance > 0.0f)
-			{
-				bool bTooClose = false;
-				for (const FVector& OccLoc : OccupiedPodLocations)
-				{
-					if (FVector::DistSquared(Hit.ImpactPoint, OccLoc) < FMath::Square(MinDistance))
-					{
-						bTooClose = true;
+						PodLocation = Candidate;
+						bFoundPod = true;
 						break;
 					}
+
+					if (!bFoundPod)
+						continue;
+
+					OccupiedPods.Add(PodLocation);
+					TSharedPtr<FLNPSpawnLink> SpawnLink = MakeShared<FLNPSpawnLink>();
+					SpawnLink->PodLocation = PodLocation;
+
+					// Pod entry
+					FLNPAsyncSpawnEntry PodEntry;
+					PodEntry.RequestType = ELNPSpawnRequestType::LootPod;
+					PodEntry.AssetIndex  = Set.PodAssetIndex;
+					PodEntry.SpawnLink   = SpawnLink;
+					FVector PodUp = -PodLocation.GetSafeNormal();
+					PodEntry.Transforms.Add(FTransform(UKismetMathLibrary::MakeRotFromZ(PodUp), PodLocation));
+					Results.Add(MoveTemp(PodEntry));
+
+					// Enemy entries
+					const FVector PodNormal = PodLocation.GetSafeNormal();
+					for (const auto& EnemySet : Set.Enemies)
+					{
+						FLNPAsyncSpawnEntry EnemyEntry;
+						EnemyEntry.RequestType = ELNPSpawnRequestType::Enemy;
+						EnemyEntry.AssetIndex  = EnemySet.AssetIndex;
+						EnemyEntry.SpawnLink   = SpawnLink;
+
+						TArray<FVector> BatchLocations;
+						for (int32 j = 0; j < EnemySet.Count; ++j)
+						{
+							FVector EnemyPos;
+							bool bFoundSpot = false;
+
+							for (int32 ERetry = 0; ERetry < 10; ++ERetry)
+							{
+								FVector Tangent = Rand.GetUnitVector();
+								Tangent = FVector::VectorPlaneProject(Tangent, PodNormal).GetSafeNormal();
+								float Dist = Rand.FRandRange(400.0f, EnemyRadius);
+								FVector EDir = (PodNormal + (Tangent * (Dist / SR))).GetSafeNormal();
+
+								if (!Cache.GetPoint(EDir, EnemyPos))
+									continue;
+
+								bool bTooClose = false;
+								for (const FVector& OtherPos : BatchLocations)
+								{
+									if (FVector::DistSquared(EnemyPos, OtherPos) < FMath::Square(200.0f))
+									{
+										bTooClose = true;
+										break;
+									}
+								}
+								if (!bTooClose)
+								{
+									bFoundSpot = true;
+									break;
+								}
+							}
+
+							if (bFoundSpot)
+							{
+								BatchLocations.Add(EnemyPos);
+								FVector EUp = -EnemyPos.GetSafeNormal();
+								EnemyEntry.Transforms.Add(FTransform(UKismetMathLibrary::MakeRotFromZ(EUp), EnemyPos));
+							}
+						}
+
+						if (EnemyEntry.Transforms.Num() > 0)
+							Results.Add(MoveTemp(EnemyEntry));
+					}
 				}
-				if (bTooClose)
-					continue;
 			}
 
-			OutLocation = Hit.ImpactPoint;
-			return true;
-		}
+			// TFuture completion provides the happens-before guarantee for this write
+			AsyncBuildResult = MoveTemp(Results);
+		});
+}
+
+void ULNPMassSpawnSubsystem::AssembleSpawnQueueFromAsyncResult()
+{
+	SpawnQueue.Empty();
+	SpawnQueue.Reserve(AsyncBuildResult.Num());
+
+	for (FLNPAsyncSpawnEntry& Entry : AsyncBuildResult)
+	{
+		if (!CapturedAssets.IsValidIndex(Entry.AssetIndex))
+			continue;
+
+		FLNPMassSpawnRequest Req;
+		Req.ConfigAsset     = CapturedAssets[Entry.AssetIndex];
+		Req.TargetTransforms = MoveTemp(Entry.Transforms);
+		Req.RequestType     = Entry.RequestType;
+		Req.SpawnLink       = Entry.SpawnLink;
+		SpawnQueue.Add(MoveTemp(Req));
 	}
 
-	return false;
+	AsyncBuildResult.Empty();
+	CapturedAssets.Empty();
+	SpawnQueueHead = 0;
+
+	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: Assembled %d spawn requests from async build."), SpawnQueue.Num());
 }
 
 void ULNPMassSpawnSubsystem::ProcessQueue()

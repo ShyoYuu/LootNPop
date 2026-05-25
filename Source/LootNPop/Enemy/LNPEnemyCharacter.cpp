@@ -9,7 +9,6 @@
 #include "AbilitySystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "MassAgentComponent.h"
 
 ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -41,21 +40,7 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 
 	EnemyConfig = InConfig;
 
-	// 1. Setup Visuals
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-	{
-		if (InConfig->SkeletalMesh)
-		{
-			MeshComp->SetSkeletalMesh(InConfig->SkeletalMesh);
-		}
-
-		if (InConfig->AnimBlueprint)
-		{
-			MeshComp->SetAnimInstanceClass(InConfig->AnimBlueprint);
-		}
-	}
-
-	// 2. Setup GAS (Abilities & Attributes)
+	// Setup GAS (Abilities & Attributes)
 	if (UAbilitySystemComponent* EnemyASC = GetAbilitySystemComponent())
 	{
 		// Grant weapon abilities from WeaponData; first handle becomes the attack handle
@@ -98,14 +83,14 @@ void ALNPEnemyCharacter::SyncFromEntity(FMassEntityHandle InEntityHandle, float 
 
 void ALNPEnemyCharacter::TriggerRagdoll()
 {
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	if (VisualMesh)
 	{
-		MeshComp->SetAllBodiesSimulatePhysics(true);
-		MeshComp->SetCollisionProfileName(TEXT("Ragdoll"));
-		MeshComp->WakeAllRigidBodies();
+		VisualMesh->SetAllBodiesSimulatePhysics(true);
+		VisualMesh->SetCollisionProfileName(TEXT("Ragdoll"));
+		VisualMesh->WakeAllRigidBodies();
 	}
-	if (UCapsuleComponent* Capsule = FindComponentByClass<UCapsuleComponent>())
-		Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (CapsuleComponent)
+		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 bool ALNPEnemyCharacter::TryActivateAttack()
