@@ -2,13 +2,14 @@
 
 ## 1. 핵심 아키텍처
 
-UE 5.7의 Mover 플러그인을 기반으로, 복잡한 중력 환경과 멀티플레이어 동기화를 모두 지원하기 위해 역할을 세 컴포넌트로 분리.
+UE 5.7의 Mover 플러그인을 기반으로, 복잡한 중력 환경과 멀티플레이어 동기화를 모두 지원하기 위해 역할을 네 컴포넌트로 분리.
 
 | 컴포넌트 | 역할 |
 |:---|:---|
-| `ALNPCharacterBase` | 입력 수집 및 이동 의도(Intent) 생성. `IMoverInputProducerInterface` 구현 |
+| `ALNPCharacterBase` | 컴포넌트 조합 및 AI 이동 의도 위임 (`SetAIMoveInput`, `SetAIOrientationIntent`) |
+| `ULNPInputHandlerComponent` | 플레이어 입력 수집 및 이동 의도(Intent) 생성. `IMoverInputProducerInterface` 구현 |
 | `ULNPPawnGravityComponent` | 구형 중력 방향 결정, 컨트롤러 회전 보정, 카메라 안정화 |
-| `ULNPCharacterMoverComponent` | 이동 시뮬레이션 실행 및 네트워크 상태 동기화 |
+| `ULNPCharacterMoverComponent` | 이동 시뮬레이션 실행, 질주/대시 처리, 네트워크 상태 동기화 |
 
 ---
 
@@ -50,16 +51,24 @@ CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
 
 ## 3. 이동 속도 설정 (구현 완료)
 
-`ALNPCharacterBase`에 `UPROPERTY`로 선언된 값들이며 에디터에서 조정 가능.
+이동 속도 설정은 단일 클래스가 아닌 두 곳에 분산되어 에디터에서 조정 가능.
+
+**`ULNPCharacterMovementSettings`** (Mover 공유 설정 시스템)
 
 | 항목 | 기본값 | 설명 |
 |:---|:---:|:---|
-| `WalkSpeed` | 400 | 기본 이동 속도 |
-| `RunSpeed` | 800 | 질주 시 이동 속도 |
-| `DashSpeed` | 1600 | 대시 초기 최대 속도 |
+| `SprintSpeed` | 1200 cm/s | 질주 시 최대 이동 속도 |
+| `SprintAcceleration` | 6000 cm/s² | 질주 시 가속도 |
+
+> 기본 걷기 속도(`MaxSpeed`)는 Mover 기본 `UCommonLegacyMovementSettings`에서 관리.
+
+**`ULNPCharacterMoverComponent`** (대시 속성)
+
+| 항목 | 기본값 | 설명 |
+|:---|:---:|:---|
 | `DashDuration` | 0.2초 | 대시 지속 시간 |
 | `DashCooldown` | 1.0초 | 쿨타임 |
-| `DashImpulseMagnitude` | 2000 | 대시 충격량 |
+| `DashImpulseMagnitude` | 2000 cm/s | 대시 충격량(속도) |
 
 ---
 
@@ -83,7 +92,7 @@ LNP.Mover.IsSprinting (Gameplay Tag)
 
 ---
 
-## 5. 대시 시스템 (설계 완료, 구현 예정)
+## 5. 대시 시스템 (구현 완료)
 
 반응성과 시각적 동기화를 동시에 달성하기 위해 **하이브리드 레이어드 무브** 방식 사용.
 
@@ -101,12 +110,14 @@ LNP.Mover.IsSprinting (Gameplay Tag)
 
 ### 5.2 방향성 대시
 
-이동 입력(WASD)에 따라 방향을 결정하고 방향별 몽타주를 재생.
+이동 입력 유무에 따라 방향과 몽타주를 결정.
 
 | 조건 | 방향 | 몽타주 |
 |:---|:---|:---|
-| 이동 입력 있음 | 입력 방향 | `DashForward/Backward/Left/Right Montage` |
+| 이동 입력 있음 | 컨트롤 회전 기준 입력 방향 | `DashForwardMontage` |
 | 이동 입력 없음 | 캐릭터 후방 | `DashBackwardMontage` (회피) |
+
+> 좌/우 전용 몽타주(`DashLeftMontage`, `DashRightMontage`)는 UPROPERTY로 선언되어 있으나 현재 방향 결정 로직에서는 사용되지 않음.
 
 ### 5.3 제한 조건
 
@@ -130,5 +141,6 @@ LNP.Mover.IsSprinting (Gameplay Tag)
 | 룩 입력 / Pitch 클램프 | ✅ 완료 |
 | 이동 속도 설정 | ✅ 완료 |
 | 질주 시스템 (Stance + Modifier) | ✅ 완료 |
-| 대시 시스템 (Layered Move) | 🔲 설계 완료, 구현 예정 |
-| 방향성 대시 몽타주 | 🔲 설계 완료, 구현 예정 |
+| 대시 시스템 (Layered Move) | ✅ 완료 |
+| 방향성 대시 몽타주 (Forward/Backward) | ✅ 완료 |
+| 방향성 대시 몽타주 (Left/Right) | 🔲 미구현 (에셋 연결 필요) |

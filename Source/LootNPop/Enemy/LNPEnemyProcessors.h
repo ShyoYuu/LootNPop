@@ -82,9 +82,8 @@ protected:
 	FMassEntityQuery MovementQuery;
 };
 
-#if WITH_EDITOR
 /**
- * Visual debugging for Enemy NPCs.
+ * Visual debugging for Enemy NPCs. Active only in editor builds.
  */
 UCLASS()
 class LOOTNPOP_API ULNPEnemyDebugDrawProcessor : public UMassProcessor
@@ -100,7 +99,6 @@ protected:
 
 	FMassEntityQuery DebugQuery;
 };
-#endif
 
 /**
  * Handles health updates and death for enemies.

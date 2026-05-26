@@ -31,6 +31,8 @@
 - `FLNPLootPodIdleTag` / `FLNPLootPodLootingTag` — 상태별 쿼리 분리
 - `FLNPPlayerLootingTag` — 루팅 중인 플레이어 식별
 
+> **참고 — `Interrupted` 상태:** `ELNPLootPodState` Enum에 `Interrupted` 값이 정의되어 있으나, 현재 프로세서 로직에서는 사용되지 않습니다. 범위 이탈 시 `Looting → Interrupted` 경유 없이 `Looting → Idle`로 직접 전환됩니다. 피격에 의한 강제 취소(섹션 4.1)가 구현될 때 `Interrupted` 상태의 활용 여부를 재검토해야 합니다.
+
 ### 2.2 Processors
 
 **`ULNPIdleToLootingProcessor`**
@@ -40,8 +42,12 @@
 **`ULNPLootingProcessor`**
 - `FLNPLootPodLootingTag` 보유 Pod의 게이지를 `DeltaTime × BuffedLootSpeed`로 업데이트
 - 플레이어와 거리 체크 (매 프레임, `LootableDistSquared` 기준)
-  - 범위 이탈 → State → `Idle` 복귀, 태그 교체
-  - 게이지 완료 → State → `Popped`
+  - 범위 이탈 → State → `Idle` 복귀, 태그 교체 (**게이지는 초기화되지 않음**, 현재 미구현)
+  - 게이지 완료 → `FLNPPodStateTransitionCommand`로 비주얼 갱신 후 **엔티티 즉시 소멸** (`DestroyEntity`)
+
+> **현재 동작과 게임 기획 간 차이:**
+> - 기획(→ [GameDesign_LootPod.md](GameDesign_LootPod.md))상 범위 이탈 시 게이지가 초기화되어야 하나, 코드에서는 초기화되지 않음.
+> - `Popped` 전환 시 엔티티가 즉시 소멸되므로 상태 갱신 주석처리(`State = Popped`)는 사실상 도달하지 않음. 보상 스폰(TODO) 구현 시 타이밍 재검토 필요.
 
 ---
 
@@ -71,7 +77,15 @@ Mass 프로세서에서 State가 전환되면 `ALNPLootPod` 액터의 Niagara VF
 
 ## 4. 미구현 항목 (구현 예정)
 
-### 4.1 Interruption (피격 루팅 취소)
+### 4.1 게이지 초기화 (범위 이탈 시)
+
+> **🔲 미구현.** 현재 `ULNPLootingProcessor`는 범위 이탈 시 State를 Idle로 되돌리지만 `CurrentGauge`를 0으로 리셋하지 않습니다. 기획 의도(`GameDesign_LootPod.md` § 2.2)와 다릅니다.
+
+**구현 방향:** `ULNPLootingProcessor` 범위 이탈 분기에서 `LootPods[i].CurrentGauge = 0.0f;` 한 줄 추가.
+
+### 4.2 Interruption (피격 루팅 취소)
+
+> **🔲 미구현.** HitDetection 시스템 구현 후 연계.
 
 플레이어가 적에게 피격을 받으면 루팅이 즉시 취소되어야 함.
 
@@ -80,14 +94,18 @@ Mass 프로세서에서 State가 전환되면 `ALNPLootPod` 액터의 Niagara VF
 ```
 [HitDetection Processor] → 피격 확인
     → FMassDeferredSetCommand로 FLNPPlayerLootingTag 제거
-    → 다음 프레임 ULNPLootingProcessor에서 감지 → Idle 복귀
+    → 다음 프레임 ULNPLootingProcessor에서 감지 → Idle 복귀 (+ 게이지 초기화)
 ```
 
-### 4.2 보상 드롭 (Popped 후처리)
+### 4.3 보상 드롭 (Popped 후처리)
 
-`Popped` 상태 전환 시 `PodID`를 기반으로 보상 데이터를 조회하고 아이템을 월드에 스폰. GAS 인프라 구축 후 구현.
+> **🔲 미구현.** `FLNPPodStateTransitionCommand::Run()` 내부에 TODO 주석으로 스텁이 존재합니다. GAS 인프라 구축 후 구현.
 
-### 4.3 난이도 스케일링 트리거
+`Popped` 상태 전환 시 `PodID`를 기반으로 보상 데이터를 조회하고 아이템을 월드에 스폰.
+
+### 4.4 난이도 스케일링 트리거
+
+> **🔲 미구현.**
 
 활성 Pod 수를 추적하는 카운터를 통해 `ULNPTargetingSubsystem`의 슬롯 한도 또는 NPC 능력치를 조정.
 

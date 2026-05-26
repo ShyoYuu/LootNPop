@@ -7,11 +7,14 @@
 #include "Character/LNPCharacterBase.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "GameplayAbilitySpec.h"
+#include "AbilitySystemComponent.h"
 #include "LNPEnemyCharacter.generated.h"
 
 class ULNPEnemyConfig;
 class UAbilitySystemComponent;
 class ULNPBaseAttributeSet;
+class UWidgetComponent;
+class ULNPHpBarWidget;
 struct FMassEntityHandle;
 
 /**
@@ -33,10 +36,10 @@ public:
 	void InitializeFromConfig(ULNPEnemyConfig* InConfig);
 
 	/** Mass -> Actor sync: Called when actor is spawned/activated from Mass */
-	void SyncFromEntity(FMassEntityHandle InEntityHandle, float InHealth, ELNPTargetingState InTargetingState);
+	void SyncFromEntity(FMassEntityHandle InEntityHandle, float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity);
 
 	/** Actor -> Mass sync: Called when actor is about to be deactivated/destroyed back to Mass */
-	void SyncToEntity(float& OutHealth) const;
+	void SyncToEntity(float& OutHealth, FVector& OutVelocity) const;
 
 	/** Activates physics ragdoll and disables movement. Safe to call multiple times. */
 	void TriggerRagdoll();
@@ -57,4 +60,16 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|GAS")
 	TObjectPtr<ULNPBaseAttributeSet> AttributeSet;
+
+	/** World-space health bar widget component. Visible only when HP > 0 and HP < MaxHP. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|UI")
+	TObjectPtr<UWidgetComponent> HpBarComponent;
+
+	/** Widget class to use for the health bar. Set this in the Blueprint CDO. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|UI")
+	TSubclassOf<ULNPHpBarWidget> HpBarWidgetClass;
+
+private:
+	void OnHpAttributeChanged(const FOnAttributeChangeData& Data);
+	void RefreshHpBar(float Current, float Max);
 };

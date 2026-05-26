@@ -1,6 +1,8 @@
 # 패링 시스템 기술 설계
 
-> **구현 상태:** 미구현. HitDetection 시스템 구현 후 연계 작업. `Phase 3` 작업 대상.  
+> **⚠️ 구현 상태: 전체 미구현.** `FLNPParryStateFragment`, 패링 판정 로직, 반사/넉백 처리 등 관련 C++ 코드 일체 존재하지 않습니다.
+> 단, **패링 입력(`GuardAction`)은 `ULNPInputHandlerComponent`에 이미 바인딩**되어 있으며, `bIsGuardPressed` / `bIsGuardJustPressed` 신호를 제공합니다.
+> HitDetection 시스템 구현 완료 후 연계 작업. `Phase 3` 작업 대상.
 > 전제: [TechDesign_HitDetection.md](TechDesign_HitDetection.md)의 판정 프로세서 구현 완료 필요.
 
 ---
@@ -84,18 +86,46 @@ if (DistanceSq <= Parry.ParryRadiusSq)
 
 ---
 
-## 5. 입력 윈도우 관리
+## 5. 입력 및 윈도우 관리
 
 패링은 정확한 타이밍에 입력해야 성공하는 스킬. `FLNPParryStateFragment::bIsParrying`의 활성 시간 제어가 핵심.
 
-**GAS 어빌리티로 구현 (권장):**
+### 5.1 입력 소스
+
+`GuardAction`은 이미 `ULNPInputHandlerComponent`에 바인딩되어 있음. 콜백은 다음 두 신호를 유지함:
+
+```cpp
+// ULNPInputHandlerComponent (구현 완료)
+bool bIsGuardPressed;      // GuardAction 유지 중
+bool bIsGuardJustPressed;  // 해당 프레임 최초 입력 (ProduceInput 이후 false로 초기화)
 ```
-GA_Parry::ActivateAbility()
+
+### 5.2 입력 윈도우 처리 흐름
+
+`GuardAction` 입력 → `bIsGuardJustPressed = true` → 이를 `FLNPParryStateFragment::bIsParrying`에 연결하여 짧은 윈도우 동안 true로 유지.
+
+**구현 옵션 A — GuardAction 콜백 직접 연결:**
+```
+OnGuardStarted()
+└─ FMassDeferredSetCommand → bIsParrying = true
+OnGuardReleased() 또는 타이머
+└─ FMassDeferredSetCommand → bIsParrying = false
+```
+- 별도 GA 없이 가장 단순한 경로.
+- 단, 패링 성공 시 재생할 몽타주(패링 성공 애니메이션)가 필요하면 GAS 호출을 추가해야 함.
+
+**구현 옵션 B — GAS 어빌리티 경유:**
+```
+GA_Parry::ActivateAbility()   ← GuardAction이 GA를 트리거
 ├─ PlayMontage(ParryMontage)
 ├─ FMassDeferredSetCommand → bIsParrying = true  (입력 윈도우 시작)
 ├─ WaitForAnimNotify("ParryWindowEnd")
 └─ FMassDeferredSetCommand → bIsParrying = false (입력 윈도우 종료)
 ```
+- 애니메이션 타이밍과 판정 윈도우가 자동으로 일치하는 장점.
+- AnimBP 슬롯 구조(→ [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md)) 완성 후 권장.
+
+> **현재 방향:** `GuardAction` 입력 소스는 확정. 윈도우 제어 방식(옵션 A or B)은 AnimBP 레이어 구현 진척에 따라 결정.
 
 ---
 
