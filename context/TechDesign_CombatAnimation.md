@@ -2,6 +2,12 @@
 
 본 문서는 모션 매칭(Motion Matching) 기반의 로코모션 시스템 위에 동적 무기 장착(Dynamic Weapon Swapping), 상하체 블랜딩(Upper-body Blending), 그리고 GAS(Gameplay Ability System) 및 루트 모션(Root Motion) 기반의 상태 제어를 결합한 컴뱃 애니메이션 시스템 아키텍처 명세서입니다.
 
+> **⚠️ 구현 상태: 전체 미구현 (설계 명세서)**
+>
+> 현재 `ULNPAnimInstance`는 모션 매칭 로코모션 변수(속도, 접지 여부 등)만 보유하며, 무기 상태 조회·GAS 태그 참조·레이어 전환 로직이 일체 존재하지 않습니다.
+> `ULNPInputHandlerComponent::OnProduceInput()`에는 GAS 태그 기반 입력 차단 로직이 구현되어 있지 않습니다.
+> 섹션 3(AnimBP 구조), 4(GAS 연동), 5(입력 차단·루트 모션)의 내용은 모두 구현 대상 설계이며, C++ 코드에 아직 반영되지 않은 상태입니다.
+
 ---
 
 ## 1. 시스템 개요 (System Overview)
@@ -45,6 +51,8 @@
 ---
 
 ## 3. 애니메이션 블루프린트 구조 (AnimBP Architecture)
+
+> **🔲 미구현:** 아래 레이어 구조는 전체가 미구현 상태입니다. `ULNPAnimInstance`는 현재 로코모션 기초 변수만 갖춘 단순 클래스이며, `ALI_WeaponStyles` 인터페이스·무기별 서브 AnimBP·`LinkAnimClassLayers` 호출이 존재하지 않습니다.
 
 ### 3.1 레이어화된 애니메이션 그래프 (Linked Anim Graphs)
 메인 AnimBP의 비대화를 막기 위해 **Anim Layer Interface**를 사용하여 무기별 독립된 애니메이션 그래프를 동적으로 바인딩합니다.
@@ -103,6 +111,8 @@
 
 ## 4. GAS (Gameplay Ability System) 연동 및 실행
 
+> **🔲 미구현:** 몽타주-슬롯 분기 방식은 설계 완료 상태이나, 이를 수용할 AnimBP 슬롯 구조(섹션 3.2)가 먼저 완성되어야 합니다.
+
 모든 컴뱃 액션은 비용(Cost) 및 쿨타임(Cooldown), 어빌리티 상태를 관리하는 GAS 내부에서 제어됩니다.
 
 1.  **어빌리티 발동 및 몽타주 재생:**
@@ -118,6 +128,9 @@
 공격 시 캐릭터가 바닥을 미끄러지는 현상(Sliding)을 방지하고 묵직한 보폭을 표현하며, 점프 중 공중 제어(Air Control)를 제한하기 위해 입력 레이어에서 태그를 검사합니다.
 
 ### 5.1 입력 처리 차단 레이어 (Mover 2.0)
+
+> **🔲 미구현:** 현재 `ULNPInputHandlerComponent::OnProduceInput()`에는 GAS 태그 조회 로직이 존재하지 않습니다. ASC 참조 자체가 컴포넌트에 없으며, `State.Block.MovementInput` 태그 기반 차단은 미구현입니다. 아래 코드는 **구현 목표 예시**입니다.
+
 이 프로젝트는 `ACharacter` + `UCharacterMovementComponent`가 아닌 **`APawn` + `ULNPCharacterMoverComponent`(Mover 2.0)** 구조입니다. Mover 2.0에서는 이동 입력이 `ULNPInputHandlerComponent`의 `ProduceInput()` 단에서 생산됩니다. 따라서 입력 차단도 이 위치에서 처리합니다.
 
 ```cpp
@@ -151,6 +164,9 @@ void ULNPInputHandlerComponent::ProduceInput(float DeltaMs, FMoverInputCmdContex
 ---
 ## 6. 구현 및 최적화 핵심 체크리스트
 
+> **🔲 모든 항목 미구현.** AnimBP 레이어 구조(섹션 3) 완성 후 순차적으로 적용.
+
+* [ ] **GAS 태그 기반 입력 차단:** `ULNPInputHandlerComponent`에 ASC 참조를 추가하고 `OnProduceInput()`에서 `State.Block.MovementInput` 태그를 검사하는 로직 구현.
 * [ ] **Inertialization 노드 배치:** 애니메이션 레이어가 동적으로 교체되거나 전신 슬롯이 켜지고 꺼질 때 모션이 튀는 것을 방지하기 위해 Anim Graph 최종단 직전에 반드시 배치하고 블랜딩 타입을 `Inertial`로 설정할 것.
 * [ ] **Save Cached Pose 활용:** 모션 매칭 노드의 결과를 중복 평가하지 않도록 캐시 포즈로 저장한 뒤 하체와 상체 레이어 입력 핀에 각각 분기하여 연결할 것.
 * [ ] **Trajectory 컴포넌트 연동:** 상체 블랜딩(방법 A) 적용 중 피스톨 지향 사격 등으로 이동할 때 게걸음(Strafe)이 정상 작동하도록 무기 장착 태그에 맞춰 모션 매칭 Trajectory의 Orientation 세팅을 동적으로 전환해 줄 것.

@@ -392,6 +392,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	MovementQuery.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadOnly);
 	MovementQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+	MovementQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
 	MovementQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	MovementQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	MovementQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -415,6 +416,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const TArrayView<FTransformFragment> Transforms = EnemyContext.GetMutableFragmentView<FTransformFragment>();
 		const TConstArrayView<FMassMoveTargetFragment> MoveTargets = EnemyContext.GetFragmentView<FMassMoveTargetFragment>();
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = EnemyContext.GetFragmentView<FLNPEnemyTargetingFragment>();
+		const TArrayView<FLNPEnemyVelocityFragment> VelocityFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 		const FLNPEnemySharedFragment& SharedFragment = EnemyContext.GetConstSharedFragment<FLNPEnemySharedFragment>();
 
 		if (SharedFragment.Config == nullptr)
@@ -424,6 +426,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const FVector GravityOrigin = SharedFragment.Config->MovementConfig.GravityOrigin;
 		const float AttackRange = SharedFragment.Config->MovementConfig.AttackRange;
 		const float BaseMoveSpeed = SharedFragment.Config->MovementConfig.MoveSpeed;
+		const float GravityStrength = SharedFragment.Config->MovementConfig.GravityStrength;
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
@@ -499,36 +502,107 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			}
 			else
 			{
-				FVector Velocity = FVector::ZeroVector;
+				FVector& PhysVelocity = VelocityFragments[i].Velocity;
 
-				if (!OrientationIntent.IsNearlyZero())
+				// State is determined by PhysVelocity rather than a dedicated tag (e.g. FLNPEnemyAirborneTag).
+				// The tag-split approach (separate processor per archetype chunk) would be more idiomatic Mass
+				// and worth considering if airborne becomes a persistent or high-frequency state
+				// (e.g. flying enemies). For the current knockback-only use case the branch cost is negligible
+				// and avoids repeated Deferred AddTag/RemoveTag archetype migrations on every hit/landing.
+				if (!PhysVelocity.IsNearlyZero())
 				{
-					const FQuat TargetQuat = FRotationMatrix::MakeFromXZ(OrientationIntent, UpDir).ToQuat();
-					const FQuat NewRotation = FMath::QInterpConstantTo(CurrentRotation, TargetQuat, DeltaTime, FMath::DegreesToRadians(RotationRate));
-					EntityTransform.SetRotation(NewRotation);
-					
-					Velocity = (EffectiveSpeed > 0.0f) ? (OrientationIntent * EffectiveSpeed) : FVector::ZeroVector;
+					// Airborne physics: apply gravity and integrate velocity
+					const FVector GravityDir = (EntityLocation - GravityOrigin).GetSafeNormal(); // outward = down
+					PhysVelocity += GravityDir * GravityStrength * DeltaTime;
+
+					const FVector NewPos = EntityLocation + PhysVelocity * DeltaTime;
+					const FVector NewDir = (NewPos - GravityOrigin).GetSafeNormal();
+					const float CapsuleHalfHeight = SharedFragment.Config->CapsuleHalfHeight;
+
+					FVector SurfacePoint;
+					if (SurfaceCache.GetSurfacePoint(NewDir, SurfacePoint))
+					{
+						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
+						const float DistFromCenter = FVector::Dist(GravityOrigin, NewPos);
+
+						if (DistFromCenter >= SurfaceRadius - CapsuleHalfHeight)
+						{
+							// Landed: snap to surface and halt physics
+							EntityTransform.SetLocation(GravityOrigin + NewDir * (SurfaceRadius - CapsuleHalfHeight));
+							PhysVelocity = FVector::ZeroVector;
+						}
+						else
+						{
+							// Still airborne: move freely and maintain up-aligned rotation
+							EntityTransform.SetLocation(NewPos);
+							const FVector NewUp = (GravityOrigin - NewPos).GetSafeNormal();
+							const FVector HorizForward = FVector::VectorPlaneProject(EntityTransform.GetRotation().GetForwardVector(), NewUp).GetSafeNormal();
+							if (!HorizForward.IsNearlyZero())
+								EntityTransform.SetRotation(FRotationMatrix::MakeFromXZ(HorizForward, NewUp).ToQuat());
+						}
+					}
+					else
+					{
+						EntityTransform.SetLocation(NewPos);
+					}
 				}
 				else
 				{
-					Velocity = FVector::ZeroVector;
-					const FVector Forward = CurrentRotation.GetForwardVector();
-					const FQuat TargetQuat = FRotationMatrix::MakeFromXZ(Forward, UpDir).ToQuat();
-					EntityTransform.SetRotation(TargetQuat);
-				}
+					// Grounded: normal intent-based movement
+					FVector Velocity = FVector::ZeroVector;
 
-				const FVector DesiredPos = EntityTransform.GetLocation() + Velocity * DeltaTime;
-				const FVector DirToSurface = (DesiredPos - GravityOrigin).GetSafeNormal();
+					if (!OrientationIntent.IsNearlyZero())
+					{
+						const FQuat TargetQuat = FRotationMatrix::MakeFromXZ(OrientationIntent, UpDir).ToQuat();
+						const FQuat NewRotation = FMath::QInterpConstantTo(CurrentRotation, TargetQuat, DeltaTime, FMath::DegreesToRadians(RotationRate));
+						EntityTransform.SetRotation(NewRotation);
 
-				FVector FinalPos = DesiredPos;
-				FVector SurfacePoint;
-				if (SurfaceCache.GetSurfacePoint(DirToSurface, SurfacePoint))
-				{
-					// Use cache only for surface radius; angular position comes from continuous DesiredPos
-					const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
-					FinalPos = GravityOrigin + DirToSurface * SurfaceRadius;
+						Velocity = (EffectiveSpeed > 0.0f) ? (OrientationIntent * EffectiveSpeed) : FVector::ZeroVector;
+					}
+					else
+					{
+						const FVector Forward = CurrentRotation.GetForwardVector();
+						const FQuat TargetQuat = FRotationMatrix::MakeFromXZ(Forward, UpDir).ToQuat();
+						EntityTransform.SetRotation(TargetQuat);
+					}
+
+					// Slope check: block movement up slopes steeper than ~45 deg (MaxWalkSlopeCosine = 0.71f, matching Mover CommonLegacyMovementSettings)
+					constexpr float MaxWalkSlopeCosine = 0.71f;
+					if (!Velocity.IsNearlyZero())
+					{
+						const FVector CurrentSurfaceDir = (EntityLocation - GravityOrigin).GetSafeNormal();
+						const FVector TargetSurfaceDir = (EntityLocation + Velocity * DeltaTime - GravityOrigin).GetSafeNormal();
+						FVector CurrentSurface, TargetSurface;
+						if (SurfaceCache.GetSurfacePoint(CurrentSurfaceDir, CurrentSurface) &&
+							SurfaceCache.GetSurfacePoint(TargetSurfaceDir, TargetSurface))
+						{
+							const FVector SlopeDelta = TargetSurface - CurrentSurface;
+							if (FVector::DotProduct(SlopeDelta, UpDir) > 0.f) // ascending slope only
+							{
+								const float TotalDist = SlopeDelta.Size();
+								if (TotalDist > KINDA_SMALL_NUMBER)
+								{
+									const float HorizDist = FVector::VectorPlaneProject(SlopeDelta, UpDir).Size();
+									if (HorizDist / TotalDist < MaxWalkSlopeCosine)
+										Velocity = FVector::ZeroVector;
+								}
+							}
+						}
+					}
+
+					const FVector DesiredPos = EntityLocation + Velocity * DeltaTime;
+					const FVector DirToSurface = (DesiredPos - GravityOrigin).GetSafeNormal();
+
+					FVector FinalPos = DesiredPos;
+					FVector SurfacePoint;
+					if (SurfaceCache.GetSurfacePoint(DirToSurface, SurfacePoint))
+					{
+						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
+						const float CapsuleHalfHeight = SharedFragment.Config->CapsuleHalfHeight;
+						FinalPos = GravityOrigin + DirToSurface * (SurfaceRadius - CapsuleHalfHeight);
+					}
+					EntityTransform.SetLocation(FinalPos);
 				}
-				EntityTransform.SetLocation(FinalPos);
 			}
 		}
 	});
@@ -612,6 +686,14 @@ void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMa
 		}
 	});
 }
+#else
+ULNPEnemyDebugDrawProcessor::ULNPEnemyDebugDrawProcessor()
+	: DebugQuery(*this)
+{
+	bAutoRegisterWithProcessingPhases = false;
+}
+void ULNPEnemyDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&) {}
+void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager&, FMassExecutionContext&) {}
 #endif
 
 // --- Health Processor ---
@@ -720,6 +802,7 @@ void ULNPEnemyActorInitializerProcessor::ConfigureQueries(const TSharedRef<FMass
 	InitializerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 	InitializerQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
 	InitializerQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+	InitializerQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
 	InitializerQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	InitializerQuery.AddTagRequirement<FLNPEnemyActorInitializedTag>(EMassFragmentPresence::None);
 }
@@ -732,6 +815,7 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 		const TArrayView<FMassActorFragment> ActorFragments = EnemyContext.GetMutableFragmentView<FMassActorFragment>();
 		const TConstArrayView<FLNPEnemyFragment> EnemyFragments = EnemyContext.GetFragmentView<FLNPEnemyFragment>();
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = EnemyContext.GetFragmentView<FLNPEnemyTargetingFragment>();
+		const TArrayView<FLNPEnemyVelocityFragment> VelocityFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
@@ -741,13 +825,15 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 				ULNPEnemyConfig* Config = SharedFragment.Config;
 				float Health = EnemyFragments[i].Health;
 				ELNPTargetingState TState = TargetingFragments[i].State;
+				FVector Velocity = VelocityFragments[i].Velocity;
+				VelocityFragments[i].Velocity = FVector::ZeroVector; // consumed by Actor
 
-				Context.Defer().PushCommand<FMassDeferredAddCommand>([Entity, RawActor, Config, Health, TState](FMassEntityManager& InEntityManager)
+				Context.Defer().PushCommand<FMassDeferredAddCommand>([Entity, RawActor, Config, Health, TState, Velocity](FMassEntityManager& InEntityManager)
 				{
 					if (ALNPEnemyCharacter* EnemyActor = Cast<ALNPEnemyCharacter>(RawActor))
 					{
 						EnemyActor->InitializeFromConfig(Config);
-						EnemyActor->SyncFromEntity(Entity, Health, TState);
+						EnemyActor->SyncFromEntity(Entity, Health, TState, Velocity);
 						InEntityManager.AddTagToEntity(Entity, FLNPEnemyActorInitializedTag::StaticStruct());
 					}
 				});
@@ -772,6 +858,7 @@ void ULNPEnemyActorSyncProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 {
 	SyncQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
 	SyncQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
+	SyncQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
 	SyncQuery.AddTagRequirement<FLNPEnemyActorInitializedTag>(EMassFragmentPresence::All);
 	SyncQuery.RegisterWithProcessor(*this);
 }
@@ -782,13 +869,14 @@ void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMa
 
 	SyncQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
-		const TConstArrayView<FMassActorFragment> ActorFrags = Ctx.GetFragmentView<FMassActorFragment>();
-		TArrayView<FLNPEnemyFragment>             EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
+		const TConstArrayView<FMassActorFragment> ActorFrags  = Ctx.GetFragmentView<FMassActorFragment>();
+		TArrayView<FLNPEnemyFragment>             EnemyFrags  = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
+		TArrayView<FLNPEnemyVelocityFragment>     VelocityFrags = Ctx.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			if (const ALNPEnemyCharacter* EnemyChar = Cast<ALNPEnemyCharacter>(ActorFrags[i].Get()))
-				EnemyChar->SyncToEntity(EnemyFrags[i].Health);
+				EnemyChar->SyncToEntity(EnemyFrags[i].Health, VelocityFrags[i].Velocity);
 			else
 				ToCleanup.Add(Ctx.GetEntity(i));
 		}

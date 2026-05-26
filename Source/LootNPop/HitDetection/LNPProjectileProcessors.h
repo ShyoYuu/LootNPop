@@ -80,11 +80,10 @@ private:
 	FMassEntityQuery DeadProjectileQuery;
 };
 
-#if WITH_EDITOR
 /**
  * Per-frame debug draw for live projectiles (cyan sphere + velocity arrow).
  * Also flushes surface impact markers (orange sphere, 1-second duration).
- * Runs after VisualizationProcessor on the game thread.
+ * Runs after VisualizationProcessor on the game thread. Active only in editor builds.
  */
 UCLASS()
 class LOOTNPOP_API ULNPProjectileDebugDrawProcessor : public UMassProcessor
@@ -100,4 +99,3 @@ private:
 	FMassEntityQuery ProjectileQuery;
 	FMassEntityQuery PlayerQuery;
 };
-#endif

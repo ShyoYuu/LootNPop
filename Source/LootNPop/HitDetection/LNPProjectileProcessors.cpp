@@ -555,4 +555,12 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 		}
 	});
 }
+#else
+ULNPProjectileDebugDrawProcessor::ULNPProjectileDebugDrawProcessor()
+	: ProjectileQuery(*this), PlayerQuery(*this)
+{
+	bAutoRegisterWithProcessingPhases = false;
+}
+void ULNPProjectileDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&) {}
+void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager&, FMassExecutionContext&) {}
 #endif

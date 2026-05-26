@@ -22,6 +22,7 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	BuildContext.AddFragment<FLNPEnemyTargetingFragment>();
 	BuildContext.AddFragment<FLNPEnemyTargetingCandidateFragment>();
 	BuildContext.AddFragment<FMassMoveTargetFragment>();
+	BuildContext.AddFragment<FLNPEnemyVelocityFragment>();
 	//BuildContext.AddFragment<FMassVelocityFragment>();
 
 	// 2. Shared Config Fragments

@@ -1,6 +1,8 @@
 # Parry System - 게임 기획서
 
-> **구현 상태:** 미구현. HitDetection 시스템 구현 후 연계 작업. `Phase 3` 작업 대상.
+> **⚠️ 구현 상태: 전체 미구현.** 관련 C++ 코드(Fragment, Processor, 판정 로직 등) 일체 존재하지 않습니다.
+> 단, **패링 입력 자체(`GuardAction`)는 `ULNPInputHandlerComponent`에 이미 바인딩**되어 있습니다.
+> HitDetection 시스템 구현 완료 후 연계 작업. `Phase 3` 작업 대상.
 
 ---
 
@@ -16,8 +18,8 @@
 
 두 조건을 동시에 만족해야 성공.
 
-1. **타이밍:** 공격이 유효 거리(`ParryDistance`) 내에 도달하는 순간, 패링 입력이 활성 상태일 것.
-   - 패링 입력 후 짧은 **입력 윈도우** 동안만 `bIsParrying = true` 유지.
+1. **타이밍:** 공격이 유효 거리(`ParryDistance`) 내에 도달하는 순간, 패링 입력(`GuardAction`)이 활성 상태일 것.
+   - `GuardAction` 입력 후 짧은 **입력 윈도우** 동안만 `bIsParrying = true` 유지.
    - 윈도우를 벗어난 입력은 무효.
 
 2. **방향:** 방어자의 정면과 공격 진행 방향의 역벡터 사이 각도가 **45도 이내**일 것.
@@ -54,4 +56,4 @@
 
 - 패링 성공 시 공격자가 날아가는 연출은 구형 월드의 개방적인 공간을 십분 활용한 **과장된 피드백** 지향.
 - 원거리 투사체 패링의 경우, 반사된 투사체가 원래 공격자를 역으로 타격하는 상황이 자연스럽게 연출됨.
-- 입력 윈도우는 GAS 몽타주의 `AnimNotify`로 제어하므로, 애니메이션 퀄리티와 게임플레이 타이밍 일치 가능. (→ [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md))
+- 패링 입력 키(`GuardAction`)는 이미 입력 시스템에 연결되어 있으며, 입력 윈도우 및 판정 세부 흐름은 (→ [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)) 참조.

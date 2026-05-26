@@ -65,11 +65,14 @@ ALNPGameMode::OnEntitySpawningComplete()
 
 ```
 ALNPGameState::OnRep_OctantGenSeed()
-└─ OctantSpawnSubsystem::StartWorldGeneration()  (서버와 동일한 seed로 결정론적 스폰)
-        │ 로드 완료 시
-        ▼
+└─ [!bGenerationComplete && !IsTickable() 가드 — 이미 진행/완료 시 중복 호출 방지]
+   ├─ OctantSub->OnWorldGenerationFinished에 OnClientWorldGenerationFinished 구독
+   └─ OctantSpawnSubsystem::StartWorldGeneration()  (서버와 동일한 seed로 결정론적 스폰)
+           │ 로드 완료 시
+           ▼
 ALNPGameState::OnClientWorldGenerationFinished()
-└─ TryBeginClientBaking()  → ServerPhase >= SurfaceBaking이면 BeginBaking() 호출
+└─ [ServerPhase >= SurfaceBaking 조건 확인 후]
+   └─ TryBeginClientBaking()  → OctantSub->bGenerationComplete이면 BeginBaking() 호출
 ```
 
 ### 4.2 표면 캐시 베이킹
@@ -95,9 +98,18 @@ ALNPGameState::OnRep_ServerPhase()  (SurfaceBaking 수신 시)
 ### 4.3 베이킹 완료 후
 
 ```
-SurfaceCacheSubsystem::OnBakingComplete
-        ↓ (PlayerController가 구독 중)
+ALNPPlayerController::BeginPlay()  (로컬 컨트롤러만 실행)
+├─ ShowLoadingScreen()
+└─ GetBakingProgress() >= 1.0?
+   ├─ Yes (리슨 서버 로컬 플레이어 등 이미 완료된 경우)
+   │   └─ OnLocalBakingComplete() 즉시 호출
+   └─ No
+       └─ SurfaceCacheSubsystem::OnBakingComplete에 OnLocalBakingComplete 구독
+
+SurfaceCacheSubsystem::OnBakingComplete  (아직 완료 전인 경우)
+        ↓
 ALNPPlayerController::OnLocalBakingComplete()
+├─ bLoadingComplete = true
 ├─ HideLoadingScreen()
 └─ ServerNotifyClientReady() RPC  →  서버 ALNPGameMode::OnClientReady() 수신
 ```

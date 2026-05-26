@@ -20,10 +20,10 @@
 
 **취소 조건:**
 
-| 조건 | 결과 |
-|:---|:---|
-| 루팅 구역 이탈 | 즉시 취소, 게이지 초기화 |
-| 적에게 피격 (Hit 발생) | 즉시 취소, 게이지 초기화 |
+| 조건 | 결과 | 구현 상태 |
+|:---|:---|:---|
+| 루팅 구역 이탈 | 즉시 취소, 게이지 초기화 | 취소(Idle 복귀)는 구현됨. **게이지 초기화는 미구현** |
+| 적에게 피격 (Hit 발생) | 즉시 취소, 게이지 초기화 | **🔲 미구현** (HitDetection 연동 후 구현 예정) |
 
 > 피격 취소는 HitDetection 시스템과 연동. 피격 판정 시 플레이어 엔티티의 `FLNPPlayerLootingTag`가 제거되고, 다음 프레임 루팅 프로세서가 Idle로 복귀. (→ [TechDesign_LootPod.md](TechDesign_LootPod.md), [TechDesign_HitDetection.md](TechDesign_HitDetection.md))
 
@@ -74,8 +74,9 @@
 |:---|:---|
 | 루팅 상태 전환 (Idle ↔ Looting ↔ Popped) | ✅ 완료 |
 | 게이지 누적 및 거리 체크 | ✅ 완료 |
+| 범위 이탈 시 게이지 초기화 | 🔲 미구현 (이탈 감지는 됨, 초기화 누락) |
 | 빛기둥 VFX (Niagara 연동) | ✅ 완료 |
 | SmartObject 기반 상호작용 쿼리 | ✅ 완료 |
 | 피격 시 루팅 취소 (HitDetection 연동) | 🔲 HitDetection 구현 후 연계 |
-| 보상 드랍 (Popped 후처리) | 🔲 GAS 인프라 구축 후 구현 |
+| 보상 드랍 (Popped 후처리) | 🔲 GAS 인프라 구축 후 구현 (TODO 스텁 존재) |
 | 난이도 스케일링 트리거 | 🔲 미구현 |

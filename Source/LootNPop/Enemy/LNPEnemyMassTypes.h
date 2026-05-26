@@ -117,6 +117,16 @@ struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 	uint8 bNeedNewWanderTarget : 1 = true;
 };
 
+/** Physics velocity for Entity-mode simulation (knockback, arc). Zero when grounded. */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemyVelocityFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	FVector Velocity = FVector::ZeroVector;
+};
+
 /** Tag to identify an entity as an Enemy */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyTag : public FMassTag { GENERATED_BODY() };
 
