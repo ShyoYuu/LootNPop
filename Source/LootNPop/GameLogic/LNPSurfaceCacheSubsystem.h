@@ -11,8 +11,8 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLNPOnBakingComplete);
 
 /**
- * Thread-safe snapshot of the baked surface cache.
- * Created on the game thread after baking completes; safe to read from any thread.
+ * 베이크된 표면 Cache의 Thread-Safe Snapshot.
+ * 베이킹 완료 후 게임 Thread에서 생성되며, 어떤 Thread에서도 읽기 안전하다.
  */
 struct LOOTNPOP_API FLNPSurfaceCacheSnapshot
 {
@@ -22,7 +22,7 @@ struct LOOTNPOP_API FLNPSurfaceCacheSnapshot
 		bool bValid = false;
 	};
 
-	/** Shared reference to the baked data. No copy — multiple snapshots share one allocation. */
+	/** 베이크된 데이터의 Shared 참조. 복사 없음 — 여러 Snapshot이 하나의 할당을 공유. */
 	TSharedPtr<const TArray<FPoint>> Points;
 	int32 LatRes = 0;
 	int32 LonRes = 0;
@@ -32,9 +32,9 @@ struct LOOTNPOP_API FLNPSurfaceCacheSnapshot
 };
 
 /**
- * Precomputes a spherical equirectangular grid of surface hit points via async line traces.
- * All traces are fired in one batch on BeginBaking(); results are collected each tick.
- * The resulting cache is read-only after baking completes, making it safe for Mass worker threads.
+ * 비동기 라인 트레이스로 구형 등장방형 격자의 표면 히트 지점을 사전 계산한다.
+ * 모든 트레이스는 BeginBaking()에서 한 번에 발사되며, 결과는 매 Callback으로 수집된다.
+ * 베이킹 완료 후 결과 Cache는 읽기 전용이 되어 Mass 워커 Thread에 안전하다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPSurfaceCacheSubsystem : public UWorldSubsystem, public FTickableGameObject
@@ -48,20 +48,20 @@ public:
 	virtual TStatId GetStatId() const override;
 	// End FTickableGameObject
 
-	/** Fires all surface traces asynchronously. Called by GameMode after world gen completes. */
+	/** 모든 표면 트레이스를 비동기로 발사한다. World 생성 완료 후 GameMode가 호출. */
 	void BeginBaking();
 
 	/**
-	 * Thread-safe surface point query.
-	 * Returns the baked surface hit point closest to the given world direction.
-	 * Only valid after OnBakingComplete fires.
+	 * Thread-Safe 표면 지점 조회.
+	 * 주어진 World 방향과 가장 가까운 베이크된 표면 히트 지점을 반환한다.
+	 * OnBakingComplete 발동 후에만 유효하다.
 	 */
 	bool GetSurfacePoint(const FVector& WorldDirection, FVector& OutPoint) const;
 
-	/** Returns baking progress in [0, 1]. Reaches 1.0 when OnBakingComplete fires. */
+	/** 베이킹 진행률을 [0, 1]로 반환한다. OnBakingComplete 발동 시 1.0이 된다. */
 	float GetBakingProgress() const;
 
-	/** Creates a thread-safe snapshot for use on background threads. Only valid after OnBakingComplete. */
+	/** 백그라운드 Thread 사용을 위한 Thread-Safe Snapshot을 생성한다. OnBakingComplete 이후에만 유효. */
 	FLNPSurfaceCacheSnapshot TakeSnapshot() const;
 
 	UPROPERTY(BlueprintAssignable, Category = "LNP|Surface Cache")
@@ -75,10 +75,10 @@ private:
 
 	void OnAsyncTraceComplete(const FTraceHandle& Handle, FTraceDatum& Data);
 
-	/** Owns the baked data. Replaced each BeginBaking() so re-baking never corrupts live snapshots. */
+	/** 베이크된 데이터 SharedPtr. BeginBaking()마다 교체되어 재베이킹이 라이브 Snapshot을 손상시키지 않는다. */
 	TSharedPtr<TArray<FPoint>> CacheData;
 
-	/** Single shared delegate — all async traces call back here, using UserData as the sample index. */
+	/** 단일 공유 델리게이트 — 모든 비동기 트레이스가 여기로 Callback, UserData에 Sample Index를 담아서 사용. */
 	FTraceDelegate TraceDelegate;
 
 	int32 LatResolution = 64;

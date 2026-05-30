@@ -8,20 +8,20 @@
 
 class UCharacterMoverComponent;
 
-/** Gravity operation modes */
+/** 중력 동작 모드 */
 UENUM(BlueprintType)
 enum class ELNPGravityType : uint8
 {
 	None,
-	Fixed,          // Static gravity (points in a specific fixed direction)
-	RadialInward,   // Dynamic gravity: Pulls towards a center point (Planet-like)
-	RadialOutward   // Dynamic gravity: Pushes away from a center point (Inverted sphere world)
+	Fixed,          // 고정 중력 (특정 고정 방향을 가리킴)
+	RadialInward,   // 동적 중력: 중심점으로 끌어당김 (행성형)
+	RadialOutward   // 동적 중력: 중심점에서 밀어냄 (반전 구형 세계)
 };
 
 /**
  * ULNPPawnGravityComponent
- * Manages custom gravity for the pawn (physics via MoverComponent) 
- * and handles curvature-aware camera/control rotation for the player.
+ * 폰의 커스텀 중력(MoverComponent를 통한 물리)을 관리하며
+ * Player의 곡률 인식 카메라/컨트롤 회전을 처리한다.
  */
 UCLASS( ClassGroup=(LNP), meta=(BlueprintSpawnableComponent) )
 class LOOTNPOP_API ULNPPawnGravityComponent : public UActorComponent
@@ -37,51 +37,51 @@ protected:
 public:	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** Updates the gravity mode and its direction/origin point */
+	/** 중력 모드와 방향/원점을 업데이트한다 */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	void SetGravity(const ELNPGravityType NewType, const FVector& NewDirectionOrOrigin);
 
-	/** Returns the current calculated Up direction based on the current gravity type and owner location */
+	/** 현재 중력 타입과 Owner 위치에 기반하여 계산된 Up 방향을 반환한다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|Gravity")
 	FVector GetUpDirection() const;
 
-	/** Input look delta to be processed in the next tick */
+	/** 다음 tick에 처리될 시선 입력 델타 */
 	void InputLook(const FRotator& LookDelta);
 
 protected:
-	/** Currently active gravity mode */
+	/** 현재 활성화된 중력 모드 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	ELNPGravityType GravityType = ELNPGravityType::None;
 
-	/** Center of gravity origin (used in Radial modes) */
+	/** 중력 원점 (Radial 모드에서 사용) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	FVector GravityOrigin = FVector::ZeroVector;
 
-	/** Desired gravity direction for Fixed mode (default is world down) */
+	/** Fixed 모드의 중력 방향 (기본값은 World 다운) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	FVector FixedGravityDirection = FVector::DownVector;
 
-	/** Acceleration magnitude for gravity */
+	/** 중력 가속도 크기 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	float GravityStrength = 2000.0f;
 
 private:
-	/** Cached reference to the owner's mover component */
+	/** Owner의 MoverComponent Cache 참조 */
 	UPROPERTY(Transient)
 	TObjectPtr<UCharacterMoverComponent> CachedMoverComponent;
 
-	/** Accumulated look input from the character */
+	/** 캐릭터의 누적 시선 입력 */
 	FRotator PendingLookInput = FRotator::ZeroRotator;
 
-	/** Keeps track of the previous mode to detect transitions */
+	/** 전환 감지를 위한 이전 모드 추적 */
 	ELNPGravityType LastGravityType = ELNPGravityType::None;
 
-	/** Cached Up direction for camera curvature compensation */
+	/** 카메라 곡률 보정을 위한 Up 방향 Cache */
 	FVector LastUpDir = FVector::UpVector;
 
-	/** Updates physical gravity and capsule orientation based on new directions */
+	/** 새 방향에 따라 물리 중력과 Capsule 방향을 업데이트한다 */
 	void UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir);
 
-	/** Adjusts the player controller's rotation matrix to match world curvature and look inputs */
+	/** World 곡률과 시선 입력에 맞게 Player 컨트롤러의 회전 행렬을 조정한다 */
 	void UpdateControllerOrientation(float DeltaTime, const FVector& TargetUpDir);
 };

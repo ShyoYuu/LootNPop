@@ -8,7 +8,7 @@
 #include "MassEntityHandle.h"
 #include "LNPTargetingSubsystem.generated.h"
 
-/** Information about an enemy competing for a slot */
+/** 슬롯 경쟁 중인 Enemy의 정보 */
 struct FLNPPendingTargetEntry
 {
 	FMassEntityHandle EnemyHandle;
@@ -18,24 +18,24 @@ struct FLNPPendingTargetEntry
 
 	bool operator<(const FLNPPendingTargetEntry& Other) const
 	{
-		return Score > Other.Score; // Sort descending
+		return Score > Other.Score; // 내림차순 정렬
 	}
 };
 
-/** Slot status for a single player */
+/** 단일 Player의 슬롯 상태 */
 USTRUCT()
 struct FLNPPlayerSlotData
 {
 	GENERATED_BODY()
 
-	/** Entities currently occupying slots (Confirmed state) */
+	/** 현재 슬롯을 점유하는 Entity (Confirmed 상태) */
 	TSet<FMassEntityHandle> OccupiedMelee;
 	TSet<FMassEntityHandle> OccupiedRanged;
 };
 
 /**
- * Global Subsystem to manage combat density per player.
- * Uses a scoring system to decide which enemies get to attack.
+ * Player별 Enemy 어그로를 관리하는 전역 Subsystem.
+ * Scoring 규칙에 따라 어떤 Enemy가 공격할지 결정한다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPTargetingSubsystem : public UWorldSubsystem
@@ -45,13 +45,13 @@ class LOOTNPOP_API ULNPTargetingSubsystem : public UWorldSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
-	/** Registers an enemy's interest and score for a specific player target */
+	/** 특정 Player 타겟에 대한 Enemy의 어그로 Score를 등록한다 */
 	void RegisterEnemyInterest(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle, float Score, bool bIsMelee);
 
-	/** Returns the confirmed state for an enemy */
+	/** Enemy의 슬롯 확정 여부를 반환한다 */
 	bool IsSlotConfirmed(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle) const;
 
-	/** Performs rebalancing: Promotes high-score enemies and demotes low-score ones */
+	/** 재균형 수행: 고점수 Enemy을 승격하고 저점수 Enemy을 강등한다 */
 	void RebalanceSlots();
 
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Targeting")
@@ -61,12 +61,12 @@ public:
 	int32 MaxRangedSlotsPerPlayer = 20;
 
 protected:
-	/** Map of Player Entity -> Their Slot Data */
+	/** Player Entity -> 슬롯 데이터 맵 */
 	TMap<FMassEntityHandle, FLNPPlayerSlotData> PlayerSlots;
 
-	/** All enemy interests registered this frame */
+	/** 이번 프레임에 등록된 모든 Enemy의 어그로 목록 */
 	TArray<FLNPPendingTargetEntry> PendingEntries;
 
-	/** Lock for thread safety during parallel Mass processing */
+	/** 병렬 Mass 처리 중 Thread-Safe를 위한 Lock */
 	mutable FCriticalSection DataLock;
 };

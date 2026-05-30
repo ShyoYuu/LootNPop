@@ -16,13 +16,13 @@ void ULNPPawnGravityComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 1. Cache the MoverComponent from the owning actor
+	// 1. Owner Actor에서 MoverComponent Cache
 	if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 	{
 		CachedMoverComponent = OwnerPawn->FindComponentByClass<UCharacterMoverComponent>();
 	}
 
-	// 2. Initial synchronization with GameState settings
+	// 2. GameState 설정과 초기 동기화
 	if (ALNPGameState* GS = GetWorld()->GetGameState<ALNPGameState>())
 	{
 		if (GS->bIsSphereWorld)
@@ -47,7 +47,7 @@ void ULNPPawnGravityComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	FVector PawnUpDir = FVector::UpVector;
 	FVector PawnDownDir = FVector::DownVector;
 
-	// Calculate target surface normal and gravity direction based on current mode
+	// 현재 모드에 따라 목표 표면 법선과 중력 방향 계산
 	switch (GravityType)
 	{
 	case ELNPGravityType::Fixed:
@@ -69,16 +69,16 @@ void ULNPPawnGravityComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 		return;
 	}
 
-	// 1. Detect Mode Transitions
+	// 1. 모드 전환 감지
 	if (LastGravityType != GravityType)
 	{
-		// Force initial physical update on transition
+		// 전환 시 초기 물리 업데이트 강제
 		UpdatePawnOrientation(PawnUpDir, PawnDownDir);
 		LastGravityType = GravityType;
 	}
 
-	// 2. Update orientations if needed (Direction changed or it's a dynamic gravity world)
-	// For Dynamic modes, this always runs to ensure smooth transition as pawn moves.
+	// 2. 필요 시 방향 업데이트 (방향 변경 또는 동적 중력 세계)
+	// 동적 모드에서는 Pawn이 이동할 때 부드러운 전환을 위해 항상 실행
 	const bool bDirectionChanged = !LastUpDir.Equals(PawnUpDir, 0.001f);
 
 	if (GravityType != ELNPGravityType::Fixed || bDirectionChanged)
@@ -141,8 +141,8 @@ void ULNPPawnGravityComponent::UpdatePawnOrientation(const FVector& PawnUpDir, c
 	CachedMoverComponent->SetGravityOverride(true, CustomGravityVector);
 	CachedMoverComponent->SetUpDirectionOverride(true, PawnUpDir);
 
-	// We no longer call SetActorRotation here. 
-	// The Mover component handles capsule orientation smoothly via UpDirectionOverride.
+	// 여기서 SetActorRotation은 더 이상 호출하지 않는다.
+	// Mover Component가 UpDirectionOverride를 통해 Capsule 방향을 부드럽게 처리한다.
 }
 
 void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, const FVector& TargetUpDir)
@@ -157,21 +157,21 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 
 	FQuat CurrentControlQuat = PC->GetControlRotation().Quaternion();
 	
-	// 1. Curvature Compensation
+	// 1. 곡률 보정
 	if (!LastUpDir.Equals(TargetUpDir, 0.0001f))
 	{
 		const FQuat CurvatureDelta = FQuat::FindBetweenNormals(LastUpDir, TargetUpDir);
 		CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
 	}
 
-	// 2. Apply Look Input (Yaw and Pitch)
+	// 2. 시선 입력 적용 (Yaw, Pitch)
 	if (!PendingLookInput.IsNearlyZero())
 	{
-		// Yaw: Rotate around the local Up axis
+		// Yaw: 로컬 Up 축을 중심으로 회전
 		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * 4.0));
 		CurrentControlQuat = YawQuat * CurrentControlQuat;
 
-		// Pitch: Rotate around the local Right axis
+		// Pitch: 로컬 Right 축을 중심으로 회전
 		const FVector CurrentRight = FVector::CrossProduct(TargetUpDir, CurrentControlQuat.GetForwardVector()).GetSafeNormal();
 		if (!CurrentRight.IsNearlyZero())
 		{
@@ -182,11 +182,11 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 		PendingLookInput = FRotator::ZeroRotator;
 	}
 
-	// 3. Stabilization & Pitch Clamping relative to local Up
+	// 3. 로컬 Up 기준 안정화 및 Pitch 클램핑
 	FVector ViewForward = CurrentControlQuat.GetForwardVector();
 	const float CosAngleFromUp = FVector::DotProduct(ViewForward, TargetUpDir);
 	
-	const float MaxCosLimit = 0.996f;  // Approx 85 degrees
+	const float MaxCosLimit = 0.996f;  // 약 85도
 	const float MinCosLimit = -0.996f;
 
 	if (CosAngleFromUp > MaxCosLimit || CosAngleFromUp < MinCosLimit)
@@ -198,8 +198,8 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 		ViewForward = (HorizonForward * ClampedSin) + (TargetUpDir * ClampedCos);
 	}
 
-	// 4. Final Reconstruction: Preserve ViewForward while forcing a stable Right axis relative to Gravity
-	// This keeps the Pitch intact while ensuring the camera doesn't roll relative to the surface.
+	// 4. 최종 재구성: ViewForward를 유지하면서 중력 기준 안정적인 Right 축 강제
+	// Pitch를 유지하면서 카메라가 표면에 대해 롤하지 않도록 보장한다.
 	FVector FinalRight = FVector::CrossProduct(TargetUpDir, ViewForward).GetSafeNormal();
 	FVector FinalUp = FVector::CrossProduct(ViewForward, FinalRight).GetSafeNormal();
 	

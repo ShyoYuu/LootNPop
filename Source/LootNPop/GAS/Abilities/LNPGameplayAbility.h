@@ -14,11 +14,11 @@ class LOOTNPOP_API ULNPGameplayAbility : public UGameplayAbility
 {
 	GENERATED_BODY()
 protected:
-	/** Returns the Pawn avatar if it is an LNP character. */
+	/** 아바타 Pawn이 LNP 캐릭터이면 반환한다. */
 	UFUNCTION(BlueprintPure, Category = "LNP|Ability")
 	ALNPCharacterBase* GetOwningCharacter() const;
 
-	/** Returns the LNP PlayerState that owns the ASC activating this ability. */
+	/** 이 Ability를 활성화하는 ASC를 소유한 LNP PlayerState를 반환한다. */
 	UFUNCTION(BlueprintPure, Category = "LNP|Ability")
 	ALNPPlayerState* GetOwningLNPPlayerState() const;
 };

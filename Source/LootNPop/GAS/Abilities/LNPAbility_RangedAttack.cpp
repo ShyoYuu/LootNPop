@@ -74,7 +74,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 
 	FMassEntityManager& EntityManager = MassSubsystem->GetMutableEntityManager();
 
-	// --- Shared fragment (weapon-type constants, shared across all projectiles of this weapon) ---
+	// --- Shared Fragment (무기 타입 상수, 동일 무기의 모든 Projectile가 공유) ---
 	FLNPProjectileSharedFragment SharedData;
 	SharedData.VFXData           = WeaponDef->ProjectileVFXData;
 	SharedData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
@@ -86,7 +86,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 	FMassArchetypeSharedFragmentValues SharedValues;
 	SharedValues.Add(SharedStruct);
 
-	// --- Per-entity state ---
+	// --- Entity별 상태 ---
 	const FVector SpawnPos  = Character->GetActorLocation()
 		+ Character->GetActorForwardVector() * WeaponDef->MuzzleOffset.X;
 	const FVector Direction = Character->GetActorForwardVector();
@@ -95,8 +95,8 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())
 		InstigatorHandle = AgentComp->GetEntityHandle();
 
-	// ReserveEntity() is safe during Mass processing (just allocates an ID, no IsProcessing check).
-	// The actual entity build is deferred so it executes after the current processing scope ends.
+	// ReserveEntity()는 Mass 처리 중 안전하다 (ID만 할당, IsProcessing 체크 없음).
+	// 실제 Entity 빌드는 지연되어 현재 처리 범위 종료 후 실행된다.
 	const FMassEntityHandle Entity = EntityManager.ReserveEntity();
 
 	FLNPProjectileFragment FragData;

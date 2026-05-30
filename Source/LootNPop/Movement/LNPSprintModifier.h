@@ -7,8 +7,8 @@
 #include "LNPSprintModifier.generated.h"
 
 /**
- * Modifier that applies sprinting settings to the character.
- * Swaps MaxSpeed and Acceleration in UCommonLegacyMovementSettings using values from ULNPCharacterMovementSettings.
+ * 캐릭터에 Sprint 설정을 적용하는 Modifier.
+ * ULNPCharacterMovementSettings의 값을 사용하여 UCommonLegacyMovementSettings의 MaxSpeed와 Acceleration을 교체한다.
  */
 USTRUCT(BlueprintType)
 struct FLNPSprintModifier : public FMovementModifierBase
@@ -19,7 +19,7 @@ public:
 	FLNPSprintModifier();
 	virtual ~FLNPSprintModifier() override {}
 
-	// --- FMovementModifierBase Interface ---
+	// --- FMovementModifierBase 인터페이스 ---
 	virtual void OnStart(UMoverComponent* MoverComp, const FMoverTimeStep& TimeStep, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState) override;
 	virtual void OnEnd(UMoverComponent* MoverComp, const FMoverTimeStep& TimeStep, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState) override;
 	

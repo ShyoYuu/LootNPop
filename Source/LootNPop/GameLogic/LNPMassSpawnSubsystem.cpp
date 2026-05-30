@@ -77,8 +77,8 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	CapturedAssets.Empty();
 	SpawnQueueHead = 0;
 
-	// Pre-capture UObject refs (game thread only) and assign integer indices.
-	// Layout per pod set: [pod_config, enemy_config_0, enemy_config_1, ...]
+	// UObject 참조를 미리 캡처하고 (게임 Thread 전용) 정수 Index 할당.
+	// pod 세트당 레이아웃: [pod_config, enemy_config_0, enemy_config_1, ...]
 	struct FPodSetBuildParams
 	{
 		int32 PodSetCount;
@@ -103,7 +103,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		SetParams.Add(MoveTemp(P));
 	}
 
-	// Take a read-only snapshot of the surface cache — no UObject access needed in the task
+	// 표면 Cache의 읽기 전용 Snapshot 획득 — 태스크에서 UObject 접근 불필요
 	ULNPSurfaceCacheSubsystem* SurfaceCache = GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
 	FLNPSurfaceCacheSnapshot CacheSnap = SurfaceCache->TakeSnapshot();
 
@@ -131,7 +131,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 			{
 				for (int32 i = 0; i < Set.PodSetCount; ++i)
 				{
-					// Find pod surface point using cache lookup + min-distance check
+					// Cache 조회 + 최소 거리 체크로 LootPod 표면 지점 탐색
 					FVector PodLocation;
 					bool bFoundPod = false;
 					FVector BaseDir = FVector::DownVector;
@@ -170,7 +170,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 					TSharedPtr<FLNPSpawnLink> SpawnLink = MakeShared<FLNPSpawnLink>();
 					SpawnLink->PodLocation = PodLocation;
 
-					// Pod entry
+					// Pod 항목
 					FLNPAsyncSpawnEntry PodEntry;
 					PodEntry.RequestType = ELNPSpawnRequestType::LootPod;
 					PodEntry.AssetIndex  = Set.PodAssetIndex;
@@ -179,7 +179,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 					PodEntry.Transforms.Add(FTransform(UKismetMathLibrary::MakeRotFromZ(PodUp), PodLocation));
 					Results.Add(MoveTemp(PodEntry));
 
-					// Enemy entries
+					// Enemy 항목
 					const FVector PodNormal = PodLocation.GetSafeNormal();
 					for (const auto& EnemySet : Set.Enemies)
 					{
@@ -234,7 +234,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 				}
 			}
 
-			// TFuture completion provides the happens-before guarantee for this write
+			// TFuture 완료가 이 쓰기에 대한 happens-before 보장을 제공함
 			AsyncBuildResult = MoveTemp(Results);
 		});
 }
@@ -266,7 +266,7 @@ void ULNPMassSpawnSubsystem::AssembleSpawnQueueFromAsyncResult()
 
 void ULNPMassSpawnSubsystem::ProcessQueue()
 {
-	if (SpawnQueueHead >= SpawnQueue.Num() || ActiveConfig == nullptr)
+	if (SpawnQueue.Num() <= SpawnQueueHead  || ActiveConfig == nullptr)
 		return;
 
 	UMassSpawnerSubsystem* SpawnerSubsystem = UWorld::GetSubsystem<UMassSpawnerSubsystem>(GetWorld());
@@ -302,7 +302,7 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 					TArray<FMassEntityHandle> OutEntities;
 					SpawnerSubsystem->SpawnEntities(EntityTemplate, ToSpawn, OutEntities);
 					
-					// If it's a Pod, we should only be spawning one at a time based on our Enqueue logic
+					// Pod이면 Enqueue 로직상 한 번에 하나만 스폰해야 함
 					if (Request.RequestType == ELNPSpawnRequestType::LootPod && OutEntities.Num() > 0)
 					{
 						Request.SpawnLink->PodHandle = OutEntities[0];
@@ -330,7 +330,7 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 		}
 	}
 
-	// All processed: release memory and notify
+	// 모두 처리 완료: 메모리 해제 및 알림
 	if (SpawnQueueHead >= SpawnQueue.Num())
 	{
 		SpawnQueue.Empty();
@@ -353,13 +353,13 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 	{
 		const FMassEntityHandle Entity = Entities[i];
 
-		// 1. Set Transform
+		// 1. Transform 설정
 		if (FTransformFragment* TransformFragment = EntityManager.GetFragmentDataPtr<FTransformFragment>(Entity))
 		{
 			TransformFragment->SetTransform(Transforms[i]);
 		}
 
-		// 2. Set Leash Metadata (if enemy and parent is valid)
+		// 2. Leash 메타데이터 설정 (Enemy이고 부모가 유효한 경우)
 		if (ParentLootPod.IsValid())
 		{
 			if (FLNPEnemyFragment* EnemyFragment = EntityManager.GetFragmentDataPtr<FLNPEnemyFragment>(Entity))

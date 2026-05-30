@@ -10,7 +10,7 @@ class UGameplayCameraComponent;
 class ULNPInteractionComponent;
 
 /**
- * Player-controlled character class.
+ * Player가 조종하는 캐릭터 클래스.
  */
 UCLASS()
 class LOOTNPOP_API ALNPPlayerCharacter : public ALNPCharacterBase

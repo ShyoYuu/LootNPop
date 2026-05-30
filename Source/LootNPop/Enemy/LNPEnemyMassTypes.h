@@ -9,16 +9,16 @@
 #include "GameplayTagContainer.h"
 #include "LNPEnemyMassTypes.generated.h"
 
-/** State of an enemy regarding targeting slots and awareness */
+/** 타게팅 슬롯과 인식에 관한 Enemy 상태 */
 UENUM(BlueprintType)
 enum class ELNPTargetingState : uint8
 {
-	None,           // No target detected, Idle behavior
-	Alert,          // Target detected but no slot secured, facing target
-	Confirmed,      // Slot secured, aggressive chase/attack
+	None,           // 타겟 미감지, 대기 동작
+	Alert,          // 타겟 감지됐으나 슬롯 미확보, 타겟 방향 전환
+	Confirmed,      // 슬롯 확보, 적극적 추격/공격
 };
 
-/** Core combat data for Enemy Entities */
+/** Enemy Entity의 핵심 전투 데이터 */
 USTRUCT()
 struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 {
@@ -33,35 +33,35 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	float Defense = 0.0f;
 
-	/** Seconds remaining before a dying entity is destroyed. Set when Health hits 0. */
+	/** 죽어가는 Entity가 Destroy되기까지 남은 시간(초). Health가 0이 될 때 설정. */
 	float DeathCountdown = 0.f;
 
-	/** Identifies the type of enemy (Melee, Ranged, Elite, etc.) */
+	/** Enemy 타입 식별 (Melee, Ranged, Elite 등) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	FGameplayTag EnemyTypeTag;
 
-	/** --- Leash Data --- */
+	/** --- Leash 데이터 --- */
 
-	/** Center of the leash area (assigned LootPod location) */
+	/** Leash 영역의 중심 (할당된 LootPod 위치) */
 	UPROPERTY(Transient)
 	FVector ParentPodLocation = FVector::ZeroVector;
 
-	/** The LootPod this enemy belongs to */
+	/** 이 Enemy가 속한 LootPod */
 	UPROPERTY(Transient)
 	FMassEntityHandle ParentLootPod;
 };
 
-/** Candidate players detected by perception, pending slot confirmation */
+/** 인식으로 감지된 후보 Player, 슬롯 확인 대기 중 */
 USTRUCT()
 struct LOOTNPOP_API FLNPEnemyTargetingCandidateFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	/** List of potential player targets, sorted by priority (closest first) */
+	/** 우선순위 순(가장 가까운 순)으로 정렬된 잠재적 Player 타겟 목록 */
 	UPROPERTY(Transient)
 	FMassEntityHandle PotentialTargets[4];
 
-	/** Number of valid potential targets in the array above */
+	/** 위 배열의 유효한 잠재적 타겟 수 */
 	UPROPERTY(Transient)
 	uint8 NumPotentialTargets = 0;
 
@@ -73,25 +73,25 @@ struct LOOTNPOP_API FLNPEnemyTargetingCandidateFragment : public FMassFragment
 	}
 };
 
-/** Final decision data for targeting */
+/** 타게팅의 최종 결정 데이터 */
 USTRUCT()
 struct LOOTNPOP_API FLNPEnemyTargetingFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	/** Current player entity being targeted (confirmed or best alert target) */
+	/** 현재 타게팅 중인 Player Entity (확정됐거나 최선의 Alert 타겟) */
 	UPROPERTY(Transient)
 	FMassEntityHandle TargetPlayer;
 
-	/** Current slot occupancy state */
+	/** 현재 슬롯 점유 상태 */
 	UPROPERTY(Transient)
 	ELNPTargetingState State = ELNPTargetingState::None;
 
-	/** Last known location of the target player */
+	/** 타겟 Player의 마지막으로 알려진 위치 */
 	UPROPERTY(Transient)
 	FVector TargetLocation = FVector::ZeroVector;
 
-	/** Squared distance to target for sorting optimization */
+	/** 정렬 최적화를 위한 타겟까지의 거리 제곱 */
 	UPROPERTY(Transient)
 	float DistanceToTargetSq = 0.0f;
 
@@ -104,7 +104,7 @@ struct LOOTNPOP_API FLNPEnemyTargetingFragment : public FMassFragment
 	}
 };
 
-/** Fragment for persistent idle behavior state */
+/** 지속적인 대기 행동 상태 Fragment */
 USTRUCT()
 struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 {
@@ -117,7 +117,7 @@ struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 	uint8 bNeedNewWanderTarget : 1 = true;
 };
 
-/** Physics velocity for Entity-mode simulation (knockback, arc). Zero when grounded. */
+/** Entity 모드 시뮬레이션용 물리 속도 (넉백, 포물선). 지면 접지 시 0. */
 USTRUCT()
 struct LOOTNPOP_API FLNPEnemyVelocityFragment : public FMassFragment
 {
@@ -127,21 +127,21 @@ struct LOOTNPOP_API FLNPEnemyVelocityFragment : public FMassFragment
 	FVector Velocity = FVector::ZeroVector;
 };
 
-/** Tag to identify an entity as an Enemy */
+/** Entity를 Enemy으로 식별하는 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyTag : public FMassTag { GENERATED_BODY() };
 
-/** Tag to identify an entity as a Player */
+/** Entity를 Player로 식별하는 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPPlayerTag : public FMassTag { GENERATED_BODY() };
 
-/** Tag to mark that the actor for this entity has been initialized */
+/** 이 Entity의 Actor가 초기화됐음을 표시하는 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyActorInitializedTag : public FMassTag { GENERATED_BODY() };
 
-/** Tag marking an enemy whose Health hit 0; entity is waiting for DeathCountdown before being destroyed */
+/** Destroy 대기 상태 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyDyingTag : public FMassTag { GENERATED_BODY() };
 
 class ULNPEnemyConfig;
 
-/** Shared configuration data for a group of enemies */
+/** Enemy 그룹의 Shared config 데이터 */
 USTRUCT()
 struct LOOTNPOP_API FLNPEnemySharedFragment : public FMassConstSharedFragment
 {
@@ -151,7 +151,7 @@ struct LOOTNPOP_API FLNPEnemySharedFragment : public FMassConstSharedFragment
 	TObjectPtr<ULNPEnemyConfig> Config;
 };
 
-/** Trait to configure an Enemy Entity Template */
+/** Enemy Entity Template 설정을 위한 Trait */
 UCLASS()
 class LOOTNPOP_API ULNPEnemyTrait : public UMassEntityTraitBase
 {

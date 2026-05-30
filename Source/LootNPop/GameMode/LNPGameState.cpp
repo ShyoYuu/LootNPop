@@ -31,7 +31,7 @@ void ALNPGameState::OnRep_OctantGenSeed()
 	{
 		if (!OctantSub->bGenerationComplete && !OctantSub->IsTickable())
 		{
-			// Subscribe so we know when client-side loading finishes
+			// 클라이언트 측 로딩 완료 시 알 수 있도록 구독
 			OctantSub->OnWorldGenerationFinished.AddDynamic(this, &ALNPGameState::OnClientWorldGenerationFinished);
 			OctantSub->StartWorldGeneration();
 		}
@@ -44,14 +44,14 @@ void ALNPGameState::OnRep_ServerPhase()
 
 	if (ServerPhase == ELNPInitPhase::SurfaceBaking)
 	{
-		// Gate 1 satisfied. Bake only if client octants are also ready.
+		// 조건 1 충족. 클라이언트 Octant도 준비된 경우에만 베이킹.
 		TryBeginClientBaking();
 	}
 }
 
 void ALNPGameState::OnClientWorldGenerationFinished()
 {
-	// Gate 2 satisfied. Bake only if server has already advanced to SurfaceBaking.
+	// 조건 2 충족. 서버가 이미 SurfaceBaking으로 진행된 경우에만 베이킹.
 	if (ServerPhase >= ELNPInitPhase::SurfaceBaking)
 	{
 		TryBeginClientBaking();

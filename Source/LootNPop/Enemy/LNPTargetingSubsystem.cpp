@@ -28,10 +28,10 @@ void ULNPTargetingSubsystem::RebalanceSlots()
 {
 	FScopeLock Lock(&DataLock);
 
-	// 1. Sort all interests by Score descending
+	// 1. 모든 어그로 목록을 점수 내림차순으로 정렬
 	PendingEntries.Sort();
 
-	// 2. Clear current assignments and prepare to re-assign
+	// 2. 현재 할당 초기화 및 재할당 준비
 	TSet<FMassEntityHandle> AssignedEnemies;
 	for (auto& It : PlayerSlots)
 	{
@@ -39,10 +39,10 @@ void ULNPTargetingSubsystem::RebalanceSlots()
 		It.Value.OccupiedRanged.Empty();
 	}
 
-	// 3. Greedy allocation based on global score
+	// 3. 전역 점수 기반 그리디 할당
 	for (const FLNPPendingTargetEntry& Entry : PendingEntries)
 	{
-		// Skip if this enemy is already assigned to a player
+		// 이미 Player에 할당된 Enemy은 건너뜀
 		if (AssignedEnemies.Contains(Entry.EnemyHandle))
 		{
 			continue;
@@ -68,6 +68,6 @@ void ULNPTargetingSubsystem::RebalanceSlots()
 		}
 	}
 
-	// 4. Clear for next frame
+	// 4. 다음 프레임을 위해 초기화
 	PendingEntries.Reset();
 }

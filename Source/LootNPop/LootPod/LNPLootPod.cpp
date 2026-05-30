@@ -12,31 +12,31 @@
 #include "MassEntityManager.h"
 #include "MassEntityUtils.h"
 
-// Sets default values
+// 기본값 설정
 ALNPLootPod::ALNPLootPod()
 {
-	// Set this actor to call Tick() every frame.
+	// 매 프레임 Tick() 호출 설정.
 	PrimaryActorTick.bCanEverTick = true;
 
-	// 1. Static Mesh (Root)
+	// 1. Static Mesh (루트)
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	SetRootComponent(MeshComponent);
 
 	// 2. Smart Object Component
 	SmartObjectComponent = CreateDefaultSubobject<USmartObjectComponent>(TEXT("SmartObjectComponent"));
 
-	// 3. Looting Zone Sphere
+	// 3. 루팅 구역 구체
 	LootingZoneSphere = CreateDefaultSubobject<USphereComponent>(TEXT("LootingZoneSphere"));
 	LootingZoneSphere->SetupAttachment(RootComponent);
 	LootingZoneSphere->SetSphereRadius(500.0f); 
 	LootingZoneSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
 	LootingZoneSphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 
-	// 4. Niagara VFX (Loot Pillar)
+	// 4. Niagara VFX (루트 기둥)
 	LootPillarVFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("LootPillarVFX"));
 	LootPillarVFX->SetupAttachment(RootComponent);
 
-	// 5. Mass Agent Component (Link to MassEntity)
+	// 5. Mass Agent Component (MassEntity 연결)
 	MassAgentComponent = CreateDefaultSubobject<UMassAgentComponent>(TEXT("MassAgentComponent"));
 }
 
@@ -44,20 +44,21 @@ void ALNPLootPod::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	// Set initial visual state
+	// 초기 비주얼 상태 설정
 	UpdateVisuals(ELNPLootPodState::Idle);
 }
 
 void ALNPLootPod::StartLooting()
 {
-	// Update Local State and Visuals
+	// 로컬 상태 및 비주얼 업데이트
 	UpdateVisuals(ELNPLootPodState::Looting);
 }
 
 void ALNPLootPod::UpdateVisuals(ELNPLootPodState NewState)
 {
 	CurrentState = NewState;
-	if (!LootPillarVFX) return;
+	if (!LootPillarVFX)
+		return;
 
 	FLinearColor TargetColor = IdleColor;
 
@@ -80,15 +81,16 @@ void ALNPLootPod::UpdateVisuals(ELNPLootPodState NewState)
 
 bool ALNPLootPod::CanInteract_Implementation(const APawn* Interactor) const
 {
-	if (!Interactor) return false;
+	if (!Interactor)
+		return false;
 
-	// Only allow interaction if Idle or already Looting (multiple players)
+	// Idle이거나 이미 Looting 중인 경우만 상호작용 허용 (멀티Player)
 	if (CurrentState == ELNPLootPodState::Popped || CurrentState == ELNPLootPodState::Interrupted)
 	{
 		return false;
 	}
 
-	// 1. Distance Check
+	// 1. 거리 체크
 	const float DistSq = FVector::DistSquared(GetActorLocation(), Interactor->GetActorLocation());
 	const float MaxDist = LootingZoneSphere->GetScaledSphereRadius();
 	
@@ -97,7 +99,7 @@ bool ALNPLootPod::CanInteract_Implementation(const APawn* Interactor) const
 		return false;
 	}
 
-	// 2. Angle Check
+	// 2. 각도 체크
 	const FVector DirToInteractor = (Interactor->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 	const float DotProduct = FVector::DotProduct(GetActorForwardVector(), DirToInteractor);
 	const float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(DotProduct));

@@ -11,7 +11,7 @@
 #include "MassCommandBuffer.h"
 #include "MassActorSubsystem.h"
 
-// --- Integrated Command for notifying Actor of state transitions and handling logic ---
+// --- 상태 전환 알림 및 로직 처리를 위한 통합 커맨드 ---
 struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
 {
 	struct FEntry
@@ -39,7 +39,7 @@ struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
 		{
 			ALNPLootPod* Pod = Entry.Pod.Get();
 			
-			// 1. Notify Visuals/Actor State
+			// 1. 비주얼/Actor 상태 알림
 			if (Pod != nullptr)
 			{
 				Pod->UpdateVisuals(Entry.NewState);
@@ -54,11 +54,11 @@ struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
 					*Entry.Location.ToString());
 			}
 
-			// 2. Specialized Processing based on State Transition
+			// 2. 상태 전환에 따른 특수 처리
 			if (Entry.NewState == ELNPLootPodState::Popped)
 			{
-				// Integrated reward dropping logic
-				// TODO: Spawn actual reward actors/items here
+				// 통합 보상 드롭 로직
+				// TODO: 실제 보상 Actor/아이템을 여기에 스폰
 			}
 			else if (Entry.NewState == ELNPLootPodState::Looting)
 			{
@@ -83,7 +83,7 @@ private:
 	TArray<FEntry> Entries;
 };
 
-// --- 1. ULNPIdleToLootingProcessor ---
+// --- 1. ULNPIdleToLootingProcessor (Idle → Looting 전환) ---
 
 ULNPIdleToLootingProcessor::ULNPIdleToLootingProcessor()
 	: EntityQuery(*this), PlayerQuery(*this)
@@ -100,7 +100,7 @@ void ULNPIdleToLootingProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 
-	// Query for potential looters
+	// 잠재적 루터 쿼리
 	PlayerQuery.AddTagRequirement<FLNPPlayerLootingTag>(EMassFragmentPresence::All);
 	PlayerQuery.AddRequirement<FLNPPlayerLootingFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
@@ -108,7 +108,7 @@ void ULNPIdleToLootingProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 
 void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	// Cache player locations
+	// Player 위치 Cache
 	struct FLooterInfo { FVector Location; };
 	TArray<FLooterInfo> ActiveLooters;
 	
@@ -149,11 +149,11 @@ void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				LootPods[i].State = ELNPLootPodState::Looting;
 
-				// Notify State Transition
+				// 상태 전환 알림
 				ALNPLootPod* PodActor = Cast<ALNPLootPod>(ActorFragments[i].GetMutable());
 				IterContext.Defer().PushCommand<FLNPPodStateTransitionCommand>(PodActor, LootPods[i].PodID, ELNPLootPodState::Idle, ELNPLootPodState::Looting, PodLocation);
 
-				// Defer tag changes
+				// Tag 변경 지연
 				IterContext.Defer().RemoveTag<FLNPLootPodIdleTag>(IterContext.GetEntity(i));
 				IterContext.Defer().AddTag<FLNPLootPodLootingTag>(IterContext.GetEntity(i));
 			}
@@ -161,7 +161,7 @@ void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	});
 }
 
-// --- 2. ULNPLootingProcessor ---
+// --- 2. ULNPLootingProcessor (루팅 처리) ---
 
 ULNPLootingProcessor::ULNPLootingProcessor()
 	: EntityQuery(*this), PlayerQuery(*this)
@@ -177,7 +177,7 @@ void ULNPLootingProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
 
-	// Query for looters
+	// 루터 쿼리
 	PlayerQuery.AddTagRequirement<FLNPPlayerLootingTag>(EMassFragmentPresence::All);
 	PlayerQuery.AddRequirement<FLNPPlayerLootingFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
@@ -187,7 +187,7 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 {
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
 
-	// 1. Cache player info (Do this once per execution)
+	// 1. Player 정보 Cache (실행당 한 번)
 	struct FLooterInfo { FVector Location; float BuffedLootSpeed; };
 	TArray<FLooterInfo> ActiveLooters;
 	PlayerQuery.ForEachEntityChunk(Context, [&ActiveLooters](FMassExecutionContext& PlayerContext)
@@ -197,12 +197,12 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 		const TConstArrayView<FTransformFragment> Transforms = PlayerContext.GetFragmentView<FTransformFragment>();
 		for (int32 i = 0; i < NumPlayers; ++i)
 		{
-			// TODO: Fetch actual BuffedLootSpeed from player stats/buffs
+			// TODO: Player 스탯/버프에서 실제 BuffedLootSpeed 가져오기
 			ActiveLooters.Add({ Transforms[i].GetTransform().GetLocation(), LootingFragments[i].BuffedLootSpeed });
 		}
 	});
 
-	// 2. Process all looting pods
+	// 2. 모든 루팅 중인 LootPod 처리
 	EntityQuery.ForEachEntityChunk(Context, [DeltaTime, &ActiveLooters](FMassExecutionContext& IterContext)
 	{
 		const int32 NumEntities = IterContext.GetNumEntities();
@@ -217,7 +217,7 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 			const int32 PodID = LootPods[i].PodID;
 			const float MaxDistSq = LootPods[i].LootableDistSquared;
 
-			// Proximity Check: Collect all valid looters for this pod
+			// 근접 체크: 이 LootPod의 유효한 루터 수집
 			TArray<float> ValidLooterSpeeds;
 			for (const auto& Looter : ActiveLooters)
 			{
@@ -227,12 +227,12 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 				}
 			}
 
-			// --- Unified Decision Logic ---
-			
-			// A. If there are valid looters: Update Gauge and check for Completion
+			// --- 통합 결정 로직 ---
+
+			// A. 유효한 루터가 있으면: 게이지 업데이트 및 완료 체크
 			if (0 < ValidLooterSpeeds.Num())
 			{
-				// Update Gauge
+				// 게이지 업데이트
 				float FinalLootSpeed = 0.0f;
 				for (float Speed : ValidLooterSpeeds)
 				{
@@ -241,19 +241,19 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 				
 				LootPods[i].CurrentGauge = FMath::Min(LootPods[i].MaxGauge, LootPods[i].CurrentGauge + (FinalLootSpeed * DeltaTime));
 
-				// Check Completion
+				// 완료 체크
 				if (LootPods[i].MaxGauge <= LootPods[i].CurrentGauge)
 				{
 					IterContext.Defer().PushCommand<FLNPPodStateTransitionCommand>(PodActor, PodID, ELNPLootPodState::Looting, ELNPLootPodState::Popped, PodLocation);
 					
-					// 즉시 파괴되는진 모르겠지만 DestroyEntity를 하는데 굳이 상태 갱신을 할 필요가 있을까?
+					// DestroyEntity를 하는데 굳이 상태 갱신을 할 필요가 있을까?
 					//LootPods[i].State = ELNPLootPodState::Popped;
 					//IterContext.Defer().RemoveTag<FLNPLootPodLootingTag>(IterContext.GetEntity(i));
 
 					IterContext.Defer().DestroyEntity(IterContext.GetEntity(i));
 				}
 			}
-			// B. No valid looters in range: Interruption
+			// B. 범위 내 유효한 루터 없음: 중단
 			else
 			{
 				LootPods[i].State = ELNPLootPodState::Idle;

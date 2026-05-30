@@ -12,42 +12,42 @@
 class ALNPEnemyCharacter;
 class UStateTree;
 
-/** Configuration for priority score calculation */
+/** 우선순위 점수 계산 설정 */
 USTRUCT(BlueprintType)
 struct FLNPEnemyTargetingConfig
 {
 	GENERATED_BODY()
 
-	/** Weight for distance (Closer = Higher Score) */
+	/** 거리 가중치 (가까울수록 높은 점수) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
 	float DistanceWeight = 1.0f;
 
-	/** Weight for player view angle (In Front = Higher Score) */
+	/** Player 시야 각도 가중치 (정면일수록 높은 점수) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
 	float AngleWeight = 0.5f;
 
-	/** Maximum distance to even consider targeting */
+	/** 타게팅 고려 최대 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
 	float MaxTargetingDistance = 10000.0f;
 
-	/** Maximum distance from the LootPod before scoring drops to zero */
+	/** 점수가 0으로 떨어지기 시작하는 LootPod로부터의 최대 Leash 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
 	float MaxLeashDistance = 2000.0f;
 
-	/** Distance within which the enemy can detect the player */
+	/** Enemy가 Player를 감지할 수 있는 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
 	float VisionDistance = 2000.0f;
 
-	/** Total field of view angle in degrees */
+	/** 전체 시야각 (도) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
 	float VisionAngle = 90.0f;
 
-	/** Distance within which the enemy always detects the player regardless of FOV */
+	/** FOV와 관계없이 항상 Player를 감지하는 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
 	float AwarenessDistance = 200.0f;
 };
 
-/** Configuration for movement and rotation */
+/** 이동 및 회전 설정 */
 USTRUCT(BlueprintType)
 struct FLNPEnemyMovementConfig
 {
@@ -56,37 +56,37 @@ struct FLNPEnemyMovementConfig
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	float MoveSpeed = 600.0f;
 
-	/** Degrees per second */
+	/** 초당 회전 각도 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	float RotationRate = 360.0f;
 
-	/** Acceleration magnitude for gravity (Radial Outward) */
+	/** 중력 가속도 크기 (RadialOutward) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	float GravityStrength = 2000.0f;
 
-	/** Center of gravity origin (center of the sphere world) */
+	/** 중력 원점 (구형 세계의 중심) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	FVector GravityOrigin = FVector::ZeroVector;
 
-	/** Minimum wander distance from the parent Pod */
+	/** 부모 Pod로부터의 최소 배회 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	float WanderMinDistance = 300.0f;
 
-	/** Maximum wander distance from the parent Pod */
+	/** 부모 Pod로부터의 최대 배회 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	float WanderMaxDistance = 800.0f;
 
-	/** Distance within which the enemy will start attacking */
+	/** Enemy가 공격을 시작하는 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	float AttackRange = 200.0f;
 
-	/** Time between attacks in seconds */
+	/** 공격 간격 (초) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	float AttackInterval = 1.5f;
 };
 
 /**
- * Data asset defining an Enemy's identity, visuals, and behavior.
+ * Enemy의 정체성, 비주얼, 행동을 정의하는 Data Asset.
  */
 UCLASS()
 class LOOTNPOP_API ULNPEnemyConfig : public UPrimaryDataAsset
@@ -94,46 +94,46 @@ class LOOTNPOP_API ULNPEnemyConfig : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	/** Tag to identify this enemy type (e.g., Enemy.Type.Humanoid.Melee) */
+	/** 이 Enemy 타입을 식별하는 Tag (예: Enemy.Type.Humanoid.Melee) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Identity")
 	FGameplayTag EnemyTypeTag;
 
-	/** The Actor class to spawn when transitioning from Mass to Actor */
+	/** Mass에서 Actor로 전환 시 스폰할 Actor 클래스 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Spawning")
 	TSubclassOf<ALNPEnemyCharacter> EnemyActorClass;
 
-	/** The StateTree asset to run for this enemy type */
+	/** 이 Enemy 타입에서 실행할 StateTree 에셋 */
 	UPROPERTY(EditAnywhere, Category = "LNP|AI")
 	TObjectPtr<UStateTree> StateTree;
 
-	/** Static weapon used for all attacks (enemies cannot swap weapons) */
+	/** 모든 공격에 사용하는 고정 무기 (Enemy은 무기를 교체할 수 없다) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	TObjectPtr<ULNPWeaponData> WeaponData;
 
-	/** Gameplay Ability System setup */
+	/** GAS 설정 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> DefaultAbilities;
 
-	/** Initial attributes (Health, Defense, etc.) */
+	/** 초기 Attribute (Health, Defense 등) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Attributes")
 	TMap<FGameplayTag, float> InitialAttributeValues;
 
-	/** Targeting and Balancing setup */
+	/** 타게팅 및 균형 설정 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Targeting")
 	FLNPEnemyTargetingConfig TargetingConfig;
 
-	/** Movement and Rotation setup */
+	/** 이동 및 회전 설정 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	FLNPEnemyMovementConfig MovementConfig;
 
-	/** Collision capsule dimensions used by hit detection processors. */
+	/** 피격 감지 Processor가 사용하는 충돌 Capsule 크기. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))
 	float CapsuleHalfHeight = 88.f;
 
 	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))
 	float CapsuleRadius = 35.f;
 
-	/** Required for Asset Manager to identify this asset by ID */
+	/** Asset Manager가 ID로 이 에셋을 식별하기 위해 필요 */
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{
 		return FPrimaryAssetId(TEXT("EnemyConfig"), GetFName());

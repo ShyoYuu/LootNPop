@@ -41,14 +41,18 @@ void ULNPEquipmentComponent::EquipWeapon(ULNPWeaponData* WeaponDef)
 
 void ULNPEquipmentComponent::UnequipWeapon()
 {
-	if (!WeaponSlot.IsValid()) return;
+	if (!WeaponSlot.IsValid())
+		return;
+
 	RevokeItemImpl(WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 	WeaponSlot.Reset();
 }
 
 void ULNPEquipmentComponent::EquipActiveSkill(int32 SlotIndex, ULNPSkillData* SkillDef)
 {
-	if (!ActiveSkillSlots.IsValidIndex(SlotIndex)) return;
+	if (!ActiveSkillSlots.IsValidIndex(SlotIndex))
+		return;
+
 	UnequipActiveSkill(SlotIndex);
 	if (SkillDef)
 	{
@@ -59,16 +63,22 @@ void ULNPEquipmentComponent::EquipActiveSkill(int32 SlotIndex, ULNPSkillData* Sk
 
 void ULNPEquipmentComponent::UnequipActiveSkill(int32 SlotIndex)
 {
-	if (!ActiveSkillSlots.IsValidIndex(SlotIndex)) return;
+	if (!ActiveSkillSlots.IsValidIndex(SlotIndex))
+		return;
+
 	FLNPSkillInstance& Slot = ActiveSkillSlots[SlotIndex];
-	if (!Slot.IsValid()) return;
+	if (!Slot.IsValid())
+		return;
+
 	RevokeItemImpl(Slot.GrantedAbilities, Slot.AppliedEffects);
 	Slot.Reset();
 }
 
 void ULNPEquipmentComponent::AddPassiveSkill(ULNPSkillData* SkillDef)
 {
-	if (!SkillDef) return;
+	if (!SkillDef)
+		return;
+
 	FLNPSkillInstance& NewInstance = PassiveSkillInstances.AddDefaulted_GetRef();
 	NewInstance.Definition = SkillDef;
 	GrantItemImpl(SkillDef, NewInstance.GrantedAbilities, NewInstance.AppliedEffects);
@@ -99,20 +109,27 @@ void ULNPEquipmentComponent::GrantItemImpl(ULNPItemDefinitionBase* Def,
                                             TArray<FActiveGameplayEffectHandle>& OutEffects)
 {
 	UAbilitySystemComponent* ASC = GetASC();
-	if (!ASC || !Def) return;
+	if (!ASC || !Def)
+		return;
 
 	for (const TSubclassOf<ULNPGameplayAbility>& AbilityClass : Def->AbilitiesToGrant)
 	{
-		if (!AbilityClass) continue;
+		if (!AbilityClass)
+			continue;
+
 		OutAbilities.Add(ASC->GiveAbility(FGameplayAbilitySpec(AbilityClass)));
 	}
 
 	FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
 	for (const TSubclassOf<UGameplayEffect>& EffectClass : Def->EffectsToApply)
 	{
-		if (!EffectClass) continue;
+		if (!EffectClass)
+			continue;
+
 		FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(EffectClass, 1.0f, EffectContext);
-		if (!Spec.IsValid()) continue;
+		if (!Spec.IsValid())
+			continue;
+
 		OutEffects.Add(ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()));
 	}
 }
@@ -121,7 +138,8 @@ void ULNPEquipmentComponent::RevokeItemImpl(TArray<FGameplayAbilitySpecHandle>& 
                                              TArray<FActiveGameplayEffectHandle>& Effects)
 {
 	UAbilitySystemComponent* ASC = GetASC();
-	if (!ASC) return;
+	if (!ASC)
+		return;
 
 	for (const FGameplayAbilitySpecHandle& Handle : Abilities)
 		ASC->ClearAbility(Handle);

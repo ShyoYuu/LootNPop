@@ -14,7 +14,7 @@ namespace UE::MassBehavior
 }
 
 /**
- * Unified evaluator for Enemy state (Perception, Targeting, Distances).
+ * Enemy 상태(인식, 타게팅, 거리)를 위한 통합 Evaluator.
  */
 USTRUCT(meta = (DisplayName = "LNP State Eval"))
 struct LOOTNPOP_API FLNPEnemyStateEvaluator : public FMassStateTreeEvaluatorBase
@@ -35,7 +35,7 @@ protected:
 };
 
 /**
- * Rotates the entity to face the player target.
+ * Entity를 Player 타겟 방향으로 회전시킨다.
  */
 USTRUCT(meta = (DisplayName = "LNP LookAt Task"))
 struct LOOTNPOP_API FLNPEnemyLookAtTask : public FMassStateTreeTaskBase
@@ -60,7 +60,7 @@ protected:
 };
 
 /**
- * Moves the entity towards the player using simple steering.
+ * 단순 Steering으로 Entity를 Player 방향으로 이동시킨다.
  */
 USTRUCT(meta = (DisplayName = "LNP Steering Task"))
 struct LOOTNPOP_API FLNPEnemySteeringTask : public FMassStateTreeTaskBase
@@ -84,8 +84,8 @@ protected:
 };
 
 /**
- * Fires the configured attack ability via GAS while the enemy is within attack range.
- * Returns Failed when targeting is lost or target moves out of range (triggers re-chase).
+ * Enemy이 공격 범위 내에 있는 동안 GAS를 통해 설정된 공격 Ability를 발동한다.
+ * 타게팅이 소실되거나 타겟이 범위를 벗어나면 Failed를 반환한다 (재추격 트리거).
  */
 USTRUCT(meta = (DisplayName = "LNP Attack Task"))
 struct LOOTNPOP_API FLNPEnemyAttackTask : public FMassStateTreeTaskBase
@@ -110,7 +110,7 @@ protected:
 };
 
 /**
- * Wanders around the Parent LootPod when in Idle state.
+ * Idle 상태일 때 부모 LootPod 주변을 배회한다.
  */
 USTRUCT(meta = (DisplayName = "LNP Idle Task"))
 struct LOOTNPOP_API FLNPEnemyIdleTask : public FMassStateTreeTaskBase

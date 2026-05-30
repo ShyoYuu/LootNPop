@@ -1,7 +1,7 @@
 # Loot & Pop
 
 언리얼 엔진 5.7의 최신 기능을 활용한 개인 기술 실증 및 포트폴리오 프로젝트입니다.
-본 프로젝트의 개요 및 설계 문서는 [context](context/) 폴더를 참고해 주세요.
+본 프로젝트의 개요 및 설계 문서는 [context](.context/) 폴더를 참고해 주세요.
 
 ---
 
@@ -32,7 +32,6 @@
 - **MassEntity**: NPC 캐릭터와 상호작용 오브젝트는 MassEntity(LowLOD) - Actor(HighLOD) 하이브리드, HitDetection용 충돌체는 Pure MassEntity
 - **StateTree**: NPC 캐릭터 행동 제어
 - **Gameplay Camera**: 플레이어 카메라를 Gameplay Camera로 적용
-- **World Partition**: 대규모 맵 스트리밍 및 로딩 최적화
 - **PCG (Procedural Content Generation)**: 배경 프랍 배치
 - **Geometry Script**: 지형용 Static Mesh 생성
 

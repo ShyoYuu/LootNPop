@@ -10,7 +10,7 @@
 
 FLNPSprintModifier::FLNPSprintModifier()
 {
-	DurationMs = -1.0f; // Infinite duration until canceled
+	DurationMs = -1.0f; // 취소될 때까지 무한 지속
 }
 
 void FLNPSprintModifier::OnStart(UMoverComponent* MoverComp, const FMoverTimeStep& TimeStep, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState)
@@ -27,7 +27,7 @@ void FLNPSprintModifier::OnStart(UMoverComponent* MoverComp, const FMoverTimeSte
 
 void FLNPSprintModifier::OnEnd(UMoverComponent* MoverComp, const FMoverTimeStep& TimeStep, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState)
 {
-	// Use CDO to find original common settings values
+	// CDO를 사용하여 원래 공통 설정 값 조회
 	if (const UMoverComponent* CDOMoverComp = UMovementUtils::GetOriginalComponentType<UMoverComponent>(MoverComp->GetOwner()))
 	{
 		const UCommonLegacyMovementSettings* OriginalCommonSettings = CDOMoverComp->FindSharedSettings<UCommonLegacyMovementSettings>();
@@ -35,7 +35,7 @@ void FLNPSprintModifier::OnEnd(UMoverComponent* MoverComp, const FMoverTimeStep&
 
 		if (CurrentCommonSettings && OriginalCommonSettings)
 		{
-			// Restore to WalkSpeed from our custom settings if available, otherwise use CDO
+			// 커스텀 설정에서 WalkSpeed로 복원, 없으면 CDO 사용
 			CurrentCommonSettings->MaxSpeed = OriginalCommonSettings->MaxSpeed;
 			CurrentCommonSettings->Acceleration = OriginalCommonSettings->Acceleration;
 		}

@@ -7,9 +7,8 @@
 #include "LNPAbility_RangedAttack.generated.h"
 
 /**
- * Ranged basic attack: spawns a Mass Entity with FLNPProjectileFragment
- * using the weapon DataAsset's projectile parameters, then immediately ends.
- * The Mass ProjectileMovementProcessor handles all subsequent movement.
+ * 원거리 기본 공격: 무기 DataAsset의 Projectile 파라미터로 FLNPProjectileFragment를 가진 Mass Entity를 스폰하고
+ * 즉시 종료한다. 이후 모든 이동은 Mass ProjectileMovementProcessor가 처리한다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPAbility_RangedAttack : public ULNPAbility_BasicAttack

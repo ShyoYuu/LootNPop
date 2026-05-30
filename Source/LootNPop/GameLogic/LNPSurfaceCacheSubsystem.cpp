@@ -48,7 +48,7 @@ bool FLNPSurfaceCacheSnapshot::GetPoint(const FVector& WorldDirection, FVector& 
 		return true;
 	}
 
-	// Nearest-neighbor fallback (e.g. near poles)
+	// 최근접 이웃 폴백 (예: 극지 근처)
 	const int32 LatN = FMath::Clamp(FMath::RoundToInt(LatFrac), 0, LatRes - 1);
 	const int32 LonN = ((FMath::RoundToInt(LonFrac) % LonRes) + LonRes) % LonRes;
 	const int32 FbIdx = LatN * LonRes + LonN;
@@ -72,14 +72,14 @@ void ULNPSurfaceCacheSubsystem::BeginBaking()
 	const float CellSpacing = FMath::Max(1.0f, Settings->SurfaceCacheCellSpacing);
 	SphereRadius = Settings->SphereRadius;
 
-	// Derive grid resolution from target arc-length spacing at the equator
+	// 적도의 목표 호 길이 간격으로부터 격자 해상도 유도
 	LatResolution = FMath::Max(1, FMath::RoundToInt(PI * SphereRadius / CellSpacing));
 	LonResolution = FMath::Max(1, FMath::RoundToInt(2.0f * PI * SphereRadius / CellSpacing));
 
 	TotalSamples = LatResolution * LonResolution;
 
-	// New allocation each baking cycle — live snapshots from the previous match
-	// continue to own their TSharedPtr and remain valid until they are released.
+	// 베이킹 사이클마다 새 할당 — 이전 매치의 라이브 Snapshot은
+	// TSharedPtr를 계속 소유하며 해제될 때까지 유효하다.
 	CacheData = MakeShared<TArray<FPoint>>();
 	CacheData->SetNum(TotalSamples);
 	CompletedCount = 0;
@@ -91,8 +91,7 @@ void ULNPSurfaceCacheSubsystem::BeginBaking()
 	UWorld* World = GetWorld();
 	FCollisionQueryParams Params(NAME_None, false);
 
-	// Fire all traces at once. The engine calls OnAsyncTraceComplete per result,
-	// with UserData carrying the sample index.
+	// 모든 트레이스를 한 번에 발사. 엔진이 결과마다 OnAsyncTraceComplete를 호출하며 Sample Index는 UserData로 넘김.
 	for (int32 i = 0; i < TotalSamples; ++i)
 	{
 		const int32 LatIdx = i / LonResolution;
@@ -110,8 +109,7 @@ void ULNPSurfaceCacheSubsystem::BeginBaking()
 
 void ULNPSurfaceCacheSubsystem::Tick(float DeltaTime)
 {
-	// Collection is driven entirely by OnAsyncTraceComplete delegates.
-	// Tick only keeps IsTickable() alive while bIsBaking, giving GetBakingProgress() a valid frame.
+	// GetBakingProgress() 함수를 위해 bIsBaking 동안 IsTickable()을 유지
 }
 
 void ULNPSurfaceCacheSubsystem::OnAsyncTraceComplete(const FTraceHandle& Handle, FTraceDatum& Data)
@@ -160,7 +158,7 @@ bool ULNPSurfaceCacheSubsystem::GetSurfacePoint(const FVector& WorldDirection, F
 	if (Lon < 0.0f)
 		Lon += 360.0f;
 
-	// Fractional indices: 0.0 = center of cell 0, 1.0 = center of cell 1
+	// 분수 Index: 0.0 = 셀 0의 중심, 1.0 = 셀 1의 중심
 	const float LatFrac = (Lat + 90.0f) / 180.0f * LatResolution - 0.5f;
 	const float LonFrac = Lon / 360.0f * LonResolution - 0.5f;
 
@@ -192,7 +190,8 @@ bool ULNPSurfaceCacheSubsystem::GetSurfacePoint(const FVector& WorldDirection, F
 		return true;
 	}
 
-	// Fallback to nearest-neighbor if any neighbor is invalid (e.g. at poles)
+	// 인접 셀이 유효하지 않으면 nearest-neighbor로 Fallback (예: 극지)
+	// 극지방은 셀이 매우 촘촘하므로 nearest-neighbor로도 계단 현상이 거의 없음
 	const int32 LatNearest = FMath::Clamp(FMath::RoundToInt(LatFrac), 0, LatResolution - 1);
 	const int32 LonNearest = ((FMath::RoundToInt(LonFrac) % LonResolution) + LonResolution) % LonResolution;
 	const int32 FallbackIdx = LatNearest * LonResolution + LonNearest;
@@ -208,7 +207,7 @@ bool ULNPSurfaceCacheSubsystem::GetSurfacePoint(const FVector& WorldDirection, F
 FLNPSurfaceCacheSnapshot ULNPSurfaceCacheSubsystem::TakeSnapshot() const
 {
 	FLNPSurfaceCacheSnapshot Snap;
-	Snap.Points = CacheData;  // atomic ref count +1, no data copy
+	Snap.Points = CacheData;  // 원자적 참조 횟수 +1, 데이터 복사 없음
 	Snap.LatRes = LatResolution;
 	Snap.LonRes = LonResolution;
 	return Snap;
@@ -226,7 +225,7 @@ float ULNPSurfaceCacheSubsystem::GetBakingProgress() const
 // static
 FVector ULNPSurfaceCacheSubsystem::IndexToDirection(int32 LatIdx, int32 LonIdx, int32 LatRes, int32 LonRes)
 {
-	// Use cell centers: offset by 0.5 within each cell
+	// 셀 중심 사용: 각 셀 내에서 0.5 오프셋
 	const float Lat = ((LatIdx + 0.5f) / LatRes) * 180.0f - 90.0f;
 	const float Lon = ((LonIdx + 0.5f) / LonRes) * 360.0f;
 

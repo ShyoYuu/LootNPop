@@ -8,7 +8,7 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "LNPEnemyStateTreeTypes.generated.h"
 
-/** Consolidated instance data for Enemy State Evaluation */
+/** Enemy 상태 평가용 통합 instance data */
 USTRUCT(BlueprintType)
 struct LOOTNPOP_API FLNPEnemyStateEvaluatorInstanceData
 {
@@ -25,11 +25,11 @@ struct LOOTNPOP_API FLNPEnemyStateEvaluatorInstanceData
 };
 
 /**
- * Required instance data for all LNP Mass StateTree tasks.
+ * 모든 LNP Mass StateTree 태스크에 필요한 instance data.
  *
- * The Mass StateTree framework requires GetInstanceDataType() to return a non-null UScriptStruct.
- * Returning nullptr causes a "Malformed task, missing instance value" compile error in the StateTree editor.
- * Do NOT remove this struct or change GetInstanceDataType() to return nullptr.
+ * Mass StateTree 프레임워크는 GetInstanceDataType()이 null이 아닌 UScriptStruct를 반환하도록 요구한다.
+ * nullptr을 반환하면 StateTree 에디터에서 "Malformed task, missing instance value" 컴파일 오류가 발생한다.
+ * 이 구조체를 삭제하거나 GetInstanceDataType()이 nullptr을 반환하도록 변경하지 말 것.
  */
 USTRUCT(BlueprintType)
 struct LOOTNPOP_API FLNPEnemyTaskInstanceData

@@ -18,7 +18,7 @@
 #include "MassStateTreeFragments.h"
 #include "MassActorSubsystem.h"
 
-// --- State Evaluator ---
+// --- State Evaluator (상태 평가) ---
 
 bool FLNPEnemyStateEvaluator::Link(FStateTreeLinker& Linker)
 {
@@ -51,7 +51,7 @@ void FLNPEnemyStateEvaluator::Tick(FStateTreeExecutionContext& Context, const fl
 	}
 }
 
-// --- LookAt Task ---
+// --- LookAt Task (방향 전환) ---
 
 bool FLNPEnemyLookAtTask::Link(FStateTreeLinker& Linker)
 {
@@ -88,7 +88,7 @@ EStateTreeRunStatus FLNPEnemyLookAtTask::Tick(FStateTreeExecutionContext& Contex
 	const FLNPEnemyTargetingFragment& Targeting = Context.GetExternalData(TargetingHandle);
 	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
 
-	// Immediate Interruption: If no longer in Alert state (or state changed to Confirmed/None), finish task
+	// 즉시 중단: Alert 상태가 아니면 (Confirmed/None으로 변경 포함) 태스크 종료
 	if (Targeting.State != ELNPTargetingState::Alert)
 	{
 		return EStateTreeRunStatus::Failed;
@@ -97,16 +97,16 @@ EStateTreeRunStatus FLNPEnemyLookAtTask::Tick(FStateTreeExecutionContext& Contex
 	if (Targeting.TargetPlayer.IsValid())
 	{
 		MoveTarget.Center = Targeting.TargetLocation;
-		MoveTarget.DesiredSpeed = FMassInt16Real(0.0f); // Face target without moving
+		MoveTarget.DesiredSpeed = FMassInt16Real(0.0f); // 이동 없이 타겟 방향 전환
 		
-		// This task stays Running while in Alert state to keep the orientation intent updated
+		// Alert 상태 동안 방향 Intent 유지를 위해 Running 상태 지속
 		return EStateTreeRunStatus::Running;
 	}
 	
 	return EStateTreeRunStatus::Failed;
 }
 
-// --- Steering Task ---
+// --- Steering Task (조향) ---
 
 bool FLNPEnemySteeringTask::Link(FStateTreeLinker& Linker)
 {
@@ -142,7 +142,7 @@ EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Cont
 	const FLNPEnemyTargetingFragment& Targeting = Context.GetExternalData(TargetingHandle);
 	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
 
-	// 1. Immediate Interruption: If slot is lost or state changed
+	// 1. 즉시 중단: 슬롯이 소실되거나 상태가 변경된 경우
 	if (Targeting.State != ELNPTargetingState::Confirmed)
 	{
 		return EStateTreeRunStatus::Failed;
@@ -153,7 +153,7 @@ EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Cont
 		const float DistanceToTarget = FMath::Sqrt(Targeting.DistanceToTargetSq);
 		const float AttackRange = SharedConfig.Config ? SharedConfig.Config->MovementConfig.AttackRange : 200.0f;
 
-		// 2. Completion Check: If reached attack range
+		// 2. 완료 체크: 공격 범위 도달 시
 		if (DistanceToTarget <= AttackRange)
 		{
 			return EStateTreeRunStatus::Succeeded;
@@ -165,8 +165,8 @@ EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Cont
 			DesiredSpeed = SharedConfig.Config->MovementConfig.MoveSpeed;
 		}
 
-		// 3. Keep Moving — stop StopBuffer inside AttackRange so arrival signal reliably fires
-		// within AttackRange. StopBuffer >= 30 (ArrivalBuffer) is enforced.
+		// 3. 계속 이동 — AttackRange 내 StopBuffer 앞에서 정지하여 도착 신호 확실히 발생
+		// StopBuffer >= 30 (ArrivalBuffer) 보장.
 		const FVector EntityLocation = Context.GetExternalData(TransformHandle).GetTransform().GetLocation();
 		const FVector DirToTarget = (Targeting.TargetLocation - EntityLocation).GetSafeNormal();
 		const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
@@ -182,7 +182,7 @@ EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Cont
 	return EStateTreeRunStatus::Failed;
 }
 
-// --- Attack Task ---
+// --- Attack Task (공격) ---
 
 bool FLNPEnemyAttackTask::Link(FStateTreeLinker& Linker)
 {
@@ -205,8 +205,8 @@ void FLNPEnemyAttackTask::GetDependencies(UE::MassBehavior::FStateTreeDependency
 
 EStateTreeRunStatus FLNPEnemyAttackTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
-	// Stop movement and face the target (TargetFollowProcessor signals StateTree each frame
-	// while ActualDistance <= StopDist, driving the attack loop).
+	// 이동 정지 및 타겟 방향 전환 (TargetFollowProcessor가 ActualDistance <= StopDist인 동안
+	// 매 프레임 StateTree에 신호를 보내 공격 루프를 구동한다).
 	const FLNPEnemyTargetingFragment& Targeting = Context.GetExternalData(TargetingHandle);
 	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
 	MoveTarget.Center       = Targeting.TargetLocation;
@@ -240,7 +240,7 @@ EStateTreeRunStatus FLNPEnemyAttackTask::Tick(FStateTreeExecutionContext& Contex
 		return EStateTreeRunStatus::Failed;
 	}
 
-	// Keep facing target; movement is stopped by MovementProcessor (ActualDistance <= StopDist)
+	// 타겟 방향 유지; 이동은 MovementProcessor가 정지시킴 (ActualDistance <= StopDist)
 	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
 	MoveTarget.Center       = Targeting.TargetLocation;
 	MoveTarget.DesiredSpeed = FMassInt16Real(0.f);
@@ -258,7 +258,7 @@ EStateTreeRunStatus FLNPEnemyAttackTask::Tick(FStateTreeExecutionContext& Contex
 	return EStateTreeRunStatus::Running;
 }
 
-// --- Idle Task ---
+// --- Idle Task (대기) ---
 
 bool FLNPEnemyIdleTask::Link(FStateTreeLinker& Linker)
 {
@@ -289,12 +289,12 @@ EStateTreeRunStatus FLNPEnemyIdleTask::EnterState(FStateTreeExecutionContext& Co
 	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
 	const FTransformFragment& Transform = Context.GetExternalData(TransformHandle);
 
-	// Reset wander state so next Tick immediately picks a new target
+	// 배회 상태 리셋: 다음 Tick에서 즉시 새 타겟 선택
 	IdleData.bNeedNewWanderTarget = true;
 	IdleData.LastWanderTime = 0.0;
 
-	// Set destination to current position so MovementProcessor detects "arrival" next frame,
-	// triggering a StateTreeActivate signal and calling Tick() within 1-2 frames.
+	// 목적지를 현재 위치로 설정: 다음 프레임에 MovementProcessor가 "도착"을 감지하여
+	// StateTreeActivate 신호를 발생시키고 1-2 프레임 내에 Tick()을 호출한다.
 	MoveTarget.Center = Transform.GetTransform().GetLocation();
 
 	return EStateTreeRunStatus::Running;
@@ -318,7 +318,7 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 	const double TimeSinceLastWander = CurrentTime - IdleData.LastWanderTime;
 	const double WANDER_INTERVAL = 3.0;
 
-	// 1. Immediate Interruption: If targeting state changed from None, bail out!
+	// 1. 즉시 중단: 타게팅 상태가 None에서 변경된 경우 즉시 종료
 	if (Targeting.State != ELNPTargetingState::None)
 	{
 		//UE_LOG(LogLootNPop, Log, TEXT("IdleTask: Targeting state changed to %d, exiting Idle state"), static_cast<int32>(Targeting.State));
@@ -361,7 +361,7 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 		//UE_LOG(LogLootNPop, Log, TEXT("IdleTask: New wander target set at %s"), *MoveTarget.Center.ToString());
 	}
 
-	// 2. Completion Check: If we reached the current wander target, wait for next interval
+	// 2. 완료 체크: 현재 배회 타겟 도달 시 다음 인터벌 대기
 	const float DistSq = FVector::DistSquared(MoveTarget.Center, Transform.GetTransform().GetLocation());
 	if (DistSq < FMath::Square(100.0f))
 	{
@@ -373,6 +373,6 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 		//UE_LOG(LogLootNPop, Log, TEXT("IdleTask: Reached wander target at %s"), *MoveTarget.Center.ToString());
 	}
 
-	// Always return Running to keep InstanceData (and logic) persistent while in Idle state
+	// Idle 상태 동안 InstanceData(및 로직)를 유지하기 위해 항상 Running 반환
 	return EStateTreeRunStatus::Running;
 }

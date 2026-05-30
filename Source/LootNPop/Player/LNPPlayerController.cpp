@@ -36,7 +36,7 @@ void ALNPPlayerController::BeginPlay()
 	{
 		if (SurfaceSub->GetBakingProgress() >= 1.0f)
 		{
-			// Baking already done (e.g. listen server local player)
+			// 베이킹 이미 완료됨 (예: 리슨 서버 로컬 Player)
 			OnLocalBakingComplete();
 		}
 		else

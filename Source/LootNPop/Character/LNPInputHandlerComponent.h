@@ -29,7 +29,7 @@ public:
 	void SetAIMoveInput(FVector InMoveInput) { AIMoveInput = InMoveInput; }
 	void SetAIOrientationIntent(FVector InOrientationIntent) { AIOrientationIntent = InOrientationIntent; }
 
-	bool GetOrientRotationToMovement() const { return bOrientRotationToMovement; }
+	bool GetFaceMoveDirection() const { return bFaceMoveDirection; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -61,11 +61,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputAction> GuardAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	TObjectPtr<UInputAction> LockOnAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	TArray<TObjectPtr<UInputAction>> ActiveSkillActions;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
 	bool bUseBaseRelativeMovement = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
-	bool bOrientRotationToMovement = true;
+	bool bFaceMoveDirection = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
 	bool bMaintainLastInputOrientation = false;
@@ -97,6 +103,10 @@ private:
 	bool bIsAttackJustPressed = false;
 	bool bIsGuardPressed = false;
 	bool bIsGuardJustPressed = false;
+	bool bIsLockOnPressed = false;
+	bool bIsLockOnJustPressed = false;
+	TArray<bool> ActiveSkillPressed;
+	TArray<bool> ActiveSkillJustPressed;
 
 	bool bIsDashBuffered = false;
 	float DashBufferTime = -1.0f;
@@ -118,4 +128,8 @@ private:
 	void OnAttackReleased(const FInputActionValue& Value);
 	void OnGuardStarted(const FInputActionValue& Value);
 	void OnGuardReleased(const FInputActionValue& Value);
+	void OnLockOnStarted(const FInputActionValue& Value);
+	void OnLockOnReleased(const FInputActionValue& Value);
+	void OnActiveSkillStarted(const FInputActionValue& Value, int32 SlotIndex);
+	void OnActiveSkillReleased(const FInputActionValue& Value, int32 SlotIndex);
 };

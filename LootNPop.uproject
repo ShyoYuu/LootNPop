@@ -15,6 +15,11 @@
 				"PCG",
 				"Mover"
 			]
+		},
+		{
+			"Name": "LootNPopEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [

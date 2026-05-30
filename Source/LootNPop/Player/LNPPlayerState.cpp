@@ -13,7 +13,6 @@ ALNPPlayerState::ALNPPlayerState()
 	AbilitySystemComponent->SetIsReplicated(true);
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 
-	// AttributeSet is auto-registered with the ASC because it is a subobject of the same Actor.
 	BaseAttributeSet = CreateDefaultSubobject<ULNPBaseAttributeSet>(TEXT("BaseAttributeSet"));
 
 	EquipmentComponent = CreateDefaultSubobject<ULNPEquipmentComponent>(TEXT("EquipmentComponent"));

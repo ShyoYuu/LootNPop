@@ -37,10 +37,12 @@ bool ULNPInventoryComponent::RemoveFromStorage(ULNPItemDefinitionBase* ItemDef)
 
 void ULNPInventoryComponent::AddBuffItem(ULNPBuffData* ItemDef, float InRemainingDuration)
 {
-	if (!ItemDef) return;
+	if (!ItemDef)
+		return;
 
 	UAbilitySystemComponent* ASC = GetASC();
-	if (!ASC) return;
+	if (!ASC)
+		return;
 
 	FLNPBuffInstance& Instance = BuffItems.AddDefaulted_GetRef();
 	Instance.Definition = ItemDef;
@@ -51,9 +53,13 @@ void ULNPInventoryComponent::AddBuffItem(ULNPBuffData* ItemDef, float InRemainin
 	FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
 	for (const TSubclassOf<UGameplayEffect>& EffectClass : ItemDef->EffectsToApply)
 	{
-		if (!EffectClass) continue;
+		if (!EffectClass)
+			continue;
+
 		FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(EffectClass, 1.0f, EffectContext);
-		if (!Spec.IsValid()) continue;
+		if (!Spec.IsValid())
+			continue;
+
 		Instance.AppliedEffects.Add(ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()));
 	}
 }
@@ -84,7 +90,8 @@ void ULNPInventoryComponent::TickBuffItems(float DeltaTime)
 	for (int32 i = BuffItems.Num() - 1; i >= 0; --i)
 	{
 		FLNPBuffInstance& Instance = BuffItems[i];
-		if (Instance.RemainingDuration <= 0.0f) continue;
+		if (Instance.RemainingDuration <= 0.0f)
+			continue;
 
 		Instance.RemainingDuration -= DeltaTime;
 		if (Instance.RemainingDuration <= 0.0f)

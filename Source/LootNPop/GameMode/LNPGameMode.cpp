@@ -26,7 +26,7 @@ void ALNPGameMode::BeginPlay()
 	ALNPGameState* GS = World->GetGameState<ALNPGameState>();
 	check(GS);
 
-	// Resolve seed: if not set via config, generate one now so all clients get the same value
+	// Seed 결정: config로 설정되지 않았으면 지금 생성하여 모든 클라이언트가 동일한 값을 사용
 	if (GS->OctantGenSeed == 0)
 	{
 		GS->OctantGenSeed = FMath::Rand();
@@ -98,5 +98,5 @@ void ALNPGameMode::RestartPlayer(AController* NewPlayer)
 
 void ALNPGameMode::OnClientReady(ALNPPlayerController* PC)
 {
-	// Hook for future use: e.g. wait for all clients before game start
+	// 향후 사용 예약: 예) 게임 시작 전 모든 클라이언트 대기
 }
