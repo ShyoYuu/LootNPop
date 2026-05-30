@@ -39,9 +39,9 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	bUseControllerRotationRoll = false;
 }
 
-bool ALNPCharacterBase::GetOrientRotationToMovement() const
+bool ALNPCharacterBase::GetFaceMoveDirection() const
 {
-	return InputHandlerComponent ? InputHandlerComponent->GetOrientRotationToMovement() : false;
+	return InputHandlerComponent ? InputHandlerComponent->GetFaceMoveDirection() : false;
 }
 
 UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const

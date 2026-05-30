@@ -6,13 +6,13 @@
 #pragma once
 
 #include "PCGSettings.h"
-#include "PCGSphereWorldSettings.generated.h"
+#include "LNPSphereWorldSettings.generated.h"
 
 /**
-* Add your tooltip here
+* 구체 세계 Point를 생성하는 PCG Settings 노드.
 */
 UCLASS(MinimalAPI, BlueprintType)
-class UPCGSphereWorldSettings : public UPCGSettings
+class ULNPSphereWorldSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -51,7 +51,7 @@ public:
 	FVector SeedOffset = FVector::ZeroVector;
 };
 
-class FPCGSphereWorldSettingsElement : public IPCGElement
+class FLNPSphereWorldSettingsElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

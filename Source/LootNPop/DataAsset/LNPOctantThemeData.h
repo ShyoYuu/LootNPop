@@ -8,7 +8,7 @@
 #include "LNPOctantThemeData.generated.h"
 
 /**
- * Represents a single prop entry with a mesh and its spawning weight.
+ * 메시와 스폰 가중치를 가진 단일 프랍 항목을 나타낸다.
  */
 USTRUCT(BlueprintType)
 struct FLNPPropEntry
@@ -20,10 +20,16 @@ struct FLNPPropEntry
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Theme", meta = (ClampMin = "0.0"))
 	float Weight = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Theme")
+	FVector MinScale = FVector(0.8f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Theme")
+	FVector MaxScale = FVector(1.2f);
 };
 
 /**
- * Data asset containing theme-specific prop configurations for Octant generation.
+ * Octant 생성을 위한 테마별 프랍 설정을 담은 Data Asset.
  */
 UCLASS(BlueprintType)
 class LOOTNPOP_API ULNPOctantThemeData : public UPrimaryDataAsset

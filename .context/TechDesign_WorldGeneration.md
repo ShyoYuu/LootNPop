@@ -91,7 +91,6 @@ SurfacePoint = Origin + Dir × (Radius + FMath::PerlinNoise3D(Point × NoiseFreq
 |:---|:---|
 | 결정론적 생성 | `OctantGenSeed` 복제 + `FRandomStream` |
 | 에디터 성능 | Level Instance 단위 작업, 필요 조각만 로드 |
-| 런타임 스트리밍 | World Partition 그리드 연동 |
 | 렌더링 최적화 | HISM Baking + Nanite |
 
 ---

@@ -25,7 +25,7 @@
 #include "DrawDebugHelpers.h"
 #endif
 
-/** Batched command: applies a GE-based damage spec to an actor's ASC. Runs on the game thread after the processing phase. */
+/** 배치 커맨드: GE 기반 피해 spec을 Actor의 ASC에 적용한다. 처리 단계 후 게임 Thread에서 실행. */
 struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 {
 	struct FEntry
@@ -84,7 +84,7 @@ private:
 
 namespace
 {
-	/** Returns true if the line segment (A→B) intersects the capsule at Center/UpDir/HalfHeight/Radius. */
+	/** 선분 (A→B)이 Center/UpDir/HalfHeight/Radius의 Capsule과 교차하면 true를 반환한다. */
 	bool SegmentHitsCapsule(
 		FVector A, FVector B,
 		FVector Center, FVector UpDir,
@@ -225,7 +225,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 {
 	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
 
-	// --- Pass 1: Collect all live enemy positions and capsule dims ---
+	// --- Pass 1: 살아있는 모든 Enemy의 위치와 Capsule 크기 수집 ---
 	struct FCollectedEnemy
 	{
 		FVector            Location;
@@ -257,7 +257,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		}
 	});
 
-	// --- Pass 1b: Collect all live player positions and capsule dims ---
+	// --- Pass 1b: 살아있는 모든 Player의 위치와 Capsule 크기 수집 ---
 	struct FCollectedPlayer
 	{
 		FVector                  Location;
@@ -296,7 +296,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 	const bool bFriendlyFire = GetDefault<ULNPSettings>()->bFriendlyFire;
 
-	// --- Pass 2: Segment vs capsule tests (enemies first, then players) ---
+	// --- Pass 2: 선분 vs Capsule 충돌 검사 (Enemy 먼저, 그 다음 Player) ---
 	ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		const FLNPProjectileSharedFragment&                 Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
@@ -327,7 +327,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					Enemy.CapsuleHalfHeight, CombinedRadius,
 					HitPoint))
 				{
-					// Enemy projectiles don't damage other enemies
+					// Enemy Projectile는 다른 Enemy에게 피해를 주지 않음
 					if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
 					{
 						if (Enemy.Actor && Shared.DamageEffectClass)
@@ -369,7 +369,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					Player.CapsuleHalfHeight, CombinedRadius,
 					HitPoint))
 				{
-					// Enemy projectiles always damage players; player projectiles only if friendly fire is on
+					// Enemy Projectile는 항상 Player에게 피해; Player Projectile는 아군 사격 켜진 경우만
 					const bool bShouldDamage = Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy || bFriendlyFire;
 					if (bShouldDamage && Shared.DamageEffectClass)
 					{
@@ -418,7 +418,7 @@ void ULNPProjectileVisualizationProcessor::Execute(FMassEntityManager& EntityMan
 {
 	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
 
-	// Flush work queued by Movement and HitDetection processors (both can run on worker threads)
+	// Movement/HitDetection Processor가 큐에 넣은 작업 처리 (둘 다 워커 Thread에서 실행 가능)
 	VisualSub.FlushTrailReleases();
 	VisualSub.FlushPendingImpacts();
 

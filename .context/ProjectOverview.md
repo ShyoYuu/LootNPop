@@ -12,7 +12,7 @@
 | **Movement** | Mover 2.0 | `ULNPCharacterMoverComponent`, `ULNPPawnGravityComponent` |
 | **Animation** | Motion Matching + Linked Anim Layers | `ULNPAnimInstance` |
 | **Camera** | Gameplay Camera | — |
-| **World** | PCG + Geometry Script + Level Instance + World Partition | `UPCGSphereWorldSettings`, `ULNPOctantSpawnSubsystem` |
+| **World** | PCG + Geometry Script + Level Instance | `UPCGOctantThemeSamplerSettings`, `ULNPOctantSpawnSubsystem` |
 | **Surface Query** | SurfaceCacheSubsystem (커스텀) | `ULNPSurfaceCacheSubsystem` |
 | **Interaction** | SmartObject + MassEntity | `ALNPLootPod`, `ULNPLootingProcessor` |
 | **AI/Entity** | MassEntity + StateTree | `ULNPEnemyMovementProcessor`, `ULNPTargetingSubsystem` |
@@ -82,6 +82,7 @@
 | [폐기된 시도들](DiscardedApproaches.md) | 시도 후 제외된 기술적 접근과 사유 |
 | [추가 스펙 아이디어](Idea_Backlog.md) | 정규 스펙으로 채택되기 전 아이디어 후보 모음 |
 | [WorldGeneration 기술 설계](TechDesign_WorldGeneration.md) | Octant 8분할 전략, PCG 지형 생성, 결정론적 런타임 스폰 흐름 |
+| [Octant Level Instance 제작 가이드](Guide_OctantLevelInstance.md) | Octant Level Instance 에셋 신규 제작 절차 |
 | [초기화 시퀀스 기술 설계](TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | [표면 캐시 기술 설계](TechDesign_SurfaceCache.md) | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유 |
 | [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 질주·대시 시스템 |

@@ -14,39 +14,39 @@ class UMassEntityConfigAsset;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLNPOnSpawningComplete);
 
-/** Defines the type of entity being requested for spawn */
+/** 스폰 요청된 Entity 타입 */
 enum class ELNPSpawnRequestType : uint8
 {
 	LootPod,
 	Enemy
 };
 
-/** Shared state between a Pod spawn and its associated enemies */
+/** Pod 스폰과 연관된 Enemy들 사이의 공유 상태 */
 struct FLNPSpawnLink
 {
 	FMassEntityHandle PodHandle;
 	FVector PodLocation = FVector::ZeroVector;
 };
 
-/** Internal struct to track a batch of entities waiting to be spawned */
+/** 스폰 대기 중인 Entity 배치를 추적하는 내부 구조체 */
 struct FLNPMassSpawnRequest
 {
 	TObjectPtr<UMassEntityConfigAsset> ConfigAsset;
 	TArray<FTransform> TargetTransforms;
 	int32 ProcessedCount = 0;
 
-	/** Type of entities in this request */
+	/** 이 요청의 Entity 타입 */
 	ELNPSpawnRequestType RequestType = ELNPSpawnRequestType::Enemy;
 
-	/** Shared link to pass the Pod handle to enemies */
+	/** Pod Handle을 Enemy에게 전달하기 위한 공유 링크 */
 	TSharedPtr<FLNPSpawnLink> SpawnLink;
 
 	bool IsComplete() const { return ProcessedCount >= TargetTransforms.Num(); }
 };
 
 /**
- * Output of the async queue-build task: one entry per spawn request, without UObject refs.
- * UObject refs (ConfigAsset) are resolved on the game thread via CapturedAssets index.
+ * 비동기 큐 빌드 태스크의 출력: 스폰 요청당 하나의 항목, UObject 참조 없음.
+ * UObject 참조(ConfigAsset)는 CapturedAssets Index를 통해 게임 Thread에서 해결된다.
  */
 struct FLNPAsyncSpawnEntry
 {
@@ -57,9 +57,9 @@ struct FLNPAsyncSpawnEntry
 };
 
 /**
- * Subsystem responsible for hierarchical spawning of Mass Entities (LootPods and Enemies).
- * Handles frame-budgeting, surface validation, and manual transform application post-spawn.
- * Uses global settings from ULNPSettings.
+ * Mass Entity(LootPod 및 Enemy)의 Hierarchical 스폰을 담당하는 Subsystem.
+ * 프레임 예산 관리, 표면 유효성 검사, 스폰 후 수동 Transform 적용을 처리한다.
+ * ULNPSettings의 전역 설정을 사용한다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPMassSpawnSubsystem : public UWorldSubsystem, public FTickableGameObject
@@ -77,46 +77,46 @@ public:
 	virtual TStatId GetStatId() const override;
 	// End FTickableGameObject
 
-	/** Entry point to start the spawning process based on a config */
+	/** config를 기반으로 스폰 프로세스를 시작하는 진입점 */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Mass Spawning")
 	void EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, const float SphereRadius);
 
-	/** Called by GameMode after surface baking completes to begin entity spawning */
+	/** 표면 베이킹 완료 후 GameMode가 호출하여 Entity 스폰을 시작한다 */
 	void BeginSpawning();
 
-	/** Fired when all queued entities have been spawned */
+	/** 모든 큐의 Entity가 스폰되면 발동 */
 	UPROPERTY(BlueprintAssignable, Category = "LNP|Mass Spawning")
 	FLNPOnSpawningComplete OnSpawningComplete;
 
 protected:
 
-	/** 
-	 * Initializes spawned entities with transforms and optional metadata (leash, etc.).
+	/**
+	 * 스폰된 Entity를 Transform과 선택적 메타데이터 (Leash 등)로 초기화한다.
 	 */
 	void SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms, FMassEntityHandle ParentLootPod = FMassEntityHandle(), const FVector& ParentPodLocation = FVector::ZeroVector);
 
 private:
-	/** Processes a chunk of the spawn queue */
+	/** 스폰 큐의 Chunk를 처리한다 */
 	void ProcessQueue();
 
-	/** Assembles SpawnQueue from the completed async build result. Called on game thread. */
+	/** 완료된 비동기 빌드 결과로 SpawnQueue를 조립한다. 게임 Thread에서 호출. */
 	void AssembleSpawnQueueFromAsyncResult();
 
-	/** Current active configuration being processed */
+	/** 현재 처리 중인 활성 config */
 	UPROPERTY(Transient)
 	TObjectPtr<ULNPMassSpawnConfig> ActiveConfig;
 
-	/** Pre-captured UObject refs; kept alive (GC-safe) while async task runs */
+	/** 비동기 태스크 실행 중 GC 안전을 위해 미리 캡처된 UObject 참조 */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMassEntityConfigAsset>> CapturedAssets;
 
 	TArray<FLNPMassSpawnRequest> SpawnQueue;
 	int32 SpawnQueueHead = 0;
 
-	/** Result written by the async build task; read on game thread after IsReady() */
+	/** 비동기 빌드 태스크가 작성한 결과; IsReady() 이후 게임 Thread에서 읽음 */
 	TArray<FLNPAsyncSpawnEntry> AsyncBuildResult;
 
-	/** Future for the background queue-build task */
+	/** 백그라운드 큐 빌드 태스크의 Future */
 	TFuture<void> SpawnBuildFuture;
 
 	FRandomStream RandomStream;

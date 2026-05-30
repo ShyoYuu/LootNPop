@@ -18,10 +18,10 @@ public:
 
 	virtual void BeginPlay() override;
 
-	/** Gate pawn spawn until server init is complete */
+	/** 서버 초기화 완료 전까지 Pawn 스폰을 차단한다 */
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
-	/** Called via RPC from client when its local baking is done */
+	/** 클라이언트의 로컬 베이킹이 완료되면 RPC를 통해 호출된다 */
 	void OnClientReady(ALNPPlayerController* PC);
 
 private:

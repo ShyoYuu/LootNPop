@@ -20,21 +20,21 @@ public:
 	ULNPEquipmentComponent();
 	virtual void BeginPlay() override;
 
-	/** Unequips any current weapon, then equips WeaponDef and grants its GA/GE. */
+	/** 현재 무기를 해제한 후 WeaponDef를 장착하고 GA/GE를 부여한다. */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Equipment")
 	void EquipWeapon(ULNPWeaponData* WeaponDef);
 
 	UFUNCTION(BlueprintCallable, Category = "LNP|Equipment")
 	void UnequipWeapon();
 
-	/** Equips an active skill into SlotIndex (0-based). Revokes the previous occupant. */
+	/** 활성 스킬을 SlotIndex(0부터)에 장착한다. 이전 점유자를 해제한다. */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Equipment")
 	void EquipActiveSkill(int32 SlotIndex, ULNPSkillData* SkillDef);
 
 	UFUNCTION(BlueprintCallable, Category = "LNP|Equipment")
 	void UnequipActiveSkill(int32 SlotIndex);
 
-	/** Adds a passive skill (no slot limit). GA is granted immediately. */
+	/** 패시브 스킬을 추가한다 (슬롯 제한 없음). GA를 즉시 부여한다. */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Equipment")
 	void AddPassiveSkill(ULNPSkillData* SkillDef);
 
@@ -45,7 +45,7 @@ public:
 	const TArray<FLNPSkillInstance>& GetActiveSkillSlots() const { return ActiveSkillSlots; }
 	int32 GetMaxActiveSkillSlots() const { return MaxActiveSkillSlots; }
 
-	/** Default weapon equipped on BeginPlay. Assign the DA_Pistol DataAsset here. */
+	/** BeginPlay 시 장착되는 기본 무기. 여기에 DA_Pistol DataAsset을 할당한다. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|Equipment|Defaults")
 	TObjectPtr<ULNPWeaponData> DefaultWeapon;
 

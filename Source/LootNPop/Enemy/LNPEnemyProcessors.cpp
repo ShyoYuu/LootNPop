@@ -23,14 +23,14 @@
 #include "MassDebugDrawHelpers.h"
 #endif
 
-// --- Scoring Processor ---
+// --- Scoring Processor (점수 산정) ---
 
 ULNPEnemyScoringProcessor::ULNPEnemyScoringProcessor()
 	: ScoringQuery(*this), PlayerQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ProcessingPhase = EMassProcessingPhase::PostPhysics;
-	// Prepare candidates for the NEXT frame after everyone has moved
+	// 모두 이동한 후 다음 프레임의 후보를 준비
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::UpdateWorldFromMass;
 }
 
@@ -51,7 +51,7 @@ void ULNPEnemyScoringProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 
 void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	// 1. Gather all players
+	// 1. 모든 Player 수집
 	struct FPlayerData { FMassEntityHandle Handle; FVector Location; };
 	TArray<FPlayerData> Players;
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& PlayerContext)
@@ -68,7 +68,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		return;
 	}
 
-	// 2. Process Enemies
+	// 2. Enemy 처리
 	ScoringQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& EnemyContext)
 	{
 		const TConstArrayView<FTransformFragment> Transforms = EnemyContext.GetFragmentView<FTransformFragment>();
@@ -94,7 +94,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 			CandidateData.Reset();
 
-			// Leash penalty: score drops steeply to zero as enemy approaches MaxLeashDistance from pod
+			// Leash 페널티: Enemy가 ParentPod에서 MaxLeashDistance에 가까워질수록 점수가 급격히 0으로 감소
 			const float DistToLeash = FVector::Dist(EnemyLoc, EnemyData.ParentPodLocation);
 			const float LeashFactor = FMath::Square(FMath::Clamp(1.0f - (DistToLeash / TConfig.MaxLeashDistance), 0.0f, 1.0f));
 
@@ -152,7 +152,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					//if (Score > KINDA_SMALL_NUMBER)
 					{
 						//bool bIsMelee = SharedFragment.Config->EnemyTypeTag.ToString().Contains(TEXT("Melee"), ESearchCase::IgnoreCase);
-						bool bIsMelee = true; // For testing
+						bool bIsMelee = true; // 테스트용
 
 						FMassEntityHandle EnemyEntity = EnemyContext.GetEntity(i);
 						FMassEntityHandle PlayerHandle = Candidate.Handle;
@@ -171,7 +171,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 }
 
 
-// --- Targeting Processor ---
+// --- Targeting Processor (타게팅) ---
 
 ULNPEnemyTargetingProcessor::ULNPEnemyTargetingProcessor()
 	: TargetingQuery(*this), PlayerQuery(*this)
@@ -202,7 +202,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 	ULNPTargetingSubsystem& TargetingSubsystem = Context.GetMutableSubsystemChecked<ULNPTargetingSubsystem>();
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 
-	// 1. Gather player locations
+	// 1. Player 위치 수집
 	TMap<FMassEntityHandle, FVector> PlayerLocations;
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& PlayerContext)
 	{
@@ -213,12 +213,12 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 		}
 	});
 
-	// 2. Perform global rebalance
+	// 2. 전역 재균형 수행
 	TargetingSubsystem.RebalanceSlots();
 
 	TArray<FMassEntityHandle> EntitiesToSignal;
 
-	// 3. Sync results and update specific target info
+	// 3. 결과 동기화 및 특정 타겟 정보 업데이트
 	TargetingQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& EnemyContext)
 	{
 		const TConstArrayView<FTransformFragment> Transforms = EnemyContext.GetFragmentView<FTransformFragment>();
@@ -236,7 +236,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 
 			bool bFoundConfirmed = false;
 			
-			// Try to find the best potential target that is confirmed
+			// 확정된 최선의 잠재적 타겟 탐색
 			for (int32 TargetIdx = 0; TargetIdx < CandidateData.NumPotentialTargets; ++TargetIdx)
 			{
 				FMassEntityHandle PotentialTarget = CandidateData.PotentialTargets[TargetIdx];
@@ -245,7 +245,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 					Targeting.TargetPlayer = PotentialTarget;
 					Targeting.State = ELNPTargetingState::Confirmed;
 					
-					// Update precise info for the chosen target
+					// 선택된 타겟의 정밀 정보 업데이트
 					if (const FVector* PLoc = PlayerLocations.Find(PotentialTarget))
 					{
 						Targeting.TargetLocation = *PLoc;
@@ -259,7 +259,7 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 
 			if (!bFoundConfirmed)
 			{
-				// If we have potential targets but none confirmed, enter Alert state
+				// 잠재적 타겟이 있지만 확정되지 않은 경우, Alert 상태 진입
 				if (CandidateData.NumPotentialTargets > 0)
 				{
 					Targeting.TargetPlayer = CandidateData.PotentialTargets[0];
@@ -297,13 +297,13 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 	}
 }
 
-// --- Target Follow Processor ---
+// --- Target Follow Processor (타겟 추적) ---
 
 ULNPEnemyTargetFollowProcessor::ULNPEnemyTargetFollowProcessor()
 	: FollowQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
-	// Process intent in Behavior phase after targeting
+	// 타게팅 후 Behavior 단계에서 Intent 처리
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Behavior;
 	ExecutionOrder.ExecuteAfter.Add(ULNPEnemyTargetingProcessor::StaticClass()->GetFName());
 }
@@ -344,20 +344,20 @@ void ULNPEnemyTargetFollowProcessor::Execute(FMassEntityManager& EntityManager, 
 			FMassMoveTargetFragment& MoveTarget = MoveTargets[i];
 			const FLNPEnemyTargetingFragment& Targeting = TargetingFragments[i];
 
-			// 1. Sync MoveTarget with Targeting data
+			// 1. MoveTarget과 타게팅 데이터 동기화
 			if (Targeting.TargetPlayer.IsValid())
 			{
 				const float ActualDistance = FMath::Sqrt(Targeting.DistanceToTargetSq);
-				// StopBuffer >= ArrivalBuffer(30) ensures arrival signal fires within AttackRange
+				// StopBuffer >= ArrivalBuffer(30)으로 AttackRange 내에서 도착 신호 발생 보장
 				const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
 				const float StopDist = FMath::Max(0.f, AttackRange - StopBuffer);
 
 				if (ActualDistance <= StopDist)
 				{
-					// In stop zone: face target (orientation uses MoveTarget.Center direction)
+					// 정지 구역: 타겟 방향 전환 (방향은 MoveTarget.Center 방향 사용)
 					MoveTarget.Center = Targeting.TargetLocation;
 					MoveTarget.DistanceToGoal = 0.f;
-					// Signal StateTree so SteeringTask can evaluate DistanceToTarget <= AttackRange
+					// StateTree 신호 발송으로 SteeringTask가 DistanceToTarget <= AttackRange 평가 가능
 					if (Targeting.State == ELNPTargetingState::Confirmed)
 						EntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				}
@@ -377,7 +377,7 @@ void ULNPEnemyTargetFollowProcessor::Execute(FMassEntityManager& EntityManager, 
 	}
 }
 
-// --- Movement Processor ---
+// --- Movement Processor (이동) ---
 
 ULNPEnemyMovementProcessor::ULNPEnemyMovementProcessor()
 	: MovementQuery(*this)
@@ -435,7 +435,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			const FMassMoveTargetFragment& MoveTarget = MoveTargets[i];
 			const FLNPEnemyTargetingFragment& Targeting = TargetingFragments[i];
 
-			const FVector UpDir = (GravityOrigin - EntityLocation).GetSafeNormal(); // inward toward center = up for inner-sphere world
+			const FVector UpDir = (GravityOrigin - EntityLocation).GetSafeNormal(); // 내부 구형 세계에서 중심 방향 = Up
 			const FQuat CurrentRotation = EntityTransform.GetRotation();
 
 			const FVector TargetPos = MoveTarget.Center;
@@ -449,13 +449,13 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			switch (Targeting.State)
 			{
 			case ELNPTargetingState::None:
-				// Idle movement: Walk slowly to the target point
-				EffectiveSpeed = BaseMoveSpeed * 0.3f; // Slow walk
+				// 대기 이동: 타겟 지점으로 천천히 이동
+				EffectiveSpeed = BaseMoveSpeed * 0.3f; // 느린 걷기
 				OrientationIntent = TargetDirOnPlane;
 				break;
 
 			case ELNPTargetingState::Alert:
-				// Alert: Face the player but don't move unless pushed by ST tasks
+				// Alert: Player 방향 전환, ST 태스크에 의해 밀리지 않으면 이동 안 함
 				EffectiveSpeed = 0.0f;
 				OrientationIntent = TargetDirOnPlane;
 				break;
@@ -471,15 +471,15 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			}
 			}
 
-			// Signal StateTree if reached destination (for None/Confirmed states)
-			if (EffectiveSpeed > 0.0f && DistSq < FMath::Square(30.0f)) // Arrival threshold
+			// 목적지 도달 시 StateTree 신호 (None/Confirmed 상태용)
+			if (EffectiveSpeed > 0.0f && DistSq < FMath::Square(30.0f)) // 도착 임계값
 			{
 				EntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				EffectiveSpeed = 0.0f;
 			}
 
-			// Override speed if explicitly set by StateTree (e.g., SteeringTask)
-			// Alert is always stopped regardless of pending StateTree speed
+			// StateTree에서 명시적으로 속도를 설정한 경우 Override (예: SteeringTask)
+			// Alert 상태는 StateTree 속도와 관계없이 항상 정지
 			if (MoveTarget.DesiredSpeed.Get() > 0.0f && Targeting.State != ELNPTargetingState::Alert)
 			{
 				EffectiveSpeed = MoveTarget.DesiredSpeed.Get();
@@ -504,15 +504,15 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				FVector& PhysVelocity = VelocityFragments[i].Velocity;
 
-				// State is determined by PhysVelocity rather than a dedicated tag (e.g. FLNPEnemyAirborneTag).
-				// The tag-split approach (separate processor per archetype chunk) would be more idiomatic Mass
-				// and worth considering if airborne becomes a persistent or high-frequency state
-				// (e.g. flying enemies). For the current knockback-only use case the branch cost is negligible
-				// and avoids repeated Deferred AddTag/RemoveTag archetype migrations on every hit/landing.
+				// 상태는 전용 Tag(예: FLNPEnemyAirborneTag)가 아닌 PhysVelocity로 판단한다.
+				// Tag 분리 방식(Archetype Chunk별 별도 Processor)이 Mass에서 더 관용적이며
+				// 비행이 지속적이거나 고빈도 상태가 된다면 (예: 비행 Enemy) 고려할 가치가 있다.
+				// 현재 넉백 전용 케이스에서 분기 비용은 무시할 수 있으며
+				// 매 피격/착지 시 반복적인 Deferred AddTag/RemoveTag Archetype 마이그레이션을 피할 수 있다.
 				if (!PhysVelocity.IsNearlyZero())
 				{
-					// Airborne physics: apply gravity and integrate velocity
-					const FVector GravityDir = (EntityLocation - GravityOrigin).GetSafeNormal(); // outward = down
+					// 공중 물리: 중력 적용 및 속도 적분
+					const FVector GravityDir = (EntityLocation - GravityOrigin).GetSafeNormal(); // 외향 = 아래
 					PhysVelocity += GravityDir * GravityStrength * DeltaTime;
 
 					const FVector NewPos = EntityLocation + PhysVelocity * DeltaTime;
@@ -527,13 +527,13 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 						if (DistFromCenter >= SurfaceRadius - CapsuleHalfHeight)
 						{
-							// Landed: snap to surface and halt physics
+							// 착지: 표면에 스냅하고 물리 정지
 							EntityTransform.SetLocation(GravityOrigin + NewDir * (SurfaceRadius - CapsuleHalfHeight));
 							PhysVelocity = FVector::ZeroVector;
 						}
 						else
 						{
-							// Still airborne: move freely and maintain up-aligned rotation
+							// 아직 공중: 자유 이동 및 Up 정렬 회전 유지
 							EntityTransform.SetLocation(NewPos);
 							const FVector NewUp = (GravityOrigin - NewPos).GetSafeNormal();
 							const FVector HorizForward = FVector::VectorPlaneProject(EntityTransform.GetRotation().GetForwardVector(), NewUp).GetSafeNormal();
@@ -548,7 +548,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				}
 				else
 				{
-					// Grounded: normal intent-based movement
+					// 지면: 일반 Intent 기반 이동
 					FVector Velocity = FVector::ZeroVector;
 
 					if (!OrientationIntent.IsNearlyZero())
@@ -566,7 +566,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 						EntityTransform.SetRotation(TargetQuat);
 					}
 
-					// Slope check: block movement up slopes steeper than ~45 deg (MaxWalkSlopeCosine = 0.71f, matching Mover CommonLegacyMovementSettings)
+					// 경사 체크: ~45도보다 가파른 경사 오름 이동 차단 (MaxWalkSlopeCosine = 0.71f, Mover CommonLegacyMovementSettings 기준)
 					constexpr float MaxWalkSlopeCosine = 0.71f;
 					if (!Velocity.IsNearlyZero())
 					{
@@ -577,7 +577,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 							SurfaceCache.GetSurfacePoint(TargetSurfaceDir, TargetSurface))
 						{
 							const FVector SlopeDelta = TargetSurface - CurrentSurface;
-							if (FVector::DotProduct(SlopeDelta, UpDir) > 0.f) // ascending slope only
+							if (FVector::DotProduct(SlopeDelta, UpDir) > 0.f) // 오름 경사만
 							{
 								const float TotalDist = SlopeDelta.Size();
 								if (TotalDist > KINDA_SMALL_NUMBER)
@@ -614,7 +614,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 }
 
 #if WITH_EDITOR
-// --- Debug Draw Processor ---
+// --- Debug Draw Processor (디버그 드로우) ---
 
 ULNPEnemyDebugDrawProcessor::ULNPEnemyDebugDrawProcessor()
 	: DebugQuery(*this)
@@ -657,27 +657,27 @@ void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMa
 			const FVector EntityLocation = EntityTransform.GetLocation();
 			const FLNPEnemyTargetingFragment& Targeting = TargetingFragments[i];
 
-			FColor StateColor = FColor::Green; // Idle
+			FColor StateColor = FColor::Green; // 대기
 
 			if (Targeting.State == ELNPTargetingState::Confirmed)
 			{
 				const float ActualDistance = FMath::Sqrt(Targeting.DistanceToTargetSq);
 				if (ActualDistance <= AttackRange)
 				{
-					StateColor = FColor::Red; // Attack
+					StateColor = FColor::Red; // 공격
 				}
 				else
 				{
-					StateColor = FColor::Blue; // Chase
+					StateColor = FColor::Blue; // 추격
 				}
 			}
 			else if (Targeting.State == ELNPTargetingState::Alert)
 			{
-				StateColor = FColor::Yellow; // Alert
+				StateColor = FColor::Yellow; // 경계
 			}
 			else
 			{
-				StateColor = FColor::Green; // Idle
+				StateColor = FColor::Green; // 대기
 			}
 
 			const FVector Offset = (FVector::ZeroVector - EntityLocation).GetSafeNormal() * 50.0f;
@@ -696,7 +696,7 @@ void ULNPEnemyDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager&, FMassExecutionContext&) {}
 #endif
 
-// --- Health Processor ---
+// --- Health Processor (HP) ---
 
 ULNPHealthProcessor::ULNPHealthProcessor()
 	: HealthQuery(*this)
@@ -750,7 +750,7 @@ void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 		Context.Defer().AddTag<FLNPEnemyDyingTag>(Entity);
 }
 
-// --- LOD Override Processor ---
+// --- LOD Override Processor (LOD Override) ---
 
 ULNPEnemyLODOverrideProcessor::ULNPEnemyLODOverrideProcessor()
 	: LODOverrideQuery(*this)
@@ -786,7 +786,7 @@ void ULNPEnemyLODOverrideProcessor::Execute(FMassEntityManager& EntityManager, F
 	});
 }
 
-// --- Actor Initializer Processor ---
+// --- Actor Initializer Processor (Actor 초기화) ---
 
 ULNPEnemyActorInitializerProcessor::ULNPEnemyActorInitializerProcessor()
 	: InitializerQuery(*this)
@@ -826,7 +826,7 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 				float Health = EnemyFragments[i].Health;
 				ELNPTargetingState TState = TargetingFragments[i].State;
 				FVector Velocity = VelocityFragments[i].Velocity;
-				VelocityFragments[i].Velocity = FVector::ZeroVector; // consumed by Actor
+				VelocityFragments[i].Velocity = FVector::ZeroVector; // Actor가 소비
 
 				Context.Defer().PushCommand<FMassDeferredAddCommand>([Entity, RawActor, Config, Health, TState, Velocity](FMassEntityManager& InEntityManager)
 				{
@@ -842,7 +842,7 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 	});
 }
 
-// --- ActorSync Processor ---
+// --- ActorSync Processor (Actor 동기화) ---
 
 ULNPEnemyActorSyncProcessor::ULNPEnemyActorSyncProcessor()
 	: SyncQuery(*this)
@@ -886,7 +886,7 @@ void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMa
 		Context.Defer().RemoveTag<FLNPEnemyActorInitializedTag>(Entity);
 }
 
-// --- DeathTimer Processor ---
+// --- DeathTimer Processor (사망 Timer) ---
 
 ULNPEnemyDeathTimerProcessor::ULNPEnemyDeathTimerProcessor()
 	: DeathTimerQuery(*this)

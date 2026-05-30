@@ -18,7 +18,7 @@ ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 	bHandleSprintChanges = 1;
 	bWantsToRun = 0;
 
-	// Default movement modes
+	// 기본 이동 모드
 	MovementModes.Add(TEXT("LNPAsyncWalking"), CreateDefaultSubobject<ULNPAsyncWalkingMode>(TEXT("AsyncWalkingMode")));
 	MovementModes.Add(TEXT("AsyncFalling"), CreateDefaultSubobject<UAsyncFallingMode>(TEXT("AsyncFallingMode")));
 
@@ -96,7 +96,7 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
 {
-	// Manage the Sprint Modifier based on bWantsToRun and CanSprint
+	// bWantsToRun과 CanSprint를 기반으로 Sprint Modifier 관리
 	if (bHandleSprintChanges)
 	{
 		const FLNPSprintModifier* ActiveModifier = static_cast<const FLNPSprintModifier*>(FindMovementModifier(SprintModifierHandle));
@@ -120,13 +120,13 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 		}
 	}
 
-	// Call Super to handle standard features (Jump, Crouch)
+	// 기본 기능(점프, 앉기) 처리를 위해 Super 호출
 	Super::OnMoverPreSimulationTick(TimeStep, InputCmd);
 }
 
 void ULNPCharacterMoverComponent::OnHandlerSettingChanged()
 {
-	// Super will add/remove OnMoverPreSimulationTick based on handle jump/stance settings.
+	// Super는 점프/자세 설정에 따라 OnMoverPreSimulationTick을 추가/제거한다.
 	//Super::OnHandlerSettingChanged();
 
 	const bool bIsHandlingAnySettings = bHandleSprintChanges || bHandleJump || bHandleStanceChanges;

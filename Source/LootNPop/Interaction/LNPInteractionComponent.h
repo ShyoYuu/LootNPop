@@ -9,7 +9,7 @@
 class ALNPLootPod;
 
 /**
- * Component responsible for searching and interacting with ALNPLootPod actors.
+ * ALNPLootPod Actor를 탐색하고 상호작용하는 Component.
  */
 UCLASS(ClassGroup = (LNP), meta = (BlueprintSpawnableComponent))
 class LOOTNPOP_API ULNPInteractionComponent : public UActorComponent
@@ -21,26 +21,26 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	/** Continuously searches for the best interaction target nearby */
+	/** 주변에서 최선의 상호작용 타겟을 지속적으로 탐색한다 */
 	void UpdateInteractionCandidate();
 
-	/** Initiates actual interaction with the current candidate */
+	/** 현재 후보와 실제 상호작용을 시작한다 */
 	void PerformInteraction();
 
-	/** Returns all currently highlighted interaction targets (for UI) */
+	/** 현재 강조된 모든 상호작용 타겟을 반환한다 (UI용) */
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	TArray<AActor*> GetInteractionCandidates() const;
 
-	/** Returns the first valid interaction target (for backward compatibility or simple logic) */
+	/** 첫 번째 유효한 상호작용 타겟을 반환한다 (하위 호환 또는 단순 로직용) */
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	AActor* GetFirstInteractionCandidate() const;
 
 protected:
-	/** Distance to search for interactable objects */
+	/** 상호작용 가능한 오브젝트 탐색 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Interaction")
 	float InteractionRadius = 500.0f;
 
-	/** The pods/actors this character is currently looking at/near (Potential targets) */
+	/** 캐릭터가 현재 바라보거나 근처에 있는 LootPod/Actor (잠재적 타겟) */
 	UPROPERTY(Transient)
 	TSet<TWeakObjectPtr<AActor>> InteractionCandidates;
 };

@@ -16,7 +16,7 @@
 
 void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
-	// 1. Core Data Fragments
+	// 1. 핵심 데이터 Fragment
 	BuildContext.AddFragment<FLNPEnemyFragment>();
 	BuildContext.AddFragment<FLNPEnemyIdleFragment>();
 	BuildContext.AddFragment<FLNPEnemyTargetingFragment>();
@@ -25,21 +25,21 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	BuildContext.AddFragment<FLNPEnemyVelocityFragment>();
 	//BuildContext.AddFragment<FMassVelocityFragment>();
 
-	// 2. Shared Config Fragments
+	// 2. Shared Config Fragment
 	if (EnemyConfig != nullptr)
 	{
 		FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);
 		
-		// Enemy Config Fragment
+		// Enemy Config Fragment (Enemy 설정)
 		FLNPEnemySharedFragment EnemySharedFragment;
 		EnemySharedFragment.Config = EnemyConfig;
 		FConstSharedStruct EnemySharedStruct = EntityManager.GetOrCreateConstSharedFragment(EnemySharedFragment);
 		BuildContext.AddConstSharedFragment(EnemySharedStruct);
 	}
 
-	// 3. Identification Tags
+	// 3. 식별 Tag
 	BuildContext.AddTag<FLNPEnemyTag>();
 
-	// 4. Required Mass System Fragments
+	// 4. 필수 Mass 시스템 Fragment
 	BuildContext.AddFragment<FMassActorFragment>();
 }

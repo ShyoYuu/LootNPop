@@ -13,8 +13,8 @@ class UAnimMontage;
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNPTAG_Mover_IsSprinting);
 
 /**
- * Custom Mover component for LootNPop characters.
- * Handles sprinting, dash execution, and dynamic movement modifier updates.
+ * LootNPop 캐릭터용 커스텀 Mover Component.
+ * Sprint, Dash 실행, 동적 이동 Modifier 업데이트를 처리한다.
  */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class LOOTNPOP_API ULNPCharacterMoverComponent : public UCharacterMoverComponent
@@ -24,32 +24,32 @@ class LOOTNPOP_API ULNPCharacterMoverComponent : public UCharacterMoverComponent
 public:
 	ULNPCharacterMoverComponent();
 
-	/** Set whether the character wants to run (sprint) or not */
+	/** 캐릭터가 달리기(Sprint)를 원하는지 여부를 설정한다 */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Movement")
 	void SetWantsToRun(bool bInWantsToRun) { bWantsToRun = bInWantsToRun; }
 
-	/** Returns true if the character is currently sprinting */
+	/** 캐릭터가 현재 Sprint 중이면 true를 반환한다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool IsSprinting() const;
 
-	/** Check if the character can currently sprint */
+	/** 캐릭터가 현재 Sprint 가능한지 확인한다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool CanSprint() const;
 
 	void SetIsAiming(bool bInIsAiming) { bIsAiming = bInIsAiming; }
 	bool GetIsAiming() const { return bIsAiming; }
 
-	/** Returns true if dash can be executed right now (on ground, not aiming, cooldown elapsed) */
+	/** 현재 Dash 실행 가능 여부를 반환한다 (지면, 조준 아님, 쿨다운 경과) */
 	bool CanDash() const;
 
-	/** Execute a dash using the given raw move input intent */
+	/** 주어진 이동 Input Intent로 Dash를 실행한다 */
 	void ExecuteDash(FVector MoveInputIntent);
 
 protected:
-	/** Fired just before a simulation tick. Used to apply state-driven modifier changes. */
+	/** simulation tick 직전 호출된다. 상태 기반 Modifier 변경을 적용하는 데 사용된다. */
 	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd) override;
 
-	/** Overridden to ensure our custom simulation logic is always registered. */
+	/** 커스텀 시뮬레이션 로직이 항상 등록되도록 Override한다. */
 	virtual void OnHandlerSettingChanged() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Dash")
@@ -74,15 +74,15 @@ protected:
 	TObjectPtr<UAnimMontage> DashRightMontage;
 
 private:
-	/** Whether this component should directly handle sprinting logic based on intent. */
+	/** 이 Component가 의도에 따라 Sprint 로직을 직접 처리할지 여부. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
 	uint8 bHandleSprintChanges : 1 = 1;
 
-	/** If true, the character intends to sprint in the next simulation tick */
+	/** true이면 캐릭터가 다음 simulation tick에서 Sprint를 의도하고 있다 */
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
 	uint8 bWantsToRun : 1 = 0;
 
-	/** Handle to the active sprint modifier */
+	/** 활성 Sprint Modifier Handle */
 	FMovementModifierHandle SprintModifierHandle;
 
 	bool bIsAiming = false;

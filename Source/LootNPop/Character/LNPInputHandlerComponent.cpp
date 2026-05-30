@@ -28,6 +28,9 @@ void ULNPInputHandlerComponent::BeginPlay()
 	MoverComponent = Owner->FindComponentByClass<ULNPCharacterMoverComponent>();
 	GravityComponent = Owner->FindComponentByClass<ULNPPawnGravityComponent>();
 	InteractionComponent = Owner->FindComponentByClass<ULNPInteractionComponent>();
+
+	ActiveSkillPressed.SetNum(ActiveSkillActions.Num());
+	ActiveSkillJustPressed.SetNum(ActiveSkillActions.Num());
 }
 
 void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -88,6 +91,17 @@ void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* Playe
 		EIC->BindAction(AttackAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnAttackReleased);
 		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnGuardStarted);
 		EIC->BindAction(GuardAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnGuardReleased);
+		EIC->BindAction(LockOnAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnLockOnStarted);
+		EIC->BindAction(LockOnAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnLockOnReleased);
+
+		for (int32 i = 0; i < ActiveSkillActions.Num(); ++i)
+		{
+			if (ActiveSkillActions[i])
+			{
+				EIC->BindAction(ActiveSkillActions[i], ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnActiveSkillStarted, i);
+				EIC->BindAction(ActiveSkillActions[i], ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnActiveSkillReleased, i);
+			}
+		}
 	}
 }
 
@@ -120,7 +134,7 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 
 	if (Pawn->GetController())
 	{
-		// --- Player Input Logic ---
+		// --- Player 입력 처리 ---
 
 		FVector UpDir = GravityComponent ? GravityComponent->GetUpDirection() : FVector::UpVector;
 		FQuat ControlQuat = CharacterInputs.ControlRotation.Quaternion();
@@ -143,7 +157,7 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 
 		if (bHasAffirmativeMoveInput)
 		{
-			if (bOrientRotationToMovement)
+			if (bFaceMoveDirection)
 			{
 				CharacterInputs.OrientationIntent = CharacterInputs.GetMoveInput().GetSafeNormal();
 			}
@@ -157,10 +171,14 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		{
 			CharacterInputs.OrientationIntent = LastAffirmativeMoveInput;
 		}
+		else if (!bFaceMoveDirection)
+		{
+			CharacterInputs.OrientationIntent = HorizonForward;
+		}
 	}
 	else
 	{
-		// --- AI Intent Logic (StateTree) ---
+		// --- AI Intent 처리 (StateTree) ---
 
 		CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, AIMoveInput);
 
@@ -311,4 +329,33 @@ void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
 {
 	bIsGuardPressed = false;
 	bIsGuardJustPressed = false;
+}
+
+void ULNPInputHandlerComponent::OnLockOnStarted(const FInputActionValue& Value)
+{
+	bIsLockOnJustPressed = !bIsLockOnPressed;
+	bIsLockOnPressed = true;
+}
+
+void ULNPInputHandlerComponent::OnLockOnReleased(const FInputActionValue& Value)
+{
+	bIsLockOnPressed = false;
+	bIsLockOnJustPressed = false;
+}
+
+void ULNPInputHandlerComponent::OnActiveSkillStarted(const FInputActionValue& Value, int32 SlotIndex)
+{
+	ActiveSkillJustPressed[SlotIndex] = !ActiveSkillPressed[SlotIndex];
+	ActiveSkillPressed[SlotIndex] = true;
+
+	// 원래는 액티브 스킬 발동을 트리거 해야하지만 지금은 테스트 용도로 무기 변경으로 구현.
+	// SlotIndex = 0 -> LongSword or Katana
+	// SlotIndex = 1 -> Pistol
+	// SlotIndex = 2 -> Rifle
+}
+
+void ULNPInputHandlerComponent::OnActiveSkillReleased(const FInputActionValue& Value, int32 SlotIndex)
+{
+	ActiveSkillPressed[SlotIndex] = false;
+	ActiveSkillJustPressed[SlotIndex] = false;
 }

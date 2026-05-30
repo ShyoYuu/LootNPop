@@ -91,7 +91,7 @@ FVector Dir = FVector(cos(Lat) * cos(Lon), cos(Lat) * sin(Lon), sin(Lat));
   OutPoint = Lerp(Lerp(P00, P01, tLon), Lerp(P10, P11, tLon), tLat)
 ```
 
-경도는 0°/360° 경계에서 래핑 처리. 이웃 셀 중 하나라도 유효하지 않으면 nearest-neighbor로 폴백 (주로 극점 부근).
+경도는 0°/360° 경계에서 래핑 처리. 이웃 셀 중 하나라도 유효하지 않으면 nearest-neighbor로 Fallback (주로 극점 부근).
 
 ### 3.4 스레드 안전성
 

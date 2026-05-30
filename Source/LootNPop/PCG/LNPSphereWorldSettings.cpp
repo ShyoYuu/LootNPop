@@ -3,56 +3,56 @@
 /// 그러나 HLOD 베이킹 등을 위해 실제 메시까지 생성하는건 성능상 무리라고 판단되어 이 노드는 안쓰는 것으로 최종 결정.
 /// 자세한 히스토리는 @DiscardedApproaches.md Case 01과 @TechDesign_WorldGeneration.md 참고
 
-#include "PCG/PCGSphereWorldSettings.h"
+#include "PCG/LNPSphereWorldSettings.h"
 #include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 
-#define LOCTEXT_NAMESPACE "PCGSphereWorldSettingsElement"
+#define LOCTEXT_NAMESPACE "LNPSphereWorldSettingsElement"
 
 #if WITH_EDITOR
-// The label the node is known as internally.
-FName UPCGSphereWorldSettings::GetDefaultNodeName() const
+// 노드의 내부 식별 이름.
+FName ULNPSphereWorldSettings::GetDefaultNodeName() const
 {
-	return FName(TEXT("PCGSphereWorldSettings"));
+	return FName(TEXT("LNPSphereWorldSettings"));
 }
 
-// Default node name shown in the graph editor. Include spaces.
-FText UPCGSphereWorldSettings::GetDefaultNodeTitle() const
+// 그래프 에디터에 표시되는 노드 이름. 공백 포함 가능.
+FText ULNPSphereWorldSettings::GetDefaultNodeTitle() const
 {
-	return LOCTEXT("NodeTitle", "Sphere World Generator");
+	return LOCTEXT("NodeTitle", "LNP Sphere World Generator");
 }
 
-// Default tooltip for the node
-FText UPCGSphereWorldSettings::GetNodeTooltipText() const
+// 노드의 기본 툴팁
+FText ULNPSphereWorldSettings::GetNodeTooltipText() const
 {
 	return LOCTEXT("NodeTooltip", "Generates a sphere of points based on mathematical formulas.");
 }
 #endif //WITH_EDITOR
 
-TArray<FPCGPinProperties> UPCGSphereWorldSettings::OutputPinProperties() const
+TArray<FPCGPinProperties> ULNPSphereWorldSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point);
 	return PinProperties;
 }
 
-// Creates the Element to be used for ExecuteInternal.
-FPCGElementPtr UPCGSphereWorldSettings::CreateElement() const
+// ExecuteInternal에서 사용할 Element를 생성한다.
+FPCGElementPtr ULNPSphereWorldSettings::CreateElement() const
 {
-	return MakeShared<FPCGSphereWorldSettingsElement>();
+	return MakeShared<FLNPSphereWorldSettingsElement>();
 }
 
-bool FPCGSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
+bool FLNPSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSphereWorldSettingsElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLNPSphereWorldSettingsElement::Execute);
 
 	check(Context);
 
-	const UPCGSphereWorldSettings* Settings = Context->GetInputSettings<UPCGSphereWorldSettings>();
+	const ULNPSphereWorldSettings* Settings = Context->GetInputSettings<ULNPSphereWorldSettings>();
 	check(Settings);
 
-	// 1. Get Target Bounds for Partitioning
+	// 1. 파티셔닝용 목표 Bounds 계산
 	FBox Bounds(ForceInit);
 	for (const FPCGTaggedData& Input : Context->InputData.TaggedData)
 	{
@@ -64,7 +64,7 @@ bool FPCGSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
 	}
 	const bool bIsPartitioned = (Bounds.IsValid != 0);
 
-	// 2. Initialize Point Data
+	// 2. Point Data 초기화
 	UPCGPointData* SampledData = NewObject<UPCGPointData>();
 	SampledData->InitializeFromData(nullptr);
 	TArray<FPCGPoint>& Points = SampledData->GetMutablePoints();
@@ -76,20 +76,20 @@ bool FPCGSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
 	const float Freq = Settings->NoiseFrequency;
 	const FVector Seed = Settings->SeedOffset;
 
-	// Lambda to get noise height at a normalized direction
+	// 정규화된 방향 벡터에서 노이즈 높이를 반환하는 람다
 	auto GetNoiseHeight = [&](const FVector& NormalDir) {
-		// Shift coordinates by Seed to change the world pattern
+		// Seed를 더해 월드 패턴을 변경
 		return FMath::PerlinNoise3D((NormalDir + Seed) * R * Freq) * Amp;
 	};
 
-	// 3. Optimization: Check if cell even intersects with the sphere shell
+	// 3. 최적화: 셀이 구체 껍질과 교차하는지 확인
 	if (bIsPartitioned)
 	{
 		const float DistSq = Bounds.ComputeSquaredDistanceToPoint(FVector::ZeroVector);
-		const float OuterR = R + S + Amp; // Include noise amplitude
+		const float OuterR = R + S + Amp; // 노이즈 진폭 포함
 		const float InnerR = FMath::Max(0.0f, R - S - Amp);
 
-		// Too far or too close (inside the hollow sphere)
+		// 너무 멀거나 너무 가까운 경우 (속이 빈 구체 내부)
 		if (DistSq > OuterR * OuterR || (Bounds.IsInside(FVector::ZeroVector) == false && Bounds.ComputeSquaredDistanceToPoint(FVector::ZeroVector) < InnerR * InnerR))
 		{
 			goto Finalize; 
@@ -97,17 +97,17 @@ bool FPCGSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	{
-		// 4. Fibonacci Sphere Distribution (Golden Spiral)
+		// 4. 피보나치 구체 분포 (황금 나선)
 		const int32 N = FMath::Max(1, FMath::RoundToInt((4.0f * PI * R * R) / (S * S)));
 
-		// Define Index Range for loop
+		// 루프 인덱스 범위 설정
 		int32 MinI = 0;
 		int32 MaxI = N - 1;
 
-		// 5. Latitude (Z) Range Optimization for Partitioning
+		// 5. 파티셔닝을 위한 위도(Z) 범위 최적화
 		if (bIsPartitioned && N > 1)
 		{
-			// Expand Z range by Amplitude for safe clipping
+			// 안전한 클리핑을 위해 Z 범위를 진폭만큼 확장
 			const float MinZ = FMath::Clamp(Bounds.Min.Z - Amp, -R, R);
 			const float MaxZ = FMath::Clamp(Bounds.Max.Z + Amp, -R, R);
 
@@ -128,18 +128,18 @@ bool FPCGSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
 
 			FVector Direction(radius_at_z * FMath::Cos(theta), radius_at_z * FMath::Sin(theta), z_norm);
 			
-			// Calculate height from noise
+			// 노이즈에서 높이 계산
 			float Height = GetNoiseHeight(Direction);
 			FVector Position = Direction * (R + Height);
 
-			// Final Check: Only add if inside current partitioning bounds
+			// 최종 확인: 현재 파티셔닝 Bounds 내부에 있는 경우만 추가
 			if (bIsPartitioned && !Bounds.IsInside(Position))
 			{
 				continue;
 			}
 			
-			// --- Slope Alignment (Normal Calculation) ---
-			// Sample 2 nearby points to find the slope
+			// --- 경사 정렬 (법선 계산) ---
+			// 인접한 2개 점을 샘플링하여 경사도 계산
 			const float Delta = 0.01f;
 			FVector TangentX, TangentY;
 			Direction.FindBestAxisVectors(TangentX, TangentY);
@@ -153,21 +153,21 @@ bool FPCGSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
 			FVector Pos1 = P1 * (R + H1);
 			FVector Pos2 = P2 * (R + H2);
 
-			// Calculate new surface normal (Slope Normal)
+			// 새 표면 법선 계산 (경사 Normal)
 			FVector SlopeNormal = FVector::CrossProduct(Pos1 - Position, Pos2 - Position).GetSafeNormal();
 			
-			// Ensure normal points INWARD (towards center)
+			// 법선이 내부(중심 방향)를 향하도록 보정
 			if (FVector::DotProduct(SlopeNormal, Direction) > 0)
 			{
 				SlopeNormal = -SlopeNormal;
 			}
 
-			// Calculate "Horizontal" (East) direction along the latitude for alignment
+			// 정렬 기준용 위도 방향의 "수평"(동쪽) 방향 계산
 			FVector EastDir = FVector::CrossProduct(FVector::UpVector, Direction).GetSafeNormal();
 			if (EastDir.IsNearlyZero())
 				EastDir = FVector::RightVector;
 
-			// Create rotation where Z is the slope normal and Y is aligned with latitude
+			// Z가 경사 Normal, Y가 위도 방향에 정렬된 회전 생성
 			FRotator Rotation = FRotationMatrix::MakeFromZY(SlopeNormal, EastDir).Rotator();
 
 			FPCGPoint& Point = Points.Emplace_GetRef();
@@ -179,7 +179,7 @@ bool FPCGSphereWorldSettingsElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 Finalize:
-	// 6. Output Data
+	// 6. 데이터 출력
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
 	Output.Data = SampledData;

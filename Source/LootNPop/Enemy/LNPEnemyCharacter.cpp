@@ -57,10 +57,10 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 
 	EnemyConfig = InConfig;
 
-	// Setup GAS (Abilities & Attributes)
+	// GAS 설정 (Ability 및 Attribute)
 	if (UAbilitySystemComponent* EnemyASC = GetAbilitySystemComponent())
 	{
-		// Grant weapon abilities from WeaponData; first handle becomes the attack handle
+		// WeaponData에서 무기 Ability 부여; 첫 번째 Handle이 공격 Handle이 됨
 		if (InConfig->WeaponData)
 		{
 			for (const TSubclassOf<ULNPGameplayAbility>& AbilityClass : InConfig->WeaponData->AbilitiesToGrant)
@@ -74,18 +74,18 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 			}
 		}
 
-		// Grant additional non-weapon abilities (dodge, block, etc.)
+		// 추가 비무기 Ability 부여 (회피, 막기 등)
 		for (const TSubclassOf<UGameplayAbility>& AbilityClass : InConfig->DefaultAbilities)
 		{
 			if (AbilityClass)
 				EnemyASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
 		}
 
-		// Apply Initial Attributes
+		// 초기 Attribute 적용
 		for (auto& AttributePair : InConfig->InitialAttributeValues)
 		{
-			// Note: In a real project, you would map GameplayTags to actual Attribute accessors.
-			// For now, we assume a generic way to set them or handle via Effect.
+			// 실제 프로젝트에서는 GameplayTag를 실제 Attribute 접근자에 매핑해야 함.
+			// 현재는 일반 방법으로 설정하거나 Effect로 처리한다고 가정.
 		}
 	}
 }

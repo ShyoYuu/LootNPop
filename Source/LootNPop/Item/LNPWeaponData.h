@@ -39,11 +39,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile")
 	FVector MuzzleOffset = FVector(100.f, 0.f, 0.f);
 
-	/** GE applied to the hit target when in Actor (GAS) state. Must use TAG_GE_Data_Damage via SetByCaller. */
+	/** Actor(GAS) 상태에서 피격 대상에 적용되는 GE. TAG_GE_Data_Damage를 SetByCaller로 사용해야 한다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile")
 	TSubclassOf<UGameplayEffect> ProjectileDamageEffect;
 
-	/** VFX played at spawn, during flight (trail), and on impact. */
+	/** 스폰 시, 비행 중(트레일), 임팩트 시 재생되는 VFX. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|VFX")
 	TObjectPtr<ULNPVFXData> ProjectileVFXData;
 };

@@ -37,10 +37,10 @@ void ULNPInteractionComponent::UpdateInteractionCandidate()
 	if (SOSubsystem == nullptr)
 		return;
 
-	// Reset candidates list each tick to avoid accumulation
+	// 누적 방지를 위해 매 Tick 후보 목록 리셋
 	InteractionCandidates.Empty();
 
-	// Use Filter and Search Request
+	// 필터 및 검색 요청 사용
 	FSmartObjectRequestFilter Filter;
 	FBox QueryBounds = FBox::BuildAABB(Owner->GetActorLocation(), FVector(InteractionRadius));
 	FSmartObjectRequest Request(QueryBounds, Filter);
@@ -56,7 +56,7 @@ void ULNPInteractionComponent::UpdateInteractionCandidate()
 
 		ALNPLootPod* Pod = Cast<ALNPLootPod>(SOComp->GetOwner());
 
-		// Basic interaction check
+		// 기본 상호작용 체크
 		if (Pod != nullptr && Pod->CanInteract(Owner))
 		{
 			InteractionCandidates.Add(Pod);
@@ -74,7 +74,7 @@ void ULNPInteractionComponent::PerformInteraction()
 	if (MassAgentComponent == nullptr)
 		return;
 
-	// Iterate over a copy to handle removals safely if needed
+	// 필요 시 안전하게 제거할 수 있도록 복사본을 순회
 	TArray<TWeakObjectPtr<AActor>> CurrentCandidates = InteractionCandidates.Array();
 
 	for (const TWeakObjectPtr<AActor>& Candidate : CurrentCandidates)
@@ -87,10 +87,10 @@ void ULNPInteractionComponent::PerformInteraction()
 		
 		AActor* Actor = Candidate.Get();
 
-		// ALNPLootPod-specific interaction logic
+		// ALNPLootPod 전용 상호작용 로직
 		if (ALNPLootPod* Pod = Cast<ALNPLootPod>(Actor))
 		{
-			// Corrected condition: proceed if CanInteract is true
+			// CanInteract가 true인 경우 진행
 			if (!Pod->CanInteract(Owner))
 				continue;
 
@@ -100,20 +100,20 @@ void ULNPInteractionComponent::PerformInteraction()
 
 			FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*GetWorld());
 
-			// Check if the player is already looting
+			// Player가 이미 루팅 중인지 확인
 			if (EntityManager.GetFragmentDataPtr<FLNPPlayerLootingFragment>(PlayerEntity) == nullptr)
 			{
 				UE_LOG(LogLootNPop, Log, TEXT("Interacting with LootPod: %s"), *Pod->GetName());
 
-				// 1. Signal Player is looting
+				// 1. Player 루팅 신호
 				EntityManager.Defer().AddTag<FLNPPlayerLootingTag>(PlayerEntity);
 
-				// 2. Set targeting info
+				// 2. 타게팅 정보 설정
 				FLNPPlayerLootingFragment FragmentPayload;
 				FragmentPayload.BuffedLootSpeed = 1.0f;
 				EntityManager.Defer().PushCommand<FMassCommandAddFragmentInstances<FLNPPlayerLootingFragment>>(PlayerEntity, FragmentPayload);
 
-				// 3. Trigger Pod logic
+				// 3. Pod 로직 트리거
 				Pod->StartLooting();
 			}
 			else

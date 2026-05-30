@@ -11,7 +11,7 @@ class LOOTNPOP_API ULNPBuffData : public ULNPItemDefinitionBase
 {
 	GENERATED_BODY()
 public:
-	/** Maximum duration in seconds. 0 = infinite. */
+	/** 최대 지속 시간(초). 0 = 무한. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Buff", meta = (ClampMin = "0"))
 	float MaxDuration = 0.0f;
 };

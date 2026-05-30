@@ -8,14 +8,14 @@
 
 void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
-	// 1. Add Data Fragments
+	// 1. 데이터 Fragment 추가
 	BuildContext.AddFragment<FLNPLootPodFragment>();
 
-	// 2. Add Identification Tags
+	// 2. 식별 Tag 추가
 	BuildContext.AddTag<FLNPLootPodTag>();
-	BuildContext.AddTag<FLNPLootPodIdleTag>(); // Start in Idle state
+	BuildContext.AddTag<FLNPLootPodIdleTag>(); // Idle 상태로 시작
 
-	// 3. Add Transform Fragment (Used by Mass Representation system)
+	// 3. Transform Fragment 추가 (Mass Representation 시스템에서 사용)
 	BuildContext.AddFragment<FTransformFragment>();
 
 	BuildContext.AddFragment<FMassActorFragment>();

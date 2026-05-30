@@ -31,14 +31,14 @@ class LOOTNPOP_API ALNPCharacterBase : public APawn, public IAbilitySystemInterf
 public:
 	ALNPCharacterBase(const FObjectInitializer& ObjectInitializer);
 
-	// --- Component Accessors ---
+	// --- Component 접근자 ---
 	UFUNCTION(BlueprintPure, Category = "LNP|Mover")
 	ULNPCharacterMoverComponent* GetMoverComponent() const { return MoverComponent; }
 
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
-	bool GetOrientRotationToMovement() const;
+	bool GetFaceMoveDirection() const;
 
-	// IAbilitySystemInterface implementation
+	// IAbilitySystemInterface 구현
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	UCapsuleComponent*             GetCapsule()               const { return CapsuleComponent; }
@@ -48,7 +48,7 @@ public:
 
 	virtual bool TryActivateAttack();
 
-	/** Returns the weapon data currently equipped/configured for this character. */
+	/** 이 캐릭터에 현재 장착/설정된 무기 데이터를 반환한다. */
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const { return nullptr; }
 
 protected:

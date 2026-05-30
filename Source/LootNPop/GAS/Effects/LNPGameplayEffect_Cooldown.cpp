@@ -5,17 +5,16 @@
 #include "NativeGameplayTags.h"
 #include "GameplayEffectComponents/TargetTagsGameplayEffectComponent.h"
 
-// Registered as a native tag — no DefaultGameplayTags.ini entry needed.
+// 네이티브 Tag로 등록 — DefaultGameplayTags.ini 항목 불필요.
 UE_DEFINE_GAMEPLAY_TAG_STATIC(LNPTAG_Ability_Cooldown_Attack, "LNP.Ability.Cooldown.Attack")
 
 ULNPGameplayEffect_Cooldown::ULNPGameplayEffect_Cooldown()
 {
 	DurationPolicy = EGameplayEffectDurationType::HasDuration;
-	DurationMagnitude = FScalableFloat(1.f); // placeholder; actual duration injected per-spec by the ability
+	DurationMagnitude = FScalableFloat(1.f); // 플레이스홀더; 실제 Duration은 Ability가 spec별로 주입
 
-	// UE5.3+: grant tags via UTargetTagsGameplayEffectComponent instead of the deprecated
-	// InheritableOwnedTagsContainer. GetCooldownTags() uses UGameplayEffect::GetGrantedTags()
-	// which reads from this component, so CheckCooldown() will block re-activation correctly.
+	// GetCooldownTags()는 UGameplayEffect::GetGrantedTags()를 사용하며 이 Component에서 읽으므로
+	// CheckCooldown()이 재활성화를 올바르게 차단한다.
 	UTargetTagsGameplayEffectComponent* TargetTagsComp =
 		CreateDefaultSubobject<UTargetTagsGameplayEffectComponent>(TEXT("TargetTagsComp"));
 

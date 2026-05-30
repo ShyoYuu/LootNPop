@@ -28,7 +28,7 @@ struct FLNPLootPodSpawnEntry
 	UPROPERTY(EditAnywhere, Category = "LNP")
 	TObjectPtr<UMassEntityConfigAsset> LootPodEntityConfig;
 
-	/** 이 LootPod 주변에 편성될 적들 */
+	/** 이 LootPod 주변의 Enemy 편성 정보 */
 	UPROPERTY(EditAnywhere, Category = "LNP")
 	TArray<FLNPEnemySpawnEntry> AssociatedEnemies;
 
@@ -38,7 +38,7 @@ struct FLNPLootPodSpawnEntry
 };
 
 /**
- * Configuration asset for initial entity spawning.
+ * 초기 Entity 스폰을 위한 설정 에셋.
  */
 UCLASS()
 class LOOTNPOP_API ULNPMassSpawnConfig : public UPrimaryDataAsset
@@ -58,7 +58,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Constraints")
 	int32 MaxRetryCount = 15;
 
-	/** Maximum entities allowed to spawn in a single frame to maintain FPS */
+	/** FPS 유지를 위해 단일 프레임에 허용되는 최대 스폰 Entity 수 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Performance")
 	int32 MaxSpawnsPerFrame = 50;
 };

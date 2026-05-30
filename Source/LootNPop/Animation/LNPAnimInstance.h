@@ -11,8 +11,7 @@ class ULNPCharacterMoverComponent;
 
 /**
  * ULNPAnimInstance
- * Custom AnimInstance class for LootNPop project.
- * Handles character state updates in C++ for better performance and maintainability.
+ * LootNPop 프로젝트용 커스텀 AnimInstance 클래스.
  */
 UCLASS()
 class LOOTNPOP_API ULNPAnimInstance : public UAnimInstance
@@ -24,46 +23,46 @@ public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
 protected:
-	/** Reference to the owning character */
+	/** Owner 캐릭터 참조 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Character")
 	TObjectPtr<ALNPCharacterBase> OwningMoverCharacter;
 
-	/** Reference to the character's mover component */
+	/** 캐릭터의 MoverComponent 참조 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Character")
 	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
 
-	/** Current velocity of the character */
+	/** 캐릭터의 현재 속도 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	FVector Velocity;
 
-	/** Horizontal speed of the character */
+	/** 캐릭터의 수평 속력 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	float GroundSpeed;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bIsOnGround;
 
-	/** Indicates if the character should be playing movement animations */
+	/** 캐릭터가 이동 애니메이션을 재생해야 하는지 여부 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bShouldMove;
 
-	/** Is the character currently in the falling state? */
+	/** 캐릭터가 현재 낙하 상태인가? */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bIsFalling;
 
-	/** Is the character currently in the air (any non-grounded state)? */
+	/** 캐릭터가 현재 공중(지면 비접지 상태)에 있는가? */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bIsAirborne;
 
-	/** Movement direction relative to character rotation (-180 to 180) */
+	/** 캐릭터 회전 기준 이동 방향 (-180 ~ 180) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	float Direction;
 
-	/** Should the character use strafing animations? */
+	/** 캐릭터가 스트레이핑 애니메이션을 사용해야 하는가? */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bShouldStrafe;
 
-	/** Is the character currently swimming? */
+	/** 캐릭터가 현재 수영 중인가? */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bIsSwimming;
 

@@ -26,8 +26,8 @@ enum class ELNPInstigatorTeam : uint8
 };
 
 /**
- * Weapon-type constants shared across all projectiles spawned from the same weapon.
- * Stored as a ConstSharedFragment so entities with the same values share a chunk.
+ * 같은 무기에서 스폰된 모든 Projectile가 공유하는 무기 타입 상수.
+ * 동일한 값을 가진 Entity가 Chunk를 공유하도록 ConstSharedFragment로 저장된다.
  */
 USTRUCT()
 struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragment
@@ -51,17 +51,17 @@ struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragme
 };
 
 /**
- * Per-projectile simulation state.
- * PreviousPos/CurrentPos form the swept line segment used by HitDetection each frame.
+ * Projectile별 시뮬레이션 상태.
+ * PreviousPos/CurrentPos가 매 프레임 HitDetection에서 사용하는 스윕 선분을 형성한다.
  */
 USTRUCT()
 struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
-	FVector PreviousPos   = FVector::ZeroVector; // previous frame position, used for sweep-based hit detection
+	FVector PreviousPos   = FVector::ZeroVector; // 이전 프레임 위치, 스윕 기반 피격 감지에 사용
 	FVector Velocity      = FVector::ZeroVector;
-	FVector SpawnLocation = FVector::ZeroVector; // initial spawn position, used once for SpawnEffects
+	FVector SpawnLocation = FVector::ZeroVector; // 초기 스폰 위치, SpawnEffects에 한 번 사용
 
 	float LifetimeRemaining = 5.0f;
 
@@ -71,7 +71,7 @@ struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
 	ELNPInstigatorTeam InstigatorTeam = ELNPInstigatorTeam::Enemy;
 };
 
-/** Tracks whether Niagara trail components have been allocated for this projectile. */
+/** 이 Projectile에 Niagara 트레일 Component가 할당됐는지 추적한다. */
 USTRUCT()
 struct LOOTNPOP_API FLNPProjectileVisualFragment : public FMassFragment
 {
@@ -80,7 +80,7 @@ struct LOOTNPOP_API FLNPProjectileVisualFragment : public FMassFragment
 	bool bInitialized = false;
 };
 
-/** Tag marking a projectile for destruction at end of StartPhysics phase. */
+/** StartPhysics 단계 종료 시 Projectile Destroy을 표시하는 Tag. */
 USTRUCT()
 struct LOOTNPOP_API FLNPProjectileDeadTag : public FMassTag
 {
