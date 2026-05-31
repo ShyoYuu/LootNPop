@@ -98,4 +98,5 @@ protected:
 private:
 	FMassEntityQuery ProjectileQuery;
 	FMassEntityQuery PlayerQuery;
+	FMassEntityQuery EnemyQuery;
 };

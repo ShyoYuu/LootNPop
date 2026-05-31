@@ -55,6 +55,9 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 	if (nullptr == InConfig)
 		return;
 
+	if (AnimSourceMesh)
+		AnimSourceMesh->SetVisibility(false);
+
 	EnemyConfig = InConfig;
 
 	// GAS 설정 (Ability 및 Attribute)
@@ -72,6 +75,8 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 						WeaponAbilityHandle = Handle;
 				}
 			}
+
+			EquipWeapon(InConfig->WeaponData);
 		}
 
 		// 추가 비무기 Ability 부여 (회피, 막기 등)

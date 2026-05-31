@@ -13,6 +13,7 @@ struct FInputActionValue;
 class ULNPCharacterMoverComponent;
 class ULNPPawnGravityComponent;
 class ULNPInteractionComponent;
+class UAbilitySystemComponent;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class LOOTNPOP_API ULNPInputHandlerComponent : public UActorComponent, public IMoverInputProducerInterface
@@ -30,6 +31,7 @@ public:
 	void SetAIOrientationIntent(FVector InOrientationIntent) { AIOrientationIntent = InOrientationIntent; }
 
 	bool GetFaceMoveDirection() const { return bFaceMoveDirection; }
+	void SetFaceMoveDirection(bool bValue) { bFaceMoveDirection = bValue; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -85,6 +87,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<ULNPInteractionComponent> InteractionComponent;
+
+	UPROPERTY()
+	TObjectPtr<UAbilitySystemComponent> ASC;
 
 	FVector AIMoveInput = FVector::ZeroVector;
 	FVector AIOrientationIntent = FVector::ZeroVector;

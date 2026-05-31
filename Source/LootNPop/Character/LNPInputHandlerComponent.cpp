@@ -14,6 +14,9 @@
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "Interaction/LNPInteractionComponent.h"
+#include "AbilitySystemInterface.h"
+#include "AbilitySystemComponent.h"
+#include "LNPGameplayTags.h"
 
 ULNPInputHandlerComponent::ULNPInputHandlerComponent()
 {
@@ -31,6 +34,11 @@ void ULNPInputHandlerComponent::BeginPlay()
 
 	ActiveSkillPressed.SetNum(ActiveSkillActions.Num());
 	ActiveSkillJustPressed.SetNum(ActiveSkillActions.Num());
+
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(GetOwner()))
+	{
+		ASC = ASI->GetAbilitySystemComponent();
+	}
 }
 
 void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -122,6 +130,8 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		return;
 	}
 
+	const bool bBlockMovement = ASC != nullptr && ASC->HasMatchingGameplayTag(TAG_Block_MovementInput);
+
 	if (Pawn->GetController())
 	{
 		CharacterInputs.ControlRotation = Pawn->GetControlRotation();
@@ -147,7 +157,11 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		}
 		FVector HorizonForward = FVector::CrossProduct(RightDir, UpDir).GetSafeNormal();
 
-		const FVector FinalDirectionalIntent = (HorizonForward * CachedMoveInputIntent.X) + (RightDir * CachedMoveInputIntent.Y);
+		FVector FinalDirectionalIntent = FVector::ZeroVector;
+		if (!bBlockMovement)
+		{
+			FinalDirectionalIntent = (HorizonForward * CachedMoveInputIntent.X) + (RightDir * CachedMoveInputIntent.Y);
+		}
 		CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, FinalDirectionalIntent);
 
 		static float RotationMagMin(1e-3);
@@ -348,10 +362,15 @@ void ULNPInputHandlerComponent::OnActiveSkillStarted(const FInputActionValue& Va
 	ActiveSkillJustPressed[SlotIndex] = !ActiveSkillPressed[SlotIndex];
 	ActiveSkillPressed[SlotIndex] = true;
 
-	// 원래는 액티브 스킬 발동을 트리거 해야하지만 지금은 테스트 용도로 무기 변경으로 구현.
-	// SlotIndex = 0 -> LongSword or Katana
-	// SlotIndex = 1 -> Pistol
-	// SlotIndex = 2 -> Rifle
+	// 무기 장착 테스트: TestWeaponList 슬롯 직접 매핑
+	// SlotIndex 0 = TestWeaponList[0] (예: LongSword)
+	// SlotIndex 1 = TestWeaponList[1] (예: Pistol)
+	// SlotIndex 2 = TestWeaponList[2] (예: Rifle)
+	// 슬롯이 TestWeaponList 범위 밖이면 맨손으로 전환
+	if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner()))
+	{
+		Character->EquipTestWeapon(SlotIndex);
+	}
 }
 
 void ULNPInputHandlerComponent::OnActiveSkillReleased(const FInputActionValue& Value, int32 SlotIndex)

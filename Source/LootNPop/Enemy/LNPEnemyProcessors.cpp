@@ -517,7 +517,6 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 					const FVector NewPos = EntityLocation + PhysVelocity * DeltaTime;
 					const FVector NewDir = (NewPos - GravityOrigin).GetSafeNormal();
-					const float CapsuleHalfHeight = SharedFragment.Config->CapsuleHalfHeight;
 
 					FVector SurfacePoint;
 					if (SurfaceCache.GetSurfacePoint(NewDir, SurfacePoint))
@@ -525,10 +524,10 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
 						const float DistFromCenter = FVector::Dist(GravityOrigin, NewPos);
 
-						if (DistFromCenter >= SurfaceRadius - CapsuleHalfHeight)
+						if (DistFromCenter >= SurfaceRadius)
 						{
 							// 착지: 표면에 스냅하고 물리 정지
-							EntityTransform.SetLocation(GravityOrigin + NewDir * (SurfaceRadius - CapsuleHalfHeight));
+							EntityTransform.SetLocation(GravityOrigin + NewDir * SurfaceRadius);
 							PhysVelocity = FVector::ZeroVector;
 						}
 						else
@@ -598,8 +597,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					if (SurfaceCache.GetSurfacePoint(DirToSurface, SurfacePoint))
 					{
 						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
-						const float CapsuleHalfHeight = SharedFragment.Config->CapsuleHalfHeight;
-						FinalPos = GravityOrigin + DirToSurface * (SurfaceRadius - CapsuleHalfHeight);
+						FinalPos = GravityOrigin + DirToSurface * SurfaceRadius;
 					}
 					EntityTransform.SetLocation(FinalPos);
 				}

@@ -5,6 +5,9 @@
 #include "CoreMinimal.h"
 #include "Item/LNPItemDefinitionBase.h"
 #include "Animation/AnimMontage.h"
+#include "GameplayTagContainer.h"
+
+class USkeletalMesh;
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "LNPWeaponData.generated.h"
 
@@ -15,6 +18,33 @@ class LOOTNPOP_API ULNPWeaponData : public ULNPItemDefinitionBase
 {
 	GENERATED_BODY()
 public:
+	/** 이 무기의 타입 태그 (LNP.Weapon.Pistol 등). EquipWeapon()이 ASC에 부여한다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon",
+		meta = (Categories = "LNP.Weapon"))
+	FGameplayTag WeaponTag;
+
+	/**
+	 * 장착 직후 부여되는 기본 조준 모드 태그.
+	 * - 원거리 무기: LNP.AimMode.FreeAim
+	 * - 근거리·맨손: 비워두면 LNP.AimMode.None으로 처리
+	 * LockOn 전환은 DefaultAimMode가 None일 때만 허용 (코드 하드코딩).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon",
+		meta = (Categories = "LNP.AimMode"))
+	FGameplayTag DefaultAimMode;
+
+	/** 장착 시 LinkAnimClassLayers()에 전달할 서브 AnimBP 클래스. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TSubclassOf<UAnimInstance> AnimLayerClass;
+
+	/** 캐릭터 메시에 어태치할 무기 스켈레탈 메시. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
+	TObjectPtr<USkeletalMesh> WeaponMesh;
+
+	/** 무기 메시를 어태치할 캐릭터 소켓 이름. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
+	FName AttachSocketName = NAME_None;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	TObjectPtr<UAnimMontage> AttackMontage;
 
