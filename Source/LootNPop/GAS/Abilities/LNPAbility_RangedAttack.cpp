@@ -86,10 +86,18 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 	FMassArchetypeSharedFragmentValues SharedValues;
 	SharedValues.Add(SharedStruct);
 
-	// --- Entity별 상태 ---
-	const FVector SpawnPos  = Character->GetActorLocation()
-		+ Character->GetActorForwardVector() * WeaponDef->MuzzleOffset.X;
 	const FVector Direction = Character->GetActorForwardVector();
+
+	// --- Entity별 상태 ---
+	// 기준 위치: Muzzle 소켓 (없으면 ActorLocation 폴백)
+	static const FName MuzzleSocket(TEXT("Muzzle"));
+	const USkeletalMeshComponent* WeaponMesh = Character->GetWeaponMeshComponent();
+	const FVector BasePos = (WeaponMesh && WeaponMesh->DoesSocketExist(MuzzleSocket))
+		? WeaponMesh->GetSocketLocation(MuzzleSocket)
+		: Character->GetActorLocation();
+
+	// MuzzleOffset을 액터 로컬 좌표계 기준으로 월드 공간에 적용
+	const FVector SpawnPos = BasePos + Character->GetActorTransform().TransformVector(WeaponDef->MuzzleOffset);
 
 	FMassEntityHandle InstigatorHandle;
 	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())

@@ -318,12 +318,13 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					continue;
 
 				const FVector UpDir          = (-Enemy.Location).GetSafeNormal();
+				const FVector CapsuleCenter  = Enemy.Location + UpDir * Enemy.CapsuleHalfHeight;
 				const float   CombinedRadius = Enemy.CapsuleRadius + FMath::Sqrt(Shared.HitRadiusSq);
 
 				FVector HitPoint;
 				if (SegmentHitsCapsule(
 					Proj.PreviousPos, CurrentPos,
-					Enemy.Location, UpDir,
+					CapsuleCenter, UpDir,
 					Enemy.CapsuleHalfHeight, CombinedRadius,
 					HitPoint))
 				{
@@ -343,7 +344,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					if (Visuals[i].bInitialized)
 						VisualSub.EnqueueTrailRelease(ProjEnt);
 
-					const FVector ImpactNormal = (HitPoint - Enemy.Location).GetSafeNormal();
+					const FVector ImpactNormal = (HitPoint - CapsuleCenter).GetSafeNormal();
 					VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, ImpactNormal);
 					Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 					bHit = true;
@@ -486,7 +487,7 @@ void ULNPProjectileDestructionProcessor::Execute(FMassEntityManager& EntityManag
 // ============================================================
 
 ULNPProjectileDebugDrawProcessor::ULNPProjectileDebugDrawProcessor()
-	: ProjectileQuery(*this), PlayerQuery(*this)
+	: ProjectileQuery(*this), PlayerQuery(*this), EnemyQuery(*this)
 {
 	bRequiresGameThreadExecution = true;
 	bAutoRegisterWithProcessingPhases = true;
@@ -502,10 +503,15 @@ void ULNPProjectileDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEn
 	ProjectileQuery.AddTagRequirement<FLNPProjectileDeadTag>(EMassFragmentPresence::None);
 	ProjectileQuery.RegisterWithProcessor(*this);
 
-	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
+
+	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
+	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
+	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	EnemyQuery.RegisterWithProcessor(*this);
 
 	ProcessorRequirements.AddSubsystemRequirement<ULNPProjectileVisualSubsystem>(EMassFragmentAccess::ReadWrite);
 }
@@ -528,14 +534,13 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 			const FVector Pos    = Transforms[i].GetTransform().GetLocation();
 			const FVector VelDir = Projectiles[i].Velocity.GetSafeNormal();
 
-			DrawDebugSphere(World, Pos, 10.f, 8, FColor::Cyan, false, -1.f);
+			DrawDebugSphere(World, Pos, 8.f, 8, FColor::Cyan, false, -1.f);
 			DrawDebugLine(World, Pos, Pos + VelDir * 60.f, FColor::White, false, -1.f);
 		}
 	});
 
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
-		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FMassActorFragment> ActorFrags = Ctx.GetFragmentView<FMassActorFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
@@ -547,17 +552,51 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 			const UCapsuleComponent* Capsule    = Player->GetCapsule();
 			const float              HalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 96.f;
 			const float              Radius     = Capsule ? Capsule->GetScaledCapsuleRadius()     : 42.f;
-			const FVector            Location   = Transforms[i].GetTransform().GetLocation();
+			const FVector            Location   = Player->GetActorLocation();
 			const FVector            UpDir      = (-Location).GetSafeNormal();
 			const FQuat              CapsuleRot = FQuat::FindBetweenNormals(FVector::UpVector, UpDir);
 
 			DrawDebugCapsule(World, Location, HalfHeight, Radius, CapsuleRot, FColor::Green, false, -1.f);
 		}
 	});
+
+	EnemyQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FMassActorFragment> ActorFrags = Ctx.GetFragmentView<FMassActorFragment>();
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		const FLNPEnemySharedFragment& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
+
+		if (Shared.Config == nullptr)
+			return;
+
+		const float HalfHeight = Shared.Config->CapsuleHalfHeight;
+		const float Radius     = Shared.Config->CapsuleRadius;
+
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			FVector Location, Center, UpDir;
+			if (const ALNPCharacterBase* Enemy = Cast<ALNPCharacterBase>(ActorFrags[i].Get()))
+			{
+				Location = Enemy->GetActorLocation();
+				UpDir = (-Location).GetSafeNormal();
+				Center = Location;
+			}
+			else
+			{
+				Location = Transforms[i].GetTransform().GetLocation();
+				UpDir = (-Location).GetSafeNormal();
+				Center = Location + UpDir * HalfHeight;
+			}
+
+			const FQuat CapsuleRot = FQuat::FindBetweenNormals(FVector::UpVector, UpDir);
+
+			DrawDebugCapsule(World, Center, HalfHeight, Radius, CapsuleRot, FColor::Red, false, -1.f);
+		}
+	});
 }
 #else
 ULNPProjectileDebugDrawProcessor::ULNPProjectileDebugDrawProcessor()
-	: ProjectileQuery(*this), PlayerQuery(*this)
+	: ProjectileQuery(*this), PlayerQuery(*this), EnemyQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = false;
 }
