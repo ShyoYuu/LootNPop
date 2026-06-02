@@ -85,19 +85,37 @@ void ALNPCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 초기 상태: 맨손 태그 부여 + 맨손 AnimLayer 연결
-	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
-	{
-		CurrentWeaponTag  = TAG_Weapon_Unarmed;
-		CurrentAimModeTag = TAG_AimMode_None;
-		ASC->AddLooseGameplayTag(CurrentWeaponTag);
-		ASC->AddLooseGameplayTag(CurrentAimModeTag);
-	}
-
 	if (UnarmedAnimLayerClass)
 	{
 		AnimSourceMesh->LinkAnimClassLayers(UnarmedAnimLayerClass);
 	}
+}
+
+void ALNPCharacterBase::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	InitAbilitySystem();
+}
+
+void ALNPCharacterBase::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+	InitAbilitySystem();
+}
+
+void ALNPCharacterBase::InitAbilitySystem()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC)
+		return;
+
+	CurrentWeaponTag  = TAG_Weapon_Unarmed;
+	CurrentAimModeTag = TAG_AimMode_None;
+	ASC->AddLooseGameplayTag(CurrentWeaponTag);
+	ASC->AddLooseGameplayTag(CurrentAimModeTag);
+
+	if (InputHandlerComponent)
+		InputHandlerComponent->CacheASC(ASC);
 }
 
 void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
@@ -110,8 +128,6 @@ void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
 		ASC->RemoveLooseGameplayTag(CurrentWeaponTag);
 		ASC->RemoveLooseGameplayTag(CurrentAimModeTag);
 	}
-
-	ActiveWeaponData = WeaponData;
 
 	// 신규 무기 태그 결정
 	const FGameplayTag NewWeaponTag = (WeaponData && WeaponData->WeaponTag.IsValid())

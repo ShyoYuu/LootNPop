@@ -6,6 +6,8 @@
 #include "GameFramework/PlayerController.h"
 #include "LNPPlayerController.generated.h"
 
+class ULNPHudWidget;
+
 UCLASS()
 class LOOTNPOP_API ALNPPlayerController : public APlayerController
 {
@@ -14,6 +16,7 @@ class LOOTNPOP_API ALNPPlayerController : public APlayerController
 public:
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
 
 	/** Blueprint에서 Override하여 로딩 스크린 Widget을 표시한다 */
 	UFUNCTION(BlueprintImplementableEvent, Category = "LNP|UI")
@@ -33,6 +36,13 @@ protected:
 
 private:
 	bool bLoadingComplete = false;
+
+	/** BP 서브클래스에서 지정할 HUD 위젯 클래스. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|HUD")
+	TSubclassOf<ULNPHudWidget> HudWidgetClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<ULNPHudWidget> HudWidget;
 
 public:
 	/** 서버: ServerPhase == Complete 확인. 클라이언트: bLoadingComplete 확인. */

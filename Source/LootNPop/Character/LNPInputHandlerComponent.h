@@ -24,6 +24,7 @@ public:
 	ULNPInputHandlerComponent();
 
 	void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent);
+	void CacheASC(UAbilitySystemComponent* InASC);
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
@@ -129,7 +130,7 @@ private:
 	void OnDashReleased(const FInputActionValue& Value);
 	void OnInteractStarted(const FInputActionValue& Value);
 	void OnInteractReleased(const FInputActionValue& Value);
-	void OnAttackStarted(const FInputActionValue& Value);
+	void OnAttackTriggered(const FInputActionValue& Value);
 	void OnAttackReleased(const FInputActionValue& Value);
 	void OnGuardStarted(const FInputActionValue& Value);
 	void OnGuardReleased(const FInputActionValue& Value);

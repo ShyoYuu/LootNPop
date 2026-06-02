@@ -2,7 +2,9 @@
 
 #include "Animation/LNPAnimInstance.h"
 #include "Character/LNPCharacterBase.h"
+#include "Character/LNPPlayerCharacter.h"
 #include "Movement/LNPCharacterMoverComponent.h"
+#include "LootNPop.h"
 
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "KismetAnimationLibrary.h"
@@ -69,4 +71,10 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	// 5. 캐릭터가 스트레이핑해야 하는지 판단
 	// 이동 방향으로 회전하지 않으면 스트레이핑 중으로 간주 (예: 타겟을 보며 이동).
 	bShouldStrafe = !OwningMoverCharacter->GetFaceMoveDirection();
+
+	// 6. Aim Offset용 Yaw/Pitch 계산
+	// GetBaseAimRotation()은 플레이어의 경우 Control Rotation, AI는 별도 로직을 따름.
+	FRotator BaseAimRotation = OwningMoverCharacter->GetBaseAimRotation();
+	AimPitch = FMath::ClampAngle(BaseAimRotation.Pitch, -90.0f, 90.0f);
+	AimYaw = FRotator::NormalizeAxis(BaseAimRotation.Yaw - OwningMoverCharacter->GetActorRotation().Yaw);
 }

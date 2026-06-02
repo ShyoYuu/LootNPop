@@ -6,12 +6,15 @@
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "Character/LNPCharacterBase.h"
 #include "Enemy/LNPEnemyCharacter.h"
+#include "LootNPop.h"
 
 #include "MassEntitySubsystem.h"
 #include "MassEntityManager.h"
 #include "MassAgentComponent.h"
 #include "MassCommonFragments.h"
 #include "MassCommands.h"
+#include "GameFramework/PlayerController.h"
+
 
 void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 	const FGameplayAbilityActorInfo* ActorInfo,
@@ -86,19 +89,45 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 	FMassArchetypeSharedFragmentValues SharedValues;
 	SharedValues.Add(SharedStruct);
 
-	const FVector Direction = Character->GetActorForwardVector();
-
-	// --- Entity별 상태 ---
-	// 기준 위치: Muzzle 소켓 (없으면 ActorLocation 폴백)
+	// --- 스폰 위치: Muzzle 소켓 (없으면 ActorLocation 폴백) ---
 	static const FName MuzzleSocket(TEXT("Muzzle"));
 	const USkeletalMeshComponent* WeaponMesh = Character->GetWeaponMeshComponent();
 	const FVector BasePos = (WeaponMesh && WeaponMesh->DoesSocketExist(MuzzleSocket))
 		? WeaponMesh->GetSocketLocation(MuzzleSocket)
 		: Character->GetActorLocation();
 
-	// MuzzleOffset을 액터 로컬 좌표계 기준으로 월드 공간에 적용
 	const FVector SpawnPos = BasePos + Character->GetActorTransform().TransformVector(WeaponDef->MuzzleOffset);
 
+	// --- 발사 방향: 카메라 레이트레이스 → 총열 보정 ---
+	// 에임 타겟이 이 거리(cm)보다 가까우면 오차가 커지므로 액터 포워드로 폴백
+	static constexpr float MinAimDistanceSq = 150.f * 150.f;
+	static constexpr float AimTraceDistance = 50000.f;
+
+	FVector Direction = Character->GetActorForwardVector();
+
+	if (const APlayerController* PC = Cast<APlayerController>(Character->GetController()))
+	{
+		FVector CamPos;
+		FRotator CamRot;
+		PC->GetPlayerViewPoint(CamPos, CamRot);
+
+		const FVector TraceEnd = CamPos + CamRot.Vector() * AimTraceDistance;
+
+		FHitResult Hit;
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(Character);
+
+		const FVector AimTarget = World->LineTraceSingleByChannel(Hit, CamPos, TraceEnd, ECC_Visibility, QueryParams)
+			? Hit.ImpactPoint
+			: TraceEnd;
+
+		if (MinAimDistanceSq <= FVector::DistSquared(SpawnPos, AimTarget))
+		{
+			Direction = (AimTarget - SpawnPos).GetSafeNormal();
+		}
+	}
+
+	// --- Entity별 상태 ---
 	FMassEntityHandle InstigatorHandle;
 	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())
 		InstigatorHandle = AgentComp->GetEntityHandle();

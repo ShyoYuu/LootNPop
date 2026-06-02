@@ -5,9 +5,11 @@
 #include "Item/LNPEquipmentComponent.h"
 #include "Item/LNPItemInstance.h"
 #include "Item/LNPWeaponData.h"
+#include "Interaction/LNPInteractionComponent.h"
+#include "LootNPop.h"
+
 #include "AbilitySystemComponent.h"
 #include "GameFramework/GameplayCameraComponent.h"
-#include "Interaction/LNPInteractionComponent.h"
 
 ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -45,6 +47,19 @@ void ALNPPlayerCharacter::OnRep_PlayerState()
 
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 		PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, this);
+}
+
+void ALNPPlayerCharacter::EquipWeapon(ULNPWeaponData* WeaponData)
+{
+	Super::EquipWeapon(WeaponData);
+
+	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
+	{
+		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
+		{
+			EqComp->EquipWeapon(WeaponData);
+		}
+	}
 }
 
 const ULNPWeaponData* ALNPPlayerCharacter::GetActiveWeaponDef() const

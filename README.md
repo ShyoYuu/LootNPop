@@ -28,12 +28,13 @@
 - **GAS (Gameplay Ability System)**: Ability 및 상태 관리
 - **Enhanced Input**: 플레이어 Input Action 및 Runtime Input Context 관리
 - **Mover 2.0**: 플레이어 캐릭터, NPC 캐릭터의 Movement 및 Movement 동기화, 커스텀 중력
-- **Motion Matching**: 플레이어 캐릭터, NPC 캐릭터의 Locomotion
-- **MassEntity**: NPC 캐릭터와 상호작용 오브젝트는 MassEntity(LowLOD) - Actor(HighLOD) 하이브리드, HitDetection용 충돌체는 Pure MassEntity
+- **Motion Matching + Linked Anim Layers**: 플레이어 캐릭터, NPC 캐릭터의 Locomotion
+- **MassEntity**: NPC 캐릭터는 MassEntity(LowLOD) - Actor(HighLOD) 하이브리드, HitDetection용 충돌체는 Pure MassEntity
 - **StateTree**: NPC 캐릭터 행동 제어
 - **Gameplay Camera**: 플레이어 카메라를 Gameplay Camera로 적용
 - **PCG (Procedural Content Generation)**: 배경 프랍 배치
-- **Geometry Script**: 지형용 Static Mesh 생성
+- **Geometry Script (Dynamic Mesh Component)**: 지형용 Static Mesh 생성
+- **MVVM Plugin**: 플레이어 HUD UI
 
 ---
 

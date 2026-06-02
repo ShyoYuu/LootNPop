@@ -71,4 +71,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bIsSprinting;
+
+	/** Aim Offset: 카메라 Yaw - 캐릭터 Yaw 차이 (-180 ~ 180) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|AimOffset")
+	float AimYaw = 0.0f;
+
+	/** Aim Offset: 카메라 Pitch (-90 ~ 90) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|AimOffset")
+	float AimPitch = 0.0f;
 };

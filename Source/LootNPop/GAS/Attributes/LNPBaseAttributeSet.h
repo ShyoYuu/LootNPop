@@ -50,4 +50,9 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes")
 	FGameplayAttributeData AttackMultiplier;
 	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, AttackMultiplier)
+
+	/** Meta 어트리뷰트: GE가 전달한 원시 피해량. PostGameplayEffectExecute에서 방어력 적용 후 즉시 0으로 초기화. */
+	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes")
+	FGameplayAttributeData IncomingDamage;
+	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, IncomingDamage)
 };

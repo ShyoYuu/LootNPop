@@ -42,7 +42,7 @@ public:
 	void SetGravity(const ELNPGravityType NewType, const FVector& NewDirectionOrOrigin);
 
 	/** 현재 중력 타입과 Owner 위치에 기반하여 계산된 Up 방향을 반환한다 */
-	UFUNCTION(BlueprintPure, Category = "LNP|Gravity")
+	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	FVector GetUpDirection() const;
 
 	/** 다음 tick에 처리될 시선 입력 델타 */
