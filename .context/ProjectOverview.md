@@ -18,7 +18,7 @@
 | **AI/Entity** | MassEntity + StateTree | `ULNPEnemyMovementProcessor`, `ULNPTargetingSubsystem` |
 | **Combat** | GAS + MassEntity | `ULNPEquipmentComponent`, `ULNPAbility_RangedAttack`, `ULNPProjectileHitDetectionProcessor` |
 | **Networking** | Iris Replication System | (구현 예정) |
-| **UI** | MVVM Plugin | (구현 예정) |
+| **UI** | MVVM Plugin | `ULNPHudViewModel`, `ULNPHudWidget` |
 
 ---
 
@@ -94,6 +94,7 @@
 | [Enemy NPC StateTree 기술 설계](TechDesign_EnemyNPC_StateTree.md) | StateTree 상태 계층 (Combat/Alert/Idle), Evaluator 및 Task C++ 구성 |
 | [LootPod System 게임 기획](GameDesign_LootPod.md) | 루팅 흐름, 취소 조건, 보상 유형 |
 | [LootPod System 기술 설계](TechDesign_LootPod.md) | MassEntity 구성, SmartObject 연동, 게이지·인터럽션·보상 미구현 상세 |
+| [HUD 기술 설계](TechDesign_HUD.md) | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, Blueprint 바인딩 설정 |
 | [HitDetection 기술 설계](TechDesign_HitDetection.md) | 근접 Swept Volume·원거리 Line Segment 판정, 공간 쿼리 최적화 (원거리 구현 완료, 근접 미구현) |
 | [ParrySystem 게임 기획](GameDesign_ParrySystem.md) | 패링 성공 조건, 투사체 타입별 반사, 플레이어 경험 의도 |
 | [ParrySystem 기술 설계](TechDesign_ParrySystem.md) | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 방안 |

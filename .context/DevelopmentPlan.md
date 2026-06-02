@@ -61,8 +61,12 @@
     - `UWidgetComponent` (World Space, Transparent 블렌드) + `ULNPHpBarWidget` (BindWidget 기반).
     - GAS Health 속성 변경 델리게이트로 실시간 갱신. 스폰 시 `SyncFromEntity`에서 초기값 주입.
     - Blueprint 서브클래스(`WBP_LNPHpBar`)에 `UProgressBar` 이름 `HpBar`로 배치 필요.
-- [ ] **플레이어 HUD HP Bar**
-    - 자신의 HP 바 표시 (MVVM 기반).
+- [x] **플레이어 HUD** (MVVM 기반)
+    - `ULNPHudViewModel`(FieldNotify): ASC 델리게이트로 `HealthPercent`, `bIsFreeAiming` 자동 갱신.
+    - `ULNPHudWidget`: ViewModel 생성·주입(`UMVVMView::SetViewModel`)·해제 담당.
+    - `ALNPPlayerController`: `BeginPlay`에서 위젯 생성, `OnPossess`/`OnUnPossess`에서 ViewModel 초기화·해제.
+    - 조준점: `TAG_AimMode_FreeAim` 활성 시에만 표시 (bIsFreeAiming → Blueprint Function Binding).
+    - 설계 명세: [TechDesign_HUD.md](TechDesign_HUD.md)
 - [ ] **근접 HitDetection** (AnimNotify 기반)
     - 칼날 Swept Volume vs. 타겟 캡슐 최단 거리.
     - 피격 시 `FLNPPlayerLootingTag` 제거 → LootPod 루팅 취소 연동.
@@ -105,6 +109,6 @@
 
 ## Phase 6: Polish (최종 폴리싱)
 
-- [ ] **MVVM 기반 HUD 및 반응형 UI**
+- [ ] **HUD 추가 요소** (인벤토리, 미니맵, 점수 등)
 - [ ] **VFX(Niagara) 및 사운드 통합**
 - [ ] **게임플레이 밸런싱**

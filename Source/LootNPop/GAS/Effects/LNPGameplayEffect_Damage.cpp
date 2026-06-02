@@ -10,7 +10,7 @@ ULNPGameplayEffect_Damage::ULNPGameplayEffect_Damage()
 	DurationPolicy = EGameplayEffectDurationType::Instant;
 
 	FGameplayModifierInfo& Mod = Modifiers.AddDefaulted_GetRef();
-	Mod.Attribute  = ULNPBaseAttributeSet::GetHealthAttribute();
+	Mod.Attribute  = ULNPBaseAttributeSet::GetIncomingDamageAttribute();
 	Mod.ModifierOp = EGameplayModOp::Additive;
 	FSetByCallerFloat SetByCaller;
 	SetByCaller.DataTag       = TAG_GE_Data_Damage;

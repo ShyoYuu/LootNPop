@@ -34,11 +34,11 @@ void ULNPInputHandlerComponent::BeginPlay()
 
 	ActiveSkillPressed.SetNum(ActiveSkillActions.Num());
 	ActiveSkillJustPressed.SetNum(ActiveSkillActions.Num());
+}
 
-	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(GetOwner()))
-	{
-		ASC = ASI->GetAbilitySystemComponent();
-	}
+void ULNPInputHandlerComponent::CacheASC(UAbilitySystemComponent* InASC)
+{
+	ASC = InASC;
 }
 
 void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -51,6 +51,9 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	}
 	CachedLookInput = FRotator::ZeroRotator;
 
+	
+	// --- Buffering for jump and dash ---
+	// Cooldown이 끝나기 직전(0.05초)에 Input이 들어왔다면 Cooldown이 끝나자마자 실행될 수 있도록 버퍼링
 	if (bIsDashBuffered)
 	{
 		const float Now = GetWorld()->GetTimeSeconds();
@@ -69,6 +72,7 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		if (!Character || 0.05f < (GetWorld()->GetTimeSeconds() - AttackBufferTime) || Character->TryActivateAttack())
 			bIsAttackBuffered = false;
 	}
+	// ---
 }
 
 void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -95,7 +99,7 @@ void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* Playe
 		EIC->BindAction(DashAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnDashReleased);
 		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnInteractStarted);
 		EIC->BindAction(InteractAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnInteractReleased);
-		EIC->BindAction(AttackAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnAttackStarted);
+		EIC->BindAction(AttackAction, ETriggerEvent::Triggered, this, &ULNPInputHandlerComponent::OnAttackTriggered);
 		EIC->BindAction(AttackAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnAttackReleased);
 		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnGuardStarted);
 		EIC->BindAction(GuardAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnGuardReleased);
@@ -314,16 +318,27 @@ void ULNPInputHandlerComponent::OnInteractReleased(const FInputActionValue& Valu
 	bIsInteractJustPressed = false;
 }
 
-void ULNPInputHandlerComponent::OnAttackStarted(const FInputActionValue& Value)
+void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value)
 {
 	bIsAttackJustPressed = !bIsAttackPressed;
 	bIsAttackPressed = true;
 
-	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
-	if (!Character || !Character->TryActivateAttack())
+	const bool bIsRanged = ASC && ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim);
+	if (bIsRanged)
 	{
-		bIsAttackBuffered = true;
-		AttackBufferTime = GetWorld()->GetTimeSeconds();
+		// 원거리(총기류) 무기는 Input Hold로 연사 가능. 일단은 TAG_AimMode_FreeAim로 분기
+		// GAS 쿨다운(ULNPGameplayEffect_Cooldown)이 연사 속도를 제어하므로 매 프레임 호출해도 안전
+		if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner()))
+			Character->TryActivateAttack();
+	}
+	else if (bIsAttackJustPressed)
+	{
+		ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
+		if (!Character || !Character->TryActivateAttack())
+		{
+			bIsAttackBuffered = true;
+			AttackBufferTime = GetWorld()->GetTimeSeconds();
+		}
 	}
 }
 
@@ -363,9 +378,9 @@ void ULNPInputHandlerComponent::OnActiveSkillStarted(const FInputActionValue& Va
 	ActiveSkillPressed[SlotIndex] = true;
 
 	// 무기 장착 테스트: TestWeaponList 슬롯 직접 매핑
-	// SlotIndex 0 = TestWeaponList[0] (예: LongSword)
-	// SlotIndex 1 = TestWeaponList[1] (예: Pistol)
-	// SlotIndex 2 = TestWeaponList[2] (예: Rifle)
+	// SlotIndex 0 = TestWeaponList[0] (예: Pistol)
+	// SlotIndex 1 = TestWeaponList[1] (예: Rifle)
+	// SlotIndex 2 = TestWeaponList[2] (예: LongSword)
 	// 슬롯이 TestWeaponList 범위 밖이면 맨손으로 전환
 	if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner()))
 	{

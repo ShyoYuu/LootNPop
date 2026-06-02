@@ -3,6 +3,7 @@
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 
 #include "GameplayEffectExtension.h"
+#include "GAS/LNPDamageFormula.h"
 
 ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 {
@@ -13,6 +14,7 @@ ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 	InitDefensePower(0.0f);
 	InitMoveSpeed(1.0f);
 	InitAttackMultiplier(1.0f);
+	InitIncomingDamage(0.f);
 }
 
 void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -29,6 +31,15 @@ void ULNPBaseAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCal
 {
 	Super::PostGameplayEffectExecute(Data);
 
-	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
-		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
+	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
+	{
+		const float RawDamage = GetIncomingDamage();
+		SetIncomingDamage(0.f);
+		const float FinalDamage = LNPDamage::ApplyDefense(RawDamage, GetDefensePower());
+		SetHealth(FMath::Clamp(GetHealth() - FinalDamage, 0.f, GetMaxHealth()));
+	}
+	else if (Data.EvaluatedData.Attribute == GetHealthAttribute())
+	{
+		SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
+	}
 }

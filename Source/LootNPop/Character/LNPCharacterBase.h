@@ -52,7 +52,7 @@ public:
 	virtual bool TryActivateAttack();
 
 	/** 이 캐릭터에 현재 장착/설정된 무기 데이터를 반환한다. */
-	virtual const ULNPWeaponData* GetActiveWeaponDef() const { return ActiveWeaponData; }
+	virtual const ULNPWeaponData* GetActiveWeaponDef() const { return nullptr; }
 
 	/**
 	 * 무기를 장착한다. nullptr을 전달하면 맨손 상태로 전환.
@@ -60,7 +60,7 @@ public:
 	 * - VisualMesh에 서브 AnimBP 레이어 연결
 	 * - bFaceMoveDirection 자동 설정
 	 */
-	void EquipWeapon(ULNPWeaponData* WeaponData);
+	virtual void EquipWeapon(ULNPWeaponData* WeaponData);
 
 	/** 테스트용: SlotIndex로 TestWeaponList에서 무기 장착. 범위 초과 시 맨손. */
 	void EquipTestWeapon(int32 SlotIndex);
@@ -68,6 +68,8 @@ public:
 protected:
 	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnRep_PlayerState() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
@@ -95,10 +97,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Animation")
 	TSubclassOf<UAnimInstance> UnarmedAnimLayerClass;
 
-	/** 현재 장착 중인 무기 데이터. nullptr = 맨손. */
-	UPROPERTY(VisibleInstanceOnly, Category = "LNP|Weapon")
-	TObjectPtr<ULNPWeaponData> ActiveWeaponData;
-
 	/** 무기 스켈레탈 메시를 표시하는 컴포넌트. EquipWeapon()이 메시와 소켓을 동적으로 교체. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Weapon", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USkeletalMeshComponent> WeaponMeshComponent;
@@ -108,6 +106,8 @@ protected:
 	TArray<TObjectPtr<ULNPWeaponData>> TestWeaponList;
 
 private:
+	void InitAbilitySystem();
+
 	FGameplayTag CurrentWeaponTag;
 	FGameplayTag CurrentAimModeTag;
 };

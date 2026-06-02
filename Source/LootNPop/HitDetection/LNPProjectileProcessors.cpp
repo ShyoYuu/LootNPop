@@ -11,6 +11,7 @@
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
+#include "GAS/LNPDamageFormula.h"
 #include "Config/LNPSettings.h"
 #include "LootNPop.h"
 
@@ -66,7 +67,7 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 			if (!Spec.IsValid())
 				continue;
 
-			Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Damage, -Entry.Damage);
+			Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Damage, Entry.Damage);
 			ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 
 			const float HpAfter = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute());
@@ -336,8 +337,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						else
 						{
 							const float HpBefore = Enemy.Fragment->Health;
-							Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - Shared.Damage);
-							//UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Shared.Damage);
+							Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(Shared.Damage, Enemy.Fragment->Defense));
+							UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Shared.Damage);
 						}
 					}
 

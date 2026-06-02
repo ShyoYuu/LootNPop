@@ -5,14 +5,15 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "Movement/LNPCharacterMoverComponent.h"
-
+#include "Gravity/LNPPawnGravityComponent.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
+#include "UI/LNPHpBarWidget.h"
+
 #include "AbilitySystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "DefaultMovementSet/LayeredMoves/LaunchMove.h"
 #include "Components/WidgetComponent.h"
-#include "UI/LNPHpBarWidget.h"
 
 ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -115,11 +116,16 @@ void ALNPEnemyCharacter::SyncFromEntity(FMassEntityHandle InEntityHandle, float 
 
 void ALNPEnemyCharacter::TriggerRagdoll()
 {
+	if (AnimSourceMesh)
+		AnimSourceMesh->SetActive(false);
 	if (VisualMesh)
 	{
 		VisualMesh->SetAllBodiesSimulatePhysics(true);
 		VisualMesh->SetCollisionProfileName(TEXT("Ragdoll"));
 		VisualMesh->WakeAllRigidBodies();
+
+		FVector UpDir = GravityComponent ? GravityComponent->GetUpDirection() : FVector::UpVector;
+		VisualMesh->AddImpulse(UpDir * 50000.f, NAME_None, true);
 	}
 	if (CapsuleComponent)
 		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);

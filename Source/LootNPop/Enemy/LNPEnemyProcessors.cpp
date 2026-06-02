@@ -726,7 +726,7 @@ void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 			if (Enemies[i].Health > 0.f)
 				continue;
 
-			Enemies[i].DeathCountdown = 2.5f;
+			Enemies[i].DeathCountdown = 1.0f;
 			DyingEntities.Add(Ctx.GetEntity(i));
 
 			if (!ActorFrags.IsEmpty())

@@ -1,9 +1,11 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Player/LNPPlayerController.h"
+#include "UI/LNPHudWidget.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameMode/LNPGameMode.h"
 #include "GameMode/LNPGameState.h"
+#include "Player/LNPPlayerState.h"
 
 bool ALNPPlayerController::IsLoadingComplete() const
 {
@@ -18,6 +20,20 @@ bool ALNPPlayerController::IsLoadingComplete() const
 void ALNPPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
+
+	if (!IsLocalController() || !HudWidget)
+		return;
+
+	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
+		HudWidget->InitViewModel(PS->GetAbilitySystemComponent());
+}
+
+void ALNPPlayerController::OnUnPossess()
+{
+	if (HudWidget)
+		HudWidget->DeinitViewModel();
+
+	Super::OnUnPossess();
 }
 
 void ALNPPlayerController::BeginPlay()
@@ -28,6 +44,13 @@ void ALNPPlayerController::BeginPlay()
 		return;
 
 	ShowLoadingScreen();
+
+	if (HudWidgetClass)
+	{
+		HudWidget = CreateWidget<ULNPHudWidget>(this, HudWidgetClass);
+		if (HudWidget)
+			HudWidget->AddToViewport();
+	}
 
 	UWorld* World = GetWorld();
 	check(World);

@@ -8,7 +8,9 @@
 > - `LNPAbility_RangedAttack`: `Muzzle` 소켓 기반 프로젝타일 스폰 위치 구현 완료.
 > - `ALI_WeaponStyles`, `ABP_Sub_*` 4종 생성 완료. `ABP_BaseCharacter` Linked Anim Layer 연결 완료.
 > - `ABP_Sub_Pistol`·`ABP_Sub_Rifle` spine_01 이상 파지 Idle 포즈 블렌딩 완료. `ABP_Sub_Unarmed`·`ABP_Sub_LongSword` 베이스 포즈 통과.
-> - 미구현: `ABP_BaseCharacter` Slot·Pose History, AO/Look At, `Chooser_WeaponLayers`, GA `ActivationOwnedTags`.
+> - `ULNPAnimInstance`: `AimYaw`(`FRotator::NormalizeAxis` 기반)·`AimPitch` 계산 구현 완료.
+> - `ABP_Sub_Pistol`·`ABP_Sub_Rifle`: `AO_Pistol`·`AO_Rifle` Aim Offset 적용 완료 (테스트 확인).
+> - 미구현: `ABP_BaseCharacter` Slot·Pose History, Look At, GA `ActivationOwnedTags`.
 
 ---
 
@@ -141,21 +143,9 @@ LockOn 전환은 `DefaultAimMode == None`일 때만 허용 (코드 하드코딩)
 
 ---
 
-## 5. Chooser 테이블
+## 5. 오버레이 상세
 
-### 5.1 Chooser_WeaponLayers
-
-- **입력:** `LNP.Weapon.*` 태그
-- **출력:** Anim Layer Interface 클래스 (서브 AnimBP)
-
-| 입력 태그 | 출력 서브 AnimBP |
-|-----------|----------------|
-| `LNP.Weapon.Unarmed` | `ABP_Sub_Unarmed` |
-| `LNP.Weapon.Pistol` | `ABP_Sub_Pistol` |
-| `LNP.Weapon.Rifle` | `ABP_Sub_Rifle` |
-| `LNP.Weapon.LongSword` | `ABP_Sub_LongSword` |
-
-### 5.2 원거리 무기 Aim Offset (서브 ABP 내부)
+### 5.1 원거리 무기 Aim Offset (서브 ABP 내부)
 
 Aim Offset은 메인 ABP에 없고, **원거리 무기 서브 ABP의 `ApplyWeaponStyleOverlay` 구현 내부**에서 직접 적용한다.
 
@@ -164,9 +154,9 @@ Aim Offset은 메인 ABP에 없고, **원거리 무기 서브 ABP의 `ApplyWeapo
 | `ABP_Sub_Pistol` | `AO_Pistol` | 1.0 | spine_01 이상 |
 | `ABP_Sub_Rifle` | `AO_Rifle` | 1.0 | spine_01 이상 |
 
-> `AimYaw`·`AimPitch` 값은 `ULNPAnimInstance`에서 계산하여 서브 ABP에 공급한다 (미구현).
+> `AimYaw`·`AimPitch` 값은 `ULNPAnimInstance`에서 계산하여 서브 ABP에 공급한다 (구현 완료).
 
-### 5.3 근접 무기 락온 Look At (ABP_Sub_LongSword 내부)
+### 5.2 근접 무기 락온 Look At (ABP_Sub_LongSword 내부)
 
 롱소드 락온 모드에서는 Aim Offset 대신 **Bone Control: Look At** 노드로 처리한다.
 `ABP_Sub_LongSword`의 `ApplyWeaponStyleOverlay` 내부에서 `LNP.AimMode.LockOn` 태그 보유 여부를 확인해 활성화.
@@ -327,9 +317,9 @@ WeaponMeshComponent->AttachToComponent(AnimSourceMesh, ..., WeaponData->AttachSo
 - [x] `ABP_Sub_LongSword` 생성: 베이스 포즈 통과 (Stance 오버레이·Look At 미구현)
 - [x] `ABP_Sub_Pistol` 생성: spine_01 이상 파지 Idle 포즈 블렌딩 (`AO_Pistol` 미구현)
 - [x] `ABP_Sub_Rifle` 생성: spine_01 이상 파지 Idle 포즈 블렌딩 (`AO_Rifle` 미구현)
-- [ ] `ABP_Sub_Pistol` / `ABP_Sub_Rifle`: Aim Offset (`AO_Pistol`, `AO_Rifle`) 추가
+- [x] `ABP_Sub_Pistol` / `ABP_Sub_Rifle`: Aim Offset (`AO_Pistol`, `AO_Rifle`) 추가
 - [ ] `ABP_Sub_LongSword`: 롱소드 Stance 오버레이 추가; 락온 시 neck_01·head Look At 적용
-- [ ] `Chooser_WeaponLayers` 테이블 생성 및 `LNP.Weapon.*` 태그 → 서브 AnimBP 클래스 매핑
+
 
 ### Phase 2 — C++ 런타임 제어 (✅ 완료)
 - [x] `LNPGameplayTags.h/cpp`: `LNP.*` 네이티브 태그 정의 (10개)
