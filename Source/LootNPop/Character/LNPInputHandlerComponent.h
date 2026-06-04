@@ -34,6 +34,8 @@ public:
 	bool GetFaceMoveDirection() const { return bFaceMoveDirection; }
 	void SetFaceMoveDirection(bool bValue) { bFaceMoveDirection = bValue; }
 
+	bool HasMovementInput() const { return !CachedMoveInputIntent.IsNearlyZero(); }
+
 protected:
 	virtual void BeginPlay() override;
 

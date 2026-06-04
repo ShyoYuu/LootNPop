@@ -1,6 +1,6 @@
 # HitDetection 시스템 기술 설계
 
-> **구현 상태:** 미구현. Mass 프로세서 구조와 인터페이스 설계 완료. `Phase 3` 작업 대상.
+> **구현 상태:** **근거리 판정 구현 완료 (Phase 3).** 원거리 판정도 구현 완료. 공간 쿼리 최적화·패링 연계는 미구현.
 
 ---
 
@@ -16,26 +16,73 @@
 
 ### 2.1 데이터 구조
 
-**`FLNPMeleeAttackFragment`**
+**`FLNPMeleeAttackFragment`** (`HitDetection/LNPMeleeMassTypes.h`)
 ```cpp
-FVector SwordTipPrev;   // 이전 프레임 칼끝 위치
-FVector SwordRootPrev;  // 이전 프레임 칼밑 위치
-FVector SwordTipCurr;   // 현재 프레임 칼끝 위치
-FVector SwordRootCurr;  // 현재 프레임 칼밑 위치
-float   HitRadiusSq;    // 판정 반경 제곱
+FVector SwordTipPrev;    // 이전 프레임 칼끝 위치
+FVector SwordTipCurr;    // 현재 프레임 칼끝 위치
+FVector SwordRootPrev;   // 이전 프레임 칼밑 위치
+FVector SwordRootCurr;   // 현재 프레임 칼밑 위치
+float   HitRadiusSq;     // 칼날 판정 반경² (SwordRadius = sqrt(HitRadiusSq))
+float   Damage;          // 최종 피해량 (AttackPower + WeaponBonus) * Multiplier
+UClass* DamageEffectClass; // TSubclassOf<UGameplayEffect> — trivially copyable을 위해 UClass*로 저장
+FMassEntityHandle InstigatorEntity;
+ELNPInstigatorTeam InstigatorTeam;
+// 중복 피격 방지 (공격 한 번에 최대 8개 타겟까지 기록)
+static constexpr int32 MaxAlreadyHit = 8;
+FMassEntityHandle AlreadyHit[MaxAlreadyHit];
+int32             AlreadyHitCount = 0;
 ```
+
+> **주의:** `TSubclassOf<UGameplayEffect>`는 trivially copyable이 아니어서 `FMassFragment` 제약 위반. `UClass*`로 저장하고 Processor에서 `TSubclassOf<UGameplayEffect>(DamageEffectClass)`로 복원.
+
+**`FLNPMeleeActiveTag`** — 현재 미사용. `FMassCommandBuildEntity` + `FMassCommandAddTag`를 동일 배치에서 디퍼드하면 아키타입 전환 타이밍 문제로 쿼리가 엔티티를 인식하지 못함. Fragment 존재 자체가 활성 윈도우를 의미하는 것으로 대체.
 
 ### 2.2 판정 알고리즘
 
-이전/현재 프레임의 칼날 위치가 쓸고 지나간 사각형 영역(Swept Area)과 타겟의 반구 캡슐 중심점 사이의 최단 거리를 계산.
+이전/현재 프레임 칼날이 쓸고 지나간 Quad면(Swept Area)과 타겟 **캡슐 축 선분** 사이의 최단 거리를 계산.
 
-1. 사각형을 두 개의 삼각형으로 분해 (`{Prev_Root, Curr_Root, Curr_Tip}`, `{Prev_Root, Curr_Tip, Prev_Tip}`)
-2. 각 삼각형과 타겟 중심점 사이의 최단 거리 계산 (`ClosestPointOnTriangle`)
-3. `MinDist² <= HitRadiusSq` → 피격
+```
+hit 조건: min_dist(SweptQuad, CapsuleSegment) <= SwordRadius + CapsuleRadius
+```
 
-### 2.3 본 위치 업데이트
+**Quad → 삼각형 2개 분해:**
+- T1 = `{Prev_Root, Curr_Root, Curr_Tip}`
+- T2 = `{Prev_Root, Curr_Tip, Prev_Tip}`
 
-`AnimNotifyState` (공격 애니메이션 활성 윈도우)가 매 프레임 해당 본(Bone)의 월드 위치를 `FLNPMeleeAttackFragment`에 기록.
+**삼각형 vs 선분 최단 거리 (`TriangleSegmentDistSq`):**
+1. Möller–Trumbore 알고리즘으로 선분이 삼각형 내부를 관통하면 → 거리 = 0
+2. 관통하지 않으면: min( 선분 끝점 → 삼각형, 삼각형 3변 → 선분 ) = 5회 비교
+
+**캡슐 축 선분:**
+```
+CylHalfLen = CapsuleHalfHeight - CapsuleRadius
+CapsuleBot = CapsuleCenter - UpDir * CylHalfLen   // 하단 구체 중심
+CapsuleTop = CapsuleCenter + UpDir * CylHalfLen   // 상단 구체 중심
+UpDir = (-EntityLocation).GetSafeNormal()          // 구형 내벽 세계: 머리 방향 = 구 중심 방향
+```
+
+**첫 프레임 축퇴(degenerate) 처리:**
+- `SwordTipPrev == SwordTipCurr` (Prev==Curr)이면 Quad가 축퇴됨
+- 이 경우 `SegmentDistToSegment(현재 칼날, CapsuleSegment)`로 직접 계산
+
+### 2.3 구현 파일
+
+| 파일 | 역할 |
+|:---|:---|
+| `HitDetection/LNPMeleeMassTypes.h` | `FLNPMeleeAttackFragment` + `FLNPMeleeActiveTag` 정의 |
+| `GAS/Abilities/LNPAbility_MeleeAttack.h/.cpp` | `CommitAbility` → `AttackMontage` 재생 → 즉시 `EndAbility`. 쿨다운 `FireCooldown` per-spec 주입 |
+| `Animation/ANS_LNPMeleeHitWindow.h/.cpp` | AnimNotifyState. `NotifyBegin`: Mass 엔티티 생성(Deferred). `NotifyTick`: 무기 메시 본 위치 읽어 Fragment 갱신. `NotifyEnd`: 엔티티 파괴(Deferred) |
+| `HitDetection/LNPMeleeProcessors.h/.cpp` | `ULNPMeleeHitDetectionProcessor` (StartPhysics). 에디터 전용 `ULNPMeleeDebugDrawProcessor` |
+
+### 2.4 본 위치 업데이트
+
+`UANS_LNPMeleeHitWindow`가 매 프레임 무기 메시(`GetWeaponMesh()`)의 지정 본 위치를 읽어 `FLNPMeleeAttackFragment`의 Prev/Curr 필드를 갱신한다.
+
+- `BoneTipName` (기본값 `"sword_tip"`): 칼끝 본
+- `BoneRootName` (기본값 `"sword_root"`): 칼밑 본
+- `HitRadiusOverride`: 0이면 `WeaponData->ProjectileHitRadius` 사용
+
+엔티티는 `NotifyBegin`에서 `FMassCommandBuildEntity`로 생성(Deferred), `NotifyEnd`에서 `FMassCommandDestroyEntities`로 파괴(Deferred). 엔티티가 활성화되기 전인 첫 Tick은 `IsEntityActive()` 확인 후 스킵.
 
 ---
 

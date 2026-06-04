@@ -56,14 +56,15 @@ UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 UGameplayAbility
   └── ULNPGameplayAbility              ← 공통 기반 (캐릭터/PlayerState 레퍼런스 헬퍼)
         └── ULNPAbility_BasicAttack    ← 무기 기본 공격 추상 기반 (GetEquippedWeaponDef, ComputeDamage 제공)
-              └── ULNPAbility_RangedAttack   ← 원거리 공격 (Mass Entity 생성 후 즉시 종료)
+              ├── ULNPAbility_RangedAttack  ← 원거리 공격 (Mass Entity 생성 후 즉시 종료)
+              └── ULNPAbility_MeleeAttack   ← 근거리 공격 (AttackMontage 재생 후 즉시 종료)
 ```
 
 `ULNPGameplayAbility`는 `GetOwningCharacter()`, `GetOwningLNPPlayerState()` 헬퍼를 제공.
 
 `ULNPAbility_BasicAttack`의 `ComputeDamage()`는 `(AttackPower + WeaponDamage) * AttackMultiplier` 공식으로 기본 피해량을 계산. 서브클래스에서 오버라이드 가능.
 
-> `ULNPAbility_MeleeAttack`은 파일 미생성. HitDetection 이후 구현 예정.
+`ULNPAbility_MeleeAttack`은 몽타주만 재생하고 즉시 종료. 피격 판정은 몽타주에 배치된 `UANS_LNPMeleeHitWindow`(AnimNotifyState)가 Mass Processor와 연동하여 처리. → [TechDesign_HitDetection.md §2](TechDesign_HitDetection.md)
 
 ### 2.3 아이템 정의 DataAsset
 
@@ -353,6 +354,7 @@ Source/LootNPop/
       LNPGameplayAbility.h/.cpp
       LNPAbility_BasicAttack.h/.cpp      ← 추상 기반 (GetEquippedWeaponDef, ComputeDamage 제공)
       LNPAbility_RangedAttack.h/.cpp     ← 구현 완료
+      LNPAbility_MeleeAttack.h/.cpp      ← 구현 완료
     Effects/
       LNPGameplayEffect_Cooldown.h/.cpp  ← 연사 쿨타임 GE (duration은 ability가 주입)
       LNPGameplayEffect_Damage.h/.cpp    ← 즉발 피해 GE (TAG_GE_Data_Damage SetByCaller)
@@ -368,6 +370,10 @@ Source/LootNPop/
     LNPProjectileMassTypes.h             ← 타입 정의 (FLNPProjectileSharedFragment / Fragment / VisualFragment / DeadTag)
     LNPProjectileProcessors.h/.cpp       ← 4개 프로세서 (Movement / HitDetection / Visualization / Destruction)
     LNPProjectileVisualSubsystem.h/.cpp  ← Niagara trail 컴포넌트 풀 관리
+    LNPMeleeMassTypes.h                  ← FLNPMeleeAttackFragment / FLNPMeleeActiveTag
+    LNPMeleeProcessors.h/.cpp            ← ULNPMeleeHitDetectionProcessor + ULNPMeleeDebugDrawProcessor(에디터 전용)
+  Animation/
+    ANS_LNPMeleeHitWindow.h/.cpp         ← 공격 윈도우 AnimNotifyState (본 위치 기록, Mass 엔티티 생명주기 관리)
 ```
 
 ---
@@ -394,6 +400,7 @@ Source/LootNPop/
 | `ULNPGameplayAbility` | `GetOwningCharacter()`, `GetOwningLNPPlayerState()` 헬퍼 |
 | `ULNPAbility_BasicAttack` | `GetEquippedWeaponDef()`, `ComputeDamage()` (`(AttackPower + WeaponDamage) × AttackMultiplier`) |
 | `ULNPAbility_RangedAttack` | `CommitAbility` → `SpawnProjectile()` → `EndAbility()`. `FireCooldown` GE per-spec 주입 |
+| `ULNPAbility_MeleeAttack` | `CommitAbility` → `AttackMontage` 재생 → `EndAbility()`. 판정은 `UANS_LNPMeleeHitWindow` 위임 |
 | `ULNPGameplayEffect_Cooldown` | Duration은 ability가 per-spec 주입하여 단일 클래스로 모든 무기 커버 |
 | `ULNPGameplayEffect_Damage` | Instant GE, `TAG_GE_Data_Damage` SetByCaller로 피해량 전달 |
 
@@ -426,7 +433,5 @@ Source/LootNPop/
 |:---|:---|:---|
 | 발사체 Niagara VFX | 없음 | `ULNPVFXData` 에셋 생성 후 `ULNPWeaponData.ProjectileVFXData`에 할당. `ULNPProjectileVisualizationProcessor`가 trail/impact 처리 |
 | Active Skill 입력 바인딩 | 없음 | `InputHandlerComponent`에 슬롯별 `SkillAction` 추가 및 `ASC->TryActivateAbility(ActiveSkillSlots[i].GrantedAbilities[0])` 연결 |
-| `ULNPAbility_MeleeAttack` | 근접 HitDetection | 파일 미생성. 공격 몽타주 특정 프레임에서 캡슐 스윕 실행하는 방식으로 설계 필요 |
-| 근접 HitDetection | 없음 | 몽타주 Notify 기반 스윕 또는 별도 Mass Processor 처리 방식 결정 필요 |
 | Passive Skill GameplayEvent 연결 | HitDetection | `HitDetectionProcessor`에서 피격 시 대상 ASC에 `SendGameplayEvent` 호출하는 로직 추가 필요 |
 | LootPod → 인벤토리 연동 | LootPod 시스템 | [TechDesign_LootPod.md](TechDesign_LootPod.md) §4.2 참조 |

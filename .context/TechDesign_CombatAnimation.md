@@ -3,7 +3,9 @@
 > **구현 상태 요약**
 > - `LNPGameplayTags.h/cpp`: `LNP.*` 네이티브 태그 10개 정의 완료.
 > - `ULNPWeaponData`: `WeaponTag`, `AnimLayerClass`, `DefaultAimMode`, `WeaponMesh`, `AttachSocketName` 필드 추가 및 각 데이터 에셋 입력 완료.
-> - `ULNPInputHandlerComponent`: `bFaceMoveDirection` 회전 제어 완료. ASC 캐시 + `LNP.Block.MovementInput` 이동 차단 구현 완료.
+> - `ULNPInputHandlerComponent`: `bFaceMoveDirection` 회전 제어 완료. ASC 캐시 + `LNP.Block.MovementInput` 이동 차단 구현 완료. `HasMovementInput()` 게터 추가.
+ - `ANS_LNPBlockMovementInput`: 근접 공격 몽타주의 이동 차단 구간 ANS 구현 완료 (NotifyBegin/End → ASC AddLooseGameplayTag/RemoveLooseGameplayTag).
+ - `ANS_LNPCancelMontageOnMovement`: 이동 허용 구간에서 이동 입력 감지 시 몽타주 블렌드아웃 취소 ANS 구현 완료 (NotifyTick → HasMovementInput() → Montage_Stop).
 > - `ALNPCharacterBase`: `EquipWeapon()` 완료 (태그 전환 + `LinkAnimClassLayers()` + `bFaceMoveDirection` + 무기 메시 어태치). `EquipTestWeapon()` 테스트 함수 추가.
 > - `LNPAbility_RangedAttack`: `Muzzle` 소켓 기반 프로젝타일 스폰 위치 구현 완료.
 > - `ALI_WeaponStyles`, `ABP_Sub_*` 4종 생성 완료. `ABP_BaseCharacter` Linked Anim Layer 연결 완료.
@@ -82,7 +84,12 @@ LockOn 전환은 `DefaultAimMode == None`일 때만 허용 (코드 하드코딩)
 
 ### 3.4 태그 자동 연동 설정
 
-`LNP.Action.Attacking` 및 `LNP.Movement.Jumping`이 활성화되면 `LNP.Block.MovementInput`이 자동으로 부여되도록, 각 GA 에셋의 `ActivationOwnedTags` 항목에 `LNP.Block.MovementInput` 추가.
+`LNP.Block.MovementInput` 부여 방식은 Ability 생존 구간에 따라 두 가지로 분리된다.
+
+| 상황 | 방식 | 이유 |
+|------|------|------|
+| 근접 공격 (`LNPAbility_MeleeAttack`) | **ANS 기반** (`ANS_LNPBlockMovementInput`) | Ability가 Montage_Play 직후 즉시 종료되므로 `ActivationOwnedTags`가 동작하지 않음 |
+| 점프 (`LNP.Movement.Jumping`) | `ActivationOwnedTags` 또는 GAS Effect | Ability가 체공 중 생존하므로 태그 자동 연동 가능 |
 
 > **주의:** `Gameplay Tag Response Table`은 서로 다른 Actor 간의 ASC 상호작용 전용이므로, 동일 캐릭터 내 태그 종속 관계에는 사용 불가.
 
@@ -275,7 +282,26 @@ if (ASC->HasMatchingGameplayTag(TAG_Movement_Jumping))
 }
 ```
 
-### 8.3 상태별 물리 동작
+### 8.3 근접 공격 이동 제어 (ANS 기반, ✅ 구현 완료)
+
+`LNPAbility_MeleeAttack`은 `Montage_Play` 직후 `EndAbility`를 호출하므로 Ability가 살아있는 동안 태그를 유지하는 `ActivationOwnedTags` 방식을 쓸 수 없다. 대신 몽타주 타임라인에 두 개의 AnimNotifyState를 배치해 정밀하게 제어한다.
+
+```
+[몽타주 타임라인]
+|──ANS_LNPBlockMovementInput──|──ANS_LNPCancelMontageOnMovement──|
+  시작                        A                                   끝
+```
+
+| 구간 | ANS | 동작 |
+|------|-----|------|
+| 시작 → A | `ANS_LNPBlockMovementInput` | NotifyBegin: `AddLooseGameplayTag(TAG_Block_MovementInput)` / NotifyEnd: `RemoveLooseGameplayTag` |
+| A → 끝 | `ANS_LNPCancelMontageOnMovement` | NotifyTick: `HasMovementInput()` 감지 시 `Montage_Stop(BlendOutTime)` |
+
+`ANS_LNPCancelMontageOnMovement`의 `BlendOutTime` (기본 `0.3f`)은 에디터에서 UPROPERTY로 노출되어 조절 가능.
+
+> UE는 `Montage_Stop` 방식과 무관하게 활성 ANS 전체에 `NotifyEnd`를 보장하므로, 도중 취소 시에도 AddTag/RemoveTag 페어가 유지된다.
+
+### 8.4 상태별 물리 동작
 
 | 상태 | 이동 입력 | 실제 이동 원인 |
 |------|----------|--------------|
@@ -330,7 +356,9 @@ WeaponMeshComponent->AttachToComponent(AnimSourceMesh, ..., WeaponData->AttachSo
 
 ### Phase 3 — GAS 연동 (부분 완료)
 - [x] `ULNPInputHandlerComponent`에 ASC 참조 캐시 + `LNP.Block.MovementInput` 이동 입력 차단 구현
-- [ ] 각 전투 GA의 `ActivationOwnedTags`에 `LNP.Block.MovementInput` 추가 (에디터)
+- [x] 근접 공격 이동 차단: `ANS_LNPBlockMovementInput` + `ANS_LNPCancelMontageOnMovement` 구현 완료 (섹션 8.3 참조)
+- [x] 에디터: 근접 공격 몽타주에 두 ANS 배치 (구간 A 위치는 애니메이션 확인 후 결정)
+- [ ] 점프 GA `ActivationOwnedTags`에 `LNP.Block.MovementInput` 추가 (에디터)
 - [ ] `GA_Attack_*` 몽타주 슬롯 이름 `UpperBody` 확인/설정 (에디터)
 
 ### Phase 4 — 고도화 (스펙 아웃, 추후 검토)
