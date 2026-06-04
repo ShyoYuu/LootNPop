@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -41,7 +41,7 @@ struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragme
 	TSubclassOf<UGameplayEffect> DamageEffectClass;
 
 	UPROPERTY()
-	ELNPProjectileType Type        = ELNPProjectileType::Linear;
+	ELNPProjectileType Type = ELNPProjectileType::Linear;
 
 	UPROPERTY()
 	float Damage      = 10.0f;

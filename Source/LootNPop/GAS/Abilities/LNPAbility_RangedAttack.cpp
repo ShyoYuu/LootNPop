@@ -91,7 +91,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 
 	// --- 스폰 위치: Muzzle 소켓 (없으면 ActorLocation 폴백) ---
 	static const FName MuzzleSocket(TEXT("Muzzle"));
-	const USkeletalMeshComponent* WeaponMesh = Character->GetWeaponMeshComponent();
+	const USkeletalMeshComponent* WeaponMesh = Character->GetWeaponMesh();
 	const FVector BasePos = (WeaponMesh && WeaponMesh->DoesSocketExist(MuzzleSocket))
 		? WeaponMesh->GetSocketLocation(MuzzleSocket)
 		: Character->GetActorLocation();

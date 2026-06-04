@@ -44,7 +44,7 @@
     - 상태 전환(Idle ↔ Looting ↔ Popped), 게이지 누적, 거리 체크 완료.
 - [x] **GAS 기반 전투 시스템**
     - ASC/AttributeSet (`ALNPPlayerState`), `ULNPEquipmentComponent`, `ULNPInventoryComponent`.
-    - 어빌리티 계층: `ULNPGameplayAbility` → `ULNPAbility_BasicAttack` → `ULNPAbility_RangedAttack`.
+    - 어빌리티 계층: `ULNPGameplayAbility` → `ULNPAbility_BasicAttack` → `ULNPAbility_RangedAttack` / `ULNPAbility_MeleeAttack`.
     - 발사체 시스템: `ULNPProjectileMovementProcessor`(PrePhysics) + `ULNPProjectileHitDetectionProcessor`(StartPhysics) + Visualization + Destruction 4개 프로세서.
     - 선분-캡슐 원거리 HitDetection, `InstigatorTeam` 팀 구분 피격 처리.
     - 공격 입력 바인딩 (`ULNPInputHandlerComponent`), 0.05초 입력 버퍼링.
@@ -67,9 +67,11 @@
     - `ALNPPlayerController`: `BeginPlay`에서 위젯 생성, `OnPossess`/`OnUnPossess`에서 ViewModel 초기화·해제.
     - 조준점: `TAG_AimMode_FreeAim` 활성 시에만 표시 (bIsFreeAiming → Blueprint Function Binding).
     - 설계 명세: [TechDesign_HUD.md](TechDesign_HUD.md)
-- [ ] **근접 HitDetection** (AnimNotify 기반)
-    - 칼날 Swept Volume vs. 타겟 캡슐 최단 거리.
-    - 피격 시 `FLNPPlayerLootingTag` 제거 → LootPod 루팅 취소 연동.
+- [x] **근접 HitDetection** (AnimNotify 기반)
+    - `UANS_LNPMeleeHitWindow`: 무기 본 위치를 매 프레임 `FLNPMeleeAttackFragment`에 기록.
+    - `ULNPMeleeHitDetectionProcessor`: Swept Quad(삼각형 2개) vs. 캡슐 축 선분 최단 거리 판정. `SwordRadius + CapsuleRadius` 임계값.
+    - 중복 피격 방지 (`AlreadyHit[8]` 배열). 에디터 전용 디버그 드로우 프로세서 포함.
+    - 피격 시 `FLNPPlayerLootingTag` 제거 → LootPod 루팅 취소 연동은 미구현.
 - [ ] **피격 반응 시스템**
     - 넉백 Launch (구형 곡률 기반 궤적), HitStop, 아이템 드랍.
 - [ ] **패링 시스템** (`FLNPParryStateFragment`)

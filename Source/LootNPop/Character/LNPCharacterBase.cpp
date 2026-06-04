@@ -38,9 +38,9 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	InputHandlerComponent = CreateDefaultSubobject<ULNPInputHandlerComponent>(TEXT("InputHandlerComponent"));
 	GravityComponent = CreateDefaultSubobject<ULNPPawnGravityComponent>(TEXT("GravityComponent"));
 
-	WeaponMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
-	WeaponMeshComponent->SetupAttachment(VisualMesh);
-	WeaponMeshComponent->SetVisibility(false);
+	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
+	WeaponMesh->SetupAttachment(VisualMesh);
+	WeaponMesh->SetVisibility(false);
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -167,15 +167,15 @@ void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
 	// 무기 스켈레탈 메시 어태치
 	if (WeaponData && WeaponData->WeaponMesh && !WeaponData->AttachSocketName.IsNone())
 	{
-		WeaponMeshComponent->SetSkeletalMeshAsset(WeaponData->WeaponMesh);
-		WeaponMeshComponent->AttachToComponent(VisualMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponData->AttachSocketName);
-		WeaponMeshComponent->SetRelativeRotation(FRotator(0.0f, 90.0f, -4.0f));
-		WeaponMeshComponent->SetVisibility(true);
+		WeaponMesh->SetSkeletalMeshAsset(WeaponData->WeaponMesh);
+		WeaponMesh->AttachToComponent(VisualMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponData->AttachSocketName);
+		WeaponMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, -4.0f));
+		WeaponMesh->SetVisibility(true);
 	}
 	else
 	{
-		WeaponMeshComponent->SetSkeletalMeshAsset(nullptr);
-		WeaponMeshComponent->SetVisibility(false);
+		WeaponMesh->SetSkeletalMeshAsset(nullptr);
+		WeaponMesh->SetVisibility(false);
 	}
 }
 

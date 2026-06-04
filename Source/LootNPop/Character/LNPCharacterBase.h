@@ -43,8 +43,9 @@ public:
 	// IAbilitySystemInterface 구현
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	UCapsuleComponent*             GetCapsule()               const { return CapsuleComponent; }
-	USkeletalMeshComponent*        GetWeaponMeshComponent()    const { return WeaponMeshComponent; }
+	UCapsuleComponent*      GetCapsule()      const { return CapsuleComponent; }
+	USkeletalMeshComponent* GetWeaponMesh()   const { return WeaponMesh;       }
+	UAnimInstance*          GetAnimInstance() const { return AnimSourceMesh ? AnimSourceMesh->GetAnimInstance() : nullptr; }
 
 	void SetAIMoveInput(FVector InMoveInput);
 	void SetAIOrientationIntent(FVector InOrientationIntent);
@@ -99,7 +100,7 @@ protected:
 
 	/** 무기 스켈레탈 메시를 표시하는 컴포넌트. EquipWeapon()이 메시와 소켓을 동적으로 교체. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Weapon", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<USkeletalMeshComponent> WeaponMeshComponent;
+	TObjectPtr<USkeletalMeshComponent> WeaponMesh;
 
 	/** 테스트용 무기 목록. BP에서 슬롯 순서대로 지정. (0=LongSword, 1=Pistol, 2=Rifle) */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Weapon|Test")
