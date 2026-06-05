@@ -16,13 +16,14 @@
 
 ### 2.1 데이터 구조
 
-**`FLNPMeleeAttackFragment`** (`HitDetection/LNPMeleeMassTypes.h`)
+**`FLNPWeaponTraceFragment`** (`HitDetection/LNPWeaponTraceMassTypes.h`)
 ```cpp
 FVector SwordTipPrev;    // 이전 프레임 칼끝 위치
 FVector SwordTipCurr;    // 현재 프레임 칼끝 위치
 FVector SwordRootPrev;   // 이전 프레임 칼밑 위치
 FVector SwordRootCurr;   // 현재 프레임 칼밑 위치
-float   HitRadiusSq;     // 칼날 판정 반경² (SwordRadius = sqrt(HitRadiusSq))
+float   HitRadius;       // 칼날 피격 판정 반경
+float   ParryRadius;     // 칼날 패링 판정 반경 (HitRadius보다 크게 설정)
 float   Damage;          // 최종 피해량 (AttackPower + WeaponBonus) * Multiplier
 UClass* DamageEffectClass; // TSubclassOf<UGameplayEffect> — trivially copyable을 위해 UClass*로 저장
 FMassEntityHandle InstigatorEntity;
@@ -90,15 +91,21 @@ UpDir = (-EntityLocation).GetSafeNormal()          // 구형 내벽 세계: 머�
 
 ### 3.1 데이터 구조
 
-**`FLNPProjectileFragment`**
+**`FLNPProjectileFragment`** (엔티티별 데이터)
 ```cpp
 FVector PreviousPos;
 FVector CurrentPos;
 FVector Velocity;
 ELNPProjectileType Type;  // Linear, Guided, Lobbed
-float   HitRadiusSq;
 float   Damage;
 FMassEntityHandle Instigator;
+```
+
+**`FLNPProjectileSharedFragment`** (투사체 종류별 공유 데이터)
+```cpp
+float HitRadius   = 5.0f;    // 피격 판정 반경
+float ParryRadius = 6.0f;    // 패링 판정 반경 (HitRadius보다 크게 설정)
+UClass* DamageEffectClass;
 ```
 
 ### 3.2 판정 알고리즘
@@ -106,8 +113,12 @@ FMassEntityHandle Instigator;
 `PreviousPos → CurrentPos` 선분과 타겟 중심점 사이의 최단 거리를 계산.
 
 ```
-Distance² = DistancePointToSegment²(TargetCenter, PreviousPos, CurrentPos)
-if Distance² <= HitRadiusSq → 피격
+// 1단계: 패링 체크 (우선)
+if bIsParrying && Dot >= ParryAngleCos && Distance <= ParryRadius → 패링 처리
+// 2단계: 피격 체크
+if Distance <= HitRadius → 가드 또는 데미지 처리
+
+Distance = DistancePointToSegment(TargetCenter, PreviousPos, CurrentPos)
 ```
 
 ### 3.3 투사체 이동 업데이트

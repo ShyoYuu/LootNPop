@@ -70,7 +70,7 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 	FLNPWeaponTraceFragment MeleeData;
 	MeleeData.SwordTipPrev  = MeleeData.SwordTipCurr  = TipPos;
 	MeleeData.SwordRootPrev = MeleeData.SwordRootCurr = RootPos;
-	MeleeData.HitRadiusSq       = FMath::Square(HitRadiusOverride > 0.f ? HitRadiusOverride : WeaponDef->ProjectileHitRadius);
+	MeleeData.HitRadius         = HitRadiusOverride > 0.f ? HitRadiusOverride : WeaponDef->ProjectileHitRadius;
 	MeleeData.Damage            = Damage;
 	MeleeData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
 	MeleeData.InstigatorTeam    = Cast<ALNPEnemyCharacter>(Character) ? ELNPInstigatorTeam::Enemy : ELNPInstigatorTeam::Player;

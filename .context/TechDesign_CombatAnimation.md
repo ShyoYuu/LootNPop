@@ -1,18 +1,18 @@
 # 컴뱃 애니메이션 시스템 기술 명세서
 
 > **구현 상태 요약**
-> - `LNPGameplayTags.h/cpp`: `LNP.*` 네이티브 태그 10개 정의 완료.
+> - `LNPGameplayTags.h/cpp`: `LNP.*` 네이티브 태그 정의 완료 (Guard/Parry 관련 4개 포함, 총 14개).
 > - `ULNPWeaponData`: `WeaponTag`, `AnimLayerClass`, `DefaultAimMode`, `WeaponMesh`, `AttachSocketName` 필드 추가 및 각 데이터 에셋 입력 완료.
-> - `ULNPInputHandlerComponent`: `bFaceMoveDirection` 회전 제어 완료. ASC 캐시 + `LNP.Block.MovementInput` 이동 차단 구현 완료. `HasMovementInput()` 게터 추가.
- - `ANS_LNPBlockMovementInput`: 근접 공격 몽타주의 이동 차단 구간 ANS 구현 완료 (NotifyBegin/End → ASC AddLooseGameplayTag/RemoveLooseGameplayTag).
- - `ANS_LNPCancelMontageOnMovement`: 이동 허용 구간에서 이동 입력 감지 시 몽타주 블렌드아웃 취소 ANS 구현 완료 (NotifyTick → HasMovementInput() → Montage_Stop).
+> - `ULNPInputHandlerComponent`: `bFaceMoveDirection` 회전 제어 완료. ASC 캐시 + `LNP.Block.MovementInput` 이동 차단 구현 완료. `HasMovementInput()` 게터 추가. Guard 입력 시 `TAG_State_Guarding` / `TAG_State_ParryWindow` ASC 태그 관리 + `ParryWindowTimer` 완료.
+> - `ANS_LNPBlockMovementInput`: 근접 공격 몽타주의 이동 차단 구간 ANS 구현 완료 (NotifyBegin/End → ASC AddLooseGameplayTag/RemoveLooseGameplayTag).
+> - `ANS_LNPCancelMontageOnMovement`: 이동 허용 구간에서 이동 입력 감지 시 몽타주 블렌드아웃 취소 ANS 구현 완료 (NotifyTick → HasMovementInput() → Montage_Stop).
 > - `ALNPCharacterBase`: `EquipWeapon()` 완료 (태그 전환 + `LinkAnimClassLayers()` + `bFaceMoveDirection` + 무기 메시 어태치). `EquipTestWeapon()` 테스트 함수 추가.
 > - `LNPAbility_RangedAttack`: `Muzzle` 소켓 기반 프로젝타일 스폰 위치 구현 완료.
 > - `ALI_WeaponStyles`, `ABP_Sub_*` 4종 생성 완료. `ABP_BaseCharacter` Linked Anim Layer 연결 완료.
 > - `ABP_Sub_Pistol`·`ABP_Sub_Rifle` spine_01 이상 파지 Idle 포즈 블렌딩 완료. `ABP_Sub_Unarmed`·`ABP_Sub_LongSword` 베이스 포즈 통과.
-> - `ULNPAnimInstance`: `AimYaw`(`FRotator::NormalizeAxis` 기반)·`AimPitch` 계산 구현 완료.
+> - `ULNPAnimInstance`: `AimYaw`(`FRotator::NormalizeAxis` 기반)·`AimPitch` 계산 완료. `bIsGuarding` (`MoverComponent->IsGuarding()` 기반) 추가 완료.
 > - `ABP_Sub_Pistol`·`ABP_Sub_Rifle`: `AO_Pistol`·`AO_Rifle` Aim Offset 적용 완료 (테스트 확인).
-> - 미구현: `ABP_BaseCharacter` Slot·Pose History, Look At, GA `ActivationOwnedTags`.
+> - 미구현: `ABP_BaseCharacter` Slot·Pose History, Look At, GA `ActivationOwnedTags`. Guard ABP 분기 (에디터 작업 필요).
 
 ---
 
@@ -82,6 +82,16 @@ LockOn 전환은 `DefaultAimMode == None`일 때만 허용 (코드 하드코딩)
 | `LNP.Movement.Jumping` | 점프 및 공중 체공 중 |
 | `LNP.Block.MovementInput` | 플레이어 이동 입력 차단 |
 
+### 3.4 Guard / Parry 상태 태그
+
+| 태그 | 관리 주체 | 설명 |
+|------|----------|------|
+| `LNP.State.Guarding` | `ULNPInputHandlerComponent` | Guard 버튼 누르는 동안 ASC에 유지. Guard ABP 분기 기준. |
+| `LNP.State.ParryWindow` | `ULNPInputHandlerComponent` + Timer | Guard 입력 직후 `ParryWindowDuration`(기본 0.15초) 동안만 활성. |
+| `GameplayCue.LNP.Guard.Block` | `FLNPApplyDamageGECommand` | Guard 성공 시 VFX/SFX 큐. |
+| `GameplayCue.LNP.Parry.Success` | `FLNPApplyDamageGECommand` | Parry 성공 시 VFX/SFX 큐. |
+| `LNP.Mover.IsGuarding` | `ULNPCharacterMoverComponent` | Guard Modifier 활성 여부. `ULNPAnimInstance::bIsGuarding` 소스. |
+
 ### 3.4 태그 자동 연동 설정
 
 `LNP.Block.MovementInput` 부여 방식은 Ability 생존 구간에 따라 두 가지로 분리된다.
@@ -135,14 +145,17 @@ LockOn 전환은 `DefaultAimMode == None`일 때만 허용 (코드 하드코딩)
 [Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponStyleOverlay)]  ✅ 연결 완료
        │  C++의 LinkAnimClassLayers()로 무기 서브 ABP가 런타임 교체됨
        │  각 서브 ABP가 자체 본·가중치로 포즈 오버레이 처리
+       │  bIsGuarding 기반 Guard 자세 분기도 이 레이어 내부에서 처리  🔲 에디터 작업 필요
        │
 [Slot 'UpperBody']  ← GAS PlayMontageAndWait 몽타주 재생  🔲 미구현
-       │  공격·가드 등 상체 액션이 여기서 오버라이드
+       │  공격·가드 진입/해제 등 상체 액션이 여기서 오버라이드
        │
 [Pose History]  ← Motion Matching 다음 프레임 쿼리용 포즈 기록  🔲 미구현
        │
 [Output Pose]
 ```
+
+> **Guard ABP 분기:** `ABP_Sub_LongSword`(또는 별도 Guard 레이어)에서 `bIsGuarding` bool로 Guard 자세와 기본 자세를 블렌딩. C++ 변수 `ULNPAnimInstance::bIsGuarding`은 이미 구현 완료. 에디터에서 Linked Anim Layer 내부에 Bool Blend 노드 추가 필요.
 
 > **Aim Offset:** 메인 ABP에 없음. 원거리 무기(Pistol·Rifle)의 AO는 각 서브 ABP 내부에서 처리 (섹션 5.2).
 >
@@ -345,22 +358,26 @@ WeaponMeshComponent->AttachToComponent(AnimSourceMesh, ..., WeaponData->AttachSo
 - [x] `ABP_Sub_Rifle` 생성: spine_01 이상 파지 Idle 포즈 블렌딩 (`AO_Rifle` 미구현)
 - [x] `ABP_Sub_Pistol` / `ABP_Sub_Rifle`: Aim Offset (`AO_Pistol`, `AO_Rifle`) 추가
 - [ ] `ABP_Sub_LongSword`: 롱소드 Stance 오버레이 추가; 락온 시 neck_01·head Look At 적용
-
+- [ ] Guard ABP 분기: `bIsGuarding` 기반 Guard 자세 블렌딩 (Linked Anim Layer 내부에 Bool Blend 노드 추가)
 
 ### Phase 2 — C++ 런타임 제어 (✅ 완료)
-- [x] `LNPGameplayTags.h/cpp`: `LNP.*` 네이티브 태그 정의 (10개)
+- [x] `LNPGameplayTags.h/cpp`: `LNP.*` 네이티브 태그 정의 (14개, Guard/Parry 포함)
 - [x] `ULNPWeaponData`에 `WeaponTag`, `AnimLayerClass`, `DefaultAimMode`, `WeaponMesh`, `AttachSocketName` 필드 추가
 - [x] `ALNPCharacterBase::EquipWeapon()`: `LinkAnimClassLayers()` + `bFaceMoveDirection` + ASC 태그 전환 + 무기 메시 어태치
 - [x] `LNPAbility_RangedAttack::SpawnProjectile()`: `Muzzle` 소켓 기반 스폰 위치 + 액터 로컬 `MuzzleOffset` 적용
+- [x] `ULNPAnimInstance::bIsGuarding`: `MoverComponent->IsGuarding()` 기반, ABP Guard 분기용
 - [ ] LockOn 카메라 자동추적 구현 여부 결정 후 6.3의 접근법 A 또는 B 적용
 
 ### Phase 3 — GAS 연동 (부분 완료)
 - [x] `ULNPInputHandlerComponent`에 ASC 참조 캐시 + `LNP.Block.MovementInput` 이동 입력 차단 구현
 - [x] 근접 공격 이동 차단: `ANS_LNPBlockMovementInput` + `ANS_LNPCancelMontageOnMovement` 구현 완료 (섹션 8.3 참조)
 - [x] 에디터: 근접 공격 몽타주에 두 ANS 배치 (구간 A 위치는 애니메이션 확인 후 결정)
+- [x] Guard 입력 → ASC `TAG_State_Guarding` / `TAG_State_ParryWindow` 태그 연동 완료
 - [ ] 점프 GA `ActivationOwnedTags`에 `LNP.Block.MovementInput` 추가 (에디터)
 - [ ] `GA_Attack_*` 몽타주 슬롯 이름 `UpperBody` 확인/설정 (에디터)
+- [ ] Guard/Parry 성공 GameplayCue 에셋 생성 (`GameplayCue.LNP.Guard.Block`, `GameplayCue.LNP.Parry.Success`)
 
 ### Phase 4 — 고도화 (스펙 아웃, 추후 검토)
 - [ ] FullBody Slot 추가 (롱소드 전신 루트모션 공격, 구르기)
 - [ ] `ABP_Sub_LongSword` Look At 가중치 수치 튜닝
+- [ ] 패링 성공 공격자 Stagger/Launch (`FLNPParrySuccessCommand` Phase 2)

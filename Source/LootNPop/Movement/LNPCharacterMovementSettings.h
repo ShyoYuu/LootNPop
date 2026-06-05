@@ -25,4 +25,12 @@ public:
 	/** Sprint 중 가속도 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (ClampMin = "0", ForceUnits = "cm/s^2"))
 	float SprintAcceleration = 6000.0f;
+
+	/** 가드 중 이동 속도 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (ClampMin = "0", ForceUnits = "cm/s"))
+	float GuardWalkSpeed = 200.0f;
+
+	/** 가드 중 가속도 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (ClampMin = "0", ForceUnits = "cm/s^2"))
+	float GuardAcceleration = 2000.0f;
 };

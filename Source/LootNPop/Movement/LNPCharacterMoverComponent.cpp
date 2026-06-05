@@ -12,6 +12,7 @@
 #include "GameFramework/Pawn.h"
 
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
 
 ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 {
@@ -32,7 +33,12 @@ bool ULNPCharacterMoverComponent::IsSprinting() const
 
 bool ULNPCharacterMoverComponent::CanSprint() const
 {
-	return IsOnGround();
+	return IsOnGround() && !IsGuarding();
+}
+
+bool ULNPCharacterMoverComponent::IsGuarding() const
+{
+	return HasGameplayTag(LNPTAG_Mover_IsGuarding, true);
 }
 
 bool ULNPCharacterMoverComponent::CanDash() const
@@ -96,7 +102,24 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
 {
-	// bWantsToRun과 CanSprint를 기반으로 Sprint Modifier 관리
+	// Guard Modifier 관리 (Sprint보다 먼저 처리 — Guard 중에는 Sprint 불가)
+	{
+		const bool bIsGuardingNow = (FindMovementModifier(GuardModifierHandle) != nullptr)
+		                         || (FindMovementModifierByType<FLNPGuardModifier>() != nullptr);
+
+		if (bIsGuardingNow && !bWantsToGuard)
+		{
+			CancelModifierFromHandle(GuardModifierHandle);
+			GuardModifierHandle.Invalidate();
+		}
+		else if (!bIsGuardingNow && bWantsToGuard)
+		{
+			TSharedPtr<FLNPGuardModifier> NewModifier = MakeShared<FLNPGuardModifier>();
+			GuardModifierHandle = QueueMovementModifier(NewModifier);
+		}
+	}
+
+	// Sprint Modifier 관리 (CanSprint 내부에서 IsGuarding() 체크)
 	if (bHandleSprintChanges)
 	{
 		const FLNPSprintModifier* ActiveModifier = static_cast<const FLNPSprintModifier*>(FindMovementModifier(SprintModifierHandle));
@@ -105,7 +128,7 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 			ActiveModifier = FindMovementModifierByType<FLNPSprintModifier>();
 		}
 
-		const bool bIsSprinting = (ActiveModifier != nullptr);
+		const bool bIsSprinting  = (ActiveModifier != nullptr);
 		const bool bShouldSprint = bWantsToRun && CanSprint();
 
 		if (bIsSprinting && !bShouldSprint)

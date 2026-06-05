@@ -1,8 +1,9 @@
-﻿// Copyright (c) 2026 LootNPop. All rights reserved.
+// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "HitDetection/LNPWeaponTraceProcessors.h"
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
 #include "HitDetection/LNPHitDetectionShared.h"
+#include "HitDetection/LNPGuardParryTypes.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Character/LNPPlayerCharacter.h"
@@ -22,10 +23,6 @@
 #if WITH_EDITOR
 #include "DrawDebugHelpers.h"
 #endif
-
-// ──────────────────────────────────────────────────────────────────────────────
-// 내부 헬퍼
-// ──────────────────────────────────────────────────────────────────────────────
 
 namespace
 {
@@ -106,6 +103,18 @@ namespace
 			TriangleSegmentDistSq(RootPrev, TipCurr,  TipPrev, CapsuleBot, CapsuleTop));
 	}
 
+	/**
+	 * 캡슐 축 선분(Bot~Top)을 계산한다.
+	 * CylHalfLen = HalfHeight - Radius (실린더 반절 길이; 0 미만 클램프).
+	 */
+	void MakeCapsuleSeg(const FVector& Center, const FVector& Up, float HalfH, float R,
+		FVector& OutBot, FVector& OutTop)
+	{
+		const float CylHalfLen = FMath::Max(0.f, HalfH - R);
+		OutBot = Center - Up * CylHalfLen;
+		OutTop = Center + Up * CylHalfLen;
+	}
+
 	bool IsAlreadyHit(const FLNPWeaponTraceFragment& Frag, FMassEntityHandle Target)
 	{
 		for (int32 i = 0; i < Frag.AlreadyHitCount; ++i)
@@ -135,11 +144,9 @@ ULNPWeaponTraceHitDetectionProcessor::ULNPWeaponTraceHitDetectionProcessor()
 
 void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
-	// 공격자: 칼날 Fragment + 활성 Tag
 	AttackerQuery.AddRequirement<FLNPWeaponTraceFragment>(EMassFragmentAccess::ReadWrite);
 	AttackerQuery.RegisterWithProcessor(*this);
 
-	// Enemy 타겟
 	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
@@ -148,20 +155,24 @@ void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMa
 	EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	EnemyQuery.RegisterWithProcessor(*this);
 
-	// Player 타겟 (Enemy가 공격자일 때 사용)
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
+	PlayerQuery.AddRequirement<FLNPParryStateFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
+
+	ProcessorRequirements.AddSubsystemRequirement<UMassActorSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
 void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	// ── Pass 1: Enemy 위치/크기/Fragment 수집 ──────────────────────────────────
+	UMassActorSubsystem& ActorSub = Context.GetMutableSubsystemChecked<UMassActorSubsystem>();
+
+	// ── Pass 1: Enemy 캡슐 데이터 수집 ────────────────────────────────────────
 	struct FCollectedEnemy
 	{
-		FVector            CapsuleCenter;
-		FVector            UpDir;
+		FVector            CapsuleCenter;    // 액터 위치 + UpDir * HalfHeight (캡슐 중심)
+		FVector            UpDir;            // (-Location).GetSafeNormal() — 구형 세계 UP
 		float              CapsuleHalfHeight;
 		float              CapsuleRadius;
 		FLNPEnemyFragment* Fragment;
@@ -179,9 +190,9 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		const float HalfH  = Shared.Config->CapsuleHalfHeight;
 		const float Radius = Shared.Config->CapsuleRadius;
 
-		const TConstArrayView<FTransformFragment> Transforms  = Ctx.GetFragmentView<FTransformFragment>();
-		TArrayView<FLNPEnemyFragment>             EnemyFrags  = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
-		TArrayView<FMassActorFragment>            ActorFrags  = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		TArrayView<FLNPEnemyFragment>             EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
+		TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -191,22 +202,25 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		}
 	});
 
-	// ── Pass 2: Player 위치/크기 수집 ─────────────────────────────────────────
+	// ── Pass 2: Player 캡슐 데이터 수집 ───────────────────────────────────────
 	struct FCollectedPlayer
 	{
-		FVector           CapsuleCenter;
-		FVector           UpDir;
-		float             CapsuleHalfHeight;
-		float             CapsuleRadius;
-		FMassEntityHandle Handle;
-		AActor*           Actor;
+		FVector                CapsuleCenter;  // 액터 위치 + UpDir * HalfHeight (캡슐 중심)
+		FVector                UpDir;          // (-Location).GetSafeNormal()
+		FVector                ForwardVector;  // 패링 각도 계산용
+		float                  CapsuleHalfHeight;
+		float                  CapsuleRadius;
+		FMassEntityHandle      Handle;
+		AActor*                Actor;
+		FLNPParryStateFragment ParryState;
 	};
 	TArray<FCollectedPlayer> Players;
 
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
-		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
-		TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FTransformFragment>     Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		TArrayView<FMassActorFragment>                ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FLNPParryStateFragment> ParryFrags = Ctx.GetFragmentView<FLNPParryStateFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -214,9 +228,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const UCapsuleComponent* Cap = Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr;
 			const float HalfH  = Cap ? Cap->GetScaledCapsuleHalfHeight() : 96.f;
 			const float Radius = Cap ? Cap->GetScaledCapsuleRadius()     : 42.f;
-			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
-			const FVector UpDir = (-Loc).GetSafeNormal();
-			Players.Add({ Loc + UpDir * HalfH, UpDir, HalfH, Radius, Ctx.GetEntity(i), Actor });
+			const FTransform& T   = Transforms[i].GetTransform();
+			const FVector     Loc = T.GetLocation();
+			const FVector     Up  = (-Loc).GetSafeNormal();
+			Players.Add({ Loc + Up * HalfH, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i] });
 		}
 	});
 
@@ -234,24 +249,16 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		{
 			FLNPWeaponTraceFragment& Frag = Attackers[i];
 
-			// Prev==Curr(첫 프레임): 칼날 이동이 없으므로 선분 vs 선분으로 폴백.
-			// 그 외: Swept Quad(2삼각형) vs 캡슐 선분 최단 거리 계산.
-			const bool bDegenerate = FVector::DistSquared(Frag.SwordTipPrev, Frag.SwordTipCurr) < 1.f;
-			const float SwordRadius = FMath::Sqrt(Frag.HitRadiusSq);
+			// Prev==Curr(첫 프레임): 칼날 이동 없음 → 선분 vs 선분으로 폴백
+			// 그 외: Swept Quad(삼각형 2개) vs 캡슐 축 선분 최단 거리 계산
+			const bool  bDegenerate = FVector::DistSquared(Frag.SwordTipPrev, Frag.SwordTipCurr) < 1.f;
+			const float SwordRadius = Frag.HitRadius;
 
-			// 캡슐 축 선분 계산용 람다: 하단 구체 중앙 ~ 상단 구체 중앙
-			// CylHalfLen = HalfHeight - Radius (실린더 반절 길이)
-			auto MakeCapsuleSeg = [](const FVector& Center, const FVector& Up, float HalfH, float R,
-				FVector& OutBot, FVector& OutTop)
-			{
-				const float CylHalfLen = FMath::Max(0.f, HalfH - R);
-				OutBot = Center - Up * CylHalfLen;
-				OutTop = Center + Up * CylHalfLen;
-			};
+			// 패링 성공 시 Stagger GA 트리거에 필요
+			AActor* AttackerActor = ActorSub.GetActorFromHandle(Frag.InstigatorEntity);
 
-			// 칼날 vs 캡슐 선분 최단 거리² 계산 람다
-			auto CalcDistSq = [&](const FVector& CapsuleCenter, const FVector& UpDir,
-				float HalfH, float CapsuleR) -> float
+			// 캡슐 축 선분(Bot~Top)과 칼날의 최단 거리²를 반환하는 람다
+			auto CalcDistSq = [&](const FVector& CapsuleCenter, const FVector& UpDir, float HalfH, float CapsuleR) -> float
 			{
 				FVector CapsuleBot, CapsuleTop;
 				MakeCapsuleSeg(CapsuleCenter, UpDir, HalfH, CapsuleR, CapsuleBot, CapsuleTop);
@@ -276,8 +283,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					if (Enemy.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Enemy.Handle))
 						continue;
 
-					const float EffectiveRadiusSq = FMath::Square(SwordRadius + Enemy.CapsuleRadius);
-					if (CalcDistSq(Enemy.CapsuleCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius) > EffectiveRadiusSq)
+					if (CalcDistSq(Enemy.CapsuleCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius)
+						> FMath::Square(SwordRadius + Enemy.CapsuleRadius))
 						continue;
 
 					MarkHit(Frag, Enemy.Handle);
@@ -305,8 +312,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 						if (Player.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Player.Handle))
 							continue;
 
-						const float EffectiveRadiusSq = FMath::Square(SwordRadius + Player.CapsuleRadius);
-						if (CalcDistSq(Player.CapsuleCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius) > EffectiveRadiusSq)
+						if (CalcDistSq(Player.CapsuleCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius)
+							> FMath::Square(SwordRadius + Player.CapsuleRadius))
 							continue;
 
 						MarkHit(Frag, Player.Handle);
@@ -319,20 +326,45 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			}
 			else
 			{
-				// Enemy 공격 → Player 타겟
+				// Enemy 공격 → Player 타겟 (패링/가드/피격 분기)
+				const FVector AttackerLoc      = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
+				const float   SwordParryRadius = Frag.ParryRadius;
+
 				for (FCollectedPlayer& Player : Players)
 				{
 					if (Player.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Player.Handle))
 						continue;
 
-					const float EffectiveRadiusSq = FMath::Square(SwordRadius + Player.CapsuleRadius);
-					if (CalcDistSq(Player.CapsuleCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius) > EffectiveRadiusSq)
+					const FLNPParryStateFragment& PS          = Player.ParryState;
+					const FVector                 AttackerDir = (AttackerLoc - Player.CapsuleCenter).GetSafeNormal();
+					const float                   Dot         = FVector::DotProduct(Player.ForwardVector, AttackerDir);
+					const float                   DistSq      = CalcDistSq(Player.CapsuleCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
+
+					// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경)
+					if (PS.bIsParrying && Dot >= PS.ParryAngleCos
+						&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
+					{
+						MarkHit(Frag, Player.Handle);
+						if (Player.Actor)
+							Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, AttackerActor);
+						continue;
+					}
+
+					// 2단계: 피격 체크 (HitRadius — 정상 반경)
+					if (DistSq > FMath::Square(SwordRadius + Player.CapsuleRadius))
 						continue;
 
 					MarkHit(Frag, Player.Handle);
+					if (!Player.Actor) continue;
+
+					if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
+					{
+						Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
+						continue;
+					}
 
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
-					if (Player.Actor && EffectClass)
+					if (EffectClass)
 						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, EffectClass, Frag.Damage);
 				}
 			}
@@ -375,7 +407,7 @@ void ULNPWeaponTraceDebugDrawProcessor::Execute(FMassEntityManager& EntityManage
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			const FLNPWeaponTraceFragment& Frag       = Attackers[i];
-			const float                    SwordRadius = FMath::Sqrt(Frag.HitRadiusSq);
+			const float                    SwordRadius = Frag.HitRadius;
 
 			// Swept Quad 외곽 4선 (마젠타)
 			DrawDebugLine(World, Frag.SwordRootPrev, Frag.SwordTipPrev,  FColor::Magenta, false, 0.2f, 0, 1.f);

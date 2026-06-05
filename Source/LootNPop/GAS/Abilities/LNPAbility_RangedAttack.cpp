@@ -83,7 +83,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 	SharedData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
 	SharedData.Type              = WeaponDef->ProjectileType;
 	SharedData.Damage            = ComputeDamage();
-	SharedData.HitRadiusSq       = FMath::Square(WeaponDef->ProjectileHitRadius);
+	SharedData.HitRadius         = WeaponDef->ProjectileHitRadius;
 
 	FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(SharedData);
 	FMassArchetypeSharedFragmentValues SharedValues;

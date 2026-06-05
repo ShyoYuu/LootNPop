@@ -62,8 +62,9 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bIsAirborne = MoverComponent->IsAirborne();
 	bIsFalling = MoverComponent->IsFalling();
 	bIsSwimming = MoverComponent->IsSwimming();
-	bIsCrouching = MoverComponent->IsCrouching();
-	bIsSprinting = MoverComponent->IsSprinting();
+	bIsCrouching  = MoverComponent->IsCrouching();
+	bIsSprinting  = MoverComponent->IsSprinting();
+	bIsGuarding   = MoverComponent->IsGuarding();
 
 	// 4. 이동 방향 계산
 	Direction = UKismetAnimationLibrary::CalculateDirection(Velocity, OwningMoverCharacter->GetActorRotation());

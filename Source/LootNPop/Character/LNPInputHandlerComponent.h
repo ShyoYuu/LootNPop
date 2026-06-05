@@ -14,6 +14,8 @@ class ULNPCharacterMoverComponent;
 class ULNPPawnGravityComponent;
 class ULNPInteractionComponent;
 class UAbilitySystemComponent;
+class UMassAgentComponent;
+struct FLNPParryStateFragment;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class LOOTNPOP_API ULNPInputHandlerComponent : public UActorComponent, public IMoverInputProducerInterface
@@ -122,6 +124,11 @@ private:
 	bool bIsAttackBuffered = false;
 	float AttackBufferTime = -1.0f;
 
+	FTimerHandle ParryWindowTimer;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|Guard", meta = (ClampMin = "0.05", ClampMax = "1.0"))
+	float ParryWindowDuration = 0.15f;
+
 	void OnMoveTriggered(const FInputActionValue& Value);
 	void OnMoveCompleted(const FInputActionValue& Value);
 	void OnLookTriggered(const FInputActionValue& Value);
@@ -136,6 +143,8 @@ private:
 	void OnAttackReleased(const FInputActionValue& Value);
 	void OnGuardStarted(const FInputActionValue& Value);
 	void OnGuardReleased(const FInputActionValue& Value);
+
+	FLNPParryStateFragment* GetParryFragment() const;
 	void OnLockOnStarted(const FInputActionValue& Value);
 	void OnLockOnReleased(const FInputActionValue& Value);
 	void OnActiveSkillStarted(const FInputActionValue& Value, int32 SlotIndex);

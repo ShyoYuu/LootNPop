@@ -6,11 +6,13 @@
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "NativeGameplayTags.h"
 #include "LNPSprintModifier.h"
+#include "LNPGuardModifier.h"
 #include "LNPCharacterMoverComponent.generated.h"
 
 class UAnimMontage;
 
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNPTAG_Mover_IsSprinting);
+LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNPTAG_Mover_IsGuarding);
 
 /**
  * LootNPop 캐릭터용 커스텀 Mover Component.
@@ -35,6 +37,14 @@ public:
 	/** 캐릭터가 현재 Sprint 가능한지 확인한다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool CanSprint() const;
+
+	/** 캐릭터가 가드를 원하는지 여부를 설정한다 */
+	UFUNCTION(BlueprintCallable, Category = "LNP|Movement")
+	void SetWantsToGuard(bool bInWantsToGuard) { bWantsToGuard = bInWantsToGuard; }
+
+	/** 캐릭터가 현재 가드 Modifier가 활성화되어 있으면 true를 반환한다 */
+	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
+	bool IsGuarding() const;
 
 	void SetIsAiming(bool bInIsAiming) { bIsAiming = bInIsAiming; }
 	bool GetIsAiming() const { return bIsAiming; }
@@ -84,6 +94,13 @@ private:
 
 	/** 활성 Sprint Modifier Handle */
 	FMovementModifierHandle SprintModifierHandle;
+
+	/** true이면 캐릭터가 다음 simulation tick에서 가드를 의도하고 있다 */
+	UPROPERTY(BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
+	uint8 bWantsToGuard : 1 = 0;
+
+	/** 활성 Guard Modifier Handle */
+	FMovementModifierHandle GuardModifierHandle;
 
 	bool bIsAiming = false;
 	float LastDashTime = -1.0f;

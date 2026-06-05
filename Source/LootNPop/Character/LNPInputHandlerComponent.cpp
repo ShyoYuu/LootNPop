@@ -18,6 +18,10 @@
 #include "AbilitySystemComponent.h"
 #include "LNPGameplayTags.h"
 
+#include "MassAgentComponent.h"
+#include "MassEntitySubsystem.h"
+#include "HitDetection/LNPGuardParryTypes.h"
+
 ULNPInputHandlerComponent::ULNPInputHandlerComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -269,8 +273,9 @@ void ULNPInputHandlerComponent::OnLookCompleted(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnJumpStarted(const FInputActionValue& Value)
 {
-	bIsJumpJustPressed = !bIsJumpPressed;
-	bIsJumpPressed = true;
+	// Guard 테스트를 위해 잠시 주석
+	//bIsJumpJustPressed = !bIsJumpPressed;
+	//bIsJumpPressed = true;
 }
 
 void ULNPInputHandlerComponent::OnJumpReleased(const FInputActionValue& Value)
@@ -348,16 +353,88 @@ void ULNPInputHandlerComponent::OnAttackReleased(const FInputActionValue& Value)
 	bIsAttackJustPressed = false;
 }
 
+FLNPParryStateFragment* ULNPInputHandlerComponent::GetParryFragment() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return nullptr;
+
+	UMassEntitySubsystem* MassSub = World->GetSubsystem<UMassEntitySubsystem>();
+	if (!MassSub)
+		return nullptr;
+
+	AActor* Owner = GetOwner();
+	if (!Owner)
+		return nullptr;
+
+	UMassAgentComponent* AgentComp = Owner->FindComponentByClass<UMassAgentComponent>();
+	if (!AgentComp)
+		return nullptr;
+
+	FMassEntityManager& EM = MassSub->GetMutableEntityManager();
+	const FMassEntityHandle Handle = AgentComp->GetEntityHandle();
+	if (!EM.IsEntityValid(Handle))
+		return nullptr;
+
+	return EM.GetFragmentDataPtr<FLNPParryStateFragment>(Handle);
+}
+
 void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 {
 	bIsGuardJustPressed = !bIsGuardPressed;
 	bIsGuardPressed = true;
+
+	if (MoverComponent)
+		MoverComponent->SetWantsToGuard(true);
+
+	if (ASC)
+	{
+		ASC->AddLooseGameplayTag(TAG_State_Guarding);
+
+		// 패링 창: 가드 입력 직후 ParryWindowDuration 동안만 활성
+		ASC->AddLooseGameplayTag(TAG_State_ParryWindow);
+		GetWorld()->GetTimerManager().SetTimer(
+			ParryWindowTimer,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				if (ASC) ASC->RemoveLooseGameplayTag(TAG_State_ParryWindow);
+				if (FLNPParryStateFragment* PF = GetParryFragment())
+					PF->bIsParrying = false;
+			}),
+			ParryWindowDuration, false);
+
+		if (FLNPParryStateFragment* PF = GetParryFragment())
+		{
+			PF->bIsGuarding = true;
+			PF->bIsParrying = true;
+		}
+	}
+
+	UE_LOG(LogLootNPop, Log, TEXT("Guard Started"));
 }
 
 void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
 {
 	bIsGuardPressed = false;
 	bIsGuardJustPressed = false;
+
+	if (MoverComponent)
+		MoverComponent->SetWantsToGuard(false);
+
+	if (ASC)
+	{
+		ASC->RemoveLooseGameplayTag(TAG_State_Guarding);
+		ASC->RemoveLooseGameplayTag(TAG_State_ParryWindow);
+		GetWorld()->GetTimerManager().ClearTimer(ParryWindowTimer);
+
+		if (FLNPParryStateFragment* PF = GetParryFragment())
+		{
+			PF->bIsGuarding = false;
+			PF->bIsParrying = false;
+		}
+	}
+
+	UE_LOG(LogLootNPop, Log, TEXT("Guard Released"));
 }
 
 void ULNPInputHandlerComponent::OnLockOnStarted(const FInputActionValue& Value)

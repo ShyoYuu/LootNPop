@@ -19,3 +19,15 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_AimMode_LockOn)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Action_Attacking)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Movement_Jumping)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Block_MovementInput)
+
+// Guard / Parry 상태 태그
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_Guarding)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_ParryWindow)
+
+// Guard / Parry GameplayCue 태그
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Guard_Block)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Parry_Success)
+
+// Guard / Parry GameplayEvent 태그 (GA 몽타주 트리거용)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Parry_Success) // 방어자에게 전송 → GA_ParrySuccess 트리거
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Parry_Stagger) // 공격자에게 전송 → GA_Stagger 트리거

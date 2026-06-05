@@ -59,6 +59,8 @@ CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
 |:---|:---:|:---|
 | `SprintSpeed` | 1200 cm/s | 질주 시 최대 이동 속도 |
 | `SprintAcceleration` | 6000 cm/s² | 질주 시 가속도 |
+| `GuardWalkSpeed` | 200 cm/s | 가드 중 최대 이동 속도 |
+| `GuardAcceleration` | 2000 cm/s² | 가드 중 가속도 |
 
 > 기본 걷기 속도(`MaxSpeed`)는 Mover 기본 `UCommonLegacyMovementSettings`에서 관리.
 
@@ -89,10 +91,36 @@ LNP.Mover.IsSprinting (Gameplay Tag)
 
 - `IsSprinting()` / `CanSprint()` — 외부 조회용 래퍼 함수
 - 수정자 기반 설계로 네트워크 롤백 시 `SyncState`에 포함되어 안정적으로 복구됨
+- **`CanSprint()`는 `!IsGuarding()` 조건을 포함** — 가드 중 질주 불가
 
 ---
 
-## 5. 대시 시스템 (구현 완료)
+## 5. 가드 이동 시스템 (구현 완료)
+
+질주 시스템과 동일한 Modifier 패턴. `OnMoverPreSimulationTick`에서 Guard를 먼저 처리한 뒤 Sprint를 처리한다.
+
+```
+bWantsToGuard (의도 플래그)
+    │  OnGuardStarted/Released → SetWantsToGuard(true/false)
+    │  OnMoverPreSimulationTick()에서 매 프레임 검사
+    ▼
+FLNPGuardModifier (속도 수정자)
+    │  OnStart: MaxSpeed = GuardWalkSpeed, Acceleration = GuardAcceleration
+    │  OnEnd:   CDO 기준으로 원래 값 복원
+    │  활성 시 GuardModifierHandle로 추적
+    ▼
+LNP.Mover.IsGuarding (Gameplay Tag)
+    └→ IsGuarding() 쿼리, ULNPAnimInstance::bIsGuarding 갱신
+```
+
+- `IsGuarding()` — `HasGameplayTag(LNPTAG_Mover_IsGuarding)` 래퍼
+- `ULNPAnimInstance::bIsGuarding` — ABP에서 Guard 자세 분기에 사용
+- Guard 중에는 Sprint 발동 불가 (`CanSprint()` 내부에서 `!IsGuarding()` 체크)
+- Guard Modifier가 Sprint Modifier보다 먼저 처리되어 속도 충돌 방지
+
+---
+
+## 6. 대시 시스템 (구현 완료)
 
 반응성과 시각적 동기화를 동시에 달성하기 위해 **하이브리드 레이어드 무브** 방식 사용.
 
@@ -132,7 +160,7 @@ LNP.Mover.IsSprinting (Gameplay Tag)
 
 ---
 
-## 6. 구현 현황 요약
+## 7. 구현 현황 요약
 
 | 기능 | 상태 |
 |:---|:---|
@@ -141,6 +169,7 @@ LNP.Mover.IsSprinting (Gameplay Tag)
 | 룩 입력 / Pitch 클램프 | ✅ 완료 |
 | 이동 속도 설정 | ✅ 완료 |
 | 질주 시스템 (Stance + Modifier) | ✅ 완료 |
+| 가드 이동 시스템 (Guard Modifier) | ✅ 완료 |
 | 대시 시스템 (Layered Move) | ✅ 완료 |
 | 방향성 대시 몽타주 (Forward/Backward) | ✅ 완료 |
 | 방향성 대시 몽타주 (Left/Right) | 🔲 미구현 (에셋 연결 필요) |
