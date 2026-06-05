@@ -72,6 +72,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Movement")
 	bool bIsSprinting;
 
+	/** 캐릭터가 현재 가드 중인가? Guard Modifier 활성 여부로 판단. ABP 분기에 사용. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	bool bIsGuarding;
+
 	/** Aim Offset: 카메라 Yaw - 캐릭터 Yaw 차이 (-180 ~ 180) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|AimOffset")
 	float AimYaw = 0.0f;

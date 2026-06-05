@@ -47,7 +47,8 @@ struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragme
 	float Damage      = 10.0f;
 
 	UPROPERTY()
-	float HitRadiusSq = 25.0f;
+	float HitRadius   = 5.0f;    // 피격 판정 반경
+	float ParryRadius = 6.0f;    // 패링 판정 반경 — HitRadius보다 크게 설정
 };
 
 /**

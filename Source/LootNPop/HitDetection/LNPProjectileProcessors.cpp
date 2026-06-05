@@ -1,9 +1,10 @@
-﻿// Copyright (c) 2026 LootNPop. All rights reserved.
+// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "HitDetection/LNPProjectileProcessors.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPProjectileVisualSubsystem.h"
 #include "HitDetection/LNPHitDetectionShared.h"
+#include "HitDetection/LNPGuardParryTypes.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyCharacter.h"
@@ -29,7 +30,10 @@
 
 namespace
 {
-	/** 선분 (A→B)이 Center/UpDir/HalfHeight/Radius의 Capsule과 교차하면 true를 반환한다. */
+	/**
+	 * 선분(A→B)이 Center/UpDir/HalfHeight/CombinedRadius의 캡슐과 교차하면 true.
+	 * Center는 캡슐 중심(바닥이 아닌 실린더 중앙).
+	 */
 	bool SegmentHitsCapsule(
 		FVector A, FVector B,
 		FVector Center, FVector UpDir,
@@ -145,7 +149,7 @@ ULNPProjectileHitDetectionProcessor::ULNPProjectileHitDetectionProcessor()
 void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
 	ProjectileQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	ProjectileQuery.AddRequirement<FLNPProjectileFragment>(EMassFragmentAccess::ReadOnly);
+	ProjectileQuery.AddRequirement<FLNPProjectileFragment>(EMassFragmentAccess::ReadWrite);
 	ProjectileQuery.AddRequirement<FLNPProjectileVisualFragment>(EMassFragmentAccess::ReadOnly);
 	ProjectileQuery.AddConstSharedRequirement<FLNPProjectileSharedFragment>(EMassFragmentPresence::All);
 	ProjectileQuery.AddTagRequirement<FLNPProjectileDeadTag>(EMassFragmentPresence::None);
@@ -160,6 +164,7 @@ void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMas
 
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
+	PlayerQuery.AddRequirement<FLNPParryStateFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
 
@@ -170,15 +175,16 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 {
 	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
 
-	// --- Pass 1: 살아있는 모든 Enemy의 위치와 Capsule 크기 수집 ---
+	// ── Pass 1: Enemy 캡슐 데이터 수집 ────────────────────────────────────────
 	struct FCollectedEnemy
 	{
-		FVector            Location;
+		FVector            CapsuleCenter;    // 액터 위치 + UpDir * HalfHeight (캡슐 중심)
+		FVector            UpDir;            // (-Location).GetSafeNormal() — 구형 세계 UP
 		float              CapsuleHalfHeight;
 		float              CapsuleRadius;
 		FLNPEnemyFragment* Fragment;
 		FMassEntityHandle  Handle;
-		AActor*            Actor; // non-null only when an actor is active for this entity
+		AActor*            Actor;
 	};
 	TArray<FCollectedEnemy> Enemies;
 
@@ -191,145 +197,175 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		const float HalfH  = Shared.Config->CapsuleHalfHeight;
 		const float Radius = Shared.Config->CapsuleRadius;
 
-		const TConstArrayView<FTransformFragment>  Transforms  = Ctx.GetFragmentView<FTransformFragment>();
-		TArrayView<FLNPEnemyFragment>              EnemyFrags  = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
-		TArrayView<FMassActorFragment>  ActorFrags  = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		TArrayView<FLNPEnemyFragment>             EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
+		TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			AActor* EnemyActor = ActorFrags[i].GetMutable();
-			Enemies.Add({ Transforms[i].GetTransform().GetLocation(), HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), EnemyActor });
+			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
+			const FVector UpDir = (-Loc).GetSafeNormal();
+			Enemies.Add({ Loc + UpDir * HalfH, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), ActorFrags[i].GetMutable() });
 		}
 	});
 
-	// --- Pass 1b: 살아있는 모든 Player의 위치와 Capsule 크기 수집 ---
+	// ── Pass 2: Player 캡슐 데이터 수집 ───────────────────────────────────────
 	struct FCollectedPlayer
 	{
-		FVector                  Location;
-		float                    CapsuleHalfHeight;
-		float                    CapsuleRadius;
-		FMassEntityHandle        Handle;
-		AActor*           Actor;
+		FVector                Location;       // 액터 위치 (충돌 판정 중심으로 사용)
+		FVector                UpDir;          // (-Location).GetSafeNormal()
+		FVector                ForwardVector;  // 패링 각도 계산용
+		float                  CapsuleHalfHeight;
+		float                  CapsuleRadius;
+		FMassEntityHandle      Handle;
+		AActor*                Actor;
+		FLNPParryStateFragment ParryState;
 	};
 	TArray<FCollectedPlayer> Players;
 
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
-		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
-		TArrayView<FMassActorFragment> ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FTransformFragment>     Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		TArrayView<FMassActorFragment>                ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FLNPParryStateFragment> ParryFrags = Ctx.GetFragmentView<FLNPParryStateFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			AActor* PlayerActor = ActorFrags[i].GetMutable();
-			ALNPPlayerCharacter* PlayerPawn = Cast<ALNPPlayerCharacter>(PlayerActor);
+			const ALNPPlayerCharacter* PlayerPawn = Cast<ALNPPlayerCharacter>(PlayerActor);
 			if (PlayerPawn == nullptr)
 				continue;
 
 			const UCapsuleComponent* Capsule = PlayerPawn->GetCapsule();
+			const FTransform& T   = Transforms[i].GetTransform();
+			const FVector     Loc = T.GetLocation();
 			Players.Add({
-				Transforms[i].GetTransform().GetLocation(),
+				Loc,
+				(-Loc).GetSafeNormal(),
+				T.GetRotation().GetForwardVector(),
 				Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 96.f,
 				Capsule ? Capsule->GetScaledCapsuleRadius()     : 42.f,
 				Ctx.GetEntity(i),
-				PlayerActor
+				PlayerActor,
+				ParryFrags[i]
 			});
 		}
-	});	
+	});
 
 	if (Enemies.IsEmpty() && Players.IsEmpty())
 		return;
 
 	const bool bFriendlyFire = GetDefault<ULNPSettings>()->bFriendlyFire;
 
-	// --- Pass 2: 선분 vs Capsule 충돌 검사 (Enemy 먼저, 그 다음 Player) ---
+	// ── Pass 3: 선분 vs 캡슐 충돌 판정 ───────────────────────────────────────
 	ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		const FLNPProjectileSharedFragment&                 Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
 		const TConstArrayView<FTransformFragment>           Transforms  = Ctx.GetFragmentView<FTransformFragment>();
-		const TConstArrayView<FLNPProjectileFragment>       Projectiles = Ctx.GetFragmentView<FLNPProjectileFragment>();
+		TArrayView<FLNPProjectileFragment>                  Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
 		const TConstArrayView<FLNPProjectileVisualFragment> Visuals     = Ctx.GetFragmentView<FLNPProjectileVisualFragment>();
+
+		const float HitRadius   = Shared.HitRadius;
+		const float ParryRadius = Shared.ParryRadius;
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			const FLNPProjectileFragment& Proj       = Projectiles[i];
-			const FVector                 CurrentPos = Transforms[i].GetTransform().GetLocation();
-			const FMassEntityHandle       ProjEnt    = Ctx.GetEntity(i);
+			FLNPProjectileFragment& Proj       = Projectiles[i];
+			const FVector           CurrentPos = Transforms[i].GetTransform().GetLocation();
+			const FMassEntityHandle ProjEnt    = Ctx.GetEntity(i);
 
+			// Enemy 판정 (Player 발사체만 Enemy에게 피해를 줌)
 			bool bHit = false;
-
 			for (FCollectedEnemy& Enemy : Enemies)
 			{
 				if (Enemy.Handle == Proj.Instigator)
 					continue;
 
-				const FVector UpDir          = (-Enemy.Location).GetSafeNormal();
-				const FVector CapsuleCenter  = Enemy.Location + UpDir * Enemy.CapsuleHalfHeight;
-				const float   CombinedRadius = Enemy.CapsuleRadius + FMath::Sqrt(Shared.HitRadiusSq);
-
 				FVector HitPoint;
-				if (SegmentHitsCapsule(
+				if (!SegmentHitsCapsule(
 					Proj.PreviousPos, CurrentPos,
-					CapsuleCenter, UpDir,
-					Enemy.CapsuleHalfHeight, CombinedRadius,
+					Enemy.CapsuleCenter, Enemy.UpDir,
+					Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius,
 					HitPoint))
+					continue;
+
+				if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
 				{
-					// Enemy Projectile는 다른 Enemy에게 피해를 주지 않음
-					if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
+					if (Enemy.Actor && Shared.DamageEffectClass)
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Shared.DamageEffectClass, Shared.Damage);
+					else
 					{
-						if (Enemy.Actor && Shared.DamageEffectClass)
-							Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Shared.DamageEffectClass, Shared.Damage);
-						else
-						{
-							const float HpBefore = Enemy.Fragment->Health;
-							Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(Shared.Damage, Enemy.Fragment->Defense));
-							UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Shared.Damage);
-						}
+						const float HpBefore = Enemy.Fragment->Health;
+						Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(Shared.Damage, Enemy.Fragment->Defense));
+						UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Shared.Damage);
 					}
-
-					if (Visuals[i].bInitialized)
-						VisualSub.EnqueueTrailRelease(ProjEnt);
-
-					const FVector ImpactNormal = (HitPoint - CapsuleCenter).GetSafeNormal();
-					VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, ImpactNormal);
-					Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
-					bHit = true;
-					break;
 				}
+
+				if (Visuals[i].bInitialized)
+					VisualSub.EnqueueTrailRelease(ProjEnt);
+
+				VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, (HitPoint - Enemy.CapsuleCenter).GetSafeNormal());
+				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
+				bHit = true;
+				break;
 			}
 
 			if (bHit)
 				continue;
 
+			// Player 판정 (패링/가드/피격 분기)
 			for (FCollectedPlayer& Player : Players)
 			{
 				if (Player.Handle == Proj.Instigator)
 					continue;
 
-				const FVector UpDir          = (-Player.Location).GetSafeNormal();
-				const float   CombinedRadius = Player.CapsuleRadius + FMath::Sqrt(Shared.HitRadiusSq);
+				const FLNPParryStateFragment& PS          = Player.ParryState;
+				const FVector                 IncomingDir = (Proj.PreviousPos - CurrentPos).GetSafeNormal();
+				const float                   Dot         = FVector::DotProduct(Player.ForwardVector, IncomingDir);
+				const bool bShouldProcess = Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy || bFriendlyFire;
 
-				FVector HitPoint;
-				if (SegmentHitsCapsule(
-					Proj.PreviousPos, CurrentPos,
-					Player.Location, UpDir,
-					Player.CapsuleHalfHeight, CombinedRadius,
-					HitPoint))
+				// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경)
+				if (bShouldProcess && PS.bIsParrying && Dot >= PS.ParryAngleCos)
 				{
-					// Enemy Projectile는 항상 Player에게 피해; Player Projectile는 아군 사격 켜진 경우만
-					const bool bShouldDamage = Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy || bFriendlyFire;
-					if (bShouldDamage && Shared.DamageEffectClass)
+					FVector HitPoint;
+					if (SegmentHitsCapsule(
+						Proj.PreviousPos, CurrentPos,
+						Player.Location, Player.UpDir,
+						Player.CapsuleHalfHeight, Player.CapsuleRadius + ParryRadius,
+						HitPoint))
 					{
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Shared.DamageEffectClass, Shared.Damage);
+						// 투사체 반사: 속도 반전 + 진영 전환
+						Proj.Velocity       = -Proj.Velocity;
+						Proj.InstigatorTeam = ELNPInstigatorTeam::Player;
+						Proj.Instigator     = Player.Handle;
+						Ctx.Defer().PushCommand<FLNPProjectileParryCommand>(Player.Actor);
+						break;
 					}
-
-					if (Visuals[i].bInitialized)
-						VisualSub.EnqueueTrailRelease(ProjEnt);
-
-					const FVector ImpactNormal = (HitPoint - Player.Location).GetSafeNormal();
-					VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, ImpactNormal);
-					Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
-					break;
 				}
+
+				// 2단계: 피격 체크 (HitRadius — 정상 반경)
+				FVector HitPoint;
+				if (!SegmentHitsCapsule(
+					Proj.PreviousPos, CurrentPos,
+					Player.Location, Player.UpDir,
+					Player.CapsuleHalfHeight, Player.CapsuleRadius + HitRadius,
+					HitPoint))
+					continue;
+
+				if (bShouldProcess)
+				{
+					if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
+						Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
+					else if (Shared.DamageEffectClass)
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Shared.DamageEffectClass, Shared.Damage);
+				}
+
+				if (Visuals[i].bInitialized)
+					VisualSub.EnqueueTrailRelease(ProjEnt);
+
+				VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, (HitPoint - Player.Location).GetSafeNormal());
+				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
+				break;
 			}
 		}
 	});
@@ -364,7 +400,7 @@ void ULNPProjectileVisualizationProcessor::Execute(FMassEntityManager& EntityMan
 {
 	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
 
-	// Movement/HitDetection Processor가 큐에 넣은 작업 처리 (둘 다 워커 Thread에서 실행 가능)
+	// Movement/HitDetection Processor가 큐에 넣은 작업 처리 (둘 다 Worker Thread에서 실행 가능)
 	VisualSub.FlushTrailReleases();
 	VisualSub.FlushPendingImpacts();
 
@@ -377,9 +413,9 @@ void ULNPProjectileVisualizationProcessor::Execute(FMassEntityManager& EntityMan
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			const FVector         CurrentPos = Transforms[i].GetTransform().GetLocation();
-			FLNPProjectileVisualFragment& Visual = Visuals[i];
-			const FMassEntityHandle       Entity = Ctx.GetEntity(i);
+			const FVector                 CurrentPos = Transforms[i].GetTransform().GetLocation();
+			FLNPProjectileVisualFragment& Visual     = Visuals[i];
+			const FMassEntityHandle       Entity     = Ctx.GetEntity(i);
 
 			if (false == Visual.bInitialized)
 			{
@@ -478,8 +514,9 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 		{
 			const FVector Pos    = Transforms[i].GetTransform().GetLocation();
 			const FVector VelDir = Projectiles[i].Velocity.GetSafeNormal();
+			const FColor  Color  = Projectiles[i].InstigatorTeam == ELNPInstigatorTeam::Player ? FColor::Cyan : FColor::Red;
 
-			DrawDebugSphere(World, Pos, 8.f, 8, FColor::Cyan, false, -1.f);
+			DrawDebugSphere(World, Pos, 8.f, 8, Color, false, -1.f);
 			DrawDebugLine(World, Pos, Pos + VelDir * 60.f, FColor::White, false, -1.f);
 		}
 	});
@@ -523,18 +560,17 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 			if (const ALNPCharacterBase* Enemy = Cast<ALNPCharacterBase>(ActorFrags[i].Get()))
 			{
 				Location = Transforms[i].GetTransform().GetLocation();
-				UpDir = (-Location).GetSafeNormal();
-				Center = Location;
+				UpDir    = (-Location).GetSafeNormal();
+				Center   = Location;
 			}
 			else
 			{
 				Location = Transforms[i].GetTransform().GetLocation();
-				UpDir = (-Location).GetSafeNormal();
-				Center = Location + UpDir * HalfHeight;
+				UpDir    = (-Location).GetSafeNormal();
+				Center   = Location + UpDir * HalfHeight;
 			}
 
 			const FQuat CapsuleRot = FQuat::FindBetweenNormals(FVector::UpVector, UpDir);
-
 			DrawDebugCapsule(World, Center, HalfHeight, Radius, CapsuleRot, FColor::Red, false, -1.f);
 		}
 	});

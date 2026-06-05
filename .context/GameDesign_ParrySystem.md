@@ -1,8 +1,12 @@
 # Parry System - 게임 기획서
 
-> **⚠️ 구현 상태: 전체 미구현.** 관련 C++ 코드(Fragment, Processor, 판정 로직 등) 일체 존재하지 않습니다.
-> 단, **패링 입력 자체(`GuardAction`)는 `ULNPInputHandlerComponent`에 이미 바인딩**되어 있습니다.
-> HitDetection 시스템 구현 완료 후 연계 작업. `Phase 3` 작업 대상.
+> **구현 상태: 핵심 기능 완료. 에디터 연결 작업 잔여.**
+> - **Guard(막기):** ✅ 완료 + 동작 확인
+> - **Parry(저스트 가드) — 근접:** ✅ 완료 (방어자 몽타주, 공격자 Stagger 포함)
+> - **Parry(저스트 가드) — 투사체:** ✅ 완료 + 동작 확인 (Velocity 반전, InstigatorTeam 전환)
+> - **Guard 자세 애니메이션:** 🔲 에디터 작업 필요 — C++ 변수 준비 완료, ABP 분기 미연결
+> - **GameplayCue 에셋:** 🔲 에디터 작업 필요 — 태그 정의 완료, 에셋 연결 대기
+> - 기술 설계: [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)
 
 ---
 

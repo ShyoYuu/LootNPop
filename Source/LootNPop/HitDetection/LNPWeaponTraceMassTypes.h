@@ -24,8 +24,9 @@ struct LOOTNPOP_API FLNPWeaponTraceFragment : public FMassFragment
 	FVector SwordRootPrev = FVector::ZeroVector;
 	FVector SwordRootCurr = FVector::ZeroVector;
 
-	float HitRadiusSq = 100.f;
-	float Damage      = 0.f;
+	float HitRadius   = 10.f;
+	float ParryRadius = 12.f;    // 패링 판정 반경 — HitRadius보다 크게 설정
+	float Damage        = 0.f;
 
 	UPROPERTY()
 	UClass* DamageEffectClass = nullptr;

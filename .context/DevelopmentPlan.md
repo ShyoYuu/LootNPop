@@ -74,9 +74,15 @@
     - 피격 시 `FLNPPlayerLootingTag` 제거 → LootPod 루팅 취소 연동은 미구현.
 - [ ] **피격 반응 시스템**
     - 넉백 Launch (구형 곡률 기반 궤적), HitStop, 아이템 드랍.
-- [ ] **패링 시스템** (`FLNPParryStateFragment`)
-    - HitDetection 프로세서 내부에서 방향·거리 조건 검사.
-    - GAS 어빌리티로 입력 윈도우(`bIsParrying`) 관리.
+- [x] **Guard / Parry 시스템** (핵심 기능 완료, 에디터 연결 잔여)
+    - Guard: `FLNPParryStateFragment` Fragment 각도 판정 → `FLNPGuardBlockCommand` → 데미지 차단 + GameplayCue. 동작 확인.
+    - Parry(근접): Guard 입력 직후 0.15초 창 → `FLNPMeleeParryCommand` → 방어자 GA_ParrySuccess + 공격자 GA_Stagger.
+    - Parry(투사체): Processor에서 Fragment Velocity/InstigatorTeam/Instigator 반전 → `FLNPProjectileParryCommand` (방어자 GA_ParrySuccess만). 동작 확인.
+    - 판정 구조: `FLNPParryStateFragment` Mirror Fragment 기반으로 Processor(Worker Thread)에서 직접 판정. `FLNPApplyDamageGECommand`는 GE 적용 전용으로 간소화.
+    - 판정 반경 분리: `HitRadius`(피격)와 `ParryRadius`(패링)를 독립 필드로 분리. 2단계 판정 — PatryRadius 먼저 체크, 미발동 시 HitRadius 체크. 동작 확인.
+    - Guard 이동 제한: `FLNPGuardModifier` (GuardWalkSpeed 200 cm/s) — Sprint와 동일한 Mover Modifier 패턴.
+    - 에디터 잔여: GameplayCue 에셋 연결, Guard 자세 ABP 분기(`ULNPAnimInstance::bIsGuarding` 준비 완료), Guided/Lobbed 투사체 반사 타입.
+    - 설계 명세: [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)
 
 ---
 
