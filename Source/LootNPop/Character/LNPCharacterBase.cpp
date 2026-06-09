@@ -6,6 +6,7 @@
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "Player/LNPPlayerState.h"
 #include "Item/LNPWeaponData.h"
+#include "Animation/LNPMontageChooserContext.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
@@ -13,6 +14,9 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "AbilitySystemComponent.h"
 #include "MassAgentComponent.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimInstance.h"
+#include "ChooserFunctionLibrary.h"
 
 
 ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer)
@@ -73,7 +77,39 @@ void ALNPCharacterBase::SetAIOrientationIntent(FVector InOrientationIntent)
 
 bool ALNPCharacterBase::TryActivateAttack()
 {
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (ASC && ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
+	{
+		if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
+			SetComboInputBuffered(true);
+		return false;  // 블락 구간: 호출자가 bIsAttackBuffered를 세워 재시도할 수 있도록 false
+	}
+	return TryActivateAttack_Impl();
+}
+
+bool ALNPCharacterBase::TryActivateAttack_Impl()
+{
 	return false;
+}
+
+bool ALNPCharacterBase::ConsumeComboInput()
+{
+	const bool bWasBuffered = bComboInputBuffered;
+	bComboInputBuffered = false;
+	return bWasBuffered;
+}
+
+void ALNPCharacterBase::IncrementComboIndex()
+{
+	const ULNPWeaponData* WeaponDef = GetActiveWeaponDef();
+	const int32 MaxCombo = WeaponDef ? WeaponDef->MaxComboCount : 5;
+	CurrentComboIndex = (CurrentComboIndex + 1) % MaxCombo;
+}
+
+void ALNPCharacterBase::ResetCombo()
+{
+	CurrentComboIndex   = 0;
+	bComboInputBuffered = false;
 }
 
 void ALNPCharacterBase::PostInitializeComponents()
@@ -84,6 +120,8 @@ void ALNPCharacterBase::PostInitializeComponents()
 void ALNPCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
+
+	MontageCtx = NewObject<ULNPMontageChooserContext>(this);
 
 	if (UnarmedAnimLayerClass)
 	{
@@ -113,6 +151,12 @@ void ALNPCharacterBase::InitAbilitySystem()
 	CurrentAimModeTag = TAG_AimMode_None;
 	ASC->AddLooseGameplayTag(CurrentWeaponTag);
 	ASC->AddLooseGameplayTag(CurrentAimModeTag);
+
+	for (const TSubclassOf<UGameplayAbility>& AbilityClass : DefaultAbilities)
+	{
+		if (AbilityClass)
+			ASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+	}
 
 	if (InputHandlerComponent)
 		InputHandlerComponent->CacheASC(ASC);
@@ -177,12 +221,61 @@ void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
 		WeaponMesh->SetSkeletalMeshAsset(nullptr);
 		WeaponMesh->SetVisibility(false);
 	}
+
 }
 
 void ALNPCharacterBase::EquipTestWeapon(int32 SlotIndex)
 {
 	ULNPWeaponData* Target = TestWeaponList.IsValidIndex(SlotIndex) ? TestWeaponList[SlotIndex].Get() : nullptr;
 	EquipWeapon(Target);
+}
+
+void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir)
+{
+	UAnimInstance* Anim = GetAnimInstance();
+	if (!Anim)
+		return;
+
+	// 피격자 로컬 공간으로 변환 (X=Forward, Y=Right)
+	const FVector LocalDir = GetActorTransform().InverseTransformVectorNoScale(HitFromWorldDir);
+	const float Angle = FMath::RadiansToDegrees(FMath::Atan2(LocalDir.Y, LocalDir.X));
+
+	FGameplayTag Direction;
+	if      (Angle >= -45.0f  && Angle <   45.0f) Direction = TAG_Montage_Value_Direction_Front;
+	else if (Angle >=  45.0f  && Angle <  135.0f) Direction = TAG_Montage_Value_Direction_Right;
+	else if (Angle >=  135.0f || Angle < -135.0f) Direction = TAG_Montage_Value_Direction_Back;
+	else if (Angle >= -135.0f && Angle <  -45.0f) Direction = TAG_Montage_Value_Direction_Left;
+	else                                          Direction = TAG_Montage_Value_Direction_Front;
+
+	if (UAnimMontage* HitReactMontage = EvaluateMontage(TAG_Montage_Situation_HitReaction, Direction))
+		Anim->Montage_Play(HitReactMontage);
+}
+
+void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)
+{
+	CustomTimeDilation = TimeDilation;
+	FTimerHandle Handle;
+	GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		CustomTimeDilation = 1.0f;
+	}), Duration, false);
+}
+
+UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag WeaponType, FGameplayTag SituationType, FGameplayTag Value) const
+{
+	if (!MontageChooser || !MontageCtx)
+		return nullptr;
+
+	MontageCtx->WeaponType    = FGameplayTagContainer(WeaponType);
+	MontageCtx->SituationType = FGameplayTagContainer(SituationType);
+	MontageCtx->Value         = Value.IsValid() ? FGameplayTagContainer(Value) : FGameplayTagContainer();
+
+	return Cast<UAnimMontage>(UChooserFunctionLibrary::EvaluateChooser(MontageCtx, MontageChooser, UAnimMontage::StaticClass()));
+}
+
+UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag SituationType, FGameplayTag Value) const
+{
+	return EvaluateMontage(CurrentWeaponTag, SituationType, Value);
 }
 
 void ALNPCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

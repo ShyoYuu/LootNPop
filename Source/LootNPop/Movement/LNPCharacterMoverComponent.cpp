@@ -10,6 +10,9 @@
 #include "DefaultMovementSet/LayeredMoves/AnimRootMotionLayeredMove.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
+#include "Character/LNPCharacterBase.h"
+#include "AbilitySystemComponent.h"
+#include "LNPGameplayTags.h"
 
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
@@ -17,6 +20,7 @@ UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsGuarding, "LNP.Mover.IsGuarding", 
 ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 {
 	bHandleSprintChanges = 1;
+	bHandleGuardChanges = 1;
 	bWantsToRun = 0;
 
 	// 기본 이동 모드
@@ -51,21 +55,52 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 {
 	APawn* Pawn = CastChecked<APawn>(GetOwner());
 	const bool bHasMoveInput = !MoveInputIntent.IsNearlyZero();
-
-	TObjectPtr<UAnimMontage> SelectedMontage = nullptr;
 	FVector DashDirection = FVector::ZeroVector;
+	FGameplayTag DirTag;
 
-	if (bHasMoveInput)
+	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Pawn);
+	const UAbilitySystemComponent* ASC = Character ? Character->GetAbilitySystemComponent() : nullptr;
+	const bool bIsStrafe = ASC &&
+		(ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim) || ASC->HasMatchingGameplayTag(TAG_AimMode_LockOn));
+
+	if (bIsStrafe && Character)
 	{
-		DashDirection = Pawn->GetControlRotation().RotateVector(MoveInputIntent).GetSafeNormal();
-		SelectedMontage = DashForwardMontage;
+		// FreeAim/LockOn: 이동 인풋 기준 4방향 태그 → ChooserTable 평가
+		DashDirection = bHasMoveInput
+			? Pawn->GetControlRotation().RotateVector(MoveInputIntent).GetSafeNormal()
+			: -Pawn->GetActorForwardVector();
+
+		
+		if (bHasMoveInput)
+		{
+			// MoveInputIntent는 카메라 로컬 공간 (X=Forward, Y=Right)
+			const float Angle = FMath::RadiansToDegrees(FMath::Atan2(MoveInputIntent.Y, MoveInputIntent.X));
+			if      (Angle >= -45.f && Angle <   45.f) DirTag = TAG_Montage_Value_Direction_Front;
+			else if (Angle >=  45.f && Angle <  135.f) DirTag = TAG_Montage_Value_Direction_Right;
+			else if (Angle >= -135.f && Angle < -45.f) DirTag = TAG_Montage_Value_Direction_Left;
+			else                                       DirTag = TAG_Montage_Value_Direction_Back;
+		}
+		else
+		{
+			DirTag = TAG_Montage_Value_Direction_Back;
+		}
 	}
 	else
 	{
-		DashDirection = -Pawn->GetActorForwardVector();
-		SelectedMontage = DashBackwardMontage;
+		// AimMode_None: 기존 로직 (앞/뒤 2방향)
+		if (bHasMoveInput)
+		{
+			DashDirection = Pawn->GetControlRotation().RotateVector(MoveInputIntent).GetSafeNormal();
+			DirTag = TAG_Montage_Value_Direction_Front;
+		}
+		else
+		{
+			DashDirection = -Pawn->GetActorForwardVector();
+			DirTag = TAG_Montage_Value_Direction_Back;
+		}
 	}
 
+	TObjectPtr<UAnimMontage> SelectedMontage = Character->EvaluateMontage(TAG_Montage_Situation_Dash, DirTag);
 	if (!SelectedMontage)
 		return;
 
@@ -103,16 +138,27 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
 {
 	// Guard Modifier 관리 (Sprint보다 먼저 처리 — Guard 중에는 Sprint 불가)
+	if (bHandleGuardChanges)
 	{
-		const bool bIsGuardingNow = (FindMovementModifier(GuardModifierHandle) != nullptr)
-		                         || (FindMovementModifierByType<FLNPGuardModifier>() != nullptr);
+		const FLNPGuardModifier* ActiveModifier = static_cast<const FLNPGuardModifier*>(FindMovementModifier(GuardModifierHandle));
+		if (ActiveModifier == nullptr)
+		{
+			ActiveModifier = FindMovementModifierByType<FLNPGuardModifier>();
 
-		if (bIsGuardingNow && !bWantsToGuard)
+			// Handle로는 못 찾았는데 Type으로 찾았을 땐 Handle이 유효하지 않은 상태이므로 갱신해준다.
+			if (ActiveModifier != nullptr)
+				GuardModifierHandle = ActiveModifier->GetHandle();
+		}
+
+		const bool bIsGuarding  = (ActiveModifier != nullptr);
+		const bool bShouldGuard = bWantsToGuard;
+
+		if (bIsGuarding && !bShouldGuard)
 		{
 			CancelModifierFromHandle(GuardModifierHandle);
 			GuardModifierHandle.Invalidate();
 		}
-		else if (!bIsGuardingNow && bWantsToGuard)
+		else if (!bIsGuarding && bShouldGuard)
 		{
 			TSharedPtr<FLNPGuardModifier> NewModifier = MakeShared<FLNPGuardModifier>();
 			GuardModifierHandle = QueueMovementModifier(NewModifier);
@@ -123,9 +169,11 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 	if (bHandleSprintChanges)
 	{
 		const FLNPSprintModifier* ActiveModifier = static_cast<const FLNPSprintModifier*>(FindMovementModifier(SprintModifierHandle));
-		if (!ActiveModifier)
+		if (ActiveModifier == nullptr)
 		{
 			ActiveModifier = FindMovementModifierByType<FLNPSprintModifier>();
+			if (ActiveModifier != nullptr)
+				SprintModifierHandle = ActiveModifier->GetHandle();
 		}
 
 		const bool bIsSprinting  = (ActiveModifier != nullptr);
@@ -152,7 +200,7 @@ void ULNPCharacterMoverComponent::OnHandlerSettingChanged()
 	// Super는 점프/자세 설정에 따라 OnMoverPreSimulationTick을 추가/제거한다.
 	//Super::OnHandlerSettingChanged();
 
-	const bool bIsHandlingAnySettings = bHandleSprintChanges || bHandleJump || bHandleStanceChanges;
+	const bool bIsHandlingAnySettings = bHandleSprintChanges || bHandleGuardChanges || bHandleJump || bHandleStanceChanges;
 
 	if (bIsHandlingAnySettings)
 	{

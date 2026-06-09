@@ -131,7 +131,7 @@ void ALNPEnemyCharacter::TriggerRagdoll()
 		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-bool ALNPEnemyCharacter::TryActivateAttack()
+bool ALNPEnemyCharacter::TryActivateAttack_Impl()
 {
 	if (!WeaponAbilityHandle.IsValid() || !ASC)
 		return false;

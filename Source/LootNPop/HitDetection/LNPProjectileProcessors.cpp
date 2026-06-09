@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "HitDetection/LNPProjectileProcessors.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
@@ -292,7 +292,10 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
 				{
 					if (Enemy.Actor && Shared.DamageEffectClass)
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Shared.DamageEffectClass, Shared.Damage);
+					{
+						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, FMassEntityHandle{}, Shared.DamageEffectClass, Shared.Damage, HitFromDir);
+					}
 					else
 					{
 						const float HpBefore = Enemy.Fragment->Health;
@@ -357,7 +360,10 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
 						Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
 					else if (Shared.DamageEffectClass)
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Shared.DamageEffectClass, Shared.Damage);
+					{
+						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, FMassEntityHandle{}, Shared.DamageEffectClass, Shared.Damage, HitFromDir);
+					}
 				}
 
 				if (Visuals[i].bInitialized)
@@ -509,14 +515,18 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 	{
 		const TConstArrayView<FTransformFragment>     Transforms  = Ctx.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FLNPProjectileFragment> Projectiles = Ctx.GetFragmentView<FLNPProjectileFragment>();
+		const FLNPProjectileSharedFragment& Shared = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			const FVector Pos    = Transforms[i].GetTransform().GetLocation();
-			const FVector VelDir = Projectiles[i].Velocity.GetSafeNormal();
-			const FColor  Color  = Projectiles[i].InstigatorTeam == ELNPInstigatorTeam::Player ? FColor::Cyan : FColor::Red;
+			const FVector Pos     = Transforms[i].GetTransform().GetLocation();
+			const FVector VelDir  = Projectiles[i].Velocity.GetSafeNormal();
+			const bool    bPlayer = Projectiles[i].InstigatorTeam == ELNPInstigatorTeam::Player;
+			const FColor  Color      = bPlayer ? FColor::Cyan   : FColor::Red;
+			const FColor  ParryColor = bPlayer ? FColor::Silver : FColor::Orange;
 
-			DrawDebugSphere(World, Pos, 8.f, 8, Color, false, -1.f);
+			DrawDebugSphere(World, Pos, Shared.HitRadius,   8, Color,      false, -1.f);
+			DrawDebugSphere(World, Pos, Shared.ParryRadius, 4, ParryColor, false, -1.f);
 			DrawDebugLine(World, Pos, Pos + VelDir * 60.f, FColor::White, false, -1.f);
 		}
 	});

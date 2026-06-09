@@ -1,4 +1,4 @@
-// Copyright LootNPop. All Rights Reserved.
+﻿// Copyright LootNPop. All Rights Reserved.
 
 #pragma once
 
@@ -94,6 +94,9 @@ private:
 
 	/** 활성 Sprint Modifier Handle */
 	FMovementModifierHandle SprintModifierHandle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
+	uint8 bHandleGuardChanges : 1 = 1;
 
 	/** true이면 캐릭터가 다음 simulation tick에서 가드를 의도하고 있다 */
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))

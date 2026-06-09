@@ -75,7 +75,7 @@ const ULNPWeaponData* ALNPPlayerCharacter::GetActiveWeaponDef() const
 	return EqComp->GetWeaponSlot().Definition;
 }
 
-bool ALNPPlayerCharacter::TryActivateAttack()
+bool ALNPPlayerCharacter::TryActivateAttack_Impl()
 {
 	const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
 	if (!PS)

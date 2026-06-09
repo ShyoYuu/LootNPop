@@ -19,8 +19,7 @@ class LOOTNPOP_API ULNPWeaponData : public ULNPItemDefinitionBase
 	GENERATED_BODY()
 public:
 	/** 이 무기의 타입 태그 (LNP.Weapon.Pistol 등). EquipWeapon()이 ASC에 부여한다. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon",
-		meta = (Categories = "LNP.Weapon"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (Categories = "LNP.Weapon"))
 	FGameplayTag WeaponTag;
 
 	/**
@@ -29,8 +28,7 @@ public:
 	 * - 근거리·맨손: 비워두면 LNP.AimMode.None으로 처리
 	 * LockOn 전환은 DefaultAimMode가 None일 때만 허용 (코드 하드코딩).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon",
-		meta = (Categories = "LNP.AimMode"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (Categories = "LNP.AimMode"))
 	FGameplayTag DefaultAimMode;
 
 	/** 장착 시 LinkAnimClassLayers()에 전달할 서브 AnimBP 클래스. */
@@ -51,6 +49,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0"))
 	float FireCooldown = 0.2f;
 
+	/** 최대 콤보 연결 횟수. 콤보 인덱스는 이 값을 초과하면 처음(Attack_1)으로 순환한다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Combo", meta = (ClampMin = "1"))
+	int32 MaxComboCount = 5;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile")
 	ELNPProjectileType ProjectileType = ELNPProjectileType::Linear;
 
@@ -58,7 +60,10 @@ public:
 	float ProjectileSpeed = 5000.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0.1"))
-	float ProjectileHitRadius = 5.f;
+	float HitRadius = 5.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0.1"))
+	float ParryRadius = 5.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0"))
 	float ProjectileDamage = 10.f;

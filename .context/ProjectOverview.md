@@ -12,7 +12,7 @@
 | **Movement** | Mover 2.0 | `ULNPCharacterMoverComponent`, `ULNPPawnGravityComponent` |
 | **Animation** | Motion Matching + Linked Anim Layers | `ULNPAnimInstance` |
 | **Camera** | Gameplay Camera | — |
-| **World** | PCG + Geometry Script + Level Instance | `UPCGOctantThemeSamplerSettings`, `ULNPOctantSpawnSubsystem` |
+| **World** | PCG + Geometry Script + Level Instance | `BP_OctantGenerator`, `UPCGOctantThemeSamplerSettings`, `ULNPOctantSpawnSubsystem` |
 | **Surface Query** | SurfaceCacheSubsystem (커스텀) | `ULNPSurfaceCacheSubsystem` |
 | **Interaction** | SmartObject + MassEntity | `ALNPLootPod`, `ULNPLootingProcessor` |
 | **AI/Entity** | MassEntity + StateTree | `ULNPEnemyMovementProcessor`, `ULNPTargetingSubsystem` |

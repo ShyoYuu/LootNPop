@@ -151,8 +151,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 					//if (Score > KINDA_SMALL_NUMBER)
 					{
-						//bool bIsMelee = SharedFragment.Config->EnemyTypeTag.ToString().Contains(TEXT("Melee"), ESearchCase::IgnoreCase);
-						bool bIsMelee = true; // 테스트용
+						bool bIsMelee = SharedFragment.Config->EnemyTypeTag.ToString().Contains(TEXT("Melee"), ESearchCase::IgnoreCase);
 
 						FMassEntityHandle EnemyEntity = EnemyContext.GetEntity(i);
 						FMassEntityHandle PlayerHandle = Candidate.Handle;
@@ -778,7 +777,11 @@ void ULNPEnemyLODOverrideProcessor::Execute(FMassEntityManager& EntityManager, F
 		{
 			if (TargetingFragments[i].State == ELNPTargetingState::Confirmed)
 			{
-				//Representations[i].CurrentRepresentation = EMassRepresentationType::HighResSpawnedActor;
+				Representations[i].CurrentRepresentation = EMassRepresentationType::HighResSpawnedActor;
+			}
+			else
+			{
+				Representations[i].CurrentRepresentation = EMassRepresentationType::StaticMeshInstance;
 			}
 		}
 	});
