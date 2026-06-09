@@ -168,14 +168,14 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 	if (!PendingLookInput.IsNearlyZero())
 	{
 		// Yaw: 로컬 Up 축을 중심으로 회전
-		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * 4.0));
+		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * 8.0));
 		CurrentControlQuat = YawQuat * CurrentControlQuat;
 
 		// Pitch: 로컬 Right 축을 중심으로 회전
 		const FVector CurrentRight = FVector::CrossProduct(TargetUpDir, CurrentControlQuat.GetForwardVector()).GetSafeNormal();
 		if (!CurrentRight.IsNearlyZero())
 		{
-			const FQuat PitchQuat(CurrentRight, FMath::DegreesToRadians(-PendingLookInput.Pitch * 2.0));
+			const FQuat PitchQuat(CurrentRight, FMath::DegreesToRadians(-PendingLookInput.Pitch * 4.0));
 			CurrentControlQuat = PitchQuat * CurrentControlQuat;
 		}
 

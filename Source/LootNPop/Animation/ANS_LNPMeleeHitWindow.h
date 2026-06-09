@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -31,6 +31,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Melee", meta = (ClampMin = "0"))
 	float HitRadiusOverride = 0.f;
 
+	UPROPERTY(EditAnywhere, Category = "LNP|Melee", meta = (ClampMin = "0"))
+	float ParryRadiusOverride = 0.f;
+
 	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
 		float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
 
@@ -40,7 +43,7 @@ public:
 	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
 		const FAnimNotifyEventReference& EventReference) override;
 
-	virtual FString GetNotifyName_Implementation() const override { return TEXT("Melee Hit Window"); }
+	virtual FString GetNotifyName_Implementation() const override { return TEXT("LNP Melee Hit Window"); }
 
 private:
 	FMassEntityHandle MeleeEntity;

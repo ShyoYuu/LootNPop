@@ -4,6 +4,7 @@
 #include "GAS/Effects/LNPGameplayEffect_Cooldown.h"
 #include "Item/LNPWeaponData.h"
 #include "Character/LNPCharacterBase.h"
+#include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
 #include "Animation/AnimInstance.h"
@@ -23,14 +24,22 @@ void ULNPAbility_MeleeAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 
 	const ALNPCharacterBase* Character = GetOwningCharacter();
 	if (nullptr == Character)
-		return;
-
-	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDef();
-	if (WeaponDef && WeaponDef->AttackMontage)
 	{
-		if (UAnimInstance* AnimInst = Character->GetAnimInstance())
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
+	if (UAnimInstance* AnimInst = Character->GetAnimInstance())
+	{
+		if (UAnimMontage* AttackMontage = Character->EvaluateMontage(TAG_Montage_Situation_Attack))
 		{
-			AnimInst->Montage_Play(WeaponDef->AttackMontage);
+			AnimInst->Montage_Play(AttackMontage);
+			const int32 ComboIdx = Character->GetCurrentComboIndex();
+			if (ComboIdx > 0)
+			{
+				const FName SectionName = FName(FString::Printf(TEXT("Section_%d"), ComboIdx + 1));
+				AnimInst->Montage_JumpToSection(SectionName, AttackMontage);
+			}
 		}
 	}
 

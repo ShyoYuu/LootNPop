@@ -328,18 +328,17 @@ void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value
 	bIsAttackJustPressed = !bIsAttackPressed;
 	bIsAttackPressed = true;
 
-	const bool bIsRanged = ASC && ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim);
-	if (bIsRanged)
+	const bool bIsFreeAim = ASC && ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim);
+	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
+	if (!Character)
+		return;
+
+	if (bIsFreeAim || bIsAttackJustPressed)
 	{
-		// 원거리(총기류) 무기는 Input Hold로 연사 가능. 일단은 TAG_AimMode_FreeAim로 분기
-		// GAS 쿨다운(ULNPGameplayEffect_Cooldown)이 연사 속도를 제어하므로 매 프레임 호출해도 안전
-		if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner()))
-			Character->TryActivateAttack();
-	}
-	else if (bIsAttackJustPressed)
-	{
-		ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
-		if (!Character || !Character->TryActivateAttack())
+		// FreeAim 모드: ETriggerEvent::Triggered로 홀드 중 매 프레임 호출 → 연사 속도는 GAS 쿨다운이 제어.
+		// FreeAim 모드가 아닐 때는 ETriggerEvent::Started로 입력 시작 시에만 호출.
+		// 탭 입력 시 쿨다운이 0.05f 이내에 끝나는 경우를 위해 버퍼 적용.
+		if (!Character->TryActivateAttack())
 		{
 			bIsAttackBuffered = true;
 			AttackBufferTime = GetWorld()->GetTimeSeconds();
@@ -397,7 +396,8 @@ void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 			ParryWindowTimer,
 			FTimerDelegate::CreateWeakLambda(this, [this]()
 			{
-				if (ASC) ASC->RemoveLooseGameplayTag(TAG_State_ParryWindow);
+				if (ASC)
+					ASC->RemoveLooseGameplayTag(TAG_State_ParryWindow);
 				if (FLNPParryStateFragment* PF = GetParryFragment())
 					PF->bIsParrying = false;
 			}),
@@ -409,8 +409,6 @@ void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 			PF->bIsParrying = true;
 		}
 	}
-
-	UE_LOG(LogLootNPop, Log, TEXT("Guard Started"));
 }
 
 void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
@@ -433,8 +431,6 @@ void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
 			PF->bIsParrying = false;
 		}
 	}
-
-	UE_LOG(LogLootNPop, Log, TEXT("Guard Released"));
 }
 
 void ULNPInputHandlerComponent::OnLockOnStarted(const FInputActionValue& Value)

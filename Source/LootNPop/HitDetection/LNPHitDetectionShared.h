@@ -4,12 +4,14 @@
 
 #include "MassCommandBuffer.h"
 #include "MassEntityManager.h"
+#include "MassActorSubsystem.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "GameplayCueManager.h"
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
+#include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
@@ -33,12 +35,12 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 	struct FEntry
 	{
 		TWeakObjectPtr<AActor> VictimActor;
-		TWeakObjectPtr<AActor> AttackerActor;
+		FMassEntityHandle      AttackerEntity;
 	};
 
 	FLNPMeleeParryCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, AActor* InAttacker)
+	void Add(AActor* InVictim, FMassEntityHandle InAttacker)
 	{
 		Entries.Add({ InVictim, InAttacker });
 		bHasWork = true;
@@ -46,6 +48,9 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
+		UMassActorSubsystem* ActorSub = EntityManager.GetWorld()
+			? EntityManager.GetWorld()->GetSubsystem<UMassActorSubsystem>() : nullptr;
+
 		for (const FEntry& Entry : Entries)
 		{
 			AActor* Victim = Entry.VictimActor.Get();
@@ -57,15 +62,19 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 			CueParams.Location = Victim->GetActorLocation();
 			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, CueParams);
 
+			AActor* Attacker = nullptr;
+			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityValid(Entry.AttackerEntity))
+				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
+
 			FGameplayEventData EventData;
 			EventData.Target     = Victim;
-			EventData.Instigator = Entry.AttackerActor.Get();
+			EventData.Instigator = Attacker;
 			VictimASC->HandleGameplayEvent(TAG_GameplayEvent_Parry_Success, &EventData);
 
-			if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Entry.AttackerActor.Get()))
+			if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
 			{
 				FGameplayEventData StaggerData;
-				StaggerData.Target     = Entry.AttackerActor.Get();
+				StaggerData.Target     = Attacker;
 				StaggerData.Instigator = Victim;
 				AttackerASC->HandleGameplayEvent(TAG_GameplayEvent_Parry_Stagger, &StaggerData);
 			}
@@ -80,7 +89,7 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 
 private:
 	TArray<FEntry> Entries;
-};
+};;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 투사체 패링
@@ -175,24 +184,30 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 {
 	struct FEntry
 	{
-		TWeakObjectPtr<AActor>       Actor;
+		TWeakObjectPtr<AActor>       Victim;
+		FMassEntityHandle            AttackerEntity;
 		TSubclassOf<UGameplayEffect> EffectClass;
 		float                        Damage;
+		FVector                      HitFromDirection;
 	};
 
 	FLNPApplyDamageGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InActor, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage)
+	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir)
 	{
-		Entries.Add({ InActor, InEffectClass, InDamage });
+		Entries.Add({ InVictim, InAttacker, InEffectClass, InDamage, InHitFromDir });
 		bHasWork = true;
 	}
 
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
+		UMassActorSubsystem* ActorSub = EntityManager.GetWorld()
+			? EntityManager.GetWorld()->GetSubsystem<UMassActorSubsystem>() : nullptr;
+
 		for (const FEntry& Entry : Entries)
 		{
-			UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Entry.Actor.Get());
+			AActor* Victim = Entry.Victim.Get();
+			UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Victim);
 			if (!IsValid(ASC) || !Entry.EffectClass)
 				continue;
 
@@ -207,7 +222,20 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 			ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 
 			const float HpAfter = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute());
-			UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
+			if (0.f < HpBefore)
+				UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
+
+			AActor* Attacker = nullptr;
+			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityValid(Entry.AttackerEntity))
+				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
+
+			if (ALNPCharacterBase* VictimChar = Cast<ALNPCharacterBase>(Victim))
+			{
+				VictimChar->PlayHitReact(Entry.HitFromDirection);
+				VictimChar->ApplyHitStop(0.08f);
+			}
+			if (ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(Attacker))
+				AttackerChar->ApplyHitStop(0.08f);
 		}
 	}
 
@@ -217,4 +245,4 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 
 private:
 	TArray<FEntry> Entries;
-};
+};;

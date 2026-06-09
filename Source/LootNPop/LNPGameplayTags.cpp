@@ -18,8 +18,25 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Block_MovementInput, "LNP.Block.MovementInput")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_Guarding,    "LNP.State.Guarding")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_ParryWindow, "LNP.State.ParryWindow")
 
-UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Guard_Block,    "GameplayCue.LNP.Guard.Block")
-UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Parry_Success,  "GameplayCue.LNP.Parry.Success")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Block_AttackInput, "LNP.Block.AttackInput")
+UE_DEFINE_GAMEPLAY_TAG(TAG_State_ComboWindow, "LNP.State.ComboWindow")
+
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Guard_Block,    "LNP.GameplayCue.Guard.Block")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Parry_Success,  "LNP.GameplayCue.Parry.Success")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Success, "LNP.GameplayEvent.Parry.Success")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Stagger, "LNP.GameplayEvent.Parry.Stagger")
+
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Attack,       "LNP.Montage.Situation.Attack")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_HitReaction,  "LNP.Montage.Situation.HitReaction")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_ParrySuccess, "LNP.Montage.Situation.ParrySuccess")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Block,        "LNP.Montage.Situation.Block")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Dash,	       "LNP.Montage.Situation.Dash")
+
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Front, "LNP.Montage.Value.Direction.Front")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Back,  "LNP.Montage.Value.Direction.Back")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Left,  "LNP.Montage.Value.Direction.Left")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Right, "LNP.Montage.Value.Direction.Right")
+
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Parry_Parrier, "LNP.Montage.Value.Parry.Parrier")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Parry_Parried, "LNP.Montage.Value.Parry.Parried")

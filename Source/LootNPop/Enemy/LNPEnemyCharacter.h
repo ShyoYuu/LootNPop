@@ -30,7 +30,6 @@ public:
 	ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer);
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
-	virtual bool TryActivateAttack() override;
 
 	/** 제공된 config 에셋으로 캐릭터를 초기화한다 */
 	void InitializeFromConfig(ULNPEnemyConfig* InConfig);
@@ -45,6 +44,7 @@ public:
 	void TriggerRagdoll();
 
 protected:
+	virtual bool TryActivateAttack_Impl() override;
 	virtual void BeginPlay() override;
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const override;
 

@@ -6,6 +6,7 @@
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "Character/LNPCharacterBase.h"
 #include "Enemy/LNPEnemyCharacter.h"
+#include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
 #include "MassEntitySubsystem.h"
@@ -29,7 +30,21 @@ void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle 
 		return;
 	}
 
+	const ALNPCharacterBase* Character = GetOwningCharacter();
+	if (nullptr == Character)
+	{
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
+	}
+
 	SpawnProjectile();
+
+	if (UAnimInstance* AnimInst = Character->GetAnimInstance())
+	{
+		if (UAnimMontage* AttackMontage = Character->EvaluateMontage(TAG_Montage_Situation_Attack))
+			AnimInst->Montage_Play(AttackMontage);
+	}
+
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }
 
@@ -83,7 +98,8 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 	SharedData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
 	SharedData.Type              = WeaponDef->ProjectileType;
 	SharedData.Damage            = ComputeDamage();
-	SharedData.HitRadius         = WeaponDef->ProjectileHitRadius;
+	SharedData.HitRadius         = WeaponDef->HitRadius;
+	SharedData.ParryRadius       = WeaponDef->ParryRadius;
 
 	FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(SharedData);
 	FMassArchetypeSharedFragmentValues SharedValues;
@@ -98,8 +114,55 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 
 	const FVector SpawnPos = BasePos + Character->GetActorTransform().TransformVector(WeaponDef->MuzzleOffset);
 
-	// --- 발사 방향: 카메라 레이트레이스 → 총열 보정 ---
-	// 에임 타겟이 이 거리(cm)보다 가까우면 오차가 커지므로 액터 포워드로 폴백
+	// --- Instigator ---
+	FMassEntityHandle InstigatorHandle;
+	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())
+		InstigatorHandle = AgentComp->GetEntityHandle();
+
+	const ELNPInstigatorTeam Team = Cast<ALNPEnemyCharacter>(Character)
+		? ELNPInstigatorTeam::Enemy
+		: ELNPInstigatorTeam::Player;
+
+	// --- 파생 클래스가 발사 방향 배열을 제공 (단일 / 방사형 등) ---
+	const TArray<FVector> Directions = GetFireDirections(SpawnPos);
+
+	for (const FVector& Dir : Directions)
+	{
+		const FMassEntityHandle Entity = EntityManager.ReserveEntity();
+
+		FLNPProjectileFragment FragData;
+		FragData.PreviousPos       = SpawnPos;
+		FragData.SpawnLocation     = SpawnPos;
+		FragData.Velocity          = Dir * WeaponDef->ProjectileSpeed;
+		FragData.LifetimeRemaining = WeaponDef->ProjectileLifetime;
+		FragData.Instigator        = InstigatorHandle;
+		FragData.InstigatorTeam    = Team;
+
+		FLNPProjectileVisualFragment VisualFrag;
+		FTransformFragment TransFrag;
+		TransFrag.GetMutableTransform().SetLocation(SpawnPos);
+
+		// Add()는 &&만 받으므로 루프마다 복사본을 생성해 MoveTemp로 전달
+		FMassArchetypeSharedFragmentValues SharedValuesCopy = SharedValues;
+		EntityManager.Defer().PushCommand<FMassCommandBuildEntityWithSharedFragments<
+			FMassArchetypeSharedFragmentValues,
+			FLNPProjectileFragment,
+			FLNPProjectileVisualFragment,
+			FTransformFragment>>(
+			Entity,
+			MoveTemp(SharedValuesCopy),
+			FragData,
+			VisualFrag,
+			TransFrag);
+	}
+}
+
+TArray<FVector> ULNPAbility_RangedAttack::GetFireDirections(const FVector& SpawnPos) const
+{
+	const ALNPCharacterBase* Character = GetOwningCharacter();
+	if (nullptr == Character)
+		return {};
+
 	static constexpr float MinAimDistanceSq = 150.f * 150.f;
 	static constexpr float AimTraceDistance = 50000.f;
 
@@ -107,6 +170,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 
 	if (const APlayerController* PC = Cast<APlayerController>(Character->GetController()))
 	{
+		UWorld* World = Character->GetWorld();
 		FVector CamPos;
 		FRotator CamRot;
 		PC->GetPlayerViewPoint(CamPos, CamRot);
@@ -127,36 +191,5 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 		}
 	}
 
-	// --- Entity별 상태 ---
-	FMassEntityHandle InstigatorHandle;
-	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())
-		InstigatorHandle = AgentComp->GetEntityHandle();
-
-	// ReserveEntity()는 Mass 처리 중 안전하다 (ID만 할당, IsProcessing 체크 없음).
-	// 실제 Entity 빌드는 지연되어 현재 처리 범위 종료 후 실행된다.
-	const FMassEntityHandle Entity = EntityManager.ReserveEntity();
-
-	FLNPProjectileFragment FragData;
-	FragData.PreviousPos       = SpawnPos;
-	FragData.SpawnLocation     = SpawnPos;
-	FragData.Velocity          = Direction * WeaponDef->ProjectileSpeed;
-	FragData.LifetimeRemaining = WeaponDef->ProjectileLifetime;
-	FragData.Instigator        = InstigatorHandle;
-	FragData.InstigatorTeam    = Cast<ALNPEnemyCharacter>(Character) ? ELNPInstigatorTeam::Enemy : ELNPInstigatorTeam::Player;
-
-	FLNPProjectileVisualFragment VisualFrag; // bInitialized = false by default
-
-	FTransformFragment TransFrag;
-	TransFrag.GetMutableTransform().SetLocation(SpawnPos);
-
-	EntityManager.Defer().PushCommand<FMassCommandBuildEntityWithSharedFragments<
-		FMassArchetypeSharedFragmentValues,
-		FLNPProjectileFragment,
-		FLNPProjectileVisualFragment,
-		FTransformFragment>>(
-		Entity,
-		MoveTemp(SharedValues),
-		FragData,
-		VisualFrag,
-		TransFrag);
+	return { Direction };
 }

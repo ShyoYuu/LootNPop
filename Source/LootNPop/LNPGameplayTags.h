@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -24,6 +24,10 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Block_MovementInput)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_Guarding)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_ParryWindow)
 
+// 공격 입력 제어 태그
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Block_AttackInput)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_ComboWindow)
+
 // Guard / Parry GameplayCue 태그
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Guard_Block)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Parry_Success)
@@ -31,3 +35,20 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Parry_Success)
 // Guard / Parry GameplayEvent 태그 (GA 몽타주 트리거용)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Parry_Success) // 방어자에게 전송 → GA_ParrySuccess 트리거
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Parry_Stagger) // 공격자에게 전송 → GA_Stagger 트리거
+
+// Montage Chooser: 시츄에이션 태그
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Situation_Attack)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Situation_HitReaction)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Situation_ParrySuccess)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Situation_Block)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Situation_Dash)
+
+// Montage Chooser: 밸류 태그 — 피격 방향
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Direction_Front)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Direction_Back)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Direction_Left)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Direction_Right)
+
+// Montage Chooser: 밸류 태그 — 패링 역할
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Parry_Parrier)  // 패링 성공한 쪽 (방어자)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Parry_Parried)  // 패링 당한 쪽 (원래 공격자)

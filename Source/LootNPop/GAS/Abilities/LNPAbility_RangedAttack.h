@@ -26,6 +26,7 @@ protected:
 		const FGameplayAbilityActorInfo* ActorInfo,
 		const FGameplayAbilityActivationInfo ActivationInfo) const override;
 
-private:
-	void SpawnProjectile() const;
+protected:
+	virtual void SpawnProjectile() const;
+	virtual TArray<FVector> GetFireDirections(const FVector& SpawnPos) const;
 };

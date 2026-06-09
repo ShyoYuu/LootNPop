@@ -28,6 +28,23 @@ private:
 };
 
 /**
+ * FLNPWeaponTraceFragment의 TimeToLive를 감소시켜 만료된 엔티티를 파괴한다.
+ * ANS_LNPMeleeHitWindow::NotifyEnd가 호출되지 않을 때를 대비한 안전장치.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPWeaponTraceLifetimeProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+public:
+	ULNPWeaponTraceLifetimeProcessor();
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+private:
+	FMassEntityQuery Query;
+};
+
+/**
  * 근거리 공격 피격 판정 디버그 드로우.
  * 칼날 Swept Quad (마젠타), 현재 칼날 위치 (노랑), 판정 반경 구체를 매 프레임 그린다.
  * 에디터 빌드에서만 활성화된다.

@@ -26,13 +26,15 @@ public:
 
 	virtual void EquipWeapon(ULNPWeaponData* WeaponData) override;
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const override;
-	virtual bool TryActivateAttack() override;
 
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	TArray<AActor*> GetInteractionCandidates() const;
 
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	AActor* GetInteractionCandidate() const;
+
+protected:
+	virtual bool TryActivateAttack_Impl() override;
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))

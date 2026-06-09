@@ -68,12 +68,14 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 
 	// --- Fragment 초기값 ---
 	FLNPWeaponTraceFragment MeleeData;
-	MeleeData.SwordTipPrev  = MeleeData.SwordTipCurr  = TipPos;
-	MeleeData.SwordRootPrev = MeleeData.SwordRootCurr = RootPos;
-	MeleeData.HitRadius         = HitRadiusOverride > 0.f ? HitRadiusOverride : WeaponDef->ProjectileHitRadius;
+	MeleeData.SwordTipPrev      = MeleeData.SwordTipCurr  = TipPos;
+	MeleeData.SwordRootPrev     = MeleeData.SwordRootCurr = RootPos;
+	MeleeData.HitRadius         = 0.f < HitRadiusOverride   ? HitRadiusOverride   : WeaponDef->HitRadius;
+	MeleeData.ParryRadius       = 0.f < ParryRadiusOverride ? ParryRadiusOverride : WeaponDef->ParryRadius;
 	MeleeData.Damage            = Damage;
 	MeleeData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
 	MeleeData.InstigatorTeam    = Cast<ALNPEnemyCharacter>(Character) ? ELNPInstigatorTeam::Enemy : ELNPInstigatorTeam::Player;
+	MeleeData.TimeToLive        = TotalDuration + 1.0f;
 
 	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())
 		MeleeData.InstigatorEntity = AgentComp->GetEntityHandle();

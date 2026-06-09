@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -45,7 +45,7 @@ public:
 	const TArray<FLNPSkillInstance>& GetActiveSkillSlots() const { return ActiveSkillSlots; }
 	int32 GetMaxActiveSkillSlots() const { return MaxActiveSkillSlots; }
 
-	/** BeginPlay 시 장착되는 기본 무기. 여기에 DA_Pistol DataAsset을 할당한다. */
+	/** BeginPlay 시 장착되는 기본 무기. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|Equipment|Defaults")
 	TObjectPtr<ULNPWeaponData> DefaultWeapon;
 

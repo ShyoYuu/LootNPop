@@ -134,7 +134,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 					// Cache 조회 + 최소 거리 체크로 LootPod 표면 지점 탐색
 					FVector PodLocation;
 					bool bFoundPod = false;
-					FVector BaseDir = FVector::DownVector;
+					FVector BaseDir = Rand.GetUnitVector();//FVector::DownVector;
 
 					for (int32 Retry = 0; Retry < MaxRetry; ++Retry)
 					{
