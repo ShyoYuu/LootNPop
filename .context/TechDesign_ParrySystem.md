@@ -6,7 +6,7 @@
 > - **Parry(투사체):** ✅ 완료 + 동작 확인 — Processor에서 Velocity 반전/InstigatorTeam 전환, FLNPProjectileParryCommand
 > - **판정 구조 리팩토링:** ✅ 완료 — FLNPApplyDamageGECommand 간소화, Command → Processor 판정 이전
 > - **패링/피격 반경 분리:** ✅ 완료 + 동작 확인 — ParryRadius(패링) / HitRadius(피격) 독립 제어, 2단계 판정 흐름
-> - **Guard 자세 애니메이션:** 🔲 에디터 작업 필요 (C++ 변수 준비 완료, ABP 분기 미연결)
+> - **Guard 자세 애니메이션:** ✅ 완료 + 동작 확인
 > - **GameplayCue 에셋:** 🔲 에디터 작업 필요 (태그 정의 완료, 에셋 연결 대기)
 
 ---
@@ -136,12 +136,13 @@ struct FLNPProjectileFragment : public FMassFragment
 **근접 공격 패링 성공 시 발동.** 방어자와 공격자 양쪽에 GAS 이벤트를 전달한다.
 
 ```cpp
-struct FEntry { TWeakObjectPtr<AActor> VictimActor, AttackerActor; };
+struct FEntry { TWeakObjectPtr<AActor> VictimActor; FMassEntityHandle AttackerEntity; };
+// AttackerActor는 실행 시 UMassActorSubsystem에서 Handle → Actor 변환하여 사용
 
 Run():
   victimASC → ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, VictimPos)
-  victimASC → HandleGameplayEvent(TAG_GameplayEvent_Parry_Success)
-  attackerASC → HandleGameplayEvent(TAG_GameplayEvent_Parry_Stagger)
+  victimASC → HandleGameplayEvent(TAG_GameplayEvent_Parry_Success, {Target=Victim, Instigator=Attacker})
+  attackerASC → HandleGameplayEvent(TAG_GameplayEvent_Parry_Stagger, {Target=Attacker, Instigator=Victim})
 ```
 
 ### 4.2 FLNPProjectileParryCommand
@@ -170,13 +171,22 @@ Run():
 
 ### 4.4 FLNPApplyDamageGECommand (간소화)
 
-**일반 피해 적용.** 판정 로직 없음. `AttackerActor` 필드 제거.
+**일반 피해 적용.** 판정 로직 없음.
 
 ```cpp
-struct FEntry { TWeakObjectPtr<AActor> Actor; TSubclassOf<UGameplayEffect> EffectClass; float Damage; };
+struct FEntry {
+  TWeakObjectPtr<AActor>       Victim;
+  FMassEntityHandle            AttackerEntity;  // Actor 변환은 실행 시 수행
+  TSubclassOf<UGameplayEffect> EffectClass;
+  float                        Damage;
+  FVector                      HitFromDirection; // HitReact 방향 전달용
+};
 
 Run():
   ASC → ApplyGameplayEffectSpecToSelf(*Spec)
+  VictimChar → PlayHitReact(HitFromDirection)
+  VictimChar → ApplyHitStop(0.08f)
+  AttackerChar → ApplyHitStop(0.08f)
 ```
 
 ---

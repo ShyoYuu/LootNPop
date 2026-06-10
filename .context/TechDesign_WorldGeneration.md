@@ -60,7 +60,7 @@ OnWorldGenerationFinished.Broadcast()
 
 ---
 
-## 4. Octant 내부 지형 구성 (설계 완료, 구현 예정)
+## 4. Octant 내부 지형 구성 (구현 완료)
 
 각 Octant Level 내부는 두 레이어로 구성.
 

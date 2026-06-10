@@ -122,8 +122,11 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 | 기능 | 세부 내용 |
 |:---|:---|
 | 원거리 기본 공격 GA | Mass Entity 발사체 생성 후 즉시 종료. 이후 이동/판정은 Processor가 처리 |
+| 산탄 공격 GA | `ULNPAbility_RangedSpreadAttack`: 5x5 방사형으로 Projectile을 동시 스폰하는 RangedAttack 서브클래스 |
 | 발사체 HitDetection | 선분-캡슐 충돌 검사. 피해 GE 적용. 팀 구분(`InstigatorTeam`)으로 아군 피격 방지 |
 | 발사체 VFX | 🔲 미구현. 현재 에디터 디버그드로우(청록 구체 + 속도 방향 화살표)로 동작 확인 중 |
+| 근접 기본 공격 GA | `ULNPAbility_MeleeAttack`: 무기 DataAsset의 AttackMontage 재생 후 즉시 종료 |
+| 근접 HitDetection | `ULNPWeaponTraceHitDetectionProcessor`: Swept Volume(칼날 Quad) 기반 판정. `ANS_LNPMeleeHitWindow`가 본 위치를 매 프레임 기록 |
 | 공격 쿨타임 | 무기별 `FireCooldown` GE로 연사 속도 제어 |
 | 기본 공격 입력 | 공격 버튼 → `TryActivateAttack()` → 장착 무기 GA 즉시 발동. 쿨타임 중 입력 0.05초 버퍼링 |
 
@@ -135,7 +138,5 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 |:---|:---:|:---|:---|
 | 발사체 Niagara VFX | 🟡 단기 | 없음 | `FLNPProjectileSharedFragment.VFXData`에 에셋 할당. `ULNPProjectileVisualizationProcessor`가 trail/impact 처리 |
 | Active Skill 입력 바인딩 | 🟡 단기 | 없음 | 슬롯별 키(1~4) 입력 → 해당 슬롯의 GA 발동. `InputHandlerComponent`에 `SkillAction` 추가 필요 |
-| 근접 HitDetection | 🟡 단기 | 없음 | 공격 몽타주 Notify 시점에 캡슐 스윕으로 범위 내 적 검출하는 방식 설계 필요 |
-| 근접 기본 공격 GA | 🟡 단기 | 근접 HitDetection | `ULNPAbility_MeleeAttack` 구현. 몽타주 재생 + HitDetection 연동 |
 | Passive Skill GameplayEvent 연결 | 🟠 중기 | HitDetection | 피격 시 피격자 ASC에 이벤트 전송. 이후 Passive Skill이 조건 충족 시 자동 발동 가능해짐 |
 | LootPod → 인벤토리 연동 | 🟠 중기 | LootPod 시스템 | 루팅 시 획득 아이템을 `InventoryComponent`에 자동 추가하는 흐름 연결 |

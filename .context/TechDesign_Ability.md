@@ -46,6 +46,7 @@ UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 | DefensePower | FGameplayAttributeData | 0 |
 | MoveSpeed | FGameplayAttributeData | 1 |
 | AttackMultiplier | FGameplayAttributeData | — |
+| IncomingDamage | FGameplayAttributeData | Meta 어트리뷰트. GE가 전달한 원시 피해량. `PostGameplayEffectExecute`에서 방어력 적용 후 즉시 0으로 초기화 |
 
 - `PreAttributeChange`: MaxHealth ≥ 1, AttackSpeed/MoveSpeed ≥ 0.01 클램핑.
 - `PostGameplayEffectExecute`: Health를 [0, MaxHealth] 범위로 클램핑.
@@ -55,9 +56,12 @@ UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 ```
 UGameplayAbility
   └── ULNPGameplayAbility              ← 공통 기반 (캐릭터/PlayerState 레퍼런스 헬퍼)
-        └── ULNPAbility_BasicAttack    ← 무기 기본 공격 추상 기반 (GetEquippedWeaponDef, ComputeDamage 제공)
-              ├── ULNPAbility_RangedAttack  ← 원거리 공격 (Mass Entity 생성 후 즉시 종료)
-              └── ULNPAbility_MeleeAttack   ← 근거리 공격 (AttackMontage 재생 후 즉시 종료)
+        ├── ULNPAbility_BasicAttack    ← 무기 기본 공격 추상 기반 (GetEquippedWeaponDef, ComputeDamage 제공)
+        │     ├── ULNPAbility_RangedAttack       ← 원거리 공격 (Mass Entity 생성 후 즉시 종료)
+        │     │     └── ULNPAbility_RangedSpreadAttack  ← 산탄 공격 (5x5 방사형 Projectile 스폰)
+        │     └── ULNPAbility_MeleeAttack        ← 근거리 공격 (AttackMontage 재생 후 즉시 종료)
+        ├── ULNPAbility_ParrySuccess   ← 패링 성공 시 방어자에게 발동 (TAG_GameplayEvent_Parry_Success 트리거)
+        └── ULNPAbility_Stagger        ← 패링당한 공격자에게 발동 (TAG_GameplayEvent_Parry_Stagger 트리거)
 ```
 
 `ULNPGameplayAbility`는 `GetOwningCharacter()`, `GetOwningLNPPlayerState()` 헬퍼를 제공.
@@ -81,11 +85,18 @@ UPrimaryDataAsset
 
 **`ULNPWeaponData`** (`Item/LNPWeaponData.h`)
 ```
++ WeaponTag              : FGameplayTag                  ← 무기 타입 태그 (LNP.Weapon.Pistol 등). EquipWeapon() 시 ASC에 부여
++ DefaultAimMode         : FGameplayTag                  ← 장착 직후 부여되는 조준 모드 태그 (LNP.AimMode.FreeAim 등)
++ AnimLayerClass         : TSubclassOf<UAnimInstance>    ← 장착 시 LinkAnimClassLayers()에 전달할 서브 AnimBP
++ WeaponMesh             : USkeletalMesh*                ← 캐릭터 메시에 어태치할 무기 스켈레탈 메시
++ AttachSocketName       : FName                         ← 무기 메시를 어태치할 소켓 이름
 + AttackMontage          : UAnimMontage*
-+ FireCooldown           : float  (default 0.2)         ← 연사 쿨타임 (GE로 적용)
++ FireCooldown           : float  (default 0.2)          ← 연사 쿨타임 (GE로 적용)
++ MaxComboCount          : int32  (default 5)            ← 최대 콤보 연결 횟수. 초과 시 처음(Attack_1)으로 순환
 + ProjectileType         : ELNPProjectileType  (Linear / Guided / Lobbed)
 + ProjectileSpeed        : float  (default 5000)
-+ ProjectileHitRadius    : float  (default 5)
++ HitRadius              : float  (default 5)            ← 피격 판정 반경
++ ParryRadius            : float  (default 5)            ← 패링 판정 반경 (HitRadius보다 크게 설정)
 + ProjectileDamage       : float  (default 10)
 + ProjectileLifetime     : float  (default 5)
 + MuzzleOffset           : FVector (default (100,0,0))
@@ -235,7 +246,8 @@ USTRUCT() struct FLNPProjectileSharedFragment : public FMassConstSharedFragment 
     TSubclassOf<UGameplayEffect>     DamageEffectClass;
     ELNPProjectileType               Type;
     float Damage      = 10.0f;
-    float HitRadiusSq = 25.0f;
+    float HitRadius   = 5.0f;    // 피격 판정 반경
+    float ParryRadius = 6.0f;    // 패링 판정 반경 — HitRadius보다 크게 설정
 };
 
 // 발사체별 시뮬레이션 상태 (FMassFragment)
@@ -257,7 +269,7 @@ USTRUCT() struct FLNPProjectileVisualFragment : public FMassFragment {
 USTRUCT() struct FLNPProjectileDeadTag : public FMassTag {};
 ```
 
-> 이전 설계의 `CurrentPos`는 제거됨. 각 프레임 `PreviousPos` 갱신 후 `Velocity * DeltaTime`으로 현재 위치를 산출.
+> `CurrentPos`는 별도 저장하지 않음. 각 프레임 `PreviousPos` 갱신 후 `Velocity * DeltaTime`으로 현재 위치를 산출.
 
 ### 4.3 발사체 프로세서 (`HitDetection/LNPProjectileProcessors.h/.cpp`)
 
@@ -352,28 +364,34 @@ Source/LootNPop/
       LNPBaseAttributeSet.h/.cpp
     Abilities/
       LNPGameplayAbility.h/.cpp
-      LNPAbility_BasicAttack.h/.cpp      ← 추상 기반 (GetEquippedWeaponDef, ComputeDamage 제공)
-      LNPAbility_RangedAttack.h/.cpp     ← 구현 완료
-      LNPAbility_MeleeAttack.h/.cpp      ← 구현 완료
+      LNPAbility_BasicAttack.h/.cpp           ← 추상 기반 (GetEquippedWeaponDef, ComputeDamage 제공)
+      LNPAbility_RangedAttack.h/.cpp          ← 원거리 공격 (GetFireDirections 가상 함수 제공)
+      LNPAbility_RangedSpreadAttack.h/.cpp    ← 산탄 공격 (GetFireDirections override — 5x5 방사형)
+      LNPAbility_MeleeAttack.h/.cpp           ← 근거리 공격
+      LNPAbility_ParrySuccess.h/.cpp          ← 패링 성공 시 방어자 ReactionMontage 재생
+      LNPAbility_Stagger.h/.cpp               ← 패링당한 공격자 StaggerMontage 재생
     Effects/
-      LNPGameplayEffect_Cooldown.h/.cpp  ← 연사 쿨타임 GE (duration은 ability가 주입)
-      LNPGameplayEffect_Damage.h/.cpp    ← 즉발 피해 GE (TAG_GE_Data_Damage SetByCaller)
+      LNPGameplayEffect_Cooldown.h/.cpp       ← 쿨다운 GE (duration은 ability가 주입)
+      LNPGameplayEffect_Damage.h/.cpp         ← 즉발 피해 GE (TAG_GE_Data_Damage SetByCaller)
+    LNPDamageFormula.h                        ← 방어력 적용 공식 인라인 함수 (LNPDamage::ApplyDefense)
   Item/
-    LNPItemDefinitionBase.h/.cpp         ← 추상 기반 DataAsset
-    LNPWeaponData.h                      ← 무기 DataAsset
-    LNPSkillData.h                       ← 스킬 DataAsset
-    LNPBuffData.h                        ← 버프 DataAsset
-    LNPItemInstance.h                    ← FLNPWeaponInstance / FLNPSkillInstance / FLNPBuffInstance
+    LNPItemDefinitionBase.h/.cpp              ← 추상 기반 DataAsset
+    LNPWeaponData.h                           ← 무기 DataAsset
+    LNPSkillData.h                            ← 스킬 DataAsset
+    LNPBuffData.h                             ← 버프 DataAsset
+    LNPItemInstance.h                         ← FLNPWeaponInstance / FLNPSkillInstance / FLNPBuffInstance
     LNPEquipmentComponent.h/.cpp
     LNPInventoryComponent.h/.cpp
   HitDetection/
-    LNPProjectileMassTypes.h             ← 타입 정의 (FLNPProjectileSharedFragment / Fragment / VisualFragment / DeadTag)
-    LNPProjectileProcessors.h/.cpp       ← 4개 프로세서 (Movement / HitDetection / Visualization / Destruction)
-    LNPProjectileVisualSubsystem.h/.cpp  ← Niagara trail 컴포넌트 풀 관리
-    LNPMeleeMassTypes.h                  ← FLNPMeleeAttackFragment / FLNPMeleeActiveTag
-    LNPMeleeProcessors.h/.cpp            ← ULNPMeleeHitDetectionProcessor + ULNPMeleeDebugDrawProcessor(에디터 전용)
+    LNPProjectileMassTypes.h                  ← 타입 정의 (FLNPProjectileSharedFragment / Fragment / VisualFragment / DeadTag)
+    LNPProjectileProcessors.h/.cpp            ← 4개 프로세서 (Movement / HitDetection / Visualization / Destruction)
+    LNPProjectileVisualSubsystem.h/.cpp       ← Niagara trail 컴포넌트 풀 관리
+    LNPWeaponTraceMassTypes.h                 ← FLNPWeaponTraceFragment (본 위치 4점 + HitRadius/ParryRadius/TTL)
+    LNPWeaponTraceProcessors.h/.cpp           ← ULNPWeaponTraceHitDetectionProcessor
+                                                 ULNPWeaponTraceLifetimeProcessor (TTL 만료 안전장치)
+                                                 ULNPWeaponTraceDebugDrawProcessor (에디터 전용)
   Animation/
-    ANS_LNPMeleeHitWindow.h/.cpp         ← 공격 윈도우 AnimNotifyState (본 위치 기록, Mass 엔티티 생명주기 관리)
+    ANS_LNPMeleeHitWindow.h/.cpp              ← 공격 윈도우 AnimNotifyState (본 위치 기록, Mass 엔티티 생명주기 관리)
 ```
 
 ---
@@ -399,16 +417,20 @@ Source/LootNPop/
 |:---|:---|
 | `ULNPGameplayAbility` | `GetOwningCharacter()`, `GetOwningLNPPlayerState()` 헬퍼 |
 | `ULNPAbility_BasicAttack` | `GetEquippedWeaponDef()`, `ComputeDamage()` (`(AttackPower + WeaponDamage) × AttackMultiplier`) |
-| `ULNPAbility_RangedAttack` | `CommitAbility` → `SpawnProjectile()` → `EndAbility()`. `FireCooldown` GE per-spec 주입 |
+| `ULNPAbility_RangedAttack` | `CommitAbility` → `SpawnProjectile()` → `EndAbility()`. `FireCooldown` GE per-spec 주입. `GetFireDirections` 가상 함수 제공 |
+| `ULNPAbility_RangedSpreadAttack` | `GetFireDirections` override — 5x5 방사형으로 Projectile 동시 스폰 |
 | `ULNPAbility_MeleeAttack` | `CommitAbility` → `AttackMontage` 재생 → `EndAbility()`. 판정은 `UANS_LNPMeleeHitWindow` 위임 |
+| `ULNPAbility_ParrySuccess` | `TAG_GameplayEvent_Parry_Success` 이벤트 트리거. `ReactionMontage` 재생 후 즉시 종료 |
+| `ULNPAbility_Stagger` | `TAG_GameplayEvent_Parry_Stagger` 이벤트 트리거. `StaggerMontage` 재생 후 즉시 종료. Player/Enemy 양쪽에 Grant 가능 |
 | `ULNPGameplayEffect_Cooldown` | Duration은 ability가 per-spec 주입하여 단일 클래스로 모든 무기 커버 |
 | `ULNPGameplayEffect_Damage` | Instant GE, `TAG_GE_Data_Damage` SetByCaller로 피해량 전달 |
+| `LNPDamageFormula.h` | `LNPDamage::ApplyDefense(RawDamage, Defense)` 인라인 함수. 공식: `RawDamage * (100 / (100 + Defense))` |
 
 **발사체 시스템**
 
 | 항목 | 세부 내용 |
 |:---|:---|
-| `FLNPProjectileSharedFragment` | 같은 무기의 발사체가 공유하는 ConstShared 상수 (VFX, DamageGE, Type, Damage, HitRadiusSq) |
+| `FLNPProjectileSharedFragment` | 같은 무기의 발사체가 공유하는 ConstShared 상수 (VFX, DamageGE, Type, Damage, HitRadius, ParryRadius) |
 | `FLNPProjectileFragment` | 발사체별 상태 (PreviousPos, Velocity, SpawnLocation, Lifetime, Instigator, InstigatorTeam) |
 | `FLNPProjectileVisualFragment` | Niagara trail 초기화 여부 추적 |
 | `FLNPProjectileDeadTag` | 파괴 대기 마킹. PostPhysics에서 일괄 제거 |
@@ -417,6 +439,10 @@ Source/LootNPop/
 | `ULNPProjectileVisualizationProcessor` | 게임 스레드: Niagara trail 스폰/갱신, 충돌 VFX 출력 |
 | `ULNPProjectileDestructionProcessor` | PostPhysics: `FLNPProjectileDeadTag` 엔티티 일괄 제거 |
 | `ULNPProjectileVisualSubsystem` | Niagara trail 컴포넌트 풀 관리 (VFX 에셋 미연결 상태, 에디터 디버그드로우로 동작 확인 중) |
+| `ULNPAbility_RangedSpreadAttack` | `GetFireDirections` override — 5x5 방사형으로 Projectile 동시 스폰 |
+| `FLNPWeaponTraceFragment` | 근접 공격자 Mass Fragment (칼날 4점 위치 + HitRadius/ParryRadius/TTL/AlreadyHit) |
+| `ULNPWeaponTraceHitDetectionProcessor` | 근접 Swept Volume 판정. 칼날 Quad ↔ 타겟 캡슐 교차 검사. 중복 피격 방지 |
+| `ULNPWeaponTraceLifetimeProcessor` | `FLNPWeaponTraceFragment`의 TTL 감소 및 만료 엔티티 파괴 (NotifyEnd 미호출 안전장치) |
 
 **입력 연결**
 
@@ -434,4 +460,5 @@ Source/LootNPop/
 | 발사체 Niagara VFX | 없음 | `ULNPVFXData` 에셋 생성 후 `ULNPWeaponData.ProjectileVFXData`에 할당. `ULNPProjectileVisualizationProcessor`가 trail/impact 처리 |
 | Active Skill 입력 바인딩 | 없음 | `InputHandlerComponent`에 슬롯별 `SkillAction` 추가 및 `ASC->TryActivateAbility(ActiveSkillSlots[i].GrantedAbilities[0])` 연결 |
 | Passive Skill GameplayEvent 연결 | HitDetection | `HitDetectionProcessor`에서 피격 시 대상 ASC에 `SendGameplayEvent` 호출하는 로직 추가 필요 |
+| `ULNPAbility_ParrySuccess` / `ULNPAbility_Stagger` Grant | 없음 | `DefaultWeapon`처럼 캐릭터 BeginPlay 시 또는 PlayerState 초기화 시 ASC에 자동 Grant하는 흐름 연결 필요 |
 | LootPod → 인벤토리 연동 | LootPod 시스템 | [TechDesign_LootPod.md](TechDesign_LootPod.md) §4.2 참조 |
