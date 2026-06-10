@@ -1,10 +1,12 @@
 # LootNPop 프로젝트 개요
 
-**LootNPop**은 Unreal Engine 5.7 최신 스택을 활용한 경쾌한 분위기의 멀티플레이어 파티 게임. 거대한 구체의 내부 표면(Dyson Sphere)이 플레이 공간이며, 수백~수천 규모의 MassEntity 적을 상대로 LootPod를 쟁취하는 것이 핵심 루프. 핵심 로직은 가급적 C++로 구현.
+**LootNPop**은 Unreal Engine 5.7 최신 스택을 활용한 경쾌한 분위기의 멀티플레이어 파티 게임.  
+거대한 구체의 내부 표면(Dyson Sphere)이 플레이 공간이며, 수백~수천 규모의 MassEntity 적을 상대로 LootPod를 쟁취하는 것이 핵심 루프.  
+핵심 로직은 가급적 C++로 구현.
 
 ---
 
-## 1. 핵심 기술 스택
+## 1. Tech Stack
 
 | 구분 | 기술 스택 | 주요 구현 클래스 |
 |:---|:---|:---|
@@ -22,50 +24,58 @@
 
 ---
 
-## 2. 기술적 가이드라인
+## 2. Core Systems
 
-### 이동 및 중력
-- `ULNPPawnGravityComponent`가 `RadialOutward` 모드로 Dyson Sphere 내벽 중력 구현. 위치마다 달라지는 Up 벡터를 매 프레임 컨트롤러 회전에 누적 보정하여 화면 기울어짐 방지.
+### Custom Gravity
+- Mover 기능을 활용하여 `Fixed`, `RadialInward`, `RadialOutward` 3가지 중력 모드 구현.
+- `ULNPPawnGravityComponent`가 `RadialOutward` 모드로 Dyson Sphere 내벽 중력 적용. Pawn 위치마다 달라지는 Up/Gravity Direction을 매 프레임 갱신하여 화면 기울어짐 방지.
 
-### 구형 표면 쿼리
-- `ULNPSurfaceCacheSubsystem`이 게임 시작 전 구형 내벽 전체를 등장방형 그리드로 사전 베이킹. `bBakingComplete` 이후 배열이 읽기 전용으로 확정되므로 Mass 워커 스레드에서 락 없이 O(1) 안전 조회 가능.
+### Enemy NPC
+- 모든 NPC는 MassEntity(Low LOD) ↔ Actor(High LOD) 하이브리드 구조. 전투 진입(Confirmed/Combat) 시 `ULNPEnemyLODOverrideProcessor`가 High LOD Actor로 자동 전환.
+- 플레이어별 어그로 관리는 `ULNPTargetingSubsystem` 담당. GAS 어빌리티는 Actor 상태에서만 실행. AI는 StateTree 기반으로 구현.
 
-### Mass-GAS 하이브리드 전투
-- 발사체는 GA가 Mass Entity 생성 후 즉시 종료. 이후 이동·피격·VFX·소멸이 4개 Mass Processor 파이프라인으로 처리되어 다수의 발사체를 낮은 오버헤드로 운용.
-- 적 NPC는 Low LOD 시 Pure MassEntity, 전투 진입(Confirmed/Combat) 시 `ULNPEnemyLODOverrideProcessor`가 자동으로 High LOD Actor 전환. GAS 어빌리티는 Actor 상태에서만 실행.
-- GAS의 ASC는 PlayerState에 귀속하여 폰 일시 교체 시에도 어빌리티·버프가 유지됨.
+### Hit Detection
+- 물리 엔진 콜리전 이벤트 미사용. 모든 Hit·Guard·Parry 판정은 Mass Processor 내에서 수학적으로 일괄 계산 (`ULNPProjectileHitDetectionProcessor`, `ULNPWeaponTraceHitDetectionProcessor`).
+- 원거리: 직전/현재 프레임 Projectile 위치로 선분 생성 후 주변 캡슐과의 거리 계산.
+- 근거리: Anim Notify State(`UANS_LNPMeleeHitWindow`)가 매 프레임 무기 위치 동기화 후 4점 삼각형 2개로 캡슐 거리 계산.
+- Hit 판정 시 Fragment에 담긴 `UGameplayEffect` 포인터를 피격자에 적용.
 
-### 전투 판정
-- 물리 엔진 콜리전 이벤트 미사용. 모든 히트 판정은 `FMassProcessor::Execute()` 내에서 수학적으로 일괄 계산(Swept Volume, Line Segment 거리).
+### Surface Cache Baking
+- Enemy NPC와 Projectile이 모두 MassEntity이므로 Mass Worker Thread에서 지표면 쿼리가 가능해야 함.
+- `ULNPSurfaceCacheSubsystem`이 게임 시작 전 구형 내벽 전체를 등장방형 그리드로 사전 베이킹. 베이킹 완료 후 배열이 읽기 전용으로 확정되므로 Mass Worker Thread에서 Lock 없이 O(1) 안전 조회 가능.
 
-### 대규모 엔티티
-- MassEntity + StateTree로 수백~수천 개 NPC를 게임스레드 부담 없이 처리. SmartObject로 상호작용 쿼리, Mass 프로세서로 상태 갱신. 슬롯 기반 타겟팅으로 플레이어별 교전 밀도 제어.
+### Motion Matching + Linked Anim Layers
+- Motion Matching 기반 Locomotion에 무기별 Linked Anim Layer를 블렌딩하여 3종 무기(Pistol·Rifle·LongSword) 구현.
+- Pistol·Rifle은 Aim Offset 적용. 발사 직전 카메라 방향 LineTrace로 화면 중앙 조준점을 검출하여 해당 방향으로 Projectile 발사.
 
-### 데이터 주도 설계
-- 무기·스킬·버프·적 타입 전부 DataAsset(`ULNPWeaponData`, `ULNPEnemyConfig` 등)으로 외부화. 코드 변경 없이 에디터에서 새 무기·적 추가 가능.
+### UMG MVVM Plugin
+- UMG MVVM Plugin 기반으로 C++ ViewModel(`ULNPHudViewModel`)과 View Binding을 분리. ASC 델리게이트로 속성 변화를 ViewModel에 바인딩하고 Blueprint Widget이 이를 구독.
 
-### 멀티플레이어 초기화
-- `ALNPGameMode`(서버 전용)가 `WorldGeneration → SurfaceBaking → EntitySpawning → Complete` 4단계를 순차 진행. `ALNPGameState`가 `ServerPhase`와 `OctantGenSeed`를 복제하여 클라이언트와 동기화. (→ [TechDesign_InitSequence.md](TechDesign_InitSequence.md))
+### World Generation
+- Geometry Script로 Octant(1/8 구체) 지형용 Static Mesh 생성 (`BP_OctantGenerator`). `IDetailCustomization` 구현으로 에디터 Detail 뷰 커스터마이징.
+- PCG로 프랍 배치한 결과물을 Level Instance로 저장. 게임 실행 시 `ULNPOctantSpawnSubsystem`이 사전 생성된 Octant Level Instance 8개를 랜덤 선택·배치하여 완전한 구체 구성.
+
+### Multiplayer Init Sequence
+- `ALNPGameMode`가 `WorldGeneration → SurfaceBaking → EntitySpawning → Complete` 4단계를 순차 진행. `ALNPGameState`가 `ServerPhase`와 `OctantGenSeed`를 Replicate하여 클라이언트와 동기화. (→ [TechDesign_InitSequence.md](TechDesign_InitSequence.md))
 
 ---
 
-## 3. 게임플레이 개요
+## 3. Gameplay Overview
 
 ### 3.1 월드 구성 (Dyson Sphere)
 
 - **메인 월드:** 거대한 구체의 내부 표면이 주 플레이 공간. 중력은 구 중심 반대 방향(원심).
-- **부유 지형:** 구 내부 공중에 떠 있는 작은 구체형 행성들. 중력은 구 중심 방향(인력). 플레이어는 외부 표면에서 활동.
 - **8분할 Octant:** 전체 구체를 8개 Level Instance로 관리. 결정론적 시드로 게임마다 다른 조합 생성.
 
 ### 3.2 핵심 루프: "Find → Loot → Pop!"
 
-- **LootPod** 발견 → 적의 방해를 버티며 루팅 → Pod 파열 시 무기·버프·스킬 획득 → 획득한 힘으로 적을 날려버림.
-- 피격 시 보유 아이템을 모두 바닥에 드랍. 구형 지형 곡률에 따른 포물선 궤적으로 날아감.
+- **LootPod** 발견 → 적의 방해를 버티며 루팅 → 루팅 성공 시 무기·버프·스킬 획득.
+- HP가 0이 되면 보유 아이템을 모두 드랍하면서 구형 지형 곡률에 따른 포물선 궤적으로 날아감.
 - 승리 조건: 메달(가칭) 4개 수집.
 
 ### 3.3 난이도 연계
 
-- 활성 LootPod 수가 줄어들수록 적 NPC가 점진적으로 강화. 자연스러운 게임 후반 긴장감 형성.
+- 남은 LootPod 수가 줄어들수록 적 NPC가 점진적으로 강화. 자연스러운 게임 후반 긴장감 형성.
 
 ### 3.4 전투 분위기
 
@@ -74,7 +84,7 @@
 
 ---
 
-## 4. 상세 문서 인덱스
+## 4. Documentation Index
 
 | 문서 | 내용 |
 |:---|:---|
@@ -85,8 +95,8 @@
 | [Octant Level Instance 제작 가이드](Guide_OctantLevelInstance.md) | Octant Level Instance 에셋 신규 제작 절차 |
 | [초기화 시퀀스 기술 설계](TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | [표면 캐시 기술 설계](TechDesign_SurfaceCache.md) | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유 |
-| [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 질주·대시 시스템 |
-| [전투 Animation 기술 설계](TechDesign_CombatAnimation.md) | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·상하체 블랜딩 구현 완료 — Guard ABP 분기 등 에디터 작업 잔여 |
+| [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 질주·가드·대시 시스템 |
+| [전투 Animation 기술 설계](TechDesign_CombatAnimation.md) | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·상하체 블랜딩·Guard 자세 분기 구현 완료 |
 | [Ability System 게임 기획](GameDesign_Ability.md) | 무기·스킬·버프 아이템 구조, GAS 슬롯 관리, 구현 현황 |
 | [Ability System 기술 설계](TechDesign_Ability.md) | ASC/AttributeSet 아키텍처, 발사체 Mass 프로세서 4종, 어빌리티 클래스 계층 상세 |
 | [Enemy NPC 게임 기획](GameDesign_EnemyNPC.md) | 슬롯 기반 타겟팅, 행동 상태 (Idle/Alert/Chase/Attack), LOD 전환 |
@@ -95,6 +105,6 @@
 | [LootPod System 게임 기획](GameDesign_LootPod.md) | 루팅 흐름, 취소 조건, 보상 유형 |
 | [LootPod System 기술 설계](TechDesign_LootPod.md) | MassEntity 구성, SmartObject 연동, 게이지·인터럽션·보상 미구현 상세 |
 | [HUD 기술 설계](TechDesign_HUD.md) | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, Blueprint 바인딩 설정 |
-| [HitDetection 기술 설계](TechDesign_HitDetection.md) | 근접 Swept Volume·원거리 Line Segment 판정 (근접·원거리 구현 완료, 공간 쿼리 최적화 미구현) |
+| [HitDetection 기술 설계](TechDesign_HitDetection.md) | 근접 Swept Volume·원거리 Line Segment 판정 (근접·원거리·패링 연계 구현 완료, 공간 쿼리 최적화 미구현) |
 | [ParrySystem 게임 기획](GameDesign_ParrySystem.md) | 패링 성공 조건, 투사체 타입별 반사, 플레이어 경험 의도 |
 | [ParrySystem 기술 설계](TechDesign_ParrySystem.md) | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 방안 |

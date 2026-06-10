@@ -172,4 +172,4 @@ LNP.Mover.IsGuarding (Gameplay Tag)
 | 가드 이동 시스템 (Guard Modifier) | ✅ 완료 |
 | 대시 시스템 (Layered Move) | ✅ 완료 |
 | 방향성 대시 몽타주 (Forward/Backward) | ✅ 완료 |
-| 방향성 대시 몽타주 (Left/Right) | 🔲 미구현 (에셋 연결 필요) |
+| 방향성 대시 몽타주 (Left/Right) | ✅ 완료 |

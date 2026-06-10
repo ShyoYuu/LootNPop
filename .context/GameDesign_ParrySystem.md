@@ -4,7 +4,7 @@
 > - **Guard(막기):** ✅ 완료 + 동작 확인
 > - **Parry(저스트 가드) — 근접:** ✅ 완료 (방어자 몽타주, 공격자 Stagger 포함)
 > - **Parry(저스트 가드) — 투사체:** ✅ 완료 + 동작 확인 (Velocity 반전, InstigatorTeam 전환)
-> - **Guard 자세 애니메이션:** 🔲 에디터 작업 필요 — C++ 변수 준비 완료, ABP 분기 미연결
+> - **Guard 자세 애니메이션:** ✅ 완료 + 동작 확인
 > - **GameplayCue 에셋:** 🔲 에디터 작업 필요 — 태그 정의 완료, 에셋 연결 대기
 > - 기술 설계: [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)
 

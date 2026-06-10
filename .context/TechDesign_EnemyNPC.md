@@ -44,6 +44,9 @@
 - `double LastWanderTime` — 마지막 배회 목표 갱신 시각
 - `uint8 bNeedNewWanderTarget` — 새 배회 목표 필요 여부 플래그
 
+**`FLNPEnemyVelocityFragment`** — Entity 모드 물리 속도
+- `FVector Velocity` — 넉백·포물선 시뮬레이션용 속도. 지면 접지 시 0으로 초기화.
+
 **Tags:**
 - `FLNPEnemyTag` / `FLNPPlayerTag` — 쿼리 분류용 마커
 - `FLNPEnemyActorInitializedTag` — Actor 초기화 완료 마커 (중복 초기화 방지)
@@ -130,25 +133,29 @@ const FVector UpDir = (GravityOrigin - EntityLocation).GetSafeNormal();
 ```
 수학적 연산으로 처리하며 별도 GravityProcessor는 존재하지 않음.
 
-### 4.5 ULNPHealthProcessor
+### 4.5 ULNPEnemyDebugDrawProcessor
+
+에디터 빌드에서만 활성화되는 디버그 전용 Processor. Enemy의 타겟팅 상태, 시야 범위 등 시각적 디버그 드로 수행.
+
+### 4.6 ULNPHealthProcessor
 
 체력 변화를 처리하고 체력이 0이 되면 `FLNPEnemyDyingTag`를 추가하여 사망 처리 흐름으로 전환.
 
-### 4.6 ULNPEnemyLODOverrideProcessor
+### 4.7 ULNPEnemyLODOverrideProcessor
 
 타겟팅 상태 및 StateTree 상태에 따라 MassRepresentation의 LOD를 강제 재정의. `Confirmed` 상태이거나 Combat 상태군이면 거리 무관 `HighResSpawnedActor` 강제.
 
-### 4.7 ULNPEnemyActorInitializerProcessor
+### 4.8 ULNPEnemyActorInitializerProcessor
 
 Actor 스폰 후 `FLNPEnemyActorInitializedTag`가 없는 엔티티를 감지하여 Config 기반 초기화 수행. 초기화 완료 시 태그 추가.
 
-### 4.8 ULNPEnemyActorSyncProcessor
+### 4.9 ULNPEnemyActorSyncProcessor
 
 게임스레드에서 Representation 그룹 이후 실행.
 - Actor 유효 → ASC 체력을 `FLNPEnemyFragment`로 역동기화 (`SyncToEntity`)
 - Actor null → `FLNPEnemyActorInitializedTag` 제거 (다음 스폰 시 재초기화 유도)
 
-### 4.9 ULNPEnemyDeathTimerProcessor
+### 4.10 ULNPEnemyDeathTimerProcessor
 
 `FLNPEnemyDyingTag`가 붙은 엔티티의 `DeathCountdown`을 매 프레임 차감. 0 이하가 되면 엔티티를 소멸.
 
@@ -187,8 +194,9 @@ const FVector Tangent2 = Cross(UpDir, Tangent1).GetSafeNormal();
 
 **`ALNPEnemyCharacter`** — MassRepresentation 전환 시 스폰되는 비주얼 Actor.
 - `InitializeFromConfig(ULNPEnemyConfig*)` — 어빌리티 초기화
-- `SyncFromEntity(Health, State)` — Mass → Actor 데이터 주입
-- `SyncToEntity(out Health)` — Actor → Mass 역동기화
+- `SyncFromEntity(EntityHandle, Health, TargetingState, Velocity)` — Mass → Actor 데이터 주입 (EntityHandle·Velocity 포함)
+- `SyncToEntity(out Health, out Velocity)` — Actor → Mass 역동기화 (Velocity 포함)
+- `TriggerRagdoll()` — 물리 Ragdoll 활성화 및 이동 비활성화. 여러 번 호출해도 안전.
 
 **LOD 전환 흐름:** `ULNPEnemyActorInitializerProcessor`가 스폰 감지 → 초기화 → `FLNPEnemyActorInitializedTag` 추가. `ULNPEnemyActorSyncProcessor`가 매 프레임 역동기화 및 디스폰 시 태그 제거.
 
@@ -220,4 +228,4 @@ Actor 상태일 때만 존재하는 `UWidgetComponent` 기반 HP Bar.
 
 - **SharedFragment:** 동일 타입 적들이 `ULNPEnemyConfig` 포인터를 공유하여 메모리 절약.
 - **UpDir 실시간 계산:** 프래그먼트에 저장하지 않고 필요 시 계산 → 캐시 효율 유지.
-- **SurfaceCache 연동 (예정):** 지형 표면 쿼리가 필요해지면 `ULNPSurfaceCacheSubsystem::GetSurfacePoint()`로 O(1) 조회. 자세한 내용은 [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md) 참조.
+- **SurfaceCache 연동:** 지형 표면 쿼리가 필요해지면 `ULNPSurfaceCacheSubsystem::GetSurfacePoint()`로 O(1) 조회. 자세한 내용은 [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md) 참조.

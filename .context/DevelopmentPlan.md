@@ -33,7 +33,7 @@
     - 결과물은 HISM으로 Bake하여 런타임 계산 제거.
 - [x] **SmartObject 기반 상호작용 인프라** (`ALNPLootPod`)
     - `SmartObjectComponent` + `UMassAgentComponent` 구성. Niagara VFX 연동.
-- [ ] **LootPod 랜덤 스폰 로직**
+- [x] **LootPod 랜덤 스폰 로직**
     - Mass Spawner와 연동한 LootPod 위치 결정 및 동적 스폰.
 
 ---
@@ -48,12 +48,12 @@
     - 발사체 시스템: `ULNPProjectileMovementProcessor`(PrePhysics) + `ULNPProjectileHitDetectionProcessor`(StartPhysics) + Visualization + Destruction 4개 프로세서.
     - 선분-캡슐 원거리 HitDetection, `InstigatorTeam` 팀 구분 피격 처리.
     - 공격 입력 바인딩 (`ULNPInputHandlerComponent`), 0.05초 입력 버퍼링.
-- [ ] **전투 애니메이션 시스템** (`ABP_Player`, `ULNPAnimInstance`)
+- [x] **전투 애니메이션 시스템** (`ABP_Player`, `ULNPAnimInstance`)
     - `ALI_WeaponStyles` 인터페이스 정의 및 무기별 서브 AnimBP (`ABP_Unarmed`, `ABP_Sword`, `ABP_Pistol`) 제작.
     - UpperBody / FullBody 슬롯 분리 블랜딩 파이프라인 + Inertialization 적용.
     - GAS `State.Block.MovementInput` 태그 기반 이동 입력 차단 (`ULNPInputHandlerComponent` 연동).
     - 설계 명세: [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md)
-- [ ] **총기류 Aim 모드**
+- [x] **총기류 Aim 모드**
     - 총기 장비 시 UpperBody 레이어에 Aiming 포즈 블랜딩.
     - Aim 중 카메라 전환 및 `bIsAiming` 상태 처리 (대시 조건 등 기존 연동 포함).
 - [x] **Enemy NPC HP Bar** (월드 스페이스)
@@ -68,20 +68,31 @@
     - 조준점: `TAG_AimMode_FreeAim` 활성 시에만 표시 (bIsFreeAiming → Blueprint Function Binding).
     - 설계 명세: [TechDesign_HUD.md](TechDesign_HUD.md)
 - [x] **근접 HitDetection** (AnimNotify 기반)
-    - `UANS_LNPMeleeHitWindow`: 무기 본 위치를 매 프레임 `FLNPMeleeAttackFragment`에 기록.
-    - `ULNPMeleeHitDetectionProcessor`: Swept Quad(삼각형 2개) vs. 캡슐 축 선분 최단 거리 판정. `SwordRadius + CapsuleRadius` 임계값.
+    - `UANS_LNPMeleeHitWindow`: 무기 본 위치를 매 프레임 `FLNPWeaponTraceFragment`에 기록.
+    - `ULNPWeaponTraceHitDetectionProcessor`: Swept Quad(삼각형 2개) vs. 캡슐 축 선분 최단 거리 판정. `SwordRadius + CapsuleRadius` 임계값.
+    - `ULNPWeaponTraceLifetimeProcessor`: `TimeToLive` 만료 시 엔티티 자동 파괴 (NotifyEnd 미호출 안전장치).
     - 중복 피격 방지 (`AlreadyHit[8]` 배열). 에디터 전용 디버그 드로우 프로세서 포함.
     - 피격 시 `FLNPPlayerLootingTag` 제거 → LootPod 루팅 취소 연동은 미구현.
-- [ ] **피격 반응 시스템**
-    - 넉백 Launch (구형 곡률 기반 궤적), HitStop, 아이템 드랍.
-- [x] **Guard / Parry 시스템** (핵심 기능 완료, 에디터 연결 잔여)
+- [x] **콤보 시스템**
+    - 몽타주 섹션 분기 기반 다단 콤보 구현.
+- [x] **Chooser 기반 몽타주 선택 시스템**
+    - Chooser 테이블을 활용하여 상황에 맞는 공격 몽타주 자동 선택.
+- [x] **산탄 공격**
+    - 다수의 발사체를 분산 발사하는 산탄 공격 구현.
+- [x] **히트리액션**
+    - 피격 시 캐릭터 히트리액션 애니메이션 구현.
+- [ ] **피격 반응 시스템** (넉백·드랍)
+    - HitStop 구현 완료.
+    - 미구현: 넉백 Launch (구형 곡률 기반 궤적), 아이템 드랍.
+- [x] **Guard / Parry 시스템** (핵심 기능 완료, GameplayCue 에셋 연결 잔여)
     - Guard: `FLNPParryStateFragment` Fragment 각도 판정 → `FLNPGuardBlockCommand` → 데미지 차단 + GameplayCue. 동작 확인.
     - Parry(근접): Guard 입력 직후 0.15초 창 → `FLNPMeleeParryCommand` → 방어자 GA_ParrySuccess + 공격자 GA_Stagger.
     - Parry(투사체): Processor에서 Fragment Velocity/InstigatorTeam/Instigator 반전 → `FLNPProjectileParryCommand` (방어자 GA_ParrySuccess만). 동작 확인.
-    - 판정 구조: `FLNPParryStateFragment` Mirror Fragment 기반으로 Processor(Worker Thread)에서 직접 판정. `FLNPApplyDamageGECommand`는 GE 적용 전용으로 간소화.
-    - 판정 반경 분리: `HitRadius`(피격)와 `ParryRadius`(패링)를 독립 필드로 분리. 2단계 판정 — PatryRadius 먼저 체크, 미발동 시 HitRadius 체크. 동작 확인.
+    - 판정 구조: `FLNPParryStateFragment` Mirror Fragment 기반으로 Processor(Worker Thread)에서 직접 판정. `FLNPApplyDamageGECommand`는 GE 적용 + HitReact + HitStop 처리.
+    - 판정 반경 분리: `HitRadius`(피격)와 `ParryRadius`(패링)를 독립 필드로 분리. 2단계 판정 — ParryRadius 먼저 체크, 미발동 시 HitRadius 체크. 동작 확인.
     - Guard 이동 제한: `FLNPGuardModifier` (GuardWalkSpeed 200 cm/s) — Sprint와 동일한 Mover Modifier 패턴.
-    - 에디터 잔여: GameplayCue 에셋 연결, Guard 자세 ABP 분기(`ULNPAnimInstance::bIsGuarding` 준비 완료), Guided/Lobbed 투사체 반사 타입.
+    - Guard 자세 애니메이션: `ABP_Sub_LongSword`에서 `bIsGuarding` Bool Blend 노드로 Guard 자세 블렌딩. 동작 확인.
+    - 에디터 잔여: GameplayCue 에셋 연결 (`GameplayCue.LNP.Guard.Block`, `GameplayCue.LNP.Parry.Success`), Guided/Lobbed 투사체 반사 타입.
     - 설계 명세: [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)
 
 ---
