@@ -15,6 +15,10 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_AimMode_None)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_AimMode_FreeAim)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_AimMode_LockOn)
 
+// 어빌리티 히트 이펙트 역할 태그 — AbilityTags에 부여해 ANS/외부 시스템이 어빌리티를 식별하는 데 사용
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Ability_HitEffect_Knockback) // 넉백 정보를 제공하는 어빌리티
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Ability_HitEffect_Parry)     // 패링 정보를 제공하는 어빌리티
+
 // 액션·시스템 제어 태그
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Action_Attacking)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Movement_Jumping)

@@ -93,6 +93,9 @@ public:
 	/** Duration 동안 CustomTimeDilation을 TimeDilation으로 낮춰 HitStop 효과를 준다. */
 	void ApplyHitStop(float Duration, float TimeDilation = 0.1f);
 
+	/** HitFromDirection 방향으로 Strength 크기의 넉백 임펄스를 가한다. */
+	void ApplyKnockback(FVector HitFromDirection, float Strength);
+
 	/** 이 캐릭터에 현재 장착/설정된 무기 데이터를 반환한다. */
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const { return nullptr; }
 

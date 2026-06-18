@@ -39,6 +39,13 @@ void ULNPMassSpawnSubsystem::BeginSpawning()
 	}
 }
 
+void ULNPMassSpawnSubsystem::Deinitialize()
+{
+	if (SpawnBuildFuture.IsValid() && !SpawnBuildFuture.IsReady())
+		SpawnBuildFuture.Wait();
+	Super::Deinitialize();
+}
+
 void ULNPMassSpawnSubsystem::Tick(float DeltaTime)
 {
 	if (SpawnBuildFuture.IsValid())
@@ -127,6 +134,9 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 			TArray<FVector> OccupiedPods;
 			TArray<FLNPAsyncSpawnEntry> Results;
 
+			// FVector::DownVector(0,0,-1) 기준 10도 이내 영역 제외 (PlayerStart 배치 영역)
+			const float CosDownExclude = FMath::Cos(FMath::DegreesToRadians(10.0f));
+
 			for (const auto& Set : Sets)
 			{
 				for (int32 i = 0; i < Set.PodSetCount; ++i)
@@ -141,6 +151,10 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 						FVector SearchDir = (Retry == 0) ? BaseDir : (BaseDir + Rand.GetUnitVector() * 0.05f).GetSafeNormal();
 						FVector Candidate;
 						if (!Cache.GetPoint(SearchDir, Candidate))
+							continue;
+
+						// FVector::DownVector 10도 이내 제외
+						if (FVector::DotProduct(Candidate.GetSafeNormal(), FVector::DownVector) > CosDownExclude)
 							continue;
 
 						if (MinDist > 0.0f)

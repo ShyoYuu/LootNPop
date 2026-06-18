@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -29,4 +29,8 @@ protected:
 protected:
 	virtual void SpawnProjectile() const;
 	virtual TArray<FVector> GetFireDirections(const FVector& SpawnPos) const;
+
+	/** 폭발 스플래시 넉백 강도. 0이면 넉백 없음. 직격 넉백은 KnockbackStrength(기반 클래스)를 사용한다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")
+	float SplashKnockbackStrength = 10.f;
 };

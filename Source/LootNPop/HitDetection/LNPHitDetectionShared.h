@@ -19,7 +19,8 @@ namespace LNPHitDetection
 {
 	inline UAbilitySystemComponent* GetASC(AActor* Actor)
 	{
-		if (!IsValid(Actor)) return nullptr;
+		if (!IsValid(Actor))
+			return nullptr;
 		IAbilitySystemInterface* I = Cast<IAbilitySystemInterface>(Actor);
 		return I ? I->GetAbilitySystemComponent() : nullptr;
 	}
@@ -189,13 +190,14 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 		TSubclassOf<UGameplayEffect> EffectClass;
 		float                        Damage;
 		FVector                      HitFromDirection;
+		float                        KnockbackStrength;
 	};
 
 	FLNPApplyDamageGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir)
+	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, float InKnockbackStrength = 0.f)
 	{
-		Entries.Add({ InVictim, InAttacker, InEffectClass, InDamage, InHitFromDir });
+		Entries.Add({ InVictim, InAttacker, InEffectClass, InDamage, InHitFromDir, InKnockbackStrength });
 		bHasWork = true;
 	}
 
@@ -233,6 +235,8 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 			{
 				VictimChar->PlayHitReact(Entry.HitFromDirection);
 				VictimChar->ApplyHitStop(0.08f);
+				if (Entry.KnockbackStrength > 0.f)
+					VictimChar->ApplyKnockback(Entry.HitFromDirection, Entry.KnockbackStrength);
 			}
 			if (ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(Attacker))
 				AttackerChar->ApplyHitStop(0.08f);

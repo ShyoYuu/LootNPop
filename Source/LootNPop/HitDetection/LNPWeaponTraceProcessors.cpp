@@ -21,7 +21,7 @@
 #include "MassCommandBuffer.h"
 #include "AbilitySystemComponent.h"
 #if WITH_EDITOR
-#include "DrawDebugHelpers.h"
+#include "MassDebugDrawHelpers.h"
 #endif
 
 namespace
@@ -195,7 +195,13 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		{
 			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 			const FVector UpDir = (-Loc).GetSafeNormal();
-			Enemies.Add({ Loc + UpDir * HalfH, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), ActorFrags[i].GetMutable() });
+			AActor*       Actor = ActorFrags[i].GetMutable();
+			FVector Center;
+			if (const ALNPCharacterBase* Enemy = Cast<ALNPCharacterBase>(Actor))
+				Center = Loc;
+			else
+				Center = Loc + UpDir * HalfH;
+			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor });
 		}
 	});
 
@@ -221,14 +227,14 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			AActor* Actor = ActorFrags[i].GetMutable();
-			const UCapsuleComponent* Cap = Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr;
-			const float HalfH  = Cap ? Cap->GetScaledCapsuleHalfHeight() : 96.f;
-			const float Radius = Cap ? Cap->GetScaledCapsuleRadius()     : 42.f;
-			const FTransform& T   = Transforms[i].GetTransform();
-			const FVector     Loc = T.GetLocation();
-			const FVector     Up  = (-Loc).GetSafeNormal();
-			Players.Add({ Loc + Up * HalfH, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i] });
+			AActor*                  Actor  = ActorFrags[i].GetMutable();
+			const UCapsuleComponent* Cap    = Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr;
+			const float              HalfH  = Cap ? Cap->GetScaledCapsuleHalfHeight() : 96.f;
+			const float              Radius = Cap ? Cap->GetScaledCapsuleRadius()     : 42.f;
+			const FTransform&        T      = Transforms[i].GetTransform();
+			const FVector            Loc    = T.GetLocation();
+			const FVector            Up     = (-Loc).GetSafeNormal();
+			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i] });
 		}
 	});
 
@@ -288,7 +294,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					{
 						const FVector SwordMid   = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
 						const FVector HitFromDir = (SwordMid - Enemy.CapsuleCenter).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, Frag.KnockbackStrength);
 					}
 					else
 					{
@@ -319,7 +325,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 						{
 							const FVector SwordMid   = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
 							const FVector HitFromDir = (SwordMid - Player.CapsuleCenter).GetSafeNormal();
-							Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir);
+							Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, Frag.KnockbackStrength);
 						}
 					}
 				}
@@ -365,7 +371,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (EffectClass)
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, Frag.KnockbackStrength);
 				}
 			}
 		}
@@ -401,6 +407,7 @@ void ULNPWeaponTraceLifetimeProcessor::Execute(FMassEntityManager& EntityManager
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			Frags[i].TimeToLive -= DeltaTime;
+
 			if (Frags[i].TimeToLive <= 0.f)
 			{
 				const FMassEntityHandle Handle = Ctx.GetEntity(i);
@@ -419,11 +426,11 @@ void ULNPWeaponTraceLifetimeProcessor::Execute(FMassEntityManager& EntityManager
 #if WITH_EDITOR
 
 ULNPWeaponTraceDebugDrawProcessor::ULNPWeaponTraceDebugDrawProcessor()
-	: AttackerQuery(*this)
+	: AttackerQuery(*this), PlayerQuery(*this)
 {
 	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
-	bRequiresGameThreadExecution = true;
 	bAutoRegisterWithProcessingPhases = true;
+	bRequiresGameThreadExecution = true;
 	ProcessingPhase = EMassProcessingPhase::StartPhysics;
 	ExecutionOrder.ExecuteAfter.Add(ULNPWeaponTraceHitDetectionProcessor::StaticClass()->GetFName());
 }
@@ -432,6 +439,10 @@ void ULNPWeaponTraceDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassE
 {
 	AttackerQuery.AddRequirement<FLNPWeaponTraceFragment>(EMassFragmentAccess::ReadOnly);
 	AttackerQuery.RegisterWithProcessor(*this);
+
+	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
+	PlayerQuery.RegisterWithProcessor(*this);
 }
 
 void ULNPWeaponTraceDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -440,38 +451,81 @@ void ULNPWeaponTraceDebugDrawProcessor::Execute(FMassEntityManager& EntityManage
 	if (!World)
 		return;
 
-	AttackerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	// Player 위치 전체 수집
+	TArray<FVector> PlayerLocations;
+	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+			PlayerLocations.Add(Transforms[i].GetTransform().GetLocation());
+	});
+
+	const float MeleeProximityDistSq = GetDefault<ULNPSettings>()->DebugDrawProximityDistSq;
+	auto Batcher = UE::Mass::Debug::FLineBatcher::MakeLineBatcher(World);
+
+	auto IsNearAnyPlayer = [&](const FVector& Pos) -> bool
+	{
+		for (const FVector& PL : PlayerLocations)
 		{
-			const TConstArrayView<FLNPWeaponTraceFragment> Attackers = Ctx.GetFragmentView<FLNPWeaponTraceFragment>();
+			if (FVector::DistSquared(Pos, PL) < MeleeProximityDistSq)
+				return true;
+		}
+		return false;
+	};
 
-			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
-			{
-				const FLNPWeaponTraceFragment& Frag = Attackers[i];
+	AttackerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FLNPWeaponTraceFragment> Attackers = Ctx.GetFragmentView<FLNPWeaponTraceFragment>();
 
-				// Swept Quad 외곽 4선 (마젠타)
-				DrawDebugLine(World, Frag.SwordRootPrev, Frag.SwordTipPrev, FColor::Magenta, false, 0.2f, 0, 1.f);
-				DrawDebugLine(World, Frag.SwordRootCurr, Frag.SwordTipCurr, FColor::Magenta, false, 0.2f, 0, 1.f);
-				DrawDebugLine(World, Frag.SwordRootPrev, Frag.SwordRootCurr, FColor::Magenta, false, 0.2f, 0, 0.5f);
-				DrawDebugLine(World, Frag.SwordTipPrev, Frag.SwordTipCurr, FColor::Magenta, false, 0.2f, 0, 0.5f);
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			const FLNPWeaponTraceFragment& Frag     = Attackers[i];
+			const FVector                  SwordMid = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
+			if (!IsNearAnyPlayer(SwordMid))
+				continue;
 
-				// 삼각형 분해 대각선 (반투명 파랑, 판정 구조 확인용)
-				DrawDebugLine(World, Frag.SwordRootPrev, Frag.SwordTipCurr, FColor(100, 100, 255), false, 0.2f, 0, 0.3f);
+			Batcher.DrawSphere(Frag.SwordRootCurr, Frag.HitRadius,   FLinearColor(FColor::Green));
+			Batcher.DrawSphere(Frag.SwordTipCurr,  Frag.HitRadius,   FLinearColor(FColor::Green));
+			Batcher.DrawSphere(Frag.SwordRootCurr, Frag.ParryRadius, FLinearColor(FColor::Emerald));
+			Batcher.DrawSphere(Frag.SwordTipCurr,  Frag.ParryRadius, FLinearColor(FColor::Emerald));
 
-				// 현재 칼날 (노랑, 가장 굵게)
-				DrawDebugLine(World, Frag.SwordRootCurr, Frag.SwordTipCurr, FColor::Yellow, false, 0.2f, 0, 2.f);
+			const FVector SwordDir = (Frag.SwordTipCurr - Frag.SwordRootCurr).GetSafeNormal();
+			FVector Perp = FVector::CrossProduct(SwordDir, FVector::UpVector);
+			if (Perp.IsNearlyZero()) Perp = FVector::CrossProduct(SwordDir, FVector::ForwardVector);
+			Perp.Normalize();
+			const FVector Perp2 = FVector::CrossProduct(SwordDir, Perp);
 
-				// 피격 판정 반경 실린더 (초록)
-				DrawDebugCylinder(World, Frag.SwordRootCurr, Frag.SwordTipCurr, Frag.HitRadius, 12, FColor::Green, false, 0.2f, 0, 0.5f);
-				// 패링 판정 반경 실린더 (연한 초록, 적은 Segment)
-				DrawDebugCylinder(World, Frag.SwordRootCurr, Frag.SwordTipCurr, Frag.ParryRadius, 6, FColor::Emerald, false, 0.2f, 0, 0.3f);
-			}
-		});
+			// 칼날 두께 시각화 (HitRadius)
+			//const float   HR  = Frag.HitRadius;
+			//const float   HR3 = HR / 3.f;
+			//const FVector HitOff[8] = {
+			//	 Perp * HR  + Perp2 * HR3,  Perp * HR  - Perp2 * HR3,
+			//	-Perp * HR  + Perp2 * HR3, -Perp * HR  - Perp2 * HR3,
+			//	 Perp * HR3 + Perp2 * HR,   Perp * HR3 - Perp2 * HR,
+			//	-Perp * HR3 + Perp2 * HR,  -Perp * HR3 - Perp2 * HR,
+			//};
+			//for (const FVector& Off : HitOff)
+			//	Batcher.LineBatcherInstance->DrawLine(Frag.SwordRootCurr + Off, Frag.SwordTipCurr + Off, FLinearColor(FColor::Green), 0, 0.5f, Batcher.LifeTime);
+
+			// 패링 판정 반경 시각화 (ParryRadius)
+			const float   PR  = Frag.ParryRadius;
+			const float   PR3 = PR / 3.f;
+			const FVector ParryOff[8] = {
+				 Perp * PR  + Perp2 * PR3,  Perp * PR  - Perp2 * PR3,
+				-Perp * PR  + Perp2 * PR3, -Perp * PR  - Perp2 * PR3,
+				 Perp * PR3 + Perp2 * PR,   Perp * PR3 - Perp2 * PR,
+				-Perp * PR3 + Perp2 * PR,  -Perp * PR3 - Perp2 * PR,
+			};
+			for (const FVector& Off : ParryOff)
+				Batcher.LineBatcherInstance->DrawLine(Frag.SwordRootCurr + Off, Frag.SwordTipCurr + Off, FLinearColor(FColor::Emerald), 0, 0.5f, Batcher.LifeTime);
+		}
+	});
 }
 
 #else
 
 ULNPWeaponTraceDebugDrawProcessor::ULNPWeaponTraceDebugDrawProcessor()
-	: AttackerQuery(*this)
+	: AttackerQuery(*this), PlayerQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = false;
 }

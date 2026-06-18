@@ -1,9 +1,8 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MassEntityTypes.h"
 #include "Character/LNPCharacterBase.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "GameplayAbilitySpec.h"
@@ -15,7 +14,6 @@ class UAbilitySystemComponent;
 class ULNPBaseAttributeSet;
 class UWidgetComponent;
 class ULNPHpBarWidget;
-struct FMassEntityHandle;
 
 /**
  * 셸 역할을 하는 범용 Enemy 캐릭터.
@@ -31,11 +29,11 @@ public:
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	/** 제공된 config 에셋으로 캐릭터를 초기화한다 */
-	void InitializeFromConfig(ULNPEnemyConfig* InConfig);
+	/** Config 기반 1회 초기화 (Ability, 무기). 내부적으로 중복 호출을 무시한다 */
+	void InitializeOnce(ULNPEnemyConfig* InConfig);
 
-	/** Mass -> Actor 동기화: Mass에서 Actor가 스폰/활성화될 때 호출 */
-	void SyncFromEntity(FMassEntityHandle InEntityHandle, float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity);
+	/** 매 High LOD 활성화마다 호출: AnimSourceMesh 숨김, HP/속도 동기화 */
+	void SyncFromEntity(float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity);
 
 	/** Actor -> Mass 동기화: Actor가 Mass로 비활성화/Destroy되기 전 호출 */
 	void SyncToEntity(float& OutHealth, FVector& OutVelocity) const;
@@ -70,6 +68,8 @@ protected:
 	TSubclassOf<ULNPHpBarWidget> HpBarWidgetClass;
 
 private:
+	bool bInitializedOnce = false;
+
 	void OnHpAttributeChanged(const FOnAttributeChangeData& Data);
 	void RefreshHpBar(float Current, float Max);
 };

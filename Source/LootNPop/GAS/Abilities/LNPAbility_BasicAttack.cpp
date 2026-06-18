@@ -17,6 +17,11 @@ const ULNPWeaponData* ULNPAbility_BasicAttack::GetEquippedWeaponDef() const
 	return Ch ? Ch->GetActiveWeaponDef() : nullptr;
 }
 
+float ULNPAbility_BasicAttack::GetKnockbackForCombo(int32 /*ComboIdx*/) const
+{
+	return KnockbackStrength;
+}
+
 float ULNPAbility_BasicAttack::ComputeDamage() const
 {
 	const ALNPCharacterBase* Ch = GetOwningCharacter();
@@ -32,6 +37,6 @@ float ULNPAbility_BasicAttack::ComputeDamage() const
 		return 0.f;
 
 	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDef();
-	const float WeaponBonus = WeaponDef ? WeaponDef->ProjectileDamage : 0.f;
+	const float WeaponBonus = WeaponDef ? WeaponDef->Damage : 0.f;
 	return (Attrs->GetAttackPower() + WeaponBonus) * Attrs->GetAttackMultiplier();
 }

@@ -94,12 +94,15 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 
 	// --- Shared Fragment (무기 타입 상수, 동일 무기의 모든 Projectile가 공유) ---
 	FLNPProjectileSharedFragment SharedData;
-	SharedData.VFXData           = WeaponDef->ProjectileVFXData;
-	SharedData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
-	SharedData.Type              = WeaponDef->ProjectileType;
-	SharedData.Damage            = ComputeDamage();
-	SharedData.HitRadius         = WeaponDef->HitRadius;
-	SharedData.ParryRadius       = WeaponDef->ParryRadius;
+	SharedData.VFXData                 = WeaponDef->ProjectileVFXData;
+	SharedData.DamageEffectClass       = WeaponDef->ProjectileDamageEffect;
+	SharedData.Type                    = WeaponDef->ProjectileType;
+	SharedData.Damage                  = ComputeDamage();
+	SharedData.HitRadius               = WeaponDef->HitRadius;
+	SharedData.ParryRadius             = ParryRadius;
+	SharedData.ExplosionRadius         = WeaponDef->ExplosionRadius;
+	SharedData.KnockbackStrength       = KnockbackStrength;
+	SharedData.SplashKnockbackStrength = SplashKnockbackStrength;
 
 	FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(SharedData);
 	FMassArchetypeSharedFragmentValues SharedValues;
