@@ -133,7 +133,7 @@ USTRUCT() struct LOOTNPOP_API FLNPEnemyTag : public FMassTag { GENERATED_BODY() 
 /** Entity를 Player로 식별하는 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPPlayerTag : public FMassTag { GENERATED_BODY() };
 
-/** 이 Entity의 Actor가 초기화됐음을 표시하는 Tag */
+/** 이 Entity의 Actor가 초기화됐음을 표시하는 Tag. ActorSyncProcessor가 null Actor 감지 시 제거하여 다음 High LOD 전환 때 ActorInitializer가 재실행되도록 한다. */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyActorInitializedTag : public FMassTag { GENERATED_BODY() };
 
 /** Destroy 대기 상태 Tag */

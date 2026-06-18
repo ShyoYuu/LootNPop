@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNotifies/AnimNotifyState.h"
+#include "GameplayTagContainer.h"
 #include "MassEntityHandle.h"
 #include "ANS_LNPMeleeHitWindow.generated.h"
 
@@ -27,12 +28,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Melee")
 	FName BoneRootName = TEXT("sword_root");
 
-	/** 0이면 무기 DataAsset의 ProjectileHitRadius를 사용한다. */
+	/** 0이면 무기 DataAsset의 HitRadius를 사용한다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Melee", meta = (ClampMin = "0"))
 	float HitRadiusOverride = 0.f;
 
-	UPROPERTY(EditAnywhere, Category = "LNP|Melee", meta = (ClampMin = "0"))
-	float ParryRadiusOverride = 0.f;
+	/** 넉백 강도를 제공할 어빌리티를 식별하는 태그 (LNP.Ability.HitEffect.Knockback).
+	 *  비워두면 TAG_Ability_HitEffect_Knockback으로 자동 선택한다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Melee")
+	FGameplayTag KnockbackAbilityTag;
+
+	/** 패링 판정 반경을 제공할 어빌리티를 식별하는 태그 (LNP.Ability.HitEffect.ParryRadius).
+	 *  비워두면 TAG_Ability_HitEffect_Parry로 자동 선택한다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Melee")
+	FGameplayTag ParryAbilityTag;
 
 	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
 		float TotalDuration, const FAnimNotifyEventReference& EventReference) override;

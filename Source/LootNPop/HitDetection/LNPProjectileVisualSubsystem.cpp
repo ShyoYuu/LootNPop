@@ -6,7 +6,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 #if WITH_EDITOR
-#include "DrawDebugHelpers.h"
+#include "MassDebugDrawHelpers.h"
 #endif
 
 void ULNPProjectileVisualSubsystem::AllocateTrails(FMassEntityHandle Entity, const ULNPVFXData* VFXData, FVector Pos)
@@ -108,17 +108,3 @@ void ULNPProjectileVisualSubsystem::SpawnImpactEffects(const ULNPVFXData* VFXDat
 			UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, NS, Pos, Rot);
 	}
 }
-
-#if WITH_EDITOR
-void ULNPProjectileVisualSubsystem::EnqueueSurfaceImpactDebug(FVector Location, FColor Color, float SphereRadius)
-{
-	SurfaceImpactDebugQueue.Enqueue({ Location, Color, SphereRadius });
-}
-
-void ULNPProjectileVisualSubsystem::FlushSurfaceImpactDebug(UWorld* World)
-{
-	FImpactDebug Debug;
-	while (SurfaceImpactDebugQueue.Dequeue(Debug))
-		DrawDebugSphere(World, Debug.Location, Debug.SphereRadius, 8, Debug.Color, false, 1.f);
-}
-#endif

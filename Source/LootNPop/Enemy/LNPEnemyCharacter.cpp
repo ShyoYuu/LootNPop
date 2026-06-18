@@ -51,20 +51,24 @@ void ALNPEnemyCharacter::BeginPlay()
 	}
 }
 
-void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
+void ALNPEnemyCharacter::InitializeOnce(ULNPEnemyConfig* InConfig)
 {
 	if (nullptr == InConfig)
 		return;
+	if (bInitializedOnce && EnemyConfig == InConfig)
+		return;
 
-	if (AnimSourceMesh)
-		AnimSourceMesh->SetVisibility(false);
+	if (bInitializedOnce && ASC)
+	{
+		ASC->ClearAllAbilities();
+		WeaponAbilityHandle = FGameplayAbilitySpecHandle();
+	}
 
+	bInitializedOnce = true;
 	EnemyConfig = InConfig;
 
-	// GAS 설정 (Ability 및 Attribute)
 	if (UAbilitySystemComponent* EnemyASC = GetAbilitySystemComponent())
 	{
-		// WeaponData에서 무기 Ability 부여; 첫 번째 Handle이 공격 Handle이 됨
 		if (InConfig->WeaponData)
 		{
 			for (const TSubclassOf<ULNPGameplayAbility>& AbilityClass : InConfig->WeaponData->AbilitiesToGrant)
@@ -76,28 +80,22 @@ void ALNPEnemyCharacter::InitializeFromConfig(ULNPEnemyConfig* InConfig)
 						WeaponAbilityHandle = Handle;
 				}
 			}
-
 			EquipWeapon(InConfig->WeaponData);
 		}
 
-		// 추가 비무기 Ability 부여 (회피, 막기 등)
 		for (const TSubclassOf<UGameplayAbility>& AbilityClass : InConfig->DefaultAbilities)
 		{
 			if (AbilityClass)
 				EnemyASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
 		}
-
-		// 초기 Attribute 적용
-		for (auto& AttributePair : InConfig->InitialAttributeValues)
-		{
-			// 실제 프로젝트에서는 GameplayTag를 실제 Attribute 접근자에 매핑해야 함.
-			// 현재는 일반 방법으로 설정하거나 Effect로 처리한다고 가정.
-		}
 	}
 }
 
-void ALNPEnemyCharacter::SyncFromEntity(FMassEntityHandle InEntityHandle, float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity)
+void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity)
 {
+	if (AnimSourceMesh)
+		AnimSourceMesh->SetVisibility(false);
+
 	if (AttributeSet)
 		AttributeSet->SetHealth(InHealth);
 
@@ -123,13 +121,11 @@ void ALNPEnemyCharacter::TriggerRagdoll()
 		VisualMesh->SetAllBodiesSimulatePhysics(true);
 		VisualMesh->SetCollisionProfileName(TEXT("Ragdoll"));
 		VisualMesh->WakeAllRigidBodies();
-
-		FVector UpDir = GravityComponent ? GravityComponent->GetUpDirection() : FVector::UpVector;
-		VisualMesh->AddImpulse(UpDir * 50000.f, NAME_None, true);
 	}
 	if (CapsuleComponent)
 		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
+
 
 bool ALNPEnemyCharacter::TryActivateAttack_Impl()
 {

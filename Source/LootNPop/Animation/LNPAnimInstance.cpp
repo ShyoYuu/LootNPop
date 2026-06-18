@@ -75,7 +75,11 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	// 6. Aim Offset용 Yaw/Pitch 계산
 	// GetBaseAimRotation()은 플레이어의 경우 Control Rotation, AI는 별도 로직을 따름.
+	// 구형 세계 보정: 월드 공간 Euler 각도 뺄셈은 캐릭터 Up이 World Up과 벌어질 때 오차가 생긴다.
+	// 에임 방향 벡터를 캐릭터 로컬 좌표계로 변환한 뒤 Pitch/Yaw를 추출해 항상 올바른 로컬 에임 각도를 얻는다.
 	FRotator BaseAimRotation = OwningMoverCharacter->GetBaseAimRotation();
-	AimPitch = FMath::ClampAngle(BaseAimRotation.Pitch, -90.0f, 90.0f);
-	AimYaw = FRotator::NormalizeAxis(BaseAimRotation.Yaw - OwningMoverCharacter->GetActorRotation().Yaw);
+	FVector LocalAimDir = OwningMoverCharacter->GetActorTransform().InverseTransformVectorNoScale(BaseAimRotation.Vector());
+	FRotator LocalAimRot = LocalAimDir.Rotation();
+	AimPitch = FMath::ClampAngle(LocalAimRot.Pitch, -90.0f, 90.0f);
+	AimYaw   = FRotator::NormalizeAxis(LocalAimRot.Yaw);
 }

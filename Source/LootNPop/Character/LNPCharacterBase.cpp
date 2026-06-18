@@ -248,7 +248,10 @@ void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir)
 	else                                          Direction = TAG_Montage_Value_Direction_Front;
 
 	if (UAnimMontage* HitReactMontage = EvaluateMontage(TAG_Montage_Situation_HitReaction, Direction))
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("PlayHitReact: %s"), *HitReactMontage->GetName());
 		Anim->Montage_Play(HitReactMontage);
+	}
 }
 
 void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)
@@ -259,6 +262,11 @@ void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)
 	{
 		CustomTimeDilation = 1.0f;
 	}), Duration, false);
+}
+
+void ALNPCharacterBase::ApplyKnockback(FVector HitFromDirection, float Strength)
+{
+
 }
 
 UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag WeaponType, FGameplayTag SituationType, FGameplayTag Value) const

@@ -63,10 +63,10 @@ public:
 	float HitRadius = 5.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0.1"))
-	float ParryRadius = 5.f;
+	float ExplosionRadius = 5.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0"))
-	float ProjectileDamage = 10.f;
+	float Damage = 10.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0.1"))
 	float ProjectileLifetime = 5.f;

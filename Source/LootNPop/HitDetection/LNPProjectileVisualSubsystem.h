@@ -46,14 +46,6 @@ public:
 	/** 임팩트 큐를 비우고 대기 중인 모든 이펙트를 스폰한다. 게임 Thread 전용. */
 	void FlushPendingImpacts();
 
-#if WITH_EDITOR
-	/** Thread-Safe: 디버그 시각화를 위한 표면 임팩트 위치를 큐에 추가한다. */
-	void EnqueueSurfaceImpactDebug(FVector Location, FColor Color, float SphereRadius);
-
-	/** 표면 임팩트 디버그 큐를 비우고 지속 구체를 그린다. 게임 Thread 전용. */
-	void FlushSurfaceImpactDebug(UWorld* World);
-#endif
-
 private:
 	void ReleaseTrails(FMassEntityHandle Entity);
 	void SpawnImpactEffects(const ULNPVFXData* VFXData, FVector Pos, FVector Normal);

@@ -7,7 +7,14 @@
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
-#include "Animation/AnimInstance.h"
+#include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+
+float ULNPAbility_MeleeAttack::GetKnockbackForCombo(int32 ComboIdx) const
+{
+	if (ComboKnockbackStrengths.IsValidIndex(ComboIdx))
+		return ComboKnockbackStrengths[ComboIdx];
+	return KnockbackStrength;
+}
 
 void ULNPAbility_MeleeAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 	const FGameplayAbilityActorInfo* ActorInfo,
@@ -23,28 +30,41 @@ void ULNPAbility_MeleeAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 	}
 
 	const ALNPCharacterBase* Character = GetOwningCharacter();
-	if (nullptr == Character)
+	if (!Character)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	if (UAnimInstance* AnimInst = Character->GetAnimInstance())
+	UAnimMontage* AttackMontage = Character->EvaluateMontage(TAG_Montage_Situation_Attack);
+	if (!AttackMontage)
 	{
-		if (UAnimMontage* AttackMontage = Character->EvaluateMontage(TAG_Montage_Situation_Attack))
-		{
-			AnimInst->Montage_Play(AttackMontage);
-			const int32 ComboIdx = Character->GetCurrentComboIndex();
-			if (ComboIdx > 0)
-			{
-				const FName SectionName = FName(FString::Printf(TEXT("Section_%d"), ComboIdx + 1));
-				AnimInst->Montage_JumpToSection(SectionName, AttackMontage);
-			}
-		}
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		return;
 	}
 
-	// 피격 판정은 몽타주의 ANS_LNPMeleeHitWindow가 처리하므로 Ability는 즉시 종료.
-	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+	const int32 ComboIdx = Character->GetCurrentComboIndex();
+	FName SectionName = NAME_None;
+	if (ComboIdx > 0)
+		SectionName = FName(FString::Printf(TEXT("Section_%d"), ComboIdx + 1));
+
+	UAbilityTask_PlayMontageAndWait* Task = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
+		this, NAME_None, AttackMontage, 1.f, SectionName);
+	Task->OnCompleted.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageEnded);
+	Task->OnBlendOut.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageEnded);
+	Task->OnInterrupted.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageInterrupted);
+	Task->OnCancelled.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageInterrupted);
+	Task->ReadyForActivation();
+}
+
+void ULNPAbility_MeleeAttack::OnMontageEnded()
+{
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
+void ULNPAbility_MeleeAttack::OnMontageInterrupted()
+{
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }
 
 UGameplayEffect* ULNPAbility_MeleeAttack::GetCooldownGameplayEffect() const

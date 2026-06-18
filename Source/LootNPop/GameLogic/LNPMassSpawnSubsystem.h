@@ -69,6 +69,7 @@ class LOOTNPOP_API ULNPMassSpawnSubsystem : public UWorldSubsystem, public FTick
 public:
 	// USubsystem interface
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 	// End USubsystem
 
 	// FTickableGameObject interface

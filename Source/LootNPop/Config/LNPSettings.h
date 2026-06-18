@@ -22,7 +22,7 @@ public:
 	ULNPSettings();
 
 	UPROPERTY(Config, EditAnywhere, Category = "World Generation")
-	float SphereRadius = 10000.0f;
+	float SphereRadius = 25000.0f;
 
 	/** World 생성에 사용할 기본 Octant Pool. */
 	UPROPERTY(Config, EditAnywhere, Category = "World Generation")
@@ -43,4 +43,12 @@ public:
 	/** true이면 Player Projectile이 다른 Player에게 피해를 줄 수 있다. */
 	UPROPERTY(Config, EditAnywhere, Category = "Combat")
 	bool bFriendlyFire = false;
+
+	/** Debug Draw 거리 컬링 기준값 (DistSq). 플레이어와의 거리² 가 이 값 미만인 엔티티만 그린다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Debug Draw", meta = (ClampMin="0.0"))
+	float DebugDrawProjectileDistSq = 100000000.f;
+
+	/** Debug Draw 거리 컬링 기준값 (DistSq). 플레이어와의 거리² 가 이 값 미만인 엔티티만 그린다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Debug Draw", meta = (ClampMin = "0.0"))
+	float DebugDrawProximityDistSq = 250000.f;
 };

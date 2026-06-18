@@ -25,7 +25,6 @@
 #include "AbilitySystemComponent.h"
 #if WITH_EDITOR
 #include "MassDebugDrawHelpers.h"
-#include "DrawDebugHelpers.h"
 #endif
 
 namespace
@@ -124,10 +123,7 @@ void ULNPProjectileMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				if (Visuals[i].bInitialized)
 					VisualSub.EnqueueTrailRelease(Entity);
 				VisualSub.EnqueueImpact(Shared.VFXData, NewPos, ImpactNormal);
-#if WITH_EDITOR
-				if (bHitSurface)
-					VisualSub.EnqueueSurfaceImpactDebug(NewPos, FColor::Orange, 10.0f);
-#endif
+
 				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(Entity);
 			}
 		}
@@ -257,6 +253,47 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 	const bool bFriendlyFire = GetDefault<ULNPSettings>()->bFriendlyFire;
 
+	// ExcludeEnemy/ExcludePlayer = 직접 피격 대상 (중복 피해 방지)
+	auto ApplySplash = [&](FMassExecutionContext& Ctx,
+		const FLNPProjectileSharedFragment& Shared,
+		const FLNPProjectileFragment&       Proj,
+		FVector                             HitPoint,
+		const FCollectedEnemy*              ExcludeEnemy,
+		const FCollectedPlayer*             ExcludePlayer,
+		bool                                bFF)
+	{
+		if (Shared.ExplosionRadius <= 0.f || !Shared.DamageEffectClass)
+			return;
+
+		const float ExpRadSq = FMath::Square(Shared.ExplosionRadius);
+
+		if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
+		{
+			for (const FCollectedEnemy& SE : Enemies)
+			{
+				if (&SE == ExcludeEnemy) continue;
+				if (!SE.Actor) continue;
+				if (FVector::DistSquared(SE.CapsuleCenter, HitPoint) > ExpRadSq) continue;
+				Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
+					SE.Actor, FMassEntityHandle{}, Shared.DamageEffectClass,
+					Shared.Damage, (SE.CapsuleCenter - HitPoint).GetSafeNormal(), Shared.SplashKnockbackStrength);
+			}
+		}
+
+		if (Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy || bFF)
+		{
+			for (const FCollectedPlayer& SP : Players)
+			{
+				if (&SP == ExcludePlayer) continue;
+				if (!SP.Actor) continue;
+				if (FVector::DistSquared(SP.Location, HitPoint) > ExpRadSq) continue;
+				Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
+					SP.Actor, FMassEntityHandle{}, Shared.DamageEffectClass,
+					Shared.Damage, (SP.Location - HitPoint).GetSafeNormal(), Shared.SplashKnockbackStrength);
+			}
+		}
+	};
+
 	// ── Pass 3: 선분 vs 캡슐 충돌 판정 ───────────────────────────────────────
 	ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
@@ -274,7 +311,18 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			const FVector           CurrentPos = Transforms[i].GetTransform().GetLocation();
 			const FMassEntityHandle ProjEnt    = Ctx.GetEntity(i);
 
-			// Enemy 판정 (Player 발사체만 Enemy에게 피해를 줌)
+			// 피격 시 공통 후처리: 트레일 해제 · 임팩트 VFX · Dead 태그 · 스플래시
+			auto FinishHit = [&](FVector HitPoint, FVector ImpactNormal,
+				const FCollectedEnemy* ExclEnemy, const FCollectedPlayer* ExclPlayer)
+			{
+				if (Visuals[i].bInitialized)
+					VisualSub.EnqueueTrailRelease(ProjEnt);
+				VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, ImpactNormal);
+				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
+				ApplySplash(Ctx, Shared, Proj, HitPoint, ExclEnemy, ExclPlayer, bFriendlyFire);
+			};
+
+			// Enemy 판정 — Player 발사체만 Enemy에게 피해를 줌 (비 Player 발사체는 캡슐에 닿아도 파괴만 됨)
 			bool bHit = false;
 			for (FCollectedEnemy& Enemy : Enemies)
 			{
@@ -294,7 +342,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					if (Enemy.Actor && Shared.DamageEffectClass)
 					{
 						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, FMassEntityHandle{}, Shared.DamageEffectClass, Shared.Damage, HitFromDir);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, FMassEntityHandle{}, Shared.DamageEffectClass, Shared.Damage, HitFromDir, Shared.KnockbackStrength);
 					}
 					else
 					{
@@ -304,11 +352,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					}
 				}
 
-				if (Visuals[i].bInitialized)
-					VisualSub.EnqueueTrailRelease(ProjEnt);
-
-				VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, (HitPoint - Enemy.CapsuleCenter).GetSafeNormal());
-				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
+				FinishHit(HitPoint, (HitPoint - Enemy.CapsuleCenter).GetSafeNormal(), &Enemy, nullptr);
 				bHit = true;
 				break;
 			}
@@ -342,7 +386,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						Proj.InstigatorTeam = ELNPInstigatorTeam::Player;
 						Proj.Instigator     = Player.Handle;
 						Ctx.Defer().PushCommand<FLNPProjectileParryCommand>(Player.Actor);
-						break;
+						break;  // 반사된 투사체는 파괴하지 않고 계속 비행 (FinishHit 호출 없음)
 					}
 				}
 
@@ -362,15 +406,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					else if (Shared.DamageEffectClass)
 					{
 						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, FMassEntityHandle{}, Shared.DamageEffectClass, Shared.Damage, HitFromDir);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, FMassEntityHandle{}, Shared.DamageEffectClass, Shared.Damage, HitFromDir, Shared.KnockbackStrength);
 					}
 				}
 
-				if (Visuals[i].bInitialized)
-					VisualSub.EnqueueTrailRelease(ProjEnt);
-
-				VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, (HitPoint - Player.Location).GetSafeNormal());
-				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
+				FinishHit(HitPoint, (HitPoint - Player.Location).GetSafeNormal(), nullptr, &Player);
 				break;
 			}
 		}
@@ -476,8 +516,8 @@ void ULNPProjectileDestructionProcessor::Execute(FMassEntityManager& EntityManag
 ULNPProjectileDebugDrawProcessor::ULNPProjectileDebugDrawProcessor()
 	: ProjectileQuery(*this), PlayerQuery(*this), EnemyQuery(*this)
 {
-	bRequiresGameThreadExecution = true;
 	bAutoRegisterWithProcessingPhases = true;
+	bRequiresGameThreadExecution = true;
 	ProcessingPhase = EMassProcessingPhase::StartPhysics;
 	ExecutionOrder.ExecuteAfter.Add(ULNPProjectileVisualizationProcessor::StaticClass()->GetFName());
 }
@@ -490,65 +530,79 @@ void ULNPProjectileDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEn
 	ProjectileQuery.AddTagRequirement<FLNPProjectileDeadTag>(EMassFragmentPresence::None);
 	ProjectileQuery.RegisterWithProcessor(*this);
 
-	PlayerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
+	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
 
-	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
+	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	EnemyQuery.RegisterWithProcessor(*this);
-
-	ProcessorRequirements.AddSubsystemRequirement<ULNPProjectileVisualSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
 void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	UWorld* World = EntityManager.GetWorld();
-	if (nullptr == World)
+	if (!World)
 		return;
 
-	Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>().FlushSurfaceImpactDebug(World);
+	auto Batcher = UE::Mass::Debug::FLineBatcher::MakeLineBatcher(World);
+
+	// Player 위치 수집 + Player 캡슐 드로우 (항상 표시)
+	TArray<FVector> PlayerLocations;
+	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			const FVector Location  = Transforms[i].GetTransform().GetLocation();
+			const FVector UpDir     = (-Location).GetSafeNormal();
+			const FVector TopSphere = Location + UpDir * 54.f;  // HalfHeight(96) - Radius(42)
+			const FVector BotSphere = Location - UpDir * 54.f;
+			Batcher.DrawSphere(TopSphere, 42.f, FLinearColor(FColor::Green));
+			Batcher.DrawSphere(BotSphere, 42.f, FLinearColor(FColor::Green));
+			PlayerLocations.Add(Location);
+		}
+	});
+
+	const float ProjectileProximityDistSq = GetDefault<ULNPSettings>()->DebugDrawProjectileDistSq;
+	const float MeleeProximityDistSq      = GetDefault<ULNPSettings>()->DebugDrawProximityDistSq;
+
+	auto IsNearAnyPlayer = [&](const FVector& Pos, const float& ProximityDistSq) -> bool
+	{
+		for (const FVector& PL : PlayerLocations)
+		{
+			if (FVector::DistSquared(Pos, PL) < ProximityDistSq)
+				return true;
+		}
+		return false;
+	};
 
 	ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		const TConstArrayView<FTransformFragment>     Transforms  = Ctx.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FLNPProjectileFragment> Projectiles = Ctx.GetFragmentView<FLNPProjectileFragment>();
-		const FLNPProjectileSharedFragment& Shared = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
+		const FLNPProjectileSharedFragment&           Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			const FVector Pos     = Transforms[i].GetTransform().GetLocation();
-			const FVector VelDir  = Projectiles[i].Velocity.GetSafeNormal();
-			const bool    bPlayer = Projectiles[i].InstigatorTeam == ELNPInstigatorTeam::Player;
+			const FVector Pos = Transforms[i].GetTransform().GetLocation();
+			if (!IsNearAnyPlayer(Pos, ProjectileProximityDistSq))
+				continue;
+
+			const FVector VelDir     = Projectiles[i].Velocity.GetSafeNormal();
+			const bool    bPlayer    = Projectiles[i].InstigatorTeam == ELNPInstigatorTeam::Player;
 			const FColor  Color      = bPlayer ? FColor::Cyan   : FColor::Red;
 			const FColor  ParryColor = bPlayer ? FColor::Silver : FColor::Orange;
 
-			DrawDebugSphere(World, Pos, Shared.HitRadius,   8, Color,      false, -1.f);
-			DrawDebugSphere(World, Pos, Shared.ParryRadius, 4, ParryColor, false, -1.f);
-			DrawDebugLine(World, Pos, Pos + VelDir * 60.f, FColor::White, false, -1.f);
-		}
-	});
-
-	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
-	{
-		const TConstArrayView<FMassActorFragment> ActorFrags = Ctx.GetFragmentView<FMassActorFragment>();
-
-		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
-		{
-			const ALNPCharacterBase* Player = Cast<ALNPCharacterBase>(ActorFrags[i].Get());
-			if (Player == nullptr)
-				continue;
-
-			const UCapsuleComponent* Capsule    = Player->GetCapsule();
-			const float              HalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 96.f;
-			const float              Radius     = Capsule ? Capsule->GetScaledCapsuleRadius()     : 42.f;
-			const FVector            Location   = Player->GetActorLocation();
-			const FVector            UpDir      = (-Location).GetSafeNormal();
-			const FQuat              CapsuleRot = FQuat::FindBetweenNormals(FVector::UpVector, UpDir);
-
-			DrawDebugCapsule(World, Location, HalfHeight, Radius, CapsuleRot, FColor::Green, false, -1.f);
+			Batcher.DrawSphere(Pos, Shared.HitRadius,   FLinearColor(Color));
+			Batcher.DrawSphere(Pos, Shared.ParryRadius, FLinearColor(ParryColor));
+			if (!VelDir.IsNearlyZero())
+			{
+				const FTransform ArrowTf(FQuat::FindBetweenNormals(FVector::ForwardVector, VelDir), Pos);
+				Batcher.DrawArrow(ArrowTf, 30.f, FColor::White);
+			}
 		}
 	});
 
@@ -556,32 +610,32 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 	{
 		const TConstArrayView<FMassActorFragment> ActorFrags = Ctx.GetFragmentView<FMassActorFragment>();
 		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
-		const FLNPEnemySharedFragment& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
+		const FLNPEnemySharedFragment&            Shared     = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
 
-		if (Shared.Config == nullptr)
+		if (!Shared.Config)
 			return;
 
 		const float HalfHeight = Shared.Config->CapsuleHalfHeight;
 		const float Radius     = Shared.Config->CapsuleRadius;
+		const float CylHalfLen = FMath::Max(0.f, HalfHeight - Radius);
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			FVector Location, Center, UpDir;
-			if (const ALNPCharacterBase* Enemy = Cast<ALNPCharacterBase>(ActorFrags[i].Get()))
-			{
-				Location = Transforms[i].GetTransform().GetLocation();
-				UpDir    = (-Location).GetSafeNormal();
-				Center   = Location;
-			}
-			else
-			{
-				Location = Transforms[i].GetTransform().GetLocation();
-				UpDir    = (-Location).GetSafeNormal();
-				Center   = Location + UpDir * HalfHeight;
-			}
+			const FVector Location = Transforms[i].GetTransform().GetLocation();
+			if (!IsNearAnyPlayer(Location, MeleeProximityDistSq))
+				continue;
 
-			const FQuat CapsuleRot = FQuat::FindBetweenNormals(FVector::UpVector, UpDir);
-			DrawDebugCapsule(World, Center, HalfHeight, Radius, CapsuleRot, FColor::Red, false, -1.f);
+			const FVector UpDir = (-Location).GetSafeNormal();
+			FVector Center;
+			if (const ALNPCharacterBase* Enemy = Cast<ALNPCharacterBase>(ActorFrags[i].Get()))
+				Center = Location;
+			else
+				Center = Location + UpDir * HalfHeight;
+
+			const FVector TopSphere = Center + UpDir * CylHalfLen;
+			const FVector BotSphere = Center - UpDir * CylHalfLen;
+			Batcher.DrawSphere(TopSphere, Radius, FLinearColor(FColor::Red));
+			Batcher.DrawSphere(BotSphere, Radius, FLinearColor(FColor::Red));
 		}
 	});
 }
