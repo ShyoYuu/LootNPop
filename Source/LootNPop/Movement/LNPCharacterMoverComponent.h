@@ -55,6 +55,9 @@ public:
 	/** 주어진 이동 Input Intent로 Dash를 실행한다 */
 	void ExecuteDash(FVector MoveInputIntent);
 
+	/** HitFromDirection 방향으로 Strength 크기의 넉백 임펄스를 가한다. */
+	void ApplyKnockback(const FVector HitFromDirection, const float Strength);
+
 protected:
 	/** simulation tick 직전 호출된다. 상태 기반 Modifier 변경을 적용하는 데 사용된다. */
 	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd) override;

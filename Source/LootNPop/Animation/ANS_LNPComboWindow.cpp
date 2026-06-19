@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/ANS_LNPComboWindow.h"
 #include "Character/LNPCharacterBase.h"
@@ -15,7 +15,10 @@ void UANS_LNPComboWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 
 	const ALNPCharacterBase* Character = MeshComp ? Cast<ALNPCharacterBase>(MeshComp->GetOwner()) : nullptr;
 	if (UAbilitySystemComponent* ASC = Character ? Character->GetAbilitySystemComponent() : nullptr)
-		ASC->AddLooseGameplayTag(TAG_State_ComboWindow);
+	{
+		if (!ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
+			ASC->AddLooseGameplayTag(TAG_State_ComboWindow);
+	}
 }
 
 void UANS_LNPComboWindow::NotifyEnd(USkeletalMeshComponent* MeshComp,
@@ -26,5 +29,8 @@ void UANS_LNPComboWindow::NotifyEnd(USkeletalMeshComponent* MeshComp,
 
 	const ALNPCharacterBase* Character = MeshComp ? Cast<ALNPCharacterBase>(MeshComp->GetOwner()) : nullptr;
 	if (UAbilitySystemComponent* ASC = Character ? Character->GetAbilitySystemComponent() : nullptr)
-		ASC->RemoveLooseGameplayTag(TAG_State_ComboWindow);
+	{
+		if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
+			ASC->RemoveLooseGameplayTag(TAG_State_ComboWindow);
+	}
 }

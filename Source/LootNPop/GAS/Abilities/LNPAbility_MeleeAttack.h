@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -43,4 +43,7 @@ private:
 
 	UFUNCTION()
 	void OnMontageInterrupted();
+
+	UFUNCTION()
+	void ClearRelativeTag();
 };

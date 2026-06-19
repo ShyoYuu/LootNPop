@@ -491,7 +491,8 @@ void ULNPWeaponTraceDebugDrawProcessor::Execute(FMassEntityManager& EntityManage
 
 			const FVector SwordDir = (Frag.SwordTipCurr - Frag.SwordRootCurr).GetSafeNormal();
 			FVector Perp = FVector::CrossProduct(SwordDir, FVector::UpVector);
-			if (Perp.IsNearlyZero()) Perp = FVector::CrossProduct(SwordDir, FVector::ForwardVector);
+			if (Perp.IsNearlyZero())
+				Perp = FVector::CrossProduct(SwordDir, FVector::ForwardVector);
 			Perp.Normalize();
 			const FVector Perp2 = FVector::CrossProduct(SwordDir, Perp);
 

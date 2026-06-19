@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/ANS_LNPAttackInputBlock.h"
 #include "Character/LNPCharacterBase.h"
@@ -21,7 +21,10 @@ void UANS_LNPAttackInputBlock::NotifyBegin(USkeletalMeshComponent* MeshComp,
 	if (const ALNPCharacterBase* Character = GetCharacter(MeshComp))
 	{
 		if (UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent())
-			ASC->AddLooseGameplayTag(TAG_Block_AttackInput);
+		{
+			if (!ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
+				ASC->AddLooseGameplayTag(TAG_Block_AttackInput);
+		}
 	}
 }
 
@@ -36,15 +39,8 @@ void UANS_LNPAttackInputBlock::NotifyEnd(USkeletalMeshComponent* MeshComp,
 		return;
 
 	if (UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent())
-		ASC->RemoveLooseGameplayTag(TAG_Block_AttackInput);
-
-	if (Character->ConsumeComboInput())
 	{
-		Character->IncrementComboIndex();
-		Character->TryActivateAttack();
-	}
-	else
-	{
-		Character->ResetCombo();
+		if (ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
+			ASC->RemoveLooseGameplayTag(TAG_Block_AttackInput);
 	}
 }

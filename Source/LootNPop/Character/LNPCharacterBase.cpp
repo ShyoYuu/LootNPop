@@ -78,12 +78,24 @@ void ALNPCharacterBase::SetAIOrientationIntent(FVector InOrientationIntent)
 bool ALNPCharacterBase::TryActivateAttack()
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
-	if (ASC && ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
+	if (!ASC)
+		return false;
+
+	if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
 	{
-		if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
-			SetComboInputBuffered(true);
-		return false;  // 블락 구간: 호출자가 bIsAttackBuffered를 세워 재시도할 수 있도록 false
+		// 콤보 윈도우 중 입력: 즉시 다음 콤보 시작 (OnAbilityCancelled 경로로 ResetCombo 없이 종료)
+		IncrementComboIndex();
+		bComboTransitioning = true;
+		CancelCurrentAttackAbility();
+		bComboTransitioning = false;
+		return TryActivateAttack_Impl();
 	}
+
+	if (ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
+	{
+		return false;
+	}
+
 	return TryActivateAttack_Impl();
 }
 
@@ -108,8 +120,11 @@ void ALNPCharacterBase::IncrementComboIndex()
 
 void ALNPCharacterBase::ResetCombo()
 {
+	if (bComboTransitioning)
+		return;
 	CurrentComboIndex   = 0;
 	bComboInputBuffered = false;
+	bComboTransitioning = false;
 }
 
 void ALNPCharacterBase::PostInitializeComponents()
@@ -169,8 +184,10 @@ void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
 	// 기존 무기·조준모드 태그 제거
 	if (ASC)
 	{
-		ASC->RemoveLooseGameplayTag(CurrentWeaponTag);
-		ASC->RemoveLooseGameplayTag(CurrentAimModeTag);
+		if (CurrentWeaponTag.IsValid())
+			ASC->RemoveLooseGameplayTag(CurrentWeaponTag);
+		if (CurrentAimModeTag.IsValid())
+			ASC->RemoveLooseGameplayTag(CurrentAimModeTag);
 	}
 
 	// 신규 무기 태그 결정
@@ -264,9 +281,10 @@ void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)
 	}), Duration, false);
 }
 
-void ALNPCharacterBase::ApplyKnockback(FVector HitFromDirection, float Strength)
+void ALNPCharacterBase::ApplyKnockback(const FVector HitFromDirection, const float Strength)
 {
-
+	if (MoverComponent)
+		MoverComponent->ApplyKnockback(HitFromDirection, Strength);
 }
 
 UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag WeaponType, FGameplayTag SituationType, FGameplayTag Value) const

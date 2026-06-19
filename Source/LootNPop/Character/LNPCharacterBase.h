@@ -94,7 +94,7 @@ public:
 	void ApplyHitStop(float Duration, float TimeDilation = 0.1f);
 
 	/** HitFromDirection 방향으로 Strength 크기의 넉백 임펄스를 가한다. */
-	void ApplyKnockback(FVector HitFromDirection, float Strength);
+	void ApplyKnockback(const FVector HitFromDirection, const float Strength);
 
 	/** 이 캐릭터에 현재 장착/설정된 무기 데이터를 반환한다. */
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const { return nullptr; }
@@ -113,6 +113,9 @@ public:
 protected:
 	/** 실제 공격 발동 로직. 서브클래스에서 오버라이드. */
 	virtual bool TryActivateAttack_Impl();
+
+	/** 현재 실행 중인 기본 공격 어빌리티를 취소한다. 서브클래스에서 오버라이드. */
+	virtual void CancelCurrentAttackAbility() {}
 	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
 	virtual void PossessedBy(AController* NewController) override;
@@ -171,6 +174,7 @@ private:
 
 	int32 CurrentComboIndex   = 0;
 	bool  bComboInputBuffered = false;
+	bool  bComboTransitioning = false;
 
 	// EvaluateMontage() 호출마다 재할당을 피하기 위해 캐싱
 	UPROPERTY(Transient)

@@ -14,6 +14,7 @@
 #include "Components/CapsuleComponent.h"
 #include "DefaultMovementSet/LayeredMoves/LaunchMove.h"
 #include "Components/WidgetComponent.h"
+#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 
 ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -114,6 +115,8 @@ void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTar
 
 void ALNPEnemyCharacter::TriggerRagdoll()
 {
+	if (UAnimInstance* AnimInst = GetAnimInstance())
+		AnimInst->Montage_Stop(0.3f);
 	if (AnimSourceMesh)
 		AnimSourceMesh->SetActive(false);
 	if (VisualMesh)
@@ -124,6 +127,8 @@ void ALNPEnemyCharacter::TriggerRagdoll()
 	}
 	if (CapsuleComponent)
 		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (MoverComponent)
+		MoverComponent->ApplyKnockback(MoverComponent->GetUpDirection(), 10000.f);
 }
 
 
@@ -133,6 +138,14 @@ bool ALNPEnemyCharacter::TryActivateAttack_Impl()
 		return false;
 
 	return ASC->TryActivateAbility(WeaponAbilityHandle);
+}
+
+void ALNPEnemyCharacter::CancelCurrentAttackAbility()
+{
+	if (!WeaponAbilityHandle.IsValid() || !ASC)
+		return;
+
+	ASC->CancelAbilityHandle(WeaponAbilityHandle);
 }
 
 const ULNPWeaponData* ALNPEnemyCharacter::GetActiveWeaponDef() const
