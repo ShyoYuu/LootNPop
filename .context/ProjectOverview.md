@@ -1,6 +1,6 @@
 # LootNPop 프로젝트 개요
 
-**LootNPop**은 Unreal Engine 5.7 최신 스택을 활용한 경쾌한 분위기의 멀티플레이어 파티 게임.  
+**LootNPop**은 Unreal Engine 최신 스택을 활용한 경쾌한 분위기의 멀티플레이어 파티 게임.  
 거대한 구체의 내부 표면(Dyson Sphere)이 플레이 공간이며, 수백~수천 규모의 MassEntity 적을 상대로 LootPod를 쟁취하는 것이 핵심 루프.  
 핵심 로직은 가급적 C++로 구현.
 

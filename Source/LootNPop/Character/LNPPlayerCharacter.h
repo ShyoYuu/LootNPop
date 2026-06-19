@@ -35,6 +35,7 @@ public:
 
 protected:
 	virtual bool TryActivateAttack_Impl() override;
+	virtual void CancelCurrentAttackAbility() override;
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))

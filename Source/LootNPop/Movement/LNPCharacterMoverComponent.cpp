@@ -3,16 +3,18 @@
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPCharacterMovementSettings.h"
 #include "Movement/LNPAsyncWalkingMode.h"
+#include "Character/LNPCharacterBase.h"
+#include "LNPGameplayTags.h"
+#include "LootNPop.h"
 
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "DefaultMovementSet/Modes/AsyncFallingMode.h"
 #include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "DefaultMovementSet/LayeredMoves/AnimRootMotionLayeredMove.h"
+#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
-#include "Character/LNPCharacterBase.h"
 #include "AbilitySystemComponent.h"
-#include "LNPGameplayTags.h"
 
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
@@ -133,6 +135,25 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 	AnimSyncMove->MontageState.CurrentPosition = ActualStartingPos;
 	AnimSyncMove->DurationMs = DashDurationMs;
 	QueueLayeredMove(AnimSyncMove);
+}
+
+void ULNPCharacterMoverComponent::ApplyKnockback(const FVector HitFromDirection, const float Strength)
+{
+	if (HitFromDirection.IsNearlyZero() || Strength <= 0.f)
+		return;
+
+	if (TSharedPtr<FApplyVelocityEffect> KnockbackEffect = MakeShared<FApplyVelocityEffect>())
+	{
+		KnockbackEffect->VelocityToApply = HitFromDirection.GetSafeNormal() * Strength;
+		KnockbackEffect->bAdditiveVelocity = true;
+
+		// GroundMovementMode에서는 매 틱 속도를 MaxWalkSpeed로 클램핑하고 위치를 지면에 스냅해버려서 의도한 넉백 느낌이 안남. 따라서 AirMovementMode로 적용.
+		if (const UCommonLegacyMovementSettings* CommonSettings = FindSharedSettings<UCommonLegacyMovementSettings>())
+			KnockbackEffect->ForceMovementMode = CommonSettings->AirMovementModeName;
+		else
+			KnockbackEffect->ForceMovementMode = GetMovementModeName();
+		QueueInstantMovementEffect(KnockbackEffect);
+	}
 }
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)

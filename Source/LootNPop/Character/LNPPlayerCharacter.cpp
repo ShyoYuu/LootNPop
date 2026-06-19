@@ -96,6 +96,27 @@ bool ALNPPlayerCharacter::TryActivateAttack_Impl()
 	return ASC->TryActivateAbility(WeaponSlot.GrantedAbilities[0]);
 }
 
+void ALNPPlayerCharacter::CancelCurrentAttackAbility()
+{
+	const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+	if (!PS)
+		return;
+
+	UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
+	if (!ASC)
+		return;
+
+	const ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent();
+	if (!EqComp)
+		return;
+
+	const FLNPWeaponInstance& WeaponSlot = EqComp->GetWeaponSlot();
+	if (!WeaponSlot.IsValid() || !WeaponSlot.GrantedAbilities.IsValidIndex(0))
+		return;
+	
+	ASC->CancelAbilityHandle(WeaponSlot.GrantedAbilities[0]);
+}
+
 TArray<AActor*> ALNPPlayerCharacter::GetInteractionCandidates() const
 {
 	return InteractionComponent ? InteractionComponent->GetInteractionCandidates() : TArray<AActor*>();

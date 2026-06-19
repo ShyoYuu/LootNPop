@@ -43,6 +43,7 @@ protected:
 
 	virtual void ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult) override;
 	virtual void OnProduceInput(float DeltaMs, FMoverInputCmdContext& OutInputCmd);
+	FLNPParryStateFragment* GetParryFragment() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
@@ -143,8 +144,6 @@ private:
 	void OnAttackReleased(const FInputActionValue& Value);
 	void OnGuardStarted(const FInputActionValue& Value);
 	void OnGuardReleased(const FInputActionValue& Value);
-
-	FLNPParryStateFragment* GetParryFragment() const;
 	void OnLockOnStarted(const FInputActionValue& Value);
 	void OnLockOnReleased(const FInputActionValue& Value);
 	void OnActiveSkillStarted(const FInputActionValue& Value, int32 SlotIndex);

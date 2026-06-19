@@ -7,6 +7,7 @@
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
+#include "AbilitySystemComponent.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 
 float ULNPAbility_MeleeAttack::GetKnockbackForCombo(int32 ComboIdx) const
@@ -48,23 +49,14 @@ void ULNPAbility_MeleeAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 	if (ComboIdx > 0)
 		SectionName = FName(FString::Printf(TEXT("Section_%d"), ComboIdx + 1));
 
-	UAbilityTask_PlayMontageAndWait* Task = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
-		this, NAME_None, AttackMontage, 1.f, SectionName);
-	Task->OnCompleted.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageEnded);
-	Task->OnBlendOut.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageEnded);
-	Task->OnInterrupted.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageInterrupted);
-	Task->OnCancelled.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageInterrupted);
-	Task->ReadyForActivation();
-}
-
-void ULNPAbility_MeleeAttack::OnMontageEnded()
-{
-	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
-}
-
-void ULNPAbility_MeleeAttack::OnMontageInterrupted()
-{
-	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+	if (UAbilityTask_PlayMontageAndWait* Task = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage, 1.f, SectionName))
+	{
+		Task->OnCompleted.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageEnded);
+		Task->OnBlendOut.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageEnded);
+		Task->OnInterrupted.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageInterrupted);
+		Task->OnCancelled.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageInterrupted);
+		Task->ReadyForActivation();
+	}
 }
 
 UGameplayEffect* ULNPAbility_MeleeAttack::GetCooldownGameplayEffect() const
@@ -89,4 +81,34 @@ void ULNPAbility_MeleeAttack::ApplyCooldown(const FGameplayAbilitySpecHandle Han
 
 	SpecHandle.Data->SetDuration(WeaponDef->FireCooldown, true);
 	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
+}
+
+void ULNPAbility_MeleeAttack::OnMontageEnded()
+{
+	ClearRelativeTag();
+	if (ALNPCharacterBase* Character = GetOwningCharacter())
+		Character->ResetCombo();
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
+void ULNPAbility_MeleeAttack::OnMontageInterrupted()
+{
+	ClearRelativeTag();
+	if (ALNPCharacterBase* Character = GetOwningCharacter())
+		Character->ResetCombo();
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+}
+
+void ULNPAbility_MeleeAttack::ClearRelativeTag()
+{
+	if (ALNPCharacterBase* Character = GetOwningCharacter())
+	{
+		if (UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent())
+		{
+			if (ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
+				ASC->RemoveLooseGameplayTag(TAG_Block_AttackInput);
+			if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
+				ASC->RemoveLooseGameplayTag(TAG_State_ComboWindow);
+		}
+	}
 }

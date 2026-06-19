@@ -244,6 +244,32 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	bIsGuardJustPressed = false;
 }
 
+FLNPParryStateFragment* ULNPInputHandlerComponent::GetParryFragment() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+		return nullptr;
+
+	UMassEntitySubsystem* MassSub = World->GetSubsystem<UMassEntitySubsystem>();
+	if (!MassSub)
+		return nullptr;
+
+	AActor* Owner = GetOwner();
+	if (!Owner)
+		return nullptr;
+
+	UMassAgentComponent* AgentComp = Owner->FindComponentByClass<UMassAgentComponent>();
+	if (!AgentComp)
+		return nullptr;
+
+	FMassEntityManager& EM = MassSub->GetMutableEntityManager();
+	const FMassEntityHandle Handle = AgentComp->GetEntityHandle();
+	if (!EM.IsEntityValid(Handle))
+		return nullptr;
+
+	return EM.GetFragmentDataPtr<FLNPParryStateFragment>(Handle);
+}
+
 // --- Input Event Implementation ---
 
 void ULNPInputHandlerComponent::OnMoveTriggered(const FInputActionValue& Value)
@@ -336,7 +362,7 @@ void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value
 	if (bIsFreeAim || bIsAttackJustPressed)
 	{
 		// FreeAim 모드: ETriggerEvent::Triggered로 홀드 중 매 프레임 호출 → 연사 속도는 GAS 쿨다운이 제어.
-		// FreeAim 모드가 아닐 때는 ETriggerEvent::Started로 입력 시작 시에만 호출.
+		// FreeAim 모드가 아닐 때는 bIsAttackJustPressed로 입력 시작 시에만 호출.
 		// 탭 입력 시 쿨다운이 0.05f 이내에 끝나는 경우를 위해 버퍼 적용.
 		if (!Character->TryActivateAttack())
 		{
@@ -350,32 +376,6 @@ void ULNPInputHandlerComponent::OnAttackReleased(const FInputActionValue& Value)
 {
 	bIsAttackPressed = false;
 	bIsAttackJustPressed = false;
-}
-
-FLNPParryStateFragment* ULNPInputHandlerComponent::GetParryFragment() const
-{
-	UWorld* World = GetWorld();
-	if (!World)
-		return nullptr;
-
-	UMassEntitySubsystem* MassSub = World->GetSubsystem<UMassEntitySubsystem>();
-	if (!MassSub)
-		return nullptr;
-
-	AActor* Owner = GetOwner();
-	if (!Owner)
-		return nullptr;
-
-	UMassAgentComponent* AgentComp = Owner->FindComponentByClass<UMassAgentComponent>();
-	if (!AgentComp)
-		return nullptr;
-
-	FMassEntityManager& EM = MassSub->GetMutableEntityManager();
-	const FMassEntityHandle Handle = AgentComp->GetEntityHandle();
-	if (!EM.IsEntityValid(Handle))
-		return nullptr;
-
-	return EM.GetFragmentDataPtr<FLNPParryStateFragment>(Handle);
 }
 
 void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
