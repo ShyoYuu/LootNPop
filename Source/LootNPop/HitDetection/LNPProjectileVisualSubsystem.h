@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "MassEntityHandle.h"
+#include "Mass/EntityHandle.h"
 #include "Containers/Queue.h"
 #include "LNPProjectileVisualSubsystem.generated.h"
 

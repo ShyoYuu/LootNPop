@@ -174,7 +174,6 @@ private:
 
 	int32 CurrentComboIndex   = 0;
 	bool  bComboInputBuffered = false;
-	bool  bComboTransitioning = false;
 
 	// EvaluateMontage() 호출마다 재할당을 피하기 위해 캐싱
 	UPROPERTY(Transient)

@@ -11,7 +11,8 @@ Content/__ExternalObjects__/
 
 #파일
 .vsconfig
-LootNPop.sln
+*.sln
+*.slnx
 sample.png
 Update-UE-Docs-Custom.ps1
 launch_claude.ps1

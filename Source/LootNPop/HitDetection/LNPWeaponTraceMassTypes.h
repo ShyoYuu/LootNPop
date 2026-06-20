@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
-#include "MassEntityHandle.h"
+#include "Mass/EntityHandle.h"
 #include "GameplayEffect.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "LNPWeaponTraceMassTypes.generated.h"

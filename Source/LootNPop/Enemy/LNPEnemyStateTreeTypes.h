@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassStateTreeTypes.h"
-#include "MassEntityHandle.h"
+#include "Mass/EntityHandle.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "LNPEnemyStateTreeTypes.generated.h"
 

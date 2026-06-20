@@ -52,6 +52,23 @@ void ALNPEnemyCharacter::BeginPlay()
 	}
 }
 
+void ALNPEnemyCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (HpBarComponent->IsVisible() && HpBarComponent->GetWidgetSpace() == EWidgetSpace::World)
+	{
+		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			FVector CameraLoc;
+			FRotator CameraRot;
+			PC->GetPlayerViewPoint(CameraLoc, CameraRot);
+			const FVector ToCamera = (CameraLoc - HpBarComponent->GetComponentLocation()).GetSafeNormal();
+			HpBarComponent->SetWorldRotation(ToCamera.Rotation());
+		}
+	}
+}
+
 void ALNPEnemyCharacter::InitializeOnce(ULNPEnemyConfig* InConfig)
 {
 	if (nullptr == InConfig)

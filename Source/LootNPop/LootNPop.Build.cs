@@ -24,6 +24,7 @@ public class LootNPop : ModuleRules
             "GameplayAbilities",
             "GameplayTags",
             "GameplayTasks",
+            "MassCore",
             "MassCommon",
             "MassEntity",
             "MassRepresentation",
