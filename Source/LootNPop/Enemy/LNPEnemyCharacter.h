@@ -42,6 +42,7 @@ public:
 	void TriggerRagdoll();
 
 protected:
+	virtual void Tick(float DeltaTime) override;
 	virtual bool TryActivateAttack_Impl() override;
 	virtual void CancelCurrentAttackAbility() override;
 	virtual void BeginPlay() override;

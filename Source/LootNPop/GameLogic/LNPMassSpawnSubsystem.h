@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
-#include "MassEntityHandle.h"
+#include "Mass/EntityHandle.h"
 #include "Async/Future.h"
 #include "LNPMassSpawnSubsystem.generated.h"
 

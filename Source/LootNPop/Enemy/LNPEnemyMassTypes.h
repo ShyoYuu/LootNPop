@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "MassEntityTraitBase.h"
-#include "MassEntityHandle.h"
+#include "Mass/EntityHandle.h"
 #include "GameplayTagContainer.h"
 #include "LNPEnemyMassTypes.generated.h"
 

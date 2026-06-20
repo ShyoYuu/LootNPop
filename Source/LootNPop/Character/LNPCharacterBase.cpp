@@ -83,19 +83,17 @@ bool ALNPCharacterBase::TryActivateAttack()
 
 	if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
 	{
-		// 콤보 윈도우 중 입력: 즉시 다음 콤보 시작 (OnAbilityCancelled 경로로 ResetCombo 없이 종료)
+		// 윈도우를 즉시 소비해 이 분기가 중복 진입되지 않도록 막는다
+		ASC->RemoveLooseGameplayTag(TAG_State_ComboWindow);
 		IncrementComboIndex();
-		bComboTransitioning = true;
 		CancelCurrentAttackAbility();
-		bComboTransitioning = false;
 		return TryActivateAttack_Impl();
 	}
 
 	if (ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
-	{
 		return false;
-	}
 
+	ResetCombo();
 	return TryActivateAttack_Impl();
 }
 
@@ -120,11 +118,8 @@ void ALNPCharacterBase::IncrementComboIndex()
 
 void ALNPCharacterBase::ResetCombo()
 {
-	if (bComboTransitioning)
-		return;
 	CurrentComboIndex   = 0;
 	bComboInputBuffered = false;
-	bComboTransitioning = false;
 }
 
 void ALNPCharacterBase::PostInitializeComponents()

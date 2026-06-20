@@ -86,16 +86,12 @@ void ULNPAbility_MeleeAttack::ApplyCooldown(const FGameplayAbilitySpecHandle Han
 void ULNPAbility_MeleeAttack::OnMontageEnded()
 {
 	ClearRelativeTag();
-	if (ALNPCharacterBase* Character = GetOwningCharacter())
-		Character->ResetCombo();
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
 void ULNPAbility_MeleeAttack::OnMontageInterrupted()
 {
 	ClearRelativeTag();
-	if (ALNPCharacterBase* Character = GetOwningCharacter())
-		Character->ResetCombo();
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 }
 

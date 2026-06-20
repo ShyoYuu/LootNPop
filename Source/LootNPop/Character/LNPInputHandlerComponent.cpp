@@ -172,7 +172,7 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		}
 		CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, FinalDirectionalIntent);
 
-		static float RotationMagMin(1e-3);
+		const float RotationMagMin = (1e-3f);
 		const bool bHasAffirmativeMoveInput = (CharacterInputs.GetMoveInput().Size() >= RotationMagMin);
 
 		CharacterInputs.OrientationIntent = FVector::ZeroVector;

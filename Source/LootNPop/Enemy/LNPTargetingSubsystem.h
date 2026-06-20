@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "MassEntityTypes.h"
-#include "MassEntityHandle.h"
+#include "Mass/EntityHandle.h"
 #include "LNPTargetingSubsystem.generated.h"
 
 /** 슬롯 경쟁 중인 Enemy의 정보 */
