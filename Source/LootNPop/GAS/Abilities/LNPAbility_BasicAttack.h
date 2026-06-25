@@ -38,7 +38,7 @@ protected:
 
 	/** 이 Ability가 가하는 넉백 강도 (cm/s 단위 임펄스). 0이면 넉백 없음. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")
-	float KnockbackStrength = 1000.f;
+	float KnockbackStrength = 500.f;
 
 	/** 패링 판정 반경 (cm). 피격 반경보다 크게 설정해 패링 창이 넓어 보이게 한다. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat", meta = (ClampMin = "0"))

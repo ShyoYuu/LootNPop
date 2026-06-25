@@ -38,12 +38,7 @@ void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle 
 	}
 
 	SpawnProjectile();
-
-	if (UAnimInstance* AnimInst = Character->GetAnimInstance())
-	{
-		if (UAnimMontage* AttackMontage = Character->EvaluateMontage(TAG_Montage_Situation_Attack))
-			AnimInst->Montage_Play(AttackMontage);
-	}
+	Character->PlayMontage(TAG_Montage_Situation_Attack);
 
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }

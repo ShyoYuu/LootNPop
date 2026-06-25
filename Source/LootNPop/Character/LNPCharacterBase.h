@@ -41,6 +41,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Mover")
 	ULNPCharacterMoverComponent* GetMoverComponent() const { return MoverComponent; }
 
+	UFUNCTION(BlueprintPure, Category = "LNP|Gravity")
+	FVector GetUpDirection() const;
+
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool GetFaceMoveDirection() const;
 
@@ -89,6 +92,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Animation")
 	UAnimMontage* EvaluateMontage(FGameplayTag WeaponType, FGameplayTag SituationType, FGameplayTag Value) const;
 	UAnimMontage* EvaluateMontage(FGameplayTag SituationType, FGameplayTag Value = FGameplayTag()) const;
+	bool PlayMontage(FGameplayTag SituationType, FGameplayTag Value = FGameplayTag()) const;
 
 	/** Duration 동안 CustomTimeDilation을 TimeDilation으로 낮춰 HitStop 효과를 준다. */
 	void ApplyHitStop(float Duration, float TimeDilation = 0.1f);
