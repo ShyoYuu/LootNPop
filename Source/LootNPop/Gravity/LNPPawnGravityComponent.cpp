@@ -198,11 +198,10 @@ void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, cons
 		ViewForward = (HorizonForward * ClampedSin) + (TargetUpDir * ClampedCos);
 	}
 
-	// 4. 최종 재구성: ViewForward를 유지하면서 중력 기준 안정적인 Right 축 강제
-	// Pitch를 유지하면서 카메라가 표면에 대해 롤하지 않도록 보장한다.
+	// 4. ControlRotation 정합성 유지: 곡률 보정·입력·Pitch 클램핑 결과를 Roll-free로 기록한다.
+	// 카메라 Roll 보정은 Camera Rig의 LNPGravityRollCorrectionCameraNode가 담당한다.
+	// 여기서 유지하는 ControlRotation은 조준 방향·발사체 등 카메라 외 시스템이 참조한다.
 	FVector FinalRight = FVector::CrossProduct(TargetUpDir, ViewForward).GetSafeNormal();
 	FVector FinalUp = FVector::CrossProduct(ViewForward, FinalRight).GetSafeNormal();
-	
-	const FRotator FinalControlRotation = FMatrix(ViewForward, FinalRight, FinalUp, FVector::ZeroVector).Rotator();
-	PC->SetControlRotation(FinalControlRotation);
+	PC->SetControlRotation(FMatrix(ViewForward, FinalRight, FinalUp, FVector::ZeroVector).Rotator());
 }

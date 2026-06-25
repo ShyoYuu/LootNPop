@@ -202,13 +202,13 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	{
 		// --- AI Intent 처리 (StateTree) ---
 
-		CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, AIMoveInput);
+		CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, bBlockMovement ? FVector::ZeroVector : AIMoveInput);
 
 		if (!AIOrientationIntent.IsNearlyZero())
 		{
 			CharacterInputs.OrientationIntent = AIOrientationIntent;
 		}
-		else if (!AIMoveInput.IsNearlyZero())
+		else if (!bBlockMovement && !AIMoveInput.IsNearlyZero())
 		{
 			CharacterInputs.OrientationIntent = AIMoveInput.GetSafeNormal();
 		}

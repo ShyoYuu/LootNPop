@@ -102,7 +102,7 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 		}
 	}
 
-	TObjectPtr<UAnimMontage> SelectedMontage = Character->EvaluateMontage(TAG_Montage_Situation_Dash, DirTag);
+	UAnimMontage* SelectedMontage = Character->EvaluateMontage(TAG_Montage_Situation_Dash, DirTag);
 	if (!SelectedMontage)
 		return;
 

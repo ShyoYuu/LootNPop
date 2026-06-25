@@ -21,8 +21,8 @@ namespace LNPHitDetection
 	{
 		if (!IsValid(Actor))
 			return nullptr;
-		IAbilitySystemInterface* I = Cast<IAbilitySystemInterface>(Actor);
-		return I ? I->GetAbilitySystemComponent() : nullptr;
+		ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Actor);
+		return Character ? Character->GetAbilitySystemComponent() : nullptr;
 	}
 }
 
@@ -78,6 +78,23 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 				StaggerData.Target     = Attacker;
 				StaggerData.Instigator = Victim;
 				AttackerASC->HandleGameplayEvent(TAG_GameplayEvent_Parry_Stagger, &StaggerData);
+			}
+
+			if (ALNPCharacterBase* AttackerPawn = Cast<ALNPCharacterBase>(Attacker))
+			{
+				AttackerPawn->PlayMontage(TAG_Montage_Situation_ParrySuccess, TAG_Montage_Value_Parry_Parried);
+
+				constexpr float DirectionWeight = 0.7f;
+				constexpr float UpWeight        = 0.3f;
+
+				const FVector AwayDir      = (AttackerPawn->GetActorLocation() - Victim->GetActorLocation()).GetSafeNormal();
+				const FVector KnockbackDir = (AwayDir * DirectionWeight + AttackerPawn->GetUpDirection() * UpWeight).GetSafeNormal();
+				AttackerPawn->ApplyKnockback(KnockbackDir, 5000.0f);
+			}
+
+			if (ALNPCharacterBase* VictimPawn = Cast<ALNPCharacterBase>(Victim))
+			{
+				VictimPawn->PlayMontage(TAG_Montage_Situation_ParrySuccess, TAG_Montage_Value_Parry_Parrier);
 			}
 
 			UE_LOG(LogLootNPop, Log, TEXT("[Parry] Melee parry success"));

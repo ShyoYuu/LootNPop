@@ -466,7 +466,7 @@ void ULNPProjectileVisualizationProcessor::Execute(FMassEntityManager& EntityMan
 			if (false == Visual.bInitialized)
 			{
 				VisualSub.SpawnSpawnEffects(Shared.VFXData, Projectiles[i].SpawnLocation);
-				VisualSub.AllocateTrails(Entity, Shared.VFXData, CurrentPos);
+				VisualSub.AllocateTrails(Entity, Shared.VFXData, Projectiles[i].SpawnLocation);
 				Visual.bInitialized = true;
 			}
 			else
@@ -596,12 +596,12 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 			const FColor  Color      = bPlayer ? FColor::Cyan   : FColor::Red;
 			const FColor  ParryColor = bPlayer ? FColor::Silver : FColor::Orange;
 
-			Batcher.DrawSphere(Pos, Shared.HitRadius,   FLinearColor(Color));
-			Batcher.DrawSphere(Pos, Shared.ParryRadius, FLinearColor(ParryColor));
+			//Batcher.DrawSphere(Pos, Shared.HitRadius,   FLinearColor(Color));
+			//Batcher.DrawSphere(Pos, Shared.ParryRadius, FLinearColor(ParryColor));
 			if (!VelDir.IsNearlyZero())
 			{
 				const FTransform ArrowTf(FQuat::FindBetweenNormals(FVector::ForwardVector, VelDir), Pos);
-				Batcher.DrawArrow(ArrowTf, 30.f, FColor::White);
+				//Batcher.DrawArrow(ArrowTf, 30.f, FColor::White);
 			}
 		}
 	});

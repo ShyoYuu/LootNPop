@@ -259,11 +259,7 @@ void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir)
 	else if (Angle >= -135.0f && Angle <  -45.0f) Direction = TAG_Montage_Value_Direction_Left;
 	else                                          Direction = TAG_Montage_Value_Direction_Front;
 
-	if (UAnimMontage* HitReactMontage = EvaluateMontage(TAG_Montage_Situation_HitReaction, Direction))
-	{
-		UE_LOG(LogLootNPop, Log, TEXT("PlayHitReact: %s"), *HitReactMontage->GetName());
-		Anim->Montage_Play(HitReactMontage);
-	}
+	PlayMontage(TAG_Montage_Situation_HitReaction, Direction);
 }
 
 void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)
@@ -282,6 +278,11 @@ void ALNPCharacterBase::ApplyKnockback(const FVector HitFromDirection, const flo
 		MoverComponent->ApplyKnockback(HitFromDirection, Strength);
 }
 
+FVector ALNPCharacterBase::GetUpDirection() const
+{
+	return GravityComponent ? GravityComponent->GetUpDirection() : FVector::UpVector;
+}
+
 UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag WeaponType, FGameplayTag SituationType, FGameplayTag Value) const
 {
 	if (!MontageChooser || !MontageCtx)
@@ -297,6 +298,21 @@ UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag WeaponType, FGamep
 UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag SituationType, FGameplayTag Value) const
 {
 	return EvaluateMontage(CurrentWeaponTag, SituationType, Value);
+}
+
+bool ALNPCharacterBase::PlayMontage(FGameplayTag SituationType, FGameplayTag Value) const
+{
+	UAnimInstance* Anim = GetAnimInstance();
+	if (!Anim)
+		return false;
+
+	if (UAnimMontage* Montage = EvaluateMontage(SituationType, Value))
+	{
+		Anim->Montage_Play(Montage);
+		return true;
+	}
+
+	return false;
 }
 
 void ALNPCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
