@@ -14,6 +14,7 @@ class UAbilitySystemComponent;
 class ULNPBaseAttributeSet;
 class UWidgetComponent;
 class ULNPHpBarWidget;
+class UUserWidget;
 
 /**
  * 셸 역할을 하는 범용 Enemy 캐릭터.
@@ -40,6 +41,9 @@ public:
 
 	/** 물리 Ragdoll을 활성화하고 이동을 비활성화한다. 여러 번 호출해도 안전. */
 	void TriggerRagdoll();
+
+	/** 락온 표식 위젯의 표시 상태를 설정한다. LNPLockOnComponent가 호출. */
+	void SetLockOnMarkerVisible(bool bVisible);
 
 protected:
 	virtual void Tick(float DeltaTime) override;
@@ -68,6 +72,14 @@ protected:
 	/** HpBar에 사용할 Widget 클래스. Blueprint CDO에서 설정. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|UI")
 	TSubclassOf<ULNPHpBarWidget> HpBarWidgetClass;
+
+	/** 락온 표식 Widget Component. 캐릭터 머리 위에 표시. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|UI")
+	TObjectPtr<UWidgetComponent> LockOnMarkerComponent;
+
+	/** 락온 표식에 사용할 Widget 클래스. Blueprint CDO에서 설정. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|UI")
+	TSubclassOf<UUserWidget> LockOnMarkerWidgetClass;
 
 private:
 	bool bInitializedOnce = false;

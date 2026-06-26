@@ -20,8 +20,8 @@ enum class ELNPGravityType : uint8
 
 /**
  * ULNPPawnGravityComponent
- * 폰의 커스텀 중력(MoverComponent를 통한 물리)을 관리하며
- * Player의 곡률 인식 카메라/컨트롤 회전을 처리한다.
+ * 폰의 커스텀 중력(MoverComponent를 통한 물리)을 관리한다.
+ * 컨트롤 회전은 ULNPControlRotationComponent가 담당한다.
  */
 UCLASS( ClassGroup=(LNP), meta=(BlueprintSpawnableComponent) )
 class LOOTNPOP_API ULNPPawnGravityComponent : public UActorComponent
@@ -45,9 +45,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	FVector GetUpDirection() const;
 
-	/** 다음 tick에 처리될 시선 입력 델타 */
-	void InputLook(const FRotator& LookDelta);
-
 protected:
 	/** 현재 활성화된 중력 모드 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
@@ -70,18 +67,12 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UCharacterMoverComponent> CachedMoverComponent;
 
-	/** 캐릭터의 누적 시선 입력 */
-	FRotator PendingLookInput = FRotator::ZeroRotator;
-
 	/** 전환 감지를 위한 이전 모드 추적 */
 	ELNPGravityType LastGravityType = ELNPGravityType::None;
 
-	/** 카메라 곡률 보정을 위한 Up 방향 Cache */
+	/** 물리 방향 변경 감지를 위한 Up 방향 Cache */
 	FVector LastUpDir = FVector::UpVector;
 
 	/** 새 방향에 따라 물리 중력과 Capsule 방향을 업데이트한다 */
 	void UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir);
-
-	/** World 곡률과 시선 입력에 맞게 Player 컨트롤러의 회전 행렬을 조정한다 */
-	void UpdateControllerOrientation(float DeltaTime, const FVector& TargetUpDir);
 };

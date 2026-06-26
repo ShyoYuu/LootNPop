@@ -13,6 +13,7 @@
 
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Gravity/LNPPawnGravityComponent.h"
+#include "Camera/LNPControlRotationComponent.h"
 #include "Interaction/LNPInteractionComponent.h"
 #include "AbilitySystemInterface.h"
 #include "AbilitySystemComponent.h"
@@ -21,6 +22,7 @@
 #include "MassAgentComponent.h"
 #include "MassEntitySubsystem.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "Camera/LNPLockOnComponent.h"
 
 ULNPInputHandlerComponent::ULNPInputHandlerComponent()
 {
@@ -34,7 +36,13 @@ void ULNPInputHandlerComponent::BeginPlay()
 	AActor* Owner = GetOwner();
 	MoverComponent = Owner->FindComponentByClass<ULNPCharacterMoverComponent>();
 	GravityComponent = Owner->FindComponentByClass<ULNPPawnGravityComponent>();
+	ControlRotationComponent = Owner->FindComponentByClass<ULNPControlRotationComponent>();
 	InteractionComponent = Owner->FindComponentByClass<ULNPInteractionComponent>();
+	LockOnComponent = Owner->FindComponentByClass<ULNPLockOnComponent>();
+
+	// ControlRotationComponent는 이 컴포넌트가 look 입력을 적립한 후 실행되어야 함
+	if (ControlRotationComponent)
+		ControlRotationComponent->AddTickPrerequisiteComponent(this);
 
 	ActiveSkillPressed.SetNum(ActiveSkillActions.Num());
 	ActiveSkillJustPressed.SetNum(ActiveSkillActions.Num());
@@ -49,9 +57,9 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (!CachedLookInput.IsNearlyZero() && GravityComponent)
+	if (!CachedLookInput.IsNearlyZero() && ControlRotationComponent)
 	{
-		GravityComponent->InputLook(CachedLookInput);
+		ControlRotationComponent->InputLook(CachedLookInput);
 	}
 	CachedLookInput = FRotator::ZeroRotator;
 
@@ -177,9 +185,13 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 
 		CharacterInputs.OrientationIntent = FVector::ZeroVector;
 
+		// 락온 활성 시 이동 방향과 무관하게 카메라 전방을 바라본다
+		const bool bLockOnActive = LockOnComponent && LockOnComponent->IsLockOnActive();
+		const bool bShouldFaceMoveDir = bFaceMoveDirection && !bLockOnActive;
+
 		if (bHasAffirmativeMoveInput)
 		{
-			if (bFaceMoveDirection)
+			if (bShouldFaceMoveDir)
 			{
 				CharacterInputs.OrientationIntent = CharacterInputs.GetMoveInput().GetSafeNormal();
 			}
@@ -193,7 +205,7 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		{
 			CharacterInputs.OrientationIntent = LastAffirmativeMoveInput;
 		}
-		else if (!bFaceMoveDirection)
+		else if (!bShouldFaceMoveDir)
 		{
 			CharacterInputs.OrientationIntent = HorizonForward;
 		}
@@ -437,6 +449,11 @@ void ULNPInputHandlerComponent::OnLockOnStarted(const FInputActionValue& Value)
 {
 	bIsLockOnJustPressed = !bIsLockOnPressed;
 	bIsLockOnPressed = true;
+
+	if (LockOnComponent)
+	{
+		LockOnComponent->ToggleLockOn();
+	}
 }
 
 void ULNPInputHandlerComponent::OnLockOnReleased(const FInputActionValue& Value)

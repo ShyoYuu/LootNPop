@@ -4,6 +4,7 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
@@ -12,9 +13,8 @@
 #include "AbilitySystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "DefaultMovementSet/LayeredMoves/LaunchMove.h"
 #include "Components/WidgetComponent.h"
-#include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
+#include "Blueprint/UserWidget.h"
 
 ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -29,6 +29,10 @@ ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializ
 	HpBarComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("HpBarComponent"));
 	HpBarComponent->SetupAttachment(RootComponent);
 	HpBarComponent->SetVisibility(false);
+
+	LockOnMarkerComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("LockOnMarkerComponent"));
+	LockOnMarkerComponent->SetupAttachment(RootComponent);
+	LockOnMarkerComponent->SetVisibility(false);
 }
 
 UAbilitySystemComponent* ALNPEnemyCharacter::GetAbilitySystemComponent() const
@@ -43,12 +47,20 @@ void ALNPEnemyCharacter::BeginPlay()
 	{
 		ASC->InitAbilityActorInfo(this, this);
 
+		if (InputHandlerComponent)
+			InputHandlerComponent->CacheASC(ASC);
+
 		if (HpBarWidgetClass)
 		{
 			HpBarComponent->SetWidgetClass(HpBarWidgetClass);
 			ASC->GetGameplayAttributeValueChangeDelegate(ULNPBaseAttributeSet::GetHealthAttribute())
 				.AddUObject(this, &ALNPEnemyCharacter::OnHpAttributeChanged);
 		}
+	}
+
+	if (LockOnMarkerWidgetClass)
+	{
+		LockOnMarkerComponent->SetWidgetClass(LockOnMarkerWidgetClass);
 	}
 }
 
@@ -114,18 +126,17 @@ void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTar
 	if (AnimSourceMesh)
 		AnimSourceMesh->SetVisibility(false);
 
+	if (InputHandlerComponent)
+	{
+		InputHandlerComponent->SetAIMoveInput(FVector::ZeroVector);
+		InputHandlerComponent->SetAIOrientationIntent(FVector::ZeroVector);
+	}
+
 	if (AttributeSet)
 		AttributeSet->SetHealth(InHealth);
 
-	if (!InVelocity.IsNearlyZero() && MoverComponent)
-	{
-		TSharedPtr<FLayeredMove_Launch> LaunchMove = MakeShared<FLayeredMove_Launch>();
-		LaunchMove->LaunchVelocity = InVelocity;
-		LaunchMove->DurationMs = 0.f;
-		LaunchMove->MixMode = EMoveMixMode::OverrideVelocity;
-		LaunchMove->ForceMovementMode = FName(TEXT("AsyncFalling"));
-		MoverComponent->QueueLayeredMove(LaunchMove);
-	}
+	if (MoverComponent)
+		MoverComponent->LaunchWithVelocity(InVelocity);
 
 	RefreshHpBar(InHealth, AttributeSet ? AttributeSet->GetMaxHealth() : 0.f);
 }
@@ -148,6 +159,11 @@ void ALNPEnemyCharacter::TriggerRagdoll()
 		MoverComponent->ApplyKnockback(MoverComponent->GetUpDirection(), 10000.f);
 }
 
+void ALNPEnemyCharacter::SetLockOnMarkerVisible(bool bVisible)
+{
+	if (LockOnMarkerComponent)
+		LockOnMarkerComponent->SetVisibility(bVisible);
+}
 
 bool ALNPEnemyCharacter::TryActivateAttack_Impl()
 {

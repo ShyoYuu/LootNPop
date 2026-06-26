@@ -8,6 +8,8 @@
 
 class UGameplayCameraComponent;
 class ULNPInteractionComponent;
+class ULNPLockOnComponent;
+class ULNPControlRotationComponent;
 
 /**
  * Player가 조종하는 캐릭터 클래스.
@@ -43,4 +45,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPInteractionComponent> InteractionComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Camera", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULNPLockOnComponent> LockOnComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Camera", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULNPControlRotationComponent> ControlRotationComponent;
 };
