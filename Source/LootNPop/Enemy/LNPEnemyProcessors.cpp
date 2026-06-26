@@ -490,7 +490,8 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				TWeakObjectPtr<AActor> WeakActor(Actor);
 				const FVector CapturedOrientation = OrientationIntent;
-				const FVector CapturedMoveInput   = EffectiveSpeed > 0.0f ? OrientationIntent : FVector::ZeroVector;
+				const float SpeedRatio = (BaseMoveSpeed > 0.f) ? (EffectiveSpeed / BaseMoveSpeed) : 0.f;
+				const FVector CapturedMoveInput   = EffectiveSpeed > 0.0f ? (OrientationIntent * SpeedRatio) : FVector::ZeroVector;
 				EnemyContext.Defer().PushCommand<FMassDeferredSetCommand>(
 					[WeakActor, CapturedOrientation, CapturedMoveInput](const FMassEntityManager&)
 					{

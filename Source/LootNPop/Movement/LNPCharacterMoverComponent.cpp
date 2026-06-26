@@ -10,6 +10,7 @@
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "DefaultMovementSet/Modes/AsyncFallingMode.h"
 #include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/LayeredMoves/LaunchMove.h"
 #include "DefaultMovementSet/LayeredMoves/AnimRootMotionLayeredMove.h"
 #include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -19,6 +20,10 @@
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
 
+// UCommonLegacyMovementSettings 못 가져왔을 때 fallback용
+const FName DefaultWalkingMode = TEXT("LNPAsyncWalking");
+const FName DefaultFallingMode = TEXT("AsyncFalling");
+
 ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 {
 	bHandleSprintChanges = 1;
@@ -26,10 +31,10 @@ ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 	bWantsToRun = 0;
 
 	// 기본 이동 모드
-	MovementModes.Add(TEXT("LNPAsyncWalking"), CreateDefaultSubobject<ULNPAsyncWalkingMode>(TEXT("AsyncWalkingMode")));
-	MovementModes.Add(TEXT("AsyncFalling"), CreateDefaultSubobject<UAsyncFallingMode>(TEXT("AsyncFallingMode")));
+	MovementModes.Add(DefaultWalkingMode, CreateDefaultSubobject<ULNPAsyncWalkingMode>(TEXT("LNPAsyncWalkingMode")));
+	MovementModes.Add(DefaultFallingMode, CreateDefaultSubobject<UAsyncFallingMode>(TEXT("AsyncFallingMode")));
 
-	StartingMovementMode = TEXT("AsyncFalling");
+	StartingMovementMode = DefaultFallingMode;
 }
 
 bool ULNPCharacterMoverComponent::IsSprinting() const
@@ -154,6 +159,22 @@ void ULNPCharacterMoverComponent::ApplyKnockback(const FVector HitFromDirection,
 			KnockbackEffect->ForceMovementMode = GetMovementModeName();
 		QueueInstantMovementEffect(KnockbackEffect);
 	}
+}
+
+void ULNPCharacterMoverComponent::LaunchWithVelocity(FVector InVelocity)
+{
+	if (InVelocity.IsNearlyZero())
+		return;
+
+	TSharedPtr<FLayeredMove_Launch> LaunchMove = MakeShared<FLayeredMove_Launch>();
+	LaunchMove->LaunchVelocity = InVelocity;
+	LaunchMove->DurationMs = 0.f;
+	LaunchMove->MixMode = EMoveMixMode::OverrideVelocity;
+	if (const UCommonLegacyMovementSettings* CommonSettings = FindSharedSettings<UCommonLegacyMovementSettings>())
+		LaunchMove->ForceMovementMode = CommonSettings->AirMovementModeName;
+	else
+		LaunchMove->ForceMovementMode = DefaultFallingMode;
+	QueueLayeredMove(LaunchMove);
 }
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)

@@ -6,6 +6,8 @@
 #include "Item/LNPItemInstance.h"
 #include "Item/LNPWeaponData.h"
 #include "Interaction/LNPInteractionComponent.h"
+#include "Camera/LNPLockOnComponent.h"
+#include "Camera/LNPControlRotationComponent.h"
 #include "LootNPop.h"
 
 #include "AbilitySystemComponent.h"
@@ -18,6 +20,10 @@ ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitial
 	GameplayCamera->SetupAttachment(AnimSourceMesh);
 
 	InteractionComponent = CreateDefaultSubobject<ULNPInteractionComponent>(TEXT("InteractionComponent"));
+
+	LockOnComponent = CreateDefaultSubobject<ULNPLockOnComponent>(TEXT("LockOnComponent"));
+
+	ControlRotationComponent = CreateDefaultSubobject<ULNPControlRotationComponent>(TEXT("ControlRotationComponent"));
 }
 
 void ALNPPlayerCharacter::BeginPlay()

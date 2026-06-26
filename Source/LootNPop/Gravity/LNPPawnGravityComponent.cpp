@@ -84,7 +84,6 @@ void ULNPPawnGravityComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	if (GravityType != ELNPGravityType::Fixed || bDirectionChanged)
 	{
 		UpdatePawnOrientation(PawnUpDir, PawnDownDir);
-		UpdateControllerOrientation(DeltaTime, PawnUpDir);
 	}
 
 	LastUpDir = PawnUpDir;
@@ -126,11 +125,6 @@ FVector ULNPPawnGravityComponent::GetUpDirection() const
 	return FVector::UpVector;
 }
 
-void ULNPPawnGravityComponent::InputLook(const FRotator& LookDelta)
-{
-	PendingLookInput += LookDelta;
-}
-
 void ULNPPawnGravityComponent::UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir)
 {
 	if (CachedMoverComponent == nullptr)
@@ -143,65 +137,4 @@ void ULNPPawnGravityComponent::UpdatePawnOrientation(const FVector& PawnUpDir, c
 
 	// 여기서 SetActorRotation은 더 이상 호출하지 않는다.
 	// Mover Component가 UpDirectionOverride를 통해 Capsule 방향을 부드럽게 처리한다.
-}
-
-void ULNPPawnGravityComponent::UpdateControllerOrientation(float DeltaTime, const FVector& TargetUpDir)
-{
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	if (OwnerPawn == nullptr || OwnerPawn->GetController() == nullptr)
-		return;
-
-	APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
-	if (PC == nullptr)
-		return;
-
-	FQuat CurrentControlQuat = PC->GetControlRotation().Quaternion();
-	
-	// 1. 곡률 보정
-	if (!LastUpDir.Equals(TargetUpDir, 0.0001f))
-	{
-		const FQuat CurvatureDelta = FQuat::FindBetweenNormals(LastUpDir, TargetUpDir);
-		CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
-	}
-
-	// 2. 시선 입력 적용 (Yaw, Pitch)
-	if (!PendingLookInput.IsNearlyZero())
-	{
-		// Yaw: 로컬 Up 축을 중심으로 회전
-		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * 8.0));
-		CurrentControlQuat = YawQuat * CurrentControlQuat;
-
-		// Pitch: 로컬 Right 축을 중심으로 회전
-		const FVector CurrentRight = FVector::CrossProduct(TargetUpDir, CurrentControlQuat.GetForwardVector()).GetSafeNormal();
-		if (!CurrentRight.IsNearlyZero())
-		{
-			const FQuat PitchQuat(CurrentRight, FMath::DegreesToRadians(-PendingLookInput.Pitch * 4.0));
-			CurrentControlQuat = PitchQuat * CurrentControlQuat;
-		}
-
-		PendingLookInput = FRotator::ZeroRotator;
-	}
-
-	// 3. 로컬 Up 기준 안정화 및 Pitch 클램핑
-	FVector ViewForward = CurrentControlQuat.GetForwardVector();
-	const float CosAngleFromUp = FVector::DotProduct(ViewForward, TargetUpDir);
-	
-	const float MaxCosLimit = 0.996f;  // 약 85도
-	const float MinCosLimit = -0.996f;
-
-	if (CosAngleFromUp > MaxCosLimit || CosAngleFromUp < MinCosLimit)
-	{
-		const float ClampedCos = FMath::Clamp(CosAngleFromUp, MinCosLimit, MaxCosLimit);
-		const float ClampedSin = FMath::Sqrt(1.0f - (ClampedCos * ClampedCos));
-		const FVector HorizonForward = FVector::VectorPlaneProject(ViewForward, TargetUpDir).GetSafeNormal();
-
-		ViewForward = (HorizonForward * ClampedSin) + (TargetUpDir * ClampedCos);
-	}
-
-	// 4. ControlRotation 정합성 유지: 곡률 보정·입력·Pitch 클램핑 결과를 Roll-free로 기록한다.
-	// 카메라 Roll 보정은 Camera Rig의 LNPGravityRollCorrectionCameraNode가 담당한다.
-	// 여기서 유지하는 ControlRotation은 조준 방향·발사체 등 카메라 외 시스템이 참조한다.
-	FVector FinalRight = FVector::CrossProduct(TargetUpDir, ViewForward).GetSafeNormal();
-	FVector FinalUp = FVector::CrossProduct(ViewForward, FinalRight).GetSafeNormal();
-	PC->SetControlRotation(FMatrix(ViewForward, FinalRight, FinalUp, FVector::ZeroVector).Rotator());
 }

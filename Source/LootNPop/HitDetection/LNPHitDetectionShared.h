@@ -89,7 +89,7 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 
 				const FVector AwayDir      = (AttackerPawn->GetActorLocation() - Victim->GetActorLocation()).GetSafeNormal();
 				const FVector KnockbackDir = (AwayDir * DirectionWeight + AttackerPawn->GetUpDirection() * UpWeight).GetSafeNormal();
-				AttackerPawn->ApplyKnockback(KnockbackDir, 5000.0f);
+				AttackerPawn->ApplyKnockback(KnockbackDir, 2000.0f);
 			}
 
 			if (ALNPCharacterBase* VictimPawn = Cast<ALNPCharacterBase>(Victim))

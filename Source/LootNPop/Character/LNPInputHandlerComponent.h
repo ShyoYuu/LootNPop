@@ -12,9 +12,11 @@ class UInputMappingContext;
 struct FInputActionValue;
 class ULNPCharacterMoverComponent;
 class ULNPPawnGravityComponent;
+class ULNPControlRotationComponent;
 class ULNPInteractionComponent;
 class UAbilitySystemComponent;
 class UMassAgentComponent;
+class ULNPLockOnComponent;
 struct FLNPParryStateFragment;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -36,7 +38,7 @@ public:
 	bool GetFaceMoveDirection() const { return bFaceMoveDirection; }
 	void SetFaceMoveDirection(bool bValue) { bFaceMoveDirection = bValue; }
 
-	bool HasMovementInput() const { return !CachedMoveInputIntent.IsNearlyZero(); }
+	bool HasMovementInput() const { return !CachedMoveInputIntent.IsNearlyZero() || !AIMoveInput.IsNearlyZero(); }
 
 protected:
 	virtual void BeginPlay() override;
@@ -92,10 +94,16 @@ private:
 	TObjectPtr<ULNPPawnGravityComponent> GravityComponent;
 
 	UPROPERTY()
+	TObjectPtr<ULNPControlRotationComponent> ControlRotationComponent;
+
+	UPROPERTY()
 	TObjectPtr<ULNPInteractionComponent> InteractionComponent;
 
 	UPROPERTY()
 	TObjectPtr<UAbilitySystemComponent> ASC;
+
+	UPROPERTY()
+	TObjectPtr<ULNPLockOnComponent> LockOnComponent;
 
 	FVector AIMoveInput = FVector::ZeroVector;
 	FVector AIOrientationIntent = FVector::ZeroVector;

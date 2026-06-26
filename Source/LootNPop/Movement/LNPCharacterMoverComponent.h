@@ -58,6 +58,9 @@ public:
 	/** HitFromDirection 방향으로 Strength 크기의 넉백 임펄스를 가한다. */
 	void ApplyKnockback(const FVector HitFromDirection, const float Strength);
 
+	/** InVelocity를 초기 속도로 설정하는 Launch 레이어 무브를 큐에 추가한다. */
+	void LaunchWithVelocity(FVector InVelocity);
+
 protected:
 	/** simulation tick 직전 호출된다. 상태 기반 Modifier 변경을 적용하는 데 사용된다. */
 	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd) override;
