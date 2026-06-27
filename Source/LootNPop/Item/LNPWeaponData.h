@@ -43,6 +43,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
 	FName AttachSocketName = NAME_None;
 
+	/** 장착 시 무기 메시의 상대 위치 오프셋. 피벗이 그립 위치에서 벗어난 경우 미세 보정. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
+	FVector WeaponMeshRelativeLocation = FVector::ZeroVector;
+
+	/** 장착 시 무기 메시의 상대 회전 오프셋. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
+	FRotator WeaponMeshRelativeRotation = FRotator(0.0f, 90.0f, -4.0f);
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
 	TObjectPtr<UAnimMontage> AttackMontage;
 
