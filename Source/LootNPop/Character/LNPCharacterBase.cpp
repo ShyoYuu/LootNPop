@@ -225,7 +225,8 @@ void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
 	{
 		WeaponMesh->SetSkeletalMeshAsset(WeaponData->WeaponMesh);
 		WeaponMesh->AttachToComponent(VisualMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponData->AttachSocketName);
-		WeaponMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, -4.0f));
+		WeaponMesh->SetRelativeLocation(WeaponData->WeaponMeshRelativeLocation);
+		WeaponMesh->SetRelativeRotation(WeaponData->WeaponMeshRelativeRotation);
 		WeaponMesh->SetVisibility(true);
 	}
 	else

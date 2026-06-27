@@ -8,6 +8,7 @@
 
 class ALNPCharacterBase;
 class ULNPCharacterMoverComponent;
+class USkeletalMeshComponent;
 
 /**
  * ULNPAnimInstance
@@ -83,4 +84,16 @@ protected:
 	/** Aim Offset: 카메라 Pitch (-90 ~ 90) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|AimOffset")
 	float AimPitch = 0.0f;
+
+	/** 현재 장착 무기 메시 컴포넌트. 왼손 IK 소켓 위치 쿼리에 사용. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	TObjectPtr<USkeletalMeshComponent> WeaponMeshComp;
+
+	/** 무기의 LeftHandGrip 소켓 월드 위치. Two Bone IK 타겟으로 사용. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	FVector LeftHandGripLocation = FVector::ZeroVector;
+
+	/** LeftHandGrip 소켓 존재 여부. false면 왼손 IK 비활성. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	bool bHasLeftHandGrip = false;
 };

@@ -261,6 +261,10 @@
 		{
 			"Name": "SlateInspectorToolset",
 			"Enabled": true
+		},
+		{
+			"Name": "UAFMass",
+			"Enabled": true
 		}
 	]
 }

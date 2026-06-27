@@ -8,6 +8,7 @@
 
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "KismetAnimationLibrary.h"
+#include "Components/SkeletalMeshComponent.h"
 
 void ULNPAnimInstance::NativeInitializeAnimation()
 {
@@ -17,7 +18,8 @@ void ULNPAnimInstance::NativeInitializeAnimation()
 	OwningMoverCharacter = Cast<ALNPCharacterBase>(TryGetPawnOwner());
 	if (OwningMoverCharacter != nullptr)
 	{
-		MoverComponent = OwningMoverCharacter->GetMoverComponent();
+		MoverComponent  = OwningMoverCharacter->GetMoverComponent();
+		WeaponMeshComp  = OwningMoverCharacter->GetWeaponMesh();
 	}
 }
 
@@ -30,9 +32,12 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	{
 		OwningMoverCharacter = Cast<ALNPCharacterBase>(TryGetPawnOwner());
 
-		if (MoverComponent == nullptr && OwningMoverCharacter != nullptr)
+		if (OwningMoverCharacter != nullptr)
 		{
-			MoverComponent = OwningMoverCharacter->GetMoverComponent();
+			if (MoverComponent == nullptr)
+				MoverComponent = OwningMoverCharacter->GetMoverComponent();
+			if (WeaponMeshComp == nullptr)
+				WeaponMeshComp = OwningMoverCharacter->GetWeaponMesh();
 		}
 	}
 
@@ -82,4 +87,16 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	FRotator LocalAimRot = LocalAimDir.Rotation();
 	AimPitch = FMath::ClampAngle(LocalAimRot.Pitch, -90.0f, 90.0f);
 	AimYaw   = FRotator::NormalizeAxis(LocalAimRot.Yaw);
+
+	// 7. 왼손 IK 타겟 위치 업데이트
+	static const FName LeftHandGripSocketName(TEXT("LeftHandGrip"));
+	if (WeaponMeshComp && WeaponMeshComp->DoesSocketExist(LeftHandGripSocketName))
+	{
+		bHasLeftHandGrip    = true;
+		LeftHandGripLocation = WeaponMeshComp->GetSocketLocation(LeftHandGripSocketName);
+	}
+	else
+	{
+		bHasLeftHandGrip = false;
+	}
 }
