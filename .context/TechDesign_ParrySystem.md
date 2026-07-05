@@ -260,3 +260,4 @@ Dot >= cos(60°) = 0.5    →  가드 성공
 - **액터 보유 엔티티 전용:** 가드/패링 판정은 `Actor` 포인터가 있는 엔티티에서만 작동. 순수 엔티티 NPC는 판정 대상에서 자동 제외.
 - **Player만 현재 지원:** Enemy Actor 패링은 `FLNPParryStateFragment` 연결 후 별도 Phase에서 지원.
 - **투사체 타입:** 현재 모든 투사체는 Linear 반사(180도)만 지원. Guided/Lobbed 타입은 게임 기획서의 Phase 2 범위.
+- **근접 PvP Guard/Parry:** ✅ 지원 (Networking Phase 3에서 발견·수정). 기존에는 `ULNPWeaponTraceHitDetectionProcessor`의 "Player→Player(아군 사격)" 분기에 패링·가드 체크가 누락되어 있었다 — "Enemy→Player" 분기에만 있었고, 원거리(`ULNPProjectileHitDetectionProcessor`)는 애초에 두 분기를 통합해 문제 없었던 비대칭. 근접 PvP 분기에도 동일한 2단계 판정을 추가해 해결.

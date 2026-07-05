@@ -4,6 +4,7 @@
 
 #include "GameplayEffectExtension.h"
 #include "GAS/LNPDamageFormula.h"
+#include "Net/UnrealNetwork.h"
 
 ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 {
@@ -16,6 +17,26 @@ ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 	InitAttackMultiplier(1.0f);
 	InitIncomingDamage(0.f);
 }
+
+void ULNPBaseAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, Health,          COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, MaxHealth,       COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, AttackPower,     COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, AttackSpeed,     COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, DefensePower,    COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, MoveSpeed,       COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, AttackMultiplier,COND_None, REPNOTIFY_Always);
+}
+
+void ULNPBaseAttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue)          { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, Health, OldValue); }
+void ULNPBaseAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, MaxHealth, OldValue); }
+void ULNPBaseAttributeSet::OnRep_AttackPower(const FGameplayAttributeData& OldValue)     { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, AttackPower, OldValue); }
+void ULNPBaseAttributeSet::OnRep_AttackSpeed(const FGameplayAttributeData& OldValue)     { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, AttackSpeed, OldValue); }
+void ULNPBaseAttributeSet::OnRep_DefensePower(const FGameplayAttributeData& OldValue)    { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, DefensePower, OldValue); }
+void ULNPBaseAttributeSet::OnRep_MoveSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, MoveSpeed, OldValue); }
+void ULNPBaseAttributeSet::OnRep_AttackMultiplier(const FGameplayAttributeData& OldValue){ GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, AttackMultiplier, OldValue); }
 
 void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {

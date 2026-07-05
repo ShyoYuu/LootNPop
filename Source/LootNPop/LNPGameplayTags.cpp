@@ -24,8 +24,13 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_State_ParryWindow, "LNP.State.ParryWindow")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Block_AttackInput, "LNP.Block.AttackInput")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_ComboWindow, "LNP.State.ComboWindow")
 
-UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Guard_Block,    "LNP.GameplayCue.Guard.Block")
-UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Parry_Success,  "LNP.GameplayCue.Parry.Success")
+// 주의: GameplayCue 태그는 반드시 "GameplayCue." 루트로 시작해야 한다 (GameplayCueNotify 에셋 태그 매칭 규칙).
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Guard_Block,          "GameplayCue.LNP.Guard.Block")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Parry_Success,        "GameplayCue.LNP.Parry.Success")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Character_HitReact,   "GameplayCue.LNP.Character.HitReact")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Melee_Impact,         "GameplayCue.LNP.Melee.Impact")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Projectile_Impact,    "GameplayCue.LNP.Projectile.Impact")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Melee_AttackerHitStop,"GameplayCue.LNP.Melee.AttackerHitStop")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Success, "LNP.GameplayEvent.Parry.Success")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Stagger, "LNP.GameplayEvent.Parry.Stagger")

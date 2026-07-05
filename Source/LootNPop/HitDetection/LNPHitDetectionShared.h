@@ -24,6 +24,7 @@ namespace LNPHitDetection
 		ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Actor);
 		return Character ? Character->GetAbilitySystemComponent() : nullptr;
 	}
+
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -113,45 +114,72 @@ private:
 // 투사체 패링
 // ──────────────────────────────────────────────────────────────────────────────
 
-/** 투사체 패링 성공 시 발동. 방어자 GA_ParrySuccess 이벤트 + VFX 담당.
- *  Velocity/InstigatorTeam 반전은 Processor에서 이미 처리. */
+/** 투사체 패링 성공 시 발동. 방어자 GA_ParrySuccess 이벤트 + VFX 담당 + 반사 발사체 재스폰 방송.
+ *  서버 권위 엔티티의 Velocity/InstigatorTeam 반전과 식별자 재발급은 Processor에서 이미 처리 —
+ *  여기서는 "구 Ghost 소멸 + 새 Ghost 스폰"을 전 클라이언트에 방송만 한다 (섹션 5.2 반사 개정). */
 struct FLNPProjectileParryCommand : public FMassBatchedCommand
 {
+	struct FEntry
+	{
+		TWeakObjectPtr<AActor>       Victim;
+		FLNPProjectileSharedFragment SharedData;        // 재스폰 Ghost의 아키타입 구성용
+		FVector                      SpawnPos;          // 서버 확정 반사 지점 (반사 시점의 발사체 위치)
+		FVector                      NewVelocity;
+		float                        LifetimeRemaining;
+		ELNPInstigatorTeam           NewTeam;
+		int32                        OldInstigatorPlayerID;
+		int32                        OldKeyOrSalvo;
+		uint8                        OldSpawnIndex;
+		int32                        NewInstigatorPlayerID;
+		int32                        NewKeyOrSalvo;
+	};
+
 	FLNPProjectileParryCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim)
+	void Add(const FEntry& InEntry)
 	{
-		Victims.Add(InVictim);
+		Entries.Add(InEntry);
 		bHasWork = true;
 	}
 
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
-		for (const TWeakObjectPtr<AActor>& WeakVictim : Victims)
+		for (const FEntry& Entry : Entries)
 		{
-			AActor* Victim = WeakVictim.Get();
-			UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(Victim);
-			if (!IsValid(VictimASC))
+			AActor* Victim = Entry.Victim.Get();
+			if (!IsValid(Victim))
 				continue;
 
-			FGameplayCueParameters CueParams;
-			CueParams.Location = Victim->GetActorLocation();
-			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, CueParams);
+			if (UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(Victim))
+			{
+				FGameplayCueParameters CueParams;
+				CueParams.Location = Victim->GetActorLocation();
+				VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, CueParams);
 
-			FGameplayEventData EventData;
-			EventData.Target = Victim;
-			VictimASC->HandleGameplayEvent(TAG_GameplayEvent_Parry_Success, &EventData);
+				FGameplayEventData EventData;
+				EventData.Target = Victim;
+				VictimASC->HandleGameplayEvent(TAG_GameplayEvent_Parry_Success, &EventData);
+			}
+
+			// 반사를 "구 Ghost 소멸 + 새 Ghost 스폰"으로 전 클라이언트에 재현한다.
+			// 공격자 클라이언트가 오예측(패링을 모른 채 히트 판정)으로 구 Ghost를 이미 파괴했어도
+			// 새 스폰으로 반사 발사체가 반드시 보인다. 스폰 경로가 발사 방송과 공용이라 Dead Reckoning도 함께 적용.
+			if (ALNPCharacterBase* VictimChar = Cast<ALNPCharacterBase>(Victim))
+				VictimChar->Multicast_RespawnReflectedGhost(Entry.SharedData, Entry.SpawnPos,
+					Entry.NewVelocity, Entry.LifetimeRemaining, Entry.NewTeam,
+					Entry.OldInstigatorPlayerID, Entry.OldKeyOrSalvo, Entry.OldSpawnIndex,
+					Entry.NewInstigatorPlayerID, Entry.NewKeyOrSalvo);
 
 			UE_LOG(LogLootNPop, Log, TEXT("[Parry] Projectile parry success"));
 		}
 	}
 
-	virtual void Reset() override { Victims.Reset(); FMassBatchedCommand::Reset(); }
-	virtual SIZE_T GetAllocatedSize()     const override { return Victims.GetAllocatedSize(); }
-	virtual int32  GetNumOperationsStat() const override { return Victims.Num(); }
+	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
+	virtual SIZE_T GetAllocatedSize()     const override { return Entries.GetAllocatedSize(); }
+	virtual int32  GetNumOperationsStat() const override { return Entries.Num(); }
 
 private:
-	TArray<TWeakObjectPtr<AActor>> Victims;
+	TArray<FEntry> Entries;
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -208,13 +236,14 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 		float                        Damage;
 		FVector                      HitFromDirection;
 		float                        KnockbackStrength;
+		bool                         bIsMeleeHit;
 	};
 
 	FLNPApplyDamageGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, float InKnockbackStrength = 0.f)
+	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, float InKnockbackStrength = 0.f, bool bInIsMeleeHit = false)
 	{
-		Entries.Add({ InVictim, InAttacker, InEffectClass, InDamage, InHitFromDir, InKnockbackStrength });
+		Entries.Add({ InVictim, InAttacker, InEffectClass, InDamage, InHitFromDir, InKnockbackStrength, bInIsMeleeHit });
 		bHasWork = true;
 	}
 
@@ -248,15 +277,36 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityValid(Entry.AttackerEntity))
 				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
 
+			// 피격자 HitReact 몽타주 + HitStop은 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).
+			FGameplayCueParameters CueParams;
+			CueParams.Location = Victim->GetActorLocation();
+			CueParams.Normal   = Entry.HitFromDirection;
+			ASC->ExecuteGameplayCue(TAG_GameplayCue_Character_HitReact, CueParams);
+			if (Entry.bIsMeleeHit)
+				ASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_Impact, CueParams);
+
 			if (ALNPCharacterBase* VictimChar = Cast<ALNPCharacterBase>(Victim))
 			{
-				VictimChar->PlayHitReact(Entry.HitFromDirection);
-				VictimChar->ApplyHitStop(0.08f);
+				// Entry.HitFromDirection은 "피격자 → 공격자"(공격이 날아온 쪽) 방향이다 (PlayHitReact의 방향 판정 컨벤션).
+				// 넉백은 그 반대, 즉 공격자로부터 밀려나는 방향으로 밀어야 하므로 부호를 반전한다.
 				if (Entry.KnockbackStrength > 0.f)
-					VictimChar->ApplyKnockback(Entry.HitFromDirection, Entry.KnockbackStrength);
+					VictimChar->ApplyKnockback(-Entry.HitFromDirection, Entry.KnockbackStrength);
 			}
-			if (ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(Attacker))
-				AttackerChar->ApplyHitStop(0.08f);
+			// 공격자 HitStop은 근접에서만 재생한다 — 원거리(총기류)는 물리적 충돌감이 없어 어색하다.
+			// 공격자 본인 화면은 예측 경로(리슨서버 호스트는 아래 직접 호출, 원격 클라는 ApplyLocalHitFeedback)로 즉시 처리하고,
+			// 제3자(구경꾼) 화면은 GameplayCue.LNP.Melee.AttackerHitStop으로 전파한다 — 핸들러가 로컬 컨트롤 여부로 중복을 걸러낸다.
+			if (Entry.bIsMeleeHit)
+			{
+				if (ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(Attacker))
+					AttackerChar->ApplyHitStop(0.2f);
+
+				if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
+				{
+					FGameplayCueParameters AttackerCueParams;
+					AttackerCueParams.Location = Attacker->GetActorLocation();
+					AttackerASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_AttackerHitStop, AttackerCueParams);
+				}
+			}
 		}
 	}
 

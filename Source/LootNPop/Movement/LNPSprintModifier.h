@@ -24,6 +24,7 @@ public:
 	virtual void OnEnd(UMoverComponent* MoverComp, const FMoverTimeStep& TimeStep, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState) override;
 	
 	virtual bool HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const override;
+	virtual void GetGameplayTags(FGameplayTagContainer& InOutTags) const override;
 	
 	virtual FMovementModifierBase* Clone() const override;
 	virtual void NetSerialize(FArchive& Ar) override;

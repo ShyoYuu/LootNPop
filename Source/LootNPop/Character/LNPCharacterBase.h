@@ -7,6 +7,7 @@
 #include "AbilitySystemInterface.h"
 #include "MassAgentComponent.h"
 #include "GameplayTagContainer.h"
+#include "HitDetection/LNPProjectileMassTypes.h"
 #include "LNPCharacterBase.generated.h"
 
 class UCapsuleComponent;
@@ -49,6 +50,7 @@ public:
 
 	// IAbilitySystemInterface 구현
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UCapsuleComponent*      GetCapsule()      const { return CapsuleComponent; }
 	USkeletalMeshComponent* GetWeaponMesh()   const { return WeaponMesh;       }
@@ -77,10 +79,19 @@ public:
 	/** 콤보 인덱스를 MaxComboCount에 맞게 1 증가(순환). */
 	void IncrementComboIndex();
 
+	/**
+	 * 원격 클라이언트의 콤보 인덱스를 서버에 동기화한다. CurrentComboIndex는 입력을 소유한 머신에서만
+	 * 갱신되는데, 서버의 ULNPAbility_MeleeAttack::ActivateAbility가 몽타주 섹션을 서버 측 인덱스로 고르므로
+	 * 동기화하지 않으면 서버(와 시뮬레이티드 프록시)는 항상 콤보 1 몽타주만 재생하고 히트 판정 타이밍도 어긋난다.
+	 */
+	UFUNCTION(Server, Reliable)
+	void Server_SetComboIndex(int32 NewComboIndex);
+
 	/** 콤보 상태를 초기값으로 리셋. */
 	void ResetCombo();
 
-	/** 피격 방향에 맞는 HitReact 몽타주 섹션을 재생한다. */
+	/** 피격 방향에 맞는 HitReact 몽타주 섹션을 재생한다. GameplayCue.LNP.Character.HitReact 노티파이에서 호출한다. */
+	UFUNCTION(BlueprintCallable, Category = "LNP|Combat")
 	void PlayHitReact(FVector HitFromWorldDir);
 
 	/**
@@ -94,11 +105,39 @@ public:
 	UAnimMontage* EvaluateMontage(FGameplayTag SituationType, FGameplayTag Value = FGameplayTag()) const;
 	bool PlayMontage(FGameplayTag SituationType, FGameplayTag Value = FGameplayTag()) const;
 
-	/** Duration 동안 CustomTimeDilation을 TimeDilation으로 낮춰 HitStop 효과를 준다. */
+	/** Duration 동안 CustomTimeDilation을 TimeDilation으로 낮춰 HitStop 효과를 준다. GameplayCue.LNP.Character.HitReact 노티파이에서 호출한다. */
+	UFUNCTION(BlueprintCallable, Category = "LNP|Combat")
 	void ApplyHitStop(float Duration, float TimeDilation = 0.1f);
+
+	/** 클라이언트 예측 판정 전용 로컬 히트 피드백 (공격자 자신의 화면에서만 즉시 재생). 서버 확정 GameplayCue와 별개. */
+	void ApplyLocalHitFeedback();
 
 	/** HitFromDirection 방향으로 Strength 크기의 넉백 임펄스를 가한다. */
 	void ApplyKnockback(const FVector HitFromDirection, const float Strength);
+
+	/**
+	 * 원거리 발사체를 시뮬레이티드 프록시(구경꾼) 화면에도 시각적으로만 재현한다.
+	 * 서버에서만(HasAuthority) 호출하며, 발사자 본인 클라이언트와 서버/리슨호스트 자신은
+	 * 수신 측에서 스스로 걸러낸다(Multicast_SpawnGhostProjectiles_Implementation 참조).
+	 * Reliable — 손실 시 관전자가 발사체를 통째로 못 보게 되는 1회성 존재 이벤트이므로.
+	 * UpstreamDelaySeconds: 서버 발신 시점 이전에 이미 흐른 지연(공격자 RTT/2) — 수신자 Dead Reckoning 외삽에 합산.
+	 */
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_SpawnGhostProjectiles(FLNPProjectileSharedFragment SharedData, FVector SpawnPos,
+		const TArray<FVector>& Velocities, float ProjectileLifetime, ELNPInstigatorTeam InstigatorTeam,
+		int32 KeyOrSalvo, int32 InstigatorPlayerID, float UpstreamDelaySeconds);
+
+	/**
+	 * 서버 확정 원거리 패링 반사를 "구 Ghost 소멸 + 새 Ghost 스폰"으로 전 클라이언트에 재현한다.
+	 * 발사 방송과 달리 아무도 반사를 예측하지 않았으므로 방어자 본인 클라이언트도 스폰한다
+	 * (서버/리슨호스트 자신만 수신 측에서 걸러냄). 스폰 자체는 발사 방송과 동일한
+	 * ULNPGhostProjectileSubsystem::SpawnSpectatorGhosts 공용 경로를 타므로 Dead Reckoning도 함께 적용된다.
+	 */
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_RespawnReflectedGhost(FLNPProjectileSharedFragment SharedData, FVector SpawnPos,
+		FVector NewVelocity, float LifetimeRemaining, ELNPInstigatorTeam NewTeam,
+		int32 OldInstigatorPlayerID, int32 OldKeyOrSalvo, uint8 OldSpawnIndex,
+		int32 NewInstigatorPlayerID, int32 NewKeyOrSalvo);
 
 	/** 이 캐릭터에 현재 장착/설정된 무기 데이터를 반환한다. */
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const { return nullptr; }
@@ -165,6 +204,13 @@ protected:
 	/** 테스트용 무기 목록. BP에서 슬롯 순서대로 지정. (0=Pistol, 1=Rifle, 2=LongSword) */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Weapon|Test")
 	TArray<TObjectPtr<ULNPWeaponData>> TestWeaponList;
+
+	/** 현재 장착된 무기 데이터 — 서버가 쓰고 클라이언트가 OnRep으로 비주얼을 갱신. */
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentWeapon)
+	TObjectPtr<ULNPWeaponData> EquippedWeaponData;
+
+	UFUNCTION()
+	void OnRep_CurrentWeapon();
 
 	/** 항상 보유할 기본 어빌리티 목록. BP 서브클래스에서 지정. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Abilities")

@@ -11,8 +11,8 @@
 
 class UAnimMontage;
 
-LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNPTAG_Mover_IsSprinting);
-LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNPTAG_Mover_IsGuarding);
+LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsSprinting);
+LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsGuarding);
 
 /**
  * LootNPop 캐릭터용 커스텀 Mover Component.
@@ -45,6 +45,8 @@ public:
 	/** 캐릭터가 현재 가드 Modifier가 활성화되어 있으면 true를 반환한다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool IsGuarding() const;
+
+	bool CanGuard();
 
 	void SetIsAiming(bool bInIsAiming) { bIsAiming = bInIsAiming; }
 	bool GetIsAiming() const { return bIsAiming; }
@@ -113,4 +115,7 @@ private:
 
 	bool bIsAiming = false;
 	float LastDashTime = -1.0f;
+
+	// 임시 디버그 로그용 — 원격 클라이언트 가드 이동속도 미적용 이슈 진단 후 제거 예정.
+	float DebugLastLoggedMaxSpeed = -1.0f;
 };

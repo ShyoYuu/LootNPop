@@ -76,4 +76,47 @@ Mover의 한 프레임(Simulation Step)은 내부적으로 다음 순서로 연�
 
 
 ---
+
+## 7. 트리거(Trigger)와 결과 상태(State)의 분리 — Mover 전 영역 공통 원칙
+
+Movement Modes, Movement Modifiers, Layered Moves, Instant Movement Effects 네 기둥 전부에 공통으로 적용되는 규칙이 있습니다: **"지금 이걸 시작할지" 판단(트리거)과 "이미 시작된 것의 상태"(결과)는 동기화되는 방식이 다릅니다.** 이를 혼동하면 특정 기둥에서만 골라 문제가 생기는 게 아니라, 네 기둥 전부에서 동일한 패턴의 버그가 재현됩니다.
+
+### 결과 상태 — 이미 자동으로 동기화됨
+
+`FMoverSyncState`(`MoverSimulationTypes.h`)는 다음을 필드로 갖고, 각각 `NetSerialize`/`ShouldReconcile`을 구현합니다:
+
+- `MovementMode` (FName) — 현재 활성 이동 모드
+- `LayeredMoves` / `LayeredMoveInstances` — 레이어드 무브 큐/활성 목록
+- `MovementModifiers` — 모디파이어 큐/활성 목록
+
+즉 Movement Mode, Movement Modifiers, Layered Moves 셋은 서버가 만들어낸 "현재 상태"가 서버→클라로 전송되고, 클라의 로컬 예측 결과와 비교(`ShouldReconcile`)해서 어긋나면 자동으로 교정됩니다. 여기에 별도 리플리케이션 코드를 추가할 필요는 없습니다.
+
+Instant Movement Effect는 1회성이라 SyncState에 자기 몫의 필드가 없습니다 — 그 효과의 흔적은 오직 `SyncStateCollection`(Position/Velocity 등 기본 상태)의 변화로만 간접적으로 남습니다.
+
+### 트리거 — 자동으로 동기화되지 않음
+
+리컨실은 어디까지나 "서버가 이미 만들어낸 결과"와 "클라가 예측한 결과"를 비교하는 것입니다. 서버가 애초에 그 Mode 전환 / Modifier 큐잉 / LayeredMove 시작 / Instant Effect 적용을 **시작조차 하지 않았다면, 비교할 결과 자체가 없으므로 리컨실도 일어나지 않습니다.**
+
+이 넷 모두 "시작 여부"를 판단하는 코드(대개 `OnMoverPreSimulationTick` 등 시뮬레이션 콜백)는 네트워크 프리딕션 백엔드(`UMoverNetworkPredictionLiaisonComponent::SimulationTick`)가 버퍼링된 과거 move 단위로 호출합니다. 이때 판단 로직이 참조할 수 있는, 클라→서버로 실제 전달되는 유일한 채널은 `FMoverInputCmdContext`(`ProduceInput → SimulationTick`)뿐이며, 수동 Server RPC를 쓰지 않는 한 그 외의 통로는 없습니다.
+
+### 왜 일반 멤버 변수로는 안 되는가
+
+UE의 액터 리플리케이션은 **서버 → 클라 단방향**입니다. 로컬 클라에서만 세팅한 일반 멤버 변수는 `Replicated` 지정 여부와 무관하게 서버가 그 폰(리모트 클라의 폰)을 시뮬레이트하는 인스턴스로 전달될 방법이 없습니다.
+
+이 때문에 판단 조건(Mode 강제 전환 여부, Modifier 큐잉 여부, LayeredMove 시작 여부, Instant Effect 적용 여부 무엇이든)을 InputCmd가 아닌 멤버 변수로 두면 **리슨서버 호스트(로컬 예측=서버 authoritative가 같은 프로세스) 자신은 항상 정상 작동하고, 리모트 클라는 서버 시뮬레이션에서 그 조건이 계속 다르게(대개 거짓으로) 읽혀 아예 반영되지 않는** 비대칭 버그가 발생합니다.
+
+### 엔진 자체의 대조 사례 (Jump vs Crouch)
+
+- **Jump (`FCharacterDefaultInputs::bIsJumpJustPressed`)**: Instant Movement Effect(`FJumpImpulseEffect`)를 시작하는 트리거이며, InputCmd에 태워 전달되는 네트워크까지 완결된 예제입니다.
+- **Crouch (`UCharacterMoverComponent::bWantsToCrouch` + `FStanceModifier`)**: Movement Modifier를 시작하는 트리거인데, `Transient` 일반 멤버 변수를 `OnMoverPreSimulationTick`에서 직접 읽어 판단합니다. InputCmd를 타지 않으며, 엔진 전체를 검색해도 `Crouch()`/`UnCrouch()`를 실제로 호출하는 코드가 어디에도 없습니다 — 게임 쪽에서 입력 배선을 완성해야 하는 미완성 레퍼런스입니다. 그대로 멀티플레이에 사용하면 위에서 설명한 것과 동일한 비대칭 버그가 재현됩니다.
+
+### 올바른 패턴 (네 기둥 공통)
+
+1. 트리거가 되는 입력 의도를 담는 `FMoverDataStructBase` 파생 구조체를 정의한다 (예: `FLNPModifierInputs`의 `bWantsToGuard`, `bWantsToSprint`).
+2. `ProduceInput` 단계에서 이 구조체를 `InputCmd.InputCollection`에 실어 보낸다.
+3. `OnMoverPreSimulationTick(TimeStep, InputCmd)`에서 `InputCmd.InputCollection.FindDataByType<T>()`로 값을 읽어, Mode 전환이든 `QueueMovementModifier` / `CancelModifierFromHandle`(Modifier)이든 `QueueLayeredMove`(Layered Move)이든 `QueueInstantMovementEffect`(Instant Effect)이든 동일한 방식으로 트리거한다.
+
+LootNPop의 `LNPModifierInputs.h` + `LNPCharacterMoverComponent.cpp`(Guard/Sprint 판단부)가 이 패턴을 따릅니다.
+
+---
 *참조: LootNPop 프로젝트 - Mover 시스템 설계 가이드 (2026년 4월)*

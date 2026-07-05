@@ -9,6 +9,8 @@ public class LootNPop : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		SetupIrisSupport(Target, true);
+
 		PublicDependencyModuleNames.AddRange([
 			"Core",
 			"CoreUObject",
@@ -43,7 +45,9 @@ public class LootNPop : ModuleRules
 			"SmartObjectsModule",
 			"DeveloperSettings",
             "GameplayCameras",
-			"Chooser"
+			"Chooser",
+            "NetCore",
+            "MassReplication"
             ]);
 		PrivateDependencyModuleNames.AddRange([]);
 

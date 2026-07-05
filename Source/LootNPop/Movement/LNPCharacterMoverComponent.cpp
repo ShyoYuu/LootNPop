@@ -3,6 +3,7 @@
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPCharacterMovementSettings.h"
 #include "Movement/LNPAsyncWalkingMode.h"
+#include "Movement/LNPModifierInputs.h"
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
@@ -17,8 +18,8 @@
 #include "GameFramework/Pawn.h"
 #include "AbilitySystemComponent.h"
 
-UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
-UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNPTAG_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
 
 // UCommonLegacyMovementSettings 못 가져왔을 때 fallback용
 const FName DefaultWalkingMode = TEXT("LNPAsyncWalking");
@@ -39,7 +40,7 @@ ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 
 bool ULNPCharacterMoverComponent::IsSprinting() const
 {
-	return HasGameplayTag(LNPTAG_Mover_IsSprinting, true);
+	return HasGameplayTag(LNP_Mover_IsSprinting, true);
 }
 
 bool ULNPCharacterMoverComponent::CanSprint() const
@@ -49,7 +50,12 @@ bool ULNPCharacterMoverComponent::CanSprint() const
 
 bool ULNPCharacterMoverComponent::IsGuarding() const
 {
-	return HasGameplayTag(LNPTAG_Mover_IsGuarding, true);
+	return HasGameplayTag(LNP_Mover_IsGuarding, true);
+}
+
+bool ULNPCharacterMoverComponent::CanGuard()
+{
+	return true;
 }
 
 bool ULNPCharacterMoverComponent::CanDash() const
@@ -179,6 +185,18 @@ void ULNPCharacterMoverComponent::LaunchWithVelocity(FVector InVelocity)
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
 {
+	const AActor* DebugOwner = GetOwner();
+	const APawn*  DebugPawn  = Cast<APawn>(DebugOwner);
+	// 1P/2P를 구분하기 위한 접두어. 예: "[BP_LNPPlayer_C_1 Auth=0 Local=1]"
+	const FString DebugTag = DebugOwner
+		? FString::Printf(TEXT("%s Auth=%d Local=%d"), *DebugOwner->GetName(), DebugOwner->HasAuthority(), DebugPawn && DebugPawn->IsLocallyControlled())
+		: TEXT("?");
+
+	// bWantsToGuard/bWantsToRun 멤버 변수 대신 InputCmd에서 읽는다 — Jump가 FCharacterDefaultInputs::
+	// bIsJumpJustPressed를 InputCmd로 전달받는 것과 동일한 방식. 평범한 컴포넌트 멤버는 Mover의
+	// 예측·복제·리시뮬레이션 파이프라인을 타지 않아 원격 클라이언트에서 신뢰할 수 없었다.
+	const FLNPModifierInputs* ModifierInputs = InputCmd.InputCollection.FindDataByType<FLNPModifierInputs>();
+
 	// Guard Modifier 관리 (Sprint보다 먼저 처리 — Guard 중에는 Sprint 불가)
 	if (bHandleGuardChanges)
 	{
@@ -186,24 +204,38 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 		if (ActiveModifier == nullptr)
 		{
 			ActiveModifier = FindMovementModifierByType<FLNPGuardModifier>();
-
-			// Handle로는 못 찾았는데 Type으로 찾았을 땐 Handle이 유효하지 않은 상태이므로 갱신해준다.
-			if (ActiveModifier != nullptr)
-				GuardModifierHandle = ActiveModifier->GetHandle();
 		}
 
-		const bool bIsGuarding  = (ActiveModifier != nullptr);
-		const bool bShouldGuard = bWantsToGuard;
+		const bool bIsGuarding = HasGameplayTag(LNP_Mover_IsGuarding, true);
+		const bool bShouldGuard = ModifierInputs && ModifierInputs->bWantsToGuard;
 
-		if (bIsGuarding && !bShouldGuard)
+		if (bIsGuarding && (!bShouldGuard || !CanGuard()))
 		{
-			CancelModifierFromHandle(GuardModifierHandle);
-			GuardModifierHandle.Invalidate();
+			UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] PreSimTick [%s]: REMOVE guard modifier (bWantsToGuard=false)"), *DebugTag);
+			if (ActiveModifier)
+			{
+				CancelModifierFromHandle(ActiveModifier->GetHandle());
+				GuardModifierHandle.Invalidate();
+				ActiveModifier = nullptr;
+			}
 		}
-		else if (!bIsGuarding && bShouldGuard)
+		else if (!bIsGuarding && bShouldGuard && CanGuard())
 		{
+			UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] PreSimTick [%s]: ADD guard modifier (bWantsToGuard=true)"), *DebugTag);
 			TSharedPtr<FLNPGuardModifier> NewModifier = MakeShared<FLNPGuardModifier>();
 			GuardModifierHandle = QueueMovementModifier(NewModifier);
+			ActiveModifier = NewModifier.Get();
+		}
+
+		// 진단용: MaxSpeed가 이전 틱과 다르면 원인 불문 로그 (스팸 방지를 위해 값이 바뀔 때만)
+		if (const UCommonLegacyMovementSettings* CommonSettings = FindSharedSettings<UCommonLegacyMovementSettings>())
+		{
+			if (!FMath::IsNearlyEqual(CommonSettings->MaxSpeed, DebugLastLoggedMaxSpeed, 0.01f))
+			{
+				UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] PreSimTick [%s]: MaxSpeed changed %.1f -> %.1f (bShouldGuard=%d, bIsGuarding=%d)"),
+					*DebugTag, DebugLastLoggedMaxSpeed, CommonSettings->MaxSpeed, bShouldGuard, bIsGuarding);
+				DebugLastLoggedMaxSpeed = CommonSettings->MaxSpeed;
+			}
 		}
 	}
 
@@ -214,22 +246,25 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 		if (ActiveModifier == nullptr)
 		{
 			ActiveModifier = FindMovementModifierByType<FLNPSprintModifier>();
-			if (ActiveModifier != nullptr)
-				SprintModifierHandle = ActiveModifier->GetHandle();
 		}
 
-		const bool bIsSprinting  = (ActiveModifier != nullptr);
-		const bool bShouldSprint = bWantsToRun && CanSprint();
+		const bool bIsSprinting  = HasGameplayTag(LNP_Mover_IsSprinting, true);
+		const bool bShouldSprint = ModifierInputs && ModifierInputs->bWantsToSprint;
 
-		if (bIsSprinting && !bShouldSprint)
+		if (bIsSprinting && (!bShouldSprint || !CanSprint()))
 		{
-			CancelModifierFromHandle(SprintModifierHandle);
-			SprintModifierHandle.Invalidate();
+			if (ActiveModifier)
+			{
+				CancelModifierFromHandle(ActiveModifier->GetHandle());
+				SprintModifierHandle.Invalidate();
+				ActiveModifier = nullptr;
+			}
 		}
-		else if (!bIsSprinting && bShouldSprint)
+		else if (!bIsSprinting && bShouldSprint && CanSprint())
 		{
 			TSharedPtr<FLNPSprintModifier> NewModifier = MakeShared<FLNPSprintModifier>();
 			SprintModifierHandle = QueueMovementModifier(NewModifier);
+			ActiveModifier = NewModifier.Get();
 		}
 	}
 

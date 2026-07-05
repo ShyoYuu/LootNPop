@@ -119,8 +119,17 @@
 
 ## Phase 5: Loop (멀티플레이어 완성)
 
-- [ ] **Iris 기반 네트워킹 최적화**
-    - MassEntity 상태 복제 및 예측 보정.
+- [ ] **Iris 기반 네트워킹 구현**
+    - 설계 명세: [TechDesign_Networking.md](TechDesign_Networking.md)
+    - [x] Phase 1: Iris 활성화, GAS 복제 모드, ALNPEnemyCharacter bReplicates, GameplayCue 에셋 연결 (PIE 2P 검증 완료)
+    - [x] Phase 2: HitStop/HitReact GameplayCue 전파 (코드 완료, GameplayCueNotify VFX·그래프 연결은 에디터 잔여)
+    - [x] Phase 3: 근접 HitDetection 클라이언트 예측 + Lag Compensation + Guard/Parry 서버 복제 (PIE 2인 근접 PvP 왕복 검증 완료 — `UAnimNotifyState` 싱글턴 공유로 인한 근접 판정 실패 버그 발견·수정)
+    - Phase 4: 원거리 Projectile 클라이언트 예측 (FScopedPredictionWindow, 롤백 처리)
+    - [x] Phase 4.5: Ghost Projectile 정합성 개선 — 키 전역 고유화(SalvoID), per-entry TTL, 패링 반사 소멸+재스폰, 관전 Ghost Dead Reckoning·로컬 충돌, Rewind 발사 시점 캐싱 (코드 완료, PIE 3인 검증 대기)
+    - Phase 5: 무기 교체 서버 권한화 (Server_EquipWeapon RPC)
+    - Phase 6: Enemy MassReplication (FMassNetworkID, BubbleHandler) + ALNPEnemyCharacter bReplicates (이중 복제)
+    - [x] Phase 6.5: Player MassReplication — 존재만 복제하는 최소 스키마 bubble + 엔진 퍼펫 링크로 클라 플레이어 엔티티 성립. 에이전트 경로 NetID 캐싱 타이밍 갭은 ULNPMassAgentComponent로 보정 (PIE 2인 검증: players=2, gap=0cm)
+    - Phase 7: LootPod MassReplication + ALNPLootPod bReplicates (이중 복제)
 - [ ] **승리 조건 및 세션 관리**
     - 메달(가칭) 4개 수집 시 승리. 게임 시작/종료/결과 처리 흐름.
 

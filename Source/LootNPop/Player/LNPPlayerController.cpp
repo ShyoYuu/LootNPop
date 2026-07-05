@@ -28,6 +28,17 @@ void ALNPPlayerController::OnPossess(APawn* InPawn)
 		HudWidget->InitViewModel(PS->GetAbilitySystemComponent());
 }
 
+void ALNPPlayerController::AcknowledgePossession(APawn* P)
+{
+	Super::AcknowledgePossession(P);
+
+	if (!HudWidget)
+		return;
+
+	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
+		HudWidget->InitViewModel(PS->GetAbilitySystemComponent());
+}
+
 void ALNPPlayerController::OnUnPossess()
 {
 	if (HudWidget)

@@ -27,7 +27,7 @@ protected:
 		const FGameplayAbilityActivationInfo ActivationInfo) const override;
 
 protected:
-	virtual void SpawnProjectile() const;
+	virtual void SpawnProjectile(const FGameplayAbilityActivationInfo& ActivationInfo) const;
 	virtual TArray<FVector> GetFireDirections(const FVector& SpawnPos) const;
 
 	/** 폭발 스플래시 넉백 강도. 0이면 넉백 없음. 직격 넉백은 KnockbackStrength(기반 클래스)를 사용한다. */

@@ -53,6 +53,10 @@ void ULNPEnemyScoringProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 
 void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — AI 로직은 서버 전용.
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	// 1. 모든 Player 수집
 	struct FPlayerData { FMassEntityHandle Handle; FVector Location; };
 	TArray<FPlayerData> Players;
@@ -200,6 +204,10 @@ void ULNPEnemyTargetingProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 
 void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — AI 로직은 서버 전용.
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	ULNPTargetingSubsystem& TargetingSubsystem = Context.GetMutableSubsystemChecked<ULNPTargetingSubsystem>();
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 
@@ -324,6 +332,10 @@ void ULNPEnemyTargetFollowProcessor::ConfigureQueries(const TSharedRef<FMassEnti
 
 void ULNPEnemyTargetFollowProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — AI 로직은 서버 전용.
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 	TArray<FMassEntityHandle> EntitiesToSignal;
 
@@ -406,6 +418,10 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 
 void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — 이동 시뮬레이션은 서버 전용(위치는 복제로 전달).
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
 	const ULNPSurfaceCacheSubsystem& SurfaceCache = Context.GetSubsystemChecked<ULNPSurfaceCacheSubsystem>();
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
@@ -633,6 +649,10 @@ void ULNPHealthProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&
 
 void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — HP 판정은 서버 전용(GAS Attribute로 복제).
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	TArray<FMassEntityHandle> DyingEntities;
 
 	HealthQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
@@ -689,6 +709,10 @@ void ULNPEnemyLODOverrideProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 
 void ULNPEnemyLODOverrideProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — 전투 판단 기반 LOD 강제는 서버 전용 개념.
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	LODOverrideQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& LODContext)
 	{
 		const TArrayView<FMassRepresentationLODFragment> RepresentationLODs = LODContext.GetMutableFragmentView<FMassRepresentationLODFragment>();
@@ -729,6 +753,11 @@ void ULNPEnemyActorInitializerProcessor::ConfigureQueries(const TSharedRef<FMass
 
 void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다.
+	// 클라이언트의 Actor 존재 여부는 일반 Actor Relevancy 복제가 결정하므로, Mass LOD 기반 Actor 스폰/초기화는 서버 전용 개념이다.
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	ActivationQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		const FLNPEnemySharedFragment& SharedFragment = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
@@ -786,6 +815,10 @@ void ULNPEnemyActorSyncProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 
 void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — Mass<->Actor 동기화는 서버 전용 개념.
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	TArray<FMassEntityHandle> ToCleanup;
 
 	SyncQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
@@ -827,6 +860,10 @@ void ULNPEnemyDeathTimerProcessor::ConfigureQueries(const TSharedRef<FMassEntity
 
 void ULNPEnemyDeathTimerProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — 소멸 결정은 서버 전용.
+	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+		return;
+
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
 	TArray<FMassEntityHandle> ToDestroy;
 

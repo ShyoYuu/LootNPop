@@ -10,6 +10,7 @@ public class LootNPopEditorTarget : TargetRules
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
+        //bUseIris = true;
 		ExtraModuleNames.Add("LootNPop");
 	}
 }

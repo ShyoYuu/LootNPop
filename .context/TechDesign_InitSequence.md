@@ -120,25 +120,55 @@ ALNPPlayerController::OnLocalBakingComplete()
 
 ## 5. 플레이어 폰 스폰 타이밍
 
-`ALNPGameMode::RestartPlayer()`를 오버라이드하여 초기화 완료 전 스폰을 차단.
+폰 스폰은 **두 조건을 모두 충족**해야 한다.
+
+| 조건 | 담당 |
+|:---|:---|
+| `bServerInitComplete` | 서버 전체 초기화 완료 (WorldGen → Baking → EntitySpawn) |
+| `ReadyClients` 등록 | 해당 클라이언트가 로컬 베이킹 완료 후 `ServerNotifyClientReady()` 전송 |
+
+`ALNPGameMode::RestartPlayer()`는 두 조건을 순차 확인하여 미충족 시 `PendingPlayers`에 보류:
 
 ```cpp
 void ALNPGameMode::RestartPlayer(AController* NewPlayer)
 {
     if (!bServerInitComplete)
     {
-        PendingPlayers.AddUnique(NewPlayer);  // 큐에 대기
+        PendingPlayers.AddUnique(NewPlayer);
         return;
     }
-    Super::RestartPlayer(NewPlayer);  // 즉시 스폰
+    ALNPPlayerController* PC = Cast<ALNPPlayerController>(NewPlayer);
+    if (PC && !ReadyClients.Contains(PC))
+    {
+        PendingPlayers.AddUnique(NewPlayer);
+        return;
+    }
+    Super::RestartPlayer(NewPlayer);
+}
+```
+
+`OnClientReady()`는 `ReadyClients`에 등록 후, 서버 완료 상태이면 즉시 스폰 트리거:
+
+```cpp
+void ALNPGameMode::OnClientReady(ALNPPlayerController* PC)
+{
+    ReadyClients.Add(PC);
+    if (bServerInitComplete)
+    {
+        PendingPlayers.RemoveAll([PC](...) { return Weak.Get() == PC; });
+        Super::RestartPlayer(PC);
+    }
 }
 ```
 
 | 상황 | 동작 |
 |:---|:---|
-| 초기화 완료 전 접속 | `PendingPlayers`에 대기 |
-| `OnEntitySpawningComplete` 시점 | 대기 플레이어 전원 일괄 스폰 |
-| 초기화 완료 후 뒤늦게 접속 | 즉시 스폰 |
+| 서버 미완료 + 클라이언트 접속 | `PendingPlayers` 대기 |
+| `OnEntitySpawningComplete` 시점 | `PendingPlayers` 중 `ReadyClients` 등록된 플레이어만 스폰, 나머지 보류 |
+| `OnClientReady` 수신 (서버 완료 후) | 해당 클라이언트 즉시 스폰 (중간 참여 포함) |
+| 초기화 완료 후 접속 → 베이킹 완료 | `OnClientReady` 경로로 스폰 |
+
+> **두 조건 모두 필요한 이유:** 서버 완료 후 접속한 클라이언트는 UE 로그인 흐름에서 `RestartPlayer()`가 즉시 호출되지만, 클라이언트 로컬에서 WorldGen·SurfaceBaking이 끝나지 않은 상태이므로 `ReadyClients` 게이트가 없으면 빈 월드에 폰이 스폰된다.
 
 ---
 

@@ -4,8 +4,10 @@
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "HitDetection/LNPPositionHistoryFragment.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPEnemyCharacter.h"
 #include "Character/LNPPlayerCharacter.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
@@ -14,6 +16,7 @@
 #include "LootNPop.h"
 
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/PlayerState.h"
 #include "MassExecutionContext.h"
 #include "MassEntityManager.h"
 #include "MassCommonFragments.h"
@@ -128,6 +131,47 @@ namespace
 		if (Frag.AlreadyHitCount < FLNPWeaponTraceFragment::MaxAlreadyHit)
 			Frag.AlreadyHit[Frag.AlreadyHitCount++] = Target;
 	}
+
+	/** 클라이언트 예측 전용: ApplyLocalHitFeedback()(내부적으로 GetWorldTimerManager().SetTimer 호출)은 게임 스레드 전용이라
+	 *  Mass Execute()(워커 스레드에서 돌 수 있음)에서 직접 호출할 수 없다. Command Buffer flush(게임 스레드 보장)로 위탁한다. */
+	struct FLNPLocalHitFeedbackCommand : public FMassBatchedCommand
+	{
+		struct FEntry
+		{
+			FMassEntityHandle                 AttackerEntity;
+			TWeakObjectPtr<ALNPCharacterBase>  AttackerActor;
+		};
+
+		FLNPLocalHitFeedbackCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
+
+		void Add(FMassEntityHandle InAttackerEntity, ALNPCharacterBase* InAttackerActor)
+		{
+			Entries.Add({ InAttackerEntity, InAttackerActor });
+			bHasWork = true;
+		}
+
+		virtual void Run(FMassEntityManager& EntityManager) override
+		{
+			for (const FEntry& Entry : Entries)
+			{
+				FLNPWeaponTraceFragment* Frag = EntityManager.GetFragmentDataPtr<FLNPWeaponTraceFragment>(Entry.AttackerEntity);
+				if (!Frag || Frag->bLocalFeedbackFired)
+					continue;
+
+				if (ALNPCharacterBase* AttackerChar = Entry.AttackerActor.Get())
+					AttackerChar->ApplyLocalHitFeedback();
+
+				Frag->bLocalFeedbackFired = true;
+			}
+		}
+
+		virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
+		virtual SIZE_T GetAllocatedSize()     const override { return Entries.GetAllocatedSize(); }
+		virtual int32  GetNumOperationsStat() const override { return Entries.Num(); }
+
+	private:
+		TArray<FEntry> Entries;
+	};
 }
 
 // ============================================================
@@ -150,6 +194,7 @@ void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMa
 	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
+	EnemyQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -158,6 +203,7 @@ void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMa
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 	PlayerQuery.AddRequirement<FLNPParryStateFragment>(EMassFragmentAccess::ReadOnly);
+	PlayerQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
 
@@ -165,6 +211,125 @@ void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMa
 
 void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	UWorld* World = EntityManager.GetWorld();
+	const bool bIsServer = World && World->GetNetMode() < NM_Client;
+
+	// 클라이언트: 로컬 컨트롤 공격자에 한해 Mass 엔티티 쿼리 기반 예측 판정 (코스메틱 HitStop만, GE 미적용).
+	// 서버 판정(Mass 엔티티 쿼리 + GE 적용)과 완전히 분리된 경로다.
+	if (!bIsServer)
+	{
+		// 클라이언트 예측 전용 타겟 캡슐 수집 — Enemy MassReplication(Phase 6) 이후 EnemyQuery/PlayerQuery가
+		// 클라이언트에도 유효한 엔티티를 반환하므로, 게임 스레드 전용인 TActorIterator 없이 서버 Pass 1/2와 동일하게 조회한다.
+		struct FClientCapsuleTarget
+		{
+			AActor* Actor;
+			FVector CapsuleCenter;
+			FVector UpDir;
+			float   CapsuleHalfHeight;
+			float   CapsuleRadius;
+			bool    bIsEnemy;
+		};
+		TArray<FClientCapsuleTarget> ClientTargets;
+
+		EnemyQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+		{
+			const FLNPEnemySharedFragment& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
+			if (!Shared.Config)
+				return;
+
+			const float HalfH  = Shared.Config->CapsuleHalfHeight;
+			const float Radius = Shared.Config->CapsuleRadius;
+
+			const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+			TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+
+			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+			{
+				const FVector Loc   = Transforms[i].GetTransform().GetLocation();
+				const FVector UpDir = (-Loc).GetSafeNormal();
+				AActor*       Actor = ActorFrags[i].GetMutable();
+				const FVector Center = Cast<ALNPCharacterBase>(Actor) ? Loc : Loc + UpDir * HalfH;
+				ClientTargets.Add({ Actor, Center, UpDir, HalfH, Radius, true });
+			}
+		});
+
+		PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+		{
+			const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+			TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+
+			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+			{
+				AActor*                  Actor  = ActorFrags[i].GetMutable();
+				const UCapsuleComponent* Cap    = Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr;
+				const float              HalfH  = Cap ? Cap->GetScaledCapsuleHalfHeight() : 96.f;
+				const float              Radius = Cap ? Cap->GetScaledCapsuleRadius()     : 42.f;
+				const FVector            Loc    = Transforms[i].GetTransform().GetLocation();
+				ClientTargets.Add({ Actor, Loc, (-Loc).GetSafeNormal(), HalfH, Radius, false });
+			}
+		});
+
+		if (ClientTargets.IsEmpty())
+			return;
+
+		const bool bFriendlyFireClient = GetDefault<ULNPSettings>()->bFriendlyFire;
+
+		AttackerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+		{
+			TArrayView<FLNPWeaponTraceFragment> Attackers = Ctx.GetMutableFragmentView<FLNPWeaponTraceFragment>();
+
+			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+			{
+				FLNPWeaponTraceFragment& Frag = Attackers[i];
+				if (!Frag.bIsLocalInstigator || Frag.bLocalFeedbackFired)
+					continue;
+
+				ALNPCharacterBase* AttackerChar = Frag.InstigatorActor.Get();
+				if (!AttackerChar)
+					continue;
+
+				const bool  bDegenerate  = FVector::DistSquared(Frag.SwordTipPrev, Frag.SwordTipCurr) < 1.f;
+				const float SwordRadius  = Frag.HitRadius;
+
+				for (const FClientCapsuleTarget& Target : ClientTargets)
+				{
+					if (!Target.Actor || Target.Actor == AttackerChar)
+						continue;
+
+					if (Frag.InstigatorTeam == ELNPInstigatorTeam::Player && !Target.bIsEnemy && !bFriendlyFireClient)
+						continue;
+					if (Frag.InstigatorTeam == ELNPInstigatorTeam::Enemy && Target.bIsEnemy)
+						continue;
+
+					FVector CapsuleBot, CapsuleTop;
+					MakeCapsuleSeg(Target.CapsuleCenter, Target.UpDir, Target.CapsuleHalfHeight, Target.CapsuleRadius, CapsuleBot, CapsuleTop);
+
+					float DistSq;
+					if (bDegenerate)
+					{
+						FVector P1, P2;
+						FMath::SegmentDistToSegment(Frag.SwordRootCurr, Frag.SwordTipCurr, CapsuleBot, CapsuleTop, P1, P2);
+						DistSq = FVector::DistSquared(P1, P2);
+					}
+					else
+					{
+						DistSq = SweptQuadCapsuleDistSq(
+							Frag.SwordRootPrev, Frag.SwordTipPrev,
+							Frag.SwordRootCurr, Frag.SwordTipCurr,
+							CapsuleBot, CapsuleTop);
+					}
+
+					if (DistSq > FMath::Square(SwordRadius + Target.CapsuleRadius))
+						continue;
+
+					Ctx.Defer().PushCommand<FLNPLocalHitFeedbackCommand>(Ctx.GetEntity(i), AttackerChar);
+					break;  // 스윙당 예측 피드백 1회 — 서버 확정 결과가 최종
+				}
+			}
+		});
+		return;
+	}
+
 	// ── Pass 1: Enemy 캡슐 데이터 수집 ────────────────────────────────────────
 	struct FCollectedEnemy
 	{
@@ -175,6 +340,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		FLNPEnemyFragment* Fragment;
 		FMassEntityHandle  Handle;
 		AActor*            Actor;
+		FVector            RawLocation;      // Lag Compensation 되감기 기준 원점
+		const FLNPPositionHistoryFragment* History;
 	};
 	TArray<FCollectedEnemy> Enemies;
 
@@ -187,9 +354,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		const float HalfH  = Shared.Config->CapsuleHalfHeight;
 		const float Radius = Shared.Config->CapsuleRadius;
 
-		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
-		TArrayView<FLNPEnemyFragment>             EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
-		TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FTransformFragment>           Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		TArrayView<FLNPEnemyFragment>                       EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
+		TArrayView<FMassActorFragment>                      ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FLNPPositionHistoryFragment>  Histories  = Ctx.GetFragmentView<FLNPPositionHistoryFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -201,7 +369,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				Center = Loc;
 			else
 				Center = Loc + UpDir * HalfH;
-			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor });
+			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i] });
 		}
 	});
 
@@ -216,14 +384,17 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		FMassEntityHandle      Handle;
 		AActor*                Actor;
 		FLNPParryStateFragment ParryState;
+		FVector                RawLocation;    // Lag Compensation 되감기 기준 원점
+		const FLNPPositionHistoryFragment* History;
 	};
 	TArray<FCollectedPlayer> Players;
 
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
-		const TConstArrayView<FTransformFragment>     Transforms = Ctx.GetFragmentView<FTransformFragment>();
-		TArrayView<FMassActorFragment>                ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
-		const TConstArrayView<FLNPParryStateFragment> ParryFrags = Ctx.GetFragmentView<FLNPParryStateFragment>();
+		const TConstArrayView<FTransformFragment>          Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		TArrayView<FMassActorFragment>                     ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FLNPParryStateFragment>      ParryFrags = Ctx.GetFragmentView<FLNPParryStateFragment>();
+		const TConstArrayView<FLNPPositionHistoryFragment> Histories  = Ctx.GetFragmentView<FLNPPositionHistoryFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -234,7 +405,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const FTransform&        T      = Transforms[i].GetTransform();
 			const FVector            Loc    = T.GetLocation();
 			const FVector            Up     = (-Loc).GetSafeNormal();
-			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i] });
+			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i], Loc, &Histories[i] });
 		}
 	});
 
@@ -243,7 +414,11 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 	const bool bFriendlyFire = GetDefault<ULNPSettings>()->bFriendlyFire;
 
-	// ── Pass 3: Swept Volume 피격 판정 ────────────────────────────────────────
+	// ── Pass 3: Swept Volume 피격 판정 (Lag Compensation 포함) ─────────────────
+	UMassActorSubsystem* ActorSubForRewind = World->GetSubsystem<UMassActorSubsystem>();
+	constexpr float MaxRewindSeconds = 0.2f; // 섹션 5.0 — 되감기 클램프 상한 200ms
+	const double NowForRewind = World->GetTimeSeconds();
+
 	AttackerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		TArrayView<FLNPWeaponTraceFragment> Attackers = Ctx.GetMutableFragmentView<FLNPWeaponTraceFragment>();
@@ -251,6 +426,27 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			FLNPWeaponTraceFragment& Frag = Attackers[i];
+
+			// 공격자 RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (섹션 5.0).
+			// 공격자가 Player가 아니면(Enemy AI) PlayerController가 없어 RewindSeconds=0 → 보정 없음.
+			float RewindSeconds = 0.f;
+			if (ActorSubForRewind && Frag.InstigatorEntity.IsSet())
+			{
+				if (const ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(ActorSubForRewind->GetActorFromHandle(Frag.InstigatorEntity)))
+				{
+					if (const APlayerState* AttackerPS = AttackerChar->GetPlayerState<APlayerState>())
+						RewindSeconds = FMath::Clamp(AttackerPS->GetPingInMilliseconds() * 0.0005f, 0.f, MaxRewindSeconds);
+				}
+			}
+			const double RewindQueryTime = NowForRewind - RewindSeconds;
+
+			// 되감긴 캡슐 중심 = 현재 캡슐 중심 + (과거 원점 - 현재 원점). RewindSeconds가 0이면 원본 그대로 반환.
+			auto RewoundCenter = [&](const FVector& CapsuleCenter, const FVector& RawLoc, const FLNPPositionHistoryFragment* History) -> FVector
+			{
+				if (RewindSeconds <= 0.f || !History)
+					return CapsuleCenter;
+				return CapsuleCenter + (History->GetInterpolatedLocation(RewindQueryTime) - RawLoc);
+			};
 
 			// Prev==Curr(첫 프레임): 칼날 이동 없음 → 선분 vs 선분으로 폴백
 			// 그 외: Swept Quad(삼각형 2개) vs 캡슐 축 선분 최단 거리 계산
@@ -283,7 +479,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					if (Enemy.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Enemy.Handle))
 						continue;
 
-					if (CalcDistSq(Enemy.CapsuleCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius)
+					if (CalcDistSq(RewoundCenter(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History), Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius)
 						> FMath::Square(SwordRadius + Enemy.CapsuleRadius))
 						continue;
 
@@ -294,7 +490,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					{
 						const FVector SwordMid   = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
 						const FVector HitFromDir = (SwordMid - Enemy.CapsuleCenter).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, Frag.KnockbackStrength);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, Frag.KnockbackStrength, true);
 					}
 					else
 					{
@@ -306,27 +502,48 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					}
 				}
 
-				// Player 공격 → Player 타겟 (아군 사격 켜진 경우만)
+				// Player 공격 → Player 타겟 (아군 사격 켜진 경우만, 패링/가드/피격 분기)
 				if (bFriendlyFire)
 				{
+					const FVector AttackerLoc      = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
+					const float   SwordParryRadius = Frag.ParryRadius;
+
 					for (FCollectedPlayer& Player : Players)
 					{
 						if (Player.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Player.Handle))
 							continue;
 
-						if (CalcDistSq(Player.CapsuleCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius)
-							> FMath::Square(SwordRadius + Player.CapsuleRadius))
+						const FLNPParryStateFragment& PS          = Player.ParryState;
+						const FVector                 AttackerDir = (AttackerLoc - Player.CapsuleCenter).GetSafeNormal();
+						const float                   Dot         = FVector::DotProduct(Player.ForwardVector, AttackerDir);
+						const float                   DistSq      = CalcDistSq(RewoundCenter(Player.CapsuleCenter, Player.RawLocation, Player.History), Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
+
+						// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경)
+						if (PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || NowForRewind <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos
+							&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
+						{
+							MarkHit(Frag, Player.Handle);
+							if (Player.Actor)
+								Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, Frag.InstigatorEntity);
+							continue;
+						}
+
+						// 2단계: 피격 체크 (HitRadius — 정상 반경)
+						if (DistSq > FMath::Square(SwordRadius + Player.CapsuleRadius))
 							continue;
 
 						MarkHit(Frag, Player.Handle);
+						if (!Player.Actor) continue;
+
+						if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
+						{
+							Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
+							continue;
+						}
 
 						const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
-						if (Player.Actor && EffectClass)
-						{
-							const FVector SwordMid   = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
-							const FVector HitFromDir = (SwordMid - Player.CapsuleCenter).GetSafeNormal();
-							Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, Frag.KnockbackStrength);
-						}
+						if (EffectClass)
+							Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, Frag.KnockbackStrength, true);
 					}
 				}
 			}
@@ -344,10 +561,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					const FLNPParryStateFragment& PS          = Player.ParryState;
 					const FVector                 AttackerDir = (AttackerLoc - Player.CapsuleCenter).GetSafeNormal();
 					const float                   Dot         = FVector::DotProduct(Player.ForwardVector, AttackerDir);
-					const float                   DistSq      = CalcDistSq(Player.CapsuleCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
+					const float                   DistSq      = CalcDistSq(RewoundCenter(Player.CapsuleCenter, Player.RawLocation, Player.History), Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
 
 					// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경)
-					if (PS.bIsParrying && Dot >= PS.ParryAngleCos
+					if (PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || NowForRewind <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos
 						&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
 					{
 						MarkHit(Frag, Player.Handle);
@@ -371,7 +588,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (EffectClass)
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, Frag.KnockbackStrength);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, Frag.KnockbackStrength, true);
 				}
 			}
 		}

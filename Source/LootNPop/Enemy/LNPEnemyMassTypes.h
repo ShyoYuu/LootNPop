@@ -151,6 +151,8 @@ struct LOOTNPOP_API FLNPEnemySharedFragment : public FMassConstSharedFragment
 	TObjectPtr<ULNPEnemyConfig> Config;
 };
 
+class UMassReplicationTrait;
+
 /** Enemy Entity Template 설정을 위한 Trait */
 UCLASS()
 class LOOTNPOP_API ULNPEnemyTrait : public UMassEntityTraitBase
@@ -158,9 +160,16 @@ class LOOTNPOP_API ULNPEnemyTrait : public UMassEntityTraitBase
 	GENERATED_BODY()
 
 public:
+	ULNPEnemyTrait();
+
 	UPROPERTY(EditAnywhere, Category = "LNP|Enemy")
 	TObjectPtr<ULNPEnemyConfig> EnemyConfig;
 
 protected:
 	virtual void BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const override;
+
+	/** Enemy MassReplication(Phase 6) — BubbleInfoClass/ReplicatorClass를 LNP 전용 클래스로 고정해 내부적으로 위임한다.
+	 *  Standalone(NM_Standalone)에서는 UMassReplicationTrait::BuildTemplate 자체가 조기 반환하므로 별도 분기가 필요 없다. */
+	UPROPERTY(VisibleAnywhere, Category = "LNP|Enemy", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMassReplicationTrait> ReplicationTrait;
 };

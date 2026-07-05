@@ -4,6 +4,7 @@
 #include "GAS/Effects/LNPGameplayEffect_Cooldown.h"
 #include "Item/LNPWeaponData.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
+#include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "Character/LNPCharacterBase.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "LNPGameplayTags.h"
@@ -15,6 +16,8 @@
 #include "MassCommonFragments.h"
 #include "MassCommands.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
+#include "GameplayPrediction.h"
 
 
 void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
@@ -37,7 +40,7 @@ void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle 
 		return;
 	}
 
-	SpawnProjectile();
+	SpawnProjectile(ActivationInfo);
 	Character->PlayMontage(TAG_Montage_Situation_Attack);
 
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
@@ -67,9 +70,9 @@ void ULNPAbility_RangedAttack::ApplyCooldown(const FGameplayAbilitySpecHandle Ha
 	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
 }
 
-void ULNPAbility_RangedAttack::SpawnProjectile() const
+void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationInfo& ActivationInfo) const
 {
-	const ALNPCharacterBase* Character = GetOwningCharacter();
+	ALNPCharacterBase* Character = GetOwningCharacter();
 	if (nullptr == Character)
 		return;
 
@@ -121,9 +124,53 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 		? ELNPInstigatorTeam::Enemy
 		: ELNPInstigatorTeam::Player;
 
+	// --- 네트워크 예측 식별자 (Ghost Projectile 재조정용, 섹션 5.2 참조) ---
+	const bool  bIsLocalInstigator = Character->IsLocallyControlled();
+	const int32 InstigatorPlayerID = Character->GetPlayerState<APlayerState>()
+		? Character->GetPlayerState<APlayerState>()->GetPlayerId() : INDEX_NONE;
+
+	// 예측 발사는 FPredictionKey를 그대로 쓴다 (공격자 클라·서버가 같은 값을 공유).
+	// 예측 키가 없는 발사(리슨 호스트·NPC — 키가 0)는 서버 발급 SalvoID로 대체해 전역 고유성을 확보한다.
+	int32 KeyOrSalvo = static_cast<int32>(ActivationInfo.GetActivationPredictionKey().Current);
+	if (KeyOrSalvo == 0 && Character->HasAuthority())
+		KeyOrSalvo = ULNPGhostProjectileSubsystem::IssueServerSalvoID();
+
+	// 발사 시점의 공격자 RTT/2 — 서버에서는 Lag Compensation 캐싱과 관전자 Dead Reckoning 업스트림 지연에 공용.
+	float AttackerHalfRTT = 0.f;
+	if (Character->HasAuthority())
+	{
+		if (const APlayerState* AttackerPS = Character->GetPlayerState<APlayerState>())
+			AttackerHalfRTT = FMath::Clamp(AttackerPS->GetPingInMilliseconds() * 0.0005f, 0.f, 0.2f);
+	}
+
+	// 서버 거부 판정을 예측 중인 원격 클라이언트에서만 Ghost를 등록한다.
+	// Standalone/리슨서버 호스트는 IsPredictingClient()==false — 엔티티가 단 하나뿐이라 Ghost가 불필요하다.
+	const bool bShouldRegisterGhost = bIsLocalInstigator && IsPredictingClient();
+	ULNPGhostProjectileSubsystem* GhostSub = bShouldRegisterGhost ? World->GetSubsystem<ULNPGhostProjectileSubsystem>() : nullptr;
+	if (GhostSub)
+	{
+		// FPredictionKeyDelegates::NewRejectedDelegate(정적 오버로드)는 모듈 밖에 노출되지 않아(UE_API 누락),
+		// 로컬 사본을 만들어 멤버 버전(FPredictionKey::NewRejectedDelegate, 노출됨)을 사용한다.
+		FPredictionKey RejectKey = ActivationInfo.GetActivationPredictionKey();
+		RejectKey.NewRejectedDelegate().BindUObject(GhostSub, &ULNPGhostProjectileSubsystem::DestroyAllGhostsForKey, InstigatorPlayerID, KeyOrSalvo);
+	}
+
 	// --- 파생 클래스가 발사 방향 배열을 제공 (단일 / 방사형 등) ---
 	const TArray<FVector> Directions = GetFireDirections(SpawnPos);
 
+	// --- 시뮬레이티드 프록시(구경꾼) 가시성 — 서버가 전 클라이언트에 발사 시점 1회 방송 (섹션 5.2 "제3자 가시성") ---
+	if (Character->HasAuthority())
+	{
+		TArray<FVector> Velocities;
+		Velocities.Reserve(Directions.Num());
+		for (const FVector& Dir : Directions)
+			Velocities.Add(Dir * WeaponDef->ProjectileSpeed);
+
+		Character->Multicast_SpawnGhostProjectiles(SharedData, SpawnPos, Velocities, WeaponDef->ProjectileLifetime,
+			Team, KeyOrSalvo, InstigatorPlayerID, AttackerHalfRTT);
+	}
+
+	uint8 SpawnIndex = 0;
 	for (const FVector& Dir : Directions)
 	{
 		const FMassEntityHandle Entity = EntityManager.ReserveEntity();
@@ -135,6 +182,11 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 		FragData.LifetimeRemaining = WeaponDef->ProjectileLifetime;
 		FragData.Instigator        = InstigatorHandle;
 		FragData.InstigatorTeam    = Team;
+		FragData.bIsLocalInstigator = bIsLocalInstigator;
+		FragData.InstigatorPlayerID = InstigatorPlayerID;
+		FragData.PredictionKeyID    = KeyOrSalvo;
+		FragData.SpawnIndex         = SpawnIndex;
+		FragData.CachedRewindSeconds = AttackerHalfRTT; // 서버 전용 — 발사 시점 1회 캐싱 (섹션 5.0)
 
 		FLNPProjectileVisualFragment VisualFrag;
 		FTransformFragment TransFrag;
@@ -152,6 +204,11 @@ void ULNPAbility_RangedAttack::SpawnProjectile() const
 			FragData,
 			VisualFrag,
 			TransFrag);
+
+		if (GhostSub)
+			GhostSub->RegisterGhost(Entity, { InstigatorPlayerID, KeyOrSalvo, SpawnIndex }, WeaponDef->ProjectileLifetime);
+
+		++SpawnIndex;
 	}
 }
 

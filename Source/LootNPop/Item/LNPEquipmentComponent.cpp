@@ -35,7 +35,8 @@ void ULNPEquipmentComponent::EquipWeapon(ULNPWeaponData* WeaponDef)
 	if (WeaponDef)
 	{
 		WeaponSlot.Definition = WeaponDef;
-		GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+		if (GetOwner() && GetOwner()->HasAuthority())
+			GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 	}
 }
 
@@ -44,7 +45,8 @@ void ULNPEquipmentComponent::UnequipWeapon()
 	if (!WeaponSlot.IsValid())
 		return;
 
-	RevokeItemImpl(WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+	if (GetOwner() && GetOwner()->HasAuthority())
+		RevokeItemImpl(WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 	WeaponSlot.Reset();
 }
 
@@ -57,7 +59,8 @@ void ULNPEquipmentComponent::EquipActiveSkill(int32 SlotIndex, ULNPSkillData* Sk
 	if (SkillDef)
 	{
 		ActiveSkillSlots[SlotIndex].Definition = SkillDef;
-		GrantItemImpl(SkillDef, ActiveSkillSlots[SlotIndex].GrantedAbilities, ActiveSkillSlots[SlotIndex].AppliedEffects);
+		if (GetOwner() && GetOwner()->HasAuthority())
+			GrantItemImpl(SkillDef, ActiveSkillSlots[SlotIndex].GrantedAbilities, ActiveSkillSlots[SlotIndex].AppliedEffects);
 	}
 }
 
@@ -70,7 +73,8 @@ void ULNPEquipmentComponent::UnequipActiveSkill(int32 SlotIndex)
 	if (!Slot.IsValid())
 		return;
 
-	RevokeItemImpl(Slot.GrantedAbilities, Slot.AppliedEffects);
+	if (GetOwner() && GetOwner()->HasAuthority())
+		RevokeItemImpl(Slot.GrantedAbilities, Slot.AppliedEffects);
 	Slot.Reset();
 }
 
@@ -81,7 +85,8 @@ void ULNPEquipmentComponent::AddPassiveSkill(ULNPSkillData* SkillDef)
 
 	FLNPSkillInstance& NewInstance = PassiveSkillInstances.AddDefaulted_GetRef();
 	NewInstance.Definition = SkillDef;
-	GrantItemImpl(SkillDef, NewInstance.GrantedAbilities, NewInstance.AppliedEffects);
+	if (GetOwner() && GetOwner()->HasAuthority())
+		GrantItemImpl(SkillDef, NewInstance.GrantedAbilities, NewInstance.AppliedEffects);
 }
 
 void ULNPEquipmentComponent::RemovePassiveSkill(ULNPSkillData* SkillDef)
@@ -90,7 +95,8 @@ void ULNPEquipmentComponent::RemovePassiveSkill(ULNPSkillData* SkillDef)
 	{
 		if (PassiveSkillInstances[i].Definition == SkillDef)
 		{
-			RevokeItemImpl(PassiveSkillInstances[i].GrantedAbilities, PassiveSkillInstances[i].AppliedEffects);
+			if (GetOwner() && GetOwner()->HasAuthority())
+				RevokeItemImpl(PassiveSkillInstances[i].GrantedAbilities, PassiveSkillInstances[i].AppliedEffects);
 			PassiveSkillInstances.RemoveAt(i);
 			return;
 		}

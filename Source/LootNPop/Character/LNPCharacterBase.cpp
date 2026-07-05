@@ -14,9 +14,13 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "AbilitySystemComponent.h"
 #include "MassAgentComponent.h"
+#include "Character/LNPMassAgentComponent.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimInstance.h"
 #include "ChooserFunctionLibrary.h"
+#include "Net/UnrealNetwork.h"
+
+#include "HitDetection/LNPGhostProjectileSubsystem.h"
 
 
 ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer)
@@ -33,10 +37,15 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	AnimSourceMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("AnimSourceMesh"));
 	AnimSourceMesh->SetupAttachment(CapsuleComponent);
 	AnimSourceMesh->SetVisibility(false);
+	// bVisible과 별개 플래그로 게임 중 렌더링을 차단한다. Mass 풀 재활성화(SetActorHiddenInGame(false))나
+	// 재귀 SetVisibility(true) 계열이 bVisible을 다시 켜도 이 플래그는 건드리지 않으므로 노출되지 않는다.
+	// 자식(VisualMesh)에는 전파되지 않음 — 렌더링은 VisualMesh가 담당.
+	AnimSourceMesh->SetHiddenInGame(true);
 	VisualMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("VisualMesh"));
 	VisualMesh->SetupAttachment(AnimSourceMesh);
 
-	MassAgentComponent = CreateDefaultSubobject<UMassAgentComponent>(TEXT("MassAgentComponent"));
+	// ULNPMassAgentComponent: 에이전트 경로의 NetID 캐싱 타이밍 갭 보정 (Phase 6.5 — 클래스 주석 참조)
+	MassAgentComponent = CreateDefaultSubobject<ULNPMassAgentComponent>(TEXT("MassAgentComponent"));
 
 	MoverComponent = CreateDefaultSubobject<ULNPCharacterMoverComponent>(TEXT("MoverComponent"));
 	InputHandlerComponent = CreateDefaultSubobject<ULNPInputHandlerComponent>(TEXT("InputHandlerComponent"));
@@ -49,6 +58,12 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
+}
+
+void ALNPCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ALNPCharacterBase, EquippedWeaponData);
 }
 
 bool ALNPCharacterBase::GetFaceMoveDirection() const
@@ -86,6 +101,8 @@ bool ALNPCharacterBase::TryActivateAttack()
 		// 윈도우를 즉시 소비해 이 분기가 중복 진입되지 않도록 막는다
 		ASC->RemoveLooseGameplayTag(TAG_State_ComboWindow);
 		IncrementComboIndex();
+		if (!HasAuthority())
+			Server_SetComboIndex(CurrentComboIndex); // 서버 어빌리티가 같은 몽타주 섹션을 재생하도록 동기화
 		CancelCurrentAttackAbility();
 		return TryActivateAttack_Impl();
 	}
@@ -93,8 +110,18 @@ bool ALNPCharacterBase::TryActivateAttack()
 	if (ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
 		return false;
 
+	const int32 PrevComboIndex = CurrentComboIndex;
 	ResetCombo();
+	if (!HasAuthority() && PrevComboIndex != 0)
+		Server_SetComboIndex(0); // 인덱스가 실제로 바뀔 때만 전송 (연사 입력 RPC 스팸 방지)
 	return TryActivateAttack_Impl();
+}
+
+void ALNPCharacterBase::Server_SetComboIndex_Implementation(int32 NewComboIndex)
+{
+	const ULNPWeaponData* WeaponDef = GetActiveWeaponDef();
+	const int32 MaxCombo = WeaponDef ? WeaponDef->MaxComboCount : 5;
+	CurrentComboIndex = FMath::Clamp(NewComboIndex, 0, FMath::Max(0, MaxCombo - 1));
 }
 
 bool ALNPCharacterBase::TryActivateAttack_Impl()
@@ -133,10 +160,10 @@ void ALNPCharacterBase::BeginPlay()
 
 	MontageCtx = NewObject<ULNPMontageChooserContext>(this);
 
-	if (UnarmedAnimLayerClass)
-	{
-		AnimSourceMesh->LinkAnimClassLayers(UnarmedAnimLayerClass);
-	}
+	// EquippedWeaponData가 BeginPlay 이전에 이미 리플리케이트됐을 수 있으므로(원격 관전 시점의 초기 스폰),
+	// 무조건 Unarmed로 링크하지 않고 EquipWeapon을 거쳐 현재 값을 존중한다.
+	// virtual 우회(OnRep_CurrentWeapon과 동일 패턴) — 소유하지 않은 액터에서 Server RPC가 호출되는 것을 방지.
+	ALNPCharacterBase::EquipWeapon(EquippedWeaponData);
 }
 
 void ALNPCharacterBase::PossessedBy(AController* NewController)
@@ -162,10 +189,13 @@ void ALNPCharacterBase::InitAbilitySystem()
 	ASC->AddLooseGameplayTag(CurrentWeaponTag);
 	ASC->AddLooseGameplayTag(CurrentAimModeTag);
 
-	for (const TSubclassOf<UGameplayAbility>& AbilityClass : DefaultAbilities)
+	if (HasAuthority())
 	{
-		if (AbilityClass)
-			ASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+		for (const TSubclassOf<UGameplayAbility>& AbilityClass : DefaultAbilities)
+		{
+			if (AbilityClass)
+				ASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+		}
 	}
 
 	if (InputHandlerComponent)
@@ -235,6 +265,14 @@ void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
 		WeaponMesh->SetVisibility(false);
 	}
 
+	if (HasAuthority())
+		EquippedWeaponData = WeaponData;
+}
+
+void ALNPCharacterBase::OnRep_CurrentWeapon()
+{
+	// 비주얼·태그만 갱신 (GAS 부여는 서버가 처리) — virtual 우회로 RPC 루프 방지
+	ALNPCharacterBase::EquipWeapon(EquippedWeaponData);
 }
 
 void ALNPCharacterBase::EquipTestWeapon(int32 SlotIndex)
@@ -273,10 +311,54 @@ void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)
 	}), Duration, false);
 }
 
+void ALNPCharacterBase::ApplyLocalHitFeedback()
+{
+	ApplyHitStop(0.2f);
+}
+
 void ALNPCharacterBase::ApplyKnockback(const FVector HitFromDirection, const float Strength)
 {
 	if (MoverComponent)
 		MoverComponent->ApplyKnockback(HitFromDirection, Strength);
+}
+
+void ALNPCharacterBase::Multicast_SpawnGhostProjectiles_Implementation(FLNPProjectileSharedFragment SharedData, FVector SpawnPos,
+	const TArray<FVector>& Velocities, float ProjectileLifetime, ELNPInstigatorTeam InstigatorTeam,
+	int32 KeyOrSalvo, int32 InstigatorPlayerID, float UpstreamDelaySeconds)
+{
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() != NM_Client)
+		return; // 서버/리슨호스트 자신은 이미 authoritative 엔티티를 갖고 있음 — 중복 방지.
+
+	if (IsLocallyControlled())
+		return; // 자기 자신이 쏜 발사체 — 이미 예측 Ghost가 있음(ULNPAbility_RangedAttack::SpawnProjectile).
+
+	if (ULNPGhostProjectileSubsystem* GhostSub = World->GetSubsystem<ULNPGhostProjectileSubsystem>())
+		GhostSub->SpawnSpectatorGhosts(SharedData, SpawnPos, Velocities, ProjectileLifetime,
+			InstigatorTeam, InstigatorPlayerID, KeyOrSalvo, UpstreamDelaySeconds);
+}
+
+void ALNPCharacterBase::Multicast_RespawnReflectedGhost_Implementation(FLNPProjectileSharedFragment SharedData, FVector SpawnPos,
+	FVector NewVelocity, float LifetimeRemaining, ELNPInstigatorTeam NewTeam,
+	int32 OldInstigatorPlayerID, int32 OldKeyOrSalvo, uint8 OldSpawnIndex,
+	int32 NewInstigatorPlayerID, int32 NewKeyOrSalvo)
+{
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() != NM_Client)
+		return; // 서버/리슨호스트 자신은 이미 authoritative 엔티티에 직접 반영됨.
+
+	ULNPGhostProjectileSubsystem* GhostSub = World->GetSubsystem<ULNPGhostProjectileSubsystem>();
+	if (!GhostSub)
+		return;
+
+	// 구 Ghost 소멸 — 공격자 클라이언트가 오예측(패링을 모른 채 히트 판정)으로 이미 파괴했어도 no-op으로 안전.
+	GhostSub->DestroyGhost({ OldInstigatorPlayerID, OldKeyOrSalvo, OldSpawnIndex });
+
+	// 서버 확정 반사 지점·속도로 새 Ghost 스폰 — 발사 방송과 동일한 공용 경로 (Dead Reckoning 포함).
+	// 반사는 서버에서 발원하므로 업스트림 지연은 0.
+	const FVector Velocity = NewVelocity;
+	GhostSub->SpawnSpectatorGhosts(SharedData, SpawnPos, MakeArrayView(&Velocity, 1), LifetimeRemaining,
+		NewTeam, NewInstigatorPlayerID, NewKeyOrSalvo, 0.f);
 }
 
 FVector ALNPCharacterBase::GetUpDirection() const

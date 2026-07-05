@@ -26,6 +26,7 @@
 | .context/TechDesign_LootPod.md | MassEntity 구성, SmartObject 연동, 게이지·인터럽션·보상 미구현 상세 |
 | .context/TechDesign_HUD.md | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, Blueprint 바인딩 설정 |
 | .context/TechDesign_HitDetection.md | 근접 Swept Volume·원거리 Line Segment 판정 (근접·원거리 구현 완료, 공간 쿼리 최적화 미구현) |
+| .context/TechDesign_Networking.md | Iris 기반 멀티플레이 설계 — 설계 원칙, MassEntity 네트워크 분류, 시스템별 복제 방안, 7단계 구현 계획 |
 | .context/GameDesign_ParrySystem.md | 패링 성공 조건, 투사체 타입별 반사, 플레이어 경험 의도 |
 | .context/TechDesign_ParrySystem.md | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 방안 |
 | .context/EngineAnalysis_MassEntity.md | Unreal Engine의 MassEntity 시스템 분석 |

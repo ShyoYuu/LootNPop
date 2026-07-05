@@ -135,8 +135,19 @@ private:
 
 	FTimerHandle ParryWindowTimer;
 
+	/** 서버 전용 패링 창 타이머. Server_SetGuardState가 RTT 역보정된 시간으로 별도 관리한다. */
+	FTimerHandle ServerParryWindowTimer;
+
 	UPROPERTY(EditAnywhere, Category = "LNP|Guard", meta = (ClampMin = "0.05", ClampMax = "1.0"))
 	float ParryWindowDuration = 0.15f;
+
+	/**
+	 * Guard 상태를 서버에 복제한다. 리슨 서버 호스트가 자신을 호출하면 즉시 로컬 실행되므로
+	 * HasAuthority 분기 없이 항상 호출한다.
+	 * 서버는 수신 시각에서 방어자 RTT/2를 뺀 시각을 패링 창 시작점으로 사용해 지연을 보정한다 (섹션 5.1).
+	 */
+	UFUNCTION(Server, Reliable)
+	void Server_SetGuardState(bool bGuarding);
 
 	void OnMoveTriggered(const FInputActionValue& Value);
 	void OnMoveCompleted(const FInputActionValue& Value);
@@ -156,4 +167,13 @@ private:
 	void OnLockOnReleased(const FInputActionValue& Value);
 	void OnActiveSkillStarted(const FInputActionValue& Value, int32 SlotIndex);
 	void OnActiveSkillReleased(const FInputActionValue& Value, int32 SlotIndex);
+
+	/**
+	 * PIE 멀티플레이 테스트 전용. 콘솔 변수(LNP.Debug.AuthorityAutoAction / LNP.Debug.ClientAutoAction)로
+	 * 서버(HasAuthority)·클라이언트 캐릭터 중 하나가 자동으로 공격 또는 가드/패링을 반복하게 한다.
+	 * Shift+F1로 PIE 창을 전환하지 않고 한쪽 캐릭터만 조작하며 상대 반응을 테스트할 수 있다.
+	 */
+	void TickDebugAutoAction(float DeltaTime);
+	float DebugAutoActionTimer = 0.f;
+	bool  bDebugGuardPulseActive = false;
 };

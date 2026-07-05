@@ -6,12 +6,14 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerState.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoveLibrary/BasedMovementUtils.h"
 #include "Player/LNPPlayerController.h"
 #include "LootNPop.h"
 
 #include "Movement/LNPCharacterMoverComponent.h"
+#include "Movement/LNPModifierInputs.h"
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "Camera/LNPControlRotationComponent.h"
 #include "Interaction/LNPInteractionComponent.h"
@@ -23,6 +25,7 @@
 #include "MassEntitySubsystem.h"
 #include "HitDetection/LNPGuardParryTypes.h"
 #include "Camera/LNPLockOnComponent.h"
+#include "HAL/IConsoleManager.h"
 
 ULNPInputHandlerComponent::ULNPInputHandlerComponent()
 {
@@ -56,6 +59,8 @@ void ULNPInputHandlerComponent::CacheASC(UAbilitySystemComponent* InASC)
 void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	TickDebugAutoAction(DeltaTime);
 
 	if (!CachedLookInput.IsNearlyZero() && ControlRotationComponent)
 	{
@@ -153,10 +158,10 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		CharacterInputs.ControlRotation = Pawn->GetControlRotation();
 	}
 
-	if (MoverComponent)
-	{
-		MoverComponent->SetWantsToRun(bIsDashPressed);
-	}
+	// Guard/Sprint 의도를 InputCmd에 실어 보낸다 (Jump가 FCharacterDefaultInputs::bIsJumpJustPressed로 전달되는 것과 동일한 방식).
+	FLNPModifierInputs& ModifierInputs = OutInputCmd.InputCollection.FindOrAddMutableDataByType<FLNPModifierInputs>();
+	ModifierInputs.bWantsToGuard  = bIsGuardPressed;
+	ModifierInputs.bWantsToSprint = bIsDashPressed;
 
 	if (Pawn->GetController())
 	{
@@ -395,8 +400,16 @@ void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 	bIsGuardJustPressed = !bIsGuardPressed;
 	bIsGuardPressed = true;
 
-	if (MoverComponent)
-		MoverComponent->SetWantsToGuard(true);
+	{
+		const AActor* Owner = GetOwner();
+		const APawn*  Pawn  = Cast<APawn>(Owner);
+		UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] OnGuardStarted [%s Auth=%d Local=%d]"),
+			Owner ? *Owner->GetName() : TEXT("?"),
+			Owner ? Owner->HasAuthority() : -1,
+			Pawn && Pawn->IsLocallyControlled());
+	}
+
+	// Guard 의도는 OnProduceInput에서 매 틱 InputCmd로 전달되므로 여기서 별도로 MoverComponent에 쓸 필요 없다.
 
 	if (ASC)
 	{
@@ -419,8 +432,13 @@ void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 		{
 			PF->bIsGuarding = true;
 			PF->bIsParrying = true;
+			// 로컬(예측) 갱신 — RTT 역보정 없이 즉시 만료 시각 설정. 서버 RPC 처리 시 보정된 값으로 덮어써진다.
+			PF->ParryWindowExpiryTime = GetWorld()->GetTimeSeconds() + ParryWindowDuration;
 		}
 	}
+
+	// 리슨 서버 호스트가 스스로를 호출하면 즉시 로컬 실행되므로 HasAuthority 분기 없이 항상 호출한다.
+	Server_SetGuardState(true);
 }
 
 void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
@@ -428,8 +446,16 @@ void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
 	bIsGuardPressed = false;
 	bIsGuardJustPressed = false;
 
-	if (MoverComponent)
-		MoverComponent->SetWantsToGuard(false);
+	{
+		const AActor* Owner = GetOwner();
+		const APawn*  Pawn  = Cast<APawn>(Owner);
+		UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] OnGuardReleased [%s Auth=%d Local=%d]"),
+			Owner ? *Owner->GetName() : TEXT("?"),
+			Owner ? Owner->HasAuthority() : -1,
+			Pawn && Pawn->IsLocallyControlled());
+	}
+
+	// Guard 의도는 OnProduceInput에서 매 틱 InputCmd로 전달되므로 여기서 별도로 MoverComponent에 쓸 필요 없다.
 
 	if (ASC)
 	{
@@ -441,7 +467,50 @@ void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
 		{
 			PF->bIsGuarding = false;
 			PF->bIsParrying = false;
+			PF->ParryWindowExpiryTime = -1.0;
 		}
+	}
+
+	Server_SetGuardState(false);
+}
+
+void ULNPInputHandlerComponent::Server_SetGuardState_Implementation(bool bGuarding)
+{
+	FLNPParryStateFragment* PF = GetParryFragment();
+	if (!PF)
+		return;
+
+	const double Now = GetWorld()->GetTimeSeconds();
+
+	if (bGuarding)
+	{
+		PF->bIsGuarding = true;
+		PF->bIsParrying = true;
+
+		// 방어자 RTT/2만큼 과거로 되돌려 실제 입력 시각을 복원한다 (섹션 5.1).
+		// 보정 클램프 상한은 패링 창 절반으로 보수적 설정.
+		float RewindSeconds = 0.f;
+		if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+			if (const APlayerState* PS = OwnerPawn->GetPlayerState<APlayerState>())
+				RewindSeconds = FMath::Clamp(PS->GetPingInMilliseconds() * 0.0005f, 0.f, ParryWindowDuration * 0.5f);
+
+		PF->ParryWindowExpiryTime = Now - RewindSeconds + ParryWindowDuration;
+
+		GetWorld()->GetTimerManager().SetTimer(
+			ServerParryWindowTimer,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				if (FLNPParryStateFragment* PF2 = GetParryFragment())
+					PF2->bIsParrying = false;
+			}),
+			FMath::Max(0.01f, ParryWindowDuration - RewindSeconds), false);
+	}
+	else
+	{
+		PF->bIsGuarding = false;
+		PF->bIsParrying = false;
+		PF->ParryWindowExpiryTime = -1.0;
+		GetWorld()->GetTimerManager().ClearTimer(ServerParryWindowTimer);
 	}
 }
 
@@ -482,4 +551,72 @@ void ULNPInputHandlerComponent::OnActiveSkillReleased(const FInputActionValue& V
 {
 	ActiveSkillPressed[SlotIndex] = false;
 	ActiveSkillJustPressed[SlotIndex] = false;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PIE 멀티플레이 테스트 전용 디버그 오토 액션 — Shift+F1 창 전환 없이 한쪽을 자동화한다.
+// 콘솔: LNP.Debug.AuthorityAutoAction / LNP.Debug.ClientAutoAction  (0=끔, 1=공격, 2=가드·패링 펄스)
+// ──────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	TAutoConsoleVariable<int32> CVarDebugAuthorityAutoAction(
+		TEXT("LNP.Debug.AuthorityAutoAction"), 0,
+		TEXT("서버(HasAuthority) 캐릭터 자동 행동. 0=끔 1=공격 2=가드/패링 펄스"), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> CVarDebugClientAutoAction(
+		TEXT("LNP.Debug.ClientAutoAction"), 0,
+		TEXT("비서버(클라이언트) 캐릭터 자동 행동. 0=끔 1=공격 2=가드/패링 펄스"), ECVF_Cheat);
+}
+
+void ULNPInputHandlerComponent::TickDebugAutoAction(float DeltaTime)
+{
+	const APawn* Owner = Cast<APawn>(GetOwner());
+	// HasAuthority()는 서버 월드에서 처리되는 모든 폰(호스트 자신 + 원격 클라이언트의 서버측 복제본)에
+	// 전부 true를 반환하므로, IsLocallyControlled()로 먼저 "이 월드 인스턴스가 실제로 조작 중인
+	// 바로 그 캐릭터"만 남겨야 한다. 그렇지 않으면 AuthorityAutoAction이 서버 월드의 모든 폰에 적용된다.
+	if (!Owner || !Owner->IsLocallyControlled())
+		return;
+
+	OnAttackReleased(FInputActionValue());
+
+	const int32 Mode = Owner->HasAuthority()
+		? CVarDebugAuthorityAutoAction.GetValueOnGameThread()
+		: CVarDebugClientAutoAction.GetValueOnGameThread();
+
+	if (Mode == 0)
+	{
+		DebugAutoActionTimer = 0.f;
+		if (bDebugGuardPulseActive)
+		{
+			OnGuardReleased(FInputActionValue());
+			bDebugGuardPulseActive = false;
+		}
+		return;
+	}
+
+	DebugAutoActionTimer -= DeltaTime;
+	if (DebugAutoActionTimer > 0.f)
+		return;
+
+	if (Mode == 1) // 자동 공격 — 기존 입력 경로(TryActivateAttack) 그대로 재사용
+	{
+		OnAttackTriggered(FInputActionValue());
+		DebugAutoActionTimer = 0.6f;
+	}
+	else if (Mode == 2) // 자동 가드 펄스: 0.3초 가드 유지 → 0.5초 대기 → 반복
+	{
+		if (bDebugGuardPulseActive)
+		{
+			OnGuardReleased(FInputActionValue());
+			bDebugGuardPulseActive = false;
+			DebugAutoActionTimer = 0.5f;
+		}
+		else
+		{
+			OnGuardStarted(FInputActionValue());
+			bDebugGuardPulseActive = true;
+			DebugAutoActionTimer = 0.3f;
+		}
+	}
 }

@@ -39,6 +39,9 @@ protected:
 	virtual bool TryActivateAttack_Impl() override;
 	virtual void CancelCurrentAttackAbility() override;
 
+	UFUNCTION(Server, Reliable)
+	void Server_EquipWeapon(ULNPWeaponData* WeaponData);
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UGameplayCameraComponent> GameplayCamera;
