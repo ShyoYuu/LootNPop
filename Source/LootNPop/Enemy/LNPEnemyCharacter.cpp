@@ -20,9 +20,12 @@ ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializ
 	: Super(ObjectInitializer)
 {
 	PrimaryActorTick.bCanEverTick = true;
+	bReplicates = true;
+	SetNetUpdateFrequency(30.f);
 
 	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("ASC"));
-	ASC->SetIsReplicated(false);
+	ASC->SetIsReplicated(true);
+	ASC->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 
 	AttributeSet = CreateDefaultSubobject<ULNPBaseAttributeSet>(TEXT("AttributeSet"));
 
@@ -43,6 +46,7 @@ UAbilitySystemComponent* ALNPEnemyCharacter::GetAbilitySystemComponent() const
 void ALNPEnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
 	if (ASC)
 	{
 		ASC->InitAbilityActorInfo(this, this);

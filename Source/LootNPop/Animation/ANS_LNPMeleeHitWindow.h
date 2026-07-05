@@ -54,6 +54,14 @@ public:
 	virtual FString GetNotifyName_Implementation() const override { return TEXT("LNP Melee Hit Window"); }
 
 private:
-	FMassEntityHandle MeleeEntity;
-	bool bEntityActive = false;
+	/**
+	 * UAnimNotifyState는 이 노티파이를 배치한 몽타주를 재생하는 모든 AnimInstance(서버·클라이언트,
+	 * 여러 캐릭터 포함)가 공유하는 단일 오브젝트다. 따라서 진행 중인 스윙 상태를 이 클래스의 평범한
+	 * 멤버 변수로 저장하면 안 되며, 반드시 호출마다 전달되는 MeshComp로 구분해야 한다.
+	 */
+	struct FActiveSwing
+	{
+		FMassEntityHandle Entity;
+	};
+	TMap<TWeakObjectPtr<USkeletalMeshComponent>, FActiveSwing> ActiveSwings;
 };

@@ -17,6 +17,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
+	virtual void AcknowledgePossession(APawn* P) override;
 
 	/** Blueprint에서 Override하여 로딩 스크린 Widget을 표시한다 */
 	UFUNCTION(BlueprintImplementableEvent, Category = "LNP|UI")

@@ -36,4 +36,6 @@ private:
 
 	bool bServerInitComplete = false;
 	TArray<TWeakObjectPtr<AController>> PendingPlayers;
+	/** ServerNotifyClientReady() RPC를 수신한 클라이언트 집합 — 폰 스폰의 두 번째 게이트 */
+	TSet<TWeakObjectPtr<ALNPPlayerController>> ReadyClients;
 };

@@ -5,14 +5,19 @@
 #include "DataAsset/LNPMassSpawnConfig.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "Enemy/LNPEnemyReplication.h"
+#include "Character/LNPPlayerReplication.h"
 #include "LootNPop.h"
 
 #include "Async/Async.h"
 
 #include "MassEntityConfigAsset.h"
+#include "MassAgentComponent.h"
 #include "MassSpawnerSubsystem.h"
 #include "MassEntityManager.h"
+#include "GameFramework/Pawn.h"
 #include "MassCommonFragments.h"
+#include "MassReplicationSubsystem.h"
 #include "Engine/World.h"
 #include "Kismet/KismetMathLibrary.h"
 
@@ -20,6 +25,53 @@ void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	RandomStream.GenerateNewSeed();
+
+	// MassReplication(Phase 6/6.5): 클라이언트가 접속하기 전에 BubbleInfoClass를 등록해야 한다 (RegisterBubbleInfoClass 문서 제약).
+	if (UMassReplicationSubsystem* ReplicationSubsystem = GetWorld()->GetSubsystem<UMassReplicationSubsystem>())
+	{
+		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPEnemyClientBubbleInfo::StaticClass());
+		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPPlayerClientBubbleInfo::StaticClass());
+	}
+
+	// Enemy MassReplication(Phase 6): Enemy 스폰(BeginSpawning)은 서버 전용 ALNPGameMode가 호출하므로
+	// 클라이언트는 EnemyEntityConfig의 FMassEntityTemplate을 로컬 TemplateRegistry에 등록할 기회가 전혀 없다.
+	// Bubble이 복제 스폰(SpawnEntities by TemplateID) 시도 시 "TemplateID must have been registered!"로 죽는 것을 막기 위해,
+	// 실제 스폰 없이 템플릿만 서버·클라이언트 양쪽에서 미리 등록(warm-up)한다.
+	if (const ULNPSettings* Settings = GetDefault<ULNPSettings>())
+	{
+		if (const ULNPMassSpawnConfig* Config = Settings->MassSpawnConfig.LoadSynchronous())
+		{
+			for (const FLNPLootPodSpawnEntry& PodEntry : Config->LootPodSpawnSets)
+			{
+				for (const FLNPEnemySpawnEntry& EnemyEntry : PodEntry.AssociatedEnemies)
+				{
+					if (UMassEntityConfigAsset* EnemyConfig = EnemyEntry.EnemyEntityConfig)
+						EnemyConfig->GetOrCreateEntityTemplate(*GetWorld());
+				}
+			}
+		}
+
+		// Player MassReplication(Phase 6.5): Player 엔티티 템플릿도 동일한 이유로 warm-up이 필요하다.
+		// 단, Player의 TemplateID는 폰 BP에 저장된 MassAgentComponent::EntityConfig(구조체 GUID)에서 파생되므로
+		// DA 에셋이 아니라 폰 CDO의 컴포넌트를 기준으로 등록해야 서버가 방송하는 TemplateID와 일치한다.
+		if (UClass* PawnClass = Settings->PlayerPawnClass.LoadSynchronous())
+		{
+			const APawn* PawnCDO = PawnClass->GetDefaultObject<APawn>();
+			const UMassAgentComponent* AgentComp = PawnCDO ? PawnCDO->FindComponentByClass<UMassAgentComponent>() : nullptr;
+			if (AgentComp)
+			{
+				AgentComp->GetEntityConfig().GetOrCreateEntityTemplate(*GetWorld());
+			}
+			else
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("Player template warm-up failed: PawnCDO=%s has no MassAgentComponent"), *GetNameSafe(PawnCDO));
+			}
+		}
+		else
+		{
+			UE_LOG(LogLootNPop, Warning, TEXT("Player template warm-up skipped: LNPSettings.PlayerPawnClass not set — client puppet linking will not work"));
+		}
+	}
 }
 
 void ULNPMassSpawnSubsystem::BeginSpawning()

@@ -74,16 +74,27 @@ void ALNPGameMode::OnEntitySpawningComplete()
 	GS->ServerPhase = ELNPInitPhase::Complete;
 	bServerInitComplete = true;
 
-	UE_LOG(LogLootNPop, Log, TEXT("ALNPGameMode: Server init complete. Spawning %d pending players."), PendingPlayers.Num());
-
+	// 클라이언트 준비까지 완료된 플레이어만 즉시 스폰. 미완료 플레이어는 OnClientReady에서 처리.
+	TArray<TWeakObjectPtr<AController>> StillPending;
+	int32 SpawnedCount = 0;
 	for (TWeakObjectPtr<AController>& Ctrl : PendingPlayers)
 	{
-		if (Ctrl.IsValid())
+		if (!Ctrl.IsValid()) continue;
+		ALNPPlayerController* PC = Cast<ALNPPlayerController>(Ctrl.Get());
+		if (!PC || ReadyClients.Contains(PC))
 		{
 			Super::RestartPlayer(Ctrl.Get());
+			++SpawnedCount;
+		}
+		else
+		{
+			StillPending.Add(Ctrl);
 		}
 	}
-	PendingPlayers.Empty();
+	PendingPlayers = MoveTemp(StillPending);
+
+	UE_LOG(LogLootNPop, Log, TEXT("ALNPGameMode: Server init complete. Spawned %d players, %d awaiting client ready."),
+		SpawnedCount, PendingPlayers.Num());
 }
 
 void ALNPGameMode::RestartPlayer(AController* NewPlayer)
@@ -93,10 +104,27 @@ void ALNPGameMode::RestartPlayer(AController* NewPlayer)
 		PendingPlayers.AddUnique(NewPlayer);
 		return;
 	}
+	// 서버 초기화 완료 후에도 해당 클라이언트가 로컬 베이킹을 끝낼 때까지 대기
+	ALNPPlayerController* PC = Cast<ALNPPlayerController>(NewPlayer);
+	if (PC && !ReadyClients.Contains(PC))
+	{
+		PendingPlayers.AddUnique(NewPlayer);
+		return;
+	}
 	Super::RestartPlayer(NewPlayer);
 }
 
 void ALNPGameMode::OnClientReady(ALNPPlayerController* PC)
 {
-	// 향후 사용 예약: 예) 게임 시작 전 모든 클라이언트 대기
+	ReadyClients.Add(PC);
+
+	if (bServerInitComplete)
+	{
+		// 서버 완료 후 뒤늦게 준비된 클라이언트 (중간 참여 포함) — 지금 스폰
+		PendingPlayers.RemoveAll([PC](const TWeakObjectPtr<AController>& Weak)
+		{
+			return Weak.Get() == PC;
+		});
+		Super::RestartPlayer(PC);
+	}
 }

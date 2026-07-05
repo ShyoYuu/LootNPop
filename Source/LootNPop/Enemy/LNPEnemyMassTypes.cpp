@@ -2,6 +2,9 @@
 
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPEnemyReplication.h"
+#include "Enemy/LNPEnemyReplicator.h"
+#include "HitDetection/LNPPositionHistoryFragment.h"
 
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
@@ -11,8 +14,16 @@
 #include "MassNavigationFragments.h"
 #include "MassDistanceLODProcessor.h"
 #include "MassStateTreeFragments.h"
+#include "MassReplicationTrait.h"
 #include "StateTree.h"
 
+
+ULNPEnemyTrait::ULNPEnemyTrait()
+{
+	ReplicationTrait = CreateDefaultSubobject<UMassReplicationTrait>(TEXT("ReplicationTrait"));
+	ReplicationTrait->Params.BubbleInfoClass = ALNPEnemyClientBubbleInfo::StaticClass();
+	ReplicationTrait->Params.ReplicatorClass = ULNPEnemyReplicator::StaticClass();
+}
 
 void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
@@ -24,6 +35,7 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	BuildContext.AddFragment<FMassMoveTargetFragment>();
 	BuildContext.AddFragment<FLNPEnemyVelocityFragment>();
 	//BuildContext.AddFragment<FMassVelocityFragment>();
+	BuildContext.AddFragment<FLNPPositionHistoryFragment>(); // Lag Compensation용 위치 히스토리 (서버 전용 기록)
 
 	// 2. Shared Config Fragment
 	if (EnemyConfig != nullptr)
@@ -42,4 +54,7 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 
 	// 4. 필수 Mass 시스템 Fragment
 	BuildContext.AddFragment<FMassActorFragment>();
+
+	// 5. Enemy MassReplication (Phase 6) — NM_Standalone이면 UMassReplicationTrait::BuildTemplate이 자체적으로 조기 반환한다.
+	ReplicationTrait->BuildTemplate(BuildContext, World);
 }

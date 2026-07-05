@@ -23,4 +23,11 @@ struct LOOTNPOP_API FLNPParryStateFragment : public FMassFragment
 	bool  bIsGuarding   = false;   // 가드 중 여부 (TAG_State_Guarding 미러)
 	float ParryAngleCos = 0.707f;  // cos(45°)
 	float GuardAngleCos = 0.5f;    // cos(60°)
+
+	/**
+	 * 서버 전용: 패링 창의 RTT 역보정 절대 만료 시각(World->GetTimeSeconds() 기준).
+	 * -1 = 서버 미기록(레거시/로컬 전용 갱신). Server_SetGuardState가 방어자 RTT/2만큼 앞당겨 계산한다.
+	 * HitDetectionProcessor는 bIsParrying과 함께 이 값도 확인해 지연을 보정한다.
+	 */
+	double ParryWindowExpiryTime = -1.0;
 };

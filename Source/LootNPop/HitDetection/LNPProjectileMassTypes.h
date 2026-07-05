@@ -48,12 +48,17 @@ struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragme
 
 	UPROPERTY()
 	float HitRadius       = 5.0f;    // 피격 판정 반경
+
+	UPROPERTY()
 	float ParryRadius     = 6.0f;    // 패링 판정 반경 — HitRadius보다 크게 설정
 
 	UPROPERTY()
 	float ExplosionRadius = 0.f;     // 스플래시 데미지 반경 (0이면 미사용)
 
+	UPROPERTY()
 	float KnockbackStrength       = 0.f;  // 직격 넉백 강도
+
+	UPROPERTY()
 	float SplashKnockbackStrength = 0.f;  // 스플래시 넉백 강도
 };
 
@@ -76,6 +81,26 @@ struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
 	FMassEntityHandle Instigator;
 
 	ELNPInstigatorTeam InstigatorTeam = ELNPInstigatorTeam::Enemy;
+
+	/** 이 엔티티를 생성한 머신에서 공격자가 로컬 컨트롤 대상인지 여부 (IsLocallyControlled()).
+	 *  true인 머신에서만 클라이언트 예측 HitDetection(HitStop + Ghost 소멸)을 수행한다. */
+	bool bIsLocalInstigator = false;
+
+	/** 공격자의 APlayerState::GetPlayerId(). Enemy AI 등 PlayerState가 없으면 INDEX_NONE.
+	 *  Projectile.Impact GameplayCue 핸들러가 "이 클라이언트가 공격자 본인인지" 판정하는 데 사용한다. */
+	int32 InstigatorPlayerID = INDEX_NONE;
+
+	/** Ghost 대조 식별자 (FLNPGhostKey::KeyOrSalvo). 예측 발사는 FPredictionKey(<= 65535),
+	 *  예측 키가 없는 발사(리슨 호스트·NPC·패링 반사)는 서버 발급 SalvoID(>= 65536).
+	 *  InstigatorPlayerID·SpawnIndex와 조합해야 전역 고유가 된다. */
+	int32 PredictionKeyID = 0;
+
+	/** 한 번의 발사(산탄 등)에서 몇 번째로 생성된 Projectile인지. PredictionKeyID와 조합해 Ghost를 고유 식별한다. */
+	uint8 SpawnIndex = 0;
+
+	/** 서버 전용 — Lag Compensation 되감기 시간. 발사(또는 패링 반사) 시점의 공격자 RTT/2를 1회 캐싱해
+	 *  비행 내내 재사용한다. 매 프레임 재계산 시 "대상이 이미 피했는데 과거 잔상을 쫓아가 맞는" 문제 방지 (섹션 5.0). */
+	float CachedRewindSeconds = 0.f;
 };
 
 /** 이 Projectile에 Niagara 트레일 Component가 할당됐는지 추적한다. */

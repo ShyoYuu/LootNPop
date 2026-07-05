@@ -32,6 +32,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Mass Spawning")
 	TSoftObjectPtr<ULNPMassSpawnConfig> MassSpawnConfig;
 
+	/** Player MassReplication(Phase 6.5): 클라이언트 Player 엔티티 템플릿 warm-up용 폰 클래스.
+	 *  Bubble 복제 스폰은 TemplateID로 템플릿을 조회하는데, 그 ID는 폰의 MassAgentComponent EntityConfig에서
+	 *  파생되므로 접속 전에 CDO 기준으로 동일 템플릿을 클라이언트 TemplateRegistry에 등록해 둬야 한다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Mass Spawning")
+	TSoftClassPtr<APawn> PlayerPawnClass;
+
 	/** 적도에서 인접 Cache 셀 간의 목표 호 길이 거리 (cm). */
 	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1.0", Units="cm"))
 	float SurfaceCacheCellSpacing = 200.0f;

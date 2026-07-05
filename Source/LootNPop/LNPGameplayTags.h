@@ -32,9 +32,13 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_ParryWindow)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Block_AttackInput)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_ComboWindow)
 
-// Guard / Parry GameplayCue 태그
+// Guard / Parry / HitReact / Melee GameplayCue 태그
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Guard_Block)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Parry_Success)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Character_HitReact)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Melee_Impact)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Projectile_Impact)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Melee_AttackerHitStop)
 
 // Guard / Parry GameplayEvent 태그 (GA 몽타주 트리거용)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Parry_Success) // 방어자에게 전송 → GA_ParrySuccess 트리거

@@ -7,6 +7,21 @@
 #include "MoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoveLibrary/MovementUtils.h"
+#include "GameFramework/Pawn.h"
+#include "LootNPop.h"
+
+namespace
+{
+	// 1P/2P 구분용 디버그 태그. 임시 진단 로그 전용 — 이슈 해결 후 제거 예정.
+	FString DebugOwnerTag(const UMoverComponent* MoverComp)
+	{
+		const AActor* Owner = MoverComp ? MoverComp->GetOwner() : nullptr;
+		const APawn*  Pawn  = Cast<APawn>(Owner);
+		return Owner
+			? FString::Printf(TEXT("%s Auth=%d Local=%d"), *Owner->GetName(), Owner->HasAuthority(), Pawn && Pawn->IsLocallyControlled())
+			: TEXT("?");
+	}
+}
 
 FLNPGuardModifier::FLNPGuardModifier()
 {
@@ -17,6 +32,12 @@ void FLNPGuardModifier::OnStart(UMoverComponent* MoverComp, const FMoverTimeStep
 {
 	ULNPCharacterMovementSettings* LNPSettings    = MoverComp->FindSharedSettings_Mutable<ULNPCharacterMovementSettings>();
 	UCommonLegacyMovementSettings* CommonSettings = MoverComp->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>();
+
+	UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] Modifier::OnStart [%s]: MaxSpeed %.1f -> %.1f (LNPSettings=%d CommonSettings=%d)"),
+		*DebugOwnerTag(MoverComp),
+		CommonSettings ? CommonSettings->MaxSpeed : -1.f,
+		LNPSettings ? LNPSettings->GuardWalkSpeed : -1.f,
+		LNPSettings != nullptr, CommonSettings != nullptr);
 
 	if (LNPSettings && CommonSettings)
 	{
@@ -32,25 +53,40 @@ void FLNPGuardModifier::OnEnd(UMoverComponent* MoverComp, const FMoverTimeStep& 
 		const UCommonLegacyMovementSettings* OriginalCommonSettings = CDOMoverComp->FindSharedSettings<UCommonLegacyMovementSettings>();
 		UCommonLegacyMovementSettings*       CurrentCommonSettings  = MoverComp->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>();
 
+		UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] Modifier::OnEnd [%s]: MaxSpeed %.1f -> restoring to %.1f"),
+			*DebugOwnerTag(MoverComp),
+			CurrentCommonSettings ? CurrentCommonSettings->MaxSpeed : -1.f,
+			OriginalCommonSettings ? OriginalCommonSettings->MaxSpeed : -1.f);
+
 		if (CurrentCommonSettings && OriginalCommonSettings)
 		{
 			CurrentCommonSettings->MaxSpeed     = OriginalCommonSettings->MaxSpeed;
 			CurrentCommonSettings->Acceleration = OriginalCommonSettings->Acceleration;
 		}
 	}
+	else
+	{
+		UE_LOG(LogLootNPop, Warning, TEXT("[GuardDebug] Modifier::OnEnd [%s]: GetOriginalComponentType returned null — could not restore MaxSpeed"), *DebugOwnerTag(MoverComp));
+	}
 }
 
 bool FLNPGuardModifier::HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
 {
 	if (bExactMatch)
-		return TagToFind.MatchesTagExact(LNPTAG_Mover_IsGuarding);
+		return TagToFind.MatchesTagExact(LNP_Mover_IsGuarding);
 
-	return TagToFind.MatchesTag(LNPTAG_Mover_IsGuarding);
+	return TagToFind.MatchesTag(LNP_Mover_IsGuarding);
+}
+
+void FLNPGuardModifier::GetGameplayTags(FGameplayTagContainer& InOutTags) const
+{
+	InOutTags.AddTag(LNP_Mover_IsGuarding);
 }
 
 FMovementModifierBase* FLNPGuardModifier::Clone() const
 {
-	return new FLNPGuardModifier(*this);
+	FLNPGuardModifier* CopyPtr = new FLNPGuardModifier(*this);
+	return CopyPtr;
 }
 
 void FLNPGuardModifier::NetSerialize(FArchive& Ar)
