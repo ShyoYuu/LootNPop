@@ -7,7 +7,9 @@
 #include "LootNPop.h"
 
 #include "Kismet/KismetMathLibrary.h"
+#include "Engine/Level.h"
 #include "LevelInstance/LevelInstanceActor.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
 
 const FRotator ULNPOctantSpawnSubsystem::OctantRotations[8] = {
 	FRotator(0.f, 0.f, 0.f),
@@ -25,10 +27,23 @@ void ULNPOctantSpawnSubsystem::Tick(float DeltaTime)
 	if (false == bIsGenerating)
 		return;
 
+	ULevelInstanceSubsystem* LevelInstanceSub = GetWorld()->GetSubsystem<ULevelInstanceSubsystem>();
+
 	bool bAllLoaded = true;
 	for (ALevelInstance* Octant : SpawnedOctants)
 	{
 		if (!Octant || !Octant->IsLoaded())
+		{
+			bAllLoaded = false;
+			break;
+		}
+
+		// IsLoaded()는 레벨 "패키지" 로드만 보장할 뿐 AddToWorld 완료(콜리전 물리 씬 등록)는 보장하지 않는다.
+		// bIsVisible이 true여야 컴포넌트 등록이 끝나 라인트레이스가 표면에 명중한다.
+		// 이 검사가 없으면 중간참여 클라이언트처럼 AddToWorld가 프레임에 걸쳐 지연될 때
+		// 콜리전이 아직 없는 상태로 표면 베이킹이 시작되어 트레이스 미스가 발생한다.
+		ULevel* OctantLevel = LevelInstanceSub ? LevelInstanceSub->GetLevelInstanceLevel(Octant) : nullptr;
+		if (!OctantLevel || !OctantLevel->bIsVisible)
 		{
 			bAllLoaded = false;
 			break;

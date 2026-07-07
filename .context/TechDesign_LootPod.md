@@ -56,8 +56,9 @@
 ### 3.1 플레이어 측 (ULNPInteractionComponent)
 
 플레이어 캐릭터에 부착. `SmartObjectSubsystem`을 통해 주변 `ALNPLootPod`을 검색.
-- 상호작용 입력 → 플레이어 엔티티에 `FLNPPlayerLootingTag` 추가 + `FLNPPlayerLootingFragment` 설정
-- 이후 `ULNPIdleToLootingProcessor`가 자동으로 감지
+- 상호작용 입력 → 로컬 `CanInteract` 체크 + `Pod->StartLooting()`(비주얼 예측) → **서버에서** 플레이어 엔티티에 `FLNPPlayerLootingTag` 추가 + `FLNPPlayerLootingFragment` 설정
+  - 원격 클라이언트는 `Server_StartLooting(Pod)` RPC 경유 (서버가 `CanInteract` 재검증) — 멀티플레이 Phase 7에서 추가 (→ [TechDesign_Networking.md](TechDesign_Networking.md) §9 Phase 7)
+- 이후 서버 전용 `ULNPIdleToLootingProcessor`가 자동으로 감지 (프로세서 2종은 `NM_Client` 조기 반환)
 
 ### 3.2 Actor → Mass 상태 동기화 (ALNPLootPod)
 
@@ -72,6 +73,10 @@ Mass 프로세서에서 State가 전환되면 `ALNPLootPod` 액터의 Niagara VF
 - `UNiagaraComponent` (LootPillarVFX) — 빛기둥 이펙트
 - `USphereComponent` (LootingZoneSphere) — 루팅 유효 범위 시각화
 - `UMassAgentComponent` — Mass 엔티티 브릿지
+
+**멀티플레이 복제 (Phase 7, → [TechDesign_Networking.md](TechDesign_Networking.md) §5.4·§9):**
+- Actor 복제: `bReplicates=true` — `CurrentState`(OnRep → `UpdateVisuals`), `CurrentGaugePercent`(0~1, 서버 2% 임계값 갱신)
+- MassReplication bubble: 엔티티 존재 + 스폰 위치 1회 (`LNPLootPodReplication.h/.cpp`, `LNPLootPodReplicator.h/.cpp`)
 
 ---
 

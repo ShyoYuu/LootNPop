@@ -2,11 +2,8 @@
 
 #pragma once
 
-#include "MassReplicationTransformHandlers.h"
-#include "MassReplicationTypes.h"
-#include "MassClientBubbleHandler.h"
+#include "Replication/LNPSpawnOnlyReplication.h"
 #include "MassClientBubbleInfoBase.h"
-#include "MassEntityView.h"
 #include "LNPPlayerReplication.generated.h"
 
 /**
@@ -16,9 +13,7 @@
  * 플레이어 위치는 이미 Mover Actor 복제가 고빈도·예측·보간으로 전달하므로 Mass 채널로 또 보내면 순수 중복이다.
  * 이 bubble의 역할은 "클라이언트 월드에 엔티티를 존재하게 만들고, NetID 퍼펫 핸드셰이크로 복제된 폰과
  * 자동 연결시키는 것"뿐이다. 연결 후 엔티티 Transform은 클라이언트 로컬에서 보간된 폰 액터를 따라간다.
- *
- * 스폰 위치를 1회 싣는 이유: 퍼펫 링크 시 엔진(UMassAgentComponent::SetEntityHandleInternal)이
- * 엔티티 Transform으로 폰 위치를 초기화하므로, 비워두면 폰이 원점으로 튄다.
+ * (공용 구현·설계 배경: LNPSpawnOnlyReplication.h)
  */
 USTRUCT()
 struct LOOTNPOP_API FLNPReplicatedPlayerAgent : public FReplicatedAgentBase
@@ -54,30 +49,8 @@ struct LOOTNPOP_API FLNPPlayerFastArrayItem : public FMassFastArrayItemBase
 	FLNPReplicatedPlayerAgent Agent;
 };
 
-/** Player 타입 전용 Client Bubble 핸들러. 엔티티 스폰(존재) + 스폰 시점 위치 1회 반영만 담당한다. */
-class FLNPPlayerClientBubbleHandler : public TClientBubbleHandlerBase<FLNPPlayerFastArrayItem>
-{
-public:
-	typedef TClientBubbleHandlerBase<FLNPPlayerFastArrayItem> Super;
-	typedef TMassClientBubbleTransformHandler<FLNPPlayerFastArrayItem> FMassClientBubbleTransformHandler;
-
-	FLNPPlayerClientBubbleHandler()
-		: TransformHandler(*this)
-	{}
-
-#if UE_REPLICATION_COMPILE_SERVER_CODE
-	const FMassClientBubbleTransformHandler& GetTransformHandler() const { return TransformHandler; }
-	FMassClientBubbleTransformHandler& GetTransformHandlerMutable() { return TransformHandler; }
-#endif // UE_REPLICATION_COMPILE_SERVER_CODE
-
-protected:
-#if UE_REPLICATION_COMPILE_CLIENT_CODE
-	virtual void PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize) override;
-	virtual void PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize) override;
-#endif // UE_REPLICATION_COMPILE_CLIENT_CODE
-
-	FMassClientBubbleTransformHandler TransformHandler;
-};
+/** Player 타입 전용 Client Bubble 핸들러 — 스폰 1회 복제 공용 구현을 그대로 사용한다. */
+using FLNPPlayerClientBubbleHandler = TLNPSpawnOnlyBubbleHandler<FLNPPlayerFastArrayItem>;
 
 /** 클라이언트당 하나씩 존재하며 Player Fast Array 복제를 담당한다. */
 USTRUCT()

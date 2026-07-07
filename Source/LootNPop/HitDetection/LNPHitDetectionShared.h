@@ -5,6 +5,7 @@
 #include "MassCommandBuffer.h"
 #include "MassEntityManager.h"
 #include "MassActorSubsystem.h"
+#include "Components/CapsuleComponent.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "GameplayCueManager.h"
@@ -17,6 +18,7 @@
 
 namespace LNPHitDetection
 {
+	/** LNP 캐릭터 Actor의 ASC를 반환한다. 캐릭터가 아니거나 무효하면 null. */
 	inline UAbilitySystemComponent* GetASC(AActor* Actor)
 	{
 		if (!IsValid(Actor))
@@ -25,6 +27,12 @@ namespace LNPHitDetection
 		return Character ? Character->GetAbilitySystemComponent() : nullptr;
 	}
 
+	/** 피격 판정용 캡슐 치수. 컴포넌트가 없으면 ALNPCharacterBase 기본 캡슐(42, 96)로 폴백한다. */
+	inline void GetCapsuleSize(const UCapsuleComponent* Capsule, float& OutHalfHeight, float& OutRadius)
+	{
+		OutHalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 96.f;
+		OutRadius     = Capsule ? Capsule->GetScaledCapsuleRadius()     : 42.f;
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -108,7 +116,7 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 
 private:
 	TArray<FEntry> Entries;
-};;
+};
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 투사체 패링
@@ -316,4 +324,4 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 
 private:
 	TArray<FEntry> Entries;
-};;
+};

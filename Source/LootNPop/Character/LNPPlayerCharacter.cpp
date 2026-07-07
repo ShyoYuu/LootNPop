@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Character/LNPPlayerCharacter.h"
 #include "Player/LNPPlayerState.h"
@@ -10,10 +10,12 @@
 #include "Interaction/LNPInteractionComponent.h"
 #include "Camera/LNPLockOnComponent.h"
 #include "Camera/LNPControlRotationComponent.h"
+#include "Movement/LNPCharacterMoverComponent.h"
 #include "LootNPop.h"
 
 #include "AbilitySystemComponent.h"
 #include "GameFramework/GameplayCameraComponent.h"
+#include "MoverDataModelTypes.h"
 
 ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -26,6 +28,12 @@ ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitial
 	LockOnComponent = CreateDefaultSubobject<ULNPLockOnComponent>(TEXT("LockOnComponent"));
 
 	ControlRotationComponent = CreateDefaultSubobject<ULNPControlRotationComponent>(TEXT("ControlRotationComponent"));
+
+	// 시뮬레이티드 프록시에도 InputCmd(ControlRotation 포함)를 SyncState에 동봉해 전달한다.
+	// GetBaseAimRotation 오버라이드가 이를 읽어 관전자 화면의 Aim Offset을 동기화한다.
+	// 플레이어 폰에만 적용 — Enemy는 시선 동기화가 불필요해 대역폭을 아낀다.
+	if (MoverComponent)
+		MoverComponent->bSyncInputsForSimProxy = true;
 }
 
 void ALNPPlayerCharacter::BeginPlay()
@@ -90,6 +98,27 @@ void ALNPPlayerCharacter::Server_EquipWeapon_Implementation(ULNPWeaponData* Weap
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
 			EqComp->EquipWeapon(WeaponData);
+}
+
+FRotator ALNPPlayerCharacter::GetBaseAimRotation() const
+{
+	// 로컬 제어(소유 클라이언트·리슨호스트·스탠드얼론): 기존 동작 — Control Rotation
+	if (Controller && IsLocallyControlled())
+		return Controller->GetControlRotation();
+
+	// 서버의 원격 폰 / 시뮬레이티드 프록시: 소유 클라이언트가 매 틱 InputCmd에 실어 보낸
+	// ControlRotation(월드 공간, 축당 16비트 압축 복제)을 사용한다.
+	if (MoverComponent)
+	{
+		if (const FCharacterDefaultInputs* Inputs = MoverComponent->GetLastInputCmd().InputCollection.FindDataByType<FCharacterDefaultInputs>())
+		{
+			// 아직 입력을 한 번도 받지 못한 초기 상태(ZeroRotator)는 폴백으로 넘긴다
+			if (!Inputs->ControlRotation.IsNearlyZero())
+				return Inputs->ControlRotation;
+		}
+	}
+
+	return Super::GetBaseAimRotation();
 }
 
 const ULNPWeaponData* ALNPPlayerCharacter::GetActiveWeaponDef() const

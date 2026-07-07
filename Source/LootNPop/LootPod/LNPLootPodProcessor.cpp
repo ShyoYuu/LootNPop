@@ -1,14 +1,16 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "LNPLootPodProcessor.h"
 #include "LNPLootPodMassTypes.h"
 #include "LNPLootPod.h"
+#include "LNPMassUtils.h"
 #include "LootNPop.h"
 
 #include "MassCommonTypes.h"
 #include "MassExecutionContext.h"
 #include "MassCommonFragments.h"
 #include "MassCommandBuffer.h"
+#include "MassCommands.h"
 #include "MassActorSubsystem.h"
 
 // --- 상태 전환 알림 및 로직 처리를 위한 통합 커맨드 ---
@@ -57,14 +59,7 @@ struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
 			// 2. 상태 전환에 따른 특수 처리
 			if (Entry.NewState == ELNPLootPodState::Popped)
 			{
-				// 통합 보상 드롭 로직
-				// TODO: 실제 보상 Actor/아이템을 여기에 스폰
-			}
-			else if (Entry.NewState == ELNPLootPodState::Looting)
-			{
-			}
-			else if (Entry.NewState == ELNPLootPodState::Idle && Entry.OldState == ELNPLootPodState::Looting)
-			{
+				// TODO: 통합 보상 드롭 — 실제 보상 Actor/아이템을 여기에 스폰
 			}
 		}
 	}
@@ -108,6 +103,10 @@ void ULNPIdleToLootingProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 
 void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// LootPod MassReplication(Phase 7) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — 상태 전환은 서버 전용(Actor 복제로 전달).
+	if (LNPMass::IsClientWorld(EntityManager))
+		return;
+
 	// Player 위치 Cache
 	struct FLooterInfo { FVector Location; };
 	TArray<FLooterInfo> ActiveLooters;
@@ -125,7 +124,6 @@ void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 	EntityQuery.ForEachEntityChunk(Context, [this, &ActiveLooters](FMassExecutionContext& IterContext)
 	{
-		const int32 NumEntities = IterContext.GetNumEntities();
 		const TArrayView<FLNPLootPodFragment> LootPods = IterContext.GetMutableFragmentView<FLNPLootPodFragment>();
 		const TConstArrayView<FTransformFragment> Transforms = IterContext.GetFragmentView<FTransformFragment>();
 		const TArrayView<FMassActorFragment> ActorFragments = IterContext.GetMutableFragmentView<FMassActorFragment>();
@@ -185,6 +183,10 @@ void ULNPLootingProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>
 
 void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	// LootPod MassReplication(Phase 7) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — 게이지·상태 판정은 서버 전용(Actor 복제로 전달).
+	if (LNPMass::IsClientWorld(EntityManager))
+		return;
+
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
 
 	// 1. Player 정보 Cache (실행당 한 번)
@@ -217,39 +219,40 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 			const int32 PodID = LootPods[i].PodID;
 			const float MaxDistSq = LootPods[i].LootableDistSquared;
 
-			// 근접 체크: 이 LootPod의 유효한 루터 수집
-			TArray<float> ValidLooterSpeeds;
+			// 근접 체크: 범위 내 루터의 루팅 속도를 합산한다 (여러 명이 함께 루팅하면 그만큼 빨라짐)
+			float FinalLootSpeed = 0.0f;
+			bool  bHasValidLooter = false;
 			for (const auto& Looter : ActiveLooters)
 			{
 				if (FVector::DistSquared(PodLocation, Looter.Location) <= MaxDistSq)
 				{
-					ValidLooterSpeeds.Add(Looter.BuffedLootSpeed);
+					FinalLootSpeed += Looter.BuffedLootSpeed;
+					bHasValidLooter = true;
 				}
 			}
 
-			// --- 통합 결정 로직 ---
-
 			// A. 유효한 루터가 있으면: 게이지 업데이트 및 완료 체크
-			if (0 < ValidLooterSpeeds.Num())
+			if (bHasValidLooter)
 			{
-				// 게이지 업데이트
-				float FinalLootSpeed = 0.0f;
-				for (float Speed : ValidLooterSpeeds)
-				{
-					FinalLootSpeed += Speed;
-				}
-				
 				LootPods[i].CurrentGauge = FMath::Min(LootPods[i].MaxGauge, LootPods[i].CurrentGauge + (FinalLootSpeed * DeltaTime));
 
-				// 완료 체크
+				// Actor 복제 프로퍼티 동기화 (Phase 7) — 게임 스레드 지연 실행, 2% 임계값은 SetGaugePercent가 처리
+				if (PodActor)
+				{
+					const float GaugePercent = (0.0f < LootPods[i].MaxGauge) ? LootPods[i].CurrentGauge / LootPods[i].MaxGauge : 0.0f;
+					const TWeakObjectPtr<ALNPLootPod> WeakPod = PodActor;
+					IterContext.Defer().PushCommand<FMassDeferredSetCommand>([WeakPod, GaugePercent](FMassEntityManager&)
+					{
+						if (ALNPLootPod* Pod = WeakPod.Get())
+							Pod->SetGaugePercent(GaugePercent);
+					});
+				}
+
+				// 완료 체크 — 엔티티를 즉시 파괴하므로 Fragment 상태/Tag 갱신은 불필요하다.
+				// Popped 상태 전파(비주얼·복제)는 전환 커맨드의 UpdateVisuals가 담당한다.
 				if (LootPods[i].MaxGauge <= LootPods[i].CurrentGauge)
 				{
 					IterContext.Defer().PushCommand<FLNPPodStateTransitionCommand>(PodActor, PodID, ELNPLootPodState::Looting, ELNPLootPodState::Popped, PodLocation);
-					
-					// DestroyEntity를 하는데 굳이 상태 갱신을 할 필요가 있을까?
-					//LootPods[i].State = ELNPLootPodState::Popped;
-					//IterContext.Defer().RemoveTag<FLNPLootPodLootingTag>(IterContext.GetEntity(i));
-
 					IterContext.Defer().DestroyEntity(IterContext.GetEntity(i));
 				}
 			}

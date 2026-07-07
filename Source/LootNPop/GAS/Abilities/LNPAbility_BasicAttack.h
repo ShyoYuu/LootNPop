@@ -33,6 +33,14 @@ protected:
 	/** 기본 피해 공식: (AttackPower + WeaponDamage) * AttackMultiplier. Ability별로 Override 가능. */
 	virtual float ComputeDamage() const;
 
+	/** 공용 Cooldown GE (Duration은 ApplyCooldown에서 무기별로 주입). */
+	virtual UGameplayEffect* GetCooldownGameplayEffect() const override;
+
+	/** 장착 무기의 FireCooldown을 Duration으로 주입해 Cooldown GE를 적용한다. FireCooldown <= 0이면 쿨다운 없음. */
+	virtual void ApplyCooldown(const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo) const override;
+
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")
 	float DamageMultiplier = 1.f;
 

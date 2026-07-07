@@ -47,6 +47,18 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		const FLNPModifierInputs& Authority = static_cast<const FLNPModifierInputs&>(AuthorityState);
 		return bWantsToGuard != Authority.bWantsToGuard || bWantsToSprint != Authority.bWantsToSprint;
 	}
+
+	/**
+	 * NetworkPrediction의 Smoothing 서비스가 프레임 사이를 보간할 때 컬렉션 내 모든 데이터 구조체에 대해 호출한다.
+	 * 오버라이드하지 않으면 기본 구현이 check(false)로 크래시난다 (특히 standalone -game 모드에서 발현).
+	 * 순간적인 입력 의도 bool이므로 실제 보간은 무의미 — From 값을 그대로 스냅한다.
+	 */
+	virtual void Interpolate(const FMoverDataStructBase& From, const FMoverDataStructBase& To, float Pct) override
+	{
+		const FLNPModifierInputs& FromInputs = static_cast<const FLNPModifierInputs&>(From);
+		bWantsToGuard = FromInputs.bWantsToGuard;
+		bWantsToSprint = FromInputs.bWantsToSprint;
+	}
 };
 
 template<>

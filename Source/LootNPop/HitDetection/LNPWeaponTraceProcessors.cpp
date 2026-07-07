@@ -260,11 +260,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
-				AActor*                  Actor  = ActorFrags[i].GetMutable();
-				const UCapsuleComponent* Cap    = Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr;
-				const float              HalfH  = Cap ? Cap->GetScaledCapsuleHalfHeight() : 96.f;
-				const float              Radius = Cap ? Cap->GetScaledCapsuleRadius()     : 42.f;
-				const FVector            Loc    = Transforms[i].GetTransform().GetLocation();
+				AActor* Actor = ActorFrags[i].GetMutable();
+				float HalfH, Radius;
+				LNPHitDetection::GetCapsuleSize(Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr, HalfH, Radius);
+				const FVector Loc = Transforms[i].GetTransform().GetLocation();
 				ClientTargets.Add({ Actor, Loc, (-Loc).GetSafeNormal(), HalfH, Radius, false });
 			}
 		});
@@ -398,13 +397,12 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			AActor*                  Actor  = ActorFrags[i].GetMutable();
-			const UCapsuleComponent* Cap    = Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr;
-			const float              HalfH  = Cap ? Cap->GetScaledCapsuleHalfHeight() : 96.f;
-			const float              Radius = Cap ? Cap->GetScaledCapsuleRadius()     : 42.f;
-			const FTransform&        T      = Transforms[i].GetTransform();
-			const FVector            Loc    = T.GetLocation();
-			const FVector            Up     = (-Loc).GetSafeNormal();
+			AActor* Actor = ActorFrags[i].GetMutable();
+			float HalfH, Radius;
+			LNPHitDetection::GetCapsuleSize(Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr, HalfH, Radius);
+			const FTransform& T   = Transforms[i].GetTransform();
+			const FVector     Loc = T.GetLocation();
+			const FVector     Up  = (-Loc).GetSafeNormal();
 			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i], Loc, &Histories[i] });
 		}
 	});

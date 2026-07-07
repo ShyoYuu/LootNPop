@@ -16,6 +16,8 @@ Content/__ExternalObjects__/
 sample.png
 Update-UE-Docs-Custom.ps1
 launch_claude.ps1
+Standalone_AddClient.lnk
+Standalone_RunListenServer.lnk
 
 # AI Agent Local Configs
 .claude/

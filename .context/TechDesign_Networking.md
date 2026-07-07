@@ -1,12 +1,15 @@
 # 멀티플레이 네트워크 기술 설계 (Iris 기반)
 
-> **진행 현황 (2026-07-05):** Phase 1~6.5 전부 완료 (PIE 2·3인 기능 검증 포함). **잔여: Phase 7(LootPod)** 및 아래 항목.
+> **진행 현황 (2026-07-05):** Phase 1~7 전부 코드 완료 (Phase 1~6.5는 PIE 2·3인 기능 검증 포함, **Phase 7과 발사 피치/Aim Offset 동기화는 PIE 검증 대기**).
 >
 > | 분류 | 잔여 항목 |
 > |:---|:---|
+> | PIE 검증 대기 | Phase 7 LootPod 복제 (§9 Phase 7), 발사 피치·Aim Offset 동기화 (§9 Phase 4.5 후속 → 구현 완료) |
 > | 에디터·에셋 | GameplayCue VFX/Sound 에셋 지정 (에셋 자체가 프로젝트에 아직 없음), Parry CameraShake 커스텀 교체 |
-> | 기술 부채 (동작엔 문제 없음) | `DOREPLIFETIME` → Iris Descriptor 마이그레이션 (`EquippedWeaponData`, Attribute — §2.2 방침상 임시 허용 중), 수백 엔티티 규모 대역폭·CPU 프로파일링 (리스크 A 잔여) |
-> | 후속 후보 (기능) | 발사 각도(피치) 동기화 — 에임 오프셋 동기화와 한 작업 (§9 Phase 4.5 후보), 관전 Ghost catch-up 수렴, 고지연(`PktLag=100+`) 재검증, Enemy `bIsDead` 명시 복제 (현재 사망 연출은 Attribute 경유로 동작) |
+> | 기술 부채 (동작엔 문제 없음) | 수백 엔티티 규모 대역폭·CPU 프로파일링 (리스크 A 잔여) |
+> | 후속 후보 (기능) | 관전 Ghost catch-up 수렴, 고지연(`PktLag=100+`) 재검증, Enemy `bIsDead` 명시 복제 (현재 사망 연출은 Attribute 경유로 동작) |
+>
+> ~~`DOREPLIFETIME` → Iris Descriptor 마이그레이션~~ — **불필요로 판명, 종결 (2026-07-05).** §2.2 개정 참조: Iris 활성화 시 `GetLifetimeReplicatedProps`/`DOREPLIFETIME` 선언이 그대로 Iris Descriptor 생성의 입력이 되므로(엔진이 자동 변환) 별도 마이그레이션 대상이 아니다.
 
 ---
 
@@ -67,9 +70,14 @@
 
 MassReplication의 자체 최적화(공간 Relevancy, LOD 기반 감소, 컴팩트 직렬화)가 수백 명 규모에서 충분히 효율적이므로 Iris 델타 압축 미적용은 수용 가능한 트레이드오프다.
 
-**프로젝트 방침:** Iris 네이티브 경로(`RegisterReplicationFragments`)를 선호한다. `DOREPLIFETIME` 매크로는 레거시 경로이므로 기존 코드 마이그레이션 시 임시 방편으로만 허용.
+**프로젝트 방침 (2026-07-05 개정):** 당초 "`DOREPLIFETIME` 매크로는 레거시 경로이므로 임시 방편"으로 규정하고 Iris Descriptor 마이그레이션을 기술 부채로 관리했으나, UE 5.8 엔진 소스 확인 결과 **이 전제가 잘못된 것으로 판명되어 마이그레이션 항목을 폐기**한다:
 
-**Iris 네이티브 경로 대상 클래스:**
+- `AActor::RegisterReplicationFragments`(엔진 기본 구현, `ActorReplication.cpp`)가 `FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject`를 호출해 **`GetLifetimeReplicatedProps`/`DOREPLIFETIME`로 선언된 프로퍼티를 그대로 Iris Descriptor(PropertyReplicationFragment)로 변환**한다. 조건(COND_*)·RepNotify 포함.
+- `UAttributeSet::RegisterReplicationFragments`(엔진, `AttributeSet.cpp`)도 동일 — GAS AttributeSet의 `DOREPLIFETIME_CONDITION_NOTIFY` 선언 역시 Iris 네이티브 경로로 처리된다.
+- 즉 Iris 활성화 시 `DOREPLIFETIME`은 "레거시 전송 경로"가 아니라 **Iris Descriptor 빌더의 선언 입력**이며, `EquippedWeaponData`·Attribute는 이미 Iris 네이티브 복제(델타 압축 포함)를 받고 있다. `RegisterReplicationFragments` 커스텀 오버라이드는 커스텀 NetSerializer/특수 Fragment가 필요할 때만 의미가 있다.
+- 이 프로젝트에서 실제 "Iris 레거시 호환 경로"는 MassReplication(bubble FastArray)뿐이다 — 아래 표와 일치.
+
+**Iris 네이티브 경로 대상 클래스 (전부 `DOREPLIFETIME` 선언 → 엔진 자동 변환으로 충족):**
 
 | 클래스 | 복제 필드 |
 |:---|:---|
@@ -352,7 +360,7 @@ Mover 2.0이 클라이언트 예측과 서버 검증을 내장한다. `SprintMod
 클라이언트 → OnRep_CurrentWeapon() → ALNPCharacterBase::EquipWeapon 직접 호출 (비주얼만)
 ```
 
-`RequestEquipWeapon()` 래퍼는 도입하지 않음 — `ALNPPlayerCharacter::EquipWeapon` 오버라이드가 동일 역할 수행. `EquippedWeaponData`는 현재 DOREPLIFETIME(레거시 경로) 사용 중. Phase 6 착수 전 Iris Descriptor로 마이그레이션 권장.
+`RequestEquipWeapon()` 래퍼는 도입하지 않음 — `ALNPPlayerCharacter::EquipWeapon` 오버라이드가 동일 역할 수행. `EquippedWeaponData`는 DOREPLIFETIME 선언 사용 — Iris 활성화 시 엔진이 자동으로 Iris Descriptor로 변환하므로 별도 마이그레이션 불필요 (§2.2 개정 참조).
 
 ### 6.3 대시·가드 입력 — FScopedPredictionWindow 예측
 
@@ -601,6 +609,23 @@ Execute()
 - **관전용 Ghost catch-up 수렴:** 외삽 스폰의 총구 이펙트 단절이 체감되면 "총구에서 스폰 후 짧은 가속으로 외삽 위치에 수렴" 방식 도입.
 - **지형 임팩트:** 관전용 Ghost가 로컬 지형 판정으로 자체 임팩트를 재생하므로 Phase 4의 "관전자는 지형 임팩트를 못 본다" 한계는 B안 도입으로 사실상 해소 — 서버 위치와의 미세 오차만 남음(코스메틱 수용).
 - **발사 각도(피치) 동기화 — 에임 오프셋 동기화와 묶어서 진행 (2026-07-04 PIE에서 확인):** 원격 클라이언트의 발사 피치가 서버에 전달되지 않아, 서버 권위 엔티티(및 그로부터 방송되는 관전 Ghost)가 항상 캐릭터 수평으로 발사된다 — 공격자 본인 화면(로컬 카메라 기준 예측 Ghost)만 정확한 각도. 서버의 `GetFireDirections`가 원격 PC의 `GetPlayerViewPoint`에 의존하는데 원격 플레이어의 카메라 피치가 서버에 없기 때문. 캐릭터 상체 자세(Aim Offset) 동기화 작업과 같은 데이터(시선 피치 복제)를 쓰므로 한 작업으로 묶는다.
+  → **✅ 구현 완료 (2026-07-05) — 신규 RPC·복제 프로퍼티 없이 기존 Mover 입력 채널 재사용. PIE 검증 대기.** 아래 "발사 피치·Aim Offset 동기화" 절 참조.
+
+**발사 피치·Aim Offset 동기화 구현 (2026-07-05, PIE 검증 대기):**
+
+핵심 발견: 소유 클라이언트의 시선 회전은 **이미 서버에 도착하고 있었다** — `ULNPInputHandlerComponent::OnProduceInput`이 매 틱 `FCharacterDefaultInputs::ControlRotation`(월드 공간, `SerializeCompressedShort` 축당 16비트)에 `Pawn->GetControlRotation()`을 실어 보내고, Mover NP 백엔드가 이를 서버로 복제한다. 문제는 아무도 이 값을 **읽지 않았던 것**. 따라서 새 데이터 채널 없이 소비부만 연결했다:
+
+| 구간 | 수단 |
+|:---|:---|
+| 소유 클라 → 서버 | 기존 그대로 — Mover InputCmd의 `ControlRotation` (추가 작업 없음) |
+| 서버 → 시뮬레이티드 프록시(관전자) | `UMoverComponent::bSyncInputsForSimProxy = true` (엔진 옵션, Experimental) — `OnPostSimulate`가 InputCmd를 SyncState에 동봉(`FMoverInputContainerDataStruct`, 롤백 비유발 컨테이너)하고, 수신 측 `TickInterpolatedSimProxy`(NP 백엔드 `MoverNetworkPredictionLiaison.cpp`에서 호출 확인)가 `GetLastInputCmd()`로 노출 |
+| 소비 (단일 진입점) | `ALNPPlayerCharacter::GetBaseAimRotation()` 오버라이드 — 로컬 제어면 기존 Control Rotation, 아니면 `MoverComponent->GetLastInputCmd()`의 `FCharacterDefaultInputs::ControlRotation` 반환 (ZeroRotator면 `Super` 폴백) |
+
+- **Aim Offset:** `ULNPAnimInstance`가 원래부터 `GetBaseAimRotation()` 월드 벡터를 캐릭터 로컬로 변환해 AimPitch/AimYaw를 뽑으므로(구면 세계 보정 포함), 오버라이드만으로 서버·관전자 화면의 상체 자세가 동기화된다 — AnimInstance 무수정.
+- **발사 방향:** `GetFireDirections`를 분기 — 로컬 제어(소유 클라·리슨호스트)는 기존 카메라 크로스헤어 트레이스, **서버의 원격 플레이어는 `GetBaseAimRotation().Vector()`** (클라이언트 카메라 위치가 서버에 없어 트레이스 불가). 카메라 광선과 총구 광선의 시차(패럴랙스)만큼 클라 예측 Ghost와 서버 궤적이 미세하게 어긋날 수 있으나 코스메틱 수용 (리스크 D와 동일 성격). 정밀 수렴이 필요해지면 Lyra식 GAS TargetData(`CallServerSetReplicatedTargetData`)로 클라 조준점을 서버에 전달하는 방식이 후속 후보.
+- **대역폭:** `bSyncInputsForSimProxy`는 플레이어 폰에만 적용 (`ALNPPlayerCharacter` 생성자) — Enemy는 시선 동기화가 불필요. InputCmd 동봉분(수십 바이트)이 플레이어 SyncState 갱신마다 추가되나 플레이어 수가 적어 수용.
+- **변경 파일:** `LNPPlayerCharacter.h/.cpp`(`GetBaseAimRotation` 오버라이드, `bSyncInputsForSimProxy`), `LNPAbility_RangedAttack.cpp`(`GetFireDirections` 분기)
+- **PIE 검증 항목:** ① 원격 클라 상향/하향 발사 시 서버·관전자 화면 궤적 피치 일치, ② 관전자 화면에서 원격 캐릭터 상체(Aim Offset) 피치 반영, ③ 리슨호스트 발사 기존 동작 회귀 없음.
 
 **1차 PIE 검증 결과 (2026-07-04, 저지연 PktLag=0):**
 - ✅ 발사체 조기 소멸(0.5s TTL) 완전 해결 — 연사에서도 잔상·조기 소멸 없음
@@ -685,11 +710,11 @@ orphan으로 남는 것 — 퍼펫 핸드셰이크를 실제로 완료시켜주�
 | Replicator | ✅ | `Character/LNPPlayerReplicator.h/.cpp` — Add 시 PositionYaw 1회, `ModifyEntityCallback`은 no-op (위치는 Mover 채널 담당) |
 | Bubble 등록 | ✅ | `LNPMassSpawnSubsystem::Initialize`에 `RegisterBubbleInfoClass(ALNPPlayerClientBubbleInfo)` 추가 |
 | 클라 템플릿 warm-up | ✅ | Player TemplateID는 폰 BP에 저장된 `MassAgentComponent::EntityConfig` 구조체 GUID에서 파생 — DA 에셋이 아니라 **폰 CDO의 컴포넌트 기준**으로 `GetOrCreateEntityTemplate` 호출. 폰 클래스는 신규 `ULNPSettings::PlayerPawnClass`(DefaultGame.ini)로 참조 |
-| 에디터 잔여 | ⏳ | `DA_PlayerEntityConfig`에 **Mass Replication 트레잇 추가** — BubbleInfoClass=`ALNPPlayerClientBubbleInfo`, ReplicatorClass=`ULNPPlayerReplicator`, LOD Distance 대폭 확대(기본 Off=50m는 플레이어에게 부적합 — 예: Medium=500m, Low=1km, Off=10km) |
-| 퍼펫 링크 검증 | ⏳ | 클라에서 `MassAgentComponent` NetID 수신 → 엔티티 자동 연결, 접속/리스폰/재빙의 시나리오 |
-| 클라 Transform 경로 검증 | ⏳ | 액터→엔티티 translator가 클라 퍼펫에서도 실행되는지 — `[GhostTrace][Targets]`의 `maxPlayerEntityActorGap`으로 측정 (크면 클라 전용 동기화 후속 필요) |
-| Enemy 클라 아키타입 확인 | ⏳ | PIE 실측 `enemies=0`이 "주변에 적이 없었음"인지 "클라 아키타입이 히트 쿼리 요구를 못 채움"인지 — 적 근처 전투 중 `[Targets]` 로그로 판정. 참고: Enemy 복제 액터도 base의 `MassAgentComponent`를 가지므로 Phase 6.5와 동일한 퍼펫 링크가 자동 성립할 것으로 예상 |
-| 완료 기준 | ⏳ | 클라 `[GhostTrace][Targets]`에서 players=접속 인원, 근접 예측 HitStop(원격 클라 자기 화면) 동작, 3P 관전 화면 관통 해소 |
+| 에디터 잔여 | ✅ | `DA_PlayerEntityConfig`에 **Mass Replication 트레잇 추가 완료** — BubbleInfoClass=`ALNPPlayerClientBubbleInfo`, ReplicatorClass=`ULNPPlayerReplicator`, LOD Distance 확대. `players=2(actor:2)` 수신으로 트레잇 정상 동작 실증 |
+| 퍼펫 링크 검증 | ✅ | 자기 폰·상대 폰 모두 `isPuppet=1` + `actorLinked=1` 확인 — 클라 `MassAgentComponent` NetID 수신 → 엔티티 자동 연결 성립 (에이전트 경로 NetID 캐싱 갭은 `ULNPMassAgentComponent`로 해소, 아래 진단 메모 참조) |
+| 클라 Transform 경로 검증 | ✅ | 양측 이동 중 `maxPlayerEntityActorGap=0cm` — 클라 퍼펫 Transform이 캡슐 동기화 트레잇으로 프레임 단위 갱신됨 확인. 별도 클라 전용 동기화 프로세서 불필요 |
+| Enemy 클라 아키타입 확인 | ✅ | 적 근처 전투 중 `[Targets] enemies=1(actor:1)` 확인 — 직전 `enemies=0`은 아키타입 간극이 아니라 "캡처 시점 주변에 적 없음"으로 결론. bubble 스폰 클라 엔티티가 `FLNPEnemySharedFragment(Config)` 포함 EnemyQuery에 정상 매칭 |
+| 완료 기준 | ✅ | `players=2(actor:2)`, 근접 예측 HitStop(원격 클라 자기 화면) 동작, 3P 관전 화면 관통 해소 모두 충족 (헤더 기능 검증 참조). 잔여(선택): 고지연(`net.PktLag=100+`) 재검증, 클라간(2P→3P) 발사 시각 육안 확인 |
 
 **🔍 발견·수정한 엔진 타이밍 갭 — 에이전트 경로의 NetID 캐싱 (2026-07-05, `[PlayerRepTrace]` 단계별 진단으로 특정):**
 파이프라인 전 구간(트레잇 반영 → 서버 엔티티 NetID → bubble AddAgent → 클라 수신·스폰·아키타입 5/5 충족)이 정상인데도
@@ -707,15 +732,24 @@ NetID를 채운다. `ALNPCharacterBase` 생성자에서 컴포넌트 클래스 �
 - **주의:** 퍼펫 링크 시 엔진이 엔티티 Transform으로 폰 위치를 초기화한다 — bubble 스키마에 스폰 위치를 1회 실어야 하는 이유 (비워두면 폰이 원점으로 텔레포트).
 - 퍼펫 초기화가 EntityConfig 템플릿 조성(composition)을 엔티티에 더해주고 `FMassActorFragment`도 폰으로 링크하므로, 서버와 동일한 아키타입(FLNPPlayerTag·ParryState·PositionHistory 포함)이 클라에서 성립한다.
 
-### Phase 7 — LootPod MassReplication + Actor 복제
+### Phase 7 — LootPod MassReplication + Actor 복제 ✅ 코드 완료 (2026-07-05) — PIE 검증 대기
 
 > 전제: Phase 6 완료 (동일한 이중 복제 패턴 참조).
 
-| 작업 | 변경 파일 | 완료 기준 |
+| 작업 | 변경 파일 | 결과 |
 |:---|:---|:---|
-| `FLNPLootPodReplicationData` 구조체 및 BubbleHandler 구현 | `LNPLootPodReplication.h/.cpp` (신규) | 클라이언트에 LootPod 엔티티 생성 확인 |
-| `ALNPLootPod` `bReplicates=true`, `PodState`·`CurrentGaugePercent` Iris Descriptor 등록 | `LNPLootPod.h/.cpp` | 클라이언트에서 LootPod VFX 색상·게이지 동기화 |
-| `ULNPIdleToLootingProcessor`, `ULNPLootingProcessor`에 `NM_Client` 조기 반환 추가 | `LNPLootPodProcessors.cpp` | LootPod 상태 전환이 서버에서만 발생 |
+| 복제 스키마·FastArray·BubbleHandler·Serializer·BubbleInfo | `LNPLootPodReplication.h/.cpp` (신규) | ✅ `FLNPReplicatedLootPodAgent` — 존재 + 스폰 시점 PositionYaw 1회 (Player 패턴). LootPod은 정적이므로 `PostReplicatedChange`/`ModifyEntityCallback` no-op |
+| Replicator | `LNPLootPodReplicator.h/.cpp` (신규) | ✅ Add 시 위치 1회, 이후 bubble 갱신 트래픽 없음 |
+| 복제 트레잇 연결 | `LNPLootPodMassTypes.h/.cpp` (`ULNPLootPodTrait`가 `UMassReplicationTrait` 내장 위임 — Enemy와 동일 패턴) | ✅ NetworkID 발급은 엔진 옵저버가 자동 수행 |
+| Bubble 등록 + 클라 템플릿 warm-up | `LNPMassSpawnSubsystem.cpp` | ✅ `RegisterBubbleInfoClass(ALNPLootPodClientBubbleInfo)` + `LootPodEntityConfig` warm-up (기존 루프는 AssociatedEnemies만 warm-up하고 있어 Pod 템플릿 등록 추가) |
+| `ALNPLootPod` Actor 복제 설정 | `LNPLootPod.h/.cpp` | ✅ `bReplicates=true`, `NetCullDistanceSquared=20000²`, `NetUpdateFrequency=10`. `CurrentState`(`ReplicatedUsing=OnRep_PodState` → `UpdateVisuals`)·`CurrentGaugePercent`(0~1) 복제. `BeginPlay`가 복제된 `CurrentState`를 존중하도록 수정 (무조건 Idle 덮어쓰기 → 초기 OnRep 레이스 방지, Phase 3 무기 레이어 레이스와 동일 유형) |
+| 게이지 갱신 최적화 | `LNPLootPod.cpp`(`SetGaugePercent`), `LNPLootPodProcessor.cpp` | ✅ 서버 `ULNPLootingProcessor`가 `FMassDeferredSetCommand`(게임 스레드)로 Actor에 반영, `SetGaugePercent`가 2% 임계값 적용 (0/1 경계값은 항상 반영) |
+| `ULNPIdleToLootingProcessor`, `ULNPLootingProcessor`에 `NM_Client` 조기 반환 추가 | `LNPLootPodProcessor.cpp` | ✅ 상태 전환·게이지 판정 서버 전용 |
+| **부수 발견 및 수정 — 원격 클라이언트 루팅 입력이 서버에 전혀 전달되지 않던 공백** | `LNPInteractionComponent.h/.cpp` | ✅ `PerformInteraction`이 입력 소유 머신에서만 실행되며 `FLNPPlayerLootingTag`를 **로컬** 플레이어 엔티티에만 추가하고 있었다 — 클라 프로세서가 `NM_Client` 가드되면 원격 클라이언트는 루팅을 시작할 방법이 없다 (Phase 3 Guard/Parry RPC와 동일 유형, Phase 7 이전부터 존재). `Server_StartLooting(Pod)` RPC 추가: 소유 머신은 로컬 `CanInteract` 체크 + `Pod->StartLooting()`(비주얼 예측) 후 서버로 전달, 서버가 `CanInteract` 재검증 후 서버 월드 엔티티에 태그/프래그먼트 부여 |
+
+**PIE 검증 항목:** ① 클라이언트 접속 시 LootPod 엔티티 bubble 스폰 + 복제 Pod Actor 퍼펫 링크(스포너 경로라 Enemy처럼 자동 성립 예상), ② 원격 클라이언트 상호작용 → 서버 게이지 진행 → 클라 `CurrentGaugePercent` 동기화, ③ 상태 전환(Looting/Popped) VFX 색상이 관전 클라이언트 포함 전 화면 동기화, ④ Popped 시 엔티티·Actor 소멸 전파.
+
+**알려진 한계 (코스메틱):** 소유 클라이언트의 `Pod->StartLooting()` 비주얼 예측은 서버가 전환을 거부하면(레이스: 직전에 Popped 등) `CurrentState`가 변하지 않아 OnRep이 오지 않으므로 로컬 색상이 Looting에 머문다 — 다음 실제 상태 전환 때 자연 교정. 빈도가 낮고 코스메틱이라 수용, 문제 시 예측 제거로 단순화.
 
 ---
 

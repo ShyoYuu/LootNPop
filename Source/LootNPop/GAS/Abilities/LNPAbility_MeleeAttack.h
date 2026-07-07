@@ -26,12 +26,6 @@ protected:
 		const FGameplayAbilityActivationInfo ActivationInfo,
 		const FGameplayEventData* TriggerEventData) override;
 
-	virtual UGameplayEffect* GetCooldownGameplayEffect() const override;
-
-	virtual void ApplyCooldown(const FGameplayAbilitySpecHandle Handle,
-		const FGameplayAbilityActorInfo* ActorInfo,
-		const FGameplayAbilityActivationInfo ActivationInfo) const override;
-
 	/** 콤보 타수별 넉백 강도. 인덱스 0 = 첫 타.
 	 *  비어있거나 인덱스 초과 시 KnockbackStrength(기반 클래스)로 폴백한다. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")

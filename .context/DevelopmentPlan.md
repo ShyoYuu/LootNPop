@@ -129,7 +129,8 @@
     - Phase 5: 무기 교체 서버 권한화 (Server_EquipWeapon RPC)
     - Phase 6: Enemy MassReplication (FMassNetworkID, BubbleHandler) + ALNPEnemyCharacter bReplicates (이중 복제)
     - [x] Phase 6.5: Player MassReplication — 존재만 복제하는 최소 스키마 bubble + 엔진 퍼펫 링크로 클라 플레이어 엔티티 성립. 에이전트 경로 NetID 캐싱 타이밍 갭은 ULNPMassAgentComponent로 보정 (PIE 2인 검증: players=2, gap=0cm)
-    - Phase 7: LootPod MassReplication + ALNPLootPod bReplicates (이중 복제)
+    - [x] Phase 7: LootPod MassReplication + ALNPLootPod bReplicates (이중 복제) — 부수 발견: 원격 클라 루팅 입력 미전달 공백을 Server_StartLooting RPC로 해소 (코드 완료, PIE 검증 대기)
+    - [x] 발사 피치·Aim Offset 동기화 — Mover InputCmd의 ControlRotation 재사용 + bSyncInputsForSimProxy, GetBaseAimRotation 오버라이드 (코드 완료, PIE 검증 대기)
 - [ ] **승리 조건 및 세션 관리**
     - 메달(가칭) 4개 수집 시 승리. 게임 시작/종료/결과 처리 흐름.
 

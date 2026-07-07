@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -36,6 +36,17 @@ public:
 	AActor* GetFirstInteractionCandidate() const;
 
 protected:
+	/**
+	 * 원격 클라이언트의 루팅 시작을 서버에 전달한다 (Phase 7).
+	 * FLNPPlayerLootingTag는 서버 월드의 플레이어 엔티티에 붙어야 서버 전용 LootPod 프로세서가
+	 * 감지한다 — 로컬 엔티티에만 붙이면 리슨 호스트를 제외한 모든 클라이언트의 루팅이 서버에
+	 * 반영되지 않는다 (Phase 3 Guard/Parry RPC와 동일 유형의 공백).
+	 */
+	UFUNCTION(Server, Reliable)
+	void Server_StartLooting(ALNPLootPod* Pod);
+
+	/** 서버 전용: 유효성 검증 후 플레이어 엔티티에 루팅 태그/프래그먼트를 부여한다. */
+	void StartLootingOnServer(ALNPLootPod* Pod);
 	/** 상호작용 가능한 오브젝트 탐색 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Interaction")
 	float InteractionRadius = 500.0f;

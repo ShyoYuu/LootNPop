@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Enemy/LNPEnemyProcessors.h"
 #include "Enemy/LNPEnemyMassTypes.h"
@@ -21,9 +21,21 @@
 #include "MassStateTreeFragments.h"
 #include "MassNavigationFragments.h"
 #include "MassRepresentationProcessor.h"
+#include "LNPMassUtils.h"
 #if WITH_EDITOR
 #include "MassDebugDrawHelpers.h"
 #endif
+
+namespace
+{
+	/** Chase 정지 거리: AttackRange 안쪽에서 멈추되, 도착 신호(ArrivalBuffer=30)가 반드시 발생하도록 버퍼를 확보한다.
+	 *  TargetFollow(MoveTarget 산출)와 Movement(속도 결정)가 같은 값을 봐야 정지 지점이 일치한다. */
+	float ComputeStopDistance(const float AttackRange)
+	{
+		const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
+		return FMath::Max(0.f, AttackRange - StopBuffer);
+	}
+}
 
 // --- Scoring Processor (점수 산정) ---
 
@@ -54,7 +66,7 @@ void ULNPEnemyScoringProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — AI 로직은 서버 전용.
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	// 1. 모든 Player 수집
@@ -87,6 +99,9 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 			return;
 
 		const FLNPEnemyTargetingConfig& TConfig = SharedFragment.Config->TargetingConfig;
+
+		// 근접 타입 여부는 chunk 공용 Config 값이므로 1회만 판정한다 (엔티티×후보 루프 내 문자열 비교 방지)
+		const bool bIsMelee = SharedFragment.Config->EnemyTypeTag.ToString().Contains(TEXT("Melee"), ESearchCase::IgnoreCase);
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
@@ -155,20 +170,16 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					float Score = 1000000.0f / (FMath::Sqrt(Candidate.DistSq) + 1.0f);
 					Score *= LeashFactor;
 
-					//if (Score > KINDA_SMALL_NUMBER)
+					const FMassEntityHandle EnemyEntity = EnemyContext.GetEntity(i);
+					const FMassEntityHandle PlayerHandle = Candidate.Handle;
+
+					// TargetingSubsystem 갱신은 게임 스레드 커맨드로 지연 실행 (Processor는 워커 스레드에서 돌 수 있음)
+					Context.Defer().PushCommand<FMassDeferredSetCommand>([EnemyEntity, PlayerHandle, Score, bIsMelee](const FMassEntityManager& InOutEntityManager)
 					{
-						bool bIsMelee = SharedFragment.Config->EnemyTypeTag.ToString().Contains(TEXT("Melee"), ESearchCase::IgnoreCase);
-
-						FMassEntityHandle EnemyEntity = EnemyContext.GetEntity(i);
-						FMassEntityHandle PlayerHandle = Candidate.Handle;
-
-						Context.Defer().PushCommand<FMassDeferredSetCommand>([EnemyEntity, PlayerHandle, Score, bIsMelee](const FMassEntityManager& InOutEntityManager)
-						{
-							ULNPTargetingSubsystem* TargetingSubsystem = UWorld::GetSubsystem<ULNPTargetingSubsystem>(InOutEntityManager.GetWorld());
-							if (TargetingSubsystem != nullptr)
-								TargetingSubsystem->RegisterEnemyInterest(EnemyEntity, PlayerHandle, Score, bIsMelee);
-						});
-					}
+						ULNPTargetingSubsystem* TargetingSubsystem = UWorld::GetSubsystem<ULNPTargetingSubsystem>(InOutEntityManager.GetWorld());
+						if (TargetingSubsystem != nullptr)
+							TargetingSubsystem->RegisterEnemyInterest(EnemyEntity, PlayerHandle, Score, bIsMelee);
+					});
 				}
 			}
 		}
@@ -205,7 +216,7 @@ void ULNPEnemyTargetingProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — AI 로직은 서버 전용.
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	ULNPTargetingSubsystem& TargetingSubsystem = Context.GetMutableSubsystemChecked<ULNPTargetingSubsystem>();
@@ -266,25 +277,17 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 				}
 			}
 
-			if (!bFoundConfirmed)
+			// 잠재적 타겟이 있지만 확정되지 않은 경우 Alert 진입.
+			// 후보가 없으면 루프 초입의 ResetTargeting 상태(None)를 그대로 유지한다.
+			if (!bFoundConfirmed && CandidateData.NumPotentialTargets > 0)
 			{
-				// 잠재적 타겟이 있지만 확정되지 않은 경우, Alert 상태 진입
-				if (CandidateData.NumPotentialTargets > 0)
-				{
-					Targeting.TargetPlayer = CandidateData.PotentialTargets[0];
-					Targeting.State = ELNPTargetingState::Alert;
+				Targeting.TargetPlayer = CandidateData.PotentialTargets[0];
+				Targeting.State = ELNPTargetingState::Alert;
 
-					if (const FVector* PLoc = PlayerLocations.Find(Targeting.TargetPlayer))
-					{
-						Targeting.TargetLocation = *PLoc;
-						Targeting.DistanceToTargetSq = FVector::DistSquared(EnemyLocation, *PLoc);
-					}
-
-				}
-				else
+				if (const FVector* PLoc = PlayerLocations.Find(Targeting.TargetPlayer))
 				{
-					Targeting.State = ELNPTargetingState::None;
-					Targeting.ResetTargeting();
+					Targeting.TargetLocation = *PLoc;
+					Targeting.DistanceToTargetSq = FVector::DistSquared(EnemyLocation, *PLoc);
 				}
 			}
 
@@ -333,7 +336,7 @@ void ULNPEnemyTargetFollowProcessor::ConfigureQueries(const TSharedRef<FMassEnti
 void ULNPEnemyTargetFollowProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — AI 로직은 서버 전용.
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
@@ -361,9 +364,7 @@ void ULNPEnemyTargetFollowProcessor::Execute(FMassEntityManager& EntityManager, 
 			if (Targeting.TargetPlayer.IsValid())
 			{
 				const float ActualDistance = FMath::Sqrt(Targeting.DistanceToTargetSq);
-				// StopBuffer >= ArrivalBuffer(30)으로 AttackRange 내에서 도착 신호 발생 보장
-				const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
-				const float StopDist = FMath::Max(0.f, AttackRange - StopBuffer);
+				const float StopDist = ComputeStopDistance(AttackRange);
 
 				if (ActualDistance <= StopDist)
 				{
@@ -419,7 +420,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — 이동 시뮬레이션은 서버 전용(위치는 복제로 전달).
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
@@ -480,9 +481,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			case ELNPTargetingState::Confirmed:
 			{
 				const float ActualDistance = Targeting.TargetPlayer.IsValid() ? FMath::Sqrt(Targeting.DistanceToTargetSq) : 0.0f;
-				const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
-				const float StopDist = FMath::Max(0.f, AttackRange - StopBuffer);
-				EffectiveSpeed = (ActualDistance <= StopDist) ? 0.0f : BaseMoveSpeed;
+				EffectiveSpeed = (ActualDistance <= ComputeStopDistance(AttackRange)) ? 0.0f : BaseMoveSpeed;
 				OrientationIntent = TargetDirOnPlane;
 				break;
 			}
@@ -650,7 +649,7 @@ void ULNPHealthProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&
 void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — HP 판정은 서버 전용(GAS Attribute로 복제).
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	TArray<FMassEntityHandle> DyingEntities;
@@ -710,7 +709,7 @@ void ULNPEnemyLODOverrideProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 void ULNPEnemyLODOverrideProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — 전투 판단 기반 LOD 강제는 서버 전용 개념.
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	LODOverrideQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& LODContext)
@@ -755,7 +754,7 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다.
 	// 클라이언트의 Actor 존재 여부는 일반 Actor Relevancy 복제가 결정하므로, Mass LOD 기반 Actor 스폰/초기화는 서버 전용 개념이다.
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	ActivationQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
@@ -816,7 +815,7 @@ void ULNPEnemyActorSyncProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — Mass<->Actor 동기화는 서버 전용 개념.
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	TArray<FMassEntityHandle> ToCleanup;
@@ -861,7 +860,7 @@ void ULNPEnemyDeathTimerProcessor::ConfigureQueries(const TSharedRef<FMassEntity
 void ULNPEnemyDeathTimerProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — 소멸 결정은 서버 전용.
-	if (EntityManager.GetWorld() && EntityManager.GetWorld()->GetNetMode() == NM_Client)
+	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
@@ -954,27 +953,16 @@ void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMa
 			if (!IsNearAnyPlayer(EntityLocation))
 				continue;
 
-			FColor StateColor = FColor::Green; // 대기
+			FColor StateColor = FColor::Green; // 대기 (기본값)
 
 			if (Targeting.State == ELNPTargetingState::Confirmed)
 			{
 				const float ActualDistance = FMath::Sqrt(Targeting.DistanceToTargetSq);
-				if (ActualDistance <= AttackRange)
-				{
-					StateColor = FColor::Red; // 공격
-				}
-				else
-				{
-					StateColor = FColor::Blue; // 추격
-				}
+				StateColor = (ActualDistance <= AttackRange) ? FColor::Red /*공격*/ : FColor::Blue /*추격*/;
 			}
 			else if (Targeting.State == ELNPTargetingState::Alert)
 			{
 				StateColor = FColor::Yellow; // 경계
-			}
-			else
-			{
-				StateColor = FColor::Green; // 대기
 			}
 
 			const FVector Offset = (FVector::ZeroVector - EntityLocation).GetSafeNormal() * 50.0f;

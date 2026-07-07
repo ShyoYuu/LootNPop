@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "GameMode/LNPGameState.h"

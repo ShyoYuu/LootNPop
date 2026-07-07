@@ -1,10 +1,20 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "LootPod/LNPLootPodMassTypes.h"
+#include "LootPod/LNPLootPodReplication.h"
+#include "LootPod/LNPLootPodReplicator.h"
 
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
 #include "MassActorSubsystem.h"
+#include "MassReplicationTrait.h"
+
+ULNPLootPodTrait::ULNPLootPodTrait()
+{
+	ReplicationTrait = CreateDefaultSubobject<UMassReplicationTrait>(TEXT("ReplicationTrait"));
+	ReplicationTrait->Params.BubbleInfoClass = ALNPLootPodClientBubbleInfo::StaticClass();
+	ReplicationTrait->Params.ReplicatorClass = ULNPLootPodReplicator::StaticClass();
+}
 
 void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
@@ -19,4 +29,7 @@ void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildConte
 	BuildContext.AddFragment<FTransformFragment>();
 
 	BuildContext.AddFragment<FMassActorFragment>();
+
+	// 4. LootPod MassReplication (Phase 7) — NM_Standalone이면 UMassReplicationTrait::BuildTemplate이 자체적으로 조기 반환한다.
+	ReplicationTrait->BuildTemplate(BuildContext, World);
 }

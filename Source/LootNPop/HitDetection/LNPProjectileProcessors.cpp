@@ -284,13 +284,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (!PlayerPawn)
 					continue;
 
-				const UCapsuleComponent* Capsule = PlayerPawn->GetCapsule();
+				float HalfH, Radius;
+				LNPHitDetection::GetCapsuleSize(PlayerPawn->GetCapsule(), HalfH, Radius);
 				const APlayerState* TargetPS = PlayerPawn->GetPlayerState<APlayerState>();
 				const FVector Loc = Transforms[i].GetTransform().GetLocation();
-				ClientTargets.Add({ PlayerActor, Loc, (-Loc).GetSafeNormal(),
-					Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 96.f,
-					Capsule ? Capsule->GetScaledCapsuleRadius()     : 42.f,
-					false,
+				ClientTargets.Add({ PlayerActor, Loc, (-Loc).GetSafeNormal(), HalfH, Radius, false,
 					TargetPS ? TargetPS->GetPlayerId() : INDEX_NONE });
 			}
 		});
@@ -417,15 +415,16 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			if (PlayerPawn == nullptr)
 				continue;
 
-			const UCapsuleComponent* Capsule = PlayerPawn->GetCapsule();
+			float HalfH, Radius;
+			LNPHitDetection::GetCapsuleSize(PlayerPawn->GetCapsule(), HalfH, Radius);
 			const FTransform& T   = Transforms[i].GetTransform();
 			const FVector     Loc = T.GetLocation();
 			Players.Add({
 				Loc,
 				(-Loc).GetSafeNormal(),
 				T.GetRotation().GetForwardVector(),
-				Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 96.f,
-				Capsule ? Capsule->GetScaledCapsuleRadius()     : 42.f,
+				HalfH,
+				Radius,
 				Ctx.GetEntity(i),
 				PlayerActor,
 				ParryFrags[i],

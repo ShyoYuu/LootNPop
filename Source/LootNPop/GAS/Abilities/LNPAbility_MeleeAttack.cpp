@@ -1,8 +1,6 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GAS/Abilities/LNPAbility_MeleeAttack.h"
-#include "GAS/Effects/LNPGameplayEffect_Cooldown.h"
-#include "Item/LNPWeaponData.h"
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
@@ -57,30 +55,6 @@ void ULNPAbility_MeleeAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 		Task->OnCancelled.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageInterrupted);
 		Task->ReadyForActivation();
 	}
-}
-
-UGameplayEffect* ULNPAbility_MeleeAttack::GetCooldownGameplayEffect() const
-{
-	return ULNPGameplayEffect_Cooldown::StaticClass()->GetDefaultObject<UGameplayEffect>();
-}
-
-void ULNPAbility_MeleeAttack::ApplyCooldown(const FGameplayAbilitySpecHandle Handle,
-	const FGameplayAbilityActorInfo* ActorInfo,
-	const FGameplayAbilityActivationInfo ActivationInfo) const
-{
-	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDef();
-	if (!WeaponDef || WeaponDef->FireCooldown <= 0.f)
-		return;
-
-	FGameplayEffectSpecHandle SpecHandle = MakeOutgoingGameplayEffectSpec(
-		Handle, ActorInfo, ActivationInfo,
-		ULNPGameplayEffect_Cooldown::StaticClass(), GetAbilityLevel());
-
-	if (!SpecHandle.IsValid())
-		return;
-
-	SpecHandle.Data->SetDuration(WeaponDef->FireCooldown, true);
-	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
 }
 
 void ULNPAbility_MeleeAttack::OnMontageEnded()
