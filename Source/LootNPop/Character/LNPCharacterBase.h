@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -28,7 +28,12 @@ class UAbilitySystemComponent;
 
 
 /**
- * ALNPCharacterBase
+ * 플레이어·Enemy가 공유하는 캐릭터 Pawn 베이스.
+ *
+ * GAS 연동(ASC는 PlayerState 소유), 무기 장착·AnimBP 레이어 교체, 콤보 상태 관리,
+ * 히트리액트·HitStop·넉백 피드백, 그리고 원거리 Ghost 발사체/패링 반사의 Multicast 재현을 담당한다.
+ * 구형 중력(GetUpDirection)과 Mover 기반 이동을 각 컴포넌트에 위임한다.
+ * 실제 공격 발동(TryActivateAttack_Impl)은 파생 클래스가 구현한다.
  */
 UCLASS(Abstract)
 class LOOTNPOP_API ALNPCharacterBase : public APawn, public IAbilitySystemInterface
@@ -159,7 +164,6 @@ protected:
 
 	/** 현재 실행 중인 기본 공격 어빌리티를 취소한다. 서브클래스에서 오버라이드. */
 	virtual void CancelCurrentAttackAbility() {}
-	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;

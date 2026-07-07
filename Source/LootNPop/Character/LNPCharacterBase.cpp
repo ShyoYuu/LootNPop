@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "LNPCharacterBase.h"
 #include "Movement/LNPCharacterMoverComponent.h"
@@ -147,11 +147,6 @@ void ALNPCharacterBase::ResetCombo()
 {
 	CurrentComboIndex   = 0;
 	bComboInputBuffered = false;
-}
-
-void ALNPCharacterBase::PostInitializeComponents()
-{
-	Super::PostInitializeComponents();
 }
 
 void ALNPCharacterBase::BeginPlay()

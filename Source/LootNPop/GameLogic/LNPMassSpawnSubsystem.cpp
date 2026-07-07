@@ -7,6 +7,7 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyReplication.h"
 #include "Character/LNPPlayerReplication.h"
+#include "LootPod/LNPLootPodReplication.h"
 #include "LootNPop.h"
 
 #include "Async/Async.h"
@@ -26,11 +27,12 @@ void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	RandomStream.GenerateNewSeed();
 
-	// MassReplication(Phase 6/6.5): 클라이언트가 접속하기 전에 BubbleInfoClass를 등록해야 한다 (RegisterBubbleInfoClass 문서 제약).
+	// MassReplication(Phase 6/6.5/7): 클라이언트가 접속하기 전에 BubbleInfoClass를 등록해야 한다 (RegisterBubbleInfoClass 문서 제약).
 	if (UMassReplicationSubsystem* ReplicationSubsystem = GetWorld()->GetSubsystem<UMassReplicationSubsystem>())
 	{
 		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPEnemyClientBubbleInfo::StaticClass());
 		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPPlayerClientBubbleInfo::StaticClass());
+		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPLootPodClientBubbleInfo::StaticClass());
 	}
 
 	// Enemy MassReplication(Phase 6): Enemy 스폰(BeginSpawning)은 서버 전용 ALNPGameMode가 호출하므로
@@ -43,6 +45,10 @@ void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		{
 			for (const FLNPLootPodSpawnEntry& PodEntry : Config->LootPodSpawnSets)
 			{
+				// LootPod MassReplication(Phase 7): Pod 템플릿도 클라이언트 warm-up 필요 (Enemy와 동일한 이유)
+				if (UMassEntityConfigAsset* PodConfig = PodEntry.LootPodEntityConfig)
+					PodConfig->GetOrCreateEntityTemplate(*GetWorld());
+
 				for (const FLNPEnemySpawnEntry& EnemyEntry : PodEntry.AssociatedEnemies)
 				{
 					if (UMassEntityConfigAsset* EnemyConfig = EnemyEntry.EnemyEntityConfig)
@@ -196,7 +202,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 					// Cache 조회 + 최소 거리 체크로 LootPod 표면 지점 탐색
 					FVector PodLocation;
 					bool bFoundPod = false;
-					FVector BaseDir = Rand.GetUnitVector();//FVector::DownVector;
+					FVector BaseDir = Rand.GetUnitVector();
 
 					for (int32 Retry = 0; Retry < MaxRetry; ++Retry)
 					{

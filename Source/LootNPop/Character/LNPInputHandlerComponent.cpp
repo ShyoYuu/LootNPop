@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Character/LNPInputHandlerComponent.h"
 #include "Character/LNPCharacterBase.h"
@@ -400,14 +400,7 @@ void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 	bIsGuardJustPressed = !bIsGuardPressed;
 	bIsGuardPressed = true;
 
-	{
-		const AActor* Owner = GetOwner();
-		const APawn*  Pawn  = Cast<APawn>(Owner);
-		UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] OnGuardStarted [%s Auth=%d Local=%d]"),
-			Owner ? *Owner->GetName() : TEXT("?"),
-			Owner ? Owner->HasAuthority() : -1,
-			Pawn && Pawn->IsLocallyControlled());
-	}
+	UE_LOG(LogLootNPop, Verbose, TEXT("[Guard] OnGuardStarted [%s]"), *GetNameSafe(GetOwner()));
 
 	// Guard 의도는 OnProduceInput에서 매 틱 InputCmd로 전달되므로 여기서 별도로 MoverComponent에 쓸 필요 없다.
 
@@ -446,14 +439,7 @@ void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
 	bIsGuardPressed = false;
 	bIsGuardJustPressed = false;
 
-	{
-		const AActor* Owner = GetOwner();
-		const APawn*  Pawn  = Cast<APawn>(Owner);
-		UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] OnGuardReleased [%s Auth=%d Local=%d]"),
-			Owner ? *Owner->GetName() : TEXT("?"),
-			Owner ? Owner->HasAuthority() : -1,
-			Pawn && Pawn->IsLocallyControlled());
-	}
+	UE_LOG(LogLootNPop, Verbose, TEXT("[Guard] OnGuardReleased [%s]"), *GetNameSafe(GetOwner()));
 
 	// Guard 의도는 OnProduceInput에서 매 틱 InputCmd로 전달되므로 여기서 별도로 MoverComponent에 쓸 필요 없다.
 

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "MassReplicationProcessor.h"
+#include "Replication/LNPSpawnOnlyReplication.h"
 #include "LNPPlayerReplicator.generated.h"
 
 /**
@@ -11,11 +11,10 @@
  * 이후 위치는 Mover Actor 복제 채널이 담당한다 (LNPPlayerReplication.h 설계 주석 참조).
  */
 UCLASS()
-class LOOTNPOP_API ULNPPlayerReplicator : public UMassReplicatorBase
+class LOOTNPOP_API ULNPPlayerReplicator : public ULNPSpawnOnlyReplicatorBase
 {
 	GENERATED_BODY()
 
 public:
-	virtual void AddRequirements(FMassEntityQuery& EntityQuery) override;
 	virtual void ProcessClientReplication(FMassExecutionContext& Context, FMassReplicationContext& ReplicationContext) override;
 };

@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -19,6 +19,15 @@ class UMassAgentComponent;
 class ULNPLockOnComponent;
 struct FLNPParryStateFragment;
 
+/**
+ * 플레이어·AI의 입력을 Mover InputCmd로 변환하는 컴포넌트.
+ *
+ * - Enhanced Input 액션을 바인딩해 이동/시점/점프/대시/공격/가드/락온 입력을 캐싱한다.
+ * - IMoverInputProducerInterface::ProduceInput에서 캐싱된 입력 + 구형 중력 기준 방향 보정을
+ *   FCharacterDefaultInputs·FLNPModifierInputs로 채워 Mover 시뮬레이션에 전달한다.
+ * - 컨트롤러가 없는 폰(AI)은 StateTree가 설정한 AIMoveInput/AIOrientationIntent를 대신 사용한다.
+ * - 가드/패링 상태는 Mass FLNPParryStateFragment에 로컬 예측 + 서버 RTT 보정으로 반영한다.
+ */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class LOOTNPOP_API ULNPInputHandlerComponent : public UActorComponent, public IMoverInputProducerInterface
 {

@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -63,11 +63,22 @@ struct LOOTNPOP_API FLNPPlayerLootingFragment : public FMassFragment
 USTRUCT()
 struct LOOTNPOP_API FLNPLootPodTag : public FMassTag { GENERATED_BODY() };
 
+class UMassReplicationTrait;
+
 // 5. LootPod Entity Trait (Entity 트레이트)
 UCLASS()
 class LOOTNPOP_API ULNPLootPodTrait : public UMassEntityTraitBase
 {
 	GENERATED_BODY()
+
+public:
+	ULNPLootPodTrait();
+
 protected:
 	virtual void BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const override;
+
+	/** LootPod MassReplication(Phase 7) — BubbleInfoClass/ReplicatorClass를 LNP 전용 클래스로 고정해 내부적으로 위임한다.
+	 *  Standalone(NM_Standalone)에서는 UMassReplicationTrait::BuildTemplate 자체가 조기 반환하므로 별도 분기가 필요 없다. */
+	UPROPERTY(VisibleAnywhere, Category = "LNP|LootPod", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMassReplicationTrait> ReplicationTrait;
 };

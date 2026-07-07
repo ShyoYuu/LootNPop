@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -28,6 +28,14 @@ public:
 
 	virtual void EquipWeapon(ULNPWeaponData* WeaponData) override;
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const override;
+
+	/**
+	 * 시선 회전(에임) 반환. 로컬 제어 폰은 기존처럼 Control Rotation을 쓰고,
+	 * 서버의 원격 폰과 시뮬레이티드 프록시는 Mover InputCmd에 실려 온 소유 클라이언트의
+	 * ControlRotation을 사용한다 — 원거리 발사 피치와 Aim Offset(상체 자세) 동기화의 단일 데이터 소스.
+	 * (서버: Network Prediction 입력 복제 / 프록시: bSyncInputsForSimProxy로 SyncState에 동봉)
+	 */
+	virtual FRotator GetBaseAimRotation() const override;
 
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	TArray<AActor*> GetInteractionCandidates() const;

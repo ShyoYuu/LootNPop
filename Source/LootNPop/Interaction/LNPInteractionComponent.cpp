@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Interaction/LNPInteractionComponent.h"
 #include "LootPod/LNPLootPod.h"
@@ -70,10 +70,6 @@ void ULNPInteractionComponent::PerformInteraction()
 	if (Owner == nullptr)
 		return;
 
-	UMassAgentComponent* MassAgentComponent = Owner->FindComponentByClass<UMassAgentComponent>();
-	if (MassAgentComponent == nullptr)
-		return;
-
 	// 필요 시 안전하게 제거할 수 있도록 복사본을 순회
 	TArray<TWeakObjectPtr<AActor>> CurrentCandidates = InteractionCandidates.Array();
 
@@ -94,33 +90,63 @@ void ULNPInteractionComponent::PerformInteraction()
 			if (!Pod->CanInteract(Owner))
 				continue;
 
-			FMassEntityHandle PlayerEntity = MassAgentComponent->GetEntityHandle();
-			if (!PlayerEntity.IsValid())
-				continue;
+			// 로컬 비주얼 즉시 반응 (예측) — 서버 확정 상태는 CurrentState 복제(OnRep_PodState)가 덮는다
+			Pod->StartLooting();
 
-			FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*GetWorld());
-
-			// Player가 이미 루팅 중인지 확인
-			if (EntityManager.GetFragmentDataPtr<FLNPPlayerLootingFragment>(PlayerEntity) == nullptr)
-			{
-				UE_LOG(LogLootNPop, Log, TEXT("Interacting with LootPod: %s"), *Pod->GetName());
-
-				// 1. Player 루팅 신호
-				EntityManager.Defer().AddTag<FLNPPlayerLootingTag>(PlayerEntity);
-
-				// 2. 타게팅 정보 설정
-				FLNPPlayerLootingFragment FragmentPayload;
-				FragmentPayload.BuffedLootSpeed = 1.0f;
-				EntityManager.Defer().PushCommand<FMassCommandAddFragmentInstances<FLNPPlayerLootingFragment>>(PlayerEntity, FragmentPayload);
-
-				// 3. Pod 로직 트리거
-				Pod->StartLooting();
-			}
+			// 루팅 태그/프래그먼트는 서버 월드의 플레이어 엔티티에 붙어야 한다 (Phase 7)
+			if (Owner->HasAuthority())
+				StartLootingOnServer(Pod);
 			else
-			{
-				UE_LOG(LogLootNPop, Warning, TEXT("Player is already looting another pod."));
-			}
+				Server_StartLooting(Pod);
 		}
+	}
+}
+
+void ULNPInteractionComponent::Server_StartLooting_Implementation(ALNPLootPod* Pod)
+{
+	// 서버 재검증 — 클라이언트 판정 시점과의 레이스(Popped 직후 등)를 걸러낸다
+	APawn* Owner = Cast<APawn>(GetOwner());
+	if (Owner == nullptr || Pod == nullptr || !Pod->CanInteract(Owner))
+		return;
+
+	StartLootingOnServer(Pod);
+}
+
+void ULNPInteractionComponent::StartLootingOnServer(ALNPLootPod* Pod)
+{
+	APawn* Owner = Cast<APawn>(GetOwner());
+	if (Owner == nullptr || Pod == nullptr)
+		return;
+
+	UMassAgentComponent* MassAgentComponent = Owner->FindComponentByClass<UMassAgentComponent>();
+	if (MassAgentComponent == nullptr)
+		return;
+
+	FMassEntityHandle PlayerEntity = MassAgentComponent->GetEntityHandle();
+	if (!PlayerEntity.IsValid())
+		return;
+
+	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*GetWorld());
+
+	// Player가 이미 루팅 중인지 확인
+	if (EntityManager.GetFragmentDataPtr<FLNPPlayerLootingFragment>(PlayerEntity) == nullptr)
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("Interacting with LootPod: %s"), *Pod->GetName());
+
+		// 1. Player 루팅 신호
+		EntityManager.Defer().AddTag<FLNPPlayerLootingTag>(PlayerEntity);
+
+		// 2. 타게팅 정보 설정
+		FLNPPlayerLootingFragment FragmentPayload;
+		FragmentPayload.BuffedLootSpeed = 1.0f;
+		EntityManager.Defer().PushCommand<FMassCommandAddFragmentInstances<FLNPPlayerLootingFragment>>(PlayerEntity, FragmentPayload);
+
+		// 3. Pod 로직 트리거 (서버/리슨호스트 비주얼 + CurrentState 복제 마킹은 프로세서 전환이 담당)
+		Pod->StartLooting();
+	}
+	else
+	{
+		UE_LOG(LogLootNPop, Warning, TEXT("Player is already looting another pod."));
 	}
 }
 

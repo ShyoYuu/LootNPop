@@ -1,7 +1,6 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GAS/Abilities/LNPAbility_RangedAttack.h"
-#include "GAS/Effects/LNPGameplayEffect_Cooldown.h"
 #include "Item/LNPWeaponData.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
@@ -44,30 +43,6 @@ void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle 
 	Character->PlayMontage(TAG_Montage_Situation_Attack);
 
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
-}
-
-UGameplayEffect* ULNPAbility_RangedAttack::GetCooldownGameplayEffect() const
-{
-	return ULNPGameplayEffect_Cooldown::StaticClass()->GetDefaultObject<UGameplayEffect>();
-}
-
-void ULNPAbility_RangedAttack::ApplyCooldown(const FGameplayAbilitySpecHandle Handle,
-	const FGameplayAbilityActorInfo* ActorInfo,
-	const FGameplayAbilityActivationInfo ActivationInfo) const
-{
-	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDef();
-	if (!WeaponDef || WeaponDef->FireCooldown <= 0.f)
-		return;
-
-	FGameplayEffectSpecHandle SpecHandle = MakeOutgoingGameplayEffectSpec(
-		Handle, ActorInfo, ActivationInfo,
-		ULNPGameplayEffect_Cooldown::StaticClass(), GetAbilityLevel());
-
-	if (!SpecHandle.IsValid())
-		return;
-
-	SpecHandle.Data->SetDuration(WeaponDef->FireCooldown, true);
-	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
 }
 
 void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationInfo& ActivationInfo) const
@@ -225,24 +200,35 @@ TArray<FVector> ULNPAbility_RangedAttack::GetFireDirections(const FVector& Spawn
 
 	if (const APlayerController* PC = Cast<APlayerController>(Character->GetController()))
 	{
-		UWorld* World = Character->GetWorld();
-		FVector CamPos;
-		FRotator CamRot;
-		PC->GetPlayerViewPoint(CamPos, CamRot);
-
-		const FVector TraceEnd = CamPos + CamRot.Vector() * AimTraceDistance;
-
-		FHitResult Hit;
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(Character);
-
-		const FVector AimTarget = World->LineTraceSingleByChannel(Hit, CamPos, TraceEnd, ECC_Visibility, QueryParams)
-			? Hit.ImpactPoint
-			: TraceEnd;
-
-		if (MinAimDistanceSq <= FVector::DistSquared(SpawnPos, AimTarget))
+		if (Character->IsLocallyControlled())
 		{
-			Direction = (AimTarget - SpawnPos).GetSafeNormal();
+			// 로컬 제어(소유 클라이언트·리슨호스트): 카메라 시점에서 크로스헤어 방향으로 트레이스해 조준점 수렴
+			UWorld* World = Character->GetWorld();
+			FVector CamPos;
+			FRotator CamRot;
+			PC->GetPlayerViewPoint(CamPos, CamRot);
+
+			const FVector TraceEnd = CamPos + CamRot.Vector() * AimTraceDistance;
+
+			FHitResult Hit;
+			FCollisionQueryParams QueryParams;
+			QueryParams.AddIgnoredActor(Character);
+
+			const FVector AimTarget = World->LineTraceSingleByChannel(Hit, CamPos, TraceEnd, ECC_Visibility, QueryParams)
+				? Hit.ImpactPoint
+				: TraceEnd;
+
+			if (MinAimDistanceSq <= FVector::DistSquared(SpawnPos, AimTarget))
+			{
+				Direction = (AimTarget - SpawnPos).GetSafeNormal();
+			}
+		}
+		else
+		{
+			// 서버의 원격 플레이어: 클라이언트 카메라 위치가 서버에 없어 크로스헤어 트레이스는 불가능하다.
+			// Mover InputCmd로 복제된 시선 회전(GetBaseAimRotation 오버라이드)으로 발사 피치를 반영한다.
+			// 카메라 광선과의 시차(패럴랙스)만큼 클라이언트 예측 Ghost와 미세하게 어긋날 수 있으나 코스메틱 범위.
+			Direction = Character->GetBaseAimRotation().Vector();
 		}
 	}
 
