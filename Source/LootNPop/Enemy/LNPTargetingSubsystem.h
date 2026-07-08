@@ -43,8 +43,6 @@ class LOOTNPOP_API ULNPTargetingSubsystem : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-
 	/** 특정 Player 타겟에 대한 Enemy의 어그로 Score를 등록한다 */
 	void RegisterEnemyInterest(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle, float Score, bool bIsMelee);
 

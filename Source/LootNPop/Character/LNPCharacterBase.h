@@ -75,12 +75,6 @@ public:
 	/** 현재 콤보 인덱스 (0 = 첫 번째 공격 Attack_1). */
 	int32 GetCurrentComboIndex() const { return CurrentComboIndex; }
 
-	/** 콤보 창에서 입력 수신 시 ANS가 호출한다. */
-	void SetComboInputBuffered(bool bBuffered) { bComboInputBuffered = bBuffered; }
-
-	/** 콤보 버퍼 소비. 버퍼가 있었으면 true 반환 후 초기화. */
-	bool ConsumeComboInput();
-
 	/** 콤보 인덱스를 MaxComboCount에 맞게 1 증가(순환). */
 	void IncrementComboIndex();
 
@@ -226,8 +220,7 @@ private:
 	FGameplayTag CurrentWeaponTag;
 	FGameplayTag CurrentAimModeTag;
 
-	int32 CurrentComboIndex   = 0;
-	bool  bComboInputBuffered = false;
+	int32 CurrentComboIndex = 0;
 
 	// EvaluateMontage() 호출마다 재할당을 피하기 위해 캐싱
 	UPROPERTY(Transient)

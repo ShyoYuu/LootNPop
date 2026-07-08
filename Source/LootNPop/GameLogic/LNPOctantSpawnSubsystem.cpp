@@ -24,7 +24,7 @@ const FRotator ULNPOctantSpawnSubsystem::OctantRotations[8] = {
 
 void ULNPOctantSpawnSubsystem::Tick(float DeltaTime)
 {
-	if (false == bIsGenerating)
+	if (!bIsGenerating)
 		return;
 
 	ULevelInstanceSubsystem* LevelInstanceSub = GetWorld()->GetSubsystem<ULevelInstanceSubsystem>();
@@ -81,6 +81,8 @@ void ULNPOctantSpawnSubsystem::StartWorldGeneration()
 	UWorld* World = GetWorld();
 	check(World);
 
+	// 서버는 GameMode가 BeginPlay에서 seed를 확정한 뒤 호출하고, 클라이언트는 OnRep으로 동일 seed를 수신한 뒤 호출한다.
+	// seed가 0이면 GameState가 없는 환경(예: 에디터 단독 테스트)이므로 비결정론적 랜덤으로 대체.
 	int32 OctantGenSeed = 0;
 	if (ALNPGameState* GS = World->GetGameState<ALNPGameState>())
 		OctantGenSeed = GS->OctantGenSeed;
@@ -90,6 +92,8 @@ void ULNPOctantSpawnSubsystem::StartWorldGeneration()
 	SpawnedOctants.Empty();
 	bIsGenerating = true;
 
+	// Fisher-Yates로 섞은 풀 전체를 한 배치로 삼아 8개가 모일 때까지 반복 —
+	// 풀이 8개 미만이어도 동작하며, 풀을 한 바퀴 소진하기 전까지는 같은 Octant가 중복되지 않는다.
 	TArray<int32> SelectedIndices;
 	while (SelectedIndices.Num() < 8)
 	{

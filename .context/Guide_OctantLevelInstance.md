@@ -47,9 +47,9 @@ SphereWorld는 구체를 8개의 Octant(1/8 조각)로 분할하고, 풀에 등�
 
 | 필드 | 설명 |
 |:---|:---|
-| **Static Mesh** | 배치할 배경 프랍 메시 |
+| **Mesh** | 배치할 배경 프랍 메시 |
 | **Weight** | 이 메시가 선택될 상대적 확률 (값이 클수록 자주 배치됨) |
-| **Random Scale Range** | 배치 시 적용할 스케일 무작위 범위 |
+| **Min Scale / Max Scale** | 배치 시 적용할 스케일 무작위 범위 (두 값 사이 랜덤 보간) |
 
 > **예시:** `Meadow_00/DA_OctantTheme_Meadow` — Cone(2.0), Cube(1.0), Cylinder(0.5)
 

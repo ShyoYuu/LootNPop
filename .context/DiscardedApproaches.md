@@ -11,7 +11,7 @@
 
 ### 구현 방식
 
-단일 `PCG Volume` 내에서 커스텀 C++ 노드(`UPCGSphereWorldSettings`)를 사용하여 `SM_Plane` Static Mesh를 피보나치 분포로 전체 구체 포인트에 생성. `Radius` 값에 따라 전체 타일을 동적으로 배치하고, Perlin Noise 및 경사면 정렬을 포함한 모든 지형 계산을 PCG 노드로 처리.
+단일 `PCG Volume` 내에서 커스텀 C++ 노드(`ULNPSphereWorldSettings` — 폐기 상태로 소스에 보존)를 사용하여 `SM_Plane` Static Mesh를 피보나치 분포로 전체 구체 포인트에 생성. `Radius` 값에 따라 전체 타일을 동적으로 배치하고, Perlin Noise 및 경사면 정렬을 포함한 모든 지형 계산을 PCG 노드로 처리.
 
 ### 실패 현상
 

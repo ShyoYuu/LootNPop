@@ -1,53 +1,52 @@
 # LootPod 시스템 기술 설계
 
-## 1. 아키텍처 개요
+## 1. 한눈에 보기
 
-**LootPod**은 대규모 배치와 상태 관리 효율성을 위해 MassEntity와 SmartObject를 결합한 하이브리드 방식 사용.
+**LootPod**은 MassEntity(시뮬레이션) + SmartObject(상호작용 쿼리) + Actor(비주얼·복제)를 결합한 하이브리드 오브젝트. 게이지·근접 판정은 서버 Mass 프로세서가 태그 교체 상태 머신으로 처리하고, Actor는 Niagara 비주얼과 근접 클라이언트 복제만 담당한다.
 
 ```
-[ULNPMassSpawnSubsystem] → 스폰
-[SmartObjectSubsystem]   → 상호작용 쿼리 (ULNPInteractionComponent가 검색)
-[MassEntity Processors]  → 상태 업데이트 (게이지, 전환)
-[ALNPLootPod Actor]      → 비주얼 동기화 (Niagara VFX, 메시 상태)
+[ULNPMassSpawnSubsystem] → 결정론적 스폰 (SurfaceCache 표면 투영)
+[SmartObjectSubsystem]   → 상호작용 후보 쿼리 (ULNPInteractionComponent가 검색)
+[Mass Processors]        → 상태 전환·게이지 (서버 전용, 태그 교체 상태 머신)
+[ALNPLootPod Actor]      → SmartObject 등록 + Niagara VFX + 상태·게이지 복제
+```
+
+**상태 머신 (태그 교체):**
+
+```
+FLNPLootPodIdleTag ──(범위 내 FLNPPlayerLootingTag 감지)──▶ FLNPLootPodLootingTag
+        ▲                                                        │
+        └──(범위 내 루터 없음 — Idle 복귀)◀───────────────────────┤
+                                              (게이지 완료)──▶ Popped → 엔티티 즉시 소멸
 ```
 
 ---
 
-## 2. MassEntity 구성 요소 (구현 완료)
+## 2. MassEntity 구성 요소
 
 ### 2.1 Fragments & Tags
 
-**`FLNPLootPodFragment`** — Pod 고유 상태
-- `ELNPLootPodState State` — `Idle` / `Looting` / `Interrupted` / `Popped`
-- `float CurrentGauge` / `float MaxGauge` — 루팅 진행도
-- `float LootableDistSquared` — 유효 루팅 거리 (제곱값, 최적화)
-- `int32 PodID` — 보상 데이터 조회 키
+| 타입 | 내용 |
+|:---|:---|
+| `FLNPLootPodFragment` | `State`(Idle/Looting/Interrupted/Popped), `CurrentGauge`/`MaxGauge`, `LootableDistSquared`, `PodID`(보상 조회 키) |
+| `FLNPPlayerLootingFragment` | Player 엔티티 부착 — `BuffedLootSpeed` (아이템/스킬 변조 배율) |
+| Tags | `FLNPLootPodTag`(식별), `FLNPLootPodIdleTag`/`FLNPLootPodLootingTag`(상태별 쿼리 분리), `FLNPPlayerLootingTag`(루팅 중 플레이어) |
 
-**`FLNPPlayerLootingFragment`** — Player 엔티티에 부착
-- `float BuffedLootSpeed` — 아이템/스킬에 의해 변조된 루팅 속도 배율
+> `Interrupted`는 Enum에만 정의되어 있고 프로세서 로직 미사용 — 범위 이탈은 `Looting → Idle` 직행. 피격 취소(§5.2) 구현 시 활용 재검토.
 
-**Tags:**
-- `FLNPLootPodTag` — LootPod 엔티티 식별
-- `FLNPLootPodIdleTag` / `FLNPLootPodLootingTag` — 상태별 쿼리 분리
-- `FLNPPlayerLootingTag` — 루팅 중인 플레이어 식별
+`ULNPLootPodTrait`가 엔티티 템플릿을 구성하며, MassReplication Trait(BubbleInfo/Replicator 고정)를 내부 위임한다 (Phase 7).
 
-> **참고 — `Interrupted` 상태:** `ELNPLootPodState` Enum에 `Interrupted` 값이 정의되어 있으나, 현재 프로세서 로직에서는 사용되지 않습니다. 범위 이탈 시 `Looting → Interrupted` 경유 없이 `Looting → Idle`로 직접 전환됩니다. 피격에 의한 강제 취소(섹션 4.1)가 구현될 때 `Interrupted` 상태의 활용 여부를 재검토해야 합니다.
+### 2.2 Processors (서버 전용 — `IsClientWorld` 가드)
 
-### 2.2 Processors
+**`ULNPIdleToLootingProcessor`** — Idle Pod 주변에서 `FLNPPlayerLootingTag` 플레이어 감지 → `Looting` 전환 + 태그 교체 (Deferred).
 
-**`ULNPIdleToLootingProcessor`**
-- `FLNPLootPodIdleTag` 보유 Pod 주변에서 `FLNPPlayerLootingTag` 플레이어를 감지
-- 감지 시 State → `Looting` 전환, 태그 교체
+**`ULNPLootingProcessor`** — Looting Pod마다:
+- **범위 내 루터들의 `BuffedLootSpeed`를 합산**해 게이지 누적 — 여러 명이 함께 루팅하면 그만큼 빨라진다.
+- 게이지 진행률을 Actor 복제 프로퍼티에 반영 (게임 스레드 지연 커맨드, 2% 임계값).
+- 완료 → `Popped` 전환 커맨드 + **엔티티 즉시 파괴** (Fragment/Tag 갱신 불필요 — 비주얼·복제 전파는 커맨드의 `UpdateVisuals`가 담당).
+- 범위 내 루터 없음 → `Idle` 복귀 + 태그 교체.
 
-**`ULNPLootingProcessor`**
-- `FLNPLootPodLootingTag` 보유 Pod의 게이지를 `DeltaTime × BuffedLootSpeed`로 업데이트
-- 플레이어와 거리 체크 (매 프레임, `LootableDistSquared` 기준)
-  - 범위 이탈 → State → `Idle` 복귀, 태그 교체 (**게이지는 초기화되지 않음**, 현재 미구현)
-  - 게이지 완료 → `FLNPPodStateTransitionCommand`로 비주얼 갱신 후 **엔티티 즉시 소멸** (`DestroyEntity`)
-
-> **현재 동작과 게임 기획 간 차이:**
-> - 기획(→ [GameDesign_LootPod.md](GameDesign_LootPod.md))상 범위 이탈 시 게이지가 초기화되어야 하나, 코드에서는 초기화되지 않음.
-> - `Popped` 전환 시 엔티티가 즉시 소멸되므로 상태 갱신 주석처리(`State = Popped`)는 사실상 도달하지 않음. 보상 스폰(TODO) 구현 시 타이밍 재검토 필요.
+**`FLNPPodStateTransitionCommand`** (Game Thread) — 상태 전환 통합 후처리: `UpdateVisuals` 호출, 로그, `Popped` 보상 스폰 지점(TODO 스텁).
 
 ---
 
@@ -55,69 +54,57 @@
 
 ### 3.1 플레이어 측 (ULNPInteractionComponent)
 
-플레이어 캐릭터에 부착. `SmartObjectSubsystem`을 통해 주변 `ALNPLootPod`을 검색.
-- 상호작용 입력 → 로컬 `CanInteract` 체크 + `Pod->StartLooting()`(비주얼 예측) → **서버에서** 플레이어 엔티티에 `FLNPPlayerLootingTag` 추가 + `FLNPPlayerLootingFragment` 설정
-  - 원격 클라이언트는 `Server_StartLooting(Pod)` RPC 경유 (서버가 `CanInteract` 재검증) — 멀티플레이 Phase 7에서 추가 (→ [TechDesign_Networking.md](TechDesign_Networking.md) §9 Phase 7)
-- 이후 서버 전용 `ULNPIdleToLootingProcessor`가 자동으로 감지 (프로세서 2종은 `NM_Client` 조기 반환)
+`SmartObjectSubsystem`으로 주변 `ALNPLootPod`을 지속 탐색(`InteractionRadius`, Tick), 후보 목록을 UI에 노출.
 
-### 3.2 Actor → Mass 상태 동기화 (ALNPLootPod)
+```
+상호작용 입력 → 로컬 CanInteract(거리+MaxInteractionAngle) + Pod->StartLooting() (비주얼 예측)
+  ├─ 서버/리슨호스트: 즉시 StartLootingOnServer()
+  └─ 원격 클라이언트: Server_StartLooting RPC → 서버가 CanInteract 재검증
+       → 서버 월드의 플레이어 엔티티에 FLNPPlayerLootingTag + FLNPPlayerLootingFragment 부여
+       → 다음 프레임 ULNPIdleToLootingProcessor가 자동 감지
+```
 
-Mass 프로세서에서 State가 전환되면 `ALNPLootPod` 액터의 Niagara VFX와 메시 상태를 갱신.
+### 3.2 ALNPLootPod Actor — 비주얼과 복제
 
-**Niagara 연동:**
-- 파라미터 이름: `User.Color`
-- 상태별 색상으로 루팅 진행 및 완료를 시각적으로 표현
-
-**ALNPLootPod 컴포넌트 구성:**
-- `SmartObjectComponent` — 상호작용 등록
-- `UNiagaraComponent` (LootPillarVFX) — 빛기둥 이펙트
-- `USphereComponent` (LootingZoneSphere) — 루팅 유효 범위 시각화
-- `UMassAgentComponent` — Mass 엔티티 브릿지
-
-**멀티플레이 복제 (Phase 7, → [TechDesign_Networking.md](TechDesign_Networking.md) §5.4·§9):**
-- Actor 복제: `bReplicates=true` — `CurrentState`(OnRep → `UpdateVisuals`), `CurrentGaugePercent`(0~1, 서버 2% 임계값 갱신)
-- MassReplication bubble: 엔티티 존재 + 스폰 위치 1회 (`LNPLootPodReplication.h/.cpp`, `LNPLootPodReplicator.h/.cpp`)
+- 컴포넌트: `SmartObjectComponent` / `UNiagaraComponent`(빛기둥) / `USphereComponent`(루팅 구역) / `UMassAgentComponent`(Mass 브릿지)
+- Niagara `User.Color` 파라미터를 상태별 색상(Idle/Looting/Popped)으로 전환.
+- **이중 복제 (Phase 7):** 엔티티 존재·초기 위치는 MassReplication bubble이 전 클라이언트에, `CurrentState`(OnRep → UpdateVisuals)·`CurrentGaugePercent`는 Actor 복제가 근접 클라이언트에 전달. (→ [TechDesign_Networking.md](TechDesign_Networking.md) §3.5)
 
 ---
 
-## 4. 미구현 항목 (구현 예정)
+## 4. 어필 포인트 (설계 판단)
 
-### 4.1 게이지 초기화 (범위 이탈 시)
+### 4.1 태그 교체 상태 머신 — 쿼리가 곧 상태 필터
 
-> **🔲 미구현.** 현재 `ULNPLootingProcessor`는 범위 이탈 시 State를 Idle로 되돌리지만 `CurrentGauge`를 0으로 리셋하지 않습니다. 기획 의도(`GameDesign_LootPod.md` § 2.2)와 다릅니다.
+상태를 Fragment 값으로만 두면 모든 프로세서가 전체 Pod를 순회하며 분기해야 한다. 상태별 태그(`IdleTag`/`LootingTag`)로 아키타입을 분리하면 각 프로세서의 쿼리가 자기 상태의 엔티티만 받는다 — 상태 검사 비용이 쿼리 필터로 흡수된다. LootPod은 상태 전환 빈도가 낮아 태그 교체(아키타입 마이그레이션) 비용이 문제되지 않는 케이스 (전환이 잦은 Enemy 넉백은 반대 판단 — [TechDesign_EnemyNPC.md §7.3](TechDesign_EnemyNPC.md)).
 
-**구현 방향:** `ULNPLootingProcessor` 범위 이탈 분기에서 `LootPods[i].CurrentGauge = 0.0f;` 한 줄 추가.
+### 4.2 게이지 복제의 트래픽 제어
 
-### 4.2 Interruption (피격 루팅 취소)
+매 프레임 변하는 게이지를 그대로 복제하면 Pod 수 × 프레임만큼 트래픽이 나간다. 서버는 **2% 이상 변화(또는 0/1 도달) 시에만** 복제 프로퍼티에 기록 — UI 게이지의 시각적 부드러움은 유지하면서 대역폭을 상수화.
 
-> **🔲 미구현.** HitDetection 시스템 구현 후 연계.
+### 4.3 원격 클라이언트 루팅 공백 — 서버 엔티티에 태그를 붙여라
 
-플레이어가 적에게 피격을 받으면 루팅이 즉시 취소되어야 함.
+루팅 태그를 로컬 월드의 플레이어 엔티티에만 붙이던 초기 구현은 리슨 호스트에서만 동작했다 — LootPod 프로세서는 서버 전용이라 **서버 월드의 엔티티**에 태그가 있어야 감지한다. `Server_StartLooting` RPC로 해소 (Guard/Parry RPC와 동일 유형의 공백 — 클라이언트 로컬 Mass 상태 변경은 서버에 자동 전파되지 않는다는 일반 원칙).
 
-**구현 방향:** HitDetection 시스템(→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md))에서 피격 판정 시 해당 플레이어 엔티티의 `FLNPPlayerLootingTag`를 제거. 태그 제거가 트리거가 되어 `ULNPLootingProcessor`가 다음 프레임에 Idle로 복귀.
+### 4.4 다인 협동 루팅
 
-```
-[HitDetection Processor] → 피격 확인
-    → FMassDeferredSetCommand로 FLNPPlayerLootingTag 제거
-    → 다음 프레임 ULNPLootingProcessor에서 감지 → Idle 복귀 (+ 게이지 초기화)
-```
-
-### 4.3 보상 드롭 (Popped 후처리)
-
-> **🔲 미구현.** `FLNPPodStateTransitionCommand::Run()` 내부에 TODO 주석으로 스텁이 존재합니다. GAS 인프라 구축 후 구현.
-
-`Popped` 상태 전환 시 `PodID`를 기반으로 보상 데이터를 조회하고 아이템을 월드에 스폰.
-
-### 4.4 난이도 스케일링 트리거
-
-> **🔲 미구현.**
-
-활성 Pod 수를 추적하는 카운터를 통해 `ULNPTargetingSubsystem`의 슬롯 한도 또는 NPC 능력치를 조정.
+범위 내 모든 루터의 속도를 합산하는 설계라, "함께 루팅하면 빨리 깐다"는 협동 인센티브가 프로세서 루프 한 줄로 구현된다. 루팅 속도 버프도 `BuffedLootSpeed` 필드 하나로 어떤 아이템/스킬이든 연동 가능.
 
 ---
 
-## 5. 확장성 설계 포인트
+## 5. 미구현 항목
 
-- **루팅 속도 버프:** `FLNPPlayerLootingFragment::BuffedLootSpeed` 필드 하나만 변경하면 어떤 아이템/스킬이든 루팅 속도에 영향 가능.
-- **Pod 타입 다양화:** `PodID`를 통해 보상 테이블을 외부 데이터 에셋으로 관리하면 코드 수정 없이 보상 유형 추가 가능.
-- **대규모 대응:** SmartObject로 쿼리, Mass로 시뮬레이션하는 구조를 유지하면 수천 개의 Pod도 성능 저하 없이 운용 가능.
+### 5.1 게이지 초기화 (범위 이탈 시)
+기획상 이탈 시 게이지가 초기화되어야 하나 현재 유지됨. `ULNPLootingProcessor` 이탈 분기에 `CurrentGauge = 0` 한 줄 추가로 해결 가능 — 기획 확정 대기.
+
+### 5.2 Interruption (피격 루팅 취소)
+피격 시 즉시 취소. HitDetection에서 피격 플레이어의 `FLNPPlayerLootingTag`를 제거하면 다음 프레임 프로세서가 Idle 복귀 — 연결 지점만 남음 (→ [TechDesign_HitDetection.md §8](TechDesign_HitDetection.md)).
+
+### 5.3 보상 드롭 (Popped 후처리)
+`FLNPPodStateTransitionCommand::Run()`에 TODO 스텁. `PodID` 기반 보상 테이블 조회 → 아이템 월드 스폰 → 인벤토리 연동 (→ [TechDesign_Ability.md](TechDesign_Ability.md) §6).
+
+### 5.4 난이도 스케일링 트리거
+활성 Pod 수 카운터 → `ULNPTargetingSubsystem` 슬롯 한도/NPC 능력치 조정.
+
+### 5.5 루팅 속도 버프 연동
+`BuffedLootSpeed`는 현재 기본값 1.0 고정 — 플레이어 스탯/버프에서 읽어오는 연결 필요 (프로세서에 TODO).

@@ -9,10 +9,11 @@
 /**
  * 공격 입력 차단 구간을 정의하는 AnimNotifyState.
  *
- * NotifyBegin : ASC에 TAG_Block_AttackInput 추가
- * NotifyEnd   : TAG_Block_AttackInput 제거 후 콤보 버퍼 소비
- *               - 버퍼 있음 → IncrementComboIndex + TryActivateAttack (연속 공격)
- *               - 버퍼 없음 → ResetCombo (콤보 종료)
+ * NotifyBegin : ASC에 TAG_Block_AttackInput 추가 — 공격 선딜 중 연타 입력이 새 어빌리티를 발동하지 못하게 차단
+ * NotifyEnd   : TAG_Block_AttackInput 제거
+ *
+ * 콤보 연결 자체는 ANS_LNPComboWindow가 여는 TAG_State_ComboWindow 구간에서
+ * ALNPCharacterBase::TryActivateAttack()이 태그를 소비하며 처리한다.
  */
 UCLASS(meta = (DisplayName = "LNP Block Attack Input"))
 class LOOTNPOP_API UANS_LNPAttackInputBlock : public UAnimNotifyState
