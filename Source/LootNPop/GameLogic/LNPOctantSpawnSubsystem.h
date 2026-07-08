@@ -36,6 +36,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "LNP|World Generation")
 	FLNPOnWorldGenerationFinished OnWorldGenerationFinished;
 
+	/** 월드 생성 완료 여부. GameState가 클라이언트 베이킹 시작 조건(투-게이트)으로 참조한다. */
 	bool bGenerationComplete = false;
 
 private:

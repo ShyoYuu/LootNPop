@@ -16,7 +16,9 @@ enum class ELNPInitPhase : uint8
 };
 
 /**
- *
+ * 서버 초기화 단계(ServerPhase)와 월드 생성 시드(OctantGenSeed)를 클라이언트에 복제하는 GameState.
+ * 클라이언트 측 초기화(옥탄트 월드 생성 → 표면 베이킹)는 각 OnRep 콜백에서 트리거되며,
+ * 서버 페이즈 신호와 로컬 월드 생성 완료가 모두 충족되어야 베이킹을 시작한다 (투-게이트 패턴).
  */
 UCLASS()
 class LOOTNPOP_API ALNPGameState : public AGameStateBase

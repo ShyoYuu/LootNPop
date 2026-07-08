@@ -122,7 +122,7 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 | 기능 | 세부 내용 |
 |:---|:---|
 | 원거리 기본 공격 GA | Mass Entity 발사체 생성 후 즉시 종료. 이후 이동/판정은 Processor가 처리 |
-| 산탄 공격 GA | `ULNPAbility_RangedSpreadAttack`: 5x5 방사형으로 Projectile을 동시 스폰하는 RangedAttack 서브클래스 |
+| 산탄 공격 GA | `ULNPAbility_RangedSpreadAttack`: 육각 링 방사형(중앙 1 + 링 2 = 19발)으로 Projectile을 동시 스폰하는 RangedAttack 서브클래스 |
 | 발사체 HitDetection | 선분-캡슐 충돌 검사. 피해 GE 적용. 팀 구분(`InstigatorTeam`)으로 아군 피격 방지 |
 | 발사체 VFX | 🔲 미구현. 현재 에디터 디버그드로우(청록 구체 + 속도 방향 화살표)로 동작 확인 중 |
 | 근접 기본 공격 GA | `ULNPAbility_MeleeAttack`: 무기 DataAsset의 AttackMontage 재생 후 즉시 종료 |

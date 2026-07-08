@@ -45,13 +45,13 @@ Evaluator는 `FLNPEnemyStateEvaluatorInstanceData`를 `FInstanceDataType`으로 
     *   **Logic**: `FMath::QInterpConstantTo`를 사용하여 `RotationRate`(Config)에 맞춰 타겟을 부드럽게 바라보도록 `FMassMoveTargetFragment`를 업데이트한다. Actor가 유효할 경우 Actor의 회전도 동기화한다.
 
 2.  **LNPEnemySteeringTask**
-    *   **Logic**: `MoveSpeed`(Config)를 적용하여 타겟 위치를 `FMassMoveTargetFragment`의 목적지로 설정한다.
+    *   **Logic**: `MoveSpeed`(Config)를 적용하여 타겟 위치를 `FMassMoveTargetFragment`의 목적지로 설정한다. 정지 지점은 `FLNPEnemyMovementConfig::ComputeStopDistance()` — TargetFollow/Movement Processor와 **동일한 공식을 공유**하여 "프로세서는 멈췄는데 StateTree는 도착을 모르는" 불일치를 차단한다. 사거리 도달 시 `Succeeded`를 반환해 Attack 상태로 전환.
 
 3.  **LNPEnemyAttackTask**
-    *   **Logic**: Actor 상태일 때 GAS 어빌리티를 트리거하고, 사거리 이탈 또는 타겟 상실 시 `Failed`를 반환하여 Chase 상태로의 전환을 유도한다.
+    *   **Logic**: EnterState에서 이동을 정지시키고 타겟 방향을 유지한다. Tick마다 Actor 상태일 때 GAS 어빌리티(`TryActivateAttack`)를 트리거하고, 사거리 이탈 또는 타겟 상실 시 `Failed`를 반환하여 Chase로 복귀. 공격 루프는 TargetFollowProcessor가 정지 구역에서 매 프레임 보내는 StateTree 신호로 구동된다.
 
 4.  **LNPEnemyIdleTask**
-    *   **Logic**: `FLNPEnemyIdleFragment`의 `LastWanderTime`과 `bNeedNewWanderTarget`을 기반으로 일정 시간마다 새 배회 목표를 설정한다. 목표 방향은 LootPod 위치의 구면 표면 접선 벡터로 계산.
+    *   **Logic**: `FLNPEnemyIdleFragment` 기반으로 3초 간격마다 새 배회 목표를 설정한다. 목표 방향은 LootPod 위치의 구면 표면 접선 벡터(직교 Tangent 2축의 랜덤 각도 조합)로 계산하고, 실제 목표점은 `ULNPSurfaceCacheSubsystem::GetSurfacePoint()`로 지형 표면에 투영한다. EnterState에서 목적지를 현재 위치로 설정해 다음 프레임 "도착" 신호로 Tick이 즉시 재개되도록 하는 시동 트릭 사용.
 
 ## 4. 액터 스폰 조건 (Representation)
 `ULNPEnemyLODOverrideProcessor`에서 다음 로직을 수행한다:

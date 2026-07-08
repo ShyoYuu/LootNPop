@@ -14,12 +14,12 @@
 | **Movement** | Mover 2.0 | `ULNPCharacterMoverComponent`, `ULNPPawnGravityComponent` |
 | **Animation** | Motion Matching + Linked Anim Layers | `ULNPAnimInstance` |
 | **Camera** | Gameplay Camera | — |
-| **World** | PCG + Geometry Script + Level Instance | `BP_OctantGenerator`, `UPCGOctantThemeSamplerSettings`, `ULNPOctantSpawnSubsystem` |
+| **World** | PCG + Geometry Script + Level Instance | `BP_OctantGenerator`, `ULNPOctantThemeSamplerSettings`, `ULNPOctantSpawnSubsystem` |
 | **Surface Query** | SurfaceCacheSubsystem (커스텀) | `ULNPSurfaceCacheSubsystem` |
 | **Interaction** | SmartObject + MassEntity | `ALNPLootPod`, `ULNPLootingProcessor` |
 | **AI/Entity** | MassEntity + StateTree | `ULNPEnemyMovementProcessor`, `ULNPTargetingSubsystem` |
 | **Combat** | GAS + MassEntity | `ULNPEquipmentComponent`, `ULNPAbility_RangedAttack`, `ULNPProjectileHitDetectionProcessor` |
-| **Networking** | Iris Replication System | (구현 예정) |
+| **Networking** | Iris Replication + MassReplication | `ULNPGhostProjectileSubsystem`, `ULNPSpawnOnlyReplicatorBase`, `ULNPMassAgentComponent` |
 | **UI** | MVVM Plugin | `ULNPHudViewModel`, `ULNPHudWidget` |
 
 ---
@@ -57,6 +57,11 @@
 
 ### Multiplayer Init Sequence
 - `ALNPGameMode`가 `WorldGeneration → SurfaceBaking → EntitySpawning → Complete` 4단계를 순차 진행. `ALNPGameState`가 `ServerPhase`와 `OctantGenSeed`를 Replicate하여 클라이언트와 동기화. (→ [TechDesign_InitSequence.md](TechDesign_InitSequence.md))
+
+### Multiplayer Networking
+- Iris Replication + MassReplication 하이브리드. 서버 권위 판정과 클라이언트 코스메틱 예측(HitStop·VFX·몽타주)을 분리하여 치팅 불가 구조 유지.
+- 서버 위치 되감기 Lag Compensation(RTT/2, 최대 200ms), Ghost Projectile 클라이언트 예측, 발사체 Spawn-Only 방송 + Dead Reckoning 외삽 스폰 구현.
+- 서버 소유 엔티티(Enemy·Player·LootPod)는 Mass bubble + Actor 복제 이중화, `UMassAgentComponent` NetID 핸드셰이크로 클라이언트 퍼펫 링크 자동 성립. (→ [TechDesign_Networking.md](TechDesign_Networking.md))
 
 ---
 
@@ -106,6 +111,6 @@
 | [LootPod System 기술 설계](TechDesign_LootPod.md) | MassEntity 구성, SmartObject 연동, 게이지·인터럽션·보상 미구현 상세 |
 | [HUD 기술 설계](TechDesign_HUD.md) | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, Blueprint 바인딩 설정 |
 | [HitDetection 기술 설계](TechDesign_HitDetection.md) | 근접 Swept Volume·원거리 Line Segment 판정 (근접·원거리·패링 연계 구현 완료, 공간 쿼리 최적화 미구현) |
-| [Iris 기반 멀티플레이 설계](TechDesign_Networking.md) | 설계 원칙, MassEntity 네트워크 분류, 시스템별 복제 방안, 7단계 구현 계획 |
+| [멀티플레이 네트워킹 기술 설계](TechDesign_Networking.md) | Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 엔진 소스 분석 이슈 3건 |
 | [ParrySystem 게임 기획](GameDesign_ParrySystem.md) | 패링 성공 조건, 투사체 타입별 반사, 플레이어 경험 의도 |
 | [ParrySystem 기술 설계](TechDesign_ParrySystem.md) | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 방안 |

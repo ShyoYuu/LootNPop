@@ -29,7 +29,6 @@ ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 {
 	bHandleSprintChanges = 1;
 	bHandleGuardChanges = 1;
-	bWantsToRun = 0;
 
 	// 기본 이동 모드
 	MovementModes.Add(DefaultWalkingMode, CreateDefaultSubobject<ULNPAsyncWalkingMode>(TEXT("LNPAsyncWalkingMode")));
@@ -67,26 +66,28 @@ bool ULNPCharacterMoverComponent::CanDash() const
 void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 {
 	APawn* Pawn = CastChecked<APawn>(GetOwner());
-	const bool bHasMoveInput = !MoveInputIntent.IsNearlyZero();
-	FVector DashDirection = FVector::ZeroVector;
-	FGameplayTag DirTag;
-
 	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Pawn);
-	const UAbilitySystemComponent* ASC = Character ? Character->GetAbilitySystemComponent() : nullptr;
+	if (!Character)
+		return;
+
+	// 물리 대시 방향: 이동 입력이 있으면 컨트롤 회전 기준 입력 방향, 없으면 후방 회피
+	const bool bHasMoveInput = !MoveInputIntent.IsNearlyZero();
+	const FVector DashDirection = bHasMoveInput
+		? Pawn->GetControlRotation().RotateVector(MoveInputIntent).GetSafeNormal()
+		: -Pawn->GetActorForwardVector();
+
+	// 몽타주 방향 태그: Strafe 모드(FreeAim/LockOn)는 캐릭터가 시선 방향을 유지하므로 4방향 몽타주가 필요하고,
+	// 일반 모드는 캐릭터가 이동 방향을 바라보므로 앞/뒤 2방향으로 충분하다. 태그는 ChooserTable 평가에 쓰인다.
+	const UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent();
 	const bool bIsStrafe = ASC &&
 		(ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim) || ASC->HasMatchingGameplayTag(TAG_AimMode_LockOn));
 
-	if (bIsStrafe && Character)
+	FGameplayTag DirTag = TAG_Montage_Value_Direction_Back;
+	if (bHasMoveInput)
 	{
-		// FreeAim/LockOn: 이동 인풋 기준 4방향 태그 → ChooserTable 평가
-		DashDirection = bHasMoveInput
-			? Pawn->GetControlRotation().RotateVector(MoveInputIntent).GetSafeNormal()
-			: -Pawn->GetActorForwardVector();
-
-		
-		if (bHasMoveInput)
+		if (bIsStrafe)
 		{
-			// MoveInputIntent는 카메라 로컬 공간 (X=Forward, Y=Right)
+			// MoveInputIntent는 카메라 로컬 공간 (X=Forward, Y=Right) — 입력 각도로 4방향 분류
 			const float Angle = FMath::RadiansToDegrees(FMath::Atan2(MoveInputIntent.Y, MoveInputIntent.X));
 			if      (Angle >= -45.f && Angle <   45.f) DirTag = TAG_Montage_Value_Direction_Front;
 			else if (Angle >=  45.f && Angle <  135.f) DirTag = TAG_Montage_Value_Direction_Right;
@@ -95,21 +96,7 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 		}
 		else
 		{
-			DirTag = TAG_Montage_Value_Direction_Back;
-		}
-	}
-	else
-	{
-		// AimMode_None: 기존 로직 (앞/뒤 2방향)
-		if (bHasMoveInput)
-		{
-			DashDirection = Pawn->GetControlRotation().RotateVector(MoveInputIntent).GetSafeNormal();
 			DirTag = TAG_Montage_Value_Direction_Front;
-		}
-		else
-		{
-			DashDirection = -Pawn->GetActorForwardVector();
-			DirTag = TAG_Montage_Value_Direction_Back;
 		}
 	}
 
@@ -185,14 +172,7 @@ void ULNPCharacterMoverComponent::LaunchWithVelocity(FVector InVelocity)
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
 {
-	const AActor* DebugOwner = GetOwner();
-	const APawn*  DebugPawn  = Cast<APawn>(DebugOwner);
-	// 1P/2P를 구분하기 위한 접두어. 예: "[BP_LNPPlayer_C_1 Auth=0 Local=1]"
-	const FString DebugTag = DebugOwner
-		? FString::Printf(TEXT("%s Auth=%d Local=%d"), *DebugOwner->GetName(), DebugOwner->HasAuthority(), DebugPawn && DebugPawn->IsLocallyControlled())
-		: TEXT("?");
-
-	// bWantsToGuard/bWantsToRun 멤버 변수 대신 InputCmd에서 읽는다 — Jump가 FCharacterDefaultInputs::
+	// Guard/Sprint 의도는 컴포넌트 멤버 변수가 아닌 InputCmd에서 읽는다 — Jump가 FCharacterDefaultInputs::
 	// bIsJumpJustPressed를 InputCmd로 전달받는 것과 동일한 방식. 평범한 컴포넌트 멤버는 Mover의
 	// 예측·복제·리시뮬레이션 파이프라인을 타지 않아 원격 클라이언트에서 신뢰할 수 없었다.
 	const FLNPModifierInputs* ModifierInputs = InputCmd.InputCollection.FindDataByType<FLNPModifierInputs>();
@@ -211,7 +191,6 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 
 		if (bIsGuarding && (!bShouldGuard || !CanGuard()))
 		{
-			UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] PreSimTick [%s]: REMOVE guard modifier (bWantsToGuard=false)"), *DebugTag);
 			if (ActiveModifier)
 			{
 				CancelModifierFromHandle(ActiveModifier->GetHandle());
@@ -221,21 +200,9 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 		}
 		else if (!bIsGuarding && bShouldGuard && CanGuard())
 		{
-			UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] PreSimTick [%s]: ADD guard modifier (bWantsToGuard=true)"), *DebugTag);
 			TSharedPtr<FLNPGuardModifier> NewModifier = MakeShared<FLNPGuardModifier>();
 			GuardModifierHandle = QueueMovementModifier(NewModifier);
 			ActiveModifier = NewModifier.Get();
-		}
-
-		// 진단용: MaxSpeed가 이전 틱과 다르면 원인 불문 로그 (스팸 방지를 위해 값이 바뀔 때만)
-		if (const UCommonLegacyMovementSettings* CommonSettings = FindSharedSettings<UCommonLegacyMovementSettings>())
-		{
-			if (!FMath::IsNearlyEqual(CommonSettings->MaxSpeed, DebugLastLoggedMaxSpeed, 0.01f))
-			{
-				UE_LOG(LogLootNPop, Log, TEXT("[GuardDebug] PreSimTick [%s]: MaxSpeed changed %.1f -> %.1f (bShouldGuard=%d, bIsGuarding=%d)"),
-					*DebugTag, DebugLastLoggedMaxSpeed, CommonSettings->MaxSpeed, bShouldGuard, bIsGuarding);
-				DebugLastLoggedMaxSpeed = CommonSettings->MaxSpeed;
-			}
 		}
 	}
 

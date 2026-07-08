@@ -22,9 +22,9 @@ public:
 	/** 콤보 인덱스에 해당하는 넉백 강도를 반환한다. 기본 구현은 KnockbackStrength를 그대로 반환. */
 	virtual float GetKnockbackForCombo(int32 ComboIdx) const;
 
-	const float GetParryRadius() const { return ParryRadius; }
+	float GetParryRadius() const { return ParryRadius; }
 
-	const float GetAbilityDamage() const { return ComputeDamage(); }
+	float GetAbilityDamage() const { return ComputeDamage(); }
 
 protected:
 	/** 현재 장착된 무기의 DataAsset을 반환한다. 없으면 null. */
@@ -40,9 +40,6 @@ protected:
 	virtual void ApplyCooldown(const FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
 		const FGameplayAbilityActivationInfo ActivationInfo) const override;
-
-	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")
-	float DamageMultiplier = 1.f;
 
 	/** 이 Ability가 가하는 넉백 강도 (cm/s 단위 임펄스). 0이면 넉백 없음. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")

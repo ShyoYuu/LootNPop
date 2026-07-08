@@ -129,13 +129,6 @@ bool ALNPCharacterBase::TryActivateAttack_Impl()
 	return false;
 }
 
-bool ALNPCharacterBase::ConsumeComboInput()
-{
-	const bool bWasBuffered = bComboInputBuffered;
-	bComboInputBuffered = false;
-	return bWasBuffered;
-}
-
 void ALNPCharacterBase::IncrementComboIndex()
 {
 	const ULNPWeaponData* WeaponDef = GetActiveWeaponDef();
@@ -145,8 +138,7 @@ void ALNPCharacterBase::IncrementComboIndex()
 
 void ALNPCharacterBase::ResetCombo()
 {
-	CurrentComboIndex   = 0;
-	bComboInputBuffered = false;
+	CurrentComboIndex = 0;
 }
 
 void ALNPCharacterBase::BeginPlay()

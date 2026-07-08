@@ -165,12 +165,11 @@ EStateTreeRunStatus FLNPEnemySteeringTask::Tick(FStateTreeExecutionContext& Cont
 			DesiredSpeed = SharedConfig.Config->MovementConfig.MoveSpeed;
 		}
 
-		// 3. 계속 이동 — AttackRange 내 StopBuffer 앞에서 정지하여 도착 신호 확실히 발생
-		// StopBuffer >= 30 (ArrivalBuffer) 보장.
+		// 3. 계속 이동 — AttackRange 내 StopBuffer 앞에서 정지하여 도착 신호 확실히 발생.
+		// 정지 거리 공식은 TargetFollow/Movement Processor와 공유 (FLNPEnemyMovementConfig::ComputeStopDistance).
 		const FVector EntityLocation = Context.GetExternalData(TransformHandle).GetTransform().GetLocation();
 		const FVector DirToTarget = (Targeting.TargetLocation - EntityLocation).GetSafeNormal();
-		const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
-		const float StopDist = FMath::Max(0.f, AttackRange - StopBuffer);
+		const float StopDist = FLNPEnemyMovementConfig::ComputeStopDistance(AttackRange);
 		MoveTarget.Center = Targeting.TargetLocation - DirToTarget * StopDist;
 		MoveTarget.IntentAtGoal = EMassMovementAction::Stand;
 		MoveTarget.DistanceToGoal = FMath::Max(0.f, DistanceToTarget - StopDist);

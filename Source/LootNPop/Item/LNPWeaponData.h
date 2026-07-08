@@ -51,9 +51,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
 	FRotator WeaponMeshRelativeRotation = FRotator(0.0f, 90.0f, -4.0f);
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
-	TObjectPtr<UAnimMontage> AttackMontage;
-
+	/** 기본 공격 연사 쿨타임 (초). 어빌리티가 Cooldown GE의 Duration으로 주입한다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0"))
 	float FireCooldown = 0.2f;
 

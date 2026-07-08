@@ -2,11 +2,6 @@
 
 #include "Enemy/LNPTargetingSubsystem.h"
 
-void ULNPTargetingSubsystem::Initialize(FSubsystemCollectionBase& Collection)
-{
-	Super::Initialize(Collection);
-}
-
 void ULNPTargetingSubsystem::RegisterEnemyInterest(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle, float Score, bool bIsMelee)
 {
 	FScopeLock Lock(&DataLock);

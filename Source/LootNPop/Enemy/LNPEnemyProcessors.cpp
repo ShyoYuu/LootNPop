@@ -26,16 +26,8 @@
 #include "MassDebugDrawHelpers.h"
 #endif
 
-namespace
-{
-	/** Chase 정지 거리: AttackRange 안쪽에서 멈추되, 도착 신호(ArrivalBuffer=30)가 반드시 발생하도록 버퍼를 확보한다.
-	 *  TargetFollow(MoveTarget 산출)와 Movement(속도 결정)가 같은 값을 봐야 정지 지점이 일치한다. */
-	float ComputeStopDistance(const float AttackRange)
-	{
-		const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
-		return FMath::Max(0.f, AttackRange - StopBuffer);
-	}
-}
+// Chase 정지 거리 공식은 FLNPEnemyMovementConfig::ComputeStopDistance로 일원화되어 있다
+// (TargetFollow/Movement/SteeringTask가 동일 값을 공유해야 정지 지점이 일치).
 
 // --- Scoring Processor (점수 산정) ---
 
@@ -364,7 +356,7 @@ void ULNPEnemyTargetFollowProcessor::Execute(FMassEntityManager& EntityManager, 
 			if (Targeting.TargetPlayer.IsValid())
 			{
 				const float ActualDistance = FMath::Sqrt(Targeting.DistanceToTargetSq);
-				const float StopDist = ComputeStopDistance(AttackRange);
+				const float StopDist = FLNPEnemyMovementConfig::ComputeStopDistance(AttackRange);
 
 				if (ActualDistance <= StopDist)
 				{
@@ -481,7 +473,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			case ELNPTargetingState::Confirmed:
 			{
 				const float ActualDistance = Targeting.TargetPlayer.IsValid() ? FMath::Sqrt(Targeting.DistanceToTargetSq) : 0.0f;
-				EffectiveSpeed = (ActualDistance <= ComputeStopDistance(AttackRange)) ? 0.0f : BaseMoveSpeed;
+				EffectiveSpeed = (ActualDistance <= FLNPEnemyMovementConfig::ComputeStopDistance(AttackRange)) ? 0.0f : BaseMoveSpeed;
 				OrientationIntent = TargetDirOnPlane;
 				break;
 			}
@@ -973,7 +965,7 @@ void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMa
 }
 #else
 ULNPEnemyDebugDrawProcessor::ULNPEnemyDebugDrawProcessor()
-	: DebugQuery(*this)
+	: EnemyQuery(*this), PlayerQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = false;
 }

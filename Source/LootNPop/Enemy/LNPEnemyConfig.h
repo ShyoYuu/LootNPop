@@ -83,6 +83,17 @@ struct FLNPEnemyMovementConfig
 	/** 공격 간격 (초) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	float AttackInterval = 1.5f;
+
+	/**
+	 * Chase 정지 거리: AttackRange 안쪽에서 멈추되, 도착 신호(ArrivalBuffer=30)가 반드시
+	 * 발생하도록 버퍼를 확보한다. TargetFollow(MoveTarget 산출)·Movement(속도 결정)·
+	 * SteeringTask(StateTree)가 반드시 같은 값을 봐야 정지 지점이 일치한다.
+	 */
+	static float ComputeStopDistance(const float AttackRange)
+	{
+		const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
+		return FMath::Max(0.f, AttackRange - StopBuffer);
+	}
 };
 
 /**

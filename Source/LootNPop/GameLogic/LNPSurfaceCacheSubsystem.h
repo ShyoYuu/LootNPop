@@ -70,8 +70,8 @@ public:
 private:
 	using FPoint = FLNPSurfaceCacheSnapshot::FPoint;
 
+	/** 격자 셀 Index를 셀 중심의 단위 방향 벡터로 변환한다 (베이킹 시 트레이스 방향 계산용). */
 	static FVector IndexToDirection(int32 LatIdx, int32 LonIdx, int32 LatRes, int32 LonRes);
-	static void DirectionToIndex(const FVector& Dir, int32 LatRes, int32 LonRes, int32& OutLatIdx, int32& OutLonIdx);
 
 	void OnAsyncTraceComplete(const FTraceHandle& Handle, FTraceDatum& Data);
 

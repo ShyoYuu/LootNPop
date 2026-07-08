@@ -8,8 +8,9 @@
 
 /**
  * 근거리 기본 공격 Ability.
- * 무기 DataAsset의 AttackMontage를 PlayMontageAndWait 태스크로 재생하고,
- * 몽타주가 끝나거나 인터럽트될 때 종료한다.
+ * Chooser(EvaluateMontage)로 공격 몽타주를 선택해 PlayMontageAndWait 태스크로 재생하고,
+ * 콤보 인덱스에 따라 몽타주 섹션(Section_N)을 골라 다단 콤보를 잇는다.
+ * 몽타주가 끝나거나 인터럽트되면 잔여 태그를 정리하고 종료한다.
  * 피격 판정은 몽타주에 배치된 ANS_LNPMeleeHitWindow가 담당한다.
  */
 UCLASS()

@@ -469,6 +469,51 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					CapsuleBot, CapsuleTop);
 			};
 
+			// Player 타겟 공용 2단계 판정 (1단계 패링 → 2단계 가드/피격).
+			// 근접 PvP(아군 사격)와 Enemy→Player가 반드시 동일한 로직을 타야 한다 —
+			// 과거 두 분기가 복제되어 있던 시절 PvP 쪽에만 패링 체크가 누락된 버그가 있었다 (Networking Phase 3).
+			const FVector AttackerLoc      = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
+			const float   SwordParryRadius = Frag.ParryRadius;
+
+			auto JudgePlayerTarget = [&](FCollectedPlayer& Player)
+			{
+				if (Player.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Player.Handle))
+					return;
+
+				const FLNPParryStateFragment& PS          = Player.ParryState;
+				const FVector                 AttackerDir = (AttackerLoc - Player.CapsuleCenter).GetSafeNormal();
+				const float                   Dot         = FVector::DotProduct(Player.ForwardVector, AttackerDir);
+				const float                   DistSq      = CalcDistSq(RewoundCenter(Player.CapsuleCenter, Player.RawLocation, Player.History), Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
+
+				// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경, 서버 만료 시각으로 RTT 보정)
+				if (PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || NowForRewind <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos
+					&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
+				{
+					MarkHit(Frag, Player.Handle);
+					if (Player.Actor)
+						Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, Frag.InstigatorEntity);
+					return;
+				}
+
+				// 2단계: 피격 체크 (HitRadius — 정상 반경)
+				if (DistSq > FMath::Square(SwordRadius + Player.CapsuleRadius))
+					return;
+
+				MarkHit(Frag, Player.Handle);
+				if (!Player.Actor)
+					return;
+
+				if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
+				{
+					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
+					return;
+				}
+
+				const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
+				if (EffectClass)
+					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, Frag.KnockbackStrength, true);
+			};
+
 			if (Frag.InstigatorTeam == ELNPInstigatorTeam::Player)
 			{
 				// Player 공격 → Enemy 타겟
@@ -486,8 +531,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (Enemy.Actor && EffectClass)
 					{
-						const FVector SwordMid   = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
-						const FVector HitFromDir = (SwordMid - Enemy.CapsuleCenter).GetSafeNormal();
+						const FVector HitFromDir = (AttackerLoc - Enemy.CapsuleCenter).GetSafeNormal();
 						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, Frag.KnockbackStrength, true);
 					}
 					else
@@ -500,94 +544,18 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					}
 				}
 
-				// Player 공격 → Player 타겟 (아군 사격 켜진 경우만, 패링/가드/피격 분기)
+				// Player 공격 → Player 타겟 (아군 사격이 켜진 경우만)
 				if (bFriendlyFire)
 				{
-					const FVector AttackerLoc      = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
-					const float   SwordParryRadius = Frag.ParryRadius;
-
 					for (FCollectedPlayer& Player : Players)
-					{
-						if (Player.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Player.Handle))
-							continue;
-
-						const FLNPParryStateFragment& PS          = Player.ParryState;
-						const FVector                 AttackerDir = (AttackerLoc - Player.CapsuleCenter).GetSafeNormal();
-						const float                   Dot         = FVector::DotProduct(Player.ForwardVector, AttackerDir);
-						const float                   DistSq      = CalcDistSq(RewoundCenter(Player.CapsuleCenter, Player.RawLocation, Player.History), Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
-
-						// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경)
-						if (PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || NowForRewind <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos
-							&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
-						{
-							MarkHit(Frag, Player.Handle);
-							if (Player.Actor)
-								Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, Frag.InstigatorEntity);
-							continue;
-						}
-
-						// 2단계: 피격 체크 (HitRadius — 정상 반경)
-						if (DistSq > FMath::Square(SwordRadius + Player.CapsuleRadius))
-							continue;
-
-						MarkHit(Frag, Player.Handle);
-						if (!Player.Actor) continue;
-
-						if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
-						{
-							Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
-							continue;
-						}
-
-						const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
-						if (EffectClass)
-							Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, Frag.KnockbackStrength, true);
-					}
+						JudgePlayerTarget(Player);
 				}
 			}
 			else
 			{
-				// Enemy 공격 → Player 타겟 (패링/가드/피격 분기)
-				const FVector AttackerLoc      = (Frag.SwordRootCurr + Frag.SwordTipCurr) * 0.5f;
-				const float   SwordParryRadius = Frag.ParryRadius;
-
+				// Enemy 공격 → Player 타겟
 				for (FCollectedPlayer& Player : Players)
-				{
-					if (Player.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Player.Handle))
-						continue;
-
-					const FLNPParryStateFragment& PS          = Player.ParryState;
-					const FVector                 AttackerDir = (AttackerLoc - Player.CapsuleCenter).GetSafeNormal();
-					const float                   Dot         = FVector::DotProduct(Player.ForwardVector, AttackerDir);
-					const float                   DistSq      = CalcDistSq(RewoundCenter(Player.CapsuleCenter, Player.RawLocation, Player.History), Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
-
-					// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경)
-					if (PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || NowForRewind <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos
-						&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
-					{
-						MarkHit(Frag, Player.Handle);
-						if (Player.Actor)
-							Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, Frag.InstigatorEntity);
-						continue;
-					}
-
-					// 2단계: 피격 체크 (HitRadius — 정상 반경)
-					if (DistSq > FMath::Square(SwordRadius + Player.CapsuleRadius))
-						continue;
-
-					MarkHit(Frag, Player.Handle);
-					if (!Player.Actor) continue;
-
-					if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
-					{
-						Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
-						continue;
-					}
-
-					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
-					if (EffectClass)
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, Frag.KnockbackStrength, true);
-				}
+					JudgePlayerTarget(Player);
 			}
 		}
 	});
