@@ -47,6 +47,10 @@ protected:
 	virtual bool TryActivateAttack_Impl() override;
 	virtual void CancelCurrentAttackAbility() override;
 
+	/** 서버 전용: LootSpeed Attribute 값을 플레이어 Mass 엔티티의 FLNPPlayerLootingFragment에 반영한다.
+	 *  버프 GE가 Attribute를 변조하면 델리게이트(PossessedBy에서 바인딩)를 통해 자동 호출된다. */
+	void PushLootSpeedToEntity(float NewLootSpeed);
+
 	UFUNCTION(Server, Reliable)
 	void Server_EquipWeapon(ULNPWeaponData* WeaponData);
 

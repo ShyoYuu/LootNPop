@@ -22,6 +22,7 @@ public class LootNPop : ModuleRules
 			"GameplayStateTreeModule",
 			"UMG",
 			"Slate",
+			"SlateCore",
             "Mover",
             "GameplayAbilities",
             "GameplayTags",

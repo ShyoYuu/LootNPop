@@ -14,6 +14,7 @@ ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 	InitAttackSpeed(1.0f);
 	InitDefensePower(0.0f);
 	InitMoveSpeed(1.0f);
+	InitLootSpeed(1.0f);
 	InitAttackMultiplier(1.0f);
 	InitIncomingDamage(0.f);
 }
@@ -27,6 +28,7 @@ void ULNPBaseAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, AttackSpeed,     COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, DefensePower,    COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, MoveSpeed,       COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, LootSpeed,       COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, AttackMultiplier,COND_None, REPNOTIFY_Always);
 }
 
@@ -36,6 +38,7 @@ void ULNPBaseAttributeSet::OnRep_AttackPower(const FGameplayAttributeData& OldVa
 void ULNPBaseAttributeSet::OnRep_AttackSpeed(const FGameplayAttributeData& OldValue)     { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, AttackSpeed, OldValue); }
 void ULNPBaseAttributeSet::OnRep_DefensePower(const FGameplayAttributeData& OldValue)    { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, DefensePower, OldValue); }
 void ULNPBaseAttributeSet::OnRep_MoveSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, MoveSpeed, OldValue); }
+void ULNPBaseAttributeSet::OnRep_LootSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, LootSpeed, OldValue); }
 void ULNPBaseAttributeSet::OnRep_AttackMultiplier(const FGameplayAttributeData& OldValue){ GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, AttackMultiplier, OldValue); }
 
 void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -44,7 +47,7 @@ void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribut
 
 	if (Attribute == GetMaxHealthAttribute())
 		NewValue = FMath::Max(1.0f, NewValue);
-	else if (Attribute == GetAttackSpeedAttribute() || Attribute == GetMoveSpeedAttribute() || Attribute == GetAttackMultiplierAttribute())
+	else if (Attribute == GetAttackSpeedAttribute() || Attribute == GetMoveSpeedAttribute() || Attribute == GetLootSpeedAttribute() || Attribute == GetAttackMultiplierAttribute())
 		NewValue = FMath::Max(0.01f, NewValue);
 }
 
