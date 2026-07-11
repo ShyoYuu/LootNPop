@@ -48,6 +48,11 @@ public:
 	FGameplayAttributeData MoveSpeed;
 	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, MoveSpeed)
 
+	/** 루팅 속도 배율 — LootPod 게이지 기여 속도. 버프 GE가 이 값을 변조하면 FLNPPlayerLootingFragment로 자동 동기화된다. */
+	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes", ReplicatedUsing = OnRep_LootSpeed)
+	FGameplayAttributeData LootSpeed;
+	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, LootSpeed)
+
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes", ReplicatedUsing = OnRep_AttackMultiplier)
 	FGameplayAttributeData AttackMultiplier;
 	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, AttackMultiplier)
@@ -70,6 +75,8 @@ private:
 	void OnRep_DefensePower(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_MoveSpeed(const FGameplayAttributeData& OldValue);
+	UFUNCTION()
+	void OnRep_LootSpeed(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_AttackMultiplier(const FGameplayAttributeData& OldValue);
 };

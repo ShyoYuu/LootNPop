@@ -24,6 +24,9 @@ public:
 	/** 주변에서 최선의 상호작용 타겟을 지속적으로 탐색한다 */
 	void UpdateInteractionCandidate();
 
+	/** 후보 중 프롬프트(키 아이콘)를 표시할 최선 타겟을 결정한다 — 로컬 플레이어 전용 */
+	void UpdateInteractionPrompt();
+
 	/** 현재 후보와 실제 상호작용을 시작한다 */
 	void PerformInteraction();
 
@@ -54,5 +57,16 @@ protected:
 	/** 캐릭터가 현재 바라보거나 근처에 있는 LootPod/Actor (잠재적 타겟) */
 	UPROPERTY(Transient)
 	TSet<TWeakObjectPtr<AActor>> InteractionCandidates;
+
+	/** 현재 프롬프트를 표시 중인 타겟 (로컬 플레이어 전용) */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<ALNPLootPod> CurrentPromptTarget;
+
+	// --- LootPod 개발용 테스트 로그 상태 (변화 시에만 출력해 스팸 방지) ---
+	/** 쿼리 범위 내에서 발견된 가장 가까운 Pod — CanInteract 실패 사유 진단용 */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<ALNPLootPod> NearestNearbyPod;
+	int32 LastLoggedPodCount = -1;
+	int32 LastLoggedInteractableCount = -1;
 };
 

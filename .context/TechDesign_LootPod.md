@@ -2,23 +2,28 @@
 
 ## 1. 한눈에 보기
 
-**LootPod**은 MassEntity(시뮬레이션) + SmartObject(상호작용 쿼리) + Actor(비주얼·복제)를 결합한 하이브리드 오브젝트. 게이지·근접 판정은 서버 Mass 프로세서가 태그 교체 상태 머신으로 처리하고, Actor는 Niagara 비주얼과 근접 클라이언트 복제만 담당한다.
+**LootPod**은 MassEntity(시뮬레이션) + Actor(비주얼·상호작용·복제)를 결합한 하이브리드 오브젝트. 게이지·근접 판정은 서버 Mass 프로세서가 태그 교체 상태 머신으로 처리하고, Actor는 Niagara 비주얼·상호작용 타겟·근접 클라이언트 복제를 담당한다.
 
 ```
 [ULNPMassSpawnSubsystem] → 결정론적 스폰 (SurfaceCache 표면 투영)
-[SmartObjectSubsystem]   → 상호작용 후보 쿼리 (ULNPInteractionComponent가 검색)
+[ULNPLootPodSubsystem]   → 살아 있는 Pod Actor 레지스트리 (ULNPInteractionComponent가 순회)
 [Mass Processors]        → 상태 전환·게이지 (서버 전용, 태그 교체 상태 머신)
-[ALNPLootPod Actor]      → SmartObject 등록 + Niagara VFX + 상태·게이지 복제
+[ALNPLootPod Actor]      → 레지스트리 등록 + Niagara VFX + 상태·게이지 복제
 ```
+
+> 상호작용 탐색에 쓰던 SmartObject 공간 쿼리는 Mass 액터 풀링과의 구조적 충돌로 폐기 (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03).
 
 **상태 머신 (태그 교체):**
 
 ```
-FLNPLootPodIdleTag ──(범위 내 FLNPPlayerLootingTag 감지)──▶ FLNPLootPodLootingTag
-        ▲                                                        │
-        └──(범위 내 루터 없음 — Idle 복귀)◀───────────────────────┤
-                                              (게이지 완료)──▶ Popped → 엔티티 즉시 소멸
+FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)──▶ FLNPLootPodLootingTag
+        ▲                                                  │ 존 활성: 범위 내 모든 플레이어(프레즌스)의 속도 합산으로 게이지 증가,
+        │                                                  │ 전원 이탈 시 감쇠 — 존은 활성 유지, 복귀만으로 재개
+        └──(감쇠 끝에 게이지 0 — 완전 취소)◀────────────────┤
+                                            (게이지 완료)──▶ Popped → 축하 VFX + LootDice 스폰* → 엔티티 소멸
 ```
+
+> `*` 표시는 기획 확정·미구현 항목 (§5).
 
 ---
 
@@ -28,23 +33,27 @@ FLNPLootPodIdleTag ──(범위 내 FLNPPlayerLootingTag 감지)──▶ FLNPL
 
 | 타입 | 내용 |
 |:---|:---|
-| `FLNPLootPodFragment` | `State`(Idle/Looting/Interrupted/Popped), `CurrentGauge`/`MaxGauge`, `LootableDistSquared`, `PodID`(보상 조회 키) |
-| `FLNPPlayerLootingFragment` | Player 엔티티 부착 — `BuffedLootSpeed` (아이템/스킬 변조 배율) |
-| Tags | `FLNPLootPodTag`(식별), `FLNPLootPodIdleTag`/`FLNPLootPodLootingTag`(상태별 쿼리 분리), `FLNPPlayerLootingTag`(루팅 중 플레이어) |
+| `FLNPLootPodFragment` | `State`(Idle/Looting/Popped), `CurrentGauge`/`MaxGauge`, `LootableDistSquared`(루팅 존 반경² — 트레잇 `LootingZoneRadius`에서 주입, 기본 500cm), `PodID`(보상 조회 키) |
+| `FLNPPlayerLootingFragment` | Player 엔티티 상주 (최초 상호작용 시 부착) — `BuffedLootSpeed` (아이템/스킬 변조 배율, 없으면 1.0 취급) |
+| Tags | `FLNPLootPodTag`(식별), `FLNPLootPodIdleTag`/`FLNPLootPodLootingTag`(상태별 쿼리 분리), `FLNPPlayerLootingTag`(**1회성 존 활성화 요청** — §4.6) |
+| `LNPLootPodGaugeDecayFractionPerSecond` | 게이지 감쇠 속도 constexpr (MaxGauge 대비 초당 비율, 기본 0.15) — 1.0 이상이면 사실상 즉시 초기화 룰 |
 
-> `Interrupted`는 Enum에만 정의되어 있고 프로세서 로직 미사용 — 범위 이탈은 `Looting → Idle` 직행. 피격 취소(§5.2) 구현 시 활용 재검토.
+> `Interrupted` Enum 값은 **2026-07-09 기획 개정으로 "피격 즉시 취소"가 폐기**되면서 제거됨 (넉백에 의한 존 이탈은 기존 범위 체크가 자동 감지 — [GameDesign_LootPod.md](GameDesign_LootPod.md) §2.2).
 
-`ULNPLootPodTrait`가 엔티티 템플릿을 구성하며, MassReplication Trait(BubbleInfo/Replicator 고정)를 내부 위임한다 (Phase 7).
+`ULNPLootPodTrait`가 엔티티 템플릿을 구성하며, MassReplication Trait(BubbleInfo/Replicator 고정)를 내부 위임한다 (Phase 7). **루팅 존 반경(`LootingZoneRadius`, 기본 500)은 트레잇 프로퍼티** — Pod 종류별 EntityConfig에서 조정하며, Actor(BP)의 `LootingZoneSphere` 반경(존 표시)과 일치시켜야 한다.
+
+**반경 2종 분리:** 상호작용(루팅 State 진입)은 Actor의 `InteractionRadius`(기본 150cm, 단말기 조작 컨셉) + `MaxInteractionAngle`(60°) — 루팅 존(게이지 기여·사수)은 위의 500cm. 존 안에 있어도 State 진입은 단말기 앞에서만 가능하다.
 
 ### 2.2 Processors (서버 전용 — `IsClientWorld` 가드)
 
-**`ULNPIdleToLootingProcessor`** — Idle Pod 주변에서 `FLNPPlayerLootingTag` 플레이어 감지 → `Looting` 전환 + 태그 교체 (Deferred).
+**`ULNPIdleToLootingProcessor`** — Idle Pod 주변에서 활성화 요청 Tag(`FLNPPlayerLootingTag`) 보유자 감지 → `Looting` 전환 + Pod 태그 교체 (Deferred). 실행 말미에 **요청 Tag를 일괄 소비**한다 (1회성 — §4.6).
 
 **`ULNPLootingProcessor`** — Looting Pod마다:
-- **범위 내 루터들의 `BuffedLootSpeed`를 합산**해 게이지 누적 — 여러 명이 함께 루팅하면 그만큼 빨라진다.
-- 게이지 진행률을 Actor 복제 프로퍼티에 반영 (게임 스레드 지연 커맨드, 2% 임계값).
+- **범위 내 모든 플레이어(`FLNPPlayerTag` 프레즌스 기반)의 `BuffedLootSpeed`를 합산**해 게이지 누적 — 입력 없이 존에 들어오기만 해도 기여하며, 여러 명이 함께 루팅하면 그만큼 빨라진다 (`FLNPPlayerLootingFragment`는 Optional, 없으면 기본 1.0).
+- 게이지 진행률을 Actor 복제 프로퍼티에 반영 (게임 스레드 지연 커맨드, 2% 임계값) — 증가·감쇠 공통 경로.
 - 완료 → `Popped` 전환 커맨드 + **엔티티 즉시 파괴** (Fragment/Tag 갱신 불필요 — 비주얼·복제 전파는 커맨드의 `UpdateVisuals`가 담당).
-- 범위 내 루터 없음 → `Idle` 복귀 + 태그 교체.
+- **전원 이탈 → 게이지 감쇠 (존 활성 유지):** `MaxGauge × LNPLootPodGaugeDecayFractionPerSecond`/초 — Looting 태그를 유지하므로 누구든 복귀·합류만으로 재개된다.
+- **감쇠 끝에 게이지 0 도달 → 완전 취소:** `Idle` 복귀 + 태그 교체 — 재활성화는 Interaction Input부터.
 
 **`FLNPPodStateTransitionCommand`** (Game Thread) — 상태 전환 통합 후처리: `UpdateVisuals` 호출, 로그, `Popped` 보상 스폰 지점(TODO 스텁).
 
@@ -54,19 +63,21 @@ FLNPLootPodIdleTag ──(범위 내 FLNPPlayerLootingTag 감지)──▶ FLNPL
 
 ### 3.1 플레이어 측 (ULNPInteractionComponent)
 
-`SmartObjectSubsystem`으로 주변 `ALNPLootPod`을 지속 탐색(`InteractionRadius`, Tick), 후보 목록을 UI에 노출.
+`ULNPLootPodSubsystem` 레지스트리(Pod Actor가 BeginPlay/EndPlay에 자기 등록/해제)를 매 Tick 순회해 `InteractionRadius` 내 후보를 수집, UI에 노출. High LOD Actor는 항상 소수(플레이어 근접 시에만 스폰)라 순회 비용은 무시할 수준이며, 풀에 반납된(Hidden) 액터는 제외한다. SmartObject 공간 쿼리를 쓰지 않는 이유는 [DiscardedApproaches.md](DiscardedApproaches.md) Case 03.
+
+**상호작용 프롬프트:** 후보(거리+각도 통과) 중 **가장 가까운 Idle Pod** 머리 위에 키 아이콘(스크린 스페이스 WidgetComponent, 기본 "F" 라벨)을 표시한다. 판정은 로컬 플레이어 전용(`IsLocallyControlled`) — 복제 무관. Looting 중인 Pod는 프레즌스 기여라 입력이 불필요하므로 프롬프트를 띄우지 않는다. 기본 위젯(`ULNPInteractionPromptWidget`)은 에셋 없이 C++로 구성되며, 아트 적용 시 WidgetComponent의 WidgetClass만 교체하면 된다.
 
 ```
-상호작용 입력 → 로컬 CanInteract(거리+MaxInteractionAngle) + Pod->StartLooting() (비주얼 예측)
+상호작용 입력 → 로컬 CanInteract(초근접 InteractionRadius + MaxInteractionAngle) + Pod->StartLooting() (비주얼 예측)
   ├─ 서버/리슨호스트: 즉시 StartLootingOnServer()
   └─ 원격 클라이언트: Server_StartLooting RPC → 서버가 CanInteract 재검증
-       → 서버 월드의 플레이어 엔티티에 FLNPPlayerLootingTag + FLNPPlayerLootingFragment 부여
-       → 다음 프레임 ULNPIdleToLootingProcessor가 자동 감지
+       → 서버 월드의 플레이어 엔티티에 활성화 요청 Tag 부여 (+ 최초 1회 FLNPPlayerLootingFragment)
+       → 다음 프레임 ULNPIdleToLootingProcessor가 감지 후 Tag 소비
 ```
 
 ### 3.2 ALNPLootPod Actor — 비주얼과 복제
 
-- 컴포넌트: `SmartObjectComponent` / `UNiagaraComponent`(빛기둥) / `USphereComponent`(루팅 구역) / `UMassAgentComponent`(Mass 브릿지)
+- 컴포넌트: `UNiagaraComponent`(빛기둥) / `USphereComponent`(루팅 구역) / `UMassAgentComponent`(Mass 브릿지) / `UWidgetComponent`(상호작용 프롬프트, 기본 숨김) / `SmartObjectComponent`(**상호작용 경로 미사용** — NPC AI 연동 후보로 보류, 불필요 확정 시 제거)
 - Niagara `User.Color` 파라미터를 상태별 색상(Idle/Looting/Popped)으로 전환.
 - **이중 복제 (Phase 7):** 엔티티 존재·초기 위치는 MassReplication bubble이 전 클라이언트에, `CurrentState`(OnRep → UpdateVisuals)·`CurrentGaugePercent`는 Actor 복제가 근접 클라이언트에 전달. (→ [TechDesign_Networking.md](TechDesign_Networking.md) §3.5)
 
@@ -90,21 +101,78 @@ FLNPLootPodIdleTag ──(범위 내 FLNPPlayerLootingTag 감지)──▶ FLNPL
 
 범위 내 모든 루터의 속도를 합산하는 설계라, "함께 루팅하면 빨리 깐다"는 협동 인센티브가 프로세서 루프 한 줄로 구현된다. 루팅 속도 버프도 `BuffedLootSpeed` 필드 하나로 어떤 아이템/스킬이든 연동 가능.
 
+### 4.5 취소 조건의 일원화 — 피격 취소를 만들지 않는 이유
+
+"피격 시 즉시 취소"를 별도 구현하면 HitDetection → LootPod 간 브릿지가 필요했다. 기획 개정(존 사수 게임플레이)으로 취소 조건이 **"감쇠 끝에 게이지 0"** 하나로 일원화되면서, 넉백 피탈은 기존 거리 체크가 자동으로 잡는다 — 시스템 간 결합 하나가 통째로 사라진 케이스.
+
+### 4.6 입력=활성화, 기여=프레즌스 — 1회성 요청 태그
+
+초기 구현은 `FLNPPlayerLootingTag`를 "루팅 중" 상태 표시로 쓰면서 제거 경로가 없었다 — 한 번 루팅한 플레이어가 **영구 루터**가 되어 Idle Pod 옆을 지나가기만 해도 재활성화되는 잠재 버그. 기획 확정("완전 취소 후엔 Input부터, 감쇠 중엔 복귀만으로 재개")을 계기로 역할을 분리했다:
+
+| 역할 | 수단 |
+|:---|:---|
+| 존 활성화 | 요청 Tag — Interaction Input 시 부여, `ULNPIdleToLootingProcessor`가 처리 후 즉시 소비 (1회성) |
+| 루팅 기여 | 프레즌스 — 활성 존 범위 안의 모든 `FLNPPlayerTag` 플레이어 (입력 없이 합류·복귀 가능) |
+
+"누구든 존에 들어오기만 하면 기여한다"는 협동 기획이 쿼리 요구 조건 변경만으로 구현되고, 태그 수명 관리 문제도 함께 소멸했다.
+
 ---
 
-## 5. 미구현 항목
+## 5. 미구현 항목과 작업 계획
 
-### 5.1 게이지 초기화 (범위 이탈 시)
-기획상 이탈 시 게이지가 초기화되어야 하나 현재 유지됨. `ULNPLootingProcessor` 이탈 분기에 `CurrentGauge = 0` 한 줄 추가로 해결 가능 — 기획 확정 대기.
+### 5.1 게이지 감쇠·완전 취소·프레즌스 기여 — ✅ 구현 완료 (2026-07-10)
 
-### 5.2 Interruption (피격 루팅 취소)
-피격 시 즉시 취소. HitDetection에서 피격 플레이어의 `FLNPPlayerLootingTag`를 제거하면 다음 프레임 프로세서가 Idle 복귀 — 연결 지점만 남음 (→ [TechDesign_HitDetection.md §8](TechDesign_HitDetection.md)).
+구현 내용은 §2.2 `ULNPLootingProcessor`, §4.6 참조. 감쇠 속도는 `LNPLootPodGaugeDecayFractionPerSecond`(`LNPLootPodMassTypes.h`) 하나로 제어.
+**잔여 검증:** PIE 2인 — 전원 이탈 시 게이지 감소 표시, 0 도달 후 존 재진입만으로는 미재개(Input 필요), 감쇠 중 복귀 시 잔여분부터 재개.
 
-### 5.3 보상 드롭 (Popped 후처리)
-`FLNPPodStateTransitionCommand::Run()`에 TODO 스텁. `PodID` 기반 보상 테이블 조회 → 아이템 월드 스폰 → 인벤토리 연동 (→ [TechDesign_Ability.md](TechDesign_Ability.md) §6).
+### 5.2 루팅 속도 스탯·버프 연동 — ✅ 구현 완료 (2026-07-10)
 
-### 5.4 난이도 스케일링 트리거
+`ULNPBaseAttributeSet`에 `LootSpeed` Attribute 신설 (기본 1.0, 복제, 0.01 하한). Fragment 동기화는 2경로:
+
+| 경로 | 시점 | 커버 |
+|:---|:---|:---|
+| **Attribute 변경 델리게이트** (`ALNPPlayerCharacter::PushLootSpeedToEntity`, PossessedBy에서 바인딩 — 서버 전용) | 버프 GE 적용/만료 즉시 | 루팅 도중 버프 변동, **상호작용 이력 없는 파티원의 버프**까지 실시간 반영 (Fragment 없으면 생성) |
+| **상호작용 시점 캐싱** (`StartLootingOnServer`) | Fragment 최초 부착 시 | 델리게이트 바인딩 전 이력·기본값 |
+
+버프 아이템/GE는 `LootSpeed` Attribute만 변조하면 자동 연동된다.
+**잔여 검증:** `LootSpeed` 변조 GE 에셋이 아직 없음 — 버프 아이템 흐름(LootDice 이후) 구현 시 게이지 가속을 실측. 현재 즉시 검증 가능한 것은 PIE 2인 프레즌스 합산.
+
+### 5.3 Popped 후처리 — 축하 VFX + LootDice 보상 스폰
+
+`FLNPPodStateTransitionCommand::Run()`의 TODO 스텁 지점에서:
+1. `PodID`로 보상 테이블 DataAsset 조회 → 보상 `ULNPItemDefinitionBase` N개 선정.
+2. `ALNPLootDice` N개 스폰 + Pop 임펄스·고속 회전 (→ [TechDesign_LootDice.md](TechDesign_LootDice.md) §2.8).
+3. 축하 나이아가라(Confetti)는 Actor `Popped` 상태 연출(OnRep → UpdateVisuals)에서 재생 — Actor 소멸을 연출 재생 후로 지연.
+**선행:** LootDice 1~5단계 ([TechDesign_LootDice.md](TechDesign_LootDice.md) §3).
+
+### 5.4 빛기둥 Low LOD 표시
+
+빛기둥은 "멀리서도 보인다"가 스펙이므로 Actor(High LOD) 유무와 무관하게 상시 표시되어야 한다. 존재·위치 데이터는 이미 MassReplication bubble이 전 클라이언트에 전달 중 — 시각화만 추가하면 된다.
+
+- **방향:** 빛기둥을 Representation LOD와 무관한 "엔티티 존재 = 빛기둥" 상시 표현으로 분리. Actor는 링·소용돌이·상태 색 등 근접 연출만 담당 (상태별 빛기둥 색 전환은 근접에서만 보임 — 원거리에서는 "안 깐 Pod가 저기 있다"만 전달하면 충분).
+- **구현 후보:** (a) ISMC 에미시브 빔 메시 — 기존 Low LOD 시각화 인프라 재사용, (b) 단일 Niagara 시스템 + 위치 배열/NDC. 프로토타입에서 비주얼 비교 후 선택.
+- **정리:** Pod Popped → bubble 엔티티 제거 → 빛기둥 제거. High LOD 전환 시 이중 표시 방지 처리.
+**검증:** PIE 2인 — Actor 컬 거리 밖 원거리 클라이언트에서 빛기둥 확인, Pop 후 소멸 확인.
+
+### 5.5 난이도 스케일링 트리거
+
 활성 Pod 수 카운터 → `ULNPTargetingSubsystem` 슬롯 한도/NPC 능력치 조정.
 
-### 5.5 루팅 속도 버프 연동
-`BuffedLootSpeed`는 현재 기본값 1.0 고정 — 플레이어 스탯/버프에서 읽어오는 연결 필요 (프로세서에 TODO).
+### 5.6 Actor (재)스폰 시 엔티티 상태 동기화 — ✅ 구현 완료 (2026-07-10)
+
+Representation이 Actor를 스폰할 때 엔티티 Transform만 동기화되고 `CurrentState`/`CurrentGaugePercent`는 기본값(Idle/0%)으로 시작한다 — 실제 발생한 버그: 루팅 존을 들락거리다 Actor가 LOD 소멸→재스폰되면 Idle로 보이는 Pod에 F 프롬프트가 뜨는데, 엔티티는 Looting이라 존 안 프레즌스 기여로 몰래 차올라 "갑자기 Pop"했다.
+
+**해결 2중:**
+1. **자기치유** — `ULNPLootingProcessor`의 게이지 동기화 커맨드(게임 스레드)에서 Actor 상태가 Looting이 아니면 `UpdateVisuals(Looting)`을 밀어 넣는다. 재스폰 Actor가 한 프레임 안에 올바른 상태·게이지로 복원. Idle/Popped 케이스는 기본값·소멸이 각각 자연 일치라 별도 처리 불필요.
+2. **High LOD 범위 확장** — LootPod config의 LODParams를 High ~25m(base 2500/visible 3000)로 확장 (기존 ~5-10m는 존 반경 5m와 겹쳐 존 이탈만으로 Actor가 소멸했다). LODMaxCount High도 64로 상향 (멀티 대비).
+
+### 권장 구현 순서
+
+```
+1. §5.1 게이지 감쇠 — ✅ 완료
+2. §5.2 LootSpeed Attribute 연동
+3. LootDice 단독 구현 (TechDesign_LootDice.md §3의 1~5단계)
+4. §5.3 Popped 후처리 (보상 테이블 + LootDice 연결 + 축하 VFX)
+5. §5.4 빛기둥 Low LOD
+6. §5.5 난이도 스케일링 (별도 트랙)
+```

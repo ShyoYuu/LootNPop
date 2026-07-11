@@ -57,3 +57,27 @@
   - 상세 구현은 [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md) 참조.
 
 ---
+
+## [Case 03] SmartObject 공간 쿼리 기반 LootPod 상호작용 탐색
+
+- **일자:** 2026-07-10
+- **상태:** **기각 (Dismissed)**
+
+### 구현 방식
+
+`ALNPLootPod`에 `USmartObjectComponent` + SmartObject Definition(SOD)을 부착하고, 플레이어의 `ULNPInteractionComponent`가 매 Tick `USmartObjectSubsystem::FindSmartObjects()` 공간 쿼리로 주변 상호작용 후보를 탐색.
+
+### 실패 현상
+
+Pod Actor 바로 옆(217cm)에 서 있어도 쿼리 결과가 항상 0건. Definition·슬롯·등록 핸들·필터 전부 유효한데도 탐지 불가.
+
+### 기각 사유
+
+1. **Mass 액터 풀링과의 구조적 충돌 (결정적):** SmartObject는 정적 오브젝트 전제라 **등록(BeginPlay) 시점 위치가 공간 파티션(HashGrid)에 고정**되고 이후 액터 이동을 추적하지 않는다. 그러나 Mass Representation은 High LOD 액터를 풀에서 재사용하며 다른 엔티티 위치로 텔레포트시킨다 — 파티션 엔트리와 실제 액터 위치가 어긋나 쿼리가 영원히 빗나간다.
+2. **조용한 실패 함정 2중:** ① Definition이 없으면 등록은 조용히 성공(RegisteredHandle 유효)하지만 쿼리엔 절대 안 잡힘. ② SOD에 슬롯이 0개면 등록이 경고 로그와 함께 거부됨. 어느 쪽도 게임플레이 코드에서 눈에 띄는 에러가 없다.
+3. **에셋 의존 부담:** SOD 슬롯 + Behavior Definition(추상 클래스라 구체 서브클래스 필요) + BP CDO 설정까지, 단순 근접 탐색에 비해 요구 설정이 과도. 슬롯·클레임 등 SmartObject의 본기능은 전혀 사용하지 않았다.
+
+### 채택한 대안
+
+- **`ULNPLootPodSubsystem` 레지스트리:** Pod Actor가 `BeginPlay`/`EndPlay`에 스스로 등록/해제하는 목록을 `ULNPInteractionComponent`가 순회. High LOD Actor는 항상 소수(플레이어 주변만 스폰)라 순회 비용이 무시할 수준이고, 풀링 재배치와 무관하게 항상 현재 위치 기준으로 판정된다. (월드 전체를 도는 `TActorIterator`도 비효율 사유로 배제)
+- Pod의 `USmartObjectComponent`·SOD 에셋은 현재 상호작용 경로에서 미사용 — NPC AI(StateTree) 연동 후보로만 보류, 불필요 확정 시 제거 예정.

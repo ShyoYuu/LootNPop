@@ -22,8 +22,10 @@
 | .context/GameDesign_EnemyNPC.md | 슬롯 기반 타겟팅, 행동 상태 (Idle/Alert/Chase/Attack), LOD 전환 |
 | .context/TechDesign_EnemyNPC.md | Fragment/Tag 구조, Mass 프로세서 9종, Actor 연동 (High LOD) |
 | .context/TechDesign_EnemyNPC_StateTree.md | StateTree 상태 계층 (Combat/Alert/Idle), Evaluator 및 Task C++ 구성 |
-| .context/GameDesign_LootPod.md | 루팅 흐름, 취소 조건, 보상 유형 |
-| .context/TechDesign_LootPod.md | MassEntity 구성, SmartObject 연동, 게이지·인터럽션·보상 미구현 상세 |
+| .context/GameDesign_LootPod.md | 루팅 흐름, 존 사수(넉백) 취소 조건, 협동 루팅 속도, 보상 유형 |
+| .context/TechDesign_LootPod.md | MassEntity 구성, Pod 레지스트리 상호작용 탐색, 게이지·보상 드랍·Low LOD 빛기둥 작업 계획 |
+| .context/GameDesign_LootDice.md | 보상 아이템(LootDice) 주사위 굴림 컨셉·아이콘 식별·획득·인벤토리 드랍·소멸 기획 |
+| .context/TechDesign_LootDice.md | 서버 권위 물리 Actor, Iris FRepMovement 동기화, 구면 중력 AddForce 방식, 획득·드랍 RPC 설계와 작업 계획 |
 | .context/TechDesign_HUD.md | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, Blueprint 바인딩 설정 |
 | .context/TechDesign_HitDetection.md | 근접 Swept Volume·원거리 Line Segment 판정 (근접·원거리 구현 완료, 공간 쿼리 최적화 미구현) |
 | .context/TechDesign_Networking.md | 멀티플레이 네트워킹 — Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 엔진 소스 분석 이슈 3건 |

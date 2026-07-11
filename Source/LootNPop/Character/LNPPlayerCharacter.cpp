@@ -17,6 +17,13 @@
 #include "GameFramework/GameplayCameraComponent.h"
 #include "MoverDataModelTypes.h"
 
+#include "GAS/Attributes/LNPBaseAttributeSet.h"
+#include "LootPod/LNPLootPodMassTypes.h"
+#include "MassAgentComponent.h"
+#include "MassEntityManager.h"
+#include "MassEntityUtils.h"
+#include "MassCommands.h"
+
 ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -52,7 +59,15 @@ void ALNPPlayerCharacter::PossessedBy(AController* NewController)
 
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 	{
-		PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, this);
+		UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
+		ASC->InitAbilityActorInfo(PS, this);
+
+		// LootSpeed Attribute 변경 → 플레이어 엔티티 Fragment 동기화 (서버 전용 경로 — PossessedBy는 서버에서만 실행)
+		ASC->GetGameplayAttributeValueChangeDelegate(ULNPBaseAttributeSet::GetLootSpeedAttribute())
+			.AddWeakLambda(this, [this](const FOnAttributeChangeData& Data)
+			{
+				PushLootSpeedToEntity(Data.NewValue);
+			});
 
 		// EqComp::BeginPlay가 DefaultWeapon GAS 부여를 완료한 경우 비주얼·EquippedWeaponData 동기화
 		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
@@ -62,6 +77,41 @@ void ALNPPlayerCharacter::PossessedBy(AController* NewController)
 
 	if (GameplayCamera)
 		GameplayCamera->ActivateCameraForPlayerController(Cast<APlayerController>(NewController));
+}
+
+void ALNPPlayerCharacter::PushLootSpeedToEntity(float NewLootSpeed)
+{
+	const UMassAgentComponent* AgentComponent = FindComponentByClass<UMassAgentComponent>();
+	if (AgentComponent == nullptr)
+		return;
+
+	const FMassEntityHandle PlayerEntity = AgentComponent->GetEntityHandle();
+	if (!PlayerEntity.IsValid())
+	{
+		// 퍼펫 핸드셰이크 전이면 스킵 — 이후 상호작용 시점 캐싱(StartLootingOnServer)이 커버한다
+		UE_LOG(LogLootNPop, Verbose, TEXT("[LootPod] %s LootSpeed sync skipped — entity handle not ready"), *GetName());
+		return;
+	}
+
+	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*GetWorld());
+	EntityManager.Defer().PushCommand<FMassDeferredSetCommand>([PlayerEntity, NewLootSpeed](FMassEntityManager& Manager)
+	{
+		if (!Manager.IsEntityValid(PlayerEntity))
+			return;
+
+		if (FLNPPlayerLootingFragment* Fragment = Manager.GetFragmentDataPtr<FLNPPlayerLootingFragment>(PlayerEntity))
+		{
+			Fragment->BuffedLootSpeed = NewLootSpeed;
+		}
+		else
+		{
+			FLNPPlayerLootingFragment Payload;
+			Payload.BuffedLootSpeed = NewLootSpeed;
+			Manager.Defer().PushCommand<FMassCommandAddFragmentInstances<FLNPPlayerLootingFragment>>(PlayerEntity, Payload);
+		}
+	});
+
+	UE_LOG(LogLootNPop, Log, TEXT("[LootPod] %s LootSpeed -> %.2f (entity fragment sync)"), *GetName(), NewLootSpeed);
 }
 
 void ALNPPlayerCharacter::OnRep_PlayerState()

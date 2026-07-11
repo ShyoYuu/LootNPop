@@ -5,6 +5,7 @@
 #include "LNPLootPod.h"
 #include "LNPMassUtils.h"
 #include "LootNPop.h"
+#include "Enemy/LNPEnemyMassTypes.h"
 
 #include "MassCommonTypes.h"
 #include "MassExecutionContext.h"
@@ -95,9 +96,8 @@ void ULNPIdleToLootingProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EntityQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 
-	// 잠재적 루터 쿼리
+	// 루팅 존 활성화 요청 쿼리 — Interaction Input이 부여한 1회성 Tag 보유자
 	PlayerQuery.AddTagRequirement<FLNPPlayerLootingTag>(EMassFragmentPresence::All);
-	PlayerQuery.AddRequirement<FLNPPlayerLootingFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 }
 
@@ -107,11 +107,12 @@ void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
-	// Player 위치 Cache
+	// 활성화 요청자 위치 Cache
 	struct FLooterInfo { FVector Location; };
 	TArray<FLooterInfo> ActiveLooters;
-	
-	PlayerQuery.ForEachEntityChunk(Context, [&ActiveLooters](FMassExecutionContext& PlayerContext)
+	TArray<FMassEntityHandle> RequesterEntities;
+
+	PlayerQuery.ForEachEntityChunk(Context, [&ActiveLooters, &RequesterEntities](FMassExecutionContext& PlayerContext)
 	{
 		const int32 NumPlayers = PlayerContext.GetNumEntities();
 		const TConstArrayView<FTransformFragment> Transforms = PlayerContext.GetFragmentView<FTransformFragment>();
@@ -119,6 +120,7 @@ void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		for (int32 i = 0; i < NumPlayers; ++i)
 		{
 			ActiveLooters.Add({ Transforms[i].GetTransform().GetLocation() });
+			RequesterEntities.Add(PlayerContext.GetEntity(i));
 		}
 	});
 
@@ -157,6 +159,13 @@ void ULNPIdleToLootingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			}
 		}
 	});
+
+	// 활성화 요청 Tag는 1회성 — 활성화 성사 여부와 무관하게 이번 실행에서 소비한다.
+	// (이미 Looting 중인 Pod 앞에서 누른 입력은 프레즌스 기반 기여가 이어받으므로 별도 처리가 필요 없다)
+	for (const FMassEntityHandle& Requester : RequesterEntities)
+	{
+		Context.Defer().RemoveTag<FLNPPlayerLootingTag>(Requester);
+	}
 }
 
 // --- 2. ULNPLootingProcessor (루팅 처리) ---
@@ -173,11 +182,13 @@ void ULNPLootingProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>
 	EntityQuery.AddTagRequirement<FLNPLootPodLootingTag>(EMassFragmentPresence::All);
 	EntityQuery.AddRequirement<FLNPLootPodFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	EntityQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
+	// Execute에서 GetMutableFragmentView로 Actor 포인터를 꺼내므로 ReadWrite로 선언해야 한다 (ReadOnly면 assert)
+	EntityQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 
-	// 루터 쿼리
-	PlayerQuery.AddTagRequirement<FLNPPlayerLootingTag>(EMassFragmentPresence::All);
-	PlayerQuery.AddRequirement<FLNPPlayerLootingFragment>(EMassFragmentAccess::ReadOnly);
+	// 루터 쿼리 — 기여는 프레즌스 기반: 활성화된 존 범위 안의 모든 플레이어가 루팅에 기여한다.
+	// FLNPPlayerLootingFragment는 Optional — 한 번도 상호작용하지 않은 플레이어는 기본 속도 1.0으로 기여.
+	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
+	PlayerQuery.AddRequirement<FLNPPlayerLootingFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 }
 
@@ -195,12 +206,15 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 	PlayerQuery.ForEachEntityChunk(Context, [&ActiveLooters](FMassExecutionContext& PlayerContext)
 	{
 		const int32 NumPlayers = PlayerContext.GetNumEntities();
+		// Optional Fragment — 없는 청크는 빈 뷰가 반환된다
 		const TConstArrayView<FLNPPlayerLootingFragment> LootingFragments = PlayerContext.GetFragmentView<FLNPPlayerLootingFragment>();
 		const TConstArrayView<FTransformFragment> Transforms = PlayerContext.GetFragmentView<FTransformFragment>();
 		for (int32 i = 0; i < NumPlayers; ++i)
 		{
-			// TODO: Player 스탯/버프에서 실제 BuffedLootSpeed 가져오기
-			ActiveLooters.Add({ Transforms[i].GetTransform().GetLocation(), LootingFragments[i].BuffedLootSpeed });
+			// BuffedLootSpeed는 LootSpeed Attribute와 동기화된다 (ALNPPlayerCharacter::PushLootSpeedToEntity).
+			// Fragment가 없는 플레이어(버프 이력·상호작용 이력 없음)는 기본 속도 1.0으로 기여.
+			const float LootSpeed = LootingFragments.IsEmpty() ? 1.0f : LootingFragments[i].BuffedLootSpeed;
+			ActiveLooters.Add({ Transforms[i].GetTransform().GetLocation(), LootSpeed });
 		}
 	});
 
@@ -231,33 +245,48 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 				}
 			}
 
-			// A. 유효한 루터가 있으면: 게이지 업데이트 및 완료 체크
+			// A. 게이지 갱신 — 루터가 있으면 합산 속도로 증가, 전원 이탈 시 감쇠 (존은 활성 유지)
 			if (bHasValidLooter)
 			{
 				LootPods[i].CurrentGauge = FMath::Min(LootPods[i].MaxGauge, LootPods[i].CurrentGauge + (FinalLootSpeed * DeltaTime));
-
-				// Actor 복제 프로퍼티 동기화 (Phase 7) — 게임 스레드 지연 실행, 2% 임계값은 SetGaugePercent가 처리
-				if (PodActor)
-				{
-					const float GaugePercent = (0.0f < LootPods[i].MaxGauge) ? LootPods[i].CurrentGauge / LootPods[i].MaxGauge : 0.0f;
-					const TWeakObjectPtr<ALNPLootPod> WeakPod = PodActor;
-					IterContext.Defer().PushCommand<FMassDeferredSetCommand>([WeakPod, GaugePercent](FMassEntityManager&)
-					{
-						if (ALNPLootPod* Pod = WeakPod.Get())
-							Pod->SetGaugePercent(GaugePercent);
-					});
-				}
-
-				// 완료 체크 — 엔티티를 즉시 파괴하므로 Fragment 상태/Tag 갱신은 불필요하다.
-				// Popped 상태 전파(비주얼·복제)는 전환 커맨드의 UpdateVisuals가 담당한다.
-				if (LootPods[i].MaxGauge <= LootPods[i].CurrentGauge)
-				{
-					IterContext.Defer().PushCommand<FLNPPodStateTransitionCommand>(PodActor, PodID, ELNPLootPodState::Looting, ELNPLootPodState::Popped, PodLocation);
-					IterContext.Defer().DestroyEntity(IterContext.GetEntity(i));
-				}
 			}
-			// B. 범위 내 유효한 루터 없음: 중단
 			else
+			{
+				const float DecayPerSecond = LootPods[i].MaxGauge * LNPLootPodGaugeDecayFractionPerSecond;
+				LootPods[i].CurrentGauge = FMath::Max(0.0f, LootPods[i].CurrentGauge - (DecayPerSecond * DeltaTime));
+			}
+
+			// Actor 복제 프로퍼티 동기화 (Phase 7) — 게임 스레드 지연 실행, 2% 임계값은 SetGaugePercent가 처리
+			if (PodActor)
+			{
+				const float GaugePercent = (0.0f < LootPods[i].MaxGauge) ? LootPods[i].CurrentGauge / LootPods[i].MaxGauge : 0.0f;
+				const TWeakObjectPtr<ALNPLootPod> WeakPod = PodActor;
+				IterContext.Defer().PushCommand<FMassDeferredSetCommand>([WeakPod, GaugePercent](FMassEntityManager&)
+				{
+					if (ALNPLootPod* Pod = WeakPod.Get())
+					{
+						Pod->SetGaugePercent(GaugePercent);
+
+						// Actor 재스폰 자기치유 — LOD로 소멸했다 재스폰된 Actor는 기본값(Idle)로 시작하므로,
+						// 엔티티가 Looting인데 Actor 비주얼이 다르면 상태를 밀어 넣는다 (§5.6).
+						// 방치하면 Idle로 보이는 Pod가 프레즌스 기여로 몰래 차올라 "갑자기 Pop"하는 버그가 된다.
+						if (Pod->GetCurrentState() != ELNPLootPodState::Looting)
+						{
+							Pod->UpdateVisuals(ELNPLootPodState::Looting);
+						}
+					}
+				});
+			}
+
+			// B. 완료 체크 — 엔티티를 즉시 파괴하므로 Fragment 상태/Tag 갱신은 불필요하다.
+			// Popped 상태 전파(비주얼·복제)는 전환 커맨드의 UpdateVisuals가 담당한다.
+			if (LootPods[i].MaxGauge <= LootPods[i].CurrentGauge)
+			{
+				IterContext.Defer().PushCommand<FLNPPodStateTransitionCommand>(PodActor, PodID, ELNPLootPodState::Looting, ELNPLootPodState::Popped, PodLocation);
+				IterContext.Defer().DestroyEntity(IterContext.GetEntity(i));
+			}
+			// C. 감쇠 끝에 게이지 0 도달 — 루팅 프로세스 완전 취소, 재활성화는 Interaction Input부터
+			else if (!bHasValidLooter && LootPods[i].CurrentGauge <= 0.0f)
 			{
 				LootPods[i].State = ELNPLootPodState::Idle;
 				IterContext.Defer().PushCommand<FLNPPodStateTransitionCommand>(PodActor, PodID, ELNPLootPodState::Looting, ELNPLootPodState::Idle, PodLocation);

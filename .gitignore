@@ -6,20 +6,17 @@ Saved/
 docs/
 .vs/
 .serena/
-Content/__ExternalActors__/
-Content/__ExternalObjects__/
 
 #파일
 .vsconfig
 *.sln
 *.slnx
 sample.png
-Update-UE-Docs-Custom.ps1
 launch_claude.ps1
 Standalone_AddClient.lnk
 Standalone_RunListenServer.lnk
 
 # AI Agent Local Configs
 .claude/
-.gemini/
+.agents/
 .mcp.json

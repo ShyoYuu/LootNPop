@@ -18,8 +18,10 @@ ULNPLootPodTrait::ULNPLootPodTrait()
 
 void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
-	// 1. 데이터 Fragment 추가
-	BuildContext.AddFragment<FLNPLootPodFragment>();
+	// 1. 데이터 Fragment 추가 — 루팅 존 반경·게이지 총량은 config(트레잇 프로퍼티)에서 주입
+	FLNPLootPodFragment& PodFragment = BuildContext.AddFragment_GetRef<FLNPLootPodFragment>();
+	PodFragment.LootableDistSquared = FMath::Square(LootingZoneRadius);
+	PodFragment.MaxGauge = MaxGauge;
 
 	// 2. 식별 Tag 추가
 	BuildContext.AddTag<FLNPLootPodTag>();

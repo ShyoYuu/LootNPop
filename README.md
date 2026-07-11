@@ -31,6 +31,7 @@
 - **Motion Matching + Linked Anim Layers**: 플레이어 캐릭터, NPC 캐릭터의 Locomotion
 - **MassEntity**: NPC 캐릭터는 MassEntity(LowLOD) - Actor(HighLOD) 하이브리드, HitDetection용 충돌체는 Pure MassEntity
 - **StateTree**: NPC 캐릭터 행동 제어
+- **Iris Replication + MassReplication**: Multiplayer Networking
 - **Gameplay Camera**: 플레이어 카메라를 Gameplay Camera로 적용
 - **PCG (Procedural Content Generation)**: 배경 프랍 배치
 - **Geometry Script (Dynamic Mesh Component)**: 지형용 Static Mesh 생성
@@ -43,7 +44,7 @@
 본 프로젝트의 코드 작업에는 다음 AI 도구들이 참여하고 있습니다.
 
 - **Claude Code**
-- **Gemini CLI**
+- **Antigravity CLI**
 
 ---
 
