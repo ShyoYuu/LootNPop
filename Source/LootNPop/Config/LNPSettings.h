@@ -8,6 +8,9 @@
 
 class ULNPOctantPoolData;
 class ULNPMassSpawnConfig;
+class ALNPLootDice;
+class ULNPLootDiceRewardTable;
+class UNiagaraSystem;
 
 /**
  * LootNPop 전역 프로젝트 설정.
@@ -49,6 +52,19 @@ public:
 	/** true이면 Player Projectile이 다른 Player에게 피해를 줄 수 있다. */
 	UPROPERTY(Config, EditAnywhere, Category = "Combat")
 	bool bFriendlyFire = false;
+
+	/** LootDice 스폰 클래스 (BP_LootDice — 큐브 메시·아이콘 머티리얼 지정). 미설정 시 C++ 기본 클래스 폴백. */
+	UPROPERTY(Config, EditAnywhere, Category = "Loot Dice")
+	TSoftClassPtr<ALNPLootDice> LootDiceClass;
+
+	/** LootPod Popped 시 PodID로 보상을 조회하는 테이블. 미설정 시 보상 스폰이 생략된다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Loot Dice")
+	TSoftObjectPtr<ULNPLootDiceRewardTable> LootDiceRewardTable;
+
+	/** LootPod Popped 축하 이펙트(Confetti). 보상과 동일하게 위치 기반·Actor 독립으로 스폰된다.
+	 *  미설정 시 스폰 생략. (서버 스폰이라 원격 클라 복제는 별도 — MP 후순위) */
+	UPROPERTY(Config, EditAnywhere, Category = "Loot Pod")
+	TSoftObjectPtr<UNiagaraSystem> LootPodConfettiVFX;
 
 	/** Debug Draw 거리 컬링 기준값 (DistSq). 플레이어와의 거리² 가 이 값 미만인 엔티티만 그린다. */
 	UPROPERTY(Config, EditAnywhere, Category = "Debug Draw", meta = (ClampMin="0.0"))

@@ -1,8 +1,8 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "LootPod/LNPLootPodMassTypes.h"
-#include "LootPod/LNPLootPodReplication.h"
-#include "LootPod/LNPLootPodReplicator.h"
+#include "Replication/LNPMassReplication.h"
+#include "Replication/LNPMassReplicator.h"
 
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
@@ -12,8 +12,8 @@
 ULNPLootPodTrait::ULNPLootPodTrait()
 {
 	ReplicationTrait = CreateDefaultSubobject<UMassReplicationTrait>(TEXT("ReplicationTrait"));
-	ReplicationTrait->Params.BubbleInfoClass = ALNPLootPodClientBubbleInfo::StaticClass();
-	ReplicationTrait->Params.ReplicatorClass = ULNPLootPodReplicator::StaticClass();
+	ReplicationTrait->Params.BubbleInfoClass = ALNPMassClientBubbleInfo::StaticClass();
+	ReplicationTrait->Params.ReplicatorClass = ULNPMassReplicator::StaticClass();
 }
 
 void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const

@@ -10,6 +10,7 @@
 class ULNPWeaponData;
 class ULNPSkillData;
 class ULNPBuffData;
+class ULNPInventoryItemInstance;
 
 USTRUCT(BlueprintType)
 struct LOOTNPOP_API FLNPWeaponInstance
@@ -18,6 +19,10 @@ struct LOOTNPOP_API FLNPWeaponInstance
 
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<ULNPWeaponData> Definition = nullptr;
+
+	/** 이 장착을 유발한 가방 인스턴스 (bag-equipped면 유효, 기본/innate 무기면 null). */
+	UPROPERTY()
+	TObjectPtr<ULNPInventoryItemInstance> SourceInstance = nullptr;
 
 	UPROPERTY()
 	TArray<FGameplayAbilitySpecHandle> GrantedAbilities;
@@ -37,6 +42,10 @@ struct LOOTNPOP_API FLNPSkillInstance
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<ULNPSkillData> Definition = nullptr;
 
+	/** 이 장착을 유발한 가방 인스턴스 (bag-equipped면 유효). */
+	UPROPERTY()
+	TObjectPtr<ULNPInventoryItemInstance> SourceInstance = nullptr;
+
 	UPROPERTY()
 	TArray<FGameplayAbilitySpecHandle> GrantedAbilities;
 
@@ -45,22 +54,4 @@ struct LOOTNPOP_API FLNPSkillInstance
 
 	bool IsValid() const { return Definition != nullptr; }
 	void Reset() { *this = FLNPSkillInstance(); }
-};
-
-USTRUCT(BlueprintType)
-struct LOOTNPOP_API FLNPBuffInstance
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadOnly)
-	TObjectPtr<ULNPBuffData> Definition = nullptr;
-
-	UPROPERTY()
-	TArray<FActiveGameplayEffectHandle> AppliedEffects;
-
-	UPROPERTY(BlueprintReadOnly)
-	float RemainingDuration = 0.0f;
-
-	bool IsValid() const { return Definition != nullptr; }
-	void Reset() { *this = FLNPBuffInstance(); }
 };

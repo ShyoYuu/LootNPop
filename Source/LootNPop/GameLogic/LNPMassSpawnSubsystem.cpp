@@ -5,9 +5,7 @@
 #include "DataAsset/LNPMassSpawnConfig.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
-#include "Enemy/LNPEnemyReplication.h"
-#include "Character/LNPPlayerReplication.h"
-#include "LootPod/LNPLootPodReplication.h"
+#include "Replication/LNPMassReplication.h"
 #include "LootNPop.h"
 
 #include "Async/Async.h"
@@ -28,11 +26,11 @@ void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	RandomStream.GenerateNewSeed();
 
 	// MassReplication(Phase 6/6.5/7): 클라이언트가 접속하기 전에 BubbleInfoClass를 등록해야 한다 (RegisterBubbleInfoClass 문서 제약).
+	// 모든 복제 타입(Enemy·Player·LootPod)이 통합 버블 하나를 공유한다 — 다중 버블은 엔진 파괴 경로가
+	// 타입 무구분이라 크래시/오염을 유발한다 (EngineAnalysis_MassReplication.md §7.1).
 	if (UMassReplicationSubsystem* ReplicationSubsystem = GetWorld()->GetSubsystem<UMassReplicationSubsystem>())
 	{
-		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPEnemyClientBubbleInfo::StaticClass());
-		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPPlayerClientBubbleInfo::StaticClass());
-		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPLootPodClientBubbleInfo::StaticClass());
+		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPMassClientBubbleInfo::StaticClass());
 	}
 
 	// Enemy MassReplication(Phase 6): Enemy 스폰(BeginSpawning)은 서버 전용 ALNPGameMode가 호출하므로

@@ -3,9 +3,13 @@
 #include "Character/LNPPlayerCharacter.h"
 #include "Player/LNPPlayerState.h"
 #include "Item/LNPEquipmentComponent.h"
+#include "Item/LNPInventoryComponent.h"
+#include "Item/LNPBuffData.h"
 #include "Item/LNPItemInstance.h"
+#include "LootDice/LNPLootDice.h"
 #include "Item/LNPWeaponData.h"
 #include "Item/LNPItemDefinitionBase.h"
+#include "Item/LNPInventoryItemInstance.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "Interaction/LNPInteractionComponent.h"
 #include "Camera/LNPLockOnComponent.h"
@@ -148,6 +152,113 @@ void ALNPPlayerCharacter::Server_EquipWeapon_Implementation(ULNPWeaponData* Weap
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
 			EqComp->EquipWeapon(WeaponData);
+}
+
+void ALNPPlayerCharacter::EquipWeaponInstance(ULNPInventoryItemInstance* Instance)
+{
+	if (Instance == nullptr)
+		return;
+
+	ULNPWeaponData* WeaponData = Cast<ULNPWeaponData>(Instance->GetDefinition());
+	if (WeaponData == nullptr)
+		return;
+
+	Super::EquipWeapon(WeaponData);  // 비주얼·태그·EquippedWeaponData(서버만)
+
+	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
+	{
+		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
+		{
+			// 클라이언트: 슬롯이 인스턴스를 즉시 참조(예측) 후 서버에 GAS 부여·bEquipped 요청
+			EqComp->EquipWeaponInstance(Instance);
+			if (!HasAuthority())
+				Server_EquipWeaponInstance(Instance->GetItemId());
+		}
+	}
+}
+
+void ALNPPlayerCharacter::Server_EquipWeaponInstance_Implementation(FGuid ItemId)
+{
+	ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+	if (PS == nullptr)
+		return;
+
+	ULNPInventoryComponent* Inventory = PS->GetInventoryComponent();
+	ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent();
+	if (Inventory == nullptr || EqComp == nullptr)
+		return;
+
+	ULNPInventoryItemInstance* Instance = Inventory->FindItemInstance(ItemId);
+	if (Instance == nullptr)
+		return;
+
+	if (ULNPWeaponData* WeaponData = Cast<ULNPWeaponData>(Instance->GetDefinition()))
+		ALNPCharacterBase::EquipWeapon(WeaponData);  // 서버 비주얼·복제 마킹
+
+	EqComp->EquipWeaponInstance(Instance);  // 서버 권위: bEquipped 표시 + GAS 부여
+}
+
+void ALNPPlayerCharacter::DropItem(const FGuid& ItemId)
+{
+	if (HasAuthority())
+		DropItemOnServer(ItemId);
+	else
+		Server_DropItem(ItemId);
+}
+
+void ALNPPlayerCharacter::Server_DropItem_Implementation(FGuid ItemId)
+{
+	DropItemOnServer(ItemId);
+}
+
+void ALNPPlayerCharacter::DropItemOnServer(const FGuid& ItemId)
+{
+	ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+	if (!ItemId.IsValid() || PS == nullptr)
+		return;
+
+	ULNPInventoryComponent* Inventory = PS->GetInventoryComponent();
+	if (Inventory == nullptr)
+		return;
+
+	// ItemId로 인스턴스를 찾는다 — 가방 우선, 없으면 활성 버프. 인스턴스 정체성이라 사본을 정확히 구분한다
+	// (구 DA_Pistol 오검출은 정의 포인터 비교 탓이었고, 이제 인스턴스 ItemId로 근본 해소).
+	bool bIsBuff = false;
+	ULNPInventoryItemInstance* Instance = Inventory->FindItemInstance(ItemId);
+	if (Instance == nullptr)
+	{
+		Instance = Inventory->FindBuffInstance(ItemId);
+		bIsBuff = (Instance != nullptr);
+	}
+	if (Instance == nullptr)
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] 드랍 거부 — ItemId %s 미보유"), *ItemId.ToString());
+		return;
+	}
+	if (Instance->IsEquipped())
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] 드랍 거부 — %s 장착 중"), *GetNameSafe(Instance->GetDefinition()));
+		return;
+	}
+
+	ULNPItemDefinitionBase* ItemDef = Instance->GetDefinition();
+
+	// 인벤토리 제거 성공 전에는 스폰하지 않는다 (아이템 복제 방지).
+	// 버프는 잔여 지속 시간을 회수해 페이로드에 싣는다 — 양도받은 파티원이 이어서 쓴다.
+	float DiceRemainingDuration = 0.0f;
+	if (bIsBuff)
+		DiceRemainingDuration = Inventory->RemoveBuffInstance(ItemId);
+	else
+		Inventory->RemoveItemInstance(ItemId);
+
+	// 캐릭터 전방에 "작은 Pop"으로 스폰 — 이후 소멸·획득 규칙은 LootPod 보상과 완전 동일 (공용 경로)
+	const FVector DropLocation = GetActorLocation()
+		+ GetActorForwardVector() * 150.0f
+		+ GetActorUpVector() * 80.0f;
+	ALNPLootDice::SpawnDice(*GetWorld(), DropLocation, ItemDef, DiceRemainingDuration, /*ImpulseScale=*/0.4f);
+
+	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s 드랍 — %s (버프 잔여 %.1fs)"),
+		*GetNameSafe(this), *GetNameSafe(ItemDef), DiceRemainingDuration);
 }
 
 FRotator ALNPPlayerCharacter::GetBaseAimRotation() const

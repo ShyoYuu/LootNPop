@@ -7,9 +7,11 @@
 #include "LNPInteractionComponent.generated.h"
 
 class ALNPLootPod;
+class ALNPLootDice;
 
 /**
- * ALNPLootPod Actor를 탐색하고 상호작용하는 Component.
+ * 인터랙터블 Actor(ALNPLootPod·ALNPLootDice)를 탐색하고 상호작용하는 Component.
+ * 후보 탐색은 ULNPInteractableRegistrySubsystem 순회, 타입별 동작은 Cast 분기로 처리한다.
  */
 UCLASS(ClassGroup = (LNP), meta = (BlueprintSpawnableComponent))
 class LOOTNPOP_API ULNPInteractionComponent : public UActorComponent
@@ -50,6 +52,16 @@ protected:
 
 	/** 서버 전용: 유효성 검증 후 플레이어 엔티티에 루팅 태그/프래그먼트를 부여한다. */
 	void StartLootingOnServer(ALNPLootPod* Pod);
+
+	/**
+	 * 원격 클라이언트의 LootDice 획득을 서버에 전달한다. 선착순 레이스는 서버 RPC 직렬화가
+	 * 자연 해결하며, 서버가 거리·획득 여부를 재검증한다 (Server_StartLooting과 동일 구조).
+	 */
+	UFUNCTION(Server, Reliable)
+	void Server_PickupDice(ALNPLootDice* Dice);
+
+	/** 서버 전용: 재검증 후 Dice 페이로드를 인벤토리에 편입하고 Dice를 파괴한다. */
+	void PickupDiceOnServer(ALNPLootDice* Dice);
 	/** 상호작용 가능한 오브젝트 탐색 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Interaction")
 	float InteractionRadius = 500.0f;
@@ -58,9 +70,9 @@ protected:
 	UPROPERTY(Transient)
 	TSet<TWeakObjectPtr<AActor>> InteractionCandidates;
 
-	/** 현재 프롬프트를 표시 중인 타겟 (로컬 플레이어 전용) */
+	/** 현재 프롬프트를 표시 중인 타겟 — Pod 또는 Dice (로컬 플레이어 전용) */
 	UPROPERTY(Transient)
-	TWeakObjectPtr<ALNPLootPod> CurrentPromptTarget;
+	TWeakObjectPtr<AActor> CurrentPromptTarget;
 
 	// --- LootPod 개발용 테스트 로그 상태 (변화 시에만 출력해 스팸 방지) ---
 	/** 쿼리 범위 내에서 발견된 가장 가까운 Pod — CanInteract 실패 사유 진단용 */

@@ -133,15 +133,17 @@
 
 **서버 LOD 정책:** 서버도 기본적으로 Mass 엔티티만 시뮬레이션한다. `UMassRepresentationProcessor`가 플레이어 거리 기준으로 Actor를 동적 스폰/소멸하며, 모든 플레이어에게서 멀면 서버에도 Actor가 없다 — 수백 규모 적을 처리하는 핵심 부하 절감 포인트.
 
-**타입별 bubble 스키마 — 필요한 만큼만:**
+**통합 단일 버블 — 모든 타입이 하나의 복제 스트림을 공유:**
 
-| 타입 | 스키마 | 갱신 |
+세 타입 모두 `ALNPMassClientBubbleInfo` / `ULNPMassReplicator`(`Replication/LNPMassReplication.h`, `LNPMassReplicator.h`) 하나로 복제된다. 엔진의 파괴 처리 경로(`CalculateClientReplication`의 클라 장부 순회)가 타입 무구분이라, 버블 클래스가 2개 이상이면 타 타입 파괴 엔트리를 자기 버블 핸들로 제거 시도해 크래시(2P 루팅 게이지 완료 시 실측)하기 때문 — 상세는 `EngineAnalysis_MassReplication.md` §7.1. 이종 아키타입 스폰은 엔진의 TemplateID 그룹핑이 자동 처리하고, 타입 분기는 `FLNPEnemyFragment` Optional 요구(서버)·`FMassEntityView` 조건부 접근(클라)으로 해결한다.
+
+| 타입 | 페이로드 | 갱신 |
 |:---|:---|:---|
 | Enemy | PositionYaw + EnemyTypeTag | 지속 (서버 AI가 매 Tick 이동) |
 | 플레이어 폰 | 존재 + 스폰 시점 PositionYaw 1회 | **없음** — 위치는 Mover가 이미 고빈도·예측·보간 복제 중이라 bubble에 실으면 같은 데이터의 저품질 사본만 회선에 추가됨 |
 | LootPod | 존재 + 스폰 시점 PositionYaw 1회 | 없음 (정적) — 상태·게이지는 Actor 복제 담당 |
 
-"스폰 1회 복제" 패턴은 `TLNPSpawnOnlyBubbleHandler` / `ULNPSpawnOnlyReplicatorBase`(`Replication/LNPSpawnOnlyReplication.h`)로 템플릿화해 Player·LootPod이 공유한다. 스폰 위치를 1회 싣는 이유: 퍼펫 링크 시 엔진이 엔티티 Transform으로 Actor 위치를 초기화하므로 비워두면 원점으로 튄다.
+스폰 위치를 1회 싣는 이유: 퍼펫 링크 시 엔진이 엔티티 Transform으로 Actor 위치를 초기화하므로 비워두면 원점으로 튄다. 구 Player 복제 클래스를 참조하던 `DA_PlayerEntityConfig`는 `DefaultEngine.ini`의 CoreRedirects로 통합 클래스에 연결돼 있다 (에디터에서 재저장하면 영구 반영 후 제거 가능).
 
 **퍼펫(Puppet) 링크 — bubble 엔티티 ↔ 복제 Actor 자동 연결:** 엔진 정식 경로인 `UMassAgentComponent`의 NetID 핸드셰이크를 사용한다. 서버가 컴포넌트의 복제 프로퍼티 `NetID`에 `FMassNetworkID`를 싣고, 클라이언트 `OnRep_NetID`가 bubble이 스폰한 엔티티를 `FindEntity(NetID)`로 찾아 연결한다(액터·엔티티 도착 순서 레이스는 엔진이 orphan 대기로 처리). 퍼펫 초기화가 EntityConfig 템플릿 조성을 엔티티에 더해주므로 서버와 동일한 아키타입이 클라이언트에서 성립하고, 클라이언트 예측 판정(근접 HitStop·관전 Ghost 충돌)이 로컬 Mass 쿼리만으로 동작한다. 이 과정에서 발견한 엔진 타이밍 갭은 §4.1 참조.
 

@@ -57,6 +57,17 @@
 
 ---
 
-## 7. 구현 현황
+## 7. 구현 현황 (2026-07-12)
 
-전 항목 미구현 — 기술 설계와 작업 계획은 [TechDesign_LootDice.md](TechDesign_LootDice.md) 참조.
+| 기능 | 상태 |
+|:---|:---|
+| `ALNPLootDice` Actor (물리 큐브·페이로드·수명·소멸 깜빡임) | ✅ 코드 완료 |
+| 구형 중력 (AddForce, 슬립 가드) | ✅ 코드 완료 (슬립 진입 실측 잔여) |
+| 물리 복제 (Iris ReplicatedMovement — 정지 위치·윗면 동기화) | ✅ 코드 완료 (PIE 2인 검증 잔여) |
+| 획득 (레지스트리 탐색 → 프롬프트 → Server RPC → 인벤토리 편입, 선착순) | ✅ 코드 완료 |
+| 인벤토리 드랍/양도 (미장착 검증, 버프 잔여 시간 유지) | ✅ 코드 완료 (드랍 UI는 별도 — `DropItem` BlueprintCallable 노출) |
+| LootPod Popped 보상 스폰 (보상 테이블 `ULNPLootDiceRewardTable`) | ✅ 코드 완료 (테이블 에셋 제작 잔여) |
+| 6면 아이콘·카테고리 색 (MID 훅) | ✅ 완료 (M_LootDice + 무기 아이콘 텍스처 T_Icon_* 3종 지정) |
+| BP_LootDice·머티리얼·Physical Material 등 에디터 에셋 | ✅ 완료 (`/Game/LootDice/`, LNP Settings 지정) |
+
+세부 설계·잔여 검증은 [TechDesign_LootDice.md](TechDesign_LootDice.md) 참조.
