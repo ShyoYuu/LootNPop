@@ -48,3 +48,5 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Right, "LNP.Montage.Value.Dir
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Parry_Parrier, "LNP.Montage.Value.Parry.Parrier")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Parry_Parried, "LNP.Montage.Value.Parry.Parried")
+
+UE_DEFINE_GAMEPLAY_TAG(TAG_Item_Level, "LNP.Item.Level")

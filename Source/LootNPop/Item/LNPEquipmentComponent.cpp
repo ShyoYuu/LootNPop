@@ -4,6 +4,7 @@
 #include "Item/LNPItemDefinitionBase.h"
 #include "Item/LNPWeaponData.h"
 #include "Item/LNPSkillData.h"
+#include "Item/LNPInventoryItemInstance.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "Player/LNPPlayerState.h"
 #include "Config/LNPSettings.h"
@@ -40,13 +41,37 @@ void ULNPEquipmentComponent::EquipWeapon(ULNPWeaponData* WeaponDef)
 	}
 }
 
+void ULNPEquipmentComponent::EquipWeaponInstance(ULNPInventoryItemInstance* Instance)
+{
+	if (Instance == nullptr)
+		return;
+
+	ULNPWeaponData* WeaponDef = Cast<ULNPWeaponData>(Instance->GetDefinition());
+	if (WeaponDef == nullptr)
+		return;
+
+	UnequipWeapon();
+
+	WeaponSlot.Definition = WeaponDef;
+	WeaponSlot.SourceInstance = Instance;
+	if (GetOwner() && GetOwner()->HasAuthority())
+	{
+		Instance->SetEquipped(true);  // 복제되어 소유 클라 UI가 가방에서 숨긴다
+		GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+	}
+}
+
 void ULNPEquipmentComponent::UnequipWeapon()
 {
 	if (!WeaponSlot.IsValid())
 		return;
 
 	if (GetOwner() && GetOwner()->HasAuthority())
+	{
+		if (WeaponSlot.SourceInstance)
+			WeaponSlot.SourceInstance->SetEquipped(false);
 		RevokeItemImpl(WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+	}
 	WeaponSlot.Reset();
 }
 
@@ -101,6 +126,52 @@ void ULNPEquipmentComponent::RemovePassiveSkill(ULNPSkillData* SkillDef)
 			return;
 		}
 	}
+}
+
+bool ULNPEquipmentComponent::IsEquipped(const ULNPItemDefinitionBase* ItemDef) const
+{
+	if (ItemDef == nullptr)
+		return false;
+
+	if (WeaponSlot.Definition == ItemDef)
+		return true;
+
+	for (const FLNPSkillInstance& Slot : ActiveSkillSlots)
+	{
+		if (Slot.Definition == ItemDef)
+			return true;
+	}
+
+	for (const FLNPSkillInstance& Passive : PassiveSkillInstances)
+	{
+		if (Passive.Definition == ItemDef)
+			return true;
+	}
+
+	return false;
+}
+
+bool ULNPEquipmentComponent::IsEquippedInstance(const FGuid& ItemId) const
+{
+	if (!ItemId.IsValid())
+		return false;
+
+	if (WeaponSlot.SourceInstance && WeaponSlot.SourceInstance->GetItemId() == ItemId)
+		return true;
+
+	for (const FLNPSkillInstance& Slot : ActiveSkillSlots)
+	{
+		if (Slot.SourceInstance && Slot.SourceInstance->GetItemId() == ItemId)
+			return true;
+	}
+
+	for (const FLNPSkillInstance& Passive : PassiveSkillInstances)
+	{
+		if (Passive.SourceInstance && Passive.SourceInstance->GetItemId() == ItemId)
+			return true;
+	}
+
+	return false;
 }
 
 UAbilitySystemComponent* ULNPEquipmentComponent::GetASC() const

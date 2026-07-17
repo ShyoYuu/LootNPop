@@ -27,10 +27,12 @@
 | .context/GameDesign_LootDice.md | 보상 아이템(LootDice) 주사위 굴림 컨셉·아이콘 식별·획득·인벤토리 드랍·소멸 기획 |
 | .context/TechDesign_LootDice.md | 서버 권위 물리 Actor, Iris FRepMovement 동기화, 구면 중력 AddForce 방식, 획득·드랍 RPC 설계와 작업 계획 |
 | .context/TechDesign_HUD.md | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, Blueprint 바인딩 설정 |
+| .context/TechDesign_Inventory.md | 아이템 인스턴스 모델(UObject+FastArray+등록 서브오브젝트), GameplayTagStack 스탯, 장착/보관 분리, 버프 인스턴스 흐름 |
 | .context/TechDesign_HitDetection.md | 근접 Swept Volume·원거리 Line Segment 판정 (근접·원거리 구현 완료, 공간 쿼리 최적화 미구현) |
 | .context/TechDesign_Networking.md | 멀티플레이 네트워킹 — Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 엔진 소스 분석 이슈 3건 |
 | .context/GameDesign_ParrySystem.md | 패링 성공 조건, 투사체 타입별 반사, 플레이어 경험 의도 |
 | .context/TechDesign_ParrySystem.md | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 방안 |
 | .context/EngineAnalysis_MassEntity.md | Unreal Engine의 MassEntity 시스템 분석 |
+| .context/EngineAnalysis_MassReplication.md | Unreal Engine의 Mass Replication 분석 — 버블 구조, 서버/클라 복제 흐름, 다중 버블 파괴 경로 함정 |
 | .context/EngineAnalysis_MassStateTree.md | Unreal Engine의 StateTree - MassBehavior 시스템 분석 |
 | .context/EngineAnalysis_MoverArchitecture.md | Unreal Engine의 Mover 2.0 시스템 분석 |

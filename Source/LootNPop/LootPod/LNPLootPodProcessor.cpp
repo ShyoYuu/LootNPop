@@ -3,9 +3,14 @@
 #include "LNPLootPodProcessor.h"
 #include "LNPLootPodMassTypes.h"
 #include "LNPLootPod.h"
+#include "LootDice/LNPLootDice.h"
 #include "LNPMassUtils.h"
 #include "LootNPop.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "Config/LNPSettings.h"
+
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
 
 #include "MassCommonTypes.h"
 #include "MassExecutionContext.h"
@@ -60,7 +65,23 @@ struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
 			// 2. 상태 전환에 따른 특수 처리
 			if (Entry.NewState == ELNPLootPodState::Popped)
 			{
-				// TODO: 통합 보상 드롭 — 실제 보상 Actor/아이템을 여기에 스폰
+				// LootDice 보상 스폰 — 이 커맨드는 서버에서만 push되고(IsClientWorld 가드) 게임 스레드에서
+				// 실행된다. Pod Actor는 이미 파괴/풀 반납됐을 수 있으므로 Entry의 PodID·Location만 사용한다.
+				if (UWorld* World = EntityManager.GetWorld())
+				{
+					ALNPLootDice::SpawnPodRewards(*World, Entry.PodID, Entry.Location);
+
+					// Confetti도 보상과 동일하게 위치 기반·Actor 독립으로 스폰한다. Pod Actor 기준 스폰은
+					// 이 시점에 Actor가 이미 파괴돼(위 DestroyEntity) 도달 불가하므로 Settings 참조를 쓴다.
+					if (const ULNPSettings* Settings = GetDefault<ULNPSettings>())
+					{
+						if (UNiagaraSystem* Confetti = Settings->LootPodConfettiVFX.LoadSynchronous())
+						{
+							UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+								World, Confetti, Entry.Location, FRotator::ZeroRotator);
+						}
+					}
+				}
 			}
 		}
 	}

@@ -2,8 +2,8 @@
 
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
-#include "Enemy/LNPEnemyReplication.h"
-#include "Enemy/LNPEnemyReplicator.h"
+#include "Replication/LNPMassReplication.h"
+#include "Replication/LNPMassReplicator.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 
 #include "MassEntityTemplateRegistry.h"
@@ -21,8 +21,8 @@
 ULNPEnemyTrait::ULNPEnemyTrait()
 {
 	ReplicationTrait = CreateDefaultSubobject<UMassReplicationTrait>(TEXT("ReplicationTrait"));
-	ReplicationTrait->Params.BubbleInfoClass = ALNPEnemyClientBubbleInfo::StaticClass();
-	ReplicationTrait->Params.ReplicatorClass = ULNPEnemyReplicator::StaticClass();
+	ReplicationTrait->Params.BubbleInfoClass = ALNPMassClientBubbleInfo::StaticClass();
+	ReplicationTrait->Params.ReplicatorClass = ULNPMassReplicator::StaticClass();
 }
 
 void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const

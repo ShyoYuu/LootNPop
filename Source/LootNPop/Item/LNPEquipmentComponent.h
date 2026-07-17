@@ -10,6 +10,7 @@
 class ULNPItemDefinitionBase;
 class ULNPWeaponData;
 class ULNPSkillData;
+class ULNPInventoryItemInstance;
 class UAbilitySystemComponent;
 
 UCLASS(ClassGroup = (LNP), meta = (BlueprintSpawnableComponent))
@@ -20,9 +21,12 @@ public:
 	ULNPEquipmentComponent();
 	virtual void BeginPlay() override;
 
-	/** 현재 무기를 해제한 후 WeaponDef를 장착하고 GA/GE를 부여한다. */
+	/** 현재 무기를 해제한 후 WeaponDef를 장착하고 GA/GE를 부여한다 (기본/innate 무기 경로 — 가방 인스턴스 없음). */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Equipment")
 	void EquipWeapon(ULNPWeaponData* WeaponDef);
+
+	/** 가방 인스턴스를 장착한다 — 슬롯이 인스턴스를 참조하고 bEquipped를 표시(서버)해 장착본/보관본을 구분한다. */
+	void EquipWeaponInstance(ULNPInventoryItemInstance* Instance);
 
 	UFUNCTION(BlueprintCallable, Category = "LNP|Equipment")
 	void UnequipWeapon();
@@ -44,6 +48,13 @@ public:
 	const FLNPWeaponInstance& GetWeaponSlot() const { return WeaponSlot; }
 	const TArray<FLNPSkillInstance>& GetActiveSkillSlots() const { return ActiveSkillSlots; }
 	int32 GetMaxActiveSkillSlots() const { return MaxActiveSkillSlots; }
+
+	/** ItemDef가 현재 장착 중(무기 슬롯·액티브 스킬 슬롯·패시브 스킬)인지 — 정의 포인터 비교(사본 구분 불가, 레거시). */
+	UFUNCTION(BlueprintPure, Category = "LNP|Equipment")
+	bool IsEquipped(const ULNPItemDefinitionBase* ItemDef) const;
+
+	/** ItemId(인스턴스)가 현재 장착 중인지 — 사본을 정확히 구분한다 (DA_Pistol 오검출 해소의 핵심). */
+	bool IsEquippedInstance(const FGuid& ItemId) const;
 
 	/** BeginPlay 시 장착되는 기본 무기. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|Equipment|Defaults")

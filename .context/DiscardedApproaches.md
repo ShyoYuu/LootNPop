@@ -79,5 +79,5 @@ Pod Actor 바로 옆(217cm)에 서 있어도 쿼리 결과가 항상 0건. Defin
 
 ### 채택한 대안
 
-- **`ULNPLootPodSubsystem` 레지스트리:** Pod Actor가 `BeginPlay`/`EndPlay`에 스스로 등록/해제하는 목록을 `ULNPInteractionComponent`가 순회. High LOD Actor는 항상 소수(플레이어 주변만 스폰)라 순회 비용이 무시할 수준이고, 풀링 재배치와 무관하게 항상 현재 위치 기준으로 판정된다. (월드 전체를 도는 `TActorIterator`도 비효율 사유로 배제)
+- **`ULNPInteractableRegistrySubsystem` 레지스트리 (구 `ULNPLootPodSubsystem` — LootDice 도입 시 AActor 기반으로 일반화):** 대상 Actor(Pod·Dice)가 `BeginPlay`/`EndPlay`에 스스로 등록/해제하는 목록을 `ULNPInteractionComponent`가 순회. High LOD Actor는 항상 소수(플레이어 주변만 스폰)라 순회 비용이 무시할 수준이고, 풀링 재배치와 무관하게 항상 현재 위치 기준으로 판정된다. (월드 전체를 도는 `TActorIterator`도 비효율 사유로 배제)
 - Pod의 `USmartObjectComponent`·SOD 에셋은 현재 상호작용 경로에서 미사용 — NPC AI(StateTree) 연동 후보로만 보류, 불필요 확정 시 제거 예정.

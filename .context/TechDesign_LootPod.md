@@ -6,7 +6,7 @@
 
 ```
 [ULNPMassSpawnSubsystem] → 결정론적 스폰 (SurfaceCache 표면 투영)
-[ULNPLootPodSubsystem]   → 살아 있는 Pod Actor 레지스트리 (ULNPInteractionComponent가 순회)
+[ULNPInteractableRegistrySubsystem] → 살아 있는 인터랙터블(Pod·Dice) 레지스트리 (ULNPInteractionComponent가 순회)
 [Mass Processors]        → 상태 전환·게이지 (서버 전용, 태그 교체 상태 머신)
 [ALNPLootPod Actor]      → 레지스트리 등록 + Niagara VFX + 상태·게이지 복제
 ```
@@ -55,7 +55,7 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 - **전원 이탈 → 게이지 감쇠 (존 활성 유지):** `MaxGauge × LNPLootPodGaugeDecayFractionPerSecond`/초 — Looting 태그를 유지하므로 누구든 복귀·합류만으로 재개된다.
 - **감쇠 끝에 게이지 0 도달 → 완전 취소:** `Idle` 복귀 + 태그 교체 — 재활성화는 Interaction Input부터.
 
-**`FLNPPodStateTransitionCommand`** (Game Thread) — 상태 전환 통합 후처리: `UpdateVisuals` 호출, 로그, `Popped` 보상 스폰 지점(TODO 스텁).
+**`FLNPPodStateTransitionCommand`** (Game Thread) — 상태 전환 통합 후처리: `UpdateVisuals` 호출, 로그, `Popped` 시 `ALNPLootDice::SpawnPodRewards(PodID, Location)` 호출 (Pod Actor는 이미 파괴됐을 수 있어 Entry 데이터만 사용).
 
 ---
 
@@ -63,7 +63,7 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 
 ### 3.1 플레이어 측 (ULNPInteractionComponent)
 
-`ULNPLootPodSubsystem` 레지스트리(Pod Actor가 BeginPlay/EndPlay에 자기 등록/해제)를 매 Tick 순회해 `InteractionRadius` 내 후보를 수집, UI에 노출. High LOD Actor는 항상 소수(플레이어 근접 시에만 스폰)라 순회 비용은 무시할 수준이며, 풀에 반납된(Hidden) 액터는 제외한다. SmartObject 공간 쿼리를 쓰지 않는 이유는 [DiscardedApproaches.md](DiscardedApproaches.md) Case 03.
+`ULNPInteractableRegistrySubsystem` 레지스트리(Pod·Dice Actor가 BeginPlay/EndPlay에 자기 등록/해제, AActor 기반 — LootDice 도입 시 일반화)를 매 Tick 순회해 `InteractionRadius` 내 후보를 수집, UI에 노출. High LOD Actor는 항상 소수(플레이어 근접 시에만 스폰)라 순회 비용은 무시할 수준이며, 풀에 반납된(Hidden) 액터는 제외한다. SmartObject 공간 쿼리를 쓰지 않는 이유는 [DiscardedApproaches.md](DiscardedApproaches.md) Case 03.
 
 **상호작용 프롬프트:** 후보(거리+각도 통과) 중 **가장 가까운 Idle Pod** 머리 위에 키 아이콘(스크린 스페이스 WidgetComponent, 기본 "F" 라벨)을 표시한다. 판정은 로컬 플레이어 전용(`IsLocallyControlled`) — 복제 무관. Looting 중인 Pod는 프레즌스 기여라 입력이 불필요하므로 프롬프트를 띄우지 않는다. 기본 위젯(`ULNPInteractionPromptWidget`)은 에셋 없이 C++로 구성되며, 아트 적용 시 WidgetComponent의 WidgetClass만 교체하면 된다.
 
@@ -137,26 +137,30 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 버프 아이템/GE는 `LootSpeed` Attribute만 변조하면 자동 연동된다.
 **잔여 검증:** `LootSpeed` 변조 GE 에셋이 아직 없음 — 버프 아이템 흐름(LootDice 이후) 구현 시 게이지 가속을 실측. 현재 즉시 검증 가능한 것은 PIE 2인 프레즌스 합산.
 
-### 5.3 Popped 후처리 — 축하 VFX + LootDice 보상 스폰
+### 5.3 Popped 후처리 — LootDice 보상 스폰·축하 VFX ✅ 구현·PIE 검증 완료 (2026-07-14)
 
-`FLNPPodStateTransitionCommand::Run()`의 TODO 스텁 지점에서:
-1. `PodID`로 보상 테이블 DataAsset 조회 → 보상 `ULNPItemDefinitionBase` N개 선정.
+`FLNPPodStateTransitionCommand::Run()`에서 `ALNPLootDice::SpawnPodRewards(PodID, Location)` 호출:
+1. `LNPSettings.LootDiceRewardTable`(`ULNPLootDiceRewardTable`)에서 `PodID` 조회 (미등록 시 `DefaultRewards` 폴백) → 보상 `ULNPItemDefinitionBase` N개.
 2. `ALNPLootDice` N개 스폰 + Pop 임펄스·고속 회전 (→ [TechDesign_LootDice.md](TechDesign_LootDice.md) §2.8).
-3. 축하 나이아가라(Confetti)는 Actor `Popped` 상태 연출(OnRep → UpdateVisuals)에서 재생 — Actor 소멸을 연출 재생 후로 지연.
-**선행:** LootDice 1~5단계 ([TechDesign_LootDice.md](TechDesign_LootDice.md) §3).
+3. 축하 나이아가라(Confetti)도 같은 Popped 블록에서 **위치 기반·Actor 독립**으로 스폰 — `LNPSettings.LootPodConfettiVFX`(= `NS_LootPodConfetti`)를 `SpawnSystemAtLocation(Entry.Location)`으로 원샷 재생.
+   - ⚠️ **초기 구현의 함정(수정 완료):** 처음엔 `ALNPLootPod::UpdateVisuals`(Actor)에서 스폰했으나, Pop 전환이 같은 배치의 `DestroyEntity`로 표현 Actor를 파괴해 `Pod != nullptr` 가드가 실패 → **스폰이 전혀 도달하지 않았다**. 보상 스폰이 위치 기반인 것과 동일한 이유로 Confetti도 프로세서에서 스폰해야 한다. 구 `BP_LNPLootPod.PopConfettiVFX` 경로는 제거됨.
+   - 에미터 3종(스프라이트 2·메시 1) 색상 랜덤 HSV(채도 보정 ON·hue 전역) + 크기 5배 튜닝 — PIE에서 알록달록한 색종이 확인.
+   - **MP 잔여:** 서버 스폰 Niagara는 원격 클라에 복제되지 않음(리슨 호스트/싱글만 표시) — NetMulticast는 네트워킹 후순위.
 
-### 5.4 빛기둥 Low LOD 표시
+### 5.4 빛기둥 Low LOD 표시 — ✅ 구현 완료 (2026-07-12)
 
-빛기둥은 "멀리서도 보인다"가 스펙이므로 Actor(High LOD) 유무와 무관하게 상시 표시되어야 한다. 존재·위치 데이터는 이미 MassReplication bubble이 전 클라이언트에 전달 중 — 시각화만 추가하면 된다.
+빛기둥은 "멀리서도 보인다"가 스펙이므로 Actor(High LOD) 유무와 무관하게 상시 표시되어야 한다. 존재·위치 데이터는 이미 MassReplication bubble이 전 클라이언트에 전달 중 — 시각화만 추가했다.
 
-- **방향:** 빛기둥을 Representation LOD와 무관한 "엔티티 존재 = 빛기둥" 상시 표현으로 분리. Actor는 링·소용돌이·상태 색 등 근접 연출만 담당 (상태별 빛기둥 색 전환은 근접에서만 보임 — 원거리에서는 "안 깐 Pod가 저기 있다"만 전달하면 충분).
-- **구현 후보:** (a) ISMC 에미시브 빔 메시 — 기존 Low LOD 시각화 인프라 재사용, (b) 단일 Niagara 시스템 + 위치 배열/NDC. 프로토타입에서 비주얼 비교 후 선택.
-- **정리:** Pod Popped → bubble 엔티티 제거 → 빛기둥 제거. High LOD 전환 시 이중 표시 방지 처리.
-**검증:** PIE 2인 — Actor 컬 거리 밖 원거리 클라이언트에서 빛기둥 확인, Pop 후 소멸 확인.
+- **채택: 방안 (a) ISMC 에미시브 빔 메시** — 코드 변경 없이 EntityConfig 데이터만으로 해결. `MassCrowdVisualizationTrait`의 `StaticMeshInstanceDesc`에 에미시브 실린더 빔(엔진 Cylinder × 스케일 (0.4,0.4,30) = ~40cm 지름 30m 빔, +1500cm Up 오프셋)을 두 번째 ISM 메시로 추가. 머티리얼 `M_LootPillar_LowLOD`(Unlit·Additive·양면, `PillarColor`/`Intensity` 파라미터, **`bUsedWithInstancedStaticMeshes` 필수** — 누락 시 기본 회색 머티리얼로 대체됨).
+- **LOD 표현 확장:** `LODRepresentation`을 `[HighResActor, HighResActor, StaticMeshInstance, None]` → 마지막을 `StaticMeshInstance`로 변경해 최원거리(LOD3)에서도 빔이 보이게 함. 빛기둥은 LOD2-3(ISM)에서, 상태별 색 Niagara 기둥은 LOD0-1(Actor)에서 렌더 — **밴드가 겹치지 않아 이중 표시가 구조적으로 방지된다** (원거리 빔은 단일 색, 상태 색 전환은 근접에서만).
+- **소멸:** Pod Popped → bubble 엔티티 제거 → ISM 인스턴스 자동 제거.
+- **방안 (b) 단일 Niagara + 위치 배열은 폐기** — (a)가 기존 Low LOD ISM 인프라를 그대로 재사용해 코드 0줄로 충족.
+**검증:** PIE 1인 — 원거리 pod들에서 청록 빛기둥 다수 확인 (Actor 컬 거리 밖). **잔여:** PIE 2인 원거리 클라이언트 확인, Pop 후 빔 소멸 확인.
 
-### 5.5 난이도 스케일링 트리거
+### 5.5 난이도 스케일링 트리거 — ⏸ 후순위 (2026-07-12)
 
 활성 Pod 수 카운터 → `ULNPTargetingSubsystem` 슬롯 한도/NPC 능력치 조정.
+난이도 조절이 의미를 갖는 게임플레이가 완성된 뒤 착수. (Pod 리스폰은 스펙 제외 — [Idea_Backlog.md](Idea_Backlog.md))
 
 ### 5.6 Actor (재)스폰 시 엔티티 상태 동기화 — ✅ 구현 완료 (2026-07-10)
 
@@ -170,9 +174,10 @@ Representation이 Actor를 스폰할 때 엔티티 Transform만 동기화되고 
 
 ```
 1. §5.1 게이지 감쇠 — ✅ 완료
-2. §5.2 LootSpeed Attribute 연동
-3. LootDice 단독 구현 (TechDesign_LootDice.md §3의 1~5단계)
-4. §5.3 Popped 후처리 (보상 테이블 + LootDice 연결 + 축하 VFX)
-5. §5.4 빛기둥 Low LOD
-6. §5.5 난이도 스케일링 (별도 트랙)
+2. §5.2 LootSpeed Attribute 연동 — ✅ 완료
+3. LootDice 단독 구현 (TechDesign_LootDice.md §3의 1~5단계) — ✅ 코드 완료 (PIE 검증 잔여)
+4. §5.3 Popped 후처리 (보상 테이블 + LootDice 연결) — ✅ 코드 완료 / 축하 VFX 에셋 잔여
+5. §5.4 빛기둥 Low LOD — ✅ 완료 (2026-07-12)
+6. §5.5 난이도 스케일링 — ⏸ 후순위 (게임플레이 완성 후)
+7. 다음 트랙: 인벤토리 UI (드랍/양도 UI 포함)
 ```

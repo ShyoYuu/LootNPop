@@ -3,7 +3,7 @@
 
 #include "LootPod/LNPLootPod.h"
 #include "LootPod/LNPLootPodMassTypes.h"
-#include "LootPod/LNPLootPodSubsystem.h"
+#include "Interaction/LNPInteractableRegistrySubsystem.h"
 #include "LootNPop.h"
 
 #include "Components/StaticMeshComponent.h"
@@ -74,10 +74,10 @@ void ALNPLootPod::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 상호작용 탐색용 레지스트리 등록 (→ ULNPLootPodSubsystem)
-	if (ULNPLootPodSubsystem* PodSubsystem = UWorld::GetSubsystem<ULNPLootPodSubsystem>(GetWorld()))
+	// 상호작용 탐색용 레지스트리 등록 (→ ULNPInteractableRegistrySubsystem)
+	if (ULNPInteractableRegistrySubsystem* Registry = UWorld::GetSubsystem<ULNPInteractableRegistrySubsystem>(GetWorld()))
 	{
-		PodSubsystem->RegisterPod(this);
+		Registry->RegisterInteractable(this);
 	}
 
 	// 존 링 스케일을 루팅 존 반경과 동기화 (SM_Plane 100×100 기준) + 게이지 파라미터 구동용 MID 생성
@@ -112,9 +112,9 @@ void ALNPLootPod::Tick(float DeltaSeconds)
 
 void ALNPLootPod::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (ULNPLootPodSubsystem* PodSubsystem = UWorld::GetSubsystem<ULNPLootPodSubsystem>(GetWorld()))
+	if (ULNPInteractableRegistrySubsystem* Registry = UWorld::GetSubsystem<ULNPInteractableRegistrySubsystem>(GetWorld()))
 	{
-		PodSubsystem->UnregisterPod(this);
+		Registry->UnregisterInteractable(this);
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -203,6 +203,8 @@ FString ALNPLootPod::GetInteractDiagnosticString(const APawn* Interactor) const
 
 void ALNPLootPod::UpdateVisuals(ELNPLootPodState NewState)
 {
+	// Confetti는 Pop 시 Actor가 이미 파괴돼 이 경로로 스폰 불가하므로 LNPLootPodProcessor의
+	// Popped 블록에서 위치 기반(Settings.LootPodConfettiVFX)으로 스폰한다.
 	CurrentState = NewState;
 
 	// 존 링은 루팅 존 활성(Looting) 동안만 표시 — 감쇠 중에도 유지된다

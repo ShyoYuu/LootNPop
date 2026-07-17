@@ -11,7 +11,7 @@
 ### 2.1 발견 (Find)
 
 - 월드 곳곳에 무작위로 스폰되며, **빛기둥(Light Pillar)** 이펙트로 원거리에서도 식별 가능.
-- **빛기둥은 순수 엔티티 상태(Low LOD)에서도 보여야 한다** — "멀리서도 보인다"가 스펙이므로 근접 Actor(High LOD) 유무와 무관하게 상시 표시. 현재는 Actor에만 빛기둥이 있어 보강 필요. (→ [TechDesign_LootPod.md](TechDesign_LootPod.md) §5.4)
+- **빛기둥은 순수 엔티티 상태(Low LOD)에서도 보여야 한다** — "멀리서도 보인다"가 스펙이므로 근접 Actor(High LOD) 유무와 무관하게 상시 표시. ✅ 구현 완료 (Low LOD ISM 에미시브 빔 — 2026-07-12, → [TechDesign_LootPod.md](TechDesign_LootPod.md) §5.4)
 - 메인 내벽과 부유 행성 외부 표면 모두에 배치.
 
 ### 2.2 루팅 (Loot)
@@ -84,8 +84,8 @@
 
 ## 5. 밸런스 및 난이도 연계
 
-- 월드에 남은 LootPod 수가 줄어들수록 적 NPC가 점진적으로 강화. (→ [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md))
-- 특정 구역의 Pod가 모두 소모되면 일정 시간 후 새로운 위치에 리스폰.
+- 월드에 남은 LootPod 수가 줄어들수록 적 NPC가 점진적으로 강화. (→ [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md)) — **후순위:** 난이도 조절이 의미를 갖는 게임플레이가 완성된 뒤 착수 (2026-07-12 결정).
+- ~~특정 구역의 Pod가 모두 소모되면 일정 시간 후 새로운 위치에 리스폰.~~ **스펙 제외 (2026-07-12)** — 게임 루프(세션 구조) 확정 전에는 설계 불가로 판단, [Idea_Backlog.md](Idea_Backlog.md)로 이동.
 
 ---
 
@@ -100,8 +100,9 @@
 | 존 이탈(루터 0명) 시 게이지 감쇠 → 0 도달 시 완전 취소 (재활성화는 Input부터) | ✅ 완료 (감쇠 속도 const 1개로 제어) |
 | 존 기여 프레즌스 기반 전환 (입력 없이 합류·복귀만으로 기여) | ✅ 완료 |
 | 빛기둥 VFX (High LOD Actor, Niagara) | ✅ 완료 |
-| 빛기둥 Low LOD 표시 (순수 엔티티 상태) | 🔲 미구현 |
+| 빛기둥 Low LOD 표시 (순수 엔티티 상태) | ✅ 완료 (2026-07-12, ISM 에미시브 빔) |
 | SmartObject 기반 상호작용 쿼리 | ✅ 완료 |
-| 루팅 속도 스탯·버프 연동 (`LootSpeed` Attribute) | ✅ 완료 (버프 GE 에셋·아이템 흐름은 LootDice 이후) |
-| Pop 축하 이펙트 + LootDice 보상 드랍 | 🔲 미구현 (→ [TechDesign_LootDice.md](TechDesign_LootDice.md)) |
-| 난이도 스케일링 트리거 | 🔲 미구현 |
+| 루팅 속도 스탯·버프 연동 (`LootSpeed` Attribute) | ✅ 완료 (2026-07-17 버프 에셋 제작 — `DA_Buff_LootSpeed`+`GE_Buff_LootSpeed`, 상세는 [TechDesign_Inventory.md](TechDesign_Inventory.md) §7) |
+| Pop 시 LootDice 보상 드랍 (보상 테이블 조회 + 다중 스폰) | ✅ 코드 완료 (2026-07-12, PIE 검증·보상 테이블 에셋 잔여 → [TechDesign_LootDice.md](TechDesign_LootDice.md)) |
+| Pop 축하 이펙트 (Confetti 나이아가라) | ✅ 완료 (2026-07-12, `NS_LootPodConfetti` — 실측은 루팅 완료 후) |
+| 난이도 스케일링 트리거 | ⏸ 후순위 (게임플레이 완성 후 — 2026-07-12 결정) |

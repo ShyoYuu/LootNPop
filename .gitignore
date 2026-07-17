@@ -6,12 +6,14 @@ Saved/
 docs/
 .vs/
 .serena/
+.cache/
 
 #파일
 .vsconfig
 *.sln
 *.slnx
 sample.png
+compile_commands.json
 launch_claude.ps1
 Standalone_AddClient.lnk
 Standalone_RunListenServer.lnk

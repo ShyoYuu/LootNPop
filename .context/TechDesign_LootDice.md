@@ -1,6 +1,8 @@
 # LootDice 시스템 기술 설계
 
-> **상태: 설계 완료 · 구현 착수 전.** 기획은 [GameDesign_LootDice.md](GameDesign_LootDice.md) 참조.
+> **상태: 코드 구현 완료 (2026-07-12) · 에디터 에셋 제작 완료 (`/Game/LootDice/` — BP_LootDice·M_LootDice·PM_LootDice·DA_LootDiceRewardTable, LNP Settings 지정).**
+> **PIE 1인 검증 완료:** 디버그 스폰 → 굴림·정지, 60초 정각 소멸, F 획득 → 인벤토리 편입(DA_Pistol) 확인. **잔여 검증:** PIE 2인 복제(정지 윗면 일치·슬립 트래픽), 구형 월드 중력, 드랍/양도, Pod 루팅 완료 → 보상 Pop. 기획은 [GameDesign_LootDice.md](GameDesign_LootDice.md) 참조.
+> 구현 파일: `Source/LootNPop/LootDice/LNPLootDice.h/.cpp`, `LNPLootDiceRewardTable.h`, `Source/LootNPop/Interaction/LNPInteractableRegistrySubsystem.h/.cpp` (구 `LNPLootPodSubsystem` 일반화 대체).
 
 ## 1. 한눈에 보기
 
@@ -79,9 +81,10 @@ ULNPInteractionComponent가 인터랙터블 레지스트리 순회로 후보 탐
 ### 2.7 인벤토리 드랍 흐름 (양도)
 
 ```
-인벤토리 UI에서 미장착 아이템 드랍 → Server_DropItem RPC
-→ RemoveFromStorage() / RemoveBuffItem() — 버프는 잔여 시간을 반환받아 페이로드에 실음
-   (ULNPInventoryComponent::RemoveBuffItem이 이미 이 용도로 잔여 시간을 반환하도록 선반영됨)
+인벤토리 UI에서 미장착 아이템 드랍 → DropItem(FGuid ItemId) → Server_DropItem(FGuid) RPC
+→ ItemId로 인스턴스 조회(가방→버프 순) + IsEquipped() 가드
+   ([TechDesign_Inventory.md](TechDesign_Inventory.md) 인스턴스 모델 — 사본을 ItemId로 정확 식별)
+→ RemoveItemInstance() / RemoveBuffInstance() — 버프는 잔여 시간을 반환받아 페이로드에 실음
 → 캐릭터 전방에 ALNPLootDice 스폰 + 작은 Pop 임펄스·회전
 → 이후 소멸·획득 규칙은 LootPod 보상과 완전 동일 — 스폰 경로를 공용 함수로 묶는다
 ```
@@ -92,21 +95,23 @@ ULNPInteractionComponent가 인터랙터블 레지스트리 순회로 후보 탐
 
 ### 2.9 소멸
 
-서버 타이머(가칭 60초) → `Destroy()`. 마지막 N초 깜빡임 경고는 클라이언트 로컬 처리 (`SpawnServerTime` + 수명으로 계산 — 추가 복제 불필요).
+서버 타이머(가칭 60초) → `Destroy()`. 마지막 N초 깜빡임 경고는 클라이언트 로컬 처리 (`SpawnServerTime` + 수명으로 계산 — 추가 복제 불필요). 깜빡임 속도는 `BlinkPeriod` UPROPERTY(1주기 초, 기본 0.2 — 작을수록 빠름)로 BP CDO에서 조절.
 
 ---
 
-## 3. 작업 계획
+## 3. 작업 계획 — 코드 전 단계 구현 완료 (2026-07-12), 검증 열은 잔여 확인 항목
 
-| 단계 | 내용 | 검증 |
+| 단계 | 내용 | 검증 (잔여) |
 |:---|:---|:---|
-| 1 | `ALNPLootDice` 뼈대: 큐브 메시+물리+페이로드+수명, 디버그 스폰 커맨드 | 로컬에서 회전하며 날아가 구르다 정지, 제한 시간 후 소멸 |
-| 2 | 구형 중력 (§2.4) + 슬립 확인 | 부유 행성·내벽 표면에서 낙하 방향 정상, 정지 후 슬립 진입 |
-| 3 | 복제: `bReplicates` + `SetReplicateMovement` | PIE 2인 — 클라이언트 정지 위치·윗면이 서버와 일치, 슬립 후 트래픽 중단 (net stat) |
-| 4 | 인터랙터블 레지스트리 등록 + 획득 RPC + 인벤토리 편입 | 원격 클라이언트 획득 → 인벤토리 반영, 동시 획득 시 1명만 성공 |
-| 5 | 인벤토리 드랍 RPC (스폰 경로 공용화) | 버프 잔여 시간이 유지된 채 양도됨 |
-| 6 | LootPod Popped 연결: 보상 테이블 DataAsset + 다중 스폰 + 축하 VFX | 루팅 완료 → Dice N개 Pop! (→ [TechDesign_LootPod.md](TechDesign_LootPod.md) §5.3) |
-| 7 | 6면 아이콘 머티리얼·카테고리 색·소멸 깜빡임 연출 | 정지 후 카테고리 식별 가능, 공중 회전 중엔 비식별 |
+| 1 ✅ | `ALNPLootDice` 뼈대: 큐브 메시+물리+페이로드+수명, 디버그 스폰 커맨드 `LNP.Debug.SpawnLootDice [개수] [ItemDef 경로]` | 로컬에서 회전하며 날아가 구르다 정지, 제한 시간 후 소멸 |
+| 2 ✅ | 구형 중력 (§2.4) + 슬립 가드 (`IsAnyRigidBodyAwake` 체크 후에만 AddForce) | 내벽 표면에서 낙하 방향 정상, 정지 후 슬립 진입 (AddForce wake 동작 실측) |
+| 3 ✅ | 복제: `bReplicates` + `SetReplicatingMovement(true)` + `COND_InitialOnly` 페이로드 (Deferred 스폰으로 스폰 번치 동봉 보장) | PIE 2인 — 클라이언트 정지 위치·윗면이 서버와 일치, 슬립 후 트래픽 중단 (net stat) |
+| 4 ✅ | 레지스트리 일반화(`ULNPInteractableRegistrySubsystem`) + `Server_PickupDice` + 인벤토리 편입 (Buff→`AddBuffItem(잔여)`, 그 외→`AddToStorage`) | 원격 클라이언트 획득 → 인벤토리 반영, 동시 획득 시 1명만 성공, **LootPod 프롬프트·루팅 회귀 없음** |
+| 5 ✅ | 드랍: `ALNPPlayerCharacter::DropItem(FGuid)`/`Server_DropItem` — 인스턴스 ItemId 조회 + `IsEquipped()` 가드 (제거 성공 전 스폰 금지; 2026-07-17 인스턴스 모델로 전환) | 버프 잔여 시간이 유지된 채 양도됨, 장착 아이템 드랍 거부 |
+| 6 ✅ | LootPod Popped 연결: `ULNPLootDiceRewardTable` + `SpawnPodRewards` (축하 VFX는 에셋 잔여) | 루팅 완료 → Dice N개 Pop! (→ [TechDesign_LootPod.md](TechDesign_LootPod.md) §5.3) |
+| 7 ✅ | 6면 아이콘 MID 훅(`IconTexture`/`CategoryColor` 파라미터)·카테고리 색·소멸 깜빡임 (머티리얼·아이콘 에셋 잔여) | 정지 후 카테고리 식별 가능, 공중 회전 중엔 비식별, 마지막 5초 깜빡임 |
+
+**에디터 에셋 잔여:** BP_LootDice(큐브 메시 ~30cm), M_LootDice(`IconTexture` Texture Param + `CategoryColor` Vector Param 에미시브), PM_LootDice(Restitution ~0.05·높은 Friction·Angular Damping), DA_LootDiceRewardTable, LNP Settings 지정(`LootDiceClass`/`LootDiceRewardTable`), ItemDef 에셋 `Icon` 지정.
 
 ---
 

@@ -60,3 +60,6 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Direction_Right)
 // Montage Chooser: 밸류 태그 — 패링 역할
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Parry_Parrier)  // 패링 성공한 쪽 (방어자)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Parry_Parried)  // 패링 당한 쪽 (원래 공격자)
+
+// 인벤토리 아이템 스탯 태그 (인스턴스 StatTags 태그스택 키 — 값은 정수 스택 카운트)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Item_Level)  // 아이템 레벨
