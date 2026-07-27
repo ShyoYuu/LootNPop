@@ -32,7 +32,8 @@ void ULNPAbility_BasicAttack::ApplyCooldown(const FGameplayAbilitySpecHandle Han
 	if (!SpecHandle.IsValid())
 		return;
 
-	SpecHandle.Data->SetDuration(WeaponDef->FireCooldown, true);
+	// AttackSpeed로 나눈다 — 원거리 공격은 몽타주 길이가 아니라 이 쿨다운이 발사 간격을 지배한다.
+	SpecHandle.Data->SetDuration(WeaponDef->FireCooldown / GetAttackSpeed(), true);
 	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
 }
 
@@ -40,6 +41,17 @@ const ULNPWeaponData* ULNPAbility_BasicAttack::GetEquippedWeaponDef() const
 {
 	const ALNPCharacterBase* Ch = GetOwningCharacter();
 	return Ch ? Ch->GetActiveWeaponDef() : nullptr;
+}
+
+float ULNPAbility_BasicAttack::GetAttackSpeed() const
+{
+	const UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (ASC == nullptr)
+		return 1.0f;
+
+	// AttributeSet의 PreAttributeChange가 0.01 미만을 막지만, ASC 미초기화 시의 0을 한 번 더 방어한다
+	// (쿨다운 계산의 제수라 0이면 무한대가 된다).
+	return FMath::Max(0.01f, ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetAttackSpeedAttribute()));
 }
 
 float ULNPAbility_BasicAttack::GetKnockbackForCombo(int32 /*ComboIdx*/) const

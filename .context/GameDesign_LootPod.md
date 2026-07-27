@@ -103,6 +103,6 @@
 | 빛기둥 Low LOD 표시 (순수 엔티티 상태) | ✅ 완료 (2026-07-12, ISM 에미시브 빔) |
 | SmartObject 기반 상호작용 쿼리 | ✅ 완료 |
 | 루팅 속도 스탯·버프 연동 (`LootSpeed` Attribute) | ✅ 완료 (2026-07-17 버프 에셋 제작 — `DA_Buff_LootSpeed`+`GE_Buff_LootSpeed`, 상세는 [TechDesign_Inventory.md](TechDesign_Inventory.md) §7) |
-| Pop 시 LootDice 보상 드랍 (보상 테이블 조회 + 다중 스폰) | ✅ 코드 완료 (2026-07-12, PIE 검증·보상 테이블 에셋 잔여 → [TechDesign_LootDice.md](TechDesign_LootDice.md)) |
+| Pop 시 LootDice 보상 드랍 (보상 테이블 가중 추첨 + 다중 스폰) | ✅ 완료 (2026-07-27 PIE 검증. `DA_LootDiceRewardTable`에 무기 3종·버프 6종 등록, Pop당 3~4개 추첨 → [TechDesign_LootDice.md](TechDesign_LootDice.md) §3.1) |
 | Pop 축하 이펙트 (Confetti 나이아가라) | ✅ 완료 (2026-07-12, `NS_LootPodConfetti` — 실측은 루팅 완료 후) |
 | 난이도 스케일링 트리거 | ⏸ 후순위 (게임플레이 완성 후 — 2026-07-12 결정) |

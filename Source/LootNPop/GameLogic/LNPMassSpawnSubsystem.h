@@ -114,6 +114,13 @@ private:
 	TArray<FLNPMassSpawnRequest> SpawnQueue;
 	int32 SpawnQueueHead = 0;
 
+	/**
+	 * LootPod 고유 ID 발급 카운터 — SetupSpawnedEntities가 Pod 엔티티마다 하나씩 소비한다.
+	 * 0은 "미발급"을 뜻하므로 1부터 시작한다.
+	 * 보상 조회(ALNPLootDice::SpawnPodRewards)가 서버에서만 일어나므로 복제하지 않는다.
+	 */
+	int32 NextPodID = 1;
+
 	/** 비동기 빌드 태스크가 작성한 결과; IsReady() 이후 게임 Thread에서 읽음 */
 	TArray<FLNPAsyncSpawnEntry> AsyncBuildResult;
 

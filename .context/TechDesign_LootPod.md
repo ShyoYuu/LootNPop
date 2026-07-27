@@ -135,12 +135,12 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 | **상호작용 시점 캐싱** (`StartLootingOnServer`) | Fragment 최초 부착 시 | 델리게이트 바인딩 전 이력·기본값 |
 
 버프 아이템/GE는 `LootSpeed` Attribute만 변조하면 자동 연동된다.
-**잔여 검증:** `LootSpeed` 변조 GE 에셋이 아직 없음 — 버프 아이템 흐름(LootDice 이후) 구현 시 게이지 가속을 실측. 현재 즉시 검증 가능한 것은 PIE 2인 프레즌스 합산.
+**검증 완료 (2026-07-27):** `LootSpeed` 변조 GE 에셋(`GE_Buff_LootSpeed`, Infinite·AddBase +1.0)과 버프 아이템(`DA_Buff_LootSpeed` = Loot Booster)이 구현되어 게이지 가속이 동작한다 (→ [GameDesign_Ability.md](GameDesign_Ability.md) §3.3 버프 아이템 목록). 인벤토리 패널의 스탯 리드아웃에서 `LootSpeed` 최종값을 확인할 수 있다.
 
 ### 5.3 Popped 후처리 — LootDice 보상 스폰·축하 VFX ✅ 구현·PIE 검증 완료 (2026-07-14)
 
 `FLNPPodStateTransitionCommand::Run()`에서 `ALNPLootDice::SpawnPodRewards(PodID, Location)` 호출:
-1. `LNPSettings.LootDiceRewardTable`(`ULNPLootDiceRewardTable`)에서 `PodID` 조회 (미등록 시 `DefaultRewards` 폴백) → 보상 `ULNPItemDefinitionBase` N개.
+1. `LNPSettings.LootDiceRewardTable`(`ULNPLootDiceRewardTable`)에서 `PodID` 조회 (미등록 시 `DefaultRewards` 폴백) → **후보 풀**에서 가중 추첨으로 `MinDrops`~`MaxDrops`개(기본 3~4) 선정 (→ [TechDesign_LootDice.md](TechDesign_LootDice.md) §3.1).
 2. `ALNPLootDice` N개 스폰 + Pop 임펄스·고속 회전 (→ [TechDesign_LootDice.md](TechDesign_LootDice.md) §2.8).
 3. 축하 나이아가라(Confetti)도 같은 Popped 블록에서 **위치 기반·Actor 독립**으로 스폰 — `LNPSettings.LootPodConfettiVFX`(= `NS_LootPodConfetti`)를 `SpawnSystemAtLocation(Entry.Location)`으로 원샷 재생.
    - ⚠️ **초기 구현의 함정(수정 완료):** 처음엔 `ALNPLootPod::UpdateVisuals`(Actor)에서 스폰했으나, Pop 전환이 같은 배치의 `DestroyEntity`로 표현 Actor를 파괴해 `Pod != nullptr` 가드가 실패 → **스폰이 전혀 도달하지 않았다**. 보상 스폰이 위치 기반인 것과 동일한 이유로 Confetti도 프로세서에서 스폰해야 한다. 구 `BP_LNPLootPod.PopConfettiVFX` 경로는 제거됨.

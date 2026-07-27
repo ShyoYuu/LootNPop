@@ -126,6 +126,7 @@ ALNPPlayerController::OnUnPossess()
 
 [ULNPInventoryEntryWidget : IUserObjectListEntry] (WBP_InventoryEntry / WBP_BuffEntry)
   NativeOnListItemObjectSet → Instance->GetDefinition()의 아이콘·이름(DisplayName, 비면 에셋명 폴백)
+                            → UpdateDetailText() + 버프면 1초 반복 타이머 재설정(잔여 시간 카운트다운)
   DropButton → Character->DropItem(ItemId) / EquipButton → Character->EquipWeaponInstance(Instance)
 ```
 
@@ -133,9 +134,34 @@ ALNPPlayerController::OnUnPossess()
 
 **PIE 검증(호스트, 2026-07-17):** 획득→표시, 장착 시 가방에서 즉시 사라짐, 드랍→Dice 스폰·재획득 정상. 이름 표시됨. ⚠️ **BindWidget 함정:** `NameText`가 트리에 있어도 **Is Variable이 꺼져 있으면 BindWidgetOptional이 null** — 위젯 BP에서 bIsVariable 켜야 한다.
 
+## 8.5 인벤토리 스탯 리드아웃 ✅ 완료 (2026-07-27)
+
+인벤토리 패널 상단(`WBP_Inventory`의 `Stats` 라벨 + `StatsText` TextBlock)에 **버프가 모두 합산된 최종 스탯**을
+표시한다. 플레이어가 자신이 보유한 버프의 실제 효과를 확인하는 창구.
+
+```
+HP            150 / 150
+AttackPower   30.0
+AttackSpeed   1.30
+DefensePower  50.0
+MoveSpeed     1.30
+LootSpeed     2.00
+```
+
+- `ULNPInventoryWidget`이 `InitViewModel(Inventory, ASC)`에서 **ASC 어트리뷰트 변경 델리게이트 7종을 구독**하고,
+  어느 하나라도 바뀌면 `UpdateStatsText()`가 리드아웃 전체를 다시 만든다 (Tick 폴링 아님).
+  버프 적용·만료가 곧 어트리뷰트 변경이므로 별도 인벤토리 이벤트 구독은 불필요하다.
+- 구독 대상은 `GetDisplayedAttributes()`가, 출력 서식은 `UpdateStatsText()`가 정의한다
+  (Health/MaxHealth가 한 줄을 공유해 1:1 대응이 아니다). **스탯 추가 시 두 곳을 함께 고친다.**
+- 핸들은 `TArray<FDelegateHandle>`에 같은 순서로 보관해 `DeinitViewModel`에서 인덱스로 짝지어 해제한다.
+- `StatsText`는 `BindWidgetOptional` — 없으면 스탯 표시만 조용히 생략된다.
+- ⚠️ 리드아웃이 공백 패딩으로 열을 맞추므로 **모노스페이스 폰트**(`bForceMonospaced=true`)가 필수다.
+
+---
+
 ## 9. 미구현 항목
 
 - **HUD 추가 요소:** 미니맵, 점수/메달 카운터 등 (DevelopmentPlan Phase 6).
 - **루팅 게이지 HUD 연동:** `ALNPLootPod::GetGaugePercent()`(복제 완료)를 읽는 월드 스페이스 또는 HUD 게이지 위젯.
 - **쿨다운 표시:** Active Skill 슬롯·대시 쿨다운의 ViewModel 프로퍼티화.
-- **인벤토리 폴리시:** 버프 잔여시간 라이브 카운트다운, 스킬 슬롯 장착 UI, 패널 배경·레이아웃 스타일. `WBP_InventoryEntry`에 `DetailText` TextBlock 추가(버프 잔여·레벨 표시 — C++는 이미 지원, 위젯만 없음).
+- **인벤토리 폴리시:** 스킬 슬롯 장착 UI, 패널 배경·레이아웃 스타일. `WBP_InventoryEntry`(가방)에는 아직 `DetailText` TextBlock이 없다 — 아이템 레벨 표시를 원하면 추가(C++는 이미 지원). 버프 잔여시간 라이브 카운트다운은 ✅ 완료(2026-07-17, [TechDesign_Inventory.md](TechDesign_Inventory.md) §5).

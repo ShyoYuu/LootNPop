@@ -5,6 +5,7 @@
 #include "Movement/LNPAsyncWalkingMode.h"
 #include "Movement/LNPModifierInputs.h"
 #include "Character/LNPCharacterBase.h"
+#include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
@@ -16,7 +17,12 @@
 #include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemInterface.h"
+#include "Containers/Ticker.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
@@ -172,6 +178,13 @@ void ULNPCharacterMoverComponent::LaunchWithVelocity(FVector InVelocity)
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
 {
+	// MoveSpeed Modifier는 상시 활성 — 한 번만 큐잉하고 이후 매 틱 OnPreMovement가 MaxSpeed를 재계산한다.
+	// (리시뮬레이션·재빙의로 Modifier가 유실될 수 있어 타입 조회로 부재를 확인한다.)
+	if (FindMovementModifierByType<FLNPMoveSpeedModifier>() == nullptr)
+	{
+		QueueMovementModifier(MakeShared<FLNPMoveSpeedModifier>());
+	}
+
 	// Guard/Sprint 의도는 컴포넌트 멤버 변수가 아닌 InputCmd에서 읽는다 — Jump가 FCharacterDefaultInputs::
 	// bIsJumpJustPressed를 InputCmd로 전달받는 것과 동일한 방식. 평범한 컴포넌트 멤버는 Mover의
 	// 예측·복제·리시뮬레이션 파이프라인을 타지 않아 원격 클라이언트에서 신뢰할 수 없었다.
@@ -254,4 +267,127 @@ void ULNPCharacterMoverComponent::OnHandlerSettingChanged()
 	{
 		OnPreSimulationTick.RemoveDynamic(this, &ULNPCharacterMoverComponent::OnMoverPreSimulationTick);
 	}
+}
+
+namespace
+{
+	/** 화면 메시지 슬롯 — 매 프레임 같은 키로 덮어써 각 한 줄만 유지한다. */
+	constexpr uint64 GLNPShowSpeedMsgKey    = 0x4C4E'5053;
+	constexpr uint64 GLNPShowSpeedCfgMsgKey = 0x4C4E'5054;
+
+	FTSTicker::FDelegateHandle GLNPShowSpeedTicker;
+
+	void LNPStopShowSpeed()
+	{
+		if (GLNPShowSpeedTicker.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(GLNPShowSpeedTicker);
+			GLNPShowSpeedTicker.Reset();
+		}
+		if (GEngine != nullptr)
+		{
+			GEngine->RemoveOnScreenDebugMessage(GLNPShowSpeedMsgKey);
+			GEngine->RemoveOnScreenDebugMessage(GLNPShowSpeedCfgMsgKey);
+		}
+	}
+
+	/**
+	 * 디버그: LNP.Debug.ShowSpeed [0|1] — 로컬 폰의 실측 이동 속도를 화면에 표시한다.
+	 *
+	 * Mover의 Velocity나 MaxSpeed 설정을 일절 읽지 않고, **액터 월드 위치의 프레임 간 변화량**만
+	 * 나눠서 구한다. 이동 로직이 의도한 속도를 실제로 내고 있는지 바깥에서 교차 검증하는 용도다.
+	 * 코어 티커에 붙으므로 Mover 시뮬레이션 파이프라인과도 무관하다.
+	 */
+	FAutoConsoleCommandWithWorldAndArgs GLNPDebugShowSpeed(
+		TEXT("LNP.Debug.ShowSpeed"),
+		TEXT("Show the local pawn's measured speed, derived purely from world position deltas. Args: [0|1]"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			LNPStopShowSpeed();
+
+			const bool bEnable = (Args.Num() == 0) || (Args[0] != TEXT("0"));
+			if (!bEnable || World == nullptr)
+			{
+				UE_LOG(LogLootNPop, Log, TEXT("[Debug] ShowSpeed off"));
+				return;
+			}
+
+			struct FLNPSpeedSample
+			{
+				FVector LastLocation = FVector::ZeroVector;
+				bool    bHasLast     = false;
+				float   Smoothed     = 0.0f;
+				float   Peak         = 0.0f;
+			};
+
+			TSharedRef<FLNPSpeedSample> State = MakeShared<FLNPSpeedSample>();
+			TWeakObjectPtr<UWorld>      WeakWorld = World;
+
+			GLNPShowSpeedTicker = FTSTicker::GetCoreTicker().AddTicker(
+				FTickerDelegate::CreateLambda([State, WeakWorld](float DeltaTime) -> bool
+				{
+					UWorld* TickWorld = WeakWorld.Get();
+					if (TickWorld == nullptr)
+					{
+						return false; // 월드가 사라지면(PIE 종료) 티커를 스스로 정리한다
+					}
+
+					const APlayerController* PC = TickWorld->GetFirstPlayerController();
+					const APawn* Pawn = (PC != nullptr) ? PC->GetPawn() : nullptr;
+					if (Pawn == nullptr || DeltaTime <= 0.0f)
+					{
+						return true;
+					}
+
+					const FVector Location = Pawn->GetActorLocation();
+					if (State->bHasLast)
+					{
+						const float Speed = static_cast<float>((Location - State->LastLocation).Size()) / DeltaTime;
+
+						// 프레임 단위 델타는 튀므로 EMA로 다듬은 값을 함께 보여준다.
+						State->Smoothed = FMath::Lerp(State->Smoothed, Speed, 0.15f);
+						State->Peak     = FMath::Max(State->Peak, State->Smoothed);
+
+						if (GEngine != nullptr)
+						{
+							GEngine->AddOnScreenDebugMessage(GLNPShowSpeedMsgKey, 0.2f, FColor::Green,
+								FString::Printf(TEXT("[Measured] now %7.1f   avg %7.1f   peak %7.1f  cm/s"),
+									Speed, State->Smoothed, State->Peak));
+						}
+					}
+
+					// 대조용 설정값 — 실측이 이 목표치에 도달하는지 나란히 본다.
+					// 위 실측 블록과 분리해 두어야 "외부 관측"과 "우리 로직이 주장하는 값"이 섞이지 않는다.
+					if (GEngine != nullptr)
+					{
+						if (const ULNPCharacterMoverComponent* Mover = Pawn->FindComponentByClass<ULNPCharacterMoverComponent>())
+						{
+							const UCommonLegacyMovementSettings* Common = Mover->FindSharedSettings<UCommonLegacyMovementSettings>();
+
+							const TCHAR* StateName = TEXT("Walk");
+							if (Mover->HasGameplayTag(LNP_Mover_IsSprinting, /*bExactMatch=*/true))
+								StateName = TEXT("Sprint");
+							else if (Mover->HasGameplayTag(LNP_Mover_IsGuarding, /*bExactMatch=*/true))
+								StateName = TEXT("Guard");
+
+							float Multiplier = 1.0f;
+							if (const IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(Pawn))
+							{
+								if (const UAbilitySystemComponent* ASC = ASCInterface->GetAbilitySystemComponent())
+									Multiplier = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMoveSpeedAttribute());
+							}
+
+							GEngine->AddOnScreenDebugMessage(GLNPShowSpeedCfgMsgKey, 0.2f, FColor::Cyan,
+								FString::Printf(TEXT("[Settings] MaxSpeed %7.1f  cm/s   state %-6s   MoveSpeed x%.2f"),
+									Common ? Common->MaxSpeed : 0.0f, StateName, Multiplier));
+						}
+					}
+
+					State->LastLocation = Location;
+					State->bHasLast     = true;
+					return true;
+				}));
+
+			UE_LOG(LogLootNPop, Log, TEXT("[Debug] ShowSpeed on"));
+		}));
 }

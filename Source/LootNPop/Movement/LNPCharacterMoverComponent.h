@@ -7,6 +7,7 @@
 #include "NativeGameplayTags.h"
 #include "LNPSprintModifier.h"
 #include "LNPGuardModifier.h"
+#include "LNPMoveSpeedModifier.h"
 #include "LNPCharacterMoverComponent.generated.h"
 
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsSprinting);

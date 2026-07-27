@@ -114,6 +114,56 @@ LNP.Mover.IsSprinting / LNP.Mover.IsGuarding (Gameplay Tag)
 - Modifier는 Mover `SyncState`에 포함되어 네트워크 롤백 시 안정적으로 복구된다.
 - 의도 플래그가 **InputCmd(FLNPModifierInputs)로 전달되는 이유**는 §7.1 참조 — 이 시스템의 핵심 설계 포인트.
 
+### 4.1 MoveSpeed 버프 — `FLNPMoveSpeedModifier` ✅ 구현·PIE 검증 완료 (2026-07-27)
+
+GAS `MoveSpeed` 어트리뷰트(버프 합산 후 최종값)를 이동 속도에 반영하는 **상시 활성** Modifier.
+`OnMoverPreSimulationTick` 진입부에서 부재 시 1회 큐잉되며, 이후 매 틱 `OnPreMovement`가 실행된다.
+
+```
+BaseSpeed = CDO.MaxSpeed                    (기본)
+          | CDO.SprintSpeed     (IsSprinting)
+          | CDO.GuardWalkSpeed  (IsGuarding)
+CommonSettings->MaxSpeed = BaseSpeed × MoveSpeed
+```
+
+**왜 매 틱 CDO에서 재계산하는가 (설계의 핵심):**
+Sprint/Guard Modifier는 라이브 설정에 값을 쓰고 종료 시 **CDO 원본으로 되돌린다**(`FLNPSprintModifier::OnEnd`).
+버프를 적용 시점에 한 번만 써 두면 **첫 질주가 끝나는 순간 CDO 값으로 복원되어 버프가 영구히 사라진다.**
+`SprintSpeed`/`GuardWalkSpeed`까지 같이 덮어써도 진입만 해결될 뿐 복귀 경로에서 같은 문제가 남는다.
+매 틱 CDO 기준으로 다시 계산하면 ① 배율이 누적되지 않고 ② Sprint/Guard 실행 순서와 무관하며
+③ 그들이 복원해도 다음 틱에 다시 덮어쓴다. 그래서 **Sprint/Guard 코드는 수정하지 않았다.**
+
+- `MaxSpeed`만 담당한다. `Acceleration`은 Sprint/Guard가 계속 소유한다.
+- ⚠️ Sprint/Guard의 `MaxSpeed` 대입은 이제 매 틱 덮어써져 **사실상 무효**다 (동작엔 무해). 정리 여부는 미결.
+- ⚠️ 배율은 Mover 예측 상태가 아니라 **ASC 어트리뷰트에서 직접** 읽는다. 버프 적용·만료 순간 서버/클라
+  적용 틱이 어긋나 짧은 보정이 생길 수 있다(30초 버프당 2회). 완전 예측이 필요해지면 배율을
+  Modifier의 `NetSerialize` 페이로드로 옮긴다.
+- ⚠️ 질주 진입 첫 1프레임은 `OnStart`가 `OnPreMovement` 뒤에 오는 틱이라 버프 미적용 속도가 나올 수 있다.
+
+**PIE 검증 결과 (2026-07-27, 1인):** 일반 이동·질주 중·**질주 종료 후** 세 구간 모두 버프 적용 속도가 유지된다
+— CDO 복원으로 버프가 소실되는 문제가 실제로 발생하지 않음을 확인(이 설계의 핵심 검증점).
+`LNP.Debug.ShowSpeed`(아래 §4.2) 실측 `avg`가 `MaxSpeed`의 약 97.5%에 수렴한다
+(800 → 780, 1200 → 1170). 고정 오차가 아닌 **비례 오차**라 입력 크기·가속 점근 특성으로 설명되며 정상 범위.
+**2인 PIE 검증 완료(2026-07-27):** 서버(1P)·클라이언트(2P) 양쪽에서 정상 동작.
+모디파이어를 서버/클라 각자의 첫 틱에 큐잉하는 방식(Sprint/Guard의 `InputCmd` 기반과 다름)이
+실사용상 문제를 일으키지 않음을 확인. 보정 튐 정량 측정은 하지 않았으므로, 이동이 미세하게
+어색해지는 리포트가 나오면 `mover.debug.ShowCorrections 1`부터 확인할 것.
+
+### 4.2 디버그 — `LNP.Debug.ShowSpeed [0|1]`
+
+로컬 폰의 이동 속도를 화면에 2줄로 표시한다 (`LNPCharacterMoverComponent.cpp` 하단 익명 네임스페이스).
+
+```
+[Measured] now   612.3   avg   598.7   peak   780.0  cm/s          (초록)
+[Settings] MaxSpeed   780.0  cm/s   state Sprint   MoveSpeed x1.30   (청록)
+```
+
+- **실측 줄**은 `FTSTicker`(코어 티커)에서 **액터 월드 위치의 프레임 간 변화량**만으로 구한다.
+  `GetVelocity()`도 설정값도 읽지 않아 이동 로직을 **바깥에서 교차 검증**할 수 있다.
+- **설정 줄**은 대조용 — `state`와 배율을 함께 찍어 `기준값 × MoveSpeed = MaxSpeed` 관계를 즉시 확인한다.
+- 엔진 내장과 병행하면 좋다: `mover.debug.ShowCorrections`(서버 보정 시각화), `ShowTrail`, `ShowTrajectory`,
+  GameplayDebugger Mover 카테고리(`'` 키 — 단 여기 `Speed`는 Mover 내부 `GetVelocity()` 값이다).
+
 ---
 
 ## 5. 대시 시스템
