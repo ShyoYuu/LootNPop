@@ -69,7 +69,7 @@ void ALNPPlayerController::InitInventoryViewModel()
 	if (const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 	{
 		if (ULNPInventoryComponent* Inventory = PS->GetInventoryComponent())
-			InventoryWidget->InitViewModel(Inventory);
+			InventoryWidget->InitViewModel(Inventory, PS->GetAbilitySystemComponent());
 	}
 }
 

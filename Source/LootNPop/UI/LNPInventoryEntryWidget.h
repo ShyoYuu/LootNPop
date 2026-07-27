@@ -28,7 +28,11 @@ class LOOTNPOP_API ULNPInventoryEntryWidget : public UUserWidget, public IUserOb
 
 protected:
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual void NativeOnListItemObjectSet(UObject* ListItemObject) override;
+
+	/** DetailText 갱신 — 버프는 라이브 잔여 시간(초), 그 외는 레벨. 버프 엔트리는 1초 타이머가 반복 호출한다. */
+	void UpdateDetailText();
 
 	UFUNCTION()
 	void OnDropClicked();
@@ -55,4 +59,7 @@ private:
 	/** 이 엔트리가 대표하는 아이템 인스턴스 (드랍/장착 대상, ItemId로 서버에 전달). */
 	UPROPERTY()
 	TObjectPtr<ULNPInventoryItemInstance> BoundInstance;
+
+	/** 버프 엔트리의 잔여 시간 1초 주기 갱신 타이머. */
+	FTimerHandle CountdownTimerHandle;
 };

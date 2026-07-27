@@ -20,7 +20,8 @@ void FLNPGuardModifier::OnStart(UMoverComponent* MoverComp, const FMoverTimeStep
 
 	if (LNPSettings && CommonSettings)
 	{
-		CommonSettings->MaxSpeed     = LNPSettings->GuardWalkSpeed;
+		// MaxSpeed는 여기서 쓰지 않는다 — FLNPMoveSpeedModifier가 매 틱 CDO 기준으로
+		// (IsGuarding이면 GuardWalkSpeed) × MoveSpeed 버프를 계산해 소유한다.
 		CommonSettings->Acceleration = LNPSettings->GuardAcceleration;
 	}
 }
@@ -35,7 +36,7 @@ void FLNPGuardModifier::OnEnd(UMoverComponent* MoverComp, const FMoverTimeStep& 
 
 		if (CurrentCommonSettings && OriginalCommonSettings)
 		{
-			CurrentCommonSettings->MaxSpeed     = OriginalCommonSettings->MaxSpeed;
+			// MaxSpeed는 복원하지 않는다 — OnStart에서 건드리지 않으므로 되돌릴 것이 없다.
 			CurrentCommonSettings->Acceleration = OriginalCommonSettings->Acceleration;
 		}
 	}

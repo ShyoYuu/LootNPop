@@ -30,6 +30,13 @@ protected:
 	/** 현재 장착된 무기의 DataAsset을 반환한다. 없으면 null. */
 	const ULNPWeaponData* GetEquippedWeaponDef() const;
 
+	/**
+	 * AttackSpeed 어트리뷰트(버프 합산 후 최종값). ASC가 없으면 1.0.
+	 * 몽타주 재생 속도와 쿨다운에 모두 쓰인다 — 둘을 같은 계수로 스케일해야
+	 * 실제 공격 빈도가 계수만큼 빨라진다 (한쪽만 줄이면 다른 쪽이 병목이 된다).
+	 */
+	float GetAttackSpeed() const;
+
 	/** 기본 피해 공식: (AttackPower + WeaponDamage) * AttackMultiplier. Ability별로 Override 가능. */
 	virtual float ComputeDamage() const;
 

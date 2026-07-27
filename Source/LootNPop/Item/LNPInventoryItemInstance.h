@@ -45,8 +45,21 @@ public:
 	/** 서버: 장착 상태 변경 + 소유 컴포넌트에 인벤토리 변경 통지(호스트 UI 즉시 갱신). */
 	void SetEquipped(bool bInEquipped);
 
+	/** 복제된 잔여 시간 스냅샷(초). 라이브 표시는 GetRemainingDurationLive를 쓴다. */
 	float GetRemainingDuration() const { return RemainingDuration; }
-	void SetRemainingDuration(float InSeconds) { RemainingDuration = InSeconds; }
+
+	/** 서버: 잔여 시간 스냅샷 지정 + 카운트다운 기준 시각 갱신. */
+	void SetRemainingDuration(float InSeconds);
+
+	/** 카운트다운 기준 시각을 지금(로컬 월드 시간)으로 잡는다 — 소유 클라는 스냅샷 수신 시점에 호출. */
+	void MarkDurationStart();
+
+	/**
+	 * UI 표시용 라이브 잔여 시간(초) — 스냅샷에서 기준 시각 이후 경과분을 뺀 값.
+	 * RemainingDuration <= 0(무한)이거나 기준 시각이 없으면 스냅샷을 그대로 반환한다.
+	 * 권위 만료 판정은 서버의 FLNPBuffRuntime이 담당하며, 이 값은 어디까지나 표시용이다.
+	 */
+	float GetRemainingDurationLive() const;
 
 	// --- 데이터 주도 스탯 (태그스택) ---
 
@@ -83,6 +96,12 @@ private:
 	/** 버프 인스턴스의 잔여 지속 시간 스냅샷(초). 변경 시에만 갱신, 라이브 카운트다운은 UI 폴리시. */
 	UPROPERTY(Replicated)
 	float RemainingDuration = 0.0f;
+
+	/**
+	 * 위 스냅샷이 유효해진 로컬 월드 시각(초). 비복제 — 서버는 값 설정 시, 소유 클라는 복제 수신 시
+	 * 각자의 시계로 찍는다(시계 동기화 불필요, 오차는 편도 지연 정도로 표시용에 충분).
+	 */
+	double DurationStartTime = 0.0;
 
 	/** 소유 클라: bEquipped 복제 도착 시 인벤토리 UI를 재필터하도록 통지한다. */
 	UFUNCTION()

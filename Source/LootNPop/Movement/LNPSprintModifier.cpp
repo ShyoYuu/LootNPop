@@ -20,7 +20,9 @@ void FLNPSprintModifier::OnStart(UMoverComponent* MoverComp, const FMoverTimeSte
 
 	if (LNPSettings && CommonSettings)
 	{
-		CommonSettings->MaxSpeed = LNPSettings->SprintSpeed;
+		// MaxSpeed는 여기서 쓰지 않는다 — FLNPMoveSpeedModifier가 매 틱 CDO 기준으로
+		// (IsSprinting이면 SprintSpeed) × MoveSpeed 버프를 계산해 소유한다.
+		// 여기서 대입해도 그 틱에 곧바로 덮어써지므로 혼란만 남는다.
 		CommonSettings->Acceleration = LNPSettings->SprintAcceleration;
 	}
 }
@@ -35,8 +37,8 @@ void FLNPSprintModifier::OnEnd(UMoverComponent* MoverComp, const FMoverTimeStep&
 
 		if (CurrentCommonSettings && OriginalCommonSettings)
 		{
-			// 커스텀 설정에서 WalkSpeed로 복원, 없으면 CDO 사용
-			CurrentCommonSettings->MaxSpeed = OriginalCommonSettings->MaxSpeed;
+			// MaxSpeed는 복원하지 않는다 — OnStart에서 건드리지 않으므로 되돌릴 것이 없다.
+			// (여기서 CDO 값을 복원하면 FLNPMoveSpeedModifier가 적용한 버프를 한 틱 지워 깜빡임이 생긴다.)
 			CurrentCommonSettings->Acceleration = OriginalCommonSettings->Acceleration;
 		}
 	}

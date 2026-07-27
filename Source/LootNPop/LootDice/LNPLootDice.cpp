@@ -205,7 +205,7 @@ ALNPLootDice* ALNPLootDice::SpawnDice(UWorld& World, const FVector& Location, UL
 {
 	if (World.GetNetMode() == NM_Client)
 	{
-		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] SpawnDice는 서버 전용이다"));
+		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] SpawnDice is server-only"));
 		return nullptr;
 	}
 
@@ -217,7 +217,7 @@ ALNPLootDice* ALNPLootDice::SpawnDice(UWorld& World, const FVector& Location, UL
 	if (DiceClass == nullptr)
 	{
 		// BP 미지정 시 C++ 기본 클래스 폴백 — 메시 없이도 물리·복제 파이프라인 검증 가능
-		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] LNPSettings.LootDiceClass 미설정 — ALNPLootDice 기본 클래스로 스폰"));
+		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] LNPSettings.LootDiceClass not set — spawning with the default ALNPLootDice class"));
 		DiceClass = ALNPLootDice::StaticClass();
 	}
 
@@ -260,7 +260,7 @@ void ALNPLootDice::SpawnPodRewards(UWorld& World, int32 PodID, const FVector& Po
 	ULNPLootDiceRewardTable* Table = (Settings != nullptr) ? Settings->LootDiceRewardTable.LoadSynchronous() : nullptr;
 	if (Table == nullptr)
 	{
-		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] LNPSettings.LootDiceRewardTable 미설정 — PodID %d 보상 스폰 생략"), PodID);
+		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] LNPSettings.LootDiceRewardTable not set — skipping reward spawn for PodID %d"), PodID);
 		return;
 	}
 
@@ -269,9 +269,19 @@ void ALNPLootDice::SpawnPodRewards(UWorld& World, int32 PodID, const FVector& Po
 	{
 		RewardSet = &Table->DefaultRewards;
 	}
-	if (RewardSet->Items.IsEmpty())
+
+	// 후보 풀에서 유효 항목만 추려 총 가중치를 구한다 (Weight 0 이하 = 후보 제외)
+	float TotalWeight = 0.0f;
+	for (const FLNPLootDiceRewardEntry& Entry : RewardSet->Entries)
 	{
-		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] PodID %d 보상 목록이 비어 있음 (DefaultRewards 포함)"), PodID);
+		if (Entry.Item != nullptr && Entry.Weight > 0.0f)
+		{
+			TotalWeight += Entry.Weight;
+		}
+	}
+	if (TotalWeight <= 0.0f)
+	{
+		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] PodID %d has no reward candidates (DefaultRewards included)"), PodID);
 		return;
 	}
 
@@ -285,15 +295,37 @@ void ALNPLootDice::SpawnPodRewards(UWorld& World, int32 PodID, const FVector& Po
 	}
 	const FVector SpawnLocation = PodLocation + Up * 50.0f;
 
+	// 후보 전체를 쏟지 않고 MinDrops~MaxDrops개만 가중 추첨한다 (중복 허용 —
+	// 같은 보상이 2개 나올 수 있으며, 이는 희귀 보상의 체감 가치를 유지하기 위한 의도된 동작)
+	const int32 MaxDrops = FMath::Max(RewardSet->MinDrops, RewardSet->MaxDrops);
+	const int32 NumDrops = FMath::RandRange(RewardSet->MinDrops, MaxDrops);
+
 	int32 NumSpawned = 0;
-	for (const TObjectPtr<ULNPItemDefinitionBase>& Item : RewardSet->Items)
+	for (int32 DropIndex = 0; DropIndex < NumDrops; ++DropIndex)
 	{
-		if (Item != nullptr && SpawnDice(World, SpawnLocation, Item, 0.0f) != nullptr)
+		float Roll = FMath::FRandRange(0.0f, TotalWeight);
+		ULNPItemDefinitionBase* Picked = nullptr;
+		for (const FLNPLootDiceRewardEntry& Entry : RewardSet->Entries)
+		{
+			if (Entry.Item == nullptr || Entry.Weight <= 0.0f)
+			{
+				continue;
+			}
+			Roll -= Entry.Weight;
+			// 마지막 후보는 부동소수 오차로 Roll이 미세하게 남아도 반드시 뽑히도록 Picked 폴백을 남긴다
+			Picked = Entry.Item;
+			if (Roll <= 0.0f)
+			{
+				break;
+			}
+		}
+
+		if (Picked != nullptr && SpawnDice(World, SpawnLocation, Picked, 0.0f) != nullptr)
 		{
 			++NumSpawned;
 		}
 	}
-	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] PodID %d 보상 Dice %d개 Pop!"), PodID, NumSpawned);
+	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] PodID %d popped %d reward Dice!"), PodID, NumSpawned);
 }
 
 namespace
@@ -306,7 +338,7 @@ namespace
 		{
 			if (World == nullptr || World->GetNetMode() == NM_Client)
 			{
-				UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] SpawnLootDice는 서버 월드에서만 동작한다"));
+				UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] SpawnLootDice only works in a server world"));
 				return;
 			}
 
@@ -314,7 +346,7 @@ namespace
 			APawn* Pawn = (PC != nullptr) ? PC->GetPawn() : nullptr;
 			if (Pawn == nullptr)
 			{
-				UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] SpawnLootDice — 로컬 폰 없음"));
+				UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] SpawnLootDice — no local pawn"));
 				return;
 			}
 
@@ -326,7 +358,7 @@ namespace
 				Item = LoadObject<ULNPItemDefinitionBase>(nullptr, *Args[1]);
 				if (Item == nullptr)
 				{
-					UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] ItemDef 로드 실패: %s — 페이로드 없이 스폰"), *Args[1]);
+					UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] Failed to load ItemDef: %s — spawning without a payload"), *Args[1]);
 				}
 			}
 

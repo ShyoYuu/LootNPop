@@ -47,7 +47,8 @@ void ULNPAbility_MeleeAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 	if (ComboIdx > 0)
 		SectionName = FName(FString::Printf(TEXT("Section_%d"), ComboIdx + 1));
 
-	if (UAbilityTask_PlayMontageAndWait* Task = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage, 1.f, SectionName))
+	// AttackSpeed를 재생 속도로 — 몽타주에 붙은 ANS(히트 윈도우·입력 차단 구간)도 함께 압축되는 것이 의도된 동작이다.
+	if (UAbilityTask_PlayMontageAndWait* Task = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage, GetAttackSpeed(), SectionName))
 	{
 		Task->OnCompleted.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageEnded);
 		Task->OnBlendOut.AddDynamic(this, &ULNPAbility_MeleeAttack::OnMontageEnded);

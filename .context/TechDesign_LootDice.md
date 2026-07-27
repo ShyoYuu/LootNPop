@@ -110,8 +110,34 @@ ULNPInteractionComponent가 인터랙터블 레지스트리 순회로 후보 탐
 | 5 ✅ | 드랍: `ALNPPlayerCharacter::DropItem(FGuid)`/`Server_DropItem` — 인스턴스 ItemId 조회 + `IsEquipped()` 가드 (제거 성공 전 스폰 금지; 2026-07-17 인스턴스 모델로 전환) | 버프 잔여 시간이 유지된 채 양도됨, 장착 아이템 드랍 거부 |
 | 6 ✅ | LootPod Popped 연결: `ULNPLootDiceRewardTable` + `SpawnPodRewards` (축하 VFX는 에셋 잔여) | 루팅 완료 → Dice N개 Pop! (→ [TechDesign_LootPod.md](TechDesign_LootPod.md) §5.3) |
 | 7 ✅ | 6면 아이콘 MID 훅(`IconTexture`/`CategoryColor` 파라미터)·카테고리 색·소멸 깜빡임 (머티리얼·아이콘 에셋 잔여) | 정지 후 카테고리 식별 가능, 공중 회전 중엔 비식별, 마지막 5초 깜빡임 |
+| 8 ✅ | 보상 후보 풀 가중 추첨 (`FLNPLootDiceRewardEntry` + `MinDrops`/`MaxDrops`, 2026-07-27) | Pop마다 다른 3~4종 조합, 가중치 0 항목 미출현, 중복 출현 허용 |
 
-**에디터 에셋 잔여:** BP_LootDice(큐브 메시 ~30cm), M_LootDice(`IconTexture` Texture Param + `CategoryColor` Vector Param 에미시브), PM_LootDice(Restitution ~0.05·높은 Friction·Angular Damping), DA_LootDiceRewardTable, LNP Settings 지정(`LootDiceClass`/`LootDiceRewardTable`), ItemDef 에셋 `Icon` 지정.
+**에디터 에셋:** BP_LootDice(큐브 메시 ~30cm), M_LootDice(`IconTexture` Texture Param + `CategoryColor` Vector Param 에미시브), PM_LootDice(Restitution ~0.05·높은 Friction·Angular Damping), DA_LootDiceRewardTable, LNP Settings 지정(`LootDiceClass`/`LootDiceRewardTable`), ItemDef 에셋 `Icon` 지정 — 모두 완료.
+
+### 3.1 보상 테이블 구조 (2026-07-27)
+
+`ULNPLootDiceRewardTable`은 **후보 풀**이지 드랍 목록이 아니다. 드랍 가능한 모든 보상을 등록해 두고 Pop 시점에 일부만 뽑는다
+(→ [GameDesign_LootDice.md](GameDesign_LootDice.md) §2.5).
+
+| 필드 | 역할 |
+|:---|:---|
+| `FLNPLootDiceRewardEntry.Item` | 후보 `ULNPItemDefinitionBase` |
+| `FLNPLootDiceRewardEntry.Weight` | 가중 추첨 비중. **0 이하면 후보에서 제외** — 코드 수정 없이 임시로 막는 스위치 |
+| `FLNPLootDiceRewardSet.Entries` | 후보 전체 목록 |
+| `FLNPLootDiceRewardSet.MinDrops` / `MaxDrops` | 1회 Pop당 스폰 개수 범위 (기본 3~4). `MaxDrops < MinDrops`면 `MinDrops`로 올림 처리 |
+
+**PodID 발급 (2026-07-27):** `ULNPLootPodTrait`는 **템플릿**을 만들어 모든 Pod가 공유하므로 트레잇에서 개별 ID를 줄 수 없다.
+그래서 `ULNPMassSpawnSubsystem::SetupSpawnedEntities`가 스폰된 엔티티에 `FLNPLootPodFragment`가 있으면
+`NextPodID`(1부터)를 하나씩 발급한다. **0은 미발급을 뜻한다.**
+보상 조회가 서버 전용(`SpawnPodRewards` → `SpawnDice`는 클라에서 early-return)이라 **복제하지 않는다**.
+`RewardsByPodID`를 비워 두면 모든 Pod가 `DefaultRewards`로 폴백하므로, Pod별 차등 보상이 필요할 때만 채우면 된다.
+
+`SpawnPodRewards`는 유효 후보(`Item != nullptr && Weight > 0`)의 가중치 합을 구한 뒤,
+`MinDrops`~`MaxDrops`회 반복하며 `FRandRange(0, TotalWeight)` 누적 감산으로 하나씩 뽑는다.
+**복원 추출(중복 허용)** — 매 뽑기가 독립이며, 마지막 후보는 부동소수 오차로 잔량이 남아도
+`Picked` 폴백으로 반드시 선택된다.
+
+추첨은 **서버에서만** 수행된다 (`SpawnPodRewards`는 서버 전용, Dice는 스폰 번치로 복제) — 클라이언트와 시드를 맞출 필요가 없다.
 
 ---
 

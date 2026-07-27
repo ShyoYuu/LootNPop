@@ -70,6 +70,32 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 
 > 예시: 5분짜리 버프 아이템을 4분간 보유 후 드랍 → 바닥에 1분짜리 아이템으로 존재. 다른 플레이어가 주우면 1분간 버프 효과 적용 후 소멸.
 
+#### 버프 아이템 목록 (2026-07-27)
+
+플레이어 스텟 하나에 각각 대응하는 6종. 모두 `MaxDuration` 30초 · Infinite GE `AddBase` 방식이며,
+에셋은 `/Game/ItemData/Buffs/DA_Buff_*` + `/Game/GAS/Effects/GE_Buff_*` 쌍으로 구성된다.
+
+| 아이템 | 대상 스텟 | 베이스 → 결과 | 아이콘 (실루엣 / 액센트) |
+|:---|:---|:---|:---|
+| Vitality Core | MaxHealth | 100 → 150 (1.5x) | 하트 / 레드 |
+| Power Surge | AttackPower | 10 → 20 (2.0x) | 교차 슬래시 X / 오렌지 |
+| Frenzy | AttackSpeed | 1.0 → 1.3 (1.3x) | 번개 / 옐로 |
+| Bulwark | DefensePower | 0 → 50 (피해 −33%) | 방패 / 블루 |
+| Swift Step | MoveSpeed | 1.0 → 1.3 (1.3x) | 이중 셰브론 » / 민트 |
+| Loot Booster | LootSpeed | 1.0 → 2.0 (2.0x) | 루팅 게이지 링 / 퍼플 |
+
+> **배선 완료 · PIE 검증 완료 (2026-07-27, 서버 1P·클라 2P 양쪽):** 6종 모두 실제 게임플레이에 반영된다.
+> - `AttackSpeed` → 근거리 몽타주 재생 속도(ANS 히트 윈도우도 함께 압축) + **무기 `FireCooldown` 나눗셈**.
+>   쿨다운은 `ULNPAbility_BasicAttack::ApplyCooldown` 한 곳에서 처리되므로 근거리·원거리에 모두 걸린다.
+>   몽타주 길이와 쿨다운을 같은 계수로 줄여야 실제 공격 빈도가 계수만큼 빨라진다 (한쪽만 줄이면 다른 쪽이 병목).
+>   피격 반응·패링·스태거 몽타주는 스케일 대상이 아니다.
+> - `MoveSpeed` → `FLNPMoveSpeedModifier`가 걷기·질주·가드 세 상태의 `MaxSpeed`에 곱한다
+>   (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md)).
+
+> 아이콘은 LootDice 6면 시인성을 우선해 **어두운 배경 + 굵은 흰 코어 + 스탯별 액센트 림** 규격으로 통일했다.
+> 주사위 위에서는 `CategoryColor`(버프 = 초록)가 곱해져 액센트 색이 사라지므로 **실루엣만으로 구분**되어야 하고,
+> 액센트 색은 인벤토리 UI에서의 구분을 담당한다 (→ [TechDesign_LootDice.md](TechDesign_LootDice.md) §2.7).
+
 ---
 
 ## 4. 인벤토리 구조
@@ -99,6 +125,7 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 | AttackSpeed | 공격 속도 배율 (애님 재생 속도와 연동) | ✅ |
 | DefensePower | 피격 시 피해 감소 | ✅ |
 | MoveSpeed | 이동 속도 배율 | ✅ |
+| LootSpeed | LootPod 루팅 게이지 진행 속도 배율 | ✅ |
 
 ---
 

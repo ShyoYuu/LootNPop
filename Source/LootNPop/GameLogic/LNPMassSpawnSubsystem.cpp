@@ -5,6 +5,7 @@
 #include "DataAsset/LNPMassSpawnConfig.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "LootPod/LNPLootPodMassTypes.h"
 #include "Replication/LNPMassReplication.h"
 #include "LootNPop.h"
 
@@ -437,6 +438,13 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 				EnemyFragment->ParentLootPod = ParentLootPod;
 				EnemyFragment->ParentPodLocation = ParentPodLocation;
 			}
+		}
+
+		// 3. LootPod 고유 ID 발급 — 트레잇은 템플릿을 만들어 모든 Pod가 공유하므로 ID는 여기서
+		// 엔티티마다 부여해야 한다. ULNPLootDiceRewardTable.RewardsByPodID 조회 키로 쓰인다.
+		if (FLNPLootPodFragment* PodFragment = EntityManager.GetFragmentDataPtr<FLNPLootPodFragment>(Entity))
+		{
+			PodFragment->PodID = NextPodID++;
 		}
 	}
 	

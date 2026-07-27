@@ -11,6 +11,8 @@
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 void ULNPInventoryEntryWidget::NativeConstruct()
 {
@@ -21,6 +23,14 @@ void ULNPInventoryEntryWidget::NativeConstruct()
 		DropButton->OnClicked.AddDynamic(this, &ULNPInventoryEntryWidget::OnDropClicked);
 	if (EquipButton != nullptr)
 		EquipButton->OnClicked.AddDynamic(this, &ULNPInventoryEntryWidget::OnEquipClicked);
+}
+
+void ULNPInventoryEntryWidget::NativeDestruct()
+{
+	if (UWorld* World = GetWorld())
+		World->GetTimerManager().ClearTimer(CountdownTimerHandle);
+
+	Super::NativeDestruct();
 }
 
 void ULNPInventoryEntryWidget::NativeOnListItemObjectSet(UObject* ListItemObject)
@@ -40,25 +50,47 @@ void ULNPInventoryEntryWidget::NativeOnListItemObjectSet(UObject* ListItemObject
 		NameText->SetText(Name);
 	}
 
-	// DetailText: 버프는 잔여 시간, 그 외는 레벨(있으면). 둘 다 없으면 비운다.
-	if (DetailText != nullptr)
+	UpdateDetailText();
+
+	// 버프 잔여 시간은 1초마다 다시 그린다 — 복제되는 값은 추가 시점 스냅샷이라 UI가 직접 센다.
+	// ListView가 엔트리 위젯을 재사용하므로 항목이 바뀔 때마다 타이머를 다시 건다.
+	if (UWorld* World = GetWorld())
 	{
-		FText Detail = FText::GetEmpty();
-		if (BoundInstance != nullptr)
+		World->GetTimerManager().ClearTimer(CountdownTimerHandle);
+
+		const bool bIsFiniteBuff = BoundInstance != nullptr && Cast<ULNPBuffData>(Def) != nullptr
+			&& BoundInstance->GetRemainingDuration() > 0.0f;
+		if (bIsFiniteBuff)
 		{
-			if (Cast<ULNPBuffData>(Def) != nullptr)
-			{
-				Detail = FText::FromString(FString::Printf(TEXT("%.0fs"), BoundInstance->GetRemainingDuration()));
-			}
-			else
-			{
-				const int32 Level = BoundInstance->GetStatTagStackCount(TAG_Item_Level);
-				if (Level > 0)
-					Detail = FText::FromString(FString::Printf(TEXT("Lv.%d"), Level));
-			}
+			World->GetTimerManager().SetTimer(CountdownTimerHandle, this,
+				&ULNPInventoryEntryWidget::UpdateDetailText, 1.0f, /*bLoop=*/true);
 		}
-		DetailText->SetText(Detail);
 	}
+}
+
+void ULNPInventoryEntryWidget::UpdateDetailText()
+{
+	// DetailText: 버프는 잔여 시간, 그 외는 레벨(있으면). 둘 다 없으면 비운다.
+	if (DetailText == nullptr)
+		return;
+
+	FText Detail = FText::GetEmpty();
+	if (BoundInstance != nullptr)
+	{
+		if (Cast<ULNPBuffData>(BoundInstance->GetDefinition()) != nullptr)
+		{
+			// 올림 표시 — 30s에서 시작해 1s까지 세고, 0s 직후 서버가 만료시켜 목록에서 사라진다.
+			const int32 Seconds = FMath::CeilToInt(BoundInstance->GetRemainingDurationLive());
+			Detail = FText::FromString(FString::Printf(TEXT("%ds"), Seconds));
+		}
+		else
+		{
+			const int32 Level = BoundInstance->GetStatTagStackCount(TAG_Item_Level);
+			if (Level > 0)
+				Detail = FText::FromString(FString::Printf(TEXT("Lv.%d"), Level));
+		}
+	}
+	DetailText->SetText(Detail);
 }
 
 void ULNPInventoryEntryWidget::OnDropClicked()

@@ -548,11 +548,11 @@ namespace
 {
 	TAutoConsoleVariable<int32> CVarDebugAuthorityAutoAction(
 		TEXT("LNP.Debug.AuthorityAutoAction"), 0,
-		TEXT("서버(HasAuthority) 캐릭터 자동 행동. 0=끔 1=공격 2=가드/패링 펄스"), ECVF_Cheat);
+		TEXT("Server (HasAuthority) character auto-behavior. 0=off 1=attack 2=guard/parry pulse"), ECVF_Cheat);
 
 	TAutoConsoleVariable<int32> CVarDebugClientAutoAction(
 		TEXT("LNP.Debug.ClientAutoAction"), 0,
-		TEXT("비서버(클라이언트) 캐릭터 자동 행동. 0=끔 1=공격 2=가드/패링 펄스"), ECVF_Cheat);
+		TEXT("Non-server (client) character auto-behavior. 0=off 1=attack 2=guard/parry pulse"), ECVF_Cheat);
 }
 
 void ULNPInputHandlerComponent::TickDebugAutoAction(float DeltaTime)

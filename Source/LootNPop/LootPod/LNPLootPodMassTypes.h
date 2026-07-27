@@ -52,7 +52,12 @@ struct LOOTNPOP_API FLNPLootPodFragment : public FMassFragment
 	float LootableDistSquared = 250000.0f;
 
 	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
-	int32 PodID = 0; // 보상 조회를 위한 고유 식별자
+	/**
+	 * 보상 조회를 위한 고유 식별자. 트레잇은 템플릿을 만들어 모든 Pod가 공유하므로 여기서 채울 수 없고,
+	 * 스폰 시 ULNPMassSpawnSubsystem::SetupSpawnedEntities가 엔티티마다 1부터 발급한다 (0 = 미발급).
+	 * 조회가 서버에서만 일어나므로(ALNPLootDice::SpawnPodRewards) 복제하지 않는다.
+	 */
+	int32 PodID = 0;
 };
 
 /** 3. Player 루팅 속도 Fragment — 최초 상호작용 시 부착되어 상주한다. 없는 플레이어는 기본 속도 1.0으로 기여한다. */

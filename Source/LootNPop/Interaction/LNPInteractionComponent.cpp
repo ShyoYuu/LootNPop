@@ -198,7 +198,7 @@ void ULNPInteractionComponent::PerformInteraction()
 	AActor* Target = CurrentPromptTarget.Get();
 	if (Target == nullptr)
 	{
-		UE_LOG(LogLootNPop, Log, TEXT("[Interaction] Interact input — 프롬프트 대상 없음"));
+		UE_LOG(LogLootNPop, Log, TEXT("[Interaction] Interact input — no prompt target"));
 		return;
 	}
 
@@ -245,7 +245,7 @@ void ULNPInteractionComponent::PickupDiceOnServer(ALNPLootDice* Dice)
 	// 동시 획득 시도는 서버 RPC 직렬화가 순서를 만들고, 첫 성공이 SetClaimed()로 나머지를 걸러낸다 (선착순).
 	if (!Dice->CanInteract(Owner))
 	{
-		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s 획득 거부 — 이미 획득됐거나 거리 초과 (%s)"),
+		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s pickup rejected — already claimed or out of range (%s)"),
 			*Dice->GetName(), *GetNameSafe(Owner));
 		return;
 	}
@@ -269,10 +269,10 @@ void ULNPInteractionComponent::PickupDiceOnServer(ALNPLootDice* Dice)
 	else
 	{
 		// 디버그 스폰 등 페이로드 없는 Dice — 편입 없이 제거만
-		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s — ItemDef 없음, 인벤토리 편입 생략"), *Dice->GetName());
+		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s — no ItemDef, skipping inventory add"), *Dice->GetName());
 	}
 
-	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s 획득 — %s → %s"),
+	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s picked up — %s → %s"),
 		*Dice->GetName(), *GetNameSafe(Item), *GetNameSafe(Owner));
 
 	Dice->SetClaimed();

@@ -232,12 +232,12 @@ void ALNPPlayerCharacter::DropItemOnServer(const FGuid& ItemId)
 	}
 	if (Instance == nullptr)
 	{
-		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] 드랍 거부 — ItemId %s 미보유"), *ItemId.ToString());
+		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] Drop rejected — ItemId %s not owned"), *ItemId.ToString());
 		return;
 	}
 	if (Instance->IsEquipped())
 	{
-		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] 드랍 거부 — %s 장착 중"), *GetNameSafe(Instance->GetDefinition()));
+		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] Drop rejected — %s is equipped"), *GetNameSafe(Instance->GetDefinition()));
 		return;
 	}
 
@@ -257,7 +257,7 @@ void ALNPPlayerCharacter::DropItemOnServer(const FGuid& ItemId)
 		+ GetActorUpVector() * 80.0f;
 	ALNPLootDice::SpawnDice(*GetWorld(), DropLocation, ItemDef, DiceRemainingDuration, /*ImpulseScale=*/0.4f);
 
-	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s 드랍 — %s (버프 잔여 %.1fs)"),
+	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s dropped — %s (buff remaining %.1fs)"),
 		*GetNameSafe(this), *GetNameSafe(ItemDef), DiceRemainingDuration);
 }
 
