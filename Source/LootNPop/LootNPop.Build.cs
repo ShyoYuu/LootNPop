@@ -23,6 +23,8 @@ public class LootNPop : ModuleRules
 			"UMG",
 			"Slate",
 			"SlateCore",
+			"CommonUI",
+			"CommonInput",
             "Mover",
             "GameplayAbilities",
             "GameplayTags",

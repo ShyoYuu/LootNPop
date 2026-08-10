@@ -65,10 +65,49 @@ CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
 4. Pitch 클램프 (Up과의 각도 약 ±85° — 짐벌락 방지)
 5. 락온 하드 클램프 (타겟 방향과 최대 이탈각 초과 시 Slerp로 강제 보정)
 6. Roll-free 회전 재구성 → SetControlRotation
-   (카메라 Roll 잔여 보정은 LNPGravityRollCorrectionCameraNode 담당)
+   (카메라 자세 보정은 LNPGravityRollCorrectionCameraNode 담당 — §2.4)
 ```
 
 입력 소스(InputHandler·LockOn)는 델타를 **적립**만 하고, 소비·적용은 이 컴포넌트가 전담 — 프레임당 SetControlRotation 다중 호출로 인한 순서 충돌을 구조적으로 차단한다.
+
+### 2.4 카메라 리그 — 구면 중력 보정 (Gameplay Cameras)
+
+`ALNPPlayerCharacter`는 `UGameplayCameraComponent`를 `AnimSourceMesh`에 부착하고, `PossessedBy`에서 `ActivateCameraForPlayerController`로 활성화한다. 활성 리그는 `CR_ThirdPerson`.
+
+**⚠️ 노드 순서에 의존하는 구조다.** 아래 순서를 지키지 않으면 적도 부근에서 카메라가 캐릭터 하체로 내려가거나, 이동 시 고무줄 지연이 상하로 새는 증상이 난다.
+
+| # | 노드 | 역할 | 기준 프레임 |
+|:--|:---|:---|:---|
+| 1 | `Offset` (붐암오프셋) | 피벗 오프셋. `BoomArmOffset` 파라미터 구동 | 컨텍스트(캐릭터 메시) — 이미 중력 정렬 |
+| 2 | `BoomArm` | Yaw/Pitch 회전 + 피벗 조인트 발행. `BoomOffset = (0,0,0)` | **Roll=0 월드 Z-Up** |
+| 3 | **`LNPGravityRollCorrection`** | 피벗 회전을 중력 정렬로 보정 (위치·회전 동시) | — |
+| 4 | `DampenPosition` | 고무줄 지연. `DampenSpace = CameraPose` | 3번이 보정한 회전 |
+| 5 | `Offset` (카메라오프셋) | 실제 붐 거리. `CameraOffset` 파라미터 구동. `OffsetSpace = CameraPose` | 3번이 보정한 회전 |
+| 6 | `FieldOfView` / `PostProcess` | 포즈 미변경 | — |
+
+**근본 원인 — Boom Arm이 Roll을 버린다.** `FBoomArmCameraNodeEvaluator::ComputeBoomRotation()`은 붐 피벗 회전을 `FRotator3d(Pitch, Yaw, 0)`으로 재구성한다. 즉 **항상 월드 Z-Up 평면 기준**이라, 구면 중력에서 중력 Up이 월드 Z와 벌어질수록 이 회전을 프레임으로 삼는 모든 하위 노드가 어긋난다. 어긋나는 각도(= Roll 보정각)는 구면상 위치 **와** 시선 방향에 함께 의존하므로, 같은 지점에서도 바라보는 방향에 따라 0°~180°를 오간다.
+
+**`LNPGravityRollCorrectionCameraNode`의 처리**
+
+```cpp
+// BoomArm이 발행한 Yaw/Pitch 조인트에서 피벗을 얻는다
+const FQuat PivotRot = PivotJoint->Transform.GetRotation();
+// 전방 축은 유지, Up만 중력 기준으로 재정렬
+const FQuat CorrectedPivotRot = /* Forward, Up×Forward, Forward×Right 기저 */;
+// 피벗 전방 축 기준 순수 Roll 델타를 회전과 위치에 함께 적용
+const FQuat RollDelta = CorrectedPivotRot * PivotRot.Inverse();
+CameraPose.SetLocation(PivotLoc + RollDelta.RotateVector(CamLoc - PivotLoc));
+CameraPose.SetRotation((RollDelta * CamRot).Rotator());
+```
+
+"붐 피벗이 처음부터 중력 정렬되어 있었다면 나왔을 결과"와 수학적으로 동일하다.
+
+**배치 제약**
+
+- `BoomArm`보다 **뒤** — 피벗 조인트(`CameraRigJoints`의 YawPitch 조인트)를 읽어야 한다. 앞에 두면 조인트가 없어 노드 전체가 no-op이 된다.
+- `DampenPosition`·`Offset`보다 **앞** — 이 노드들이 `CameraPose` 회전을 기준 프레임으로 쓰므로, 그 전에 보정돼 있어야 감쇠 Vertical 축과 카메라 오프셋이 중력 Up 기준이 된다.
+
+현재 구성에서는 `BoomOffset = (0,0,0)`이라 3번 노드의 위치 보정분이 0이 되지만, 코드는 그대로 유지한다 — 붐 오프셋을 쓰거나 노드 순서를 바꿔도 여전히 올바르게 동작한다.
 
 ---
 
@@ -237,6 +276,17 @@ Guard/Sprint 의도를 컴포넌트 멤버 변수(bool)로 두고 PreSimulationT
 ### 7.4 쿼터니언 기반 구면 시점 제어
 
 구면 환경에서는 FRotator(오일러) 기반 시점 제어가 짐벌락과 Roll 누적으로 파탄난다. 지역 Up 축 기준 Yaw 회전, 지역 Right 축 기준 Pitch 회전을 쿼터니언으로 합성하고, 최종적으로 Up·Forward 외적으로 Roll-free 좌표계를 재구성해 `FMatrix → Rotator` 변환으로 마무리한다.
+
+### 7.5 "적도 부근에서만 카메라가 하체로 내려간다" — Gameplay Cameras 프레임 분석
+
+증상이 **위치 의존적이면서 동시에 시선 방향 의존적**이고 간헐적으로 보인 탓에 초기 진단이 어려웠다. `CR_ThirdPerson`의 Offset 값이 월드 좌표계로 계산되는 것 아니냐는 가설에서 출발했지만, 실제 범인은 에셋 설정이 아니라 **엔진의 Boom Arm 노드가 Roll을 0으로 강제**하는 것이었다(§2.4).
+
+두 단계로 드러났다.
+
+1. **카메라 오프셋이 어긋남** — 보정 노드가 Rotation만 고치고 Location은 두어서, 붐/카메라 오프셋이 월드 Z-Up 평면에 놓였다. Roll 보정각이 180°에 가까워지면 위쪽 오프셋이 아래로 뒤집혀 카메라가 하체를 본다. → 보정 노드가 Roll 델타를 **위치에도** 적용하도록 수정.
+2. **고무줄 지연이 상하로 샘** — 1번을 고치자 드러났다. `DampenPosition`은 지연 벡터를 Forward/Lateral/Vertical로 분해해 **축마다 다른 감쇠**를 거는데, 그 축의 기준이 Boom Arm의 Roll=0 회전이었다. 적도에서는 중력 Up과 월드 Z가 약 90° 어긋나 감쇠 축이 사실상 뒤바뀌고, 좌우 이동이 Vertical 축으로 처리되어 카메라가 캐릭터 몸을 따라 미끄러진다. → 보정 노드를 `DampenPosition` **앞**으로 이동.
+
+**교훈:** Gameplay Cameras의 `ECameraNodeSpace::CameraPose`는 "그 시점까지 평가된 `CameraPose.GetRotation()`"이라, 앞선 노드가 어떤 프레임을 남겼는지에 전적으로 의존한다. 구면 중력에서는 **어느 노드가 언제 중력 정렬을 회복시키는지**가 리그 설계의 핵심 제약이 된다.
 
 ---
 

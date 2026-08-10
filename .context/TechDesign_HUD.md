@@ -106,7 +106,16 @@ ALNPPlayerController::OnUnPossess()
 
 ---
 
-## 8. 인벤토리 패널 — ✅ 구현 완료 (2026-07-12) / 인스턴스 모델 전환 (2026-07-17)
+## 8. 인벤토리 패널 — ⛔ 폐기 (2026-08-07, 인게임 메뉴로 이관)
+
+> `ULNPInventoryWidget`·`ULNPInventoryEntryWidget`과 `WBP_Inventory`/`WBP_InventoryEntry`/`WBP_BuffEntry`,
+> `IA_ToggleInventory`는 **모두 삭제**되었다. 인벤토리는 CommonUI 기반 인게임 메뉴의 인벤토리 탭으로 대체되었다 —
+> [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md) 참조. 아래 §8·§8.5는 그 설계의 배경으로만 남긴다.
+>
+> 이관되며 바뀐 것: ListView → CommonTileView Grid + 디테일 패널, 엔트리 내장 버튼 → 디테일 패널 버튼,
+> 장착본 숨김 → 장착 배지 표시, 스탯 최종값 1줄 → 합/곱 분해 RichText 6행.
+
+### (구) 인벤토리 패널 — 구현 완료 (2026-07-12) / 인스턴스 모델 전환 (2026-07-17)
 
 전체 인벤토리 패널(가방 아이템 + 활성 버프, 장착/드랍). `I`키(Enhanced Input `IMC_Player`→`IA_ToggleInventory`, 컨트롤러 상시 IMC) 또는 `LNP.Debug.ToggleInventory`로 토글.
 

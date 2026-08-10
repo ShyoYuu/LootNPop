@@ -49,6 +49,13 @@ public:
 
 	bool HasMovementInput() const { return !CachedMoveInputIntent.IsNearlyZero() || !AIMoveInput.IsNearlyZero(); }
 
+	/**
+	 * 게임플레이 입력(이동·시점·공격·상호작용)을 켜고 끈다 — 인게임 메뉴가 열릴 때 사용한다.
+	 * DefaultMappingContext를 통째로 제거/복원하므로 액션 바인딩은 그대로 두고 입력만 끊긴다.
+	 * 끌 때는 눌린 상태가 남지 않도록 캐시된 입력을 초기화한다.
+	 */
+	void SetGameplayInputEnabled(bool bEnabled);
+
 protected:
 	virtual void BeginPlay() override;
 
