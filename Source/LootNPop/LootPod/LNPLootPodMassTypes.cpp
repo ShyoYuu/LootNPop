@@ -2,7 +2,6 @@
 
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "Replication/LNPMassReplication.h"
-#include "Replication/LNPMassReplicator.h"
 
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
@@ -12,8 +11,6 @@
 ULNPLootPodTrait::ULNPLootPodTrait()
 {
 	ReplicationTrait = CreateDefaultSubobject<UMassReplicationTrait>(TEXT("ReplicationTrait"));
-	ReplicationTrait->Params.BubbleInfoClass = ALNPMassClientBubbleInfo::StaticClass();
-	ReplicationTrait->Params.ReplicatorClass = ULNPMassReplicator::StaticClass();
 }
 
 void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
@@ -33,5 +30,7 @@ void ULNPLootPodTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildConte
 	BuildContext.AddFragment<FMassActorFragment>();
 
 	// 4. LootPod MassReplication (Phase 7) — NM_Standalone이면 UMassReplicationTrait::BuildTemplate이 자체적으로 조기 반환한다.
+	//    Params는 DA에서 편집된 ReplicationCullDistance를 반영해야 하므로 생성자가 아니라 여기서 채운다.
+	LNP::Replication::ConfigureParams(ReplicationTrait->Params, ReplicationCullDistance);
 	ReplicationTrait->BuildTemplate(BuildContext, World);
 }

@@ -145,6 +145,25 @@
 
 스폰 위치를 1회 싣는 이유: 퍼펫 링크 시 엔진이 엔티티 Transform으로 Actor 위치를 초기화하므로 비워두면 원점으로 튄다. 구 Player 복제 클래스를 참조하던 `DA_PlayerEntityConfig`는 `DefaultEngine.ini`의 CoreRedirects로 통합 클래스에 연결돼 있다 (에디터에서 재저장하면 영구 반영 후 제거 가능).
 
+**자세 인코딩 — 접평면 로컬 Yaw (2026-08-05):**
+
+엔진 기본 핸들러는 월드 Yaw만 싣고 클라이언트에서 `FQuat(FVector::UpVector, Yaw)`로 복원하므로, 구 내벽 월드에서는 적도 부근 엔티티가 통째로 눕는다 (`EngineAnalysis_MassReplication.md` §7.9). 그래서 `ULNPMassReplicator`·`FLNPMassClientBubbleHandler`가 엔진 핸들러를 쓰지 않고 직접 처리한다 — Yaw를 **접평면 기준 로컬 각도**로 인코딩하고, 기저(`MakeFromZ(-Position.Normalize())`)는 이미 복제 중인 위치에서 양쪽이 각자 재구성한다. **추가 대역폭 0.** 헬퍼는 `LNP::Replication`(`LNPMassReplication.h`)에 인코딩·디코딩 쌍으로 모여 있다.
+
+극점 주변 약 3.5m 링에서 서버·클라 기저가 갈릴 수 있으나(§7.9), 남극은 PlayerStart 영역이라 적이 배치되지 않아 실플레이 공간 밖이다 — **알면서 수용한 트레이드오프.** 실제로 NPC 방향이 튀는 것이 관측되면 `FQuat::FindBetweenNormals`로 특이점을 링에서 점으로 줄이거나, 압축 쿼터니언 복제로 제거한다.
+
+**가시 거리 — 복제와 시각화는 반드시 짝을 맞춘다:**
+
+트레잇 프로퍼티 `ReplicationCullDistance`(`ULNPLootPodTrait`·`ULNPEnemyTrait`)가 `LNP::Replication::ConfigureParams`를 통해 `FMassReplicationParameters::LODDistance[Off]`에 주입된다. 이 값은 같은 EntityConfig의 `MassCrowdVisualizationTrait → VisibleLODDistance[Off]`와 **반드시 같아야 한다** — 크면 렌더링되지도 않을 엔티티에 대역폭을 쓰고, 작으면 "서버엔 보이는데 클라엔 안 보임"이 된다. 엔진 기본값 5,000cm를 그대로 두어 실제로 후자가 발생했다 (2026-08-05 수정).
+
+| 타입 | 값 | 근거 |
+|:---|---:|:---|
+| LootPod | 60,000 | 월드 전체(반지름 25,000 × 2 = 50,000 초과). Pod은 스폰 1회 페이로드 후 갱신이 0이라, 거리 컬링을 두면 경계 왕복마다 Add/Remove가 반복돼 **오히려 비싸다** |
+| Enemy | 12,000 | 갱신을 지속하므로 이 값이 곧 대역폭 |
+
+개수 캡 `LODMaxCountPerViewer`는 엔진 기본 Low=300이 거리보다 먼저 걸리므로(`AdjustLODFromCount`가 캡에 맞춰 거리를 줄임) 넉넉히 열어 폭주 방지 안전망으로만 남겼다. 가시 범위 제어는 `ReplicationCullDistance` 하나로 일원화한다.
+
+Pod과 Enemy의 값이 다르면 `FMassReplicationSharedFragment`가 타입별로 분리되는데, 엔진이 `ForEachSharedFragment`로 순회하는 정상 구성이며 **버블·리플리케이터는 여전히 하나**라 §7.1 불변식은 유지된다.
+
 **퍼펫(Puppet) 링크 — bubble 엔티티 ↔ 복제 Actor 자동 연결:** 엔진 정식 경로인 `UMassAgentComponent`의 NetID 핸드셰이크를 사용한다. 서버가 컴포넌트의 복제 프로퍼티 `NetID`에 `FMassNetworkID`를 싣고, 클라이언트 `OnRep_NetID`가 bubble이 스폰한 엔티티를 `FindEntity(NetID)`로 찾아 연결한다(액터·엔티티 도착 순서 레이스는 엔진이 orphan 대기로 처리). 퍼펫 초기화가 EntityConfig 템플릿 조성을 엔티티에 더해주므로 서버와 동일한 아키타입이 클라이언트에서 성립하고, 클라이언트 예측 판정(근접 HitStop·관전 Ghost 충돌)이 로컬 Mass 쿼리만으로 동작한다. 이 과정에서 발견한 엔진 타이밍 갭은 §4.1 참조.
 
 **Actor 복제 설정:** Enemy `NetUpdateFrequency=30`·`NetCullDistanceSquared=30000²`, LootPod `NetUpdateFrequency=10`·`20000²`. LootPod 게이지(`CurrentGaugePercent`)는 매 프레임 변하므로 2% 이상 변화 시에만 마킹(0/1 경계값은 항상 반영).
