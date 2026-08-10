@@ -10,6 +10,46 @@
 #include "GameplayTagContainer.h"
 #include "LNPMassReplication.generated.h"
 
+struct FMassReplicationParameters;
+
+namespace LNP::Replication
+{
+	/**
+	 * 구 내벽(Dyson Sphere) 월드의 접평면 기저 — 월드 원점 방향이 Up이다.
+	 * (LNPPawnGravityComponent::GetUpDirection의 RadialOutward, GravityOrigin=ZeroVector와 동일 부호)
+	 *
+	 * 엔진 기본 경로(TMassClientBubbleTransformHandler::SetEntityData)는 클라이언트에서 자세를
+	 * FQuat(FVector::UpVector, Yaw) — 즉 월드 Z축 Yaw로만 복원하므로, 구면 위에서는 적도 부근 엔티티가
+	 * 통째로 누워버린다. 그래서 Yaw를 "월드 Yaw"가 아니라 "이 기저 기준 로컬 Yaw"로 인코딩하고,
+	 * 기저 자체는 이미 복제 중인 위치에서 양쪽이 재구성한다 (추가 대역폭 0).
+	 */
+	inline FQuat MakeSphereTangentBasis(const FVector& Position)
+	{
+		return FRotationMatrix::MakeFromZ(-Position.GetSafeNormal()).ToQuat();
+	}
+
+	/** 서버: 월드 자세 → 접평면 기준 로컬 Yaw (라디안). */
+	inline float EncodeSphereLocalYaw(const FTransform& Transform)
+	{
+		const FQuat LocalRotation = MakeSphereTangentBasis(Transform.GetLocation()).Inverse() * Transform.GetRotation();
+		return static_cast<float>(FMath::DegreesToRadians(LocalRotation.Rotator().Yaw));
+	}
+
+	/** 클라이언트: 복제된 위치 + 로컬 Yaw → 월드 자세. */
+	inline FQuat DecodeSphereRotation(const FVector& Position, const float LocalYaw)
+	{
+		return MakeSphereTangentBasis(Position) * FQuat(FVector::UpVector, LocalYaw);
+	}
+
+	/**
+	 * 통합 복제 스트림용 파라미터 설정 — 모든 LNP 트레잇이 이 함수 하나로 Params를 채운다.
+	 * CullDistance는 EMassLOD::Off 경계(= 이 거리를 넘으면 클라이언트 버블에서 제거)이며,
+	 * 반드시 해당 EntityConfig의 시각화 VisibleLODDistance[Off]와 같은 값으로 맞춰야 한다.
+	 * 더 크면 렌더링되지도 않을 엔티티에 대역폭을 쓰고, 더 작으면 서버엔 보이는데 클라엔 안 보인다.
+	 */
+	LOOTNPOP_API void ConfigureParams(FMassReplicationParameters& Params, float CullDistance);
+}
+
 /**
  * 통합 Mass 복제 — 월드의 모든 복제 대상 Mass 엔티티 타입(Enemy·Player·LootPod)이
  * 단일 버블/리플리케이터를 공유한다.
@@ -71,30 +111,27 @@ struct LOOTNPOP_API FLNPMassFastArrayItem : public FMassFastArrayItemBase
 
 /**
  * 통합 Client Bubble 핸들러.
- * 클라 수신 시 TemplateID별 배치 스폰(엔진 헬퍼) + 위치/Yaw 반영 + Enemy 아키타입만 타입 태그 기록.
+ * 클라 수신 시 TemplateID별 배치 스폰(엔진 헬퍼) + 위치/자세 반영 + Enemy 아키타입만 타입 태그 기록.
+ *
+ * 자세 복원은 엔진의 TMassClientBubbleTransformHandler를 쓰지 않고 직접 처리한다 —
+ * 엔진 구현은 월드 Z축 Yaw만 복원해 구 내벽 월드에서 엔티티가 눕는다 (LNP::Replication 주석 참조).
  */
 class FLNPMassClientBubbleHandler : public TClientBubbleHandlerBase<FLNPMassFastArrayItem>
 {
 public:
 	typedef TClientBubbleHandlerBase<FLNPMassFastArrayItem> Super;
-	typedef TMassClientBubbleTransformHandler<FLNPMassFastArrayItem> FMassClientBubbleTransformHandler;
-
-	FLNPMassClientBubbleHandler()
-		: TransformHandler(*this)
-	{}
-
-#if UE_REPLICATION_COMPILE_SERVER_CODE
-	const FMassClientBubbleTransformHandler& GetTransformHandler() const { return TransformHandler; }
-	FMassClientBubbleTransformHandler& GetTransformHandlerMutable() { return TransformHandler; }
-#endif // UE_REPLICATION_COMPILE_SERVER_CODE
 
 protected:
 #if UE_REPLICATION_COMPILE_CLIENT_CODE
 	virtual void PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize) override;
 	virtual void PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize) override;
-#endif // UE_REPLICATION_COMPILE_CLIENT_CODE
 
-	FMassClientBubbleTransformHandler TransformHandler;
+	/** 복제 페이로드(위치 + 접평면 로컬 Yaw)를 Transform Fragment에 반영한다. 스케일은 보존한다. */
+	static void ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FReplicatedAgentPositionYawData& PositionYaw);
+
+	/** 스폰 쿼리 순회 동안만 유효한 Transform Fragment 뷰 (엔진 핸들러의 TransformList 대체). */
+	TArrayView<FTransformFragment> SpawnTransformList;
+#endif // UE_REPLICATION_COMPILE_CLIENT_CODE
 };
 
 /** 클라이언트당 하나씩 존재하며 통합 Fast Array 복제를 담당한다. */

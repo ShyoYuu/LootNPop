@@ -259,6 +259,7 @@ for each 클라이언트:                                  (MassReplicationProce
 - LOD는 **클라이언트별로** 계산됩니다 (같은 엔티티라도 클라 A에겐 High, 클라 B에겐 Off일 수 있음).
 - `EMassLOD::Off`가 되면 그 클라이언트의 버블에서 제거됩니다 — 엔티티가 살아 있어도 멀어지면 클라에서는 사라진다는 뜻입니다. 클라이언트 측 표현(빛기둥 등)은 이 추가/제거 반복을 견디도록 설계해야 합니다.
 - LOD 거리·최대 개체 수는 `FMassReplicationParameters`로 타입별 설정이 가능합니다.
+- ⚠️ **기본 `LODDistance[Off]`는 5,000cm**입니다 (`MassReplicationFragments.cpp:62`). 월드 스케일이 이보다 크면 클라이언트가 받는 범위가 서버 화면(로컬이라 시각화 LOD 거리까지 다 보임)보다 훨씬 좁아져, "서버엔 보이는데 클라엔 근접해야만 보임"으로 나타납니다. 시각화 트레잇의 `VisibleLODDistance[Off]`와 짝을 맞추는 것이 기본입니다. 개수 캡 `LODMaxCountPerViewer`(기본 Low=300)가 거리보다 먼저 걸릴 수 있다는 점도 함께 확인해야 합니다 — `AdjustLODFromCount`가 캡에 맞춰 거리를 되레 줄입니다.
 
 ---
 
@@ -312,6 +313,31 @@ Fast Array 직렬화는 리플렉션 기반입니다. `UPROPERTY()` 없는 필�
 ### 7.8 장부 클린업 checkf — 제거 없이 소멸하면 잡힌다
 
 틱 말미의 클린업은 `bPendingDestruction` 또는 LOD Off 엔트리에 대해 `checkf(!AgentData.Handle.IsValid())`를 겁니다 (`MassReplicationProcessor.cpp:373`). 커스텀 리플리케이터가 Remove 콜백에서 핸들을 무효화 경로 없이 방치하면 여기서 터집니다 — 이 checkf는 "버블에서 제거되지 않은 채 장부에서 사라지는" 릭을 잡는 안전망입니다.
+
+### 7.9 ⚠️ 위치/Yaw 핸들러는 "월드 Z가 Up"을 가정한다 — 비평면 중력 월드에서 쓸 수 없다
+
+`TMassClientBubbleTransformHandler::SetEntityData`가 클라이언트에서 자세를 복원하는 방식 (`MassReplicationTransformHandlers.h`):
+
+```cpp
+TransformFragment.GetMutableTransform().SetRotation(FQuat(FVector::UpVector, ReplicatedPositionYawData.GetYaw()));
+```
+
+서버 측 `SetBubblePositionYawFromTransform`도 대칭적으로 `Transform.GetRotation().Rotator().Yaw` — **월드 Yaw**만 싣습니다. 즉 이 핸들러 쌍은 "모든 엔티티의 Up은 월드 +Z"라는 평지 전제 위에 서 있습니다. Pitch·Roll은 애초에 페이로드에 없어 복원이 불가능합니다.
+
+구면 중력·벽면 보행처럼 Up이 위치마다 달라지는 월드에서는 복제된 엔티티가 전부 월드 Z 기준으로 서므로, **적도 부근에서 통째로 눕습니다.** 서버 화면은 로컬 Transform을 그대로 쓰므로 멀쩡해 보여 원인 파악이 늦어지기 쉽습니다.
+
+**대응 선택지:**
+
+| 방식 | 대역폭 | 특이점 |
+|:---|:---|:---|
+| Yaw를 **접평면 로컬 기준**으로 인코딩, 기저는 서버·클라가 각자 위치에서 재구성 | +0 | 있음 (아래) |
+| 압축 쿼터니언/Rotator를 페이로드에 추가 | 갱신마다 증가 | 없음 |
+
+로컬 Yaw 방식은 기저 함수의 연속성에 의존합니다. `FRotationMatrix::MakeFromZ`는 `|Z.Z| ≥ 1 - UE_KINDA_SMALL_NUMBER`에서 참조 벡터를 `(0,0,1)`→`(1,0,0)`으로 하드 전환하므로 (`RotationMatrix.h:104`), 그 경계면 위의 엔티티는 위치 복제 허용 오차(`PositionReplicateTolerance` = 1cm) 때문에 서버·클라가 서로 다른 기저를 잡아 Yaw가 크게 어긋날 수 있습니다. Up 축 자체는 위치에서 직접 나오므로 **눕지는 않고 방향만 틀어집니다.**
+
+다만 **구 전체에서 연속인 접평면 기저는 존재하지 않으므로**(hairy ball theorem) 어떤 함수를 골라도 특이점은 남습니다 — 위치를 옮기거나(플레이 공간 밖으로) 크기를 줄일 수 있을 뿐입니다. `FQuat::FindBetweenNormals`는 특이점이 링이 아닌 한 점이라 더 작습니다.
+
+LootNPop 적용 사례는 `TechDesign_Networking.md` §3.5 참조.
 
 ---
 

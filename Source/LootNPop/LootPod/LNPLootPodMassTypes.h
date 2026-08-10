@@ -96,6 +96,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
 	float MaxGauge = 10.0f;
 
+	/** 이 거리를 넘으면 클라이언트 버블에서 제거된다(= 클라에서 사라진다). Pod은 스폰 시 1회 페이로드만
+	 *  싣고 이후 갱신 트래픽이 0이므로, 월드 전체(반지름 25,000 × 2 = 50,000cm)를 덮어 접속 후 Add 1회로
+	 *  끝내는 편이 거리 컬링에 따른 Add/Remove 반복보다 오히려 싸다.
+	 *  같은 EntityConfig의 MassCrowdVisualizationTrait → VisibleLODDistance[Off]와 맞춰서 조정할 것. */
+	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
+	float ReplicationCullDistance = 60000.0f;
+
 protected:
 	virtual void BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const override;
 

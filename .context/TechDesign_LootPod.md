@@ -155,7 +155,9 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 - **LOD 표현 확장:** `LODRepresentation`을 `[HighResActor, HighResActor, StaticMeshInstance, None]` → 마지막을 `StaticMeshInstance`로 변경해 최원거리(LOD3)에서도 빔이 보이게 함. 빛기둥은 LOD2-3(ISM)에서, 상태별 색 Niagara 기둥은 LOD0-1(Actor)에서 렌더 — **밴드가 겹치지 않아 이중 표시가 구조적으로 방지된다** (원거리 빔은 단일 색, 상태 색 전환은 근접에서만).
 - **소멸:** Pod Popped → bubble 엔티티 제거 → ISM 인스턴스 자동 제거.
 - **방안 (b) 단일 Niagara + 위치 배열은 폐기** — (a)가 기존 Low LOD ISM 인프라를 그대로 재사용해 코드 0줄로 충족.
-**검증:** PIE 1인 — 원거리 pod들에서 청록 빛기둥 다수 확인 (Actor 컬 거리 밖). **잔여:** PIE 2인 원거리 클라이언트 확인, Pop 후 빔 소멸 확인.
+- **클라이언트 가시 거리 (2026-08-05 수정):** 초기 구현은 클라이언트에서만 근접해야 빔이 보였다. 원인은 시각화가 아니라 **복제** — `FMassReplicationParameters::LODDistance[Off]` 엔진 기본값 5,000cm가 반지름 25,000cm 월드에 비해 너무 좁아 엔티티 자체가 클라에 도달하지 못했다. 서버는 로컬이라 시각화 거리(60,000)까지 다 보여 증상이 한쪽에만 나타났다. `ULNPLootPodTrait::ReplicationCullDistance`로 `VisibleLODDistance[Off]`와 짝을 맞춘다 — 상세는 `TechDesign_Networking.md` §3.5. 같은 수정으로 클라이언트 빔이 월드 Z 기준으로 누워 있던 문제(적도 부근)도 해결됐다 (`EngineAnalysis_MassReplication.md` §7.9).
+
+**검증:** PIE 1인 — 원거리 pod들에서 청록 빛기둥 다수 확인 (Actor 컬 거리 밖). PIE 2인 (2026-08-05) — 클라이언트에서도 전 영역 빛기둥 가시, 적도 포함 전 구간 기둥 자세가 구 중심을 향함, NPC 이동 서버·클라 일치 확인. **잔여:** Pop 후 빔 소멸 확인.
 
 ### 5.5 난이도 스케일링 트리거 — ⏸ 후순위 (2026-07-12)
 

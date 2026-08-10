@@ -165,6 +165,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Enemy")
 	TObjectPtr<ULNPEnemyConfig> EnemyConfig;
 
+	/** 이 거리를 넘으면 클라이언트 버블에서 제거된다(= 클라에서 사라진다).
+	 *  같은 EntityConfig의 MassCrowdVisualizationTrait → VisibleLODDistance[Off]와 같은 값으로 맞출 것 —
+	 *  더 크면 렌더링되지도 않을 NPC에 대역폭을 쓰고, 더 작으면 서버엔 보이는데 클라엔 안 보인다.
+	 *  Pod과 달리 Enemy는 매 갱신 위치/자세를 싣기 때문에 이 값이 곧 대역폭이다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Enemy")
+	float ReplicationCullDistance = 12000.0f;
+
 protected:
 	virtual void BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const override;
 

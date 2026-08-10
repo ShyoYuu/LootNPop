@@ -3,7 +3,6 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Replication/LNPMassReplication.h"
-#include "Replication/LNPMassReplicator.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 
 #include "MassEntityTemplateRegistry.h"
@@ -21,8 +20,6 @@
 ULNPEnemyTrait::ULNPEnemyTrait()
 {
 	ReplicationTrait = CreateDefaultSubobject<UMassReplicationTrait>(TEXT("ReplicationTrait"));
-	ReplicationTrait->Params.BubbleInfoClass = ALNPMassClientBubbleInfo::StaticClass();
-	ReplicationTrait->Params.ReplicatorClass = ULNPMassReplicator::StaticClass();
 }
 
 void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
@@ -56,5 +53,9 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	BuildContext.AddFragment<FMassActorFragment>();
 
 	// 5. Enemy MassReplication (Phase 6) — NM_Standalone이면 UMassReplicationTrait::BuildTemplate이 자체적으로 조기 반환한다.
+	//    Params는 DA에서 편집된 ReplicationCullDistance를 반영해야 하므로 생성자가 아니라 여기서 채운다.
+	//    Pod과 값이 다르면 FMassReplicationSharedFragment가 타입별로 분리되는데, 엔진이
+	//    ForEachSharedFragment로 순회하는 정상 구성이며 버블·리플리케이터는 여전히 하나다 (§7.1 불변식 유지).
+	LNP::Replication::ConfigureParams(ReplicationTrait->Params, ReplicationCullDistance);
 	ReplicationTrait->BuildTemplate(BuildContext, World);
 }
