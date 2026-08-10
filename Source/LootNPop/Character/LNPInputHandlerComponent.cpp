@@ -92,6 +92,40 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	// ---
 }
 
+void ULNPInputHandlerComponent::SetGameplayInputEnabled(bool bEnabled)
+{
+	APawn* Pawn = Cast<APawn>(GetOwner());
+	if (Pawn == nullptr || DefaultMappingContext == nullptr)
+		return;
+
+	APlayerController* PC = Cast<APlayerController>(Pawn->GetController());
+	if (PC == nullptr)
+		return;
+
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer());
+	if (Subsystem == nullptr)
+		return;
+
+	if (bEnabled)
+	{
+		Subsystem->AddMappingContext(DefaultMappingContext, 0);
+	}
+	else
+	{
+		Subsystem->RemoveMappingContext(DefaultMappingContext);
+
+		// 매핑을 떼면 Completed/Released 이벤트가 오지 않으므로, 눌린 채로 굳지 않도록 직접 턴다.
+		CachedMoveInputIntent = FVector::ZeroVector;
+		CachedLookInput = FRotator::ZeroRotator;
+		bIsJumpPressed = false;
+		bIsDashPressed = false;
+		bIsInteractPressed = false;
+		bIsAttackPressed = false;
+		bIsGuardPressed = false;
+		bIsLockOnPressed = false;
+	}
+}
+
 void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	APawn* Pawn = CastChecked<APawn>(GetOwner());

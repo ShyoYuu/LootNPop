@@ -254,6 +254,53 @@ ALNPLootDice* ALNPLootDice::SpawnDice(UWorld& World, const FVector& Location, UL
 	return Dice;
 }
 
+namespace
+{
+	/**
+	 * 보상 세트에서 가중 추첨으로 아이템 1종을 뽑는다 (Weight 0 이하 = 후보 제외).
+	 * @param TotalWeight  미리 구해 둔 유효 후보 가중치 합. 0 이하면 nullptr을 돌려준다.
+	 */
+	ULNPItemDefinitionBase* PickWeightedReward(const FLNPLootDiceRewardSet& RewardSet, float TotalWeight)
+	{
+		if (TotalWeight <= 0.0f)
+		{
+			return nullptr;
+		}
+
+		float Roll = FMath::FRandRange(0.0f, TotalWeight);
+		ULNPItemDefinitionBase* Picked = nullptr;
+		for (const FLNPLootDiceRewardEntry& Entry : RewardSet.Entries)
+		{
+			if (Entry.Item == nullptr || Entry.Weight <= 0.0f)
+			{
+				continue;
+			}
+			Roll -= Entry.Weight;
+			// 마지막 후보는 부동소수 오차로 Roll이 미세하게 남아도 반드시 뽑히도록 Picked 폴백을 남긴다
+			Picked = Entry.Item;
+			if (Roll <= 0.0f)
+			{
+				break;
+			}
+		}
+		return Picked;
+	}
+
+	/** 유효 후보(Item 유효 + Weight > 0)의 가중치 합. */
+	float SumRewardWeights(const FLNPLootDiceRewardSet& RewardSet)
+	{
+		float TotalWeight = 0.0f;
+		for (const FLNPLootDiceRewardEntry& Entry : RewardSet.Entries)
+		{
+			if (Entry.Item != nullptr && Entry.Weight > 0.0f)
+			{
+				TotalWeight += Entry.Weight;
+			}
+		}
+		return TotalWeight;
+	}
+}
+
 void ALNPLootDice::SpawnPodRewards(UWorld& World, int32 PodID, const FVector& PodLocation)
 {
 	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
@@ -271,14 +318,7 @@ void ALNPLootDice::SpawnPodRewards(UWorld& World, int32 PodID, const FVector& Po
 	}
 
 	// 후보 풀에서 유효 항목만 추려 총 가중치를 구한다 (Weight 0 이하 = 후보 제외)
-	float TotalWeight = 0.0f;
-	for (const FLNPLootDiceRewardEntry& Entry : RewardSet->Entries)
-	{
-		if (Entry.Item != nullptr && Entry.Weight > 0.0f)
-		{
-			TotalWeight += Entry.Weight;
-		}
-	}
+	const float TotalWeight = SumRewardWeights(*RewardSet);
 	if (TotalWeight <= 0.0f)
 	{
 		UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] PodID %d has no reward candidates (DefaultRewards included)"), PodID);
@@ -303,23 +343,7 @@ void ALNPLootDice::SpawnPodRewards(UWorld& World, int32 PodID, const FVector& Po
 	int32 NumSpawned = 0;
 	for (int32 DropIndex = 0; DropIndex < NumDrops; ++DropIndex)
 	{
-		float Roll = FMath::FRandRange(0.0f, TotalWeight);
-		ULNPItemDefinitionBase* Picked = nullptr;
-		for (const FLNPLootDiceRewardEntry& Entry : RewardSet->Entries)
-		{
-			if (Entry.Item == nullptr || Entry.Weight <= 0.0f)
-			{
-				continue;
-			}
-			Roll -= Entry.Weight;
-			// 마지막 후보는 부동소수 오차로 Roll이 미세하게 남아도 반드시 뽑히도록 Picked 폴백을 남긴다
-			Picked = Entry.Item;
-			if (Roll <= 0.0f)
-			{
-				break;
-			}
-		}
-
+		ULNPItemDefinitionBase* Picked = PickWeightedReward(*RewardSet, TotalWeight);
 		if (Picked != nullptr && SpawnDice(World, SpawnLocation, Picked, 0.0f) != nullptr)
 		{
 			++NumSpawned;
@@ -330,10 +354,14 @@ void ALNPLootDice::SpawnPodRewards(UWorld& World, int32 PodID, const FVector& Po
 
 namespace
 {
-	/** 디버그 스폰: LNP.Debug.SpawnLootDice [개수=1] [ItemDef 에셋 경로] — 로컬 폰 전방에 스폰 (서버 월드 전용) */
+	/**
+	 * 디버그 스폰: LNP.Debug.SpawnLootDice [개수=1] [ItemDef 에셋 경로] — 로컬 폰 전방에 스폰 (서버 월드 전용).
+	 * 에셋 경로를 생략하면 LNPSettings.LootDiceRewardTable의 DefaultRewards에서 **Dice마다 개별 가중 추첨**한다
+	 * (예전에는 페이로드 없는 더미가 나와 획득해도 인벤토리에 안 들어갔다).
+	 */
 	FAutoConsoleCommandWithWorldAndArgs GLNPDebugSpawnLootDice(
 		TEXT("LNP.Debug.SpawnLootDice"),
-		TEXT("Spawn LootDice in front of the local pawn (server world only). Args: [count=1] [ItemDef asset path]"),
+		TEXT("Spawn LootDice in front of the local pawn (server world only). Args: [count=1] [ItemDef asset path]. Without a path, items are drawn at random from LNPSettings.LootDiceRewardTable DefaultRewards."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (World == nullptr || World->GetNetMode() == NM_Client)
@@ -352,13 +380,35 @@ namespace
 
 			const int32 Count = (Args.Num() > 0) ? FMath::Clamp(FCString::Atoi(*Args[0]), 1, 32) : 1;
 
-			ULNPItemDefinitionBase* Item = nullptr;
+			// 경로를 명시하면 그 아이템만 고정으로 스폰한다.
+			ULNPItemDefinitionBase* FixedItem = nullptr;
 			if (Args.Num() > 1)
 			{
-				Item = LoadObject<ULNPItemDefinitionBase>(nullptr, *Args[1]);
-				if (Item == nullptr)
+				FixedItem = LoadObject<ULNPItemDefinitionBase>(nullptr, *Args[1]);
+				if (FixedItem == nullptr)
 				{
 					UE_LOG(LogLootNPop, Warning, TEXT("[LootDice] Failed to load ItemDef: %s — spawning without a payload"), *Args[1]);
+				}
+			}
+
+			// 경로 생략 시엔 실제 보상 테이블에서 뽑는다 — 페이로드 없는 더미는 획득해도 인벤토리에 들어가지 않으므로.
+			const FLNPLootDiceRewardSet* RewardSet = nullptr;
+			float TotalWeight = 0.0f;
+			if (FixedItem == nullptr && Args.Num() <= 1)
+			{
+				const ULNPSettings* Settings = GetDefault<ULNPSettings>();
+				const ULNPLootDiceRewardTable* Table = (Settings != nullptr) ? Settings->LootDiceRewardTable.LoadSynchronous() : nullptr;
+				if (Table != nullptr)
+				{
+					RewardSet = &Table->DefaultRewards;
+					TotalWeight = SumRewardWeights(*RewardSet);
+				}
+
+				if (TotalWeight <= 0.0f)
+				{
+					RewardSet = nullptr;
+					UE_LOG(LogLootNPop, Warning,
+						TEXT("[LootDice] LNPSettings.LootDiceRewardTable DefaultRewards has no valid candidates — spawning empty Dice"));
 				}
 			}
 
@@ -368,6 +418,11 @@ namespace
 
 			for (int32 i = 0; i < Count; ++i)
 			{
+				// Dice마다 따로 뽑아 여러 종류가 섞이게 한다 (인벤토리 UI 검증에 유리).
+				ULNPItemDefinitionBase* Item = (RewardSet != nullptr)
+					? PickWeightedReward(*RewardSet, TotalWeight)
+					: FixedItem;
+
 				ALNPLootDice::SpawnDice(*World, Location, Item, 0.0f);
 			}
 		}),

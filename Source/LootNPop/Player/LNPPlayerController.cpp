@@ -2,8 +2,9 @@
 
 #include "Player/LNPPlayerController.h"
 #include "UI/LNPHudWidget.h"
-#include "UI/LNPInventoryWidget.h"
-#include "Item/LNPInventoryComponent.h"
+#include "UI/Menu/LNPMenuRootWidget.h"
+#include "UI/Menu/LNPUILayoutWidget.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameMode/LNPGameMode.h"
 #include "GameMode/LNPGameState.h"
@@ -12,7 +13,28 @@
 
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Framework/Application/NavigationConfig.h"
+#include "Framework/Application/SlateApplication.h"
 #include "HAL/IConsoleManager.h"
+
+namespace
+{
+	/**
+	 * 메뉴 전용 Slate 네비게이션 — 엔진 기본(화살표·D-Pad·좌스틱, Enter/Space=Accept, Esc=Back) 위에
+	 * WASD를 얹기만 한다. 기본 생성자가 표준 규칙을 모두 깔아 주므로 추가분만 Emplace한다.
+	 */
+	class FLNPMenuNavigationConfig : public FNavigationConfig
+	{
+	public:
+		FLNPMenuNavigationConfig()
+		{
+			KeyEventRules.Emplace(EKeys::W, EUINavigation::Up);
+			KeyEventRules.Emplace(EKeys::A, EUINavigation::Left);
+			KeyEventRules.Emplace(EKeys::S, EUINavigation::Down);
+			KeyEventRules.Emplace(EKeys::D, EUINavigation::Right);
+		}
+	};
+}
 
 bool ALNPPlayerController::IsLoadingComplete() const
 {
@@ -36,7 +58,6 @@ void ALNPPlayerController::OnPossess(APawn* InPawn)
 		if (HudWidget)
 			HudWidget->InitViewModel(PS->GetAbilitySystemComponent());
 	}
-	InitInventoryViewModel();
 }
 
 void ALNPPlayerController::AcknowledgePossession(APawn* P)
@@ -48,29 +69,14 @@ void ALNPPlayerController::AcknowledgePossession(APawn* P)
 		if (HudWidget)
 			HudWidget->InitViewModel(PS->GetAbilitySystemComponent());
 	}
-	InitInventoryViewModel();
 }
 
 void ALNPPlayerController::OnUnPossess()
 {
 	if (HudWidget)
 		HudWidget->DeinitViewModel();
-	if (InventoryWidget)
-		InventoryWidget->DeinitViewModel();
 
 	Super::OnUnPossess();
-}
-
-void ALNPPlayerController::InitInventoryViewModel()
-{
-	if (!InventoryWidget)
-		return;
-
-	if (const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
-	{
-		if (ULNPInventoryComponent* Inventory = PS->GetInventoryComponent())
-			InventoryWidget->InitViewModel(Inventory, PS->GetAbilitySystemComponent());
-	}
 }
 
 void ALNPPlayerController::BeginPlay()
@@ -96,14 +102,14 @@ void ALNPPlayerController::BeginPlay()
 			HudWidget->AddToViewport();
 	}
 
-	// 인벤토리 패널은 뷰포트에 올려두되 기본 숨김 — ToggleInventory로 표시/숨김.
-	if (InventoryWidgetClass)
+	// UI 레이아웃은 뷰포트에 상주한다 — 메뉴는 이 안의 스택에 push/pop된다.
+	if (UILayoutWidgetClass)
 	{
-		InventoryWidget = CreateWidget<ULNPInventoryWidget>(this, InventoryWidgetClass);
-		if (InventoryWidget)
+		UILayoutWidget = CreateWidget<ULNPUILayoutWidget>(this, UILayoutWidgetClass);
+		if (UILayoutWidget)
 		{
-			InventoryWidget->AddToViewport(10);
-			InventoryWidget->SetVisibility(ESlateVisibility::Collapsed);
+			UILayoutWidget->AddToViewport(10);
+			UILayoutWidget->OnMenuClosed.AddUObject(this, &ALNPPlayerController::HandleMenuClosed);
 		}
 	}
 
@@ -143,49 +149,157 @@ void ALNPPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// 인벤토리 토글은 UI 관심사이므로 폰 Enhanced Input(DefaultMappingContext)과 분리된
-	// 컨트롤러 상시 매핑 컨텍스트(PlayerMappingContext)로 처리한다 — UI 입력 수명이 빙의와 무관하게 유지된다.
+	// 메뉴 열기는 UI 관심사이므로 폰 Enhanced Input(DefaultMappingContext)과 분리된
+	// 컨트롤러 상시 매핑 컨텍스트(PlayerMappingContext)로 처리한다 — 메뉴가 폰 입력을 꺼도 살아 있어야 한다.
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
 	{
-		if (ToggleInventoryAction)
-			EIC->BindAction(ToggleInventoryAction, ETriggerEvent::Started, this, &ALNPPlayerController::ToggleInventory);
+		if (OpenMenuAction)
+			EIC->BindAction(OpenMenuAction, ETriggerEvent::Started, this, &ALNPPlayerController::HandleOpenMenuInput);
+		if (OpenSettingsAction)
+			EIC->BindAction(OpenSettingsAction, ETriggerEvent::Started, this, &ALNPPlayerController::HandleOpenSettingsInput);
 	}
 }
 
-void ALNPPlayerController::ToggleInventory()
+void ALNPPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (!IsLocalController() || InventoryWidget == nullptr)
+	// ⚠️ 네비게이션 설정은 FSlateApplication 전역이라, 메뉴를 연 채 PIE를 끝내면
+	// WASD 네비게이션이 에디터에 그대로 남는다. 반드시 원복하고 나간다.
+	SetMenuNavigationEnabled(false);
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void ALNPPlayerController::HandleOpenMenuInput()
+{
+	// 같은 키로 열고 닫는다. 메뉴 활성 중에도 이 액션이 살아 있도록
+	// ULNPMenuRootWidget::GetDesiredInputConfig가 ECommonInputMode::All을 돌려준다.
+	if (UILayoutWidget && UILayoutWidget->IsMenuOpen())
+	{
+		CloseMenu();
+		return;
+	}
+
+	OpenMenu(NAME_None);
+}
+
+void ALNPPlayerController::HandleOpenSettingsInput()
+{
+	if (UILayoutWidget && UILayoutWidget->IsMenuOpen())
+	{
+		CloseMenu();
+		return;
+	}
+
+	OpenMenu(ULNPMenuRootWidget::TabId_Settings());
+}
+
+void ALNPPlayerController::OpenMenu(FName TabId)
+{
+	if (!IsLocalController() || UILayoutWidget == nullptr || MenuWidgetClass == nullptr)
 		return;
 
-	bInventoryOpen = !bInventoryOpen;
-	InventoryWidget->SetVisibility(bInventoryOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	// None이면 마지막으로 보던 탭 — 첫 진입이면 캐릭터 스탯 (기획 §2).
+	if (TabId.IsNone())
+		TabId = LastViewedTabId.IsNone() ? ULNPMenuRootWidget::TabId_Stats() : LastViewedTabId;
 
-	if (bInventoryOpen)
+	const bool bWasOpen = UILayoutWidget->IsMenuOpen();
+	if (UILayoutWidget->OpenMenu(MenuWidgetClass, TabId) == nullptr)
+		return;
+
+	if (bWasOpen)
+		return;   // 이미 열려 있었으면 탭만 바뀐 것 — 입력·일시정지 상태는 그대로 둔다.
+
+	SetPawnGameplayInputEnabled(false);
+	SetMenuNavigationEnabled(true);
+
+	FInputModeGameAndUI Mode;
+	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	// 포커스 대상은 지정하지 않는다 — CommonUI의 활성화/GetDesiredFocusTarget이 관리한다.
+	SetInputMode(Mode);
+	bShowMouseCursor = true;
+
+	// 일시정지는 스탠드얼론에서만. 멀티에서는 월드를 멈출 수 없다 (기획 §2).
+	if (GetNetMode() == NM_Standalone)
+		SetPause(true);
+}
+
+void ALNPPlayerController::CloseMenu()
+{
+	if (UILayoutWidget)
+		UILayoutWidget->CloseMenu();   // 뒷정리는 HandleMenuClosed가 한다.
+}
+
+void ALNPPlayerController::HandleMenuClosed()
+{
+	// 다음 진입에 쓸 탭을 기억해 둔다 (환경설정은 루트가 걸러 준다).
+	if (const ULNPMenuRootWidget* Menu = UILayoutWidget ? UILayoutWidget->GetMenu() : nullptr)
+		LastViewedTabId = Menu->GetRememberableTabId();
+
+	if (GetNetMode() == NM_Standalone)
+		SetPause(false);
+
+	SetInputMode(FInputModeGameOnly());
+	bShowMouseCursor = false;
+
+	SetMenuNavigationEnabled(false);
+	SetPawnGameplayInputEnabled(true);
+}
+
+void ALNPPlayerController::SetPawnGameplayInputEnabled(bool bEnabled)
+{
+	if (APawn* ControlledPawn = GetPawn())
 	{
-		FInputModeGameAndUI Mode;
-		Mode.SetWidgetToFocus(InventoryWidget->TakeWidget());
-		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-		SetInputMode(Mode);
-		bShowMouseCursor = true;
+		if (ULNPInputHandlerComponent* InputHandler = ControlledPawn->FindComponentByClass<ULNPInputHandlerComponent>())
+			InputHandler->SetGameplayInputEnabled(bEnabled);
 	}
-	else
+}
+
+void ALNPPlayerController::SetMenuNavigationEnabled(bool bEnabled)
+{
+	if (!FSlateApplication::IsInitialized())
+		return;
+
+	FSlateApplication& SlateApp = FSlateApplication::Get();
+
+	if (bEnabled)
 	{
-		SetInputMode(FInputModeGameOnly());
-		bShowMouseCursor = false;
+		// 중복 진입 방지 — 이미 걸려 있으면 원본을 덮어써 잃어버리지 않는다.
+		if (PreviousNavigationConfig.IsValid())
+			return;
+
+		PreviousNavigationConfig = SlateApp.GetNavigationConfig();
+		SlateApp.SetNavigationConfig(MakeShared<FLNPMenuNavigationConfig>());
+	}
+	else if (PreviousNavigationConfig.IsValid())
+	{
+		SlateApp.SetNavigationConfig(PreviousNavigationConfig.ToSharedRef());
+		PreviousNavigationConfig.Reset();
 	}
 }
 
 namespace
 {
-	/** 디버그: LNP.Debug.ToggleInventory — 키 바인딩 없이도 인벤토리 패널을 토글 (검증용) */
-	FAutoConsoleCommandWithWorld GLNPDebugToggleInventory(
-		TEXT("LNP.Debug.ToggleInventory"),
-		TEXT("Toggle the inventory panel for the first local player controller."),
+	/** 디버그: LNP.Debug.OpenMenu [TabId] — 키 바인딩 없이 인게임 메뉴를 연다 (검증용) */
+	FAutoConsoleCommandWithWorldAndArgs GLNPDebugOpenMenu(
+		TEXT("LNP.Debug.OpenMenu"),
+		TEXT("Open the in-game menu for the first local player controller. Optional arg: Stats | Inventory | Settings."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (World == nullptr)
+				return;
+			if (ALNPPlayerController* PC = Cast<ALNPPlayerController>(World->GetFirstPlayerController()))
+				PC->OpenMenu(Args.Num() > 0 ? FName(*Args[0]) : NAME_None);
+		}));
+
+	/** 디버그: LNP.Debug.CloseMenu — 인게임 메뉴를 닫는다 (검증용) */
+	FAutoConsoleCommandWithWorld GLNPDebugCloseMenu(
+		TEXT("LNP.Debug.CloseMenu"),
+		TEXT("Close the in-game menu for the first local player controller."),
 		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
 		{
 			if (World == nullptr)
 				return;
 			if (ALNPPlayerController* PC = Cast<ALNPPlayerController>(World->GetFirstPlayerController()))
-				PC->ToggleInventory();
+				PC->CloseMenu();
 		}));
 }
