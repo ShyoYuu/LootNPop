@@ -448,5 +448,5 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 		}
 	}
 	
-	UE_LOG(LogLootNPop, Verbose, TEXT("LNPMassSpawnSubsystem: Initialized %d spawned entities."), NumToProcess);
+	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: Initialized %d spawned entities."), NumToProcess);
 }

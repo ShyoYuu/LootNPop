@@ -8,6 +8,9 @@
 #include "Player/LNPPlayerState.h"
 
 #include "CommonTileView.h"
+#include "ICommonInputModule.h"
+
+#define LOCTEXT_NAMESPACE "LNPMenu"
 
 void ULNPInventoryTabWidget::NativeOnInitialized()
 {
@@ -22,8 +25,6 @@ void ULNPInventoryTabWidget::NativeOnInitialized()
 
 void ULNPInventoryTabWidget::NativeOnActivated()
 {
-	Super::NativeOnActivated();
-
 	// 탭에 들어올 때는 항상 Grid 포커스에서 시작한다.
 	bDetailFocused = false;
 
@@ -34,7 +35,16 @@ void ULNPInventoryTabWidget::NativeOnActivated()
 			Inventory->OnInventoryChanged.AddDynamic(this, &ULNPInventoryTabWidget::RefreshGrid);
 	}
 
+	// ⚠️ Grid 채우기는 반드시 Super::NativeOnActivated()보다 **먼저** 한다.
+	// CommonUI는 활성화 과정에서 GetDesiredFocusTarget()(= ItemGrid)에 포커스를 주는데,
+	// SCommonListView::OnFocusReceived는 **항목이 이미 있을 때만** 포커스를 셀로 넘겨준다
+	// (CommonListView.h:27 — `GetItems().Num() > 0`, 선택이 없으면 0번을 스스로 고른다).
+	// 순서가 뒤바뀌면 그 순간 목록이 비어 있어 포커스가 TileView 컨테이너에 머물고,
+	// 포커스 링이 첫 셀이 아니라 **그리드 전체**를 감싼다.
+	// 재오픈 때는 풀링된 위젯에 이전 목록이 남아 있어 증상이 안 보이므로 첫 오픈에서만 드러난다.
 	RefreshGrid();
+
+	Super::NativeOnActivated();
 }
 
 void ULNPInventoryTabWidget::NativeOnDeactivated()
@@ -57,6 +67,8 @@ void ULNPInventoryTabWidget::RefreshGrid()
 		ItemGrid->ClearListItems();
 		if (DetailPanel)
 			DetailPanel->SetItem(nullptr);
+
+		OnMenuHintsChanged.Broadcast();
 		return;
 	}
 
@@ -91,6 +103,10 @@ void ULNPInventoryTabWidget::RefreshGrid()
 	// NativeOnListItemObjectSet을 다시 호출하지 않는다 → 장착 배지("E")가 갱신되지 않는다.
 	// 엔진도 이 경우 RegenerateAllEntries를 권한다 (ListViewBase.h의 RequestRefresh 주석).
 	ItemGrid->RegenerateAllEntries();
+
+	// Grid가 비었는지에 따라 힌트 구성이 달라지므로(GetMenuHints) 목록이 바뀌면 다시 만든다.
+	// 포커스 링은 TAttribute라 알아서 재평가되지만, 힌트는 밀어 넣는 방식이라 여기서 알려야 한다.
+	OnMenuHintsChanged.Broadcast();
 }
 
 void ULNPInventoryTabWidget::HandleGridSelectionChanged(UObject* SelectedItem)
@@ -119,23 +135,61 @@ void ULNPInventoryTabWidget::HandleCellActivated(ULNPInventoryItemInstance* Inst
 
 void ULNPInventoryTabWidget::FocusDetailPanel()
 {
-	if (DetailPanel == nullptr)
-		return;
-
-	UWidget* Target = DetailPanel->GetFirstFocusTarget();
-	if (Target == nullptr)
+	if (DetailPanel == nullptr || DetailPanel->GetFirstFocusTarget() == nullptr)
 		return;   // 누를 수 있는 버튼이 없으면 Grid 포커스를 유지한다.
 
+	// 포커스 링은 SLNPFocusRingScope가 챙긴다 (LNPMenuRootWidget.cpp 주석 참조) —
+	// SetFocus()가 쓰는 EFocusCause::SetDirectly만으로는 Slate가 링을 그리지 않기 때문이다.
 	bDetailFocused = true;
-	Target->SetFocus();
+	DetailPanel->GetFirstFocusTarget()->SetFocus();
+	OnMenuHintsChanged.Broadcast();
 }
 
 void ULNPInventoryTabWidget::FocusGrid()
 {
 	bDetailFocused = false;
+	OnMenuHintsChanged.Broadcast();
 
 	if (ItemGrid)
 		ItemGrid->SetFocus();
+}
+
+void ULNPInventoryTabWidget::GetMenuHints(TArray<FLNPMenuHint>& OutHints) const
+{
+	// 빈 Grid에서는 아래 두 힌트 모두 가리킬 대상이 없다 — ✕를 눌러도, 방향키를 눌러도 아무 일이 없다.
+	// 탭 이동과 닫기 힌트는 루트가 공통으로 얹으므로 여기서 빠져도 조작 안내가 끊기지 않는다.
+	if (!HasGridItems())
+		return;
+
+	FLNPMenuHint ClickHint;
+	ClickHint.ActionRows = { ICommonInputModule::GetSettings().GetDefaultClickAction() };
+	ClickHint.Label = bDetailFocused ? LOCTEXT("HintConfirm", "Confirm") : LOCTEXT("HintDetails", "Details");
+	OutHints.Add(MoveTemp(ClickHint));
+
+	// 방향 이동은 CommonUI 액션이 아니라 Slate 네비게이션이라 액션 행이 없다 — 고정 글리프를 쓴다.
+	FLNPMenuHint MoveHint;
+	MoveHint.FixedKeyboardGlyph = FText::FromString(TEXT("WASD"));
+	MoveHint.FixedGamepadGlyph = FText::FromString(TEXT("L3"));
+	MoveHint.Label = LOCTEXT("HintMove", "Move");
+	OutHints.Add(MoveTemp(MoveHint));
+}
+
+bool ULNPInventoryTabWidget::HasGridItems() const
+{
+	return ItemGrid != nullptr && ItemGrid->GetNumItems() > 0;
+}
+
+bool ULNPInventoryTabWidget::ShouldForceFocusRing() const
+{
+	// 빈 Grid에서는 SCommonListView가 포커스를 셀로 넘겨줄 수 없어(넘길 셀이 없다)
+	// 포커스가 TileView 컨테이너에 머문다. 그 상태로 링을 강제하면 그리드 전체가 파랗게 둘러싸인다.
+	return HasGridItems();
+}
+
+FText ULNPInventoryTabWidget::GetMenuBackHintLabel() const
+{
+	// 디테일 포커스에서 ○는 메뉴를 닫지 않고 Grid로 돌아간다 (기획 §6-2).
+	return bDetailFocused ? LOCTEXT("HintBackToGrid", "Back") : Super::GetMenuBackHintLabel();
 }
 
 bool ULNPInventoryTabWidget::HandleMenuBack()
@@ -159,3 +213,5 @@ UWidget* ULNPInventoryTabWidget::NativeGetDesiredFocusTarget() const
 
 	return ItemGrid;
 }
+
+#undef LOCTEXT_NAMESPACE

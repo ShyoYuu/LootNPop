@@ -25,6 +25,14 @@ class LOOTNPOP_API ULNPMenuTabListWidget : public UCommonTabListWidgetBase
 {
 	GENERATED_UCLASS_BODY()
 
+public:
+	/**
+	 * 탭 이동 액션 행. 하단 힌트 바가 "L1/R1" 글리프를 뽑는 데 쓴다.
+	 * 베이스의 해당 멤버가 protected라 여기서 열어 준다.
+	 */
+	const FDataTableRowHandle& GetPreviousTabActionRow() const { return PreviousTabInputActionData; }
+	const FDataTableRowHandle& GetNextTabActionRow() const { return NextTabInputActionData; }
+
 protected:
 	virtual void NativeOnInitialized() override;
 

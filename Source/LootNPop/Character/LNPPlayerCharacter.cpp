@@ -93,7 +93,7 @@ void ALNPPlayerCharacter::PushLootSpeedToEntity(float NewLootSpeed)
 	if (!PlayerEntity.IsValid())
 	{
 		// 퍼펫 핸드셰이크 전이면 스킵 — 이후 상호작용 시점 캐싱(StartLootingOnServer)이 커버한다
-		UE_LOG(LogLootNPop, Verbose, TEXT("[LootPod] %s LootSpeed sync skipped — entity handle not ready"), *GetName());
+		UE_LOG(LogLootNPop, Log, TEXT("[LootPod] %s LootSpeed sync skipped — entity handle not ready"), *GetName());
 		return;
 	}
 

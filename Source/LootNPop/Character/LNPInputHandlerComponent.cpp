@@ -154,6 +154,8 @@ void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* Playe
 		EIC->BindAction(AttackAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnAttackReleased);
 		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnGuardStarted);
 		EIC->BindAction(GuardAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnGuardReleased);
+		EIC->BindAction(ADSAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnADSStarted);
+		EIC->BindAction(ADSAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnADSReleased);
 		EIC->BindAction(LockOnAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnLockOnStarted);
 		EIC->BindAction(LockOnAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnLockOnReleased);
 
@@ -350,9 +352,8 @@ void ULNPInputHandlerComponent::OnLookCompleted(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnJumpStarted(const FInputActionValue& Value)
 {
-	// Guard 테스트를 위해 잠시 주석
-	//bIsJumpJustPressed = !bIsJumpPressed;
-	//bIsJumpPressed = true;
+	bIsJumpJustPressed = !bIsJumpPressed;
+	bIsJumpPressed = true;
 }
 
 void ULNPInputHandlerComponent::OnJumpReleased(const FInputActionValue& Value)
@@ -431,10 +432,12 @@ void ULNPInputHandlerComponent::OnAttackReleased(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 {
+	// ToDo : FreeAim 모드가 아닐때만 Guard 입력이 동작하도록 수정하자. (ADS Input과 동일 키 맵핑)
+
 	bIsGuardJustPressed = !bIsGuardPressed;
 	bIsGuardPressed = true;
 
-	UE_LOG(LogLootNPop, Verbose, TEXT("[Guard] OnGuardStarted [%s]"), *GetNameSafe(GetOwner()));
+	UE_LOG(LogLootNPop, Log, TEXT("[Guard] OnGuardStarted [%s]"), *GetNameSafe(GetOwner()));
 
 	// Guard 의도는 OnProduceInput에서 매 틱 InputCmd로 전달되므로 여기서 별도로 MoverComponent에 쓸 필요 없다.
 
@@ -473,7 +476,7 @@ void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
 	bIsGuardPressed = false;
 	bIsGuardJustPressed = false;
 
-	UE_LOG(LogLootNPop, Verbose, TEXT("[Guard] OnGuardReleased [%s]"), *GetNameSafe(GetOwner()));
+	UE_LOG(LogLootNPop, Log, TEXT("[Guard] OnGuardReleased [%s]"), *GetNameSafe(GetOwner()));
 
 	// Guard 의도는 OnProduceInput에서 매 틱 InputCmd로 전달되므로 여기서 별도로 MoverComponent에 쓸 필요 없다.
 
@@ -532,6 +535,20 @@ void ULNPInputHandlerComponent::Server_SetGuardState_Implementation(bool bGuardi
 		PF->ParryWindowExpiryTime = -1.0;
 		GetWorld()->GetTimerManager().ClearTimer(ServerParryWindowTimer);
 	}
+}
+
+void ULNPInputHandlerComponent::OnADSStarted(const FInputActionValue& Value)
+{
+	// ToDo : FreeAim 모드일때만 ADS Input이 동작하도록 수정하자. (Guard Input과 동일 키 맵핑)
+
+	bIsADSJustPressed = !bIsADSPressed;
+	bIsADSPressed = true;
+}
+
+void ULNPInputHandlerComponent::OnADSReleased(const FInputActionValue& Value)
+{
+	bIsADSPressed = false;
+	bIsADSJustPressed = false;
 }
 
 void ULNPInputHandlerComponent::OnLockOnStarted(const FInputActionValue& Value)

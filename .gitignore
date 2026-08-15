@@ -22,3 +22,9 @@ Standalone_RunListenServer.lnk
 .claude/
 .agents/
 .mcp.json
+
+# 로컬라이제이션 — GatherText 산출물은 제외하고 번역 원본(.archive)만 추적한다.
+# .manifest = 수집 결과, .locmeta/.locres = 런타임용 컴파일 산출물. 전부 재생성 가능.
+Content/Localization/**/*.manifest
+Content/Localization/**/*.locmeta
+Content/Localization/**/*.locres

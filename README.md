@@ -35,7 +35,7 @@
 - **Gameplay Camera**: 플레이어 카메라를 Gameplay Camera로 적용
 - **PCG (Procedural Content Generation)**: 배경 프랍 배치
 - **Geometry Script (Dynamic Mesh Component)**: 지형용 Static Mesh 생성
-- **MVVM Plugin**: 플레이어 HUD UI
+- **CommonUI + MVVM Plugin**: 게임패드 우선 인게임 메뉴(탭 전환·Back 전파·입력 방식 자동 전환), 플레이어 HUD UI
 
 ---
 

@@ -31,8 +31,9 @@
 - [x] **PCG 기반 구체 지형 생성** (`UPCGSphereWorldSettings`)
     - Spherified Octant 투영 + 3D Perlin Noise 변조 + 경사면 정렬 구현.
     - 결과물은 HISM으로 Bake하여 런타임 계산 제거.
-- [x] **SmartObject 기반 상호작용 인프라** (`ALNPLootPod`)
-    - `SmartObjectComponent` + `UMassAgentComponent` 구성. Niagara VFX 연동.
+- [x] **인터랙터블 레지스트리 기반 상호작용 인프라** (`ULNPInteractableRegistrySubsystem`, `ULNPInteractionComponent`)
+    - 살아 있는 인터랙터블(Pod·Dice) 레지스트리를 컴포넌트가 순회. `UMassAgentComponent` + Niagara VFX 연동.
+    - SmartObject 공간 쿼리는 Mass Representation의 액터 풀링(재사용·텔레포트)과 충돌해 폐기 (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03). `ALNPLootPod`의 `SmartObjectComponent`는 미사용 잔존.
 - [x] **LootPod 랜덤 스폰 로직**
     - Mass Spawner와 연동한 LootPod 위치 결정 및 동적 스폰.
 
@@ -41,7 +42,34 @@
 ## Phase 3: Gameplay (전투 및 상호작용)
 
 - [x] **MassEntity 기반 루팅 시스템** (`ULNPLootingProcessor`, `ULNPIdleToLootingProcessor`)
-    - 상태 전환(Idle ↔ Looting ↔ Popped), 게이지 누적, 거리 체크 완료.
+    - 상태 전환(Idle ↔ Looting → Popped), 게이지 누적, 거리 체크 완료.
+    - 루팅 존(500cm) 내 **모든 플레이어의 루팅 속도 합산** — 협동 시 가속. 상호작용 반경(150cm)과 분리.
+    - 전원 이탈 시 게이지 감쇠(존 활성 유지, 복귀만으로 재개), 0 도달 시에만 완전 취소.
+    - 게이지 완료 → `Popped` → `ALNPLootDice::SpawnPodRewards` 보상 스폰 + 엔티티 파괴.
+    - 설계 명세: [TechDesign_LootPod.md](TechDesign_LootPod.md)
+- [x] **LootDice 보상 픽업** (`ALNPLootDice`, `ULNPLootDiceRewardTable`)
+    - Mass가 아닌 **순수 Actor** — 서버 권위 Chaos 물리 + Iris `ReplicatedMovement`(각속도 포함). Pod Pop 임펄스·고속 회전.
+    - 가중 추첨 리워드 테이블(`DA_LootDiceRewardTable`), 획득 시 Server RPC → 인벤토리 편입, 60초 타이머 소멸.
+    - PIE 1인 검증 완료. **잔여:** 2인 복제(정지 윗면 일치·슬립 트래픽), 구형 월드 중력, 드랍/양도 검증.
+    - 설계 명세: [TechDesign_LootDice.md](TechDesign_LootDice.md)
+- [x] **인벤토리 아이템 인스턴스 모델** (`ULNPInventoryItemInstance`, `ULNPInventoryComponent`)
+    - 공유 DataAsset 포인터 → **UObject 인스턴스 + `FGuid ItemId` 정체성**으로 전환. 장착본/보관본 오검출 버그 해소.
+    - FastArray 델타 복제 + 등록 서브오브젝트(`COND_OwnerOnly`), Iris 2인 PIE 검증 완료.
+    - 스탯은 `FLNPGameplayTagStackContainer`(Lyra 포팅). 버프는 서버 권위 카운트다운 + 클라 로컬 표시, 드랍/재획득 잔여시간 라운드트립.
+    - **잔여:** 스탯 롤링(`StatTags` 그릇만 완성), 스태킹/수량, 정렬·필터.
+    - 설계 명세: [TechDesign_Inventory.md](TechDesign_Inventory.md)
+- [x] **CommonUI 인게임 메뉴** (`ULNPMenuRootWidget` 외 UI/Menu 13종)
+    - 3탭(캐릭터 스탯 / 인벤토리 / 환경설정). `UCommonActivatableWidgetStack`(열기·닫기) + `UCommonActivatableWidgetSwitcher`(탭 전환) 조합.
+    - 게임패드 우선 조작 — L1/R1 탭 이동, ✕ 선택, ○ Back. 루트 하나만 Back 핸들러로 두고 활성 탭에 위임(`디테일 → Grid → 닫기`).
+    - 스탯 탭: `ULNPStatsViewModel`이 GAS 어그리게이터 식대로 합/곱 분해 → `URichTextBlock` 인라인 마크업(MVVM 필드 1개).
+    - 인벤토리 탭: `CommonTileView` Grid + 디테일 패널, Equip/Drop. 메뉴 중 폰 입력 매핑 컨텍스트 제거, 스탠드얼론에서만 일시정지.
+    - 하단 힌트 바(`ULNPMenuHintBarWidget`): 탭이 자기 힌트를 선언하고 루트가 Back·탭 이동을 얹는다.
+      입력 타입에 따라 키 심볼이 자동 전환(`LNPInputGlyph`, 텍스트 심볼). 상호작용 프롬프트도 같은 해석기를 쓴다.
+      ⚠️ `UCommonBoundActionBar`는 ✕·방향 이동을 표현할 수 없어 폐기(사유는 TechDesign §3.3).
+    - 다국어 기반: `Config/Localization/Game.ini` 타깃(en 원본, en/ko 생성).
+    - 구 `ULNPInventoryWidget`·`ULNPInventoryEntryWidget` 및 관련 WBP 폐기.
+    - **잔여:** 힌트 바·프롬프트의 게임패드 실기기 확인, 환경설정 탭 내용, 2인 PIE 일시정지 미적용 확인.
+    - 설계 명세: [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md)
 - [x] **GAS 기반 전투 시스템**
     - ASC/AttributeSet (`ALNPPlayerState`), `ULNPEquipmentComponent`, `ULNPInventoryComponent`.
     - 어빌리티 계층: `ULNPGameplayAbility` → `ULNPAbility_BasicAttack` → `ULNPAbility_RangedAttack` / `ULNPAbility_MeleeAttack`.
@@ -131,6 +159,9 @@
     - [x] Phase 6.5: Player MassReplication — 존재만 복제하는 최소 스키마 bubble + 엔진 퍼펫 링크로 클라 플레이어 엔티티 성립. 에이전트 경로 NetID 캐싱 타이밍 갭은 ULNPMassAgentComponent로 보정 (PIE 2인 검증: players=2, gap=0cm)
     - [x] Phase 7: LootPod MassReplication + ALNPLootPod bReplicates (이중 복제) — 부수 발견: 원격 클라 루팅 입력 미전달 공백을 Server_StartLooting RPC로 해소 (PIE 검증 완료)
     - [x] 발사 피치·Aim Offset 동기화 — Mover InputCmd의 ControlRotation 재사용 + bSyncInputsForSimProxy, GetBaseAimRotation 오버라이드 (PIE 검증 완료)
+    - [x] Phase 8: Mass 복제 **단일 스트림 통합** — Enemy·Player·LootPod이 `ALNPMassClientBubbleInfo` / `ULNPMassReplicator` 하나를 공유. 엔진의 파괴 처리 경로가 타입 무구분이라 버블이 2개 이상이면 타 타입 엔트리를 자기 핸들로 제거하려다 크래시(2P 루팅 완료 시 실측). ⚠️ `DA_PlayerEntityConfig`는 CoreRedirects 경유 — 에디터 재저장 후 리다이렉트 제거 필요
+    - [x] 자세 인코딩 — 엔진 기본 핸들러의 월드 Yaw 복원이 구 내벽에서 엔티티를 눕히는 문제를, **접평면 로컬 Yaw** 인코딩으로 해소(추가 대역폭 0). 극점 약 3.5m 링 특이점은 수용
+    - [x] 가시 거리 짝 맞춤 — 트레잇 `ReplicationCullDistance` ↔ `MassCrowdVisualizationTrait.VisibleLODDistance` 일치 강제 (엔진 기본 5,000cm 방치로 "서버엔 보이는데 클라엔 안 보임" 발생, 2026-08-05 수정)
 - [ ] **승리 조건 및 세션 관리**
     - 메달(가칭) 4개 수집 시 승리. 게임 시작/종료/결과 처리 흐름.
 
@@ -138,6 +169,6 @@
 
 ## Phase 6: Polish (최종 폴리싱)
 
-- [ ] **HUD 추가 요소** (인벤토리, 미니맵, 점수 등)
+- [ ] **HUD 추가 요소** (미니맵, 점수 등) — 인벤토리는 인게임 메뉴로 완료
 - [ ] **VFX(Niagara) 및 사운드 통합**
 - [ ] **게임플레이 밸런싱**

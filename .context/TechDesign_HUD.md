@@ -173,4 +173,4 @@ LootSpeed     2.00
 - **HUD 추가 요소:** 미니맵, 점수/메달 카운터 등 (DevelopmentPlan Phase 6).
 - **루팅 게이지 HUD 연동:** `ALNPLootPod::GetGaugePercent()`(복제 완료)를 읽는 월드 스페이스 또는 HUD 게이지 위젯.
 - **쿨다운 표시:** Active Skill 슬롯·대시 쿨다운의 ViewModel 프로퍼티화.
-- **인벤토리 폴리시:** 스킬 슬롯 장착 UI, 패널 배경·레이아웃 스타일. `WBP_InventoryEntry`(가방)에는 아직 `DetailText` TextBlock이 없다 — 아이템 레벨 표시를 원하면 추가(C++는 이미 지원). 버프 잔여시간 라이브 카운트다운은 ✅ 완료(2026-07-17, [TechDesign_Inventory.md](TechDesign_Inventory.md) §5).
+- **인벤토리 폴리시:** 스킬 슬롯 장착 UI, 환경설정 탭 내용 — 인게임 메뉴로 이관됐으므로 [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md) §12를 따른다. 버프 잔여시간 라이브 카운트다운은 ✅ 완료(2026-07-17, [TechDesign_Inventory.md](TechDesign_Inventory.md) §5).
