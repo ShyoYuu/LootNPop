@@ -35,6 +35,11 @@ class LOOTNPOP_API ULNPInventoryTabWidget : public ULNPMenuTabContentWidget
 public:
 	virtual bool HandleMenuBack() override;
 
+	/** 기획 §8 — Grid 포커스와 디테일 포커스에서 ✕·방향 이동의 의미가 달라진다. */
+	virtual void GetMenuHints(TArray<FLNPMenuHint>& OutHints) const override;
+	virtual FText GetMenuBackHintLabel() const override;
+	virtual bool ShouldForceFocusRing() const override;
+
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeOnActivated() override;
@@ -63,6 +68,9 @@ private:
 
 	void FocusDetailPanel();
 	void FocusGrid();
+
+	/** Grid에 셀이 하나라도 있는지 — 포커스 링과 힌트 노출의 공통 조건. */
+	bool HasGridItems() const;
 
 	TWeakObjectPtr<ULNPInventoryComponent> BoundInventory;
 

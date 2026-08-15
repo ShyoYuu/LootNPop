@@ -39,6 +39,9 @@ public:
 	void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent);
 	void CacheASC(UAbilitySystemComponent* InASC);
 
+	/** 상호작용 프롬프트가 현재 입력 타입의 키 글리프를 뽑는 데 쓴다. */
+	const UInputAction* GetInteractAction() const { return InteractAction; }
+
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	void SetAIMoveInput(FVector InMoveInput) { AIMoveInput = InMoveInput; }
@@ -86,6 +89,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputAction> GuardAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	TObjectPtr<UInputAction> ADSAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UInputAction> LockOnAction;
@@ -138,6 +144,8 @@ private:
 	bool bIsAttackJustPressed = false;
 	bool bIsGuardPressed = false;
 	bool bIsGuardJustPressed = false;
+	bool bIsADSPressed = false;
+	bool bIsADSJustPressed = false;
 	bool bIsLockOnPressed = false;
 	bool bIsLockOnJustPressed = false;
 	TArray<bool> ActiveSkillPressed;
@@ -179,6 +187,8 @@ private:
 	void OnAttackReleased(const FInputActionValue& Value);
 	void OnGuardStarted(const FInputActionValue& Value);
 	void OnGuardReleased(const FInputActionValue& Value);
+	void OnADSStarted(const FInputActionValue& Value);
+	void OnADSReleased(const FInputActionValue& Value);
 	void OnLockOnStarted(const FInputActionValue& Value);
 	void OnLockOnReleased(const FInputActionValue& Value);
 	void OnActiveSkillStarted(const FInputActionValue& Value, int32 SlotIndex);

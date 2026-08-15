@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CommonActivatableWidget.h"
+#include "UI/Menu/LNPMenuHint.h"
 #include "LNPMenuTabContentWidget.generated.h"
 
 /**
@@ -23,9 +24,33 @@ class LOOTNPOP_API ULNPMenuTabContentWidget : public UCommonActivatableWidget
 	GENERATED_BODY()
 
 public:
+	DECLARE_MULTICAST_DELEGATE(FOnMenuHintsChanged);
+
+	/** 이 탭이 노출할 힌트가 바뀌었음을 알린다. 메뉴 루트가 듣고 하단 힌트 바를 다시 만든다. */
+	FOnMenuHintsChanged OnMenuHintsChanged;
+
 	/**
 	 * 메뉴 루트가 Back(○)을 받았을 때 활성 탭에게 먼저 처리 기회를 준다.
 	 * @return true면 탭이 소비했으므로 메뉴를 닫지 않는다. false면 메뉴가 닫힌다.
 	 */
 	virtual bool HandleMenuBack() { return false; }
+
+	/**
+	 * 이 탭에서만 유효한 조작 힌트. 기본은 없음 —
+	 * 기획 §8 표에서 캐릭터 스탯·환경설정 탭 행은 탭 이동과 닫기를 빼면 전부 "—"다.
+	 * 탭 이동·Back 힌트는 루트가 공통으로 덧붙이므로 여기에 넣지 않는다.
+	 */
+	virtual void GetMenuHints(TArray<FLNPMenuHint>& OutHints) const {}
+
+	/** Back(○) 힌트에 붙일 라벨. 하위 포커스가 있는 탭은 "Back" 등으로 바꾼다. */
+	virtual FText GetMenuBackHintLabel() const;
+
+	/**
+	 * 이 탭에서 포커스 링을 강제할지 (§3.6).
+	 * 포커스가 실제로 앉을 대상이 없는 빈 상태에서는 꺼서, 링이 컨테이너 전체를 감싸는 걸 막는다.
+	 */
+	virtual bool ShouldForceFocusRing() const { return true; }
+
+protected:
+	virtual void NativeOnActivated() override;
 };

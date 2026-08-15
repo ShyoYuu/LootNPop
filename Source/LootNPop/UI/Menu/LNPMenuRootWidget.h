@@ -8,6 +8,7 @@
 
 class UCommonActivatableWidgetSwitcher;
 class UCommonButtonBase;
+class ULNPMenuHintBarWidget;
 class ULNPMenuTabContentWidget;
 class ULNPMenuTabListWidget;
 
@@ -21,6 +22,7 @@ class ULNPMenuTabListWidget;
  *  - ULNPMenuTabListWidget 파생 위젯 "TabList"
  *  - UCommonActivatableWidgetSwitcher "ContentSwitcher"
  *  - 스위처 자식으로 탭 컨텐츠 3종: "StatsTab" / "InventoryTab" / "SettingsTab"
+ *  - ULNPMenuHintBarWidget 파생 위젯 "HintBar" (선택)
  *  - Details의 Tab Button Class에 UCommonButtonBase 파생 WBP 지정
  *  - 모든 바인딩 대상 위젯은 Is Variable을 켜야 한다 (이 프로젝트는 기본 off인 경우가 잦다)
  */
@@ -47,6 +49,10 @@ public:
 	FName GetRememberableTabId() const;
 
 protected:
+	/** 메뉴 전체를 포커스 링 스코프로 감싼다 (구현부 주석 참조). */
+	virtual TSharedRef<SWidget> RebuildWidget() override;
+
+	virtual void NativeOnInitialized() override;
 	virtual void NativeOnActivated() override;
 	virtual bool NativeOnHandleBackAction() override;
 	virtual UWidget* NativeGetDesiredFocusTarget() const override;
@@ -67,6 +73,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<ULNPMenuTabContentWidget> SettingsTab;
 
+	/** 하단 조작 안내 바 (기획 §3·§8). */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<ULNPMenuHintBarWidget> HintBar;
+
 	/** 탭 버튼으로 생성할 CommonButton 파생 WBP. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Menu")
 	TSubclassOf<UCommonButtonBase> TabButtonClass;
@@ -77,6 +87,12 @@ private:
 	 * 스택이 위젯을 재사용하는 반면 닫을 때 탭이 지워지기 때문(구현부 주석 참조).
 	 */
 	void EnsureTabsRegistered();
+
+	/** 활성 탭의 힌트 + 공통 힌트(Back·탭 이동)를 모아 하단 바에 넣는다. */
+	void RebuildHints();
+
+	/** 포커스 링 강제 여부 — 활성 탭에 위임한다 (구현부 주석 참조). */
+	bool IsFocusRingForced() const;
 
 	/** 현재 스위처가 표시 중인 탭 컨텐츠. */
 	ULNPMenuTabContentWidget* GetActiveTabContent() const;

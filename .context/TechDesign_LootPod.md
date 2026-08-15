@@ -79,6 +79,11 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 
 - 컴포넌트: `UNiagaraComponent`(빛기둥) / `USphereComponent`(루팅 구역) / `UMassAgentComponent`(Mass 브릿지) / `UWidgetComponent`(상호작용 프롬프트, 기본 숨김) / `SmartObjectComponent`(**상호작용 경로 미사용** — NPC AI 연동 후보로 보류, 불필요 확정 시 제거)
 - Niagara `User.Color` 파라미터를 상태별 색상(Idle/Looting/Popped)으로 전환.
+- 프롬프트 위젯(`ULNPInteractionPromptWidget`, LootDice와 공용)은 **현재 입력 타입에 실제로 바인딩된 키**를
+  텍스트 심볼로 그린다 — 키보드 `F`, 게임패드 `□`. `IA_Interaction`의 Enhanced Input 매핑에서 뽑으므로
+  리매핑을 자동으로 따라간다. 해석기는 `LNPInputGlyph`(→ [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md) §3.4).
+  `EWidgetSpace::Screen`이라 `UWidgetComponent`가 표시/숨김마다 `NativeConstruct`/`NativeDestruct`를 돌려주고,
+  표시 중 기기 전환은 `OnInputMethodChangedNative` 구독으로 처리한다.
 - **이중 복제 (Phase 7):** 엔티티 존재·초기 위치는 MassReplication bubble이 전 클라이언트에, `CurrentState`(OnRep → UpdateVisuals)·`CurrentGaugePercent`는 Actor 복제가 근접 클라이언트에 전달. (→ [TechDesign_Networking.md](TechDesign_Networking.md) §3.5)
 
 ---
