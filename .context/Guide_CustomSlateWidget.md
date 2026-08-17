@@ -339,8 +339,28 @@ private:
 
 1. **`WidgetReflector`** (에디터 Tools 메뉴)로 실제 크기·계층·볼라틸 여부 확인
 2. 부모를 반투명하게 만들었을 때 **함께 투명해지는지** (틴트 전파 확인)
-3. 값을 여러 번 갱신하며 `Slate.InvalidationDebugging 1`로 **의도한 사유로만 무효화되는지**
-4. `stat Slate`로 Tick·Paint 비용 확인
+3. **무효화 사유 확인** — 값을 여러 번 갱신하며 의도한 사유로만 무효화되는지
+   ```
+   SlateDebugger.Invalidate.bLogInvalidatedWidget 1
+   SlateDebugger.Invalidate.bShowLegend 1
+   SlateDebugger.Invalidate.Start          ← 확인 후 .Stop
+   ```
+   화면 테두리 색이 사유다: **Paint=노랑 / Layout=자홍 / Prepass=주황 / Volatility=회색 /
+   ChildOrder=청록 / RenderTransform=검정 / Visibility=흰색**.
+   ⚠️ `Slate.InvalidationDebugging`은 UE 5.8에서 **deprecated**이며, 포워딩 대상 이름이 어긋나 동작하지 않는다.
+   ⚠️ **디버거는 무효화 루트(fast path) 안에 있는 위젯만 기록한다** — `ConsoleSlateDebuggerInvalidate.cpp:465`가
+   `GetProxyHandle().IsValid()`가 아니면 입구에서 버린다 (2026-08-17 실측). 뷰포트에 그냥 올린 UMG는
+   무효화 루트 밖이라 **로그에도 화면에도 아무것도 안 나온다.** 확인하려면 `Slate.EnableGlobalInvalidation 1`을
+   먼저 켜거나 대상 위젯을 Invalidation Box 안에 넣어야 한다. `SlateDebugger.Update`도 같은 제약을 받는다.
+4. **Tick 여부 확인** — 필요할 때만 Tick하는지 (`SetCanTick` 제어가 실제로 먹는지)
+   ```
+   SlateDebugger.Update.OnlyProjectContent 1
+   SlateDebugger.Update.SetWidgetUpdateFlagsFilter Tick
+   SlateDebugger.Update.ToggleWidgetNameList
+   SlateDebugger.Update.Start              ← 확인 후 .Stop
+   ```
+   유휴 상태에서 위젯 이름이 **목록에 안 뜨면** Tick이 꺼진 것이다.
+   `stat Slate`는 전체 집계라 위젯별 Tick 판별에는 쓸 수 없다.
 
 ---
 
@@ -358,6 +378,10 @@ private:
 | UMG 래퍼가 있는가 | 디자이너 사용 가능 여부 |
 
 **핵심 원칙: 위젯은 "어떻게 보일지"만 알고, "무슨 데이터인지"는 몰라야 한다.**
+
+> **적용 사례:** `SLNPRadialCooldown`(방사형 쿨다운 파이, `Source/LNPUI/`) —
+> 모듈 분리·`MakeCustomVerts` 부채꼴·Tick 자체 제어의 실제 구현은
+> [TechDesign_HUD.md](TechDesign_HUD.md) §9 참조.
 
 ---
 

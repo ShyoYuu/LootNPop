@@ -50,7 +50,8 @@ public class LootNPop : ModuleRules
             "GameplayCameras",
 			"Chooser",
             "NetCore",
-            "MassReplication"
+            "MassReplication",
+            "LNPUI"
             ]);
 		PrivateDependencyModuleNames.AddRange([]);
 
