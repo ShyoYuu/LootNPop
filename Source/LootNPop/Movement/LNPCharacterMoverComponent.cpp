@@ -111,6 +111,7 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 		return;
 
 	LastDashTime = GetWorld()->GetTimeSeconds();
+	OnDashExecuted.Broadcast();
 
 	const float DashDurationMs = DashDuration * 1000.0f;
 

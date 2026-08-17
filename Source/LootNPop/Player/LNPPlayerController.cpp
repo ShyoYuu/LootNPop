@@ -4,6 +4,7 @@
 #include "UI/LNPHudWidget.h"
 #include "UI/Menu/LNPMenuRootWidget.h"
 #include "UI/Menu/LNPUILayoutWidget.h"
+#include "Character/LNPCharacterBase.h"
 #include "Character/LNPInputHandlerComponent.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameMode/LNPGameMode.h"
@@ -46,6 +47,16 @@ bool ALNPPlayerController::IsLoadingComplete() const
 	return bLoadingComplete;
 }
 
+namespace
+{
+	/** HUD 대시 쿨다운 표시에 쓸 Mover를 폰에서 꺼낸다. LNP 캐릭터가 아니면 null. */
+	ULNPCharacterMoverComponent* GetMoverComponentFromPawn(APawn* InPawn)
+	{
+		ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(InPawn);
+		return Character ? Character->GetMoverComponent() : nullptr;
+	}
+}
+
 void ALNPPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
@@ -56,7 +67,7 @@ void ALNPPlayerController::OnPossess(APawn* InPawn)
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 	{
 		if (HudWidget)
-			HudWidget->InitViewModel(PS->GetAbilitySystemComponent());
+			HudWidget->InitViewModel(PS->GetAbilitySystemComponent(), GetMoverComponentFromPawn(InPawn));
 	}
 }
 
@@ -67,9 +78,11 @@ void ALNPPlayerController::AcknowledgePossession(APawn* P)
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 	{
 		if (HudWidget)
-			HudWidget->InitViewModel(PS->GetAbilitySystemComponent());
+			HudWidget->InitViewModel(PS->GetAbilitySystemComponent(), GetMoverComponentFromPawn(P));
 	}
 }
+
+
 
 void ALNPPlayerController::OnUnPossess()
 {

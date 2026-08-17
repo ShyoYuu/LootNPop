@@ -45,6 +45,12 @@ public:
 	/** 현재 Dash 실행 가능 여부를 반환한다 (지면, 조준 아님, 쿨다운 경과) */
 	bool CanDash() const;
 
+	/** Dash 쿨다운 길이 (초). HUD 쿨다운 표시가 읽는다. */
+	float GetDashCooldown() const { return DashCooldown; }
+
+	/** Dash가 실제로 실행된 순간 발송된다. 로컬 조종 폰에서만 발생한다. */
+	FSimpleMulticastDelegate OnDashExecuted;
+
 	/** 주어진 이동 Input Intent로 Dash를 실행한다 */
 	void ExecuteDash(FVector MoveInputIntent);
 
