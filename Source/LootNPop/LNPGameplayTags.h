@@ -63,3 +63,11 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Value_Parry_Parried)  // 패링 당�
 
 // 인벤토리 아이템 스탯 태그 (인스턴스 StatTags 태그스택 키 — 값은 정수 스택 카운트)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Item_Level)  // 아이템 레벨
+
+// 스탯 GE의 SetByCaller 키 (LNPStat::ApplyModifiers가 스탯별 크기를 주입한다)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GE_Data_Stat_MaxHealth)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GE_Data_Stat_AttackPower)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GE_Data_Stat_AttackSpeed)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GE_Data_Stat_DefensePower)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GE_Data_Stat_MoveSpeed)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GE_Data_Stat_LootSpeed)

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "GAS/LNPStatModifier.h"
 #include "LNPItemDefinitionBase.generated.h"
 
 class ULNPGameplayAbility;
@@ -28,4 +29,11 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effects")
 	TArray<TSubclassOf<UGameplayEffect>> EffectsToApply;
+
+	/**
+	 * 이 아이템이 주는 스탯 변경. 무기는 장착 중, 버프는 보유 중 적용된다.
+	 * 공용 GE 2종으로 적용되므로 스탯×연산 조합마다 GE 에셋을 만들 필요가 없다 (→ GAS/LNPStatModifier.h).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	TArray<FLNPStatModifier> StatModifiers;
 };

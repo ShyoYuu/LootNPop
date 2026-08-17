@@ -6,6 +6,7 @@
 #include "Item/LNPSkillData.h"
 #include "Item/LNPInventoryItemInstance.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
+#include "GAS/LNPStatModifier.h"
 #include "Player/LNPPlayerState.h"
 #include "Config/LNPSettings.h"
 
@@ -209,6 +210,9 @@ void ULNPEquipmentComponent::GrantItemImpl(ULNPItemDefinitionBase* Def,
 
 		OutEffects.Add(ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()));
 	}
+
+	// 무기 스텟 등 선언형 스탯 변경. 해제는 RevokeItemImpl이 핸들로 처리한다.
+	LNPStat::ApplyModifiers(*ASC, Def->StatModifiers, OutEffects);
 }
 
 void ULNPEquipmentComponent::RevokeItemImpl(TArray<FGameplayAbilitySpecHandle>& Abilities,

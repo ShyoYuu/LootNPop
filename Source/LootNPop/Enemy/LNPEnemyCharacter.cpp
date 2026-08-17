@@ -8,6 +8,7 @@
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
+#include "GAS/LNPStatModifier.h"
 #include "UI/LNPHpBarWidget.h"
 
 #include "AbilitySystemComponent.h"
@@ -96,6 +97,11 @@ void ALNPEnemyCharacter::InitializeOnce(ULNPEnemyConfig* InConfig)
 	{
 		ASC->ClearAllAbilities();
 		WeaponAbilityHandle = FGameplayAbilitySpecHandle();
+
+		// 무기 스텟 GE도 함께 되돌린다 — 안 그러면 LOD 전환마다 스텟이 누적된다.
+		for (const FActiveGameplayEffectHandle& Handle : WeaponStatEffects)
+			ASC->RemoveActiveGameplayEffect(Handle);
+		WeaponStatEffects.Reset();
 	}
 
 	bInitializedOnce = true;
@@ -114,6 +120,9 @@ void ALNPEnemyCharacter::InitializeOnce(ULNPEnemyConfig* InConfig)
 						WeaponAbilityHandle = Handle;
 				}
 			}
+			// 적은 EquipmentComponent를 거치지 않으므로 무기 스텟을 여기서 직접 적용한다.
+			LNPStat::ApplyModifiers(*EnemyASC, InConfig->WeaponData->StatModifiers, WeaponStatEffects);
+
 			EquipWeapon(InConfig->WeaponData);
 		}
 

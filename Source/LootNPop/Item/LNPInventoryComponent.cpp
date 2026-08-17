@@ -4,6 +4,7 @@
 #include "Item/LNPItemDefinitionBase.h"
 #include "Item/LNPBuffData.h"
 #include "Item/LNPInventoryItemInstance.h"
+#include "GAS/LNPStatModifier.h"
 #include "Player/LNPPlayerState.h"
 #include "LootNPop.h"
 
@@ -117,7 +118,16 @@ void ULNPInventoryComponent::AddBuffItem(ULNPBuffData* ItemDef, float InRemainin
 	ULNPInventoryItemInstance* Instance = NewObject<ULNPInventoryItemInstance>(this);
 	Instance->Init(ItemDef);
 
-	const float Duration = (InRemainingDuration > 0.0f) ? InRemainingDuration : ItemDef->MaxDuration;
+	// 0은 유효한 지속 시간이 아니다 — 드랍 페이로드가 비어 있을 때만 아이템 정의값으로 폴백한다.
+	// (영구 버프는 -1이 그대로 왕복해야 하므로 "> 0" 조건을 쓰면 안 된다.)
+	float Duration = FMath::IsNearlyZero(InRemainingDuration) ? ItemDef->Duration : InRemainingDuration;
+	if (FMath::IsNearlyZero(Duration))
+	{
+		UE_LOG(LogLootNPop, Warning, TEXT("[Buff] %s has Duration 0 — treating as permanent. Use -1 for permanent buffs."),
+			*GetNameSafe(ItemDef));
+		Duration = LNPBuff::PermanentDuration;
+	}
+
 	Instance->SetRemainingDuration(Duration);  // 복제 스냅샷 (라이브 카운트다운은 UI 폴리시)
 
 	// 서버 전용 런타임 — GAS 이펙트 적용 후 핸들 보관.
@@ -136,6 +146,9 @@ void ULNPInventoryComponent::AddBuffItem(ULNPBuffData* ItemDef, float InRemainin
 
 		Runtime.AppliedEffects.Add(ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get()));
 	}
+
+	// 선언형 스탯 버프 (합연산 = AddBase, 곱연산 = MultiplyAdditive).
+	LNPStat::ApplyModifiers(*ASC, ItemDef->StatModifiers, Runtime.AppliedEffects);
 
 	BuffRuntime.Add(Instance->GetItemId(), MoveTemp(Runtime));
 
@@ -204,8 +217,8 @@ void ULNPInventoryComponent::TickBuffItems(float DeltaTime)
 	for (TPair<FGuid, FLNPBuffRuntime>& Pair : BuffRuntime)
 	{
 		FLNPBuffRuntime& Runtime = Pair.Value;
-		if (Runtime.RemainingDuration <= 0.0f)
-			continue;  // 무한 지속
+		if (Runtime.RemainingDuration < 0.0f)
+			continue;  // 영구 버프 (-1)
 
 		Runtime.RemainingDuration -= DeltaTime;
 		if (Runtime.RemainingDuration <= 0.0f)

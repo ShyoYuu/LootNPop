@@ -61,7 +61,7 @@
 - [x] **CommonUI 인게임 메뉴** (`ULNPMenuRootWidget` 외 UI/Menu 13종)
     - 3탭(캐릭터 스탯 / 인벤토리 / 환경설정). `UCommonActivatableWidgetStack`(열기·닫기) + `UCommonActivatableWidgetSwitcher`(탭 전환) 조합.
     - 게임패드 우선 조작 — L1/R1 탭 이동, ✕ 선택, ○ Back. 루트 하나만 Back 핸들러로 두고 활성 탭에 위임(`디테일 → Grid → 닫기`).
-    - 스탯 탭: `ULNPStatsViewModel`이 GAS 어그리게이터 식대로 합/곱 분해 → `URichTextBlock` 인라인 마크업(MVVM 필드 1개).
+    - 스탯 탭: `ULNPStatsViewModel`이 GAS 어그리게이터 식대로 `C (A × B)` 분해 → `URichTextBlock` 인라인 마크업(MVVM 필드 1개).
     - 인벤토리 탭: `CommonTileView` Grid + 디테일 패널, Equip/Drop. 메뉴 중 폰 입력 매핑 컨텍스트 제거, 스탠드얼론에서만 일시정지.
     - 하단 힌트 바(`ULNPMenuHintBarWidget`): 탭이 자기 힌트를 선언하고 루트가 Back·탭 이동을 얹는다.
       입력 타입에 따라 키 심볼이 자동 전환(`LNPInputGlyph`, 텍스트 심볼). 상호작용 프롬프트도 같은 해석기를 쓴다.
@@ -70,6 +70,15 @@
     - 구 `ULNPInventoryWidget`·`ULNPInventoryEntryWidget` 및 관련 WBP 폐기.
     - **잔여:** 힌트 바·프롬프트의 게임패드 실기기 확인, 환경설정 탭 내용, 2인 PIE 일시정지 미적용 확인.
     - 설계 명세: [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md)
+- [x] **합/곱 이원 버프 시스템** (`GAS/LNPStatModifier.*`, `ULNPGameplayEffect_StatFlat/_StatPercent`)
+    - `최종 = (기초 + 무기 스텟 + 합연산 버프) × (1 + Σ 곱연산 버프)` — GAS의 `AddBase` / `MultiplyAdditive`
+      두 채널만 써서 계산 코드 없이 성립시킨다. 곱연산 중복 시 배율이 합산되어 체감 효율이 체감.
+    - 아이템 DataAsset이 `{어트리뷰트, Flat/Percent, 크기}`를 선언하고 공용 GE 2종이 SetByCaller로 수용 —
+      스텟×연산 조합마다 GE 에셋을 만들지 않는다. 아이템 설명문도 이 선언에서 생성.
+    - 무기 스텟을 어트리뷰트 파이프라인으로 이관(`WeaponData.Damage` 제거), 전용 배율 어트리뷰트 `AttackMultiplier` 제거,
+      `DefensePower` 기초 0 → 10(곱연산 버프가 무효화되지 않도록), 영구 버프(`Duration = -1`).
+    - **잔여:** 콘텐츠 DA 재구성(버프 12종·무기 스텟 이관), PIE 검증, 방어력 기초값 밸런스 회귀.
+    - 설계 명세: [TechDesign_Ability.md](TechDesign_Ability.md) §2.1, [GameDesign_Ability.md](GameDesign_Ability.md) §3.3
 - [x] **GAS 기반 전투 시스템**
     - ASC/AttributeSet (`ALNPPlayerState`), `ULNPEquipmentComponent`, `ULNPInventoryComponent`.
     - 어빌리티 계층: `ULNPGameplayAbility` → `ULNPAbility_BasicAttack` → `ULNPAbility_RangedAttack` / `ULNPAbility_MeleeAttack`.
