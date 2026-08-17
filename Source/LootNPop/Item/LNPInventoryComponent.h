@@ -57,7 +57,7 @@ public:
 
 	/**
 	 * 서버: 버프 인스턴스를 생성해 GE를 즉시 적용하고 활성 버프 리스트에 편입한다.
-	 * @param InRemainingDuration  남은 초. 0 = ItemDef->MaxDuration (0 = 무한).
+	 * @param InRemainingDuration  남은 초. 0 = ItemDef->Duration으로 폴백. -1 = 영구.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Inventory")
 	void AddBuffItem(ULNPBuffData* ItemDef, float InRemainingDuration = 0.0f);

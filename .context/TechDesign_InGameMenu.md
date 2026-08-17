@@ -281,25 +281,28 @@ UE 5.8 어그리게이터 평가식(`GameplayEffectAggregator.cpp:98`):
 ((BaseValue + AddBase) * MultiplyAdditive / DivideAdditive * MultiplyCompound) + AddFinal
 ```
 
-기획의 "합연산 먼저, 곱연산 나중"과 정확히 일치한다.
+기획의 "합연산 먼저, 곱연산 나중"과 정확히 일치한다. 표기는 **`C (A × B)`**:
 
 | 표시 항목 | 계산 | 색 |
 |:---|:---|:---|
-| 최종값 | `ASC->GetNumericAttribute(Attr)` | 흰색 `<final>` |
-| 합연산결과 | `GetNumericAttributeBase(Attr)` + 활성 GE의 **AddBase** 모디파이어 합 | 회색 `<sub>` |
-| 곱연산증가량 | `최종값 − 합연산결과` | 초록 `<buff>` |
+| **C** 최종값 | `ASC->GetNumericAttribute(Attr)` | 흰색 `<final>` |
+| **A** 기초 스탯 총량 | `GetNumericAttributeBase(Attr)` + 활성 GE의 **AddBase** 모디파이어 합 | 회색 `<sub>` |
+| **B** 곱연산 총 배율 | `C / A` (A ≈ 0이면 100%) | 초록 `<buff>` |
 
-**공격력 행만 예외** — `AttackPower`와 `AttackMultiplier`를 한 행으로 합친다:
-최종값 = `AttackPower(최종) × AttackMultiplier(최종)`, 합연산결과 = `AttackPower`의 `Base + AddBase`.
-데미지 공식(`LNPAbility_BasicAttack.cpp:78`)의 `(AttackPower + 무기보너스) × AttackMultiplier`와 같은 관계이며,
-무기 보너스는 어빌리티가 장착 무기에서 읽는 지역 값이라 캐릭터 스탯에는 넣지 않는다.
+**B를 GE 순회로 재계산하지 않고 `C / A`로 역산한다** — 그래야 표시값이 실제 게임플레이 값과
+항상 일치한다. 그리고 이 항등식은 스탯 파이프라인이 `AddBase`·`MultiplyAdditive` **두 채널만**
+쓸 때만 성립한다 (→ `GAS/LNPStatModifier.h`의 규약).
+
+무기 스텟도 장착 GE의 `AddBase`로 들어오므로 A에 자동 포함된다 — 별도 특례가 없다.
 
 `AddBase` 합산(`ULNPStatsViewModel::GetAdditiveResult`)은 전부 공개 API로 한다 —
 `ASC->GetActiveGameplayEffects().CreateConstIterator()` → `Effect.Spec.Def->Modifiers[i].ModifierOp`.
 
 - ⚠️ `EGameplayModOp::Additive`는 5.8에서 **`AddBase`로 개명**(구 이름은 Hidden 하위호환 별칭). `AddBase`를 쓴다.
 - ⚠️ **한계**: 조건부 모디파이어의 태그 평가 파라미터는 재현하지 않고 `bIsInhibited`만 거른다.
-  버프 시스템 개선 시 **이 함수 내부만 교체**하면 되도록 static 헬퍼 하나로 격리해 두었다.
+
+행 목록·표시명·표기 방식(정수/수치/퍼센트)은 `LNPStat::GetStatMetaTable()` 하나가 단일 출처다 —
+스탯을 추가하면 GE 모디파이어·구독 목록·리드아웃 행이 함께 따라온다.
 
 **출력**: `URichTextBlock` 하나 + 인라인 마크업. ViewModel은 `FText StatsRichText` FieldNotify 필드 **1개**만
 노출하고 MVVM 바인딩 한 줄로 끝낸다(6행 × 3값 = 18개 필드를 피하려는 선택). 색상은 Rich Text Style Set에서 정의한다.
@@ -620,5 +623,4 @@ Loot Speed     1.00 ( 1.00 + 0.00)
 - 인벤토리 실사용 검증 — 아이템 획득 후 Grid 표시, 장착 배지, 버프 잔여시간 카운트다운, Equip/Drop
 - 2인 PIE에서 일시정지가 걸리지 않는지 확인 (스탠드얼론 전용 규칙)
 - 환경설정 탭 내용
-- 스탯 리드아웃의 곱연산 증가량은 현재 콘텐츠에 곱연산 버프가 없어 항상 0으로 표시된다
-  (버프 시스템 개선 세션에서 실측 예정)
+- 스탯 리드아웃 `C (A × B)` PIE 실측 — 곱연산 버프 중복 시 B가 140→180→220%로 합산되는지

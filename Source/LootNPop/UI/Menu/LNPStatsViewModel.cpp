@@ -20,18 +20,13 @@ namespace
 
 TArray<FGameplayAttribute> ULNPStatsViewModel::GetObservedAttributes()
 {
-	// AttackMultiplier는 별도 행이 아니라 공격력 행의 곱연산 재료로 쓰이지만,
-	// 값이 바뀌면 공격력 행이 달라지므로 구독 대상에는 포함한다.
-	return {
-		ULNPBaseAttributeSet::GetHealthAttribute(),
-		ULNPBaseAttributeSet::GetMaxHealthAttribute(),
-		ULNPBaseAttributeSet::GetAttackPowerAttribute(),
-		ULNPBaseAttributeSet::GetAttackMultiplierAttribute(),
-		ULNPBaseAttributeSet::GetAttackSpeedAttribute(),
-		ULNPBaseAttributeSet::GetDefensePowerAttribute(),
-		ULNPBaseAttributeSet::GetMoveSpeedAttribute(),
-		ULNPBaseAttributeSet::GetLootSpeedAttribute(),
-	};
+	// 스탯 목록은 LNPStat 메타 테이블이 단일 출처다. Health만 HP 행 전용이라 따로 더한다.
+	TArray<FGameplayAttribute> Attributes;
+	Attributes.Add(ULNPBaseAttributeSet::GetHealthAttribute());
+	for (const FLNPStatMeta& Stat : LNPStat::GetStatMetaTable())
+		Attributes.Add(Stat.Attribute);
+
+	return Attributes;
 }
 
 void ULNPStatsViewModel::Initialize(UAbilitySystemComponent* InASC)
@@ -94,7 +89,7 @@ float ULNPStatsViewModel::GetAdditiveResult(const UAbilitySystemComponent* ASC, 
 			if (Modifiers[i].Attribute != Attribute)
 				continue;
 
-			// AddBase(구 Additive)만 "기본 스탯에 합산된 것처럼" 취급한다 — 기획 §5-1.
+			// AddBase만 A(기초 스탯 총량)에 넣는다 — 무기 스텟·합연산 버프가 모두 이 채널로 들어온다.
 			if (Modifiers[i].ModifierOp == EGameplayModOp::AddBase)
 				Result += Effect.Spec.GetModifierMagnitude(i);
 		}
@@ -103,25 +98,24 @@ float ULNPStatsViewModel::GetAdditiveResult(const UAbilitySystemComponent* ASC, 
 	return Result;
 }
 
-FString ULNPStatsViewModel::MakeStatLine(const FString& Label, float FinalValue, float AdditiveResult, bool bIsInteger)
+FString ULNPStatsViewModel::MakeStatLine(const FText& Label, float FinalValue, float AdditiveResult, ELNPStatDisplay Display)
 {
-	const int32 Decimals = bIsInteger ? 0 : 2;
-	const float MultiplicativeBonus = FinalValue - AdditiveResult;
+	// B = 곱연산 총 배율. GE를 다시 순회해 계산하지 않고 최종값에서 역산한다 —
+	// 그래야 표시값이 실제 게임플레이 값과 항상 일치한다.
+	const float Multiplier = (FMath::Abs(AdditiveResult) > KINDA_SMALL_NUMBER)
+		? FinalValue / AdditiveResult
+		: 1.0f;
 
-	FNumberFormattingOptions Format;
-	Format.MinimumFractionalDigits = Decimals;
-	Format.MaximumFractionalDigits = Decimals;
+	const FString FinalStr      = LNPStat::FormatStatValue(FinalValue, Display);
+	const FString AdditiveStr   = LNPStat::FormatStatValue(AdditiveResult, Display);
+	const FString MultiplierStr = LNPStat::FormatStatValue(Multiplier, ELNPStatDisplay::Ratio);
 
-	const FString FinalStr  = FText::AsNumber(FinalValue, &Format).ToString();
-	const FString BaseStr   = FText::AsNumber(AdditiveResult, &Format).ToString();
-	const FString BonusStr  = FText::AsNumber(MultiplicativeBonus, &Format).ToString();
+	const FString PaddedLabel = EscapeForRichText(Label.ToString()).RightPad(GLabelColumnWidth);
 
-	const FString PaddedLabel = EscapeForRichText(Label).RightPad(GLabelColumnWidth);
-
-	// "라벨          최종값 (합연산결과 + 곱연산증가량)"
+	// "라벨          C (A × B)"
 	return FString::Printf(
-		TEXT("<sub>%s</><final>%s</><sub> (%s + </><buff>%s</><sub>)</>"),
-		*PaddedLabel, *FinalStr, *BaseStr, *BonusStr);
+		TEXT("<sub>%s</><final>%s</><sub> (%s × </><buff>%s</><sub>)</>"),
+		*PaddedLabel, *FinalStr, *AdditiveStr, *MultiplierStr);
 }
 
 void ULNPStatsViewModel::RebuildStatsRichText()
@@ -135,49 +129,23 @@ void ULNPStatsViewModel::RebuildStatsRichText()
 
 	TArray<FString> Lines;
 
-	// HP는 현재/최대 쌍이라 합·곱 분해 포맷을 쓰지 않는다.
+	// HP는 현재/최대 쌍이라 합·곱 분해 포맷을 쓰지 않는다 (MaxHealth 분해는 아래 Max HP 행이 담당).
 	{
-		FNumberFormattingOptions IntFormat;
-		IntFormat.MinimumFractionalDigits = 0;
-		IntFormat.MaximumFractionalDigits = 0;
-
-		const FString Health    = FText::AsNumber(ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute()), &IntFormat).ToString();
-		const FString MaxHealth = FText::AsNumber(ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMaxHealthAttribute()), &IntFormat).ToString();
+		const FString Health    = LNPStat::FormatStatValue(
+			ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute()), ELNPStatDisplay::Integer);
+		const FString MaxHealth = LNPStat::FormatStatValue(
+			ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMaxHealthAttribute()), ELNPStatDisplay::Integer);
 
 		Lines.Add(FString::Printf(TEXT("<sub>%s</><final>%s / %s</>"),
 			*FString(TEXT("HP")).RightPad(GLabelColumnWidth), *Health, *MaxHealth));
 	}
 
-	// 공격력 — AttackPower와 AttackMultiplier를 한 행으로 합친다 (기획 §5-1).
-	// 데미지 공식 (AttackPower + 무기보너스) × AttackMultiplier와 같은 관계이며,
-	// 무기 보너스는 어빌리티가 장착 무기에서 읽는 지역 값이라 캐릭터 스탯에는 넣지 않는다.
+	for (const FLNPStatMeta& Stat : LNPStat::GetStatMetaTable())
 	{
-		const float AttackPower      = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetAttackPowerAttribute());
-		const float AttackMultiplier = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetAttackMultiplierAttribute());
-		const float AdditiveResult   = GetAdditiveResult(ASC, ULNPBaseAttributeSet::GetAttackPowerAttribute());
-
-		Lines.Add(MakeStatLine(TEXT("Attack"), AttackPower * AttackMultiplier, AdditiveResult, /*bIsInteger=*/false));
-	}
-
-	struct FStatRow
-	{
-		const TCHAR*        Label;
-		FGameplayAttribute  Attribute;
-	};
-
-	const TArray<FStatRow> Rows = {
-		{ TEXT("Attack Speed"),  ULNPBaseAttributeSet::GetAttackSpeedAttribute()  },
-		{ TEXT("Defense"),       ULNPBaseAttributeSet::GetDefensePowerAttribute() },
-		{ TEXT("Move Speed"),    ULNPBaseAttributeSet::GetMoveSpeedAttribute()    },
-		{ TEXT("Loot Speed"),    ULNPBaseAttributeSet::GetLootSpeedAttribute()    },
-	};
-
-	for (const FStatRow& Row : Rows)
-	{
-		Lines.Add(MakeStatLine(Row.Label,
-			ASC->GetNumericAttribute(Row.Attribute),
-			GetAdditiveResult(ASC, Row.Attribute),
-			/*bIsInteger=*/false));
+		Lines.Add(MakeStatLine(Stat.DisplayName,
+			ASC->GetNumericAttribute(Stat.Attribute),
+			GetAdditiveResult(ASC, Stat.Attribute),
+			Stat.Display));
 	}
 
 	SetStatsRichText(FText::FromString(FString::Join(Lines, TEXT("\n"))));

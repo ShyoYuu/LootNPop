@@ -39,14 +39,81 @@ UGameplayAbility
 
 | Attribute | 기본값 | 비고 |
 |:---|:---:|:---|
-| Health / MaxHealth | 100 / 100 | Health는 [0, MaxHealth] 클램프 |
+| Health / MaxHealth | 100 / 100 | Health는 [0, MaxHealth] 클램프. `PostAttributeChange`가 MaxHealth 감소 시 Health를 잘라준다 |
 | AttackPower | 10 | 피해 공식의 기저 |
-| AttackSpeed / MoveSpeed | 1 / 1 | ≥ 0.01 클램프 |
-| DefensePower | 0 | `LNPDamage::ApplyDefense` 공식에 사용 |
-| AttackMultiplier | 1 | 피해 배율 (≥ 0.01) |
+| AttackSpeed / MoveSpeed / LootSpeed | 1 / 1 / 1 | 배율 — ≥ 0.01 클램프 |
+| DefensePower | **10** | `LNPDamage::ApplyDefense` 공식에 사용. ≥ 0 클램프 |
 | IncomingDamage | 0 | **Meta 어트리뷰트** — 복제 안 함. GE가 전달한 원시 피해량을 `PostGameplayEffectExecute`에서 방어력 적용 후 Health에 반영하고 즉시 0으로 초기화 |
 
 방어력 공식 (`LNPDamageFormula.h`): `FinalDamage = RawDamage * (100 / (100 + Defense))`
+
+#### 스탯 파이프라인 규약 — 채널 2개만 쓴다
+
+스텟 하나당 어트리뷰트 하나다. **배율용 보조 어트리뷰트를 두지 않는다**(구 `AttackMultiplier` 제거).
+
+```
+최종 = (기초 + 무기 스텟 + 합연산 버프) × (1 + Σ 곱연산 버프)
+```
+
+이 공식은 GAS 어그리게이터에 그대로 들어 있다 —
+`((Base + AddBase) * MultiplyAdditive / DivideAdditive * MultiplyCompound) + AddFinal`,
+그리고 `FAggregatorModChannel::SumMods`(`GameplayEffectAggregator.cpp:216`)가
+`Sum = Bias + Σ(Mag − Bias)`이며 `MultiplyAdditive`의 Bias가 1.0이다.
+→ **배율끼리 합해진 뒤 한 번만 곱해진다.** 중복 획득 시 체감 효율 저하가 공짜로 따라온다.
+
+| 개념 | 채널 |
+|:---|:---|
+| 합연산 버프 · 무기 스텟 | `EGameplayModOp::AddBase` |
+| 곱연산 버프 | `EGameplayModOp::MultiplyAdditive` |
+
+⚠️ `DivideAdditive` / `MultiplyCompound` / `AddFinal` / `Override`는 **사용 금지** —
+쓰는 순간 스탯 UI의 `C = A × B` 분해(→ [TechDesign_InGameMenu.md §4](TechDesign_InGameMenu.md))가 깨진다.
+⚠️ 곱연산 버프는 기초값이 0인 스텟에서 무효다(0 × 1.4 = 0). 새 스텟의 기초값은 반드시 양수로.
+
+#### 선언형 스탯 모디파이어 — `GAS/LNPStatModifier.h`
+
+아이템 DataAsset이 `TArray<FLNPStatModifier>`(`{어트리뷰트, Flat/Percent, 크기}`)를 선언하면
+`LNPStat::ApplyModifiers`가 공용 GE 2종에 SetByCaller로 값을 주입해 적용한다.
+**스텟×연산 조합마다 GE 에셋을 만들지 않는다.**
+
+| 요소 | 내용 |
+|:---|:---|
+| `ULNPGameplayEffect_StatFlat` | Infinite GE. 전체 스텟에 `AddBase` 모디파이어, no-op 값 **0** |
+| `ULNPGameplayEffect_StatPercent` | Infinite GE. 전체 스텟에 `MultiplyAdditive` 모디파이어, no-op 값 **1.0** |
+| `LNPStat::GetStatMetaTable()` | 스텟 목록의 **단일 출처** — 어트리뷰트·SetByCaller 태그(`LNP.GE.Data.Stat.*`)·표시명·표기 방식 |
+| `LNPStat::MakeModifierText()` | 아이템 설명문 자동 생성 ("Base Attack +10" / "Attack +40%") |
+
+⚠️ SetByCaller 태그를 지정하지 않으면 GAS는 에러 로그 후 **0**을 반환한다. Percent GE에서 0은 스텟을
+0으로 만들어버리므로, `ApplyModifiers`가 **항상 모든 스텟 태그를 no-op 값으로 먼저 채운 뒤** 필요한 항목만 덮어쓴다.
+
+GE 수명은 GE 자체가 아니라 적용한 쪽이 핸들로 관리한다:
+
+| 적용 위치 | 해제 |
+|:---|:---|
+| `ULNPEquipmentComponent::GrantItemImpl` (무기·스킬) | `RevokeItemImpl` |
+| `ULNPInventoryComponent::AddBuffItem` (버프) | `ExpireBuffInstance` |
+| `ALNPEnemyCharacter::InitializeFromConfig` (적 무기) | 재초기화 시 `WeaponStatEffects` 해제 |
+
+> ⚠️ 적은 `EquipmentComponent`를 거치지 않고 `WeaponData`를 직접 읽는다. 무기 스텟을 여기에 적용하지
+> 않으면 적 피해량이 무기분만큼 사라지고, 해제하지 않으면 LOD 전환마다 스텟이 누적된다.
+
+#### PIE 1인 검증 완료 (2026-08-16)
+
+`GASToolsets.AbilitySystemInspectorToolset.GetAttributeValues/GetActiveEffects`로 실측:
+
+| 상태 | LootSpeed (base 1.0) | 판정 |
+|:---|:---|:---|
+| 기본 | 1.0 | — |
+| 합연산 +1.0 | **2.0** | AddBase ✅ |
+| + 곱연산 +50% | **3.0** | MultiplyAdditive ✅ |
+| + 곱연산 +50% 하나 더 | **4.0** | 배율 합산 ✅ (곱복리라면 4.5) |
+| 30초 후 | **2.0** | 곱연산 GE 2개만 만료, 영구(-1) 합연산은 잔존 ✅ |
+
+- 무기 장착만으로 `AttackPower` base 10 → current 20 (`DA_Pistol`의 `{AttackPower, Flat, 10}`) ✅
+- 스탯 탭 실측: `Attack 28.0 (20.0 × 140%)`, `Max HP 150 (100 × 150%)`, `Loot Speed 200% (200% × 100%)` ✅
+- GE CDO 생성 시점에 네이티브 태그·어트리뷰트가 모두 해석됨 (SetByCaller 누락 경고 없음) ✅
+
+**잔여:** 2인 PIE(클라이언트 복제), `DefensePower` 기초 10 도입에 따른 적 피해 밸런스 회귀.
 
 ### 2.2 피해 파이프라인
 
@@ -57,7 +124,8 @@ UGameplayAbility
           → IncomingDamage (Meta) → PostGameplayEffectExecute → 방어력 적용 → Health 차감
 ```
 
-기본 피해량 계산 (`ComputeDamage`): `(AttackPower + WeaponData.Damage) × AttackMultiplier`
+기본 피해량 계산 (`ComputeDamage`): **`AttackPower` 최종값 그대로.**
+무기 스텟은 장착 GE로 `AddBase`에 합산되고 곱연산 버프도 어그리게이터가 이미 곱한 뒤다 (→ §2.1).
 
 쿨다운은 단일 `ULNPGameplayEffect_Cooldown` 클래스에 **어빌리티가 무기별 `FireCooldown`을 per-spec Duration으로 주입** — 무기마다 GE 클래스를 만들지 않는다.
 
@@ -66,11 +134,13 @@ UGameplayAbility
 ```
 UPrimaryDataAsset
   └── ULNPItemDefinitionBase (Abstract)
-        ├── DisplayName / AbilitiesToGrant / EffectsToApply
+        ├── DisplayName / AbilitiesToGrant / EffectsToApply / StatModifiers
         ├── ULNPWeaponData   ← 무기 (아래 표)
         ├── ULNPSkillData    ← 스킬 (Active/Passive 구분은 슬롯 위치)
-        └── ULNPBuffData     ← 버프 (MaxDuration, 0 = 무기한)
+        └── ULNPBuffData     ← 버프 (Duration: 양수 = 기간제, -1 = 영구)
 ```
+
+`StatModifiers`가 베이스에 있으므로 무기·스킬·버프가 같은 형식으로 스텟을 선언한다.
 
 **`ULNPWeaponData` 주요 필드:**
 
@@ -78,7 +148,7 @@ UPrimaryDataAsset
 |:---|:---|
 | 태그·애니메이션 | `WeaponTag`, `DefaultAimMode`, `AnimLayerClass` |
 | 메시 | `WeaponMesh`, `AttachSocketName`, `WeaponMeshRelativeLocation/Rotation` (그립 피벗 보정) |
-| 공격 | `FireCooldown`, `MaxComboCount`, `Damage` |
+| 공격 | `FireCooldown`, `MaxComboCount` (공격력은 베이스의 `StatModifiers`로 선언) |
 | 발사체 | `ProjectileType`(Linear/Guided/Lobbed), `ProjectileSpeed`, `HitRadius`, `ExplosionRadius`, `ProjectileLifetime`, `MuzzleOffset`, `ProjectileDamageEffect`, `ProjectileVFXData` |
 
 > 공격 몽타주는 WeaponData가 아닌 **Chooser Table**에서 선택된다 (WeaponTag가 Chooser 입력 조건). → [TechDesign_CombatAnimation.md §6.1](TechDesign_CombatAnimation.md)

@@ -12,10 +12,10 @@ ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 	InitMaxHealth(100.0f);
 	InitAttackPower(10.0f);
 	InitAttackSpeed(1.0f);
-	InitDefensePower(0.0f);
+	// 곱연산 버프가 동작하려면 기초값이 0이 아니어야 한다 (0 × 1.4 = 0).
+	InitDefensePower(10.0f);
 	InitMoveSpeed(1.0f);
 	InitLootSpeed(1.0f);
-	InitAttackMultiplier(1.0f);
 	InitIncomingDamage(0.f);
 }
 
@@ -29,7 +29,6 @@ void ULNPBaseAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, DefensePower,    COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, MoveSpeed,       COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, LootSpeed,       COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, AttackMultiplier,COND_None, REPNOTIFY_Always);
 }
 
 void ULNPBaseAttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue)          { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, Health, OldValue); }
@@ -39,7 +38,6 @@ void ULNPBaseAttributeSet::OnRep_AttackSpeed(const FGameplayAttributeData& OldVa
 void ULNPBaseAttributeSet::OnRep_DefensePower(const FGameplayAttributeData& OldValue)    { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, DefensePower, OldValue); }
 void ULNPBaseAttributeSet::OnRep_MoveSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, MoveSpeed, OldValue); }
 void ULNPBaseAttributeSet::OnRep_LootSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, LootSpeed, OldValue); }
-void ULNPBaseAttributeSet::OnRep_AttackMultiplier(const FGameplayAttributeData& OldValue){ GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, AttackMultiplier, OldValue); }
 
 void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
@@ -47,8 +45,20 @@ void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribut
 
 	if (Attribute == GetMaxHealthAttribute())
 		NewValue = FMath::Max(1.0f, NewValue);
-	else if (Attribute == GetAttackSpeedAttribute() || Attribute == GetMoveSpeedAttribute() || Attribute == GetLootSpeedAttribute() || Attribute == GetAttackMultiplierAttribute())
+	else if (Attribute == GetAttackSpeedAttribute() || Attribute == GetMoveSpeedAttribute() || Attribute == GetLootSpeedAttribute())
 		NewValue = FMath::Max(0.01f, NewValue);
+	else if (Attribute == GetDefensePowerAttribute())
+		// 음수 방어력은 LNPDamage::ApplyDefense의 100/(100+Def)를 발산시킨다.
+		NewValue = FMath::Max(0.0f, NewValue);
+}
+
+void ULNPBaseAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue)
+{
+	Super::PostAttributeChange(Attribute, OldValue, NewValue);
+
+	// MaxHealth 버프가 만료되면 현재 Health가 상한을 넘은 채 남는다 — 여기서 잘라준다.
+	if (Attribute == GetMaxHealthAttribute() && GetHealth() > NewValue)
+		SetHealth(NewValue);
 }
 
 void ULNPBaseAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)

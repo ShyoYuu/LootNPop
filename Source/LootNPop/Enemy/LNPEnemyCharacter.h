@@ -59,6 +59,13 @@ protected:
 	/** WeaponData에서 부여된 무기 공격 Ability Handle */
 	FGameplayAbilitySpecHandle WeaponAbilityHandle;
 
+	/**
+	 * WeaponData의 StatModifiers로 적용한 GE 핸들.
+	 * 적은 EquipmentComponent를 거치지 않으므로 여기서 직접 적용·해제한다.
+	 * LOD 전환마다 재초기화되므로 해제하지 않으면 무기 스텟이 누적된다.
+	 */
+	TArray<FActiveGameplayEffectHandle> WeaponStatEffects;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|GAS")
 	TObjectPtr<UAbilitySystemComponent> ASC;
 

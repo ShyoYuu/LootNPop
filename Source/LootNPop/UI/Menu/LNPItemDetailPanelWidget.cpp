@@ -6,6 +6,7 @@
 #include "Item/LNPInventoryItemInstance.h"
 #include "Item/LNPItemDefinitionBase.h"
 #include "Item/LNPWeaponData.h"
+#include "GAS/LNPStatModifier.h"
 #include "LNPGameplayTags.h"
 
 #include "UI/Menu/LNPMenuButtonWidget.h"
@@ -48,18 +49,27 @@ void ULNPItemDetailPanelWidget::SetItem(ULNPInventoryItemInstance* InInstance)
 
 	if (DetailText)
 	{
-		FText Detail = FText::GetEmpty();
+		TArray<FString> DetailLines;
 
 		if (BoundInstance && Definition)
 		{
+			// 스탯 변경은 무기·버프 공통으로 선언형 목록에서 그대로 문구를 만든다.
+			for (const FLNPStatModifier& Modifier : Definition->StatModifiers)
+			{
+				const FText ModifierText = LNPStat::MakeModifierText(Modifier);
+				if (!ModifierText.IsEmpty())
+					DetailLines.Add(ModifierText.ToString());
+			}
+
 			if (Cast<ULNPBuffData>(Definition) != nullptr)
 			{
+				// 영구 버프(-1)는 남은 시간을 표시하지 않는다.
 				const float Remaining = BoundInstance->GetRemainingDurationLive();
 				if (Remaining > 0.f)
 				{
-					Detail = FText::Format(
+					DetailLines.Add(FText::Format(
 						NSLOCTEXT("LNPMenu", "BuffRemaining", "Remaining {0}s"),
-						FText::AsNumber(FMath::CeilToInt(Remaining)));
+						FText::AsNumber(FMath::CeilToInt(Remaining))).ToString());
 				}
 			}
 			else
@@ -67,13 +77,13 @@ void ULNPItemDetailPanelWidget::SetItem(ULNPInventoryItemInstance* InInstance)
 				const int32 Level = BoundInstance->GetStatTagStackCount(TAG_Item_Level);
 				if (Level > 0)
 				{
-					Detail = FText::Format(
-						NSLOCTEXT("LNPMenu", "ItemLevel", "Lv. {0}"), FText::AsNumber(Level));
+					DetailLines.Add(FText::Format(
+						NSLOCTEXT("LNPMenu", "ItemLevel", "Lv. {0}"), FText::AsNumber(Level)).ToString());
 				}
 			}
 		}
 
-		DetailText->SetText(Detail);
+		DetailText->SetText(FText::FromString(FString::Join(DetailLines, TEXT("\n"))));
 	}
 
 	UpdateButtons();

@@ -40,7 +40,11 @@
 ## 5. 버프 흐름
 
 - `AddBuffItem(BuffData, RemainingDuration)`: 인스턴스 생성 → GE 적용 → **GAS 핸들은 서버 전용 사이드테이블** `TMap<FGuid, FLNPBuffRuntime>`(핸들+권위 잔여시간, 복제 인스턴스에 핸들 안 실음) → `ActiveBuffList` 편입.
-- 만료: 컴포넌트 tick이 런타임 잔여시간 감소 → 0 도달 시 `ExpireBuffInstance`(GE 해제 + 리스트/서브오브젝트/런타임 제거). `RemainingDuration <= 0` = 무한.
+  적용되는 GE는 아이템 정의의 `EffectsToApply`(특수 효과)와 `StatModifiers`(선언형 스탯 변경, `LNPStat::ApplyModifiers`) 두 갈래다.
+- **지속 시간 규약**: `Duration > 0` = 기간제, **`-1` = 영구**(만료 없음, UI 시간 표시 없음), `0` = 잘못된 설정(경고 로그 후 영구 취급).
+  `AddBuffItem`의 인수 0은 "페이로드 없음"을 뜻해 아이템 정의값으로 폴백하므로, **영구는 반드시 -1로 왕복해야 한다**.
+- 만료: 컴포넌트 tick이 런타임 잔여시간 감소 → 0 도달 시 `ExpireBuffInstance`(GE 해제 + 리스트/서브오브젝트/런타임 제거).
+  `RemainingDuration < 0`이면 tick이 건너뛴다.
 - 인스턴스의 `RemainingDuration`은 **복제 스냅샷**(추가·양도 시점 갱신). 권위 카운트다운은 서버의 `FLNPBuffRuntime`이 하고, **UI 라이브 표시는 각 머신이 로컬로 센다** — 인스턴스의 비복제 `DurationStartTime`에 스냅샷이 유효해진 로컬 월드 시각을 찍고(서버: `SetRemainingDuration`, 소유 클라: `FLNPInventoryList::PostReplicatedAdd`), `GetRemainingDurationLive()`가 `스냅샷 - 경과`를 반환한다. 시계 동기화 불필요(오차 ≈ 편도 지연). 기준 시각이 인스턴스에 남으므로 **인벤토리를 닫았다 열어도 이어서 센다**. 표시는 인게임 메뉴가 담당한다 — `ULNPBuffChipWidget`(스탯 탭 버프 칩)과 `ULNPMenuItemCellWidget`(인벤토리 셀 배지)이 각각 1초 반복 타이머로 잔여 초를 갱신(`CeilToInt`)하고, 항목 재바인딩·`NativeDestruct`에서 타이머를 정리한다. 2026-07-17 PIE 검증 완료(당시 위젯은 `ULNPInventoryEntryWidget`, 2026-08-07 인게임 메뉴로 이관되며 삭제).
 - 드랍/양도: `RemoveBuffInstance(ItemId)`가 잔여 초를 반환 → LootDice 페이로드 → 재획득 시 `AddBuffItem(..., 잔여)`로 복원 (라운드트립 성립).
 

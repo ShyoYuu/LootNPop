@@ -59,7 +59,34 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 
 ### 3.3 버프 아이템 (Buff)
 
-버프 아이템은 **기간제**다. 아이템에는 최대 지속 시간과 현재 남은 시간이 저장되며, **플레이어가 보유하고 있는 동안에만 시간이 차감**된다.
+#### 합연산 / 곱연산 이원 구조
+
+```
+최종 스텟 = (캐릭터 기초 + 무기 스텟 + 합연산 버프) × (1 + Σ 곱연산 버프)
+```
+
+| 종류 | 성격 | 표기 | 희소성 |
+|:---|:---|:---|:---|
+| **곱연산 버프** | 인게임에서 얻는 대부분의 일반 버프. 배율끼리 **합해진 뒤 한 번** 곱해진다 | "공격력 +40%" | 일반 |
+| **합연산 버프** | 기초 스텟을 직접 올린다. 뒤따르는 모든 곱연산 버프에 **증폭**되므로 고효율 | "기초 공격력 +10" | **레어** |
+
+**모든 스텟에 두 종류가 모두 존재한다.** 배율 스텟(이동·공격·루팅 속도)은 기초가 1.0이므로
+합연산도 퍼센트로 표기한다 — "기초 이동속도 +10%".
+
+같은 스텟의 곱연산 버프를 중복 획득하면 배율이 **합산**되므로 체감 효율이 점점 떨어진다:
+
+| 보유 수 | 총 배율 | 직전 대비 실질 증가 |
+|:---|:---|:---|
+| +40% × 1 | 140% | +40% |
+| +40% × 2 | 180% | +28.6% |
+| +40% × 3 | 220% | +22.2% |
+
+> ⚠️ 곱연산 버프는 기초값이 0인 스텟에서 무효다(0 × 1.4 = 0). 그래서 `DefensePower` 기초를 10으로 둔다.
+
+#### 지속 시간
+
+`Duration`이 **양수면 기간제, `-1`이면 영구**다. 영구 버프는 만료되지 않고 UI에도 남은 시간을 표시하지 않는다.
+기간제 버프는 **플레이어가 보유하고 있는 동안에만 시간이 차감**된다.
 
 | 상황 | 남은 시간 변화 |
 |:---|:---|
@@ -67,22 +94,29 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 | 바닥에 드랍됨 | **차감 중지** |
 | 다른 플레이어가 주움 | 다시 차감 재개 |
 | 남은 시간 0 도달 | 아이템 소멸, 스텟 효과 제거 |
+| `Duration = -1` | 차감 없음, 시간 표시 없음 |
 
 > 예시: 5분짜리 버프 아이템을 4분간 보유 후 드랍 → 바닥에 1분짜리 아이템으로 존재. 다른 플레이어가 주우면 1분간 버프 효과 적용 후 소멸.
 
-#### 버프 아이템 목록 (2026-07-27)
+#### 오써링
 
-플레이어 스텟 하나에 각각 대응하는 6종. 모두 `MaxDuration` 30초 · Infinite GE `AddBase` 방식이며,
-에셋은 `/Game/ItemData/Buffs/DA_Buff_*` + `/Game/GAS/Effects/GE_Buff_*` 쌍으로 구성된다.
+버프 DataAsset이 `{어트리뷰트, 연산(Flat/Percent), 크기}` 목록을 선언하면
+공용 GE 2종(`ULNPGameplayEffect_StatFlat` / `_StatPercent`)이 SetByCaller로 받아 적용한다.
+**스텟×연산 조합마다 GE 에셋을 만들지 않는다** (→ [TechDesign_Ability.md](TechDesign_Ability.md)).
+아이템 설명문("공격력 +40%")도 이 선언에서 자동 생성된다.
 
-| 아이템 | 대상 스텟 | 베이스 → 결과 | 아이콘 (실루엣 / 액센트) |
-|:---|:---|:---|:---|
-| Vitality Core | MaxHealth | 100 → 150 (1.5x) | 하트 / 레드 |
-| Power Surge | AttackPower | 10 → 20 (2.0x) | 교차 슬래시 X / 오렌지 |
-| Frenzy | AttackSpeed | 1.0 → 1.3 (1.3x) | 번개 / 옐로 |
-| Bulwark | DefensePower | 0 → 50 (피해 −33%) | 방패 / 블루 |
-| Swift Step | MoveSpeed | 1.0 → 1.3 (1.3x) | 이중 셰브론 » / 민트 |
-| Loot Booster | LootSpeed | 1.0 → 2.0 (2.0x) | 루팅 게이지 링 / 퍼플 |
+#### 버프 아이템 목록
+
+플레이어 스텟 6종 각각에 합연산·곱연산 한 쌍씩. 에셋은 `/Game/ItemData/Buffs/DA_Buff_*`.
+
+| 아이템 | 대상 스텟 | 아이콘 (실루엣 / 액센트) |
+|:---|:---|:---|
+| Vitality Core | MaxHealth | 하트 / 레드 |
+| Power Surge | AttackPower | 교차 슬래시 X / 오렌지 |
+| Frenzy | AttackSpeed | 번개 / 옐로 |
+| Bulwark | DefensePower | 방패 / 블루 |
+| Swift Step | MoveSpeed | 이중 셰브론 » / 민트 |
+| Loot Booster | LootSpeed | 루팅 게이지 링 / 퍼플 |
 
 > **배선 완료 · PIE 검증 완료 (2026-07-27, 서버 1P·클라 2P 양쪽):** 6종 모두 실제 게임플레이에 반영된다.
 > - `AttackSpeed` → 근거리 몽타주 재생 속도(ANS 히트 윈도우도 함께 압축) + **무기 `FireCooldown` 나눗셈**.
@@ -118,14 +152,41 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 
 ## 5. 스텟 시스템
 
-| 스텟 | 설명 | 버프 아이템 영향 |
-|:---|:---|:---|
-| Health / MaxHealth | 현재/최대 체력 | MaxHealth 증가 가능 |
-| AttackPower | 기본 공격 및 어빌리티 피해 배율 | ✅ |
-| AttackSpeed | 공격 속도 배율 (애님 재생 속도와 연동) | ✅ |
-| DefensePower | 피격 시 피해 감소 | ✅ |
-| MoveSpeed | 이동 속도 배율 | ✅ |
-| LootSpeed | LootPod 루팅 게이지 진행 속도 배율 | ✅ |
+스텟 하나당 어트리뷰트 하나다. 배율용 보조 어트리뷰트를 따로 두지 않는다 —
+합/곱은 같은 어트리뷰트의 서로 다른 연산 채널로 들어간다 (→ §3.3).
+
+| 스텟 | 설명 | 기초값 | 표기 |
+|:---|:---|:---|:---|
+| Health / MaxHealth | 현재/최대 체력 | 100 | 정수 |
+| AttackPower | 기본 공격 및 어빌리티 피해량 | 10 | 수치 |
+| AttackSpeed | 공격 속도 배율 (애님 재생 속도·쿨다운 연동) | 1.0 | 퍼센트 |
+| DefensePower | 피격 시 피해 감소 `100/(100+Def)` | 10 | 수치 |
+| MoveSpeed | 이동 속도 배율 | 1.0 | 퍼센트 |
+| LootSpeed | LootPod 루팅 게이지 진행 속도 배율 | 1.0 | 퍼센트 |
+
+**무기 스텟도 이 어트리뷰트에 합산된다** — 무기 DataAsset이 버프와 같은 형식으로
+`{AttackPower, Flat, N}`을 선언하고, 장착 중에만 GE로 적용된다.
+그래서 곱연산 버프가 무기 공격력까지 함께 증폭한다.
+
+### 캐릭터 스텟 UI 표기
+
+```
+C (A × B)
+```
+
+- **A** = 기초 스텟 총량 (캐릭터 기본 + 무기 스텟 + 합연산 버프)
+- **B** = 곱연산 버프 총 배율. 보유한 버프 아이템의 퍼센트 합과 1:1로 대응 (버프 없음 = 100%)
+- **C** = 실제 적용되는 최종값
+
+```
+HP              62 / 150
+Max HP          150 (100 × 150%)
+Attack          66.0 (55.0 × 120%)
+Attack Speed    154% (110% × 140%)
+Defense         28.0 (20.0 × 140%)
+Move Speed      154% (110% × 140%)
+Loot Speed      140% (100% × 140%)
+```
 
 ---
 
@@ -139,7 +200,7 @@ LootPod 루팅 → 아이템 획득 → 장착/보유 → 어빌리티/스텟 �
 |:---|:---|
 | GAS 모듈 등록 | 모듈 빌드 설정 및 ASC/AttributeSet 연결 완료 |
 | ASC (PlayerState) | `ALNPPlayerState`에 귀속. 폰 교체 시에도 어빌리티·버프 유지 |
-| AttributeSet | Health/MaxHealth/AttackPower/AttackSpeed/DefensePower/MoveSpeed/AttackMultiplier 7개 정의 |
+| AttributeSet | Health/MaxHealth/AttackPower/AttackSpeed/DefensePower/MoveSpeed/LootSpeed + IncomingDamage(Meta) |
 | 아이템 DataAsset | Weapon / Skill / Buff 타입별 DataAsset 분리 정의 |
 | EquipmentComponent | 무기 슬롯(1), Active Skill 슬롯(설정값, 기본 4), Passive 목록 관리. 장착/해제 시 GAS 자동 연동 |
 | InventoryComponent | 아이템 보관함 + 버프 아이템 기간제 Tick 추적. 드랍 시 남은 시간 반환 |

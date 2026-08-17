@@ -13,6 +13,12 @@ class USkeletalMesh;
 
 class ULNPVFXData;
 
+/**
+ * 무기 DataAsset.
+ *
+ * 무기의 공격력은 여기가 아니라 베이스의 `StatModifiers`({AttackPower, Flat, N})로 선언한다 —
+ * 어트리뷰트에 합산되어야 곱연산 버프가 무기분까지 증폭하고 스탯 UI에도 함께 표시된다.
+ */
 UCLASS(BlueprintType)
 class LOOTNPOP_API ULNPWeaponData : public ULNPItemDefinitionBase
 {
@@ -70,9 +76,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0.1"))
 	float ExplosionRadius = 5.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0"))
-	float Damage = 10.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0.1"))
 	float ProjectileLifetime = 5.f;

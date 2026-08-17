@@ -13,6 +13,17 @@
 	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
 	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
+/**
+ * 플레이어·적 공용 스탯.
+ *
+ * **버프 규약** — 스탯 하나당 어트리뷰트 하나다. 배율용 보조 어트리뷰트를 따로 두지 않는다.
+ *   최종 = (기초 + 무기 스텟 + 합연산 버프) × (1 + Σ 곱연산 버프)
+ * 합연산은 `EGameplayModOp::AddBase`, 곱연산은 `MultiplyAdditive`만 쓴다 (→ `GAS/LNPStatModifier.h`).
+ * ⚠️ DivideAdditive / MultiplyCompound / AddFinal / Override를 쓰면 스탯 UI의 `C = A × B` 분해가 깨진다.
+ *
+ * ⚠️ 곱연산 버프는 기초값이 0인 스탯에서 무효다(0 × 1.4 = 0). 새 스탯을 추가할 때는
+ *    기초값을 반드시 양수로 준다.
+ */
 UCLASS()
 class LOOTNPOP_API ULNPBaseAttributeSet : public UAttributeSet
 {
@@ -22,6 +33,7 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
+	virtual void PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue) override;
 	virtual void PostGameplayEffectExecute(const struct FGameplayEffectModCallbackData& Data) override;
 
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes", ReplicatedUsing = OnRep_Health)
@@ -53,10 +65,6 @@ public:
 	FGameplayAttributeData LootSpeed;
 	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, LootSpeed)
 
-	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes", ReplicatedUsing = OnRep_AttackMultiplier)
-	FGameplayAttributeData AttackMultiplier;
-	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, AttackMultiplier)
-
 	/** Meta 어트리뷰트: GE가 전달한 원시 피해량. PostGameplayEffectExecute에서 방어력 적용 후 즉시 0으로 초기화. 복제하지 않음. */
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes")
 	FGameplayAttributeData IncomingDamage;
@@ -77,6 +85,4 @@ private:
 	void OnRep_MoveSpeed(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_LootSpeed(const FGameplayAttributeData& OldValue);
-	UFUNCTION()
-	void OnRep_AttackMultiplier(const FGameplayAttributeData& OldValue);
 };

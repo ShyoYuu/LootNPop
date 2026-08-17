@@ -56,7 +56,7 @@ void ULNPBuffChipWidget::UpdateTimeText()
 
 	const float Remaining = BoundInstance->GetRemainingDurationLive();
 
-	// RemainingDuration <= 0 은 무한 지속을 뜻한다 (TechDesign_Inventory §5) — 시간 표기를 생략한다.
+	// RemainingDuration < 0 (=-1) 은 영구 버프다 (TechDesign_Inventory §5) — 시간 표기를 생략한다.
 	if (Remaining <= 0.f)
 	{
 		TimeText->SetText(FText::GetEmpty());

@@ -53,7 +53,7 @@ void ULNPMenuItemCellWidget::UpdateBadge()
 	{
 		const float Remaining = BoundInstance->GetRemainingDurationLive();
 
-		// RemainingDuration <= 0 은 무한 지속 (TechDesign_Inventory §5).
+		// RemainingDuration < 0 (=-1) 은 영구 버프 (TechDesign_Inventory §5).
 		if (Remaining <= 0.f)
 		{
 			BadgeText->SetText(FText::GetEmpty());

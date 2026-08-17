@@ -73,7 +73,6 @@ float ULNPAbility_BasicAttack::ComputeDamage() const
 	if (!Attrs)
 		return 0.f;
 
-	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDef();
-	const float WeaponBonus = WeaponDef ? WeaponDef->Damage : 0.f;
-	return (Attrs->GetAttackPower() + WeaponBonus) * Attrs->GetAttackMultiplier();
+	// 무기 스텟은 장착 GE로 AttackPower에 합산되어 있고, 곱연산 버프도 어그리게이터가 이미 곱한 뒤다.
+	return Attrs->GetAttackPower();
 }

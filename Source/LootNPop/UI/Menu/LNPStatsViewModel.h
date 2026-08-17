@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AttributeSet.h"          // FGameplayAttribute (값 타입으로 사용)
+#include "GAS/LNPStatModifier.h"   // ELNPStatDisplay
 #include "MVVMViewModelBase.h"
 #include "LNPStatsViewModel.generated.h"
 
@@ -19,10 +20,14 @@ struct FOnAttributeChangeData;
  *
  * Blueprint 바인딩: CommonRichTextBlock.Text ← Stats_ViewModel.StatsRichText (One Way)
  *
+ * 표기는 `C (A × B)` — A는 기초 스탯 총량(캐릭터 기본 + 무기 스텟 + 합연산 버프),
+ * B는 곱연산 버프의 총 배율(퍼센트). "+40%" 버프 하나를 얻으면 B가 100% → 140%로 움직여
+ * 아이템 표기와 1:1로 대응된다.
+ *
  * 마크업 태그 3종 — 스타일 셋에 같은 이름의 행이 있어야 한다:
- *  - <final> 최종값 (흰색)
- *  - <sub>   합연산결과와 괄호·구분자 (회색)
- *  - <buff>  곱연산 증가량 (초록)
+ *  - <final> 최종값 C (흰색)
+ *  - <sub>   합연산결과 A와 괄호·구분자 (회색)
+ *  - <buff>  곱연산 배율 B (초록)
  * ⚠️ 열 정렬을 공백 패딩으로 하므로 세 스타일 모두 모노스페이스 폰트여야 한다.
  */
 UCLASS(BlueprintType)
@@ -44,8 +49,9 @@ public:
 	 *   ((Base + AddBase) * MultiplyAdditive / DivideAdditive * MultiplyCompound) + AddFinal
 	 * 이므로(GameplayEffectAggregator.cpp), 이 값이 곧 "곱연산이 적용되기 직전의 값"이다.
 	 *
+	 * 무기 스텟도 장착 GE의 AddBase로 들어오므로 이 값에 자동으로 포함된다.
+	 *
 	 * ⚠️ 한계: 조건부 모디파이어의 태그 평가 파라미터까지는 재현하지 않고 bIsInhibited만 거른다.
-	 * 버프 시스템을 개선할 때 이 함수 내부만 교체하면 되도록 격리해 두었다.
 	 */
 	static float GetAdditiveResult(const UAbilitySystemComponent* ASC, const FGameplayAttribute& Attribute);
 
@@ -55,7 +61,7 @@ private:
 
 	void SetStatsRichText(const FText& InValue);
 
-	/** 구독하는 어트리뷰트 목록. 스탯을 추가하면 여기와 BuildStatsRichText를 함께 고친다. */
+	/** 구독하는 어트리뷰트 목록 — LNPStat::GetStatMetaTable()의 스탯 전체 + Health. */
 	static TArray<FGameplayAttribute> GetObservedAttributes();
 
 	/** 리드아웃 전체를 다시 만든다. */
@@ -63,11 +69,8 @@ private:
 
 	void OnObservedAttributeChanged(const FOnAttributeChangeData& Data);
 
-	/**
-	 * 한 행을 만든다: "라벨   최종값 (합연산결과 + 곱연산증가량)"
-	 * @param bIsInteger true면 소수점 없이 출력한다.
-	 */
-	static FString MakeStatLine(const FString& Label, float FinalValue, float AdditiveResult, bool bIsInteger);
+	/** 한 행을 만든다: "라벨   C (A × B)" */
+	static FString MakeStatLine(const FText& Label, float FinalValue, float AdditiveResult, ELNPStatDisplay Display);
 
 	TWeakObjectPtr<UAbilitySystemComponent> BoundASC;
 

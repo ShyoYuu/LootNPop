@@ -50,3 +50,10 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Parry_Parrier, "LNP.Montage.Value.Parry
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Parry_Parried, "LNP.Montage.Value.Parry.Parried")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Item_Level, "LNP.Item.Level")
+
+UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_MaxHealth,    "LNP.GE.Data.Stat.MaxHealth")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_AttackPower,  "LNP.GE.Data.Stat.AttackPower")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_AttackSpeed,  "LNP.GE.Data.Stat.AttackSpeed")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_DefensePower, "LNP.GE.Data.Stat.DefensePower")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_MoveSpeed,    "LNP.GE.Data.Stat.MoveSpeed")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_LootSpeed,    "LNP.GE.Data.Stat.LootSpeed")

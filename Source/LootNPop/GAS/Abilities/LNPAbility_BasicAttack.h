@@ -37,7 +37,7 @@ protected:
 	 */
 	float GetAttackSpeed() const;
 
-	/** 기본 피해 공식: (AttackPower + WeaponDamage) * AttackMultiplier. Ability별로 Override 가능. */
+	/** 기본 피해 = AttackPower 최종값 (무기 스텟·합/곱 버프가 모두 반영된 값). Ability별로 Override 가능. */
 	virtual float ComputeDamage() const;
 
 	/** 공용 Cooldown GE (Duration은 ApplyCooldown에서 무기별로 주입). */
