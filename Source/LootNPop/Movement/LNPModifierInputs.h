@@ -7,7 +7,7 @@
 #include "LNPModifierInputs.generated.h"
 
 /**
- * Guard/Sprint 의도를 Mover InputCmd에 싣기 위한 커스텀 입력 데이터.
+ * Guard/Sprint/Dash 의도를 Mover InputCmd에 싣기 위한 커스텀 입력 데이터.
  * bWantsToGuard/bWantsToRun을 ULNPCharacterMoverComponent의 평범한 멤버 변수로 직접 두면
  * Mover의 예측·복제·리시뮬레이션 파이프라인을 타지 않는다 (Jump가 FCharacterDefaultInputs::bIsJumpJustPressed로
  * InputCmd를 통해 전달되는 것과 대조됨). ULNPInputHandlerComponent::OnProduceInput에서 매 틱 기록하고,
@@ -24,6 +24,17 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
 	bool bWantsToSprint = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	bool bWantsToDash = false;
+
+	/**
+	 * Dash 방향 결정에 쓰이는 카메라 로컬 이동 입력 (X=Forward, Y=Right).
+	 * 서버가 원격 폰을 시뮬레이션할 때 폰의 현재 입력을 읽으면 해당 프레임 값이 아니므로 반드시 InputCmd로 전달한다.
+	 * bWantsToDash가 true인 프레임에만 의미를 가진다.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	FVector DashInputIntent = FVector::ZeroVector;
+
 	virtual FMoverDataStructBase* Clone() const override
 	{
 		return new FLNPModifierInputs(*this);
@@ -33,6 +44,12 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	{
 		Ar.SerializeBits(&bWantsToGuard, 1);
 		Ar.SerializeBits(&bWantsToSprint, 1);
+		Ar.SerializeBits(&bWantsToDash, 1);
+		// Dash 방향은 대시를 요청한 프레임에만 필요하다 — 평상시 대역폭을 쓰지 않도록 조건부로 직렬화한다.
+		if (bWantsToDash)
+		{
+			Ar << DashInputIntent;
+		}
 		bOutSuccess = true;
 		return true;
 	}
@@ -45,7 +62,12 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	virtual bool ShouldReconcile(const FMoverDataStructBase& AuthorityState) const override
 	{
 		const FLNPModifierInputs& Authority = static_cast<const FLNPModifierInputs&>(AuthorityState);
-		return bWantsToGuard != Authority.bWantsToGuard || bWantsToSprint != Authority.bWantsToSprint;
+		if (bWantsToGuard != Authority.bWantsToGuard || bWantsToSprint != Authority.bWantsToSprint || bWantsToDash != Authority.bWantsToDash)
+		{
+			return true;
+		}
+		// DashInputIntent는 bWantsToDash가 false면 직렬화되지 않아 값이 의미를 갖지 않는다 — 대시 프레임에서만 비교한다.
+		return bWantsToDash && !DashInputIntent.Equals(Authority.DashInputIntent);
 	}
 
 	/**
@@ -58,6 +80,8 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		const FLNPModifierInputs& FromInputs = static_cast<const FLNPModifierInputs&>(From);
 		bWantsToGuard = FromInputs.bWantsToGuard;
 		bWantsToSprint = FromInputs.bWantsToSprint;
+		bWantsToDash = FromInputs.bWantsToDash;
+		DashInputIntent = FromInputs.DashInputIntent;
 	}
 };
 

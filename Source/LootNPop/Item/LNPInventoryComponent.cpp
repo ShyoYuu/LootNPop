@@ -11,13 +11,14 @@
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
 #include "Net/UnrealNetwork.h"
+#include "TimerManager.h"
 #include "HAL/IConsoleManager.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 
 ULNPInventoryComponent::ULNPInventoryComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+	// 버프 만료는 FTimerManager가 담당하므로 틱이 필요 없다 (매 프레임 감산 방식에서 전환).
 	// 소유 클라이언트 UI가 가방/버프 목록을 읽으려면 컴포넌트가 복제되어야 한다.
 	SetIsReplicatedByDefault(true);
 	// 아이템 인스턴스(UObject)를 등록 서브오브젝트 리스트로 복제한다 (Iris 네이티브 지원).
@@ -39,13 +40,6 @@ void ULNPInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 void ULNPInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
-}
-
-void ULNPInventoryComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (BuffRuntime.Num() > 0)
-		TickBuffItems(DeltaTime);
 }
 
 // --- 가방 인스턴스 API ---
@@ -132,7 +126,18 @@ void ULNPInventoryComponent::AddBuffItem(ULNPBuffData* ItemDef, float InRemainin
 
 	// 서버 전용 런타임 — GAS 이펙트 적용 후 핸들 보관.
 	FLNPBuffRuntime Runtime;
-	Runtime.RemainingDuration = Duration;
+
+	// 기간제 버프는 만료 시각을 여기서 한 번 확정하고 타이머에 맡긴다 — 매 프레임 감산이 없어
+	// 버프별 float 누적 오차가 생기지 않고, 컴포넌트 틱도 필요 없다.
+	// 영구 버프(-1)는 타이머를 걸지 않으며, 그 상태(핸들 무효)가 곧 "영구" 판별이 된다.
+	if (Duration > 0.0f)
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			Runtime.ExpireTimer,
+			FTimerDelegate::CreateUObject(this, &ULNPInventoryComponent::ExpireBuffInstance, Instance->GetItemId()),
+			Duration, /*bLoop=*/false);
+		Runtime.ExpireWorldTime = GetWorld()->GetTimeSeconds() + Duration;
+	}
 
 	FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
 	for (const TSubclassOf<UGameplayEffect>& EffectClass : ItemDef->EffectsToApply)
@@ -163,9 +168,15 @@ float ULNPInventoryComponent::RemoveBuffInstance(const FGuid& ItemId)
 	if (GetOwnerRole() != ROLE_Authority)
 		return 0.0f;
 
+	// 타이머 핸들 유효 = 기간제 → 만료 시각에서 남은 초를 역산한다.
+	// 무효 = 영구 → -1을 그대로 반환해 Dice 페이로드를 왕복시킨다 (0은 "페이로드 없음"이라 쓸 수 없다).
 	float Remaining = 0.0f;
 	if (const FLNPBuffRuntime* Runtime = BuffRuntime.Find(ItemId))
-		Remaining = Runtime->RemainingDuration;
+	{
+		Remaining = Runtime->ExpireTimer.IsValid()
+			? static_cast<float>(Runtime->ExpireWorldTime - GetWorld()->GetTimeSeconds())
+			: LNPBuff::PermanentDuration;
+	}
 
 	ExpireBuffInstance(ItemId);
 	return Remaining;
@@ -210,30 +221,15 @@ UAbilitySystemComponent* ULNPInventoryComponent::GetASC() const
 	return nullptr;
 }
 
-void ULNPInventoryComponent::TickBuffItems(float DeltaTime)
-{
-	// 만료 후보를 먼저 수집한다 (만료 처리가 BuffRuntime을 변경하므로 순회 중 수정 방지).
-	TArray<FGuid> Expired;
-	for (TPair<FGuid, FLNPBuffRuntime>& Pair : BuffRuntime)
-	{
-		FLNPBuffRuntime& Runtime = Pair.Value;
-		if (Runtime.RemainingDuration < 0.0f)
-			continue;  // 영구 버프 (-1)
-
-		Runtime.RemainingDuration -= DeltaTime;
-		if (Runtime.RemainingDuration <= 0.0f)
-			Expired.Add(Pair.Key);
-	}
-
-	for (const FGuid& ItemId : Expired)
-		ExpireBuffInstance(ItemId);
-}
-
-void ULNPInventoryComponent::ExpireBuffInstance(const FGuid& ItemId)
+void ULNPInventoryComponent::ExpireBuffInstance(FGuid ItemId)
 {
 	// GAS 이펙트 해제.
 	if (FLNPBuffRuntime* Runtime = BuffRuntime.Find(ItemId))
 	{
+		// 양도·조기 제거로 들어온 경로라면 만료 타이머가 아직 대기 중이다 — 반드시 해제한다.
+		// (타이머 발화로 들어온 경로에서는 자기 콜백 안에서의 ClearTimer를 엔진이 안전하게 처리한다.)
+		GetWorld()->GetTimerManager().ClearTimer(Runtime->ExpireTimer);
+
 		if (UAbilitySystemComponent* ASC = GetASC())
 		{
 			for (const FActiveGameplayEffectHandle& Handle : Runtime->AppliedEffects)

@@ -218,6 +218,9 @@ Sprint/Guard Modifier는 라이브 설정에 값을 쓰고 종료 시 **CDO 원�
 **시각 동기화 (`FLayeredMove_AnimRootMotion`)**
 - 몽타주의 네트워크 동기화. 시뮬레이티드 프록시가 동일 프레임에서 몽타주 재생.
 - 실제 루트 모션 추출은 비활성 → 애니메이션 에셋 수정 없이 코드만으로 대시 거리·속도 제어.
+- `StartingMontagePosition`은 **0으로 고정**한다. 재생 중인 몽타주 인스턴스에서 되읽으면 몽타주가 돌지 않는 서버·리시뮬레이션과 값이 갈린다.
+
+몽타주 평가(`EvaluateMontage`) 실패는 **물리 대시를 취소하지 않는다**. 몽타주는 연출이고, 서버와 클라이언트의 Chooser 평가 결과가 갈릴 경우 그것만으로 시뮬레이션 상태가 분기하기 때문이다.
 
 ### 5.2 방향성 대시 — Chooser 연동
 
@@ -233,14 +236,23 @@ Sprint/Guard Modifier는 라이브 설정에 값을 쓰고 종료 시 **CDO 원�
 
 ### 5.3 제한 조건
 
-- 조준 중(`bIsAiming`) 또는 공중 상태에서 발동 불가.
-- `DashCooldown` 시간 내 재발동 불가.
+- 공중 상태에서 발동 불가 (`IsOnGround()`).
+- 쿨다운 중 재발동 불가 — `FLNPDashCooldownModifier`의 존재로 판정한다 (§5.4).
+- 조준 중(`bIsAiming`) 발동 불가 조건이 코드에 남아 있으나 `SetIsAiming()` 호출처가 없어 **현재는 상시 false**다 (§8).
 
-### 5.4 네트워크 흐름
+### 5.4 네트워크 흐름 — InputCmd 경로 (2026-08-19 이관 완료)
 
-1. **Autonomous Proxy:** 즉시 두 FLayeredMove를 큐에 삽입 (체감 지연 0)
-2. **Server:** 무브 검증 후 `SyncState` 갱신
-3. **Simulated Proxy:** `LinearVelocity` 수신 → 위치 갱신, `AnimRootMotion` 수신 → 자동 몽타주 재생
+대시는 질주·가드와 동일하게 **의도는 `InputCmd`로 전달하고 실행은 시뮬레이션 안에서** 한다.
+
+1. **입력 콜백** (`ULNPInputHandlerComponent::OnDashStarted`): 버퍼 창(0.05초)만 연다. `ExecuteDash`를 직접 호출하지 않는다.
+2. **`OnProduceInput`:** 버퍼가 열려 있는 동안 `FLNPModifierInputs::bWantsToDash`와 `DashInputIntent`를 InputCmd에 싣는다. 방향은 대시 프레임에만 조건부 직렬화해 평상시 대역폭을 쓰지 않는다.
+3. **`OnMoverPreSimulationTick`:** `bWantsToDash && CanDash()`이면 `ExecuteDash`를 호출한다. 이 경로는 오토노머스 프록시(예측)·서버(권위)·시뮬레이티드 프록시(포워드 예측) 모두에서 동일하게 실행된다.
+
+**쿨다운은 SyncState에 실린다.** 기존의 `LastDashTime` + `GetWorld()->GetTimeSeconds()` 방식은 서버가 원격 폰을 버퍼된 입력으로 늦게 시뮬레이션하거나 롤백 후 과거 프레임을 재시뮬레이션할 때 클라이언트와 판정이 어긋난다. `FLNPDashCooldownModifier`(이동에 영향 없는 지속시간 Modifier)로 표현해 롤백과 함께 복원되게 했다.
+
+**연출은 리시뮬레이션에서 제외한다.** 몽타주 재생과 `OnDashExecuted`(HUD 쿨다운 파이) 브로드캐스트는 `TimeStep.bIsResimulating`으로 게이팅한다 — 게이팅하지 않으면 롤백마다 몽타주가 다시 재생되고 쿨다운 표시가 계속 리셋된다.
+
+`ControlRotation`과 이동 인텐트는 폰이 아니라 **InputCmd에서 읽는다**. 서버가 원격 폰을 시뮬레이션하는 시점의 폰 현재값은 해당 프레임의 값이 아니라 방향이 갈린다.
 
 ---
 
@@ -252,6 +264,10 @@ Sprint/Guard Modifier는 라이브 설정에 값을 쓰고 종료 시 **CDO 원�
 | `LaunchWithVelocity()` | `FLayeredMove_Launch` (OverrideVelocity) | 패링 성공 시 공격자 발사 등 |
 
 두 API 모두 **Air 모드로 강제 전환**해서 적용한다 — Ground 모드는 매 틱 속도를 MaxWalkSpeed로 클램프하고 위치를 지면에 스냅하므로 임펄스가 무력화되기 때문 (§7.2).
+
+**네트워크 특성 — 대시와 트리거 방향이 반대라 §7.6의 함정에 해당하지 않는다.** 넉백·Launch는 전부 권위(서버)에서만 트리거된다. 히트 판정 프로세서가 비서버에서 조기 반환하므로(`LNPWeaponTraceProcessors.cpp`, `LNPProjectileProcessors.cpp` — 네트워킹 문서 §3.8의 3-구역 패턴) 결과가 권위 SyncState에 들어가 그대로 복제된다. 예외 두 곳은 무해하다: `TriggerRagdoll()`의 넉백은 캡슐 콜리전이 꺼지고 물리 메시로 넘어간 뒤라 Mover 상태가 무의미하고, `SyncFromEntity()`의 `LaunchWithVelocity()`는 액터 승격 시 각 머신이 동일한 Mass 엔티티 속도로 로컬 Mover를 시드하는 의도된 초기화다.
+
+다만 **넉백은 예측되지 않는다** — 피격자 본인 화면에서 넉백이 RTT만큼 늦게 보정 스냅과 함께 나타난다. 서버 권위 설계의 정상 비용이며, 예측하려면 InputCmd가 아닌 SyncState 트리거로 옮기는 별도 작업이 필요하다 (§8).
 
 ---
 
@@ -288,10 +304,33 @@ Guard/Sprint 의도를 컴포넌트 멤버 변수(bool)로 두고 PreSimulationT
 
 **교훈:** Gameplay Cameras의 `ECameraNodeSpace::CameraPose`는 "그 시점까지 평가된 `CameraPose.GetRotation()`"이라, 앞선 노드가 어떤 프레임을 남겼는지에 전적으로 의존한다. 구면 중력에서는 **어느 노드가 언제 중력 정렬을 회복시키는지**가 리그 설계의 핵심 제약이 된다.
 
+### 7.6 "클라이언트가 대시하면 서버 화면에 아무 일도 안 일어난다" — §7.1과 같은 함정, 다른 기능 (2026-08-19)
+
+증상이 **완전한 단방향**이었다. 서버가 대시하면 모든 화면에서 정상, 클라이언트가 대시하면 서버 화면에는 아무 변화가 없고 클라이언트 화면에서만 한 번 튀었다가 제자리로 돌아왔다. 같은 키를 공유하는 질주(탭=대시, 홀드=질주)는 정상 동기화되고 있었다는 점이 결정적 단서였다.
+
+원인은 §7.1에서 이미 정리해 둔 함정에 **대시만 빠져 있었던 것**이다. 질주·가드는 `FLNPModifierInputs`를 통해 InputCmd를 타는데, 대시는 입력 콜백에서 `MoverComponent->ExecuteDash()`를 직접 호출해 `QueueLayeredMove`까지 가고 있었다. 그 레이어드 무브는 키를 누른 그 머신의 로컬 Mover에만 들어간다.
+
+- 서버가 누름 → 권위 시뮬레이션에 들어가고 SyncState로 복제 → 정상으로 보인다.
+- 클라이언트가 누름 → 예측 시뮬레이션에만 들어간다. 서버는 InputCmd에 대시 비트가 없으니 아무것도 하지 않고, 다음 권위 상태 도착 시 클라이언트가 롤백된다.
+
+즉 **클라이언트가 2명이었다면 어느 쪽 대시도 동작하지 않았다.** 호스트가 곧 권위라 "서버는 되니까 절반은 맞다"고 보인 것뿐이다.
+
+**해결:** §5.4의 InputCmd 경로로 이관. 이관 자체는 비트 하나지만, 함께 처리해야 할 것이 세 가지 있었다.
+
+| 항목 | 그대로 두면 |
+|:---|:---|
+| 쿨다운을 월드 시간 → SyncState Modifier로 | 서버의 지연 시뮬레이션·리시뮬레이션과 판정이 갈려 무한 리컨사일 |
+| 연출을 `bIsResimulating`로 게이팅 | 롤백마다 몽타주 재생·HUD 쿨다운 리셋이 반복 |
+| 몽타주 실패 시 조기 return 제거, `StartingMontagePosition` 0 고정 | Chooser 평가·재생 인스턴스 값이 머신마다 달라 시뮬레이션 상태가 분기 |
+
+**교훈:** "예측 파이프라인 바깥에서 상태를 바꾸지 말 것"은 §7.1에서 이미 배운 규칙인데, 새 기능(대시)을 추가할 때 같은 함정을 다시 밟았다. 증상이 **단방향**이면 클라→서버 RPC 경로와 서버→클라 프로퍼티 복제 경로 중 어느 쪽이 끊겼는지부터 가르는 것이 가장 빠른 진단이다.
+
 ---
 
 ## 8. 미구현 / 한계
 
 - **CanGuard() 상시 허용:** 현재 조건 없이 항상 true. 상태 이상(스태거 등) 연동 시 조건 추가 필요.
+- **`bIsAiming` 사문화:** `CanDash()`가 참조하지만 `SetIsAiming()` 호출처가 전혀 없어 항상 false다. 즉 대시의 조준 중 금지 조건이 실제로는 걸리지 않는다. 조준 상태는 현재 ASC 태그(`LNP.AimMode.*`)가 소유하므로, 조건을 되살리려면 태그 조회로 바꾸는 편이 맞다. 단 태그는 Mover 예측 상태가 아니라 §4.1의 MoveSpeed 배율과 같은 종류의 미세 어긋남을 감수해야 한다.
+- **넉백 미예측:** 권위에서만 트리거되므로 정합성은 맞지만 피격자 본인 화면에서 RTT만큼 늦게 나타난다 (§6). 예측하려면 넉백을 SyncState 트리거로 옮겨야 한다.
 - **공중 대시 미지원:** 의도된 제한이지만, 공중 회피 등 확장 여지는 열려 있음.
 - **Left/Right 대시 몽타주 에셋:** 4방향 태그 분류·Chooser 평가는 구현 완료 — 좌/우 전용 몽타주 에셋을 Chooser Table에 채우는 에디터 작업 잔여.

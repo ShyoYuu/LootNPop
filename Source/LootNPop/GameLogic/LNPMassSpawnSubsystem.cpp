@@ -18,6 +18,8 @@
 #include "GameFramework/Pawn.h"
 #include "MassCommonFragments.h"
 #include "MassReplicationSubsystem.h"
+#include "MassReplicationFragments.h"
+#include "MassEntityTemplate.h"
 #include "Engine/World.h"
 #include "Kismet/KismetMathLibrary.h"
 
@@ -33,11 +35,28 @@ void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		ReplicationSubsystem->RegisterBubbleInfoClass(ALNPMassClientBubbleInfo::StaticClass());
 	}
+}
+
+void ULNPMassSpawnSubsystem::OnWorldBeginPlay(UWorld& InWorld)
+{
+	Super::OnWorldBeginPlay(InWorld);
 
 	// Enemy MassReplication(Phase 6): Enemy 스폰(BeginSpawning)은 서버 전용 ALNPGameMode가 호출하므로
 	// 클라이언트는 EnemyEntityConfig의 FMassEntityTemplate을 로컬 TemplateRegistry에 등록할 기회가 전혀 없다.
 	// Bubble이 복제 스폰(SpawnEntities by TemplateID) 시도 시 "TemplateID must have been registered!"로 죽는 것을 막기 위해,
 	// 실제 스폰 없이 템플릿만 서버·클라이언트 양쪽에서 미리 등록(warm-up)한다.
+	//
+	// 템플릿 warm-up은 Initialize()가 아니라 반드시 여기(OnWorldBeginPlay)에서 해야 한다.
+	// UEngine::LoadMap은 InitWorld() -> Listen(URL) 순서로 진행하고, UWorld::AttemptDeriveFromURL()은
+	// 현재 실행 URL의 ?Listen 옵션을 보지 않는다. 따라서 -game 리슨 서버는 Initialize() 시점에
+	// NM_Standalone을 반환하고, UMassReplicationTrait::BuildTemplate이 조기 반환해 복제 프래그먼트가
+	// 빠진 템플릿이 월드 수명 내내 캐시된다 (ConfigGuid 키 캐시라 Listen 이후에도 소급 수정이 불가능하다).
+	// 그 결과 게스트 버블이 영원히 비어 Low LOD 엔티티가 클라이언트에 나타나지 않는다.
+	// PIE는 PlayInEditorNetMode 폴백 덕에 이 문제가 드러나지 않아 -game에서만 재현된다.
+	// OnWorldBeginPlay는 NetDriver 생성 이후이자 GameMode::StartPlay 이전이라 두 조건을 모두 만족한다.
+	const ENetMode NetMode = InWorld.GetNetMode();
+	UE_LOG(LogLootNPop, Log, TEXT("Mass entity template warm-up starting. NetMode=%d"), static_cast<int32>(NetMode));
+
 	if (const ULNPSettings* Settings = GetDefault<ULNPSettings>())
 	{
 		if (const ULNPMassSpawnConfig* Config = Settings->MassSpawnConfig.LoadSynchronous())
@@ -46,12 +65,20 @@ void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			{
 				// LootPod MassReplication(Phase 7): Pod 템플릿도 클라이언트 warm-up 필요 (Enemy와 동일한 이유)
 				if (UMassEntityConfigAsset* PodConfig = PodEntry.LootPodEntityConfig)
-					PodConfig->GetOrCreateEntityTemplate(*GetWorld());
+				{
+					const FMassEntityTemplate& PodTemplate = PodConfig->GetOrCreateEntityTemplate(InWorld);
+
+					// 복제 프래그먼트 누락은 크래시도 경고도 없는 무음 실패라 PIE로는 잡히지 않는다. 트립와이어를 남긴다.
+					if (NetMode != NM_Standalone && !PodTemplate.GetCompositionDescriptor().Contains<FMassNetworkIDFragment>())
+					{
+						UE_LOG(LogLootNPop, Error, TEXT("LootPod entity template %s was built without replication fragments (NetMode=%d). Mass entities will never reach clients."), *GetNameSafe(PodConfig), static_cast<int32>(NetMode));
+					}
+				}
 
 				for (const FLNPEnemySpawnEntry& EnemyEntry : PodEntry.AssociatedEnemies)
 				{
 					if (UMassEntityConfigAsset* EnemyConfig = EnemyEntry.EnemyEntityConfig)
-						EnemyConfig->GetOrCreateEntityTemplate(*GetWorld());
+						EnemyConfig->GetOrCreateEntityTemplate(InWorld);
 				}
 			}
 		}
@@ -65,7 +92,7 @@ void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 			const UMassAgentComponent* AgentComp = PawnCDO ? PawnCDO->FindComponentByClass<UMassAgentComponent>() : nullptr;
 			if (AgentComp)
 			{
-				AgentComp->GetEntityConfig().GetOrCreateEntityTemplate(*GetWorld());
+				AgentComp->GetEntityConfig().GetOrCreateEntityTemplate(InWorld);
 			}
 			else
 			{

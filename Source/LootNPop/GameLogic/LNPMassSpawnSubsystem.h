@@ -72,6 +72,10 @@ public:
 	virtual void Deinitialize() override;
 	// End USubsystem
 
+	// UWorldSubsystem interface
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+	// End UWorldSubsystem
+
 	// FTickableGameObject interface
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override { return SpawnBuildFuture.IsValid() || SpawnQueueHead < SpawnQueue.Num(); }

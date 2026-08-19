@@ -10,7 +10,7 @@ ULNPRadialCooldownWidget::ULNPRadialCooldownWidget()
 {
 	// 부채꼴이 위젯 사각형 밖으로 넘치므로 기본값을 잘라내기로 둔다.
 	// UWidget::SynchronizeProperties가 이 값을 Slate 위젯에 밀어 넣는다.
-	Clipping = EWidgetClipping::ClipToBounds;
+	SetClipping(EWidgetClipping::ClipToBounds);
 }
 
 void ULNPRadialCooldownWidget::StartCooldown(float DurationSeconds)

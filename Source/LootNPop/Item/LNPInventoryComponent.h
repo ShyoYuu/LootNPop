@@ -7,6 +7,7 @@
 #include "Item/LNPItemInstance.h"
 #include "Item/LNPInventoryList.h"
 #include "ActiveGameplayEffectHandle.h"
+#include "Engine/TimerHandle.h"
 #include "LNPInventoryComponent.generated.h"
 
 class ULNPItemDefinitionBase;
@@ -17,11 +18,16 @@ class UAbilitySystemComponent;
 /** 인벤토리(가방/버프) 내용이 바뀔 때 발송 — UI가 구독해 리스트를 갱신한다. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLNPInventoryChanged);
 
-/** 서버 전용 버프 런타임 상태 (GAS 이펙트 핸들·권위 잔여시간). 복제·UPROPERTY 아님 — ItemId로 키잉. */
+/** 서버 전용 버프 런타임 상태 (GAS 이펙트 핸들·만료 타이머). 복제·UPROPERTY 아님 — ItemId로 키잉. */
 struct FLNPBuffRuntime
 {
 	TArray<FActiveGameplayEffectHandle> AppliedEffects;
-	float RemainingDuration = 0.0f;
+
+	/** 만료 타이머. 영구 버프(-1)는 걸지 않으므로 **핸들 무효 자체가 "영구" 판별**이 된다. */
+	FTimerHandle ExpireTimer;
+
+	/** 만료 예정 월드 시각(초). 양도 시 남은 초를 역산하는 데만 쓴다 (기간제 버프에서만 유효). */
+	double ExpireWorldTime = 0.0;
 };
 
 /**
@@ -36,7 +42,6 @@ class LOOTNPOP_API ULNPInventoryComponent : public UActorComponent
 public:
 	ULNPInventoryComponent();
 	virtual void BeginPlay() override;
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// --- 가방 인스턴스 API ---
@@ -81,10 +86,10 @@ public:
 
 private:
 	UAbilitySystemComponent* GetASC() const;
-	void TickBuffItems(float DeltaTime);
 
-	/** 서버: 버프 인스턴스 만료·제거 공용 경로 — GE 해제 + 리스트/서브오브젝트/런타임 제거. */
-	void ExpireBuffInstance(const FGuid& ItemId);
+	/** 서버: 버프 인스턴스 만료·제거 공용 경로 — GE 해제 + 리스트/서브오브젝트/런타임 제거.
+	 *  타이머 델리게이트 페이로드로 바인딩되므로 값 전달이어야 한다 (CreateUObject가 decay된 타입을 요구). */
+	void ExpireBuffInstance(FGuid ItemId);
 
 	/** 가방 아이템 인스턴스 FastArray (소유자 전용 델타 복제). */
 	UPROPERTY(Replicated)
@@ -94,6 +99,6 @@ private:
 	UPROPERTY(Replicated)
 	FLNPInventoryList ActiveBuffList;
 
-	/** 서버 권위 버프 런타임 (GAS 핸들·잔여시간). ItemId 키. 비복제. */
+	/** 서버 권위 버프 런타임 (GAS 핸들·만료 타이머). ItemId 키. 비복제. */
 	TMap<FGuid, FLNPBuffRuntime> BuffRuntime;
 };
