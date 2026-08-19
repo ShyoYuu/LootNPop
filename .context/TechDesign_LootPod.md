@@ -161,6 +161,7 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 - **소멸:** Pod Popped → bubble 엔티티 제거 → ISM 인스턴스 자동 제거.
 - **방안 (b) 단일 Niagara + 위치 배열은 폐기** — (a)가 기존 Low LOD ISM 인프라를 그대로 재사용해 코드 0줄로 충족.
 - **클라이언트 가시 거리 (2026-08-05 수정):** 초기 구현은 클라이언트에서만 근접해야 빔이 보였다. 원인은 시각화가 아니라 **복제** — `FMassReplicationParameters::LODDistance[Off]` 엔진 기본값 5,000cm가 반지름 25,000cm 월드에 비해 너무 좁아 엔티티 자체가 클라에 도달하지 못했다. 서버는 로컬이라 시각화 거리(60,000)까지 다 보여 증상이 한쪽에만 나타났다. `ULNPLootPodTrait::ReplicationCullDistance`로 `VisibleLODDistance[Off]`와 짝을 맞춘다 — 상세는 `TechDesign_Networking.md` §3.5. 같은 수정으로 클라이언트 빔이 월드 Z 기준으로 누워 있던 문제(적도 부근)도 해결됐다 (`EngineAnalysis_MassReplication.md` §7.9).
+- **`-game` 전용 재발 (2026-08-19 수정):** 위 수정 이후에도 `-game` 리슨 서버 구성에서만 같은 증상이 재현됐다. 이번 원인은 거리 설정이 아니라 **템플릿 빌드 시점** — `-game` 리슨 서버는 월드 서브시스템 `Initialize()` 시점에 `GetNetMode()`가 `NM_Standalone`이라 `UMassReplicationTrait::BuildTemplate`이 조기 반환하고, 복제 프래그먼트가 빠진 템플릿이 월드 수명 내내 캐시됐다. `ULNPMassSpawnSubsystem`의 템플릿 warm-up을 `OnWorldBeginPlay()`로 옮겨 해결. PIE는 이 함정을 구조적으로 재현하지 못하므로 **Mass 가시성 검증은 반드시 `-game` 2프로세스로도** 해야 한다 — `TechDesign_Networking.md` §3.5.
 
 **검증:** PIE 1인 — 원거리 pod들에서 청록 빛기둥 다수 확인 (Actor 컬 거리 밖). PIE 2인 (2026-08-05) — 클라이언트에서도 전 영역 빛기둥 가시, 적도 포함 전 구간 기둥 자세가 구 중심을 향함, NPC 이동 서버·클라 일치 확인. **잔여:** Pop 후 빔 소멸 확인.
 

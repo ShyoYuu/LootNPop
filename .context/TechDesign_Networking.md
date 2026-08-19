@@ -164,14 +164,25 @@
 
 Pod과 Enemy의 값이 다르면 `FMassReplicationSharedFragment`가 타입별로 분리되는데, 엔진이 `ForEachSharedFragment`로 순회하는 정상 구성이며 **버블·리플리케이터는 여전히 하나**라 §7.1 불변식은 유지된다.
 
+**템플릿 빌드 시점 — Mass 템플릿 warm-up은 `OnWorldBeginPlay` 이후여야 한다 (2026-08-19):**
+
+`UMassReplicationTrait::BuildTemplate`은 `World.IsNetMode(NM_Standalone)`이면 조기 반환해 복제 프래그먼트(`FMassNetworkIDFragment` 등)와 `FMassReplicationParameters` 공유 프래그먼트를 **하나도 추가하지 않는다.** 문제는 `-game` 리슨 서버의 `GetNetMode()`가 월드 초기화 중에 `NM_Standalone`을 돌려준다는 점이다 — `UEngine::LoadMap`이 `InitWorld()`(월드 서브시스템 `Initialize()`) → `Listen(URL)`(NetDriver 생성) 순서로 진행하는데, `UWorld::AttemptDeriveFromURL()`은 `NextURL`과 `PendingNetGame->URL`만 볼 뿐 **현재 실행 URL의 `?Listen` 옵션은 보지 않기** 때문이다. PIE는 바로 뒤의 `WITH_EDITOR` 분기가 `PlayInEditorNetMode`를 돌려주므로 이 함정이 구조적으로 드러나지 않는다 (클라이언트는 `PendingNetGame`이 살아 있어 양쪽 모두 `NM_Client`로 정상).
+
+`FMassEntityConfig::GetOrCreateEntityTemplate`은 결과를 `ConfigGuid` 키로 월드 수명 내내 캐시하므로, 한 번 잘못 만들어진 템플릿은 `Listen()` 이후에도 소급 수정되지 않는다 — 서버 엔티티가 복제 쿼리에 아예 잡히지 않아 게스트 버블이 영원히 빈다. 그래서 `ULNPMassSpawnSubsystem`의 템플릿 warm-up은 `Initialize()`가 아니라 `OnWorldBeginPlay()`에서 수행한다(NetDriver 생성 이후이자 `GameMode::StartPlay` 이전). 크래시도 경고도 없는 무음 실패라, warm-up 직후 Pod 템플릿에 `FMassNetworkIDFragment`가 있는지 확인하는 Error 로그를 트립와이어로 남겼다.
+
+부수 효과로 `UMassRepresentationSubsystem`이 `Initialize()`에서 `SpawnVisualizer()`를 마친 뒤에 템플릿이 만들어지므로, `MassVisualizationTrait`가 무효 `StaticMeshDescHandle`을 받아 `StaticMeshInstance` LOD를 `None`으로 강등하는 경로도 함께 막힌다.
+
 **퍼펫(Puppet) 링크 — bubble 엔티티 ↔ 복제 Actor 자동 연결:** 엔진 정식 경로인 `UMassAgentComponent`의 NetID 핸드셰이크를 사용한다. 서버가 컴포넌트의 복제 프로퍼티 `NetID`에 `FMassNetworkID`를 싣고, 클라이언트 `OnRep_NetID`가 bubble이 스폰한 엔티티를 `FindEntity(NetID)`로 찾아 연결한다(액터·엔티티 도착 순서 레이스는 엔진이 orphan 대기로 처리). 퍼펫 초기화가 EntityConfig 템플릿 조성을 엔티티에 더해주므로 서버와 동일한 아키타입이 클라이언트에서 성립하고, 클라이언트 예측 판정(근접 HitStop·관전 Ghost 충돌)이 로컬 Mass 쿼리만으로 동작한다. 이 과정에서 발견한 엔진 타이밍 갭은 §4.1 참조.
 
 **Actor 복제 설정:** Enemy `NetUpdateFrequency=30`·`NetCullDistanceSquared=30000²`, LootPod `NetUpdateFrequency=10`·`20000²`. LootPod 게이지(`CurrentGaugePercent`)는 매 프레임 변하므로 2% 이상 변화 시에만 마킹(0/1 경계값은 항상 반영).
 
 ### 3.6 플레이어 이동·시선 — Mover 2.0
 
-- **이동:** Mover 2.0(Network Prediction 백엔드)이 클라이언트 예측·서버 검증·시뮬레이티드 프록시 보간을 내장한다. `SprintModifier`·`GuardModifier`, 그리고 구형 중력의 곡률 보정 누산값(`CurvatureDelta`)까지 SyncState에 포함해 롤백 시 자동 복구된다 — 적도 부근 구면 이동에서도 원격 캐릭터의 Up 벡터가 항상 구 중심을 향함을 검증.
+- **이동:** Mover 2.0(Network Prediction 백엔드)이 클라이언트 예측·서버 검증·시뮬레이티드 프록시 재현을 내장한다. `SprintModifier`·`GuardModifier`, 대시 쿨다운(`FLNPDashCooldownModifier`), 그리고 구형 중력의 곡률 보정 누산값(`CurvatureDelta`)까지 SyncState에 포함해 롤백 시 자동 복구된다 — 적도 부근 구면 이동에서도 원격 캐릭터의 Up 벡터가 항상 구 중심을 향함을 검증.
+- **시뮬레이티드 프록시 = ForwardPredict** (`Config/DefaultNetworkPrediction.ini`, 2026-08-19 전환). 원격 캐릭터도 로컬 캐릭터와 동일하게 풀 시뮬레이션 후 롤백 보정한다. 기본값이던 `Interpolated`는 수신 프레임 사이를 보간해 재생하므로 구조적으로 항상 과거를 보여준다 — 전환 경위와 근거는 §4.4.
+- **입력 의도 전달:** 질주·가드·대시는 전부 `FLNPModifierInputs`(InputCmd)를 탄다. 예측 파이프라인 바깥에서 상태를 바꾸면 권위가 재현하지 못해 로컬에서만 튀었다가 롤백된다 — 이동 문서 §7.1·§7.6.
 - **시선(발사 피치·Aim Offset):** 신규 RPC·복제 프로퍼티 **0개**로 구현 — 이미 서버에 도착하고 있던 Mover InputCmd의 `ControlRotation`을 소비부만 연결했다 (§4.3). `GetBaseAimRotation()` 오버라이드 단일 진입점으로 서버 발사 방향과 관전자 화면 상체 자세(Aim Offset)가 함께 동기화된다.
+  - `UMoverComponent::bSyncInputsForSimProxy`는 **제거했다**(2026-08-19). 보간 프록시가 InputCmd를 못 받는 것을 우회하려고 SyncState에 InputContainer를 동봉하던 옵션인데(엔진 주석에도 "intended to be temporary"로 명시), ForwardPredict에서는 프록시가 실제로 시뮬레이션되어 `CachedLastUsedInputCmd`가 일반 경로에서 채워진다. 매 프레임 실리던 InputContainer 페이로드가 함께 사라졌다.
 - **무기 장착:** 클라이언트는 비주얼 즉시 로컬 적용 + `Server_EquipWeapon()` RPC, 서버가 GAS 어빌리티를 부여하고 `EquippedWeaponData` 복제 → `OnRep`에서 타 클라이언트 비주얼 갱신. GAS 권한은 항상 서버에만 있다.
 
 ### 3.7 코스메틱 전파 — GameplayCue 일원화
@@ -235,10 +246,68 @@ Execute()
 | 구간 | 수단 |
 |:---|:---|
 | 소유 클라 → 서버 | 기존 그대로 (추가 작업 없음) |
-| 서버 → 관전자 | `UMoverComponent::bSyncInputsForSimProxy = true` (엔진 옵션) — InputCmd를 SyncState에 동봉해 시뮬레이티드 프록시가 `GetLastInputCmd()`로 조회 가능 |
-| 소비 단일 진입점 | `ALNPPlayerCharacter::GetBaseAimRotation()` 오버라이드 — 로컬 제어면 Control Rotation, 아니면 복제된 InputCmd의 `ControlRotation` 반환 |
+| 서버 → 관전자 | 프록시가 `GetLastInputCmd()`로 InputCmd를 조회 가능하게 만든다 (수단은 아래 참조) |
+| 소비 단일 진입점 | `ALNPPlayerCharacter::GetBaseAimRotation()` 오버라이드 — 로컬 제어면 Control Rotation, 아니면 InputCmd의 `ControlRotation` 반환 |
 
-AnimInstance는 원래부터 `GetBaseAimRotation()`으로 AimPitch/AimYaw를 산출하므로(구면 세계 보정 포함) **무수정**으로 상체 자세가 동기화되고, 서버의 원격 플레이어 발사 방향도 같은 함수로 해결된다. `bSyncInputsForSimProxy`는 플레이어 폰에만 적용해 대역폭 증가를 최소화했다.
+AnimInstance는 원래부터 `GetBaseAimRotation()`으로 AimPitch/AimYaw를 산출하므로(구면 세계 보정 포함) **무수정**으로 상체 자세가 동기화되고, 서버의 원격 플레이어 발사 방향도 같은 함수로 해결된다.
+
+> **"서버 → 관전자" 구간의 변천.** 최초 구현은 `UMoverComponent::bSyncInputsForSimProxy = true`(엔진 옵션, 플레이어 폰에만 적용)로 InputCmd를 SyncState에 동봉했다. 보간 프록시는 시뮬레이션을 돌지 않아 InputCmd를 받을 길이 없기 때문이다. **ForwardPredict 전환(§4.4) 이후 이 옵션은 제거했다** — 프록시가 실제로 시뮬레이션되면서 `CachedLastUsedInputCmd`가 일반 경로(`MoverComponent.cpp`의 시뮬레이션 틱·`SetSimulationOutput`)에서 채워지므로 우회책이 불필요해졌고, 매 프레임 실리던 InputContainer 페이로드도 함께 사라졌다.
+
+### 4.4 "게스트 화면에서만 호스트가 1초 늦게 움직인다" — NetworkPrediction 보간 서비스 분석 (2026-08-19)
+
+`UnrealEditor.exe -game`으로 리슨 서버와 게스트를 각각 띄워 관찰하던 중 발견했다. 지연이 **단방향**이었다 — 게스트를 조작하면 서버 화면은 즉시 반응하는데, 서버를 조작하면 게스트 화면이 1초 넘게 늦었다.
+
+**단방향인 이유는 두 방향이 서로 다른 코드를 타기 때문이다.**
+
+| 방향 | 경로 |
+|:---|:---|
+| 클라 → 서버 | `UNetworkPredictionComponent::ServerReceiveClientInput` **RPC**. 서버가 받은 InputCmd로 그 폰을 직접 시뮬레이션 → 보간 없음 |
+| 서버 → 클라 | `ReplicationProxy_Simulated` **프로퍼티 복제**(`COND_SimulatedOnlyNoReplay`) + **보간 서비스** |
+
+즉 지연은 언제나 "시뮬레이티드 프록시를 바라보는 쪽"에만 생긴다. 자기 폰은 로컬 예측이라 항상 즉시 반응하므로, 호스트 1명 + 게스트 1명 구성에서는 한쪽만 느린 것처럼 보인다. **게스트가 2명이면 서로를 볼 때도 같은 지연이 생긴다.**
+
+**설계값 100ms의 출처.** `Config/DefaultNetworkPrediction.ini`가 `SimulatedProxyNetworkLOD=Interpolated`(엔진 기본값은 `ForwardPredict`)에 `FixedTickInterpolationBufferedMS=100`이었다. 보간 모드의 프록시는 100ms 분량 버퍼를 쌓고 그 과거를 재생하므로, 같은 PC라 핑이 0이어도 100ms는 남는다.
+
+**1초는 설계값이 아니다.** 엔진 소스(`NetworkPredictionWorldManager.cpp`) 확인 결과, 고정 틱 보간 경로의 `InterpolateRate`는 `1.f` 아니면 `0.f`뿐이고 **따라잡기 분기도, 버퍼 상한 클램프도 없다**. 반면 Independent(가변) 틱 경로에는 보정이 있다:
+
+```cpp
+if (BufferedMS > MaxBufferedMS)   // IndependentTickInterpolationMaxBufferedMS=250
+{
+    UE_LOGF(LogNetworkPrediction, Warning, "Independent Interpolation fell behind. BufferedMS: %d", BufferedMS);
+    VariableTickState.Interpolation.fTimeMS = LatestRecvTimeMS - DesiredBufferedMS;  // 스냅 복구
+}
+```
+
+`NetworkPredictionSettings.h`에 `FixedTick...MaxBufferedMS`에 해당하는 설정 자체가 없다. 프로젝트는 `PreferredTickingPolicy=Fixed`라 보정 없는 쪽을 탄다. 정확히 왜 1초 부근에서 안정화되는지는 특정하지 못했다 — 타이밍 설정(`FixedStepRealTimeMS = (1/60)×1000`, `FixedStepMS = 16`)은 정상이었다.
+
+**해결: `SimulatedProxyNetworkLOD=ForwardPredict`.** 보간 서비스를 아예 타지 않으므로 버퍼 지연도 위 결함도 무관해진다. 고정 틱 정책에서만 선택 가능한 옵션이다 — `NetworkPredictionConfig.h`의 `IndependentNetworkLODs`는 시뮬레이티드 프록시에 `Interpolated | SimExtrapolate`만 허용하고 `ForwardPredict`를 지원하지 않는다.
+
+**대가와 부수 효과**
+
+- 예측이 빗나가면 보정 스냅이 보인다. 이를 완화하는 것이 이미 켜져 있던 `bEnableFixedTickSmoothing`으로, 설정 주석에 "including forward-predicted sim proxies"라고 명시된 대로 원래 ForwardPredict와 짝을 이루는 옵션이다. 보간 모드에서는 이 옵션의 본래 용도가 놀고 있었다.
+- ⚠️ **적 캐릭터 액터도 포워드 예측 대상이 된다.** `SimulatedProxyNetworkLOD`는 NetworkPrediction **전역** 설정이고, `ALNPEnemyCharacter`는 `ALNPCharacterBase`를 상속해 같은 NP 백엔드 Mover를 가지며 `bReplicates = true`다. 적 움직임도 보간 지연이 사라지는 이득이 있지만, 클라이언트마다 적 액터 1기당 풀 시뮬레이션 + 롤백이 돈다. 액터는 High LOD 적만 가지므로 상한은 있으나 **적이 몰리는 구간의 클라이언트 프레임은 별도 확인이 필요하다**(§6).
+- ⚠️ 스무딩 서비스가 SyncState 컬렉션의 모든 데이터 구조에 `Interpolate`를 호출한다. 오버라이드가 없으면 기본 구현이 `check(false)`다 — 이동 문서 §7.1의 부가 발견 참조.
+
+### 4.5 "달리는데 뒤로 툭툭 되돌아간다" — 서버 입력 버퍼 기아(fault)와 롤백 (2026-08-19)
+
+PC가 버벅이는 상태에서 `-game` 2프로세스로 플레이하니 게스트의 자기 캐릭터가 전진 중 주기적으로 뒤로 당겨졌다. 결론부터: **서버 프레임 저하 자체가 아니라 서버의 InputCmd 버퍼 기아가 원인이며, 발산 버그가 아니다.**
+
+**경로** (`NetworkPredictionService_Input.inl`의 `TRemoteInputService`, 141-162행)
+
+서버가 그 클라이언트의 미처리 InputCmd를 모두 소비하면 `bFault = true`로 전환하고 **해당 폰의 시뮬레이션 진행을 멈춘다.** 버퍼가 `FaultLimit`만큼 다시 찰 때까지 대기하는 동안 클라이언트는 계속 앞으로 예측한다. 서버가 재개해 권위 상태를 보내면 그 값은 클라이언트 예측보다 뒤에 있으므로 롤백 + 리플레이가 돌고, 화면에는 "뒤로 당겨짐"으로 보인다. `FaultLimit`은 fault마다 +1 되어 `MaximumRemoteInputFaultLimit=6`에서 멈춘다 — 반복될수록 입력 지연을 더 쌓아 안정을 사는 구조라 **처음 몇 번이 가장 크게 튄다.**
+
+`np.TimeDilation.Enable`은 엔진 기본값이 `true`라 서버가 클라 틱 주기를 미세 조정해 버퍼 수위를 맞추지만, 기본 보정폭이 1%/틱이라 완만한 드리프트용이고 갑작스러운 히치는 덮지 못한다.
+
+**테스트 환경이 이 현상을 증폭한다 — 그리고 그 설정은 유지한다.**
+
+`FixedTickFrameRate=60`인데 녹화용 실행 인자가 `t.MaxFPS 60` + `-corelimit=4`이고 두 프로세스가 같은 PC를 나눠 쓴다. 프레임 상한과 고정 틱이 같으면 클라이언트는 잘 돼야 프레임당 InputCmd 1개를 만들어 **헤드룸이 0**이다. 실제로 백그라운드 프로세스 몇 개를 종료하자 재현이 멈췄다 — 월드 위치가 아니라 CPU 경합과 상관관계가 있다는 것이 발산 버그가 아니라는 결정적 근거다. 이 인자들은 1P·2P 화면 동시 녹화를 위한 의도적 설정이고(빼면 비포그라운드 창이 심하게 버벅인다), 별도 PC·상한 없음 환경에서는 빈도가 크게 낮아지므로 **그대로 둔다.**
+
+**남는 실환경 리스크와 진단 기준**
+
+- 네트워크 내성은 이미 확보돼 있다. `FixedTickInputSendCount=6`이 InputCmd를 6개씩 중복 전송하므로 연속 5패킷 손실까지 버퍼가 마르지 않는다. 실환경 fault는 그보다 나쁜 지터·손실이어야 한다.
+- ⚠️ **호스트 히치는 실환경에도 남는다.** 리슨 서버 호스트가 곧 플레이어라, 호스트가 히치하면(GC 스파이크·레벨 스트리밍·Mass 스폰 버스트) 누적 시간만큼 고정 틱을 몰아 처리하며 **접속한 전원의 버퍼를 동시에 굶긴다.**
+- 구분: 특정 클라만 튀면 그 클라의 환경 문제, **전원이 동시에 튀면 호스트 히치.** 프레임이 멀쩡한데 특정 월드 위치에서만 반복되면 그것은 SyncState 누락에 의한 진짜 발산이므로 별건으로 파야 한다.
+- 관측: `LogNetworkPrediction` verbosity를 Log로 올리면 롤백 프레임 로그가 찍히고(`RollbackFrame %d AHEAD of PendingFrame %d` — `NetworkPredictionWorldManager.cpp:227`), Network Prediction Insights 트레이스에는 fault가 별도 이벤트로 남는다.
 
 ---
 
@@ -247,10 +316,19 @@ AnimInstance는 원래부터 `GetBaseAimRotation()`으로 AimPitch/AimYaw를 산
 - **PIE 2·3인 멀티플레이:** 근접·원거리 양방향 전투(호스트↔클라, 클라↔클라), PvP·NPC 가드/패링/반사, 무기 교체, 루팅, HitReact/HitStop 전파, 관전 화면 발사체 표시·피격 소멸 전수 확인.
 - **지연·손실 시뮬레이션:** `net.PktLag=150/250`, `net.PktLoss=5` — Lag Compensation 체감 위화감 없음, 고지연 패링 성공, 구면 이동 Up 벡터 정상.
 - **정량 실측:** 클라이언트 퍼펫 Transform 오차 `maxPlayerEntityActorGap=0cm`(프레임 단위 동기화), Dead Reckoning ≈184ms 외삽 스폰 정상 동작 로그 확인.
-- **Standalone `-game` 모드 검증 병행:** PIE가 놓치는 초기화 순서 크래시 커버.
+- **Standalone `-game` 모드 검증 병행:** PIE가 놓치는 초기화 순서 크래시 커버. 2026-08-19부터 **Mass 엔티티 Low LOD 가시성도 필수 항목**이다(§3.5 템플릿 빌드 시점) — PIE는 이 함정을 구조적으로 재현하지 못한다. 게스트 화면 원거리 빛기둥·Enemy 가시성 재검증 대기 중.
+- **ForwardPredict 전환 + 대시 InputCmd 이관 (2026-08-19, `-game` 리슨서버 + 게스트 2인):**
+  - 게스트 화면의 호스트 지연이 체감 불가 수준으로 소멸 (전환 전 1초+).
+  - 적도 부근 질주 상호 관찰 — 구면 자세·Up 벡터 위화감 없음, 스무딩 보정 스냅 미관측.
+  - `LNP.Debug.ShowSpeed` 실측으로 질주·가드 배율이 원격 관찰 측에서도 정상 반영 확인, 가드 애니메이션 동기화 정상.
+  - 클라이언트 대시가 서버 화면에 정상 표시. 다방향·연속 대시에서 쿨다운 정상, **이중 발동 미관측**(입력 버퍼 창 0.05초 동안 의도 비트가 유지되지만 쿨다운 Modifier가 재진입을 차단).
+  - 양방향 대시 몽타주 재생 정상. `bSyncInputsForSimProxy` 제거 후에도 원거리 무기 장비 시 Aim 회전 양방향 동기화 정상.
+
+> 위 항목은 아직 **2인 구성**에서만 확인했다. 클라이언트 2명(호스트 조작 없음) 구성은 미검증 — 대시 버그가 "호스트는 되니 절반은 맞다"로 위장됐던 전례가 있으므로 3인 검증 시 클라↔클라 대시를 별도 항목으로 확인할 것.
 
 ## 6. 향후 과제
 
 - 수백 엔티티 규모 대역폭·CPU 프로파일링 (MassReplication 레거시 호환 경로의 스케일 한계 확인)
+- **적 다수 구간의 클라이언트 CPU 확인** — ForwardPredict가 전역 설정이라 High LOD 적 액터마다 클라이언트에서 풀 시뮬레이션 + 롤백이 돈다(§4.4). 부담이 확인되면 적 폰만 `Interpolated`로 되돌리는 개별 설정 경로를 파야 한다
 - 관전 Ghost catch-up 수렴 (외삽 스폰의 총구 이펙트 단절이 체감되면 도입)
 - NPC 원거리 공격의 방송 채널 분리 (현재는 공격자 Actor RPC — Low LOD NPC는 Actor가 없음. SalvoID 체계는 선반영 완료)

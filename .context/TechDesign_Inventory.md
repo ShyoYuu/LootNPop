@@ -39,14 +39,16 @@
 
 ## 5. 버프 흐름
 
-- `AddBuffItem(BuffData, RemainingDuration)`: 인스턴스 생성 → GE 적용 → **GAS 핸들은 서버 전용 사이드테이블** `TMap<FGuid, FLNPBuffRuntime>`(핸들+권위 잔여시간, 복제 인스턴스에 핸들 안 실음) → `ActiveBuffList` 편입.
+- `AddBuffItem(BuffData, RemainingDuration)`: 인스턴스 생성 → GE 적용 → **GAS 핸들은 서버 전용 사이드테이블** `TMap<FGuid, FLNPBuffRuntime>`(핸들+만료 타이머, 복제 인스턴스에 핸들 안 실음) → `ActiveBuffList` 편입.
   적용되는 GE는 아이템 정의의 `EffectsToApply`(특수 효과)와 `StatModifiers`(선언형 스탯 변경, `LNPStat::ApplyModifiers`) 두 갈래다.
 - **지속 시간 규약**: `Duration > 0` = 기간제, **`-1` = 영구**(만료 없음, UI 시간 표시 없음), `0` = 잘못된 설정(경고 로그 후 영구 취급).
   `AddBuffItem`의 인수 0은 "페이로드 없음"을 뜻해 아이템 정의값으로 폴백하므로, **영구는 반드시 -1로 왕복해야 한다**.
-- 만료: 컴포넌트 tick이 런타임 잔여시간 감소 → 0 도달 시 `ExpireBuffInstance`(GE 해제 + 리스트/서브오브젝트/런타임 제거).
-  `RemainingDuration < 0`이면 tick이 건너뛴다.
-- 인스턴스의 `RemainingDuration`은 **복제 스냅샷**(추가·양도 시점 갱신). 권위 카운트다운은 서버의 `FLNPBuffRuntime`이 하고, **UI 라이브 표시는 각 머신이 로컬로 센다** — 인스턴스의 비복제 `DurationStartTime`에 스냅샷이 유효해진 로컬 월드 시각을 찍고(서버: `SetRemainingDuration`, 소유 클라: `FLNPInventoryList::PostReplicatedAdd`), `GetRemainingDurationLive()`가 `스냅샷 - 경과`를 반환한다. 시계 동기화 불필요(오차 ≈ 편도 지연). 기준 시각이 인스턴스에 남으므로 **인벤토리를 닫았다 열어도 이어서 센다**. 표시는 인게임 메뉴가 담당한다 — `ULNPBuffChipWidget`(스탯 탭 버프 칩)과 `ULNPMenuItemCellWidget`(인벤토리 셀 배지)이 각각 1초 반복 타이머로 잔여 초를 갱신(`CeilToInt`)하고, 항목 재바인딩·`NativeDestruct`에서 타이머를 정리한다. 2026-07-17 PIE 검증 완료(당시 위젯은 `ULNPInventoryEntryWidget`, 2026-08-07 인게임 메뉴로 이관되며 삭제).
+- **만료(서버 권위)**: `AddBuffItem`에서 만료 시각을 한 번 확정하고 `FTimerManager`에 맡긴다 — `SetTimer(FLNPBuffRuntime::ExpireTimer, ...)`가 `ExpireBuffInstance`(GE 해제 + 리스트/서브오브젝트/런타임 제거)를 발화시킨다. 영구 버프(-1)는 타이머를 걸지 않으며 **핸들 무효 자체가 "영구" 판별**이라 별도 센티널이 없다. `ExpireWorldTime`은 양도 시 남은 초를 역산하는 용도로만 쓴다.
+  - **2026-08-17 전환** — 이전엔 `TickComponent`가 매 프레임 `RemainingDuration -= DeltaTime`으로 감산했다. 데드라인 방식으로 바꿔 ① 버프별 float 누적 오차 제거(전역 시계 1개만 누적), ② 버프 N개 순회 → 엔진 힙 top 비교, ③ `bCanEverTick` 제거(서버·클라 양쪽에서 매 프레임 호출 소멸). 복제 대역폭은 전환 전에도 스냅샷 1회뿐이어서 변화 없다.
+  - `ExpireBuffInstance(FGuid)`는 **값 전달**이어야 한다 — `CreateUObject`이 페이로드를 `std::decay_t`한 멤버 함수 포인터 타입을 요구하므로 `const FGuid&`로는 바인딩이 컴파일되지 않는다. 진입 시 `ClearTimer`로 조기 제거(양도) 경로의 타이머 잔류를 막는다.
+- 인스턴스의 `RemainingDuration`은 **복제 스냅샷**(추가·양도 시점 갱신). 권위 만료 판정은 서버의 `FLNPBuffRuntime` 타이머가 하고, **UI 라이브 표시는 각 머신이 로컬로 센다** — 인스턴스의 비복제 `DurationStartTime`에 스냅샷이 유효해진 로컬 월드 시각을 찍고(서버: `SetRemainingDuration`, 소유 클라: `FLNPInventoryList::PostReplicatedAdd`), `GetRemainingDurationLive()`가 `스냅샷 - 경과`를 반환한다. 시계 동기화 불필요(오차 ≈ 편도 지연). 기준 시각이 인스턴스에 남으므로 **인벤토리를 닫았다 열어도 이어서 센다**. 표시는 인게임 메뉴가 담당한다 — `ULNPBuffChipWidget`(스탯 탭 버프 칩)과 `ULNPMenuItemCellWidget`(인벤토리 셀 배지)이 각각 1초 반복 타이머로 잔여 초를 갱신(`CeilToInt`)하고, 항목 재바인딩·`NativeDestruct`에서 타이머를 정리한다. 2026-07-17 PIE 검증 완료(당시 위젯은 `ULNPInventoryEntryWidget`, 2026-08-07 인게임 메뉴로 이관되며 삭제).
 - 드랍/양도: `RemoveBuffInstance(ItemId)`가 잔여 초를 반환 → LootDice 페이로드 → 재획득 시 `AddBuffItem(..., 잔여)`로 복원 (라운드트립 성립).
+  페이로드는 **절대 만료 시각이 아니라 상대 잔여 초**다 — 그래서 월드에 놓인 Dice는 버프 지속시간이 **동결**되고 60초 수명 제한만 흐른다(기획 의도, [GameDesign_LootDice.md](GameDesign_LootDice.md) §양도). 데드라인을 그대로 실으면 이 동결이 깨지므로 `ExpireWorldTime - Now`로 되돌려 싣고, 픽업 시 `Now + 잔여`로 재계산한다.
 
 ## 6. 획득·드랍·장착 경로
 

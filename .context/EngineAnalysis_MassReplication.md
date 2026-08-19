@@ -208,6 +208,7 @@ Remove 콜백은 3-인자 외에 **엔티티 핸들을 함께 받는 4-인자 �
 - `FMassReplicationParameters`: **`BubbleInfoClass`와 `ReplicatorClass`** 지정 + LOD 거리/개체 수 설정
 - `FMassReplicationSharedFragment`: `CachedReplicator` 인스턴스, 리플리케이터의 `AddRequirements`로 구성된 `EntityQuery`, LOD 계산기를 보유. Shared Fragment이므로 **Params가 값-동일하면 여러 템플릿이 공유**하고, 다르면(예: LOD 거리 차이) 별도 인스턴스가 생깁니다.
 - `NM_Standalone`에서는 `BuildTemplate`이 조기 반환합니다 — 싱글플레이 분기를 따로 만들 필요가 없습니다.
+- ⚠️ **`GetNetMode()`는 월드 초기화 중 신뢰할 수 없습니다.** `UEngine::LoadMap`은 `InitWorld()`(월드 서브시스템 `Initialize()`) → `Listen(URL)`(NetDriver 생성) 순서로 진행하고, NetDriver가 없을 때 폴백하는 `UWorld::AttemptDeriveFromURL()`은 `NextURL`·`PendingNetGame->URL`만 볼 뿐 현재 실행 URL의 `?Listen` 옵션은 보지 않습니다. 따라서 `-game` 리슨 서버는 `Initialize()` 시점에 `NM_Standalone`을 반환해 위 조기 반환에 걸립니다(PIE는 바로 뒤 `WITH_EDITOR` 분기가 `PlayInEditorNetMode`를 돌려줘 드러나지 않음 — `UWorld::InternalGetNetMode`). 템플릿은 `ConfigGuid` 키로 월드 수명 내내 캐시돼 소급 수정도 불가능합니다 — **엔티티 템플릿 생성은 반드시 `OnWorldBeginPlay` 이후에** 하세요.
 
 ---
 

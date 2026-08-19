@@ -71,16 +71,12 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	
 	// --- Buffering for jump and dash ---
 	// Cooldown이 끝나기 직전(0.05초)에 Input이 들어왔다면 Cooldown이 끝나자마자 실행될 수 있도록 버퍼링
-	if (bIsDashBuffered)
+	// 버퍼가 열려 있는 동안 OnProduceInput이 매 틱 대시 의도를 InputCmd에 싣고,
+	// 실행 가부는 시뮬레이션(ULNPCharacterMoverComponent::OnMoverPreSimulationTick)이 판정한다.
+	// 여기서는 창을 닫기만 한다 — 대시가 성사되면 쿨다운 Modifier가 남은 창의 재실행을 막는다.
+	if (bIsDashBuffered && GetWorld()->GetTimeSeconds() - DashBufferTime > 0.05f)
 	{
-		const float Now = GetWorld()->GetTimeSeconds();
-		if (Now - DashBufferTime > 0.05f)
-			bIsDashBuffered = false;
-		else if (MoverComponent && MoverComponent->CanDash())
-		{
-			bIsDashBuffered = false;
-			MoverComponent->ExecuteDash(CachedMoveInputIntent);
-		}
+		bIsDashBuffered = false;
 	}
 
 	if (bIsAttackBuffered)
@@ -194,10 +190,12 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		CharacterInputs.ControlRotation = Pawn->GetControlRotation();
 	}
 
-	// Guard/Sprint 의도를 InputCmd에 실어 보낸다 (Jump가 FCharacterDefaultInputs::bIsJumpJustPressed로 전달되는 것과 동일한 방식).
+	// Guard/Sprint/Dash 의도를 InputCmd에 실어 보낸다 (Jump가 FCharacterDefaultInputs::bIsJumpJustPressed로 전달되는 것과 동일한 방식).
 	FLNPModifierInputs& ModifierInputs = OutInputCmd.InputCollection.FindOrAddMutableDataByType<FLNPModifierInputs>();
 	ModifierInputs.bWantsToGuard  = bIsGuardPressed;
 	ModifierInputs.bWantsToSprint = bIsDashPressed;
+	ModifierInputs.bWantsToDash   = bIsDashBuffered;
+	ModifierInputs.DashInputIntent = bIsDashBuffered ? CachedMoveInputIntent : FVector::ZeroVector;
 
 	if (Pawn->GetController())
 	{
@@ -367,15 +365,10 @@ void ULNPInputHandlerComponent::OnDashStarted(const FInputActionValue& Value)
 	bIsDashJustPressed = !bIsDashPressed;
 	bIsDashPressed = true;
 
-	if (MoverComponent && MoverComponent->CanDash())
-	{
-		MoverComponent->ExecuteDash(CachedMoveInputIntent);
-	}
-	else
-	{
-		bIsDashBuffered = true;
-		DashBufferTime = GetWorld()->GetTimeSeconds();
-	}
+	// 여기서 직접 ExecuteDash를 호출하면 InputCmd를 타지 않아 서버가 재현할 수 없다.
+	// 의도만 버퍼에 남기고, 실행은 시뮬레이션이 InputCmd를 읽어 수행한다.
+	bIsDashBuffered = true;
+	DashBufferTime = GetWorld()->GetTimeSeconds();
 }
 
 void ULNPInputHandlerComponent::OnDashReleased(const FInputActionValue& Value)

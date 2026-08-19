@@ -4,6 +4,7 @@
 #include "Movement/LNPCharacterMovementSettings.h"
 #include "Movement/LNPAsyncWalkingMode.h"
 #include "Movement/LNPModifierInputs.h"
+#include "Movement/LNPDashCooldownModifier.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LNPGameplayTags.h"
@@ -65,11 +66,12 @@ bool ULNPCharacterMoverComponent::CanGuard()
 
 bool ULNPCharacterMoverComponent::CanDash() const
 {
-	return IsOnGround() && !bIsAiming &&
-		(LastDashTime <= 0.0f || (GetWorld()->GetTimeSeconds() - LastDashTime) >= DashCooldown);
+	// 쿨다운은 월드 시간이 아니라 SyncState에 실리는 Modifier의 존재로 판정한다 —
+	// 월드 시간 기준은 서버의 지연 시뮬레이션·리시뮬레이션에서 클라이언트와 어긋나 리컨사일 루프를 만든다.
+	return IsOnGround() && !bIsAiming && FindMovementModifierByType<FLNPDashCooldownModifier>() == nullptr;
 }
 
-void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
+void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, const FVector& MoveInputIntent, const FRotator& ControlRotation)
 {
 	APawn* Pawn = CastChecked<APawn>(GetOwner());
 	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Pawn);
@@ -79,7 +81,7 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 	// 물리 대시 방향: 이동 입력이 있으면 컨트롤 회전 기준 입력 방향, 없으면 후방 회피
 	const bool bHasMoveInput = !MoveInputIntent.IsNearlyZero();
 	const FVector DashDirection = bHasMoveInput
-		? Pawn->GetControlRotation().RotateVector(MoveInputIntent).GetSafeNormal()
+		? ControlRotation.RotateVector(MoveInputIntent).GetSafeNormal()
 		: -Pawn->GetActorForwardVector();
 
 	// 몽타주 방향 태그: Strafe 모드(FreeAim/LockOn)는 캐릭터가 시선 방향을 유지하므로 4방향 몽타주가 필요하고,
@@ -106,14 +108,12 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 		}
 	}
 
-	UAnimMontage* SelectedMontage = Character->EvaluateMontage(TAG_Montage_Situation_Dash, DirTag);
-	if (!SelectedMontage)
-		return;
-
-	LastDashTime = GetWorld()->GetTimeSeconds();
-	OnDashExecuted.Broadcast();
-
 	const float DashDurationMs = DashDuration * 1000.0f;
+
+	// 쿨다운을 SyncState에 남긴다 — 롤백 시 함께 복원되어 클라이언트와 서버의 CanDash 판정이 일치한다.
+	TSharedPtr<FLNPDashCooldownModifier> CooldownModifier = MakeShared<FLNPDashCooldownModifier>();
+	CooldownModifier->DurationMs = DashCooldown * 1000.0f;
+	QueueMovementModifier(CooldownModifier);
 
 	TSharedPtr<FLayeredMove_LinearVelocity> DashMove = MakeShared<FLayeredMove_LinearVelocity>();
 	DashMove->Velocity = DashDirection * DashImpulseMagnitude;
@@ -122,24 +122,37 @@ void ULNPCharacterMoverComponent::ExecuteDash(FVector MoveInputIntent)
 	DashMove->FinishVelocitySettings.FinishVelocityMode = ELayeredMoveFinishVelocityMode::MaintainLastRootMotionVelocity;
 	QueueLayeredMove(DashMove);
 
-	float ActualStartingPos = 0.0f;
-	if (USkeletalMeshComponent* Mesh = Pawn->FindComponentByClass<USkeletalMeshComponent>())
+	// 몽타주는 연출이다. 평가에 실패해도 물리 대시는 그대로 실행한다
+	// (기존 구현은 여기서 조기 return이라 몽타주가 없으면 대시 자체가 취소됐다).
+	UAnimMontage* SelectedMontage = Character->EvaluateMontage(TAG_Montage_Situation_Dash, DirTag);
+	if (SelectedMontage)
 	{
-		if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
-		{
-			AnimInstance->Montage_Play(SelectedMontage, 1.0f);
-			if (FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(SelectedMontage))
-				ActualStartingPos = MontageInstance->GetPosition();
-		}
+		// 시작 위치를 재생 중인 몽타주 인스턴스에서 되읽지 않고 0으로 고정한다 —
+		// 서버와 리시뮬레이션에는 몽타주가 재생되지 않아 되읽은 값이 서로 갈린다.
+		TSharedPtr<FLayeredMove_AnimRootMotion> AnimSyncMove = MakeShared<FLayeredMove_AnimRootMotion>();
+		AnimSyncMove->MontageState.Montage = SelectedMontage;
+		AnimSyncMove->MontageState.PlayRate = 1.0f;
+		AnimSyncMove->MontageState.StartingMontagePosition = 0.0f;
+		AnimSyncMove->MontageState.CurrentPosition = 0.0f;
+		AnimSyncMove->DurationMs = DashDurationMs;
+		QueueLayeredMove(AnimSyncMove);
 	}
 
-	TSharedPtr<FLayeredMove_AnimRootMotion> AnimSyncMove = MakeShared<FLayeredMove_AnimRootMotion>();
-	AnimSyncMove->MontageState.Montage = SelectedMontage;
-	AnimSyncMove->MontageState.PlayRate = 1.0f;
-	AnimSyncMove->MontageState.StartingMontagePosition = ActualStartingPos;
-	AnimSyncMove->MontageState.CurrentPosition = ActualStartingPos;
-	AnimSyncMove->DurationMs = DashDurationMs;
-	QueueLayeredMove(AnimSyncMove);
+	// 여기부터는 시뮬레이션 상태가 아닌 연출·HUD다. 리시뮬레이션마다 반복되면
+	// 몽타주가 다시 재생되고 HUD 쿨다운 파이가 계속 리셋되므로 첫 시뮬레이션에서만 실행한다.
+	if (TimeStep.bIsResimulating)
+		return;
+
+	OnDashExecuted.Broadcast();
+
+	if (SelectedMontage)
+	{
+		if (USkeletalMeshComponent* Mesh = Pawn->FindComponentByClass<USkeletalMeshComponent>())
+		{
+			if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance())
+				AnimInstance->Montage_Play(SelectedMontage, 1.0f);
+		}
+	}
 }
 
 void ULNPCharacterMoverComponent::ApplyKnockback(const FVector HitFromDirection, const float Strength)
@@ -247,6 +260,16 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 			SprintModifierHandle = QueueMovementModifier(NewModifier);
 			ActiveModifier = NewModifier.Get();
 		}
+	}
+
+	// Dash 실행 — 의도는 InputCmd로 전달받고 실행은 시뮬레이션 안에서 이루어진다.
+	// 입력 콜백에서 직접 실행하던 기존 방식은 서버와 리시뮬레이션이 재현할 수 없어,
+	// 클라이언트가 대시하면 로컬에서만 튀었다가 롤백되고 서버에는 아무 일도 일어나지 않았다.
+	if (ModifierInputs && ModifierInputs->bWantsToDash && CanDash())
+	{
+		const FCharacterDefaultInputs* CharacterInputs = InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
+		ExecuteDash(TimeStep, ModifierInputs->DashInputIntent,
+			CharacterInputs ? CharacterInputs->ControlRotation : FRotator::ZeroRotator);
 	}
 
 	// 기본 기능(점프, 앉기) 처리를 위해 Super 호출

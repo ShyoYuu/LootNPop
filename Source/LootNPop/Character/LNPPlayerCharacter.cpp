@@ -40,11 +40,10 @@ ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitial
 
 	ControlRotationComponent = CreateDefaultSubobject<ULNPControlRotationComponent>(TEXT("ControlRotationComponent"));
 
-	// 시뮬레이티드 프록시에도 InputCmd(ControlRotation 포함)를 SyncState에 동봉해 전달한다.
-	// GetBaseAimRotation 오버라이드가 이를 읽어 관전자 화면의 Aim Offset을 동기화한다.
-	// 플레이어 폰에만 적용 — Enemy는 시선 동기화가 불필요해 대역폭을 아낀다.
-	if (MoverComponent)
-		MoverComponent->bSyncInputsForSimProxy = true;
+	// bSyncInputsForSimProxy는 보간 프록시 전용 우회책이라 제거했다 (엔진에도 임시 옵션이라 명시돼 있다).
+	// SimulatedProxyNetworkLOD=ForwardPredict에서는 시뮬레이티드 프록시도 실제로 시뮬레이션되므로
+	// UMoverComponent가 일반 경로에서 CachedLastUsedInputCmd를 채운다 —
+	// GetBaseAimRotation 오버라이드가 읽는 GetLastInputCmd()의 ControlRotation이 그대로 유효하다.
 }
 
 void ALNPPlayerCharacter::BeginPlay()
