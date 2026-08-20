@@ -71,11 +71,6 @@ void ALNPPlayerCharacter::PossessedBy(AController* NewController)
 			{
 				PushLootSpeedToEntity(Data.NewValue);
 			});
-
-		// EqComp::BeginPlay가 DefaultWeapon GAS 부여를 완료한 경우 비주얼·EquippedWeaponData 동기화
-		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
-			if (ULNPWeaponData* WeaponDef = EqComp->GetWeaponSlot().Definition.Get())
-				ALNPCharacterBase::EquipWeapon(WeaponDef);
 	}
 
 	if (GameplayCamera)
@@ -125,55 +120,41 @@ void ALNPPlayerCharacter::OnRep_PlayerState()
 		PS->GetAbilitySystemComponent()->InitAbilityActorInfo(PS, this);
 }
 
-void ALNPPlayerCharacter::EquipWeapon(ULNPWeaponData* WeaponData)
+// 장착 요청은 항상 서버 권위 경로로만 흐른다. 로컬 선반영(예측)은 하지 않는다 —
+// 비주얼은 ULNPEquipmentComponent가 WeaponSlot 적용 후 밀어 넣는다(서버 즉시 / 클라 OnRep).
+void ALNPPlayerCharacter::RequestEquipWeapon(ULNPWeaponData* WeaponData)
 {
-	Super::EquipWeapon(WeaponData);  // 비주얼·태그·EquippedWeaponData(서버만)
+	if (!HasAuthority())
+	{
+		Server_EquipWeapon(WeaponData);
+		return;
+	}
 
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
-	{
 		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
-		{
-			// 클라이언트: WeaponSlot.Definition 즉시 갱신 후 서버에 GAS 부여 요청
-			// 서버:      직접 GAS 어빌리티 부여
 			EqComp->EquipWeapon(WeaponData);
-			if (!HasAuthority())
-				Server_EquipWeapon(WeaponData);
-		}
-	}
 }
 
 void ALNPPlayerCharacter::Server_EquipWeapon_Implementation(ULNPWeaponData* WeaponData)
 {
-	// 서버: 비주얼·태그·EquippedWeaponData 복제 마킹
-	ALNPCharacterBase::EquipWeapon(WeaponData);
-
-	// 서버: GAS 어빌리티 부여 (EqComp가 HasAuthority라 실제로 Grant됨)
-	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
-		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
-			EqComp->EquipWeapon(WeaponData);
+	RequestEquipWeapon(WeaponData);
 }
 
-void ALNPPlayerCharacter::EquipWeaponInstance(ULNPInventoryItemInstance* Instance)
+void ALNPPlayerCharacter::RequestEquipWeaponInstance(ULNPInventoryItemInstance* Instance)
 {
 	if (Instance == nullptr)
 		return;
 
-	ULNPWeaponData* WeaponData = Cast<ULNPWeaponData>(Instance->GetDefinition());
-	if (WeaponData == nullptr)
+	if (!HasAuthority())
+	{
+		// 인스턴스 포인터가 아니라 ItemId를 보낸다 — 서버가 소유 인벤토리에서 직접 조회·검증한다.
+		Server_EquipWeaponInstance(Instance->GetItemId());
 		return;
-
-	Super::EquipWeapon(WeaponData);  // 비주얼·태그·EquippedWeaponData(서버만)
+	}
 
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
-	{
 		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
-		{
-			// 클라이언트: 슬롯이 인스턴스를 즉시 참조(예측) 후 서버에 GAS 부여·bEquipped 요청
 			EqComp->EquipWeaponInstance(Instance);
-			if (!HasAuthority())
-				Server_EquipWeaponInstance(Instance->GetItemId());
-		}
-	}
 }
 
 void ALNPPlayerCharacter::Server_EquipWeaponInstance_Implementation(FGuid ItemId)
@@ -187,14 +168,12 @@ void ALNPPlayerCharacter::Server_EquipWeaponInstance_Implementation(FGuid ItemId
 	if (Inventory == nullptr || EqComp == nullptr)
 		return;
 
+	// 서버 검증: 요청자가 실제로 보유한 인스턴스인지 확인한다.
 	ULNPInventoryItemInstance* Instance = Inventory->FindItemInstance(ItemId);
 	if (Instance == nullptr)
 		return;
 
-	if (ULNPWeaponData* WeaponData = Cast<ULNPWeaponData>(Instance->GetDefinition()))
-		ALNPCharacterBase::EquipWeapon(WeaponData);  // 서버 비주얼·복제 마킹
-
-	EqComp->EquipWeaponInstance(Instance);  // 서버 권위: bEquipped 표시 + GAS 부여
+	EqComp->EquipWeaponInstance(Instance);  // bEquipped 표시 + GAS 부여 + 비주얼 푸시
 }
 
 void ALNPPlayerCharacter::DropItem(const FGuid& ItemId)
@@ -281,7 +260,14 @@ FRotator ALNPPlayerCharacter::GetBaseAimRotation() const
 	return Super::GetBaseAimRotation();
 }
 
+// WeaponSlot이 복제되므로 시뮬레이티드 프록시를 포함한 모든 머신에서 이 값이 정확하다.
+// (역할별 분기가 필요했던 시절은 WeaponSlot이 복제되지 않던 때의 이야기다.)
 const ULNPWeaponData* ALNPPlayerCharacter::GetActiveWeaponDef() const
+{
+	return ResolveWeaponDefForVisuals();
+}
+
+ULNPWeaponData* ALNPPlayerCharacter::ResolveWeaponDefForVisuals() const
 {
 	const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
 	if (!PS)

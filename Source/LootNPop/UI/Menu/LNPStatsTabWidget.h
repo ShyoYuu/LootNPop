@@ -7,6 +7,7 @@
 #include "LNPStatsTabWidget.generated.h"
 
 class ULNPBuffChipWidget;
+class ULNPEquipmentComponent;
 class ULNPInventoryComponent;
 class ULNPStatsViewModel;
 class UImage;
@@ -18,8 +19,8 @@ class UPanelWidget;
  *  2) 장착 장비   — 무기 슬롯 아이콘 1칸
  *  3) 적용 중인 버프 — 아이콘 + 남은 시간 칩 나열
  *
- * 스탯은 ASC 델리게이트로, 장비·버프는 InventoryComponent의 OnInventoryChanged로 갱신한다.
- * (장착 상태 변경도 OnInventoryChanged를 브로드캐스트한다 — TechDesign_Inventory §4)
+ * 스탯은 ASC 델리게이트로, 버프는 InventoryComponent의 OnInventoryChanged로,
+ * 무기 슬롯은 EquipmentComponent의 OnEquipmentChanged로 갱신한다 (두 신호 모두 구독 — NativeOnActivated 주석 참조).
  *
  * BP 서브클래스(WBP_MenuTab_Stats) 요구 사항 — 모두 Is Variable 켜기:
  *  - View Model 패널에 ULNPStatsViewModel 등록(생성 모드 Manual) 후
@@ -63,4 +64,5 @@ private:
 	TObjectPtr<ULNPStatsViewModel> StatsViewModel;
 
 	TWeakObjectPtr<ULNPInventoryComponent> BoundInventory;
+	TWeakObjectPtr<ULNPEquipmentComponent> BoundEquipment;
 };

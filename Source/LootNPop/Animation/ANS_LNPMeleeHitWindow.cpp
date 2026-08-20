@@ -74,11 +74,13 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 
 	// 넉백 강도와 패링 반경을 태그별 독립 조회로 읽는다.
 	// 각 태그가 비어있으면 기본 태그(TAG_Ability_HitEffect_*)로 자동 선택한다.
+	const FGameplayTag ParryTag = ParryAbilityTag.IsValid() ? ParryAbilityTag : TAG_Ability_HitEffect_Parry;
+	bool bParryRadiusResolved = false;
+
 	if (const UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent())
 	{
 		const int32 ComboIdx = Character->GetCurrentComboIndex();
 		const FGameplayTag KnockTag = KnockbackAbilityTag.IsValid() ? KnockbackAbilityTag : TAG_Ability_HitEffect_Knockback;
-		const FGameplayTag ParryTag = ParryAbilityTag.IsValid()     ? ParryAbilityTag     : TAG_Ability_HitEffect_Parry;
 
 		for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
 		{
@@ -95,7 +97,36 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 			if (Tags.HasTag(KnockTag))
 				MeleeData.KnockbackStrength = Ability->GetKnockbackForCombo(ComboIdx);
 			if (Tags.HasTag(ParryTag))
+			{
 				MeleeData.ParryRadius = Ability->GetParryRadius();
+				bParryRadiusResolved = true;
+			}
+		}
+	}
+
+	// 시뮬레이티드 프록시·클라이언트측 적 폴백 — 위 루프는 원격 관전 머신에서 아무것도 채우지 못한다.
+	// UAbilitySystemComponent::ActivatableAbilities가 COND_ReplayOrOwner(오너 전용)라 스펙 배열이 비어 있고,
+	// 설령 있어도 FGameplayAbilitySpec::ActiveCount는 NotReplicated라 IsActive()가 항상 false다.
+	// 그 결과 디버그 드로우가 프래그먼트 기본값(12.f)으로 그려져 서버의 실제 패링 반경보다 작게 보인다.
+	// 무기 정의는 모든 머신에 복제되므로(HitRadius와 동일 경로) 부여 어빌리티 CDO에서 반경을 읽는다.
+	// Damage·KnockbackStrength는 각각 ActorInfo와 CurrentComboIndex(둘 다 프록시에 없음)에
+	// 의존하므로 여기서 채우지 않는다 — 어차피 피해 적용은 서버 전용 경로다.
+	if (!bParryRadiusResolved)
+	{
+		for (const TSubclassOf<ULNPGameplayAbility>& AbilityClass : WeaponDef->AbilitiesToGrant)
+		{
+			if (!AbilityClass)
+				continue;
+
+			const ULNPAbility_BasicAttack* AbilityCDO = Cast<ULNPAbility_BasicAttack>(AbilityClass->GetDefaultObject());
+			if (!AbilityCDO)
+				continue;
+
+			if (!AbilityCDO->GetAssetTags().HasTag(ParryTag))
+				continue;
+
+			MeleeData.ParryRadius = AbilityCDO->GetParryRadius();
+			break;
 		}
 	}
 

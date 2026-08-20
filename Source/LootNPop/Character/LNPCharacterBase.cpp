@@ -60,12 +60,6 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	bUseControllerRotationRoll = false;
 }
 
-void ALNPCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ALNPCharacterBase, EquippedWeaponData);
-}
-
 bool ALNPCharacterBase::GetFaceMoveDirection() const
 {
 	return InputHandlerComponent ? InputHandlerComponent->GetFaceMoveDirection() : false;
@@ -110,11 +104,28 @@ bool ALNPCharacterBase::TryActivateAttack()
 	if (ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
 		return false;
 
+	// 콤보 상태는 실제로 공격이 발동됐을 때만 확정한다.
+	// 블락 구간과 콤보 창 사이의 사각지대(콤보 전환 직후 ANS가 아직 태그를 걸지 않은 1프레임 포함)에서는
+	// 발동이 쿨다운·중복 활성화로 실패하는데, 이때 인덱스만 0으로 떨어뜨리면
+	// 다음 콤보 입력이 다시 0→1이 되어 2타만 무한 반복된다.
 	const int32 PrevComboIndex = CurrentComboIndex;
 	ResetCombo();
+
+	// ⚠ 이 RPC는 반드시 TryActivateAttack_Impl() **앞**에서 보내야 한다.
+	// _Impl() 안의 TryActivateAbility가 ServerTryActivateAbility RPC를 PlayerState(ASC) 채널로 보내는데,
+	// 뒤에서 보내면 서버가 어빌리티 활성화를 먼저 처리해 ActivateAbility가 낡은 CurrentComboIndex를 읽는다
+	// → 서버가 Section_2를 재생하고 그 몽타주가 복제되어, 원격 화면에서만 1타가 2타로 보인다.
+	// 발동이 실패해 아래에서 인덱스를 원복하더라도, 모든 활성화 경로가 직전에 절대값을 다시 보내므로
+	// 서버 인덱스는 다음 공격 시점에 항상 재동기화된다.
 	if (!HasAuthority() && PrevComboIndex != 0)
 		Server_SetComboIndex(0); // 인덱스가 실제로 바뀔 때만 전송 (연사 입력 RPC 스팸 방지)
-	return TryActivateAttack_Impl();
+
+	if (!TryActivateAttack_Impl())
+	{
+		CurrentComboIndex = PrevComboIndex;
+		return false;
+	}
+	return true;
 }
 
 void ALNPCharacterBase::Server_SetComboIndex_Implementation(int32 NewComboIndex)
@@ -147,22 +158,33 @@ void ALNPCharacterBase::BeginPlay()
 
 	MontageCtx = NewObject<ULNPMontageChooserContext>(this);
 
-	// EquippedWeaponData가 BeginPlay 이전에 이미 리플리케이트됐을 수 있으므로(원격 관전 시점의 초기 스폰),
-	// 무조건 Unarmed로 링크하지 않고 EquipWeapon을 거쳐 현재 값을 존중한다.
-	// virtual 우회(OnRep_CurrentWeapon과 동일 패턴) — 소유하지 않은 액터에서 Server RPC가 호출되는 것을 방지.
-	ALNPCharacterBase::EquipWeapon(EquippedWeaponData);
+	// 무기 원본(EquipmentComponent::WeaponSlot / EnemyConfig)이 이 시점에 이미 도착해 있을 수 있으므로
+	// 무조건 맨손으로 링크하지 않고 현재 값을 존중한다 (풀 방향). 아직 없으면 nullptr = 맨손 레이어 링크.
+	ApplyWeaponVisuals(ResolveWeaponDefForVisuals());
 }
 
 void ALNPCharacterBase::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 	InitAbilitySystem();
+	RefreshWeaponVisuals();
 }
 
 void ALNPCharacterBase::OnRep_PlayerState()
 {
 	Super::OnRep_PlayerState();
 	InitAbilitySystem();
+	RefreshWeaponVisuals();
+}
+
+void ALNPCharacterBase::RefreshWeaponVisuals()
+{
+	// ⚠ 반드시 InitAbilitySystem() **뒤에** 호출해야 한다 —
+	// InitAbilitySystem()이 CurrentWeaponTag를 Unarmed로 되돌리므로 순서가 뒤바뀌면 무기 태그가 덮인다.
+	// 캐시를 무효화해 멱등 조기 반환을 건너뛰고 태그를 다시 부여시킨다.
+	CachedWeaponDef = nullptr;
+	bWeaponVisualsApplied = false;
+	ApplyWeaponVisuals(ResolveWeaponDefForVisuals());
 }
 
 void ALNPCharacterBase::InitAbilitySystem()
@@ -189,8 +211,14 @@ void ALNPCharacterBase::InitAbilitySystem()
 		InputHandlerComponent->CacheASC(ASC);
 }
 
-void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
+void ALNPCharacterBase::ApplyWeaponVisuals(ULNPWeaponData* WeaponData)
 {
+	// 멱등 조기 반환. 푸시(EquipmentComponent)와 풀(BeginPlay/OnRep_PlayerState)이 양방향으로
+	// 들어오므로 중복 호출이 정상인데, 같은 무기로 LinkAnimClassLayers를 다시 부르면
+	// 애님 레이어 상태가 리셋되어 포즈가 튄다.
+	if (bWeaponVisualsApplied && CachedWeaponDef == WeaponData)
+		return;
+
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 
 	// 기존 무기·조준모드 태그 제거
@@ -252,20 +280,14 @@ void ALNPCharacterBase::EquipWeapon(ULNPWeaponData* WeaponData)
 		WeaponMesh->SetVisibility(false);
 	}
 
-	if (HasAuthority())
-		EquippedWeaponData = WeaponData;
-}
-
-void ALNPCharacterBase::OnRep_CurrentWeapon()
-{
-	// 비주얼·태그만 갱신 (GAS 부여는 서버가 처리) — virtual 우회로 RPC 루프 방지
-	ALNPCharacterBase::EquipWeapon(EquippedWeaponData);
+	CachedWeaponDef = WeaponData;
+	bWeaponVisualsApplied = true;
 }
 
 void ALNPCharacterBase::EquipTestWeapon(int32 SlotIndex)
 {
 	ULNPWeaponData* Target = TestWeaponList.IsValidIndex(SlotIndex) ? TestWeaponList[SlotIndex].Get() : nullptr;
-	EquipWeapon(Target);
+	RequestEquipWeapon(Target);
 }
 
 void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir)

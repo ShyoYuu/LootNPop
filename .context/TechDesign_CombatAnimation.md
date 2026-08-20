@@ -73,12 +73,17 @@ Motion Matching 기반 공용 로코모션 위에 **무기별 Linked Anim Layer�
 ### 3.2 런타임 레이어 교체 (`EquipWeapon`)
 
 ```
-EquipWeapon(WeaponData)
+ApplyWeaponVisuals(WeaponData)   ← 서버·클라이언트가 부르는 단일 진입점 (멱등)
+├─ 조기 반환: 이미 같은 무기로 적용됐으면 아무것도 안 한다 (LinkAnimClassLayers 중복 = 포즈 튐)
 ├─ ASC: 기존 무기·조준모드 태그 제거 → 신규 태그 부여
 ├─ SetFaceMoveDirection(!bFreeAim)   — 회전 방식 전환
 ├─ AnimSourceMesh->LinkAnimClassLayers(WeaponData->AnimLayerClass)
-├─ WeaponMesh: 메시 교체 + 소켓 어태치 + 상대 오프셋(WeaponMeshRelativeLocation/Rotation) 적용
-└─ 서버: EquippedWeaponData 복제 → 클라이언트 OnRep_CurrentWeapon()이 동일 경로 실행
+└─ WeaponMesh: 메시 교체 + 소켓 어태치 + 상대 오프셋(WeaponMeshRelativeLocation/Rotation) 적용
+
+호출자 — 무기 원본은 ULNPEquipmentComponent::WeaponSlot(플레이어) / EnemyConfig(적)이고 둘 다 복제된다:
+├─ 푸시: 슬롯 적용 직후(서버) · OnRep_WeaponSlot / OnRep_EnemyConfig(클라)
+└─ 풀:   Pawn의 BeginPlay · OnRep_PlayerState · PossessedBy (PlayerState↔Pawn 도착 순서 무관)
+   상세는 TechDesign_Inventory.md §4.1
 ```
 
 ---
