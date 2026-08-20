@@ -136,7 +136,7 @@ ALNPPlayerController::OnUnPossess()
 [ULNPInventoryEntryWidget : IUserObjectListEntry] (WBP_InventoryEntry / WBP_BuffEntry)
   NativeOnListItemObjectSet → Instance->GetDefinition()의 아이콘·이름(DisplayName, 비면 에셋명 폴백)
                             → UpdateDetailText() + 버프면 1초 반복 타이머 재설정(잔여 시간 카운트다운)
-  DropButton → Character->DropItem(ItemId) / EquipButton → Character->EquipWeaponInstance(Instance)
+  DropButton → Character->DropItem(ItemId) / EquipButton → Character->RequestEquipWeaponInstance(Instance)
 ```
 
 **클래스/에셋:** `UI/LNPInventoryWidget`, `UI/LNPInventoryEntryWidget`. BP: `/Game/UI/WBP_Inventory`(+ RootVBox·StorageList·BuffList), `WBP_InventoryEntry`, `WBP_BuffEntry`. `BP_LNPPlayerController.InventoryWidgetClass` 지정. (구 `ULNPInventoryViewModel`/`ULNPBuffEntryObject`는 삭제됨.)

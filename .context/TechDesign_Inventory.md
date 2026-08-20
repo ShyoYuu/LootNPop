@@ -31,11 +31,42 @@
 ## 4. 장착/보관 분리 (Option 2)
 
 - 장비 슬롯(`FLNPWeaponInstance`/`FLNPSkillInstance`, `Item/LNPItemInstance.h`)에 `SourceInstance` 참조 추가 — 어느 가방 인스턴스가 장착됐는지.
-- 장착(`ULNPEquipmentComponent::EquipWeaponInstance`): 슬롯이 인스턴스 참조 + 서버가 `Instance->SetEquipped(true)` + GAS grant. 해제 시 false + revoke.
+- 장착(`ULNPEquipmentComponent::EquipWeaponInstance`, **서버 전용**): 슬롯이 인스턴스 참조 + `Instance->SetEquipped(true)` + GAS grant. 해제 시 false + revoke.
 - **인스턴스는 BagList에 물리적으로 남는다** — UI가 `!IsEquipped()`만 노출해 분리를 성립시킨다(서브오브젝트 재등록 불필요).
 - `bEquipped`는 `ReplicatedUsing=OnRep_InstanceChanged` — 값 변경만으로는 FastArray 콜백이 안 울리므로, 서버는 `SetEquipped`에서·클라는 OnRep에서 `OnInventoryChanged`를 직접 브로드캐스트해 **장착 즉시 UI 재필터**된다. (이 통지가 없으면 "다음 인벤토리 변화 때에야 뒤늦게 사라지는" 버그가 된다 — 실측 후 수정.)
-- `IsEquippedInstance(ItemId)`가 사본 정확 판정. 정의 기준 `IsEquipped`는 레거시로 잔존.
+- `IsEquippedInstance(ItemId)`가 사본 정확 판정. 정의 기준 `IsEquipped`는 레거시로 잔존. (2026-08-20 기준 둘 다 호출처 없음 — UI는 인스턴스의 `bEquipped`를 직접 읽는다.)
 - **기본 무기(innate):** `DefaultWeapon`은 가방 인스턴스 없이 Definition만으로 장착(`SourceInstance` null) — 가방에 없으므로 모호성 없음.
+
+### 4.1 장비 상태의 소유권 (2026-08-20 정리)
+
+`ULNPEquipmentComponent::WeaponSlot`이 **복제되는 단일 원본**이다. 이전에는 Pawn의
+`ALNPCharacterBase::EquippedWeaponData`만 복제되고 개념적 원본인 `WeaponSlot`은 복제되지 않아,
+시뮬레이티드 프록시에서 두 값이 갈라졌다 (프록시가 `BeginPlay`에서 스스로 장착한 `DefaultWeapon`이
+영구히 남아, 롱소드를 휘두르는 캐릭터를 권총 데이터로 판정). 자세한 배경은
+[TechDesign_Networking.md](TechDesign_Networking.md)의 장비 상태 복제 항목 참조.
+
+| 대상 | 역할 | 복제 |
+|:--|:--|:--|
+| `ULNPEquipmentComponent::WeaponSlot` | 단일 원본, **서버만 쓴다** | ✅ `ReplicatedUsing=OnRep_WeaponSlot` (조건 없음 — 프록시 포함) |
+| `FLNPWeaponInstance::Definition` | 무엇을 들고 있는가 | ✅ 구조체에서 유일하게 복제되는 필드 |
+| `FLNPWeaponInstance`의 나머지 3필드 | 서버 전용 (핸들·가방 인스턴스) | ❌ `NotReplicated` |
+| `ALNPCharacterBase::CachedWeaponDef` | 비주얼 파생 캐시 | ❌ |
+| `ALNPEnemyCharacter::EnemyConfig` | 적 무기의 원본 (EqComp 없음) | ✅ `ReplicatedUsing=OnRep_EnemyConfig` |
+
+- **쓰기 경로는 하나다.** 클라이언트는 `ALNPPlayerCharacter::RequestEquipWeapon(Instance)`로
+  `Server_Equip*` RPC만 보내고, 로컬 선반영(예측)은 하지 않는다. 컴포넌트의 뮤테이터는
+  `ensureMsgf`로 권위를 강제한다. 무기 교체는 메뉴·디버그 키에서만 발생하므로 RTT 지연이 문제되지 않는다.
+- **비주얼 적용 함수도 하나다** — `ALNPCharacterBase::ApplyWeaponVisuals()`. 서버는 슬롯 적용 직후,
+  클라이언트는 `OnRep_WeaponSlot`에서 같은 함수를 부른다. 멱등이라 중복 호출이 안전하다.
+- **도착 순서**: 슬롯은 PlayerState의 컴포넌트에, 비주얼은 Pawn에 있고 복제 순서는 보장되지 않는다.
+  푸시(`PushWeaponToPawn`, Pawn 없으면 no-op)와 풀(Pawn의 `BeginPlay`/`OnRep_PlayerState`/`PossessedBy`에서
+  `ResolveWeaponDefForVisuals()`)을 양방향으로 걸어 어느 쪽이 먼저 와도 수렴시킨다.
+  ⚠️ 풀은 반드시 `InitAbilitySystem()` **뒤에** — 그쪽이 `CurrentWeaponTag`를 Unarmed로 되돌린다.
+- **UI 갱신**: `OnEquipmentChanged` 델리게이트(서버 적용·클라 OnRep 양쪽에서 브로드캐스트). 인벤토리의
+  `OnInventoryChanged`만으로는 부족하다 — `DefaultWeapon`처럼 가방 인스턴스가 없는 장착은 `bEquipped`
+  복제가 아예 없고, 있더라도 두 컴포넌트의 OnRep 순서가 보장되지 않는다. 스탯 탭은 두 신호를 모두 구독한다.
+- **범위 밖**: `ActiveSkillSlots`/`PassiveSkillInstances`도 같은 구멍이 있으나 액티브 스킬이 미구현이라
+  스킬 구현 시점에 같은 패턴으로 처리한다.
 
 ## 5. 버프 흐름
 
@@ -54,7 +85,7 @@
 
 - **픽업**(`ULNPInteractionComponent::PickupDiceOnServer`): 버프는 `AddBuffItem`, 그 외는 `AddItemInstance`.
 - **드랍**(`ALNPPlayerCharacter::DropItem(FGuid)` → `Server_DropItem(FGuid)`): ItemId로 가방→버프 순 조회, `IsEquipped()` 가드, 제거 성공 후에만 Dice 스폰(복제 방지).
-- **장착**(`EquipWeaponInstance(Instance)` → `Server_EquipWeaponInstance(FGuid)`): 클라 예측(슬롯 참조) + 서버 권위(bEquipped·GAS). RPC는 FGuid만 전달.
+- **장착**(`RequestEquipWeaponInstance(Instance)` → `Server_EquipWeaponInstance(FGuid)`): **서버 권위 전용**(bEquipped·GAS·비주얼). 클라 예측 없음, 결과는 `WeaponSlot` 복제로 되돌아온다. RPC는 FGuid만 전달하고 서버가 소유 인벤토리에서 조회·검증한다. §4.1 참조.
 
 ## 7. 잔여·후속
 

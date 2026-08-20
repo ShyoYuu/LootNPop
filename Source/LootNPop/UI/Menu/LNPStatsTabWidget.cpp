@@ -36,6 +36,13 @@ void ULNPStatsTabWidget::NativeOnActivated()
 	if (ULNPInventoryComponent* Inventory = BoundInventory.Get())
 		Inventory->OnInventoryChanged.AddDynamic(this, &ULNPStatsTabWidget::RefreshEquipmentAndBuffs);
 
+	// 장비 변경도 별도로 구독한다. 인벤토리 신호만으로는 부족하다 —
+	// DefaultWeapon처럼 가방 인스턴스가 없는 장착은 bEquipped 복제가 아예 없고,
+	// 있더라도 두 컴포넌트의 OnRep 순서가 보장되지 않아 아이콘이 낡은 슬롯을 읽을 수 있다.
+	BoundEquipment = PS->GetEquipmentComponent();
+	if (ULNPEquipmentComponent* Equipment = BoundEquipment.Get())
+		Equipment->OnEquipmentChanged.AddDynamic(this, &ULNPStatsTabWidget::RefreshEquipmentAndBuffs);
+
 	RefreshEquipmentAndBuffs();
 }
 
@@ -44,6 +51,10 @@ void ULNPStatsTabWidget::NativeOnDeactivated()
 	if (ULNPInventoryComponent* Inventory = BoundInventory.Get())
 		Inventory->OnInventoryChanged.RemoveDynamic(this, &ULNPStatsTabWidget::RefreshEquipmentAndBuffs);
 	BoundInventory.Reset();
+
+	if (ULNPEquipmentComponent* Equipment = BoundEquipment.Get())
+		Equipment->OnEquipmentChanged.RemoveDynamic(this, &ULNPStatsTabWidget::RefreshEquipmentAndBuffs);
+	BoundEquipment.Reset();
 
 	if (StatsViewModel)
 		StatsViewModel->Deinitialize();

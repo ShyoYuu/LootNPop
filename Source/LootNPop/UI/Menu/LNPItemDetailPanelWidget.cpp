@@ -131,7 +131,7 @@ void ULNPItemDetailPanelWidget::HandleEquipClicked()
 		return;
 
 	if (ALNPPlayerCharacter* Character = GetOwningPlayerPawn<ALNPPlayerCharacter>())
-		Character->EquipWeaponInstance(BoundInstance);
+		Character->RequestEquipWeaponInstance(BoundInstance);
 }
 
 void ULNPItemDetailPanelWidget::HandleDropClicked()

@@ -5,6 +5,7 @@
 #include "Item/LNPWeaponData.h"
 #include "Item/LNPSkillData.h"
 #include "Item/LNPInventoryItemInstance.h"
+#include "Character/LNPCharacterBase.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "GAS/LNPStatModifier.h"
 #include "Player/LNPPlayerState.h"
@@ -12,10 +13,23 @@
 
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
+#include "Net/UnrealNetwork.h"
 
 ULNPEquipmentComponent::ULNPEquipmentComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	// WeaponSlot이 장비 상태의 단일 원본이므로 컴포넌트 자체가 복제되어야 한다.
+	// PlayerState는 bAlwaysRelevant이라 시뮬레이티드 프록시를 포함한 전 클라이언트가 받는다.
+	SetIsReplicatedByDefault(true);
+}
+
+void ULNPEquipmentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	// 조건 없음 — 프록시도 받아야 한다. 원격 관전 시 근접 판정이 무기 정의를 읽기 때문.
+	// 실제 복제되는 것은 Definition 하나뿐이다 (나머지 필드는 NotReplicated, FLNPWeaponInstance 참조).
+	DOREPLIFETIME(ULNPEquipmentComponent, WeaponSlot);
 }
 
 void ULNPEquipmentComponent::BeginPlay()
@@ -27,23 +41,39 @@ void ULNPEquipmentComponent::BeginPlay()
 
 	ActiveSkillSlots.SetNum(MaxActiveSkillSlots);
 
-	if (DefaultWeapon)
+	// 권위 게이트 필수 — 클라이언트가 스스로 DefaultWeapon을 장착하면 복제 값과 충돌한다.
+	// (게이트가 없던 시절, 프록시에 DefaultWeapon이 영구히 남아 실제 장착 무기와 어긋났다.)
+	if (DefaultWeapon && GetOwnerRole() == ROLE_Authority)
 		EquipWeapon(DefaultWeapon);
+}
+
+bool ULNPEquipmentComponent::EnsureAuthority(const TCHAR* Context) const
+{
+	return ensureMsgf(GetOwnerRole() == ROLE_Authority,
+		TEXT("ULNPEquipmentComponent::%s called without authority — route through ALNPPlayerCharacter::Server_Equip*"),
+		Context);
 }
 
 void ULNPEquipmentComponent::EquipWeapon(ULNPWeaponData* WeaponDef)
 {
-	UnequipWeapon();
+	if (!EnsureAuthority(TEXT("EquipWeapon")))
+		return;
+
+	ClearWeaponSlot();
 	if (WeaponDef)
 	{
 		WeaponSlot.Definition = WeaponDef;
-		if (GetOwner() && GetOwner()->HasAuthority())
-			GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+		GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 	}
+
+	OnWeaponSlotApplied();
 }
 
 void ULNPEquipmentComponent::EquipWeaponInstance(ULNPInventoryItemInstance* Instance)
 {
+	if (!EnsureAuthority(TEXT("EquipWeaponInstance")))
+		return;
+
 	if (Instance == nullptr)
 		return;
 
@@ -51,29 +81,62 @@ void ULNPEquipmentComponent::EquipWeaponInstance(ULNPInventoryItemInstance* Inst
 	if (WeaponDef == nullptr)
 		return;
 
-	UnequipWeapon();
+	ClearWeaponSlot();
 
 	WeaponSlot.Definition = WeaponDef;
 	WeaponSlot.SourceInstance = Instance;
-	if (GetOwner() && GetOwner()->HasAuthority())
-	{
-		Instance->SetEquipped(true);  // 복제되어 소유 클라 UI가 가방에서 숨긴다
-		GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
-	}
+	Instance->SetEquipped(true);  // 복제되어 소유 클라 UI가 가방에서 숨긴다
+	GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+
+	OnWeaponSlotApplied();
 }
 
 void ULNPEquipmentComponent::UnequipWeapon()
 {
+	if (!EnsureAuthority(TEXT("UnequipWeapon")))
+		return;
+
 	if (!WeaponSlot.IsValid())
 		return;
 
-	if (GetOwner() && GetOwner()->HasAuthority())
-	{
-		if (WeaponSlot.SourceInstance)
-			WeaponSlot.SourceInstance->SetEquipped(false);
-		RevokeItemImpl(WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
-	}
+	ClearWeaponSlot();
+	OnWeaponSlotApplied();
+}
+
+// 통지하지 않는다 — 교체(EquipWeapon)의 중간 단계로도 쓰이기 때문이다.
+// 여기서 통지하면 무기를 바꿀 때마다 "맨손 → 새 무기" 두 번 적용되어 애님 레이어가 한 번 튄다.
+void ULNPEquipmentComponent::ClearWeaponSlot()
+{
+	if (!WeaponSlot.IsValid())
+		return;
+
+	if (WeaponSlot.SourceInstance)
+		WeaponSlot.SourceInstance->SetEquipped(false);
+	RevokeItemImpl(WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 	WeaponSlot.Reset();
+}
+
+void ULNPEquipmentComponent::OnRep_WeaponSlot()
+{
+	OnWeaponSlotApplied();
+}
+
+void ULNPEquipmentComponent::OnWeaponSlotApplied()
+{
+	PushWeaponToPawn();
+	OnEquipmentChanged.Broadcast();
+}
+
+void ULNPEquipmentComponent::PushWeaponToPawn() const
+{
+	const APlayerState* PS = Cast<APlayerState>(GetOwner());
+	if (PS == nullptr)
+		return;
+
+	// Pawn이 아직 없거나 PlayerState와 아직 연결되지 않았으면 아무것도 하지 않는다 —
+	// Pawn 쪽이 BeginPlay/OnRep_PlayerState/PossessedBy에서 스스로 끌어간다 (풀 방향).
+	if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(PS->GetPawn()))
+		Character->ApplyWeaponVisuals(WeaponSlot.Definition);
 }
 
 void ULNPEquipmentComponent::EquipActiveSkill(int32 SlotIndex, ULNPSkillData* SkillDef)

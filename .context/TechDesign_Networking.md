@@ -183,7 +183,8 @@ Pod과 Enemy의 값이 다르면 `FMassReplicationSharedFragment`가 타입별�
 - **입력 의도 전달:** 질주·가드·대시는 전부 `FLNPModifierInputs`(InputCmd)를 탄다. 예측 파이프라인 바깥에서 상태를 바꾸면 권위가 재현하지 못해 로컬에서만 튀었다가 롤백된다 — 이동 문서 §7.1·§7.6.
 - **시선(발사 피치·Aim Offset):** 신규 RPC·복제 프로퍼티 **0개**로 구현 — 이미 서버에 도착하고 있던 Mover InputCmd의 `ControlRotation`을 소비부만 연결했다 (§4.3). `GetBaseAimRotation()` 오버라이드 단일 진입점으로 서버 발사 방향과 관전자 화면 상체 자세(Aim Offset)가 함께 동기화된다.
   - `UMoverComponent::bSyncInputsForSimProxy`는 **제거했다**(2026-08-19). 보간 프록시가 InputCmd를 못 받는 것을 우회하려고 SyncState에 InputContainer를 동봉하던 옵션인데(엔진 주석에도 "intended to be temporary"로 명시), ForwardPredict에서는 프록시가 실제로 시뮬레이션되어 `CachedLastUsedInputCmd`가 일반 경로에서 채워진다. 매 프레임 실리던 InputContainer 페이로드가 함께 사라졌다.
-- **무기 장착:** 클라이언트는 비주얼 즉시 로컬 적용 + `Server_EquipWeapon()` RPC, 서버가 GAS 어빌리티를 부여하고 `EquippedWeaponData` 복제 → `OnRep`에서 타 클라이언트 비주얼 갱신. GAS 권한은 항상 서버에만 있다.
+- **무기 장착:** 서버 권위 전용. 클라이언트는 `Server_Equip*()` RPC만 보내고 로컬 선반영을 하지 않는다.
+  복제되는 단일 원본은 `ULNPEquipmentComponent::WeaponSlot`이며, 비주얼은 거기서 파생된다 — §3.9.
 
 ### 3.7 코스메틱 전파 — GameplayCue 일원화
 
@@ -209,6 +210,40 @@ Execute()
 ```
 
 `bIsServer = (GetNetMode() < NM_Client)` — Standalone·리슨/데디케이티드 서버 모두 true라 싱글 플레이에서도 서버 로직이 동일하게 실행된다. AI·게이지 등 게임 로직 프로세서는 전부 `NM_Client` 조기 반환.
+
+### 3.9 장비 상태 복제 — 원본은 PlayerState 컴포넌트에 (2026-08-20)
+
+**증상.** 2인 standalone에서 게스트 화면의 호스트 캐릭터 근접 히트박스 디버그 드로우가 얇게 그려졌다.
+실측 로그:
+
+```
+게스트 → 호스트 캐릭터 (role=1 SimulatedProxy):  weaponDef=DA_Pistol    parryR=15.00
+서버   → 같은 캐릭터   (role=3 Authority):       weaponDef=DA_LongSword parryR=50.00
+```
+
+**원인.** "장착 중인 무기"를 표현하는 데이터가 둘로 갈라져 있었다. 개념적 원본은 GAS 부여 핸들과
+가방 인스턴스를 들고 있는 `ULNPEquipmentComponent::WeaponSlot`인데 **이쪽이 복제되지 않았고**,
+캐시 역할인 `ALNPCharacterBase::EquippedWeaponData`만 복제됐다. 게다가 `ULNPEquipmentComponent::BeginPlay`가
+권위 게이트 없이 `EquipWeapon(DefaultWeapon)`을 호출해, 프록시에는 그 `DefaultWeapon`이 영구히 남았다.
+근접 판정 ANS는 모든 머신에서 실행되므로 롱소드를 휘두르는 캐릭터를 권총 데이터로 판정하고 있었다.
+
+**해결.** 원본과 캐시의 방향을 뒤집었다. 상세 표와 도착 순서 규칙은
+[TechDesign_Inventory.md §4.1](TechDesign_Inventory.md)에 있고, 네트워킹 관점의 요점만 적는다.
+
+- `ULNPEquipmentComponent`를 복제 활성화하고 `WeaponSlot`을 `ReplicatedUsing=OnRep_WeaponSlot`으로.
+  PlayerState는 `bAlwaysRelevant`이므로 프록시를 포함한 전 클라이언트가 받는다.
+- 구조체에서 실제로 복제되는 것은 `Definition` 하나뿐이다. 나머지 3필드는 `NotReplicated`.
+  특히 `SourceInstance`는 **반드시** 빠져야 한다 — 가방 인스턴스가 `COND_OwnerOnly` 서브오브젝트라
+  비소유자 클라이언트에서 영원히 resolve되지 않고, Iris가 상태를 계속 dirty로 잡아 재전송이 멈추지 않는다.
+- 쓰기 경로를 서버 권위 하나로 줄였다. 예측 쓰기와 OnRep 쓰기가 공존하는 것 자체가 분기의 원인이었다.
+- 적 캐릭터는 `EquipmentComponent`가 없고 `InitializeOnce`가 서버 전용이므로(`ULNPEnemyActorInitializerProcessor`가
+  클라 월드에서 early-return) `EnemyConfig`를 복제해 같은 역할을 시킨다. 부수 효과로 클라이언트의
+  적 `GetActiveWeaponDef()`가 null을 반환하던 같은 종류의 구멍도 함께 막혔다.
+
+**여전히 유효한 제약 (이번 작업과 무관).** 프록시에서 어빌리티 스펙으로 값을 조회하는 설계는 불가능하다 —
+`UAbilitySystemComponent::ActivatableAbilities`는 `COND_ReplayOrOwner`라 프록시에서 배열이 비어 있고,
+`FGameplayAbilitySpec::ActiveCount`는 `NotReplicated`라 `IsActive()`가 로컬 발동 머신에서만 true다.
+그래서 `ANS_LNPMeleeHitWindow`는 `ParryRadius`를 어빌리티 **CDO**에서 읽는 폴백을 유지한다.
 
 ---
 

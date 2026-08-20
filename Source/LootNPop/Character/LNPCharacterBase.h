@@ -55,7 +55,6 @@ public:
 
 	// IAbilitySystemInterface 구현
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UCapsuleComponent*      GetCapsule()      const { return CapsuleComponent; }
 	USkeletalMeshComponent* GetWeaponMesh()   const { return WeaponMesh;       }
@@ -142,17 +141,37 @@ public:
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const { return nullptr; }
 
 	/**
-	 * 무기를 장착한다. nullptr을 전달하면 맨손 상태로 전환.
+	 * 무기 장착을 **요청**한다 (의도 전달). nullptr이면 맨손.
+	 * 실제 상태 변경은 서버 권위 경로가 수행하며, 비주얼은 그 결과가 되돌아올 때 갱신된다.
+	 * 베이스는 no-op — 상태를 소유한 서브클래스가 오버라이드한다.
+	 */
+	virtual void RequestEquipWeapon(ULNPWeaponData* WeaponData) {}
+
+	/**
+	 * 파생 비주얼 상태를 적용한다. nullptr이면 맨손 상태로 전환.
 	 * - ASC에 무기·조준모드 태그 부여
 	 * - VisualMesh에 서브 AnimBP 레이어 연결
-	 * - bFaceMoveDirection 자동 설정
+	 * - WeaponMesh 어태치 / bFaceMoveDirection 설정
+	 *
+	 * 원본(ULNPEquipmentComponent::WeaponSlot 또는 EnemyConfig)이 아니라 그 파생 **캐시**를 채운다.
+	 * 멱등이므로 도착 순서를 모르는 여러 지점에서 마음대로 호출해도 된다.
+	 * public인 이유: 원본을 소유한 ULNPEquipmentComponent가 Pawn에 밀어 넣는다.
 	 */
-	virtual void EquipWeapon(ULNPWeaponData* WeaponData);
+	void ApplyWeaponVisuals(ULNPWeaponData* WeaponData);
 
-	/** 테스트용: SlotIndex로 TestWeaponList에서 무기 장착. 범위 초과 시 맨손. */
+	/** 테스트용: SlotIndex로 TestWeaponList에서 무기 장착 요청. 범위 초과 시 맨손. */
 	void EquipTestWeapon(int32 SlotIndex);
 
 protected:
+	/**
+	 * 이 캐릭터의 무기 원본을 조회한다 — 비주얼 재적용(풀 방향)에 쓴다.
+	 * 플레이어는 EquipmentComponent::WeaponSlot, 적은 EnemyConfig에서 읽는다.
+	 */
+	virtual ULNPWeaponData* ResolveWeaponDefForVisuals() const { return nullptr; }
+
+	/** 원본에서 무기를 다시 읽어 비주얼을 강제 재적용한다 (풀 방향). InitAbilitySystem() 뒤에서만 호출할 것. */
+	void RefreshWeaponVisuals();
+
 	/** 실제 공격 발동 로직. 서브클래스에서 오버라이드. */
 	virtual bool TryActivateAttack_Impl();
 
@@ -203,12 +222,16 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Weapon|Test")
 	TArray<TObjectPtr<ULNPWeaponData>> TestWeaponList;
 
-	/** 현재 장착된 무기 데이터 — 서버가 쓰고 클라이언트가 OnRep으로 비주얼을 갱신. */
-	UPROPERTY(ReplicatedUsing = OnRep_CurrentWeapon)
-	TObjectPtr<ULNPWeaponData> EquippedWeaponData;
+	/**
+	 * 현재 비주얼에 반영된 무기 데이터 — **파생 캐시이며 복제되지 않는다.**
+	 * 원본은 ULNPEquipmentComponent::WeaponSlot(플레이어) / EnemyConfig(적)이다.
+	 * ApplyWeaponVisuals()의 멱등 조기 반환 판정에만 쓴다.
+	 */
+	UPROPERTY()
+	TObjectPtr<ULNPWeaponData> CachedWeaponDef;
 
-	UFUNCTION()
-	void OnRep_CurrentWeapon();
+	/** ApplyWeaponVisuals()가 한 번이라도 돌았는지 — 최초 맨손 레이어 링크를 조기 반환이 삼키지 않도록. */
+	bool bWeaponVisualsApplied = false;
 
 	/** 항상 보유할 기본 어빌리티 목록. BP 서브클래스에서 지정. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Abilities")

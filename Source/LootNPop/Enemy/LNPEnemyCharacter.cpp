@@ -12,6 +12,7 @@
 #include "UI/LNPHpBarWidget.h"
 
 #include "AbilitySystemComponent.h"
+#include "Net/UnrealNetwork.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
@@ -123,7 +124,8 @@ void ALNPEnemyCharacter::InitializeOnce(ULNPEnemyConfig* InConfig)
 			// 적은 EquipmentComponent를 거치지 않으므로 무기 스텟을 여기서 직접 적용한다.
 			LNPStat::ApplyModifiers(*EnemyASC, InConfig->WeaponData->StatModifiers, WeaponStatEffects);
 
-			EquipWeapon(InConfig->WeaponData);
+			// 서버 로컬 비주얼. 클라이언트는 EnemyConfig 복제 → OnRep_EnemyConfig가 같은 일을 한다.
+			ApplyWeaponVisuals(InConfig->WeaponData);
 		}
 
 		for (const TSubclassOf<UGameplayAbility>& AbilityClass : InConfig->DefaultAbilities)
@@ -196,7 +198,23 @@ void ALNPEnemyCharacter::CancelCurrentAttackAbility()
 
 const ULNPWeaponData* ALNPEnemyCharacter::GetActiveWeaponDef() const
 {
+	return ResolveWeaponDefForVisuals();
+}
+
+ULNPWeaponData* ALNPEnemyCharacter::ResolveWeaponDefForVisuals() const
+{
 	return EnemyConfig ? EnemyConfig->WeaponData.Get() : nullptr;
+}
+
+void ALNPEnemyCharacter::OnRep_EnemyConfig()
+{
+	ApplyWeaponVisuals(ResolveWeaponDefForVisuals());
+}
+
+void ALNPEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ALNPEnemyCharacter, EnemyConfig);
 }
 
 void ALNPEnemyCharacter::SyncToEntity(float& OutHealth, FVector& OutVelocity) const

@@ -29,8 +29,9 @@ public:
 	ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer);
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	/** Config 기반 1회 초기화 (Ability, 무기). 내부적으로 중복 호출을 무시한다 */
+	/** Config 기반 1회 초기화 (Ability, 무기). 내부적으로 중복 호출을 무시한다. 서버 전용 — 클라이언트는 EnemyConfig 복제로 받는다. */
 	void InitializeOnce(ULNPEnemyConfig* InConfig);
 
 	/** 매 High LOD 활성화마다 호출: AnimSourceMesh 숨김, HP/속도 동기화 */
@@ -51,10 +52,21 @@ protected:
 	virtual void CancelCurrentAttackAbility() override;
 	virtual void BeginPlay() override;
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const override;
+	virtual ULNPWeaponData* ResolveWeaponDefForVisuals() const override;
 
-	/** 이 Enemy을 초기화하는 데 사용된 config 에셋 */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Enemy")
+	/**
+	 * 이 Enemy를 초기화하는 데 사용된 config 에셋 — 적 무기 상태의 단일 원본.
+	 *
+	 * 복제되는 이유: Enemy Actor 스폰·InitializeOnce는 서버 전용이고(ULNPEnemyActorInitializerProcessor가
+	 * 클라 월드에서 early-return) 클라이언트의 Actor는 일반 Actor Relevancy로 온다.
+	 * 이게 없으면 클라이언트에서 무기 메시·애님 레이어가 붙지 않고 GetActiveWeaponDef()도 null이 된다.
+	 */
+	UPROPERTY(ReplicatedUsing = OnRep_EnemyConfig, VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Enemy")
 	TObjectPtr<ULNPEnemyConfig> EnemyConfig;
+
+	/** 비주얼만 갱신한다. GAS 부여·무기 스텟 적용은 서버 InitializeOnce의 책임이다. */
+	UFUNCTION()
+	void OnRep_EnemyConfig();
 
 	/** WeaponData에서 부여된 무기 공격 Ability Handle */
 	FGameplayAbilitySpecHandle WeaponAbilityHandle;

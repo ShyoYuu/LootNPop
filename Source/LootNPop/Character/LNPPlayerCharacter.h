@@ -28,7 +28,7 @@ public:
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
 
-	virtual void EquipWeapon(ULNPWeaponData* WeaponData) override;
+	virtual void RequestEquipWeapon(ULNPWeaponData* WeaponData) override;
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const override;
 
 	/**
@@ -48,12 +48,13 @@ public:
 	/** 아이템 인스턴스를 캐릭터 전방에 LootDice로 드랍한다 (파티원 양도용). UI 진입점 — ItemId로 대상 지정. */
 	void DropItem(const FGuid& ItemId);
 
-	/** 가방 무기 인스턴스를 장착한다 (UI 진입점). 클라 예측 + 서버 권위 GAS 부여. */
-	void EquipWeaponInstance(ULNPInventoryItemInstance* Instance);
+	/** 가방 무기 인스턴스 장착을 요청한다 (UI 진입점). 서버 권위 — 결과는 WeaponSlot 복제로 되돌아온다. */
+	void RequestEquipWeaponInstance(ULNPInventoryItemInstance* Instance);
 
 protected:
 	virtual bool TryActivateAttack_Impl() override;
 	virtual void CancelCurrentAttackAbility() override;
+	virtual ULNPWeaponData* ResolveWeaponDefForVisuals() const override;
 
 	/** 서버 전용: LootSpeed Attribute 값을 플레이어 Mass 엔티티의 FLNPPlayerLootingFragment에 반영한다.
 	 *  버프 GE가 Attribute를 변조하면 델리게이트(PossessedBy에서 바인딩)를 통해 자동 호출된다. */
