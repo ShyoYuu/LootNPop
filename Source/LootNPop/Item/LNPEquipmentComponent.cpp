@@ -5,11 +5,13 @@
 #include "Item/LNPWeaponData.h"
 #include "Item/LNPSkillData.h"
 #include "Item/LNPInventoryItemInstance.h"
+#include "Item/LNPInventoryComponent.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "GAS/LNPStatModifier.h"
 #include "Player/LNPPlayerState.h"
 #include "Config/LNPSettings.h"
+#include "LootNPop.h"
 
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
@@ -41,10 +43,37 @@ void ULNPEquipmentComponent::BeginPlay()
 
 	ActiveSkillSlots.SetNum(MaxActiveSkillSlots);
 
-	// 권위 게이트 필수 — 클라이언트가 스스로 DefaultWeapon을 장착하면 복제 값과 충돌한다.
-	// (게이트가 없던 시절, 프록시에 DefaultWeapon이 영구히 남아 실제 장착 무기와 어긋났다.)
-	if (DefaultWeapon && GetOwnerRole() == ROLE_Authority)
-		EquipWeapon(DefaultWeapon);
+	// DefaultWeapon 지급은 여기서 하지 않는다 — EnsureDefaultWeapon() 주석 참조.
+}
+
+void ULNPEquipmentComponent::EnsureDefaultWeapon()
+{
+	if (!EnsureAuthority(TEXT("EnsureDefaultWeapon")))
+		return;
+
+	if (DefaultWeapon == nullptr)
+		return;
+
+	// 기본 무기도 가방 인스턴스를 거친다 — 그래야 인벤토리 UI·bEquipped·드랍 가드가
+	// 루팅으로 얻은 무기와 완전히 같은 상태 기계를 탄다 (innate 특수 케이스 없음).
+	const ALNPPlayerState* PS = Cast<ALNPPlayerState>(GetOwner());
+	ULNPInventoryComponent* Inventory = PS ? PS->GetInventoryComponent() : nullptr;
+	if (Inventory == nullptr)
+	{
+		// 인벤토리가 없는 소유자 — 정의만으로 장착한다 (SourceInstance 없음).
+		if (!WeaponSlot.IsValid())
+			EquipWeapon(DefaultWeapon);
+		return;
+	}
+
+	// PlayerState는 폰 리스폰을 넘어 유지되므로, 재호출 시 사본이 쌓이지 않도록 조회를 먼저 한다.
+	ULNPInventoryItemInstance* Instance = Inventory->FindBagInstanceByDefinition(DefaultWeapon);
+	if (Instance == nullptr)
+		Instance = Inventory->AddItemInstance(DefaultWeapon);  // 슬롯이 비었으면 TryAutoEquipWeapon이 장착한다
+
+	// 이미 다른 무기를 들고 있으면 건드리지 않는다 — 리스폰마다 기본 무기로 되돌리면 안 된다.
+	if (Instance && !WeaponSlot.IsValid())
+		EquipWeaponInstance(Instance);
 }
 
 bool ULNPEquipmentComponent::EnsureAuthority(const TCHAR* Context) const
@@ -63,7 +92,7 @@ void ULNPEquipmentComponent::EquipWeapon(ULNPWeaponData* WeaponDef)
 	if (WeaponDef)
 	{
 		WeaponSlot.Definition = WeaponDef;
-		GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+		GrantItemImpl(WeaponDef, /*Level=*/1, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 	}
 
 	OnWeaponSlotApplied();
@@ -77,6 +106,11 @@ void ULNPEquipmentComponent::EquipWeaponInstance(ULNPInventoryItemInstance* Inst
 	if (Instance == nullptr)
 		return;
 
+	// 같은 인스턴스를 다시 장착하는 요청은 무시한다 — 그대로 진행하면 ClearWeaponSlot이
+	// bEquipped를 내렸다 올리고 GAS 어빌리티를 회수했다 재부여하는 헛돌기가 된다.
+	if (WeaponSlot.SourceInstance == Instance)
+		return;
+
 	ULNPWeaponData* WeaponDef = Cast<ULNPWeaponData>(Instance->GetDefinition());
 	if (WeaponDef == nullptr)
 		return;
@@ -86,7 +120,7 @@ void ULNPEquipmentComponent::EquipWeaponInstance(ULNPInventoryItemInstance* Inst
 	WeaponSlot.Definition = WeaponDef;
 	WeaponSlot.SourceInstance = Instance;
 	Instance->SetEquipped(true);  // 복제되어 소유 클라 UI가 가방에서 숨긴다
-	GrantItemImpl(WeaponDef, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+	GrantItemImpl(WeaponDef, Instance->GetItemLevel(), WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 
 	OnWeaponSlotApplied();
 }
@@ -101,6 +135,46 @@ void ULNPEquipmentComponent::UnequipWeapon()
 
 	ClearWeaponSlot();
 	OnWeaponSlotApplied();
+}
+
+void ULNPEquipmentComponent::RefreshWeaponSlotGrants()
+{
+	if (!EnsureAuthority(TEXT("RefreshWeaponSlotGrants")))
+		return;
+
+	if (!WeaponSlot.IsValid() || WeaponSlot.SourceInstance == nullptr)
+		return;
+
+	// 회수 → 배열 비우기 → 새 레벨로 재부여. WeaponSlot.Definition·SourceInstance·bEquipped는 그대로다.
+	RevokeItemImpl(WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+	WeaponSlot.GrantedAbilities.Reset();
+	WeaponSlot.AppliedEffects.Reset();
+
+	GrantItemImpl(WeaponSlot.Definition, WeaponSlot.SourceInstance->GetItemLevel(),
+		WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
+
+	// 비주얼은 변하지 않으므로(같은 정의) PushWeaponToPawn은 부르지 않는다. 스탯 탭만 다시 읽으면 된다.
+	OnEquipmentChanged.Broadcast();
+}
+
+void ULNPEquipmentComponent::TryAutoEquipWeapon(ULNPInventoryItemInstance* Instance)
+{
+	if (!EnsureAuthority(TEXT("TryAutoEquipWeapon")))
+		return;
+
+	// 이미 무기를 들고 있으면 획득만으로 갈아입히지 않는다.
+	if (WeaponSlot.IsValid())
+		return;
+
+	// 무기가 아닌 획득(스킬 등)은 무시한다.
+	const ULNPWeaponData* WeaponDef = Cast<ULNPWeaponData>(Instance ? Instance->GetDefinition() : nullptr);
+	if (WeaponDef == nullptr)
+		return;
+
+	EquipWeaponInstance(Instance);
+
+	UE_LOG(LogLootNPop, Log, TEXT("[Equip] %s auto-equipped %s — weapon slot was empty"),
+		*GetNameSafe(GetOwner()), *GetNameSafe(WeaponDef));
 }
 
 // 통지하지 않는다 — 교체(EquipWeapon)의 중간 단계로도 쓰이기 때문이다.
@@ -149,7 +223,7 @@ void ULNPEquipmentComponent::EquipActiveSkill(int32 SlotIndex, ULNPSkillData* Sk
 	{
 		ActiveSkillSlots[SlotIndex].Definition = SkillDef;
 		if (GetOwner() && GetOwner()->HasAuthority())
-			GrantItemImpl(SkillDef, ActiveSkillSlots[SlotIndex].GrantedAbilities, ActiveSkillSlots[SlotIndex].AppliedEffects);
+			GrantItemImpl(SkillDef, /*Level=*/1, ActiveSkillSlots[SlotIndex].GrantedAbilities, ActiveSkillSlots[SlotIndex].AppliedEffects);
 	}
 }
 
@@ -175,7 +249,7 @@ void ULNPEquipmentComponent::AddPassiveSkill(ULNPSkillData* SkillDef)
 	FLNPSkillInstance& NewInstance = PassiveSkillInstances.AddDefaulted_GetRef();
 	NewInstance.Definition = SkillDef;
 	if (GetOwner() && GetOwner()->HasAuthority())
-		GrantItemImpl(SkillDef, NewInstance.GrantedAbilities, NewInstance.AppliedEffects);
+		GrantItemImpl(SkillDef, /*Level=*/1, NewInstance.GrantedAbilities, NewInstance.AppliedEffects);
 }
 
 void ULNPEquipmentComponent::RemovePassiveSkill(ULNPSkillData* SkillDef)
@@ -246,6 +320,7 @@ UAbilitySystemComponent* ULNPEquipmentComponent::GetASC() const
 }
 
 void ULNPEquipmentComponent::GrantItemImpl(ULNPItemDefinitionBase* Def,
+                                            int32 Level,
                                             TArray<FGameplayAbilitySpecHandle>& OutAbilities,
                                             TArray<FActiveGameplayEffectHandle>& OutEffects)
 {
@@ -253,12 +328,16 @@ void ULNPEquipmentComponent::GrantItemImpl(ULNPItemDefinitionBase* Def,
 	if (!ASC || !Def)
 		return;
 
+	const int32 GrantLevel = FMath::Max(1, Level);
+
 	for (const TSubclassOf<ULNPGameplayAbility>& AbilityClass : Def->AbilitiesToGrant)
 	{
 		if (!AbilityClass)
 			continue;
 
-		OutAbilities.Add(ASC->GiveAbility(FGameplayAbilitySpec(AbilityClass)));
+		// 스펙 레벨 = 아이템 레벨. 어빌리티는 GetAbilityLevel()로 이 값을 읽어 무기 레벨 테이블의
+		// 피해 계수를 찾는다 (ULNPAbility_BasicAttack::GetDamageCoefficient).
+		OutAbilities.Add(ASC->GiveAbility(FGameplayAbilitySpec(AbilityClass, GrantLevel)));
 	}
 
 	FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
@@ -275,7 +354,12 @@ void ULNPEquipmentComponent::GrantItemImpl(ULNPItemDefinitionBase* Def,
 	}
 
 	// 무기 스텟 등 선언형 스탯 변경. 해제는 RevokeItemImpl이 핸들로 처리한다.
-	LNPStat::ApplyModifiers(*ASC, Def->StatModifiers, OutEffects);
+	// 무기는 레벨 테이블의 해당 행이 스탯의 원본이다 (테이블이 없으면 베이스 StatModifiers로 폴백).
+	TConstArrayView<FLNPStatModifier> Modifiers = Def->StatModifiers;
+	if (const ULNPWeaponData* WeaponDef = Cast<ULNPWeaponData>(Def))
+		Modifiers = WeaponDef->GetStatModifiersForLevel(GrantLevel);
+
+	LNPStat::ApplyModifiers(*ASC, Modifiers, OutEffects);
 }
 
 void ULNPEquipmentComponent::RevokeItemImpl(TArray<FGameplayAbilitySpecHandle>& Abilities,

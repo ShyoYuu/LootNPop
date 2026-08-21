@@ -326,8 +326,8 @@ UE 5.8 어그리게이터 평가식(`GameplayEffectAggregator.cpp:98`):
 | `ULNPStatsViewModel` | `LNPStatsViewModel.*` | ASC 8종 구독 → `StatsRichText` (합/곱 분해 포함) |
 | `ULNPBuffChipWidget` | `LNPBuffChipWidget.*` | 버프 아이콘 + 잔여 초 (1초 타이머) |
 | `ULNPInventoryTabWidget` | `LNPInventoryTabWidget.*` | TileView + 디테일, 포커스 전환/Back 소비 |
-| `ULNPMenuItemCellWidget` | `LNPMenuItemCellWidget.*` | `UCommonButtonBase` + `IUserObjectListEntry`. 아이콘 + 배지 |
-| `ULNPItemDetailPanelWidget` | `LNPItemDetailPanelWidget.*` | 상세 + Equip/Drop |
+| `ULNPMenuItemCellWidget` | `LNPMenuItemCellWidget.*` | `UCommonButtonBase` + `IUserObjectListEntry`. 아이콘 + 배지 3종(모서리별) |
+| `ULNPItemDetailPanelWidget` | `LNPItemDetailPanelWidget.*` | 상세 + Equip/Merge/Drop |
 | `ULNPSettingsTabWidget` | `LNPSettingsTabWidget.h` | 빈 껍데기 |
 
 ### 5.1 UCommonButtonBase에는 텍스트가 없다
@@ -335,8 +335,55 @@ UE 5.8 어그리게이터 평가식(`GameplayEffectAggregator.cpp:98`):
 ⚠️ `UCommonButtonBase`는 라벨 개념이 아예 없다. 버튼 WBP 안에 TextBlock을 넣어 두기만 하면
 **아무도 글자를 쓰지 않아 배경만 있는 빈 상자로 보인다**(스타일 알파가 낮으면 사실상 안 보인다).
 소유 위젯이 명시적으로 라벨을 넣어 줘야 한다 —
-탭은 `ULNPMenuTabListWidget::HandleTabCreation`이, Equip/Drop은 `ULNPItemDetailPanelWidget::UpdateButtons`가 넣는다.
+탭은 `ULNPMenuTabListWidget::HandleTabCreation`이, Equip/Merge/Drop은 `ULNPItemDetailPanelWidget::UpdateButtons`가 넣는다.
 Equip 버튼은 장착 중이면 문구가 `Equipped`로 바뀌고 비활성된다.
+
+### 5.2 인벤토리 셀 배지 — 모서리 3분할 (2026-08-20)
+
+배지 하나가 장착 표시와 잔여 시간을 겸하던 것을 셋으로 나눴다. 무기 레벨이 생기면서 한 칸으로는
+서로를 가리기 때문이다. 위치는 BP 레이아웃(아이콘 위 Overlay의 각 모서리)이 정하고, C++는 내용만 쓴다.
+
+| 바인딩 | 위치 | 내용 |
+|:--|:--|:--|
+| `EquipMarkText` | 좌상단 | 장착 중이면 `EquippedBadgeText`("E") |
+| `DurationText` | 우상단 | 버프 잔여 초 — **1초 반복 타이머가 이것만** 다시 쓴다 |
+| `LevelText` | 우하단 | `LevelFormat`("Lv.{0}"). 버프는 비운다 |
+
+셋 다 `BindWidgetOptional`이라 BP가 아직 없어도 크래시하지 않는다.
+타이머 콜백을 `UpdateDurationText()`로 분리한 이유는, 매초 세 배지를 전부 다시 쓸 필요가 없기 때문이다.
+
+### 5.3 Merge 버튼의 3상태
+
+`ULNPItemDetailPanelWidget::UpdateButtons`가 무기에만 표시하고 세 상태로 그린다:
+
+| 조건 | 문구 | 활성 |
+|:--|:--|:--:|
+| 재료 충분 | `Merge (3/3)` | ✅ |
+| 재료 부족 | `Merge (1/3)` | ❌ |
+| 최대 레벨 | `Max Lv.` | ❌ |
+
+재료 수는 **소유 클라이언트가 로컬로 센다** — 가방이 `COND_OwnerOnly`로 복제되므로 가능하다
+(`ULNPInventoryComponent::CanMergeItem`). 서버는 `TryMergeItem`에서 같은 판정을 처음부터 다시 한다.
+포커스 순서는 Equip → Merge → Drop (`GetFirstFocusTarget`).
+
+#### 버튼 줄바꿈 — HorizontalBox가 아니라 WrapBox다
+
+버튼이 3개가 되면서 `HorizontalBox`로는 **패널 오른쪽으로 넘쳤다**(실측). 담는 패널을 `WrapBox`로 바꿔
+폭이 모자라면 다음 줄로 내려가게 했다. 셋 다 `Collapsed`가 될 수 있어 **`UniformGridPanel`은 쓸 수 없다** —
+슬롯의 행/열이 고정이라 버튼이 접히면 빈 칸이 남는다. WrapBox는 접힌 자식이 자리를 차지하지 않아 자연히 흐른다.
+
+⚠️ **WrapBox는 부모가 폭을 정해 줘야 접힌다.** 부모가 Auto 사이즈면 WrapBox의 희망 크기(=한 줄에 다 편 폭)를
+그대로 주므로 영원히 줄바꿈이 안 된다. 그래서 중간의 `ButtonRow`(HorizontalBox)를 없애고
+**WrapBox를 Root VerticalBox의 직계 자식**으로 두었다 (VerticalBox 슬롯은 가로가 Fill이다).
+
+한 줄에 몇 개가 들어갈지는 **버튼 폭이 결정한다.** 처음엔 `Equipped`(1) + `Merge`·`Drop`(2)로 갈려
+위아래가 뒤집혀 보였다. 2+1로 만들려고 두 곳을 줄였다:
+- `BS_MenuAction.ButtonPadding` 좌우 20 → 10, `MinWidth` 120 → 100
+- `WBP_LNPMenuButton.ButtonLabel` 폰트 24 → 18
+
+두 에셋 모두 **이 디테일 패널에서만 쓰인다**(`BS_MenuAction` ← `WBP_LNPMenuButton` ← `WBP_ItemDetailPanel`)
+— 다른 메뉴에 파급되지 않음을 확인하고 고쳤다. 라벨이 더 길어지면(예: `Merge (10/10)`) 다시 1+2로 갈릴 수
+있으니, 그때는 폰트를 한 단계 더 줄이거나 디테일 패널 폭을 넓힌다.
 
 ## 6. 데이터 연결
 
@@ -473,9 +520,9 @@ Back이 `Esc`, 탭 이동이 `Q`/`E`라 겹치지 않는다. 폰의 `SpaceBar`(�
 | `/Game/UI/Menu/WBP_MenuTab_Stats` | `ULNPStatsTabWidget` | ViewModel 등록 + RichText 바인딩, `WeaponIcon`, `BuffContainer` |
 | `/Game/UI/Menu/WBP_MenuTab_Inventory` | `ULNPInventoryTabWidget` | `ItemGrid`(CommonTileView), `DetailPanel`. ⚠️ 아래 주의 참조 |
 | `/Game/UI/Menu/WBP_MenuTab_Settings` | `ULNPSettingsTabWidget` | "준비 중" 문구 |
-| `/Game/UI/Menu/WBP_MenuItemCell` | `ULNPMenuItemCellWidget` | `IconImage`, `BadgeText`(아웃라인 2 — 아이콘 위 시인성 확보) |
+| `/Game/UI/Menu/WBP_MenuItemCell` | `ULNPMenuItemCellWidget` | `IconImage`, `EquipMarkText`(좌상단)·`DurationText`(우상단)·`LevelText`(우하단) — 모두 아웃라인 2(아이콘 위 시인성 확보) |
 | `/Game/UI/Menu/WBP_BuffChip` | `ULNPBuffChipWidget` | `IconImage`, `TimeText` |
-| `/Game/UI/Menu/WBP_ItemDetailPanel` | `ULNPItemDetailPanelWidget` | `IconImage`·`NameText`·`DetailText`·`EquipButton`·`DropButton` |
+| `/Game/UI/Menu/WBP_ItemDetailPanel` | `ULNPItemDetailPanelWidget` | `IconImage`·`NameText`·`DetailText`·`EquipButton`·`MergeButton`·`DropButton` — 세 버튼은 `WrapBox` 안에 둔다(§5.3) |
 | `/Game/UI/Menu/DT_LNPMenuTextStyles` | Rich Text Style Set | `final`/`sub`/`buff`, 모노스페이스 |
 
 ### 9.1 버튼 스타일 (`/Game/UI/Menu/Style/`)
@@ -487,7 +534,7 @@ Back이 `Esc`, 탭 이동이 `Q`/`E`라 겹치지 않는다. 폰의 `SpaceBar`(�
 | `TS_MenuTab_Normal / _Hovered / _Selected` | `UCommonTextStyle` | 탭 라벨 20pt, 명도 0.55 / 0.85 / 1.0, 자간 80 |
 | `TS_MenuButton_Normal / _Hovered / _Disabled` | `UCommonTextStyle` | 버튼 라벨 16pt, 명도 0.78 / 1.0 / 0.32 |
 | `BS_MenuTab` | `UCommonButtonStyle` | 브러시 전부 투명 — 선택은 **밑줄 위젯**과 텍스트 명도로만 |
-| `BS_MenuAction` | `UCommonButtonStyle` | Equip/Drop·액션 바. 둥근 사각(반경 5) + 흰 테두리, 상태별 알파 |
+| `BS_MenuAction` | `UCommonButtonStyle` | Equip/Merge/Drop. 둥근 사각(반경 5) + 흰 테두리, 상태별 알파. 좌우 패딩 10·MinWidth 100 — 한 줄에 2개가 들어가도록 맞춘 값(§5.3) |
 | `BS_MenuItemCell` | `UCommonButtonStyle` | 인벤토리 셀. 반경 3, 선택·호버 시 테두리 2px |
 
 ⚠️ **밑줄은 `UCommonButtonStyle`로 만들 수 없다.** 버튼 브러시는 버튼 지오메트리 **전체**를 채우므로
@@ -506,7 +553,7 @@ Back이 `Esc`, 탭 이동이 `Q`/`E`라 겹치지 않는다. 폰의 `SpaceBar`(�
 ⚠️ **`Style`은 CDO에 넣어도 이미 배치된 인스턴스에는 안 먹는다.** `UCommonButtonBase::Style`은 `EditAnywhere`라,
 위젯을 다른 BP 트리에 배치하는 순간 그 시점 값(대개 `None`)이 **인스턴스에 직렬화**되어 CDO를 덮어쓴다.
 그래서 버튼을 먼저 배치하고 나중에 CDO 스타일을 지정하면 그 인스턴스만 CommonUI 기본 스타일(밝은 회색)로 남는다.
-배치형 버튼(`WBP_ItemDetailPanel`의 Equip/Drop)은 **인스턴스에도 직접** `Style`을 지정해야 한다.
+배치형 버튼(`WBP_ItemDetailPanel`의 Equip/Merge/Drop)은 **인스턴스에도 직접** `Style`을 지정해야 한다.
 반대로 런타임 생성형(탭 버튼·TileView 셀·액션 바 버튼)은 클래스에서 만들어지므로 CDO만으로 충분하다.
 
 ⚠️ **채움은 흰색이 아니라 검은색 기준으로 만든다.** 패널이 반투명(검정 0.72)이라 그 위에 흰색 알파 채움을 얹으면

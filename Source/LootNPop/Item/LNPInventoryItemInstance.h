@@ -76,6 +76,15 @@ public:
 	/** 스탯 스냅샷 읽기/복원 (드랍→픽업 라운드트립용). */
 	const FLNPGameplayTagStackContainer& GetStatTags() const { return StatTags; }
 
+	// --- 아이템 레벨 (TAG_Item_Level 스택의 얇은 래퍼) ---
+
+	/** 아이템 레벨. 레벨이 없는 아이템(버프 등)도 1로 읽힌다 — 0레벨은 의미가 없다. */
+	UFUNCTION(BlueprintPure, Category = "LNP|Inventory")
+	int32 GetItemLevel() const;
+
+	/** 서버: 레벨을 지정한다 (합성). StatTags는 복제되므로 소유 클라 UI가 따라온다. */
+	void SetItemLevel(int32 InLevel);
+
 private:
 	/** 이 인스턴스가 실체화한 아이템 정의 (에셋 참조). */
 	UPROPERTY(Replicated)
@@ -92,6 +101,17 @@ private:
 	/** 현재 장착 중 여부 — 가방 UI는 false만 노출(장착/보관 분리). 변경 시 소유 클라 UI를 재필터한다. */
 	UPROPERTY(ReplicatedUsing = OnRep_InstanceChanged)
 	bool bEquipped = false;
+
+	/**
+	 * 서버가 UI에 보여야 할 값을 바꿀 때마다 올리는 카운터.
+	 *
+	 * 레벨은 이 인스턴스 자신의 StatTags에 있어 소유 컴포넌트의 BagList FastArray 콜백을 울리지 않고,
+	 * StatTags 쪽 FastArray는 소유 컴포넌트를 모른다. 그 결과 원격 클라에서 "재료가 사라지는 통지"와
+	 * "레벨이 오르는 복제"가 서로 다른 경로로 도착해 순서가 보장되지 않는다.
+	 * 이미 UI를 재필터하는 OnRep_InstanceChanged에 같이 태워 레벨 변경도 확실히 통지한다.
+	 */
+	UPROPERTY(ReplicatedUsing = OnRep_InstanceChanged)
+	uint8 ChangeCounter = 0;
 
 	/** 버프 인스턴스의 잔여 지속 시간 스냅샷(초). 변경 시에만 갱신, 라이브 카운트다운은 UI 폴리시. */
 	UPROPERTY(Replicated)

@@ -37,8 +37,25 @@ protected:
 	 */
 	float GetAttackSpeed() const;
 
-	/** 기본 피해 = AttackPower 최종값 (무기 스텟·합/곱 버프가 모두 반영된 값). Ability별로 Override 가능. */
+	/**
+	 * 기본 피해 = AttackPower 최종값(무기 스텟·합/곱 버프 반영) × 피해 계수. Ability별로 Override 가능.
+	 */
 	virtual float ComputeDamage() const;
+
+	/**
+	 * 이 어빌리티의 피해 계수 = BaseDamageCoefficient × 장착 무기 레벨 행의 AbilityCoefScale.
+	 *
+	 * 무기 레벨은 GAS 어빌리티 스펙 레벨로 들어온다 — ULNPEquipmentComponent::GrantItemImpl이
+	 * `FGameplayAbilitySpec(Class, 아이템레벨)`로 부여하므로 GetAbilityLevel()이 곧 무기 레벨이다.
+	 */
+	float GetDamageCoefficient() const;
+
+	/**
+	 * 이 어빌리티 고유의 기본 피해 계수. 같은 무기의 강공격·특수공격에 개성을 주는 축이다.
+	 * 레벨에 따른 증가는 무기 레벨 테이블(FLNPWeaponLevelRow::AbilityCoefScale)이 담당한다.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat", meta = (ClampMin = "0"))
+	float BaseDamageCoefficient = 1.0f;
 
 	/** 공용 Cooldown GE (Duration은 ApplyCooldown에서 무기별로 주입). */
 	virtual UGameplayEffect* GetCooldownGameplayEffect() const override;

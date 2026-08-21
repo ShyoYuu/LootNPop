@@ -49,6 +49,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Ability System", meta = (ClampMin = "1", ClampMax = "8"))
 	int32 MaxActiveSkillSlots = 4;
 
+	/**
+	 * 다음 레벨 무기 1개를 만드는 데 필요한 같은 종류·같은 레벨 무기 개수 (n).
+	 * 장착 중인 무기를 올릴 때는 장착본 자신이 1개로 세어져 재료는 n-1개만 소모된다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Inventory", meta = (ClampMin = "2"))
+	int32 WeaponMergeMaterialCount = 3;
+
 	/** true이면 Player Projectile이 다른 Player에게 피해를 줄 수 있다. */
 	UPROPERTY(Config, EditAnywhere, Category = "Combat")
 	bool bFriendlyFire = false;

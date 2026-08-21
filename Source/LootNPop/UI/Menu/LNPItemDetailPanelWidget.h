@@ -20,7 +20,7 @@ class UTextBlock;
  *
  * BP 서브클래스(WBP_ItemDetailPanel) 요구 사항 — Is Variable 켜기:
  *  - "IconImage"(UImage), "NameText"·"DetailText"(UTextBlock)
- *  - "EquipButton"·"DropButton" (UCommonButtonBase 파생)
+ *  - "EquipButton"·"MergeButton"·"DropButton" (UCommonButtonBase 파생)
  */
 UCLASS()
 class LOOTNPOP_API ULNPItemDetailPanelWidget : public UCommonUserWidget
@@ -50,6 +50,10 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<ULNPMenuButtonWidget> EquipButton;
 
+	/** 같은 종류·같은 레벨 재료를 소모해 레벨을 올린다. 무기에만 표시된다. */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<ULNPMenuButtonWidget> MergeButton;
+
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<ULNPMenuButtonWidget> DropButton;
 
@@ -67,8 +71,17 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Menu")
 	FText DropLabel = NSLOCTEXT("LNPMenu", "Drop", "Drop");
 
+	/** Merge 버튼 문구. {0} = 보유 재료 수, {1} = 필요 재료 수. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Menu")
+	FText MergeLabel = NSLOCTEXT("LNPMenu", "Merge", "Merge ({0}/{1})");
+
+	/** 최대 레벨에 도달했을 때의 Merge 버튼 문구 (버튼은 비활성). */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Menu")
+	FText MaxLevelLabel = NSLOCTEXT("LNPMenu", "MaxLevel", "Max Lv.");
+
 private:
 	void HandleEquipClicked();
+	void HandleMergeClicked();
 	void HandleDropClicked();
 
 	/** 현재 아이템 종류·장착 상태에 맞춰 두 버튼의 표시/활성을 정한다. */

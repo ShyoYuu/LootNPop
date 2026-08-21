@@ -90,12 +90,21 @@ void ULNPInventoryTabWidget::RefreshGrid()
 
 	ItemGrid->SetListItems(Items);
 
+	UObject* NewSelection = nullptr;
 	if (PreviousSelection && Items.Contains(PreviousSelection))
-		ItemGrid->SetSelectedItem(PreviousSelection);
+		NewSelection = PreviousSelection;
 	else if (Items.Num() > 0)
-		ItemGrid->SetSelectedItem(Items[0]);
-	else if (DetailPanel)
-		DetailPanel->SetItem(nullptr);
+		NewSelection = Items[0];
+
+	if (NewSelection)
+		ItemGrid->SetSelectedItem(NewSelection);
+
+	// ⚠️ 선택 델리게이트에 기대지 말고 **항상** 패널을 다시 그린다.
+	// 합성은 목록의 추가·제거가 아니라 선택된 인스턴스의 **내부 값**(레벨)을 바꾸므로,
+	// 선택 대상이 그대로면 SetSelectedItem이 OnItemSelectionChanged를 다시 쏘지 않는다
+	// → 패널이 옛 레벨·옛 스탯을 계속 보여준다. 셀 쪽 RegenerateAllEntries와 같은 함정의 패널 판이다.
+	if (DetailPanel)
+		DetailPanel->SetItem(Cast<ULNPInventoryItemInstance>(NewSelection));
 
 	// ⚠️ SetListItems만으로는 **항목 내부 변화**가 셀에 반영되지 않는다.
 	// 장착/해제는 목록의 추가·제거가 아니라 같은 인스턴스의 플래그 변경이라, 목록이

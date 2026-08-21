@@ -46,8 +46,11 @@ public:
 
 	// --- 가방 인스턴스 API ---
 
-	/** 서버: 인스턴스를 생성해 가방에 편입하고 등록 서브오브젝트로 복제한다. 생성된 인스턴스 반환. */
-	ULNPInventoryItemInstance* AddItemInstance(ULNPItemDefinitionBase* ItemDef);
+	/**
+	 * 서버: 인스턴스를 생성해 가방에 편입하고 등록 서브오브젝트로 복제한다. 생성된 인스턴스 반환.
+	 * @param InLevel  아이템 레벨. 드랍→재획득 왕복(LootDice 페이로드)과 디버그 지급이 지정한다. 1 미만은 1.
+	 */
+	ULNPInventoryItemInstance* AddItemInstance(ULNPItemDefinitionBase* ItemDef, int32 InLevel = 1);
 
 	/** 서버: ItemId로 가방 인스턴스를 제거한다. 성공 시 true. */
 	bool RemoveItemInstance(const FGuid& ItemId);
@@ -55,8 +58,31 @@ public:
 	/** ItemId로 가방 인스턴스를 조회한다 (없으면 nullptr). */
 	ULNPInventoryItemInstance* FindItemInstance(const FGuid& ItemId) const;
 
+	/** 정의가 일치하는 첫 가방 인스턴스를 조회한다 (없으면 nullptr). 사본이 여럿이면 임의의 하나. */
+	ULNPInventoryItemInstance* FindBagInstanceByDefinition(const ULNPItemDefinitionBase* ItemDef) const;
+
 	/** 가방 인스턴스 목록 (UI용 — 장착본 포함, 필터는 UI가). */
 	TArray<ULNPInventoryItemInstance*> GetBagInstances() const;
+
+	// --- 합성 (Merge) ---
+
+	/**
+	 * 합성 가능 여부와 재료 현황을 조사한다. 클라이언트에서도 호출할 수 있다 —
+	 * 가방은 소유 클라이언트에 복제되므로 Merge 버튼의 표시/활성 판단을 로컬에서 할 수 있다.
+	 *
+	 * 재료는 **Target을 제외한** 같은 정의·같은 레벨의 **비장착** 가방 인스턴스다. Target 자신이
+	 * 결과물이 되므로, 비장착 대상은 "n개 투입 → 1개 산출", 장착 대상은 "n-1개 소모 → 장착 무기 +1"이
+	 * 한 경로로 성립한다.
+	 *
+	 * @param OutHave  보유한 재료 수
+	 * @param OutNeed  필요한 재료 수 (= LNPSettings.WeaponMergeMaterialCount - 1)
+	 * @return 대상이 합성 가능한 종류이고 최대 레벨이 아니면 true (재료 수량 충족 여부와는 무관 —
+	 *         "2/3" 같은 진행 표시를 위해 수량은 Out 인수로 따로 본다)
+	 */
+	bool CanMergeItem(const ULNPInventoryItemInstance* Target, int32& OutHave, int32& OutNeed) const;
+
+	/** 서버: 재료 n-1개를 소모하고 Target의 레벨을 +1한다. 성공 시 true. */
+	bool TryMergeItem(const FGuid& TargetItemId);
 
 	// --- 버프 인스턴스 API ---
 
@@ -86,6 +112,13 @@ public:
 
 private:
 	UAbilitySystemComponent* GetASC() const;
+
+	/**
+	 * 합성 재료 후보를 모은다 — Target을 제외한, 정의·레벨이 같은 **비장착** 가방 인스턴스.
+	 * @param MaxCount  이 개수를 채우면 조기 종료한다. 음수면 전부 센다.
+	 */
+	void CollectMergeMaterials(const ULNPInventoryItemInstance* Target, int32 MaxCount,
+	                           TArray<ULNPInventoryItemInstance*>& OutMaterials) const;
 
 	/** 서버: 버프 인스턴스 만료·제거 공용 경로 — GE 해제 + 리스트/서브오브젝트/런타임 제거.
 	 *  타이머 델리게이트 페이로드로 바인딩되므로 값 전달이어야 한다 (CreateUObject가 decay된 타입을 요구). */

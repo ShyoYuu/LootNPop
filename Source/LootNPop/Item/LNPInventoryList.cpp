@@ -5,6 +5,9 @@
 #include "Item/LNPInventoryItemInstance.h"
 #include "LootNPop.h"
 
+#include "Engine/World.h"
+#include "TimerManager.h"
+
 void FLNPInventoryList::AddEntry(ULNPInventoryItemInstance* Instance)
 {
 	if (Instance == nullptr)
@@ -50,6 +53,28 @@ void FLNPInventoryList::PostReplicatedChange(const TArrayView<int32> ChangedIndi
 	NotifyOwnerChanged();
 }
 
+void FLNPInventoryList::PreReplicatedRemove(const TArrayView<int32> RemovedIndices, int32 FinalSize)
+{
+	// 항목이 아직 배열에 있으므로 지금 통지하면 UI가 사라진 항목을 그대로 다시 그린다.
+	// 실제 제거가 끝난 뒤(같은 프레임 후반)를 보장하려고 다음 틱으로 미룬다.
+	// 여러 항목이 한 프레임에 빠지면 통지가 몇 번 겹칠 수 있으나, 목록 재구성은 멱등이라 무해하다.
+	if (OwnerComponent == nullptr)
+		return;
+
+	UWorld* World = OwnerComponent->GetWorld();
+	if (World == nullptr)
+		return;
+
+	ULNPInventoryComponent* Component = OwnerComponent;
+	World->GetTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateWeakLambda(Component, [Component]()
+		{
+			Component->OnInventoryChanged.Broadcast();
+		}));
+}
+
+// Iris를 끈 클래식 복제 경로 전용 — Iris에서는 호출되지 않는다 (헤더 주석 참조).
+// 이쪽은 배열이 이미 줄어든 뒤라 즉시 통지해도 된다.
 void FLNPInventoryList::PostReplicatedRemove(const TArrayView<int32> RemovedIndices, int32 FinalSize)
 {
 	NotifyOwnerChanged();

@@ -51,6 +51,9 @@ public:
 	/** 가방 무기 인스턴스 장착을 요청한다 (UI 진입점). 서버 권위 — 결과는 WeaponSlot 복제로 되돌아온다. */
 	void RequestEquipWeaponInstance(ULNPInventoryItemInstance* Instance);
 
+	/** 같은 종류·같은 레벨 재료를 소모해 이 아이템의 레벨을 올린다 (UI 진입점). 서버 권위. */
+	void RequestMergeItem(const FGuid& ItemId);
+
 protected:
 	virtual bool TryActivateAttack_Impl() override;
 	virtual void CancelCurrentAttackAbility() override;
@@ -60,8 +63,17 @@ protected:
 	 *  버프 GE가 Attribute를 변조하면 델리게이트(PossessedBy에서 바인딩)를 통해 자동 호출된다. */
 	void PushLootSpeedToEntity(float NewLootSpeed);
 
+	/** 원격 클라이언트의 정의 기반 장착(디버그 키)을 서버에 전달한다. 검증은 EquipWeaponOnServer가 수행. */
 	UFUNCTION(Server, Reliable)
 	void Server_EquipWeapon(ULNPWeaponData* WeaponData);
+
+	/**
+	 * 서버 전용: 정의로 장착한다 — 가방에서 같은 정의의 인스턴스를 찾고, 없으면 지급 후 장착한다.
+	 * **보유하지 않은 무기는 `TestWeaponList`에 있을 때만 지급한다** — 이 검증이 없으면
+	 * 클라이언트가 임의의 `ULNPWeaponData` 에셋을 지목해 장착할 수 있다.
+	 * nullptr이면 맨손으로 전환한다.
+	 */
+	void EquipWeaponOnServer(ULNPWeaponData* WeaponData);
 
 	/** 원격 클라이언트의 가방 무기 장착을 서버에 전달한다 (ItemId로 인스턴스 조회). */
 	UFUNCTION(Server, Reliable)
@@ -73,6 +85,13 @@ protected:
 
 	/** 서버 전용: 인스턴스 조회·미장착 검증 → 인벤토리 제거 → LootDice 스폰 (제거 성공 전 스폰 금지). */
 	void DropItemOnServer(const FGuid& ItemId);
+
+	/** 원격 클라이언트의 합성 요청을 서버에 전달한다 — 재료·최대 레벨 검증은 서버가 다시 한다. */
+	UFUNCTION(Server, Reliable)
+	void Server_MergeItem(FGuid ItemId);
+
+	/** 서버 전용: 소유 인벤토리에서 ItemId를 조회해 합성한다. */
+	void MergeItemOnServer(const FGuid& ItemId);
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))

@@ -34,10 +34,11 @@ public:
 	 * 공용 스폰 경로 — LootPod 보상·인벤토리 드랍이 모두 이 함수를 쓴다 (§2.7). 서버 전용.
 	 * COND_InitialOnly 페이로드는 스폰 번치에만 실리므로 반드시 Deferred 스폰으로 대입 후 Finish한다.
 	 * @param InRemainingDuration  버프 잔여 초 (0 = 신품/풀 지속시간)
+	 * @param InItemLevel          무기 레벨 (1 = 신품). 드랍한 무기의 강화 레벨이 여기 실려 왕복한다
 	 * @param ImpulseScale         Pop 임펄스 배율 — Pod 보상 1.0, 인벤토리 드랍은 "작은 Pop"(0.4 권장)
 	 */
 	static ALNPLootDice* SpawnDice(UWorld& World, const FVector& Location, ULNPItemDefinitionBase* Item,
-	                               float InRemainingDuration, float ImpulseScale = 1.0f);
+	                               float InRemainingDuration, int32 InItemLevel = 1, float ImpulseScale = 1.0f);
 
 	/** LootPod Popped 후처리 — 보상 테이블(LNPSettings)에서 PodID 보상을 조회해 N개 스폰. 서버 전용. */
 	static void SpawnPodRewards(UWorld& World, int32 PodID, const FVector& PodLocation);
@@ -50,6 +51,7 @@ public:
 
 	ULNPItemDefinitionBase* GetItemDef() const { return ItemDef; }
 	float GetRemainingDuration() const { return RemainingDuration; }
+	int32 GetItemLevel() const { return ItemLevel; }
 
 	/** 서버: 획득 확정 여부 — RPC 직렬화가 선착순 1차 방어, 이 플래그가 Destroy 지연 프레임의 2차 방어 */
 	bool IsClaimed() const { return bClaimed; }
@@ -95,6 +97,13 @@ protected:
 	/** 버프 잔여 지속 시간(초) — 양도 시 유지된다. 0 = 신품(풀 지속시간) */
 	UPROPERTY(Replicated)
 	float RemainingDuration = 0.0f;
+
+	/**
+	 * 무기 레벨 — 합성으로 올린 레벨이 드랍→재획득에서 소실되지 않게 한다. 1 = 신품.
+	 * 획득 처리(PickupDiceOnServer)는 서버가 자기 값을 읽으므로 **누가 주워도** 레벨이 그대로 넘어간다.
+	 */
+	UPROPERTY(Replicated)
+	int32 ItemLevel = 1;
 
 	/** 스폰 시점 서버 시간 — 소멸 임박 깜빡임의 클라이언트 로컬 계산용 */
 	UPROPERTY(Replicated)

@@ -45,6 +45,17 @@ struct FLNPInventoryList : public FFastArraySerializer
 	// ~FFastArraySerializer 콜백 (클라이언트에서 UI 갱신 통지)
 	void PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize);
 	void PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize);
+
+	/**
+	 * ⚠️ **Iris는 제거를 이 콜백으로만 디스패치한다** — `PostReplicatedRemove`는 영영 불리지 않는다
+	 * (FastArrayReplicationFragmentInternal.h:320 vs 333/340: Pre'Remove'/Post'Add'/Post'Change').
+	 * 아래 PostReplicatedRemove는 Iris를 끈 클래식 경로용으로만 남아 있다.
+	 *
+	 * 그리고 이 콜백은 **항목이 아직 배열에 남아 있는 상태**에서 불린다 (실제 제거는 그 뒤).
+	 * 그래서 통지를 다음 틱으로 미룬다 — 여기서 바로 알리면 UI가 방금 사라진 항목을 다시 그린다.
+	 */
+	void PreReplicatedRemove(const TArrayView<int32> RemovedIndices, int32 FinalSize);
+
 	void PostReplicatedRemove(const TArrayView<int32> RemovedIndices, int32 FinalSize);
 
 	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)

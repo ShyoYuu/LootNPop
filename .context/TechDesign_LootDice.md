@@ -31,7 +31,12 @@ Enemy(수백 규모)·발사체(고빈도 생성)와 달리 LootDice는 소수·
 | `UStaticMeshComponent` | 큐브, `SimulatePhysics` — 시뮬 권위는 서버 |
 | 아이콘 표시 | **6면 모두 아이콘 텍스처** + 카테고리 색 에미시브 머티리얼(MID) — 정지 후 어느 면이 위든 식별 가능, 빌보드/위젯 불필요 |
 | 상호작용 등록 | LootPod과 동일한 레지스트리 체계(BeginPlay/EndPlay 자기 등록) — LootPod 전용 레지스트리를 범용 인터랙터블 레지스트리로 일반화해 재사용. SmartObject는 폐기 (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03) |
-| 페이로드 (초기 1회 복제, `COND_InitialOnly`) | `ItemDef`(`ULNPItemDefinitionBase` 에셋 참조), `RemainingDuration`(버프 잔여 시간, 신품은 0=풀), `SpawnServerTime`(소멸 경고 연출 계산용) |
+| 페이로드 (초기 1회 복제, `COND_InitialOnly`) | `ItemDef`(`ULNPItemDefinitionBase` 에셋 참조), `RemainingDuration`(버프 잔여 시간, 신품은 0=풀), `ItemLevel`(무기 강화 레벨, 신품은 1), `SpawnServerTime`(소멸 경고 연출 계산용) |
+
+> **`ItemLevel`(2026-08-20)** — 합성으로 올린 무기 레벨이 드랍→재획득에서 소실되지 않게 한다.
+> 획득 처리(`PickupDiceOnServer`)는 서버가 자기 값을 읽어 `AddItemInstance(Def, Level)`로 넘기므로,
+> **드랍한 사람이 아니라 줍는 사람이 누구든** 레벨이 그대로 이전된다 (멀티플레이 양도 규칙).
+> 버프의 `RemainingDuration`과 달리 월드에 놓인 동안 변하지 않으므로 동결·역산 규칙이 필요 없다.
 
 ### 2.3 물리 동기화 — Iris + FRepMovement
 
@@ -84,6 +89,7 @@ ULNPInteractionComponent가 인터랙터블 레지스트리 순회로 후보 탐
 인벤토리 UI에서 미장착 아이템 드랍 → DropItem(FGuid ItemId) → Server_DropItem(FGuid) RPC
 → ItemId로 인스턴스 조회(가방→버프 순) + IsEquipped() 가드
    ([TechDesign_Inventory.md](TechDesign_Inventory.md) 인스턴스 모델 — 사본을 ItemId로 정확 식별)
+→ 제거 전에 무기 레벨을 읽어 둠 (제거하면 인스턴스가 사라진다)
 → RemoveItemInstance() / RemoveBuffInstance() — 버프는 잔여 시간을 반환받아 페이로드에 실음
 → 캐릭터 전방에 ALNPLootDice 스폰 + 작은 Pop 임펄스·회전
 → 이후 소멸·획득 규칙은 LootPod 보상과 완전 동일 — 스폰 경로를 공용 함수로 묶는다

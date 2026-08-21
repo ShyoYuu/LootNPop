@@ -264,7 +264,8 @@ void ULNPInteractionComponent::PickupDiceOnServer(ALNPLootDice* Dice)
 	}
 	else if (Item != nullptr)
 	{
-		Inventory->AddItemInstance(Item);
+		// 무기 레벨은 Dice 페이로드에 실려 왔다 — 드랍한 사람이 아니라 줍는 사람 기준으로도 보존된다.
+		Inventory->AddItemInstance(Item, Dice->GetItemLevel());
 	}
 	else
 	{
