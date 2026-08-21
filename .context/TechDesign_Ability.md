@@ -124,8 +124,19 @@ GE 수명은 GE 자체가 아니라 적용한 쪽이 핸들로 관리한다:
           → IncomingDamage (Meta) → PostGameplayEffectExecute → 방어력 적용 → Health 차감
 ```
 
-기본 피해량 계산 (`ComputeDamage`): **`AttackPower` 최종값 그대로.**
+기본 피해량 계산 (`ComputeDamage`): **`AttackPower` 최종값 × 어빌리티 피해 계수.**
 무기 스텟은 장착 GE로 `AddBase`에 합산되고 곱연산 버프도 어그리게이터가 이미 곱한 뒤다 (→ §2.1).
+
+피해 계수(`ULNPAbility_BasicAttack::GetDamageCoefficient`, 2026-08-20) = 두 축의 곱이다:
+
+| 축 | 위치 | 뜻 |
+|:--|:--|:--|
+| `BaseDamageCoefficient` | 어빌리티 CDO (`EditDefaultsOnly`) | 같은 무기의 강공격·특수공격에 주는 개성 |
+| `AbilityCoefScale` | 무기 레벨 테이블 행 | 무기 레벨에 따른 성장 |
+
+**무기 레벨은 GAS 어빌리티 스펙 레벨로 흐른다** — `GrantItemImpl`이 `FGameplayAbilitySpec(Class, 아이템레벨)`로
+부여하므로 어빌리티가 `GetAbilityLevel()`로 자기 무기의 레벨을 읽어 레벨 행을 찾는다. 별도 배관이 없다.
+레벨이 바뀌면(합성) `ULNPEquipmentComponent::RefreshWeaponSlotGrants()`가 회수 후 새 레벨로 재부여한다.
 
 쿨다운은 단일 `ULNPGameplayEffect_Cooldown` 클래스에 **어빌리티가 무기별 `FireCooldown`을 per-spec Duration으로 주입** — 무기마다 GE 클래스를 만들지 않는다.
 
@@ -142,13 +153,21 @@ UPrimaryDataAsset
 
 `StatModifiers`가 베이스에 있으므로 무기·스킬·버프가 같은 형식으로 스텟을 선언한다.
 
+**단, 무기의 스텟 원본은 `LevelTable`의 레벨 행이다** (2026-08-20). 레벨마다 값이 달라야 하므로
+정의 하나에 붙은 고정 배열로는 담을 수 없다. 읽기는 항상 `ULNPWeaponData::GetStatModifiersForLevel(Level)`을
+거치며, 테이블이 없는 무기는 베이스 `StatModifiers`로 폴백한다(레벨 1 고정, 합성 불가).
+둘 다 채워 두면 최초 사용 시 경고 로그가 뜬다 — 조용한 무시는 함정이 되기 때문이다.
+적 NPC는 `EquipmentComponent`를 거치지 않으므로 `ALNPEnemyCharacter::InitializeFromConfig`가
+같은 함수를 레벨 1로 호출한다.
+
 **`ULNPWeaponData` 주요 필드:**
 
 | 분류 | 필드 |
 |:---|:---|
 | 태그·애니메이션 | `WeaponTag`, `DefaultAimMode`, `AnimLayerClass` |
 | 메시 | `WeaponMesh`, `AttachSocketName`, `WeaponMeshRelativeLocation/Rotation` (그립 피벗 보정) |
-| 공격 | `FireCooldown`, `MaxComboCount` (공격력은 베이스의 `StatModifiers`로 선언) |
+| 공격 | `FireCooldown`, `MaxComboCount` |
+| 레벨 | `LevelTable` (행 구조 `FLNPWeaponLevelRow`, **행 이름 = 레벨 숫자**) |
 | 발사체 | `ProjectileType`(Linear/Guided/Lobbed), `ProjectileSpeed`, `HitRadius`, `ExplosionRadius`, `ProjectileLifetime`, `MuzzleOffset`, `ProjectileDamageEffect`, `ProjectileVFXData` |
 
 > 공격 몽타주는 WeaponData가 아닌 **Chooser Table**에서 선택된다 (WeaponTag가 Chooser 입력 조건). → [TechDesign_CombatAnimation.md §6.1](TechDesign_CombatAnimation.md)

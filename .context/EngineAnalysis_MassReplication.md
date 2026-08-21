@@ -342,6 +342,56 @@ LootNPop 적용 사례는 `TechDesign_Networking.md` §3.5 참조.
 
 ---
 
+### 7.10 ⚠️ 리슨 서버는 파괴 옵저버를 통째로 잃는다 — "게스트에서만 안 사라지는" 버그의 정체
+
+**증상:** 호스트 화면은 멀쩡한데 **게스트 화면에서만** 죽은 NPC와 루팅이 끝난 LootPod이 영원히 남는다.
+추가는 정상이고 **제거만** 안 된다. 호스트만 확인하면 절대 못 잡는다.
+
+**인과 사슬:**
+
+```
+UEngine::LoadMap: InitWorld() → Listen(URL)        ← 엔진 고정 순서
+  └ UMassEntitySubsystem::Initialize (월드 서브시스템)
+      └ FMassObserverManager::Initialize()
+          └ GetProcessorExecutionFlagsForWorld(World)   ← 이 시점 GetNetMode()는 NM_Standalone
+              → Standalone 플래그는 Server를 포함하지 않음
+              → UMassReplicationEntityDestructionObserver 인스턴스화 안 됨
+                  → UMassReplicationSubsystem::NotifyEntityDestroyed 영영 호출 안 됨
+                      → FMassReplicatedAgentData::bPendingDestruction 안 걸림
+                          → 리플리케이터의 RemoveEntityCallback 0건
+                              → 클라 버블에서 에이전트가 영원히 안 빠짐
+```
+
+호스트가 멀쩡해 보이는 이유: 호스트는 자기 Mass 엔티티를 `DestroyEntity`로 직접 파괴하고 그 결과를
+바로 렌더링한다. 클라 버블은 **원격 클라이언트에게만** 필요한 경로다.
+
+**왜 추가는 되는데 제거만 안 되나:** `UMassReplicationProcessor`(일반 프로세서)는 처리 페이즈 매니저가
+더 늦게 — 넷 모드가 이미 `NM_ListenServer`인 시점에 — 구성하므로 정상 등록된다. 옵저버 매니저만
+엔티티 매니저와 함께 이른 시점에 한 번 굳는다.
+
+**실측 (2026-08-20, 2P Standalone):** 호스트 `RemoveEntityCallback` **0건**, 게스트
+`PreReplicatedRemove`는 매 델타 호출되지만 전부 `0 removed`, 버블 에이전트 **235개 누적**.
+
+**해결:** 넷 모드가 이미 확정된 `OnWorldBeginPlay`에서 걸러진 옵저버를 다시 단다 —
+`ULNPMassSpawnSubsystem::RestoreServerOnlyMassObservers()`.
+`FMassObserverManager::AddObserverInstance(UMassObserverProcessor*)`가 `ObservedTypes`/
+`ObservedOperations`를 읽고 `CallInitialize`까지 수행하므로 엔진 등록 경로와 동일한 상태가 된다.
+수정 후 같은 시나리오에서 서버 발행 → 게스트 수신 → 엔티티 파괴 전 구간 성립을 확인했다.
+
+> **매니저 통째 재초기화는 불가능하다.** `FMassObserverManager::Initialize`/`DeInitialize`는
+> `protected`(`friend FMassEntityManager`)이고, `UMassObserverRegistry::ElementObserverMaps`도
+> `protected`라 등록 목록을 열거할 수도 없다. 공개된 것은 `AddObserverInstance`/
+> `RemoveObserverInstance`/`DebugGatherUniqueProcessors`뿐이다.
+> 다행히 **MassGameplay 플러그인 전체에서 Server/Client로 좁혀진 프로세서는 이 옵저버 하나뿐**이라
+> (`MassReplicationProcessor.cpp:384`) 표적 복구가 곧 전체 복구다.
+> ⚠️ 엔진 업데이트로 이 목록이 늘면 복구 대상도 같이 늘려야 한다.
+
+**같은 뿌리의 다른 증상:** 이 넷 모드 오판은 이 프로젝트를 두 번 물었다. 첫 번째는
+`UMassReplicationTrait::BuildTemplate`이 Standalone에서 조기 반환해 **복제 프래그먼트가 빠진 템플릿이
+캐시**된 것이고(그래서 템플릿 warm-up도 `Initialize()`가 아니라 `OnWorldBeginPlay`에 있다),
+두 번째가 이 옵저버 누락이다. **`Initialize()` 계열에서 `GetNetMode()`에 의존하는 코드는 전부 의심하라.**
+`PlayInEditorNetMode` 폴백 덕에 **PIE에서는 재현되지 않고 `-game`에서만 드러난다.**
+
 ## 8. 최소 구현 체크리스트
 
 새 프로젝트에서 Mass 엔티티 복제를 붙일 때 필요한 것:
@@ -351,5 +401,8 @@ LootNPop 적용 사례는 `TechDesign_Networking.md` §3.5 참조.
 3. **클라**: BubbleHandler의 `PostReplicatedAdd`/`PostReplicatedChange` 구현 (`PostReplicatedAddHelper` 활용)
 4. **배선**: 엔티티 템플릿에 `UMassReplicationTrait` 추가 (Params에 BubbleInfoClass/ReplicatorClass 지정), 월드 초기화 시 `RegisterBubbleInfoClass` 호출
 5. **코드 분리**: 서버 전용 경로는 `UE_REPLICATION_COMPILE_SERVER_CODE`, 클라 전용 경로는 `UE_REPLICATION_COMPILE_CLIENT_CODE`로 감싸기 (에디터 빌드는 둘 다 컴파일됨)
+6. **리슨 서버 보정**: `OnWorldBeginPlay`에서 ① 엔티티 템플릿 warm-up ② `UMassReplicationEntityDestructionObserver` 복구.
+   둘 다 "월드 초기화 시점의 `GetNetMode()`가 `NM_Standalone`"이라는 같은 함정 대응이다 (§7.10).
+   **`-game` 리슨 서버로 검증하지 않으면 둘 다 드러나지 않는다.**
 
 복제 타입이 여러 개라도 **버블·리플리케이터는 하나만** 만들고 (§7.1), 타입 차이는 Optional Fragment와 EntityView로 흡수하는 것이 안전한 기본 구성입니다.

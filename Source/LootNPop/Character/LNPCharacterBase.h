@@ -159,7 +159,11 @@ public:
 	 */
 	void ApplyWeaponVisuals(ULNPWeaponData* WeaponData);
 
-	/** 테스트용: SlotIndex로 TestWeaponList에서 무기 장착 요청. 범위 초과 시 맨손. */
+	/**
+	 * 테스트용: SlotIndex로 TestWeaponList에서 무기 장착 요청. 범위 초과 시 맨손.
+	 * 플레이어는 가방에 해당 무기가 있으면 그 인스턴스를, 없으면 지급받은 새 인스턴스를 장착한다
+	 * (ALNPPlayerCharacter::EquipWeaponOnServer) — 디버그 경로도 메뉴 장착과 같은 상태 기계를 탄다.
+	 */
 	void EquipTestWeapon(int32 SlotIndex);
 
 protected:

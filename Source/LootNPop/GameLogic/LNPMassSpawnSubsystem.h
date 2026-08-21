@@ -101,6 +101,13 @@ protected:
 	void SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms, FMassEntityHandle ParentLootPod = FMassEntityHandle(), const FVector& ParentPodLocation = FVector::ZeroVector);
 
 private:
+	/**
+	 * 월드 초기화 시점의 넷 모드 오판(-game 리슨 서버는 그때 NM_Standalone)으로 걸러진
+	 * Server 전용 Mass 옵저버를 되살린다. 빠지면 클라이언트 버블에서 엔티티가 영원히 제거되지 않아
+	 * 게스트 화면에만 죽은 NPC·루팅 끝난 LootPod이 남는다. 상세 근거는 .cpp 주석 참조.
+	 */
+	void RestoreServerOnlyMassObservers(UWorld& InWorld, ENetMode NetMode);
+
 	/** 스폰 큐의 Chunk를 처리한다 */
 	void ProcessQueue();
 

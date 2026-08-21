@@ -105,6 +105,7 @@ void ALNPLootDice::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	// SpawnDice의 Deferred 스폰이 FinishSpawning 전 대입을 보장한다.
 	DOREPLIFETIME_CONDITION(ALNPLootDice, ItemDef, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(ALNPLootDice, RemainingDuration, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(ALNPLootDice, ItemLevel, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(ALNPLootDice, SpawnServerTime, COND_InitialOnly);
 }
 
@@ -201,7 +202,7 @@ void ALNPLootDice::SetupIconMaterial()
 }
 
 ALNPLootDice* ALNPLootDice::SpawnDice(UWorld& World, const FVector& Location, ULNPItemDefinitionBase* Item,
-                                      float InRemainingDuration, float ImpulseScale)
+                                      float InRemainingDuration, int32 InItemLevel, float ImpulseScale)
 {
 	if (World.GetNetMode() == NM_Client)
 	{
@@ -232,6 +233,7 @@ ALNPLootDice* ALNPLootDice::SpawnDice(UWorld& World, const FVector& Location, UL
 	// COND_InitialOnly 페이로드는 스폰 번치에만 실린다 — 반드시 FinishSpawning 전에 대입
 	Dice->ItemDef = Item;
 	Dice->RemainingDuration = InRemainingDuration;
+	Dice->ItemLevel = FMath::Max(1, InItemLevel);
 	if (const AGameStateBase* GS = World.GetGameState())
 	{
 		Dice->SpawnServerTime = GS->GetServerWorldTimeSeconds();

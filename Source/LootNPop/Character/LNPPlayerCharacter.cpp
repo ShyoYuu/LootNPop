@@ -71,6 +71,12 @@ void ALNPPlayerCharacter::PossessedBy(AController* NewController)
 			{
 				PushLootSpeedToEntity(Data.NewValue);
 			});
+
+		// 기본 무기 지급·장착은 여기서 한다 — PlayerState의 연결이 완전히 성립한 뒤라야
+		// 가방 인스턴스(복제 서브오브젝트)가 원격 클라이언트에 제대로 도달한다.
+		// EqComp::BeginPlay에서 하면 게스트 가방이 빈 채로 남는다 (EnsureDefaultWeapon 주석 참조).
+		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
+			EqComp->EnsureDefaultWeapon();
 	}
 
 	if (GameplayCamera)
@@ -130,14 +136,55 @@ void ALNPPlayerCharacter::RequestEquipWeapon(ULNPWeaponData* WeaponData)
 		return;
 	}
 
-	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
-		if (ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent())
-			EqComp->EquipWeapon(WeaponData);
+	EquipWeaponOnServer(WeaponData);
 }
 
 void ALNPPlayerCharacter::Server_EquipWeapon_Implementation(ULNPWeaponData* WeaponData)
 {
-	RequestEquipWeapon(WeaponData);
+	EquipWeaponOnServer(WeaponData);
+}
+
+void ALNPPlayerCharacter::EquipWeaponOnServer(ULNPWeaponData* WeaponData)
+{
+	ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+	if (PS == nullptr)
+		return;
+
+	ULNPInventoryComponent* Inventory = PS->GetInventoryComponent();
+	ULNPEquipmentComponent* EqComp = PS->GetEquipmentComponent();
+	if (Inventory == nullptr || EqComp == nullptr)
+		return;
+
+	// nullptr = 맨손 전환 요청 (EquipTestWeapon의 범위 밖 슬롯).
+	if (WeaponData == nullptr)
+	{
+		EqComp->UnequipWeapon();
+		return;
+	}
+
+	// 정의로 장착하더라도 실제 인스턴스를 거친다 — 그래야 인벤토리 UI·bEquipped·드랍 가드가
+	// 메뉴에서 장착한 무기와 완전히 같은 상태 기계를 탄다 (경로별 특수 케이스 없음).
+	ULNPInventoryItemInstance* Instance = Inventory->FindBagInstanceByDefinition(WeaponData);
+	if (Instance == nullptr)
+	{
+		// 보유하지 않은 무기를 요청했다 — 캐릭터의 TestWeaponList에 있을 때만 디버그 지급을 허용한다.
+		// 이 검증이 없으면 클라이언트가 임의의 ULNPWeaponData 에셋을 지목해 장착할 수 있다.
+		if (!TestWeaponList.Contains(WeaponData))
+		{
+			UE_LOG(LogLootNPop, Warning, TEXT("[Equip] %s requested unowned weapon %s — not in TestWeaponList, rejected"),
+				*GetNameSafe(this), *GetNameSafe(WeaponData));
+			return;
+		}
+
+		Instance = Inventory->AddItemInstance(WeaponData);
+		if (Instance == nullptr)
+			return;
+
+		UE_LOG(LogLootNPop, Log, TEXT("[Equip] %s test weapon %s granted to bag"),
+			*GetNameSafe(this), *GetNameSafe(WeaponData));
+	}
+
+	EqComp->EquipWeaponInstance(Instance);
 }
 
 void ALNPPlayerCharacter::RequestEquipWeaponInstance(ULNPInventoryItemInstance* Instance)
@@ -174,6 +221,31 @@ void ALNPPlayerCharacter::Server_EquipWeaponInstance_Implementation(FGuid ItemId
 		return;
 
 	EqComp->EquipWeaponInstance(Instance);  // bEquipped 표시 + GAS 부여 + 비주얼 푸시
+}
+
+void ALNPPlayerCharacter::RequestMergeItem(const FGuid& ItemId)
+{
+	if (HasAuthority())
+		MergeItemOnServer(ItemId);
+	else
+		Server_MergeItem(ItemId);
+}
+
+void ALNPPlayerCharacter::Server_MergeItem_Implementation(FGuid ItemId)
+{
+	MergeItemOnServer(ItemId);
+}
+
+void ALNPPlayerCharacter::MergeItemOnServer(const FGuid& ItemId)
+{
+	const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+	if (!ItemId.IsValid() || PS == nullptr)
+		return;
+
+	// 소유 인벤토리에서만 조회한다 — 남의 아이템 ID를 보내도 찾히지 않는다.
+	// 재료 수량·최대 레벨·장착 여부 검증은 전부 TryMergeItem 안에서 다시 이뤄진다.
+	if (ULNPInventoryComponent* Inventory = PS->GetInventoryComponent())
+		Inventory->TryMergeItem(ItemId);
 }
 
 void ALNPPlayerCharacter::DropItem(const FGuid& ItemId)
@@ -221,6 +293,9 @@ void ALNPPlayerCharacter::DropItemOnServer(const FGuid& ItemId)
 
 	ULNPItemDefinitionBase* ItemDef = Instance->GetDefinition();
 
+	// 제거하면 인스턴스가 사라지므로 페이로드에 실을 값은 먼저 읽어 둔다.
+	const int32 DiceItemLevel = Instance->GetItemLevel();
+
 	// 인벤토리 제거 성공 전에는 스폰하지 않는다 (아이템 복제 방지).
 	// 버프는 잔여 지속 시간을 회수해 페이로드에 싣는다 — 양도받은 파티원이 이어서 쓴다.
 	float DiceRemainingDuration = 0.0f;
@@ -233,10 +308,11 @@ void ALNPPlayerCharacter::DropItemOnServer(const FGuid& ItemId)
 	const FVector DropLocation = GetActorLocation()
 		+ GetActorForwardVector() * 150.0f
 		+ GetActorUpVector() * 80.0f;
-	ALNPLootDice::SpawnDice(*GetWorld(), DropLocation, ItemDef, DiceRemainingDuration, /*ImpulseScale=*/0.4f);
+	ALNPLootDice::SpawnDice(*GetWorld(), DropLocation, ItemDef, DiceRemainingDuration,
+		DiceItemLevel, /*ImpulseScale=*/0.4f);
 
-	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s dropped — %s (buff remaining %.1fs)"),
-		*GetNameSafe(this), *GetNameSafe(ItemDef), DiceRemainingDuration);
+	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s dropped — %s Lv.%d (buff remaining %.1fs)"),
+		*GetNameSafe(this), *GetNameSafe(ItemDef), DiceItemLevel, DiceRemainingDuration);
 }
 
 FRotator ALNPPlayerCharacter::GetBaseAimRotation() const

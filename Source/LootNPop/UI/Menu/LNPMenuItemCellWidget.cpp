@@ -4,6 +4,7 @@
 #include "Item/LNPBuffData.h"
 #include "Item/LNPInventoryItemInstance.h"
 #include "Item/LNPItemDefinitionBase.h"
+#include "Item/LNPWeaponData.h"
 
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
@@ -25,7 +26,7 @@ void ULNPMenuItemCellWidget::NativeOnListItemObjectSet(UObject* ListItemObject)
 		IconImage->SetBrushFromTexture(Definition ? Definition->Icon : nullptr);
 	}
 
-	UpdateBadge();
+	UpdateBadges();
 
 	// 버프 셀만 잔여 시간을 매초 다시 쓴다.
 	if (BoundInstance && Cast<ULNPBuffData>(BoundInstance->GetDefinition()) != nullptr)
@@ -33,42 +34,58 @@ void ULNPMenuItemCellWidget::NativeOnListItemObjectSet(UObject* ListItemObject)
 		if (UWorld* World = GetWorld())
 		{
 			World->GetTimerManager().SetTimer(
-				CountdownTimerHandle, this, &ULNPMenuItemCellWidget::UpdateBadge, 1.0f, /*bLoop=*/true);
+				CountdownTimerHandle, this, &ULNPMenuItemCellWidget::UpdateDurationText, 1.0f, /*bLoop=*/true);
 		}
 	}
 }
 
-void ULNPMenuItemCellWidget::UpdateBadge()
+void ULNPMenuItemCellWidget::UpdateBadges()
 {
-	if (BadgeText == nullptr)
+	// 좌상단 — 장착 표시.
+	if (EquipMarkText)
+	{
+		EquipMarkText->SetText((BoundInstance && BoundInstance->IsEquipped())
+			? EquippedBadgeText
+			: FText::GetEmpty());
+	}
+
+	// 우하단 — 레벨. 무기만 표시한다 (디테일 패널의 "Lv. 현재/최대" 표기와 노출 조건을 맞춘다).
+	if (LevelText)
+	{
+		const bool bIsWeapon = BoundInstance && Cast<ULNPWeaponData>(BoundInstance->GetDefinition()) != nullptr;
+		LevelText->SetText(bIsWeapon
+			? FText::Format(LevelFormat, FText::AsNumber(BoundInstance->GetItemLevel()))
+			: FText::GetEmpty());
+	}
+
+	// 우상단 — 잔여 시간.
+	UpdateDurationText();
+}
+
+void ULNPMenuItemCellWidget::UpdateDurationText()
+{
+	if (DurationText == nullptr)
 		return;
 
-	if (BoundInstance == nullptr)
+	// 버프가 아니면 표시할 시간이 없다.
+	if (BoundInstance == nullptr || Cast<ULNPBuffData>(BoundInstance->GetDefinition()) == nullptr)
 	{
-		BadgeText->SetText(FText::GetEmpty());
+		DurationText->SetText(FText::GetEmpty());
 		return;
 	}
 
-	if (Cast<ULNPBuffData>(BoundInstance->GetDefinition()) != nullptr)
-	{
-		const float Remaining = BoundInstance->GetRemainingDurationLive();
+	const float Remaining = BoundInstance->GetRemainingDurationLive();
 
-		// RemainingDuration < 0 (=-1) 은 영구 버프 (TechDesign_Inventory §5).
-		if (Remaining <= 0.f)
-		{
-			BadgeText->SetText(FText::GetEmpty());
-			if (UWorld* World = GetWorld())
-				World->GetTimerManager().ClearTimer(CountdownTimerHandle);
-		}
-		else
-		{
-			BadgeText->SetText(FText::AsNumber(FMath::CeilToInt(Remaining)));
-		}
+	// RemainingDuration < 0 (=-1) 은 영구 버프 (TechDesign_Inventory §5).
+	if (Remaining <= 0.f)
+	{
+		DurationText->SetText(FText::GetEmpty());
+		if (UWorld* World = GetWorld())
+			World->GetTimerManager().ClearTimer(CountdownTimerHandle);
 		return;
 	}
 
-	// 무기·기타 아이템은 장착 여부만 표시한다 (기획 §6-1).
-	BadgeText->SetText(BoundInstance->IsEquipped() ? EquippedBadgeText : FText::GetEmpty());
+	DurationText->SetText(FText::AsNumber(FMath::CeilToInt(Remaining)));
 }
 
 void ULNPMenuItemCellWidget::NativeOnClicked()

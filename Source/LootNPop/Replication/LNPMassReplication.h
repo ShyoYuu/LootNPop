@@ -126,6 +126,11 @@ protected:
 	virtual void PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize) override;
 	virtual void PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize) override;
 
+	// PreReplicatedRemove는 오버라이드하지 않는다 — 베이스(TClientBubbleHandlerBase)가 이미
+	// ResetEntityIfValid → SpawnerSubsystem->DestroyEntities로 클라이언트 엔티티를 파괴한다.
+	// 이 경로가 안 도는 것처럼 보였던 2026-08-20 버그의 원인은 여기가 아니라 서버 쪽이었다
+	// (파괴 옵저버 누락 → ULNPMassSpawnSubsystem::RestoreServerOnlyMassObservers 참조).
+
 	/** 복제 페이로드(위치 + 접평면 로컬 Yaw)를 Transform Fragment에 반영한다. 스케일은 보존한다. */
 	static void ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FReplicatedAgentPositionYawData& PositionYaw);
 

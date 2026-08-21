@@ -74,5 +74,17 @@ float ULNPAbility_BasicAttack::ComputeDamage() const
 		return 0.f;
 
 	// 무기 스텟은 장착 GE로 AttackPower에 합산되어 있고, 곱연산 버프도 어그리게이터가 이미 곱한 뒤다.
-	return Attrs->GetAttackPower();
+	// 여기에 어빌리티 계수(어빌리티 개성 × 무기 레벨)를 곱한 것이 최종 피해다.
+	return Attrs->GetAttackPower() * GetDamageCoefficient();
+}
+
+float ULNPAbility_BasicAttack::GetDamageCoefficient() const
+{
+	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDef();
+	if (WeaponDef == nullptr)
+		return BaseDamageCoefficient;
+
+	// 스펙 레벨 = 무기 레벨 (GrantItemImpl). 활성화 밖에서 불리면 1로 떨어지므로 하한을 건다.
+	const int32 WeaponLevel = FMath::Max(1, GetAbilityLevel());
+	return BaseDamageCoefficient * WeaponDef->GetAbilityCoefScale(WeaponLevel);
 }

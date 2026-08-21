@@ -56,8 +56,19 @@
     - 공유 DataAsset 포인터 → **UObject 인스턴스 + `FGuid ItemId` 정체성**으로 전환. 장착본/보관본 오검출 버그 해소.
     - FastArray 델타 복제 + 등록 서브오브젝트(`COND_OwnerOnly`), Iris 2인 PIE 검증 완료.
     - 스탯은 `FLNPGameplayTagStackContainer`(Lyra 포팅). 버프는 서버 권위 카운트다운 + 클라 로컬 표시, 드랍/재획득 잔여시간 라운드트립.
-    - **잔여:** 스탯 롤링(`StatTags` 그릇만 완성), 스태킹/수량, 정렬·필터.
+    - **잔여:** 인스턴스별 **랜덤** 스탯 롤링, 스태킹/수량, 정렬·필터. (무기 레벨은 아래 항목에서 해소)
     - 설계 명세: [TechDesign_Inventory.md](TechDesign_Inventory.md)
+- [x] **무기 레벨·합성** (`FLNPWeaponLevelRow`, `ULNPWeaponData::LevelTable`, `ULNPInventoryComponent::TryMergeItem`)
+    - 레벨별 스텟·어빌리티 계수를 **무기별 DataTable에 절대값으로** 입력한다(공식 아님, 행 이름 = 레벨).
+      **테이블의 마지막 연속 행이 곧 그 무기의 최대 레벨.** 현재 테스트 데이터는 10레벨까지(지수 ×2 씨앗).
+    - 같은 종류·같은 레벨 n개(`LNPSettings.WeaponMergeMaterialCount`, 기본 3) → 다음 레벨 1개.
+      **대상 자신이 결과물**이 되므로 "비장착 n개 → 1개"와 "장착본 +1레벨(n-1 소모)"이 한 경로로 성립한다.
+    - 무기 레벨이 GAS 어빌리티 스펙 레벨로 흘러 `ComputeDamage`가 `AttackPower × 계수`를 낸다.
+      기초 스텟·계수가 둘 다 오르므로 **피해는 제곱으로 증가** — `AbilityCoefScale`은 완만하게 둘 것.
+    - LootDice 페이로드에 `ItemLevel`(COND_InitialOnly) — **다른 플레이어가 주워도 레벨 보존**.
+    - UI: 셀 배지 3분할(장착 좌상단 / 버프 잔여 우상단 / 레벨 우하단), 디테일 패널 Merge 버튼(`Merge (2/3)` · `Max Lv.`).
+    - 2P Standalone 검증 완료(2026-08-20): 게스트 합성·장착본 합성·드랍 후 타 플레이어 획득 시 레벨 보존, 최대 레벨 차단, 레벨별 피해 차이.
+    - 설계 명세: [TechDesign_Inventory.md](TechDesign_Inventory.md) §7, [GameDesign_Ability.md](GameDesign_Ability.md) §3.1
 - [x] **CommonUI 인게임 메뉴** (`ULNPMenuRootWidget` 외 UI/Menu 13종)
     - 3탭(캐릭터 스탯 / 인벤토리 / 환경설정). `UCommonActivatableWidgetStack`(열기·닫기) + `UCommonActivatableWidgetSwitcher`(탭 전환) 조합.
     - 게임패드 우선 조작 — L1/R1 탭 이동, ✕ 선택, ○ Back. 루트 하나만 Back 핸들러로 두고 활성 탭에 위임(`디테일 → Grid → 닫기`).
@@ -77,7 +88,8 @@
       스텟×연산 조합마다 GE 에셋을 만들지 않는다. 아이템 설명문도 이 선언에서 생성.
     - 무기 스텟을 어트리뷰트 파이프라인으로 이관(`WeaponData.Damage` 제거), 전용 배율 어트리뷰트 `AttackMultiplier` 제거,
       `DefensePower` 기초 0 → 10(곱연산 버프가 무효화되지 않도록), 영구 버프(`Duration = -1`).
-    - **잔여:** 콘텐츠 DA 재구성(버프 12종·무기 스텟 이관), PIE 검증, 방어력 기초값 밸런스 회귀.
+    - **잔여:** 방어력 기초값 밸런스 회귀.
+      (무기 스텟 이관은 2026-08-20 무기 레벨 테이블로 완료 — 무기 3종의 스텟 원본이 `LevelTable`로 옮겨졌다.)
     - 설계 명세: [TechDesign_Ability.md](TechDesign_Ability.md) §2.1, [GameDesign_Ability.md](GameDesign_Ability.md) §3.3
 - [x] **GAS 기반 전투 시스템**
     - ASC/AttributeSet (`ALNPPlayerState`), `ULNPEquipmentComponent`, `ULNPInventoryComponent`.

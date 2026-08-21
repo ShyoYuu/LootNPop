@@ -15,6 +15,10 @@
 #include "MassAgentComponent.h"
 #include "MassSpawnerSubsystem.h"
 #include "MassEntityManager.h"
+#include "MassEntitySubsystem.h"
+#include "MassObserverManager.h"
+#include "MassProcessor.h"
+#include "MassReplicationProcessor.h"
 #include "GameFramework/Pawn.h"
 #include "MassCommonFragments.h"
 #include "MassReplicationSubsystem.h"
@@ -56,6 +60,8 @@ void ULNPMassSpawnSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	// OnWorldBeginPlay는 NetDriver 생성 이후이자 GameMode::StartPlay 이전이라 두 조건을 모두 만족한다.
 	const ENetMode NetMode = InWorld.GetNetMode();
 	UE_LOG(LogLootNPop, Log, TEXT("Mass entity template warm-up starting. NetMode=%d"), static_cast<int32>(NetMode));
+
+	RestoreServerOnlyMassObservers(InWorld, NetMode);
 
 	if (const ULNPSettings* Settings = GetDefault<ULNPSettings>())
 	{
@@ -104,6 +110,67 @@ void ULNPMassSpawnSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 			UE_LOG(LogLootNPop, Warning, TEXT("Player template warm-up skipped: LNPSettings.PlayerPawnClass not set — client puppet linking will not work"));
 		}
 	}
+}
+
+void ULNPMassSpawnSubsystem::RestoreServerOnlyMassObservers(UWorld& InWorld, const ENetMode NetMode)
+{
+	// 바로 위 템플릿 warm-up과 **같은 원인의 두 번째 증상**을 고친다.
+	//
+	// FMassObserverManager::Initialize()는 월드 서브시스템 초기화 시점의 GetNetMode()를 딱 한 번 읽어
+	// (MassObserverManager.cpp의 DetermineProcessorExecutionFlags) 그 실행 플래그에 맞는 옵저버만
+	// 인스턴스화한다. -game 리슨 서버는 그 시점에 NM_Standalone이고, Standalone 플래그는 Server를
+	// 포함하지 않으므로 EProcessorExecutionFlags::Server 전용인
+	// UMassReplicationEntityDestructionObserver가 통째로 빠진다.
+	//
+	// 빠지면 엔티티 파괴가 UMassReplicationSubsystem::NotifyEntityDestroyed로 통지되지 않아
+	// bPendingDestruction이 서지 않고, 따라서 ULNPMassReplicator의 RemoveEntityCallback이 한 번도
+	// 호출되지 않는다 → 클라이언트 버블에서 에이전트가 영원히 제거되지 않는다.
+	// 증상은 **게스트 화면에만** 죽은 NPC와 루팅이 끝난 LootPod이 남는 것이다. 호스트는 자기 엔티티를
+	// 직접 파괴하므로 멀쩡해 보여, 호스트만 확인하면 놓친다.
+	// (2026-08-20 2P 실측: 호스트 RemoveEntityCallback 0건, 게스트 수신 0건, 에이전트 235개 누적)
+	//
+	// 매니저를 통째로 다시 세우는 편이 일반적이지만 FMassObserverManager::Initialize/DeInitialize는
+	// protected(friend FMassEntityManager)라 호출할 수 없다. 다행히 이 프로젝트가 쓰는 MassGameplay
+	// 플러그인 전체에서 Server/Client로 좁혀진 프로세서는 이 옵저버 하나뿐이므로
+	// (MassReplicationProcessor.cpp:384), 이 하나를 되살리면 노출 범위가 전부 덮인다.
+	// ⚠️ 엔진 업데이트로 Server 전용 옵저버가 늘어나면 여기도 같이 늘려야 한다.
+	if (NetMode != NM_ListenServer && NetMode != NM_DedicatedServer)
+	{
+		return;
+	}
+
+	UMassEntitySubsystem* EntitySubsystem = InWorld.GetSubsystem<UMassEntitySubsystem>();
+	if (EntitySubsystem == nullptr)
+	{
+		return;
+	}
+
+	FMassObserverManager& ObserverManager = EntitySubsystem->GetMutableEntityManager().GetObserverManager();
+
+#if WITH_MASSENTITY_DEBUG
+	// 초기화 시점에 이미 올바른 넷 모드를 본 구성(PIE 등)에서는 옵저버가 정상 등록돼 있다.
+	// NotifyEntityDestroyed는 멱등이라 중복돼도 결과가 틀어지진 않지만, 헛도는 순회를 만들 이유는 없다.
+	TArray<const UMassProcessor*> Existing;
+	ObserverManager.DebugGatherUniqueProcessors(Existing);
+	for (const UMassProcessor* Processor : Existing)
+	{
+		if (Processor && Processor->IsA<UMassReplicationEntityDestructionObserver>())
+		{
+			UE_LOG(LogLootNPop, Verbose,
+				TEXT("[MassObserver] Destruction observer already registered (NetMode=%d) — nothing to restore."),
+				static_cast<int32>(NetMode));
+			return;
+		}
+	}
+#endif // WITH_MASSENTITY_DEBUG
+
+	// AddObserverInstance가 ObservedTypes/ObservedOperations를 읽고 CallInitialize까지 수행한다.
+	UMassReplicationEntityDestructionObserver* Observer = NewObject<UMassReplicationEntityDestructionObserver>(this);
+	ObserverManager.AddObserverInstance(Observer);
+
+	UE_LOG(LogLootNPop, Log,
+		TEXT("[MassObserver] Restored UMassReplicationEntityDestructionObserver (NetMode=%d) — it was filtered out at world init while GetNetMode() still reported Standalone."),
+		static_cast<int32>(NetMode));
 }
 
 void ULNPMassSpawnSubsystem::BeginSpawning()
