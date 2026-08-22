@@ -12,7 +12,7 @@ Motion Matching 기반 공용 로코모션 위에 **무기별 Linked Anim Layer�
    Motion Matching (맨손 PSD 전신 포즈)
        │
    Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponStyleOverlay)
-       │   └─ ABP_Sub_Unarmed / Pistol / Rifle / LongSword 가 런타임 교체
+       │   └─ ABP_Sub_Unarmed / Pistol / Rifle / Shotgun / LongSword 가 런타임 교체
        │      각 서브 ABP가 자체 본·가중치로 오버레이 (AO, Guard 분기, 왼손 IK)
        │
    Slot 'FullBody' (GAS 몽타주)
@@ -45,7 +45,7 @@ Motion Matching 기반 공용 로코모션 위에 **무기별 Linked Anim Layer�
 
 | 분류 | 태그 | 설명 |
 |------|------|------|
-| 무기 | `LNP.Weapon.Unarmed / Pistol / Rifle / LongSword` | 장착 무기. `EquipWeapon()`이 전환 |
+| 무기 | `LNP.Weapon.Unarmed / Pistol / Rifle / Shotgun / LongSword` | 장착 무기. `EquipWeapon()`이 전환 |
 | 조준 | `LNP.AimMode.None / FreeAim / LockOn` | `ULNPWeaponData::DefaultAimMode`로 지정. LockOn 전환은 None일 때만 허용 |
 | 액션 | `LNP.Action.Attacking` | 공격 애니메이션 재생 중 |
 | 차단 | `LNP.Block.MovementInput` / `LNP.Block.AttackInput` | ANS가 추가/제거하는 입력 차단 |
@@ -66,9 +66,17 @@ Motion Matching 기반 공용 로코모션 위에 **무기별 Linked Anim Layer�
 | `ABP_Sub_Unarmed` | Sub AnimBP | 베이스 포즈 통과 |
 | `ABP_Sub_Pistol` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_Pistol` |
 | `ABP_Sub_Rifle` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_Rifle` + 왼손 Two Bone IK |
+| `ABP_Sub_Shotgun` | Sub AnimBP | Rifle과 동일 구성. 아이들만 `MM_Shotgun_Idle_ADS`, Aim Offset은 `AO_MM_Rifle_Idle_ADS`를 공용 (§아래 주석) |
 | `ABP_Sub_LongSword` | Sub AnimBP | 롱소드 Stance + `bIsGuarding` Guard 자세 분기 + 왼손 Two Bone IK |
 
 **설계 원칙:** 어떤 본에 얼마나 블렌딩할지는 각 서브 ABP가 직접 결정한다. 메인 ABP는 무기를 모른다.
+
+**Shotgun이 Rifle Aim Offset을 공용하는 이유:** Lyra 샘플에 샷건 전용 AO가 없다. 누락이 아니라
+Epic도 같은 선택을 한 것으로, 원본 `ABP_ShotgunAnimLayers`는 `IsDataOnly=True`인 `ABP_RifleAnimLayers`의
+자식이며 아이들 포즈만 교체한다. 기술적으로도 안전하다 — `AO_MM_Rifle_Idle_ADS`의 샘플은
+`AAT_RotationOffsetMeshSpace`(메시 스페이스 회전 애디티브)이고 레퍼런스 포즈가 중앙 샘플 0프레임이라,
+델타가 절대 회전으로 적용된다. 베이스 포즈가 Rifle 아이들에서 Shotgun 아이들로 바뀌어도 조준 추종 각도가
+유지된다 (로컬 스페이스 애디티브였다면 어긋났을 것).
 
 ### 3.2 런타임 레이어 교체 (`EquipWeapon`)
 

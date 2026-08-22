@@ -57,6 +57,18 @@ public:
 	/** InVelocity를 초기 속도로 설정하는 Launch 레이어 무브를 큐에 추가한다. */
 	void LaunchWithVelocity(FVector InVelocity);
 
+	/**
+	 * 사망 연출 동안 이동을 정지시킨다 (→ ULNPDeadMode).
+	 * 각 머신이 로컬로 호출한다 — 랙돌 연출과 짝이므로 복제하지 않는다.
+	 */
+	void EnterDeadMode();
+
+	/** 사망 정지를 해제하고 기본 낙하 모드로 되돌린다 (Mass 표현 풀 재사용용). */
+	void ExitDeadMode();
+
+	/** 현재 ULNPDeadMode 상태인지. */
+	bool IsInDeadMode() const;
+
 protected:
 	/** simulation tick 직전 호출된다. 상태 기반 Modifier 변경을 적용하는 데 사용된다. */
 	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd) override;

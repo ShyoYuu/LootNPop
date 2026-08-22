@@ -6,6 +6,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Mass/EntityHandle.h"
 #include "Containers/Queue.h"
+#include "HitDetection/LNPProjectileMassTypes.h"
 #include "LNPProjectileVisualSubsystem.generated.h"
 
 class UNiagaraComponent;
@@ -25,11 +26,17 @@ class LOOTNPOP_API ULNPProjectileVisualSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 public:
-	/** Entity에 트레일 Niagara Component를 스폰한다. 게임 Thread 전용. */
-	void AllocateTrails(FMassEntityHandle Entity, const ULNPVFXData* VFXData, FVector Pos);
+	/** Entity에 트레일 Niagara Component를 스폰하고 진영 색을 주입한다. 게임 Thread 전용. */
+	void AllocateTrails(FMassEntityHandle Entity, const ULNPVFXData* VFXData, FVector Pos, ELNPInstigatorTeam Team);
 
 	/** Entity의 모든 트레일 Component를 Pos로 이동한다. 게임 Thread 전용. */
 	void UpdateTrails(FMassEntityHandle Entity, FVector Pos);
+
+	/** Entity 트레일의 진영 색을 다시 주입한다 (패링으로 소유권이 넘어갔을 때). 게임 Thread 전용. */
+	void SetTrailTeam(FMassEntityHandle Entity, ELNPInstigatorTeam Team);
+
+	/** 진영에 대응하는 트레일 색 (LNPSettings). */
+	static FLinearColor GetTeamTintColor(ELNPInstigatorTeam Team);
 
 	/** Thread-Safe: 다음 FlushTrailReleases 시 Entity 트레일을 Destroy 큐에 추가한다. */
 	void EnqueueTrailRelease(FMassEntityHandle Entity);
@@ -49,6 +56,9 @@ public:
 private:
 	void ReleaseTrails(FMassEntityHandle Entity);
 	void SpawnImpactEffects(const ULNPVFXData* VFXData, FVector Pos, FVector Normal);
+
+	/** 트레일 Niagara 시스템이 노출하는 진영 색 User 파라미터 이름. */
+	static const FName TintColorParameterName;
 
 	struct FPendingImpact
 	{

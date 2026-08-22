@@ -14,7 +14,6 @@
 #include "AbilitySystemComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/CapsuleComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Blueprint/UserWidget.h"
 
@@ -140,6 +139,9 @@ void ALNPEnemyCharacter::InitializeOnce(ULNPEnemyConfig* InConfig)
 
 void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity)
 {
+	// Actor는 Mass 표현 풀에서 재사용된다 — 직전에 시체였을 수 있으므로 매 활성화마다 되돌린다 (멱등).
+	ExitRagdoll();
+
 	if (AnimSourceMesh)
 		AnimSourceMesh->SetVisibility(false);
 
@@ -160,20 +162,24 @@ void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTar
 
 void ALNPEnemyCharacter::TriggerRagdoll()
 {
-	if (UAnimInstance* AnimInst = GetAnimInstance())
-		AnimInst->Montage_Stop(0.3f);
-	if (AnimSourceMesh)
-		AnimSourceMesh->SetActive(false);
-	if (VisualMesh)
-	{
-		VisualMesh->SetAllBodiesSimulatePhysics(true);
-		VisualMesh->SetCollisionProfileName(TEXT("Ragdoll"));
-		VisualMesh->WakeAllRigidBodies();
-	}
-	if (CapsuleComponent)
-		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	if (MoverComponent)
-		MoverComponent->ApplyKnockback(MoverComponent->GetUpDirection(), 10000.f);
+	if (!HasAuthority() || IsRagdollActive())
+		return;
+
+	Multicast_TriggerRagdoll(GetUpDirection() * RagdollPopSpeed);
+}
+
+void ALNPEnemyCharacter::Multicast_TriggerRagdoll_Implementation(FVector PopVelocity)
+{
+	// 리슨 서버는 이 구현부가 로컬로도 실행된다 — EnterRagdoll이 멱등이므로 그대로 둔다(호스트 화면에도 보여야 한다).
+	// 데디케이티드 서버는 볼 사람이 없으므로 물리 바디 생성 비용을 아낀다.
+	if (GetNetMode() == NM_DedicatedServer)
+		return;
+
+	if (HpBarComponent)
+		HpBarComponent->SetVisibility(false);
+	SetLockOnMarkerVisible(false);
+
+	EnterRagdoll(PopVelocity);
 }
 
 void ALNPEnemyCharacter::SetLockOnMarkerVisible(bool bVisible)

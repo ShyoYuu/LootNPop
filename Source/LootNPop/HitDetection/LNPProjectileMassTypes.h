@@ -110,6 +110,10 @@ struct LOOTNPOP_API FLNPProjectileVisualFragment : public FMassFragment
 	GENERATED_BODY()
 
 	bool bInitialized = false;
+
+	/** 트레일에 실제로 반영된 진영. FLNPProjectileFragment::InstigatorTeam과 어긋나면
+	 *  패링으로 소유권이 넘어갔다는 뜻이므로 트레일 색을 다시 주입한다. */
+	ELNPInstigatorTeam AppliedTeam = ELNPInstigatorTeam::Enemy;
 };
 
 /** StartPhysics 단계 종료 시 Projectile Destroy을 표시하는 Tag. */

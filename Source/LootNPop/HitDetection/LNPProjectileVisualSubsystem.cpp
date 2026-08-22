@@ -2,6 +2,7 @@
 
 #include "HitDetection/LNPProjectileVisualSubsystem.h"
 #include "VFX/LNPVFXData.h"
+#include "Config/LNPSettings.h"
 
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
@@ -9,13 +10,26 @@
 #include "MassDebugDrawHelpers.h"
 #endif
 
-void ULNPProjectileVisualSubsystem::AllocateTrails(FMassEntityHandle Entity, const ULNPVFXData* VFXData, FVector Pos)
+const FName ULNPProjectileVisualSubsystem::TintColorParameterName(TEXT("TintColor"));
+
+FLinearColor ULNPProjectileVisualSubsystem::GetTeamTintColor(ELNPInstigatorTeam Team)
+{
+	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
+	return (Team == ELNPInstigatorTeam::Player)
+		? Settings->PlayerProjectileTintColor
+		: Settings->EnemyProjectileTintColor;
+}
+
+void ULNPProjectileVisualSubsystem::AllocateTrails(FMassEntityHandle Entity, const ULNPVFXData* VFXData, FVector Pos,
+	ELNPInstigatorTeam Team)
 {
 	if (nullptr == VFXData || VFXData->TrailEffects.IsEmpty())
 		return;
 
 	TArray<TObjectPtr<UNiagaraComponent>>& Components = ActiveTrails.FindOrAdd(Entity);
 	Components.Reserve(VFXData->TrailEffects.Num());
+
+	const FLinearColor TintColor = GetTeamTintColor(Team);
 
 	UWorld* World = GetWorld();
 	for (UNiagaraSystem* NS : VFXData->TrailEffects)
@@ -27,7 +41,25 @@ void ULNPProjectileVisualSubsystem::AllocateTrails(FMassEntityHandle Entity, con
 			World, NS, Pos, FRotator::ZeroRotator, FVector::OneVector,
 			/*bAutoDestroy=*/false, /*bAutoActivate=*/true, ENCPoolMethod::None);
 		if (Comp != nullptr)
+		{
+			// TintColor를 노출하지 않는 시스템에서는 조용히 무시된다 — 진영 색을 안 쓰는 트레일도 그대로 동작.
+			Comp->SetVariableLinearColor(TintColorParameterName, TintColor);
 			Components.Add(Comp);
+		}
+	}
+}
+
+void ULNPProjectileVisualSubsystem::SetTrailTeam(FMassEntityHandle Entity, ELNPInstigatorTeam Team)
+{
+	TArray<TObjectPtr<UNiagaraComponent>>* Components = ActiveTrails.Find(Entity);
+	if (nullptr == Components)
+		return;
+
+	const FLinearColor TintColor = GetTeamTintColor(Team);
+	for (UNiagaraComponent* Comp : *Components)
+	{
+		if (Comp != nullptr)
+			Comp->SetVariableLinearColor(TintColorParameterName, TintColor);
 	}
 }
 

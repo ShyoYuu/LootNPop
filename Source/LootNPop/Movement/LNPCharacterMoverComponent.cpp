@@ -3,6 +3,7 @@
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPCharacterMovementSettings.h"
 #include "Movement/LNPAsyncWalkingMode.h"
+#include "Movement/LNPDeadMode.h"
 #include "Movement/LNPModifierInputs.h"
 #include "Movement/LNPDashCooldownModifier.h"
 #include "Character/LNPCharacterBase.h"
@@ -31,6 +32,7 @@ UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "C
 // UCommonLegacyMovementSettings 못 가져왔을 때 fallback용
 const FName DefaultWalkingMode = TEXT("LNPAsyncWalking");
 const FName DefaultFallingMode = TEXT("AsyncFalling");
+const FName LNPDeadModeName    = TEXT("LNPDead");
 
 ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 {
@@ -40,6 +42,8 @@ ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 	// 기본 이동 모드
 	MovementModes.Add(DefaultWalkingMode, CreateDefaultSubobject<ULNPAsyncWalkingMode>(TEXT("LNPAsyncWalkingMode")));
 	MovementModes.Add(DefaultFallingMode, CreateDefaultSubobject<UAsyncFallingMode>(TEXT("AsyncFallingMode")));
+	// 사망 정지 모드 — 엔진 UNullMovementMode는 원점 텔레포트 버그가 있어 쓸 수 없다 (ULNPDeadMode 주석 참조).
+	MovementModes.Add(LNPDeadModeName, CreateDefaultSubobject<ULNPDeadMode>(TEXT("LNPDeadMode")));
 
 	StartingMovementMode = DefaultFallingMode;
 }
@@ -188,6 +192,31 @@ void ULNPCharacterMoverComponent::LaunchWithVelocity(FVector InVelocity)
 	else
 		LaunchMove->ForceMovementMode = DefaultFallingMode;
 	QueueLayeredMove(LaunchMove);
+}
+
+void ULNPCharacterMoverComponent::EnterDeadMode()
+{
+	if (GetMovementModeName() == LNPDeadModeName)
+		return;
+
+	QueueNextMode(LNPDeadModeName);
+}
+
+void ULNPCharacterMoverComponent::ExitDeadMode()
+{
+	if (GetMovementModeName() != LNPDeadModeName)
+		return;
+
+	// 낙하 모드로 되돌린다 — 접지 판정은 AsyncFallingMode의 전이가 알아서 한다.
+	if (const UCommonLegacyMovementSettings* CommonSettings = FindSharedSettings<UCommonLegacyMovementSettings>())
+		QueueNextMode(CommonSettings->AirMovementModeName);
+	else
+		QueueNextMode(DefaultFallingMode);
+}
+
+bool ULNPCharacterMoverComponent::IsInDeadMode() const
+{
+	return GetMovementModeName() == LNPDeadModeName;
 }
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)

@@ -73,7 +73,8 @@ ALNPPlayerController::OnUnPossess()
 |:---|:---|:---|
 | `ULNPHudViewModel` | `UI/LNPHudViewModel.h/.cpp` | ViewModel. FieldNotify 프로퍼티 보유, ASC 델리게이트 구독 |
 | `ULNPHudWidget` | `UI/LNPHudWidget.h/.cpp` | HUD 위젯 C++ 기반. ViewModel 생성·주입·해제 담당 |
-| `ALNPPlayerController` | `Player/LNPPlayerController.h/.cpp` | 위젯 생성(BeginPlay), ViewModel 초기화(OnPossess) |
+| `ALNPPlayerController` | `Player/LNPPlayerController.h/.cpp` | 위젯 생성(BeginPlay), ViewModel 초기화(OnPossess), 사망 오버레이 표시·해제 |
+| `ULNPDeathScreenWidget` | `UI/LNPDeathScreenWidget.h/.cpp` | 사망~리스폰 반투명 오버레이 + 카운트다운 (→ §12) |
 
 ---
 
@@ -331,3 +332,29 @@ ASC 어트리뷰트 복제이고, Low LOD 엔티티에는 액터가 없으므로
 
 1. `stat Slate`로 현재 HP 바 비용이 실제 문제로 측정될 때 (성능 동기)
 2. Low LOD 적 HP 표시가 기획으로 확정될 때 (기능 동기 — 이 경우 §11.3 복제 작업이 함께 범위에 들어온다)
+
+---
+
+## 12. 사망 오버레이 — 리스폰 카운트다운 ✅ 완료 (2026-08-21)
+
+사망~리스폰 사이에만 화면을 덮는 반투명 오버레이. 사망 흐름 전체는
+[TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §9 참조.
+
+| 요소 | 내용 |
+|:--|:--|
+| C++ | `ULNPDeathScreenWidget` — `ShowCountdown(초)` / `HideCountdown()`, `BindWidget CountdownText` |
+| 에셋 | `WBP_LNPDeathScreen`(`/Game/UI/`) — Border(검정 α0.65) → VerticalBox → `TitleText`("YOU DIED") + `CountdownText` |
+| 연결 | `BP_LNPPlayerController.DeathScreenWidgetClass` |
+| 생성 시점 | **첫 사망 때 lazy 생성.** 죽지 않는 판에서는 위젯을 아예 만들지 않는다 |
+| ZOrder | **5** — HUD(0)보다 위, 메뉴 레이아웃(10)보다 아래. 죽은 채로 인벤토리 메뉴를 열 수 있어야 한다 |
+
+**남은 시간은 각 클라이언트가 로컬로 센다.** 서버 타이머와 시계를 맞추지 않는다 —
+`ShowCountdown`이 로컬 월드 시각 + `ULNPSettings::PlayerRespawnDelay`로 만료 시각을 한 번 확정하고,
+1초 반복 타이머가 `CeilToInt`로 갱신한다. 오차는 편도 지연 수준이고, 이 방식은 버프 잔여 시간 표시와 같은 패턴이다.
+
+**0에 닿아도 위젯이 스스로 숨지 않는다** — 서버의 리스폰 타이머가 로컬 카운트보다 조금 늦게 도착할 수 있어서,
+오버레이를 걷는 것은 리스폰 빙의(`OnPossess` / 원격 클라의 `AcknowledgePossession`)의 몫이다.
+카운트만 멈춘다.
+
+**문구는 영문 원본**(`Respawning in {0}`, `NSLOCTEXT`) — 프로젝트 로컬라이제이션 규약(§ InGameMenu §12)을 따른다.
+한국어 표시는 `Content/Localization/Game/ko/Game.po`에 번역을 채우면 된다.

@@ -84,7 +84,7 @@ Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회�
 | `ULNPEnemyTargetingProcessor` | Behavior | `RebalanceSlots()` 호출 → State 동기화(Confirmed/Alert/None) → 변경 시 StateTree 신호 |
 | `ULNPEnemyTargetFollowProcessor` | Behavior (Targeting 이후) | MoveTarget 목적지 산출 (정지 거리 반영), 공격 루프용 StateTree 신호 |
 | `ULNPEnemyMovementProcessor` | Movement | 실제 이동/회전 적용 — §5 상세 |
-| `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + Ragdoll 트리거 + DeathCountdown 설정 |
+| `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + `TriggerRagdoll()` (전 클라이언트 방송) + `DeathCountdown = ULNPSettings::EnemyRagdollDuration` |
 | `ULNPEnemyDeathTimerProcessor` | PostPhysics (Health 이후) | DeathCountdown 만료 엔티티 파괴 |
 | `ULNPEnemyLODOverrideProcessor` | LOD (DistanceLOD 이후, Representation 이전) | Confirmed면 `RepresentationLOD.LOD = High` 강제 — §7.2 |
 | `ULNPEnemyActorInitializerProcessor` | PostPhysics (Representation 이후) | 신규 스폰 Actor에 `InitializeOnce` + `SyncFromEntity` → InitializedTag 부여 |
@@ -123,7 +123,7 @@ Entity 모드 (Low LOD):
 | `InitializeOnce(Config)` | ASC·어빌리티·무기 1회 초기화 (`bInitializedOnce` 가드) |
 | `SyncFromEntity(Health, State, Velocity)` | 매 활성화: Mass → Actor 주입 (HP Bar 초기값 포함) |
 | `SyncToEntity(out Health, out Velocity)` | 매 프레임: Actor → Mass 역동기화 |
-| `TriggerRagdoll()` | 사망 연출 — 물리 래그돌 + 이동 비활성 (중복 호출 안전) |
+| `TriggerRagdoll()` | **서버 전용** 사망 진입점 — `Multicast_TriggerRagdoll(PopVelocity)`로 방송한다. 사망 판정이 서버 전용 Mass 프로세서라 방송하지 않으면 클라이언트는 적이 그냥 사라지는 것만 보게 된다. 실제 랙돌은 베이스의 `EnterRagdoll()`/`ExitRagdoll()` (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §9). `SyncFromEntity`가 매 활성화마다 `ExitRagdoll()`을 불러 풀 재사용을 되돌린다 |
 | `SetLockOnMarkerVisible()` | 락온 표식 위젯 토글 (LockOnComponent가 호출) |
 
 ### 월드 스페이스 HP Bar

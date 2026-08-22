@@ -6,6 +6,7 @@
 #include "GameFramework/PlayerController.h"
 #include "LNPPlayerController.generated.h"
 
+class ULNPDeathScreenWidget;
 class ULNPHudWidget;
 class ULNPMenuRootWidget;
 class ULNPUILayoutWidget;
@@ -35,6 +36,12 @@ public:
 	/** 인게임 메뉴를 닫는다. 열려 있지 않으면 아무 일도 하지 않는다. */
 	void CloseMenu();
 
+	/** 사망 오버레이 + 리스폰 카운트다운을 띄운다. 로컬 전용 — 폰이 사망 방송을 받고 호출한다. */
+	void ShowDeathScreen(float RespawnDelay);
+
+	/** 사망 오버레이를 걷는다. 리스폰 빙의(OnPossess/AcknowledgePossession)가 호출한다. */
+	void HideDeathScreen();
+
 	/** Blueprint에서 Override하여 로딩 스크린 Widget을 표시한다 */
 	UFUNCTION(BlueprintImplementableEvent, Category = "LNP|UI")
 	void ShowLoadingScreen();
@@ -60,6 +67,13 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<ULNPHudWidget> HudWidget;
+
+	/** BP 서브클래스에서 지정할 사망 오버레이 위젯 클래스. 미지정이면 오버레이가 생략된다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|HUD")
+	TSubclassOf<ULNPDeathScreenWidget> DeathScreenWidgetClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<ULNPDeathScreenWidget> DeathScreenWidget;
 
 	/** 뷰포트에 상주하는 UI 레이아웃 위젯 클래스 (메뉴 스택 보유). */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Menu")

@@ -219,7 +219,37 @@ ActivateAbility → Commit → SpawnProjectile() → PlayMontage(Attack) → 즉
 4. 네트워크: 예측 키/SalvoID 발급, Ghost 등록·거부 델리게이트, 관전자 Multicast 방송 (→ [TechDesign_Networking.md](TechDesign_Networking.md))
 5. 방향 배열 순회하며 `FMassCommandBuildEntityWithSharedFragments`로 엔티티 빌드 (Deferred)
 
-**산탄 (`ULNPAbility_RangedSpreadAttack`):** `GetFireDirections` 오버라이드. Cube 좌표계 육각 링 순회(`1 + 3N(N+1)`)로 중앙 1발 + 2링 = 19발을 균일 각도 간격으로 배치.
+**산탄 (`ULNPAbility_RangedSpreadAttack`):** `GetFireDirections` 오버라이드. Cube 좌표계 육각 링 순회(`1 + 3N(N+1)`)로 중앙 1발 + N링을 균일 각도 간격으로 배치.
+
+확산 형태는 무기 DataAsset이 아니라 **어빌리티가 소유한다** — 같은 무기가 산탄 폭이 다른 강공격·특수공격을
+가질 수 있어야 하고 그 축은 어빌리티별로 갈리기 때문이다. `EditDefaultsOnly` 2종:
+
+| 프로퍼티 | 기본값 | 의미 |
+|:---|:---|:---|
+| `HexRingCount` | 2 | 링 수. 발사 수 = `1 + 3N(N+1)` → 0=1발, 1=7발, 2=19발, 3=37발 |
+| `HexStepDegrees` | 7.5 | 인접 셀 간 각도. 링 수와 곱한 값이 확산 최대 반각 (2링 × 7.5도 = 15도) |
+
+⚠️ 펠릿마다 Mass 엔티티·트레일 VFX·명중 시 넉백이 **각각** 발생한다. `KnockbackStrength`를 단발 무기와
+같은 값으로 두면 근접 전탄 명중 시 발수만큼 배가된다 (`GA_RangedAttack_Shotgun`은 10으로, Rifle 50 대비 낮춤).
+
+**트레일 진영 색 (2026-08-22):** 트레일 Niagara 시스템이 `TintColor`(LinearColor) User 파라미터를 노출하면
+`ULNPProjectileVisualSubsystem`이 진영 색(`LNPSettings`의 `Player/EnemyProjectileTintColor`)을 주입한다.
+현재 `NS_BulletGlow`(Shotgun·적 NPC Pistol 공용)만 대응. 파라미터가 없는 시스템에서는 `SetVariableLinearColor`가
+조용히 무시되므로 미대응 트레일도 그대로 동작한다.
+
+- **패링 시 색 전환**이 공짜로 따라온다 — Processor가 `Proj.InstigatorTeam`을 반전시키므로,
+  `FLNPProjectileVisualFragment::AppliedTeam`과 어긋나는 프레임에만 `SetTrailTeam()`으로 재주입한다.
+  매 프레임 Niagara 파라미터를 건드리면 샷건 19발에서 헛비용이 된다.
+- ⚠️ **`ScaleColor`(Particle **Update**)의 `Color Value To Scale`을 `User.TintColor`에 링크해야 한다.**
+  `InitializeParticle.Color`(Particle Spawn)에만 링크하면 스폰 시점 색으로 고정돼 패링해도 색이 안 바뀐다.
+- ⚠️ 트레일 파티클은 `Lifetime = 9999`(C++이 컴포넌트를 파괴하는 구조)라 `NormalizedAge ≈ 0`이다.
+  나이 기반 커브(알파 페이드·크기 축소)는 전부 무효 — 필요하면 `Particles.Age` 절대값으로 구동할 것.
+
+**머티리얼 (`M_LNP_ProjectileGlow`):** Niagara 기본 `M_DepthFade_SpriteSimple`은 **BLEND_Additive**라
+배경에 색을 더하기만 해서 원리적으로 불투명해질 수 없다(아무리 밝혀도 연기처럼 비침). 진영 구분을 위해
+**Masked + Unlit** 머티리얼을 신설했다 — UV 중심 거리로 하드 컷한 원반 + 진영 색의 짙은 버전(×0.09) 아웃라인.
+⚠️ Unlit이라 `TintColor`가 곧 Emissive다. 세 채널이 모두 1을 넘으면 톤매핑에서 흰색으로 포화돼 진영 구분이
+사라지므로, 색조 채널 하나만 1을 살짝 넘기고 나머지는 1 이하로 둔다.
 
 ### 3.3 패링 리액션 — `ULNPAbility_ParrySuccess` / `ULNPAbility_Stagger`
 
@@ -265,7 +295,7 @@ GAS의 표준 관행(무기마다 Cooldown GE 클래스)을 버리고 `SetDurati
 
 | 항목 | 선행 조건 | 세부 내용 |
 |:---|:---|:---|
-| 발사체 Niagara VFX 에셋 | 없음 | 파이프라인(`ULNPProjectileVisualSubsystem` trail 풀·임팩트 큐)은 완성. `ULNPVFXData` 에셋 제작·할당만 잔여 |
+| 발사체 전용 트레일 VFX (Pistol·Rifle) | 없음 | 두 무기는 Ribbon 렌더러 기반 `NS_*BulletTrail`을 쓴다. 진영 색을 받으려면 `TintColor` User 파라미터를 같은 방식으로 추가해야 함 (§3.2 트레일 진영 색) |
 | Active Skill 입력 바인딩 | 없음 | `ActiveSkillActions` 배열은 InputHandler에 존재 — 슬롯 GA 발동 연결 필요 |
 | Passive Skill GameplayEvent | 없음 | 피격 시 피격자 ASC에 이벤트 전송 → Passive 자동 발동 트리거 연결 |
 | ParrySuccess/Stagger 자동 Grant | 없음 | 현재 `DefaultAbilities` 배열로 수동 지정 — 초기화 흐름 정식화 필요 |

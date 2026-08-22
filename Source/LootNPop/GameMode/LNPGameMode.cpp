@@ -7,7 +7,12 @@
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "Player/LNPPlayerController.h"
+#include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LootNPop.h"
+
+#include "AbilitySystemComponent.h"
+#include "GameFramework/Pawn.h"
+#include "TimerManager.h"
 
 ALNPGameMode::ALNPGameMode()
 {
@@ -112,6 +117,51 @@ void ALNPGameMode::RestartPlayer(AController* NewPlayer)
 		return;
 	}
 	Super::RestartPlayer(NewPlayer);
+}
+
+void ALNPGameMode::ScheduleRespawn(AController* DeadController, float Delay)
+{
+	if (DeadController == nullptr)
+		return;
+
+	const TWeakObjectPtr<AController> WeakController(DeadController);
+	FTimerHandle& Handle = RespawnTimers.FindOrAdd(WeakController);
+	GetWorldTimerManager().SetTimer(Handle,
+		FTimerDelegate::CreateUObject(this, &ALNPGameMode::DoRespawn, WeakController), Delay, false);
+}
+
+void ALNPGameMode::DoRespawn(TWeakObjectPtr<AController> WeakController)
+{
+	RespawnTimers.Remove(WeakController);
+
+	AController* Controller = WeakController.Get();
+	if (Controller == nullptr)
+		return;
+
+	// 랙돌 폰을 반드시 치운다 — AGameModeBase::RestartPlayerAtPlayerStart는 컨트롤러가 폰을 갖고 있으면
+	// 스폰 분기를 건너뛴다. UnPossess를 먼저 부르는 이유: 그냥 Destroy하면 APawn::Destroyed 경로가
+	// 컨트롤러를 Inactive 상태로 밀어 넣는다.
+	if (APawn* OldPawn = Controller->GetPawn())
+	{
+		Controller->UnPossess();
+		OldPawn->Destroy();
+	}
+
+	// ASC는 PlayerState 소유라 폰을 넘어 살아남는다 — HP가 0인 채로 남아 있으므로 직접 되돌린다.
+	// 새 폰의 PossessedBy가 사망 델리게이트를 다시 걸기 전에 복구해야 "부활 즉시 재사망"을 피한다.
+	if (const ALNPPlayerState* PS = Controller->GetPlayerState<ALNPPlayerState>())
+	{
+		if (UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent())
+		{
+			const float MaxHealth = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMaxHealthAttribute());
+			ASC->SetNumericAttributeBase(ULNPBaseAttributeSet::GetHealthAttribute(), MaxHealth);
+		}
+	}
+
+	// ShouldSpawnAtStartSpot()가 false이므로 ChoosePlayerStart의 랜덤 추첨을 탄다.
+	// 새 폰의 PossessedBy가 EnsureDefaultWeapon()을 다시 부르고, 가방이 비어 있으므로
+	// 기본 무기 인스턴스를 새로 만들어 장착한다.
+	RestartPlayer(Controller);
 }
 
 void ALNPGameMode::OnClientReady(ALNPPlayerController* PC)

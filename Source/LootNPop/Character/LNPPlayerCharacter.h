@@ -8,6 +8,7 @@
 
 class UGameplayCameraComponent;
 class ULNPItemDefinitionBase;
+class ULNPInventoryComponent;
 class ULNPInventoryItemInstance;
 class ULNPInteractionComponent;
 class ULNPLockOnComponent;
@@ -54,7 +55,10 @@ public:
 	/** 같은 종류·같은 레벨 재료를 소모해 이 아이템의 레벨을 올린다 (UI 진입점). 서버 권위. */
 	void RequestMergeItem(const FGuid& ItemId);
 
+	bool IsDead() const { return bIsDead; }
+
 protected:
+	virtual void Tick(float DeltaSeconds) override;
 	virtual bool TryActivateAttack_Impl() override;
 	virtual void CancelCurrentAttackAbility() override;
 	virtual ULNPWeaponData* ResolveWeaponDefForVisuals() const override;
@@ -93,6 +97,46 @@ protected:
 	/** 서버 전용: 소유 인벤토리에서 ItemId를 조회해 합성한다. */
 	void MergeItemOnServer(const FGuid& ItemId);
 
+	/**
+	 * 서버 전용: HP가 0 이하로 떨어진 최초 시점 1회. 아이템 전량 드랍 → 연출 방송 → 리스폰 예약.
+	 * bIsDead 가드로 중복 진입을 막는다 (한 프레임에 여러 피해가 겹칠 수 있다).
+	 */
+	void HandleDeathOnServer();
+
+	/**
+	 * 사망 연출을 전 머신에 재현한다 — 랙돌·입력 차단·카메라 전환. 물리는 각 머신 로컬 시뮬이다.
+	 * Reliable — 사망은 1회성 상태 전이라 유실되면 그 화면에서만 캐릭터가 계속 서 있게 된다
+	 * (Multicast_SpawnGhostProjectiles와 같은 판단).
+	 * 서버 권위 처리(드랍·타이머)는 HandleDeathOnServer에만 두어 리슨 서버 중복 실행을 원천 차단한다.
+	 */
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_OnDeath(FVector PopVelocity);
+
+	/** 서버 전용: 가방(장착본 포함)과 활성 버프를 전부 LootDice로 스폰한다. */
+	void DropAllItemsOnDeath();
+
+	/**
+	 * 서버 전용 공용 경로: 인스턴스를 인벤토리에서 제거한 뒤 LootDice로 스폰한다.
+	 * ⚠ 페이로드(정의·레벨)는 **제거 전에** 읽어야 한다 — 제거하면 인스턴스가 사라진다.
+	 * 제거에 실패하면 스폰하지 않는다 (아이템 복제 방지).
+	 */
+	void RemoveAndSpawnDice(ULNPInventoryComponent& Inventory, const FGuid& ItemId, bool bIsBuff,
+	                       const FVector& Location, float ImpulseScale);
+
+	/** 로컬 제어 클라이언트 전용: 카메라를 폰 계층에서 떼어 랙돌을 따라가게 한다. */
+	void BeginDeathCameraFollow();
+
+	/** 사망 카메라를 랙돌 앵커로 보간 이동시킨다. Tick에서 호출. */
+	void TickDeathCameraFollow(float DeltaSeconds);
+
+	/** 사망 시 표면 Up 방향으로 부여할 Pop 속도 (cm/s). */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Death")
+	float DeathPopSpeed = 2000.f;
+
+	/** 사망 카메라가 랙돌을 따라가는 추종 속도. 클수록 즉각적. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Death")
+	float DeathCameraFollowSpeed = 8.f;
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UGameplayCameraComponent> GameplayCamera;
@@ -105,4 +149,13 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPControlRotationComponent> ControlRotationComponent;
+
+	/** 서버 권위 사망 처리(드랍·타이머)의 1회 가드. 클라이언트에서는 방송 수신 표시로도 쓴다. */
+	bool bIsDead = false;
+
+	/** 사망 연출(랙돌·입력 차단·카메라)의 멱등 가드 — 서버에서 bIsDead와 별개여야 한다. */
+	bool bDeathFxPlayed = false;
+
+	bool bDeathCameraFollowActive = false;
+	FVector DeathCameraSmoothedLocation = FVector::ZeroVector;
 };

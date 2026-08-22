@@ -1,13 +1,10 @@
 #include "Camera/LNPGravityRollCorrectionCameraNode.h"
-#include "Gravity/LNPPawnGravityComponent.h"
+#include "Camera/LNPCameraNodeUtils.h"
 
 #include "Core/BuiltInCameraVariables.h"
-#include "Core/CameraEvaluationContext.h"
 #include "Core/CameraNodeEvaluator.h"
 #include "Core/CameraRigJoints.h"
 #include "Core/CameraSystemEvaluator.h"
-#include "GameFramework/PlayerController.h"
-#include "GameFramework/Pawn.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LNPGravityRollCorrectionCameraNode)
 
@@ -21,9 +18,6 @@ class FLNPGravityRollCorrectionNodeEvaluator : public FCameraNodeEvaluator
 protected:
 	virtual void OnInitialize(const FCameraNodeEvaluatorInitializeParams& Params, FCameraNodeEvaluationResult& OutResult) override;
 	virtual void OnRun(const FCameraNodeEvaluationParams& Params, FCameraNodeEvaluationResult& OutResult) override;
-
-private:
-	TWeakObjectPtr<ULNPPawnGravityComponent> CachedGravityComponent;
 };
 
 UE_DEFINE_CAMERA_NODE_EVALUATOR(FLNPGravityRollCorrectionNodeEvaluator)
@@ -34,11 +28,8 @@ void FLNPGravityRollCorrectionNodeEvaluator::OnInitialize(
 {
 	SetNodeEvaluatorFlags(ECameraNodeEvaluatorFlags::None);
 
-	APlayerController* PC = Params.EvaluationContext ? Params.EvaluationContext->GetPlayerController() : nullptr;
-	if (APawn* Pawn = PC ? PC->GetPawnOrSpectator() : nullptr)
-	{
-		CachedGravityComponent = Pawn->FindComponentByClass<ULNPPawnGravityComponent>();
-	}
+	// 폰은 캐싱하지 않는다 — 컨트롤러 경유 조회가 2인 이상에서 남의 폰이나 null을 집어온다.
+	// 근거와 올바른 경로는 LNPCameraNodeUtils.h의 ResolveOwningCharacter 주석 참조.
 }
 
 void FLNPGravityRollCorrectionNodeEvaluator::OnRun(
@@ -50,8 +41,8 @@ void FLNPGravityRollCorrectionNodeEvaluator::OnRun(
 		return;
 #endif
 
-	ULNPPawnGravityComponent* GravComp = CachedGravityComponent.Get();
-	if (!GravComp)
+	const ALNPCharacterBase* Character = LNPCamera::ResolveOwningCharacter(Params.EvaluationContext);
+	if (!Character)
 		return;
 
 	// Boom Arm 노드가 발행한 Yaw/Pitch 조인트(= 붐 피벗)를 찾는다.
@@ -67,7 +58,7 @@ void FLNPGravityRollCorrectionNodeEvaluator::OnRun(
 	// 여기서 전방 축은 유지한 채 Up 축만 중력 기준으로 재정렬한 피벗 회전을 구한다.
 	const FQuat PivotRot = PivotJoint->Transform.GetRotation();
 	const FVector PivotForward = PivotRot.GetForwardVector();
-	const FVector UpDir = GravComp->GetUpDirection();
+	const FVector UpDir = Character->GetUpDirection();
 	const FVector PivotRight = FVector::CrossProduct(UpDir, PivotForward).GetSafeNormal();
 	if (PivotRight.IsNearlyZero())
 		return;  // 시선이 중력축과 평행 (ControlRotation Pitch 클램프로 정상적으로는 발생하지 않음)

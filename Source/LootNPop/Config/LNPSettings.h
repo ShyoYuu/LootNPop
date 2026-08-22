@@ -60,6 +60,28 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Combat")
 	bool bFriendlyFire = false;
 
+	/**
+	 * Player 진영 Projectile 트레일 색. Niagara User 파라미터 `TintColor`로 주입된다.
+	 *
+	 * ⚠️ M_LNP_ProjectileGlow는 Unlit이라 이 값이 곧 Emissive다 — 세 채널이 모두 1을 넘으면
+	 *    톤매핑에서 흰색으로 포화돼 진영 구분이 사라진다. 색조를 담당하는 채널 하나만
+	 *    1을 살짝 넘기고(발광감) 나머지는 1 이하로 둘 것.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|VFX")
+	FLinearColor PlayerProjectileTintColor = FLinearColor(0.06f, 0.35f, 1.50f, 1.0f);
+
+	/** Enemy 진영 Projectile 트레일 색. 주의사항은 PlayerProjectileTintColor와 동일. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|VFX")
+	FLinearColor EnemyProjectileTintColor = FLinearColor(1.50f, 0.14f, 0.05f, 1.0f);
+
+	/** 플레이어 사망 후 랙돌을 유지하다가 리스폰하기까지의 시간 (초). */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat", meta = (ClampMin = "0.0", Units = "s"))
+	float PlayerRespawnDelay = 10.0f;
+
+	/** Enemy 사망 후 시체(랙돌)가 남아 있는 시간 (초). 만료 시 Mass 엔티티가 파괴된다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat", meta = (ClampMin = "0.0", Units = "s"))
+	float EnemyRagdollDuration = 5.0f;
+
 	/** LootDice 스폰 클래스 (BP_LootDice — 큐브 메시·아이콘 머티리얼 지정). 미설정 시 C++ 기본 클래스 폴백. */
 	UPROPERTY(Config, EditAnywhere, Category = "Loot Dice")
 	TSoftClassPtr<ALNPLootDice> LootDiceClass;

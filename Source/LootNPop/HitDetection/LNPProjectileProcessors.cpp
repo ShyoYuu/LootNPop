@@ -718,15 +718,26 @@ void ULNPProjectileVisualizationProcessor::Execute(FMassEntityManager& EntityMan
 			FLNPProjectileVisualFragment& Visual     = Visuals[i];
 			const FMassEntityHandle       Entity     = Ctx.GetEntity(i);
 
+			const ELNPInstigatorTeam Team = Projectiles[i].InstigatorTeam;
+
 			if (false == Visual.bInitialized)
 			{
 				VisualSub.SpawnSpawnEffects(Shared.VFXData, Projectiles[i].SpawnLocation);
-				VisualSub.AllocateTrails(Entity, Shared.VFXData, Projectiles[i].SpawnLocation);
+				VisualSub.AllocateTrails(Entity, Shared.VFXData, Projectiles[i].SpawnLocation, Team);
+				Visual.AppliedTeam  = Team;
 				Visual.bInitialized = true;
 			}
 			else
 			{
 				VisualSub.UpdateTrails(Entity, CurrentPos);
+
+				// 패링으로 소유권이 넘어간 프레임에만 색을 다시 주입한다 — 매 프레임 Niagara 파라미터를
+				// 건드리면 발사체가 많을 때(샷건 19발) 헛비용이 된다.
+				if (Visual.AppliedTeam != Team)
+				{
+					VisualSub.SetTrailTeam(Entity, Team);
+					Visual.AppliedTeam = Team;
+				}
 			}
 		}
 	});
