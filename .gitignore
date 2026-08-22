@@ -28,3 +28,6 @@ Standalone_RunListenServer.lnk
 Content/Localization/**/*.manifest
 Content/Localization/**/*.locmeta
 Content/Localization/**/*.locres
+
+# 재배포 불가 라이센스 에셋
+Content/Characters/Lyra_Mannequin/Animations/Sword/
