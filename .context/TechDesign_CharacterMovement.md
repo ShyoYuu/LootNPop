@@ -79,11 +79,12 @@ CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
 | # | 노드 | 역할 | 기준 프레임 |
 |:--|:---|:---|:---|
 | 1 | `Offset` (붐암오프셋) | 피벗 오프셋. `BoomArmOffset` 파라미터 구동 | 컨텍스트(캐릭터 메시) — 이미 중력 정렬 |
-| 2 | `BoomArm` | Yaw/Pitch 회전 + 피벗 조인트 발행. `BoomOffset = (0,0,0)` | **Roll=0 월드 Z-Up** |
-| 3 | **`LNPGravityRollCorrection`** | 피벗 회전을 중력 정렬로 보정 (위치·회전 동시) | — |
-| 4 | `DampenPosition` | 고무줄 지연. `DampenSpace = CameraPose` | 3번이 보정한 회전 |
-| 5 | `Offset` (카메라오프셋) | 실제 붐 거리. `CameraOffset` 파라미터 구동. `OffsetSpace = CameraPose` | 3번이 보정한 회전 |
-| 6 | `FieldOfView` / `PostProcess` | 포즈 미변경 | — |
+| 2 | **`LNPRagdollPivotOffset`** | 랙돌일 때만 피벗을 중력 Up 방향으로 이동 (§9.4). **BoomArm 앞이어야 한다** | 캐릭터 중력 Up |
+| 3 | `BoomArm` | Yaw/Pitch 회전 + 피벗 조인트 발행. `BoomOffset = (0,0,0)` | **Roll=0 월드 Z-Up** |
+| 4 | **`LNPGravityRollCorrection`** | 피벗 회전을 중력 정렬로 보정 (위치·회전 동시) | — |
+| 5 | `DampenPosition` | 고무줄 지연. `DampenSpace = CameraPose` | 4번이 보정한 회전 |
+| 6 | `Offset` (카메라오프셋) | 실제 붐 거리. `CameraOffset` 파라미터 구동. `OffsetSpace = CameraPose` | 4번이 보정한 회전 |
+| 7 | `FieldOfView` / `PostProcess` | 포즈 미변경 | — |
 
 **근본 원인 — Boom Arm이 Roll을 버린다.** `FBoomArmCameraNodeEvaluator::ComputeBoomRotation()`은 붐 피벗 회전을 `FRotator3d(Pitch, Yaw, 0)`으로 재구성한다. 즉 **항상 월드 Z-Up 평면 기준**이라, 구면 중력에서 중력 Up이 월드 Z와 벌어질수록 이 회전을 프레임으로 삼는 모든 하위 노드가 어긋난다. 어긋나는 각도(= Roll 보정각)는 구면상 위치 **와** 시선 방향에 함께 의존하므로, 같은 지점에서도 바라보는 방향에 따라 0°~180°를 오간다.
 
@@ -108,6 +109,40 @@ CameraPose.SetRotation((RollDelta * CamRot).Rotator());
 - `DampenPosition`·`Offset`보다 **앞** — 이 노드들이 `CameraPose` 회전을 기준 프레임으로 쓰므로, 그 전에 보정돼 있어야 감쇠 Vertical 축과 카메라 오프셋이 중력 Up 기준이 된다.
 
 현재 구성에서는 `BoomOffset = (0,0,0)`이라 3번 노드의 위치 보정분이 0이 되지만, 코드는 그대로 유지한다 — 붐 오프셋을 쓰거나 노드 순서를 바꿔도 여전히 올바르게 동작한다.
+
+### 2.5 ⚠️ 카메라 노드에서 "내 폰"을 얻는 법 (2026-08-21 실측)
+
+**`Context->GetPlayerController()->GetPawnOrSpectator()`로 폰을 얻으면 안 된다.**
+`LNPRagdollPitch` 노드가 아무 효과도 내지 않아 로그를 붙여 확인한 결과, **2인 PIE에서 카메라 컨텍스트가
+플레이어당 2개씩 총 4개 만들어지고** 이 방식이 다음처럼 어긋났다:
+
+```
+OnInitialize — PC=..._C_0  Pawn=BP_LNPPlayer_C_0   ← 맞음
+OnInitialize — PC=..._C_0  Pawn=None               ← 폰이 아직 없음
+OnInitialize — PC=..._C_1  Pawn=BP_LNPPlayer_C_1   ← 맞음
+OnInitialize — PC=..._C_0  Pawn=BP_LNPPlayer_C_1   ← 다른 플레이어의 폰!
+```
+
+컨트롤러↔폰 관계는 평가 컨텍스트가 만들어지는 시점에 확정돼 있지 않다.
+
+**올바른 경로:** 컨텍스트의 Owner가 `UGameplayCameraComponentBase` 자신이므로
+(`GameplayCameraComponentBase.cpp` — `Params.Owner = this`), 그 컴포넌트의 소유 액터가 곧
+이 카메라가 따라다니는 폰이다. 컨텍스트당 정확하다.
+
+공용 헬퍼 `LNPCamera::ResolveOwningCharacter()` (`Camera/LNPCameraNodeUtils.h`)로 뽑아 두 노드가 함께 쓴다.
+
+```cpp
+UObject* ContextOwner = Context ? Context->GetOwner() : nullptr;
+if (const UActorComponent* OwnerComponent = Cast<UActorComponent>(ContextOwner))
+    return Cast<ALNPCharacterBase>(OwnerComponent->GetOwner());
+```
+
+**캐싱하지 않는다.** `OnRun`에서 매 프레임 캐스트 두 번이면 되고, 리스폰으로 폰이 바뀌어도 스스로 따라간다
+(`OnInitialize`에서 캐싱하면 리스폰 후 죽은 폰을 가리킨 채로 남는다).
+
+`LNPGravityRollCorrection`도 같은 함정을 갖고 있어 **함께 고쳤다** — 2인 이상에서 남의 중력 Up을 읽거나
+캐시가 null이라 롤 보정이 통째로 빠지는 브랜치가 있었다. 겸사겸사 `ULNPPawnGravityComponent` 직접 참조도
+`ALNPCharacterBase::GetUpDirection()` 위임으로 정리했다.
 
 ---
 
@@ -265,7 +300,12 @@ Sprint/Guard Modifier는 라이브 설정에 값을 쓰고 종료 시 **CDO 원�
 
 두 API 모두 **Air 모드로 강제 전환**해서 적용한다 — Ground 모드는 매 틱 속도를 MaxWalkSpeed로 클램프하고 위치를 지면에 스냅하므로 임펄스가 무력화되기 때문 (§7.2).
 
-**네트워크 특성 — 대시와 트리거 방향이 반대라 §7.6의 함정에 해당하지 않는다.** 넉백·Launch는 전부 권위(서버)에서만 트리거된다. 히트 판정 프로세서가 비서버에서 조기 반환하므로(`LNPWeaponTraceProcessors.cpp`, `LNPProjectileProcessors.cpp` — 네트워킹 문서 §3.8의 3-구역 패턴) 결과가 권위 SyncState에 들어가 그대로 복제된다. 예외 두 곳은 무해하다: `TriggerRagdoll()`의 넉백은 캡슐 콜리전이 꺼지고 물리 메시로 넘어간 뒤라 Mover 상태가 무의미하고, `SyncFromEntity()`의 `LaunchWithVelocity()`는 액터 승격 시 각 머신이 동일한 Mass 엔티티 속도로 로컬 Mover를 시드하는 의도된 초기화다.
+**네트워크 특성 — 대시와 트리거 방향이 반대라 §7.6의 함정에 해당하지 않는다.** 넉백·Launch는 전부 권위(서버)에서만 트리거된다. 히트 판정 프로세서가 비서버에서 조기 반환하므로(`LNPWeaponTraceProcessors.cpp`, `LNPProjectileProcessors.cpp` — 네트워킹 문서 §3.8의 3-구역 패턴) 결과가 권위 SyncState에 들어가 그대로 복제된다. `SyncFromEntity()`의 `LaunchWithVelocity()`는 액터 승격 시 각 머신이 동일한 Mass 엔티티 속도로 로컬 Mover를 시드하는 의도된 초기화다.
+
+> **정정 (2026-08-21)** — 이전 판에는 "`TriggerRagdoll()`의 넉백은 캡슐 콜리전이 꺼지고 물리 메시로 넘어간 뒤라
+> Mover 상태가 무의미하다"고 적혀 있었다. **틀렸다.** 물리 메시로 넘어간 적이 없었고(§9의 4중 결함),
+> Mover 넉백은 캡슐만 10000uu/s로 날려 보내고 있었다. 사망 Pop은 이제 Mover가 아니라
+> **랙돌 바디에 직접** 준다 — §9 참조.
 
 다만 **넉백은 예측되지 않는다** — 피격자 본인 화면에서 넉백이 RTT만큼 늦게 보정 스냅과 함께 나타난다. 서버 권위 설계의 정상 비용이며, 예측하려면 InputCmd가 아닌 SyncState 트리거로 옮기는 별도 작업이 필요하다 (§8).
 
@@ -334,3 +374,173 @@ Guard/Sprint 의도를 컴포넌트 멤버 변수(bool)로 두고 PreSimulationT
 - **넉백 미예측:** 권위에서만 트리거되므로 정합성은 맞지만 피격자 본인 화면에서 RTT만큼 늦게 나타난다 (§6). 예측하려면 넉백을 SyncState 트리거로 옮겨야 한다.
 - **공중 대시 미지원:** 의도된 제한이지만, 공중 회피 등 확장 여지는 열려 있음.
 - **Left/Right 대시 몽타주 에셋:** 4방향 태그 분류·Chooser 평가는 구현 완료 — 좌/우 전용 몽타주 에셋을 Chooser Table에 채우는 에디터 작업 잔여.
+
+---
+
+## 9. 사망 — 랙돌 · Pop 드랍 · 리스폰 (2026-08-21)
+
+```
+[플레이어 HP ≤ 0]                                   [Enemy HP ≤ 0]
+ └ PossessedBy에 건 Health 델리게이트 (서버 전용)     └ ULNPHealthProcessor (서버 전용 Mass)
+   └ HandleDeathOnServer()  ※ bIsDead 1회 가드          └ ALNPEnemyCharacter::TriggerRagdoll()
+     ├ ASC->CancelAllAbilities()                          └ Multicast_TriggerRagdoll(PopVelocity)
+     ├ DropAllItemsOnDeath()  → LootDice N개                └ [각 머신] EnterRagdoll()
+     ├ Multicast_OnDeath(PopVelocity)                     └ DeathCountdown = EnemyRagdollDuration → 엔티티 파괴
+     │  └ [각 머신] EnterRagdoll() + 입력/락온/상호작용 차단 + 사망 카메라
+     └ GameMode->ScheduleRespawn(PC, PlayerRespawnDelay)
+        └ UnPossess → 폰 Destroy → Health 복구 → RestartPlayer (랜덤 PlayerStart)
+           └ PossessedBy → EnsureDefaultWeapon() (기본 무기 재지급)
+```
+
+**물리는 복제하지 않는다.** 시체는 게임플레이 판정이 없는 코스메틱이라 각 머신이 로컬로 시뮬레이션하고,
+방송하는 것은 "죽었다 + Pop 방향" 두 값뿐이다. 서버 권위 처리(드랍·타이머)는 `HandleDeathOnServer`에만 두고
+`Multicast_OnDeath_Implementation`은 순수 연출만 담아, 리슨 서버에서 구현부가 로컬로도 실행돼도 중복이 없다.
+
+### 9.1 랙돌이 6개월간 동작하지 않았던 이유 — 4중 결함
+
+`ALNPEnemyCharacter::TriggerRagdoll()`은 존재했지만 실제로 보이는 건 Mover 넉백뿐이었다. 원인이 넷 겹쳐 있었다.
+
+| # | 결함 | 엔진 근거 |
+|:--|:--|:--|
+| 1 | **물리 바디가 애초에 없다.** BP의 `VisualMesh` 콜리전이 `NoCollision`이라 물리 상태가 생성되지 않아 `Bodies`가 비어 있다 → 모든 시뮬 호출이 no-op | `UPrimitiveComponent::ShouldCreatePhysicsState`(`PrimitiveComponent.cpp:2131`) — `GetCollisionEnabled() != NoCollision`이어야 생성 |
+| 2 | **호출 순서가 거꾸로.** 시뮬을 켠 **뒤에** `SetCollisionProfileName("Ragdoll")`을 불렀다. 프로필 변경이 `EnsurePhysicsStateCreated()` → `RecreatePhysicsState()`로 바디를 새로 만들며 방금 세운 플래그를 날린다 | `UPrimitiveComponent::SetCollisionProfileName`(`PrimitiveComponentPhysics.cpp:1408-1417`) |
+| 3 | **`SetAllBodiesSimulatePhysics`는 `bBlendPhysics`를 켜지 않는다.** 물리 결과가 포즈에 반영되는 게이트는 `Bodies.Num()>0 && CollisionEnabledHasPhysics(...) && (bBlendPhysics \|\| DoAnyPhysicsBodiesHaveWeight())`인데 셋 다 실패 → **애님 포즈가 물리를 100% 덮어쓴다** | `SkeletalMeshComponentPhysics.cpp:1439-1450` vs `PhysAnim.cpp:398-403`. `SetSimulatePhysics(true)`(`:362-392`)는 372행에서 `bBlendPhysics`를 켠다 |
+| 4 | **적 메시에 PhysicsAsset 미할당.** `SKM_UEFN_Mannequin.PhysicsAsset == None` | `PA_UEFN_Mannequin` 에셋은 있었다 — 연결만 빠져 있었다 (2026-08-21 할당·저장) |
+
+따라서 `ALNPCharacterBase::EnterRagdoll()`의 **호출 순서에 의미가 있다**: 몽타주 정지 → 캡슐 콜리전 해제 →
+**콜리전 프로필 `Ragdoll`** (바디 생성) → **`SetSimulatePhysics(true)`** (`bBlendPhysics` 포함) →
+**`SetAllUseCCD(true)`** (§9.1.1) → `SetEnableGravity(false)` → `WakeAllRigidBodies` → Pop 속도·각속도.
+`AnimSourceMesh->SetActive(false)`는 **금지** — 컴포넌트 틱이 죽으면 포즈 갱신이 끊긴다.
+
+#### 9.1.1 지면 관통 — CCD 필수 (2026-08-21)
+
+Pop 속도가 ±2000cm/s이고 프로젝트는 `bTickPhysicsAsync=True`(비동기 고정 스텝)라 물리 1스텝에
+수십 cm를 이동한다. 이산 충돌 판정은 스텝 시작·끝 두 지점만 보므로 손·발처럼 바운드가 작은 바디가
+지면을 통째로 건너뛴다(터널링) — 실측상 10회 중 9회 관통. **낙하 속도를 낮추는 건 대증요법이고,
+해법은 스윕 판정(CCD)이다.**
+
+`VisualMesh->SetAllUseCCD(true)`는 `Bodies`를 순회하며 유효한 `FBodyInstance`에만 적용하므로
+(`SkeletalMeshComponentPhysics.cpp:3984`) **바디가 생성된 뒤**, 즉 프로필·시뮬 설정 다음에 불러야 한다.
+`ExitRagdoll()`에서는 **되돌리지 않는다.** `bUseCCD`는 컴포넌트가 아니라 바디마다 붙어 있고
+(`BodyInstance.cpp:4055`), 프로필을 `NoCollision`으로 복원하면 `TermArticulated()`가 모든 `FBodyInstance`를
+파괴하며(`SkeletalMeshComponentPhysics.cpp:1213-1229`) 재진입 시 `CopyBodyInstancePropertiesFrom(DefaultInstance)`
+(`:1029`)로 CCD가 꺼진 상태에서 다시 태어나기 때문이다. 시뮬 여부와 무관한 플래그라는 점에 주의 —
+Chaos는 키네마틱 파티클도 CCD 경로를 탄다(`CCDUtilities.cpp:84`). **`VisualMesh` 프로필이 콜리전 있는 것으로
+바뀌면 이 전제가 깨진다**(바디가 살아남아 `bUseCCD=true` 잔류 → 불필요한 스윕 미드페이즈 비용).
+
+Chaos 쪽 기본값은 그대로 쓴다 — `p.Chaos.CCD.EnableThresholdBoundsScale=0.4`(바디 최소 바운드의 40% 이상
+움직이면 CCD 발동), `p.Chaos.CCD.AllowedDepthBoundsScale=0.2`(TOI 롤백 시 허용 관통 깊이).
+여전히 새면 이 두 값을 낮추거나(0이면 항상 CCD), 종단 속도 상한을 `TickRagdollGravity`에 넣는 것이 다음 카드다.
+
+### 9.2 랙돌 구형 중력
+
+Chaos 리지드바디는 프로젝트의 커스텀 중력을 모른다. `LootDice`와 같은 전략을 쓴다 —
+`SetEnableGravity(false)`로 내장 -Z를 끄고, `ALNPCharacterBase::Tick`에서
+`AddForceToAllBodiesBelow(-GetUpDirection() * GravityStrength, NAME_None, bAccelChange=true)`.
+`IsAnyRigidBodyAwake()` 체크 후에만 주입한다 — 잠든 바디를 매 틱 깨우면 시체가 영원히 잠들지 못한다.
+
+### 9.3 Mover 정지 — 왜 `UNullMovementMode`를 쓰면 안 되는가
+
+**엔진 `UNullMovementMode`는 이 용도에 쓸 수 없다.** `SimulationTick_Implementation`이 완전히 비어 있는데
+(`MovementMode.cpp:155-157`), NP 백엔드는 매 틱 `FMoverTickEndData`를 **기본 생성**해 넘기고
+(`MoverNetworkPredictionLiaison.cpp:166`), 상태 머신이 `FindOrAddMutableDataByType<FMoverDefaultSyncState>()`로
+기본값 구조체를 만들어 둔다(`MovementModeStateMachine.cpp:253`). 아무도 채우지 않으면 위치가 `ZeroVector`인 채
+`FinalizeFrame` → `SetFrameStateFromContext`에 실려 **폰이 월드 원점으로 순간이동한다.**
+엔진에서 이 모드는 "초기 플레이스홀더"로만 쓰인다.
+
+대안도 전부 막혀 있다 — `RequestStopMovement()`는 본문이 빈 TODO(`MoverComponent.cpp:831`),
+`SetComponentTickEnabled(false)`는 시뮬을 NP 서브시스템이 구동하므로 무효,
+`SetUpdatedComponent(nullptr)`은 `FinalizeFrame`이 무조건 역참조해 크래시.
+
+그래서 **`ULNPDeadMode`(`Movement/LNPDeadMode.h/.cpp`)를 직접 만든다** — 시작 상태의 위치·회전을 그대로
+되울리고 속도만 0으로 만든다. 입력에 의존하지 않아 결정론적이라 NP 리컨사일도 유발하지 않는다.
+`ULNPCharacterMoverComponent::EnterDeadMode()` / `ExitDeadMode()`가 진입점이다.
+
+### 9.4 사망 카메라 — 액터가 아니라 카메라를 옮긴다
+
+`UGameplayCameraComponentBase`는 **자기 컴포넌트 트랜스폼**을 카메라 포즈의 원점으로 쓴다
+(`GameplayCameraComponentBase.cpp:668-669`). 따라서 `GameplayCamera`를 폰 계층에서 떼고
+매 틱 `SetWorldLocation(랙돌 pelvis)`만 하면 시체 추적이 성립한다 — **회전은 건드리지 않는다**
+(시체 회전을 따라가면 화면이 요동친다).
+
+액터 루트를 옮기는 방식은 **쓰면 안 된다**: `UMoverComponent::FinalizeFrame`(`MoverComponent.cpp:356-367`)이
+`UpdatedComponent` 위치가 SyncState와 다르면 매 프레임 되돌린다. 폰 계층에 붙인 채 옮기는 것도 안 된다 —
+같은 함수가 `PrimaryVisualComponent`의 상대 트랜스폼도 되돌린다(`:387-393`).
+
+**궤도 회전의 기준점(피벗)을 시체 쪽으로 내리는 일은 카메라 리그가 한다** —
+`ULNPRagdollPivotOffsetCameraNode`(`Camera/LNPRagdollPivotOffsetCameraNode.h/.cpp`).
+
+카메라 컴포넌트는 이미 랙돌 골반을 따라간다. 그런데 `Offset`(붐암오프셋) 노드가 피벗을
+**선 캐릭터 기준 높이**로 들어올리므로, 바닥에 누운 시체 위로 피벗이 붕 뜬다 —
+Look 입력으로 카메라를 돌리면 시체가 아니라 그 허공을 중심으로 돈다.
+이 노드가 랙돌 동안(`ALNPCharacterBase::IsRagdollActive()`) 그 높이를 상쇄한다.
+
+**튜닝 값은 리그 에셋(`CR_ThirdPerson`)에 있다** — 노드의 `PivotUpOffset`
+(`FDoubleCameraParameter`, 기본 -60cm, 음수 = 아래). 리그의 `BoomArmOffset` 높이만큼 빼주는 값이 출발점이다.
+카메라 연출을 조정하려고 폰 BP를 열 이유가 없고, 필요하면 리그 인터페이스 파라미터로 노출하거나
+카메라 변수로 구동할 수도 있다.
+
+> **회전이 아니라 위치다** (2026-08-21 실측 후 수정). 초기 구현(`ULNPRagdollPitchCameraNode`)은
+> BoomArm **뒤에서** 카메라를 피벗 중심으로 25° 굴렸다. 그러면 시선 각도만 바뀌고
+> **회전 기준점은 1cm도 움직이지 않는다** — 값을 아무리 키워도 "기준점이 내려간다"는 체감이 없었다.
+> 피벗을 옮기려면 BoomArm이 그것을 읽기 **전에** 위치를 바꿔야 한다.
+>
+> 폰이 ControlRotation을 기울이던 더 이전 방식(`ULNPControlRotationComponent::AddPitchOffsetDeg`,
+> `ALNPPlayerCharacter::DeathCameraPitchDownDeg`)도 같은 이유로 폐기·**삭제**했다.
+
+**사망 중 입력 — `SetGameplayInputEnabled(false)`를 쓰면 안 된다.** 그쪽은 `DefaultMappingContext`를 통째로
+떼어내 **Look까지 죽인다**. 그래서 `ULNPInputHandlerComponent::SetGameplayInputBlocked(bool)`를 따로 뒀다 —
+매핑은 유지한 채 Look을 제외한 입력 콜백 9종(이동·점프·대시·상호작용·공격·가드·ADS·락온·액티브 스킬)이
+조기 반환한다. 차단 시점에 눌려 있던 키 상태와 공격·대시 버퍼도 함께 턴다.
+리스폰은 폰을 새로 만들므로 플래그를 되돌릴 필요가 없다.
+
+### 9.5 리스폰 — 엔진 함정 2건
+
+| 함정 | 증상 | 대응 |
+|:--|:--|:--|
+| `AGameModeBase::FindPlayerStart_Implementation`(`GameModeBase.cpp:1168`)이 `ShouldSpawnAtStartSpot`(= `Player->StartSpot != nullptr`)이면 **이전 StartSpot을 그대로 반환** | 리스폰이 항상 같은 지점 — `ChoosePlayerStart`의 랜덤 추첨(`:1130`)에 도달조차 못 한다 | `ALNPGameMode::ShouldSpawnAtStartSpot()`을 `false` 반환으로 오버라이드 |
+| `RestartPlayerAtPlayerStart`(`:1287`)는 `NewPlayer->GetPawn() != nullptr`이면 **새 폰을 만들지 않는다** | 리스폰이 조용히 실패 | `RestartPlayer` 전에 `UnPossess()` → 랙돌 폰 `Destroy()` |
+
+`UnPossess()`를 명시적으로 먼저 부르는 이유: 그냥 `Destroy()`하면 `APawn::Destroyed` 경로가
+컨트롤러를 Inactive 상태로 밀어 넣는다.
+
+**빙의는 랙돌 10초 동안 유지한다** — `ALNPPlayerController::OnUnPossess`가 `HudWidget->DeinitViewModel()`을
+부르므로 일찍 풀면 HUD가 꺼진다. ASC·인벤토리·장비는 PlayerState 소유라 폰을 넘어 살아남으므로,
+리스폰 시 Health만 `MaxHealth`로 되돌리면 HUD가 자동 갱신된다.
+
+### 9.6 Enemy 풀 재사용
+
+Enemy Actor는 Mass 표현 풀에서 **재사용**된다. `ALNPEnemyCharacter::SyncFromEntity` 선두에서
+`ExitRagdoll()`을 부르지 않으면 재활용된 액터가 랙돌·콜리전 해제 상태로 되살아난다.
+`EnterRagdoll`/`ExitRagdoll` 양쪽 모두 멱등이라 매 활성화마다 불러도 무해하다.
+
+### 9.7 사망 오버레이
+
+사망~리스폰 사이에만 화면을 덮는 반투명 카운트다운 UI — `ULNPDeathScreenWidget` / `WBP_LNPDeathScreen`.
+폰이 `Multicast_OnDeath`에서 로컬 제어일 때만 `ALNPPlayerController::ShowDeathScreen()`을 부르고,
+리스폰 빙의가 걷는다. 상세는 [TechDesign_HUD.md](TechDesign_HUD.md) §12.
+
+### 9.8 검증 도구
+
+```
+LNP.Debug.KillPlayer [PlayerIndex]
+```
+권위(호스트) 콘솔 전용. 대상 플레이어의 Health를 0으로 내려 **정상 사망 경로**를 그대로 태운다
+(치트 분기가 아니라 `PossessedBy`의 Health 델리게이트를 탄다). 인수 없으면 0번(호스트), `1`이면 게스트.
+리스폰 지점 랜덤성은 여러 번 죽어봐야 확인되므로 이 커맨드가 사실상 필수다.
+구현: `Character/LNPPlayerCharacter.cpp` 파일 끝.
+
+**PIE 2인 검증 완료 (2026-08-21):** 랙돌·구형 중력 낙하·시체 추적 카메라·전량 드랍(인벤토리 UI 즉시 갱신)·
+10초 카운트다운 오버레이·랜덤 PlayerStart 리스폰·기본 장비 재지급·호스트↔게스트 상호 관전까지 전 구간 정상.
+Enemy 랙돌과 Mass 표현 풀 재사용(여러 마리 사살 후 타 지점 재스폰) 정상.
+호스트·게스트가 구의 정반대 적도 부근까지 떨어져도 카메라 이상 없음(§2.5 수정 확인).
+
+### 9.9 알려진 한계
+
+- **리스폰마다 `DefaultWeapon` 사본이 늘어난다.** 사망 시 가방을 전부 비우므로 `EnsureDefaultWeapon()`의
+  "가방 조회 후 없으면 생성" 멱등성이 매번 새 인스턴스를 만든다. **의도적 방치** — 밸런스 문제가 되면 대응.
+- **relevancy 늦은 클라이언트.** `Multicast_OnDeath`는 호출 시점에 relevancy가 없던 클라이언트에는 닿지 않아,
+  그 사이 진입한 관전자는 서 있는 캐릭터를 본다. 필요해지면 `bIsDead`를 `ReplicatedUsing`으로 승격해
+  OnRep에서 같은 연출을 태운다.
+- **데디케이티드 서버는 랙돌을 만들지 않는다** (`Multicast` 구현부에서 조기 반환). 볼 사람이 없으므로
+  물리 바디 생성 비용을 아끼는 의도된 최적화이며, 서버 시체 위치에 의존하는 로직이 없어야 한다.

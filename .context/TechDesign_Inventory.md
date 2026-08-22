@@ -119,7 +119,9 @@ Iris의 FastArray 디스패치는 이름이 비대칭이다 (`FastArrayReplicati
 
 - **픽업**(`ULNPInteractionComponent::PickupDiceOnServer`): 버프는 `AddBuffItem`, 그 외는 `AddItemInstance`.
 - **빈 슬롯 자동 장착**: `AddItemInstance`가 가방 편입 직후 `ULNPEquipmentComponent::TryAutoEquipWeapon`을 호출한다 — 무기 슬롯이 비어 있고 획득물이 무기일 때만 장착하며, 이미 장착 중이면 손대지 않는다(획득이 현재 장비를 갈아치우면 안 된다). 기획상 맨손 상태는 존재하지 않아야 하므로(`EqComp::BeginPlay`가 `DefaultWeapon` 장착) **안전망 성격**이다. 훅을 픽업 경로가 아니라 `AddItemInstance`에 둔 이유는 획득 경로가 여럿(LootDice 픽업, `LNP.Debug.AddBagInstance`, 디버그 키 지급)이고 전부 이 관문을 지나기 때문이다. 판단 자체는 장비 상태를 소유한 컴포넌트가 한다.
-- **드랍**(`ALNPPlayerCharacter::DropItem(FGuid)` → `Server_DropItem(FGuid)`): ItemId로 가방→버프 순 조회, `IsEquipped()` 가드, 제거 성공 후에만 Dice 스폰(복제 방지). 무기 레벨은 제거 **전에** 읽어 페이로드에 싣는다 (§7.4).
+- **드랍**(`ALNPPlayerCharacter::DropItem(FGuid)` → `Server_DropItem(FGuid)`): ItemId로 가방→버프 순 조회, `IsEquipped()` 가드, 제거 성공 후에만 Dice 스폰(복제 방지). 무기 레벨은 제거 **전에** 읽어 페이로드에 싣는다 (§7.4). 제거·스폰 꼬리는 `RemoveAndSpawnDice()` 공용 경로로 빠져 있다 — 이 규칙이 두 곳에 복제되면 곧바로 아이템 복제 버그가 되기 때문이다.
+- **사망 전량 드랍**(`DropAllItemsOnDeath()`, 서버 전용, 2026-08-21): 가방(**장착본 포함**)과 활성 버프를 전부 쏟는다. `UnequipWeapon()`으로 슬롯을 먼저 비운 뒤 ItemId를 스냅샷해 순회한다 (순회 중 FastArray 변형 방지). → [TechDesign_LootDice.md](TechDesign_LootDice.md) §2.7.1
+  - ⚠️ 리스폰 때 `EnsureDefaultWeapon()`이 가방에서 `DefaultWeapon`을 못 찾아 매번 새 인스턴스를 만든다 — 사망마다 기본 무기 사본이 세상에 하나씩 늘어난다. **의도적 방치**(밸런스 문제가 되면 대응).
 - **합성**(`RequestMergeItem(FGuid)` → `Server_MergeItem` → `TryMergeItem`): 재료 n-1개 소모 + 대상 레벨 +1. → §7.2
 - **장착**(`RequestEquipWeaponInstance(Instance)` → `Server_EquipWeaponInstance(FGuid)`): **서버 권위 전용**(bEquipped·GAS·비주얼). 클라 예측 없음, 결과는 `WeaponSlot` 복제로 되돌아온다. RPC는 FGuid만 전달하고 서버가 소유 인벤토리에서 조회·검증한다. §4.1 참조.
 - **정의 기반 장착**(`RequestEquipWeapon(Def)` → `Server_EquipWeapon` → `EquipWeaponOnServer`): 디버그 키(`EquipTestWeapon`) 전용 경로. 서버가 ① 가방에서 같은 정의의 인스턴스를 찾고 ② 없으면 **`TestWeaponList`에 있을 때만** 지급한 뒤 ③ `EquipWeaponInstance`로 넘긴다. 즉 **모든 장착이 결국 인스턴스를 거치므로** bEquipped·인벤토리 UI·드랍 가드가 경로에 무관하게 동일하게 동작한다. ②의 허용 목록 검증이 없으면 클라이언트가 임의의 `ULNPWeaponData` 에셋을 지목해 장착할 수 있다. `Def == nullptr`은 맨손 전환 요청이다.

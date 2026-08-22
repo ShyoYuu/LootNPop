@@ -5,6 +5,7 @@
 UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_Unarmed,   "LNP.Weapon.Unarmed")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_Pistol,    "LNP.Weapon.Pistol")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_Rifle,     "LNP.Weapon.Rifle")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_Shotgun,   "LNP.Weapon.Shotgun")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_LongSword, "LNP.Weapon.LongSword")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_AimMode_None,    "LNP.AimMode.None")

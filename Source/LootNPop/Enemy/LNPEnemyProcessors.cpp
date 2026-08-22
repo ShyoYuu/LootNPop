@@ -646,6 +646,9 @@ void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 
 	TArray<FMassEntityHandle> DyingEntities;
 
+	// 랙돌이 보일 시간을 준다 — 너무 짧으면 시체가 무너지기도 전에 엔티티가 사라진다.
+	const float RagdollDuration = GetDefault<ULNPSettings>()->EnemyRagdollDuration;
+
 	HealthQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		TArrayView<FLNPEnemyFragment>  Enemies    = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
@@ -656,7 +659,7 @@ void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 			if (Enemies[i].Health > 0.f)
 				continue;
 
-			Enemies[i].DeathCountdown = 1.0f;
+			Enemies[i].DeathCountdown = RagdollDuration;
 			DyingEntities.Add(Ctx.GetEntity(i));
 
 			if (!ActorFrags.IsEmpty())

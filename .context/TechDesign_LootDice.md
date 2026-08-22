@@ -9,8 +9,9 @@
 **LootDice**는 서버 권위 물리 시뮬레이션 + Iris 표준 Actor 복제로 구현하는 픽업 Actor. LootPod과 달리 **Mass 엔티티를 쓰지 않는다** — 동시 존재 수가 적고(Pod당 수 개 × 제한 수명), 리지드바디 물리와 페이로드 복제가 필요해 순수 Actor가 적합하다.
 
 ```
-[ALNPLootPod Popped] ──┐
-[인벤토리 드랍 RPC]  ──┴─▶ [서버: ALNPLootDice 스폰 + Pop 임펄스·고속 회전]
+[ALNPLootPod Popped]   ──┐
+[인벤토리 드랍 RPC]    ──┤
+[플레이어 사망 전량 드랍] ─┴─▶ [서버: ALNPLootDice 스폰 + Pop 임펄스·고속 회전]
                              ├─ 물리: 서버 시뮬 + ReplicatedMovement (Iris 네이티브, 각속도 포함)
                              ├─ 획득: SmartObject + ULNPInteractionComponent → Server RPC → 인벤토리
                              └─ 소멸: 서버 타이머 → Destroy 복제
@@ -94,6 +95,23 @@ ULNPInteractionComponent가 인터랙터블 레지스트리 순회로 후보 탐
 → 캐릭터 전방에 ALNPLootDice 스폰 + 작은 Pop 임펄스·회전
 → 이후 소멸·획득 규칙은 LootPod 보상과 완전 동일 — 스폰 경로를 공용 함수로 묶는다
 ```
+
+### 2.7.1 사망 전량 드랍 (2026-08-21)
+
+플레이어가 죽으면 **가방 전체(장착 무기 포함) + 활성 버프 전부**가 사망 지점에서 한꺼번에 Pop 한다.
+`ALNPPlayerCharacter::DropAllItemsOnDeath()` (서버 전용) →
+`RemoveAndSpawnDice()` (§2.7의 드랍과 공유하는 제거·스폰 공용 경로) → `SpawnDice(..., ImpulseScale=1.0)`.
+
+- **장착 해제가 먼저다.** `ULNPEquipmentComponent::UnequipWeapon()`을 한 번 불러 슬롯을 비운다 —
+  장착본이 `bEquipped`인 채로 제거되면 `WeaponSlot.SourceInstance`가 댕글링이 되고 무기 GAS 부여가 회수되지 않는다.
+  (UI 드랍 경로의 `IsEquipped()` 거부 가드는 그대로 유지된다 — 규칙이 바뀌는 건 사망뿐이다.)
+- **ItemId를 먼저 스냅샷한다.** 제거 루프가 FastArray와 등록 서브오브젝트를 건드리므로 인스턴스 포인터를
+  들고 순회하면 안 된다.
+- 스폰 위치는 사망 지점 한 곳이면 충분하다 — §2.8의 원뿔 랜덤 임펄스가 자연히 흩뿌린다
+  (`SpawnPodRewards`와 같은 전략).
+- 리스폰이 10초, Dice 수명이 60초라 본인·파티원 모두 회수할 시간이 있다.
+
+상세 흐름은 [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §9 참조.
 
 ### 2.8 Pop 임펄스
 

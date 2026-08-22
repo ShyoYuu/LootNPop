@@ -40,13 +40,29 @@ public:
 	/** Actor -> Mass 동기화: Actor가 Mass로 비활성화/Destroy되기 전 호출 */
 	void SyncToEntity(float& OutHealth, FVector& OutVelocity) const;
 
-	/** 물리 Ragdoll을 활성화하고 이동을 비활성화한다. 여러 번 호출해도 안전. */
+	/**
+	 * 사망 연출 진입점. **서버 전용** — 전 클라이언트에 랙돌을 방송한다. 여러 번 호출해도 안전.
+	 * 사망 판정 자체는 서버 전용 Mass 프로세서(ULNPHealthProcessor)가 내리므로,
+	 * 방송하지 않으면 클라이언트는 적이 그냥 사라지는 것만 본다.
+	 */
 	void TriggerRagdoll();
 
 	/** 락온 표식 위젯의 표시 상태를 설정한다. LNPLockOnComponent가 호출. */
 	void SetLockOnMarkerVisible(bool bVisible);
 
 protected:
+	/**
+	 * 각 머신 로컬 랙돌 연출. 물리 상태는 복제하지 않으므로 위치가 머신마다 갈라지지만,
+	 * 시체는 게임플레이 판정이 없는 코스메틱이라 허용한다.
+	 * Reliable — 사망은 1회성 상태 전이라 유실되면 그 화면에서만 적이 계속 서 있게 된다.
+	 */
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_TriggerRagdoll(FVector PopVelocity);
+
+	/** 사망 시 표면 Up 방향으로 부여할 Pop 속도 (cm/s). */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Death")
+	float RagdollPopSpeed = 2000.f;;
+
 	virtual void Tick(float DeltaTime) override;
 	virtual bool TryActivateAttack_Impl() override;
 	virtual void CancelCurrentAttackAbility() override;

@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Player/LNPPlayerController.h"
+#include "UI/LNPDeathScreenWidget.h"
 #include "UI/LNPHudWidget.h"
 #include "UI/Menu/LNPMenuRootWidget.h"
 #include "UI/Menu/LNPUILayoutWidget.h"
@@ -64,6 +65,9 @@ void ALNPPlayerController::OnPossess(APawn* InPawn)
 	if (!IsLocalController())
 		return;
 
+	// 리스폰으로 새 폰에 빙의했다 — 사망 오버레이를 걷는다.
+	HideDeathScreen();
+
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 	{
 		if (HudWidget)
@@ -75,11 +79,39 @@ void ALNPPlayerController::AcknowledgePossession(APawn* P)
 {
 	Super::AcknowledgePossession(P);
 
+	// 원격 클라이언트의 리스폰 경로 — OnPossess는 서버에서만 돈다.
+	HideDeathScreen();
+
 	if (ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
 	{
 		if (HudWidget)
 			HudWidget->InitViewModel(PS->GetAbilitySystemComponent(), GetMoverComponentFromPawn(P));
 	}
+}
+
+void ALNPPlayerController::ShowDeathScreen(float RespawnDelay)
+{
+	if (!IsLocalController() || DeathScreenWidgetClass == nullptr)
+		return;
+
+	// 사망 시점에 처음 만든다 — 죽지 않는 판에서는 위젯을 아예 만들지 않는다.
+	if (DeathScreenWidget == nullptr)
+	{
+		DeathScreenWidget = CreateWidget<ULNPDeathScreenWidget>(this, DeathScreenWidgetClass);
+		if (DeathScreenWidget == nullptr)
+			return;
+
+		// 메뉴(UILayoutWidget, ZOrder 10)보다 아래에 둔다 — 죽은 채로 메뉴를 열 수 있어야 한다.
+		DeathScreenWidget->AddToViewport(5);
+	}
+
+	DeathScreenWidget->ShowCountdown(RespawnDelay);
+}
+
+void ALNPPlayerController::HideDeathScreen()
+{
+	if (DeathScreenWidget)
+		DeathScreenWidget->HideCountdown();
 }
 
 

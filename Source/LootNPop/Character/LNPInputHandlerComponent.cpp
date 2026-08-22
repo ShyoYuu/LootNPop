@@ -122,6 +122,34 @@ void ULNPInputHandlerComponent::SetGameplayInputEnabled(bool bEnabled)
 	}
 }
 
+void ULNPInputHandlerComponent::SetGameplayInputBlocked(bool bBlocked)
+{
+	bGameplayInputBlocked = bBlocked;
+
+	if (!bBlocked)
+		return;
+
+	// 매핑은 그대로 두므로 Release 이벤트는 계속 오지만, 차단 시점에 눌려 있던 상태가
+	// 그대로 소비되지 않도록 즉시 턴다 (SetGameplayInputEnabled(false)와 같은 이유).
+	CachedMoveInputIntent = FVector::ZeroVector;
+	bIsJumpPressed = false;
+	bIsJumpJustPressed = false;
+	bIsDashPressed = false;
+	bIsDashJustPressed = false;
+	bIsDashBuffered = false;
+	bIsInteractPressed = false;
+	bIsInteractJustPressed = false;
+	bIsAttackPressed = false;
+	bIsAttackJustPressed = false;
+	bIsAttackBuffered = false;
+	bIsGuardPressed = false;
+	bIsGuardJustPressed = false;
+	bIsADSPressed = false;
+	bIsADSJustPressed = false;
+	bIsLockOnPressed = false;
+	bIsLockOnJustPressed = false;
+}
+
 void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	APawn* Pawn = CastChecked<APawn>(GetOwner());
@@ -325,6 +353,10 @@ FLNPParryStateFragment* ULNPInputHandlerComponent::GetParryFragment() const
 
 void ULNPInputHandlerComponent::OnMoveTriggered(const FInputActionValue& Value)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	const FVector MovementVector = Value.Get<FVector>();
 	CachedMoveInputIntent.X = FMath::Clamp(MovementVector.X, -1.0f, 1.0f);
 	CachedMoveInputIntent.Y = FMath::Clamp(MovementVector.Y, -1.0f, 1.0f);
@@ -350,6 +382,10 @@ void ULNPInputHandlerComponent::OnLookCompleted(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnJumpStarted(const FInputActionValue& Value)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	bIsJumpJustPressed = !bIsJumpPressed;
 	bIsJumpPressed = true;
 }
@@ -362,6 +398,10 @@ void ULNPInputHandlerComponent::OnJumpReleased(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnDashStarted(const FInputActionValue& Value)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	bIsDashJustPressed = !bIsDashPressed;
 	bIsDashPressed = true;
 
@@ -379,6 +419,10 @@ void ULNPInputHandlerComponent::OnDashReleased(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnInteractStarted(const FInputActionValue& Value)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	bIsInteractJustPressed = !bIsInteractPressed;
 	bIsInteractPressed = true;
 
@@ -396,6 +440,10 @@ void ULNPInputHandlerComponent::OnInteractReleased(const FInputActionValue& Valu
 
 void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	bIsAttackJustPressed = !bIsAttackPressed;
 	bIsAttackPressed = true;
 
@@ -425,6 +473,10 @@ void ULNPInputHandlerComponent::OnAttackReleased(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	// ToDo : FreeAim 모드가 아닐때만 Guard 입력이 동작하도록 수정하자. (ADS Input과 동일 키 맵핑)
 
 	bIsGuardJustPressed = !bIsGuardPressed;
@@ -532,6 +584,10 @@ void ULNPInputHandlerComponent::Server_SetGuardState_Implementation(bool bGuardi
 
 void ULNPInputHandlerComponent::OnADSStarted(const FInputActionValue& Value)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	// ToDo : FreeAim 모드일때만 ADS Input이 동작하도록 수정하자. (Guard Input과 동일 키 맵핑)
 
 	bIsADSJustPressed = !bIsADSPressed;
@@ -546,6 +602,10 @@ void ULNPInputHandlerComponent::OnADSReleased(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnLockOnStarted(const FInputActionValue& Value)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	bIsLockOnJustPressed = !bIsLockOnPressed;
 	bIsLockOnPressed = true;
 
@@ -563,6 +623,10 @@ void ULNPInputHandlerComponent::OnLockOnReleased(const FInputActionValue& Value)
 
 void ULNPInputHandlerComponent::OnActiveSkillStarted(const FInputActionValue& Value, int32 SlotIndex)
 {
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
 	ActiveSkillJustPressed[SlotIndex] = !ActiveSkillPressed[SlotIndex];
 	ActiveSkillPressed[SlotIndex] = true;
 

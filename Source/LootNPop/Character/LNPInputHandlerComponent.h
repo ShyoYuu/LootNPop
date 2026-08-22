@@ -59,6 +59,17 @@ public:
 	 */
 	void SetGameplayInputEnabled(bool bEnabled);
 
+	/**
+	 * **시선(Look)만 남기고** 나머지 게임플레이 입력을 막는다. 사망 연출 중 카메라는 돌리되
+	 * 이동·공격·상호작용은 막고 싶을 때 쓴다.
+	 *
+	 * `SetGameplayInputEnabled(false)`와 다른 점: 매핑 컨텍스트를 떼지 않는다 —
+	 * 그쪽은 Look까지 함께 죽으므로 사망 중 카메라 조작이 불가능해진다.
+	 */
+	void SetGameplayInputBlocked(bool bBlocked);
+
+	bool IsGameplayInputBlocked() const { return bGameplayInputBlocked; }
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -133,6 +144,9 @@ private:
 	FVector CachedMoveInputIntent = FVector::ZeroVector;
 	FRotator CachedLookInput = FRotator::ZeroRotator;
 	FVector LastAffirmativeMoveInput = FVector::ZeroVector;
+
+	/** true면 Look을 제외한 모든 입력 콜백이 조기 반환한다 (SetGameplayInputBlocked). */
+	bool bGameplayInputBlocked = false;
 
 	bool bIsJumpPressed = false;
 	bool bIsJumpJustPressed = false;

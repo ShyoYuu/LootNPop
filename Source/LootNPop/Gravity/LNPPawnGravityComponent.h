@@ -45,6 +45,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	FVector GetUpDirection() const;
 
+	/** 중력 가속도 크기 (cm/s²). 랙돌 바디에 구형 중력을 직접 주입할 때 읽는다. */
+	UFUNCTION(BlueprintPure, Category = "LNP|Gravity")
+	float GetGravityStrength() const { return GravityStrength; }
+
 protected:
 	/** 현재 활성화된 중력 모드 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")

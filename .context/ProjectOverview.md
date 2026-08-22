@@ -46,8 +46,8 @@
 - `ULNPSurfaceCacheSubsystem`이 게임 시작 전 구형 내벽 전체를 등장방형 그리드로 사전 베이킹. 베이킹 완료 후 배열이 읽기 전용으로 확정되므로 Mass Worker Thread에서 Lock 없이 O(1) 안전 조회 가능.
 
 ### Motion Matching + Linked Anim Layers
-- Motion Matching 기반 Locomotion에 무기별 Linked Anim Layer를 블렌딩하여 3종 무기(Pistol·Rifle·LongSword) 구현.
-- Pistol·Rifle은 Aim Offset 적용. 발사 직전 카메라 방향 LineTrace로 화면 중앙 조준점을 검출하여 해당 방향으로 Projectile 발사.
+- Motion Matching 기반 Locomotion에 무기별 Linked Anim Layer를 블렌딩하여 4종 무기(Pistol·Rifle·Shotgun·LongSword) 구현.
+- Pistol·Rifle·Shotgun은 Aim Offset 적용. 발사 직전 카메라 방향 LineTrace로 화면 중앙 조준점을 검출하여 해당 방향으로 Projectile 발사.
 
 ### LootPod & LootDice
 - **LootPod**은 MassEntity(시뮬레이션) + Actor(비주얼·상호작용·복제) 하이브리드. 게이지·근접 판정은 서버 Mass 프로세서가 태그 교체 상태 머신(`Idle ↔ Looting → Popped`)으로 처리.

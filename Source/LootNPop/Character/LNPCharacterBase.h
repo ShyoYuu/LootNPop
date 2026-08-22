@@ -114,6 +114,22 @@ public:
 	void ApplyKnockback(const FVector HitFromDirection, const float Strength);
 
 	/**
+	 * 물리 랙돌로 전환하고 PopVelocity(cm/s)만큼 전 바디를 띄운다. 멱등 — 여러 번 불러도 안전.
+	 *
+	 * **각 머신이 로컬로 부르는 연출이다.** 물리 결과는 복제하지 않으므로 위치가 머신마다 갈라진다.
+	 * 호출 순서에 의미가 있다 — 구현부 주석 참조.
+	 */
+	void EnterRagdoll(const FVector& PopVelocity);
+
+	/** 랙돌을 되돌려 애니메이션 구동 상태로 복귀시킨다. 멱등 — Mass 표현 풀 재사용 경로가 매번 부른다. */
+	void ExitRagdoll();
+
+	bool IsRagdollActive() const { return bRagdollActive; }
+
+	/** 랙돌 기준 본의 월드 위치. 랙돌이 아니면 액터 위치를 반환한다. (사망 카메라 추적용) */
+	FVector GetRagdollAnchorLocation() const;
+
+	/**
 	 * 원거리 발사체를 시뮬레이티드 프록시(구경꾼) 화면에도 시각적으로만 재현한다.
 	 * 서버에서만(HasAuthority) 호출하며, 발사자 본인 클라이언트와 서버/리슨호스트 자신은
 	 * 수신 측에서 스스로 걸러낸다(Multicast_SpawnGhostProjectiles_Implementation 참조).
@@ -182,6 +198,7 @@ protected:
 	/** 현재 실행 중인 기본 공격 어빌리티를 취소한다. 서브클래스에서 오버라이드. */
 	virtual void CancelCurrentAttackAbility() {}
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -241,8 +258,24 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> DefaultAbilities;
 
+	/** 랙돌 위치의 기준이 되는 본 (카메라 추적·앵커 조회). */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Death")
+	FName RagdollAnchorBoneName = TEXT("pelvis");
+
+	/** 랙돌 진입 시 부여할 랜덤 축 각속도 (rad/s). 0이면 텀블링 없음. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Death")
+	float RagdollSpinRadPerSec = 6.0f;
+
 private:
 	void InitAbilitySystem();
+
+	/** 랙돌 바디에 구형 중력을 매 틱 주입한다 (Chaos는 프로젝트의 커스텀 중력을 모른다). */
+	void TickRagdollGravity();
+
+	/** 랙돌 진입 전 VisualMesh의 콜리전 프로필 — ExitRagdoll 복원용. */
+	FName CachedVisualMeshProfile = NAME_None;
+
+	bool bRagdollActive = false;
 
 	FGameplayTag CurrentWeaponTag;
 	FGameplayTag CurrentAimModeTag;

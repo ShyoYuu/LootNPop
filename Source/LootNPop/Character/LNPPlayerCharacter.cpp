@@ -14,11 +14,18 @@
 #include "Interaction/LNPInteractionComponent.h"
 #include "Camera/LNPLockOnComponent.h"
 #include "Camera/LNPControlRotationComponent.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "Movement/LNPCharacterMoverComponent.h"
+#include "GameMode/LNPGameMode.h"
+#include "Player/LNPPlayerController.h"
+#include "Config/LNPSettings.h"
 #include "LootNPop.h"
 
 #include "AbilitySystemComponent.h"
 #include "GameFramework/GameplayCameraComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
 #include "MoverDataModelTypes.h"
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
@@ -70,6 +77,16 @@ void ALNPPlayerCharacter::PossessedBy(AController* NewController)
 			.AddWeakLambda(this, [this](const FOnAttributeChangeData& Data)
 			{
 				PushLootSpeedToEntity(Data.NewValue);
+			});
+
+		// 사망 판정도 같은 자리에서 건다 — PossessedBy는 서버에서만 실행되므로 이 바인딩 자체가 권위 보장이다.
+		// AttributeSet(PostGameplayEffectExecute)에 넣지 않는 이유: 그쪽은 플레이어와 Enemy가 공유하는데
+		// Enemy는 이미 Mass 경로(ULNPHealthProcessor)로 사망을 처리하므로 이중 처리가 된다.
+		ASC->GetGameplayAttributeValueChangeDelegate(ULNPBaseAttributeSet::GetHealthAttribute())
+			.AddWeakLambda(this, [this](const FOnAttributeChangeData& Data)
+			{
+				if (Data.NewValue <= 0.f)
+					HandleDeathOnServer();
 			});
 
 		// 기본 무기 지급·장착은 여기서 한다 — PlayerState의 연결이 완전히 성립한 뒤라야
@@ -291,25 +308,176 @@ void ALNPPlayerCharacter::DropItemOnServer(const FGuid& ItemId)
 		return;
 	}
 
-	ULNPItemDefinitionBase* ItemDef = Instance->GetDefinition();
+	// 캐릭터 전방에 "작은 Pop"으로 스폰 — 이후 소멸·획득 규칙은 LootPod 보상과 완전 동일 (공용 경로)
+	const FVector DropLocation = GetActorLocation()
+		+ GetActorForwardVector() * 150.0f
+		+ GetActorUpVector() * 80.0f;
+
+	RemoveAndSpawnDice(*Inventory, ItemId, bIsBuff, DropLocation, /*ImpulseScale=*/0.4f);
+}
+
+void ALNPPlayerCharacter::HandleDeathOnServer()
+{
+	// 한 프레임에 여러 피해가 겹치면 델리게이트가 여러 번 울린다 — 최초 1회만 통과시킨다.
+	if (!HasAuthority() || bIsDead)
+		return;
+	bIsDead = true;
+
+	ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+
+	// ASC는 PlayerState 소유라 폰이 죽어도 살아남는다 — 진행 중인 어빌리티를 명시적으로 끊어 준다.
+	if (PS)
+	{
+		if (UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent())
+			ASC->CancelAllAbilities();
+	}
+
+	// 연출보다 먼저 드랍한다 — 무기 해제가 WeaponSlot 복제로 흘러 각 클라이언트의 WeaponMesh를 알아서 감춘다.
+	DropAllItemsOnDeath();
+
+	Multicast_OnDeath(GetUpDirection() * DeathPopSpeed);
+
+	// 리스폰 타이머는 곧 파괴될 폰이 아니라 GameMode가 들고 있어야 한다.
+	if (ALNPGameMode* GM = GetWorld()->GetAuthGameMode<ALNPGameMode>())
+		GM->ScheduleRespawn(GetController(), GetDefault<ULNPSettings>()->PlayerRespawnDelay);
+
+	UE_LOG(LogLootNPop, Log, TEXT("[Death] %s died — respawning in %.1fs"),
+		*GetNameSafe(PS), GetDefault<ULNPSettings>()->PlayerRespawnDelay);
+}
+
+void ALNPPlayerCharacter::Multicast_OnDeath_Implementation(FVector PopVelocity)
+{
+	// 리슨 서버에서는 이 구현부가 로컬로도 실행된다 — 서버 권위 처리는 전부 HandleDeathOnServer에 있으므로
+	// 여기는 순수 연출뿐이다. 전용 플래그로 멱등을 보장한다 (bIsDead는 서버에서 이미 켜져 있어 쓸 수 없다).
+	if (bDeathFxPlayed)
+		return;
+	bDeathFxPlayed = true;
+	bIsDead = true;
+
+	if (IsLocallyControlled())
+	{
+		// ⚠ SetGameplayInputEnabled(false)가 아니라 이쪽이다 — 그쪽은 매핑 컨텍스트를 통째로 떼어
+		// Look까지 죽이므로 사망 중 카메라를 돌릴 수 없게 된다. 여기서는 Look만 살린다.
+		if (InputHandlerComponent)
+			InputHandlerComponent->SetGameplayInputBlocked(true);
+
+		// 죽은 뒤에도 락온이 살아 있으면 카메라가 적에게 끌려가고 대상 머리 위 표식도 남는다.
+		if (LockOnComponent)
+		{
+			if (LockOnComponent->IsLockOnActive())
+				LockOnComponent->ToggleLockOn();
+			LockOnComponent->SetComponentTickEnabled(false);
+		}
+
+		// 시체가 주변 LootDice를 줍지 않도록.
+		if (InteractionComponent)
+			InteractionComponent->SetComponentTickEnabled(false);
+
+		// 카메라 회전 기준점을 시체 쪽으로 내리는 일은 카메라 리그가 한다
+		// (ULNPRagdollPivotOffsetCameraNode — 튜닝 값은 CR_ThirdPerson에 있다).
+		BeginDeathCameraFollow();
+
+		if (ALNPPlayerController* PC = Cast<ALNPPlayerController>(GetController()))
+			PC->ShowDeathScreen(GetDefault<ULNPSettings>()->PlayerRespawnDelay);
+	}
+
+	EnterRagdoll(PopVelocity);
+}
+
+void ALNPPlayerCharacter::DropAllItemsOnDeath()
+{
+	ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>();
+	if (PS == nullptr)
+		return;
+
+	ULNPInventoryComponent* Inventory = PS->GetInventoryComponent();
+	ULNPEquipmentComponent* Equipment = PS->GetEquipmentComponent();
+	if (Inventory == nullptr || Equipment == nullptr)
+		return;
+
+	// ① 장착 해제를 **먼저**. 장착본이 bEquipped인 채로 제거되면 WeaponSlot.SourceInstance가 댕글링이 되고
+	//    무기 GAS 부여(어빌리티·스텟 GE)가 회수되지 않는다. UnequipWeapon이 둘 다 처리한다.
+	Equipment->UnequipWeapon();
+
+	// ② ItemId·정의·레벨을 먼저 스냅샷한다. 제거 루프가 FastArray와 등록 서브오브젝트를 건드리므로
+	//    인스턴스 포인터를 들고 순회하면 안 된다. (GetBagInstances는 장착본도 포함해 반환한다.)
+	TArray<TPair<FGuid, bool>> DropTargets;   // <ItemId, bIsBuff>
+	for (const ULNPInventoryItemInstance* Instance : Inventory->GetBagInstances())
+	{
+		if (Instance)
+			DropTargets.Emplace(Instance->GetItemId(), false);
+	}
+	for (const ULNPInventoryItemInstance* Instance : Inventory->GetActiveBuffInstances())
+	{
+		if (Instance)
+			DropTargets.Emplace(Instance->GetItemId(), true);
+	}
+
+	// ③ 사망 지점 한 곳에서 쏟는다 — SpawnDice가 Up 기준 원뿔 랜덤 임펄스 + 랜덤 축 회전을 주므로
+	//    같은 자리에서 스폰해도 자연히 흩어진다 (SpawnPodRewards와 같은 전략).
+	const FVector DropOrigin = GetActorLocation() + GetUpDirection() * 80.0f;
+	for (const TPair<FGuid, bool>& Target : DropTargets)
+	{
+		RemoveAndSpawnDice(*Inventory, Target.Key, Target.Value, DropOrigin, /*ImpulseScale=*/1.0f);
+	}
+
+	UE_LOG(LogLootNPop, Log, TEXT("[Death] %s dropped %d items"), *GetNameSafe(this), DropTargets.Num());
+}
+
+void ALNPPlayerCharacter::BeginDeathCameraFollow()
+{
+	if (bDeathCameraFollowActive || GameplayCamera == nullptr)
+		return;
+
+	// AnimSourceMesh에서 뗀다 — UMoverComponent::FinalizeFrame이 매 프레임 PrimaryVisualComponent의
+	// 상대 트랜스폼을 되돌리므로, 폰 계층에 붙어 있는 한 손으로 옮겨도 원위치된다.
+	GameplayCamera->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+	DeathCameraSmoothedLocation = GameplayCamera->GetComponentLocation();
+	bDeathCameraFollowActive = true;
+}
+
+void ALNPPlayerCharacter::TickDeathCameraFollow(float DeltaSeconds)
+{
+	if (!bDeathCameraFollowActive || GameplayCamera == nullptr)
+		return;
+
+	// UGameplayCameraComponentBase는 자기 컴포넌트 트랜스폼을 카메라 포즈의 원점으로 쓴다 —
+	// 월드 위치만 옮기면 리그가 그대로 따라온다. **회전은 건드리지 않는다** (시체 회전을 따라가면 화면이 요동친다).
+	DeathCameraSmoothedLocation = FMath::VInterpTo(DeathCameraSmoothedLocation, GetRagdollAnchorLocation(),
+		DeltaSeconds, DeathCameraFollowSpeed);
+	GameplayCamera->SetWorldLocation(DeathCameraSmoothedLocation);
+}
+
+void ALNPPlayerCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	TickDeathCameraFollow(DeltaSeconds);
+}
+
+void ALNPPlayerCharacter::RemoveAndSpawnDice(ULNPInventoryComponent& Inventory, const FGuid& ItemId, bool bIsBuff,
+                                             const FVector& Location, float ImpulseScale)
+{
+	ULNPInventoryItemInstance* Instance = bIsBuff ? Inventory.FindBuffInstance(ItemId) : Inventory.FindItemInstance(ItemId);
+	if (Instance == nullptr)
+		return;
 
 	// 제거하면 인스턴스가 사라지므로 페이로드에 실을 값은 먼저 읽어 둔다.
+	ULNPItemDefinitionBase* ItemDef = Instance->GetDefinition();
 	const int32 DiceItemLevel = Instance->GetItemLevel();
 
 	// 인벤토리 제거 성공 전에는 스폰하지 않는다 (아이템 복제 방지).
 	// 버프는 잔여 지속 시간을 회수해 페이로드에 싣는다 — 양도받은 파티원이 이어서 쓴다.
 	float DiceRemainingDuration = 0.0f;
 	if (bIsBuff)
-		DiceRemainingDuration = Inventory->RemoveBuffInstance(ItemId);
-	else
-		Inventory->RemoveItemInstance(ItemId);
+	{
+		DiceRemainingDuration = Inventory.RemoveBuffInstance(ItemId);
+	}
+	else if (!Inventory.RemoveItemInstance(ItemId))
+	{
+		return;
+	}
 
-	// 캐릭터 전방에 "작은 Pop"으로 스폰 — 이후 소멸·획득 규칙은 LootPod 보상과 완전 동일 (공용 경로)
-	const FVector DropLocation = GetActorLocation()
-		+ GetActorForwardVector() * 150.0f
-		+ GetActorUpVector() * 80.0f;
-	ALNPLootDice::SpawnDice(*GetWorld(), DropLocation, ItemDef, DiceRemainingDuration,
-		DiceItemLevel, /*ImpulseScale=*/0.4f);
+	ALNPLootDice::SpawnDice(*GetWorld(), Location, ItemDef, DiceRemainingDuration, DiceItemLevel, ImpulseScale);
 
 	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s dropped — %s Lv.%d (buff remaining %.1fs)"),
 		*GetNameSafe(this), *GetNameSafe(ItemDef), DiceItemLevel, DiceRemainingDuration);
@@ -434,4 +602,50 @@ TArray<AActor*> ALNPPlayerCharacter::GetInteractionCandidates() const
 AActor* ALNPPlayerCharacter::GetInteractionCandidate() const
 {
 	return InteractionComponent ? InteractionComponent->GetFirstInteractionCandidate() : nullptr;
+}
+namespace
+{
+	/** 사망·리스폰 검증용 자살 커맨드. 리스폰 지점 랜덤성은 여러 번 죽여봐야 확인되므로 필요하다.
+	 *  Usage: LNP.Debug.KillPlayer [PlayerIndex]
+	 *   - 권위(호스트/서버) 콘솔에서만 동작한다. 인수 없으면 0번(호스트 자신).
+	 *   - Health를 0으로 내려 정상 사망 경로(PossessedBy의 Health 델리게이트)를 그대로 탄다. */
+	FAutoConsoleCommandWithWorldAndArgs GLNPDebugKillPlayer(
+		TEXT("LNP.Debug.KillPlayer"),
+		TEXT("Server-only: set a player's Health to 0 to trigger the death/respawn flow. Args: [PlayerIndex]"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (World == nullptr)
+				return;
+
+			TArray<APlayerController*> Controllers;
+			for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+			{
+				if (APlayerController* PC = It->Get())
+					Controllers.Add(PC);
+			}
+
+			const int32 PlayerIndex = (Args.Num() >= 1) ? FCString::Atoi(*Args[0]) : 0;
+			if (!Controllers.IsValidIndex(PlayerIndex))
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Debug.KillPlayer] PlayerIndex %d out of range (0..%d)."),
+					PlayerIndex, Controllers.Num() - 1);
+				return;
+			}
+
+			ALNPPlayerState* PS = Controllers[PlayerIndex]->GetPlayerState<ALNPPlayerState>();
+			UAbilitySystemComponent* ASC = PS ? PS->GetAbilitySystemComponent() : nullptr;
+			if (ASC == nullptr)
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Debug.KillPlayer] No ASC on player %d."), PlayerIndex);
+				return;
+			}
+			if (PS->GetLocalRole() != ROLE_Authority)
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Debug.KillPlayer] Must run on authority (listen host / server)."));
+				return;
+			}
+
+			ASC->SetNumericAttributeBase(ULNPBaseAttributeSet::GetHealthAttribute(), 0.f);
+			UE_LOG(LogLootNPop, Log, TEXT("[LNP.Debug.KillPlayer] Killed player %d (%s)."), PlayerIndex, *GetNameSafe(PS));
+		}));
 }

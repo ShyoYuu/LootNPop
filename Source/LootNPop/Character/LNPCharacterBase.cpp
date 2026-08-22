@@ -163,6 +163,12 @@ void ALNPCharacterBase::BeginPlay()
 	ApplyWeaponVisuals(ResolveWeaponDefForVisuals());
 }
 
+void ALNPCharacterBase::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	TickRagdollGravity();
+}
+
 void ALNPCharacterBase::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
@@ -373,6 +379,109 @@ void ALNPCharacterBase::Multicast_RespawnReflectedGhost_Implementation(FLNPProje
 FVector ALNPCharacterBase::GetUpDirection() const
 {
 	return GravityComponent ? GravityComponent->GetUpDirection() : FVector::UpVector;
+}
+
+void ALNPCharacterBase::EnterRagdoll(const FVector& PopVelocity)
+{
+	if (bRagdollActive || VisualMesh == nullptr)
+		return;
+
+	if (VisualMesh->GetPhysicsAsset() == nullptr)
+	{
+		// 바디를 만들 근거가 없으면 아래 호출들이 전부 조용히 no-op이 된다 — 원인을 남긴다.
+		UE_LOG(LogLootNPop, Warning, TEXT("EnterRagdoll: '%s' VisualMesh has no PhysicsAsset — ragdoll skipped"),
+			*GetNameSafe(this));
+		return;
+	}
+
+	bRagdollActive = true;
+
+	// 몽타주만 끊는다. ⚠ AnimSourceMesh->SetActive(false)는 금지 — 컴포넌트 틱이 죽으면 포즈 갱신이 끊겨
+	// 물리 바디가 없는 본이 굳는다. 어차피 아래에서 bBlendPhysics가 켜지면 애님 결과는 물리에 덮인다.
+	if (UAnimInstance* AnimInst = GetAnimInstance())
+		AnimInst->Montage_Stop(0.15f);
+
+	// 랙돌이 자기 캡슐에 밀리지 않도록 먼저 끈다.
+	if (CapsuleComponent)
+		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// ① 콜리전 프로필을 **먼저** 건다. BP의 VisualMesh는 NoCollision이라
+	//    UPrimitiveComponent::ShouldCreatePhysicsState()가 false → 물리 바디가 아예 생성돼 있지 않다.
+	//    프로필 변경이 EnsurePhysicsStateCreated() → RecreatePhysicsState()로 바디를 만들어 준다.
+	//    (순서를 뒤집으면 방금 세운 시뮬 플래그가 재생성에 날아간다 — 기존 코드의 버그였다.)
+	CachedVisualMeshProfile = VisualMesh->GetCollisionProfileName();
+	VisualMesh->SetCollisionProfileName(TEXT("Ragdoll"));
+
+	// ② 그 다음 시뮬. SetAllBodiesSimulatePhysics가 아니라 SetSimulatePhysics를 써야 한다 —
+	//    후자만 bBlendPhysics를 켜서 ShouldBlendPhysicsBones()를 통과시킨다.
+	//    전자만 부르면 바디는 돌지만 애님 포즈가 100% 덮어써 랙돌이 눈에 보이지 않는다.
+	VisualMesh->SetSimulatePhysics(true);
+
+	// ②-b CCD(연속 충돌 판정) 활성화. Pop 속도 ±2000cm/s면 피직 1스텝(비동기 고정 스텝 기준 최대 33ms)에
+	//     수십 cm를 이동한다 — 손·발처럼 작은 바디는 이산 판정이 지면을 통째로 건너뛰어 관통한다(터널링).
+	//     CCD는 스텝 시작·끝 사이를 스윕해 첫 접촉을 잡으므로 낙하 속도와 무관하게 막힌다.
+	//     ①②로 바디가 생성된 뒤에 불러야 한다 — SetAllUseCCD는 유효한 FBodyInstance에만 적용된다.
+	//     ExitRagdoll에서 되돌리지 않는 이유는 그쪽 SetCollisionProfileName 주석 참조.
+	VisualMesh->SetAllUseCCD(true);
+
+	// ③ 내장 -Z 중력 차단 — 구형 중력은 TickRagdollGravity가 AddForce로 넣는다 (LootDice와 동일 전략).
+	VisualMesh->SetEnableGravity(false);
+	VisualMesh->WakeAllRigidBodies();
+
+	// ④ Pop! — Mover 넉백이 아니라 랙돌 바디에 직접 준다. Mover 넉백은 캡슐만 날리고 메시는 제자리에 남는다.
+	VisualMesh->SetAllPhysicsLinearVelocity(PopVelocity, /*bAddToCurrent=*/true);
+	if (RagdollSpinRadPerSec > 0.f)
+		VisualMesh->SetAllPhysicsAngularVelocityInRadians(FMath::VRand() * RagdollSpinRadPerSec);
+
+	if (MoverComponent)
+		MoverComponent->EnterDeadMode();
+}
+
+void ALNPCharacterBase::ExitRagdoll()
+{
+	if (!bRagdollActive || VisualMesh == nullptr)
+		return;
+
+	bRagdollActive = false;
+
+	VisualMesh->SetSimulatePhysics(false);            // bBlendPhysics도 함께 내려간다
+	VisualMesh->SetAllBodiesPhysicsBlendWeight(0.f);  // 잔여 블렌드 가중치 소거
+	VisualMesh->SetEnableGravity(true);
+	// 보통 NoCollision → ShouldCreatePhysicsState()가 false → TermArticulated()가 모든 FBodyInstance를
+	// delete하고 Bodies를 비운다. ⚠ EnterRagdoll의 SetAllUseCCD(true)를 여기서 되돌리지 않는 근거가 이것이다 —
+	// bUseCCD는 컴포넌트가 아니라 바디마다 붙어 있고(BodyInstance.cpp:4055), 재진입 시 바디는
+	// CopyBodyInstancePropertiesFrom(PhysicsAsset DefaultInstance)로 다시 태어나 CCD가 꺼진 상태에서 시작한다.
+	// (시뮬 여부와는 무관한 플래그다 — Chaos는 키네마틱 파티클도 CCD 경로를 탄다.)
+	// 즉 이 프로필이 콜리전 있는 것으로 바뀌면 바디가 살아남아 bUseCCD=true가 남는다 — 그때는 명시적 해제가 필요하다.
+	VisualMesh->SetCollisionProfileName(CachedVisualMeshProfile);
+
+	if (CapsuleComponent)
+		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+	if (MoverComponent)
+		MoverComponent->ExitDeadMode();
+}
+
+FVector ALNPCharacterBase::GetRagdollAnchorLocation() const
+{
+	if (bRagdollActive && VisualMesh && VisualMesh->IsSimulatingPhysics())
+		return VisualMesh->GetSocketLocation(RagdollAnchorBoneName);
+
+	return GetActorLocation();
+}
+
+void ALNPCharacterBase::TickRagdollGravity()
+{
+	if (!bRagdollActive || VisualMesh == nullptr || GravityComponent == nullptr)
+		return;
+
+	// 잠든 바디를 매 틱 깨우지 않는다 — 시체가 영원히 미세 진동하며 잠들지 못한다 (LootDice §2.4와 같은 이유).
+	if (!VisualMesh->IsSimulatingPhysics() || !VisualMesh->IsAnyRigidBodyAwake())
+		return;
+
+	// bAccelChange=true — Chaos 내장 중력과 동일하게 질량 무관 가속도로 적분된다.
+	const FVector GravityAccel = -GetUpDirection() * GravityComponent->GetGravityStrength();
+	VisualMesh->AddForceToAllBodiesBelow(GravityAccel, NAME_None, /*bAccelChange=*/true, /*bIncludeSelf=*/true);
 }
 
 UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag WeaponType, FGameplayTag SituationType, FGameplayTag Value) const
