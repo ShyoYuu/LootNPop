@@ -28,6 +28,7 @@
 
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsADS,      "LNP.Mover.IsADS",       "Character is aiming down sights");
 
 // UCommonLegacyMovementSettings 못 가져왔을 때 fallback용
 const FName DefaultWalkingMode = TEXT("LNPAsyncWalking");
@@ -55,7 +56,7 @@ bool ULNPCharacterMoverComponent::IsSprinting() const
 
 bool ULNPCharacterMoverComponent::CanSprint() const
 {
-	return IsOnGround() && !IsGuarding();
+	return IsOnGround() && !IsGuarding() && !IsADS();
 }
 
 bool ULNPCharacterMoverComponent::IsGuarding() const
@@ -68,11 +69,23 @@ bool ULNPCharacterMoverComponent::CanGuard()
 	return true;
 }
 
+bool ULNPCharacterMoverComponent::IsADS() const
+{
+	return HasGameplayTag(LNP_Mover_IsADS, true);
+}
+
+bool ULNPCharacterMoverComponent::CanADS() const
+{
+	// Guard가 틱에서 먼저 처리되므로 Guard > ADS 단방향 우선순위다.
+	// CanGuard()에 반대 조건(!IsADS())을 넣으면 둘 다 켜졌을 때 서로를 취소하다 재시작해 진동한다.
+	return !IsGuarding();
+}
+
 bool ULNPCharacterMoverComponent::CanDash() const
 {
 	// 쿨다운은 월드 시간이 아니라 SyncState에 실리는 Modifier의 존재로 판정한다 —
 	// 월드 시간 기준은 서버의 지연 시뮬레이션·리시뮬레이션에서 클라이언트와 어긋나 리컨사일 루프를 만든다.
-	return IsOnGround() && !bIsAiming && FindMovementModifierByType<FLNPDashCooldownModifier>() == nullptr;
+	return IsOnGround() && !IsADS() && FindMovementModifierByType<FLNPDashCooldownModifier>() == nullptr;
 }
 
 void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, const FVector& MoveInputIntent, const FRotator& ControlRotation)
@@ -262,7 +275,38 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 		}
 	}
 
-	// Sprint Modifier 관리 (CanSprint 내부에서 IsGuarding() 체크)
+	// ADS Modifier 관리 (Guard와 동일한 구조 — 실어 나르는 것은 LNP.Mover.IsADS 태그이고,
+	// MaxSpeed는 FLNPMoveSpeedModifier가 그 태그를 보고 매 틱 계산한다)
+	if (bHandleADSChanges)
+	{
+		const FLNPADSModifier* ActiveModifier = static_cast<const FLNPADSModifier*>(FindMovementModifier(ADSModifierHandle));
+		if (ActiveModifier == nullptr)
+		{
+			ActiveModifier = FindMovementModifierByType<FLNPADSModifier>();
+		}
+
+		const bool bIsADS     = HasGameplayTag(LNP_Mover_IsADS, true);
+		const bool bShouldADS = ModifierInputs && ModifierInputs->bWantsToADS;
+
+		if (bIsADS && (!bShouldADS || !CanADS()))
+		{
+			if (ActiveModifier)
+			{
+				CancelModifierFromHandle(ActiveModifier->GetHandle());
+				ADSModifierHandle.Invalidate();
+				ActiveModifier = nullptr;
+			}
+		}
+		else if (!bIsADS && bShouldADS && CanADS())
+		{
+			TSharedPtr<FLNPADSModifier> NewModifier = MakeShared<FLNPADSModifier>();
+			ADSModifierHandle = QueueMovementModifier(NewModifier);
+			ActiveModifier = NewModifier.Get();
+		}
+	}
+
+	// Sprint Modifier 관리 (CanSprint 내부에서 IsGuarding()·IsADS() 체크 — 취소 분기도 CanSprint를 보므로
+	// 질주 도중 ADS에 들어가면 질주가 풀린다)
 	if (bHandleSprintChanges)
 	{
 		const FLNPSprintModifier* ActiveModifier = static_cast<const FLNPSprintModifier*>(FindMovementModifier(SprintModifierHandle));
@@ -294,6 +338,7 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 	// Dash 실행 — 의도는 InputCmd로 전달받고 실행은 시뮬레이션 안에서 이루어진다.
 	// 입력 콜백에서 직접 실행하던 기존 방식은 서버와 리시뮬레이션이 재현할 수 없어,
 	// 클라이언트가 대시하면 로컬에서만 튀었다가 롤백되고 서버에는 아무 일도 일어나지 않았다.
+	// ADS 차단은 CanDash() 안에 있다. 이미 나간 대시(LayeredMove)는 중단하지 않는다 — 끊으면 오히려 튄다.
 	if (ModifierInputs && ModifierInputs->bWantsToDash && CanDash())
 	{
 		const FCharacterDefaultInputs* CharacterInputs = InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();

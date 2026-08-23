@@ -65,6 +65,11 @@ bool ALNPCharacterBase::GetFaceMoveDirection() const
 	return InputHandlerComponent ? InputHandlerComponent->GetFaceMoveDirection() : false;
 }
 
+bool ALNPCharacterBase::IsADSActive() const
+{
+	return InputHandlerComponent ? InputHandlerComponent->IsADSActive() : false;
+}
+
 UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 {
 	if (const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
@@ -227,6 +232,9 @@ void ALNPCharacterBase::ApplyWeaponVisuals(ULNPWeaponData* WeaponData)
 
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 
+	// 조준 모드 전환 여부를 여기서 잡아 둔다 — 아래에서 CurrentAimModeTag를 덮어쓰기 때문.
+	const FGameplayTag PrevAimModeTag = CurrentAimModeTag;
+
 	// 기존 무기·조준모드 태그 제거
 	if (ASC)
 	{
@@ -263,6 +271,11 @@ void ALNPCharacterBase::ApplyWeaponVisuals(ULNPWeaponData* WeaponData)
 	if (InputHandlerComponent)
 	{
 		InputHandlerComponent->SetFaceMoveDirection(!bFreeAim);
+
+		// 가드·ADS는 같은 키를 조준 모드로 나눠 쓰므로, 모드가 바뀌면 눌린 입력을 정리해야 한다.
+		// 라이플→피스톨처럼 모드가 그대로면 부르지 않는다 (ADS가 끊기면 안 된다).
+		if (PrevAimModeTag != NewAimModeTag)
+			InputHandlerComponent->NotifyAimModeChanged();
 	}
 
 	// AnimLayer 연결

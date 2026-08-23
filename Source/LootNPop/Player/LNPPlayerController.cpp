@@ -15,9 +15,27 @@
 
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
 #include "Framework/Application/NavigationConfig.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Application/SlateUser.h"
 #include "HAL/IConsoleManager.h"
+#include "Widgets/SViewport.h"
+#include "Widgets/SWindow.h"
+
+#if WITH_EDITOR
+/**
+ * PIE에서 메뉴를 닫을 때, 메뉴를 열기 전에 포커스를 쥐고 있던 PIE 창으로 Slate 포커스를 되돌릴지.
+ * 끄면 엔진 기본 동작 — 즉 메뉴를 닫은 창이 포커스를 가져가고 게임패드 라우팅이 뒤집힌다.
+ */
+static bool GLNPRestorePIEGamepadFocus = true;
+static FAutoConsoleVariableRef CVarLNPRestorePIEGamepadFocus(
+	TEXT("LNP.PIE.RestoreGamepadFocusOnMenuClose"),
+	GLNPRestorePIEGamepadFocus,
+	TEXT("PIE only: when the in-game menu closes, restore Slate focus to the PIE window that had it when the menu opened, so 'Route Gamepad to Second Window' keeps targeting the same client."),
+	ECVF_Default);
+#endif
 
 namespace
 {
@@ -257,6 +275,11 @@ void ALNPPlayerController::OpenMenu(FName TabId)
 	SetPawnGameplayInputEnabled(false);
 	SetMenuNavigationEnabled(true);
 
+#if WITH_EDITOR
+	// 아래 SetInputMode가 Slate 포커스를 이 창으로 끌어오기 전에, 지금 포커스를 쥔 창을 기억해 둔다.
+	CapturePIEForeignFocus();
+#endif
+
 	FInputModeGameAndUI Mode;
 	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	// 포커스 대상은 지정하지 않는다 — CommonUI의 활성화/GetDesiredFocusTarget이 관리한다.
@@ -285,6 +308,11 @@ void ALNPPlayerController::HandleMenuClosed()
 
 	SetInputMode(FInputModeGameOnly());
 	bShowMouseCursor = false;
+
+#if WITH_EDITOR
+	// 반드시 SetInputMode 뒤에서 — 포커스 지정을 덮어써야 하기 때문이다 (RestorePIEForeignFocus 주석 참고).
+	RestorePIEForeignFocus();
+#endif
 
 	SetMenuNavigationEnabled(false);
 	SetPawnGameplayInputEnabled(true);
@@ -321,6 +349,58 @@ void ALNPPlayerController::SetMenuNavigationEnabled(bool bEnabled)
 		PreviousNavigationConfig.Reset();
 	}
 }
+
+#if WITH_EDITOR
+void ALNPPlayerController::CapturePIEForeignFocus()
+{
+	PIEForeignFocusWidget.Reset();
+
+	const UWorld* World = GetWorld();
+	if (!GLNPRestorePIEGamepadFocus || World == nullptr || World->WorldType != EWorldType::PIE || !FSlateApplication::IsInitialized())
+		return;
+
+	// PIE 클라이언트들의 첫 LocalPlayer는 모두 ControllerId 0 — 즉 FSlateUser(0) 하나를 공유한다.
+	ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	const TSharedPtr<FSlateUser> SlateUser = LocalPlayer ? LocalPlayer->GetSlateUser() : nullptr;
+	const TSharedPtr<SWidget> FocusedWidget = SlateUser ? SlateUser->GetFocusedWidget() : nullptr;
+
+	const UGameViewportClient* ViewportClient = World->GetGameViewport();
+	const TSharedPtr<SViewport> MyViewportWidget = ViewportClient ? ViewportClient->GetGameViewportWidget() : nullptr;
+	if (!FocusedWidget.IsValid() || !MyViewportWidget.IsValid())
+		return;
+
+	FSlateApplication& SlateApp = FSlateApplication::Get();
+	const TSharedPtr<SWindow> FocusedWindow = SlateApp.FindWidgetWindow(FocusedWidget.ToSharedRef());
+	const TSharedPtr<SWindow> MyWindow = SlateApp.FindWidgetWindow(MyViewportWidget.ToSharedRef());
+
+	// 내 창이 이미 포커스를 쥐고 있으면 라우팅이 뒤집힐 일이 없다 — 기억할 필요도 없다.
+	if (!FocusedWindow.IsValid() || FocusedWindow == MyWindow)
+		return;
+
+	PIEForeignFocusWidget = FocusedWidget;
+}
+
+void ALNPPlayerController::RestorePIEForeignFocus()
+{
+	const TSharedPtr<SWidget> Target = PIEForeignFocusWidget.Pin();
+	PIEForeignFocusWidget.Reset();
+
+	if (!GLNPRestorePIEGamepadFocus || !Target.IsValid())
+		return;
+
+	/**
+	 * SetInputMode(FInputModeGameOnly)가 LocalPlayer의 지연 FReply에 심어 둔
+	 * SetUserFocus(자기 뷰포트 위젯)를 덮어쓴다 — FReply는 포커스 수신자를 필드 하나로 들고 있어
+	 * 마지막 지정이 이긴다.
+	 *
+	 * ⚠️ FSlateApplication::SetUserFocus를 직접 부르면 안 된다. 그 FReply는 엔진 틱 말미의
+	 * ProcessLocalPlayerSlateOperations(LaunchEngineLoop.cpp)에서 뒤늦게 적용되므로
+	 * 직접 옮긴 포커스를 도로 빼앗아 간다.
+	 */
+	if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+		LocalPlayer->GetSlateOperations().SetUserFocus(Target.ToSharedRef(), EFocusCause::SetDirectly);
+}
+#endif
 
 namespace
 {

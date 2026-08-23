@@ -462,7 +462,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (FVector::DistSquared(SE.CapsuleCenter, HitPoint) > ExpRadSq) continue;
 				Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
 					SE.Actor, Proj.Instigator, Shared.DamageEffectClass,
-					Shared.Damage, (SE.CapsuleCenter - HitPoint).GetSafeNormal(), Shared.SplashKnockbackStrength);
+					Shared.Damage, (SE.CapsuleCenter - HitPoint).GetSafeNormal(),
+					SE.CapsuleCenter + (HitPoint - SE.CapsuleCenter).GetSafeNormal() * SE.CapsuleRadius,
+					Shared.SplashKnockbackStrength);
 			}
 		}
 
@@ -475,7 +477,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (FVector::DistSquared(SP.Location, HitPoint) > ExpRadSq) continue;
 				Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
 					SP.Actor, Proj.Instigator, Shared.DamageEffectClass,
-					Shared.Damage, (SP.Location - HitPoint).GetSafeNormal(), Shared.SplashKnockbackStrength);
+					Shared.Damage, (SP.Location - HitPoint).GetSafeNormal(),
+					SP.Location + (HitPoint - SP.Location).GetSafeNormal() * SP.CapsuleRadius,
+					Shared.SplashKnockbackStrength);
 			}
 		}
 	};
@@ -563,7 +567,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					if (Enemy.Actor && Shared.DamageEffectClass)
 					{
 						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Proj.Instigator, Shared.DamageEffectClass, Shared.Damage, HitFromDir, Shared.KnockbackStrength);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Proj.Instigator, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
 					}
 					else
 					{
@@ -640,6 +644,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						ParryEntry.OldSpawnIndex         = OldSpawnIndex;
 						ParryEntry.NewInstigatorPlayerID = DefenderPlayerID;
 						ParryEntry.NewKeyOrSalvo         = Proj.PredictionKeyID;
+						ParryEntry.ImpactPoint           = HitPoint;
+						ParryEntry.ImpactNormal          = IncomingDir;
 						Ctx.Defer().PushCommand<FLNPProjectileParryCommand>(ParryEntry);
 						break;  // 반사된 투사체는 파괴하지 않고 계속 비행 (FinishHit 호출 없음)
 					}
@@ -657,11 +663,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (bShouldProcess)
 				{
 					if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
-						Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
+						Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor, HitPoint, IncomingDir);
 					else if (Shared.DamageEffectClass)
 					{
 						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Proj.Instigator, Shared.DamageEffectClass, Shared.Damage, HitFromDir, Shared.KnockbackStrength);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Proj.Instigator, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
 					}
 				}
 

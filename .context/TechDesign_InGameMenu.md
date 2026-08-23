@@ -457,6 +457,42 @@ WASD는 `ALNPPlayerController::SetMenuNavigationEnabled`가 메뉴 수명 동안
 
 **일시정지**: `GetNetMode() == NM_Standalone`일 때만 `SetPause(true)`.
 
+### 7.3 PIE 게임패드 라우팅 — 메뉴를 닫으면 조작 대상 창이 바뀐다 (에디터 전용)
+
+`Route Gamepad to Second Window`(2인 PIE, Single Process)를 켜고 1P를 키보드/마우스로,
+2P를 게임패드로 조작하는 테스트 구성에서, **메뉴를 닫는 순간 게임패드 조작 대상이 반대 창으로 넘어간다.**
+메뉴 버튼을 연달아 누르면 2P 열기/닫기 → 1P 열기/닫기가 교대로 반복되고,
+뒤집힌 뒤에는 메뉴뿐 아니라 **이동·공격 등 게임패드 입력 전체가 반대 창으로** 간다.
+
+원인은 세 가지가 겹친 것이다.
+
+1. 그 옵션은 "2번 창으로 보낸다"가 아니라 **"게임패드 입력이 도착한 PIE 뷰포트에서 무조건 *다음*
+   PIE 뷰포트로 한 칸 넘긴다"** 이다 — `UGameViewportClient::InputKey`(`GameViewportClient.cpp:743`)가
+   `GEngine->GetNextPIEViewport(this)`(`PlayLevel.cpp:2532`, WorldList 순환)로 넘긴다. 포커스와 무관하다.
+2. 따라서 **어느 뷰포트로 "도착"하느냐**가 결과를 정하고, 그건 Slate 포커스가 정한다.
+   PIE 클라이언트들의 첫 LocalPlayer는 모두 `ControllerId == 0`이라
+   `ULocalPlayer::GetSlateUser()`(`LocalPlayer.cpp:1802`)가 **FSlateUser(0) 하나를 공유**한다.
+3. `SetInputMode`가 그 포커스를 옮긴다 — `FInputModeGameOnly::ApplyInputMode`가
+   `SlateOperations.SetUserFocus(자기 뷰포트 위젯)`(`PlayerController.cpp:6446`)을 건다.
+   즉 **메뉴를 닫은 창이 포커스를 가져가고**, 다음 게임패드 입력이 그 창으로 도착해 홉이 뒤집힌다.
+
+**대응**(`ALNPPlayerController::CapturePIEForeignFocus` / `RestorePIEForeignFocus`, `#if WITH_EDITOR`):
+`OpenMenu`에서 `SetInputMode` 직전에 — 그때 포커스를 쥔 창이 **내 창이 아니면** — 그 포커스 위젯을
+약참조로 기억하고, `HandleMenuClosed`에서 `SetInputMode` **직후**에 되돌린다.
+CVar `LNP.PIE.RestoreGamepadFocusOnMenuClose`(기본 1)로 끌 수 있다.
+
+⚠️ **되돌릴 때 `FSlateApplication::SetUserFocus`를 직접 부르면 안 된다.** `SetInputMode`가 쌓은 것은
+LocalPlayer의 지연 `FReply`이고 엔진 틱 말미의 `ProcessLocalPlayerSlateOperations`(`LaunchEngineLoop.cpp:5236`)에서
+뒤늦게 적용되므로, 직접 옮긴 포커스를 도로 빼앗아 간다. 그래서 **같은 `FReply`의
+`SetUserFocus`를 덮어쓴다**(포커스 수신자가 필드 하나라 마지막 지정이 이긴다).
+
+한계 — 2P 메뉴가 **열려 있는 동안**에는 키보드/마우스도 2P 메뉴로 간다(Slate 유저 공유 구조상 불가피,
+닫으면 복구). 기억해 둔 위젯이 그 사이 파괴되면 복원을 건너뛰므로 1P 창을 클릭해 수동 복구한다.
+
+> 진짜 로컬 분할화면(한 창·한 뷰포트·LocalPlayer N개)에서는 이 문제가 성립하지 않는다.
+> 입력이 `InputDevice → PlatformUserId → LocalPlayer`로 배분되고 포커스도 FSlateUser별로 갈리기 때문이다.
+> 즉 이 코드는 **PIE 테스트 비계이지 분할화면 대비가 아니다.**
+
 ## 8. 필수 설정
 
 `Config/DefaultEngine.ini`:

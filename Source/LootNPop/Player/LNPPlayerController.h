@@ -13,6 +13,7 @@ class ULNPUILayoutWidget;
 class UInputMappingContext;
 class UInputAction;
 class FNavigationConfig;
+class SWidget;
 
 UCLASS()
 class LOOTNPOP_API ALNPPlayerController : public APlayerController
@@ -122,6 +123,20 @@ private:
 
 	/** 메뉴를 열기 전의 네비게이션 설정. 닫을 때 되돌린다. */
 	TSharedPtr<FNavigationConfig> PreviousNavigationConfig;
+
+#if WITH_EDITOR
+	/**
+	 * PIE 전용: 메뉴를 연 시점에 **다른 PIE 창**이 쥐고 있던 Slate 포커스 위젯.
+	 * 'Route Gamepad to Second Window' 라우팅이 뒤집히지 않도록 메뉴를 닫을 때 되돌린다.
+	 */
+	TWeakPtr<SWidget> PIEForeignFocusWidget;
+
+	/** 메뉴를 열기 직전, 다른 PIE 창에 있던 포커스 위젯을 기억해 둔다. */
+	void CapturePIEForeignFocus();
+
+	/** 기억해 둔 포커스를 되돌린다. 반드시 SetInputMode 뒤에 호출해야 한다. */
+	void RestorePIEForeignFocus();
+#endif
 
 public:
 	/** 서버: ServerPhase == Complete 확인. 클라이언트: bLoadingComplete 확인. */

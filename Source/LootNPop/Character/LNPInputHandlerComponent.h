@@ -52,6 +52,32 @@ public:
 
 	bool HasMovementInput() const { return !CachedMoveInputIntent.IsNearlyZero() || !AIMoveInput.IsNearlyZero(); }
 
+	/** 장착 무기가 원거리(FreeAim)인가. 무기 데이터의 DefaultAimMode가 부여한 ASC 태그로 판정한다. */
+	bool IsFreeAimMode() const;
+
+	/**
+	 * ADS(정조준) 유효 상태.
+	 *
+	 * 별도 상태 변수를 두지 않고 bIsADSPressed와 조준 모드를 함께 본다 — 키를 누른 채
+	 * 근접 무기로 교체하면 태그가 바뀌어 자동으로 false가 되므로 해제 배선이 따로 필요 없다.
+	 */
+	bool IsADSActive() const;
+
+	/**
+	 * Guard 유효 상태. `IsADSActive()`와 정확히 반대 조건이며, 같은 이유로 파생값이다 —
+	 * 원시 `bIsGuardPressed`를 그대로 쓰면 가드 중 총으로 교체했을 때 총을 든 채 가드가 유지된다.
+	 */
+	bool IsGuardActive() const;
+
+	/**
+	 * 조준 모드가 바뀌었을 때 `ALNPCharacterBase::ApplyWeaponVisuals`가 호출한다.
+	 *
+	 * 이 키가 의미하는 행동 자체가 바뀌므로 눌린 상태를 **뗀 것으로 처리**하고 새 입력을 요구한다.
+	 * 조용히 재개시키지 않는 이유: 가드의 ASC 태그·패링 프래그먼트는 입력 순간에 명령형으로 세팅되는데,
+	 * 이동 모디파이어만 폴링으로 되살아나면 둘이 어긋난다.
+	 */
+	void NotifyAimModeChanged();
+
 	/**
 	 * 게임플레이 입력(이동·시점·공격·상호작용)을 켜고 끈다 — 인게임 메뉴가 열릴 때 사용한다.
 	 * DefaultMappingContext를 통째로 제거/복원하므로 액션 바인딩은 그대로 두고 입력만 끊긴다.
@@ -201,6 +227,12 @@ private:
 	void OnAttackReleased(const FInputActionValue& Value);
 	void OnGuardStarted(const FInputActionValue& Value);
 	void OnGuardReleased(const FInputActionValue& Value);
+
+	/**
+	 * 가드 해제 일체 — 눌림 플래그, ASC 루즈 태그, 패링 창 타이머, Mass 프래그먼트, 서버 RPC.
+	 * 키를 뗐을 때와 무기 교체로 조준 모드가 바뀌었을 때 양쪽에서 부른다. 멱등하다.
+	 */
+	void ReleaseGuardState();
 	void OnADSStarted(const FInputActionValue& Value);
 	void OnADSReleased(const FInputActionValue& Value);
 	void OnLockOnStarted(const FInputActionValue& Value);

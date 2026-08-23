@@ -40,6 +40,8 @@ void FLNPMoveSpeedModifier::OnPreMovement(UMoverComponent* MoverComp, const FMov
 		BaseSpeed = OriginalLNP->SprintSpeed;
 	else if (MoverComp->HasGameplayTag(LNP_Mover_IsGuarding, /*bExactMatch=*/true))
 		BaseSpeed = OriginalLNP->GuardWalkSpeed;
+	else if (MoverComp->HasGameplayTag(LNP_Mover_IsADS, /*bExactMatch=*/true))
+		BaseSpeed = OriginalLNP->ADSWalkSpeed;
 
 	float Multiplier = 1.0f;
 	if (const IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(Owner))

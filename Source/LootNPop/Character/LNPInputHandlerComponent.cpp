@@ -118,6 +118,7 @@ void ULNPInputHandlerComponent::SetGameplayInputEnabled(bool bEnabled)
 		bIsInteractPressed = false;
 		bIsAttackPressed = false;
 		bIsGuardPressed = false;
+		bIsADSPressed = false;
 		bIsLockOnPressed = false;
 	}
 }
@@ -218,11 +219,12 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		CharacterInputs.ControlRotation = Pawn->GetControlRotation();
 	}
 
-	// Guard/Sprint/Dash 의도를 InputCmd에 실어 보낸다 (Jump가 FCharacterDefaultInputs::bIsJumpJustPressed로 전달되는 것과 동일한 방식).
+	// Guard/Sprint/Dash/ADS 의도를 InputCmd에 실어 보낸다 (Jump가 FCharacterDefaultInputs::bIsJumpJustPressed로 전달되는 것과 동일한 방식).
 	FLNPModifierInputs& ModifierInputs = OutInputCmd.InputCollection.FindOrAddMutableDataByType<FLNPModifierInputs>();
-	ModifierInputs.bWantsToGuard  = bIsGuardPressed;
+	ModifierInputs.bWantsToGuard  = IsGuardActive();
 	ModifierInputs.bWantsToSprint = bIsDashPressed;
 	ModifierInputs.bWantsToDash   = bIsDashBuffered;
+	ModifierInputs.bWantsToADS    = IsADSActive();
 	ModifierInputs.DashInputIntent = bIsDashBuffered ? CachedMoveInputIntent : FVector::ZeroVector;
 
 	if (Pawn->GetController())
@@ -438,6 +440,21 @@ void ULNPInputHandlerComponent::OnInteractReleased(const FInputActionValue& Valu
 	bIsInteractJustPressed = false;
 }
 
+bool ULNPInputHandlerComponent::IsFreeAimMode() const
+{
+	return ASC && ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim);
+}
+
+bool ULNPInputHandlerComponent::IsADSActive() const
+{
+	return bIsADSPressed && IsFreeAimMode();
+}
+
+bool ULNPInputHandlerComponent::IsGuardActive() const
+{
+	return bIsGuardPressed && !IsFreeAimMode();
+}
+
 void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value)
 {
 	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
@@ -447,7 +464,7 @@ void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value
 	bIsAttackJustPressed = !bIsAttackPressed;
 	bIsAttackPressed = true;
 
-	const bool bIsFreeAim = ASC && ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim);
+	const bool bIsFreeAim = IsFreeAimMode();
 	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
 	if (!Character)
 		return;
@@ -477,7 +494,9 @@ void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 	if (bGameplayInputBlocked)
 		return;
 
-	// ToDo : FreeAim 모드가 아닐때만 Guard 입력이 동작하도록 수정하자. (ADS Input과 동일 키 맵핑)
+	// Guard와 ADS는 같은 키를 공유한다 — 근접 무기면 Guard, 총기(FreeAim)면 ADS로 갈린다.
+	if (IsFreeAimMode())
+		return;
 
 	bIsGuardJustPressed = !bIsGuardPressed;
 	bIsGuardPressed = true;
@@ -516,12 +535,10 @@ void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 	Server_SetGuardState(true);
 }
 
-void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
+void ULNPInputHandlerComponent::ReleaseGuardState()
 {
 	bIsGuardPressed = false;
 	bIsGuardJustPressed = false;
-
-	UE_LOG(LogLootNPop, Log, TEXT("[Guard] OnGuardReleased [%s]"), *GetNameSafe(GetOwner()));
 
 	// Guard 의도는 OnProduceInput에서 매 틱 InputCmd로 전달되므로 여기서 별도로 MoverComponent에 쓸 필요 없다.
 
@@ -540,6 +557,26 @@ void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
 	}
 
 	Server_SetGuardState(false);
+}
+
+void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)
+{
+	UE_LOG(LogLootNPop, Log, TEXT("[Guard] OnGuardReleased [%s]"), *GetNameSafe(GetOwner()));
+
+	ReleaseGuardState();
+}
+
+void ULNPInputHandlerComponent::NotifyAimModeChanged()
+{
+	// 조준 모드가 바뀌면 이 키가 의미하는 행동 자체가 바뀐다. 눌린 채로 남겨 두면
+	// 총을 든 채 가드·패링이 유지된다(ASC 태그와 패링 프래그먼트는 폴링이 아니라 명령형이라 스스로 풀리지 않는다).
+	if (bIsGuardPressed)
+		ReleaseGuardState();
+
+	// ADS는 IsADSActive()가 조준 모드를 함께 보므로 이미 무력화돼 있지만,
+	// 근접으로 바꿨다가 다시 총으로 돌아올 때 조용히 재개되지 않도록 눌림 상태도 함께 턴다.
+	bIsADSPressed = false;
+	bIsADSJustPressed = false;
 }
 
 void ULNPInputHandlerComponent::Server_SetGuardState_Implementation(bool bGuarding)
@@ -588,7 +625,9 @@ void ULNPInputHandlerComponent::OnADSStarted(const FInputActionValue& Value)
 	if (bGameplayInputBlocked)
 		return;
 
-	// ToDo : FreeAim 모드일때만 ADS Input이 동작하도록 수정하자. (Guard Input과 동일 키 맵핑)
+	// Guard와 ADS는 같은 키를 공유한다 — OnGuardStarted의 조건과 정확히 반대다.
+	if (!IsFreeAimMode())
+		return;
 
 	bIsADSJustPressed = !bIsADSPressed;
 	bIsADSPressed = true;

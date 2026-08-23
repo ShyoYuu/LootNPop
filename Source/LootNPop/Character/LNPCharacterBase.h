@@ -53,6 +53,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool GetFaceMoveDirection() const;
 
+	/**
+	 * ADS(정조준) 중인가. 카메라 리그 디렉터(CDE_ThirdPerson)와 조준 감도가 읽는다.
+	 *
+	 * 로컬 전용 상태다 — 카메라는 각자의 머신에서만 렌더되므로 복제하지 않는다.
+	 * 대시·질주 차단은 시뮬레이션 판정이라 별도로 InputCmd(FLNPModifierInputs::bWantsToADS)를 탄다.
+	 * 입력 핸들러가 없는 적 NPC는 항상 false.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LNP|Camera")
+	bool IsADSActive() const;
+
 	// IAbilitySystemInterface 구현
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 

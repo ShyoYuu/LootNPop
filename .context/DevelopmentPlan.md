@@ -104,7 +104,8 @@
     - 설계 명세: [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md)
 - [x] **총기류 Aim 모드**
     - 총기 장비 시 UpperBody 레이어에 Aiming 포즈 블랜딩.
-    - Aim 중 카메라 전환 및 `bIsAiming` 상태 처리 (대시 조건 등 기존 연동 포함).
+    - ADS 카메라 전환(`CR_ADS` 리그 프리셋 + `CDE_ThirdPerson` 디렉터 분기), 조준 감도 완화,
+      ADS 중 대시·질주 차단 및 이동 속도 저하(`FLNPADSModifier`). 상세: [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §2.6
 - [x] **Enemy NPC HP Bar** (월드 스페이스)
     - High LOD Actor 상태에서만 표시. `HP > 0 && HP < MaxHP` 조건 충족 시 가시화.
     - `UWidgetComponent` (World Space, Transparent 블렌드) + `ULNPHpBarWidget` (BindWidget 기반).
