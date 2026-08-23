@@ -36,6 +36,24 @@ public:
 	 *  UpdateControllerOrientation 말미에서 ViewForward가 이 방향과 MaxDeviationDeg 이내로 강제된다. */
 	void SetLockOnClamp(const FVector& ToTargetDir, float MaxDeviationDeg);
 
+protected:
+	/** 시선 입력 Yaw 배율. 기존 하드코딩 상수를 그대로 옮긴 값이다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Look")
+	double LookYawSensitivity = 8.0;
+
+	/** 시선 입력 Pitch 배율. 기존 하드코딩 상수를 그대로 옮긴 값이다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Look")
+	double LookPitchSensitivity = 4.0;
+
+	/**
+	 * ADS(정조준) 중 시선 입력 배율.
+	 *
+	 * FOV를 좁히면 같은 마우스 이동이 화면상 더 크게 돌아 조준이 과민해진다.
+	 * 기준값은 tan(ADS_FOV/2) / tan(허리사격_FOV/2) — 리그의 FOV를 바꾸면 이 값도 함께 본다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Look", meta = (ClampMin = "0.1", ClampMax = "1.0"))
+	double ADSLookSensitivityScale = 0.65;
+
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<ULNPPawnGravityComponent> GravityComponent;

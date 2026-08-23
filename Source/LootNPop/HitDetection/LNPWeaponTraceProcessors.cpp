@@ -118,6 +118,26 @@ namespace
 		OutTop = Center + Up * CylHalfLen;
 	}
 
+	/**
+	 * 무기 충돌 지점을 근사한다 — 현재 프레임 칼날 선분과 피격자 캡슐 축의 최근접점 쌍에서 칼날 쪽 점을 취하고,
+	 * 칼날이 캡슐 안으로 파고들었으면 표면 밖으로 밀어낸다.
+	 * 판정과 달리 되감지 않은 현재 캡슐을 쓴다 — VFX는 피격자가 '지금' 있는 자리에 떠야 한다.
+	 */
+	FVector MakeWeaponImpactPoint(const FVector& BladeRoot, const FVector& BladeTip,
+		const FVector& CapsuleCenter, const FVector& Up, float HalfH, float R, const FVector& FallbackDir)
+	{
+		FVector CapsuleBot, CapsuleTop;
+		MakeCapsuleSeg(CapsuleCenter, Up, HalfH, R, CapsuleBot, CapsuleTop);
+
+		FVector OnBlade, OnAxis;
+		FMath::SegmentDistToSegment(BladeRoot, BladeTip, CapsuleBot, CapsuleTop, OnBlade, OnAxis);
+
+		const FVector AxisToBlade = OnBlade - OnAxis;
+		const float   Dist        = AxisToBlade.Size();
+		const FVector OutDir      = (Dist > KINDA_SMALL_NUMBER) ? AxisToBlade / Dist : FallbackDir;
+		return OnAxis + OutDir * FMath::Max(Dist, R);
+	}
+
 	bool IsAlreadyHit(const FLNPWeaponTraceFragment& Frag, FMassEntityHandle Target)
 	{
 		for (int32 i = 0; i < Frag.AlreadyHitCount; ++i)
@@ -485,13 +505,20 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				const float                   Dot         = FVector::DotProduct(Player.ForwardVector, AttackerDir);
 				const float                   DistSq      = CalcDistSq(RewoundCenter(Player.CapsuleCenter, Player.RawLocation, Player.History), Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
 
+				// 패링·가드·피격 큐가 공용으로 쓰는 충돌 지점. 아래 세 분기 중 실제로 성립한 것에서만 평가된다.
+				auto ImpactPointOf = [&]
+				{
+					return MakeWeaponImpactPoint(Frag.SwordRootCurr, Frag.SwordTipCurr,
+						Player.CapsuleCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius, AttackerDir);
+				};
+
 				// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경, 서버 만료 시각으로 RTT 보정)
 				if (PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || NowForRewind <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos
 					&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
 				{
 					MarkHit(Frag, Player.Handle);
 					if (Player.Actor)
-						Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, Frag.InstigatorEntity);
+						Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, Frag.InstigatorEntity, ImpactPointOf(), AttackerDir);
 					return;
 				}
 
@@ -505,13 +532,13 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 				if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
 				{
-					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor);
+					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor, ImpactPointOf(), AttackerDir);
 					return;
 				}
 
 				const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 				if (EffectClass)
-					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, Frag.KnockbackStrength, true);
+					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, ImpactPointOf(), Frag.KnockbackStrength, true);
 			};
 
 			if (Frag.InstigatorTeam == ELNPInstigatorTeam::Player)
@@ -531,8 +558,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (Enemy.Actor && EffectClass)
 					{
-						const FVector HitFromDir = (AttackerLoc - Enemy.CapsuleCenter).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, Frag.KnockbackStrength, true);
+						const FVector HitFromDir  = (AttackerLoc - Enemy.CapsuleCenter).GetSafeNormal();
+						const FVector ImpactPoint = MakeWeaponImpactPoint(Frag.SwordRootCurr, Frag.SwordTipCurr,
+							Enemy.CapsuleCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitFromDir);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, ImpactPoint, Frag.KnockbackStrength, true);
 					}
 					else
 					{

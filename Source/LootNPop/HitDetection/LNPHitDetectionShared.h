@@ -46,13 +46,15 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 	{
 		TWeakObjectPtr<AActor> VictimActor;
 		FMassEntityHandle      AttackerEntity;
+		FVector                ImpactPoint;   // 무기가 맞부딪힌 지점 (월드)
+		FVector                ImpactNormal;  // 피격자 → 공격자 방향 (HitFromDirection과 동일 컨벤션)
 	};
 
 	FLNPMeleeParryCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, FMassEntityHandle InAttacker)
+	void Add(AActor* InVictim, FMassEntityHandle InAttacker, const FVector& InImpactPoint, const FVector& InImpactNormal)
 	{
-		Entries.Add({ InVictim, InAttacker });
+		Entries.Add({ InVictim, InAttacker, InImpactPoint, InImpactNormal });
 		bHasWork = true;
 	}
 
@@ -69,7 +71,8 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 				continue;
 
 			FGameplayCueParameters CueParams;
-			CueParams.Location = Victim->GetActorLocation();
+			CueParams.Location = Entry.ImpactPoint;
+			CueParams.Normal   = Entry.ImpactNormal;
 			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, CueParams);
 
 			AActor* Attacker = nullptr;
@@ -140,6 +143,8 @@ struct FLNPProjectileParryCommand : public FMassBatchedCommand
 		uint8                        OldSpawnIndex;
 		int32                        NewInstigatorPlayerID;
 		int32                        NewKeyOrSalvo;
+		FVector                      ImpactPoint;   // 투사체가 튕겨나간 지점 (월드)
+		FVector                      ImpactNormal;  // 피격자 → 공격자 방향 (투사체가 날아온 쪽)
 	};
 
 	FLNPProjectileParryCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
@@ -161,7 +166,8 @@ struct FLNPProjectileParryCommand : public FMassBatchedCommand
 			if (UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(Victim))
 			{
 				FGameplayCueParameters CueParams;
-				CueParams.Location = Victim->GetActorLocation();
+				CueParams.Location = Entry.ImpactPoint;
+				CueParams.Normal   = Entry.ImpactNormal;
 				VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, CueParams);
 
 				FGameplayEventData EventData;
@@ -197,36 +203,44 @@ private:
 /** 가드 성공 시 발동. GameplayCue_Guard_Block VFX/SFX 실행. */
 struct FLNPGuardBlockCommand : public FMassBatchedCommand
 {
+	struct FEntry
+	{
+		TWeakObjectPtr<AActor> Victim;
+		FVector                ImpactPoint;   // 무기·투사체가 막힌 지점 (월드)
+		FVector                ImpactNormal;  // 피격자 → 공격자 방향
+	};
+
 	FLNPGuardBlockCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim)
+	void Add(AActor* InVictim, const FVector& InImpactPoint, const FVector& InImpactNormal)
 	{
-		Victims.Add(InVictim);
+		Entries.Add({ InVictim, InImpactPoint, InImpactNormal });
 		bHasWork = true;
 	}
 
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
-		for (const TWeakObjectPtr<AActor>& WeakVictim : Victims)
+		for (const FEntry& Entry : Entries)
 		{
-			AActor* Victim = WeakVictim.Get();
+			AActor* Victim = Entry.Victim.Get();
 			UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(Victim);
 			if (!IsValid(VictimASC))
 				continue;
 
 			FGameplayCueParameters CueParams;
-			CueParams.Location = Victim->GetActorLocation();
+			CueParams.Location = Entry.ImpactPoint;
+			CueParams.Normal   = Entry.ImpactNormal;
 			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Guard_Block, CueParams);
 			UE_LOG(LogLootNPop, Log, TEXT("[Guard] Block success"));
 		}
 	}
 
-	virtual void Reset() override { Victims.Reset(); FMassBatchedCommand::Reset(); }
-	virtual SIZE_T GetAllocatedSize()     const override { return Victims.GetAllocatedSize(); }
-	virtual int32  GetNumOperationsStat() const override { return Victims.Num(); }
+	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
+	virtual SIZE_T GetAllocatedSize()     const override { return Entries.GetAllocatedSize(); }
+	virtual int32  GetNumOperationsStat() const override { return Entries.Num(); }
 
 private:
-	TArray<TWeakObjectPtr<AActor>> Victims;
+	TArray<FEntry> Entries;
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -243,15 +257,16 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 		TSubclassOf<UGameplayEffect> EffectClass;
 		float                        Damage;
 		FVector                      HitFromDirection;
+		FVector                      ImpactPoint;       // 무기·투사체가 실제로 닿은 지점 (월드)
 		float                        KnockbackStrength;
 		bool                         bIsMeleeHit;
 	};
 
 	FLNPApplyDamageGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, float InKnockbackStrength = 0.f, bool bInIsMeleeHit = false)
+	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, const FVector& InImpactPoint, float InKnockbackStrength = 0.f, bool bInIsMeleeHit = false)
 	{
-		Entries.Add({ InVictim, InAttacker, InEffectClass, InDamage, InHitFromDir, InKnockbackStrength, bInIsMeleeHit });
+		Entries.Add({ InVictim, InAttacker, InEffectClass, InDamage, InHitFromDir, InImpactPoint, InKnockbackStrength, bInIsMeleeHit });
 		bHasWork = true;
 	}
 
@@ -287,7 +302,7 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 
 			// 피격자 HitReact 몽타주 + HitStop은 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).
 			FGameplayCueParameters CueParams;
-			CueParams.Location = Victim->GetActorLocation();
+			CueParams.Location = Entry.ImpactPoint;
 			CueParams.Normal   = Entry.HitFromDirection;
 			ASC->ExecuteGameplayCue(TAG_GameplayCue_Character_HitReact, CueParams);
 			if (Entry.bIsMeleeHit)
@@ -311,7 +326,7 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 				if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
 				{
 					FGameplayCueParameters AttackerCueParams;
-					AttackerCueParams.Location = Attacker->GetActorLocation();
+					AttackerCueParams.Location = Entry.ImpactPoint;   // 공격자 기준으로도 칼이 부딪힌 그 지점이다
 					AttackerASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_AttackerHitStop, AttackerCueParams);
 				}
 			}

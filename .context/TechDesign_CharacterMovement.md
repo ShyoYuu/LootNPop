@@ -10,7 +10,7 @@ UE 5.8 **Mover 2.0** 플러그인 기반. 구형 중력 환경(위치마다 Up�
            │  (FCharacterDefaultInputs + FLNPModifierInputs)
            ▼
 [시뮬레이션]  ULNPCharacterMoverComponent (UCharacterMoverComponent 확장)
-           │  PreSimulationTick에서 Guard → Sprint Modifier 적용
+           │  PreSimulationTick에서 Guard → ADS → Sprint Modifier 적용
            │  Dash/넉백/Launch는 LayeredMove·InstantEffect로 큐잉
            ▼
 [중력]  ULNPPawnGravityComponent — Down/Up 방향 계산, Mover에 Gravity·UpDirection Override
@@ -24,9 +24,9 @@ UE 5.8 **Mover 2.0** 플러그인 기반. 구형 중력 환경(위치마다 Up�
 |:---|:---|
 | `ALNPCharacterBase` | 컴포넌트 조합 및 AI 이동 의도 위임 (`SetAIMoveInput`, `SetAIOrientationIntent`) |
 | `ULNPInputHandlerComponent` | 입력 수집·버퍼링, `IMoverInputProducerInterface` 구현 (InputCmd 생산) |
-| `ULNPCharacterMoverComponent` | 이동 시뮬레이션, Sprint/Guard Modifier 관리, 대시·넉백·Launch 실행 |
+| `ULNPCharacterMoverComponent` | 이동 시뮬레이션, Sprint/Guard/ADS Modifier 관리, 대시·넉백·Launch 실행 |
 | `ULNPPawnGravityComponent` | 구형 중력 방향 결정, Mover Gravity/UpDirection Override |
-| `ULNPControlRotationComponent` | 컨트롤 회전 전담 — 곡률 보정, 시선 입력, 락온 소프트 보정·하드 클램프 |
+| `ULNPControlRotationComponent` | 컨트롤 회전 전담 — 곡률 보정, 시선 입력(ADS 감도 배율 포함), 락온 소프트 보정·하드 클램프 |
 
 ---
 
@@ -61,6 +61,7 @@ CurrentControlQuat = CurvatureDelta * CurrentControlQuat;
 ```
 1. 곡률 보정 (Up 벡터 변화량 누적)
 2. 시선 입력 적용 — Yaw: 로컬 Up 축, Pitch: 로컬 Right 축 회전
+   (배율은 `LookYawSensitivity`·`LookPitchSensitivity`, ADS 중에는 `ADSLookSensitivityScale`을 추가로 곱한다 — §2.6)
 3. 락온 소프트 보정 (LockOnComponent가 적립한 Yaw/Pitch 델타)
 4. Pitch 클램프 (Up과의 각도 약 ±85° — 짐벌락 방지)
 5. 락온 하드 클램프 (타겟 방향과 최대 이탈각 초과 시 Slerp로 강제 보정)
@@ -144,6 +145,115 @@ if (const UActorComponent* OwnerComponent = Cast<UActorComponent>(ContextOwner))
 캐시가 null이라 롤 보정이 통째로 빠지는 브랜치가 있었다. 겸사겸사 `ULNPPawnGravityComponent` 직접 참조도
 `ALNPCharacterBase::GetUpDirection()` 위임으로 정리했다.
 
+### 2.6 ADS (정조준) — 총기류 전용
+
+`TAG_AimMode_FreeAim`(= `ULNPWeaponData::DefaultAimMode`가 부여)일 때만 동작한다.
+Guard와 **같은 키를 공유**하며, `ULNPInputHandlerComponent::IsFreeAimMode()`로 정확히 반대 조건으로 갈린다
+— 총기면 ADS, 근접이면 Guard.
+
+**상태 원본은 하나다.** 별도 플래그를 두지 않고 기존 `bIsADSPressed`를 그대로 쓴다:
+
+```cpp
+bool ULNPInputHandlerComponent::IsADSActive() const
+{
+    return bIsADSPressed && IsFreeAimMode();
+}
+```
+
+키를 누른 채 근접 무기로 바꾸면 태그가 바뀌어 자동으로 false가 되므로, 이동·카메라·감도는 스스로 풀린다.
+
+**Guard도 같은 형태여야 한다 — 대칭이 아니면 무기 교체가 상태를 남긴다.**
+
+```cpp
+bool IsGuardActive() const { return bIsGuardPressed && !IsFreeAimMode(); }   // IsADSActive()와 정확히 반대
+...
+ModifierInputs.bWantsToGuard = IsGuardActive();   // 원시 bIsGuardPressed를 그대로 쓰면 안 된다
+```
+
+> **⚠️ 파생값만으로는 부족하다 (2026-08-23).** 가드는 ADS와 달리 ASC 루즈 태그(`TAG_State_Guarding`,
+> `TAG_State_ParryWindow`), 패링 창 타이머, Mass `FLNPParryStateFragment`를 **입력 순간에 명령형으로**
+> 세팅한다. 폴링이 아니므로 무기가 바뀌어도 스스로 풀리지 않는다 — 가드 중 총으로 교체하면
+> **총을 든 채 가드·패링이 유지되고**(`LNPProjectileProcessors.cpp:600,665`,
+> `LNPWeaponTraceProcessors.cpp:516,533`이 프래그먼트를 그대로 본다), 이동 속도가 `GuardWalkSpeed`에 묶이며,
+> `CanADS() = !IsGuarding()` 때문에 ADS까지 막힌다.
+>
+> 그래서 해제 일체를 `ULNPInputHandlerComponent::ReleaseGuardState()`로 묶고,
+> `ALNPCharacterBase::ApplyWeaponVisuals`가 **조준 모드가 실제로 바뀐 경우에만**
+> `NotifyAimModeChanged()`를 부른다(라이플→피스톨처럼 모드가 같으면 부르지 않는다 — ADS가 끊기면 안 된다).
+> 이때 눌린 상태를 **뗀 것으로 처리**하고 새 입력을 요구한다. 조용히 재개시키면 이동 모디파이어만
+> 폴링으로 되살아나고 패링 창은 안 열려 둘이 어긋난다.
+
+**두 계층으로 갈라진다 — 이게 설계의 핵심이다.**
+
+| | 소유 경로 | 이유 |
+|:--|:---|:---|
+| 카메라·조준 감도 | `ALNPCharacterBase::IsADSActive()` 직접 조회 (로컬) | 카메라는 각자 머신에서만 렌더된다 — 복제·예측 대상이 아니다 |
+| 대시·질주 차단, 이동 속도 | `FLNPModifierInputs::bWantsToADS`(InputCmd)로 의도 전달 → `LNP.Mover.IsADS`(SyncState 태그)로 판정 | 시뮬레이션 판정이라 서버·리시뮬레이션이 재현해야 한다 |
+
+로컬 상태를 시뮬레이션 판정에 쓰면 원격 클라이언트에서 어긋난다 (`LNPModifierInputs.h` 헤더 주석 참조).
+
+**카메라 — 리그 프리셋 전환**
+
+`CDE_ThirdPerson`(BlueprintCameraDirector)이 매 프레임 분기해 리그를 고른다:
+
+```
+FindEvaluationContextOwnerActor(ALNPCharacterBase)   ← 엔진 헬퍼. §2.5의 함정을 피하는 유일한 경로
+ ├ IsADSActive() → CR_ADS
+ └ else          → CR_Medium_FreeCam
+```
+
+`CR_ADS`는 `CR_ThirdPerson`을 감싸는 얇은 래퍼(`CameraRigCameraNode`)로, 노출된 인터페이스 파라미터
+`CameraOffset`(붐 단축 + 우측 오버더숄더) / `FieldOfView`(축소) / `DampenPosition` 감쇠 계수(완화)만
+오버라이드한다. **`CR_ThirdPerson`의 노드 순서(§2.4)는 건드리지 않는다** — 프레임 제약이 한 곳에만 살아 있게 유지하려는 것이다.
+블렌드는 엔진 블렌드 스택이 처리한다 (`EnterTransitions` 0.15s / `ExitTransitions` 0.22s — 진입은 즉각적으로, 해제는 부드럽게).
+
+> **⚠️ 카메라 컴포넌트를 직접 옮기는 방식은 불가.** `UMoverComponent::FinalizeFrame`이 매 프레임 주 비주얼
+> 컴포넌트의 상대 트랜스폼을 복원한다. 사망 카메라(§9.4)가 `DetachFromComponent`부터 하는 이유와 같다.
+> ADS 카메라 이동은 반드시 리그 안에서 처리한다.
+
+**조준 감도** — FOV를 좁히면 같은 마우스 이동이 화면상 더 크게 돌아 과민해진다.
+`ULNPControlRotationComponent`가 `ADSLookSensitivityScale`(기본 0.65)을 Look 배율에 곱한다.
+기준값은 `tan(ADS_FOV/2) / tan(허리사격_FOV/2)`이므로 리그의 FOV를 바꾸면 이 값도 함께 본다.
+**락온 보정 델타(§2.3의 3·5단계)에는 곱하지 않는다** — 그건 시스템이 만든 값이지 플레이어 입력이 아니다.
+
+**대시·질주 차단** — 판정은 기존 `CanX()` 인터페이스가 소유한다. InputCmd는 의도만 나르고, "지금 그 행동이 가능한가"는 전부 여기 모인다:
+
+```cpp
+bool CanSprint() const { return IsOnGround() && !IsGuarding() && !IsADS(); }
+bool CanDash()   const { return IsOnGround() && !IsADS() && FindMovementModifierByType<FLNPDashCooldownModifier>() == nullptr; }
+bool CanADS()    const { return !IsGuarding(); }
+```
+
+> **역방향은 넣지 않는다.** `CanGuard()`에 `!IsADS()`를 추가하면 둘 다 켜졌을 때 서로를 취소하다 재시작해 진동한다. Guard가 틱에서 먼저 처리되므로 **Guard > ADS 단방향 우선순위**로 고정한다.
+
+`CanSprint()`는 시작 분기와 취소 분기 **양쪽**에서 평가되므로, 질주 도중 ADS에 들어가면 질주가 풀린다. 반면 이미 나간 대시는 `FLayeredMove_LinearVelocity`가 공중에서 진행 중이라 중단하지 않는다 — 끊으면 오히려 튄다.
+
+> **한 프레임 지연이 있다.** `CanX()`가 보는 것은 InputCmd가 아니라 SyncState의 태그이고, 태그는 `QueueMovementModifier` 다음 스텝에 선다. 그래서 ADS를 누른 그 프레임에는 질주·대시가 한 번 통과할 수 있다. Guard→Sprint가 원래 갖고 있던 것과 같은 성질이라 그대로 수용했다(60fps에서 16ms).
+> 즉시성이 필요해지면 `bWantsToADS`를 틱에서 직접 보는 방식으로 되돌리면 되지만, 그러면 판정이 `CanX()`와 틱 두 곳으로 흩어진다.
+
+**이동 속도** — `FLNPADSModifier`(`Movement/LNPADSModifier.h/.cpp`). 구조는 `FLNPGuardModifier`와 같다:
+`OnStart`에서 `ADSAcceleration`만 적용하고 **MaxSpeed는 건드리지 않는다.** 이 Modifier가 실어 나르는 것은
+사실상 `LNP.Mover.IsADS` 태그이고, 실제 속도는 `FLNPMoveSpeedModifier`가 매 틱 CDO 기준으로 계산한다:
+
+```
+Sprinting → SprintSpeed
+Guarding  → GuardWalkSpeed
+IsADS     → ADSWalkSpeed        ← 추가
+else      → CommonSettings.MaxSpeed
+            × MoveSpeed 어트리뷰트 배율
+```
+
+태그가 Mover SyncState에 실리므로 리시뮬레이션에서 함께 롤백된다 (§4.1의 미세 어긋남 문제를 피하는 이유).
+튜닝 값은 `ULNPCharacterMovementSettings`의 `ADSWalkSpeed` / `ADSAcceleration`.
+
+**검증 완료 (2026-08-22):** 총기/근접 키 분기, `-game` 모드, 2인 상호 관찰, 적도 부근 ADS,
+`ShowSpeed`로 질주 속도 미발현 확인.
+
+**무기 교체 검증 완료 (2026-08-23):** 가드 유지 중 총기로 교체 → 스탠스 즉시 해제,
+ADS 유지 중 양손검으로 교체 → ADS 즉시 해제. 양쪽 모두 키를 뗐다 다시 눌러야 반대 행동이 걸린다(의도).
+라이플→피스톨처럼 조준 모드가 같은 교체는 ADS가 유지된다.
+
+
 ---
 
 ## 3. 이동 속도 설정
@@ -169,24 +279,25 @@ if (const UActorComponent* OwnerComponent = Cast<UActorComponent>(ContextOwner))
 
 ---
 
-## 4. 질주 / 가드 — Modifier 패턴
+## 4. 질주 / 가드 / ADS — Modifier 패턴
 
 Mover의 Crouch(Stance) 패턴을 벤치마킹하여 **의도(입력) → Modifier(적용) → Tag(조회)** 3단으로 분리. Guard가 Sprint보다 먼저 처리되며, `CanSprint()`가 `!IsGuarding()`을 포함해 가드 중 질주를 차단한다.
 
 ```
-FLNPModifierInputs { bWantsToSprint, bWantsToGuard }   ← InputHandler가 InputCmd에 기록
+FLNPModifierInputs { bWantsToSprint, bWantsToGuard, bWantsToADS }   ← InputHandler가 InputCmd에 기록
     │  OnMoverPreSimulationTick()에서 InputCmd로부터 읽음
     ▼
-FLNPSprintModifier / FLNPGuardModifier (속도 수정자)
+FLNPSprintModifier / FLNPGuardModifier / FLNPADSModifier (속도 수정자)
     │  OnStart: MaxSpeed·Acceleration을 LNP Settings 값으로 교체
     │  OnEnd:   CDO 원본 값으로 복원
     ▼
-LNP.Mover.IsSprinting / LNP.Mover.IsGuarding (Gameplay Tag)
-    └→ IsSprinting()/IsGuarding() 쿼리, ABP 전환 기준
+LNP.Mover.IsSprinting / LNP.Mover.IsGuarding / LNP.Mover.IsADS (Gameplay Tag)
+    └→ IsSprinting()/IsGuarding()/IsADS() 쿼리, ABP 전환 기준
 ```
 
 - Modifier는 Mover `SyncState`에 포함되어 네트워크 롤백 시 안정적으로 복구된다.
 - 의도 플래그가 **InputCmd(FLNPModifierInputs)로 전달되는 이유**는 §7.1 참조 — 이 시스템의 핵심 설계 포인트.
+- ADS는 Guard와 같은 구조지만 **키가 겹친다** — `IsFreeAimMode()`로 총기/근접이 갈리므로 둘이 동시에 서지 않는다. ADS 중에는 질주·대시가 InputCmd 단계에서 차단된다. 상세는 §2.6.
 
 ### 4.1 MoveSpeed 버프 — `FLNPMoveSpeedModifier` ✅ 구현·PIE 검증 완료 (2026-07-27)
 
@@ -273,7 +384,7 @@ Sprint/Guard Modifier는 라이브 설정에 값을 쓰고 종료 시 **CDO 원�
 
 - 공중 상태에서 발동 불가 (`IsOnGround()`).
 - 쿨다운 중 재발동 불가 — `FLNPDashCooldownModifier`의 존재로 판정한다 (§5.4).
-- 조준 중(`bIsAiming`) 발동 불가 조건이 코드에 남아 있으나 `SetIsAiming()` 호출처가 없어 **현재는 상시 false**다 (§8).
+- ADS(정조준) 중 발동 불가 — `CanDash()`가 `!IsADS()`를 본다 (§2.6). 단 **이미 나간 대시는 중단하지 않는다.**
 
 ### 5.4 네트워크 흐름 — InputCmd 경로 (2026-08-19 이관 완료)
 
@@ -370,7 +481,7 @@ Guard/Sprint 의도를 컴포넌트 멤버 변수(bool)로 두고 PreSimulationT
 ## 8. 미구현 / 한계
 
 - **CanGuard() 상시 허용:** 현재 조건 없이 항상 true. 상태 이상(스태거 등) 연동 시 조건 추가 필요.
-- **`bIsAiming` 사문화:** `CanDash()`가 참조하지만 `SetIsAiming()` 호출처가 전혀 없어 항상 false다. 즉 대시의 조준 중 금지 조건이 실제로는 걸리지 않는다. 조준 상태는 현재 ASC 태그(`LNP.AimMode.*`)가 소유하므로, 조건을 되살리려면 태그 조회로 바꾸는 편이 맞다. 단 태그는 Mover 예측 상태가 아니라 §4.1의 MoveSpeed 배율과 같은 종류의 미세 어긋남을 감수해야 한다.
+- **~~`bIsAiming` 사문화~~ (2026-08-22 해소):** 해당 훅은 삭제하고 `CanDash()`가 `!IsADS()`를 보도록 바꿨다 — 원래 `!bIsAiming`이 노리던 자리 그대로이며, 저장소만 평범한 멤버에서 Mover SyncState 태그로 옮겼다. 질주 차단도 같은 방식으로 `CanSprint()`에 들어갔다. 상세는 §2.6.
 - **넉백 미예측:** 권위에서만 트리거되므로 정합성은 맞지만 피격자 본인 화면에서 RTT만큼 늦게 나타난다 (§6). 예측하려면 넉백을 SyncState 트리거로 옮겨야 한다.
 - **공중 대시 미지원:** 의도된 제한이지만, 공중 회피 등 확장 여지는 열려 있음.
 - **Left/Right 대시 몽타주 에셋:** 4방향 태그 분류·Chooser 평가는 구현 완료 — 좌/우 전용 몽타주 에셋을 Chooser Table에 채우는 에디터 작업 잔여.

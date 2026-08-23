@@ -33,4 +33,12 @@ public:
 	/** 가드 중 가속도 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|GuardModifier", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "cm/s^2"))
 	float GuardAcceleration = 2000.0f;
+
+	/** ADS(정조준) 중 이동 속도 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|ADSModifier", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "cm/s"))
+	float ADSWalkSpeed = 300.0f;
+
+	/** ADS(정조준) 중 가속도 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|ADSModifier", meta = (ClampMin = "0", UIMin = "0", ForceUnits = "cm/s^2"))
+	float ADSAcceleration = 2500.0f;
 };

@@ -121,7 +121,7 @@
 | [커스텀 Slate 위젯 제작 가이드](Guide_CustomSlateWidget.md) | 베이스 선택, TSlateAttribute, 스타일 분리, UMG 래퍼 |
 | [초기화 시퀀스 기술 설계](TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | [표면 캐시 기술 설계](TechDesign_SurfaceCache.md) | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유 |
-| [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시 시스템 |
+| [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템 |
 | [전투 Animation 기술 설계](TechDesign_CombatAnimation.md) | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·왼손 Two Bone IK·Guard 자세 분기 구현 완료 |
 | [Ability System 게임 기획](GameDesign_Ability.md) | 무기·스킬·버프 아이템 구조, GAS 슬롯 관리, 합/곱 이원 스텟 체계, 구현 현황 |
 | [Ability System 기술 설계](TechDesign_Ability.md) | ASC/AttributeSet 아키텍처, 합/곱 2채널 스탯 파이프라인, 발사체 Mass 프로세서 4종, 어빌리티 클래스 계층 |

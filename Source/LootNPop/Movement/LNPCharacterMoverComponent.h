@@ -7,11 +7,13 @@
 #include "NativeGameplayTags.h"
 #include "LNPSprintModifier.h"
 #include "LNPGuardModifier.h"
+#include "LNPADSModifier.h"
 #include "LNPMoveSpeedModifier.h"
 #include "LNPCharacterMoverComponent.generated.h"
 
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsSprinting);
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsGuarding);
+LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsADS);
 
 /**
  * LootNPop 캐릭터용 커스텀 Mover Component.
@@ -39,10 +41,15 @@ public:
 
 	bool CanGuard();
 
-	void SetIsAiming(bool bInIsAiming) { bIsAiming = bInIsAiming; }
-	bool GetIsAiming() const { return bIsAiming; }
+	/** 캐릭터가 현재 ADS(정조준) Modifier가 활성화되어 있으면 true를 반환한다 */
+	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
+	bool IsADS() const;
 
-	/** 현재 Dash 실행 가능 여부를 반환한다 (지면, 조준 아님, 쿨다운 Modifier 부재) */
+	/** 캐릭터가 현재 ADS 가능한지 확인한다 (가드 중이 아님) */
+	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
+	bool CanADS() const;
+
+	/** 현재 Dash 실행 가능 여부를 반환한다 (지면, ADS 아님, 쿨다운 Modifier 부재) */
 	bool CanDash() const;
 
 	/** Dash 쿨다운 길이 (초). HUD 쿨다운 표시가 읽는다. */
@@ -110,5 +117,11 @@ private:
 	/** 활성 Guard Modifier Handle */
 	FMovementModifierHandle GuardModifierHandle;
 
-	bool bIsAiming = false;
+	/** 이 Component가 의도에 따라 ADS 로직을 직접 처리할지 여부. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
+	uint8 bHandleADSChanges : 1 = 1;
+
+	/** 활성 ADS Modifier Handle */
+	FMovementModifierHandle ADSModifierHandle;
+
 };

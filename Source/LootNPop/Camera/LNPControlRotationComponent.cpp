@@ -2,6 +2,7 @@
 
 #include "Camera/LNPControlRotationComponent.h"
 #include "Gravity/LNPPawnGravityComponent.h"
+#include "Character/LNPCharacterBase.h"
 
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -70,13 +71,18 @@ void ULNPControlRotationComponent::UpdateControllerOrientation(const FVector& Ta
 	// 2. 시선 입력 적용 (Yaw, Pitch)
 	if (!PendingLookInput.IsNearlyZero())
 	{
-		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * 8.0));
+		// ADS 중에는 감도를 낮춘다. 락온 보정(3·5단계)에는 곱하지 않는다 —
+		// 그건 시스템이 만든 델타지 플레이어 입력이 아니다.
+		const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(OwnerPawn);
+		const double LookScale = (Character && Character->IsADSActive()) ? ADSLookSensitivityScale : 1.0;
+
+		const FQuat YawQuat(TargetUpDir, FMath::DegreesToRadians(PendingLookInput.Yaw * LookYawSensitivity * LookScale));
 		CurrentControlQuat = YawQuat * CurrentControlQuat;
 
 		const FVector CurrentRight = FVector::CrossProduct(TargetUpDir, CurrentControlQuat.GetForwardVector()).GetSafeNormal();
 		if (!CurrentRight.IsNearlyZero())
 		{
-			const FQuat PitchQuat(CurrentRight, FMath::DegreesToRadians(-PendingLookInput.Pitch * 4.0));
+			const FQuat PitchQuat(CurrentRight, FMath::DegreesToRadians(-PendingLookInput.Pitch * LookPitchSensitivity * LookScale));
 			CurrentControlQuat = PitchQuat * CurrentControlQuat;
 		}
 
