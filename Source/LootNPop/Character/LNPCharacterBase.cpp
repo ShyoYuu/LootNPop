@@ -89,6 +89,12 @@ void ALNPCharacterBase::SetAIOrientationIntent(FVector InOrientationIntent)
 		InputHandlerComponent->SetAIOrientationIntent(InOrientationIntent);
 }
 
+void ALNPCharacterBase::SetAIDesiredSpeed(float InSpeed)
+{
+	if (InputHandlerComponent)
+		InputHandlerComponent->SetAIDesiredSpeed(InSpeed);
+}
+
 bool ALNPCharacterBase::TryActivateAttack()
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();

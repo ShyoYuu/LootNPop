@@ -140,4 +140,23 @@ void LNPStat::ApplyModifiers(UAbilitySystemComponent& ASC,
 	ApplyForOp(ELNPStatModOp::Percent, ULNPGameplayEffect_StatPercent::StaticClass());
 }
 
+float LNPStat::ResolveStatValue(const FGameplayAttribute& Attribute,
+	float BaseValue,
+	TConstArrayView<FLNPStatModifier> Modifiers)
+{
+	float FlatSum = 0.f;
+	float PercentSum = 0.f;
+
+	for (const FLNPStatModifier& Modifier : Modifiers)
+	{
+		if (Modifier.Attribute != Attribute)
+			continue;
+
+		((Modifier.Op == ELNPStatModOp::Flat) ? FlatSum : PercentSum) += Modifier.Magnitude;
+	}
+
+	// ApplyModifiers가 만드는 두 GE(AddBase / MultiplyAdditive)를 어그리게이터가 평가한 결과와 같은 식.
+	return (BaseValue + FlatSum) * (1.f + PercentSum);
+}
+
 #undef LOCTEXT_NAMESPACE

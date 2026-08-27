@@ -149,6 +149,8 @@ void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTar
 	{
 		InputHandlerComponent->SetAIMoveInput(FVector::ZeroVector);
 		InputHandlerComponent->SetAIOrientationIntent(FVector::ZeroVector);
+		// Actor는 표현 풀에서 재사용된다 — 직전 개체의 속도가 남지 않도록 함께 되돌린다.
+		InputHandlerComponent->SetAIDesiredSpeed(0.f);
 	}
 
 	if (AttributeSet)

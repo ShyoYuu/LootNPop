@@ -76,7 +76,7 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, CueParams);
 
 			AActor* Attacker = nullptr;
-			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityValid(Entry.AttackerEntity))
+			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
 				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
 
 			FGameplayEventData EventData;
@@ -297,7 +297,7 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 				UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
 
 			AActor* Attacker = nullptr;
-			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityValid(Entry.AttackerEntity))
+			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
 				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
 
 			// 피격자 HitReact 몽타주 + HitStop은 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).

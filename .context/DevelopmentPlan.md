@@ -164,6 +164,25 @@
 - [x] **LOD 기반 Actor ↔ Entity 전환**
     - `ULNPEnemyLODOverrideProcessor`: Confirmed/Combat 상태 시 거리 무관 High LOD 강제.
     - `ULNPEnemyActorInitializerProcessor` / `ULNPEnemyActorSyncProcessor`: Config 기반 초기화, HP/타겟 역동기화.
+- [x] **NPC 이동 결함 정비** (2026-08-26 ~ 08-27)
+    - **좌표 규약 통일**: 엔티티 Transform 기준점을 **캡슐 중심**으로 못박음.
+      LOD에 따라 발밑↔중심으로 96cm 튀던 것을 해소. LowLOD ISM 오프셋도 함께 조정.
+    - **배회 교착 해소**: 구면에서 목적지 거리를 **접평면 성분으로만** 재도록 변경.
+      반경 방향 차이를 거리에 섞으면 방향 벡터가 0이 되어 엔티티가 완전히 굳었다.
+    - **호스트 LowLOD 미표시 해소**: 리슨 서버는 넷 모드 플래그가 `Client|Server`라
+      `UMassCrowdServerRepresentationLODProcessor`(Server 전용, 거리 테이블 하드코딩)가
+      시각화 LOD를 덮어썼다. `Config/DefaultMass.ini`로 해당 프로세서 2종을 파이프라인에서 제외.
+    - **이동 속도 정상화**: Mover의 `ComputeVelocity`가 이동 의도 벡터를 **정규화하지 않아**
+      크기<1을 지속 입력하면 속도가 곱셈으로 붕괴(180cm/s 기대 → 27cm/s). 방향(단위 벡터)과
+      속도(`SetAIDesiredSpeed` → MaxSpeed)를 분리. Entity/Actor가 같은 속도를 쓰게 되어 전환도 매끄러워짐.
+    - **배회 교착 구조 제거** (08-27): 도착 임계값을 `FLNPEnemyMovementConfig::ArrivalTolerance`
+      하나로 일원화(30 / 100 / 50 3중 불일치 해소)하고 **배회 타임아웃**을 넣었다. StateTree Tick은
+      신호 구동이라 스스로 깨어날 수 없으므로, 시간 측정·깨우기는 매 프레임 도는 MovementProcessor가
+      맡고 목표 재추첨 판단은 IdleTask가 단독으로 한다.
+    - **지면 관통·Low LOD 피격 판정 종료 (08-27)**: 둘 다 좌표 규약 불일치의 파생이었고
+      별도 조치 없이 해소된 것이 실측으로 확인됐다. 조사용 계측 코드는 전량 제거.
+    - **잔여**: 게스트 LowLOD 이동 끊김 — 클라이언트 보간 부재. 미착수.
+      LOD 전환 시 튐은 잔존하나 사용자 판정으로 **수용(보류)**.
 
 ---
 

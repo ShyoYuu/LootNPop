@@ -3,6 +3,7 @@
 #include "Movement/LNPMoveSpeedModifier.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPCharacterMovementSettings.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 
 #include "AbilitySystemComponent.h"
@@ -36,6 +37,17 @@ void FLNPMoveSpeedModifier::OnPreMovement(UMoverComponent* MoverComp, const FMov
 
 	// 현재 이동 상태가 요구하는 기준 속도 — Sprint/Guard의 OnStart와 같은 출처를 쓴다.
 	float BaseSpeed = OriginalCommon->MaxSpeed;
+
+	// AI 폰은 Mass의 EnemyConfig가 정한 속도를 쓴다. 이동 의도 벡터는 방향만 담으므로
+	// (크기로 속도를 표현하면 Mover가 속도를 곱셈으로 깎는다 — ULNPInputHandlerComponent 주석 참조)
+	// 원하는 속도는 여기서 MaxSpeed로 반영한다. 이렇게 해야 Entity/Actor 표현이 같은 속도를 낸다.
+	if (const ULNPInputHandlerComponent* InputHandler = Owner->FindComponentByClass<ULNPInputHandlerComponent>())
+	{
+		const float AIDesiredSpeed = InputHandler->GetAIDesiredSpeed();
+		if (AIDesiredSpeed > 0.f)
+			BaseSpeed = AIDesiredSpeed;
+	}
+
 	if (MoverComp->HasGameplayTag(LNP_Mover_IsSprinting, /*bExactMatch=*/true))
 		BaseSpeed = OriginalLNP->SprintSpeed;
 	else if (MoverComp->HasGameplayTag(LNP_Mover_IsGuarding, /*bExactMatch=*/true))

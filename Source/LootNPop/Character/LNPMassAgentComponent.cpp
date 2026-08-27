@@ -33,7 +33,7 @@ void ULNPMassAgentComponent::TryResolveNetIDFromFragment(int32 AttemptCount)
 		return; // 엔티티가 해제된 경우 등 — 재시도 무의미
 
 	const FMassEntityManager& EntityManager = MassSubsystem->GetEntityManager();
-	if (EntityManager.IsEntityValid(Entity))
+	if (EntityManager.IsEntityActive(Entity))
 	{
 		if (const FMassNetworkIDFragment* NetIDFragment = EntityManager.GetFragmentDataPtr<FMassNetworkIDFragment>(Entity))
 		{

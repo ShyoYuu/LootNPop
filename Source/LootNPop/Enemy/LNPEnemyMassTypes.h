@@ -115,6 +115,21 @@ struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 
 	UPROPERTY(Transient)
 	uint8 bNeedNewWanderTarget : 1 = true;
+
+	/**
+	 * 현재 배회 목표를 발급한 뒤 도착하지 못한 채 흐른 시간(초).
+	 * IdleTask의 Tick은 신호 구동이라 스스로 시간을 잴 수 없으므로, 매 프레임 도는
+	 * ULNPEnemyMovementProcessor가 누적하고 도착 시 0으로 되돌린다.
+	 */
+	UPROPERTY(Transient)
+	float TimeSinceWanderIssued = 0.0f;
+
+	/**
+	 * 배회 목표 미도달 타임아웃이 발생했다. MovementProcessor가 세우면서 StateTree를 깨우고,
+	 * IdleTask가 목표를 폐기·재추첨하며 내린다. 목표를 결정하는 주체는 IdleTask 하나로 유지한다.
+	 */
+	UPROPERTY(Transient)
+	uint8 bWanderTargetTimedOut : 1 = false;
 };
 
 /** Entity 모드 시뮬레이션용 물리 속도 (넉백, 포물선). 지면 접지 시 0. */

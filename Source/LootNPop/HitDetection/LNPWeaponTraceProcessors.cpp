@@ -174,14 +174,23 @@ namespace
 		{
 			for (const FEntry& Entry : Entries)
 			{
-				FLNPWeaponTraceFragment* Frag = EntityManager.GetFragmentDataPtr<FLNPWeaponTraceFragment>(Entry.AttackerEntity);
-				if (!Frag || Frag->bLocalFeedbackFired)
+				// 스윙 엔티티는 이 커맨드보다 먼저 파괴될 수 있다 — 이 커맨드는 EMassCommandOperationType::None이라
+				// Flush 정렬에서 항상 마지막이고, NotifyEnd/TTL이 넣은 Destroy(그룹 6)가 그 앞에서 실행된다.
+				// GetFragmentDataPtr()은 유효성 검사 없이 아키타입 포인터를 역참조하므로(check(CurrentArchetype) 어서션)
+				// 반드시 IsEntityActive()로 먼저 걸러야 한다.
+				FLNPWeaponTraceFragment* Frag = EntityManager.IsEntityActive(Entry.AttackerEntity)
+					? EntityManager.GetFragmentDataPtr<FLNPWeaponTraceFragment>(Entry.AttackerEntity)
+					: nullptr;
+
+				// 엔티티가 이미 사라졌으면 스윙이 끝난 것이라 중복 발동 여지가 없다 — 마지막 프레임 피드백은 살린다.
+				if (Frag && Frag->bLocalFeedbackFired)
 					continue;
 
 				if (ALNPCharacterBase* AttackerChar = Entry.AttackerActor.Get())
 					AttackerChar->ApplyLocalHitFeedback();
 
-				Frag->bLocalFeedbackFired = true;
+				if (Frag)
+					Frag->bLocalFeedbackFired = true;
 			}
 		}
 
@@ -448,7 +457,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			// 공격자 RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (섹션 5.0).
 			// 공격자가 Player가 아니면(Enemy AI) PlayerController가 없어 RewindSeconds=0 → 보정 없음.
 			float RewindSeconds = 0.f;
-			if (ActorSubForRewind && Frag.InstigatorEntity.IsSet())
+			if (ActorSubForRewind && Frag.InstigatorEntity.IsSet() && EntityManager.IsEntityActive(Frag.InstigatorEntity))
 			{
 				if (const ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(ActorSubForRewind->GetActorFromHandle(Frag.InstigatorEntity)))
 				{

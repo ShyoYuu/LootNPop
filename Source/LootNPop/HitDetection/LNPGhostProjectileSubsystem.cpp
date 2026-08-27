@@ -37,7 +37,7 @@ void ULNPGhostProjectileSubsystem::DestroyEntity(FMassEntityHandle Entity)
 		return;
 
 	FMassEntityManager& EntityManager = MassSubsystem->GetMutableEntityManager();
-	if (!EntityManager.IsEntityValid(Entity))
+	if (!EntityManager.IsEntityActive(Entity))
 		return;
 
 	// 트레일 Niagara Component는 EnqueueTrailRelease로 명시적으로 해제해야 한다 (자동 정리 없음, LNPProjectileVisualSubsystem 참조).

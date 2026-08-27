@@ -112,6 +112,43 @@ Entity 모드 (Low LOD):
 - 구형 UpDir은 `(GravityOrigin - Location).GetSafeNormal()`로 실시간 계산 (Fragment 저장 없음 — 캐시 효율).
 - 지표면 좌표는 전부 `ULNPSurfaceCacheSubsystem` O(1) 조회 (→ [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md)).
 
+### 5.1 좌표 규약과 권한 경계 (불변식)
+
+두 모드가 같은 `FTransformFragment`를 공유하므로 **기준점과 쓰기 권한을 하나로 못 박는다.**
+
+- **기준점은 언제나 캡슐 중심이다.** 발밑이 아니다.
+  피격 판정 프로세서(`|Axial| <= HalfHeight`), Actor 승격 시 엔진의 `TeleportActor`,
+  플레이어 엔티티가 모두 중심을 가정한다. Entity 모드에서 표면점을 쓸 때는
+  `표면 반지름 - CapsuleHalfHeight`로 중심 반지름을 만든다 (구 내벽이라 Up이 반지름 감소 방향).
+- **Actor가 있는 동안 Transform의 권한은 Mover 단독이다.** Mass는 읽기만 한다.
+  이를 보장하려고 EntityConfig의 `MassAgent*SyncTrait` 3종을 모두 **`ActorToMass`** 로 둔다
+  (플레이어 설정과 동일). 엔진 기본값 `BothWays`로 두면 `AddTranslator`가 양방향 태그를 전부
+  아키타입에 심어 `UMassTransformToActorCapsuleTranslator`가 매 프레임 Mover의 변위를
+  되쓰기로 지운다 — 걷기 모션만 재생되고 제자리에 멈추는 증상이 된다.
+
+- **AI 이동 의도 벡터는 방향만 담는다 — 크기로 속도를 표현하지 않는다.**
+  Mover의 `UMovementUtils::ComputeVelocity`는 방향 전환 항에서 의도 벡터를 **정규화하지 않고** 쓴다
+  (UE `CharacterMovementComponent`는 같은 자리에서 `GetSafeNormal()`을 쓴다).
+  그래서 크기 `s`(<1)를 지속적으로 넣으면 매 프레임 속도가 `s`배로 깎여
+  평형 속도가 `Acceleration × s × dt / (1 − s)`까지 주저앉는다 — 실측 180cm/s 기대치가 27cm/s로 나왔다.
+  속도는 `SetAIDesiredSpeed()`로 넘겨 `FLNPMoveSpeedModifier`가 `MaxSpeed`에 반영한다.
+  이 규약 덕분에 Entity 경로와 Actor 경로가 같은 `ULNPEnemyConfig::MoveSpeed`를 쓰게 되어
+  LOD 전환 시 속도가 튀지 않는다.
+
+- **목적지까지의 거리는 접평면 성분으로만 잰다.** 반경 방향 차이(캡슐 중심 보정, 지형 높이차)는
+  걸어서 좁힐 수 있는 거리가 아니므로 거리에 포함시키면 도착 판정이 영영 성립하지 않는다.
+  임계값은 `FLNPEnemyMovementConfig::ArrivalTolerance` **하나뿐**이다 — MovementProcessor의
+  도착 신호, IdleTask의 배회 완료 판정, `ComputeStopDistance()`의 버퍼 하한이 모두 이 값을 본다.
+  (`FMassMoveTargetFragment::DistanceToGoal`은 임계값이 아니라 남은 거리다. 혼동 금물.)
+
+- **신호 구동 상태 기계에는 반드시 신호 없이 도는 복구 경로가 있어야 한다.**
+  Mass StateTree의 Task Tick은 `StateTreeActivate` 신호가 있어야만 돈다. 그래서 "도착하면 신호"만
+  있으면 **도달 불가능한 목표를 한 번 뽑은 개체는 영구 정지**한다 — Tick이 안 도니 스스로 목표를
+  바꿀 수 없고, 타임아웃을 Task 안에 넣어도 그 코드가 실행되지 않는다.
+  배회는 이 구조를 이렇게 푼다: 시간 측정과 깨우기는 **매 프레임 도는 MovementProcessor**가 맡고
+  (`FLNPEnemyIdleFragment::TimeSinceWanderIssued` 누적 → `WanderTimeout` 초과 시
+  `bWanderTargetTimedOut` + 신호), 목표를 폐기·재추첨하는 **판단은 IdleTask가 단독으로** 한다.
+
 ---
 
 ## 6. Actor 연동 (High LOD)

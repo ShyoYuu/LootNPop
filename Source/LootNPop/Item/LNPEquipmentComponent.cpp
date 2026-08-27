@@ -9,6 +9,7 @@
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "GAS/LNPStatModifier.h"
+#include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "Player/LNPPlayerState.h"
 #include "Config/LNPSettings.h"
 #include "LootNPop.h"
@@ -62,7 +63,10 @@ void ULNPEquipmentComponent::EnsureDefaultWeapon()
 	{
 		// 인벤토리가 없는 소유자 — 정의만으로 장착한다 (SourceInstance 없음).
 		if (!WeaponSlot.IsValid())
+		{
 			EquipWeapon(DefaultWeapon);
+			RefillHealthToMax();
+		}
 		return;
 	}
 
@@ -73,7 +77,22 @@ void ULNPEquipmentComponent::EnsureDefaultWeapon()
 
 	// 이미 다른 무기를 들고 있으면 건드리지 않는다 — 리스폰마다 기본 무기로 되돌리면 안 된다.
 	if (Instance && !WeaponSlot.IsValid())
+	{
 		EquipWeaponInstance(Instance);
+		RefillHealthToMax();
+	}
+}
+
+// 기본 무기가 MaxHealth 스텟을 가지면 Max만 오르고 현재 HP는 그대로라 "손상된 채 스폰"이 된다.
+// 스폰 시점의 기본 장비 지급 직후에만 부른다 — 런타임 장비 교체는 현재 HP를 유지해야 한다.
+void ULNPEquipmentComponent::RefillHealthToMax()
+{
+	UAbilitySystemComponent* ASC = GetASC();
+	if (ASC == nullptr)
+		return;
+
+	ASC->SetNumericAttributeBase(ULNPBaseAttributeSet::GetHealthAttribute(),
+		ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMaxHealthAttribute()));
 }
 
 bool ULNPEquipmentComponent::EnsureAuthority(const TCHAR* Context) const

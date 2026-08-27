@@ -124,6 +124,9 @@ private:
 	/** 쓰기 진입점이 권위인지 검사한다. 아니면 ensure로 잡고 호출자를 막는다. */
 	bool EnsureAuthority(const TCHAR* Context) const;
 
+	/** 현재 HP를 MaxHealth까지 채운다. 스폰 시 기본 장비 지급 경로 전용 (EnsureDefaultWeapon). */
+	void RefillHealthToMax();
+
 
 	/** 현재 슬롯을 비운다 (GAS 회수 + bEquipped 해제). 통지하지 않으므로 교체의 중간 단계로도 쓸 수 있다. */
 	void ClearWeaponSlot();

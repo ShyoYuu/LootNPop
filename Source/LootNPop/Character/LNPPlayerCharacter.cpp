@@ -117,7 +117,7 @@ void ALNPPlayerCharacter::PushLootSpeedToEntity(float NewLootSpeed)
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*GetWorld());
 	EntityManager.Defer().PushCommand<FMassDeferredSetCommand>([PlayerEntity, NewLootSpeed](FMassEntityManager& Manager)
 	{
-		if (!Manager.IsEntityValid(PlayerEntity))
+		if (!Manager.IsEntityActive(PlayerEntity))
 			return;
 
 		if (FLNPPlayerLootingFragment* Fragment = Manager.GetFragmentDataPtr<FLNPPlayerLootingFragment>(PlayerEntity))

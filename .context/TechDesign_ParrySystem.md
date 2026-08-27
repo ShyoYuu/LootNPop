@@ -97,7 +97,7 @@ Dot >= cos(45°) → 패링 각도 충족  /  Dot >= cos(60°) → 가드 각도
 
 | 커맨드 | 처리 내용 |
 |:---|:---|
-| `FLNPMeleeParryCommand` | 방어자: Parry.Success 큐 + GameplayEvent. 공격자: Stagger 이벤트 + Parried 몽타주 + **넉백 Launch** (방어자 반대 0.7 + Up 0.3 방향, 2000 cm/s — 구형 곡률 포물선). 방어자 Parrier 몽타주 |
+| `FLNPMeleeParryCommand` | 방어자: Parry.Success 큐 + GameplayEvent. 공격자: Stagger 이벤트 + Parried 몽타주 + **넉백** (`ApplyKnockback` — Instant Effect, 방어자 반대 0.7 + Up 0.3 방향, 2000 cm/s — 구형 곡률 포물선). 방어자 Parrier 몽타주 |
 | `FLNPProjectileParryCommand` | 방어자: Parry.Success 큐 + 이벤트. **반사 재현 방송**: `Multicast_RespawnReflectedGhost`(구 Ghost 소멸 + 새 Ghost 스폰). 공격자 Stagger 없음 (투사체 패링 스펙) |
 | `FLNPGuardBlockCommand` | Guard.Block 큐 (향후 스태미나 GE 지점) |
 | `FLNPApplyDamageGECommand` | 피해 GE + HitReact/임팩트 큐 + 넉백 + 공격자 HitStop(근접만) |

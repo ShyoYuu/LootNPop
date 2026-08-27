@@ -313,7 +313,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				FLNPProjectileFragment& Proj = Projectiles[i];
 
 				const FVector CurrentPos = Transforms[i].GetTransform().GetLocation();
-				AActor* InstigatorActor = (ActorSub && Proj.Instigator.IsSet()) ? ActorSub->GetActorFromHandle(Proj.Instigator) : nullptr;
+				AActor* InstigatorActor = (ActorSub && Proj.Instigator.IsSet() && EntityManager.IsEntityActive(Proj.Instigator)) ? ActorSub->GetActorFromHandle(Proj.Instigator) : nullptr;
 
 				for (const FClientCapsuleTarget& Target : ClientTargets)
 				{
