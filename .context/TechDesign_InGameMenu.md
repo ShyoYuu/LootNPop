@@ -457,24 +457,26 @@ WASD는 `ALNPPlayerController::SetMenuNavigationEnabled`가 메뉴 수명 동안
 
 **일시정지**: `GetNetMode() == NM_Standalone`일 때만 `SetPause(true)`.
 
-### 7.3 PIE 게임패드 라우팅 — 메뉴를 닫으면 조작 대상 창이 바뀐다 (에디터 전용)
+### 7.3 PIE 게임패드 라우팅 (에디터 전용)
 
-`Route Gamepad to Second Window`(2인 PIE, Single Process)를 켜고 1P를 키보드/마우스로,
-2P를 게임패드로 조작하는 테스트 구성에서, **메뉴를 닫는 순간 게임패드 조작 대상이 반대 창으로 넘어간다.**
-메뉴 버튼을 연달아 누르면 2P 열기/닫기 → 1P 열기/닫기가 교대로 반복되고,
-뒤집힌 뒤에는 메뉴뿐 아니라 **이동·공격 등 게임패드 입력 전체가 반대 창으로** 간다.
+1인 PIE에는 없는 문제다. **2인 PIE에서 1P를 키보드/마우스, 2P를 게임패드로 잡고** 테스트할 때만 나온다.
 
-원인은 세 가지가 겹친 것이다.
+먼저 엔진 옵션 `Route Gamepad to Second Window`가 실제로 하는 일부터. 이름과 달리 "2번 창으로 보낸다"가
+아니라 **"게임패드 입력이 도착한 PIE 뷰포트에서 무조건 *다음* PIE 뷰포트로 한 칸 넘긴다"** 이다 —
+`UGameViewportClient::InputKey`(`GameViewportClient.cpp:743`)가 `GEngine->GetNextPIEViewport(this)`
+(`PlayLevel.cpp:2532`, WorldList 순환)로 넘기고 자기는 `false`를 돌려준다. 포커스와 무관하고,
+무엇보다 **입력이 Slate보다 아래에서 주입된다.** 여기서 증상 두 가지가 파생된다.
 
-1. 그 옵션은 "2번 창으로 보낸다"가 아니라 **"게임패드 입력이 도착한 PIE 뷰포트에서 무조건 *다음*
-   PIE 뷰포트로 한 칸 넘긴다"** 이다 — `UGameViewportClient::InputKey`(`GameViewportClient.cpp:743`)가
-   `GEngine->GetNextPIEViewport(this)`(`PlayLevel.cpp:2532`, WorldList 순환)로 넘긴다. 포커스와 무관하다.
-2. 따라서 **어느 뷰포트로 "도착"하느냐**가 결과를 정하고, 그건 Slate 포커스가 정한다.
-   PIE 클라이언트들의 첫 LocalPlayer는 모두 `ControllerId == 0`이라
-   `ULocalPlayer::GetSlateUser()`(`LocalPlayer.cpp:1802`)가 **FSlateUser(0) 하나를 공유**한다.
-3. `SetInputMode`가 그 포커스를 옮긴다 — `FInputModeGameOnly::ApplyInputMode`가
-   `SlateOperations.SetUserFocus(자기 뷰포트 위젯)`(`PlayerController.cpp:6446`)을 건다.
-   즉 **메뉴를 닫은 창이 포커스를 가져가고**, 다음 게임패드 입력이 그 창으로 도착해 홉이 뒤집힌다.
+#### 증상 A — 메뉴를 닫으면 조작 대상 창이 바뀐다
+
+메뉴 버튼을 연달아 누르면 2P 열기/닫기 → 1P 열기/닫기가 교대로 반복되고, 뒤집힌 뒤에는 메뉴뿐 아니라
+**이동·공격 등 게임패드 입력 전체가 반대 창으로** 간다.
+
+어느 뷰포트로 "도착"하느냐를 Slate 포커스가 정하는데, PIE 클라이언트들의 첫 LocalPlayer는 모두
+`ControllerId == 0`이라 `ULocalPlayer::GetSlateUser()`(`LocalPlayer.cpp:1802`)가 **FSlateUser(0) 하나를
+공유**한다. 그리고 `SetInputMode`가 그 포커스를 옮긴다 — `FInputModeGameOnly::ApplyInputMode`가
+`SlateOperations.SetUserFocus(자기 뷰포트 위젯)`(`PlayerController.cpp:6446`)을 걸기 때문에,
+**메뉴를 닫은 창이 포커스를 가져가고** 다음 게임패드 입력이 그 창으로 도착해 홉이 뒤집힌다.
 
 **대응**(`ALNPPlayerController::CapturePIEForeignFocus` / `RestorePIEForeignFocus`, `#if WITH_EDITOR`):
 `OpenMenu`에서 `SetInputMode` 직전에 — 그때 포커스를 쥔 창이 **내 창이 아니면** — 그 포커스 위젯을
@@ -486,12 +488,64 @@ LocalPlayer의 지연 `FReply`이고 엔진 틱 말미의 `ProcessLocalPlayerSla
 뒤늦게 적용되므로, 직접 옮긴 포커스를 도로 빼앗아 간다. 그래서 **같은 `FReply`의
 `SetUserFocus`를 덮어쓴다**(포커스 수신자가 필드 하나라 마지막 지정이 이긴다).
 
-한계 — 2P 메뉴가 **열려 있는 동안**에는 키보드/마우스도 2P 메뉴로 간다(Slate 유저 공유 구조상 불가피,
-닫으면 복구). 기억해 둔 위젯이 그 사이 파괴되면 복원을 건너뛰므로 1P 창을 클릭해 수동 복구한다.
+#### 증상 B — 2P에서 방향 이동만 죽는다
 
-> 진짜 로컬 분할화면(한 창·한 뷰포트·LocalPlayer N개)에서는 이 문제가 성립하지 않는다.
-> 입력이 `InputDevice → PlatformUserId → LocalPlayer`로 배분되고 포커스도 FSlateUser별로 갈리기 때문이다.
-> 즉 이 코드는 **PIE 테스트 비계이지 분할화면 대비가 아니다.**
+A를 고치고 나면 2P 게임패드로 이동·공격·메뉴 열고 닫기·L1/R1 탭 이동·○ 닫기가 전부 되는데,
+**인벤토리 그리드 칸 이동만 안 된다.** 되는 것과 안 되는 것이 갈리는 기준이 명확하다.
+
+| 경로 | 2P에서 | 이유 |
+|:---|:---|:---|
+| Enhanced Input 액션 (이동·공격·메뉴 토글) | 동작 | PlayerController 레벨 — 홉을 타고 들어온다 |
+| CommonUI 액션 (○ Back, ✕ Accept, L1/R1) | 동작 | **입력 프리프로세서**로 처리 — 창·포커스와 무관하고 유저 인덱스로만 필터한다(`FCommonInputPreprocessor::IsRelevantInput`) |
+| Slate 방향 네비게이션 (D-Pad·좌스틱·화살표) | **죽음** | 유일하게 **포커스 경로**로 해소된다 — `ProcessKeyDownEvent`가 포커스 경로로 라우팅하고 미처리면 `AttemptNavigation` |
+
+⚠️ **CommonUI에는 이걸 대신해 줄 인터페이스가 없다.** 모듈 전체에서 `EUINavigation`을 쓰는 곳은
+`CommonButtonBase`·`CommonCustomNavigation`·`CommonListView` 등 전부 Slate가 보내 준 `FNavigationEvent`를
+*받는* `OnNavigation` 핸들러이고, 입력에서 네비게이션을 **만들어 내는** 코드는 액션 라우터에도
+아날로그 커서에도 없다. 액션은 "무엇을 실행할까"라 출발점이 필요 없어 프리프로세서로 완결되지만,
+네비게이션은 "**어느 위젯에서** 어느 방향으로"라 포커스된 위젯이 반드시 있어야 하기 때문이다.
+즉 **부족한 건 키 핸들러가 아니라 "두 번째 포커스"** 이고, 그건 두 번째 `FSlateUser`만 줄 수 있다.
+
+⚠️ D-Pad·화살표를 CommonUI 액션 행에 넣어 직접 처리하는 우회는 **금지**다 — §7.2 그대로,
+액션 라우터가 Slate 네비게이션보다 먼저 키를 소비해서 **1P 포함 모든 그리드 이동이 죽는다.**
+
+#### 어느 창이 게임패드를 받는가 — 고정이 아니라 유동적이다
+
+홉이 "다음 뷰포트"인 덕분에 역할은 **키보드 포커스를 쥔 창을 따라 자동으로 뒤집힌다.**
+
+- 1P 창에 포커스 → 키보드·마우스는 1P, 게임패드는 2P
+- **2P 창을 클릭하면** → 키보드·마우스는 2P, 게임패드는 1P
+
+즉 규칙은 하나다 — **게임패드로 조작하고 싶은 창의 "반대편" 창에 마우스로 포커스를 준다.**
+증상 A를 고친 뒤로는 그 배정이 메뉴를 여닫아도 뒤집히지 않는다.
+그리드까지 게임패드로 만져야 한다면 클라이언트를 하나만 띄우고 그 창에 포커스를 준다.
+
+#### 여기서 멈춘 이유 — CommonUI가 PIE 클라이언트를 유저 0에 못박는다
+
+증상 B를 없애려면 게임패드에 **두 번째 `FSlateUser`** 를 줘야 하는데, CommonUI가 그걸 못 따라온다.
+
+```cpp
+int32 UCommonUIActionRouterBase::GetLocalPlayerIndex() const   // CommonUIActionRouterBase.cpp:853
+{
+    return GameInstance->GetLocalPlayers().Find(LocalPlayer);   // ← ControllerId가 아니다
+}
+```
+
+CommonUI의 유저 인덱스는 `ControllerId`가 아니라 **GameInstance의 LocalPlayers 배열 인덱스**다.
+PIE는 클라이언트마다 별도 GameInstance에 로컬 플레이어가 하나씩이므로 **둘 다 항상 0**이고,
+`SetControllerId(1)`을 해도 CommonUI의 포커스 지정(`FocusLeafmostNode` → `SetUserFocus(OwnerSlateId, …)`)은
+계속 유저 0을 향한다. 입력 필터도 마찬가지다 — `FAnalogCursor::IsRelevantInput`이
+`GetOwnerUserIndex() == 이벤트 유저`인데(`AnalogCursor.cpp:194`) `FCommonAnalogCursor`가 그것을 라우터
+인덱스(=0)로 오버라이드하므로, 유저 1로 보낸 게임패드는 ○·L1/R1까지 무시된다.
+`GetLocalPlayerIndex()`는 **virtual이 아니라** 라우터를 파생시켜도 못 바꾼다.
+
+실제로 별도 SlateUser 방식을 구현해 봤고 이 이유로 되돌렸다 — 경위는
+`.context/DiscardedApproaches.md`의 "PIE 게임패드 별도 SlateUser 분리" 항목에 있다.
+
+> 진짜 로컬 분할화면(한 창·한 뷰포트·LocalPlayer N개)에서는 증상 A도 B도 성립하지 않는다.
+> 입력이 `InputDevice → PlatformUserId → LocalPlayer`로 배분되고, 포커스도 FSlateUser별로 갈리며,
+> CommonUI의 배열 인덱스도 그제서야 Slate 유저 인덱스와 일치하기 때문이다.
+> 즉 §7.3은 **PIE 테스트 비계 이야기이지 분할화면 대비가 아니다.**
 
 ## 8. 필수 설정
 

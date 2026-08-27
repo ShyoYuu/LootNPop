@@ -399,6 +399,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadOnly);
 	MovementQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	MovementQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
+	MovementQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite); // 배회 타임아웃 계측
 	MovementQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	MovementQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	MovementQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -427,6 +428,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const TConstArrayView<FMassMoveTargetFragment> MoveTargets = EnemyContext.GetFragmentView<FMassMoveTargetFragment>();
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = EnemyContext.GetFragmentView<FLNPEnemyTargetingFragment>();
 		const TArrayView<FLNPEnemyVelocityFragment> VelocityFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
+		const TArrayView<FLNPEnemyIdleFragment> IdleFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyIdleFragment>();
 		const FLNPEnemySharedFragment& SharedFragment = EnemyContext.GetConstSharedFragment<FLNPEnemySharedFragment>();
 
 		if (SharedFragment.Config == nullptr)
@@ -437,6 +439,14 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const float AttackRange = SharedFragment.Config->MovementConfig.AttackRange;
 		const float BaseMoveSpeed = SharedFragment.Config->MovementConfig.MoveSpeed;
 		const float GravityStrength = SharedFragment.Config->MovementConfig.GravityStrength;
+
+		// 엔티티 Transform의 기준점은 **캡슐 중심**이다 — 발밑이 아니다.
+		// Actor가 붙어 있는 동안에는 MassAgentCapsuleCollisionSyncTrait(ActorToMass)가
+		// 캡슐 컴포넌트 Transform을 그대로 넣으므로 중심 기준이고, 피격 판정 프로세서와
+		// Actor 승격 시의 TeleportActor도 중심을 가정한다. 여기(Actor 없는 경로)만 표면점을
+		// 그대로 쓰면 LOD가 바뀔 때마다 좌표가 HalfHeight만큼 튄다.
+		// 구 내벽이라 Up은 중심 방향 = 반지름이 줄어드는 쪽이므로 표면 반지름에서 빼준다.
+		const float CapsuleHalfHeight = SharedFragment.Config->CapsuleHalfHeight;
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
@@ -449,9 +459,13 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			const FQuat CurrentRotation = EntityTransform.GetRotation();
 
 			const FVector TargetPos = MoveTarget.Center;
-			const float DistSq = FVector::DistSquared(TargetPos, EntityLocation);
-			const FVector DirToTarget = (TargetPos - EntityLocation).GetSafeNormal();
-			const FVector TargetDirOnPlane = FVector::VectorPlaneProject(DirToTarget, UpDir).GetSafeNormal();
+			// 구면 위에서 목적지까지의 거리는 **접평면 성분으로만** 잰다.
+			// 반경 방향 차이(캡슐 중심 보정 96cm, 지형 높이차)는 걸어서 좁힐 수 있는 거리가 아니므로
+			// 거리에 포함시키면 도착 판정이 영영 성립하지 않는다. 실제로 목적지가 순수 반경 방향으로만
+			// 어긋나면 접평면 투영이 0이 되어 방향 벡터까지 사라져 엔티티가 완전히 굳는다.
+			const FVector ToTargetOnPlane = FVector::VectorPlaneProject(TargetPos - EntityLocation, UpDir);
+			const float DistSq = ToTargetOnPlane.SizeSquared();
+			const FVector TargetDirOnPlane = ToTargetOnPlane.GetSafeNormal();
 
 			float EffectiveSpeed = 0.0f;
 			FVector OrientationIntent = FVector::ZeroVector;
@@ -480,10 +494,33 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			}
 
 			// 목적지 도달 시 StateTree 신호 (None/Confirmed 상태용)
-			if (EffectiveSpeed > 0.0f && DistSq < FMath::Square(30.0f)) // 도착 임계값
+			const bool bArrived = DistSq < FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance);
+			if (EffectiveSpeed > 0.0f && bArrived)
 			{
 				EntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				EffectiveSpeed = 0.0f;
+			}
+
+			// 배회 교착 복구 — Idle(None) 상태에서 타임아웃까지 도착하지 못하면 StateTree를 깨워
+			// 목표를 재추첨하게 한다. 도착 신호만으로는 복구할 수 없다: 도달 불가능한 지점을 한 번
+			// 뽑으면 신호가 영영 오지 않고, 신호가 없으면 IdleTask의 Tick도 돌지 않아 영구 정지한다.
+			// 시간 계측을 여기 두는 것은 매 프레임 도는 경로가 이쪽뿐이기 때문이다.
+			FLNPEnemyIdleFragment& IdleData = IdleFragments[i];
+			if (Targeting.State == ELNPTargetingState::None && !bArrived)
+			{
+				IdleData.TimeSinceWanderIssued += DeltaTime;
+				if (IdleData.TimeSinceWanderIssued > FLNPEnemyMovementConfig::WanderTimeout)
+				{
+					// 여기서 바로 0으로 되돌려 신호가 매 프레임 반복되지 않게 한다.
+					// 실제 목표 폐기·재추첨은 IdleTask가 한다(배회 목표의 단일 결정 주체).
+					IdleData.TimeSinceWanderIssued = 0.0f;
+					IdleData.bWanderTargetTimedOut = true;
+					EntitiesToSignal.Add(EnemyContext.GetEntity(i));
+				}
+			}
+			else
+			{
+				IdleData.TimeSinceWanderIssued = 0.0f;
 			}
 
 			// StateTree에서 명시적으로 속도를 설정한 경우 Override (예: SteeringTask)
@@ -497,15 +534,21 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				TWeakObjectPtr<AActor> WeakActor(Actor);
 				const FVector CapturedOrientation = OrientationIntent;
-				const float SpeedRatio = (BaseMoveSpeed > 0.f) ? (EffectiveSpeed / BaseMoveSpeed) : 0.f;
-				const FVector CapturedMoveInput   = EffectiveSpeed > 0.0f ? (OrientationIntent * SpeedRatio) : FVector::ZeroVector;
+
+				// 이동 의도는 **방향만** 담는다(단위 벡터). 속도는 MaxSpeed로 따로 지정한다.
+				// Mover의 ComputeVelocity가 의도 벡터를 정규화하지 않고 방향 전환 항에 그대로 써서,
+				// 크기 s(<1)를 지속적으로 넣으면 매 프레임 속도가 s배로 깎이기 때문이다
+				// (실측: s=0.3에서 180cm/s 기대 → 27cm/s). 상세는 ULNPInputHandlerComponent::SetAIMoveInput 주석.
+				const FVector CapturedMoveInput   = EffectiveSpeed > 0.0f ? OrientationIntent : FVector::ZeroVector;
+				const float   CapturedDesiredSpeed = EffectiveSpeed;
 				EnemyContext.Defer().PushCommand<FMassDeferredSetCommand>(
-					[WeakActor, CapturedOrientation, CapturedMoveInput](const FMassEntityManager&)
+					[WeakActor, CapturedOrientation, CapturedMoveInput, CapturedDesiredSpeed](const FMassEntityManager&)
 					{
 						if (ALNPCharacterBase* LNPCharacter = Cast<ALNPCharacterBase>(WeakActor.Get()))
 						{
 							LNPCharacter->SetAIOrientationIntent(CapturedOrientation);
 							LNPCharacter->SetAIMoveInput(CapturedMoveInput);
+							LNPCharacter->SetAIDesiredSpeed(CapturedDesiredSpeed);
 						}
 					});
 			}
@@ -530,7 +573,8 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					FVector SurfacePoint;
 					if (SurfaceCache.GetSurfacePoint(NewDir, SurfacePoint))
 					{
-						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
+						// 접지 상태의 캡슐 중심 반지름 — 발이 표면에 닿았을 때의 중심 위치
+						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint) - CapsuleHalfHeight;
 						const float DistFromCenter = FVector::Dist(GravityOrigin, NewPos);
 
 						if (DistFromCenter >= SurfaceRadius)
@@ -592,7 +636,9 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 								{
 									const float HorizDist = FVector::VectorPlaneProject(SlopeDelta, UpDir).Size();
 									if (HorizDist / TotalDist < MaxWalkSlopeCosine)
+									{
 										Velocity = FVector::ZeroVector;
+									}
 								}
 							}
 						}
@@ -605,7 +651,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					FVector SurfacePoint;
 					if (SurfaceCache.GetSurfacePoint(DirToSurface, SurfacePoint))
 					{
-						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint);
+						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint) - CapsuleHalfHeight;
 						FinalPos = GravityOrigin + DirToSurface * SurfaceRadius;
 					}
 					EntityTransform.SetLocation(FinalPos);
@@ -875,8 +921,6 @@ void ULNPEnemyDeathTimerProcessor::Execute(FMassEntityManager& EntityManager, FM
 	if (ToDestroy.Num() > 0)
 		Context.Defer().DestroyEntities(MoveTemp(ToDestroy));
 }
-
-
 #if WITH_EDITOR
 // --- Debug Draw Processor (디버그 드로우) ---
 

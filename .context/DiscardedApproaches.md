@@ -81,3 +81,47 @@ Pod Actor 바로 옆(217cm)에 서 있어도 쿼리 결과가 항상 0건. Defin
 
 - **`ULNPInteractableRegistrySubsystem` 레지스트리 (구 `ULNPLootPodSubsystem` — LootDice 도입 시 AActor 기반으로 일반화):** 대상 Actor(Pod·Dice)가 `BeginPlay`/`EndPlay`에 스스로 등록/해제하는 목록을 `ULNPInteractionComponent`가 순회. High LOD Actor는 항상 소수(플레이어 주변만 스폰)라 순회 비용이 무시할 수준이고, 풀링 재배치와 무관하게 항상 현재 위치 기준으로 판정된다. (월드 전체를 도는 `TActorIterator`도 비효율 사유로 배제)
 - Pod의 `USmartObjectComponent`·SOD 에셋은 현재 상호작용 경로에서 미사용 — NPC AI(StateTree) 연동 후보로만 보류, 불필요 확정 시 제거 예정.
+
+---
+
+## [Case 04] PIE 게임패드를 별도 SlateUser로 분리
+
+- **일자:** 2026-08-23
+- **상태:** **기각 (Dismissed)**
+
+### 배경
+
+2인 PIE(1P 키보드·마우스 / 2P 게임패드) 테스트에서, 게임패드를 받는 클라이언트만 **Slate 방향 네비게이션이 죽는다** — 인벤토리 그리드 칸 이동이 안 된다. 원인과 증상 분류는 [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md) §7.3에 있다. 요약하면 엔진의 `Route Gamepad to Second Window`가 입력을 **Slate보다 아래(`UGameViewportClient::InputKey`)로 주입**하므로, 포커스 경로로 해소되는 네비게이션만 갈 곳을 잃는다. 필요한 것은 키 핸들러가 아니라 **두 번째 포커스** = 두 번째 `FSlateUser`다.
+
+### 구현 방식
+
+`LNPPIEGamepadRouting.h/.cpp` (전체 `#if WITH_EDITOR`):
+
+1. 합성 `FInputDeviceId`를 할당해 **PlatformUser 1**에 매핑. 실제 게임패드 디바이스는 유저 0에 묶인 채 둔다 — 윈도우에서 키보드와 게임패드는 같은 디바이스를 공유하므로 원본을 건드리면 키보드까지 딸려간다. (엔진이 스플릿스크린에서 쓰는 수법과 동일: `UGameViewportClient::RemapControllerInput`)
+2. `IInputProcessor`가 게임패드 키·아날로그를 그 디바이스로 **재발행**하고 원본은 소비. 재진입은 "합성 디바이스면 통과" 한 조건으로 끊는다.
+3. 2번째 PIE 클라이언트의 LocalPlayer를 `SetControllerId(1)`로 승격.
+
+컴파일·링크는 통과했다(`ApplicationCore` 모듈 의존 추가 필요).
+
+### 기각 사유
+
+**CommonUI가 PIE 클라이언트를 Slate 유저 0에 못박는다.**
+
+```cpp
+int32 UCommonUIActionRouterBase::GetLocalPlayerIndex() const   // CommonUIActionRouterBase.cpp:853
+{
+    return GameInstance->GetLocalPlayers().Find(LocalPlayer);   // ← ControllerId가 아니다
+}
+```
+
+CommonUI의 유저 인덱스는 `ControllerId`가 아니라 **GameInstance의 LocalPlayers 배열 인덱스**다. PIE는 클라이언트마다 별도 GameInstance에 로컬 플레이어가 하나씩이라 **둘 다 항상 0**이고, `SetControllerId(1)`은 CommonUI에 아무 영향이 없다. 결과적으로
+
+1. CommonUI의 포커스 지정(`FActivatableTreeRoot::FocusLeafmostNode` → `SetUserFocus(OwnerSlateId=0, …)`)이 계속 유저 0을 향한다 → 2P 메뉴가 1P의 키보드 포커스를 뺏고, 정작 게임패드(유저 1)는 그리드에 닿지 못한다. **고치려던 증상이 그대로 남는다.**
+2. 입력 필터까지 막힌다 — `FAnalogCursor::IsRelevantInput`이 `GetOwnerUserIndex() == 이벤트 유저`인데(`AnalogCursor.cpp:194`) `FCommonAnalogCursor`가 이를 라우터 인덱스(=0)로 오버라이드한다. 유저 1로 재발행된 게임패드는 **○·L1/R1 같은 CommonUI 액션까지 무시된다** → 기존보다 나빠지는 회귀.
+3. `GetLocalPlayerIndex()`는 **virtual이 아니다.** 라우터 자체는 파생 가능하지만(`Found 0 derived classes when attemping to create action router` 로그) 이 함수만은 못 바꾼다. 2P GameInstance에 더미 로컬 플레이어를 끼워 인덱스를 1로 미는 편법은 스플릿스크린 활성화·세션 오염 위험이 커서 후보에서 제외했다.
+
+### 채택한 대안
+
+엔진 홉을 그대로 쓰고, **증상 A(메뉴를 닫으면 조작 대상 창이 바뀜)만** `ALNPPlayerController::CapturePIEForeignFocus` / `RestorePIEForeignFocus`로 잡았다. 홉이 "입력이 도착한 뷰포트의 다음 뷰포트"이므로 역할 배정은 포커스를 준 창을 따라 유동적으로 뒤집히고(게임패드는 항상 포커스 준 창의 반대편), 남는 제약은 그쪽 창의 그리드 방향 이동 하나뿐이다. 게임패드로 UI를 만져야 하면 클라이언트를 하나만 띄운다.
+
+> 진짜 로컬 분할화면에서는 이 문제 자체가 성립하지 않는다 — 로컬 플레이어 배열 인덱스가 그제서야 Slate 유저 인덱스와 일치하기 때문이다. 이 기각은 **PIE 한정**이다.

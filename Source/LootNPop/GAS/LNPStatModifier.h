@@ -94,4 +94,15 @@ namespace LNPStat
 	LOOTNPOP_API void ApplyModifiers(UAbilitySystemComponent& ASC,
 		TConstArrayView<FLNPStatModifier> Modifiers,
 		TArray<FActiveGameplayEffectHandle>& OutHandles);
+
+	/**
+	 * ApplyModifiers를 적용했을 때 나올 최종 값을 ASC 없이 계산한다 — (Base + ΣFlat) × (1 + ΣPercent).
+	 *
+	 * ASC가 존재하지 않는 곳에서만 쓴다. 현재 용처는 적 Mass 엔티티의 스폰 시점 MaxHealth 하나뿐이다
+	 * (엔티티는 ASC를 갖지 않고, Actor로 승격된 뒤에야 같은 스텟이 GE로 걸린다).
+	 * ASC가 있으면 언제나 GetNumericAttribute가 정답이다.
+	 */
+	LOOTNPOP_API float ResolveStatValue(const FGameplayAttribute& Attribute,
+		float BaseValue,
+		TConstArrayView<FLNPStatModifier> Modifiers);
 }

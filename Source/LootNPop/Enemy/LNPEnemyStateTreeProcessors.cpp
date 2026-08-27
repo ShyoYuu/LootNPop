@@ -291,6 +291,8 @@ EStateTreeRunStatus FLNPEnemyIdleTask::EnterState(FStateTreeExecutionContext& Co
 	// 배회 상태 리셋: 다음 Tick에서 즉시 새 타겟 선택
 	IdleData.bNeedNewWanderTarget = true;
 	IdleData.LastWanderTime = 0.0;
+	IdleData.TimeSinceWanderIssued = 0.0f;
+	IdleData.bWanderTargetTimedOut = false;
 
 	// 목적지를 현재 위치로 설정: 다음 프레임에 MovementProcessor가 "도착"을 감지하여
 	// StateTreeActivate 신호를 발생시키고 1-2 프레임 내에 Tick()을 호출한다.
@@ -314,7 +316,6 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
 
 	const double CurrentTime = Context.GetWorld()->GetTimeSeconds();
-	const double TimeSinceLastWander = CurrentTime - IdleData.LastWanderTime;
 	const double WANDER_INTERVAL = 3.0;
 
 	// 1. 즉시 중단: 타게팅 상태가 None에서 변경된 경우 즉시 종료
@@ -324,11 +325,28 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 		return EStateTreeRunStatus::Failed;
 	}
 
+	// 구면 위에서 목적지 거리는 **접평면 성분으로만** 잰다 — MovementProcessor와 같은 규약이다.
+	// 지형 높이차·캡슐 중심 보정 같은 반경 성분은 걸어서 좁힐 수 있는 거리가 아니므로
+	// 거리에 섞으면 도달 판정이 성립하지 않고 배회가 교착된다 (TechDesign_EnemyNPC.md §5.1).
+	const FVector EntityLocation = Transform.GetTransform().GetLocation();
+	const FVector GravityOrigin = SharedConfig.Config ? SharedConfig.Config->MovementConfig.GravityOrigin : FVector::ZeroVector;
+	const FVector UpDir = (GravityOrigin - EntityLocation).GetSafeNormal();
+
+	// 2. 교착 복구: MovementProcessor가 미도달 타임아웃을 보고하면 목표를 폐기하고 즉시 재추첨한다.
+	//    LastWanderTime을 0으로 되돌려 대기 인터벌을 건너뛴다 — 이미 타임아웃만큼 기다린 상태다.
+	if (IdleData.bWanderTargetTimedOut)
+	{
+		IdleData.bWanderTargetTimedOut = false;
+		IdleData.bNeedNewWanderTarget = true;
+		IdleData.LastWanderTime = 0.0;
+	}
+
+	const double TimeSinceLastWander = CurrentTime - IdleData.LastWanderTime;
+
 	if (IdleData.bNeedNewWanderTarget && WANDER_INTERVAL < TimeSinceLastWander)
 	{
 		const float WanderMinDist = SharedConfig.Config ? SharedConfig.Config->MovementConfig.WanderMinDistance : 200.0f;
 		const float WanderMaxDist = SharedConfig.Config ? SharedConfig.Config->MovementConfig.WanderMaxDistance : 800.0f;
-		const FVector GravityOrigin = SharedConfig.Config ? SharedConfig.Config->MovementConfig.GravityOrigin : FVector::ZeroVector;
 		const FVector PodOutDir = (Enemy.ParentPodLocation - GravityOrigin).GetSafeNormal();
 		const FVector ArbitraryAxis = FMath::Abs(FVector::DotProduct(PodOutDir, FVector::ForwardVector)) < 0.9f ? FVector::ForwardVector : FVector::RightVector;
 		const FVector Tangent1 = FVector::CrossProduct(PodOutDir, ArbitraryAxis).GetSafeNormal();
@@ -341,11 +359,17 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 		const float PodRadius = (Enemy.ParentPodLocation - GravityOrigin).Size();
 		const FVector QueryDir = (PodOutDir * PodRadius + TangentOffset).GetSafeNormal();
 
+		// 목적지도 엔티티와 같은 **캡슐 중심** 기준이어야 한다 (TechDesign_EnemyNPC.md §5.1).
+		// SurfaceCache가 주는 점은 발밑이므로 중심 높이로 끌어올린다. 이 보정을 빼면 목적지와
+		// 현재 위치 사이에 HalfHeight만큼의 수직 성분이 상시로 남아, MovementProcessor의
+		// 도착 임계값(30cm)을 영영 넘지 못하고 배회가 교착된다.
+		const float CapsuleHalfHeight = SharedConfig.Config ? SharedConfig.Config->CapsuleHalfHeight : 96.0f;
+
 		ULNPSurfaceCacheSubsystem* SurfaceCache = Context.GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
 		FVector WanderPoint;
 		if (SurfaceCache && SurfaceCache->GetSurfacePoint(QueryDir, WanderPoint))
 		{
-			MoveTarget.Center = WanderPoint;
+			MoveTarget.Center = WanderPoint + (GravityOrigin - WanderPoint).GetSafeNormal() * CapsuleHalfHeight;
 		}
 		else
 		{
@@ -353,16 +377,20 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 			//UE_LOG(LogLootNPop, Warning, TEXT("IdleTask: Surface cache unavailable, using fallback wander target at %s"), *MoveTarget.Center.ToString());
 		}
 
-		MoveTarget.DistanceToGoal = 50.0f;
+		// DistanceToGoal은 도착 임계값이 아니라 **남은 거리**다 — TargetFollow·SteeringTask 등
+		// 다른 기록 지점과 같은 규약으로 실제 값을 넣는다(상수를 넣어두면 임계값으로 오해된다).
+		MoveTarget.DistanceToGoal = FVector::VectorPlaneProject(MoveTarget.Center - EntityLocation, UpDir).Size();
 		MoveTarget.DesiredSpeed = FMassInt16Real(0.0f);
 
 		IdleData.bNeedNewWanderTarget = false;
-		//UE_LOG(LogLootNPop, Log, TEXT("IdleTask: New wander target set at %s"), *MoveTarget.Center.ToString());
+		IdleData.TimeSinceWanderIssued = 0.0f;
 	}
 
-	// 2. 완료 체크: 현재 배회 타겟 도달 시 다음 인터벌 대기
-	const float DistSq = FVector::DistSquared(MoveTarget.Center, Transform.GetTransform().GetLocation());
-	if (DistSq < FMath::Square(100.0f))
+	// 3. 완료 체크: 현재 배회 타겟 도달 시 다음 인터벌 대기.
+	//    임계값은 MovementProcessor의 도착 신호 조건과 **같은 상수**여야 한다 — 이쪽이 더 느슨하면
+	//    신호 없이는 어차피 Tick이 안 돌아 의미가 없고, 더 빡빡하면 신호가 와도 완료가 안 잡힌다.
+	const float DistSq = FVector::VectorPlaneProject(MoveTarget.Center - EntityLocation, UpDir).SizeSquared();
+	if (DistSq < FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance))
 	{
 		if (IdleData.bNeedNewWanderTarget == false)
 		{

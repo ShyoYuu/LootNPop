@@ -70,8 +70,10 @@ public:
 	USkeletalMeshComponent* GetWeaponMesh()   const { return WeaponMesh;       }
 	UAnimInstance*          GetAnimInstance() const { return AnimSourceMesh ? AnimSourceMesh->GetAnimInstance() : nullptr; }
 
+	/** 방향만 담는다 — 단위 벡터 또는 영벡터. 속도는 SetAIDesiredSpeed로 (사유: 입력 핸들러 주석). */
 	void SetAIMoveInput(FVector InMoveInput);
 	void SetAIOrientationIntent(FVector InOrientationIntent);
+	void SetAIDesiredSpeed(float InSpeed);
 
 	/**
 	 * 공격 입력 처리 공용 진입점. TAG_Block_AttackInput 체크 후 TryActivateAttack_Impl을 호출한다.

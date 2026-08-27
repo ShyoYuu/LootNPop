@@ -153,7 +153,7 @@ FinishHit (공통 후처리 람다):
 | 커맨드 | 처리 |
 |:---|:---|
 | `FLNPApplyDamageGECommand` | SetByCaller 피해 GE 적용 + HitReact/임팩트 GameplayCue + 넉백 + (근접) 공격자 HitStop 큐 |
-| `FLNPMeleeParryCommand` | 방어자 Parry.Success 이벤트/큐 + 공격자 Stagger 이벤트 + 공격자 넉백 Launch |
+| `FLNPMeleeParryCommand` | 방어자 Parry.Success 이벤트/큐 + 공격자 Stagger 이벤트 + 공격자 넉백(`ApplyKnockback` — Instant Effect) |
 | `FLNPProjectileParryCommand` | 방어자 이벤트/큐 + 반사 Ghost 소멸·재스폰 방송 |
 | `FLNPGuardBlockCommand` | Guard.Block GameplayCue |
 

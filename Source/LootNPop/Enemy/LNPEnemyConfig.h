@@ -85,13 +85,32 @@ struct FLNPEnemyMovementConfig
 	float AttackInterval = 1.5f;
 
 	/**
-	 * Chase 정지 거리: AttackRange 안쪽에서 멈추되, 도착 신호(ArrivalBuffer=30)가 반드시
-	 * 발생하도록 버퍼를 확보한다. TargetFollow(MoveTarget 산출)·Movement(속도 결정)·
+	 * 도착 판정 임계값(cm). 구면 위에서는 **접평면 거리**로 잰다 (TechDesign_EnemyNPC.md §5.1).
+	 *
+	 * MovementProcessor의 도착 신호와 IdleTask의 배회 완료 판정이 반드시 같은 값을 봐야 한다.
+	 * StateTree Tick은 신호 구동이라, 신호 조건(이 값)보다 완료 조건이 느슨하면 완료 처리가
+	 * 신호 없이 성립할 수 없고, 반대면 신호가 와도 완료가 안 잡혀 배회가 교착된다.
+	 */
+	static constexpr float ArrivalTolerance = 30.f;
+
+	/**
+	 * 배회 목표 미도달 타임아웃(초). 이 시간 안에 도착하지 못하면 목표를 폐기하고 재추첨한다.
+	 *
+	 * 도착 신호만으로는 복구가 불가능하기 때문에 반드시 필요하다 — 도달 불가능한 지점을 한 번
+	 * 뽑으면 도착 신호가 영영 오지 않고, 신호가 없으면 StateTree Tick도 돌지 않아 그 개체가
+	 * 영구 정지한다. 배회 거리는 WanderMin\~MaxDistance(300\~800cm)이고 배회 속도는
+	 * MoveSpeed의 0.3배(=180cm/s)이므로 정상 도달은 2\~5초다. 우회를 감안해 넉넉히 잡는다.
+	 */
+	static constexpr float WanderTimeout = 10.f;
+
+	/**
+	 * Chase 정지 거리: AttackRange 안쪽에서 멈추되, 도착 신호가 반드시 발생하도록
+	 * ArrivalTolerance 이상의 버퍼를 확보한다. TargetFollow(MoveTarget 산출)·Movement(속도 결정)·
 	 * SteeringTask(StateTree)가 반드시 같은 값을 봐야 정지 지점이 일치한다.
 	 */
 	static float ComputeStopDistance(const float AttackRange)
 	{
-		const float StopBuffer = FMath::Max(30.f, FMath::Min(AttackRange * 0.1f, 100.f));
+		const float StopBuffer = FMath::Max(ArrivalTolerance, FMath::Min(AttackRange * 0.1f, 100.f));
 		return FMath::Max(0.f, AttackRange - StopBuffer);
 	}
 };

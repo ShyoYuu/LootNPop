@@ -44,8 +44,24 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	/**
+	 * AI 이동 의도. **반드시 단위 벡터이거나 영벡터**여야 한다 — 크기로 속도를 표현하지 말 것.
+	 *
+	 * Mover의 UMovementUtils::ComputeVelocity는 방향 전환 항에서
+	 *   Velocity += (ControlAcceleration * |Velocity| - Velocity) * min(dt * TurningBoost * Friction, 1)
+	 * 를 쓰는데, ControlAcceleration이 **정규화되지 않은** 의도 벡터다(UE CMC는 여기서 GetSafeNormal()을 쓴다).
+	 * 따라서 크기 s(<1)를 지속적으로 넣으면 매 프레임 속도가 s배로 깎여
+	 * 평형 속도가 `Acceleration * s * dt / (1 - s)`까지 주저앉는다.
+	 * 실측: s=0.3, Accel=4000, dt≈0.016 → 약 27cm/s (기대 180cm/s).
+	 * 속도는 SetAIDesiredSpeed로 지정한다.
+	 */
 	void SetAIMoveInput(FVector InMoveInput) { AIMoveInput = InMoveInput; }
 	void SetAIOrientationIntent(FVector InOrientationIntent) { AIOrientationIntent = InOrientationIntent; }
+
+	/** AI가 원하는 이동 속도(cm/s). 0 이하면 미지정 — FLNPMoveSpeedModifier가 MaxSpeed로 반영한다. */
+	void SetAIDesiredSpeed(float InSpeed) { AIDesiredSpeed = InSpeed; }
+	float GetAIDesiredSpeed() const { return AIDesiredSpeed; }
+
 
 	bool GetFaceMoveDirection() const { return bFaceMoveDirection; }
 	void SetFaceMoveDirection(bool bValue) { bFaceMoveDirection = bValue; }
@@ -166,6 +182,7 @@ private:
 
 	FVector AIMoveInput = FVector::ZeroVector;
 	FVector AIOrientationIntent = FVector::ZeroVector;
+	float   AIDesiredSpeed = 0.f;
 
 	FVector CachedMoveInputIntent = FVector::ZeroVector;
 	FRotator CachedLookInput = FRotator::ZeroRotator;

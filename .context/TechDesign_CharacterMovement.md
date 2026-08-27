@@ -406,8 +406,8 @@ Sprint/Guard Modifier는 라이브 설정에 값을 쓰고 종료 시 **CDO 원�
 
 | API | 구현 | 용도 |
 |:---|:---|:---|
-| `ApplyKnockback()` | `FApplyVelocityEffect` (Instant Effect, 가산 속도) | 피격 넉백 |
-| `LaunchWithVelocity()` | `FLayeredMove_Launch` (OverrideVelocity) | 패링 성공 시 공격자 발사 등 |
+| `ApplyKnockback()` | `FApplyVelocityEffect` (Instant Effect, 가산 속도) | 피격 넉백, 근접 패링 성공 시 공격자 넉백 |
+| `LaunchWithVelocity()` | `FLayeredMove_Launch` (OverrideVelocity) | Actor 승격 시 로컬 Mover를 Mass 엔티티 속도로 시드 (`SyncFromEntity`) — 현재 유일한 호출처 |
 
 두 API 모두 **Air 모드로 강제 전환**해서 적용한다 — Ground 모드는 매 틱 속도를 MaxWalkSpeed로 클램프하고 위치를 지면에 스냅하므로 임펄스가 무력화되기 때문 (§7.2).
 

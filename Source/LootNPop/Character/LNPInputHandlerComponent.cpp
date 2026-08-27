@@ -345,7 +345,7 @@ FLNPParryStateFragment* ULNPInputHandlerComponent::GetParryFragment() const
 
 	FMassEntityManager& EM = MassSub->GetMutableEntityManager();
 	const FMassEntityHandle Handle = AgentComp->GetEntityHandle();
-	if (!EM.IsEntityValid(Handle))
+	if (!EM.IsEntityActive(Handle))
 		return nullptr;
 
 	return EM.GetFragmentDataPtr<FLNPParryStateFragment>(Handle);
