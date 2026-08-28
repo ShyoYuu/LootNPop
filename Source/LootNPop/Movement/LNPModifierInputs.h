@@ -42,6 +42,19 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
 	FVector DashInputIntent = FVector::ZeroVector;
 
+	/**
+	 * AI 폰이 원하는 이동 속도(cm/s). 0 이하면 미지정 — FLNPMoveSpeedModifier가 MaxSpeed로 반영한다.
+	 *
+	 * **왜 InputCmd에 실어야 하는가:** 이 값을 `ULNPInputHandlerComponent`의 평범한 멤버로만 두면
+	 * 서버에서만 채워지고, 클라이언트는 CDO의 `MaxSpeed`(엔진 기본 800)로 폴백한다.
+	 * 이 프로젝트의 Mover는 Async 모드 + Chaos 물리 예측(`bEnablePhysicsPrediction=True`)이라
+	 * **클라이언트가 적 폰의 이동을 직접 재시뮬레이션**하므로, 속도가 틀리면 서버보다 4배 빠르게
+	 * 앞서 나가다 `ResimulationErrorPositionThreshold`(10cm)를 넘겨 매번 되감긴다
+	 * (2026-08-28 실측: 호스트 180 vs 게스트 435~800).
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	float AIDesiredSpeed = 0.f;
+
 	virtual FMoverDataStructBase* Clone() const override
 	{
 		return new FLNPModifierInputs(*this);
@@ -58,6 +71,17 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		{
 			Ar << DashInputIntent;
 		}
+		// AI 속도도 같은 이유로 조건부다 — 플레이어 폰은 항상 0이라 비트 하나만 쓴다.
+		bool bHasAIDesiredSpeed = (AIDesiredSpeed > 0.f);
+		Ar.SerializeBits(&bHasAIDesiredSpeed, 1);
+		if (bHasAIDesiredSpeed)
+		{
+			Ar << AIDesiredSpeed;
+		}
+		else if (Ar.IsLoading())
+		{
+			AIDesiredSpeed = 0.f;
+		}
 		bOutSuccess = true;
 		return true;
 	}
@@ -72,6 +96,11 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		const FLNPModifierInputs& Authority = static_cast<const FLNPModifierInputs&>(AuthorityState);
 		if (bWantsToGuard != Authority.bWantsToGuard || bWantsToSprint != Authority.bWantsToSprint
 			|| bWantsToDash != Authority.bWantsToDash || bWantsToADS != Authority.bWantsToADS)
+		{
+			return true;
+		}
+		// 속도가 어긋나면 이동 결과가 바로 갈라지므로 반드시 재조정 대상이다.
+		if (!FMath::IsNearlyEqual(AIDesiredSpeed, Authority.AIDesiredSpeed))
 		{
 			return true;
 		}
@@ -92,6 +121,8 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		bWantsToDash = FromInputs.bWantsToDash;
 		bWantsToADS = FromInputs.bWantsToADS;
 		DashInputIntent = FromInputs.DashInputIntent;
+		// 속도는 StateTree가 단계적으로 바꾸는 값(0 / 배회 / 추격)이라 중간값이 의미 없다 — 함께 스냅한다.
+		AIDesiredSpeed = FromInputs.AIDesiredSpeed;
 	}
 };
 

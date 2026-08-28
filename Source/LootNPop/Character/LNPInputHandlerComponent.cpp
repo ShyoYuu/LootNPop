@@ -226,6 +226,9 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	ModifierInputs.bWantsToDash   = bIsDashBuffered;
 	ModifierInputs.bWantsToADS    = IsADSActive();
 	ModifierInputs.DashInputIntent = bIsDashBuffered ? CachedMoveInputIntent : FVector::ZeroVector;
+	// AI 속도도 여기에 싣는다 — 컴포넌트 멤버로만 두면 클라이언트 재시뮬레이션이 CDO MaxSpeed로
+	// 폴백해 서버보다 훨씬 빠르게 앞서 나간다 (FLNPModifierInputs::AIDesiredSpeed 주석 참조).
+	ModifierInputs.AIDesiredSpeed = AIDesiredSpeed;
 
 	if (Pawn->GetController())
 	{

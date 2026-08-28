@@ -246,6 +246,10 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 	// 예측·복제·리시뮬레이션 파이프라인을 타지 않아 원격 클라이언트에서 신뢰할 수 없었다.
 	const FLNPModifierInputs* ModifierInputs = InputCmd.InputCollection.FindDataByType<FLNPModifierInputs>();
 
+	// AI 이동 속도도 같은 이유로 InputCmd에서만 읽는다 — 폰의 컴포넌트 멤버는 서버에만 값이 있어
+	// 클라이언트 재시뮬레이션이 CDO MaxSpeed로 폴백한다.
+	AIDesiredSpeedFromInput = ModifierInputs ? ModifierInputs->AIDesiredSpeed : 0.f;
+
 	// Guard Modifier 관리 (Sprint보다 먼저 처리 — Guard 중에는 Sprint 불가)
 	if (bHandleGuardChanges)
 	{

@@ -75,4 +75,13 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	//    ForEachSharedFragment로 순회하는 정상 구성이며 버블·리플리케이터는 여전히 하나다 (§7.1 불변식 유지).
 	LNP::Replication::ConfigureParams(ReplicationTrait->Params, ReplicationCullDistance);
 	ReplicationTrait->BuildTemplate(BuildContext, World);
+
+	// 6. 클라이언트 전용 — 복제 수신(0.1~0.3초 간격) 사이를 메우는 보간 상태.
+	//    수신이 없는 서버·Standalone에는 불필요하므로 아키타입에 넣지 않는다.
+	//    템플릿 ID는 Config GUID에서만 나오므로(FMassEntityTemplateIDFactory::Make) 서버와 구성이
+	//    달라도 복제 스폰은 영향받지 않는다. 템플릿 레지스트리도 월드별로 분리돼 있다.
+	if (World.GetNetMode() == NM_Client)
+	{
+		BuildContext.AddFragment<FLNPReplicatedMovementFragment>();
+	}
 }
