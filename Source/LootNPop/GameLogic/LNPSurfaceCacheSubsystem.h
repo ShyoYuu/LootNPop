@@ -6,6 +6,8 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
 #include "WorldCollision.h"
+#include "Mass/ExternalSubsystemTraits.h"
+#include <atomic>
 #include "LNPSurfaceCacheSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLNPOnBakingComplete);
@@ -33,8 +35,11 @@ struct LOOTNPOP_API FLNPSurfaceCacheSnapshot
 
 /**
  * 비동기 라인 트레이스로 구형 등장방형 격자의 표면 히트 지점을 사전 계산한다.
- * 모든 트레이스는 BeginBaking()에서 한 번에 발사되며, 결과는 매 Callback으로 수집된다.
+ * 트레이스는 Tick()이 프레임당 SurfaceCacheSamplesPerFrame개씩 나눠 발사하며, 결과는 매 Callback으로 수집된다.
  * 베이킹 완료 후 결과 Cache는 읽기 전용이 되어 Mass 워커 Thread에 안전하다.
+ *
+ * 베이킹은 머신당 1회다 — 서버는 ALNPGameMode가, 클라이언트는 ALNPGameState의 투-게이트가 각각 호출한다.
+ * 완료 후 재호출은 BeginBaking()이 자체적으로 차단하므로, Mass 워커가 읽는 도중 CacheData가 교체되지 않는다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPSurfaceCacheSubsystem : public UWorldSubsystem, public FTickableGameObject
@@ -48,7 +53,10 @@ public:
 	virtual TStatId GetStatId() const override;
 	// End FTickableGameObject
 
-	/** 모든 표면 트레이스를 비동기로 발사한다. World 생성 완료 후 GameMode가 호출. */
+	/**
+	 * 표면 베이킹을 시작한다. World 생성 완료 후 GameMode가 호출.
+	 * 실제 트레이스 발사는 Tick()이 프레임당 SurfaceCacheSamplesPerFrame개씩 나눠서 수행한다.
+	 */
 	void BeginBaking();
 
 	/**
@@ -75,6 +83,9 @@ private:
 
 	void OnAsyncTraceComplete(const FTraceHandle& Handle, FTraceDatum& Data);
 
+	/** Tick에서 호출. 아직 발사하지 않은 샘플을 최대 Count개까지 발사한다. */
+	void IssuePendingTraces(int32 Count);
+
 	/** 베이크된 데이터 SharedPtr. BeginBaking()마다 교체되어 재베이킹이 라이브 Snapshot을 손상시키지 않는다. */
 	TSharedPtr<TArray<FPoint>> CacheData;
 
@@ -85,8 +96,42 @@ private:
 	int32 LonResolution = 128;
 	int32 TotalSamples = 0;
 	int32 CompletedCount = 0;
+
+	/** 다음에 발사할 샘플 Index. TotalSamples에 도달하면 발사가 끝난 것이고, 완료는 CompletedCount가 판단한다. */
+	int32 NextSampleToIssue = 0;
+	int32 SamplesPerFrame = 2000;
+
 	float SphereRadius = 10000.0f;
 
+	/** 게임 Thread 전용 — 발사 진행 상태. IsTickable()과 Tick()만 읽는다. */
 	bool bIsBaking = false;
-	bool bBakingComplete = false;
+
+	/**
+	 * 배열이 불변으로 확정됐음을 알리는 게시(publish) 플래그.
+	 *
+	 * 게임 Thread가 배열을 다 채운 뒤 release로 세우고, 워커 Thread가 acquire로 읽는다.
+	 * 이 순서 덕에 플래그가 true로 보이는 Thread는 배열 쓰기도 전부 볼 수 있다 — 락 없이 성립하는 유일한 근거다.
+	 * 평범한 bool로 두면 x86에서는 우연히 동작하지만 약한 메모리 모델에서는 보장이 없다.
+	 */
+	std::atomic<bool> bBakingComplete = false;
+};
+
+/**
+ * Mass에 이 Subsystem의 Thread 모델을 알린다.
+ *
+ * 이 선언이 없으면 기본값(GameThreadOnly = true)이 적용되어, SurfaceCache를 요구하는 Processor
+ * (ULNPProjectileMovementProcessor, ULNPEnemyMovementProcessor)가 통째로 게임 Thread로 승격된다.
+ *
+ * 워커 Thread가 호출하는 것은 읽기 전용 조회(GetSurfacePoint)뿐이고, 그 대상 배열은
+ * bBakingComplete가 서고 난 뒤 불변이다. 베이킹 중에는 조회가 false를 반환해 진입 자체를 막는다.
+ * 쓰기 경로(BeginBaking / OnAsyncTraceComplete)는 게임 Thread 전용이므로 ThreadSafeWrite는 false로 둔다.
+ */
+template<>
+struct TMassExternalSubsystemTraits<ULNPSurfaceCacheSubsystem> final
+{
+	enum
+	{
+		GameThreadOnly = false,
+		ThreadSafeWrite = false,
+	};
 };

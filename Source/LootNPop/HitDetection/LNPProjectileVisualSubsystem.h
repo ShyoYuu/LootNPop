@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Mass/EntityHandle.h"
+#include "Mass/ExternalSubsystemTraits.h"
 #include "Containers/Queue.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "LNPProjectileVisualSubsystem.generated.h"
@@ -81,4 +82,26 @@ private:
 
 	TQueue<FImpactDebug, EQueueMode::Mpsc> SurfaceImpactDebugQueue;
 #endif
+};
+
+/**
+ * Mass에 이 Subsystem의 Thread 모델을 알린다.
+ *
+ * 이 선언이 없으면 TMassExternalSubsystemTraits의 기본값(GameThreadOnly = true)이 적용되어,
+ * AddSubsystemRequirement로 이 Subsystem을 요구하는 Processor가 통째로 게임 Thread로 승격된다
+ * (UMassProcessor::CallsConfigureQueries의 bRequiresGameThreadExecution 계산).
+ * Projectile 판정 Processor는 수백 발 규모를 전제로 설계했으므로 워커 Thread 실행이 필수다.
+ *
+ * Processor의 Execute()가 호출하는 것은 Enqueue* 뿐이고 그 경로는 MPSC TQueue라 동시 쓰기가 안전하다.
+ * 게임 Thread 전용 메서드(Flush, Allocate, Update, Spawn 계열)는 ULNPProjectileVisualizationProcessor에만 있으며,
+ * 그 Processor는 bRequiresGameThreadExecution = true로 명시되어 있다.
+ */
+template<>
+struct TMassExternalSubsystemTraits<ULNPProjectileVisualSubsystem> final
+{
+	enum
+	{
+		GameThreadOnly = false,
+		ThreadSafeWrite = true,
+	};
 };

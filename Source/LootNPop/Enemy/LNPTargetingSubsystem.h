@@ -6,6 +6,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "MassEntityTypes.h"
 #include "Mass/EntityHandle.h"
+#include "Mass/ExternalSubsystemTraits.h"
 #include "LNPTargetingSubsystem.generated.h"
 
 /** 슬롯 경쟁 중인 Enemy의 정보 */
@@ -67,4 +68,24 @@ protected:
 
 	/** 병렬 Mass 처리 중 Thread-Safe를 위한 Lock */
 	mutable FCriticalSection DataLock;
+};
+
+/**
+ * Mass에 이 Subsystem의 Thread 모델을 알린다.
+ *
+ * 이 선언이 없으면 기본값(GameThreadOnly = true)이 적용되어 ULNPEnemyTargetingProcessor가
+ * 게임 Thread로 승격된다. public 메서드 세 개가 모두 DataLock으로 보호되므로 워커 Thread 접근은 안전하다.
+ *
+ * ThreadSafeWrite는 일부러 false로 둔다 — 쓰기 자체는 Lock으로 안전하지만, true로 두면 Mass가 RW를 RO처럼
+ * 취급해 이 Subsystem을 쓰는 Processor들을 병렬로 돌린다. RebalanceSlots()는 프레임당 한 번 도는 전역
+ * 재할당이라 IsSlotConfirmed() 조회와 뒤섞이면 논리적으로 깨진다. 엔진의 UMassSignalSubsystem도 같은 조합이다.
+ */
+template<>
+struct TMassExternalSubsystemTraits<ULNPTargetingSubsystem> final
+{
+	enum
+	{
+		GameThreadOnly = false,
+		ThreadSafeWrite = false,
+	};
 };

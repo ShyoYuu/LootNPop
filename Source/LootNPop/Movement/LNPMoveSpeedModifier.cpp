@@ -3,7 +3,6 @@
 #include "Movement/LNPMoveSpeedModifier.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPCharacterMovementSettings.h"
-#include "Character/LNPInputHandlerComponent.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 
 #include "AbilitySystemComponent.h"
@@ -41,9 +40,14 @@ void FLNPMoveSpeedModifier::OnPreMovement(UMoverComponent* MoverComp, const FMov
 	// AI 폰은 Mass의 EnemyConfig가 정한 속도를 쓴다. 이동 의도 벡터는 방향만 담으므로
 	// (크기로 속도를 표현하면 Mover가 속도를 곱셈으로 깎는다 — ULNPInputHandlerComponent 주석 참조)
 	// 원하는 속도는 여기서 MaxSpeed로 반영한다. 이렇게 해야 Entity/Actor 표현이 같은 속도를 낸다.
-	if (const ULNPInputHandlerComponent* InputHandler = Owner->FindComponentByClass<ULNPInputHandlerComponent>())
+	//
+	// ⚠ 출처는 반드시 **InputCmd**여야 한다. 폰의 ULNPInputHandlerComponent 멤버를 직접 읽으면
+	// 그 값은 서버에만 있어, 적 폰을 재시뮬레이션하는 클라이언트가 CDO MaxSpeed(엔진 기본 800)로
+	// 폴백한다 — 서버 180 대비 4배로 앞서 나가다 물리 예측의 위치 오차 임계값을 넘겨 매번
+	// 되감기는 증상이 된다 (2026-08-28 실측).
+	if (const ULNPCharacterMoverComponent* LNPMoverComp = Cast<ULNPCharacterMoverComponent>(MoverComp))
 	{
-		const float AIDesiredSpeed = InputHandler->GetAIDesiredSpeed();
+		const float AIDesiredSpeed = LNPMoverComp->GetAIDesiredSpeedFromInput();
 		if (AIDesiredSpeed > 0.f)
 			BaseSpeed = AIDesiredSpeed;
 	}

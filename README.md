@@ -25,7 +25,8 @@
 
 ---
 
-[![Unreal Engine 5.8 - LootNPop](https://img.youtube.com/vi/5gO6aYQG0uw/maxresdefault.jpg)](https://youtu.be/5gO6aYQG0uw)
+[![YouTube Video](https://img.shields.io/badge/YouTube-Watch%20Video-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=5gO6aYQG0uw)
+[![Unreal Engine 5.8 - LootNPop](https://img.youtube.com/vi/5gO6aYQG0uw/maxresdefault.jpg)](https://www.youtube.com/watch?v=5gO6aYQG0uw)
 
 ## 🎮 Game Concept
 

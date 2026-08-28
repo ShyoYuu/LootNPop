@@ -45,6 +45,17 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1.0", Units="cm"))
 	float SurfaceCacheCellSpacing = 200.0f;
 
+	/**
+	 * 베이킹 중 한 프레임에 발사할 표면 트레이스 수.
+	 *
+	 * 전량을 한 프레임에 발사하면 다음 프레임 UWorld::ResetAsyncTrace가 WaitForAllAsyncTraceTasks로
+	 * 게임 Thread를 막고 전체 Callback을 한 번에 쏟아내 큰 히치가 발생한다. 나눠 쏘면 부하가 분산되고
+	 * GetBakingProgress()도 실제로 차오르는 값이 된다.
+	 * 기본값 기준 308,505 샘플 / 2,000 = 약 155 프레임 (60fps에서 약 2.6초).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1"))
+	int32 SurfaceCacheSamplesPerFrame = 2000;
+
 	/** Player 캐릭터당 키 매핑된 Active Skill Slots의 최대 수. */
 	UPROPERTY(Config, EditAnywhere, Category = "Ability System", meta = (ClampMin = "1", ClampMax = "8"))
 	int32 MaxActiveSkillSlots = 4;

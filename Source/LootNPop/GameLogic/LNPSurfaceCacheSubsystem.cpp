@@ -89,12 +89,17 @@ bool FLNPSurfaceCacheSnapshot::GetPoint(const FVector& WorldDirection, FVector& 
 
 void ULNPSurfaceCacheSubsystem::BeginBaking()
 {
-	if (bIsBaking)
+	// 완료 후 재호출도 차단한다. 베이킹은 머신당 1회이며, 이 가드가 없으면 Mass 워커 Thread가
+	// CacheData를 읽는 도중 게임 Thread가 SharedPtr를 재대입해 참조 카운트 조작이 깨진다.
+	// 향후 매치 재시작으로 재베이킹이 필요해지면, 여기를 푸는 대신 모든 워커 접근이 멈춘 것을
+	// 보장하는 명시적 리셋 진입점을 따로 만들 것.
+	if (bIsBaking || bBakingComplete.load(std::memory_order_acquire))
 		return;
 
 	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
 	const float CellSpacing = FMath::Max(1.0f, Settings->SurfaceCacheCellSpacing);
 	SphereRadius = Settings->SphereRadius;
+	SamplesPerFrame = FMath::Max(1, Settings->SurfaceCacheSamplesPerFrame);
 
 	// 적도의 목표 호 길이 간격으로부터 격자 해상도 유도
 	LatResolution = FMath::Max(1, FMath::RoundToInt(PI * SphereRadius / CellSpacing));
@@ -107,16 +112,29 @@ void ULNPSurfaceCacheSubsystem::BeginBaking()
 	CacheData = MakeShared<TArray<FPoint>>();
 	CacheData->SetNum(TotalSamples);
 	CompletedCount = 0;
-	bBakingComplete = false;
+	NextSampleToIssue = 0;
+	bBakingComplete.store(false, std::memory_order_relaxed);
 	bIsBaking = true;
 
 	TraceDelegate.BindUObject(this, &ULNPSurfaceCacheSubsystem::OnAsyncTraceComplete);
 
-	UWorld* World = GetWorld();
-	FCollisionQueryParams Params(NAME_None, false);
+	// 실제 발사는 Tick이 나눠서 수행한다. 여기서 전량을 쏘면 다음 프레임의 UWorld::ResetAsyncTrace가
+	// WaitForAllAsyncTraceTasks로 게임 Thread를 막고 전체 Callback을 한 번에 쏟아내 큰 히치가 된다.
+	UE_LOG(LogLootNPop, Log, TEXT("LNPSurfaceCacheSubsystem: Baking started - %d samples (%dx%d) at %.1f cm spacing, %d per frame."),
+		TotalSamples, LatResolution, LonResolution, CellSpacing, SamplesPerFrame);
+}
 
-	// 모든 트레이스를 한 번에 발사. 엔진이 결과마다 OnAsyncTraceComplete를 호출하며 Sample Index는 UserData로 넘김.
-	for (int32 i = 0; i < TotalSamples; ++i)
+void ULNPSurfaceCacheSubsystem::IssuePendingTraces(int32 Count)
+{
+	UWorld* World = GetWorld();
+	if (nullptr == World)
+		return;
+
+	const FCollisionQueryParams Params(NAME_None, false);
+	const int32 EndIndex = FMath::Min(NextSampleToIssue + Count, TotalSamples);
+
+	// 엔진이 결과마다 OnAsyncTraceComplete를 호출하며 Sample Index는 UserData로 넘김.
+	for (int32 i = NextSampleToIssue; i < EndIndex; ++i)
 	{
 		const int32 LatIdx = i / LonResolution;
 		const int32 LonIdx = i % LonResolution;
@@ -127,13 +145,18 @@ void ULNPSurfaceCacheSubsystem::BeginBaking()
 			FCollisionResponseParams::DefaultResponseParam, &TraceDelegate, static_cast<uint32>(i));
 	}
 
-	UE_LOG(LogLootNPop, Log, TEXT("LNPSurfaceCacheSubsystem: Fired %d async traces (%dx%d) at %.1f cm spacing."),
-		TotalSamples, LatResolution, LonResolution, CellSpacing);
+	NextSampleToIssue = EndIndex;
 }
 
 void ULNPSurfaceCacheSubsystem::Tick(float DeltaTime)
 {
-	// GetBakingProgress() 함수를 위해 bIsBaking 동안 IsTickable()을 유지
+	// FTickableGameObject의 Tick은 UWorld::Tick 안에서 ResetAsyncTrace와 FinishAsyncTrace 사이에 돈다.
+	// 즉 비동기 트레이스 요청이 허용된(bAsyncAllowed) 구간이므로 여기서 발사해도 안전하다.
+	// 발사가 끝난 뒤에도 CompletedCount가 채워질 때까지 bIsBaking이 유지되어 IsTickable()이 살아 있는다.
+	if (bIsBaking && NextSampleToIssue < TotalSamples)
+	{
+		IssuePendingTraces(SamplesPerFrame);
+	}
 }
 
 void ULNPSurfaceCacheSubsystem::OnAsyncTraceComplete(const FTraceHandle& Handle, FTraceDatum& Data)
@@ -157,7 +180,11 @@ void ULNPSurfaceCacheSubsystem::OnAsyncTraceComplete(const FTraceHandle& Handle,
 	if (++CompletedCount >= TotalSamples)
 	{
 		bIsBaking = false;
-		bBakingComplete = true;
+
+		// ★ release 게시 — 이 store 이전의 배열 쓰기가 전부, 이 플래그를 acquire로 읽어 true를 본
+		//   워커 Thread에게 반드시 보인다. 락 없이 스레드 안전이 성립하는 지점이 정확히 여기다.
+		bBakingComplete.store(true, std::memory_order_release);
+
 		TraceDelegate.Unbind();
 		UE_LOG(LogLootNPop, Log, TEXT("LNPSurfaceCacheSubsystem: Baking complete (%d samples)."), TotalSamples);
 		OnBakingComplete.Broadcast();
@@ -171,8 +198,9 @@ TStatId ULNPSurfaceCacheSubsystem::GetStatId() const
 
 bool ULNPSurfaceCacheSubsystem::GetSurfacePoint(const FVector& WorldDirection, FVector& OutPoint) const
 {
-	// 베이킹 중에는 격자가 채워지는 중이므로 조회를 허용하지 않는다 (게임 Thread 전용 API)
-	if (!bBakingComplete || !CacheData.IsValid())
+	// 베이킹 중에는 격자가 채워지는 중이므로 조회를 허용하지 않는다.
+	// acquire 로드 — true를 봤다면 베이킹이 채운 배열 내용도 전부 보인다 (OnAsyncTraceComplete의 release와 짝).
+	if (!bBakingComplete.load(std::memory_order_acquire) || !CacheData.IsValid())
 		return false;
 	return SampleSurfaceGrid(*CacheData, LatResolution, LonResolution, WorldDirection, OutPoint);
 }
@@ -188,7 +216,7 @@ FLNPSurfaceCacheSnapshot ULNPSurfaceCacheSubsystem::TakeSnapshot() const
 
 float ULNPSurfaceCacheSubsystem::GetBakingProgress() const
 {
-	if (bBakingComplete)
+	if (bBakingComplete.load(std::memory_order_acquire))
 		return 1.0f;
 	if (TotalSamples == 0)
 		return 0.0f;

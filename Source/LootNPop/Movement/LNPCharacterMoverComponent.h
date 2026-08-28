@@ -39,6 +39,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool IsGuarding() const;
 
+	/**
+	 * 이번 시뮬레이션 틱의 InputCmd가 실어 온 AI 이동 속도(cm/s). 0 이하면 미지정.
+	 * `FLNPMoveSpeedModifier`가 MaxSpeed 산출에 쓴다 — 폰의 컴포넌트 멤버를 직접 읽으면
+	 * 서버에만 값이 있어 클라이언트 재시뮬레이션이 갈라진다 (FLNPModifierInputs::AIDesiredSpeed 주석).
+	 */
+	float GetAIDesiredSpeedFromInput() const { return AIDesiredSpeedFromInput; }
+
 	bool CanGuard();
 
 	/** 캐릭터가 현재 ADS(정조준) Modifier가 활성화되어 있으면 true를 반환한다 */
@@ -103,6 +110,9 @@ protected:
 	float DashCooldown = 1.0f;
 
 private:
+	/** OnMoverPreSimulationTick이 InputCmd에서 옮겨 담는다. 리시뮬레이션 프레임마다 그 프레임의 값으로 갱신된다. */
+	float AIDesiredSpeedFromInput = 0.f;
+
 	/** 이 Component가 의도에 따라 Sprint 로직을 직접 처리할지 여부. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))
 	uint8 bHandleSprintChanges : 1 = 1;

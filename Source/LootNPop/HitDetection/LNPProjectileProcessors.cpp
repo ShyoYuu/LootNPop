@@ -527,21 +527,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				// 캐릭터 피격 임팩트 VFX는 GameplayCue.LNP.Projectile.Impact로 일원화한다 (섹션 5.2).
 				// Ghost 재조정에 필요한 토큰(PredictionKeyID/SpawnIndex)과 InstigatorPlayerID를 커스텀 컨텍스트로 전달.
+				// 이 Processor는 워커 Thread에서 실행되므로 ASC를 직접 건드리지 않고 BatchedCommand로 위탁한다.
 				AActor* VictimActor = ExclEnemy ? ExclEnemy->Actor : (ExclPlayer ? ExclPlayer->Actor : nullptr);
-				if (UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(VictimActor))
-				{
-					FLNPProjectileImpactContext* ImpactCtx = new FLNPProjectileImpactContext();
-					ImpactCtx->PredictionKeyID    = Proj.PredictionKeyID;
-					ImpactCtx->SpawnIndex         = Proj.SpawnIndex;
-					ImpactCtx->InstigatorPlayerID = Proj.InstigatorPlayerID;
-					ImpactCtx->VFXData            = Shared.VFXData;
-
-					FGameplayCueParameters CueParams;
-					CueParams.Location      = HitPoint;
-					CueParams.Normal        = ImpactNormal;
-					CueParams.EffectContext = FGameplayEffectContextHandle(ImpactCtx);
-					VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Projectile_Impact, CueParams);
-				}
+				Ctx.Defer().PushCommand<FLNPProjectileImpactCueCommand>(
+					VictimActor, Shared.VFXData, HitPoint, ImpactNormal,
+					Proj.PredictionKeyID, Proj.SpawnIndex, Proj.InstigatorPlayerID);
 
 				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 				ApplySplash(Ctx, Shared, Proj, HitPoint, ExclEnemy, ExclPlayer, bFriendlyFire);

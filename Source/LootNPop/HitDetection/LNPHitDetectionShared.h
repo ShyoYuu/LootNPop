@@ -12,6 +12,7 @@
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
+#include "HitDetection/LNPProjectileImpactContext.h"
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
@@ -232,6 +233,69 @@ struct FLNPGuardBlockCommand : public FMassBatchedCommand
 			CueParams.Normal   = Entry.ImpactNormal;
 			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Guard_Block, CueParams);
 			UE_LOG(LogLootNPop, Log, TEXT("[Guard] Block success"));
+		}
+	}
+
+	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
+	virtual SIZE_T GetAllocatedSize()     const override { return Entries.GetAllocatedSize(); }
+	virtual int32  GetNumOperationsStat() const override { return Entries.Num(); }
+
+private:
+	TArray<FEntry> Entries;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 원거리 임팩트 큐
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 투사체가 캐릭터에 적중했을 때의 임팩트 GameplayCue 발동.
+ *
+ * 판정 Processor의 Execute()는 워커 Thread에서 실행될 수 있어 ASC를 직접 건드릴 수 없다.
+ * Ghost 재조정에 필요한 토큰(PredictionKeyID/SpawnIndex)과 공격자 ID는 값으로만 실어 두고,
+ * FLNPProjectileImpactContext 할당과 큐 실행은 게임 Thread인 Run()에서 수행한다.
+ */
+struct FLNPProjectileImpactCueCommand : public FMassBatchedCommand
+{
+	struct FEntry
+	{
+		TWeakObjectPtr<AActor>  Victim;
+		TObjectPtr<ULNPVFXData> VFXData;
+		FVector                 ImpactPoint;         // 적중 지점 (월드)
+		FVector                 ImpactNormal;        // 피격자 → 적중 지점 방향
+		int32                   PredictionKeyID    = 0;
+		int32                   InstigatorPlayerID = INDEX_NONE;
+		uint8                   SpawnIndex         = 0;
+	};
+
+	FLNPProjectileImpactCueCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
+
+	void Add(AActor* InVictim, TObjectPtr<ULNPVFXData> InVFXData, const FVector& InImpactPoint, const FVector& InImpactNormal,
+		int32 InPredictionKeyID, uint8 InSpawnIndex, int32 InInstigatorPlayerID)
+	{
+		Entries.Add({ InVictim, InVFXData, InImpactPoint, InImpactNormal, InPredictionKeyID, InInstigatorPlayerID, InSpawnIndex });
+		bHasWork = true;
+	}
+
+	virtual void Run(FMassEntityManager& EntityManager) override
+	{
+		for (const FEntry& Entry : Entries)
+		{
+			UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(Entry.Victim.Get());
+			if (!IsValid(VictimASC))
+				continue;
+
+			FLNPProjectileImpactContext* ImpactCtx = new FLNPProjectileImpactContext();
+			ImpactCtx->PredictionKeyID    = Entry.PredictionKeyID;
+			ImpactCtx->SpawnIndex         = Entry.SpawnIndex;
+			ImpactCtx->InstigatorPlayerID = Entry.InstigatorPlayerID;
+			ImpactCtx->VFXData            = Entry.VFXData;
+
+			FGameplayCueParameters CueParams;
+			CueParams.Location      = Entry.ImpactPoint;
+			CueParams.Normal        = Entry.ImpactNormal;
+			CueParams.EffectContext = FGameplayEffectContextHandle(ImpactCtx);
+			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Projectile_Impact, CueParams);
 		}
 	}
 

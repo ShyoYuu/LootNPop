@@ -120,11 +120,26 @@ Entity 모드 (Low LOD):
   피격 판정 프로세서(`|Axial| <= HalfHeight`), Actor 승격 시 엔진의 `TeleportActor`,
   플레이어 엔티티가 모두 중심을 가정한다. Entity 모드에서 표면점을 쓸 때는
   `표면 반지름 - CapsuleHalfHeight`로 중심 반지름을 만든다 (구 내벽이라 Up이 반지름 감소 방향).
-- **Actor가 있는 동안 Transform의 권한은 Mover 단독이다.** Mass는 읽기만 한다.
-  이를 보장하려고 EntityConfig의 `MassAgent*SyncTrait` 3종을 모두 **`ActorToMass`** 로 둔다
+- **Actor로 그려지는 동안 Transform의 권한은 Mover 단독이다.** Mass는 읽기만 한다.
+  이를 보장하려고 EntityConfig의 `MassAgent*SyncTrait`를 **`ActorToMass`** 로 둔다
   (플레이어 설정과 동일). 엔진 기본값 `BothWays`로 두면 `AddTranslator`가 양방향 태그를 전부
   아키타입에 심어 `UMassTransformToActorCapsuleTranslator`가 매 프레임 Mover의 변위를
   되쓰기로 지운다 — 걷기 모션만 재생되고 제자리에 멈추는 증상이 된다.
+
+  ⚠️ **판정 기준은 "Actor가 붙어 있는가"가 아니라 "Actor로 그려지는가"다.**
+  `ALNPEnemyCharacter`는 `bReplicates = true`(ASC 복제용)라 서버가 승격시킨 적 Actor는
+  **게스트에도 시뮬레이티드 프록시로 내려온다.** 게스트가 멀어서 ISM으로 그리는 동안에도
+  `FMassActorFragment`는 채워져 있으므로, 존재 여부로 권한을 넘기면 ActorToMass 번역기가
+  프록시 캡슐을 Transform에 되써서 **ISM이 프록시를 따라 지면에 파묻힌다.**
+  `FMassRepresentationFragment::CurrentRepresentation`이 `HighRes`/`LowResSpawnedActor`인지로
+  판단하고, 클라 Transform을 쓰는 프로세서는 `SyncWorldToMass` 그룹에서
+  `ExecuteAfter`로 번역기 뒤에 못 박는다.
+
+- **클라이언트는 적 Actor의 이동을 직접 재시뮬레이션한다.** Mover가 Async 모드 +
+  Chaos 물리 예측(`bEnablePhysicsPrediction=True`)이기 때문이다. 따라서 **이동 시뮬레이션이
+  참조하는 값은 전부 Mover InputCmd(`FLNPModifierInputs`)를 타야 한다** — 폰의 평범한 컴포넌트
+  멤버에 두면 서버에만 값이 있어 클라가 CDO 기본값으로 폴백하고, 위치 오차 임계값을 넘겨
+  매번 되감긴다.
 
 - **AI 이동 의도 벡터는 방향만 담는다 — 크기로 속도를 표현하지 않는다.**
   Mover의 `UMovementUtils::ComputeVelocity`는 방향 전환 항에서 의도 벡터를 **정규화하지 않고** 쓴다

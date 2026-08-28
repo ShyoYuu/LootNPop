@@ -7,6 +7,7 @@
 #include "MassClientBubbleHandler.h"
 #include "MassClientBubbleInfoBase.h"
 #include "MassEntityView.h"
+#include "MassProcessor.h"
 #include "GameplayTagContainer.h"
 #include "LNPMassReplication.generated.h"
 
@@ -110,6 +111,37 @@ struct LOOTNPOP_API FLNPMassFastArrayItem : public FMassFastArrayItemBase
 };
 
 /**
+ * 클라이언트 전용 보간 상태 — 복제 수신 사이의 빈 프레임을 메운다.
+ *
+ * 수신 간격은 복제 LOD가 정하는데(엔진 기본 High 0.1 / Medium 0.2 / Low 0.3초),
+ * 수신값을 Transform에 즉시 대입하면 화면 갱신 주기가 곧 수신 주기가 되어
+ * 초당 3~10칸씩 순간이동하는 것으로 보인다. 그래서 수신값은 여기(목표)에 적재하고
+ * Transform에는 ULNPMassSmoothingProcessor가 매 프레임 보간값을 쓴다.
+ *
+ * 출발점을 "직전 수신값"이 아니라 "지금 화면에 그려진 값"으로 잡으므로
+ * 패킷이 늦거나 중간값이 걸러져도 끊기지 않고 이어진다.
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPReplicatedMovementFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	/** 마지막으로 수신한 스냅샷 (보간의 도착점). */
+	FVector TargetPosition = FVector::ZeroVector;
+	FQuat TargetRotation = FQuat::Identity;
+
+	/** 그 수신 시점에 화면에 그려져 있던 자세 (보간의 출발점). */
+	FVector SourcePosition = FVector::ZeroVector;
+	FQuat SourceRotation = FQuat::Identity;
+
+	/** 마지막 수신 이후 흐른 시간(초). 다음 수신 때 그대로 실측 간격이 된다. */
+	float TimeSinceUpdate = 0.f;
+
+	/** 이번 구간을 메우는 데 쓸 시간(초) = 직전 두 수신의 실측 간격. 0이면 즉시 스냅. */
+	float BlendDuration = 0.f;
+};
+
+/**
  * 통합 Client Bubble 핸들러.
  * 클라 수신 시 TemplateID별 배치 스폰(엔진 헬퍼) + 위치/자세 반영 + Enemy 아키타입만 타입 태그 기록.
  *
@@ -131,8 +163,14 @@ protected:
 	// 이 경로가 안 도는 것처럼 보였던 2026-08-20 버그의 원인은 여기가 아니라 서버 쪽이었다
 	// (파괴 옵저버 누락 → ULNPMassSpawnSubsystem::RestoreServerOnlyMassObservers 참조).
 
-	/** 복제 페이로드(위치 + 접평면 로컬 Yaw)를 Transform Fragment에 반영한다. 스케일은 보존한다. */
+	/** 복제 페이로드(위치 + 접평면 로컬 Yaw)를 Transform Fragment에 즉시 반영한다. 스케일은 보존한다. */
 	static void ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FReplicatedAgentPositionYawData& PositionYaw);
+
+	/**
+	 * 수신 페이로드를 보간 목표로 적재한다 (Transform은 건드리지 않는다 — 프로세서가 매 프레임 채운다).
+	 * 보간 Fragment가 없는 아키타입(Player·LootPod)은 즉시 반영으로 폴백한다.
+	 */
+	static void PushSmoothingTarget(const FMassEntityView& EntityView, const FReplicatedAgentPositionYawData& PositionYaw);
 
 	/** 스폰 쿼리 순회 동안만 유효한 Transform Fragment 뷰 (엔진 핸들러의 TransformList 대체). */
 	TArrayView<FTransformFragment> SpawnTransformList;
@@ -189,4 +227,25 @@ protected:
 
 	UPROPERTY(Replicated, Transient)
 	FLNPMassClientBubbleSerializer AgentSerializer;
+};
+
+/**
+ * 클라이언트 전용 — FLNPReplicatedMovementFragment의 보간값을 매 프레임 Transform에 쓴다.
+ *
+ * SyncWorldToMass 그룹(PrePhysics의 첫 그룹)에 두는 이유: 이 프레임의 LOD 판정·Representation·
+ * UMassUpdateISMProcessor가 모두 뒤에서 돌기 때문에, 여기서 채운 값이 그대로 그려진다.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPMassSmoothingProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	ULNPMassSmoothingProcessor();
+
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+
+	FMassEntityQuery SmoothingQuery;
 };
