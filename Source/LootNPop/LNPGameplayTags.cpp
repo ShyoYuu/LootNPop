@@ -21,6 +21,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Block_MovementInput, "LNP.Block.MovementInput")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_Guarding,    "LNP.State.Guarding")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_ParryWindow, "LNP.State.ParryWindow")
+UE_DEFINE_GAMEPLAY_TAG(TAG_State_Staggered,   "LNP.State.Staggered")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Block_AttackInput, "LNP.Block.AttackInput")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_ComboWindow, "LNP.State.ComboWindow")
@@ -32,15 +33,18 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Character_HitReact,   "GameplayCue.LNP.Ch
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Melee_Impact,         "GameplayCue.LNP.Melee.Impact")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Projectile_Impact,    "GameplayCue.LNP.Projectile.Impact")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Melee_AttackerHitStop,"GameplayCue.LNP.Melee.AttackerHitStop")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Character_Stagger,    "GameplayCue.LNP.Character.Stagger")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Success, "LNP.GameplayEvent.Parry.Success")
-UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Stagger, "LNP.GameplayEvent.Parry.Stagger")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Stagger_Light, "LNP.GameplayEvent.Stagger.Light")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Stagger_Heavy, "LNP.GameplayEvent.Stagger.Heavy")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Attack,       "LNP.Montage.Situation.Attack")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_HitReaction,  "LNP.Montage.Situation.HitReaction")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_ParrySuccess, "LNP.Montage.Situation.ParrySuccess")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Block,        "LNP.Montage.Situation.Block")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Dash,	       "LNP.Montage.Situation.Dash")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Stagger,      "LNP.Montage.Situation.Stagger")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Front, "LNP.Montage.Value.Direction.Front")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Back,  "LNP.Montage.Value.Direction.Back")
@@ -48,7 +52,10 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Left,  "LNP.Montage.Value.Dir
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Right, "LNP.Montage.Value.Direction.Right")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Parry_Parrier, "LNP.Montage.Value.Parry.Parrier")
-UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Parry_Parried, "LNP.Montage.Value.Parry.Parried")
+
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Stagger_Light, "LNP.Montage.Value.Stagger.Light")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Stagger_Heavy, "LNP.Montage.Value.Stagger.Heavy")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Stagger_Parried, "LNP.Montage.Value.Stagger.Parried")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Item_Level, "LNP.Item.Level")
 
@@ -57,4 +64,5 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_AttackPower,  "LNP.GE.Data.Stat.AttackPo
 UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_AttackSpeed,  "LNP.GE.Data.Stat.AttackSpeed")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_DefensePower, "LNP.GE.Data.Stat.DefensePower")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_MoveSpeed,    "LNP.GE.Data.Stat.MoveSpeed")
-UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_LootSpeed,    "LNP.GE.Data.Stat.LootSpeed")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_LootSpeed,       "LNP.GE.Data.Stat.LootSpeed")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_PoiseResistance, "LNP.GE.Data.Stat.PoiseResistance")

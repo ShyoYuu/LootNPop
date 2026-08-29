@@ -7,6 +7,7 @@
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "Replication/LNPMassReplication.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
+#include "GAS/LNPPoiseTypes.h"
 
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
@@ -43,6 +44,15 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 			: TConstArrayView<FLNPStatModifier>());
 	EnemyFragment.Health = EnemyFragment.MaxHealth;
 
+	// Low LOD(Actor 없음) 피격은 이 값으로 감쇠한다. 시드하지 않으면 0으로 남아 **같은 공격이
+	// Low LOD 적에게만 더 아프게** 들어간다 — High LOD는 ASC의 DefensePower(기초 + 무기)를 쓰기 때문이다.
+	EnemyFragment.Defense = LNPStat::ResolveStatValue(
+		ULNPBaseAttributeSet::GetDefensePowerAttribute(),
+		GetDefault<ULNPBaseAttributeSet>()->GetDefensePower(),
+		(EnemyConfig && EnemyConfig->WeaponData)
+			? EnemyConfig->WeaponData->GetStatModifiersForLevel(1)
+			: TConstArrayView<FLNPStatModifier>());
+
 	BuildContext.AddFragment<FLNPEnemyIdleFragment>();
 	BuildContext.AddFragment<FLNPEnemyTargetingFragment>();
 	BuildContext.AddFragment<FLNPEnemyTargetingCandidateFragment>();
@@ -50,6 +60,16 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	BuildContext.AddFragment<FLNPEnemyVelocityFragment>();
 	//BuildContext.AddFragment<FMassVelocityFragment>();
 	BuildContext.AddFragment<FLNPPositionHistoryFragment>(); // Lag Compensation용 위치 히스토리 (서버 전용 기록)
+
+	// 경직도. 적은 지속 버프를 받지 않으므로 저항은 여기서 1회 시드하면 끝이다
+	// (플레이어는 어트리뷰트가 바뀔 때마다 프래그먼트로 미러링한다).
+	FLNPPoiseFragment& PoiseFragment = BuildContext.AddFragment_GetRef<FLNPPoiseFragment>();
+	if (EnemyConfig)
+	{
+		PoiseFragment.Resistance       = EnemyConfig->PoiseResistance;
+		PoiseFragment.StaggerThreshold = EnemyConfig->PoiseStaggerThreshold;
+		PoiseFragment.DownThreshold    = FMath::Max(EnemyConfig->PoiseDownThreshold, EnemyConfig->PoiseStaggerThreshold + 1.f);
+	}
 
 	// 2. Shared Config Fragment
 	if (EnemyConfig != nullptr)

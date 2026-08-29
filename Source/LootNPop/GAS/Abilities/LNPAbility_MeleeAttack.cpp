@@ -15,6 +15,13 @@ float ULNPAbility_MeleeAttack::GetKnockbackForCombo(int32 ComboIdx) const
 	return KnockbackStrength;
 }
 
+float ULNPAbility_MeleeAttack::GetPoiseDamageForCombo(int32 ComboIdx) const
+{
+	if (ComboPoiseDamages.IsValidIndex(ComboIdx))
+		return ComboPoiseDamages[ComboIdx];
+	return PoiseDamage;
+}
+
 void ULNPAbility_MeleeAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 	const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilityActivationInfo ActivationInfo,

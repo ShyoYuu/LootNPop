@@ -22,6 +22,9 @@ public:
 	/** 콤보 인덱스에 해당하는 넉백 강도를 반환한다. 기본 구현은 KnockbackStrength를 그대로 반환. */
 	virtual float GetKnockbackForCombo(int32 ComboIdx) const;
 
+	/** 콤보 인덱스에 해당하는 경직력을 반환한다. 기본 구현은 PoiseDamage를 그대로 반환. */
+	virtual float GetPoiseDamageForCombo(int32 ComboIdx) const;
+
 	float GetParryRadius() const { return ParryRadius; }
 
 	float GetAbilityDamage() const { return ComputeDamage(); }
@@ -68,6 +71,16 @@ protected:
 	/** 이 Ability가 가하는 넉백 강도 (cm/s 단위 임펄스). 0이면 넉백 없음. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")
 	float KnockbackStrength = 500.f;
+
+	/**
+	 * 이 Ability 한 방이 피격자에게 쌓는 경직력. 0이면 경직에 기여하지 않는다.
+	 *
+	 * 무기 레벨 스케일을 타지 않는다 — 피해와 달리 제곱으로 커지면 고레벨 무기 하나로
+	 * 영구 경직락이 성립한다. 넉백(KnockbackStrength)도 같은 이유로 레벨과 무관하다.
+	 * ⚠️ 산탄(ULNPAbility_RangedSpreadAttack)은 발마다 누적되므로 **발당 값**으로 잡을 것.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat", meta = (ClampMin = "0"))
+	float PoiseDamage = 20.f;
 
 	/** 패링 판정 반경 (cm). 피격 반경보다 크게 설정해 패링 창이 넓어 보이게 한다. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat", meta = (ClampMin = "0"))

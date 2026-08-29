@@ -112,6 +112,14 @@ public:
 
 	bool IsGameplayInputBlocked() const { return bGameplayInputBlocked; }
 
+	/**
+	 * 서버 권위로 가드를 강제 해제한다 (가드 브레이크). 소유 클라에서 ReleaseGuardState를 실행하므로
+	 * 눌린 상태(bIsGuardPressed)까지 내려가고, Enhanced Input의 Started는 전이에서만 발화하므로
+	 * 키를 계속 누르고 있어도 떼었다 다시 누르기 전까지 재가드되지 않는다.
+	 */
+	UFUNCTION(Client, Reliable)
+	void Client_ForceReleaseGuard();
+
 protected:
 	virtual void BeginPlay() override;
 

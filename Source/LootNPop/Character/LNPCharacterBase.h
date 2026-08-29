@@ -100,6 +100,13 @@ public:
 	/** 콤보 상태를 초기값으로 리셋. */
 	void ResetCombo();
 
+	/**
+	 * 현재 실행 중인 기본 공격 어빌리티를 취소한다. 서브클래스에서 오버라이드.
+	 * public인 이유: 경직 발동(FLNPStaggerCommand)이 진행 중인 공격을 끊는 데 쓴다 —
+	 * 몽타주만 덮어쓰면 GAS 상태가 남아 콤보·쿨다운이 어긋난다.
+	 */
+	virtual void CancelCurrentAttackAbility() {}
+
 	/** 피격 방향에 맞는 HitReact 몽타주 섹션을 재생한다. GameplayCue.LNP.Character.HitReact 노티파이에서 호출한다. */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Combat")
 	void PlayHitReact(FVector HitFromWorldDir);
@@ -207,8 +214,6 @@ protected:
 	/** 실제 공격 발동 로직. 서브클래스에서 오버라이드. */
 	virtual bool TryActivateAttack_Impl();
 
-	/** 현재 실행 중인 기본 공격 어빌리티를 취소한다. 서브클래스에서 오버라이드. */
-	virtual void CancelCurrentAttackAbility() {}
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;

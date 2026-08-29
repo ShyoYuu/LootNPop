@@ -21,6 +21,9 @@ public:
 	/** ComboKnockbackStrengths에 값이 있으면 해당 인덱스 값을, 없으면 KnockbackStrength(기반 클래스)로 폴백. */
 	virtual float GetKnockbackForCombo(int32 ComboIdx) const override;
 
+	/** ComboPoiseDamages에 값이 있으면 해당 인덱스 값을, 없으면 PoiseDamage(기반 클래스)로 폴백. */
+	virtual float GetPoiseDamageForCombo(int32 ComboIdx) const override;
+
 protected:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
@@ -31,6 +34,11 @@ protected:
 	 *  비어있거나 인덱스 초과 시 KnockbackStrength(기반 클래스)로 폴백한다. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")
 	TArray<float> ComboKnockbackStrengths;
+
+	/** 콤보 타수별 경직력. 인덱스 0 = 첫 타.
+	 *  비어있거나 인덱스 초과 시 PoiseDamage(기반 클래스)로 폴백한다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")
+	TArray<float> ComboPoiseDamages;
 
 private:
 	UFUNCTION()

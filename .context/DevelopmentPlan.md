@@ -134,6 +134,52 @@
 - [ ] **피격 반응 시스템** (넉백·드랍)
     - HitStop 구현 완료.
     - 미구현: 넉백 Launch (구형 곡률 기반 궤적), 아이템 드랍.
+- [x] **경직(Poise) 시스템** (구현·에디터 작업 완료, PIE 1인 + Standalone 2인 검증 — 2026-08-29)
+    - **자연회복만이 경직도를 줄인다.** 리셋·차감·면역이 없고, 자연회복 속도를 상회하는 화력을 몰아쳐야만
+      게이지가 유지·상승한다. 유일한 예외가 다운(게이지 0 + 면역)이며 그것이 스턴락을 끊는 단 하나의 탈출구다.
+    - **T1 이상 = 그로기**(공격·이동 불가, 누적 계속), **T2 도달 = 다운**(고정 시간 + 리셋 + 면역).
+      그로기는 고정 시간이 아니라 게이지 값에 종속된 상태다 — 종료는 프로세서가 이탈 에지에서 GA를 취소한다.
+      T1~T2 간격이 곧 딜 구간이라 **임계값은 폰별**이다(적은 넓게, 플레이어는 좁게) — 전역 상수로 두면
+      저항이 높은 쪽 밴드가 오히려 길어져 의도와 정반대가 된다.
+    - "T1 바로 위 걸치기" 무한 그로기는 **유지 시간 비례 유입 보너스**(`PoiseGroggyBonusPerSecond`)로 막는다 —
+      타임아웃과 달리 다운이 항상 타격 위에서 일어나 인과가 보인다.
+    - `FLNPPoiseFragment`(서버 전용, 비복제) + `ULNPPoiseProcessor`(감쇠·임계) + `FLNPStaggerCommand`(발동).
+      Actor 승격 여부와 무관하게 같은 눈금으로 쌓이고, Low LOD 적은 `bIsGroggy`·`ImmunityTimeRemaining`으로 이동만 멈춘다.
+    - **입력 차단은 GA가, 몽타주는 GameplayCue가 소유한다** — 적 ASC가 `Minimal` 복제라 어빌리티 활성화가
+      시뮬 프록시에 안 가기 때문. 부수 효과로 기존 패링 스태거의 미복제 결함도 해소.
+    - 일반 히트리액트 몽타주에는 입력 차단 ANS를 붙이지 않기로 결정 (사유: TechDesign_CombatAnimation §6.4).
+    - 가드 브레이크: 막아낸 공격도 `PoiseGuardMultiplier`만큼 누적, 돌파 시 `Client_ForceReleaseGuard`로 가드 해제.
+    - **근접 패링도 경직 시스템으로 통합** (`LNPPoise::ApplyParryBreak`) — 공격자 T1의 `PoiseParryBreakRatio`배를
+      한 번에 쏟아부어 그로기에 빠뜨린다(저항 미적용). 전용 스태거 GA·`Parry.Stagger` 이벤트·`Parry.Parried`
+      공격자 몽타주 직접 재생은 제거 — 고정 시간 GA와 게이지 그로기를 병행하면 GA가 먼저 끝나며 그로기가 조용히 깨진다.
+      패링 연출은 `Value.Stagger.Parried` 밸류 태그로 살렸다(행동은 일반 그로기와 동일, 몽타주만 분기).
+    - 랙돌·사망 대상 제외. 검증용 시각화: `LNP.Debug.DrawPoise 1` (`ULNPPoiseDebugDrawProcessor`, 에디터·서버 전용,
+      표시 거리는 `LNP.Debug.DrawPoiseDistance`).
+    - **Standalone `-game` 2인 검증 완료:** 발신 13 / 호스트 13 / 게스트 13, 밸류 태그 3종(Light·Heavy·Parried)이
+      양쪽 로그에서 완전 일치. 호스트·게스트 어느 쪽이 패링해도 동일하게 재현된다.
+    - **에디터 작업 (전부 완료):**
+        1. `DA_PlayerEntityConfig`의 `MassAssortedFragmentsTrait`에 `FLNPPoiseFragment` 추가.
+           ⚠️ 없으면 플레이어는 경직도가 아예 안 쌓인다 (`PushPoiseResistanceToEntity`가 경고 로그를 남긴다).
+        2. **GA_Stagger를 무기에서 폰으로 이관.** 원래 `DA_LongSword`·`DA_NPC_LongSword`의 어빌리티 목록에서만
+           참조돼 **롱소드를 들지 않은 폰은 경직 어빌리티가 없어 입력 차단이 안 걸렸다**
+           (몽타주 큐는 떠서 "굳는 시늉만 하고 계속 움직이는" 증상). `BP_LNPPlayer` /
+           `ULNPEnemyConfig`의 `DefaultAbilities`로 옮겨 무기와 무관하게 만들었다.
+        3. Chooser 행 3종 — Light `AM_SW_Damage_Fast` / Parried `AM_SW_Damage_Backward` / Heavy `AM_MM_HitReact_Front_Hvy_01`.
+           `GCN_LNP_Character_Stagger` 노티파이 에셋.
+        4. 어빌리티별 `PoiseDamage`·`ComboPoiseDamages` 값, `DA_Enemy_*`의 `PoiseResistance`·`Poise*Threshold`.
+    - **검증용 임시값은 전부 원복 완료 (2026-08-29).** 검증 중에는 양쪽 다 경직 발동 전에 먼저 죽어
+      관찰이 불가능했던 탓에 공격력을 눌러 두었으나, 검증이 끝나 원래 값으로 되돌렸다 —
+      `DT_*_Levels` 4종(+30 / +10 / +10 / +20), `DA_NPC_Pistol`(+10), `DefaultGame.ini`의 임계값 오버라이드 제거,
+      경직력도 초기값(근접 [30, 45] · 피스톨 12 · 라이플 10 · 샷건 3)으로 복귀.
+    - **임계값 초안을 C++ 기본값에 반영** — `ULNPSettings` 플레이어 60 / 95(밴드 35), `ULNPEnemyConfig` 적 60 / 200(밴드 140).
+      ini 오버라이드 없이 이 값이 시작점이 되도록 했다(구 기본값 100 / 200은 폰별 임계값 도입 전 값이라 의도와 반대였다).
+    - ⚠️ **수치 밸런스는 플레이로 조정하기 전이다.** 원복된 공격력 기준 근접 3~4타에 서로 죽어서
+      플레이어 경직(T1까지 약 4타)이 거의 발동하지 않는다 — 경직 임계값이 아니라 공격력·HP 쪽 문제다.
+    - 부수 발견: **`DA_NPC_LongSword`은 참조자가 0인 미사용 에셋이다.** 근접 적은 `DA_LongSword`를 쓴다 — 정리 대상.
+    - 부수 수정: **`FLNPEnemyFragment::Defense`가 시드되지 않아 항상 0**이었다 — 같은 공격이 Low LOD 적에게만
+      15% 더 아프게 들어가고 있었다(High LOD는 ASC의 DefensePower 15를 쓴다). `BuildTemplate`에서 MaxHealth와
+      같은 방식(`LNPStat::ResolveStatValue`)으로 시드하도록 수정.
+    - 설계 명세: [TechDesign_Poise.md](TechDesign_Poise.md), [GameDesign_Poise.md](GameDesign_Poise.md)
 - [x] **Guard / Parry 시스템** (핵심 기능 완료, GameplayCue 에셋 연결 잔여)
     - Guard: `FLNPParryStateFragment` Fragment 각도 판정 → `FLNPGuardBlockCommand` → 데미지 차단 + GameplayCue. 동작 확인.
     - Parry(근접): Guard 입력 직후 0.15초 창 → `FLNPMeleeParryCommand` → 방어자 GA_ParrySuccess + 공격자 GA_Stagger.

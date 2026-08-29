@@ -60,6 +60,9 @@ struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragme
 
 	UPROPERTY()
 	float SplashKnockbackStrength = 0.f;  // 스플래시 넉백 강도
+
+	UPROPERTY()
+	float PoiseDamage = 0.f;              // 직격·스플래시 공통 경직력 (산탄은 발마다 누적되므로 발당 값)
 };
 
 /**

@@ -29,6 +29,7 @@
 #include "MoverDataModelTypes.h"
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
+#include "GAS/LNPPoiseTypes.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "MassAgentComponent.h"
 #include "MassEntityManager.h"
@@ -78,6 +79,17 @@ void ALNPPlayerCharacter::PossessedBy(AController* NewController)
 			{
 				PushLootSpeedToEntity(Data.NewValue);
 			});
+
+		// 경직저항력도 같은 방식으로 엔티티에 미러한다 — 판정 Pass가 워커 스레드라 ASC를 볼 수 없다.
+		ASC->GetGameplayAttributeValueChangeDelegate(ULNPBaseAttributeSet::GetPoiseResistanceAttribute())
+			.AddWeakLambda(this, [this](const FOnAttributeChangeData& Data)
+			{
+				bPoiseResistanceMirrored = PushPoiseResistanceToEntity(Data.NewValue);
+			});
+
+		// 기초값은 변경 이벤트를 만들지 않으므로 여기서 1회 밀어 넣는다 (실패하면 Tick이 이어받는다).
+		bPoiseResistanceMirrored = PushPoiseResistanceToEntity(
+			ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetPoiseResistanceAttribute()));
 
 		// 사망 판정도 같은 자리에서 건다 — PossessedBy는 서버에서만 실행되므로 이 바인딩 자체가 권위 보장이다.
 		// AttributeSet(PostGameplayEffectExecute)에 넣지 않는 이유: 그쪽은 플레이어와 Enemy가 공유하는데
@@ -133,6 +145,44 @@ void ALNPPlayerCharacter::PushLootSpeedToEntity(float NewLootSpeed)
 	});
 
 	UE_LOG(LogLootNPop, Log, TEXT("[LootPod] %s LootSpeed -> %.2f (entity fragment sync)"), *GetName(), NewLootSpeed);
+}
+
+bool ALNPPlayerCharacter::PushPoiseResistanceToEntity(float NewResistance)
+{
+	const UMassAgentComponent* AgentComponent = FindComponentByClass<UMassAgentComponent>();
+	if (AgentComponent == nullptr)
+		return false;
+
+	const FMassEntityHandle PlayerEntity = AgentComponent->GetEntityHandle();
+	if (!PlayerEntity.IsValid())
+		return false;   // 퍼펫 핸드셰이크 전 — Tick이 다음 프레임에 다시 시도한다
+
+	// 프래그먼트 값만 고치는 비구조적 쓰기라 지연 커맨드 없이 즉시 반영한다 —
+	// 그래야 반영 성공 여부를 그 자리에서 알 수 있고 Tick 재시도를 끝낼 수 있다.
+	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*GetWorld());
+	if (!EntityManager.IsEntityActive(PlayerEntity))
+		return false;
+
+	FLNPPoiseFragment* Poise = EntityManager.GetFragmentDataPtr<FLNPPoiseFragment>(PlayerEntity);
+	if (Poise == nullptr)
+	{
+		// DA_PlayerEntityConfig의 MassAssortedFragmentsTrait에 FLNPPoiseFragment가 빠져 있으면 여기로 온다.
+		UE_LOG(LogLootNPop, Warning, TEXT("[Poise] %s has no FLNPPoiseFragment — player will never stagger"), *GetName());
+		return false;
+	}
+
+	Poise->Resistance = NewResistance;
+
+	// 임계값도 같은 자리에서 시드한다 — 런타임에 바뀌지 않으므로 저항과 함께 한 번만 밀어 넣으면 된다.
+	// 적(ULNPEnemyConfig)과 달리 플레이어는 딜 구간을 **좁게** 잡는다: 무력한 시간이 길면 불쾌하고,
+	// 빨리 다운되어 면역을 받는 편이 낫다.
+	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
+	Poise->StaggerThreshold = Settings->PoiseStaggerThreshold;
+	Poise->DownThreshold    = FMath::Max(Settings->PoiseDownThreshold, Settings->PoiseStaggerThreshold + 1.f);
+
+	UE_LOG(LogLootNPop, Log, TEXT("[Poise] %s R=%.1f  T1=%.0f  T2=%.0f (entity fragment sync)"),
+		*GetName(), NewResistance, Poise->StaggerThreshold, Poise->DownThreshold);
+	return true;
 }
 
 void ALNPPlayerCharacter::OnRep_PlayerState()
@@ -452,6 +502,14 @@ void ALNPPlayerCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickDeathCameraFollow(DeltaSeconds);
+
+	// 엔티티 핸들·프래그먼트가 준비되는 시점은 PossessedBy보다 늦을 수 있다. 성립하면 이후로는 bool 검사 한 번뿐이다.
+	if (HasAuthority() && !bPoiseResistanceMirrored)
+	{
+		if (const UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+			bPoiseResistanceMirrored = PushPoiseResistanceToEntity(
+				ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetPoiseResistanceAttribute()));
+	}
 }
 
 void ALNPPlayerCharacter::RemoveAndSpawnDice(ULNPInventoryComponent& Inventory, const FGuid& ItemId, bool bIsBuff,

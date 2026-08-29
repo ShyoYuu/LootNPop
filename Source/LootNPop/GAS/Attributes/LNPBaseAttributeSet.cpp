@@ -16,6 +16,8 @@ ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 	InitDefensePower(10.0f);
 	InitMoveSpeed(1.0f);
 	InitLootSpeed(1.0f);
+	// 플레이어 기준값. 적 엔티티는 ULNPEnemyConfig::PoiseResistance로 훨씬 낮게 덮어쓴다.
+	InitPoiseResistance(150.0f);
 	InitIncomingDamage(0.f);
 }
 
@@ -29,6 +31,7 @@ void ULNPBaseAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, DefensePower,    COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, MoveSpeed,       COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, LootSpeed,       COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, PoiseResistance, COND_None, REPNOTIFY_Always);
 }
 
 void ULNPBaseAttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue)          { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, Health, OldValue); }
@@ -38,6 +41,7 @@ void ULNPBaseAttributeSet::OnRep_AttackSpeed(const FGameplayAttributeData& OldVa
 void ULNPBaseAttributeSet::OnRep_DefensePower(const FGameplayAttributeData& OldValue)    { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, DefensePower, OldValue); }
 void ULNPBaseAttributeSet::OnRep_MoveSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, MoveSpeed, OldValue); }
 void ULNPBaseAttributeSet::OnRep_LootSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, LootSpeed, OldValue); }
+void ULNPBaseAttributeSet::OnRep_PoiseResistance(const FGameplayAttributeData& OldValue) { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, PoiseResistance, OldValue); }
 
 void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
@@ -47,8 +51,8 @@ void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribut
 		NewValue = FMath::Max(1.0f, NewValue);
 	else if (Attribute == GetAttackSpeedAttribute() || Attribute == GetMoveSpeedAttribute() || Attribute == GetLootSpeedAttribute())
 		NewValue = FMath::Max(0.01f, NewValue);
-	else if (Attribute == GetDefensePowerAttribute())
-		// 음수 방어력은 LNPDamage::ApplyDefense의 100/(100+Def)를 발산시킨다.
+	else if (Attribute == GetDefensePowerAttribute() || Attribute == GetPoiseResistanceAttribute())
+		// 음수는 100/(100+X) 감쇠식을 발산시킨다 (ApplyDefense·ApplyResistance 공통).
 		NewValue = FMath::Max(0.0f, NewValue);
 }
 

@@ -101,6 +101,13 @@ bool ALNPCharacterBase::TryActivateAttack()
 	if (!ASC)
 		return false;
 
+	// 경직 중에는 어떤 경로로도 공격이 나가지 않는다.
+	// ⚠️ 콤보 창 분기보다 **앞**이어야 한다 — 그 분기는 Block.AttackInput을 보지 않고 곧바로 재발동하므로,
+	// 그로기 진입 시점에 콤보 창 태그가 한 프레임이라도 남아 있으면 차단을 통째로 건너뛴다.
+	// (NPC의 FLNPEnemyAttackTask는 매 프레임 이 함수를 두드리므로 그 한 프레임을 정확히 집어낸다.)
+	if (ASC->HasMatchingGameplayTag(TAG_State_Staggered))
+		return false;
+
 	if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
 	{
 		// 윈도우를 즉시 소비해 이 분기가 중복 진입되지 않도록 막는다

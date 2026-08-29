@@ -67,6 +67,18 @@ protected:
 	 *  버프 GE가 Attribute를 변조하면 델리게이트(PossessedBy에서 바인딩)를 통해 자동 호출된다. */
 	void PushLootSpeedToEntity(float NewLootSpeed);
 
+	/**
+	 * 서버 전용: PoiseResistance Attribute를 플레이어 Mass 엔티티의 FLNPPoiseFragment에 미러한다.
+	 * 히트 판정 Pass는 워커 스레드라 ASC를 볼 수 없어 이 사본이 경직 누적의 유일한 출처다.
+	 *
+	 * LootSpeed와 달리 초기값(어트리뷰트 기초값)도 반드시 실어야 한다 — 변경 델리게이트는
+	 * 값이 바뀔 때만 울리므로, 버프를 한 번도 안 받은 플레이어는 저항 0으로 남아 잡몹에게 굳어 버린다.
+	 * 엔티티 핸들이 준비되는 시점이 PossessedBy보다 늦을 수 있어 Tick이 성립할 때까지 재시도한다.
+	 *
+	 * @return 미러가 실제로 반영됐는가.
+	 */
+	bool PushPoiseResistanceToEntity(float NewResistance);
+
 	/** 원격 클라이언트의 정의 기반 장착(디버그 키)을 서버에 전달한다. 검증은 EquipWeaponOnServer가 수행. */
 	UFUNCTION(Server, Reliable)
 	void Server_EquipWeapon(ULNPWeaponData* WeaponData);
@@ -140,6 +152,9 @@ protected:
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UGameplayCameraComponent> GameplayCamera;
+
+	/** 경직저항력 미러가 엔티티에 한 번이라도 반영됐는가. Tick 재시도 종료 조건. */
+	bool bPoiseResistanceMirrored = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPInteractionComponent> InteractionComponent;

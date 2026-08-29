@@ -91,7 +91,9 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 			if (!Ability)
 				continue;
 
-			MeleeData.Damage = Ability->GetAbilityDamage();
+			MeleeData.Damage      = Ability->GetAbilityDamage();
+			// 경직력은 넉백 역할 태그와 무관한 독립 축이다 — 밀려나지 않는 공격도 경직은 쌓는다.
+			MeleeData.PoiseDamage = Ability->GetPoiseDamageForCombo(ComboIdx);
 
 			const FGameplayTagContainer& Tags = Spec.Ability->GetAssetTags();
 			if (Tags.HasTag(KnockTag))

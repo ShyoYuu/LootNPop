@@ -56,7 +56,7 @@ OnGuardReleased()
 | `LNP.State.Guarding` / `LNP.State.ParryWindow` | 상태 태그 (InputHandler 관리) |
 | `GameplayCue.LNP.Guard.Block` / `GameplayCue.LNP.Parry.Success` | VFX/SFX 큐 (에셋 연결 잔여) |
 | `LNP.GameplayEvent.Parry.Success` | 방어자 GA_ParrySuccess 트리거 |
-| `LNP.GameplayEvent.Parry.Stagger` | 공격자 GA_Stagger 트리거 |
+| ~~`LNP.GameplayEvent.Parry.Stagger`~~ | **제거됨 (2026-08-29).** 공격자 경직은 전용 이벤트가 아니라 경직도(`LNPPoise::ApplyParryBreak`)를 거쳐 `Stagger.Light`로 들어온다 (→ [TechDesign_Poise.md](TechDesign_Poise.md) §8) |
 
 ---
 
@@ -97,8 +97,8 @@ Dot >= cos(45°) → 패링 각도 충족  /  Dot >= cos(60°) → 가드 각도
 
 | 커맨드 | 처리 내용 |
 |:---|:---|
-| `FLNPMeleeParryCommand` | 방어자: Parry.Success 큐 + GameplayEvent. 공격자: Stagger 이벤트 + Parried 몽타주 + **넉백** (`ApplyKnockback` — Instant Effect, 방어자 반대 0.7 + Up 0.3 방향, 2000 cm/s — 구형 곡률 포물선). 방어자 Parrier 몽타주 |
-| `FLNPProjectileParryCommand` | 방어자: Parry.Success 큐 + 이벤트. **반사 재현 방송**: `Multicast_RespawnReflectedGhost`(구 Ghost 소멸 + 새 Ghost 스폰). 공격자 Stagger 없음 (투사체 패링 스펙) |
+| `FLNPMeleeParryCommand` | 방어자: Parry.Success 큐 + GameplayEvent + Parrier 몽타주. 공격자: **경직도 대량 누적**(`LNPPoise::ApplyParryBreak`, 저항 미적용) + **넉백**(`ApplyKnockback` — Instant Effect, 방어자 반대 0.7 + Up 0.3 방향, 2000 cm/s — 구형 곡률 포물선). ⚠️ 공격자 몽타주를 직접 재생하지 않는다 — 경직 진입이 같은 프레임에 잡혀 `Montage_Stop`으로 끊기므로, 연출은 `Value.Stagger.Parried` 밸류 태그로 경직 시스템이 낸다 (→ [TechDesign_Poise.md](TechDesign_Poise.md)) |
+| `FLNPProjectileParryCommand` | 방어자: Parry.Success 큐 + 이벤트. **반사 재현 방송**: `Multicast_RespawnReflectedGhost`(구 Ghost 소멸 + 새 Ghost 스폰). 공격자 경직 없음 (투사체 패링 스펙) |
 | `FLNPGuardBlockCommand` | Guard.Block 큐 (향후 스태미나 GE 지점) |
 | `FLNPApplyDamageGECommand` | 피해 GE + HitReact/임팩트 큐 + 넉백 + 공격자 HitStop(근접만) |
 

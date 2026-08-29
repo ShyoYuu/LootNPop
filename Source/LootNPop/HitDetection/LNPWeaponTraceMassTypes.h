@@ -30,6 +30,7 @@ struct LOOTNPOP_API FLNPWeaponTraceFragment : public FMassFragment
 	float ParryRadius       = 12.f;    // 패링 판정 반경 — HitRadius보다 크게 설정
 	float Damage            = 0.f;
 	float KnockbackStrength = 0.f;
+	float PoiseDamage        = 0.f;   // 피격자 경직도에 쌓일 원시 경직력 (경직저항력으로 감쇠된 뒤 누적)
 	// NotifyEnd 미호출 시 엔티티를 자동 파괴하는 안전장치.
 	float TimeToLive        = 0.f;
 

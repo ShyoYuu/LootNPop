@@ -48,9 +48,10 @@ Motion Matching 기반 공용 로코모션 위에 **무기별 Linked Anim Layer�
 | 무기 | `LNP.Weapon.Unarmed / Pistol / Rifle / Shotgun / LongSword` | 장착 무기. `EquipWeapon()`이 전환 |
 | 조준 | `LNP.AimMode.None / FreeAim / LockOn` | `ULNPWeaponData::DefaultAimMode`로 지정. LockOn 전환은 None일 때만 허용 |
 | 액션 | `LNP.Action.Attacking` | 공격 애니메이션 재생 중 |
-| 차단 | `LNP.Block.MovementInput` / `LNP.Block.AttackInput` | ANS가 추가/제거하는 입력 차단 |
+| 차단 | `LNP.Block.MovementInput` / `LNP.Block.AttackInput` | 입력 차단. 공격 몽타주 구간은 ANS가, 경직 구간은 GA_Stagger의 `ActivationOwnedTags`가 소유 (§6.5) |
 | 콤보 | `LNP.State.ComboWindow` | 콤보 입력 수용 구간 (ANS_ComboWindow가 열고 TryActivateAttack이 소비) |
 | Guard | `LNP.State.Guarding` / `LNP.State.ParryWindow` | InputHandler가 ASC에 유지/타이머 관리 |
+| 경직 | `LNP.State.Staggered` | GA_Stagger가 어빌리티 수명 동안 소유. 가드·대시 입력 게이트와 재경직 차단에 쓰인다 |
 | Mover | `LNP.Mover.IsSprinting` / `LNP.Mover.IsGuarding` | Modifier 활성 여부. `ULNPAnimInstance` 변수 소스 |
 
 ---
@@ -201,6 +202,28 @@ UAnimMontage* M = EvaluateMontage(TAG_Montage_Situation_Dash, TAG_Montage_Value_
 
 `PlayHitReact(HitFromWorldDir)`: 피격 방향을 캐릭터 로컬 공간으로 변환 → 4방향 태그 분류 → Chooser로 방향별 몽타주 재생. HitStop(`CustomTimeDilation` 0.1, 타이머 복원)과 함께 GameplayCue 노티파이에서 호출된다.
 
+**히트리액트 몽타주에는 입력 차단 ANS를 붙이지 않는다** (2026-08-29 결정). 행동을 끊는 판단은 전적으로
+경직 시스템(→ [TechDesign_Ability.md §2.5](TechDesign_Ability.md))이 하고, 히트리액트는 코스메틱으로 남는다. 이유 셋:
+
+1. 경직 시스템의 존재 이유가 "보통 피격은 행동을 끊지 않는다"이다. 히트리액트에 차단 ANS를 달면
+   **모든 피격이 곧 경직**이 되어 누적·임계 체계가 통째로 무의미해진다.
+2. `AddLooseGameplayTag`는 복제되지 않고, 히트리액트 몽타주는 각 머신이 GameplayCue를 받아 **로컬로** 재생한다.
+   차단 구간이 권위 상태가 아니라 코스메틱 타이밍에 좌우된다 — 서버는 판정 시점에, 피격자 클라이언트는
+   RTT 뒤에 차단이 걸린다.
+3. 다음 피격이나 공격이 `Montage_Stop`을 부르면 Begin/End 페어가 깨질 여지가 남는다.
+   §6.3의 근접 공격 경로가 `ClearRelativeTag()` 안전망을 따로 두고 있는 것이 그 위험의 방증이다.
+
+### 6.5 경직 — ANS가 아니라 어빌리티가 구간을 소유한다
+
+§6.3이 "근접 공격 GA는 `Montage_Play` 직후 끝나므로 `ActivationOwnedTags`를 쓸 수 없다"고 적은 것의
+**정확히 반대 케이스**다. 경직은 지속되는 것이 본질이므로 어빌리티를 살려 두는 쪽이 맞다.
+
+`ULNPAbility_Stagger`가 `UAbilityTask_WaitDelay` 동안 살아 있으면서 `ActivationOwnedTags`로
+`Block.AttackInput` · `Block.MovementInput` · `State.Staggered`를 소유한다. 어빌리티 수명 = 차단 구간이므로
+태그 페어가 깨질 수 없고, 서버 권위이며, 소유 클라이언트에는 GAS 활성화 복제로 그대로 전달된다.
+
+경직 몽타주 에셋에는 ANS를 배치하지 않는다 — 몽타주는 코스메틱이고 잠금 시간은 데이터(`ULNPSettings`)가 정한다.
+
 ---
 
 ## 7. 어필 포인트 (트러블슈팅 & 엔진 분석)
@@ -232,3 +255,8 @@ UAnimMontage* M = EvaluateMontage(TAG_Montage_Situation_Dash, TAG_Montage_Value_
 - **`ABP_Sub_LongSword` Look At:** 락온 중 neck_01·head가 타겟을 미세 추적하는 Bone Control. 현재는 캐릭터 전체 회전(§5.2)으로 대체 중 — 필요성 재평가 후 적용.
 - **상하체 슬롯 분리 확장:** 현재 `FullBody` 슬롯만 운용. 이동 중 상체만 공격하는 `UpperBody` 슬롯 분리는 필요 시 도입.
 - **Guard/Parry GameplayCue 에셋:** 태그·코드 경로는 완성, VFX/SFX 에셋 연결이 에디터 잔여 작업.
+- **경직 몽타주 Chooser 행:** `Situation.Stagger` × `Value.Stagger.Light/Heavy/Parried` 3종 배선 완료.
+  현재 배정은 Light `AM_SW_Damage_Fast` / Parried `AM_SW_Damage_Backward` / Heavy `AM_MM_HitReact_Front_Hvy_01`.
+  **넉다운·기상 몽타주를 확보하면 Heavy 행의 에셋만 교체**하면 된다 (→ [TechDesign_Poise.md](TechDesign_Poise.md)).
+- **그로기 루프 포즈:** 그로기는 게이지에 종속된 가변 길이 상태인데 몽타주는 원샷이라,
+  긴 그로기에서는 남은 시간이 idle 포즈로 굳는다. 루프 가능한 포즈가 필요하다.

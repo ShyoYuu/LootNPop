@@ -4,6 +4,7 @@
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "GAS/LNPPoiseTypes.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
@@ -224,6 +225,7 @@ void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMa
 	EnemyQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
+	EnemyQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
 	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -233,6 +235,7 @@ void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMa
 	PlayerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 	PlayerQuery.AddRequirement<FLNPParryStateFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
+	PlayerQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
 
@@ -370,6 +373,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		AActor*            Actor;
 		FVector            RawLocation;      // Lag Compensation 되감기 기준 원점
 		const FLNPPositionHistoryFragment* History;
+		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 	};
 	TArray<FCollectedEnemy> Enemies;
 
@@ -386,6 +390,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		TArrayView<FLNPEnemyFragment>                       EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
 		TArrayView<FMassActorFragment>                      ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 		const TConstArrayView<FLNPPositionHistoryFragment>  Histories  = Ctx.GetFragmentView<FLNPPositionHistoryFragment>();
+		TArrayView<FLNPPoiseFragment>                       PoiseFrags = Ctx.GetMutableFragmentView<FLNPPoiseFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -397,7 +402,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				Center = Loc;
 			else
 				Center = Loc + UpDir * HalfH;
-			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i] });
+			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr });
 		}
 	});
 
@@ -414,6 +419,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		FLNPParryStateFragment ParryState;
 		FVector                RawLocation;    // Lag Compensation 되감기 기준 원점
 		const FLNPPositionHistoryFragment* History;
+		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 	};
 	TArray<FCollectedPlayer> Players;
 
@@ -423,6 +429,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		TArrayView<FMassActorFragment>                     ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 		const TConstArrayView<FLNPParryStateFragment>      ParryFrags = Ctx.GetFragmentView<FLNPParryStateFragment>();
 		const TConstArrayView<FLNPPositionHistoryFragment> Histories  = Ctx.GetFragmentView<FLNPPositionHistoryFragment>();
+		TArrayView<FLNPPoiseFragment>                      PoiseFrags = Ctx.GetMutableFragmentView<FLNPPoiseFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -432,7 +439,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const FTransform& T   = Transforms[i].GetTransform();
 			const FVector     Loc = T.GetLocation();
 			const FVector     Up  = (-Loc).GetSafeNormal();
-			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i], Loc, &Histories[i] });
+			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i], Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr });
 		}
 	});
 
@@ -440,6 +447,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		return;
 
 	const bool bFriendlyFire = GetDefault<ULNPSettings>()->bFriendlyFire;
+	const float PoiseGuardMultiplier = GetDefault<ULNPSettings>()->PoiseGuardMultiplier;
 
 	// ── Pass 3: Swept Volume 피격 판정 (Lag Compensation 포함) ─────────────────
 	UMassActorSubsystem* ActorSubForRewind = World->GetSubsystem<UMassActorSubsystem>();
@@ -541,9 +549,13 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 				if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
 				{
+					// 막아내도 경직은 쌓인다 — 임계를 넘으면 가드가 풀리며 경직에 걸린다 (가드 브레이크).
+					LNPPoise::Accumulate(Player.Poise, Frag.PoiseDamage, NowForRewind, PoiseGuardMultiplier);
 					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor, ImpactPointOf(), AttackerDir);
 					return;
 				}
+
+				LNPPoise::Accumulate(Player.Poise, Frag.PoiseDamage, NowForRewind);
 
 				const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 				if (EffectClass)
@@ -563,6 +575,9 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 						continue;
 
 					MarkHit(Frag, Enemy.Handle);
+
+					// Actor 승격 여부와 무관하게 같은 눈금으로 쌓는다.
+					LNPPoise::Accumulate(Enemy.Poise, Frag.PoiseDamage, NowForRewind);
 
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (Enemy.Actor && EffectClass)
