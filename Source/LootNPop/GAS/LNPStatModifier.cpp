@@ -29,6 +29,7 @@ TConstArrayView<FLNPStatMeta> LNPStat::GetStatMetaTable()
 		{ ULNPBaseAttributeSet::GetDefensePowerAttribute(), TAG_GE_Data_Stat_DefensePower, LOCTEXT("StatDefensePower", "Defense"),      ELNPStatDisplay::Scalar  },
 		{ ULNPBaseAttributeSet::GetMoveSpeedAttribute(),    TAG_GE_Data_Stat_MoveSpeed,    LOCTEXT("StatMoveSpeed",    "Move Speed"),   ELNPStatDisplay::Ratio   },
 		{ ULNPBaseAttributeSet::GetLootSpeedAttribute(),    TAG_GE_Data_Stat_LootSpeed,    LOCTEXT("StatLootSpeed",    "Loot Speed"),   ELNPStatDisplay::Ratio   },
+		{ ULNPBaseAttributeSet::GetPoiseResistanceAttribute(), TAG_GE_Data_Stat_PoiseResistance, LOCTEXT("StatPoiseResistance", "Poise Resist"), ELNPStatDisplay::Scalar  },
 	};
 
 	return Table;

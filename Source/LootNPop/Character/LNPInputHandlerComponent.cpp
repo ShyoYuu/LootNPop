@@ -407,6 +407,10 @@ void ULNPInputHandlerComponent::OnDashStarted(const FInputActionValue& Value)
 	if (bGameplayInputBlocked)
 		return;
 
+	// 경직 중 대시 금지. 대시는 LayeredMove라 TAG_Block_MovementInput으로 막히지 않는다.
+	if (ASC && ASC->HasMatchingGameplayTag(TAG_State_Staggered))
+		return;
+
 	bIsDashJustPressed = !bIsDashPressed;
 	bIsDashPressed = true;
 
@@ -501,6 +505,10 @@ void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)
 	if (IsFreeAimMode())
 		return;
 
+	// 경직 중에는 가드로 빠져나갈 수 없다 (CanGuard가 상시 true인 한계를 이 지점에서 좁힌다).
+	if (ASC && ASC->HasMatchingGameplayTag(TAG_State_Staggered))
+		return;
+
 	bIsGuardJustPressed = !bIsGuardPressed;
 	bIsGuardPressed = true;
 
@@ -560,6 +568,15 @@ void ULNPInputHandlerComponent::ReleaseGuardState()
 	}
 
 	Server_SetGuardState(false);
+}
+
+void ULNPInputHandlerComponent::Client_ForceReleaseGuard_Implementation()
+{
+	if (!bIsGuardPressed)
+		return;
+
+	UE_LOG(LogLootNPop, Log, TEXT("[Guard] Force released by stagger [%s]"), *GetNameSafe(GetOwner()));
+	ReleaseGuardState();
 }
 
 void ULNPInputHandlerComponent::OnGuardReleased(const FInputActionValue& Value)

@@ -76,6 +76,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 	SharedData.ExplosionRadius         = WeaponDef->ExplosionRadius;
 	SharedData.KnockbackStrength       = KnockbackStrength;
 	SharedData.SplashKnockbackStrength = SplashKnockbackStrength;
+	SharedData.PoiseDamage             = PoiseDamage;
 
 	FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(SharedData);
 	FMassArchetypeSharedFragmentValues SharedValues;

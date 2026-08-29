@@ -148,6 +148,24 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Attributes")
 	TMap<FGameplayTag, float> InitialAttributeValues;
 
+	/**
+	 * 이 적 타입의 경직저항력. 엔티티 스폰 시 FLNPPoiseFragment::Resistance로 시드된다.
+	 * ULNPBaseAttributeSet의 기초값(플레이어 기준)을 대신하는 값이며, 낮을수록 쉽게 굳는다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Attributes", meta = (ClampMin = "0.0"))
+	float PoiseResistance = 20.f;
+
+	/** T1 — 이 값 이상이면 그로기. 엔티티 스폰 시 FLNPPoiseFragment로 시드된다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Attributes", meta = (ClampMin = "1.0"))
+	float PoiseStaggerThreshold = 60.f;
+
+	/**
+	 * T2 — 도달하면 다운. T1과의 간격이 곧 **플레이어에게 내주는 딜 구간**이다.
+	 * 적 쪽은 넉넉히 잡아 굳은 동안 실컷 두들길 수 있게 한다 (플레이어 쪽은 반대로 좁다).
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Attributes", meta = (ClampMin = "1.0"))
+	float PoiseDownThreshold = 200.f;
+
 	/** 타게팅 및 균형 설정 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Targeting")
 	FLNPEnemyTargetingConfig TargetingConfig;

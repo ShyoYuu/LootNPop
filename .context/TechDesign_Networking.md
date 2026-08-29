@@ -193,10 +193,29 @@ Pod과 Enemy의 값이 다르면 `FMassReplicationSharedFragment`가 타입별�
 | GAS 이벤트(GE 적용, 피격 판정)가 트리거인 코스메틱 | **GameplayCue** — 수신 대상을 GAS가 자동 관리, Multicast RPC 대비 코드 단순 |
 | GAS와 독립적인 애니메이션 (공격 시작 등) | **Multicast RPC** — 회피 타이밍 정보인 근접 몽타주는 Reliable, 순수 연출인 원거리는 Unreliable |
 
-운용 중인 Cue: `Character.HitReact`(HitReact 몽타주+피격자 HitStop), `Melee.Impact`, `Melee.AttackerHitStop`(제3자 화면 공격자 HitStop), `Projectile.Impact`, `Guard.Block`, `Parry.Success`.
+운용 중인 Cue: `Character.HitReact`(HitReact 몽타주+피격자 HitStop), `Character.Stagger`(경직 몽타주), `Melee.Impact`, `Melee.AttackerHitStop`(제3자 화면 공격자 HitStop), `Projectile.Impact`, `Guard.Block`, `Parry.Success`.
 
 - **핸들러는 C++ 우선:** `UGameplayCueNotify_Static::OnExecute`는 `BlueprintNativeEvent`라 C++ `_Implementation` 오버라이드로 그래프 없이 동작한다. 블루프린트 에셋은 부모 클래스+태그+에셋 참조만 지정하는 얇은 래퍼.
 - **타입 안전 컨텍스트:** float 필드에 값을 인코딩하는 대신 `FGameplayEffectContext`를 상속한 `FLNPProjectileImpactContext`(`GetScriptStruct`/`Duplicate`/`NetSerialize` 오버라이드)로 Ghost 키를 전달 — 수신 측이 자기 Ghost를 정확히 정리한다.
+
+#### 경직 — 게이지는 안 보내고 결과만 보낸다 (2026-08-29)
+
+경직도(`FLNPPoiseFragment::Current`)는 **복제하지 않는다.** 클라이언트는 자신에게 들어오는 모든 히트를
+알 수 없어(타 플레이어·NPC 공격은 전부 서버 판정) 예측이 반드시 어긋나고, **경직을 오예측하면 맞지도 않은
+공격에 입력이 잠긴다** — 늦게 걸리는 것보다 훨씬 나쁘다. 넉백이 같은 이유로 미예측인 것과 일관된다(§6).
+
+전파되는 것은 결과 두 가지뿐이고, 서로 다른 채널을 탄다:
+
+| 무엇 | 채널 | 왜 |
+|:---|:---|:---|
+| 입력 차단 | GA 활성화 복제 (`ULNPAbility_Stagger`의 `ActivationOwnedTags`) | 권위 상태라 코스메틱 큐에 실을 수 없다. 플레이어 ASC는 `Mixed`라 소유 클라에 활성화가 도달한다. 그로기는 종료도 서버가 정하므로(취소 복제) 클라가 임의로 풀 수 없다 |
+| 경직 몽타주 | `GameplayCue.LNP.Character.Stagger` | **적 ASC는 `Minimal`이라 어빌리티 활성화가 시뮬레이티드 프록시에 가지 않는다** — GA가 몽타주를 들면 게스트 화면에서 적 경직이 안 보인다 |
+| AI 행동 정지 | 전파 없음 | AI는 서버 전용이라 필요 없다 |
+
+⚠️ 둘 다 몽타주를 재생하면 소유 클라이언트에서 이중 재생이 난다. **몽타주는 큐만, 차단은 GA만.**
+가드 브레이크의 소유 클라 눌림 상태 해제는 `ULNPInputHandlerComponent::Client_ForceReleaseGuard`(Client RPC)가 맡는다.
+
+추가 대역폭은 0이다. HUD 게이지가 필요해지면 그때 `COND_OwnerOnly` float 하나를 붙인다.
 
 ### 3.8 Mass 프로세서 공통 권한 패턴
 

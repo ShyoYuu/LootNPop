@@ -22,6 +22,7 @@
 #include "MassNavigationFragments.h"
 #include "MassRepresentationProcessor.h"
 #include "LNPMassUtils.h"
+#include "GAS/LNPPoiseTypes.h"
 #if WITH_EDITOR
 #include "MassDebugDrawHelpers.h"
 #endif
@@ -400,6 +401,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	MovementQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
 	MovementQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite); // 배회 타임아웃 계측
+	MovementQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional); // 경직 중 정지
 	MovementQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	MovementQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	MovementQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -429,6 +431,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = EnemyContext.GetFragmentView<FLNPEnemyTargetingFragment>();
 		const TArrayView<FLNPEnemyVelocityFragment> VelocityFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 		const TArrayView<FLNPEnemyIdleFragment> IdleFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyIdleFragment>();
+		const TConstArrayView<FLNPPoiseFragment> PoiseFragments = EnemyContext.GetFragmentView<FLNPPoiseFragment>();
 		const FLNPEnemySharedFragment& SharedFragment = EnemyContext.GetConstSharedFragment<FLNPEnemySharedFragment>();
 
 		if (SharedFragment.Config == nullptr)
@@ -529,6 +532,14 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				EffectiveSpeed = MoveTarget.DesiredSpeed.Get();
 			}
+
+			// 그로기·다운 중에는 어떤 경로로도 움직이지 않는다. StateTree 속도 override 뒤에 두어야 다시 살아나지 않는다.
+			// Actor가 있으면 GA_Stagger의 TAG_Block_MovementInput이 입력을 이미 지우지만,
+			// Actor가 없는 Low LOD 적에게는 이 검사가 유일한 정지 경로다.
+			// 다운은 게이지를 0으로 리셋하므로 bIsGroggy만으로는 안 잡힌다 — 면역 잔여로 함께 본다.
+			if (PoiseFragments.IsValidIndex(i)
+				&& (PoiseFragments[i].bIsGroggy || PoiseFragments[i].ImmunityTimeRemaining > 0.f))
+				EffectiveSpeed = 0.0f;
 
 			if (AActor* Actor = ActorFragments[i].GetMutable())
 			{

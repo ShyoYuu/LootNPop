@@ -65,6 +65,14 @@ public:
 	FGameplayAttributeData LootSpeed;
 	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, LootSpeed)
 
+	/**
+	 * 경직저항력 — 들어오는 경직력을 100/(100+저항)으로 감쇠시킨다 (LNPPoise::ApplyResistance).
+	 * 플레이어 기초값이 적보다 훨씬 높다. 적 엔티티의 기초값은 ULNPEnemyConfig::PoiseResistance가 대신 정한다.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes", ReplicatedUsing = OnRep_PoiseResistance)
+	FGameplayAttributeData PoiseResistance;
+	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, PoiseResistance)
+
 	/** Meta 어트리뷰트: GE가 전달한 원시 피해량. PostGameplayEffectExecute에서 방어력 적용 후 즉시 0으로 초기화. 복제하지 않음. */
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes")
 	FGameplayAttributeData IncomingDamage;
@@ -85,4 +93,6 @@ private:
 	void OnRep_MoveSpeed(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_LootSpeed(const FGameplayAttributeData& OldValue);
+	UFUNCTION()
+	void OnRep_PoiseResistance(const FGameplayAttributeData& OldValue);
 };

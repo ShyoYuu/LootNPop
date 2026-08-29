@@ -28,7 +28,7 @@ UGameplayAbility
         │     │     └── ULNPAbility_RangedSpreadAttack   ← 육각 링 산탄 (중앙 1 + 링 2 = 19발)
         │     └── ULNPAbility_MeleeAttack         ← Chooser 몽타주 + 콤보 섹션, 몽타주 종료까지 유지
         ├── ULNPAbility_ParrySuccess   ← TAG_GameplayEvent_Parry_Success 트리거
-        └── ULNPAbility_Stagger        ← TAG_GameplayEvent_Parry_Stagger 트리거
+        └── ULNPAbility_Stagger        ← Stagger.Light / Stagger.Heavy 트리거, 경직 구간을 어빌리티 수명으로 소유
 ```
 
 ---
@@ -43,9 +43,11 @@ UGameplayAbility
 | AttackPower | 10 | 피해 공식의 기저 |
 | AttackSpeed / MoveSpeed / LootSpeed | 1 / 1 / 1 | 배율 — ≥ 0.01 클램프 |
 | DefensePower | **10** | `LNPDamage::ApplyDefense` 공식에 사용. ≥ 0 클램프 |
+| PoiseResistance | **150** | 들어오는 경직력 감쇠 (§2.5). ≥ 0 클램프. 기본값은 플레이어 기준이고 적은 `ULNPEnemyConfig::PoiseResistance`(기본 20)가 대신 정한다 |
 | IncomingDamage | 0 | **Meta 어트리뷰트** — 복제 안 함. GE가 전달한 원시 피해량을 `PostGameplayEffectExecute`에서 방어력 적용 후 Health에 반영하고 즉시 0으로 초기화 |
 
 방어력 공식 (`LNPDamageFormula.h`): `FinalDamage = RawDamage * (100 / (100 + Defense))`
+경직저항 공식은 같은 헤더의 `LNPPoise::ApplyResistance` — 형태가 동일하다 (`100 / (100 + Resistance)`).
 
 #### 스탯 파이프라인 규약 — 채널 2개만 쓴다
 
@@ -184,6 +186,30 @@ FLNPBuffInstance   { Definition; AppliedEffects[]; RemainingDuration; }  // 0 = 
 
 **`ULNPInventoryComponent`** (PlayerState 부착): 보관함 + 버프 기간 추적. `AddBuffItem(Def, RemainingDuration)` → GE Infinite 적용 + Tick 차감 → 만료 시 자동 해제. `RemoveBuffItem()` → GE 제거 + **남은 시간 반환** (드랍된 월드 아이템에 이어붙이는 용도).
 
+
+### 2.5 경직(Poise) 파이프라인
+
+피해와 나란히 흐르는 **두 번째 판정 축**이다. 경직도를 줄이는 수단은 매 틱 자연회복 하나뿐이고,
+그 속도를 상회하는 화력을 몰아쳐야만 상대가 굳는다.
+
+```
+공격 어빌리티 PoiseDamage
+  → FLNPWeaponTraceFragment / FLNPProjectileSharedFragment ::PoiseDamage   (KnockbackStrength와 같은 자리)
+      → 판정 Processor 서버 구역: LNPPoise::Accumulate(피격자 FLNPPoiseFragment, ...)
+      → ULNPPoiseProcessor → FLNPStaggerCommand → GA_Stagger + GameplayCue
+```
+
+어빌리티 시스템과 맞닿는 지점만 정리하면:
+
+| 축 | 위치 | 비고 |
+|:--|:--|:--|
+| 경직력 | `ULNPAbility_BasicAttack::PoiseDamage`, 근접은 `ComboPoiseDamages` | 넉백과 같은 자리·같은 패턴. **무기 레벨 스케일 없음** — 제곱으로 커지면 고레벨 무기 하나로 영구 경직락이 된다. ⚠️ 산탄은 발마다 누적되므로 발당 값 |
+| 경직저항력 | `PoiseResistance` 어트리뷰트 → `FLNPPoiseFragment::Resistance` 미러 | 정식 스텟이라 §2.1의 합/곱 파이프라인·스탯 탭·버프에 자동으로 얹힌다. 판정 Pass가 워커 스레드라 ASC를 볼 수 없어 미러가 필요하다 |
+| 행동 차단 | `ULNPAbility_Stagger` (§3.3) | 어빌리티 수명이 곧 차단 구간 |
+
+**누적·자연회복·임계 판정·네트워크 정책 전체는 → [TechDesign_Poise.md](TechDesign_Poise.md)**
+(기획 의도는 [GameDesign_Poise.md](GameDesign_Poise.md))
+
 ---
 
 ## 3. 어빌리티 상세
@@ -251,9 +277,29 @@ ActivateAbility → Commit → SpawnProjectile() → PlayMontage(Attack) → 즉
 ⚠️ Unlit이라 `TintColor`가 곧 Emissive다. 세 채널이 모두 1을 넘으면 톤매핑에서 흰색으로 포화돼 진영 구분이
 사라지므로, 색조 채널 하나만 1을 살짝 넘기고 나머지는 1 이하로 둔다.
 
-### 3.3 패링 리액션 — `ULNPAbility_ParrySuccess` / `ULNPAbility_Stagger`
+### 3.3 리액션 — `ULNPAbility_ParrySuccess` / `ULNPAbility_Stagger`
 
-GameplayEvent 트리거로 자동 발동(생성자에서 `AbilityTriggers` 등록). 각각 방어자 ReactionMontage / 공격자 StaggerMontage를 재생하고 즉시 종료. Player·Enemy 어느 쪽 ASC에든 Grant 가능.
+GameplayEvent 트리거로 자동 발동(생성자에서 `AbilityTriggers` 등록). Player·Enemy 어느 쪽 ASC에든 Grant 가능.
+
+`ULNPAbility_ParrySuccess`는 방어자 `ReactionMontage`를 재생하고 즉시 종료한다.
+
+**`ULNPAbility_Stagger`는 성격이 다르다 — 몽타주를 재생하지 않고, 경직 구간 동안 살아 있으면서 태그만 소유한다.**
+
+| 항목 | 값 |
+|:--|:--|
+| 트리거 | `Stagger.Light`(그로기) / `Stagger.Heavy`(다운) — **경직도 상태 전이가 유일한 진입점**이다. 패링도 전용 경로가 아니라 경직도를 거쳐 들어온다 |
+| `ActivationOwnedTags` | `State.Staggered`, `Block.AttackInput`, `Block.MovementInput` |
+| `ActivationBlockedTags` | `State.Staggered` — 그로기 중 재진입 방지. **다운은 이 태그에 자기가 막히므로** `FLNPStaggerCommand`가 그로기 GA를 먼저 취소한다 |
+| 수명 | **그로기는 지속 시간이 없다** — 경직도가 T1 아래로 회복할 때까지 이어지고, 종료는 `ULNPPoiseProcessor`가 취소해 준다. 다운만 `ULNPSettings::PoiseDownLockSeconds`로 `WaitDelay` |
+| 몽타주 | **없음.** `GameplayCue.LNP.Character.Stagger` → Chooser(`Situation.Stagger` × `Value.Stagger.Light/Heavy/Parried`) |
+
+몽타주와 차단을 갈라놓은 이유는 적 ASC의 `Minimal` 복제 때문이다 — 어빌리티 활성화가 시뮬레이티드
+프록시에 도달하지 않아 GA가 몽타주를 들면 게스트 화면에서 적 경직이 보이지 않는다. 반대로 입력 차단은
+권위 상태라 코스메틱 큐에 실을 수 없다. 부수 효과로 서버에서만 `PlayMontage`를 부르던
+**기존 패링 스태거의 미복제 결함도 함께 해소**됐다.
+
+**상태 전이 규칙·패링 연계·네트워크 정책 전체는 → [TechDesign_Poise.md](TechDesign_Poise.md)**
+
 
 ---
 
@@ -298,5 +344,5 @@ GAS의 표준 관행(무기마다 Cooldown GE 클래스)을 버리고 `SetDurati
 | 발사체 전용 트레일 VFX (Pistol·Rifle) | 없음 | 두 무기는 Ribbon 렌더러 기반 `NS_*BulletTrail`을 쓴다. 진영 색을 받으려면 `TintColor` User 파라미터를 같은 방식으로 추가해야 함 (§3.2 트레일 진영 색) |
 | Active Skill 입력 바인딩 | 없음 | `ActiveSkillActions` 배열은 InputHandler에 존재 — 슬롯 GA 발동 연결 필요 |
 | Passive Skill GameplayEvent | 없음 | 피격 시 피격자 ASC에 이벤트 전송 → Passive 자동 발동 트리거 연결 |
-| ParrySuccess/Stagger 자동 Grant | 없음 | 현재 `DefaultAbilities` 배열로 수동 지정 — 초기화 흐름 정식화 필요 |
+| ParrySuccess 자동 Grant | 없음 | 현재 `DefaultAbilities` 배열로 수동 지정 — 초기화 흐름 정식화 필요. (Stagger는 2026-08-29에 무기 부여에서 폰 `DefaultAbilities`로 이관 완료 — 무기와 무관해야 하므로) |
 | LootPod → 인벤토리 연동 | LootPod 보상 시스템 | 루팅 성공 아이템을 `InventoryComponent`에 추가하는 흐름 (→ [TechDesign_LootPod.md](TechDesign_LootPod.md)) |

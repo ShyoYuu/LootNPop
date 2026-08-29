@@ -59,6 +59,11 @@ float ULNPAbility_BasicAttack::GetKnockbackForCombo(int32 /*ComboIdx*/) const
 	return KnockbackStrength;
 }
 
+float ULNPAbility_BasicAttack::GetPoiseDamageForCombo(int32 /*ComboIdx*/) const
+{
+	return PoiseDamage;
+}
+
 float ULNPAbility_BasicAttack::ComputeDamage() const
 {
 	const ALNPCharacterBase* Ch = GetOwningCharacter();

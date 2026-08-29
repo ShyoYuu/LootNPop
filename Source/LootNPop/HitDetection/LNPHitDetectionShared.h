@@ -13,6 +13,7 @@
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
 #include "HitDetection/LNPProjectileImpactContext.h"
+#include "GAS/LNPPoiseTypes.h"
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
@@ -85,18 +86,20 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 			EventData.Instigator = Attacker;
 			VictimASC->HandleGameplayEvent(TAG_GameplayEvent_Parry_Success, &EventData);
 
-			if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
+			// 패링 보상은 경직도로 준다 — 전용 스태거 GA를 따로 돌리지 않는다.
+			// 두 경로를 병행하면 GA가 먼저 끝나면서 게이지는 아직 T1 위인데 행동이 풀려 그로기가 조용히 깨진다.
+			// 경직 시스템에 태우면 지속 시간이 게이지에서 나오고, 이어서 때려 다운까지 밀어붙일 수도 있다.
+			if (Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
 			{
-				FGameplayEventData StaggerData;
-				StaggerData.Target     = Attacker;
-				StaggerData.Instigator = Victim;
-				AttackerASC->HandleGameplayEvent(TAG_GameplayEvent_Parry_Stagger, &StaggerData);
+				LNPPoise::ApplyParryBreak(
+					EntityManager.GetFragmentDataPtr<FLNPPoiseFragment>(Entry.AttackerEntity),
+					EntityManager.GetWorld() ? EntityManager.GetWorld()->GetTimeSeconds() : 0.0);
 			}
 
 			if (ALNPCharacterBase* AttackerPawn = Cast<ALNPCharacterBase>(Attacker))
 			{
-				AttackerPawn->PlayMontage(TAG_Montage_Situation_ParrySuccess, TAG_Montage_Value_Parry_Parried);
-
+				// 피격 리액션 몽타주는 얹지 않는다 — 같은 프레임에 경직 진입이 잡히면서
+				// FLNPStaggerCommand가 Montage_Stop으로 즉시 끊고 경직 몽타주로 갈아탄다.
 				constexpr float DirectionWeight = 0.7f;
 				constexpr float UpWeight        = 0.3f;
 
