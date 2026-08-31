@@ -168,6 +168,77 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Combat|Poise", meta = (ClampMin = "0.0"))
 	float PoiseParryBreakRatio = 1.75f;
 
+	/**
+	 * 근접 공격 보정 강도 (0~1). 0이면 보정을 끈다.
+	 *
+	 * "타겟까지의 초과 거리" 중 몇 할을 메울지를 뜻한다 — 이미 이상 거리 안이면 보정량은 0이고,
+	 * 멀수록 커지되 MeleeAssistMaxCorrectionDistance에서 잘린다.
+	 * 사용자 환경설정 UI가 생기면 ULNPSettings 대신 그쪽을 출처로 바꿀 지점이다
+	 * (읽기는 LNPMeleeAssist::GetStrength() 한 곳으로 모아 뒀다).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float MeleeAssistStrength = 0.5f;
+
+	/** 한 번의 공격에서 보정으로 이동할 수 있는 최대 거리 (cm). 보정이 커져 어색해지는 것을 막는 상한이다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "0.0", Units = "cm"))
+	float MeleeAssistMaxCorrectionDistance = 150.0f;
+
+	/** 락온이 꺼져 있을 때 타겟을 찾는 반경 (cm). 무기 공격 범위보다 살짝 넓게 잡는다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "0.0", Units = "cm"))
+	float MeleeAssistSearchRadius = 300.0f;
+
+	/** 락온이 꺼져 있을 때 타겟으로 인정할 캐릭터 전방 기준 최대 각도 (도). 접평면에 투영해서 잰다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "1.0", ClampMax = "180.0"))
+	float MeleeAssistMaxSearchAngleDeg = 75.0f;
+
+	/** 타겟 점수의 각도 가중치. 거리 가중치보다 크면 "정면 우선", 작으면 "근접 우선"이 된다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "0.0"))
+	float MeleeAssistAngleWeight = 0.6f;
+
+	/** 타겟 점수의 거리 가중치. MeleeAssistAngleWeight와 짝을 이룬다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "0.0"))
+	float MeleeAssistDistanceWeight = 0.4f;
+
+	/**
+	 * 보정 이동 속력 상한 — 애니메이션 원본 루트모션 속도 대비 배율.
+	 * URootMotionModifier_SkewWarp::MaxSpeedClampRatio로 그대로 전달된다. 0이면 무제한.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "0.0"))
+	float MeleeAssistMaxSpeedClampRatio = 2.0f;
+
+	/**
+	 * 보정 구간(워프 창)의 길이 (초). 몽타주 섹션 안에서 **루트모션 이동량이 가장 큰** 이 길이의 구간을 찾아 쓴다.
+	 * 검 공격은 선딜에 자세만 잡고 휘두르는 순간 밀고 나가므로 결과적으로 스윙 구간이 뽑힌다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "0.02", Units = "s"))
+	float MeleeAssistWarpWindowSeconds = 0.2f;
+
+	/**
+	 * 위치 보정 경로를 가르는 기준 (cm). 워프 구간의 루트모션 이동량이 이 값 이상이면 Motion Warping,
+	 * 미만이면 LayeredMove로 동작한다. "어느 쪽이 나은가"가 아니라 **워프할 원본이 있는가**가 기준이다.
+	 *
+	 * 루트모션은 애니메이터가 의도한 캐릭터 이동 그 자체다. 이동량이 실려 있으면 그것을 스케일하는
+	 * Motion Warping이 가장 자연스럽고, in-place 애니메이션(= 움직이지 않는 것이 자연스럽다는 의도)에는
+	 * 스케일할 원본이 없어 코드가 만든 속도를 얹는 LayeredMove로 간다.
+	 *
+	 * ⚠️ 낮추면 안 된다. 스큐 워프는 창에 이동량이 없으면 엔진 내부에서 전혀 다른 경로(타겟까지 Lerp)로
+	 * 빠지는데, 그 경로에는 MaxSpeedClampRatio 클램프가 **없어서** 장애물에 막히면 한 프레임에 보정 거리
+	 * 전체를 속도로 환산해 캐릭터를 날려 버린다 (2026-08-30 실측 — Falling 전환 후 멀리 튕겨나감).
+	 *
+	 * Motion Warping 쪽 보정 상한이기도 하다 — 클램프가 "원본 속도 x MaxSpeedClampRatio"이므로
+	 * 실제 보정량은 대략 `창 이동량 x MeleeAssistMaxSpeedClampRatio`를 넘지 못한다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "1.0", Units = "cm"))
+	float MeleeAssistMinWindowRootMotion = 10.0f;
+
+	/**
+	 * LayeredMove 경로의 보정 속력 상한 (cm/s). 요구 속도가 이를 넘으면 그만큼 덜 당긴다.
+	 * 이동 모드가 최고 속도로 클램프하므로 캐릭터 MaxSpeed보다 크게 잡아도 의미가 없다.
+	 * (Motion Warping 경로는 MeleeAssistMaxSpeedClampRatio가 대신 맡는다 — 그쪽은 애니메이션 속도 대비 배율이다.)
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Melee Assist", meta = (ClampMin = "1.0"))
+	float MeleeAssistMaxPullSpeed = 400.0f;
+
 	/** LootDice 스폰 클래스 (BP_LootDice — 큐브 메시·아이콘 머티리얼 지정). 미설정 시 C++ 기본 클래스 폴백. */
 	UPROPERTY(Config, EditAnywhere, Category = "Loot Dice")
 	TSoftClassPtr<ALNPLootDice> LootDiceClass;

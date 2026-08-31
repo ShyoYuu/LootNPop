@@ -49,6 +49,39 @@ UGameplayAbility
 방어력 공식 (`LNPDamageFormula.h`): `FinalDamage = RawDamage * (100 / (100 + Defense))`
 경직저항 공식은 같은 헤더의 `LNPPoise::ApplyResistance` — 형태가 동일하다 (`100 / (100 + Resistance)`).
 
+#### 기초값 초기화 — `DT_PlayerBaseStats`
+
+위 표의 기본값은 `ULNPBaseAttributeSet` 생성자에 박혀 있는 값이고, **플레이어는 이를 데이터 테이블로 덮어쓴다.**
+어트리뷰트 값 자체는 에디터에서 직접 편집할 수 없다 — `FGameplayAttributeData::BaseValue`가 `BlueprintReadOnly`뿐이라
+`UPROPERTY`에 `EditAnywhere`를 달아도 디테일 패널에 스핀박스가 생기지 않는다. 그래서 초기화는 데이터 테이블로 한다.
+
+| 요소 | 내용 |
+|:---|:---|
+| `Content/Gameplay/DT_PlayerBaseStats` | Row Type은 엔진 제공 `AttributeMetaData`. 어트리뷰트당 1행 |
+| `ALNPPlayerState::DefaultAttributeTable` | `EditDefaultsOnly`. `BP_LNPPlayerState`가 위 테이블을 지정 |
+| `ALNPPlayerState::PostInitializeComponents` | 서버 권위에서 `ASC->InitStats()` 호출 후 Health를 MaxHealth로 맞춘다 |
+
+행 이름은 `LNPBaseAttributeSet.<어트리뷰트명>` 형식이어야 한다 — `UAttributeSet::InitFromMetaDataTable`이
+`"소유클래스명.프로퍼티명"`으로 행을 찾는다. 공격 특화·방어 특화 같은 프리셋은 테이블 에셋을 여러 개 만들어
+`ALNPPlayerState` 파생 BP마다 다른 것을 지정하면 된다.
+
+⚠️ **`UAbilitySystemComponent::DefaultStartingData`(디테일 패널의 "Attribute Test")를 쓰면 안 된다.**
+그쪽은 `OnRegister`에서 처리되는데, ASC가 소유 액터의 어트리뷰트셋 서브오브젝트를 `SpawnedAttributes`에
+등록하는 것은 `InitializeComponent`다. 순서상 목록이 아직 비어 있어 `GetOrCreateAttributeSubobject`가
+`BaseAttributeSet`과 **별개인 어트리뷰트셋을 하나 더 만든다.** 같은 이유로 `InitStats`를 직접 부를 때도
+`InitializeComponent` 이후여야 하며, `PostInitializeComponents`가 가장 이른 안전 시점이다.
+
+⚠️ 엔진이 읽는 열은 `BaseValue` **하나뿐**이다. `MinValue`/`MaxValue`/`bCanStack`은 읽지 않으므로 클램프로
+믿으면 안 된다 — 값 제한은 `PreAttributeChange`가 담당한다.
+⚠️ 행 이름이 문자열 매칭이라 어트리뷰트를 리네임하면 해당 행이 **조용히 무시**되고 생성자 기본값으로 돌아간다.
+⚠️ `Health` 행은 사실상 무시된다 — `PostInitializeComponents`가 Health를 MaxHealth로 덮어쓴다. 체력이 덜 찬
+채로 시작시키는 기획이 생기면 그 라인을 조건부로 바꿔야 한다.
+
+**PIE 1인 검증 완료 (2026-08-30):** 테이블 기본값이 생성자 값과 같으면 반영 여부를 구분할 수 없어
+`MaxHealth 137` / `AttackPower 23`으로 임시 변경 후 실측 — base 137 / 23, `AttackPower` current **33**
+(무기 `AddBase` +10이 새 기초값 위에 정상 적용), Health **137**(MaxHealth 동기화), `LNPBaseAttributeSet`
+인스턴스 **1개**(어트리뷰트셋 중복 생성 없음). **잔여:** 2인 리슨 서버에서 게스트 초기 복제 확인.
+
 #### 스탯 파이프라인 규약 — 채널 2개만 쓴다
 
 스텟 하나당 어트리뷰트 하나다. **배율용 보조 어트리뷰트를 두지 않는다**(구 `AttackMultiplier` 제거).

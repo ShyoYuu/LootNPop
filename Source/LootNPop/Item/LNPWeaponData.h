@@ -90,6 +90,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Combo", meta = (ClampMin = "1"))
 	int32 MaxComboCount = 5;
 
+	/**
+	 * 근접 공격 보정이 목표로 삼는 "무기가 잘 닿는 거리" (cm). 접평면 기준이다.
+	 * 타겟이 이 거리 안에 있으면 위치 보정량은 0이 된다. 0이면 이 무기는 위치 보정을 쓰지 않는다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Melee", meta = (ClampMin = "0", Units = "cm"))
+	float MeleeIdealDistance = 0.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile")
 	ELNPProjectileType ProjectileType = ELNPProjectileType::Linear;
 
