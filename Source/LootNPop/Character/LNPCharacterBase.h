@@ -22,6 +22,7 @@ class ULNPMontageChooserContext;
 class ULNPCharacterMoverComponent;
 class ULNPInputHandlerComponent;
 class ULNPPawnGravityComponent;
+class UMotionWarpingComponent;
 class ALNPLootPod;
 class ULNPWeaponData;
 class UAbilitySystemComponent;
@@ -46,6 +47,10 @@ public:
 	// --- Component 접근자 ---
 	UFUNCTION(BlueprintPure, Category = "LNP|Mover")
 	ULNPCharacterMoverComponent* GetMoverComponent() const { return MoverComponent; }
+
+	/** 근접 공격 보정용 모션 워핑 컴포넌트. Mover가 InitializeComponent에서 어댑터를 자동 연결한다. */
+	UFUNCTION(BlueprintPure, Category = "LNP|Combat")
+	UMotionWarpingComponent* GetMotionWarpingComponent() const { return MotionWarpingComponent; }
 
 	UFUNCTION(BlueprintPure, Category = "LNP|Gravity")
 	FVector GetUpDirection() const;
@@ -240,6 +245,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Gravity", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPPawnGravityComponent> GravityComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMotionWarpingComponent> MotionWarpingComponent;
 
 	/** 맨손 상태에서 사용할 서브 AnimBP 클래스. BP 서브클래스에서 지정. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Animation")

@@ -68,6 +68,19 @@ public:
 
 	bool HasMovementInput() const { return !CachedMoveInputIntent.IsNearlyZero() || !AIMoveInput.IsNearlyZero(); }
 
+	/**
+	 * 근접 공격 보정 회전. 월드 공간 단위 벡터이며 영벡터면 비활성이다.
+	 * OnProduceInput이 플레이어 분기 끝에서 OrientationIntent를 이 값으로 덮어쓴다 —
+	 * MoveInput은 건드리지 않으므로 "이동 인풋이 들어오면 무조건 우선"이 그대로 지켜진다.
+	 *
+	 * ⚠ 회전 보정을 루트모션 워프(bWarpRotation)로 하지 않는 이유가 여기 있다. 레이어드 무브의
+	 * AngularVelocityDegrees는 MovementMixer에서 이동 모드 제안에 더해질 뿐인데, 이동 모드는 매 프레임
+	 * OrientationIntent를 향해 TurningRate(엔진 기본 500도/초)로 되감으므로 워프 회전이 즉시 상쇄된다.
+	 * OrientationIntent를 직접 덮어쓰면 이동 모드가 스스로 돌아주고, InputCmd 필드라 복제·롤백도 따라온다.
+	 */
+	void SetMeleeAssistOrientation(const FVector& WorldDir) { MeleeAssistOrientation = WorldDir.GetSafeNormal(); }
+	void ClearMeleeAssistOrientation() { MeleeAssistOrientation = FVector::ZeroVector; }
+
 	/** 장착 무기가 원거리(FreeAim)인가. 무기 데이터의 DefaultAimMode가 부여한 ASC 태그로 판정한다. */
 	bool IsFreeAimMode() const;
 
@@ -195,6 +208,9 @@ private:
 	FVector CachedMoveInputIntent = FVector::ZeroVector;
 	FRotator CachedLookInput = FRotator::ZeroRotator;
 	FVector LastAffirmativeMoveInput = FVector::ZeroVector;
+
+	/** SetMeleeAssistOrientation 참조. 월드 공간 단위 벡터, 영벡터면 비활성. */
+	FVector MeleeAssistOrientation = FVector::ZeroVector;
 
 	/** true면 Look을 제외한 모든 입력 콜백이 조기 반환한다 (SetGameplayInputBlocked). */
 	bool bGameplayInputBlocked = false;

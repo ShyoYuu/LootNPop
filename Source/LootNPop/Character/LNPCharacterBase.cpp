@@ -4,6 +4,7 @@
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Character/LNPInputHandlerComponent.h"
 #include "Gravity/LNPPawnGravityComponent.h"
+#include "MotionWarpingComponent.h"
 #include "Player/LNPPlayerState.h"
 #include "Item/LNPWeaponData.h"
 #include "Animation/LNPMontageChooserContext.h"
@@ -50,6 +51,10 @@ ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer
 	MoverComponent = CreateDefaultSubobject<ULNPCharacterMoverComponent>(TEXT("MoverComponent"));
 	InputHandlerComponent = CreateDefaultSubobject<ULNPInputHandlerComponent>(TEXT("InputHandlerComponent"));
 	GravityComponent = CreateDefaultSubobject<ULNPPawnGravityComponent>(TEXT("GravityComponent"));
+
+	// Mover가 InitializeComponent에서 이 컴포넌트를 찾아 UMotionWarpingMoverAdapter를 붙인다
+	// (MoverComponent.cpp의 "Optional motion warping support"). 별도 배선은 필요 없다.
+	MotionWarpingComponent = CreateDefaultSubobject<UMotionWarpingComponent>(TEXT("MotionWarpingComponent"));
 
 	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
 	WeaponMesh->SetupAttachment(VisualMesh);

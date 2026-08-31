@@ -25,6 +25,7 @@
 #include "MassEntitySubsystem.h"
 #include "HitDetection/LNPGuardParryTypes.h"
 #include "Camera/LNPLockOnComponent.h"
+#include "Enemy/LNPEnemyCharacter.h"
 #include "HAL/IConsoleManager.h"
 
 ULNPInputHandlerComponent::ULNPInputHandlerComponent()
@@ -230,6 +231,10 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	// 폴백해 서버보다 훨씬 빠르게 앞서 나간다 (FLNPModifierInputs::AIDesiredSpeed 주석 참조).
 	ModifierInputs.AIDesiredSpeed = AIDesiredSpeed;
 
+	// 락온 타겟도 InputCmd로 보낸다 — 로컬 컴포넌트에만 두면 서버가 원격 클라이언트의 락온을 모른 채
+	// 근접 공격 보정 대상을 자동 탐색으로 고르게 된다 (FLNPModifierInputs::LockOnTarget 주석 참조).
+	ModifierInputs.LockOnTarget = LockOnComponent ? LockOnComponent->GetLockOnTarget() : nullptr;
+
 	if (Pawn->GetController())
 	{
 		// --- Player 입력 처리 ---
@@ -280,6 +285,13 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 		else if (!bShouldFaceMoveDir)
 		{
 			CharacterInputs.OrientationIntent = HorizonForward;
+		}
+
+		// 근접 공격 보정 회전 — 위치 보정과 달리 이동 중에도 적용된다.
+		// MoveInput은 그대로 두고 바라보는 방향만 덮어쓰므로 이동 인풋이 항상 우선한다.
+		if (!MeleeAssistOrientation.IsNearlyZero())
+		{
+			CharacterInputs.OrientationIntent = MeleeAssistOrientation;
 		}
 	}
 	else

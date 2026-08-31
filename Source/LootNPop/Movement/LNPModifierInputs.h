@@ -55,6 +55,20 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
 	float AIDesiredSpeed = 0.f;
 
+	/**
+	 * 플레이어가 락온한 대상. 없으면 null.
+	 *
+	 * **왜 InputCmd에 실어야 하는가:** ULNPLockOnComponent의 타겟은 로컬 상태라 서버가 원격 클라이언트의
+	 * 락온을 영영 알 수 없다. 근접 공격 보정이 이 값을 쓰는데, 서버만 모르면 서버는 자동 탐색으로 다른 적을
+	 * 고르게 된다 — 락온은 "자동 탐색이 고른 것 말고 이 적을 치겠다"는 명시적 의사표현이라 정반대 결과다.
+	 *
+	 * ⚠️ 이 값은 Mover 시뮬레이션이 읽지 않는다(이동 모드·모디파이어 어느 것도 참조하지 않음).
+	 * 어빌리티가 GetLastInputCmd()로 꺼내 쓰기 위한 전달 수단일 뿐이라 **ShouldReconcile에 넣지 않는다** —
+	 * 넣으면 NetGUID가 아직 안 풀린 프레임마다 불필요한 이동 리시뮬레이션이 돈다.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Combat")
+	TObjectPtr<AActor> LockOnTarget = nullptr;
+
 	virtual FMoverDataStructBase* Clone() const override
 	{
 		return new FLNPModifierInputs(*this);
@@ -81,6 +95,17 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		else if (Ar.IsLoading())
 		{
 			AIDesiredSpeed = 0.f;
+		}
+		// 락온 타겟도 조건부다 — 락온하지 않은 평상시에는 비트 하나만 쓴다.
+		bool bHasLockOnTarget = (Ar.IsSaving() ? (LockOnTarget != nullptr) : false);
+		Ar.SerializeBits(&bHasLockOnTarget, 1);
+		if (bHasLockOnTarget)
+		{
+			Ar << LockOnTarget;
+		}
+		else if (Ar.IsLoading())
+		{
+			LockOnTarget = nullptr;
 		}
 		bOutSuccess = true;
 		return true;
@@ -123,6 +148,7 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		DashInputIntent = FromInputs.DashInputIntent;
 		// 속도는 StateTree가 단계적으로 바꾸는 값(0 / 배회 / 추격)이라 중간값이 의미 없다 — 함께 스냅한다.
 		AIDesiredSpeed = FromInputs.AIDesiredSpeed;
+		LockOnTarget = FromInputs.LockOnTarget;
 	}
 };
 
