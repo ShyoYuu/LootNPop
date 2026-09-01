@@ -12,7 +12,25 @@
 class ALNPEnemyCharacter;
 class UStateTree;
 
-/** 우선순위 점수 계산 설정 */
+/**
+ * 우선순위 점수 계산 및 인지 설정.
+ *
+ * ```
+ *   None(Idle) ──[발견]──▶ Alert ──[슬롯 획득]──▶ Confirmed(추격·공격)
+ *                            ▲                        │
+ *                            └──[플레이어가 세력권 밖]─┘
+ *   Alert ──[타겟이 AlertRetentionDistance 밖]────────▶ None
+ *   Alert ──[추격 못 한 채 AlertPatienceTime 경과]────▶ None (+ AlertRecoveryTime 동안 재발견 금지)
+ * ```
+ *
+ * **추격 자격은 "플레이어가 Pod 세력권 안에 있는가"로만 판정한다** — NPC 자신의 위치는 보지 않는다.
+ * NPC 위치를 자격 조건에 넣으면 NPC가 움직일 때마다 자기 조건이 뒤집혀 경계선에서 자기진동한다
+ * (실측: "부들부들 떨며 안절부절"). 히스테리시스를 걸어도 진동 주기가 늘어날 뿐 사라지지 않는다 —
+ * 기준점을 제어 주체 밖으로 옮기는 것이 유일한 해법이다.
+ *
+ * 필수 대소 관계: `AwarenessDistance` < `VisionDistance` < `AlertRetentionDistance` <= `ChaseRadius`
+ * `AlertRetentionDistance`가 `VisionDistance`보다 커야 발견↔망각이 경계선에서 깜빡이지 않는다.
+ */
 USTRUCT(BlueprintType)
 struct FLNPEnemyTargetingConfig
 {
@@ -26,15 +44,21 @@ struct FLNPEnemyTargetingConfig
 	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
 	float AngleWeight = 0.5f;
 
-	/** 타게팅 고려 최대 거리 */
+	/**
+	 * **세력권 반경** — Pod에서 **플레이어**까지의 거리가 이 안일 때만 추격한다(슬롯 경쟁 참가).
+	 * 밖으로 나가면 귀속 적 전원이 동시에 Alert로 강등된다. 어그로가 풀리는 것은 아니다.
+	 *
+	 * 재는 대상이 NPC가 아니라 **플레이어**인 것이 핵심이다 — NPC가 어떻게 움직이든 자격이
+	 * 바뀌지 않으므로 경계선 진동이 원천적으로 불가능하고, 복귀 래치 같은 히스테리시스 장치가
+	 * 필요 없다. 플레이어 입장에서는 "Pod 세력권을 벗어나면 추격이 끊긴다"로 읽힌다.
+	 *
+	 * 단, `AwarenessDistance` 안까지 들어온 상대에게는 세력권과 무관하게 반격한다 —
+	 * 그러지 않으면 세력권 밖의 적이 눈앞의 플레이어를 멀뚱히 보고만 있게 된다.
+	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
-	float MaxTargetingDistance = 10000.0f;
+	float ChaseRadius = 5000.0f;
 
-	/** 점수가 0으로 떨어지기 시작하는 LootPod로부터의 최대 Leash 거리 */
-	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
-	float MaxLeashDistance = 2000.0f;
-
-	/** Enemy가 Player를 감지할 수 있는 거리 */
+	/** **발견 거리** — 새로운 Player를 인지하는 거리 (VisionAngle 시야각 안일 때만) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
 	float VisionDistance = 2000.0f;
 
@@ -42,9 +66,59 @@ struct FLNPEnemyTargetingConfig
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
 	float VisionAngle = 90.0f;
 
-	/** FOV와 관계없이 항상 Player를 감지하는 거리 */
+	/** **초근접 발견 거리** — FOV·재발견 금지와 무관하게 항상 Player를 감지하는 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
 	float AwarenessDistance = 200.0f;
+
+	/**
+	 * **추적 유지 거리** — 이미 추적 중인 타겟 **한 명**을 후보로 유지하는 상한.
+	 * 이 판정은 FOV를 보지 않으므로 등 뒤로 돌아도 놓치지 않는다.
+	 *
+	 * `VisionDistance`보다 커야 한다. 같으면 그 거리에서 발견과 망각이 매 프레임 뒤집힌다.
+	 * 대신 새로운 대상의 인지 상한은 언제나 `VisionDistance`/`AwarenessDistance`이므로,
+	 * "NPC는 자기 주변만 본다"는 규약은 깨지지 않는다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
+	float AlertRetentionDistance = 2500.0f;
+
+	/**
+	 * **경계 인내 시간(초)** — 추격 자격도 없이 경계만 이만큼 지속하면 어그로를 포기하고
+	 * Idle로 내려간다. 거리만으로는 사다리가 닫히지 않기 때문에 필요하다 — 플레이어가
+	 * 세력권 바로 바깥에 서 있으면 NPC는 싸우지도(자격 없음) 잊지도(시야 안) 못한 채 굳는다.
+	 *
+	 * **슬롯 대기 중인 개체에는 적용되지 않는다.** 추격 자격은 있는데 슬롯만 못 얻은 상태는
+	 * 전투 대기열이므로, 시간이 지난다고 흩어지면 큰 무리와의 교전이 말라 버린다.
+	 * `Confirmed`·`None`일 때도 0으로 초기화되므로 "교전에 성공하면 인내는 새로 시작"이
+	 * 공격을 특수 처리하지 않고도 자동으로 성립한다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Perception", meta = (ClampMin = "0.0"))
+	float AlertPatienceTime = 8.0f;
+
+	/**
+	 * **재발견 금지 시간(초)** — 인내를 소진해 포기한 직후, 이 시간 동안 시야 발견을 막는다.
+	 *
+	 * 없으면 인내가 무의미해진다. 포기한 그 프레임에도 플레이어는 여전히 정면 시야 안에 있으므로
+	 * **다음 프레임에 곧바로 재발견되어** Idle로 내려가자마자 Alert로 되돌아오고, NPC는 Pod 쪽으로
+	 * 한 발짝도 못 걷는다. 이 시간이 벌어 주는 것은 **등을 돌릴 시간**이다 — 돌아서기만 하면
+	 * 플레이어가 시야각 밖으로 빠져 상황이 스스로 해소된다.
+	 *
+	 * 기본값 1.0초는 Low LOD 등속 회전(`RotationRate` 360°/s로 180° = 0.5초)의 2배 버퍼다.
+	 * 실제로 필요한 회전은 시야각 절반(45° = 0.125초)뿐이라 여유가 충분하다.
+	 * `AwarenessDistance` 안까지 들어온 상대는 이 금지를 무시하고 즉시 발견한다 — 회복 중이라고
+	 * 눈앞의 플레이어를 못 보는 장님이 되지는 않는다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Perception", meta = (ClampMin = "0.0"))
+	float AlertRecoveryTime = 1.0f;
+
+	/**
+	 * **피격 주시 시간(초)** — 배회(`None`) 중에 피격당하면 이만큼 그 자리에 서서 피격 방향을
+	 * 바라본다. 돌아본 결과 시야 안에 플레이어가 있으면 평소의 발견 → 경계 → 슬롯 경쟁 플로우를
+	 * 그대로 타고, 없으면 배회로 복귀한다 — 별도의 예외 규칙이 필요 없다.
+	 *
+	 * **추격 자격은 주지 않는다.** 주면 세력권 밖에서 원거리로 찔러 NPC를 무한정 끌고 다닐 수 있다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Perception", meta = (ClampMin = "0.0"))
+	float HitReactLookTime = 2.5f;
 };
 
 /** 이동 및 회전 설정 */
@@ -83,6 +157,28 @@ struct FLNPEnemyMovementConfig
 	/** 공격 간격 (초) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	float AttackInterval = 1.5f;
+
+	/**
+	 * **상하 조준 가용 각도**(도, 캐릭터 로컬 좌표계). **기준면은 캐릭터의 로컬 수평면**이고 양수가 위쪽이다.
+	 * 즉 ∓75°는 "수평에서 위로 75°, 아래로 75°"이며, 못 겨누는 영역은 로컬 Up/Down 기준 15° 원뿔 안쪽뿐이다.
+	 *
+	 * 상한은 Aim Offset 에셋이 아니라 **게임플레이 판단**으로 정한다 —
+	 * 플레이어 기준 실측상 AO 자세 자체는 거의 수직까지 무리 없이 나온다.
+	 *
+	 * **소비처가 셋이고 반드시 같은 값을 봐야 한다.**
+	 * ① 조준 자세(`ALNPEnemyCharacter::SetAimTargetLocation`의 클램프)
+	 * ② 발사 방향(같은 값에서 파생 — 겨눈 곳과 맞는 곳이 어긋나지 않게)
+	 * ③ **피격 인지의 상하 게이트**(`ULNPEnemyScoringProcessor`) — 이 범위 밖에서 날아온 공격은
+	 *    반격이 원천적으로 불가능하므로 아예 인지하지 않는다. 인지만 하면 겨눌 수 없는 각도를
+	 *    향해 영원히 헛쏘는 상태가 된다.
+	 *
+	 * 즉 이 값을 좁히면 "못 겨누는 각도"와 "못 알아채는 각도"가 **함께** 움직인다. 그래야 모순이 없다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "-90.0", ClampMax = "0.0"))
+	float AimPitchMinDeg = -75.f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "0.0", ClampMax = "90.0"))
+	float AimPitchMaxDeg = 75.f;
 
 	/**
 	 * 도착 판정 임계값(cm). 구면 위에서는 **접평면 거리**로 잰다 (TechDesign_EnemyNPC.md §5.1).

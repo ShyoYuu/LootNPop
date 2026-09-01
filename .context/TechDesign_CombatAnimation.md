@@ -114,6 +114,16 @@ AimYaw   = FRotator::NormalizeAxis(LocalAimDir.Rotation().Yaw);
 
 멀티플레이 동기화: 시뮬레이티드 프록시의 `GetBaseAimRotation()`은 Mover InputCmd의 ControlRotation을 재사용하도록 오버라이드되어 있다 (→ [TechDesign_Networking.md](TechDesign_Networking.md)).
 
+**`GetBaseAimRotation()`의 공급원은 폰 종류마다 다르다.** 이 위의 계산식은 그대로 두고 공급원만 갈아끼운다:
+
+| 폰 | 공급원 |
+|:---|:---|
+| 로컬 제어 플레이어 | `Controller->GetControlRotation()` |
+| 원격 플레이어·시뮬레이티드 프록시 | Mover InputCmd의 `ControlRotation` (복제됨) |
+| 적 NPC | 액터 전방 + 복제된 로컬 `AimPitchDeg` — 컨트롤러가 없어 `APawn` 기본값은 수평이다 (→ [TechDesign_EnemyNPC.md](TechDesign_EnemyNPC.md) §6 상하 조준) |
+
+적 NPC의 AO가 별도 배선 없이 동작하는 이유는 `BP_LNPEnemy`의 AnimClass가 플레이어와 같은 `ABP_Lyra`이고, 서브 ABP의 AO 노드가 이미 `LNPAnimInstance:AimPitch`/`AimYaw`에 바인딩되어 있기 때문이다. 즉 적 조준 작업은 **애니메이션 에셋을 건드리지 않고 `GetBaseAimRotation()` 하나로 끝난다.**
+
 ### 4.2 왼손 Two Bone IK (구현 완료)
 
 양손 무기(롱소드·라이플)에서 오른손은 무기 소켓 어태치로 정확하지만 왼손은 애니메이션 그대로라 그립에서 어긋난다.

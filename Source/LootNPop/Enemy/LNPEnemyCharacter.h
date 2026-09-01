@@ -50,6 +50,28 @@ public:
 	/** 락온 표식 위젯의 표시 상태를 설정한다. LNPLockOnComponent가 호출. */
 	void SetLockOnMarkerVisible(bool bVisible);
 
+	/**
+	 * 조준 목표 지점을 갱신한다. **서버 전용** — StateTree의 AttackTask가 발사 직전에 호출한다.
+	 *
+	 * 저장하는 값은 목표 지점이 아니라 **캐릭터 로컬 좌표계 기준 Pitch 각도 하나**다.
+	 * 구면 중력 위에서 월드 Z 기준 Pitch는 의미가 없고, 로컬 각도로 두면 게스트가
+	 * 자기 화면의 액터 회전으로 복원해도 같은 자세가 나온다
+	 * (같은 규약: TechDesign_CombatAnimation.md §4.1의 Aim Offset 계산).
+	 * Yaw는 이미 몸통 조향(MoveTarget)이 타겟을 향하고 있으므로 담지 않는다.
+	 */
+	void SetAimTargetLocation(const FVector& InWorldTarget);
+
+	/** 조준을 수평으로 되돌린다. **서버 전용** — 공격 상태를 벗어날 때 호출한다. */
+	void ClearAimTarget();
+
+	/**
+	 * 조준 방향. 적은 컨트롤러가 없어 APawn 기본 구현이 액터 회전(= 수평)만 돌려주므로,
+	 * 복제된 로컬 Pitch를 얹어 실제 조준선을 만든다.
+	 * 소비처는 둘이다 — `ULNPAnimInstance`의 Aim Offset(모든 머신)과
+	 * `ULNPAbility_RangedAttack::GetFireDirections`의 발사 방향(서버).
+	 */
+	virtual FRotator GetBaseAimRotation() const override;
+
 protected:
 	/**
 	 * 각 머신 로컬 랙돌 연출. 물리 상태는 복제하지 않으므로 위치가 머신마다 갈라지지만,
@@ -62,6 +84,26 @@ protected:
 	/** 사망 시 표면 Up 방향으로 부여할 Pop 속도 (cm/s). */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Death")
 	float RagdollPopSpeed = 2000.f;;
+
+	/**
+	 * 조준 Pitch 추종 속도(FInterpTo). 목표를 잡는 순간 상체가 튀지 않도록 한 박자 늦춘다.
+	 * 가용 각도(`AimPitchMin/MaxDeg`)와 달리 순전히 코스메틱이라 Actor 쪽에 남긴다 —
+	 * 가용 각도는 인지 판정(Mass)도 읽어야 해서 `FLNPEnemyMovementConfig`에 있다.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat", meta = (ClampMin = "0.1"))
+	float AimPitchInterpSpeed = 8.f;
+
+	/**
+	 * 현재 조준 Pitch(도, 로컬 좌표계). 서버가 보간해 만들고 그 결과를 복제한다.
+	 *
+	 * 복제하는 이유: 타게팅은 서버 전용 Mass 로직이라 게스트는 이 적이 무엇을 겨누는지 알 방법이 없다.
+	 * 각도 하나만 보내면 되고, 로컬 좌표계 값이라 게스트의 액터 회전이 미세하게 달라도 자세는 일치한다.
+	 */
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	float AimPitchDeg = 0.f;
+
+	/** 보간 목표. 서버에서만 의미가 있어 복제하지 않는다. */
+	float TargetAimPitchDeg = 0.f;
 
 	virtual void Tick(float DeltaTime) override;
 	virtual bool TryActivateAttack_Impl() override;

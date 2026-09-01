@@ -54,6 +54,8 @@ void ULNPEnemyScoringProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
+	// 사망한 플레이어는 타겟 후보에서 제외한다 — 적 쪽 FLNPEnemyDyingTag 배제와 대칭.
+	PlayerQuery.AddTagRequirement<FLNPPlayerDeadTag>(EMassFragmentPresence::None);
 }
 
 void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -61,6 +63,8 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 — AI 로직은 서버 전용.
 	if (LNPMass::IsClientWorld(EntityManager))
 		return;
+
+	const float DeltaTime = Context.GetDeltaTimeSeconds();
 
 	// 1. 모든 Player 수집
 	struct FPlayerData { FMassEntityHandle Handle; FVector Location; };
@@ -92,6 +96,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 			return;
 
 		const FLNPEnemyTargetingConfig& TConfig = SharedFragment.Config->TargetingConfig;
+		const FLNPEnemyMovementConfig& MConfig = SharedFragment.Config->MovementConfig;  // 피격 인지의 상하 게이트
 
 		// 근접 타입 여부는 chunk 공용 Config 값이므로 1회만 판정한다 (엔티티×후보 루프 내 문자열 비교 방지)
 		const bool bIsMelee = SharedFragment.Config->EnemyTypeTag.ToString().Contains(TEXT("Melee"), ESearchCase::IgnoreCase);
@@ -108,30 +113,78 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 			CandidateData.Reset();
 
-			// Leash 페널티: Enemy가 ParentPod에서 MaxLeashDistance에 가까워질수록 점수가 급격히 0으로 감소
-			const float DistToLeash = FVector::Dist(EnemyLoc, EnemyData.ParentPodLocation);
-			const float LeashFactor = FMath::Square(FMath::Clamp(1.0f - (DistToLeash / TConfig.MaxLeashDistance), 0.0f, 1.0f));
+			// 인지 게이트 세 개. 모두 루프 **전에** 확정한다 — 값 갱신은 루프 뒤다.
+			//   bCanAcquire  : 포기 직후의 재발견 금지 창이 열려 있는가 (새 대상 발견에만 관여)
+			//   bExhausted   : 인내가 다 찼는가. 이 프레임에 **유지까지 끊어** Idle로 내려보낸다.
+			//   bHitReacting : 피격 주시 중인가. 시야 중심을 정면에서 피격 방향으로 옮긴다.
+			const bool bCanAcquire = (CandidateData.DisengageTimer <= 0.0f);
+			const bool bExhausted = (CandidateData.AlertDwellTime >= TConfig.AlertPatienceTime);
+			const bool bHitReacting = (EnemyData.HitReactTimer > 0.0f);
 
 			struct FCandidate { FMassEntityHandle Handle; FVector Location; float DistSq; };
 			TArray<FCandidate, TInlineAllocator<8>> VisiblePlayers;
+			bool bAnyChaseEligible = false;
 
 			for (const auto& Player : Players)
 			{
 				const float DistSq = FVector::DistSquared(EnemyLoc, Player.Location);
 
-				if (FMath::Square(TConfig.MaxTargetingDistance) < DistSq)
-					continue;
+				// 시야 재검사 면제는 **이미 추적 중인 그 플레이어에게만** 준다 (등 뒤로 돌아도 유지).
+				// PreviousState는 엔티티 단위 값이라, 대상을 한정하지 않으면 한 번 인지한 순간부터
+				// 다른 플레이어까지 거리·시야각 검사를 건너뛰고 전부 후보가 된다 — 이것이
+				// "교전 중 갑자기 멀리 있는 플레이어에게 달려가는" 증상의 원인이었다.
+				//
+				// Alert도 포함한다(Confirmed만이 아니라). 슬롯을 못 얻어 경계 중인 개체가 시야각을
+				// 벗어나는 순간 Idle로 떨어지면, 경계 상태가 사실상 존재하지 않게 된다.
+				const bool bIsTrackedTarget = (PreviousState != ELNPTargetingState::None
+					&& Player.Handle == Targeting.TargetPlayer);
 
 				bool bVisible = false;
-				if (PreviousState == ELNPTargetingState::Confirmed)
+				if (DistSq <= FMath::Square(TConfig.AwarenessDistance))
 				{
+					// 초근접은 FOV도 재발견 금지도 무시한다 — 어떤 상태에서도 눈앞의 상대는 본다.
 					bVisible = true;
 				}
-				else if (DistSq <= FMath::Square(TConfig.AwarenessDistance))
+				else if (bExhausted)
 				{
-					bVisible = true;
+					// 인내 소진: 유지 조건까지 끊어야 Idle로 내려간다. 발견만 막으면
+					// 추적 중인 타겟이 유지 거리 안에 남아 영원히 경계가 풀리지 않는다.
+					bVisible = false;
 				}
-				else if (DistSq <= FMath::Square(TConfig.VisionDistance))
+				else if (bIsTrackedTarget)
+				{
+					bVisible = (DistSq <= FMath::Square(TConfig.AlertRetentionDistance));
+				}
+				else if (bHitReacting && DistSq <= FMath::Square(TConfig.VisionDistance))
+				{
+					// 피격 주시 중에는 시야 중심을 **정면이 아니라 맞은 방향**으로 옮긴다.
+					// 몸통은 접평면에서만 돌아서므로(회전축이 로컬 Up 하나뿐이다) 위·아래에서 날아온
+					// 공격은 아무리 돌아봐도 정면 시야 원뿔 안에 들어오지 않는다 — 피격 주시 시간이
+					// 약속한 "돌아본 결과 시야 안에 있으면 발견한다"가 고저차에서만 성립하지 않던 이유다.
+					// 각도 예산은 그대로 VisionAngle을 쓴다. 축만 바뀌고 넓어지지는 않는다.
+					//
+					// ⚠️ 각도 판정을 빼고 "피격 중이면 다 보인다"로 두면 안 된다. HitReactTimer는
+					// 대상이 아니라 **엔티티 단위** 값이라, 대상을 한정하지 않으면 교전 중 한 대 맞는
+					// 것만으로 멀리 있는 다른 플레이어까지 전부 후보가 된다 — 바로 위 주석이 말하는
+					// "교전 중 갑자기 멀리 있는 플레이어에게 달려가는" 그 함정이다.
+					//
+					// 재발견 금지 창(bCanAcquire)은 보지 않는다. 초근접과 같은 이유다 — 등을 돌릴
+					// 시간을 벌어 주는 장치가 "맞고도 누가 쐈는지 못 찾는" 근거가 될 수는 없다.
+					const FVector DirToTarget = (Player.Location - EnemyLoc).GetSafeNormal();
+					const float DotToHitDir = FVector::DotProduct(EnemyData.HitReactDirection, DirToTarget);
+					const float AngleToHitDir = FMath::RadiansToDegrees(FMath::Acos(DotToHitDir));
+
+					// 상하 게이트: **겨눌 수 없는 각도에서 온 공격은 인지하지도 않는다.**
+					// 이 경로는 정면 시야 원뿔을 우회하므로, 막지 않으면 조준 클램프 밖(정수리 위·발밑)의
+					// 공격자를 발견해 놓고 클램프된 각도로 영원히 헛쏘는 상태가 된다.
+					// 조준·발사와 **같은 값**(MovementConfig)을 읽어야 "못 겨누는 각도 = 못 알아채는 각도"가 성립한다.
+					const FVector LocalDir = EnemyTransform.InverseTransformVectorNoScale(Player.Location - EnemyLoc);
+					const float TargetPitch = static_cast<float>(LocalDir.Rotation().Pitch);
+					const bool bWithinAimPitch = (MConfig.AimPitchMinDeg <= TargetPitch) && (TargetPitch <= MConfig.AimPitchMaxDeg);
+
+					bVisible = bWithinAimPitch && (AngleToHitDir <= (TConfig.VisionAngle * 0.5f));
+				}
+				else if (bCanAcquire && DistSq <= FMath::Square(TConfig.VisionDistance))
 				{
 					const FVector DirToTarget = (Player.Location - EnemyLoc).GetSafeNormal();
 					const float DotToTarget = FVector::DotProduct(EnemyForward, DirToTarget);
@@ -160,8 +213,22 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					const auto& Candidate = VisiblePlayers[TargetIdx];
 					CandidateData.PotentialTargets[TargetIdx] = Candidate.Handle;
 
-					float Score = 1000000.0f / (FMath::Sqrt(Candidate.DistSq) + 1.0f);
-					Score *= LeashFactor;
+					// 추격 자격이 없으면 **슬롯 경쟁에 참가시키지 않는다.** 후보 목록에는 남으므로
+					// TargetingProcessor가 Alert로 잡아 준다 — 이것이 Confirmed → Alert 강등 경로 전부다.
+					//
+					// ⚠️ 세력권은 **플레이어**가 Pod에서 얼마나 떨어졌는지로 잰다. NPC 자신의 거리로
+					// 재면 NPC가 움직일 때마다 자기 자격이 뒤집혀 경계선에서 자기진동한다(실측) —
+					// 히스테리시스를 걸어도 진동 주기가 늘어날 뿐 사라지지 않는다.
+					// 코앞(AwarenessDistance)까지 들어온 상대에게는 세력권과 무관하게 반격한다.
+					const float PlayerToPodSq = FVector::DistSquared(Candidate.Location, EnemyData.ParentPodLocation);
+					const bool bChaseEligible = (PlayerToPodSq <= FMath::Square(TConfig.ChaseRadius))
+						|| (Candidate.DistSq <= FMath::Square(TConfig.AwarenessDistance));
+					if (!bChaseEligible)
+						continue;
+
+					bAnyChaseEligible = true;
+
+					const float Score = 1000000.0f / (FMath::Sqrt(Candidate.DistSq) + 1.0f);
 
 					const FMassEntityHandle EnemyEntity = EnemyContext.GetEntity(i);
 					const FMassEntityHandle PlayerHandle = Candidate.Handle;
@@ -174,6 +241,28 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 							TargetingSubsystem->RegisterEnemyInterest(EnemyEntity, PlayerHandle, Score, bIsMelee);
 					});
 				}
+			}
+
+			// 경계 인내 타이머. 추격 자격이 하나라도 있으면(= 슬롯 대기 중이면) 초기화한다 —
+			// 전투 대기열은 시간이 지난다고 흩어져선 안 된다. 추격·공격 중(Confirmed)이나
+			// 이미 Idle(None)일 때도 초기화되므로, "교전에 성공하면 인내는 새로 시작"이 성립한다.
+			// 피격 반응 중에도 재지 않는다 — 맞고 두리번거리는 시간은 대치가 아니다.
+			const bool bStandoff = (PreviousState == ELNPTargetingState::Alert)
+				&& !bAnyChaseEligible
+				&& (EnemyData.HitReactTimer <= 0.0f);
+			CandidateData.AlertDwellTime = bStandoff
+				? FMath::Min(CandidateData.AlertDwellTime + DeltaTime, TConfig.AlertPatienceTime)
+				: 0.0f;
+
+			// 인내를 소진한 프레임에 재발견 금지 창을 연다. 이 창이 벌어 주는 것은 **등을 돌릴 시간**이다 —
+			// 없으면 포기한 다음 프레임에 정면의 플레이어를 그대로 재발견해 Pod 쪽으로 한 발짝도 못 걷는다.
+			if (bExhausted)
+			{
+				CandidateData.DisengageTimer = FMath::Max(CandidateData.DisengageTimer, TConfig.AlertRecoveryTime);
+			}
+			else
+			{
+				CandidateData.DisengageTimer = FMath::Max(CandidateData.DisengageTimer - DeltaTime, 0.0f);
 			}
 		}
 	});
@@ -201,6 +290,8 @@ void ULNPEnemyTargetingProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
+	// 사망한 플레이어는 타겟 후보에서 제외한다 — 적 쪽 FLNPEnemyDyingTag 배제와 대칭.
+	PlayerQuery.AddTagRequirement<FLNPPlayerDeadTag>(EMassFragmentPresence::None);
 
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPTargetingSubsystem>(EMassFragmentAccess::ReadWrite);
@@ -399,6 +490,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	MovementQuery.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadOnly);
 	MovementQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+	MovementQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);                   // HitReactTimer 감소
 	MovementQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
 	MovementQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite); // 배회 타임아웃 계측
 	MovementQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional); // 경직 중 정지
@@ -429,6 +521,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const TArrayView<FTransformFragment> Transforms = EnemyContext.GetMutableFragmentView<FTransformFragment>();
 		const TConstArrayView<FMassMoveTargetFragment> MoveTargets = EnemyContext.GetFragmentView<FMassMoveTargetFragment>();
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = EnemyContext.GetFragmentView<FLNPEnemyTargetingFragment>();
+		const TArrayView<FLNPEnemyFragment> EnemyFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyFragment>();
 		const TArrayView<FLNPEnemyVelocityFragment> VelocityFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 		const TArrayView<FLNPEnemyIdleFragment> IdleFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyIdleFragment>();
 		const TConstArrayView<FLNPPoiseFragment> PoiseFragments = EnemyContext.GetFragmentView<FLNPPoiseFragment>();
@@ -473,12 +566,31 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			float EffectiveSpeed = 0.0f;
 			FVector OrientationIntent = FVector::ZeroVector;
 
+			// 피격 반응 타이머는 **상태와 무관하게** 매 프레임 감소시킨다. Alert/Confirmed 중에 맞아
+			// 남은 타이머가 나중에 Idle이 될 때 엉뚱하게 발동하는 것을 막기 위해서다.
+			FLNPEnemyFragment& EnemyData = EnemyFragments[i];
+			const bool bHitReacting = (EnemyData.HitReactTimer > 0.0f);
+			if (bHitReacting)
+			{
+				EnemyData.HitReactTimer = FMath::Max(EnemyData.HitReactTimer - DeltaTime, 0.0f);
+			}
+
 			switch (Targeting.State)
 			{
 			case ELNPTargetingState::None:
-				// 대기 이동: 타겟 지점으로 천천히 이동
-				EffectiveSpeed = BaseMoveSpeed * 0.3f; // 느린 걷기
-				OrientationIntent = TargetDirOnPlane;
+				if (bHitReacting)
+				{
+					// 피격 직후: 그 자리에 서서 맞은 방향을 바라본다. 돌아본 결과 시야에 플레이어가
+					// 있으면 평소의 발견 → 경계 플로우를 그대로 타므로 별도 전이 규칙이 필요 없다.
+					OrientationIntent = FVector::VectorPlaneProject(EnemyData.HitReactDirection, UpDir).GetSafeNormal();
+					EffectiveSpeed = 0.0f;
+				}
+				else
+				{
+					// 대기 이동: 타겟 지점으로 천천히 이동
+					EffectiveSpeed = BaseMoveSpeed * 0.3f; // 느린 걷기
+					OrientationIntent = TargetDirOnPlane;
+				}
 				break;
 
 			case ELNPTargetingState::Alert:

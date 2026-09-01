@@ -73,6 +73,10 @@ void ALNPEnemyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// 조준 Pitch는 서버에서만 굴리고 결과를 복제한다 — 게스트가 한 번 더 보간하면 두 화면이 갈라진다.
+	if (HasAuthority())
+		AimPitchDeg = FMath::FInterpTo(AimPitchDeg, TargetAimPitchDeg, DeltaTime, AimPitchInterpSpeed);
+
 	if (HpBarComponent->IsVisible() && HpBarComponent->GetWidgetSpace() == EWidgetSpace::World)
 	{
 		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
@@ -153,6 +157,10 @@ void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTar
 		InputHandlerComponent->SetAIDesiredSpeed(0.f);
 	}
 
+	// 같은 이유로 조준 자세도 되돌린다 — 직전 개체가 위를 겨눈 채 LOD 강등됐다면 그 자세로 등장한다.
+	AimPitchDeg = 0.f;
+	TargetAimPitchDeg = 0.f;
+
 	if (AttributeSet)
 		AttributeSet->SetHealth(InHealth);
 
@@ -190,6 +198,32 @@ void ALNPEnemyCharacter::SetLockOnMarkerVisible(bool bVisible)
 		LockOnMarkerComponent->SetVisibility(bVisible);
 }
 
+void ALNPEnemyCharacter::SetAimTargetLocation(const FVector& InWorldTarget)
+{
+	// Config가 없으면 무기 어빌리티도 없어 어차피 쏘지 못한다 — 조준할 이유도 없다.
+	if (!EnemyConfig)
+		return;
+
+	// 조준선의 기준점은 총구가 아니라 **캡슐 중심**이다. 총구 위치는 조준 자세에 따라 움직이므로
+	// 총구를 기준으로 각도를 재면 자기참조가 된다. 총구는 캡슐 중심과 거의 같은 높이라
+	// 실제 궤적이 어긋나는 양은 무기 그립의 좌우 오프셋뿐이며, 이는 Yaw에서 이미 감수하던 값이다.
+	const FVector LocalDir = GetActorTransform().InverseTransformVectorNoScale(InWorldTarget - GetActorLocation());
+	TargetAimPitchDeg = FMath::Clamp(static_cast<float>(LocalDir.Rotation().Pitch),
+		EnemyConfig->MovementConfig.AimPitchMinDeg,
+		EnemyConfig->MovementConfig.AimPitchMaxDeg);
+}
+
+void ALNPEnemyCharacter::ClearAimTarget()
+{
+	TargetAimPitchDeg = 0.f;
+}
+
+FRotator ALNPEnemyCharacter::GetBaseAimRotation() const
+{
+	const FVector LocalAimDir = FRotator(AimPitchDeg, 0.f, 0.f).Vector();
+	return GetActorTransform().TransformVectorNoScale(LocalAimDir).Rotation();
+}
+
 bool ALNPEnemyCharacter::TryActivateAttack_Impl()
 {
 	if (!WeaponAbilityHandle.IsValid() || !ASC)
@@ -225,6 +259,7 @@ void ALNPEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALNPEnemyCharacter, EnemyConfig);
+	DOREPLIFETIME(ALNPEnemyCharacter, AimPitchDeg);
 }
 
 void ALNPEnemyCharacter::SyncToEntity(float& OutHealth, FVector& OutVelocity) const

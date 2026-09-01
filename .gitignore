@@ -31,3 +31,6 @@ Content/Localization/**/*.locres
 
 # 재배포 불가 라이센스 에셋
 Content/Characters/Lyra_Mannequin/Animations/Sword/
+
+# 로컬 이슈 트래커 — 작업용 임시 기록. 항구적 결론은 .context/ 문서에 반영하고 여기는 추적하지 않는다.
+.issues/

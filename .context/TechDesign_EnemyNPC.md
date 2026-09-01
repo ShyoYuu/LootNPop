@@ -24,19 +24,19 @@
 
 | 타입 | 내용 |
 |:---|:---|
-| `FLNPEnemyFragment` | Health/MaxHealth/Defense, DeathCountdown, EnemyTypeTag, ParentLootPod(+위치 — 리쉬 기준) |
+| `FLNPEnemyFragment` | Health/MaxHealth/Defense, DeathCountdown, EnemyTypeTag, ParentLootPod(+위치 — 세력권 기준), HitReactTimer/Direction(피격 반응 — §3.5) |
 | `FLNPEnemySharedFragment` | `ULNPEnemyConfig` 포인터 (동일 타입 공유 — ConstShared) |
-| `FLNPEnemyTargetingCandidateFragment` | 인식된 잠재 타겟 최대 4명 (거리 정렬) |
+| `FLNPEnemyTargetingCandidateFragment` | 인식된 잠재 타겟 최대 4명 (거리 정렬) + `AlertDwellTime`(경계 인내) + `DisengageTimer`(재발견 금지 잔여). **뒤 두 float는 Reset 대상이 아니다** — §3.4 |
 | `FLNPEnemyTargetingFragment` | 최종 타겟, `ELNPTargetingState`(None/Alert/Confirmed), 마지막 타겟 위치, 거리² |
 | `FLNPEnemyIdleFragment` | 배회 타이머·플래그 |
 | `FLNPEnemyVelocityFragment` | Entity 모드 물리 속도 (넉백 포물선). 접지 시 0 |
-| Tags | `FLNPEnemyTag` / `FLNPPlayerTag`(쿼리 분류), `FLNPEnemyActorInitializedTag`(초기화 마커), `FLNPEnemyDyingTag`(소멸 대기) |
+| Tags | `FLNPEnemyTag` / `FLNPPlayerTag`(쿼리 분류), `FLNPEnemyActorInitializedTag`(초기화 마커), `FLNPEnemyDyingTag`(소멸 대기), `FLNPPlayerDeadTag`(사망 플레이어 — 타게팅 제외) |
 
 ### 2.2 ULNPEnemyConfig (Data Asset)
 
 EnemyTypeTag / EnemyActorClass / StateTree / WeaponData / DefaultAbilities / InitialAttributeValues / 캡슐 크기 + 서브 구조체 2종:
 
-- **`FLNPEnemyTargetingConfig`**: MaxTargetingDistance, MaxLeashDistance, VisionDistance/Angle, AwarenessDistance, Distance/AngleWeight
+- **`FLNPEnemyTargetingConfig`**: 인지 거리 3종 (AwarenessDistance / VisionDistance+Angle / AlertRetentionDistance) + 세력권 반경 ChaseRadius + 시간 3종 (AlertPatienceTime / AlertRecoveryTime / HitReactLookTime), Distance/AngleWeight — §3.3~3.5
 - **`FLNPEnemyMovementConfig`**: MoveSpeed, RotationRate, Gravity, Wander 반경, AttackRange/Interval + **`ComputeStopDistance()`** — 추격 정지 거리 공식의 단일 정의 (TargetFollow·Movement·SteeringTask가 공유)
 
 `ULNPEnemyTrait`가 이 Config를 SharedFragment로 묶어 엔티티 템플릿을 구성하고, MassReplication Trait(BubbleInfo/Replicator 고정)를 내부 위임한다.
@@ -63,17 +63,127 @@ EnemyTypeTag / EnemyActorClass / StateTree / WeaponData / DefaultAbilities / Ini
 ### 3.2 점수 공식 (ScoringProcessor)
 
 ```
-Score = 1,000,000 / (거리 + 1) × LeashFactor
-LeashFactor = clamp(1 - DistToPod / MaxLeashDistance, 0, 1)²   ← Pod에서 멀어질수록 제곱 감쇠
+Score = 1,000,000 / (거리 + 1)
 ```
 
+거리 하나뿐이다. 세력권 감쇠는 **넣지 않는다** — 추격 자격이 이진값(§3.3)이라 자격 없는 개체는
+애초에 등록되지 않고, 자격 있는 개체끼리 "집에서 먼 순"으로 순위를 매길 이유가 없다.
+
+**타겟 고수(stickiness)는 없다.** `RebalanceSlots()`는 매 프레임 `PlayerSlots`를 통째로 비우고
+점수순으로 다시 그리디 할당하며, `TargetingProcessor`는 후보를 거리 오름차순으로 훑어
+먼저 확정되는 하나를 잡는다. 결과적으로 **"인지 중인 후보 가운데 가장 가까운 쪽"** 이 매 프레임
+타겟이 된다 — 교전 중이라고 우선권이 붙지 않는다.
+
+이는 의도된 성질이다. 2P 교차 사격 실측(2026-09-01)에서 근접·원거리 NPC의 거동이 갈렸는데,
+원인은 근접/원거리 로직 차이가 아니라 **교전 거리 차이** 하나였다:
+
+| | 타겟과의 유지 거리 | 뒤에서 쏜 다른 플레이어 | 결과 |
+|:---|:---|:---|:---|
+| 근접 NPC | `AttackRange` 200cm | 그보다 멀다 | 점수에서 밀려 **타겟 유지** |
+| 원거리 NPC | 정지 거리 900cm | 더 가까울 때가 많다 | 점수가 높아 **타겟 전환** |
+
+`bIsMelee`는 슬롯 한도(10/20)만 가르며, 플레이어 수가 적을 때는 한도에 걸릴 일이 없어
+거동에 관여하지 않는다. 즉 "근접은 안 돌아보고 원거리는 돌아본다"로 보이는 것은
+같은 규칙의 서로 다른 입력값일 뿐이다.
+
+⚠️ 두 플레이어가 **거의 같은 거리**에 있고 둘 다 인지되는 동안에는 미세한 거리 변화로 타겟이
+프레임 단위로 뒤집힐 수 있다. 이 구조가 원래 갖는 성질이며(피격 인지와 무관하게 성립한다),
+실측에서 문제로 드러난 적은 없다. 체감 문제가 생기면 고수 규칙이 아니라 **점수 히스테리시스**로
+접근할 것 — 상태 전이에 래치를 다는 방식은 §7.8의 자기진동을 부른다.
+
+### 3.3 인지·추격 규칙
+
+```
+None      ──[발견: VisionDistance+VisionAngle  또는  AwarenessDistance]──▶ Alert
+Alert     ──[슬롯 획득]──────────────────────────────────────────────────▶ Confirmed
+Confirmed ──[플레이어가 Pod 세력권 밖]───────────────────────────────────▶ Alert
+Alert     ──[타겟이 AlertRetentionDistance 밖  또는  경계 인내 소진]─────▶ None
+```
+
+기본값: `AwarenessDistance` 200 < `VisionDistance` 2000 < `AlertRetentionDistance` 2500 ≤ `ChaseRadius` 5000.
+
 **인식 조건** (하나라도 충족 시 후보 등록):
-- 이미 `Confirmed` 상태 → 무조건 유지 (시야 재검사 없음 — 등 뒤로 돌아도 어그로 유지)
-- `AwarenessDistance` 이내 → FOV 무관 감지
-- `VisionDistance` 이내 + `VisionAngle/2` 이내 → 시야 감지
+- `AwarenessDistance` 이내 → FOV·재발견 금지 무관, 무조건 감지
+- **추적 중인 그 타겟**(`PreviousState != None && Player == TargetPlayer`)이고 `AlertRetentionDistance`
+  이내 → 시야 재검사 면제. **이 면제는 그 한 명에게만 준다** — §7.7
+- **피격 주시 중**(`HitReactTimer > 0`)이고 `VisionDistance` 이내 + **피격 방향** 기준
+  `VisionAngle/2` 이내 + **조준 가용 각도**(`AimPitchMin/MaxDeg`) 이내 → 감지.
+  재발견 금지 창은 보지 않는다 — §7.9
+- `VisionDistance` 이내 + `VisionAngle/2` 이내 + 재발견 금지 창이 닫혀 있음 → 시야 감지
+
+⚠️ **시야각은 3D 원뿔이다** — `VisionAngle`을 정면 벡터와 대상 방향의 3D 각도로 잰다.
+따라서 고저차가 좌우 예산을 그대로 잡아먹어, 급경사에서는 평면상 정면인 상대도 시야 밖이 된다
+(45° 경사면 ±45° 예산이 전부 소모된다). **이는 수용한 제약이다** — 접평면 부채꼴로 바꾸면
+절벽 위 플레이어를 발밑에서 발견하게 되고, 상하 상한을 따로 두면 조준 클램프와 맞물려
+튜닝 축이 하나 더 늘어난다. 실익 대비 복잡도가 크지 않다고 판단했다.
+대신 **정면으로 못 보는 상대에게 맞았을 때** 반응하지 못하는 구멍만 §7.9로 메웠다.
+**추격 자격**(슬롯 경쟁 참가 조건) = **플레이어**가 `ParentPodLocation`에서 `ChaseRadius` 이내
+**또는** `AwarenessDistance` 이내(코앞 반격). 자격이 없는 후보는 목록에는 남지만
+`RegisterEnemyInterest`를 타지 않는다 — 슬롯을 못 얻으니 `TargetingProcessor`가 자연히 `Alert`로 잡는다.
+**이것이 강등 경로 전부다** (별도의 강등 코드나 상태 플래그가 없다).
+
+⚠️ **거리를 재는 대상이 NPC가 아니라 플레이어인 것이 이 설계의 핵심이다.** §7.8 참조.
+
+**경계 인내 — 시간도 강등 축이다.** 거리만으로는 사다리가 닫히지 않는다. 플레이어가 세력권 바로
+바깥에 서 있으면 NPC는 싸우지도(자격 없음) 잊지도(시야 안) 못한 채 굳는다. 그래서
+`FLNPEnemyTargetingCandidateFragment::AlertDwellTime`에 "추격도 못 하면서 경계만 하고 있는" 시간을
+누적하고, `AlertPatienceTime`(8초)에 도달하면 **그 프레임에 유지 조건까지 끊어** `None`으로 내려보낸다.
+
+- **발견만 막으면 안 된다.** 유지 조건을 남겨 두면 추적 중인 타겟이 유지 거리 안에 계속 있어
+  경계가 영원히 풀리지 않는다. 소진 프레임에는 초근접을 제외한 **모든 인식 경로를 끈다.**
+- **슬롯 대기 중인 개체에는 타이머가 돌지 않는다.** 추격 자격이 하나라도 있으면(`bAnyChaseEligible`)
+  0으로 초기화한다 — 그 상태는 "전투 대기열"이지 "멀뚱히 보고 있음"이 아니다. 시간으로 흩어 버리면
+  큰 무리와의 교전이 말라 버린다. `Confirmed`·`None`일 때도 초기화되므로
+  **"교전에 성공하면 인내는 새로 시작"** 이 자동으로 성립한다(공격을 특수 처리할 필요가 없다).
+- **피격 반응 중에는 재지 않는다** — 맞고 두리번거리는 시간은 대치가 아니다.
+
+### 3.4 재발견 금지 창 — 등을 돌릴 시간을 벌어 준다
+
+인내 소진만으로는 아무것도 해결되지 않는다. 포기한 그 프레임에도 플레이어는 여전히 정면 시야
+안에 있으므로 **다음 프레임에 곧바로 재발견되어** `None` → `Alert`로 되돌아온다. 8초마다 상태가
+왕복할 뿐이고, NPC는 Pod 쪽으로 한 발짝도 못 걷는다.
+
+`FLNPEnemyTargetingCandidateFragment::DisengageTimer`가 이 구멍을 막는다. 소진한 프레임에
+`AlertRecoveryTime`(1초)으로 세팅되고 매 프레임 감소하며, 0보다 큰 동안 **시야 발견만** 건너뛴다.
+
+| | 내용 |
+|:---|:---|
+| **세팅** | `AlertDwellTime >= AlertPatienceTime`인 프레임 |
+| **효과** | `VisionDistance` + FOV 경로를 건너뛴다. 유지·초근접 경로에는 관여하지 않는다 |
+| **해제** | 매 프레임 `DeltaTime` 감소, 0에서 정지 |
+
+- **이 창이 벌어 주는 것은 이동이 아니라 회전이다.** Idle이 된 NPC는 IdleTask가 뽑는 Pod 주변
+  배회 목표를 향해 돌아서고, 시야각 절반(45°)만 돌면 플레이어가 이미 FOV 밖이다.
+  등속 회전 `RotationRate` 360°/s 기준 45°는 0.125초, 완전한 180°도 0.5초 — 1초는 2배 버퍼다.
+- **초근접(`AwarenessDistance`)은 이 금지를 무시한다.** 회복 중이라고 눈앞의 플레이어를 못 보는
+  장님이 되면 "때려도 반응 없는 적"이 되어 더 어색해진다.
+- **인내(`AlertDwellTime`)와 별도의 float로 둔다.** 하나에 겹치면 값 하나만 보고는 "차오르는 중인지
+  회복 중인지" 구분할 수 없어 계측이 그대로 함정이 된다.
+
+⚠️ `AlertDwellTime`과 `DisengageTimer`는 `FLNPEnemyTargetingCandidateFragment::Reset()`이
+**지우지 않는다.** Reset()은 매 프레임 후보 목록을 비우는 용도이고, 둘 다 프레임을 가로질러
+유지되어야 하는 값이다.
+
+### 3.5 피격 반응
+
+피격 판정 두 곳(`ULNPWeaponTraceProcessor` 근접 / `ULNPProjectileProcessor` 원거리)이 Actor 승격
+여부와 **무관하게** `FLNPEnemyFragment::HitReactTimer`(= `HitReactLookTime`)와 `HitReactDirection`
+(피격자 → 공격자)을 기록한다. Actor 경로에서만 쓰면 LOD에 따라 반응이 갈린다.
+
+`ULNPEnemyMovementProcessor`는 타이머를 **상태와 무관하게** 매 프레임 감소시키되(Alert 중에 맞은
+타이머가 나중에 Idle에서 엉뚱하게 발동하는 것을 막는다), 연출은 `None` 분기에서만 재생한다 —
+속도 0 + 피격 방향(접평면 투영)으로 회전. 돌아본 결과 시야에 플레이어가 있으면 평소의 발견 경로가
+그대로 돌아 `Alert`가 되므로, StateTree에도 인식 코드에도 새 분기가 필요 없다.
+
+**추격 자격은 주지 않는다** — 주면 세력권 밖에서 원거리로 찔러 무한정 끌고 다닐 수 있다.
+
+**사망한 플레이어는 후보에서 빠진다.** 플레이어는 사망해도 폰이 파괴되지 않고 랙돌로
+리스폰 지연시간만큼 월드에 남으며, 그동안 `FLNPPlayerTag` 엔티티도 Transform 동기화까지
+그대로 살아 있다. `ALNPPlayerCharacter::HandleDeathOnServer`가 `FLNPPlayerDeadTag`를 부여하고
+Scoring·Targeting의 `PlayerQuery`가 이를 배제한다 (적 쪽 `FLNPEnemyDyingTag` 배제와 대칭).
+해제 경로는 없다 — 리스폰은 폰을 파괴하고 새로 스폰하므로 새 엔티티에는 태그가 없다.
 
 Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회만 판정 (루프 내 문자열 비교 방지).
-
 ---
 
 ## 4. Mass 프로세서 파이프라인 (10종)
@@ -177,12 +287,46 @@ Entity 모드 (Low LOD):
 | `SyncToEntity(out Health, out Velocity)` | 매 프레임: Actor → Mass 역동기화 |
 | `TriggerRagdoll()` | **서버 전용** 사망 진입점 — `Multicast_TriggerRagdoll(PopVelocity)`로 방송한다. 사망 판정이 서버 전용 Mass 프로세서라 방송하지 않으면 클라이언트는 적이 그냥 사라지는 것만 보게 된다. 실제 랙돌은 베이스의 `EnterRagdoll()`/`ExitRagdoll()` (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §9). `SyncFromEntity`가 매 활성화마다 `ExitRagdoll()`을 불러 풀 재사용을 되돌린다 |
 | `SetLockOnMarkerVisible()` | 락온 표식 위젯 토글 (LockOnComponent가 호출) |
+| `SetAimTargetLocation(WorldTarget)` / `ClearAimTarget()` | **서버 전용** 상하 조준 갱신·해제 (아래 §상하 조준) |
+| `GetBaseAimRotation()` | 액터 전방에 복제된 로컬 Pitch를 얹은 조준선. Aim Offset과 발사 방향의 **공통 원본** |
 
 ### 월드 스페이스 HP Bar
 
 - `UWidgetComponent`(World Space) + `ULNPHpBarWidget`(BindWidget `HpBar` ProgressBar).
 - 가시 조건 `0 < HP < MaxHP`. 스폰 시 `SyncFromEntity`, 전투 중 ASC Health 변경 델리게이트로 갱신.
 - BP CDO에서 `HpBarWidgetClass = WBP_LNPHpBar` 지정.
+
+### 상하 조준 (Aim Pitch)
+
+적은 컨트롤러가 없어 `APawn::GetBaseAimRotation()`이 액터 회전(= 수평)을 그대로 돌려준다.
+`MoveTarget`은 이동 평면상의 방향이라 Yaw만 만들 수 있으므로, 상하 성분은 별도로 공급해야 한다.
+
+**전달하는 상태는 각도 하나 — `AimPitchDeg`(액터 로컬 좌표계, 복제).** 목표 지점(`FVector`)이 아니다.
+
+```
+FLNPEnemyAttackTask::Tick  (서버, TryActivateAttack 바로 앞)
+  └─ SetAimTargetLocation(Targeting.TargetLocation)
+       └─ 로컬 좌표 변환 → Pitch 추출 → AimPitchMin/MaxDeg 클램프 → TargetAimPitchDeg
+ALNPEnemyCharacter::Tick   (서버) AimPitchDeg ←FInterpTo← TargetAimPitchDeg  →복제→ 게스트
+GetBaseAimRotation()       (모든 머신) 로컬 Pitch를 액터 트랜스폼으로 월드 복원
+  ├─ ULNPAnimInstance → AimPitch → 서브 ABP의 Aim Offset 노드   (외관)
+  └─ ULNPAbility_RangedAttack::GetFireDirections                 (판정, 서버)
+```
+
+- **왜 로컬 각도인가.** 구면 중력 위에서 월드 Z 기준 Pitch는 의미가 없다. 로컬 값으로 주고받으면
+  게스트가 자기 화면의 액터 회전으로 복원해도 같은 자세가 나온다 —
+  [TechDesign_Networking.md](TechDesign_Networking.md)의 접평면 로컬 Yaw 인코딩과 같은 계열이다.
+- **왜 복제하는가.** 타게팅은 서버 전용 Mass 로직이라 게스트는 이 적이 무엇을 겨누는지 알 방법이 없다.
+  보간은 서버만 굴리고 결과를 복제한다 — 게스트가 한 번 더 보간하면 두 화면이 갈라진다.
+- **판정과 외관이 같은 값을 쓴다.** 클램프도 한 곳에서만 걸린다. 발사 방향만 따로 계산하면
+  겨눈 곳과 맞는 곳이 어긋난다.
+- **가용 각도는 `FLNPEnemyMovementConfig::AimPitchMin/MaxDeg` 하나뿐이고 소비처가 셋이다** —
+  조준 자세·발사 방향·**피격 인지의 상하 게이트**(§7.9). Actor가 아니라 Config에 두는 이유가
+  세 번째 소비처다(Mass 프로세서는 Actor가 없는 Low LOD에서도 돌아야 한다).
+- **조준선의 기준점은 캡슐 중심이다.** 총구는 조준 자세에 따라 움직여 자기참조가 된다.
+  총구는 캡슐 중심과 거의 같은 높이라 실제 오차는 그립의 좌우 오프셋뿐이고, Yaw에서 이미 감수하던 값이다.
+- **Attack 상태에서만 켠다.** `ExitState`의 `ClearAimTarget()`을 빠뜨리면 배회 중에도 하늘을 겨눈 채 걷는다.
+  `SyncFromEntity`에서도 0으로 되돌린다 — Actor는 표현 풀에서 재사용되므로 직전 개체의 자세가 따라온다.
 
 ---
 
@@ -212,12 +356,78 @@ Actor null 감지와 HP 역동기화를 한 프로세서(ActorSyncProcessor)에�
 
 디버그 프로세서의 비에디터(`#else`) 생성자가 존재하지 않는 멤버를 초기화하고 있었다. `WITH_EDITOR` 빌드에서는 컴파일되지 않는 경로라 에디터 개발 중에는 무해하지만 패키징(-game) 빌드를 깨뜨리는 잠복 버그 — 조건부 컴파일 분기는 양쪽 모두 주기적 빌드 검증이 필요하다는 교훈.
 
+### 7.7 엔티티 단위 상태를 대상별 루프 안에서 읽지 말 것
+
+"교전 중인 타겟은 시야 재검사를 면제한다"는 규칙을 `PreviousState == Confirmed`만으로 판정하면,
+그 검사가 **플레이어별 루프 안**에 있는 순간 의미가 뒤집힌다. `PreviousState`는 엔티티 하나의
+상태이지 "이 플레이어와의 관계"가 아니기 때문에, 한 명에게 Confirmed된 NPC가 **다른 모든
+플레이어에 대해서도** 거리·시야각 검사를 건너뛰게 된다. 실제 증상은 "2P와 교전 중이던 NPC가
+맵 반대편의 1P에게 달려감"이었고, 한 명이 죽어 그 핸들이 사라지는 순간 남은 전원이 일제히
+후보가 되어 "우르르 몰려가는" 형태로 드러났다.
+
+면제 조건은 반드시 **대상까지 함께** 물어야 한다 — `PreviousState == Confirmed && Player == TargetPlayer`.
+같은 함정이 "이미 공격 중", "이미 락온됨" 같은 다른 엔티티 단위 플래그에도 그대로 적용된다.
+
+### 7.8 자격 조건에 자기 위치를 넣으면 자기진동한다
+
+리쉬(추격 이탈 제한)를 **NPC 자신의** Pod 거리로 판정하던 시기에 "적이 제자리에서 부들부들 떨며
+안절부절"하는 증상이 나왔다. 원리는 단순하다 — NPC가 리쉬 경계에서 멈추면 그 자리가 곧 판정 경계선이고,
+Pod 쪽으로 한 발짝 움직이는 순간 자격이 되살아나 다시 끌려나가고, 나가는 순간 또 자격을 잃는다.
+
+```
+DistToPod 5030 → 자격 없음 → Alert  → Pod 쪽으로 걷기
+DistToPod 4999 → 자격 부활 → Chase  → 플레이어 쪽으로
+DistToPod 5001 → 자격 없음 → Alert  → ...              (매 프레임 반복)
+```
+
+**자격 조건이 NPC 자신의 위치를 읽으면 NPC의 행동이 자기 조건을 바꾸는 피드백 루프가 된다.**
+히스테리시스(경계에서 바로 풀지 않고 절반까지 돌아와야 풀기)를 걸어도 **진동 주기가 프레임에서
+초 단위로 늘어날 뿐 사라지지 않는다** — 실제로 "이탈 → 복귀 → 절반에서 재교전 → 이탈"의 느린 요요가 됐다.
+
+해법은 감쇠를 더 거는 것이 아니라 **기준점을 제어 주체 밖으로 옮기는 것**이다. 세력권을 플레이어의
+Pod 거리로 재면 NPC가 무엇을 하든 조건이 변하지 않으므로 진동이 발생할 자리 자체가 없어지고,
+복귀 래치·해제 비율 상수·리쉬 점수 감쇠가 전부 불필요해졌다. 같은 함정이 "자기 속도로 자기
+가속 여부를 정한다", "자기 상태로 자기 상태 전이 조건을 정한다" 같은 모든 자기참조 판정에 적용된다.
+
+### 7.9 회전축이 하나면 "돌아보면 보인다"가 성립하지 않는다
+
+피격 주시(`HitReactLookTime`)의 설계 의도는 "그 자리에 서서 맞은 방향을 바라본다 → 돌아본 결과
+시야에 플레이어가 있으면 평소의 발견 플로우를 그대로 탄다"였다. 별도 전이 규칙이 필요 없는
+깔끔한 설계였지만, **고저차에서는 성립하지 않았다.**
+
+몸통의 회전축은 로컬 Up 하나뿐이라 `OrientationIntent`는 접평면 벡터다 — 즉 **좌우로만 돌아선다.**
+그런데 발견 판정의 시야각은 3D 원뿔이다. 위·아래에서 날아온 공격은 아무리 돌아서도 원뿔 안에
+들어오지 않으므로, "돌아본다"와 "본다" 사이의 연결이 끊긴다. 급경사에서 저격당한 NPC가
+**경계 상태에조차 진입하지 못한 채** 계속 배회하는 것이 실제 증상이었다.
+
+해법은 시야를 넓히는 것이 아니라 **시야의 축을 바꾸는 것**이다. 피격 주시 중에는 시야 중심을
+정면 벡터가 아니라 `HitReactDirection`(3D)으로 둔다. 각도 예산(`VisionAngle`)은 그대로라
+넓어지지 않고, 축만 "맞은 쪽"으로 옮겨간다.
+
+⚠️ **각도 판정을 빼고 "피격 중이면 다 보인다"로 두면 안 된다.** `HitReactTimer`는 대상별이 아니라
+**엔티티 단위** 값이라, 대상을 한정하지 않으면 교전 중 한 대 맞는 것만으로 사거리 안의 다른
+플레이어가 전부 후보가 된다 — §7.7과 완전히 같은 함정이다.
+
+**그리고 이 경로에는 상하 게이트가 반드시 붙어야 한다.** 이 경로는 정면 시야 원뿔을 우회하므로,
+막지 않으면 조준 클램프 밖(정수리 위·발밑)에서 온 공격까지 인지한다. 그 결과는 "발견은 했는데
+겨눌 수는 없어 클램프된 각도로 영원히 헛쏘는" 상태다 — **인지하지 못하는 편이 낫다.**
+그래서 게이트는 조준·발사와 **같은 값**(`FLNPEnemyMovementConfig::AimPitchMin/MaxDeg`)을 읽는다.
+값을 좁히면 "못 겨누는 각도"와 "못 알아채는 각도"가 함께 움직여 모순이 생기지 않는다.
+
+가용 각도는 **로컬 수평면 기준** ∓75°(기본값)이므로, 남는 사각은 로컬 Up/Down에서 15° 이내의
+좁은 원뿔뿐이다. 입체각이 작아 실전에서 파고들 여지가 크지 않다고 보고 **의도적으로 남긴다** —
+여기서 맞으면 NPC는 반응하지 않는 것이 정의된 동작이다.
+
+상한을 정하는 근거는 Aim Offset 에셋의 한계가 아니라 **게임플레이 판단**이다. 플레이어 기준
+실측상 AO 자세는 거의 수직까지 무리 없이 나오므로, 애니메이션이 병목이 되지는 않는다.
+
 ---
 
 ## 8. 미구현 항목
 
 | 항목 | 설명 |
 |:---|:---|
-| 시야각·상태 가중치 | `AngleWeight` 필드는 Config에 존재하나 점수 공식은 거리+Leash만 사용. 시야각·공격 상태 가중치 보강 예정 |
+| 시야각·상태 가중치 | `AngleWeight` 필드는 Config에 존재하나 점수 공식은 거리만 사용. 시야각·공격 상태 가중치 보강 예정 |
 | 난이도 스케일링 | 잔여 LootPod 수 기반 NPC 강화 (슬롯 한도 또는 능력치 단계 조정) |
+| 원거리 적 반격 | 원거리 적도 슬롯을 얻어야 공격하므로, 세력권 밖에서 저격당하면 바라보기만 하고 반격하지 못한다 (→ [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md) §5.3) |
 | Enemy 패링 | `FLNPParryStateFragment`를 Enemy 엔티티에 연결 + StateTree/GA 갱신 경로 (→ [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)) |

@@ -364,6 +364,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		FVector            RawLocation;      // Lag Compensation 되감기 기준 원점
 		const FLNPPositionHistoryFragment* History;
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
+		const ULNPEnemyConfig* Config;    // 청크 공용 Config (피격 반응 시간 조회용)
 	};
 	TArray<FCollectedEnemy> Enemies;
 
@@ -386,7 +387,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		{
 			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 			const FVector UpDir = (-Loc).GetSafeNormal();
-			Enemies.Add({ Loc + UpDir * HalfH, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), ActorFrags[i].GetMutable(), Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr });
+			Enemies.Add({ Loc + UpDir * HalfH, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), ActorFrags[i].GetMutable(), Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config });
 		}
 	});
 
@@ -565,12 +566,21 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
 				{
+					const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal(); // 피격자 → 공격자
+
 					// Actor 승격 여부와 무관하게 같은 눈금으로 쌓는다.
 					LNPPoise::Accumulate(Enemy.Poise, Shared.PoiseDamage, Now);
 
+					// 피격 반응 — 배회 중이면 이 방향으로 돌아선다(ULNPEnemyMovementProcessor의 None 분기).
+					// Actor·Entity 두 경로 **모두**에서 같은 값을 기록해야 LOD에 따라 반응이 갈리지 않는다.
+					if (Enemy.Config)
+					{
+						Enemy.Fragment->HitReactTimer     = Enemy.Config->TargetingConfig.HitReactLookTime;
+						Enemy.Fragment->HitReactDirection = HitFromDir;
+					}
+
 					if (Enemy.Actor && Shared.DamageEffectClass)
 					{
-						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
 						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Proj.Instigator, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
 					}
 					else

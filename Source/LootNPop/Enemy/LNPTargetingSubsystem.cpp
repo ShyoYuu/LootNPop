@@ -27,12 +27,10 @@ void ULNPTargetingSubsystem::RebalanceSlots()
 	PendingEntries.Sort();
 
 	// 2. 현재 할당 초기화 및 재할당 준비
+	// 슬롯 집합만 비우지 않고 맵 전체를 비운다 — 어차피 아래 FindOrAdd로 매 프레임 재구성되고,
+	// 키만 남겨 두면 리스폰 때마다 죽은 플레이어 핸들이 영구히 쌓인다 (엔티티 파괴 훅이 없다).
 	TSet<FMassEntityHandle> AssignedEnemies;
-	for (auto& It : PlayerSlots)
-	{
-		It.Value.OccupiedMelee.Empty();
-		It.Value.OccupiedRanged.Empty();
-	}
+	PlayerSlots.Reset();
 
 	// 3. 전역 점수 기반 그리디 할당
 	for (const FLNPPendingTargetEntry& Entry : PendingEntries)

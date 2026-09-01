@@ -49,6 +49,22 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	/** 이 Enemy가 속한 LootPod */
 	UPROPERTY(Transient)
 	FMassEntityHandle ParentLootPod;
+
+	/** --- 피격 반응 --- */
+
+	/**
+	 * 피격 후 그 방향을 주시하며 정지해 있을 잔여 시간(초). 피격 판정(근접·투사체)이
+	 * `ULNPEnemyConfig::HitReactLookTime`으로 세팅하고, `ULNPEnemyMovementProcessor`가 감소시킨다.
+	 *
+	 * ⚠️ 감소는 상태와 무관하게 매 프레임 돈다. Alert/Confirmed 중에 맞아 남은 타이머가
+	 * 나중에 Idle이 될 때 엉뚱하게 발동하는 것을 막기 위해서다 (연출은 `None`에서만 재생된다).
+	 */
+	UPROPERTY(Transient)
+	float HitReactTimer = 0.0f;
+
+	/** 마지막 피격이 날아온 방향 (피격자 → 공격자, 월드 단위벡터). HitReactTimer가 살아 있는 동안 주시 방향으로 쓴다. */
+	UPROPERTY(Transient)
+	FVector HitReactDirection = FVector::ZeroVector;
 };
 
 /** 인식으로 감지된 후보 Player, 슬롯 확인 대기 중 */
@@ -65,11 +81,37 @@ struct LOOTNPOP_API FLNPEnemyTargetingCandidateFragment : public FMassFragment
 	UPROPERTY(Transient)
 	uint8 NumPotentialTargets = 0;
 
+	/**
+	 * **경계 인내** — 추격 자격도 없이 경계만 유지한 누적 시간(초). ScoringProcessor가 누적하며,
+	 * 추격 자격을 얻거나(슬롯 대기 포함) 상태가 Alert를 벗어나면 0으로 되돌린다.
+	 * `ULNPEnemyConfig::AlertPatienceTime`에 도달하면 그 프레임에 후보 유지를 끊어 Idle로 내려간다.
+	 *
+	 * ⚠️ **Reset()이 지우지 않는다.** Reset()은 매 프레임 후보 목록을 비우는 용도이고,
+	 * 이 값은 프레임을 가로질러 누적되어야 하기 때문이다.
+	 */
+	UPROPERTY(Transient)
+	float AlertDwellTime = 0.0f;
+
+	/**
+	 * **재발견 금지 잔여 시간(초)** — 인내를 소진해 포기한 직후 `AlertRecoveryTime`으로 세팅되고
+	 * 매 프레임 감소한다. 0보다 크면 시야 발견(`VisionDistance` + FOV)을 건너뛴다.
+	 * `AwarenessDistance` 안까지 들어온 상대는 이 금지를 무시한다.
+	 *
+	 * 인내와 **별도의 float로 둔다.** 하나에 겹치면 값 하나만 보고는 "차오르는 중인지
+	 * 회복 중인지"를 구분할 수 없어, 계측으로 원인을 가릴 때 그대로 함정이 된다.
+	 *
+	 * ⚠️ `AlertDwellTime`과 마찬가지로 **Reset()이 지우지 않는다.**
+	 */
+	UPROPERTY(Transient)
+	float DisengageTimer = 0.0f;
+
 	void Reset()
 	{
 		NumPotentialTargets = 0;
 		for (int32 i = 0; i < 4; ++i)
 			PotentialTargets[i].Reset();
+		// AlertDwellTime·DisengageTimer는 의도적으로 건드리지 않는다 —
+		// 둘 다 프레임을 가로질러 유지되어야 하는 값이다.
 	}
 };
 
@@ -147,6 +189,16 @@ USTRUCT() struct LOOTNPOP_API FLNPEnemyTag : public FMassTag { GENERATED_BODY() 
 
 /** Entity를 Player로 식별하는 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPPlayerTag : public FMassTag { GENERATED_BODY() };
+
+/**
+ * 사망한 Player를 적 타게팅에서 제외하는 Tag. 적 쪽 FLNPEnemyDyingTag와 대칭이다.
+ *
+ * 사망해도 폰은 파괴되지 않고 랙돌 상태로 리스폰 지연시간만큼 월드에 남으므로(ALNPPlayerCharacter::HandleDeathOnServer),
+ * 이 태그가 없으면 적들이 시체를 계속 유효한 타겟으로 삼는다.
+ * 해제 경로는 필요 없다 — 리스폰은 폰을 파괴하고 새로 스폰하므로(ALNPGameMode::DoRespawn)
+ * 살아난 플레이어는 태그 없는 새 엔티티를 받는다.
+ */
+USTRUCT() struct LOOTNPOP_API FLNPPlayerDeadTag : public FMassTag { GENERATED_BODY() };
 
 /** 이 Entity의 Actor가 초기화됐음을 표시하는 Tag. ActorSyncProcessor가 null Actor 감지 시 제거하여 다음 High LOD 전환 때 ActorInitializer가 재실행되도록 한다. */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyActorInitializedTag : public FMassTag { GENERATED_BODY() };

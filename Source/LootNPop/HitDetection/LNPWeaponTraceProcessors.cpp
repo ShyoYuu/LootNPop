@@ -374,6 +374,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		FVector            RawLocation;      // Lag Compensation 되감기 기준 원점
 		const FLNPPositionHistoryFragment* History;
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
+		const ULNPEnemyConfig* Config;    // 청크 공용 Config (피격 반응 시간 조회용)
 	};
 	TArray<FCollectedEnemy> Enemies;
 
@@ -402,7 +403,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				Center = Loc;
 			else
 				Center = Loc + UpDir * HalfH;
-			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr });
+			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config });
 		}
 	});
 
@@ -576,13 +577,22 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 					MarkHit(Frag, Enemy.Handle);
 
+					const FVector HitFromDir = (AttackerLoc - Enemy.CapsuleCenter).GetSafeNormal(); // 피격자 → 공격자
+
 					// Actor 승격 여부와 무관하게 같은 눈금으로 쌓는다.
 					LNPPoise::Accumulate(Enemy.Poise, Frag.PoiseDamage, NowForRewind);
+
+					// 피격 반응 — 배회 중이면 이 방향으로 돌아선다(ULNPEnemyMovementProcessor의 None 분기).
+					// Actor·Entity 두 경로 **모두**에서 같은 값을 기록해야 LOD에 따라 반응이 갈리지 않는다.
+					if (Enemy.Config)
+					{
+						Enemy.Fragment->HitReactTimer     = Enemy.Config->TargetingConfig.HitReactLookTime;
+						Enemy.Fragment->HitReactDirection = HitFromDir;
+					}
 
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (Enemy.Actor && EffectClass)
 					{
-						const FVector HitFromDir  = (AttackerLoc - Enemy.CapsuleCenter).GetSafeNormal();
 						const FVector ImpactPoint = MakeWeaponImpactPoint(Frag.SwordRootCurr, Frag.SwordTipCurr,
 							Enemy.CapsuleCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitFromDir);
 						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, ImpactPoint, Frag.KnockbackStrength, true);

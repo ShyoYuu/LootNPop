@@ -103,3 +103,24 @@
     - 상호작용 반경이 초근접(단말기 조작 거리)이므로 워핑 이동량이 작아 위화감 없음.
     - Pod 전방(현재 CanInteract 각도 조건의 기준 방향)에 워프 타겟 소켓 배치.
 - **핵심 기술:** Motion Warping, 구면 중력 Up 벡터 보정 (기존 Orbital Launcher 아이디어와 동일 계열).
+
+---
+
+### 경계 상태 옆걸음 (Strafe) — 슬롯 대기 개체의 위협감 (2026-09-01)
+- **개요:** 슬롯 경쟁에서 밀려 `Alert`로 대기 중인 적이 제자리에 서 있는 대신, **플레이어를 계속
+  주시하면서 거리를 좁히지 않고 천천히 옆으로 도는** 동작. "포위당하고 있다"는 압박을 만든다.
+- **범위:** `ULNPEnemyMovementProcessor`의 **`Alert` 분기 하나로 정의 가능**하다. StateTree·인지·자격
+  판정은 손대지 않는다.
+- **막히는 지점 (구조 변경 1건):** 현재 이동 방향이 곧 회전 방향이다 — Actor 경로
+  (`CapturedMoveInput = OrientationIntent`)와 Entity 경로(`Velocity = OrientationIntent * Speed`)가
+  같은 벡터를 쓴다. 옆걸음은 정의상 "보는 방향 ≠ 가는 방향"이라 **`MoveDirection` 지역변수를 분리**해야
+  한다. Actor 경로는 `SetAIOrientationIntent`/`SetAIMoveInput`이 이미 별도 호출이라 그대로 지원된다
+  (플레이어 ADS·가드 스트레이프와 같은 파이프라인).
+- **핵심 기술:** `MoveDirection = Cross(TargetDirOnPlane, UpDir) * StrafeSign`. 접평면에서 타겟 방향과
+  수직이므로 **반경 성분이 0 = 거리 보존이 공짜**다. 부호는 엔티티 인덱스 패리티로 뽑으면 새 Fragment
+  필드 없이 무리 안에서 좌우가 섞인다 (매 프레임 랜덤이면 제자리에서 떤다).
+- **지금이라야 안전한 이유:** 추격 자격이 플레이어의 Pod 거리만 읽게 바뀌어(→
+  [TechDesign_EnemyNPC.md](TechDesign_EnemyNPC.md) §7.8) **`Alert`에서 무엇을 하든 상태 판정에
+  되먹임이 없다.** 자격이 NPC 자기 위치를 읽던 시기였다면 옆걸음이 곧바로 경계선 진동을 만들었다.
+- **알려진 제약:** 엔티티에는 회피(avoidance)가 없어 옆걸음하는 개체들이 서로 겹친다. 기존 제약이지만
+  원을 그리는 동작에서 더 눈에 띌 수 있다.
