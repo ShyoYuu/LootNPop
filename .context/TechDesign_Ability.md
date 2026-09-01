@@ -278,7 +278,7 @@ ActivateAbility → Commit → SpawnProjectile() → PlayMontage(Attack) → 즉
 4. 네트워크: 예측 키/SalvoID 발급, Ghost 등록·거부 델리게이트, 관전자 Multicast 방송 (→ [TechDesign_Networking.md](TechDesign_Networking.md))
 5. 방향 배열 순회하며 `FMassCommandBuildEntityWithSharedFragments`로 엔티티 빌드 (Deferred)
 
-**산탄 (`ULNPAbility_RangedSpreadAttack`):** `GetFireDirections` 오버라이드. Cube 좌표계 육각 링 순회(`1 + 3N(N+1)`)로 중앙 1발 + N링을 균일 각도 간격으로 배치.
+**산탄 (`ULNPAbility_RangedSpreadAttack`):** `GetFireDirections` 오버라이드. Cube 좌표계 육각 링 순회(`1 + 3N(N+1)`)로 중앙 1발 + N링을 배치하되, 오프셋은 **발사 방향에 붙은 직교 기저** 위에 얹는다 (아래 ⚠️ 규약).
 
 확산 형태는 무기 DataAsset이 아니라 **어빌리티가 소유한다** — 같은 무기가 산탄 폭이 다른 강공격·특수공격을
 가질 수 있어야 하고 그 축은 어빌리티별로 갈리기 때문이다. `EditDefaultsOnly` 2종:
@@ -287,6 +287,27 @@ ActivateAbility → Commit → SpawnProjectile() → PlayMontage(Attack) → 즉
 |:---|:---|:---|
 | `HexRingCount` | 2 | 링 수. 발사 수 = `1 + 3N(N+1)` → 0=1발, 1=7발, 2=19발, 3=37발 |
 | `HexStepDegrees` | 7.5 | 인접 셀 간 각도. 링 수와 곱한 값이 확산 최대 반각 (2링 × 7.5도 = 15도) |
+
+⚠️ **구면 중력에서 방향 오프셋을 월드 오일러 각(Yaw/Pitch) 덧셈으로 만들지 않는다 (2026-09-01 확립).**
+`FRotator::Yaw`는 **월드 Z축 둘레의 회전**이라, 같은 Yaw 증분이 만드는 실제 각변위가 `cos(Pitch)`에 비례해
+줄어든다. 월드 Pitch가 ±90°에 가까워지면 가로 폭이 0으로 붕괴한다(짐벌 수렴). 구면 중력에서는 서 있는
+위치에 따라 "캡슐 기준 수평"이 월드 Pitch 0°가 되기도 ±90°가 되기도 하므로, 같은 조준 자세인데도
+**극에서는 정상, 적도에서는 찌그러지는** 위치 의존 결함이 된다.
+
+규약은 셋이다.
+
+1. **오프셋은 기준 방향 자신의 직교 기저에서 잡는다.** `RightAxis = Cross(RefUp, BaseDir)`,
+   `UpAxis = Cross(BaseDir, RightAxis)`. 월드 회전값이 식에서 사라져야 한다.
+2. **기준 상방(`RefUp`)은 월드 Z가 아니라 `ALNPCharacterBase::GetUpDirection()`(중력 Up)이다.**
+   패턴의 *크기*는 기준축 선택과 무관하지만, *롤*이 캐릭터 자세를 따라가야 화면상 방향이 일정하다.
+   `BaseDir ∥ RefUp` 특이점에서는 **캐릭터 전방**으로 롤을 정한다 — 전방은 접평면 위(상방과 직교)라
+   여기서 다시 0이 되지 않는다.
+3. **평면 격자를 원하면 오프셋을 `tan(각도)`로 준다.** `BaseDir`에 수직인 평면 위의 격자를 그대로
+   투영하는 것과 같아, 벽에 쏘면 정확한 정육각형이 된다. 각도가 90°를 넘으면 `tan`이 부호를 뒤집어
+   뒤로 발사되므로 반각 클램프(±80°)가 함께 간다.
+
+서버 판정과 고스트 발사체 방송이 `GetFireDirections`의 **같은 배열을 공유**하므로, 이 함수만 고치면
+양쪽이 함께 따라간다 — 넷 코드를 건드릴 필요가 없다.
 
 ⚠️ 펠릿마다 Mass 엔티티·트레일 VFX·명중 시 넉백이 **각각** 발생한다. `KnockbackStrength`를 단발 무기와
 같은 값으로 두면 근접 전탄 명중 시 발수만큼 배가된다 (`GA_RangedAttack_Shotgun`은 10으로, Rifle 50 대비 낮춤).

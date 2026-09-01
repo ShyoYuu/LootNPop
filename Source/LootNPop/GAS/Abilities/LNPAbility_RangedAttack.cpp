@@ -197,7 +197,9 @@ TArray<FVector> ULNPAbility_RangedAttack::GetFireDirections(const FVector& Spawn
 	static constexpr float MinAimDistanceSq = 150.f * 150.f;
 	static constexpr float AimTraceDistance = 50000.f;
 
-	FVector Direction = Character->GetActorForwardVector();
+	// 컨트롤러가 없는 사수(적 NPC)의 기본 조준선. GetBaseAimRotation은 액터 전방에
+	// 상하 조준 Pitch를 얹어 돌려주므로, 예전의 GetActorForwardVector()를 그대로 일반화한 값이다.
+	FVector Direction = Character->GetBaseAimRotation().Vector();
 
 	if (const APlayerController* PC = Cast<APlayerController>(Character->GetController()))
 	{

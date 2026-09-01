@@ -31,6 +31,7 @@
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "LootPod/LNPLootPodMassTypes.h"
+#include "Enemy/LNPEnemyMassTypes.h"
 #include "MassAgentComponent.h"
 #include "MassEntityManager.h"
 #include "MassEntityUtils.h"
@@ -386,6 +387,19 @@ void ALNPPlayerCharacter::HandleDeathOnServer()
 	DropAllItemsOnDeath();
 
 	Multicast_OnDeath(GetUpDirection() * DeathPopSpeed);
+
+	// 적 타게팅에서 빠지게 한다. 폰은 여기서 파괴되지 않고 랙돌로 리스폰 지연시간만큼 남으므로,
+	// 표시해 두지 않으면 그동안 적들이 시체를 계속 유효한 타겟으로 삼는다.
+	// 아키타입 마이그레이션이라 지연 커맨드로 넘긴다 (FLNPEnemyDyingTag 부여와 동일 방식).
+	if (const UMassAgentComponent* AgentComponent = FindComponentByClass<UMassAgentComponent>())
+	{
+		const FMassEntityHandle PlayerEntity = AgentComponent->GetEntityHandle();
+		if (PlayerEntity.IsValid())
+		{
+			FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*GetWorld());
+			EntityManager.Defer().AddTag<FLNPPlayerDeadTag>(PlayerEntity);
+		}
+	}
 
 	// 리스폰 타이머는 곧 파괴될 폰이 아니라 GameMode가 들고 있어야 한다.
 	if (ALNPGameMode* GM = GetWorld()->GetAuthGameMode<ALNPGameMode>())

@@ -217,6 +217,13 @@ EStateTreeRunStatus FLNPEnemyAttackTask::EnterState(FStateTreeExecutionContext& 
 
 void FLNPEnemyAttackTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
+	// 조준을 수평으로 되돌린다. 남겨두면 배회 중에도 하늘(또는 땅)을 겨눈 채 걸어다닌다.
+	const FMassActorFragment& ActorFrag = Context.GetExternalData(ActorHandle);
+	if (ALNPEnemyCharacter* Enemy = Cast<ALNPEnemyCharacter>(const_cast<AActor*>(ActorFrag.Get())))
+	{
+		Enemy->ClearAimTarget();
+	}
+
 	UE_LOG(LogLootNPop, Log, TEXT("Exiting AttackTask"));
 }
 
@@ -247,6 +254,9 @@ EStateTreeRunStatus FLNPEnemyAttackTask::Tick(FStateTreeExecutionContext& Contex
 	const FMassActorFragment& ActorFrag = Context.GetExternalData(ActorHandle);
 	if (ALNPEnemyCharacter* Enemy = Cast<ALNPEnemyCharacter>(const_cast<AActor*>(ActorFrag.Get())))
 	{
+		// 발사 **직전에** 조준을 갱신한다 — 원거리 어빌리티가 같은 프레임에 이 값을 읽어 발사 방향을 만든다.
+		// MoveTarget은 이동 평면상의 방향이라 Yaw만 만들 수 있어, 상하 성분은 여기서 따로 준다.
+		Enemy->SetAimTargetLocation(Targeting.TargetLocation);
 		Enemy->TryActivateAttack();
 	}
 	else
