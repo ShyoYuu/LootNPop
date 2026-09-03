@@ -6,11 +6,13 @@
 #include "LNPMassReplicator.generated.h"
 
 /**
- * 통합 서버 Replicator — 월드의 모든 복제 대상 Mass 엔티티 타입을 단일 스트림으로 처리한다.
+ * 서버 Replicator의 공통 베이스 — 복제 처리 로직은 전부 여기에 있고, 타입마다 이 클래스를
+ * 상속한 전용 서브클래스를 쓴다(아래 참조). 어느 서브클래스든 출력은 **버블 핸들러 하나
+ * (단일 FastArray)** 로 모인다.
  * 타입 분기는 FLNPEnemyFragment의 Optional 요구로 청크 단위 판별:
- * - Enemy 청크: Add 시 타입 태그 + 매 갱신 위치/Yaw 반영 (서버 AI가 매 틱 이동시키므로)
+ * - Enemy 청크: 매 갱신 위치/Yaw 반영 (서버 AI가 매 틱 이동시키므로)
  * - 그 외(Player·LootPod) 청크: Add 시 위치 1회만, 이후 갱신 없음 (구 SpawnOnly 패턴)
- * 통합 배경: LNPMassReplication.h 및 EngineAnalysis_MassReplication.md §7.1 참조.
+ * 배경: LNPMassReplication.h 및 EngineAnalysis_MassReplication.md §7.1 참조.
  */
 // ⚠️ Abstract로 두지 않는다 — DA_PlayerEntityConfig가 이 클래스를 ReplicatorClass로 직접 참조하며,
 //    플레이어는 타입이 하나뿐이라 별도 서브클래스 없이 이 클래스가 그대로 고유 CDO 역할을 한다.

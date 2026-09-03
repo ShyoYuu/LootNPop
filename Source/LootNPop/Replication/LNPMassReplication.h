@@ -105,18 +105,24 @@ namespace LNP::Replication
 }
 
 /**
- * 통합 Mass 복제 — 월드의 모든 복제 대상 Mass 엔티티 타입(Enemy·Player·LootPod)이
- * 단일 버블/리플리케이터를 공유한다.
+ * 통합 Mass 복제 페이로드 — 월드의 모든 복제 대상 Mass 엔티티 타입(Enemy·Player·LootPod)이
+ * **버블 핸들러(= FastArray) 하나**를 공유하므로, 에이전트 구조체도 하나를 공용으로 쓴다.
  *
  * 통합 이유: 엔진의 파괴 처리 경로(CalculateClientReplication의 클라 장부 AgentsData 순회)는
- * 타입 필터가 없어, 버블 클래스가 2개 이상이면 타 타입 엔티티의 파괴 엔트리를 자기 버블 핸들로
+ * 타입 필터가 없어, **핸들 발급자가 2개 이상이면** 타 타입 엔티티의 파괴 엔트리를 자기 핸들로
  * 제거 시도한다 — RemoveAgentChecked checkf 크래시 또는 silent corruption.
- * 버블이 하나면 파괴 루프의 실행자와 핸들 소유자가 항상 일치해 원천 차단된다.
+ * 발급자가 하나면 파괴 루프의 실행자와 핸들 소유자가 항상 일치해 원천 차단된다.
  * 이종 아키타입 스폰은 엔진이 TemplateID 그룹핑으로 자동 처리한다.
- * (상세: EngineAnalysis_MassReplication.md §7.1)
+ *
+ * ⚠️ 발급자를 세는 단위는 **버블 Actor가 아니라 `TClientBubbleHandlerBase` 인스턴스**다
+ *    (`AgentHandleManager`가 그 인스턴스 멤버다). 버블 클래스가 하나여도 그 안에 핸들러를
+ *    여럿 두면 똑같이 깨진다.
+ * ⚠️ **리플리케이터 클래스는 반대로 타입마다 나눠야 한다** — 같은 클래스를 공유하면 타입별
+ *    컬 거리가 조용히 뭉개진다. 근거와 실측은 위 `ConfigureParams` 주석 참조.
+ * (상세: EngineAnalysis_MassReplication.md §7.1 · §7.11)
  *
  * 타입별 페이로드 차이:
- * - Enemy: 위치/Yaw 매 갱신 + EnemyTypeTag 스폰 1회 (Low LOD 시각화용)
+ * - Enemy: 위치/Yaw 매 갱신 (서버 AI가 매 틱 이동시키므로)
  * - Player·LootPod: 스폰 1회(존재 + 초기 위치)만 — 지속 위치는 Actor 복제 채널(Mover, LootPod Actor)이
  *   담당하거나 아예 불필요(정적)하다. 스폰 위치를 1회 싣는 이유: 퍼펫 링크 시 엔진
  *   (UMassAgentComponent::SetEntityHandleInternal)이 엔티티 Transform으로 Actor 위치를 초기화하므로,
@@ -139,7 +145,13 @@ private:
 	UPROPERTY(Transient)
 	FReplicatedAgentPositionYawData PositionYaw;
 
-	/** Enemy 엔티티만 세팅한다 — Player·LootPod은 빈 태그로 남는다 (직렬화 비용 미미). */
+	/**
+	 * ⚠️ **현재 항상 빈 태그다 — 채우는 곳이 없다.**
+	 * 리플리케이터가 `FLNPEnemyFragment::EnemyTypeTag`를 읽어 싣지만, 그 Fragment 필드에
+	 * **쓰는 곳이 코드 전체에 0곳**이다(값을 가진 것은 별개 필드인 `ULNPEnemyConfig::EnemyTypeTag`).
+	 * 원래 의도는 Low LOD 클라이언트가 적 종류를 구분하는 것이었다.
+	 * 살리려면 스폰 시 Config에서 Fragment로 채우고, 아니면 이 필드와 리플리케이터의 대입을 함께 제거할 것.
+	 */
 	UPROPERTY(Transient)
 	FGameplayTag EnemyTypeTag;
 };
@@ -161,6 +173,18 @@ struct LOOTNPOP_API FLNPMassFastArrayItem : public FMassFastArrayItemBase
 
 	UPROPERTY()
 	FLNPReplicatedAgent Agent;
+
+	/**
+	 * 이 항목을 마지막으로 Dirty 표시한 시각(초, World::GetRealTimeSeconds 기준).
+	 * ULNPMassReplicator가 복제 LOD별 갱신 주기(FMassReplicationParameters::UpdateInterval)를
+	 * 강제하는 데 쓴다 — 엔진은 그 값을 초기화만 하고 읽지 않으므로 직접 재야 한다.
+	 *
+	 * 버블은 클라이언트마다 하나이므로 이 값은 자연히 (엔티티 × 클라이언트)별 상태가 된다.
+	 * 리플렉션에 넣지 않는다 — 복제할 값이 아니고, UPROPERTY로 두면 FastArray 항목 디스크립터에
+	 * 불필요한 필드가 들어간다. 항목은 AddAgent에서 매번 새로 구성되므로 슬롯 재사용으로
+	 * 이전 엔티티의 값이 남을 일은 없다.
+	 */
+	double LastDirtyTime = 0.0;
 };
 
 /**

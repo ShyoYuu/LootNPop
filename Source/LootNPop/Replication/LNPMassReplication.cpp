@@ -20,12 +20,15 @@ void LNP::Replication::ConfigureParams(FMassReplicationParameters& Params,
 	Params.BubbleInfoClass = ALNPMassClientBubbleInfo::StaticClass();
 	Params.ReplicatorClass = ReplicatorClass;
 
-	// High/Medium/Low 경계는 엔진 기본값 유지 — 이 세 티어는 갱신 주기(UpdateInterval)만 좌우한다.
-	// Off 경계만 시각화 거리에 맞춰 밀어낸다: 엔진 기본 5,000cm는 반지름 25,000cm 월드에서 너무 좁아
+	// 이 세 티어는 갱신 주기(ULNPMassReplicator의 UpdateInterval 게이트)만 좌우한다.
+	// Medium 경계는 엔진 기본 2,500cm가 아니라 5,000cm다 — 실측 교전 거리가 24~47m라
+	// 기본값으로는 **싸우고 있는 상대가 전부 Low(0.3초 주기)로 떨어진다.** 경계를 미는 쪽이
+	// 주기를 줄이는 것보다 낫다: 비싸지는 것이 교전 거리대뿐이고 먼 군중은 싼 채로 남는다.
+	// Off 경계는 시각화 거리에 맞춰 밀어낸다: 엔진 기본 5,000cm는 반지름 25,000cm 월드에서 너무 좁아
 	// 클라이언트가 서버보다 훨씬 가까이 가야만 엔티티(빛기둥·NPC)를 받는 원인이었다.
 	Params.LODDistance[EMassLOD::High]   = 0.f;
 	Params.LODDistance[EMassLOD::Medium] = 1000.f;
-	Params.LODDistance[EMassLOD::Low]    = 2500.f;
+	Params.LODDistance[EMassLOD::Low]    = 5000.f;
 	Params.LODDistance[EMassLOD::Off]    = CullDistance;
 
 	// 개수 캡은 거리 컬링을 무력화하지 않도록 넉넉히 열어둔다 (엔진 기본 Low=300은 거리보다 먼저 걸린다).
@@ -143,6 +146,13 @@ ALNPMassClientBubbleInfo::ALNPMassClientBubbleInfo(const FObjectInitializer& Obj
 	: Super(ObjectInitializer)
 {
 	Serializers.Add(&AgentSerializer);
+
+	// ⚠️ NetUpdateFrequency는 여기서 건드리지 않는다 — 이 액터에서는 대역폭 레버가 아니다.
+	//    ① AInfo 생성자가 이미 10Hz로 내려두므로(Info.cpp) AActor 기본값 100이 적용될 일이 없고,
+	//    ② 30Hz ↔ 5Hz 같은 세션 A/B 실측에서 **송신량 차이가 2.5%(노이즈)** 였다.
+	//    갱신 빈도를 실제로 줄이는 지점은 폴링이 아니라 **Dirty를 거는 쪽**(ULNPMassReplicator의
+	//    UpdateInterval 게이트)이다. 근거와 메커니즘의 미해결 부분은
+	//    TechDesign_Networking.md §4.7 규약 4 참조.
 }
 
 void ALNPMassClientBubbleInfo::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
