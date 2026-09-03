@@ -40,6 +40,14 @@ public:
 	 */
 	virtual FRotator GetBaseAimRotation() const override;
 
+	/**
+	 * 크로스헤어 조준점 반환. **모든 머신이 InputCmd에 실려 온 같은 값을 읽는다** —
+	 * 로컬 클라이언트도 자기 카메라를 다시 트레이스하지 않는다. 각자 최선을 계산하면 그 순간
+	 * 서버 판정과 클라 예측이 갈라지기 때문이다(총구-카메라 시차). 원본은 소유 클라이언트의
+	 * ULNPInputHandlerComponent::ComputeCrosshairAimPoint 하나뿐이다.
+	 */
+	virtual bool GetAimTargetLocation(FVector& OutAimTarget) const override;
+
 	UFUNCTION(BlueprintPure, Category = "LNP|Interaction")
 	TArray<AActor*> GetInteractionCandidates() const;
 

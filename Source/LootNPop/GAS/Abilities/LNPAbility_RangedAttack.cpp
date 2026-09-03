@@ -195,43 +195,29 @@ TArray<FVector> ULNPAbility_RangedAttack::GetFireDirections(const FVector& Spawn
 		return {};
 
 	static constexpr float MinAimDistanceSq = 150.f * 150.f;
-	static constexpr float AimTraceDistance = 50000.f;
 
 	// 컨트롤러가 없는 사수(적 NPC)의 기본 조준선. GetBaseAimRotation은 액터 전방에
 	// 상하 조준 Pitch를 얹어 돌려주므로, 예전의 GetActorForwardVector()를 그대로 일반화한 값이다.
-	FVector Direction = Character->GetBaseAimRotation().Vector();
+	const FVector FallbackDirection = Character->GetBaseAimRotation().Vector();
+	FVector       Direction         = FallbackDirection;
 
-	if (const APlayerController* PC = Cast<APlayerController>(Character->GetController()))
+	// 플레이어 폰: 조준점은 **모든 머신이 같은 InputCmd 값**을 읽는다. 로컬/원격으로 분기해
+	// 각자 계산하면 서버 판정과 클라이언트 예측이 그 시차만큼 갈라지고, 총구와 카메라가
+	// 떨어져 있으므로 그 오차는 거리와 무관한 상수로 남는다 — 게스트가 조준선대로 맞혀도
+	// 서버 판정이 나지 않던 원인이 정확히 이것이었다.
+	FVector AimTarget;
+	if (Character->GetAimTargetLocation(AimTarget)
+		&& MinAimDistanceSq <= FVector::DistSquared(SpawnPos, AimTarget))
 	{
-		if (Character->IsLocallyControlled())
+		const FVector Converged = (AimTarget - SpawnPos).GetSafeNormal();
+
+		// 조준점은 소유 클라이언트가 만든 값이다. 다만 시선 회전(ControlRotation)도 이미 같은
+		// 클라이언트가 보내는 값이라 새로 생기는 권위는 없고, 여기서 메우는 것은 총구-카메라
+		// 시차뿐이므로 몇 도면 충분하다. 그 범위를 넘으면 조작으로 보고 시선 회전으로 되돌린다.
+		static constexpr float MaxAimCorrectionCos = 0.9659258f; // cos(15°)
+		if (MaxAimCorrectionCos <= FVector::DotProduct(Converged, FallbackDirection))
 		{
-			// 로컬 제어(소유 클라이언트·리슨호스트): 카메라 시점에서 크로스헤어 방향으로 트레이스해 조준점 수렴
-			UWorld* World = Character->GetWorld();
-			FVector CamPos;
-			FRotator CamRot;
-			PC->GetPlayerViewPoint(CamPos, CamRot);
-
-			const FVector TraceEnd = CamPos + CamRot.Vector() * AimTraceDistance;
-
-			FHitResult Hit;
-			FCollisionQueryParams QueryParams;
-			QueryParams.AddIgnoredActor(Character);
-
-			const FVector AimTarget = World->LineTraceSingleByChannel(Hit, CamPos, TraceEnd, ECC_Visibility, QueryParams)
-				? Hit.ImpactPoint
-				: TraceEnd;
-
-			if (MinAimDistanceSq <= FVector::DistSquared(SpawnPos, AimTarget))
-			{
-				Direction = (AimTarget - SpawnPos).GetSafeNormal();
-			}
-		}
-		else
-		{
-			// 서버의 원격 플레이어: 클라이언트 카메라 위치가 서버에 없어 크로스헤어 트레이스는 불가능하다.
-			// Mover InputCmd로 복제된 시선 회전(GetBaseAimRotation 오버라이드)으로 발사 피치를 반영한다.
-			// 카메라 광선과의 시차(패럴랙스)만큼 클라이언트 예측 Ghost와 미세하게 어긋날 수 있으나 코스메틱 범위.
-			Direction = Character->GetBaseAimRotation().Vector();
+			Direction = Converged;
 		}
 	}
 

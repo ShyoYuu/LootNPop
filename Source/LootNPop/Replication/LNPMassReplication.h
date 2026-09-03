@@ -4,6 +4,7 @@
 
 #include "MassReplicationTransformHandlers.h"
 #include "MassReplicationTypes.h"
+#include "Templates/SubclassOf.h"
 #include "MassClientBubbleHandler.h"
 #include "MassClientBubbleInfoBase.h"
 #include "MassEntityView.h"
@@ -12,6 +13,7 @@
 #include "LNPMassReplication.generated.h"
 
 struct FMassReplicationParameters;
+class UMassReplicatorBase;
 
 namespace LNP::Replication
 {
@@ -47,8 +49,59 @@ namespace LNP::Replication
 	 * CullDistance는 EMassLOD::Off 경계(= 이 거리를 넘으면 클라이언트 버블에서 제거)이며,
 	 * 반드시 해당 EntityConfig의 시각화 VisibleLODDistance[Off]와 같은 값으로 맞춰야 한다.
 	 * 더 크면 렌더링되지도 않을 엔티티에 대역폭을 쓰고, 더 작으면 서버엔 보이는데 클라엔 안 보인다.
+	 *
+	 * ⚠️ **퍼펫 타입은 여기에 더해 "Actor 릴러번시 < CullDistance"를 지켜야 한다.**
+	 * `UMassAgentComponent`로 링크되는 Actor(적·LootPod·플레이어 폰)는 엔진이
+	 * "Actor가 사는 동안 엔티티는 유효하다"를 전제로 상태를 검사한다. 릴러번시가 컬 거리보다 크면
+	 * 그 사이 거리대에서 **엔티티만 버블에서 빠지고 Actor는 남아** assert가 난다
+	 * (2026-09-03 실측: 적이 컬 12,000 / 릴러번시 기본 15,000이라 120~150m 구간에서 발생).
+	 * 히스테리시스(`BufferHysteresisOnDistancePercentage` 10%)를 감안해 여유를 두고 잡을 것.
+	 *
+	 * | 타입 | 버블 컬 | Actor 릴러번시 |
+	 * |:---|---:|---:|
+	 * | Enemy | 12,000 | 8,000 (`ALNPEnemyCharacter` 생성자) |
+	 * | LootPod | 60,000 | 20,000 (`ALNPLootPod` 생성자) |
+	 * | 플레이어 폰 | 1,000,000 (DA) | 15,000 (엔진 기본) |
+	 *
+	 * ⚠️ **ReplicatorClass는 타입마다 서로 다른 클래스여야 한다. 이것이 CullDistance를 유효하게 만든다.**
+	 *
+	 * 이것은 우회가 아니라 **엔진이 의도한 타입 분리 축 그 자체다.**
+	 * `UMassReplicationProcessor::PrepareExecution`은 공유 프래그먼트마다 전용 쿼리를 만들어
+	 * 자기 청크로 한정하고 그 요구사항을 `CachedReplicator->AddRequirements`로 채운다 —
+	 * 즉 분리 단위가 곧 리플리케이터다. 엔진 주석도 *"derive from this per entity type"*
+	 * (`MassReplicationProcessor.h:23`)라고 적어 두었다.
+	 * (다만 정석에서 나누는 동기는 *쿼리 요구사항 차이*이고, 여기서 나누는 동기는 *해시 분리*다.
+	 *  요구사항이 같은 타입들이므로 결과물은 동작이 같은 빈 서브클래스가 된다 — 형태는 정석, 동기는 우회.)
+	 *
+	 * 엔진 `UMassReplicationTrait::BuildTemplate`(`MassReplicationTrait.cpp:44`)은
+	 * `FMassReplicationSharedFragment`를 **자기 자신의 리플렉션 CRC**로 중복 제거하는데,
+	 * 그 구조체의 UPROPERTY는 `BubbleInfos`(빌드 시점엔 빈 배열)와
+	 * `CachedReplicator`(= `ReplicatorClass`의 **CDO**) 둘뿐이다.
+	 * **LOD 거리를 들고 있는 `LODCalculator`·`LODCollector`는 UPROPERTY가 아니라 CRC에 들어가지 않는다.**
+	 * 따라서 리플리케이터 클래스가 같으면 CullDistance가 달라도 CRC가 같아지고,
+	 * `FindOrAdd`가 **먼저 만들어진 공유 프래그먼트 하나**를 전 타입에 돌려준다
+	 * → 먼저 빌드된 타입의 컬 거리가 모두에게 적용된다.
+	 *
+	 * 2026-09-02 실측: 전 타입이 `ULNPMassReplicator` 하나를 쓰던 시절, LootPod의 60,000cm가
+	 * 적(12,000cm)에도 적용돼 **반지름 250m 월드 전체(478개)가 모든 클라이언트 버블에 들어왔고,
+	 * 교전이 전혀 없는 대기 상태에서 송신량이 1.1MB/s였다** (그중 98%가 이 버블).
+	 *
+	 * 클래스를 나누면 CDO 포인터가 달라 CRC가 갈린다 —
+	 * `GetStructInstanceCrc32`는 `SerializeItem`으로 태그드 프로퍼티를 훑고 오브젝트는 포인터로 해싱한다.
+	 *
+	 * ⚠️ **§7.1의 진짜 불변식은 "버블 클래스 1개"가 아니라 "핸들 발급자 1개"다.**
+	 * `AgentHandleManager`는 `TClientBubbleHandlerBase`의 **인스턴스 멤버**이므로, 버블이 하나여도
+	 * 그 안에 핸들러를 여럿 두면 발급자도 여럿이 되어 똑같이 깨진다. 이 프로젝트는
+	 * `FLNPMassClientBubbleSerializer`가 `FLNPMassClientBubbleHandler`를 **하나만** 들고 있으므로 안전하다 —
+	 * 리플리케이터를 나눠도 파괴 루프가 만지는 핸들은 항상 그 하나가 발급한 것이라 유효하고,
+	 * 처리 후 `AgentData.Invalidate()`가 걸려 2회차 이후는 건너뛴다(멱등).
+	 *
+	 * 대가는 CPU다: 파괴 루프가 순회하는 **클라이언트 장부는 청크 필터가 걸리지 않은 공용 자료구조**라,
+	 * 리플리케이터를 N개로 나누면 넷 틱마다 장부 전체를 N번 순회한다 — **O(N × 장부 크기).**
+	 * 현재 N=3, 장부 약 135개라 무시할 수준이지만, 타입이나 엔티티가 크게 늘면 다시 재야 한다.
 	 */
-	LOOTNPOP_API void ConfigureParams(FMassReplicationParameters& Params, float CullDistance);
+	LOOTNPOP_API void ConfigureParams(FMassReplicationParameters& Params,
+		TSubclassOf<UMassReplicatorBase> ReplicatorClass, float CullDistance);
 }
 
 /**

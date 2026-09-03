@@ -16,6 +16,7 @@
 #include "Camera/LNPControlRotationComponent.h"
 #include "Character/LNPInputHandlerComponent.h"
 #include "Movement/LNPCharacterMoverComponent.h"
+#include "Movement/LNPModifierInputs.h"
 #include "GameMode/LNPGameMode.h"
 #include "Player/LNPPlayerController.h"
 #include "Config/LNPSettings.h"
@@ -574,6 +575,19 @@ FRotator ALNPPlayerCharacter::GetBaseAimRotation() const
 	}
 
 	return Super::GetBaseAimRotation();
+}
+
+bool ALNPPlayerCharacter::GetAimTargetLocation(FVector& OutAimTarget) const
+{
+	if (MoverComponent == nullptr)
+		return false;
+
+	const FLNPModifierInputs* Inputs = MoverComponent->GetLastInputCmd().InputCollection.FindDataByType<FLNPModifierInputs>();
+	if (Inputs == nullptr || Inputs->AimTargetLocation.IsZero())
+		return false;
+
+	OutAimTarget = Inputs->AimTargetLocation;
+	return true;
 }
 
 // WeaponSlot이 복제되므로 시뮬레이티드 프록시를 포함한 모든 머신에서 이 값이 정확하다.

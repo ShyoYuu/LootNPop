@@ -85,6 +85,16 @@ public:
 	bool IsFreeAimMode() const;
 
 	/**
+	 * 로컬 제어 폰의 크로스헤어가 가리키는 월드 좌표. 카메라에서 시선 방향으로 트레이스해
+	 * 첫 충돌점을, 아무것도 없으면 최대 거리 지점을 돌려준다. 로컬 제어가 아니면 false.
+	 *
+	 * 이 값은 소유 클라이언트만 계산할 수 있으므로(카메라가 로컬 상태다) OnProduceInput이
+	 * InputCmd에 실어 서버로 보낸다 — 원거리 발사 방향의 단일 원본이다
+	 * (FLNPModifierInputs::AimTargetLocation 주석 참조).
+	 */
+	static bool ComputeCrosshairAimPoint(const APawn* Pawn, FVector& OutAimPoint);
+
+	/**
 	 * ADS(정조준) 유효 상태.
 	 *
 	 * 별도 상태 변수를 두지 않고 bIsADSPressed와 조준 모드를 함께 본다 — 키를 누른 채

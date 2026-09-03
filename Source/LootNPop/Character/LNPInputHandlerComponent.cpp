@@ -2,6 +2,7 @@
 
 #include "Character/LNPInputHandlerComponent.h"
 #include "Character/LNPCharacterBase.h"
+#include "Item/LNPWeaponData.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
@@ -196,6 +197,44 @@ void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* Playe
 	}
 }
 
+bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVector& OutAimPoint)
+{
+	if (Pawn == nullptr || !Pawn->IsLocallyControlled())
+		return false;
+
+	const APlayerController* PC = Cast<APlayerController>(Pawn->GetController());
+	UWorld* World = Pawn->GetWorld();
+	if (PC == nullptr || World == nullptr)
+		return false;
+
+	// 발사체를 쏘는 무기를 들었을 때만 트레이스한다. 이 프로젝트에서 전투 판정은 전부 수학이고
+	// 동기 물리 쿼리는 여기 하나뿐이라, 필요 없는 프레임까지 도는 것은 곧 원칙에 대한 예외가 된다.
+	// 조준 모드 태그(IsFreeAimMode)가 아니라 **무기 데이터의 발사체 GE 유무**로 판정하는 이유:
+	// 조준 모드는 무기 기획에 따라 바뀔 수 있고, 원거리인데 FreeAim이 아닌 무기가 하나라도 생기면
+	// 그 무기에서만 조준점이 비어 옛 결함(총구-카메라 평행 오차)이 조용히 되살아난다.
+	const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Pawn);
+	const ULNPWeaponData*    WeaponDef = Character ? Character->GetActiveWeaponDef() : nullptr;
+	if (WeaponDef == nullptr || WeaponDef->ProjectileDamageEffect == nullptr)
+		return false;
+
+	static constexpr float AimTraceDistance = 50000.f;
+
+	FVector  CamPos;
+	FRotator CamRot;
+	PC->GetPlayerViewPoint(CamPos, CamRot);
+
+	const FVector TraceEnd = CamPos + CamRot.Vector() * AimTraceDistance;
+
+	FHitResult Hit;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(Pawn);
+
+	OutAimPoint = World->LineTraceSingleByChannel(Hit, CamPos, TraceEnd, ECC_Visibility, QueryParams)
+		? Hit.ImpactPoint
+		: TraceEnd;
+	return true;
+}
+
 void ULNPInputHandlerComponent::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult)
 {
 	OnProduceInput((float)SimTimeMs, InputCmdResult);
@@ -234,6 +273,14 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	// 락온 타겟도 InputCmd로 보낸다 — 로컬 컴포넌트에만 두면 서버가 원격 클라이언트의 락온을 모른 채
 	// 근접 공격 보정 대상을 자동 탐색으로 고르게 된다 (FLNPModifierInputs::LockOnTarget 주석 참조).
 	ModifierInputs.LockOnTarget = LockOnComponent ? LockOnComponent->GetLockOnTarget() : nullptr;
+
+	// 크로스헤어 조준점도 InputCmd로 보낸다 — 카메라는 로컬 상태라 서버가 스스로 알 방법이 없고,
+	// 서버가 ControlRotation 방향으로만 쏘면 그 광선이 카메라 광선과 평행해 거리와 무관하게
+	// 총구-카메라 간격만큼 빗나간다 (FLNPModifierInputs::AimTargetLocation 주석 참조).
+	FVector CrosshairAimPoint;
+	ModifierInputs.AimTargetLocation = ComputeCrosshairAimPoint(Pawn, CrosshairAimPoint)
+		? CrosshairAimPoint
+		: FVector::ZeroVector;
 
 	if (Pawn->GetController())
 	{

@@ -11,10 +11,14 @@
 #include "MassCommonTypes.h"
 #include "Net/UnrealNetwork.h"
 
-void LNP::Replication::ConfigureParams(FMassReplicationParameters& Params, const float CullDistance)
+void LNP::Replication::ConfigureParams(FMassReplicationParameters& Params,
+	const TSubclassOf<UMassReplicatorBase> ReplicatorClass, const float CullDistance)
 {
+	checkf(ReplicatorClass && ReplicatorClass != ULNPMassReplicator::StaticClass(),
+		TEXT("Each replicated Mass type needs its own ULNPMassReplicator subclass -- see the header comment."));
+
 	Params.BubbleInfoClass = ALNPMassClientBubbleInfo::StaticClass();
-	Params.ReplicatorClass = ULNPMassReplicator::StaticClass();
+	Params.ReplicatorClass = ReplicatorClass;
 
 	// High/Medium/Low 경계는 엔진 기본값 유지 — 이 세 티어는 갱신 주기(UpdateInterval)만 좌우한다.
 	// Off 경계만 시각화 거리에 맞춰 밀어낸다: 엔진 기본 5,000cm는 반지름 25,000cm 월드에서 너무 좁아

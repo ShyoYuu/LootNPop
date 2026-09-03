@@ -9,6 +9,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "GameplayCueManager.h"
+#include "GameFramework/PlayerController.h"
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
@@ -34,6 +35,26 @@ namespace LNPHitDetection
 	{
 		OutHalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 96.f;
 		OutRadius     = Capsule ? Capsule->GetScaledCapsuleRadius()     : 42.f;
+	}
+
+	/**
+	 * 적 엔티티의 판정 캡슐 중심을 좌표 규약에 맞게 되돌린다.
+	 *
+	 * Actor가 붙어 있는 구간(High LOD)에서는 MassAgentCapsuleCollisionSyncTrait(ActorToMass)가
+	 * **캡슐 컴포넌트 Transform을 그대로** Fragment에 넣으므로 Transform 위치가 이미 캡슐 중심이다.
+	 * 여기서 보정을 한 번 더 하면 판정 캡슐이 HalfHeight만큼 떠올라 몸통 아래 절반이 관통한다.
+	 * Actor가 없는 순수 엔티티 경로만 표면점이 들어오므로 그때만 중심으로 올린다.
+	 * (규약 원본: ULNPEnemyMovementProcessor의 "엔티티 Transform의 기준점은 캡슐 중심이다" 주석)
+	 *
+	 * ⚠️ 근접·원거리·디버그 드로우가 모두 이 함수 하나만 쓴다. 같은 분기를 다시 복제하지 말 것 —
+	 *    복제돼 있던 시절 원거리 판정 두 곳이 서로 반대 방향으로 틀어져 있었다.
+	 */
+	inline FVector ResolveEnemyCapsuleCenter(const FVector& EntityLocation, const FVector& UpDir,
+		float CapsuleHalfHeight, const AActor* EnemyActor)
+	{
+		return Cast<ALNPCharacterBase>(EnemyActor)
+			? EntityLocation
+			: EntityLocation + UpDir * CapsuleHalfHeight;
 	}
 }
 
@@ -362,6 +383,34 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 			const float HpAfter = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute());
 			if (0.f < HpBefore)
 				UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
+
+			// [HpDebug] 조사용 임시 계측 — 조사 종료 시 제거한다. 서버가 "실제로 몇 번, 언제 깎았는지"의 기준선.
+			// dist는 **피격자와 가장 가까운 플레이어의 거리(cm)** 다. 액터 릴러번시 기본 반경은
+			// NetCullDistanceSquared = 225000000 → 15000cm(150m)이므로, 이 값이 15000 근처거나 넘으면
+			// 갱신이 드문 이유가 빈도 제한이 아니라 **릴러번시 경계**라는 뜻이다.
+			float NearestPlayerDist = -1.f;
+			if (const UWorld* DbgWorld = EntityManager.GetWorld())
+			{
+				for (FConstPlayerControllerIterator It = DbgWorld->GetPlayerControllerIterator(); It; ++It)
+				{
+					if (const APlayerController* DbgPC = It->Get())
+					{
+						if (const APawn* DbgPawn = DbgPC->GetPawn())
+						{
+							const float D = FVector::Dist(DbgPawn->GetActorLocation(), Victim->GetActorLocation());
+							if (NearestPlayerDist < 0.f || D < NearestPlayerDist)
+								NearestPlayerDist = D;
+						}
+					}
+				}
+			}
+			// 대역폭 포화도는 여기서 재지 않는다 — 히트마다 PlayerController를 전수 순회하는 것 자체가
+			// 부하이고, 주기 계측이 더 정확하다. `LNP.Net.Budget <초>` (ULNPNetBudgetSubsystem) 참조.
+			UE_LOG(LogLootNPop, Log, TEXT("[HpDebug][Srv]  frame=%llu t=%.3f %s hp=%.1f -> %.1f dist=%.0f (cullRadius=%.0f)"),
+				GFrameCounter,
+				EntityManager.GetWorld() ? EntityManager.GetWorld()->GetTimeSeconds() : 0.f,
+				*GetNameSafe(Victim), HpBefore, HpAfter,
+				NearestPlayerDist, FMath::Sqrt(Victim->GetNetCullDistanceSquared()));
 
 			AActor* Attacker = nullptr;
 			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
