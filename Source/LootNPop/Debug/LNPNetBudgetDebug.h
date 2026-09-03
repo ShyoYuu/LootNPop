@@ -14,6 +14,10 @@
  *   - Mass 버블 구성 (전체 / 적 / 그 외) — 엔티티당 단가를 역산하는 분모
  *   - 서버가 실제로 스폰한 Actor 수 (적 / Pod / 주사위) — Actor 승격 비용의 분모
  *
+ * `LNP.Net.BubbleHz <Hz>` 는 버블 액터의 넷 갱신 빈도를 런타임에 바꾼다. **송신량이 변하지 않아야
+ * 정상이다** — Iris는 Dirty로 표시된 오브젝트를 폴 주기와 무관하게 매 프레임 폴링하기 때문이다.
+ * 변한다면 그 판독이 틀렸다는 뜻이므로 갱신 주기 게이트의 기대치를 다시 계산해야 한다.
+ *
  * 클래스·프로퍼티 단위 바이트 분해는 이 로그가 아니라 NetTrace가 한다:
  *   실행 인자 `-trace=net,frame -NetTrace=2` (또는 런타임 `NetTrace.SetTraceVerbosity 2`)
  *   → Unreal Insights의 Networking 탭.
@@ -25,6 +29,7 @@ class LOOTNPOP_API ULNPNetBudgetSubsystem : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 

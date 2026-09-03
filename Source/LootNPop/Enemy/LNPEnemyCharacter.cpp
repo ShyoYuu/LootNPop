@@ -283,23 +283,6 @@ void ALNPEnemyCharacter::SyncToEntity(float& OutHealth, FVector& OutVelocity) co
 
 void ALNPEnemyCharacter::OnHpAttributeChanged(const FOnAttributeChangeData& Data)
 {
-	// [HpDebug] 조사용 임시 계측 — 조사 종료 시 제거한다.
-	// dist는 이 머신의 로컬 플레이어와의 거리(cm). 릴러번시 반경(cullRadius)과 나란히 보면
-	// "갱신이 드문 것"이 빈도 문제인지 경계 문제인지 갈린다.
-	float LocalDist = -1.f;
-	if (const UWorld* DbgWorld = GetWorld())
-	{
-		if (const APlayerController* DbgPC = DbgWorld->GetFirstPlayerController())
-		{
-			if (const APawn* DbgPawn = DbgPC->GetPawn())
-				LocalDist = FVector::Dist(DbgPawn->GetActorLocation(), GetActorLocation());
-		}
-	}
-	UE_LOG(LogLootNPop, Log, TEXT("[HpDebug][Attr] frame=%llu t=%.3f auth=%d %s hp=%.1f dist=%.0f (cullRadius=%.0f)"),
-		GFrameCounter, GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f,
-		HasAuthority() ? 1 : 0, *GetName(), Data.NewValue,
-		LocalDist, FMath::Sqrt(GetNetCullDistanceSquared()));
-
 	RefreshHpBar(Data.NewValue, AttributeSet ? AttributeSet->GetMaxHealth() : 0.f);
 }
 
