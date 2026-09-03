@@ -280,7 +280,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 				const FVector UpDir = (-Loc).GetSafeNormal();
 				AActor*       Actor = ActorFrags[i].GetMutable();
-				const FVector Center = Cast<ALNPCharacterBase>(Actor) ? Loc : Loc + UpDir * HalfH;
+				const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor);
 				ClientTargets.Add({ Actor, Center, UpDir, HalfH, Radius, true });
 			}
 		});
@@ -364,7 +364,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 	// ── Pass 1: Enemy 캡슐 데이터 수집 ────────────────────────────────────────
 	struct FCollectedEnemy
 	{
-		FVector            CapsuleCenter;    // 액터 위치 + UpDir * HalfHeight (캡슐 중심)
+		FVector            CapsuleCenter;    // 판정 캡슐 중심 (LNPHitDetection::ResolveEnemyCapsuleCenter)
 		FVector            UpDir;            // (-Location).GetSafeNormal() — 구형 세계 UP
 		float              CapsuleHalfHeight;
 		float              CapsuleRadius;
@@ -398,11 +398,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 			const FVector UpDir = (-Loc).GetSafeNormal();
 			AActor*       Actor = ActorFrags[i].GetMutable();
-			FVector Center;
-			if (const ALNPCharacterBase* Enemy = Cast<ALNPCharacterBase>(Actor))
-				Center = Loc;
-			else
-				Center = Loc + UpDir * HalfH;
+			const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor);
 			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config });
 		}
 	});
@@ -410,7 +406,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 	// ── Pass 2: Player 캡슐 데이터 수집 ───────────────────────────────────────
 	struct FCollectedPlayer
 	{
-		FVector                CapsuleCenter;  // 액터 위치 + UpDir * HalfHeight (캡슐 중심)
+		FVector                CapsuleCenter;  // 엔티티 Transform 위치 그대로 — 플레이어는 항상 Actor가 있어 이미 캡슐 중심이다
 		FVector                UpDir;          // (-Location).GetSafeNormal()
 		FVector                ForwardVector;  // 패링 각도 계산용
 		float                  CapsuleHalfHeight;

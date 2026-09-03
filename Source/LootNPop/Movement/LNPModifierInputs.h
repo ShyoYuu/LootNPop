@@ -69,6 +69,23 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Combat")
 	TObjectPtr<AActor> LockOnTarget = nullptr;
 
+	/**
+	 * 소유 클라이언트의 크로스헤어가 가리키는 월드 좌표. 로컬 제어 플레이어 폰만 채운다
+	 * (AI·시뮬레이티드 프록시는 ZeroVector로 남는다).
+	 *
+	 * **왜 InputCmd에 실어야 하는가:** 원거리 발사 방향의 원본은 "총구에서 크로스헤어 지점으로"인데,
+	 * 그 지점은 카메라에서 쏜 트레이스의 결과라 **소유 클라이언트만 알 수 있다.** 이 값이 없으면 서버는
+	 * 원격 폰에 대해 ControlRotation 방향으로만 쏘게 되고, 그 광선은 카메라 광선과 **평행**하므로
+	 * 총구와 카메라의 간격만큼 **거리와 무관하게 일정하게 빗나간다** — 게스트가 조준선대로 맞혀도
+	 * 서버 판정이 나지 않던 원인이다. ControlRotation 옆에 두는 이유는 그것이 이미 조준의 원본이기 때문이다.
+	 *
+	 * ⚠️ LockOnTarget과 같은 이유로 **ShouldReconcile에 넣지 않는다** — Mover 시뮬레이션이 읽지 않고
+	 * 어빌리티가 GetLastInputCmd()로 꺼내 쓰는 전달 수단일 뿐이라, 넣으면 조준을 움직일 때마다
+	 * 이동 리시뮬레이션이 돈다.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Combat")
+	FVector AimTargetLocation = FVector::ZeroVector;
+
 	virtual FMoverDataStructBase* Clone() const override
 	{
 		return new FLNPModifierInputs(*this);
@@ -106,6 +123,17 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		else if (Ar.IsLoading())
 		{
 			LockOnTarget = nullptr;
+		}
+		// 조준점도 조건부다 — AI 폰과 시뮬레이티드 프록시는 비트 하나만 쓴다.
+		bool bHasAimTarget = (Ar.IsSaving() ? !AimTargetLocation.IsZero() : false);
+		Ar.SerializeBits(&bHasAimTarget, 1);
+		if (bHasAimTarget)
+		{
+			Ar << AimTargetLocation;
+		}
+		else if (Ar.IsLoading())
+		{
+			AimTargetLocation = FVector::ZeroVector;
 		}
 		bOutSuccess = true;
 		return true;
@@ -149,6 +177,7 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		// 속도는 StateTree가 단계적으로 바꾸는 값(0 / 배회 / 추격)이라 중간값이 의미 없다 — 함께 스냅한다.
 		AIDesiredSpeed = FromInputs.AIDesiredSpeed;
 		LockOnTarget = FromInputs.LockOnTarget;
+		AimTargetLocation = FromInputs.AimTargetLocation;
 	}
 };
 

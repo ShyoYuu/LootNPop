@@ -76,6 +76,12 @@
 - **패링 반사 후:** 반사된 발사체의 Lag Compensation 기준은 방어자다 — 반사 시점에 방어자 RTT/2로 재캐싱.
 - **비용 특성:** 히스토리 버퍼는 피격 대상(Enemy·Player) 쪽에만 존재하고 발사체 자신은 기록하지 않으므로, 발사체가 수백 개 생성·소멸해도 기록 비용이 늘지 않는다.
 
+⚠️ **알려진 한계 — RTT/2는 지연의 전부가 아니다.** 게스트 화면에 그려진 대상의 위치는 편도 지연 위에
+*복제 수신 간격 + 수신값 보간*이 더 얹혀 `RTT/2`보다 더 과거다. 되감기는 `RTT/2`만 갚으므로 **차액만큼은
+구조적으로 보정되지 않는다.** 또한 `GetPingInMilliseconds()`는 순간값이 아니라 엔진이 창 단위로 평균낸
+값이라 급격한 지연 변동을 따라가지 못하고, **리슨 호스트는 자기 Ping이 0이라 되감기량도 0**이다
+(= 이 한계는 게스트 전용이다). 되감기를 키우면 피격자 쪽 "엄폐물 뒤에서 맞았다"가 늘어나는 교환이 붙는다.
+
 **패링 타이밍 RTT 역보정 —** 패링은 위치가 아닌 **입력 타이밍** 판정이므로 위치 되감기와 별개로 처리한다. 서버가 Guard 입력을 수신한 시각에서 방어자 RTT/2를 빼 실제 입력 시각을 복원해 패링 창 만료 시각(`ParryWindowExpiryTime`)을 계산한다. 보정 클램프는 패링 창의 절반(0.075s)으로 보수적 설정.
 
 ### 3.2 클라이언트 예측 — GAS LocalPredicted + Ghost Projectile
@@ -160,9 +166,10 @@
 | LootPod | 60,000 | 월드 전체(반지름 25,000 × 2 = 50,000 초과). Pod은 스폰 1회 페이로드 후 갱신이 0이라, 거리 컬링을 두면 경계 왕복마다 Add/Remove가 반복돼 **오히려 비싸다** |
 | Enemy | 12,000 | 갱신을 지속하므로 이 값이 곧 대역폭 |
 
-개수 캡 `LODMaxCountPerViewer`는 엔진 기본 Low=300이 거리보다 먼저 걸리므로(`AdjustLODFromCount`가 캡에 맞춰 거리를 줄임) 넉넉히 열어 폭주 방지 안전망으로만 남겼다. 가시 범위 제어는 `ReplicationCullDistance` 하나로 일원화한다.
+개수 캡 `LODMaxCountPerViewer`는 엔진 기본 Low=300이 거리보다 먼저 걸리므로(`AdjustLODFromCount`가 캡에 맞춰 거리를 줄임) 넉넉히 열어 폭주 방지 안전망으로만 남겼다. 가시 범위 제어는 `ReplicationCullDistance` 하나로 일원화한다. (`AdjustDistancesFromCountForRuntimeData`는 캡을 **초과**할 때 거리를 줄이기만 하고 늘리지는 않으므로, 캡을 넓게 여는 것 자체는 컬링을 무력화하지 않는다.)
 
-Pod과 Enemy의 값이 다르면 `FMassReplicationSharedFragment`가 타입별로 분리되는데, 엔진이 `ForEachSharedFragment`로 순회하는 정상 구성이며 **버블·리플리케이터는 여전히 하나**라 §7.1 불변식은 유지된다.
+⚠️ **이 두 값이 실제로 타입별로 적용되려면 타입마다 리플리케이터 클래스가 달라야 한다 — §4.6.**
+값을 다르게 적어 두는 것만으로는 분리되지 않는다.
 
 **템플릿 빌드 시점 — Mass 템플릿 warm-up은 `OnWorldBeginPlay` 이후여야 한다 (2026-08-19):**
 
@@ -182,6 +189,7 @@ Pod과 Enemy의 값이 다르면 `FMassReplicationSharedFragment`가 타입별�
 - **시뮬레이티드 프록시 = ForwardPredict** (`Config/DefaultNetworkPrediction.ini`, 2026-08-19 전환). 원격 캐릭터도 로컬 캐릭터와 동일하게 풀 시뮬레이션 후 롤백 보정한다. 기본값이던 `Interpolated`는 수신 프레임 사이를 보간해 재생하므로 구조적으로 항상 과거를 보여준다 — 전환 경위와 근거는 §4.4.
 - **입력 의도 전달:** 질주·가드·대시는 전부 `FLNPModifierInputs`(InputCmd)를 탄다. 예측 파이프라인 바깥에서 상태를 바꾸면 권위가 재현하지 못해 로컬에서만 튀었다가 롤백된다 — 이동 문서 §7.1·§7.6.
 - **시선(발사 피치·Aim Offset):** 신규 RPC·복제 프로퍼티 **0개**로 구현 — 이미 서버에 도착하고 있던 Mover InputCmd의 `ControlRotation`을 소비부만 연결했다 (§4.3). `GetBaseAimRotation()` 오버라이드 단일 진입점으로 서버 발사 방향과 관전자 화면 상체 자세(Aim Offset)가 함께 동기화된다.
+- **조준점(원거리 발사 방향):** 시선 *회전*만으로는 부족하다 — 총구에서 그 방향으로 쏜 광선은 카메라 광선과 **평행**할 뿐 크로스헤어로 수렴하지 않아, 총구-카메라 간격만큼 **거리와 무관하게 일정하게** 빗나간다(게스트 전용 증상이었다: 로컬 제어인 호스트는 수렴 경로를 탔다). 그래서 소유 클라이언트가 크로스헤어 트레이스 지점을 `FLNPModifierInputs::AimTargetLocation`(월드 좌표)에 실어 보내고 **모든 머신이 그 값 하나만 읽는다** — 로컬 클라이언트도 자기 카메라를 다시 트레이스하지 않는다(각자 계산하면 서버 판정과 클라 예측이 그 시차만큼 갈라진다). 방향이 아니라 점을 보내는 이유·15° 클램프 근거는 → [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.7.
   - `UMoverComponent::bSyncInputsForSimProxy`는 **제거했다**(2026-08-19). 보간 프록시가 InputCmd를 못 받는 것을 우회하려고 SyncState에 InputContainer를 동봉하던 옵션인데(엔진 주석에도 "intended to be temporary"로 명시), ForwardPredict에서는 프록시가 실제로 시뮬레이션되어 `CachedLastUsedInputCmd`가 일반 경로에서 채워진다. 매 프레임 실리던 InputContainer 페이로드가 함께 사라졌다.
 - **무기 장착:** 서버 권위 전용. 클라이언트는 `Server_Equip*()` RPC만 보내고 로컬 선반영을 하지 않는다.
   복제되는 단일 원본은 `ULNPEquipmentComponent::WeaponSlot`이며, 비주얼은 거기서 파생된다 — §3.9.
@@ -197,6 +205,24 @@ Pod과 Enemy의 값이 다르면 `FMassReplicationSharedFragment`가 타입별�
 
 - **핸들러는 C++ 우선:** `UGameplayCueNotify_Static::OnExecute`는 `BlueprintNativeEvent`라 C++ `_Implementation` 오버라이드로 그래프 없이 동작한다. 블루프린트 에셋은 부모 클래스+태그+에셋 참조만 지정하는 얇은 래퍼.
 - **타입 안전 컨텍스트:** float 필드에 값을 인코딩하는 대신 `FGameplayEffectContext`를 상속한 `FLNPProjectileImpactContext`(`GetScriptStruct`/`Duplicate`/`NetSerialize` 오버라이드)로 Ghost 키를 전달 — 수신 측이 자기 Ghost를 정확히 정리한다.
+  - ⚠️ 이 규칙의 대상은 **여러 식별자를 한 float에 욱여넣는 인코딩**이다. `HitReact`가 피격 직후 HP를 `RawMagnitude`로 싣는 것은 해당하지 않는다 — 스칼라 하나이고 그 필드의 본래 의미와 일치한다. 값이 둘 이상이 되는 순간 전용 컨텍스트로 옮길 것.
+
+#### 적 HP 바 — 프로퍼티 복제는 계단을 합친다 (2026-09-01)
+
+원격 클라이언트의 적 HP 바를 어트리뷰트 복제에만 맡기면 **연사에서 여러 발이 한 계단으로 합쳐진다.**
+어트리뷰트 복제는 프로퍼티 복제라 "보낼 때의 현재 값"만 보내고 그 사이의 변화는 보내지 않기 때문이다.
+`SetNetUpdateFrequency`를 올려도 발사 간격이 갱신 주기보다 짧아지는 순간 다시 합쳐진다 —
+**빈도로는 해결되지 않는 구조적 성질이다.** (리슨 호스트는 복제 단계가 없어 항상 정확하다.)
+
+그래서 이미 피격마다 나가고 있던 `Character.HitReact` 큐에 **피격 직후 HP(절대값)** 를 실어
+`ALNPCharacterBase::ApplyHitFeedbackHealth`로 표시를 앞당긴다. 새 RPC는 0개다.
+
+- **절대값이라 유실이 누적되지 않는다** — 큐 하나를 잃으면 계단 하나를 건너뛸 뿐, 다음 피격의 큐가
+  곧바로 올바른 값을 들고 온다. 모든 큐가 유실되는 극단에서 정확히 종전(어트리뷰트 복제만) 동작으로
+  수렴하므로 **나빠지는 경우가 없다.** 권위는 여전히 어트리뷰트 쪽이고 큐는 표시만 앞당긴다.
+- MaxHealth는 전투 중 불변이라 싣지 않고 수신 측 로컬 어트리뷰트에서 읽는다 — 변하는 값만 보낸다.
+- 경직의 "게이지는 안 보내고 결과만 보낸다"와 같은 판단이다: 상태를 통째로 복제하는 대신
+  **결과를 이벤트로** 보낸다.
 
 #### 경직 — 게이지는 안 보내고 결과만 보낸다 (2026-08-29)
 
@@ -362,6 +388,104 @@ PC가 버벅이는 상태에서 `-game` 2프로세스로 플레이하니 게스�
 - ⚠️ **호스트 히치는 실환경에도 남는다.** 리슨 서버 호스트가 곧 플레이어라, 호스트가 히치하면(GC 스파이크·레벨 스트리밍·Mass 스폰 버스트) 누적 시간만큼 고정 틱을 몰아 처리하며 **접속한 전원의 버퍼를 동시에 굶긴다.**
 - 구분: 특정 클라만 튀면 그 클라의 환경 문제, **전원이 동시에 튀면 호스트 히치.** 프레임이 멀쩡한데 특정 월드 위치에서만 반복되면 그것은 SyncState 누락에 의한 진짜 발산이므로 별건으로 파야 한다.
 - 관측: `LogNetworkPrediction` verbosity를 Log로 올리면 롤백 프레임 로그가 찍히고(`RollbackFrame %d AHEAD of PendingFrame %d` — `NetworkPredictionWorldManager.cpp:227`), Network Prediction Insights 트레이스에는 fault가 별도 이벤트로 남는다.
+
+### 4.6 복제 컬 거리가 통째로 무력했다 — 공유 프래그먼트 CRC 충돌 (2026-09-02)
+
+**증상.** 눈에 보이는 증상이 없었다. 게스트 화면은 정상이고 크래시도 경고도 없다.
+드러난 곳은 대역폭이었다 — **교전이 전혀 없는 2인 대기 상태에서 클라이언트당 송신량이 약 1.1 MB/s.**
+
+**측정.** 절제(ablation)로 소비처를 갈랐다. Mass 버블의 위치/자세 Dirty만 껐다 켰다 하며 같은 세션에서 비교:
+
+| 버블 갱신 | 송신량 |
+|:---|---:|
+| 중단 | **약 22 KB/s** — 플레이어 폰 Mover NP, PlayerState/ASC, GameState, 적 Actor, 큐 **전부 합쳐서** |
+| 정상 | **823 KB/s ~ 1.32 MB/s** |
+
+→ **버블이 98%.** 이어서 버블 에이전트를 뷰어 기준 거리로 분류하니 원인이 드러났다:
+
+```
+bubble=478   dist: <12k=21  12-24k=103  >24k=354  max=49,062cm
+```
+
+`ULNPEnemyTrait::ReplicationCullDistance = 12,000`인데 **12,000 안에는 21개뿐이고 354개가 24,000 밖,
+최대 490m — 반지름 250m 구의 정반대편이다.** 적 351기 전원이 모든 클라이언트 버블에 들어 있었다.
+
+**원인.** `UMassReplicationTrait::BuildTemplate`(`MassReplicationTrait.cpp:44`)은
+`FMassReplicationSharedFragment`를 **자기 자신의 리플렉션 CRC**로 중복 제거한다:
+
+```cpp
+FMassReplicationSharedFragment ReplicationFragment(*ReplicationSubsystem, Params);
+EntityManager.GetOrCreateSharedFragment(*FMassReplicationSharedFragment::StaticStruct(),
+                                        reinterpret_cast<uint8*>(&ReplicationFragment));
+```
+
+그런데 이 구조체의 UPROPERTY는 둘뿐이고, **LOD 거리를 들고 있는 `LODCalculator`·`LODCollector`·
+`BubbleInfoClassHandle`은 UPROPERTY가 아니라 CRC에 들어가지 않는다.**
+
+| UPROPERTY | 빌드 시점 값 |
+|:---|:---|
+| `TArray<TObjectPtr<AMassClientBubbleInfoBase>> BubbleInfos` | 빈 배열 (클라이언트 접속 전) |
+| `TObjectPtr<UMassReplicatorBase> CachedReplicator` | `Params.ReplicatorClass`의 **CDO** |
+
+이 프로젝트는 §3.5의 단일 버블 통합 때문에 **전 타입이 `ULNPMassReplicator` 하나를 공유**했다.
+→ Enemy(12,000)·LootPod(60,000)·Player(1,000,000)의 CRC가 **완전히 동일** →
+`FindOrAdd`가 먼저 만들어진 하나를 전원에게 돌려줌 → **먼저 빌드된 LootPod의 60,000cm(600m)가
+적에게도 적용**되고, 그것이 250m 월드 전체를 덮었다.
+
+**해결 — 타입마다 리플리케이터 클래스를 나눈다.** `CachedReplicator`는 CRC에 들어가는 UPROPERTY이고
+`GetStructInstanceCrc32`는 `SerializeItem`으로 태그드 프로퍼티를 훑으며 오브젝트를 **포인터 기준**으로
+해싱하므로, CDO가 다르면 CRC가 갈린다.
+
+```cpp
+// 요구사항이 베이스와 같아 동작은 하나도 다르지 않다. 나누는 이유는 CRC 분리다.
+UCLASS() class ULNPEnemyReplicator   : public ULNPMassReplicator { GENERATED_BODY() };
+UCLASS() class ULNPLootPodReplicator : public ULNPMassReplicator { GENERATED_BODY() };
+```
+
+**이 구성은 우회가 아니라 정석 복귀다.** 엔진이 타입을 가르라고 설계한 축이 바로 리플리케이터다 —
+`UMassReplicationProcessor::PrepareExecution`이 공유 프래그먼트마다 전용 쿼리를 만들어 자기 청크로
+한정하고 그 요구사항을 `CachedReplicator->AddRequirements`로 채우며, 엔진 주석도
+*"derive from this per entity type"*(`MassReplicationProcessor.h:23`)이라고 적어 두었다.
+정석대로 타입마다 서브클래스를 두었다면 이 결함은 **애초에 발화하지 않았다.**
+(동기는 구분해 둔다 — 정석의 동기는 *쿼리 요구사항 차이*, 여기서의 동기는 *해시 분리*다.
+형태는 정석, 동기는 우회.)
+
+`LNP::Replication::ConfigureParams`가 `ReplicatorClass`를 인자로 받고, 베이스를 그대로 넘기면
+`checkf`로 막는다 — 새 복제 타입을 추가하면서 전용 서브클래스를 빠뜨리는 것이 유일한 재발 경로이기 때문이다.
+플레이어 엔티티는 `DA_PlayerEntityConfig`가 베이스를 직접 참조하므로 그 클래스가 플레이어 전용 CDO가 된다
+(그래서 베이스를 `Abstract`로 두지 않는다).
+
+⚠️ **§3.5의 단일 스트림 불변식과 충돌하지 않는다 — 단, 제약의 단위는 버블 클래스가 아니라
+핸들 발급자(`TClientBubbleHandlerBase` 인스턴스)다.** `AgentHandleManager`가 핸들러의 인스턴스 멤버라
+버블이 하나여도 핸들러가 여럿이면 똑같이 깨진다. 이 프로젝트는 `FLNPMassClientBubbleSerializer`가
+`FLNPMassClientBubbleHandler`를 하나만 들고 있어 안전하다 — 파괴 루프가 만지는 핸들은 항상 그 하나가
+발급한 것이고, 처리 후 `AgentData.Invalidate()`가 걸려 2회차 이후는 건너뛴다(멱등).
+
+**대가는 CPU다.** 파괴 루프가 순회하는 클라이언트 장부는 청크 필터가 걸리지 않은 공용 자료구조라,
+리플리케이터를 N개로 나누면 넷 틱마다 장부 전체를 N번 순회한다 — **O(N × 장부 크기).**
+현재 N=3, 장부 약 135개라 무시할 수준이지만 타입·엔티티가 크게 늘면 다시 재야 한다.
+
+**부수 효과 — 개수 캡이 타입별 독립 예산이 된다.** `LODMaxCount*`와 `AdjustLODFromCount`의 거리 보정은
+공유 프래그먼트 단위로 계산되므로, 분리 이후 `LODMaxCountPerViewer`는 타입마다 따로 적용된다.
+현재 값(500/2000/10000)은 실제 개체 수보다 훨씬 커서 영향이 없지만, 이 값을 조이게 되면
+"전 타입 합산 예산"이 아니라 "타입별 예산"임을 전제로 잡아야 한다.
+
+> **엔진 트레잇을 상속해 고치는 방향은 불가능하다.** `FMassReplicationSharedFragment`의 생성자가
+> 모듈 밖으로 export되지 않아, 해시 원본을 따로 받는 오버로드(`MassEntityManager.h`의
+> `GetOrCreateSharedFragment(FConstStructView HashingHelperStruct, TArgs&&...)`)를 쓰려 해도
+> 링크 단계에서 `LNK2019`가 난다. 엔진 수정 없이 가능한 경로는 CDO 분리뿐이다.
+
+**효과 (2P Standalone 대기 시나리오 실측):**
+
+| | 수정 전 | 수정 후 |
+|:---|---:|---:|
+| 버블 에이전트 | 478 (Pod 119 / 근접적 238 / 원거리적 119 / 플레이어 2) | **135** (Pod 115 / 근접적 12 / 원거리적 6 / 플레이어 2) |
+| 대기 송신량 | 1,005,000 ~ 1,331,000 B/s | **54,000 ~ 112,000 B/s** |
+
+**교훈 — "값을 다르게 적었으니 분리됐겠지"를 검증 없이 믿지 말 것.**
+이 결함은 크래시도 경고도 없고 화면상 증상도 없다. 드러난 유일한 경로가 대역폭 계측이었다.
+같은 성질의 함정이 `FMassReplicationSharedFragment` 외의 공유 프래그먼트에도 있을 수 있다 —
+**구성값이 UPROPERTY가 아닌 공유 프래그먼트는 전부 같은 방식으로 뭉개진다.**
 
 ---
 

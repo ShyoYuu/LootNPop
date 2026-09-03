@@ -10,6 +10,7 @@
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/LNPStatModifier.h"
 #include "UI/LNPHpBarWidget.h"
+#include "LootNPop.h"
 
 #include "AbilitySystemComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -23,6 +24,16 @@ ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializ
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 	SetNetUpdateFrequency(30.f);
+
+	// ⚠️ **Actor 릴러번시는 반드시 버블 컬 거리(ULNPEnemyTrait::ReplicationCullDistance = 12,000)보다
+	//    작아야 한다.** 이 Actor는 UMassAgentComponent로 Mass 엔티티에 퍼펫 링크되는데, 엔진은
+	//    "Actor가 살아 있는 동안 엔티티는 유효하다"를 전제로 상태 일관성을 검사한다
+	//    (UMassAgentComponent::DebugCheckStateConsistency — PuppetPaused 상태에서 엔티티 무효면 assert).
+	//    릴러번시가 더 크면 그 사이 구간에서 **엔티티만 버블에서 빠지고 Actor는 남아** 퍼펫 핸들이 뜬다.
+	//    엔진 기본값 15,000(150m)을 그대로 두면 120~150m가 정확히 그 구간이 된다.
+	//    8,000은 표현 LOD의 Actor 스폰 거리(6,000)와 추격 반경(5,000)을 덮으면서
+	//    버블 컬의 히스테리시스 하한(12,000×0.9 = 10,800)보다 충분히 아래다.
+	SetNetCullDistanceSquared(8000.f * 8000.f);
 
 	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("ASC"));
 	ASC->SetIsReplicated(true);
@@ -272,6 +283,23 @@ void ALNPEnemyCharacter::SyncToEntity(float& OutHealth, FVector& OutVelocity) co
 
 void ALNPEnemyCharacter::OnHpAttributeChanged(const FOnAttributeChangeData& Data)
 {
+	// [HpDebug] 조사용 임시 계측 — 조사 종료 시 제거한다.
+	// dist는 이 머신의 로컬 플레이어와의 거리(cm). 릴러번시 반경(cullRadius)과 나란히 보면
+	// "갱신이 드문 것"이 빈도 문제인지 경계 문제인지 갈린다.
+	float LocalDist = -1.f;
+	if (const UWorld* DbgWorld = GetWorld())
+	{
+		if (const APlayerController* DbgPC = DbgWorld->GetFirstPlayerController())
+		{
+			if (const APawn* DbgPawn = DbgPC->GetPawn())
+				LocalDist = FVector::Dist(DbgPawn->GetActorLocation(), GetActorLocation());
+		}
+	}
+	UE_LOG(LogLootNPop, Log, TEXT("[HpDebug][Attr] frame=%llu t=%.3f auth=%d %s hp=%.1f dist=%.0f (cullRadius=%.0f)"),
+		GFrameCounter, GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f,
+		HasAuthority() ? 1 : 0, *GetName(), Data.NewValue,
+		LocalDist, FMath::Sqrt(GetNetCullDistanceSquared()));
+
 	RefreshHpBar(Data.NewValue, AttributeSet ? AttributeSet->GetMaxHealth() : 0.f);
 }
 

@@ -75,6 +75,15 @@ public:
 	USkeletalMeshComponent* GetWeaponMesh()   const { return WeaponMesh;       }
 	UAnimInstance*          GetAnimInstance() const { return AnimSourceMesh ? AnimSourceMesh->GetAnimInstance() : nullptr; }
 
+	/**
+	 * 크로스헤어 조준점(월드). 있으면 true.
+	 *
+	 * GetBaseAimRotation과 짝을 이루는 조준 원본이다 — 회전만으로는 총구에서 쏘는 광선이
+	 * 카메라 광선과 평행해질 뿐 크로스헤어로 수렴하지 않아, 총구-카메라 간격만큼 일정하게 빗나간다.
+	 * 컨트롤러가 없는 사수(적 NPC)는 조준점 개념이 없으므로 기본 구현은 false를 돌려준다.
+	 */
+	virtual bool GetAimTargetLocation(FVector& OutAimTarget) const { return false; }
+
 	/** 방향만 담는다 — 단위 벡터 또는 영벡터. 속도는 SetAIDesiredSpeed로 (사유: 입력 핸들러 주석). */
 	void SetAIMoveInput(FVector InMoveInput);
 	void SetAIOrientationIntent(FVector InOrientationIntent);

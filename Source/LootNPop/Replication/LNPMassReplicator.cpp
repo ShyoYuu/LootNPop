@@ -4,6 +4,20 @@
 #include "Replication/LNPMassReplication.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "MassExecutionContext.h"
+#include "HAL/IConsoleManager.h"
+
+namespace
+{
+	// [I-009] 조사용 임시 절제(ablation) 스위치 — 조사 종료 시 제거한다.
+	// 1이면 버블의 위치/자세 갱신을 통째로 멈춘다. 켠 구간과 끈 구간의 송신량 차이가
+	// 곧 "Mass 버블이 쓰는 실제 바이트"다. 추정 대신 뺄셈으로 얻는다.
+	TAutoConsoleVariable<int32> CVarFreezeBubble(
+		TEXT("LNP.Net.FreezeBubble"),
+		0,
+		TEXT("Ablation switch for bandwidth investigation. 1 = stop dirtying Mass bubble transforms.\n")
+		TEXT("Entities will stop moving on clients. Server-side simulation is unaffected."),
+		ECVF_Cheat);
+}
 
 void ULNPMassReplicator::AddRequirements(FMassEntityQuery& EntityQuery)
 {
@@ -54,6 +68,10 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 		// Enemy만 매 갱신 위치/자세를 반영한다 — 서버 AI가 매 틱 이동시키기 때문.
 		// Player·LootPod은 스폰 이후 갱신 없음(지속 위치는 Actor 복제 채널 담당) — no-op으로 bubble 갱신 트래픽 없음.
 		if (EnemyFragments.IsEmpty())
+			return;
+
+		// [I-009] 조사용 절제 스위치 — 조사 종료 시 이 두 줄을 제거한다.
+		if (0 != CVarFreezeBubble.GetValueOnAnyThread())
 			return;
 
 		ALNPMassClientBubbleInfo& BubbleInfo = RepSharedFrag->GetTypedClientBubbleInfoChecked<ALNPMassClientBubbleInfo>(ClientHandle);

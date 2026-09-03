@@ -34,14 +34,14 @@
 | .context/GameDesign_InGameMenu.md | 인게임 메뉴 — 탭 구조, 게임패드 조작, 캐릭터 스탯·인벤토리·환경설정 탭 기획 |
 | .context/TechDesign_InGameMenu.md | CommonUI 위젯 계층, Back 전파 규칙, 커스텀 힌트 바·입력 글리프, 스탯 합/곱 분해, 로컬라이제이션, PIE 2인 게임패드 라우팅 |
 | .context/TechDesign_Inventory.md | 아이템 인스턴스 모델(UObject+FastArray+등록 서브오브젝트), GameplayTagStack 스탯, 장착/보관 분리, 버프 인스턴스 흐름 |
-| .context/TechDesign_HitDetection.md | 근접 Swept Volume·원거리 Line Segment 판정 (근접·원거리·패링 연계 구현 완료, 공간 쿼리 최적화 미구현) |
-| .context/TechDesign_Networking.md | 멀티플레이 네트워킹 — Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 엔진 소스 분석 이슈 5건 |
+| .context/TechDesign_HitDetection.md | 근접 Swept Volume·원거리 Line Segment 판정, 판정 캡슐 중심 규약 단일 헬퍼, 조준 원본 단일화(서버가 클라 조준점을 읽음), 공간 쿼리 최적화 미구현 |
+| .context/TechDesign_Networking.md | 멀티플레이 네트워킹 — Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 엔진 소스 분석 이슈 6건(복제 컬 거리 무력화 포함) |
 | .context/GameDesign_ParrySystem.md | 패링 성공 조건, 투사체 타입별 반사, 플레이어 경험 의도 |
 | .context/TechDesign_ParrySystem.md | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 방안 |
 | .context/EngineAnalysis_SlateUMG.md | Unreal Engine의 Slate·UMG 분석 — 레이아웃 2패스, 슬롯 개념, 위젯 수명주기, 애니메이션·드래그앤드롭, Invalidation·Retainer 성능 |
 | .context/EngineAnalysis_MVVM.md | Unreal Engine의 ModelViewViewModel 분석 — FieldNotify 통지, 바인딩·실행 모드, ViewModel 주입 6종, 리스트 한계 |
 | .context/EngineAnalysis_CommonUI.md | Unreal Engine의 CommonUI 분석 — 화면 활성화·Back 전파, 입력 액션/모드, 스타일 에셋, 탭·리스트 함정 |
 | .context/EngineAnalysis_MassEntity.md | Unreal Engine의 MassEntity 분석 — Archetype/Fragment 구조, 프로세서 실행 스케줄링, 지연 커맨드 버퍼, 스레드 안전성 |
-| .context/EngineAnalysis_MassReplication.md | Unreal Engine의 Mass Replication 분석 — 버블 구조, 서버/클라 복제 흐름, 다중 버블 파괴 경로 함정 |
+| .context/EngineAnalysis_MassReplication.md | Unreal Engine의 Mass Replication 분석 — 버블 구조, 서버/클라 복제 흐름, 다중 버블 파괴 경로·공유 프래그먼트 CRC 함정 |
 | .context/EngineAnalysis_MassStateTree.md | Unreal Engine의 StateTree - MassBehavior 분석 — 노드 베이스 API, Mass 실행·신호 시스템, 하이브리드 제어 전략 |
 | .context/EngineAnalysis_MoverArchitecture.md | Unreal Engine의 Mover 2.0 분석 — 이동 모드·모디파이어·인스턴트 효과·레이어드 무브 결정 매트릭스, 시뮬레이션 틱 순서 |

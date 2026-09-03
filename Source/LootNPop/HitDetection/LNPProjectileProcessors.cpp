@@ -270,8 +270,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
-				const FVector Loc = Transforms[i].GetTransform().GetLocation();
-				ClientTargets.Add({ ActorFrags[i].GetMutable(), Loc, (-Loc).GetSafeNormal(), HalfH, Radius, true, INDEX_NONE });
+				const FVector Loc   = Transforms[i].GetTransform().GetLocation();
+				const FVector UpDir = (-Loc).GetSafeNormal();
+				AActor*       Actor = ActorFrags[i].GetMutable();
+				ClientTargets.Add({ Actor, LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor),
+					UpDir, HalfH, Radius, true, INDEX_NONE });
 			}
 		});
 
@@ -354,7 +357,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	// ── Pass 1: Enemy 캡슐 데이터 수집 ────────────────────────────────────────
 	struct FCollectedEnemy
 	{
-		FVector            CapsuleCenter;    // 액터 위치 + UpDir * HalfHeight (캡슐 중심)
+		FVector            CapsuleCenter;    // 판정 캡슐 중심 (LNPHitDetection::ResolveEnemyCapsuleCenter)
 		FVector            UpDir;            // (-Location).GetSafeNormal() — 구형 세계 UP
 		float              CapsuleHalfHeight;
 		float              CapsuleRadius;
@@ -387,7 +390,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		{
 			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 			const FVector UpDir = (-Loc).GetSafeNormal();
-			Enemies.Add({ Loc + UpDir * HalfH, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), ActorFrags[i].GetMutable(), Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config });
+			AActor*       Actor = ActorFrags[i].GetMutable();
+			Enemies.Add({ LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor), UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config });
 		}
 	});
 
@@ -915,12 +919,8 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 			if (!IsNearAnyPlayer(Location, MeleeProximityDistSq))
 				continue;
 
-			const FVector UpDir = (-Location).GetSafeNormal();
-			FVector Center;
-			if (const ALNPCharacterBase* Enemy = Cast<ALNPCharacterBase>(ActorFrags[i].Get()))
-				Center = Location;
-			else
-				Center = Location + UpDir * HalfHeight;
+			const FVector UpDir  = (-Location).GetSafeNormal();
+			const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Location, UpDir, HalfHeight, ActorFrags[i].Get());
 
 			const FVector TopSphere = Center + UpDir * CylHalfLen;
 			const FVector BotSphere = Center - UpDir * CylHalfLen;

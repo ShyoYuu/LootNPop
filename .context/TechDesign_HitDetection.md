@@ -32,7 +32,7 @@
 | `LNPProjectileProcessors.h/.cpp` | Movement → HitDetection → Visualization → Destruction 4단 + 에디터 DebugDraw |
 | `LNPWeaponTraceMassTypes.h` | `FLNPWeaponTraceFragment` (칼날 4점 + 반경 + TTL + AlreadyHit) |
 | `LNPWeaponTraceProcessors.h/.cpp` | HitDetection + Lifetime(TTL 안전장치) + 에디터 DebugDraw |
-| `LNPHitDetectionShared.h` | 후처리 BatchedCommand 4종 + ASC/캡슐 헬퍼 |
+| `LNPHitDetectionShared.h` | 후처리 BatchedCommand 4종 + ASC/캡슐 헬퍼 (`GetCapsuleSize`, `ResolveEnemyCapsuleCenter` — §7.6) |
 | `LNPGuardParryTypes.h` | `FLNPParryStateFragment` (가드/패링 상태 Mass 미러) |
 | `Animation/ANS_LNPMeleeHitWindow` | 근접 히트 윈도우 — Mass 엔티티 수명 관리 + 본 위치 기록 |
 
@@ -114,8 +114,12 @@ FinishHit (공통 후처리 람다):
 ### 3.3 발사 (ULNPAbility_RangedAttack)
 
 - 스폰 위치: 무기 메시 `Muzzle` 소켓 (+ `MuzzleOffset`).
-- 발사 방향: 로컬 컨트롤이면 카메라 크로스헤어 LineTrace 수렴점, 서버의 원격 플레이어면 복제된 `GetBaseAimRotation()` (카메라가 서버에 없으므로).
+- 발사 방향: **총구 → 조준점**으로 수렴시킨다. 조준점(`ALNPCharacterBase::GetAimTargetLocation`)은
+  소유 클라이언트가 카메라 크로스헤어 트레이스로 만들어 Mover InputCmd에 실어 보낸 월드 좌표이고,
+  **서버·클라이언트가 모두 그 값 하나만 읽는다.** 조준점이 없는 사수(적 NPC)만 `GetBaseAimRotation()`으로 폴백한다.
+  → 이 단일화의 근거는 §7.7.
 - 산탄(`ULNPAbility_RangedSpreadAttack`): Cube 좌표계 육각 링 순회로 중앙 1 + 링 2 = **19발** 방사형 배치.
+  기준 방향 하나에서 난수 없이 전부 파생되므로 조준 보정이 패턴 전체에 그대로 전파된다.
 - 네트워크 예측 식별자(PredictionKey/SalvoID), Ghost 등록, 관전자 방송: → [TechDesign_Networking.md](TechDesign_Networking.md)
 
 ---
@@ -182,6 +186,57 @@ Chaos 콜리전 이벤트 대신 순수 수학 판정(Swept Quad·선분-캡슐)
 ### 7.5 근접 PvP 패링 누락 버그 — 분기 복제의 위험
 
 과거 "Enemy→Player"와 "Player→Player(아군 사격)" 분기가 복제된 코드였을 때, PvP 쪽에만 패링·가드 체크가 누락되어 근접 PvP에서 패링이 무시됐다 (Networking Phase 3에서 발견). 두 분기를 단일 람다로 통합해 재발을 구조적으로 차단했다.
+
+### 7.6 판정 캡슐 중심 규약 — 단일 헬퍼로 강제
+
+**적 엔티티의 Transform 위치는 발밑이 아니라 캡슐 중심이다.** Actor가 붙은 구간에서는
+`MassAgentCapsuleCollisionSyncTrait`(ActorToMass)가 캡슐 컴포넌트 Transform을 그대로 넣기 때문이다.
+따라서 판정 캡슐 중심을 구할 때 **Actor가 없는 순수 엔티티만** `+ Up*HalfHeight` 보정이 필요하다.
+
+```cpp
+LNPHitDetection::ResolveEnemyCapsuleCenter(EntityLocation, UpDir, HalfH, EnemyActor)
+```
+
+이 분기가 근접·원거리·디버그 드로우 5곳에 **복제돼 있던 동안 원거리 두 곳이 서로 반대 방향으로
+틀어져 있었다** — 서버는 무조건 보정해 High LOD 적의 판정 캡슐이 96cm 떠올랐고(몸통 아래 절반이
+관통, 머리 위 빈 공간이 명중), 클라이언트 예측은 보정을 아예 안 해 Low LOD에서 반대로 어긋났다.
+증상은 "게스트가 분명히 맞혔는데 HP가 안 깎인다"로 나타났다. 클라이언트 예측이 *올바른* 캡슐로
+판정해 임팩트 VFX를 띄우는 바람에 **거짓 명중 확인**까지 겹쳐 원인 추적이 늦어졌다.
+
+⚠️ **§7.5와 같은 교훈이다 — 같은 판정식을 두 곳에 적으면 언젠가 갈라진다.** 새 판정 경로를
+추가할 때 이 분기를 다시 쓰지 말고 헬퍼를 호출할 것.
+
+### 7.7 조준 원본 단일화 — 서버가 클라이언트의 조준점을 읽는다
+
+발사 방향을 로컬/원격으로 분기해 각자 계산하던 시절, 서버의 원격 폰은 `GetBaseAimRotation()`
+방향으로만 쐈다. **그 광선은 카메라 광선과 평행할 뿐 크로스헤어로 수렴하지 않으므로, 총구와
+카메라의 간격만큼 거리와 무관하게 일정하게 빗나간다.** 총구 소켓이 오른손에 있어 오차는 가로
+방향이었고, 로컬 제어인 리슨 호스트는 해당이 없어 **게스트에서만** 나타났다.
+
+해결은 계산을 잘하는 것이 아니라 **원본을 하나로 만드는 것**이다. 소유 클라이언트가
+`FLNPModifierInputs::AimTargetLocation`에 크로스헤어 지점을 실어 보내고, 모든 머신이 그 값을 읽는다.
+**로컬 클라이언트도 자기 카메라를 다시 트레이스하지 않는다** — 각자 최선을 계산하는 순간
+서버 판정과 클라 예측이 그 시차만큼 갈라지기 때문이다.
+
+| 판단 | 근거 |
+|:---|:---|
+| 방향이 아니라 **점**을 보낸다 | 총구 소켓 위치는 애니메이션 포즈에 따라 서버·클라가 다르다. 방향을 보내면 서버가 *자기* 총구에서 그 방향으로 쏴 평행 오차가 되살아난다. 점이면 서버가 자기 총구에서 같은 점으로 수렴한다 |
+| 전송은 **Mover InputCmd** | 새 RPC 없음, 채널 간 순서 문제 없음. 이미 조준의 원본인 `ControlRotation` 바로 옆이며 `LockOnTarget`과 같은 선례 |
+| 클램프 **15°** | 조준 회전 자체가 이미 클라이언트 권위라 새로 생기는 권위는 없다. 여기서 메우는 것은 총구-카메라 시차뿐이므로 몇 도면 충분하고, 넘으면 조작으로 보고 시선 회전으로 되돌린다 |
+
+⚠️ `ShouldReconcile`에는 넣지 않는다 — Mover 시뮬레이션이 읽지 않는 전달용 필드라,
+넣으면 조준을 움직일 때마다 이동 리시뮬레이션이 돈다 (`LockOnTarget`과 동일).
+
+**조준점 트레이스는 이 프로젝트의 유일한 동기 물리 쿼리다** (§7.1의 "물리 엔진 없는 판정"에 대한
+의도적 예외). 발사 프레임에만 채우지 않는 이유는, 서버가 발사 RPC를 처리하는 시점의
+`GetLastInputCmd()`가 **발사한 그 프레임의 cmd라는 보장이 없기** 때문이다 — 이웃 틱을 읽으면
+조준점이 비어 폴백으로 떨어지고 위 결함이 간헐적으로 되살아난다. 대신 **발사체 무기를 들었을
+때만**(`ULNPWeaponData::ProjectileDamageEffect` 유무) 돌게 게이팅해 근접 플레이 중에는 0회다.
+조준 모드 태그가 아니라 무기 데이터로 판정하는 이유는, 원거리인데 FreeAim이 아닌 무기가 생기면
+그 무기에서만 조용히 결함이 되살아나기 때문이다.
+
+트레이스 없이 고정 거리(예: 500m) 지점을 조준점으로 쓰는 방법은 **성립하지 않는다** —
+수렴 거리가 실제 표적 거리 근처여야 하므로, 30m 표적에서는 원래 오차의 약 94%가 그대로 남는다.
 
 ---
 

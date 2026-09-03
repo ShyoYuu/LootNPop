@@ -6,6 +6,7 @@
 #include "GAS/LNPStatModifier.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "Replication/LNPMassReplication.h"
+#include "Replication/LNPMassReplicator.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "GAS/LNPPoiseTypes.h"
 
@@ -91,9 +92,10 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 
 	// 5. Enemy MassReplication (Phase 6) — NM_Standalone이면 UMassReplicationTrait::BuildTemplate이 자체적으로 조기 반환한다.
 	//    Params는 DA에서 편집된 ReplicationCullDistance를 반영해야 하므로 생성자가 아니라 여기서 채운다.
-	//    Pod과 값이 다르면 FMassReplicationSharedFragment가 타입별로 분리되는데, 엔진이
-	//    ForEachSharedFragment로 순회하는 정상 구성이며 버블·리플리케이터는 여전히 하나다 (§7.1 불변식 유지).
-	LNP::Replication::ConfigureParams(ReplicationTrait->Params, ReplicationCullDistance);
+	//    ⚠️ ULNPEnemyReplicator는 동작이 아니라 **타입 분리**를 위해 존재한다 — 리플리케이터 클래스가
+	//    Pod과 같으면 엔진의 공유 프래그먼트 중복 제거가 두 타입을 하나로 합쳐 컬 거리가 뭉개진다.
+	//    근거·실측은 LNP::Replication::ConfigureParams 주석.
+	LNP::Replication::ConfigureParams(ReplicationTrait->Params, ULNPEnemyReplicator::StaticClass(), ReplicationCullDistance);
 	ReplicationTrait->BuildTemplate(BuildContext, World);
 
 	// 6. 클라이언트 전용 — 복제 수신(0.1~0.3초 간격) 사이를 메우는 보간 상태.
