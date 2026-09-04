@@ -25,7 +25,49 @@
 #include "MassReplicationFragments.h"
 #include "MassEntityTemplate.h"
 #include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
 #include "Kismet/KismetMathLibrary.h"
+
+namespace
+{
+	/**
+	 * 적 밀도 배수 — 부하·성능 측정용 개발 스위치. 기본값 1이면 완전한 no-op이다.
+	 *
+	 * 스폰 에셋(ULNPMassSpawnConfig)을 고치지 않고 적 수만 배수로 올린다 — 에셋을 건드리면
+	 * 재저장이 필요하고 그 상태로 다른 검증까지 오염된다. Pod 수는 그대로 두어 비적 엔티티 수를
+	 * 고정하고, **적 축 하나만** 움직인다.
+	 *
+	 * ⚠️ 스폰은 월드 개시 직후 한 번뿐이라 콘솔로 바꾸기엔 늦다. **서버 실행 인자로 준다:**
+	 *     -LNPEnemyDensity=8
+	 *
+	 * ⚠️ `-dpcvars=LNP.Spawn.EnemyDensity=8`은 **먹지 않는다**(2026-09-04 실측). 디바이스 프로파일이
+	 * 이 CVar을 만나는 시점에 게임 모듈이 아직 등록되지 않아 더미 변수만 생기고(로그: *deferred -
+	 * dummy variable created*), 값이 실제 CVar로 넘어오지 않았다. 그래서 커맨드라인을 직접 읽는다.
+	 *
+	 * ⚠️ 높은 배수는 게스트 크래시를 재현시킨 이력이 있다(퍼펫 링크가 이미 점유된 FMassActorFragment에
+	 * 붙는 결함). 밀도를 올려 측정할 때는 그 점을 먼저 확인할 것.
+	 */
+	TAutoConsoleVariable<float> CVarSpawnEnemyDensity(
+		TEXT("LNP.Spawn.EnemyDensity"),
+		1.f,
+		TEXT("Multiplier applied to every enemy Count in the spawn config, at world start. Server only.\n")
+		TEXT("  1  : use the asset's counts (default)\n")
+		TEXT("  8  : spawn eight times as many enemies per pod, pod count unchanged\n")
+		TEXT("Spawning happens once at world start, so the console is too late. Pass '-LNPEnemyDensity=8'\n")
+		TEXT("on the server command line instead; that overrides this variable."),
+		ECVF_Cheat);
+
+	/** 위 CVar의 커맨드라인 우선 경로. 인자가 없으면 CVar 값을 그대로 쓴다. */
+	float GetEnemySpawnDensity()
+	{
+		float FromCommandLine = 0.f;
+		if (FParse::Value(FCommandLine::Get(), TEXT("LNPEnemyDensity="), FromCommandLine))
+		{
+			return FMath::Max(0.f, FromCommandLine);
+		}
+		return FMath::Max(0.f, CVarSpawnEnemyDensity.GetValueOnGameThread());
+	}
+}
 
 void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -245,6 +287,9 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		TArray<FEnemyEntry> Enemies;
 	};
 
+	// 개발용 적 밀도 배수 (기본 1 = no-op). 근거는 CVarSpawnEnemyDensity 주석 참조.
+	const float EnemyDensity = GetEnemySpawnDensity();
+
 	TArray<FPodSetBuildParams> SetParams;
 	for (const FLNPLootPodSpawnEntry& PodSet : InConfig->LootPodSpawnSets)
 	{
@@ -255,10 +300,15 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 
 		for (const FLNPEnemySpawnEntry& Enemy : PodSet.AssociatedEnemies)
 		{
-			P.Enemies.Add({ Enemy.Count, CapturedAssets.Num() });
+			P.Enemies.Add({ FMath::RoundToInt32(Enemy.Count * EnemyDensity), CapturedAssets.Num() });
 			CapturedAssets.Add(Enemy.EnemyEntityConfig);
 		}
 		SetParams.Add(MoveTemp(P));
+	}
+
+	if (!FMath::IsNearlyEqual(EnemyDensity, 1.f))
+	{
+		UE_LOG(LogLootNPop, Warning, TEXT("LNPMassSpawnSubsystem: enemy spawn counts scaled by %.2f (LNP.Spawn.EnemyDensity)."), EnemyDensity);
 	}
 
 	// 표면 Cache의 읽기 전용 Snapshot 획득 — 태스크에서 UObject 접근 불필요

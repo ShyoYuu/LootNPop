@@ -125,11 +125,22 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 			LockOnTarget = nullptr;
 		}
 		// 조준점도 조건부다 — AI 폰과 시뮬레이티드 프록시는 비트 하나만 쓴다.
+		//
+		// 값이 있을 때는 **양자화해서** 보낸다. `Ar << FVector`는 배정도 24바이트인데, 이 필드는
+		// 발사체 무기를 든 동안 매 폴 나가므로 그대로 두면 폰 채널에서 가장 비싼 항목이 된다.
+		// 1cm 정밀도(ScaleFactor=1)로 충분한 근거:
+		//   · 필요한 범위 = 행성 반경(최대 30,000. 월드 반지름을 int16에 담는 제약상 상한 32,767)
+		//     + 조준 트레이스 거리(50,000) → 최악이 원점에서 약 80,000이다.
+		//     하늘을 보고 아무것도 맞지 않았을 때가 그 최악이고, 그때는 보정각이 어차피 0에 가깝다.
+		//   · 소비처는 총구에서 이 점으로 향하는 **방향**뿐이다. 1cm 오차의 각오차는
+		//     50m에서 0.011°, 1m에서 0.57°로 발사 방향 보정 허용각에 비하면 무시할 수준이다.
+		// 엔진의 최신 경로는 헤더 7비트 + 성분당 필요비트×3을 쓰므로 실제 비용은 약 7바이트다
+		// (MaxBitsPerComponent 인자는 레거시 경로에서만 쓰인다).
 		bool bHasAimTarget = (Ar.IsSaving() ? !AimTargetLocation.IsZero() : false);
 		Ar.SerializeBits(&bHasAimTarget, 1);
 		if (bHasAimTarget)
 		{
-			Ar << AimTargetLocation;
+			SerializePackedVector<1, 24>(AimTargetLocation, Ar);
 		}
 		else if (Ar.IsLoading())
 		{

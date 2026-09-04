@@ -101,8 +101,12 @@ protected:
 };
 
 /**
- * 커스텀 로직(Targeting, StateTree)에 따라 표현 상태(Actor vs. Entity)를 Override한다.
+ * 표현 상태(Actor vs. Entity)의 원천인 LOD 값을 넷 모드에 따라 Override한다.
  * 내장 MassRepresentationProcessor 이전에 실행된다.
+ *
+ * - 서버: 커스텀 로직(Targeting)이 전투 진입을 알리면 High로 올려 Actor 승격을 강제한다.
+ * - 클라이언트: Mass가 스스로 Actor를 스폰하지 못하도록 메시 표현 단계로 눌러두고,
+ *   서버가 복제해 준 Actor가 붙어 있을 때만 High로 올려 그 Actor를 표현으로 채택한다 (§7.10).
  */
 UCLASS()
 class LOOTNPOP_API ULNPEnemyLODOverrideProcessor : public UMassProcessor
@@ -117,6 +121,7 @@ protected:
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
 	FMassEntityQuery LODOverrideQuery;
+	FMassEntityQuery ClientRepresentationQuery;
 };
 
 /**

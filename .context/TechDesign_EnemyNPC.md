@@ -196,7 +196,7 @@ Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회�
 | `ULNPEnemyMovementProcessor` | Movement | 실제 이동/회전 적용 — §5 상세 |
 | `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + `TriggerRagdoll()` (전 클라이언트 방송) + `DeathCountdown = ULNPSettings::EnemyRagdollDuration` |
 | `ULNPEnemyDeathTimerProcessor` | PostPhysics (Health 이후) | DeathCountdown 만료 엔티티 파괴 |
-| `ULNPEnemyLODOverrideProcessor` | LOD (DistanceLOD 이후, Representation 이전) | Confirmed면 `RepresentationLOD.LOD = High` 강제 — §7.2 |
+| `ULNPEnemyLODOverrideProcessor` | LOD (VisualizationLOD 이후, Representation 이전) | 서버: Confirmed면 `RepresentationLOD.LOD = High` 강제 — §7.2 / 클라이언트: 복제 Actor만 표현으로 채택 — §7.10 |
 | `ULNPEnemyActorInitializerProcessor` | PostPhysics (Representation 이후) | 신규 스폰 Actor에 `InitializeOnce` + `SyncFromEntity` → InitializedTag 부여 |
 | `ULNPEnemyActorSyncProcessor` | PostPhysics (LOD 이전, 게임 스레드) | Actor 유효: `SyncToEntity`(HP·속도 역동기화) / null: InitializedTag 제거 → 재초기화 유도 |
 | `ULNPEnemyDebugDrawProcessor` | 에디터 전용 | 상태별 색상 박스(대기 초록/경계 노랑/추격 파랑/공격 빨강) + 전방 화살표 |
@@ -244,6 +244,8 @@ Entity 모드 (Low LOD):
   `FMassRepresentationFragment::CurrentRepresentation`이 `HighRes`/`LowResSpawnedActor`인지로
   판단하고, 클라 Transform을 쓰는 프로세서는 `SyncWorldToMass` 그룹에서
   `ExecuteAfter`로 번역기 뒤에 못 박는다.
+  (§7.10 이후 게스트에서는 복제 Actor가 붙는 즉시 표현도 Actor로 올라가므로 두 상태가 갈리는
+  구간 자체가 좁아졌지만, 판단 기준은 그대로 `CurrentRepresentation`이다.)
 
 - **클라이언트는 적 Actor의 이동을 직접 재시뮬레이션한다.** Mover가 Async 모드 +
   Chaos 물리 예측(`bEnablePhysicsPrediction=True`)이기 때문이다. 따라서 **이동 시뮬레이션이
@@ -420,6 +422,46 @@ Pod 거리로 재면 NPC가 무엇을 하든 조건이 변하지 않으므로 �
 
 상한을 정하는 근거는 Aim Offset 에셋의 한계가 아니라 **게임플레이 판단**이다. 플레이어 기준
 실측상 AO 자세는 거의 수직까지 무리 없이 나오므로, 애니메이션이 병목이 되지는 않는다.
+
+### 7.10 적 Actor의 표현 소유권은 넷 모드마다 하나뿐이다
+
+`FMassActorFragment`는 **엔티티 하나당 Actor 하나**를 담는 자리이고, 엔진은 그 자리를 채우는
+경로가 자기 하나뿐이라고 단정한다(`UMassAgentComponent::SetEntityHandleInternal`의
+`checkf(!ActorInfo->IsValid())`). 그런데 게스트에는 그 자리를 노리는 경로가 **둘** 있었다.
+
+1. **복제 퍼펫 링크** — 서버가 승격시킨 적 Actor가 릴러번트가 되어 도착하면
+   `UMassAgentComponent::NetID`가 복제되고, `OnRep_NetID`가 NetID로 엔티티를 찾아 프래그먼트에 자기를 쓴다.
+2. **게스트 자체의 표현 LOD 승격** — `UMassCrowdVisualizationProcessor`의 실행 플래그는
+   `Client | Standalone`이라 **게스트에서 그대로 돈다.** 가까워진 적을 게스트가 스스로
+   Actor로 스폰하고(= Mass 소유) 같은 프래그먼트를 채운다.
+
+2가 먼저 서 있으면 1이 assert로 죽는다. 반대 순서는 엔진이 흡수한다(표현 프로세서는
+Mass 소유가 아닌 Actor를 만나면 새로 스폰하지 않고 **그것을 재사용**한다).
+
+> ⚠️ 게스트가 스스로 승격시킨 Actor는 애초에 **쓸모가 없었다.**
+> `ULNPEnemyActorInitializerProcessor`가 클라이언트에서 조기 반환하므로 `InitializeOnce`·
+> `SyncFromEntity`가 돌지 않는다 — 무기도 HP 바도 없는 빈 껍데기다. 적 Actor는 서버 권위이고
+> 게스트는 복제본을 받으므로, 게스트 쪽 승격은 처음부터 중복이었다.
+
+**그래서 게스트에서는 표현 소유권을 복제 Actor 하나로 못박는다.** `ULNPEnemyLODOverrideProcessor`가
+넷 모드에 따라 갈라져(같은 프로세서가 `EProcessorExecutionFlags::All`로 클라이언트에서도 돈다):
+
+| 넷 모드 | 표현 LOD 처리 |
+|:---|:---|
+| 서버·Standalone | 전투 진입(`Confirmed`)이면 `High` 강제 — §7.2 |
+| 클라이언트 | 복제 Actor가 붙어 있으면 `High`(그 Actor를 표현으로 채택), 아니면 **Actor를 쓰지 않는 첫 LOD 단계까지 하향** |
+
+하향 목표는 상수가 아니라 `FMassRepresentationParameters::LODRepresentation`를 훑어
+`HighRes/LowResSpawnedActor`가 아닌 첫 단계를 찾는다 — EntityConfig에서 단계별 표현을 바꿔도
+"게스트는 Actor를 스폰하지 않는다"는 불변식이 따라온다.
+
+⚠️ **LOD 값을 덮어쓰는 프로세서는 그 값을 계산하는 프로세서 뒤에 못 박아야 한다.**
+둘 다 `LOD` 그룹 안이라 명시하지 않으면 순서가 정해지지 않는다
+(`ExecuteAfter("MassCrowdVisualizationLODProcessor")`).
+
+이 처방은 엔진의 `FMassRepresentationParameters::bForceActorRepresentationForExternalActors`와
+같은 의도이며, 그 플래그가 못 막는 **"게스트가 먼저 스폰한" 순서**까지 함께 닫는다.
+데이터 에셋 체크박스가 아니라 LOD 쪽에 둔 이유가 이것이다.
 
 ---
 

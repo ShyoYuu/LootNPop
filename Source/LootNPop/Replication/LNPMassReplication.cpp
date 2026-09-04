@@ -2,7 +2,7 @@
 
 #include "Replication/LNPMassReplication.h"
 #include "Replication/LNPMassReplicator.h"
-#include "Enemy/LNPEnemyMassTypes.h"
+#include "Config/LNPSettings.h"
 #include "MassEntityManager.h"
 #include "MassExecutionContext.h"
 #include "MassReplicationFragments.h"
@@ -16,6 +16,13 @@ void LNP::Replication::ConfigureParams(FMassReplicationParameters& Params,
 {
 	checkf(ReplicatorClass && ReplicatorClass != ULNPMassReplicator::StaticClass(),
 		TEXT("Each replicated Mass type needs its own ULNPMassReplicator subclass -- see the header comment."));
+
+	// FLNPReplicatedPositionYawData가 위치를 1cm 단위 int16로 싣는다 — 월드 반지름이 int16 범위를
+	// 넘으면 FMassInt16Real::Set이 조용히 clamp해 먼 엔티티가 경계에 뭉친다. 여기가 복제 설정의
+	// 단일 진입점이라 시작 시 한 번 걸린다.
+	ensureMsgf(GetDefault<ULNPSettings>()->SphereRadius <= static_cast<float>(MAX_int16),
+		TEXT("SphereRadius %.0f exceeds the int16 1cm quantization range (%d) used by Mass replication."),
+		GetDefault<ULNPSettings>()->SphereRadius, MAX_int16);
 
 	Params.BubbleInfoClass = ALNPMassClientBubbleInfo::StaticClass();
 	Params.ReplicatorClass = ReplicatorClass;
@@ -52,14 +59,14 @@ namespace
 	constexpr float MaxSmoothingDuration = 0.5f;
 }
 
-void FLNPMassClientBubbleHandler::ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FReplicatedAgentPositionYawData& PositionYaw)
+void FLNPMassClientBubbleHandler::ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FLNPReplicatedPositionYawData& PositionYaw)
 {
 	FTransform& Transform = TransformFragment.GetMutableTransform();
 	Transform.SetLocation(PositionYaw.GetPosition());
 	Transform.SetRotation(LNP::Replication::DecodeSphereRotation(PositionYaw.GetPosition(), PositionYaw.GetYaw()));
 }
 
-void FLNPMassClientBubbleHandler::PushSmoothingTarget(const FMassEntityView& EntityView, const FReplicatedAgentPositionYawData& PositionYaw)
+void FLNPMassClientBubbleHandler::PushSmoothingTarget(const FMassEntityView& EntityView, const FLNPReplicatedPositionYawData& PositionYaw)
 {
 	FTransformFragment& TransformFragment = EntityView.GetFragmentData<FTransformFragment>();
 	FLNPReplicatedMovementFragment* Movement = EntityView.GetFragmentDataPtr<FLNPReplicatedMovementFragment>();
@@ -110,12 +117,6 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 			Movement->SourceRotation = Movement->TargetRotation = Spawned.GetRotation();
 			Movement->TimeSinceUpdate = 0.f;
 			Movement->BlendDuration = 0.f;
-		}
-
-		// Enemy 아키타입만 타입 태그 기록 — 청크 필터링을 피하기 위해 EntityView로 조건부 접근한다.
-		if (FLNPEnemyFragment* EnemyFragment = EntityView.GetFragmentDataPtr<FLNPEnemyFragment>())
-		{
-			EnemyFragment->EnemyTypeTag = ReplicatedEntity.GetEnemyTypeTag();
 		}
 	};
 

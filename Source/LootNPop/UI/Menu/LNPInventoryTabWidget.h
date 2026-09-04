@@ -74,6 +74,10 @@ private:
 
 	TWeakObjectPtr<ULNPInventoryComponent> BoundInventory;
 
+	/** 탭을 닫을 때 비우는 Grid 선택을 재오픈 때 되살리기 위한 기억.
+	 *  강참조로 들면 죽은 인스턴스를 붙잡게 되므로 반드시 약참조여야 한다. */
+	TWeakObjectPtr<UObject> LastSelectedItem;
+
 	/** 포커스가 디테일 패널에 있는지 — Back 처리 분기의 기준. */
 	bool bDetailFocused = false;
 };
