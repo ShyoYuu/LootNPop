@@ -412,9 +412,11 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 
 				if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
 				{
-					FGameplayCueParameters AttackerCueParams;
-					AttackerCueParams.Location = Entry.ImpactPoint;   // 공격자 기준으로도 칼이 부딪힌 그 지점이다
-					AttackerASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_AttackerHitStop, AttackerCueParams);
+					// 파라미터를 **하나도 싣지 않는다.** 이 큐의 핸들러는 대상 액터만 쓰고
+					// (ULNPGameplayCueNotify_AttackerHitStop: 로컬 컨트롤 여부로 걸러 ApplyHitStop만 호출)
+					// 파라미터를 읽지 않는다. FGameplayCueParameters는 설정된 필드만 직렬화하므로
+					// 비워 두면 히트마다 FVector_NetQuantize10 하나가 전 연결에서 사라진다.
+					AttackerASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_AttackerHitStop, FGameplayCueParameters());
 				}
 			}
 		}

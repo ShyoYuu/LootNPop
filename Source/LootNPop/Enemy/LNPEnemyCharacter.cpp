@@ -23,7 +23,15 @@ ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializ
 {
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
-	SetNetUpdateFrequency(30.f);
+
+	// 서버 틱(30Hz)의 1/3만 폴링한다. 적 Actor는 버블과 달리 Push Model로 Dirty 표시되는 대상이
+	// 아니라 폴 주기가 그대로 지배하고(Mover/NP의 ReplicationProxy_Simulated는 폴 시점마다
+	// 값이 달라져 있을 뿐이다), 폴마다 InputCmd+SyncState+AuxState가 통째로 나간다.
+	// 실측: 30 → 10Hz로 적 1기당 약 650 B/s 절감, 총 송신량 기준 적 3기 -12%, 9기 -25%.
+	// 게스트는 그 사이를 NetworkPrediction 전방 예측으로 메우며, 2P 전투 검증에서 위치·회전
+	// 이질감은 관찰되지 않았다. 대신 이 폴에 얹혀 가는 AttributeSet(비 Push Model)도 같이
+	// 10Hz가 되므로 **적 HP 갱신 해상도가 100ms**다 — 값이 소실되는 것은 아니다.
+	SetNetUpdateFrequency(10.f);
 
 	// ⚠️ **Actor 릴러번시는 반드시 버블 컬 거리(ULNPEnemyTrait::ReplicationCullDistance = 12,000)보다
 	//    작아야 한다.** 이 Actor는 UMassAgentComponent로 Mass 엔티티에 퍼펫 링크되는데, 엔진은

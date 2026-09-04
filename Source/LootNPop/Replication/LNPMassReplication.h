@@ -9,7 +9,7 @@
 #include "MassClientBubbleInfoBase.h"
 #include "MassEntityView.h"
 #include "MassProcessor.h"
-#include "GameplayTagContainer.h"
+#include "MassCommonTypes.h"
 #include "LNPMassReplication.generated.h"
 
 struct FMassReplicationParameters;
@@ -105,6 +105,68 @@ namespace LNP::Replication
 }
 
 /**
+ * 매 갱신 실리는 위치·자세 페이로드 — 엔진 `FReplicatedAgentPositionYawData`(FVector + float,
+ * 28 B)를 **양자화 정수로 대체한 것**이다. 엔진 구조체를 쓰지 않는 이유는 이미 두 가지다:
+ * 접평면 로컬 Yaw를 실어야 해서 `TMassClientBubbleTransformHandler`를 안 쓰고(위 주석),
+ * 그 핸들러가 유일한 사용처라 타입 교체가 리플리케이터·버블 핸들러 안에서 닫힌다.
+ *
+ * | 필드 | 엔진 | 여기 | 근거 |
+ * |:---|---:|---:|:---|
+ * | Position | double×3 = 24 B | `FMassInt16Real`×3 = **6 B** | 1cm 해상도 |
+ * | Yaw | float = 4 B | int16 = **2 B** | ±π를 int16 전 범위로 스케일 → 약 0.0055° |
+ *
+ * 두 필드는 **매 갱신 바뀌므로 델타 압축이 걷어낼 수 없는 몫**이다(스폰 후 불변인
+ * TemplateID·NetID는 델타 압축이 이미 1비트로 줄였다). 그래서 여기서 줄인 22 B는
+ * 갱신 1회당 와이어 비용에 그대로 반영된다.
+ *
+ * ⚠️ **1cm 양자화가 월드 반지름을 int16(32,767cm)에 하드 캡한다.** `ULNPSettings::SphereRadius`가
+ *    이 값을 넘으면 `FMassInt16Real::Set`이 **조용히 clamp**해 먼 엔티티가 한 점에 뭉친다.
+ *    시작 시 `LNP::Replication::ConfigureParams`의 ensure가 못 박는다.
+ * ⚠️ Yaw 해상도(0.0055°)는 리플리케이터의 Dirty 허용 오차(`YawReplicateTolerance` = 0.25°)보다
+ *    45배 미세하므로, 양자화가 갱신 빈도를 바꾸지 않는다 — 단가만 줄고 분모는 그대로다.
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPReplicatedPositionYawData
+{
+	GENERATED_BODY()
+
+	void SetPosition(const FVector& InPosition)
+	{
+		X.Set(static_cast<float>(InPosition.X));
+		Y.Set(static_cast<float>(InPosition.Y));
+		Z.Set(static_cast<float>(InPosition.Z));
+	}
+
+	FVector GetPosition() const { return FVector(X.Get(), Y.Get(), Z.Get()); }
+
+	/** 접평면 로컬 Yaw (라디안). 저장 시 [-π, π]로 감아 int16 전 범위에 편다. */
+	void SetYaw(const float InYaw)
+	{
+		Yaw = static_cast<int16>(FMath::Clamp(
+			FMath::RoundToInt32(FMath::UnwindRadians(InYaw) * YawToInt16),
+			-static_cast<int32>(MAX_int16), static_cast<int32>(MAX_int16)));
+	}
+
+	float GetYaw() const { return static_cast<float>(Yaw) / YawToInt16; }
+
+private:
+	/** π를 int16 최대값에 대응시키는 스케일. */
+	static constexpr float YawToInt16 = static_cast<float>(MAX_int16) / UE_PI;
+
+	UPROPERTY(Transient)
+	FMassInt16Real X;
+
+	UPROPERTY(Transient)
+	FMassInt16Real Y;
+
+	UPROPERTY(Transient)
+	FMassInt16Real Z;
+
+	UPROPERTY(Transient)
+	int16 Yaw = 0;
+};
+
+/**
  * 통합 Mass 복제 페이로드 — 월드의 모든 복제 대상 Mass 엔티티 타입(Enemy·Player·LootPod)이
  * **버블 핸들러(= FastArray) 하나**를 공유하므로, 에이전트 구조체도 하나를 공용으로 쓴다.
  *
@@ -133,27 +195,12 @@ struct LOOTNPOP_API FLNPReplicatedAgent : public FReplicatedAgentBase
 {
 	GENERATED_BODY()
 
-	const FReplicatedAgentPositionYawData& GetReplicatedPositionYawData() const { return PositionYaw; }
-
-	/** FReplicatedAgentBase 파생 구조체가 반드시 제공해야 하는 접근자 (TMassClientBubbleTransformHandler 요구사항) */
-	FReplicatedAgentPositionYawData& GetReplicatedPositionYawDataMutable() { return PositionYaw; }
-
-	FGameplayTag GetEnemyTypeTag() const { return EnemyTypeTag; }
-	void SetEnemyTypeTag(FGameplayTag InTag) { EnemyTypeTag = InTag; }
+	const FLNPReplicatedPositionYawData& GetReplicatedPositionYawData() const { return PositionYaw; }
+	FLNPReplicatedPositionYawData& GetReplicatedPositionYawDataMutable() { return PositionYaw; }
 
 private:
 	UPROPERTY(Transient)
-	FReplicatedAgentPositionYawData PositionYaw;
-
-	/**
-	 * ⚠️ **현재 항상 빈 태그다 — 채우는 곳이 없다.**
-	 * 리플리케이터가 `FLNPEnemyFragment::EnemyTypeTag`를 읽어 싣지만, 그 Fragment 필드에
-	 * **쓰는 곳이 코드 전체에 0곳**이다(값을 가진 것은 별개 필드인 `ULNPEnemyConfig::EnemyTypeTag`).
-	 * 원래 의도는 Low LOD 클라이언트가 적 종류를 구분하는 것이었다.
-	 * 살리려면 스폰 시 Config에서 Fragment로 채우고, 아니면 이 필드와 리플리케이터의 대입을 함께 제거할 것.
-	 */
-	UPROPERTY(Transient)
-	FGameplayTag EnemyTypeTag;
+	FLNPReplicatedPositionYawData PositionYaw;
 };
 
 /** Fast Array 복제 항목. FLNPReplicatedAgent 멤버가 바뀌면 반드시 Dirty 표시할 것. */
@@ -220,7 +267,7 @@ struct LOOTNPOP_API FLNPReplicatedMovementFragment : public FMassFragment
 
 /**
  * 통합 Client Bubble 핸들러.
- * 클라 수신 시 TemplateID별 배치 스폰(엔진 헬퍼) + 위치/자세 반영 + Enemy 아키타입만 타입 태그 기록.
+ * 클라 수신 시 TemplateID별 배치 스폰(엔진 헬퍼) + 위치/자세 반영.
  *
  * 자세 복원은 엔진의 TMassClientBubbleTransformHandler를 쓰지 않고 직접 처리한다 —
  * 엔진 구현은 월드 Z축 Yaw만 복원해 구 내벽 월드에서 엔티티가 눕는다 (LNP::Replication 주석 참조).
@@ -241,13 +288,13 @@ protected:
 	// (파괴 옵저버 누락 → ULNPMassSpawnSubsystem::RestoreServerOnlyMassObservers 참조).
 
 	/** 복제 페이로드(위치 + 접평면 로컬 Yaw)를 Transform Fragment에 즉시 반영한다. 스케일은 보존한다. */
-	static void ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FReplicatedAgentPositionYawData& PositionYaw);
+	static void ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FLNPReplicatedPositionYawData& PositionYaw);
 
 	/**
 	 * 수신 페이로드를 보간 목표로 적재한다 (Transform은 건드리지 않는다 — 프로세서가 매 프레임 채운다).
 	 * 보간 Fragment가 없는 아키타입(Player·LootPod)은 즉시 반영으로 폴백한다.
 	 */
-	static void PushSmoothingTarget(const FMassEntityView& EntityView, const FReplicatedAgentPositionYawData& PositionYaw);
+	static void PushSmoothingTarget(const FMassEntityView& EntityView, const FLNPReplicatedPositionYawData& PositionYaw);
 
 	/** 스폰 쿼리 순회 동안만 유효한 Transform Fragment 뷰 (엔진 핸들러의 TransformList 대체). */
 	TArrayView<FTransformFragment> SpawnTransformList;

@@ -53,6 +53,18 @@ void ULNPInventoryTabWidget::NativeOnDeactivated()
 		Inventory->OnInventoryChanged.RemoveDynamic(this, &ULNPInventoryTabWidget::RefreshGrid);
 	BoundInventory.Reset();
 
+	// ⚠️ 탭이 닫힌 동안에는 OnInventoryChanged를 못 받으므로 Grid에 **죽은 인스턴스 참조**가 남는다.
+	// 클라이언트에서 아이템이 가방/버프 목록에서 빠지면 Iris가 서브오브젝트를 MarkAsGarbage 하고
+	// (NetSubObjectFactory.cpp) GC가 UListView::ListItems의 그 항목을 nullptr로 지운다.
+	// 그러면 종료 시 PlayerState(= 항목의 Outer 액터)의 EndPlay에서
+	// UListView::OnListItemOuterEndPlayed가 널 체크 없이 Item->IsIn()을 불러 크래시한다 (ListView.cpp:364).
+	// 선택은 아래 약참조로 따로 기억해 재오픈 때 복원하므로 목록만 비워도 조작감은 그대로다.
+	if (ItemGrid)
+	{
+		LastSelectedItem = ItemGrid->GetSelectedItem<UObject>();
+		ItemGrid->ClearListItems();
+	}
+
 	Super::NativeOnDeactivated();
 }
 
@@ -86,7 +98,11 @@ void ULNPInventoryTabWidget::RefreshGrid()
 	}
 
 	// 갱신 후에도 같은 아이템을 계속 보고 있도록 선택을 복원한다.
+	// 탭을 닫을 때 목록을 비웠다면(NativeOnDeactivated) 현재 선택이 없으므로 기억해 둔 쪽을 쓴다.
+	// 약참조라 그 사이 사라진 인스턴스는 알아서 null이 되어 Items에서 걸러진다.
 	UObject* PreviousSelection = ItemGrid->GetSelectedItem<UObject>();
+	if (PreviousSelection == nullptr)
+		PreviousSelection = LastSelectedItem.Get();
 
 	ItemGrid->SetListItems(Items);
 
