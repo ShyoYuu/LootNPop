@@ -35,6 +35,19 @@ enum class ELNPEnemyCombatMode : uint8
 };
 
 /**
+ * 이 적의 기본 공격 방식.
+ *
+ * ⚠️ **근접/원거리 판별의 단일 원본이다.** 예전에는 `EnemyTypeTag`에 "Melee"가 들어 있는지로
+ * 판정했는데, 그 규약은 태그 이름과 거동이 조용히 어긋날 수 있고 소비처가 늘수록 위험해진다.
+ */
+UENUM(BlueprintType)
+enum class ELNPEnemyAttackType : uint8
+{
+	Melee,
+	Ranged,
+};
+
+/**
  * 우선순위 점수 계산 및 인지 설정.
  *
  * ```
@@ -234,6 +247,89 @@ struct FLNPEnemyMovementConfig
 };
 
 /**
+ * 순수 엔티티(`ELNPEnemyCombatMode::PureEntity`) 기본 공격 설정.
+ *
+ * 무기 상수(발사체 속도·수명·폭발 반경·피해 GE)는 여기가 아니라 `ULNPEnemyConfig::WeaponData`에 있다.
+ * 이 구조체가 정의하는 것은 지금까지 **어빌리티 인스턴스가 공급하던 값**뿐이다 —
+ * Actor 경로에서 GAS가 채우던 자리를 그대로 대신한다.
+ *
+ * ⚠️ **공격 간격은 여기 두지 않는다.** `FLNPEnemyMovementConfig::AttackInterval`이 이미 그 의미이고,
+ * 같은 뜻의 필드가 둘이 되면 어느 쪽이 사는지 데이터만 보고는 알 수 없다.
+ */
+USTRUCT(BlueprintType)
+struct FLNPEntityAttackConfig
+{
+	GENERATED_BODY()
+
+	// --- 공용 ---
+
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float Damage = 10.f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float PoiseDamage = 10.f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float KnockbackStrength = 0.f;
+
+	/** 패링 판정 반경. **무기 HitRadius보다 크게** 둔다 — 2단계 판정(패링 먼저)의 규약이다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float ParryRadius = 40.f;
+
+	/** 선딜 — 플레이어가 읽고 반응할 구간. 원거리는 이 구간이 끝나는 순간 1회 발사한다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float WindupTime = 0.35f;
+
+	/** 근접 = 칼날이 살아 있는 구간. 원거리에서는 쓰이지 않는다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float ActiveTime = 0.20f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float RecoveryTime = 0.45f;
+
+	// --- 근접 전용: 가상 칼날 (캡슐 중심 기준 로컬 치수) ---
+
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
+	float PivotForward = 20.f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
+	float PivotUp = 30.f;
+
+	/** 회전 원점~칼밑 거리. */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee", meta = (ClampMin = "0.0"))
+	float BladeInner = 30.f;
+
+	/**
+	 * 회전 원점~칼끝 거리. ⚠️ **시각 무기 길이와 반드시 일치시킬 것** —
+	 * 애니메이션에서 뽑을 수 없는 상수라 어긋나면 "칼이 안 닿았는데 맞는다"가 된다.
+	 * `ULNPWeaponTraceDebugDrawProcessor`로 눈으로 맞춘다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee", meta = (ClampMin = "0.0"))
+	float BladeOuter = 140.f;
+
+	/** 스윙 시작 로컬 Yaw(도). */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
+	float ArcStartDeg = -70.f;
+
+	/** 스윙 종료 로컬 Yaw(도). */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
+	float ArcEndDeg = 70.f;
+
+	/** 내려베기 기울기(도). 접평면에서 아래로 기운 각도. */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
+	float ArcPitchDeg = -15.f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee", meta = (ClampMin = "0.1"))
+	float HitRadius = 12.f;
+
+	// --- 원거리 전용 ---
+
+	/** 총구 위치(캡슐 중심 기준 로컬: X=전방, Y=우측, Z=Up). */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Ranged")
+	FVector MuzzleLocalOffset = FVector(40.f, 0.f, 10.f);
+};
+
+/**
  * Enemy의 정체성, 비주얼, 행동을 정의하는 Data Asset.
  */
 UCLASS()
@@ -256,6 +352,14 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	ELNPEnemyCombatMode CombatMode = ELNPEnemyCombatMode::ActorPromoted;
+
+	/** 근접/원거리 판별의 단일 원본. 슬롯 풀 분류와 순수 엔티티 공격 경로가 함께 읽는다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
+	ELNPEnemyAttackType AttackType = ELNPEnemyAttackType::Melee;
+
+	/** CombatMode == PureEntity일 때 쓰는 기본 공격 설정. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
+	FLNPEntityAttackConfig EntityAttackConfig;
 
 	/** Mass에서 Actor로 전환 시 스폰할 Actor 클래스 (CombatMode == ActorPromoted일 때만 쓰인다) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Spawning")

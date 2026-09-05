@@ -98,8 +98,9 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		const FLNPEnemyTargetingConfig& TConfig = SharedFragment.Config->TargetingConfig;
 		const FLNPEnemyMovementConfig& MConfig = SharedFragment.Config->MovementConfig;  // 피격 인지의 상하 게이트
 
-		// 근접 타입 여부는 chunk 공용 Config 값이므로 1회만 판정한다 (엔티티×후보 루프 내 문자열 비교 방지)
-		const bool bIsMelee = SharedFragment.Config->EnemyTypeTag.ToString().Contains(TEXT("Melee"), ESearchCase::IgnoreCase);
+		// 근접/원거리는 Config의 명시 필드가 원본이다 — 태그 이름 규약(EnemyTypeTag에 "Melee" 포함)에
+		// 기대면 이름과 거동이 조용히 어긋나고, 순수 엔티티 공격 경로까지 같은 판별을 필요로 한다.
+		const bool bIsMelee = SharedFragment.Config->AttackType == ELNPEnemyAttackType::Melee;
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
