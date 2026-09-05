@@ -32,7 +32,7 @@
 - `ULNPPawnGravityComponent`가 `RadialOutward` 모드로 Dyson Sphere 내벽 중력 적용. Pawn 위치마다 달라지는 Up/Gravity Direction을 매 프레임 갱신하여 화면 기울어짐 방지.
 
 ### Enemy NPC
-- 모든 NPC는 MassEntity(Low LOD) ↔ Actor(High LOD) 하이브리드 구조. 전투 진입(Confirmed/Combat) 시 `ULNPEnemyLODOverrideProcessor`가 High LOD Actor로 자동 전환.
+- 모든 NPC는 MassEntity(Low LOD) ↔ Actor(High LOD) 하이브리드 구조. 전투 진입(Confirmed/Combat) 시 `ULNPEnemyLODOverrideProcessor`가 High LOD Actor로 자동 전환 — 단 `ULNPEnemyConfig::CombatMode`가 `PureEntity`인 개체는 승격하지 않고 Mass 프로세서가 직접 공격한다.
 - 플레이어별 어그로 관리는 `ULNPTargetingSubsystem` 담당. GAS 어빌리티는 Actor 상태에서만 실행. AI는 StateTree 기반으로 구현.
 
 ### Hit Detection
