@@ -342,6 +342,14 @@ Actor 상태에서도 이동 결정은 Mass 프로세서가 내리고, 실행만
 
 전투 진입 시 `CurrentRepresentation`을 직접 바꾸지 않고 `FMassRepresentationLODFragment.LOD`(WantedRepresentation의 원천)만 High로 올린다. 엔진 RepresentationProcessor가 전환을 정확히 1회 감지해 스폰/디스폰 수명 주기가 깨지지 않는다.
 
+⚠️ **승격은 더 이상 무조건이 아니다.** `ULNPEnemyConfig::CombatMode`가 `PureEntity`면 이 강제를 건너뛰고,
+그 개체는 전투 중에도 순수 엔티티로 남아 Mass 프로세서가 직접 공격한다
+(→ [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md)). 기본값은 `ActorPromoted`라 기존 거동은 그대로다.
+
+⚠️ **반대 방향으로 LOD를 눌러 승격을 막지는 않는다.** `LOD`는 표현뿐 아니라 유의도·틱 레이트까지 정하는
+값이라, 표현 하나를 막으려고 나머지까지 끌어내리게 된다. 승격 차단은 EntityConfig의 `LODRepresentation`이
+맡고 코드는 "끌어올리지 않는다"까지만 한다.
+
 ### 7.3 넉백 공중 상태를 태그가 아닌 속도로 판단
 
 공중 여부를 `FLNPEnemyAirborneTag` 같은 태그로 분리하면 매 피격/착지마다 디퍼드 태그 추가·제거로 **아키타입 마이그레이션**이 반복된다. 넉백은 저빈도·단기 상태이므로 `PhysVelocity != 0` 분기로 처리 — 비행 Enemy처럼 고빈도·지속 상태가 생기면 그때 태그 분리를 재검토한다는 판단을 코드에 명시했다.

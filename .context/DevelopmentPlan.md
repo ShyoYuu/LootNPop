@@ -203,6 +203,22 @@
     - Melee/Ranged 슬롯 풀 관리. `DistanceToTargetSq` 기반 우선순위 경쟁.
 - [x] **StateTree 기반 적 AI** (`ULNPEnemyStateTreeProcessors`)
     - Leash / Chase / Attack 상태 전환. Mass-StateTree 통합.
+- [ ] **Enemy Low LOD(순수 엔티티) 전투** — 트랙 A 완료 (2026-09-05), 트랙 B·C 미착수
+    - `ULNPEnemyConfig::CombatMode`(`ActorPromoted` / `PureEntity`)로 승격을 **옵션화**. 기본값은 종전 거동.
+      승격 차단은 EntityConfig의 `LODRepresentation`이 맡고, 코드는 전투 시 LOD를 끌어올리지 않는 것까지만 한다 —
+      LOD를 눌러 막으면 유의도·틱 레이트까지 함께 눌린다. 어긋남은 `ULNPEnemyTrait::ValidateTemplate`이 양방향 경고.
+    - `ULNPEntityAttackProcessor`가 공격 위상(Windup/Active/Recovery)을 직접 구동한다. **판단은 StateTree Task가,
+      진행은 프로세서가** — 신호 구동인 Task Tick에 위상을 두면 신호가 끊긴 프레임에 스윙이 중간에 멈춘다.
+      경직·다운 시 공격 중단도 여기가 유일한 경로다(Actor가 없으면 `FLNPStaggerCommand`가 도달하지 못한다).
+    - 근접은 **절차적 가상 칼날** — 4점을 계산해 기존 Swept Volume 판정을 그대로 태운다. 판정·패링·가드 코드는
+      한 줄도 바뀌지 않았다. 칼날은 별도 엔티티라 2패스(계산→반영), 마커는 Tag가 아니라 Fragment.
+    - 원거리는 산탄까지 지원하며 배치 공식을 `LNPSpread::BuildHexRingDirections`로 어빌리티와 공용화.
+    - 부수 수정: **적 판정 캡슐 96cm 이중 보정 제거.** 좌표 규약 통일 이전의 잔재가 남아 있었는데, 전투 중 적이
+      예외 없이 승격되던 동안에는 그 분기가 실전에서 거의 안 돌아 드러나지 않았다. 먼 거리 Low LOD 적 저격에도
+      같은 오차가 있었다. 판별 원본도 `EnemyTypeTag` 문자열 비교 → `ELNPEnemyAttackType` 필드로 교체.
+    - **잔여:** 트랙 B(행동 상태 1바이트 복제)·트랙 C(ISM↔ISKM). 게스트에 엔티티 발사체가 안 보이는 것은
+      Stage 4(관전 가시성) 미착수라 정상이다. **검증용 임시값 2건 원복 필요**(무기 레벨1 공격력 0, NPC 체력 5배).
+    - 설계 명세: [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md)
 - [ ] **시야각·상태 기반 타겟팅 가중치 보강**
     - 현재 거리 기반만 구현. 시야각(Angle) 및 공격 상태 가중치 추가.
 - [ ] **난이도 스케일링**
