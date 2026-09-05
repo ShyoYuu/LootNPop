@@ -5,6 +5,7 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
+#include "HitDetection/LNPWeaponTraceMassTypes.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "Item/LNPWeaponData.h"
 #include "LNPMassUtils.h"
@@ -41,10 +42,47 @@ namespace
 		Basis.Right   = FVector::CrossProduct(Basis.Up, Basis.Forward);
 		return Basis;
 	}
+
+	/**
+	 * 접평면 위 방향을 Yaw로 돌리고 그만큼 위아래로 기울인다.
+	 * 기울임 축을 고정 Right로 두면 Yaw가 ±90°에 가까울 때 축과 방향이 겹쳐 회전이 사라지므로,
+	 * 접평면 성분을 만든 뒤 Up 쪽으로 들어 올리는 방식으로 계산한다.
+	 */
+	FVector MakeTangentDirection(const FLNPEntityBasis& Basis, const float YawDeg, const float PitchDeg)
+	{
+		const float YawRad   = FMath::DegreesToRadians(YawDeg);
+		const float PitchRad = FMath::DegreesToRadians(PitchDeg);
+
+		const FVector Tangent = Basis.Forward * FMath::Cos(YawRad) + Basis.Right * FMath::Sin(YawRad);
+		return (Tangent * FMath::Cos(PitchRad) + Basis.Up * FMath::Sin(PitchRad)).GetSafeNormal();
+	}
+
+	/** 칼밑·칼끝 한 쌍. 2패스 사이를 건너는 유일한 데이터다. */
+	struct FLNPBladePoints
+	{
+		FVector Root = FVector::ZeroVector;
+		FVector Tip  = FVector::ZeroVector;
+	};
+
+	/** 가상 칼날의 현재 4점 중 Curr 두 점. t는 Active 구간의 진행률(0~1). */
+	FLNPBladePoints ComputeBladePoints(const FLNPEntityBasis& Basis, const FLNPEntityAttackConfig& Config, const float T)
+	{
+		const FVector Pivot = Basis.Center
+			+ Basis.Forward * Config.PivotForward
+			+ Basis.Up      * Config.PivotUp;
+
+		const float   YawDeg = FMath::Lerp(Config.ArcStartDeg, Config.ArcEndDeg, T);
+		const FVector Dir    = MakeTangentDirection(Basis, YawDeg, Config.ArcPitchDeg);
+
+		FLNPBladePoints Points;
+		Points.Root = Pivot + Dir * Config.BladeInner;
+		Points.Tip  = Pivot + Dir * Config.BladeOuter;
+		return Points;
+	}
 }
 
 ULNPEntityAttackProcessor::ULNPEntityAttackProcessor()
-	: AttackQuery(*this)
+	: AttackQuery(*this), SwingQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	// 발사체 스폰이 GetOrCreateConstSharedFragment를 타므로 게임 스레드에서 돈다 (헤더 주석).
@@ -65,6 +103,10 @@ void ULNPEntityAttackProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 	AttackQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	AttackQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	AttackQuery.RegisterWithProcessor(*this);
+
+	SwingQuery.AddRequirement<FLNPWeaponTraceFragment>(EMassFragmentAccess::ReadWrite);
+	SwingQuery.AddRequirement<FLNPEntitySwingFragment>(EMassFragmentAccess::ReadOnly);
+	SwingQuery.RegisterWithProcessor(*this);
 }
 
 void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -74,6 +116,10 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
+
+	// Pass 1이 계산해 Pass 2가 반영한다. 칼날은 적과 다른 엔티티라 이 자리를 거치지 않고는
+	// 서로의 프래그먼트에 닿을 수 없다 (헤더의 SwingQuery 주석).
+	TMap<FMassEntityHandle, FLNPBladePoints> PendingBladePoints;
 
 	AttackQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
@@ -110,6 +156,17 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFrags = Ctx.GetFragmentView<FLNPEnemyTargetingFragment>();
 		const TConstArrayView<FLNPPoiseFragment> PoiseFrags             = Ctx.GetFragmentView<FLNPPoiseFragment>();
 
+		// Active 종료·경직·타겟 상실 어디서 끊기든 칼날을 반드시 회수한다.
+		// TimeToLive는 이 경로를 놓쳤을 때의 그물이지 1차 방어선이 아니다.
+		auto DestroySwing = [&Ctx](FLNPEntityAttackFragment& Attack)
+		{
+			if (Attack.SwingEntity.IsSet())
+			{
+				Ctx.Defer().PushCommand<FMassCommandDestroyEntities>(Attack.SwingEntity);
+				Attack.SwingEntity = FMassEntityHandle();
+			}
+		};
+
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			FLNPEntityAttackFragment& Attack = Attacks[i];
@@ -130,6 +187,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 			if (bDisabled)
 			{
+				DestroySwing(Attack);
 				Attack.Phase        = ELNPEntityAttackPhase::None;
 				Attack.PhaseElapsed = 0.f;
 				continue;
@@ -156,6 +214,8 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 			Attack.PhaseElapsed += DeltaTime;
 
+			const FLNPEntityBasis Basis = MakeEntityBasis(Transforms[i].GetTransform());
+
 			switch (Attack.Phase)
 			{
 			case ELNPEntityAttackPhase::Windup:
@@ -166,7 +226,6 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 				// 원거리는 선딜이 끝나는 순간 1회 발사한다. ActiveTime은 근접 전용이다.
 				if (bIsRanged && WeaponDef)
 				{
-					const FLNPEntityBasis Basis = MakeEntityBasis(Transforms[i].GetTransform());
 					const FVector Muzzle = Basis.Center
 						+ Basis.Forward * AttackConfig.MuzzleLocalOffset.X
 						+ Basis.Right   * AttackConfig.MuzzleLocalOffset.Y
@@ -182,8 +241,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 						FMath::RadiansToDegrees(FMath::Atan2(VerticalUp, Horizontal)),
 						MoveConfig.AimPitchMinDeg, MoveConfig.AimPitchMaxDeg);
 
-					const float   PitchRad = FMath::DegreesToRadians(PitchDeg);
-					const FVector FireDir  = (Basis.Forward * FMath::Cos(PitchRad) + Basis.Up * FMath::Sin(PitchRad)).GetSafeNormal();
+					const FVector FireDir = MakeTangentDirection(Basis, 0.f, PitchDeg);
 
 					FLNPProjectileFragment ProjFrag;
 					ProjFrag.PreviousPos        = Muzzle;
@@ -215,6 +273,47 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 						TransFrag);
 				}
 
+				// 근접은 Active 진입과 함께 칼날 엔티티를 만든다. 판정 파이프라인이 요구하는 것은
+				// 좌표 4점 + 반경뿐이라, 본·소켓·몽타주 없이도 UANS_LNPMeleeHitWindow와 같은 입력이 된다.
+				// ⚠️ 서버에서만 만든다 — ANS가 양쪽에서 만드는 것은 로컬 공격자 예측용이고,
+				//    엔티티 NPC는 예측 대상이 아니다 (Execute 첫 줄의 클라이언트 가드).
+				if (!bIsRanged)
+				{
+					const FLNPBladePoints Seed = ComputeBladePoints(Basis, AttackConfig, 0.f);
+
+					FLNPWeaponTraceFragment Blade;
+					Blade.HitRadius         = AttackConfig.HitRadius;
+					Blade.ParryRadius       = AttackConfig.ParryRadius;
+					Blade.Damage            = AttackConfig.Damage;
+					Blade.KnockbackStrength = AttackConfig.KnockbackStrength;
+					Blade.PoiseDamage       = AttackConfig.PoiseDamage;
+					// 프로세서가 종료를 놓쳤을 때(사망으로 쿼리에서 빠지는 경우 등)의 그물.
+					Blade.TimeToLive        = AttackConfig.ActiveTime + 0.2f;
+					Blade.DamageEffectClass = WeaponDef ? WeaponDef->ProjectileDamageEffect.Get() : nullptr;
+					Blade.InstigatorEntity  = Ctx.GetEntity(i);
+					Blade.InstigatorActor   = nullptr;
+					Blade.InstigatorTeam    = ELNPInstigatorTeam::Enemy;
+					Blade.bIsLocalInstigator = false;
+					// 첫 프레임은 Prev == Curr다. 판정 프로세서가 선분-선분으로 폴백한다.
+					Blade.SwordRootPrev = Blade.SwordRootCurr = Seed.Root;
+					Blade.SwordTipPrev  = Blade.SwordTipCurr  = Seed.Tip;
+
+					FLNPEntitySwingFragment SwingFrag;
+					SwingFrag.Owner = Ctx.GetEntity(i);
+
+					FTransformFragment SwingTransform;
+					SwingTransform.GetMutableTransform().SetLocation(Seed.Tip);
+
+					const FMassEntityHandle SwingEntity = EntityManager.ReserveEntity();
+					Ctx.Defer().PushCommand<FMassCommandBuildEntity<
+						FLNPWeaponTraceFragment,
+						FTransformFragment,
+						FLNPEntitySwingFragment>>(
+						SwingEntity, Blade, SwingTransform, SwingFrag);
+
+					Attack.SwingEntity = SwingEntity;
+				}
+
 				Attack.Phase        = bIsRanged ? ELNPEntityAttackPhase::Recovery : ELNPEntityAttackPhase::Active;
 				Attack.PhaseElapsed = 0.f;
 				break;
@@ -222,11 +321,21 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 			case ELNPEntityAttackPhase::Active:
 			{
-				if (Attack.PhaseElapsed < AttackConfig.ActiveTime)
+				if (Attack.PhaseElapsed >= AttackConfig.ActiveTime)
+				{
+					DestroySwing(Attack);
+					Attack.Phase        = ELNPEntityAttackPhase::Recovery;
+					Attack.PhaseElapsed = 0.f;
 					break;
+				}
 
-				Attack.Phase        = ELNPEntityAttackPhase::Recovery;
-				Attack.PhaseElapsed = 0.f;
+				if (Attack.SwingEntity.IsSet())
+				{
+					const float T = AttackConfig.ActiveTime > 0.f
+						? FMath::Clamp(Attack.PhaseElapsed / AttackConfig.ActiveTime, 0.f, 1.f)
+						: 1.f;
+					PendingBladePoints.Add(Attack.SwingEntity, ComputeBladePoints(Basis, AttackConfig, T));
+				}
 				break;
 			}
 
@@ -244,6 +353,28 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 			default:
 				break;
 			}
+		}
+	});
+
+	if (PendingBladePoints.IsEmpty())
+		return;
+
+	// Pass 2 — 계산된 4점을 칼날 엔티티에 반영한다.
+	SwingQuery.ForEachEntityChunk(Context, [&PendingBladePoints](FMassExecutionContext& Ctx)
+	{
+		const TArrayView<FLNPWeaponTraceFragment> Blades = Ctx.GetMutableFragmentView<FLNPWeaponTraceFragment>();
+
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			const FLNPBladePoints* Points = PendingBladePoints.Find(Ctx.GetEntity(i));
+			if (Points == nullptr)
+				continue;
+
+			FLNPWeaponTraceFragment& Blade = Blades[i];
+			Blade.SwordRootPrev = Blade.SwordRootCurr;
+			Blade.SwordTipPrev  = Blade.SwordTipCurr;
+			Blade.SwordRootCurr = Points->Root;
+			Blade.SwordTipCurr  = Points->Tip;
 		}
 	});
 }

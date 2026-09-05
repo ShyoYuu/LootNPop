@@ -226,6 +226,22 @@ struct LOOTNPOP_API FLNPEntityAttackFragment : public FMassFragment
 	uint8 bAttackRequested : 1 = 0;
 };
 
+/**
+ * 순수 엔티티가 만든 가상 칼날임을 표시하고 주인을 되가리킨다.
+ *
+ * ⚠️ **Tag가 아니라 Fragment인 이유:** 칼날 엔티티는 `FMassCommandBuildEntity` 한 번으로 만들어야 한다.
+ * `BuildEntity`와 `AddTag`를 같은 배치에 디퍼드하면 아키타입 전환 타이밍 때문에 쿼리가 그 엔티티를
+ * 못 찾는다 (`UANS_LNPMeleeHitWindow`가 같은 이유로 Tag를 쓰지 않는다).
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPEntitySwingFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	FMassEntityHandle Owner;
+};
+
 /** Entity를 Enemy으로 식별하는 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyTag : public FMassTag { GENERATED_BODY() };
 

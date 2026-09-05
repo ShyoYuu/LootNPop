@@ -34,5 +34,14 @@ protected:
 	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
+	/** 적 엔티티 — 위상 진행과 칼날 4점 계산. */
 	FMassEntityQuery AttackQuery;
+
+	/**
+	 * 살아 있는 가상 칼날 — 계산된 4점을 기록한다.
+	 *
+	 * 칼날은 적과 **다른 엔티티**라 워커/게임 스레드 어느 쪽에서도 임의 접근하지 않는다.
+	 * `ULNPWeaponTraceHitDetectionProcessor`와 같은 2패스(수집 → 반영) 형태로 처리한다.
+	 */
+	FMassEntityQuery SwingQuery;
 };
