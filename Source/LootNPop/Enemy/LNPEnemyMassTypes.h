@@ -227,6 +227,122 @@ struct LOOTNPOP_API FLNPEntityAttackFragment : public FMassFragment
 };
 
 /**
+ * 게스트가 그릴 수 있는 최소한의 행동 상태. **3비트에 들어가야 한다** — 복제 페이로드에서
+ * 전이 카운터 5비트와 한 바이트를 나눠 쓴다 (FLNPReplicatedAgent::ActionAndSeq).
+ *
+ * 값을 늘리기 전에 반드시 대역폭을 다시 볼 것. 8개를 넘기는 순간 1바이트가 깨진다.
+ */
+UENUM()
+enum class ELNPEnemyAction : uint8
+{
+	Idle,
+	Move,
+	Attack,
+	Stagger,
+	Dying,
+
+	MAX UMETA(Hidden)
+};
+
+/**
+ * 서버가 산출하고 게스트가 그대로 읽는 **행동 상태 채널**. 순수 엔티티의 공격은 서버 전용
+ * Mass 로직이라, 이 채널이 없으면 게스트 화면에서 적은 아무것도 하지 않는 것처럼 보인다.
+ *
+ * 발사마다 Multicast RPC를 쏘지 않는 이유: `RPC 수 = 발사 수 x 개체 수`가 되어
+ * "순수 엔티티는 다수"라는 전제와 정면으로 충돌한다. 다수를 전제하면 연출은 이벤트가 아니라
+ * **상태**로 흘러야 한다.
+ *
+ * ⚠️ **`Seq`(전이 카운터)가 반드시 필요하다.** 상태 값만 보내면 연속 공격(Attack -> Attack)의
+ * 두 번째 시작을 놓친다 — 값이 바뀌지 않기 때문이다. 전이마다 1 올리고, 클라는 **카운터가
+ * 바뀌면** 해당 연출을 처음부터 재생한다. 5비트 wrap으로 충분하다.
+ *
+ * ⚠️ **재생 시각(타임스탬프)은 싣지 않는다.** 갱신 주기가 0.1~0.3초라 위상 동기는 어차피 근사이고,
+ * 4바이트가 늘어난다. 엔진의 같은 계열 구조체(`FReplicatedAgentPathData`)는 `ActionServerStartTime`을
+ * double로 싣지만, 판정이 이미 서버 권위인 여기서는 위상이 어긋나도 게임플레이에 영향이 없다.
+ *
+ * `FLNPEntityAttackFragment`와 같은 이유로 **`CombatMode`와 무관하게 전원에게 붙인다** —
+ * 모드로 아키타입을 가르면 같은 쿼리를 두 벌 유지해야 한다.
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemyActionFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	ELNPEnemyAction Action = ELNPEnemyAction::Idle;
+
+	/** 전이마다 +1. 하위 5비트만 복제되므로 비교는 반드시 "같은가"로만 한다(대소 비교 금지). */
+	uint8 Seq = 0;
+
+	/**
+	 * **서버 전용 장부** — 직전 프레임의 캡슐 중심. Idle/Move 판별을 실제 변위로 하기 위해 든다.
+	 *
+	 * 이동 여부의 신호로 `FMassMoveTargetFragment::DesiredSpeed`를 쓰지 않는 이유: 배회(`None`) 중에는
+	 * `ULNPEnemyMovementProcessor`가 속도를 자기 안에서(`BaseMoveSpeed * 0.3`) 정하고 MoveTarget에
+	 * 되쓰지 않아 그 값이 낡는다. 실제 변위는 어느 경로로 움직였든 항상 맞고, 애니메이션이 원하는 것도
+	 * "실제로 움직이는가"다. 클라이언트에서는 쓰이지 않는다(수신값을 그대로 쓴다).
+	 */
+	FVector PrevPosition = FVector::ZeroVector;
+
+	/**
+	 * 발사 시점의 상하 조준각 — **1/127 단위로 양자화한 ∓90도**(약 0.7도, 30m에서 37cm).
+	 *
+	 * 서버가 **실제로 발사하는 순간** 쓴 클램프된 Pitch를 그대로 싣는다. 게스트가 이 값을 모르면
+	 * 고스트가 수평으로 날아가, 고저차 교전에서 **"게스트 화면에선 피했는데 서버에선 맞는"** 상태가 된다.
+	 * (2026-09-05 플레이 테스트에서 확인되어 넣었다 — 상태 채널은 "없어서 못 읽겠다"가 확인된 것만 넓힌다.)
+	 *
+	 * 발사 순간에만 바뀌므로 델타 압축이 나머지 갱신에서 1비트로 접는다.
+	 */
+	int8 AimPitch = 0;
+
+	/** 도 단위 각도를 와이어 표현으로. ∓90도를 int8 전 범위에 편다. */
+	static int8 EncodeAimPitch(const float PitchDeg)
+	{
+		return static_cast<int8>(FMath::Clamp(FMath::RoundToInt32(PitchDeg * (127.f / 90.f)), -127, 127));
+	}
+
+	static float DecodeAimPitch(const int8 Encoded) { return static_cast<float>(Encoded) * (90.f / 127.f); }
+
+	/**
+	 * **클라이언트 전용 장부** — 관전용 Ghost를 이미 만들어 준 전이 카운터.
+	 *
+	 * `Seq`와 다르면 아직 소비하지 않은 전이다. 버블에 새로 들어온 적은 스폰 시점에 `Seq`로 맞춰
+	 * **이미 지나간 발사를 뒤늦게 쏘지 않게** 한다 — 그 발사체는 서버에서 이미 날아가는 중이다.
+	 * 서버에서는 쓰이지 않는다.
+	 */
+	uint8 ConsumedSeq = 0;
+
+	/**
+	 * **클라이언트 전용 장부** — 위 카운터를 소비할 때의 행동. 한 번의 공격이 전이를 **두 번** 만들기 때문에
+	 * 둘을 갈라야 한다:
+	 *
+	 * ```
+	 *   Move -> Attack (Seq+1)   선딜 시작. 게스트는 자세만 바꾸고 발사하지 않는다.
+	 *   Attack -> Attack (Seq+1) 발사. 이때 AimPitch가 확정되고 게스트가 Ghost를 만든다.
+	 * ```
+	 *
+	 * 즉 **직전에 소비한 행동이 이미 Attack이었을 때만** 발사로 읽는다. 두 전이가 한 갱신에 뭉쳐 도착하면
+	 * 게스트는 그 발사의 Ghost를 그냥 건너뛴다 — 없는 탄이 생기는 것보다 안 보이는 편이 안전하고,
+	 * 이는 복제 주기가 공격 길이보다 길 때 원래 감수하기로 한 스킵과 같은 성질이다.
+	 */
+	ELNPEnemyAction ConsumedAction = ELNPEnemyAction::Idle;
+
+	/**
+	 * 이 행동이 **일회성 연출**인가 — 즉 시작 시각을 놓치면 통째로 못 보게 되는가.
+	 *
+	 * 복제 갱신 주기 게이트(Low 0.3초)를 우회할 자격의 판별 기준이다. 짧은 공격(총 1.0초)은
+	 * 시작과 끝이 두 갱신 사이에 들어가 스킵될 수 있는 반면, 루프 상태(Idle/Move)는 늦게 도착해도
+	 * 그림이 같다. **Idle<->Move까지 우회시키면** 멈췄다 걷기를 반복하는 배회 개체가 갱신 수를
+	 * 통제 없이 밀어올린다 — 이 구분 하나가 스킵과 플랩을 동시에 막는다.
+	 */
+	static bool IsOneShot(const ELNPEnemyAction InAction)
+	{
+		return InAction == ELNPEnemyAction::Attack
+			|| InAction == ELNPEnemyAction::Stagger
+			|| InAction == ELNPEnemyAction::Dying;
+	}
+};
+
+/**
  * 순수 엔티티가 만든 가상 칼날임을 표시하고 주인을 되가리킨다.
  *
  * ⚠️ **Tag가 아니라 Fragment인 이유:** 칼날 엔티티는 `FMassCommandBuildEntity` 한 번으로 만들어야 한다.

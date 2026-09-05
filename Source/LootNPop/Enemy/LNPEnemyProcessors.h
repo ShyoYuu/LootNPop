@@ -187,6 +187,65 @@ protected:
 };
 
 /**
+ * 서버 행동 상태를 산출해 `FLNPEnemyActionFragment`에 기록한다 — 게스트 연출의 유일한 입력.
+ *
+ * 순수 엔티티의 공격은 서버 전용 Mass 로직이라, 이 프로세서가 없으면 게스트 화면에서 적은
+ * 아무것도 하지 않는 것처럼 보인다. 값은 그대로 복제 페이로드에 실리고
+ * (`ULNPMassReplicator::ProcessClientReplication`), 게스트에서는 버블 핸들러가 같은 프래그먼트를 채운다.
+ *
+ * ⚠️ **쿼리에 `FLNPEnemyDyingTag`를 `None`으로 걸지 않는다.** 이 파일의 다른 적 프로세서는 전부
+ * 그렇게 하고 있어 그대로 베끼기 쉬운데, 그러면 죽는 순간 엔티티가 쿼리에서 빠져
+ * **`Dying`을 아무도 싣지 못한다** — 게스트에서 적이 소리 없이 사라진다.
+ *
+ * `ULNPEntityAttackProcessor`보다 뒤에 돈다. 같은 프레임에 진행된 공격 위상을 읽어야
+ * 전이가 한 프레임 늦지 않는다.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPEnemyActionProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	ULNPEnemyActionProcessor();
+
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+
+	FMassEntityQuery ActionQuery;
+};
+
+/**
+ * 행동 상태 채널의 눈 — 엔티티 위에 현재 `Action`과 전이 카운터를 찍는다.
+ *
+ * ⚠️ **이 프로젝트에서 서버/클라 분기가 없는 유일한 Mass 프로세서이고, 그것이 의도다.**
+ * 다른 프로세서가 전부 `LNPMass::IsClientWorld()` 가드로 시작하는 것과 대조된다 —
+ * "양쪽이 같은 입력을 보고 같은 그림을 그린다"가 이 채널의 존재 이유이므로,
+ * 호스트와 게스트가 같은 코드로 같은 값을 그려야 채널이 성립했다는 증거가 된다.
+ * 트랙 C(ISKM)가 붙기 전까지 이것이 유일한 소비처다.
+ *
+ * 색으로 현재 행동을, 로그로 전이를 남긴다. **연속 공격 2회가 2회로 보이는지**는 눈보다 로그가
+ * 확실하다 — 호스트 로그와 게스트 로그를 그대로 대조할 수 있기 때문이다.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPEnemyActionDebugDrawProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	ULNPEnemyActionDebugDrawProcessor();
+
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+
+	FMassEntityQuery ActionQuery;
+
+	/** 전이만 골라 로그로 남기기 위한 직전 관측값. 디버그 전용이라 프래그먼트를 늘리지 않는다. */
+	TMap<FMassEntityHandle, uint8> LastLoggedSeq;
+};
+
+/**
  * Enemy NPC 시각적 디버깅. 에디터 빌드에서만 활성화된다.
  */
 UCLASS()

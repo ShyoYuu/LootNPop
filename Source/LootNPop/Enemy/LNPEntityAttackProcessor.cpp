@@ -3,6 +3,7 @@
 #include "Enemy/LNPEntityAttackProcessor.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPEntityAttackShared.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
@@ -14,50 +15,12 @@
 #include "MassCommonFragments.h"
 #include "MassCommonTypes.h"
 #include "MassCommands.h"
+#include "MassReplicationFragments.h"
 #include "MassExecutionContext.h"
 
 
 namespace
 {
-	/**
-	 * 구면 규약의 로컬 기저. 기준점은 **캡슐 중심**이고(발밑이 아니다),
-	 * 구 내벽이므로 머리 방향(Up)은 구 중심을 향한다 — Mass 판정 경로 전체가 쓰는 관행과 같다.
-	 */
-	struct FLNPEntityBasis
-	{
-		FVector Center = FVector::ZeroVector;
-		FVector Up      = FVector::UpVector;
-		FVector Forward = FVector::ForwardVector;
-		FVector Right   = FVector::RightVector;
-	};
-
-	FLNPEntityBasis MakeEntityBasis(const FTransform& Transform)
-	{
-		FLNPEntityBasis Basis;
-		Basis.Center = Transform.GetLocation();
-		Basis.Up     = (-Basis.Center).GetSafeNormal();
-
-		// 전방은 접평면에 투영해야 한다 — 구면에서 액터 전방은 표면과 미세하게 어긋나 있다.
-		const FVector RawForward = Transform.GetUnitAxis(EAxis::X);
-		Basis.Forward = (RawForward - Basis.Up * FVector::DotProduct(RawForward, Basis.Up)).GetSafeNormal();
-		Basis.Right   = FVector::CrossProduct(Basis.Up, Basis.Forward);
-		return Basis;
-	}
-
-	/**
-	 * 접평면 위 방향을 Yaw로 돌리고 그만큼 위아래로 기울인다.
-	 * 기울임 축을 고정 Right로 두면 Yaw가 ±90°에 가까울 때 축과 방향이 겹쳐 회전이 사라지므로,
-	 * 접평면 성분을 만든 뒤 Up 쪽으로 들어 올리는 방식으로 계산한다.
-	 */
-	FVector MakeTangentDirection(const FLNPEntityBasis& Basis, const float YawDeg, const float PitchDeg)
-	{
-		const float YawRad   = FMath::DegreesToRadians(YawDeg);
-		const float PitchRad = FMath::DegreesToRadians(PitchDeg);
-
-		const FVector Tangent = Basis.Forward * FMath::Cos(YawRad) + Basis.Right * FMath::Sin(YawRad);
-		return (Tangent * FMath::Cos(PitchRad) + Basis.Up * FMath::Sin(PitchRad)).GetSafeNormal();
-	}
-
 	/** 칼밑·칼끝 한 쌍. 2패스 사이를 건너는 유일한 데이터다. */
 	struct FLNPBladePoints
 	{
@@ -66,14 +29,14 @@ namespace
 	};
 
 	/** 가상 칼날의 현재 4점 중 Curr 두 점. t는 Active 구간의 진행률(0~1). */
-	FLNPBladePoints ComputeBladePoints(const FLNPEntityBasis& Basis, const FLNPEntityAttackConfig& Config, const float T)
+	FLNPBladePoints ComputeBladePoints(const LNPEntityAttack::FBasis& Basis, const FLNPEntityAttackConfig& Config, const float T)
 	{
 		const FVector Pivot = Basis.Center
 			+ Basis.Forward * Config.PivotForward
 			+ Basis.Up      * Config.PivotUp;
 
 		const float   YawDeg = FMath::Lerp(Config.ArcStartDeg, Config.ArcEndDeg, T);
-		const FVector Dir    = MakeTangentDirection(Basis, YawDeg, Config.ArcPitchDeg);
+		const FVector Dir    = LNPEntityAttack::MakeTangentDirection(Basis, YawDeg, Config.ArcPitchDeg);
 
 		FLNPBladePoints Points;
 		Points.Root = Pivot + Dir * Config.BladeInner;
@@ -100,6 +63,12 @@ void ULNPEntityAttackProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 	AttackQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	AttackQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	AttackQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional); // 경직 중 공격 중단
+	// 결정론적 Ghost 키의 재료. 둘 다 Optional이다 — NetID 프래그먼트는 복제 트레이트가 붙이므로
+	// Standalone(UMassReplicationTrait::BuildTemplate이 조기 반환)에는 아예 없다.
+	AttackQuery.AddRequirement<FMassNetworkIDFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
+	// ReadWrite인 이유: **발사하는 그 순간에** 전이 카운터를 한 번 더 올리고 조준각을 확정한다.
+	// 공격 상태 진입(선딜 시작)은 ULNPEnemyActionProcessor가 잡지만, 그 시점에는 아직 조준각이 없다.
+	AttackQuery.AddRequirement<FLNPEnemyActionFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
 	AttackQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	AttackQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	AttackQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -137,25 +106,17 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		FMassArchetypeSharedFragmentValues ProjectileSharedValues;
 		if (bIsRanged && WeaponDef)
 		{
-			FLNPProjectileSharedFragment SharedData;
-			SharedData.VFXData           = WeaponDef->ProjectileVFXData;
-			SharedData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
-			SharedData.Type              = WeaponDef->ProjectileType;
-			SharedData.HitRadius         = WeaponDef->HitRadius;
-			SharedData.ExplosionRadius   = WeaponDef->ExplosionRadius;
-			// 어빌리티 인스턴스가 공급하던 값들만 EntityAttackConfig로 대체된다.
-			SharedData.Damage            = AttackConfig.Damage;
-			SharedData.ParryRadius       = AttackConfig.ParryRadius;
-			SharedData.KnockbackStrength = AttackConfig.KnockbackStrength;
-			SharedData.PoiseDamage       = AttackConfig.PoiseDamage;
-
-			ProjectileSharedValues.Add(EntityManager.GetOrCreateConstSharedFragment(SharedData));
+			// 게스트의 관전용 Ghost도 **같은 함수**로 이 상수를 만든다 (LNPEntityAttackShared.h).
+			ProjectileSharedValues.Add(EntityManager.GetOrCreateConstSharedFragment(
+				LNPEntityAttack::MakeProjectileSharedData(*WeaponDef, AttackConfig)));
 		}
 
 		const TArrayView<FLNPEntityAttackFragment> Attacks              = Ctx.GetMutableFragmentView<FLNPEntityAttackFragment>();
 		const TConstArrayView<FTransformFragment> Transforms            = Ctx.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFrags = Ctx.GetFragmentView<FLNPEnemyTargetingFragment>();
 		const TConstArrayView<FLNPPoiseFragment> PoiseFrags             = Ctx.GetFragmentView<FLNPPoiseFragment>();
+		const TConstArrayView<FMassNetworkIDFragment> NetIDFrags        = Ctx.GetFragmentView<FMassNetworkIDFragment>();
+		const TArrayView<FLNPEnemyActionFragment> ActionFrags           = Ctx.GetMutableFragmentView<FLNPEnemyActionFragment>();
 
 		// 발사마다 새로 할당하지 않도록 청크 단위로 재사용한다 (BuildHexRingDirections가 Reset한다).
 		TArray<FVector> FireDirections;
@@ -218,7 +179,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 			Attack.PhaseElapsed += DeltaTime;
 
-			const FLNPEntityBasis Basis = MakeEntityBasis(Transforms[i].GetTransform());
+			const LNPEntityAttack::FBasis Basis = LNPEntityAttack::MakeBasis(Transforms[i].GetTransform());
 
 			switch (Attack.Phase)
 			{
@@ -230,10 +191,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 				// 원거리는 선딜이 끝나는 순간 1회 발사한다. ActiveTime은 근접 전용이다.
 				if (bIsRanged && WeaponDef)
 				{
-					const FVector Muzzle = Basis.Center
-						+ Basis.Forward * AttackConfig.MuzzleLocalOffset.X
-						+ Basis.Right   * AttackConfig.MuzzleLocalOffset.Y
-						+ Basis.Up      * AttackConfig.MuzzleLocalOffset.Z;
+					const FVector Muzzle = LNPEntityAttack::ComputeMuzzle(Basis, AttackConfig);
 
 					// 조준선은 Actor 경로의 GetBaseAimRotation()과 같은 규약이다 —
 					// 수평은 몸이 향한 접평면 전방, 상하만 타겟에서 뽑아 가용 각도로 클램프한다.
@@ -248,7 +206,22 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 						FMath::RadiansToDegrees(FMath::Atan2(VerticalUp, Horizontal)),
 						MoveConfig.AimPitchMinDeg, MoveConfig.AimPitchMaxDeg);
 
-					const FVector FireDir = MakeTangentDirection(Basis, 0.f, PitchDeg);
+					// **발사 = 그 자체로 하나의 전이다.** 공격 상태 진입(선딜 시작)과 발사는 다른 순간이고,
+					// 게스트가 고스트를 만들어야 하는 것은 후자다. 여기서 카운터를 한 번 더 올려
+					// 두 순간을 구분해 주고, 같은 자리에서 조준각을 확정해 함께 실어 보낸다.
+					// 조준각이 없으면 게스트 고스트가 수평으로 날아가 고저차 교전에서 서버 탄착과 어긋난다.
+					if (ActionFrags.IsValidIndex(i))
+					{
+						++ActionFrags[i].Seq;
+						ActionFrags[i].AimPitch = FLNPEnemyActionFragment::EncodeAimPitch(PitchDeg);
+					}
+
+					// 양자화를 거친 값으로 쏜다 — 서버와 게스트가 **같은 각도**를 쓰게 하려면
+					// 서버도 와이어에 실리는 값을 그대로 써야 한다. 그러지 않으면 0.7도가 조용히 갈린다.
+					const float FirePitchDeg = ActionFrags.IsValidIndex(i)
+						? FLNPEnemyActionFragment::DecodeAimPitch(ActionFrags[i].AimPitch)
+						: PitchDeg;
+					const FVector FireDir = LNPEntityAttack::MakeTangentDirection(Basis, 0.f, FirePitchDeg);
 
 					// 산탄 배치는 어빌리티 경로와 같은 공식을 쓴다 (LNPSpreadPattern.h).
 					// HexRingCount가 0이면 중앙 1발만 나오므로 단발도 이 경로로 수렴한다.
@@ -258,7 +231,14 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					// SalvoID는 **한 번의 발사에 하나**다. 펠릿 구분은 SpawnIndex가 맡는다 —
 					// Ghost 식별자가 {PlayerID, KeyOrSalvo, SpawnIndex} 조합이라 펠릿마다 키를 새로
 					// 발급하면 같은 발사의 펠릿들이 서로 다른 발사로 보인다.
-					const int32 SalvoID = ULNPGhostProjectileSubsystem::IssueServerSalvoID();
+					//
+					// ⚠️ 전역 카운터(IssueServerSalvoID)는 **복제되지 않으므로** 게스트가 같은 키를
+					// 만들 수 없고, 그러면 서버 임팩트 큐가 게스트 Ghost를 못 찾아 관통해 날아간다.
+					// NetID + 전이 카운터는 이미 양쪽이 갖고 있어 추가 대역폭 없이 같은 값이 나온다.
+					// 복제가 없는 Standalone에는 NetID 프래그먼트 자체가 없으므로 그때만 전역 카운터로 돌아간다.
+					const int32 SalvoID = (NetIDFrags.IsValidIndex(i) && ActionFrags.IsValidIndex(i))
+						? LNPEntityAttack::MakeGhostSalvoKey(NetIDFrags[i].NetID.GetValue(), ActionFrags[i].Seq)
+						: ULNPGhostProjectileSubsystem::IssueServerSalvoID();
 
 					uint8 SpawnIndex = 0;
 					for (const FVector& Dir : FireDirections)
@@ -397,6 +377,116 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 			Blade.SwordTipPrev  = Blade.SwordTipCurr;
 			Blade.SwordRootCurr = Points->Root;
 			Blade.SwordTipCurr  = Points->Tip;
+		}
+	});
+}
+
+// --- Ghost Projectile Processor (게스트 관전 가시성) ---
+
+ULNPEntityGhostProjectileProcessor::ULNPEntityGhostProjectileProcessor()
+	: GhostQuery(*this)
+{
+	// ⚠️ 기본값(Server | Standalone)이면 게스트에서 **아예 돌지 않는다** — 게스트가 유일한 대상이므로
+	//    반드시 Client여야 한다. 같은 함정을 ULNPEnemyLODOverrideProcessor가 먼저 밟았다.
+	//    리슨 호스트는 넷 모드가 Client | Server라 이 플래그에도 매칭되므로, 실제 발사체를 이미 갖고 있는
+	//    서버가 Ghost를 겹쳐 만들지 않도록 Execute 첫 줄에서 다시 거른다.
+	ExecutionFlags = (int32)EProcessorExecutionFlags::Client;
+	bAutoRegisterWithProcessingPhases = true;
+	// Ghost 스폰이 월드 서브시스템과 Mass 커맨드를 거치므로 게임 스레드에서 돈다 (서버 경로와 같은 이유).
+	bRequiresGameThreadExecution = true;
+	// 이번 프레임에 도착한 수신값을 같은 프레임에 소비한다 — 버블 핸들러는 넷 틱에서 이미 썼다.
+	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Tasks;
+}
+
+void ULNPEntityGhostProjectileProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
+{
+	GhostQuery.AddRequirement<FLNPEnemyActionFragment>(EMassFragmentAccess::ReadWrite);
+	GhostQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	GhostQuery.AddRequirement<FMassNetworkIDFragment>(EMassFragmentAccess::ReadOnly);
+	GhostQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
+	GhostQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	GhostQuery.RegisterWithProcessor(*this);
+}
+
+void ULNPEntityGhostProjectileProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
+	// 리슨 호스트는 실제 발사체를 갖고 있다 — 여기서 Ghost를 또 만들면 두 발로 보인다.
+	if (!LNPMass::IsClientWorld(EntityManager))
+		return;
+
+	UWorld* World = EntityManager.GetWorld();
+	ULNPGhostProjectileSubsystem* GhostSub = World ? World->GetSubsystem<ULNPGhostProjectileSubsystem>() : nullptr;
+	if (GhostSub == nullptr)
+		return;
+
+	GhostQuery.ForEachEntityChunk(Context, [GhostSub](FMassExecutionContext& Ctx)
+	{
+		const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
+		if (Config == nullptr
+			|| Config->CombatMode != ELNPEnemyCombatMode::PureEntity
+			|| Config->AttackType != ELNPEnemyAttackType::Ranged
+			|| Config->WeaponData == nullptr)
+		{
+			return;
+		}
+
+		const FLNPEntityAttackConfig& AttackConfig = Config->EntityAttackConfig;
+		const ULNPWeaponData& WeaponDef = *Config->WeaponData;
+
+		// 무기 상수는 청크 공용이다 — 서버가 공유 프래그먼트를 청크당 1회만 만드는 것과 같은 이유.
+		const FLNPProjectileSharedFragment SharedData = LNPEntityAttack::MakeProjectileSharedData(WeaponDef, AttackConfig);
+
+		const TArrayView<FLNPEnemyActionFragment> Actions    = Ctx.GetMutableFragmentView<FLNPEnemyActionFragment>();
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		const TConstArrayView<FMassNetworkIDFragment> NetIDs = Ctx.GetFragmentView<FMassNetworkIDFragment>();
+
+		// 발사마다 새로 할당하지 않도록 청크 단위로 재사용한다 (BuildHexRingDirections가 Reset한다).
+		TArray<FVector> FireDirections;
+
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			FLNPEnemyActionFragment& ActionFrag = Actions[i];
+
+			// 카운터는 wrap하므로 **"같은가"로만** 비교한다 — 대소 비교는 경계에서 뒤집힌다.
+			if (ActionFrag.Seq == ActionFrag.ConsumedSeq)
+				continue;
+
+			// 놓친 전이가 여럿이어도 소비는 최신 하나로 끝낸다. 이미 지난 발사를 몰아 쏘면
+			// 없던 탄막이 생긴다 — 복제 주기가 공격 길이보다 길 때의 스킵은 그대로 스킵으로 둔다.
+			const uint8 PendingSeq = ActionFrag.Seq;
+			const ELNPEnemyAction PreviousAction = ActionFrag.ConsumedAction;
+			ActionFrag.ConsumedSeq    = PendingSeq;
+			ActionFrag.ConsumedAction = ActionFrag.Action;
+
+			// 한 번의 공격은 전이를 **두 번** 만든다 — 선딜 시작(Move->Attack)과 발사(Attack->Attack).
+			// 서버가 실제로 쏘는 것은 후자이고 조준각도 그때 확정되므로, **직전 소비 행동이 이미
+			// Attack이었을 때만** 발사로 읽는다. 선딜 진입에서 쏘면 선딜 길이만큼 앞질러 날아가고
+			// 각도도 아직 정해지지 않은 값이 된다.
+			if (ActionFrag.Action != ELNPEnemyAction::Attack || PreviousAction != ELNPEnemyAction::Attack)
+				continue;
+
+			const LNPEntityAttack::FBasis Basis = LNPEntityAttack::MakeBasis(Transforms[i].GetTransform());
+			const FVector Muzzle = LNPEntityAttack::ComputeMuzzle(Basis, AttackConfig);
+
+			// 서버가 발사 순간에 확정해 실어 보낸 각도를 그대로 쓴다 — 양쪽이 같은 양자화 값을 본다.
+			const FVector FireDir = LNPEntityAttack::MakeTangentDirection(
+				Basis, 0.f, FLNPEnemyActionFragment::DecodeAimPitch(ActionFrag.AimPitch));
+
+			// 산탄 배치는 서버·어빌리티와 같은 공식을 쓴다. HexRingCount가 0이면 중앙 1발만 나온다.
+			LNPSpread::BuildHexRingDirections(FireDir, Basis.Up, Basis.Forward,
+				AttackConfig.HexRingCount, AttackConfig.HexStepDegrees, FireDirections);
+
+			TArray<FVector, TInlineAllocator<19>> Velocities;
+			Velocities.Reserve(FireDirections.Num());
+			for (const FVector& Dir : FireDirections)
+				Velocities.Add(Dir * WeaponDef.ProjectileSpeed);
+
+			// 서버가 실제 발사체에 넣은 것과 **같은 함수로 유도한** 키다. 이 값이 어긋나면
+			// 서버 임팩트 큐가 이 Ghost를 못 찾아 관통해 날아간다.
+			GhostSub->SpawnSpectatorGhosts(SharedData, Muzzle, Velocities, WeaponDef.ProjectileLifetime,
+				ELNPInstigatorTeam::Enemy, INDEX_NONE,
+				LNPEntityAttack::MakeGhostSalvoKey(NetIDs[i].NetID.GetValue(), PendingSeq),
+				/*UpstreamDelaySeconds*/ 0.f);
 		}
 	});
 }

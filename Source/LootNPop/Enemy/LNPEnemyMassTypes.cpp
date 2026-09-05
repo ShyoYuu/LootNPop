@@ -69,6 +69,10 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	// 쿼리를 두 벌 유지해야 하고 StateTree 외부 데이터 핸들이 Optional이 된다 (FLNPEntityAttackFragment 주석).
 	BuildContext.AddFragment<FLNPEntityAttackFragment>();
 
+	// 행동 상태 채널. 서버는 ULNPEnemyActionProcessor가 채우고 게스트는 버블 핸들러가 채운다 —
+	// **아키타입이 양쪽에서 같아야** 수신값을 쓸 자리가 생기므로 여기서 무조건 붙인다.
+	BuildContext.AddFragment<FLNPEnemyActionFragment>();
+
 	// 경직도. 적은 지속 버프를 받지 않으므로 저항은 여기서 1회 시드하면 끝이다
 	// (플레이어는 어트리뷰트가 바뀔 때마다 프래그먼트로 미러링한다).
 	FLNPPoiseFragment& PoiseFragment = BuildContext.AddFragment_GetRef<FLNPPoiseFragment>();

@@ -386,6 +386,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	FLNPEntityAttackConfig EntityAttackConfig;
 
+	/**
+	 * `PureEntity`가 죽고 나서 엔티티가 소멸하기까지의 시간(초). 랙돌 대신 Death 시퀀스가 재생될 자리다
+	 * (`ActorPromoted`는 `ULNPSettings::EnemyRagdollDuration`을 그대로 쓴다).
+	 *
+	 * ⚠️ **복제 LOD의 최장 갱신 주기(0.3초)보다 넉넉히 커야 한다.** 엔티티 파괴가 곧 버블 제거라,
+	 * 이 시간이 짧으면 게스트가 `Dying`을 받기도 전에 적이 사라져 **소리 없이 소멸한다.**
+	 * `Dying` 전이는 일회성이라 갱신 주기 게이트를 우회하지만, 그래도 패킷이 한 번은 나가야 한다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "0.5"))
+	float PureEntityDeathDuration = 1.5f;
+
 	/** Mass에서 Actor로 전환 시 스폰할 Actor 클래스 (CombatMode == ActorPromoted일 때만 쓰인다) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Spawning")
 	TSubclassOf<ALNPEnemyCharacter> EnemyActorClass;

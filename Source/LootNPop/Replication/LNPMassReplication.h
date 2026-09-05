@@ -10,6 +10,7 @@
 #include "MassEntityView.h"
 #include "MassProcessor.h"
 #include "MassCommonTypes.h"
+#include "Enemy/LNPEnemyMassTypes.h"   // ELNPEnemyAction — 페이로드의 비트 레이아웃이 여기서 닫히도록
 #include "LNPMassReplication.generated.h"
 
 struct FMassReplicationParameters;
@@ -198,9 +199,61 @@ struct LOOTNPOP_API FLNPReplicatedAgent : public FReplicatedAgentBase
 	const FLNPReplicatedPositionYawData& GetReplicatedPositionYawData() const { return PositionYaw; }
 	FLNPReplicatedPositionYawData& GetReplicatedPositionYawDataMutable() { return PositionYaw; }
 
+	/**
+	 * 행동 3비트 + 전이 카운터 5비트. 인코딩이 이 구조체 안에서 닫혀야 서버 인코드와 클라 디코드가 갈리지 않는다.
+	 *
+	 * 리플리케이터가 **쓰기 전에 비교**해야 하므로(바뀌었을 때만 Dirty를 건다) 인코딩을 static으로 뽑아 둔다 —
+	 * 항목을 건드려 놓고 되돌리는 형태를 만들지 않기 위해서다.
+	 */
+	static uint8 EncodeActionAndSeq(const ELNPEnemyAction InAction, const uint8 InSeq)
+	{
+		return static_cast<uint8>((static_cast<uint8>(InAction) & ActionMask) | ((InSeq & SeqMask) << SeqShift));
+	}
+
+	void SetActionAndSeq(const uint8 InEncoded) { ActionAndSeq = InEncoded; }
+
+	/** 발사 순간의 상하 조준각(양자화). 값의 의미와 인코딩은 FLNPEnemyActionFragment가 정의한다. */
+	void SetAimPitch(const int8 InAimPitch) { AimPitch = InAimPitch; }
+	int8 GetAimPitch() const { return AimPitch; }
+
+	ELNPEnemyAction GetAction() const { return static_cast<ELNPEnemyAction>(ActionAndSeq & ActionMask); }
+
+	/** 하위 5비트만 살아 넘어오므로 비교는 반드시 "같은가"로만 한다 — 대소 비교는 wrap에서 뒤집힌다. */
+	uint8 GetSeq() const { return static_cast<uint8>((ActionAndSeq >> SeqShift) & SeqMask); }
+
+	/** Dirty 판정용 원본 바이트 — 두 필드를 따로 비교하지 않고 한 번에 본다. */
+	uint8 GetActionAndSeq() const { return ActionAndSeq; }
+
 private:
+	static constexpr uint8 ActionMask = 0x07;   // 하위 3비트 = ELNPEnemyAction (5값, 상한 8)
+	static constexpr uint8 SeqShift   = 3;
+	static constexpr uint8 SeqMask    = 0x1F;   // 상위 5비트 = 전이 카운터 (0~31 wrap)
+
 	UPROPERTY(Transient)
 	FLNPReplicatedPositionYawData PositionYaw;
+
+	/**
+	 * ⚠️ **`PositionYaw`의 형제 멤버로 둔다 — 그 안에 중첩하지 않는다.**
+	 * `FStructNetSerializer::SerializeDelta`가 **구조체 멤버마다** "같음" 1비트를 쓰므로,
+	 * 형제로 두면 행동이 안 바뀐 갱신에서 이 필드가 **1비트**로 접힌다
+	 * (`LNPMassClientBubbleInfo`는 `DefaultEngine.ini`에서 델타 압축 대상으로 등록돼 있다).
+	 * 중첩하면 위치가 바뀔 때마다 이 바이트가 함께 실려 나간다.
+	 *
+	 * 2026-09-05 실측 기준 한계비용: 갱신 164회/s x 1비트 = 20 B/s로 전투 중 총 송신(29,186 B/s)의
+	 * 0.07%다. 전 갱신이 full byte(9비트)로 나가는 최악의 경우에도 0.6%에 머문다.
+	 */
+	UPROPERTY(Transient)
+	uint8 ActionAndSeq = 0;
+
+	/**
+	 * 발사 순간의 상하 조준각. **발사할 때만 바뀌므로** 나머지 갱신에서는 델타 압축이 1비트로 접는다
+	 * (`ActionAndSeq`와 같은 이유로 형제 멤버다).
+	 *
+	 * 이 필드가 없으면 게스트 고스트가 수평으로 날아가 고저차 교전에서 서버 탄착과 어긋난다 —
+	 * 2026-09-05 플레이 테스트에서 "피했다고 생각했는데 맞는다"로 확인됐다.
+	 */
+	UPROPERTY(Transient)
+	int8 AimPitch = 0;
 };
 
 /** Fast Array 복제 항목. FLNPReplicatedAgent 멤버가 바뀌면 반드시 Dirty 표시할 것. */
@@ -295,6 +348,12 @@ protected:
 	 * 보간 Fragment가 없는 아키타입(Player·LootPod)은 즉시 반영으로 폴백한다.
 	 */
 	static void PushSmoothingTarget(const FMassEntityView& EntityView, const FLNPReplicatedPositionYawData& PositionYaw);
+
+	/**
+	 * 수신한 행동 상태를 **서버와 같은 프래그먼트**에 쓴다 — 소비 프로세서가 넷 모드를 몰라도 되게 하는 지점이다.
+	 * 행동 프래그먼트가 없는 아키타입(Player·LootPod)에서는 아무것도 하지 않는다.
+	 */
+	static void ApplyReplicatedAction(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent, bool bIsInitialSpawn);
 
 	/** 스폰 쿼리 순회 동안만 유효한 Transform Fragment 뷰 (엔진 핸들러의 TransformList 대체). */
 	TArrayView<FTransformFragment> SpawnTransformList;
