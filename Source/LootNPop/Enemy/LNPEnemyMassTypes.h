@@ -300,6 +300,18 @@ public:
 protected:
 	virtual void BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const override;
 
+	/**
+	 * `ULNPEnemyConfig::CombatMode`와 EntityConfig의 표현 매핑이 어긋났는지 검사한다.
+	 *
+	 * 승격 여부의 단일 진실은 enum이지만 **실제로 Actor를 스폰할지는 표현 매핑이 정한다.**
+	 * 둘은 서로를 모르므로 어긋나도 컴파일도 실행도 실패하지 않고 조용히 틀린다 —
+	 * `PureEntity`인데 매핑에 Actor가 남아 있으면 가까이 간 것만으로 승격되고,
+	 * `ActorPromoted`인데 매핑에 Actor가 없으면 전투에 들어가도 영영 승격되지 않는다.
+	 * 실제로 전자를 밟았기 때문에 경고로 잡는다.
+	 */
+	virtual bool ValidateTemplate(const FMassEntityTemplateBuildContext& BuildContext, const UWorld& World,
+		FAdditionalTraitRequirements& OutTraitRequirements) const override;
+
 	/** Enemy MassReplication(Phase 6) — BubbleInfoClass/ReplicatorClass를 LNP 전용 클래스로 고정해 내부적으로 위임한다.
 	 *  Standalone(NM_Standalone)에서는 UMassReplicationTrait::BuildTemplate 자체가 조기 반환하므로 별도 분기가 필요 없다. */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Enemy", meta = (AllowPrivateAccess = "true"))

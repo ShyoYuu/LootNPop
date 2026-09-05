@@ -886,7 +886,6 @@ void ULNPEnemyLODOverrideProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 	LODOverrideQuery.AddRequirement<FMassRepresentationLODFragment>(EMassFragmentAccess::ReadWrite);
 	LODOverrideQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	LODOverrideQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
-	LODOverrideQuery.AddConstSharedRequirement<FMassRepresentationParameters>();
 	LODOverrideQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	LODOverrideQuery.RegisterWithProcessor(*this);
 
@@ -926,24 +925,17 @@ void ULNPEnemyLODOverrideProcessor::Execute(FMassEntityManager& EntityManager, F
 
 	LODOverrideQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& LODContext)
 	{
-		const TArrayView<FMassRepresentationLODFragment> RepresentationLODs = LODContext.GetMutableFragmentView<FMassRepresentationLODFragment>();
-		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = LODContext.GetFragmentView<FLNPEnemyTargetingFragment>();
-
-		// 승격 여부의 단일 진실은 Config의 enum이다 — EntityConfig의 표현 매핑이 아니다.
-		// 전투 강제를 건너뛰는 것만으로는 부족하다: 거리 기반 LOD는 Confirmed와 무관하게 가까워지면
-		// High가 되고, 표현 매핑에 Actor가 남아 있으면 그대로 스폰된다. 즉 "승격 안 하기로 한 개체가
-		// 가까이 가니까 Actor가 된다." 그래서 클라이언트 분기와 **같은 헬퍼**로 눌러 둔다.
+		// 승격하지 않기로 한 개체는 전투로 LOD를 끌어올리지 않는다. 그 뒤의 표현 선택은
+		// EntityConfig의 MassCrowdVisualizationTrait이 데이터로 정한다 — LODRepresentation에
+		// Actor 단계가 없으면 거리와 무관하게 Actor가 스폰되지 않는다.
+		// LOD 값을 눌러 강제하지 않는 이유는, LOD가 표현뿐 아니라 유의도·틱 레이트까지
+		// 함께 결정하는 값이라 표현 하나를 막으려고 나머지까지 끌어내리게 되기 때문이다.
 		const ULNPEnemyConfig* Config = LODContext.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
 		if (Config && Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
-		{
-			const FMassRepresentationParameters& RepParams = LODContext.GetConstSharedFragment<FMassRepresentationParameters>();
-			const int32 NonActorLOD = (int32)FindLowestNonActorLOD(RepParams);
-
-			for (int32 i = 0; i < LODContext.GetNumEntities(); ++i)
-				RepresentationLODs[i].LOD = (EMassLOD::Type)FMath::Max((int32)RepresentationLODs[i].LOD, NonActorLOD);
-
 			return;
-		}
+
+		const TArrayView<FMassRepresentationLODFragment> RepresentationLODs = LODContext.GetMutableFragmentView<FMassRepresentationLODFragment>();
+		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = LODContext.GetFragmentView<FLNPEnemyTargetingFragment>();
 
 		for (int32 i = 0; i < LODContext.GetNumEntities(); ++i)
 		{

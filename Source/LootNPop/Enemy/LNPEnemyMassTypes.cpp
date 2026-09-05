@@ -9,10 +9,13 @@
 #include "Replication/LNPMassReplicator.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "GAS/LNPPoiseTypes.h"
+#include "LootNPop.h"
 
 #include "MassEntityTemplateRegistry.h"
 #include "MassCommonFragments.h"
 #include "MassRepresentationFragments.h"
+#include "MassEntityConfigAsset.h"
+#include "MassVisualizationTrait.h"
 #include "MassActorSubsystem.h"
 #include "MassMovementFragments.h"
 #include "MassNavigationFragments.h"
@@ -110,4 +113,71 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	{
 		BuildContext.AddFragment<FLNPReplicatedMovementFragment>();
 	}
+}
+
+bool ULNPEnemyTrait::ValidateTemplate(const FMassEntityTemplateBuildContext& BuildContext, const UWorld& World,
+	FAdditionalTraitRequirements& OutTraitRequirements) const
+{
+	const bool bResult = Super::ValidateTemplate(BuildContext, World, OutTraitRequirements);
+
+	if (EnemyConfig == nullptr)
+		return bResult;
+
+	// 표현 매핑은 이웃 트레이트(MassCrowdVisualizationTrait)가 갖고 있다. BuildContext의 템플릿 데이터는
+	// protected라 읽을 수 없으므로, 트레이트의 소유 EntityConfig에서 직접 찾는다 —
+	// 어차피 검사 대상이 "이 에셋의 설정 조합"이라 자산 쪽에서 보는 편이 의미도 맞는다.
+	const UMassEntityConfigAsset* ConfigAsset = GetTypedOuter<UMassEntityConfigAsset>();
+	if (ConfigAsset == nullptr)
+		return bResult;
+
+	// GetCombinedTraits는 protected라 부모 체인을 직접 훑는다. 가까운 Config가 이긴다 —
+	// 자식이 시각화 트레이트를 다시 선언하면 그쪽이 실제로 쓰이기 때문이다.
+	const FMassRepresentationParameters* RepParams = nullptr;
+	for (const UMassEntityConfigAsset* Asset = ConfigAsset; Asset && RepParams == nullptr; Asset = Asset->GetConfig().GetParent())
+	{
+		for (const UMassEntityTraitBase* Trait : Asset->GetConfig().GetTraits())
+		{
+			if (const UMassVisualizationTrait* VisualizationTrait = Cast<UMassVisualizationTrait>(Trait))
+			{
+				RepParams = &VisualizationTrait->Params;
+				break;
+			}
+		}
+	}
+
+	if (RepParams == nullptr)
+		return bResult;
+
+	bool bMappingSpawnsActor = false;
+	for (int32 LODIndex = 0; LODIndex < EMassLOD::Max; ++LODIndex)
+	{
+		const EMassRepresentationType RepType = RepParams->LODRepresentation[LODIndex];
+		if (RepType == EMassRepresentationType::HighResSpawnedActor || RepType == EMassRepresentationType::LowResSpawnedActor)
+		{
+			bMappingSpawnsActor = true;
+			break;
+		}
+	}
+
+	const bool bPureEntity = EnemyConfig->CombatMode == ELNPEnemyCombatMode::PureEntity;
+
+	// 경고로만 알린다. false를 돌려주면 템플릿 생성 자체가 오류로 처리되어, 데이터를 고치기 전까지
+	// 해당 적이 아예 스폰되지 않는다 — 어긋남은 고쳐야 할 설정이지 스폰을 막을 사유는 아니다.
+	if (bPureEntity && bMappingSpawnsActor)
+	{
+		UE_LOG(LogLootNPop, Warning,
+			TEXT("Enemy config '%s' is PureEntity but its EntityConfig representation mapping still spawns actors. ")
+			TEXT("Set every LODRepresentation entry to a non-actor type (e.g. StaticMeshInstance) and clear the template actors, ")
+			TEXT("otherwise the entity is promoted to an actor as soon as the player gets close."),
+			*EnemyConfig->GetName());
+	}
+	else if (!bPureEntity && !bMappingSpawnsActor)
+	{
+		UE_LOG(LogLootNPop, Warning,
+			TEXT("Enemy config '%s' is ActorPromoted but its EntityConfig representation mapping never spawns actors. ")
+			TEXT("The enemy will never promote, so GAS abilities and montages stay inactive."),
+			*EnemyConfig->GetName());
+	}
+
+	return bResult;
 }
