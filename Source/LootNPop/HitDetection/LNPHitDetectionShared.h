@@ -39,21 +39,23 @@ namespace LNPHitDetection
 	/**
 	 * 적 엔티티의 판정 캡슐 중심을 좌표 규약에 맞게 되돌린다.
 	 *
-	 * Actor가 붙어 있는 구간(High LOD)에서는 MassAgentCapsuleCollisionSyncTrait(ActorToMass)가
-	 * **캡슐 컴포넌트 Transform을 그대로** Fragment에 넣으므로 Transform 위치가 이미 캡슐 중심이다.
-	 * 여기서 보정을 한 번 더 하면 판정 캡슐이 HalfHeight만큼 떠올라 몸통 아래 절반이 관통한다.
-	 * Actor가 없는 순수 엔티티 경로만 표면점이 들어오므로 그때만 중심으로 올린다.
-	 * (규약 원본: ULNPEnemyMovementProcessor의 "엔티티 Transform의 기준점은 캡슐 중심이다" 주석)
+	 * **두 모드 모두 Transform이 이미 캡슐 중심이므로 보정하지 않는다.**
+	 * - Actor 구간: `MassAgentCapsuleCollisionSyncTrait`(ActorToMass)가 캡슐 컴포넌트 Transform을 그대로 넣는다.
+	 * - 순수 엔티티 구간: `ULNPEnemyMovementProcessor`가 `표면반지름 - CapsuleHalfHeight` 위치에 놓는다
+	 *   (구 내벽이라 반지름 감소 방향이 Up이다).
+	 *
+	 * ⚠️ 과거 이 함수는 Actor가 없으면 `+Up*HalfHeight`를 더했다. 좌표 규약이 캡슐 중심으로 통일되기
+	 *    전의 잔재이며, 통일 이후로는 **이중 보정**이라 판정 캡슐이 96cm 떠올랐다. 전투에 들어간 적이
+	 *    예외 없이 Actor로 승격되던 동안에는 이 분기가 실전에서 거의 실행되지 않아 드러나지 않았고,
+	 *    순수 엔티티(CombatMode::PureEntity)를 도입하면서 표면화됐다.
 	 *
 	 * ⚠️ 근접·원거리·디버그 드로우가 모두 이 함수 하나만 쓴다. 같은 분기를 다시 복제하지 말 것 —
 	 *    복제돼 있던 시절 원거리 판정 두 곳이 서로 반대 방향으로 틀어져 있었다.
 	 */
-	inline FVector ResolveEnemyCapsuleCenter(const FVector& EntityLocation, const FVector& UpDir,
-		float CapsuleHalfHeight, const AActor* EnemyActor)
+	inline FVector ResolveEnemyCapsuleCenter(const FVector& EntityLocation, const FVector& /*UpDir*/,
+		float /*CapsuleHalfHeight*/, const AActor* /*EnemyActor*/)
 	{
-		return Cast<ALNPCharacterBase>(EnemyActor)
-			? EntityLocation
-			: EntityLocation + UpDir * CapsuleHalfHeight;
+		return EntityLocation;
 	}
 }
 
