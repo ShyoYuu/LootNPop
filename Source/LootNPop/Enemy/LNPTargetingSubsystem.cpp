@@ -2,10 +2,10 @@
 
 #include "Enemy/LNPTargetingSubsystem.h"
 
-void ULNPTargetingSubsystem::RegisterEnemyInterest(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle, float Score, bool bIsMelee)
+void ULNPTargetingSubsystem::RegisterEnemyInterest(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle, float Score, ELNPTargetSlotPool Pool)
 {
 	FScopeLock Lock(&DataLock);
-	PendingEntries.Add({ EnemyHandle, PlayerHandle, Score, bIsMelee });
+	PendingEntries.Add({ EnemyHandle, PlayerHandle, Score, Pool });
 }
 
 bool ULNPTargetingSubsystem::IsSlotConfirmed(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle) const
@@ -16,7 +16,14 @@ bool ULNPTargetingSubsystem::IsSlotConfirmed(FMassEntityHandle EnemyHandle, FMas
 	if (nullptr == SlotData)
 		return false;
 
-	return SlotData->OccupiedMelee.Contains(EnemyHandle) || SlotData->OccupiedRanged.Contains(EnemyHandle);
+	// 풀을 인자로 받지 않는다 — 호출자(StateTree·프로세서)는 "슬롯을 얻었는가"만 알면 되고,
+	// 어느 풀에서 얻었는지는 이 클래스 밖에서 의미가 없다.
+	for (const TSet<FMassEntityHandle>& Pool : SlotData->Occupied)
+	{
+		if (Pool.Contains(EnemyHandle))
+			return true;
+	}
+	return false;
 }
 
 void ULNPTargetingSubsystem::RebalanceSlots()
@@ -43,21 +50,12 @@ void ULNPTargetingSubsystem::RebalanceSlots()
 
 		FLNPPlayerSlotData& SlotData = PlayerSlots.FindOrAdd(Entry.PlayerHandle);
 
-		if (Entry.bIsMelee)
+		// 풀은 서로 예산을 뺏지 않는다 — 잡몹이 아무리 많아도 승격 개체의 자리는 남는다.
+		TSet<FMassEntityHandle>& PoolSlots = SlotData.Occupied[(int32)Entry.Pool];
+		if (PoolSlots.Num() < GetMaxSlotsForPool(Entry.Pool))
 		{
-			if (SlotData.OccupiedMelee.Num() < MaxMeleeSlotsPerPlayer)
-			{
-				SlotData.OccupiedMelee.Add(Entry.EnemyHandle);
-				AssignedEnemies.Add(Entry.EnemyHandle);
-			}
-		}
-		else
-		{
-			if (SlotData.OccupiedRanged.Num() < MaxRangedSlotsPerPlayer)
-			{
-				SlotData.OccupiedRanged.Add(Entry.EnemyHandle);
-				AssignedEnemies.Add(Entry.EnemyHandle);
-			}
+			PoolSlots.Add(Entry.EnemyHandle);
+			AssignedEnemies.Add(Entry.EnemyHandle);
 		}
 	}
 

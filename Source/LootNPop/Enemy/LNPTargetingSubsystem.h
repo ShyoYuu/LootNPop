@@ -7,6 +7,7 @@
 #include "MassEntityTypes.h"
 #include "Mass/EntityHandle.h"
 #include "Mass/ExternalSubsystemTraits.h"
+#include "Enemy/LNPEnemyConfig.h"   // ELNPTargetSlotPool — 풀 판별의 단일 원본이 Config에 있다
 #include "LNPTargetingSubsystem.generated.h"
 
 /** 슬롯 경쟁 중인 Enemy의 정보 */
@@ -15,7 +16,7 @@ struct FLNPPendingTargetEntry
 	FMassEntityHandle EnemyHandle;
 	FMassEntityHandle PlayerHandle;
 	float Score;
-	bool bIsMelee;
+	ELNPTargetSlotPool Pool;
 
 	bool operator<(const FLNPPendingTargetEntry& Other) const
 	{
@@ -29,9 +30,11 @@ struct FLNPPlayerSlotData
 {
 	GENERATED_BODY()
 
-	/** 현재 슬롯을 점유하는 Entity (Confirmed 상태) */
-	TSet<FMassEntityHandle> OccupiedMelee;
-	TSet<FMassEntityHandle> OccupiedRanged;
+	/**
+	 * 풀별로 현재 슬롯을 점유하는 Entity (Confirmed 상태).
+	 * 풀마다 이름 붙인 멤버를 두지 않고 배열로 두는 이유는, 풀이 늘어도 할당 루프가 안 늘어나기 때문이다.
+	 */
+	TSet<FMassEntityHandle> Occupied[(int32)ELNPTargetSlotPool::Count];
 };
 
 /**
@@ -44,8 +47,8 @@ class LOOTNPOP_API ULNPTargetingSubsystem : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
-	/** 특정 Player 타겟에 대한 Enemy의 어그로 Score를 등록한다 */
-	void RegisterEnemyInterest(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle, float Score, bool bIsMelee);
+	/** 특정 Player 타겟에 대한 Enemy의 어그로 Score를 등록한다. 풀은 ULNPEnemyConfig::GetSlotPool()에서 온다. */
+	void RegisterEnemyInterest(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle, float Score, ELNPTargetSlotPool Pool);
 
 	/** Enemy의 슬롯 확정 여부를 반환한다 */
 	bool IsSlotConfirmed(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle) const;
@@ -53,11 +56,36 @@ public:
 	/** 재균형 수행: 고점수 Enemy을 승격하고 저점수 Enemy을 강등한다 */
 	void RebalanceSlots();
 
+	/** `PureEntity` + 근접. Actor를 스폰하지 않으므로 넉넉히 열어 둔다. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Targeting")
 	int32 MaxMeleeSlotsPerPlayer = 10;
 
+	/** `PureEntity` + 원거리. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Targeting")
 	int32 MaxRangedSlotsPerPlayer = 20;
+
+	/**
+	 * `ActorPromoted` 전용 — 근접·원거리를 나누지 않는다.
+	 *
+	 * ⚠️ **이 값이 곧 플레이어당 적 Actor 수 상한이다.** 슬롯을 못 얻으면 `Confirmed`가 아니고,
+	 * `Confirmed`가 아니면 `ULNPEnemyLODOverrideProcessor`가 High를 강제하지 않아 Actor가 스폰되지 않는다.
+	 * 슬롯 시스템이 처음부터 성능 예산 장치였다는 점이 여기서 드러난다 —
+	 * 승격된 적 1기당 700~900 B/s이므로 이 숫자를 올리는 것은 곧 대역폭 결정이다.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Targeting")
+	int32 MaxPromotedSlotsPerPlayer = 2;
+
+	/** 풀 → 한도. 풀을 추가하면 여기만 고치면 된다. */
+	int32 GetMaxSlotsForPool(const ELNPTargetSlotPool Pool) const
+	{
+		switch (Pool)
+		{
+		case ELNPTargetSlotPool::Melee:    return MaxMeleeSlotsPerPlayer;
+		case ELNPTargetSlotPool::Ranged:   return MaxRangedSlotsPerPlayer;
+		case ELNPTargetSlotPool::Promoted: return MaxPromotedSlotsPerPlayer;
+		default:                           return 0;
+		}
+	}
 
 protected:
 	/** Player Entity -> 슬롯 데이터 맵 */

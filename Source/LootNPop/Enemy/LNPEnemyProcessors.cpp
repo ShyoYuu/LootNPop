@@ -99,9 +99,9 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		const FLNPEnemyTargetingConfig& TConfig = SharedFragment.Config->TargetingConfig;
 		const FLNPEnemyMovementConfig& MConfig = SharedFragment.Config->MovementConfig;  // 피격 인지의 상하 게이트
 
-		// 근접/원거리는 Config의 명시 필드가 원본이다 — 태그 이름 규약(EnemyTypeTag에 "Melee" 포함)에
-		// 기대면 이름과 거동이 조용히 어긋나고, 순수 엔티티 공격 경로까지 같은 판별을 필요로 한다.
-		const bool bIsMelee = SharedFragment.Config->AttackType == ELNPEnemyAttackType::Melee;
+		// 슬롯 풀은 Config가 CombatMode·AttackType에서 파생시킨다 — 판별 원본이 하나여야 한다.
+		// (예전에는 EnemyTypeTag에 "Melee"가 들어 있는지로 봤는데, 이름과 거동이 조용히 어긋난다.)
+		const ELNPTargetSlotPool SlotPool = SharedFragment.Config->GetSlotPool();
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
@@ -236,11 +236,11 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					const FMassEntityHandle PlayerHandle = Candidate.Handle;
 
 					// TargetingSubsystem 갱신은 게임 스레드 커맨드로 지연 실행 (Processor는 워커 스레드에서 돌 수 있음)
-					Context.Defer().PushCommand<FMassDeferredSetCommand>([EnemyEntity, PlayerHandle, Score, bIsMelee](const FMassEntityManager& InOutEntityManager)
+					Context.Defer().PushCommand<FMassDeferredSetCommand>([EnemyEntity, PlayerHandle, Score, SlotPool](const FMassEntityManager& InOutEntityManager)
 					{
 						ULNPTargetingSubsystem* TargetingSubsystem = UWorld::GetSubsystem<ULNPTargetingSubsystem>(InOutEntityManager.GetWorld());
 						if (TargetingSubsystem != nullptr)
-							TargetingSubsystem->RegisterEnemyInterest(EnemyEntity, PlayerHandle, Score, bIsMelee);
+							TargetingSubsystem->RegisterEnemyInterest(EnemyEntity, PlayerHandle, Score, SlotPool);
 					});
 				}
 			}
