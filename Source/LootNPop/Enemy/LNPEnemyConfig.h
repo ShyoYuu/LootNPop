@@ -48,6 +48,26 @@ enum class ELNPEnemyAttackType : uint8
 };
 
 /**
+ * 타게팅 슬롯 풀 — 어떤 적이 어떤 예산을 놓고 경쟁하는가.
+ *
+ * ⚠️ **`ActorPromoted`는 근접/원거리를 나누지 않는다.** 이 풀을 가르는 실제 비용 축은
+ * 교전 거리가 아니라 **Actor 스폰 수**이기 때문이다 (승격된 적 1기당 700~900 B/s).
+ *
+ * 풀을 나누는 이유는 *"잡몹에 둘러싸여 슬롯이 찬 탓에 승격 개체가 구경만 하는"* 그림을
+ * 원천 차단하기 위해서다. 같은 풀에 점수 가산으로 처리하면 가산치가 크면 잡몹이 통째로 밀려나고
+ * 작으면 거리로 다시 뒤집힌다 — 튜닝 축만 하나 늘어난다.
+ */
+UENUM()
+enum class ELNPTargetSlotPool : uint8
+{
+	Melee,      // PureEntity + 근접
+	Ranged,     // PureEntity + 원거리
+	Promoted,   // ActorPromoted (근접·원거리 구분 없음)
+
+	Count UMETA(Hidden)
+};
+
+/**
  * 우선순위 점수 계산 및 인지 설정.
  *
  * ```
@@ -449,6 +469,20 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))
 	float CapsuleRadius = 35.f;
+
+	/**
+	 * 이 적이 경쟁할 슬롯 풀. **파생값이므로 데이터로 따로 두지 않는다** —
+	 * `CombatMode`와 `AttackType`이 이미 원본이고, 셋을 따로 편집하게 하면 어긋날 자리가 생긴다.
+	 */
+	ELNPTargetSlotPool GetSlotPool() const
+	{
+		if (CombatMode == ELNPEnemyCombatMode::ActorPromoted)
+			return ELNPTargetSlotPool::Promoted;
+
+		return (AttackType == ELNPEnemyAttackType::Melee)
+			? ELNPTargetSlotPool::Melee
+			: ELNPTargetSlotPool::Ranged;
+	}
 
 	/** Asset Manager가 ID로 이 에셋을 식별하기 위해 필요 */
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
