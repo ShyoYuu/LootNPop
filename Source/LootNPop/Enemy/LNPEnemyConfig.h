@@ -263,9 +263,11 @@ struct FLNPEntityAttackConfig
 
 	// --- 공용 ---
 
+	/** 원거리는 **펠릿 하나당** 값이다 — 산탄이면 명중 수만큼 곱해져 들어간다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
 	float Damage = 10.f;
 
+	/** 원거리는 **펠릿 하나당** 값이다. 경직은 명중마다 누적되므로 산탄에서는 특히 작게 잡는다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
 	float PoiseDamage = 10.f;
 
@@ -324,9 +326,23 @@ struct FLNPEntityAttackConfig
 
 	// --- 원거리 전용 ---
 
-	/** 총구 위치(캡슐 중심 기준 로컬: X=전방, Y=우측, Z=Up). */
+	/**
+	 * 총구 위치(캡슐 중심 기준 로컬: X=전방, Y=우측, Z=Up).
+	 * ⚠️ X는 **캡슐 반경보다 크게** 둘 것 — 캡슐 안에서 스폰하면 발사체가 자기 몸에 닿아 즉시 파괴된다.
+	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Ranged")
 	FVector MuzzleLocalOffset = FVector(40.f, 0.f, 10.f);
+
+	/**
+	 * 산탄 육각 링 수. 발사 수 = 1 + 3N(N+1) → 0=단발, 1=7발, 2=19발.
+	 * 펠릿마다 Mass 엔티티와 트레일 VFX가 하나씩 생기므로 올릴 때 비용을 함께 본다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Ranged", meta = (ClampMin = "0", ClampMax = "5"))
+	int32 HexRingCount = 0;
+
+	/** 인접한 육각 셀 사이의 각도 간격(도). 링 수와 곱한 값이 확산의 최대 반각이 된다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Ranged", meta = (ClampMin = "0.0"))
+	float HexStepDegrees = 5.f;
 };
 
 /**

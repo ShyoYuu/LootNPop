@@ -7,6 +7,7 @@
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
+#include "HitDetection/LNPSpreadPattern.h"
 #include "Item/LNPWeaponData.h"
 #include "LNPMassUtils.h"
 
@@ -156,6 +157,9 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFrags = Ctx.GetFragmentView<FLNPEnemyTargetingFragment>();
 		const TConstArrayView<FLNPPoiseFragment> PoiseFrags             = Ctx.GetFragmentView<FLNPPoiseFragment>();
 
+		// 발사마다 새로 할당하지 않도록 청크 단위로 재사용한다 (BuildHexRingDirections가 Reset한다).
+		TArray<FVector> FireDirections;
+
 		// Active 종료·경직·타겟 상실 어디서 끊기든 칼날을 반드시 회수한다.
 		// TimeToLive는 이 경로를 놓쳤을 때의 그물이지 1차 방어선이 아니다.
 		auto DestroySwing = [&Ctx](FLNPEntityAttackFragment& Attack)
@@ -243,34 +247,49 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 					const FVector FireDir = MakeTangentDirection(Basis, 0.f, PitchDeg);
 
-					FLNPProjectileFragment ProjFrag;
-					ProjFrag.PreviousPos        = Muzzle;
-					ProjFrag.SpawnLocation      = Muzzle;
-					ProjFrag.Velocity           = FireDir * WeaponDef->ProjectileSpeed;
-					ProjFrag.LifetimeRemaining  = WeaponDef->ProjectileLifetime;
-					ProjFrag.Instigator         = Ctx.GetEntity(i);
-					ProjFrag.InstigatorTeam     = ELNPInstigatorTeam::Enemy;
-					ProjFrag.bIsLocalInstigator = false;             // 엔티티 NPC는 예측 대상이 아니다
-					ProjFrag.InstigatorPlayerID = INDEX_NONE;
-					// 예측 키가 없는 발사는 서버 발급 SalvoID로 전역 고유성을 확보한다 (패링 반사 경로와 동일).
-					ProjFrag.PredictionKeyID    = ULNPGhostProjectileSubsystem::IssueServerSalvoID();
-					ProjFrag.CachedRewindSeconds = 0.f;              // 공격자에 PlayerState가 없어 되감기가 없다
+					// 산탄 배치는 어빌리티 경로와 같은 공식을 쓴다 (LNPSpreadPattern.h).
+					// HexRingCount가 0이면 중앙 1발만 나오므로 단발도 이 경로로 수렴한다.
+					LNPSpread::BuildHexRingDirections(FireDir, Basis.Up, Basis.Forward,
+						AttackConfig.HexRingCount, AttackConfig.HexStepDegrees, FireDirections);
 
-					FLNPProjectileVisualFragment VisualFrag;
-					FTransformFragment TransFrag;
-					TransFrag.GetMutableTransform().SetLocation(Muzzle);
+					// SalvoID는 **한 번의 발사에 하나**다. 펠릿 구분은 SpawnIndex가 맡는다 —
+					// Ghost 식별자가 {PlayerID, KeyOrSalvo, SpawnIndex} 조합이라 펠릿마다 키를 새로
+					// 발급하면 같은 발사의 펠릿들이 서로 다른 발사로 보인다.
+					const int32 SalvoID = ULNPGhostProjectileSubsystem::IssueServerSalvoID();
 
-					FMassArchetypeSharedFragmentValues SharedValuesCopy = ProjectileSharedValues;
-					Ctx.Defer().PushCommand<FMassCommandBuildEntityWithSharedFragments<
-						FMassArchetypeSharedFragmentValues,
-						FLNPProjectileFragment,
-						FLNPProjectileVisualFragment,
-						FTransformFragment>>(
-						EntityManager.ReserveEntity(),
-						MoveTemp(SharedValuesCopy),
-						ProjFrag,
-						VisualFrag,
-						TransFrag);
+					uint8 SpawnIndex = 0;
+					for (const FVector& Dir : FireDirections)
+					{
+						FLNPProjectileFragment ProjFrag;
+						ProjFrag.PreviousPos        = Muzzle;
+						ProjFrag.SpawnLocation      = Muzzle;
+						ProjFrag.Velocity           = Dir * WeaponDef->ProjectileSpeed;
+						ProjFrag.LifetimeRemaining  = WeaponDef->ProjectileLifetime;
+						ProjFrag.Instigator         = Ctx.GetEntity(i);
+						ProjFrag.InstigatorTeam     = ELNPInstigatorTeam::Enemy;
+						ProjFrag.bIsLocalInstigator = false;             // 엔티티 NPC는 예측 대상이 아니다
+						ProjFrag.InstigatorPlayerID = INDEX_NONE;
+						// 예측 키가 없는 발사는 서버 발급 SalvoID로 전역 고유성을 확보한다 (패링 반사 경로와 동일).
+						ProjFrag.PredictionKeyID    = SalvoID;
+						ProjFrag.SpawnIndex         = SpawnIndex++;
+						ProjFrag.CachedRewindSeconds = 0.f;              // 공격자에 PlayerState가 없어 되감기가 없다
+
+						FLNPProjectileVisualFragment VisualFrag;
+						FTransformFragment TransFrag;
+						TransFrag.GetMutableTransform().SetLocation(Muzzle);
+
+						FMassArchetypeSharedFragmentValues SharedValuesCopy = ProjectileSharedValues;
+						Ctx.Defer().PushCommand<FMassCommandBuildEntityWithSharedFragments<
+							FMassArchetypeSharedFragmentValues,
+							FLNPProjectileFragment,
+							FLNPProjectileVisualFragment,
+							FTransformFragment>>(
+							EntityManager.ReserveEntity(),
+							MoveTemp(SharedValuesCopy),
+							ProjFrag,
+							VisualFrag,
+							TransFrag);
+					}
 				}
 
 				// 근접은 Active 진입과 함께 칼날 엔티티를 만든다. 판정 파이프라인이 요구하는 것은
