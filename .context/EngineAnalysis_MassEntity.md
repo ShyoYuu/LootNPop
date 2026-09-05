@@ -265,17 +265,29 @@ Phase (틱 그룹 = 프레임 내 시점)
 
 **`ProcessorGroupNames`**: Phase 내부의 명명된 순서 버킷입니다. `ExecuteInGroup`으로 소속을 지정합니다.
 
-| 그룹 이름 | 속하는 Phase | 용도 |
+⚠️ **그룹은 Phase를 정하지 않습니다.** 같은 그룹 이름을 쓰는 Processor들이 서로 다른 Phase에
+들어갈 수 있고, 실제로 그렇습니다. 아래는 "그 그룹의 Processor가 흔히 놓이는 Phase"일 뿐
+**규칙이 아닙니다** — 각 Processor의 `ProcessingPhase`를 직접 확인해야 합니다.
+
+| 그룹 이름 | 흔히 놓이는 Phase | 용도 |
 |---|---|---|
 | `SyncWorldToMass` | PrePhysics | 월드 상태 → Mass 동기화 |
 | `Behavior` | PrePhysics | StateTree, AI 판단 |
 | `Tasks` | PrePhysics | StateTree Task 실행 |
 | `Movement` | PrePhysics | 이동 처리 |
-| `LOD` | PostPhysics | LOD 계산 |
-| `Representation` | PostPhysics | Actor 스폰/디스폰 동기화 |
+| `LOD` | **혼재** | LOD 계산 |
+| `Representation` (+ 하위 `Representation.VisualizationProcessing`) | **PrePhysics** | Actor 스폰/디스폰 동기화 |
 | `UpdateWorldFromMass` | PostPhysics | Mass → 월드 동기화 |
 
-**중요**: 그룹을 지정해도 Phase를 명시하지 않으면 PrePhysics에서 실행됩니다. LOD/Representation 그룹에 속한 Processor도 `ProcessingPhase = EMassProcessingPhase::PostPhysics`를 반드시 명시해야 의도한 타이밍에 실행됩니다.
+**중요**: 그룹을 지정해도 Phase를 명시하지 않으면 **PrePhysics**입니다(`UMassProcessor`의 기본값).
+`UMassCrowdVisualizationLODProcessor`·`UMassCrowdVisualizationProcessor`가 정확히 그 경우라
+**엔진의 표현 체인은 PrePhysics에서 돕니다.**
+
+> ⚠️ **여기에 끼어드는 Processor를 PostPhysics에 두면 선언은 통과하고 실행은 안 됩니다.**
+> 순서 제약이 Phase를 건너지 못하므로(§4.3) `ExecuteBefore(Representation)`가 조용히 무시되고,
+> LOD는 다음 프레임 PrePhysics에서 다시 계산돼 우리가 쓴 값을 덮습니다.
+> 2026-09-05에 이 함정으로 게스트가 간헐적으로 죽었고, **경고도 크래시 단서도 없었습니다**
+> (→ `TechDesign_EnemyNPC.md` §7.10).
 
 ### 4.3 ExecuteAfter / ExecuteBefore
 
@@ -291,6 +303,12 @@ ExecutionOrder.ExecuteBefore.Add(UE::Mass::ProcessorGroupNames::Representation);
 ```
 
 **크로스-Phase 순서 제약이 필요한 경우**: Phase를 다르게 지정하는 것으로 해결합니다. PrePhysics에서 출력한 데이터를 PostPhysics에서 읽는 것은 Phase 경계의 커맨드 버퍼 플러시로 자연스럽게 동기화됩니다.
+
+⚠️ **역방향은 성립하지 않습니다.** PostPhysics에서 쓴 값을 다음 프레임 PrePhysics의 소비자가
+읽어 주기를 기대하면 안 됩니다 — 그 사이에 같은 값을 매 프레임 다시 계산하는 Processor가 있으면
+덮입니다. 이건 "한 프레임 늦게 반영된다"가 아니라 **영영 반영되지 않는다**입니다.
+근거가 필요한 판단(예: 타게팅 결과)과 끼어들 대상(예: 표현 체인)의 Phase가 다르면,
+**한 Processor에 담지 말고 나눠야 합니다.**
 
 ### 4.4 Phase별 권장 Processor 배치
 

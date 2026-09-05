@@ -877,19 +877,13 @@ static EMassLOD::Type FindLowestNonActorLOD(const FMassRepresentationParameters&
 }
 
 ULNPEnemyLODOverrideProcessor::ULNPEnemyLODOverrideProcessor()
-	: LODOverrideQuery(*this), ClientRepresentationQuery(*this)
+	: LODOverrideQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
-	// 기본값(Server|Standalone)이면 게스트에서 아예 돌지 않는다 — 클라이언트 표현 정책(아래 Execute)이 이 프로세서에 있다.
-	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
+	// 판단 근거인 타게팅 상태를 ULNPEnemyScoringProcessor(PostPhysics)가 채우므로 그보다 뒤여야 한다.
 	ProcessingPhase = EMassProcessingPhase::PostPhysics;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::LOD;
 	ExecutionOrder.ExecuteAfter.Add(TEXT("MassDistanceLODProcessor"));
-	// LOD 값을 덮어쓰려면 그 값을 계산하는 프로세서보다 뒤여야 한다. 둘 다 LOD 그룹 안이라
-	// 명시하지 않으면 순서가 정해지지 않는다 — 적 엔티티의 표현 LOD는 이쪽이 계산한다
-	// (EntityConfig가 MassCrowdVisualizationTrait을 쓴다).
-	ExecutionOrder.ExecuteAfter.Add(TEXT("MassCrowdVisualizationLODProcessor"));
-	ExecutionOrder.ExecuteBefore.Add(UE::Mass::ProcessorGroupNames::Representation);
 }
 
 void ULNPEnemyLODOverrideProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -899,40 +893,14 @@ void ULNPEnemyLODOverrideProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 	LODOverrideQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	LODOverrideQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	LODOverrideQuery.RegisterWithProcessor(*this);
-
-	ClientRepresentationQuery.AddRequirement<FMassRepresentationLODFragment>(EMassFragmentAccess::ReadWrite);
-	ClientRepresentationQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
-	ClientRepresentationQuery.AddConstSharedRequirement<FMassRepresentationParameters>();
-	ClientRepresentationQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
-	ClientRepresentationQuery.RegisterWithProcessor(*this);
 }
 
 void ULNPEnemyLODOverrideProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다.
-	// 전투 판단 기반 LOD 강제는 서버 전용 개념이고, 클라이언트는 대신 표현 소유권을 정리한다.
+	// Enemy MassReplication(Phase 6) 이후 클라이언트에도 이 아키타입의 엔티티가 존재한다 —
+	// 전투 판단 기반 LOD 강제는 서버 전용 개념이다(게스트 표현 정책은 별도 프로세서가 맡는다).
 	if (LNPMass::IsClientWorld(EntityManager))
-	{
-		ClientRepresentationQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& RepContext)
-		{
-			const FMassRepresentationParameters& RepParams = RepContext.GetConstSharedFragment<FMassRepresentationParameters>();
-			const TArrayView<FMassRepresentationLODFragment> RepresentationLODs = RepContext.GetMutableFragmentView<FMassRepresentationLODFragment>();
-			const TConstArrayView<FMassActorFragment> ActorFrags = RepContext.GetFragmentView<FMassActorFragment>();
-
-			const int32 NonActorLOD = (int32)FindLowestNonActorLOD(RepParams);
-
-			for (int32 i = 0; i < RepContext.GetNumEntities(); ++i)
-			{
-				// 복제로 도착한 Actor(= Mass 소유가 아닌 Actor)가 있으면 그것을 표현으로 채택한다.
-				// 엔진의 bForceActorRepresentationForExternalActors와 같은 처방을 LOD 쪽에서 건다.
-				const bool bHasReplicatedActor = ActorFrags[i].IsValid() && !ActorFrags[i].IsOwnedByMass();
-				RepresentationLODs[i].LOD = bHasReplicatedActor
-					? EMassLOD::High
-					: (EMassLOD::Type)FMath::Max((int32)RepresentationLODs[i].LOD, NonActorLOD);
-			}
-		});
 		return;
-	}
 
 	LODOverrideQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& LODContext)
 	{
@@ -954,6 +922,65 @@ void ULNPEnemyLODOverrideProcessor::Execute(FMassEntityManager& EntityManager, F
 			// RepresentationProcessor가 전환을 최초 1회만 감지하도록 한다.
 			if (TargetingFragments[i].State == ELNPTargetingState::Confirmed)
 				RepresentationLODs[i].LOD = EMassLOD::High;
+		}
+	});
+}
+
+// --- Client Representation Processor (게스트 표현 일원화) ---
+
+ULNPEnemyClientRepresentationProcessor::ULNPEnemyClientRepresentationProcessor()
+	: ClientRepresentationQuery(*this)
+{
+	bAutoRegisterWithProcessingPhases = true;
+	// 게스트 전용 정책이다. 리슨 호스트는 넷 모드가 Client | Server라 이 플래그에도 매칭되므로
+	// Execute 첫 줄에서 다시 거른다.
+	ExecutionFlags = (int32)EProcessorExecutionFlags::Client;
+
+	// ⚠️ **이 한 줄이 이 프로세서가 따로 존재하는 이유다.** 표현을 실제로 정하는 엔진 프로세서들이
+	//    ProcessingPhase를 설정하지 않아 기본값 PrePhysics로 돌고, Mass는 페이즈별로 따로
+	//    의존성을 해소하므로 다른 페이즈에서 선언한 ExecuteBefore는 조용히 무시된다.
+	ProcessingPhase = EMassProcessingPhase::PrePhysics;
+
+	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::LOD;
+	// 거리로 LOD를 계산하는 쪽보다 뒤 — 안 그러면 우리가 쓴 값이 같은 프레임에 덮인다.
+	ExecutionOrder.ExecuteAfter.Add(TEXT("MassCrowdVisualizationLODProcessor"));
+	ExecutionOrder.ExecuteAfter.Add(TEXT("MassDistanceLODProcessor"));
+	// 그 값을 읽어 Actor를 스폰하는 쪽보다 앞. UMassVisualizationProcessor는 Representation이 아니라
+	// 그 하위 그룹(Representation.VisualizationProcessing)에 들어가므로 둘 다 못 박는다.
+	ExecutionOrder.ExecuteBefore.Add(UE::Mass::ProcessorGroupNames::Representation);
+	ExecutionOrder.ExecuteBefore.Add(UE::Mass::ProcessorGroupNames::VisualizationProcessing);
+}
+
+void ULNPEnemyClientRepresentationProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
+{
+	ClientRepresentationQuery.AddRequirement<FMassRepresentationLODFragment>(EMassFragmentAccess::ReadWrite);
+	ClientRepresentationQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
+	ClientRepresentationQuery.AddConstSharedRequirement<FMassRepresentationParameters>();
+	ClientRepresentationQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	ClientRepresentationQuery.RegisterWithProcessor(*this);
+}
+
+void ULNPEnemyClientRepresentationProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
+	if (!LNPMass::IsClientWorld(EntityManager))
+		return;
+
+	ClientRepresentationQuery.ForEachEntityChunk(Context, [](FMassExecutionContext& RepContext)
+	{
+		const FMassRepresentationParameters& RepParams = RepContext.GetConstSharedFragment<FMassRepresentationParameters>();
+		const TArrayView<FMassRepresentationLODFragment> RepresentationLODs = RepContext.GetMutableFragmentView<FMassRepresentationLODFragment>();
+		const TConstArrayView<FMassActorFragment> ActorFrags = RepContext.GetFragmentView<FMassActorFragment>();
+
+		const int32 NonActorLOD = (int32)FindLowestNonActorLOD(RepParams);
+
+		for (int32 i = 0; i < RepContext.GetNumEntities(); ++i)
+		{
+			// 복제로 도착한 Actor(= Mass 소유가 아닌 Actor)가 있으면 그것을 표현으로 채택한다.
+			// 엔진의 bForceActorRepresentationForExternalActors와 같은 처방을 LOD 쪽에서 건다.
+			const bool bHasReplicatedActor = ActorFrags[i].IsValid() && !ActorFrags[i].IsOwnedByMass();
+			RepresentationLODs[i].LOD = bHasReplicatedActor
+				? EMassLOD::High
+				: (EMassLOD::Type)FMath::Max((int32)RepresentationLODs[i].LOD, NonActorLOD);
 		}
 	});
 }
