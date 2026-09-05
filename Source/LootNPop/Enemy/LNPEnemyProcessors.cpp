@@ -884,6 +884,8 @@ void ULNPEnemyLODOverrideProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 {
 	LODOverrideQuery.AddRequirement<FMassRepresentationLODFragment>(EMassFragmentAccess::ReadWrite);
 	LODOverrideQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+	LODOverrideQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
+	LODOverrideQuery.AddConstSharedRequirement<FMassRepresentationParameters>();
 	LODOverrideQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	LODOverrideQuery.RegisterWithProcessor(*this);
 
@@ -925,6 +927,22 @@ void ULNPEnemyLODOverrideProcessor::Execute(FMassEntityManager& EntityManager, F
 	{
 		const TArrayView<FMassRepresentationLODFragment> RepresentationLODs = LODContext.GetMutableFragmentView<FMassRepresentationLODFragment>();
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = LODContext.GetFragmentView<FLNPEnemyTargetingFragment>();
+
+		// 승격 여부의 단일 진실은 Config의 enum이다 — EntityConfig의 표현 매핑이 아니다.
+		// 전투 강제를 건너뛰는 것만으로는 부족하다: 거리 기반 LOD는 Confirmed와 무관하게 가까워지면
+		// High가 되고, 표현 매핑에 Actor가 남아 있으면 그대로 스폰된다. 즉 "승격 안 하기로 한 개체가
+		// 가까이 가니까 Actor가 된다." 그래서 클라이언트 분기와 **같은 헬퍼**로 눌러 둔다.
+		const ULNPEnemyConfig* Config = LODContext.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
+		if (Config && Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
+		{
+			const FMassRepresentationParameters& RepParams = LODContext.GetConstSharedFragment<FMassRepresentationParameters>();
+			const int32 NonActorLOD = (int32)FindLowestNonActorLOD(RepParams);
+
+			for (int32 i = 0; i < LODContext.GetNumEntities(); ++i)
+				RepresentationLODs[i].LOD = (EMassLOD::Type)FMath::Max((int32)RepresentationLODs[i].LOD, NonActorLOD);
+
+			return;
+		}
 
 		for (int32 i = 0; i < LODContext.GetNumEntities(); ++i)
 		{

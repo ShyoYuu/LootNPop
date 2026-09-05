@@ -62,6 +62,10 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	//BuildContext.AddFragment<FMassVelocityFragment>();
 	BuildContext.AddFragment<FLNPPositionHistoryFragment>(); // Lag Compensation용 위치 히스토리 (서버 전용 기록)
 
+	// 순수 엔티티 공격 상태. CombatMode와 무관하게 전원에게 붙인다 — 모드로 아키타입을 가르면
+	// 쿼리를 두 벌 유지해야 하고 StateTree 외부 데이터 핸들이 Optional이 된다 (FLNPEntityAttackFragment 주석).
+	BuildContext.AddFragment<FLNPEntityAttackFragment>();
+
 	// 경직도. 적은 지속 버프를 받지 않으므로 저항은 여기서 1회 시드하면 끝이다
 	// (플레이어는 어트리뷰트가 바뀔 때마다 프래그먼트로 미러링한다).
 	FLNPPoiseFragment& PoiseFragment = BuildContext.AddFragment_GetRef<FLNPPoiseFragment>();

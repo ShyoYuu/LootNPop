@@ -184,6 +184,48 @@ struct LOOTNPOP_API FLNPEnemyVelocityFragment : public FMassFragment
 	FVector Velocity = FVector::ZeroVector;
 };
 
+/** 순수 엔티티 기본 공격의 위상. 근접은 Active가 칼날 생존 구간, 원거리는 Windup 종료 시 1회 발사한다. */
+UENUM()
+enum class ELNPEntityAttackPhase : uint8
+{
+	None,
+	Windup,     // 선딜 — 플레이어가 읽고 반응할 구간
+	Active,     // 근접: 칼날이 살아 있는 구간 / 원거리: 미사용
+	Recovery,   // 후딜
+};
+
+/**
+ * 순수 엔티티 공격의 상태 기계. **판단은 StateTree Task가, 진행은 프로세서가** 맡는다.
+ *
+ * ⚠️ **`ActorPromoted` 개체에도 붙인다 — 모드로 아키타입을 가르지 않는다.**
+ * 아키타입이 갈리면 같은 쿼리를 두 벌 유지해야 하고, StateTree 외부 데이터 핸들이 Optional이 되어
+ * Task 코드에 null 분기가 생긴다. 대가는 개체당 ~24바이트로 두 비용보다 압도적으로 싸다.
+ *
+ * 위상 진행을 Task에 두지 않는 이유는 배회 교착과 같다 — Mass StateTree의 Task Tick은
+ * `StateTreeActivate` 신호가 있어야만 돌아서, 신호가 끊기면 스윙이 중간에 멈춘 채 칼날 엔티티만
+ * 살아남는다. **시간 측정과 진행은 매 프레임 도는 프로세서가 맡는다.**
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPEntityAttackFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	ELNPEntityAttackPhase Phase = ELNPEntityAttackPhase::None;
+
+	/** 현재 위상이 시작된 뒤 흐른 시간(초). */
+	float PhaseElapsed = 0.f;
+
+	/** 다음 공격까지 남은 시간(초). FLNPEnemyMovementConfig::AttackInterval에서 채워진다. */
+	float CooldownRemaining = 0.f;
+
+	/** 근접 — Active 구간 동안 살아 있는 칼날(FLNPWeaponTraceFragment) 엔티티. */
+	UPROPERTY(Transient)
+	FMassEntityHandle SwingEntity;
+
+	/** StateTree Task가 세우고 프로세서가 소비하는 1회성 요청. */
+	uint8 bAttackRequested : 1 = 0;
+};
+
 /** Entity를 Enemy으로 식별하는 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyTag : public FMassTag { GENERATED_BODY() };
 

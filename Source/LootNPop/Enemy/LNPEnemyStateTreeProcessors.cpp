@@ -190,6 +190,7 @@ bool FLNPEnemyAttackTask::Link(FStateTreeLinker& Linker)
 	Linker.LinkExternalData(TransformHandle);
 	Linker.LinkExternalData(MoveTargetHandle);
 	Linker.LinkExternalData(ActorHandle);
+	Linker.LinkExternalData(EntityAttackHandle);
 	return true;
 }
 
@@ -200,6 +201,7 @@ void FLNPEnemyAttackTask::GetDependencies(UE::MassBehavior::FStateTreeDependency
 	Builder.AddReadOnly(TransformHandle);
 	Builder.AddReadWrite(MoveTargetHandle);
 	Builder.AddReadOnly(ActorHandle);
+	Builder.AddReadWrite(EntityAttackHandle);
 }
 
 EStateTreeRunStatus FLNPEnemyAttackTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
@@ -250,6 +252,14 @@ EStateTreeRunStatus FLNPEnemyAttackTask::Tick(FStateTreeExecutionContext& Contex
 	FMassMoveTargetFragment& MoveTarget = Context.GetExternalData(MoveTargetHandle);
 	MoveTarget.Center       = Targeting.TargetLocation;
 	MoveTarget.DesiredSpeed = FMassInt16Real(0.f);
+
+	// 순수 엔티티는 Actor가 없다 — 요청만 세우고 위상 진행은 ULNPEntityAttackProcessor가 맡는다.
+	// 신호 구동인 이 Tick에 위상을 두면 신호가 끊긴 프레임에 스윙이 중간에 멈춘다.
+	if (SharedConfig.Config && SharedConfig.Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
+	{
+		Context.GetExternalData(EntityAttackHandle).bAttackRequested = 1;
+		return EStateTreeRunStatus::Running;
+	}
 
 	const FMassActorFragment& ActorFrag = Context.GetExternalData(ActorHandle);
 	if (ALNPEnemyCharacter* Enemy = Cast<ALNPEnemyCharacter>(const_cast<AActor*>(ActorFrag.Get())))
