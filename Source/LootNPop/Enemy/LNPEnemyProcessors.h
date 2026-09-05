@@ -101,12 +101,12 @@ protected:
 };
 
 /**
- * 표현 상태(Actor vs. Entity)의 원천인 LOD 값을 넷 모드에 따라 Override한다.
- * 내장 MassRepresentationProcessor 이전에 실행된다.
+ * 전투에 들어간 적의 표현 LOD를 강제로 High로 끌어올려 Actor 승격을 유도한다 (서버 전용).
  *
- * - 서버: 커스텀 로직(Targeting)이 전투 진입을 알리면 High로 올려 Actor 승격을 강제한다.
- * - 클라이언트: Mass가 스스로 Actor를 스폰하지 못하도록 메시 표현 단계로 눌러두고,
- *   서버가 복제해 준 Actor가 붙어 있을 때만 High로 올려 그 Actor를 표현으로 채택한다 (§7.10).
+ * ⚠️ **PostPhysics인 것은 우연이 아니다** — 판단 근거인 `FLNPEnemyTargetingFragment`를
+ * `ULNPEnemyScoringProcessor`(PostPhysics)가 채우므로 그보다 뒤여야 한다.
+ * 그래서 **표현 체인(PrePhysics)에 끼어드는 일은 이 프로세서가 할 수 없다** —
+ * 그쪽은 `ULNPEnemyClientRepresentationProcessor`가 맡는다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPEnemyLODOverrideProcessor : public UMassProcessor
@@ -121,6 +121,36 @@ protected:
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
 	FMassEntityQuery LODOverrideQuery;
+};
+
+/**
+ * 게스트 전용 — 적 엔티티의 표현을 **복제된 Actor로 일원화**한다.
+ *
+ * 게스트는 자기 Actor를 승격시켜서는 안 된다. 그렇게 스폰된 Actor는
+ * `ULNPEnemyActorInitializerProcessor`가 클라이언트에서 조기 반환하는 탓에 무기도 HP 바도 없는
+ * **빈 껍데기**이고, 뒤늦게 도착한 복제 퍼펫이 이미 점유된 `FMassActorFragment`에 붙어
+ * 엔진 `checkf(!ActorInfo->IsValid())`로 **게스트를 죽인다.**
+ *
+ * ⚠️ **PrePhysics여야 한다. 이것이 이 프로세서가 따로 존재하는 유일한 이유다.**
+ * 표현을 실제로 정하는 `UMassCrowdVisualizationLODProcessor`·`UMassCrowdVisualizationProcessor`가
+ * 둘 다 `ProcessingPhase`를 설정하지 않아 **엔진 기본값 PrePhysics**로 돈다. 그런데 Mass는
+ * 프로세서를 **페이즈별로 따로 버킷팅해 각 페이즈를 독립적으로 의존성 해소**하므로
+ * (`MassEntitySettings.cpp`), `ExecuteAfter`/`ExecuteBefore`는 **페이즈를 건너지 못한다.**
+ * 다른 페이즈에서 아무리 정확한 순서를 선언해도 조용히 무시되고, LOD는 매 프레임 PrePhysics에서
+ * 거리 기준으로 다시 계산돼 우리가 쓴 값을 덮는다 — 2026-09-05에 실제로 그 상태였다.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPEnemyClientRepresentationProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	ULNPEnemyClientRepresentationProcessor();
+
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+
 	FMassEntityQuery ClientRepresentationQuery;
 };
 

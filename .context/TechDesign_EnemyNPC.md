@@ -196,7 +196,8 @@ Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회�
 | `ULNPEnemyMovementProcessor` | Movement | 실제 이동/회전 적용 — §5 상세 |
 | `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + `TriggerRagdoll()` (전 클라이언트 방송) + `DeathCountdown = ULNPSettings::EnemyRagdollDuration` |
 | `ULNPEnemyDeathTimerProcessor` | PostPhysics (Health 이후) | DeathCountdown 만료 엔티티 파괴 |
-| `ULNPEnemyLODOverrideProcessor` | LOD (VisualizationLOD 이후, Representation 이전) | 서버: Confirmed면 `RepresentationLOD.LOD = High` 강제 — §7.2 / 클라이언트: 복제 Actor만 표현으로 채택 — §7.10 |
+| `ULNPEnemyLODOverrideProcessor` | **PostPhysics** — LOD 그룹 | 서버 전용: Confirmed면 `RepresentationLOD.LOD = High` 강제 — §7.2 |
+| `ULNPEnemyClientRepresentationProcessor` | **PrePhysics** — LOD 그룹 (Visualization 이전) | 게스트 전용: 복제 Actor만 표현으로 채택 — §7.10. 페이즈가 다른 이유는 §7.10 |
 | `ULNPEnemyActorInitializerProcessor` | PostPhysics (Representation 이후) | 신규 스폰 Actor에 `InitializeOnce` + `SyncFromEntity` → InitializedTag 부여 |
 | `ULNPEnemyActorSyncProcessor` | PostPhysics (LOD 이전, 게임 스레드) | Actor 유효: `SyncToEntity`(HP·속도 역동기화) / null: InitializedTag 제거 → 재초기화 유도 |
 | `ULNPEnemyDebugDrawProcessor` | 에디터 전용 | 상태별 색상 박스(대기 초록/경계 노랑/추격 파랑/공격 빨강) + 전방 화살표 |
@@ -451,21 +452,44 @@ Mass 소유가 아닌 Actor를 만나면 새로 스폰하지 않고 **그것을 
 > `SyncFromEntity`가 돌지 않는다 — 무기도 HP 바도 없는 빈 껍데기다. 적 Actor는 서버 권위이고
 > 게스트는 복제본을 받으므로, 게스트 쪽 승격은 처음부터 중복이었다.
 
-**그래서 게스트에서는 표현 소유권을 복제 Actor 하나로 못박는다.** `ULNPEnemyLODOverrideProcessor`가
-넷 모드에 따라 갈라져(같은 프로세서가 `EProcessorExecutionFlags::All`로 클라이언트에서도 돈다):
+**그래서 게스트에서는 표현 소유권을 복제 Actor 하나로 못박는다.** 넷 모드마다 **프로세서를 나눈다:**
 
-| 넷 모드 | 표현 LOD 처리 |
-|:---|:---|
-| 서버·Standalone | 전투 진입(`Confirmed`)이면 `High` 강제 — §7.2 |
-| 클라이언트 | 복제 Actor가 붙어 있으면 `High`(그 Actor를 표현으로 채택), 아니면 **Actor를 쓰지 않는 첫 LOD 단계까지 하향** |
+| 프로세서 | 페이즈 | 표현 LOD 처리 |
+|:---|:---|:---|
+| `ULNPEnemyLODOverrideProcessor` (서버·Standalone) | **PostPhysics** | 전투 진입(`Confirmed`)이면 `High` 강제 — §7.2 |
+| `ULNPEnemyClientRepresentationProcessor` (게스트) | **PrePhysics** | 복제 Actor가 붙어 있으면 `High`(그 Actor를 표현으로 채택), 아니면 **Actor를 쓰지 않는 첫 LOD 단계까지 하향** |
 
 하향 목표는 상수가 아니라 `FMassRepresentationParameters::LODRepresentation`를 훑어
 `HighRes/LowResSpawnedActor`가 아닌 첫 단계를 찾는다 — EntityConfig에서 단계별 표현을 바꿔도
 "게스트는 Actor를 스폰하지 않는다"는 불변식이 따라온다.
 
-⚠️ **LOD 값을 덮어쓰는 프로세서는 그 값을 계산하는 프로세서 뒤에 못 박아야 한다.**
-둘 다 `LOD` 그룹 안이라 명시하지 않으면 순서가 정해지지 않는다
-(`ExecuteAfter("MassCrowdVisualizationLODProcessor")`).
+#### ⚠️ 둘을 한 프로세서에 담을 수 없다 — **페이즈가 다르기 때문이다**
+
+이 분리는 취향이 아니라 필수다. 처음에는 한 클래스에 넷 모드로 분기해 넣었는데,
+**그 클라이언트 분기는 한 번도 동작하지 않았다**(2026-09-05 실측).
+
+- 서버 분기는 판단 근거인 타게팅 상태를 `ULNPEnemyScoringProcessor`(**PostPhysics**)가 채우므로
+  그보다 뒤여야 한다.
+- 그런데 표현을 실제로 정하는 `UMassCrowdVisualizationLODProcessor`·`UMassCrowdVisualizationProcessor`는
+  `ProcessingPhase`를 설정하지 않아 **엔진 기본값 PrePhysics**로 돈다.
+- **Mass는 프로세서를 페이즈별로 따로 버킷팅해 각 페이즈를 독립적으로 의존성 해소한다**
+  (`MassEntitySettings.cpp`). 따라서 **`ExecuteAfter`/`ExecuteBefore`는 페이즈를 건너지 못하고,
+  다른 페이즈를 겨냥한 순서 선언은 조용히 무시된다.**
+
+```
+PrePhysics  LOD 계산      → LOD = Medium (거리 기반)
+PrePhysics  표현 결정      → Medium = Actor → 게스트가 Actor 스폰
+PostPhysics 우리 클램프    → LOD = Low   ← 아무도 안 읽고 다음 프레임에 덮인다
+```
+
+증상은 게스트만 가끔 죽는 것뿐이고 **경고도 크래시 로그의 단서도 없다.** 잡아낸 방법은
+"게스트에 `IsOwnedByMass()`인 Actor가 하나라도 있는가"를 세는 상시 감시였다 —
+수정 전 무입력 20초에 **1,819건**, 수정 후 고밀도 전투에서 **0건**(적 Actor 467기 교체).
+
+> **규약:** LOD·표현처럼 **엔진이 이미 도는 체인에 끼어드는 프로세서는 페이즈부터 맞춘다.**
+> 그룹과 `ExecuteBefore`만 맞으면 된다고 보면, 선언은 그럴듯한데 실행은 안 되는 상태가 된다.
+> 하위 그룹도 함께 못 박을 것 — `UMassVisualizationProcessor`는 `Representation`이 아니라
+> `Representation.VisualizationProcessing`에 들어간다.
 
 이 처방은 엔진의 `FMassRepresentationParameters::bForceActorRepresentationForExternalActors`와
 같은 의도이며, 그 플래그가 못 막는 **"게스트가 먼저 스폰한" 순서**까지 함께 닫는다.
