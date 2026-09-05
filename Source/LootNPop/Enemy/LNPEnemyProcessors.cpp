@@ -21,6 +21,7 @@
 #include "MassStateTreeFragments.h"
 #include "MassNavigationFragments.h"
 #include "MassRepresentationProcessor.h"
+#include "MassReplicationFragments.h"   // FMassNetworkIDFragment — 호스트/게스트 로그 대조용 공유 식별자
 #include "LNPMassUtils.h"
 #include "GAS/LNPPoiseTypes.h"
 #if WITH_EDITOR
@@ -803,6 +804,7 @@ void ULNPHealthProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&
 {
 	HealthQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
 	HealthQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
+	HealthQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();   // 사망 처리가 CombatMode로 갈린다
 	HealthQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	HealthQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	HealthQuery.RegisterWithProcessor(*this);
@@ -824,15 +826,24 @@ void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 		TArrayView<FLNPEnemyFragment>  Enemies    = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
 		TArrayView<FMassActorFragment> ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 
+		// 랙돌은 ActorPromoted 전용 연출로 남는다. 순수 엔티티는 Actor가 없으므로 무너질 몸이 없고,
+		// 대신 행동 상태 채널이 Dying을 전파해 게스트가 사망을 본다 — 그 전파가 나갈 시간을 벌어야
+		// 하므로 소멸까지의 지연을 Config에서 따로 받는다.
+		const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
+		const bool bPureEntity = Config && Config->CombatMode == ELNPEnemyCombatMode::PureEntity;
+		const float DeathDelay = bPureEntity ? Config->PureEntityDeathDuration : RagdollDuration;
+
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			if (Enemies[i].Health > 0.f)
 				continue;
 
-			Enemies[i].DeathCountdown = RagdollDuration;
+			Enemies[i].DeathCountdown = DeathDelay;
 			DyingEntities.Add(Ctx.GetEntity(i));
 
-			if (!ActorFrags.IsEmpty())
+			// 순수 엔티티에는 Actor가 없다 — 승격된 개체가 남긴 Actor가 붙어 있을 수도 없으므로
+			// 랙돌 방송 자체를 건너뛴다.
+			if (!bPureEntity && !ActorFrags.IsEmpty())
 			{
 				if (AActor* RawActor = ActorFrags[i].GetMutable())
 				{
@@ -1100,7 +1111,241 @@ void ULNPEnemyDeathTimerProcessor::Execute(FMassEntityManager& EntityManager, FM
 	if (ToDestroy.Num() > 0)
 		Context.Defer().DestroyEntities(MoveTemp(ToDestroy));
 }
+
+// --- Action Processor (행동 상태 채널) ---
+
+namespace
+{
+	/**
+	 * Idle <-> Move 데드밴드(cm/s). 진입이 이탈보다 높아 경계에서 자기진동하지 않는다.
+	 *
+	 * ⚠️ **이 히스테리시스는 연출 장치이자 대역폭 장치다.** 데드밴드가 없으면 멈췄다 걷기를 반복하는
+	 * 배회 개체가 초당 여러 번 전이를 만들고, 전이 하나하나가 복제 갱신 후보가 된다.
+	 * 값의 근거: 배회 속도는 `MoveSpeed * 0.3`(기본 180 cm/s), 추격은 `MoveSpeed`(600 cm/s)이므로
+	 * 실제 이동은 두 역치를 여유 있게 넘고, 회전만 하는 정지 상태는 두 역치 아래에 머문다.
+	 */
+	constexpr float ActionMoveEnterSpeed = 40.f;
+	constexpr float ActionMoveExitSpeed  = 15.f;
+}
+
+ULNPEnemyActionProcessor::ULNPEnemyActionProcessor()
+	: ActionQuery(*this)
+{
+	bAutoRegisterWithProcessingPhases = true;
+	// 같은 프레임에 진행된 공격 위상을 읽어야 전이가 한 프레임 늦지 않는다.
+	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Tasks;
+	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEntityAttackProcessor"));
+}
+
+void ULNPEnemyActionProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
+{
+	ActionQuery.AddRequirement<FLNPEnemyActionFragment>(EMassFragmentAccess::ReadWrite);
+	ActionQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	ActionQuery.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly);
+	ActionQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
+	ActionQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	// ⚠️ FLNPEnemyDyingTag를 None으로 걸지 않는다 — 죽는 순간 쿼리에서 빠지면 Dying을 아무도 못 싣는다.
+	ActionQuery.RegisterWithProcessor(*this);
+}
+
+void ULNPEnemyActionProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
+	// 행동 상태의 원본은 서버다. 게스트는 이 값을 복제로 받아 같은 프래그먼트에 쓴다
+	// (FLNPMassClientBubbleHandler) — 그래서 이 프로세서만 서버 전용이고, 소비처는 양쪽 공용이다.
+	if (LNPMass::IsClientWorld(EntityManager))
+		return;
+
+	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	if (DeltaTime <= 0.f)
+		return;
+
+	ActionQuery.ForEachEntityChunk(Context, [DeltaTime](FMassExecutionContext& Ctx)
+	{
+		const TArrayView<FLNPEnemyActionFragment> Actions      = Ctx.GetMutableFragmentView<FLNPEnemyActionFragment>();
+		const TConstArrayView<FTransformFragment> Transforms   = Ctx.GetFragmentView<FTransformFragment>();
+		const TConstArrayView<FLNPEntityAttackFragment> Attacks = Ctx.GetFragmentView<FLNPEntityAttackFragment>();
+		const TConstArrayView<FLNPPoiseFragment> PoiseFrags    = Ctx.GetFragmentView<FLNPPoiseFragment>();
+
+		// 태그는 청크 단위 속성이라 엔티티마다 물어볼 필요가 없다.
+		const bool bChunkIsDying = Ctx.DoesArchetypeHaveTag<FLNPEnemyDyingTag>();
+
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			FLNPEnemyActionFragment& ActionFrag = Actions[i];
+			const FVector Position = Transforms[i].GetTransform().GetLocation();
+
+			// 첫 프레임은 변위를 신뢰할 수 없다 — 원점에서 스폰 위치까지의 거리가 통째로 속도로 잡힌다.
+			const bool bHasPrev = !ActionFrag.PrevPosition.IsNearlyZero();
+			const float Speed = bHasPrev
+				? static_cast<float>(FVector::Dist(Position, ActionFrag.PrevPosition)) / DeltaTime
+				: 0.f;
+			ActionFrag.PrevPosition = Position;
+
+			// 경직·다운 판별은 ULNPEntityAttackProcessor와 같은 규약이다 — 다운은 게이지를 0으로
+			// 리셋하므로 bIsGroggy만으로는 안 잡혀 면역 잔여도 함께 본다.
+			const bool bStaggered = PoiseFrags.IsValidIndex(i)
+				&& (PoiseFrags[i].bIsGroggy || PoiseFrags[i].ImmunityTimeRemaining > 0.f);
+
+			ELNPEnemyAction NewAction;
+			if (bChunkIsDying)
+			{
+				NewAction = ELNPEnemyAction::Dying;
+			}
+			else if (bStaggered)
+			{
+				NewAction = ELNPEnemyAction::Stagger;
+			}
+			else if (Attacks[i].Phase != ELNPEntityAttackPhase::None)
+			{
+				NewAction = ELNPEnemyAction::Attack;
+			}
+			else
+			{
+				// 데드밴드 — 현재 상태에 따라 다른 역치를 본다. 어느 쪽도 넘지 않으면 그대로 유지한다.
+				const bool bWasMoving = (ActionFrag.Action == ELNPEnemyAction::Move);
+				const bool bMoving = bWasMoving ? (Speed > ActionMoveExitSpeed) : (Speed > ActionMoveEnterSpeed);
+				NewAction = bMoving ? ELNPEnemyAction::Move : ELNPEnemyAction::Idle;
+			}
+
+			if (NewAction != ActionFrag.Action)
+			{
+				ActionFrag.Action = NewAction;
+				// 연속 공격(Attack -> Attack)의 두 번째 시작을 놓치지 않으려면 전이마다 카운터가 올라야 한다.
+				// 위상이 Recovery -> None -> Windup을 거치므로 Attack은 반드시 다른 상태를 경유해 재진입한다.
+				++ActionFrag.Seq;
+			}
+		}
+	});
+}
+
 #if WITH_EDITOR
+// --- Action Debug Draw Processor (행동 상태 채널의 눈) ---
+
+namespace
+{
+	TAutoConsoleVariable<int32> CVarDrawEnemyAction(
+		TEXT("LNP.Debug.DrawEnemyAction"), 0,
+		TEXT("Show the behaviour action channel above every enemy entity.\n")
+		TEXT("Runs on the server and the client with no branch, so comparing the two screens is the\n")
+		TEXT("proof that the channel replicates.\n")
+		TEXT("  0: off (default)\n")
+		TEXT("  1: coloured marker only\n")
+		TEXT("  2: marker + one log line per transition (compare host and guest logs)"),
+		ECVF_Cheat);
+
+	TAutoConsoleVariable<float> CVarDrawEnemyActionDistance(
+		TEXT("LNP.Debug.DrawEnemyActionDistance"), 5000.f,
+		TEXT("Max distance (cm) from the local pawn at which the enemy action marker is drawn."),
+		ECVF_Cheat);
+
+	/** 캡슐 중심에서 마커를 띄우는 높이(cm) — 경직 게이지(130)보다 위에 둬서 겹치지 않게 한다. */
+	constexpr float ActionMarkerHeightOffset = 170.f;
+	constexpr float ActionMarkerExtent       = 12.f;
+
+	FColor ActionMarkerColor(const ELNPEnemyAction Action)
+	{
+		switch (Action)
+		{
+		case ELNPEnemyAction::Move:    return FColor::Green;
+		case ELNPEnemyAction::Attack:  return FColor::Red;
+		case ELNPEnemyAction::Stagger: return FColor::Yellow;
+		case ELNPEnemyAction::Dying:   return FColor::Black;
+		default:                       return FColor::Silver;   // Idle
+		}
+	}
+}
+
+ULNPEnemyActionDebugDrawProcessor::ULNPEnemyActionDebugDrawProcessor()
+	: ActionQuery(*this)
+{
+	// ⚠️ 기본값(Server | Standalone)이면 게스트에서 아예 돌지 않는다 — 두 화면을 비교하는 것이
+	//    목적이므로 반드시 All이어야 한다. 같은 함정을 ULNPEnemyLODOverrideProcessor가 먼저 밟았다.
+	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
+	bAutoRegisterWithProcessingPhases = true;
+	bRequiresGameThreadExecution = true;
+	ProcessingPhase = EMassProcessingPhase::PostPhysics;
+}
+
+void ULNPEnemyActionDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
+{
+	ActionQuery.AddRequirement<FLNPEnemyActionFragment>(EMassFragmentAccess::ReadOnly);
+	ActionQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	// 호스트와 게스트의 엔티티 핸들은 서로 무관하다 — 두 로그를 대조하려면 **공유 식별자**가 필요하다.
+	// Standalone에서는 복제 트레이트가 조기 반환해 이 프래그먼트가 아예 없으므로 Optional이다.
+	ActionQuery.AddRequirement<FMassNetworkIDFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
+	ActionQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	ActionQuery.RegisterWithProcessor(*this);
+}
+
+void ULNPEnemyActionDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
+	const int32 DrawMode = CVarDrawEnemyAction.GetValueOnGameThread();
+	if (DrawMode == 0)
+	{
+		// 껐다 켜면 다시 처음부터 관측한다 — 꺼져 있는 동안의 전이를 켜는 순간 쏟아내지 않는다.
+		LastLoggedSeq.Reset();
+		return;
+	}
+
+	UWorld* World = EntityManager.GetWorld();
+	if (World == nullptr)
+		return;
+
+	// 로컬 시점 기준으로 자른다 — 리슨 호스트와 게스트가 각자 자기 화면 근처만 그린다.
+	const APlayerController* PC = World->GetFirstPlayerController();
+	const APawn* ViewPawn = PC ? PC->GetPawn() : nullptr;
+	if (ViewPawn == nullptr)
+		return;
+
+	const UE::Mass::Debug::FLineBatcher LineBatcher = UE::Mass::Debug::FLineBatcher::MakeLineBatcher(World);
+	const FVector ViewLocation = ViewPawn->GetActorLocation();
+	const float MaxDistSq = FMath::Square(CVarDrawEnemyActionDistance.GetValueOnGameThread());
+	const bool bLogTransitions = (DrawMode >= 2);
+
+	// 이번 프레임에 본 엔티티만 남긴다 — 사라진 엔티티의 항목이 계속 쌓이지 않게 한다.
+	TMap<FMassEntityHandle, uint8> SeenThisFrame;
+
+	ActionQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FLNPEnemyActionFragment> Actions = Ctx.GetFragmentView<FLNPEnemyActionFragment>();
+		const TConstArrayView<FTransformFragment> Transforms   = Ctx.GetFragmentView<FTransformFragment>();
+		const TConstArrayView<FMassNetworkIDFragment> NetIDs   = Ctx.GetFragmentView<FMassNetworkIDFragment>();
+
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			const FVector Center = Transforms[i].GetTransform().GetLocation();
+			if (FVector::DistSquared(Center, ViewLocation) > MaxDistSq)
+				continue;
+
+			const FLNPEnemyActionFragment& ActionFrag = Actions[i];
+
+			// 구 내벽이라 머리 방향은 구 중심을 향한다 (Mass 판정 경로 전체가 쓰는 규약).
+			const FVector Up = (-Center).GetSafeNormal();
+			LineBatcher.DrawSolidBox(Center + Up * ActionMarkerHeightOffset,
+				FVector(ActionMarkerExtent), ActionMarkerColor(ActionFrag.Action));
+
+			if (!bLogTransitions)
+				continue;
+
+			const FMassEntityHandle Entity = Ctx.GetEntity(i);
+			SeenThisFrame.Add(Entity, ActionFrag.Seq);
+
+			const uint8* Previous = LastLoggedSeq.Find(Entity);
+			// 처음 본 엔티티는 기준선만 잡는다. 카운터는 wrap하므로 반드시 "같은가"로만 비교한다.
+			if (Previous != nullptr && *Previous != ActionFrag.Seq)
+			{
+				const uint32 NetID = NetIDs.IsValidIndex(i) ? NetIDs[i].NetID.GetValue() : 0u;
+				UE_LOG(LogLootNPop, Log, TEXT("EnemyAction netid=%u action=%s seq=%u (%s)"),
+					NetID, *UEnum::GetValueAsString(ActionFrag.Action), ActionFrag.Seq,
+					*Entity.DebugGetDescription());
+			}
+		}
+	});
+
+	if (bLogTransitions)
+		LastLoggedSeq = MoveTemp(SeenThisFrame);
+}
+
 // --- Debug Draw Processor (디버그 드로우) ---
 
 ULNPEnemyDebugDrawProcessor::ULNPEnemyDebugDrawProcessor()

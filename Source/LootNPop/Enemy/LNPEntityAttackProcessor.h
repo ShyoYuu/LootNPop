@@ -45,3 +45,38 @@ protected:
 	 */
 	FMassEntityQuery SwingQuery;
 };
+
+/**
+ * 게스트 전용 — 복제된 행동 상태에서 **관전용 발사체 Ghost**를 만든다 (트랙 B의 §5.4).
+ *
+ * 새 RPC를 쓰지 않는 것이 요점이다. 발사마다 Multicast를 쏘면 `RPC 수 = 발사 수 x 개체 수`가 되어
+ * "순수 엔티티는 다수"라는 전제와 충돌한다. 필요한 인자는 전부 이미 게스트에 있다 —
+ * 무기 상수는 `FLNPEnemySharedFragment`의 Config에서, 발사 위치·방향은 복제된 위치·Yaw에서 나온다.
+ *
+ * ⚠️ **버블 핸들러 안에서 직접 스폰하지 않는다.** 수신 콜백은 Mass 실행 컨텍스트 밖이고,
+ * "같은 프래그먼트를 읽는 단일 소비 경로"라는 이 채널의 규약과도 어긋난다.
+ *
+ * **감수하는 오차 (전부 코스메틱 — 임팩트 지점은 서버 큐가 확정한다):**
+ * - 발사 지점이 미세하게 어긋난다(게스트는 보간값, 서버는 실측값).
+ *   `ALNPCharacterBase::Multicast_SpawnGhostProjectiles`가 이미 감수하는 것과 같은 종류다.
+ * - 수평 방향은 게스트가 보간한 몸 방향에서 나오므로 서버 실측값과 미세하게 다르다.
+ *   **상하각은 서버가 발사 순간 확정한 값을 그대로 받는다** — 고저차 교전에서 "게스트에선 피했는데
+ *   서버에선 맞는" 상태가 나와 2026-09-05에 넣었다.
+ * - 발사 시각을 싣지 않으므로 Dead Reckoning의 업스트림 지연은 0이다(수신자 RTT/2만 적용된다).
+ * - 선딜 전이와 발사 전이가 한 갱신에 뭉쳐 도착하면 그 발사의 Ghost를 건너뛴다(멀리 있는 개체).
+ *   없는 탄이 생기는 것보다 안 보이는 편이 안전하다.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPEntityGhostProjectileProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+
+public:
+	ULNPEntityGhostProjectileProcessor();
+
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+
+	FMassEntityQuery GhostQuery;
+};

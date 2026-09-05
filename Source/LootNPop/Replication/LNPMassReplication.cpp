@@ -87,6 +87,26 @@ void FLNPMassClientBubbleHandler::PushSmoothingTarget(const FMassEntityView& Ent
 	Movement->TimeSinceUpdate = 0.f;
 }
 
+void FLNPMassClientBubbleHandler::ApplyReplicatedAction(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent, const bool bIsInitialSpawn)
+{
+	// Optional 취급 — 적이 아닌 아키타입(Player·LootPod)에는 이 프래그먼트가 없다.
+	if (FLNPEnemyActionFragment* ActionFragment = EntityView.GetFragmentDataPtr<FLNPEnemyActionFragment>())
+	{
+		ActionFragment->Action   = Agent.GetAction();
+		ActionFragment->Seq      = Agent.GetSeq();
+		ActionFragment->AimPitch = Agent.GetAimPitch();
+		// PrevPosition은 서버 전용 장부라 건드리지 않는다 — 클라에서는 이동 판별을 하지 않는다.
+
+		// 버블에 막 들어온 적의 전이는 **이미 지나간 것**이다. 소비 완료로 표시해 두지 않으면
+		// 화면에 나타나는 순간 지나간 발사의 Ghost를 뒤늦게 쏜다.
+		if (bIsInitialSpawn)
+		{
+			ActionFragment->ConsumedSeq    = ActionFragment->Seq;
+			ActionFragment->ConsumedAction = ActionFragment->Action;
+		}
+	}
+}
+
 void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize)
 {
 	// 스폰 쿼리에는 공통 Fragment(Transform)만 요구한다. 타입 전용 Fragment를 하드 요구사항으로
@@ -118,11 +138,15 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 			Movement->TimeSinceUpdate = 0.f;
 			Movement->BlendDuration = 0.f;
 		}
+
+		// 스폰 시점 행동도 반영한다. 이미 싸우고 있는 적이 버블에 들어오면 그 상태로 보여야 한다.
+		ApplyReplicatedAction(EntityView, ReplicatedEntity, /*bIsInitialSpawn*/ true);
 	};
 
 	auto SetModifiedEntityData = [](const FMassEntityView& EntityView, const FLNPReplicatedAgent& Item)
 	{
 		PushSmoothingTarget(EntityView, Item.GetReplicatedPositionYawData());
+		ApplyReplicatedAction(EntityView, Item, /*bIsInitialSpawn*/ false);
 	};
 
 	PostReplicatedAddHelper(AddedIndices, AddRequirementsForSpawnQuery, CacheFragmentViewsForSpawnQuery, SetSpawnedEntityData, SetModifiedEntityData);
@@ -137,6 +161,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedChange(const TArrayView<int32> C
 	auto SetModifiedEntityData = [](const FMassEntityView& EntityView, const FLNPReplicatedAgent& Item)
 	{
 		PushSmoothingTarget(EntityView, Item.GetReplicatedPositionYawData());
+		ApplyReplicatedAction(EntityView, Item, /*bIsInitialSpawn*/ false);
 	};
 
 	PostReplicatedChangeHelper(ChangedIndices, SetModifiedEntityData);
