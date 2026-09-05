@@ -189,13 +189,25 @@ Chaos 콜리전 이벤트 대신 순수 수학 판정(Swept Quad·선분-캡슐)
 
 ### 7.6 판정 캡슐 중심 규약 — 단일 헬퍼로 강제
 
-**적 엔티티의 Transform 위치는 발밑이 아니라 캡슐 중심이다.** Actor가 붙은 구간에서는
-`MassAgentCapsuleCollisionSyncTrait`(ActorToMass)가 캡슐 컴포넌트 Transform을 그대로 넣기 때문이다.
-따라서 판정 캡슐 중심을 구할 때 **Actor가 없는 순수 엔티티만** `+ Up*HalfHeight` 보정이 필요하다.
+**적 엔티티의 Transform 위치는 발밑이 아니라 캡슐 중심이다 — 두 모드 모두 그렇다.**
+Actor 구간은 `MassAgentCapsuleCollisionSyncTrait`(ActorToMass)가 캡슐 컴포넌트 Transform을 그대로 넣고,
+순수 엔티티 구간은 `ULNPEnemyMovementProcessor`가 `표면반지름 - CapsuleHalfHeight` 위치에 놓는다
+(구 내벽이라 반지름 감소 방향이 Up이다). **따라서 보정은 어느 쪽에도 필요 없다.**
 
 ```cpp
 LNPHitDetection::ResolveEnemyCapsuleCenter(EntityLocation, UpDir, HalfH, EnemyActor)
 ```
+
+⚠️ **이 헬퍼는 한동안 Actor가 없으면 `+ Up*HalfHeight`를 더했고, 그것은 이중 보정이었다** (2026-09-05 수정).
+좌표 규약이 캡슐 중심으로 통일되기 전의 잔재인데, **전투에 진입한 적이 예외 없이 Actor로 승격되던 동안에는
+그 분기가 실전에서 거의 실행되지 않아** 드러나지 않았다. `ELNPEnemyCombatMode::PureEntity`(→
+[TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md))를 도입해 승격을 막자 즉시 표면화됐다 —
+판정 캡슐이 몸통 위로 96cm 떠서 디버그 드로우와 실제 판정이 함께 어긋났고, **멀리 있는 Low LOD 적을
+저격할 때도 같은 오차가 있었다.**
+
+교훈은 규약 자체가 아니라 **검증 경로에 있다.** "어느 한쪽 분기가 실전에서 거의 실행되지 않는" 상태는
+그 분기가 틀려도 아무도 모른다는 뜻이다. LOD·모드로 갈리는 분기는 **양쪽을 모두 도는 상황을 만들어
+검증**해야 한다 (적 NPC 이슈에서 LOD 조합 4가지를 모두 보는 규약과 같은 이유다).
 
 이 분기가 근접·원거리·디버그 드로우 5곳에 **복제돼 있던 동안 원거리 두 곳이 서로 반대 방향으로
 틀어져 있었다** — 서버는 무조건 보정해 High LOD 적의 판정 캡슐이 96cm 떠올랐고(몸통 아래 절반이

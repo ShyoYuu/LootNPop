@@ -176,6 +176,16 @@ ULNPEntityAttackProcessor  (매 프레임, 서버 전용, Behavior 그룹 이후
   `TimeToLive` 안전장치는 그대로 살린다 — 프로세서가 종료를 놓쳤을 때의 그물이 된다.
 - 채워야 하는 필드: `InstigatorEntity`(적 엔티티), `InstigatorTeam = Enemy`,
   `InstigatorActor = nullptr`, `bIsLocalInstigator = false`.
+- 기울임은 **고정 Right축 회전이 아니라** 접평면 성분을 Up으로 들어 올려 만든다.
+  고정 축으로 돌리면 Yaw가 ±90°에 가까울 때 축과 방향이 겹쳐 회전이 사라진다.
+
+**칼날 갱신은 2패스다.** 칼날은 적과 **다른 엔티티**라 서로의 프래그먼트에 임의 접근할 수 없다.
+`ULNPWeaponTraceHitDetectionProcessor`가 쓰는 Pass 1/2/3과 같은 형태로 나눈다 —
+Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2(칼날 쿼리)가 핸들로 매칭해 기록한다.
+
+⚠️ **칼날 마커는 Tag가 아니라 Fragment(`FLNPEntitySwingFragment`)다.** 칼날은
+`FMassCommandBuildEntity` 한 번으로 만들어야 하는데, `BuildEntity`와 `AddTag`를 같은 배치에 디퍼드하면
+아키타입 전환 타이밍 때문에 쿼리가 그 엔티티를 못 찾는다 (`UANS_LNPMeleeHitWindow`가 같은 이유로 Tag를 쓰지 않는다).
 
 **이 접근을 택하는 이유는 패링이다.** 순간 원뿔·구 판정으로 때우면 `JudgePlayerTarget`의
 패링→가드→피격 2단계를 새로 짜야 하고, 그것은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.5가
@@ -197,6 +207,21 @@ ULNPEntityAttackProcessor  (매 프레임, 서버 전용, Behavior 그룹 이후
 | `Multicast_SpawnGhostProjectiles` | **트랙 B의 상태 채널로 대체** (§5.4) |
 
 발사 시점은 **Windup 종료 시 1회**다. `ActiveTime`은 근접 전용이고 원거리에서는 후딜 시작점일 뿐이다.
+
+⚠️ **`MuzzleLocalOffset.X`는 캡슐 반경보다 커야 한다.** 캡슐 안에서 스폰하면 발사체가 자기 몸에 닿아
+즉시 파괴된다(적 팀 발사체는 적에게 피해를 주지 않고 소멸만 한다).
+
+**조준점은 타겟의 캡슐 중심 + `AimTargetUpOffset`이다.** 캡슐 중심은 반높이(96cm) 지점이라 서 있는
+캐릭터에서는 **골반**이고, 그대로 겨누면 "하반신을 노리는" 그림이 된다. 가슴께를 겨누려면 양수를 준다.
+좌표 규약이 캡슐 중심이라는 사실과 "사람이 겨누는 곳"이 다르다는 점을 데이터로 흡수하는 자리다.
+
+**산탄은 어빌리티와 공식을 공유한다.** `HexRingCount`(0=단발, 1=7발, 2=19발)·`HexStepDegrees`를 Config에
+두고, 배치는 `LNPSpread::BuildHexRingDirections`(`HitDetection/LNPSpreadPattern.h`)를 부른다 —
+`ULNPAbility_RangedSpreadAttack`이 쓰던 코드를 그대로 꺼낸 것이다. 복제했다면 중력 Up 기준 직교 기저와
+짐벌 수렴 방지(→ [TechDesign_Ability.md](TechDesign_Ability.md) §3.2)가 한쪽에만 남는 사고를 재생산했을 것이다.
+
+⚠️ **SalvoID는 한 번의 발사에 하나다.** Ghost 식별자가 `{PlayerID, KeyOrSalvo, SpawnIndex}` 조합이라
+펠릿마다 키를 새로 발급하면 같은 발사의 펠릿들이 서로 다른 발사로 잡힌다. 펠릿 구분은 `SpawnIndex`가 맡는다.
 
 예측 사격(리드샷)은 하지 않는다 — 파라미터가 하나 늘고(예측 계수), 순수 엔티티는 정의상
 "단순한 기본 공격"이 담당 영역이다. 필요해지면 그때는 `ActorPromoted` 쪽 어빌리티의 일이다.
@@ -226,7 +251,7 @@ ULNPEntityAttackProcessor  (매 프레임, 서버 전용, Behavior 그룹 이후
 | 피격 리액션 몽타주 | 없음 | Stagger 시퀀스로 대체 (§6.4) |
 | 랙돌 | 없음 | 사망 시퀀스로 대체. 랙돌은 `ActorPromoted` 전용 연출로 남긴다 |
 | 월드 HP Bar | 없음 | MassEntity용 커스텀 Slate HP Bar 도입 시 재검토 (→ [TechDesign_HUD.md](TechDesign_HUD.md)) |
-| 상하 조준 | 수평 발사 고정 | 플레이 테스트 후 필요하다고 판단되면 상태 채널에 추가 (§5.5) |
+| 상하 조준 **자세** | 복제되지 않는다 | **발사 방향은 클램프된 Pitch를 쓴다**(§4.4) — 없는 것은 게스트가 보는 *자세*뿐이다. 필요하면 상태 채널에 추가 (§5.5) |
 
 ---
 
@@ -339,11 +364,21 @@ FAnimSequenceTrackAutoPlayData { SequenceIndex, Position, PlayRate, BlendTime, L
 `MinLODSignificance` / `MaxLODSignificance`가 메시 서술 단위로 있으므로
 **이 분배는 코드가 아니라 데이터로 조정된다.**
 
-⚠️ **`PureEntity`용 EntityConfig에서는 `HighResTemplateActor`를 비워야 한다.**
+⚠️ **`PureEntity`용 EntityConfig는 `LODRepresentation`에서 Actor 단계를 없애고 템플릿 Actor를 비워야 한다.**
 `ULNPEnemyLODOverrideProcessor`가 High 강제를 건너뛰어도, 거리가 가까우면 거리 기반 LOD가
 자연히 High가 되고 표현 매핑에 Actor가 있으면 그대로 스폰된다. **모드 enum과 표현 매핑이 어긋나면
-"승격 안 하기로 한 개체가 가까이 가니까 Actor가 된다."** 단일 진실은 enum이고, EntityConfig는 그 모드에서
-실제로 쓸 비주얼을 정의할 뿐이다 — 어긋남은 `ULNPEnemyTrait::ValidateTemplate`에서 경고로 잡는다.
+"승격 안 하기로 한 개체가 가까이 가니까 Actor가 된다"** — 실제로 밟았다(2026-09-05).
+단일 진실은 enum이고, EntityConfig는 그 모드에서 실제로 쓸 비주얼을 정의할 뿐이다.
+어긋남은 `ULNPEnemyTrait::ValidateTemplate`이 **양방향으로** 경고한다(`PureEntity`인데 Actor가 남았다 /
+`ActorPromoted`인데 Actor가 없다). 경고만 남기고 `false`는 돌려주지 않는다 — 어긋남은 고쳐야 할 설정이지
+스폰을 막을 사유가 아니다. 트레이트는 `GetTypedOuter<UMassEntityConfigAsset>()`로 소유 Config를 얻어
+부모 체인의 `UMassVisualizationTrait::Params`를 읽는다(`BuildContext`의 템플릿 데이터는 protected다).
+
+⚠️ **차단을 코드로 강제하려던 접근은 폐기했다.** LOD 값을 "Actor를 쓰지 않는 첫 단계"까지 눌러
+덮어쓰는 방식을 먼저 시도했는데, **`FMassRepresentationLODFragment::LOD`는 표현뿐 아니라 유의도·틱
+레이트까지 정하는 값**이라 표현 하나를 막으려고 나머지까지 끌어내리게 된다. `MassCrowdVisualizationTrait`이
+이미 "LOD 단계별로 무엇으로 그릴지"를 데이터로 갖고 있으므로, 그 위에서 싸우지 말고 **그 트레이트에게
+시키는 것**이 맞다. 코드는 "전투로 LOD를 끌어올리지 않는다"까지만 한다.
 
 ### 6.3 무기 — 손 본 웨이팅 스킨드 메시
 
@@ -417,8 +452,12 @@ PlayRate = SequenceLength / (WindupTime + ActiveTime + RecoveryTime)
   원천 차단하기 위해서다. 같은 풀에 점수 가산으로 처리하면 가산치가 크면 잡몹이 통째로 밀려나고
   작으면 거리로 다시 뒤집힌다 — 튜닝 축만 하나 늘어난다.
 
-**부수 정리:** `EnemyTypeTag.ToString().Contains(TEXT("Melee"))` 문자열 비교
-(`LNPEnemyProcessors.cpp:102`)를 Config의 명시 필드로 교체한다. 풀이 셋이 되면 문자열 규약이 감당하지 못한다.
+**부수 정리(완료 — Stage 1로 앞당겼다):** `EnemyTypeTag.ToString().Contains(TEXT("Melee"))` 문자열 비교를
+Config의 `ELNPEnemyAttackType` 필드로 교체했다. 원래 이 Stage의 항목이었으나, **순수 엔티티 공격 경로가
+같은 판별을 필요로 하는 순간 판별 원본이 둘이 되기 때문에** 앞당겼다. 슬롯 풀 3분할 자체는 이 Stage에 남는다.
+
+⚠️ 이 교체는 데이터 손질을 동반한다. 기본값이 `Melee`라 **`AttackType`을 지정하지 않은 원거리 적은
+근접 슬롯 풀로 분류된다** — 태그 이름(`LNP.Enemy.Minion.Ranged`)만 보고 넘어가면 조용히 잘못된다.
 
 ---
 
@@ -454,9 +493,9 @@ PlayRate = SequenceLength / (WindupTime + ActiveTime + RecoveryTime)
 
 | Stage | 내용 | 검증 기준 |
 |:---:|:---|:---|
-| **0** | `ELNPEnemyCombatMode` 도입 + LODOverride 분기 + `PureEntity`용 EntityConfig 표현 매핑 분리 | `PureEntity` 개체가 `Confirmed`가 되어도 Actor가 스폰되지 않고, **가까이 가도** 스폰되지 않는다. 추격까지는 정상 동작 |
-| **1** | 순수 엔티티 원거리 공격 (트랙 A) | 게스트 화면에 아무것도 안 보여도 서버에서 플레이어 HP가 깎인다. **패링 반사도 그대로 성립한다** |
-| **2** | 순수 엔티티 근접 공격 — 가상 칼날 (트랙 A) | **플레이어가 순수 엔티티의 근접 공격을 패링할 수 있다.** 파이프라인 재사용이 성립했다는 단일 증거. 가드 블록·경직 누적도 함께 확인 |
+| **0** ✅ | `ELNPEnemyCombatMode` 도입 + LODOverride 분기 + `PureEntity`용 EntityConfig 표현 매핑 분리 | `PureEntity` 개체가 `Confirmed`가 되어도 Actor가 스폰되지 않고, **가까이 가도** 스폰되지 않는다. 추격까지는 정상 동작 |
+| **1** ✅ | 순수 엔티티 원거리 공격 (트랙 A) | 게스트 화면에 아무것도 안 보여도 서버에서 플레이어 HP가 깎인다. **패링 반사도 그대로 성립한다** |
+| **2** ✅ | 순수 엔티티 근접 공격 — 가상 칼날 (트랙 A) | **플레이어가 순수 엔티티의 근접 공격을 패링할 수 있다.** 파이프라인 재사용이 성립했다는 단일 증거. 가드 블록·경직 누적도 함께 확인 |
 | **3** | 행동 상태 채널 (트랙 B) | 2P에서 게스트가 공격 시작을 인지한다(먼저 디버그 드로우로 확인). **연속 공격 2회가 2회로 보인다** — 전이 카운터 검증 |
 | **4** | 발사체 관전 가시성 | 게스트 화면에 엔티티 발사체가 보이고 임팩트 지점이 서버 판정과 일치. **새 RPC 없이** 상태 채널만으로 |
 | **5a** | ISKM 파이프라인 개통 — Idle/Move 두 시퀀스만 | 인스턴스가 보이고 걷는다. **Nanite 요건 실측이 여기서 끝난다** |
@@ -469,6 +508,18 @@ PlayRate = SequenceLength / (WindupTime + ActiveTime + RecoveryTime)
 
 **PIE 검증 분담:** Stage 0~2의 서버 판정은 로그·디버그 드로우로 자동 확인 가능하다.
 Stage 3~5의 2P 체감(연출 타이밍·모션 자연스러움)은 실제 플레이 확인이 필요하다.
+
+### 10.1 트랙 A 검증 기록 (2026-09-05, 완료)
+
+승격 차단 · 근접 적(`ActorPromoted`) 회귀 없음 · 산탄 · 가드 · 패링 반사(적도 부근 포함, 2회 반사로 처치) ·
+상하 조준 사격(고저차 지형) · **그로기 진입 시 공격·이동 정지와 임계 이탈 시 재개** · 호스트/게스트 양쪽.
+
+⚠️ **경직 관찰에는 임시값이 필요했다.** 경직이 쌓이기 전에 적이 죽어 그로기 구간을 볼 수 없었다 —
+공격력·HP 밸런스 문제이지 임계값 문제가 아니다(→ [DevelopmentPlan.md](DevelopmentPlan.md) Phase 3 경직 항목의
+같은 지적). 플레이어 무기 레벨1 공격력을 0으로, 원거리 NPC 체력을 5배로 올려 관찰했고 **원복 대상이다.**
+
+⚠️ **적 엔티티의 HP·방어력 원본은 무기(`WeaponData`)의 스탯 수정자다.**
+`ULNPEnemyConfig::InitialAttributeValues`는 Actor 승격 후 ASC 초기화에만 쓰여 순수 엔티티에는 반영되지 않는다.
 
 ---
 
