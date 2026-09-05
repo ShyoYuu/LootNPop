@@ -13,6 +13,28 @@ class ALNPEnemyCharacter;
 class UStateTree;
 
 /**
+ * 전투 진입 시 이 적을 Actor로 승격할 것인가.
+ *
+ * ⚠️ **코드·데이터 애셋에 엘리트/잡몹/티어 같은 등급 어휘를 넣지 않는다.**
+ * 시스템이 아는 것은 이 한 축뿐이고, 등급은 기획 문서와 밸런싱에서만 쓴다.
+ * 등급은 늘어나도 이 축은 영원히 두 값이며, "엘리트인데 PureEntity"(대규모 정예 웨이브)나
+ * "잡몹인데 ActorPromoted"(튜토리얼 1마리) 같은 조합이 기획상 충분히 성립한다 —
+ * 이름이 모드를 단정하는 순간 코드가 거짓말을 시작한다.
+ *
+ * `bCanPromoteToActor` + `bHasEntityAttack` 같은 bool 두 개로 쪼개지 않는 이유도 같다.
+ * bool 조합은 정의되지 않은 상태(둘 다 false / 둘 다 true)를 만들고 그 동작을 문서로 방어해야 한다.
+ */
+UENUM(BlueprintType)
+enum class ELNPEnemyCombatMode : uint8
+{
+	/** 전투 진입 시 High LOD Actor로 승격한다 — GAS·몽타주·랙돌. */
+	ActorPromoted,
+
+	/** 승격하지 않는다 — ULNPEntityAttackProcessor가 공격 위상을 직접 구동한다. */
+	PureEntity,
+};
+
+/**
  * 우선순위 점수 계산 및 인지 설정.
  *
  * ```
@@ -224,7 +246,18 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Identity")
 	FGameplayTag EnemyTypeTag;
 
-	/** Mass에서 Actor로 전환 시 스폰할 Actor 클래스 */
+	/**
+	 * 전투 진입 시 Actor로 승격할 것인가. **이 옵션 하나가 슬롯·비주얼·공격 경로를 전부 가른다** —
+	 * "이 개체가 무엇을 못 하는가"를 다른 데이터를 보지 않고 답할 수 있어야 한다.
+	 *
+	 * `PureEntity`면 `ULNPEnemyLODOverrideProcessor`가 표현 LOD를 Actor 아닌 단계로 눌러
+	 * 거리가 가까워져도 Actor가 스폰되지 않는다. EntityConfig의 표현 매핑은 그 모드에서 실제로 쓸
+	 * 비주얼을 정의할 뿐이고, **단일 진실은 이 enum이다.**
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
+	ELNPEnemyCombatMode CombatMode = ELNPEnemyCombatMode::ActorPromoted;
+
+	/** Mass에서 Actor로 전환 시 스폰할 Actor 클래스 (CombatMode == ActorPromoted일 때만 쓰인다) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Spawning")
 	TSubclassOf<ALNPEnemyCharacter> EnemyActorClass;
 

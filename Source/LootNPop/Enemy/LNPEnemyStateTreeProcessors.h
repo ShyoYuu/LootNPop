@@ -107,6 +107,7 @@ protected:
 	TStateTreeExternalDataHandle<struct FTransformFragment> TransformHandle;
 	TStateTreeExternalDataHandle<struct FMassMoveTargetFragment> MoveTargetHandle;
 	TStateTreeExternalDataHandle<struct FMassActorFragment> ActorHandle;
+	TStateTreeExternalDataHandle<struct FLNPEntityAttackFragment> EntityAttackHandle;
 };
 
 /**
