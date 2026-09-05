@@ -238,7 +238,10 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					// 조준선은 Actor 경로의 GetBaseAimRotation()과 같은 규약이다 —
 					// 수평은 몸이 향한 접평면 전방, 상하만 타겟에서 뽑아 가용 각도로 클램프한다.
 					// 클램프 값이 조준 자세·발사 방향·피격 인지 게이트의 공용 원본이므로 여기서도 그 값을 읽는다.
-					const FVector ToTarget   = TargetingFrags[i].TargetLocation - Muzzle;
+					// 타겟 Transform은 좌표 규약상 **캡슐 중심**이다(플레이어·적 모두). 다만 캡슐 중심은
+					// 골반 높이라, 가슴께를 겨누려면 Config의 상하 보정을 얹는다.
+					const FVector AimPoint   = TargetingFrags[i].TargetLocation + Basis.Up * AttackConfig.AimTargetUpOffset;
+					const FVector ToTarget   = AimPoint - Muzzle;
 					const float   VerticalUp = FVector::DotProduct(ToTarget, Basis.Up);
 					const float   Horizontal = (ToTarget - Basis.Up * VerticalUp).Size();
 					const float   PitchDeg   = FMath::Clamp(

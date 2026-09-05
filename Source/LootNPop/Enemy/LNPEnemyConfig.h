@@ -334,6 +334,15 @@ struct FLNPEntityAttackConfig
 	FVector MuzzleLocalOffset = FVector(40.f, 0.f, 10.f);
 
 	/**
+	 * 조준점의 상하 보정(cm). 0이면 타겟의 **캡슐 중심**을 그대로 겨눈다.
+	 *
+	 * 캡슐 중심은 반높이(기본 96cm) 지점이라 서 있는 캐릭터에서는 **골반 높이**다.
+	 * 그대로 겨누면 "하반신을 노리는" 그림이 되므로, 가슴께를 겨누고 싶으면 양수를 준다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Ranged")
+	float AimTargetUpOffset = 0.f;
+
+	/**
 	 * 산탄 육각 링 수. 발사 수 = 1 + 3N(N+1) → 0=단발, 1=7발, 2=19발.
 	 * 펠릿마다 Mass 엔티티와 트레일 VFX가 하나씩 생기므로 올릴 때 비용을 함께 본다.
 	 */
