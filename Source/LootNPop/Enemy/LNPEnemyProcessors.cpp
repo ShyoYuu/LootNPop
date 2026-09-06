@@ -1218,6 +1218,12 @@ void ULNPEnemyActionProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 			{
 				NewAction = ELNPEnemyAction::Dying;
 			}
+			// ⚠️ 경직보다 **먼저** 본다. 패링은 ApplyParryBreak으로 경직도 함께 밀어 넣으므로,
+			//    순서를 바꾸면 Parried가 한 번도 나가지 못하고 전부 Stagger로 덮인다.
+			else if (Attacks[i].ParriedTimeRemaining > 0.f)
+			{
+				NewAction = ELNPEnemyAction::Parried;
+			}
 			else if (bStaggered)
 			{
 				NewAction = ELNPEnemyAction::Stagger;
@@ -1275,6 +1281,7 @@ namespace
 		{
 		case ELNPEnemyAction::Move:    return FColor::Green;
 		case ELNPEnemyAction::Attack:  return FColor::Red;
+		case ELNPEnemyAction::Parried: return FColor::Cyan;
 		case ELNPEnemyAction::Stagger: return FColor::Yellow;
 		case ELNPEnemyAction::Dying:   return FColor::Black;
 		default:                       return FColor::Silver;   // Idle

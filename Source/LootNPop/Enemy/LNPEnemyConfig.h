@@ -310,6 +310,16 @@ struct FLNPEntityAttackConfig
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
 	float RecoveryTime = 0.45f;
 
+	/**
+	 * 패링당한 뒤 자세가 무너진 채로 남아 있는 시간(초). 이 동안 행동 상태가 `Parried`로 나간다.
+	 *
+	 * ⚠️ **재생할 모션의 길이와 손으로 맞춘다.** 위상 시간과 달리 파생시킬 원본이 없다 —
+	 * 서버는 어떤 시퀀스가 재생되는지 모르고(그건 표현의 몫), 시퀀스 길이를 서버 판정에 끌어들이면
+	 * 애니가 게임플레이를 정하게 된다. 짧으면 모션이 잘리고, 길면 굳은 채로 서 있는다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float ParriedRecoveryTime = 1.05f;
+
 	// --- 근접 전용: 가상 칼날 (캡슐 중심 기준 로컬 치수) ---
 
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
@@ -381,12 +391,18 @@ struct FLNPEntityAttackConfig
  * 인덱스는 `UAnimSequenceTransformProviderData::Sequences`에 **구워진 배열 순서**다.
  * 적 타입마다 시퀀스 수와 순서가 다르므로 프로세서에 하드코딩하지 않고 데이터로 둔다.
  *
- * ⚠️ **항목이 둘 이상이면 전이마다 번갈아 쓴다 — 연속 공격을 보이려면 필수다.**
- * 엔진은 `SequenceIndex`가 **바뀔 때만** 트랙을 다시 앵커링한다
+ * 항목이 둘 이상이면 `FLNPEnemyActionFragment::Seq`에서 유도해 번갈아 쓴다 — **연출 변화가 목적이고,
+ * 재생 보장은 아니다.** 공격은 반드시 다른 상태를 경유해 재진입하므로(Move -> Attack) 변형이 하나여도
+ * 인덱스는 어차피 바뀐다.
+ *
+ * ⚠️ 다만 엔진이 `SequenceIndex`가 **바뀔 때만** 트랙을 다시 앵커링한다는 사실은 알아 둘 것
  * (`MassVisualizationComponent.cpp`의 `GetSequenceIndex(...) != AnimData.SequenceIndex` 분기).
- * 그래서 Attack -> Attack을 같은 인덱스로 두 번 실으면 **두 번째 스윙이 재생되지 않고**
- * 첫 재생의 마지막 프레임에 멈춰 있는다. 변형을 둘 이상 놓고 `FLNPEnemyActionFragment::Seq`로
- * 번갈아 고르면 인덱스가 반드시 바뀌어 재생이 보장되고, 덤으로 연출 변화까지 따라온다.
+ * 같은 인덱스를 연속으로 실으면 재생이 처음부터 다시 돌지 않고 직전 재생을 이어간다 —
+ * 중간 상태 없이 같은 행동을 반복하는 채널을 나중에 추가하면 여기서 걸린다.
+ *
+ * ⚠️ **추가(additive) 애니메이션은 넣지 말 것.** ASTP 컴파일러는 절대 포즈로 굽기 때문에
+ * `AAT_LocalSpaceBase` 클립을 넣으면 뼈가 원점으로 모여 **메시가 통째로 사라진다**
+ * (2026-09-06 실측 — Lyra의 `MM_HitReact_*`가 전부 추가 클립이다).
  */
 USTRUCT(BlueprintType)
 struct FLNPEnemyActionSequences
