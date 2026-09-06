@@ -225,7 +225,7 @@ struct LOOTNPOP_API FLNPReplicatedAgent : public FReplicatedAgentBase
 	uint8 GetActionAndSeq() const { return ActionAndSeq; }
 
 private:
-	static constexpr uint8 ActionMask = 0x07;   // 하위 3비트 = ELNPEnemyAction (5값, 상한 8)
+	static constexpr uint8 ActionMask = 0x07;   // 하위 3비트 = ELNPEnemyAction (6값, 상한 8)
 	static constexpr uint8 SeqShift   = 3;
 	static constexpr uint8 SeqMask    = 0x1F;   // 상위 5비트 = 전이 카운터 (0~31 wrap)
 

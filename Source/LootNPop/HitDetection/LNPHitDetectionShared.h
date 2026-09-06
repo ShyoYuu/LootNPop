@@ -4,6 +4,7 @@
 
 #include "MassCommandBuffer.h"
 #include "MassEntityManager.h"
+#include "MassEntityView.h"
 #include "MassActorSubsystem.h"
 #include "Components/CapsuleComponent.h"
 #include "AbilitySystemComponent.h"
@@ -14,6 +15,8 @@
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
 #include "HitDetection/LNPProjectileImpactContext.h"
 #include "GAS/LNPPoiseTypes.h"
+#include "Enemy/LNPEnemyMassTypes.h"     // FLNPEntityAttackFragment · FLNPEnemySharedFragment
+#include "Enemy/LNPEnemyConfig.h"        // FLNPEntityAttackConfig::ParriedRecoveryTime
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
@@ -116,6 +119,19 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 				LNPPoise::ApplyParryBreak(
 					EntityManager.GetFragmentDataPtr<FLNPPoiseFragment>(Entry.AttackerEntity),
 					EntityManager.GetWorld() ? EntityManager.GetWorld()->GetTimeSeconds() : 0.0);
+
+				// 순수 엔티티에게 "패링당했다"를 알리는 유일한 자리. 경직(ApplyParryBreak)만으로는
+				// 행동 상태가 Stagger로 나가 **일반 피격과 같은 그림**이 된다 — 연출이 갈리는 지점이므로
+				// 여기서 별도 상태로 표시한다. 플레이어 공격자에게는 이 프래그먼트가 없어 자연히 건너뛴다.
+				const FMassEntityView AttackerView(EntityManager, Entry.AttackerEntity);
+				if (FLNPEntityAttackFragment* AttackFragment = AttackerView.GetFragmentDataPtr<FLNPEntityAttackFragment>())
+				{
+					const FLNPEnemySharedFragment* EnemyShared = AttackerView.GetConstSharedFragmentDataPtr<FLNPEnemySharedFragment>();
+					const ULNPEnemyConfig* AttackerConfig = EnemyShared ? EnemyShared->Config.Get() : nullptr;
+					AttackFragment->ParriedTimeRemaining = AttackerConfig
+						? AttackerConfig->EntityAttackConfig.ParriedRecoveryTime
+						: 1.f;
+				}
 			}
 
 			if (ALNPCharacterBase* AttackerPawn = Cast<ALNPCharacterBase>(Attacker))

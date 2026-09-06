@@ -224,6 +224,17 @@ struct LOOTNPOP_API FLNPEntityAttackFragment : public FMassFragment
 
 	/** StateTree Task가 세우고 프로세서가 소비하는 1회성 요청. */
 	uint8 bAttackRequested : 1 = 0;
+
+	/**
+	 * **서버 전용 장부** — 패링당해 자세가 무너진 채로 남은 시간(초).
+	 * `FLNPMeleeParryCommand`가 `FLNPEntityAttackConfig::ParriedRecoveryTime`으로 세우고
+	 * `ULNPEntityAttackProcessor`가 감소시킨다. 0보다 크면 행동 상태가 `Parried`로 나간다.
+	 *
+	 * ⚠️ **공격 위상을 끊지 않는다.** 패링 분기는 이미 그 플레이어를 피격 목록에 올려 두므로
+	 * 칼날이 남은 Active를 살아도 다시 맞히지 못한다 — 연출만 덮어쓰면 되고, 위상을 건드리면
+	 * 쿨다운·스윙 엔티티 파괴 경로까지 함께 흔들린다.
+	 */
+	float ParriedTimeRemaining = 0.f;
 };
 
 /**
@@ -231,6 +242,7 @@ struct LOOTNPOP_API FLNPEntityAttackFragment : public FMassFragment
  * 전이 카운터 5비트와 한 바이트를 나눠 쓴다 (FLNPReplicatedAgent::ActionAndSeq).
  *
  * 값을 늘리기 전에 반드시 대역폭을 다시 볼 것. 8개를 넘기는 순간 1바이트가 깨진다.
+ * **현재 6값** — 두 자리 남았다.
  */
 UENUM()
 enum class ELNPEnemyAction : uint8
@@ -240,6 +252,15 @@ enum class ELNPEnemyAction : uint8
 	Attack,
 	Stagger,
 	Dying,
+
+	/**
+	 * 패링당해 자세가 무너졌다. 피격 경직(`Stagger`)과 갈라 두는 이유는 **연출이 다르기 때문**이다 —
+	 * 이 채널은 그림을 위해 존재하므로 그림이 갈리는 곳에서만 값을 늘린다.
+	 *
+	 * ⚠️ **새 값은 반드시 끝에 붙인다.** 중간에 끼우면 뒤 항목의 숫자가 밀리고,
+	 * 이미 저장된 `ULNPEnemyConfig::ActionSequences`(enum 키 맵)가 조용히 다른 행동을 가리키게 된다.
+	 */
+	Parried,
 
 	MAX UMETA(Hidden)
 };
@@ -338,6 +359,7 @@ struct LOOTNPOP_API FLNPEnemyActionFragment : public FMassFragment
 	{
 		return InAction == ELNPEnemyAction::Attack
 			|| InAction == ELNPEnemyAction::Stagger
+			|| InAction == ELNPEnemyAction::Parried
 			|| InAction == ELNPEnemyAction::Dying;
 	}
 };

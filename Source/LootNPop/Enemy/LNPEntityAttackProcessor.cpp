@@ -144,6 +144,11 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 			if (Attack.CooldownRemaining > 0.f)
 				Attack.CooldownRemaining = FMath::Max(0.f, Attack.CooldownRemaining - DeltaTime);
 
+			// 패링 자세 붕괴 잔여. 여기서 줄이는 이유는 이 프로세서만이 CombatMode와 무관하게
+			// 매 프레임 전 엔티티를 도는 공격 상태의 주인이기 때문이다 — 소비처는 ULNPEnemyActionProcessor다.
+			if (Attack.ParriedTimeRemaining > 0.f)
+				Attack.ParriedTimeRemaining = FMath::Max(0.f, Attack.ParriedTimeRemaining - DeltaTime);
+
 			// 경직·다운 중에는 공격이 끊긴다. Actor 경로에서는 FLNPStaggerCommand::Run이
 			// CancelCurrentAttackAbility()로 끊지만 그 함수는 Actor가 없으면 도달하지 못한다 —
 			// 다운은 게이지를 0으로 리셋하므로 bIsGroggy만으로는 안 잡혀 면역 잔여도 함께 본다.
