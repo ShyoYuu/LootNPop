@@ -248,6 +248,7 @@ Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2
 | Lag Compensation | `RewindSeconds = 0` | **이미 그렇다** — 공격자에 PlayerState가 없으면 되감기가 0이다 (`LNPWeaponTraceProcessors.cpp:467` 주석) |
 | 클라이언트 예측 | 없음 | 예측은 로컬 공격자 전용 개념 |
 | 공격자 HitStop | 없음 | 피격자(플레이어) 측 HitStop·임팩트 큐는 정상 동작한다 |
+| **적이 피격자인 방향** | ⚠️ **이 표가 다루지 않는다** | 위 항목들은 전부 *"순수 엔티티가 공격자"* 인 방향이다. **반대 방향(플레이어가 순수 엔티티를 때리는 경우)에는 별도의 구멍이 있다** — 임팩트 VFX와 넉백이 피격자 Actor/ASC를 경유하는데 순수 엔티티에는 둘 다 없다. 감수 항목이 아니라 **미해결이며 트래커에 등록돼 있다** |
 | 피격 리액션 몽타주 | 없음 | Stagger 시퀀스로 대체 (§6.4) |
 | 랙돌 | 없음 | 사망 시퀀스로 대체. 랙돌은 `ActorPromoted` 전용 연출로 남긴다 |
 | 월드 HP Bar | 없음 | MassEntity용 커스텀 Slate HP Bar 도입 시 재검토 (→ [TechDesign_HUD.md](TechDesign_HUD.md)) |
@@ -533,12 +534,21 @@ PlayRate = SequenceLength / (WindupTime + ActiveTime + RecoveryTime)
 **풀이 서로 예산을 뺏지 않는다**는 것이 이 분할의 목적이고 그대로 성립했다.
 사용자 확인: *"근접 적이 한번에 2기까지만 나를 공격하고 나머지는 쳐다보기만, 원거리는 계속 추격·공격."*
 
-⚠️ **`melee` 풀은 0/10으로 비어 있었다** — `PureEntity` 근접 에셋이 아직 없어서다.
-따라서 §10이 정한 기준(*"잡몹에 둘러싸인 상태에서 `ActorPromoted` 개체가 교전에 진입한다"*)은
-**아직 구성할 수 없다.** 지금 검증된 것은 그 대칭형(원거리 잡몹 20칸 + 승격 2칸)이다.
+처음 측정에서는 **`melee` 풀이 0/10으로 비어 있었다** — `PureEntity` 근접 에셋이 없었기 때문이다.
+그 상태에서는 §10의 기준(*"잡몹에 둘러싸인 상태에서 `ActorPromoted` 개체가 교전에 진입한다"*)을
+구성할 수 없어, 대칭형(원거리 잡몹 20칸 + 승격 2칸)으로만 확인했다.
 
-⚠️ **이 분할은 근접 교전 밀도를 10 → 2로 낮춘다.** 현재 근접 적이 전부 `ActorPromoted`이기 때문이고,
-`PureEntity` 근접 에셋이 생기면 잡몹이 `melee` 풀(10칸)로 이동해 되돌아온다.
+**2026-09-06에 `DA_Enemy_PureEntity_Melee01`을 만들어 기준 그대로 검증했다.**
+근접 잡몹이 `melee` 풀로 이동하면서 *"승격 Actor 2기와 **별개로** 근접 잡몹 10기가 동시에 달려든다"* 가
+육안으로 확인됐다. 순수 엔티티 근접 공격·피격 모션·HP 차감·패링 이펙트도 함께 정상이었다
+(⚠️ 단, 패링 **넉백**은 걸리지 않는다 — 트래커에 등록된 별건이다).
+
+⚠️ **에셋 이름에 `CombatMode`를 넣는다.** `DA_Enemy_ActorPromoted_Melee01` /
+`DA_Enemy_PureEntity_Melee01` / `DA_Enemy_PureEntity_Ranged01`처럼 enum 이름을 그대로 쓰고,
+EntityConfig도 같은 규칙으로 1:1 짝을 맞춘다 — 모드와 표현 매핑이 어긋나는 §6.2의 함정을
+`ValidateTemplate` 경고가 나기 전에 **에셋 목록에서 눈으로** 막기 위해서다.
+신규 `PureEntity` 설정은 **표현 매핑이 이미 `PureEntity`인 것을 복제**해 만드는 편이,
+Actor 단계가 든 배열을 손으로 고치는 것보다 안전하다.
 
 #### `MaxPromotedSlotsPerPlayer`를 일시적으로 올릴 때의 상한
 
