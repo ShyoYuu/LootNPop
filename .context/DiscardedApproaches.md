@@ -125,3 +125,50 @@ CommonUI의 유저 인덱스는 `ControllerId`가 아니라 **GameInstance의 Lo
 엔진 홉을 그대로 쓰고, **증상 A(메뉴를 닫으면 조작 대상 창이 바뀜)만** `ALNPPlayerController::CapturePIEForeignFocus` / `RestorePIEForeignFocus`로 잡았다. 홉이 "입력이 도착한 뷰포트의 다음 뷰포트"이므로 역할 배정은 포커스를 준 창을 따라 유동적으로 뒤집히고(게임패드는 항상 포커스 준 창의 반대편), 남는 제약은 그쪽 창의 그리드 방향 이동 하나뿐이다. 게임패드로 UI를 만져야 하면 클라이언트를 하나만 띄운다.
 
 > 진짜 로컬 분할화면에서는 이 문제 자체가 성립하지 않는다 — 로컬 플레이어 배열 인덱스가 그제서야 Slate 유저 인덱스와 일치하기 때문이다. 이 기각은 **PIE 한정**이다.
+
+---
+
+## [Case 05] 엔진 MassAvoidance·내비 장애물 그리드로 NPC 회피 구현
+
+- **일자:** 2026-09-06 (설계 검토 단계)
+- **상태:** **기각 (Dismissed)**
+
+### 구현 방식 (검토)
+
+순수 엔티티 NPC끼리 서로 겹치는 문제를, 엔진이 이미 제공하는 회피 파이프라인으로 해결하려 했다.
+Enemy EntityConfig에 회피 트레이트를 붙이면:
+
+- `UMassNavigationSubsystem`이 들고 있는 `FNavigationObstacleHashGrid2D`
+  (`THierarchicalHashGrid2D<2, 4, FMassNavigationObstacleItem>` — 2단 계층, 레벨 간 배율 4)에
+  장애물 그리드 프로세서가 엔티티를 매 틱 등록·이동시키고,
+- `MassAvoidanceProcessors`가 그 그리드로 이웃을 조회해 `FMassForceFragment`에 조향력을 쓴다.
+
+에셋 설정만으로 켜지므로 비용이 사실상 0으로 보였다.
+
+### 기각 사유
+
+1. **그리드가 2D다 — 셀 인덱스에 Z가 없다.** `CalcCellLocation`이 `Center.X`·`Center.Y`만 쓴다.
+   구형 월드에서는 두 가지가 동시에 깨진다: ① 적도 부근에서 구면의 넓은 영역이 얇은 XY 띠로 접혀
+   가속 구조가 선형 스캔으로 퇴화하고 ② 같은 (X, Y)에 있는 **반대편 반구**의 개체가 이웃으로 잡힌다.
+   우연히 맞는 곳은 극(±Z) 근처뿐이다.
+2. **회피 수학 자체가 평면 가정이다.** 엔진 주석이 그대로 말한다 —
+   `RelPos.Z = 0.; // we assume we work on a flat plane for now`(`MassAvoidanceProcessors.cpp` 945·1328·1360행),
+   `AvoidRelPos.Z = 0.; // @todo AT: ignore the z component for now`(624행).
+   예측 CPA 계산이 전부 `FVector2D`이고(115~141행), 좌/수직 방향을 `FVector::UpVector`로
+   하드코딩한다(227·265행). **+Z가 위인 평평한 월드 전용**이다.
+
+두 사유는 독립적이다 — 그리드만 갈아끼워도 2번이 남고, 반대도 마찬가지다.
+[Case 02]에서 NavMesh를 기각한 것과 **같은 뿌리**다: 엔진의 내비게이션·조향 계열은 Z-Up 평면을 전제한다.
+
+### 채택한 대안
+
+- **접평면으로 옮긴 자체 구현.** 접근법(반경 내 이웃 → 분리·예측 회피력)은 그대로 성립하므로,
+  같은 계산을 엔티티 위치의 접평면에서 수행한다. 프로젝트에 이미 접평면 투영 헬퍼가 있다.
+- **유틸리티 층은 재사용 가능하다** — `UE::MassNavigation::GetLeftDirection(Forward, Up)`은
+  Up을 인자로 받아 중력 방향에 무관하다. 못 쓰는 것은 그리드·프로세서·트레이트다.
+- **브로드페이즈는 3D 균일 해시로 자체 제작.** 엔진에는 런타임 게임플레이용 3D 공간 해시가 없다
+  (2D 하나뿐이고 나머지 `SpatialHash`는 WorldPartition 전용). 상세는
+  [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md) §6.
+
+> ⚠️ 회피 자체를 하기 전에 **증상을 다시 볼 것.** 문제는 "겹침"이지 "지능적 회피"가 아니므로,
+> 예측 CPA 없이 접평면 분리력만으로 사라질 수 있다. 예측 회피는 그 뒤에 판단한다.

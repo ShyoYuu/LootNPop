@@ -5,9 +5,8 @@
 #include "Camera/LNPLockOnComponent.h"
 #include "Character/LNPCharacterBase.h"
 #include "Character/LNPInputHandlerComponent.h"
+#include "HitDetection/LNPTargetQuerySubsystem.h"
 #include "Config/LNPSettings.h"
-#include "Enemy/LNPEnemyCharacter.h"
-#include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "Item/LNPWeaponData.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPModifierInputs.h"
@@ -24,7 +23,6 @@
 #include "Engine/World.h"
 #include "Engine/EngineTypes.h"
 #include "HAL/IConsoleManager.h"
-#include "Kismet/KismetSystemLibrary.h"
 #include "MotionWarpingComponent.h"
 #include "MoverDataModelTypes.h"
 
@@ -60,107 +58,6 @@ namespace LNPMeleeAssist
 			return FMath::Clamp(Override, 0.f, 1.f);
 		}
 		return FMath::Clamp(GetDefault<ULNPSettings>()->MeleeAssistStrength, 0.f, 1.f);
-	}
-
-	/**
-	 * 구형 월드에서 거리·각도는 반드시 접평면 성분으로만 잰다.
-	 * 반지름 방향 성분이 섞이면 같은 높이에 있지 않은 대상의 거리가 실제보다 멀게 나오고,
-	 * 워프 지점도 지면에서 떠버린다. (TechDesign_EnemyNPC.md 5.1과 같은 규약)
-	 */
-	static bool ProjectToTangent(const FVector& UpDir, const FVector& Delta, FVector& OutDir, float& OutDist)
-	{
-		const FVector Tangent = Delta - UpDir * FVector::DotProduct(Delta, UpDir);
-		OutDist = Tangent.Size();
-		if (OutDist <= KINDA_SMALL_NUMBER)
-		{
-			OutDir = FVector::ZeroVector;
-			return false;
-		}
-		OutDir = Tangent / OutDist;
-		return true;
-	}
-
-	static bool IsTargetDead(const ALNPEnemyCharacter* Enemy)
-	{
-		const UAbilitySystemComponent* ASC = Enemy->GetAbilitySystemComponent();
-		if (!ASC)
-		{
-			return false;
-		}
-		bool bFound = false;
-		const float Health = ASC->GetGameplayAttributeValue(ULNPBaseAttributeSet::GetHealthAttribute(), bFound);
-		return bFound && Health <= 0.f;
-	}
-
-	/**
-	 * 락온이 꺼져 있을 때의 타겟 탐색. 캐릭터 전방 기준 각도와 접평면 거리를 정규화해 가중합한다.
-	 * 브로드페이즈는 ULNPLockOnComponent::FindBestTarget과 같은 방식을 쓴다 — 다만 저쪽은
-	 * 화면(카메라) 중앙 기준이고 여기는 캐릭터 전방 기준이라 점수 함수만 다르다.
-	 */
-	static ALNPEnemyCharacter* FindForwardTarget(const ALNPCharacterBase* Character, const FVector& UpDir, const ULNPSettings& Settings)
-	{
-		UWorld* World = Character->GetWorld();
-		if (!World)
-		{
-			return nullptr;
-		}
-
-		const float Radius = FMath::Max(Settings.MeleeAssistSearchRadius, 1.f);
-		const float MaxAngleDeg = FMath::Max(Settings.MeleeAssistMaxSearchAngleDeg, 1.f);
-		const FVector SelfLoc = Character->GetActorLocation();
-
-		FVector ForwardDir;
-		float ForwardLen = 0.f;
-		if (!ProjectToTangent(UpDir, Character->GetActorForwardVector(), ForwardDir, ForwardLen))
-		{
-			return nullptr;
-		}
-
-		TArray<AActor*> Overlapped;
-		UKismetSystemLibrary::SphereOverlapActors(
-			World,
-			SelfLoc,
-			Radius,
-			TArray<TEnumAsByte<EObjectTypeQuery>>{ UEngineTypes::ConvertToObjectType(ECC_Pawn) },
-			ALNPEnemyCharacter::StaticClass(),
-			TArray<AActor*>{ const_cast<ALNPCharacterBase*>(Character) },
-			Overlapped);
-
-		ALNPEnemyCharacter* Best = nullptr;
-		float BestScore = -MAX_FLT;
-
-		for (AActor* Actor : Overlapped)
-		{
-			ALNPEnemyCharacter* Enemy = Cast<ALNPEnemyCharacter>(Actor);
-			if (!IsValid(Enemy) || IsTargetDead(Enemy))
-			{
-				continue;
-			}
-
-			FVector ToDir;
-			float Dist = 0.f;
-			if (!ProjectToTangent(UpDir, Enemy->GetActorLocation() - SelfLoc, ToDir, Dist) || Dist > Radius)
-			{
-				continue;
-			}
-
-			const float CosAngle = FMath::Clamp(FVector::DotProduct(ForwardDir, ToDir), -1.f, 1.f);
-			const float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(CosAngle));
-			if (AngleDeg > MaxAngleDeg)
-			{
-				continue;
-			}
-
-			const float Score = Settings.MeleeAssistAngleWeight * (1.f - AngleDeg / MaxAngleDeg)
-			                  + Settings.MeleeAssistDistanceWeight * (1.f - Dist / Radius);
-			if (Score > BestScore)
-			{
-				BestScore = Score;
-				Best = Enemy;
-			}
-		}
-
-		return Best;
 	}
 
 	/**
@@ -404,22 +301,27 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 	// 락온 타겟과 이동 인풋은 둘 다 InputCmd에서 읽는다. 컴포넌트의 로컬 상태를 읽으면 서버가
 	// 원격 클라이언트의 값을 보지 못해 서버만 다른 판단을 내린다.
 	const FMoverInputCmdContext& LastInputCmd = Mover->GetLastInputCmd();
-	const FLNPModifierInputs* ModifierInputs = LastInputCmd.InputCollection.FindDataByType<FLNPModifierInputs>();
 
+	const FLNPModifierInputs* ModifierInputs = LastInputCmd.InputCollection.FindDataByType<FLNPModifierInputs>();
 	// 락온은 "자동 탐색이 고른 것 말고 이 적을 치겠다"는 명시적 의사표현이다 — 지목이 있으면 탐색하지 않는다.
 	const AActor* LockOnTarget = (ModifierInputs && IsValid(ModifierInputs->LockOnTarget)) ? ModifierInputs->LockOnTarget.Get() : nullptr;
 	const bool bLockOnActive = (LockOnTarget != nullptr);
-	const AActor* Target = bLockOnActive
-		? LockOnTarget
-		: static_cast<const AActor*>(LNPMeleeAssist::FindForwardTarget(Character, UpDir, Settings));
-	if (!Target)
+
+	// 자동 탐색은 ULNPTargetQuerySubsystem의 상시 원뿔 질의가 이미 답을 들고 있다.
+	// 여기서 물리 브로드페이즈를 돌던 시절에는 순수 엔티티(Actor가 없다)를 통째로 놓쳤다.
+	FVector TargetLocation;
+	if (bLockOnActive)
+	{
+		TargetLocation = LockOnTarget->GetActorLocation();
+	}
+	else if (!InputHandler->GetMeleeAssistTarget(TargetLocation))
 	{
 		return;
 	}
 
 	FVector ToTargetDir;
 	float TangentDist = 0.f;
-	if (!LNPMeleeAssist::ProjectToTangent(UpDir, Target->GetActorLocation() - SelfLoc, ToTargetDir, TangentDist))
+	if (!LNPTargetQuery::ProjectToTangent(UpDir, TargetLocation - SelfLoc, ToTargetDir, TangentDist))
 	{
 		return;
 	}
@@ -501,7 +403,7 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 			bUseMotionWarping ? TEXT("Warp") : TEXT("Pull"), Timing.bValid ? 1 : 0,
 			Timing.WarpStart, Timing.WarpEnd, Timing.WarpRootMotion,
 			Timing.SectionStart, Timing.PullEnd,
-			*GetNameSafe(Target), bLockOnActive ? 1 : 0, TangentDist, IdealDistance, CorrectionDistance);
+			*TargetLocation.ToCompactString(), bLockOnActive ? 1 : 0, TangentDist, IdealDistance, CorrectionDistance);
 	}
 #endif
 
@@ -577,7 +479,7 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 	{
 		if (UWorld* World = Character->GetWorld())
 		{
-			DrawDebugSphere(World, Target->GetActorLocation(), 45.f, 12, FColor::Yellow, false, 2.f);
+			DrawDebugSphere(World, TargetLocation, 45.f, 12, FColor::Yellow, false, 2.f);
 			DrawDebugSphere(World, WarpLocation, 20.f, 12, FColor::Green, false, 2.f);
 			DrawDebugLine(World, WarpOrigin, WarpLocation, FColor::Green, false, 2.f, 0, 2.f);
 		}

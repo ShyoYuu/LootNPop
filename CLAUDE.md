@@ -34,7 +34,8 @@
 | .context/GameDesign_InGameMenu.md | 인게임 메뉴 — 탭 구조, 게임패드 조작, 캐릭터 스탯·인벤토리·환경설정 탭 기획 |
 | .context/TechDesign_InGameMenu.md | CommonUI 위젯 계층, Back 전파 규칙, 커스텀 힌트 바·입력 글리프, 스탯 합/곱 분해, 로컬라이제이션, PIE 2인 게임패드 라우팅 |
 | .context/TechDesign_Inventory.md | 아이템 인스턴스 모델(UObject+FastArray+등록 서브오브젝트), GameplayTagStack 스탯, 장착/보관 분리, 버프 인스턴스 흐름 |
-| .context/TechDesign_HitDetection.md | 근접 Swept Volume·원거리 Line Segment 판정, 판정 캡슐 중심 규약 단일 헬퍼, 조준 원본 단일화(서버가 클라 조준점을 읽음), 공간 쿼리 최적화 미구현 |
+| .context/TechDesign_HitDetection.md | 근접 Swept Volume·원거리 Line Segment 판정, 판정 캡슐 중심 규약 단일 헬퍼, 조준 원본 단일화와 수직 이탈 게이트, 조준점 깊이(적 엔티티 질의), 공간 쿼리 최적화 미구현 |
+| .context/TechDesign_TargetQuery.md | 적 탐색 질의 시스템 — 상시 질의 구조, 순수 엔티티를 빠뜨리는 물리 경유 3곳, 등장방형 축소 행 공간 분할, 도입 단계 |
 | .context/TechDesign_Networking.md | 멀티플레이 네트워킹 — Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 대역폭 예산 규약(상한=안전판·엔티티당 비용·조용한 소실), 엔진 소스 분석 이슈 7건 |
 | .context/Guide_NetBandwidth.md | 네트워크 대역폭 — 비용 3축(버블·승격 Actor·절편), 페이로드 양자화 규약과 int16 월드 반지름 캡, 절제(ablation)와 사유별 계수 측정법·분모 규약, 반복된 실패 패턴 |
 | .context/GameDesign_ParrySystem.md | 패링 성공 조건, 투사체 타입별 반사, 플레이어 경험 의도 |

@@ -26,6 +26,7 @@
 #include "MassEntitySubsystem.h"
 #include "HitDetection/LNPGuardParryTypes.h"
 #include "Camera/LNPLockOnComponent.h"
+#include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "HAL/IConsoleManager.h"
 
@@ -53,6 +54,75 @@ void ULNPInputHandlerComponent::BeginPlay()
 	ActiveSkillJustPressed.SetNum(ActiveSkillActions.Num());
 }
 
+void ULNPInputHandlerComponent::UpdateMeleeAssistQuery()
+{
+	// 근접 보정은 플레이어 전용이다 — 적 NPC는 StateTree 스티어링이 접근 거리를 맞춘다.
+	// ULNPAbility_MeleeAttack::ApplyMeleeAssist와 같은 기준(락온 컴포넌트 보유)으로 거른다.
+	const AActor* Owner = GetOwner();
+	if (!Owner || !LockOnComponent)
+		return;
+
+	UWorld* World = GetWorld();
+	ULNPTargetQuerySubsystem* QuerySub = World ? World->GetSubsystem<ULNPTargetQuerySubsystem>() : nullptr;
+	if (!QuerySub)
+		return;
+
+	if (!MeleeAssistQueryHandle.IsValid())
+		MeleeAssistQueryHandle = QuerySub->RegisterQuery();
+
+	const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Owner);
+	if (!Character)
+		return;
+
+	const ULNPSettings& Settings = *GetDefault<ULNPSettings>();
+	const FVector UpDir = Character->GetUpDirection();
+
+	// 기준 전방은 접평면에 투영한 캐릭터 전방이다. 투영이 축퇴하면(전방이 Up과 평행) 이번 프레임은 쉰다.
+	FVector ForwardDir;
+	float   ForwardLen = 0.f;
+	if (!LNPTargetQuery::ProjectToTangent(UpDir, Character->GetActorForwardVector(), ForwardDir, ForwardLen))
+	{
+		QuerySub->SetConeQuery(MeleeAssistQueryHandle, FVector::ZeroVector, FVector::ForwardVector, UpDir, 0.f, 0.f, 0.f, 0.f);
+		return;
+	}
+
+	QuerySub->SetConeQuery(MeleeAssistQueryHandle,
+		Character->GetActorLocation(), ForwardDir, UpDir,
+		FMath::Max(Settings.MeleeAssistSearchRadius, 1.f),
+		FMath::Max(Settings.MeleeAssistMaxSearchAngleDeg, 1.f),
+		Settings.MeleeAssistAngleWeight,
+		Settings.MeleeAssistDistanceWeight);
+}
+
+bool ULNPInputHandlerComponent::GetMeleeAssistTarget(FVector& OutTargetLocation) const
+{
+	const UWorld* World = GetWorld();
+	const ULNPTargetQuerySubsystem* QuerySub = World ? World->GetSubsystem<ULNPTargetQuerySubsystem>() : nullptr;
+	if (!QuerySub)
+		return false;
+
+	FLNPTargetQueryResult Result;
+	if (!QuerySub->GetResult(MeleeAssistQueryHandle, Result) || !Result.bHit)
+		return false;
+
+	OutTargetLocation = Result.Location;
+	return true;
+}
+
+void ULNPInputHandlerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (ULNPTargetQuerySubsystem* QuerySub = World->GetSubsystem<ULNPTargetQuerySubsystem>())
+		{
+			QuerySub->UnregisterQuery(AimQueryHandle);
+			QuerySub->UnregisterQuery(MeleeAssistQueryHandle);
+		}
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
 void ULNPInputHandlerComponent::CacheASC(UAbilitySystemComponent* InASC)
 {
 	ASC = InASC;
@@ -63,6 +133,8 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	TickDebugAutoAction(DeltaTime);
+
+	UpdateMeleeAssistQuery();
 
 	if (!CachedLookInput.IsNearlyZero() && ControlRotationComponent)
 	{
@@ -224,14 +296,40 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 	PC->GetPlayerViewPoint(CamPos, CamRot);
 
 	const FVector TraceEnd = CamPos + CamRot.Vector() * AimTraceDistance;
-
 	FHitResult Hit;
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(Pawn);
 
-	OutAimPoint = World->LineTraceSingleByChannel(Hit, CamPos, TraceEnd, ECC_Visibility, QueryParams)
-		? Hit.ImpactPoint
-		: TraceEnd;
+	const bool  bPhysicsHit  = World->LineTraceSingleByChannel(Hit, CamPos, TraceEnd, ECC_Visibility, QueryParams);
+	const FVector CamForward = CamRot.Vector();
+
+	OutAimPoint = bPhysicsHit ? Hit.ImpactPoint : TraceEnd;
+	float NearestDistance = bPhysicsHit
+		? FVector::DotProduct(Hit.ImpactPoint - CamPos, CamForward)
+		: AimTraceDistance;
+
+	// 물리 트레이스는 적을 하나도 못 본다 — 승격 Actor의 캡슐은 Visibility를 무시하고,
+	// 순수 엔티티(CombatMode::PureEntity)는 콜리전 바디 자체가 없다. 그래서 조준점이 적을 통과해
+	// 배경 깊이에 찍히고, 총구-카메라 시차 보정이 잘못된 깊이로 수렴해 근거리에서 크게 빗나갔다.
+	// 같은 광선을 적 엔티티 캡슐과 수학으로 교차시켜 더 가까운 쪽을 채택한다.
+	if (ULNPTargetQuerySubsystem* QuerySub = World->GetSubsystem<ULNPTargetQuerySubsystem>())
+	{
+		if (!AimQueryHandle.IsValid())
+			AimQueryHandle = QuerySub->RegisterQuery();
+
+		// 벽 너머는 어차피 가려져 채택될 수 없으므로 질의 구간을 물리 히트 깊이까지로 자른다.
+		// 자르지 않으면 벽에 막힌 프레임에도 500m 전 구간을 훑는다.
+		QuerySub->SetRayQuery(AimQueryHandle, CamPos, CamForward, NearestDistance);
+
+		// 상시 질의라 결과는 직전 평가분이다 — 최대 1프레임 늦지만, 조준점은 이미 InputCmd로
+		// 한 틱 늦게 서버에 가므로 실질 차이가 없다.
+		FLNPTargetQueryResult QueryResult;
+		if (QuerySub->GetResult(AimQueryHandle, QueryResult) && QueryResult.bHit && QueryResult.Distance < NearestDistance)
+		{
+			OutAimPoint = QueryResult.Location;
+		}
+	}
+
 	return true;
 }
 
