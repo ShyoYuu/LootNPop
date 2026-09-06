@@ -7,6 +7,7 @@
 #include "GameplayTagContainer.h"
 #include "Abilities/GameplayAbility.h"
 #include "Item/LNPWeaponData.h"
+#include "Enemy/LNPEnemyMassTypes.h"
 #include "LNPEnemyConfig.generated.h"
 
 class ALNPEnemyCharacter;
@@ -375,6 +376,29 @@ struct FLNPEntityAttackConfig
 };
 
 /**
+ * 한 행동이 쓸 ISKM 시퀀스 인덱스 목록.
+ *
+ * 인덱스는 `UAnimSequenceTransformProviderData::Sequences`에 **구워진 배열 순서**다.
+ * 적 타입마다 시퀀스 수와 순서가 다르므로 프로세서에 하드코딩하지 않고 데이터로 둔다.
+ *
+ * ⚠️ **항목이 둘 이상이면 전이마다 번갈아 쓴다 — 연속 공격을 보이려면 필수다.**
+ * 엔진은 `SequenceIndex`가 **바뀔 때만** 트랙을 다시 앵커링한다
+ * (`MassVisualizationComponent.cpp`의 `GetSequenceIndex(...) != AnimData.SequenceIndex` 분기).
+ * 그래서 Attack -> Attack을 같은 인덱스로 두 번 실으면 **두 번째 스윙이 재생되지 않고**
+ * 첫 재생의 마지막 프레임에 멈춰 있는다. 변형을 둘 이상 놓고 `FLNPEnemyActionFragment::Seq`로
+ * 번갈아 고르면 인덱스가 반드시 바뀌어 재생이 보장되고, 덤으로 연출 변화까지 따라온다.
+ */
+USTRUCT(BlueprintType)
+struct FLNPEnemyActionSequences
+{
+	GENERATED_BODY()
+
+	/** Provider 배열 순서 기준 인덱스. 비어 있으면 그 행동은 직전 시퀀스를 그대로 유지한다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Visual", meta = (ClampMin = "0"))
+	TArray<int32> Indices;
+};
+
+/**
  * Enemy의 정체성, 비주얼, 행동을 정의하는 Data Asset.
  */
 UCLASS()
@@ -416,6 +440,20 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "0.5"))
 	float PureEntityDeathDuration = 1.5f;
+
+	/**
+	 * 행동 상태 -> ISKM 시퀀스 인덱스 매핑. 비워 두면 이 적에게는 ISKM 애니가 붙지 않는다.
+	 *
+	 * 짝이 되는 시퀀스 배열은 EntityConfig의 시각화 트레이트
+	 * (`SkinnedMeshInstanceDesc.Meshes[n].TransformProvider`)에 있다. 둘은 서로를 모르므로
+	 * 인덱스가 어긋나도 **컴파일도 실행도 실패하지 않는다** — 엉뚱한 모션이 나올 뿐이다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Visual")
+	TMap<ELNPEnemyAction, FLNPEnemyActionSequences> ActionSequences;
+
+	/** 상태가 바뀔 때의 블렌드 시간(초). `FAnimSequenceTrackAutoPlayData::BlendTime`으로 그대로 들어간다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Visual", meta = (ClampMin = "0.0"))
+	float AnimBlendTime = 0.15f;
 
 	/** Mass에서 Actor로 전환 시 스폰할 Actor 클래스 (CombatMode == ActorPromoted일 때만 쓰인다) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Spawning")

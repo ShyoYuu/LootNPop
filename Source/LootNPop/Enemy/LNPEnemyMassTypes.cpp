@@ -73,6 +73,14 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	// **아키타입이 양쪽에서 같아야** 수신값을 쓸 자리가 생기므로 여기서 무조건 붙인다.
 	BuildContext.AddFragment<FLNPEnemyActionFragment>();
 
+	// ISKM 애니 데이터의 자리. ⚠️ **엔진 트레이트가 이 프래그먼트를 붙여 주지 않는다** —
+	// UMassVisualizationTrait는 FMassRepresentationLODFragment까지만 넣고, 소비 프로세서
+	// (UMassConsumeInstancedSkinnedMeshAnimationProcessor)는 이것을 ReadOnly로 요구한다.
+	// 없으면 그 쿼리가 **아무 엔티티도 매칭하지 않아** 경고 하나 없이 그냥 안 움직인다.
+	// 엔진의 유일한 선례도 같은 방식이다(MetaHumanMassCrowdVisualizationTrait).
+	// FLNPEnemyActionFragment와 같은 이유로 CombatMode와 무관하게 전원에게 붙인다.
+	BuildContext.AddFragment<FMassRepresentationAnimationFragment>();
+
 	// 경직도. 적은 지속 버프를 받지 않으므로 저항은 여기서 1회 시드하면 끝이다
 	// (플레이어는 어트리뷰트가 바뀔 때마다 프래그먼트로 미러링한다).
 	FLNPPoiseFragment& PoiseFragment = BuildContext.AddFragment_GetRef<FLNPPoiseFragment>();
