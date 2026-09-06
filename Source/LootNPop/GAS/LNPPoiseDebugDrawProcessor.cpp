@@ -65,7 +65,7 @@ void ULNPPoiseDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 	PoiseQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly);
 	PoiseQuery.RegisterWithProcessor(*this);
 
-	// 거리 컬링 기준점. 기존 ULNPEnemyDebugDrawProcessor와 같은 방식이다.
+	// 거리 컬링 기준점. 적 행동 상태 드로우(ULNPEnemyActionDebugDrawProcessor)와 같은 방식이다.
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
@@ -85,7 +85,7 @@ void ULNPPoiseDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMa
 		return;
 
 	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
-	// 적 디버그 드로우(ULNPEnemyDebugDrawProcessor)와 거리를 공유하지 않는다 — 패링 넉백처럼
+	// 적 행동 상태 드로우(ULNPEnemyActionDebugDrawProcessor)와 거리를 공유하지 않는다 — 패링 넉백처럼
 	// 대상이 멀리 튕겨 나가는 상황을 쫓아가야 해서 훨씬 넓어야 하고, 테스트 중 조절할 수 있어야 한다.
 	const float ProximityDistSq  = FMath::Square(FMath::Max(1.f, CVarDrawPoiseDistance.GetValueOnGameThread()));
 

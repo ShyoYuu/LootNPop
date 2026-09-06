@@ -35,8 +35,11 @@ namespace
 			+ Basis.Forward * Config.PivotForward
 			+ Basis.Up      * Config.PivotUp;
 
-		const float   YawDeg = FMath::Lerp(Config.ArcStartDeg, Config.ArcEndDeg, T);
-		const FVector Dir    = LNPEntityAttack::MakeTangentDirection(Basis, YawDeg, Config.ArcPitchDeg);
+		// Yaw와 Pitch를 함께 보간한다 — Pitch가 고정이면 "일정 기울기의 수평 훑기"뿐이라
+		// 수직에 가까운 사선 베기 모션과는 궤적 자체가 맞지 않는다.
+		const float   YawDeg   = FMath::Lerp(Config.ArcStartDeg, Config.ArcEndDeg, T);
+		const float   PitchDeg = FMath::Lerp(Config.ArcPitchStartDeg, Config.ArcPitchEndDeg, T);
+		const FVector Dir      = LNPEntityAttack::MakeTangentDirection(Basis, YawDeg, PitchDeg);
 
 		FLNPBladePoints Points;
 		Points.Root = Pivot + Dir * Config.BladeInner;
