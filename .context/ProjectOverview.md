@@ -128,7 +128,7 @@
 | [경직 시스템 게임 기획](GameDesign_Poise.md) | 경직 시스템 — 누적/자연회복 원칙, 그로기·다운 2단계, 딜 구간 비대칭, 가드 브레이크·패링 연계 |
 | [경직 시스템 기술 설계](TechDesign_Poise.md) | FLNPPoiseFragment·ULNPPoiseProcessor, 상태 기반 그로기, 폰별 임계값, 유지시간 비례 보너스, 비복제 근거 |
 | [Enemy NPC 게임 기획](GameDesign_EnemyNPC.md) | 슬롯 기반 타겟팅, 행동 상태 (Idle/Alert/Chase/Attack), LOD 전환 |
-| [Enemy NPC 기술 설계](TechDesign_EnemyNPC.md) | Fragment/Tag 구조, Mass 프로세서 10종, Actor 연동 (High LOD), 넷 모드별 표현 소유권(게스트는 복제 Actor만) |
+| [Enemy NPC 기술 설계](TechDesign_EnemyNPC.md) | Fragment/Tag 구조, Mass 프로세서 12종, Actor 연동 (High LOD), 넷 모드별 표현 소유권(게스트는 복제 Actor만) |
 | [Enemy NPC StateTree 기술 설계](TechDesign_EnemyNPC_StateTree.md) | StateTree 상태 계층 (Combat/Alert/Idle), Evaluator 및 Task C++ 구성 |
 | [Enemy NPC Low LOD 전투 기술 설계](TechDesign_EnemyNPC_LowLOD.md) | CombatMode 옵션(Actor 승격/순수 엔티티), 가상 칼날 근접 판정, 행동 상태 1바이트 복제, ISM↔ISKM 인스턴싱 애니메이션 |
 | [LootPod System 게임 기획](GameDesign_LootPod.md) | 루팅 흐름, 존 사수(넉백) 취소 조건, 협동 루팅 속도, 보상 유형 |

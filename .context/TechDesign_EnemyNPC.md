@@ -186,7 +186,7 @@ Scoring·Targeting의 `PlayerQuery`가 이를 배제한다 (적 쪽 `FLNPEnemyDy
 Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회만 판정 (루프 내 문자열 비교 방지).
 ---
 
-## 4. Mass 프로세서 파이프라인 (10종)
+## 4. Mass 프로세서 파이프라인 (12종)
 
 | 프로세서 | 단계 | 역할 |
 |:---|:---|:---|
@@ -200,7 +200,14 @@ Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회�
 | `ULNPEnemyClientRepresentationProcessor` | **PrePhysics** — LOD 그룹 (Visualization 이전) | 게스트 전용: 복제 Actor만 표현으로 채택 — §7.10. 페이즈가 다른 이유는 §7.10 |
 | `ULNPEnemyActorInitializerProcessor` | PostPhysics (Representation 이후) | 신규 스폰 Actor에 `InitializeOnce` + `SyncFromEntity` → InitializedTag 부여 |
 | `ULNPEnemyActorSyncProcessor` | PostPhysics (LOD 이전, 게임 스레드) | Actor 유효: `SyncToEntity`(HP·속도 역동기화) / null: InitializedTag 제거 → 재초기화 유도 |
-| `ULNPEnemyDebugDrawProcessor` | 에디터 전용 | 상태별 색상 박스(대기 초록/경계 노랑/추격 파랑/공격 빨강) + 전방 화살표 |
+| `ULNPEnemyActionProcessor` | PrePhysics — Tasks (EntityAttack 이후) | 서버 전용: 행동 상태 산출 → `FLNPEnemyActionFragment` (게스트 연출의 단일 입력) |
+| `ULNPEnemyAnimationProcessor` | **PrePhysics** — Representation 그룹 | 행동 상태 → ISKM 애니 데이터. 넷 모드 분기 없음 — 페이즈 근거는 §7.10과 같다 |
+| `ULNPEnemyActionDebugDrawProcessor` | 에디터 전용 (`LNP.Debug.DrawEnemyAction`, 기본 0) | 행동 상태별 색상 박스 + 전이 로그. 서버/클라 분기가 없는 것이 곧 채널 검증 수단이다 |
+
+> 2026-09-06에 `ULNPEnemyDebugDrawProcessor`(타게팅 상태 박스 + 전방 화살표)를 제거했다 — 행동 상태
+> 드로우와 목적이 겹쳤고, 그쪽만 cvar 게이트가 없어 항상 그려졌다. **잃은 것은 "경계 중이지만 슬롯이
+> 없어 구경만 하는 적"의 구분**이다(§7.1 슬롯 풀 검증에서 눈으로 확인하던 색). 슬롯 풀을 다시 검증할
+> 일이 생기면 되살릴 것.
 
 ---
 
@@ -366,6 +373,15 @@ Actor null 감지와 HP 역동기화를 한 프로세서(ActorSyncProcessor)에�
 ### 7.6 잠복 컴파일 버그 — 에디터 전용 프로세서의 #else 분기
 
 디버그 프로세서의 비에디터(`#else`) 생성자가 존재하지 않는 멤버를 초기화하고 있었다. `WITH_EDITOR` 빌드에서는 컴파일되지 않는 경로라 에디터 개발 중에는 무해하지만 패키징(-game) 빌드를 깨뜨리는 잠복 버그 — 조건부 컴파일 분기는 양쪽 모두 주기적 빌드 검증이 필요하다는 교훈.
+
+⚠️ **2026-09-06에 같은 자리에서 재발했다.** 트랙 B에서 새로 들어온 `ULNPEnemyActionDebugDrawProcessor`가
+`#if WITH_EDITOR` 안에만 구현되고 **`#else` 스텁이 없었다.** UCLASS 선언은 헤더에 무조건 남으므로
+비에디터 빌드에서 링크가 깨진다. 에디터 타깃만 빌드해 오느라 드러나지 않았을 뿐이다.
+
+**규약:** `#if WITH_EDITOR`로 감싼 프로세서를 **추가할 때마다** `#else` 스텁(생성자에서
+`bAutoRegisterWithProcessingPhases = false`, 빈 `ConfigureQueries`/`Execute`)을 같은 커밋에 넣는다.
+기존 프로세서를 지울 때는 **남은 클래스의 스텁이 그 블록에 있는지** 함께 확인한다 — 지우면서 `#else`가
+통째로 비면 다음 사람은 스텁이 원래 없었다는 사실조차 모른다.
 
 ### 7.7 엔티티 단위 상태를 대상별 루프 안에서 읽지 말 것
 

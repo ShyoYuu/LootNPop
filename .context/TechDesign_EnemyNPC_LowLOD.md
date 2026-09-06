@@ -27,6 +27,9 @@
 A는 B·C 없이도 "보이지 않지만 실제로 때리는 적"으로 완성되고, B는 C의 입력이 된다.
 이 분리가 곧 단계별 검증 경로다 (§10).
 
+**진행 상황 (2026-09-06):** A·B 완료, C는 **Stage 5a·5b 완료 / 5c(무기 스킨드 메시) 보류.**
+순수 엔티티는 Idle·Move·Attack·Stagger·Parried·Dying을 모두 재생하고, 남은 것은 손에 든 무기뿐이다.
+
 ---
 
 ## 2. 용어 규약 — "등급"은 시스템 용어가 아니다
@@ -413,9 +416,11 @@ ISM(정적 메시 인스턴싱) 자체로는 스켈레탈 애니메이션이 불
 |:---|:---|
 | 표현 타입 | `EMassRepresentationType::SkinnedMeshInstance` |
 | Trait 필드 | `UMassVisualizationTrait::SkinnedMeshInstanceDesc` — 현재 쓰는 `UMassCrowdVisualizationTrait`이 이미 상속한다 |
-| 메시 서술 | `FMassSkinnedMeshInstanceVisualizationMeshDesc` (Asset / TransformProvider / Min·MaxLODSignificance / MaterialOverrides / bCastShadows) |
+| 필드 타입 | `FSkinnedMeshInstanceVisualizationDesc` (**`Meshes` 배열** + `bUseTransformOffset`/`TransformOffset` + `CustomDataFloats`) |
+| 배열 원소 | `FMassSkinnedMeshInstanceVisualizationMeshDesc` (Asset / TransformProvider / Min·MaxLODSignificance / MaterialOverrides / bCastShadows) |
+| 애니 데이터 | `FMassRepresentationAnimationFragment::AnimData` |
 | 애니 주입 | `FMassInstancedSkinnedMeshInfo::AddBatchedAnimationData(FAnimSequenceTrackAutoPlayData)` |
-| 소비 프로세서 | `UMassConsumeInstancedSkinnedMeshAnimationProcessor` |
+| 소비 프로세서 | `UMassConsumeInstancedSkinnedMeshAnimationProcessor` (PrePhysics · `Representation` 그룹 · `Client\|Standalone`) |
 | 백엔드 | `UInstancedSkinnedMeshComponent` + `UAnimSequenceTransformProviderData` (GPU 전용) |
 
 프로세서가 채워 넣는 값은 이것뿐이다:
@@ -425,7 +430,19 @@ FAnimSequenceTrackAutoPlayData { SequenceIndex, Position, PlayRate, BlendTime, L
 ```
 
 `BlendTime`이 있으므로 Idle ↔ Move ↔ Attack 전환에 블렌드까지 걸린다.
-즉 직접 만들 것은 **"행동 상태 → SequenceIndex 매핑" 프로세서 하나**뿐이다.
+우리가 만든 것은 `ULNPEnemyAnimationProcessor` 하나 — **행동 상태 → `SequenceIndex` 매핑**이다.
+
+⚠️ **`FMassRepresentationAnimationFragment`는 엔진 트레이트가 붙여 주지 않는다.**
+`UMassVisualizationTrait::BuildTemplate`은 `FMassRepresentationLODFragment`까지만 넣는데, 소비 프로세서는
+이 프래그먼트를 **필수 요구**로 건다. 안 붙이면 그 쿼리가 **아무 엔티티도 매칭하지 않아** 경고 하나 없이
+그냥 안 움직인다. 엔진의 유일한 선례도 트레이트가 직접 붙이는 방식이다(`MetaHumanMassCrowdVisualizationTrait`).
+그래서 `ULNPEnemyTrait::BuildTemplate`이 `CombatMode`와 무관하게 전원에게 붙인다.
+
+⚠️ **엔진은 `SequenceIndex`가 바뀔 때만 트랙을 다시 앵커링한다**
+(`MassVisualizationComponent`의 `GetSequenceIndex(...) != AnimData.SequenceIndex` 분기).
+같은 인덱스를 계속 실어도 재생이 처음부터 다시 돌지 않는다 — 매 프레임 같은 값을 써도 안전하다는 뜻이면서,
+**중간 상태 없이 같은 행동을 반복하는 채널을 나중에 추가하면 그 반복이 안 보인다**는 뜻이기도 하다.
+지금은 공격이 반드시 다른 상태를 경유해 재진입하므로(§5.3의 전이 규약) 걸리지 않는다.
 
 ### 6.2 유의도 구간 분배
 
@@ -436,8 +453,17 @@ FAnimSequenceTrackAutoPlayData { SequenceIndex, Position, PlayRate, BlendTime, L
 | Low | ISM | 점처럼 보이는 거리에서 스키닝 비용을 낼 이유가 없다 |
 | Off | 없음 | `ULNPEnemyTrait::ReplicationCullDistance`와 값을 맞출 것 (기존 규칙) |
 
-`MinLODSignificance` / `MaxLODSignificance`가 메시 서술 단위로 있으므로
-**이 분배는 코드가 아니라 데이터로 조정된다.**
+**이 분배는 코드가 아니라 데이터로 조정되는데, 손잡이가 둘이다** — ISM/ISKM/Actor 중 무엇으로 그릴지는
+`Params.LODRepresentation[EMassLOD]`가 정하고, 한 표현 안에서 어떤 메시 항목을 쓸지는 각 항목의
+`MinLODSignificance`/`MaxLODSignificance`가 정한다.
+
+실제 구성(2026-09-06, `DA_EnemyEntityConfig_PureEntity_*`): `LODRepresentation = [ISKM, ISKM, ISM, None]`.
+Medium을 별도 항목으로 가르지 않았다 — ISM 쪽이 이미 `bCastShadows = false`라 ISKM도 같게 두었고,
+따라서 지금은 유의도 범위 하나(0~Max)로 전 구간을 덮는 메시 항목 하나뿐이다. 그림자를 켜게 되면
+그때 항목을 둘로 갈라 범위를 나누면 된다.
+
+⚠️ **Low를 ISM으로 남긴 것은 대조군을 겸한다.** ISKM이 안 보일 때 "멀어지면 보인다"가 곧
+"렌더 경로 문제이지 엔티티 문제가 아니다"의 증거가 된다 — 5a에서 실제로 그렇게 썼다.
 
 ⚠️ **`PureEntity`용 EntityConfig는 `LODRepresentation`에서 Actor 단계를 없애고 템플릿 Actor를 비워야 한다.**
 `ULNPEnemyLODOverrideProcessor`가 High 강제를 건너뛰어도, 거리가 가까우면 거리 기반 LOD가
@@ -467,20 +493,67 @@ GPU 스키닝이 무기를 손 위치로 옮겨 준다. 엔진의 모듈러 캐�
   (`ULNPEnemyConfig::WeaponData` 고정 1개) 조합 폭발이 없다 — 이 제약이 여기서 이득이 된다.
 - ⚠️ **`BladeInner` / `BladeOuter`는 이 메시의 실제 길이와 손으로 맞춰야 한다.** 애니메이션에서 뽑을 수
   없으므로 Config 상수이고, 어긋나면 "칼이 안 닿았는데 맞는다"가 된다.
-  `ULNPWeaponTraceDebugDrawProcessor`로 눈으로 맞출 것.
+  `ULNPWeaponTraceDebugDrawProcessor`로 눈으로 맞출 것 — **cvar 게이트가 없어** 에디터 빌드에서
+  플레이어 반경 5m(`ULNPSettings::DebugDrawProximityDistSq`) 안의 칼날이 자동으로 그려진다.
+
+#### Stage 5c는 보류했다 (2026-09-06)
+
+필요한 에셋의 스펙은 확정했지만 만들지 못했다 — **엔진 안에 경로가 없다.** IK 리타게터는 본 구성이 달라
+쓸 수 없고, 스켈레탈 메시 에디터의 스켈레톤 재지정도 무기 본 이름이 마네킹에 대응되지 않아 실패한다.
+DCC에서 굽는 작업이고, FBX가 나오면 `SkeletalMeshTools.import_file`의 `skeleton` 인자로 임포트하면 된다.
+
+| 항목 | 값 |
+|:---|:---|
+| 대상 스켈레톤 | `SK_UEFN_Mannequin` |
+| 웨이팅 본 | **`weapon_r`** — 소켓이 아니라 **본**이다(88본 중 하나) |
+| 정점 배치 | 레퍼런스 포즈에서 `weapon_r` 기준 위치 (-5, 4, 2) / 회전 (P18, Y92, R-17) 만큼 옮겨 둘 것 |
+| 원본 | `SKM_LongSword` (자체 스켈레톤 `SK_LongSword`, 본 `sword_root`/`sword_tip`) |
+
+⚠️ **자체 스켈레톤 무기를 두 번째 항목으로 넣으면 안 된다.** 항목들은 같은 인스턴스 트랜스폼을 받으므로
+손이 아니라 **캡슐 중심에 박힌다.** 손을 따라가게 하는 유일한 방법이 손 본 웨이팅이다.
+
+보류해도 손실이 작다 — 지금도 ISM 구간과 마찬가지로 손이 비어 있을 뿐이고, 판정 튜닝은 무기 없이도
+**손이 지나가는 궤적과 칼날 아크를 대조**하는 방식으로 진행할 수 있다(실제로 그렇게 했다).
+무기 메시가 필요한 것은 `BladeOuter`(리치)를 정확히 재는 마지막 단계뿐이다.
 
 ### 6.4 시퀀스 인덱스 규약
 
-| Index | 시퀀스 | Loop |
-|:---:|:---|:---|
-| 0 | Idle | Loop |
-| 1 | Move | Loop |
-| 2 | Attack | Once |
-| 3 | Stagger | Once |
-| 4 | Death | Once (마지막 프레임 유지) |
+인덱스는 `UAnimSequenceTransformProviderData::Sequences`에 구워진 **배열 순서**다.
+**애니 프로세서에 하드코딩하지 않고** `ULNPEnemyConfig::ActionSequences`(`TMap<ELNPEnemyAction, 인덱스 배열>`)가
+매핑을 갖는다 — 적 타입마다 시퀀스 수와 순서가 다르다. 루프 여부는 데이터로 두지 않는다.
+`FLNPEnemyActionFragment::IsOneShot()`이 "일회성 연출인가"의 단일 원본이고 거기서 파생한다.
 
-⚠️ 인덱스는 Provider에 구워진 배열 순서다. **애니 프로세서에 하드코딩하지 말고 Config에 매핑 테이블을
-둔다** — 적 타입마다 시퀀스 수와 순서가 다르다.
+현재 `ASTP_Enemy_UEFN_Mannequin` 구성 (2026-09-06):
+
+| Index | 시퀀스 | 길이 | 매핑 |
+|:---:|:---|---:|:---|
+| 0 | `M_Neutral_Stand_Idle_Loop` | 10.00s | Idle (Loop) |
+| 1 | `M_Relaxed_Run_Loop_F_Troy` | 3.00s | Move (Loop) |
+| 2 | `A_SW_Attack_01_UEFN` | 2.47s | Attack (Clamp) — 사선 내려베기 |
+| 3 | `A_SW_Attack_02_UEFN` | 2.00s | *미사용* — 올려베기라 아크와 방향이 반대다 |
+| 4 | `A_SW_Damage_Backward_UEFN` | 1.07s | Parried (Clamp) |
+| 5 | `MM_Death_Front_01_UEFN` | 1.10s | Dying (Clamp) |
+| 6 | `A_SW_Damage_Fast_UEFN` | 0.57s | Stagger (Clamp) |
+| 7 · 8 | `A_SW_Damage_Left/Right_UEFN` | 1.07s | *미사용* — §6.7의 제자리성 위반 |
+
+⚠️ **인덱스는 위치 의존이다. 항목을 지우면 뒤가 전부 밀린다.** 2026-09-06에 중간 항목 하나를 지웠다가
+경직·사망·패링 셋이 동시에 엉뚱한 모션을 가리켰다. **끝에만 붙이고, 지웠다면 매핑을 전수 재확인한다.**
+미사용 항목을 지우지 않고 남겨 두는 이유가 이것이다.
+
+#### 변형은 연출 다양성이지 재생 보장이 아니다
+
+배열에 인덱스를 둘 이상 두면 `FLNPEnemyActionFragment::Seq`에서 유도해 번갈아 쓴다.
+공격은 반드시 다른 상태를 경유해 재진입하므로(§5.3) **변형이 하나여도 인덱스는 어차피 바뀌고 재생은 보장된다.**
+
+⚠️ **`Seq`를 그대로 나머지 연산하면 안 된다.** 공격 사이의 전이 수가 대체로 짝수(`Move → Attack → Move → Attack`)라
+`Seq % 2`가 한쪽 패리티에 **고정된다** — 2026-09-06 실측에서 "1번만 반복하다 간격이 홀수인 순간 2번으로
+넘어가 다시 고정"으로 나타났다. 곱셈 후 상위 비트를 내려(`(Seq * 2654435761u) >> 13`) 패리티 상관을 끊는다.
+값이 여전히 `Seq`만의 함수라 **서버와 게스트가 같은 변형을 고른다.**
+
+⚠️ **변형끼리 스윙 방향이 다르면 판정과 동시에 맞출 수 없다.** 아크 상수(`ArcStart/End`, `ArcPitchStart/End`)가
+`FLNPEntityAttackConfig`에 **한 벌뿐**이기 때문이다. 아크를 변형 항목으로 옮기는 선택지는 **폐기했다** —
+그러면 "표현이 고른 변형"이 "판정 기하"를 정하게 되어 §6.5가 세운 의존 방향이 뒤집힌다.
+같은 방향으로 베는 변형만 묶거나, 변형을 하나로 두는 것이 맞다(현재는 후자).
 
 ### 6.5 애니 타이밍과 판정 타이밍의 단일 정의
 
@@ -494,7 +567,39 @@ PlayRate = SequenceLength / (WindupTime + ActiveTime + RecoveryTime)
 - 이 관계는 데이터로만 묶여 있어 어긋나도 컴파일도 실행도 실패하지 않는다 — **조용히 어긋난다.**
 - 그래서 `PlayRate`를 **프로세서가 계산**한다. 애니 속도를 상수에서 파생시키는 방향이지 그 반대가 아니다.
   Config를 고치면 그림이 따라온다.
+- `SequenceLength`도 손으로 적지 않는다 — `SkinnedMeshDescHandle` → `FMassInstancedSkinnedMeshInfo` →
+  `Desc.Meshes[n].TransformProvider` → `UAnimSequenceTransformProviderData::GetSequencePlayLength()`로
+  **엔진이 가진 데이터에서 읽는다.** 애니를 갈아 끼워도 위상 합만 맞으면 속도가 따라온다.
 - `FLNPEnemyMovementConfig::ComputeStopDistance()`가 정지 거리에 대해 하는 일과 같은 계열의 규약이다.
+
+#### ⭐ PlayRate를 1.0에 맞추면 튜닝이 눈대중을 벗어난다
+
+위상 합을 클립 길이와 같게 두면 `PlayRate = 1.0`이 되고, 그 순간 **애니메이션의 프레임 번호가 그대로 초가 된다.**
+접촉 구간을 프레임으로 읽어 `프레임 / FPS`로 넣으면 끝이라, "대충 절반쯤"이 사라진다.
+
+근접 실측 예 (`A_SW_Attack_01_UEFN`, 74프레임 @ 30fps = 2.4667초, 칼날 적합 구간 20~30프레임):
+
+```
+WindupTime   = 20/30 = 0.6667      (0 ~ 20프레임)
+ActiveTime   = 10/30 = 0.3333      (20 ~ 30프레임 — 칼날 생존)
+RecoveryTime = 44/30 = 1.4667      (30 ~ 74프레임 — 마무리)
+합 = 2.4667 → PlayRate 1.000
+```
+
+- **클립 뒤쪽의 "안 쓰는" 프레임은 잘라낼 게 아니라 `RecoveryTime`에 배정한다.** 후딜이 원래 그 용도다.
+  에셋 편집이 0이고 되돌리기도 쉽다.
+- ⚠️ 위상은 **연출값이 아니라 게임플레이 값**이다. `WindupTime`은 플레이어가 읽고 반응하는 창이고,
+  **원거리는 이 값이 끝나는 순간 발사한다.** 위상 합을 늘렸으면 `FLNPEnemyMovementConfig::AttackInterval`을
+  줄여 공격 주기를 유지할지 함께 정할 것(쿨다운은 Recovery가 끝나는 순간 시작된다).
+
+#### 아크는 Yaw와 Pitch를 함께 보간한다
+
+`ArcPitchDeg` 하나로 기울기를 고정하면 **일정 기울기의 수평 훑기**밖에 안 되어, 수직에 가까운 사선 베기
+모션과는 궤적 자체가 맞지 않는다. `ArcPitchStartDeg`/`ArcPitchEndDeg`로 쪼개 Yaw와 같은 `T`로 보간한다
+(둘을 같게 두면 예전 동작 그대로다). 부호 규약은 접평면 기준 **양수가 위**(머리 쪽)다.
+
+⚠️ **애니와 판정을 묶어 주는 것은 위상 합뿐이다.** 접촉 순간·아크 방향·피벗 높이는 §6.5가 파생시키지
+못하므로 디버그 드로우를 보며 손으로 맞춘다(→ §9 #3). AnimNotify가 없다는 제약의 실제 대가가 여기다.
 
 ### 6.6 포즈 연속성은 포기한다
 
@@ -505,6 +610,43 @@ PlayRate = SequenceLength / (WindupTime + ActiveTime + RecoveryTime)
 - 연속성을 맞추려면 Actor 쪽 ABP의 포즈를 ISKM 시퀀스 위상과 동기화해야 하는데, 그것은
   Motion Matching 로코모션(→ [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md))과
   근본적으로 맞지 않는다. 비용이 이득을 압도한다.
+
+### 6.7 에셋 요건 — 전부 실측으로 나온 것들
+
+#### 렌더 요건은 **Nanite가 아니다** (§9 #1 해소)
+
+| # | 증상 | 실제 요건 |
+|:--:|:---|:---|
+| 1 | `AssetCheck: Error … requires 'Optimize for Instancing'` | 스켈레탈 메시 **빌드 세팅**의 `bOptimizeForInstancing`을 **전 LOD**에 켤 것 |
+| 2 | `Material … missing usage flag InstancedSkinnedMesh!` (기본 머티리얼로 대체됨) | 머티리얼의 `bUsedWithInstancedSkinnedMesh` |
+| 3 | `NaNs found on Bounds for … InstancedSkinnedMeshComponent` | 1·2의 파생 — 프로바이더 빌드 실패로 애니 바운드가 무효. 고치면 재발 없음 |
+
+Nanite는 **꺼진 상태로도 동작한다.** `FInstancedSkinnedMeshSceneProxyDesc::CreateMeshObject`가
+Nanite → Static → **GPUSkin** 순으로 떨어지고 `r.GPUSkin.UseSceneExtension`이 기본 `true`이기 때문이다.
+실제로 `SKM_UEFN_Mannequin`은 `NaniteSettings.bEnabled = false` 그대로 두고 GPUSkin 경로로 붙였다.
+
+> `bOptimizeForInstancing`은 본 맵을 통합하는 빌드 옵션이라 일반 스켈레탈 렌더링과 호환된다.
+> 이 메시의 참조자는 적(`BP_LNPEnemy` + 적 EntityConfig)뿐이라 **플레이어에는 영향이 없다.**
+
+#### 시퀀스 선정 기준 둘
+
+⚠️ **추가(additive) 애니메이션은 못 쓴다.** ASTP 컴파일러는 절대 포즈로 굽기 때문에 `AAT_LocalSpaceBase`
+클립을 넣으면 뼈가 원점으로 모여 **메시가 통째로 사라진다.** Lyra의 `MM_HitReact_*`가 전부 추가 클립이라
+경직 모션에서 실제로 밟았다. 고르기 전에 `AdditiveAnimType`이 `AAT_None`인지 확인할 것.
+
+⚠️ **제자리 클립이어야 한다.** 컴파일러가 루트 본을 애니가 아닌 **레퍼런스 포즈로 덮으므로**
+(`AnimSequenceTransformProviderCompiler.cpp`의 부모 없는 본 분기) 루트 모션이 자동으로 제거된다.
+덕분에 인플레이스 클립을 따로 구울 필요가 없다는 이점이 있지만, **반대로 변위가 큰 클립은 그 변위를 잃고
+캡슐 위치와 어긋난다.** 좌우로 크게 밀리는 피격 모션을 경직에 썼다가 되돌렸다.
+
+#### ASTP 편집 시 에디터가 죽는 조건
+
+⚠️ **`Sequences` 배열에 `Sequence`가 비어 있는 항목을 한 순간이라도 두면 에디터가 죽는다.**
+`PostEditChangeProperty`가 즉시 비동기 DDC 빌드를 띄우고, `FAnimSequenceTransformProviderBuildAsyncCacheTask::BuildData()`가
+그 항목의 본 배열(크기 0)을 인덱싱하다 assert한다.
+
+MCP 규약상 배열은 "크기 변경"과 "값 변경"을 한 번에 못 해서 **빈 칸으로 늘렸다가 채우는** 2단계를 쓰기 쉬운데,
+이 에셋에서는 그 중간 상태가 치명적이다. **늘릴 때는 기존 유효 항목의 복사본을 붙이고** 그다음 값을 덮어쓴다.
 
 ---
 
@@ -609,9 +751,9 @@ Config의 `ELNPEnemyAttackType` 필드로 교체했다. 원래 이 Stage의 항�
 
 | # | 항목 | 성격 |
 |:---:|:---|:---|
-| 1 | **Nanite 스킨 요건** — `UInstancedSkinnedMeshComponent` 렌더 경로가 현 메시·머티리얼 설정과 호환되는가 | **트랙 C의 유일한 미지수.** Stage 5a에서 판명된다 |
-| 2 | 시퀀스 에셋 준비 — 적 전용 Attack/Stagger/Death, 무기 스킨드 에셋 굽기 | 에셋 파이프라인 작업 |
-| 3 | 수치 튜닝 — Promoted 슬롯 수, 위상 시간, 가상 칼날 치수, 유의도 경계 | 플레이 테스트 |
+| 1 | ~~Nanite 스킨 요건~~ | ✅ **해소(2026-09-06).** 요건은 Nanite가 아니라 `bOptimizeForInstancing` + 머티리얼 사용 플래그였다 → §6.7 |
+| 2 | 시퀀스 에셋 준비 | Attack/Stagger/Death/Parried는 GASP 스켈레톤으로 리타게팅 완료. **무기 스킨드 에셋만 남았다**(Stage 5c 보류 → §6.3) |
+| 3 | 수치 튜닝 — Promoted 슬롯 수, 유의도 경계, **칼날 아크와 애니 궤적의 정합** | 플레이 테스트. 근접 위상은 PlayRate 1.0 기준으로 1차 완료(§6.5), 미세 조정은 무기 메시가 있어야 한다 |
 | 4 | 상태 채널 확장 대상 | **Aim Pitch는 넣었다**(2026-09-05 고저차 교전에서 확인). 피격 방향·HP 비율은 계속 보류 (§5.5) |
 | 5 | 사망 연출 최종 형태 — Death 시퀀스 + 소멸 VFX 여부 | 기획 |
 | 6 | 엘리트 고도화 행동(특수 어빌리티) | **이번 범위 밖.** `ActorPromoted` 경로는 이번 작업에서 바뀌지 않는다 |
@@ -627,13 +769,14 @@ Config의 `ELNPEnemyAttackType` 필드로 교체했다. 원래 이 Stage의 항�
 | **2** ✅ | 순수 엔티티 근접 공격 — 가상 칼날 (트랙 A) | **플레이어가 순수 엔티티의 근접 공격을 패링할 수 있다.** 파이프라인 재사용이 성립했다는 단일 증거. 가드 블록·경직 누적도 함께 확인 |
 | **3** ✅ | 행동 상태 채널 (트랙 B) | 2P에서 게스트가 공격 시작을 인지한다(먼저 디버그 드로우로 확인). **연속 공격 2회가 2회로 보인다** — 전이 카운터 검증 |
 | **4** ✅ | 발사체 관전 가시성 | 게스트 화면에 엔티티 발사체가 보이고 임팩트 지점이 서버 판정과 일치. **새 RPC 없이** 상태 채널만으로 |
-| **5a** | ISKM 파이프라인 개통 — Idle/Move 두 시퀀스만 | 인스턴스가 보이고 걷는다. **Nanite 요건 실측이 여기서 끝난다** |
-| **5b** | Attack/Stagger/Death 시퀀스 + PlayRate 파생 | 공격 위상과 모션 길이가 맞는다. Config 수치를 바꾸면 모션 속도가 따라온다 |
-| **5c** | 무기 스킨드 메시 | 무기가 손에 붙어 따라오고, 가상 칼날 디버그 드로우가 무기 실루엣과 겹친다 |
+| **5a** ✅ | ISKM 파이프라인 개통 — Idle/Move 두 시퀀스만 | 인스턴스가 보이고 걷는다. 렌더 요건 실측이 여기서 끝났다(→ §6.7) |
+| **5b** ✅ | Attack/Stagger/Death/Parried 시퀀스 + PlayRate 파생 | 공격 위상과 모션 길이가 맞는다. Config 수치를 바꾸면 모션 속도가 따라온다 |
+| **5c** ⏸ | 무기 스킨드 메시 | **보류** — 엔진 안에 제작 경로가 없어 DCC 작업이 필요하다. 스펙은 §6.3에 확정해 두었다 |
 | **6** ✅ | 슬롯 풀 3분할 + 문자열 비교 제거 | 잡몹에 둘러싸인 상태에서 `ActorPromoted` 개체가 교전에 진입한다 (→ §7.1 — 현재는 대칭형으로만 검증 가능) |
 
 **의존 관계:** 1·2 → 0 / 4 → 3 / 5 → 3 / 6은 독립. §8(사망 배선)은 3에 딸려 함께 끝났다.
-트랙 C(5a~5c)가 Nanite 문제로 막혀도 트랙 A·B는 영향받지 않는다 — ISM 비주얼 그대로 전투는 성립한다.
+5c가 막혀도 나머지는 영향받지 않는다 — 실제로 5a·5b만으로 적은 완전히 애니메이션되고, 빠지는 것은
+"ISKM 거리에서 손이 비어 있다" 하나뿐이라 ISM 시절과 같은 상태다.
 
 **PIE 검증 분담:** Stage 0~2의 서버 판정은 로그·디버그 드로우로 자동 확인 가능하다.
 Stage 3~5의 2P 체감(연출 타이밍·모션 자연스러움)은 실제 플레이 확인이 필요하다.
@@ -670,13 +813,37 @@ Stage 3~5의 2P 체감(연출 타이밍·모션 자연스러움)은 실제 플�
 전투 대역폭이 전혀 잡히지 않았다. 리슨 서버의 호스트에는 `NetConnection`이 없어 송신량이 0이다 —
 **측정하려는 클라이언트가 직접 전투 안에 있어야 한다.**
 
+### 10.3 트랙 C 검증 기록 (2026-09-06, 5a·5b 완료 / 5c 보류)
+
+**2P Standalone(`-game`), 게스트가 전투 안에서 플레이.** 두 회차로 나눠 확인했다.
+
+**Stage 5a** — T포즈로 고정돼 있던 순수 엔티티가 정지 시 Idle, 이동 시 Run을 재생한다. 제자리에서 돌고
+(루트 본 제거가 실제로 동작), 이동 방향으로 정상 회전한다. **ISKM ↔ ISM 전환이 자연스럽고** 크래시·깜빡임 없음.
+호스트/게스트가 같은 무리를 같은 모션으로 그린다.
+
+**Stage 5b** — 사선 내려베기가 공격 창 안에 완결되고, 경직·사망·패링이 각각 다른 모션으로 재생된다.
+패링 시 뒷걸음치며 마커가 청록으로 바뀐다. 사망 후 1.5초 소멸. 원거리는 사격 모션 없이(클립 부재)
+경직·사망만 재생 — 의도대로다. `ActorPromoted` 회귀 없음. 두 화면 동일.
+
+**§6.5 검증:** 길이가 다른 두 공격 클립(2.47초·2.00초)이 **같은 공격 창에 맞춰져 스윙 길이가 같게** 보였다 —
+PlayRate 파생이 성립했다는 증거다. 이후 변형을 하나로 줄였으므로(§6.4) 이 대조는 다시 만들 수 없다.
+
+**미해결 1건:** 사망 시 디버그 마커가 간헐적으로 검정이 아닌 경우가 관찰됐으나 **재현되지 않았다.**
+애니메이션은 정상이라 표시 계층만의 문제로 보인다. 재발하면 `LNP.Debug.DrawEnemyAction 2`의
+호스트·게스트 전이 로그를 대조할 것.
+
+⚠️ **1회차에서 경직 모션이 메시를 통째로 지웠다.** 추가(additive) 클립을 쓴 탓이고 §6.7에 규약으로 남겼다.
+⚠️ **1회차에서 공격 변형이 한쪽에 고정됐다.** `Seq` 패리티 문제이고 §6.4에 남겼다.
+
 ---
 
 ## 11. 위험 요소
 
 | 위험 | 징후 | 대응 |
 |:---|:---|:---|
-| Nanite 스킨 미호환 | ISKM이 안 보이거나 머티리얼이 깨짐 | 트랙 C만 중단. A·B는 영향 없음(ISM 유지) |
+| ~~Nanite 스킨 미호환~~ | ISKM이 안 보이거나 머티리얼이 깨짐 | ✅ 해소. 원인은 Nanite가 아니라 빌드 세팅·머티리얼 플래그였다 (§6.7) |
+| ISKM 인스턴스가 사라짐 | 특정 상태에서만 메시가 안 보임 | 그 상태의 시퀀스가 **추가(additive) 클립**인지 먼저 볼 것 (§6.7) |
+| 모션이 실제 위치와 따로 놈 | 몸만 옆으로 밀렸다 돌아옴 | 루트 본이 제거되므로 **변위 큰 클립**을 쓰면 안 된다 (§6.7) |
 | 스윙 엔티티 누수 | 프레임당 엔티티 수가 단조 증가 | `TimeToLive` 안전장치가 이미 있다. 경직·사망 파괴 경로를 반드시 넣을 것 (§4.5) |
 | 상태가 게스트에 안 감 | 서버에선 공격하는데 게스트는 가만히 서 있음 | Fast Array Dirty 표시 누락을 먼저 의심 (§5.3) |
 | 판정과 그림의 어긋남 | "칼이 안 닿았는데 맞는다" | `BladeOuter`와 무기 메시 길이 불일치. 디버그 드로우로 대조 (§6.3) |
