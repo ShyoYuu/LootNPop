@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "MoverSimulationTypes.h"
+#include "HitDetection/LNPTargetQuerySubsystem.h"
 #include "LNPInputHandlerComponent.generated.h"
 
 class UInputAction;
@@ -91,8 +92,17 @@ public:
 	 * 이 값은 소유 클라이언트만 계산할 수 있으므로(카메라가 로컬 상태다) OnProduceInput이
 	 * InputCmd에 실어 서버로 보낸다 — 원거리 발사 방향의 단일 원본이다
 	 * (FLNPModifierInputs::AimTargetLocation 주석 참조).
+	 *
+	 * 물리 트레이스만으로는 순수 엔티티(`CombatMode::PureEntity`) 적을 맞힐 수 없어
+	 * (Actor도 콜리전 바디도 없다) ULNPTargetQuerySubsystem의 광선 질의 결과와 함께 본다.
 	 */
-	static bool ComputeCrosshairAimPoint(const APawn* Pawn, FVector& OutAimPoint);
+	bool ComputeCrosshairAimPoint(const APawn* Pawn, FVector& OutAimPoint);
+
+	/**
+	 * 근접 공격 보정의 자동 탐색 결과. 락온 지목이 없을 때 쓸 대상의 월드 좌표를 돌려준다.
+	 * 상시 질의라 어빌리티 발동 순간에 즉시 준비돼 있다.
+	 */
+	bool GetMeleeAssistTarget(FVector& OutTargetLocation) const;
 
 	/**
 	 * ADS(정조준) 유효 상태.
@@ -145,6 +155,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	virtual void ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult) override;
 	virtual void OnProduceInput(float DeltaMs, FMoverInputCmdContext& OutInputCmd);
@@ -193,6 +204,21 @@ protected:
 	bool bMaintainLastInputOrientation = false;
 
 private:
+	/** 조준점 광선 질의 슬롯. 로컬 제어 폰이 처음 조준점을 계산할 때 확보하고 EndPlay에서 반납한다. */
+	FLNPTargetQueryHandle AimQueryHandle;
+
+	/**
+	 * 근접 공격 보정의 자동 탐색 슬롯. 어빌리티 발동 순간에 결과를 읽으므로 상시 갱신해 둔다.
+	 *
+	 * ⚠️ 조준점 슬롯과 달리 **서버에서도 갱신한다** — 어빌리티가 서버·소유 클라이언트 양쪽에서
+	 * 자동 탐색으로 폴백하기 때문이다. 각자 고른 대상이 갈릴 수 있다는 점은 이 시스템 이전부터
+	 * 있던 성질이고, 여기서 바꾸지 않는다 (TechDesign_TargetQuery.md §8).
+	 */
+	FLNPTargetQueryHandle MeleeAssistQueryHandle;
+
+	/** 근접 보정 질의 파라미터를 이번 프레임 값으로 갱신한다. TickComponent에서 매 프레임 호출. */
+	void UpdateMeleeAssistQuery();
+
 	UPROPERTY()
 	TObjectPtr<ULNPCharacterMoverComponent> MoverComponent;
 

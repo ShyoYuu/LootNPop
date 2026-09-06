@@ -34,29 +34,6 @@
 
 namespace
 {
-	/**
-	 * 선분(A→B)이 Center/UpDir/HalfHeight/CombinedRadius의 캡슐과 교차하면 true.
-	 * Center는 캡슐 중심(바닥이 아닌 실린더 중앙).
-	 */
-	bool SegmentHitsCapsule(
-		FVector A, FVector B,
-		FVector Center, FVector UpDir,
-		float   CapsuleHalfHeight, float CombinedRadius,
-		FVector& OutHitPoint)
-	{
-		const FVector Closest      = FMath::ClosestPointOnSegment(Center, A, B);
-		const FVector Delta        = Closest - Center;
-		const float   Axial        = FVector::DotProduct(Delta, UpDir);
-		const FVector RadialVec    = Delta - UpDir * Axial;
-		const float   RadialDistSq = RadialVec.SizeSquared();
-
-		if (FMath::Abs(Axial) <= CapsuleHalfHeight && RadialDistSq <= FMath::Square(CombinedRadius))
-		{
-			OutHitPoint = Closest;
-			return true;
-		}
-		return false;
-	}
 
 	/** 클라이언트 예측 전용: ULNPGhostProjectileSubsystem::Ghosts(TMap)는 RPC 콜백(게임 스레드)에서도 갱신되므로,
 	 *  Mass Execute()(워커 스레드에서 돌 수 있음)에서 직접 건드리면 데이터 레이스다. Command Buffer flush로 위탁한다. */
@@ -335,7 +312,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						continue;
 
 					FVector HitPoint;
-					if (!SegmentHitsCapsule(Proj.PreviousPos, CurrentPos, Target.Location, Target.UpDir,
+					if (!LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, CurrentPos, Target.Location, Target.UpDir,
 						Target.CapsuleHalfHeight, Target.CapsuleRadius + Shared.HitRadius, HitPoint))
 						continue;
 
@@ -561,7 +538,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					continue;
 
 				FVector HitPoint;
-				if (!SegmentHitsCapsule(
+				if (!LNPHitDetection::SegmentHitsCapsule(
 					Proj.PreviousPos, CurrentPos,
 					RewoundCenter(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History), Enemy.UpDir,
 					Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius,
@@ -618,7 +595,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (bShouldProcess && PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || Now <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos)
 				{
 					FVector HitPoint;
-					if (SegmentHitsCapsule(
+					if (LNPHitDetection::SegmentHitsCapsule(
 						Proj.PreviousPos, CurrentPos,
 						RewoundCenter(Player.Location, Player.RawLocation, Player.History), Player.UpDir,
 						Player.CapsuleHalfHeight, Player.CapsuleRadius + ParryRadius,
@@ -671,7 +648,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				// 2단계: 피격 체크 (HitRadius — 정상 반경)
 				FVector HitPoint;
-				if (!SegmentHitsCapsule(
+				if (!LNPHitDetection::SegmentHitsCapsule(
 					Proj.PreviousPos, CurrentPos,
 					RewoundCenter(Player.Location, Player.RawLocation, Player.History), Player.UpDir,
 					Player.CapsuleHalfHeight, Player.CapsuleRadius + HitRadius,

@@ -60,6 +60,36 @@ namespace LNPHitDetection
 	{
 		return EntityLocation;
 	}
+
+	/**
+	 * 선분(A→B)이 Center/UpDir/HalfHeight/CombinedRadius의 캡슐과 교차하면 true.
+	 * Center는 캡슐 중심(바닥이 아닌 실린더 중앙) — ResolveEnemyCapsuleCenter가 돌려주는 값이다.
+	 *
+	 * OutHitPoint는 선분 위에서 캡슐 중심에 가장 가까운 점이다. 표면 진입점이 아니라 **몸통 깊이**를
+	 * 가리키므로, 조준점을 여기로 수렴시키면 탄이 몸통 한가운데를 지난다.
+	 *
+	 * ⚠️ 원거리 판정과 조준 질의가 같은 함수를 쓴다. 복제하지 말 것 —
+	 *    ResolveEnemyCapsuleCenter 주석의 사유가 그대로 적용된다.
+	 */
+	inline bool SegmentHitsCapsule(
+		FVector A, FVector B,
+		FVector Center, FVector UpDir,
+		float   CapsuleHalfHeight, float CombinedRadius,
+		FVector& OutHitPoint)
+	{
+		const FVector Closest      = FMath::ClosestPointOnSegment(Center, A, B);
+		const FVector Delta        = Closest - Center;
+		const float   Axial        = FVector::DotProduct(Delta, UpDir);
+		const FVector RadialVec    = Delta - UpDir * Axial;
+		const float   RadialDistSq = RadialVec.SizeSquared();
+
+		if (FMath::Abs(Axial) <= CapsuleHalfHeight && RadialDistSq <= FMath::Square(CombinedRadius))
+		{
+			OutHitPoint = Closest;
+			return true;
+		}
+		return false;
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
