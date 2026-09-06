@@ -348,9 +348,19 @@ struct FLNPEntityAttackConfig
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
 	float ArcEndDeg = 70.f;
 
-	/** 내려베기 기울기(도). 접평면에서 아래로 기운 각도. */
+	/**
+	 * 스윙 **시작** 기울기(도). 접평면 기준이고 **양수가 위**(머리 쪽), 음수가 아래다.
+	 *
+	 * Yaw와 마찬가지로 Active 구간 동안 End까지 보간된다 — 둘을 같게 두면 예전처럼 일정 기울기로
+	 * 수평 훑기가 되고, 벌리면 사선 베기가 된다. 애니가 수직에 가깝게 내려벤다면 Start를 크게
+	 * 양수로, End를 크게 음수로 준다(예: +50 → -50).
+	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
-	float ArcPitchDeg = -15.f;
+	float ArcPitchStartDeg = -15.f;
+
+	/** 스윙 **종료** 기울기(도). `ArcPitchStartDeg`와 같으면 기울기가 고정된다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
+	float ArcPitchEndDeg = -15.f;
 
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee", meta = (ClampMin = "0.1"))
 	float HitRadius = 12.f;

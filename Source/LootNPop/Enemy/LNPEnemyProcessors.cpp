@@ -1257,7 +1257,7 @@ void ULNPEnemyActionProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 namespace
 {
 	TAutoConsoleVariable<int32> CVarDrawEnemyAction(
-		TEXT("LNP.Debug.DrawEnemyAction"), 0,
+		TEXT("LNP.Debug.DrawEnemyAction"), 1,
 		TEXT("Show the behaviour action channel above every enemy entity.\n")
 		TEXT("Runs on the server and the client with no branch, so comparing the two screens is the\n")
 		TEXT("proof that the channel replicates.\n")
@@ -1379,101 +1379,14 @@ void ULNPEnemyActionDebugDrawProcessor::Execute(FMassEntityManager& EntityManage
 	if (bLogTransitions)
 		LastLoggedSeq = MoveTemp(SeenThisFrame);
 }
-
-// --- Debug Draw Processor (디버그 드로우) ---
-
-ULNPEnemyDebugDrawProcessor::ULNPEnemyDebugDrawProcessor()
-	: EnemyQuery(*this), PlayerQuery(*this)
-{
-	bAutoRegisterWithProcessingPhases = true;
-	bRequiresGameThreadExecution = true;
-	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Behavior;
-	ExecutionOrder.ExecuteAfter.Add(ULNPEnemyTargetingProcessor::StaticClass()->GetFName());
-}
-
-void ULNPEnemyDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
-{
-	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	EnemyQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
-	EnemyQuery.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadOnly);
-	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
-	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
-
-	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
-	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
-	PlayerQuery.RegisterWithProcessor(*this);
-}
-
-void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
-{
-	UWorld* World = EntityManager.GetWorld();
-	UE::Mass::Debug::FLineBatcher LineBatcher = UE::Mass::Debug::FLineBatcher::MakeLineBatcher(World);
-	const float MeleeProximityDistSq = GetDefault<ULNPSettings>()->DebugDrawProximityDistSq;
-
-	// Player 위치 전체 수집
-	TArray<FVector> PlayerLocations;
-	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
-	{
-		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
-		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
-			PlayerLocations.Add(Transforms[i].GetTransform().GetLocation());
-	});
-
-	auto IsNearAnyPlayer = [&](const FVector& Pos) -> bool
-	{
-		for (const FVector& PL : PlayerLocations)
-		{
-			if (FVector::DistSquared(Pos, PL) < MeleeProximityDistSq)
-				return true;
-		}
-		return false;
-	};
-
-	EnemyQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& EnemyContext)
-	{
-		const TConstArrayView<FTransformFragment> Transforms = EnemyContext.GetFragmentView<FTransformFragment>();
-		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = EnemyContext.GetFragmentView<FLNPEnemyTargetingFragment>();
-		const TConstArrayView<FMassMoveTargetFragment> MoveTargets = EnemyContext.GetFragmentView<FMassMoveTargetFragment>();
-		const FLNPEnemySharedFragment& SharedFragment = EnemyContext.GetConstSharedFragment<FLNPEnemySharedFragment>();
-
-		if (SharedFragment.Config == nullptr)
-			return;
-
-		const float AttackRange = SharedFragment.Config->MovementConfig.AttackRange;
-
-		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
-		{
-			const FTransform&                 EntityTransform = Transforms[i].GetTransform();
-			const FVector                     EntityLocation  = EntityTransform.GetLocation();
-			const FLNPEnemyTargetingFragment& Targeting       = TargetingFragments[i];
-
-			if (!IsNearAnyPlayer(EntityLocation))
-				continue;
-
-			FColor StateColor = FColor::Green; // 대기 (기본값)
-
-			if (Targeting.State == ELNPTargetingState::Confirmed)
-			{
-				const float ActualDistance = FMath::Sqrt(Targeting.DistanceToTargetSq);
-				StateColor = (ActualDistance <= AttackRange) ? FColor::Red /*공격*/ : FColor::Blue /*추격*/;
-			}
-			else if (Targeting.State == ELNPTargetingState::Alert)
-			{
-				StateColor = FColor::Yellow; // 경계
-			}
-
-			const FVector Offset = (FVector::ZeroVector - EntityLocation).GetSafeNormal() * 50.0f;
-			LineBatcher.DrawSolidBox(EntityLocation + Offset, FVector(15.0), StateColor);
-			LineBatcher.DrawArrow(EntityTransform, 75.0f, FColor::Black);
-		}
-	});
-}
 #else
-ULNPEnemyDebugDrawProcessor::ULNPEnemyDebugDrawProcessor()
-	: EnemyQuery(*this), PlayerQuery(*this)
+// ⚠️ 에디터 전용 프로세서라도 클래스 선언은 헤더에 무조건 남으므로, 비에디터 빌드용 빈 구현이
+//    반드시 있어야 링크가 된다 (→ TechDesign_EnemyNPC.md §7.6).
+ULNPEnemyActionDebugDrawProcessor::ULNPEnemyActionDebugDrawProcessor()
+	: ActionQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = false;
 }
-void ULNPEnemyDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&) {}
-void ULNPEnemyDebugDrawProcessor::Execute(FMassEntityManager&, FMassExecutionContext&) {}
+void ULNPEnemyActionDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&) {}
+void ULNPEnemyActionDebugDrawProcessor::Execute(FMassEntityManager&, FMassExecutionContext&) {}
 #endif

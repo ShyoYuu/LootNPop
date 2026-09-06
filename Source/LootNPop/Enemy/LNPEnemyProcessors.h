@@ -274,22 +274,3 @@ protected:
 	/** 전이만 골라 로그로 남기기 위한 직전 관측값. 디버그 전용이라 프래그먼트를 늘리지 않는다. */
 	TMap<FMassEntityHandle, uint8> LastLoggedSeq;
 };
-
-/**
- * Enemy NPC 시각적 디버깅. 에디터 빌드에서만 활성화된다.
- */
-UCLASS()
-class LOOTNPOP_API ULNPEnemyDebugDrawProcessor : public UMassProcessor
-{
-	GENERATED_BODY()
-
-public:
-	ULNPEnemyDebugDrawProcessor();
-
-protected:
-	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
-	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
-
-	FMassEntityQuery EnemyQuery;
-	FMassEntityQuery PlayerQuery;
-};
