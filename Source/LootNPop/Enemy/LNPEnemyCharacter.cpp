@@ -52,10 +52,6 @@ ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializ
 	HpBarComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("HpBarComponent"));
 	HpBarComponent->SetupAttachment(RootComponent);
 	HpBarComponent->SetVisibility(false);
-
-	LockOnMarkerComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("LockOnMarkerComponent"));
-	LockOnMarkerComponent->SetupAttachment(RootComponent);
-	LockOnMarkerComponent->SetVisibility(false);
 }
 
 UAbilitySystemComponent* ALNPEnemyCharacter::GetAbilitySystemComponent() const
@@ -80,11 +76,6 @@ void ALNPEnemyCharacter::BeginPlay()
 			ASC->GetGameplayAttributeValueChangeDelegate(ULNPBaseAttributeSet::GetHealthAttribute())
 				.AddUObject(this, &ALNPEnemyCharacter::OnHpAttributeChanged);
 		}
-	}
-
-	if (LockOnMarkerWidgetClass)
-	{
-		LockOnMarkerComponent->SetWidgetClass(LockOnMarkerWidgetClass);
 	}
 }
 
@@ -206,15 +197,8 @@ void ALNPEnemyCharacter::Multicast_TriggerRagdoll_Implementation(FVector PopVelo
 
 	if (HpBarComponent)
 		HpBarComponent->SetVisibility(false);
-	SetLockOnMarkerVisible(false);
 
 	EnterRagdoll(PopVelocity);
-}
-
-void ALNPEnemyCharacter::SetLockOnMarkerVisible(bool bVisible)
-{
-	if (LockOnMarkerComponent)
-		LockOnMarkerComponent->SetVisibility(bVisible);
 }
 
 void ALNPEnemyCharacter::SetAimTargetLocation(const FVector& InWorldTarget)

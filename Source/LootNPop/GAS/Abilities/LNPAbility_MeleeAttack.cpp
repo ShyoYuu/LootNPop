@@ -304,15 +304,14 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 
 	const FLNPModifierInputs* ModifierInputs = LastInputCmd.InputCollection.FindDataByType<FLNPModifierInputs>();
 	// 락온은 "자동 탐색이 고른 것 말고 이 적을 치겠다"는 명시적 의사표현이다 — 지목이 있으면 탐색하지 않는다.
-	const AActor* LockOnTarget = (ModifierInputs && IsValid(ModifierInputs->LockOnTarget)) ? ModifierInputs->LockOnTarget.Get() : nullptr;
-	const bool bLockOnActive = (LockOnTarget != nullptr);
+	const bool bLockOnActive = (ModifierInputs && !ModifierInputs->LockOnTargetLocation.IsZero());
 
 	// 자동 탐색은 ULNPTargetQuerySubsystem의 상시 원뿔 질의가 이미 답을 들고 있다.
 	// 여기서 물리 브로드페이즈를 돌던 시절에는 순수 엔티티(Actor가 없다)를 통째로 놓쳤다.
 	FVector TargetLocation;
 	if (bLockOnActive)
 	{
-		TargetLocation = LockOnTarget->GetActorLocation();
+		TargetLocation = ModifierInputs->LockOnTargetLocation;
 	}
 	else if (!InputHandler->GetMeleeAssistTarget(TargetLocation))
 	{

@@ -368,9 +368,12 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	// 폴백해 서버보다 훨씬 빠르게 앞서 나간다 (FLNPModifierInputs::AIDesiredSpeed 주석 참조).
 	ModifierInputs.AIDesiredSpeed = AIDesiredSpeed;
 
-	// 락온 타겟도 InputCmd로 보낸다 — 로컬 컴포넌트에만 두면 서버가 원격 클라이언트의 락온을 모른 채
-	// 근접 공격 보정 대상을 자동 탐색으로 고르게 된다 (FLNPModifierInputs::LockOnTarget 주석 참조).
-	ModifierInputs.LockOnTarget = LockOnComponent ? LockOnComponent->GetLockOnTarget() : nullptr;
+	// 락온 대상도 InputCmd로 보낸다 — 로컬 컴포넌트에만 두면 서버가 원격 클라이언트의 락온을 모른 채
+	// 근접 공격 보정 대상을 자동 탐색으로 고르게 된다 (FLNPModifierInputs::LockOnTargetLocation 주석 참조).
+	FVector LockOnLocation;
+	ModifierInputs.LockOnTargetLocation = (LockOnComponent && LockOnComponent->GetLockOnTargetLocation(LockOnLocation))
+		? LockOnLocation
+		: FVector::ZeroVector;
 
 	// 크로스헤어 조준점도 InputCmd로 보낸다 — 카메라는 로컬 상태라 서버가 스스로 알 방법이 없고,
 	// 서버가 ControlRotation 방향으로만 쏘면 그 광선이 카메라 광선과 평행해 거리와 무관하게

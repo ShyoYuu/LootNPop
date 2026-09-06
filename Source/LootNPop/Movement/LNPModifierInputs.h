@@ -56,18 +56,22 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	float AIDesiredSpeed = 0.f;
 
 	/**
-	 * 플레이어가 락온한 대상. 없으면 null.
+	 * 플레이어가 락온한 대상의 **월드 좌표**. 락온 중이 아니면 0.
 	 *
 	 * **왜 InputCmd에 실어야 하는가:** ULNPLockOnComponent의 타겟은 로컬 상태라 서버가 원격 클라이언트의
 	 * 락온을 영영 알 수 없다. 근접 공격 보정이 이 값을 쓰는데, 서버만 모르면 서버는 자동 탐색으로 다른 적을
 	 * 고르게 된다 — 락온은 "자동 탐색이 고른 것 말고 이 적을 치겠다"는 명시적 의사표현이라 정반대 결과다.
 	 *
+	 * ⚠️ **참조가 아니라 좌표를 보낸다.** 예전에는 `TObjectPtr<AActor>`(NetGUID)였는데, 순수 엔티티
+	 * (`CombatMode::PureEntity`)는 Actor가 없어 가리킬 수단이 없다. 서버에서 이 필드를 읽는 곳은
+	 * 근접 보정 한 곳뿐이고 거기서도 위치만 쓰므로, `AimTargetLocation`과 같이 좌표를 보내면
+	 * 두 종류의 적이 한 경로로 덮인다.
+	 *
 	 * ⚠️ 이 값은 Mover 시뮬레이션이 읽지 않는다(이동 모드·모디파이어 어느 것도 참조하지 않음).
-	 * 어빌리티가 GetLastInputCmd()로 꺼내 쓰기 위한 전달 수단일 뿐이라 **ShouldReconcile에 넣지 않는다** —
-	 * 넣으면 NetGUID가 아직 안 풀린 프레임마다 불필요한 이동 리시뮬레이션이 돈다.
+	 * 어빌리티가 GetLastInputCmd()로 꺼내 쓰기 위한 전달 수단일 뿐이라 **ShouldReconcile에 넣지 않는다.**
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Combat")
-	TObjectPtr<AActor> LockOnTarget = nullptr;
+	FVector LockOnTargetLocation = FVector::ZeroVector;
 
 	/**
 	 * 소유 클라이언트의 크로스헤어가 가리키는 월드 좌표. 로컬 제어 플레이어 폰만 채운다
@@ -79,7 +83,7 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	 * 총구와 카메라의 간격만큼 **거리와 무관하게 일정하게 빗나간다** — 게스트가 조준선대로 맞혀도
 	 * 서버 판정이 나지 않던 원인이다. ControlRotation 옆에 두는 이유는 그것이 이미 조준의 원본이기 때문이다.
 	 *
-	 * ⚠️ LockOnTarget과 같은 이유로 **ShouldReconcile에 넣지 않는다** — Mover 시뮬레이션이 읽지 않고
+	 * ⚠️ LockOnTargetLocation과 같은 이유로 **ShouldReconcile에 넣지 않는다** — Mover 시뮬레이션이 읽지 않고
 	 * 어빌리티가 GetLastInputCmd()로 꺼내 쓰는 전달 수단일 뿐이라, 넣으면 조준을 움직일 때마다
 	 * 이동 리시뮬레이션이 돈다.
 	 */
@@ -114,15 +118,16 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 			AIDesiredSpeed = 0.f;
 		}
 		// 락온 타겟도 조건부다 — 락온하지 않은 평상시에는 비트 하나만 쓴다.
-		bool bHasLockOnTarget = (Ar.IsSaving() ? (LockOnTarget != nullptr) : false);
+		bool bHasLockOnTarget = (Ar.IsSaving() ? !LockOnTargetLocation.IsZero() : false);
 		Ar.SerializeBits(&bHasLockOnTarget, 1);
 		if (bHasLockOnTarget)
 		{
-			Ar << LockOnTarget;
+			// AimTargetLocation과 같은 근거로 양자화한다 (아래 주석 참조).
+			SerializePackedVector<1, 24>(LockOnTargetLocation, Ar);
 		}
 		else if (Ar.IsLoading())
 		{
-			LockOnTarget = nullptr;
+			LockOnTargetLocation = FVector::ZeroVector;
 		}
 		// 조준점도 조건부다 — AI 폰과 시뮬레이티드 프록시는 비트 하나만 쓴다.
 		//
@@ -187,7 +192,7 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		DashInputIntent = FromInputs.DashInputIntent;
 		// 속도는 StateTree가 단계적으로 바꾸는 값(0 / 배회 / 추격)이라 중간값이 의미 없다 — 함께 스냅한다.
 		AIDesiredSpeed = FromInputs.AIDesiredSpeed;
-		LockOnTarget = FromInputs.LockOnTarget;
+		LockOnTargetLocation = FromInputs.LockOnTargetLocation;
 		AimTargetLocation = FromInputs.AimTargetLocation;
 	}
 };
