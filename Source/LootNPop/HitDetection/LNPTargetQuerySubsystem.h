@@ -17,6 +17,12 @@ enum class ELNPTargetQueryKind : uint8
 
 	/** 접평면 거리·각도 게이트 · 각도·거리 가중합이 큰 쪽이 이긴다. (근접 공격 보정) */
 	Cone,
+
+	/**
+	 * 지목된 엔티티 하나를 계속 따라간다. 살아 있고 Origin에서 MaxDistance 이내면 위치를 돌려준다.
+	 * 사망·소멸·거리 이탈이 모두 "결과 없음"으로 나오므로, 소비처는 그것만 보고 해제하면 된다. (락온)
+	 */
+	Track,
 };
 
 namespace LNPTargetQuery
@@ -77,6 +83,9 @@ struct FLNPTargetQueryParams
 	/** Cone 전용 — 점수 가중치. 둘의 합이 1이 되게 두는 것이 관례다. */
 	float AngleWeight    = 0.f;
 	float DistanceWeight = 0.f;
+
+	/** Track 전용 — 따라갈 대상. */
+	FMassEntityHandle TrackedEntity;
 };
 
 /** 질의 결과. 프로세서가 쓰고 게임 스레드가 읽는다. */
@@ -126,6 +135,9 @@ public:
 	/** 이번 프레임의 원뿔 파라미터를 쓴다. 거리·각도는 UpDir 접평면에서 잰다. (근접 공격 보정) */
 	void SetConeQuery(const FLNPTargetQueryHandle& Handle, const FVector& Origin, const FVector& Direction,
 		const FVector& UpDir, float Radius, float MaxAngleDeg, float AngleWeight, float DistanceWeight);
+
+	/** 지목한 엔티티를 계속 따라간다. 결과가 사라지면 사망·소멸·거리 이탈 중 하나다. (락온) */
+	void SetTrackQuery(const FLNPTargetQueryHandle& Handle, const FVector& Origin, FMassEntityHandle TrackedEntity, float MaxDistance);
 
 	/** 가장 최근에 평가된 결과를 읽는다. 슬롯이 유효하지 않으면 false. */
 	bool GetResult(const FLNPTargetQueryHandle& Handle, FLNPTargetQueryResult& OutResult) const;

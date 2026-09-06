@@ -76,6 +76,22 @@ void ULNPTargetQuerySubsystem::SetConeQuery(const FLNPTargetQueryHandle& Handle,
 	Params.DistanceWeight = DistanceWeight;
 }
 
+void ULNPTargetQuerySubsystem::SetTrackQuery(const FLNPTargetQueryHandle& Handle, const FVector& Origin, FMassEntityHandle TrackedEntity, float MaxDistance)
+{
+	if (!Handle.IsValid())
+		return;
+
+	FScopeLock Lock(&SlotsLock);
+	if (!Slots.IsValidIndex(Handle.SlotIndex) || !Slots[Handle.SlotIndex].bInUse)
+		return;
+
+	FLNPTargetQueryParams& Params = Slots[Handle.SlotIndex].Params;
+	Params.Kind          = ELNPTargetQueryKind::Track;
+	Params.Origin        = Origin;
+	Params.TrackedEntity = TrackedEntity;
+	Params.MaxDistance   = MaxDistance;
+}
+
 bool ULNPTargetQuerySubsystem::GetResult(const FLNPTargetQueryHandle& Handle, FLNPTargetQueryResult& OutResult) const
 {
 	if (!Handle.IsValid())

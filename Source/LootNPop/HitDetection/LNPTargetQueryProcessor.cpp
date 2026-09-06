@@ -27,6 +27,7 @@ void ULNPTargetQueryProcessor::ConfigureQueries(const TSharedRef<FMassEntityMana
 {
 	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+	EnemyQuery.AddRequirement<FLNPEnemyActionFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	EnemyQuery.RegisterWithProcessor(*this);
@@ -60,13 +61,19 @@ void ULNPTargetQueryProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 		const float HalfHeight = Shared.Config->CapsuleHalfHeight;
 		const float Radius     = Shared.Config->CapsuleRadius;
 
-		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
-		const TConstArrayView<FLNPEnemyFragment>  EnemyFrags = Ctx.GetFragmentView<FLNPEnemyFragment>();
+		const TConstArrayView<FTransformFragment>        Transforms  = Ctx.GetFragmentView<FTransformFragment>();
+		const TConstArrayView<FLNPEnemyFragment>        EnemyFrags  = Ctx.GetFragmentView<FLNPEnemyFragment>();
+		const TConstArrayView<FLNPEnemyActionFragment>  ActionFrags = Ctx.GetFragmentView<FLNPEnemyActionFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			// 사망 판정을 엔티티 HP로 한다. Actor의 ASC를 보던 옛 경로는 순수 엔티티에서 성립하지 않았다.
-			if (EnemyFrags[i].Health <= 0.f)
+			// 시체는 대상이 아니다. 소멸까지 기다리면 락온이 시체에 붙어 있게 된다.
+			//
+			// ⚠️ **HP만 보면 클라이언트에서 동작하지 않는다.** `FLNPEnemyFragment::Health`는 서버 전용이라
+			//    클라이언트에서는 기본값에 머문다(→ TechDesign_HUD.md §11.3). 조준점·락온 질의는 소유
+			//    클라이언트에서 도는 것이 정상 경로이므로, **복제되는 행동 상태**를 함께 본다.
+			//    둘 다 보는 이유는 Dying 전이가 한 틱 늦을 수 있어서다 — 서버에서는 HP가 먼저 0이 된다.
+			if (EnemyFrags[i].Health <= 0.f || ELNPEnemyAction::Dying == ActionFrags[i].Action)
 				continue;
 
 			const FVector Location = Transforms[i].GetTransform().GetLocation();
@@ -95,6 +102,19 @@ void ULNPTargetQueryProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 					Distance       = FVector::DotProduct(HitPoint - P.Origin, P.Direction);
 					ResultLocation = HitPoint;
 					Score          = -Distance;   // 가까울수록 이긴다
+				}
+				else if (ELNPTargetQueryKind::Track == P.Kind)
+				{
+					if (Ctx.GetEntity(i) != P.TrackedEntity)
+						continue;
+
+					// 사망·소멸은 위쪽 HP 필터와 청크 순회가 이미 걸러낸다 — 여기 도달했다면 살아 있다.
+					Distance = FVector::Dist(Center, P.Origin);
+					if (Distance > P.MaxDistance)
+						continue;
+
+					ResultLocation = Center;
+					Score          = 0.f;   // 후보가 하나뿐이라 경쟁이 없다
 				}
 				else
 				{

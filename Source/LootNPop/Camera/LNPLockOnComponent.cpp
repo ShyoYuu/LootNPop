@@ -1,14 +1,23 @@
 #include "Camera/LNPLockOnComponent.h"
 #include "Camera/LNPControlRotationComponent.h"
-#include "Enemy/LNPEnemyCharacter.h"
 #include "Gravity/LNPPawnGravityComponent.h"
-#include "GAS/Attributes/LNPBaseAttributeSet.h"
 
-#include "AbilitySystemComponent.h"
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
-#include "Kismet/KismetSystemLibrary.h"
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
+
+#if !UE_BUILD_SHIPPING
+namespace LNPLockOnDebug
+{
+	/** 락온 마커 표현이 생기기 전까지의 임시 확인 수단 (TechDesign_HUD.md §11.7). */
+	static TAutoConsoleVariable<int32> CVarDrawLockOn(
+		TEXT("LNP.LockOn.Debug"), 0,
+		TEXT("Draw the current lock-on target as a sphere and a line from the player. 0: off, 1: on"),
+		ECVF_Cheat);
+}
+#endif
 
 ULNPLockOnComponent::ULNPLockOnComponent()
 {
@@ -30,18 +39,36 @@ void ULNPLockOnComponent::BeginPlay()
 	}
 }
 
+void ULNPLockOnComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (ULNPTargetQuerySubsystem* QuerySub = World->GetSubsystem<ULNPTargetQuerySubsystem>())
+			QuerySub->UnregisterQuery(QueryHandle);
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
 void ULNPLockOnComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (!LockOnTarget.IsValid())
+	UpdateQuery();
+
+	if (!LockOnEntity.IsSet())
 		return;
 
-	if (!IsTargetStillValid())
+	// Track 질의의 결과가 사라지면 사망·소멸·거리 이탈 중 하나다 — 셋을 따로 확인할 필요가 없다.
+	UWorld* World = GetWorld();
+	ULNPTargetQuerySubsystem* QuerySub = World ? World->GetSubsystem<ULNPTargetQuerySubsystem>() : nullptr;
+	FLNPTargetQueryResult Result;
+	if (!QuerySub || !QuerySub->GetResult(QueryHandle, Result) || !Result.bHit)
 	{
 		ClearTarget();
 		return;
 	}
+	LockOnTargetLocation = Result.Location;
 
 	ApplySoftRotation(DeltaTime);
 
@@ -50,132 +77,117 @@ void ULNPLockOnComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	{
 		if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 		{
-			const FVector TargetPos = LockOnTarget->GetActorLocation()
-				+ LockOnTarget->GetActorUpVector() * TargetAimHeightOffset;
-			const FVector ToTarget = (TargetPos - OwnerPawn->GetActorLocation()).GetSafeNormal();
+			// 구 내벽이라 대상의 Up은 위치에서 곧바로 나온다 — Actor가 없어도 성립한다.
+			const FVector TargetUp  = (-LockOnTargetLocation).GetSafeNormal();
+			const FVector TargetPos = LockOnTargetLocation + TargetUp * TargetAimHeightOffset;
+			const FVector ToTarget  = (TargetPos - OwnerPawn->GetActorLocation()).GetSafeNormal();
 			if (!ToTarget.IsNearlyZero())
 				ControlRotationComponent->SetLockOnClamp(ToTarget, MaxDeviationDeg);
 		}
 	}
+
+#if !UE_BUILD_SHIPPING
+	// 마커 표현이 아직 없다(순수 엔티티에는 UWidgetComponent를 달 수 없다 — TechDesign_HUD.md §11.7).
+	// 그때까지 락온 대상을 눈으로 확인하는 수단.
+	if (0 != LNPLockOnDebug::CVarDrawLockOn.GetValueOnGameThread())
+	{
+		if (UWorld* DebugWorld = GetWorld())
+		{
+			DrawDebugSphere(DebugWorld, LockOnTargetLocation, 50.f, 16, FColor::Cyan, false, -1.f, 0, 2.f);
+			DrawDebugLine(DebugWorld, GetOwner()->GetActorLocation(), LockOnTargetLocation, FColor::Cyan, false, -1.f, 0, 1.5f);
+		}
+	}
+#endif
+}
+
+void ULNPLockOnComponent::UpdateQuery()
+{
+	UWorld* World = GetWorld();
+	ULNPTargetQuerySubsystem* QuerySub = World ? World->GetSubsystem<ULNPTargetQuerySubsystem>() : nullptr;
+	if (!QuerySub)
+		return;
+
+	const APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	// 락온은 로컬 상태다 — 서버의 원격 폰에서 돌면 서버 시점으로 후보를 고르는 무의미한 질의가 된다.
+	// 결과는 InputCmd(LockOnTargetLocation)로 서버에 전달된다 (TechDesign_TargetQuery.md §8).
+	if (!OwnerPawn || !OwnerPawn->IsLocallyControlled())
+		return;
+
+	if (!QueryHandle.IsValid())
+		QueryHandle = QuerySub->RegisterQuery();
+
+	const APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
+	if (!PC)
+		return;
+
+	const FVector SelfLoc = OwnerPawn->GetActorLocation();
+
+	// 락온 중이면 후보 탐색이 필요 없다(토글은 해제만 한다). 같은 슬롯을 추적으로 돌려쓴다.
+	if (LockOnEntity.IsSet())
+	{
+		QuerySub->SetTrackQuery(QueryHandle, SelfLoc, LockOnEntity, AutoBreakRange);
+		return;
+	}
+
+	// 후보 탐색: 카메라 축 기준 원뿔. "화면 밖 제외"를 ProjectWorldLocationToScreen으로 두지 않는 이유는
+	// 뷰포트가 게임 스레드 전용이라 워커에서 부를 수 없기 때문이다 — 시야 반각으로 대신한다.
+	FVector  CamLoc;
+	FRotator CamRot;
+	PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+	const FVector UpDir = GravityComponent.IsValid() ? GravityComponent->GetUpDirection() : FVector::UpVector;
+
+	FVector CamForwardTangent;
+	float   ForwardLen = 0.f;
+	if (!LNPTargetQuery::ProjectToTangent(UpDir, CamRot.Vector(), CamForwardTangent, ForwardLen))
+	{
+		QuerySub->SetConeQuery(QueryHandle, SelfLoc, FVector::ForwardVector, UpDir, 0.f, 0.f, 0.f, 0.f);
+		return;
+	}
+
+	// 점수는 각도만 본다 — 옛 구현이 "화면 중앙에서 가장 가까운 각도"였고 그 감각을 유지한다.
+	QuerySub->SetConeQuery(QueryHandle, CamLoc, CamForwardTangent, UpDir,
+		MaxLockOnRange, LockOnSearchAngleDeg, 1.f, 0.f);
 }
 
 void ULNPLockOnComponent::ToggleLockOn()
 {
-	if (LockOnTarget.IsValid())
+	if (LockOnEntity.IsSet())
 	{
 		ClearTarget();
+		return;
 	}
-	else
-	{
-		if (ALNPEnemyCharacter* Best = FindBestTarget())
-		{
-			SetTarget(Best);
-		}
-	}
+
+	UWorld* World = GetWorld();
+	ULNPTargetQuerySubsystem* QuerySub = World ? World->GetSubsystem<ULNPTargetQuerySubsystem>() : nullptr;
+	if (!QuerySub)
+		return;
+
+	// 상시 질의라 누른 순간 답이 이미 준비돼 있다 — 여기서 탐색하지 않는다.
+	FLNPTargetQueryResult Result;
+	if (QuerySub->GetResult(QueryHandle, Result) && Result.bHit)
+		SetTarget(Result.Entity, Result.Location);
 }
 
-ALNPEnemyCharacter* ULNPLockOnComponent::FindBestTarget() const
+bool ULNPLockOnComponent::GetLockOnTargetLocation(FVector& OutLocation) const
 {
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	if (!OwnerPawn)
-		return nullptr;
+	if (!LockOnEntity.IsSet())
+		return false;
 
-	APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
-	if (!PC)
-		return nullptr;
-
-	// Physics Broadphase로 MaxLockOnRange 이내의 Pawn 캡슐만 추려낸다.
-	// TActorIterator 전체 순회 대비 O(k) — 근거리 적만 고려하면 충분하다.
-	TArray<AActor*> OverlappedActors;
-	UKismetSystemLibrary::SphereOverlapActors(
-		GetWorld(),
-		OwnerPawn->GetActorLocation(),
-		MaxLockOnRange,
-		TArray<TEnumAsByte<EObjectTypeQuery>>{ UEngineTypes::ConvertToObjectType(ECC_Pawn) },
-		ALNPEnemyCharacter::StaticClass(),
-		TArray<AActor*>{ GetOwner() },
-		OverlappedActors
-	);
-
-	int32 ViewportSizeX = 0, ViewportSizeY = 0;
-	PC->GetViewportSize(ViewportSizeX, ViewportSizeY);
-
-	FVector CamLoc;
-	FRotator CamRot;
-	PC->GetPlayerViewPoint(CamLoc, CamRot);
-	const FVector CamForward = CamRot.Vector();
-
-	ALNPEnemyCharacter* BestTarget = nullptr;
-	float BestAngleDeg = MAX_FLT;
-
-	for (AActor* Actor : OverlappedActors)
-	{
-		ALNPEnemyCharacter* Enemy = Cast<ALNPEnemyCharacter>(Actor);
-		if (!IsValid(Enemy))
-			continue;
-
-		// 카메라 뒤쪽 제외
-		const FVector ToEnemy = (Enemy->GetActorLocation() - CamLoc).GetSafeNormal();
-		if (FVector::DotProduct(CamForward, ToEnemy) <= 0.f)
-			continue;
-
-		// 화면 밖 제외
-		FVector2D ScreenPos;
-		if (!PC->ProjectWorldLocationToScreen(Enemy->GetActorLocation(), ScreenPos, true))
-			continue;
-
-		if (ScreenPos.X < 0.f || ScreenPos.X > ViewportSizeX || ScreenPos.Y < 0.f || ScreenPos.Y > ViewportSizeY)
-			continue;
-
-		const float CosAngle = FMath::Clamp(FVector::DotProduct(CamForward, ToEnemy), -1.f, 1.f);
-		const float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(CosAngle));
-
-		if (AngleDeg < BestAngleDeg)
-		{
-			BestAngleDeg = AngleDeg;
-			BestTarget = Enemy;
-		}
-	}
-
-	return BestTarget;
+	OutLocation = LockOnTargetLocation;
+	return true;
 }
 
-void ULNPLockOnComponent::SetTarget(ALNPEnemyCharacter* NewTarget)
+void ULNPLockOnComponent::SetTarget(FMassEntityHandle NewTarget, const FVector& TargetLocation)
 {
-	ClearTarget();
-	LockOnTarget = NewTarget;
-	NewTarget->SetLockOnMarkerVisible(true);
+	LockOnEntity         = NewTarget;
+	LockOnTargetLocation = TargetLocation;
 }
 
 void ULNPLockOnComponent::ClearTarget()
 {
-	if (LockOnTarget.IsValid())
-	{
-		LockOnTarget->SetLockOnMarkerVisible(false);
-	}
-	LockOnTarget.Reset();
-}
-
-bool ULNPLockOnComponent::IsTargetStillValid() const
-{
-	if (!LockOnTarget.IsValid())
-		return false;
-
-	// 거리 이탈 체크
-	const float DistSq = FVector::DistSquared(GetOwner()->GetActorLocation(), LockOnTarget->GetActorLocation());
-	if (DistSq > AutoBreakRange * AutoBreakRange)
-		return false;
-
-	// 사망 체크
-	if (UAbilitySystemComponent* ASC = LockOnTarget->GetAbilitySystemComponent())
-	{
-		bool bFound = false;
-		const float Health = ASC->GetGameplayAttributeValue(ULNPBaseAttributeSet::GetHealthAttribute(), bFound);
-		if (bFound && Health <= 0.f)
-			return false;
-	}
-
-	return true;
+	LockOnEntity.Reset();
+	LockOnTargetLocation = FVector::ZeroVector;
 }
 
 void ULNPLockOnComponent::ApplySoftRotation(float DeltaTime)
@@ -191,8 +203,8 @@ void ULNPLockOnComponent::ApplySoftRotation(float DeltaTime)
 	if (!PC)
 		return;
 
-	const FVector TargetPos = LockOnTarget->GetActorLocation()
-		+ LockOnTarget->GetActorUpVector() * TargetAimHeightOffset;
+	const FVector TargetUp  = (-LockOnTargetLocation).GetSafeNormal();
+	const FVector TargetPos = LockOnTargetLocation + TargetUp * TargetAimHeightOffset;
 
 	const FVector CurrentForward = PC->GetControlRotation().Quaternion().GetForwardVector();
 	const FVector UpDir = GravityComponent->GetUpDirection();

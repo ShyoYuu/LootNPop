@@ -1261,8 +1261,8 @@ namespace
 		TEXT("Show the behaviour action channel above every enemy entity.\n")
 		TEXT("Runs on the server and the client with no branch, so comparing the two screens is the\n")
 		TEXT("proof that the channel replicates.\n")
-		TEXT("  0: off (default)\n")
-		TEXT("  1: coloured marker only\n")
+		TEXT("  0: off\n")
+		TEXT("  1: coloured marker only (default)\n")
 		TEXT("  2: marker + one log line per transition (compare host and guest logs)"),
 		ECVF_Cheat);
 
