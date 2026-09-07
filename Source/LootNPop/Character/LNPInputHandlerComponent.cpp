@@ -850,9 +850,10 @@ void ULNPInputHandlerComponent::OnActiveSkillStarted(const FInputActionValue& Va
 	ActiveSkillPressed[SlotIndex] = true;
 
 	// 무기 장착 테스트: TestWeaponList 슬롯 직접 매핑
-	// SlotIndex 0 = TestWeaponList[0] (예: Pistol)
+	// SlotIndex 0 = TestWeaponList[0] (예: Shotgun)
 	// SlotIndex 1 = TestWeaponList[1] (예: Rifle)
-	// SlotIndex 2 = TestWeaponList[2] (예: LongSword)
+	// SlotIndex 2 = TestWeaponList[2] (예: Launcher)
+	// SlotIndex 3 = TestWeaponList[3] (예: LongSword)
 	// 슬롯이 TestWeaponList 범위 밖이면 맨손으로 전환
 	if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner()))
 	{
