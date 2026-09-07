@@ -24,12 +24,13 @@
 
 | 타입 | 내용 |
 |:---|:---|
-| `FLNPEnemyFragment` | Health/MaxHealth/Defense, DeathCountdown, EnemyTypeTag, ParentLootPod(+위치 — 세력권 기준), HitReactTimer/Direction(피격 반응 — §3.5) |
+| `FLNPEnemyFragment` | Health/MaxHealth/Defense, DeathCountdown, EnemyTypeTag, ParentLootPod(+위치 — 세력권 기준), HitReactTimer/Direction(피격 주시 — §3.5), FlinchTimeRemaining(피격 플린치 연출) |
 | `FLNPEnemySharedFragment` | `ULNPEnemyConfig` 포인터 (동일 타입 공유 — ConstShared) |
 | `FLNPEnemyTargetingCandidateFragment` | 인식된 잠재 타겟 최대 4명 (거리 정렬) + `AlertDwellTime`(경계 인내) + `DisengageTimer`(재발견 금지 잔여). **뒤 두 float는 Reset 대상이 아니다** — §3.4 |
 | `FLNPEnemyTargetingFragment` | 최종 타겟, `ELNPTargetingState`(None/Alert/Confirmed), 마지막 타겟 위치, 거리² |
 | `FLNPEnemyIdleFragment` | 배회 타이머·플래그 |
-| `FLNPEnemyVelocityFragment` | Entity 모드 물리 속도 (넉백 포물선). 접지 시 0 |
+| `FLNPEnemyVelocityFragment` | Entity 모드 물리 속도 (넉백·사망 팝의 포물선). 접지 시 0 |
+| `FLNPEnemySeparationFragment` | 겹침을 푸는 접평면 밀어내기 속도. 분리 프로세서가 매 프레임 확정하고 이동 프로세서가 소비 — §5.0 |
 | Tags | `FLNPEnemyTag` / `FLNPPlayerTag`(쿼리 분류), `FLNPEnemyActorInitializedTag`(초기화 마커), `FLNPEnemyDyingTag`(소멸 대기), `FLNPPlayerDeadTag`(사망 플레이어 — 타게팅 제외) |
 
 ### 2.2 ULNPEnemyConfig (Data Asset)
@@ -186,15 +187,17 @@ Scoring·Targeting의 `PlayerQuery`가 이를 배제한다 (적 쪽 `FLNPEnemyDy
 Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회만 판정 (루프 내 문자열 비교 방지).
 ---
 
-## 4. Mass 프로세서 파이프라인 (12종)
+## 4. Mass 프로세서 파이프라인 (14종)
 
 | 프로세서 | 단계 | 역할 |
 |:---|:---|:---|
 | `ULNPEnemyScoringProcessor` | PostPhysics (UpdateWorldFromMass) | 인식 + 후보 4명 정렬 + 슬롯 점수 등록 |
 | `ULNPEnemyTargetingProcessor` | Behavior | `RebalanceSlots()` 호출 → State 동기화(Confirmed/Alert/None) → 변경 시 StateTree 신호 |
 | `ULNPEnemyTargetFollowProcessor` | Behavior (Targeting 이후) | MoveTarget 목적지 산출 (정지 거리 반영), 공격 루프용 StateTree 신호 |
-| `ULNPEnemyMovementProcessor` | Movement | 실제 이동/회전 적용 — §5 상세 |
-| `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + `TriggerRagdoll()` (전 클라이언트 방송) + `DeathCountdown = ULNPSettings::EnemyRagdollDuration` |
+| `ULNPEnemySpatialGridProcessor` | PrePhysics — Movement (Separation 이전) | 서버 전용: 살아 있는 적 전원의 브로드페이즈 격자를 매 프레임 재구축 — §5.0 |
+| `ULNPEnemySeparationProcessor` | PrePhysics — Movement (Grid 이후, Movement 이전) | 서버 전용: 이웃 질의 → 겹침 분리력 산출. Transform은 건드리지 않는다 — §5.0 |
+| `ULNPEnemyMovementProcessor` | Movement | 실제 이동/회전 적용 + 분리력·공중 물리 소비 — §5 상세 |
+| `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + `DeathCountdown`. 모드로 갈린다: `ActorPromoted`는 `TriggerRagdoll()` 방송, `PureEntity`는 **사망 팝**(속도 프래그먼트에 Up 방향 속도) |
 | `ULNPEnemyDeathTimerProcessor` | PostPhysics (Health 이후) | DeathCountdown 만료 엔티티 파괴 |
 | `ULNPEnemyLODOverrideProcessor` | **PostPhysics** — LOD 그룹 | 서버 전용: Confirmed면 `RepresentationLOD.LOD = High` 강제 — §7.2 |
 | `ULNPEnemyClientRepresentationProcessor` | **PrePhysics** — LOD 그룹 (Visualization 이전) | 게스트 전용: 복제 Actor만 표현으로 채택 — §7.10. 페이즈가 다른 이유는 §7.10 |
@@ -221,14 +224,46 @@ Actor 모드 (High LOD):
   → 실제 이동은 캐릭터의 Mover 컴포넌트가 처리 (플레이어와 동일 파이프라인)
 
 Entity 모드 (Low LOD):
-  ├─ PhysVelocity ≠ 0 (공중 — 넉백/포물선):
+  ├─ PhysVelocity ≠ 0 (공중 — 넉백/사망 팝/포물선):
   │    중력 적분 → SurfaceCache로 착지 판정 → 착지 시 표면 스냅 + 속도 0
   └─ 접지:
-       QInterpConstantTo 회전 (RotationRate) → 경사 차단(§7.4) → SurfaceCache 표면 스냅 이동
+       QInterpConstantTo 회전 (RotationRate) → 분리력 가산 → 경사 차단(§7.4) → SurfaceCache 표면 스냅 이동
 ```
 
 - 구형 UpDir은 `(GravityOrigin - Location).GetSafeNormal()`로 실시간 계산 (Fragment 저장 없음 — 캐시 효율).
 - 지표면 좌표는 전부 `ULNPSurfaceCacheSubsystem` O(1) 조회 (→ [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md)).
+- **공중 물리는 람다 하나로 뽑아 두 소비처(넉백·사망 팝)가 공유한다.** 복제하면 죽는 순간에만
+  다른 곡선을 그리는 어긋남이 생긴다.
+
+**이 프로세서가 매 프레임 도는 유일한 경로라 시간 기반 상태의 감소도 여기 모여 있다** —
+피격 주시 타이머(§3.5), 피격 플린치, 배회 타임아웃. 판단은 각자의 주인이 하고 시계만 여기서 돈다.
+
+⚠️ **쿼리에서 `FLNPEnemyDyingTag`를 `None`으로 걸지 않는다.** 죽는 순간 태그가 붙어 쿼리에서 빠지면
+**사망 팝을 아무도 적분하지 못한다**(→ [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md) §8).
+시체의 AI 이동·회전·StateTree 신호는 `Execute` 안에서 태그로 따로 차단하고,
+랙돌이 붙은 시체는 물리의 주인이 Actor이므로 통째로 건너뛴다.
+
+### 5.0 겹침 분리 — 격자는 서비스, 소비는 이동 프로세서
+
+`ULNPEnemySeparationProcessor`가 이웃과의 **접평면** 거리로 밀어내기 속도를 만들어
+`FLNPEnemySeparationFragment::Push`에 남기고, 이동 프로세서의 접지 분기가 그것을 속도에 더한다.
+
+**분리 프로세서는 Transform을 건드리지 않는다.** 표면 스냅과 경사 차단이 이동 프로세서에 있으므로,
+그 앞에서 위치를 옮기면 구면 규약이 반쪽만 적용된다 — §5.1의 쓰기 권한 규약이 그대로 적용되는 자리다.
+
+- 이웃 탐색은 `ULNPEnemySpatialGridSubsystem`(등장방형 축소 행, 매 프레임 재구축)이 맡는다
+  → [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md) §6
+- ⚠️ **Actor로 그려지는 개체는 밀지 않는다.** 캡슐 콜리전이 이미 겹침을 막고, `SetAIMoveInput`이
+  **방향만** 받는 규약이라 분리력을 섞으면 크기가 1 미만이 되어 Mover의 의도 벡터 미정규화
+  함정(속도 곱셈 붕괴)을 정면으로 밟는다.
+- ⚠️ 넉백·사망 팝 중에는 건너뛴다 — 공중 분기가 위치의 주인이다.
+- **생산자가 매 프레임 값을 확정한다.** 밀지 않기로 한 개체에도 0을 명시적으로 쓴다 —
+  소비 쪽에서 지우게 하면 LOD가 바뀌는 순간 낡은 값이 한 번 새어 나간다.
+
+⚠️ **순서는 그룹이 아니라 이름으로 건다.** `격자 → 분리 → 이동` 셋 다 `Movement` 그룹·`PrePhysics`에
+두고 `ExecuteBefore/After`에 클래스 이름을 직접 적는다. 그룹 간 순서는 엔진의 고정 목록이 아니라
+**프로세서들이 각자 선언한 간선에서 유도되고**, `Avoidance → Movement` 간선을 만들던 엔진의
+`UMassApplyMovementProcessor`를 이 프로젝트는 쓰지 않는다 — 그 간선이 존재한다는 보장이 없다.
 
 ### 5.1 좌표 규약과 권한 경계 (불변식)
 

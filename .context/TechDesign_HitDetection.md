@@ -157,12 +157,83 @@ FinishHit (공통 후처리 람다):
 
 | 커맨드 | 처리 |
 |:---|:---|
-| `FLNPApplyDamageGECommand` | SetByCaller 피해 GE 적용 + HitReact/임팩트 GameplayCue + 넉백 + (근접) 공격자 HitStop 큐 |
-| `FLNPMeleeParryCommand` | 방어자 Parry.Success 이벤트/큐 + 공격자 Stagger 이벤트 + 공격자 넉백(`ApplyKnockback` — Instant Effect) |
+| `FLNPApplyDamageGECommand` | SetByCaller 피해 GE 적용 + HitReact GameplayCue + 넉백 |
+| `FLNPImpactCueCommand` | 임팩트 GameplayCue(근접·원거리 공용) + (근접) 공격자 HitStop |
+| `FLNPMeleeParryCommand` | 방어자 Parry.Success 이벤트/큐 + 공격자 Stagger 이벤트 + 공격자 넉백(Actor는 `ApplyKnockback`, 엔티티는 속도 프래그먼트) |
 | `FLNPProjectileParryCommand` | 방어자 이벤트/큐 + 반사 Ghost 소멸·재스폰 방송 |
 | `FLNPGuardBlockCommand` | Guard.Block GameplayCue |
 
 HitStop은 개별 액터의 `CustomTimeDilation`(0.1, 타이머 복원)으로 처리 — 전역 시간 확장이 아니라 엔티티 단위.
+
+### 6.1 연출은 데미지에 딸려 있지 않다 (⭐ 2026-09-07 개정)
+
+임팩트 VFX와 공격자 HitStop은 원래 `FLNPApplyDamageGECommand` 안에 있었다. 그 묶임이 그대로
+결함이 됐다 — **순수 엔티티는 데미지를 GE로 받지 않으므로 그 커맨드를 아예 타지 않고,
+따라서 연출도 통째로 사라졌다.** ISM으로 그려지는 적을 베면 타격감이 하나도 없었다.
+
+원거리는 처음부터 옳은 형태였다(판정 뒤 `FinishHit`이 데미지와 무관하게 임팩트 큐를 낸다).
+근접을 그 형태로 맞추고, 두 경로가 `FLNPImpactCueCommand` 하나를 공유하게 했다.
+
+**갈라야 하는 것과 합쳐야 하는 것의 기준은 "수단이 다른가"다.**
+
+| | Actor 피격자 | 순수 엔티티 피격자 | |
+|:---|:---|:---|:---|
+| 피해 적용 | 데미지 GE | 프래그먼트 HP 직접 차감 | 수단이 다르다 → **갈린다** |
+| 피격 리액션 | 방향별 몽타주 | 행동 상태 채널의 플린치 | 수단이 다르다 → **갈린다** |
+| 넉백 | Mover Instant Effect | `FLNPEnemyVelocityFragment` | 수단이 다르다 → **갈린다** |
+| 임팩트 VFX | | | 위치 기반이다 → **합친다** |
+| 공격자 HitStop | | | 공격자 대상이다 → **합친다** |
+
+### 6.2 ASC는 연출의 주인이 아니라 전송 수단이다 (⭐)
+
+`GameplayCue.LNP.Projectile.Impact` 핸들러가 실제로 하는 일은 전부 **월드 서브시스템 호출**이다
+(Ghost 정리 · 임팩트 VFX 스폰). 지점은 `CueParameters`에서 읽는다. 즉 ASC는
+**"전 클라이언트에 전파하는 통로"** 로만 쓰이고 있었는데, 코드는 그것을 피격자 ASC로 고정해 두었다.
+
+그래서 폴백을 **전송 수단에만** 건다:
+
+```
+피격자 ASC가 유효하면 → 그대로 (동작이 예전과 한 톨도 다르지 않다)
+없으면              → 공격자 ASC로 나른다 (그림은 같고 전파 범위만 달라진다)
+둘 다 없으면        → 스킵
+```
+
+공격자 경유는 새 발상이 아니다 — `GameplayCue.LNP.Melee.AttackerHitStop`이 이미 그렇게 쓰고 있었다.
+
+⚠️ **이 폴백을 아무 큐에나 적용하면 안 된다.** `Character.HitReact` 핸들러는 `MyTarget`을
+**피격자로** 쓴다(`PlayHitReact`가 그 액터의 로컬 좌표계로 방향을 판정한다). 공격자로 보내면
+공격자가 피격 몽타주를 재생한다. **대상 액터를 `GetWorld()`에만 쓰는 큐에서만 성립한다.**
+
+### 6.3 스플래시 — 두 가지가 빠져 있었다 (2026-09-07)
+
+**① 순수 엔티티를 통째로 건너뛰었다.** `ApplySplash`가 `if (!SE.Actor) continue;`로 걸러
+폭발 반경 안에 서 있어도 피해를 받지 않았다. 직격 분기와 같은 형태로 맞췄다.
+
+**② 거리 감쇠가 없었다.** 반경 안이면 어디서나 직격과 같은 값이 들어갔다. 기본 반경이 5cm이던
+시절에는 드러날 수 없었고, 반경을 키우는 순간 표면화됐다.
+
+```
+t = 폭심까지 거리 / 폭발 반경
+데미지  x (1 - t)      선형 — 가장자리에서도 남아야 광범위 무기가 제 역할을 한다
+넉백    x (1 - t²)     폭심 근처는 평평, 가장자리에서 급락
+경직도   감쇠 없음      "몇 번 맞았는가"의 눈금이라 거리로 희석하면 누적 규칙과 축이 어긋난다
+```
+
+⚠️ **`1-t²`와 `(1-t)²`는 전혀 다른 곡선이다.** 끝점이 같아 헷갈리지만 **꺾이는 위치가 반대**다.
+
+| t | 0 | 0.25 | 0.5 | 0.75 | 1.0 |
+|:---|--:|--:|--:|--:|--:|
+| `1-t²` | 1.00 | 0.94 | 0.75 | 0.44 | 0 |
+| `(1-t)²` | 1.00 | 0.56 | 0.25 | 0.06 | 0 |
+
+넉백이 원하는 것은 앞쪽이다 — *"폭발에 휘말리면 확실히 날아가고, 반경을 겨우 벗어난 쪽만
+안 날아간다."* 실제로 뒤쪽을 먼저 넣었다가 **"넉백이 너무 약하다"** 는 체감으로 되돌렸다.
+폭심 3m(반경 6m) 지점에서 밀림 속도가 750 → 2,250 cm/s로 3배 차이가 난다.
+
+**③ 방향 부호가 규약과 반대였다.** `HitFromDirection`의 규약은 **"피격자 → 공격자"** 인데
+스플래시 두 곳만 `(피격자 - 폭심)`을 넣고 있었다. 소비처가 부호를 뒤집으므로 결과는
+**폭심 쪽으로 빨아들이는** 넉백이었고, `PlayHitReact`의 방향 판정도 앞뒤가 뒤집혀 있었다.
+직격·근접은 처음부터 올바른 규약이었다 — 스플래시만 어긋나 있었다.
 
 ---
 
@@ -289,5 +360,7 @@ LNPHitDetection::ResolveEnemyCapsuleCenter(EntityLocation, UpDir, HalfH, EnemyAc
 
 - **공간 쿼리 최적화:** 현재 Pass 3는 공격 엔티티 × 전체 타겟 O(n×m) 전수 검사. 엔티티 수가 늘면 `UMassNavigationSubsystem`의 Hash Grid 재활용 또는 구형 월드용 커스텀 Grid로 인접 셀만 검사하도록 개선 예정.
 - **Guided / Lobbed 투사체:** `ELNPProjectileType`에 정의만 존재. Movement 프로세서는 Linear만 구현.
-- **Mass(Low LOD) 상태 HitStop:** Actor 상태는 `CustomTimeDilation`으로 처리 완료. 순수 엔티티는 `FLNPExecutionSpeedFragment` 배율 방식 미구현.
+- **Mass(Low LOD) 상태 HitStop:** Actor 상태는 `CustomTimeDilation`으로 처리 완료. 순수 엔티티는 `FLNPExecutionSpeedFragment` 배율 방식 미구현. **공격자(플레이어) 쪽 HitStop은 순수 엔티티를 때릴 때도 정상 동작한다**(→ §6.1) — 없는 것은 *"맞은 엔티티의 재생이 잠깐 멈추는"* 쪽뿐이다.
+- **지면·구조물 착탄 시 폭발:** 스플래시가 캐릭터 적중 경로에만 붙어 있어, 지면에 맞은 탄은 임팩트 VFX만 뜨고 범위 피해가 없다. 구현 누락이 아니라 **도달 자체가 불가능한 구조**다 — 지면 충돌 판정은 `ULNPProjectileMovementProcessor`(PrePhysics)에 있고 `ApplySplash`는 `ULNPProjectileHitDetectionProcessor`(StartPhysics)에 있는데, 앞 페이즈에서 붙은 `FLNPProjectileDeadTag`가 뒤 페이즈의 쿼리에서 그 탄을 빼 버린다. 조치 방향은 **표면 충돌 판정의 소유권을 판정 프로세서로 옮기는 것**이다.
+- **근접 임팩트 큐 에셋이 비어 있다:** `GCN_LNP_Melee_Impact`의 `VFX`·`Sound`·`CameraShake`가 모두 미설정이라 배선은 살아 있어도 재생할 것이 없다. 순수 엔티티만의 문제가 아니라 Actor 적도 마찬가지다 — 저작 대기.
 - **피격 아이템 드랍:** 넉백은 완료, 피격 시 보유 아이템 드랍 및 LootPod Interruption 연동 미구현.

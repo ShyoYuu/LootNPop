@@ -484,6 +484,11 @@ ULNPEnemyMovementProcessor::ULNPEnemyMovementProcessor()
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Movement;
+	// 공격 위상을 **같은 프레임에** 읽어야 이동 정지가 한 박자 늦지 않는다.
+	// ⚠️ 그룹 간 순서(Tasks -> Movement)는 엔진의 고정 목록이 아니라 프로세서들이 선언한 간선에서
+	//    유도되므로, 기대지 않고 이름으로 직접 건다. 둘 다 페이즈가 기본값(PrePhysics)이라 성립한다 —
+	//    페이즈가 다르면 이 선언은 조용히 무시된다.
+	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEntityAttackProcessor"));
 }
 
 void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -494,11 +499,15 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	MovementQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);                   // HitReactTimer 감소
 	MovementQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
+	MovementQuery.AddRequirement<FLNPEnemySeparationFragment>(EMassFragmentAccess::ReadOnly); // 겹침 분리력 (생산자는 분리 프로세서)
 	MovementQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite); // 배회 타임아웃 계측
+	MovementQuery.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly); // 공격 중 이동·회전 고정
 	MovementQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional); // 경직 중 정지
 	MovementQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	MovementQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
-	MovementQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	// ⚠️ **FLNPEnemyDyingTag를 None으로 걸지 않는다.** 죽는 순간 쿼리에서 빠지면
+	//    사망 팝(ULNPHealthProcessor가 세운 속도)을 **아무도 적분하지 못한다.**
+	//    시체의 AI 이동은 Execute 안에서 태그로 따로 차단한다.
 	MovementQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	MovementQuery.RegisterWithProcessor(*this);
 
@@ -525,7 +534,9 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = EnemyContext.GetFragmentView<FLNPEnemyTargetingFragment>();
 		const TArrayView<FLNPEnemyFragment> EnemyFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyFragment>();
 		const TArrayView<FLNPEnemyVelocityFragment> VelocityFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
+		const TConstArrayView<FLNPEnemySeparationFragment> SeparationFragments = EnemyContext.GetFragmentView<FLNPEnemySeparationFragment>();
 		const TArrayView<FLNPEnemyIdleFragment> IdleFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyIdleFragment>();
+		const TConstArrayView<FLNPEntityAttackFragment> AttackFragments = EnemyContext.GetFragmentView<FLNPEntityAttackFragment>();
 		const TConstArrayView<FLNPPoiseFragment> PoiseFragments = EnemyContext.GetFragmentView<FLNPPoiseFragment>();
 		const FLNPEnemySharedFragment& SharedFragment = EnemyContext.GetConstSharedFragment<FLNPEnemySharedFragment>();
 
@@ -545,6 +556,56 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		// 그대로 쓰면 LOD가 바뀔 때마다 좌표가 HalfHeight만큼 튄다.
 		// 구 내벽이라 Up은 중심 방향 = 반지름이 줄어드는 쪽이므로 표면 반지름에서 빼준다.
 		const float CapsuleHalfHeight = SharedFragment.Config->CapsuleHalfHeight;
+
+		// 죽어가는 개체는 AI 이동이 없고 사망 팝의 적분만 남는다. 태그는 청크 단위 속성이라
+		// 엔티티마다 물어볼 필요가 없다.
+		const bool bChunkIsDying = EnemyContext.DoesArchetypeHaveTag<FLNPEnemyDyingTag>();
+
+		/**
+		 * 공중 물리(넉백·사망 팝)의 **단일 구현**. 살아 있는 개체와 죽어가는 개체가 같은 코드를 타야
+		 * 죽는 순간에만 다른 곡선을 그리는 어긋남이 생기지 않는다.
+		 *
+		 * 상태는 전용 Tag(예: FLNPEnemyAirborneTag)가 아닌 PhysVelocity로 판단한다.
+		 * Tag 분리 방식(Archetype Chunk별 별도 Processor)이 Mass에서 더 관용적이며
+		 * 비행이 지속적이거나 고빈도 상태가 된다면 (예: 비행 Enemy) 고려할 가치가 있다.
+		 * 현재 넉백·사망 팝 케이스에서 분기 비용은 무시할 수 있으며
+		 * 매 피격/착지 시 반복적인 Deferred AddTag/RemoveTag Archetype 마이그레이션을 피할 수 있다.
+		 */
+		auto IntegrateAirborne = [&](FTransform& EntityTransform, FVector& PhysVelocity, const FVector& EntityLocation)
+		{
+			// 공중 물리: 중력 적용 및 속도 적분
+			const FVector GravityDir = (EntityLocation - GravityOrigin).GetSafeNormal(); // 외향 = 아래
+			PhysVelocity += GravityDir * GravityStrength * DeltaTime;
+
+			const FVector NewPos = EntityLocation + PhysVelocity * DeltaTime;
+			const FVector NewDir = (NewPos - GravityOrigin).GetSafeNormal();
+
+			FVector SurfacePoint;
+			if (!SurfaceCache.GetSurfacePoint(NewDir, SurfacePoint))
+			{
+				EntityTransform.SetLocation(NewPos);
+				return;
+			}
+
+			// 접지 상태의 캡슐 중심 반지름 — 발이 표면에 닿았을 때의 중심 위치
+			const float SurfaceRadius  = FVector::Dist(GravityOrigin, SurfacePoint) - CapsuleHalfHeight;
+			const float DistFromCenter = FVector::Dist(GravityOrigin, NewPos);
+
+			if (DistFromCenter >= SurfaceRadius)
+			{
+				// 착지: 표면에 스냅하고 물리 정지
+				EntityTransform.SetLocation(GravityOrigin + NewDir * SurfaceRadius);
+				PhysVelocity = FVector::ZeroVector;
+				return;
+			}
+
+			// 아직 공중: 자유 이동 및 Up 정렬 회전 유지
+			EntityTransform.SetLocation(NewPos);
+			const FVector NewUp = (GravityOrigin - NewPos).GetSafeNormal();
+			const FVector HorizForward = FVector::VectorPlaneProject(EntityTransform.GetRotation().GetForwardVector(), NewUp).GetSafeNormal();
+			if (!HorizForward.IsNearlyZero())
+				EntityTransform.SetRotation(FRotationMatrix::MakeFromXZ(HorizForward, NewUp).ToQuat());
+		};
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
@@ -575,6 +636,26 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			if (bHitReacting)
 			{
 				EnemyData.HitReactTimer = FMath::Max(EnemyData.HitReactTimer - DeltaTime, 0.0f);
+			}
+
+			// 플린치는 연출일 뿐이라 이동을 막지 않는다 — 여기서 감소만 시키고 소비는
+			// ULNPEnemyActionProcessor가 한다. 매 프레임 도는 경로가 이쪽뿐이라 자리는 위와 같다.
+			if (EnemyData.FlinchTimeRemaining > 0.0f)
+			{
+				EnemyData.FlinchTimeRemaining = FMath::Max(EnemyData.FlinchTimeRemaining - DeltaTime, 0.0f);
+			}
+
+			// 시체는 결정도 신호도 내지 않는다 — 남은 것은 사망 팝의 적분뿐이다.
+			// ⚠️ 랙돌이 붙은 시체(ActorPromoted)는 물리의 주인이 Actor이므로 아예 손대지 않는다.
+			if (bChunkIsDying)
+			{
+				if (ActorFragments[i].Get() == nullptr)
+				{
+					FVector& DeathVelocity = VelocityFragments[i].Velocity;
+					if (!DeathVelocity.IsNearlyZero())
+						IntegrateAirborne(EntityTransform, DeathVelocity, EntityLocation);
+				}
+				continue;
 			}
 
 			switch (Targeting.State)
@@ -655,6 +736,24 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				&& (PoiseFragments[i].bIsGroggy || PoiseFragments[i].ImmunityTimeRemaining > 0.f))
 				EffectiveSpeed = 0.0f;
 
+			// 공격 중에는 제자리에 선다. Actor 경로에서는 공격 몽타주의 ANS_LNPBlockMovementInput이
+			// 같은 일을 하지만, 몽타주가 없는 순수 엔티티에는 이 검사가 유일한 정지 경로다.
+			//
+			// ⚠️ **회전은 Active부터 잠근다.** 선딜은 "플레이어가 읽고 반응할 구간"이라 조준이 따라와야
+			//    하지만, 칼날이 살아 있는 동안까지 몸이 돌면 가상 칼날이 플레이어를 따라와 회피 자체가
+			//    무효가 된다. OrientationIntent를 비우면 아래 분기가 현재 전방을 유지한 채 Up 정렬만
+			//    다시 하므로, 그것이 곧 "회전 고정"이다.
+			//
+			// ⚠️ `ActorPromoted` 개체는 ULNPEntityAttackProcessor가 청크 단위로 조기 반환해 Phase가
+			//    영원히 None이다 — 모드 분기 없이 순수 엔티티에만 적용되는 이유가 이것이다.
+			const ELNPEntityAttackPhase AttackPhase = AttackFragments[i].Phase;
+			if (AttackPhase != ELNPEntityAttackPhase::None)
+			{
+				EffectiveSpeed = 0.0f;
+				if (AttackPhase != ELNPEntityAttackPhase::Windup)
+					OrientationIntent = FVector::ZeroVector;
+			}
+
 			if (AActor* Actor = ActorFragments[i].GetMutable())
 			{
 				TWeakObjectPtr<AActor> WeakActor(Actor);
@@ -681,47 +780,9 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				FVector& PhysVelocity = VelocityFragments[i].Velocity;
 
-				// 상태는 전용 Tag(예: FLNPEnemyAirborneTag)가 아닌 PhysVelocity로 판단한다.
-				// Tag 분리 방식(Archetype Chunk별 별도 Processor)이 Mass에서 더 관용적이며
-				// 비행이 지속적이거나 고빈도 상태가 된다면 (예: 비행 Enemy) 고려할 가치가 있다.
-				// 현재 넉백 전용 케이스에서 분기 비용은 무시할 수 있으며
-				// 매 피격/착지 시 반복적인 Deferred AddTag/RemoveTag Archetype 마이그레이션을 피할 수 있다.
 				if (!PhysVelocity.IsNearlyZero())
 				{
-					// 공중 물리: 중력 적용 및 속도 적분
-					const FVector GravityDir = (EntityLocation - GravityOrigin).GetSafeNormal(); // 외향 = 아래
-					PhysVelocity += GravityDir * GravityStrength * DeltaTime;
-
-					const FVector NewPos = EntityLocation + PhysVelocity * DeltaTime;
-					const FVector NewDir = (NewPos - GravityOrigin).GetSafeNormal();
-
-					FVector SurfacePoint;
-					if (SurfaceCache.GetSurfacePoint(NewDir, SurfacePoint))
-					{
-						// 접지 상태의 캡슐 중심 반지름 — 발이 표면에 닿았을 때의 중심 위치
-						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint) - CapsuleHalfHeight;
-						const float DistFromCenter = FVector::Dist(GravityOrigin, NewPos);
-
-						if (DistFromCenter >= SurfaceRadius)
-						{
-							// 착지: 표면에 스냅하고 물리 정지
-							EntityTransform.SetLocation(GravityOrigin + NewDir * SurfaceRadius);
-							PhysVelocity = FVector::ZeroVector;
-						}
-						else
-						{
-							// 아직 공중: 자유 이동 및 Up 정렬 회전 유지
-							EntityTransform.SetLocation(NewPos);
-							const FVector NewUp = (GravityOrigin - NewPos).GetSafeNormal();
-							const FVector HorizForward = FVector::VectorPlaneProject(EntityTransform.GetRotation().GetForwardVector(), NewUp).GetSafeNormal();
-							if (!HorizForward.IsNearlyZero())
-								EntityTransform.SetRotation(FRotationMatrix::MakeFromXZ(HorizForward, NewUp).ToQuat());
-						}
-					}
-					else
-					{
-						EntityTransform.SetLocation(NewPos);
-					}
+					IntegrateAirborne(EntityTransform, PhysVelocity, EntityLocation);
 				}
 				else
 				{
@@ -742,6 +803,11 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 						const FQuat TargetQuat = FRotationMatrix::MakeFromXZ(Forward, UpDir).ToQuat();
 						EntityTransform.SetRotation(TargetQuat);
 					}
+
+					// 겹침을 푸는 분리력은 **방향 의도와 무관하게** 더한다 — 제자리에 선 개체들도
+					// 서로 밀어내야 한다. 아래 경사 체크와 표면 스냅이 그대로 뒤따르므로 구면 규약이
+					// 깨지지 않는다(이것이 분리 프로세서가 Transform을 직접 만지지 않는 이유다).
+					Velocity += SeparationFragments[i].Push;
 
 					// 경사 체크: ~45도보다 가파른 경사 오름 이동 차단 (MaxWalkSlopeCosine = 0.71f, Mover CommonLegacyMovementSettings 기준)
 					constexpr float MaxWalkSlopeCosine = 0.71f;
@@ -804,6 +870,8 @@ void ULNPHealthProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>&
 {
 	HealthQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
 	HealthQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
+	HealthQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);              // 사망 팝의 Up 축
+	HealthQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);      // 사망 팝
 	HealthQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();   // 사망 처리가 CombatMode로 갈린다
 	HealthQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	HealthQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -825,6 +893,8 @@ void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 	{
 		TArrayView<FLNPEnemyFragment>  Enemies    = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
 		TArrayView<FMassActorFragment> ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const TConstArrayView<FTransformFragment>   Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		TArrayView<FLNPEnemyVelocityFragment>       Velocities = Ctx.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 
 		// 랙돌은 ActorPromoted 전용 연출로 남는다. 순수 엔티티는 Actor가 없으므로 무너질 몸이 없고,
 		// 대신 행동 상태 채널이 Dying을 전파해 게스트가 사망을 본다 — 그 전파가 나갈 시간을 벌어야
@@ -840,6 +910,19 @@ void ULNPHealthProcessor::Execute(FMassEntityManager& EntityManager, FMassExecut
 
 			Enemies[i].DeathCountdown = DeathDelay;
 			DyingEntities.Add(Ctx.GetEntity(i));
+
+			// 랙돌이 없어도 "맞고 날아간다"는 그림은 남긴다 — 승격 개체가 랙돌에 주는 팝
+			// (ALNPEnemyCharacter::RagdollPopSpeed)의 엔티티판이다. 이동 프로세서의 공중 분기가
+			// 이 속도를 중력과 함께 적분하고 표면에 스냅한다.
+			//
+			// ⚠️ 이 자리가 성립하려면 **이동 프로세서가 Dying 엔티티도 돌아야 한다** — 죽는 순간
+			//    FLNPEnemyDyingTag가 붙어 쿼리에서 빠지면 팝이 한 번도 적분되지 않는다.
+			if (bPureEntity && Config->PureEntityDeathPopSpeed > 0.f)
+			{
+				// 구 내벽이라 Up은 월드 중심 방향이다 (판정·이동이 공유하는 규약).
+				const FVector Up = (-Transforms[i].GetTransform().GetLocation()).GetSafeNormal();
+				Velocities[i].Velocity = Up * Config->PureEntityDeathPopSpeed;
+			}
 
 			// 순수 엔티티에는 Actor가 없다 — 승격된 개체가 남긴 Actor가 붙어 있을 수도 없으므로
 			// 랙돌 방송 자체를 건너뛴다.
@@ -1169,6 +1252,7 @@ void ULNPEnemyActionProcessor::ConfigureQueries(const TSharedRef<FMassEntityMana
 	ActionQuery.AddRequirement<FLNPEnemyActionFragment>(EMassFragmentAccess::ReadWrite);
 	ActionQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	ActionQuery.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly);
+	ActionQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);   // 피격 플린치 잔여
 	ActionQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	ActionQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	// ⚠️ FLNPEnemyDyingTag를 None으로 걸지 않는다 — 죽는 순간 쿼리에서 빠지면 Dying을 아무도 못 싣는다.
@@ -1191,6 +1275,7 @@ void ULNPEnemyActionProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 		const TArrayView<FLNPEnemyActionFragment> Actions      = Ctx.GetMutableFragmentView<FLNPEnemyActionFragment>();
 		const TConstArrayView<FTransformFragment> Transforms   = Ctx.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FLNPEntityAttackFragment> Attacks = Ctx.GetFragmentView<FLNPEntityAttackFragment>();
+		const TConstArrayView<FLNPEnemyFragment> EnemyFrags    = Ctx.GetFragmentView<FLNPEnemyFragment>();
 		const TConstArrayView<FLNPPoiseFragment> PoiseFrags    = Ctx.GetFragmentView<FLNPPoiseFragment>();
 
 		// 태그는 청크 단위 속성이라 엔티티마다 물어볼 필요가 없다.
@@ -1231,6 +1316,14 @@ void ULNPEnemyActionProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 			else if (Attacks[i].Phase != ELNPEntityAttackPhase::None)
 			{
 				NewAction = ELNPEnemyAction::Attack;
+			}
+			// ⚠️ **공격보다 아래에 둔다.** 칼날이 살아 있는데 몸만 움찔하면
+			//    "칼이 안 닿았는데 맞는다"가 되므로, 공격 중에는 플린치를 재생하지 않는다.
+			//    경직(그로기)이 위에 있는 것과는 이유가 반대다 — 그쪽은 실제로 공격을 끊는다.
+			//    연출을 경직과 공유하므로 값을 새로 늘리지 않는다.
+			else if (EnemyFrags[i].FlinchTimeRemaining > 0.f)
+			{
+				NewAction = ELNPEnemyAction::Stagger;
 			}
 			else
 			{

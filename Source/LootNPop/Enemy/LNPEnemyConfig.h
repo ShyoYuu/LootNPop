@@ -206,6 +206,21 @@ struct FLNPEnemyMovementConfig
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	float WanderMaxDistance = 800.0f;
 
+	/**
+	 * 서로 밀어내기 시작하는 **접평면** 거리(cm). 캡슐 지름(반지름 x2)보다 조금 크게 잡는다 —
+	 * 몸이 닿기 전에 벌어져야 겹쳐 보이지 않는다. 0 이하면 분리력이 꺼진다.
+	 *
+	 * ⚠️ Actor로 그려지는 개체에는 적용되지 않는다 — 그쪽은 캡슐 콜리전이 이미 겹침을 막고,
+	 * 이동 의도가 **방향만** 받는 규약이라 분리력을 섞으면 크기가 1 미만이 되어
+	 * Mover의 의도 벡터 미정규화 함정(속도 곱셈 붕괴)을 밟는다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Movement", meta = (ClampMin = "0.0"))
+	float SeparationRadius = 90.0f;
+
+	/** 완전히 겹쳤을 때의 밀어내는 속도(cm/s). 거리에 반비례해 선형으로 줄어든다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Movement", meta = (ClampMin = "0.0"))
+	float SeparationStrength = 300.0f;
+
 	/** Enemy가 공격을 시작하는 거리 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat")
 	float AttackRange = 200.0f;
@@ -463,9 +478,39 @@ public:
 	 * ⚠️ **복제 LOD의 최장 갱신 주기(0.3초)보다 넉넉히 커야 한다.** 엔티티 파괴가 곧 버블 제거라,
 	 * 이 시간이 짧으면 게스트가 `Dying`을 받기도 전에 적이 사라져 **소리 없이 소멸한다.**
 	 * `Dying` 전이는 일회성이라 갱신 주기 게이트를 우회하지만, 그래도 패킷이 한 번은 나가야 한다.
+	 *
+	 * ⚠️ **사망 팝의 체공 시간(`2 * PureEntityDeathPopSpeed / GravityStrength`)도 덮어야 한다.**
+	 * 기본값 조합(2000 / 2000)의 왕복이 2.0초라 여유를 두고 2.2초로 잡았다 — 짧게 잡으면
+	 * 시체가 **공중에서 사라진다.** `ActorPromoted`는 랙돌 지속이 5초라 이 제약이 드러나지 않는다.
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "0.5"))
-	float PureEntityDeathDuration = 1.5f;
+	float PureEntityDeathDuration = 2.2f;
+
+	/**
+	 * `PureEntity`가 한 방 맞고 움찔하는 시간(초). **경직(Stagger) 시퀀스를 그대로 재활용한다** —
+	 * 그림이 같으므로 `ELNPEnemyAction`에 값을 새로 늘리지 않는다(3비트에 두 자리밖에 안 남았다).
+	 *
+	 * ⚠️ **연출일 뿐 행동을 막지 않는다.** 행동을 막는 것은 경직 게이지(그로기·다운) 하나뿐이라는
+	 * 원칙을 지킨다 — 여기서 이동·공격까지 끊으면 화력을 집중하는 것만으로 적을 영구히 묶을 수 있어
+	 * 경직 시스템의 딜 구간 설계와 정면으로 충돌한다.
+	 *
+	 * ⚠️ **공격 중에는 재생되지 않는다**(`ULNPEnemyActionProcessor`가 Attack 아래 우선순위에 둔다).
+	 * 칼날이 살아 있는데 몸만 움찔하면 *"칼이 안 닿았는데 맞는다"* 가 된다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "0.0"))
+	float PureEntityFlinchTime = 0.35f;
+
+	/**
+	 * `PureEntity`가 죽는 순간 표면 Up 방향으로 튀어오르는 속도(cm/s).
+	 * `ActorPromoted`가 랙돌에 주는 팝(`ALNPEnemyCharacter::RagdollPopSpeed`)의 엔티티판이며 기본값도 같다 —
+	 * 랙돌이 없어도 "맞고 날아간다"는 그림은 남기려는 것이다.
+	 *
+	 * ⚠️ **`PureEntityDeathDuration`이 왕복 시간을 덮어야 한다.** 체공 시간은 대략
+	 * `2 * 이 값 / MovementConfig.GravityStrength`이고, 그보다 소멸이 빠르면 시체가 **공중에서 사라진다.**
+	 * 기본값(2000 / 2000)이면 왕복 2.0초라 기본 소멸 1.5초보다 길다 — 둘 중 하나는 조정해야 한다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "0.0"))
+	float PureEntityDeathPopSpeed = 2000.f;
 
 	/**
 	 * 행동 상태 -> ISKM 시퀀스 인덱스 매핑. 비워 두면 이 적에게는 ISKM 애니가 붙지 않는다.

@@ -56,6 +56,20 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1"))
 	int32 SurfaceCacheSamplesPerFrame = 2000;
 
+	/**
+	 * 적 브로드페이즈 격자의 위도 행 수. 경도 칸 수는 행마다 `2 * 이 값 * cos(위도)`로 줄어들어
+	 * 셀 면적이 어디서나 균일해진다(축소 행 — 극점에서 선형 스캔으로 퇴화하지 않게 하는 장치).
+	 *
+	 * 셀 한 변의 길이는 대략 `PI * SphereRadius / 이 값`이다 — 기본값 기준 약 613cm.
+	 * 회피 이웃 반경(수십~수백 cm)보다 넉넉히 크므로 3x3 스텐실이 과다포함이 되지만,
+	 * **브로드페이즈는 과다포함은 괜찮고 누락만 안 된다.**
+	 *
+	 * ⚠️ **표면 캐시(`SurfaceCacheCellSpacing`)와 해상도를 공유하지 않는다.** 방향→인덱스 관례만
+	 * 같고 목적이 다르다 — 저쪽은 지형 샘플링 정밀도, 이쪽은 이웃 탐색 가지치기다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Enemy NPC", meta=(ClampMin="8", ClampMax="1024"))
+	int32 EnemyGridLatResolution = 128;
+
 	/** Player 캐릭터당 키 매핑된 Active Skill Slots의 최대 수. */
 	UPROPERTY(Config, EditAnywhere, Category = "Ability System", meta = (ClampMin = "1", ClampMax = "8"))
 	int32 MaxActiveSkillSlots = 4;

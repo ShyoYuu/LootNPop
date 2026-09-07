@@ -62,6 +62,7 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	BuildContext.AddFragment<FLNPEnemyTargetingCandidateFragment>();
 	BuildContext.AddFragment<FMassMoveTargetFragment>();
 	BuildContext.AddFragment<FLNPEnemyVelocityFragment>();
+	BuildContext.AddFragment<FLNPEnemySeparationFragment>();
 	//BuildContext.AddFragment<FMassVelocityFragment>();
 	BuildContext.AddFragment<FLNPPositionHistoryFragment>(); // Lag Compensation용 위치 히스토리 (서버 전용 기록)
 

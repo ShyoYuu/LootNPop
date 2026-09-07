@@ -65,6 +65,20 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	/** 마지막 피격이 날아온 방향 (피격자 → 공격자, 월드 단위벡터). HitReactTimer가 살아 있는 동안 주시 방향으로 쓴다. */
 	UPROPERTY(Transient)
 	FVector HitReactDirection = FVector::ZeroVector;
+
+	/**
+	 * 피격 플린치(움찔) 잔여 시간(초). **`HitReactTimer`와 같은 "피격 반응"이되 시간 척도가 다르다** —
+	 * 저쪽은 배회 중 피격 방향을 몇 초간 주시하는 행동이고, 이쪽은 한 방마다 재생되는 연출이다.
+	 *
+	 * `ULNPEnemyConfig::PureEntityFlinchTime`으로 세팅되고 `ULNPEnemyMovementProcessor`가 감소시키며,
+	 * `ULNPEnemyActionProcessor`가 0보다 클 때 행동 상태를 `Stagger`로 내보낸다(경직 시퀀스 재활용).
+	 *
+	 * ⚠️ **이미 플린치 중이면 값만 갱신하고 상태는 건드리지 않는다.** 매 탄마다 전이를 새로 만들면
+	 * ① 모션이 끊겨 보이고 ② `Stagger`는 일회성이라 복제 갱신 주기 게이트를 우회하므로
+	 * 연사가 그대로 대역폭이 된다. 연사 한 묶음이 진입 1 + 이탈 1로 끝나는 것이 의도다.
+	 */
+	UPROPERTY(Transient)
+	float FlinchTimeRemaining = 0.0f;
 };
 
 /** 인식으로 감지된 후보 Player, 슬롯 확인 대기 중 */
@@ -182,6 +196,25 @@ struct LOOTNPOP_API FLNPEnemyVelocityFragment : public FMassFragment
 
 	UPROPERTY(Transient)
 	FVector Velocity = FVector::ZeroVector;
+};
+
+/**
+ * 겹침을 푸는 밀어내기 속도(cm/s, 접평면). `ULNPEnemySeparationProcessor`가 **매 프레임 덮어쓰고**
+ * `ULNPEnemyMovementProcessor`가 지면 이동 속도에 더한다.
+ *
+ * ⚠️ **분리 프로세서가 소비처가 아니라 생산자다.** 밀지 않기로 한 개체(Actor로 그려지는 중, 넉백 중)에도
+ * 0을 명시적으로 써 준다 — 소비 쪽에서 지우게 하면 LOD가 바뀌는 순간 낡은 값이 한 번 새어 나간다.
+ *
+ * Transform을 여기서 직접 건드리지 않는 이유는 **주인이 하나여야 하기 때문**이다. 표면 스냅과
+ * 경사 차단이 이동 프로세서에 있으므로, 그 앞에서 위치를 옮기면 구면 규약이 반쪽만 적용된다.
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemySeparationFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	FVector Push = FVector::ZeroVector;
 };
 
 /** 순수 엔티티 기본 공격의 위상. 근접은 Active가 칼날 생존 구간, 원거리는 Windup 종료 시 1회 발사한다. */
