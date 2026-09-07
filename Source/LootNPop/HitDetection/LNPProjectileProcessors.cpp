@@ -188,6 +188,7 @@ void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMas
 	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
+	EnemyQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);   // Actor 없는 적의 넉백
 	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	EnemyQuery.RegisterWithProcessor(*this);
@@ -345,6 +346,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		const FLNPPositionHistoryFragment* History;
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 		const ULNPEnemyConfig* Config;    // 청크 공용 Config (피격 반응 시간 조회용)
+		FVector*           Velocity;      // Actor 없는 적의 넉백이 쓰는 물리 속도
 	};
 	TArray<FCollectedEnemy> Enemies;
 
@@ -362,13 +364,14 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		TArrayView<FMassActorFragment>                      ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 		const TConstArrayView<FLNPPositionHistoryFragment>  Histories  = Ctx.GetFragmentView<FLNPPositionHistoryFragment>();
 		TArrayView<FLNPPoiseFragment>                       PoiseFrags = Ctx.GetMutableFragmentView<FLNPPoiseFragment>();
+		TArrayView<FLNPEnemyVelocityFragment>               VelFrags   = Ctx.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 			const FVector UpDir = (-Loc).GetSafeNormal();
 			AActor*       Actor = ActorFrags[i].GetMutable();
-			Enemies.Add({ LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor), UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config });
+			Enemies.Add({ LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor), UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config, &VelFrags[i].Velocity });
 		}
 	});
 
@@ -444,19 +447,78 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 		const float ExpRadSq = FMath::Square(Shared.ExplosionRadius);
 
+		/**
+		 * 폭심에서 멀수록 약해진다. **데미지는 선형(`1-t`), 넉백은 뒤집힌 제곱(`1-t²`)** 이다.
+		 *
+		 * ⚠️ **`1-t²`와 `(1-t)²`는 전혀 다른 곡선이다.** 둘 다 0에서 1, 1에서 0이지만
+		 *    **어디서 꺾이는지가 반대**다:
+		 *
+		 * ```
+		 *   t        0     0.25    0.5    0.75    1.0
+		 *   1-t²    1.00   0.94   0.75   0.44    0     폭심 근처는 평평, 가장자리에서 급락
+		 *   (1-t)²  1.00   0.56   0.25   0.06    0     폭심 근처에서 이미 급락
+		 * ```
+		 *
+		 *    넉백이 원하는 것은 앞쪽이다 — **"폭발에 휘말리면 확실히 날아가고, 반경을 겨우 벗어난
+		 *    쪽만 안 날아간다."** 뒤쪽을 쓰면 폭심에서 몇 미터만 떨어져도 밀림이 사라져
+		 *    반경을 크게 잡은 의미가 없어진다(실측 체감: "넉백이 너무 약하다").
+		 *
+		 * 데미지가 선형인 이유는 다르다 — 가장자리에서도 피해가 어느 정도 남아야
+		 * 광범위 무기가 제 역할을 한다.
+		 *
+		 * ⚠️ 예전에는 감쇠가 **아예 없어서** 반경 안이면 어디서나 직격과 같은 값이 들어갔다.
+		 *    기본 반경이 5cm이던 시절에는 드러날 수 없던 문제이고, 반경을 키우는 순간 표면화된다.
+		 *
+		 * 경직도는 감쇠시키지 않는다 — 경직은 "몇 번 맞았는가"의 눈금이라 거리로 희석하면
+		 * 누적 규칙(→ GameDesign_Poise.md)과 축이 어긋난다.
+		 */
+		auto SplashFalloff = [&Shared](const float DistSq, float& OutDamage, float& OutKnockback)
+		{
+			const float T = FMath::Clamp(FMath::Sqrt(DistSq) / Shared.ExplosionRadius, 0.f, 1.f);
+			OutDamage    = Shared.Damage * (1.f - T);
+			OutKnockback = Shared.SplashKnockbackStrength * (1.f - T * T);
+		};
+
 		if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
 		{
 			for (FCollectedEnemy& SE : Enemies)
 			{
 				if (&SE == ExcludeEnemy) continue;
-				if (!SE.Actor) continue;
-				if (FVector::DistSquared(SE.CapsuleCenter, HitPoint) > ExpRadSq) continue;
+				const float DistSq = FVector::DistSquared(SE.CapsuleCenter, HitPoint);
+				if (DistSq > ExpRadSq) continue;
 				LNPPoise::Accumulate(SE.Poise, Shared.PoiseDamage, Now);
-				Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
-					SE.Actor, Proj.Instigator, Shared.DamageEffectClass,
-					Shared.Damage, (SE.CapsuleCenter - HitPoint).GetSafeNormal(),
-					SE.CapsuleCenter + (HitPoint - SE.CapsuleCenter).GetSafeNormal() * SE.CapsuleRadius,
-					Shared.SplashKnockbackStrength);
+
+				float SplashDamage, SplashKnockback;
+				SplashFalloff(DistSq, SplashDamage, SplashKnockback);
+
+				// 폭발에서는 폭심이 곧 공격자다. `HitFromDirection`의 규약은 **"피격자 → 공격자"**
+				// (공격이 날아온 쪽)이므로 폭심 쪽을 가리켜야 한다 — 소비처가 부호를 뒤집어
+				// 밀어내는 방향을 만든다.
+				//
+				// ⚠️ 예전에는 이 부호가 반대(`피격자 - 폭심`)였다. 그러면 넉백이 **폭심 쪽으로
+				//    빨아들이고** HitReact 방향 판정도 앞뒤가 뒤집힌다. 직격·근접은 처음부터
+				//    올바른 규약을 쓰고 있었고 스플래시 두 곳만 어긋나 있었다.
+				const FVector SplashDir = (HitPoint - SE.CapsuleCenter).GetSafeNormal();
+
+				// ⚠️ 예전에는 여기서 Actor 없는 적을 통째로 건너뛰었다 — **순수 엔티티는 폭발
+				//    반경 안에 서 있어도 피해를 받지 않았다.** 직격 분기와 같은 형태로 맞춘다.
+				if (SE.Actor && Shared.DamageEffectClass)
+				{
+					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
+						SE.Actor, Shared.DamageEffectClass,
+						SplashDamage, SplashDir,
+						SE.CapsuleCenter + (HitPoint - SE.CapsuleCenter).GetSafeNormal() * SE.CapsuleRadius,
+						SplashKnockback);
+				}
+				else if (!SE.Actor)
+				{
+					SE.Fragment->Health = FMath::Max(0.f,
+						SE.Fragment->Health - LNPDamage::ApplyDefense(SplashDamage, SE.Fragment->Defense));
+					if (SE.Velocity)
+						LNPHitDetection::ApplyEntityKnockback(*SE.Velocity, SplashDir, SE.UpDir, SplashKnockback);
+					if (SE.Config)
+						SE.Fragment->FlinchTimeRemaining = SE.Config->PureEntityFlinchTime;
+				}
 			}
 		}
 
@@ -466,13 +528,19 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			{
 				if (&SP == ExcludePlayer) continue;
 				if (!SP.Actor) continue;
-				if (FVector::DistSquared(SP.Location, HitPoint) > ExpRadSq) continue;
+				const float DistSq = FVector::DistSquared(SP.Location, HitPoint);
+				if (DistSq > ExpRadSq) continue;
 				LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now);
+
+				float SplashDamage, SplashKnockback;
+				SplashFalloff(DistSq, SplashDamage, SplashKnockback);
+
+				// 적 쪽과 같은 규약 — "피격자 → 공격자(폭심)". 부호 뒤집기는 소비처가 한다.
 				Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
-					SP.Actor, Proj.Instigator, Shared.DamageEffectClass,
-					Shared.Damage, (SP.Location - HitPoint).GetSafeNormal(),
+					SP.Actor, Shared.DamageEffectClass,
+					SplashDamage, (HitPoint - SP.Location).GetSafeNormal(),
 					SP.Location + (HitPoint - SP.Location).GetSafeNormal() * SP.CapsuleRadius,
-					Shared.SplashKnockbackStrength);
+					SplashKnockback);
 			}
 		}
 	};
@@ -521,9 +589,14 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				// 캐릭터 피격 임팩트 VFX는 GameplayCue.LNP.Projectile.Impact로 일원화한다 (섹션 5.2).
 				// Ghost 재조정에 필요한 토큰(PredictionKeyID/SpawnIndex)과 InstigatorPlayerID를 커스텀 컨텍스트로 전달.
 				// 이 Processor는 워커 Thread에서 실행되므로 ASC를 직접 건드리지 않고 BatchedCommand로 위탁한다.
+				//
+				// ⚠️ **피격자가 null일 수 있다** — 순수 엔티티에는 Actor가 없다. 예전에는 커맨드가
+				//    피격자 ASC를 못 찾아 통째로 빠졌고, 그래서 호스트 화면에서 ISM 적을 쏘면 착탄
+				//    이펙트가 안 뜨고 서버 확정 Ghost 정리도 나가지 않았다. 이제는 공격자 핸들을 함께
+				//    실어 보내 커맨드가 전송 ASC를 고른다.
 				AActor* VictimActor = ExclEnemy ? ExclEnemy->Actor : (ExclPlayer ? ExclPlayer->Actor : nullptr);
-				Ctx.Defer().PushCommand<FLNPProjectileImpactCueCommand>(
-					VictimActor, Shared.VFXData, HitPoint, ImpactNormal,
+				Ctx.Defer().PushCommand<FLNPImpactCueCommand>(
+					VictimActor, Proj.Instigator, Shared.VFXData, HitPoint, ImpactNormal,
 					Proj.PredictionKeyID, Proj.SpawnIndex, Proj.InstigatorPlayerID);
 
 				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
@@ -558,17 +631,23 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					{
 						Enemy.Fragment->HitReactTimer     = Enemy.Config->TargetingConfig.HitReactLookTime;
 						Enemy.Fragment->HitReactDirection = HitFromDir;
+						// 플린치는 갱신만 한다 — 이미 움찔하는 중이면 전이를 새로 만들지 않는다.
+						Enemy.Fragment->FlinchTimeRemaining = Enemy.Config->PureEntityFlinchTime;
 					}
 
 					if (Enemy.Actor && Shared.DamageEffectClass)
 					{
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Proj.Instigator, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
 					}
 					else
 					{
 						const float HpBefore = Enemy.Fragment->Health;
 						Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(Shared.Damage, Enemy.Fragment->Defense));
 						UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Shared.Damage);
+
+						// Actor 넉백(Mover)의 엔티티판. 이동 프로세서의 공중 분기가 이 속도를 적분한다.
+						if (Enemy.Velocity)
+							LNPHitDetection::ApplyEntityKnockback(*Enemy.Velocity, HitFromDir, Enemy.UpDir, Shared.KnockbackStrength);
 					}
 				}
 
@@ -666,7 +745,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					else if (Shared.DamageEffectClass)
 					{
 						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Proj.Instigator, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
 					}
 				}
 

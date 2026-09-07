@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MassCommandBuffer.h"
+#include "MassCommonFragments.h"        // FTransformFragment — 엔티티 넉백의 Up 축 유도
 #include "MassEntityManager.h"
 #include "MassEntityView.h"
 #include "MassActorSubsystem.h"
@@ -90,6 +91,30 @@ namespace LNPHitDetection
 		}
 		return false;
 	}
+
+	/**
+	 * Actor 없는 적 엔티티에 넉백을 건다 — `ALNPCharacterBase::ApplyKnockback`의 엔티티판이다.
+	 *
+	 * ⚠️ **Up 성분이 반드시 섞여야 한다.** `ULNPEnemyMovementProcessor`의 공중 분기는 새 위치가
+	 *    접지 반지름을 넘는 순간 표면에 스냅하고 속도를 0으로 만든다 — 순수 접평면 속도는
+	 *    한 프레임 만에 흡수돼 아무것도 보이지 않는다.
+	 *
+	 * ⚠️ 방향 인자는 **"피격자 → 공격자"**(공격이 날아온 쪽)다. 밀리는 방향은 그 반대이므로
+	 *    여기서 부호를 뒤집는다 — `FLNPApplyDamageGECommand`가 Mover에 넘길 때와 같은 규약이다.
+	 */
+	inline void ApplyEntityKnockback(FVector& InOutVelocity, const FVector& HitFromDirection,
+		const FVector& UpDir, const float Strength)
+	{
+		if (Strength <= 0.f)
+			return;
+
+		// 근접 패링 넉백이 쓰던 가중을 그대로 쓴다 — 두 자리가 다른 곡선을 그릴 이유가 없다.
+		constexpr float DirectionWeight = 0.7f;
+		constexpr float UpWeight        = 0.3f;
+
+		const FVector PushDir = (-HitFromDirection * DirectionWeight + UpDir * UpWeight).GetSafeNormal();
+		InOutVelocity = PushDir * Strength;
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -164,6 +189,11 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 				}
 			}
 
+			// 넉백은 공격자를 뒤로 밀어낸다. 공격자가 Actor면 Mover로, 순수 엔티티면 속도
+			// 프래그먼트로 — **수단만 다르고 세기·방향 공식은 같다.**
+			// 예전에는 Actor 분기 하나뿐이라 순수 엔티티를 패링하면 경직만 걸리고 밀려나지는 않았다.
+			constexpr float ParryKnockbackStrength = 2000.f;
+
 			if (ALNPCharacterBase* AttackerPawn = Cast<ALNPCharacterBase>(Attacker))
 			{
 				// 피격 리액션 몽타주는 얹지 않는다 — 같은 프레임에 경직 진입이 잡히면서
@@ -173,7 +203,25 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 
 				const FVector AwayDir      = (AttackerPawn->GetActorLocation() - Victim->GetActorLocation()).GetSafeNormal();
 				const FVector KnockbackDir = (AwayDir * DirectionWeight + AttackerPawn->GetUpDirection() * UpWeight).GetSafeNormal();
-				AttackerPawn->ApplyKnockback(KnockbackDir, 2000.0f);
+				AttackerPawn->ApplyKnockback(KnockbackDir, ParryKnockbackStrength);
+			}
+			else if (Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
+			{
+				// 바로 위 ApplyParryBreak과 같은 방식 — 엔티티 프래그먼트를 직접 만진다.
+				FLNPEnemyVelocityFragment* AttackerVelocity =
+					EntityManager.GetFragmentDataPtr<FLNPEnemyVelocityFragment>(Entry.AttackerEntity);
+				const FTransformFragment* AttackerTransform =
+					EntityManager.GetFragmentDataPtr<FTransformFragment>(Entry.AttackerEntity);
+
+				if (AttackerVelocity && AttackerTransform)
+				{
+					// 구 내벽이라 Up은 월드 중심 방향이다 (판정·이동이 공유하는 규약).
+					const FVector AttackerLoc = AttackerTransform->GetTransform().GetLocation();
+					const FVector UpDir       = (-AttackerLoc).GetSafeNormal();
+					// 헬퍼가 "피격자 → 공격자" 방향을 받아 부호를 뒤집으므로, 밀어낼 방향의 반대를 넘긴다.
+					const FVector TowardVictim = (Victim->GetActorLocation() - AttackerLoc).GetSafeNormal();
+					LNPHitDetection::ApplyEntityKnockback(AttackerVelocity->Velocity, TowardVictim, UpDir, ParryKnockbackStrength);
+				}
 			}
 
 			if (ALNPCharacterBase* VictimPawn = Cast<ALNPCharacterBase>(Victim))
@@ -316,57 +364,122 @@ private:
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 원거리 임팩트 큐
+// 임팩트 큐 (근접·원거리 공용)
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * 투사체가 캐릭터에 적중했을 때의 임팩트 GameplayCue 발동.
+ * 무기·투사체가 적중했을 때의 임팩트 연출. **근접·원거리가 이 커맨드 하나를 쓴다.**
+ *
+ * ⚠️ **연출은 데미지 적용과 분리되어 있다.** 예전에는 근접 임팩트가 FLNPApplyDamageGECommand
+ *    안에 들어 있었는데, 순수 엔티티는 데미지를 GE로 받지 않으므로 그 묶임이 곧
+ *    *"GE를 못 받으니 연출도 통째로 못 받는다"* 는 결함이 됐다 — ISM으로 그려지는 적을 베면
+ *    타격감이 하나도 없었다. 원거리는 처음부터 분리돼 있었고(판정 뒤 FinishHit이 항상 큐를 낸다),
+ *    근접을 그 형태로 맞춘 것이다.
+ *
+ * ⚠️ **ASC는 연출의 주인이 아니라 복제 전송 수단일 뿐이다.** 핸들러가 실제로 하는 일은 전부
+ *    월드 서브시스템 호출(Ghost 정리 · 임팩트 VFX)이고 지점은 CueParameters에서 읽는다.
+ *    그래서 피격자가 ASC를 갖지 못하면(순수 엔티티) **공격자 ASC로 나른다** — 그림은 같고
+ *    전파 범위만 달라진다. 공격자 경유는 GameplayCue.LNP.Melee.AttackerHitStop이 쓰던 선례다.
+ *    **폴백은 전송 수단에만 걸린다** — 피격자가 ASC를 가지면 예전 그대로 그쪽으로 나간다.
  *
  * 판정 Processor의 Execute()는 워커 Thread에서 실행될 수 있어 ASC를 직접 건드릴 수 없다.
  * Ghost 재조정에 필요한 토큰(PredictionKeyID/SpawnIndex)과 공격자 ID는 값으로만 실어 두고,
  * FLNPProjectileImpactContext 할당과 큐 실행은 게임 Thread인 Run()에서 수행한다.
  */
-struct FLNPProjectileImpactCueCommand : public FMassBatchedCommand
+struct FLNPImpactCueCommand : public FMassBatchedCommand
 {
 	struct FEntry
 	{
-		TWeakObjectPtr<AActor>  Victim;
-		TObjectPtr<ULNPVFXData> VFXData;
+		TWeakObjectPtr<AActor>  Victim;              // null 가능 — 그때는 공격자 ASC가 큐를 나른다
+		FMassEntityHandle       AttackerEntity;      // 전송 대체 경로 + 근접 HitStop 대상
+		TObjectPtr<ULNPVFXData> VFXData;             // 근접은 사용하지 않는다
 		FVector                 ImpactPoint;         // 적중 지점 (월드)
 		FVector                 ImpactNormal;        // 피격자 → 적중 지점 방향
 		int32                   PredictionKeyID    = 0;
 		int32                   InstigatorPlayerID = INDEX_NONE;
 		uint8                   SpawnIndex         = 0;
+		bool                    bIsMeleeHit        = false;
 	};
 
-	FLNPProjectileImpactCueCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
+	FLNPImpactCueCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, TObjectPtr<ULNPVFXData> InVFXData, const FVector& InImpactPoint, const FVector& InImpactNormal,
+	/** 원거리 — Ghost 재조정 토큰을 함께 싣는다. */
+	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TObjectPtr<ULNPVFXData> InVFXData,
+		const FVector& InImpactPoint, const FVector& InImpactNormal,
 		int32 InPredictionKeyID, uint8 InSpawnIndex, int32 InInstigatorPlayerID)
 	{
-		Entries.Add({ InVictim, InVFXData, InImpactPoint, InImpactNormal, InPredictionKeyID, InInstigatorPlayerID, InSpawnIndex });
+		Entries.Add({ InVictim, InAttacker, InVFXData, InImpactPoint, InImpactNormal,
+			InPredictionKeyID, InInstigatorPlayerID, InSpawnIndex, /*bIsMeleeHit*/ false });
+		bHasWork = true;
+	}
+
+	/** 근접 — Ghost가 없고 대신 공격자 HitStop이 딸린다.
+	 *  ⚠️ 이름이 겹치는 것은 `FMassCommandBuffer::PushCommand`가 항상 `Add`를 부르기 때문이다.
+	 *     인자 수가 달라 모호해지지 않는다. */
+	void Add(AActor* InVictim, FMassEntityHandle InAttacker,
+		const FVector& InImpactPoint, const FVector& InImpactNormal)
+	{
+		Entries.Add({ InVictim, InAttacker, nullptr, InImpactPoint, InImpactNormal,
+			0, INDEX_NONE, 0, /*bIsMeleeHit*/ true });
 		bHasWork = true;
 	}
 
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
+		UMassActorSubsystem* ActorSub = EntityManager.GetWorld()
+			? EntityManager.GetWorld()->GetSubsystem<UMassActorSubsystem>() : nullptr;
+
 		for (const FEntry& Entry : Entries)
 		{
-			UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(Entry.Victim.Get());
-			if (!IsValid(VictimASC))
-				continue;
+			AActor* Attacker = nullptr;
+			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
+				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
 
-			FLNPProjectileImpactContext* ImpactCtx = new FLNPProjectileImpactContext();
-			ImpactCtx->PredictionKeyID    = Entry.PredictionKeyID;
-			ImpactCtx->SpawnIndex         = Entry.SpawnIndex;
-			ImpactCtx->InstigatorPlayerID = Entry.InstigatorPlayerID;
-			ImpactCtx->VFXData            = Entry.VFXData;
+			// 전송 수단만 고른다 — 피격자 ASC가 우선이고, 없을 때만 공격자 ASC로 나른다.
+			UAbilitySystemComponent* CueASC = LNPHitDetection::GetASC(Entry.Victim.Get());
+			if (!IsValid(CueASC))
+				CueASC = LNPHitDetection::GetASC(Attacker);
 
-			FGameplayCueParameters CueParams;
-			CueParams.Location      = Entry.ImpactPoint;
-			CueParams.Normal        = Entry.ImpactNormal;
-			CueParams.EffectContext = FGameplayEffectContextHandle(ImpactCtx);
-			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Projectile_Impact, CueParams);
+			if (IsValid(CueASC))
+			{
+				FGameplayCueParameters CueParams;
+				CueParams.Location = Entry.ImpactPoint;
+				CueParams.Normal   = Entry.ImpactNormal;
+
+				if (Entry.bIsMeleeHit)
+				{
+					CueASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_Impact, CueParams);
+				}
+				else
+				{
+					FLNPProjectileImpactContext* ImpactCtx = new FLNPProjectileImpactContext();
+					ImpactCtx->PredictionKeyID    = Entry.PredictionKeyID;
+					ImpactCtx->SpawnIndex         = Entry.SpawnIndex;
+					ImpactCtx->InstigatorPlayerID = Entry.InstigatorPlayerID;
+					ImpactCtx->VFXData            = Entry.VFXData;
+
+					CueParams.EffectContext = FGameplayEffectContextHandle(ImpactCtx);
+					CueASC->ExecuteGameplayCue(TAG_GameplayCue_Projectile_Impact, CueParams);
+				}
+			}
+
+			// 공격자 HitStop은 근접에서만 재생한다 — 원거리(총기류)는 물리적 충돌감이 없어 어색하다.
+			// 공격자 본인 화면은 예측 경로(리슨서버 호스트는 아래 직접 호출, 원격 클라는 ApplyLocalHitFeedback)로 즉시 처리하고,
+			// 제3자(구경꾼) 화면은 GameplayCue.LNP.Melee.AttackerHitStop으로 전파한다 — 핸들러가 로컬 컨트롤 여부로 중복을 걸러낸다.
+			if (Entry.bIsMeleeHit)
+			{
+				if (ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(Attacker))
+					AttackerChar->ApplyHitStop(0.2f);
+
+				if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
+				{
+					// 파라미터를 **하나도 싣지 않는다.** 이 큐의 핸들러는 대상 액터만 쓰고
+					// (ULNPGameplayCueNotify_AttackerHitStop: 로컬 컨트롤 여부로 걸러 ApplyHitStop만 호출)
+					// 파라미터를 읽지 않는다. FGameplayCueParameters는 설정된 필드만 직렬화하므로
+					// 비워 두면 히트마다 FVector_NetQuantize10 하나가 전 연결에서 사라진다.
+					AttackerASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_AttackerHitStop, FGameplayCueParameters());
+				}
+			}
 		}
 	}
 
@@ -382,34 +495,37 @@ private:
 // 데미지
 // ──────────────────────────────────────────────────────────────────────────────
 
-/** 순수 데미지 적용. 판정 로직 없음. */
+/**
+ * 순수 데미지 적용 + 피격자 반응(HitReact 몽타주 · 넉백). 판정 로직 없음.
+ *
+ * ⚠️ **임팩트 VFX와 공격자 HitStop은 여기 없다** — FLNPImpactCueCommand로 옮겼다.
+ *    남은 셋(데미지 GE · HitReact 몽타주 · Mover 넉백)은 **피격자가 Actor일 때만 성립하는
+ *    수단**이라 이 커맨드에 남고, 순수 엔티티는 각각 직접 HP 차감 · 행동 상태 플린치 ·
+ *    FLNPEnemyVelocityFragment라는 다른 수단으로 같은 일을 한다.
+ *    수단이 갈리는 것과 연출이 갈리는 것은 다른 문제이며, 후자만 통일했다.
+ */
 struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 {
 	struct FEntry
 	{
 		TWeakObjectPtr<AActor>       Victim;
-		FMassEntityHandle            AttackerEntity;
 		TSubclassOf<UGameplayEffect> EffectClass;
 		float                        Damage;
 		FVector                      HitFromDirection;
 		FVector                      ImpactPoint;       // 무기·투사체가 실제로 닿은 지점 (월드)
 		float                        KnockbackStrength;
-		bool                         bIsMeleeHit;
 	};
 
 	FLNPApplyDamageGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, FMassEntityHandle InAttacker, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, const FVector& InImpactPoint, float InKnockbackStrength = 0.f, bool bInIsMeleeHit = false)
+	void Add(AActor* InVictim, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, const FVector& InImpactPoint, float InKnockbackStrength = 0.f)
 	{
-		Entries.Add({ InVictim, InAttacker, InEffectClass, InDamage, InHitFromDir, InImpactPoint, InKnockbackStrength, bInIsMeleeHit });
+		Entries.Add({ InVictim, InEffectClass, InDamage, InHitFromDir, InImpactPoint, InKnockbackStrength });
 		bHasWork = true;
 	}
 
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
-		UMassActorSubsystem* ActorSub = EntityManager.GetWorld()
-			? EntityManager.GetWorld()->GetSubsystem<UMassActorSubsystem>() : nullptr;
-
 		for (const FEntry& Entry : Entries)
 		{
 			AActor* Victim = Entry.Victim.Get();
@@ -431,17 +547,11 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 			if (0.f < HpBefore)
 				UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
 
-			AActor* Attacker = nullptr;
-			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
-				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
-
-			// 피격자 HitReact 몽타주 + HitStop은 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).
+			// 피격자 HitReact 몽타주는 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).
 			FGameplayCueParameters CueParams;
 			CueParams.Location = Entry.ImpactPoint;
 			CueParams.Normal   = Entry.HitFromDirection;
 			ASC->ExecuteGameplayCue(TAG_GameplayCue_Character_HitReact, CueParams);
-			if (Entry.bIsMeleeHit)
-				ASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_Impact, CueParams);
 
 			if (ALNPCharacterBase* VictimChar = Cast<ALNPCharacterBase>(Victim))
 			{
@@ -449,23 +559,6 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 				// 넉백은 그 반대, 즉 공격자로부터 밀려나는 방향으로 밀어야 하므로 부호를 반전한다.
 				if (Entry.KnockbackStrength > 0.f)
 					VictimChar->ApplyKnockback(-Entry.HitFromDirection, Entry.KnockbackStrength);
-			}
-			// 공격자 HitStop은 근접에서만 재생한다 — 원거리(총기류)는 물리적 충돌감이 없어 어색하다.
-			// 공격자 본인 화면은 예측 경로(리슨서버 호스트는 아래 직접 호출, 원격 클라는 ApplyLocalHitFeedback)로 즉시 처리하고,
-			// 제3자(구경꾼) 화면은 GameplayCue.LNP.Melee.AttackerHitStop으로 전파한다 — 핸들러가 로컬 컨트롤 여부로 중복을 걸러낸다.
-			if (Entry.bIsMeleeHit)
-			{
-				if (ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(Attacker))
-					AttackerChar->ApplyHitStop(0.2f);
-
-				if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
-				{
-					// 파라미터를 **하나도 싣지 않는다.** 이 큐의 핸들러는 대상 액터만 쓰고
-					// (ULNPGameplayCueNotify_AttackerHitStop: 로컬 컨트롤 여부로 걸러 ApplyHitStop만 호출)
-					// 파라미터를 읽지 않는다. FGameplayCueParameters는 설정된 필드만 직렬화하므로
-					// 비워 두면 히트마다 FVector_NetQuantize10 하나가 전 연결에서 사라진다.
-					AttackerASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_AttackerHitStop, FGameplayCueParameters());
-				}
 			}
 		}
 	}

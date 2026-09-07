@@ -226,6 +226,7 @@ void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMa
 	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
+	EnemyQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);   // Actor 없는 적의 넉백
 	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -324,7 +325,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 				for (const FClientCapsuleTarget& Target : ClientTargets)
 				{
-					if (!Target.Actor || Target.Actor == AttackerChar)
+					// ⚠️ **Actor가 없는 대상도 후보로 둔다.** 예전에는 `!Target.Actor`로 걸렀는데,
+					//    그러면 순수 엔티티를 벤 원격 클라이언트에서 예측 HitStop이 아예 안 떴다 —
+					//    Actor는 여기서 "자기 자신 제외"에만 쓰이므로 null이어도 안전하다.
+					if (Target.Actor == AttackerChar)
 						continue;
 
 					if (Frag.InstigatorTeam == ELNPInstigatorTeam::Player && !Target.bIsEnemy && !bFriendlyFireClient)
@@ -375,6 +379,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		const FLNPPositionHistoryFragment* History;
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 		const ULNPEnemyConfig* Config;    // 청크 공용 Config (피격 반응 시간 조회용)
+		FVector*           Velocity;      // Actor 없는 적의 넉백이 쓰는 물리 속도
 	};
 	TArray<FCollectedEnemy> Enemies;
 
@@ -392,6 +397,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		TArrayView<FMassActorFragment>                      ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 		const TConstArrayView<FLNPPositionHistoryFragment>  Histories  = Ctx.GetFragmentView<FLNPPositionHistoryFragment>();
 		TArrayView<FLNPPoiseFragment>                       PoiseFrags = Ctx.GetMutableFragmentView<FLNPPoiseFragment>();
+		TArrayView<FLNPEnemyVelocityFragment>               VelFrags   = Ctx.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -399,7 +405,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const FVector UpDir = (-Loc).GetSafeNormal();
 			AActor*       Actor = ActorFrags[i].GetMutable();
 			const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor);
-			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config });
+			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config, &VelFrags[i].Velocity });
 		}
 	});
 
@@ -554,9 +560,13 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 				LNPPoise::Accumulate(Player.Poise, Frag.PoiseDamage, NowForRewind);
 
+				// 적 피격 분기와 같은 자리에서 임팩트 연출을 낸다 — 데미지 커맨드가 더는 연출을 내지 않는다.
+				const FVector PlayerImpactPoint = ImpactPointOf();
+				Ctx.Defer().PushCommand<FLNPImpactCueCommand>(Player.Actor, Frag.InstigatorEntity, PlayerImpactPoint, AttackerDir);
+
 				const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 				if (EffectClass)
-					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, AttackerDir, ImpactPointOf(), Frag.KnockbackStrength, true);
+					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, EffectClass, Frag.Damage, AttackerDir, PlayerImpactPoint, Frag.KnockbackStrength);
 			};
 
 			if (Frag.InstigatorTeam == ELNPInstigatorTeam::Player)
@@ -584,14 +594,21 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					{
 						Enemy.Fragment->HitReactTimer     = Enemy.Config->TargetingConfig.HitReactLookTime;
 						Enemy.Fragment->HitReactDirection = HitFromDir;
+						// 플린치는 갱신만 한다 — 이미 움찔하는 중이면 전이를 새로 만들지 않는다.
+						Enemy.Fragment->FlinchTimeRemaining = Enemy.Config->PureEntityFlinchTime;
 					}
+
+					// 임팩트 연출은 **피격자가 Actor인지와 무관하게** 낸다 — 원거리 FinishHit과 같은 형태다.
+					// 예전에는 이 연출이 데미지 커맨드 안에 묶여 있어, GE를 못 받는 순수 엔티티를 베면
+					// 임팩트 VFX도 공격자 HitStop도 통째로 사라졌다.
+					const FVector ImpactPoint = MakeWeaponImpactPoint(Frag.SwordRootCurr, Frag.SwordTipCurr,
+						Enemy.CapsuleCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitFromDir);
+					Ctx.Defer().PushCommand<FLNPImpactCueCommand>(Enemy.Actor, Frag.InstigatorEntity, ImpactPoint, HitFromDir);
 
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (Enemy.Actor && EffectClass)
 					{
-						const FVector ImpactPoint = MakeWeaponImpactPoint(Frag.SwordRootCurr, Frag.SwordTipCurr,
-							Enemy.CapsuleCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitFromDir);
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Frag.InstigatorEntity, EffectClass, Frag.Damage, HitFromDir, ImpactPoint, Frag.KnockbackStrength, true);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, EffectClass, Frag.Damage, HitFromDir, ImpactPoint, Frag.KnockbackStrength);
 					}
 					else
 					{
@@ -600,6 +617,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 							HpBefore - LNPDamage::ApplyDefense(Frag.Damage, Enemy.Fragment->Defense));
 						UE_LOG(LogLootNPop, Log, TEXT("[WeaponTrace][Entity] HP: %.1f -> %.1f (damage=%.1f)"),
 							HpBefore, Enemy.Fragment->Health, Frag.Damage);
+
+						// Actor 넉백(Mover)의 엔티티판. 이동 프로세서의 공중 분기가 이 속도를 적분한다.
+						if (Enemy.Velocity)
+							LNPHitDetection::ApplyEntityKnockback(*Enemy.Velocity, HitFromDir, Enemy.UpDir, Frag.KnockbackStrength);
 					}
 				}
 
