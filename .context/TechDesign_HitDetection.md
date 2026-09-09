@@ -85,8 +85,8 @@ Pass 3에서 공격자 팀에 따라 분기하되, **Player 타겟에 대한 2�
 
 | 프로세서 | 단계 | 역할 |
 |:---|:---|:---|
-| `ULNPProjectileMovementProcessor` | PrePhysics | `PreviousPos` 갱신 → 위치 적분, 수명 감산, SurfaceCache로 지형 충돌 → DeadTag |
-| `ULNPProjectileHitDetectionProcessor` | StartPhysics | 선분-캡슐 판정, 패링/가드/피격 분기, 스플래시, GE 커맨드 |
+| `ULNPProjectileMovementProcessor` | PrePhysics | `PreviousPos` 갱신 → 위치 적분, 수명 감산. **그것만 한다** (→ §6.4) |
+| `ULNPProjectileHitDetectionProcessor` | StartPhysics | 선분-캡슐 판정, 패링/가드/피격 분기, 지형 충돌·수명 만료 판정, 스플래시, GE 커맨드 |
 | `ULNPProjectileVisualizationProcessor` | StartPhysics (게임 스레드) | Niagara trail 할당/갱신, 큐잉된 임팩트 VFX flush |
 | `ULNPProjectileDestructionProcessor` | PostPhysics | `FLNPProjectileDeadTag` 엔티티 일괄 파괴 |
 
@@ -107,6 +107,11 @@ Player 판정 (2단계)
 FinishHit (공통 후처리 람다):
    트레일 해제 → GameplayCue.LNP.Projectile.Impact 실행
    (Ghost 대조 토큰을 FLNPProjectileImpactContext로 전달) → DeadTag → 스플래시(ApplySplash)
+   → bHit = true
+
+종말 판정 (어느 캡슐에도 안 닿았을 때 — IsTerminated, §6.4)
+   수명 만료 || SurfaceCache 표면 안쪽 진입
+      → 트레일 해제 → 로컬 임팩트 VFX → DeadTag → 스플래시(제외 대상 없음)
 ```
 
 **스플래시:** `ExplosionRadius > 0`이면 직격 대상을 제외한 반경 내 대상에 동일 GE + `SplashKnockbackStrength` 넉백.
@@ -235,6 +240,46 @@ t = 폭심까지 거리 / 폭발 반경
 **폭심 쪽으로 빨아들이는** 넉백이었고, `PlayHitReact`의 방향 판정도 앞뒤가 뒤집혀 있었다.
 직격·근접은 처음부터 올바른 규약이었다 — 스플래시만 어긋나 있었다.
 
+### 6.4 지면 착탄이 안 터지던 이유는 페이즈였다 (⭐ 2026-09-09)
+
+폭발 무기를 발밑·벽에 쏘면 임팩트 VFX만 뜨고 **범위 피해도 넉백도 없었다.** 수명이 다한 탄도 같았다.
+구현이 빠진 것이 아니라 **도달 자체가 불가능한 구조**였다.
+
+| | 프로세서 | 페이즈 |
+|:---|:---|:---|
+| 지형 충돌 감지 → 파괴 | `ULNPProjectileMovementProcessor` | **PrePhysics** |
+| `ApplySplash` | `ULNPProjectileHitDetectionProcessor` | **StartPhysics** |
+
+PrePhysics 끝에서 `FLNPProjectileDeadTag`가 flush되고, 판정 쿼리는 그 태그를 `None`으로 요구한다 —
+**지면에 맞은 탄은 판정 프로세서의 쿼리에서 통째로 빠진다.** 코드에는 세우기만 하고 읽는 곳이 없는
+`bHitSurface` 변수가 "하려다 만" 흔적으로 남아 있었다.
+
+**해결은 판정 소유권을 한 곳으로 모으는 것이었다.** 이동 프로세서는 전진과 수명 감산만 하고,
+표면 조회·파괴·임팩트 VFX·트레일 해제가 전부 판정 프로세서로 넘어갔다. 판정 프로세서는 캐릭터
+캡슐이 전부 빗나간 **뒤에** 공용 람다 `IsTerminated(Pos, LifetimeRemaining)`를 부르고, 서버 분기는
+거기서 `ApplySplash`를 제외 대상 없이(`nullptr, nullptr`) 호출한다.
+
+구조적으로도 정리된다 — **파괴 사유가 두 프로세서에 흩어져 있지 않게 됐다.** 부수 효과로
+"지면과 캐릭터에 같은 프레임에 닿는" 탄이 이제 캐릭터 판정을 먼저 받는다(예전에는 지면이 이겼다).
+
+⚠️ **함께 옮기지 않으면 이펙트가 두 번 뜬다.** 임팩트 VFX(`EnqueueImpact`)와 트레일 해제
+(`EnqueueTrailRelease`)는 이동 프로세서에서 **지우고** 옮겨야 한다.
+
+⚠️ **조기 반환이 종말 판정을 막는다.** 판정 프로세서에는 "수집된 타겟이 없으면 반환"이 서버·클라
+각각 하나씩 있었다. 최적화였을 뿐이지만 남겨두면 **"적 없는 곳에 쏜 탄은 안 터진다"** 가 된다.
+빈 배열 순회는 공짜다 — 걷어냈다.
+
+**설계 판단 둘.**
+
+1. **수명 만료도 폭발로 취급한다.** 임팩트 VFX는 예전부터 두 경우 모두 재생하고 있었으므로,
+   스플래시만 붙여야 연출과 판정의 대칭이 맞는다.
+2. **지면 폭발의 임팩트는 로컬 VFX로 남긴다** — 캐릭터 피격과 달리 GameplayCue로 올리지 않는다.
+   Ghost 대조 토큰이 필요 없고, 큐로 올리면 게스트가 자기 Ghost 착탄 VFX와 겹쳐 두 번 보게 된다.
+
+⚠️ **패링 반사탄은 종말 판정을 그대로 통과해야 한다.** 반사는 `FinishHit`을 부르지 않으므로
+"직격 있었나" 플래그가 서지 않는다 — 이 플래그를 `FinishHit` 자신이 세우게 두면 자연히 성립한다.
+플래그를 호출부에서 따로 세우면 반사탄이 그 자리에서 사라진다.
+
 ---
 
 ## 7. 어필 포인트 (트러블슈팅 & 설계 판단)
@@ -361,6 +406,5 @@ LNPHitDetection::ResolveEnemyCapsuleCenter(EntityLocation, UpDir, HalfH, EnemyAc
 - **공간 쿼리 최적화:** 현재 Pass 3는 공격 엔티티 × 전체 타겟 O(n×m) 전수 검사. 엔티티 수가 늘면 `UMassNavigationSubsystem`의 Hash Grid 재활용 또는 구형 월드용 커스텀 Grid로 인접 셀만 검사하도록 개선 예정.
 - **Guided / Lobbed 투사체:** `ELNPProjectileType`에 정의만 존재. Movement 프로세서는 Linear만 구현.
 - **Mass(Low LOD) 상태 HitStop:** Actor 상태는 `CustomTimeDilation`으로 처리 완료. 순수 엔티티는 `FLNPExecutionSpeedFragment` 배율 방식 미구현. **공격자(플레이어) 쪽 HitStop은 순수 엔티티를 때릴 때도 정상 동작한다**(→ §6.1) — 없는 것은 *"맞은 엔티티의 재생이 잠깐 멈추는"* 쪽뿐이다.
-- **지면·구조물 착탄 시 폭발:** 스플래시가 캐릭터 적중 경로에만 붙어 있어, 지면에 맞은 탄은 임팩트 VFX만 뜨고 범위 피해가 없다. 구현 누락이 아니라 **도달 자체가 불가능한 구조**다 — 지면 충돌 판정은 `ULNPProjectileMovementProcessor`(PrePhysics)에 있고 `ApplySplash`는 `ULNPProjectileHitDetectionProcessor`(StartPhysics)에 있는데, 앞 페이즈에서 붙은 `FLNPProjectileDeadTag`가 뒤 페이즈의 쿼리에서 그 탄을 빼 버린다. 조치 방향은 **표면 충돌 판정의 소유권을 판정 프로세서로 옮기는 것**이다.
 - **근접 임팩트 큐 에셋이 비어 있다:** `GCN_LNP_Melee_Impact`의 `VFX`·`Sound`·`CameraShake`가 모두 미설정이라 배선은 살아 있어도 재생할 것이 없다. 순수 엔티티만의 문제가 아니라 Actor 적도 마찬가지다 — 저작 대기.
 - **피격 아이템 드랍:** 넉백은 완료, 피격 시 보유 아이템 드랍 및 LootPod Interruption 연동 미구현.
