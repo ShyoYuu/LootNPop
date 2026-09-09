@@ -74,6 +74,9 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	// **아키타입이 양쪽에서 같아야** 수신값을 쓸 자리가 생기므로 여기서 무조건 붙인다.
 	BuildContext.AddFragment<FLNPEnemyActionFragment>();
 
+	// HP 바 표시 후보 선별용 장부. 서버·클라 각자 로컬로 채우므로 복제되지 않는다.
+	BuildContext.AddFragment<FLNPEnemyHealthDisplayFragment>();
+
 	// ISKM 애니 데이터의 자리. ⚠️ **엔진 트레이트가 이 프래그먼트를 붙여 주지 않는다** —
 	// UMassVisualizationTrait는 FMassRepresentationLODFragment까지만 넣고, 소비 프로세서
 	// (UMassConsumeInstancedSkinnedMeshAnimationProcessor)는 이것을 ReadOnly로 요구한다.

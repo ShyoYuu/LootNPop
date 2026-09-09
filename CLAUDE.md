@@ -30,7 +30,7 @@
 | .context/TechDesign_LootPod.md | MassEntity 구성, Pod 레지스트리 상호작용 탐색, 게이지·보상 드랍·Low LOD 빛기둥 |
 | .context/GameDesign_LootDice.md | 보상 아이템(LootDice) 주사위 굴림 컨셉·아이콘 식별·획득·인벤토리 드랍·소멸 기획 |
 | .context/TechDesign_LootDice.md | 서버 권위 물리 Actor, Iris FRepMovement 동기화, 구면 중력 AddForce, 획득·드랍 RPC |
-| .context/TechDesign_HUD.md | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, 대시 쿨다운 파이 위젯, 적 HP 바 오버레이 설계 |
+| .context/TechDesign_HUD.md | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, 대시 쿨다운 파이 위젯, 스크린 스페이스 락온 마커·적 HP 바 |
 | .context/GameDesign_InGameMenu.md | 인게임 메뉴 — 탭 구조, 게임패드 조작, 캐릭터 스탯·인벤토리·환경설정 탭 기획 |
 | .context/TechDesign_InGameMenu.md | CommonUI 위젯 계층, Back 전파 규칙, 커스텀 힌트 바·입력 글리프, 스탯 합/곱 분해, 로컬라이제이션, PIE 2인 게임패드 라우팅 |
 | .context/TechDesign_Inventory.md | 아이템 인스턴스 모델(UObject+FastArray+등록 서브오브젝트), GameplayTagStack 스탯, 장착/보관 분리, 버프 인스턴스 흐름 |

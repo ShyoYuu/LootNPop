@@ -271,7 +271,7 @@
 
 | 항목 | 내용 | 크기 |
 |:---|:---|:---|
-| 마커 | `ALNPEnemyCharacter::SetLockOnMarkerVisible`이 Actor 메서드다. 순수 엔티티에는 붙일 곳이 없어 **표현 경로를 새로 만들어야 한다**(ISM 마커·화면 위젯·Niagara 중 택일) | 크다 — 기획 판단이 먼저다 |
+| 마커 | ~~`ALNPEnemyCharacter::SetLockOnMarkerVisible`이 Actor 메서드다~~ → **✅ 해소(2026-09-09).** 스크린 스페이스 커스텀 Slate 위젯으로 옮겼다 (→ [TechDesign_HUD.md](TechDesign_HUD.md) §11) | 컸다 — 셋 중 화면 위젯을 택했다 |
 | 로컬 추적 | 카메라·마커가 `LockOnTarget->GetActorLocation()`을 매 프레임 읽는다. Actor 또는 엔티티 트랜스폼으로 해석되는 **타겟 핸들**로 바꿔야 한다 | 중간 |
 | 수명 | 지금은 `TWeakObjectPtr::IsValid()`가 사망·파괴를 대신 처리한다. 엔티티는 `IsEntityActive` + HP를 직접 봐야 한다 | 중간 |
 
@@ -292,11 +292,15 @@
 ⚠️ **슬롯 하나를 상태에 따라 바꿔 쓴다** — 락온 전에는 Cone(후보 탐색), 락온 중에는 Track(추적).
 락온 중에는 후보 탐색이 필요 없다(토글은 해제만 한다). 대상 전환 기능이 생기면 이 가정이 깨진다.
 
+**마커는 2026-09-09에 개통됐다.** 표시 측은 `ULNPLockOnComponent::GetLockOnTargetLocation`이 돌려주는
+**캐시 좌표**만 읽는다 — 엔티티 핸들을 다시 해석하지 않는 것이 아래 크래시를 되풀이하지 않는 조건이다.
+`LNP.LockOn.Debug` 디버그 드로우는 역할을 마치고 제거했다.
+
 ⚠️ **락온 마커의 Actor 경로(`LockOnMarkerComponent`)는 제거했다.** 처음에는 "마커 표현이 생길 때까지
 승격 Actor용 옛 경로를 남겨 둔다"로 갔으나, 그 경로가 **락온 해제에서 게스트를 크래시시켰다** —
 `ClearTarget()`이 도는 가장 흔한 이유가 "대상 소멸"인데 바로 그 자리에서 이미 사라진 엔티티로
 Actor를 조회했다. 가드 대신 삭제를 택했다 (→ [TechDesign_HUD.md](TechDesign_HUD.md) §11.7).
-마커가 생길 때까지 확인 수단은 `LNP.LockOn.Debug` 디버그 드로우다.
+(마커가 생길 때까지의 확인 수단이었던 `LNP.LockOn.Debug`는 마커 개통과 함께 삭제됐다.)
 
 ## 8. 넷 모드 — 어느 머신에서 도는가
 
@@ -314,7 +318,7 @@ Actor를 조회했다. 가드 대신 삭제를 택했다 (→ [TechDesign_HUD.md
 | 1 | 서브시스템 + 프로세서 + 광선↔캡슐 질의, 조준점 교체 | ✅ 완료 (호스트·게스트 검증) |
 | 2 | 원뿔·접평면 게이트 추가, 근접 보정 교체 | ✅ 완료 (호스트·게스트 검증) |
 | 3 | 락온 **기능** — 대상을 엔티티 핸들로, 추적을 Track 질의로, InputCmd를 좌표로 | ✅ 완료 |
-| 3b | 락온 **마커 표현** — 순수 엔티티에는 `UWidgetComponent`를 달 수 없다 | 이관 → [TechDesign_HUD.md](TechDesign_HUD.md) §11.7 |
+| 3b | 락온 **마커 표현** — 순수 엔티티에는 `UWidgetComponent`를 달 수 없다 | ✅ 완료 (2026-09-09) — 스크린 스페이스 마커. 상세는 [TechDesign_HUD.md](TechDesign_HUD.md) §11 |
 | — | **공간 분할(§6)** — `ULNPEnemySpatialGridSubsystem` + 빌드 프로세서 | ✅ 완료 (2026-09-07, 회피 착수 시점). 첫 소비자는 **회피 분리력**이고 이 질의 시스템은 아직 선형 스캔을 쓴다 — 아래 근거 그대로다 |
 
 **공간 분할은 이 순서에 끼지 않았고, 실제로 그 순서로 만들어졌다.** §6.1이 보인 대로 질의 셋은

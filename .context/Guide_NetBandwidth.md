@@ -56,6 +56,7 @@ Iris 델타 압축을 켜면 **스폰 후 안 변하는 멤버는 1비트**가 �
 |:---|:---|---:|
 | `Position` | `FMassInt16Real` ×3 (1cm) | 48 bit |
 | `Yaw` | `int16` (±π를 전 범위로, 0.0055°) | 16 bit |
+| `ActionAndSeq` · `AimPitch` · `HealthPct` | 안 바뀐 갱신은 접힘 | 각 1 bit (변할 때만 9 bit) |
 | `TemplateID` · `NetID` | 델타 압축으로 접힘 | 각 1 bit |
 
 ### 2.2 ⭐ Iris가 각 타입에 무엇을 물리는지 먼저 확인할 것

@@ -136,7 +136,7 @@
 | [LootDice System 게임 기획](GameDesign_LootDice.md) | 보상 아이템 주사위 굴림 컨셉, 아이콘 식별, 획득·인벤토리 드랍·소멸 기획 |
 | [LootDice System 기술 설계](TechDesign_LootDice.md) | 서버 권위 물리 Actor, Iris FRepMovement 동기화, 구면 중력 AddForce, 획득·드랍 RPC |
 | [인벤토리 기술 설계](TechDesign_Inventory.md) | 아이템 인스턴스 모델(UObject+FastArray+등록 서브오브젝트), GameplayTagStack 스탯, 장착/보관 분리, 버프 인스턴스 흐름 |
-| [HUD 기술 설계](TechDesign_HUD.md) | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, 대시 쿨다운 파이 위젯, 적 HP 바 오버레이 설계 |
+| [HUD 기술 설계](TechDesign_HUD.md) | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, 대시 쿨다운 파이 위젯, 스크린 스페이스 락온 마커·적 HP 바 |
 | [인게임 메뉴 게임 기획](GameDesign_InGameMenu.md) | 탭 구조, 게임패드 조작, 캐릭터 스탯·인벤토리·환경설정 탭 기획 |
 | [인게임 메뉴 기술 설계](TechDesign_InGameMenu.md) | CommonUI 위젯 계층, Back 전파 규칙, 커스텀 힌트 바·입력 글리프, 스탯 합/곱 분해, 로컬라이제이션, PIE 2인 게임패드 라우팅 |
 | [HitDetection 기술 설계](TechDesign_HitDetection.md) | 근접 Swept Volume·원거리 Line Segment 판정, 판정 캡슐 중심 규약 단일 헬퍼, 조준 원본 단일화와 수직 이탈 게이트, 조준점 깊이(적 엔티티 질의), 연출과 데미지의 분리·ASC는 전송 수단, 스플래시 감쇠, 지면 착탄 폭발 미구현 |

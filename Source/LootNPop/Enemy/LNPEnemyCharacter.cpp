@@ -9,14 +9,11 @@
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/LNPStatModifier.h"
-#include "UI/LNPHpBarWidget.h"
 #include "LootNPop.h"
 
 #include "AbilitySystemComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/WidgetComponent.h"
-#include "Blueprint/UserWidget.h"
 
 ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -48,10 +45,6 @@ ALNPEnemyCharacter::ALNPEnemyCharacter(const FObjectInitializer& ObjectInitializ
 	ASC->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 
 	AttributeSet = CreateDefaultSubobject<ULNPBaseAttributeSet>(TEXT("AttributeSet"));
-
-	HpBarComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("HpBarComponent"));
-	HpBarComponent->SetupAttachment(RootComponent);
-	HpBarComponent->SetVisibility(false);
 }
 
 UAbilitySystemComponent* ALNPEnemyCharacter::GetAbilitySystemComponent() const
@@ -69,13 +62,6 @@ void ALNPEnemyCharacter::BeginPlay()
 
 		if (InputHandlerComponent)
 			InputHandlerComponent->CacheASC(ASC);
-
-		if (HpBarWidgetClass)
-		{
-			HpBarComponent->SetWidgetClass(HpBarWidgetClass);
-			ASC->GetGameplayAttributeValueChangeDelegate(ULNPBaseAttributeSet::GetHealthAttribute())
-				.AddUObject(this, &ALNPEnemyCharacter::OnHpAttributeChanged);
-		}
 	}
 }
 
@@ -86,18 +72,6 @@ void ALNPEnemyCharacter::Tick(float DeltaTime)
 	// 조준 Pitch는 서버에서만 굴리고 결과를 복제한다 — 게스트가 한 번 더 보간하면 두 화면이 갈라진다.
 	if (HasAuthority())
 		AimPitchDeg = FMath::FInterpTo(AimPitchDeg, TargetAimPitchDeg, DeltaTime, AimPitchInterpSpeed);
-
-	if (HpBarComponent->IsVisible() && HpBarComponent->GetWidgetSpace() == EWidgetSpace::World)
-	{
-		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
-		{
-			FVector CameraLoc;
-			FRotator CameraRot;
-			PC->GetPlayerViewPoint(CameraLoc, CameraRot);
-			const FVector ToCamera = (CameraLoc - HpBarComponent->GetComponentLocation()).GetSafeNormal();
-			HpBarComponent->SetWorldRotation(ToCamera.Rotation());
-		}
-	}
 }
 
 void ALNPEnemyCharacter::InitializeOnce(ULNPEnemyConfig* InConfig)
@@ -176,8 +150,6 @@ void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTar
 
 	if (MoverComponent)
 		MoverComponent->LaunchWithVelocity(InVelocity);
-
-	RefreshHpBar(InHealth, AttributeSet ? AttributeSet->GetMaxHealth() : 0.f);
 }
 
 void ALNPEnemyCharacter::TriggerRagdoll()
@@ -194,9 +166,6 @@ void ALNPEnemyCharacter::Multicast_TriggerRagdoll_Implementation(FVector PopVelo
 	// 데디케이티드 서버는 볼 사람이 없으므로 물리 바디 생성 비용을 아낀다.
 	if (GetNetMode() == NM_DedicatedServer)
 		return;
-
-	if (HpBarComponent)
-		HpBarComponent->SetVisibility(false);
 
 	EnterRagdoll(PopVelocity);
 }
@@ -271,21 +240,4 @@ void ALNPEnemyCharacter::SyncToEntity(float& OutHealth, FVector& OutVelocity) co
 	OutVelocity = (MoverComponent && MoverComponent->IsAirborne())
 		? MoverComponent->GetVelocity()
 		: FVector::ZeroVector;
-}
-
-void ALNPEnemyCharacter::OnHpAttributeChanged(const FOnAttributeChangeData& Data)
-{
-	RefreshHpBar(Data.NewValue, AttributeSet ? AttributeSet->GetMaxHealth() : 0.f);
-}
-
-void ALNPEnemyCharacter::RefreshHpBar(float Current, float Max)
-{
-	const bool bShouldShow = Current > 0.f && Max > 0.f && Current < Max;
-	HpBarComponent->SetVisibility(bShouldShow);
-
-	if (bShouldShow)
-	{
-		if (auto* Widget = Cast<ULNPHpBarWidget>(HpBarComponent->GetWidget()))
-			Widget->UpdateHpBar(Current, Max);
-	}
 }

@@ -398,6 +398,45 @@ struct LOOTNPOP_API FLNPEnemyActionFragment : public FMassFragment
 };
 
 /**
+ * HP 바 표시용 장부 — **표시 전용이며 게임플레이 판정에 쓰지 않는다.**
+ *
+ * 표시 후보를 거리순만으로 자르면 라이플로 저격한 먼 적이 근처 잡몹에 밀려 안 보인다
+ * (→ TechDesign_HUD.md §11.4). 그래서 "최근에 HP가 변한 적"을 상한과 무관하게 강제로 포함시키는데,
+ * 그러려면 변화 시점을 알아야 한다.
+ *
+ * ⚠️ **서버가 시각을 실어 보내지 않는다.** ULNPEnemyMarkerProcessor가 **자기가 본 HP가 바뀐 순간**을
+ *    각 머신에서 로컬로 기록한다 — 호스트는 실제 피해를, 게스트는 복제된 비율의 변화를 본다.
+ *    같은 사건을 각자 관측하므로 추가 대역폭이 0이다.
+ *
+ * CombatMode와 무관하게 전원에게 붙인다 (FLNPEnemyActionFragment와 같은 이유).
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemyHealthDisplayFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	/** 마지막으로 관측한 HP 비율(0~255). 복제 페이로드와 같은 양자화라 값이 요동치지 않는다. */
+	uint8 LastSeenPct = MAX_uint8;
+
+	/** LastSeenPct가 마지막으로 바뀐 월드 시각(초). 음수면 아직 한 번도 안 바뀐 것이다. */
+	float LastChangeTime = -MAX_flt;
+
+	/**
+	 * HP 비율 → 0~255 양자화. **복제 페이로드와 이 장부가 같은 함수를 쓴다** —
+	 * 갈라지면 게스트에서 "복제받은 값을 다시 인코딩했더니 달라져서" 매 프레임 변화로 읽힌다.
+	 * MaxHealth가 0 이하면 만피로 본다.
+	 */
+	static uint8 EncodePct(const float InHealth, const float InMaxHealth)
+	{
+		if (InMaxHealth <= 0.f)
+			return MAX_uint8;
+
+		return static_cast<uint8>(FMath::Clamp(
+			FMath::RoundToInt32(InHealth / InMaxHealth * static_cast<float>(MAX_uint8)), 0, static_cast<int32>(MAX_uint8)));
+	}
+};
+
+/**
  * 순수 엔티티가 만든 가상 칼날임을 표시하고 주인을 되가리킨다.
  *
  * ⚠️ **Tag가 아니라 Fragment인 이유:** 칼날 엔티티는 `FMassCommandBuildEntity` 한 번으로 만들어야 한다.

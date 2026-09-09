@@ -12,8 +12,6 @@
 class ULNPEnemyConfig;
 class UAbilitySystemComponent;
 class ULNPBaseAttributeSet;
-class UWidgetComponent;
-class ULNPHpBarWidget;
 
 /**
  * 셸 역할을 하는 범용 Enemy 캐릭터.
@@ -139,19 +137,6 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|GAS")
 	TObjectPtr<ULNPBaseAttributeSet> AttributeSet;
 
-	/** World Space HpBar Widget Component. HP > 0 이고 HP < MaxHP 일 때만 표시. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|UI")
-	TObjectPtr<UWidgetComponent> HpBarComponent;
-
-	/** HpBar에 사용할 Widget 클래스. Blueprint CDO에서 설정. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|UI")
-	TSubclassOf<ULNPHpBarWidget> HpBarWidgetClass;
-
-
-
 private:
 	bool bInitializedOnce = false;
-
-	void OnHpAttributeChanged(const FOnAttributeChangeData& Data);
-	void RefreshHpBar(float Current, float Max);
 };
