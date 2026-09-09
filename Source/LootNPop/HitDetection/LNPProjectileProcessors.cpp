@@ -102,26 +102,17 @@ void ULNPProjectileMovementProcessor::ConfigureQueries(const TSharedRef<FMassEnt
 {
 	ProjectileQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	ProjectileQuery.AddRequirement<FLNPProjectileFragment>(EMassFragmentAccess::ReadWrite);
-	ProjectileQuery.AddRequirement<FLNPProjectileVisualFragment>(EMassFragmentAccess::ReadOnly);
-	ProjectileQuery.AddConstSharedRequirement<FLNPProjectileSharedFragment>(EMassFragmentPresence::All);
 	ProjectileQuery.RegisterWithProcessor(*this);
-	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceCacheSubsystem>(EMassFragmentAccess::ReadOnly);
-	ProcessorRequirements.AddSubsystemRequirement<ULNPProjectileVisualSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
 void ULNPProjectileMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
 
-	const ULNPSurfaceCacheSubsystem& SurfaceCache = Context.GetSubsystemChecked<ULNPSurfaceCacheSubsystem>();
-	ULNPProjectileVisualSubsystem& VisualSub      = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
-
 	ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
-		const FLNPProjectileSharedFragment&                  Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
-		TArrayView<FTransformFragment>                       Transforms  = Ctx.GetMutableFragmentView<FTransformFragment>();
-		TArrayView<FLNPProjectileFragment>                   Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
-		const TConstArrayView<FLNPProjectileVisualFragment>  Visuals     = Ctx.GetFragmentView<FLNPProjectileVisualFragment>();
+		TArrayView<FTransformFragment>     Transforms  = Ctx.GetMutableFragmentView<FTransformFragment>();
+		TArrayView<FLNPProjectileFragment> Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -130,34 +121,8 @@ void ULNPProjectileMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			const FVector           CurrentPos = Transform.GetLocation();
 
 			Proj.PreviousPos = CurrentPos;
-			const FVector NewPos = CurrentPos + Proj.Velocity * DeltaTime;
-			Transform.SetLocation(NewPos);
+			Transform.SetLocation(CurrentPos + Proj.Velocity * DeltaTime);
 			Proj.LifetimeRemaining -= DeltaTime;
-
-			bool    bShouldDestroy = Proj.LifetimeRemaining <= 0.0f;
-			bool    bHitSurface    = false;
-			FVector ImpactNormal   = -NewPos.GetSafeNormal();
-
-			if (!bShouldDestroy)
-			{
-				FVector SurfacePoint;
-				if (SurfaceCache.GetSurfacePoint(NewPos.GetSafeNormal(), SurfacePoint)
-					&& NewPos.SizeSquared() >= SurfacePoint.SizeSquared())
-				{
-					bShouldDestroy = true;
-					bHitSurface    = true;
-				}
-			}
-
-			if (bShouldDestroy)
-			{
-				const FMassEntityHandle Entity = Ctx.GetEntity(i);
-				if (Visuals[i].bInitialized)
-					VisualSub.EnqueueTrailRelease(Entity);
-				VisualSub.EnqueueImpact(Shared.VFXData, NewPos, ImpactNormal);
-
-				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(Entity);
-			}
 		}
 	});
 }
@@ -201,6 +166,7 @@ void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMas
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
 
+	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceCacheSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPProjectileVisualSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
@@ -209,7 +175,29 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	UWorld* World = EntityManager.GetWorld();
 	const bool bIsServer = World && World->GetNetMode() < NM_Client;
 
-	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
+	const ULNPSurfaceCacheSubsystem& SurfaceCache = Context.GetSubsystemChecked<ULNPSurfaceCacheSubsystem>();
+	ULNPProjectileVisualSubsystem&   VisualSub    = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
+
+	/**
+	 * 캐릭터에 닿지 않은 탄의 **종말 판정** — 지면 착탄과 수명 만료를 한 자리에서 가른다.
+	 *
+	 * 표면 충돌은 예전에 ULNPProjectileMovementProcessor(PrePhysics)가 직접 파괴까지 했다.
+	 * 그러면 그 페이즈 끝에서 FLNPProjectileDeadTag가 flush되어 **이 Processor의 쿼리에서 아예
+	 * 빠지고**, 스플래시에 도달할 길이 구조적으로 없었다. 그래서 판정 소유권을 여기로 모았다 —
+	 * 이동 Processor는 이제 전진과 수명 감소만 한다.
+	 *
+	 * 수명 만료도 폭발로 취급한다. 임팩트 VFX는 예전부터 두 경우 모두 재생하고 있었으므로,
+	 * 스플래시만 같이 붙여야 연출과 판정의 대칭이 맞는다.
+	 */
+	auto IsTerminated = [&SurfaceCache](const FVector& Pos, const float LifetimeRemaining) -> bool
+	{
+		if (LifetimeRemaining <= 0.f)
+			return true;
+
+		FVector SurfacePoint;
+		return SurfaceCache.GetSurfacePoint(Pos.GetSafeNormal(), SurfacePoint)
+			&& Pos.SizeSquared() >= SurfacePoint.SizeSquared();
+	};
 
 	// 클라이언트: 로컬 예측 공격자의 Ghost Projectile에 한해 Physics/Actor 기반 예측 판정 (코스메틱 HitStop만, GE 미적용).
 	// 서버 판정(Mass 엔티티 쿼리 + GE 적용)과 완전히 분리된 경로다.
@@ -277,17 +265,15 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			}
 		});
 
-		if (ClientTargets.IsEmpty())
-			return;
-
 		const bool bFriendlyFireClient = GetDefault<ULNPSettings>()->bFriendlyFire;
 		UMassActorSubsystem* ActorSub  = World->GetSubsystem<UMassActorSubsystem>();
 
 		ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 		{
-			const FLNPProjectileSharedFragment&       Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
-			const TConstArrayView<FTransformFragment> Transforms  = Ctx.GetFragmentView<FTransformFragment>();
-			TArrayView<FLNPProjectileFragment>        Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
+			const FLNPProjectileSharedFragment&                 Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
+			const TConstArrayView<FTransformFragment>           Transforms  = Ctx.GetFragmentView<FTransformFragment>();
+			TArrayView<FLNPProjectileFragment>                  Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
+			const TConstArrayView<FLNPProjectileVisualFragment> Visuals     = Ctx.GetFragmentView<FLNPProjectileVisualFragment>();
 
 			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
@@ -299,6 +285,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				const FVector CurrentPos = Transforms[i].GetTransform().GetLocation();
 				AActor* InstigatorActor = (ActorSub && Proj.Instigator.IsSet() && EntityManager.IsEntityActive(Proj.Instigator)) ? ActorSub->GetActorFromHandle(Proj.Instigator) : nullptr;
 
+				bool bHit = false;
 				for (const FClientCapsuleTarget& Target : ClientTargets)
 				{
 					// 발사자 자신 제외 — 로컬 예측 Ghost는 Instigator 핸들로, 관전용 Ghost는 PlayerID로 걸러낸다.
@@ -323,8 +310,19 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						FLNPGhostKey{ Proj.InstigatorPlayerID, Proj.PredictionKeyID, Proj.SpawnIndex });
 					VisualSub.EnqueueImpact(Shared.VFXData, HitPoint, (HitPoint - Target.Location).GetSafeNormal());
 
+					bHit = true;
 					break;  // 이 Projectile은 예측 판정 종료 — 서버 확정 결과가 최종
 				}
+
+				// 지면 착탄·수명 만료 — Ghost는 로컬 코스메틱이므로 소멸·VFX만 하고 스플래시는 서버 몫이다.
+				if (bHit || !IsTerminated(CurrentPos, Proj.LifetimeRemaining))
+					continue;
+
+				const FMassEntityHandle ProjEnt = Ctx.GetEntity(i);
+				if (Visuals[i].bInitialized)
+					VisualSub.EnqueueTrailRelease(ProjEnt);
+				VisualSub.EnqueueImpact(Shared.VFXData, CurrentPos, -CurrentPos.GetSafeNormal());
+				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 			}
 		});
 		return;
@@ -426,9 +424,6 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			});
 		}
 	});
-
-	if (Enemies.IsEmpty() && Players.IsEmpty())
-		return;
 
 	const bool bFriendlyFire = GetDefault<ULNPSettings>()->bFriendlyFire;
 	const float PoiseGuardMultiplier = GetDefault<ULNPSettings>()->PoiseGuardMultiplier;
@@ -580,6 +575,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			};
 
 			// 피격 시 공통 후처리: 트레일 해제 · 임팩트 VFX(GameplayCue) · Dead 태그 · 스플래시
+			bool bHit = false;
 			auto FinishHit = [&](FVector HitPoint, FVector ImpactNormal,
 				const FCollectedEnemy* ExclEnemy, const FCollectedPlayer* ExclPlayer)
 			{
@@ -601,10 +597,10 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 				ApplySplash(Ctx, Shared, Proj, HitPoint, ExclEnemy, ExclPlayer, bFriendlyFire);
+				bHit = true;
 			};
 
 			// Enemy 판정 — Player 발사체만 Enemy에게 피해를 줌 (비 Player 발사체는 캡슐에 닿아도 파괴만 됨)
-			bool bHit = false;
 			for (FCollectedEnemy& Enemy : Enemies)
 			{
 				if (Enemy.Handle == Proj.Instigator)
@@ -652,7 +648,6 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				}
 
 				FinishHit(HitPoint, (HitPoint - Enemy.CapsuleCenter).GetSafeNormal(), &Enemy, nullptr);
-				bHit = true;
 				break;
 			}
 
@@ -752,6 +747,21 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				FinishHit(HitPoint, (HitPoint - Player.Location).GetSafeNormal(), nullptr, &Player);
 				break;
 			}
+
+			// 캐릭터 어디에도 닿지 않았다 — 지면 착탄·수명 만료를 여기서 가른다.
+			// 패링으로 반사된 탄은 bHit가 서지 않아 이 검사를 그대로 통과하고 계속 비행한다.
+			if (bHit || !IsTerminated(CurrentPos, Proj.LifetimeRemaining))
+				continue;
+
+			// 지면 폭발의 임팩트는 로컬 VFX로 남긴다 — 캐릭터 피격과 달리 Ghost 대조 토큰이 필요 없고,
+			// GameplayCue로 올리면 게스트가 자기 Ghost의 착탄 VFX와 겹쳐 두 번 보게 된다.
+			if (Visuals[i].bInitialized)
+				VisualSub.EnqueueTrailRelease(ProjEnt);
+			VisualSub.EnqueueImpact(Shared.VFXData, CurrentPos, -CurrentPos.GetSafeNormal());
+			Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
+
+			// 제외 대상 없음 — 직격이 없었으니 반경 안의 모두가 스플래시를 받는다.
+			ApplySplash(Ctx, Shared, Proj, CurrentPos, nullptr, nullptr, bFriendlyFire);
 		}
 	});
 }
