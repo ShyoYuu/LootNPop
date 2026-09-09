@@ -41,7 +41,7 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 		RepParams = &InContext.GetConstSharedFragment<FMassReplicationParameters>();
 	};
 
-	auto AddEntityCallback = [&RepSharedFrag, &TransformFragments, &ActionFragments](FMassExecutionContext& InContext, const int32 EntityIdx, FLNPReplicatedAgent& InReplicatedAgent, const FMassClientHandle ClientHandle) -> FMassReplicatedAgentHandle
+	auto AddEntityCallback = [&RepSharedFrag, &TransformFragments, &EnemyFragments, &ActionFragments](FMassExecutionContext& InContext, const int32 EntityIdx, FLNPReplicatedAgent& InReplicatedAgent, const FMassClientHandle ClientHandle) -> FMassReplicatedAgentHandle
 	{
 		ALNPMassClientBubbleInfo& BubbleInfo = RepSharedFrag->GetTypedClientBubbleInfoChecked<ALNPMassClientBubbleInfo>(ClientHandle);
 
@@ -58,6 +58,13 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 			InReplicatedAgent.SetActionAndSeq(FLNPReplicatedAgent::EncodeActionAndSeq(
 				ActionFragments[EntityIdx].Action, ActionFragments[EntityIdx].Seq));
 			InReplicatedAgent.SetAimPitch(ActionFragments[EntityIdx].AimPitch);
+		}
+
+		// HP도 시드한다. 빼먹으면 이미 다친 적이 버블에 들어올 때 만피로 시작해 HP 바가 뜨지 않는다.
+		if (EnemyFragments.IsValidIndex(EntityIdx))
+		{
+			InReplicatedAgent.SetHealthPct(FLNPReplicatedAgent::EncodeHealthPct(
+				EnemyFragments[EntityIdx].Health, EnemyFragments[EntityIdx].MaxHealth));
 		}
 
 		return BubbleInfo.GetAgentSerializer().Bubble.AddAgent(InContext.GetEntity(EntityIdx), InReplicatedAgent);
@@ -86,6 +93,13 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 		// 따로 판정하면 한쪽만 실린 중간 상태가 게스트에 도착할 수 있다.
 		const bool bActionChanged =
 			(NewActionAndSeq != Item.Agent.GetActionAndSeq() || NewAimPitch != Item.Agent.GetAimPitch());
+
+		// HP 비율도 게이트 앞에서 계산만 해 둔다. 다만 **게이트를 우회할 자격은 주지 않는다** —
+		// 우회는 시작 시각을 놓치면 통째로 못 보는 일회성 연출에만 준다. HP 바가 최대 한 주기(Low 0.3초)
+		// 늦게 갱신되는 것은 눈에 띄지 않고, 여기까지 넓히면 피격이 곧 갱신이 되어 갱신 수가 통제 없이 는다.
+		const uint8 NewHealthPct = FLNPReplicatedAgent::EncodeHealthPct(
+			EnemyFragments[EntityIdx].Health, EnemyFragments[EntityIdx].MaxHealth);
+		const bool bHealthChanged = (NewHealthPct != Item.Agent.GetHealthPct());
 
 		// --- ② 일회성 연출의 **시작만** 갱신 주기 게이트를 우회한다 ---
 		// 복제 LOD가 Low(0.3초)인 거리에서 짧은 공격(총 1.0초)은 시작과 끝이 두 갱신 사이에 들어가
@@ -135,9 +149,12 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 			Item.Agent.SetAimPitch(NewAimPitch);
 		}
 
+		if (bHealthChanged)
+			Item.Agent.SetHealthPct(NewHealthPct);
+
 		// 게이트 통과 시각이 아니라 **실제로 보낸 시각**을 기록한다 — 정지한 엔티티가 다시 움직이기
 		// 시작할 때 한 주기를 기다리지 않고 즉시 반영되게 하려는 것이다.
-		if (bPositionYawChanged || bActionChanged)
+		if (bPositionYawChanged || bActionChanged || bHealthChanged)
 		{
 			Bubble.MarkItemDirty(Item);
 			Item.LastDirtyTime = Time;

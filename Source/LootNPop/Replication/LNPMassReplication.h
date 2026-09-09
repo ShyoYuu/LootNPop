@@ -216,6 +216,22 @@ struct LOOTNPOP_API FLNPReplicatedAgent : public FReplicatedAgentBase
 	void SetAimPitch(const int8 InAimPitch) { AimPitch = InAimPitch; }
 	int8 GetAimPitch() const { return AimPitch; }
 
+	/**
+	 * HP 비율을 0~255로 양자화한다.
+	 *
+	 * ActionAndSeq와 같은 이유로 static이다 — 리플리케이터가 **쓰기 전에 비교**해야
+	 * 바뀌었을 때만 Dirty를 걸 수 있다.
+	 * 실제 계산은 표시 장부와 **같은 함수**를 쓴다 — 갈라지면 게스트가 수신값을 다시 인코딩했을 때
+	 * 값이 달라져 매 프레임 "HP가 변했다"로 읽힌다.
+	 */
+	static uint8 EncodeHealthPct(const float InHealth, const float InMaxHealth)
+	{
+		return FLNPEnemyHealthDisplayFragment::EncodePct(InHealth, InMaxHealth);
+	}
+
+	void SetHealthPct(const uint8 InHealthPct) { HealthPct = InHealthPct; }
+	uint8 GetHealthPct() const { return HealthPct; }
+
 	ELNPEnemyAction GetAction() const { return static_cast<ELNPEnemyAction>(ActionAndSeq & ActionMask); }
 
 	/** 하위 5비트만 살아 넘어오므로 비교는 반드시 "같은가"로만 한다 — 대소 비교는 wrap에서 뒤집힌다. */
@@ -254,6 +270,18 @@ private:
 	 */
 	UPROPERTY(Transient)
 	int8 AimPitch = 0;
+
+	/**
+	 * 적 HP 비율 (0~255). **피격할 때만 바뀌므로** 나머지 갱신에서는 델타 압축이 1비트로 접는다
+	 * (`ActionAndSeq`와 같은 이유로 PositionYaw의 형제 멤버다).
+	 *
+	 * 이 필드가 없으면 순수 엔티티의 HP를 클라이언트가 아는 경로가 아예 없다 —
+	 * `FLNPEnemyFragment::Health`는 서버 전용이고, Actor가 없으니 ASC 어트리뷰트 복제도 못 탄다.
+	 *
+	 * 비율만 싣는다. MaxHealth는 전투 중 불변이라 보낼 이유가 없고, 표시에 필요한 것도 비율뿐이다.
+	 */
+	UPROPERTY(Transient)
+	uint8 HealthPct = MAX_uint8;
 };
 
 /** Fast Array 복제 항목. FLNPReplicatedAgent 멤버가 바뀌면 반드시 Dirty 표시할 것. */
@@ -354,6 +382,16 @@ protected:
 	 * 행동 프래그먼트가 없는 아키타입(Player·LootPod)에서는 아무것도 하지 않는다.
 	 */
 	static void ApplyReplicatedAction(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent, bool bIsInitialSpawn);
+
+	/**
+	 * 수신한 HP 비율을 **서버가 쓰는 것과 같은 프래그먼트**(FLNPEnemyFragment::Health)에 되쓴다 —
+	 * 소비처가 넷 모드를 몰라도 되게 하는 지점이다. Enemy 프래그먼트가 없는 아키타입에서는 아무것도 하지 않는다.
+	 *
+	 * ⚠️ 클라이언트의 MaxHealth는 템플릿 기본값이라 서버의 실제값과 다를 수 있다(HP 원본이 무기의
+	 *    스탯 수정자라 서버에서만 반영된다). 그래서 여기서 복원되는 것은 **비율이 정확한 근사 절대값**이고,
+	 *    표시는 비율만 쓰므로 무해하다. 이 값을 데미지 판정에 쓰면 안 된다.
+	 */
+	static void ApplyReplicatedHealth(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent);
 
 	/** 스폰 쿼리 순회 동안만 유효한 Transform Fragment 뷰 (엔진 핸들러의 TransformList 대체). */
 	TArrayView<FTransformFragment> SpawnTransformList;

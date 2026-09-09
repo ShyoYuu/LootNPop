@@ -69,10 +69,9 @@ void ULNPTargetQueryProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 		{
 			// 시체는 대상이 아니다. 소멸까지 기다리면 락온이 시체에 붙어 있게 된다.
 			//
-			// ⚠️ **HP만 보면 클라이언트에서 동작하지 않는다.** `FLNPEnemyFragment::Health`는 서버 전용이라
-			//    클라이언트에서는 기본값에 머문다(→ TechDesign_HUD.md §11.3). 조준점·락온 질의는 소유
-			//    클라이언트에서 도는 것이 정상 경로이므로, **복제되는 행동 상태**를 함께 본다.
-			//    둘 다 보는 이유는 Dying 전이가 한 틱 늦을 수 있어서다 — 서버에서는 HP가 먼저 0이 된다.
+			// 둘 다 보는 이유는 **Dying 전이가 한 틱 늦을 수 있어서다** — 서버에서는 HP가 먼저 0이 된다.
+			// (HP는 2026-09-09부터 비율이 복제되므로 클라이언트에서도 유효하다 — TechDesign_HUD.md §11.3.
+			//  그전에는 클라에서 기본값에 머물러 행동 상태만이 유일한 신호였다.)
 			if (EnemyFrags[i].Health <= 0.f || ELNPEnemyAction::Dying == ActionFrags[i].Action)
 				continue;
 

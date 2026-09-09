@@ -5,19 +5,6 @@
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
-#include "DrawDebugHelpers.h"
-#include "HAL/IConsoleManager.h"
-
-#if !UE_BUILD_SHIPPING
-namespace LNPLockOnDebug
-{
-	/** 락온 마커 표현이 생기기 전까지의 임시 확인 수단 (TechDesign_HUD.md §11.7). */
-	static TAutoConsoleVariable<int32> CVarDrawLockOn(
-		TEXT("LNP.LockOn.Debug"), 0,
-		TEXT("Draw the current lock-on target as a sphere and a line from the player. 0: off, 1: on"),
-		ECVF_Cheat);
-}
-#endif
 
 ULNPLockOnComponent::ULNPLockOnComponent()
 {
@@ -85,19 +72,6 @@ void ULNPLockOnComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 				ControlRotationComponent->SetLockOnClamp(ToTarget, MaxDeviationDeg);
 		}
 	}
-
-#if !UE_BUILD_SHIPPING
-	// 마커 표현이 아직 없다(순수 엔티티에는 UWidgetComponent를 달 수 없다 — TechDesign_HUD.md §11.7).
-	// 그때까지 락온 대상을 눈으로 확인하는 수단.
-	if (0 != LNPLockOnDebug::CVarDrawLockOn.GetValueOnGameThread())
-	{
-		if (UWorld* DebugWorld = GetWorld())
-		{
-			DrawDebugSphere(DebugWorld, LockOnTargetLocation, 50.f, 16, FColor::Cyan, false, -1.f, 0, 2.f);
-			DrawDebugLine(DebugWorld, GetOwner()->GetActorLocation(), LockOnTargetLocation, FColor::Cyan, false, -1.f, 0, 1.5f);
-		}
-	}
-#endif
 }
 
 void ULNPLockOnComponent::UpdateQuery()

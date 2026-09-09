@@ -107,6 +107,18 @@ void FLNPMassClientBubbleHandler::ApplyReplicatedAction(const FMassEntityView& E
 	}
 }
 
+void FLNPMassClientBubbleHandler::ApplyReplicatedHealth(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent)
+{
+	// Optional 취급 — 적이 아닌 아키타입(Player·LootPod)에는 이 프래그먼트가 없다.
+	if (FLNPEnemyFragment* EnemyFragment = EntityView.GetFragmentDataPtr<FLNPEnemyFragment>())
+	{
+		// 비율만 복제되므로 MaxHealth는 이쪽 로컬값을 쓴다. 서버 실제값과 다를 수 있지만
+		// 나눠서 되돌리면 비율은 정확히 복원된다 — 표시가 쓰는 것은 그 비율뿐이다.
+		EnemyFragment->Health = static_cast<float>(Agent.GetHealthPct()) / static_cast<float>(MAX_uint8)
+			* EnemyFragment->MaxHealth;
+	}
+}
+
 void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize)
 {
 	// 스폰 쿼리에는 공통 Fragment(Transform)만 요구한다. 타입 전용 Fragment를 하드 요구사항으로
@@ -141,12 +153,16 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 
 		// 스폰 시점 행동도 반영한다. 이미 싸우고 있는 적이 버블에 들어오면 그 상태로 보여야 한다.
 		ApplyReplicatedAction(EntityView, ReplicatedEntity, /*bIsInitialSpawn*/ true);
+
+		// HP도 마찬가지다 — 시드하지 않으면 이미 다친 적이 만피로 나타나 HP 바가 뜨지 않는다.
+		ApplyReplicatedHealth(EntityView, ReplicatedEntity);
 	};
 
 	auto SetModifiedEntityData = [](const FMassEntityView& EntityView, const FLNPReplicatedAgent& Item)
 	{
 		PushSmoothingTarget(EntityView, Item.GetReplicatedPositionYawData());
 		ApplyReplicatedAction(EntityView, Item, /*bIsInitialSpawn*/ false);
+		ApplyReplicatedHealth(EntityView, Item);
 	};
 
 	PostReplicatedAddHelper(AddedIndices, AddRequirementsForSpawnQuery, CacheFragmentViewsForSpawnQuery, SetSpawnedEntityData, SetModifiedEntityData);
@@ -162,6 +178,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedChange(const TArrayView<int32> C
 	{
 		PushSmoothingTarget(EntityView, Item.GetReplicatedPositionYawData());
 		ApplyReplicatedAction(EntityView, Item, /*bIsInitialSpawn*/ false);
+		ApplyReplicatedHealth(EntityView, Item);
 	};
 
 	PostReplicatedChangeHelper(ChangedIndices, SetModifiedEntityData);

@@ -379,9 +379,16 @@ private:
 
 **핵심 원칙: 위젯은 "어떻게 보일지"만 알고, "무슨 데이터인지"는 몰라야 한다.**
 
-> **적용 사례:** `SLNPRadialCooldown`(방사형 쿨다운 파이, `Source/LNPUI/`) —
+> **적용 사례 1:** `SLNPRadialCooldown`(방사형 쿨다운 파이, `Source/LNPUI/`) —
 > 모듈 분리·`MakeCustomVerts` 부채꼴·Tick 자체 제어의 실제 구현은
 > [TechDesign_HUD.md](TechDesign_HUD.md) §9 참조.
+>
+> **적용 사례 2:** `SLNPScreenMarkers`(락온 마커·적 HP 바, 같은 모듈) —
+> [TechDesign_HUD.md](TechDesign_HUD.md) §11 참조. 형틀은 같고 성격이 다른 지점이 셋이다:
+> ① 값을 **배열**로 받아 브러시당 `MakeCustomVerts` **한 번**으로 배칭한다,
+> ② 위젯이 스스로 세는 시간이 없어 `Tick`을 아예 구현하지 않는다,
+> ③ **한 클래스가 스타일(`bDrawFill`)로 룩이 갈려** 두 소비처를 덮는다 —
+> 두 클래스로 나누면 배칭·틴트·클리핑이 두 벌이 되는데 정작 다른 것은 사각형 하나뿐이었다.
 
 ---
 

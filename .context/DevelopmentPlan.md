@@ -106,11 +106,14 @@
     - 총기 장비 시 UpperBody 레이어에 Aiming 포즈 블랜딩.
     - ADS 카메라 전환(`CR_ADS` 리그 프리셋 + `CDE_ThirdPerson` 디렉터 분기), 조준 감도 완화,
       ADS 중 대시·질주 차단 및 이동 속도 저하(`FLNPADSModifier`). 상세: [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §2.6
-- [x] **Enemy NPC HP Bar** (월드 스페이스)
-    - High LOD Actor 상태에서만 표시. `HP > 0 && HP < MaxHP` 조건 충족 시 가시화.
-    - `UWidgetComponent` (World Space, Transparent 블렌드) + `ULNPHpBarWidget` (BindWidget 기반).
-    - GAS Health 속성 변경 델리게이트로 실시간 갱신. 스폰 시 `SyncFromEntity`에서 초기값 주입.
-    - Blueprint 서브클래스(`WBP_LNPHpBar`)에 `UProgressBar` 이름 `HpBar`로 배치 필요.
+- [x] **Enemy NPC HP Bar · 락온 마커** (스크린 스페이스 커스텀 Slate, 2026-09-09 전환)
+    - 순수 엔티티에는 `UWidgetComponent`를 달 수 없어 **월드 스페이스 위젯 경로를 통째로 대체**했다.
+      승격 Actor의 옛 `UWidgetComponent` + `ULNPHpBarWidget` + 빌보드 회전은 삭제 — 적 종류로 표현이 갈리지 않는다.
+    - `LNPUI` 모듈의 `SLNPScreenMarkers` 한 클래스가 스타일(`bDrawFill`)로 락온 마커/HP 바를 겸한다.
+      `ULNPHudWidget::NativeTick`이 투영·히스테리시스·페이드를, `ULNPEnemyMarkerProcessor`가 후보 수집을 맡는다.
+    - 선결 조건이던 **HP 비율 복제**(`FLNPReplicatedAgent::HealthPct` 1바이트)를 함께 해소.
+    - 락온 레티클 텍스처 `T_LockOnReticle` 신규. 옛 `WBP_LNPHpBar`·`WBP_LockOnMarker`는 삭제.
+    - 남은 것: 월드 지오메트리 뎁스 가림(보류). 설계 명세: [TechDesign_HUD.md](TechDesign_HUD.md) §11
 - [x] **플레이어 HUD** (MVVM 기반)
     - `ULNPHudViewModel`(FieldNotify): ASC 델리게이트로 `HealthPercent`, `bIsFreeAiming` 자동 갱신.
     - `ULNPHudWidget`: ViewModel 생성·주입(`UMVVMView::SetViewModel`)·해제 담당.
