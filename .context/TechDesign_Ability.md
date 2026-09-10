@@ -203,7 +203,11 @@ UPrimaryDataAsset
 | 메시 | `WeaponMesh`, `AttachSocketName`, `WeaponMeshRelativeLocation/Rotation` (그립 피벗 보정) |
 | 공격 | `FireCooldown`, `MaxComboCount` |
 | 레벨 | `LevelTable` (행 구조 `FLNPWeaponLevelRow`, **행 이름 = 레벨 숫자**) |
-| 발사체 | `ProjectileType`(Linear/Guided/Lobbed), `ProjectileSpeed`, `HitRadius`, `ExplosionRadius`, `ProjectileLifetime`, `MuzzleOffset`, `ProjectileDamageEffect`, `ProjectileVFXData` |
+| 발사체 | `ProjectileType`(Linear/Guided/Lobbed), `ProjectileSpeed`, `ProjectileGravity`, `HitRadius`, `ExplosionRadius`, `ProjectileLifetime`, `MuzzleOffset`, `ProjectileDamageEffect`, `ProjectileVFXData` |
+
+> `ProjectileGravity`는 **`ProjectileType == Lobbed`일 때만** 적용된다. 해석 창구는
+> `GetEffectiveProjectileGravity()` 하나뿐이고, 런타임은 그 결과 스칼라만 본다
+> (0 = 등속 직선). → [TechDesign_HitDetection.md §3.4](TechDesign_HitDetection.md)
 
 > 공격 몽타주는 WeaponData가 아닌 **Chooser Table**에서 선택된다 (WeaponTag가 Chooser 입력 조건). → [TechDesign_CombatAnimation.md §6.1](TechDesign_CombatAnimation.md)
 > `ParryRadius`·`KnockbackStrength`(콤보별 배열 포함)는 어빌리티 프로퍼티다 — 같은 무기라도 어빌리티에 따라 다르게 튜닝 가능.

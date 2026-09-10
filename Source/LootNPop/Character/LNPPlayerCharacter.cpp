@@ -13,6 +13,7 @@
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "Interaction/LNPInteractionComponent.h"
 #include "Camera/LNPLockOnComponent.h"
+#include "HitDetection/LNPTrajectoryGuideComponent.h"
 #include "Camera/LNPControlRotationComponent.h"
 #include "Character/LNPInputHandlerComponent.h"
 #include "Movement/LNPCharacterMoverComponent.h"
@@ -49,6 +50,8 @@ ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitial
 	LockOnComponent = CreateDefaultSubobject<ULNPLockOnComponent>(TEXT("LockOnComponent"));
 
 	ControlRotationComponent = CreateDefaultSubobject<ULNPControlRotationComponent>(TEXT("ControlRotationComponent"));
+
+	TrajectoryGuideComponent = CreateDefaultSubobject<ULNPTrajectoryGuideComponent>(TEXT("TrajectoryGuideComponent"));
 
 	// bSyncInputsForSimProxy는 보간 프록시 전용 우회책이라 제거했다 (엔진에도 임시 옵션이라 명시돼 있다).
 	// SimulatedProxyNetworkLOD=ForwardPredict에서는 시뮬레이티드 프록시도 실제로 시뮬레이션되므로

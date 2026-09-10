@@ -191,7 +191,7 @@
     - 판정 반경 분리: `HitRadius`(피격)와 `ParryRadius`(패링)를 독립 필드로 분리. 2단계 판정 — ParryRadius 먼저 체크, 미발동 시 HitRadius 체크. 동작 확인.
     - Guard 이동 제한: `FLNPGuardModifier` (GuardWalkSpeed 200 cm/s) — Sprint와 동일한 Mover Modifier 패턴.
     - Guard 자세 애니메이션: `ABP_Sub_LongSword`에서 `bIsGuarding` Bool Blend 노드로 Guard 자세 블렌딩. 동작 확인.
-    - 에디터 잔여: GameplayCue 에셋 연결 (`GameplayCue.LNP.Guard.Block`, `GameplayCue.LNP.Parry.Success`), Guided/Lobbed 투사체 반사 타입.
+    - 에디터 잔여: GameplayCue 에셋 연결 (`GameplayCue.LNP.Guard.Block`, `GameplayCue.LNP.Parry.Success`), Guided 투사체 반사 타입.
     - 설계 명세: [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)
 
 ---

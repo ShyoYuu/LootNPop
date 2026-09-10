@@ -2,6 +2,7 @@
 
 #include "HitDetection/LNPProjectileProcessors.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
+#include "HitDetection/LNPProjectileMotion.h"
 #include "HitDetection/LNPProjectileVisualSubsystem.h"
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "HitDetection/LNPGuardParryTypes.h"
@@ -102,6 +103,7 @@ void ULNPProjectileMovementProcessor::ConfigureQueries(const TSharedRef<FMassEnt
 {
 	ProjectileQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	ProjectileQuery.AddRequirement<FLNPProjectileFragment>(EMassFragmentAccess::ReadWrite);
+	ProjectileQuery.AddConstSharedRequirement<FLNPProjectileSharedFragment>(EMassFragmentPresence::All);
 	ProjectileQuery.RegisterWithProcessor(*this);
 }
 
@@ -114,14 +116,18 @@ void ULNPProjectileMovementProcessor::Execute(FMassEntityManager& EntityManager,
 		TArrayView<FTransformFragment>     Transforms  = Ctx.GetMutableFragmentView<FTransformFragment>();
 		TArrayView<FLNPProjectileFragment> Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
 
+		// 무기 상수라 Chunk마다 한 번만 읽는다. 0이면 등속 직선이므로 타입 분기가 없다.
+		const float GravityAccel = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>().GravityAccel;
+
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
-			FLNPProjectileFragment& Proj       = Projectiles[i];
-			FTransform&             Transform  = Transforms[i].GetMutableTransform();
-			const FVector           CurrentPos = Transform.GetLocation();
+			FLNPProjectileFragment& Proj      = Projectiles[i];
+			FTransform&             Transform = Transforms[i].GetMutableTransform();
+			FVector                 Pos       = Transform.GetLocation();
 
-			Proj.PreviousPos = CurrentPos;
-			Transform.SetLocation(CurrentPos + Proj.Velocity * DeltaTime);
+			Proj.PreviousPos = Pos;
+			LNPProjectileMotion::Step(Pos, Proj.Velocity, GravityAccel, DeltaTime);
+			Transform.SetLocation(Pos);
 			Proj.LifetimeRemaining -= DeltaTime;
 		}
 	});
@@ -194,9 +200,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		if (LifetimeRemaining <= 0.f)
 			return true;
 
-		FVector SurfacePoint;
-		return SurfaceCache.GetSurfacePoint(Pos.GetSafeNormal(), SurfacePoint)
-			&& Pos.SizeSquared() >= SurfacePoint.SizeSquared();
+		return LNPProjectileMotion::IsUnderSurface(SurfaceCache, Pos);
 	};
 
 	// 클라이언트: 로컬 예측 공격자의 Ghost Projectile에 한해 Physics/Actor 기반 예측 판정 (코스메틱 HitStop만, GE 미적용).

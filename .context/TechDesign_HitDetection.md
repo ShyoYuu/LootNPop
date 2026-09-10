@@ -85,7 +85,7 @@ Pass 3에서 공격자 팀에 따라 분기하되, **Player 타겟에 대한 2�
 
 | 프로세서 | 단계 | 역할 |
 |:---|:---|:---|
-| `ULNPProjectileMovementProcessor` | PrePhysics | `PreviousPos` 갱신 → 위치 적분, 수명 감산. **그것만 한다** (→ §6.4) |
+| `ULNPProjectileMovementProcessor` | PrePhysics | `PreviousPos` 갱신 → 위치 적분(중력 포함, §3.4), 수명 감산. **그것만 한다** (→ §6.4) |
 | `ULNPProjectileHitDetectionProcessor` | StartPhysics | 선분-캡슐 판정, 패링/가드/피격 분기, 지형 충돌·수명 만료 판정, 스플래시, GE 커맨드 |
 | `ULNPProjectileVisualizationProcessor` | StartPhysics (게임 스레드) | Niagara trail 할당/갱신, 큐잉된 임팩트 VFX flush |
 | `ULNPProjectileDestructionProcessor` | PostPhysics | `FLNPProjectileDeadTag` 엔티티 일괄 파괴 |
@@ -127,6 +127,85 @@ FinishHit (공통 후처리 람다):
 - 산탄(`ULNPAbility_RangedSpreadAttack`): Cube 좌표계 육각 링 순회로 중앙 1 + 링 2 = **19발** 방사형 배치.
   기준 방향 하나에서 난수 없이 전부 파생되므로 조준 보정이 패턴 전체에 그대로 전파된다.
 - 네트워크 예측 식별자(PredictionKey/SalvoID), Ghost 등록, 관전자 방송: → [TechDesign_Networking.md](TechDesign_Networking.md)
+
+### 3.4 포물선 발사체 (Lobbed — 유탄) ⭐ 2026-09-10
+
+`ELNPProjectileType::Lobbed`는 오래 enum에만 있었다. 이제 유탄 발사기(`DA_Launcher`)가 쓴다.
+
+**런타임 단일 출처는 스칼라 하나다.** `FLNPProjectileSharedFragment::GravityAccel`(cm/s²)이 0이면
+등속 직선, 0보다 크면 포물선이다. enum은 저작용 스위치일 뿐이고, 해석은 스폰 시 1회
+(`ULNPWeaponData::GetEffectiveProjectileGravity`)로 끝난다. 덕분에 이동 프로세서에 타입 분기가 없다.
+
+```cpp
+// LNPProjectileMotion.h — 실제 비행과 예상 궤도가 반드시 공유해야 하는 한 벌
+FORCEINLINE void Step(FVector& Pos, FVector& Vel, float GravityAccel, float Dt)
+{
+    if (GravityAccel <= 0.f) { Pos += Vel * Dt; return; }
+    const FVector G = Pos.GetSafeNormal() * GravityAccel;   // 구 내벽 세계: 아래 = 바깥쪽
+    Pos += Vel * Dt + G * (0.5f * Dt * Dt);
+    Vel += G * Dt;
+}
+```
+
+| 판단 | 근거 |
+|:---|:---|
+| **속도 Verlet**을 쓴다 (명시적 오일러 아님) | 오일러는 같은 구간을 몇 스텝으로 쪼개느냐에 따라 궤적이 달라진다. 예측은 고정 1/30초, 실행은 프레임 Dt이므로 **가이드와 실탄이 갈린다.** Verlet은 상수 중력에서 스텝 분할에 불변이다 |
+| 중력 방향은 **매 스텝 재계산** | 방사 중력이라 엄밀히는 케플러 궤도다. 사거리 대비 반지름(25000cm) 스케일에서 스텝마다 방향을 갱신하는 국소 균일 근사로 충분하다 |
+| `GravityAccel == 0`을 **직선의 정의**로 삼는다 | 타입 분기·별도 쿼리·별도 프로세서가 전부 사라진다. 기존 무기는 0이라 회귀가 없다 |
+| 조준은 **조준선 그대로** (탄도 해를 풀지 않는다) | 조준점에 자동 명중시키면 궤도 가이드가 장식이 된다. 플레이어가 가이드를 보고 올려 조준하는 것이 이 무기의 조작이다 |
+| 착탄은 **즉시 폭발** (바운스 없음) | 종말 판정(§6.4)을 그대로 쓴다 — 판정 코드 변경 0, 그리고 예측 궤도가 실제 궤도와 **같은 식**이 된다 |
+
+⚠️ **이동 프로세서의 쿼리에 `FLNPProjectileSharedFragment` ConstShared 요구가 생겼다.**
+SharedFragment 없이 만든 발사체 엔티티는 그 순간부터 **이동 자체가 멈춘다**. 현행 스폰 경로
+3곳(어빌리티 / 순수 엔티티 공격 / Ghost)은 모두 붙이고 있다.
+
+⚠️ **Ghost의 Dead Reckoning 외삽도 같은 적분을 써야 한다.** 직선 외삽(`SpawnPos + V*t`)으로 두면
+포물선 탄이 시작부터 어긋난다. `Velocity`도 외삽된 값으로 넣어야 이후 비행이 서버와 겹친다.
+
+#### ADS 궤도 가이드
+
+`ULNPTrajectoryGuideComponent`(`ALNPPlayerCharacter`)가 ADS 중 예상 궤도를 Niagara 리본으로 그린다.
+
+- **로컬 전용성은 스폰 위치에서 나온다** — Niagara를 로컬 클라이언트에서만 스폰하므로 복제되지 않는다.
+  프로젝트에 `SetOnlyOwnerSee` 사용처는 0건이고, 새로 도입하지 않았다.
+- **총구·조준 방향은 실탄과 같은 함수를 쓴다** (`LNPFireGeometry::ResolveMuzzleLocation` /
+  `ResolveAimDirection`). 어빌리티에 있던 본문을 그대로 뽑아 둘이 공유한다 — §7.6·§7.7이 반복해
+  경고하는 "같은 식 두 벌"을 처음부터 만들지 않기 위해서다.
+- **지면 판정도 착탄 판정과 같은 함수다** (`LNPProjectileMotion::IsUnderSurface`).
+  종말 판정(§6.4)이 쓰던 식을 헤더로 올려 예측과 공유했다.
+- 궤적은 시뮬레이션 후 **호 길이 기준으로 정확히 64점에 재표집**한다. 개수가 고정이라 Niagara는
+  64개를 버스트하고 `ExecIndex`로 읽기만 하면 된다 — 배열 길이 조회도, 여분 정점 숨기기도 없다.
+  마지막 점이 곧 착탄 예상 지점이라 착탄 표식도 같은 배열에서 읽는다(User 파라미터 `Points` 하나뿐).
+- 상태를 명령형으로 세우지 않고 **매 Tick 게이트를 다시 평가**한다. 무기 교체·ADS 해제·사망 어느
+  쪽으로 빠져나가도 저절로 풀린다 — 가드가 눌린 입력을 남겨 겪었던 문제
+  (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §2.6)를 되풀이하지 않기 위해서다.
+
+⚠️ **`UNiagaraComponent::Deactivate()`는 가이드를 지우지 못한다** (2026-09-10 실측).
+Deactivate는 **스폰만 멈추고 살아 있는 파티클은 수명이 다할 때까지 둔다.** 가이드는 매 프레임
+위치를 갈아끼우는 방식이라 파티클 수명이 사실상 무한(9999초)이고, 그래서 ADS를 풀어도 궤적이
+화면에 그대로 남았다. `DeactivateImmediate()`가 즉시 지운다 — 컴포넌트는 살려 두므로 ADS를
+반복해서 켜고 끌 때의 재생성 비용은 여전히 없다.
+
+#### 스플래시 반경 표식은 바닥 데칼이다
+
+착탄 예상 지점의 반경 표시는 Niagara 스프라이트가 아니라 `UDecalComponent` +
+`M_LNP_BlastRadiusDecal`(Deferred Decal / Translucent / Unlit)이다.
+
+| 판단 | 근거 |
+|:---|:---|
+| 스프라이트가 아니라 **데칼** | 카메라를 향하는 스프라이트는 반경만큼 커지면 **반구처럼 서서 전투 시야를 가린다.** 데칼은 지형에 투영되므로 경사면에서도 바닥에만 붙는다 |
+| **반투명 + 얇은 링** (가장자리 0.55, 안쪽 채움 0.18) | 가이드는 조준을 돕는 것이지 표적을 가리는 것이 아니다. 링 위에 선 적이 그대로 비쳐야 한다 |
+| `DecalSize`의 Y·Z = `ExplosionRadius` | 데칼 상자는 반크기 규약이라 투영 사각형의 한 변이 정확히 지름이 되고, 머티리얼의 UV 원이 거기에 내접한다 — **표식의 반경이 곧 스플래시 반경**이다 |
+| 투영 축은 `+ImpactPoint.GetSafeNormal()` | 데칼은 로컬 +X로 투영한다. 구 내벽 세계라 "아래"는 원점에서 바깥쪽이다 |
+| 착탄점을 따로 넘기지 않는다 | `PredictArc`의 마지막 표본이 곧 착탄 예상 지점이다 |
+
+곡률 걱정은 없다 — 반지름 25000cm 구에서 600cm 원의 새그(sagitta)는 `r²/2R ≈ 7cm`다.
+- `SurfaceCache` 베이킹 전에는 `PredictArc`가 false를 돌려주고 가이드를 숨긴다. 지면을 모르는 채로
+  그리면 궤적이 지형을 뚫고 수명 끝까지 뻗는다.
+
+⚠️ **Niagara User 파라미터를 MCP로 만들 때 `AddUserVariables`를 쓰면 에디터가 죽는다**(기록된 실측 2회).
+대신 모듈 입력을 `User.<이름>`으로 **링크**하면 파라미터가 자동 생성된다 — `NS_TrajectoryGuide`의
+`User.Points`(Position 배열 DI)가 그렇게 만들어졌다.
 
 ---
 
@@ -404,7 +483,7 @@ LNPHitDetection::ResolveEnemyCapsuleCenter(EntityLocation, UpDir, HalfH, EnemyAc
 ## 8. 미구현 / 한계
 
 - **공간 쿼리 최적화:** 현재 Pass 3는 공격 엔티티 × 전체 타겟 O(n×m) 전수 검사. 엔티티 수가 늘면 `UMassNavigationSubsystem`의 Hash Grid 재활용 또는 구형 월드용 커스텀 Grid로 인접 셀만 검사하도록 개선 예정.
-- **Guided / Lobbed 투사체:** `ELNPProjectileType`에 정의만 존재. Movement 프로세서는 Linear만 구현.
+- **Guided 투사체:** `ELNPProjectileType`에 정의만 존재. Lobbed는 §3.4로 구현 완료, Guided는 미착수.
 - **Mass(Low LOD) 상태 HitStop:** Actor 상태는 `CustomTimeDilation`으로 처리 완료. 순수 엔티티는 `FLNPExecutionSpeedFragment` 배율 방식 미구현. **공격자(플레이어) 쪽 HitStop은 순수 엔티티를 때릴 때도 정상 동작한다**(→ §6.1) — 없는 것은 *"맞은 엔티티의 재생이 잠깐 멈추는"* 쪽뿐이다.
 - **근접 임팩트 큐 에셋이 비어 있다:** `GCN_LNP_Melee_Impact`의 `VFX`·`Sound`·`CameraShake`가 모두 미설정이라 배선은 살아 있어도 재생할 것이 없다. 순수 엔티티만의 문제가 아니라 Actor 적도 마찬가지다 — 저작 대기.
 - **피격 아이템 드랍:** 넉백은 완료, 피격 시 보유 아이템 드랍 및 LootPod Interruption 연동 미구현.

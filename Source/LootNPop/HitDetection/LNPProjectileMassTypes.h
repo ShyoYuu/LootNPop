@@ -63,6 +63,11 @@ struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragme
 
 	UPROPERTY()
 	float PoiseDamage = 0.f;              // 직격·스플래시 공통 경직력 (산탄은 발마다 누적되므로 발당 값)
+
+	/** 구면 중력 가속도 크기 (cm/s²). 0이면 등속 직선 — 타입 분기 없이 이 한 값이 궤적을 가른다.
+	 *  스폰 시점에 ELNPProjectileType::Lobbed 여부를 해석해 채운다 (런타임 단일 출처). */
+	UPROPERTY()
+	float GravityAccel = 0.f;
 };
 
 /**
