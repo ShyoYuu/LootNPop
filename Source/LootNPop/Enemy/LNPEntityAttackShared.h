@@ -81,6 +81,7 @@ namespace LNPEntityAttack
 		SharedData.ParryRadius       = AttackConfig.ParryRadius;
 		SharedData.KnockbackStrength = AttackConfig.KnockbackStrength;
 		SharedData.PoiseDamage       = AttackConfig.PoiseDamage;
+		SharedData.GravityAccel      = WeaponDef.GetEffectiveProjectileGravity();
 		return SharedData;
 	}
 

@@ -13,6 +13,7 @@ class ULNPInventoryItemInstance;
 class ULNPInteractionComponent;
 class ULNPLockOnComponent;
 class ULNPControlRotationComponent;
+class ULNPTrajectoryGuideComponent;
 
 /**
  * Player가 조종하는 캐릭터 클래스.
@@ -169,6 +170,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPLockOnComponent> LockOnComponent;
+
+	/** ADS 중 유탄 예상 궤도. 로컬 클라이언트에서만 Niagara를 스폰하므로 본인에게만 보인다. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ULNPTrajectoryGuideComponent> TrajectoryGuideComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPControlRotationComponent> ControlRotationComponent;

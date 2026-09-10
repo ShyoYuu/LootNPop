@@ -2,6 +2,7 @@
 
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
+#include "HitDetection/LNPProjectileMotion.h"
 #include "HitDetection/LNPProjectileVisualSubsystem.h"
 #include "MassEntitySubsystem.h"
 #include "MassEntityManager.h"
@@ -162,12 +163,18 @@ void ULNPGhostProjectileSubsystem::SpawnSpectatorGhosts(const FLNPProjectileShar
 	{
 		const uint8 SpawnIndex = static_cast<uint8>(i);
 		const FMassEntityHandle Entity = EntityManager.ReserveEntity();
-		const FVector ExtrapolatedPos  = SpawnPos + Velocities[i] * ExtrapolateSeconds;
+
+		// 외삽도 실제 비행과 같은 적분을 쓴다. 포물선 탄을 직선으로 외삽하면 시작부터 어긋난다.
+		// 속도 Verlet은 상수 중력에서 스텝 분할에 불변이므로 이 구간(최대 200ms)은 1스텝으로 정확하다.
+		// **속도까지 갱신해 넣어야** 이후 비행이 서버 발사체와 겹친다.
+		FVector ExtrapolatedPos = SpawnPos;
+		FVector ExtrapolatedVel = Velocities[i];
+		LNPProjectileMotion::Step(ExtrapolatedPos, ExtrapolatedVel, SharedData.GravityAccel, ExtrapolateSeconds);
 
 		FLNPProjectileFragment FragData;
 		FragData.PreviousPos        = ExtrapolatedPos;
 		FragData.SpawnLocation      = ExtrapolatedPos;
-		FragData.Velocity           = Velocities[i];
+		FragData.Velocity           = ExtrapolatedVel;
 		FragData.LifetimeRemaining  = RemainingLifetime;
 		FragData.InstigatorTeam     = InstigatorTeam;
 		FragData.bIsLocalInstigator = false;

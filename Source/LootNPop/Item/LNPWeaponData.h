@@ -112,6 +112,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0.1"))
 	float ProjectileLifetime = 5.f;
 
+	/**
+	 * 발사체에 걸리는 구면 중력 가속도 (cm/s²). **ProjectileType이 Lobbed일 때만** 적용된다.
+	 * 기본값은 폰 중력(ULNPPawnGravityComponent::GravityStrength)과 같은 값이다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile", meta = (ClampMin = "0"))
+	float ProjectileGravity = 2000.f;
+
+	/** 실제 비행에 적용되는 중력 가속도. Lobbed가 아니면 0이고, 0이면 등속 직선과 정확히 같다.
+	 *  스폰 경로와 ADS 궤도 가이드가 모두 이 창구를 봐야 예측과 실탄이 갈리지 않는다. */
+	float GetEffectiveProjectileGravity() const
+	{
+		return (ProjectileType == ELNPProjectileType::Lobbed) ? ProjectileGravity : 0.f;
+	}
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Projectile")
 	FVector MuzzleOffset = FVector(100.f, 0.f, 0.f);
 
