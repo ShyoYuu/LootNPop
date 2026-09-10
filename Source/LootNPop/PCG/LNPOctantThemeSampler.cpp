@@ -1,9 +1,10 @@
 ﻿#include "LNPOctantThemeSampler.h"
 #include "PCGContext.h"
 #include "PCGPin.h"
+#include "Components/PrimitiveComponent.h"
 #include "Data/PCGSpatialData.h"
 #include "Data/PCGPointData.h"
-#include "Elements/PCGVolumeSampler.h"
+#include "Data/PCGPrimitiveData.h"
 #include "Helpers/PCGHelpers.h"
 #include "Metadata/PCGMetadata.h"
 #include "Metadata/PCGMetadataAccessor.h"
@@ -99,21 +100,27 @@ bool FLNPOctantThemeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 
 		FRandomStream RandomSource(Settings->Seed);
 
-		// 2. 투영용으로 메시 표면을 Point Cloud으로 샘플링.
-		// PCG 파티션 Actor의 거대한 Z 범위를 상속받으면 ToPointData()에서 NumZ Overflow가 발생하므로
-		// 반지름 기반 Bounds를 사용하여 PCGVolumeSampler를 직접 호출한다.
-		PCGVolumeSampler::FVolumeSamplerParams SamplerParams;
-		FBox SafeBounds = SpatialBounds;
-		SafeBounds.Min.Z = FMath::Max(SpatialBounds.Min.Z, -Radius);
-		SafeBounds.Max.Z = FMath::Min(SpatialBounds.Max.Z,  (Radius * 2.0));
-		SamplerParams.VoxelSize = FVector(Settings->SamplingVoxelSize);
-		SamplerParams.Bounds    = SafeBounds;
-		const UPCGPointData* InPointData = Cast<UPCGPointData>(
-			PCGVolumeSampler::SampleVolume(Context, UPCGPointData::StaticClass(), SamplerParams, SpatialData));
-		if (!InPointData || InPointData->GetPoints().Num() == 0)
+		// 2. 투영 대상 확보 — 지각 콜리전에 직접 라인트레이스한다.
+		// ⚠ 복셀 점군(PCGVolumeSampler) 투영을 쓰면 안 된다 — 점이 월드 원점 기준 축정렬 격자에 얹히고,
+		//   UPCGBasePointData::ProjectPoint는 최근접이 아니라 겹침 볼륨 가중 평균이라 착지점이 양자화된다.
+		// PCG의 Actor 입력은 메시가 아니라 UPrimitiveComponent를 감싼 UPCGPrimitiveData다.
+		// 파티션/Union으로 감싸여 올 수 있으므로 엔진 헬퍼로 concrete shape까지 내려간다.
+		const UPCGPrimitiveData* PrimitiveData = Cast<UPCGPrimitiveData>(SpatialData);
+		if (PrimitiveData == nullptr)
 		{
+			PrimitiveData = Cast<UPCGPrimitiveData>(SpatialData->FindFirstConcreteShapeFromNetwork());
+		}
+
+		UPrimitiveComponent* CrustComponent = (PrimitiveData != nullptr) ? PrimitiveData->GetComponent().Get() : nullptr;
+		if (CrustComponent == nullptr)
+		{
+			PCGE_LOG(Error, GraphAndLog, LOCTEXT("NoPrimitiveInput", "Input data has no primitive component to trace against."));
 			continue;
 		}
+
+		// SurfaceCache의 지면 조회와 같은 조합(bTraceComplex=false). SM_Octant는 UseComplexAsSimple이라
+		// 단순 트레이스가 실제 삼각형을 맞히고, 두 시스템이 같은 면을 기준으로 삼게 된다.
+		const FCollisionQueryParams TraceParams(NAME_None, /*bInTraceComplex=*/false);
 
 		// 3. 메인 샘플링 루프
 		for (int32 i = 0; i < NumSamples; ++i)
@@ -125,24 +132,19 @@ bool FLNPOctantThemeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 			const float SinTheta = FMath::Sqrt(1.0f - CosTheta * CosTheta);
 			const FVector LocalDir(SinTheta * FMath::Cos(Phi), SinTheta * FMath::Sin(Phi), CosTheta);
 
-			// --- STEP B: 내부→외부 투영 ---
-			// 구체 내부에서 시작하여 외부 방향으로 투영한다.
-			// 두께 1m의 구체 세계에서 내벽에 먼저 닿도록 보장한다.
-			const FVector LocalRayStart = LocalDir * (Radius * 0.5f); 
-			const FQuat LocalRayRotation = FRotationMatrix::MakeFromZ(LocalDir).ToQuat();
-			const FTransform LocalRayTransform(LocalRayRotation, LocalRayStart);
-
-			FPCGPoint ProjectedPoint;
-			FPCGProjectionParams ProjParams;
-
-			// LocalDir 방향으로 정렬된 SearchBox. RayStart에서 반지름 방향으로 전방을 탐색한다.
-			const FBox SearchBox(FVector(-50, -50, 0), FVector(50, 50, Radius * 1.5f));
-			
-			if (InPointData->ProjectPoint(LocalRayTransform, SearchBox, ProjParams, ProjectedPoint, Metadata))
+			// --- STEP B: 내부→외부 라인트레이스 ---
+			// 구 내벽 세계라 플레이 표면은 지각의 안쪽 면이다 — 중심에서 바깥으로 쏜 첫 히트가 지면이다.
+			// 종점은 Radius(입력 Bounds의 최대 변 = 실제 반지름 이상)의 2배라 지각 바깥임이 보장된다.
+			FHitResult Hit;
+			if (CrustComponent->LineTraceComponent(Hit, FVector::ZeroVector, LocalDir * (Radius * 2.0f), TraceParams))
 			{
-				const FVector SurfaceLocation = ProjectedPoint.Transform.GetLocation();
+				const FVector SurfaceLocation = Hit.ImpactPoint;
 				const int32 PointSeed = PCGHelpers::ComputeSeedFromPosition(SurfaceLocation);
 				FRandomStream PointRandom(PointSeed ^ Settings->Seed);
+
+				FPCGPoint ProjectedPoint;
+				ProjectedPoint.Density = 1.0f;
+				ProjectedPoint.Seed = PointSeed;
 
 				// --- STEP C: 표면 정렬 및 Pivot 보정 ---
 				// 구체 세계의 중심은 (0,0,0). Up 방향은 중심을 향한다.

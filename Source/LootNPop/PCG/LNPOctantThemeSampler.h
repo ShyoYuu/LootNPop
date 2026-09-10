@@ -38,11 +38,6 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	float RandomRotationMax = 360.0f;
-
-	// 메시 표면을 Point Cloud으로 샘플링할 때 사용하는 복셀 크기.
-	// 값이 클수록 메모리는 줄어들지만 표면 정밀도가 낮아진다. 기본값 200cm는 대형 구체 세계에 적합.
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ClampMin = "1.0"))
-	float SamplingVoxelSize = 200.0f;
 };
 
 class FLNPOctantThemeSamplerElement : public IPCGElement
