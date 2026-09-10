@@ -232,6 +232,11 @@ Entity 모드 (Low LOD):
 
 - 구형 UpDir은 `(GravityOrigin - Location).GetSafeNormal()`로 실시간 계산 (Fragment 저장 없음 — 캐시 효율).
 - 지표면 좌표는 전부 `ULNPSurfaceCacheSubsystem` O(1) 조회 (→ [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md)).
+  ⚠️ **접지 스냅은 캐시 값을 검증 없이 그대로 위치로 쓴다**(`FinalPos = GravityOrigin + Dir * (SurfaceRadius - CapsuleHalfHeight)`).
+  즉 **캐시 오차가 곧 매몰 깊이**이며, 승격 시 `TeleportActor`가 그 좌표를 Actor에 그대로 옮기고
+  Mover는 깊은 침투를 한 프레임에 풀지 못한다. 경사 게이트(§7.4)까지 벽으로 판정해 속도를 0으로
+  만들므로 "꼼짝 못 하는데 공격은 하는" 상태가 된다 — 어빌리티·StateTree는 이 경로와 무관하다.
+  캐시가 표현할 수 있는 지형의 한계는 `TechDesign_SurfaceCache.md` §7 참조.
 - **공중 물리는 람다 하나로 뽑아 두 소비처(넉백·사망 팝)가 공유한다.** 복제하면 죽는 순간에만
   다른 곡선을 그리는 어긋남이 생긴다.
 
