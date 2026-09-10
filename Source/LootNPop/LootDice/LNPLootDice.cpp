@@ -40,6 +40,12 @@ ALNPLootDice::ALNPLootDice()
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	SetRootComponent(MeshComponent);
 	MeshComponent->SetSimulatePhysics(true);
+	// CCD(연속 충돌 판정) — 지각은 두께 없는 단면이라, 이산 스텝으로 도는 강체는 한 스텝의 변위가
+	// 크면 표면을 그냥 지나쳐 월드 밖으로 나간다. 스윕으로 도는 폰·발사체와 달리 이쪽만 노출된다.
+	// CCD는 스텝 시작·끝 사이를 스윕해 첫 접촉을 잡으므로 속도와 무관하게 막힌다
+	// (같은 근거로 렉돌도 켠다 — ALNPCharacterBase::EnterRagdoll).
+	// 생성자 시점엔 FBodyInstance가 아직 없으므로 SetAllUseCCD가 아니라 기본 BodyInstance에 직접 쓴다.
+	MeshComponent->BodyInstance.bUseCCD = true;
 	// 내장 -Z 중력 차단 — 구형 중력은 Tick의 AddForce(bAccelChange)가 동일한 수학으로 담당한다 (§2.4)
 	MeshComponent->SetEnableGravity(false);
 	MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);

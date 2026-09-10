@@ -96,6 +96,27 @@ OnWorldGenerationFinished.Broadcast()
 - Radius / Subdivisions / Magnitude / Frequency / Random Seed 파라미터로 지형 굴곡 제어.
 - `FLNPOctantMeshGeneratorCustomization`(`IDetailCustomization`)이 Details 패널에 **Save Mesh** 버튼을 추가 — 프리뷰 결과를 Static Mesh 에셋으로 저장한다.
 
+**생성 순서 (`CreateOctantPrimitive`):**
+
+```
+AppendBox([0,R]³, Subdivisions)
+  → 법선각으로 -X/-Y/-Z 안쪽 3면 선택 → 삭제
+  → CompactMesh
+  → 구면 투영 (정점 정규화 × Radius)
+```
+
+⚠️ **안쪽 3면 삭제는 반드시 구면 투영 *전에* 한다.** 투영을 먼저 하면 X=0 면 위의 모든 점이
+같은 평면·같은 반지름으로 정규화되어 **2D 면이 1D 경계 호로 붕괴**한다. 그렇게 퇴화한 삼각형은
+법선이 정의되지 않아 `SelectMeshElementsByNormalAngle`이 절반가량을 놓치고, 살아남은 것들이
+**이음매 평면 안에 두께 0인 판**으로 남는다(실측: 전체 삼각형의 32%). 평평한 축정렬 박스 면일
+때는 법선이 정확히 -X/-Y/-Z라 선택이 확실하다. 삭제가 남기는 정점 인덱스 구멍은 `CompactMesh`로
+메운다 — 바로 뒤의 `GetAllVertexPositions`/`SetAllMeshVertexPositions`가 인덱스로 짝을 맞추기 때문이다.
+
+**지각은 두께 없는 단면이다.** 예전에는 `ApplyMeshShell`로 100cm 쉘을 씌웠으나 제거했다
+(§6.5). 쉘 두께에 기대던 고속 관통 방어는 `bUseCCD`로 옮겼다 — `ALNPLootDice` 생성자 참조.
+`ApplyMeshShell` 노드 자체는 실행 체인에서만 빠진 채 그래프에 남아 있어, 두께가 다시 필요해지면
+`FlipNormals`와 `RepairMeshDegenerateGeometry` 사이에 되꽂으면 된다.
+
 ### 4.2 세부 지형 (PCG Layer — 에디터 타임)
 
 `ULNPOctantThemeSamplerSettings` 커스텀 PCG 노드가 지각 위에 테마 기반 프랍을 배치한다.
@@ -104,8 +125,9 @@ OnWorldGenerationFinished.Broadcast()
 
 1. **표면 샘플링:** 입력 Spatial Data(지각 메시)를 `PCGVolumeSampler`로 Point Cloud화.
 2. **균등 방향 생성:** Octant 사분면(+X,+Y,+Z) 내에서 균등 분포 임의 방향 생성 (cos-weighted 구면 샘플링).
-3. **내부→외부 투영:** 구 중심 쪽에서 시작하는 Ray로 `ProjectPoint()` — 두께 1m 지각의 **내벽**에 먼저 닿도록 보장.
-4. **표면 정렬:** 메시 Z(Up)를 구 중심 방향으로 정렬(`FRotationMatrix::MakeFromZ`) + 랜덤 Yaw. Pivot은 중심 방향 50cm 오프셋으로 내벽 표면에 밀착.
+3. **내부→외부 투영:** 구 중심 쪽에서 시작하는 Ray로 `ProjectPoint()`.
+4. **표면 정렬:** 메시 Z(Up)를 구 중심 방향으로 정렬(`FRotationMatrix::MakeFromZ`) + 랜덤 Yaw.
+   접지는 **선택된 메시의 로컬 Bounds 최저점**(`-GetBoundingBox().Min.Z × Scale.Z`)만큼 Up으로 밀어 맞춘다 — §6.6.
 5. **가중치 선택:** `ULNPOctantThemeData::PropEntries`의 Weight 비례 확률로 메시 선택, `MeshPath` Metadata로 후속 Static Mesh Spawner에 전달. 스케일은 Min/MaxScale 랜덤 보간.
 
 ### 4.3 Baking
@@ -146,9 +168,48 @@ Blueprint 에디터에서 Details 패널을 열면 커스터마이제이션 대�
 
 월드 전체를 복제하는 대신 **int32 시드 하나만 복제**하고 양쪽에서 동일한 결정론적 알고리즘(FRandomStream + 배치 셔플)을 실행. 대역폭 비용이 사실상 0이며, 조립 결과는 서버·클라이언트가 항상 일치한다.
 
+### 6.5 이음매 도랑 — 쉘이 경계에서 두께 0으로 오므라들었다
+
+Octant 경계를 따라 **폭 약 2m·깊이 약 1m의 도랑**이 파여 있었다. 적 NPC가 그 위에서 Actor로
+승격되면 가슴까지 묻힌 채 멈췄다.
+
+원인은 노이즈가 아니었다. `ApplySeamAwarePerlinNoise`의 변위 마스크 `(X·Y·Z)/R³`는 세 좌표평면
+위에서 정확히 0이라 경계를 반지름 R에 정확히 고정한다 — **규약을 정확히 지키고 있었다.**
+깨진 곳은 `PostProcessTerrainGeometry`의 `ApplyMeshShell(OffsetDistance=100, bFixedBoundary=true)`
+였다. `bFixedBoundary=true`는 경계 정점을 오프셋에서 제외하므로, 쉘이 내부에서는 100cm 두께인데
+**이음매에서 두께 0으로 오므라든다.** 플레이 표면(안쪽 면)이 경계에서 원래 패치(= 정확히 R)로
+되돌아 나오면서 그 차이가 그대로 도랑이 됐다 — **깊이 = 쉘 두께**.
+
+⚠️ **`bFixedBoundary=false`로 뒤집는 것은 해법이 아니다.** 도랑은 사라지지만 `ApplyMeshShell`의
+경계 림 스티칭이 이 메시에서 깨져 있어, 퇴화 삼각형으로 가려져 있던 **거대한 판**이 드러난다
+(무작위 20,000방향 최악 오차 +141cm → +1670cm). 쉘 자체를 걷어내는 것이 답이었다.
+
+**측정 근거:** 이음매를 각도로 훑으면 매끈한 대칭 깔때기가 정확히 `SphereRadius`에서 바닥을 쳤고,
+등장방형 격자 잔차는 세 좌표평면(적도 row 392 = lat 0.000°, 경도 col 785 = lon 180.000° 등)에서만
+기준선의 5~13배로 튀었다. 무효 셀은 0건이고 단순/복합 콜리전이 항상 같은 값을 줘서 베이킹
+아티팩트가 아님이 배제됐다. 수정 후 이음매 6곳의 캐시↔실측 오차는 전부 ≈0(최대 −5cm)이 됐다.
+
+### 6.6 PCG 프랍 접지 — 고정 오프셋은 전제가 바뀌면 그대로 오차가 된다
+
+프랍이 지면에서 발목~무릎 높이로 떠 있었고, 뜬 높이가 프랍마다 달랐다. 원인이 둘이다.
+
+1. **고정 `+50cm` 오프셋.** "두께 1m 지각의 내벽에 밀착"시키려고 넣은 상수였다. §6.5로 두께가
+   사라지자 **전제가 없어진 보정이 그대로 뜨는 높이**가 됐다. 지금은 선택된 메시의 로컬 Bounds
+   최저점으로 대체했다 — 바닥 피벗 메시는 0이 되어 그대로 붙고, 중심 피벗 메시는 반높이만큼
+   올라오며, 나무·바위로 교체해도 다시 어긋나지 않는다.
+2. **투영 대상이 복셀 점군이다.** `ProjectPoint`가 실제 메시 표면이 아니라 `PCGVolumeSampler`가
+   만든 `SamplingVoxelSize`(기본 200cm) 격자 점군에 스냅하므로 착지점이 양자화된다. 프랍마다
+   뜬 높이가 다른 편차의 정체이며, 1번을 고쳐도 남는다(§7).
+
 ---
 
 ## 7. 미구현 / 한계
 
 - **Octant 풀 콘텐츠 부족:** 파이프라인은 완성됐으나 실제 제작된 Octant 테마 에셋 수가 적음. 콘텐츠 확충 필요.
 - **런타임 지형 변형 미지원:** HISM Bake + SurfaceCache 사전 베이킹 전제상 게임 중 지형 파괴/변형은 지원하지 않음.
+- **PCG 프랍 접지 잔차:** 투영 대상이 200cm 복셀 점군이라 착지점이 양자화된다(§6.6-2). 복셀을 줄이면
+  점 개수가 세제곱으로 늘어 현실적이지 않고, 입력 Spatial Data에 직접 투영하도록 바꾸는 편이 맞다.
+- **이음매 평탄화:** 변위 마스크 `(X·Y·Z)/R³`는 옥턴트 중심에서도 최대 `1/(3√3) ≈ 0.19`까지만 오른다.
+  세 이음매에서 곱으로 감쇠하므로 조각 전체가 눌리고 이음매 근처가 넓게 평탄해진다(`Magnitude`를
+  키워 상쇄 중). 가장 가까운 이음매까지의 거리 하나로 `smootherstep`하는 마스크로 바꾸면 조각
+  대부분에서 1.0이 되고 블렌드 폭을 직접 통제할 수 있다.

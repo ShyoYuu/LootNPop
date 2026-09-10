@@ -148,10 +148,7 @@ bool FLNPOctantThemeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 				// 구체 세계의 중심은 (0,0,0). Up 방향은 중심을 향한다.
 				const FVector ToCenter = -SurfaceLocation.GetSafeNormal();
 
-				// 메시 두께는 1m. ProjectPoint는 중간/외부 레이어에 닿는다.
-				// Prop Pivot이 내벽 표면에 딱 맞도록 중심 방향으로 50유닛 오프셋한다.
-				const FVector FinalLocation = SurfaceLocation + (ToCenter * 50.0f);
-				ProjectedPoint.Transform.SetLocation(FinalLocation);
+				// 위치 확정은 STEP D로 미룬다 — 접지 보정에 선택된 메시의 Bounds와 스케일이 필요하다.
 
 				// 메시 Z (Up)을 구체 중심 방향으로 완벽하게 정렬
 				const FQuat AlignRot = FRotationMatrix::MakeFromZ(ToCenter).ToQuat();
@@ -166,6 +163,7 @@ bool FLNPOctantThemeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 				float RandomWeight = PointRandom.FRandRange(0.0f, TotalWeight);
 				float CurrentWeight = 0.0f;
 				FString SelectedMeshPath = TEXT("");
+				const UStaticMesh* SelectedMesh = nullptr;
 				FVector SelectedMinScale(0.8f);
 				FVector SelectedMaxScale(1.2f);
 
@@ -177,6 +175,7 @@ bool FLNPOctantThemeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 						if (Entry.Mesh)
 						{
 							SelectedMeshPath = Entry.Mesh->GetPathName();
+							SelectedMesh = Entry.Mesh;
 						}
 						SelectedMinScale = Entry.MinScale;
 						SelectedMaxScale = Entry.MaxScale;
@@ -184,7 +183,16 @@ bool FLNPOctantThemeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 					}
 				}
 
-				ProjectedPoint.Transform.SetScale3D(FMath::Lerp(SelectedMinScale, SelectedMaxScale, ScaleAlpha));
+				const FVector FinalScale = FMath::Lerp(SelectedMinScale, SelectedMaxScale, ScaleAlpha);
+				ProjectedPoint.Transform.SetScale3D(FinalScale);
+
+				// --- 접지 보정 ---
+				// 메시 로컬 Bounds의 최저점까지의 거리만큼 Up으로 밀어 바닥이 표면에 닿게 한다.
+				// 바닥 피벗 메시(현재 프랍 전부)는 0이 되어 그대로 붙고, 중심 피벗 메시는 반높이만큼 올라온다.
+				// ⚠ 고정 상수를 쓰면 안 된다 — 예전의 50유닛은 두께 1m 지각을 전제한 값이라
+				// 지각이 단면이 되고 메시가 바뀌는 순간 그대로 뜨는 높이가 된다.
+				const float PivotToBottom = (SelectedMesh != nullptr) ? -SelectedMesh->GetBoundingBox().Min.Z : 0.0f;
+				ProjectedPoint.Transform.SetLocation(SurfaceLocation + ToCenter * (PivotToBottom * FinalScale.Z));
 
 				// Point Metadata Finalize
 				Metadata->InitializeOnSet(ProjectedPoint.MetadataEntry);
