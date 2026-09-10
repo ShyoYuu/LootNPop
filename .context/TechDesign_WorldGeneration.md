@@ -117,18 +117,26 @@ AppendBox([0,R]³, Subdivisions)
 `ApplyMeshShell` 노드 자체는 실행 체인에서만 빠진 채 그래프에 남아 있어, 두께가 다시 필요해지면
 `FlipNormals`와 `RepairMeshDegenerateGeometry` 사이에 되꽂으면 된다.
 
+⚠️ **구워낸 스태틱 메시는 `CollisionTraceFlag = CTF_UseComplexAsSimple`이어야 한다.** 지형을 읽는 두
+시스템 — `ULNPSurfaceCacheSubsystem`(NPC 접지)과 PCG 프랍 배치(§4.2) — 이 **둘 다 단순 트레이스**
+(`bTraceComplex=false`)를 쏘기 때문이다. `CTF_UseSimpleAsComplex`(컨벡스 헐)면 둘 다 헐 표면을 지면으로
+착각하며, 하필 **같은 방향으로 함께 틀리므로** 프랍과 NPC의 높이가 서로 맞아 원인 추적이 어렵다.
+플래그는 `ReceiveSaveMesh()`가 있는 블루프린트 쪽에서 정해지므로 C++이 보증하지 않는다 — 새 Octant
+메시를 구울 때마다 확인할 자리다(실제로 한 에셋이 이 값이 어긋난 채로 있었다).
+
 ### 4.2 세부 지형 (PCG Layer — 에디터 타임)
 
 `ULNPOctantThemeSamplerSettings` 커스텀 PCG 노드가 지각 위에 테마 기반 프랍을 배치한다.
 
 **배치 파이프라인:**
 
-1. **표면 샘플링:** 입력 Spatial Data(지각 메시)를 `PCGVolumeSampler`로 Point Cloud화.
-2. **균등 방향 생성:** Octant 사분면(+X,+Y,+Z) 내에서 균등 분포 임의 방향 생성 (cos-weighted 구면 샘플링).
-3. **내부→외부 투영:** 구 중심 쪽에서 시작하는 Ray로 `ProjectPoint()`.
-4. **표면 정렬:** 메시 Z(Up)를 구 중심 방향으로 정렬(`FRotationMatrix::MakeFromZ`) + 랜덤 Yaw.
+1. **균등 방향 생성:** Octant 사분면(+X,+Y,+Z) 내에서 균등 분포 임의 방향 생성 (cos-weighted 구면 샘플링).
+2. **내부→외부 라인트레이스:** 입력 Spatial Data가 감싼 **지각 프리미티브 컴포넌트**에
+   구 중심(0,0,0)에서 바깥으로 `LineTraceComponent`. 구 내벽 세계이므로 첫 히트가 곧 플레이 표면이다.
+   SurfaceCache와 같은 `bTraceComplex=false` 조합을 써 두 시스템이 같은 면을 기준으로 삼는다 — §6.6.
+3. **표면 정렬:** 메시 Z(Up)를 구 중심 방향으로 정렬(`FRotationMatrix::MakeFromZ`) + 랜덤 Yaw.
    접지는 **선택된 메시의 로컬 Bounds 최저점**(`-GetBoundingBox().Min.Z × Scale.Z`)만큼 Up으로 밀어 맞춘다 — §6.6.
-5. **가중치 선택:** `ULNPOctantThemeData::PropEntries`의 Weight 비례 확률로 메시 선택, `MeshPath` Metadata로 후속 Static Mesh Spawner에 전달. 스케일은 Min/MaxScale 랜덤 보간.
+4. **가중치 선택:** `ULNPOctantThemeData::PropEntries`의 Weight 비례 확률로 메시 선택, `MeshPath` Metadata로 후속 Static Mesh Spawner에 전달. 스케일은 Min/MaxScale 랜덤 보간.
 
 ### 4.3 Baking
 
@@ -197,9 +205,31 @@ Octant 경계를 따라 **폭 약 2m·깊이 약 1m의 도랑**이 파여 있었
    사라지자 **전제가 없어진 보정이 그대로 뜨는 높이**가 됐다. 지금은 선택된 메시의 로컬 Bounds
    최저점으로 대체했다 — 바닥 피벗 메시는 0이 되어 그대로 붙고, 중심 피벗 메시는 반높이만큼
    올라오며, 나무·바위로 교체해도 다시 어긋나지 않는다.
-2. **투영 대상이 복셀 점군이다.** `ProjectPoint`가 실제 메시 표면이 아니라 `PCGVolumeSampler`가
-   만든 `SamplingVoxelSize`(기본 200cm) 격자 점군에 스냅하므로 착지점이 양자화된다. 프랍마다
-   뜬 높이가 다른 편차의 정체이며, 1번을 고쳐도 남는다(§7).
+2. **투영 대상이 복셀 점군이었다.** 착지점이 실제 메시 표면이 아니라 `PCGVolumeSampler`가 만든
+   200cm 격자에 얹혀, 프랍마다 뜬 높이가 다른 **결정론적 편차**(반지름 방향 최대 ±100cm)가 남았다.
+   1번을 고쳐도 남던 잔차이며, 지각 콜리전에 직접 라인트레이스하도록 바꿔 제거했다.
+
+   원인은 두 겹이었고 **둘 다 "점군을 거친다"는 선택 하나에서 나온다.**
+
+   - `PCGVolumeSampler`의 샘플 점은 `VoxelSize` 배수, 즉 **월드 원점 기준 축정렬 격자**에 고정된다.
+     구면 표면에 정렬될 이유가 없다.
+   - ⚠️ **`UPCGBasePointData::ProjectPoint`는 최근접 점 탐색이 아니다.** `InBounds`의 extent가 0이 아니면
+     변환된 AABB에 걸리는 **모든 점의 겹침 볼륨 가중 평균 위치**를 낸다. 탐색 상자를 키울수록 더 뭉개진다.
+
+   ⚠️ **복셀 크기를 줄이는 것은 답이 아니다.** `SampleVolume`은 바운딩 박스 *전체*를 복셀로 채운다 —
+   표면은 얇은 껍질인데 200cm에서 이미 125³ ≈ 195만 개이고 50cm면 1.25억 개가 된다.
+
+   ⚠️ **`SpatialData->ProjectPoint()`로 입력에 직접 투영하는 것도 안 된다.** 기반 구현이 투영이 아니라
+   `SamplePoint` 폴백이라 위치를 옮기지 않는다(2026-09-10에 시도 → 프랍이 광선 시작점에 전부 뭉쳤다).
+
+   **해결의 열쇠는 "PCG의 Actor 입력은 메시가 아니라 콜리전 바디"라는 것이었다.** 액터 데이터 생성 경로가
+   `UPrimitiveComponent` → `UPCGPrimitiveData`이고, 그 `SamplePoint`는 컴포넌트의 `OverlapComponent`다.
+   즉 우리는 이미 갖고 있던 콜리전을 복셀로 한 번 더 열화시켜 쓰고 있었다. 점군을 걷어내고 같은
+   컴포넌트에 `LineTraceComponent`를 쏘면 양자화가 0이 되고, 임시 점 195만 개도 함께 사라진다.
+   컴포넌트 한정 트레이스라 **이미 배치된 프랍 HISM을 맞힐 수 없다** — 월드 채널 트레이스였다면
+   재생성할 때마다 프랍이 프랍 위로 쌓였을 것이다.
+   `UWorld`를 거치지 않고 `FBodyInstance`로 직행하므로 메인 스레드 강제도 필요 없다
+   (엔진의 `WorldRaycast` 노드가 메인 스레드를 강제하는 건 `World->SweepMultiByObjectType`을 쓰기 때문이다).
 
 ---
 
@@ -207,8 +237,6 @@ Octant 경계를 따라 **폭 약 2m·깊이 약 1m의 도랑**이 파여 있었
 
 - **Octant 풀 콘텐츠 부족:** 파이프라인은 완성됐으나 실제 제작된 Octant 테마 에셋 수가 적음. 콘텐츠 확충 필요.
 - **런타임 지형 변형 미지원:** HISM Bake + SurfaceCache 사전 베이킹 전제상 게임 중 지형 파괴/변형은 지원하지 않음.
-- **PCG 프랍 접지 잔차:** 투영 대상이 200cm 복셀 점군이라 착지점이 양자화된다(§6.6-2). 복셀을 줄이면
-  점 개수가 세제곱으로 늘어 현실적이지 않고, 입력 Spatial Data에 직접 투영하도록 바꾸는 편이 맞다.
 - **이음매 평탄화:** 변위 마스크 `(X·Y·Z)/R³`는 옥턴트 중심에서도 최대 `1/(3√3) ≈ 0.19`까지만 오른다.
   세 이음매에서 곱으로 감쇠하므로 조각 전체가 눌리고 이음매 근처가 넓게 평탄해진다(`Magnitude`를
   키워 상쇄 중). 가장 가까운 이음매까지의 거리 하나로 `smootherstep`하는 마스크로 바꾸면 조각
