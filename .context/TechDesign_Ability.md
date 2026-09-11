@@ -185,6 +185,10 @@ UPrimaryDataAsset
         ├── ULNPWeaponData   ← 무기 (아래 표)
         ├── ULNPSkillData    ← 스킬 (Active/Passive 구분은 슬롯 위치)
         └── ULNPBuffData     ← 버프 (Duration: 양수 = 기간제, -1 = 영구)
+
+UDataAsset
+  └── ULNPWeaponVisualSet   ← 무기 표현 세트 (메시·소켓·그립 보정·AnimLayerClass·AnimSetTag)
+                              여러 ULNPWeaponData가 공유한다 (DA_Launcher → VS_Shotgun)
 ```
 
 `StatModifiers`가 베이스에 있으므로 무기·스킬·버프가 같은 형식으로 스텟을 선언한다.
@@ -200,8 +204,8 @@ UPrimaryDataAsset
 
 | 분류 | 필드 |
 |:---|:---|
-| 태그·애니메이션 | `WeaponTag`, `DefaultAimMode`, `AnimLayerClass` |
-| 메시 | `WeaponMesh`, `AttachSocketName`, `WeaponMeshRelativeLocation/Rotation` (그립 피벗 보정) |
+| 표현 | `VisualSet` (→ `ULNPWeaponVisualSet`: 메시·소켓·그립 보정·`AnimLayerClass`·`AnimSetTag`) |
+| 조준 | `DefaultAimMode` |
 | 공격 | `FireCooldown`, `MaxComboCount` |
 | 레벨 | `LevelTable` (행 구조 `FLNPWeaponLevelRow`, **행 이름 = 레벨 숫자**) |
 | 발사체 | `ProjectileType`(Linear/Guided/Lobbed), `ProjectileSpeed`, `ProjectileGravity`, `HitRadius`, `ExplosionRadius`, `ProjectileLifetime`, `MuzzleOffset`, `ProjectileDamageEffect`, `ProjectileVFXData` |
@@ -210,7 +214,12 @@ UPrimaryDataAsset
 > `GetEffectiveProjectileGravity()` 하나뿐이고, 런타임은 그 결과 스칼라만 본다
 > (0 = 등속 직선). → [TechDesign_HitDetection.md §3.4](TechDesign_HitDetection.md)
 
-> 공격 몽타주는 WeaponData가 아닌 **Chooser Table**에서 선택된다 (WeaponTag가 Chooser 입력 조건). → [TechDesign_CombatAnimation.md §6.1](TechDesign_CombatAnimation.md)
+> 공격 몽타주는 WeaponData가 아닌 **Chooser Table**에서 선택된다 (`VisualSet->AnimSetTag`가 Chooser 입력 조건). → [TechDesign_CombatAnimation.md §6.1](TechDesign_CombatAnimation.md)
+>
+> **표현은 `ULNPWeaponVisualSet`으로 떼어져 있고 여러 무기가 공유한다** — 런처는 `VS_Shotgun`을 가리켜
+> 메시·애님 레이어·몽타주를 샷건과 함께 쓰면서 발사 간격·발사체·스탯은 전부 자기 것을 갖는다.
+> ⚠️ **표현 세트도 그 안의 태그도 규칙의 키가 될 수 없다** — 공유하는 무기들이 함께 묶인다.
+> 무기의 정체성은 `ULNPWeaponData` 에셋 그 자체이고, 쿨다운이 그것을 키로 쓴다(§5.2).
 > `ParryRadius`·`KnockbackStrength`(콤보별 배열 포함)는 어빌리티 프로퍼티다 — 같은 무기라도 어빌리티에 따라 다르게 튜닝 가능.
 
 ### 2.4 아이템 인스턴스 / 장비·인벤토리 컴포넌트
@@ -409,9 +418,10 @@ GAS의 표준 관행(무기마다 Cooldown GE 클래스)을 버리고 `SetDurati
 기획 결정은 **"무기별로 각자 돈다"** 다. 교체로 쿨다운을 지우는 취소 기법이 성립하지 않고, 키가 **정의 단위**라
 같은 종류 무기 두 자루를 번갈아 장착해도 연사 제한을 우회할 수 없다.
 
-⚠️ **`WeaponTag`를 키로 쓰면 안 된다.** `DA_Launcher`의 `WeaponTag`는 `LNP.Weapon.Shotgun`이다
-(샷건 메시·애님 레이어를 공유하는 테스트 무기) — 태그를 키로 쓰면 런처와 샷건이 쿨다운을 공유하게 된다.
-표현용 태그와 규칙용 키는 같은 축이 아니다.
+⚠️ **표현 태그를 키로 쓰면 안 된다.** 런처는 샷건의 표현 세트(`VS_Shotgun`)를 공유하므로
+`AnimSetTag`가 `LNP.Weapon.Shotgun`으로 같다 — 그 태그를 키로 쓰면 **런처와 샷건이 쿨다운을 공유**하게 된다.
+표현용 태그와 규칙용 키는 같은 축이 아니고, 이 프로젝트에서 규칙용 키는 **DataAsset 포인터**다.
+(이 함정이 표현을 `ULNPWeaponVisualSet`으로 떼어낸 계기다 — §2.3.)
 
 ⚠️ **`CheckCooldown()`은 CDO에서도 불린다.** `InternalTryActivateAbility`는
 `AbilitySource = 프라이머리 인스턴스 ? 인스턴스 : CDO`로 `CanActivateAbility`를 부르므로, 첫 활성화 전에는

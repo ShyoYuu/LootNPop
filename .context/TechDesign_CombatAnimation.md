@@ -45,7 +45,7 @@ Motion Matching 기반 공용 로코모션 위에 **무기별 Linked Anim Layer�
 
 | 분류 | 태그 | 설명 |
 |------|------|------|
-| 무기 | `LNP.Weapon.Unarmed / Pistol / Rifle / Shotgun / LongSword` | 장착 무기. `EquipWeapon()`이 전환 |
+| 애님 세트 | `LNP.Weapon.Unarmed / Pistol / Rifle / Shotgun / LongSword` | `ULNPWeaponVisualSet::AnimSetTag`. `ApplyWeaponVisuals()`가 전환 |
 | 조준 | `LNP.AimMode.None / FreeAim / LockOn` | `ULNPWeaponData::DefaultAimMode`로 지정. LockOn 전환은 None일 때만 허용 |
 | 액션 | `LNP.Action.Attacking` | 공격 애니메이션 재생 중 |
 | 차단 | `LNP.Block.MovementInput` / `LNP.Block.AttackInput` | 입력 차단. 공격 몽타주 구간은 ANS가, 경직 구간은 GA_Stagger의 `ActivationOwnedTags`가 소유 (§6.5) |
@@ -86,8 +86,13 @@ ApplyWeaponVisuals(WeaponData)   ← 서버·클라이언트가 부르는 단일
 ├─ 조기 반환: 이미 같은 무기로 적용됐으면 아무것도 안 한다 (LinkAnimClassLayers 중복 = 포즈 튐)
 ├─ ASC: 기존 무기·조준모드 태그 제거 → 신규 태그 부여
 ├─ SetFaceMoveDirection(!bFreeAim)   — 회전 방식 전환
-├─ AnimSourceMesh->LinkAnimClassLayers(WeaponData->AnimLayerClass)
-└─ WeaponMesh: 메시 교체 + 소켓 어태치 + 상대 오프셋(WeaponMeshRelativeLocation/Rotation) 적용
+├─ AnimSourceMesh->LinkAnimClassLayers(VisualSet->AnimLayerClass)
+└─ WeaponMesh: 메시 교체 + 소켓 어태치 + 상대 오프셋(VisualSet->WeaponMeshRelative*) 적용
+
+표현 필드는 무기 DA가 아니라 **`ULNPWeaponVisualSet`**(`WeaponData->VisualSet`)에 있다 — 메시·소켓·그립
+보정·애님 레이어·`AnimSetTag`가 한 덩어리다. 여러 무기가 같은 세트를 가리킬 수 있고(런처 → `VS_Shotgun`),
+그것이 "표현만 재활용한다"의 **유일한 선언**이다. ⚠️ 그 태그는 무기를 식별하지 않으므로 규칙(쿨다운 등)의
+키로 쓰면 세트를 공유하는 무기들이 함께 묶인다 — 규칙의 키는 무기 DataAsset 자신이다.
 
 호출자 — 무기 원본은 ULNPEquipmentComponent::WeaponSlot(플레이어) / EnemyConfig(적)이고 둘 다 복제된다:
 ├─ 푸시: 슬롯 적용 직후(서버) · OnRep_WeaponSlot / OnRep_EnemyConfig(클라)
