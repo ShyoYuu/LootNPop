@@ -5,6 +5,7 @@
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPFireGeometry.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
+#include "HitDetection/LNPPositionHistoryFragment.h"   // MaxPingRewindSeconds — 되감기 핑 항 상한
 #include "Character/LNPCharacterBase.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "LNPGameplayTags.h"
@@ -109,10 +110,16 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 
 	// 발사 시점의 공격자 RTT/2 — 서버에서는 Lag Compensation 캐싱과 관전자 Dead Reckoning 업스트림 지연에 공용.
 	float AttackerHalfRTT = 0.f;
+	// 공격자가 자기 화면을 복제로 받아 보는가 — 보간 지연 보정의 게이트 (FLNPProjectileFragment 주석).
+	// 서버에서 IsLocallyControlled()가 참인 폰은 리슨 호스트 본인뿐이고, 그 화면은 복제를 거치지 않는다.
+	bool bInstigatorIsRemoteClient = false;
 	if (Character->HasAuthority())
 	{
 		if (const APlayerState* AttackerPS = Character->GetPlayerState<APlayerState>())
-			AttackerHalfRTT = FMath::Clamp(AttackerPS->GetPingInMilliseconds() * 0.0005f, 0.f, 0.2f);
+		{
+			AttackerHalfRTT = FMath::Clamp(AttackerPS->GetPingInMilliseconds() * 0.0005f, 0.f, LNPHitDetection::MaxPingRewindSeconds);
+			bInstigatorIsRemoteClient = !Character->IsLocallyControlled();
+		}
 	}
 
 	// 서버 거부 판정을 예측 중인 원격 클라이언트에서만 Ghost를 등록한다.
@@ -159,6 +166,8 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 		FragData.PredictionKeyID    = KeyOrSalvo;
 		FragData.SpawnIndex         = SpawnIndex;
 		FragData.CachedRewindSeconds = AttackerHalfRTT; // 서버 전용 — 발사 시점 1회 캐싱 (섹션 5.0)
+		FragData.bInstigatorIsRemoteClient = bInstigatorIsRemoteClient;
+		FragData.InstigatorViewLocation    = SpawnPos;
 
 		FLNPProjectileVisualFragment VisualFrag;
 		FTransformFragment TransFrag;

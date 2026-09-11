@@ -28,6 +28,19 @@
 #include "Camera/LNPLockOnComponent.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyCharacter.h"
+#include "HitDetection/LNPPositionHistoryFragment.h"   // 복제 LOD 대역·되감기 가산항 조회 (조준 거리 표시)
+#include "Engine/Engine.h"
+
+#if !UE_BUILD_SHIPPING
+namespace
+{
+	/** 계측 보조 — 조준 중인 적까지의 거리와 복제 LOD 대역을 화면에 띄운다. */
+	static TAutoConsoleVariable<int32> CVarShowAimDistance(
+		TEXT("LNP.HitDetection.ShowAimDistance"), 0,
+		TEXT("Show the distance to the enemy under the crosshair, its replication LOD tier, and the rewind term that tier adds. 0: off, 1: on."),
+		ECVF_Cheat);
+}
+#endif
 #include "HAL/IConsoleManager.h"
 
 ULNPInputHandlerComponent::ULNPInputHandlerComponent()
@@ -327,6 +340,22 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 		if (QuerySub->GetResult(AimQueryHandle, QueryResult) && QueryResult.bHit && QueryResult.Distance < NearestDistance)
 		{
 			OutAimPoint = QueryResult.Location;
+
+#if !UE_BUILD_SHIPPING
+			// 계측 보조 — 조준 중인 적까지의 거리와 그 거리가 속한 복제 LOD 대역을 띄운다.
+			// 되감기 가산항이 대역별로 다르므로(High 0.1 / Medium 0.2 / Low 0.3초), 표본을 대역별로
+			// 고르게 모으려면 쏘기 전에 대역을 알아야 한다.
+			if (CVarShowAimDistance.GetValueOnGameThread() != 0 && GEngine)
+			{
+				const float DistSq = QueryResult.Distance * QueryResult.Distance;
+				GEngine->AddOnScreenDebugMessage(
+					/*Key*/ 0x1007, /*TimeToDisplay*/ 0.f, FColor::Yellow,
+					FString::Printf(TEXT("target %.1fm  |  replication LOD %s  |  rewind term %.2fs"),
+						QueryResult.Distance * 0.01f,
+						LNPHitDetection::GetReplicationLODName(DistSq),
+						LNPHitDetection::GetInterpolationLagSeconds(DistSq, /*bIgnoreCVar*/ true)));
+			}
+#endif
 		}
 	}
 
