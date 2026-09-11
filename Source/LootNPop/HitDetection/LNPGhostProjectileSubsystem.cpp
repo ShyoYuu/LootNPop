@@ -13,7 +13,9 @@
 
 namespace
 {
-	/** Dead Reckoning 외삽 상한. Lag Compensation 되감기 클램프(섹션 5.0)와 동일한 200ms. */
+	/** Dead Reckoning 외삽 상한. 되감기의 **핑 항** 상한(LNPHitDetection::MaxPingRewindSeconds)과 같은 200ms다 —
+	 *  둘 다 "왕복 지연을 얼마까지 갚아줄 것인가"라는 같은 질문의 반대 방향(외삽/되감기)이라 값을 맞춘다.
+	 *  ⚠️ 되감기 **총량**과는 무관하다. 되감기에는 클라 보간 지연 항이 따로 더해져 최대 0.5초까지 간다. */
 	constexpr float MaxExtrapolationSeconds = 0.2f;
 
 	/** RegisterGhost 만료 여유 — 발사체 수명 자연 소멸(MovementProcessor)이 항상 먼저 오도록 넉넉히 잡는다. */

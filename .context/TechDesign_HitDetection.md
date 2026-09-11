@@ -227,9 +227,13 @@ Deactivate는 **스폰만 멈추고 살아 있는 파티클은 수명이 다할 
 
 공격자 RTT/2만큼 **과거 시점의 타겟 위치**로 판정한다. 타겟의 위치 이력은 `FLNPPositionHistoryFragment`(링 버퍼)가 기록하고, `GetInterpolatedLocation(과거 시각)`으로 보간 조회한다.
 
-- 되감기 상한 200ms 클램프.
+- **상한은 핑 항에만 200ms.** 보간 지연 항(아래)은 상한 밖이며, 합의 최댓값은 0.5초다.
 - 근접: 판정 프레임마다 공격자 Ping 조회.
 - 원거리: **발사 시점에 1회 캐싱**(`CachedRewindSeconds`)한 값을 비행 내내 재사용 — 매 프레임 재계산하면 느린 발사체가 "이미 피한 대상의 과거 잔상"을 쫓아가 맞는 문제가 생긴다. 패링 반사 시에는 방어자 RTT/2로 갱신.
+- **대상이 순수 엔티티(ISM) 적이면 `RTT/2`에 클라이언트 보간 지연을 더한다** — 그 값은 대상의 복제 LOD
+  갱신 주기다. 대상별로 다르므로 캡슐 되감기 람다 안에서 더한다(`RewoundEnemyCenter`).
+  플레이어 대상은 현행 `RTT/2`뿐 — 보간을 타지 않는다.
+- 히스토리 링버퍼는 합의 최댓값(0.5초)을 덮어야 한다 — `MaxSamples = 11`, static_assert로 고정.
 
 상세: → [TechDesign_Networking.md](TechDesign_Networking.md)
 

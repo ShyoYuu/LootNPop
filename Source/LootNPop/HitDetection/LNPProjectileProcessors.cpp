@@ -545,7 +545,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	};
 
 	// ── Pass 3: 선분 vs 캡슐 충돌 판정 (Lag Compensation 포함) ─────────────────
-	constexpr float MaxRewindSeconds = 0.2f; // 섹션 5.0 — 되감기 클램프 상한 200ms
+	// 되감기 **핑 항**의 상한. 보간 지연 항은 여기에 묶지 않는다 (LNPPositionHistoryFragment.h).
+	constexpr float MaxPingRewindSeconds = LNPHitDetection::MaxPingRewindSeconds;
 
 	ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
@@ -567,15 +568,43 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			// 발사(또는 패링 반사) 시점에 1회 캐싱된 값을 재사용 — "공격자가 조준해서 쏜 순간의 지연"만 보정하고
 			// 이후에는 대상의 현재 위치와 비교한다. 매 프레임 재계산 시 느린/유도 발사체가 비행 내내
 			// 대상의 과거 잔상을 쫓아가 맞는 문제와, 매 프레임 Actor→PlayerState→Ping 조회 비용을 함께 제거.
-			const float  RewindSeconds   = FMath::Clamp(Proj.CachedRewindSeconds, 0.f, MaxRewindSeconds);
-			const double RewindQueryTime = Now - RewindSeconds;
+			// 대상별 가산항(순수 엔티티의 보간 지연)은 아래 RewoundEnemyCenter가 더한다.
+			const float RewindSeconds = FMath::Clamp(Proj.CachedRewindSeconds, 0.f, MaxPingRewindSeconds);
 
-			// 되감긴 캡슐 중심 = 현재 캡슐 중심 + (과거 원점 - 현재 원점). RewindSeconds가 0이면 원본 그대로 반환.
+			// 되감긴 캡슐 중심 = 현재 캡슐 중심 + (과거 원점 - 현재 원점). 되감기량이 0이면 원본 그대로 반환.
+			auto RewoundCenterAt = [&](const FVector& CapsuleCenter, const FVector& RawLoc,
+				const FLNPPositionHistoryFragment* History, const float TotalRewind) -> FVector
+			{
+				// Count == 0이면 GetInterpolatedLocation이 ZeroVector를 돌려준다 — 구 내벽 월드에서
+				// 그것은 "원점"이 아니라 **행성 중심**이라, 그대로 빼면 캡슐이 25,000cm 아래로 튄다.
+				// 스폰 직후 첫 기록(50ms) 전 대상이 여기 걸린다.
+				if (TotalRewind <= 0.f || !History || History->Count == 0)
+					return CapsuleCenter;
+				return CapsuleCenter + (History->GetInterpolatedLocation(Now - TotalRewind) - RawLoc);
+			};
+
+			// 플레이어는 보간을 타지 않는다 — 위치가 Mass 버블이 아니라 Actor 복제로 오고,
+			// 시뮬레이티드 프록시는 Mover ForwardPredict로 현재까지 전방 예측된다. 표시 지연은 RTT/2뿐.
 			auto RewoundCenter = [&](const FVector& CapsuleCenter, const FVector& RawLoc, const FLNPPositionHistoryFragment* History) -> FVector
 			{
-				if (RewindSeconds <= 0.f || !History)
-					return CapsuleCenter;
-				return CapsuleCenter + (History->GetInterpolatedLocation(RewindQueryTime) - RawLoc);
+				return RewoundCenterAt(CapsuleCenter, RawLoc, History, RewindSeconds);
+			};
+
+			// 순수 엔티티 적은 RTT/2에 **클라이언트 보간 지연**만큼 더 과거다 (LNPPositionHistoryFragment.h).
+			// 거리 기준점은 발사(반사) 시점의 공격자 위치다 — 복제 LOD는 뷰어(= 공격자) 기준으로 정해지고,
+			// 명중 시점에 공격자 엔티티를 조회하면 워커 스레드에서 임의 엔티티 접근이 된다.
+			// LOD 대역이 1,000/5,000cm로 성겨 비행 중 공격자 이동이 대역을 뒤집는 일은 드물다.
+			auto RewoundEnemyCenter = [&](const FCollectedEnemy& Enemy) -> FVector
+			{
+				float TotalRewind = RewindSeconds;
+				if (Proj.bInstigatorIsRemoteClient && Enemy.Config && Enemy.Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
+				{
+					// 총량에 상한을 걸지 않는다 — 합의 최댓값은 0.2(핑 상한) + 0.3(Low 주기) = 0.5초로
+					// 구조적으로 묶여 있고, 히스토리 버퍼가 정확히 그만큼 덮는다(static_assert).
+					const float DistSqFromViewer = static_cast<float>(FVector::DistSquared(Enemy.RawLocation, Proj.InstigatorViewLocation));
+					TotalRewind = RewindSeconds + LNPHitDetection::GetInterpolationLagSeconds(DistSqFromViewer);
+				}
+				return RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, TotalRewind);
 			};
 
 			// 피격 시 공통 후처리: 트레일 해제 · 임팩트 VFX(GameplayCue) · Dead 태그 · 스플래시
@@ -610,10 +639,42 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (Enemy.Handle == Proj.Instigator)
 					continue;
 
+#if !UE_BUILD_SHIPPING
+				// ── 계측 ─────────────────────────────────────────────────
+				// 보정을 켠 채로 평소처럼 쏘면서 개선율을 잴 수 있게, CVar 값과 **무관하게** 두 판정을 만든다.
+				// 둘 중 하나라도 맞은 경우에만 찍으므로(빗나간 프레임은 침묵) 볼륨이 발당 한 줄 수준이다.
+				if (LNPHitDetection::IsMeasuringInterpolationLag()
+					&& Proj.bInstigatorIsRemoteClient
+					&& Enemy.Config && Enemy.Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
+				{
+					const float DistSq = static_cast<float>(FVector::DistSquared(Enemy.RawLocation, Proj.InstigatorViewLocation));
+					const float RewindWith = RewindSeconds + LNPHitDetection::GetInterpolationLagSeconds(DistSq, /*bIgnoreCVar*/ true);
+
+					const FVector CenterWith    = RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, RewindWith);
+					const FVector CenterWithout = RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, RewindSeconds);
+
+					FVector Ignored;
+					const bool bWith = LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, CurrentPos,
+						CenterWith, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius, Ignored);
+					const bool bWithout = LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, CurrentPos,
+						CenterWithout, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius, Ignored);
+
+					if (bWith || bWithout)
+					{
+						const TCHAR* Verdict = bWith && bWithout ? TEXT("BOTH")
+							: (bWith ? TEXT("RESCUED") : TEXT("LOST"));
+						UE_LOG(LogLootNPop, Log,
+							TEXT("[RewindLag] ranged %-7s dist=%6.0fcm lod=%-6s rewind=%.3f/%.3f shift=%5.1fcm"),
+							Verdict, FMath::Sqrt(DistSq), LNPHitDetection::GetReplicationLODName(DistSq),
+							RewindWith, RewindSeconds, (CenterWith - CenterWithout).Size());
+					}
+				}
+#endif
+
 				FVector HitPoint;
 				if (!LNPHitDetection::SegmentHitsCapsule(
 					Proj.PreviousPos, CurrentPos,
-					RewoundCenter(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History), Enemy.UpDir,
+					RewoundEnemyCenter(Enemy), Enemy.UpDir,
 					Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius,
 					HitPoint))
 					continue;
@@ -686,14 +747,16 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						const uint8 OldSpawnIndex         = Proj.SpawnIndex;
 
 						// 반사 주체(방어자)를 새 공격자로 귀속 — Lag Compensation 기준도 방어자 RTT/2로 갱신.
-						int32 DefenderPlayerID  = INDEX_NONE;
-						float DefenderHalfRTT   = 0.f;
+						int32 DefenderPlayerID       = INDEX_NONE;
+						float DefenderHalfRTT        = 0.f;
+						bool  bDefenderIsRemoteClient = false;
 						if (const APawn* DefenderPawn = Cast<APawn>(Player.Actor))
 						{
 							if (const APlayerState* DefenderPS = DefenderPawn->GetPlayerState())
 							{
 								DefenderPlayerID = DefenderPS->GetPlayerId();
-								DefenderHalfRTT  = FMath::Clamp(DefenderPS->GetPingInMilliseconds() * 0.0005f, 0.f, MaxRewindSeconds);
+								DefenderHalfRTT  = FMath::Clamp(DefenderPS->GetPingInMilliseconds() * 0.0005f, 0.f, MaxPingRewindSeconds);
+								bDefenderIsRemoteClient = !DefenderPawn->IsLocallyControlled();
 							}
 						}
 
@@ -704,6 +767,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						Proj.PredictionKeyID     = ULNPGhostProjectileSubsystem::IssueServerSalvoID();
 						Proj.SpawnIndex          = 0;
 						Proj.CachedRewindSeconds = DefenderHalfRTT;
+						Proj.bInstigatorIsRemoteClient = bDefenderIsRemoteClient;
+						Proj.InstigatorViewLocation    = Player.Location; // 반사 주체가 새 뷰어다
 
 						FLNPProjectileParryCommand::FEntry ParryEntry;
 						ParryEntry.Victim                = Player.Actor;

@@ -10,6 +10,7 @@
 #include "MassEntityView.h"
 #include "MassProcessor.h"
 #include "MassCommonTypes.h"
+#include "MassLODTypes.h"          // EMassLOD — 복제 LOD 티어를 판정 쪽에 노출한다
 #include "Enemy/LNPEnemyMassTypes.h"   // ELNPEnemyAction — 페이로드의 비트 레이아웃이 여기서 닫히도록
 #include "LNPMassReplication.generated.h"
 
@@ -43,6 +44,42 @@ namespace LNP::Replication
 	inline FQuat DecodeSphereRotation(const FVector& Position, const float LocalYaw)
 	{
 		return MakeSphereTangentBasis(Position) * FQuat(FVector::UpVector, LocalYaw);
+	}
+
+	/**
+	 * 복제 LOD 거리 경계(cm) — `ConfigureParams`가 `Params.LODDistance`에 싣는 값의 단일 진실.
+	 * 판정 쪽(`LNPHitDetection::GetInterpolationLagSeconds`)이 "이 대상이 클라이언트에서 몇 초
+	 * 간격으로 갱신되는가"를 되묻기 때문에 헤더로 올렸다 — 두 곳이 다른 값을 쓰면 조용히 어긋난다.
+	 */
+	inline constexpr float LODDistanceMedium = 1000.f;
+	inline constexpr float LODDistanceLow    = 5000.f;
+
+	/**
+	 * LOD별 복제 갱신 주기(초).
+	 *
+	 * ⚠️ **이 배열은 엔진 기본값의 사본이다.** `ConfigureParams`는 `Params.UpdateInterval`을
+	 * 덮어쓰지 않으므로 실제로 적용되는 값은 `FMassReplicationParameters` 생성자
+	 * (`MassReplicationFragments.cpp`)가 넣은 것이고, 여기 값은 그것을 읽기 위한 사본일 뿐이다.
+	 * 엔진 기본값이 바뀌면 여기도 따라가야 한다 — 어긋나도 컴파일은 통과한다.
+	 */
+	inline constexpr float LODUpdateInterval[] = { 0.1f, 0.2f, 0.3f, 0.5f };
+	static_assert(UE_ARRAY_COUNT(LODUpdateInterval) == EMassLOD::Max,
+		"LODUpdateInterval must cover every EMassLOD tier.");
+
+	/**
+	 * 뷰어로부터의 거리(제곱)로 복제 LOD 티어를 판별한다 — 복제 LOD는 **시청자 기준 거리**로 정해진다.
+	 *
+	 * Low 밖(= CullDistance 초과)은 Off가 아니라 Low로 묶는다. Off로 떨어진 엔티티는 애초에
+	 * 클라이언트 버블에서 빠져 화면에 없으므로 조준 대상이 될 수 없고, 경계 근처에서 Off(0.5초)를
+	 * 돌려주면 되감기만 과대해진다. CullDistance는 타입마다 달라 여기서 알 수도 없다.
+	 */
+	inline EMassLOD::Type GetReplicationLODByDistanceSq(const float DistSqFromViewer)
+	{
+		if (DistSqFromViewer < LODDistanceMedium * LODDistanceMedium)
+			return EMassLOD::High;
+		if (DistSqFromViewer < LODDistanceLow * LODDistanceLow)
+			return EMassLOD::Medium;
+		return EMassLOD::Low;
 	}
 
 	/**

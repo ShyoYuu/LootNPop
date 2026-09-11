@@ -109,6 +109,27 @@ struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
 	/** 서버 전용 — Lag Compensation 되감기 시간. 발사(또는 패링 반사) 시점의 공격자 RTT/2를 1회 캐싱해
 	 *  비행 내내 재사용한다. 매 프레임 재계산 시 "대상이 이미 피했는데 과거 잔상을 쫓아가 맞는" 문제 방지 (섹션 5.0). */
 	float CachedRewindSeconds = 0.f;
+
+	/**
+	 * 서버 전용 — 공격자가 **원격 클라이언트**인가(= 자기 화면을 복제로 받아 보는가).
+	 * 발사(또는 패링 반사) 시점에 1회 캐싱한다.
+	 *
+	 * 보간 지연 보정(`LNPHitDetection::GetInterpolationLagSeconds`)의 게이트다.
+	 * ⚠️ **`CachedRewindSeconds > 0`으로 대신할 수 없다** — 리슨 호스트는 Ping이 0이라 되감기가 0이지만
+	 * 화면도 지연이 없고(복제를 거치지 않는다), 반대로 LAN 게스트는 Ping이 0에 가까워도
+	 * 보간 지연은 그대로 있다. 둘을 가르는 것은 지연의 크기가 아니라 **복제를 거치는지 여부**다.
+	 */
+	bool bInstigatorIsRemoteClient = false;
+
+	/**
+	 * 서버 전용 — 발사(또는 패링 반사) 시점의 공격자 위치. 복제 LOD 대역 판별의 원점이다
+	 * (복제 LOD는 시청자 기준 거리로 정해진다). bInstigatorIsRemoteClient가 참일 때만 의미가 있다.
+	 *
+	 * SpawnLocation을 재사용하지 않는 이유: 패링 반사로 공격자가 방어자로 바뀌어도
+	 * SpawnLocation은 원래 쏜 사람의 총구로 남는다 — 그 값으로 대역을 재면 반사탄의
+	 * 되감기가 엉뚱한 거리 기준으로 산출된다.
+	 */
+	FVector InstigatorViewLocation = FVector::ZeroVector;
 };
 
 /** 이 Projectile에 Niagara 트레일 Component가 할당됐는지 추적한다. */

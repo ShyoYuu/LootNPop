@@ -454,7 +454,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 	// ── Pass 3: Swept Volume 피격 판정 (Lag Compensation 포함) ─────────────────
 	UMassActorSubsystem* ActorSubForRewind = World->GetSubsystem<UMassActorSubsystem>();
-	constexpr float MaxRewindSeconds = 0.2f; // 섹션 5.0 — 되감기 클램프 상한 200ms
+	// 되감기 **핑 항**의 상한. 보간 지연 항은 여기에 묶지 않는다 (LNPPositionHistoryFragment.h).
+	constexpr float MaxPingRewindSeconds = LNPHitDetection::MaxPingRewindSeconds;
 	const double NowForRewind = World->GetTimeSeconds();
 
 	AttackerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
@@ -468,22 +469,62 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			// 공격자 RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (섹션 5.0).
 			// 공격자가 Player가 아니면(Enemy AI) PlayerController가 없어 RewindSeconds=0 → 보정 없음.
 			float RewindSeconds = 0.f;
+			// 공격자가 자기 화면을 복제로 받아 보는가 — 보간 지연 보정의 게이트.
+			// 서버에서 IsLocallyControlled()가 참인 폰은 리슨 호스트 본인뿐이고, 그 화면은 복제를 거치지 않는다.
+			bool bAttackerIsRemoteClient = false;
 			if (ActorSubForRewind && Frag.InstigatorEntity.IsSet() && EntityManager.IsEntityActive(Frag.InstigatorEntity))
 			{
 				if (const ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(ActorSubForRewind->GetActorFromHandle(Frag.InstigatorEntity)))
 				{
 					if (const APlayerState* AttackerPS = AttackerChar->GetPlayerState<APlayerState>())
-						RewindSeconds = FMath::Clamp(AttackerPS->GetPingInMilliseconds() * 0.0005f, 0.f, MaxRewindSeconds);
+					{
+						RewindSeconds = FMath::Clamp(AttackerPS->GetPingInMilliseconds() * 0.0005f, 0.f, MaxPingRewindSeconds);
+						bAttackerIsRemoteClient = !AttackerChar->IsLocallyControlled();
+					}
 				}
 			}
-			const double RewindQueryTime = NowForRewind - RewindSeconds;
 
-			// 되감긴 캡슐 중심 = 현재 캡슐 중심 + (과거 원점 - 현재 원점). RewindSeconds가 0이면 원본 그대로 반환.
+			// 되감긴 캡슐 중심 = 현재 캡슐 중심 + (과거 원점 - 현재 원점). 되감기량이 0이면 원본 그대로 반환.
+			auto RewoundCenterAt = [&](const FVector& CapsuleCenter, const FVector& RawLoc,
+				const FLNPPositionHistoryFragment* History, const float TotalRewind) -> FVector
+			{
+				// Count == 0이면 GetInterpolatedLocation이 ZeroVector를 돌려준다 — 구 내벽 월드에서
+				// 그것은 "원점"이 아니라 **행성 중심**이라, 그대로 빼면 캡슐이 25,000cm 아래로 튄다.
+				// 스폰 직후 첫 기록(50ms) 전 대상이 여기 걸린다.
+				if (TotalRewind <= 0.f || !History || History->Count == 0)
+					return CapsuleCenter;
+				return CapsuleCenter + (History->GetInterpolatedLocation(NowForRewind - TotalRewind) - RawLoc);
+			};
+
+			// 플레이어는 보간을 타지 않는다 (Actor 복제 + Mover ForwardPredict) — RTT/2만 갚는다.
 			auto RewoundCenter = [&](const FVector& CapsuleCenter, const FVector& RawLoc, const FLNPPositionHistoryFragment* History) -> FVector
 			{
-				if (RewindSeconds <= 0.f || !History)
-					return CapsuleCenter;
-				return CapsuleCenter + (History->GetInterpolatedLocation(RewindQueryTime) - RawLoc);
+				return RewoundCenterAt(CapsuleCenter, RawLoc, History, RewindSeconds);
+			};
+
+			/**
+			 * 순수 엔티티 적은 RTT/2에 클라이언트 보간 지연만큼 더 과거다 (LNPPositionHistoryFragment.h).
+			 * 근접은 대상이 항상 가깝지만, 거리를 그대로 재서 LOD 대역 판별을 원거리와 같은 규약으로 둔다.
+			 *
+			 * ⚠️ **근접 가산은 현재 꺼져 있다.** 원거리에서는 실측으로 이득이 확인됐지만(이동 표본 명중 +127%),
+			 * 근접에서는 반대로 순손실이 나왔다 — 자동 근접 보정(락온을 쓰지 않는 경로)이 워프 목적지를
+			 * **각 머신에서 로컬로 탐색**하기 때문이다. 게스트는 보간된(과거) 적 위치를, 서버는 권위 현재
+			 * 위치를 읽어 서로 다른 지점으로 워프하고, 그 상태에서 판정이 적을 되감으면 워프가 끌어다 놓은
+			 * 자리에서 그만큼 더 멀어진다. 그쪽을 고치기 전에는 가산이 손해다.
+			 * 되살리려면 아래 상수를 true로 바꾸면 된다 — 판정 코드는 그대로 둔다.
+			 */
+			constexpr bool bEnableMeleeInterpolationLag = false;
+			auto RewoundEnemyCenter = [&](const FCollectedEnemy& Enemy, const FVector& ViewerLoc) -> FVector
+			{
+				float TotalRewind = RewindSeconds;
+				if (bEnableMeleeInterpolationLag
+					&& bAttackerIsRemoteClient && Enemy.Config && Enemy.Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
+				{
+					// 총량에 상한을 걸지 않는다 — 합은 0.2(핑 상한) + 0.3(Low 주기) = 0.5초로 묶여 있다.
+					const float DistSqFromViewer = static_cast<float>(FVector::DistSquared(Enemy.RawLocation, ViewerLoc));
+					TotalRewind = RewindSeconds + LNPHitDetection::GetInterpolationLagSeconds(DistSqFromViewer);
+				}
+				return RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, TotalRewind);
 			};
 
 			// Prev==Curr(첫 프레임): 칼날 이동 없음 → 선분 vs 선분으로 폴백
@@ -577,7 +618,39 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					if (Enemy.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Enemy.Handle))
 						continue;
 
-					if (CalcDistSq(RewoundCenter(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History), Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius)
+#if !UE_BUILD_SHIPPING
+					// ── 계측 — 원거리(LNPProjectileProcessors)와 같은 규약 ──────────
+					// ⚠️ 근접은 공격 창이 여러 프레임 지속되므로 한 스윙이 여러 줄을 남길 수 있다.
+					// swing=<칼날 엔티티>:<적 엔티티>로 짝을 찍어 분석에서 접을 수 있게 한다
+					// (칼날 엔티티는 ANS가 스윙마다 새로 만들므로 이 짝이 곧 스윙×대상이다).
+					if (LNPHitDetection::IsMeasuringInterpolationLag()
+						&& bAttackerIsRemoteClient
+						&& Enemy.Config && Enemy.Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
+					{
+						const float DistSq = static_cast<float>(FVector::DistSquared(Enemy.RawLocation, AttackerLoc));
+						const float RewindWith = RewindSeconds + LNPHitDetection::GetInterpolationLagSeconds(DistSq, /*bIgnoreCVar*/ true);
+
+						const FVector CenterWith    = RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, RewindWith);
+						const FVector CenterWithout = RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, RewindSeconds);
+						const float   ThresholdSq   = FMath::Square(SwordRadius + Enemy.CapsuleRadius);
+
+						const bool bWith    = CalcDistSq(CenterWith,    Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius) <= ThresholdSq;
+						const bool bWithout = CalcDistSq(CenterWithout, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius) <= ThresholdSq;
+
+						if (bWith || bWithout)
+						{
+							const TCHAR* Verdict = bWith && bWithout ? TEXT("BOTH")
+								: (bWith ? TEXT("RESCUED") : TEXT("LOST"));
+							UE_LOG(LogLootNPop, Log,
+								TEXT("[RewindLag] melee %-7s dist=%6.0fcm lod=%-6s rewind=%.3f/%.3f shift=%5.1fcm swing=%d:%d"),
+								Verdict, FMath::Sqrt(DistSq), LNPHitDetection::GetReplicationLODName(DistSq),
+								RewindWith, RewindSeconds, (CenterWith - CenterWithout).Size(),
+								Ctx.GetEntity(i).Index, Enemy.Handle.Index);
+						}
+					}
+#endif
+
+					if (CalcDistSq(RewoundEnemyCenter(Enemy, AttackerLoc), Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius)
 						> FMath::Square(SwordRadius + Enemy.CapsuleRadius))
 						continue;
 

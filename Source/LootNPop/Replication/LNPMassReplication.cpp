@@ -34,8 +34,8 @@ void LNP::Replication::ConfigureParams(FMassReplicationParameters& Params,
 	// Off 경계는 시각화 거리에 맞춰 밀어낸다: 엔진 기본 5,000cm는 반지름 25,000cm 월드에서 너무 좁아
 	// 클라이언트가 서버보다 훨씬 가까이 가야만 엔티티(빛기둥·NPC)를 받는 원인이었다.
 	Params.LODDistance[EMassLOD::High]   = 0.f;
-	Params.LODDistance[EMassLOD::Medium] = 1000.f;
-	Params.LODDistance[EMassLOD::Low]    = 5000.f;
+	Params.LODDistance[EMassLOD::Medium] = LNP::Replication::LODDistanceMedium;
+	Params.LODDistance[EMassLOD::Low]    = LNP::Replication::LODDistanceLow;
 	Params.LODDistance[EMassLOD::Off]    = CullDistance;
 
 	// 개수 캡은 거리 컬링을 무력화하지 않도록 넉넉히 열어둔다 (엔진 기본 Low=300은 거리보다 먼저 걸린다).
