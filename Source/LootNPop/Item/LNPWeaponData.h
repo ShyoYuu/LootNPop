@@ -4,16 +4,15 @@
 
 #include "CoreMinimal.h"
 #include "Item/LNPItemDefinitionBase.h"
-#include "Animation/AnimMontage.h"
 #include "GameplayTagContainer.h"
 
-class USkeletalMesh;
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "Item/LNPWeaponLevelRow.h"
 #include "LNPWeaponData.generated.h"
 
 class ULNPVFXData;
 class UDataTable;
+class ULNPWeaponVisualSet;
 
 /**
  * 무기 DataAsset.
@@ -49,38 +48,27 @@ public:
 	/** 해당 레벨의 어빌리티 피해 계수 배율. 테이블이 없으면 1.0. */
 	float GetAbilityCoefScale(int32 Level) const;
 
-	/** 이 무기의 타입 태그 (LNP.Weapon.Pistol 등). EquipWeapon()이 ASC에 부여한다. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (Categories = "LNP.Weapon"))
-	FGameplayTag WeaponTag;
+	/**
+	 * 이 무기의 표현 세트 — 메시·그립 보정·애님 레이어·몽타주 키. 여러 무기가 공유할 수 있다
+	 * (런처는 `VS_Shotgun`을 가리킨다). 비어 있으면 맨손 표현으로 떨어진다.
+	 *
+	 * ⚠️ 규칙이 무기를 갈라야 할 때 이 에셋을 키로 쓰면 안 된다 — 공유하는 무기들이 함께 묶인다.
+	 * 무기의 정체성은 이 DataAsset 그 자체다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TObjectPtr<ULNPWeaponVisualSet> VisualSet;
 
 	/**
 	 * 장착 직후 부여되는 기본 조준 모드 태그.
 	 * - 원거리 무기: LNP.AimMode.FreeAim
 	 * - 근거리·맨손: 비워두면 LNP.AimMode.None으로 처리
 	 * LockOn 전환은 DefaultAimMode가 None일 때만 허용 (코드 하드코딩).
+	 *
+	 * ⚠️ VisualSet이 아니라 여기 있다 — 표현이 아니라 조작 규칙이고, 같은 메시를 든 두 무기가
+	 * 서로 다른 조준 모드를 가질 수 있어야 한다.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (Categories = "LNP.AimMode"))
 	FGameplayTag DefaultAimMode;
-
-	/** 장착 시 LinkAnimClassLayers()에 전달할 서브 AnimBP 클래스. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
-	TSubclassOf<UAnimInstance> AnimLayerClass;
-
-	/** 캐릭터 메시에 어태치할 무기 스켈레탈 메시. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
-	TObjectPtr<USkeletalMesh> WeaponMesh;
-
-	/** 무기 메시를 어태치할 캐릭터 소켓 이름. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
-	FName AttachSocketName = NAME_None;
-
-	/** 장착 시 무기 메시의 상대 위치 오프셋. 피벗이 그립 위치에서 벗어난 경우 미세 보정. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
-	FVector WeaponMeshRelativeLocation = FVector::ZeroVector;
-
-	/** 장착 시 무기 메시의 상대 회전 오프셋. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Mesh")
-	FRotator WeaponMeshRelativeRotation = FRotator(0.0f, 90.0f, -4.0f);
 
 	/** 기본 공격 연사 쿨타임 (초). 어빌리티가 Cooldown GE의 Duration으로 주입한다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0"))

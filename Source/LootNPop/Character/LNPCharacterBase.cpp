@@ -7,6 +7,7 @@
 #include "MotionWarpingComponent.h"
 #include "Player/LNPPlayerState.h"
 #include "Item/LNPWeaponData.h"
+#include "Item/LNPWeaponVisualSet.h"
 #include "Animation/LNPMontageChooserContext.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
@@ -209,7 +210,7 @@ void ALNPCharacterBase::OnRep_PlayerState()
 void ALNPCharacterBase::RefreshWeaponVisuals()
 {
 	// ⚠ 반드시 InitAbilitySystem() **뒤에** 호출해야 한다 —
-	// InitAbilitySystem()이 CurrentWeaponTag를 Unarmed로 되돌리므로 순서가 뒤바뀌면 무기 태그가 덮인다.
+	// InitAbilitySystem()이 CurrentAnimSetTag를 Unarmed로 되돌리므로 순서가 뒤바뀌면 애님 세트 태그가 덮인다.
 	// 캐시를 무효화해 멱등 조기 반환을 건너뛰고 태그를 다시 부여시킨다.
 	CachedWeaponDef = nullptr;
 	bWeaponVisualsApplied = false;
@@ -222,9 +223,9 @@ void ALNPCharacterBase::InitAbilitySystem()
 	if (!ASC)
 		return;
 
-	CurrentWeaponTag  = TAG_Weapon_Unarmed;
+	CurrentAnimSetTag = TAG_Weapon_Unarmed;
 	CurrentAimModeTag = TAG_AimMode_None;
-	ASC->AddLooseGameplayTag(CurrentWeaponTag);
+	ASC->AddLooseGameplayTag(CurrentAnimSetTag);
 	ASC->AddLooseGameplayTag(CurrentAimModeTag);
 
 	if (HasAuthority())
@@ -256,15 +257,18 @@ void ALNPCharacterBase::ApplyWeaponVisuals(ULNPWeaponData* WeaponData)
 	// 기존 무기·조준모드 태그 제거
 	if (ASC)
 	{
-		if (CurrentWeaponTag.IsValid())
-			ASC->RemoveLooseGameplayTag(CurrentWeaponTag);
+		if (CurrentAnimSetTag.IsValid())
+			ASC->RemoveLooseGameplayTag(CurrentAnimSetTag);
 		if (CurrentAimModeTag.IsValid())
 			ASC->RemoveLooseGameplayTag(CurrentAimModeTag);
 	}
 
-	// 신규 무기 태그 결정
-	const FGameplayTag NewWeaponTag = (WeaponData && WeaponData->WeaponTag.IsValid())
-		? WeaponData->WeaponTag
+	// 표현은 전부 VisualSet에서 온다 — 없으면 맨손으로 떨어진다.
+	const ULNPWeaponVisualSet* VisualSet = WeaponData ? WeaponData->VisualSet.Get() : nullptr;
+
+	// 신규 애님 세트 태그 결정
+	const FGameplayTag NewAnimSetTag = (VisualSet && VisualSet->AnimSetTag.IsValid())
+		? VisualSet->AnimSetTag
 		: TAG_Weapon_Unarmed;
 
 	// 조준 모드: 무기 데이터의 DefaultAimMode 사용, 미설정 시 None
@@ -278,11 +282,11 @@ void ALNPCharacterBase::ApplyWeaponVisuals(ULNPWeaponData* WeaponData)
 	// ASC에 부여
 	if (ASC)
 	{
-		ASC->AddLooseGameplayTag(NewWeaponTag);
+		ASC->AddLooseGameplayTag(NewAnimSetTag);
 		ASC->AddLooseGameplayTag(NewAimModeTag);
 	}
 
-	CurrentWeaponTag  = NewWeaponTag;
+	CurrentAnimSetTag = NewAnimSetTag;
 	CurrentAimModeTag = NewAimModeTag;
 
 	// 이동 회전 방식 전환: FreeAim이면 카메라 정면 고정, 아니면 입력 방향
@@ -297,18 +301,18 @@ void ALNPCharacterBase::ApplyWeaponVisuals(ULNPWeaponData* WeaponData)
 	}
 
 	// AnimLayer 연결
-	TSubclassOf<UAnimInstance> LayerClass = (WeaponData && WeaponData->AnimLayerClass)
-		? WeaponData->AnimLayerClass
+	TSubclassOf<UAnimInstance> LayerClass = (VisualSet && VisualSet->AnimLayerClass)
+		? VisualSet->AnimLayerClass
 		: UnarmedAnimLayerClass;
 	AnimSourceMesh->LinkAnimClassLayers(LayerClass);
 
 	// 무기 스켈레탈 메시 어태치
-	if (WeaponData && WeaponData->WeaponMesh && !WeaponData->AttachSocketName.IsNone())
+	if (VisualSet && VisualSet->WeaponMesh && !VisualSet->AttachSocketName.IsNone())
 	{
-		WeaponMesh->SetSkeletalMeshAsset(WeaponData->WeaponMesh);
-		WeaponMesh->AttachToComponent(VisualMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponData->AttachSocketName);
-		WeaponMesh->SetRelativeLocation(WeaponData->WeaponMeshRelativeLocation);
-		WeaponMesh->SetRelativeRotation(WeaponData->WeaponMeshRelativeRotation);
+		WeaponMesh->SetSkeletalMeshAsset(VisualSet->WeaponMesh);
+		WeaponMesh->AttachToComponent(VisualMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, VisualSet->AttachSocketName);
+		WeaponMesh->SetRelativeLocation(VisualSet->WeaponMeshRelativeLocation);
+		WeaponMesh->SetRelativeRotation(VisualSet->WeaponMeshRelativeRotation);
 		WeaponMesh->SetVisibility(true);
 	}
 	else
@@ -529,7 +533,7 @@ UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag WeaponType, FGamep
 
 UAnimMontage* ALNPCharacterBase::EvaluateMontage(FGameplayTag SituationType, FGameplayTag Value) const
 {
-	return EvaluateMontage(CurrentWeaponTag, SituationType, Value);
+	return EvaluateMontage(CurrentAnimSetTag, SituationType, Value);
 }
 
 bool ALNPCharacterBase::PlayMontage(FGameplayTag SituationType, FGameplayTag Value) const

@@ -311,7 +311,11 @@ private:
 
 	bool bRagdollActive = false;
 
-	FGameplayTag CurrentWeaponTag;
+	/**
+	 * 현재 장착 무기의 **애님 세트 태그** (`ULNPWeaponVisualSet::AnimSetTag`). 몽타주 Chooser 입력이다.
+	 * ⚠️ 무기를 식별하지 않는다 — 표현을 공유하는 무기들(런처·샷건)은 같은 값을 갖는다.
+	 */
+	FGameplayTag CurrentAnimSetTag;
 	FGameplayTag CurrentAimModeTag;
 
 	int32 CurrentComboIndex = 0;

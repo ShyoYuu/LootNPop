@@ -95,7 +95,7 @@ Iris의 FastArray 디스패치는 이름이 비대칭이다 (`FastArrayReplicati
 - **도착 순서**: 슬롯은 PlayerState의 컴포넌트에, 비주얼은 Pawn에 있고 복제 순서는 보장되지 않는다.
   푸시(`PushWeaponToPawn`, Pawn 없으면 no-op)와 풀(Pawn의 `BeginPlay`/`OnRep_PlayerState`/`PossessedBy`에서
   `ResolveWeaponDefForVisuals()`)을 양방향으로 걸어 어느 쪽이 먼저 와도 수렴시킨다.
-  ⚠️ 풀은 반드시 `InitAbilitySystem()` **뒤에** — 그쪽이 `CurrentWeaponTag`를 Unarmed로 되돌린다.
+  ⚠️ 풀은 반드시 `InitAbilitySystem()` **뒤에** — 그쪽이 `CurrentAnimSetTag`를 Unarmed로 되돌린다.
 - **UI 갱신**: `OnEquipmentChanged` 델리게이트(서버 적용·클라 OnRep 양쪽에서 브로드캐스트). 인벤토리의
   `OnInventoryChanged`만으로는 부족하다 — `DefaultWeapon`처럼 가방 인스턴스가 없는 장착은 `bEquipped`
   복제가 아예 없고, 있더라도 두 컴포넌트의 OnRep 순서가 보장되지 않는다. 스탯 탭은 두 신호를 모두 구독한다.
