@@ -34,6 +34,15 @@ protected:
 	const ULNPWeaponData* GetEquippedWeaponDef() const;
 
 	/**
+	 * ActorInfo의 아바타에서 장착 무기 정의를 읽는다. 없으면 null.
+	 *
+	 * ⚠️ CurrentActorInfo에 의존하지 않는 것이 요점이다 — CheckCooldown()은 첫 활성화 전이면
+	 * 인스턴스가 아니라 **CDO에서** 불리고(UAbilitySystemComponent::InternalTryActivateAbility),
+	 * CDO의 CurrentActorInfo는 null이다.
+	 */
+	const ULNPWeaponData* GetEquippedWeaponDefFor(const FGameplayAbilityActorInfo* ActorInfo) const;
+
+	/**
 	 * AttackSpeed 어트리뷰트(버프 합산 후 최종값). ASC가 없으면 1.0.
 	 * 몽타주 재생 속도와 쿨다운에 모두 쓰인다 — 둘을 같은 계수로 스케일해야
 	 * 실제 공격 빈도가 계수만큼 빨라진다 (한쪽만 줄이면 다른 쪽이 병목이 된다).
@@ -63,10 +72,28 @@ protected:
 	/** 공용 Cooldown GE (Duration은 ApplyCooldown에서 무기별로 주입). */
 	virtual UGameplayEffect* GetCooldownGameplayEffect() const override;
 
-	/** 장착 무기의 FireCooldown을 Duration으로 주입해 Cooldown GE를 적용한다. FireCooldown <= 0이면 쿨다운 없음. */
+	/**
+	 * 장착 무기의 FireCooldown을 Duration으로 주입해 Cooldown GE를 적용한다. FireCooldown <= 0이면 쿨다운 없음.
+	 * 무기 정의를 스펙 컨텍스트의 SourceObject로 스탬프해 CheckCooldown()이 무기를 구분할 수 있게 한다.
+	 */
 	virtual void ApplyCooldown(const FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
 		const FGameplayAbilityActivationInfo ActivationInfo) const override;
+
+	/**
+	 * 쿨다운을 **무기별로** 판정한다 — ApplyCooldown이 스탬프한 무기 정의와 일치하는 쿨다운 GE만 본다.
+	 *
+	 * 엔진 기본 구현은 GE가 부여한 태그를 ASC 태그와 대조하는 것이 전부라, 쿨다운 GE 클래스가
+	 * 하나뿐인 이 프로젝트에서는 무기가 달라도 같은 태그 하나가 모두를 막았다. 태그 축을 무기별로
+	 * 늘리는 대신 FGameplayEffectQuery::EffectSource(스펙 컨텍스트의 SourceObject)로 가른다 —
+	 * 무기 추가가 여전히 DataAsset 편집만으로 끝난다.
+	 *
+	 * ⚠️ GetCooldownTimeRemaining()은 손대지 않았으므로 여전히 무기 무관("전 무기 중 최댓값")이다.
+	 * 공격 쿨다운 UI를 붙일 때 같은 EffectSource 필터로 함께 오버라이드할 것.
+	 */
+	virtual bool CheckCooldown(const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 
 	/** 이 Ability가 가하는 넉백 강도 (cm/s 단위 임펄스). 0이면 넉백 없음. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")

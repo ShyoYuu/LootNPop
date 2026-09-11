@@ -174,6 +174,7 @@ GE 수명은 GE 자체가 아니라 적용한 쪽이 핸들로 관리한다:
 레벨이 바뀌면(합성) `ULNPEquipmentComponent::RefreshWeaponSlotGrants()`가 회수 후 새 레벨로 재부여한다.
 
 쿨다운은 단일 `ULNPGameplayEffect_Cooldown` 클래스에 **어빌리티가 무기별 `FireCooldown`을 per-spec Duration으로 주입** — 무기마다 GE 클래스를 만들지 않는다.
+**쿨다운은 무기별로 각자 돈다** — 교체가 이전 무기의 쿨다운을 지우지 않고, 되돌아오면 남은 시간을 그대로 기다린다(§5.2).
 
 ### 2.3 아이템 정의 DataAsset
 
@@ -381,9 +382,46 @@ AttackAction 입력 (ULNPInputHandlerComponent)
 
 어빌리티는 **스폰까지만** 책임지고 즉시 종료한다. 수백 발 동시 비행 시에도 어빌리티 인스턴스·액터·컴포넌트 비용이 없고, 이동·판정·VFX·파괴는 4단 프로세서 파이프라인이 청크 단위로 병렬 처리한다. 무기 상수는 `ConstSharedFragment`로 공유되어 같은 무기의 발사체가 청크·메모리를 공유한다.
 
-### 5.2 단일 Cooldown GE + per-spec Duration 주입
+### 5.2 단일 Cooldown GE + per-spec Duration 주입 + EffectSource 키
 
 GAS의 표준 관행(무기마다 Cooldown GE 클래스)을 버리고 `SetDuration(WeaponDef->FireCooldown)` 주입으로 단일 클래스가 모든 무기를 커버 — 무기 추가가 DataAsset 편집만으로 끝난다.
+
+**GE 클래스를 하나로 합치면 차단 키도 하나가 된다.** 엔진의 `UGameplayAbility::CheckCooldown()`은
+`GetCooldownTags()`(= GE CDO의 GrantedTags)를 ASC 태그와 대조하는 것이 전부이고, 이 프로젝트의 쿨다운 GE가
+부여하는 태그는 `LNP.Ability.Cooldown.Attack` **하나뿐**이다. Duration만 무기별로 갈라 두면 **런처를 쏜 뒤
+라이플로 바꿔도 런처의 3초가 끝날 때까지 라이플이 나가지 않는다.** 무기별 GA 클래스를 따로 두어도 소용없다 —
+`CheckCooldown()`은 어빌리티가 아니라 **ASC의 태그**를 본다.
+
+그래서 Duration과 **차단 키를 분리했다**(2026-09-11):
+
+| 축 | 담는 곳 | 값 |
+|:--|:--|:--|
+| 지속 시간 | 스펙의 Duration | `WeaponDef->FireCooldown / AttackSpeed` |
+| 차단 키 | 스펙 컨텍스트의 SourceObject | 장착 **무기 정의(DataAsset)** |
+
+`ApplyCooldown`이 `SpecHandle.Data->GetContext().AddSourceObject(WeaponDef)`로 무기를 스탬프하고,
+`ULNPAbility_BasicAttack::CheckCooldown` 오버라이드가 `FGameplayEffectQuery::EffectSource`로 **그 무기가
+스탬프된 쿨다운 GE만** 조회한다. 태그 축을 무기별로 늘리지 않았으므로 무기 추가는 여전히 DataAsset 편집만으로
+끝나고, 쿨다운 GE는 기본 스택 정책(`None`)이라 무기마다 별개의 `FActiveGameplayEffect`로 공존하다 수명이
+끝나면 스스로 사라진다 — **교체 시 제거 로직이 필요 없다.** 무기를 못 찾으면(적 NPC 표현 경로 등) 엔진 기본
+동작으로 물러난다.
+
+기획 결정은 **"무기별로 각자 돈다"** 다. 교체로 쿨다운을 지우는 취소 기법이 성립하지 않고, 키가 **정의 단위**라
+같은 종류 무기 두 자루를 번갈아 장착해도 연사 제한을 우회할 수 없다.
+
+⚠️ **`WeaponTag`를 키로 쓰면 안 된다.** `DA_Launcher`의 `WeaponTag`는 `LNP.Weapon.Shotgun`이다
+(샷건 메시·애님 레이어를 공유하는 테스트 무기) — 태그를 키로 쓰면 런처와 샷건이 쿨다운을 공유하게 된다.
+표현용 태그와 규칙용 키는 같은 축이 아니다.
+
+⚠️ **`CheckCooldown()`은 CDO에서도 불린다.** `InternalTryActivateAbility`는
+`AbilitySource = 프라이머리 인스턴스 ? 인스턴스 : CDO`로 `CanActivateAbility`를 부르므로, 첫 활성화 전에는
+CDO에서 실행되고 CDO의 `CurrentActorInfo`는 null이다. 무기는 **인수로 받은 `ActorInfo`**에서 꺼내야 한다
+(`GetEquippedWeaponDefFor`). `GetEquippedWeaponDef()`(= `CurrentActorInfo` 경유)를 쓰면 첫 발이 항상
+기본 동작으로 떨어진다.
+
+⚠️ **`GetCooldownTimeRemaining()`은 아직 무기 무관이다** — 읽는 코드가 하나도 없어 오버라이드하지 않았다.
+공격 쿨다운 UI를 붙이는 시점에 같은 `EffectSource` 필터로 함께 오버라이드할 것. 그 전에는 "전 무기 중
+최댓값"이 나온다.
 
 ### 5.3 Meta Attribute 기반 피해 정산
 

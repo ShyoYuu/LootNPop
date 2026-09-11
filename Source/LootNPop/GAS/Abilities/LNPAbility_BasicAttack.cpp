@@ -6,6 +6,7 @@
 #include "Item/LNPWeaponData.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 
 ULNPAbility_BasicAttack::ULNPAbility_BasicAttack()
 {
@@ -34,12 +35,55 @@ void ULNPAbility_BasicAttack::ApplyCooldown(const FGameplayAbilitySpecHandle Han
 
 	// AttackSpeed로 나눈다 — 원거리 공격은 몽타주 길이가 아니라 이 쿨다운이 발사 간격을 지배한다.
 	SpecHandle.Data->SetDuration(WeaponDef->FireCooldown / GetAttackSpeed(), true);
+
+	// 쿨다운을 무기별로 가르는 키. CheckCooldown()이 FGameplayEffectQuery::EffectSource로 되읽는다.
+	// GetContext()는 핸들을 값으로 돌려주지만 내부 Data를 공유하므로 스탬프가 이 스펙에 남는다.
+	SpecHandle.Data->GetContext().AddSourceObject(WeaponDef);
+
 	ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
+}
+
+bool ULNPAbility_BasicAttack::CheckCooldown(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	FGameplayTagContainer* OptionalRelevantTags) const
+{
+	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDefFor(ActorInfo);
+	UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+	const FGameplayTagContainer* CooldownTags = GetCooldownTags();
+
+	// 무기를 못 찾으면 태그 하나로 막는 엔진 기본 동작으로 물러난다. 무기가 없으면 ApplyCooldown도
+	// 아무것도 적용하지 않으므로 막을 GE 자체가 없고, 보수적인 쪽이기도 하다.
+	if (WeaponDef == nullptr || ASC == nullptr || CooldownTags == nullptr || CooldownTags->IsEmpty())
+		return Super::CheckCooldown(Handle, ActorInfo, OptionalRelevantTags);
+
+	// 태그로 1차 추린 뒤 EffectSource(= ApplyCooldown이 스탬프한 무기 정의)로 이 무기 것만 남긴다.
+	FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(*CooldownTags);
+	Query.EffectSource = WeaponDef;
+
+	if (ASC->GetActiveEffects(Query).Num() == 0)
+		return true;
+
+	// 실패 태그 통지는 엔진 기본 구현과 같게 맞춘다 (UGameplayAbility::CheckCooldown).
+	if (OptionalRelevantTags)
+	{
+		const FGameplayTag& FailCooldownTag = UAbilitySystemGlobals::Get().ActivateFailCooldownTag;
+		if (FailCooldownTag.IsValid())
+			OptionalRelevantTags->AddTag(FailCooldownTag);
+
+		OptionalRelevantTags->AppendMatchingTags(ASC->GetOwnedGameplayTags(), *CooldownTags);
+	}
+
+	return false;
 }
 
 const ULNPWeaponData* ULNPAbility_BasicAttack::GetEquippedWeaponDef() const
 {
-	const ALNPCharacterBase* Ch = GetOwningCharacter();
+	return GetEquippedWeaponDefFor(CurrentActorInfo);
+}
+
+const ULNPWeaponData* ULNPAbility_BasicAttack::GetEquippedWeaponDefFor(const FGameplayAbilityActorInfo* ActorInfo) const
+{
+	const ALNPCharacterBase* Ch = ActorInfo ? Cast<ALNPCharacterBase>(ActorInfo->AvatarActor.Get()) : nullptr;
 	return Ch ? Ch->GetActiveWeaponDef() : nullptr;
 }
 
