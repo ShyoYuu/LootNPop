@@ -27,7 +27,7 @@
 A는 B·C 없이도 "보이지 않지만 실제로 때리는 적"으로 완성되고, B는 C의 입력이 된다.
 이 분리가 곧 단계별 검증 경로다 (§10).
 
-**진행 상황 (2026-09-06):** A·B 완료, C는 **Stage 5a·5b 완료 / 5c(무기 스킨드 메시) 보류.**
+**진행 상황 (2026-09-13):** A·B·C 전부 완료 — **Stage 5c(무기 스킨드 메시)까지 완료**, 칼날 아크를 무기 궤적에 맞췄다.
 순수 엔티티는 Idle·Move·Attack·Stagger·Parried·Dying을 모두 재생하고, 남은 것은 손에 든 무기뿐이다.
 
 ---
@@ -536,37 +536,150 @@ Medium을 별도 항목으로 가르지 않았다 — ISM 쪽이 이미 `bCastSh
 ### 6.3 무기 — 손 본 웨이팅 스킨드 메시
 
 ISKM에는 소켓 본 어태치가 없다. 대신 `Desc.Meshes`가 배열이고, 항목마다 ISKM 컴포넌트가 하나씩 생성되어
-**동일 트랜스폼·동일 애니 데이터**를 받는다 (`MassVisualizationComponent.cpp:1047`).
+**동일 트랜스폼·동일 애니 재생 상태**를 받는다 (`MassVisualizationComponent.cpp:1047`).
 
 그러므로 무기를 **같은 스켈레톤의 손 본에 100% 웨이팅한 스킨드 에셋**으로 만들어 두 번째 항목으로 등록하면
-GPU 스키닝이 무기를 손 위치로 옮겨 준다. 엔진의 모듈러 캐릭터 방식과 같은 원리다.
+GPU 스키닝이 무기를 손 위치로 옮겨 준다 — 엔진의 모듈러 캐릭터 방식과 같은 원리다.
 
 - ⚠️ 무기 종류가 늘면 무기마다 스킨드 에셋을 구워야 한다. 다만 적은 **무기를 교체하지 않으므로**
   (`ULNPEnemyConfig::WeaponData` 고정 1개) 조합 폭발이 없다 — 이 제약이 여기서 이득이 된다.
+  몸통과 병합한 메시를 따로 굽는 방식보다 낫다 — 캐릭터 메시와 LOD를 복제하지 않는다.
 - ⚠️ **`BladeInner` / `BladeOuter`는 이 메시의 실제 길이와 손으로 맞춰야 한다.** 애니메이션에서 뽑을 수
   없으므로 Config 상수이고, 어긋나면 "칼이 안 닿았는데 맞는다"가 된다.
   `ULNPWeaponTraceDebugDrawProcessor`로 눈으로 맞출 것 — **cvar 게이트가 없어** 에디터 빌드에서
   플레이어 반경 5m(`ULNPSettings::DebugDrawProximityDistSq`) 안의 칼날이 자동으로 그려진다.
+  대조는 **`slomo 0.1`** 로 한다(§6.5 끝).
 
-#### Stage 5c는 보류했다 (2026-09-06)
+#### 적용 현황 (2026-09-13, Stage 5c 완료)
 
-필요한 에셋의 스펙은 확정했지만 만들지 못했다 — **엔진 안에 경로가 없다.** IK 리타게터는 본 구성이 달라
-쓸 수 없고, 스켈레탈 메시 에디터의 스켈레톤 재지정도 무기 본 이름이 마네킹에 대응되지 않아 실패한다.
-DCC에서 굽는 작업이고, FBX가 나오면 `SkeletalMeshTools.import_file`의 `skeleton` 인자로 임포트하면 된다.
+무기는 **애니 세트** 단위로 묶는다. 세트 하나가 시퀀스 리스트(ASL) 1개와 ASTP 2개(몸통·무기)를 갖는다.
+
+| 세트 | 적 | ASL | 몸통 ASTP (`Meshes[0]`) | 무기 ASTP (`Meshes[1]`) | 무기 메시 |
+|:---|:---|:---|:---|:---|:---|
+| 검 | Melee01 | `ASL_Enemy_UEFN_Sword` | `ASTP_Enemy_UEFN_Sword_Body` | `ASTP_Enemy_UEFN_Sword_Weapon` | `SKM_LongSword_UEFN` |
+| 샷건 | Ranged01 | `ASL_Enemy_UEFN_Shotgun` | `ASTP_Enemy_UEFN_Shotgun_Body` | `ASTP_Enemy_UEFN_Shotgun_Weapon` | `SKM_Shotgun_UEFN` |
+
+- 이름 규칙: `ASL_Enemy_UEFN_{세트}`, `ASTP_Enemy_UEFN_{세트}_{Body|Weapon}` (에셋은 `/Game/Enemy`).
+- 세트는 **적 타입이 아니라 애니 세트**다. 같은 무기 자세를 쓰는 적끼리는 ASL·ASTP를 공유한다.
+- 세트를 나누는 대가는 ISKM 컴포넌트 수다 — 프로바이더가 Desc 해시에 들어가므로 몸통이 같은 메시여도
+  세트마다 컴포넌트가 따로 생긴다.
+
+**롱소드**
 
 | 항목 | 값 |
 |:---|:---|
-| 대상 스켈레톤 | `SK_UEFN_Mannequin` |
-| 웨이팅 본 | **`weapon_r`** — 소켓이 아니라 **본**이다(88본 중 하나) |
-| 정점 배치 | 레퍼런스 포즈에서 `weapon_r` 기준 위치 (-5, 4, 2) / 회전 (P18, Y92, R-17) 만큼 옮겨 둘 것 |
-| 원본 | `SKM_LongSword` (자체 스켈레톤 `SK_LongSword`, 본 `sword_root`/`sword_tip`) |
+| 무기 메시 | `/Game/Weapons/LongSword/Mesh/SKM_LongSword_UEFN` — 68정점, LOD 1, `bOptimizeForInstancing` |
+| 스켈레톤 | `SK_UEFN_Mannequin` (88본, 마네킹과 **본 배열이 인덱스까지 동일**) |
+| 웨이팅 본 | **`weapon_r`** 100% — 소켓이 아니라 **본**이다 |
+| 정점 배치 | `VS_LongSword`의 실제 어태치 값 — `weapon_r` 로컬 위치 `(-5, 4, 2)`, 회전 `FRotator(P18, Y92, R-17)` |
+| 프로바이더 | `/Game/Enemy/ASTP_Enemy_UEFN_Sword_Weapon` (`SkinnedAsset` = 위 메시, 시퀀스는 `ASL_Enemy_UEFN_Sword` 공유) |
+| 등록 | `DA_EnemyEntityConfig_PureEntity_Melee01`의 `SkinnedMeshInstanceDesc.Meshes[1]` |
+| 원본 형상 | `SKM_LongSword` — 실린더를 늘린 임시 에셋. 전 면 스무스 셰이딩이 정상이다 |
+| 소스 FBX | `Art/Meshes/SKM_LongSword_UEFN.fbx` — 에셋의 `AssetImportData`가 이 경로를 가리켜 에디터 Reimport가 동작한다 |
+| 칼 치수 | 레퍼런스 포즈에서 그립(`weapon_r`)→칼끝 **118.4cm**, 폼멜 쪽 **31cm** |
 
-⚠️ **자체 스켈레톤 무기를 두 번째 항목으로 넣으면 안 된다.** 항목들은 같은 인스턴스 트랜스폼을 받으므로
-손이 아니라 **캡슐 중심에 박힌다.** 손을 따라가게 하는 유일한 방법이 손 본 웨이팅이다.
+**샷건**
 
-보류해도 손실이 작다 — 지금도 ISM 구간과 마찬가지로 손이 비어 있을 뿐이고, 판정 튜닝은 무기 없이도
-**손이 지나가는 궤적과 칼날 아크를 대조**하는 방식으로 진행할 수 있다(실제로 그렇게 했다).
-무기 메시가 필요한 것은 `BladeOuter`(리치)를 정확히 재는 마지막 단계뿐이다.
+| 항목 | 값 |
+|:---|:---|
+| 무기 메시 | `/Game/Weapons/Shotgun/Mesh/SKM_Shotgun_UEFN` — 16,099정점, LOD 1, `bOptimizeForInstancing` |
+| 정점 배치 | `VS_Shotgun` — `weapon_r` 로컬 위치 `(0, 0, 0)`, 회전 `FRotator(P0, Y90, R-4)` |
+| 머티리얼 | `MI_Weapon_Shotgun` — 부모 `M_Weapon`에 `bUsedWithInstancedSkinnedMesh` 필수(§6.7) |
+| 부품 본 | 원본의 Slide·Trigger·Magazine 등 부품 본은 전부 `weapon_r`로 합쳤다 — **부품 움직임은 포기**한다 |
+| 소스 FBX | `Art/Meshes/SKM_Shotgun_UEFN.fbx` |
+
+- ISKM은 **마네킹 본의 구운 트랜스폼만** 재생하므로 무기 자체의 본을 구동할 방법이 없다. 부품 움직임이 필요한
+  거리는 Actor 승격 구간이 담당한다.
+- 원본 FBX는 `Root` 본에 Z 90° 회전이 있고 메시가 역회전을 들고 있다. 컴포넌트 로컬 정점은
+  `inv(EMPTY.world) @ mesh.world @ co`로 뽑는다(롱소드와 같은 기준이라 결과가 일관된다).
+- **비대칭 무기로 좌표 변환이 검증됐다.** 롱소드는 원통이라 축 회전이 틀려도 드러나지 않았는데, 샷건은 PIE에서
+  방향과 왼손 위치(펌프 부근)가 맞았다 — 본 로컬 `diag(1,-1,1)` 규약이 롤까지 옳다는 뜻이다.
+
+`hand_r`에 웨이팅해도 된다 — 스킨드 메시에서는 **정점 위치 자체가 고정 오프셋**이라 칼이 손목으로 올라가지
+않는다(손목으로 올라가는 것은 메시 원점이 본 원점에 붙는 소켓 어태치의 증상이다). 플레이어 칼과 같은 기준이라
+그립 비교가 쉬워서 `weapon_r`을 쓴다.
+
+##### ⚠️ 프로바이더는 메시마다 하나씩, 시퀀스 배열은 몸통과 똑같이
+
+애니 재생 상태(시퀀스 인덱스·시간)는 항목들이 공유하지만, `TransformProvider`는 항목별로 설정되고
+(`MassVisualizationComponent.cpp:1323`) **자기 메시에 바인딩되어 있어야** 한다:
+
+```cpp
+// AnimSequenceTransformProviderData.cpp:468  UAnimSequenceTransformProviderData::IsValidFor()
+if (SkinnedAsset != ExtensionProxy->GetSkinnedAsset())
+{
+    UE_LOGF(... "doesn't match SkinnedAsset on InstancedSkinnedMesh" ...);
+    return false;   // 등록 거부 → 그 메시는 레퍼런스 포즈로 굳는다
+}
+```
+
+무기용 ASTP는 **몸통 ASTP를 복제해 `SkinnedAsset`만 바꾼다.** 새로 만들면 §6.4의 인덱스를 손으로 맞춰야 하고,
+빈 `Sequence` 항목을 한 순간이라도 두면 에디터가 죽는다(§6.7).
+
+✅ **이 동기화는 이제 `UAnimSequenceTransformProviderSequenceList`(ASL)가 한다** (2026-09-13). 시퀀스 배열을 무기 세트별 ASL 하나에 두고 몸통·무기 ASTP가 `SequenceList`로 참조한다 — ASL을 편집하면 `PostEditChangeProperty`가 참조하는 모든 프로바이더에 배열을 밀어 넣고, 프로바이더 `PostLoad`도 ASL에서 다시 복사한다. ASL은 EditorOnly라 런타임 비용이 없다. 아래 사고는 ASL 도입 전 기록이다.
+
+⚠️ **몸통 ASTP의 시퀀스를 바꾸면 무기 ASTP도 똑같이 바꿔야 한다.** 인덱스가 어긋나도 에러·경고가 전혀 없고,
+몸과 칼이 **서로 다른 클립을 재생하며 조용히 따로 논다.** 2026-09-13에 Idle/Run을 교체한 뒤 칼 ASTP만
+옛 클립을 들고 있어 "Attack에서는 맞는데 Idle·Run에서만 칼이 손에서 떨어지는" 증상으로 실제로 밟았다.
+`weapon_r` 본을 의심하기 전에 두 ASTP의 `sequences`부터 대조할 것.
+
+##### ⚠️ 한때 "ISKM에서 렌더되지 않는다"고 잘못 결론 냈다 (2026-09-12)
+
+무기 단독 항목도, 몸통 병합 메시도 **ISM 구간과 Actor 구간에서는 보이는데 ISKM 구간에서만 투명**해졌다.
+ISKM 경로(프로바이더·LOD·BoneMap·`MaxBoneInfluences`·PhysicsAsset·머티리얼·바운드…)를 열 가지 넘게
+배제하다 "원인 미상"으로 트랙을 접었는데, **진짜 원인은 메시의 바인드 포즈였다** — 애니메이션이 걸리는
+순간 스키닝 행렬이 틀어져 메시가 터진다. ISM은 스키닝을 안 하고 Actor는 원본 마네킹 메시를 그리니
+그쪽에서만 보였던 것이다. 레퍼런스 포즈로 그리는 썸네일도 멀쩡해서 잡히지 않았다.
+(처음 "칼이 손에 안 붙고 제자리에 떠 있던" 것도 프로바이더 불일치로 **애니가 아예 안 걸려서** 보였던 것이다.)
+
+> **판별은 메시 에디터에서 `Preview Animation` 한 번이면 끝난다.** 애니를 고르는 순간 메시가 사라지면
+> 바인드 포즈 문제다. **ISKM에 등록하기 전에 반드시 이것부터 확인할 것.**
+
+원인은 아래 규약의 ①·②를 어긴 것이었다.
+
+##### DCC 왕복 규약 — 좌표·스케일·바인드 포즈 (2026-09-12~13 실측)
+
+추측으로 유도하려 들면 하루가 사라진다. **여기 적힌 값과 절차를 그대로 쓸 것.**
+
+**좌표.** 블렌더 FBX 임포터는 기본 축(`primary='Y'`, `secondary='X'`)에서 **본 보정 행렬을 만들지 않는다**
+(`bone_correction_matrix = None`, `io_scene_fbx/import_fbx.py`). 흔히 기대하는 "FBX X축 → 블렌더 Y축"
+재정렬이 일어나지 않으므로, 남는 차이는 UE FBX 익스포터의 축 반전 하나뿐이다.
+
+| 대상 | 변환 |
+|:---|:---|
+| 월드 좌표 | UE `+X`(전방) → 블렌더 `-Y` · UE `+Y`(오른쪽) → 블렌더 `-X` · `+Z` 보존 |
+| **본 로컬 좌표** | **`diag(1, -1, 1)`** — Y만 반전 (`FFbxDataConverter::ConvertPos`의 규약) |
+
+반전 축을 가르는 검증은 에셋 안에 있다. `palm_r_Socket`은 `hand_r` 로컬 **(-7.5, +2, 0)** 인데 블렌더에서 잰
+`weapon_r`의 같은 본 로컬 Y는 **-3.41** 이다 — 손바닥과 그립점이 반대쪽일 수는 없다. (손끝 방향이 본 `-X`인
+것도 이 소켓으로 안다. UE 마네킹의 손 본은 X축이 자식 방향이 **아니다.**)
+UE 로테이터는 `FRotationMatrix` 순서로 조립한 뒤 `T · L · T⁻¹`(T = 위 본 로컬 반전)로 켤레를 취해 본 행렬에 곱한다.
+
+**절차.**
+
+1. 마네킹 FBX를 `automatic_bone_orientation=False`로 임포트한다. (MCP 실행 환경에서 활성 오브젝트가 없으면
+   임포터가 `Context missing active object`로 죽는다 — 프리미티브를 하나 추가해 두고 임포트한 뒤 지운다.)
+2. **아마추어 오브젝트 이름을 정확히 `root`로 둔다.** 아마추어 오브젝트 이름이 **곧 루트 본 이름**이다.
+   같은 파일을 두 번 임포트해 붙는 `.001` 접미사가 그대로 `root_001` 본이 된다.
+3. 아마추어의 부모(EMPTY, 스케일 `0.01`)를 **월드 트랜스폼을 유지한 채 해제만** 한다 → 아마추어가 `0.01`을
+   떠안는다. ⚠️ **`transform_apply(scale=True)`는 금지(①).** 본 좌표를 미터로 구우면 바인드 행렬이
+   "FBX SDK 검사는 통과하지만 실제 본 배치와는 어긋난" 상태가 되어 UE가 고칠 기회를 잃는다.
+   씬을 cm로 맞추는 것도 금지 — 익스포터가 미터→cm를 한 번 더 적용해 정확히 100배가 된다.
+4. 무기를 배치하고 전 정점을 본 하나에 100% 웨이팅, `Armature` 모디파이어를 `root`에 건다.
+5. 익스포트는 `object_types={'ARMATURE','MESH'}` — ⚠️ **EMPTY 제외(②). FBX에서 EMPTY는 본으로 변환된다.**
+   나머지는 `add_leaf_bones=False`, `apply_scale_options='FBX_SCALE_NONE'`, `global_scale=1.0`,
+   `axis_forward='-Z'`, `axis_up='Y'`, `mesh_smooth_type='FACE'`.
+6. `SkeletalMeshTools.import_file`에 `skeleton=SK_UEFN_Mannequin`을 준 뒤 **즉시 두 가지를 확인한다** —
+   `get_bone_names`가 `root`부터 88개로 마네킹과 같은지, 그리고 아래 `LogFbx` 로그.
+
+| 임포트 로그 | 의미 |
+|:---|:---|
+| `Not valid bind pose … Recreating bind pose succeeded` | **정상.** UE가 바인드 포즈를 재생성했다 |
+| `Valid bind pose for Pose (…)` | **위험 신호.** `transform_apply`를 거친 메시에서 나온다 — 애니메이션에서 터진다 |
+| `The Skeleton … is missing bones … They will be added now` | **스켈레톤 오염.** 본 이름이 틀렸다(②). **저장하지 말고 에디터를 재시작**할 것 — 원본 스켈레톤을 쓰는 메시·애니 전부가 dirty가 된다(실제로 겪었다) |
+
+⚠️ `EditorAppToolset.CaptureAssetImage`의 썸네일은 **레퍼런스 포즈**라 메시가 깨졌는지는 잡지만 바인드 포즈
+문제는 못 잡는다. 에셋을 바꿀 때마다 썸네일 → 애니 프리뷰 순으로 확인한다.
 
 ### 6.4 시퀀스 인덱스 규약
 
@@ -575,12 +688,12 @@ DCC에서 굽는 작업이고, FBX가 나오면 `SkeletalMeshTools.import_file`�
 매핑을 갖는다 — 적 타입마다 시퀀스 수와 순서가 다르다. 루프 여부는 데이터로 두지 않는다.
 `FLNPEnemyActionFragment::IsOneShot()`이 "일회성 연출인가"의 단일 원본이고 거기서 파생한다.
 
-현재 `ASTP_Enemy_UEFN_Mannequin` 구성 (2026-09-06):
+현재 검 세트 구성 (2026-09-13) — 시퀀스는 **`ASL_Enemy_UEFN_Sword`에서 편집**하고, 참조하는 `ASTP_Enemy_UEFN_Sword_Body`·`_Weapon`이 자동으로 따라간다(§6.3):
 
 | Index | 시퀀스 | 길이 | 매핑 |
 |:---:|:---|---:|:---|
-| 0 | `M_Neutral_Stand_Idle_Loop` | 10.00s | Idle (Loop) |
-| 1 | `M_Relaxed_Run_Loop_F_Troy` | 3.00s | Move (Loop) |
+| 0 | `A_SW_Idle_UEFN` | 11.33s | Idle (Loop) — 검 든 자세. 맨손 `M_Neutral_Stand_Idle_Loop`에서 교체 |
+| 1 | `A_SW_Run_UEFN` | 0.73s | Move (Loop) — 검 든 자세. 맨손 `M_Relaxed_Run_Loop_F_Troy`에서 교체 |
 | 2 | `A_SW_Attack_01_UEFN` | 2.47s | Attack (Clamp) — 사선 내려베기 |
 | 3 | `A_SW_Attack_02_UEFN` | 2.00s | *미사용* — 올려베기라 아크와 방향이 반대다 |
 | 4 | `A_SW_Damage_Backward_UEFN` | 1.07s | Parried (Clamp) |
@@ -591,6 +704,20 @@ DCC에서 굽는 작업이고, FBX가 나오면 `SkeletalMeshTools.import_file`�
 ⚠️ **인덱스는 위치 의존이다. 항목을 지우면 뒤가 전부 밀린다.** 2026-09-06에 중간 항목 하나를 지웠다가
 경직·사망·패링 셋이 동시에 엉뚱한 모션을 가리켰다. **끝에만 붙이고, 지웠다면 매핑을 전수 재확인한다.**
 미사용 항목을 지우지 않고 남겨 두는 이유가 이것이다.
+
+샷건 세트 구성 (2026-09-13) — `ASL_Enemy_UEFN_Shotgun`. **칸 배치를 검 세트와 같게** 두어 Ranged01의
+`ActionSequences`가 검 세트와 같은 인덱스를 쓴다:
+
+| Index | 시퀀스 | 길이 | 매핑 |
+|:---:|:---|---:|:---|
+| 0 | `MM_Shotgun_Idle_ADS_UEFN` | 3.40s | Idle (Loop) |
+| 1 | `MM_Rifle_Jog_Fwd_UEFN` | 1.70s | Move (Loop) — `MM_Rifle_Walk_Fwd_UEFN`과 비교 중 |
+| 2 | `MM_Shotgun_Fire_UEFN` | 0.67s | Attack (Clamp) — 원래 additive, `None`으로 전환(§6.7) |
+| 5 · 6 | `MM_Death_Front_01_UEFN` · `A_SW_Damage_Fast_UEFN` | — | Dying · Stagger (검 세트와 같은 클립) |
+| 3 · 4 · 7 · 8 | 검 세트와 같은 클립 | — | *미사용* — 칸만 유지 |
+
+⚠️ **새 ASL은 빈 칸 없이 채운 뒤에 ASTP에 연결한다.** 연결된 ASL을 편집하면 참조하는 ASTP가 전부 다시 빌드되므로,
+§6.7의 "빈 `Sequence` 항목이 있으면 에디터가 죽는다" 조건이 모든 프로바이더에 한꺼번에 걸린다.
 
 #### 변형은 연출 다양성이지 재생 보장이 아니다
 
@@ -629,11 +756,11 @@ PlayRate = SequenceLength / (WindupTime + ActiveTime + RecoveryTime)
 위상 합을 클립 길이와 같게 두면 `PlayRate = 1.0`이 되고, 그 순간 **애니메이션의 프레임 번호가 그대로 초가 된다.**
 접촉 구간을 프레임으로 읽어 `프레임 / FPS`로 넣으면 끝이라, "대충 절반쯤"이 사라진다.
 
-근접 실측 예 (`A_SW_Attack_01_UEFN`, 74프레임 @ 30fps = 2.4667초, 칼날 적합 구간 20~30프레임):
+근접 실측 예 (`A_SW_Attack_01_UEFN`, 74프레임 @ 30fps = 2.4667초, 칼날 적합 구간 22~30프레임):
 
 ```
-WindupTime   = 20/30 = 0.6667      (0 ~ 20프레임)
-ActiveTime   = 10/30 = 0.3333      (20 ~ 30프레임 — 칼날 생존)
+WindupTime   = 22/30 = 0.7333      (0 ~ 22프레임)
+ActiveTime   =  8/30 = 0.2667      (22 ~ 30프레임 — 칼날 생존)
 RecoveryTime = 44/30 = 1.4667      (30 ~ 74프레임 — 마무리)
 합 = 2.4667 → PlayRate 1.000
 ```
@@ -652,6 +779,44 @@ RecoveryTime = 44/30 = 1.4667      (30 ~ 74프레임 — 마무리)
 
 ⚠️ **애니와 판정을 묶어 주는 것은 위상 합뿐이다.** 접촉 순간·아크 방향·피벗 높이는 §6.5가 파생시키지
 못하므로 디버그 드로우를 보며 손으로 맞춘다(→ §9 #3). AnimNotify가 없다는 제약의 실제 대가가 여기다.
+
+**롱소드 확정값 (2026-09-13, `DA_Enemy_PureEntity_Melee01`)** — 무기 메시가 붙은 뒤 칼 궤적에 맞췄다:
+
+```
+Yaw     ArcStartDeg  130  →  ArcEndDeg   -170     (범위 300°)
+Pitch   ArcPitchStart 78  →  ArcPitchEnd  -78     (가파른 사선 내려베기)
+Pivot   Forward 20 / Up 10          Blade  Inner 30 / Outer 140
+위상    22f / 8f / 44f  (PlayRate 1.0)
+```
+
+손 궤적만 보고 잡은 1차값(Yaw ±70, Pitch ±55, 위상 20/10/44)은 **실제 칼보다 훨씬 작고 느리게** 휘둘렀다.
+시작을 크게 뒤로 젖히고(범위 140° → 300°), 판정 시작을 2프레임 늦춰 Active를 짧게 해 따라잡게 했으며,
+기울기를 세우고 전체를 앞으로 당겨 맞췄다.
+
+- **대조는 `slomo 0.1`로 한다.** 월드 시간 확장이라 애니·칼날 판정·디버그 드로우가 **같은 비율로** 느려져
+  상대 오차가 왜곡되지 않는다. ⚠️ ASTP의 `playRate`를 낮추면 안 된다 — 위 식대로 프로세서가 덮어쓰고,
+  먹더라도 애니만 느려져 오차가 실제보다 커 보인다.
+- ⚠️ **Pitch는 ±90°를 넘기지 않는다.** 접평면 기준이라 90°를 넘으면 위를 지나 반대편으로 넘어간다.
+- 판정 시작을 늦출 때는 **Active 종료 시점(Windup+Active)과 위상 합을 유지**하면 끝 타이밍과 PlayRate가
+  그대로다(20/10 → 22/8). Active를 6프레임 아래로 줄이면 빠르게 지나가는 대상을 놓치기 시작한다.
+
+**원거리 샷건 확정값 (2026-09-13, `DA_Enemy_PureEntity_Ranged01`)** — 사격 클립 0프레임에 발사를 맞췄다:
+
+```
+위상    Windup 0 / Active 0 / Recovery 0.667 (20f, PlayRate 1.0)
+주기    AttackInterval 1.5 → 1.833      (Windup + Recovery + Interval = 2.5초 유지)
+```
+
+- 원거리는 **Windup이 끝나는 순간 1회 발사하고 Active를 건너뛴다**(`LNPEntityAttackProcessor.cpp:327`).
+  ⚠️ 그런데 PlayRate는 원거리여도 `Windup + Active + Recovery`로 계산하므로(`LNPEnemyAnimationProcessor.cpp:120`),
+  **원거리 `ActiveTime`이 0이 아니면 클립이 그만큼 늘어나 끝이 잘린다.** 원거리는 `ActiveTime = 0`으로 둔다.
+- ⚠️ 쿨다운은 Recovery가 끝날 때 시작하므로 원거리 주기는 `Windup + Recovery + AttackInterval`이다 — **Active는 들어가지
+  않는다.** 위상을 바꾸면 이 합이 유지되도록 `AttackInterval`을 보정한다.
+- Lyra 사격 클립은 **발사와 동시에 재생되는 전제의 모션**이라 0프레임 발사가 가장 자연스럽다. 총기 모션은 작아
+  예고 동작 구실을 못 하므로, 원거리 공격은 **발사체를 보고 반응**하게 한다(적 발사체 속도를 낮춰 둔 이유).
+  위 롱소드와 달리 Windup이 예고 창이 아니다.
+- Windup이 0이면 공격을 시작한 틱의 조준 방향으로 쏜다.
+- 발사 위치는 `MuzzleLocalOffset`(캡슐 중심 로컬, X=전방·Y=우측·Z=위)이고 **손 본을 따라가지 않는다.**
 
 ### 6.6 포즈 연속성은 포기한다
 
@@ -686,10 +851,26 @@ Nanite → Static → **GPUSkin** 순으로 떨어지고 `r.GPUSkin.UseSceneExte
 클립을 넣으면 뼈가 원점으로 모여 **메시가 통째로 사라진다.** Lyra의 `MM_HitReact_*`가 전부 추가 클립이라
 경직 모션에서 실제로 밟았다. 고르기 전에 `AdditiveAnimType`이 `AAT_None`인지 확인할 것.
 
-⚠️ **제자리 클립이어야 한다.** 컴파일러가 루트 본을 애니가 아닌 **레퍼런스 포즈로 덮으므로**
-(`AnimSequenceTransformProviderCompiler.cpp`의 부모 없는 본 분기) 루트 모션이 자동으로 제거된다.
+예외가 있다 — **기준 포즈가 자기 자신의 프레임인 additive 클립**(`RefPoseType = ABPT_AnimFrame`, `RefPoseSeq` = 자기 자신)은
+원시 데이터가 전신 포즈이므로 `AdditiveAnimType`을 `AAT_None`으로 바꾸면 그대로 쓸 수 있다.
+`MM_Shotgun_Fire_UEFN`(`AAT_RotationOffsetMeshSpace`)이 그렇게 들어갔다. 바꾼 뒤 썸네일에 전신 포즈가 나오는지 볼 것.
+
+⚠️ **제자리 클립이어야 한다.** 실제 재생 경로(렌더러 `Skinning/AnimSequenceTransformProvider.cpp:438`)가
+**메시 본 인덱스 0(`root`)의 이동·회전을 레퍼런스 포즈로 고정**하므로 `root`에 실린 루트 모션은 자동으로 제거된다.
+(컴파일러의 같은 분기는 바운드 계산용이다.)
 덕분에 인플레이스 클립을 따로 구울 필요가 없다는 이점이 있지만, **반대로 변위가 큰 클립은 그 변위를 잃고
 캡슐 위치와 어긋난다.** 좌우로 크게 밀리는 피격 모션을 경직에 썼다가 되돌렸다.
+
+⚠️ **`root`가 아닌 본에 실린 변위는 남는다 — 리타겟한 로코모션에서 밟는다** (2026-09-13).
+`MM_Rifle_Jog_Fwd_UEFN`이 앞으로 달려갔다가 루프마다 제자리로 튀었다. 원본 Lyra 클립은 전진 이동이 `root`에 있는데
+(`bForceRootLock`, 리타겟 프리뷰는 root lock을 무시한다) 원본 pelvis의 **월드 위치**가 앞으로 가고,
+리타게터의 **Pelvis Motion 옵**이 그 이동을 대상 pelvis에 옮긴다. 렌더러는 `root`만 버리므로 pelvis 이동이 남는다.
+
+- 클립의 `Enable Root Motion` 체크나 리타게터의 **Root Motion 옵은 무관하다** — `root`는 어차피 버려진다(둘 다 바꿔 봐도 그대로였다).
+- **해결: Pelvis Motion 옵의 `Scale Horizontal` = 0으로 리타겟.** 모션매칭용 `RTG_Lyra_to_GASP`를 건드리지 않도록
+  복제한 `RTG_Lyra_to_GASP_noRootMotion`에 설정했다. 대가로 좌우 골반 흔들림도 사라지지만 멀리서는 티가 안 난다.
+- ⚠️ `Blend To Source Translation Weights`를 0으로 하는 것은 **효과가 없다** — `Blend To Source Translation`(기본 0)에만 곱해지는 가중치다.
+- 판별: 애니 에디터에서 pelvis를 선택했을 때 **`root` 위를 따라다니며 위아래로만** 움직이면 제자리다. 에디터 프리뷰와 ISKM 결과가 같다.
 
 #### ASTP 편집 시 에디터가 죽는 조건
 
@@ -825,8 +1006,8 @@ Actor이므로 통째로 건너뛴다.
 | # | 항목 | 성격 |
 |:---:|:---|:---|
 | 1 | ~~Nanite 스킨 요건~~ | ✅ **해소(2026-09-06).** 요건은 Nanite가 아니라 `bOptimizeForInstancing` + 머티리얼 사용 플래그였다 → §6.7 |
-| 2 | 시퀀스 에셋 준비 | Attack/Stagger/Death/Parried는 GASP 스켈레톤으로 리타게팅 완료. **무기 스킨드 에셋만 남았다**(Stage 5c 보류 → §6.3) |
-| 3 | 수치 튜닝 — Promoted 슬롯 수, 유의도 경계, **칼날 아크와 애니 궤적의 정합** | 플레이 테스트. 근접 위상은 PlayRate 1.0 기준으로 1차 완료(§6.5), 미세 조정은 무기 메시가 있어야 한다 |
+| 2 | ~~시퀀스 에셋 준비~~ | ✅ **해소(2026-09-13).** 전 시퀀스 리타게팅 완료, Idle/Run도 검 든 클립으로 교체. 무기 스킨드 에셋 완료(Stage 5c → §6.3) |
+| 3 | 수치 튜닝 — Promoted 슬롯 수, 유의도 경계, ~~칼날 아크와 애니 궤적의 정합~~ | 플레이 테스트. **칼날 아크는 롱소드 기준 해소(2026-09-13)** — 무기 메시와 `slomo`로 대조해 확정(§6.5). 슬롯 수·유의도 경계는 남았다 |
 | 4 | 상태 채널 확장 대상 | **Aim Pitch**(2026-09-05)·**HP 비율**(2026-09-09) 둘 다 들어왔다. 피격 방향만 계속 보류 (§5.5) |
 | 5 | 사망 연출 최종 형태 — Death 시퀀스 + 소멸 VFX 여부 | 기획 |
 | 6 | 엘리트 고도화 행동(특수 어빌리티) | **이번 범위 밖.** `ActorPromoted` 경로는 이번 작업에서 바뀌지 않는다 |
@@ -844,12 +1025,12 @@ Actor이므로 통째로 건너뛴다.
 | **4** ✅ | 발사체 관전 가시성 | 게스트 화면에 엔티티 발사체가 보이고 임팩트 지점이 서버 판정과 일치. **새 RPC 없이** 상태 채널만으로 |
 | **5a** ✅ | ISKM 파이프라인 개통 — Idle/Move 두 시퀀스만 | 인스턴스가 보이고 걷는다. 렌더 요건 실측이 여기서 끝났다(→ §6.7) |
 | **5b** ✅ | Attack/Stagger/Death/Parried 시퀀스 + PlayRate 파생 | 공격 위상과 모션 길이가 맞는다. Config 수치를 바꾸면 모션 속도가 따라온다 |
-| **5c** ⏸ | 무기 스킨드 메시 | **보류** — 엔진 안에 제작 경로가 없어 DCC 작업이 필요하다. 스펙은 §6.3에 확정해 두었다 |
+| **5c** ✅ | 무기 스킨드 메시 | ISKM 거리에서 적이 칼을 들고 Idle·Run·공격 내내 손에 붙어 움직인다. 칼날 디버그 선분이 칼 궤적과 겹친다 (→ §6.3, §6.5) |
 | **6** ✅ | 슬롯 풀 3분할 + 문자열 비교 제거 | 잡몹에 둘러싸인 상태에서 `ActorPromoted` 개체가 교전에 진입한다 (→ §7.1 — 현재는 대칭형으로만 검증 가능) |
 
 **의존 관계:** 1·2 → 0 / 4 → 3 / 5 → 3 / 6은 독립. §8(사망 배선)은 3에 딸려 함께 끝났다.
-5c가 막혀도 나머지는 영향받지 않는다 — 실제로 5a·5b만으로 적은 완전히 애니메이션되고, 빠지는 것은
-"ISKM 거리에서 손이 비어 있다" 하나뿐이라 ISM 시절과 같은 상태다.
+5c는 나머지에 영향을 주지 않는다 — 5a·5b만으로 적은 완전히 애니메이션되고, 5c가 더한 것은
+"ISKM 거리에서 손에 무기가 들린다"와 그 무기에 맞춘 칼날 판정 정합이다.
 
 **PIE 검증 분담:** Stage 0~2의 서버 판정은 로그·디버그 드로우로 자동 확인 가능하다.
 Stage 3~5의 2P 체감(연출 타이밍·모션 자연스러움)은 실제 플레이 확인이 필요하다.
@@ -886,7 +1067,7 @@ Stage 3~5의 2P 체감(연출 타이밍·모션 자연스러움)은 실제 플�
 전투 대역폭이 전혀 잡히지 않았다. 리슨 서버의 호스트에는 `NetConnection`이 없어 송신량이 0이다 —
 **측정하려는 클라이언트가 직접 전투 안에 있어야 한다.**
 
-### 10.3 트랙 C 검증 기록 (2026-09-06, 5a·5b 완료 / 5c 보류)
+### 10.3 트랙 C 검증 기록 (2026-09-06 5a·5b 완료 / 2026-09-13 5c 완료)
 
 **2P Standalone(`-game`), 게스트가 전투 안에서 플레이.** 두 회차로 나눠 확인했다.
 
@@ -896,7 +1077,7 @@ Stage 3~5의 2P 체감(연출 타이밍·모션 자연스러움)은 실제 플�
 
 **Stage 5b** — 사선 내려베기가 공격 창 안에 완결되고, 경직·사망·패링이 각각 다른 모션으로 재생된다.
 패링 시 뒷걸음치며 마커가 청록으로 바뀐다. 사망 후 1.5초 소멸. 원거리는 사격 모션 없이(클립 부재)
-경직·사망만 재생 — 의도대로다. `ActorPromoted` 회귀 없음. 두 화면 동일.
+경직·사망만 재생 — 의도대로다(2026-09-13에 샷건 세트로 사격 모션이 들어왔다). `ActorPromoted` 회귀 없음. 두 화면 동일.
 
 **§6.5 검증:** 길이가 다른 두 공격 클립(2.47초·2.00초)이 **같은 공격 창에 맞춰져 스윙 길이가 같게** 보였다 —
 PlayRate 파생이 성립했다는 증거다. 이후 변형을 하나로 줄였으므로(§6.4) 이 대조는 다시 만들 수 없다.
@@ -907,6 +1088,26 @@ PlayRate 파생이 성립했다는 증거다. 이후 변형을 하나로 줄였�
 
 ⚠️ **1회차에서 경직 모션이 메시를 통째로 지웠다.** 추가(additive) 클립을 쓴 탓이고 §6.7에 규약으로 남겼다.
 ⚠️ **1회차에서 공격 변형이 한쪽에 고정됐다.** `Seq` 패리티 문제이고 §6.4에 남겼다.
+
+**Stage 5c (2026-09-12~13)** — ISKM 거리의 적이 칼을 들고 Idle·Run·공격 내내 손에 붙어 움직인다.
+칼날 디버그 선분을 `slomo 0.1`로 칼 궤적과 대조해 아크·위상을 확정했다(§6.5).
+
+도중에 **"ISKM에서 렌더되지 않는다"는 잘못된 결론으로 트랙을 한 번 접었다.** 원인은 세 겹이었고 모두 §6.3에 규약으로 남겼다.
+
+1. **바인드 포즈** — 스케일 이중 변환을 피하려고 아마추어에 `transform_apply`를 걸어 바인드 행렬이 틀어졌다.
+   애니가 걸리는 순간 메시가 터지는데, ISM·Actor 구간과 레퍼런스 포즈 썸네일에서는 멀쩡해 ISKM 문제로 오인했다.
+   **메시 에디터의 애니 프리뷰 한 번**으로 잡혔다.
+2. **EMPTY 본·아마추어 이름** — EMPTY를 익스포트에 넣어 본으로 변환되고 `root`가 `root_002`가 되어,
+   UE가 원본 스켈레톤에 본을 추가하려 했다. 저장 없이 재시작해 복구했다.
+3. **프로바이더 시퀀스 불일치** — 몸통 ASTP의 Idle/Run을 교체한 뒤 무기 ASTP만 옛 클립을 들고 있어
+   Idle·Run에서만 칼이 손에서 떨어졌다.
+
+⚠️ **에셋을 바꿀 때마다 확인하지 않아 플레이 테스트를 여러 번 버렸다.** 썸네일(메시 유효성) → 애니 프리뷰
+(바인드 포즈) → `get_bone_names`(스켈레톤 일치) 순서를 건너뛰지 말 것.
+
+**샷건 세트 (2026-09-13)** — 원거리 적이 샷건을 들고 조준 대기·조깅·사격을 재생한다. PIE에서 무기 방향과 왼손 위치가
+맞았고, 사격 반동이 발사체와 같은 순간에 나온다. 시퀀스를 세트별 ASL로 옮겨 몸통·무기 ASTP 동기화 사고를 구조로 막았다.
+조깅이 달려갔다 튀던 문제는 리타겟의 pelvis 수평 이동이 원인이었다(§6.7).
 
 ---
 
