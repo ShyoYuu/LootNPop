@@ -26,6 +26,9 @@ class LOOTNPOP_API ULNPMassAgentComponent : public UMassAgentComponent
 protected:
 	virtual void SetEntityHandleInternal(const FMassEntityHandle NewHandle) override;
 
+	/** 이미 등록된 NetID면 엔진 등록을 건너뛴다 (중복 등록은 엔진에서 즉사 — 구현부 주석 참조). */
+	virtual void OnRep_NetID() override;
+
 private:
 	/** NetworkID 옵저버가 프래그먼트를 채운 뒤 NetID를 재조회한다. 미해결 시 0.1s 간격 재시도 (최대 10회). */
 	void TryResolveNetIDFromFragment(int32 AttemptCount);
