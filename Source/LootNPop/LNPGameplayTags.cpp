@@ -2,11 +2,11 @@
 
 #include "LNPGameplayTags.h"
 
-UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_Unarmed,   "LNP.Weapon.Unarmed")
-UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_Pistol,    "LNP.Weapon.Pistol")
-UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_Rifle,     "LNP.Weapon.Rifle")
-UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_Shotgun,   "LNP.Weapon.Shotgun")
-UE_DEFINE_GAMEPLAY_TAG(TAG_Weapon_LongSword, "LNP.Weapon.LongSword")
+UE_DEFINE_GAMEPLAY_TAG(TAG_VisualSet_Unarmed,   "LNP.VisualSet.Unarmed")
+UE_DEFINE_GAMEPLAY_TAG(TAG_VisualSet_Pistol,    "LNP.VisualSet.Pistol")
+UE_DEFINE_GAMEPLAY_TAG(TAG_VisualSet_Rifle,     "LNP.VisualSet.Rifle")
+UE_DEFINE_GAMEPLAY_TAG(TAG_VisualSet_Shotgun,   "LNP.VisualSet.Shotgun")
+UE_DEFINE_GAMEPLAY_TAG(TAG_VisualSet_LongSword, "LNP.VisualSet.LongSword")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_AimMode_None,    "LNP.AimMode.None")
 UE_DEFINE_GAMEPLAY_TAG(TAG_AimMode_FreeAim, "LNP.AimMode.FreeAim")
@@ -14,6 +14,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_AimMode_LockOn,  "LNP.AimMode.LockOn")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Ability_HitEffect_Knockback, "LNP.Ability.HitEffect.Knockback")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Ability_HitEffect_Parry,     "LNP.Ability.HitEffect.Parry")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Ability_Reload,              "LNP.Ability.Reload")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Action_Attacking,    "LNP.Action.Attacking")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Movement_Jumping,    "LNP.Movement.Jumping")
@@ -22,6 +23,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Block_MovementInput, "LNP.Block.MovementInput")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_Guarding,    "LNP.State.Guarding")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_ParryWindow, "LNP.State.ParryWindow")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_Staggered,   "LNP.State.Staggered")
+UE_DEFINE_GAMEPLAY_TAG(TAG_State_Reloading,   "LNP.State.Reloading")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Block_AttackInput, "LNP.Block.AttackInput")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_ComboWindow, "LNP.State.ComboWindow")
@@ -34,6 +36,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Melee_Impact,         "GameplayCue.LNP.Me
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Projectile_Impact,    "GameplayCue.LNP.Projectile.Impact")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Melee_AttackerHitStop,"GameplayCue.LNP.Melee.AttackerHitStop")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Character_Stagger,    "GameplayCue.LNP.Character.Stagger")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Weapon_Reload,        "GameplayCue.LNP.Weapon.Reload")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Success, "LNP.GameplayEvent.Parry.Success")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Stagger_Light, "LNP.GameplayEvent.Stagger.Light")
@@ -45,6 +48,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_ParrySuccess, "LNP.Montage.Situatio
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Block,        "LNP.Montage.Situation.Block")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Dash,	       "LNP.Montage.Situation.Dash")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Stagger,      "LNP.Montage.Situation.Stagger")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Reload,       "LNP.Montage.Situation.Reload")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Front, "LNP.Montage.Value.Direction.Front")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Direction_Back,  "LNP.Montage.Value.Direction.Back")
@@ -58,6 +62,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Stagger_Heavy, "LNP.Montage.Value.Stagg
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Value_Stagger_Parried, "LNP.Montage.Value.Stagger.Parried")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Item_Level, "LNP.Item.Level")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Item_AmmoSpent, "LNP.Item.AmmoSpent")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_MaxHealth,    "LNP.GE.Data.Stat.MaxHealth")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GE_Data_Stat_AttackPower,  "LNP.GE.Data.Stat.AttackPower")

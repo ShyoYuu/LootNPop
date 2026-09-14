@@ -18,6 +18,9 @@ ULNPBaseAttributeSet::ULNPBaseAttributeSet()
 	InitLootSpeed(1.0f);
 	// 플레이어 기준값. 적 엔티티는 ULNPEnemyConfig::PoiseResistance로 훨씬 낮게 덮어쓴다.
 	InitPoiseResistance(150.0f);
+	// 탄창은 무기 장착이 채운다 (ULNPEquipmentComponent). 무기가 없으면 탄약 개념도 없다.
+	InitMagazineAmmo(0.f);
+	InitMagazineSize(0.f);
 	InitIncomingDamage(0.f);
 }
 
@@ -32,6 +35,8 @@ void ULNPBaseAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, MoveSpeed,       COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, LootSpeed,       COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, PoiseResistance, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, MagazineAmmo,    COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(ULNPBaseAttributeSet, MagazineSize,    COND_None, REPNOTIFY_Always);
 }
 
 void ULNPBaseAttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue)          { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, Health, OldValue); }
@@ -42,6 +47,8 @@ void ULNPBaseAttributeSet::OnRep_DefensePower(const FGameplayAttributeData& OldV
 void ULNPBaseAttributeSet::OnRep_MoveSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, MoveSpeed, OldValue); }
 void ULNPBaseAttributeSet::OnRep_LootSpeed(const FGameplayAttributeData& OldValue)       { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, LootSpeed, OldValue); }
 void ULNPBaseAttributeSet::OnRep_PoiseResistance(const FGameplayAttributeData& OldValue) { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, PoiseResistance, OldValue); }
+void ULNPBaseAttributeSet::OnRep_MagazineAmmo(const FGameplayAttributeData& OldValue)    { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, MagazineAmmo, OldValue); }
+void ULNPBaseAttributeSet::OnRep_MagazineSize(const FGameplayAttributeData& OldValue)    { GAMEPLAYATTRIBUTE_REPNOTIFY(ULNPBaseAttributeSet, MagazineSize, OldValue); }
 
 void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
@@ -54,6 +61,8 @@ void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribut
 	else if (Attribute == GetDefensePowerAttribute() || Attribute == GetPoiseResistanceAttribute())
 		// 음수는 100/(100+X) 감쇠식을 발산시킨다 (ApplyDefense·ApplyResistance 공통).
 		NewValue = FMath::Max(0.0f, NewValue);
+	else if (Attribute == GetMagazineAmmoAttribute())
+		NewValue = FMath::Clamp(NewValue, 0.0f, FMath::Max(0.0f, GetMagazineSize()));
 }
 
 void ULNPBaseAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue)

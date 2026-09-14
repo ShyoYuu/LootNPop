@@ -48,7 +48,7 @@ void ULNPInventoryComponent::BeginPlay()
 
 // --- 가방 인스턴스 API ---
 
-ULNPInventoryItemInstance* ULNPInventoryComponent::AddItemInstance(ULNPItemDefinitionBase* ItemDef, int32 InLevel)
+ULNPInventoryItemInstance* ULNPInventoryComponent::AddItemInstance(ULNPItemDefinitionBase* ItemDef, int32 InLevel, int32 InAmmoSpent)
 {
 	if (ItemDef == nullptr || GetOwnerRole() != ROLE_Authority)
 		return nullptr;
@@ -59,6 +59,8 @@ ULNPInventoryItemInstance* ULNPInventoryComponent::AddItemInstance(ULNPItemDefin
 	// 레벨은 반드시 자동 장착(TryAutoEquipWeapon)보다 **먼저** 확정해야 한다 —
 	// 장착이 이 값을 읽어 GAS 어빌리티 레벨과 스탯 행을 고르기 때문이다.
 	Instance->AddStatTagStack(TAG_Item_Level, FMath::Max(1, InLevel));
+	// 탄창 잔량도 같은 이유로 먼저 — 장착이 이 값으로 MagazineAmmo를 복원한다.
+	Instance->SetAmmoSpent(InAmmoSpent);
 
 	// 인스턴스를 소유자 전용 등록 서브오브젝트로 복제(가방 FastArray와 동일 조건).
 	AddReplicatedSubObject(Instance, COND_OwnerOnly);

@@ -223,7 +223,7 @@ void ALNPCharacterBase::InitAbilitySystem()
 	if (!ASC)
 		return;
 
-	CurrentAnimSetTag = TAG_Weapon_Unarmed;
+	CurrentAnimSetTag = TAG_VisualSet_Unarmed;
 	CurrentAimModeTag = TAG_AimMode_None;
 	ASC->AddLooseGameplayTag(CurrentAnimSetTag);
 	ASC->AddLooseGameplayTag(CurrentAimModeTag);
@@ -269,7 +269,7 @@ void ALNPCharacterBase::ApplyWeaponVisuals(ULNPWeaponData* WeaponData)
 	// 신규 애님 세트 태그 결정
 	const FGameplayTag NewAnimSetTag = (VisualSet && VisualSet->AnimSetTag.IsValid())
 		? VisualSet->AnimSetTag
-		: TAG_Weapon_Unarmed;
+		: TAG_VisualSet_Unarmed;
 
 	// 조준 모드: 무기 데이터의 DefaultAimMode 사용, 미설정 시 None
 	const FGameplayTag NewAimModeTag = (WeaponData && WeaponData->DefaultAimMode.IsValid())
@@ -382,6 +382,11 @@ void ALNPCharacterBase::Multicast_SpawnGhostProjectiles_Implementation(FLNPProje
 
 	if (IsLocallyControlled())
 		return; // 자기 자신이 쏜 발사체 — 이미 예측 Ghost가 있음(ULNPAbility_RangedAttack::SpawnProjectile).
+
+	// 발사 어빌리티는 서버·소유 클라에서만 돈다 — 관전자 화면의 발사 연출(몸 몽타주·무기 파츠 모션)은 이 방송이 나른다.
+	// (리슨 호스트는 서버라서 위에서 이미 걸러졌고, 어빌리티가 직접 재생했다.)
+	PlayMontage(TAG_Montage_Situation_Attack);
+	PlayWeaponFireAnimation();
 
 	if (ULNPGhostProjectileSubsystem* GhostSub = World->GetSubsystem<ULNPGhostProjectileSubsystem>())
 		GhostSub->SpawnSpectatorGhosts(SharedData, SpawnPos, Velocities, ProjectileLifetime,
@@ -549,6 +554,31 @@ bool ALNPCharacterBase::PlayMontage(FGameplayTag SituationType, FGameplayTag Val
 	}
 
 	return false;
+}
+
+void ALNPCharacterBase::PlayWeaponMeshAnimation(UAnimSequence* Anim, float PlayRate) const
+{
+	if (Anim == nullptr || WeaponMesh == nullptr || WeaponMesh->GetSkeletalMeshAsset() == nullptr)
+		return;
+
+	WeaponMesh->PlayAnimation(Anim, /*bLooping=*/false);
+	WeaponMesh->SetPlayRate(PlayRate);
+}
+
+void ALNPCharacterBase::StopWeaponMeshAnimation() const
+{
+	if (WeaponMesh == nullptr)
+		return;
+
+	WeaponMesh->Stop();
+	WeaponMesh->SetAnimation(nullptr);
+}
+
+void ALNPCharacterBase::PlayWeaponFireAnimation() const
+{
+	const ULNPWeaponData* WeaponDef = GetActiveWeaponDef();
+	if (WeaponDef && WeaponDef->VisualSet)
+		PlayWeaponMeshAnimation(WeaponDef->VisualSet->WeaponFireAnim);
 }
 
 void ALNPCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

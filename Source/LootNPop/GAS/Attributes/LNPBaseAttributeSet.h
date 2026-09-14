@@ -73,6 +73,22 @@ public:
 	FGameplayAttributeData PoiseResistance;
 	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, PoiseResistance)
 
+	/**
+	 * 장착 무기 탄창의 남은 탄 수. 발사가 Cost GE(ULNPGameplayEffect_AmmoCost)로 1씩 깎는다 —
+	 * GAS가 비용을 예측 키로 선반영·정산해 주므로 연사 중에도 소유 클라 표시가 튀지 않는다.
+	 *
+	 * ⚠️ **스탯이 아니라 상태다.** LNPStat::GetStatMetaTable에 넣지 않으며 버프·스탯 탭 대상이 아니다.
+	 * 무기를 바꾸면 ULNPEquipmentComponent가 이전 무기 인스턴스에 소모량을 저장하고 새 무기 값으로 덮어쓴다.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes", ReplicatedUsing = OnRep_MagazineAmmo)
+	FGameplayAttributeData MagazineAmmo;
+	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, MagazineAmmo)
+
+	/** 장착 무기의 탄창 크기 (ULNPWeaponData::MagazineSize 미러). 0이면 탄약 개념이 없는 무기다. */
+	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes", ReplicatedUsing = OnRep_MagazineSize)
+	FGameplayAttributeData MagazineSize;
+	ATTRIBUTE_ACCESSORS(ULNPBaseAttributeSet, MagazineSize)
+
 	/** Meta 어트리뷰트: GE가 전달한 원시 피해량. PostGameplayEffectExecute에서 방어력 적용 후 즉시 0으로 초기화. 복제하지 않음. */
 	UPROPERTY(BlueprintReadOnly, Category = "LNP|Attributes")
 	FGameplayAttributeData IncomingDamage;
@@ -95,4 +111,8 @@ private:
 	void OnRep_LootSpeed(const FGameplayAttributeData& OldValue);
 	UFUNCTION()
 	void OnRep_PoiseResistance(const FGameplayAttributeData& OldValue);
+	UFUNCTION()
+	void OnRep_MagazineAmmo(const FGameplayAttributeData& OldValue);
+	UFUNCTION()
+	void OnRep_MagazineSize(const FGameplayAttributeData& OldValue);
 };

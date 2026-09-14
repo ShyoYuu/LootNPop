@@ -45,7 +45,7 @@ Motion Matching 기반 공용 로코모션 위에 **무기별 Linked Anim Layer�
 
 | 분류 | 태그 | 설명 |
 |------|------|------|
-| 애님 세트 | `LNP.Weapon.Unarmed / Pistol / Rifle / Shotgun / LongSword` | `ULNPWeaponVisualSet::AnimSetTag`. `ApplyWeaponVisuals()`가 전환 |
+| 표현 세트 | `LNP.VisualSet.Unarmed / Pistol / Rifle / Shotgun / LongSword` | `ULNPWeaponVisualSet::AnimSetTag`. `ApplyWeaponVisuals()`가 전환. **무기 식별자가 아니다** — 런처는 샷건 세트를 공유해 `LNP.VisualSet.Shotgun`이다. 2026-09-14 `LNP.Weapon.*`에서 리네임 |
 | 조준 | `LNP.AimMode.None / FreeAim / LockOn` | `ULNPWeaponData::DefaultAimMode`로 지정. LockOn 전환은 None일 때만 허용 |
 | 액션 | `LNP.Action.Attacking` | 공격 애니메이션 재생 중 |
 | 차단 | `LNP.Block.MovementInput` / `LNP.Block.AttackInput` | 입력 차단. 공격 몽타주 구간은 ANS가, 경직 구간은 GA_Stagger의 `ActivationOwnedTags`가 소유 (§6.5) |

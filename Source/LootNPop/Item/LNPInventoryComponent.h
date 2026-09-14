@@ -48,9 +48,10 @@ public:
 
 	/**
 	 * 서버: 인스턴스를 생성해 가방에 편입하고 등록 서브오브젝트로 복제한다. 생성된 인스턴스 반환.
-	 * @param InLevel  아이템 레벨. 드랍→재획득 왕복(LootDice 페이로드)과 디버그 지급이 지정한다. 1 미만은 1.
+	 * @param InLevel      아이템 레벨. 드랍→재획득 왕복(LootDice 페이로드)과 디버그 지급이 지정한다. 1 미만은 1.
+	 * @param InAmmoSpent  무기 탄창 소모량 (0 = 가득). 드랍→재획득 왕복용.
 	 */
-	ULNPInventoryItemInstance* AddItemInstance(ULNPItemDefinitionBase* ItemDef, int32 InLevel = 1);
+	ULNPInventoryItemInstance* AddItemInstance(ULNPItemDefinitionBase* ItemDef, int32 InLevel = 1, int32 InAmmoSpent = 0);
 
 	/** 서버: ItemId로 가방 인스턴스를 제거한다. 성공 시 true. */
 	bool RemoveItemInstance(const FGuid& ItemId);

@@ -74,6 +74,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0"))
 	float FireCooldown = 0.2f;
 
+	/**
+	 * 탄창 크기 — 이만큼 쏘면 재장전해야 이어서 쏠 수 있다. **0이면 탄약 개념이 없다**(근접·적 NPC 무기).
+	 * 발사 1회가 1발이다 (산탄도 마찬가지).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0"))
+	int32 MagazineSize = 0;
+
+	/** 재장전 시간 (초). AttackSpeed로 나눈 값이 실제 시간이다 — GetReloadDuration(). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0.05", EditCondition = "MagazineSize > 0"))
+	float ReloadTime = 1.5f;
+
+	/** AttackSpeed를 반영한 실제 재장전 시간. 재장전 어빌리티와 무기 애니 큐가 같은 값을 봐야 박자가 맞는다. */
+	float GetReloadDuration(float AttackSpeed) const
+	{
+		return ReloadTime / FMath::Max(0.01f, AttackSpeed);
+	}
+
 	/** 최대 콤보 연결 횟수. 콤보 인덱스는 이 값을 초과하면 처음(Attack_1)으로 순환한다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Combo", meta = (ClampMin = "1"))
 	int32 MaxComboCount = 5;

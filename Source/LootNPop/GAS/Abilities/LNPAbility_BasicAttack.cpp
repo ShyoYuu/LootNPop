@@ -2,6 +2,8 @@
 
 #include "GAS/Abilities/LNPAbility_BasicAttack.h"
 #include "GAS/Effects/LNPGameplayEffect_Cooldown.h"
+#include "GAS/Effects/LNPGameplayEffect_AmmoCost.h"
+#include "LNPGameplayTags.h"
 #include "Character/LNPCharacterBase.h"
 #include "Item/LNPWeaponData.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
@@ -11,6 +13,54 @@
 ULNPAbility_BasicAttack::ULNPAbility_BasicAttack()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+	// 재장전 중에는 발사하지 않는다. 막힌 입력은 ULNPInputHandlerComponent의 공격 버퍼로 흘러간다.
+	ActivationBlockedTags.AddTag(TAG_State_Reloading);
+}
+
+bool ULNPAbility_BasicAttack::CheckCost(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	FGameplayTagContainer* OptionalRelevantTags) const
+{
+	if (!Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags))
+		return false;
+
+	// CheckCooldown과 같은 이유로 인수 ActorInfo에서 무기를 읽는다 (CDO에서 불릴 수 있다).
+	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDefFor(ActorInfo);
+	if (WeaponDef == nullptr || WeaponDef->MagazineSize <= 0)
+		return true;
+
+	const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+	if (ASC == nullptr)
+		return false;
+
+	// 현재값을 본다 — 예측 중인 소유 클라에서는 아직 서버가 확정하지 않은 발사의 차감까지 반영돼 있다.
+	if (ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMagazineAmmoAttribute()) >= 1.f)
+		return true;
+
+	if (OptionalRelevantTags)
+	{
+		const FGameplayTag& FailCostTag = UAbilitySystemGlobals::Get().ActivateFailCostTag;
+		if (FailCostTag.IsValid())
+			OptionalRelevantTags->AddTag(FailCostTag);
+	}
+	return false;
+}
+
+void ULNPAbility_BasicAttack::ApplyCost(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo) const
+{
+	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
+
+	const ULNPWeaponData* WeaponDef = GetEquippedWeaponDefFor(ActorInfo);
+	if (WeaponDef == nullptr || WeaponDef->MagazineSize <= 0)
+		return;
+
+	FGameplayEffectSpecHandle SpecHandle = MakeOutgoingGameplayEffectSpec(
+		Handle, ActorInfo, ActivationInfo, ULNPGameplayEffect_AmmoCost::StaticClass(), GetAbilityLevel(Handle, ActorInfo));
+	if (SpecHandle.IsValid())
+		ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, SpecHandle);
 }
 
 UGameplayEffect* ULNPAbility_BasicAttack::GetCooldownGameplayEffect() const
@@ -85,17 +135,6 @@ const ULNPWeaponData* ULNPAbility_BasicAttack::GetEquippedWeaponDefFor(const FGa
 {
 	const ALNPCharacterBase* Ch = ActorInfo ? Cast<ALNPCharacterBase>(ActorInfo->AvatarActor.Get()) : nullptr;
 	return Ch ? Ch->GetActiveWeaponDef() : nullptr;
-}
-
-float ULNPAbility_BasicAttack::GetAttackSpeed() const
-{
-	const UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	if (ASC == nullptr)
-		return 1.0f;
-
-	// AttributeSet의 PreAttributeChange가 0.01 미만을 막지만, ASC 미초기화 시의 0을 한 번 더 방어한다
-	// (쿨다운 계산의 제수라 0이면 무한대가 된다).
-	return FMath::Max(0.01f, ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetAttackSpeedAttribute()));
 }
 
 float ULNPAbility_BasicAttack::GetKnockbackForCombo(int32 /*ComboIdx*/) const

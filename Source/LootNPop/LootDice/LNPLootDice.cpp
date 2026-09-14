@@ -208,7 +208,8 @@ void ALNPLootDice::SetupIconMaterial()
 }
 
 ALNPLootDice* ALNPLootDice::SpawnDice(UWorld& World, const FVector& Location, ULNPItemDefinitionBase* Item,
-                                      float InRemainingDuration, int32 InItemLevel, float ImpulseScale)
+                                      float InRemainingDuration, int32 InItemLevel, float ImpulseScale,
+                                      int32 InAmmoSpent)
 {
 	if (World.GetNetMode() == NM_Client)
 	{
@@ -240,6 +241,7 @@ ALNPLootDice* ALNPLootDice::SpawnDice(UWorld& World, const FVector& Location, UL
 	Dice->ItemDef = Item;
 	Dice->RemainingDuration = InRemainingDuration;
 	Dice->ItemLevel = FMath::Max(1, InItemLevel);
+	Dice->AmmoSpent = FMath::Max(0, InAmmoSpent);
 	if (const AGameStateBase* GS = World.GetGameState())
 	{
 		Dice->SpawnServerTime = GS->GetServerWorldTimeSeconds();

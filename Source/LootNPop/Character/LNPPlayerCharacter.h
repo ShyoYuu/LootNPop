@@ -66,6 +66,9 @@ public:
 
 	bool IsDead() const { return bIsDead; }
 
+	/** 재장전을 시도한다 (재장전 키·빈 탄창 발사 시도). 탄창 없는 무기이거나 가득 차 있으면 실패한다. */
+	bool TryReload();
+
 protected:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual bool TryActivateAttack_Impl() override;

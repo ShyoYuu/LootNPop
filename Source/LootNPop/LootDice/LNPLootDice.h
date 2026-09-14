@@ -36,9 +36,11 @@ public:
 	 * @param InRemainingDuration  버프 잔여 초 (0 = 신품/풀 지속시간)
 	 * @param InItemLevel          무기 레벨 (1 = 신품). 드랍한 무기의 강화 레벨이 여기 실려 왕복한다
 	 * @param ImpulseScale         Pop 임펄스 배율 — Pod 보상 1.0, 인벤토리 드랍은 "작은 Pop"(0.4 권장)
+	 * @param InAmmoSpent          무기 탄창 소모량 (0 = 가득). 드랍한 무기의 잔량이 여기 실려 왕복한다
 	 */
 	static ALNPLootDice* SpawnDice(UWorld& World, const FVector& Location, ULNPItemDefinitionBase* Item,
-	                               float InRemainingDuration, int32 InItemLevel = 1, float ImpulseScale = 1.0f);
+	                               float InRemainingDuration, int32 InItemLevel = 1, float ImpulseScale = 1.0f,
+	                               int32 InAmmoSpent = 0);
 
 	/** LootPod Popped 후처리 — 보상 테이블(LNPSettings)에서 PodID 보상을 조회해 N개 스폰. 서버 전용. */
 	static void SpawnPodRewards(UWorld& World, int32 PodID, const FVector& PodLocation);
@@ -52,6 +54,7 @@ public:
 	ULNPItemDefinitionBase* GetItemDef() const { return ItemDef; }
 	float GetRemainingDuration() const { return RemainingDuration; }
 	int32 GetItemLevel() const { return ItemLevel; }
+	int32 GetAmmoSpent() const { return AmmoSpent; }
 
 	/** 서버: 획득 확정 여부 — RPC 직렬화가 선착순 1차 방어, 이 플래그가 Destroy 지연 프레임의 2차 방어 */
 	bool IsClaimed() const { return bClaimed; }
@@ -155,6 +158,12 @@ protected:
 	FLinearColor SkillCategoryColor = FLinearColor::Blue;
 
 private:
+	/**
+	 * 무기 탄창 소모량 (0 = 가득). **복제하지 않는다** — 획득 처리(PickupDiceOnServer)가 서버 값만 읽고
+	 * 클라이언트에는 보여 줄 곳이 없다.
+	 */
+	int32 AmmoSpent = 0;
+
 	/** 서버: 획득 확정 플래그 (비복제 — Destroy 복제가 클라이언트 제거를 담당) */
 	bool bClaimed = false;
 
