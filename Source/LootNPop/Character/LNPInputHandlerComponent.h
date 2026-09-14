@@ -192,6 +192,9 @@ protected:
 	TObjectPtr<UInputAction> LockOnAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	TObjectPtr<UInputAction> ReloadAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	TArray<TObjectPtr<UInputAction>> ActiveSkillActions;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
@@ -314,6 +317,7 @@ private:
 	void OnADSReleased(const FInputActionValue& Value);
 	void OnLockOnStarted(const FInputActionValue& Value);
 	void OnLockOnReleased(const FInputActionValue& Value);
+	void OnReloadStarted(const FInputActionValue& Value);
 	void OnActiveSkillStarted(const FInputActionValue& Value, int32 SlotIndex);
 	void OnActiveSkillReleased(const FInputActionValue& Value, int32 SlotIndex);
 

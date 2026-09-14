@@ -178,6 +178,10 @@ Iris의 FastArray 디스패치는 이름이 비대칭이다 (`FastArrayReplicati
 LootDice 페이로드에 `ItemLevel`(COND_InitialOnly)이 실린다 →
 [TechDesign_LootDice.md](TechDesign_LootDice.md) §2.2. **다른 플레이어가 주워도 레벨이 보존된다.**
 
+**탄창 잔량도 같은 길로 왕복한다 (2026-09-14).** 인스턴스 `StatTags`의 `TAG_Item_AmmoSpent`(남은 수가 아니라
+**소모량** — 부재 = 가득)에 장착 해제 시 저장되고, Dice의 비복제 `AmmoSpent`에 실려 `AddItemInstance(Def, Level, AmmoSpent)`로
+돌아온다. 자동 장착보다 먼저 기록해야 하는 이유도 레벨과 같다. 상세는 [TechDesign_Ability.md](TechDesign_Ability.md) §5.5.
+
 디버그: `LNP.Debug.AddBagInstance <ItemDefPath> [PlayerIndex] [Level]` — 3번째 인수가 레벨.
 합성 테스트는 같은 레벨 사본을 n개 만들어야 하므로 이 인수가 필요하다.
 

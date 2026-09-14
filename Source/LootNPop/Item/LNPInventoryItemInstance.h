@@ -85,6 +85,17 @@ public:
 	/** 서버: 레벨을 지정한다 (합성). StatTags는 복제되므로 소유 클라 UI가 따라온다. */
 	void SetItemLevel(int32 InLevel);
 
+	// --- 탄창 잔량 (TAG_Item_AmmoSpent 스택의 얇은 래퍼) ---
+
+	/**
+	 * 이 무기 탄창에서 쓴 탄 수. **남은 수가 아니라 소모량이다** — 태그 스택은 0이 되면 엔트리가 사라져
+	 * "기록 없음"과 "0발"을 구분하지 못하지만, 소모량은 부재 = 0 = 가득이라 신품이 저절로 가득 찬다.
+	 */
+	int32 GetAmmoSpent() const;
+
+	/** 서버: 소모량을 저장한다 (장착 해제 시·드랍 페이로드 복원 시). UI가 읽지 않으므로 통지하지 않는다. */
+	void SetAmmoSpent(int32 InSpent);
+
 private:
 	/** 이 인스턴스가 실체화한 아이템 정의 (에셋 참조). */
 	UPROPERTY(Replicated)

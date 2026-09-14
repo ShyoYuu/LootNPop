@@ -32,6 +32,9 @@ ULNPAbility_Stagger::ULNPAbility_Stagger()
 	// 그로기가 유지되는 동안 같은 이벤트가 또 와도 구간이 처음부터 다시 시작되지 않게 막는다.
 	// 다운은 이 태그에 자기가 막히므로 FLNPStaggerCommand가 그로기 GA를 먼저 취소한다.
 	ActivationBlockedTags.AddTag(TAG_State_Staggered);
+
+	// 경직은 재장전을 끊는다 (탄은 채워지지 않는다).
+	CancelAbilitiesWithTag.AddTag(TAG_Ability_Reload);
 }
 
 void ULNPAbility_Stagger::ActivateAbility(

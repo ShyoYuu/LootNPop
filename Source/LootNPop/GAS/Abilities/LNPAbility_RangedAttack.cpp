@@ -43,6 +43,7 @@ void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle 
 
 	SpawnProjectile(ActivationInfo);
 	Character->PlayMontage(TAG_Montage_Situation_Attack);
+	Character->PlayWeaponFireAnimation();
 
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }

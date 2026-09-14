@@ -84,6 +84,12 @@ ALNPPlayerController::OnUnPossess()
 |:---|:---|:---|
 | `HealthPercent` | `float` (0~1) | `Health` 또는 `MaxHealth` 어트리뷰트 변경 시 |
 | `bIsFreeAiming` | `bool` | `TAG_AimMode_FreeAim` 태그 추가/제거 시 |
+| `AmmoText` | `FText` (`"잔량 / 탄창"`) | `MagazineAmmo` 또는 `MagazineSize` 어트리뷰트 변경 시 (2026-09-14) |
+| `bHasMagazine` | `bool` | `MagazineSize > 0` — 근접 무기면 탄약 표시를 숨긴다 |
+
+> ⚠️ `AmmoText`는 `UE_MVVM_SET_PROPERTY_VALUE`를 쓰지 않는다 — FText는 값 비교로 알림을 거를 수 없어 매번 통지된다.
+> 정수 캐시(`CachedMagazineAmmo/Size`)로 먼저 거른 뒤 `UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED`로 직접 통지한다.
+> 예측 발사의 차감도 현재값 변경이라 같은 델리게이트로 즉시 들어온다 — 연사 중 표시가 서버 확정을 기다리지 않는다.
 
 ---
 

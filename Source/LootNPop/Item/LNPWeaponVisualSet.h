@@ -8,6 +8,7 @@
 
 class USkeletalMesh;
 class UAnimInstance;
+class UAnimSequence;
 
 #include "LNPWeaponVisualSet.generated.h"
 
@@ -35,11 +36,10 @@ public:
 	/**
 	 * 몽타주 Chooser(`CHT_Montage`)의 입력 키. 이 세트를 쓰는 무기들이 같은 공격 몽타주를 탄다.
 	 *
-	 * ⚠️ **무기 타입이 아니라 애님 세트 이름이다.** 태그 패밀리가 아직 `LNP.Weapon.*`인 것은
-	 * Chooser 테이블을 재저작하지 않기 위해 남긴 역사이지, 이 태그가 무기를 식별한다는 뜻이 아니다.
-	 * `VS_Shotgun`과 그것을 가리키는 런처는 같은 값을 갖는 것이 **정상이다.**
+	 * ⚠️ **무기 타입이 아니라 표현 세트 이름이다** (`LNP.VisualSet.*`). `VS_Shotgun`을 가리키는 샷건과 런처는
+	 * 같은 값을 갖는 것이 **정상이다.** 무기를 갈라야 하는 규칙의 키로 쓰면 안 된다.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VisualSet", meta = (Categories = "LNP.Weapon"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VisualSet", meta = (Categories = "LNP.VisualSet"))
 	FGameplayTag AnimSetTag;
 
 	/** 장착 시 `LinkAnimClassLayers()`에 전달할 서브 AnimBP 클래스. */
@@ -61,4 +61,18 @@ public:
 	/** 장착 시 무기 메시의 상대 회전 오프셋. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VisualSet|Mesh")
 	FRotator WeaponMeshRelativeRotation = FRotator(0.0f, 90.0f, -4.0f);
+
+	/**
+	 * 재장전 동안 무기 메시에 재생할 시퀀스 (`WeaponMesh`와 같은 스켈레톤). 비어 있으면 무기 메시는 움직이지 않는다.
+	 * 재생은 GameplayCue.LNP.Weapon.Reload가 하고 배속은 재장전 시간에 맞춘다 (ULNPGameplayCueNotify_Reload).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VisualSet|Mesh")
+	TObjectPtr<UAnimSequence> WeaponReloadAnim;
+
+	/**
+	 * 발사 순간 무기 메시에 재생할 시퀀스 (슬라이드·볼트 등 파츠 모션). 비어 있으면 재생하지 않는다.
+	 * 캐릭터 발사 몽타주와 같은 1배속이다 — Lyra 원본은 두 시퀀스 길이가 같다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VisualSet|Mesh")
+	TObjectPtr<UAnimSequence> WeaponFireAnim;
 };

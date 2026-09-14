@@ -2,6 +2,7 @@
 
 #include "Character/LNPInputHandlerComponent.h"
 #include "Character/LNPCharacterBase.h"
+#include "Character/LNPPlayerCharacter.h"
 #include "Item/LNPWeaponData.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -270,6 +271,8 @@ void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* Playe
 		EIC->BindAction(ADSAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnADSReleased);
 		EIC->BindAction(LockOnAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnLockOnStarted);
 		EIC->BindAction(LockOnAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnLockOnReleased);
+		if (ReloadAction)
+			EIC->BindAction(ReloadAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnReloadStarted);
 
 		for (int32 i = 0; i < ActiveSkillActions.Num(); ++i)
 		{
@@ -682,6 +685,16 @@ void ULNPInputHandlerComponent::OnAttackReleased(const FInputActionValue& Value)
 {
 	bIsAttackPressed = false;
 	bIsAttackJustPressed = false;
+}
+
+void ULNPInputHandlerComponent::OnReloadStarted(const FInputActionValue& Value)
+{
+	// 사망 연출 중에는 Look만 살린다 (SetGameplayInputBlocked).
+	if (bGameplayInputBlocked)
+		return;
+
+	if (ALNPPlayerCharacter* Character = Cast<ALNPPlayerCharacter>(GetOwner()))
+		Character->TryReload();
 }
 
 void ULNPInputHandlerComponent::OnGuardStarted(const FInputActionValue& Value)

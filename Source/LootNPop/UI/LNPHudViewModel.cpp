@@ -31,6 +31,19 @@ void ULNPHudViewModel::Initialize(UAbilitySystemComponent* InASC)
 	// FreeAim 태그 변경 구독
 	AimTagHandle = InASC->RegisterGameplayTagEvent(TAG_AimMode_FreeAim, EGameplayTagEventType::NewOrRemoved)
 		.AddUObject(this, &ULNPHudViewModel::OnAimModeTagChanged);
+
+	// 탄창 — 예측 차감도 현재값 변경이라 이 델리게이트로 들어온다.
+	CachedMagazineAmmo = FMath::RoundToInt(InASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMagazineAmmoAttribute()));
+	CachedMagazineSize = FMath::RoundToInt(InASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMagazineSizeAttribute()));
+	UpdateAmmo();
+
+	MagazineAmmoChangedHandle = InASC->GetGameplayAttributeValueChangeDelegate(
+		ULNPBaseAttributeSet::GetMagazineAmmoAttribute())
+		.AddUObject(this, &ULNPHudViewModel::OnMagazineAmmoChanged);
+
+	MagazineSizeChangedHandle = InASC->GetGameplayAttributeValueChangeDelegate(
+		ULNPBaseAttributeSet::GetMagazineSizeAttribute())
+		.AddUObject(this, &ULNPHudViewModel::OnMagazineSizeChanged);
 }
 
 void ULNPHudViewModel::Deinitialize()
@@ -43,6 +56,10 @@ void ULNPHudViewModel::Deinitialize()
 			.Remove(MaxHealthChangedHandle);
 		ASC->RegisterGameplayTagEvent(TAG_AimMode_FreeAim, EGameplayTagEventType::NewOrRemoved)
 			.Remove(AimTagHandle);
+		ASC->GetGameplayAttributeValueChangeDelegate(ULNPBaseAttributeSet::GetMagazineAmmoAttribute())
+			.Remove(MagazineAmmoChangedHandle);
+		ASC->GetGameplayAttributeValueChangeDelegate(ULNPBaseAttributeSet::GetMagazineSizeAttribute())
+			.Remove(MagazineSizeChangedHandle);
 	}
 	BoundASC.Reset();
 }
@@ -72,6 +89,36 @@ void ULNPHudViewModel::OnMaxHealthChanged(const FOnAttributeChangeData& Data)
 void ULNPHudViewModel::OnAimModeTagChanged(const FGameplayTag Tag, int32 Count)
 {
 	SetIsFreeAiming(Count > 0);
+}
+
+void ULNPHudViewModel::OnMagazineAmmoChanged(const FOnAttributeChangeData& Data)
+{
+	const int32 NewAmmo = FMath::RoundToInt(Data.NewValue);
+	if (NewAmmo == CachedMagazineAmmo)
+		return;
+
+	CachedMagazineAmmo = NewAmmo;
+	UpdateAmmo();
+}
+
+void ULNPHudViewModel::OnMagazineSizeChanged(const FOnAttributeChangeData& Data)
+{
+	const int32 NewSize = FMath::RoundToInt(Data.NewValue);
+	if (NewSize == CachedMagazineSize)
+		return;
+
+	CachedMagazineSize = NewSize;
+	UpdateAmmo();
+}
+
+void ULNPHudViewModel::UpdateAmmo()
+{
+	UE_MVVM_SET_PROPERTY_VALUE(bHasMagazine, CachedMagazineSize > 0);
+
+	// FText는 값 비교로 알림을 거를 수 없어 호출자가 정수 캐시로 거른 뒤 여기서 직접 통지한다.
+	AmmoText = FText::Format(NSLOCTEXT("LNPHud", "AmmoCount", "{0} / {1}"),
+		FText::AsNumber(CachedMagazineAmmo), FText::AsNumber(CachedMagazineSize));
+	UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED(AmmoText);
 }
 
 void ULNPHudViewModel::UpdateHealthPercent()

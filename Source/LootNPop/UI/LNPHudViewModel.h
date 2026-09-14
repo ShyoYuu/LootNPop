@@ -36,6 +36,14 @@ private:
 	UPROPERTY(BlueprintReadOnly, FieldNotify, Category = "LNP|HUD", meta = (AllowPrivateAccess = "true"))
 	bool bIsFreeAiming = false;
 
+	/** "잔량 / 탄창 크기". bHasMagazine이 false면 의미가 없다. */
+	UPROPERTY(BlueprintReadOnly, FieldNotify, Category = "LNP|HUD", meta = (AllowPrivateAccess = "true"))
+	FText AmmoText;
+
+	/** 장착 무기가 탄창을 쓰는가 — 근접 무기면 탄약 표시를 숨긴다. */
+	UPROPERTY(BlueprintReadOnly, FieldNotify, Category = "LNP|HUD", meta = (AllowPrivateAccess = "true"))
+	bool bHasMagazine = false;
+
 	void SetHealthPercent(float InValue);
 	void SetIsFreeAiming(bool InValue);
 
@@ -43,9 +51,17 @@ private:
 	FDelegateHandle HealthChangedHandle;
 	FDelegateHandle MaxHealthChangedHandle;
 	FDelegateHandle AimTagHandle;
+	FDelegateHandle MagazineAmmoChangedHandle;
+	FDelegateHandle MagazineSizeChangedHandle;
 
 	float CachedHealth    = 1.f;
 	float CachedMaxHealth = 1.f;
+	int32 CachedMagazineAmmo = 0;
+	int32 CachedMagazineSize = 0;
+
+	void OnMagazineAmmoChanged(const FOnAttributeChangeData& Data);
+	void OnMagazineSizeChanged(const FOnAttributeChangeData& Data);
+	void UpdateAmmo();
 
 	void OnHealthChanged(const FOnAttributeChangeData& Data);
 	void OnMaxHealthChanged(const FOnAttributeChangeData& Data);

@@ -11,6 +11,7 @@
 #include "Item/LNPItemDefinitionBase.h"
 #include "Item/LNPInventoryItemInstance.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
+#include "GAS/Abilities/LNPAbility_Reload.h"
 #include "Interaction/LNPInteractionComponent.h"
 #include "Camera/LNPLockOnComponent.h"
 #include "HitDetection/LNPTrajectoryGuideComponent.h"
@@ -540,6 +541,7 @@ void ALNPPlayerCharacter::RemoveAndSpawnDice(ULNPInventoryComponent& Inventory, 
 	// 제거하면 인스턴스가 사라지므로 페이로드에 실을 값은 먼저 읽어 둔다.
 	ULNPItemDefinitionBase* ItemDef = Instance->GetDefinition();
 	const int32 DiceItemLevel = Instance->GetItemLevel();
+	const int32 DiceAmmoSpent = Instance->GetAmmoSpent();
 
 	// 인벤토리 제거 성공 전에는 스폰하지 않는다 (아이템 복제 방지).
 	// 버프는 잔여 지속 시간을 회수해 페이로드에 싣는다 — 양도받은 파티원이 이어서 쓴다.
@@ -553,7 +555,7 @@ void ALNPPlayerCharacter::RemoveAndSpawnDice(ULNPInventoryComponent& Inventory, 
 		return;
 	}
 
-	ALNPLootDice::SpawnDice(*GetWorld(), Location, ItemDef, DiceRemainingDuration, DiceItemLevel, ImpulseScale);
+	ALNPLootDice::SpawnDice(*GetWorld(), Location, ItemDef, DiceRemainingDuration, DiceItemLevel, ImpulseScale, DiceAmmoSpent);
 
 	UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s dropped — %s Lv.%d (buff remaining %.1fs)"),
 		*GetNameSafe(this), *GetNameSafe(ItemDef), DiceItemLevel, DiceRemainingDuration);
@@ -631,6 +633,14 @@ bool ALNPPlayerCharacter::TryActivateAttack_Impl()
 	if (!WeaponSlot.IsValid())
 		return false;
 
+	// 빈 탄창으로 쏘려 하면 자동 재장전한다. 발사 자체는 실패로 돌려 입력 버퍼 경로를 그대로 탄다.
+	if (WeaponSlot.Definition->MagazineSize > 0
+		&& ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMagazineAmmoAttribute()) < 1.f)
+	{
+		TryReload();
+		return false;
+	}
+
 	// 서버/리슨서버: 핸들 직접 사용
 	if (WeaponSlot.GrantedAbilities.IsValidIndex(0))
 		return ASC->TryActivateAbility(WeaponSlot.GrantedAbilities[0]);
@@ -642,6 +652,12 @@ bool ALNPPlayerCharacter::TryActivateAttack_Impl()
 			return ASC->TryActivateAbilityByClass(AbilityClass);
 
 	return false;
+}
+
+bool ALNPPlayerCharacter::TryReload()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	return ASC && ASC->TryActivateAbilityByClass(ULNPAbility_Reload::StaticClass());
 }
 
 void ALNPPlayerCharacter::CancelCurrentAttackAbility()

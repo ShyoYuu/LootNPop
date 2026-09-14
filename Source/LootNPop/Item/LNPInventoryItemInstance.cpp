@@ -65,6 +65,20 @@ void ULNPInventoryItemInstance::SetItemLevel(int32 InLevel)
 	NotifyOwnerInventoryChanged();
 }
 
+int32 ULNPInventoryItemInstance::GetAmmoSpent() const
+{
+	return GetStatTagStackCount(TAG_Item_AmmoSpent);
+}
+
+void ULNPInventoryItemInstance::SetAmmoSpent(int32 InSpent)
+{
+	const int32 Delta = FMath::Max(0, InSpent) - GetAmmoSpent();
+	if (Delta > 0)
+		AddStatTagStack(TAG_Item_AmmoSpent, Delta);
+	else if (Delta < 0)
+		RemoveStatTagStack(TAG_Item_AmmoSpent, -Delta);
+}
+
 void ULNPInventoryItemInstance::SetRemainingDuration(float InSeconds)
 {
 	RemainingDuration = InSeconds;

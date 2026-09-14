@@ -14,7 +14,7 @@
  * 각 파라미터를 별도 컨테이너로 분리하여 열 바인딩이 명확하게 보이도록 구성.
  *
  * 사용 예:
- *   Character->EvaluateMontage(TAG_Weapon_LongSword,
+ *   Character->EvaluateMontage(TAG_VisualSet_LongSword,
  *                               TAG_Montage_Situation_HitReaction,
  *                               TAG_Montage_Value_Direction_Front);
  */
@@ -24,8 +24,9 @@ class LOOTNPOP_API ULNPMontageChooserContext : public UObject
     GENERATED_BODY()
 
 public:
-    // 장착 중인 무기 종류 (LNP.Weapon.*)
-    UPROPERTY(BlueprintReadWrite, Category = "Chooser", meta = (Categories = "LNP.Weapon"))
+    // 장착 무기의 표현 세트 (LNP.VisualSet.*). 무기 종류가 아니다 — 표현을 공유하는 무기는 같은 값이다.
+    // ⚠️ 프로퍼티 이름은 CHT_Montage 컬럼 바인딩이 참조하므로 바꾸지 않는다.
+    UPROPERTY(BlueprintReadWrite, Category = "Chooser", meta = (Categories = "LNP.VisualSet"))
     FGameplayTagContainer WeaponType;
 
     // 몽타주 선택 상황 (LNP.Montage.Situation.*)

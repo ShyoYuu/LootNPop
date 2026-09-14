@@ -27,6 +27,7 @@ UGameplayAbility
         │     ├── ULNPAbility_RangedAttack        ← Mass 발사체 스폰 후 즉시 종료
         │     │     └── ULNPAbility_RangedSpreadAttack   ← 육각 링 산탄 (중앙 1 + 링 2 = 19발)
         │     └── ULNPAbility_MeleeAttack         ← Chooser 몽타주 + 콤보 섹션, 몽타주 종료까지 유지
+        ├── ULNPAbility_Reload         ← 탄창 재장전 (폰 DefaultAbilities, §5.5)
         ├── ULNPAbility_ParrySuccess   ← TAG_GameplayEvent_Parry_Success 트리거
         └── ULNPAbility_Stagger        ← Stagger.Light / Stagger.Heavy 트리거, 경직 구간을 어빌리티 수명으로 소유
 ```
@@ -44,6 +45,7 @@ UGameplayAbility
 | AttackSpeed / MoveSpeed / LootSpeed | 1 / 1 / 1 | 배율 — ≥ 0.01 클램프 |
 | DefensePower | **10** | `LNPDamage::ApplyDefense` 공식에 사용. ≥ 0 클램프 |
 | PoiseResistance | **150** | 들어오는 경직력 감쇠 (§2.5). ≥ 0 클램프. 기본값은 플레이어 기준이고 적은 `ULNPEnemyConfig::PoiseResistance`(기본 20)가 대신 정한다 |
+| MagazineAmmo / MagazineSize | 0 / 0 | **스탯이 아니라 상태다** — 장착 무기 탄창 잔량·크기. 장착이 채운다(§5.5). 메타 테이블·스탯 탭·버프 비대상. `MagazineAmmo`는 `[0, MagazineSize]` 클램프 |
 | IncomingDamage | 0 | **Meta 어트리뷰트** — 복제 안 함. GE가 전달한 원시 피해량을 `PostGameplayEffectExecute`에서 방어력 적용 후 Health에 반영하고 즉시 0으로 초기화 |
 
 방어력 공식 (`LNPDamageFormula.h`): `FinalDamage = RawDamage * (100 / (100 + Defense))`
@@ -206,7 +208,7 @@ UDataAsset
 |:---|:---|
 | 표현 | `VisualSet` (→ `ULNPWeaponVisualSet`: 메시·소켓·그립 보정·`AnimLayerClass`·`AnimSetTag`) |
 | 조준 | `DefaultAimMode` |
-| 공격 | `FireCooldown`, `MaxComboCount` |
+| 공격 | `FireCooldown`, `MaxComboCount`, `MagazineSize`(0 = 탄약 없음), `ReloadTime` |
 | 레벨 | `LevelTable` (행 구조 `FLNPWeaponLevelRow`, **행 이름 = 레벨 숫자**) |
 | 발사체 | `ProjectileType`(Linear/Guided/Lobbed), `ProjectileSpeed`, `ProjectileGravity`, `HitRadius`, `ExplosionRadius`, `ProjectileLifetime`, `MuzzleOffset`, `ProjectileDamageEffect`, `ProjectileVFXData` |
 
@@ -419,7 +421,7 @@ GAS의 표준 관행(무기마다 Cooldown GE 클래스)을 버리고 `SetDurati
 같은 종류 무기 두 자루를 번갈아 장착해도 연사 제한을 우회할 수 없다.
 
 ⚠️ **표현 태그를 키로 쓰면 안 된다.** 런처는 샷건의 표현 세트(`VS_Shotgun`)를 공유하므로
-`AnimSetTag`가 `LNP.Weapon.Shotgun`으로 같다 — 그 태그를 키로 쓰면 **런처와 샷건이 쿨다운을 공유**하게 된다.
+`AnimSetTag`가 `LNP.VisualSet.Shotgun`으로 같다 — 그 태그를 키로 쓰면 **런처와 샷건이 쿨다운을 공유**하게 된다.
 표현용 태그와 규칙용 키는 같은 축이 아니고, 이 프로젝트에서 규칙용 키는 **DataAsset 포인터**다.
 (이 함정이 표현을 `ULNPWeaponVisualSet`으로 떼어낸 계기다 — §2.3.)
 
@@ -440,6 +442,91 @@ CDO에서 실행되고 CDO의 `CurrentActorInfo`는 null이다. 무기는 **인�
 ### 5.4 크로스헤어 수렴 발사와 서버 폴백
 
 3인칭 총기의 고전 문제(총구 방향 ≠ 화면 중앙)를 카메라 광선 수렴점으로 해결하되, 카메라가 존재하지 않는 서버의 원격 플레이어는 Mover InputCmd로 복제된 시선 회전을 사용 — 패럴랙스 오차는 코스메틱 범위로 한정된다.
+
+### 5.5 탄창·재장전 (2026-09-14)
+
+기획은 [GameDesign_Ability.md](GameDesign_Ability.md) §3.1 "탄창·재장전".
+
+#### 탄약 = 어트리뷰트 + Cost GE — 예측을 GAS에 맡긴다
+
+라이플 연사(10발/s)는 소유 클라 예측이 필수다. 탄약을 별도 복제 변수로 두면 늦게 도착한 서버 값이
+연사 중 로컬 차감을 덮어써 HUD가 튄다. **Cost GE는 GAS가 예측 키로 선반영하고 서버 확정 시 정산**하므로
+이 경로에 태웠다.
+
+| 요소 | 내용 |
+|:--|:--|
+| `MagazineAmmo` / `MagazineSize` | `ULNPBaseAttributeSet`. 전 클라 복제(HUD·무기 애니 큐가 읽는다) |
+| `ULNPGameplayEffect_AmmoCost` | Instant, `MagazineAmmo` `AddBase −1`. 산탄도 발사 1회 = 1발 |
+| `ULNPAbility_BasicAttack::CheckCost` | 탄창 무기면 `MagazineAmmo ≥ 1`. **현재값**을 본다 — 예측 중인 차감까지 반영된 값 |
+| `ULNPAbility_BasicAttack::ApplyCost` | 탄창 무기면 Cost GE 적용 |
+| `ActivationBlockedTags += State.Reloading` | 재장전 중 발사 차단. 막힌 입력은 기존 공격 버퍼로 흐른다 |
+
+`MagazineSize = 0`(기본값)이면 두 오버라이드가 통과한다 — 근접·적 NPC 무기는 동작 불변.
+무기는 `CheckCooldown`과 같은 이유로 **인수 `ActorInfo`**에서 읽는다(CDO 호출 대비, §5.2).
+
+#### 재장전 GA — `ULNPAbility_Reload`
+
+- 폰 `DefaultAbilities`로 부여(무기 무관). `AssetTags = Ability.Reload`, `ActivationOwnedTags = State.Reloading`,
+  `ActivationBlockedTags = State.Staggered, State.Reloading`. 가득 차 있거나 탄창 없는 무기면 `CanActivateAbility` 실패.
+- 시간 = `ULNPWeaponData::GetReloadDuration(AttackSpeed)` = `ReloadTime / AttackSpeed` — 공격속도 버프가 재장전에도 걸린다.
+- 캐릭터 몽타주: Chooser `LNP.Montage.Situation.Reload`, 배속 = `몽타주 길이 / 재장전 시간`.
+  `CHT_Montage` 행: Pistol/Rifle/Shotgun → `AM_MM_*_Reload` (런처는 `VS_Shotgun` 공유). 행이 없으면 몽타주 없이 시간만 흐른다.
+- 입력: `IA_Reload`(`R` / 게임패드 `Y`) → `ALNPPlayerCharacter::TryReload`. **자동 재장전**은
+  `ALNPPlayerCharacter::TryActivateAttack_Impl`이 빈 탄창 발사 시도를 가로채 건다.
+
+| 취소 | 경로 |
+|:--|:--|
+| 경직 | `ULNPAbility_Stagger::CancelAbilitiesWithTag += Ability.Reload` |
+| 무기 교체 | `ULNPEquipmentComponent::ClearWeaponSlot`이 `CancelAbilities(Ability.Reload)` |
+| 대시 | GA가 `ULNPCharacterMoverComponent::OnDashExecuted` 구독 (서버·소유 클라 각자 시뮬레이션에서 발송) |
+
+⚠️ **탄을 채우는 곳은 WaitDelay 콜백이 아니라 `EndAbility`(취소가 아닐 때)다.** 서버 인스턴스는 자기 타이머와
+소유 클라의 종료 통지(`ServerEndAbility`) 중 **먼저 온 쪽**으로 끝난다. 클라 통지가 먼저 오면 서버 타이머 콜백은
+영영 불리지 않으므로, 콜백에서 채우면 그 경로에서 탄이 증발한다. 조기 종료 통지로 재장전을 건너뛰지 못하도록
+`경과 ≥ 재장전 시간 × MinCompletionRatio(0.8)` 하한을 둔다 — 서버의 활성화와 클라의 종료 통지는 같은 편도 지연을
+겪으므로 정상 경과는 거의 1.0이다.
+
+⚠️ **소유 클라도 로컬로 채운다.** 복제를 기다리면 RTT 동안 0발로 보여 자동 재장전이 다시 걸린다. 서버 복제가 같은 값으로 수렴시킨다.
+
+#### 무기 메시 애니 — GameplayCue로 싣는다
+
+`ULNPWeaponVisualSet::WeaponReloadAnim`(무기 메시와 같은 스켈레톤의 시퀀스)을 `GameplayCue.LNP.Weapon.Reload`
+(`ULNPGameplayCueNotify_Reload`)가 `WeaponMesh->PlayAnimation`으로 재생한다. 무기 메시에는 AnimBP가 없어 몽타주가 아니라 단일 노드다.
+
+- **큐인 이유:** GA는 서버·소유 클라에서만 돈다. 큐는 소유 클라에서 예측 재생되고 다른 클라에는 ASC가 복제한다.
+- ⚠️ **배속을 큐 파라미터로 싣지 않는다.** Mixed 복제 모드의 비소유 클라는 최소 복제 큐로 받아 파라미터가 오지 않는다.
+  대상 캐릭터의 복제된 무기 정의 + `AttackSpeed` 어트리뷰트로 같은 식을 직접 계산한다.
+- `OnRemove`: `Stop` + `SetAnimation(nullptr)` — 취소 시 탄창이 빠진 포즈로 굳지 않게, 교체로 메시가 이미 바뀌었어도 옛 스켈레톤 시퀀스가 남지 않게.
+- 재생·정지는 `ALNPCharacterBase::PlayWeaponMeshAnimation` / `StopWeaponMeshAnimation` 한 쌍으로 모았다.
+
+**발사 파츠 모션 (`WeaponFireAnim`, 2026-09-14):** 같은 함수로 `Weap_*_Fire`를 1배속 재생한다 — Lyra 원본은 캐릭터 발사
+몽타주와 길이가 같다(피스톨·샷건 0.67s, 라이플 0.53s). 발사는 큐가 아니라 **이미 매 발 가는 두 경로**에 얹었다:
+`ULNPAbility_RangedAttack::ActivateAbility`(서버·소유 클라)와 `Multicast_SpawnGhostProjectiles`(관전자 클라, 기존 방송이라 대역폭 추가 0).
+⚠️ 같은 방송이 **캐릭터 발사 몽타주**도 재생한다(2026-09-14 추가). 그 전에는 몽타주가 어빌리티 안에서만 돌아
+게스트 화면에서 호스트(또는 다른 게스트)의 몸 발사 모션이 보이지 않았다 — 호스트 화면은 서버라 전원의 어빌리티를 직접 돌려서 증상이 없었다.
+`DA_NPC_Pistol`도 `VS_Pistol`을 쓰므로 승격 Actor 적의 피스톨에도 걸린다.
+
+#### 상체 슬롯 — `ABP_Lyra`에 새로 만들었다
+
+Lyra 재장전 몽타주(`AM_MM_*_Reload`)는 `UpperBody` / `UpperBodyAdditive` 슬롯을 쓰는데 **`ABP_Lyra`에는 그 슬롯이 없었다**
+(발사 몽타주는 `FullBodyAdditivePreAim`). 없는 슬롯의 몽타주는 에러 없이 **아무것도 안 보인다.**
+`DefaultSlot` 뒤에 다음을 끼웠다:
+
+```
+DefaultSlot → Save cached pose 'PreUpperBody'
+  Use 'PreUpperBody' ─────────────────────────→ Layered blend per bone (BasePose, spine_01 분기, 메시 공간 회전 블렌드)
+  Use 'PreUpperBody' → Slot 'UpperBody' ───────→        (BlendPoses_0)                       → AdditiveHitReact → …
+```
+
+`UpperBodyAdditive` 트랙은 슬롯이 없어 재생되지 않는다(보정용 가산 레이어라 생략).
+
+#### 잔량 보관 — 인스턴스에 "소모량"으로
+
+- `TAG_Item_AmmoSpent` 스택. **남은 수가 아니라 쓴 수다** — 태그 스택은 0이면 엔트리가 사라져 "기록 없음"과 "0발"을 못 가르지만,
+  소모량은 부재 = 0 = 가득이라 신품이 저절로 가득 찬다.
+- 저장: `ClearWeaponSlot`(교체·해제·사망 드랍의 공통 경로). 복원: `ApplyMagazineAttributes`(장착·해제 직후, 크기를 먼저 쓴다 — 잔량 클램프 상한).
+- 드랍 왕복: `ALNPLootDice::AmmoSpent`(**비복제** — 서버 픽업만 읽는다) → `AddItemInstance(Def, Level, AmmoSpent)`.
+  레벨과 같은 이유로 **자동 장착보다 먼저** 기록한다.
 
 ---
 

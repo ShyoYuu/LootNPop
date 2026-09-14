@@ -43,13 +43,6 @@ protected:
 	const ULNPWeaponData* GetEquippedWeaponDefFor(const FGameplayAbilityActorInfo* ActorInfo) const;
 
 	/**
-	 * AttackSpeed 어트리뷰트(버프 합산 후 최종값). ASC가 없으면 1.0.
-	 * 몽타주 재생 속도와 쿨다운에 모두 쓰인다 — 둘을 같은 계수로 스케일해야
-	 * 실제 공격 빈도가 계수만큼 빨라진다 (한쪽만 줄이면 다른 쪽이 병목이 된다).
-	 */
-	float GetAttackSpeed() const;
-
-	/**
 	 * 기본 피해 = AttackPower 최종값(무기 스텟·합/곱 버프 반영) × 피해 계수. Ability별로 Override 가능.
 	 */
 	virtual float ComputeDamage() const;
@@ -94,6 +87,19 @@ protected:
 	virtual bool CheckCooldown(const FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
 		OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
+
+	/**
+	 * 탄창이 있는 무기(ULNPWeaponData::MagazineSize > 0)는 MagazineAmmo가 1발 이상일 때만 발동한다.
+	 * 탄창이 없는 무기(근접·적 NPC 무기)는 기존과 같이 비용 없이 통과한다.
+	 */
+	virtual bool CheckCost(const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
+
+	/** 탄창이 있는 무기면 ULNPGameplayEffect_AmmoCost로 1발을 깎는다 (예측 적용). */
+	virtual void ApplyCost(const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo) const override;
 
 	/** 이 Ability가 가하는 넉백 강도 (cm/s 단위 임펄스). 0이면 넉백 없음. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Combat")

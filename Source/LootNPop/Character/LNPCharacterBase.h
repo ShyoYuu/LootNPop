@@ -15,6 +15,7 @@ class USkeletalMeshComponent;
 class UAbilitySystemComponent;
 class UMassAgentComponent;
 class UAnimMontage;
+class UAnimSequence;
 class UGameplayAbility;
 class UChooserTable;
 class ULNPMontageChooserContext;
@@ -127,7 +128,7 @@ public:
 
 	/**
 	 * MontageChooser를 평가해 조건에 맞는 몽타주를 반환한다.
-	 * @param WeaponType     장착 무기 태그 (LNP.Weapon.*)
+	 * @param WeaponType     장착 무기의 표현 세트 태그 (LNP.VisualSet.*)
 	 * @param SituationType  상황 태그    (LNP.Montage.Situation.*)
 	 * @param Value          세부 값 태그 (LNP.Montage.Value.*, 생략 가능)
 	 */
@@ -135,6 +136,18 @@ public:
 	UAnimMontage* EvaluateMontage(FGameplayTag WeaponType, FGameplayTag SituationType, FGameplayTag Value) const;
 	UAnimMontage* EvaluateMontage(FGameplayTag SituationType, FGameplayTag Value = FGameplayTag()) const;
 	bool PlayMontage(FGameplayTag SituationType, FGameplayTag Value = FGameplayTag()) const;
+
+	/**
+	 * 무기 메시에 시퀀스를 재생한다 (재장전·발사 파츠 모션). 무기 메시에는 AnimBP가 없어 단일 노드로 돈다.
+	 * 메시가 없거나 Anim이 null이면 아무것도 하지 않는다.
+	 */
+	void PlayWeaponMeshAnimation(UAnimSequence* Anim, float PlayRate = 1.f) const;
+
+	/** 무기 메시 재생을 멈추고 레퍼런스 포즈로 되돌린다. 교체로 메시가 바뀌었어도 옛 스켈레톤 시퀀스를 남기지 않는다. */
+	void StopWeaponMeshAnimation() const;
+
+	/** 장착 표현 세트의 WeaponFireAnim을 재생한다. 원거리 발사 경로(어빌리티·관전자 방송)가 부른다. */
+	void PlayWeaponFireAnimation() const;
 
 	/** Duration 동안 CustomTimeDilation을 TimeDilation으로 낮춰 HitStop 효과를 준다. GameplayCue.LNP.Character.HitReact 노티파이에서 호출한다. */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Combat")

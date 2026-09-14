@@ -13,6 +13,7 @@
 #include "Player/LNPPlayerState.h"
 #include "Config/LNPSettings.h"
 #include "LootNPop.h"
+#include "LNPGameplayTags.h"
 
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
@@ -114,6 +115,7 @@ void ULNPEquipmentComponent::EquipWeapon(ULNPWeaponData* WeaponDef)
 		GrantItemImpl(WeaponDef, /*Level=*/1, WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 	}
 
+	ApplyMagazineAttributes();
 	OnWeaponSlotApplied();
 }
 
@@ -141,6 +143,7 @@ void ULNPEquipmentComponent::EquipWeaponInstance(ULNPInventoryItemInstance* Inst
 	Instance->SetEquipped(true);  // 복제되어 소유 클라 UI가 가방에서 숨긴다
 	GrantItemImpl(WeaponDef, Instance->GetItemLevel(), WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 
+	ApplyMagazineAttributes();
 	OnWeaponSlotApplied();
 }
 
@@ -153,6 +156,7 @@ void ULNPEquipmentComponent::UnequipWeapon()
 		return;
 
 	ClearWeaponSlot();
+	ApplyMagazineAttributes();
 	OnWeaponSlotApplied();
 }
 
@@ -203,10 +207,38 @@ void ULNPEquipmentComponent::ClearWeaponSlot()
 	if (!WeaponSlot.IsValid())
 		return;
 
+	if (UAbilitySystemComponent* ASC = GetASC())
+	{
+		// 교체는 재장전을 끊는다 — 새 무기 탄창을 옛 무기 재장전 완료가 채우면 안 된다.
+		const FGameplayTagContainer ReloadTags(TAG_Ability_Reload);
+		ASC->CancelAbilities(&ReloadTags);
+
+		// 잔량을 무기 인스턴스에 저장한다 — 다시 들거나 드랍→재획득해도 이어진다.
+		if (WeaponSlot.SourceInstance && WeaponSlot.Definition->MagazineSize > 0)
+		{
+			const int32 Remaining = FMath::RoundToInt(ASC->GetNumericAttributeBase(ULNPBaseAttributeSet::GetMagazineAmmoAttribute()));
+			WeaponSlot.SourceInstance->SetAmmoSpent(WeaponSlot.Definition->MagazineSize - Remaining);
+		}
+	}
+
 	if (WeaponSlot.SourceInstance)
 		WeaponSlot.SourceInstance->SetEquipped(false);
 	RevokeItemImpl(WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 	WeaponSlot.Reset();
+}
+
+void ULNPEquipmentComponent::ApplyMagazineAttributes()
+{
+	UAbilitySystemComponent* ASC = GetASC();
+	if (ASC == nullptr)
+		return;
+
+	const int32 Size = WeaponSlot.IsValid() ? FMath::Max(0, WeaponSlot.Definition->MagazineSize) : 0;
+	const int32 Spent = WeaponSlot.SourceInstance ? WeaponSlot.SourceInstance->GetAmmoSpent() : 0;
+
+	// 크기를 먼저 — MagazineAmmo 현재값 클램프가 MagazineSize를 상한으로 본다.
+	ASC->SetNumericAttributeBase(ULNPBaseAttributeSet::GetMagazineSizeAttribute(), Size);
+	ASC->SetNumericAttributeBase(ULNPBaseAttributeSet::GetMagazineAmmoAttribute(), FMath::Clamp(Size - Spent, 0, Size));
 }
 
 void ULNPEquipmentComponent::OnRep_WeaponSlot()

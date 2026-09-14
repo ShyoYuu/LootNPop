@@ -131,6 +131,13 @@ private:
 	/** 현재 슬롯을 비운다 (GAS 회수 + bEquipped 해제). 통지하지 않으므로 교체의 중간 단계로도 쓸 수 있다. */
 	void ClearWeaponSlot();
 
+	/**
+	 * 현재 슬롯 무기의 탄창을 MagazineSize/MagazineAmmo 어트리뷰트에 싣는다. 서버 전용.
+	 * 잔량은 가방 인스턴스에 저장된 소모량에서 복원하고(ClearWeaponSlot이 저장), 인스턴스가 없으면 가득이다.
+	 * 슬롯이 비었거나 탄창 없는 무기면 둘 다 0.
+	 */
+	void ApplyMagazineAttributes();
+
 	/** 슬롯 변경 후처리 — 서버의 직접 적용과 클라이언트의 OnRep이 공유하는 유일한 경로. */
 	void OnWeaponSlotApplied();
 
