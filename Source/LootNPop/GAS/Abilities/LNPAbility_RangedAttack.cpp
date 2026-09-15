@@ -4,6 +4,7 @@
 #include "Item/LNPWeaponData.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPFireGeometry.h"
+#include "GAS/Abilities/LNPAttackInputTargetData.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"   // MaxPingRewindSeconds — 되감기 핑 항 상한
 #include "Character/LNPCharacterBase.h"
@@ -41,14 +42,15 @@ void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle 
 		return;
 	}
 
-	SpawnProjectile(ActivationInfo);
+	// 플레이어는 발사 순간의 조준 스냅샷을 발동 이벤트로 받는다 (LNPAttackInputTargetData.h 참조).
+	SpawnProjectile(ActivationInfo, LNPAttackInput::Find<FLNPFireAimTargetData>(TriggerEventData));
 	Character->PlayMontage(TAG_Montage_Situation_Attack);
 	Character->PlayWeaponFireAnimation();
 
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }
 
-void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationInfo& ActivationInfo) const
+void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationInfo& ActivationInfo, const FLNPFireAimTargetData* AimInput) const
 {
 	ALNPCharacterBase* Character = GetOwningCharacter();
 	if (nullptr == Character)
@@ -136,7 +138,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 	}
 
 	// --- 파생 클래스가 발사 방향 배열을 제공 (단일 / 방사형 등) ---
-	const TArray<FVector> Directions = GetFireDirections(SpawnPos);
+	const TArray<FVector> Directions = GetFireDirections(SpawnPos, AimInput);
 
 	// --- 시뮬레이티드 프록시(구경꾼) 가시성 — 서버가 전 클라이언트에 발사 시점 1회 방송 (섹션 5.2 "제3자 가시성") ---
 	if (Character->HasAuthority())
@@ -194,12 +196,18 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 	}
 }
 
-TArray<FVector> ULNPAbility_RangedAttack::GetFireDirections(const FVector& SpawnPos) const
+TArray<FVector> ULNPAbility_RangedAttack::GetFireDirections(const FVector& SpawnPos, const FLNPFireAimTargetData* AimInput) const
 {
 	const ALNPCharacterBase* Character = GetOwningCharacter();
 	if (nullptr == Character)
 		return {};
 
 	// 조준 수렴 로직은 LNPFireGeometry가 단일 정의로 갖는다 — ADS 궤도 가이드가 같은 값을 봐야 한다.
-	return { LNPFireGeometry::ResolveAimDirection(*Character, SpawnPos) };
+	// 스냅샷이 없으면(적 NPC) 조준점 없이 캐릭터 조준선으로 쏜다.
+	if (nullptr == AimInput || AimInput->ViewDirection.IsNearlyZero())
+		return { LNPFireGeometry::ResolveAimDirection(SpawnPos, Character->GetBaseAimRotation().Vector(), nullptr) };
+
+	const FVector AimTarget = AimInput->AimTargetLocation;
+	return { LNPFireGeometry::ResolveAimDirection(SpawnPos, AimInput->ViewDirection.GetSafeNormal(),
+		AimTarget.IsZero() ? nullptr : &AimTarget) };
 }

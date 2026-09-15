@@ -4,6 +4,7 @@
 #include "Character/LNPCharacterBase.h"
 #include "Character/LNPPlayerCharacter.h"
 #include "Item/LNPWeaponData.h"
+#include "GAS/Abilities/LNPAttackInputTargetData.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
@@ -72,8 +73,10 @@ void ULNPInputHandlerComponent::UpdateMeleeAssistQuery()
 {
 	// 근접 보정은 플레이어 전용이다 — 적 NPC는 StateTree 스티어링이 접근 거리를 맞춘다.
 	// ULNPAbility_MeleeAttack::ApplyMeleeAssist와 같은 기준(락온 컴포넌트 보유)으로 거른다.
-	const AActor* Owner = GetOwner();
-	if (!Owner || !LockOnComponent)
+	// 결과는 발동 RPC로 서버에 가므로 소유 클라이언트에서만 돈다 — 서버가 원격 폰에 대해 따로 탐색하면
+	// 게스트와 다른 시각의 적 위치를 읽는다 (FLNPMeleeAssistTargetData 주석 참조).
+	const APawn* Owner = Cast<APawn>(GetOwner());
+	if (!Owner || !Owner->IsLocallyControlled() || !LockOnComponent)
 		return;
 
 	UWorld* World = GetWorld();
@@ -108,19 +111,48 @@ void ULNPInputHandlerComponent::UpdateMeleeAssistQuery()
 		Settings.MeleeAssistDistanceWeight);
 }
 
-bool ULNPInputHandlerComponent::GetMeleeAssistTarget(FVector& OutTargetLocation) const
+bool ULNPInputHandlerComponent::GetCrosshairAimPoint(FVector& OutAimPoint) const
 {
-	const UWorld* World = GetWorld();
-	const ULNPTargetQuerySubsystem* QuerySub = World ? World->GetSubsystem<ULNPTargetQuerySubsystem>() : nullptr;
-	if (!QuerySub)
+	if (!bHasCachedCrosshairAimPoint)
 		return false;
-
-	FLNPTargetQueryResult Result;
-	if (!QuerySub->GetResult(MeleeAssistQueryHandle, Result) || !Result.bHit)
-		return false;
-
-	OutTargetLocation = Result.Location;
+	OutAimPoint = CachedCrosshairAimPoint;
 	return true;
+}
+
+void ULNPInputHandlerComponent::CaptureFireAimInput(FLNPFireAimTargetData& OutData) const
+{
+	// 시선은 로컬 제어 폰의 ControlRotation 그대로다 — 서버의 GetBaseAimRotation은 과거 InputCmd를 읽으므로
+	// 조준점과 같은 순간의 축을 함께 보내야 검증이 어긋나지 않는다 (FLNPFireAimTargetData::ViewDirection 주석 참조).
+	if (const APawn* Pawn = Cast<APawn>(GetOwner()))
+		OutData.ViewDirection = Pawn->GetControlRotation().Vector();
+
+	FVector AimPoint;
+	if (GetCrosshairAimPoint(AimPoint))
+		OutData.AimTargetLocation = AimPoint;
+}
+
+void ULNPInputHandlerComponent::CaptureMeleeAssistInput(FLNPMeleeAssistTargetData& OutData) const
+{
+	// 락온은 "자동 탐색이 고른 것 말고 이 적을 치겠다"는 명시적 의사표현이다 — 지목이 있으면 탐색 결과를 쓰지 않는다.
+	FVector LockOnLocation;
+	if (LockOnComponent && LockOnComponent->GetLockOnTargetLocation(LockOnLocation))
+	{
+		OutData.TargetLocation = LockOnLocation;
+		OutData.bLockOn = true;
+	}
+	else
+	{
+		// 자동 탐색은 ULNPTargetQuerySubsystem의 상시 원뿔 질의가 이미 답을 들고 있다.
+		const UWorld* World = GetWorld();
+		const ULNPTargetQuerySubsystem* QuerySub = World ? World->GetSubsystem<ULNPTargetQuerySubsystem>() : nullptr;
+		FLNPTargetQueryResult Result;
+		if (QuerySub && QuerySub->GetResult(MeleeAssistQueryHandle, Result) && Result.bHit)
+			OutData.TargetLocation = Result.Location;
+	}
+
+	// OnProduceInput이 InputCmd에 싣는 이동 입력과 같은 판정이다 — 이동 차단 태그가 있으면 입력이 없는 것으로 친다.
+	const bool bBlockMovement = ASC != nullptr && ASC->HasMatchingGameplayTag(TAG_Block_MovementInput);
+	OutData.bHasMoveInput = !bBlockMovement && !FVector2D(CachedMoveInputIntent.X, CachedMoveInputIntent.Y).IsNearlyZero();
 }
 
 void ULNPInputHandlerComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -149,6 +181,11 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	TickDebugAutoAction(DeltaTime);
 
 	UpdateMeleeAssistQuery();
+
+	// 크로스헤어 조준점은 매 틱 캐시한다 — 발사 순간(CaptureFireAimInput)과 ADS 궤도 가이드가 같은 값을 읽는다.
+	// 원거리 무기가 아니면 ComputeCrosshairAimPoint가 트레이스 없이 false를 돌려준다.
+	if (const APawn* Pawn = Cast<APawn>(GetOwner()))
+		bHasCachedCrosshairAimPoint = ComputeCrosshairAimPoint(Pawn, CachedCrosshairAimPoint);
 
 	if (!CachedLookInput.IsNearlyZero() && ControlRotationComponent)
 	{
@@ -295,14 +332,11 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 	if (PC == nullptr || World == nullptr)
 		return false;
 
-	// 발사체를 쏘는 무기를 들었을 때만 트레이스한다. 이 프로젝트에서 전투 판정은 전부 수학이고
+	// 원거리 무기를 들었을 때만 트레이스한다. 이 프로젝트에서 전투 판정은 전부 수학이고
 	// 동기 물리 쿼리는 여기 하나뿐이라, 필요 없는 프레임까지 도는 것은 곧 원칙에 대한 예외가 된다.
-	// 조준 모드 태그(IsFreeAimMode)가 아니라 **무기 데이터의 발사체 GE 유무**로 판정하는 이유:
-	// 조준 모드는 무기 기획에 따라 바뀔 수 있고, 원거리인데 FreeAim이 아닌 무기가 하나라도 생기면
-	// 그 무기에서만 조준점이 비어 옛 결함(총구-카메라 평행 오차)이 조용히 되살아난다.
-	const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Pawn);
-	const ULNPWeaponData*    WeaponDef = Character ? Character->GetActiveWeaponDef() : nullptr;
-	if (WeaponDef == nullptr || WeaponDef->ProjectileDamageEffect == nullptr)
+	// 원거리/근거리 구분은 조준 모드 태그(IsFreeAimMode) 하나로 일원화한다 — 가드·ADS·근접 보정이 같은 기준을 쓴다.
+	// ⚠️ ProjectileDamageEffect 유무로 가르면 안 된다 — 근접 판정도 그 필드를 데미지 GE로 쓰므로 롱소드까지 걸린다.
+	if (!IsFreeAimMode())
 		return false;
 
 	static constexpr float AimTraceDistance = 50000.f;
@@ -400,20 +434,8 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	// 폴백해 서버보다 훨씬 빠르게 앞서 나간다 (FLNPModifierInputs::AIDesiredSpeed 주석 참조).
 	ModifierInputs.AIDesiredSpeed = AIDesiredSpeed;
 
-	// 락온 대상도 InputCmd로 보낸다 — 로컬 컴포넌트에만 두면 서버가 원격 클라이언트의 락온을 모른 채
-	// 근접 공격 보정 대상을 자동 탐색으로 고르게 된다 (FLNPModifierInputs::LockOnTargetLocation 주석 참조).
-	FVector LockOnLocation;
-	ModifierInputs.LockOnTargetLocation = (LockOnComponent && LockOnComponent->GetLockOnTargetLocation(LockOnLocation))
-		? LockOnLocation
-		: FVector::ZeroVector;
-
-	// 크로스헤어 조준점도 InputCmd로 보낸다 — 카메라는 로컬 상태라 서버가 스스로 알 방법이 없고,
-	// 서버가 ControlRotation 방향으로만 쏘면 그 광선이 카메라 광선과 평행해 거리와 무관하게
-	// 총구-카메라 간격만큼 빗나간다 (FLNPModifierInputs::AimTargetLocation 주석 참조).
-	FVector CrosshairAimPoint;
-	ModifierInputs.AimTargetLocation = ComputeCrosshairAimPoint(Pawn, CrosshairAimPoint)
-		? CrosshairAimPoint
-		: FVector::ZeroVector;
+	// 공격 입력(원거리 조준점·시선 / 근접 보정 대상·이동 입력)은 여기가 아니라 공격 발동 RPC에 싣는다
+	// (CaptureFireAimInput·CaptureMeleeAssistInput, LNPAttackInputTargetData.h 참조).
 
 	if (Pawn->GetController())
 	{

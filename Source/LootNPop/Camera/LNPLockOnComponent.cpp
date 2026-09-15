@@ -83,7 +83,7 @@ void ULNPLockOnComponent::UpdateQuery()
 
 	const APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	// 락온은 로컬 상태다 — 서버의 원격 폰에서 돌면 서버 시점으로 후보를 고르는 무의미한 질의가 된다.
-	// 결과는 InputCmd(LockOnTargetLocation)로 서버에 전달된다 (TechDesign_TargetQuery.md §8).
+	// 결과는 근접 공격 발동 RPC(FLNPMeleeAssistTargetData)로 서버에 전달된다 (TechDesign_TargetQuery.md §8).
 	if (!OwnerPawn || !OwnerPawn->IsLocallyControlled())
 		return;
 

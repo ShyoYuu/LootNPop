@@ -27,7 +27,7 @@ private:
 
 /**
  * 매 프레임 Projectile 선분을 Enemy와 Player Capsule에 대해 검사한다.
- * 명중 시: 피해 적용, 트레일 해제와 임팩트 이펙트 큐 추가, Destroy 지연.
+ * 명중 시: 피해 적용, 임팩트 이펙트 큐 추가, Dead Tag 지연 (트레일 해제는 DestructionProcessor).
  * 어디에도 닿지 않았으면 지형 충돌·수명 만료를 마지막에 판정하고 스플래시를 적용한다.
  * MovementProcessor 이후 실행된다.
  */
@@ -65,7 +65,8 @@ private:
 };
 
 /**
- * FLNPProjectileDeadTag를 가진 모든 Entity를 조회하고 Destroy을 지연한다.
+ * FLNPProjectileDeadTag를 가진 모든 Entity의 트레일 해제를 큐에 넣고 Destroy을 지연한다.
+ * 트레일 해제의 유일한 소유자다 — 사망을 판정한 쪽이 해제를 걸면 할당과 경합한다.
  * PostPhysics에서 실행되며, StartPhysics 커맨드 버퍼 플러시가
  * MovementProcessor와 HitDetectionProcessor의 Dead Tag를 적용한 후 실행된다.
  */

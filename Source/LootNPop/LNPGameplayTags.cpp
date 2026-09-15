@@ -41,6 +41,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Weapon_Reload,        "GameplayCue.LNP.We
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Success, "LNP.GameplayEvent.Parry.Success")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Stagger_Light, "LNP.GameplayEvent.Stagger.Light")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Stagger_Heavy, "LNP.GameplayEvent.Stagger.Heavy")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Attack_Activate, "LNP.GameplayEvent.Attack.Activate")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Attack,       "LNP.Montage.Situation.Attack")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_HitReaction,  "LNP.Montage.Situation.HitReaction")

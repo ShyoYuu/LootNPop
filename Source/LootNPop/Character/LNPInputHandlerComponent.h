@@ -18,6 +18,8 @@ class ULNPInteractionComponent;
 class UAbilitySystemComponent;
 class UMassAgentComponent;
 class ULNPLockOnComponent;
+struct FLNPMeleeAssistTargetData;
+struct FLNPFireAimTargetData;
 struct FLNPParryStateFragment;
 
 /**
@@ -89,9 +91,9 @@ public:
 	 * 로컬 제어 폰의 크로스헤어가 가리키는 월드 좌표. 카메라에서 시선 방향으로 트레이스해
 	 * 첫 충돌점을, 아무것도 없으면 최대 거리 지점을 돌려준다. 로컬 제어가 아니면 false.
 	 *
-	 * 이 값은 소유 클라이언트만 계산할 수 있으므로(카메라가 로컬 상태다) OnProduceInput이
-	 * InputCmd에 실어 서버로 보낸다 — 원거리 발사 방향의 단일 원본이다
-	 * (FLNPModifierInputs::AimTargetLocation 주석 참조).
+	 * 이 값은 소유 클라이언트만 계산할 수 있으므로(카메라가 로컬 상태다) TickComponent가 매 틱 갱신해 캐시하고,
+	 * 발사 순간 CaptureFireAimInput이 발동 RPC에 실어 서버로 보낸다 — 원거리 발사 방향의 단일 원본이다
+	 * (FLNPFireAimTargetData 주석 참조).
 	 *
 	 * 물리 트레이스만으로는 순수 엔티티(`CombatMode::PureEntity`) 적을 맞힐 수 없어
 	 * (Actor도 콜리전 바디도 없다) ULNPTargetQuerySubsystem의 광선 질의 결과와 함께 본다.
@@ -99,10 +101,20 @@ public:
 	bool ComputeCrosshairAimPoint(const APawn* Pawn, FVector& OutAimPoint);
 
 	/**
-	 * 근접 공격 보정의 자동 탐색 결과. 락온 지목이 없을 때 쓸 대상의 월드 좌표를 돌려준다.
-	 * 상시 질의라 어빌리티 발동 순간에 즉시 준비돼 있다.
+	 * 마지막 틱에 캐시한 크로스헤어 조준점. 원거리 무기가 아니거나 로컬 제어가 아니면 false.
+	 * 실탄(CaptureFireAimInput)과 ADS 궤도 가이드가 **같은 캐시**를 읽는다 — 가이드가 따로 트레이스하면
+	 * "가이드가 가리키는 곳"과 "실제 착탄"이 갈린다.
 	 */
-	bool GetMeleeAssistTarget(FVector& OutTargetLocation) const;
+	bool GetCrosshairAimPoint(FVector& OutAimPoint) const;
+
+	/** 원거리 발사 입력(조준점·시선 방향)을 지금 이 순간 값으로 채운다. 소유 클라이언트가 발동 직전에 부른다. */
+	void CaptureFireAimInput(FLNPFireAimTargetData& OutData) const;
+
+	/**
+	 * 근접 공격 보정 입력을 지금 이 순간 값으로 채운다 — 락온 지목, 없으면 자동 탐색 대상, 그리고 이동 입력 여부.
+	 * 소유 클라이언트가 공격 발동 직전에 부르고, 결과는 발동 RPC에 실려 서버에 간다.
+	 */
+	void CaptureMeleeAssistInput(FLNPMeleeAssistTargetData& OutData) const;
 
 	/**
 	 * ADS(정조준) 유효 상태.
@@ -211,11 +223,10 @@ private:
 	FLNPTargetQueryHandle AimQueryHandle;
 
 	/**
-	 * 근접 공격 보정의 자동 탐색 슬롯. 어빌리티 발동 순간에 결과를 읽으므로 상시 갱신해 둔다.
+	 * 근접 공격 보정의 자동 탐색 슬롯. 발동 순간 즉시 답이 있어야 하므로 상시 갱신해 둔다.
 	 *
-	 * ⚠️ 조준점 슬롯과 달리 **서버에서도 갱신한다** — 어빌리티가 서버·소유 클라이언트 양쪽에서
-	 * 자동 탐색으로 폴백하기 때문이다. 각자 고른 대상이 갈릴 수 있다는 점은 이 시스템 이전부터
-	 * 있던 성질이고, 여기서 바꾸지 않는다 (TechDesign_TargetQuery.md §8).
+	 * 조준점 슬롯과 같이 **소유 클라이언트에서만 갱신한다.** 서버는 탐색하지 않고 발동 RPC로 받은
+	 * 좌표를 쓴다 — 각자 탐색하면 머신마다 다른 시각의 적 위치를 읽어 보정 목적지가 갈린다.
 	 */
 	FLNPTargetQueryHandle MeleeAssistQueryHandle;
 
@@ -250,6 +261,10 @@ private:
 
 	/** SetMeleeAssistOrientation 참조. 월드 공간 단위 벡터, 영벡터면 비활성. */
 	FVector MeleeAssistOrientation = FVector::ZeroVector;
+
+	/** GetCrosshairAimPoint 참조. TickComponent가 갱신한다. */
+	FVector CachedCrosshairAimPoint = FVector::ZeroVector;
+	bool bHasCachedCrosshairAimPoint = false;
 
 	/** true면 Look을 제외한 모든 입력 콜백이 조기 반환한다 (SetGameplayInputBlocked). */
 	bool bGameplayInputBlocked = false;
