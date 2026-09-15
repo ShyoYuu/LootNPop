@@ -4,9 +4,9 @@
 #include "Character/LNPCharacterBase.h"
 #include "HitDetection/LNPSpreadPattern.h"
 
-TArray<FVector> ULNPAbility_RangedSpreadAttack::GetFireDirections(const FVector& SpawnPos) const
+TArray<FVector> ULNPAbility_RangedSpreadAttack::GetFireDirections(const FVector& SpawnPos, const FLNPFireAimTargetData* AimInput) const
 {
-	const TArray<FVector> Base = Super::GetFireDirections(SpawnPos);
+	const TArray<FVector> Base = Super::GetFireDirections(SpawnPos, AimInput);
 	const FVector BaseDir = Base.IsEmpty() ? FVector::ForwardVector : Base[0];
 
 	const ALNPCharacterBase* Character = GetOwningCharacter();

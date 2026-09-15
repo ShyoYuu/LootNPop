@@ -87,8 +87,8 @@ Pass 3에서 공격자 팀에 따라 분기하되, **Player 타겟에 대한 2�
 |:---|:---|:---|
 | `ULNPProjectileMovementProcessor` | PrePhysics | `PreviousPos` 갱신 → 위치 적분(중력 포함, §3.4), 수명 감산. **그것만 한다** (→ §6.4) |
 | `ULNPProjectileHitDetectionProcessor` | StartPhysics | 선분-캡슐 판정, 패링/가드/피격 분기, 지형 충돌·수명 만료 판정, 스플래시, GE 커맨드 |
-| `ULNPProjectileVisualizationProcessor` | StartPhysics (게임 스레드) | Niagara trail 할당/갱신, 큐잉된 임팩트 VFX flush |
-| `ULNPProjectileDestructionProcessor` | PostPhysics | `FLNPProjectileDeadTag` 엔티티 일괄 파괴 |
+| `ULNPProjectileVisualizationProcessor` | StartPhysics (게임 스레드) | Niagara trail 할당/갱신, 큐잉된 트레일 해제·임팩트 VFX flush |
+| `ULNPProjectileDestructionProcessor` | PostPhysics | `FLNPProjectileDeadTag` 엔티티의 트레일 해제 큐잉(**유일한 해제 소유자**, §6.5) + 일괄 파괴 |
 
 `CurrentPos`는 Fragment에 저장하지 않는다 — Entity Transform이 현재 위치를 담당하고, `PreviousPos → Transform` 이 곧 스윕 선분이다.
 
@@ -105,13 +105,15 @@ Player 판정 (2단계)
           → 가드(Dot >= GuardAngleCos): GuardBlockCommand / 아니면: ApplyDamageGECommand
 
 FinishHit (공통 후처리 람다):
-   트레일 해제 → GameplayCue.LNP.Projectile.Impact 실행
+   GameplayCue.LNP.Projectile.Impact 실행
    (Ghost 대조 토큰을 FLNPProjectileImpactContext로 전달) → DeadTag → 스플래시(ApplySplash)
    → bHit = true
 
 종말 판정 (어느 캡슐에도 안 닿았을 때 — IsTerminated, §6.4)
    수명 만료 || SurfaceCache 표면 안쪽 진입
-      → 트레일 해제 → 로컬 임팩트 VFX → DeadTag → 스플래시(제외 대상 없음)
+      → 로컬 임팩트 VFX → DeadTag → 스플래시(제외 대상 없음)
+
+트레일 해제는 판정이 하지 않는다 — DeadTag를 본 DestructionProcessor가 건다 (§6.5)
 ```
 
 **스플래시:** `ExplosionRadius > 0`이면 직격 대상을 제외한 반경 내 대상에 동일 GE + `SplashKnockbackStrength` 넉백.
@@ -119,9 +121,10 @@ FinishHit (공통 후처리 람다):
 ### 3.3 발사 (ULNPAbility_RangedAttack)
 
 - 스폰 위치: 무기 메시 `Muzzle` 소켓 (+ `MuzzleOffset`).
-- 발사 방향: **총구 → 조준점**으로 수렴시킨다. 조준점(`ALNPCharacterBase::GetAimTargetLocation`)은
-  소유 클라이언트가 만들어 Mover InputCmd에 실어 보낸 월드 좌표이고,
-  **서버·클라이언트가 모두 그 값 하나만 읽는다.** 조준점이 없는 사수(적 NPC)만 `GetBaseAimRotation()`으로 폴백한다.
+- 발사 방향: **총구 → 조준점**으로 수렴시킨다. 조준점과 시선 방향은 소유 클라이언트가 **발사 순간** 스냅샷해
+  발동 요청에 실어 보낸 값(`FLNPFireAimTargetData`)이고, **예측 클라이언트와 서버가 그 값 하나만 읽는다**
+  (InputCmd에서 읽지 않는 이유 → [TechDesign_Networking.md](TechDesign_Networking.md) §4.8).
+  스냅샷이 없는 사수(적 NPC)만 `GetBaseAimRotation()`으로 폴백한다.
   수렴 허용치는 각도가 아니라 시선 축에서의 **수직 이탈 거리**로 잰다 → §7.7.
   조준점 자체는 물리 트레이스와 **적 엔티티 광선 질의** 중 더 가까운 쪽에서 온다 → §7.8.
 - 산탄(`ULNPAbility_RangedSpreadAttack`): Cube 좌표계 육각 링 순회로 중앙 1 + 링 2 = **19발** 방사형 배치.
@@ -233,6 +236,11 @@ Deactivate는 **스폰만 멈추고 살아 있는 파티클은 수명이 다할 
 - **대상이 순수 엔티티(ISM) 적이면 `RTT/2`에 클라이언트 보간 지연을 더한다** — 그 값은 대상의 복제 LOD
   갱신 주기다. 대상별로 다르므로 캡슐 되감기 람다 안에서 더한다(`RewoundEnemyCenter`).
   플레이어 대상은 현행 `RTT/2`뿐 — 보간을 타지 않는다.
+  ⚠️ **원거리만 켜져 있고 근접은 꺼 두었다**(`bEnableMeleeInterpolationLag = false`). 원거리는 이동 표본 명중 +127%였지만
+  근접은 두 번 모두 순손실이었다(스윙×대상 RESCUED:LOST = 0:3, 1:7). 처음엔 "근접 보정 목적지가 서버·클라에서 갈려서"로
+  봤으나, 그걸 고친 뒤(Networking §4.8)에도 비율이 같았다. 남은 유력 가설은 **플레이어의 리드 조준** — 근접은 선딜 동안
+  적이 움직이므로 플레이어가 적의 진행 방향 앞을 겨누는데, 이는 보간 지연을 스스로 갚는 행위라 되감기를 더 얹으면
+  이중 보상이 된다(미검증). 판정 코드는 그대로라 상수 하나로 되살린다.
 - 히스토리 링버퍼는 합의 최댓값(0.5초)을 덮어야 한다 — `MaxSamples = 11`, static_assert로 고정.
 
 상세: → [TechDesign_Networking.md](TechDesign_Networking.md)
@@ -338,7 +346,8 @@ PrePhysics 끝에서 `FLNPProjectileDeadTag`가 flush되고, 판정 쿼리는 �
 `bHitSurface` 변수가 "하려다 만" 흔적으로 남아 있었다.
 
 **해결은 판정 소유권을 한 곳으로 모으는 것이었다.** 이동 프로세서는 전진과 수명 감산만 하고,
-표면 조회·파괴·임팩트 VFX·트레일 해제가 전부 판정 프로세서로 넘어갔다. 판정 프로세서는 캐릭터
+표면 조회·파괴·임팩트 VFX·트레일 해제가 전부 판정 프로세서로 넘어갔다(트레일 해제는 이후 다시
+파괴 프로세서로 옮겼다 — §6.5). 판정 프로세서는 캐릭터
 캡슐이 전부 빗나간 **뒤에** 공용 람다 `IsTerminated(Pos, LifetimeRemaining)`를 부르고, 서버 분기는
 거기서 `ApplySplash`를 제외 대상 없이(`nullptr, nullptr`) 호출한다.
 
@@ -362,6 +371,41 @@ PrePhysics 끝에서 `FLNPProjectileDeadTag`가 flush되고, 판정 쿼리는 �
 ⚠️ **패링 반사탄은 종말 판정을 그대로 통과해야 한다.** 반사는 `FinishHit`을 부르지 않으므로
 "직격 있었나" 플래그가 서지 않는다 — 이 플래그를 `FinishHit` 자신이 세우게 두면 자연히 성립한다.
 플래그를 호출부에서 따로 세우면 반사탄이 그 자리에서 사라진다.
+
+### 6.5 트레일 해제는 "죽인 쪽"이 아니라 "지우는 쪽"이 한다 (⭐ 2026-09-15)
+
+간헐적으로 발사체가 **제자리에 멈춘 채 남았다.** 피격 판정은 없었다 — 엔티티는 이미 파괴됐고
+트레일 Niagara 컴포넌트(`bAutoDestroy=false`)만 해제되지 못한 누수였다. 엔티티가 없으니 위치 갱신도 오지 않아 멈춰 보인다.
+
+해제는 사망을 **판정한 쪽**(판정 프로세서 3곳·Ghost 파괴)이 걸고 있었고, 조건은
+`FLNPProjectileVisualFragment::bInitialized`(= 이미 트레일이 붙었나)의 **그 순간 스냅샷**이었다.
+그런데 트레일은 판정 **뒤에** 붙는다:
+
+```
+StartPhysics  HitDetection    사망 판정. bInitialized == false → 해제 안 걸음. DeadTag는 Defer
+              Visualization   (같은 페이즈, 판정 뒤) 태그가 아직 없음 → 트레일 할당
+  ── 페이즈 끝: DeadTag flush
+PostPhysics   Destruction     엔티티 파괴 — 해제는 아무도 걸지 않았다 → 누수
+```
+
+**처리되는 첫 프레임에 죽는 탄**만 걸린다. 엔티티 생성도 페이즈 끝에 flush되므로 판정이
+시각화보다 먼저 새 탄을 볼 수 있다. 총구가 캡슐 안인 밀착 사격, 스폰 지점이 표면 아래,
+그리고 게스트에서 서버 착탄 큐가 트레일 할당 전에 도착한 Ghost가 여기에 해당한다. 창이 한 프레임뿐이라 재현 조건을 찾을 수 없었다.
+
+**해결은 해제를 `ULNPProjectileDestructionProcessor` 한 곳으로 모은 것이다.** Dead 엔티티 전부를
+조건 없이 해제 큐에 넣는다(할당된 적 없으면 `ReleaseTrails`가 no-op). 태그가 flush된 뒤에 돌고
+엔티티는 그 페이즈 끝에 사라지므로, **해제 뒤로 새 할당이 끼어들 틈이 구조적으로 없다.**
+원칙은 §6.4와 같은 방향이다 — 자원의 수명은 흩어진 판정 지점이 아니라 **수명이 끝나는 단 한 곳**이 닫는다.
+
+- 교환: 명중 탄의 트레일이 1프레임 늦게 사라진다(다음 프레임 시각화의 flush). 같은 지점에 착탄 VFX가 떠 체감되지 않는다.
+- ⚠️ **스냅샷 플래그로 "나중에 생길 자원"의 정리를 판단하지 말 것.** 판정 시점의 `false`는 "안 붙었다"가
+  아니라 "**아직** 안 붙었다"다.
+
+⚠️ **곁가지 — 예약만 된 엔티티는 `IsEntityActive`가 거짓이다.** Ghost 파괴가 `IsEntityActive`로
+조기 반환하고 있었는데, UE 5.8 엔티티 스토리지는 상태가 `Created`일 때만 참을 돌려준다. 스폰 방송과
+서버 착탄 큐가 같은 프레임에 오면 Ghost는 **맵에서는 빠지고 태그는 안 붙어** 캐릭터를 관통해 계속 날았다.
+`IsEntityValid`로 바꿨다 — 커맨드 버퍼는 `Create`(순서 0)를 `Add`(순서 2)보다 먼저 실행하므로
+(`MassCommandBuffer.cpp` `CommandTypeOrder`) 예약 상태에서 태그를 걸어도 생성 뒤에 적용된다.
 
 ---
 
@@ -425,27 +469,29 @@ LNPHitDetection::ResolveEnemyCapsuleCenter(EntityLocation, UpDir, HalfH, EnemyAc
 카메라의 간격만큼 거리와 무관하게 일정하게 빗나간다.** 총구 소켓이 오른손에 있어 오차는 가로
 방향이었고, 로컬 제어인 리슨 호스트는 해당이 없어 **게스트에서만** 나타났다.
 
-해결은 계산을 잘하는 것이 아니라 **원본을 하나로 만드는 것**이다. 소유 클라이언트가
-`FLNPModifierInputs::AimTargetLocation`에 크로스헤어 지점을 실어 보내고, 모든 머신이 그 값을 읽는다.
-**로컬 클라이언트도 자기 카메라를 다시 트레이스하지 않는다** — 각자 최선을 계산하는 순간
-서버 판정과 클라 예측이 그 시차만큼 갈라지기 때문이다.
+해결은 계산을 잘하는 것이 아니라 **원본을 하나로 만드는 것**이다. 소유 클라이언트가 크로스헤어 지점을
+발사 순간 발동 요청(`FLNPFireAimTargetData`)에 실어 보내고, 예측 클라이언트와 서버가 그 값을 읽는다.
+**각자 최선을 계산하는 순간 서버 판정과 클라 예측이 그 시차만큼 갈라진다.**
 
 | 판단 | 근거 |
 |:---|:---|
-| 방향이 아니라 **점**을 보낸다 | 총구 소켓 위치는 애니메이션 포즈에 따라 서버·클라가 다르다. 방향을 보내면 서버가 *자기* 총구에서 그 방향으로 쏴 평행 오차가 되살아난다. 점이면 서버가 자기 총구에서 같은 점으로 수렴한다 |
-| 전송은 **Mover InputCmd** | 새 RPC 없음, 채널 간 순서 문제 없음. 이미 조준의 원본인 `ControlRotation` 바로 옆이며 `LockOnTarget`과 같은 선례 |
+| 방향이 아니라 **점**을 보낸다 | 총구 소켓 위치는 애니메이션 포즈에 따라 서버·클라가 다르다. 방향을 보내면 서버가 *자기* 총구에서 그 방향으로 쏴 평행 오차가 되살아난다. 점이면 서버가 자기 총구에서 같은 점으로 수렴한다 (2026-09-15 실측: 근거리에서 서버·게스트 발사 방향이 수 ° 달라도 "서버 총구 → 게스트 조준점"과의 각차는 ≤0.5° — 착탄점이 같다) |
+| 전송은 **발동 요청** (처음엔 Mover InputCmd) | InputCmd로 보내면 서버의 `GetLastInputCmd()`가 입력 버퍼만큼 과거라 조준을 옮기는 순간 발사 방향이 갈리고, 총을 든 동안 60Hz × 6중복으로 상시 나간다 → [TechDesign_Networking.md](TechDesign_Networking.md) §4.8 |
+| **시선 방향도 함께** 보낸다 | 시선은 폴백이자 아래 검증의 **기준 축**이다. 조준점만 발사 순간 값이고 축을 서버의 과거 커맨드(`GetBaseAimRotation`)에서 가져오면 빠르게 조준을 옮기는 순간 둘이 어긋나 검증에 걸린다 |
 | 검증은 각도가 아니라 **수직 이탈 거리** | 조준 회전 자체가 이미 클라이언트 권위라 새로 생기는 권위는 없고, 메우는 것은 총구-카메라 시차뿐이다. 그 시차는 **거리에 무관한 상수**(실측 75cm)이므로 각도로 재면 근거리에서 발산해 **게이트가 자기가 통과시키려던 보정을 막는다.** 시선 축에서의 수직 이탈이 그 상수 자체라 임계값이 안정적이고, 방어 의미도 곧다 — 조준점을 조작해도 탄착점을 그 거리 이상 옆으로 끌 수 없다 |
 
-⚠️ `ShouldReconcile`에는 넣지 않는다 — Mover 시뮬레이션이 읽지 않는 전달용 필드라,
-넣으면 조준을 움직일 때마다 이동 리시뮬레이션이 돈다 (`LockOnTarget`과 동일).
+`LNPFireGeometry::ResolveAimDirection`은 캐릭터에서 값을 꺼내지 않고 `(총구, 시선, 조준점*)`을 인자로 받는 순수 함수다 —
+서버는 스냅샷을, ADS 궤도 가이드는 로컬 캐시를 넘긴다.
 
 **조준점 트레이스는 이 프로젝트의 유일한 동기 물리 쿼리다** (§7.1의 "물리 엔진 없는 판정"에 대한
-의도적 예외). 발사 프레임에만 채우지 않는 이유는, 서버가 발사 RPC를 처리하는 시점의
-`GetLastInputCmd()`가 **발사한 그 프레임의 cmd라는 보장이 없기** 때문이다 — 이웃 틱을 읽으면
-조준점이 비어 폴백으로 떨어지고 위 결함이 간헐적으로 되살아난다. 대신 **발사체 무기를 들었을
-때만**(`ULNPWeaponData::ProjectileDamageEffect` 유무) 돌게 게이팅해 근접 플레이 중에는 0회다.
-조준 모드 태그가 아니라 무기 데이터로 판정하는 이유는, 원거리인데 FreeAim이 아닌 무기가 생기면
-그 무기에서만 조용히 결함이 되살아나기 때문이다.
+의도적 예외). 발사 프레임에만 트레이스하지 않고 `ULNPInputHandlerComponent`가 **매 틱 캐시**하는 이유는,
+실탄(발사 순간 스냅샷)과 ADS 궤도 가이드가 **같은 캐시**를 읽어야 "가이드가 가리키는 곳"과 "실제 착탄"이 갈리지 않기 때문이다.
+대신 **원거리 무기를 들었을 때만**(`IsFreeAimMode()`) 돌게 게이팅해 근접 플레이 중에는 0회다.
+원거리/근거리 구분은 **조준 모드 태그 하나로 일원화**한다 — 가드·ADS·근접 보정 대상 전송이 같은 기준을 쓰므로,
+기준을 바꿀 일이 생기면 `IsFreeAimMode`의 소비처만 조사하면 된다.
+⚠️ `ULNPWeaponData::ProjectileDamageEffect` 유무로 가르던 시절이 있었으나 틀렸다 — 근접 판정도 이 필드를
+데미지 GE로 쓰므로 롱소드를 든 동안에도 트레이스가 돌았다.
+원거리인데 FreeAim이 아닌 무기는 예정에 없으며, 생기면 그때 이 기준을 재검토한다.
 
 트레이스 없이 고정 거리(예: 500m) 지점을 조준점으로 쓰는 방법은 **성립하지 않는다** —
 수렴 거리가 실제 표적 거리 근처여야 하므로, 30m 표적에서는 원래 오차의 약 94%가 그대로 남는다.

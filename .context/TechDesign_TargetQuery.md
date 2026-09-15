@@ -286,7 +286,7 @@
 | 대상 식별 | `TWeakObjectPtr<ALNPEnemyCharacter>` → **`FMassEntityHandle`**. 승격 Actor도 엔티티를 가지므로 한 경로로 덮인다 |
 | 매 프레임 추적 | **`Track` 질의**. 사망·소멸·거리 이탈이 모두 "결과 없음"으로 나와 세 가지를 따로 볼 필요가 없다 |
 | 대상의 Up | Actor의 `GetActorUpVector()` → **위치에서 파생**(`(-Loc).GetSafeNormal()`). 구 내벽이라 성립한다 |
-| InputCmd | `TObjectPtr<AActor>`(NetGUID) → **양자화 좌표**. `AimTargetLocation`과 같은 규약 |
+| InputCmd | `TObjectPtr<AActor>`(NetGUID) → **양자화 좌표**. `AimTargetLocation`과 같은 규약 (2026-09-15 두 필드 모두 InputCmd에서 발동 요청으로 이관 — §8) |
 | 후보 탐색 | `SphereOverlapActors` + 화면 투영 → **원뿔 질의**. 뷰포트 투영은 워커에서 못 쓰므로 시야 반각으로 대신한다 |
 
 ⚠️ **슬롯 하나를 상태에 따라 바꿔 쓴다** — 락온 전에는 Cone(후보 탐색), 락온 중에는 Track(추적).
@@ -304,12 +304,12 @@ Actor를 조회했다. 가드 대신 삭제를 택했다 (→ [TechDesign_HUD.md
 
 ## 8. 넷 모드 — 어느 머신에서 도는가
 
-- 조준점·락온 질의: **소유 클라이언트에서만** 등록한다. 결과는 InputCmd로 서버에 간다
-  (조준점은 `AimTargetLocation`이 이미 그 경로다).
-- 근접 보정: 어빌리티가 **서버와 소유 클라이언트 양쪽에서** 자동 탐색으로 폴백하므로, 양쪽에서
-  각자 질의가 돌면 서로 다른 대상을 고를 수 있다. ⚠️ 이 발산은 **이 설계 이전부터 있던 것**이고
-  질의 시스템이 만들어내는 문제가 아니다. 옮기는 김에 조준점처럼 InputCmd로 올려 원본을
-  하나로 만들 것인지는 별도 판단이 필요하다.
+- 조준점·락온·근접 보정 질의: **전부 소유 클라이언트에서만** 돈다. 결과는 공격을 누른 순간 발동 요청에 실려
+  서버로 간다(`FLNPFireAimTargetData`·`FLNPMeleeAssistTargetData`). 서버는 원격 폰에 대해 질의하지 않는다.
+- ⚠️ 근접 보정 질의는 한때 **서버에서도** 돌았다(어빌리티가 양쪽에서 자동 탐색으로 폴백). 서버는 권위 현재 위치,
+  게스트는 보간된 과거 위치를 읽어 **보정 목적지가 갈렸다.** 이어서 결과를 InputCmd로 올렸더니 서버의
+  `GetLastInputCmd()`가 입력 버퍼만큼 과거라 또 갈렸고, 발동 요청으로 옮겨 해소했다
+  → [TechDesign_Networking.md](TechDesign_Networking.md) §4.8.
 
 ## 9. 도입 단계
 

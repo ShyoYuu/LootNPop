@@ -149,7 +149,6 @@ void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMas
 {
 	ProjectileQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	ProjectileQuery.AddRequirement<FLNPProjectileFragment>(EMassFragmentAccess::ReadWrite);
-	ProjectileQuery.AddRequirement<FLNPProjectileVisualFragment>(EMassFragmentAccess::ReadOnly);
 	ProjectileQuery.AddConstSharedRequirement<FLNPProjectileSharedFragment>(EMassFragmentPresence::All);
 	ProjectileQuery.AddTagRequirement<FLNPProjectileDeadTag>(EMassFragmentPresence::None);
 	ProjectileQuery.RegisterWithProcessor(*this);
@@ -277,7 +276,6 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			const FLNPProjectileSharedFragment&                 Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
 			const TConstArrayView<FTransformFragment>           Transforms  = Ctx.GetFragmentView<FTransformFragment>();
 			TArrayView<FLNPProjectileFragment>                  Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
-			const TConstArrayView<FLNPProjectileVisualFragment> Visuals     = Ctx.GetFragmentView<FLNPProjectileVisualFragment>();
 
 			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
@@ -322,11 +320,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (bHit || !IsTerminated(CurrentPos, Proj.LifetimeRemaining))
 					continue;
 
-				const FMassEntityHandle ProjEnt = Ctx.GetEntity(i);
-				if (Visuals[i].bInitialized)
-					VisualSub.EnqueueTrailRelease(ProjEnt);
 				VisualSub.EnqueueImpact(Shared.VFXData, CurrentPos, -CurrentPos.GetSafeNormal());
-				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
+				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(Ctx.GetEntity(i));
 			}
 		});
 		return;
@@ -553,7 +548,6 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		const FLNPProjectileSharedFragment&                 Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
 		const TConstArrayView<FTransformFragment>           Transforms  = Ctx.GetFragmentView<FTransformFragment>();
 		TArrayView<FLNPProjectileFragment>                  Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
-		const TConstArrayView<FLNPProjectileVisualFragment> Visuals     = Ctx.GetFragmentView<FLNPProjectileVisualFragment>();
 
 		const float HitRadius   = Shared.HitRadius;
 		const float ParryRadius = Shared.ParryRadius;
@@ -607,14 +601,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				return RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, TotalRewind);
 			};
 
-			// 피격 시 공통 후처리: 트레일 해제 · 임팩트 VFX(GameplayCue) · Dead 태그 · 스플래시
+			// 피격 시 공통 후처리: 임팩트 VFX(GameplayCue) · Dead 태그 · 스플래시 (트레일 해제는 DestructionProcessor 몫)
 			bool bHit = false;
 			auto FinishHit = [&](FVector HitPoint, FVector ImpactNormal,
 				const FCollectedEnemy* ExclEnemy, const FCollectedPlayer* ExclPlayer)
 			{
-				if (Visuals[i].bInitialized)
-					VisualSub.EnqueueTrailRelease(ProjEnt);
-
 				// 캐릭터 피격 임팩트 VFX는 GameplayCue.LNP.Projectile.Impact로 일원화한다 (섹션 5.2).
 				// Ghost 재조정에 필요한 토큰(PredictionKeyID/SpawnIndex)과 InstigatorPlayerID를 커스텀 컨텍스트로 전달.
 				// 이 Processor는 워커 Thread에서 실행되므로 ASC를 직접 건드리지 않고 BatchedCommand로 위탁한다.
@@ -824,8 +815,6 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 			// 지면 폭발의 임팩트는 로컬 VFX로 남긴다 — 캐릭터 피격과 달리 Ghost 대조 토큰이 필요 없고,
 			// GameplayCue로 올리면 게스트가 자기 Ghost의 착탄 VFX와 겹쳐 두 번 보게 된다.
-			if (Visuals[i].bInitialized)
-				VisualSub.EnqueueTrailRelease(ProjEnt);
 			VisualSub.EnqueueImpact(Shared.VFXData, CurrentPos, -CurrentPos.GetSafeNormal());
 			Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 
@@ -923,15 +912,34 @@ void ULNPProjectileDestructionProcessor::ConfigureQueries(const TSharedRef<FMass
 	DeadProjectileQuery.AddRequirement<FLNPProjectileFragment>(EMassFragmentAccess::ReadOnly);
 	DeadProjectileQuery.AddTagRequirement<FLNPProjectileDeadTag>(EMassFragmentPresence::All);
 	DeadProjectileQuery.RegisterWithProcessor(*this);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPProjectileVisualSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
 void ULNPProjectileDestructionProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
+
+	/**
+	 * 트레일 해제는 **파괴하는 이곳 한 곳**이 소유한다 — 할당 여부를 묻지 않고 전부 큐에 넣는다
+	 * (할당된 적 없는 엔티티는 ReleaseTrails가 no-op).
+	 *
+	 * ⚠️ 예전에는 사망을 판정한 쪽(판정 Processor 3곳·Ghost 파괴)이 `bInitialized`를 보고 해제를 걸었다.
+	 *    그런데 트레일 할당은 같은 StartPhysics 페이즈에서 판정 **뒤에** 도는 VisualizationProcessor가 하고,
+	 *    Dead 태그는 페이즈 끝에야 flush된다. 그래서 **아직 트레일이 없던 첫 프레임에 사망한 탄**
+	 *    (총구가 캡슐 안인 근접 사격, 스폰 지점이 지면 아래, 스폰과 서버 착탄 큐가 같은 프레임에 도착한 Ghost)은
+	 *    해제 없이 트레일만 할당된 채 엔티티가 사라져, 제자리에 멈춘 이펙트가 영구히 남았다.
+	 *    이 Processor는 태그가 flush된 뒤(PostPhysics)에 돌고 엔티티는 이 페이즈 끝에 사라지므로,
+	 *    여기서 건 해제 뒤로는 새 할당이 끼어들 수 없다.
+	 */
 	TArray<FMassEntityHandle> ToDestroy;
 	DeadProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
-			ToDestroy.Add(Ctx.GetEntity(i));
+		{
+			const FMassEntityHandle Entity = Ctx.GetEntity(i);
+			VisualSub.EnqueueTrailRelease(Entity);
+			ToDestroy.Add(Entity);
+		}
 	});
 	if (ToDestroy.Num() > 0)
 		Context.Defer().DestroyEntities(MoveTemp(ToDestroy));

@@ -76,8 +76,10 @@ private:
 	/**
 	 * 근접 공격 타겟 보정을 건다 — 위치는 Motion Warping, 회전은 OrientationIntent가 담당한다.
 	 * 보정할 타겟이 없거나 강도가 0이면 아무것도 하지 않는다.
+	 * 입력은 발동 이벤트에 실린 FLNPMeleeAssistTargetData에서 읽는다 — 없으면(다른 경로로 발동) 보정하지 않는다.
 	 */
-	void ApplyMeleeAssist(ALNPCharacterBase* Character, UAnimMontage* Montage, FName SectionName);
+	void ApplyMeleeAssist(ALNPCharacterBase* Character, UAnimMontage* Montage, FName SectionName,
+		const FGameplayEventData* TriggerEventData);
 
 	/** 워프 타겟과 회전 보정을 되돌린다. 어빌리티 종료 경로 전부에서 불린다. */
 	void ClearMeleeAssist();

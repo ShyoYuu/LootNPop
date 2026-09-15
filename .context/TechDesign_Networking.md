@@ -251,8 +251,9 @@ A/B용 CVar은 `LNP.HitDetection.CompensateInterpolationLag`.
 - **이동:** Mover 2.0(Network Prediction 백엔드)이 클라이언트 예측·서버 검증·시뮬레이티드 프록시 재현을 내장한다. `SprintModifier`·`GuardModifier`, 대시 쿨다운(`FLNPDashCooldownModifier`), 그리고 구형 중력의 곡률 보정 누산값(`CurvatureDelta`)까지 SyncState에 포함해 롤백 시 자동 복구된다 — 적도 부근 구면 이동에서도 원격 캐릭터의 Up 벡터가 항상 구 중심을 향함을 검증.
 - **시뮬레이티드 프록시 = ForwardPredict** (`Config/DefaultNetworkPrediction.ini`, 2026-08-19 전환). 원격 캐릭터도 로컬 캐릭터와 동일하게 풀 시뮬레이션 후 롤백 보정한다. 기본값이던 `Interpolated`는 수신 프레임 사이를 보간해 재생하므로 구조적으로 항상 과거를 보여준다 — 전환 경위와 근거는 §4.4.
 - **입력 의도 전달:** 질주·가드·대시는 전부 `FLNPModifierInputs`(InputCmd)를 탄다. 예측 파이프라인 바깥에서 상태를 바꾸면 권위가 재현하지 못해 로컬에서만 튀었다가 롤백된다 — 이동 문서 §7.1·§7.6.
+- **공격 입력은 InputCmd가 아니라 발동 요청에 싣는다:** 조준점·시선(원거리), 락온·자동 탐색 대상·이동 입력 여부(근접 보정)는 소유 클라이언트가 **공격을 누른 순간** 스냅샷해 `TriggerAbilityFromGameplayEvent`로 발동 RPC에 동봉한다(`LNPAttackInputTargetData.h`). **InputCmd = 이동 시뮬레이션이 읽는 값, 발동 요청 = 어빌리티가 발동 순간 읽는 값**으로 경계를 긋는다 — 서버의 `GetLastInputCmd()`는 입력 버퍼만큼 과거이기 때문이다 (§4.8).
 - **시선(발사 피치·Aim Offset):** 신규 RPC·복제 프로퍼티 **0개**로 구현 — 이미 서버에 도착하고 있던 Mover InputCmd의 `ControlRotation`을 소비부만 연결했다 (§4.3). `GetBaseAimRotation()` 오버라이드 단일 진입점으로 서버 발사 방향과 관전자 화면 상체 자세(Aim Offset)가 함께 동기화된다.
-- **조준점(원거리 발사 방향):** 시선 *회전*만으로는 부족하다 — 총구에서 그 방향으로 쏜 광선은 카메라 광선과 **평행**할 뿐 크로스헤어로 수렴하지 않아, 총구-카메라 간격만큼 **거리와 무관하게 일정하게** 빗나간다(게스트 전용 증상이었다: 로컬 제어인 호스트는 수렴 경로를 탔다). 그래서 소유 클라이언트가 크로스헤어 트레이스 지점을 `FLNPModifierInputs::AimTargetLocation`(월드 좌표)에 실어 보내고 **모든 머신이 그 값 하나만 읽는다** — 로컬 클라이언트도 자기 카메라를 다시 트레이스하지 않는다(각자 계산하면 서버 판정과 클라 예측이 그 시차만큼 갈라진다). 방향이 아니라 점을 보내는 이유·15° 클램프 근거는 → [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.7.
+- **조준점(원거리 발사 방향):** 시선 *회전*만으로는 부족하다 — 총구에서 그 방향으로 쏜 광선은 카메라 광선과 **평행**할 뿐 크로스헤어로 수렴하지 않아, 총구-카메라 간격만큼 **거리와 무관하게 일정하게** 빗나간다(게스트 전용 증상이었다: 로컬 제어인 호스트는 수렴 경로를 탔다). 그래서 소유 클라이언트가 크로스헤어 트레이스 지점을 발사 순간 발동 요청(`FLNPFireAimTargetData::AimTargetLocation`, 같은 순간의 시선 방향과 함께)에 실어 보내고 **예측 클라이언트와 서버가 그 값 하나만 읽는다** — 각자 계산하면 서버 판정과 클라 예측이 그 시차만큼 갈라진다. (처음엔 `FLNPModifierInputs::AimTargetLocation`으로 InputCmd에 실었으나 §4.8의 이유로 옮겼다.) 방향이 아니라 점을 보내는 이유·15° 클램프 근거는 → [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.7.
   - `UMoverComponent::bSyncInputsForSimProxy`는 **제거했다**(2026-08-19). 보간 프록시가 InputCmd를 못 받는 것을 우회하려고 SyncState에 InputContainer를 동봉하던 옵션인데(엔진 주석에도 "intended to be temporary"로 명시), ForwardPredict에서는 프록시가 실제로 시뮬레이션되어 `CachedLastUsedInputCmd`가 일반 경로에서 채워진다. 매 프레임 실리던 InputContainer 페이로드가 함께 사라졌다.
 - **무기 장착:** 서버 권위 전용. 클라이언트는 `Server_Equip*()` RPC만 보내고 로컬 선반영을 하지 않는다.
   복제되는 단일 원본은 `ULNPEquipmentComponent::WeaponSlot`이며, 비주얼은 거기서 파생된다 — §3.9.
@@ -632,6 +633,54 @@ Dirty로 표시된 오브젝트는 폴 주기를 건너뛴다.
 
 **교훈.** 증상이 "느리다 / 드물다 / 가끔 빠진다"일 때는 채널·빈도·이벤트 경로보다
 **예산을 먼저 재라.** 계측 대상을 한 층 넓혔을 때(도착 프레임 → 거리 → 대역폭) 비로소 원인이 드러났다.
+
+### 4.8 서버의 `GetLastInputCmd()`는 "지금"이 아니다 — 공격 입력을 발동 요청으로 (2026-09-15)
+
+**증상.** 게스트가 락온 없이 근접 공격하면 서버와 게스트가 **서로 다른 지점으로** 보정을 걸었다.
+보정이 걸린 스윙일수록 오히려 빗나갔다. 원거리도 1~5m 근거리 사격에서 발사 방향이 수 °~수십 ° 갈렸다.
+
+**원인은 두 겹이었다.**
+
+1. **원본이 둘** — 근접 보정 대상을 서버가 원격 폰에 대해 **스스로 탐색**했다. 게스트는 보간된(과거) 적 위치를,
+   서버는 권위 현재 위치를 읽는다. → 탐색 결과를 클라이언트가 보내게 했다.
+2. **보내도 시점이 다름** — InputCmd에 실어 보냈더니 목적지 차이가 오히려 커졌다(적이 움직일 때 ≤1cm 일치 1/33, 최대 341cm).
+   서버의 `GetLastInputCmd()`는 NetworkPrediction이 고정 틱에서 **마지막으로 소비한** 커맨드다. 받은 입력은 버퍼에
+   쌓였다가 서버 틱마다 하나씩 소비되는데, 어빌리티 발동 RPC는 **도착 즉시** 처리된다. 그래서 발동 순간 서버가 읽는 커맨드는
+   누른 프레임보다 입력 버퍼 깊이만큼 과거다. 방향이 로그에 그대로 찍혔다 — "이동 입력 중"으로 판단한 스윙이
+   **서버 13 / 게스트 1**(멈춘 뒤 휘두르는 순간 서버는 아직 멈추기 전 커맨드를 본다).
+   ⚠️ 적이 서 있으면 과거 커맨드든 현재 커맨드든 값이 같아 **74% 일치로 보인다** — 이동 표본 없이 판정하지 말 것.
+
+**해결 — 발동 순간 입력은 발동 요청에 싣는다.** 소유 클라이언트가 공격 직전에 `FGameplayAbilityTargetData` 파생 스냅샷을
+만들어 `TriggerAbilityFromGameplayEvent`로 발동한다(어빌리티에 트리거 설정은 필요 없다 — 핸들을 직접 지정).
+엔진이 `ServerTryActivateAbilityWithEventData` 한 번에 담아 보내므로 **발동과 데이터가 원자적**이고, 서버 `ActivateAbility`의
+`TriggerEventData`로 즉시 도착한다.
+
+| 기각한 대안 | 사유 |
+|:---|:---|
+| 발동 직전 별도 Server RPC (`Server_SetComboIndex` 방식) | 폰과 PlayerState(ASC) — **서로 다른 오브젝트 사이의 RPC 순서**에 기댄다. 발동이 실패해도 RPC는 이미 나간다 |
+| 발동 후 `ServerSetReplicatedTargetData` | 서버가 데이터를 **기다려야** 한다 — 근접 보정의 "워프·몽타주를 같은 프레임에 시작" 제약이 깨진다 |
+
+**대역폭.** InputCmd 필드는 `FixedTickInputSendCount=6`이라 60Hz × 전송당 6개 중복으로 **조건이 맞는 동안 상시** 나간다
+(양자화 좌표 하나 ≈ 7B × 360 ≈ 2.5KB/s — 총을 든 동안 내내). 발동 요청은 공격 1회에 한 번이다.
+결과적으로 `FLNPModifierInputs`에서 공격 입력 필드 3개(`AimTargetLocation`·`LockOnTargetLocation`·`MeleeAssistTargetLocation`)가 전부 빠졌다.
+
+**결과 (2P `-game`, 게스트).**
+
+| 지표 | InputCmd | 발동 요청 |
+|:---|:---|:---|
+| 근접 보정 목적지 차이 | ≤1cm 1/33 · 최대 341cm | **≤1cm 76/76 · 최대 0.81cm**(양자화) |
+| 근접 보정 경로 불일치 | 15/45 | 3/58 · 1/22 |
+| 원거리 조준점 / 시선 차이 | 중앙값 8cm · p90 135cm / p90 0.79° | **최대 0.69cm / 0.00°** |
+
+남은 근접 경로 불일치는 대상이 아니라 **공격자 자신의 위치** 차이다(서버의 원격 폰은 입력 버퍼만큼 뒤, 게스트는 예측으로 앞 —
+공격자↔대상 거리가 서버에서 5~25cm 크다). 원거리 근거리 사격의 발사 방향 차이도 같은 원인인데, 양쪽이 **같은 조준점으로 수렴**하므로
+착탄점은 같다(서버 방향 vs "서버 총구 → 게스트 조준점" 각차 ≤0.5°). 둘 다 서버 권위 + 클라 예측 구조의 정상 시차다.
+
+⚠️ **Iris는 `FGameplayAbilityTargetData` 파생 타입을 UPROPERTY 리플렉션으로 직렬화한다 — 커스텀 `NetSerialize`는 무시된다.**
+UPROPERTY 없는 필드 + NetSerialize로 만들었더니 **타입만 도착하고 내용은 기본값**이라 서버가 82스윙 전부 "대상 없음"으로 판단했다.
+신호는 `LogIris: Warning: Generating descriptor for struct <이름> that has custom serialization.` 한 줄뿐이다.
+필드는 전부 UPROPERTY로 두고 양자화는 타입(`FVector_NetQuantize`, `FVector_NetQuantizeNormal`)으로 표현한다.
+(GE 컨텍스트 파생 `FLNPProjectileImpactContext`는 전용 직렬화기를 타서 NetSerialize가 동작한다 — 선례로 삼으면 속는다.)
 
 ---
 

@@ -12,13 +12,14 @@
 #include "Item/LNPInventoryItemInstance.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "GAS/Abilities/LNPAbility_Reload.h"
+#include "GAS/Abilities/LNPAttackInputTargetData.h"
+#include "LNPGameplayTags.h"
 #include "Interaction/LNPInteractionComponent.h"
 #include "Camera/LNPLockOnComponent.h"
 #include "HitDetection/LNPTrajectoryGuideComponent.h"
 #include "Camera/LNPControlRotationComponent.h"
 #include "Character/LNPInputHandlerComponent.h"
 #include "Movement/LNPCharacterMoverComponent.h"
-#include "Movement/LNPModifierInputs.h"
 #include "GameMode/LNPGameMode.h"
 #include "Player/LNPPlayerController.h"
 #include "Config/LNPSettings.h"
@@ -582,19 +583,6 @@ FRotator ALNPPlayerCharacter::GetBaseAimRotation() const
 	return Super::GetBaseAimRotation();
 }
 
-bool ALNPPlayerCharacter::GetAimTargetLocation(FVector& OutAimTarget) const
-{
-	if (MoverComponent == nullptr)
-		return false;
-
-	const FLNPModifierInputs* Inputs = MoverComponent->GetLastInputCmd().InputCollection.FindDataByType<FLNPModifierInputs>();
-	if (Inputs == nullptr || Inputs->AimTargetLocation.IsZero())
-		return false;
-
-	OutAimTarget = Inputs->AimTargetLocation;
-	return true;
-}
-
 // WeaponSlot이 복제되므로 시뮬레이티드 프록시를 포함한 모든 머신에서 이 값이 정확하다.
 // (역할별 분기가 필요했던 시절은 WeaponSlot이 복제되지 않던 때의 이야기다.)
 const ULNPWeaponData* ALNPPlayerCharacter::GetActiveWeaponDef() const
@@ -641,17 +629,45 @@ bool ALNPPlayerCharacter::TryActivateAttack_Impl()
 		return false;
 	}
 
-	// 서버/리슨서버: 핸들 직접 사용
+	FGameplayAbilitySpecHandle AbilityHandle;
 	if (WeaponSlot.GrantedAbilities.IsValidIndex(0))
-		return ASC->TryActivateAbility(WeaponSlot.GrantedAbilities[0]);
+	{
+		// 서버/리슨서버: 핸들 직접 사용
+		AbilityHandle = WeaponSlot.GrantedAbilities[0];
+	}
+	else
+	{
+		// 클라이언트: Mixed 모드 복제 스펙을 클래스로 탐색
+		const ULNPItemDefinitionBase* Def = Cast<ULNPItemDefinitionBase>(WeaponSlot.Definition.Get());
+		if (Def && Def->AbilitiesToGrant.IsValidIndex(0))
+			if (const FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromClass(Def->AbilitiesToGrant[0]))
+				AbilityHandle = Spec->Handle;
+	}
+	if (!AbilityHandle.IsValid())
+		return false;
 
-	// 클라이언트: Mixed 모드 복제 스펙을 클래스로 탐색
-	const ULNPItemDefinitionBase* Def = Cast<ULNPItemDefinitionBase>(WeaponSlot.Definition.Get());
-	if (Def && Def->AbilitiesToGrant.IsValidIndex(0))
-		if (UClass* AbilityClass = Def->AbilitiesToGrant[0])
-			return ASC->TryActivateAbilityByClass(AbilityClass);
+	if (!InputHandlerComponent)
+		return ASC->TryActivateAbility(AbilityHandle);
 
-	return false;
+	// 발동 순간의 입력(원거리: 조준점·시선 / 근거리: 보정 대상·이동 입력)을 **누른 그 순간** 스냅샷해 발동 RPC에 동봉한다 —
+	// 서버가 InputCmd에서 읽으면 입력 버퍼 깊이만큼 과거 값을 본다 (LNPAttackInputTargetData.h 주석 참조).
+	// 이벤트 데이터가 있으면 엔진이 ServerTryActivateAbilityWithEventData 한 번으로 보내고,
+	// 서버 ActivateAbility의 TriggerEventData로 그대로 도착한다. 어빌리티에 트리거 설정은 필요 없다.
+	FGameplayEventData Payload;
+	if (InputHandlerComponent->IsFreeAimMode())
+	{
+		FLNPFireAimTargetData* AimData = new FLNPFireAimTargetData();
+		InputHandlerComponent->CaptureFireAimInput(*AimData);
+		Payload.TargetData.Add(AimData);      // 핸들이 소유권을 가져간다
+	}
+	else
+	{
+		FLNPMeleeAssistTargetData* AssistData = new FLNPMeleeAssistTargetData();
+		InputHandlerComponent->CaptureMeleeAssistInput(*AssistData);
+		Payload.TargetData.Add(AssistData);   // 핸들이 소유권을 가져간다
+	}
+	return ASC->TriggerAbilityFromGameplayEvent(AbilityHandle, ASC->AbilityActorInfo.Get(),
+		TAG_GameplayEvent_Attack_Activate, &Payload, *ASC);
 }
 
 bool ALNPPlayerCharacter::TryReload()

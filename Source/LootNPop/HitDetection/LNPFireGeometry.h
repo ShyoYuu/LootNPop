@@ -20,6 +20,11 @@ namespace LNPFireGeometry
 	/** 무기 메시의 Muzzle 소켓 + WeaponDef->MuzzleOffset. 소켓이 없으면 ActorLocation 폴백. */
 	FVector ResolveMuzzleLocation(const ALNPCharacterBase& Character, const ULNPWeaponData& WeaponDef);
 
-	/** 총구에서 조준점으로 수렴시킨 발사 방향. 조준점이 없거나 검증에 걸리면 조준선 폴백. */
-	FVector ResolveAimDirection(const ALNPCharacterBase& Character, const FVector& SpawnPos);
+	/**
+	 * 총구에서 조준점으로 수렴시킨 발사 방향. 조준점이 없거나(nullptr) 검증에 걸리면 시선 방향 폴백.
+	 *
+	 * 입력을 캐릭터에서 꺼내지 않고 인자로 받는다 — 서버는 발동 RPC에 실려 온 **발사 순간의** 조준점·시선을,
+	 * 로컬(가이드)은 방금 계산한 값을 넘긴다. 캐릭터에서 읽으면 서버는 과거 InputCmd를 보게 된다.
+	 */
+	FVector ResolveAimDirection(const FVector& SpawnPos, const FVector& ViewDirection, const FVector* AimTarget);
 }

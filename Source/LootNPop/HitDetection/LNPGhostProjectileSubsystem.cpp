@@ -3,7 +3,6 @@
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPProjectileMotion.h"
-#include "HitDetection/LNPProjectileVisualSubsystem.h"
 #include "MassEntitySubsystem.h"
 #include "MassEntityManager.h"
 #include "MassCommandBuffer.h"
@@ -40,18 +39,14 @@ void ULNPGhostProjectileSubsystem::DestroyEntity(FMassEntityHandle Entity)
 		return;
 
 	FMassEntityManager& EntityManager = MassSubsystem->GetMutableEntityManager();
-	if (!EntityManager.IsEntityActive(Entity))
-		return;
 
-	// 트레일 Niagara Component는 EnqueueTrailRelease로 명시적으로 해제해야 한다 (자동 정리 없음, LNPProjectileVisualSubsystem 참조).
-	if (const FLNPProjectileVisualFragment* Visual = EntityManager.GetFragmentDataPtr<FLNPProjectileVisualFragment>(Entity))
-	{
-		if (Visual->bInitialized)
-		{
-			if (ULNPProjectileVisualSubsystem* VisualSub = World->GetSubsystem<ULNPProjectileVisualSubsystem>())
-				VisualSub->EnqueueTrailRelease(Entity);
-		}
-	}
+	// IsEntityActive가 아니라 IsEntityValid다 — 스폰 방송과 서버 착탄 큐가 같은 프레임에 도착하면 Ghost는
+	// 아직 예약(Reserved)만 되고 생성 커맨드가 flush되기 전이라 Active가 아니다. 거기서 조기 반환하면
+	// 맵에서는 빠졌는데 태그는 안 붙어, Ghost가 캐릭터를 관통해 계속 비행한다. 커맨드 버퍼는 생성을
+	// 태그 추가보다 먼저 실행하므로 예약 상태에서 걸어도 안전하다.
+	// 트레일 해제는 ULNPProjectileDestructionProcessor가 Dead 태그를 보고 한다.
+	if (!EntityManager.IsEntityValid(Entity))
+		return;
 
 	EntityManager.Defer().AddTag<FLNPProjectileDeadTag>(Entity);
 }

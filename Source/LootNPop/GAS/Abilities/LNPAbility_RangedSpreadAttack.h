@@ -18,7 +18,7 @@ class LOOTNPOP_API ULNPAbility_RangedSpreadAttack : public ULNPAbility_RangedAtt
 {
 	GENERATED_BODY()
 protected:
-	virtual TArray<FVector> GetFireDirections(const FVector& SpawnPos) const override;
+	virtual TArray<FVector> GetFireDirections(const FVector& SpawnPos, const FLNPFireAimTargetData* AimInput) const override;
 
 	/**
 	 * 육각형 링 수. 발사 수 = 1 + 3 * N * (N + 1) → 0=1발, 1=7발, 2=19발, 3=37발.

@@ -252,14 +252,15 @@ UAnimMontage* M = EvaluateMontage(TAG_Montage_Situation_Dash, TAG_Montage_Value_
 
 이동 인풋이 있으면 위치 보정을 아예 걸지 않는다 — 이동 인풋이 무조건 우선이다.
 회전 보정은 `MoveInput`을 건드리지 않고 `OrientationIntent`만 덮어쓰므로 이동 중에도 공존한다.
-판정은 둘 다 InputCmd에서 읽는다 — 컴포넌트의 로컬 상태를 읽으면 서버가 원격 클라이언트의 값을 못 본다.
+판정 입력(대상 좌표·락온 여부·이동 입력 여부)은 전부 소유 클라이언트가 **공격을 누른 순간** 찍어 발동 요청에 실어 보낸
+스냅샷(`FLNPMeleeAssistTargetData`)에서 읽는다 — 컴포넌트의 로컬 상태를 읽으면 서버가 원격 클라이언트의 값을 못 보고,
+InputCmd에서 읽으면 서버는 입력 버퍼만큼 과거 값을 본다(§7.5, [TechDesign_Networking.md](TechDesign_Networking.md) §4.8).
 
-**타겟 선정** (`ULNPAbility_MeleeAttack::ApplyMeleeAssist`)
+**타겟 선정** (소유 클라이언트의 `ULNPInputHandlerComponent::CaptureMeleeAssistInput`)
 
-락온 중이면 그 타겟을 그대로 쓴다 — **`FLNPModifierInputs::LockOnTarget`으로 InputCmd에 실어** 서버와
-리시뮬레이션이 같은 대상을 보게 한다(§7.5). 꺼져 있으면
-`SphereOverlapActors(ECC_Pawn, ALNPEnemyCharacter)` 브로드페이즈(락온의 `FindBestTarget`과 같은 방식)로
-후보를 추린 뒤 **캐릭터 전방 기준** 점수로 하나를 고른다 — 락온은 화면(카메라) 중앙 기준이라는 점만 다르다.
+락온 중이면 그 타겟을 그대로 쓴다. 꺼져 있으면 `ULNPTargetQuerySubsystem`의 상시 원뿔 질의가
+**캐릭터 전방 기준** 점수로 하나를 고른다 — 락온은 화면(카메라) 중앙 기준이라는 점만 다르다.
+서버는 탐색하지 않는다 — 게스트가 본(보간된 과거) 적이 아니라 권위 현재 위치를 읽게 되기 때문이다.
 
 ```
 점수 = AngleWeight x (1 - 각도/최대각) + DistanceWeight x (1 - 거리/탐색반경)
@@ -393,28 +394,24 @@ CVar `LNP.Melee.Assist.Strength`(음수면 설정값), `LNP.Melee.Assist.ForceMo
 `OrientationIntent`는 InputCmd 필드라 복제·롤백이 공짜로 따라온다 —
 "시뮬레이션에 영향을 주는 값은 InputCmd를 탄다"는 규약(`TechDesign_CharacterMovement.md` §7.1)도 자동으로 지켜진다.
 
-**락온 타겟은 반드시 InputCmd로 보낸다.** `ULNPLockOnComponent`의 타겟은 로컬 상태라 서버가
+**보정 입력은 소유 클라이언트가 만들어 발동 요청에 싣는다.** `ULNPLockOnComponent`의 타겟은 로컬 상태라 서버가
 원격 클라이언트의 락온을 알 수 없다. 그대로 두면 서버만 자동 탐색 분기를 타서 **다른 적**을 보정 대상으로 고른다.
 여러 적을 상대할 때 락온을 쓴다는 것은 "자동 탐색이 고른 것 말고 이 적을 치겠다"는 명시적 의사표현이므로,
-서버가 그걸 모르면 보정이 정확히 반대로 작동한다.
-→ `FLNPModifierInputs::LockOnTarget`으로 전달한다(대시의 `DashInputIntent`와 같은 계열).
-락온하지 않은 평상시에는 비트 하나만 쓰도록 조건부 직렬화한다.
+서버가 그걸 모르면 보정이 정확히 반대로 작동한다. 자동 탐색도 같다 — 서버가 스스로 탐색하면 권위 현재 위치를,
+게스트는 보간된 과거 위치를 읽어 **목적지가 갈린다.**
+→ 락온 좌표·자동 탐색 좌표·이동 입력 여부를 `FLNPMeleeAssistTargetData` 하나에 담아 발동 RPC로 보낸다.
 
-⚠️ 단 **`ShouldReconcile`에는 넣지 않는다.** 이 값은 Mover 시뮬레이션이 읽지 않고
-(이동 모드·모디파이어 어느 것도 참조하지 않는다) 어빌리티가 `GetLastInputCmd()`로 꺼내 쓰는
-전달 수단일 뿐이다. 넣으면 NetGUID가 아직 풀리지 않은 프레임마다 불필요한 이동 리시뮬레이션이 돈다.
-`Interpolate`에는 넣어야 한다 — 빠뜨리면 기본 구현이 `check(false)`로 죽는다.
+⚠️ **InputCmd(`FLNPModifierInputs`)에 싣던 시절이 있었다** — 락온은 2026-08-31부터, 자동 탐색 좌표는 잠깐. 서버의
+`GetLastInputCmd()`가 입력 버퍼만큼 과거라, 적이 움직이면 목적지가 최대 341cm 갈리고 서버만 "이동 입력 중"으로 보는 스윙이
+13/45 나왔다. 2026-08-31 락온 검증이 "불일치 0건"이었던 것은 **락온 여부**만 봤기 때문이다(몇 프레임 전에도 락온 중이었다).
+발동 요청으로 옮긴 뒤 목적지 차이는 최대 0.81cm(양자화)다 → [TechDesign_Networking.md](TechDesign_Networking.md) §4.8.
+(⚠️ 2P 로그 대조는 액터 이름이 아니라 `target`·`dist` 수치와 시각으로 해야 한다 — 복제 액터의 인스턴스 이름은
+머신마다 독립적으로 붙는다.)
 
-**검증 결과 (2026-08-31, `-game` 2P).** 게스트가 락온하고 근접 공격한 50건을 호스트 로그와 시각으로
-짝지어 대조했을 때 **`lockOn` 불일치 0건**이다. 동기화가 의도대로 동작한다.
-(⚠️ 대조는 액터 이름이 아니라 `dist`·`correction` 수치로 해야 한다 — 복제 액터의 인스턴스 이름은
-머신마다 독립적으로 붙어서 같은 적이라도 호스트와 게스트에서 이름이 다르다.)
-
-**남은 차이 — 적의 위치는 여전히 지연만큼 어긋난다.** 타겟 액터가 같아도 게스트가 보는 적 위치와
-서버가 보는 위치가 달라, 같은 공격에서 보정량이 갈린다(50건 중 20건, `dist` 최대 44.9cm 차이 =
-보정량 22.4cm 차이). `ResimulationErrorPositionThreshold`(10cm)를 넘으므로 Mover 리컨실리에이션이 메우며,
-2P 실측에서 체감되지 않아 **수용한다.** 지연이 큰 환경에서 거슬리면 대시의 `DashInputIntent`처럼
-**보정 벡터 자체를 InputCmd에 실으면** 차이가 0이 된다 — 다만 클라이언트가 변위를 지시하는 형태가 된다.
+**남은 차이 — 공격자 자신의 위치.** 대상 좌표가 같아도 서버의 원격 폰은 입력 버퍼만큼 뒤에서, 게스트는 예측으로 앞에서
+시뮬레이션되므로 공격자↔대상 거리(`dist`)가 서버에서 5~25cm 크다. 보정량 차이 = 강도(0.5) × 거리 차라 대부분 수 cm이고,
+이상 거리(150cm) 경계에서만 "게스트는 회전만 / 서버는 위치 보정"으로 갈린다(3/58). Mover 리컨실리에이션이 메우는 크기라
+**수용한다.** 거슬리면 **보정 벡터 자체를 스냅샷에 실으면** 이동량이 같아진다 — 다만 클라이언트가 변위를 지시하는 형태가 된다.
 
 
 ---

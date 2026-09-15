@@ -4,6 +4,7 @@
 #include "HitDetection/LNPFireGeometry.h"
 #include "HitDetection/LNPProjectileMotion.h"
 #include "Character/LNPCharacterBase.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "Item/LNPWeaponData.h"
 
@@ -69,8 +70,13 @@ void ULNPTrajectoryGuideComponent::TickComponent(float DeltaTime, ELevelTick Tic
 	}
 
 	// 총구와 조준 방향은 실탄이 쓰는 바로 그 함수로 구한다.
-	const FVector Muzzle    = LNPFireGeometry::ResolveMuzzleLocation(*Character, *WeaponDef);
-	const FVector Direction = LNPFireGeometry::ResolveAimDirection(*Character, Muzzle);
+	// 조준점은 입력 핸들러가 틱마다 캐시한 값 — 발사 순간 발동 RPC에 실리는 것과 같은 원본이다.
+	const FVector Muzzle = LNPFireGeometry::ResolveMuzzleLocation(*Character, *WeaponDef);
+	const ULNPInputHandlerComponent* InputHandler = Character->FindComponentByClass<ULNPInputHandlerComponent>();
+	FVector AimPoint;
+	const bool bHasAimPoint = InputHandler && InputHandler->GetCrosshairAimPoint(AimPoint);
+	const FVector Direction = LNPFireGeometry::ResolveAimDirection(Muzzle, Character->GetBaseAimRotation().Vector(),
+		bHasAimPoint ? &AimPoint : nullptr);
 
 	if (!LNPProjectileMotion::PredictArc(*SurfaceCache, Muzzle, Direction * WeaponDef->ProjectileSpeed,
 		GravityAccel, WeaponDef->ProjectileLifetime, ArcPoints))

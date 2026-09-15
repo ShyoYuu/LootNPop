@@ -289,8 +289,9 @@ ActivateAbility → Commit → SpawnProjectile() → PlayMontage(Attack) → 즉
 1. `FLNPProjectileSharedFragment` 구성 (VFX·GE·반경·넉백 등 무기 상수) → `GetOrCreateConstSharedFragment`
 2. 스폰 위치: `Muzzle` 소켓 + `MuzzleOffset`
 3. 발사 방향 (`GetFireDirections`, 가상 함수):
-   - 로컬 컨트롤: 카메라 크로스헤어 LineTrace 수렴점 (150cm 미만 근접 목표는 전방 폴백)
-   - 서버의 원격 플레이어: 복제된 `GetBaseAimRotation()` (클라 카메라가 서버에 없음)
+   - 플레이어: 소유 클라이언트가 발사 순간 발동 요청에 실어 보낸 조준점·시선(`FLNPFireAimTargetData`)으로 총구에서 수렴 —
+     예측 클라이언트와 서버가 같은 값을 쓴다 (→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.7)
+   - 스냅샷이 없는 사수(적 NPC): `GetBaseAimRotation()`
 4. 네트워크: 예측 키/SalvoID 발급, Ghost 등록·거부 델리게이트, 관전자 Multicast 방송 (→ [TechDesign_Networking.md](TechDesign_Networking.md))
 5. 방향 배열 순회하며 `FMassCommandBuildEntityWithSharedFragments`로 엔티티 빌드 (Deferred)
 
@@ -441,7 +442,7 @@ CDO에서 실행되고 CDO의 `CurrentActorInfo`는 null이다. 무기는 **인�
 
 ### 5.4 크로스헤어 수렴 발사와 서버 폴백
 
-3인칭 총기의 고전 문제(총구 방향 ≠ 화면 중앙)를 카메라 광선 수렴점으로 해결하되, 카메라가 존재하지 않는 서버의 원격 플레이어는 Mover InputCmd로 복제된 시선 회전을 사용 — 패럴랙스 오차는 코스메틱 범위로 한정된다.
+3인칭 총기의 고전 문제(총구 방향 ≠ 화면 중앙)를 카메라 광선 수렴점으로 해결한다. 카메라가 없는 서버는 소유 클라이언트가 발사 순간 발동 요청에 실어 보낸 조준점·시선을 쓰므로, 서버도 자기 총구에서 같은 점으로 수렴한다.
 
 ### 5.5 탄창·재장전 (2026-09-14)
 

@@ -50,6 +50,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Weapon_Reload)     // 무기 메�
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Parry_Success) // 방어자에게 전송 → GA_ParrySuccess 트리거
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Stagger_Light)  // 그로기 진입 → GA_Stagger 트리거 (패링도 경직도를 거쳐 여기로 들어온다)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Stagger_Heavy)  // 다운(T2 도달) → GA_Stagger 트리거, 고정 시간
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Attack_Activate) // 플레이어 기본 공격 발동 — 입력 스냅샷을 발동 RPC에 동봉하기 위한 이벤트 (트리거 설정 불필요)
 
 // Montage Chooser: 시츄에이션 태그
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Situation_Attack)

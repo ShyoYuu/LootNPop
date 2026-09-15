@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GAS/Abilities/LNPAbility_MeleeAttack.h"
+#include "GAS/Abilities/LNPAttackInputTargetData.h"
 #include "Animation/ANS_LNPMeleeHitWindow.h"
 #include "Camera/LNPLockOnComponent.h"
 #include "Character/LNPCharacterBase.h"
@@ -9,7 +10,6 @@
 #include "Config/LNPSettings.h"
 #include "Item/LNPWeaponData.h"
 #include "Movement/LNPCharacterMoverComponent.h"
-#include "Movement/LNPModifierInputs.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
@@ -245,7 +245,7 @@ void ULNPAbility_MeleeAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 
 	// 몽타주가 확정된 뒤, 재생을 시작하기 전에 건다. 워프 창은 몽타주 시각 기준이라
 	// 레이어드 무브와 몽타주가 같은 프레임에 시작해야 두 타임라인이 어긋나지 않는다.
-	ApplyMeleeAssist(Character, AttackMontage, SectionName);
+	ApplyMeleeAssist(Character, AttackMontage, SectionName, TriggerEventData);
 
 	// AttackSpeed를 재생 속도로 — 몽타주에 붙은 ANS(히트 윈도우·입력 차단 구간)도 함께 압축되는 것이 의도된 동작이다.
 	if (UAbilityTask_PlayMontageAndWait* Task = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, AttackMontage, GetAttackSpeed(), SectionName))
@@ -270,7 +270,8 @@ void ULNPAbility_MeleeAttack::EndAbility(const FGameplayAbilitySpecHandle Handle
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
-void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAnimMontage* Montage, FName SectionName)
+void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAnimMontage* Montage, FName SectionName,
+	const FGameplayEventData* TriggerEventData)
 {
 	// 적 NPC는 대상이 아니다 — StateTree 스티어링과 ComputeStopDistance가 이미 접근 거리를 맞춘다.
 	// ULNPLockOnComponent를 가진 쪽이 플레이어 캐릭터다. (컴포넌트를 보유 판정에만 쓴다 —
@@ -298,25 +299,26 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 	const FVector UpDir = Character->GetUpDirection();
 	const FVector SelfLoc = Character->GetActorLocation();
 
-	// 락온 타겟과 이동 인풋은 둘 다 InputCmd에서 읽는다. 컴포넌트의 로컬 상태를 읽으면 서버가
-	// 원격 클라이언트의 값을 보지 못해 서버만 다른 판단을 내린다.
-	const FMoverInputCmdContext& LastInputCmd = Mover->GetLastInputCmd();
+	// 보정 입력(대상 좌표·락온 여부·이동 입력)은 전부 소유 클라이언트가 **발동을 누른 순간** 찍어 발동 RPC에
+	// 실어 보낸 스냅샷에서 읽는다. InputCmd(GetLastInputCmd)를 읽으면 서버는 입력 버퍼 깊이만큼 과거 값을 보고,
+	// 컴포넌트의 로컬 상태를 읽으면 원격 클라이언트의 값을 아예 못 본다 — 어느 쪽이든 서버만 다른 보정을 건다.
+	// 대상도 서버가 스스로 탐색하지 않는다 — 게스트가 본(보간된 과거) 적이 아니라 권위 현재 위치를 읽게 된다.
+	const FLNPMeleeAssistTargetData* AssistInput = LNPAttackInput::Find<FLNPMeleeAssistTargetData>(TriggerEventData);
 
-	const FLNPModifierInputs* ModifierInputs = LastInputCmd.InputCollection.FindDataByType<FLNPModifierInputs>();
-	// 락온은 "자동 탐색이 고른 것 말고 이 적을 치겠다"는 명시적 의사표현이다 — 지목이 있으면 탐색하지 않는다.
-	const bool bLockOnActive = (ModifierInputs && !ModifierInputs->LockOnTargetLocation.IsZero());
-
-	// 자동 탐색은 ULNPTargetQuerySubsystem의 상시 원뿔 질의가 이미 답을 들고 있다.
-	// 여기서 물리 브로드페이즈를 돌던 시절에는 순수 엔티티(Actor가 없다)를 통째로 놓쳤다.
-	FVector TargetLocation;
-	if (bLockOnActive)
+	if (!AssistInput || AssistInput->TargetLocation.IsZero())
 	{
-		TargetLocation = ModifierInputs->LockOnTargetLocation;
-	}
-	else if (!InputHandler->GetMeleeAssistTarget(TargetLocation))
-	{
+#if !UE_BUILD_SHIPPING
+		if (LNPMeleeAssist::CVarDebug.GetValueOnGameThread() > 0)
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[MeleeAssist] section=%s skipped: no target (payload=%d)"),
+				SectionName.IsNone() ? TEXT("Section_1") : *SectionName.ToString(), AssistInput ? 1 : 0);
+		}
+#endif
 		return;
 	}
+
+	const bool bLockOnActive = AssistInput->bLockOn;
+	const FVector TargetLocation = AssistInput->TargetLocation;
 
 	FVector ToTargetDir;
 	float TangentDist = 0.f;
@@ -336,11 +338,17 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 	}
 
 	// 이동 인풋이 들어오고 있으면 위치 보정을 건너뛴다 — 이동 인풋이 무조건 우선이고, 회전 보정만 남는다.
-	// 판정은 InputCmd에서 읽는다. ULNPInputHandlerComponent::HasMovementInput()의 CachedMoveInputIntent는
-	// 로컬 전용이라 서버가 원격 클라이언트의 값을 보지 못하고, 그러면 서버만 보정을 걸어 위치가 어긋난다.
-	const FCharacterDefaultInputs* LastInputs = LastInputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
-	if (LastInputs && !LastInputs->GetMoveInput().IsNearlyZero())
+	// 판정은 위와 같은 스냅샷에서 읽는다.
+	if (AssistInput->bHasMoveInput)
 	{
+#if !UE_BUILD_SHIPPING
+		if (LNPMeleeAssist::CVarDebug.GetValueOnGameThread() > 0)
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[MeleeAssist] section=%s rotation only: move input | target=%s lockOn=%d dist=%.1f"),
+				SectionName.IsNone() ? TEXT("Section_1") : *SectionName.ToString(),
+				*TargetLocation.ToCompactString(), bLockOnActive ? 1 : 0, TangentDist);
+		}
+#endif
 		return;
 	}
 
@@ -356,6 +364,14 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 	const float Gap = TangentDist - IdealDistance;
 	if (Gap <= 0.f)
 	{
+#if !UE_BUILD_SHIPPING
+		if (LNPMeleeAssist::CVarDebug.GetValueOnGameThread() > 0)
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[MeleeAssist] section=%s rotation only: within ideal distance | target=%s lockOn=%d dist=%.1f ideal=%.1f"),
+				SectionName.IsNone() ? TEXT("Section_1") : *SectionName.ToString(),
+				*TargetLocation.ToCompactString(), bLockOnActive ? 1 : 0, TangentDist, IdealDistance);
+		}
+#endif
 		return;
 	}
 	const float CorrectionDistance = FMath::Min(Gap * Strength, Settings.MeleeAssistMaxCorrectionDistance);
