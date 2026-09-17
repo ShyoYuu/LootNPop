@@ -430,6 +430,8 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	ModifierInputs.bWantsToDash   = bIsDashBuffered;
 	ModifierInputs.bWantsToADS    = IsADSActive();
 	ModifierInputs.DashInputIntent = bIsDashBuffered ? CachedMoveInputIntent : FVector::ZeroVector;
+	// 락온은 로컬 상태라 서버·게스트가 대시 방향을 다르게 고른다 — 대시 프레임에만 실려 간다.
+	ModifierInputs.bIsLockOn      = LockOnComponent && LockOnComponent->IsLockOnActive();
 	// AI 속도도 여기에 싣는다 — 컴포넌트 멤버로만 두면 클라이언트 재시뮬레이션이 CDO MaxSpeed로
 	// 폴백해 서버보다 훨씬 빠르게 앞서 나간다 (FLNPModifierInputs::AIDesiredSpeed 주석 참조).
 	ModifierInputs.AIDesiredSpeed = AIDesiredSpeed;

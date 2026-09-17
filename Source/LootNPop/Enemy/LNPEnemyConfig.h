@@ -92,14 +92,6 @@ struct FLNPEnemyTargetingConfig
 {
 	GENERATED_BODY()
 
-	/** 거리 가중치 (가까울수록 높은 점수) */
-	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
-	float DistanceWeight = 1.0f;
-
-	/** Player 시야 각도 가중치 (정면일수록 높은 점수) */
-	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
-	float AngleWeight = 0.5f;
-
 	/**
 	 * **세력권 반경** — Pod에서 **플레이어**까지의 거리가 이 안일 때만 추격한다(슬롯 경쟁 참가).
 	 * 밖으로 나가면 귀속 적 전원이 동시에 Alert로 강등된다. 어그로가 풀리는 것은 아니다.

@@ -35,6 +35,14 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	bool bWantsToADS = false;
 
 	/**
+	 * 락온 활성 여부. 대시 몽타주의 방향 분류가 Strafe 여부를 알아야 하는데, 락온은
+	 * ULNPLockOnComponent의 로컬 상태라 서버·원격 머신이 볼 수 없다 (bWantsToADS와 같은 이유).
+	 * DashInputIntent와 함께 대시 프레임에만 직렬화한다 — 소비처가 ExecuteDash뿐이다.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	bool bIsLockOn = false;
+
+	/**
 	 * Dash 방향 결정에 쓰이는 카메라 로컬 이동 입력 (X=Forward, Y=Right).
 	 * 서버가 원격 폰을 시뮬레이션할 때 폰의 현재 입력을 읽으면 해당 프레임 값이 아니므로 반드시 InputCmd로 전달한다.
 	 * bWantsToDash가 true인 프레임에만 의미를 가진다.
@@ -73,6 +81,7 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		if (bWantsToDash)
 		{
 			Ar << DashInputIntent;
+			Ar.SerializeBits(&bIsLockOn, 1);
 		}
 		// AI 속도도 같은 이유로 조건부다 — 플레이어 폰은 항상 0이라 비트 하나만 쓴다.
 		bool bHasAIDesiredSpeed = (AIDesiredSpeed > 0.f);
@@ -108,7 +117,8 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 			return true;
 		}
 		// DashInputIntent는 bWantsToDash가 false면 직렬화되지 않아 값이 의미를 갖지 않는다 — 대시 프레임에서만 비교한다.
-		return bWantsToDash && !DashInputIntent.Equals(Authority.DashInputIntent);
+		return bWantsToDash
+			&& (!DashInputIntent.Equals(Authority.DashInputIntent) || bIsLockOn != Authority.bIsLockOn);
 	}
 
 	/**
@@ -124,6 +134,7 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		bWantsToDash = FromInputs.bWantsToDash;
 		bWantsToADS = FromInputs.bWantsToADS;
 		DashInputIntent = FromInputs.DashInputIntent;
+		bIsLockOn = FromInputs.bIsLockOn;
 		// 속도는 StateTree가 단계적으로 바꾸는 값(0 / 배회 / 추격)이라 중간값이 의미 없다 — 함께 스냅한다.
 		AIDesiredSpeed = FromInputs.AIDesiredSpeed;
 	}

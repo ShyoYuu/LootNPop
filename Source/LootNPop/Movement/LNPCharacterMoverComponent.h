@@ -95,7 +95,8 @@ protected:
 	 * MoveInputIntent와 ControlRotation은 폰이 아니라 InputCmd에서 받는다 — 서버는 원격 폰을
 	 * 버퍼된 입력으로 늦게 시뮬레이션하므로 폰의 현재 값은 해당 프레임의 값이 아니다.
 	 */
-	void ExecuteDash(const FMoverTimeStep& TimeStep, const FVector& MoveInputIntent, const FRotator& ControlRotation);
+	void ExecuteDash(const FMoverTimeStep& TimeStep, const FVector& MoveInputIntent, const FRotator& ControlRotation,
+		bool bLockOnActive);
 
 	/** 커스텀 시뮬레이션 로직이 항상 등록되도록 Override한다. */
 	virtual void OnHandlerSettingChanged() override;

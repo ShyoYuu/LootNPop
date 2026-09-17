@@ -71,6 +71,9 @@ void ULNPEquipmentComponent::EnsureDefaultWeapon()
 		return;
 	}
 
+	// 장착이 AddItemInstance 안(TryAutoEquipWeapon)에서 끝날 수도 있으므로, HP 보충 판단은 진입 시점 슬롯 상태로 한다.
+	const bool bSlotWasEmpty = !WeaponSlot.IsValid();
+
 	// PlayerState는 폰 리스폰을 넘어 유지되므로, 재호출 시 사본이 쌓이지 않도록 조회를 먼저 한다.
 	ULNPInventoryItemInstance* Instance = Inventory->FindBagInstanceByDefinition(DefaultWeapon);
 	if (Instance == nullptr)
@@ -78,10 +81,10 @@ void ULNPEquipmentComponent::EnsureDefaultWeapon()
 
 	// 이미 다른 무기를 들고 있으면 건드리지 않는다 — 리스폰마다 기본 무기로 되돌리면 안 된다.
 	if (Instance && !WeaponSlot.IsValid())
-	{
 		EquipWeaponInstance(Instance);
+
+	if (bSlotWasEmpty && WeaponSlot.IsValid())
 		RefillHealthToMax();
-	}
 }
 
 // 기본 무기가 MaxHealth 스텟을 가지면 Max만 오르고 현재 HP는 그대로라 "손상된 채 스폰"이 된다.

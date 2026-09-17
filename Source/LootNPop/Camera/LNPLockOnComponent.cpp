@@ -1,10 +1,37 @@
 #include "Camera/LNPLockOnComponent.h"
 #include "Camera/LNPControlRotationComponent.h"
+#include "Character/LNPCharacterBase.h"
 #include "Gravity/LNPPawnGravityComponent.h"
+#include "LNPGameplayTags.h"
+
+#include "AbilitySystemComponent.h"
 
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+
+namespace
+{
+	/**
+	 * 락온 상태를 ASC의 LNP.AimMode.LockOn 태그로 미러링한다.
+	 *
+	 * ⚠️ 루즈 태그라 복제되지 않는다 — 락온을 건 머신에만 존재한다. 시뮬레이션이 읽어야 하는
+	 * 판정(대시 방향 분류)은 이 태그가 아니라 InputCmd의 FLNPModifierInputs::bIsLockOn을 쓴다.
+	 */
+	void SetLockOnTag(const AActor* Owner, bool bActive)
+	{
+		const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Owner);
+		UAbilitySystemComponent* ASC = Character ? Character->GetAbilitySystemComponent() : nullptr;
+		if (!ASC)
+			return;
+
+		const bool bHasTag = ASC->HasMatchingGameplayTag(TAG_AimMode_LockOn);
+		if (bActive && !bHasTag)
+			ASC->AddLooseGameplayTag(TAG_AimMode_LockOn);
+		else if (!bActive && bHasTag)
+			ASC->RemoveLooseGameplayTag(TAG_AimMode_LockOn);
+	}
+}
 
 ULNPLockOnComponent::ULNPLockOnComponent()
 {
@@ -156,12 +183,14 @@ void ULNPLockOnComponent::SetTarget(FMassEntityHandle NewTarget, const FVector& 
 {
 	LockOnEntity         = NewTarget;
 	LockOnTargetLocation = TargetLocation;
+	SetLockOnTag(GetOwner(), true);
 }
 
 void ULNPLockOnComponent::ClearTarget()
 {
 	LockOnEntity.Reset();
 	LockOnTargetLocation = FVector::ZeroVector;
+	SetLockOnTag(GetOwner(), false);
 }
 
 void ULNPLockOnComponent::ApplySoftRotation(float DeltaTime)
