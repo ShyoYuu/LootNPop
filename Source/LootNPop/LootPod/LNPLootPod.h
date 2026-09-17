@@ -8,11 +8,12 @@
 #include "LNPLootPod.generated.h"
 
 /**
- * 루팅 대상 Actor (Phase 7 §5.4 이중 복제).
+ * 루팅 대상 Actor (Phase 7 이중 복제 — TechDesign_LootPod.md §3.2).
  *
  * MassEntity(FLNPLootPodFragment)가 게이지·근접 판정 로직을 담당하고, 이 Actor는
- * SmartObject 연동과 비주얼(Niagara 기둥), 그리고 PodState·게이지 퍼센트의 근접 클라이언트
- * 복제를 담당한다. 엔티티 존재·초기 위치는 MassReplication bubble이 전 클라이언트에 전달한다.
+ * 인터랙터블 레지스트리 등록과 비주얼(Niagara 기둥·존 링), 그리고 PodState·게이지 퍼센트의
+ * 근접 클라이언트 복제를 담당한다. 엔티티 존재·초기 위치는 MassReplication bubble이 전 클라이언트에 전달한다.
+ * (SmartObjectComponent는 상호작용 경로에 쓰이지 않는다 — NPC AI 연동 후보로 보류)
  */
 UCLASS()
 class LOOTNPOP_API ALNPLootPod : public AActor
@@ -43,7 +44,7 @@ public:
 
 	/**
 	 * 서버 전용: 게이지 진행률(0~1)을 복제 프로퍼티에 반영한다.
-	 * 매 프레임 변하는 값이므로 2% 이상 변화(또는 0/1 도달) 시에만 실제로 기록해 복제 트래픽을 줄인다 (§5.4).
+	 * 매 프레임 변하는 값이므로 2% 이상 변화(또는 0/1 도달) 시에만 실제로 기록해 복제 트래픽을 줄인다 (TechDesign_LootPod.md §4.2).
 	 */
 	void SetGaugePercent(float NewPercent);
 

@@ -289,7 +289,7 @@ void ULNPLootingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecu
 						Pod->SetGaugePercent(GaugePercent);
 
 						// Actor 재스폰 자기치유 — LOD로 소멸했다 재스폰된 Actor는 기본값(Idle)로 시작하므로,
-						// 엔티티가 Looting인데 Actor 비주얼이 다르면 상태를 밀어 넣는다 (§5.6).
+						// 엔티티가 Looting인데 Actor 비주얼이 다르면 상태를 밀어 넣는다 (TechDesign_LootPod.md §5.6).
 						// 방치하면 Idle로 보이는 Pod가 프레즌스 기여로 몰래 차올라 "갑자기 Pop"하는 버그가 된다.
 						if (Pod->GetCurrentState() != ELNPLootPodState::Looting)
 						{

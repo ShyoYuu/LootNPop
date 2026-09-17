@@ -8,7 +8,7 @@
 
 /**
  * Guard/Sprint/Dash/ADS 의도를 Mover InputCmd에 싣기 위한 커스텀 입력 데이터.
- * bWantsToGuard/bWantsToRun을 ULNPCharacterMoverComponent의 평범한 멤버 변수로 직접 두면
+ * bWantsToGuard/bWantsToSprint를 ULNPCharacterMoverComponent의 평범한 멤버 변수로 직접 두면
  * Mover의 예측·복제·리시뮬레이션 파이프라인을 타지 않는다 (Jump가 FCharacterDefaultInputs::bIsJumpJustPressed로
  * InputCmd를 통해 전달되는 것과 대조됨). ULNPInputHandlerComponent::OnProduceInput에서 매 틱 기록하고,
  * ULNPCharacterMoverComponent::OnMoverPreSimulationTick에서 InputCmd로부터 읽는다.

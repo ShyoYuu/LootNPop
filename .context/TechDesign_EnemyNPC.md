@@ -2,7 +2,7 @@
 
 ## 1. 한눈에 보기
 
-수백~수천 유닛을 전제로 한 **MassEntity ↔ Actor 하이브리드** 구조. 평상시에는 순수 엔티티(ISM 비주얼)로 시뮬레이션되고, 전투 진입(Confirmed) 시 거리와 무관하게 High LOD Actor로 전환되어 GAS 전투·패링·애니메이션이 활성화된다.
+수백~수천 유닛을 전제로 한 **MassEntity ↔ Actor 하이브리드** 구조. 평상시에는 순수 엔티티(인스턴스 메시)로 시뮬레이션되고, 전투 진입(`Confirmed`) 시 **거리와 무관하게** High LOD Actor로 전환되어 GAS 전투·애니메이션이 활성화된다. 단 `ULNPEnemyConfig::CombatMode == PureEntity`인 적은 승격하지 않고 Mass 프로세서가 직접 공격한다 (→ [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md)).
 
 ```
 [MassEntity] ─── 데이터/시뮬레이션 (수백~수천 유닛, Worker Thread 병렬)
@@ -22,25 +22,54 @@
 
 ### 2.1 Fragments & Tags
 
+`ULNPEnemyTrait::BuildTemplate`이 붙이는 것 전부(`Source/LootNPop/Enemy/LNPEnemyMassTypes.h`).
+
 | 타입 | 내용 |
 |:---|:---|
 | `FLNPEnemyFragment` | Health/MaxHealth/Defense, DeathCountdown, EnemyTypeTag, ParentLootPod(+위치 — 세력권 기준), HitReactTimer/Direction(피격 주시 — §3.5), FlinchTimeRemaining(피격 플린치 연출) |
 | `FLNPEnemySharedFragment` | `ULNPEnemyConfig` 포인터 (동일 타입 공유 — ConstShared) |
 | `FLNPEnemyTargetingCandidateFragment` | 인식된 잠재 타겟 최대 4명 (거리 정렬) + `AlertDwellTime`(경계 인내) + `DisengageTimer`(재발견 금지 잔여). **뒤 두 float는 Reset 대상이 아니다** — §3.4 |
 | `FLNPEnemyTargetingFragment` | 최종 타겟, `ELNPTargetingState`(None/Alert/Confirmed), 마지막 타겟 위치, 거리² |
-| `FLNPEnemyIdleFragment` | 배회 타이머·플래그 |
+| `FLNPEnemyIdleFragment` | 배회 타이머·플래그 + 미도달 타임아웃(`TimeSinceWanderIssued`/`bWanderTargetTimedOut` — §5.1 끝) |
 | `FLNPEnemyVelocityFragment` | Entity 모드 물리 속도 (넉백·사망 팝의 포물선). 접지 시 0 |
 | `FLNPEnemySeparationFragment` | 겹침을 푸는 접평면 밀어내기 속도. 분리 프로세서가 매 프레임 확정하고 이동 프로세서가 소비 — §5.0 |
+| `FLNPEntityAttackFragment` · `FLNPEnemyActionFragment` | 순수 엔티티 공격 위상 / 게스트 연출의 단일 입력인 행동 상태 → [LowLOD](TechDesign_EnemyNPC_LowLOD.md) §4·§5 |
+| `FMassRepresentationAnimationFragment` | ISKM 애니 데이터의 자리. ⚠️ **엔진 트레이트가 붙여 주지 않는다** — 없으면 소비 프로세서 쿼리가 아무것도 매칭하지 않아 경고 없이 안 움직인다 |
+| `FLNPEnemyHealthDisplayFragment` | HP 바 표시 후보 선별용 장부. 서버·클라 각자 로컬로 채워 복제하지 않는다 (→ [TechDesign_HUD.md](TechDesign_HUD.md) §11) |
+| `FLNPPoiseFragment` | 경직도. 적은 지속 버프를 안 받으므로 Trait이 Config 값으로 1회 시드하면 끝 (→ [TechDesign_Poise.md](TechDesign_Poise.md)) |
+| `FLNPPositionHistoryFragment` | Lag Compensation용 위치 히스토리 (서버 기록) |
+| `FLNPReplicatedMovementFragment` | **클라이언트 전용** — 복제 수신 사이를 메우는 보간 상태. `NM_Client`일 때만 아키타입에 들어간다 |
 | Tags | `FLNPEnemyTag` / `FLNPPlayerTag`(쿼리 분류), `FLNPEnemyActorInitializedTag`(초기화 마커), `FLNPEnemyDyingTag`(소멸 대기), `FLNPPlayerDeadTag`(사망 플레이어 — 타게팅 제외) |
+
+⚠️ **`FLNPEntityAttackFragment`·`FLNPEnemyActionFragment`·`FMassRepresentationAnimationFragment`는
+`CombatMode`와 무관하게 전원에게 붙인다.** 모드로 아키타입을 가르면 같은 쿼리를 두 벌 유지해야 하고
+StateTree 외부 데이터 핸들이 Optional이 되어 Task마다 null 분기가 생긴다. 행동 상태 쪽은 이유가 하나 더
+있다 — **서버와 게스트의 아키타입이 같아야** 수신값을 쓸 자리가 생긴다.
 
 ### 2.2 ULNPEnemyConfig (Data Asset)
 
-EnemyTypeTag / EnemyActorClass / StateTree / WeaponData / DefaultAbilities / InitialAttributeValues / 캡슐 크기 + 서브 구조체 2종:
+| 묶음 | 내용 |
+|:---|:---|
+| 식별·스폰 | EnemyTypeTag / EnemyActorClass / StateTree / WeaponData / DefaultAbilities / InitialAttributeValues / 캡슐 크기 |
+| 전투 모드 | **`CombatMode`**(ActorPromoted·PureEntity) + **`AttackType`**(Melee·Ranged) → §7.2, [LowLOD](TechDesign_EnemyNPC_LowLOD.md) |
+| 경직 | PoiseResistance / PoiseStaggerThreshold / PoiseDownThreshold — Trait이 프래그먼트에 시드 |
+| 연출 | `ActionSequences`(행동 상태 → ISKM 시퀀스 인덱스) / AnimBlendTime / PureEntity 사망·플린치 3종 |
+| 서브 구조체 3종 | 아래 |
 
-- **`FLNPEnemyTargetingConfig`**: 인지 거리 3종 (AwarenessDistance / VisionDistance+Angle / AlertRetentionDistance) + 세력권 반경 ChaseRadius + 시간 3종 (AlertPatienceTime / AlertRecoveryTime / HitReactLookTime), Distance/AngleWeight — §3.3~3.5
-- **`FLNPEnemyMovementConfig`**: MoveSpeed, RotationRate, Gravity, Wander 반경, AttackRange/Interval + **`ComputeStopDistance()`** — 추격 정지 거리 공식의 단일 정의 (TargetFollow·Movement·SteeringTask가 공유)
+- **`FLNPEnemyTargetingConfig`**: 인지 거리 3종 (AwarenessDistance / VisionDistance+Angle / AlertRetentionDistance) + 세력권 반경 ChaseRadius + 시간 3종 (AlertPatienceTime / AlertRecoveryTime / HitReactLookTime) — §3.3~3.5. `DistanceWeight`/`AngleWeight`는 선언만 있고 쓰이지 않는다(§8).
+- **`FLNPEnemyMovementConfig`**: MoveSpeed, RotationRate, Gravity, Wander 반경, 분리 반경·강도, AttackRange/Interval, `AimPitchMin/MaxDeg`(§7.9) + 상수 `ArrivalTolerance`(30cm)·`WanderTimeout`(10초) + **`ComputeStopDistance()`** — 추격 정지 거리 공식의 단일 정의 (TargetFollow·Movement·SteeringTask가 공유)
+- **`FLNPEntityAttackConfig`**: 순수 엔티티 기본 공격의 위상 시간·가상 칼날 치수·산탄 → [LowLOD](TechDesign_EnemyNPC_LowLOD.md) §4
 
-`ULNPEnemyTrait`가 이 Config를 SharedFragment로 묶어 엔티티 템플릿을 구성하고, MassReplication Trait(BubbleInfo/Replicator 고정)를 내부 위임한다.
+**`ULNPEnemyTrait`가 엔티티 템플릿을 조립한다.** Config를 ConstShared로 묶고, MassReplication
+Trait(BubbleInfo/Replicator 고정, `ReplicationCullDistance` 12,000)을 내부 위임한다. 두 가지가 더 있다.
+
+- **무기 스텟을 스폰 시점에 녹여 넣는다.** `MaxHealth`·`Defense`를 `WeaponData`의 레벨 1 StatModifier로
+  해석해 시드하고 `Health = MaxHealth`로 시작한다. 안 하면 ① 승격 순간 Actor ASC만 Max가 올라
+  무손상 적에게 HP 바가 뜨고 ② `Defense`가 0으로 남아 **같은 공격이 순수 엔티티 적에게만 더 아프게** 들어간다.
+- ⚠️ **`ValidateTemplate`이 `CombatMode`와 표현 매핑의 불일치를 경고한다.** 승격 여부의 단일 진실은
+  enum이지만 실제 Actor 스폰 여부는 EntityConfig의 표현 매핑이 정한다. 둘은 서로를 모르므로 어긋나도
+  컴파일도 실행도 실패하지 않고 조용히 틀린다 — `PureEntity`인데 매핑에 Actor가 남아 있으면 가까이 간
+  것만으로 승격된다(실제로 밟았다).
 
 ---
 
@@ -48,18 +77,28 @@ EnemyTypeTag / EnemyActorClass / StateTree / WeaponData / DefaultAbilities / Ini
 
 ### 3.1 ULNPTargetingSubsystem
 
-플레이어별 교전 밀도를 제한하는 전역 서브시스템. `MaxMeleeSlotsPerPlayer = 10`, `MaxRangedSlotsPerPlayer = 20` (에디터 설정 가능).
+플레이어별 교전 밀도를 제한하는 전역 서브시스템. 슬롯 풀은 **`ELNPTargetSlotPool` 3종**이고
+풀마다 독립된 한도를 갖는다 — `Melee` 10 / `Ranged` 20 / `Promoted` 2 (에디터 설정 가능).
+
+풀 판별의 단일 원본은 `ULNPEnemyConfig::GetSlotPool()`이다: `ActorPromoted`면 무조건 `Promoted`,
+`PureEntity`면 `AttackType`으로 Melee/Ranged. **승격 개체는 근접/원거리를 나누지 않는다** — 이 풀을
+가르는 실제 비용 축이 교전 거리가 아니라 Actor 스폰 수이기 때문이다.
+⚠️ `MaxPromotedSlotsPerPlayer`가 곧 **플레이어당 적 Actor 수 상한이자 대역폭 예산**이다(1기당 700~900 B/s).
+근거와 튜닝 상한은 → [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md) §7.
 
 ```
 매 프레임:
-  ScoringProcessor → RegisterEnemyInterest(Enemy, Player, Score, bIsMelee)  ← 게임 스레드 커맨드로 지연 등록
+  ScoringProcessor → RegisterEnemyInterest(Enemy, Player, Score, Pool)  ← 게임 스레드 커맨드로 지연 등록
   TargetingProcessor → RebalanceSlots()
-      전체 등록 항목을 점수 내림차순 정렬 → 그리디 할당
-      (Enemy 1개는 1개 슬롯만, 슬롯 한도 초과 시 탈락)
+      전체 등록 항목을 점수 내림차순 정렬 → 풀별로 그리디 할당
+      (Enemy 1개는 1개 슬롯만, 풀 한도 초과 시 탈락)
   → IsSlotConfirmed()로 각 Enemy가 결과 조회
 ```
 
-`FCriticalSection`으로 Mass Worker Thread 경합을 방지한다.
+`FCriticalSection`으로 Mass Worker Thread 경합을 방지한다. ⚠️ `TMassExternalSubsystemTraits`의
+`ThreadSafeWrite`는 **일부러 false다** — 쓰기 자체는 Lock으로 안전하지만 true로 두면 Mass가 이
+서브시스템을 쓰는 프로세서들을 병렬로 돌려, 프레임당 한 번 도는 `RebalanceSlots()`가
+`IsSlotConfirmed()` 조회와 뒤섞인다.
 
 ### 3.2 점수 공식 (ScoringProcessor)
 
@@ -83,9 +122,8 @@ Score = 1,000,000 / (거리 + 1)
 | 근접 NPC | `AttackRange` 200cm | 그보다 멀다 | 점수에서 밀려 **타겟 유지** |
 | 원거리 NPC | 정지 거리 900cm | 더 가까울 때가 많다 | 점수가 높아 **타겟 전환** |
 
-`bIsMelee`는 슬롯 한도(10/20)만 가르며, 플레이어 수가 적을 때는 한도에 걸릴 일이 없어
-거동에 관여하지 않는다. 즉 "근접은 안 돌아보고 원거리는 돌아본다"로 보이는 것은
-같은 규칙의 서로 다른 입력값일 뿐이다.
+슬롯 풀은 **한도만** 가르며, 한도에 걸리지 않는 동안에는 거동에 관여하지 않는다. 즉 "근접은
+안 돌아보고 원거리는 돌아본다"로 보이는 것은 같은 규칙의 서로 다른 입력값일 뿐이다.
 
 ⚠️ 두 플레이어가 **거의 같은 거리**에 있고 둘 다 인지되는 동안에는 미세한 거리 변화로 타겟이
 프레임 단위로 뒤집힐 수 있다. 이 구조가 원래 갖는 성질이며(피격 인지와 무관하게 성립한다),
@@ -125,41 +163,33 @@ Alert     ──[타겟이 AlertRetentionDistance 밖  또는  경계 인내 소
 
 ⚠️ **거리를 재는 대상이 NPC가 아니라 플레이어인 것이 이 설계의 핵심이다.** §7.8 참조.
 
-**경계 인내 — 시간도 강등 축이다.** 거리만으로는 사다리가 닫히지 않는다. 플레이어가 세력권 바로
-바깥에 서 있으면 NPC는 싸우지도(자격 없음) 잊지도(시야 안) 못한 채 굳는다. 그래서
-`FLNPEnemyTargetingCandidateFragment::AlertDwellTime`에 "추격도 못 하면서 경계만 하고 있는" 시간을
-누적하고, `AlertPatienceTime`(8초)에 도달하면 **그 프레임에 유지 조건까지 끊어** `None`으로 내려보낸다.
+**경계 인내 — 시간도 강등 축이다.** 거리만으로는 사다리가 닫히지 않는다(기획 의도는
+→ [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md) §5.2). `FLNPEnemyTargetingCandidateFragment::AlertDwellTime`에
+"추격도 못 하면서 경계만 하고 있는" 시간을 누적하고, `AlertPatienceTime`(8초)에 도달하면
+**그 프레임에 유지 조건까지 끊어** `None`으로 내려보낸다.
 
-- **발견만 막으면 안 된다.** 유지 조건을 남겨 두면 추적 중인 타겟이 유지 거리 안에 계속 있어
-  경계가 영원히 풀리지 않는다. 소진 프레임에는 초근접을 제외한 **모든 인식 경로를 끈다.**
-- **슬롯 대기 중인 개체에는 타이머가 돌지 않는다.** 추격 자격이 하나라도 있으면(`bAnyChaseEligible`)
-  0으로 초기화한다 — 그 상태는 "전투 대기열"이지 "멀뚱히 보고 있음"이 아니다. 시간으로 흩어 버리면
-  큰 무리와의 교전이 말라 버린다. `Confirmed`·`None`일 때도 초기화되므로
-  **"교전에 성공하면 인내는 새로 시작"** 이 자동으로 성립한다(공격을 특수 처리할 필요가 없다).
-- **피격 반응 중에는 재지 않는다** — 맞고 두리번거리는 시간은 대치가 아니다.
+- **발견만 막으면 안 된다.** 유지 조건을 남기면 추적 중인 타겟이 유지 거리 안에 계속 있어 경계가
+  영원히 풀리지 않는다. 소진 프레임에는 초근접을 제외한 **모든 인식 경로를 끈다.**
+- **누적 조건은 `PreviousState == Alert && !bAnyChaseEligible && HitReactTimer <= 0` 하나다.**
+  그 밖에는 전부 0으로 초기화되므로, "슬롯 대기 중에는 안 흩어진다"·"교전에 성공하면 새로 시작"·
+  "피격 반응 중에는 안 잰다"가 **예외 코드 없이** 한꺼번에 성립한다.
 
 ### 3.4 재발견 금지 창 — 등을 돌릴 시간을 벌어 준다
 
-인내 소진만으로는 아무것도 해결되지 않는다. 포기한 그 프레임에도 플레이어는 여전히 정면 시야
-안에 있으므로 **다음 프레임에 곧바로 재발견되어** `None` → `Alert`로 되돌아온다. 8초마다 상태가
-왕복할 뿐이고, NPC는 Pod 쪽으로 한 발짝도 못 걷는다.
+인내 소진만으로는 아무것도 해결되지 않는다. 포기한 그 프레임에도 플레이어는 정면 시야 안에 있어
+**다음 프레임에 곧바로 재발견된다.** 8초마다 상태가 왕복할 뿐 NPC는 Pod 쪽으로 한 발짝도 못 걷는다.
 
-`FLNPEnemyTargetingCandidateFragment::DisengageTimer`가 이 구멍을 막는다. 소진한 프레임에
-`AlertRecoveryTime`(1초)으로 세팅되고 매 프레임 감소하며, 0보다 큰 동안 **시야 발견만** 건너뛴다.
+`FLNPEnemyTargetingCandidateFragment::DisengageTimer`가 이 구멍을 막는다. `AlertDwellTime >= AlertPatienceTime`
+인 프레임에 `AlertRecoveryTime`(1초)으로 세팅되고 매 프레임 감소하며, 0보다 큰 동안
+**`VisionDistance` + FOV 경로만** 건너뛴다(유지·초근접 경로에는 관여하지 않는다).
 
-| | 내용 |
-|:---|:---|
-| **세팅** | `AlertDwellTime >= AlertPatienceTime`인 프레임 |
-| **효과** | `VisionDistance` + FOV 경로를 건너뛴다. 유지·초근접 경로에는 관여하지 않는다 |
-| **해제** | 매 프레임 `DeltaTime` 감소, 0에서 정지 |
-
-- **이 창이 벌어 주는 것은 이동이 아니라 회전이다.** Idle이 된 NPC는 IdleTask가 뽑는 Pod 주변
-  배회 목표를 향해 돌아서고, 시야각 절반(45°)만 돌면 플레이어가 이미 FOV 밖이다.
-  등속 회전 `RotationRate` 360°/s 기준 45°는 0.125초, 완전한 180°도 0.5초 — 1초는 2배 버퍼다.
-- **초근접(`AwarenessDistance`)은 이 금지를 무시한다.** 회복 중이라고 눈앞의 플레이어를 못 보는
-  장님이 되면 "때려도 반응 없는 적"이 되어 더 어색해진다.
-- **인내(`AlertDwellTime`)와 별도의 float로 둔다.** 하나에 겹치면 값 하나만 보고는 "차오르는 중인지
-  회복 중인지" 구분할 수 없어 계측이 그대로 함정이 된다.
+- **이 창이 벌어 주는 것은 이동이 아니라 회전이다.** Idle이 된 NPC는 배회 목표를 향해 돌아서고,
+  시야각 절반(45°)만 돌면 플레이어가 이미 FOV 밖이다. `RotationRate` 360°/s 기준 45°는 0.125초,
+  180°도 0.5초 — 1초는 2배 버퍼다.
+- **초근접(`AwarenessDistance`)은 이 금지를 무시한다.** 회복 중이라고 눈앞의 플레이어를 못 보면
+  "때려도 반응 없는 적"이 되어 더 어색해진다.
+- **인내와 별도의 float로 둔다.** 하나에 겹치면 값 하나만 보고 "차오르는 중인지 회복 중인지"를
+  구분할 수 없어 계측이 그대로 함정이 된다.
 
 ⚠️ `AlertDwellTime`과 `DisengageTimer`는 `FLNPEnemyTargetingCandidateFragment::Reset()`이
 **지우지 않는다.** Reset()은 매 프레임 후보 목록을 비우는 용도이고, 둘 다 프레임을 가로질러
@@ -184,10 +214,21 @@ Alert     ──[타겟이 AlertRetentionDistance 밖  또는  경계 인내 소
 Scoring·Targeting의 `PlayerQuery`가 이를 배제한다 (적 쪽 `FLNPEnemyDyingTag` 배제와 대칭).
 해제 경로는 없다 — 리스폰은 폰을 파괴하고 새로 스폰하므로 새 엔티티에는 태그가 없다.
 
-Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회만 판정 (루프 내 문자열 비교 방지).
+**반대 방향(적이 죽는 쪽)은 태그 하나로 끝나지 않는다.** 플레이어의 락온·근접 보정이 쓰는
+`ULNPTargetQueryProcessor`는 `FLNPEnemyFragment::Health <= 0`과 `FLNPEnemyActionFragment::Action == Dying`을
+**둘 다** 보고 시체를 거른다 — 서버에서는 HP가 먼저 0이 되고 행동 상태 전이가 한 틱 늦을 수 있어서다.
+사망 표현을 한쪽 값만으로 서술하면 이 소비처와 어긋난다.
+
+슬롯 풀은 `ULNPEnemyConfig::GetSlotPool()`로 **청크당 1회만** 판정한다(§3.1). 예전에는 EnemyTypeTag에
+"Melee"가 들어 있는지로 봤는데, 태그 이름과 거동이 조용히 어긋날 수 있어 Config의
+`CombatMode`+`AttackType`으로 옮겼다.
+
 ---
 
-## 4. Mass 프로세서 파이프라인 (14종)
+## 4. Mass 프로세서 파이프라인 (`Enemy/` 18종)
+
+"서버 전용"은 전부 `Execute` 첫 줄의 `LNPMass::IsClientWorld()` 가드다 — `ExecutionFlags`로 거르는
+것은 표에 따로 적은 셋뿐이다.
 
 | 프로세서 | 단계 | 역할 |
 |:---|:---|:---|
@@ -197,20 +238,22 @@ Melee/Ranged 분류는 EnemyTypeTag의 "Melee" 포함 여부로 청크당 1회�
 | `ULNPEnemySpatialGridProcessor` | PrePhysics — Movement (Separation 이전) | 서버 전용: 살아 있는 적 전원의 브로드페이즈 격자를 매 프레임 재구축 — §5.0 |
 | `ULNPEnemySeparationProcessor` | PrePhysics — Movement (Grid 이후, Movement 이전) | 서버 전용: 이웃 질의 → 겹침 분리력 산출. Transform은 건드리지 않는다 — §5.0 |
 | `ULNPEnemyMovementProcessor` | Movement | 실제 이동/회전 적용 + 분리력·공중 물리 소비 — §5 상세 |
-| `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + `DeathCountdown`. 모드로 갈린다: `ActorPromoted`는 `TriggerRagdoll()` 방송, `PureEntity`는 **사망 팝**(속도 프래그먼트에 Up 방향 속도) |
+| `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + `DeathCountdown`. 모드로 갈린다: `ActorPromoted`는 `TriggerRagdoll()` 방송 + `ULNPSettings::EnemyRagdollDuration`, `PureEntity`는 **사망 팝**(속도 프래그먼트에 Up 방향 속도) + `Config::PureEntityDeathDuration` |
 | `ULNPEnemyDeathTimerProcessor` | PostPhysics (Health 이후) | DeathCountdown 만료 엔티티 파괴 |
 | `ULNPEnemyLODOverrideProcessor` | **PostPhysics** — LOD 그룹 | 서버 전용: Confirmed면 `RepresentationLOD.LOD = High` 강제 — §7.2 |
-| `ULNPEnemyClientRepresentationProcessor` | **PrePhysics** — LOD 그룹 (Visualization 이전) | 게스트 전용: 복제 Actor만 표현으로 채택 — §7.10. 페이즈가 다른 이유는 §7.10 |
+| `ULNPEnemyClientRepresentationProcessor` | **PrePhysics** — LOD 그룹 (Visualization 이전) | 게스트 전용(`ExecutionFlags = Client`): 복제 Actor만 표현으로 채택 — §7.10. 페이즈가 다른 이유도 §7.10 |
 | `ULNPEnemyActorInitializerProcessor` | PostPhysics (Representation 이후) | 신규 스폰 Actor에 `InitializeOnce` + `SyncFromEntity` → InitializedTag 부여 |
 | `ULNPEnemyActorSyncProcessor` | PostPhysics (LOD 이전, 게임 스레드) | Actor 유효: `SyncToEntity`(HP·속도 역동기화) / null: InitializedTag 제거 → 재초기화 유도 |
 | `ULNPEnemyActionProcessor` | PrePhysics — Tasks (EntityAttack 이후) | 서버 전용: 행동 상태 산출 → `FLNPEnemyActionFragment` (게스트 연출의 단일 입력) |
-| `ULNPEnemyAnimationProcessor` | **PrePhysics** — Representation 그룹 | 행동 상태 → ISKM 애니 데이터. 넷 모드 분기 없음 — 페이즈 근거는 §7.10과 같다 |
+| `ULNPEnemyAnimationProcessor` | **PrePhysics** — Representation 그룹, 게임 스레드 | 행동 상태 → ISKM 애니 데이터. `ExecutionFlags = Client \| Standalone`(데디 서버는 그리지 않는다). 페이즈 근거는 §7.10과 같다 |
 | `ULNPEnemyActionDebugDrawProcessor` | 에디터 전용 (`LNP.Debug.DrawEnemyAction`, 기본 0) | 행동 상태별 색상 박스 + 전이 로그. 서버/클라 분기가 없는 것이 곧 채널 검증 수단이다 |
+| `ULNPEnemyMarkerProcessor` | **PrePhysics** (HUD Tick과 같은 페이즈) | 적 HP 바 표시 후보 상위 N개 수집 → [TechDesign_HUD.md](TechDesign_HUD.md) §11 |
+| `ULNPEntityAttackProcessor` | PrePhysics — Tasks | 서버 전용: 순수 엔티티 공격 위상 진행·가상 칼날·발사 → [LowLOD](TechDesign_EnemyNPC_LowLOD.md) §4 |
+| `ULNPEntityGhostProjectileProcessor` | PrePhysics — Tasks, 게임 스레드 | 게스트 전용(`ExecutionFlags = Client`): 수신한 발사 전이로 Ghost 발사체 생성 → [LowLOD](TechDesign_EnemyNPC_LowLOD.md) §4 |
 
-> 2026-09-06에 `ULNPEnemyDebugDrawProcessor`(타게팅 상태 박스 + 전방 화살표)를 제거했다 — 행동 상태
-> 드로우와 목적이 겹쳤고, 그쪽만 cvar 게이트가 없어 항상 그려졌다. **잃은 것은 "경계 중이지만 슬롯이
-> 없어 구경만 하는 적"의 구분**이다(§7.1 슬롯 풀 검증에서 눈으로 확인하던 색). 슬롯 풀을 다시 검증할
-> 일이 생기면 되살릴 것.
+> 2026-09-06에 `ULNPEnemyDebugDrawProcessor`(타게팅 상태 박스)를 제거했다 — 행동 상태 드로우와 겹쳤고
+> cvar 게이트도 없었다. **잃은 것은 "경계 중이지만 슬롯이 없어 구경만 하는 적"의 색 구분**이다.
+> 슬롯 풀을 다시 눈으로 검증할 일이 생기면 되살릴 것.
 
 ---
 
@@ -231,12 +274,12 @@ Entity 모드 (Low LOD):
 ```
 
 - 구형 UpDir은 `(GravityOrigin - Location).GetSafeNormal()`로 실시간 계산 (Fragment 저장 없음 — 캐시 효율).
-- 지표면 좌표는 전부 `ULNPSurfaceCacheSubsystem` O(1) 조회 (→ [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md)).
-  ⚠️ **접지 스냅은 캐시 값을 검증 없이 그대로 위치로 쓴다**(`FinalPos = GravityOrigin + Dir * (SurfaceRadius - CapsuleHalfHeight)`).
-  즉 **캐시 오차가 곧 매몰 깊이**이며, 승격 시 `TeleportActor`가 그 좌표를 Actor에 그대로 옮기고
-  Mover는 깊은 침투를 한 프레임에 풀지 못한다. 경사 게이트(§7.4)까지 벽으로 판정해 속도를 0으로
-  만들므로 "꼼짝 못 하는데 공격은 하는" 상태가 된다 — 어빌리티·StateTree는 이 경로와 무관하다.
-  캐시가 표현할 수 있는 지형의 한계는 `TechDesign_SurfaceCache.md` §7 참조.
+- 지표면 좌표는 전부 `ULNPSurfaceCacheSubsystem` O(1) 조회 (워커 스레드에서 직접 호출 —
+  → [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md)).
+  ⚠️ **접지 스냅은 캐시 값을 검증 없이 그대로 위치로 쓴다** — 즉 **캐시 오차가 곧 매몰 깊이**다.
+  승격 시 `TeleportActor`가 그 좌표를 그대로 옮기는데 Mover는 깊은 침투를 한 프레임에 풀지 못하고,
+  경사 게이트(§7.4)까지 벽으로 판정해 속도를 0으로 만든다 — "꼼짝 못 하는데 공격은 하는" 상태가 된다
+  (어빌리티·StateTree는 이 경로와 무관하다). 지형 한계는 `TechDesign_SurfaceCache.md` §7.
 - **공중 물리는 람다 하나로 뽑아 두 소비처(넉백·사망 팝)가 공유한다.** 복제하면 죽는 순간에만
   다른 곡선을 그리는 어긋남이 생긴다.
 
@@ -285,15 +328,12 @@ Entity 모드 (Low LOD):
   되쓰기로 지운다 — 걷기 모션만 재생되고 제자리에 멈추는 증상이 된다.
 
   ⚠️ **판정 기준은 "Actor가 붙어 있는가"가 아니라 "Actor로 그려지는가"다.**
-  `ALNPEnemyCharacter`는 `bReplicates = true`(ASC 복제용)라 서버가 승격시킨 적 Actor는
-  **게스트에도 시뮬레이티드 프록시로 내려온다.** 게스트가 멀어서 ISM으로 그리는 동안에도
+  `ALNPEnemyCharacter`는 `bReplicates = true`(ASC 복제용)라 서버가 승격시킨 적 Actor가
+  **게스트에도 시뮬레이티드 프록시로 내려온다.** 게스트가 멀어서 인스턴스 메시로 그리는 동안에도
   `FMassActorFragment`는 채워져 있으므로, 존재 여부로 권한을 넘기면 ActorToMass 번역기가
-  프록시 캡슐을 Transform에 되써서 **ISM이 프록시를 따라 지면에 파묻힌다.**
-  `FMassRepresentationFragment::CurrentRepresentation`이 `HighRes`/`LowResSpawnedActor`인지로
-  판단하고, 클라 Transform을 쓰는 프로세서는 `SyncWorldToMass` 그룹에서
-  `ExecuteAfter`로 번역기 뒤에 못 박는다.
-  (§7.10 이후 게스트에서는 복제 Actor가 붙는 즉시 표현도 Actor로 올라가므로 두 상태가 갈리는
-  구간 자체가 좁아졌지만, 판단 기준은 그대로 `CurrentRepresentation`이다.)
+  프록시 캡슐을 Transform에 되써서 **인스턴스가 프록시를 따라 지면에 파묻힌다.**
+  판단은 `FMassRepresentationFragment::CurrentRepresentation`으로 하고, 클라 Transform을 쓰는
+  프로세서는 `SyncWorldToMass` 그룹에서 `ExecuteAfter`로 번역기 뒤에 못 박는다.
 
 - **클라이언트는 적 Actor의 이동을 직접 재시뮬레이션한다.** Mover가 Async 모드 +
   Chaos 물리 예측(`bEnablePhysicsPrediction=True`)이기 때문이다. 따라서 **이동 시뮬레이션이
@@ -302,12 +342,9 @@ Entity 모드 (Low LOD):
   매번 되감긴다.
 
 - **AI 이동 의도 벡터는 방향만 담는다 — 크기로 속도를 표현하지 않는다.**
-  Mover의 `UMovementUtils::ComputeVelocity`는 방향 전환 항에서 의도 벡터를 **정규화하지 않고** 쓴다
-  (UE `CharacterMovementComponent`는 같은 자리에서 `GetSafeNormal()`을 쓴다).
-  그래서 크기 `s`(<1)를 지속적으로 넣으면 매 프레임 속도가 `s`배로 깎여
-  평형 속도가 `Acceleration × s × dt / (1 − s)`까지 주저앉는다 — 실측 180cm/s 기대치가 27cm/s로 나왔다.
-  속도는 `SetAIDesiredSpeed()`로 넘겨 `FLNPMoveSpeedModifier`가 `MaxSpeed`에 반영한다.
-  이 규약 덕분에 Entity 경로와 Actor 경로가 같은 `ULNPEnemyConfig::MoveSpeed`를 쓰게 되어
+  Mover는 의도 벡터를 정규화하지 않고 쓰므로 크기 1 미만을 지속 입력하면 속도가 곱셈 붕괴한다
+  (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §1.1). 속도는 `SetAIDesiredSpeed()`로
+  따로 넘긴다. 덕분에 Entity 경로와 Actor 경로가 같은 `ULNPEnemyConfig::MoveSpeed`를 쓰게 되어
   LOD 전환 시 속도가 튀지 않는다.
 
 - **목적지까지의 거리는 접평면 성분으로만 잰다.** 반경 방향 차이(캡슐 중심 보정, 지형 높이차)는
@@ -317,12 +354,11 @@ Entity 모드 (Low LOD):
   (`FMassMoveTargetFragment::DistanceToGoal`은 임계값이 아니라 남은 거리다. 혼동 금물.)
 
 - **신호 구동 상태 기계에는 반드시 신호 없이 도는 복구 경로가 있어야 한다.**
-  Mass StateTree의 Task Tick은 `StateTreeActivate` 신호가 있어야만 돈다. 그래서 "도착하면 신호"만
-  있으면 **도달 불가능한 목표를 한 번 뽑은 개체는 영구 정지**한다 — Tick이 안 도니 스스로 목표를
-  바꿀 수 없고, 타임아웃을 Task 안에 넣어도 그 코드가 실행되지 않는다.
-  배회는 이 구조를 이렇게 푼다: 시간 측정과 깨우기는 **매 프레임 도는 MovementProcessor**가 맡고
-  (`FLNPEnemyIdleFragment::TimeSinceWanderIssued` 누적 → `WanderTimeout` 초과 시
-  `bWanderTargetTimedOut` + 신호), 목표를 폐기·재추첨하는 **판단은 IdleTask가 단독으로** 한다.
+  Mass StateTree의 Task Tick은 `StateTreeActivate` 신호가 있어야만 돈다. "도착하면 신호"만 있으면
+  **도달 불가능한 목표를 한 번 뽑은 개체는 영구 정지**한다 — Tick이 안 도니 스스로 목표를 바꿀 수 없고,
+  타임아웃을 Task 안에 넣어도 그 코드가 실행되지 않는다. 그래서 **시간 측정과 깨우기는 매 프레임 도는
+  MovementProcessor**가, **판단은 IdleTask가 단독으로** 한다
+  (→ [TechDesign_EnemyNPC_StateTree.md](TechDesign_EnemyNPC_StateTree.md) §3.B.4).
 
 ---
 
@@ -333,18 +369,19 @@ Entity 모드 (Low LOD):
 | API | 역할 |
 |:---|:---|
 | `InitializeOnce(Config)` | ASC·어빌리티·무기 1회 초기화 (`bInitializedOnce` 가드) |
-| `SyncFromEntity(Health, State, Velocity)` | 매 활성화: Mass → Actor 주입 (HP Bar 초기값 포함) |
+| `SyncFromEntity(Health, State, Velocity)` | 매 활성화: Mass → Actor 주입(HP·속도). **Actor는 표현 풀에서 재사용되므로** 직전 개체의 흔적을 함께 되돌린다 — `ExitRagdoll()`, AI 입력 3종, 조준 Pitch 0 |
 | `SyncToEntity(out Health, out Velocity)` | 매 프레임: Actor → Mass 역동기화 |
 | `TriggerRagdoll()` | **서버 전용** 사망 진입점 — `Multicast_TriggerRagdoll(PopVelocity)`로 방송한다. 사망 판정이 서버 전용 Mass 프로세서라 방송하지 않으면 클라이언트는 적이 그냥 사라지는 것만 보게 된다. 실제 랙돌은 베이스의 `EnterRagdoll()`/`ExitRagdoll()` (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §9). `SyncFromEntity`가 매 활성화마다 `ExitRagdoll()`을 불러 풀 재사용을 되돌린다 |
-| `SetLockOnMarkerVisible()` | 락온 표식 위젯 토글 (LockOnComponent가 호출) |
 | `SetAimTargetLocation(WorldTarget)` / `ClearAimTarget()` | **서버 전용** 상하 조준 갱신·해제 (아래 §상하 조준) |
 | `GetBaseAimRotation()` | 액터 전방에 복제된 로컬 Pitch를 얹은 조준선. Aim Offset과 발사 방향의 **공통 원본** |
+| `EnemyConfig` (복제, `OnRep_EnemyConfig`) | 적 무기 상태의 단일 원본. **복제해야 하는 이유:** Actor 스폰·`InitializeOnce`가 서버 전용인데 게스트의 Actor는 일반 Relevancy로 온다 — 없으면 게스트에서 무기 메시·애님 레이어가 안 붙고 `GetActiveWeaponDef()`도 null이 된다. OnRep은 **비주얼만** 갱신한다 |
 
-### 월드 스페이스 HP Bar
+### HP 바 · 락온 표식
 
-- `UWidgetComponent`(World Space) + `ULNPHpBarWidget`(BindWidget `HpBar` ProgressBar).
-- 가시 조건 `0 < HP < MaxHP`. 스폰 시 `SyncFromEntity`, 전투 중 ASC Health 변경 델리게이트로 갱신.
-- BP CDO에서 `HpBarWidgetClass = WBP_LNPHpBar` 지정.
+**Actor에 위젯을 달지 않는다.** 순수 엔티티에는 `UWidgetComponent`를 붙일 수 없어 LOD마다 표현이
+갈리기 때문이다. 둘 다 HUD의 **스크린 스페이스 마커**로 그리고, 후보 수집은 `ULNPEnemyMarkerProcessor`
+(상위 N개) 와 `ULNPTargetQuerySubsystem`(최선 1개)이 맡는다
+→ [TechDesign_HUD.md](TechDesign_HUD.md) §11, [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md).
 
 ### 상하 조준 (Aim Pitch)
 
@@ -412,16 +449,15 @@ Actor null 감지와 HP 역동기화를 한 프로세서(ActorSyncProcessor)에�
 
 ### 7.6 잠복 컴파일 버그 — 에디터 전용 프로세서의 #else 분기
 
-디버그 프로세서의 비에디터(`#else`) 생성자가 존재하지 않는 멤버를 초기화하고 있었다. `WITH_EDITOR` 빌드에서는 컴파일되지 않는 경로라 에디터 개발 중에는 무해하지만 패키징(-game) 빌드를 깨뜨리는 잠복 버그 — 조건부 컴파일 분기는 양쪽 모두 주기적 빌드 검증이 필요하다는 교훈.
-
-⚠️ **2026-09-06에 같은 자리에서 재발했다.** 트랙 B에서 새로 들어온 `ULNPEnemyActionDebugDrawProcessor`가
-`#if WITH_EDITOR` 안에만 구현되고 **`#else` 스텁이 없었다.** UCLASS 선언은 헤더에 무조건 남으므로
-비에디터 빌드에서 링크가 깨진다. 에디터 타깃만 빌드해 오느라 드러나지 않았을 뿐이다.
+UCLASS 선언은 헤더에 무조건 남으므로, `#if WITH_EDITOR` 안에만 구현된 디버그 프로세서는
+**비에디터(-game) 빌드에서 링크가 깨진다.** 에디터 타깃만 빌드하는 동안에는 드러나지 않는다.
+두 번 밟았다 — 처음에는 `#else` 생성자가 존재하지 않는 멤버를 초기화하고 있었고,
+2026-09-06 `ULNPEnemyActionDebugDrawProcessor`는 `#else` 스텁 자체가 없었다.
 
 **규약:** `#if WITH_EDITOR`로 감싼 프로세서를 **추가할 때마다** `#else` 스텁(생성자에서
 `bAutoRegisterWithProcessingPhases = false`, 빈 `ConfigureQueries`/`Execute`)을 같은 커밋에 넣는다.
-기존 프로세서를 지울 때는 **남은 클래스의 스텁이 그 블록에 있는지** 함께 확인한다 — 지우면서 `#else`가
-통째로 비면 다음 사람은 스텁이 원래 없었다는 사실조차 모른다.
+지울 때는 **남은 클래스의 스텁이 그 블록에 있는지** 함께 확인한다 — 지우면서 `#else`가 통째로 비면
+다음 사람은 스텁이 원래 없었다는 사실조차 모른다.
 
 ### 7.7 엔티티 단위 상태를 대상별 루프 안에서 읽지 말 것
 
@@ -438,8 +474,8 @@ Actor null 감지와 HP 역동기화를 한 프로세서(ActorSyncProcessor)에�
 ### 7.8 자격 조건에 자기 위치를 넣으면 자기진동한다
 
 리쉬(추격 이탈 제한)를 **NPC 자신의** Pod 거리로 판정하던 시기에 "적이 제자리에서 부들부들 떨며
-안절부절"하는 증상이 나왔다. 원리는 단순하다 — NPC가 리쉬 경계에서 멈추면 그 자리가 곧 판정 경계선이고,
-Pod 쪽으로 한 발짝 움직이는 순간 자격이 되살아나 다시 끌려나가고, 나가는 순간 또 자격을 잃는다.
+안절부절"하는 증상이 나왔다. NPC가 리쉬 경계에서 멈추면 그 자리가 곧 판정 경계선이라,
+Pod 쪽으로 한 발짝 움직이면 자격이 되살아나 다시 끌려나가고, 나가는 순간 또 자격을 잃는다.
 
 ```
 DistToPod 5030 → 자격 없음 → Alert  → Pod 쪽으로 걷기
@@ -462,14 +498,12 @@ Pod 거리로 재면 NPC가 무엇을 하든 조건이 변하지 않으므로 �
 시야에 플레이어가 있으면 평소의 발견 플로우를 그대로 탄다"였다. 별도 전이 규칙이 필요 없는
 깔끔한 설계였지만, **고저차에서는 성립하지 않았다.**
 
-몸통의 회전축은 로컬 Up 하나뿐이라 `OrientationIntent`는 접평면 벡터다 — 즉 **좌우로만 돌아선다.**
-그런데 발견 판정의 시야각은 3D 원뿔이다. 위·아래에서 날아온 공격은 아무리 돌아서도 원뿔 안에
-들어오지 않으므로, "돌아본다"와 "본다" 사이의 연결이 끊긴다. 급경사에서 저격당한 NPC가
-**경계 상태에조차 진입하지 못한 채** 계속 배회하는 것이 실제 증상이었다.
+몸통의 회전축은 로컬 Up 하나뿐이라 **좌우로만 돌아서는데** 발견 판정의 시야각은 3D 원뿔이다.
+위·아래에서 날아온 공격은 아무리 돌아서도 원뿔 안에 들어오지 않아 "돌아본다"와 "본다"의 연결이
+끊긴다 — 급경사에서 저격당한 NPC가 **경계 상태에조차 진입하지 못한 채** 계속 배회했다.
 
 해법은 시야를 넓히는 것이 아니라 **시야의 축을 바꾸는 것**이다. 피격 주시 중에는 시야 중심을
-정면 벡터가 아니라 `HitReactDirection`(3D)으로 둔다. 각도 예산(`VisionAngle`)은 그대로라
-넓어지지 않고, 축만 "맞은 쪽"으로 옮겨간다.
+정면 벡터가 아니라 `HitReactDirection`(3D)으로 둔다. 각도 예산(`VisionAngle`)은 그대로다.
 
 ⚠️ **각도 판정을 빼고 "피격 중이면 다 보인다"로 두면 안 된다.** `HitReactTimer`는 대상별이 아니라
 **엔티티 단위** 값이라, 대상을 한정하지 않으면 교전 중 한 대 맞는 것만으로 사거리 안의 다른
@@ -481,21 +515,20 @@ Pod 거리로 재면 NPC가 무엇을 하든 조건이 변하지 않으므로 �
 그래서 게이트는 조준·발사와 **같은 값**(`FLNPEnemyMovementConfig::AimPitchMin/MaxDeg`)을 읽는다.
 값을 좁히면 "못 겨누는 각도"와 "못 알아채는 각도"가 함께 움직여 모순이 생기지 않는다.
 
-가용 각도는 **로컬 수평면 기준** ∓75°(기본값)이므로, 남는 사각은 로컬 Up/Down에서 15° 이내의
-좁은 원뿔뿐이다. 입체각이 작아 실전에서 파고들 여지가 크지 않다고 보고 **의도적으로 남긴다** —
-여기서 맞으면 NPC는 반응하지 않는 것이 정의된 동작이다.
-
-상한을 정하는 근거는 Aim Offset 에셋의 한계가 아니라 **게임플레이 판단**이다. 플레이어 기준
-실측상 AO 자세는 거의 수직까지 무리 없이 나오므로, 애니메이션이 병목이 되지는 않는다.
+가용 각도는 **로컬 수평면 기준** ∓75°(기본값)이라 남는 사각은 로컬 Up/Down에서 15° 이내의 좁은
+원뿔뿐이다. 입체각이 작아 **의도적으로 남긴다** — 여기서 맞으면 NPC는 반응하지 않는 것이 정의된 동작이다.
+상한의 근거는 Aim Offset 에셋의 한계가 아니라 게임플레이 판단이다(실측상 AO 자세는 거의 수직까지 나온다).
 
 ### 7.10 적 Actor의 표현 소유권은 넷 모드마다 하나뿐이다
 
-`FMassActorFragment`는 **엔티티 하나당 Actor 하나**를 담는 자리이고, 엔진은 그 자리를 채우는
-경로가 자기 하나뿐이라고 단정한다(`UMassAgentComponent::SetEntityHandleInternal`의
-`checkf(!ActorInfo->IsValid())`). 그런데 게스트에는 그 자리를 노리는 경로가 **둘** 있었다.
+`FMassActorFragment`는 **엔티티 하나당 Actor 하나**를 담는 자리이고, 엔진은 그 자리를 채우는 경로가
+자기 하나뿐이라고 단정한다(`UMassAgentComponent::SetEntityHandleInternal`의 `checkf`).
+그런데 게스트에는 그 자리를 노리는 경로가 **둘** 있었다.
 
 1. **복제 퍼펫 링크** — 서버가 승격시킨 적 Actor가 릴러번트가 되어 도착하면
    `UMassAgentComponent::NetID`가 복제되고, `OnRep_NetID`가 NetID로 엔티티를 찾아 프래그먼트에 자기를 쓴다.
+   (같은 NetID로 `OnRep_NetID`가 두 번 오면 엔진이 즉사하므로 `ULNPMassAgentComponent`가 두 번째 등록을
+   건너뛴다. 플레이어 쪽 NetID 캐싱 타이밍 갭 보정도 같은 서브클래스에 있다.)
 2. **게스트 자체의 표현 LOD 승격** — `UMassCrowdVisualizationProcessor`의 실행 플래그는
    `Client | Standalone`이라 **게스트에서 그대로 돈다.** 가까워진 적을 게스트가 스스로
    Actor로 스폰하고(= Mass 소유) 같은 프래그먼트를 채운다.
@@ -522,15 +555,13 @@ Mass 소유가 아닌 Actor를 만나면 새로 스폰하지 않고 **그것을 
 #### ⚠️ 둘을 한 프로세서에 담을 수 없다 — **페이즈가 다르기 때문이다**
 
 이 분리는 취향이 아니라 필수다. 처음에는 한 클래스에 넷 모드로 분기해 넣었는데,
-**그 클라이언트 분기는 한 번도 동작하지 않았다**(2026-09-05 실측).
+**그 클라이언트 분기는 한 번도 동작하지 않았다**(2026-09-05 실측). 세 사실이 겹친 결과다.
 
-- 서버 분기는 판단 근거인 타게팅 상태를 `ULNPEnemyScoringProcessor`(**PostPhysics**)가 채우므로
-  그보다 뒤여야 한다.
-- 그런데 표현을 실제로 정하는 `UMassCrowdVisualizationLODProcessor`·`UMassCrowdVisualizationProcessor`는
-  `ProcessingPhase`를 설정하지 않아 **엔진 기본값 PrePhysics**로 돈다.
-- **Mass는 프로세서를 페이즈별로 따로 버킷팅해 각 페이즈를 독립적으로 의존성 해소한다**
-  (`MassEntitySettings.cpp`). 따라서 **`ExecuteAfter`/`ExecuteBefore`는 페이즈를 건너지 못하고,
-  다른 페이즈를 겨냥한 순서 선언은 조용히 무시된다.**
+- 서버 분기는 판단 근거(타게팅 상태)를 `ULNPEnemyScoringProcessor`(**PostPhysics**)가 채우므로 그보다 뒤여야 한다.
+- 표현을 실제로 정하는 `UMassCrowdVisualization*Processor`는 `ProcessingPhase`를 설정하지 않아
+  **엔진 기본값 PrePhysics**로 돈다.
+- **Mass는 프로세서를 페이즈별로 따로 버킷팅해 독립적으로 의존성을 해소한다**(`MassEntitySettings.cpp`) —
+  따라서 **`ExecuteAfter`/`ExecuteBefore`는 페이즈를 건너지 못하고 조용히 무시된다.**
 
 ```
 PrePhysics  LOD 계산      → LOD = Medium (거리 기반)
@@ -557,7 +588,9 @@ PostPhysics 우리 클램프    → LOD = Low   ← 아무도 안 읽고 다음 
 
 | 항목 | 설명 |
 |:---|:---|
-| 시야각·상태 가중치 | `AngleWeight` 필드는 Config에 존재하나 점수 공식은 거리만 사용. 시야각·공격 상태 가중치 보강 예정 |
+| 시야각·상태 가중치 | `FLNPEnemyTargetingConfig::DistanceWeight`·`AngleWeight` **둘 다 읽는 곳이 없다** — 점수 공식은 `1,000,000 / (거리 + 1)` 고정. 시야각·공격 상태 가중치 보강 예정 |
+| **루팅 방해** | 루팅 중인 플레이어를 최우선 타겟으로 끌어당긴다 (→ [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md) §4.2). 점수 공식이 루팅 상태를 보지 않는다. 위 가중치 항목과 **같은 축**이므로 함께 설계할 것 |
+| Pod 파괴 후처리 | `FLNPEnemyFragment::ParentLootPod` 핸들을 읽는 곳이 없다. Pod이 `Popped`돼도 `ParentPodLocation`이 남아 세력권이 유지된다 (→ [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md) §7) |
 | 난이도 스케일링 | 잔여 LootPod 수 기반 NPC 강화 (슬롯 한도 또는 능력치 단계 조정) |
 | 원거리 적 반격 | 원거리 적도 슬롯을 얻어야 공격하므로, 세력권 밖에서 저격당하면 바라보기만 하고 반격하지 못한다 (→ [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md) §5.3) |
-| Enemy 패링 | `FLNPParryStateFragment`를 Enemy 엔티티에 연결 + StateTree/GA 갱신 경로 (→ [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)) |
+| 적이 **패링하는** 쪽 | `ULNPEnemyTrait`가 `FLNPParryStateFragment`를 붙이지 않아 적은 패링할 수 없다(패링하는 쪽은 플레이어 전용). **패링당하는 쪽은 LOD와 무관하게 이미 동작한다** (→ [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)) |

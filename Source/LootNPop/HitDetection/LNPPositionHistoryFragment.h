@@ -18,7 +18,7 @@ struct FLNPPositionHistorySample
 
 /**
  * 서버 전용 위치 히스토리 링버퍼. Enemy NPC·플레이어 캐릭터 아키타입에 부착된다.
- * ULNPPositionHistoryRecordProcessor가 50ms 간격으로 기록하며, 최대 200ms(5샘플) 되감기를 지원한다.
+ * ULNPPositionHistoryRecordProcessor가 50ms 간격으로 기록하며, 되감기 예산 0.5초(11샘플)를 덮는다.
  * 클라이언트에서는 기록하지 않는다 (Lag Compensation은 서버 판정 전용).
  */
 USTRUCT()

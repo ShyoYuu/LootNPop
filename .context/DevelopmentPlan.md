@@ -36,6 +36,12 @@
     - SmartObject 공간 쿼리는 Mass Representation의 액터 풀링(재사용·텔레포트)과 충돌해 폐기 (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03). `ALNPLootPod`의 `SmartObjectComponent`는 미사용 잔존.
 - [x] **LootPod 랜덤 스폰 로직**
     - Mass Spawner와 연동한 LootPod 위치 결정 및 동적 스폰.
+- [x] **Octant 이음매·프랍 접지 정비** (2026-09-10)
+    - 지각을 **두께 없는 단면**으로 확정(100cm 쉘 제거)하고 안쪽 3면은 **구면 투영 *전에*** 삭제 —
+      순서를 뒤집으면 면이 경계 호로 붕괴해 이음매에 두께 0인 판이 남는다(실측 삼각형의 32%).
+    - PCG 프랍 접지를 복셀 점군 양자화 → **지각 콜리전 라인트레이스**로 교체. SurfaceCache와 같은
+      `bTraceComplex=false`를 쓰므로 프랍과 NPC 높이가 같은 기준을 공유한다.
+    - 설계 명세: [TechDesign_WorldGeneration.md](TechDesign_WorldGeneration.md)
 
 ---
 
@@ -43,14 +49,14 @@
 
 - [x] **MassEntity 기반 루팅 시스템** (`ULNPLootingProcessor`, `ULNPIdleToLootingProcessor`)
     - 상태 전환(Idle ↔ Looting → Popped), 게이지 누적, 거리 체크 완료.
-    - 루팅 존(500cm) 내 **모든 플레이어의 루팅 속도 합산** — 협동 시 가속. 상호작용 반경(150cm)과 분리.
+    - 루팅 존(500cm) 내 **모든 플레이어의 루팅 속도 합산** — 협동 시 가속. 상호작용 반경(250cm + 정면 60°)과 분리.
     - 전원 이탈 시 게이지 감쇠(존 활성 유지, 복귀만으로 재개), 0 도달 시에만 완전 취소.
     - 게이지 완료 → `Popped` → `ALNPLootDice::SpawnPodRewards` 보상 스폰 + 엔티티 파괴.
     - 설계 명세: [TechDesign_LootPod.md](TechDesign_LootPod.md)
 - [x] **LootDice 보상 픽업** (`ALNPLootDice`, `ULNPLootDiceRewardTable`)
     - Mass가 아닌 **순수 Actor** — 서버 권위 Chaos 물리 + Iris `ReplicatedMovement`(각속도 포함). Pod Pop 임펄스·고속 회전.
     - 가중 추첨 리워드 테이블(`DA_LootDiceRewardTable`), 획득 시 Server RPC → 인벤토리 편입, 60초 타이머 소멸.
-    - PIE 1인 검증 완료. **잔여:** 2인 복제(정지 윗면 일치·슬립 트래픽), 구형 월드 중력, 드랍/양도 검증.
+    - 2인 PIE 검증 완료(2026-07-17): 루팅 → Pop → 획득 → 인벤토리 반영. **잔여:** 정지 윗면 일치, 슬립 트래픽 실측, 동시 획득 선착순.
     - 설계 명세: [TechDesign_LootDice.md](TechDesign_LootDice.md)
 - [x] **인벤토리 아이템 인스턴스 모델** (`ULNPInventoryItemInstance`, `ULNPInventoryComponent`)
     - 공유 DataAsset 포인터 → **UObject 인스턴스 + `FGuid ItemId` 정체성**으로 전환. 장착본/보관본 오검출 버그 해소.
@@ -59,15 +65,13 @@
     - **잔여:** 인스턴스별 **랜덤** 스탯 롤링, 스태킹/수량, 정렬·필터. (무기 레벨은 아래 항목에서 해소)
     - 설계 명세: [TechDesign_Inventory.md](TechDesign_Inventory.md)
 - [x] **무기 레벨·합성** (`FLNPWeaponLevelRow`, `ULNPWeaponData::LevelTable`, `ULNPInventoryComponent::TryMergeItem`)
-    - 레벨별 스텟·어빌리티 계수를 **무기별 DataTable에 절대값으로** 입력한다(공식 아님, 행 이름 = 레벨).
-      **테이블의 마지막 연속 행이 곧 그 무기의 최대 레벨.** 현재 테스트 데이터는 10레벨까지(지수 ×2 씨앗).
+    - 레벨별 스텟·계수를 **무기별 DataTable에 절대값으로** 입력한다(공식 아님, 행 이름 = 레벨).
+      **마지막 연속 행이 곧 그 무기의 최대 레벨.**
     - 같은 종류·같은 레벨 n개(`LNPSettings.WeaponMergeMaterialCount`, 기본 3) → 다음 레벨 1개.
-      **대상 자신이 결과물**이 되므로 "비장착 n개 → 1개"와 "장착본 +1레벨(n-1 소모)"이 한 경로로 성립한다.
-    - 무기 레벨이 GAS 어빌리티 스펙 레벨로 흘러 `ComputeDamage`가 `AttackPower × 계수`를 낸다.
-      기초 스텟·계수가 둘 다 오르므로 **피해는 제곱으로 증가** — `AbilityCoefScale`은 완만하게 둘 것.
-    - LootDice 페이로드에 `ItemLevel`(COND_InitialOnly) — **다른 플레이어가 주워도 레벨 보존**.
-    - UI: 셀 배지 3분할(장착 좌상단 / 버프 잔여 우상단 / 레벨 우하단), 디테일 패널 Merge 버튼(`Merge (2/3)` · `Max Lv.`).
-    - 2P Standalone 검증 완료(2026-08-20): 게스트 합성·장착본 합성·드랍 후 타 플레이어 획득 시 레벨 보존, 최대 레벨 차단, 레벨별 피해 차이.
+      **대상 자신이 결과물**이라 "비장착 n개 → 1개"와 "장착본 +1레벨"이 한 경로로 성립한다.
+    - ⚠️ 무기 레벨이 어빌리티 스펙 레벨로 흘러 기초 스텟·계수가 둘 다 오르므로 **피해는 제곱으로 증가** —
+      `AbilityCoefScale`은 완만하게 둘 것. LootDice 페이로드의 `ItemLevel`로 남이 주워도 레벨이 보존된다.
+    - 2P Standalone 검증 완료(2026-08-20): 게스트·장착본 합성, 드랍 후 타 플레이어 획득 시 레벨 보존, 최대 레벨 차단.
     - 설계 명세: [TechDesign_Inventory.md](TechDesign_Inventory.md) §7, [GameDesign_Ability.md](GameDesign_Ability.md) §3.1
 - [x] **CommonUI 인게임 메뉴** (`ULNPMenuRootWidget` 외 UI/Menu 13종)
     - 3탭(캐릭터 스탯 / 인벤토리 / 환경설정). `UCommonActivatableWidgetStack`(열기·닫기) + `UCommonActivatableWidgetSwitcher`(탭 전환) 조합.
@@ -97,13 +101,14 @@
     - 발사체 시스템: `ULNPProjectileMovementProcessor`(PrePhysics) + `ULNPProjectileHitDetectionProcessor`(StartPhysics) + Visualization + Destruction 4개 프로세서.
     - 선분-캡슐 원거리 HitDetection, `InstigatorTeam` 팀 구분 피격 처리.
     - 공격 입력 바인딩 (`ULNPInputHandlerComponent`), 0.05초 입력 버퍼링.
-- [x] **전투 애니메이션 시스템** (`ABP_Player`, `ULNPAnimInstance`)
-    - `ALI_WeaponStyles` 인터페이스 정의 및 무기별 서브 AnimBP (`ABP_Unarmed`, `ABP_Sword`, `ABP_Pistol`) 제작.
-    - UpperBody / FullBody 슬롯 분리 블랜딩 파이프라인 + Inertialization 적용.
+- [x] **전투 애니메이션 시스템** (`ABP_Lyra`, `ULNPAnimInstance`)
+    - Motion Matching 로코모션 + `ALI_WeaponStyles` Linked Anim Layer로 서브 AnimBP 5종
+      (`ABP_Sub_Unarmed`/`Pistol`/`Rifle`/`Shotgun`/`LongSword`)을 무기에 따라 런타임 교체.
+    - 몽타주 슬롯 2종 — `DefaultSlot`(전신: 검술 공격·피격·대시·사망), `UpperBody`(재장전) + Inertialization.
     - GAS `State.Block.MovementInput` 태그 기반 이동 입력 차단 (`ULNPInputHandlerComponent` 연동).
     - 설계 명세: [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md)
 - [x] **총기류 Aim 모드**
-    - 총기 장비 시 UpperBody 레이어에 Aiming 포즈 블랜딩.
+    - 총기 서브 AnimBP의 Aim Offset(`AimPitch`/`AimYaw`)으로 상하 조준. 적 NPC도 같은 경로를 공유한다.
     - ADS 카메라 전환(`CR_ADS` 리그 프리셋 + `CDE_ThirdPerson` 디렉터 분기), 조준 감도 완화,
       ADS 중 대시·질주 차단 및 이동 속도 저하(`FLNPADSModifier`). 상세: [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §2.6
 - [x] **Enemy NPC HP Bar · 락온 마커** (스크린 스페이스 커스텀 Slate, 2026-09-09 전환)
@@ -125,63 +130,55 @@
     - `ULNPWeaponTraceHitDetectionProcessor`: Swept Quad(삼각형 2개) vs. 캡슐 축 선분 최단 거리 판정. `SwordRadius + CapsuleRadius` 임계값.
     - `ULNPWeaponTraceLifetimeProcessor`: `TimeToLive` 만료 시 엔티티 자동 파괴 (NotifyEnd 미호출 안전장치).
     - 중복 피격 방지 (`AlreadyHit[8]` 배열). 에디터 전용 디버그 드로우 프로세서 포함.
-    - 피격 시 `FLNPPlayerLootingTag` 제거 → LootPod 루팅 취소 연동은 미구현.
 - [x] **콤보 시스템**
     - 몽타주 섹션 분기 기반 다단 콤보 구현.
 - [x] **Chooser 기반 몽타주 선택 시스템**
     - Chooser 테이블을 활용하여 상황에 맞는 공격 몽타주 자동 선택.
 - [x] **산탄 공격**
-    - 다수의 발사체를 분산 발사하는 산탄 공격 구현.
+    - 다수의 발사체를 분산 발사하는 산탄 공격 구현. 배치 공식(`LNPSpread::BuildHexRingDirections`)은 적 엔티티와 공용.
+- [x] **탄창·재장전** (2026-09-14)
+    - 탄약을 **어트리뷰트 + Cost GE**로 둔다(`MagazineAmmo`/`MagazineSize`) — 별도 복제 변수면 늦게 온 서버 값이
+      연사 중 로컬 차감을 덮어써 HUD가 튄다. GAS 예측 키가 선반영·정산을 대신한다.
+    - `ULNPAbility_Reload`는 폰 부여(무기 무관). 취소는 경직·무기 교체·대시 3경로.
+      ⚠️ 탄을 채우는 곳은 WaitDelay 콜백이 아니라 `EndAbility`다 — 서버는 클라 종료 통지에 먼저 끝날 수 있다.
+    - 무기 메시 애니는 `ULNPWeaponVisualSet::WeaponReloadAnim`을 GameplayCue가 단일 노드로 재생.
+    - 설계 명세: [TechDesign_Ability.md](TechDesign_Ability.md) §5.5
+- [x] **폭발 무기 — 유탄 발사기** (2026-09-09 ~ 09-10)
+    - 포물선 발사체 + ADS 궤도 가이드(`ULNPTrajectoryGuideComponent`). 가이드는 실탄과 **같은 함수**로
+      궤적을 만든다 — 따로 적분하면 가리키는 곳과 터지는 곳이 갈린다.
+    - **지면 착탄·수명 만료도 폭발로 취급**해 종말 판정을 판정 프로세서 하나로 모았다. 그 전에는 발밑·벽에
+      쏘면 임팩트 VFX만 뜨고 범위 피해도 넉백도 없었다. 스플래시는 거리 감쇠 + 순수 엔티티 포함.
+    - 설계 명세: [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §6
+- [x] **적 탐색 질의 시스템** (`ULNPTargetQuerySubsystem`, `ULNPTargetQueryProcessor`, 2026-09-06 ~ 09-09)
+    - 물리 경유 탐색 3곳(조준점·근접 보정·락온)이 **순수 엔티티를 통째로 빠뜨리던** 것을 Mass 상시 질의로 교체.
+      요청/응답이 아니라 매 프레임 갱신되는 질의라 소비자는 결과만 읽는다.
+    - 락온은 대상을 엔티티 핸들로, 마커는 스크린 스페이스로(위 HP Bar 항목과 같은 경로).
+    - 공간 분할(등장방형 축소 행 격자)은 이 시스템의 **선행 조건이 아니다** — 질의 셋은 3,000기에서도
+      선형 스캔으로 충분하다. 첫 소비자는 적 겹침 분리력이다.
+    - 설계 명세: [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md)
 - [x] **히트리액션**
     - 피격 시 캐릭터 히트리액션 애니메이션 구현.
-- [ ] **피격 반응 시스템** (넉백·드랍)
-    - HitStop 구현 완료.
-    - 미구현: 넉백 Launch (구형 곡률 기반 궤적), 아이템 드랍.
+- [x] **피격 반응 시스템** (HitStop·넉백·사망 드랍)
+    - `ALNPCharacterBase::ApplyKnockback` → Mover `FApplyVelocityEffect`(Instant Effect). 권위에서만 트리거하고
+      결과가 SyncState로 복제된다. 피격 넉백과 근접 패링 성공 시 공격자 넉백이 같은 경로를 쓴다.
+    - 사망 시 가방(장착 무기 포함)+활성 버프 전량을 LootDice로 Pop (`DropAllItemsOnDeath`, 2026-08-21).
 - [x] **경직(Poise) 시스템** (구현·에디터 작업 완료, PIE 1인 + Standalone 2인 검증 — 2026-08-29)
-    - **자연회복만이 경직도를 줄인다.** 리셋·차감·면역이 없고, 자연회복 속도를 상회하는 화력을 몰아쳐야만
-      게이지가 유지·상승한다. 유일한 예외가 다운(게이지 0 + 면역)이며 그것이 스턴락을 끊는 단 하나의 탈출구다.
-    - **T1 이상 = 그로기**(공격·이동 불가, 누적 계속), **T2 도달 = 다운**(고정 시간 + 리셋 + 면역).
-      그로기는 고정 시간이 아니라 게이지 값에 종속된 상태다 — 종료는 프로세서가 이탈 에지에서 GA를 취소한다.
-      T1~T2 간격이 곧 딜 구간이라 **임계값은 폰별**이다(적은 넓게, 플레이어는 좁게) — 전역 상수로 두면
-      저항이 높은 쪽 밴드가 오히려 길어져 의도와 정반대가 된다.
-    - "T1 바로 위 걸치기" 무한 그로기는 **유지 시간 비례 유입 보너스**(`PoiseGroggyBonusPerSecond`)로 막는다 —
-      타임아웃과 달리 다운이 항상 타격 위에서 일어나 인과가 보인다.
     - `FLNPPoiseFragment`(서버 전용, 비복제) + `ULNPPoiseProcessor`(감쇠·임계) + `FLNPStaggerCommand`(발동).
-      Actor 승격 여부와 무관하게 같은 눈금으로 쌓이고, Low LOD 적은 `bIsGroggy`·`ImmunityTimeRemaining`으로 이동만 멈춘다.
+      T1 = 그로기(게이지 종속 상태), T2 = 다운(고정 시간 + 리셋 + 면역). **임계값은 폰별**이다.
     - **입력 차단은 GA가, 몽타주는 GameplayCue가 소유한다** — 적 ASC가 `Minimal` 복제라 어빌리티 활성화가
-      시뮬 프록시에 안 가기 때문. 부수 효과로 기존 패링 스태거의 미복제 결함도 해소.
-    - 일반 히트리액트 몽타주에는 입력 차단 ANS를 붙이지 않기로 결정 (사유: TechDesign_CombatAnimation §6.4).
-    - 가드 브레이크: 막아낸 공격도 `PoiseGuardMultiplier`만큼 누적, 돌파 시 `Client_ForceReleaseGuard`로 가드 해제.
-    - **근접 패링도 경직 시스템으로 통합** (`LNPPoise::ApplyParryBreak`) — 공격자 T1의 `PoiseParryBreakRatio`배를
-      한 번에 쏟아부어 그로기에 빠뜨린다(저항 미적용). 전용 스태거 GA·`Parry.Stagger` 이벤트·`Parry.Parried`
-      공격자 몽타주 직접 재생은 제거 — 고정 시간 GA와 게이지 그로기를 병행하면 GA가 먼저 끝나며 그로기가 조용히 깨진다.
-      패링 연출은 `Value.Stagger.Parried` 밸류 태그로 살렸다(행동은 일반 그로기와 동일, 몽타주만 분기).
-    - 랙돌·사망 대상 제외. 검증용 시각화: `LNP.Debug.DrawPoise 1` (`ULNPPoiseDebugDrawProcessor`, 에디터·서버 전용,
-      표시 거리는 `LNP.Debug.DrawPoiseDistance`).
-    - **Standalone `-game` 2인 검증 완료:** 발신 13 / 호스트 13 / 게스트 13, 밸류 태그 3종(Light·Heavy·Parried)이
-      양쪽 로그에서 완전 일치. 호스트·게스트 어느 쪽이 패링해도 동일하게 재현된다.
-    - **에디터 작업 (전부 완료):**
-        1. `DA_PlayerEntityConfig`의 `MassAssortedFragmentsTrait`에 `FLNPPoiseFragment` 추가.
-           ⚠️ 없으면 플레이어는 경직도가 아예 안 쌓인다 (`PushPoiseResistanceToEntity`가 경고 로그를 남긴다).
-        2. **GA_Stagger를 무기에서 폰으로 이관.** 원래 `DA_LongSword`·`DA_NPC_LongSword`의 어빌리티 목록에서만
-           참조돼 **롱소드를 들지 않은 폰은 경직 어빌리티가 없어 입력 차단이 안 걸렸다**
-           (몽타주 큐는 떠서 "굳는 시늉만 하고 계속 움직이는" 증상). `BP_LNPPlayer` /
-           `ULNPEnemyConfig`의 `DefaultAbilities`로 옮겨 무기와 무관하게 만들었다.
-        3. Chooser 행 3종 — Light `AM_SW_Damage_Fast` / Parried `AM_SW_Damage_Backward` / Heavy `AM_MM_HitReact_Front_Hvy_01`.
-           `GCN_LNP_Character_Stagger` 노티파이 에셋.
-        4. 어빌리티별 `PoiseDamage`·`ComboPoiseDamages` 값, `DA_Enemy_*`의 `PoiseResistance`·`Poise*Threshold`.
-    - **검증용 임시값은 전부 원복 완료 (2026-08-29).** 검증 중에는 양쪽 다 경직 발동 전에 먼저 죽어
-      관찰이 불가능했던 탓에 공격력을 눌러 두었으나, 검증이 끝나 원래 값으로 되돌렸다 —
-      `DT_*_Levels` 4종(+30 / +10 / +10 / +20), `DA_NPC_Pistol`(+10), `DefaultGame.ini`의 임계값 오버라이드 제거,
-      경직력도 초기값(근접 [30, 45] · 피스톨 12 · 라이플 10 · 샷건 3)으로 복귀.
-    - **임계값 초안을 C++ 기본값에 반영** — `ULNPSettings` 플레이어 60 / 95(밴드 35), `ULNPEnemyConfig` 적 60 / 200(밴드 140).
-      ini 오버라이드 없이 이 값이 시작점이 되도록 했다(구 기본값 100 / 200은 폰별 임계값 도입 전 값이라 의도와 반대였다).
-    - ⚠️ **수치 밸런스는 플레이로 조정하기 전이다.** 원복된 공격력 기준 근접 3~4타에 서로 죽어서
-      플레이어 경직(T1까지 약 4타)이 거의 발동하지 않는다 — 경직 임계값이 아니라 공격력·HP 쪽 문제다.
-    - 부수 발견: **`DA_NPC_LongSword`은 참조자가 0인 미사용 에셋이다.** 근접 적은 `DA_LongSword`를 쓴다 — 정리 대상.
-    - 부수 수정: **`FLNPEnemyFragment::Defense`가 시드되지 않아 항상 0**이었다 — 같은 공격이 Low LOD 적에게만
-      15% 더 아프게 들어가고 있었다(High LOD는 ASC의 DefensePower 15를 쓴다). `BuildTemplate`에서 MaxHealth와
-      같은 방식(`LNPStat::ResolveStatValue`)으로 시드하도록 수정.
+      시뮬 프록시에 안 간다. 부수 효과로 기존 패링 스태거의 미복제 결함도 해소.
+    - 근접 패링을 경직 파이프라인으로 통합(`LNPPoise::ApplyParryBreak`). 전용 스태거 GA·`Parry.Stagger` 이벤트 제거 —
+      고정 시간 GA와 게이지 그로기를 병행하면 GA가 먼저 끝나며 그로기가 조용히 깨진다.
+    - 가드 브레이크: 막아낸 공격도 `PoiseGuardMultiplier`만큼 누적, 돌파 시 `Client_ForceReleaseGuard`.
+    - **Standalone `-game` 2인 검증 완료:** 발신/호스트/게스트 13건 일치, 밸류 태그 3종(Light·Heavy·Parried) 동일.
+      검증용 임시값·ini 임계값 오버라이드는 전부 원복(2026-08-29). 시각화는 `LNP.Debug.DrawPoise 1`.
+    - **에디터 작업 전부 완료** — `DA_PlayerEntityConfig` Fragment 추가, GA_Stagger를 무기에서 폰으로 이관,
+      Chooser 행 3종 + `GCN_LNP_Character_Stagger`, 어빌리티·적 DA의 경직 수치.
+      ⚠️ GA_Stagger가 무기에 달려 있으면 그 무기를 안 든 폰은 "굳는 시늉만 하고 계속 움직인다".
+    - ⚠️ **수치 밸런스는 플레이로 조정하기 전이다.** 근접 3~4타에 서로 죽어 플레이어 경직(T1까지 약 4타)이
+      거의 발동하지 않는다 — 경직 임계값이 아니라 공격력·HP 쪽 문제다.
+    - 부수 발견: `DA_NPC_LongSword`는 참조자 0인 미사용 에셋(정리 대상). 부수 수정: `FLNPEnemyFragment::Defense`
+      미시드로 같은 공격이 Low LOD 적에게만 15% 더 아팠다.
     - 설계 명세: [TechDesign_Poise.md](TechDesign_Poise.md), [GameDesign_Poise.md](GameDesign_Poise.md)
 - [x] **Guard / Parry 시스템** (핵심 기능 완료, GameplayCue 에셋 연결 잔여)
     - Guard: `FLNPParryStateFragment` Fragment 각도 판정 → `FLNPGuardBlockCommand` → 데미지 차단 + GameplayCue. 동작 확인.
@@ -191,7 +188,8 @@
     - 판정 반경 분리: `HitRadius`(피격)와 `ParryRadius`(패링)를 독립 필드로 분리. 2단계 판정 — ParryRadius 먼저 체크, 미발동 시 HitRadius 체크. 동작 확인.
     - Guard 이동 제한: `FLNPGuardModifier` (GuardWalkSpeed 200 cm/s) — Sprint와 동일한 Mover Modifier 패턴.
     - Guard 자세 애니메이션: `ABP_Sub_LongSword`에서 `bIsGuarding` Bool Blend 노드로 Guard 자세 블렌딩. 동작 확인.
-    - 에디터 잔여: GameplayCue 에셋 연결 (`GameplayCue.LNP.Guard.Block`, `GameplayCue.LNP.Parry.Success`), Guided 투사체 반사 타입.
+    - GameplayCue 에셋 연결 완료(`GCN_LNP_Guard_Block`·`GCN_LNP_Parry_Success`, VFX 지정됨).
+    - **잔여: Guided 반사** — 유도 투사체 타입 자체가 미구현이라 현재 반사는 전부 Linear다. 방어자 HitStop도 미구현.
     - 설계 명세: [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)
 
 ---
@@ -203,10 +201,11 @@
 - [x] **적 이동 프로세서** (`ULNPEnemyMovementProcessor`)
     - 구형 표면을 따른 이동. `ULNPSurfaceCacheSubsystem`에서 표면 노멀 조회 (스레드 안전).
 - [x] **슬롯 기반 타겟팅 서브시스템** (`ULNPTargetingSubsystem`)
-    - Melee/Ranged 슬롯 풀 관리. `DistanceToTargetSq` 기반 우선순위 경쟁.
+    - `ELNPTargetSlotPool` 3분할(Melee 10 / Ranged 20 / **Promoted** 2) — 승격 개체에 독립 예산을 준다.
+      풀 판별 원본은 `ULNPEnemyConfig::GetSlotPool()`, 점수는 거리 하나(`1,000,000 / (거리+1)`).
 - [x] **StateTree 기반 적 AI** (`ULNPEnemyStateTreeProcessors`)
-    - Leash / Chase / Attack 상태 전환. Mass-StateTree 통합.
-- [ ] **Enemy Low LOD(순수 엔티티) 전투** — 트랙 A 완료 (2026-09-05), 트랙 B·C 미착수
+    - `Combat`(└ Attack / Chase) / `Alert` / `Idle` 3계층. 전이는 전부 조건 불일치 → Transition to Root.
+- [x] **Enemy Low LOD(순수 엔티티) 전투** — 트랙 A·B·C 완료 (2026-09-05 ~ 09-13)
     - `ULNPEnemyConfig::CombatMode`(`ActorPromoted` / `PureEntity`)로 승격을 **옵션화**. 기본값은 종전 거동.
       승격 차단은 EntityConfig의 `LODRepresentation`이 맡고, 코드는 전투 시 LOD를 끌어올리지 않는 것까지만 한다 —
       LOD를 눌러 막으면 유의도·틱 레이트까지 함께 눌린다. 어긋남은 `ULNPEnemyTrait::ValidateTemplate`이 양방향 경고.
@@ -216,14 +215,31 @@
     - 근접은 **절차적 가상 칼날** — 4점을 계산해 기존 Swept Volume 판정을 그대로 태운다. 판정·패링·가드 코드는
       한 줄도 바뀌지 않았다. 칼날은 별도 엔티티라 2패스(계산→반영), 마커는 Tag가 아니라 Fragment.
     - 원거리는 산탄까지 지원하며 배치 공식을 `LNPSpread::BuildHexRingDirections`로 어빌리티와 공용화.
-    - 부수 수정: **적 판정 캡슐 96cm 이중 보정 제거.** 좌표 규약 통일 이전의 잔재가 남아 있었는데, 전투 중 적이
-      예외 없이 승격되던 동안에는 그 분기가 실전에서 거의 안 돌아 드러나지 않았다. 먼 거리 Low LOD 적 저격에도
-      같은 오차가 있었다. 판별 원본도 `EnemyTypeTag` 문자열 비교 → `ELNPEnemyAttackType` 필드로 교체.
-    - **잔여:** 트랙 B(행동 상태 1바이트 복제)·트랙 C(ISM↔ISKM). 게스트에 엔티티 발사체가 안 보이는 것은
-      Stage 4(관전 가시성) 미착수라 정상이다. **검증용 임시값 2건 원복 필요**(무기 레벨1 공격력 0, NPC 체력 5배).
+    - 부수 수정: **적 판정 캡슐 96cm 이중 보정 제거** — 전투 중 적이 예외 없이 승격되던 동안에는 그 분기가
+      거의 안 돌아 드러나지 않았다. 판별 원본도 `EnemyTypeTag` 문자열 비교 → `ELNPEnemyAttackType` 필드로 교체.
+    - **트랙 B** — 행동 상태를 1바이트(`ELNPEnemyAction` 6값, 3비트)로 복제. 일회성 전이만 갱신 주기 게이트를
+      우회한다. 발사체 관전 가시성도 함께 개통.
+    - **트랙 C** — ISM↔ISKM 인스턴싱 애니메이션(Idle/Move → 공격·경직·사망·패링 모션 → 무기 스킨드 메시).
+      ⚠️ 렌더 요건은 Nanite가 아니고, 애니메이션 인덱스는 추가 순서에 의존한다(→ 설계 명세 §6).
+    - **검증용 임시값 2건은 원복 완료**(2026-09-16) — `DT_*_Levels` 4종, `DA_NPC_Pistol`.
     - 설계 명세: [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md)
-- [ ] **시야각·상태 기반 타겟팅 가중치 보강**
-    - 현재 거리 기반만 구현. 시야각(Angle) 및 공격 상태 가중치 추가.
+- [ ] **루팅 방해 어그로** — 루팅 중인 플레이어를 최우선 타겟으로 끌어당긴다.
+    점수 가산항으로 붙일지 별도 어그로 규칙으로 둘지 미정. ⚠️ 가산치 튜닝이 곧 난이도다.
+    (거리 단항 점수는 **의도된 설계**다 — 추격 자격이 이진값이라 순위를 더 가를 이유가 없다.
+    → [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md) §4.2)
+- [x] **적 인지·추격 사다리 재설계** (2026-09-01)
+    - 상태를 `None → Alert → Confirmed` 사다리로 정리하고 **경계 인내**(대치를 시간으로 끝낸다)와
+      **피격 반응**(맞은 쪽을 돌아본다)을 넣었다. 추격 자격이 플레이어의 Pod 거리만 읽으므로
+      `Alert`에서 무엇을 하든 상태 판정에 되먹임이 없다.
+    - 설계 명세: [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md) §5
+- [x] **적 겹침 분리력 + 공간 격자** (`ULNPEnemySpatialGridProcessor`, `ULNPEnemySeparationProcessor`, 2026-09-07)
+    - 엔진 `MassAvoidance`·내비 장애물 그리드는 **Z-Up 평면 전용**이라 구형 월드에서 못 쓴다
+      (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 05). 같은 계산을 접평면에서 자체 수행.
+    - 분리력은 Fragment에 남기고 소비는 `ULNPEnemyMovementProcessor`가 한다 — **Transform의 주인은 하나로 유지**
+      (표면 스냅·경사 체크가 그쪽에 있다). 예측 회피(CPA)는 넣지 않았다.
+- [x] **순수 엔티티 피격 반응** (2026-09-07)
+    - 적이 *피격자*인 방향을 개통 — 연출·넉백·플린치·공격 잠금·사망 팝. Actor가 없으면
+      `FLNPStaggerCommand`가 도달하지 못하므로 `ULNPEntityAttackProcessor`가 유일한 중단 경로다.
 - [ ] **난이도 스케일링**
     - 활성 LootPod 수 추적 → 슬롯 한도 또는 적 능력치 단계적 조정.
 - [x] **LOD 기반 Actor ↔ Entity 전환**
@@ -246,8 +262,11 @@
       맡고 목표 재추첨 판단은 IdleTask가 단독으로 한다.
     - **지면 관통·Low LOD 피격 판정 종료 (08-27)**: 둘 다 좌표 규약 불일치의 파생이었고
       별도 조치 없이 해소된 것이 실측으로 확인됐다. 조사용 계측 코드는 전량 제거.
-    - **잔여**: 게스트 LowLOD 이동 끊김 — 클라이언트 보간 부재. 미착수.
-      LOD 전환 시 튐은 잔존하나 사용자 판정으로 **수용(보류)**.
+    - **게스트 이동 끊김 해소 (08-28)**: `FLNPReplicatedMovementFragment` + `ULNPMassSmoothingProcessor`(클라 전용)가
+      수신 사이 프레임을 Lerp/Slerp로 메운다. 보간 구간은 직전 두 수신 간격을 0.05~0.5초로 clamp —
+      장기 정지 후 재개 시 간격이 수십 초로 잡혀 기어갔다. AI 이동 속도는 InputCmd로 전달해
+      클라 재시뮬레이션이 CDO MaxSpeed(800)로 폴백하던 것을 막았다.
+    - **잔여**: LOD 전환 시 튐은 잔존하나 사용자 판정으로 **수용(보류)**.
 
 ---
 
@@ -256,7 +275,7 @@
 - [ ] **Iris 기반 네트워킹 구현**
     - 설계 명세: [TechDesign_Networking.md](TechDesign_Networking.md)
     - [x] Phase 1: Iris 활성화, GAS 복제 모드, ALNPEnemyCharacter bReplicates, GameplayCue 에셋 연결 (PIE 2P 검증 완료)
-    - [x] Phase 2: HitStop/HitReact GameplayCue 전파 (코드 완료, GameplayCueNotify VFX·그래프 연결은 에디터 잔여)
+    - [x] Phase 2: HitStop/HitReact GameplayCue 전파. 에디터 잔여는 `GCN_LNP_Melee_Impact` 하나 — VFX·Sound·CameraShake 전부 미지정
     - [x] Phase 3: 근접 HitDetection 클라이언트 예측 + Lag Compensation + Guard/Parry 서버 복제 (PIE 2인 근접 PvP 왕복 검증 완료 — `UAnimNotifyState` 싱글턴 공유로 인한 근접 판정 실패 버그 발견·수정)
     - [x] Phase 4: 원거리 Projectile 클라이언트 예측 (LocalPredicted + Ghost Projectile, 거부 롤백)
     - [x] Phase 4.5: Ghost Projectile 정합성 개선 — 키 전역 고유화(SalvoID), per-entry TTL, 패링 반사 소멸+재스폰, 관전 Ghost Dead Reckoning·로컬 충돌, Rewind 발사 시점 캐싱 (PIE 3인 검증 완료)
@@ -267,6 +286,10 @@
     - [x] 발사 피치·Aim Offset 동기화 — Mover InputCmd의 ControlRotation 재사용 + bSyncInputsForSimProxy, GetBaseAimRotation 오버라이드 (PIE 검증 완료)
     - [x] Phase 8: Mass 복제 **단일 스트림 통합** — Enemy·Player·LootPod이 `ALNPMassClientBubbleInfo` / `ULNPMassReplicator` 하나를 공유. 엔진의 파괴 처리 경로가 타입 무구분이라 버블이 2개 이상이면 타 타입 엔트리를 자기 핸들로 제거하려다 크래시(2P 루팅 완료 시 실측). ⚠️ `DA_PlayerEntityConfig`는 CoreRedirects 경유 — 에디터 재저장 후 리다이렉트 제거 필요
     - [x] 자세 인코딩 — 엔진 기본 핸들러의 월드 Yaw 복원이 구 내벽에서 엔티티를 눕히는 문제를, **접평면 로컬 Yaw** 인코딩으로 해소(추가 대역폭 0). 극점 약 3.5m 링 특이점은 수용
+    - [x] Mass 복제 대역폭 3단 정비 (2026-09-03 ~ 09-04) — ① 컬 거리 무력화 해소(대기 1.1MB/s → 82KB/s),
+      ② 갱신 주기 게이트(엔티티당 2,762 → 825 B/s), ③ 페이로드 양자화(갱신 1회당 62 → 12.6 B).
+      전투 평균 26.3 KB/s·피크 50.6 KB/s(상한의 34%, 포화 샘플 0건). ⚠️ int16 양자화가 **월드 반지름을 하드 캡**한다
+      → [Guide_NetBandwidth.md](Guide_NetBandwidth.md)
     - [x] 가시 거리 짝 맞춤 — 트레잇 `ReplicationCullDistance` ↔ `MassCrowdVisualizationTrait.VisibleLODDistance` 일치 강제 (엔진 기본 5,000cm 방치로 "서버엔 보이는데 클라엔 안 보임" 발생, 2026-08-05 수정)
 - [ ] **승리 조건 및 세션 관리**
     - 메달(가칭) 4개 수집 시 승리. 게임 시작/종료/결과 처리 흐름.

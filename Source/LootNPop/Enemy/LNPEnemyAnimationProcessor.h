@@ -11,8 +11,10 @@
  * 옮기는 유일한 프로세서. 엔진의 `UMassConsumeInstancedSkinnedMeshAnimationProcessor`가 이 값을
  * 읽어 `UInstancedSkinnedMeshComponent`에 일괄 반영한다.
  *
- * 입력이 이미 서버·게스트 공용 채널이므로 **넷 모드 분기가 없다** — 호스트와 게스트가 같은 값을
+ * 입력이 이미 서버·게스트 공용 채널이므로 **넷 모드별 값 분기가 없다** — 호스트와 게스트가 같은 값을
  * 보고 같은 그림을 그린다(`ULNPEnemyActionDebugDrawProcessor`와 같은 이유).
+ * 다만 *실행 여부*는 가른다: `ExecutionFlags = Client | Standalone`이라 그리지 않는 데디 서버에서는
+ * 아예 돌지 않는다(엔진의 소비 프로세서도 같은 플래그다).
  *
  * ⚠️ **페이즈는 PrePhysics다.** 엔진의 표현 체인
  * (`UMassCrowdVisualizationProcessor` · `UMassConsumeInstancedSkinnedMeshAnimationProcessor`)은

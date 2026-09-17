@@ -275,7 +275,7 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 {
 	// 적 NPC는 대상이 아니다 — StateTree 스티어링과 ComputeStopDistance가 이미 접근 거리를 맞춘다.
 	// ULNPLockOnComponent를 가진 쪽이 플레이어 캐릭터다. (컴포넌트를 보유 판정에만 쓴다 —
-	// 락온 타겟 자체는 로컬 상태라 서버가 못 보므로 아래에서 InputCmd로 읽는다.)
+	// 락온 타겟 자체는 로컬 상태라 서버가 못 보므로 아래에서 발동 요청 스냅샷으로 읽는다.)
 	if (!Character->FindComponentByClass<ULNPLockOnComponent>())
 	{
 		return;

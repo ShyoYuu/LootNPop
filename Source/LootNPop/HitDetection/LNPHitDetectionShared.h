@@ -247,7 +247,7 @@ private:
 
 /** 투사체 패링 성공 시 발동. 방어자 GA_ParrySuccess 이벤트 + VFX 담당 + 반사 발사체 재스폰 방송.
  *  서버 권위 엔티티의 Velocity/InstigatorTeam 반전과 식별자 재발급은 Processor에서 이미 처리 —
- *  여기서는 "구 Ghost 소멸 + 새 Ghost 스폰"을 전 클라이언트에 방송만 한다 (섹션 5.2 반사 개정). */
+ *  여기서는 "구 Ghost 소멸 + 새 Ghost 스폰"을 전 클라이언트에 방송만 한다 (TechDesign_ParrySystem.md 5장). */
 struct FLNPProjectileParryCommand : public FMassBatchedCommand
 {
 	struct FEntry

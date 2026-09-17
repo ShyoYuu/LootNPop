@@ -13,8 +13,9 @@
 ULNPTargetQueryProcessor::ULNPTargetQueryProcessor()
 	: EnemyQuery(*this)
 {
-	// 서버·클라이언트 모두에서 돈다. 조준점은 소유 클라이언트가 만들어 InputCmd로 올리므로 클라이언트가
-	// 주 소비처이고, 서버도 장차 자동 탐색 폴백(근접 보정)에서 같은 창구를 쓸 수 있다.
+	// 서버·클라이언트 모두에서 돈다. 질의를 등록하는 쪽은 소유 클라이언트뿐이라(결과는 발동 요청에 실어 보낸다)
+	// 클라이언트가 주 소비처이고, 서버도 장차 자동 탐색 폴백(근접 보정)에서 같은 창구를 쓸 수 있다.
+	// 슬롯이 없는 머신에서는 SnapshotQueries가 비어 즉시 반환한다.
 	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
 	bAutoRegisterWithProcessingPhases = true;
 

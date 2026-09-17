@@ -51,7 +51,7 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> DurationText;
 
-	/** 우하단 — 아이템 레벨. 레벨 개념이 없는 아이템(버프)은 비운다. */
+	/** 우하단 — 아이템 레벨. 무기만 표시하고 나머지(버프 등)는 비운다. */
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> LevelText;
 

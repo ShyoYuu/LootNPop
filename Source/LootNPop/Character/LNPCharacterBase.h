@@ -82,10 +82,11 @@ public:
 	void SetAIDesiredSpeed(float InSpeed);
 
 	/**
-	 * 공격 입력 처리 공용 진입점. TAG_Block_AttackInput 체크 후 TryActivateAttack_Impl을 호출한다.
+	 * 공격 입력 처리 공용 진입점. 경직 → 콤보 창 → 공격 차단 순으로 검사한 뒤 TryActivateAttack_Impl을 호출한다.
 	 * true  = 공격이 발동됨
 	 * false = 발동 실패 (블락 구간, GAS 쿨다운 등) — 호출자가 재시도 버퍼를 세울 수 있다.
-	 *         블락 구간 + ComboWindow 활성 시에는 false를 반환하면서 콤보 버퍼도 동시에 설정한다.
+	 *         경직(TAG_State_Staggered) 중에는 항상 false.
+	 *         콤보 창이 열려 있으면 태그를 소비하고 현재 어빌리티를 취소한 뒤 다음 섹션으로 재발동한다.
 	 */
 	bool TryActivateAttack();
 
@@ -203,7 +204,7 @@ public:
 	/**
 	 * 파생 비주얼 상태를 적용한다. nullptr이면 맨손 상태로 전환.
 	 * - ASC에 무기·조준모드 태그 부여
-	 * - VisualMesh에 서브 AnimBP 레이어 연결
+	 * - AnimSourceMesh에 LinkAnimClassLayers()로 서브 AnimBP 레이어 연결
 	 * - WeaponMesh 어태치 / bFaceMoveDirection 설정
 	 *
 	 * 원본(ULNPEquipmentComponent::WeaponSlot 또는 EnemyConfig)이 아니라 그 파생 **캐시**를 채운다.
@@ -273,7 +274,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Animation")
 	TObjectPtr<UChooserTable> MontageChooser;
 
-	/** 무기 스켈레탈 메시를 표시하는 컴포넌트. EquipWeapon()이 메시와 소켓을 동적으로 교체. */
+	/** 무기 스켈레탈 메시를 표시하는 컴포넌트. ApplyWeaponVisuals()가 메시와 소켓을 동적으로 교체. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Weapon", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USkeletalMeshComponent> WeaponMesh;
 

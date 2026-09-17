@@ -8,7 +8,10 @@
 
 /**
  * 캐릭터에 Sprint 설정을 적용하는 Modifier.
- * ULNPCharacterMovementSettings의 값을 사용하여 UCommonLegacyMovementSettings의 MaxSpeed와 Acceleration을 교체한다.
+ * ULNPCharacterMovementSettings의 SprintAcceleration을 적용한다.
+ *
+ * MaxSpeed는 건드리지 않는다 — 이 Modifier가 실어 나르는 것은 사실상 LNP.Mover.IsSprinting 태그이고,
+ * 속도는 FLNPMoveSpeedModifier가 그 태그를 보고 매 틱 CDO 기준으로 계산한다.
  */
 USTRUCT(BlueprintType)
 struct FLNPSprintModifier : public FMovementModifierBase

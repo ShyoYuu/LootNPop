@@ -143,7 +143,7 @@ void ULNPEquipmentComponent::EquipWeaponInstance(ULNPInventoryItemInstance* Inst
 
 	WeaponSlot.Definition = WeaponDef;
 	WeaponSlot.SourceInstance = Instance;
-	Instance->SetEquipped(true);  // 복제되어 소유 클라 UI가 가방에서 숨긴다
+	Instance->SetEquipped(true);  // 복제되어 소유 클라 인벤토리 UI가 장착 배지를 단다
 	GrantItemImpl(WeaponDef, Instance->GetItemLevel(), WeaponSlot.GrantedAbilities, WeaponSlot.AppliedEffects);
 
 	ApplyMagazineAttributes();

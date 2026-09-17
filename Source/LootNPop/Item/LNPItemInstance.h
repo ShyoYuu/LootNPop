@@ -30,7 +30,7 @@ struct LOOTNPOP_API FLNPWeaponInstance
 	 * 이 장착을 유발한 가방 인스턴스 (bag-equipped면 유효, 기본/innate 무기면 null).
 	 * NotReplicated — 가방 인스턴스는 COND_OwnerOnly 서브오브젝트라 비소유자 클라이언트에서
 	 * 영원히 resolve되지 않는다. 복제하면 Iris가 상태를 계속 dirty로 잡아 재전송이 멈추지 않는다.
-	 * 실제로 이 필드를 읽는 곳은 서버의 bEquipped 토글뿐이다.
+	 * 이 필드는 서버에서만 읽는다 (bEquipped 토글·탄창 잔량 저장/복원·합성 후 레벨 재부여).
 	 */
 	UPROPERTY(NotReplicated)
 	TObjectPtr<ULNPInventoryItemInstance> SourceInstance = nullptr;

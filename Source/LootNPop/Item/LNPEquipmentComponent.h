@@ -36,7 +36,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	/** 현재 무기를 해제한 후 WeaponDef를 장착하고 GA/GE를 부여한다 (기본/innate 무기 경로 — 가방 인스턴스 없음). 서버 전용. */
+	/** 현재 무기를 해제한 후 WeaponDef를 장착하고 GA/GE를 부여한다 (인벤토리 컴포넌트가 없는 소유자의 폴백 경로 — 가방 인스턴스 없음). 서버 전용. */
 	void EquipWeapon(ULNPWeaponData* WeaponDef);
 
 	/** 가방 인스턴스를 장착한다 — 슬롯이 인스턴스를 참조하고 bEquipped를 표시해 장착본/보관본을 구분한다. 서버 전용. */
@@ -54,7 +54,7 @@ public:
 
 	/**
 	 * 무기 슬롯이 비어 있고 Instance가 무기면 자동 장착한다. 서버 전용, 아이템 획득 경로가 호출한다.
-	 * 기획상 맨손 상태는 존재하지 않아야 하므로(BeginPlay가 DefaultWeapon을 장착) 안전망 성격이다.
+	 * 기본 무기 지급(EnsureDefaultWeapon → AddItemInstance)도 빈 슬롯이면 이 경로로 장착된다.
 	 * 이미 장착 중이면 아무것도 하지 않는다 — 획득이 현재 장비를 갈아치우면 안 된다.
 	 */
 	void TryAutoEquipWeapon(ULNPInventoryItemInstance* Instance);
@@ -102,7 +102,7 @@ public:
 	/** ItemId(인스턴스)가 현재 장착 중인지 — 사본을 정확히 구분한다 (DA_Pistol 오검출 해소의 핵심). */
 	bool IsEquippedInstance(const FGuid& ItemId) const;
 
-	/** BeginPlay 시 장착되는 기본 무기. */
+	/** 기본 무기. 폰 PossessedBy의 EnsureDefaultWeapon이 가방 인스턴스로 지급·장착한다. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|Equipment|Defaults")
 	TObjectPtr<ULNPWeaponData> DefaultWeapon;
 

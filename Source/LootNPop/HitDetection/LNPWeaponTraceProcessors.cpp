@@ -466,7 +466,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		{
 			FLNPWeaponTraceFragment& Frag = Attackers[i];
 
-			// 공격자 RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (섹션 5.0).
+			// 공격자 RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (TechDesign_HitDetection.md §5).
 			// 공격자가 Player가 아니면(Enemy AI) PlayerController가 없어 RewindSeconds=0 → 보정 없음.
 			float RewindSeconds = 0.f;
 			// 공격자가 자기 화면을 복제로 받아 보는가 — 보간 지연 보정의 게이트.

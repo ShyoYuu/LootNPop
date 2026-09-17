@@ -166,9 +166,14 @@ Enemy EntityConfig에 회피 트레이트를 붙이면:
   같은 계산을 엔티티 위치의 접평면에서 수행한다. 프로젝트에 이미 접평면 투영 헬퍼가 있다.
 - **유틸리티 층은 재사용 가능하다** — `UE::MassNavigation::GetLeftDirection(Forward, Up)`은
   Up을 인자로 받아 중력 방향에 무관하다. 못 쓰는 것은 그리드·프로세서·트레이트다.
-- **브로드페이즈는 3D 균일 해시로 자체 제작.** 엔진에는 런타임 게임플레이용 3D 공간 해시가 없다
-  (2D 하나뿐이고 나머지 `SpatialHash`는 WorldPartition 전용). 상세는
-  [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md) §6.
+- **브로드페이즈는 자체 격자로 제작** — 엔진에는 런타임 게임플레이용 3D 공간 해시가 없다(2D 하나뿐이고
+  나머지 `SpatialHash`는 WorldPartition 전용). 3D 균일 해시를 후보로 검토했으나 **등장방형(축소 행) 격자**를
+  택했다. SurfaceCache와 같은 좌표계를 쓰고 구면에 빈 셀이 생기지 않기 때문 —
+  상세와 극 처리는 [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md) §6.
 
-> ⚠️ 회피 자체를 하기 전에 **증상을 다시 볼 것.** 문제는 "겹침"이지 "지능적 회피"가 아니므로,
-> 예측 CPA 없이 접평면 분리력만으로 사라질 수 있다. 예측 회피는 그 뒤에 판단한다.
+### 결과 (2026-09-07)
+
+**증상을 다시 본 판단이 맞았다.** 문제는 "겹침"이지 "지능적 회피"가 아니었으므로 예측 CPA 없이
+**접평면 분리력만** 넣었고(`ULNPEnemySeparationProcessor`), 그것으로 증상이 사라졌다. 예측 회피는
+도입하지 않았다. 격자(`ULNPEnemySpatialGridProcessor`)의 첫 소비자도 이 분리력이다 —
+적 탐색 질의는 여전히 선형 스캔이며, 그것이 더 싸다.

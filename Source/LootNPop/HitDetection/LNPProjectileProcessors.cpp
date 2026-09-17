@@ -327,7 +327,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		return;
 	}
 
-	const double Now = World ? World->GetTimeSeconds() : 0.0; // 패링 창 RTT 역보정용 (섹션 5.1)
+	const double Now = World ? World->GetTimeSeconds() : 0.0; // 패링 창 RTT 역보정용 (TechDesign_ParrySystem.md 6장)
 
 	// ── Pass 1: Enemy 캡슐 데이터 수집 ────────────────────────────────────────
 	struct FCollectedEnemy
@@ -558,7 +558,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			const FVector           CurrentPos = Transforms[i].GetTransform().GetLocation();
 			const FMassEntityHandle ProjEnt    = Ctx.GetEntity(i);
 
-			// 공격자(발사자) RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (섹션 5.0).
+			// 공격자(발사자) RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (TechDesign_HitDetection.md §5).
 			// 발사(또는 패링 반사) 시점에 1회 캐싱된 값을 재사용 — "공격자가 조준해서 쏜 순간의 지연"만 보정하고
 			// 이후에는 대상의 현재 위치와 비교한다. 매 프레임 재계산 시 느린/유도 발사체가 비행 내내
 			// 대상의 과거 잔상을 쫓아가 맞는 문제와, 매 프레임 Actor→PlayerState→Ping 조회 비용을 함께 제거.
@@ -606,7 +606,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			auto FinishHit = [&](FVector HitPoint, FVector ImpactNormal,
 				const FCollectedEnemy* ExclEnemy, const FCollectedPlayer* ExclPlayer)
 			{
-				// 캐릭터 피격 임팩트 VFX는 GameplayCue.LNP.Projectile.Impact로 일원화한다 (섹션 5.2).
+				// 캐릭터 피격 임팩트 VFX는 GameplayCue.LNP.Projectile.Impact로 일원화한다 (TechDesign_HitDetection.md §6.1).
 				// Ghost 재조정에 필요한 토큰(PredictionKeyID/SpawnIndex)과 InstigatorPlayerID를 커스텀 컨텍스트로 전달.
 				// 이 Processor는 워커 Thread에서 실행되므로 ASC를 직접 건드리지 않고 BatchedCommand로 위탁한다.
 				//
@@ -731,7 +731,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						Player.CapsuleHalfHeight, Player.CapsuleRadius + ParryRadius,
 						HitPoint))
 					{
-						// 투사체 반사: 속도 반전 + 진영 전환 + 식별자 재발급 (섹션 5.2 반사 개정 — 소멸+재스폰 방송).
+						// 투사체 반사: 속도 반전 + 진영 전환 + 식별자 재발급 (TechDesign_ParrySystem.md 5장 — 소멸+재스폰 방송).
 						// 이후 임팩트 큐·Ghost 대조는 전부 새 식별자 기준이 된다.
 						const int32 OldInstigatorPlayerID = Proj.InstigatorPlayerID;
 						const int32 OldKeyOrSalvo         = Proj.PredictionKeyID;
