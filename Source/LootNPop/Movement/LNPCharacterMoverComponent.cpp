@@ -88,7 +88,8 @@ bool ULNPCharacterMoverComponent::CanDash() const
 	return IsOnGround() && !IsADS() && FindMovementModifierByType<FLNPDashCooldownModifier>() == nullptr;
 }
 
-void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, const FVector& MoveInputIntent, const FRotator& ControlRotation)
+void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, const FVector& MoveInputIntent, const FRotator& ControlRotation,
+	bool bLockOnActive)
 {
 	APawn* Pawn = CastChecked<APawn>(GetOwner());
 	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Pawn);
@@ -101,11 +102,12 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 		? ControlRotation.RotateVector(MoveInputIntent).GetSafeNormal()
 		: -Pawn->GetActorForwardVector();
 
-	// 몽타주 방향 태그: Strafe 모드(FreeAim/LockOn)는 캐릭터가 시선 방향을 유지하므로 4방향 몽타주가 필요하고,
-	// 일반 모드는 캐릭터가 이동 방향을 바라보므로 앞/뒤 2방향으로 충분하다. 태그는 ChooserTable 평가에 쓰인다.
+	// 몽타주 방향 태그: Strafe 모드(FreeAim 무기 또는 락온 중)는 캐릭터가 시선 방향을 유지하므로 4방향 몽타주가
+	// 필요하고, 일반 모드는 캐릭터가 이동 방향을 바라보므로 앞/뒤 2방향이면 된다. 태그는 ChooserTable 평가에 쓰인다.
+	// ⚠️ 락온 여부는 ASC 태그가 아니라 InputCmd 플래그로 받는다 — LNP.AimMode.LockOn은 소유 머신에만 있어
+	// 서버·게스트가 원격 폰을 시뮬레이션할 때 방향이 갈린다.
 	const UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent();
-	const bool bIsStrafe = ASC &&
-		(ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim) || ASC->HasMatchingGameplayTag(TAG_AimMode_LockOn));
+	const bool bIsStrafe = bLockOnActive || (ASC && ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim));
 
 	FGameplayTag DirTag = TAG_Montage_Value_Direction_Back;
 	if (bHasMoveInput)
@@ -347,7 +349,8 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 	{
 		const FCharacterDefaultInputs* CharacterInputs = InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
 		ExecuteDash(TimeStep, ModifierInputs->DashInputIntent,
-			CharacterInputs ? CharacterInputs->ControlRotation : FRotator::ZeroRotator);
+			CharacterInputs ? CharacterInputs->ControlRotation : FRotator::ZeroRotator,
+			ModifierInputs->bIsLockOn);
 	}
 
 	// 기본 기능(점프, 앉기) 처리를 위해 Super 호출
@@ -359,7 +362,7 @@ void ULNPCharacterMoverComponent::OnHandlerSettingChanged()
 	// Super는 점프/자세 설정에 따라 OnMoverPreSimulationTick을 추가/제거한다.
 	//Super::OnHandlerSettingChanged();
 
-	const bool bIsHandlingAnySettings = bHandleSprintChanges || bHandleGuardChanges || bHandleJump || bHandleStanceChanges;
+	const bool bIsHandlingAnySettings = bHandleSprintChanges || bHandleGuardChanges || bHandleADSChanges || bHandleJump || bHandleStanceChanges;
 
 	if (bIsHandlingAnySettings)
 	{
@@ -471,6 +474,8 @@ namespace
 								StateName = TEXT("Sprint");
 							else if (Mover->HasGameplayTag(LNP_Mover_IsGuarding, /*bExactMatch=*/true))
 								StateName = TEXT("Guard");
+							else if (Mover->HasGameplayTag(LNP_Mover_IsADS, /*bExactMatch=*/true))
+								StateName = TEXT("ADS");
 
 							float Multiplier = 1.0f;
 							if (const IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(Pawn))

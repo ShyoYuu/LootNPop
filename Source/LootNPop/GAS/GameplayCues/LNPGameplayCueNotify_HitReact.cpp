@@ -8,7 +8,7 @@ bool ULNPGameplayCueNotify_HitReact::OnExecute_Implementation(AActor* MyTarget, 
 	if (ALNPCharacterBase* VictimChar = Cast<ALNPCharacterBase>(MyTarget))
 	{
 		VictimChar->PlayHitReact(Parameters.Normal);
-		//VictimChar->ApplyHitStop(0.08f);
+		VictimChar->ApplyHitStop(0.08f);
 	}
 	return true;
 }
