@@ -81,12 +81,12 @@
 
 ### 적 NPC GAS 버프 지원 (2026-07-27 — 이번 범위에서 제외)
 - **개요:** 플레이어와 마찬가지로 적 NPC도 GAS 버프/디버프를 받게 한다. 근처 적에게 거는 슬로우·방어 저하 등.
-- **현재 상태 (조사 완료):** `ALNPEnemyCharacter`는 **이미 ASC + `ULNPBaseAttributeSet`을 보유**한다
-  (`LNPEnemyCharacter.cpp:26-30`). 그래서 High LOD 적에게 GE를 걸면 지금도 작동한다.
+- **현재 상태 (조사 완료):** `ALNPEnemyCharacter`는 **이미 ASC + `ULNPBaseAttributeSet`을 보유**한다.
+  그래서 High LOD 적에게 GE를 걸면 지금도 작동한다.
 - **막히는 지점:** 적 Actor는 Low↔High LOD 전환마다 **풀에서 스폰/반납**된다. 권위 있는 Health는
-  **Mass Fragment**에 있고 High LOD 활성화 때 Fragment→AttributeSet으로 밀어넣는다
-  (`AttributeSet->SetHealth(InHealth)`, 139행). 따라서 적 ASC에 건 GE는 **Actor가 풀로 돌아가면 소멸**하고,
-  재사용된 ASC가 다른 엔티티에 이전 GE를 흘릴 위험도 있다 (97행 `ClearAllAbilities`는 어빌리티만 지운다).
+  **Mass Fragment**에 있고 High LOD 활성화 때 `AttributeSet->SetHealth()`로 밀어넣는다. 따라서 적 ASC에 건
+  GE는 **Actor가 풀로 돌아가면 소멸**하고, 재사용된 ASC가 다른 엔티티에 이전 GE를 흘릴 위험도 있다
+  (풀 반납 경로의 `ClearAllAbilities()`는 어빌리티만 지운다).
 - **지금도 가능한 것:** High LOD 한정·수 초짜리 단기 효과. 단, 풀 반납 시 활성 GE를 지우는 정리 코드는 필요.
 - **작업 필요:** 지속 버프는 버프 상태를 **Mass Fragment에 저장**하고 High LOD 활성화 때 ASC에 재적용해야 한다
   — Health가 이미 하는 것과 동일한 패턴이라 범위는 명확하다.
@@ -122,5 +122,6 @@
 - **지금이라야 안전한 이유:** 추격 자격이 플레이어의 Pod 거리만 읽게 바뀌어(→
   [TechDesign_EnemyNPC.md](TechDesign_EnemyNPC.md) §7.8) **`Alert`에서 무엇을 하든 상태 판정에
   되먹임이 없다.** 자격이 NPC 자기 위치를 읽던 시기였다면 옆걸음이 곧바로 경계선 진동을 만들었다.
-- **알려진 제약:** 엔티티에는 회피(avoidance)가 없어 옆걸음하는 개체들이 서로 겹친다. 기존 제약이지만
-  원을 그리는 동작에서 더 눈에 띌 수 있다.
+- **알려진 제약:** 2026-09-07에 접평면 **분리력**이 들어와 정지 상태의 겹침은 해소됐지만
+  (`ULNPEnemySeparationProcessor`), 예측 회피(CPA)는 없다. 서로 마주 보며 도는 동작에서는
+  분리력만으로 부족할 수 있다 — 착수 시 여기부터 볼 것.

@@ -371,8 +371,8 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 		// 자르지 않으면 벽에 막힌 프레임에도 500m 전 구간을 훑는다.
 		QuerySub->SetRayQuery(AimQueryHandle, CamPos, CamForward, NearestDistance);
 
-		// 상시 질의라 결과는 직전 평가분이다 — 최대 1프레임 늦지만, 조준점은 이미 InputCmd로
-		// 한 틱 늦게 서버에 가므로 실질 차이가 없다.
+		// 상시 질의라 결과는 직전 평가분이다 — 최대 1프레임 늦지만, 조준점은 발사 순간 스냅샷으로만 쓰이므로
+		// 그 1프레임이 겨냥을 바꾸지 않는다.
 		FLNPTargetQueryResult QueryResult;
 		if (QuerySub->GetResult(AimQueryHandle, QueryResult) && QueryResult.bHit && QueryResult.Distance < NearestDistance)
 		{
@@ -838,7 +838,7 @@ void ULNPInputHandlerComponent::Server_SetGuardState_Implementation(bool bGuardi
 		PF->bIsGuarding = true;
 		PF->bIsParrying = true;
 
-		// 방어자 RTT/2만큼 과거로 되돌려 실제 입력 시각을 복원한다 (섹션 5.1).
+		// 방어자 RTT/2만큼 과거로 되돌려 실제 입력 시각을 복원한다 (TechDesign_ParrySystem.md 6장).
 		// 보정 클램프 상한은 패링 창 절반으로 보수적 설정.
 		float RewindSeconds = 0.f;
 		if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))

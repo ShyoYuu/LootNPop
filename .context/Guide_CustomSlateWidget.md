@@ -133,24 +133,14 @@ UE5 권장 방식. 값이 캐시되고, 변경 시 **지정한 사유로 자동 
 class MYUI_API SSegmentedBar : public SLeafWidget
 {
     SLATE_DECLARE_WIDGET_API(SSegmentedBar, SLeafWidget, MYUI_API)
-
 public:
-    SLATE_BEGIN_ARGS(SSegmentedBar) /* ... */ SLATE_END_ARGS()
+    SSegmentedBar() : Percent(*this, 0.f)   // ★ 반드시 this 포인터
+    { SetCanTick(false); }                  // ★ Tick 불필요 시 반드시 끈다 (기본이 켜짐)
 
-    SSegmentedBar()
-        : Percent(*this, 0.f)     // ★ 반드시 this 포인터
-    {
-        SetCanTick(false);        // ★ Tick 불필요 시 반드시 끈다 (기본이 켜짐)
-    }
-
-    void Construct(const FArguments& InArgs);
     void SetPercent(float In) { Percent.Set(*this, In); }
-
 private:
     TSlateAttribute<float> Percent;
-    int32 SegmentCount = 10;
     const FSegmentedBarStyle* Style = nullptr;
-    FSimpleDelegate OnFilled;
 };
 
 // ── SSegmentedBar.cpp ──
@@ -164,9 +154,7 @@ void SSegmentedBar::PrivateRegisterAttributes(FSlateAttributeInitializer& Init)
 void SSegmentedBar::Construct(const FArguments& InArgs)
 {
     Percent.Assign(*this, InArgs._Percent);   // ★ 여기서도 this
-    SegmentCount = FMath::Max(1, InArgs._SegmentCount);
-    Style        = InArgs._Style;
-    OnFilled     = InArgs._OnFilled;
+    Style = InArgs._Style;
 }
 ```
 
@@ -195,32 +183,12 @@ virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override
 #### 5-2. OnPaint
 
 ```cpp
-virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
-                      const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
-                      int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
-{
-    const float     Pct    = FMath::Clamp(Percent.Get(), 0.f, 1.f);   // 캐시된 값
-    const FVector2D Size   = AllottedGeometry.GetLocalSize();
-    const int32     Filled = FMath::RoundToInt(Pct * SegmentCount);
-    const float     SegW   = (Size.X - Style->Spacing * (SegmentCount - 1)) / SegmentCount;
-
-    for (int32 i = 0; i < SegmentCount; ++i)
-    {
-        const FSlateBrush* Brush = (i < Filled) ? &Style->FillBrush : &Style->EmptyBrush;
-        const FVector2D    Offset(i * (SegW + Style->Spacing), 0.f);
-
-        FSlateDrawElement::MakeBox(
-            OutDrawElements,
-            LayerId,
-            AllottedGeometry.ToPaintGeometry(FVector2f(SegW, Size.Y), FSlateLayoutTransform(Offset)),
-            Brush,
-            ESlateDrawEffect::None,
-            Brush->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint());
-            //                              ↑ ★ 부모의 색·투명도 전파
-    }
-
-    return LayerId;
-}
+FSlateDrawElement::MakeBox(
+    OutDrawElements, LayerId,
+    AllottedGeometry.ToPaintGeometry(FVector2f(SegW, Size.Y), FSlateLayoutTransform(Offset)),
+    Brush, ESlateDrawEffect::None,
+    Brush->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint());
+    //                              ↑ ★ 부모의 색·투명도 전파
 ```
 
 지켜야 할 것:
@@ -230,7 +198,8 @@ virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
 - **`InWidgetStyle.GetColorAndOpacityTint()`를 곱한다.** 빠뜨리면 부모를 페이드아웃해도 이 위젯만 남는다.
 - 자식을 그렸다면 **증가한 `LayerId`를 반환**한다. 안 올리면 자식이 부모에 가려진다.
 
-그리기 함수: `MakeBox`(브러시), `MakeText`, `MakeLines`, `MakeRotatedBox`, `MakeCubicBezierSpline`.
+그리기 함수: `MakeBox`(브러시), `MakeText`, `MakeLines`, `MakeRotatedBox`, `MakeCubicBezierSpline`,
+`MakeCustomVerts`(정점 직접 지정 — 부채꼴·배칭. 단순 `Image` 브러시만 지원한다).
 
 #### 5-3. OnArrangeChildren — `SPanel`일 때만
 
@@ -272,61 +241,25 @@ C++ 전용으로 두면 디자이너가 쓸 수 없다. `UWidget` 래퍼를 씌�
 UCLASS()
 class MYUI_API USegmentedBar : public UWidget
 {
-    GENERATED_BODY()
-public:
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
-    float Percent = 0.f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
-    int32 SegmentCount = 10;
-
     UPROPERTY(EditAnywhere, Category = Style, meta = (ShowOnlyInnerProperties))
-    FSegmentedBarStyle Style;
+    FSegmentedBarStyle Style;   // 스타일은 래퍼가 소유하고 Slate에는 포인터로 넘긴다
 
     UFUNCTION(BlueprintCallable, Category = Appearance)
-    void SetPercent(float In)
-    {
-        Percent = In;
-        if (MyBar.IsValid())              // ★ Slate 쪽에 반영
-            MyBar->SetPercent(In);
-    }
+    void SetPercent(float In) { Percent = In; if (MyBar.IsValid()) MyBar->SetPercent(In); }
 
 protected:
-    virtual TSharedRef<SWidget> RebuildWidget() override
-    {
-        MyBar = SNew(SSegmentedBar)
-                .Style(&Style)
-                .SegmentCount(SegmentCount)
-                .Percent(Percent);
-        return MyBar.ToSharedRef();
-    }
-
-    virtual void SynchronizeProperties() override
-    {
-        Super::SynchronizeProperties();
-        if (MyBar.IsValid())
-            MyBar->SetPercent(Percent);   // 에디터 편집·재컴파일 시 반영
-    }
-
-    virtual void ReleaseSlateResources(bool bReleaseChildren) override
-    {
-        Super::ReleaseSlateResources(bReleaseChildren);
-        MyBar.Reset();                    // ★ 누락 시 Slate 위젯 릭
-    }
-
+    virtual TSharedRef<SWidget> RebuildWidget() override   // MyBar = SNew(SSegmentedBar).Style(&Style)…
+    virtual void SynchronizeProperties() override          // Super 호출 후 Slate에 값 다시 밀어 넣기
+    virtual void ReleaseSlateResources(bool) override      // Super 호출 후 MyBar.Reset()
 #if WITH_EDITOR
-    virtual const FText GetPaletteCategory() override
-    {
-        return NSLOCTEXT("MyUI", "PaletteCategory", "My UI");
-    }
+    virtual const FText GetPaletteCategory() override      // NSLOCTEXT(…, "My UI")
 #endif
-
 private:
     TSharedPtr<SSegmentedBar> MyBar;
 };
 ```
 
-이 네 함수가 UMG 래퍼의 정형이다.
+이 네 함수가 UMG 래퍼의 정형이다. 실제 구현은 `Source/LNPUI/Private/Widgets/LNPRadialCooldownWidget.cpp` 참조.
 
 | 함수 | 빠뜨리면 |
 |:---|:---|
@@ -334,6 +267,13 @@ private:
 | `SynchronizeProperties` | 에디터에서 값을 바꿔도 반영 안 됨 |
 | `ReleaseSlateResources` | Slate 위젯 릭 |
 | `GetPaletteCategory` | 팔레트에서 찾기 어려움 (선택) |
+
+⚠️ **`SynchronizeProperties`는 래퍼의 공통 프로퍼티도 Slate에 덮어쓴다.** `Clipping`·`Visibility` 같은 값을
+Slate 쪽 `Construct`에서만 설정하면 UMG로 쓸 때 지워진다 — **래퍼 생성자에서도 같은 값을 준다.**
+`SetClipping(ClipToBounds)`가 이 프로젝트에서 실제로 밟은 사례다.
+
+⚠️ 디자이너 프리뷰용으로 `SynchronizeProperties`에서 값을 밀어 넣는다면 **`IsDesignTime()`으로 가둔다** —
+실행 중에는 매 프레임 밀어 넣는 실제 값을 지워버린다.
 
 ### Step 8 — 검증
 
@@ -364,18 +304,23 @@ private:
 
 ---
 
-## 재사용성 체크리스트
+## 체크리스트 — 빠뜨리면 무슨 일이 생기나
 
-| 항목 | 확인 |
+| 항목 | 빠뜨리면 |
 |:---|:---|
-| 게임 타입(`UMyItem*` 등)에 의존하지 않는가 | 어트리뷰트로 받고 델리게이트로 알린다 |
-| `GetWorld()`·서브시스템을 직접 찾지 않는가 | 값은 밖에서 주입받는다 |
-| 색·크기가 하드코딩돼 있지 않은가 | `FSlateWidgetStyle`로 분리 |
-| `GetResources`를 구현했는가 | 브러시 참조 노출 |
-| 모듈 export 매크로가 붙어 있는가 | `MYUI_API` |
-| `SetCanTick(false)` 했는가 | 불필요한 매 프레임 비용 제거 |
-| 무효화 사유가 최소인가 | 색 변경에 `Layout`을 쓰고 있지 않은가 |
-| UMG 래퍼가 있는가 | 디자이너 사용 가능 여부 |
+| 게임 타입(`UMyItem*` 등)·`GetWorld()`·서브시스템을 직접 찾지 않는다 | 다른 프로젝트에서 재사용 불가 |
+| 색·크기를 `FSlateWidgetStyle`로 분리한다 | 룩을 바꾸려면 코드를 고쳐야 한다 |
+| `GetResources`를 구현한다 | 브러시가 참조되지 않아 패키징에서 텍스처가 빠진다 |
+| 모듈 export 매크로(`MYUI_API`)를 붙인다 | 링크 실패 |
+| `TSlateAttribute` 생성자에 `this`를 넘긴다 | 런타임 체크 실패 |
+| `SetCanTick(false)` | 매 프레임 Tick |
+| 무효화 사유를 최소로 준다 | `Layout` 남발 시 부모까지 재계산 전파 |
+| `OnPaint`에서 상태를 바꾸지 않는다 | `const` 위반, 예측 불가 동작 |
+| `InWidgetStyle` 틴트를 곱한다 | 부모 페이드가 이 위젯만 비껴간다 |
+| 자식을 그렸으면 `LayerId`를 올려 반환한다 | 자식이 가려진다 |
+| `ComputeDesiredSize`를 가볍게 유지한다 | 레이아웃마다 비용 |
+| `ReleaseSlateResources`에서 `Reset()` | Slate 위젯 릭 |
+| UMG 래퍼를 제공한다 | 디자이너가 쓸 수 없다 |
 
 **핵심 원칙: 위젯은 "어떻게 보일지"만 알고, "무슨 데이터인지"는 몰라야 한다.**
 
@@ -389,19 +334,7 @@ private:
 > ② 위젯이 스스로 세는 시간이 없어 `Tick`을 아예 구현하지 않는다,
 > ③ **한 클래스가 스타일(`bDrawFill`)로 룩이 갈려** 두 소비처를 덮는다 —
 > 두 클래스로 나누면 배칭·틴트·클리핑이 두 벌이 되는데 정작 다른 것은 사각형 하나뿐이었다.
-
----
-
-## 흔한 실수
-
-| 실수 | 결과 |
-|:---|:---|
-| `TSlateAttribute` 생성자에 `this` 미전달 | 런타임 체크 실패 (엔진이 "예외 없이 this" 명시) |
-| 무효화 사유를 `Layout`으로 남발 | 부모까지 재계산 전파 |
-| `SetCanTick(false)` 누락 | 매 프레임 Tick |
-| `OnPaint`에서 상태 변경 | `const` 위반, 예측 불가 동작 |
-| `InWidgetStyle` 틴트 미적용 | 부모 페이드가 안 먹음 |
-| 반환 `LayerId` 미증가 | 자식이 가려짐 |
-| `ReleaseSlateResources`에서 `Reset()` 누락 | Slate 위젯 릭 |
-| `ComputeDesiredSize`에서 무거운 계산 | 레이아웃마다 비용 |
-| 스타일 하드코딩 | 재사용 불가 |
+>
+> ⚠️ **두 위젯 모두 `TSlateAttribute`를 쓰지 않는다.** 값은 밖에서 세터로 밀고 위젯이 직접
+> `Invalidate(Paint)`를 부른다 — 어트리뷰트로 열면 매 프레임 평가되며 위젯이 volatile이 되기 때문이다.
+> Step 4-2는 "매 프레임 달라질 수 있는 값"이 실제로 있을 때의 절차다.

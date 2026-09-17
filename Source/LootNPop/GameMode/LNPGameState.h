@@ -36,7 +36,11 @@ public:
 	UPROPERTY(Config, EditAnywhere, ReplicatedUsing=OnRep_OctantGenSeed, Category = "LNP|World Settings")
 	int32 OctantGenSeed = 0;
 
-	/** PCG 생성 일관성을 위한 전역 Seed 오프셋 */
+	/**
+	 * 런타임 PCG 생성 일관성을 위한 전역 Seed 오프셋.
+	 * 현재 미사용 — 지금의 PCG는 에디터 타임 베이크라 런타임 시드가 필요 없다.
+	 * 향후 런타임 PCG 도입에 대비해 의도적으로 남겨 둔 자리이므로 제거하지 말 것.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "LNP|PCG")
 	int32 PCGSeedOffset = 0;
 

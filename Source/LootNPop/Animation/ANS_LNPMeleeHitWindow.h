@@ -37,7 +37,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Melee")
 	FGameplayTag KnockbackAbilityTag;
 
-	/** 패링 판정 반경을 제공할 어빌리티를 식별하는 태그 (LNP.Ability.HitEffect.ParryRadius).
+	/** 패링 판정 반경을 제공할 어빌리티를 식별하는 태그 (LNP.Ability.HitEffect.Parry).
 	 *  비워두면 TAG_Ability_HitEffect_Parry로 자동 선택한다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Melee")
 	FGameplayTag ParryAbilityTag;

@@ -66,7 +66,7 @@ ULNPInventoryItemInstance* ULNPInventoryComponent::AddItemInstance(ULNPItemDefin
 	AddReplicatedSubObject(Instance, COND_OwnerOnly);
 	BagList.AddEntry(Instance);
 
-	// 무기 슬롯이 비어 있으면 자동 장착 (안전망 — 기획상 맨손 상태는 없어야 한다).
+	// 무기 슬롯이 비어 있으면 자동 장착 (기본 무기 지급 EnsureDefaultWeapon도 이 경로로 장착된다).
 	// 장착 여부 판단은 장비 상태를 소유한 쪽이 한다. 브로드캐스트 앞에 두어야 UI가 최종 상태를 본다.
 	if (const ALNPPlayerState* PS = Cast<ALNPPlayerState>(GetOwner()))
 		if (ULNPEquipmentComponent* Equipment = PS->GetEquipmentComponent())

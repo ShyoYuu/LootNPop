@@ -92,7 +92,8 @@ public:
 	float LootingZoneRadius = 500.0f;
 
 	/** 게이지 총량 — 루팅 속도 합산 1.0 기준 채우는 데 걸리는 초와 같다. Pod 종류별로 EntityConfig에서 조정한다.
-	 *  테스트 편의를 위해 10(≈10초)으로 낮춰둠 — 기획 밸런스 확정 시 재조정. */
+	 *  **원본값은 100(≈100초)이고 현재 값 10은 플레이 테스트 편의로 낮춰 둔 것이다.**
+	 *  기획 밸런스를 확정할 때 100 기준으로 되돌린 뒤 조정한다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|LootPod")
 	float MaxGauge = 10.0f;
 

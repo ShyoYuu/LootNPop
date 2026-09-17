@@ -54,15 +54,15 @@ public:
 	// End FTickableGameObject
 
 	/**
-	 * 표면 베이킹을 시작한다. World 생성 완료 후 GameMode가 호출.
+	 * 표면 베이킹을 시작한다. World 생성 완료 후 서버는 GameMode, 클라이언트는 GameState 투-게이트가 호출.
 	 * 실제 트레이스 발사는 Tick()이 프레임당 SurfaceCacheSamplesPerFrame개씩 나눠서 수행한다.
 	 */
 	void BeginBaking();
 
 	/**
 	 * Thread-Safe 표면 지점 조회.
-	 * 주어진 World 방향과 가장 가까운 베이크된 표면 히트 지점을 반환한다.
-	 * OnBakingComplete 발동 후에만 유효하다.
+	 * 주어진 World 방향의 표면 지점을 주변 4셀 바이리니어 보간으로 반환한다 (무효 셀이 섞이면 최근접 셀).
+	 * Mass 워커 Thread에서도 직접 호출된다. OnBakingComplete 발동 전에는 false.
 	 */
 	bool GetSurfacePoint(const FVector& WorldDirection, FVector& OutPoint) const;
 
@@ -86,7 +86,7 @@ private:
 	/** Tick에서 호출. 아직 발사하지 않은 샘플을 최대 Count개까지 발사한다. */
 	void IssuePendingTraces(int32 Count);
 
-	/** 베이크된 데이터 SharedPtr. BeginBaking()마다 교체되어 재베이킹이 라이브 Snapshot을 손상시키지 않는다. */
+	/** 베이크된 데이터 SharedPtr. 베이킹이 머신당 1회라 완료 후에는 교체되지 않는다 — Snapshot은 참조만 공유한다. */
 	TSharedPtr<TArray<FPoint>> CacheData;
 
 	/** 단일 공유 델리게이트 — 모든 비동기 트레이스가 여기로 Callback, UserData에 Sample Index를 담아서 사용. */

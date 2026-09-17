@@ -105,11 +105,11 @@ private:
 	UPROPERTY(Replicated)
 	FGuid ItemId;
 
-	/** 데이터 주도 스탯 (레벨·랜덤 스탯 등). GAS 배율 연동은 후속. */
+	/** 데이터 주도 스탯 (레벨·탄창 소모량). 랜덤 스탯은 후속. */
 	UPROPERTY(Replicated)
 	FLNPGameplayTagStackContainer StatTags;
 
-	/** 현재 장착 중 여부 — 가방 UI는 false만 노출(장착/보관 분리). 변경 시 소유 클라 UI를 재필터한다. */
+	/** 현재 장착 중 여부 — 인스턴스는 장착 중에도 가방에 남고 UI가 장착 배지로 구분한다. 변경 시 소유 클라 UI에 통지한다. */
 	UPROPERTY(ReplicatedUsing = OnRep_InstanceChanged)
 	bool bEquipped = false;
 
@@ -134,7 +134,7 @@ private:
 	 */
 	double DurationStartTime = 0.0;
 
-	/** 소유 클라: bEquipped 복제 도착 시 인벤토리 UI를 재필터하도록 통지한다. */
+	/** 소유 클라: bEquipped·ChangeCounter 복제 도착 시 인벤토리 UI 갱신을 통지한다. */
 	UFUNCTION()
 	void OnRep_InstanceChanged();
 

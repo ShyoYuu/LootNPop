@@ -18,6 +18,7 @@
 | **Surface Query** | SurfaceCacheSubsystem (커스텀) | `ULNPSurfaceCacheSubsystem` |
 | **Interaction** | MassEntity + 인터랙터블 레지스트리 | `ALNPLootPod`, `ALNPLootDice`, `ULNPInteractableRegistrySubsystem`, `ULNPInteractionComponent` |
 | **AI/Entity** | MassEntity + StateTree | `ULNPEnemyMovementProcessor`, `ULNPTargetingSubsystem` |
+| **Target Query** | MassEntity 상시 질의 | `ULNPTargetQuerySubsystem`, `ULNPTargetQueryProcessor` |
 | **Combat** | GAS + MassEntity | `ULNPEquipmentComponent`, `ULNPAbility_RangedAttack`, `ULNPProjectileHitDetectionProcessor` |
 | **Item / Inventory** | UObject 인스턴스 + FastArray Delta Replication | `ULNPInventoryComponent`, `ULNPInventoryItemInstance`, `FLNPGameplayTagStackContainer` |
 | **Networking** | Iris Replication + MassReplication | `ULNPGhostProjectileSubsystem`, `ULNPSpawnOnlyReplicatorBase`, `ULNPMassAgentComponent` |
@@ -41,17 +42,22 @@
 - 근거리: Anim Notify State(`UANS_LNPMeleeHitWindow`)가 매 프레임 무기 위치 동기화 후 4점 삼각형 2개로 캡슐 거리 계산.
 - Hit 판정 시 Fragment에 담긴 `UGameplayEffect` 포인터를 피격자에 적용.
 
+### Target Query
+
+- 조준점·근접 보정·락온은 원래 물리 트레이스로 대상을 찾았고, 콜리전이 없는 **순수 엔티티를 통째로 빠뜨렸다.**
+- `ULNPTargetQuerySubsystem`이 매 프레임 갱신되는 **상시 질의**(요청/응답이 아니다)로 이를 대체하고, 소비자는 결과만 읽는다. (→ [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md))
+
 ### Surface Cache Baking
 - Enemy NPC와 Projectile이 모두 MassEntity이므로 Mass Worker Thread에서 지표면 쿼리가 가능해야 함.
 - `ULNPSurfaceCacheSubsystem`이 게임 시작 전 구형 내벽 전체를 등장방형 그리드로 사전 베이킹. 베이킹 완료 후 배열이 읽기 전용으로 확정되므로 Mass Worker Thread에서 Lock 없이 O(1) 안전 조회 가능.
 
 ### Motion Matching + Linked Anim Layers
-- Motion Matching 기반 Locomotion에 무기별 Linked Anim Layer를 블렌딩하여 4종 무기(Pistol·Rifle·Shotgun·LongSword) 구현.
-- Pistol·Rifle·Shotgun은 Aim Offset 적용. 발사 직전 카메라 방향 LineTrace로 화면 중앙 조준점을 검출하여 해당 방향으로 Projectile 발사.
+- Motion Matching 기반 Locomotion에 무기별 Linked Anim Layer를 블렌딩. 서브 AnimBP 5종(Unarmed·Pistol·Rifle·Shotgun·LongSword)을 런타임 교체한다 — 유탄 발사기는 Shotgun 세트를 공유.
+- 총기는 Aim Offset으로 상하 조준. 발사 방향은 **총구 → 조준점**으로 수렴시키고, 조준점은 소유 클라이언트가 발사 순간 스냅샷해 발동 요청에 싣는다. 조준점 깊이는 물리 트레이스와 적 엔티티 질의 중 가까운 쪽. (→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.7)
 
 ### LootPod & LootDice
 - **LootPod**은 MassEntity(시뮬레이션) + Actor(비주얼·상호작용·복제) 하이브리드. 게이지·근접 판정은 서버 Mass 프로세서가 태그 교체 상태 머신(`Idle ↔ Looting → Popped`)으로 처리.
-- 루팅 존 안의 **모든 플레이어 루팅 속도를 합산**해 게이지가 오르므로 협동하면 빨라지고, 전원 이탈 시 감쇠하다 0에 도달해야 완전 취소된다. 상호작용(150cm)과 루팅 존(500cm) 반경은 분리.
+- 루팅 존 안의 **모든 플레이어 루팅 속도를 합산**해 게이지가 오르므로 협동하면 빨라지고, 전원 이탈 시 감쇠하다 0에 도달해야 완전 취소된다. 상호작용(250cm + 정면 60°)과 루팅 존(500cm) 반경은 분리.
 - 상호작용 탐색에 쓰던 SmartObject 공간 쿼리는 Mass 액터 풀링과 충돌해 폐기하고, `ULNPInteractableRegistrySubsystem`(살아 있는 인터랙터블 레지스트리) 순회로 대체. (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03)
 - **LootDice**는 보상의 월드 실체화 형태(주사위 픽업). Pod의 `Popped` 또는 인벤토리 드랍으로 생성되며, Mass가 아닌 **순수 Actor + 서버 권위 물리 + Iris `ReplicatedMovement`** 로 구현. (→ [TechDesign_LootDice.md](TechDesign_LootDice.md))
 
@@ -67,7 +73,7 @@
 - 게임패드 우선 인게임 메뉴를 CommonUI로 구성. **캐릭터 스탯 / 인벤토리 / 환경설정** 3탭 구조이며, 반투명 팝업으로 띄워 메뉴 중에도 전투 상황을 인지할 수 있게 함.
 - 위젯 계층은 `UCommonActivatableWidgetStack`(메뉴 열기/닫기) + `UCommonActivatableWidgetSwitcher`(탭 전환) 조합. `UCommonTabListWidgetBase`가 L1/R1 탭 이동을 담당. 하단 힌트 바는 `UCommonBoundActionBar`를 버리고 커스텀 위젯(`ULNPMenuHintBarWidget`)으로 직접 구현해, 입력 방식(키보드↔게임패드)에 따라 키 글리프만 실시간 교체한다.
 - Back(○) 전파는 **루트 위젯 하나만 핸들러**로 두고 활성 탭에 먼저 위임하여 `디테일 → Grid → 메뉴 닫기` 계층을 성립시킴 (탭이 Back을 항상 소비하는 문제 회피).
-- 캐릭터 스탯 탭은 GAS 어그리게이터 평가식을 따라 스탯을 **합연산 결과 / 곱연산 증가량**으로 분해해 표시. `ULNPStatsViewModel`이 `FText` 필드 1개로 노출하고 `URichTextBlock` 인라인 마크업으로 색을 구분 (MVVM 바인딩 1줄). (→ [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md))
+- 캐릭터 스탯 탭(8행)은 GAS 어그리게이터 평가식대로 `C (A × B)` — **최종값 / 합연산 결과 / 곱연산 배율**(100%가 기본)로 분해해 표시. `ULNPStatsViewModel`이 `FText` 필드 1개로 노출하고 `URichTextBlock` 인라인 마크업으로 색을 구분 (MVVM 바인딩 1줄). (→ [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md))
 - 인벤토리 탭은 좌측 `CommonTileView` Grid + 우측 디테일 패널 2분할. 아이템 데이터는 MVVM 리스트 바인딩 제약으로 C++가 직접 채움. 메뉴가 열린 동안 폰의 입력 매핑 컨텍스트를 제거해 게임플레이 입력을 전면 차단하고, 스탠드얼론에서만 일시정지.
 
 ### World Generation
@@ -121,19 +127,19 @@
 | [커스텀 Slate 위젯 제작 가이드](Guide_CustomSlateWidget.md) | 베이스 선택, TSlateAttribute, 스타일 분리, UMG 래퍼 |
 | [초기화 시퀀스 기술 설계](TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | [표면 캐시 기술 설계](TechDesign_SurfaceCache.md) | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유, 수직 단차 표현 한계 |
-| [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템 |
+| [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템, 사망 랙돌·Mover 정지·리스폰 |
 | [전투 Animation 기술 설계](TechDesign_CombatAnimation.md) | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·왼손 Two Bone IK·Guard 자세 분기, 몽타주 ANS 구간 제어와 경직 차단 소유권 구분, 근접 공격 타겟 보정(Motion Warping) |
 | [Ability System 게임 기획](GameDesign_Ability.md) | 무기·스킬·버프 아이템 구조, GAS 슬롯 관리, 합/곱 이원 스텟 체계, 구현 현황 |
 | [Ability System 기술 설계](TechDesign_Ability.md) | ASC/AttributeSet 아키텍처, 합/곱 2채널 스탯 파이프라인, 발사체 Mass 프로세서 4종, 어빌리티 클래스 계층 |
 | [경직 시스템 게임 기획](GameDesign_Poise.md) | 경직 시스템 — 누적/자연회복 원칙, 그로기·다운 2단계, 딜 구간 비대칭, 가드 브레이크·패링 연계 |
 | [경직 시스템 기술 설계](TechDesign_Poise.md) | FLNPPoiseFragment·ULNPPoiseProcessor, 상태 기반 그로기, 폰별 임계값, 유지시간 비례 보너스, 비복제 근거 |
 | [Enemy NPC 게임 기획](GameDesign_EnemyNPC.md) | 슬롯 기반 타겟팅, 행동 상태 (Idle/Alert/Chase/Attack), LOD 전환 |
-| [Enemy NPC 기술 설계](TechDesign_EnemyNPC.md) | Fragment/Tag 구조, Mass 프로세서 14종, Actor 연동 (High LOD), 넷 모드별 표현 소유권(게스트는 복제 Actor만), 겹침 분리력과 공간 격자 소비 |
+| [Enemy NPC 기술 설계](TechDesign_EnemyNPC.md) | Fragment/Tag 구조, Mass 프로세서 18종, Actor 연동 (High LOD), 넷 모드별 표현 소유권(게스트는 복제 Actor만), 겹침 분리력과 공간 격자 소비 |
 | [Enemy NPC StateTree 기술 설계](TechDesign_EnemyNPC_StateTree.md) | StateTree 상태 계층 (Combat/Alert/Idle), Evaluator 및 Task C++ 구성 |
-| [Enemy NPC Low LOD 전투 기술 설계](TechDesign_EnemyNPC_LowLOD.md) | CombatMode 옵션(Actor 승격/순수 엔티티), 가상 칼날 근접 판정, 행동 상태 1바이트 복제, ISM↔ISKM 인스턴싱 애니메이션, 적이 피격자인 방향(플린치·넉백·공격 잠금·사망 팝) |
+| [Enemy NPC Low LOD 전투 기술 설계](TechDesign_EnemyNPC_LowLOD.md) | CombatMode 옵션(Actor 승격/순수 엔티티), 가상 칼날 근접 판정, 행동 상태 1바이트 복제, ISM↔ISKM 인스턴싱 애니메이션과 무기 스킨드 메시, 적이 피격자인 방향(플린치·넉백·공격 잠금·사망 팝) |
 | [LootPod System 게임 기획](GameDesign_LootPod.md) | 루팅 흐름, 존 사수(넉백) 취소 조건, 협동 루팅 속도, 보상 유형 |
 | [LootPod System 기술 설계](TechDesign_LootPod.md) | MassEntity 구성, Pod 레지스트리 상호작용 탐색, 게이지·보상 드랍·Low LOD 빛기둥 |
-| [LootDice System 게임 기획](GameDesign_LootDice.md) | 보상 아이템 주사위 굴림 컨셉, 아이콘 식별, 획득·인벤토리 드랍·소멸 기획 |
+| [LootDice System 게임 기획](GameDesign_LootDice.md) | 보상 아이템 주사위 굴림 컨셉, 아이콘 식별, 획득·사망 전량 드랍·인벤토리 드랍·소멸 기획 |
 | [LootDice System 기술 설계](TechDesign_LootDice.md) | 서버 권위 물리 Actor, Iris FRepMovement 동기화, 구면 중력 AddForce, 획득·드랍 RPC |
 | [인벤토리 기술 설계](TechDesign_Inventory.md) | 아이템 인스턴스 모델(UObject+FastArray+등록 서브오브젝트), GameplayTagStack 스탯, 장착/보관 분리, 버프 인스턴스 흐름 |
 | [HUD 기술 설계](TechDesign_HUD.md) | MVVM ViewModel 구조, ASC 델리게이트 기반 갱신 흐름, 대시 쿨다운 파이 위젯, 스크린 스페이스 락온 마커·적 HP 바 |
@@ -143,5 +149,5 @@
 | [적 탐색 질의 기술 설계](TechDesign_TargetQuery.md) | 적 탐색 질의 시스템 — 상시 질의 구조, 순수 엔티티를 빠뜨리는 물리 경유 3곳, 등장방형 축소 행 공간 분할, 도입 단계 |
 | [멀티플레이 네트워킹 기술 설계](TechDesign_Networking.md) | Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 대역폭 예산 규약(상한=안전판·엔티티당 비용·조용한 소실), 공격 입력은 InputCmd가 아니라 발동 요청에, 엔진 소스 분석 이슈 8건 |
 | [네트워크 대역폭 가이드](Guide_NetBandwidth.md) | 비용 3축(버블·승격 Actor·절편), 페이로드 양자화 규약과 int16 월드 반지름 캡, 절제(ablation)와 사유별 계수 측정법·분모 규약, 반복된 실패 패턴 |
-| [ParrySystem 게임 기획](GameDesign_ParrySystem.md) | 패링 성공 조건, 투사체 타입별 반사, 플레이어 경험 의도 |
-| [ParrySystem 기술 설계](TechDesign_ParrySystem.md) | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 방안 |
+| [ParrySystem 게임 기획](GameDesign_ParrySystem.md) | 패링 성공 조건, 투사체 타입별 반사, 패링하는 쪽은 플레이어 전용·당하는 쪽은 LOD 무관, 플레이어 경험 의도 |
+| [ParrySystem 기술 설계](TechDesign_ParrySystem.md) | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 — 상태 미러링 패턴 |

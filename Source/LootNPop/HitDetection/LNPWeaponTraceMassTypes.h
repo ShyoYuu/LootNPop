@@ -14,7 +14,7 @@ class ALNPCharacterBase;
 /**
  * 근거리 공격자 Mass 엔티티에 붙는 Fragment.
  * ANS_LNPMeleeHitWindow이 매 프레임 본(Bone) 위치를 기록하고,
- * ULNPWeaponTraceProcessor가 Swept Volume 판정에 사용한다.
+ * ULNPWeaponTraceHitDetectionProcessor가 Swept Volume 판정에 사용한다.
  */
 USTRUCT()
 struct LOOTNPOP_API FLNPWeaponTraceFragment : public FMassFragment

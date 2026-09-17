@@ -14,8 +14,9 @@ namespace
 
 	/**
 	 * 등장방형(Equirectangular) 격자에서 주어진 World 방향의 표면 지점을 조회하는 공용 구현.
-	 * FLNPSurfaceCacheSnapshot::GetPoint(임의 Thread)와 ULNPSurfaceCacheSubsystem::GetSurfacePoint(게임 Thread)가
-	 * 동일한 로직을 공유한다. 읽기 전용 배열만 참조하므로 Thread-Safe.
+	 * FLNPSurfaceCacheSnapshot::GetPoint와 ULNPSurfaceCacheSubsystem::GetSurfacePoint가 동일한 로직을 공유한다.
+	 * 둘 다 임의 Thread에서 호출된다 — GetSurfacePoint는 게임 Thread뿐 아니라 Mass 워커 Thread(적·발사체 프로세서)도
+	 * 직접 부른다. 베이킹 완료 후 읽기 전용 배열만 참조하므로 Thread-Safe.
 	 *
 	 * 1) 방향 벡터를 위도-경도 분수 Index로 변환 (0.0 = 셀 0의 중심, 1.0 = 셀 1의 중심)
 	 * 2) 주변 4개 셀을 바이리니어 보간 — 셀 경계의 불연속 제거
@@ -107,8 +108,7 @@ void ULNPSurfaceCacheSubsystem::BeginBaking()
 
 	TotalSamples = LatResolution * LonResolution;
 
-	// 베이킹 사이클마다 새 할당 — 이전 매치의 라이브 Snapshot은
-	// TSharedPtr를 계속 소유하며 해제될 때까지 유효하다.
+	// 새 배열을 할당한다. 완료 후 재호출은 위 가드가 막으므로 워커가 읽는 배열이 교체되는 일은 없다.
 	CacheData = MakeShared<TArray<FPoint>>();
 	CacheData->SetNum(TotalSamples);
 	CompletedCount = 0;

@@ -303,7 +303,8 @@ private:
 	/**
 	 * Guard 상태를 서버에 복제한다. 리슨 서버 호스트가 자신을 호출하면 즉시 로컬 실행되므로
 	 * HasAuthority 분기 없이 항상 호출한다.
-	 * 서버는 수신 시각에서 방어자 RTT/2를 뺀 시각을 패링 창 시작점으로 사용해 지연을 보정한다 (섹션 5.1).
+	 * 서버는 수신 시각에서 방어자 RTT/2를 뺀 시각을 패링 창 시작점으로 사용해 지연을 보정한다
+	 * (TechDesign_ParrySystem.md 6장).
 	 */
 	UFUNCTION(Server, Reliable)
 	void Server_SetGuardState(bool bGuarding);

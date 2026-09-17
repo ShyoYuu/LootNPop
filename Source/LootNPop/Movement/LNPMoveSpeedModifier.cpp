@@ -34,7 +34,8 @@ void FLNPMoveSpeedModifier::OnPreMovement(UMoverComponent* MoverComp, const FMov
 	if (OriginalCommon == nullptr || OriginalLNP == nullptr || CurrentCommon == nullptr)
 		return;
 
-	// 현재 이동 상태가 요구하는 기준 속도 — Sprint/Guard의 OnStart와 같은 출처를 쓴다.
+	// 현재 이동 상태가 요구하는 기준 속도. Sprint/Guard/ADS Modifier는 태그만 세우고
+	// Acceleration만 만지므로, 상태별 속도 선택은 여기 한 곳에 모여 있다.
 	float BaseSpeed = OriginalCommon->MaxSpeed;
 
 	// AI 폰은 Mass의 EnemyConfig가 정한 속도를 쓴다. 이동 의도 벡터는 방향만 담으므로

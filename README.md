@@ -60,6 +60,7 @@
 본 프로젝트의 코드 작업에는 다음 AI 도구들이 참여하고 있습니다.
 
 - **Claude Code**
+- **Codex Cli**
 - **Antigravity CLI**
 
 ---

@@ -1,16 +1,8 @@
 # Octant Level Instance 제작 가이드
 
-Octant Level Instance 신규 제작 절차.  
-완성된 레벨 인스턴스는 `OctantPoolData`에 등록되며, 런타임에 랜덤 선택·회전 배치되어 SphereWorld를 구성.
+Octant Level Instance 신규 제작 절차. 각 Octant는 **메시 + PCG 프랍 배치 + 레벨 인스턴스** 세 레이어로 구성되며, 완성본을 `OctantPoolData`에 등록하면 런타임에 시드 기반으로 8개가 선택·회전 배치된다.
 
----
-
-## 사전 지식
-
-SphereWorld는 구체를 8개의 Octant(1/8 조각)로 분할하고, 풀에 등록된 레벨 인스턴스 중 8개를 시드 기반으로 선택·회전 배치해 완성.  
-각 Octant는 **메시 + PCG 프랍 배치 + 레벨 인스턴스** 세 레이어로 구성.
-
-> 런타임 스폰 흐름 상세: [TechDesign_WorldGeneration.md](TechDesign_WorldGeneration.md)
+> 런타임 스폰 흐름: [TechDesign_WorldGeneration.md](TechDesign_WorldGeneration.md)
 
 ---
 
@@ -20,22 +12,19 @@ SphereWorld는 구체를 8개의 Octant(1/8 조각)로 분할하고, 풀에 등�
 
 `Maps/BP_OctantGenerator` 블루프린트를 열어 아래 변수를 설정.
 
-| 변수 | 위치 | 설명 |
-|:---|:---|:---|
-| **Radius** | Blueprint 변수 | Octant 반지름 (SphereWorld 전체 크기 결정) |
-| **Subdivisions** | Blueprint 변수 | 폴리곤 밀도 (높을수록 곡면이 부드러워지나 버텍스 수 증가) |
-| **Magnitude** | Blueprint 변수 | 노이즈 변위 강도 (지형 굴곡의 높낮이 차) |
-| **Frequency** | Blueprint 변수 | 노이즈 빈도 (낮을수록 완만한 구릉, 높을수록 날카로운 지형) |
-| **Random Seed** | Blueprint 변수 | 노이즈 랜덤 시드 (동일 시드 = 동일 지형 재현 가능) |
-| **Asset Path And Name** | Details 패널 → Save Asset | 결과 스태틱 메시 저장 경로 (예: `Maps/Meshes/SM_Octant_00`) |
+| 변수 | 설명 |
+|:---|:---|
+| **Radius** | Octant 반지름 (월드 전체 크기) |
+| **Subdivisions** | 폴리곤 밀도 (높을수록 부드럽지만 버텍스 증가) |
+| **Magnitude** | 노이즈 변위 강도 (굴곡 높낮이) |
+| **Frequency** | 노이즈 빈도 (낮으면 완만, 높으면 날카로움) |
+| **Random Seed** | 노이즈 시드 (같은 시드 = 같은 지형) |
 
-1. Blueprint 변수를 입력한 뒤 **컴파일**하면 뷰포트 프리뷰가 갱신.
-2. 결과가 마음에 들면 Details 패널 **Save Asset** 섹션에서 **Asset Path And Name**을 입력하고 **Save Mesh** 버튼을 클릭.
-3. 콘텐츠 브라우저에서 해당 경로에 스태틱 메시가 생성된 것을 확인하고 **저장**.
+1. 변수를 입력하고 **컴파일**하면 뷰포트 프리뷰가 갱신된다.
+2. Details 패널 **Save Asset** 섹션의 **Asset Path And Name**에 경로(예: `Maps/Meshes/SM_Octant_00`)를 넣고 **Save Mesh**를 누른다 — 이 버튼을 눌러야만 에셋이 생성·덮어써진다.
+3. 콘텐츠 브라우저에서 메시를 확인하고 **저장**.
 
-> **주의:** Save Mesh 버튼을 눌러야만 새로운 에셋을 생성하거나 기존 에셋을 덮어씀.
-
-> **예시:** `Maps/Meshes/SM_Octant_00`
+> ⚠️ **저장된 메시의 Collision Complexity가 `Use Complex Collision As Simple`인지 확인한다.** SurfaceCache와 PCG 프랍 배치가 모두 단순 트레이스를 써서, 컨벡스 헐이면 둘 다 헐 표면을 지면으로 착각한다. 블루프린트가 정하는 값이라 C++이 보증하지 않는다 — [TechDesign_WorldGeneration.md](TechDesign_WorldGeneration.md) §4.1.
 
 ---
 

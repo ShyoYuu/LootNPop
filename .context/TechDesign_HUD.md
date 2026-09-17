@@ -2,68 +2,57 @@
 
 ## 1. 아키텍처 개요
 
-MVVM 플러그인(`ModelViewViewModel`)을 활용한 반응형 HUD. GAS 이벤트가 직접 위젯을 건드리지 않고 ViewModel을 통해 간접 갱신되므로, 위젯 레이아웃 변경이 전투 로직에 영향을 주지 않는다.
+MVVM 플러그인(`ModelViewViewModel`) 기반 반응형 HUD. GAS 이벤트가 위젯을 직접 건드리지 않고 ViewModel을
+거치므로, 위젯 레이아웃 변경이 전투 로직에 영향을 주지 않는다.
 
-```
-[ALNPPlayerController]
-  ├── BeginPlay()   → CreateWidget<ULNPHudWidget> + AddToViewport
-  └── OnPossess()   → HudWidget->InitViewModel(PlayerState->ASC)
+표현 경로는 데이터의 성격에 따라 셋으로 갈린다 — **이 구분이 이 문서의 뼈대다.**
 
-[ULNPHudViewModel]  (UMVVMViewModelBase)
-  ├── Initialize(ASC)  → 초기값 읽기 + 델리게이트 등록
-  ├── HealthPercent    (FieldNotify float)
-  └── bIsFreeAiming    (FieldNotify bool)
-
-[ULNPHudWidget]  (UUserWidget)
-  └── MVVM View가 FieldNotify를 받아 Blueprint 바인딩 자동 평가
-```
+| 성격 | 경로 | 예 |
+|:---|:---|:---|
+| 값 | ASC 델리게이트 → ViewModel FieldNotify → BP 바인딩 | HP 바·탄약·조준점 (§3) |
+| 이벤트("지금 시작됐다") | 게임플레이 델리게이트 → 위젯 함수 직접 호출 | 대시 쿨다운 파이 (§9) |
+| 매 프레임 화면 좌표 | `ULNPHudWidget::NativeTick` → 커스텀 Slate 위젯 | 락온 마커·적 HP 바 (§11) |
 
 ---
 
 ## 2. 초기화 흐름
 
 ```
-ALNPPlayerController::BeginPlay()
-  └─ CreateWidget<ULNPHudWidget>(this, HudWidgetClass)
-  └─ HudWidget->AddToViewport()           ← 위젯 화면에 등록, NativeConstruct 호출
+ALNPPlayerController::BeginPlay()              ← 로컬 컨트롤러만
+  └─ CreateWidget<ULNPHudWidget>(HudWidgetClass) → AddToViewport()   ZOrder 0
 
-ALNPPlayerController::OnPossess(Pawn)            ← 서버/리슨호스트 경로
-ALNPPlayerController::AcknowledgePossession(Pawn) ← 원격 클라이언트 경로 (OnPossess는 서버에서만 호출됨)
-  └─ GetPlayerState<ALNPPlayerState>()    ← Controller 직접 접근 (Pawn 캐싱 불필요)
-  └─ HudWidget->InitViewModel(ASC)
-       ├─ NewObject<ULNPHudViewModel>      ← ViewModel 생성 (한 번만)
-       ├─ ViewModel->Initialize(ASC)
-       │    ├─ ASC->GetNumericAttribute()  ← Health/MaxHealth 초기값 읽기
-       │    ├─ ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim)  ← 초기 조준 모드
-       │    ├─ GetGameplayAttributeValueChangeDelegate().AddUObject()  ← HP 변경 구독
-       │    └─ RegisterGameplayTagEvent(TAG_AimMode_FreeAim).AddUObject()  ← 태그 변경 구독
-       └─ UMVVMView->SetViewModel(FName("HUD_ViewModel"), ViewModel)
-            └─ Blueprint 바인딩 활성화
+OnPossess(Pawn)              ← 서버·리슨 호스트
+AcknowledgePossession(Pawn)  ← 원격 클라이언트 (OnPossess는 서버에서만 돈다)
+  └─ HudWidget->InitViewModel(PlayerState의 ASC, 폰의 ULNPCharacterMoverComponent)
+       ├─ NewObject<ULNPHudViewModel>                          ← 한 번만
+       ├─ ViewModel->Initialize(ASC)                           ← 초기값 + 델리게이트 등록
+       ├─ UMVVMView->SetViewModel("HUD_ViewModel", ViewModel)  ← BP 바인딩 활성화
+       └─ Mover->OnDashExecuted 구독 (기존 구독을 먼저 끊는다 — 재빙의 중복 방지)
 
-ALNPPlayerController::OnUnPossess()
-  └─ HudWidget->DeinitViewModel()
-       └─ ViewModel->Deinitialize()       ← ASC 델리게이트 전체 해제
+OnUnPossess() / NativeDestruct()
+  └─ DeinitViewModel() → ASC·Mover 델리게이트 전체 해제
 ```
+
+- **ASC는 `GetPlayerState<ALNPPlayerState>()`로 직접 얻는다** — 폰의 PlayerState 캐싱 타이밍에 무관하다.
+- **두 진입점이 겹쳐도 안전하다.** ViewModel은 1회 생성이고 `Initialize`가 선두에서 `Deinitialize()`를 부른다.
+- 수명 관리 3중 안전망: `OnUnPossess` / `NativeDestruct` / `Initialize` 선두 — 어떤 순서로 파괴·재빙의가
+  일어나도 델리게이트가 새지 않는다.
+- Mover 인자는 대시 쿨다운 표시용이며 null이어도 무방하다.
 
 ---
 
 ## 3. 런타임 갱신 흐름 (`HealthPercent` 예시)
 
 ```
-피해량 적용 (GAS GameplayEffect)
-  └─ ASC가 Health 어트리뷰트 수정
-       └─ GetGameplayAttributeValueChangeDelegate 발송
-            └─ ULNPHudViewModel::OnHealthChanged(Data)
-                 ├─ CachedHealth = Data.NewValue
-                 └─ UpdateHealthPercent()
-                      └─ SetHealthPercent(CachedHealth / CachedMaxHealth)
-                           └─ UE_MVVM_SET_PROPERTY_VALUE(HealthPercent, value)
-                                ├─ 값 대입 (변경 없으면 조기 종료)
-                                └─ FieldNotify 알림 발송
-                                     └─ MVVM View → ProgressBar->SetPercent(value)  ← 화면 갱신
+GE 적용 → ASC가 Health 수정 → GetGameplayAttributeValueChangeDelegate
+  └─ ULNPHudViewModel::OnHealthChanged  (CachedHealth 갱신)
+       └─ UpdateHealthPercent → UE_MVVM_SET_PROPERTY_VALUE(HealthPercent, …)
+            ├─ 값이 같으면 조기 종료          ← 틱 없는 이벤트 기반의 핵심
+            └─ FieldNotify → MVVM View → ProgressBar->SetPercent
 ```
 
-`bIsFreeAiming`도 동일 패턴. `RegisterGameplayTagEvent`가 `TAG_AimMode_FreeAim` 추가/제거를 감지하면 `SetIsFreeAiming(Count > 0)` 호출 → FieldNotify → Blueprint 바인딩 평가.
+`bIsFreeAiming`도 같은 패턴 — `RegisterGameplayTagEvent(TAG_AimMode_FreeAim)`가 추가/제거를 알리면
+`SetIsFreeAiming(Count > 0)`.
 
 ---
 
@@ -72,9 +61,11 @@ ALNPPlayerController::OnUnPossess()
 | 클래스 | 파일 | 역할 |
 |:---|:---|:---|
 | `ULNPHudViewModel` | `UI/LNPHudViewModel.h/.cpp` | ViewModel. FieldNotify 프로퍼티 보유, ASC 델리게이트 구독 |
-| `ULNPHudWidget` | `UI/LNPHudWidget.h/.cpp` | HUD 위젯 C++ 기반. ViewModel 생성·주입·해제 담당 |
-| `ALNPPlayerController` | `Player/LNPPlayerController.h/.cpp` | 위젯 생성(BeginPlay), ViewModel 초기화(OnPossess), 사망 오버레이 표시·해제 |
+| `ULNPHudWidget` | `UI/LNPHudWidget.h/.cpp` | HUD 위젯 C++ 기반. ViewModel 주입 + 마커 드라이버(`NativeTick`) |
+| `ALNPPlayerController` | `Player/LNPPlayerController.h/.cpp` | 위젯 생성(BeginPlay), ViewModel 초기화(빙의), 사망 오버레이 표시·해제 |
 | `ULNPDeathScreenWidget` | `UI/LNPDeathScreenWidget.h/.cpp` | 사망~리스폰 반투명 오버레이 + 카운트다운 (→ §12) |
+
+커스텀 Slate 위젯(`LNPUI` 모듈)과 마커 수집 계층은 §9·§11.9.
 
 ---
 
@@ -82,96 +73,55 @@ ALNPPlayerController::OnUnPossess()
 
 | 프로퍼티 | 타입 | 갱신 트리거 |
 |:---|:---|:---|
-| `HealthPercent` | `float` (0~1) | `Health` 또는 `MaxHealth` 어트리뷰트 변경 시 |
-| `bIsFreeAiming` | `bool` | `TAG_AimMode_FreeAim` 태그 추가/제거 시 |
-| `AmmoText` | `FText` (`"잔량 / 탄창"`) | `MagazineAmmo` 또는 `MagazineSize` 어트리뷰트 변경 시 (2026-09-14) |
+| `HealthPercent` | `float` (0~1) | `Health` 또는 `MaxHealth` 어트리뷰트 변경 |
+| `bIsFreeAiming` | `bool` | `TAG_AimMode_FreeAim` 태그 추가/제거 |
+| `AmmoText` | `FText` (`"{0} / {1}"` = 잔량/탄창) | `MagazineAmmo` 또는 `MagazineSize` 변경 |
 | `bHasMagazine` | `bool` | `MagazineSize > 0` — 근접 무기면 탄약 표시를 숨긴다 |
 
-> ⚠️ `AmmoText`는 `UE_MVVM_SET_PROPERTY_VALUE`를 쓰지 않는다 — FText는 값 비교로 알림을 거를 수 없어 매번 통지된다.
-> 정수 캐시(`CachedMagazineAmmo/Size`)로 먼저 거른 뒤 `UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED`로 직접 통지한다.
+> ⚠️ `AmmoText`는 `UE_MVVM_SET_PROPERTY_VALUE`를 쓰지 않는다 — FText는 값 비교로 알림을 거를 수 없어
+> 매번 통지된다. 정수 캐시(`CachedMagazineAmmo/Size`)로 먼저 거른 뒤
+> `UE_MVVM_BROADCAST_FIELD_VALUE_CHANGED`로 직접 통지한다.
 > 예측 발사의 차감도 현재값 변경이라 같은 델리게이트로 즉시 들어온다 — 연사 중 표시가 서버 확정을 기다리지 않는다.
 
 ---
 
 ## 6. Blueprint 설정 (WBP_LNPHud)
 
-1. 기반 클래스: `ULNPHudWidget`
+1. 기반 클래스 `ULNPHudWidget`
 2. **View Model 패널** → `+ Add` → 클래스 `ULNPHudViewModel`, 이름 **`HUD_ViewModel`**, 생성 모드 **Manual**
-3. HP 바 바인딩: `ProgressBar.Percent` ← `HUD_ViewModel.HealthPercent` (One Way)
-4. 조준점 가시성: 조준점 위젯에 **Function Binding** → `HUD_ViewModel.bIsFreeAiming` 읽어 `true`이면 `HitTestInvisible`, `false`이면 `Collapsed` 반환
-5. **BP_PlayerController** Details → `Hud Widget Class` = `WBP_LNPHud`
+3. `ProgressBar.Percent` ← `HUD_ViewModel.HealthPercent` (One Way)
+4. 조준점 가시성: **Function Binding**으로 `bIsFreeAiming`을 읽어 `HitTestInvisible` / `Collapsed` 반환
+5. `BP_LNPPlayerController.HudWidgetClass` = `WBP_LNPHud`
+6. 커스텀 위젯 배치는 §9(대시 파이)·§11.11(마커 2종)
 
 ---
 
 ## 7. 어필 포인트 (설계 원칙)
 
-- **GAS ↔ Widget 직접 결합 없음.** ViewModel이 유일한 중개자 — 위젯 레이아웃 변경이 전투 로직에 영향을 주지 않고, ViewModel은 위젯 없이 단위 검증 가능.
-- **틱 없는 이벤트 기반.** ASC 델리게이트 → FieldNotify 체인. `UE_MVVM_SET_PROPERTY_VALUE`의 변경 감지로 동일 값 재전달 시 알림 생략.
-- **ASC는 PlayerState에서 직접 접근.** `GetPlayerState<ALNPPlayerState>()`로 획득 — Pawn의 PlayerState 캐싱 타이밍에 무관.
-- **멀티플레이 이중 진입점.** `OnPossess`는 서버에서만 호출되므로 원격 클라이언트는 `AcknowledgePossession`에서 동일 초기화를 수행 — 어느 경로든 `InitViewModel`이 멱등(ViewModel 1회 생성, Initialize가 기존 구독 해제 후 재구독)이라 중복 호출에 안전.
-- **수명 관리 3중 안전망.** `OnUnPossess` / `NativeDestruct` / `Initialize` 선두의 `Deinitialize()` — 어떤 순서로 파괴·재빙의가 일어나도 델리게이트 누수가 없다.
+- **GAS ↔ Widget 직접 결합 없음.** ViewModel이 유일한 중개자이고, 위젯 없이 단위 검증이 가능하다.
+- **틱 없는 이벤트 기반.** ASC 델리게이트 → FieldNotify 체인. 동일 값 재전달은 알림이 생략된다.
+  단, 이 원칙이 적용되지 않는 표현이 둘 있고 그 이유가 §9(이벤트)와 §11(매 프레임 좌표)이다.
+- **멀티플레이 이중 진입점.** `OnPossess`(서버) / `AcknowledgePossession`(원격 클라) 양쪽에서 같은 초기화.
 
 ---
 
 ## 8. 인벤토리 패널 — ⛔ 폐기 (2026-08-07, 인게임 메뉴로 이관)
 
-> `ULNPInventoryWidget`·`ULNPInventoryEntryWidget`과 `WBP_Inventory`/`WBP_InventoryEntry`/`WBP_BuffEntry`,
-> `IA_ToggleInventory`는 **모두 삭제**되었다. 인벤토리는 CommonUI 기반 인게임 메뉴의 인벤토리 탭으로 대체되었다 —
-> [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md) 참조. 아래 §8·§8.5는 그 설계의 배경으로만 남긴다.
->
-> 이관되며 바뀐 것: ListView → CommonTileView Grid + 디테일 패널, 엔트리 내장 버튼 → 디테일 패널 버튼,
-> 장착본 숨김 → 장착 배지 표시, 스탯 최종값 1줄 → 합/곱 분해 RichText 6행.
+`ULNPInventoryWidget`·`ULNPInventoryEntryWidget`과 `WBP_Inventory`/`WBP_InventoryEntry`/`WBP_BuffEntry`,
+`IA_ToggleInventory`는 **모두 삭제**되었다. 인벤토리는 CommonUI 기반 인게임 메뉴의 인벤토리 탭으로
+대체되었다 — [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md) 참조.
 
-### (구) 인벤토리 패널 — 구현 완료 (2026-07-12) / 인스턴스 모델 전환 (2026-07-17)
+이관되며 바뀐 것: ListView → CommonTileView Grid + 디테일 패널, 엔트리 내장 버튼 → 디테일 패널 버튼,
+장착본 숨김 → **장착 배지 표시**, 스탯 최종값 1줄 → 합/곱 분해 RichText 6행.
 
-전체 인벤토리 패널(가방 아이템 + 활성 버프, 장착/드랍). `I`키(Enhanced Input `IMC_Player`→`IA_ToggleInventory`, 컨트롤러 상시 IMC) 또는 `LNP.Debug.ToggleInventory`로 토글.
+남길 가치가 있는 것은 이관되며 사라지지 않은 제약 둘뿐이다.
 
-**아키텍처 (HUD MVVM과 다른 판단):** ViewModel로 시작했으나 **MVVM은 `UListView::ListItems`에 바인딩 불가**(런타임 쓰기 불가 — 컴파일러가 거부)임을 확인. 리스트는 C++가 직접 채운다. 데이터 모델은 [TechDesign_Inventory.md](TechDesign_Inventory.md)의 **아이템 인스턴스 모델**(`ULNPInventoryItemInstance`)로 전환됨.
+- ⚠️ **MVVM은 `UListView::ListItems`에 바인딩할 수 없다** (런타임 쓰기 불가 — 컴파일러가 거부).
+  리스트·타일 데이터는 C++가 직접 채운다. 인게임 메뉴의 타일 뷰도 같은 이유로 ViewModel을 쓰지 않는다.
+- ⚠️ **`BindWidget`/`BindWidgetOptional`은 위젯 BP에서 Is Variable이 켜져 있어야 붙는다.**
+  이 프로젝트의 위젯 BP는 이 플래그가 기본 off인 경우가 잦아 §9·§11에서도 같은 함정을 밟았다.
 
-```
-[ALNPPlayerController] BeginPlay → CreateWidget<ULNPInventoryWidget>(뷰포트, 기본 Collapsed)
-  OnPossess/AcknowledgePossession → InitViewModel(PS->InventoryComponent)
-  BeginPlay → AddMappingContext(IMC_Player) / SetupInputComponent → BindAction(IA_ToggleInventory)
-
-[ULNPInventoryComponent] (PlayerState) BagList·ActiveBuffList (인스턴스 FastArray, COND_OwnerOnly)
-  + OnInventoryChanged 델리게이트 (서버 변경 시 / 클라 FastArray·OnRep 콜백 시 발송)
-
-[ULNPInventoryWidget] OnInventoryChanged 구독 → RefreshLists()
-  → StorageList->AddItem(가방 인스턴스 중 !IsEquipped())   ← 장착본은 자동 숨김 (Option 2)
-  → BuffList->AddItem(활성 버프 인스턴스)                    ← 래퍼 불필요 (인스턴스가 UObject)
-
-[ULNPInventoryEntryWidget : IUserObjectListEntry] (WBP_InventoryEntry / WBP_BuffEntry)
-  NativeOnListItemObjectSet → Instance->GetDefinition()의 아이콘·이름(DisplayName, 비면 에셋명 폴백)
-                            → UpdateDetailText() + 버프면 1초 반복 타이머 재설정(잔여 시간 카운트다운)
-  DropButton → Character->DropItem(ItemId) / EquipButton → Character->RequestEquipWeaponInstance(Instance)
-```
-
-**클래스/에셋:** `UI/LNPInventoryWidget`, `UI/LNPInventoryEntryWidget`. BP: `/Game/UI/WBP_Inventory`(+ RootVBox·StorageList·BuffList), `WBP_InventoryEntry`, `WBP_BuffEntry`. `BP_LNPPlayerController.InventoryWidgetClass` 지정. (구 `ULNPInventoryViewModel`/`ULNPBuffEntryObject`는 삭제됨.)
-
-**PIE 검증(호스트, 2026-07-17):** 획득→표시, 장착 시 가방에서 즉시 사라짐, 드랍→Dice 스폰·재획득 정상. 이름 표시됨. ⚠️ **BindWidget 함정:** `NameText`가 트리에 있어도 **Is Variable이 꺼져 있으면 BindWidgetOptional이 null** — 위젯 BP에서 bIsVariable 켜야 한다.
-
-## 8.5 인벤토리 스탯 리드아웃 ✅ 완료 (2026-07-27)
-
-인벤토리 패널 상단(`WBP_Inventory`의 `Stats` 라벨 + `StatsText` TextBlock)에 **버프가 모두 합산된 최종 스탯**을
-표시한다. 플레이어가 자신이 보유한 버프의 실제 효과를 확인하는 창구.
-
-```
-HP            150 / 150
-AttackPower   30.0
-AttackSpeed   1.30
-DefensePower  50.0
-MoveSpeed     1.30
-LootSpeed     2.00
-```
-
-- `ULNPInventoryWidget`이 `InitViewModel(Inventory, ASC)`에서 **ASC 어트리뷰트 변경 델리게이트 7종을 구독**하고,
-  어느 하나라도 바뀌면 `UpdateStatsText()`가 리드아웃 전체를 다시 만든다 (Tick 폴링 아님).
-  버프 적용·만료가 곧 어트리뷰트 변경이므로 별도 인벤토리 이벤트 구독은 불필요하다.
-- 구독 대상은 `GetDisplayedAttributes()`가, 출력 서식은 `UpdateStatsText()`가 정의한다
-  (Health/MaxHealth가 한 줄을 공유해 1:1 대응이 아니다). **스탯 추가 시 두 곳을 함께 고친다.**
-- 핸들은 `TArray<FDelegateHandle>`에 같은 순서로 보관해 `DeinitViewModel`에서 인덱스로 짝지어 해제한다.
-- `StatsText`는 `BindWidgetOptional` — 없으면 스탯 표시만 조용히 생략된다.
-- ⚠️ 리드아웃이 공백 패딩으로 열을 맞추므로 **모노스페이스 폰트**(`bForceMonospaced=true`)가 필수다.
+(구 패널 상단의 스탯 리드아웃은 인게임 메뉴 스탯 탭의 합/곱 분해로 대체됐다.)
 
 ---
 
@@ -182,13 +132,13 @@ LootSpeed     2.00
 
 ```
 [LNPUI] (신규 Runtime 모듈 — LootNPop을 참조하지 않는다)
-  FLNPRadialCooldownStyle : FSlateWidgetStyle   브러시·틴트·시작각·희망 크기
+  FLNPRadialCooldownStyle : FSlateWidgetStyle   브러시·틴트·시작각(-90=12시)·시계방향·희망 크기
   SLNPRadialCooldown      : SLeafWidget         MakeCustomVerts로 삼각형 팬을 직접 그림
   ULNPRadialCooldownWidget: UWidget             UMG 래퍼 (팔레트 "LNP UI")
 
 [LootNPop]
-  ULNPCharacterMoverComponent  OnDashExecuted 델리게이트 + GetDashCooldown()
-       └─ ULNPHudWidget::HandleDashExecuted → DashCooldownWidget->StartCooldown(1.0s)
+  ULNPCharacterMoverComponent  OnDashExecuted 델리게이트 + GetDashCooldown() (기본 1.0초)
+       └─ ULNPHudWidget::HandleDashExecuted → DashCooldownWidget->StartCooldown(GetDashCooldown())
 ```
 
 **왜 별도 모듈인가.** 위젯이 게임 타입을 하나도 모르게 하려면 물리적으로 참조할 수 없는 곳에 두는 게 가장
@@ -197,64 +147,55 @@ LootSpeed     2.00
 **왜 진행률을 `SLATE_ATTRIBUTE`로 열지 않았나.** 어트리뷰트로 열면 값을 매 프레임 밀어 주는 쪽에 Tick이
 생기고, 어트리뷰트가 매 프레임 평가되며 위젯이 volatile이 된다. 대신 **위젯이 시작 시점에 duration 하나만
 받고 경과 시간을 스스로 누적**한다 — 쿨다운이 없는 동안 `SetCanTick(false)`라 비용이 정확히 0이다.
-무효화 사유는 `Paint`만 쓴다(부채꼴만 달라지고 희망 크기는 그대로). 스타일 교체만 `Layout`이다.
+무효화 사유는 `Paint`만 쓴다(부채꼴만 달라지고 희망 크기는 그대로). 희망 크기가 스타일에서 나오므로
+**스타일 교체만 `Layout`**이다.
 
-⚠️ **단, 무효화 사유 최소화가 실제로 이득이 되는 건 위젯이 무효화 루트(fast path) 안에 있을 때뿐이다.**
-현재 HUD는 뷰포트에 그냥 올라가 있어 무효화 루트 밖이고, 그 경우 Slate는 매 프레임 전부 다시 그리므로
-`Invalidate(Paint)` 호출은 성능상 무의미하다 — 나중에 HUD를 Invalidation Box로 감싸거나
-`Slate.EnableGlobalInvalidation`을 켜면 그때부터 값을 한다. 반면 **`SetCanTick(false)`의 이득은
-무효화 루트와 무관하게 항상 유효하다** (`SWidget::Paint`가 `bCanTick`일 때만 `Tick`을 호출하므로).
+⚠️ **단, 무효화 사유 최소화는 위젯이 무효화 루트(fast path) 안에 있을 때만 이득이다.** 현재 HUD는
+뷰포트에 그냥 올라가 있어 루트 밖이고, 그 경우 Slate가 매 프레임 전부 다시 그리므로 `Invalidate(Paint)`는
+성능상 무의미하다(Invalidation Box로 감싸거나 `Slate.EnableGlobalInvalidation`을 켜면 그때부터 값을 한다).
+반면 **`SetCanTick(false)`의 이득은 무효화 루트와 무관하게 항상 유효하다** —
+`SWidget::Paint`가 `bCanTick`일 때만 `Tick`을 부른다.
 
 **왜 MVVM을 안 쓰나.** MVVM은 *값* 바인딩용인데 쿨다운은 "지금 시작됐다"는 *이벤트*다.
 `float Duration`을 FieldNotify로 노출하면 `UE_MVVM_SET_PROPERTY_VALUE`가 **같은 값(1.0초) 재대입 시
-알림을 생략**해서(§7) 두 번째 대시부터 스윕이 안 도는 함정이 있다. `ULNPHudWidget`이 Mover 델리게이트를
-직접 받아 위젯 함수를 호출한다.
+알림을 생략**해서(§7) 두 번째 대시부터 스윕이 안 도는 함정이 있다.
 
 **구현 메모**
 - 부채꼴 반지름은 위젯 사각형의 **반대각선** — 정사각형 아이콘의 네 모서리까지 덮어야 한다.
   넘치는 부분은 `SetClipping(EWidgetClipping::ClipToBounds)`로 잘라낸다.
 - ⚠️ **Slate 쪽 `Construct`에서만 `SetClipping`을 걸면 UMG로 쓸 때 안 먹는다** (2026-08-17 실측).
-  `UWidget::SynchronizeProperties`가 래퍼의 `Clipping` 프로퍼티(기본 `Inherit`)를 Slate 위젯에 덮어쓴다.
+  `UWidget::SynchronizeProperties`가 래퍼의 `Clipping` 프로퍼티(기본 `Inherit`)를 덮어쓴다.
   디자이너 프리뷰에서 부채꼴이 아이콘 밖으로 원반처럼 삐져나오는 증상으로 드러난다 —
-  래퍼 생성자에서도 `Clipping = EWidgetClipping::ClipToBounds`를 줘야 한다.
+  **래퍼 생성자에서도** 같은 값을 줘야 한다.
 - 브러시에 리소스가 없으면 `MakeCustomVerts`에 넘길 `FSlateResourceHandle`이 무효가 되므로
   엔진 기본 `GenericWhiteBox`로 대체한다.
 - 색은 `OverlayTint × 브러시 틴트 × InWidgetStyle.GetColorAndOpacityTint()` — 마지막 항을 빠뜨리면
   HUD 전체를 페이드아웃해도 이 위젯만 남는다.
 
-**검증 현황 (2026-08-17)**
-
-| 항목 | 결과 |
-|:---|:---|
-| 파이 스윕 (12시 시작·시계방향·1초) | ✅ PIE 실측 |
-| 반복 대시 시 처음부터 재시작 | ✅ PIE 실측 |
-| 클리핑 (부채꼴이 아이콘 사각형 밖으로 안 넘침) | ✅ 디자이너 실측 — 초기에 실패했던 항목 |
-| 부모 페이드 전파 (`InWidgetStyle` 틴트 곱셈) | ✅ 루트 `RenderOpacity` 0.35에서 가림막도 함께 흐려짐 확인 |
-| 쿨다운 중에만 Tick 활성 | ✅ `stat Slate`의 `SWidget::Tick (Count)`가 481→482로 올랐다가 복귀 (`Dash Cooldown`을 10초로 늘려 측정). 카운터는 최근 프레임 이동평균으로 표시되므로 전이 구간에서 소수점이 나오는 게 정상 |
-| 무효화 사유가 Paint뿐인지 | ⛔ 현재 구성에서 측정 불가 (위 ⚠️ 참조) |
+**검증 (2026-08-17, PIE·디자이너 실측)** — 파이 스윕(12시·시계방향·1초), 반복 대시 시 처음부터 재시작,
+클리핑(초기에 실패했던 항목), 부모 페이드 전파(루트 `RenderOpacity` 0.35), 쿨다운 중에만 Tick 활성
+(`stat Slate`의 `SWidget::Tick (Count)` 481→482 후 복귀 — Dash Cooldown을 10초로 늘려 측정).
+**무효화 사유가 Paint뿐인지는 ⛔ 현재 구성에서 측정 불가**(위 ⚠️ 참조).
 
 **스킬 슬롯 연결 시:** `StartCooldown(Duration)`을 호출할 지점만 추가하면 된다. 액티브 스킬은 GAS 쿨다운 GE를
-쓰므로 `ASC->GetActiveEffectsTimeRemainingAndDuration`으로 duration을 얻어 넘긴다. 단 현재는 스킬 입력 키가
-무기 교체 테스트에 점유되어 있고(`LNPInputHandlerComponent.cpp:571-586`) 스킬 DataAsset도 없다.
+쓰므로 `ASC->GetActiveEffectsTimeRemainingAndDuration`으로 duration을 얻어 넘긴다. 단 현재는 스킬 입력이
+무기 교체 테스트에 점유돼 있고(`ULNPInputHandlerComponent::OnActiveSkillStarted`가 `EquipTestWeapon`을 부른다)
+스킬 DataAsset도 없다.
 
-⚠️ **WBP 배선:** `WBP_LNPHud`에 팔레트 **LNP UI → LNP Radial Cooldown**을 배치하고 변수명을
-`DashCooldownWidget`으로, **Is Variable을 켠다**(끄면 `BindWidgetOptional`이 null — §8의 함정과 동일).
-현재 배치는 HP 바 좌측 상단(하단 중앙 앵커, 오프셋 -200/-130, 64×64)이고,
-그 아래 `DashIcon`(`UImage`)이 `/Game/UI/Icons/T_DashIcon`을 그린다 — 옆에서 본 달리는 실루엣.
-소스 PNG는 `Art/Icons/T_DashIcon.png`에 두었으므로 에디터에서 Reimport가 된다.
-텍스처 설정은 UI용으로 `TEXTUREGROUP_UI` + `TC_EditorIcon` + `TMGS_NoMipmaps` + `NeverStream`.
+⚠️ **WBP 배선:** 팔레트 **LNP UI → LNP Radial Cooldown**을 변수명 `DashCooldownWidget`으로 배치하고
+**Is Variable을 켠다**(§8의 함정과 동일). 배치는 HP 바 좌측 상단(하단 중앙 앵커, 오프셋 -200/-130, 64×64),
+그 아래 `DashIcon`(`UImage`)이 `/Game/UI/Icons/T_DashIcon`을 그린다. 소스 PNG는 `Art/Icons/T_DashIcon.png`
+(에디터 Reimport 가능), 텍스처 설정은 UI용 `TEXTUREGROUP_UI` + `TC_EditorIcon` + `TMGS_NoMipmaps` + `NeverStream`.
 
 ---
 
 ## 10. 미구현 항목
 
 - **HUD 추가 요소:** 미니맵, 점수/메달 카운터 등 (DevelopmentPlan Phase 6).
-- **루팅 게이지 HUD 연동:** `ALNPLootPod::GetGaugePercent()`(복제 완료)를 읽는 월드 스페이스 또는 HUD 게이지 위젯.
-- **쿨다운 표시:** 대시는 ✅ 완료(§9). **Active Skill 슬롯 쿨다운**은 스킬 발동 자체가 미구현이라 보류 —
-  스킬 시스템이 생기면 §9의 위젯을 그대로 재사용한다.
-- **인벤토리 폴리시:** 스킬 슬롯 장착 UI, 환경설정 탭 내용 — 인게임 메뉴로 이관됐으므로 [TechDesign_InGameMenu.md](TechDesign_InGameMenu.md) §12를 따른다. 버프 잔여시간 라이브 카운트다운은 ✅ 완료(2026-07-17, [TechDesign_Inventory.md](TechDesign_Inventory.md) §5).
-
-- **적 HP 바 가림 처리:** 스크린 스페이스 마커 자체는 완료(§11). 월드 지오메트리 뎁스 가림만 보류 — §11.5.
+- **루팅 게이지 HUD:** `ALNPLootPod::GetGaugePercent()`는 복제되고 있으나 읽는 위젯이 없다.
+  시안 미확정으로 보류 — 요소 후보와 기각 사유는 [Idea_Backlog.md](Idea_Backlog.md).
+- **Active Skill 슬롯 쿨다운:** 스킬 발동 자체가 미구현이라 보류 — 생기면 §9의 위젯을 그대로 재사용한다.
+- **적 HP 바 가림 처리:** 스크린 스페이스 마커는 완료(§11), 월드 지오메트리 뎁스 가림만 보류 — §11.5.
 
 ---
 
@@ -269,20 +210,20 @@ LootSpeed     2.00
 | 동기 | 성격 |
 |:---|:---|
 | 위젯 N개 → 1개로 줄여 드로우·Tick 비용 절감 | **추정** — High LOD 적 동시 수가 실측되지 않았다 |
-| **Low LOD(순수 엔티티) 적의 표현** | **기능 요구** — 액터가 없는 엔티티에는 `UWidgetComponent`를 달 방법이 자체가 없다 |
+| **Low LOD(순수 엔티티) 적의 표현** | **기능 요구** — 액터가 없으면 `UWidgetComponent`를 달 수 없다 |
 
 두 번째가 진짜 이유다. 성능은 실측 전까지 근거가 약하고, 이번 작업의 근거도 성능이 아니었다.
 
 ### 11.2 잃은 것은 뎁스 가림 하나뿐이다
 
 ⚠️ **월드 스페이스 `UWidgetComponent`에서 공짜로 얻고 있던 것은 뎁스 가림이다.** 씬에 쿼드로 그려져
-뎁스 테스트를 타므로 벽 뒤 적의 HP 바가 자동으로 가려진다. 스크린 스페이스로 옮기면 렌더러가 대신
-해주던 이 일을 직접 짜야 한다. "원근 스케일·깊이 가림"을 한 덩어리로 보면 크게 느껴지지만 쪼개면 다르다.
+뎁스 테스트를 타므로 벽 뒤 적의 HP 바가 자동으로 가려진다. "원근 스케일·깊이 가림"을 한 덩어리로 보면
+크게 느껴지지만 쪼개면 다르다.
 
 | 항목 | 실제 작업량 | 결과 |
 |:---|:---|:---|
 | 마커끼리 앞뒤 정렬 | 거리 정렬 후 그리는 순서만 바꿈 — 사실상 0 | ✅ |
-| 원근 스케일 | `Scale = Base / Distance` 클램프 한 줄 | ✅ `HpBarScaleDistance` / `HpBarMinScale` |
+| 원근 스케일 | `Scale = HpBarScaleDistance / Distance` 클램프 한 줄 | ✅ (하한 `HpBarMinScale`) |
 | **월드 지오메트리 가림** | **여기만 진짜 작업** | ⛔ 보류 (§11.5) |
 
 옮기면서 매 프레임 카메라 빌보드 회전(구 `ALNPEnemyCharacter::Tick`)도 함께 없어졌다.
@@ -290,19 +231,15 @@ LootSpeed     2.00
 ### 11.3 선결 조건이었던 Health 복제 — ✅ 해소 (2026-09-09)
 
 `FLNPEnemyFragment::Health`는 서버 전용이라 클라이언트에서는 기본값에 머물렀다. **AimPitch가 상태 채널에
-들어온 절차 그대로** 1바이트를 더해 해소했다.
-
-```cpp
-// FLNPReplicatedAgent — PositionYaw의 형제 멤버다 (중첩하면 위치가 바뀔 때마다 함께 실린다)
-uint8 HealthPct = MAX_uint8;   // HP 비율을 0~255로 양자화
-```
+들어온 절차 그대로** `FLNPReplicatedAgent`에 `uint8 HealthPct`를 더해 해소했다 —
+`PositionYaw`의 형제 멤버라 위치가 바뀔 때 함께 실린다.
 
 - **비율만 싣는다.** MaxHealth는 전투 중 불변이고 표시에 필요한 것도 비율뿐이다.
 - 클라이언트에서 버블 핸들러(`ApplyReplicatedHealth`)가 **서버가 쓰는 것과 같은 프래그먼트**
   (`FLNPEnemyFragment::Health`)에 `Pct/255 × MaxHealth`로 되쓴다 — 소비처가 넷 모드를 모르게 하는
   단일 소비 경로 규약([TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md) §5.3) 그대로다.
   ⚠️ 클라의 `MaxHealth`는 템플릿 기본값이라 서버 실제값과 다를 수 있다(HP 원본이 무기의 스탯 수정자다).
-  복원되는 것은 **비율이 정확한 근사 절대값**이고, 표시는 비율만 쓰므로 무해하다. 판정에 쓰면 안 된다.
+  복원되는 것은 **비율만 정확한 근사 절대값**이므로 판정에 쓰면 안 된다.
 - ⚠️ **양자화 함수를 두 벌 두지 않는다.** 복제 페이로드와 표시 장부가
   `FLNPEnemyHealthDisplayFragment::EncodePct` 하나를 공유한다. 갈라지면 게스트가 수신값을 다시
   인코딩했을 때 값이 미세하게 달라져 **매 프레임 "HP가 변했다"로 읽힌다**(= §11.4의 강제 포함이 항상 참이 된다).
@@ -317,11 +254,13 @@ uint8 HealthPct = MAX_uint8;   // HP 비율을 0~255로 양자화
 화면에 HP 바가 너무 많으면 보기 나쁘다. 상한을 두면 **가림 트레이스 대상도 같이 줄어들어** 비용이
 상수화되는 부수 효과가 있다(§11.5를 나중에 붙일 때).
 
-- 게이트: `HP < Max` + 카메라 반각 이내 + 최대 표시 거리 이내 + 살아 있을 것
-- 거리순 정렬 후 상한 N개 (`ULNPHudWidget`의 `HpBarMaxCount` / `HpBarMaxDistance` / `HpBarMaxAngleDeg`)
-- ⚠️ **거리순 단독은 안 된다** — 라이플로 저격한 먼 적이 근처 잡몹에 밀려 안 보인다.
-  **최근 `HpBarRecentDamageSeconds` 안에 HP가 변한 적은 상한과 무관하게 강제 포함**한다.
-  ⚠️ 이때 필요한 "언제 변했는가"를 **서버가 실어 보내지 않는다.** `ULNPEnemyMarkerProcessor`가
+- 게이트: 살아 있을 것(`Health > 0` **그리고** `Action != Dying`) + 만피가 아닐 것 + 카메라 반각 이내 +
+  최대 표시 거리 이내. 사망은 HP가 먼저 0이 되고 `Dying` 전이가 한 틱 늦을 수 있어 둘 다 본다.
+- 정렬은 **최근 피해 여부가 1순위, 거리가 2순위**다. 거리순 단독이면 라이플로 저격한 먼 적이 근처
+  잡몹에 밀려 안 보인다. 방금 회복해 만피가 된 적도 같은 이유로 잠깐 남는다.
+- 파라미터는 `ULNPHudWidget`의 `HpBarMaxCount`(20) / `HpBarMaxDistance`(4000cm) / `HpBarMaxAngleDeg`(70) /
+  `HpBarRecentDamageSeconds`(3) / `HpBarExitMargin`(4) / `HpBarFadeSeconds`(0.2).
+- ⚠️ 이때 필요한 "언제 변했는가"를 **서버가 실어 보내지 않는다.** `ULNPEnemyMarkerProcessor`가
   *자기가 본 HP가 바뀐 순간*을 각 머신에서 로컬로 기록한다(`FLNPEnemyHealthDisplayFragment`) —
   호스트는 실제 피해를, 게스트는 복제된 비율의 변화를 본다. 같은 사건을 각자 관측하므로 **추가 대역폭이 0**이다.
 - ⚠️ **경계 점멸 방지** — 20위와 21위가 순위를 오가면 HP 바가 깜빡인다.
@@ -337,12 +276,9 @@ uint8 HealthPct = MAX_uint8;   // HP 비율을 0~255로 양자화
 `LNPAbility_RangedAttack.cpp` 한 곳뿐). 새로 짜야 한다. **이번 범위에서 뺐다** — 표현이 아예 없는 것과
 가려지지 않는 것 사이의 거리가, 가리는 것과 안 가리는 것 사이보다 훨씬 멀기 때문이다.
 
-착수하게 되면:
-
-- 대상은 §11.4에서 이미 수십 개로 줄어 있다
-- 비동기 라인 트레이스를 프레임당 N개씩 라운드로빈(예: 8개/프레임, 결과는 다음 갱신까지 유지) —
-  100~200ms 지연은 HP 바에서 눈에 띄지 않는다
-- 0/1 토글이 아니라 알파 페이드로 반영하면 판정 지연이 더 가려진다 — 이미 페이드 경로가 있으므로 값만 곱하면 된다
+착수하게 되면: 대상은 §11.4에서 이미 수십 개로 줄어 있다 / 비동기 라인 트레이스를 프레임당 N개씩
+라운드로빈(예: 8개/프레임, 결과는 다음 갱신까지 유지 — 100~200ms 지연은 HP 바에서 눈에 띄지 않는다) /
+0·1 토글이 아니라 알파 페이드로 반영하면 판정 지연이 더 가려진다(이미 페이드 경로가 있어 값만 곱하면 된다).
 
 ⚠️ **락온 마커에는 애초에 필요 없다.** 내가 지목한 대상이 엄폐물 뒤로 들어갔다고 표식이 사라지면 곤란하다.
 
@@ -360,6 +296,7 @@ uint8 HealthPct = MAX_uint8;   // HP 비율을 0~255로 양자화
 - 진행률을 `SLATE_ATTRIBUTE`로 열지 않는다 — 매 프레임 평가되며 위젯이 volatile이 된다. 세터로 민다.
 - `SetCanTick(false)` — 위젯이 스스로 세는 시간이 없다(대시 파이는 경과를 자기가 쌓았다는 점이 다르다).
 - 전체 마커를 브러시당 `MakeCustomVerts` **한 번**으로 배칭한다 — 마커가 몇 개든 드로우 콜은 최대 2개.
+  채움은 배경보다 레이어를 하나 올려 그린다(같은 레이어에서는 순서가 보장되지 않는다).
 - ⚠️ 커스텀 정점이라 **단순 `Image` 브러시만 지원한다**(9-slice·Tile 불가).
 - `ComputeDesiredSize`는 0을 돌려준다 — 화면 전체를 덮는 오버레이라 희망 크기를 주장하지 않는다.
 - `SetClipping(ClipToBounds)`는 §9와 같은 이유로 **Slate `Construct`와 UMG 래퍼 생성자 양쪽에** 건다.
@@ -369,10 +306,9 @@ uint8 HealthPct = MAX_uint8;   // HP 비율을 0~255로 양자화
 락온 마커도 `UWidgetComponent`였고, 순수 엔티티에 락온을 걸면 **표시할 방법이 없다는 같은 벽**에
 부딪혔다 → [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md) §7.
 
-**ISM 인스턴스·Niagara로 엔티티용 마커만 따로 만드는 안은 기각했다.** 그렇게 하면 *Actor용 위젯 마커*와
-*엔티티용 월드 마커* 두 갈래를 영구히 유지하게 된다 — 이 프로젝트가 순수 엔티티 도입 이후 반복해 밟은
-바로 그 함정(Actor 경유 경로의 갈라짐)이다. 락온 마커는 성격상 UI라(거리와 무관하게 또렷하고 일정한 크기)
-스크린 스페이스가 자연스럽기도 하다.
+**ISM 인스턴스·Niagara로 엔티티용 마커만 따로 만드는 안은 기각했다.** *Actor용 위젯 마커*와 *엔티티용 월드
+마커* 두 갈래를 영구히 유지하게 되기 때문이다 — 이 프로젝트가 순수 엔티티 도입 이후 반복해 밟은 그 함정이다.
+락온 마커는 성격상 UI라(거리와 무관하게 일정한 크기) 스크린 스페이스가 자연스럽기도 하다.
 
 ⚠️ **락온 마커는 §11의 비싼 부분을 하나도 쓰지 않는다** — 그래서 HP 바를 기다릴 이유가 없었고,
 형틀(§11.6)의 첫 소비자로 먼저 태워 구조를 검증한 뒤 HP 바를 얹었다.
@@ -397,31 +333,33 @@ uint8 HealthPct = MAX_uint8;   // HP 비율을 0~255로 양자화
 
 `FLNPEnemyFragment::Health`가 두 모드 공통의 단일 원본이고(승격 중에는 ASC가 권위이되
 `ALNPEnemyCharacter::SyncToEntity`가 매 틱 프래그먼트로 되돌린다), 새 경로가 승격 Actor도 그대로 덮는다.
-그래서 `HpBarComponent`(`UWidgetComponent`) · `HpBarWidgetClass` · `ULNPHpBarWidget` · `RefreshHpBar` ·
-ASC Health 구독 · 매 프레임 빌보드 회전을 **전부 삭제**했다.
-
-남겨 두었다면 적 종류에 따라 HP 바 표현이 갈리고, §11.7이 기각한 것과 똑같은 두 갈래가 다시 생긴다.
-대가는 승격 Actor에 한해 뎁스 가림을 잃는 것이고, 그것은 §11.5와 함께 되찾는다.
+그래서 `HpBarComponent`·`HpBarWidgetClass`·`ULNPHpBarWidget`·`RefreshHpBar`·ASC Health 구독·빌보드 회전을
+**전부 삭제**했다. 남겨 두었다면 적 종류에 따라 표현이 갈려 §11.7이 기각한 두 갈래가 다시 생긴다.
+대가인 승격 Actor의 뎁스 가림은 §11.5와 함께 되찾는다.
 
 ### 11.9 구현 구조
 
 | 계층 | 파일 | 역할 |
 |:---|:---|:---|
-| 위젯 | `Source/LNPUI/.../LNPScreenMarkerStyle.h` | 브러시 2종·틴트·크기·피벗·`bDrawFill` |
+| 위젯 | `Source/LNPUI/.../LNPScreenMarkerStyle.h` | 브러시 2종·틴트·크기·피벗·`bDrawFill`·`FillInset` |
 | 위젯 | `Source/LNPUI/.../SLNPScreenMarkers.h` | `SLeafWidget`. `FLNPScreenMarker` 배열을 받아 `MakeCustomVerts`로 배칭 |
 | 위젯 | `Source/LNPUI/.../LNPScreenMarkerWidget.h` | UMG 래퍼 (팔레트 "LNP UI"). 디자이너 프리뷰 포함 |
 | 드라이버 | `UI/LNPHudWidget.cpp` `NativeTick` | 투영·히스테리시스·페이드·원근 스케일. 마커 위젯 2개를 먹인다 |
 | 투영 | `UI/LNPScreenProjection.h` | 월드 → 위젯 로컬. 카메라 뒤 판정과 DPI 나눗셈을 여기서 닫는다 |
 | 수집 | `Enemy/LNPEnemyMarkerSubsystem.h` | 파라미터 쓰기 / 결과 읽기. 잠금 관례는 `ULNPTargetQuerySubsystem`과 같다 |
-| 수집 | `Enemy/LNPEnemyMarkerProcessor.cpp` | `PrePhysics`. 게이트·점수·상한 N. 관측 시각도 여기서 갱신 |
+| 수집 | `Enemy/LNPEnemyMarkerProcessor.cpp` | 게이트·정렬·상한 N. 관측 시각도 여기서 갱신 |
 | 복제 | `Replication/LNPMassReplication.h` · `LNPMassReplicator.cpp` | `HealthPct` 1바이트 |
 
-**HUD 위젯이 Tick하게 된 것이 이번 작업의 유일한 구조 변경이다.** 대시 쿨다운은 "시작됐다"는 이벤트라
-푸시로 족했지만, 마커는 **매 프레임 다시 계산되는 화면 좌표**라 값 바인딩으로 표현할 수 없다.
-락온 컴포넌트가 위젯을 미는 방식은 게임플레이 컴포넌트가 HUD를 알게 되므로 택하지 않았다.
+수집 프로세서는 **`PrePhysics`**(엔진 표현 체인·HUD Tick과 같은 페이즈 — 같은 프레임에 쓰고 읽는다)이고
+**`ExecutionFlags = All`**이다. 리슨 호스트도 HP 바를 봐야 하므로 클라이언트 전용이 아니다.
+⚠️ 순서 선언은 페이즈를 건너지 못하므로, 순서 제약이 필요해지면 반드시 같은 페이즈 안에서 건다.
 
-수집을 `ULNPTargetQuerySubsystem`에 얹지 않고 따로 둔 이유는 계약이 다르기 때문이다 —
-저쪽은 **최선 1개**, 이쪽은 **상위 N개**다. 잠금 관례와 `TMassExternalSubsystemTraits` 선언은 그대로 베꼈다.
+**HUD 위젯이 Tick하게 된 것이 이번 작업의 유일한 구조 변경이다.** 대시 쿨다운은 이벤트라 푸시로 족했지만,
+마커는 **매 프레임 다시 계산되는 화면 좌표**라 값 바인딩으로 표현할 수 없다. 락온 컴포넌트가 위젯을 미는
+방식은 게임플레이 컴포넌트가 HUD를 알게 되므로 택하지 않았다.
+
+수집을 `ULNPTargetQuerySubsystem`에 얹지 않은 이유는 계약이 다르기 때문이다 — 저쪽은 **최선 1개**,
+이쪽은 **상위 N개**다. 잠금 관례와 `TMassExternalSubsystemTraits` 선언은 그대로 베꼈다.
 
 ### 11.10 ⚠️ 함정 넷
 
@@ -444,11 +382,10 @@ ASC Health 구독 · 매 프레임 빌보드 회전을 **전부 삭제**했다.
 | `LockOnMarkerWidget` | `bDrawFill=false`, `BackBrush`=`T_LockOnReticle`, `BackTint` 금색(1, 0.85, 0, 0.9), 64×64, 피벗 (0.5, 0.5) | -1 |
 | `EnemyHpBarWidget` | `bDrawFill=true`, 브러시 없음(흰 박스 폴백), 배경 α0.75 검정 + 채움 붉은색, 56×7, 피벗 **(0.5, 1)**, `FillInset` 1 | -2 |
 
-- HP 바의 피벗이 **아래 중앙**인 이유: 넘겨받는 좌표가 `HpBarHeightOffset`만큼 올린 머리 지점이라,
+- HP 바의 피벗이 **아래 중앙**인 이유: 넘겨받는 좌표가 `HpBarHeightOffset`(110cm)만큼 올린 머리 지점이라,
   바가 그 위에 얹혀야 머리를 가리지 않는다.
-- 락온 레티클은 `Art/Icons/T_LockOnReticle.png`(128², 십자 4방향이 끊긴 링)을 새로 만들어
-  `/Game/UI/Icons/T_LockOnReticle`로 임포트했다 — 텍스처 설정은 `T_DashIcon`과 같다
-  (`TEXTUREGROUP_UI` + `TC_EditorIcon` + `TMGS_NoMipmaps` + `NeverStream`).
+- 락온 레티클은 `Art/Icons/T_LockOnReticle.png`(128², 십자 4방향이 끊긴 링)을 `/Game/UI/Icons/T_LockOnReticle`로
+  임포트했다 — 텍스처 설정은 `T_DashIcon`과 같다.
   ⚠️ **옛 `WBP_LockOnMarker`는 텍스처 없는 RoundedBox 링이었고 그대로 못 옮긴다** —
   커스텀 정점 경로는 단순 Image 브러시만 지원하기 때문이다(§11.6). 링은 흰색으로 굽고 색은 틴트가 준다.
 - HP 바는 브러시를 비워 둔다. 리소스가 없으면 엔진 기본 `GenericWhiteBox`로 폴백하므로
@@ -456,8 +393,7 @@ ASC Health 구독 · 매 프레임 빌보드 회전을 **전부 삭제**했다.
 
 ⚠️ **EntityConfig DA는 재저장할 필요가 없다.** 이 문서의 이전 판이 그렇게 적었으나 틀렸다 —
 `FLNPEnemyHealthDisplayFragment`는 `ULNPEnemyTrait::BuildTemplate`이 **런타임에** 붙이고,
-DA에 직렬화되는 것은 트레이트 목록이지 프래그먼트 목록이 아니다. C++에 `AddFragment` 한 줄을
-더하는 변경은 에셋을 건드리지 않는다.
+DA에 직렬화되는 것은 트레이트 목록이지 프래그먼트 목록이 아니다.
 
 **함께 지운 것:** `WBP_LNPHpBar`, `WBP_LockOnMarker`. 둘 다 `BP_LNPEnemy`가 참조하고 있었는데,
 그 참조는 이미 제거된 UPROPERTY의 **잔존 값**이었다.
@@ -467,18 +403,10 @@ CDO 프로퍼티를 하나 건드려 더티로 만든 뒤 저장해야 의존성
 
 ### 11.12 검증 현황 (2026-09-09, 2P 호스트·게스트)
 
-| 항목 | 결과 |
-|:---|:---|
-| 컴파일 (에디터 풀 빌드) | ✅ |
-| `BindWidgetOptional` 성립 | ✅ `GetWidgets`가 두 위젯을 `bInherited: true`로 돌려준다 — 이것이 곧 성립의 증거다 |
-| 디자이너 프리뷰 / 클리핑 | ✅ 링 1개 + HP 바 3개가 그려지고 위젯 밖으로 새지 않는다 |
-| 락온 마커 추적 (순수 엔티티·승격 Actor) | ✅ 호스트·게스트 양쪽 |
-| 적 HP 바 표시 · 게스트 동기화 | ✅ 두 화면이 일치 |
-| **DPI 스케일** — 창을 크게·작게 각각 | ✅ 바가 NPC 머리에서 밀리지 않는다 (§11.10-1) |
-| **개수 상한 · 히스테리시스 · 페이드** | ✅ 아래 방법으로 실측 |
-| 부모 페이드 전파 (`InWidgetStyle` 틴트 곱셈) | ✅ 루트 `RenderOpacity`를 움직이면 락온 마커·HP 바가 함께 흐려진다 |
-| 사망 순간 바가 시체에 남지 않는지 | ✅ 페이드와 함께 사라지고 시체 잔류 0건 — 락온의 "시체 락온"과 같은 필터가 그대로 받아 준다 |
-| HP 비율 복제의 대역폭 영향 | ⛔ **미측정.** §11.3의 "갱신 횟수 증가 0"은 계산이지 실측이 아니다 |
+✅ 컴파일 / `BindWidgetOptional` 성립(`GetWidgets`가 두 위젯을 `bInherited: true`로 돌려주는 것이 증거) /
+디자이너 프리뷰·클리핑 / 락온 마커 추적(순수 엔티티·승격 Actor, 호스트·게스트) / 적 HP 바 게스트 동기화 /
+DPI 스케일 / 개수 상한·히스테리시스·페이드 / 부모 페이드 전파 / 사망 순간 시체 잔류 0건.
+⛔ **HP 비율 복제의 대역폭 영향은 미측정** — §11.3의 "갱신 횟수 증가 0"은 계산이지 실측이 아니다.
 
 ⭐ **개수 상한을 재는 법 — 적을 20마리 모아 때리지 말고 상한을 내린다.**
 `HpBarMaxCount = 3` · `HpBarExitMargin = 1`로 두고 10마리 이상에게 난사하면, 표시가
@@ -486,9 +414,8 @@ CDO 프로퍼티를 하나 건드려 더티로 만든 뒤 저장해야 의존성
 20마리를 동시에 피격시키는 구성을 만드는 것보다 훨씬 싸고, **히스테리시스 산수를 직접 확인**해 준다 —
 기본값(20/24)에서는 경계에 도달하는 상황 자체를 만들기 어려워 사실상 검증 불가다.
 
-⚠️ **DPI 스케일 검증은 창 크기를 바꿔야만 성립한다.** 마커 좌표는 뷰포트 픽셀을 DPI 스케일로
-나눠 쓰는데(§11.10-1), 스케일이 1에 가까운 해상도 하나만 보면 **그 나눗셈이 틀려도 증상이 안 보인다.**
-크게·작게 두 번 보는 것이 이 함정을 여는 유일한 방법이다.
+⚠️ **DPI 스케일은 창 크기를 크게·작게 두 번 바꿔야만 검증된다.** 스케일이 1에 가까운 해상도 하나만 보면
+§11.10-1의 나눗셈이 틀려도 증상이 안 보인다.
 
 ---
 
@@ -510,8 +437,8 @@ CDO 프로퍼티를 하나 건드려 더티로 만든 뒤 저장해야 의존성
 1초 반복 타이머가 `CeilToInt`로 갱신한다. 오차는 편도 지연 수준이고, 이 방식은 버프 잔여 시간 표시와 같은 패턴이다.
 
 **0에 닿아도 위젯이 스스로 숨지 않는다** — 서버의 리스폰 타이머가 로컬 카운트보다 조금 늦게 도착할 수 있어서,
-오버레이를 걷는 것은 리스폰 빙의(`OnPossess` / 원격 클라의 `AcknowledgePossession`)의 몫이다.
-카운트만 멈춘다.
+오버레이를 걷는 것은 리스폰 빙의(`OnPossess` / 원격 클라의 `AcknowledgePossession`)의 몫이다. 카운트만 멈춘다.
 
-**문구는 영문 원본**(`Respawning in {0}`, `NSLOCTEXT`) — 프로젝트 로컬라이제이션 규약(§ InGameMenu §12)을 따른다.
+**문구는 영문 원본**(`Respawning in {0}`, `NSLOCTEXT`) — 프로젝트 로컬라이제이션 규약
+([TechDesign_InGameMenu.md](TechDesign_InGameMenu.md) §12)을 따른다.
 한국어 표시는 `Content/Localization/Game/ko/Game.po`에 번역을 채우면 된다.

@@ -27,7 +27,7 @@ struct FLNPEnemyMarkerParams
 	 */
 	float MaxAngleDeg = 0.f;
 
-	/** 거리순으로 자를 상한. 0 이하면 수집하지 않는다. */
+	/** 정렬 후 잘라낼 상한. 0 이하면 수집하지 않는다. */
 	int32 MaxCount = 0;
 
 	/** 이 시간(초) 안에 HP가 변한 적은 상한과 무관하게 포함시킨다. */
@@ -72,7 +72,7 @@ public:
 	/** 이번 프레임은 수집하지 않는다. */
 	void ClearParams();
 
-	/** 가장 최근에 수집된 후보를 읽는다. 거리순으로 정렬돼 있다. */
+	/** 가장 최근에 수집된 후보를 읽는다. **최근 피해가 1순위, 거리가 2순위**로 정렬돼 있다. */
 	void GetEntries(TArray<FLNPEnemyMarkerEntry>& OutEntries) const;
 
 	// ── 프로세서 ─────────────────────────────────────────────────────────────

@@ -1,12 +1,11 @@
 # TechDesign — 인게임 메뉴 (CommonUI)
 
 > 기획: [GameDesign_InGameMenu.md](GameDesign_InGameMenu.md)
-> 2026-08-07 C++ 구현 완료(빌드 성공). 에셋 제작·PIE 검증 진행 중.
 
 ## 1. 왜 CommonUI인가
 
 기존 인벤토리 패널(`ULNPInventoryWidget` + `WBP_Inventory`)은 세로 `UListView` 2개에 엔트리마다 Equip/Drop
-버튼이 박힌 **마우스 전용 디버그 패널**이었다. 게임패드로는 조작할 수 없고, 탭 카테고리를 담을 구조도 없었다.
+버튼이 박힌 **마우스 전용 디버그 패널**이었다 — 게임패드로 조작할 수 없고 탭 구조도 없었다.
 
 CommonUI가 직접 해결해 주는 것:
 - **탭 이동(L1/R1)** — `UCommonTabListWidgetBase`가 입력 액션 행 하나로 처리
@@ -14,8 +13,8 @@ CommonUI가 직접 해결해 주는 것:
 - **입력 방식 감지** — `UCommonInputSubsystem::GetCurrentInputType()` + `OnInputMethodChangedNative`
 - **포커스 관리** — 활성 위젯의 `GetDesiredFocusTarget()`으로 포커스가 따라감
 
-⚠️ **하단 액션 바만은 CommonUI가 해결해 주지 못한다.** 상세는 §3.3 참조 —
-`UCommonBoundActionBar`를 버리고 커스텀 힌트 바를 직접 만들었다.
+⚠️ **하단 액션 바만은 CommonUI가 해결해 주지 못한다** — `UCommonBoundActionBar`를 버리고 커스텀 힌트 바를
+직접 만들었다(§3.3).
 
 ## 2. 위젯 계층
 
@@ -41,7 +40,11 @@ CommonUI가 직접 해결해 주는 것:
 - 탭 전환은 push/pop이 아니라 형제 간 전환 → `UCommonActivatableWidgetSwitcher`
   (`UCommonTabListWidgetBase::SetLinkedSwitcher`가 정확히 이 조합용)
 - 메뉴 전체의 열기/닫기는 활성화·포커스 복원이 필요 → `UCommonActivatableWidgetStack`
-  (스택이 `OnDeactivated`를 듣고 자동 pop한다 — `CommonActivatableWidgetContainer.cpp`)
+  (스택이 `OnDeactivated`를 듣고 자동 pop한다)
+
+⚠️ `ULNPUILayoutWidget::HandleMenuDeactivated`는 `CurrentMenu`를 **유지한 채** `OnMenuClosed`를 쏜다 —
+PlayerController가 그 통지에서 `GetMenu()->GetRememberableTabId()`로 마지막 탭을 읽기 때문이다.
+먼저 비우면 탭 기억이 항상 실패한다.
 
 ## 3. Back(○) 전파 규칙 — 이 설계의 핵심
 
@@ -53,21 +56,14 @@ CommonUI가 직접 해결해 주는 것:
 채택한 구조 — **루트 하나만 Back 핸들러**이고, 활성 탭에게 먼저 물어본다:
 
 ```cpp
-// ULNPMenuRootWidget
-bool NativeOnHandleBackAction()
-{
-    if (ULNPMenuTabContentWidget* Active = GetActiveTabContent())
-        if (Active->HandleMenuBack())      // 탭이 소비했으면 여기서 끝
-            return true;
-    return Super::NativeOnHandleBackAction();   // 기본 = Deactivate → 스택이 pop
-}
+// ULNPMenuRootWidget::NativeOnHandleBackAction
+if (Active && Active->HandleMenuBack())    // 탭이 소비했으면 끝
+    return true;
+return Super::NativeOnHandleBackAction();  // 기본 = Deactivate → 스택이 pop
 
-// ULNPInventoryTabWidget
-bool HandleMenuBack()
-{
-    if (bDetailFocused) { FocusGrid(); return true; }   // 소비
-    return false;                                        // 메뉴 닫기로 전파
-}
+// ULNPInventoryTabWidget::HandleMenuBack
+if (bDetailFocused) { FocusGrid(); return true; }  // 소비
+return false;                                      // 메뉴 닫기로 전파
 ```
 
 `ULNPMenuTabContentWidget`(추상 베이스)의 `HandleMenuBack()`은 기본 `false` — 스탯·환경설정 탭은
@@ -80,16 +76,13 @@ bool HandleMenuBack()
 
 **① 스택이 위젯을 재사용한다 → 두 번째 열기부터 탭이 사라진다**
 
-`UCommonActivatableWidgetStack::AddWidgetInternal`은 `GeneratedWidgetsPool.GetOrCreateInstance()`로
-**클래스별 인스턴스를 풀링·재사용**한다. 한편 `UCommonTabListWidgetBase::NativeDestruct`는
-`RemoveAllTabs()`로 등록된 탭을 전부 지운다. 그런데 `NativeOnInitialized`는 인스턴스당 한 번뿐이다.
+`UCommonActivatableWidgetStack`은 위젯을 클래스별로 **풀링·재사용**하는데(`GeneratedWidgetsPool`),
+`UCommonTabListWidgetBase::NativeDestruct`는 `RemoveAllTabs()`로 등록된 탭을 전부 지운다.
+그런데 `NativeOnInitialized`는 인스턴스당 한 번뿐이다.
 
-→ 1회차: Initialize(등록) + Construct = 정상 / 닫기: Destruct(전부 삭제)
-→ 2회차: Construct만 = **탭 0개**. 탭 바가 작은 사각형으로 쪼그라들고 클릭도 안 먹는다.
-
-그래서 등록은 **열 때마다 실행되는 `NativeOnActivated`**에서 하고,
+즉 1회차는 Initialize(등록) + Construct로 정상이지만, 닫을 때 Destruct가 전부 지우고 2회차는 Construct만
+돌아 **탭 0개**가 된다 — 탭 바가 작은 사각형으로 쪼그라들고 클릭도 안 먹는다. 그래서 등록은 **열 때마다 실행되는 `NativeOnActivated`**에서 하고,
 `GetTabCount() > 0`으로 중복 등록만 막는다 (`ULNPMenuRootWidget::EnsureTabsRegistered`).
-`SetLinkedSwitcher`는 같은 값이면 자체적으로 조기 반환하므로 같이 불러도 안전하다.
 
 **② `bAutoListenForInput`의 기본값이 `false`다 → 탭 이동 키가 전부 무반응**
 
@@ -99,103 +92,64 @@ bool HandleMenuBack()
 
 **③ `HandleTabCreation_Implementation`이 빈 구현이다 → 버튼이 만들어져도 안 붙는다**
 
-⚠️ **`UCommonTabListWidgetBase::HandleTabCreation_Implementation`은 엔진 기본 구현이 비어 있다.**
-`RegisterTab`은 버튼 인스턴스를 만들기만 하고 **어떤 패널에도 붙이지 않는다.** 파생 클래스가
+⚠️ `RegisterTab`은 버튼 인스턴스를 만들기만 하고 **어떤 패널에도 붙이지 않는다.** 파생 클래스가
 이 이벤트를 구현해 컨테이너에 `AddChild` 해야 비로소 탭 바가 보인다
-(`ULNPMenuTabListWidget::HandleTabCreation_Implementation`). 로그도 경고도 안 뜨고 조용히 안 보인다.
+(`ULNPMenuTabListWidget::HandleTabCreation_Implementation`, 라벨 주입도 여기서). 로그도 경고도 없다.
 
 ⚠️ 그리고 `BindWidget`은 **위젯 BP 안에서만** 해석되므로, `ULNPMenuTabListWidget`을 C++ 클래스인 채로
 루트 위젯 트리에 직접 넣으면 트리가 비어 `TabButtonContainer`가 영원히 null이다.
 반드시 `WBP_LNPMenuTabList`로 감싸서 그 BP 클래스를 배치한다.
 
-### 3.2 Esc 키 충돌
+### 3.2 Esc는 Back 전용이다
 
-`Esc`는 CommonUI Back 행과 `IA_OpenSettings` 양쪽에 매핑돼 있다.
-`ALNPPlayerController::HandleOpenSettingsInput`이 **메뉴가 이미 열려 있으면 즉시 return**해
-Back(닫기)에 양보한다 — 그래야 "Esc로 열고 Esc로 닫는" 관례가 성립한다.
+`Esc`는 CommonUI Back 행에만 둔다. `IA_OpenSettings`에서는 뺐다 — 양쪽에 걸리면
+"Back이 닫음 → 그 직후 Enhanced Input이 다시 엶"으로 도로 열린다. 여는 키는 `O`다(§7.1).
+
+메뉴 열기·설정 열기 두 핸들러는 각각 **이미 열려 있으면 `CloseMenu()`** 로 빠져 같은 키 토글이 된다.
 
 ### 3.3 하단 힌트 바 — `UCommonBoundActionBar`를 버린 이유
 
-기획 §3·§8은 "현재 포커스에서 가능한 조작을 아이콘 + 라벨로 표시하며, 키보드/게임패드 전환 시 아이콘이 자동으로
-바뀐다"를 요구한다. 처음에는 `WBP_LNPMenuRoot`에 `UCommonBoundActionBar`(`ActionBar`)를 두고 `ActionButtonClass`도
-`WBP_LNPActionBarButton`으로 지정했는데, **PIE에서 하단이 완전히 비어 있었다.**
+기획 §3·§8은 "현재 포커스에서 가능한 조작을 표시하며, 키보드/게임패드 전환 시 심볼이 자동으로 바뀐다"를
+요구한다. 처음에는 `WBP_LNPMenuRoot`에 `UCommonBoundActionBar`를 두고 `ActionButtonClass`까지 지정했는데,
+**PIE에서 하단이 완전히 비어 있었다.**
 
-`UCommonBoundActionBar::HandleDeferredDisplayUpdate`는 액션 라우터에 등록된 바인딩 중
-`Binding->bDisplayInActionBar`가 켜진 것만 그린다(`CommonBoundActionBar.cpp:184`). 그런데 후보가 하나도 없었다:
+그 위젯은 액션 라우터에 등록된 바인딩 중 `bDisplayInActionBar`가 켜진 것만 그리는데(`CommonBoundActionBar.cpp`),
+후보가 하나도 없었다:
 
 | 조작 | 왜 후보가 아닌가 |
 |:---|:---|
-| Back(○) | `UCommonActivatableWidget::bIsBackActionDisplayedInActionBar` 기본값이 `false` (`CommonActivatableWidget.h:193`) |
-| TabLeft/Right | `UCommonTabListWidgetBase`가 `FBindUIActionArgs(..., /*bShouldDisplayInActionBar=*/false, ...)`로 **명시적으로 끔** (`CommonTabListWidgetBase.cpp:207-220`) |
-| Click(✕) | **액션 라우터 바인딩이 아예 없다.** ✕/Enter/Space는 Slate 네비게이션이 포커스된 버튼을 직접 누르는 경로다 |
+| Back(○) | `UCommonActivatableWidget::bIsBackActionDisplayedInActionBar` 기본값이 `false` |
+| TabLeft/Right | `UCommonTabListWidgetBase`가 `bShouldDisplayInActionBar = false`로 **명시적으로 끔** |
+| Click(✕) | **액션 라우터 바인딩이 아예 없다.** ✕/Enter/Space는 Slate 네비게이션이 포커스된 버튼을 직접 누르는 경로 |
 | 방향 이동(L3·방향키) | 위와 동일. 순수 Slate 네비게이션 |
 
-앞의 둘은 플래그로 살릴 수 있지만 **뒤의 둘은 어떤 설정으로도 살릴 수 없다** — 표시할 바인딩 자체가 존재하지 않는다.
+앞의 둘은 플래그로 살릴 수 있지만 **뒤의 둘은 어떤 설정으로도 살릴 수 없다** — 표시할 바인딩 자체가 없다.
 즉 `UCommonBoundActionBar`로는 기획 §8 표를 절대 다 그릴 수 없다. 그래서 힌트 목록을 우리가 공급하는
 `ULNPMenuHintBarWidget`으로 교체했다.
 
 **힌트 공급 흐름** — 탭이 자기 힌트를 선언하고, 루트가 공통 힌트를 얹어 조립한다.
 
 ```
-ULNPMenuTabContentWidget::GetMenuHints()   ← 탭 고유 (인벤토리: ✕ 의미, 방향 이동)
-ULNPMenuTabContentWidget::GetMenuBackHintLabel()  ← ○ 라벨 (Close / Back)
+ULNPMenuTabContentWidget::GetMenuHints()           ← 탭 고유 (인벤토리: ✕ 의미, 방향 이동)
+ULNPMenuTabContentWidget::GetMenuBackHintLabel()   ← ○ 라벨 (Close / Back)
               ↓
 ULNPMenuRootWidget::RebuildHints()  = [Back] + 활성 탭 힌트 + [L1/R1 Tab]
               ↓
-ULNPMenuHintBarWidget::SetHints()   → 글리프 해석 → UCommonTextBlock 쌍 생성
+ULNPMenuHintBarWidget::SetHints()   → 글리프 해석 → 엔트리 위젯 생성
 ```
 
-**힌트는 입력 타입에 따라 감추지 않는다 — 글리프만 바꾼다.** 한때 "마우스로 직접 누를 수 있으니
-키보드에서는 `Details`/`Confirm`을 숨기자"는 안을 넣었다가 되돌렸다. 이유 둘:
+칸 순서는 `DT_LNPCommonInputActions`의 `NavBarPriority`(Back < Click < Tab)와 기획 §3 목업을 따른다.
+글리프 해석이 빈 문자열이면 그 칸은 **아예 만들지 않는다**(빈 칩 방지).
 
-- `ECommonInputType`은 `MouseAndKeyboard` / `Gamepad` / `Touch` 셋뿐이라 **"마우스 유저"와
-  "키보드 온리 유저"를 구분할 수 없다.** 같은 버킷이므로 어느 쪽에 맞춰도 나머지는 추측이다.
-- 그리고 `WASD Move`는 애초에 마우스 유저에게 쓸모없는 힌트다(마우스면 셀을 직접 클릭한다).
-  이동 키는 안내하면서 실행 키만 감추면 **커서는 옮길 줄 아는데 확정은 못 하는** 앞뒤 안 맞는 세트가 된다.
-
-힌트 바의 존재 이유가 발견 가능성이므로, 칸 하나를 아끼려고 조작 경로를 끊지 않는다.
-
-### 3.5 힌트 칸은 엔트리 WBP다 — C++에 시각 프로퍼티를 두지 않는다
-
-칸 하나(`ULNPMenuHintEntryWidget` / `WBP_LNPMenuHintEntry`)는 `UCommonTextBlock` 둘(`GlyphText`·`LabelText`)이고,
-`UDynamicEntryBox`(`HintContainer`)가 생성·풀링한다. C++은 `SetHint(글리프, 라벨)`로 값만 넣는다.
-
-처음엔 힌트 바가 `UCommonTextBlock`을 직접 `ConstructWidget`하고 텍스트 스타일·간격을 C++ 프로퍼티로 들고
-있었다. 코드는 짧았지만 **칸의 생김새가 코드에 박혀** 디자이너가 만질 수 있는 게 사실상 폰트뿐이었다 —
-글리프를 키캡 모양 테두리로 감싸거나, 라벨을 아래로 내리거나, 칸 사이에 구분선을 넣는 게 전부 불가능했다.
-입력 프롬프트에서 가장 흔한 시각 처리가 바로 그 키캡 테두리라 이건 실질적인 제약이었다.
-
-엔트리 WBP로 바꾸면서 C++에서 **시각 관련 프로퍼티가 전부 사라졌다** —
-텍스트 스타일은 엔트리 WBP 안 TextBlock이, 칸 간격·정렬·배치 방향은 `UDynamicEntryBox`가 갖는다.
-덤으로 §9.1의 "CDO 값이 배치 인스턴스에 안 먹는" 함정도 같이 소멸했고, 엔트리 위젯 풀링이 공짜로 붙었다.
-
-이 프로젝트의 다른 반복 엔트리(`WBP_MenuItemCell`, `WBP_BuffChip`, `WBP_LNPMenuTabButton`)와도 같은 형태다.
-
-갱신 트리거는 넷이다:
-1. `ULNPMenuTabContentWidget::NativeOnActivated`의 `OnMenuHintsChanged` 브로드캐스트 — 메뉴 열기·탭 전환·재진입을 전부 덮는다
-2. `ULNPInventoryTabWidget::FocusGrid()` / `FocusDetailPanel()`
-3. `ULNPInventoryTabWidget::RefreshGrid()` — 목록이 비었는지에 따라 힌트 구성이 달라지므로(아래) 목록 변경 시에도 알린다
-4. `UCommonInputSubsystem::OnInputMethodChangedNative` — 힌트 바 내부에서 글리프만 다시 그린다(루트 미관여)
-
-⚠️ **힌트는 밀어 넣는 방식이라 상태가 바뀌면 반드시 브로드캐스트해야 한다.** 포커스 링은 `TAttribute`로
-매번 재평가되어 저절로 맞춰지지만(§3.6) 힌트는 그렇지 않다 — 3번을 빠뜨리면 빈 인벤토리에서 아이템이
-들어와도 힌트가 빈 채로 굳는다.
-
-⚠️ **`UCommonTabListWidgetBase::OnTabSelected`를 갱신 훅으로 쓰면 안 된다.** 그 델리게이트는
-`LinkedSwitcher->SetActiveWidget()` 직후 발화하지만(`CommonTabListWidgetBase.cpp:488-509`), 새 탭의
-`ActivateWidget()`은 `SCommonAnimatedSwitcher` 트랜지션(기본 0.4s)이 끝난 뒤 `HandleSlateActiveIndexChanged`에서
-비동기로 돈다. `OnTabSelected` 시점의 `bDetailFocused`는 **직전 방문의 잔값**이라, 실제로는 Grid에 포커스가
-가는데 "Back"(디테일→Grid) 라벨이 뜬다.
-
-⚠️ **루트의 구독은 `NativeOnInitialized`에서 한다.** `NativeOnActivated`에서 하면 늦다 —
-루트의 `Super::NativeOnActivated()` 안에서 스위처가 탭을 활성화하며 브로드캐스트가 이미 지나간다.
+**힌트는 입력 타입에 따라 감추지 않는다 — 글리프만 바꾼다.** 한때 키보드에서 `Details`/`Confirm`을
+숨기자는 안을 넣었다가 되돌렸다. `ECommonInputType`은 `MouseAndKeyboard`/`Gamepad`/`Touch` 셋뿐이라
+**"마우스 유저"와 "키보드 온리 유저"를 구분할 수 없고**, 이동 키만 안내하고 실행 키를 감추면 앞뒤가 안 맞는다.
 
 ### 3.4 키 글리프 — 텍스트 심볼로 그린다
 
-⚠️ **이 프로젝트에는 `UCommonInputBaseControllerData` 에셋이 0개다.** `[/Script/CommonInput.CommonInputPlatformSettings]`
-설정도 없고 엔진도 기본 제공을 하지 않는다(`CommonUI/Content` 확인). 따라서 `UCommonActionWidget`은 항상 null
-브러시를 얻어 **스스로 `Collapsed`** 된다(`CommonActionWidget.cpp:344`). 키 아이콘을 쓰려면 글리프 텍스처 세트를
-먼저 만들어야 한다.
+⚠️ **이 프로젝트에는 `UCommonInputBaseControllerData` 에셋이 0개다.** `CommonInputPlatformSettings` 설정도
+없고 엔진도 기본 제공을 하지 않는다. 따라서 `UCommonActionWidget`은 항상 null 브러시를 얻어 **스스로
+`Collapsed`** 된다. 키 아이콘을 쓰려면 글리프 텍스처 세트를 먼저 만들어야 한다.
 
 그래서 아이콘 대신 **텍스트 심볼**을 쓴다. 해석은 `LNPInputGlyph`(`Source/LootNPop/UI/LNPInputGlyph.*`) 한 곳에
 격리했다 — 나중에 텍스처로 갈아탈 때 **고칠 파일은 이것 하나뿐**이다.
@@ -204,10 +158,12 @@ ULNPMenuHintBarWidget::SetHints()   → 글리프 해석 → UCommonTextBlock �
 |:---|:---|
 | CommonUI 액션 행 (○·L1/R1) | `FCommonInputActionDataBase::GetCurrentInputTypeInfo(Subsystem).GetKey()` |
 | Enhanced Input 액션 (상호작용 F/□) | `CommonUI::GetFirstKeyForInputType()` → `QueryKeysMappedToAction` |
-| 바인딩 없는 조작 (방향 이동) | `FLNPMenuHint`의 고정 글리프 2종(키보드/게임패드) |
+| 바인딩 없는 조작 (방향 이동) | `FLNPMenuHint`의 고정 글리프 2종(키보드 `WASD` / 게임패드 `L3`) |
 
-게임패드는 기획 §1대로 PlayStation 표기(`○ × □ △ L1 R1 L3`)로 덮어쓴다 — 엔진의 `FKey::GetDisplayName`은
-"Gamepad Face Button Bottom"처럼 길고 Xbox 계열 명명이라 쓸 수 없다. 키보드는 엔진이 이미 짧게 준다("Esc", "Space").
+큐레이션 테이블은 **오버라이드**일 뿐이고, 없는 키는 `FKey::GetDisplayName(false)`로 폴백한다.
+게임패드는 기획 §1대로 PlayStation 표기(`× ○ □ △ L1 R1 L2 R2 L3 R3 SHARE OPTIONS ↑↓←→`)로 전부 덮는다 —
+엔진 표기는 "Gamepad Face Button Bottom"처럼 길고 Xbox 계열 명명이라 쓸 수 없다.
+키보드는 엔진이 이미 짧게 주므로 대문자 통일이 필요한 `ESC`·`SPACE`·`ENTER` 셋만 덮는다.
 
 ⚠️ **폰트 함정.** Roboto에는 `○`(U+25CB)·`□`(U+25A1)·`△`(U+25B3)·`✕`(U+2715)가 **하나도 없다**(cmap 직접 확인).
 `/Engine/EngineFonts/Roboto`의 `CompositeFallbackFont`(DroidSansFallback)가 받아 주므로 ○·□·△는 렌더되지만,
@@ -216,39 +172,56 @@ ULNPMenuHintBarWidget::SetHints()   → 글리프 해석 → UCommonTextBlock �
 ⚠️ **글리프는 `NSLOCTEXT`로 만들지 않는다.** `○`·`L1` 같은 기호가 번역 대상으로 수집되면 매니페스트가 오염된다.
 글리프는 `FText::FromString`, 라벨만 `NSLOCTEXT("LNPMenu", ...)`.
 
-⚠️ **키 해석은 "현재 적용 중인" 매핑 컨텍스트만 읽는다.** 메뉴가 열리면 폰의 `IMC_Pawn`이 통째로 제거되므로
-그 창에서는 상호작용 키가 무효로 나온다. `ULNPInteractionPromptWidget::RefreshKeyGlyph`는 **빈 결과면 텍스트를
-건드리지 않고** 직전 글리프를 유지한다.
+⚠️ **Enhanced Input 경로는 "현재 적용 중인" 매핑 컨텍스트만 읽는다.** 메뉴가 열리면 폰의 `IMC_Pawn`이 통째로
+제거되므로 그 창에서는 상호작용 키가 무효로 나온다. 그래서 해석기는 빈 `FText`를 돌려주고 판단은 호출부가
+한다 — `ULNPInteractionPromptWidget::RefreshKeyGlyph`는 **빈 결과면 텍스트를 건드리지 않고** 직전 글리프를 유지한다.
+
+### 3.5 힌트 칸은 엔트리 WBP다 — C++에 시각 프로퍼티를 두지 않는다
+
+칸 하나(`ULNPMenuHintEntryWidget` / `WBP_LNPMenuHintEntry`)는 `UCommonTextBlock` 둘(`GlyphText`·`LabelText`)이고,
+`UDynamicEntryBox`(`HintContainer`)가 생성·풀링한다. C++은 `SetHint(글리프, 라벨)`로 값만 넣는다.
+
+처음엔 힌트 바가 `UCommonTextBlock`을 직접 `ConstructWidget`하고 스타일·간격을 C++ 프로퍼티로 들었다.
+코드는 짧았지만 **칸의 생김새가 코드에 박혀** 글리프를 키캡 테두리로 감싸는 것조차 불가능했다 —
+입력 프롬프트에서 가장 흔한 시각 처리가 그것이라 실질적인 제약이었다. 엔트리 WBP로 옮기면서 C++의
+시각 프로퍼티가 전부 사라졌고 §9.1의 "CDO 값이 배치 인스턴스에 안 먹는" 함정도 같이 소멸했다.
+다른 반복 엔트리(`WBP_MenuItemCell`·`WBP_BuffChip`·`WBP_LNPMenuTabButton`)와도 같은 형태다.
+
+갱신 트리거는 넷이다:
+1. `ULNPMenuTabContentWidget::NativeOnActivated`의 `OnMenuHintsChanged` — 메뉴 열기·탭 전환·재진입을 전부 덮는다
+   (루트도 `NativeOnActivated` 말미에 한 번 더 조립해, 탭 인덱스가 그대로여서 스위처가 침묵하는 재진입을 받친다)
+2. `ULNPInventoryTabWidget::FocusGrid()` / `FocusDetailPanel()`
+3. `ULNPInventoryTabWidget::RefreshGrid()` — 목록이 비었는지에 따라 힌트 구성이 달라진다
+4. `UCommonInputSubsystem::OnInputMethodChangedNative` — 힌트 바 내부에서 다시 그린다(루트 미관여)
+
+⚠️ **힌트는 밀어 넣는 방식이라 상태가 바뀌면 반드시 브로드캐스트해야 한다.** 포커스 링은 `TAttribute`로
+매번 재평가되어 저절로 맞춰지지만(§3.6) 힌트는 그렇지 않다 — 3번을 빠뜨리면 빈 인벤토리에서 아이템이
+들어와도 힌트가 빈 채로 굳는다.
+
+⚠️ **`UCommonTabListWidgetBase::OnTabSelected`를 갱신 훅으로 쓰면 안 된다.** 그 델리게이트는
+`LinkedSwitcher->SetActiveWidget()` 직후 발화하지만, 새 탭의 `ActivateWidget()`은 `SCommonAnimatedSwitcher`
+트랜지션(기본 0.4s)이 끝난 뒤 비동기로 돈다. `OnTabSelected` 시점의 `bDetailFocused`는 **직전 방문의 잔값**이라,
+실제로는 Grid에 포커스가 가는데 "Back"(디테일→Grid) 라벨이 뜬다.
+
+⚠️ **루트의 구독은 `NativeOnInitialized`에서 한다.** `NativeOnActivated`에서 하면 늦다 —
+루트의 `Super::NativeOnActivated()` 안에서 스위처가 탭을 활성화하며 브로드캐스트가 이미 지나간다.
 
 ### 3.6 포커스 링 — 코드로 옮긴 포커스에는 안 그려진다
 
-⚠️ **Slate는 포커스 링을 "사용자가 직접 이동했을 때"만 그린다.** 판정은 `SlateApplication.cpp:3095`:
-
-```cpp
-bool ShowFocus = false;
-if (NewFocusedWidgetPath.IsValid())
-{
-    ShowFocus = InCause == EFocusCause::Navigation;
-    for (int32 i = Path.Widgets.Num() - 1; i >= 0; --i)   // 말단 → 루트
-    {
-        TOptional<bool> Query = Path.Widgets[i].Widget->OnQueryShowFocus(InCause);
-        if (Query.IsSet()) { ShowFocus = Query.GetValue(); break; }
-    }
-}
-```
+⚠️ **Slate는 포커스 링을 "사용자가 직접 이동했을 때"만 그린다.** `FSlateApplication`의 판정은
+`ShowFocus = (InCause == EFocusCause::Navigation)`에서 시작해, 포커스 경로를 **말단→루트**로 훑으며
+`OnQueryShowFocus`가 값을 돌려주는 **첫 위젯**을 따른다.
 
 `UWidget::SetFocus()`는 `EFocusCause::SetDirectly`를 쓰므로 **코드가 옮긴 포커스에는 링이 안 생긴다.**
-이 메뉴는 코드로 포커스를 옮기는 지점이 여럿이라(CommonUI의 탭 활성화 `DesiredTarget->SetFocus()`,
-인벤토리 Grid↔디테일 전환) 그대로 두면 "포커스는 갔는데 어디 있는지 안 보이는" 상태가 된다.
-실제로 겪은 증상: 디테일 패널 진입 직후엔 링이 없다가 방향키를 한 번 누르면 나타났다.
+이 메뉴는 코드로 포커스를 옮기는 지점이 여럿이라(CommonUI의 탭 활성화, Grid↔디테일 전환) 그대로 두면
+"포커스는 갔는데 어디 있는지 안 보이는" 상태가 된다 — 디테일 패널 진입 직후엔 링이 없다가 방향키를
+한 번 누르면 나타났다.
 
-해결 — `ULNPMenuRootWidget::RebuildWidget()`이 메뉴 전체를 `SLNPFocusRingScope`로 감싼다.
-이 위젯은 `OnQueryShowFocus`에서 `SetDirectly`일 때만 `true`를 돌려주고 나머지는 엔진 기본에 위임한다.
-위 루프가 **값을 돌려주는 첫 위젯**을 따르고 `SWidget::OnQueryShowFocus` 기본 구현이 빈 `TOptional`이라
-(`SWidget.cpp:623`), 최상단에 하나만 두면 그 아래 전부에 적용된다. 마우스 클릭 동작은 그대로다.
-
-> UMG 컨테이너 위젯(+슬롯 클래스)을 새로 만들 필요는 없다. `UUserWidget::RebuildWidget()`은
-> 위젯 트리 루트를 그대로 돌려줄 뿐이라(`UserWidget.cpp:1214`) 그 반환값을 감싸면 된다.
+해결 — `ULNPMenuRootWidget::RebuildWidget()`이 메뉴 전체를 `SLNPFocusRingScope`로 감싼다. 이 위젯은
+`OnQueryShowFocus`에서 `SetDirectly`일 때만 `true`를 돌려주고 나머지는 엔진 기본에 위임하므로 마우스 클릭
+동작은 그대로다. `SWidget::OnQueryShowFocus`의 기본 구현이 빈 `TOptional`이라 **최상단에 하나만** 두면
+그 아래 전부에 적용된다. UMG 컨테이너 위젯을 새로 만들 필요는 없다 — `UUserWidget::RebuildWidget()`은
+위젯 트리 루트를 그대로 돌려줄 뿐이라 그 반환값을 감싸면 된다.
 
 **⚠️ 포커스가 앉을 대상이 없으면 링을 강제하면 안 된다.** 빈 인벤토리에서는 `SCommonListView`가
 포커스를 셀로 넘겨줄 수 없어(넘길 셀이 없다) 포커스가 `UCommonTileView` 컨테이너에 머무는데,
@@ -256,26 +229,19 @@ if (NewFocusedWidgetPath.IsValid())
 그래서 `ULNPMenuTabContentWidget::ShouldForceFocusRing()`(기본 `true`)을 두고,
 `SLNPFocusRingScope`가 `TAttribute<bool>`로 활성 탭에 매번 물어본다.
 인벤토리 탭은 `HasGridItems()`로 답한다 — 포커스 링과 힌트 노출이 **같은 조건**을 공유하도록 헬퍼로 묶었다.
+`TAttribute`라 목록이 비거나 채워지면 별도 갱신 호출 없이 따라온다. 빈 상태에서도 사용자가 방향키로
+직접 이동하면 링은 나온다(`Navigation` 원인은 엔진 기본 경로다).
 
-`TAttribute`라 포커스 이동마다 재평가되므로, 목록이 비거나 채워지면 별도 갱신 호출 없이 따라온다.
-빈 상태에서도 사용자가 방향키로 직접 이동하면 링은 나온다 — `Navigation` 원인은 엔진 기본 경로다.
-
-**링 자체의 커스터마이즈** — 파란 사각형은 `FStarshipCoreStyle`의 `FocusRectangle` 브러시다
-(`StarshipCoreStyle.cpp:217`, `FStyleColors::Primary` 테두리 + 투명 채움). 프로젝트 에셋이 아니라서
-위젯 디버거에 안 잡힌다. 바꾸려면:
-
-| 방법 | 내용 |
-|:---|:---|
-| 브러시 교체 | `FStarshipCoreStyle::SetFocusBrush(new FSlateRoundedBoxBrush(...))` — public static. ⚠️ `SWidget::GetFocusBrush()`는 `FAppStyle`에서 읽는데 에디터와 게임의 앱 스타일셋이 달라, PIE에서 안 먹으면 패키징 빌드로 확인해야 한다 |
-| 위젯별 브러시 | `SWidget::GetFocusBrush()`가 virtual |
-| 끄고 직접 그리기 | `OnQueryShowFocus`에서 `false` 반환 후 프로젝트 위젯으로 표현 |
-
-⚠️ **`PLATFORM_UI_NEEDS_FOCUS_OUTLINES`가 Android/iOS에서 `0`이다**(`AndroidPlatform.h:61`, `IOSPlatform.h:50`).
-모바일에서는 이 링이 아예 그려지지 않으므로, 모바일까지 가려면 포커스 표현을 직접 만들어야 한다.
+**링 자체의 커스터마이즈** — 파란 사각형은 `FStarshipCoreStyle`의 `FocusRectangle` 브러시다(프로젝트
+에셋이 아니라서 위젯 디버거에 안 잡힌다). 전역 교체는 `FStarshipCoreStyle::SetFocusBrush(...)`,
+위젯별은 virtual `SWidget::GetFocusBrush()`, 아예 끄려면 `OnQueryShowFocus`에서 `false`를 돌려주고 직접 그린다.
+⚠️ `GetFocusBrush()`는 `FAppStyle`에서 읽고 에디터와 게임의 앱 스타일셋이 달라, PIE에서 안 먹으면 패키징
+빌드로 확인해야 한다. ⚠️ `PLATFORM_UI_NEEDS_FOCUS_OUTLINES`가 Android/iOS에서 `0`이라 모바일에서는 링이
+아예 그려지지 않는다 — 거기까지 가려면 포커스 표현을 직접 만들어야 한다.
 
 ## 4. 스탯 합/곱 분해
 
-UE 5.8 어그리게이터 평가식(`GameplayEffectAggregator.cpp:98`):
+UE 5.8 어그리게이터 평가식(`GameplayEffectAggregator.cpp`):
 
 ```
 ((BaseValue + AddBase) * MultiplyAdditive / DivideAdditive * MultiplyCompound) + AddFinal
@@ -301,29 +267,34 @@ UE 5.8 어그리게이터 평가식(`GameplayEffectAggregator.cpp:98`):
 - ⚠️ `EGameplayModOp::Additive`는 5.8에서 **`AddBase`로 개명**(구 이름은 Hidden 하위호환 별칭). `AddBase`를 쓴다.
 - ⚠️ **한계**: 조건부 모디파이어의 태그 평가 파라미터는 재현하지 않고 `bIsInhibited`만 거른다.
 
-행 목록·표시명·표기 방식(정수/수치/퍼센트)은 `LNPStat::GetStatMetaTable()` 하나가 단일 출처다 —
-스탯을 추가하면 GE 모디파이어·구독 목록·리드아웃 행이 함께 따라온다.
+**행 구성** — `LNPStat::GetStatMetaTable()`(현재 7종: Max HP / Attack / Attack Speed / Defense /
+Move Speed / Loot Speed / Poise Resist)이 행 목록·표시명·표기 방식(정수/수치/퍼센트)의 단일 출처다.
+리드아웃은 여기에 **HP 행 하나를 앞에 덧붙여 8행**이 된다 — HP만 `현재 / 최대` 쌍이라 `C (A × B)` 분해를
+쓰지 않고, 최대 체력의 분해는 메타 테이블의 `Max HP` 행이 맡는다.
+구독 목록도 같다: `Health` + 메타 테이블 7종 = **어트리뷰트 8종**. 어느 스탯이 바뀌든 리드아웃 전체를
+다시 만든다(행 수가 적어 비용이 무시할 만하다). 스탯을 추가하면 GE 모디파이어·구독·리드아웃 행이 함께 따라온다.
 
 **출력**: `URichTextBlock` 하나 + 인라인 마크업. ViewModel은 `FText StatsRichText` FieldNotify 필드 **1개**만
-노출하고 MVVM 바인딩 한 줄로 끝낸다(6행 × 3값 = 18개 필드를 피하려는 선택). 색상은 Rich Text Style Set에서 정의한다.
-⚠️ 열 정렬을 공백 패딩(`RightPad`)으로 하므로 세 스타일 모두 **모노스페이스 폰트**여야 한다.
+노출하고 MVVM 바인딩 한 줄로 끝낸다(8행 × 3값 = 24개 필드를 피하려는 선택). 색상은 Rich Text Style Set에서 정의한다.
+⚠️ 라벨 열을 공백 패딩(14자)으로 맞추므로 세 스타일 모두 **모노스페이스 폰트**여야 한다.
+⚠️ 라벨이 마크업 안에 들어가므로 `<`는 `&lt;`로 이스케이프한다.
 
 ## 5. 클래스 목록
 
 | 클래스 | 파일 (`UI/Menu/`) | 역할 |
 |:---|:---|:---|
 | `ULNPUILayoutWidget` | `LNPUILayoutWidget.*` | 뷰포트 상주. `MenuStack` 보유, `OpenMenu`/`CloseMenu`, `OnMenuClosed` 통지 |
-| `ULNPMenuRootWidget` | `LNPMenuRootWidget.*` | 탭 등록·초기 탭 선택·Back 위임·마지막 탭 산출 |
+| `ULNPMenuRootWidget` | `LNPMenuRootWidget.*` | 탭 등록·초기 탭 선택·Back 위임·마지막 탭 산출·힌트 조립 |
 | `ULNPMenuTabListWidget` | `LNPMenuTabListWidget.*` | 탭 버튼을 컨테이너에 부착 + 라벨 주입 + 선택 탭 `SetRenderScale` 강조 |
 | `ULNPMenuTabButtonWidget` | `LNPMenuTabButtonWidget.*` | 탭 버튼. `SetTabLabel`로 이름 주입 + 선택 밑줄 토글 |
-| `ULNPMenuButtonWidget` | `LNPMenuButtonWidget.*` | 라벨 있는 범용 버튼(Equip/Drop). `SetButtonLabel` |
-| `ULNPMenuTabContentWidget` | `LNPMenuTabContentWidget.*` | 탭 컨텐츠 추상 베이스 (`HandleMenuBack`·`GetMenuHints`·`OnMenuHintsChanged`) |
+| `ULNPMenuButtonWidget` | `LNPMenuButtonWidget.*` | 라벨 있는 범용 버튼(Equip/Merge/Drop). `SetButtonLabel` |
+| `ULNPMenuTabContentWidget` | `LNPMenuTabContentWidget.*` | 탭 컨텐츠 추상 베이스 (`HandleMenuBack`·`GetMenuHints`·`OnMenuHintsChanged`·`ShouldForceFocusRing`) |
 | `ULNPMenuHintBarWidget` | `LNPMenuHintBarWidget.*` | 하단 조작 안내 바. 힌트 목록 → 엔트리 생성, 입력 타입 변경 구독 |
 | `ULNPMenuHintEntryWidget` | `LNPMenuHintEntryWidget.*` | 힌트 한 칸 — `GlyphText` + `LabelText`. 시각 요소는 전부 WBP 쪽 |
 | `FLNPMenuHint` | `LNPMenuHint.h` | 힌트 한 칸 (액션 행 배열 또는 고정 글리프 2종 + 라벨) |
 | `LNPInputGlyph` | `UI/LNPInputGlyph.*` | 키 → 텍스트 심볼 해석기. 힌트 바와 인터랙션 프롬프트가 공유 |
 | `ULNPStatsTabWidget` | `LNPStatsTabWidget.*` | 스탯 리드아웃 + 무기 아이콘 + 버프 칩 |
-| `ULNPStatsViewModel` | `LNPStatsViewModel.*` | ASC 8종 구독 → `StatsRichText` (합/곱 분해 포함) |
+| `ULNPStatsViewModel` | `LNPStatsViewModel.*` | 어트리뷰트 8종 구독 → `StatsRichText` (합/곱 분해 포함) |
 | `ULNPBuffChipWidget` | `LNPBuffChipWidget.*` | 버프 아이콘 + 잔여 초 (1초 타이머) |
 | `ULNPInventoryTabWidget` | `LNPInventoryTabWidget.*` | TileView + 디테일, 포커스 전환/Back 소비 |
 | `ULNPMenuItemCellWidget` | `LNPMenuItemCellWidget.*` | `UCommonButtonBase` + `IUserObjectListEntry`. 아이콘 + 배지 3종(모서리별) |
@@ -336,9 +307,8 @@ UE 5.8 어그리게이터 평가식(`GameplayEffectAggregator.cpp:98`):
 **아무도 글자를 쓰지 않아 배경만 있는 빈 상자로 보인다**(스타일 알파가 낮으면 사실상 안 보인다).
 소유 위젯이 명시적으로 라벨을 넣어 줘야 한다 —
 탭은 `ULNPMenuTabListWidget::HandleTabCreation`이, Equip/Merge/Drop은 `ULNPItemDetailPanelWidget::UpdateButtons`가 넣는다.
-Equip 버튼은 장착 중이면 문구가 `Equipped`로 바뀌고 비활성된다.
 
-### 5.2 인벤토리 셀 배지 — 모서리 3분할 (2026-08-20)
+### 5.2 인벤토리 셀 배지 — 모서리 3분할
 
 배지 하나가 장착 표시와 잔여 시간을 겸하던 것을 셋으로 나눴다. 무기 레벨이 생기면서 한 칸으로는
 서로를 가리기 때문이다. 위치는 BP 레이아웃(아이콘 위 Overlay의 각 모서리)이 정하고, C++는 내용만 쓴다.
@@ -346,59 +316,78 @@ Equip 버튼은 장착 중이면 문구가 `Equipped`로 바뀌고 비활성된�
 | 바인딩 | 위치 | 내용 |
 |:--|:--|:--|
 | `EquipMarkText` | 좌상단 | 장착 중이면 `EquippedBadgeText`("E") |
-| `DurationText` | 우상단 | 버프 잔여 초 — **1초 반복 타이머가 이것만** 다시 쓴다 |
-| `LevelText` | 우하단 | `LevelFormat`("Lv.{0}"). 버프는 비운다 |
+| `DurationText` | 우상단 | 버프 잔여 초 — **1초 반복 타이머가 이것만** 다시 쓴다. 영구 버프(-1)는 비우고 타이머를 끊는다 |
+| `LevelText` | 우하단 | `LevelFormat`("Lv.{0}"). **무기만** 표시한다(디테일 패널의 `Lv. 현재/최대`와 노출 조건을 맞춤) |
 
 셋 다 `BindWidgetOptional`이라 BP가 아직 없어도 크래시하지 않는다.
 타이머 콜백을 `UpdateDurationText()`로 분리한 이유는, 매초 세 배지를 전부 다시 쓸 필요가 없기 때문이다.
+⚠️ 셀은 스크롤에 따라 재사용되므로 항목 바인딩 시점과 `NativeDestruct` 양쪽에서 타이머를 끊는다.
 
 ### 5.3 Merge 버튼의 3상태
 
-`ULNPItemDetailPanelWidget::UpdateButtons`가 무기에만 표시하고 세 상태로 그린다:
+`ULNPItemDetailPanelWidget::UpdateButtons`가 무기에만 표시하고 세 상태로 그린다.
+필요 재료 수는 `LNPSettings.WeaponMergeMaterialCount - 1`(기본 3 → **2**)다 — 대상 자신이 한 개를 채운다:
 
 | 조건 | 문구 | 활성 |
 |:--|:--|:--:|
-| 재료 충분 | `Merge (3/3)` | ✅ |
-| 재료 부족 | `Merge (1/3)` | ❌ |
+| 재료 충분 | `Merge (2/2)` | ✅ |
+| 재료 부족 | `Merge (1/2)` | ❌ |
 | 최대 레벨 | `Max Lv.` | ❌ |
 
 재료 수는 **소유 클라이언트가 로컬로 센다** — 가방이 `COND_OwnerOnly`로 복제되므로 가능하다
 (`ULNPInventoryComponent::CanMergeItem`). 서버는 `TryMergeItem`에서 같은 판정을 처음부터 다시 한다.
-포커스 순서는 Equip → Merge → Drop (`GetFirstFocusTarget`).
+⚠️ 인벤토리 컴포넌트를 못 찾았으면 버튼을 `Collapsed`로 감춘다 — 그 경우까지 `Max Lv.`로 쓰면
+없는 사실을 말하게 된다. 포커스 순서는 Equip → Merge → Drop (`GetFirstFocusTarget`은 **활성 버튼만** 고른다).
+Equip은 장착 중이면 `Equipped`로 바뀌고 비활성, Drop은 장착 중이면 비활성이다(서버 `DropItem`도 같은 가드).
 
 #### 버튼 줄바꿈 — HorizontalBox가 아니라 WrapBox다
 
 버튼이 3개가 되면서 `HorizontalBox`로는 **패널 오른쪽으로 넘쳤다**(실측). 담는 패널을 `WrapBox`로 바꿔
 폭이 모자라면 다음 줄로 내려가게 했다. 셋 다 `Collapsed`가 될 수 있어 **`UniformGridPanel`은 쓸 수 없다** —
-슬롯의 행/열이 고정이라 버튼이 접히면 빈 칸이 남는다. WrapBox는 접힌 자식이 자리를 차지하지 않아 자연히 흐른다.
+슬롯의 행/열이 고정이라 버튼이 접히면 빈 칸이 남는다. WrapBox는 접힌 자식이 자리를 차지하지 않는다.
 
 ⚠️ **WrapBox는 부모가 폭을 정해 줘야 접힌다.** 부모가 Auto 사이즈면 WrapBox의 희망 크기(=한 줄에 다 편 폭)를
 그대로 주므로 영원히 줄바꿈이 안 된다. 그래서 중간의 `ButtonRow`(HorizontalBox)를 없애고
 **WrapBox를 Root VerticalBox의 직계 자식**으로 두었다 (VerticalBox 슬롯은 가로가 Fill이다).
 
-한 줄에 몇 개가 들어갈지는 **버튼 폭이 결정한다.** 처음엔 `Equipped`(1) + `Merge`·`Drop`(2)로 갈려
-위아래가 뒤집혀 보였다. 2+1로 만들려고 두 곳을 줄였다:
-- `BS_MenuAction.ButtonPadding` 좌우 20 → 10, `MinWidth` 120 → 100
-- `WBP_LNPMenuButton.ButtonLabel` 폰트 24 → 18
-
-두 에셋 모두 **이 디테일 패널에서만 쓰인다**(`BS_MenuAction` ← `WBP_LNPMenuButton` ← `WBP_ItemDetailPanel`)
-— 다른 메뉴에 파급되지 않음을 확인하고 고쳤다. 라벨이 더 길어지면(예: `Merge (10/10)`) 다시 1+2로 갈릴 수
-있으니, 그때는 폰트를 한 단계 더 줄이거나 디테일 패널 폭을 넓힌다.
+한 줄에 몇 개가 들어갈지는 **버튼 폭이 결정한다.** 2+1로 만들려고 `BS_MenuAction`의 좌우 패딩 20→10 ·
+MinWidth 120→100, `WBP_LNPMenuButton.ButtonLabel` 폰트 24→18로 줄였다(두 에셋 모두 이 패널에서만 쓰여
+파급 없음을 확인). 라벨이 더 길어지면 다시 1+2로 갈릴 수 있다.
 
 ## 6. 데이터 연결
 
 - **탭이 스스로 붙는다.** 각 탭 위젯이 `NativeOnActivated`에서 `GetOwningPlayerState<ALNPPlayerState>()`로
   ASC·InventoryComponent를 찾아 구독하고, `NativeOnDeactivated`에서 해제한다.
   PlayerController가 위젯에 데이터를 밀어 넣던 구 방식(빙의 타이밍 의존)을 없앴다.
+- 스탯 탭은 인벤토리 신호 외에 **`OnEquipmentChanged`도** 구독한다. `DefaultWeapon`처럼 가방 인스턴스가
+  없는 장착은 `bEquipped` 복제가 아예 없고, 있더라도 두 컴포넌트의 OnRep 순서가 보장되지 않아
+  무기 아이콘이 낡은 슬롯을 읽을 수 있다.
 - **Grid 데이터** = `GetBagInstances()` + `GetActiveBuffInstances()`를 합친 한 배열.
   기존 UI와 달리 **장착 중인 무기도 숨기지 않는다** — 배지로 장착 여부를 표시하는 게 기획이다.
 - MVVM은 `UListView::ListItems`에 바인딩 불가(기존 결론 유지)이므로 TileView는 C++가 직접 채운다.
+- 선택은 갱신 후에도 유지하고, 목록에서 사라진 선택은 첫 항목으로 떨어진다.
 
 ⚠️ **`SetListItems`는 "항목 내부 변화"를 셀에 반영하지 않는다.** 장착/해제는 목록의 추가·제거가 아니라
 같은 인스턴스의 플래그 변경이라 목록이 **포인터·순서까지 동일**하다. 그러면 SListView가 기존 행을 그대로
 재사용하고 `NativeOnListItemObjectSet`을 다시 호출하지 않아, 장착 배지("E")가 인벤토리를 닫았다 열기 전까지
 갱신되지 않는다. `RefreshGrid` 끝에서 **`RegenerateAllEntries()`**를 호출해 해결한다
 (엔진도 `ListViewBase.h`의 `RequestRefresh` 주석에서 이 경우 이 함수를 권한다).
+
+⚠️ **같은 함정의 디테일 패널 판.** 합성은 선택된 인스턴스의 **내부 값**(레벨)만 바꾸므로, 선택 대상이
+그대로면 `SetSelectedItem`이 `OnItemSelectionChanged`를 다시 쏘지 않는다 → 패널이 옛 레벨·옛 스탯을 계속
+보여준다. 그래서 `RefreshGrid`는 선택 델리게이트에 기대지 않고 **항상** `DetailPanel->SetItem()`을 다시 부른다.
+
+⚠️ **Grid 채우기는 `Super::NativeOnActivated()`보다 먼저 해야 한다.** CommonUI가 활성화 과정에서
+`GetDesiredFocusTarget()`(= `ItemGrid`)에 포커스를 주는데, `SCommonListView::OnFocusReceived`는
+**항목이 이미 있을 때만** 포커스를 셀로 넘긴다. 순서가 뒤바뀌면 포커스가 TileView 컨테이너에 머물러
+포커스 링이 첫 셀이 아니라 **그리드 전체**를 감싼다. 재오픈 때는 풀링된 위젯에 이전 목록이 남아 있어
+**첫 오픈에서만** 드러난다.
+
+⚠️ **탭을 닫을 때 `ClearListItems()`로 목록을 비운다 — 종료 시 크래시 방지다.** 탭이 닫힌 동안에는
+`OnInventoryChanged`를 못 받아 Grid에 죽은 인스턴스 참조가 남는다. 클라이언트에서 아이템이 목록에서 빠지면
+Iris가 서브오브젝트를 `MarkAsGarbage` 하고 GC가 `ListItems`의 그 항목을 `nullptr`로 지우는데, 그러면 종료 시
+PlayerState(= 항목의 Outer 액터)의 `EndPlay`에서 `UListView::OnListItemOuterEndPlayed`가 널 체크 없이
+`Item->IsIn()`을 불러 터진다. 선택은 **약참조**로 따로 기억해 재오픈 때 복원한다(강참조로 들면 죽은 인스턴스를 붙잡는다).
 
 ## 7. 입력
 
@@ -412,153 +401,122 @@ Equip 버튼은 장착 중이면 문구가 `Equipped`로 바뀌고 비활성된�
 | TabRight | `E` | `Gamepad_RightShoulder`(R1) | 〃 |
 | 방향 이동 | `←↑→↓`, `WASD` | D-Pad, 좌스틱 | Slate 네비게이션 (UI 액션 아님) |
 
-키보드 보조 키는 각 행의 `keyboardInputTypeInfo.AdditionalKeys`에 넣는다.
+키보드 보조 키는 각 행의 `keyboardInputTypeInfo.AdditionalKeys`에 넣는다(Click의 `Space`).
+
+⚠️ 메뉴 입력은 **폰이 아니라 PlayerController의 상시 매핑 컨텍스트**에 둔다. 메뉴가 폰 입력을 꺼도
+메뉴 열기 액션은 살아 있어야 하기 때문이다.
+
+### 7.1 메뉴가 열린 동안 같은 키로 닫기 — 입력 모드가 핵심
+
+⚠️ **`UCommonActivatableWidget`의 기본 입력 모드 `ECommonInputMode::Menu`는 "UI만 입력을 받음"이라
+더 낮은 우선순위의 입력 컴포넌트를 전부 차단한다.** 그러면 PlayerController의 상시 매핑 컨텍스트에 있는
+`IA_OpenMenu`/`IA_OpenSettings`가 메뉴가 열린 동안 **아예 들어오지 않아 같은 키로 닫을 수 없다.**
+
+`ULNPMenuRootWidget::GetDesiredInputConfig()`가 `ECommonInputMode::All`을 돌려주어 해결한다.
+게임 입력이 함께 살아나지만, 메뉴를 열 때 폰의 `DefaultMappingContext`를 이미 제거하므로
+실제로 살아 있는 게임 입력은 메뉴 열기/닫기 키뿐이다 — 의도한 그대로다.
+
+**게임플레이 입력 차단**: `ULNPInputHandlerComponent::SetGameplayInputEnabled(false)`가
+`DefaultMappingContext`를 통째로 제거한다. ⚠️ 매핑을 떼면 Completed/Released가 오지 않으므로
+눌린 상태(`bIsAttackPressed` 등)가 굳지 않도록 캐시된 입력을 직접 초기화한다.
+
+**입력 모드**: 열 때 `FInputModeGameAndUI`(마우스 잠금 없음) + 커서 표시, 닫을 때 `FInputModeGameOnly`.
+포커스 대상은 지정하지 않는다 — CommonUI의 활성화·`GetDesiredFocusTarget`이 관리한다.
+**일시정지**: `GetNetMode() == NM_Standalone`일 때만 `SetPause(true)`.
 
 ### 7.2 화살표는 UI 액션에 쓰지 않는다 — 그리드 이동과 배타적
 
 ⚠️ **화살표를 CommonUI 액션 행에 넣으면 인벤토리 Grid의 셀 이동이 죽는다.** CommonUI 액션 라우터는
-Slate 네비게이션보다 **먼저** 키를 소비하므로, 4방향을 액션에 배정하면 방향 이동이 전혀 남지 않는다.
-그래서 탭 이동은 `Q`/`E`, 선택은 `Enter`/`Space`, 뒤로는 `Esc`로 두고 **화살표는 네비게이션 전용**으로 비워 둔다.
+Slate 네비게이션보다 **먼저** 키를 소비하므로, 4방향을 액션에 배정하면 방향 이동이 전혀 남지 않는다
+(마우스 클릭만 가능). 그래서 탭 이동은 `Q`/`E`, 선택은 `Enter`/`Space`, 뒤로는 `Esc`로 두고
+**화살표는 네비게이션 전용**으로 비워 둔다.
 
 WASD는 `ALNPPlayerController::SetMenuNavigationEnabled`가 메뉴 수명 동안만
 `FLNPMenuNavigationConfig`(엔진 기본 위에 WASD만 추가)를 `FSlateApplication`에 끼워 제공한다.
 
 ⚠️ **네비게이션 설정은 `FSlateApplication` 전역이고 PIE는 에디터와 Slate를 공유한다.** 상시 등록하면
 에디터 패널까지 WASD로 이동하게 되고, 메뉴를 연 채 PIE를 끝내면 그대로 남는다.
-그래서 열기/닫기와 `EndPlay` 양쪽에서 반드시 원복한다.
-
-### 7.1 메뉴가 열린 동안 같은 키로 닫기 — 입력 모드가 핵심
-
-⚠️ **`UCommonActivatableWidget`의 기본 입력 모드 `ECommonInputMode::Menu`는 "UI만 입력을 받음"이라
-더 낮은 우선순위의 입력 컴포넌트를 전부 차단한다**(`CommonUIInputSettings.h` 주석).
-그러면 PlayerController의 상시 매핑 컨텍스트에 있는 `IA_OpenMenu`/`IA_OpenSettings`가
-메뉴가 열린 동안 **아예 들어오지 않아 같은 키로 닫을 수 없다.**
-
-`ULNPMenuRootWidget::GetDesiredInputConfig()`가 `ECommonInputMode::All`을 돌려주어 해결한다.
-게임 입력이 함께 살아나지만, 메뉴를 열 때 폰의 `DefaultMappingContext`를 이미 제거하므로
-실제로 살아 있는 게임 입력은 메뉴 열기/닫기 키뿐이다.
-
-⚠️ **`Esc`는 `IA_OpenSettings`에서 뺐다.** Esc가 CommonUI Back과 Enhanced Input 양쪽에 걸리면
-"Back이 닫음 → 그 직후 EI가 다시 엶"으로 도로 열린다. Esc는 Back(닫기) 전용, 여는 키는 `O`다.
-
-⚠️ **화살표 키를 UI 액션에 쓰면 그리드 방향 이동이 죽는다.** 네 방향이 모두 CommonUI 액션에
-소비되므로 인벤토리 Grid의 셀 간 키보드 이동이 불가능하다(마우스 클릭은 가능).
-키보드로 Grid를 옮겨 다녀야 한다면 별도 `FNavigationConfig`로 WASD를 네비게이션 키로 추가해야 한다.
-
-⚠️ **터치패드 버튼은 Windows(XInput/Raw)에서 UE에 이벤트가 오지 않는다.** 위치가 가장 가까운
-`Gamepad_Special_Left`(Share/Create)로 대체했다. DualSense 전용 입력 플러그인 도입 시 교체 가능.
-
-⚠️ 메뉴 입력은 **폰이 아니라 PlayerController의 상시 매핑 컨텍스트**에 둔다. 메뉴가 폰 입력을 꺼도
-메뉴 열기 액션은 살아 있어야 하기 때문이다.
-
-**게임플레이 입력 차단**: `ULNPInputHandlerComponent::SetGameplayInputEnabled(false)`가
-`DefaultMappingContext`를 통째로 제거한다. ⚠️ 매핑을 떼면 Completed/Released가 오지 않으므로
-눌린 상태(`bIsAttackPressed` 등)가 굳지 않도록 캐시된 입력을 직접 초기화한다.
-
-**일시정지**: `GetNetMode() == NM_Standalone`일 때만 `SetPause(true)`.
+그래서 열기/닫기와 `EndPlay` 양쪽에서 반드시 원복한다(원본 config를 잃지 않도록 중복 진입도 막는다).
 
 ### 7.3 PIE 게임패드 라우팅 (에디터 전용)
 
 1인 PIE에는 없는 문제다. **2인 PIE에서 1P를 키보드/마우스, 2P를 게임패드로 잡고** 테스트할 때만 나온다.
 
-먼저 엔진 옵션 `Route Gamepad to Second Window`가 실제로 하는 일부터. 이름과 달리 "2번 창으로 보낸다"가
-아니라 **"게임패드 입력이 도착한 PIE 뷰포트에서 무조건 *다음* PIE 뷰포트로 한 칸 넘긴다"** 이다 —
-`UGameViewportClient::InputKey`(`GameViewportClient.cpp:743`)가 `GEngine->GetNextPIEViewport(this)`
-(`PlayLevel.cpp:2532`, WorldList 순환)로 넘기고 자기는 `false`를 돌려준다. 포커스와 무관하고,
-무엇보다 **입력이 Slate보다 아래에서 주입된다.** 여기서 증상 두 가지가 파생된다.
+엔진 옵션 `Route Gamepad to Second Window`는 이름과 달리 "2번 창으로 보낸다"가 아니라
+**"게임패드 입력이 도착한 PIE 뷰포트에서 무조건 *다음* PIE 뷰포트로 한 칸 넘긴다"** 이다 —
+`UGameViewportClient::InputKey`가 `GEngine->GetNextPIEViewport(this)`(WorldList 순환)로 넘기고 자기는
+`false`를 돌려준다. 포커스와 무관하고, 무엇보다 **입력이 Slate보다 아래에서 주입된다.** 증상 둘이 여기서 나온다.
 
 #### 증상 A — 메뉴를 닫으면 조작 대상 창이 바뀐다
 
-메뉴 버튼을 연달아 누르면 2P 열기/닫기 → 1P 열기/닫기가 교대로 반복되고, 뒤집힌 뒤에는 메뉴뿐 아니라
+메뉴 버튼을 연달아 누르면 2P 열기/닫기 → 1P 열기/닫기가 교대로 반복되고, 뒤집힌 뒤에는
 **이동·공격 등 게임패드 입력 전체가 반대 창으로** 간다.
 
 어느 뷰포트로 "도착"하느냐를 Slate 포커스가 정하는데, PIE 클라이언트들의 첫 LocalPlayer는 모두
-`ControllerId == 0`이라 `ULocalPlayer::GetSlateUser()`(`LocalPlayer.cpp:1802`)가 **FSlateUser(0) 하나를
-공유**한다. 그리고 `SetInputMode`가 그 포커스를 옮긴다 — `FInputModeGameOnly::ApplyInputMode`가
-`SlateOperations.SetUserFocus(자기 뷰포트 위젯)`(`PlayerController.cpp:6446`)을 걸기 때문에,
-**메뉴를 닫은 창이 포커스를 가져가고** 다음 게임패드 입력이 그 창으로 도착해 홉이 뒤집힌다.
+`ControllerId == 0`이라 **FSlateUser(0) 하나를 공유**한다. 그리고 `FInputModeGameOnly::ApplyInputMode`가
+`SlateOperations.SetUserFocus(자기 뷰포트 위젯)`을 걸므로 **메뉴를 닫은 창이 포커스를 가져가고**
+다음 게임패드 입력이 그 창으로 도착해 홉이 뒤집힌다.
 
 **대응**(`ALNPPlayerController::CapturePIEForeignFocus` / `RestorePIEForeignFocus`, `#if WITH_EDITOR`):
-`OpenMenu`에서 `SetInputMode` 직전에 — 그때 포커스를 쥔 창이 **내 창이 아니면** — 그 포커스 위젯을
-약참조로 기억하고, `HandleMenuClosed`에서 `SetInputMode` **직후**에 되돌린다.
+`OpenMenu`에서 `SetInputMode` 직전에 — 그때 포커스를 쥔 창이 **내 창이 아니면** — 그 위젯을 약참조로
+기억하고, `HandleMenuClosed`에서 `SetInputMode` **직후**에 되돌린다.
 CVar `LNP.PIE.RestoreGamepadFocusOnMenuClose`(기본 1)로 끌 수 있다.
 
 ⚠️ **되돌릴 때 `FSlateApplication::SetUserFocus`를 직접 부르면 안 된다.** `SetInputMode`가 쌓은 것은
-LocalPlayer의 지연 `FReply`이고 엔진 틱 말미의 `ProcessLocalPlayerSlateOperations`(`LaunchEngineLoop.cpp:5236`)에서
-뒤늦게 적용되므로, 직접 옮긴 포커스를 도로 빼앗아 간다. 그래서 **같은 `FReply`의
-`SetUserFocus`를 덮어쓴다**(포커스 수신자가 필드 하나라 마지막 지정이 이긴다).
+LocalPlayer의 지연 `FReply`이고 엔진 틱 말미의 `ProcessLocalPlayerSlateOperations`에서 뒤늦게 적용되므로,
+직접 옮긴 포커스를 도로 빼앗아 간다. 그래서 **같은 `FReply`의 `SetUserFocus`를 덮어쓴다**
+(포커스 수신자가 필드 하나라 마지막 지정이 이긴다).
 
 #### 증상 B — 2P에서 방향 이동만 죽는다
 
-A를 고치고 나면 2P 게임패드로 이동·공격·메뉴 열고 닫기·L1/R1 탭 이동·○ 닫기가 전부 되는데,
-**인벤토리 그리드 칸 이동만 안 된다.** 되는 것과 안 되는 것이 갈리는 기준이 명확하다.
+A를 고치면 2P 게임패드로 이동·공격·메뉴 여닫기·L1/R1 탭·○ 닫기가 전부 되는데,
+**인벤토리 그리드 칸 이동만 안 된다.** 갈리는 기준이 명확하다.
 
 | 경로 | 2P에서 | 이유 |
 |:---|:---|:---|
 | Enhanced Input 액션 (이동·공격·메뉴 토글) | 동작 | PlayerController 레벨 — 홉을 타고 들어온다 |
-| CommonUI 액션 (○ Back, ✕ Accept, L1/R1) | 동작 | **입력 프리프로세서**로 처리 — 창·포커스와 무관하고 유저 인덱스로만 필터한다(`FCommonInputPreprocessor::IsRelevantInput`) |
-| Slate 방향 네비게이션 (D-Pad·좌스틱·화살표) | **죽음** | 유일하게 **포커스 경로**로 해소된다 — `ProcessKeyDownEvent`가 포커스 경로로 라우팅하고 미처리면 `AttemptNavigation` |
+| CommonUI 액션 (○ Back, ✕ Accept, L1/R1) | 동작 | **입력 프리프로세서**로 처리 — 창·포커스와 무관하고 유저 인덱스로만 필터 |
+| Slate 방향 네비게이션 (D-Pad·좌스틱·화살표) | **죽음** | 유일하게 **포커스 경로**로 해소된다 — 미처리 키가 `AttemptNavigation`으로 간다 |
 
-⚠️ **CommonUI에는 이걸 대신해 줄 인터페이스가 없다.** 모듈 전체에서 `EUINavigation`을 쓰는 곳은
-`CommonButtonBase`·`CommonCustomNavigation`·`CommonListView` 등 전부 Slate가 보내 준 `FNavigationEvent`를
-*받는* `OnNavigation` 핸들러이고, 입력에서 네비게이션을 **만들어 내는** 코드는 액션 라우터에도
-아날로그 커서에도 없다. 액션은 "무엇을 실행할까"라 출발점이 필요 없어 프리프로세서로 완결되지만,
-네비게이션은 "**어느 위젯에서** 어느 방향으로"라 포커스된 위젯이 반드시 있어야 하기 때문이다.
+⚠️ **CommonUI에는 이걸 대신해 줄 인터페이스가 없다.** `EUINavigation`을 쓰는 곳은 Slate가 보내 준
+`FNavigationEvent`를 *받는* 핸들러뿐이고, 입력에서 네비게이션을 **만들어 내는** 코드는 없다.
+액션은 "무엇을 실행할까"라 출발점이 필요 없지만 네비게이션은 "**어느 위젯에서** 어느 방향으로"이기 때문이다.
 즉 **부족한 건 키 핸들러가 아니라 "두 번째 포커스"** 이고, 그건 두 번째 `FSlateUser`만 줄 수 있다.
 
 ⚠️ D-Pad·화살표를 CommonUI 액션 행에 넣어 직접 처리하는 우회는 **금지**다 — §7.2 그대로,
 액션 라우터가 Slate 네비게이션보다 먼저 키를 소비해서 **1P 포함 모든 그리드 이동이 죽는다.**
 
-#### 어느 창이 게임패드를 받는가 — 고정이 아니라 유동적이다
+**어느 창이 게임패드를 받는가** — 홉이 "다음 뷰포트"이므로 역할은 키보드 포커스를 쥔 창을 따라 뒤집힌다.
+규칙은 하나다: **게임패드로 조작하고 싶은 창의 "반대편" 창에 마우스로 포커스를 준다.** 증상 A를 고친
+뒤로는 메뉴를 여닫아도 그 배정이 유지된다. 그리드까지 게임패드로 만져야 한다면 클라이언트를 하나만 띄운다.
 
-홉이 "다음 뷰포트"인 덕분에 역할은 **키보드 포커스를 쥔 창을 따라 자동으로 뒤집힌다.**
-
-- 1P 창에 포커스 → 키보드·마우스는 1P, 게임패드는 2P
-- **2P 창을 클릭하면** → 키보드·마우스는 2P, 게임패드는 1P
-
-즉 규칙은 하나다 — **게임패드로 조작하고 싶은 창의 "반대편" 창에 마우스로 포커스를 준다.**
-증상 A를 고친 뒤로는 그 배정이 메뉴를 여닫아도 뒤집히지 않는다.
-그리드까지 게임패드로 만져야 한다면 클라이언트를 하나만 띄우고 그 창에 포커스를 준다.
-
-#### 여기서 멈춘 이유 — CommonUI가 PIE 클라이언트를 유저 0에 못박는다
-
-증상 B를 없애려면 게임패드에 **두 번째 `FSlateUser`** 를 줘야 하는데, CommonUI가 그걸 못 따라온다.
-
-```cpp
-int32 UCommonUIActionRouterBase::GetLocalPlayerIndex() const   // CommonUIActionRouterBase.cpp:853
-{
-    return GameInstance->GetLocalPlayers().Find(LocalPlayer);   // ← ControllerId가 아니다
-}
-```
-
-CommonUI의 유저 인덱스는 `ControllerId`가 아니라 **GameInstance의 LocalPlayers 배열 인덱스**다.
-PIE는 클라이언트마다 별도 GameInstance에 로컬 플레이어가 하나씩이므로 **둘 다 항상 0**이고,
-`SetControllerId(1)`을 해도 CommonUI의 포커스 지정(`FocusLeafmostNode` → `SetUserFocus(OwnerSlateId, …)`)은
-계속 유저 0을 향한다. 입력 필터도 마찬가지다 — `FAnalogCursor::IsRelevantInput`이
-`GetOwnerUserIndex() == 이벤트 유저`인데(`AnalogCursor.cpp:194`) `FCommonAnalogCursor`가 그것을 라우터
-인덱스(=0)로 오버라이드하므로, 유저 1로 보낸 게임패드는 ○·L1/R1까지 무시된다.
-`GetLocalPlayerIndex()`는 **virtual이 아니라** 라우터를 파생시켜도 못 바꾼다.
-
-실제로 별도 SlateUser 방식을 구현해 봤고 이 이유로 되돌렸다 — 경위는
-`.context/DiscardedApproaches.md`의 "PIE 게임패드 별도 SlateUser 분리" 항목에 있다.
+**여기서 멈춘 이유** — 증상 B를 없애려면 게임패드에 두 번째 `FSlateUser`를 줘야 하는데 CommonUI가 못 따라온다.
+`UCommonUIActionRouterBase::GetLocalPlayerIndex()`의 유저 인덱스는 `ControllerId`가 아니라 **GameInstance의
+LocalPlayers 배열 인덱스**이고, PIE는 클라이언트마다 별도 GameInstance에 로컬 플레이어가 하나씩이라
+**둘 다 항상 0**이다. `SetControllerId(1)`을 해도 포커스 지정은 유저 0을 향하고, `FCommonAnalogCursor`가
+입력 필터의 유저 인덱스까지 라우터 인덱스(=0)로 오버라이드하므로 유저 1로 보낸 게임패드는 ○·L1/R1까지
+무시된다. `GetLocalPlayerIndex()`는 **virtual이 아니라** 라우터를 파생시켜도 못 바꾼다.
+실제로 구현해 봤고 이 이유로 되돌렸다 — 경위는 `.context/DiscardedApproaches.md`의
+"PIE 게임패드 별도 SlateUser 분리" 항목에 있다.
 
 > 진짜 로컬 분할화면(한 창·한 뷰포트·LocalPlayer N개)에서는 증상 A도 B도 성립하지 않는다.
 > 입력이 `InputDevice → PlatformUserId → LocalPlayer`로 배분되고, 포커스도 FSlateUser별로 갈리며,
-> CommonUI의 배열 인덱스도 그제서야 Slate 유저 인덱스와 일치하기 때문이다.
+> CommonUI의 배열 인덱스도 그제서야 Slate 유저 인덱스와 일치한다.
 > 즉 §7.3은 **PIE 테스트 비계 이야기이지 분할화면 대비가 아니다.**
 
 ## 8. 필수 설정
 
-`Config/DefaultEngine.ini`:
 ```ini
+; Config/DefaultEngine.ini
 [/Script/Engine.Engine]
 GameViewportClientClassName=/Script/CommonUI.CommonGameViewportClient
-```
 
-`Config/DefaultGame.ini`:
-```ini
+; Config/DefaultGame.ini
 [/Script/CommonInput.CommonInputSettings]
 InputData=/Game/UI/Input/DA_LNPCommonInputData.DA_LNPCommonInputData_C
+
+[/Script/CommonUI.CommonUISettings]
+CommonButtonAcceptKeyHandling=TriggerClick
 ```
 
 ⚠️ **`UCommonInputSettings`는 `UCLASS(config = Game)`이라 반드시 `DefaultGame.ini`에 둬야 한다.**
@@ -566,23 +524,14 @@ InputData=/Game/UI/Input/DA_LNPCommonInputData.DA_LNPCommonInputData_C
 `LogUIActionRouter: Error: Cannot create action binding for widget [...] - no action provided.`
 로 나타난다 (Back·Click·탭 이동이 전부 죽는다). 2026-08-07 실측으로 확인한 함정.
 
-`Config/DefaultGame.ini` — ⚠️ **이게 없으면 어떤 키로도 버튼을 누를 수 없다:**
-```ini
-[/Script/CommonUI.CommonUISettings]
-CommonButtonAcceptKeyHandling=TriggerClick
-```
-
-`ECommonButtonAcceptKeyHandling`의 기본값은 `Ignore`이고(UE 5.6 이전 프로젝트 기준, `CommonUISettings.cpp:16`),
-그 모드에서는 `SCommonButton::OnKeyDown`이 **Slate의 Accept 키를 통째로 `Unhandled`로 흘려버린다**
-(`CommonButtonTypes.cpp:136`). Accept 키는 `FNavigationConfig` 기본값 기준 `Enter`·`SpaceBar`·
-`Virtual_Gamepad_Accept`(게임패드 ✕) 셋이므로, **키보드도 게임패드도 버튼을 누르지 못하고 마우스 클릭만 동작한다.**
-인벤토리 Grid의 셀(`ULNPMenuItemCellWidget::NativeOnClicked` → 디테일 포커스 이동)도, Equip/Drop 버튼도 마찬가지다.
+⚠️ **`CommonButtonAcceptKeyHandling`이 없으면 어떤 키로도 버튼을 누를 수 없다.** 기본값은 `Ignore`이고
+(UE 5.6 이전에 만든 프로젝트 기준), 그 모드에서는 `SCommonButton::OnKeyDown`이 **Slate의 Accept 키를
+통째로 `Unhandled`로 흘려버린다**. Accept 키는 `Enter`·`SpaceBar`·`Virtual_Gamepad_Accept`(✕) 셋이므로
+**키보드도 게임패드도 버튼을 누르지 못하고 마우스 클릭만 동작한다** — 인벤토리 셀도, Equip/Drop 버튼도.
 
 `Ignore`의 원래 의도는 "버튼은 각자의 `TriggeringInputAction`으로 눌러라"인데, 그러면 화면에 보이는 모든
-버튼이 같은 Click 행을 두고 경쟁한다(액션 라우터는 포커스가 아니라 **가시성**으로 대상을 고른다 —
-`UIActionRouterTypes.cpp:1047 IsWidgetReachableForInput`). 그래서 `TriggerClick`을 쓴다. 5.6부터의 신규 프로젝트 기본값이다.
-
-⚠️ `TriggerClick`은 버튼이 포커스된 동안 Accept 키에 걸린 CommonUI 액션 바인딩을 막는다. 이 프로젝트는
+버튼이 같은 Click 행을 두고 경쟁한다(액션 라우터는 포커스가 아니라 **가시성**으로 대상을 고른다).
+그래서 5.6부터의 신규 프로젝트 기본값인 `TriggerClick`을 쓴다. ⚠️ `TriggerClick`은 버튼이 포커스된 동안 Accept 키에 걸린 CommonUI 액션 바인딩을 막는다. 이 프로젝트는
 Back이 `Esc`, 탭 이동이 `Q`/`E`라 겹치지 않는다. 폰의 `SpaceBar`(점프)는 메뉴가 열릴 때 `IMC_Pawn`이
 통째로 제거되므로 역시 무관하다.
 
@@ -598,21 +547,22 @@ Back이 `Esc`, 탭 이동이 `Q`/`E`라 겹치지 않는다. 폰의 `SpaceBar`(�
 |:---|:---|:---|
 | `/Game/UI/Input/DT_LNPCommonInputActions` | DataTable (`CommonInputActionDataBase`) | 행: Back / Click / TabLeft / TabRight |
 | `/Game/UI/Input/DA_LNPCommonInputData` | `UCommonUIInputData` 파생 BP | DefaultClickAction / DefaultBackAction |
+| `/Game/Input/Actions/IA_OpenMenu`, `IA_OpenSettings` | InputAction | `IMC_Player`(컨트롤러 상시 컨텍스트)에 등록 |
 | `/Game/UI/Menu/WBP_LNPUILayout` | `ULNPUILayoutWidget` | `MenuStack` |
 | `/Game/UI/Menu/WBP_LNPMenuRoot` | `ULNPMenuRootWidget` | `TabList`·`ContentSwitcher`·3탭·`HintBar`·`TabButtonClass`, 배경 블러·반투명 Border 2개 |
-| `/Game/UI/Menu/WBP_LNPMenuHintBar` | `ULNPMenuHintBarWidget` | `HintBackground`(Border, 반투명 검정 — 상·하단 팝업과 같은 톤) → `HintContainer`(**UDynamicEntryBox**, `EntryWidgetClass`·`EntrySpacing` 지정) |
+| `/Game/UI/Menu/WBP_LNPMenuHintBar` | `ULNPMenuHintBarWidget` | `HintBackground`(Border, 반투명 검정 — 두 팝업과 같은 톤) → `HintContainer`(**UDynamicEntryBox**, `EntryWidgetClass`·`EntrySpacing` 지정) |
 | `/Game/UI/Menu/WBP_LNPMenuHintEntry` | `ULNPMenuHintEntryWidget` | `GlyphText`·`LabelText`(CommonTextBlock). 칸의 생김새는 전부 여기서 결정 |
 | `/Game/UI/Menu/Style/TS_MenuHintGlyph` | `UCommonTextStyle` | 키 심볼. **Regular** 16pt 흰색 (§11의 폰트 폴백 사유로 Bold 금지) |
 | `/Game/UI/Menu/Style/TS_MenuHintLabel` | `UCommonTextStyle` | 조작 설명. Regular 14pt, 명도 0.72 |
 | `/Game/UI/Menu/WBP_LNPMenuTabList` | `ULNPMenuTabListWidget` | `TabButtonContainer`(HorizontalBox). ⚠️ BindWidget 때문에 **BP로 감싸야** 한다 |
-| `/Game/UI/Menu/WBP_LNPMenuTabButton` | `ULNPMenuTabButtonWidget` | `TabLabel`(CommonTextBlock) |
-| `/Game/UI/Menu/WBP_LNPMenuButton` | `ULNPMenuButtonWidget` | 범용 버튼 — Equip/Drop에 사용. `ButtonLabel`(TextBlock) |
+| `/Game/UI/Menu/WBP_LNPMenuTabButton` | `ULNPMenuTabButtonWidget` | `TabLabel`(CommonTextBlock), `SelectionUnderline` |
+| `/Game/UI/Menu/WBP_LNPMenuButton` | `ULNPMenuButtonWidget` | 범용 버튼 — Equip/Merge/Drop에 사용. `ButtonLabel`(TextBlock) |
 | `/Game/UI/Menu/WBP_MenuTab_Stats` | `ULNPStatsTabWidget` | ViewModel 등록 + RichText 바인딩, `WeaponIcon`, `BuffContainer` |
 | `/Game/UI/Menu/WBP_MenuTab_Inventory` | `ULNPInventoryTabWidget` | `ItemGrid`(CommonTileView), `DetailPanel`. ⚠️ 아래 주의 참조 |
 | `/Game/UI/Menu/WBP_MenuTab_Settings` | `ULNPSettingsTabWidget` | "준비 중" 문구 |
 | `/Game/UI/Menu/WBP_MenuItemCell` | `ULNPMenuItemCellWidget` | `IconImage`, `EquipMarkText`(좌상단)·`DurationText`(우상단)·`LevelText`(우하단) — 모두 아웃라인 2(아이콘 위 시인성 확보) |
 | `/Game/UI/Menu/WBP_BuffChip` | `ULNPBuffChipWidget` | `IconImage`, `TimeText` |
-| `/Game/UI/Menu/WBP_ItemDetailPanel` | `ULNPItemDetailPanelWidget` | `IconImage`·`NameText`·`DetailText`·`EquipButton`·`MergeButton`·`DropButton` — 세 버튼은 `WrapBox` 안에 둔다(§5.3) |
+| `/Game/UI/Menu/WBP_ItemDetailPanel` | `ULNPItemDetailPanelWidget` | `IconImage`·`NameText`·`DetailText`·`EquipButton`·`MergeButton`·`DropButton` — 세 버튼은 `WrapBox` 안에(§5.3) |
 | `/Game/UI/Menu/DT_LNPMenuTextStyles` | Rich Text Style Set | `final`/`sub`/`buff`, 모노스페이스 |
 
 ### 9.1 버튼 스타일 (`/Game/UI/Menu/Style/`)
@@ -624,7 +574,7 @@ Back이 `Esc`, 탭 이동이 `Q`/`E`라 겹치지 않는다. 폰의 `SpaceBar`(�
 | `TS_MenuTab_Normal / _Hovered / _Selected` | `UCommonTextStyle` | 탭 라벨 20pt, 명도 0.55 / 0.85 / 1.0, 자간 80 |
 | `TS_MenuButton_Normal / _Hovered / _Disabled` | `UCommonTextStyle` | 버튼 라벨 16pt, 명도 0.78 / 1.0 / 0.32 |
 | `BS_MenuTab` | `UCommonButtonStyle` | 브러시 전부 투명 — 선택은 **밑줄 위젯**과 텍스트 명도로만 |
-| `BS_MenuAction` | `UCommonButtonStyle` | Equip/Merge/Drop. 둥근 사각(반경 5) + 흰 테두리, 상태별 알파. 좌우 패딩 10·MinWidth 100 — 한 줄에 2개가 들어가도록 맞춘 값(§5.3) |
+| `BS_MenuAction` | `UCommonButtonStyle` | Equip/Merge/Drop. 둥근 사각(반경 5) + 흰 테두리, 상태별 알파. 좌우 패딩 10·MinWidth 100 (§5.3) |
 | `BS_MenuItemCell` | `UCommonButtonStyle` | 인벤토리 셀. 반경 3, 선택·호버 시 테두리 2px |
 
 ⚠️ **밑줄은 `UCommonButtonStyle`로 만들 수 없다.** 버튼 브러시는 버튼 지오메트리 **전체**를 채우므로
@@ -634,22 +584,21 @@ Back이 `Esc`, 탭 이동이 `Q`/`E`라 겹치지 않는다. 폰의 `SpaceBar`(�
 
 ⚠️ 브러시의 둥근 모서리는 텍스처 없이 `DrawAs=RoundedBox` + `outlineSettings.roundingType=FixedRadius`로 만든다.
 
-⚠️ **같은 함정을 힌트 바에서도 밟았다.** `ULNPMenuHintBarWidget`에 글리프/라벨 텍스트 스타일과 간격을
-`EditDefaultsOnly` 프로퍼티로 뒀더니, `WBP_LNPMenuRoot`에 배치된 인스턴스가 CDO 값을 **상속하지 않고**
-배치 시점 값을 직렬화해 들고 있었다(실측: CDO를 40으로 바꿔도 인스턴스는 18 유지). `EditDefaultsOnly`면
-그 인스턴스가 디자이너 디테일 패널에 나오지도 않아 **에디터에서 고칠 방법이 아예 없다.**
-지금은 그 프로퍼티들을 전부 없애고 시각 요소를 엔트리 WBP와 `UDynamicEntryBox`로 옮겨 문제를 소멸시켰다(§3.5).
+⚠️ **시각 프로퍼티를 C++ 위젯의 `EditDefaultsOnly`로 두면 배치 인스턴스에서 고칠 수 없다.** 힌트 바에
+글리프/라벨 텍스트 스타일과 간격을 그렇게 뒀더니, `WBP_LNPMenuRoot`에 배치된 인스턴스가 CDO 값을
+**상속하지 않고** 배치 시점 값을 직렬화해 들고 있었다(실측: CDO를 40으로 바꿔도 인스턴스는 18 유지).
+게다가 `EditDefaultsOnly`면 그 인스턴스가 디자이너 디테일 패널에 나오지도 않아 **에디터에서 고칠 방법이 없다.**
+지금은 시각 요소를 엔트리 WBP와 `UDynamicEntryBox`로 옮겨 문제를 소멸시켰다(§3.5).
 
 ⚠️ **`Style`은 CDO에 넣어도 이미 배치된 인스턴스에는 안 먹는다.** `UCommonButtonBase::Style`은 `EditAnywhere`라,
-위젯을 다른 BP 트리에 배치하는 순간 그 시점 값(대개 `None`)이 **인스턴스에 직렬화**되어 CDO를 덮어쓴다.
-그래서 버튼을 먼저 배치하고 나중에 CDO 스타일을 지정하면 그 인스턴스만 CommonUI 기본 스타일(밝은 회색)로 남는다.
-배치형 버튼(`WBP_ItemDetailPanel`의 Equip/Merge/Drop)은 **인스턴스에도 직접** `Style`을 지정해야 한다.
-반대로 런타임 생성형(탭 버튼·TileView 셀·액션 바 버튼)은 클래스에서 만들어지므로 CDO만으로 충분하다.
+위젯을 다른 BP 트리에 배치하는 순간 그 시점 값(대개 `None`)이 **인스턴스에 직렬화**되어 CDO를 덮어쓴다 —
+먼저 배치하고 나중에 CDO 스타일을 지정하면 그 인스턴스만 CommonUI 기본 스타일(밝은 회색)로 남는다.
+배치형 버튼(`WBP_ItemDetailPanel`의 Equip/Merge/Drop)은 **인스턴스에도 직접** 지정해야 한다.
+런타임 생성형(탭 버튼·TileView 셀)은 클래스에서 만들어지므로 CDO만으로 충분하다.
 
-⚠️ **채움은 흰색이 아니라 검은색 기준으로 만든다.** 패널이 반투명(검정 0.72)이라 그 위에 흰색 알파 채움을 얹으면
-**뒤 월드가 밝을 때(설원 등) 버튼이 하얗게 떠서 라벨이 묻힌다.** 카메라 방향에 따라 보였다 안 보였다 하므로
-원인을 잡기 어렵다. 검정 채움 + 흰 테두리로 두면 배경과 무관하게 대비가 유지된다.
-| `IA_OpenMenu`, `IA_OpenSettings` | InputAction | `IMC_Player`에 등록 |
+⚠️ **채움은 흰색이 아니라 검은색 기준으로 만든다.** 패널이 반투명(검정 0.72)이라 흰색 알파 채움을 얹으면
+**뒤 월드가 밝을 때(설원 등) 버튼이 하얗게 떠서 라벨이 묻히고**, 카메라 방향에 따라 보였다 안 보였다 해서
+원인을 잡기 어렵다. 검정 채움 + 흰 테두리면 배경과 무관하게 대비가 유지된다.
 
 > ⚠️ **TileView가 1열로 늘어서는 함정**: `ItemGrid`가 든 HorizontalBox 슬롯의 Size Rule이 `Automatic`이면
 > TileView는 **희망 너비(= 셀 하나 폭)**만 받아 20개가 세로로 한 줄이 된다. 슬롯을 `Fill`로 두어야
@@ -662,64 +611,27 @@ Back이 `Esc`, 탭 이동이 `Q`/`E`라 겹치지 않는다. 폰의 `SpaceBar`(�
 ## 10. 폐기된 것
 
 - `ULNPInventoryWidget`, `ULNPInventoryEntryWidget` (C++ 삭제 완료)
-- `WBP_Inventory`, `WBP_InventoryEntry`, `WBP_BuffEntry`, `IA_ToggleInventory` (에셋 삭제 필요)
+- `WBP_Inventory`, `WBP_InventoryEntry`, `WBP_BuffEntry`, `IA_ToggleInventory` (에셋 삭제 완료)
 - `UCommonBoundActionBar` 기반 하단 액션 바 — `WBP_LNPMenuRoot`의 `ActionBar` 위젯과
   `WBP_LNPActionBarButton` 에셋 (사유는 §3.3). 대체 = `ULNPMenuHintBarWidget`
 - 콘솔 커맨드 `LNP.Debug.ToggleInventory` → `LNP.Debug.OpenMenu [Tab]` / `LNP.Debug.CloseMenu`
 
-## 11. 검증 현황 (2026-08-07)
+## 11. 검증 현황
 
-✅ **동작 확인 (PIE, 호스트)** — `LNP.Debug.OpenMenu`로 메뉴가 열리고 캐릭터 스탯 탭이 활성화된다
-(첫 진입 규칙 성립). 스탯 리드아웃이 MVVM 바인딩으로 6행 렌더링됨:
+2026-08-07 ~ 08-15 PIE 실측으로 다음이 확인됐다 — 탭 3종 렌더링·전환(선택 탭만 흰 글자 + 밑줄, 배경 블러와
+두 팝업 분리), 첫 진입 = 캐릭터 스탯 탭, 스탯 리드아웃 MVVM 바인딩(당시 6행. 이후 `Max HP`·`Poise Resist`가
+들어와 8행), 키보드 `I`/`O` 토글·`Q`/`E` 탭·화살표·WASD 셀 이동·5열 그리드·Equip/Drop·`Equipped` 전환,
+게임패드 L1/R1 탭·셀 네비게이션·✕ 디테일 진입·○ Grid 복귀와 메뉴 닫기, 힌트 바가 탭과 Grid 상태에 따라
+갈리는 것(빈 인벤토리에서 `Details`·`Move`가 빠지고 버프 만료 순간 실시간으로 줄어든다), 포커스 링이
+첫 셀에 붙고 마우스 클릭에는 안 뜨는 것, 위젯 BP 12종 클린 컴파일.
 
-```
-HP            100 / 100
-Attack        10.00 (10.00 + 0.00)
-Attack Speed   1.00 ( 1.00 + 0.00)
-Defense        0.00 ( 0.00 + 0.00)
-Move Speed     1.00 ( 1.00 + 0.00)
-Loot Speed     1.00 ( 1.00 + 0.00)
-```
+당시 드러난 두 함정은 각각 §3.3(하단 액션 바가 완전히 비어 있었다 → 힌트 바로 교체)과
+§8(`Cannot create action binding` → `DefaultGame.ini` + 에디터 재시작)에 원인과 함께 적어 두었다.
 
-로그: `LogUIActionRouter: Applying input config for leaf-most node [StatsTab]`,
-`InputMode: New (ECommonInputMode::Menu)`.
-
-추가 확인 (에디터 재시작 후):
-- Back 액션 바인딩 오류 해소 — `Cannot create action binding` 로그가 사라짐 (§8의 `DefaultGame.ini` 반영)
-- 상단 탭 바 렌더링 — 배경 블러 + 상·하단 두 팝업 분리 + 탭 전환(`LNP.Debug.OpenMenu Inventory`) 동작
-- 인벤토리 탭: 빈 인벤토리에서 디테일 패널이 "No item" 표시
-- 위젯 BP 12종 전부 클린 컴파일
-
-✅ **스타일 적용 확인 (PIE, 2026-08-07)** — 탭 바가 `CHARACTER / INVENTORY / SETTINGS`로 렌더링되고,
-선택 탭만 흰 글자 + 밑줄, 비선택은 회색. `LNP.Debug.OpenMenu Settings`로 전환 시 밑줄이 따라 이동하며
-컨텐츠도 "Settings - Coming Soon"으로 바뀐다.
-
-✅ **키보드 조작 확인 (사용자 실측)** — `I`/`O` 토글, `Q`/`E` 탭 이동, 화살표·WASD Grid 셀 이동,
-5열 그리드, Equip/Drop 버튼, 장착 시 `Equipped` 전환 모두 정상.
-
-✅ **게임패드 조작 확인 (사용자 실측)** — 탭 L1/R1, Grid 셀 네비게이션, ✕ 디테일 진입,
-○ Grid 복귀·메뉴 닫기 전부 정상. **단 하단 액션 바만 비어 있었다** → §3.3의 원인 진단과 힌트 바 교체로 이어졌다.
-
-✅ **힌트 바 렌더링 확인 (PIE, 키보드)** — 탭에 따라 힌트가 정확히 갈린다:
-
-```
-캐릭터 스탯 탭   : ESC Close                                Q/E Tab
-인벤토리 탭(Grid): ESC Close   ENTER Details   WASD Move    Q/E Tab
-```
-
-기획 §8 표와 일치한다(스탯 탭은 ✕·방향 이동 행이 "—"). 탭 전환 시 즉시 갱신됨.
-
-✅ **키·포커스 조작 확인 (사용자 실측)** — `TriggerClick` 적용 후 Enter/✕로 셀→디테일 진입 정상.
-포커스 링이 키보드·게임패드 양쪽에서 즉시 붙고, Grid↔디테일 전환도 자연스럽다.
-메뉴 첫 오픈에서 첫 셀에 링이 붙는 것, 마우스 클릭 시에는 링이 안 뜨는 것(의도) 확인.
-빈 인벤토리에서 힌트가 `ESC Close · Q/E Tab`으로 줄고 그리드 전체 링이 없는 것,
-버프 만료로 목록이 비는 순간 힌트가 실시간 갱신되는 것까지 확인.
-
-✅ **폰트 폴백 경로 확인** — `/Engine/EngineFonts/Roboto`의 `fallbackTypeface`가
-`Faces/DroidSansFallback`이고 문자 범위 제한이 없다. DroidSansFallback의 cmap에 `○ □ △ ✕ ↑←`가 모두 있다.
-⚠️ 단 폴백 타입페이스에는 **`Regular` 페이스 하나뿐**이라, 글리프 스타일을 `Bold`로 두면
-`○ □ △`(폴백)만 Regular로 나와 `L1 R1`(Roboto Bold)과 굵기가 섞인다.
-그래서 `TS_MenuHintGlyph`는 **Regular 16pt + 흰색**으로 두고 라벨(Regular 14pt, 명도 0.72)과 대비시킨다.
+⚠️ **폰트 폴백 실측** — `/Engine/EngineFonts/Roboto`의 `fallbackTypeface`가 `Faces/DroidSansFallback`이고
+문자 범위 제한이 없어 그 cmap의 `○ □ △ ✕ ↑←`가 전부 렌더된다. 단 폴백 타입페이스에는 **`Regular` 페이스
+하나뿐**이라, 글리프 스타일을 `Bold`로 두면 `○ □ △`(폴백)만 Regular로 나와 `L1 R1`(Roboto Bold)과 굵기가
+섞인다. 그래서 `TS_MenuHintGlyph`는 Regular다.
 
 ## 12. 다국어 (로컬라이제이션)
 
@@ -731,33 +643,43 @@ Loot Speed     1.00 ( 1.00 + 0.00)
   `+LocalizationPaths=%GAMEDIR%Content/Localization/Game`을 갖고 있다
 - 수집: 에디터 `Window > Localization Dashboard > Gather Text`, 또는
   `UnrealEditor-Cmd.exe LootNPop.uproject -run=GatherText -config="Config/Localization/Game.ini"`
-- `Content/Localization/Game/` 이하는 **생성물**이다. 단 `<culture>/Game.archive`(및 추후 `Game.po`)에는
-  번역 결과가 담기므로 커밋 대상이다
-
-✅ **수집 검증 (2026-08-15)** — 34개 항목 수집. 힌트 바 라벨 6종(`Close`/`Back`/`Details`/`Confirm`/`Move`/`Tab`)과
-기존 메뉴 문자열(`CHARACTER`/`INVENTORY`/`SETTINGS`/`Equip`/`Drop`/`Equipped`/`No item`/`Lv. {0}`/`Remaining {0}s`),
-프롬프트 폴백 `F`가 모두 들어왔고 **키 글리프 심볼은 하나도 수집되지 않았다**(의도대로).
-`Content/Localization/Game/{en,ko}/Game.archive`·`Game.locres` 생성 확인.
+- `Content/Localization/Game/` 이하는 **생성물**이다. `.gitignore`가 `.manifest`·`.locmeta`·`.locres`를 빼고
+  **`<culture>/Game.archive`만 추적**한다 — 거기에 번역 결과가 담기기 때문이다(추후 `Game.po`도 같다)
 
 ⚠️ 사용자에게 보이는 문자열은 `NSLOCTEXT("LNPMenu", ...)`로 쓴다. `FText::FromString`은 수집되지 않는다.
 반대로 키 글리프는 번역 대상이 아니므로 **일부러** `FText::FromString`을 쓴다 (§3.4).
 
-⚠️ **`GatherTextFromSource` 스텝은 `IncludePathFilters`가 아니라 `SearchDirectoryPaths`를 읽는다.**
-(실측) 잘못 쓰면 `LogGatherTextFromSourceCommandlet: Warning: No search directory paths in section GatherTextStep0.`
-한 줄만 남기고 소스 문자열을 하나도 수집하지 않은 채 **성공 종료한다.** 에셋 스텝(`GatherTextFromAssets`)은
-`IncludePathFilters`가 맞는 키라 정상적으로 돌기 때문에 매니페스트에 항목이 생기고, 그래서 눈치채기 어렵다.
-`Prepass`에서 `*.cpp = 0 files`가 찍히는지로 확인한다.
+⚠️ **`GatherTextFromSource` 스텝은 `IncludePathFilters`가 아니라 `SearchDirectoryPaths`를 읽는다**(실측).
+잘못 쓰면 `No search directory paths in section GatherTextStep0.` 경고 한 줄만 남기고 소스 문자열을
+하나도 수집하지 않은 채 **성공 종료한다.** 에셋 스텝은 `IncludePathFilters`가 맞는 키라 정상적으로 돌아
+매니페스트에 항목이 생기는 탓에 눈치채기 어렵다. `Prepass`에서 `*.cpp = 0 files`가 찍히는지로 확인한다.
 
-⚠️ 아직 `FText::FromString`으로 남아 있어 번역이 안 되는 곳 2군데:
-`LNPItemDetailPanelWidget.cpp`의 아이템 이름(`Definition->GetName()` 폴백)과
-`LNPStatsViewModel.cpp`의 조립된 리치 텍스트. 아이템 이름은 `ULNPItemDefinition`에 `FText` 표시명을
-추가해야 하고, 스탯 리드아웃은 포맷 문자열 분해가 필요하다.
+**수집 검증 (2026-09-17 재수집)** — 5스텝 완주 71초, **61개 항목**(2026-08-15의 34개에서 +27).
+네임스페이스별로 `LNPMenu` 19 · `LNPStats` 10(스탯 표시명 7종 + 모디파이어 서식 3) ·
+`DT_LNPCommonInputActions` 4 · `LNPHud`·`LNPDeath`·`LNP`·`LNPOctantThemeSampler`·`UMG` 각 1,
+나머지 23은 에셋의 FText(무기·버프 표시명, `YOU DIED` 등)다.
+직전 누락분이 전부 들어왔다 — `Merge ({0}/{1})`·`Max Lv.`·`Lv. {0}/{1}`,
+레벨 배지 서식 변경(`Lv. {0}` → `Lv.{0}`), 그리고 **`LNPStats` 네임스페이스 전체**.
+**키 글리프 심볼은 여전히 하나도 수집되지 않았다** — §3.4의 `FText::FromString` 규약이 지켜지고 있다는 증거다.
+`ko/Game.archive`는 항목만 37→64로 늘고 번역은 0건 그대로다(아직 번역이 없어 잃은 것도 없다).
+
+⚠️ 수집은 **디스크 상태**를 읽는다. 에디터에서 저장하지 않은 위젯 BP 변경은 반영되지 않는다.
+
+⚠️ **커맨드렛은 로그에 `GatherText completed with exit code 0`을 찍고도 프로세스가 `1`로 끝난다**(실측,
+로그에 에러 한 줄도 없음). 성공 판정은 프로세스 종료 코드가 아니라 **그 로그 줄 + 산출물 타임스탬프**로 한다.
+에디터를 열어 둔 채로도 돌아간다(MCP 플러그인의 `HttpListener unable to bind` 경고는 포트 중복이라 무해).
+
+⚠️ 아직 `FText::FromString` 조립이라 번역이 안 되는 곳 둘:
+`LNPStatsViewModel.cpp`의 리치 텍스트 리드아웃(포맷 문자열 분해가 필요하다)과
+`LNPItemDetailPanelWidget.cpp`의 `DetailText`(각 줄은 `LOCTEXT`지만 `\n` 조립이 문자열 단계다).
+아이템 이름은 해소됐다 — `ULNPItemDefinitionBase::DisplayName`(`FText`)을 쓰고, 비었을 때만 에셋명으로 폴백한다.
 
 ## 13. 잔여
 
 - 하단 힌트 바 실기기 검증 — 키보드/게임패드 전환 시 글리프가 즉시 바뀌는지, `○ □ △`가 두부 박스로
   뜨지 않는지, 인벤토리 Grid↔디테일 전환 시 라벨이 따라오는지
-- 인벤토리 실사용 검증 — 아이템 획득 후 Grid 표시, 장착 배지, 버프 잔여시간 카운트다운, Equip/Drop
+- 인벤토리 실사용 검증 — 아이템 획득 후 Grid 표시, 장착·레벨 배지, 버프 잔여시간 카운트다운, Equip/Merge/Drop
 - 2인 PIE에서 일시정지가 걸리지 않는지 확인 (스탠드얼론 전용 규칙)
 - 환경설정 탭 내용
 - 스탯 리드아웃 `C (A × B)` PIE 실측 — 곱연산 버프 중복 시 B가 140→180→220%로 합산되는지
+- `ko/Game.po` 번역 (기반은 다 깔렸고 번역문만 없다)

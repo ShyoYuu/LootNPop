@@ -30,7 +30,8 @@ public:
 	void ToggleLockOn();
 
 	bool IsLockOnActive() const { return LockOnEntity.IsSet(); }
-	/** 락온 대상의 최신 월드 좌표. 락온 중이 아니면 false. (InputCmd로 서버에 실려 근접 보정이 읽는다) */
+	/** 락온 대상의 최신 월드 좌표. 락온 중이 아니면 false.
+	 *  근접 보정은 이 값을 발동 RPC 스냅샷(FLNPMeleeAssistTargetData)으로 받아 읽는다 — InputCmd가 아니다. */
 	bool GetLockOnTargetLocation(FVector& OutLocation) const;
 
 	/** 최대 락온 탐색 거리 */

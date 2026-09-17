@@ -15,8 +15,8 @@ struct FOnAttributeChangeData;
  * 캐릭터 스탯 탭용 MVVM ViewModel.
  *
  * 스탯 리드아웃 전체를 RichText 마크업 문자열 하나(StatsRichText)로 만들어 노출한다.
- * 스탯마다 FieldNotify 프로퍼티를 두면 6행 × 3값 = 18개가 되므로, 색상은 Rich Text
- * Style Set(DT_LNPMenuTextStyles)에 맡기고 ViewModel은 필드 하나만 갱신한다.
+ * 스탯마다 FieldNotify 프로퍼티를 두면 8행(HP + 메타 테이블 7종) × 3값 = 24개가 되므로,
+ * 색상은 Rich Text Style Set(DT_LNPMenuTextStyles)에 맡기고 ViewModel은 필드 하나만 갱신한다.
  *
  * Blueprint 바인딩: CommonRichTextBlock.Text ← Stats_ViewModel.StatsRichText (One Way)
  *

@@ -8,7 +8,10 @@
 
 /**
  * 가드 중 이동 속도를 제한하는 Modifier.
- * ULNPCharacterMovementSettings의 GuardWalkSpeed / GuardAcceleration을 적용한다.
+ * ULNPCharacterMovementSettings의 GuardAcceleration을 적용한다.
+ *
+ * MaxSpeed는 건드리지 않는다 — 이 Modifier가 실어 나르는 것은 사실상 LNP.Mover.IsGuarding 태그이고,
+ * GuardWalkSpeed는 FLNPMoveSpeedModifier가 그 태그를 보고 매 틱 반영한다. (ADS와 동일한 구조)
  */
 USTRUCT(BlueprintType)
 struct FLNPGuardModifier : public FMovementModifierBase

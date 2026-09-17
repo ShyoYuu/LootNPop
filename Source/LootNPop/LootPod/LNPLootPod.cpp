@@ -24,7 +24,7 @@ ALNPLootPod::ALNPLootPod()
 	// 매 프레임 Tick() 호출 설정.
 	PrimaryActorTick.bCanEverTick = true;
 
-	// Actor 복제 (Phase 7 §5.4): PodState·게이지를 근접 클라이언트에 전파한다.
+	// Actor 복제 (Phase 7 이중 복제 — TechDesign_LootPod.md §3.2): PodState·게이지를 근접 클라이언트에 전파한다.
 	// 엔티티 존재·초기 위치는 MassReplication bubble이 전 클라이언트에 담당 (이중 복제).
 	bReplicates = true;
 	SetNetCullDistanceSquared(20000.f * 20000.f);

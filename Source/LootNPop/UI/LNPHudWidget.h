@@ -23,6 +23,9 @@ class ULNPCharacterMoverComponent;
  *  3. AimDot Widget.Visibility   ← HUD_ViewModel.bIsFreeAiming 바인딩
  *  4. 팔레트 LNP UI → LNP Screen Marker 2개를 LockOnMarkerWidget / EnemyHpBarWidget 이름으로 배치
  *     (Is Variable 켜기, Canvas 앵커 (0,0)-(1,1)·오프셋 0)
+ *  5. 팔레트 LNP UI → LNP Radial Cooldown 1개를 DashCooldownWidget 이름으로 배치 (Is Variable 켜기)
+ *
+ * 4·5는 BindWidgetOptional이라 없어도 동작하며, 해당 표시만 조용히 생략된다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPHudWidget : public UUserWidget
@@ -101,7 +104,7 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<ULNPScreenMarkerWidget> EnemyHpBarWidget;
 
-	/** 대시 쿨다운은 "값"이 아니라 "시작됐다"는 이벤트라 ViewModel을 거치지 않는다 (근거는 TechDesign_HUD.md). */
+	/** 대시 쿨다운은 "값"이 아니라 "시작됐다"는 이벤트라 ViewModel을 거치지 않는다 (근거는 TechDesign_HUD.md §9). */
 	void HandleDashExecuted();
 
 	void UpdateLockOnMarker(const APlayerController& PC, const FVector& CameraLocation, const FVector& CameraForward, float ViewportScale);

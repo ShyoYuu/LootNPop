@@ -2,9 +2,9 @@
 
 ## 1. 한눈에 보기
 
-현재 모든 Enemy는 전투 진입(`Confirmed`) 시 예외 없이 High LOD Actor로 승격되어 GAS·몽타주로 싸운다
+원래 모든 Enemy는 전투 진입(`Confirmed`) 시 예외 없이 High LOD Actor로 승격되어 GAS·몽타주로 싸웠다
 (→ [TechDesign_EnemyNPC.md](TechDesign_EnemyNPC.md) §7.2). 이 문서는 **승격을 Config 옵션으로 바꾸고**,
-승격하지 않는 개체가 순수 MassEntity 상태 그대로 기본 공격까지 수행하도록 만드는 설계다.
+승격하지 않는 개체가 순수 MassEntity 상태 그대로 기본 공격까지 수행하게 만든 설계다.
 
 ```
 [기존]  Confirmed ──▶ 무조건 Actor 승격 ──▶ GAS 어빌리티 + 몽타주 + ANS 히트 윈도우
@@ -24,11 +24,11 @@
 | **B. 행동 상태 채널** | 서버 행동 상태를 1바이트로 복제 | 없음 |
 | **C. ISM↔ISKM 하이브리드** | LOD 구간별 인스턴싱 애니메이션 | B (상태가 입력) |
 
-A는 B·C 없이도 "보이지 않지만 실제로 때리는 적"으로 완성되고, B는 C의 입력이 된다.
-이 분리가 곧 단계별 검증 경로다 (§10).
+A는 B·C 없이도 "보이지 않지만 실제로 때리는 적"으로 완성되고, B는 C의 입력이 된다 — 이 분리가 곧
+단계별 검증 경로다 (§10).
 
 **진행 상황 (2026-09-13):** A·B·C 전부 완료 — **Stage 5c(무기 스킨드 메시)까지 완료**, 칼날 아크를 무기 궤적에 맞췄다.
-순수 엔티티는 Idle·Move·Attack·Stagger·Parried·Dying을 모두 재생하고, 남은 것은 손에 든 무기뿐이다.
+순수 엔티티는 검·샷건을 손에 들고 Idle·Move·Attack·Stagger·Parried·Dying을 전부 재생한다. 남은 것은 수치 튜닝뿐이다(§9).
 
 ---
 
@@ -49,16 +49,13 @@ enum class ELNPEnemyCombatMode : uint8
 등급·티어는 **기획 문서와 밸런싱에서만** 쓴다 (→ [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md)).
 근거는 셋이다.
 
-- **등급은 늘어나고 축은 늘어나지 않는다.** 2단계가 3단계·5단계가 되어도 시스템이 가르는 것은 영원히
-  두 값이다. 등급을 코드에 넣으면 등급이 늘 때마다 분기가 늘고, 그 분기 대부분은 같은 코드로 수렴한다.
-- **조합이 어긋난다.** "엘리트인데 PureEntity"(대규모 정예 웨이브)나 "잡몹인데 ActorPromoted"
-  (튜토리얼 1마리)는 기획상 충분히 있을 수 있다. 이름이 모드를 단정하는 순간 코드가 거짓말을 시작한다.
-- **판정이 한 값으로 끝난다.** 슬롯·비주얼·공격 경로가 전부 이 옵션 하나에서 갈리므로,
-  "이 개체가 무엇을 못 하는가"를 다른 데이터를 보지 않고 답할 수 있다.
+- **등급은 늘어나고 축은 늘어나지 않는다.** 2단계가 5단계가 되어도 시스템이 가르는 것은 영원히 두 값이다.
+- **조합이 어긋난다.** "엘리트인데 PureEntity"(대규모 정예 웨이브)나 "잡몹인데 ActorPromoted"(튜토리얼 1마리)는
+  기획상 충분히 있을 수 있다. 이름이 모드를 단정하는 순간 코드가 거짓말을 시작한다.
+- **판정이 한 값으로 끝난다.** 슬롯·비주얼·공격 경로가 전부 이 옵션 하나에서 갈린다.
 
-`bCanPromoteToActor` + `bHasEntityAttack` 같은 bool 두 개로 쪼개지 않는 이유도 같다.
-bool 조합은 정의되지 않은 상태(둘 다 false / 둘 다 true)를 만들고, 그 상태의 동작을 문서로 방어해야 한다.
-enum에는 그 자리가 없다.
+`bCanPromoteToActor` + `bHasEntityAttack`처럼 bool 둘로 쪼개지 않는 이유도 같다 — bool 조합은
+정의되지 않은 상태(둘 다 false / 둘 다 true)를 만들고, 그 동작을 문서로 방어해야 한다.
 
 ---
 
@@ -70,13 +67,13 @@ enum에는 그 자리가 없다.
 | 자산 | 왜 그대로 쓰이는가 |
 |:---|:---|
 | `FLNPWeaponTraceFragment` | 칼날을 **좌표 4점 + 반경**으로만 표현한다. 본·소켓·몽타주 참조가 하나도 없다 |
-| `ULNPWeaponTraceHitDetectionProcessor` | `AttackerQuery`가 요구하는 것은 `FLNPWeaponTraceFragment` **하나뿐**이다 (`LNPWeaponTraceProcessors.cpp:221`) |
+| `ULNPWeaponTraceHitDetectionProcessor` | `AttackerQuery`가 요구하는 것은 `FLNPWeaponTraceFragment` **하나뿐**이다 |
 | `JudgePlayerTarget` 람다 | 패링→가드→피격 2단계 판정. 근접 PvP와 Enemy→Player가 이미 같은 코드를 탄다 |
 | 발사체 스폰 | `ULNPAbility_RangedAttack::SpawnProjectile`은 껍데기만 어빌리티고 내용은 전부 `PushCommand<FMassCommandBuildEntityWithSharedFragments<…>>`다 |
-| `FLNPApplyDamageGECommand` | **피격자 ASC만** 필요하다. 공격자 Actor는 없어도 된다 (`LNPHitDetectionShared.h:348`) |
+| `FLNPApplyDamageGECommand` | **피격자 ASC만** 필요하다. 공격자 Actor는 없어도 된다. 연출은 나중에 `FLNPImpactCueCommand`로 떼어냈다(§4.7) |
 | `AimPitchMin/MaxDeg` | 이미 Actor가 아니라 Config에 있다 — *"Mass 프로세서는 Actor가 없는 Low LOD에서도 돌아야 한다"* 는 이유로 |
 | `FLNPPoiseFragment` | 경직은 원래 엔티티 단위 값이다. 순수 엔티티도 그대로 굳는다 |
-| `FLNPEnemyMovementConfig::AttackInterval` | **선언만 되어 있고 소비처가 0이다.** 엔티티 공격 쿨다운이 이 필드의 첫 소비처가 된다 |
+| `FLNPEnemyMovementConfig::AttackInterval` | 당시 **선언만 있고 소비처가 0이었다.** 엔티티 공격 쿨다운이 이 필드의 유일한 소비처다 |
 
 ---
 
@@ -88,36 +85,22 @@ enum에는 그 자리가 없다.
 새로 정의할 것은 지금까지 *어빌리티 인스턴스가* 공급하던 값뿐이다 — 즉 기존 `FLNPProjectileSharedFragment`를
 채우던 두 출처(WeaponData / Ability) 중 **Ability 쪽만 대체**한다.
 
-```cpp
-USTRUCT()
-struct FLNPEntityAttackConfig
-{
-    // 공용
-    float Damage            = 10.f;
-    float PoiseDamage       = 10.f;
-    float KnockbackStrength = 0.f;
-    float ParryRadius       = 40.f;   // 무기 HitRadius보다 크게 — 2단계 판정 규약
-    float WindupTime        = 0.35f;  // 선딜: 플레이어가 읽고 반응할 구간
-    float ActiveTime        = 0.20f;  // 근접 = 칼날 생존 구간 / 원거리 = 미사용
-    float RecoveryTime      = 0.45f;  // 후딜
+`FLNPEntityAttackConfig`(`Enemy/LNPEnemyConfig.h`). 괄호 안은 C++ 기본값이고, 실제 값은 에셋에 있다(§6.5).
 
-    // 근접 전용 — 가상 칼날 (§4.3)
-    float PivotForward = 20.f;   // 캡슐 중심 기준 회전 원점
-    float PivotUp      = 30.f;
-    float BladeInner   = 30.f;   // 원점~칼밑
-    float BladeOuter   = 140.f;  // 원점~칼끝 (시각 무기 길이와 반드시 일치시킬 것)
-    float ArcStartDeg  = -70.f;  // 로컬 Yaw 시작
-    float ArcEndDeg    =  70.f;  // 로컬 Yaw 끝
-    float ArcPitchDeg  = -15.f;  // 내려베기 기울기
-    float HitRadius    = 12.f;
-
-    // 원거리 전용
-    FVector MuzzleLocalOffset = FVector(40.f, 0.f, 10.f);  // 캡슐 중심 기준 로컬
-};
-```
+| 필드 | 규약 |
+|:---|:---|
+| `Damage` (10) · `PoiseDamage` (10) · `KnockbackStrength` (0) | **원거리는 펠릿 하나당**이다 — 산탄은 명중 수만큼 곱해져 들어간다 |
+| `ParryRadius` (40) | ⚠️ 무기 `HitRadius`보다 크게 — 2단계 판정(패링 먼저)의 규약 |
+| `WindupTime` (0.35) · `ActiveTime` (0.20) · `RecoveryTime` (0.45) | 선딜(플레이어가 읽고 반응할 구간) / 근접 칼날 생존 구간, **원거리는 미사용** / 후딜 |
+| `ParriedRecoveryTime` (1.05) | 패링당해 자세가 무너진 채 남는 시간. ⚠️ 위상과 달리 **파생시킬 원본이 없어** 재생할 모션 길이와 손으로 맞춘다 — 서버는 어떤 시퀀스가 도는지 모르고, 알게 하면 애니가 게임플레이를 정하게 된다 |
+| `PivotForward` (20) · `PivotUp` (30) · `BladeInner` (30) · `BladeOuter` (140) · `HitRadius` (12) | 가상 칼날 치수, 전부 **캡슐 중심 기준 로컬**. ⚠️ `BladeOuter`는 시각 무기 길이와 반드시 일치시킬 것(§6.3) |
+| `ArcStartDeg` (-70) · `ArcEndDeg` (70) · `ArcPitchStartDeg` (-15) · `ArcPitchEndDeg` (-15) | 스윙 아크. **Yaw와 Pitch 둘 다** Active 구간에서 보간된다(§6.5). Pitch는 접평면 기준 **양수가 위** |
+| `MuzzleLocalOffset` ((40,0,10)) | 총구(캡슐 중심 로컬 X=전방·Y=우측·Z=위) |
+| `AimTargetUpOffset` (0) | 조준점 상하 보정. 캡슐 중심이 **골반** 높이라 가슴께를 겨누려면 양수(§4.4) |
+| `HexRingCount` (0) · `HexStepDegrees` (5) | 산탄 배치 — 0=단발, 1=7발, 2=19발(§4.4) |
 
 공격 간격은 새 필드를 만들지 않고 **`FLNPEnemyMovementConfig::AttackInterval`을 쓴다.**
-지금 아무도 읽지 않는 필드이고, 의미가 정확히 일치한다.
+당시 아무도 읽지 않던 필드이고, 의미가 정확히 일치한다.
 
 ### 4.2 상태 기계 — 판단은 Task가, 진행은 Processor가
 
@@ -127,13 +110,20 @@ struct FLNPEntityAttackFragment : public FMassFragment
 {
     ELNPEntityAttackPhase Phase = None;   // None / Windup / Active / Recovery
     float             PhaseElapsed      = 0.f;
-    float             CooldownRemaining = 0.f;
+    float             CooldownRemaining = 0.f;   // AttackInterval에서 채워진다
     FMassEntityHandle SwingEntity;        // 근접: 살아 있는 칼날 엔티티
-    uint8             bAttackRequested : 1 = 0;
+    uint8             bAttackRequested : 1 = 0;  // Task가 세우고 프로세서가 소비하는 1회성 요청
+    float             ParriedTimeRemaining = 0.f; // 서버 전용 장부 — 소비처는 ULNPEnemyActionProcessor
 };
 ```
 
-⚠️ **이 프래그먼트는 `ActorPromoted` 개체에도 붙인다.** 모드로 아키타입을 가르지 않는다.
+⚠️ **`ParriedTimeRemaining`은 공격 위상을 끊지 않는다.** 패링 분기가 이미 그 플레이어를 피격 목록에
+올려 두므로 칼날이 남은 Active를 살아도 다시 맞히지 못한다 — 연출만 덮어쓰면 되고, 위상을 건드리면
+쿨다운·스윙 파괴 경로까지 함께 흔들린다.
+
+⚠️ **이 프래그먼트는 `ActorPromoted` 개체에도 붙인다.** 모드로 아키타입을 가르지 않는다
+(`FLNPEnemyActionFragment`·`FMassRepresentationAnimationFragment`도 같다 →
+[TechDesign_EnemyNPC.md](TechDesign_EnemyNPC.md) §2.1).
 
 - StateTree 외부 데이터 핸들이 Optional이 되면 Task 코드에 null 분기가 생긴다.
 - 아키타입이 갈리면 같은 쿼리를 두 벌 유지해야 한다.
@@ -167,8 +157,9 @@ ULNPEntityAttackProcessor  (매 프레임, 서버 전용, Behavior 그룹 이후
 
 매 프레임 (Active 구간, t = PhaseElapsed / ActiveTime)
   Pivot = Center + Fwd*PivotForward + Up*PivotUp
-  θ     = Lerp(ArcStartDeg, ArcEndDeg, t)
-  Dir   = (Fwd*cos θ + Right*sin θ) 를 Right축 기준 ArcPitchDeg 회전
+  θ     = Lerp(ArcStartDeg, ArcEndDeg, t)          Yaw
+  φ     = Lerp(ArcPitchStartDeg, ArcPitchEndDeg, t) Pitch — Yaw와 같은 t로 함께 보간한다
+  Dir   = (Fwd*cos θ + Right*sin θ)*cos φ + Up*sin φ
   Prev ← Curr
   SwordRootCurr = Pivot + Dir * BladeInner
   SwordTipCurr  = Pivot + Dir * BladeOuter
@@ -179,21 +170,20 @@ ULNPEntityAttackProcessor  (매 프레임, 서버 전용, Behavior 그룹 이후
   `TimeToLive` 안전장치는 그대로 살린다 — 프로세서가 종료를 놓쳤을 때의 그물이 된다.
 - 채워야 하는 필드: `InstigatorEntity`(적 엔티티), `InstigatorTeam = Enemy`,
   `InstigatorActor = nullptr`, `bIsLocalInstigator = false`.
-- 기울임은 **고정 Right축 회전이 아니라** 접평면 성분을 Up으로 들어 올려 만든다.
+- 기울임은 **고정 Right축 회전이 아니라** 접평면 성분을 Up으로 들어 올려 만든다(위 식).
   고정 축으로 돌리면 Yaw가 ±90°에 가까울 때 축과 방향이 겹쳐 회전이 사라진다.
+  기저와 이 식은 `Enemy/LNPEntityAttackShared.h`에 있고 **게스트 Ghost 경로가 같은 함수를 부른다.**
 
-**칼날 갱신은 2패스다.** 칼날은 적과 **다른 엔티티**라 서로의 프래그먼트에 임의 접근할 수 없다.
-`ULNPWeaponTraceHitDetectionProcessor`가 쓰는 Pass 1/2/3과 같은 형태로 나눈다 —
+**칼날 갱신은 2패스다.** 칼날은 적과 **다른 엔티티**라 서로의 프래그먼트에 임의 접근할 수 없다 —
 Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2(칼날 쿼리)가 핸들로 매칭해 기록한다.
 
 ⚠️ **칼날 마커는 Tag가 아니라 Fragment(`FLNPEntitySwingFragment`)다.** 칼날은
 `FMassCommandBuildEntity` 한 번으로 만들어야 하는데, `BuildEntity`와 `AddTag`를 같은 배치에 디퍼드하면
-아키타입 전환 타이밍 때문에 쿼리가 그 엔티티를 못 찾는다 (`UANS_LNPMeleeHitWindow`가 같은 이유로 Tag를 쓰지 않는다).
+아키타입 전환 타이밍 때문에 쿼리가 그 엔티티를 못 찾는다(`UANS_LNPMeleeHitWindow`도 같은 이유로 Tag를 안 쓴다).
 
-**이 접근을 택하는 이유는 패링이다.** 순간 원뿔·구 판정으로 때우면 `JudgePlayerTarget`의
-패링→가드→피격 2단계를 새로 짜야 하고, 그것은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.5가
-"PvP 쪽에만 패링 체크가 누락됐던" 사고로 못 박아 둔 **분기 복제 함정을 그대로 재생산**하는 일이다.
-플레이어가 순수 엔티티의 공격도 패링할 수 있어야 전투 규칙에 구멍이 생기지 않는다.
+**이 접근을 택하는 이유는 패링이다.** 순간 원뿔·구 판정으로 때우면 `JudgePlayerTarget`의 패링→가드→피격
+2단계를 새로 짜야 하고, 그것은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.5가
+"PvP 쪽에만 패링 체크가 누락됐던" 사고로 못 박아 둔 **분기 복제 함정의 재생산**이다.
 
 ⚠️ **서버에서만 스윙 엔티티를 만든다.** ANS는 서버·클라 양쪽에서 만들지만 그것은 로컬 공격자
 예측용이다. 엔티티 NPC는 예측 대상이 아니다.
@@ -215,48 +205,62 @@ Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2
 즉시 파괴된다(적 팀 발사체는 적에게 피해를 주지 않고 소멸만 한다).
 
 **조준점은 타겟의 캡슐 중심 + `AimTargetUpOffset`이다.** 캡슐 중심은 반높이(96cm) 지점이라 서 있는
-캐릭터에서는 **골반**이고, 그대로 겨누면 "하반신을 노리는" 그림이 된다. 가슴께를 겨누려면 양수를 준다.
-좌표 규약이 캡슐 중심이라는 사실과 "사람이 겨누는 곳"이 다르다는 점을 데이터로 흡수하는 자리다.
+캐릭터에서는 **골반**이고, 그대로 겨누면 "하반신을 노리는" 그림이 된다. 좌표 규약이 캡슐 중심이라는
+사실과 "사람이 겨누는 곳"이 다르다는 점을 데이터로 흡수하는 자리다.
 
-**산탄은 어빌리티와 공식을 공유한다.** `HexRingCount`(0=단발, 1=7발, 2=19발)·`HexStepDegrees`를 Config에
-두고, 배치는 `LNPSpread::BuildHexRingDirections`(`HitDetection/LNPSpreadPattern.h`)를 부른다 —
-`ULNPAbility_RangedSpreadAttack`이 쓰던 코드를 그대로 꺼낸 것이다. 복제했다면 중력 Up 기준 직교 기저와
-짐벌 수렴 방지(→ [TechDesign_Ability.md](TechDesign_Ability.md) §3.2)가 한쪽에만 남는 사고를 재생산했을 것이다.
+**산탄은 어빌리티와 공식을 공유한다.** 배치는 `LNPSpread::BuildHexRingDirections`
+(`HitDetection/LNPSpreadPattern.h`)를 부른다 — `ULNPAbility_RangedSpreadAttack`이 쓰던 코드를 그대로
+꺼낸 것이다. 복제했다면 중력 Up 기준 직교 기저와 짐벌 수렴 방지(→
+[TechDesign_Ability.md](TechDesign_Ability.md) §3.2)가 한쪽에만 남는 사고를 재생산했을 것이다.
 
-⚠️ **SalvoID는 한 번의 발사에 하나다.** Ghost 식별자가 `{PlayerID, KeyOrSalvo, SpawnIndex}` 조합이라
-펠릿마다 키를 새로 발급하면 같은 발사의 펠릿들이 서로 다른 발사로 잡힌다. 펠릿 구분은 `SpawnIndex`가 맡는다.
+발사 식별자(SalvoID)의 규약은 게스트 Ghost와 짝이므로 §5.4에 모아 두었다.
 
-예측 사격(리드샷)은 하지 않는다 — 파라미터가 하나 늘고(예측 계수), 순수 엔티티는 정의상
-"단순한 기본 공격"이 담당 영역이다. 필요해지면 그때는 `ActorPromoted` 쪽 어빌리티의 일이다.
+예측 사격(리드샷)은 하지 않는다 — 파라미터가 하나 늘고, 순수 엔티티의 담당 영역은 정의상
+"단순한 기본 공격"이다. 필요해지면 `ActorPromoted` 쪽 어빌리티의 일이 된다.
 
 ### 4.5 중단 규칙
 
 | 사유 | 처리 |
 |:---|:---|
-| 경직(`bIsGroggy`) 진입 | 위상 즉시 `None`, 칼날 엔티티 파괴, 쿨다운 유지 |
-| 사망(`FLNPEnemyDyingTag`) | 동일 + 행동 상태 `Dying` |
-| 타겟 상실 / 사거리 이탈 | Windup 중이면 취소, Active 이후면 끝까지 재생 (헛스윙이 자연스럽다) |
+| 경직·다운 진입 | 위상 즉시 `None`, 칼날 엔티티 파괴, 쿨다운 유지 |
+| 사망(`FLNPEnemyDyingTag`) | 쿼리에서 통째로 빠진다 — 칼날은 `TimeToLive`가 회수한다(아래) |
+| 타겟 상실 | Windup 중이면 취소, Active 이후면 끝까지 재생 (헛스윙이 자연스럽다) |
+
+⚠️ **경직 판별은 `bIsGroggy || ImmunityTimeRemaining > 0`이다.** 다운은 게이지와 플래그를 0으로
+내리므로 `bIsGroggy`만 보면 **다운 중인 적이 그대로 공격한다.** `ULNPEnemyActionProcessor`도 같은 규약을
+쓴다 (→ [TechDesign_Poise.md](TechDesign_Poise.md) §5).
+
+⚠️ **사망은 `DestroySwing`을 타지 않는다.** `AttackQuery`가 `FLNPEnemyDyingTag`를 `None`으로 걸고 있어
+죽는 순간 그 엔티티가 쿼리에서 빠지기 때문이다. 남은 칼날은 좌표가 갱신되지 않은 채
+`TimeToLive`(= `ActiveTime + 0.2초`)까지 제자리에 살아 있다가 회수된다 — 여기서 `TimeToLive`는
+그물이 아니라 **1차 방어선이다.**
 
 ⚠️ **경직 취소 경로를 반드시 새로 넣어야 한다.** Actor 경로에서는 `FLNPStaggerCommand::Run`이
-`CancelCurrentAttackAbility()`로 끊지만(`LNPPoiseTypes.cpp:92`), 그 함수는 *"Actor가 없는 Low LOD 적은
-연출도 어빌리티도 없다"* 며 조기 반환한다(69~73행). **끊어 줄 주체가 아무도 없다.**
+`CancelCurrentAttackAbility()`로 끊지만, 그 경로는 *"Actor가 없는 Low LOD 적은 연출도 어빌리티도 없다"* 며
+피격자 Actor 캐스트에서 조기 반환한다(`LNPPoiseTypes.cpp`). **끊어 줄 주체가 아무도 없다.**
 `ULNPEntityAttackProcessor`가 매 프레임 `FLNPPoiseFragment`를 읽어 스스로 끊는 것이 유일한 경로다.
 
 ### 4.6 감수하는 한계
 
-| 항목 | 내용 | 판단 근거 |
-|:---|:---|:---|
-| 동적 수치 | 버프·디버프로 공격력·경직력이 변하지 않는다 | 적 GAS 버프는 원래 백로그 항목이다(Actor 풀 반납 시 GE 소멸). 여기서 새로 생기는 제약이 아니다 |
-| 콤보 | 콤보 인덱스별 경직력·넉백 없음 | 단타 고정 |
-| Lag Compensation | `RewindSeconds = 0` | **이미 그렇다** — 공격자에 PlayerState가 없으면 되감기가 0이다 (`LNPWeaponTraceProcessors.cpp:467` 주석) |
-| 클라이언트 예측 | 없음 | 예측은 로컬 공격자 전용 개념 |
-| 공격자 HitStop | 없음 | 순수 엔티티가 *때릴* 때 자기 재생을 멈추는 것은 없다. 반대로 **플레이어가 순수 엔티티를 때릴 때의 HitStop은 정상 동작한다** (§4.7) |
-| **적이 피격자인 방향** | ✅ **해소(2026-09-07)** | 이전 판은 *"임팩트 VFX와 넉백이 피격자 Actor/ASC를 경유하는데 순수 엔티티에는 둘 다 없다"* 며 미해결로 두었다. 연출을 데미지에서 떼어내고 전송 ASC만 폴백하는 것으로 해결했다 → §4.7 |
-| 피격 리액션 몽타주 | 없음 | **Stagger 시퀀스로 대체 — 실제로 그렇게 동작한다**(§4.7). ⚠️ 2026-09-07까지 이 칸은 거짓이었다: Stagger 액션은 그로기에서만 나갔고 평타 피격에는 아무 반응이 없었다 |
-| 그로기와 다운의 연출 구분 | 없음 | 둘 다 `Action::Stagger` 하나로 나간다. `ActorPromoted`는 Light/Heavy 몽타주가 갈린다. 행동 상태 값을 하나 더 쓸 만큼 그림 차이가 크지 않다고 판단 — 필요해지면 3비트에 두 자리가 남아 있다 |
-| 랙돌 | 없음 | 사망 시퀀스 + **사망 팝**으로 대체. 물리로 무너지는 몸은 없지만 "맞고 날아간다"는 그림은 남는다 (§8) |
-| 월드 HP Bar | ✅ **해소(2026-09-09)** | 월드 스페이스가 아니라 **스크린 스페이스 커스텀 Slate 마커**로 붙었다. 승격 Actor의 옛 `UWidgetComponent` 경로는 함께 삭제 (→ [TechDesign_HUD.md](TechDesign_HUD.md) §11) |
-| 상하 조준 **자세** | 복제되지 않는다 | **발사 방향은 클램프된 Pitch를 쓴다**(§4.4) — 없는 것은 게스트가 보는 *자세*뿐이다. 필요하면 상태 채널에 추가 (§5.5) |
+| 항목 | 판단 근거 |
+|:---|:---|
+| 동적 수치 — 버프·디버프로 공격력·경직력이 변하지 않는다 | 적 GAS 버프는 원래 백로그 항목이다(Actor 풀 반납 시 GE 소멸). 여기서 새로 생기는 제약이 아니다 |
+| 콤보 — 콤보 인덱스별 경직력·넉백 없음 | 단타 고정 |
+| Lag Compensation — `RewindSeconds = 0` | **이미 그렇다** — 공격자에 PlayerController가 없으면 되감기가 0이다 |
+| 클라이언트 예측 없음 | 예측은 로컬 공격자 전용 개념 |
+| 공격자 HitStop 없음 | 순수 엔티티가 *때릴* 때 자기 재생을 멈추는 것은 없다. 반대로 **플레이어가 순수 엔티티를 때릴 때의 HitStop은 정상 동작한다**(§4.7) |
+| 그로기와 다운의 연출 구분 없음 | 둘 다 `Action::Stagger` 하나로 나간다(`ActorPromoted`는 Light/Heavy 몽타주가 갈린다). 행동 상태 값을 하나 더 쓸 만큼 그림 차이가 크지 않다 — 필요해지면 3비트에 두 자리가 남아 있다 |
+| 랙돌 없음 | 사망 시퀀스 + **사망 팝**으로 대체 (§8) |
+| 상하 조준 **자세**가 복제되지 않는다 | **발사 방향은 클램프된 Pitch를 쓴다**(§4.4) — 없는 것은 게스트가 보는 *자세*뿐이다 (§5.5) |
+
+**해소된 칸 셋** — 셋 다 한동안 "감수하는 한계"로 잘못 남아 있었다.
+
+- **적이 피격자인 방향** ✅ 2026-09-07. 이전 판은 *"임팩트 VFX와 넉백이 피격자 Actor/ASC를 경유하는데
+  순수 엔티티에는 둘 다 없다"* 며 미해결로 두었다 → §4.7.
+- **피격 리액션** ✅ 2026-09-07. Stagger 시퀀스로 재활용한다. ⚠️ 그 전까지 Stagger 액션은
+  그로기에서만 나갔고 **평타 피격에는 아무 반응이 없었다** → §4.7.
+- **월드 HP Bar** ✅ 2026-09-09. 월드 스페이스가 아니라 **스크린 스페이스 커스텀 Slate 마커**로 붙었고,
+  승격 Actor의 옛 `UWidgetComponent` 경로는 함께 삭제했다 (→ [TechDesign_HUD.md](TechDesign_HUD.md) §11).
 
 ### 4.7 적이 피격자인 방향 (2026-09-07 해소)
 
@@ -283,9 +287,15 @@ Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2
 재활용하기로 한 모션이 이미 그 값에 매핑돼 있어 새 값이 그림을 하나도 늘리지 않고,
 3비트에 두 자리밖에 남지 않았다 (§5.2).
 
-우선순위는 `Dying > Parried > 그로기 > **Attack** > 플린치 > Move/Idle`이다.
-⚠️ **공격보다 아래에 둔다** — 칼날이 살아 있는데 몸만 움찔하면 *"칼이 안 닿았는데 맞는다"* 가 된다.
+우선순위는 `Dying > Parried > 그로기 > **Attack** > 플린치 > Move/Idle`이다
+(`ULNPEnemyActionProcessor`). 순서 자체가 두 군데서 규약이다.
+
+⚠️ **플린치를 공격보다 아래에 둔다** — 칼날이 살아 있는데 몸만 움찔하면 *"칼이 안 닿았는데 맞는다"* 가 된다.
 경직이 공격 위에 있는 것과는 이유가 반대다(그쪽은 실제로 공격을 끊는다).
+
+⚠️ **`Parried`를 그로기보다 먼저 본다.** 패링은 `ApplyParryBreak`으로 경직도 함께 밀어 넣으므로
+(→ [TechDesign_Poise.md](TechDesign_Poise.md) §8), 순서를 바꾸면 `Parried`가 **한 번도 나가지 못하고**
+전부 `Stagger`로 덮인다.
 
 ⚠️ **이미 플린치 중이면 타이머만 갱신하고 상태는 건드리지 않는다.** 매 탄마다 전이를 새로 만들면
 ① 모션이 끊겨 보이고 ② `Stagger`는 `IsOneShot`이라 복제 갱신 주기 게이트를 우회하므로(§5.6)
@@ -311,26 +321,27 @@ Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2
 ### 5.1 왜 이벤트가 아니라 상태인가
 
 순수 엔티티의 공격은 **서버 전용 Mass 로직**이고, 트랙 B 이전의 복제 페이로드
-`FLNPReplicatedAgent`에는 **위치 + 접평면 Yaw**뿐이었다.
-클라이언트는 이 개체가 공격 중인지 알 방법이 없다.
+`FLNPReplicatedAgent`에는 **위치 + 접평면 Yaw**뿐이었다 — 클라이언트는 이 개체가 공격 중인지 알 방법이 없다.
 
-⚠️ 이 문서가 원래 적었던 "EnemyTypeTag(스폰 1회)"는 페이로드에 없다 — 타입 식별은 베이스
-`FReplicatedAgentBase`의 `TemplateID`가 이미 하고 있고, 그것으로 스폰된 클라이언트 엔티티는
-**서버와 같은 템플릿**이라 `FLNPEnemySharedFragment`(→ `ULNPEnemyConfig`)를 그대로 갖는다.
-즉 게스트는 태그로 Config를 되찾을 필요 없이 **직접 읽는다**(§5.4가 그 위에 선다).
+발사 이벤트를 Multicast RPC로 쏘는 방법도 있지만 택하지 않는다 — **RPC 수 = 발사 수 × 개체 수**가 되어
+"순수 엔티티는 다수"라는 이 설계의 전제와 충돌한다. **다수를 전제하는 순간 연출은 개별 이벤트가 아니라
+상태 복제로 흘러야 한다.**
 
-발사 이벤트를 `ALNPGameState` Multicast RPC로 쏘는 방법도 있지만 택하지 않는다 —
-**RPC 수 = 발사 수 × 개체 수**가 되어, "순수 엔티티는 다수"라는 이 설계의 전제 자체와 충돌한다.
-다수를 전제하는 순간 연출은 개별 이벤트가 아니라 **상태 복제**로 흘러야 한다.
+⚠️ 페이로드에 타입 식별자를 따로 넣지 않는다 — 베이스 `FReplicatedAgentBase`의 `TemplateID`가 이미 하고
+있고, 그것으로 스폰된 클라이언트 엔티티는 **서버와 같은 템플릿**이라 `FLNPEnemySharedFragment`
+(→ `ULNPEnemyConfig`)를 그대로 갖는다. 게스트는 Config를 **직접 읽는다**(§5.4가 그 위에 선다).
 
 ### 5.2 인코딩 — 1바이트
 
 ```cpp
-UENUM() enum class ELNPEnemyAction : uint8 { Idle, Move, Attack, Stagger, Dying };  // 3비트
+// 3비트 = 상한 8값. 현재 6값이라 **두 자리 남았다.** ⚠️ 새 값은 반드시 끝에 붙인다 —
+// 중간에 끼우면 저장된 ULNPEnemyConfig::ActionSequences(enum 키 맵)가 조용히 다른 행동을 가리킨다.
+UENUM() enum class ELNPEnemyAction : uint8 { Idle, Move, Attack, Stagger, Dying, Parried };
 
-// FLNPReplicatedAgent에 추가되는 필드 — 둘 다 PositionYaw의 **형제 멤버**다
+// FLNPReplicatedAgent에 추가된 필드 — 셋 다 PositionYaw의 **형제 멤버**다
 uint8 ActionAndSeq;   // 상태 3비트 + 전이 카운터 5비트
 int8  AimPitch;       // 발사 순간의 상하 조준각 (∓90도를 int8 전 범위에, 약 0.7도) — §5.4
+uint8 HealthPct;      // HP 비율 0~255 — 나중에 들어왔다 (§5.5)
 ```
 
 ⚠️ **형제 멤버로 두는 것이 인코딩의 절반이다.** `FStructNetSerializer::SerializeDelta`가
@@ -347,12 +358,9 @@ int8  AimPitch;       // 발사 순간의 상하 조준각 (∓90도를 int8 전
   (엔진의 같은 계열 구조체 `FReplicatedAgentPathData`는 `ActionServerStartTime`을 double로 싣는다.
   거기서 갈라지는 지점이다.)
 
-**실측 (2026-09-05, 2P `-game`, 밀도 1, 게스트 전투 17.5분):** 이 채널이 갱신 **횟수**를 늘린 몫은
-**1.39%**(행동 변화만이 사유였던 Dirty의 비율), 일회성 전이의 게이트 우회는 **0.24회/s = Dirty의 1.0%**다.
-피크 송신은 22.1 KB/s로 상한(150,000)의 15%, 포화 0건.
-
+**실측 결과는 §10.2에 모아 두었다.** 요지 하나만 여기 남긴다 —
 ⚠️ **이 문서가 처음 적었던 "약 8% 증가"는 갱신 1회당 페이로드 기준이고 델타 압축을 빼고 센 값이다.**
-총 송신량에 대한 실제 영향은 그보다 두 자릿수 배 작다. **비용은 바이트 수가 아니라 갱신 횟수로 세야 한다.**
+실제 영향은 그보다 두 자릿수 배 작았다. **비용은 바이트 수가 아니라 갱신 횟수로 세야 한다.**
 
 ### 5.3 서버·클라 단일 소비 경로
 
@@ -362,14 +370,15 @@ int8  AimPitch;       // 발사 순간의 상하 조준각 (∓90도를 int8 전
 [클라]  버블 핸들러가 수신값을 같은 Fragment에 기록 ──▶ 애니 프로세서가 읽음
 ```
 
-애니 프로세서에는 **서버/클라 분기가 없다.** 이 프로젝트의 다른 Mass 프로세서가 전부
-`LNPMass::IsClientWorld()` 가드로 시작하는 것과 대조되는 유일한 예외이고, 그것이 의도다 —
-"양쪽이 같은 입력을 보고 같은 그림을 그린다"가 이 채널의 존재 이유이기 때문이다.
+애니 프로세서에는 **넷 모드별 값 분기가 없다.** 호스트용·게스트용 경로를 따로 두지 않는다는 뜻이고,
+그것이 의도다 — "양쪽이 같은 입력을 보고 같은 그림을 그린다"가 이 채널의 존재 이유다.
+다만 *실행 여부*는 가른다: `ExecutionFlags = Client | Standalone`이라 그리지 않는 데디 서버에서는
+아예 돌지 않는다(엔진의 소비 프로세서도 같은 플래그다). 서버 전용 판정 프로세서들이
+`LNPMass::IsClientWorld()` 가드로 시작하는 것과 정확히 반대 방향이다.
 
-⚠️ `FLNPMassFastArrayItem`의 주석 규약 — *"멤버가 바뀌면 반드시 Dirty 표시할 것"* 을 지켜야 한다.
-`TemplateID`는 스폰 1회지만 이 필드는 **매 갱신 대상**이다. `AddEntityCallback`(스폰 시드)과
-`ModifyEntityCallback`(갱신) **양쪽 모두** 채워야 한다 — 시드를 빠뜨리면 버블에 새로 들어온 적이
-실제 상태와 무관하게 `Idle`로 시작해 다음 전이까지 굳어 보인다.
+⚠️ **`AddEntityCallback`(스폰 시드)과 `ModifyEntityCallback`(갱신) 양쪽 모두 채워야 한다.**
+시드를 빠뜨리면 버블에 새로 들어온 적이 실제 상태와 무관하게 `Idle`로 시작해 다음 전이까지 굳어 보인다.
+(`FLNPMassFastArrayItem`의 규약 — *"멤버가 바뀌면 반드시 Dirty 표시할 것"*.)
 
 ⚠️ **리플리케이터 쿼리에 넣을 때 이 프래그먼트는 반드시 Optional이다.**
 `ULNPMassReplicator::AddRequirements`는 세 리플리케이터가 공유하므로, 하드 요구로 넣으면
@@ -402,20 +411,21 @@ Attack -> Attack (Seq+1)   발사. 서버가 이 순간 조준각을 확정해 �
 `ULNPGhostProjectileSubsystem`은 `FLNPGhostKey{PlayerID, KeyOrSalvo, SpawnIndex}` **정확 일치**로만
 고스트를 파괴한다. 서버가 쓰던 `IssueServerSalvoID()`는 전역 카운터라 복제되지 않으므로, 게스트가
 임의 키로 만들면 **서버 임팩트 큐가 그 고스트를 못 찾아 관통해 날아간다.**
-→ 양쪽이 `f(FMassNetworkID, 전이 카운터)`로 같은 키를 스스로 유도한다. **추가 대역폭 0.**
+→ 양쪽이 `f(FMassNetworkID, 전이 카운터)`로 같은 키를 스스로 유도한다(`LNPEntityAttackShared.h`). **추가 대역폭 0.**
 
+- **키는 한 번의 발사에 하나다.** 펠릿마다 새로 발급하면 같은 발사의 펠릿이 서로 다른 발사로 잡힌다 —
+  펠릿 구분은 `SpawnIndex`가 맡는다.
 - 키 공간이 겹치면 안 된다 — 예측 키는 0~65535, `IssueServerSalvoID`는 65536부터이므로 **음수 영역**을 쓴다.
 - `FMassNetworkIDFragment`는 복제 트레이트가 붙이므로 **Standalone에는 없다.** 그때만 전역 카운터로 돌아간다.
 
-**감수하는 오차 (전부 코스메틱 — 임팩트 지점은 서버 큐가 확정한다):**
+**감수하는 오차 (전부 코스메틱 — 임팩트 지점은 서버 큐가 확정한다):** 발사 지점과 수평 방향이
+게스트 보간값이라 미세하게 어긋나고(`Multicast_SpawnGhostProjectiles`가 이미 감수하는 것과 같은 종류),
+발사 시각을 싣지 않아 Dead Reckoning 업스트림 지연이 0이다(수신자 RTT/2만 적용).
 
-- 발사 지점과 수평 방향이 미세하게 어긋난다(게스트는 보간값, 서버는 실측값).
-  `ALNPCharacterBase::Multicast_SpawnGhostProjectiles`가 이미 감수하는 것과 같은 종류다.
-- 발사 시각을 싣지 않으므로 Dead Reckoning의 업스트림 지연은 0이다(수신자 RTT/2만 적용된다).
 - ⚠️ **총구는 조준각과 무관한 고정 오프셋이다**(캡슐 중심 기준). 캡슐 중심이 골반 높이라 총구는
   허리쯤이고, 조준 자세가 없는 ISM 상태에서는 **위로 쏘면 하반신에서, 아래로 쏘면 상반신에서**
-  나오는 것처럼 읽힌다(2026-09-05 관찰). 스폰 지점이 실제로 움직이는 것은 아니며 —
-  총구 높이는 데이터(`MuzzleLocalOffset.Z`)로, 나머지는 트랙 C의 조준 자세로 해소된다.
+  나오는 것처럼 읽힌다(2026-09-05 관찰). 스폰 지점이 실제로 움직이는 것은 아니다 —
+  총구 높이는 `MuzzleLocalOffset.Z`로, 나머지는 트랙 C의 조준 자세로 해소된다.
 
 ### 5.5 무엇을 넣지 않는가 (지금은)
 
@@ -439,8 +449,9 @@ Attack -> Attack (Seq+1)   발사. 서버가 이 순간 조준각을 확정해 �
 
 **해법 — 일회성 전이만 게이트를 우회한다 (채택, 2026-09-05).**
 
-`Attack`·`Stagger`·`Dying` **진입**은 `UpdateInterval` 게이트를 건너뛰고 즉시 Dirty를 건다.
-`Idle <-> Move`는 게이트를 그대로 탄다.
+`Attack`·`Stagger`·`Parried`·`Dying` **진입**은 `UpdateInterval` 게이트를 건너뛰고 즉시 Dirty를 건다.
+`Idle <-> Move`는 게이트를 그대로 탄다. 판별 원본은 `FLNPEnemyActionFragment::IsOneShot()` 하나이며,
+ISKM의 Loop/Clamp도 같은 함수에서 파생한다(§6.4).
 
 ⚠️ **전이 전부를 우회시키면 안 된다.** 루프 상태는 늦게 도착해도 그림이 같은 반면,
 멈췄다 걷기를 반복하는 배회 개체는 `Idle <-> Move` 전이를 초당 여러 번 만들어 갱신 수를
@@ -450,10 +461,9 @@ Attack -> Attack (Seq+1)   발사. 서버가 이 순간 조준각을 확정해 �
 이 데드밴드는 연출 장치이자 대역폭 장치다 — 실측에서 개체당 전이가 **중앙값 0.26회/s
 (최대 0.31, 연속 전이 간격 중앙값 3.03초)** 로 억제됐다.
 
-**실측 결과:** 게이트 우회는 **0.24회/s = 전체 Dirty의 1.0%**. 감수하기로 했던 스킵은 남지만
-(두 전이가 한 갱신에 뭉치면 그 발사의 고스트를 건너뛴다) 체감 문제로 보고되지 않았다.
-
-⚠️ **타임스탬프를 추가하는 방향으로는 가지 않는다** — 대역폭이 늘고 스킵 문제는 그대로 남는다.
+감수하기로 했던 스킵은 남지만(두 전이가 한 갱신에 뭉치면 그 발사의 고스트를 건너뛴다)
+체감 문제로 보고되지 않았다. ⚠️ **타임스탬프를 추가하는 방향으로는 가지 않는다** — 대역폭이
+늘고 스킵 문제는 그대로 남는다.
 
 ---
 
@@ -461,7 +471,7 @@ Attack -> Attack (Seq+1)   발사. 서버가 이 순간 조준각을 확정해 �
 
 ### 6.1 엔진 기반 (UE 5.8)
 
-ISM(정적 메시 인스턴싱) 자체로는 스켈레탈 애니메이션이 불가능하다. 그러나 **5.8의 MassRepresentation은
+ISM만으로는 스켈레탈 애니메이션이 불가능하다. 그러나 **5.8의 MassRepresentation은
 `SkinnedMeshInstance`를 정식 표현 타입으로 갖고 있다.**
 
 | 요소 | 클래스 / 구조체 |
@@ -475,26 +485,21 @@ ISM(정적 메시 인스턴싱) 자체로는 스켈레탈 애니메이션이 불
 | 소비 프로세서 | `UMassConsumeInstancedSkinnedMeshAnimationProcessor` (PrePhysics · `Representation` 그룹 · `Client\|Standalone`) |
 | 백엔드 | `UInstancedSkinnedMeshComponent` + `UAnimSequenceTransformProviderData` (GPU 전용) |
 
-프로세서가 채워 넣는 값은 이것뿐이다:
-
-```cpp
-FAnimSequenceTrackAutoPlayData { SequenceIndex, Position, PlayRate, BlendTime, LoopMode }
-```
-
+프로세서가 채워 넣는 값은 `FAnimSequenceTrackAutoPlayData`의 다섯 필드뿐이다 —
+`SequenceIndex` · `Position` · `PlayRate` · `BlendTime` · `LoopMode`.
 `BlendTime`이 있으므로 Idle ↔ Move ↔ Attack 전환에 블렌드까지 걸린다.
 우리가 만든 것은 `ULNPEnemyAnimationProcessor` 하나 — **행동 상태 → `SequenceIndex` 매핑**이다.
 
 ⚠️ **`FMassRepresentationAnimationFragment`는 엔진 트레이트가 붙여 주지 않는다.**
 `UMassVisualizationTrait::BuildTemplate`은 `FMassRepresentationLODFragment`까지만 넣는데, 소비 프로세서는
 이 프래그먼트를 **필수 요구**로 건다. 안 붙이면 그 쿼리가 **아무 엔티티도 매칭하지 않아** 경고 하나 없이
-그냥 안 움직인다. 엔진의 유일한 선례도 트레이트가 직접 붙이는 방식이다(`MetaHumanMassCrowdVisualizationTrait`).
-그래서 `ULNPEnemyTrait::BuildTemplate`이 `CombatMode`와 무관하게 전원에게 붙인다.
+그냥 안 움직인다(엔진의 유일한 선례 `MetaHumanMassCrowdVisualizationTrait`도 직접 붙인다).
+그래서 `ULNPEnemyTrait::BuildTemplate`이 `CombatMode`와 무관하게 **전원에게** 붙인다.
 
-⚠️ **엔진은 `SequenceIndex`가 바뀔 때만 트랙을 다시 앵커링한다**
-(`MassVisualizationComponent`의 `GetSequenceIndex(...) != AnimData.SequenceIndex` 분기).
-같은 인덱스를 계속 실어도 재생이 처음부터 다시 돌지 않는다 — 매 프레임 같은 값을 써도 안전하다는 뜻이면서,
-**중간 상태 없이 같은 행동을 반복하는 채널을 나중에 추가하면 그 반복이 안 보인다**는 뜻이기도 하다.
-지금은 공격이 반드시 다른 상태를 경유해 재진입하므로(§5.3의 전이 규약) 걸리지 않는다.
+⚠️ **엔진은 `SequenceIndex`가 바뀔 때만 트랙을 다시 앵커링한다**(`MassVisualizationComponent`).
+매 프레임 같은 값을 써도 안전하다는 뜻이면서, **중간 상태 없이 같은 행동을 반복하는 채널을 나중에
+추가하면 그 반복이 안 보인다**는 뜻이기도 하다. 지금은 공격이 반드시 다른 상태를 경유해 재진입하므로
+(§5.3의 전이 규약) 걸리지 않는다.
 
 ### 6.2 유의도 구간 분배
 
@@ -505,38 +510,35 @@ FAnimSequenceTrackAutoPlayData { SequenceIndex, Position, PlayRate, BlendTime, L
 | Low | ISM | 점처럼 보이는 거리에서 스키닝 비용을 낼 이유가 없다 |
 | Off | 없음 | `ULNPEnemyTrait::ReplicationCullDistance`와 값을 맞출 것 (기존 규칙) |
 
-**이 분배는 코드가 아니라 데이터로 조정되는데, 손잡이가 둘이다** — ISM/ISKM/Actor 중 무엇으로 그릴지는
-`Params.LODRepresentation[EMassLOD]`가 정하고, 한 표현 안에서 어떤 메시 항목을 쓸지는 각 항목의
-`MinLODSignificance`/`MaxLODSignificance`가 정한다.
+**이 분배는 코드가 아니라 데이터로 조정되고, 손잡이가 둘이다** — 무엇으로 그릴지는
+`Params.LODRepresentation[EMassLOD]`가, 한 표현 안에서 어떤 메시 항목을 쓸지는 항목별
+`Min/MaxLODSignificance`가 정한다.
 
 실제 구성(2026-09-06, `DA_EnemyEntityConfig_PureEntity_*`): `LODRepresentation = [ISKM, ISKM, ISM, None]`.
 Medium을 별도 항목으로 가르지 않았다 — ISM 쪽이 이미 `bCastShadows = false`라 ISKM도 같게 두었고,
-따라서 지금은 유의도 범위 하나(0~Max)로 전 구간을 덮는 메시 항목 하나뿐이다. 그림자를 켜게 되면
-그때 항목을 둘로 갈라 범위를 나누면 된다.
+지금은 유의도 범위 하나(0~Max)로 전 구간을 덮는 메시 항목 하나뿐이다. 그림자를 켜면 그때 둘로 가른다.
 
 ⚠️ **Low를 ISM으로 남긴 것은 대조군을 겸한다.** ISKM이 안 보일 때 "멀어지면 보인다"가 곧
 "렌더 경로 문제이지 엔티티 문제가 아니다"의 증거가 된다 — 5a에서 실제로 그렇게 썼다.
 
 ⚠️ **`PureEntity`용 EntityConfig는 `LODRepresentation`에서 Actor 단계를 없애고 템플릿 Actor를 비워야 한다.**
-`ULNPEnemyLODOverrideProcessor`가 High 강제를 건너뛰어도, 거리가 가까우면 거리 기반 LOD가
-자연히 High가 되고 표현 매핑에 Actor가 있으면 그대로 스폰된다. **모드 enum과 표현 매핑이 어긋나면
-"승격 안 하기로 한 개체가 가까이 가니까 Actor가 된다"** — 실제로 밟았다(2026-09-05).
-단일 진실은 enum이고, EntityConfig는 그 모드에서 실제로 쓸 비주얼을 정의할 뿐이다.
-어긋남은 `ULNPEnemyTrait::ValidateTemplate`이 **양방향으로** 경고한다(`PureEntity`인데 Actor가 남았다 /
-`ActorPromoted`인데 Actor가 없다). 경고만 남기고 `false`는 돌려주지 않는다 — 어긋남은 고쳐야 할 설정이지
-스폰을 막을 사유가 아니다. 트레이트는 `GetTypedOuter<UMassEntityConfigAsset>()`로 소유 Config를 얻어
-부모 체인의 `UMassVisualizationTrait::Params`를 읽는다(`BuildContext`의 템플릿 데이터는 protected다).
+`ULNPEnemyLODOverrideProcessor`가 High 강제를 건너뛰어도, 가까우면 거리 기반 LOD가 자연히 High가 되고
+표현 매핑에 Actor가 있으면 그대로 스폰된다 — **"승격 안 하기로 한 개체가 가까이 가니까 Actor가 된다"** 를
+실제로 밟았다(2026-09-05). 단일 진실은 enum이고 EntityConfig는 그 모드에서 쓸 비주얼만 정의한다.
+어긋남은 `ULNPEnemyTrait::ValidateTemplate`이 **양방향으로** 경고한다(PureEntity인데 Actor가 남았다 /
+ActorPromoted인데 Actor가 없다). `false`는 돌려주지 않는다 — 어긋남은 고쳐야 할 설정이지 스폰을 막을
+사유가 아니다. (트레이트는 `GetTypedOuter<UMassEntityConfigAsset>()`로 부모 체인의
+`UMassVisualizationTrait::Params`를 읽는다. `BuildContext`의 템플릿 데이터가 protected이기 때문이다.)
 
-⚠️ **차단을 코드로 강제하려던 접근은 폐기했다.** LOD 값을 "Actor를 쓰지 않는 첫 단계"까지 눌러
-덮어쓰는 방식을 먼저 시도했는데, **`FMassRepresentationLODFragment::LOD`는 표현뿐 아니라 유의도·틱
-레이트까지 정하는 값**이라 표현 하나를 막으려고 나머지까지 끌어내리게 된다. `MassCrowdVisualizationTrait`이
-이미 "LOD 단계별로 무엇으로 그릴지"를 데이터로 갖고 있으므로, 그 위에서 싸우지 말고 **그 트레이트에게
-시키는 것**이 맞다. 코드는 "전투로 LOD를 끌어올리지 않는다"까지만 한다.
+⚠️ **차단을 코드로 강제하려던 접근은 폐기했다.** LOD 값을 "Actor를 쓰지 않는 첫 단계"까지 눌러쓰는
+방식을 먼저 시도했는데, **`FMassRepresentationLODFragment::LOD`는 표현뿐 아니라 유의도·틱 레이트까지
+정하는 값**이라 표현 하나를 막으려고 나머지까지 끌어내리게 된다. 코드는 "전투로 LOD를 끌어올리지
+않는다"까지만 하고, 무엇으로 그릴지는 이미 그것을 데이터로 갖고 있는 트레이트에게 맡긴다.
 
 ### 6.3 무기 — 손 본 웨이팅 스킨드 메시
 
 ISKM에는 소켓 본 어태치가 없다. 대신 `Desc.Meshes`가 배열이고, 항목마다 ISKM 컴포넌트가 하나씩 생성되어
-**동일 트랜스폼·동일 애니 재생 상태**를 받는다 (`MassVisualizationComponent.cpp:1047`).
+**동일 트랜스폼·동일 애니 재생 상태**를 받는다 (`MassVisualizationComponent`).
 
 그러므로 무기를 **같은 스켈레톤의 손 본에 100% 웨이팅한 스킨드 에셋**으로 만들어 두 번째 항목으로 등록하면
 GPU 스키닝이 무기를 손 위치로 옮겨 준다 — 엔진의 모듈러 캐릭터 방식과 같은 원리다.
@@ -564,86 +566,61 @@ GPU 스키닝이 무기를 손 위치로 옮겨 준다 — 엔진의 모듈러 �
 - 세트를 나누는 대가는 ISKM 컴포넌트 수다 — 프로바이더가 Desc 해시에 들어가므로 몸통이 같은 메시여도
   세트마다 컴포넌트가 따로 생긴다.
 
-**롱소드**
+두 무기 모두 스켈레톤은 `SK_UEFN_Mannequin`(88본, 마네킹과 **본 배열이 인덱스까지 동일**),
+웨이팅은 **`weapon_r` 100%**(소켓이 아니라 **본**), 빌드 세팅은 `bOptimizeForInstancing`,
+소스 FBX는 `Art/Meshes/SKM_*_UEFN.fbx`(에셋의 `AssetImportData`가 가리켜 에디터 Reimport가 동작한다).
 
-| 항목 | 값 |
-|:---|:---|
-| 무기 메시 | `/Game/Weapons/LongSword/Mesh/SKM_LongSword_UEFN` — 68정점, LOD 1, `bOptimizeForInstancing` |
-| 스켈레톤 | `SK_UEFN_Mannequin` (88본, 마네킹과 **본 배열이 인덱스까지 동일**) |
-| 웨이팅 본 | **`weapon_r`** 100% — 소켓이 아니라 **본**이다 |
-| 정점 배치 | `VS_LongSword`의 실제 어태치 값 — `weapon_r` 로컬 위치 `(-5, 4, 2)`, 회전 `FRotator(P18, Y92, R-17)` |
-| 프로바이더 | `/Game/Enemy/ASTP_Enemy_UEFN_Sword_Weapon` (`SkinnedAsset` = 위 메시, 시퀀스는 `ASL_Enemy_UEFN_Sword` 공유) |
-| 등록 | `DA_EnemyEntityConfig_PureEntity_Melee01`의 `SkinnedMeshInstanceDesc.Meshes[1]` |
-| 원본 형상 | `SKM_LongSword` — 실린더를 늘린 임시 에셋. 전 면 스무스 셰이딩이 정상이다 |
-| 소스 FBX | `Art/Meshes/SKM_LongSword_UEFN.fbx` — 에셋의 `AssetImportData`가 이 경로를 가리켜 에디터 Reimport가 동작한다 |
-| 칼 치수 | 레퍼런스 포즈에서 그립(`weapon_r`)→칼끝 **118.4cm**, 폼멜 쪽 **31cm** |
+| 항목 | 롱소드 | 샷건 |
+|:---|:---|:---|
+| 메시 | `/Game/Weapons/LongSword/Mesh/SKM_LongSword_UEFN` (68정점) | `/Game/Weapons/Shotgun/Mesh/SKM_Shotgun_UEFN` (16,099정점) |
+| 정점 배치 | `VS_LongSword`의 실제 어태치 값 — `weapon_r` 로컬 `(-5, 4, 2)` / `FRotator(P18, Y92, R-17)` | `VS_Shotgun` — `(0, 0, 0)` / `FRotator(P0, Y90, R-4)` |
+| 등록 | `DA_EnemyEntityConfig_PureEntity_Melee01`의 `Meshes[1]` | `..._Ranged01`의 `Meshes[1]` |
+| 비고 | 원본 `SKM_LongSword`는 실린더를 늘린 임시 에셋(전 면 스무스가 정상). 그립→칼끝 **118.4cm**, 폼멜 쪽 31cm | 머티리얼 `MI_Weapon_Shotgun` — 부모 `M_Weapon`에 `bUsedWithInstancedSkinnedMesh` 필수(§6.7) |
 
-**샷건**
-
-| 항목 | 값 |
-|:---|:---|
-| 무기 메시 | `/Game/Weapons/Shotgun/Mesh/SKM_Shotgun_UEFN` — 16,099정점, LOD 1, `bOptimizeForInstancing` |
-| 정점 배치 | `VS_Shotgun` — `weapon_r` 로컬 위치 `(0, 0, 0)`, 회전 `FRotator(P0, Y90, R-4)` |
-| 머티리얼 | `MI_Weapon_Shotgun` — 부모 `M_Weapon`에 `bUsedWithInstancedSkinnedMesh` 필수(§6.7) |
-| 부품 본 | 원본의 Slide·Trigger·Magazine 등 부품 본은 전부 `weapon_r`로 합쳤다 — **부품 움직임은 포기**한다 |
-| 소스 FBX | `Art/Meshes/SKM_Shotgun_UEFN.fbx` |
-
-- ISKM은 **마네킹 본의 구운 트랜스폼만** 재생하므로 무기 자체의 본을 구동할 방법이 없다. 부품 움직임이 필요한
-  거리는 Actor 승격 구간이 담당한다.
-- 원본 FBX는 `Root` 본에 Z 90° 회전이 있고 메시가 역회전을 들고 있다. 컴포넌트 로컬 정점은
-  `inv(EMPTY.world) @ mesh.world @ co`로 뽑는다(롱소드와 같은 기준이라 결과가 일관된다).
+- ⚠️ **부품 본은 전부 `weapon_r`로 합쳤다 — 부품 움직임은 포기한다.** ISKM은 **마네킹 본의 구운 트랜스폼만**
+  재생하므로 무기 자체의 본을 구동할 방법이 없다. 부품이 필요한 거리는 Actor 승격 구간이 담당한다.
+- 컴포넌트 로컬 정점은 `inv(EMPTY.world) @ mesh.world @ co`로 뽑는다(두 무기가 같은 기준이라 결과가 일관된다).
 - **비대칭 무기로 좌표 변환이 검증됐다.** 롱소드는 원통이라 축 회전이 틀려도 드러나지 않았는데, 샷건은 PIE에서
   방향과 왼손 위치(펌프 부근)가 맞았다 — 본 로컬 `diag(1,-1,1)` 규약이 롤까지 옳다는 뜻이다.
-
-`hand_r`에 웨이팅해도 된다 — 스킨드 메시에서는 **정점 위치 자체가 고정 오프셋**이라 칼이 손목으로 올라가지
-않는다(손목으로 올라가는 것은 메시 원점이 본 원점에 붙는 소켓 어태치의 증상이다). 플레이어 칼과 같은 기준이라
-그립 비교가 쉬워서 `weapon_r`을 쓴다.
+- `hand_r`에 웨이팅해도 된다 — 스킨드 메시는 **정점 위치 자체가 고정 오프셋**이라 칼이 손목으로 올라가지
+  않는다(그건 소켓 어태치의 증상이다). 플레이어 칼과 같은 기준이라 그립 비교가 쉬워서 `weapon_r`을 쓴다.
 
 ##### ⚠️ 프로바이더는 메시마다 하나씩, 시퀀스 배열은 몸통과 똑같이
 
 애니 재생 상태(시퀀스 인덱스·시간)는 항목들이 공유하지만, `TransformProvider`는 항목별로 설정되고
-(`MassVisualizationComponent.cpp:1323`) **자기 메시에 바인딩되어 있어야** 한다:
-
-```cpp
-// AnimSequenceTransformProviderData.cpp:468  UAnimSequenceTransformProviderData::IsValidFor()
-if (SkinnedAsset != ExtensionProxy->GetSkinnedAsset())
-{
-    UE_LOGF(... "doesn't match SkinnedAsset on InstancedSkinnedMesh" ...);
-    return false;   // 등록 거부 → 그 메시는 레퍼런스 포즈로 굳는다
-}
-```
+**자기 메시에 바인딩되어 있어야** 한다 — `UAnimSequenceTransformProviderData::IsValidFor()`가
+`SkinnedAsset` 불일치를 등록 거부로 처리하고, 거부당한 메시는 **레퍼런스 포즈로 굳는다**
+(로그는 `doesn't match SkinnedAsset on InstancedSkinnedMesh` 한 줄뿐이다).
 
 무기용 ASTP는 **몸통 ASTP를 복제해 `SkinnedAsset`만 바꾼다.** 새로 만들면 §6.4의 인덱스를 손으로 맞춰야 하고,
 빈 `Sequence` 항목을 한 순간이라도 두면 에디터가 죽는다(§6.7).
 
-✅ **이 동기화는 이제 `UAnimSequenceTransformProviderSequenceList`(ASL)가 한다** (2026-09-13). 시퀀스 배열을 무기 세트별 ASL 하나에 두고 몸통·무기 ASTP가 `SequenceList`로 참조한다 — ASL을 편집하면 `PostEditChangeProperty`가 참조하는 모든 프로바이더에 배열을 밀어 넣고, 프로바이더 `PostLoad`도 ASL에서 다시 복사한다. ASL은 EditorOnly라 런타임 비용이 없다. 아래 사고는 ASL 도입 전 기록이다.
+✅ **시퀀스 배열 동기화는 `UAnimSequenceTransformProviderSequenceList`(ASL)가 한다** (2026-09-13).
+배열을 무기 세트별 ASL 하나에 두고 몸통·무기 ASTP가 `SequenceList`로 참조한다 — ASL을 편집하면
+`PostEditChangeProperty`가 참조하는 모든 프로바이더에 배열을 밀어 넣고, 프로바이더 `PostLoad`도 ASL에서
+다시 복사한다. ASL은 EditorOnly라 런타임 비용이 없다.
 
-⚠️ **몸통 ASTP의 시퀀스를 바꾸면 무기 ASTP도 똑같이 바꿔야 한다.** 인덱스가 어긋나도 에러·경고가 전혀 없고,
-몸과 칼이 **서로 다른 클립을 재생하며 조용히 따로 논다.** 2026-09-13에 Idle/Run을 교체한 뒤 칼 ASTP만
-옛 클립을 들고 있어 "Attack에서는 맞는데 Idle·Run에서만 칼이 손에서 떨어지는" 증상으로 실제로 밟았다.
-`weapon_r` 본을 의심하기 전에 두 ASTP의 `sequences`부터 대조할 것.
+⚠️ **ASL을 도입한 이유:** 그전에는 몸통 ASTP의 시퀀스를 바꾸면 무기 ASTP도 손으로 맞춰야 했고,
+어긋나도 에러·경고가 **전혀 없이** 몸과 칼이 서로 다른 클립을 재생했다. 2026-09-13에 Idle/Run을 교체한 뒤
+"Attack에서는 맞는데 Idle·Run에서만 칼이 손에서 떨어지는" 증상으로 실제로 밟았다 — **`weapon_r` 본을
+의심하기 전에 두 프로바이더의 시퀀스 배열부터 대조할 것.**
 
 ##### ⚠️ 한때 "ISKM에서 렌더되지 않는다"고 잘못 결론 냈다 (2026-09-12)
 
-무기 단독 항목도, 몸통 병합 메시도 **ISM 구간과 Actor 구간에서는 보이는데 ISKM 구간에서만 투명**해졌다.
-ISKM 경로(프로바이더·LOD·BoneMap·`MaxBoneInfluences`·PhysicsAsset·머티리얼·바운드…)를 열 가지 넘게
-배제하다 "원인 미상"으로 트랙을 접었는데, **진짜 원인은 메시의 바인드 포즈였다** — 애니메이션이 걸리는
-순간 스키닝 행렬이 틀어져 메시가 터진다. ISM은 스키닝을 안 하고 Actor는 원본 마네킹 메시를 그리니
-그쪽에서만 보였던 것이다. 레퍼런스 포즈로 그리는 썸네일도 멀쩡해서 잡히지 않았다.
-(처음 "칼이 손에 안 붙고 제자리에 떠 있던" 것도 프로바이더 불일치로 **애니가 아예 안 걸려서** 보였던 것이다.)
+**증상:** 무기 메시가 ISM 구간과 Actor 구간에서는 보이는데 ISKM 구간에서만 투명했다.
+**원인:** ISKM이 아니라 **메시의 바인드 포즈**였다(아래 규약의 ①·② 위반) — 애니메이션이 걸리는 순간
+스키닝 행렬이 틀어져 메시가 터진다. ISM은 스키닝을 안 하고 Actor는 원본 마네킹 메시를 그리니 그쪽에서만
+보였고, 레퍼런스 포즈로 그리는 썸네일도 멀쩡해 ISKM 경로를 열 가지 넘게 배제하며 하루를 버렸다.
 
 > **판별은 메시 에디터에서 `Preview Animation` 한 번이면 끝난다.** 애니를 고르는 순간 메시가 사라지면
 > 바인드 포즈 문제다. **ISKM에 등록하기 전에 반드시 이것부터 확인할 것.**
-
-원인은 아래 규약의 ①·②를 어긴 것이었다.
 
 ##### DCC 왕복 규약 — 좌표·스케일·바인드 포즈 (2026-09-12~13 실측)
 
 추측으로 유도하려 들면 하루가 사라진다. **여기 적힌 값과 절차를 그대로 쓸 것.**
 
-**좌표.** 블렌더 FBX 임포터는 기본 축(`primary='Y'`, `secondary='X'`)에서 **본 보정 행렬을 만들지 않는다**
-(`bone_correction_matrix = None`, `io_scene_fbx/import_fbx.py`). 흔히 기대하는 "FBX X축 → 블렌더 Y축"
-재정렬이 일어나지 않으므로, 남는 차이는 UE FBX 익스포터의 축 반전 하나뿐이다.
+**좌표.** 블렌더 FBX 임포터는 기본 축에서 **본 보정 행렬을 만들지 않는다**(`bone_correction_matrix = None`).
+흔히 기대하는 "FBX X축 → 블렌더 Y축" 재정렬이 없으므로, 남는 차이는 UE FBX 익스포터의 축 반전 하나뿐이다.
 
 | 대상 | 변환 |
 |:---|:---|
@@ -653,7 +630,7 @@ ISKM 경로(프로바이더·LOD·BoneMap·`MaxBoneInfluences`·PhysicsAsset·�
 반전 축을 가르는 검증은 에셋 안에 있다. `palm_r_Socket`은 `hand_r` 로컬 **(-7.5, +2, 0)** 인데 블렌더에서 잰
 `weapon_r`의 같은 본 로컬 Y는 **-3.41** 이다 — 손바닥과 그립점이 반대쪽일 수는 없다. (손끝 방향이 본 `-X`인
 것도 이 소켓으로 안다. UE 마네킹의 손 본은 X축이 자식 방향이 **아니다.**)
-UE 로테이터는 `FRotationMatrix` 순서로 조립한 뒤 `T · L · T⁻¹`(T = 위 본 로컬 반전)로 켤레를 취해 본 행렬에 곱한다.
+회전은 `FRotationMatrix` 순서로 조립한 뒤 `T · L · T⁻¹`(T = 위 본 로컬 반전)로 켤레를 취한다.
 
 **절차.**
 
@@ -685,10 +662,10 @@ UE 로테이터는 `FRotationMatrix` 순서로 조립한 뒤 `T · L · T⁻¹`(
 
 인덱스는 `UAnimSequenceTransformProviderData::Sequences`에 구워진 **배열 순서**다.
 **애니 프로세서에 하드코딩하지 않고** `ULNPEnemyConfig::ActionSequences`(`TMap<ELNPEnemyAction, 인덱스 배열>`)가
-매핑을 갖는다 — 적 타입마다 시퀀스 수와 순서가 다르다. 루프 여부는 데이터로 두지 않는다.
-`FLNPEnemyActionFragment::IsOneShot()`이 "일회성 연출인가"의 단일 원본이고 거기서 파생한다.
+매핑을 갖는다 — 적 타입마다 시퀀스 수와 순서가 다르다. 루프 여부는 데이터로 두지 않고
+`FLNPEnemyActionFragment::IsOneShot()`에서 파생한다(§5.6과 같은 원본).
 
-현재 검 세트 구성 (2026-09-13) — 시퀀스는 **`ASL_Enemy_UEFN_Sword`에서 편집**하고, 참조하는 `ASTP_Enemy_UEFN_Sword_Body`·`_Weapon`이 자동으로 따라간다(§6.3):
+검 세트 (2026-09-13) — 시퀀스는 **`ASL_Enemy_UEFN_Sword`에서 편집**하고 참조하는 ASTP 둘이 따라간다(§6.3):
 
 | Index | 시퀀스 | 길이 | 매핑 |
 |:---:|:---|---:|:---|
@@ -705,8 +682,8 @@ UE 로테이터는 `FRotationMatrix` 순서로 조립한 뒤 `T · L · T⁻¹`(
 경직·사망·패링 셋이 동시에 엉뚱한 모션을 가리켰다. **끝에만 붙이고, 지웠다면 매핑을 전수 재확인한다.**
 미사용 항목을 지우지 않고 남겨 두는 이유가 이것이다.
 
-샷건 세트 구성 (2026-09-13) — `ASL_Enemy_UEFN_Shotgun`. **칸 배치를 검 세트와 같게** 두어 Ranged01의
-`ActionSequences`가 검 세트와 같은 인덱스를 쓴다:
+샷건 세트 (2026-09-13) — `ASL_Enemy_UEFN_Shotgun`. **칸 배치를 검 세트와 같게** 두어 Ranged01의
+`ActionSequences`가 같은 인덱스를 쓴다:
 
 | Index | 시퀀스 | 길이 | 매핑 |
 |:---:|:---|---:|:---|
@@ -722,17 +699,16 @@ UE 로테이터는 `FRotationMatrix` 순서로 조립한 뒤 `T · L · T⁻¹`(
 #### 변형은 연출 다양성이지 재생 보장이 아니다
 
 배열에 인덱스를 둘 이상 두면 `FLNPEnemyActionFragment::Seq`에서 유도해 번갈아 쓴다.
-공격은 반드시 다른 상태를 경유해 재진입하므로(§5.3) **변형이 하나여도 인덱스는 어차피 바뀌고 재생은 보장된다.**
+공격은 반드시 다른 상태를 경유해 재진입하므로(§5.3) **변형이 하나여도 재생은 보장된다.**
 
 ⚠️ **`Seq`를 그대로 나머지 연산하면 안 된다.** 공격 사이의 전이 수가 대체로 짝수(`Move → Attack → Move → Attack`)라
 `Seq % 2`가 한쪽 패리티에 **고정된다** — 2026-09-06 실측에서 "1번만 반복하다 간격이 홀수인 순간 2번으로
 넘어가 다시 고정"으로 나타났다. 곱셈 후 상위 비트를 내려(`(Seq * 2654435761u) >> 13`) 패리티 상관을 끊는다.
 값이 여전히 `Seq`만의 함수라 **서버와 게스트가 같은 변형을 고른다.**
 
-⚠️ **변형끼리 스윙 방향이 다르면 판정과 동시에 맞출 수 없다.** 아크 상수(`ArcStart/End`, `ArcPitchStart/End`)가
-`FLNPEntityAttackConfig`에 **한 벌뿐**이기 때문이다. 아크를 변형 항목으로 옮기는 선택지는 **폐기했다** —
-그러면 "표현이 고른 변형"이 "판정 기하"를 정하게 되어 §6.5가 세운 의존 방향이 뒤집힌다.
-같은 방향으로 베는 변형만 묶거나, 변형을 하나로 두는 것이 맞다(현재는 후자).
+⚠️ **변형끼리 스윙 방향이 다르면 판정과 동시에 맞출 수 없다** — 아크 상수가 `FLNPEntityAttackConfig`에
+**한 벌뿐**이다. 아크를 변형 항목으로 옮기는 선택지는 **폐기했다**: 그러면 "표현이 고른 변형"이 "판정 기하"를
+정하게 되어 §6.5가 세운 의존 방향이 뒤집힌다. 같은 방향으로 베는 변형만 묶거나 변형을 하나로 둔다(현재는 후자).
 
 ### 6.5 애니 타이밍과 판정 타이밍의 단일 정의
 
@@ -773,12 +749,12 @@ RecoveryTime = 44/30 = 1.4667      (30 ~ 74프레임 — 마무리)
 
 #### 아크는 Yaw와 Pitch를 함께 보간한다
 
-`ArcPitchDeg` 하나로 기울기를 고정하면 **일정 기울기의 수평 훑기**밖에 안 되어, 수직에 가까운 사선 베기
-모션과는 궤적 자체가 맞지 않는다. `ArcPitchStartDeg`/`ArcPitchEndDeg`로 쪼개 Yaw와 같은 `T`로 보간한다
+기울기를 상수 하나로 고정하면 **일정 기울기의 수평 훑기**밖에 안 되어, 수직에 가까운 사선 베기 모션과는
+궤적이 맞지 않는다. `ArcPitchStartDeg`/`ArcPitchEndDeg`로 쪼개 Yaw와 같은 `T`로 보간한다
 (둘을 같게 두면 예전 동작 그대로다). 부호 규약은 접평면 기준 **양수가 위**(머리 쪽)다.
 
-⚠️ **애니와 판정을 묶어 주는 것은 위상 합뿐이다.** 접촉 순간·아크 방향·피벗 높이는 §6.5가 파생시키지
-못하므로 디버그 드로우를 보며 손으로 맞춘다(→ §9 #3). AnimNotify가 없다는 제약의 실제 대가가 여기다.
+⚠️ **애니와 판정을 묶어 주는 것은 위상 합뿐이다.** 접촉 순간·아크 방향·피벗 높이는 파생시킬 수 없으므로
+디버그 드로우를 보며 손으로 맞춘다(→ §9 #3). AnimNotify가 없다는 제약의 실제 대가가 여기다.
 
 **롱소드 확정값 (2026-09-13, `DA_Enemy_PureEntity_Melee01`)** — 무기 메시가 붙은 뒤 칼 궤적에 맞췄다:
 
@@ -789,12 +765,11 @@ Pivot   Forward 20 / Up 10          Blade  Inner 30 / Outer 140
 위상    22f / 8f / 44f  (PlayRate 1.0)
 ```
 
-손 궤적만 보고 잡은 1차값(Yaw ±70, Pitch ±55, 위상 20/10/44)은 **실제 칼보다 훨씬 작고 느리게** 휘둘렀다.
-시작을 크게 뒤로 젖히고(범위 140° → 300°), 판정 시작을 2프레임 늦춰 Active를 짧게 해 따라잡게 했으며,
-기울기를 세우고 전체를 앞으로 당겨 맞췄다.
+손 궤적만 보고 잡은 1차값(Yaw ±70, Pitch ±55, 위상 20/10/44)은 **실제 칼보다 훨씬 작고 느렸다.**
+시작을 크게 뒤로 젖히고(범위 140° → 300°), 판정 시작을 2프레임 늦춰 Active를 짧게 해 따라잡게 했다.
 
 - **대조는 `slomo 0.1`로 한다.** 월드 시간 확장이라 애니·칼날 판정·디버그 드로우가 **같은 비율로** 느려져
-  상대 오차가 왜곡되지 않는다. ⚠️ ASTP의 `playRate`를 낮추면 안 된다 — 위 식대로 프로세서가 덮어쓰고,
+  상대 오차가 왜곡되지 않는다. ⚠️ ASTP의 `playRate`를 낮추면 안 된다 — 프로세서가 덮어쓰고,
   먹더라도 애니만 느려져 오차가 실제보다 커 보인다.
 - ⚠️ **Pitch는 ±90°를 넘기지 않는다.** 접평면 기준이라 90°를 넘으면 위를 지나 반대편으로 넘어간다.
 - 판정 시작을 늦출 때는 **Active 종료 시점(Windup+Active)과 위상 합을 유지**하면 끝 타이밍과 PlayRate가
@@ -807,16 +782,15 @@ Pivot   Forward 20 / Up 10          Blade  Inner 30 / Outer 140
 주기    AttackInterval 1.5 → 1.833      (Windup + Recovery + Interval = 2.5초 유지)
 ```
 
-- 원거리는 **Windup이 끝나는 순간 1회 발사하고 Active를 건너뛴다**(`LNPEntityAttackProcessor.cpp:327`).
-  ⚠️ 그런데 PlayRate는 원거리여도 `Windup + Active + Recovery`로 계산하므로(`LNPEnemyAnimationProcessor.cpp:120`),
+- 원거리는 **Windup이 끝나는 순간 1회 발사하고 Active를 건너뛴다**(`ULNPEntityAttackProcessor`).
+  ⚠️ 그런데 PlayRate는 원거리여도 `Windup + Active + Recovery`로 계산하므로(`ULNPEnemyAnimationProcessor`),
   **원거리 `ActiveTime`이 0이 아니면 클립이 그만큼 늘어나 끝이 잘린다.** 원거리는 `ActiveTime = 0`으로 둔다.
 - ⚠️ 쿨다운은 Recovery가 끝날 때 시작하므로 원거리 주기는 `Windup + Recovery + AttackInterval`이다 — **Active는 들어가지
   않는다.** 위상을 바꾸면 이 합이 유지되도록 `AttackInterval`을 보정한다.
 - Lyra 사격 클립은 **발사와 동시에 재생되는 전제의 모션**이라 0프레임 발사가 가장 자연스럽다. 총기 모션은 작아
-  예고 동작 구실을 못 하므로, 원거리 공격은 **발사체를 보고 반응**하게 한다(적 발사체 속도를 낮춰 둔 이유).
-  위 롱소드와 달리 Windup이 예고 창이 아니다.
-- Windup이 0이면 공격을 시작한 틱의 조준 방향으로 쏜다.
-- 발사 위치는 `MuzzleLocalOffset`(캡슐 중심 로컬, X=전방·Y=우측·Z=위)이고 **손 본을 따라가지 않는다.**
+  예고 동작 구실을 못 하므로, 원거리 공격은 **발사체를 보고 반응**하게 한다(적 발사체 속도를 낮춰 둔 이유) —
+  롱소드와 달리 Windup이 예고 창이 아니다. Windup이 0이면 공격을 시작한 틱의 조준 방향으로 쏜다.
+- 발사 위치는 `MuzzleLocalOffset`이고 **손 본을 따라가지 않는다.**
 
 ### 6.6 포즈 연속성은 포기한다
 
@@ -830,7 +804,7 @@ Pivot   Forward 20 / Up 10          Blade  Inner 30 / Outer 140
 
 ### 6.7 에셋 요건 — 전부 실측으로 나온 것들
 
-#### 렌더 요건은 **Nanite가 아니다** (§9 #1 해소)
+#### 렌더 요건은 **Nanite가 아니다**
 
 | # | 증상 | 실제 요건 |
 |:--:|:---|:---|
@@ -855,31 +829,30 @@ Nanite → Static → **GPUSkin** 순으로 떨어지고 `r.GPUSkin.UseSceneExte
 원시 데이터가 전신 포즈이므로 `AdditiveAnimType`을 `AAT_None`으로 바꾸면 그대로 쓸 수 있다.
 `MM_Shotgun_Fire_UEFN`(`AAT_RotationOffsetMeshSpace`)이 그렇게 들어갔다. 바꾼 뒤 썸네일에 전신 포즈가 나오는지 볼 것.
 
-⚠️ **제자리 클립이어야 한다.** 실제 재생 경로(렌더러 `Skinning/AnimSequenceTransformProvider.cpp:438`)가
+⚠️ **제자리 클립이어야 한다.** 실제 재생 경로(렌더러 `Skinning/AnimSequenceTransformProvider`)가
 **메시 본 인덱스 0(`root`)의 이동·회전을 레퍼런스 포즈로 고정**하므로 `root`에 실린 루트 모션은 자동으로 제거된다.
 (컴파일러의 같은 분기는 바운드 계산용이다.)
 덕분에 인플레이스 클립을 따로 구울 필요가 없다는 이점이 있지만, **반대로 변위가 큰 클립은 그 변위를 잃고
 캡슐 위치와 어긋난다.** 좌우로 크게 밀리는 피격 모션을 경직에 썼다가 되돌렸다.
 
 ⚠️ **`root`가 아닌 본에 실린 변위는 남는다 — 리타겟한 로코모션에서 밟는다** (2026-09-13).
-`MM_Rifle_Jog_Fwd_UEFN`이 앞으로 달려갔다가 루프마다 제자리로 튀었다. 원본 Lyra 클립은 전진 이동이 `root`에 있는데
-(`bForceRootLock`, 리타겟 프리뷰는 root lock을 무시한다) 원본 pelvis의 **월드 위치**가 앞으로 가고,
-리타게터의 **Pelvis Motion 옵**이 그 이동을 대상 pelvis에 옮긴다. 렌더러는 `root`만 버리므로 pelvis 이동이 남는다.
+`MM_Rifle_Jog_Fwd_UEFN`이 앞으로 달려갔다가 루프마다 제자리로 튀었다. 원본 Lyra 클립은 전진 이동이
+`root`에 있지만(`bForceRootLock`) 원본 pelvis의 **월드 위치**가 앞으로 가고, 리타게터의 **Pelvis Motion 옵**이
+그 이동을 대상 pelvis에 옮긴다. 렌더러는 `root`만 버리므로 pelvis 이동이 남는다.
 
-- 클립의 `Enable Root Motion` 체크나 리타게터의 **Root Motion 옵은 무관하다** — `root`는 어차피 버려진다(둘 다 바꿔 봐도 그대로였다).
 - **해결: Pelvis Motion 옵의 `Scale Horizontal` = 0으로 리타겟.** 모션매칭용 `RTG_Lyra_to_GASP`를 건드리지 않도록
   복제한 `RTG_Lyra_to_GASP_noRootMotion`에 설정했다. 대가로 좌우 골반 흔들림도 사라지지만 멀리서는 티가 안 난다.
-- ⚠️ `Blend To Source Translation Weights`를 0으로 하는 것은 **효과가 없다** — `Blend To Source Translation`(기본 0)에만 곱해지는 가중치다.
-- 판별: 애니 에디터에서 pelvis를 선택했을 때 **`root` 위를 따라다니며 위아래로만** 움직이면 제자리다. 에디터 프리뷰와 ISKM 결과가 같다.
+- ⚠️ 클립의 `Enable Root Motion`도, 리타게터의 **Root Motion 옵도 무관하다** — `root`는 어차피 버려진다.
+  `Blend To Source Translation Weights`도 **효과가 없다**(기본 0인 값에만 곱해지는 가중치다).
+- 판별: 애니 에디터에서 pelvis가 **`root` 위를 따라다니며 위아래로만** 움직이면 제자리다. 프리뷰와 ISKM 결과가 같다.
 
 #### ASTP 편집 시 에디터가 죽는 조건
 
 ⚠️ **`Sequences` 배열에 `Sequence`가 비어 있는 항목을 한 순간이라도 두면 에디터가 죽는다.**
-`PostEditChangeProperty`가 즉시 비동기 DDC 빌드를 띄우고, `FAnimSequenceTransformProviderBuildAsyncCacheTask::BuildData()`가
-그 항목의 본 배열(크기 0)을 인덱싱하다 assert한다.
+`PostEditChangeProperty`가 즉시 비동기 DDC 빌드를 띄우고, 그 항목의 본 배열(크기 0)을 인덱싱하다 assert한다.
 
-MCP 규약상 배열은 "크기 변경"과 "값 변경"을 한 번에 못 해서 **빈 칸으로 늘렸다가 채우는** 2단계를 쓰기 쉬운데,
-이 에셋에서는 그 중간 상태가 치명적이다. **늘릴 때는 기존 유효 항목의 복사본을 붙이고** 그다음 값을 덮어쓴다.
+MCP 규약상 배열은 "크기 변경"과 "값 변경"을 한 번에 못 해 **빈 칸으로 늘렸다가 채우는** 2단계를 쓰기 쉬운데,
+이 에셋에서는 그 중간 상태가 치명적이다. **늘릴 때는 기존 유효 항목의 복사본을 붙이고** 값을 덮어쓴다.
 
 ---
 
@@ -902,21 +875,12 @@ MCP 규약상 배열은 "크기 변경"과 "값 변경"을 한 번에 못 해서
   원천 차단하기 위해서다. 같은 풀에 점수 가산으로 처리하면 가산치가 크면 잡몹이 통째로 밀려나고
   작으면 거리로 다시 뒤집힌다 — 튜닝 축만 하나 늘어난다.
 
-### 7.1 검증 기록 (2026-09-05, 완료)
+### 7.1 검증 기록 (2026-09-05~06, 완료)
 
-2P `-game` 밀도 4, 게스트가 혼성 무리에서 교전. 14표본에서 **한도 초과 0건**,
-`promoted` 최대 2, `ranged`는 `promoted`가 꽉 찬 동안에도 7까지 올라갔다 —
-**풀이 서로 예산을 뺏지 않는다**는 것이 이 분할의 목적이고 그대로 성립했다.
-사용자 확인: *"근접 적이 한번에 2기까지만 나를 공격하고 나머지는 쳐다보기만, 원거리는 계속 추격·공격."*
-
-처음 측정에서는 **`melee` 풀이 0/10으로 비어 있었다** — `PureEntity` 근접 에셋이 없었기 때문이다.
-그 상태에서는 §10의 기준(*"잡몹에 둘러싸인 상태에서 `ActorPromoted` 개체가 교전에 진입한다"*)을
-구성할 수 없어, 대칭형(원거리 잡몹 20칸 + 승격 2칸)으로만 확인했다.
-
-**2026-09-06에 `DA_Enemy_PureEntity_Melee01`을 만들어 기준 그대로 검증했다.**
-근접 잡몹이 `melee` 풀로 이동하면서 *"승격 Actor 2기와 **별개로** 근접 잡몹 10기가 동시에 달려든다"* 가
-육안으로 확인됐다. 순수 엔티티 근접 공격·피격 모션·HP 차감·패링 이펙트도 함께 정상이었다
-(⚠️ 단, 패링 **넉백**은 걸리지 않는다 — 트래커에 등록된 별건이다).
+2P `-game` 밀도 4, 게스트가 혼성 무리에서 교전. 14표본에서 **한도 초과 0건**, `promoted` 최대 2,
+`ranged`는 `promoted`가 꽉 찬 동안에도 7까지 올라갔다 — **풀이 서로 예산을 뺏지 않는다**는 분할의
+목적이 그대로 성립했다. 2026-09-06에 `DA_Enemy_PureEntity_Melee01`이 생기면서
+*"승격 Actor 2기와 **별개로** 근접 잡몹 10기가 동시에 달려든다"* 를 육안으로 확인했다.
 
 ⚠️ **에셋 이름에 `CombatMode`를 넣는다.** `DA_Enemy_ActorPromoted_Melee01` /
 `DA_Enemy_PureEntity_Melee01` / `DA_Enemy_PureEntity_Ranged01`처럼 enum 이름을 그대로 쓰고,
@@ -928,25 +892,16 @@ Actor 단계가 든 배열을 손으로 고치는 것보다 안전하다.
 #### `MaxPromotedSlotsPerPlayer`를 일시적으로 올릴 때의 상한
 
 **실측 근거가 있는 값은 10이다** — Stage 6 이전 구성이 정확히 그것이었고(근접 적이 `melee` 풀 10칸을
-썼다), 그 구성에서 밀도 4·2P·게스트 전투 피크가 **58.9 KB/s = 안전판(150,000)의 39%, 포화 0건**이었다.
-다만 이는 "10까지 허용된 상태의 실측"이지 **10기 동시 승격이 실제로 찍혔다는 증거는 아니다.**
+썼다), 밀도 4·2P·게스트 전투 피크가 **58.9 KB/s = 안전판(150,000)의 39%, 포화 0건**이었다.
+다만 이는 "10까지 허용된 상태의 실측"이지 **10기 동시 승격이 찍혔다는 증거는 아니다.**
+6 이하는 재측정 없이 올려도 되고, **10을 넘기면 반드시 재측정한다.**
 
-| 값 | 근거 |
-|---:|:---|
-| ~6 | 실측된 구성(10) 안쪽. 재측정 없이 올려도 되는 범위 |
-| 10 | **예전에 돌던 구성 그 자체.** 밀도 4에서 상한의 39% |
-| 10 초과 | **미측정.** 반드시 재측정할 것 |
-
-⚠️ **산술 외삽으로 정하지 말 것.** 승격 1기당 700~900 B/s라는 단가로 나눠서 "아직 25칸 남았다"를
-계산할 수 있지만, 두 점으로 세운 선을 외삽하지 않는다는 규약(→ [Guide_NetBandwidth.md](Guide_NetBandwidth.md) §3.8)에
-정면으로 걸리고, **CPU(Actor 틱·Mover·애니메이션)는 아예 측정된 적이 없다** — 대역폭보다 먼저 물릴 가능성이 높다.
-
-⚠️ **슬롯은 플레이어당이다.** 월드 전체 승격 수 = 값 × 플레이어 수이고, 각 클라이언트는 자기에게
-릴러번트한 승격 Actor 전부의 비용을 낸다. 4P는 같은 값에서 2P의 두 배가 된다.
-
-⚠️ **초과의 증상은 렉이 아니라 "조용한 소실"이다** (→ [TechDesign_Networking.md](TechDesign_Networking.md) §4.7).
-포화하면 어트리뷰트 갱신이 재전송되지 않고 다음 값에 덮여 사라진다(먼 적의 HP 바가 아예 안 뜬다).
-**"플레이해 보니 괜찮더라"로는 판단할 수 없고**, 송신량을 직접 재야 한다.
+- ⚠️ **산술 외삽으로 정하지 말 것.** 승격 1기당 700~900 B/s로 나눠 "아직 25칸 남았다"를 계산할 수 있지만,
+  두 점으로 세운 선을 외삽하지 않는다는 규약(→ [Guide_NetBandwidth.md](Guide_NetBandwidth.md) §3.8)에 걸리고
+  **CPU(Actor 틱·Mover·애니메이션)는 아예 측정된 적이 없다** — 대역폭보다 먼저 물릴 가능성이 높다.
+- ⚠️ **슬롯은 플레이어당이다.** 월드 전체 승격 수 = 값 × 플레이어 수. 4P는 같은 값에서 2P의 두 배가 된다.
+- ⚠️ **초과의 증상은 렉이 아니라 "조용한 소실"이다** (→ [TechDesign_Networking.md](TechDesign_Networking.md) §4.7).
+  **"플레이해 보니 괜찮더라"로는 판단할 수 없고**, 송신량을 직접 재야 한다.
 
 **부수 정리(완료 — Stage 1로 앞당겼다):** `EnemyTypeTag.ToString().Contains(TEXT("Melee"))` 문자열 비교를
 Config의 `ELNPEnemyAttackType` 필드로 교체했다. 원래 이 Stage의 항목이었으나, **순수 엔티티 공격 경로가
@@ -964,161 +919,137 @@ Config의 `ELNPEnemyAttackType` 필드로 교체했다. 원래 이 Stage의 항�
 | 모드 | 처리 |
 |:---|:---|
 | `ActorPromoted` | 기존 그대로 — `TriggerRagdoll()` 방송 + `DeathCountdown = ULNPSettings::EnemyRagdollDuration` |
-| `PureEntity` | 랙돌 방송 없음 + `DeathCountdown = ULNPEnemyConfig::PureEntityDeathDuration` (기본 1.5초) |
+| `PureEntity` | 랙돌 방송 없음 + `DeathCountdown = ULNPEnemyConfig::PureEntityDeathDuration` (기본 2.2초) |
 
-⚠️ **소멸 지연에 하한이 있다.** 엔티티 파괴가 곧 버블 제거이므로, 이 시간이 복제 LOD의 최장
-갱신 주기(0.3초)와 넷 틱 몇 개를 덮지 못하면 **게스트가 `Dying`을 받기도 전에 적이 사라진다.**
-`Dying` 전이는 일회성이라 게이트를 우회하지만, 그래도 패킷이 한 번은 나가야 한다.
+랙돌은 `ActorPromoted` 전용 연출로 남는다. `PureEntity`가 그냥 사라지지 않는 이유는 행동 상태 채널이
+`Dying`을 전파하고 ISKM이 Death 시퀀스를 재생하기 때문이다 — **트랙 B가 없으면 순수 엔티티는
+소리 없이 소멸한다.**
 
-랙돌은 `ActorPromoted` 전용 연출로 남는다. `PureEntity`가 그냥 사라지지 않는 이유는
-행동 상태 채널이 `Dying`을 전파하고 ISKM이 Death 시퀀스를 재생하기 때문이다 —
-**트랙 B가 없으면 순수 엔티티는 소리 없이 소멸한다.**
+⚠️ **`FLNPEnemyDyingTag`를 `None`으로 거는 쿼리에는 죽음이 안 보인다.** 적 프로세서 대부분이 그렇게 하고
+있어 그대로 베끼기 쉬운데, 죽는 순간 엔티티가 쿼리에서 빠지므로 **아무도 `Dying`을 싣지 못하고**
+사망 팝도 한 번 적분되지 않는다. 행동 상태·애니·이동 프로세서는 태그를 배제하지 않고,
+시체의 AI 이동·회전·StateTree 신호는 `Execute` 안에서 태그로 따로 차단한다.
+(랙돌이 붙은 시체는 물리의 주인이 Actor이므로 통째로 건너뛴다.)
 
 ### 사망 팝 (2026-09-07)
 
 랙돌이 없어도 "맞고 날아간다"는 그림은 남긴다. `ULNPHealthProcessor`가 사망 순간
-`FLNPEnemyVelocityFragment`에 표면 Up 방향 속도를 실어 주고, 이동 프로세서의 공중 분기가
-중력과 함께 적분해 표면에 스냅한다. 값(`ULNPEnemyConfig::PureEntityDeathPopSpeed`, 기본 2000)은
-승격 개체가 랙돌에 주는 팝(`ALNPEnemyCharacter::RagdollPopSpeed`)과 **같다.**
-
-⚠️ **이동 프로세서가 `FLNPEnemyDyingTag`를 `None`으로 걸고 있으면 팝이 한 번도 적분되지 않는다.**
-죽는 순간 태그가 붙어 쿼리에서 빠지기 때문이다. 그 제외를 풀고 **시체의 AI 이동·회전·StateTree
-신호는 `Execute` 안에서 태그로 따로 차단**한다. 랙돌이 붙은 시체(`ActorPromoted`)는 물리의 주인이
-Actor이므로 통째로 건너뛴다.
-
-⚠️ **`PureEntityDeathDuration`이 팝의 체공 시간을 덮어야 한다.** 체공은 대략
-`2 * PopSpeed / GravityStrength`이고, 그보다 소멸이 빠르면 **시체가 공중에서 사라진다.**
-기본값 조합(2000 / 2000)의 왕복이 2.0초라 소멸 기본값을 1.5 → **2.2초**로 올렸다.
-`ActorPromoted`는 랙돌 지속이 5초라 이 제약이 드러나지 않는다 — 같은 팝 속도를 쓰려면
-소멸 시간도 함께 봐야 한다는 뜻이다.
-
-⚠️ **공중 물리는 넉백과 같은 구현을 쓴다.** 이동 프로세서 안에서 람다 하나로 뽑아 두었다 —
+`FLNPEnemyVelocityFragment`에 표면 Up 방향 속도를 실어 주고, 이동 프로세서의 공중 분기가 중력과 함께
+적분해 표면에 스냅한다. 값(`PureEntityDeathPopSpeed`, 기본 2000)은 승격 개체가 랙돌에 주는 팝
+(`ALNPEnemyCharacter::RagdollPopSpeed`)과 **같다.** 공중 물리는 **넉백과 같은 람다**를 쓴다 —
 복제했다면 죽는 순간에만 다른 곡선을 그리는 어긋남이 생겼을 자리다.
 
-⚠️ **`Dying`을 싣는 프로세서의 쿼리에 `FLNPEnemyDyingTag`를 `None`으로 걸면 안 된다.**
-적 프로세서 대부분이 그렇게 하고 있어 그대로 베끼기 쉬운데, 그러면 죽는 순간 엔티티가 쿼리에서 빠져
-**아무도 `Dying`을 싣지 못한다.**
+⚠️ **`PureEntityDeathDuration`이 두 하한을 동시에 덮어야 한다.**
+① 엔티티 파괴가 곧 버블 제거라, 복제 LOD의 최장 갱신 주기(0.3초)와 넷 틱 몇 개를 덮지 못하면
+**게스트가 `Dying`을 받기도 전에 적이 사라진다**(일회성 전이라 게이트는 우회하지만 패킷은 한 번 나가야 한다).
+② 팝의 체공 시간(대략 `2 * PopSpeed / GravityStrength`)보다 짧으면 **시체가 공중에서 사라진다.**
+기본값 조합(2000 / 2000)의 왕복이 2.0초라 소멸 기본값을 1.5 → **2.2초**로 올렸다.
+`ActorPromoted`는 랙돌 지속이 5초라 이 제약이 드러나지 않는다 — 같은 팝 속도를 쓰려면 소멸 시간도 함께 본다.
 
 ---
 
 ## 9. 남은 결정 / 검증 필요 항목
 
-| # | 항목 | 성격 |
+**해소:** Nanite 스킨 요건(2026-09-06 — 요건은 Nanite가 아니라 `bOptimizeForInstancing` + 머티리얼
+사용 플래그였다, §6.7) · 시퀀스 에셋 준비(2026-09-13 — 리타게팅·무기 스킨드 에셋 완료, §6.3) ·
+칼날 아크와 애니 궤적의 정합(2026-09-13 — 롱소드 기준 확정, §6.5) ·
+상태 채널 확장(Aim Pitch·HP 비율 둘 다 들어왔다, §5.5).
+
+| # | 남은 항목 | 성격 |
 |:---:|:---|:---|
-| 1 | ~~Nanite 스킨 요건~~ | ✅ **해소(2026-09-06).** 요건은 Nanite가 아니라 `bOptimizeForInstancing` + 머티리얼 사용 플래그였다 → §6.7 |
-| 2 | ~~시퀀스 에셋 준비~~ | ✅ **해소(2026-09-13).** 전 시퀀스 리타게팅 완료, Idle/Run도 검 든 클립으로 교체. 무기 스킨드 에셋 완료(Stage 5c → §6.3) |
-| 3 | 수치 튜닝 — Promoted 슬롯 수, 유의도 경계, ~~칼날 아크와 애니 궤적의 정합~~ | 플레이 테스트. **칼날 아크는 롱소드 기준 해소(2026-09-13)** — 무기 메시와 `slomo`로 대조해 확정(§6.5). 슬롯 수·유의도 경계는 남았다 |
-| 4 | 상태 채널 확장 대상 | **Aim Pitch**(2026-09-05)·**HP 비율**(2026-09-09) 둘 다 들어왔다. 피격 방향만 계속 보류 (§5.5) |
+| 3 | 수치 튜닝 — Promoted 슬롯 수, 유의도 경계 | 플레이 테스트 |
+| 4 | 피격 방향을 상태 채널에 넣을지 | 보류 — "없어서 못 읽겠다"가 확인되면(§5.5) |
 | 5 | 사망 연출 최종 형태 — Death 시퀀스 + 소멸 VFX 여부 | 기획 |
-| 6 | 엘리트 고도화 행동(특수 어빌리티) | **이번 범위 밖.** `ActorPromoted` 경로는 이번 작업에서 바뀌지 않는다 |
+| 6 | 엘리트 고도화 행동(특수 어빌리티) | **범위 밖.** `ActorPromoted` 경로는 이 작업에서 바뀌지 않았다 |
 
 ---
 
 ## 10. 구현 플랜
 
-| Stage | 내용 | 검증 기준 |
+**전 Stage 완료.** 남긴 이유는 순서 자체가 검증 경로였기 때문이다 — 각 Stage가
+"이것 하나만 보면 성립을 안다"는 단일 증거를 갖도록 잘랐다.
+
+| Stage | 내용 | 그 Stage의 단일 증거 |
 |:---:|:---|:---|
-| **0** ✅ | `ELNPEnemyCombatMode` 도입 + LODOverride 분기 + `PureEntity`용 EntityConfig 표현 매핑 분리 | `PureEntity` 개체가 `Confirmed`가 되어도 Actor가 스폰되지 않고, **가까이 가도** 스폰되지 않는다. 추격까지는 정상 동작 |
-| **1** ✅ | 순수 엔티티 원거리 공격 (트랙 A) | 게스트 화면에 아무것도 안 보여도 서버에서 플레이어 HP가 깎인다. **패링 반사도 그대로 성립한다** |
-| **2** ✅ | 순수 엔티티 근접 공격 — 가상 칼날 (트랙 A) | **플레이어가 순수 엔티티의 근접 공격을 패링할 수 있다.** 파이프라인 재사용이 성립했다는 단일 증거. 가드 블록·경직 누적도 함께 확인 |
-| **3** ✅ | 행동 상태 채널 (트랙 B) | 2P에서 게스트가 공격 시작을 인지한다(먼저 디버그 드로우로 확인). **연속 공격 2회가 2회로 보인다** — 전이 카운터 검증 |
-| **4** ✅ | 발사체 관전 가시성 | 게스트 화면에 엔티티 발사체가 보이고 임팩트 지점이 서버 판정과 일치. **새 RPC 없이** 상태 채널만으로 |
-| **5a** ✅ | ISKM 파이프라인 개통 — Idle/Move 두 시퀀스만 | 인스턴스가 보이고 걷는다. 렌더 요건 실측이 여기서 끝났다(→ §6.7) |
-| **5b** ✅ | Attack/Stagger/Death/Parried 시퀀스 + PlayRate 파생 | 공격 위상과 모션 길이가 맞는다. Config 수치를 바꾸면 모션 속도가 따라온다 |
-| **5c** ✅ | 무기 스킨드 메시 | ISKM 거리에서 적이 칼을 들고 Idle·Run·공격 내내 손에 붙어 움직인다. 칼날 디버그 선분이 칼 궤적과 겹친다 (→ §6.3, §6.5) |
-| **6** ✅ | 슬롯 풀 3분할 + 문자열 비교 제거 | 잡몹에 둘러싸인 상태에서 `ActorPromoted` 개체가 교전에 진입한다 (→ §7.1 — 현재는 대칭형으로만 검증 가능) |
+| **0** ✅ | `ELNPEnemyCombatMode` + LODOverride 분기 + `PureEntity`용 표현 매핑 분리 | `Confirmed`가 되어도, **가까이 가도** Actor가 안 뜬다 |
+| **1** ✅ | 순수 엔티티 원거리 공격 (트랙 A) | 게스트에 아무것도 안 보여도 서버에서 HP가 깎이고, **패링 반사가 성립한다** |
+| **2** ✅ | 순수 엔티티 근접 공격 — 가상 칼날 (트랙 A) | **플레이어가 순수 엔티티의 근접을 패링할 수 있다** = 판정 파이프라인 재사용의 증거 |
+| **3** ✅ | 행동 상태 채널 (트랙 B) | **연속 공격 2회가 2회로 보인다** — 전이 카운터 |
+| **4** ✅ | 발사체 관전 가시성 | **새 RPC 없이** 게스트 발사체가 보이고 임팩트가 서버 판정과 일치 |
+| **5a** ✅ | ISKM 파이프라인 개통 — Idle/Move | 인스턴스가 보이고 걷는다. 렌더 요건 실측이 여기서 끝났다(§6.7) |
+| **5b** ✅ | Attack/Stagger/Death/Parried + PlayRate 파생 | Config 수치를 바꾸면 모션 속도가 따라온다 |
+| **5c** ✅ | 무기 스킨드 메시 | 칼날 디버그 선분이 칼 궤적과 겹친다 (§6.3, §6.5) |
+| **6** ✅ | 슬롯 풀 3분할 + 문자열 비교 제거 | 잡몹에 둘러싸인 상태에서 `ActorPromoted` 개체가 교전에 진입한다 (§7.1) |
 
-**의존 관계:** 1·2 → 0 / 4 → 3 / 5 → 3 / 6은 독립. §8(사망 배선)은 3에 딸려 함께 끝났다.
-5c는 나머지에 영향을 주지 않는다 — 5a·5b만으로 적은 완전히 애니메이션되고, 5c가 더한 것은
-"ISKM 거리에서 손에 무기가 들린다"와 그 무기에 맞춘 칼날 판정 정합이다.
-
-**PIE 검증 분담:** Stage 0~2의 서버 판정은 로그·디버그 드로우로 자동 확인 가능하다.
-Stage 3~5의 2P 체감(연출 타이밍·모션 자연스러움)은 실제 플레이 확인이 필요하다.
+**의존 관계:** 1·2 → 0 / 4·5 → 3 / 6은 독립. §8(사망 배선)은 3에 딸려 끝났고,
+5c는 나머지에 영향을 주지 않는다(5a·5b만으로 적은 완전히 애니메이션된다).
+Stage 0~2의 서버 판정은 로그·디버그 드로우로 자동 확인되지만, **3~5의 2P 체감은 실제 플레이가 필요했다.**
 
 ### 10.1 트랙 A 검증 기록 (2026-09-05, 완료)
 
-승격 차단 · 근접 적(`ActorPromoted`) 회귀 없음 · 산탄 · 가드 · 패링 반사(적도 부근 포함, 2회 반사로 처치) ·
+승격 차단 · 근접 적(`ActorPromoted`) 회귀 없음 · 산탄 · 가드 · 패링 반사(적도 부근 포함) ·
 상하 조준 사격(고저차 지형) · **그로기 진입 시 공격·이동 정지와 임계 이탈 시 재개** · 호스트/게스트 양쪽.
 
 ⚠️ **경직 관찰에는 임시값이 필요했다.** 경직이 쌓이기 전에 적이 죽어 그로기 구간을 볼 수 없었다 —
-공격력·HP 밸런스 문제이지 임계값 문제가 아니다(→ [DevelopmentPlan.md](DevelopmentPlan.md) Phase 3 경직 항목의
-같은 지적). 플레이어 무기 레벨1 공격력을 0으로, 원거리 NPC 체력을 5배로 올려 관찰했고 **원복 대상이다.**
+공격력·HP 밸런스 문제이지 임계값 문제가 아니다. 플레이어 무기 레벨1 공격력을 0으로, 원거리 NPC 체력을
+5배로 올려 관찰했고 **2026-09-16에 전부 원복했다.**
 
 ⚠️ **적 엔티티의 HP·방어력 원본은 무기(`WeaponData`)의 스탯 수정자다.**
 `ULNPEnemyConfig::InitialAttributeValues`는 Actor 승격 후 ASC 초기화에만 쓰여 순수 엔티티에는 반영되지 않는다.
 
 ### 10.2 트랙 B 검증 기록 (2026-09-05, 완료)
 
-**2P Standalone(`-game`), 밀도 1, 게스트가 전투 안에서 플레이.** 확인된 항목:
+**2P Standalone(`-game`), 밀도 1, 게스트가 전투 안에서 플레이.**
 
 - 게스트 화면에 엔티티 발사체가 보이고 **관통하지 않는다** — 플레이어에 막히고 착탄 이펙트가 재생된다.
 - **빨간 상자 1회 = 공격 1회.** 누락도 중복도 없었다(전이 카운터가 하는 일이 이것 전부다).
-- 호스트와 게스트에서 **같은 적의 상자 색이 동시에 같은 값으로 갱신**된다 — 단일 소비 경로가 성립했다.
-- 고저차에서 위·아래·평면 사격을 모두 유도해 **조준각 동기 확인**. "피했다고 생각하면 피해지고
-  맞았다고 생각하면 맞는" 타이밍까지 자연스럽다.
-- 사망 시 `Dying` 후 1.5초 뒤 소멸.
+- 호스트와 게스트에서 **같은 적의 상자 색이 동시에 같은 값으로 갱신**된다 — 단일 소비 경로 성립.
+- 고저차에서 위·아래·평면 사격을 모두 유도해 **조준각 동기 확인.**
 - 근접 적(`ActorPromoted`) 회귀 없음. assert·ensure 0건.
 
 **대역폭 (210구간 = 17.5분):** 행동 사유만인 Dirty **1.39%**, 게이트 우회 **0.24회/s(Dirty의 1.0%)**,
-피크 송신 22.1 KB/s(상한의 15%), 포화 0건. 상세와 방법은 [Guide_NetBandwidth.md](Guide_NetBandwidth.md) §7.
+피크 송신 22.1 KB/s(상한 150,000의 15%), 포화 0건. 상세와 방법은
+[Guide_NetBandwidth.md](Guide_NetBandwidth.md) §3.7.1(사유별 Dirty 카운터)·§1.1.
 
 ⚠️ **계측 세션의 함정 — 버블은 클라이언트별이라 계측이 게스트 카메라를 따라간다.**
-첫 회차에서 호스트로 플레이했더니 게스트 폰이 스폰 지점에 서 있어 가시 적이 2~10기뿐이었고,
-전투 대역폭이 전혀 잡히지 않았다. 리슨 서버의 호스트에는 `NetConnection`이 없어 송신량이 0이다 —
-**측정하려는 클라이언트가 직접 전투 안에 있어야 한다.**
+호스트로 플레이하면 게스트 폰이 스폰 지점에 서 있어 전투 대역폭이 전혀 잡히지 않는다. 리슨 서버의
+호스트에는 `NetConnection`이 없어 송신량이 0이다 — **측정하려는 클라이언트가 직접 전투 안에 있어야 한다.**
 
-### 10.3 트랙 C 검증 기록 (2026-09-06 5a·5b 완료 / 2026-09-13 5c 완료)
+### 10.3 트랙 C 검증 기록 (2026-09-06 5a·5b / 2026-09-13 5c, 완료)
 
-**2P Standalone(`-game`), 게스트가 전투 안에서 플레이.** 두 회차로 나눠 확인했다.
+**2P Standalone(`-game`), 게스트가 전투 안에서 플레이.**
 
-**Stage 5a** — T포즈로 고정돼 있던 순수 엔티티가 정지 시 Idle, 이동 시 Run을 재생한다. 제자리에서 돌고
-(루트 본 제거가 실제로 동작), 이동 방향으로 정상 회전한다. **ISKM ↔ ISM 전환이 자연스럽고** 크래시·깜빡임 없음.
-호스트/게스트가 같은 무리를 같은 모션으로 그린다.
+- **5a** — T포즈로 굳어 있던 순수 엔티티가 정지 시 Idle, 이동 시 Run을 재생한다. 제자리에서 돌고
+  (루트 본 제거가 실제로 동작) 이동 방향으로 정상 회전한다. ISKM ↔ ISM 전환에 크래시·깜빡임 없음.
+- **5b** — 사선 내려베기가 공격 창 안에 완결되고, 경직·사망·패링이 각각 다른 모션으로 재생된다.
+  길이가 다른 두 공격 클립(2.47s·2.00s)이 **같은 공격 창에 맞춰져 스윙 길이가 같게** 보였다 —
+  §6.5의 PlayRate 파생이 성립했다는 증거다(이후 변형을 하나로 줄여 이 대조는 다시 만들 수 없다).
+- **5c** — ISKM 거리의 적이 칼·샷건을 들고 Idle·Run·공격 내내 손에 붙어 움직인다. 칼날 디버그 선분을
+  `slomo 0.1`로 궤적과 대조해 아크·위상을 확정했다(§6.5). 샷건은 방향과 왼손 위치까지 맞았다.
 
-**Stage 5b** — 사선 내려베기가 공격 창 안에 완결되고, 경직·사망·패링이 각각 다른 모션으로 재생된다.
-패링 시 뒷걸음치며 마커가 청록으로 바뀐다. 사망 후 1.5초 소멸. 원거리는 사격 모션 없이(클립 부재)
-경직·사망만 재생 — 의도대로다(2026-09-13에 샷건 세트로 사격 모션이 들어왔다). `ActorPromoted` 회귀 없음. 두 화면 동일.
+**1·2차에서 밟은 함정은 전부 규약으로 남겼다** — 추가(additive) 클립이 메시를 지운 것(§6.7),
+`Seq` 패리티로 공격 변형이 고정된 것(§6.4), ISKM 렌더 오진단의 세 겹 원인(바인드 포즈 · EMPTY 본 ·
+프로바이더 시퀀스 불일치, §6.3), 리타겟 pelvis 수평 이동(§6.7).
 
-**§6.5 검증:** 길이가 다른 두 공격 클립(2.47초·2.00초)이 **같은 공격 창에 맞춰져 스윙 길이가 같게** 보였다 —
-PlayRate 파생이 성립했다는 증거다. 이후 변형을 하나로 줄였으므로(§6.4) 이 대조는 다시 만들 수 없다.
+⚠️ **에셋을 바꿀 때마다 확인하지 않아 플레이 테스트를 여러 번 버렸다.** 썸네일(메시 유효성) →
+애니 프리뷰(바인드 포즈) → `get_bone_names`(스켈레톤 일치) 순서를 건너뛰지 말 것.
 
 **미해결 1건:** 사망 시 디버그 마커가 간헐적으로 검정이 아닌 경우가 관찰됐으나 **재현되지 않았다.**
 애니메이션은 정상이라 표시 계층만의 문제로 보인다. 재발하면 `LNP.Debug.DrawEnemyAction 2`의
 호스트·게스트 전이 로그를 대조할 것.
 
-⚠️ **1회차에서 경직 모션이 메시를 통째로 지웠다.** 추가(additive) 클립을 쓴 탓이고 §6.7에 규약으로 남겼다.
-⚠️ **1회차에서 공격 변형이 한쪽에 고정됐다.** `Seq` 패리티 문제이고 §6.4에 남겼다.
-
-**Stage 5c (2026-09-12~13)** — ISKM 거리의 적이 칼을 들고 Idle·Run·공격 내내 손에 붙어 움직인다.
-칼날 디버그 선분을 `slomo 0.1`로 칼 궤적과 대조해 아크·위상을 확정했다(§6.5).
-
-도중에 **"ISKM에서 렌더되지 않는다"는 잘못된 결론으로 트랙을 한 번 접었다.** 원인은 세 겹이었고 모두 §6.3에 규약으로 남겼다.
-
-1. **바인드 포즈** — 스케일 이중 변환을 피하려고 아마추어에 `transform_apply`를 걸어 바인드 행렬이 틀어졌다.
-   애니가 걸리는 순간 메시가 터지는데, ISM·Actor 구간과 레퍼런스 포즈 썸네일에서는 멀쩡해 ISKM 문제로 오인했다.
-   **메시 에디터의 애니 프리뷰 한 번**으로 잡혔다.
-2. **EMPTY 본·아마추어 이름** — EMPTY를 익스포트에 넣어 본으로 변환되고 `root`가 `root_002`가 되어,
-   UE가 원본 스켈레톤에 본을 추가하려 했다. 저장 없이 재시작해 복구했다.
-3. **프로바이더 시퀀스 불일치** — 몸통 ASTP의 Idle/Run을 교체한 뒤 무기 ASTP만 옛 클립을 들고 있어
-   Idle·Run에서만 칼이 손에서 떨어졌다.
-
-⚠️ **에셋을 바꿀 때마다 확인하지 않아 플레이 테스트를 여러 번 버렸다.** 썸네일(메시 유효성) → 애니 프리뷰
-(바인드 포즈) → `get_bone_names`(스켈레톤 일치) 순서를 건너뛰지 말 것.
-
-**샷건 세트 (2026-09-13)** — 원거리 적이 샷건을 들고 조준 대기·조깅·사격을 재생한다. PIE에서 무기 방향과 왼손 위치가
-맞았고, 사격 반동이 발사체와 같은 순간에 나온다. 시퀀스를 세트별 ASL로 옮겨 몸통·무기 ASTP 동기화 사고를 구조로 막았다.
-조깅이 달려갔다 튀던 문제는 리타겟의 pelvis 수평 이동이 원인이었다(§6.7).
-
 ---
 
 ## 11. 위험 요소
 
-| 위험 | 징후 | 대응 |
-|:---|:---|:---|
-| ~~Nanite 스킨 미호환~~ | ISKM이 안 보이거나 머티리얼이 깨짐 | ✅ 해소. 원인은 Nanite가 아니라 빌드 세팅·머티리얼 플래그였다 (§6.7) |
-| ISKM 인스턴스가 사라짐 | 특정 상태에서만 메시가 안 보임 | 그 상태의 시퀀스가 **추가(additive) 클립**인지 먼저 볼 것 (§6.7) |
-| 모션이 실제 위치와 따로 놈 | 몸만 옆으로 밀렸다 돌아옴 | 루트 본이 제거되므로 **변위 큰 클립**을 쓰면 안 된다 (§6.7) |
-| 스윙 엔티티 누수 | 프레임당 엔티티 수가 단조 증가 | `TimeToLive` 안전장치가 이미 있다. 경직·사망 파괴 경로를 반드시 넣을 것 (§4.5) |
-| 상태가 게스트에 안 감 | 서버에선 공격하는데 게스트는 가만히 서 있음 | Fast Array Dirty 표시 누락을 먼저 의심 (§5.3) |
-| 판정과 그림의 어긋남 | "칼이 안 닿았는데 맞는다" | `BladeOuter`와 무기 메시 길이 불일치. 디버그 드로우로 대조 (§6.3) |
-| 아키타입 분리 비용 | 청크 파편화 | 공격 프래그먼트를 두 모드가 공유하므로 새 분리가 생기지 않는다 (§4.2) |
+증상에서 원인으로 가는 표다.
+
+| 징후 | 먼저 볼 곳 |
+|:---|:---|
+| 특정 상태에서만 ISKM 메시가 안 보임 | 그 상태의 시퀀스가 **추가(additive) 클립**인지 (§6.7) |
+| 메시가 전부 안 보이거나 머티리얼이 깨짐 | `bOptimizeForInstancing` · 머티리얼 사용 플래그 (§6.7) |
+| 몸만 옆으로 밀렸다 돌아옴 | 루트 본이 제거되므로 **변위 큰 클립**을 쓰면 안 된다 (§6.7) |
+| 애니가 걸리는 순간 메시가 터짐 | 바인드 포즈 — 메시 에디터 `Preview Animation`으로 판별 (§6.3) |
+| 서버에선 공격하는데 게스트는 가만히 서 있음 | Fast Array Dirty 표시 누락 (§5.3) |
+| "칼이 안 닿았는데 맞는다" | `BladeOuter`와 무기 메시 길이 불일치 — 디버그 드로우로 대조 (§6.3) |
+| 프레임당 엔티티 수가 단조 증가 | 스윙 엔티티 누수 — `TimeToLive`가 그물이지만 파괴 경로를 확인 (§4.5) |

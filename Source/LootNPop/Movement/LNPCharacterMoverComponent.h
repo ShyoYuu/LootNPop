@@ -17,7 +17,8 @@ LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsADS);
 
 /**
  * LootNPop 캐릭터용 커스텀 Mover Component.
- * Sprint, Dash 실행, 동적 이동 Modifier 업데이트를 처리한다.
+ * Sprint/Guard/ADS/MoveSpeed Modifier 갱신, Dash 실행, 넉백·Launch, 사망 정지 모드를 처리한다.
+ * 의도는 전부 InputCmd(FLNPModifierInputs)로 받고 실행은 시뮬레이션 틱 안에서 한다.
  */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class LOOTNPOP_API ULNPCharacterMoverComponent : public UCharacterMoverComponent

@@ -72,7 +72,7 @@ struct LOOTNPOP_API FLNPProjectileSharedFragment : public FMassConstSharedFragme
 
 /**
  * Projectile별 시뮬레이션 상태.
- * PreviousPos/CurrentPos가 매 프레임 HitDetection에서 사용하는 스윕 선분을 형성한다.
+ * 현재 위치는 Entity Transform이 담당한다 — PreviousPos에서 Transform까지가 곧 매 프레임의 스윕 선분이다.
  */
 USTRUCT()
 struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
@@ -107,7 +107,7 @@ struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
 	uint8 SpawnIndex = 0;
 
 	/** 서버 전용 — Lag Compensation 되감기 시간. 발사(또는 패링 반사) 시점의 공격자 RTT/2를 1회 캐싱해
-	 *  비행 내내 재사용한다. 매 프레임 재계산 시 "대상이 이미 피했는데 과거 잔상을 쫓아가 맞는" 문제 방지 (섹션 5.0). */
+	 *  비행 내내 재사용한다. 매 프레임 재계산 시 "대상이 이미 피했는데 과거 잔상을 쫓아가 맞는" 문제 방지 (TechDesign_HitDetection.md §5). */
 	float CachedRewindSeconds = 0.f;
 
 	/**
@@ -145,7 +145,7 @@ struct LOOTNPOP_API FLNPProjectileVisualFragment : public FMassFragment
 	ELNPInstigatorTeam AppliedTeam = ELNPInstigatorTeam::Enemy;
 };
 
-/** StartPhysics 단계 종료 시 Projectile Destroy을 표시하는 Tag. */
+/** 판정 프로세서가 StartPhysics에서 붙이고, PostPhysics의 ULNPProjectileDestructionProcessor가 보고 파괴하는 Tag. */
 USTRUCT()
 struct LOOTNPOP_API FLNPProjectileDeadTag : public FMassTag
 {

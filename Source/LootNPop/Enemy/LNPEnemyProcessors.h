@@ -127,7 +127,8 @@ protected:
  * 게스트 전용 — 적 엔티티의 표현을 **복제된 Actor로 일원화**한다.
  *
  * 게스트는 자기 Actor를 승격시켜서는 안 된다. 그렇게 스폰된 Actor는
- * `ULNPEnemyActorInitializerProcessor`가 클라이언트에서 조기 반환하는 탓에 무기도 HP 바도 없는
+ * `ULNPEnemyActorInitializerProcessor`가 클라이언트에서 조기 반환하는 탓에 `InitializeOnce`도
+ * `SyncFromEntity`도 돌지 않아 무기도 HP도 없는
  * **빈 껍데기**이고, 뒤늦게 도착한 복제 퍼펫이 이미 점유된 `FMassActorFragment`에 붙어
  * 엔진 `checkf(!ActorInfo->IsValid())`로 **게스트를 죽인다.**
  *

@@ -3,7 +3,7 @@
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 
-UE_DEFINE_GAMEPLAY_TAG_COMMENT(TAG_GE_Data_Damage, "LNP.GE.Data.Damage", "Per-hit damage magnitude — pass as a negative value when applying")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(TAG_GE_Data_Damage, "LNP.GE.Data.Damage", "Per-hit raw damage magnitude — pass as a positive value; defense is applied in PostGameplayEffectExecute")
 
 ULNPGameplayEffect_Damage::ULNPGameplayEffect_Damage()
 {

@@ -100,7 +100,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 		? ELNPInstigatorTeam::Enemy
 		: ELNPInstigatorTeam::Player;
 
-	// --- 네트워크 예측 식별자 (Ghost Projectile 재조정용, 섹션 5.2 참조) ---
+	// --- 네트워크 예측 식별자 (Ghost Projectile 재조정용, TechDesign_Networking.md §3.2) ---
 	const bool  bIsLocalInstigator = Character->IsLocallyControlled();
 	const int32 InstigatorPlayerID = Character->GetPlayerState<APlayerState>()
 		? Character->GetPlayerState<APlayerState>()->GetPlayerId() : INDEX_NONE;
@@ -140,7 +140,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 	// --- 파생 클래스가 발사 방향 배열을 제공 (단일 / 방사형 등) ---
 	const TArray<FVector> Directions = GetFireDirections(SpawnPos, AimInput);
 
-	// --- 시뮬레이티드 프록시(구경꾼) 가시성 — 서버가 전 클라이언트에 발사 시점 1회 방송 (섹션 5.2 "제3자 가시성") ---
+	// --- 시뮬레이티드 프록시(구경꾼) 가시성 — 서버가 전 클라이언트에 발사 시점 1회 방송 (TechDesign_Networking.md §3.3) ---
 	if (Character->HasAuthority())
 	{
 		TArray<FVector> Velocities;
@@ -168,7 +168,7 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 		FragData.InstigatorPlayerID = InstigatorPlayerID;
 		FragData.PredictionKeyID    = KeyOrSalvo;
 		FragData.SpawnIndex         = SpawnIndex;
-		FragData.CachedRewindSeconds = AttackerHalfRTT; // 서버 전용 — 발사 시점 1회 캐싱 (섹션 5.0)
+		FragData.CachedRewindSeconds = AttackerHalfRTT; // 서버 전용 — 발사 시점 1회 캐싱 (TechDesign_Networking.md §3.1)
 		FragData.bInstigatorIsRemoteClient = bInstigatorIsRemoteClient;
 		FragData.InstigatorViewLocation    = SpawnPos;
 

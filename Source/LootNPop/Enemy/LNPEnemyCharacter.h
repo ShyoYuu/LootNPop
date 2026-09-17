@@ -31,7 +31,12 @@ public:
 	/** Config 기반 1회 초기화 (Ability, 무기). 내부적으로 중복 호출을 무시한다. 서버 전용 — 클라이언트는 EnemyConfig 복제로 받는다. */
 	void InitializeOnce(ULNPEnemyConfig* InConfig);
 
-	/** 매 High LOD 활성화마다 호출: AnimSourceMesh 숨김, HP/속도 동기화 */
+	/**
+	 * 매 High LOD 활성화마다 호출: HP·속도를 Mass에서 주입하고 AnimSourceMesh를 숨긴다.
+	 *
+	 * ⚠️ **Actor는 Mass 표현 풀에서 재사용된다** — 직전 개체(시체일 수도 있다)의 흔적을 함께
+	 * 되돌려야 한다. 랙돌 해제·AI 입력 3종·조준 Pitch를 여기서 초기화하는 이유이며, 전부 멱등이다.
+	 */
 	void SyncFromEntity(float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity);
 
 	/** Actor -> Mass 동기화: Actor가 Mass로 비활성화/Destroy되기 전 호출 */
