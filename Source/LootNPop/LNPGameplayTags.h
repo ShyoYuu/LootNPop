@@ -20,6 +20,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_AimMode_LockOn)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Ability_HitEffect_Knockback) // 넉백 정보를 제공하는 어빌리티
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Ability_HitEffect_Parry)     // 패링 정보를 제공하는 어빌리티
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Ability_Reload)              // 재장전 어빌리티 — 경직·무기 교체가 이 태그로 취소한다
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Ability_SpringLaunch)        // 스프링 런처 사용 어빌리티
 
 // 액션·시스템 제어 태그
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Action_Attacking)
@@ -51,6 +52,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Parry_Success) // 방어자에�
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Stagger_Light)  // 그로기 진입 → GA_Stagger 트리거 (패링도 경직도를 거쳐 여기로 들어온다)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Stagger_Heavy)  // 다운(T2 도달) → GA_Stagger 트리거, 고정 시간
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Attack_Activate) // 플레이어 기본 공격 발동 — 입력 스냅샷을 발동 RPC에 동봉하기 위한 이벤트 (트리거 설정 불필요)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_SpringLaunch)    // 스프링 런처 발동 — 어느 런처인지를 발동 RPC에 동봉한다
 
 // Montage Chooser: 시츄에이션 태그
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Montage_Situation_Attack)

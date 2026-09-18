@@ -12,6 +12,7 @@
 #include "Item/LNPInventoryItemInstance.h"
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "GAS/Abilities/LNPAbility_Reload.h"
+#include "GAS/Abilities/LNPAbility_SpringLaunch.h"
 #include "GAS/Abilities/LNPAttackInputTargetData.h"
 #include "LNPGameplayTags.h"
 #include "Interaction/LNPInteractionComponent.h"
@@ -674,6 +675,27 @@ bool ALNPPlayerCharacter::TryReload()
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 	return ASC && ASC->TryActivateAbilityByClass(ULNPAbility_Reload::StaticClass());
+}
+
+bool ALNPPlayerCharacter::TryActivateSpringLaunch(ALNPSpringLauncher* Launcher)
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC || !Launcher)
+		return false;
+
+	const FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromClass(ULNPAbility_SpringLaunch::StaticClass());
+	if (!Spec)
+		return false;
+
+	// 이벤트 데이터가 있으면 엔진이 ServerTryActivateAbilityWithEventData 한 번에 담아 보내므로
+	// 발동과 대상이 원자적이다 — 별도 RPC로 대상을 먼저 보내는 것과 달리 순서 문제가 없다.
+	FGameplayEventData Payload;
+	FLNPSpringLaunchTargetData* LaunchData = new FLNPSpringLaunchTargetData();
+	LaunchData->Launcher = Launcher;
+	Payload.TargetData.Add(LaunchData);   // 핸들이 소유권을 가져간다
+
+	return ASC->TriggerAbilityFromGameplayEvent(Spec->Handle, ASC->AbilityActorInfo.Get(),
+		TAG_GameplayEvent_SpringLaunch, &Payload, *ASC);
 }
 
 void ALNPPlayerCharacter::CancelCurrentAttackAbility()

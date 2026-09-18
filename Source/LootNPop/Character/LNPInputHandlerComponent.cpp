@@ -204,6 +204,15 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		bIsDashBuffered = false;
 	}
 
+	// 그래플도 같은 구조다. 단 한 가지가 다르다 — 대시는 창이 열린 동안 **실시간** 이동 입력을 싣지만,
+	// 그래플은 **누른 순간의 앵커 ID**를 잡아 두고 창 내내 같은 값을 보낸다. 실시간으로 다시 조준을
+	// 읽으면 창 중간에 시선이 앵커를 벗어나는 순간 ID가 INDEX_NONE이 되어 입력이 그대로 증발한다.
+	if (bIsGrappleBuffered && GetWorld()->GetTimeSeconds() - GrappleBufferTime > 0.05f)
+	{
+		bIsGrappleBuffered = false;
+		BufferedGrappleAnchorID = INDEX_NONE;
+	}
+
 	if (bIsAttackBuffered)
 	{
 		ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
@@ -263,6 +272,8 @@ void ULNPInputHandlerComponent::SetGameplayInputBlocked(bool bBlocked)
 	bIsDashPressed = false;
 	bIsDashJustPressed = false;
 	bIsDashBuffered = false;
+	bIsGrappleBuffered = false;
+	BufferedGrappleAnchorID = INDEX_NONE;
 	bIsInteractPressed = false;
 	bIsInteractJustPressed = false;
 	bIsAttackPressed = false;
@@ -444,6 +455,9 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 	// AI 속도도 여기에 싣는다 — 컴포넌트 멤버로만 두면 클라이언트 재시뮬레이션이 CDO MaxSpeed로
 	// 폴백해 서버보다 훨씬 빠르게 앞서 나간다 (FLNPModifierInputs::AIDesiredSpeed 주석 참조).
 	ModifierInputs.AIDesiredSpeed = AIDesiredSpeed;
+	// 그래플은 대시와 같은 예측 경로다. 앵커 ID는 누른 순간에 고정된 값이라 창 내내 그대로 나간다.
+	ModifierInputs.bWantsToGrapple  = bIsGrappleBuffered;
+	ModifierInputs.GrappleAnchorID  = bIsGrappleBuffered ? BufferedGrappleAnchorID : INDEX_NONE;
 
 	// 공격 입력(원거리 조준점·시선 / 근접 보정 대상·이동 입력)은 여기가 아니라 공격 발동 RPC에 싣는다
 	// (CaptureFireAimInput·CaptureMeleeAssistInput, LNPAttackInputTargetData.h 참조).
@@ -500,11 +514,11 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 			CharacterInputs.OrientationIntent = HorizonForward;
 		}
 
-		// 근접 공격 보정 회전 — 위치 보정과 달리 이동 중에도 적용된다.
+		// 코드가 강제하는 회전(근접 공격 보정·런처 정렬) — 위치 보정과 달리 이동 중에도 적용된다.
 		// MoveInput은 그대로 두고 바라보는 방향만 덮어쓰므로 이동 인풋이 항상 우선한다.
-		if (!MeleeAssistOrientation.IsNearlyZero())
+		if (!OrientationOverride.IsNearlyZero())
 		{
-			CharacterInputs.OrientationIntent = MeleeAssistOrientation;
+			CharacterInputs.OrientationIntent = OrientationOverride;
 		}
 	}
 	else
@@ -664,6 +678,15 @@ void ULNPInputHandlerComponent::OnInteractStarted(const FInputActionValue& Value
 	{
 		InteractionComponent->PerformInteraction();
 	}
+}
+
+void ULNPInputHandlerComponent::RequestGrapple(int32 AnchorID)
+{
+	// 여기서 직접 실행하지 않는다 — InputCmd를 타지 않으면 서버가 재현할 수 없다 (OnDashStarted와 같은 이유).
+	// 창을 열기만 하고 실행 가부는 시뮬레이션(ULNPCharacterMoverComponent)이 판정한다.
+	bIsGrappleBuffered = true;
+	BufferedGrappleAnchorID = AnchorID;
+	GrappleBufferTime = GetWorld()->GetTimeSeconds();
 }
 
 void ULNPInputHandlerComponent::OnInteractReleased(const FInputActionValue& Value)

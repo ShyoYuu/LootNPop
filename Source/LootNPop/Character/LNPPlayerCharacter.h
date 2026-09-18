@@ -61,6 +61,12 @@ public:
 	/** 재장전을 시도한다 (재장전 키·빈 탄창 발사 시도). 탄창 없는 무기이거나 가득 차 있으면 실패한다. */
 	bool TryReload();
 
+	/**
+	 * 스프링 런처 사용을 시도한다 (상호작용 키). 어느 런처인지를 **발동 요청에 실어** 보낸다 —
+	 * 서버가 스스로 탐색하면 클라와 다른 런처를 고를 수 있다 (TechDesign_Networking.md §4.8).
+	 */
+	bool TryActivateSpringLaunch(class ALNPSpringLauncher* Launcher);
+
 protected:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual bool TryActivateAttack_Impl() override;

@@ -15,6 +15,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_AimMode_LockOn,  "LNP.AimMode.LockOn")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Ability_HitEffect_Knockback, "LNP.Ability.HitEffect.Knockback")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Ability_HitEffect_Parry,     "LNP.Ability.HitEffect.Parry")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Ability_Reload,              "LNP.Ability.Reload")
+UE_DEFINE_GAMEPLAY_TAG(TAG_Ability_SpringLaunch,        "LNP.Ability.SpringLaunch")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Action_Attacking,    "LNP.Action.Attacking")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Movement_Jumping,    "LNP.Movement.Jumping")
@@ -42,6 +43,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Success, "LNP.GameplayEvent.Parry
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Stagger_Light, "LNP.GameplayEvent.Stagger.Light")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Stagger_Heavy, "LNP.GameplayEvent.Stagger.Heavy")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Attack_Activate, "LNP.GameplayEvent.Attack.Activate")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_SpringLaunch, "LNP.GameplayEvent.SpringLaunch")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_Attack,       "LNP.Montage.Situation.Attack")
 UE_DEFINE_GAMEPLAY_TAG(TAG_Montage_Situation_HitReaction,  "LNP.Montage.Situation.HitReaction")

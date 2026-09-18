@@ -334,7 +334,7 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 	// 회전 보정. 락온 중에는 카메라가 이미 타겟을 추적하고 캐릭터는 카메라 정면을 보므로 넣지 않는다.
 	if (!bLockOnActive)
 	{
-		InputHandler->SetMeleeAssistOrientation(ToTargetDir);
+		InputHandler->SetOrientationOverride(ToTargetDir);
 	}
 
 	// 이동 인풋이 들어오고 있으면 위치 보정을 건너뛴다 — 이동 인풋이 무조건 우선이고, 회전 보정만 남는다.
@@ -446,7 +446,7 @@ void ULNPAbility_MeleeAttack::ApplyMeleeAssist(ALNPCharacterBase* Character, UAn
 			Modifier->bIgnoreZAxis = false;
 			// 워프 타겟을 시각 컴포넌트(발밑) 기준으로 잡았으므로 엔진도 같은 기준을 쓰게 한다.
 			Modifier->bWarpToFeetLocation = true;
-			// 회전은 OrientationIntent가 담당한다 — 사유는 ULNPInputHandlerComponent::SetMeleeAssistOrientation 주석 참조.
+			// 회전은 OrientationIntent가 담당한다 — 사유는 ULNPInputHandlerComponent::SetOrientationOverride 주석 참조.
 			Modifier->bWarpRotation = false;
 			Modifier->SetMaxSpeedClampRatio(Settings.MeleeAssistMaxSpeedClampRatio);
 			WarpComp->AddModifier(Modifier);
@@ -516,7 +516,7 @@ void ULNPAbility_MeleeAttack::ClearMeleeAssist()
 	}
 	if (ULNPInputHandlerComponent* InputHandler = Character->FindComponentByClass<ULNPInputHandlerComponent>())
 	{
-		InputHandler->ClearMeleeAssistOrientation();
+		InputHandler->ClearOrientationOverride();
 	}
 }
 

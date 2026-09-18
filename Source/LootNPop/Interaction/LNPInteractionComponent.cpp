@@ -6,6 +6,10 @@
 #include "LootPod/LNPLootPod.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "LootDice/LNPLootDice.h"
+#include "WorldDevice/LNPSpringLauncher.h"
+#include "WorldDevice/LNPGrappleAnchor.h"
+#include "Character/LNPPlayerCharacter.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "Item/LNPInventoryComponent.h"
 #include "Item/LNPItemDefinitionBase.h"
 #include "Item/LNPBuffData.h"
@@ -217,6 +221,20 @@ void ULNPInteractionComponent::PerformInteraction()
 			PickupDiceOnServer(Dice);
 		else
 			Server_PickupDice(Dice);
+	}
+	// ALNPSpringLauncher — 정렬 후 사출. 여기만 컴포넌트의 Server RPC를 쓰지 않는다:
+	// 발동 요청(GAS)이 곧 RPC이고, 어느 런처인지가 그 요청에 원자적으로 실려 간다.
+	else if (ALNPSpringLauncher* Launcher = Cast<ALNPSpringLauncher>(Target))
+	{
+		if (ALNPPlayerCharacter* PlayerCharacter = Cast<ALNPPlayerCharacter>(Owner))
+			PlayerCharacter->TryActivateSpringLaunch(Launcher);
+	}
+	// ALNPGrappleAnchor — RPC를 아예 쓰지 않는다. 고속 이동 그 자체라 대시와 같은 예측 경로를 타야 하고,
+	// 그러려면 의도가 Mover InputCmd에 실려야 한다. 여기서는 버퍼 창을 여는 것이 전부다.
+	else if (const ALNPGrappleAnchor* Anchor = Cast<ALNPGrappleAnchor>(Target))
+	{
+		if (ULNPInputHandlerComponent* InputHandler = Owner->FindComponentByClass<ULNPInputHandlerComponent>())
+			InputHandler->RequestGrapple(Anchor->AnchorID);
 	}
 }
 

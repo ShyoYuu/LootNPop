@@ -6,6 +6,8 @@
 #include "Movement/LNPDeadMode.h"
 #include "Movement/LNPModifierInputs.h"
 #include "Movement/LNPDashCooldownModifier.h"
+#include "Movement/LNPGrappleFlightModifier.h"
+#include "WorldDevice/LNPGrappleAnchor.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LNPGameplayTags.h"
@@ -86,6 +88,89 @@ bool ULNPCharacterMoverComponent::CanDash() const
 	// 쿨다운은 월드 시간이 아니라 SyncState에 실리는 Modifier의 존재로 판정한다 —
 	// 월드 시간 기준은 서버의 지연 시뮬레이션·리시뮬레이션에서 클라이언트와 어긋나 리컨사일 루프를 만든다.
 	return IsOnGround() && !IsADS() && FindMovementModifierByType<FLNPDashCooldownModifier>() == nullptr;
+}
+
+bool ULNPCharacterMoverComponent::IsGrappleFlying() const
+{
+	return FindMovementModifierByType<FLNPGrappleFlightModifier>() != nullptr;
+}
+
+void ULNPCharacterMoverComponent::ExecuteGrapple(const FMoverTimeStep& TimeStep, int32 AnchorID, const FRotator& ControlRotation)
+{
+	APawn* Pawn = Cast<APawn>(GetOwner());
+	const ALNPGrappleAnchor* Anchor = ALNPGrappleAnchor::FindByID(GetWorld(), AnchorID);
+	if (Pawn == nullptr || Anchor == nullptr)
+	{
+		return;
+	}
+
+	const FVector SelfLoc = GetUpdatedComponent()->GetComponentLocation();
+	const FVector Delta = Anchor->GetGrapplePoint() - SelfLoc;
+	const float Dist = Delta.Size();
+	if (Dist <= KINDA_SMALL_NUMBER || Dist > Anchor->GetMaxGrappleDistance())
+	{
+		return;
+	}
+
+	const FVector Dir = Delta / Dist;
+
+	// 시뮬레이션 쪽 재검증 — 이 프레임의 ControlRotation으로 각도를 다시 잰다.
+	// 원점이 카메라가 아니라 폰이라 로컬 판정과 각도가 다르므로 임계를 넓게 둔다 (헤더 주석 참조).
+	const float ServerAimCosine = FMath::Cos(FMath::DegreesToRadians(GrappleServerAimHalfAngle));
+	if (FVector::DotProduct(ControlRotation.Vector(), Dir) < ServerAimCosine)
+	{
+		return;
+	}
+
+	// 앵커에 박히지 않도록 StopShort만큼 못 미쳐 멈춘다. "도착했나"를 매 틱 확인하는 상태를 두지 않는다 —
+	// 지속시간 기반이면 리시뮬레이션이 같은 InputCmd와 같은 롤백 위치에서 같은 값을 다시 계산한다.
+	const float Travel = FMath::Max(Dist - GrappleStopShortDistance, 0.f);
+	const float DurationMs = Travel / FMath::Max(GrappleSpeed, KINDA_SMALL_NUMBER) * 1000.f;
+	if (DurationMs <= 0.f)
+	{
+		return;
+	}
+
+	// ① 비행 상태 — 입력 버퍼 창이 같은 그래플을 3틱 연속 큐잉하는 것을 막는다. 쿨다운이 아니다.
+	TSharedPtr<FLNPGrappleFlightModifier> Flight = MakeShared<FLNPGrappleFlightModifier>();
+	Flight->DurationMs = DurationMs;
+	QueueMovementModifier(Flight);
+
+	const FName AirModeName = [this]()
+	{
+		const UCommonLegacyMovementSettings* CommonSettings = FindSharedSettings<UCommonLegacyMovementSettings>();
+		return CommonSettings ? CommonSettings->AirMovementModeName : DefaultFallingMode;
+	}();
+
+	// ② 공중 모드 강제. FLayeredMove_LinearVelocity에는 ForceMovementMode가 없어(Launch 계열에만 있다)
+	//    이 한 틱짜리 Launch가 모드를 바꿔 준다. 지상 모드로 두면 이동이 접평면에 투영되고 바닥에 스냅돼
+	//    수직 성분이 있는 그래플이 전혀 올라가지 못한다.
+	TSharedPtr<FLayeredMove_Launch> EnterFlight = MakeShared<FLayeredMove_Launch>();
+	EnterFlight->LaunchVelocity = Dir * GrappleSpeed;
+	EnterFlight->DurationMs = 0.f;
+	EnterFlight->MixMode = EMoveMixMode::OverrideVelocity;
+	EnterFlight->ForceMovementMode = AirModeName;
+	QueueLayeredMove(EnterFlight);
+
+	// ③ 비행 지속 — 매 틱 속도를 덮어써 구면 중력 누적을 무력화한다. Additive로 두면
+	//    20m 비행 동안 중력이 쌓여 앵커 한참 아래로 쏟아진다.
+	TSharedPtr<FLayeredMove_LinearVelocity> Pull = MakeShared<FLayeredMove_LinearVelocity>();
+	Pull->Velocity = Dir * GrappleSpeed;
+	Pull->DurationMs = DurationMs;
+	Pull->MixMode = EMoveMixMode::OverrideVelocity;
+	// 대시의 MaintainLastRootMotionVelocity를 쓰면 2500cm/s로 앵커를 지나쳐 날아간다 — 고무줄이 아니라 새총이 된다.
+	Pull->FinishVelocitySettings.FinishVelocityMode = ELayeredMoveFinishVelocityMode::ClampVelocity;
+	Pull->FinishVelocitySettings.ClampVelocity = GrappleExitSpeed;
+	QueueLayeredMove(Pull);
+
+	// 여기부터는 시뮬레이션 상태가 아닌 연출이다 (ExecuteDash와 같은 경계선).
+	if (TimeStep.bIsResimulating)
+		return;
+
+	OnGrappleExecuted.Broadcast();
+
+	UE_LOG(LogLootNPop, Log, TEXT("[Grapple] %s -> anchor %d | dist=%.0f travel=%.0f duration=%.0fms authority=%d"),
+		*Pawn->GetName(), AnchorID, Dist, Travel, DurationMs, Pawn->HasAuthority() ? 1 : 0);
 }
 
 void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, const FVector& MoveInputIntent, const FRotator& ControlRotation,
@@ -351,6 +436,15 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 		ExecuteDash(TimeStep, ModifierInputs->DashInputIntent,
 			CharacterInputs ? CharacterInputs->ControlRotation : FRotator::ZeroRotator,
 			ModifierInputs->bIsLockOn);
+	}
+
+	// 그래플 — 접지를 요구하지 않는다. 앞 장치에서 다음 장치로 연속으로 넘어가는 것이 이 장치의 재미고,
+	// 요구하면 착지할 때까지 봉인된다. 재진입은 비행 상태 Modifier가 막는다 (쿨다운이 아니다).
+	if (ModifierInputs && ModifierInputs->bWantsToGrapple && !IsGrappleFlying())
+	{
+		const FCharacterDefaultInputs* CharacterInputs = InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
+		ExecuteGrapple(TimeStep, ModifierInputs->GrappleAnchorID,
+			CharacterInputs ? CharacterInputs->ControlRotation : FRotator::ZeroRotator);
 	}
 
 	// 기본 기능(점프, 앉기) 처리를 위해 Super 호출

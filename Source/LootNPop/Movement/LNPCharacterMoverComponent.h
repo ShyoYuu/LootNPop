@@ -66,6 +66,15 @@ public:
 	/** Dash가 실제로 실행된 순간 발송된다. 리시뮬레이션 중에는 발송되지 않는다. */
 	FSimpleMulticastDelegate OnDashExecuted;
 
+	/**
+	 * 그래플 비행 중인지. 쿨다운이 아니라 **비행 시간과 같은 길이의 상태**다 — 도착하면 바로 풀린다.
+	 * 재진입 방지가 유일한 목적이며, 대시는 이것 없이도 막힌다(CanDash가 접지를 요구하는데 비행 중엔 공중 모드다).
+	 */
+	bool IsGrappleFlying() const;
+
+	/** 그래플이 실제로 실행된 순간 발송된다. 리시뮬레이션 중에는 발송되지 않는다 (OnDashExecuted와 같은 규약). */
+	FSimpleMulticastDelegate OnGrappleExecuted;
+
 	/** HitFromDirection 방향으로 Strength 크기의 넉백 임펄스를 가한다. */
 	void ApplyKnockback(const FVector HitFromDirection, const float Strength);
 
@@ -99,6 +108,15 @@ protected:
 	void ExecuteDash(const FMoverTimeStep& TimeStep, const FVector& MoveInputIntent, const FRotator& ControlRotation,
 		bool bLockOnActive);
 
+	/**
+	 * 그래플을 실행한다. ExecuteDash와 같은 제약 — 반드시 시뮬레이션 틱 안에서만 호출한다.
+	 *
+	 * 앵커 좌표를 InputCmd에서 받지 않고 **ID로 조회해 서버 자신의 앵커에서 읽는다.** 목적지의 권위를
+	 * 서버에 남기기 위함이다 (FLNPModifierInputs::GrappleAnchorID 주석). 각도 재검증도 여기서 한다 —
+	 * 서버의 원격 폰은 GetControlRotation()이 최신이 아니라 앵커 쪽에서는 각도를 볼 수 없다.
+	 */
+	void ExecuteGrapple(const FMoverTimeStep& TimeStep, int32 AnchorID, const FRotator& ControlRotation);
+
 	/** 커스텀 시뮬레이션 로직이 항상 등록되도록 Override한다. */
 	virtual void OnHandlerSettingChanged() override;
 
@@ -110,6 +128,29 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Dash")
 	float DashCooldown = 1.0f;
+
+	/** 그래플 비행 속력 (cm/s). 비행 시간 = 거리 / 이 값. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Grapple")
+	float GrappleSpeed = 2500.0f;
+
+	/**
+	 * 앵커 앞에서 멈추는 거리 (cm). 비행을 이만큼 짧게 끝내 앵커에 박히는 것을 막는다.
+	 * 한 틱 오버슛(속력/60 ≈ 42cm)보다 크게 잡으면 관통이 구조적으로 불가능해진다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Grapple")
+	float GrappleStopShortDistance = 150.0f;
+
+	/** 도착 시 남기는 잔여 속력 (cm/s). 대시처럼 마지막 속도를 유지하면 앵커를 지나쳐 날아간다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Grapple")
+	float GrappleExitSpeed = 600.0f;
+
+	/**
+	 * 시뮬레이션 쪽 각도 재검증의 허용 반각 (도). 로컬 프롬프트 판정(앵커의 AimHalfAngle, 8°)보다
+	 * **훨씬 넓다** — 목적이 픽셀 단위 재현이 아니라 등 뒤 앵커로 순간이동하는 조작의 차단이기 때문이다.
+	 * 원점도 다르다(카메라 vs 폰)이라 좁게 잡으면 정당한 그래플이 기각된다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Grapple")
+	float GrappleServerAimHalfAngle = 30.0f;
 
 private:
 	/** OnMoverPreSimulationTick이 InputCmd에서 옮겨 담는다. 리시뮬레이션 프레임마다 그 프레임의 값으로 갱신된다. */

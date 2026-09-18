@@ -63,6 +63,24 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
 	float AIDesiredSpeed = 0.f;
 
+	/**
+	 * 그래플 훅 발동 의도. 대시와 같은 예측 경로다 — 의도만 싣고 실행·판정은 시뮬레이션 틱이 한다.
+	 * 상호작용(F)이면서도 루팅처럼 RPC를 타지 않는 이유는 **고속 이동 그 자체**라서다.
+	 * 서버 RPC로 만들면 소유 클라가 RTT만큼 늦게 출발하고, 그동안 예측으로 달리던 위치가 통째로 롤백된다.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	bool bWantsToGrapple = false;
+
+	/**
+	 * 대상 앵커의 식별자 (`ALNPGrappleAnchor::AnchorID`). bWantsToGrapple이 true인 프레임에만 의미를 가진다.
+	 *
+	 * **왜 월드 좌표가 아니라 ID인가.** 좌표를 보내면 목적지를 클라이언트가 정하게 되고 서버는
+	 * "그 점 근처에 앵커가 있나"를 공간 질의로 검증해야 한다. ID면 서버가 **자기 앵커의 좌표를 읽고**
+	 * 클라는 "어느 것"만 말한다. 정적 값이라 양자화 왕복·리시뮬 결정성 문제도 애초에 생기지 않는다.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "LNP|Movement")
+	int32 GrappleAnchorID = INDEX_NONE;
+
 	// ⚠️ 공격 입력(조준점·락온·근접 보정 대상)은 여기 두지 않는다 — 이 구조체는 60Hz × 전송당 6개 중복으로 상시 나가고,
 	// 서버는 입력 버퍼 깊이만큼 과거 커맨드를 읽는다. 발동 요청에 싣는다 (LNPAttackInputTargetData.h 참조).
 
@@ -82,6 +100,16 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		{
 			Ar << DashInputIntent;
 			Ar.SerializeBits(&bIsLockOn, 1);
+		}
+		// 그래플도 같은 규약 — 발동 프레임에만 앵커 ID를 싣는다.
+		Ar.SerializeBits(&bWantsToGrapple, 1);
+		if (bWantsToGrapple)
+		{
+			Ar << GrappleAnchorID;
+		}
+		else if (Ar.IsLoading())
+		{
+			GrappleAnchorID = INDEX_NONE;
 		}
 		// AI 속도도 같은 이유로 조건부다 — 플레이어 폰은 항상 0이라 비트 하나만 쓴다.
 		bool bHasAIDesiredSpeed = (AIDesiredSpeed > 0.f);
@@ -107,7 +135,13 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 	{
 		const FLNPModifierInputs& Authority = static_cast<const FLNPModifierInputs&>(AuthorityState);
 		if (bWantsToGuard != Authority.bWantsToGuard || bWantsToSprint != Authority.bWantsToSprint
-			|| bWantsToDash != Authority.bWantsToDash || bWantsToADS != Authority.bWantsToADS)
+			|| bWantsToDash != Authority.bWantsToDash || bWantsToADS != Authority.bWantsToADS
+			|| bWantsToGrapple != Authority.bWantsToGrapple)
+		{
+			return true;
+		}
+		// GrappleAnchorID도 발동 프레임에만 직렬화되므로 그 프레임에서만 비교한다 (DashInputIntent와 같은 규약).
+		if (bWantsToGrapple && GrappleAnchorID != Authority.GrappleAnchorID)
 		{
 			return true;
 		}
@@ -135,6 +169,8 @@ struct LOOTNPOP_API FLNPModifierInputs : public FMoverDataStructBase
 		bWantsToADS = FromInputs.bWantsToADS;
 		DashInputIntent = FromInputs.DashInputIntent;
 		bIsLockOn = FromInputs.bIsLockOn;
+		bWantsToGrapple = FromInputs.bWantsToGrapple;
+		GrappleAnchorID = FromInputs.GrappleAnchorID;
 		// 속도는 StateTree가 단계적으로 바꾸는 값(0 / 배회 / 추격)이라 중간값이 의미 없다 — 함께 스냅한다.
 		AIDesiredSpeed = FromInputs.AIDesiredSpeed;
 	}
