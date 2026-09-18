@@ -63,6 +63,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Mass Spawning")
 	TSoftClassPtr<APawn> PlayerPawnClass;
 
+	/**
+	 * 월드 장치(그래플 앵커·스프링 런처)의 배치·판정·발사 파라미터.
+	 * 배치 개수부터 프롬프트 거리·발사 속력까지 한 에셋에서 조절한다 — 서버와 클라이언트가 같은 값을 읽는다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "World Device")
+	TSoftObjectPtr<class ULNPWorldDeviceConfig> WorldDeviceConfig;
+
 	/** 적도에서 인접 Cache 셀 간의 목표 호 길이 거리 (cm). */
 	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1.0", Units="cm"))
 	float SurfaceCacheCellSpacing = 200.0f;
