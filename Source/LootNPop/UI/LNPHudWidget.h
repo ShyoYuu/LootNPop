@@ -11,6 +11,8 @@ class ULNPHudViewModel;
 class ULNPRadialCooldownWidget;
 class ULNPScreenMarkerWidget;
 class ULNPLockOnComponent;
+class ULNPTrajectoryGuideComponent;
+class UTextBlock;
 class UAbilitySystemComponent;
 class ULNPCharacterMoverComponent;
 
@@ -85,6 +87,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "LNP|HpBar", meta = (ClampMin = "0.05", ClampMax = "1.0"))
 	float HpBarMinScale = 0.5f;
 
+	/**
+	 * 라벨을 착탄 표식에서 떨어뜨리는 화면 오프셋 (슬레이트 단위, 슬레이트 관례대로 **+X 오른쪽 / +Y 아래**).
+	 * 기본값은 표식의 우상단이다 — 표식 바로 위에 두면 장판의 위쪽 테두리와 겹쳐 읽기 나쁘다.
+	 *
+	 * 월드 오프셋이 아니라 **화면 오프셋**이다 — 라벨은 거리와 무관하게 일정한 크기인 UI다
+	 * (TechDesign_HUD.md §11.7과 같은 판단).
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|LobbedRange")
+	FVector2D LobbedRangeLabelScreenOffset = FVector2D(44.0, -44.0);
+
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<ULNPHudViewModel> HudViewModel;
@@ -104,11 +116,19 @@ private:
 	UPROPERTY(meta = (BindWidgetOptional))
 	TObjectPtr<ULNPScreenMarkerWidget> EnemyHpBarWidget;
 
+	/**
+	 * 유탄 ADS 중 착탄 표식 위에 뜨는 사거리·체공시간 라벨.
+	 * ⚠️ **Canvas Panel 직속**이어야 한다 — 위치를 CanvasSlot으로 옮긴다.
+	 */
+	UPROPERTY(meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> LobbedRangeLabel;
+
 	/** 대시 쿨다운은 "값"이 아니라 "시작됐다"는 이벤트라 ViewModel을 거치지 않는다 (근거는 TechDesign_HUD.md §9). */
 	void HandleDashExecuted();
 
 	void UpdateLockOnMarker(const APlayerController& PC, const FVector& CameraLocation, const FVector& CameraForward, float ViewportScale);
 	void UpdateEnemyHpBars(float DeltaTime, const APlayerController& PC, const FVector& CameraLocation, const FVector& CameraForward, float ViewportScale);
+	void UpdateLobbedRangeLabel(const APlayerController& PC, const FVector& CameraLocation, const FVector& CameraForward, float ViewportScale);
 
 	/** HP 바 하나의 표시 상태. 대상이 사라져도 페이드아웃이 끝날 때까지 마지막 좌표로 남는다. */
 	struct FHpBarState
@@ -124,7 +144,8 @@ private:
 	TWeakObjectPtr<ULNPCharacterMoverComponent> BoundMover;
 	FDelegateHandle DashExecutedHandle;
 
-	/** 락온 컴포넌트는 폰이 바뀔 때만 다시 찾는다. */
+	/** 폰 컴포넌트는 폰이 바뀔 때만 다시 찾는다 (NativeTick에서 한 번에 갱신). */
 	TWeakObjectPtr<const APawn> CachedPawn;
 	TWeakObjectPtr<ULNPLockOnComponent> CachedLockOn;
+	TWeakObjectPtr<ULNPTrajectoryGuideComponent> CachedTrajectoryGuide;
 };

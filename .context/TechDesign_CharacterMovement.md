@@ -89,6 +89,7 @@ UE 5.8 **Mover 2.0** 기반. 구형 중력(위치마다 Up이 다른 Dyson Spher
 | 5 | `DampenPosition` | 고무줄 지연. `DampenSpace = CameraPose` | 4번이 보정한 회전 |
 | 6 | `Offset` (카메라오프셋) | 붐 거리. `CameraOffset` 파라미터. `OffsetSpace = CameraPose` | 4번이 보정한 회전 |
 | 7 | `FieldOfView` / `PostProcess` | 포즈 미변경 | — |
+| 8 | **`LNPLobbedADSPitch`** | 유탄 ADS일 때만 시선을 아래로 기울임(§2.7). `CR_ADS` **맨 끝** | 4번이 보정한 회전 |
 
 **근본 원인 — Boom Arm이 Roll을 버린다.** `FBoomArmCameraNodeEvaluator::ComputeBoomRotation()`은 피벗 회전을 `FRotator3d(Pitch, Yaw, 0)`으로 만든다. 항상 월드 Z-Up 기준이라, 중력 Up이 월드 Z와 벌어질수록 이 회전을 프레임으로 쓰는 하위 노드가 전부 어긋난다. 어긋나는 각은 위치**와** 시선 방향에 함께 의존해 같은 지점에서도 0°~180°를 오간다.
 
@@ -159,6 +160,57 @@ bool CanADS()    const { return !IsGuarding(); }
 **이동 속도** — `FLNPADSModifier`는 `FLNPGuardModifier`와 같은 구조로, `OnStart`에서 `ADSAcceleration`만 적용한다. 실어 나르는 것은 사실상 `LNP.Mover.IsADS` 태그이고, 속도는 `FLNPMoveSpeedModifier`가 계산한다(§4.1). 태그가 SyncState에 있어 리시뮬레이션에서 함께 롤백된다.
 
 **검증 완료:** 총기/근접 키 분기, `-game` 모드, 2인 상호 관찰, 적도 부근 ADS(2026-08-22). 가드↔ADS 무기 교체 즉시 해제, 같은 조준 모드 교체 시 ADS 유지(2026-08-23).
+
+### 2.7 유탄 ADS — 카메라만 아래로 기울인다
+
+유탄(`ELNPProjectileType::Lobbed`)은 멀리 쏠수록 총구를 위로 들어야 하는데, 착탄 가이드 장판은 지표면에
+깔린다([TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.4). 카메라가 발사축과 같은 방향을 보면
+정작 멀리 조준할 때 장판이 화면 아래로 밀려나 보이지 않는다. `ULNPLobbedADSPitchCameraNode`가 유탄 ADS
+동안에만 카메라를 **제자리에서** `PitchDownDegrees`(기본 10°)만큼 내려 그 둘을 떼어놓는다.
+
+**⚠️ 카메라만 내리면 효과가 정확히 상쇄된다.** 조준점 트레이스가 카메라 시선을 광선 방향으로 쓰면, 카메라를
+θ 내린 만큼 조준선도 내려가고 플레이어는 같은 곳을 맞히려 θ만큼 더 올린다 — 카메라 방향은 원래대로 돌아온다.
+그래서 조준 광선의 방향을 `ControlRotation`으로 바꾸는 것이 **이 노드가 성립하기 위한 전제**다
+(§7.7 표의 마지막 행). 기울이지 않는 무기에서는 카메라 전방과 `ControlRotation`이 정확히 일치하므로
+(BoomArm이 컨트롤 회전을 그대로 쓰고, GravityRollCorrection은 전방축 기준 Roll만, DampenPosition은 위치만
+건드린다) 동작 차이가 없다.
+
+| 판단 | 근거 |
+|:---|:---|
+| **발사각을 올리지 않고 카메라를 내린다** | 둘은 기하학적으로 같다(카메라 = 발사축 − θ). 하지만 발사각에 θ를 더하면 **화면 프레이밍용 상수가 서버 탄도 계약의 일부**가 된다 — 서버도 같은 θ를 적용해야 예측이 맞는다. 카메라 쪽에 두면 θ는 로컬 렌더에만 존재하고 재튜닝이 서버를 건드리지 않는다 (§2.6 소유권 표와 같은 원칙) |
+| 리그를 나누지 않고 **노드가 스스로 게이팅** | `CDE_ThirdPerson`이 유탄용 리그를 따로 고르게 하면 ADS 오버라이드가 두 리그에 중복된다. `LNPRagdollPivotOffset`과 같은 자기 게이팅 패턴을 따르고, 대신 리그 전환 블렌드가 없으므로 노드 안에서 `BlendSpeedDegreesPerSecond`로 수렴시킨다 |
+| 게이트는 `IsLobbedADSActive()` = **가이드 장판이 깔리는 조건과 같은 식** | 둘 다 `GetEffectiveProjectileGravity() > 0`을 본다. 장판이 없는데 카메라만 기울어지는 상태가 원천적으로 생기지 않는다 |
+| **맨 끝**에 둔다 | 제자리 회전이라 위치는 안 바뀌지만, `DampenPosition`·`Offset`은 `CameraPose` 회전을 프레임으로 쓴다(§2.4). 앞에 두면 붐 거리와 감쇠 축까지 기울어진다 |
+
+**θ 산정 — 매 프레임 착탄점에서 역산한다.**
+
+```
+θ = clamp(조준축_아래_벌어진각 − DesiredImpactBelowCenterDeg, 0, MaxPitchDownDegrees)
+조준축_아래_벌어진각 = −atan2(ToImpact·AimUp, ToImpact·AimForward)
+```
+
+착탄점은 `ULNPTrajectoryGuideComponent::GetImpactPoint()`에서 **당겨 읽는다** — 카메라가 궤적을 다시
+적분하면 카메라가 겨냥하는 곳과 장판이 놓인 곳이 갈린다. 장판을 모르는 프레임(베이킹 전 등)은 θ=0이다.
+이 노드는 장판을 프레임 안에 붙잡으려 존재하므로, 붙잡을 것이 없으면 기울일 이유도 없다.
+
+⚠️ **역산에 쓰는 축은 우리 Pitch가 적용되기 전의 `CameraPose`여야 한다.** 리그는 매 프레임 처음부터
+다시 평가되므로 이 노드 진입 시점의 회전이 곧 조준축(`ControlRotation`)이고, 앞선 노드가 중력 정렬까지
+끝내 둔 상태다(§2.4의 4번). 기울인 뒤의 축을 읽으면 되먹임이 생겨 각이 발산한다.
+
+**고정 θ를 먼저 만들었다가 버렸다 (2026-09-18 플레이 테스트).** 고정값은 시선과 카메라를 일정한 각차로
+단단히 묶는 대신, 화면상 장판 위치가 사거리에 따라 내려간다 — 현행 탄도(2800/1200)와 θ=10°로 계산하면
+근거리 4.1° / 30m 7.1° / 50m 18.8°로, 50m가 곧 화면 하단 경계였다. 적응형으로 바꾸면 Look 입력과 카메라가
+어긋나는 대가를 치르는데, **실측에서 그 대가가 오히려 이득이었다:**
+
+- 상시 조작이면 결함이지만 **ADS 한정**이라 "조준"이라는 플레이 의도에 맞는다.
+- 최대 사거리를 넘겨 계속 올리면 θ가 `MaxPitchDownDegrees`에 걸려 **카메라가 장판보다 위로 올라간다.**
+  사거리 라벨(§11.13)이 한계를 알려주므로, 그 위를 보려는 의도로 자연스럽게 읽힌다.
+
+⚠️ 위 계산의 발사각은 **구 내벽 곡률을 넣은 값**이다(10m 5.6° / 30m 17.3° / 50m 32.6°). 평면 공식
+(`v²sin2α/g`)으로 풀면 30m가 13.7°로 나오지만 실제로는 17.3°다 — 곡률이 사거리를 11% 깎는 것과 같은 보정이다.
+
+`BlendSpeedDegreesPerSecond`(기본 60)는 두 가지를 겸한다 — 조준을 옮기는 동안의 **추적 속도**와, ADS
+진입·해제·무기 교체로 게이트가 뒤집힐 때의 수렴. 올리면 추적이 단단해지는 대신 교체 전환이 급해진다.
 
 ---
 

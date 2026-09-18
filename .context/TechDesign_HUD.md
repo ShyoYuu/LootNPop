@@ -344,7 +344,7 @@ GE 적용 → ASC가 Health 수정 → GetGameplayAttributeValueChangeDelegate
 | 위젯 | `Source/LNPUI/.../LNPScreenMarkerStyle.h` | 브러시 2종·틴트·크기·피벗·`bDrawFill`·`FillInset` |
 | 위젯 | `Source/LNPUI/.../SLNPScreenMarkers.h` | `SLeafWidget`. `FLNPScreenMarker` 배열을 받아 `MakeCustomVerts`로 배칭 |
 | 위젯 | `Source/LNPUI/.../LNPScreenMarkerWidget.h` | UMG 래퍼 (팔레트 "LNP UI"). 디자이너 프리뷰 포함 |
-| 드라이버 | `UI/LNPHudWidget.cpp` `NativeTick` | 투영·히스테리시스·페이드·원근 스케일. 마커 위젯 2개를 먹인다 |
+| 드라이버 | `UI/LNPHudWidget.cpp` `NativeTick` | 투영·히스테리시스·페이드·원근 스케일. 마커 위젯 2개와 사거리 라벨(§11.13)을 먹인다 |
 | 투영 | `UI/LNPScreenProjection.h` | 월드 → 위젯 로컬. 카메라 뒤 판정과 DPI 나눗셈을 여기서 닫는다 |
 | 수집 | `Enemy/LNPEnemyMarkerSubsystem.h` | 파라미터 쓰기 / 결과 읽기. 잠금 관례는 `ULNPTargetQuerySubsystem`과 같다 |
 | 수집 | `Enemy/LNPEnemyMarkerProcessor.cpp` | 게이트·정렬·상한 N. 관측 시각도 여기서 갱신 |
@@ -416,6 +416,32 @@ DPI 스케일 / 개수 상한·히스테리시스·페이드 / 부모 페이드 
 
 ⚠️ **DPI 스케일은 창 크기를 크게·작게 두 번 바꿔야만 검증된다.** 스케일이 1에 가까운 해상도 하나만 보면
 §11.10-1의 나눗셈이 틀려도 증상이 안 보인다.
+
+---
+### 11.13 유탄 사거리 라벨 (`LobbedRangeLabel`)
+
+유탄 ADS 중 착탄 표식 우상단에 **사거리**를 띄운다(`58 m`). 박격포 조준경의 계기 판독을 의도한 표현이다.
+
+⚠️ **체공시간을 함께 띄웠다가 뺐다**(2026-09-18 플레이 테스트). "곡사포는 체공이 길어 리드가 필요하다"는
+계산은 맞았지만, 실제로는 아무도 그 숫자를 보고 리드하지 않았다 — 리드는 장판을 옮겨서 하지 초 단위를
+읽어서 하지 않는다. 숫자 두 개는 판독만 느리게 했다. `PredictArc`가 체공시간을 함께 돌려주던 경로도
+같이 걷어냈다(쓰는 곳이 없어졌으므로).
+
+| 판단 | 근거 |
+|:---|:---|
+| **스크린 스페이스 `UTextBlock`** (월드 `UTextRenderComponent` 아님) | §11.7과 같은 판단이다. 거리와 무관하게 일정한 크기인 UI이고, 월드 텍스트는 지형에 가리거나 원근으로 찌그러진다. 투영도 `LNPScreenProjection` 하나를 그대로 쓴다 |
+| **HUD가 당겨 읽는다** — 가이드가 위젯을 밀지 않는다 | §11.9에서 락온에 대해 내린 것과 같은 판단. `ULNPTrajectoryGuideComponent::GetImpactReadout()`이 착탄점·체공시간을 노출만 하고, 게임플레이 컴포넌트는 HUD의 존재를 모른다 |
+| 착탄점을 **다시 풀지 않는다** | 라벨이 궤적을 자기 나름대로 적분하면 라벨이 말하는 거리와 장판이 놓인 곳이 갈린다. `ArcPoints.Last()` — 장판이 쓰는 바로 그 좌표를 읽는다 |
+| 폰트 **`bForceMonospaced`** | 비례폭이면 숫자가 바뀔 때마다 라벨 폭이 변해 좌우로 떨린다. 계기 판독이라는 인상도 여기서 나온다 |
+| 오프셋은 **화면 단위**(기본 (44, -44) = 우상단), 월드 오프셋 아님 | §11.7과 같다 — 거리와 무관하게 표식에서 일정한 자리에 붙어야 한다. 표식 **바로 위**에 두면 장판의 위쪽 테두리와 겹쳐 읽기 나쁘다 |
+
+**WBP 배선:** 루트 Canvas 직속 `UTextBlock` `LobbedRangeLabel` — 앵커 (0,0)·정렬 **(0.5, 0.5)**·`bAutoSize`·
+ZOrder 5. 정렬이 중앙이라 오프셋이 곧 표식으로부터의 거리가 된다. Roboto Bold 16·호박색(1, 0.82, 0.45)이고
+`BindWidgetOptional`이라 위젯을 지우면 표시만 조용히 사라진다.
+
+⚠️ **폰 컴포넌트 캐시(`CachedPawn`·`CachedLockOn`·`CachedTrajectoryGuide`)를 `NativeTick`으로 올렸다.**
+이전에는 `UpdateLockOnMarker` 안에 있었는데, 그 함수는 락온 마커 위젯이 없으면 먼저 빠져나간다 —
+그대로 두면 WBP에서 락온 마커를 지우는 순간 사거리 라벨도 함께 죽는다.
 
 ---
 
