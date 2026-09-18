@@ -87,6 +87,17 @@ void ULNPTrajectoryGuideComponent::TickComponent(float DeltaTime, ELevelTick Tic
 	}
 
 	ShowGuide(WeaponDef->ExplosionRadius);
+	bGuideVisible = true;
+}
+
+bool ULNPTrajectoryGuideComponent::GetImpactPoint(FVector& OutImpactPoint) const
+{
+	if (!bGuideVisible || ArcPoints.IsEmpty())
+		return false;
+
+	// 마지막 표본이 착탄 예상 지점이다 (PredictArc의 계약) — 장판이 놓이는 좌표와 같은 원본이다.
+	OutImpactPoint = ArcPoints.Last();
+	return true;
 }
 
 void ULNPTrajectoryGuideComponent::ShowGuide(const float ExplosionRadius)
@@ -154,6 +165,8 @@ void ULNPTrajectoryGuideComponent::ShowBlastRadius(const float ExplosionRadius)
 
 void ULNPTrajectoryGuideComponent::HideGuide()
 {
+	bGuideVisible = false;
+
 	// ⚠️ Deactivate()는 스폰만 멈추고 살아 있는 파티클은 수명이 다할 때까지 둔다. 가이드 파티클은
 	//    수명이 사실상 무한(9999초)이라 그대로 두면 ADS를 풀어도 궤적이 화면에 남는다.
 	//    DeactivateImmediate()가 즉시 지운다 — 파괴하지 않으므로 재진입 비용은 그대로 없다.

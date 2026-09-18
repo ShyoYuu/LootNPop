@@ -35,6 +35,14 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+	/**
+	 * 가이드가 그려지는 중이면 착탄 예상 지점을 돌려준다. 숨어 있으면 false.
+	 *
+	 * **HUD가 당겨 읽는다 — 이쪽에서 위젯을 밀지 않는다.** 게임플레이 컴포넌트가 HUD를 알게 되면
+	 * 표현이 바뀔 때마다 이 파일이 따라 바뀐다 (→ TechDesign_HUD.md §11.9의 락온 마커와 같은 판단).
+	 */
+	bool GetImpactPoint(FVector& OutImpactPoint) const;
+
 protected:
 	/**
 	 * 궤도 가이드 Niagara. User 파라미터 **`Points`(Position 배열) 하나만** 노출하면 된다.
@@ -74,4 +82,7 @@ private:
 
 	/** 매 프레임 재사용하는 궤적 버퍼 — 틱마다 할당하지 않는다. */
 	TArray<FVector> ArcPoints;
+
+	/** 이번 틱에 가이드를 그렸는가 — GetImpactPoint의 유효성 판단이다. 착탄점은 ArcPoints의 마지막 원소다. */
+	bool bGuideVisible = false;
 };

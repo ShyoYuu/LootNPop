@@ -341,21 +341,30 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 
 	static constexpr float AimTraceDistance = 50000.f;
 
+	// 광선의 **원점은 카메라, 방향은 ControlRotation**이다. 둘을 갈라 두는 이유:
+	// 카메라 리그가 프레이밍을 위해 시선을 기울일 수 있지만(유탄 ADS — ULNPLobbedADSPitchCameraNode),
+	// 그 기울기는 로컬 렌더일 뿐 조준이 아니다. 카메라 회전을 방향으로 쓰면 기울인 만큼 조준선이 따라
+	// 내려가고, 플레이어가 그만큼 더 올려 **기울인 효과가 정확히 상쇄된다.**
+	// ControlRotation은 발동 RPC에 실려 서버가 보는 바로 그 축이기도 하다(CaptureFireAimInput).
+	// 기울이지 않는 무기에서는 카메라 전방과 ControlRotation이 일치하므로 동작이 바뀌지 않는다
+	// — BoomArm이 컨트롤 회전을 그대로 쓰고, GravityRollCorrection은 전방축 기준 Roll만 더하며,
+	//   DampenPosition은 위치만 건드린다.
 	FVector  CamPos;
 	FRotator CamRot;
 	PC->GetPlayerViewPoint(CamPos, CamRot);
 
-	const FVector TraceEnd = CamPos + CamRot.Vector() * AimTraceDistance;
+	const FRotator AimRot = Pawn->GetControlRotation();
+	const FVector TraceEnd = CamPos + AimRot.Vector() * AimTraceDistance;
 	FHitResult Hit;
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(Pawn);
 
 	const bool  bPhysicsHit  = World->LineTraceSingleByChannel(Hit, CamPos, TraceEnd, ECC_Visibility, QueryParams);
-	const FVector CamForward = CamRot.Vector();
+	const FVector AimForward = AimRot.Vector();
 
 	OutAimPoint = bPhysicsHit ? Hit.ImpactPoint : TraceEnd;
 	float NearestDistance = bPhysicsHit
-		? FVector::DotProduct(Hit.ImpactPoint - CamPos, CamForward)
+		? FVector::DotProduct(Hit.ImpactPoint - CamPos, AimForward)
 		: AimTraceDistance;
 
 	// 물리 트레이스는 적을 하나도 못 본다 — 승격 Actor의 캡슐은 Visibility를 무시하고,
@@ -369,7 +378,7 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 
 		// 벽 너머는 어차피 가려져 채택될 수 없으므로 질의 구간을 물리 히트 깊이까지로 자른다.
 		// 자르지 않으면 벽에 막힌 프레임에도 500m 전 구간을 훑는다.
-		QuerySub->SetRayQuery(AimQueryHandle, CamPos, CamForward, NearestDistance);
+		QuerySub->SetRayQuery(AimQueryHandle, CamPos, AimForward, NearestDistance);
 
 		// 상시 질의라 결과는 직전 평가분이다 — 최대 1프레임 늦지만, 조준점은 발사 순간 스냅샷으로만 쓰이므로
 		// 그 1프레임이 겨냥을 바꾸지 않는다.

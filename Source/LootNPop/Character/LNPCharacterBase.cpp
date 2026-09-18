@@ -76,6 +76,17 @@ bool ALNPCharacterBase::IsADSActive() const
 	return InputHandlerComponent ? InputHandlerComponent->IsADSActive() : false;
 }
 
+bool ALNPCharacterBase::IsLobbedADSActive() const
+{
+	if (!IsADSActive())
+		return false;
+
+	// 판정 창구를 GetEffectiveProjectileGravity로 맞춘다 — 궤도 가이드(ULNPTrajectoryGuideComponent)가
+	// 장판을 그리는 조건과 같은 식이라, 장판이 있을 때만 카메라가 기울어진다.
+	const ULNPWeaponData* WeaponDef = GetActiveWeaponDef();
+	return WeaponDef && (WeaponDef->GetEffectiveProjectileGravity() > 0.f);
+}
+
 UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 {
 	if (const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())

@@ -69,6 +69,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Camera")
 	bool IsADSActive() const;
 
+	/**
+	 * 유탄(Lobbed) 무기로 ADS 중인가 — 착탄 가이드 장판이 깔리는 상태와 같은 조건이다.
+	 * `ULNPLobbedADSPitchCameraNode`가 읽어 카메라를 아래로 기울인다.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LNP|Camera")
+	bool IsLobbedADSActive() const;
+
 	// IAbilitySystemInterface 구현
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 

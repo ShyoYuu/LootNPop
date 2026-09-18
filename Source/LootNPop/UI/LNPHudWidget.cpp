@@ -5,12 +5,15 @@
 #include "UI/LNPScreenProjection.h"
 #include "Camera/LNPLockOnComponent.h"
 #include "Enemy/LNPEnemyMarkerSubsystem.h"
+#include "HitDetection/LNPTrajectoryGuideComponent.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "View/MVVMView.h"
 #include "Widgets/LNPRadialCooldownWidget.h"
 #include "Widgets/LNPScreenMarkerWidget.h"
 
 #include "Blueprint/WidgetLayoutLibrary.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/TextBlock.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -69,12 +72,21 @@ void ULNPHudWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
 	// 마커는 "값"이 아니라 매 프레임 다시 계산되는 화면 좌표라 MVVM을 거치지 않는다.
-	if (!LockOnMarkerWidget && !EnemyHpBarWidget)
+	if (!LockOnMarkerWidget && !EnemyHpBarWidget && !LobbedRangeLabel)
 		return;
 
 	const APlayerController* PC = GetOwningPlayer();
 	if (!PC)
 		return;
+
+	// 폰 컴포넌트 캐시는 소비처보다 위에 둔다 — 특정 위젯이 없다고 캐시 갱신이 건너뛰어지면 안 된다.
+	const APawn* Pawn = PC->GetPawn();
+	if (CachedPawn.Get() != Pawn)
+	{
+		CachedPawn            = Pawn;
+		CachedLockOn          = Pawn ? Pawn->FindComponentByClass<ULNPLockOnComponent>() : nullptr;
+		CachedTrajectoryGuide = Pawn ? Pawn->FindComponentByClass<ULNPTrajectoryGuideComponent>() : nullptr;
+	}
 
 	FVector  CameraLocation;
 	FRotator CameraRotation;
@@ -85,19 +97,13 @@ void ULNPHudWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 
 	UpdateLockOnMarker(*PC, CameraLocation, CameraForward, ViewportScale);
 	UpdateEnemyHpBars(InDeltaTime, *PC, CameraLocation, CameraForward, ViewportScale);
+	UpdateLobbedRangeLabel(*PC, CameraLocation, CameraForward, ViewportScale);
 }
 
 void ULNPHudWidget::UpdateLockOnMarker(const APlayerController& PC, const FVector& CameraLocation, const FVector& CameraForward, const float ViewportScale)
 {
 	if (!LockOnMarkerWidget)
 		return;
-
-	const APawn* Pawn = PC.GetPawn();
-	if (CachedPawn.Get() != Pawn)
-	{
-		CachedPawn   = Pawn;
-		CachedLockOn = Pawn ? Pawn->FindComponentByClass<ULNPLockOnComponent>() : nullptr;
-	}
 
 	TArray<FLNPScreenMarker> Markers;
 
@@ -116,6 +122,50 @@ void ULNPHudWidget::UpdateLockOnMarker(const APlayerController& PC, const FVecto
 	}
 
 	LockOnMarkerWidget->SetMarkers(MoveTemp(Markers));
+}
+
+void ULNPHudWidget::UpdateLobbedRangeLabel(const APlayerController& PC, const FVector& CameraLocation, const FVector& CameraForward, const float ViewportScale)
+{
+	if (!LobbedRangeLabel)
+		return;
+
+	// 착탄점은 가이드가 이미 계산해 둔 값을 **당겨 읽는다** — 여기서 궤적을 다시 풀면
+	// 라벨이 가리키는 곳과 장판이 놓인 곳이 갈린다 (TechDesign_HitDetection.md §7.6과 같은 교훈).
+	const ULNPTrajectoryGuideComponent* Guide = CachedTrajectoryGuide.Get();
+	const APawn* Pawn = CachedPawn.Get();
+
+	// UE 수학 타입은 기본 생성자가 초기화하지 않는다. 아래 단락 평가가 실제로는 보호해 주지만
+	// 컴파일러는 그것을 증명하지 못하므로(C4701) 명시적으로 채운다.
+	FVector   ImpactPoint = FVector::ZeroVector;
+	FVector2f LocalPos    = FVector2f::ZeroVector;
+
+	const bool bShow = Guide && Pawn
+		&& Guide->GetImpactPoint(ImpactPoint)
+		&& LNPScreenProjection::ProjectToWidgetLocal(PC, ImpactPoint, CameraLocation, CameraForward, ViewportScale, LocalPos);
+
+	if (!bShow)
+	{
+		if (LobbedRangeLabel->GetVisibility() != ESlateVisibility::Collapsed)
+			LobbedRangeLabel->SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+
+	if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(LobbedRangeLabel->Slot))
+		CanvasSlot->SetPosition(FVector2D(LocalPos.X, LocalPos.Y) + LobbedRangeLabelScreenOffset);
+
+	// 사거리는 사수 기준 직선거리다. 구 내벽 곡률 때문에 지표면 호 길이와 다르지만, 반지름 250m에
+	// 사거리 60m면 차이가 13cm라 표시 단위(1m) 아래로 묻힌다.
+	const float RangeMeters = static_cast<float>(FVector::Dist(Pawn->GetActorLocation(), ImpactPoint)) * 0.01f;
+
+	FNumberFormattingOptions RangeFormat;
+	RangeFormat.SetMaximumFractionalDigits(0);
+
+	LobbedRangeLabel->SetText(FText::Format(
+		NSLOCTEXT("LNPHud", "LobbedRange", "{0} m"),
+		FText::AsNumber(RangeMeters, &RangeFormat)));
+
+	if (LobbedRangeLabel->GetVisibility() != ESlateVisibility::HitTestInvisible)
+		LobbedRangeLabel->SetVisibility(ESlateVisibility::HitTestInvisible);
 }
 
 void ULNPHudWidget::UpdateEnemyHpBars(const float DeltaTime, const APlayerController& PC, const FVector& CameraLocation, const FVector& CameraForward, const float ViewportScale)
