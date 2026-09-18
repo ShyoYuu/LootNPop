@@ -17,12 +17,16 @@ void LNP::Replication::ConfigureParams(FMassReplicationParameters& Params,
 	checkf(ReplicatorClass && ReplicatorClass != ULNPMassReplicator::StaticClass(),
 		TEXT("Each replicated Mass type needs its own ULNPMassReplicator subclass -- see the header comment."));
 
-	// FLNPReplicatedPositionYawData가 위치를 1cm 단위 int16로 싣는다 — 월드 반지름이 int16 범위를
-	// 넘으면 FMassInt16Real::Set이 조용히 clamp해 먼 엔티티가 경계에 뭉친다. 여기가 복제 설정의
-	// 단일 진입점이라 시작 시 한 번 걸린다.
-	ensureMsgf(GetDefault<ULNPSettings>()->SphereRadius <= static_cast<float>(MAX_int16),
-		TEXT("SphereRadius %.0f exceeds the int16 1cm quantization range (%d) used by Mass replication."),
-		GetDefault<ULNPSettings>()->SphereRadius, MAX_int16);
+	// FLNPReplicatedPositionYawData가 위치를 **축별로** 1cm 단위 int16에 싣는다 — 성분이 int16 범위를
+	// 넘으면 FMassInt16Real::Set이 조용히 clamp해 먼 엔티티가 경계에 뭉친다. 성분 최대치가 반지름과
+	// 같아지는 곳은 좌표축 6방향뿐이므로, 재야 할 값은 반지름이 아니라 **반지름 + 좌표축 방향 지형
+	// 변위**다 (근거와 마스크 의존성은 ULNPSettings::MaxTerrainDisplacementAtAxis 주석).
+	// 여기가 복제 설정의 단일 진입점이라 시작 시 한 번 걸린다.
+	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
+	const float MaxAxisExtent = Settings->SphereRadius + Settings->MaxTerrainDisplacementAtAxis;
+	ensureMsgf(MaxAxisExtent <= static_cast<float>(MAX_int16),
+		TEXT("SphereRadius %.0f + MaxTerrainDisplacementAtAxis %.0f = %.0f exceeds the int16 1cm quantization range (%d) used by Mass replication."),
+		Settings->SphereRadius, Settings->MaxTerrainDisplacementAtAxis, MaxAxisExtent, MAX_int16);
 
 	Params.BubbleInfoClass = ALNPMassClientBubbleInfo::StaticClass();
 	Params.ReplicatorClass = ReplicatorClass;

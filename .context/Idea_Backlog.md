@@ -94,6 +94,122 @@
 
 ---
 
+## [월드 생성 관련]
+
+### Mesh Terrain / Mesh Partition 도입 (2026-09-18 — 조사 완료, 전면 도입 보류)
+- **개요:** UE 5.8 실험 기능 `MeshPartition`(내부명 MegaMesh) + `MeshTerrainMode`를 옥탄트 제작에 쓸 수 있는지 검토.
+  현재 옥탄트 제작은 `BP_OctantGenerator`(Geometry Script)로 노브(Magnitude·Frequency·Seed)를 돌리는 **간접 생성**이라
+  손으로 지형을 다듬을 수단이 없다.
+- **맞는 부분:**
+    - ⭐ **구면 기준 높이 스컬프트를 엔진이 정식 지원한다.** `EHeightSculptReferenceSurface { Plane, Sphere }`,
+      브러시 영역 `CylinderOnSphere`(구 중심에서 브러시 지점을 지나 바깥으로 뻗는 원통), 스탬프 정렬 `ReferenceSphere`
+      (법선 = 정규화(브러시위치 − 구중심), 구중심은 기즈모 지정). 즉 **반지름 방향 조각 브러시**가 이미 있다.
+    - 베이스 레이어가 하이트필드가 아니라 **임의 `FDynamicMesh3`**(`UMeshProviderModifier::SetMesh`) — 구면 옥탄트를
+      그대로 베이스로 넣을 수 있고, Convert Tool이 임의 메시를 MegaMesh로 변환한다.
+    - 콜리전 규약이 우리 요구와 일치한다: `CollisionTraceFlag = CTF_UseComplexAsSimple`, `bDoubleSidedGeometry = true`를
+      엔진이 기본 보증한다. 두께 없는 지각([TechDesign_WorldGeneration.md](TechDesign_WorldGeneration.md) §6.5)에 맞는다.
+    - PCG 양방향 연동(`PCGMeshPartitionQuery`/`Write`/`SculptLayerWrite`, 투영 스포너)과 예제 그래프(침식·스캐터·도로).
+- **정면 충돌하는 부분:**
+    - ⚠️ **World Partition이 하드 요구사항이다.** 에디터·런타임·빌더 세 곳에서 막는다
+      ("Mesh Partition requires a map with World Partition enabled"). 그런데 옥탄트 레벨
+      `LVI_Octant_Meadow_00.umap`은 **비-WP 맵**이다(`TestMap03`만 WP). `MeshPartitionLevelInstanceAdapter`는
+      방향이 반대다 — 바깥 WP 월드의 MegaMesh에 Level Instance 안의 **모디파이어를 기여**시키는 어댑터지,
+      Level Instance 안에 지형을 담는 물건이 아니다.
+    - **런타임 회전 배치·인스턴싱 불가.** 컴파일된 섹션은 월드 좌표로 구워진 액터다. 섹션의 StaticMesh조차
+      독립 에셋이 아니라 **섹션 액터를 Outer로 갖는 내부 오브젝트**라, LVI 파이프라인에 쓰려면 에셋 복제 단계가 붙는다.
+    - **시드 조립과 배타적.** 구체 전체를 하나의 MegaMesh로 만들면 이음매 문제(§6.5·§7)는 소멸하지만
+      **매판 랜덤 조합이라는 게임 정체성을 잃는다.**
+    - **오목면에서 위아래가 뒤집힌다.** 내벽에서 "위"는 구 중심 쪽인데 도구는 반대로 본다. 언덕은 낮춤(Ctrl)
+      방향으로 그려야 하고, **SlopeErode(침식)는 중력이 바깥으로 향한다고 가정하므로 신뢰할 수 없다.**
+      채널 UV의 `PlaneProject`도 구면에 못 쓴다(대안 VEUV는 실험 안의 실험).
+- **규모가 안 맞는다:** `SphereRadius = 25,000cm` 기준 구 내부 전체 0.79km², 옥탄트 1개 약 0.098km²(≈313m×313m).
+  MeshTerrain 예제 하이트맵이 1km·2km다 — **우리 월드 전체가 예제 타일 하나보다 작다.** 그리드 분할·WP 스트리밍·
+  HLOD·FarField·플랫폼별 빌드 배리언트는 전부 필요 없고, **남는 가치는 오서링 도구뿐이다.**
+- **권장(C안 — 도구만 차용):** 기존 옥탄트 Static Mesh에 Mesh Terrain Mode의 **Height Sculpt(Sphere)** 만 쓰고
+  런타임 구조는 손대지 않는다. 근거: `UHeightSculptToolBuilder`는 `UMeshVertexSculptToolBuilder`를 상속할 뿐이고
+  툴 내부에서 MegaMesh 타깃은 `Cast<UEditableModifierToolTarget>` **옵셔널 분기**로만 쓴다. 게다가 구면 정렬 로직은
+  MeshPartition이 아니라 **범용 `MeshModelingToolset`**(`MeshBrushOpBase.h`, `MeshVertexSculptTool.cpp`)에 있다.
+  → **단, 비-WP 레벨에서 평범한 Static Mesh를 대상으로 툴이 실제로 활성화되는지는 미검증이다.**
+- **B안(하이브리드) — C안이 실패하면:** 테마별 WP 오서링 맵에서 Convert → 스컬프트 → 섹션 메시를 독립 에셋으로
+  구워 기존 LVI에 투입. `BP_OctantGenerator`는 베이스 프리미티브 생성기로 축소된다.
+- **검증 스파이크(순서대로 게이트):** ① 비-WP 옥탄트 레벨에서 Height Sculpt(Sphere)가 활성화되는가 →
+  ② WP 오서링 맵에서 Convert + 섹션 메시 굽기(`CTF_UseComplexAsSimple`·이음매 R 보존 확인) →
+  ③ 산출물로 SurfaceCache 베이킹 + PCG 프랍 배치 회귀(§6.5의 등장방형 격자 잔차 재측정) →
+  ④ C안 확정 시 `MeshPartitionWater`·PCG 인터롭 2종은 **끈다**(Water 플러그인까지 딸려 온다).
+- **현재 상태:** 관련 5개 플러그인이 `LootNPop.uproject`에 이미 활성화돼 있다. 전부 `IsExperimentalVersion`.
+- **재검토 시점:** 옥탄트 풀 콘텐츠를 본격적으로 늘릴 때 — 제작 처리량이 병목이 되는 시점.
+
+---
+
+### 동굴 지형과 볼륨 기반 표면 샘플링 (2026-09-18 — 구상)
+- **개요:** 내벽에 동굴/오버행 지형을 도입할 수 있는가. 지형 생성 자체보다 **표면 샘플링 규약**이 쟁점이다.
+- **지형 생성 측면 — 유리하다:** 동굴은 Mesh Terrain이 Landscape 대비 가장 크게 이기는 지점이다. 주력은 스컬프트가
+  아니라 **Boolean 모디파이어**이고, 불리언은 방향 개념이 없어 **오목면 부호 반전 문제가 적용되지 않는다.**
+  Height Sculpt의 `bRequireConnectivity` 주석이 동굴을 예시로 들어 설명할 만큼 엔진이 이를 전제한다.
+  단 **Geometry Script로도 불리언은 된다** — 얻는 건 "가능성"이 아니라 **비파괴 반복 속도**다.
+- **구조적으로 깨지는 소비처 5곳:**
+
+    | 위치 | 깨지는 방식 |
+    |:---|:---|
+    | `ULNPSurfaceCacheSubsystem` | 자료구조가 **방향 → 지점 1개**. 동굴이면 한 방향에 표면이 N개 |
+    | `LNPProjectileMotion::IsUnderSurface` | `Pos.SizeSquared() >= SurfacePoint.SizeSquared()` — **동굴 안은 전부 "지하"**, 발사체가 스폰 즉시 폭발 |
+    | `LNPProjectileMotion::PredictArc` | 같은 반지름 비교 → 조준 가이드가 동굴 천장을 지면으로 봄 |
+    | `ULNPOctantThemeSamplerSettings` | 중심→바깥 트레이스의 **첫 히트를 플레이 표면으로 규정**(§4.2) → 프랍이 동굴 천장에 붙음 |
+    | `ULNPMassSpawnSubsystem` | 스냅샷 기반 스폰 위치 → 같은 이유로 엉뚱한 층 |
+
+- **그대로 살아남는 곳:** 적 공간 격자·적 탐색 질의(**이미 고도를 버린다** — `LNPEnemySpatialGrid.h` "셀은 위치의
+  방향 성분으로만 정해진다". 브로드페이즈라 과다포함만 늘고 정합성은 유지) / 구형 중력·Mover(중력 방향은 동굴
+  안에서도 −반지름) / 구면 자세 복제(동굴은 반지름이 **작아지는** 쪽이라 int16 캡을 안 건드림).
+- **안 1 — 다층 표면 캐시(2.5D). 권장.** `방향 → 지점 1개`를 `방향 → (반지름, 법선) 몇 개`로 바꾼다. 구껍질 안의
+  동굴은 본질적으로 **반지름 축을 따라 쌓인 층**이라 이 표현에 정확히 담긴다.
+    - 베이킹 변경이 작다: `EAsyncTraceType::Multi`로 바꾸면 **발사 수는 그대로**고 결과만 여러 개다.
+      프레임 분할 발사(§6.3)도 그대로 유효하다.
+    - **락 프리 모델이 유지된다**(§6.2의 게임 스레드 단독 쓰기 → atomic 게시 → 불변). **재설계가 아니라 확장이다.**
+    - 소비처 변경은 국소적이다: `GetSurfacePoint(Dir)` → `GetSurfacePointNear(Dir, CurrentRadius)`.
+    - ⚠️ **진짜 난제는 보간이다.** 동굴 입구는 정확히 층이 생기거나 사라지는 경계라, 지금처럼 주변 4셀을 무조건
+      바이리니어로 섞으면 §7이 경고한 "지면이 없는 중간 높이"가 재현된다. 순서를 **층 선택 → 그 다음 보간**으로
+      뒤집고, 4셀의 층 수가 다를 때의 규약이 필요하다. **§7의 수직 단차 한계는 해결되지 않고 오히려 심해진다.**
+- **안 2 — 진짜 볼륨(희소 복셀·3D 내비). 비권장.** NavMesh는 이미 기각돼 있고(Recast 전역 Z-up, §2), 수천 Mass
+  엔티티의 워커 O(1) 조회를 3D로 다시 세우는 것은 별도 프로젝트다.
+- **훨씬 싼 중간 지점:** **동굴을 "Mass NPC가 들어가지 않는 플레이어 전용 공간"으로 규정**한다. 표면 캐시·PCG·
+  Mass 스폰을 전부 그대로 두고, 동굴 영역만 PCG 배치에서 제외하고 프랍은 수작업으로 놓는다. 깨지는 것은
+  `IsUnderSurface` 하나뿐이라 "동굴 볼륨 안에서는 지하 판정을 끈다"는 태그 하나로 막힌다.
+- **먼저 결정할 것:** 기술이 아니라 기획이다 — **동굴이 전투 공간인가.** 아니라면 안 1을 할 이유가 없다.
+
+---
+
+### 랜덤 조합 다양성 확대 — 런타임 생성보다 먼저 볼 것 (2026-09-18 — 구상)
+- **개요:** 매판 랜덤 조합은 게임 정체성이고, 옥탄트는 그 **수단**이다. 수단을 런타임 다이내믹 메시 생성으로
+  바꾸는 안을 검토했으나, 그 전에 훨씬 싼 선택지가 셋 있다.
+- ⭐ **병목은 조합 메커니즘이 아니라 제작 처리량이다.** §7이 이미 진단하고 있다("Octant 풀 콘텐츠 부족 —
+  파이프라인은 완성됐으나 테마 에셋 수가 적다"). 현재 옥탄트는 **1개**(`BP_Octant_Meadow_00`).
+  현재 알고리즘(풀 셔플 후 8개)으로 서로 다른 월드 수는 풀 8개면 40,320 / **12개면 19,958,400** / 16개면 41억이다.
+  **옥탄트 12개면 2천만 가지다.**
+- **A. 풀을 늘린다.** 제작 처리량을 올리는 것이 정확히 위 Mesh Terrain 항목 C안이 값을 하는 지점이다.
+- **B. 슬롯별 회전 자유도.** 지금은 인덱스별 회전이 고정이다. 옥탄트는 `(1,1,1)` 축 120° 회전에 대해 자기 자신으로
+  매핑되고, 경계는 마스크 덕에 항상 정확히 반지름 R이라 이웃과 계속 맞는다. 슬롯마다 이 3가지를 시드로 뽑으면
+  같은 에셋으로 **3⁸ = 6,561배**의 변형이 생긴다. → **기하학적 추론이고 미검증이다. 착수 시 경계 정합부터 볼 것.**
+- **C. 테마를 슬롯별로 섞는다.** 지각은 그대로 두고 프랍 테마(`ULNPOctantThemeData`)만 교체한다.
+- **런타임 생성안의 실제 장애물(조사 결과):**
+    - ✅ **인프라는 이미 있다.** SurfaceCache가 지금도 런타임에 123만 발을 7초간 쏘고, 투-게이트 초기화와 로딩
+      화면이 그것을 감싼다. "매치 시작 시 월드를 짓고 베이킹하는 단계"는 신규 항목이 아니다.
+    - ✅ **PCG 런타임 생성은 엔진 정식 기능이다** — `EPCGComponentGenerationTrigger::GenerateAtRuntime`,
+      `PCGRuntimeGenScheduler`, `PCGGenSourcePlayer`. 비-WP 레벨 파티셔닝도 지원된다.
+    - ⚠️ **Nanite 빌더는 에디터 전용 모듈이다**(`NaniteBuilder.Build.cs` — "NaniteBuilder module is an editor module").
+      다만 런타임에 새로 만드는 것은 **지각 메시 하나**고 프랍은 기존 Nanite 에셋을 인스턴싱하므로
+      **손실은 지각 하나뿐**이다.
+    - ⚠️ **진짜 위험은 결정론이다.** 서버·클라가 각자 같은 결과를 내야 하는데, Geometry Script 부동소수 일치는
+      보증이 없고 **더 위험한 것은 PCG 프랍이다** — SurfaceCache가 `ECC_WorldStatic`을 트레이스하므로 **프랍도
+      맞는다.** 프랍 배치가 1cm만 어긋나도 표면 캐시가 갈려 적 접지·발사체 지면 판정이 발산한다. 메시 복제는
+      대역폭상 불가능하므로 시드 결정론에 전적으로 의존해야 한다.
+    - 런타임 복합 콜리전 쿠킹 비용(수 초)이 SurfaceCache 위에 더 얹힌다.
+- **전면 교체가 아니어도 된다:** SurfaceCache·PCG·Mass 입장에서 "런타임에 만든 지각"과 "LVI로 로드한 지각"은
+  **똑같은 콜리전 표면**이다. 풀에 소스 종류를 하나 더하는 식으로 접근할 수 있고, 옥탄트 8개 중 하나만 런타임
+  생성으로 섞어보는 것이 **결정론 리스크를 재는 가장 싼 방법**이다.
+- **재검토 시점:** A·B·C를 다 하고도 다양성이 부족하다고 판단될 때.
+
+---
+
 ## [메모 및 낙서장]
 - [ ] 소셜 기능용 MVVM 기반 실시간 리더보드 연출.
 - [ ] Iris를 활용한 수천 개 파편 데이터 최적화 동기화 실험.

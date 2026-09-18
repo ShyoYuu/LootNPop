@@ -27,6 +27,28 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "World Generation")
 	float SphereRadius = 25000.0f;
 
+	/**
+	 * 지형이 기준 반지름 **바깥으로** 밀려날 수 있는 최대량 중, **좌표축 6방향에서의** 값 (cm).
+	 *
+	 * Mass 복제는 위치를 축별로 1cm 단위 int16에 싣는다(`FLNPReplicatedPositionYawData`). 성분이
+	 * ±32,767을 넘으면 `FMassInt16Real::Set`이 조용히 clamp하므로, 복제되는 모든 엔티티 위치에서
+	 * `max(|X|, |Y|, |Z|) <= 32,767`이어야 한다.
+	 *
+	 * 성분 최대치가 반지름과 같아지는 곳은 **좌표축 6방향뿐**이다(예: `(r, 0, 0)`). 옥탄트 중심
+	 * 방향 `(1,1,1)/√3`에서는 성분이 `r/√3`이라 같은 반지름에도 1.73배의 여유가 있다. 그래서 캡을
+	 * 재는 데 필요한 값은 "지형이 가장 두꺼운 곳"이 아니라 **"좌표축 방향에서 지형이 얼마나 바깥으로
+	 * 나가나"** 다.
+	 *
+	 * 현재 변위 마스크 `(X·Y·Z)/R³`는 좌표평면에서 0이고 좌표축 6방향은 그 평면들의 교선 위에 있으므로,
+	 * **이 값은 0이다** — 캡이 조이는 지점이 곧 지형이 평평할 수밖에 없는 지점이다.
+	 *
+	 * ⚠️ **이음매 마스크를 좌표축에서 0이 아닌 것으로 바꾸면 반드시 이 값을 함께 올려야 한다**
+	 *    (교체 계획: TechDesign_WorldGeneration.md §7). 그러지 않으면
+	 *    `LNP::Replication::ConfigureParams`의 검사가 조용히 부족해진다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "World Generation", meta = (ClampMin = "0.0", Units = "cm"))
+	float MaxTerrainDisplacementAtAxis = 0.0f;
+
 	/** World 생성에 사용할 기본 Octant Pool. */
 	UPROPERTY(Config, EditAnywhere, Category = "World Generation")
 	TSoftObjectPtr<ULNPOctantPoolData> OctantPool;

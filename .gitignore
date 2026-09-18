@@ -21,6 +21,7 @@ Standalone_RunListenServer.lnk
 # AI Agent Local Configs
 .claude/
 .agents/
+.codex/
 .mcp.json
 
 # 로컬라이제이션 — GatherText 산출물은 제외하고 번역 원본(.archive)만 추적한다.
@@ -34,3 +35,5 @@ Content/Characters/Lyra_Mannequin/Animations/Sword/
 
 # 로컬 이슈 트래커 — 작업용 임시 기록. 항구적 결론은 .context/ 문서에 반영하고 여기는 추적하지 않는다.
 .issues/
+
+
