@@ -137,6 +137,7 @@
 | [Enemy NPC 기술 설계](TechDesign_EnemyNPC.md) | Fragment/Tag 구조, Mass 프로세서 18종, Actor 연동 (High LOD), 넷 모드별 표현 소유권(게스트는 복제 Actor만), 겹침 분리력과 공간 격자 소비 |
 | [Enemy NPC StateTree 기술 설계](TechDesign_EnemyNPC_StateTree.md) | StateTree 상태 계층 (Combat/Alert/Idle), Evaluator 및 Task C++ 구성 |
 | [Enemy NPC Low LOD 전투 기술 설계](TechDesign_EnemyNPC_LowLOD.md) | CombatMode 옵션(Actor 승격/순수 엔티티), 가상 칼날 근접 판정, 행동 상태 1바이트 복제, ISM↔ISKM 인스턴싱 애니메이션과 무기 스킨드 메시, 적이 피격자인 방향(플린치·넉백·공격 잠금·사망 팝) |
+| [월드 장치 기술 설계](TechDesign_WorldDevice.md) | 그래플 앵커·스프링 런처 — 예측 경로 vs 발동 요청 경로, 판정 3분할(권한/조준/시뮬 권위), 앵커 ID를 싣는 이유, 레이어드 무브 2개 구성, 시드 결정론 배치와 절벽·단차 기각 |
 | [LootPod System 게임 기획](GameDesign_LootPod.md) | 루팅 흐름, 존 사수(넉백) 취소 조건, 협동 루팅 속도, 보상 유형 |
 | [LootPod System 기술 설계](TechDesign_LootPod.md) | MassEntity 구성, Pod 레지스트리 상호작용 탐색, 게이지·보상 드랍·Low LOD 빛기둥 |
 | [LootDice System 게임 기획](GameDesign_LootDice.md) | 보상 아이템 주사위 굴림 컨셉, 아이콘 식별, 획득·사망 전량 드랍·인벤토리 드랍·소멸 기획 |

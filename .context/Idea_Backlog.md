@@ -23,11 +23,10 @@
 
 ## [물리 및 환경 연출 관련]
 
-### 3. 궤도 기반 중력 런처 (Orbital Launcher)
-- **개요:** 구형 표면의 곡률을 이용해 캐릭터를 반대편으로 빠르게 사출하는 가속 장치.
-- **메커니즘:** 
-    - 진입 시 모션 워핑으로 정렬 후, Mover 컴포넌트에 원심력을 고려한 고속 커브 속도 주입.
-- **핵심 기술:** Mover Plugin, Motion Warping, Custom Gravity Calculation.
+### 3. 궤도 기반 중력 런처 (Orbital Launcher) — **2026-09-18 정규 스펙으로 승격**
+- 그래플 훅 앵커와 함께 "월드 장치" 2종으로 구현됐다. 정밀한 궤도 시뮬레이션은 하지 않는다 —
+  슬롯 정렬 후 한 번의 임펄스를 주고 이후를 구면 중력에 맡기면 원하던 큰 포물선이 그대로 나온다.
+- 상세: [TechDesign_WorldDevice.md](TechDesign_WorldDevice.md)
 
 
 ---
