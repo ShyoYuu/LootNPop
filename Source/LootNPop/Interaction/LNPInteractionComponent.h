@@ -10,8 +10,11 @@ class ALNPLootPod;
 class ALNPLootDice;
 
 /**
- * 인터랙터블 Actor(ALNPLootPod·ALNPLootDice)를 탐색하고 상호작용하는 Component.
- * 후보 탐색은 ULNPInteractableRegistrySubsystem 순회, 타입별 동작은 Cast 분기로 처리한다.
+ * ILNPInteractable Actor를 탐색하고 상호작용하는 Component.
+ *
+ * 후보 탐색과 프롬프트 선정은 **타입을 모른다** — 탐색 반경·판정·조준·우선순위를 전부 인터페이스에 묻는다.
+ * 타입을 아는 곳은 실행(PerformInteraction)뿐인데, 대상마다 하는 일이 완전히 다르기 때문이다
+ * (Pod은 루팅 시작 RPC, Dice는 획득 RPC, 그래플 앵커는 RPC가 아니라 Mover InputCmd).
  */
 UCLASS(ClassGroup = (LNP), meta = (BlueprintSpawnableComponent))
 class LOOTNPOP_API ULNPInteractionComponent : public UActorComponent
@@ -62,15 +65,12 @@ protected:
 
 	/** 서버 전용: 재검증 후 Dice 페이로드를 인벤토리에 편입하고 Dice를 파괴한다. */
 	void PickupDiceOnServer(ALNPLootDice* Dice);
-	/** 상호작용 가능한 오브젝트 탐색 거리 */
-	UPROPERTY(EditAnywhere, Category = "LNP|Interaction")
-	float InteractionRadius = 500.0f;
 
-	/** 캐릭터가 현재 바라보거나 근처에 있는 LootPod/Actor (잠재적 타겟) */
+	/** 탐색 반경을 통과하고 CanInteract까지 통과한 후보 (잠재적 타겟) */
 	UPROPERTY(Transient)
 	TSet<TWeakObjectPtr<AActor>> InteractionCandidates;
 
-	/** 현재 프롬프트를 표시 중인 타겟 — Pod 또는 Dice (로컬 플레이어 전용) */
+	/** 현재 프롬프트를 표시 중인 타겟 (로컬 플레이어 전용) */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AActor> CurrentPromptTarget;
 

@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Interaction/LNPInteractionComponent.h"
+#include "Interaction/LNPInteractable.h"
 #include "Interaction/LNPInteractableRegistrySubsystem.h"
 #include "LootPod/LNPLootPod.h"
 #include "LootPod/LNPLootPodMassTypes.h"
@@ -50,7 +51,6 @@ void ULNPInteractionComponent::UpdateInteractionCandidate()
 	int32 NumPods = 0;
 	ALNPLootPod* NearestPod = nullptr;
 	float NearestDistSq = TNumericLimits<float>::Max();
-	const float RadiusSq = FMath::Square(InteractionRadius);
 	const FVector OwnerLocation = Owner->GetActorLocation();
 
 	for (const TWeakObjectPtr<AActor>& WeakActor : Registry->GetInteractables())
@@ -61,10 +61,16 @@ void ULNPInteractionComponent::UpdateInteractionCandidate()
 		if (Actor == nullptr || Actor->IsHidden())
 			continue;
 
-		const float DistSq = FVector::DistSquared(OwnerLocation, Actor->GetActorLocation());
-		if (DistSq > RadiusSq)
+		const ILNPInteractable* Interactable = Cast<ILNPInteractable>(Actor);
+		if (Interactable == nullptr)
 			continue;
 
+		// 광역 컷은 타입마다 다르다 — 초근접 Pod(250cm)과 원거리 그래플 앵커(수십 m)가 같은 루프를 돈다.
+		const float DistSq = FVector::DistSquared(OwnerLocation, Actor->GetActorLocation());
+		if (DistSq > FMath::Square(Interactable->GetInteractionSearchRadius()))
+			continue;
+
+		// Pod 전용 진단 추적 — 아래 실패 사유 로그가 Pod 기준으로만 쓰인다
 		if (ALNPLootPod* Pod = Cast<ALNPLootPod>(Actor))
 		{
 			++NumPods;
@@ -73,26 +79,11 @@ void ULNPInteractionComponent::UpdateInteractionCandidate()
 				NearestDistSq = DistSq;
 				NearestPod = Pod;
 			}
-
-			// 기본 상호작용 체크
-			if (Pod->CanInteract(Owner))
-			{
-				InteractionCandidates.Add(Pod);
-			}
 		}
-		else if (ALNPLootDice* Dice = Cast<ALNPLootDice>(Actor))
+
+		if (ILNPInteractable::Execute_CanInteract(Actor, Owner))
 		{
-			// Dice는 거리 + "캐릭터 전방 시야" 판정 — Pod과 반대 방향이다. Pod은 자기 전방에 플레이어가
-			// 있는지 보지만, Dice는 플레이어(캐릭터) 전방에 Dice가 들어와 있어야 한다. 뒤쪽 Dice는 더
-			// 가까워도 후보에서 제외해 "지금 보고 있는 것"이 우선되게 한다. 시야 기준은 카메라가 아니라
-			// 캐릭터 facing(GetActorForwardVector) — 감성적 캐릭터 시야.
-			if (Dice->CanInteract(Owner))
-			{
-				const FVector ToDice = (Dice->GetActorLocation() - OwnerLocation).GetSafeNormal();
-				const float FacingDot = FVector::DotProduct(Owner->GetActorForwardVector(), ToDice);
-				if (FacingDot >= 0.342f)  // cos(70°) — 전방 140° 원뿔
-					InteractionCandidates.Add(Dice);
-			}
+			InteractionCandidates.Add(Actor);
 		}
 	}
 
@@ -123,9 +114,11 @@ void ULNPInteractionComponent::UpdateInteractionPrompt()
 	if (Owner == nullptr || !Owner->IsPlayerControlled() || !Owner->IsLocallyControlled())
 		return;
 
-	// 후보 중 가장 가까운 "입력이 필요한" 타겟 선정 — Idle Pod 또는 Dice.
-	// Looting 중인 Pod는 프레즌스 기반 기여라 입력이 불필요하므로 프롬프트를 띄우지 않는다.
+	// 후보 중 "입력이 필요한" 최선 타겟 선정 — 우선순위 내림차순, 동률이면 최근접.
+	// 우선순위는 근접 대상(Pod·Dice)이 원거리 대상(그래플 앵커)보다 항상 이기게 하는 장치다.
+	// 최근접만으로 뽑으면 Pod 앞에 서 있어도 조준선에 걸린 먼 앵커가 프롬프트를 가져갈 수 있다.
 	AActor* NewTarget = nullptr;
+	int32 BestPriority = TNumericLimits<int32>::Lowest();
 	float BestDistSq = TNumericLimits<float>::Max();
 	const FVector OwnerLocation = Owner->GetActorLocation();
 
@@ -135,16 +128,16 @@ void ULNPInteractionComponent::UpdateInteractionPrompt()
 		if (Actor == nullptr)
 			continue;
 
-		if (const ALNPLootPod* Pod = Cast<ALNPLootPod>(Actor))
-		{
-			if (Pod->GetCurrentState() != ELNPLootPodState::Idle)
-				continue;
-		}
-		// Dice는 후보(거리 통과)면 항상 프롬프트 대상
+		// 조준·상태 판정 — 루팅 중인 Pod(입력 불필요), 등 뒤의 Dice 등을 걸러낸다. 로컬 전용이다.
+		const ILNPInteractable* Interactable = Cast<ILNPInteractable>(Actor);
+		if (Interactable == nullptr || !Interactable->WantsInteractionPrompt(Owner))
+			continue;
 
+		const int32 Priority = Interactable->GetInteractionPriority();
 		const float DistSq = FVector::DistSquared(OwnerLocation, Actor->GetActorLocation());
-		if (DistSq < BestDistSq)
+		if (Priority > BestPriority || (Priority == BestPriority && DistSq < BestDistSq))
 		{
+			BestPriority = Priority;
 			BestDistSq = DistSq;
 			NewTarget = Actor;
 		}
@@ -153,13 +146,10 @@ void ULNPInteractionComponent::UpdateInteractionPrompt()
 	if (CurrentPromptTarget.Get() == NewTarget)
 		return;
 
-	// 타입별 프롬프트 표시 전환 — 대상은 Pod 또는 Dice 둘 중 하나다
 	auto SetPromptVisible = [](AActor* Target, bool bVisible)
 	{
-		if (ALNPLootPod* Pod = Cast<ALNPLootPod>(Target))
-			Pod->SetInteractionPromptVisible(bVisible);
-		else if (ALNPLootDice* Dice = Cast<ALNPLootDice>(Target))
-			Dice->SetInteractionPromptVisible(bVisible);
+		if (ILNPInteractable* Interactable = Cast<ILNPInteractable>(Target))
+			Interactable->SetInteractionPromptVisible(bVisible);
 	};
 
 	if (AActor* OldTarget = CurrentPromptTarget.Get())
@@ -205,7 +195,7 @@ void ULNPInteractionComponent::PerformInteraction()
 	// ALNPLootPod — 루팅 시작
 	if (ALNPLootPod* Pod = Cast<ALNPLootPod>(Target))
 	{
-		if (!Pod->CanInteract(Owner))
+		if (!ILNPInteractable::Execute_CanInteract(Pod, Owner))
 			return;
 
 		// 로컬 비주얼 즉시 반응 (예측) — 서버 확정 상태는 CurrentState 복제(OnRep_PodState)가 덮는다
@@ -220,7 +210,7 @@ void ULNPInteractionComponent::PerformInteraction()
 	// ALNPLootDice — 획득 (인벤토리 편입은 서버 권위, 선착순 판정 포함)
 	else if (ALNPLootDice* Dice = Cast<ALNPLootDice>(Target))
 	{
-		if (!Dice->CanInteract(Owner))
+		if (!ILNPInteractable::Execute_CanInteract(Dice, Owner))
 			return;
 
 		if (Owner->HasAuthority())
@@ -243,7 +233,7 @@ void ULNPInteractionComponent::PickupDiceOnServer(ALNPLootDice* Dice)
 
 	// 서버 재검증 — 거리·파괴 진행·획득 여부(bClaimed)를 함께 확인한다.
 	// 동시 획득 시도는 서버 RPC 직렬화가 순서를 만들고, 첫 성공이 SetClaimed()로 나머지를 걸러낸다 (선착순).
-	if (!Dice->CanInteract(Owner))
+	if (!ILNPInteractable::Execute_CanInteract(Dice, Owner))
 	{
 		UE_LOG(LogLootNPop, Log, TEXT("[LootDice] %s pickup rejected — already claimed or out of range (%s)"),
 			*Dice->GetName(), *GetNameSafe(Owner));
@@ -284,7 +274,7 @@ void ULNPInteractionComponent::Server_StartLooting_Implementation(ALNPLootPod* P
 {
 	// 서버 재검증 — 클라이언트 판정 시점과의 레이스(Popped 직후 등)를 걸러낸다
 	APawn* Owner = Cast<APawn>(GetOwner());
-	if (Owner == nullptr || Pod == nullptr || !Pod->CanInteract(Owner))
+	if (Owner == nullptr || Pod == nullptr || !ILNPInteractable::Execute_CanInteract(Pod, Owner))
 		return;
 
 	StartLootingOnServer(Pod);

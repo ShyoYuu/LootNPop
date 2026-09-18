@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Interaction/LNPInteractable.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "LNPLootPod.generated.h"
 
@@ -16,7 +17,7 @@
  * (SmartObjectComponent는 상호작용 경로에 쓰이지 않는다 — NPC AI 연동 후보로 보류)
  */
 UCLASS()
-class LOOTNPOP_API ALNPLootPod : public AActor
+class LOOTNPOP_API ALNPLootPod : public AActor, public ILNPInteractable
 {
 	GENERATED_BODY()
 
@@ -48,12 +49,15 @@ public:
 	 */
 	void SetGaugePercent(float NewPercent);
 
+	// --- ILNPInteractable ---
 	/** 상호작용자가 이 LootPod과 상호작용할 수 있는 유효 거리 및 각도 내에 있는지 확인한다 */
-	UFUNCTION(BlueprintNativeEvent, Category = "LNP|Interaction")
-	bool CanInteract(const APawn* Interactor) const;
-
+	virtual bool CanInteract_Implementation(const APawn* Interactor) const override;
+	/** 광역 컷은 정밀 판정 반경과 같다 — Pod은 초근접 상호작용이라 둘을 벌릴 이유가 없다 */
+	virtual float GetInteractionSearchRadius() const override { return InteractionRadius; }
+	/** 루팅 중인 Pod은 프레즌스 기여라 입력이 불필요하다 — CanInteract는 통과시키되 프롬프트는 띄우지 않는다 */
+	virtual bool WantsInteractionPrompt(const APawn* Interactor) const override { return CurrentState == ELNPLootPodState::Idle; }
 	/** 상호작용 프롬프트(키 아이콘) 표시 여부를 갱신한다 — 로컬 플레이어의 ULNPInteractionComponent가 호출한다 */
-	void SetInteractionPromptVisible(bool bVisible);
+	virtual void SetInteractionPromptVisible(bool bVisible) override;
 
 	/** 진단용: 상호작용 판정 세부 값(거리/각도/상태)을 문자열로 반환한다 — LootPod 개발 중 테스트 로그 */
 	FString GetInteractDiagnosticString(const APawn* Interactor) const;
