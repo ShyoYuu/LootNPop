@@ -127,7 +127,7 @@ FVector ALNPLootDice::ComputeGravityDir() const
 	return FVector::DownVector;
 }
 
-bool ALNPLootDice::CanInteract(const APawn* Interactor) const
+bool ALNPLootDice::CanInteract_Implementation(const APawn* Interactor) const
 {
 	if (Interactor == nullptr || bClaimed || IsActorBeingDestroyed())
 	{
@@ -136,6 +136,20 @@ bool ALNPLootDice::CanInteract(const APawn* Interactor) const
 
 	const float DistSq = FVector::DistSquared(GetActorLocation(), Interactor->GetActorLocation());
 	return DistSq <= FMath::Square(InteractionRadius);
+}
+
+bool ALNPLootDice::WantsInteractionPrompt(const APawn* Interactor) const
+{
+	if (Interactor == nullptr)
+	{
+		return false;
+	}
+
+	// 전방 140° 원뿔. 판정 방향이 LootPod과 반대다 — 헤더 주석 참조.
+	// 여기는 로컬 조준 판정이라 서버가 재검증하지 않는다. 누른 뒤 캐릭터가 돌아도 획득은 성립한다.
+	constexpr float FacingConeCosine = 0.342f;  // cos(70°)
+	const FVector ToDice = (GetActorLocation() - Interactor->GetActorLocation()).GetSafeNormal();
+	return FVector::DotProduct(Interactor->GetActorForwardVector(), ToDice) >= FacingConeCosine;
 }
 
 void ALNPLootDice::SetInteractionPromptVisible(bool bVisible)

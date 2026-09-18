@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Interaction/LNPInteractable.h"
 #include "LNPLootDice.generated.h"
 
 class ULNPItemDefinitionBase;
@@ -23,7 +24,7 @@ class UMaterialInstanceDynamic;
  * 모든 클라이언트가 같은 위치·같은 윗면으로 정지한 Dice를 본다 (분배 논의의 전제).
  */
 UCLASS()
-class LOOTNPOP_API ALNPLootDice : public AActor
+class LOOTNPOP_API ALNPLootDice : public AActor, public ILNPInteractable
 {
 	GENERATED_BODY()
 
@@ -45,11 +46,20 @@ public:
 	/** LootPod Popped 후처리 — 보상 테이블(LNPSettings)에서 PodID 보상을 조회해 N개 스폰. 서버 전용. */
 	static void SpawnPodRewards(UWorld& World, int32 PodID, const FVector& PodLocation);
 
+	// --- ILNPInteractable ---
 	/** 획득 가능 판정 — 거리만 체크한다 (주사위는 방향 개념이 없어 LootPod과 달리 각도 체크 없음) */
-	bool CanInteract(const APawn* Interactor) const;
-
+	virtual bool CanInteract_Implementation(const APawn* Interactor) const override;
+	/**
+	 * 조준 판정 — 캐릭터 전방 원뿔. 각도 기준이 LootPod과 **반대 방향**이다.
+	 * Pod은 자기 전방에 플레이어가 있는지 보지만, Dice는 플레이어 전방에 Dice가 들어와 있어야 한다
+	 * — 뒤쪽 Dice는 더 가까워도 제외해 "지금 보고 있는 것"이 우선되게 한다.
+	 * 기준은 카메라가 아니라 캐릭터 facing이다 (감성적 캐릭터 시야).
+	 */
+	virtual bool WantsInteractionPrompt(const APawn* Interactor) const override;
+	/** 광역 컷은 정밀 판정 반경과 같다 — 발밑에서 줍는 물건이라 둘을 벌릴 이유가 없다 */
+	virtual float GetInteractionSearchRadius() const override { return InteractionRadius; }
 	/** 상호작용 프롬프트(키 아이콘) 표시 여부 — 로컬 플레이어의 ULNPInteractionComponent가 호출한다 */
-	void SetInteractionPromptVisible(bool bVisible);
+	virtual void SetInteractionPromptVisible(bool bVisible) override;
 
 	ULNPItemDefinitionBase* GetItemDef() const { return ItemDef; }
 	float GetRemainingDuration() const { return RemainingDuration; }
