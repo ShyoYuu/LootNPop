@@ -6,6 +6,7 @@
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
+#include "GameLogic/LNPWorldDeviceSpawnSubsystem.h"
 #include "Player/LNPPlayerController.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LootNPop.h"
@@ -64,6 +65,13 @@ void ALNPGameMode::OnSurfaceBakingComplete()
 	UWorld* World = GetWorld();
 	ALNPGameState* GS = World->GetGameState<ALNPGameState>();
 	GS->ServerPhase = ELNPInitPhase::EntitySpawning;
+
+	// 월드 장치 배치는 동기이고 수십 ms다. 표면 베이킹이 끝난 지금이어야 하는 이유는 두 가지 —
+	// 옥탄트 레벨이 가시화되어 트레이스가 지면을 맞히고, Complete 이전이라 플레이어가 완성된 월드에 스폰된다.
+	if (ULNPWorldDeviceSpawnSubsystem* DeviceSub = World->GetSubsystem<ULNPWorldDeviceSpawnSubsystem>())
+	{
+		DeviceSub->SpawnDevices();
+	}
 
 	if (ULNPMassSpawnSubsystem* SpawnSub = World->GetSubsystem<ULNPMassSpawnSubsystem>())
 	{
