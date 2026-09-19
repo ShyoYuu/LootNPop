@@ -41,6 +41,8 @@ public:
 	virtual bool CanInteract_Implementation(const APawn* Interactor) const override;
 	virtual float GetInteractionSearchRadius() const override;
 	virtual void SetInteractionPromptVisible(bool bVisible) override;
+	/** 각도 제한이 없어 근접 3종 중 수용 범위가 가장 넓다 — 그만큼 셋 중 가장 낮다. */
+	virtual int32 GetInteractionPriority() const override { return 10; }
 
 protected:
 	virtual void BeginPlay() override;

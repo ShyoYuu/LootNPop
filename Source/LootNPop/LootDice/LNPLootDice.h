@@ -60,6 +60,8 @@ public:
 	virtual float GetInteractionSearchRadius() const override { return InteractionRadius; }
 	/** 상호작용 프롬프트(키 아이콘) 표시 여부 — 로컬 플레이어의 ULNPInteractionComponent가 호출한다 */
 	virtual void SetInteractionPromptVisible(bool bVisible) override;
+	/** 보상이라 근접 장치보다 위에 둔다. 수용 범위도 런처보다 좁다(전방 140° 원뿔). */
+	virtual int32 GetInteractionPriority() const override { return 20; }
 
 	ULNPItemDefinitionBase* GetItemDef() const { return ItemDef; }
 	float GetRemainingDuration() const { return RemainingDuration; }

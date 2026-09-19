@@ -58,6 +58,8 @@ public:
 	virtual bool WantsInteractionPrompt(const APawn* Interactor) const override { return CurrentState == ELNPLootPodState::Idle; }
 	/** 상호작용 프롬프트(키 아이콘) 표시 여부를 갱신한다 — 로컬 플레이어의 ULNPInteractionComponent가 호출한다 */
 	virtual void SetInteractionPromptVisible(bool bVisible) override;
+	/** 가장 좁은 수용 범위(250cm + 전방 60°)이자 게임의 핵심 목표 — 프롬프트 경쟁에서 가장 높다. */
+	virtual int32 GetInteractionPriority() const override { return 30; }
 
 	/** 진단용: 상호작용 판정 세부 값(거리/각도/상태)을 문자열로 반환한다 — LootPod 개발 중 테스트 로그 */
 	FString GetInteractDiagnosticString(const APawn* Interactor) const;
