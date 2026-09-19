@@ -7,7 +7,7 @@
 #include "Interaction/LNPInteractable.h"
 #include "LNPGrappleAnchor.generated.h"
 
-class UStaticMeshComponent;
+class UNiagaraComponent;
 class UWidgetComponent;
 
 /**
@@ -63,8 +63,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Anchor")
 	TObjectPtr<USceneComponent> SceneRoot;
 
+	/**
+	 * 앵커의 시각 표현. **메시가 아니라 나이아가라다** — 앵커는 도달 지점일 뿐 부딪히는 물체가 아니고,
+	 * 25m 밖에서 식별되는 것이 유일한 요구사항이라 빛나는 스프라이트가 3D 모델보다 잘 맞는다.
+	 * 콜리전이 아예 없으므로 비행 스윕이 도착 직전에 자기 자신에 막힐 일도 없다.
+	 */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Anchor")
-	TObjectPtr<UStaticMeshComponent> MeshComponent;
+	TObjectPtr<UNiagaraComponent> EffectComponent;
 
 	/** 상호작용 프롬프트 위젯 — 로컬 판정으로만 표시되므로 복제와 무관, 기본 숨김 */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Anchor")
