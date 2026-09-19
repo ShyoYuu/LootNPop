@@ -36,6 +36,9 @@
 namespace
 {
 
+	/** 지면 착탄 VFX를 표면에서 띄우는 거리 (cm). 카메라를 향한 스프라이트가 지형에 반쯤 잘리는 것만 막으면 되므로 작게 둔다. */
+	constexpr float ImpactVfxSurfaceLift = 15.f;
+
 	/** 클라이언트 예측 전용: ULNPGhostProjectileSubsystem::Ghosts(TMap)는 RPC 콜백(게임 스레드)에서도 갱신되므로,
 	 *  Mass Execute()(워커 스레드에서 돌 수 있음)에서 직접 건드리면 데이터 레이스다. Command Buffer flush로 위탁한다. */
 	struct FLNPGhostSweepCommand : public FMassBatchedCommand
@@ -202,6 +205,29 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		return LNPProjectileMotion::IsUnderSurface(SurfaceCache, Pos);
 	};
 
+	/**
+	 * 지면 착탄 VFX의 스폰 지점.
+	 *
+	 * IsUnderSurface는 투사체가 표면을 **이미 지난** 뒤에 참이 되므로, 종료 프레임의 위치를 그대로
+	 * 쓰면 이펙트가 직전 한 틱의 이동거리만큼 지하에 묻혀 통째로 가려진다. 같은 반경 방향의 표면
+	 * 지점으로 끌어올린다 — PredictArc이 이분 탐색으로 하는 보정과 의도가 같고, 조회가 O(1)이라
+	 * 여기서는 탐색 없이 한 번의 조회로 끝낸다.
+	 *
+	 * 수명 만료는 공중에서도 일어나므로 표면 아래일 때만 보정한다. 공중 폭발은 그 자리가 맞다.
+	 */
+	auto ImpactVfxPos = [&SurfaceCache](const FVector& Pos) -> FVector
+	{
+		if (!LNPProjectileMotion::IsUnderSurface(SurfaceCache, Pos))
+			return Pos;
+
+		FVector SurfacePoint;
+		if (!SurfaceCache.GetSurfacePoint(Pos.GetSafeNormal(), SurfacePoint))
+			return Pos;
+
+		// 표면에 정확히 놓으면 카메라를 향한 스프라이트의 아래 절반이 지형에 잘린다.
+		return SurfacePoint - Pos.GetSafeNormal() * ImpactVfxSurfaceLift;
+	};
+
 	// 클라이언트: 로컬 예측 공격자의 Ghost Projectile에 한해 Physics/Actor 기반 예측 판정 (코스메틱 HitStop만, GE 미적용).
 	// 서버 판정(Mass 엔티티 쿼리 + GE 적용)과 완전히 분리된 경로다.
 	if (!bIsServer)
@@ -320,7 +346,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (bHit || !IsTerminated(CurrentPos, Proj.LifetimeRemaining))
 					continue;
 
-				VisualSub.EnqueueImpact(Shared.VFXData, CurrentPos, -CurrentPos.GetSafeNormal());
+				VisualSub.EnqueueImpact(Shared.VFXData, ImpactVfxPos(CurrentPos), -CurrentPos.GetSafeNormal());
 				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(Ctx.GetEntity(i));
 			}
 		});
@@ -815,7 +841,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 			// 지면 폭발의 임팩트는 로컬 VFX로 남긴다 — 캐릭터 피격과 달리 Ghost 대조 토큰이 필요 없고,
 			// GameplayCue로 올리면 게스트가 자기 Ghost의 착탄 VFX와 겹쳐 두 번 보게 된다.
-			VisualSub.EnqueueImpact(Shared.VFXData, CurrentPos, -CurrentPos.GetSafeNormal());
+			VisualSub.EnqueueImpact(Shared.VFXData, ImpactVfxPos(CurrentPos), -CurrentPos.GetSafeNormal());
 			Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 
 			// 제외 대상 없음 — 직격이 없었으니 반경 안의 모두가 스플래시를 받는다.
