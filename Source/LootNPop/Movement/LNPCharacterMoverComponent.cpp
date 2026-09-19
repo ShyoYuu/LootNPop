@@ -124,7 +124,12 @@ void ULNPCharacterMoverComponent::ExecuteGrapple(const FMoverTimeStep& TimeStep,
 
 	// 앵커에 박히지 않도록 StopShort만큼 못 미쳐 멈춘다. "도착했나"를 매 틱 확인하는 상태를 두지 않는다 —
 	// 지속시간 기반이면 리시뮬레이션이 같은 InputCmd와 같은 롤백 위치에서 같은 값을 다시 계산한다.
-	const float Travel = FMath::Max(Dist - GrappleStopShortDistance, 0.f);
+	//
+	// ⚠️ StopShort를 거리의 절반으로 제한한다. 그러지 않으면 설정 에셋의 MinGrappleDistance가
+	// StopShort보다 작을 때(예: 100 vs 150) 이동량이 0이 되어 **프롬프트는 뜨는데 F가 아무 일도 하지 않는**
+	// 구간이 생긴다. 설정 값 조합으로 기능이 조용히 죽는 것은 막고, 가까운 앵커는 절반만 당겨 준다.
+	const float StopShort = FMath::Min(GrappleStopShortDistance, Dist * 0.5f);
+	const float Travel = FMath::Max(Dist - StopShort, 0.f);
 	const float DurationMs = Travel / FMath::Max(GrappleSpeed, KINDA_SMALL_NUMBER) * 1000.f;
 	if (DurationMs <= 0.f)
 	{

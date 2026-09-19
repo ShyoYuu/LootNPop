@@ -5,8 +5,8 @@
 #include "Interaction/LNPInteractableRegistrySubsystem.h"
 #include "Interaction/LNPInteractionPromptWidget.h"
 
-#include "Components/StaticMeshComponent.h"
 #include "Components/WidgetComponent.h"
+#include "NiagaraComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
@@ -25,10 +25,8 @@ ALNPGrappleAnchor::ALNPGrappleAnchor()
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
 
-	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
-	MeshComponent->SetupAttachment(RootComponent);
-	// 앵커는 도달 지점이다. 콜리전이 있으면 비행 스윕이 도착 직전에 자기 자신에 막힌다.
-	MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	EffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("EffectComponent"));
+	EffectComponent->SetupAttachment(RootComponent);
 
 	InteractionPromptWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractionPromptWidget"));
 	InteractionPromptWidget->SetupAttachment(RootComponent);
