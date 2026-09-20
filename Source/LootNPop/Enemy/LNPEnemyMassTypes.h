@@ -381,6 +381,38 @@ struct LOOTNPOP_API FLNPEnemyActionFragment : public FMassFragment
 	ELNPEnemyAction ConsumedAction = ELNPEnemyAction::Idle;
 
 	/**
+	 * 공격이 **플레이어에게 닿을 때마다** +1 — HitStop(피격 감속) 연출의 유일한 신호다.
+	 * 서버(`FLNPEntityHitStopCommand`)가 올리고, 그리는 머신이 카운터 변화로 읽는다.
+	 *
+	 * ⚠️ **`Seq`를 재활용하지 않는다.** 애니 프로세서가 시퀀스 *변형*을 `Seq`에서 유도하므로
+	 * (`ULNPEnemyAnimationProcessor`), 공격 도중 `Seq`를 올리면 변형이 바뀌며 공격 애니가
+	 * **처음부터 다시 재생된다.** 원거리의 "발사" 전이와 달리 이 신호는 진행 중인 재생을
+	 * 건드리면 안 되므로 축을 따로 둔다.
+	 *
+	 * 값이 **닿는 순간에만** 바뀌므로 나머지 갱신에서는 델타 압축이 1비트로 접는다
+	 * (AimPitch·HealthPct와 같은 성질 → `LNPMassReplication.h`).
+	 */
+	uint8 HitStopSeq = 0;
+
+	/** **클라이언트 전용 장부** — 이미 그려 준 HitStop 카운터. `HitStopSeq`와 다르면 아직 소비하지 않은 적중이다. */
+	uint8 ConsumedHitStopSeq = 0;
+
+	/** **그리는 머신 전용 장부** — 남은 HitStop 시간(초). 0보다 크면 재생 속도가 눌린다. */
+	float HitStopTimeRemaining = 0.f;
+
+	/**
+	 * **그리는 머신 전용 장부** — ISKM 트랙에 마지막으로 반영된 시퀀스와 재생 속도.
+	 *
+	 * ⚠️ 엔진은 **`SequenceIndex`가 바뀔 때만** AutoPlayData를 트랙에 밀어 넣는다
+	 * (`MassVisualizationComponent.cpp`의 `GetSequenceIndex() != ...` 비교). 즉 프래그먼트의
+	 * PlayRate만 바꿔서는 아무 일도 일어나지 않아 감속은 트랙에 직접 걸어야 하고,
+	 * 반대로 시퀀스가 바뀌는 프레임에는 우리가 건 값이 엔진 값으로 **조용히 덮인다.**
+	 * 두 값을 같이 들고 있어야 "지금 트랙에 무엇이 걸려 있는가"를 알 수 있다.
+	 */
+	int32 AppliedSequenceIndex = INDEX_NONE;
+	float AppliedPlayRate      = 0.f;
+
+	/**
 	 * 이 행동이 **일회성 연출**인가 — 즉 시작 시각을 놓치면 통째로 못 보게 되는가.
 	 *
 	 * 복제 갱신 주기 게이트(Low 0.3초)를 우회할 자격의 판별 기준이다. 짧은 공격(총 1.0초)은

@@ -575,6 +575,18 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 						Player.CapsuleCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius, AttackerDir);
 				};
 
+				// 공격이 닿았다는 사실을 **순수 엔티티 공격자에게만** 남긴다 — 실제 감속은 그리는 머신이
+				// ISKM 트랙에 직접 건다(ULNPEnemyAnimationProcessor). Actor 공격자는 FLNPImpactCueCommand가
+				// ApplyHitStop으로 이미 처리하므로 여기서 중복해서 세지 않는다.
+				// ⚠️ 패링은 제외한다 — 그쪽은 Parried 자세 붕괴라는 훨씬 강한 반응이 따로 있고,
+				//    가드와 패링의 차이가 흐려지면 안 된다 (GameDesign_ParrySystem.md).
+				auto SignalEntityHitStop = [&]
+				{
+					if (Frag.InstigatorActor.IsValid() || !Frag.InstigatorEntity.IsSet())
+						return;
+					Ctx.Defer().PushCommand<FLNPEntityHitStopCommand>(Frag.InstigatorEntity);
+				};
+
 				// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경, 서버 만료 시각으로 RTT 보정)
 				if (PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || NowForRewind <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos
 					&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
@@ -598,6 +610,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					// 막아내도 경직은 쌓인다 — 임계를 넘으면 가드가 풀리며 경직에 걸린다 (가드 브레이크).
 					LNPPoise::Accumulate(Player.Poise, Frag.PoiseDamage, NowForRewind, PoiseGuardMultiplier);
 					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor, ImpactPointOf(), AttackerDir);
+					SignalEntityHitStop();
 					return;
 				}
 
@@ -606,6 +619,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				// 적 피격 분기와 같은 자리에서 임팩트 연출을 낸다 — 데미지 커맨드가 더는 연출을 내지 않는다.
 				const FVector PlayerImpactPoint = ImpactPointOf();
 				Ctx.Defer().PushCommand<FLNPImpactCueCommand>(Player.Actor, Frag.InstigatorEntity, PlayerImpactPoint, AttackerDir);
+				SignalEntityHitStop();
 
 				const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 				if (EffectClass)

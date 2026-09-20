@@ -51,7 +51,7 @@ ReleaseGuardState()       ← 해제는 전부 이 하나를 거친다
 | 태그 | 설명 |
 |:---|:---|
 | `LNP.State.Guarding` / `LNP.State.ParryWindow` | 상태 태그 (InputHandler 관리) |
-| `GameplayCue.LNP.Guard.Block` / `GameplayCue.LNP.Parry.Success` | VFX/SFX 큐. 두 에셋 모두 `ULNPGameplayCueNotify_VFXSound` 파생이며 Niagara(`NS_Guard_Block`/`NS_Parry_Success`)가 물려 있다. 사운드는 둘 다 미설정 (§8) |
+| `GameplayCue.LNP.Guard.Block` / `GameplayCue.LNP.Parry.Success` | VFX/SFX 큐. 두 에셋 모두 `ULNPGameplayCueNotify_VFXSound` 파생이며 Niagara(`NS_Guard_Block`/`NS_Parry_Success`)가 물려 있다. Guard.Block은 `HitStopDuration`도 함께 쓴다 (§4). 사운드는 둘 다 미설정 (§8) |
 | `LNP.GameplayEvent.Parry.Success` | 방어자 GA_ParrySuccess 트리거 |
 | `LNP.Montage.Value.Parry.Parrier` | 방어자 패링 성공 몽타주 (Chooser 밸류) |
 | ~~`LNP.GameplayEvent.Parry.Stagger`~~ | **제거됨 (2026-08-29).** 공격자 경직은 전용 이벤트가 아니라 경직도(`LNPPoise::ApplyParryBreak`)를 거쳐 `Stagger.Light`로 들어온다 (→ [TechDesign_Poise.md](TechDesign_Poise.md) §8) |
@@ -75,7 +75,9 @@ ReleaseGuardState()       ← 해제는 전부 이 하나를 거친다
   ── 2단계: 피격 체크 (HitRadius) — 패링 미발동 시에만 ───────────
   dist <= HitRadius
       ├─ bIsGuarding && Dot >= GuardAngleCos → 경직 누적(×PoiseGuardMultiplier) + FLNPGuardBlockCommand
+      │                                          + (순수 엔티티 공격자면) FLNPEntityHitStopCommand
       └─ 그 외 → 경직 누적(전량) + 임팩트 큐 + FLNPApplyDamageGECommand
+                 + (순수 엔티티 공격자면) FLNPEntityHitStopCommand
 ```
 
 투사체는 두 단계 모두 소멸(`FinishHit`)하지만, **패링된 투사체만 소멸하지 않고 계속 비행한다.**
@@ -96,7 +98,8 @@ ReleaseGuardState()       ← 해제는 전부 이 하나를 거친다
 |:---|:---|
 | `FLNPMeleeParryCommand` | **방어자:** Parry.Success 큐 + GameplayEvent(→ `ULNPAbility_ParrySuccess`가 `ReactionMontage` 재생) + `Value.Parry.Parrier` 몽타주. **공격자:** 경직도 대량 누적(`LNPPoise::ApplyParryBreak`, 저항 미적용) + 넉백(방어자 반대 0.7 + Up 0.3, 2000 cm/s — 구형 곡률 포물선) |
 | `FLNPProjectileParryCommand` | 방어자: Parry.Success 큐 + 이벤트. **반사 재현 방송**: `Multicast_RespawnReflectedGhost`(구 Ghost 소멸 + 새 Ghost 스폰). 공격자 경직 없음 (투사체 패링 스펙) |
-| `FLNPGuardBlockCommand` | Guard.Block 큐 (향후 스태미나 GE 지점) |
+| `FLNPGuardBlockCommand` | Guard.Block 큐 (향후 스태미나 GE 지점). **방어자 HitStop은 큐 노티파이가 건다** — 커맨드 `Run`은 서버에서만 돌아 거기서 직접 부르면 호스트 화면에만 걸린다 |
+| `FLNPEntityHitStopCommand` | 순수 엔티티 **공격자**의 `HitStopSeq`를 +1. 재생 감속 자체는 그리는 머신이 ISKM 트랙에 건다 (→ [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md) §4.8). **패링에는 걸지 않는다** — 자세 붕괴(`Parried`)와 겹치면 가드·패링의 차이가 흐려진다 |
 | `FLNPApplyDamageGECommand` | 피해 GE + 넉백 + 공격자 HitStop(근접만) |
 
 **근접 패링은 공격자가 Actor인지 순수 엔티티인지에 따라 수단만 갈린다 — 세기·방향 공식은 같다.**
@@ -164,8 +167,28 @@ GAS 태그는 Game Thread 전용이라 Worker Thread 판정에서 읽을 수 없
 
 ## 8. 미구현 / 제약사항
 
-- **방어자 HitStop:** 기획서의 "패링 성공 시 방어자 HitStop"은 아직 없다. `ALNPCharacterBase::ApplyHitStop`은 피격자(HitReact 큐)와 근접 공격자(`Melee.AttackerHitStop` 큐)에만 물려 있다.
-- **큐 사운드:** 두 큐 모두 `Sound`가 비어 있다 (MCP로 CDO 확인).
+- **패링 성공 시 방어자 HitStop:** 기획서 항목이지만 아직 없다. **가드 성공 쪽은 2026-09-19에 들어왔다** — `ULNPGameplayCueNotify_VFXSound::HitStopDuration`(GCN_LNP_Guard_Block에 0.08초)으로, 피격(HitReact 큐)과 같은 수단이다. 패링에 같은 것을 얹을지는 미정이다.
+- **가드 성공 시 움찔 리액션(2026-09-20):** `LNP.Montage.Situation.Block` → `AM_SW_Guard_Hit`(`A_SW_Blocking_Hit`를 `RateScale 2.0`으로 0.35초에 압축, BlendIn/Out 0.05/0.10). 여러 NPC에게 연타당하는 상황을 고려해 짧게 잡았다.
+  ⚠️ **몽타주를 잘라서(`animEndTime`) 짧게 만들면 안 된다** — 잘린 지점의 포즈를 유지한 채 블렌드 아웃하므로 "잠깐 굳었다가 돌아오는" 그림이 된다. 길이를 줄이려면 `RateScale`로 압축해 **복귀 동작까지 재생되게** 할 것.
+  어디티브(`A_SW_Guard_Hit_Add`, 기준 포즈 = 자기 0번 프레임)도 만들어 두었으나 채택하지 않았다 — 가드 자세는 보존되지만 움직임 크기가 원본과 비슷해 이점이 크지 않았다. 연타 누적이 문제가 되면 몽타주 참조만 되돌리면 된다.
+- **큐 사운드:** 두 큐 모두 `Sound`가 비어 있다 (MCP로 CDO 확인). 프로젝트에 사운드 에셋 자체가 아직 없다.
+- **가드 VFX 구성(2026-09-20 완료):** `NS_Guard_Block`은 `Sparks` 하나뿐이라 **큐는 정상 발동하는데 화면에서 지각되지 않았다**
+  (서버 로그 `[Guard] Block success`는 계속 찍히고 있었다). 임팩트/패링과 같은 구성으로 `Flash`(단발 스프라이트)와
+  `Light`(라이트 렌더러)를 더했고, 값은 패링보다 낮게 잡았다 — 패링 플래시가 청백색 (500,620,900)·라이트 반경 760인 반면
+  가드는 주황 (520,170,40)·라이트 (150,47,9)·반경 340이다. **색 계열로 둘을 가른다**(가드=따뜻한 주황, 패링=청백).
+  플래시에는 `ScaleSpriteSize`(0.45 → 1.15 → 1.35)를 넣었다 — 크기가 고정이면 원이 켜졌다 꺼지는 그림이 된다.
+
+- ⚠️⚠️ **스파크가 한 픽셀도 안 그려지고 있었다 — 원인은 `bLocalSpace`였다 (2026-09-20).**
+  `NS_Guard_Block`·`NS_Parry_Success`의 `Sparks`가 월드 스페이스였고, 플레이어가 월드 원점에서 약 24,000cm 떨어진
+  구 내벽에 있는 이 월드에서는 그 조합이 화면에 아무것도 남기지 않았다. 같은 시스템의 `Flash`(로컬)는 멀쩡히 보였다.
+  **증상의 지문: 크기·색·머티리얼·힘 모듈을 아무리 바꿔도 화면이 1px도 변하지 않는다** — 픽셀 단계에 도달조차 못 하기 때문이다.
+  이 지문이 보이면 이미터 값 디버깅을 멈추고, **같은 시스템 안에서 보이는 이미터와 안 보이는 이미터의 `bLocalSpace`를
+  나란히 비교**하는 것이 가장 빠르다.
+  ⚠️ **"월드 스페이스면 무조건 컬링"은 아니다** — `NS_Impact_Generic`의 `Sparks`는 월드 스페이스인데 정상이었다.
+  두 이미터의 차이는 속도 모듈이다(가드 `AddVelocity` From Point = 위치 빼기 / 임팩트 `AddVelocityInCone` = 방향 축).
+  24,000cm 좌표에서 float32로 위치를 빼면 유효 자릿수가 무너지는 쪽이 유력하나 **미확정**이다.
+  ⚠️ 로컬 스페이스 전환은 공짜가 아니다 — `PointAttractionForce`의 `AttractorPosition=(0,0,0)`이 행성 중심이 아니라
+  **컴포넌트 원점**을 가리켜 구면 중력이 조용히 뒤집힌다. 수명 0.3초 버스트에는 중력이 무의미해 힘 모듈을 껐다.
 - **패링 카메라 쉐이크가 사실상 안 보인다:** `GCN_LNP_Parry_Success`의 `CameraShake`는 엔진 기본 클래스 `UDefaultCameraShakeBase`로 지정돼 있다 — 값이 비어 있는 것은 아니지만 튜닝된 쉐이크도 아니다. 루트 패턴이 Perlin 노이즈 1초에 **위치 진폭 1cm·1Hz, 회전 배율 0**이라 체감되지 않는다. 전용 쉐이크 클래스를 만들어 교체할 자리다. (`GCN_LNP_Guard_Block`은 `CameraShake` 자체가 비어 있다)
 - **Guided 반사:** `ELNPProjectileType::Guided`는 열거값만 있고 유도 로직 자체가 미구현이라, 기획서상 "유도 소실 + 방어자 시선 방향 직선화"를 적용할 대상이 없다 (→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md)).
 - **패링하는 쪽은 플레이어 전용:** 판정 대상은 `FLNPParryStateFragment`를 가지고 Actor도 있는 엔티티뿐이고, 현재 그 조건을 만족하는 것은 플레이어밖에 없다. Enemy가 패링하려면 StateTree/GA에서 Fragment를 갱신하는 연결이 필요하다.

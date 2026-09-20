@@ -58,6 +58,7 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 			InReplicatedAgent.SetActionAndSeq(FLNPReplicatedAgent::EncodeActionAndSeq(
 				ActionFragments[EntityIdx].Action, ActionFragments[EntityIdx].Seq));
 			InReplicatedAgent.SetAimPitch(ActionFragments[EntityIdx].AimPitch);
+			InReplicatedAgent.SetHitStopSeq(ActionFragments[EntityIdx].HitStopSeq);
 		}
 
 		// HP도 시드한다. 빼먹으면 이미 다친 적이 버블에 들어올 때 만피로 시작해 HP 바가 뜨지 않는다.
@@ -94,6 +95,11 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 		const bool bActionChanged =
 			(NewActionAndSeq != Item.Agent.GetActionAndSeq() || NewAimPitch != Item.Agent.GetAimPitch());
 
+		// HitStop 카운터는 행동 바이트와 **따로** 본다 — 한 번의 공격 안에서 바뀌므로
+		// 행동 전이와 짝지어지지 않는다(공격 진입 -> 닿음 -> 회수는 전부 Action::Attack이다).
+		const uint8 NewHitStopSeq = bHasAction ? ActionFragments[EntityIdx].HitStopSeq : Item.Agent.GetHitStopSeq();
+		const bool  bHitStopChanged = (NewHitStopSeq != Item.Agent.GetHitStopSeq());
+
 		// HP 비율도 게이트 앞에서 계산만 해 둔다. 다만 **게이트를 우회할 자격은 주지 않는다** —
 		// 우회는 시작 시각을 놓치면 통째로 못 보는 일회성 연출에만 준다. HP 바가 최대 한 주기(Low 0.3초)
 		// 늦게 갱신되는 것은 눈에 띄지 않고, 여기까지 넓히면 피격이 곧 갱신이 되어 갱신 수가 통제 없이 는다.
@@ -108,8 +114,13 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 		// ⚠️ **Idle<->Move는 우회시키지 않는다.** 루프 상태는 늦게 도착해도 그림이 같은 반면,
 		// 멈췄다 걷기를 반복하는 배회 개체는 전이를 초당 여러 번 만들어 갱신 수를 통제 없이
 		// 밀어올린다. 이 구분 하나가 스킵과 플랩을 동시에 막는다.
-		const bool bBypassGate = bActionChanged && bHasAction
-			&& FLNPEnemyActionFragment::IsOneShot(ActionFragments[EntityIdx].Action);
+		//
+		// HitStop도 같은 자격이다. 적중은 공격 진입보다 WindupTime만큼 뒤에 일어나므로 게이트를
+		// 태우면 Low(0.3초) 거리에서 **연출 길이(0.3초)만큼 통째로 늦게** 도착해 아무것도 보이지 않는다.
+		// 전이 빈도는 공격 쿨다운에 묶여 있어 배회 플랩 같은 문제가 생기지 않는다.
+		const bool bBypassGate = bHasAction
+			&& ((bActionChanged && FLNPEnemyActionFragment::IsOneShot(ActionFragments[EntityIdx].Action))
+				|| bHitStopChanged);
 
 		// 복제 LOD별 갱신 주기 게이트. 엔진은 FMassReplicationParameters::UpdateInterval을
 		// 초기화만 하고 어디서도 읽지 않으므로(엔진 기본 High 0.1 / Medium 0.2 / Low 0.3초)
@@ -149,12 +160,15 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 			Item.Agent.SetAimPitch(NewAimPitch);
 		}
 
+		if (bHitStopChanged)
+			Item.Agent.SetHitStopSeq(NewHitStopSeq);
+
 		if (bHealthChanged)
 			Item.Agent.SetHealthPct(NewHealthPct);
 
 		// 게이트 통과 시각이 아니라 **실제로 보낸 시각**을 기록한다 — 정지한 엔티티가 다시 움직이기
 		// 시작할 때 한 주기를 기다리지 않고 즉시 반영되게 하려는 것이다.
-		if (bPositionYawChanged || bActionChanged || bHealthChanged)
+		if (bPositionYawChanged || bActionChanged || bHealthChanged || bHitStopChanged)
 		{
 			Bubble.MarkItemDirty(Item);
 			Item.LastDirtyTime = Time;

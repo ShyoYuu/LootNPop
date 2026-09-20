@@ -96,17 +96,21 @@ void FLNPMassClientBubbleHandler::ApplyReplicatedAction(const FMassEntityView& E
 	// Optional 취급 — 적이 아닌 아키타입(Player·LootPod)에는 이 프래그먼트가 없다.
 	if (FLNPEnemyActionFragment* ActionFragment = EntityView.GetFragmentDataPtr<FLNPEnemyActionFragment>())
 	{
-		ActionFragment->Action   = Agent.GetAction();
-		ActionFragment->Seq      = Agent.GetSeq();
-		ActionFragment->AimPitch = Agent.GetAimPitch();
+		ActionFragment->Action     = Agent.GetAction();
+		ActionFragment->Seq        = Agent.GetSeq();
+		ActionFragment->AimPitch   = Agent.GetAimPitch();
+		ActionFragment->HitStopSeq = Agent.GetHitStopSeq();
 		// PrevPosition은 서버 전용 장부라 건드리지 않는다 — 클라에서는 이동 판별을 하지 않는다.
 
 		// 버블에 막 들어온 적의 전이는 **이미 지나간 것**이다. 소비 완료로 표시해 두지 않으면
 		// 화면에 나타나는 순간 지나간 발사의 Ghost를 뒤늦게 쏜다.
 		if (bIsInitialSpawn)
 		{
-			ActionFragment->ConsumedSeq    = ActionFragment->Seq;
-			ActionFragment->ConsumedAction = ActionFragment->Action;
+			ActionFragment->ConsumedSeq        = ActionFragment->Seq;
+			ActionFragment->ConsumedAction     = ActionFragment->Action;
+			// HitStop도 같은 이유로 소비 완료로 맞춘다 — 버블에 들어오는 순간 지나간 적중 하나를
+			// 뒤늦게 재생하면 공격하지도 않는 개체가 느려진 채 나타난다.
+			ActionFragment->ConsumedHitStopSeq = ActionFragment->HitStopSeq;
 		}
 	}
 }

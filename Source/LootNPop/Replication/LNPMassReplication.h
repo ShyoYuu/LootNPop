@@ -253,6 +253,10 @@ struct LOOTNPOP_API FLNPReplicatedAgent : public FReplicatedAgentBase
 	void SetAimPitch(const int8 InAimPitch) { AimPitch = InAimPitch; }
 	int8 GetAimPitch() const { return AimPitch; }
 
+	/** 공격이 플레이어에게 닿을 때마다 +1하는 카운터. 값의 의미는 FLNPEnemyActionFragment가 정의한다. */
+	void SetHitStopSeq(const uint8 InHitStopSeq) { HitStopSeq = InHitStopSeq; }
+	uint8 GetHitStopSeq() const { return HitStopSeq; }
+
 	/**
 	 * HP 비율을 0~255로 양자화한다.
 	 *
@@ -307,6 +311,17 @@ private:
 	 */
 	UPROPERTY(Transient)
 	int8 AimPitch = 0;
+
+	/**
+	 * 공격이 플레이어에게 닿은 횟수(wrap). **닿는 순간에만 바뀌므로** 나머지 갱신에서는 델타 압축이
+	 * 1비트로 접는다 (`ActionAndSeq`와 같은 이유로 PositionYaw의 형제 멤버다).
+	 *
+	 * 이 필드가 없으면 게스트 화면에서 순수 엔티티의 공격이 **플레이어에게 닿아도 그대로 흘러간다** —
+	 * 판정은 서버 전용이고, 행동 상태 채널의 3+5비트에는 실어 보낼 자리가 남아 있지 않다.
+	 * 시간이 아니라 **카운터**를 싣는 것은 5.5장의 규약과 같다 — 길이는 양쪽이 이미 가진 Config에서 읽는다.
+	 */
+	UPROPERTY(Transient)
+	uint8 HitStopSeq = 0;
 
 	/**
 	 * 적 HP 비율 (0~255). **피격할 때만 바뀌므로** 나머지 갱신에서는 델타 압축이 1비트로 접는다

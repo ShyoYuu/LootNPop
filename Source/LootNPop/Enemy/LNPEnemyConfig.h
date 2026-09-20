@@ -327,6 +327,23 @@ struct FLNPEntityAttackConfig
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
 	float ParriedRecoveryTime = 1.05f;
 
+	/**
+	 * 공격이 플레이어에게 **닿은 순간**(가드·피격 무관) 이 시간 동안 재생 속도가 눌린다. 0이면 끈다.
+	 *
+	 * ⚠️ **위상 시간에는 손대지 않는다.** 판정 구간(`ActiveTime`)까지 늘어나면 연출이 게임플레이를
+	 * 바꾸게 된다 — 늦춰지는 것은 그림뿐이고 칼날 수명·쿨다운은 그대로다.
+	 *
+	 * ⚠️ **읽는 쪽은 그리는 머신이다**(`ULNPEnemyAnimationProcessor`). 서버는 "닿았다"는 신호만
+	 * 올리고(`FLNPEnemyActionFragment::HitStopSeq`) 길이는 각 머신이 이 값에서 읽는다 —
+	 * 시간을 와이어에 실으면 개체 수만큼 곱해지는데, 그 정밀도가 필요한 연출이 아니다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0"))
+	float HitStopDuration = 0.3f;
+
+	/** HitStop 동안 기본 재생 속도에 곱해지는 배율. 0이면 완전 정지. */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float HitStopPlayRateScale = 0.15f;
+
 	// --- 근접 전용: 가상 칼날 (캡슐 중심 기준 로컬 치수) ---
 
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Melee")
