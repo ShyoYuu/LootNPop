@@ -6,6 +6,7 @@
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
+#include "Character/LNPCharacterBase.h"
 
 bool ULNPGameplayCueNotify_VFXSound::OnExecute_Implementation(AActor* MyTarget, const FGameplayCueParameters& Parameters) const
 {
@@ -14,6 +15,18 @@ bool ULNPGameplayCueNotify_VFXSound::OnExecute_Implementation(AActor* MyTarget, 
 
 	if (Sound)
 		UGameplayStatics::PlaySoundAtLocation(MyTarget, Sound, Parameters.Location);
+
+	if (HitStopDuration > 0.f || MontageSituation.IsValid())
+	{
+		if (ALNPCharacterBase* TargetChar = Cast<ALNPCharacterBase>(MyTarget))
+		{
+			if (HitStopDuration > 0.f)
+				TargetChar->ApplyHitStop(HitStopDuration);
+
+			if (MontageSituation.IsValid())
+				TargetChar->PlayMontage(MontageSituation, MontageValue);
+		}
+	}
 
 	if (CameraShake)
 	{

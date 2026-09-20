@@ -248,12 +248,11 @@ Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2
 | 콤보 — 콤보 인덱스별 경직력·넉백 없음 | 단타 고정 |
 | Lag Compensation — `RewindSeconds = 0` | **이미 그렇다** — 공격자에 PlayerController가 없으면 되감기가 0이다 |
 | 클라이언트 예측 없음 | 예측은 로컬 공격자 전용 개념 |
-| 공격자 HitStop 없음 | 순수 엔티티가 *때릴* 때 자기 재생을 멈추는 것은 없다. 반대로 **플레이어가 순수 엔티티를 때릴 때의 HitStop은 정상 동작한다**(§4.7) |
 | 그로기와 다운의 연출 구분 없음 | 둘 다 `Action::Stagger` 하나로 나간다(`ActorPromoted`는 Light/Heavy 몽타주가 갈린다). 행동 상태 값을 하나 더 쓸 만큼 그림 차이가 크지 않다 — 필요해지면 3비트에 두 자리가 남아 있다 |
 | 랙돌 없음 | 사망 시퀀스 + **사망 팝**으로 대체 (§8) |
 | 상하 조준 **자세**가 복제되지 않는다 | **발사 방향은 클램프된 Pitch를 쓴다**(§4.4) — 없는 것은 게스트가 보는 *자세*뿐이다 (§5.5) |
 
-**해소된 칸 셋** — 셋 다 한동안 "감수하는 한계"로 잘못 남아 있었다.
+**해소된 칸 넷** — 넷 다 한동안 "감수하는 한계"로 잘못 남아 있었다.
 
 - **적이 피격자인 방향** ✅ 2026-09-07. 이전 판은 *"임팩트 VFX와 넉백이 피격자 Actor/ASC를 경유하는데
   순수 엔티티에는 둘 다 없다"* 며 미해결로 두었다 → §4.7.
@@ -261,6 +260,8 @@ Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2
   그로기에서만 나갔고 **평타 피격에는 아무 반응이 없었다** → §4.7.
 - **월드 HP Bar** ✅ 2026-09-09. 월드 스페이스가 아니라 **스크린 스페이스 커스텀 Slate 마커**로 붙었고,
   승격 Actor의 옛 `UWidgetComponent` 경로는 함께 삭제했다 (→ [TechDesign_HUD.md](TechDesign_HUD.md) §11).
+- **공격자 HitStop** ✅ 2026-09-19. *"Actor가 없으니 `CustomTimeDilation`을 못 쓴다"* 로 닫아 두었는데,
+  멈춰야 하는 것은 Actor가 아니라 **ISKM 트랙의 재생 속도**였다 → §4.8.
 
 ### 4.7 적이 피격자인 방향 (2026-09-07 해소)
 
@@ -314,6 +315,68 @@ Pass 1(적 쿼리)이 위상을 진행하며 4점을 계산해 모으고, Pass 2
 ⚠️ `ActorPromoted`는 `ULNPEntityAttackProcessor`가 청크 단위로 조기 반환해 `Phase`가 영원히 `None`이다 —
 **모드 분기 없이 순수 엔티티에만 적용되는 이유가 이것이다.**
 
+### 4.8 공격이 닿았을 때의 HitStop (2026-09-19)
+
+§4.6이 *"Actor가 없으니 못 한다"* 로 닫아 두었던 칸이다. 멈춰야 하는 것은 Actor가 아니라
+**ISKM 트랙의 재생 속도**이고, 그 손잡이는 엔진이 이미 공개해 두었다.
+
+```
+[서버] 판정이 플레이어에게 닿음(가드·피격 무관)
+   └─ FLNPEntityHitStopCommand → 공격자 FLNPEnemyActionFragment::HitStopSeq 를 +1
+        └─ 복제 페이로드 uint8 HitStopSeq (§5.2)
+[그리는 머신] ULNPEnemyAnimationProcessor 가 카운터 변화를 보고
+   └─ HitStopDuration 동안 PlayRate x HitStopPlayRateScale 을 트랙에 **직접** 건다
+```
+
+⚠️ **`FMassRepresentationAnimationFragment::AnimData.PlayRate`만 바꾸면 아무 일도 일어나지 않는다.**
+엔진의 반영 지점(`UMassVisualizationComponent::EndVisualChanges`)은
+`ASTPDI->GetSequenceIndex(TrackId, 0) != AnimData.SequenceIndex`일 때만 `SetAutoPlayData`를 호출한다 —
+**시퀀스가 그대로인 갱신은 경고 한 줄 없이 버려진다.** 그래서 감속·복귀는
+`UAnimSequenceTransformProviderDataInstance::SetPlayRate(TrackId, 0, Rate)`로 트랙에 직접 걸어야 한다.
+이 함수는 **현재 위상을 보존한 채** 기준 타임스탬프를 다시 계산하므로 포즈가 튀지 않는다.
+
+트랙까지의 경로는 전부 공개 API다:
+`UMassRepresentationSubsystem::GetVisualizationComponent()` →
+`GetSharedDataForDescriptionIndex(n)` (null이 나올 때까지 훑는다) →
+`GetEntityToTrackMap().Find(Entity)` → `GetInstancedSkinnedMeshComponent()->GetTransformProvider()`.
+
+⚠️ **몸통과 무기는 서로 다른 ISKM이고 트랙도 따로다**(§6.3). 공유 데이터를 전부 훑어 **양쪽 다** 걸지 않으면
+칼만 앞서 나간다.
+
+#### ⭐ 페이즈 배치가 체감을 가른다 (2026-09-19 실측)
+
+감속을 거는 `ULNPEnemyHitStopProcessor`는 **PostPhysics**에 있다. 처음에는 애니 프로세서와 함께
+PrePhysics에 두었는데, 플레이 테스트에서 *"칼이 피격자를 거의 통과하고 나서야 멈칫한다"* 로 나왔다.
+이유가 두 개이고 **둘 다 같은 답을 가리킨다.**
+
+| 프레임 안에서 | 무슨 일이 일어나는가 |
+|:---|:---|
+| PrePhysics | 애니 프로세서가 `AnimData`를 쓴다. **아직 이번 프레임의 적중 신호는 없다** |
+| StartPhysics | 판정이 커맨드를 밀고, **페이즈가 끝날 때 플러시**되며 `HitStopSeq`가 오른다 |
+| PostPhysics **시작** | 엔진이 `EndVisualChanges`로 `AnimData`를 트랙에 반영한다 |
+| PostPhysics | ← 여기서 걸어야 같은 프레임에 반영되고, 엔진이 덮어쓸 일도 없다 |
+
+- ① 커맨드 플러시는 **페이즈 단위**다 (`FMassProcessingPhaseManager::OnPhaseEnd`). PrePhysics에서 읽으면
+  이번 프레임 적중을 못 보고 다음 프레임에야 본다. 스윙이 0.27초에 300도이므로 **한 프레임이 약 19도**다.
+- ② 엔진의 트랙 반영 지점은 PrePhysics가 아니라 **PostPhysics 시작**이다
+  (`UMassRepresentationSubsystem::OnProcessingPhaseStarted`). 그보다 먼저 걸면 시퀀스가 바뀐 프레임에
+  우리가 건 값이 덮인다.
+
+`AnimData`를 **쓰는** 쪽은 소비 프로세서보다 앞서야 하므로 PrePhysics에 그대로 남는다 — 두 프로세서가
+같은 프레임의 `AnimData.PlayRate`를 기본값의 단일 원본으로 공유한다.
+
+⚠️ **게스트가 더 잘 맞아 보이는 것은 우연이다.** 게스트는 적 표현 전체가 뒤처져 있어, 늦게 도착한 신호가
+늦게 그려지는 그림과 우연히 맞는다. 호스트에서 어긋나 보였던 것이 실제 결함이고 위 배치가 그것을 고친다.
+
+**감수하는 것**
+
+| 항목 | 판단 근거 |
+|:---|:---|
+| 위상(`Phase`)은 늦추지 않는다 | 판정 구간이 함께 늘어나면 연출이 게임플레이를 바꾼다. 늦춰지는 것은 그림뿐이고 칼날 수명·쿨다운은 그대로다 |
+| 게스트는 RTT/2 + 갱신 지연만큼 늦게 본다 | 게이트는 우회하지만(§5.6) 도착 자체는 늦다. 코스메틱이라 수용한다 |
+| 패링에는 걸지 않는다 | 패링은 `Parried` 자세 붕괴라는 훨씬 강한 반응이 따로 있다. 가드와 패링의 차이가 흐려지면 안 된다 (→ [GameDesign_ParrySystem.md](GameDesign_ParrySystem.md)) |
+| Actor 승격 개체는 이 경로를 타지 않는다 | 그쪽은 `FLNPImpactCueCommand`가 `ApplyHitStop`으로 이미 처리한다. 판정 쪽에서 `InstigatorActor`가 유효하면 신호를 올리지 않는다 |
+
 ---
 
 ## 5. 트랙 B — 행동 상태 채널
@@ -342,7 +405,13 @@ UENUM() enum class ELNPEnemyAction : uint8 { Idle, Move, Attack, Stagger, Dying,
 uint8 ActionAndSeq;   // 상태 3비트 + 전이 카운터 5비트
 int8  AimPitch;       // 발사 순간의 상하 조준각 (∓90도를 int8 전 범위에, 약 0.7도) — §5.4
 uint8 HealthPct;      // HP 비율 0~255 — 나중에 들어왔다 (§5.5)
+uint8 HitStopSeq;     // 공격이 플레이어에게 닿을 때마다 +1 — 나중에 들어왔다 (§4.8)
 ```
+
+⚠️ **HitStop에 `Seq`를 재활용하지 않는다.** 애니 프로세서가 시퀀스 *변형*을 `Seq`에서 유도하므로(§6.4),
+공격 도중 `Seq`를 올리면 변형이 바뀌며 **공격 애니가 처음부터 다시 재생된다.** 원거리의 "발사" 전이와 달리
+이 신호는 진행 중인 재생을 건드리면 안 되므로 축을 따로 둔다 — 값이 닿는 순간에만 바뀌므로
+나머지 갱신에서는 `AimPitch`·`HealthPct`와 똑같이 1비트로 접힌다.
 
 ⚠️ **형제 멤버로 두는 것이 인코딩의 절반이다.** `FStructNetSerializer::SerializeDelta`가
 구조체 멤버마다 "같음" 1비트를 쓰므로(→ [Guide_NetBandwidth.md](Guide_NetBandwidth.md) §2.3),
@@ -450,6 +519,9 @@ Attack -> Attack (Seq+1)   발사. 서버가 이 순간 조준각을 확정해 �
 **해법 — 일회성 전이만 게이트를 우회한다 (채택, 2026-09-05).**
 
 `Attack`·`Stagger`·`Parried`·`Dying` **진입**은 `UpdateInterval` 게이트를 건너뛰고 즉시 Dirty를 건다.
+**`HitStopSeq` 변화도 같은 자격이다** — 적중은 공격 진입보다 `WindupTime`만큼 뒤에 일어나므로 게이트를
+태우면 Low(0.3초) 거리에서 연출 길이(0.3초)만큼 통째로 늦게 도착해 아무것도 보이지 않는다.
+전이 빈도가 공격 쿨다운에 묶여 있어 배회 플랩 같은 문제는 생기지 않는다.
 `Idle <-> Move`는 게이트를 그대로 탄다. 판별 원본은 `FLNPEnemyActionFragment::IsOneShot()` 하나이며,
 ISKM의 Loop/Clamp도 같은 함수에서 파생한다(§6.4).
 

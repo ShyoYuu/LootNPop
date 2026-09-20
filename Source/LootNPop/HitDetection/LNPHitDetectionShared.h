@@ -152,11 +152,6 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 			if (!IsValid(VictimASC))
 				continue;
 
-			FGameplayCueParameters CueParams;
-			CueParams.Location = Entry.ImpactPoint;
-			CueParams.Normal   = Entry.ImpactNormal;
-			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, CueParams);
-
 			AActor* Attacker = nullptr;
 			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
 				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
@@ -165,6 +160,14 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 			EventData.Target     = Victim;
 			EventData.Instigator = Attacker;
 			VictimASC->HandleGameplayEvent(TAG_GameplayEvent_Parry_Success, &EventData);
+
+			// ⚠️ **큐를 이벤트보다 뒤에 낸다.** 방어자 리액션 몽타주를 내는 곳이 둘이라
+			// (GA_ParrySuccess의 ReactionMontage / 큐의 Chooser 몽타주) 나중에 부른 쪽이 이긴다.
+			// 순서를 뒤집으면 호스트에서 보이던 몽타주가 조용히 바뀐다.
+			FGameplayCueParameters CueParams;
+			CueParams.Location = Entry.ImpactPoint;
+			CueParams.Normal   = Entry.ImpactNormal;
+			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Parry_Success, CueParams);
 
 			// 패링 보상은 경직도로 준다 — 전용 스태거 GA를 따로 돌리지 않는다.
 			// 두 경로를 병행하면 GA가 먼저 끝나면서 게이지는 아직 T1 위인데 행동이 풀려 그로기가 조용히 깨진다.
@@ -224,10 +227,8 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 				}
 			}
 
-			if (ALNPCharacterBase* VictimPawn = Cast<ALNPCharacterBase>(Victim))
-			{
-				VictimPawn->PlayMontage(TAG_Montage_Situation_ParrySuccess, TAG_Montage_Value_Parry_Parrier);
-			}
+			// ⚠️ 방어자 몽타주를 여기서 재생하지 않는다 — `Run`은 서버에서만 돌아 게스트 화면에
+			// 아무것도 남지 않았다(2026-09-20 확인). 재생은 위 `Parry.Success` 큐가 맡는다.
 
 			UE_LOG(LogLootNPop, Log, TEXT("[Parry] Melee parry success"));
 		}
@@ -314,6 +315,56 @@ struct FLNPProjectileParryCommand : public FMassBatchedCommand
 
 private:
 	TArray<FEntry> Entries;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 순수 엔티티 공격자 HitStop
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 순수 엔티티의 공격이 플레이어에게 **닿았다**(가드·피격 무관)는 사실을 공격자에게 남긴다.
+ *
+ * Actor 공격자는 `FLNPImpactCueCommand`가 `ApplyHitStop`으로 `CustomTimeDilation`을 눌러 처리하지만,
+ * 순수 엔티티에는 Actor도 ASC도 없다. 대신 **카운터 하나만** 올려 두면
+ * ① 호스트는 자기 프래그먼트를 그대로 읽고 ② 게스트는 복제된 같은 카운터를 읽어,
+ * 양쪽이 **같은 코드**(`ULNPEnemyAnimationProcessor`)로 ISKM 트랙 재생 속도를 누른다.
+ *
+ * ⚠️ **여기서 재생 속도를 건드리지 않는다.** 이 커맨드는 서버에서만 돌고(판정이 서버 전용),
+ *    그리는 일은 넷 모드별로 갈리는 표현 경로의 몫이다 — 그 경계를 넘으면 데디 서버에서만
+ *    존재하지 않는 컴포넌트를 만지게 된다.
+ * ⚠️ **위상(`FLNPEntityAttackFragment::Phase`)에는 손대지 않는다.** 판정 구간이 함께 늘어나면
+ *    연출이 게임플레이를 바꾼다.
+ */
+struct FLNPEntityHitStopCommand : public FMassBatchedCommand
+{
+	FLNPEntityHitStopCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
+
+	void Add(const FMassEntityHandle InAttacker)
+	{
+		Entries.Add(InAttacker);
+		bHasWork = true;
+	}
+
+	virtual void Run(FMassEntityManager& EntityManager) override
+	{
+		for (const FMassEntityHandle& Attacker : Entries)
+		{
+			if (!Attacker.IsSet() || !EntityManager.IsEntityActive(Attacker))
+				continue;
+
+			// 한 스윙이 두 플레이어를 동시에 맞히면 카운터가 두 번 오르지만, 수신 측은 "값이 달라졌는가"만
+			// 보므로 연출은 한 번이다 — 적중 횟수를 세는 값이 아니다.
+			if (FLNPEnemyActionFragment* Action = EntityManager.GetFragmentDataPtr<FLNPEnemyActionFragment>(Attacker))
+				++Action->HitStopSeq;
+		}
+	}
+
+	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
+	virtual SIZE_T GetAllocatedSize()     const override { return Entries.GetAllocatedSize(); }
+	virtual int32  GetNumOperationsStat() const override { return Entries.Num(); }
+
+private:
+	TArray<FMassEntityHandle> Entries;
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
