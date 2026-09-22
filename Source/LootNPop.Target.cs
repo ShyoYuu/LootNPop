@@ -11,7 +11,6 @@ public class LootNPopTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
 		//bUseIris = true;
-		bWithPushModel = true;
 		ExtraModuleNames.Add("LootNPop");
 	}
 }

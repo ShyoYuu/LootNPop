@@ -15,9 +15,20 @@ public class LootNPopEditor : ModuleRules
 		]);
 
 		PrivateDependencyModuleNames.AddRange([
+			"AssetRegistry",
+			"InteractiveToolsFramework",
+			"MeshDescription",
+			"MeshModelingTools",
+			"MeshPartitionModelingToolset",
+			"ModelingComponents",
+			"ModelingComponentsEditorOnly",
+			"PhysicsCore",
+			"PCG",
 			"PropertyEditor",
 			"Slate",
 			"SlateCore",
+			"StaticMeshDescription",
+			"UnrealEd",
 		]);
 
 		PublicIncludePaths.AddRange(["LootNPopEditor"]);

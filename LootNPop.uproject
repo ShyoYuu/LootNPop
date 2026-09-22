@@ -290,6 +290,10 @@
 			]
 		},
 		{
+			"Name": "MeshModelingToolset",
+			"Enabled": true
+		},
+		{
 			"Name": "MeshTerrainMode",
 			"Enabled": true
 		},
