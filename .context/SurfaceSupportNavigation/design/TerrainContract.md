@@ -34,13 +34,15 @@
 | 범주 | 필수 Component Tag | 정적 Support bake | 정적 Nav bake | 정밀 충돌 |
 |:---|:---|:---:|:---:|:---:|
 | 일반 정적 지형 | `Support`, `Blocker`, `Static` | 포함 | 보행면·경계 포함 | 포함 |
-| 정적 Support proxy | `Support`, `Static` | 포함 | 보행면 후보 | 제외 가능 |
+| 정적 Support proxy | `Support`, `Static` | 포함 | 보행면 후보 | 대응 exact geometry가 있을 때만 제외 가능 |
 | 정적 벽·천장·프랍 | `Blocker`, `Static` | 제외 | 점유·clearance 포함 | 포함 |
 | 움직이는 패널 | `Support`, `Blocker`, `Dynamic` | 제외 | 계획 경로에서 제외 | 포함 |
 | 상태형 기둥·다리 | `Blocker`, `StatefulTraversal` | 제외 | 정적 link 제외 | 포함 |
 | 파괴 가능한 바닥 | `Support`, `Blocker`, `Destructible` | immutable payload에서 제외 | Runtime Overlay로 반영 | 파괴 전 포함 |
 | 파괴 가능한 blocker | `Blocker`, `Destructible` | 제외 | Runtime Overlay로 반영 | 파괴 전 포함 |
 | 장식 | `Decoration` | 제외 | 제외 | 제외 |
+
+`LNPStaticSupport` 같은 Support-only proxy를 실제 보행면으로 사용하려면 같은 표면을 제공하는 exact collision component와 명시적 authoring association이 있어야 한다(D-039). 베이커는 proxy와 exact geometry의 오차·coverage를 검증한다. 대응 exact geometry가 없는 proxy는 spawn·grounded 이동에 사용할 수 없으며 분석·보조 데이터 전용이다.
 
 상태형 지형이 안정 상태에 도달해도 원본 태그를 `Static`으로 바꾸지 않는다. 안정 상태, 활성 link, 지역 revision은 런타임 상태이며 immutable 옥탄트 데이터와 분리한다.
 
@@ -50,6 +52,34 @@
 - `Dynamic`·`StatefulTraversal`·`Destructible` source는 옥탄트 LVI에 두지 않는다. 이 태그는 서버가 스폰하는 동적 요소 Actor 클래스의 컴포넌트에만 붙는다(D-026). LVI에는 그 위치를 가리키는 Placement Marker만 둔다.
 - 회귀 맵(`RegressionMap.md`)의 동적 fixture는 Phase 3에서 마커 방식으로 전환하기 전까지 예외로 둔다.
 
+### 서버 스폰 정적 장치
+
+훅 앵커·스프링 런처처럼 **배치는 런타임에 서버가 하지만 스폰 뒤 transform과 형상이 바뀌지 않는** 장치는 월드 의미상 정적이다(D-045).
+
+- 수명주기는 `Static`, profile은 역할에 맞는 `LNPStatic*`을 쓴다. 스프링 런처는 밟고 올라서는 발판이므로 `LNPStaticTerrain`이다. 훅 앵커는 현재 충돌 geometry가 없다.
+- LVI 밖에 존재하므로 옥탄트 정적 SurfaceData bake 입력이 아니다. exact query는 스폰 직후부터 이 장치를 맞힌다.
+- Nav 점유·Support 반영 방식은 Phase 7 Nav 설계에서 정한다.
+- 동적 요소(`Dynamic`·`StatefulTraversal`·`Destructible`)와 달리 Runtime Overlay revision을 만들지 않는다.
+
+충돌을 어디에 두는지는 표현 방식에 따라 두 가지다. 월드 의미는 둘 다 같다.
+
+| 표현 | 예 | 충돌 소유 |
+|:---|:---|:---|
+| 항상 Actor | 스프링 런처 | Actor의 component 자체. Actor가 LOD와 무관하게 존재하므로 충돌도 LOD와 무관하다 |
+| Mass 엔티티 + LOD 승격 Actor | LootPod | 엔티티 수명에 묶인 **collision proxy**. 승격 Actor는 충돌을 갖지 않는다(D-047) |
+
+#### Collision proxy 규약 (LootPod 기준 구현)
+
+필드에 놓이는 Mass 기반 상호작용 오브젝트가 새로 생기면 이 규약을 따른다.
+
+- 월드 서브시스템이 오브젝트 종류별로 collision 전용 ISM 하나를 가진 Actor를 소유한다. 서버와 각 클라이언트가 로컬로 만들고, 네트워크로 복제하지 않는다.
+- 엔티티가 생기면(서버 스폰, 클라이언트는 복제 도착) 인스턴스를 추가하고, 엔티티가 사라지면 제거한다. 존재·위치는 이미 MassReplication이 전달하므로 추가 트래픽이 없다.
+- 형상은 단순 캡슐이고 profile은 `LNPStaticBlocker`다. Pawn(Mover), 투사체 exact, PureEntity exact가 모두 같은 형상을 본다.
+- Mass 시각화 ISM(LOD 밴드별 표시)은 충돌 소스로 쓰지 않는다. LOD에 따라 생기고 사라지므로 머신·거리마다 충돌이 달라진다.
+- 승격 Actor의 메시는 `NoCollision`이다. 상호작용 판정용 overlap(`LootingZoneSphere` 등)만 남긴다.
+- hit identity(D-037)는 ISM instance index를 오브젝트 ID로 바꾼다. ISM은 인스턴스를 제거하면 마지막 인스턴스가 빈 index로 옮겨지므로, index→ID 표는 게임 스레드가 제거할 때마다 갱신하고 registry generation을 올린다.
+- LootPod 캡슐: `SM_MatPreviewMesh_01` bounds(X ±128.7, Y ±119.9, Z 0~255.5cm)에서 반지름 128cm, 반높이 128cm, 중심은 Pod 로컬 Up +128cm이다. 반높이가 반지름과 같아 실질적으로 구다.
+
 ## 2-1. Placement Marker 계약
 
 - 마커는 LVI 안의 비복제 Actor이며 충돌은 `NoCollision`, 시각화 컴포넌트는 editor-only다. Terrain Contract 태그를 갖지 않는다.
@@ -57,6 +87,7 @@
 - 마커는 스폰할 Actor 클래스와 그 요소의 로컬 authoring 데이터(경로 spline, 안정 상태 transform, 파라미터)를 가진다.
 - 런타임 식별자는 `(slot, MarkerId)`다. 같은 LVI가 여러 slot에 들어가도 구분된다.
 - 스폰할 Actor 클래스가 Conditional Patch를 여는 요소라면, 베이커가 읽을 static patch source mesh를 제공해야 한다. 런타임 표현이 Geometry Collection이어도 patch source는 Static Mesh다.
+- `MarkerId`, marker transform, Actor class, 경로·상태 파라미터, patch source mesh와 안정 상태 transform은 Conditional Patch stale hash 입력이다(D-041).
 
 ## 3. Component 단위 규칙
 
@@ -85,12 +116,21 @@ Phase 0에서 다음 trace channel을 예약했다. 기존 소비자는 아직 �
 | `LNPStaticBlocker` | WorldStatic | Ignore | Block | `Blocker+Static` |
 | `LNPDynamicTerrain` | WorldDynamic | Block | Block | `Support+Blocker+Dynamic` |
 | `LNPStatefulTraversal` | WorldDynamic | Ignore | Block | `Blocker+StatefulTraversal` |
-| `LNPDestructibleTerrain` | Destructible | Block | Block | Destructible support 또는 blocker |
+| `LNPDestructibleSupport` | Destructible | Block | Ignore | `Support+Destructible` proxy, 대응 exact geometry 필수 |
+| `LNPDestructibleBlocker` | Destructible | Ignore | Block | `Blocker+Destructible` |
+| `LNPDestructibleTerrain` | Destructible | Block | Block | `Support+Blocker+Destructible` |
 | `LNPDecoration` | WorldStatic | Ignore | Ignore | `Decoration` |
 
 profile은 물리 응답을, Component Tag는 제품 의미를 소유한다. 둘이 불일치하면 validation 오류다. profile 이름만으로 베이커 의미를 추론하지 않는다.
 
-현재 `ULNPSurfaceCacheSubsystem`과 `ULNPWorldDeviceSpawnSubsystem`의 `ECC_WorldStatic`, 플레이어 조준의 `ECC_Visibility` 사용은 Phase 0에서 유지한다. 신규 channel 소비자 전환은 Phase 3 이후 정확성 테스트와 함께 수행한다.
+### 전환 순서
+
+- Phase 3 Gate -1에서 production 지형의 `LNPWorldExact` response를 먼저 audit·마이그레이션한다(D-036).
+- 베이크 의미를 위한 `LNP.Surface.*` Component Tag 전환은 실제 베이커 적용 시점인 Phase 4까지 나눠 진행할 수 있다.
+- exact response audit가 끝나기 전에는 투사체·Mover·MassWorldCollision의 production 기본 경로를 `LNPWorldExact` 단독으로 바꾸지 않는다.
+- 전환 CVar는 비교와 롤백용이며 Shipping 경로에 legacy `ECC_WorldStatic` fallback을 영구 유지하지 않는다.
+
+현재 `ULNPSurfaceCacheSubsystem`과 `ULNPWorldDeviceSpawnSubsystem`의 `ECC_WorldStatic`, 플레이어 조준의 `ECC_Visibility` 사용은 Phase 3 Gate -1 전까지 유지한다. 신규 channel 소비자 전환은 production response audit·마이그레이션과 정확성 테스트를 통과한 뒤 Phase 3에서 수행한다.
 
 ## 5. 부유섬 계약
 
@@ -128,6 +168,10 @@ profile은 물리 응답을, Component Tag는 제품 의미를 소유한다. 둘
 ## 7. 옥탄트 경계 계약
 
 - 옥탄트 이음매는 기준 반지름에 고정된 단일 대칭 프로필이다(D-030). `SeamSignature` 하나로 세 변의 호환성을 표현할 수 있는 근거가 이것이다.
+- 기준 반지름은 월드 전역 값(`ULNPSettings::SphereRadius`)이다. Mesh Terrain 부유섬·동굴 옥탄트부터 30,000cm로 제작한다(D-046). 반지름이 다른 옥탄트는 이음매가 맞지 않으므로 같은 pool에 넣지 않는다. 기존 25,000cm 옥탄트(`LVI_Octant_Meadow_00`)는 30,000cm 전환 시 재제작하거나 pool에서 뺀다.
+- Mass 위치 복제의 int16 캡(`../../Guide_NetBandwidth.md` §2.4)은 반지름이 아니라 좌표 성분마다 걸린다. 방향 `d`, 반지름 `r`인 점의 조건은 `r × max(|dx|, |dy|, |dz|) ≤ 32,767cm`다. 옥탄트 중심 방향은 약 56,700cm, 좌표평면 45° 방향은 약 46,300cm까지 여유가 있다. 좌표축 방향에서만 `r ≤ 32,767cm`로 묶인다.
+- 좌표축 방향은 옥탄트 꼭짓점이다. slot 회전은 축을 축으로 보내므로 어느 slot에서도 꼭짓점은 축 위에 있다. 30,000cm 월드에서 꼭짓점 부근의 여유는 약 2,767cm다. 지각보다 바깥쪽(반지름이 큰 쪽)으로 파고드는 동굴은 꼭짓점 부근에 두지 않는다.
+- SurfaceData 베이커는 slot transform 적용 뒤 geometry의 좌표 성분 최대 절댓값이 캡과 여유를 넘지 않는지 검사하고, 넘으면 bake 차단 오류로 보고한다. 캡을 넘은 엔티티 위치는 경고 없이 clamp되기 때문이다.
 - 부유섬, 동굴, 마커가 스폰하는 요소의 영향 범위는 옥탄트 경계를 넘지 않는다. 각 옥탄트의 SurfaceData가 자기 내부만 소유하게 하기 위해서다.
 - 경계를 넘는 보행 연결은 기본 지각 이음매뿐이며, 런타임 snapshot 게시 때 이웃 slot과 연결한다.
 
@@ -142,9 +186,11 @@ profile은 물리 응답을, Component Tag는 제품 의미를 소유한다. 둘
 - collision이 켜진 무태그 primitive component
 - `MarkerId`가 비었거나 LVI 안에서 중복된 마커
 - 옥탄트 경계를 넘는 Support source 또는 마커 영향 범위
+- slot transform 적용 뒤 geometry 좌표 성분이 int16 위치 복제 캡과 여유를 넘음(§7)
 - `LNPStaticSupport` profile에 `Blocker` 태그 부여
 - `LNPDecoration` 이외 profile을 사용하는 `Decoration`
 - 태그와 collision profile의 `LNPSurfaceSupport`·`LNPWorldExact` 응답 불일치
+- playable Support proxy에 대응 exact geometry association이 없거나 허용 오차를 초과함
+- Destructible 역할 조합과 세 profile 중 하나가 일치하지 않음
 
 태그가 없는 기존 콘텐츠는 마이그레이션 기간에는 legacy 대상으로 보고 보고서에 집계한다. 신규 SurfaceData의 정식 source로는 사용할 수 없다.
-

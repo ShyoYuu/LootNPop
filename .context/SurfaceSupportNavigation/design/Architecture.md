@@ -138,7 +138,8 @@ SurfaceDataValidation
               ↓
 SurfaceSnapshotPublish
 ├─ 옥탄트 간 지각 이음매 연결
-└─ StaticNavComponent 병합
+├─ StaticNavComponent 병합
+└─ exact hit identity registry 게시
               ↓
 DynamicElementSpawn (서버: 마커 스캔·요소 Actor 스폰)
               ↓
@@ -161,6 +162,7 @@ Enum 이름 변경으로 네트워크 초기화가 한 번에 깨지는 것을 �
 - 같은 asset이 여러 slot에서 사용되면 payload 공유
 - payload는 공유하지만 Runtime Overlay·revision·Conditional Patch 활성 상태는 slot 인스턴스마다 따로 둔다
 - 런타임 Layer·Nav Layer 식별자는 slot과 asset 로컬 ID를 조합해 만든다
+- payload UObject와 decoded buffer의 lifetime은 snapshot보다 길게 strong reference로 유지한다
 
 ### 게시 규약
 
@@ -173,6 +175,7 @@ Enum 이름 변경으로 네트워크 초기화가 한 번에 깨지는 것을 �
 - 진행 중 snapshot payload 수정 금지
 - 매치 중 바뀌는 overlay snapshot은 Mass phase 경계의 게임 스레드 지점에서만 교체
 - 매치 리셋은 Mass 접근을 중단하는 별도 lifecycle gate 뒤에 수행
+- slot→Level Instance/Loaded Level weak reference는 marker 스캔과 hit registry 재구축을 위해 match lifecycle 동안 보존
 
 ---
 
@@ -194,5 +197,7 @@ Enum 이름 변경으로 네트워크 초기화가 한 번에 깨지는 것을 �
 
 LOD 전환 규칙:
 
-- Actor → 엔티티: Mover floor hit 컴포넌트에서 `(slot, layer)`를 찾아 `FSurfaceHandle`을 설정한다. 런타임 snapshot은 컴포넌트→Layer 역방향 매핑을 제공한다.
+- Actor → 엔티티: Mover floor hit의 component/shape, face index, ISM instance index를 hit identity registry에서 조회해 `FSurfaceHandle`을 설정한다. component 하나가 여러 Layer를 만들 수 있으므로 component 단독 역방향 매핑은 사용하지 않는다.
 - 엔티티 → Actor: 엔티티 위치에 Actor를 스폰하고 Mover가 floor를 다시 찾는다. `FSurfaceHandle`은 유지해 둔다.
+
+ReachabilityGroup을 다시 계산할 때는 active link 집합으로 union-find를 처음부터 재구축한다. link 삭제는 기존 union-find에서 역연산하지 않는다. 결과에는 단조 증가하는 `ConnectivityGraphVersion`을 붙이고 path request·cache·근접 슬롯 판정이 이전 version을 재사용하지 않게 한다.

@@ -25,9 +25,16 @@
 | 거리 | risk·edge 구간 지면 | 정확성 필수 전환(낙하 시작·착지·Layer 전환) |
 |:---|:---|:---|
 | 플레이어 근처 | exact | exact |
-| 원거리 | 거친 지지면(Nav 셀 대표 Support) | exact |
+| 원거리 | 안전한 Nav cell 내부에서만 거친 지지면, 불확실한 경계는 차단 또는 exact | exact |
 
 플레이어 근처라고 해서 무조건 exact는 아니다. 캐시가 확신하는 지면은 근처에서도 캐시를 쓴다. 수백 마리가 한 플레이어에게 몰리는 장면에서 근처 전부를 exact로 처리하면 그것이 가장 비싼 구성이 된다. 근처 반경과 원거리 판정 주기는 Phase 3b 실측으로 정한다.
+
+원거리 coarse support는 정확성 필수 전환을 생략하는 수단이 아니다(D-038).
+
+- 현재 cell과 다음 cell 사이의 Nav edge가 유효하고 두 cell 모두 coverage interior일 때만 coarse grounded 이동을 허용한다.
+- `NeedsExact`, coverage edge, drop 후보, runtime overlay 경계는 원거리에서도 임의로 통과하지 않는다.
+- 경계를 넘지 않아도 되는 LOD에서는 보수적으로 정지·steering 변경하고, 실제 경계 통과나 낙하 전환이 필요하면 그 프레임에 exact를 수행한다.
+- 이 규칙으로 `GroundRiskFallback`의 "생략 불가"는 유지하면서 원거리 개체의 매 프레임 risk query를 피한다.
 
 ## 스레드별 쿼리 API
 
@@ -45,6 +52,24 @@
 - worker는 결과에서 UObject를 역참조하지 않는다. 위치·법선·거리·time·blocking 여부 같은 POD만 반환한다.
 - 서브시스템은 `TMassExternalSubsystemTraits`에서 `GameThreadOnly = false`를 선언한다.
 - 기존 문서와 주석의 "라인트레이스는 게임 스레드 전용" 서술은 Phase 3 Gate 0 검증 뒤 이 방침으로 정정한다.
+
+### hit identity registry
+
+정확한 착지와 동적 지형 접촉은 위치·법선만으로 결정할 수 없다. 게임 스레드는 Level Instance 가시화와 동적 요소 스폰 뒤 다음 immutable registry를 게시한다(D-037).
+
+```text
+(Physics Shape 또는 Component identity, FaceIndex, InstanceIndex)
+    → static/dynamic 의미 플래그
+    → exact surface identity와 선택적 (slot, LocalLayerId) 후보
+    → DynamicSupportId 또는 Stateful MarkerId
+```
+
+- component 하나가 여러 disconnected Support Layer를 만들 수 있으므로 component→Layer 단일 매핑은 금지한다.
+- complex collision은 `FaceIndex`, ISM·HISM은 hit item/instance index를 함께 사용한다. Nanite/fallback collision에서 식별자가 안정적인지는 Phase 3 Gate 0과 Phase 4a에서 각각 검증한다.
+- Phase 3은 identity 추출과 static/dynamic 의미 분류까지만 요구한다. 실제 `(slot, LocalLayerId)` binding은 Phase 4가 face/instance→Layer 표를 만들고 Phase 5 snapshot이 게시할 때 추가한다.
+- query wrapper는 engine hit에서 registry key를 추출한 뒤 POD 의미 결과만 worker 호출자에게 돌려준다. UObject tag, Actor class, component property를 worker에서 읽지 않는다.
+- registry가 hit를 해석하지 못하면 임의 Layer로 스냅하지 않고 `UnknownExactSurface`를 반환한다. 착지는 보수적으로 처리하고 진단 counter를 증가시킨다.
+- registry는 Level Instance와 component lifetime보다 짧지 않아야 하며 match reset·stream unload 전에 Mass lifecycle gate로 worker 접근을 중단한다.
 
 ### 비동기 물리와 쿼리 데이터 시점
 
@@ -129,6 +154,8 @@ ProbeSupport(...)
 - dynamic terrain 분류
 - debug draw queue
 - worker-safe POD result
+- hit identity registry 조회와 미해석 hit 통계
+- 내부형 구·동굴·동적 지형의 walkable normal 판정
 
 ### 제외 대상
 
@@ -149,6 +176,15 @@ Support 베이크는 collision channel 하나에 의존하지 않고 Terrain Con
 | DebugValidation | 가능 | Support와 Chaos 오차 측정 |
 
 정확성 필수 쿼리와 품질 향상용 쿼리의 예산을 섞지 않는다.
+
+원거리 LOD에서 경계를 통과하지 않고 보수적으로 정지하는 것은 `GroundRiskFallback` 생략이 아니다. 실제 전환을 요청한 프레임에는 반드시 exact를 수행한다.
+
+### Gate 0 계측 계약
+
+- wrapper 전체 query 시간과 scene read-lock 대기를 별도 trace/counter로 기록한다. 엔진 기본 marker만으로 락 대기를 분리할 수 없으면 최소 범위의 엔진 trace instrumentation을 개발 빌드에 추가한다.
+- warm-up, 적 수, PureEntity 비율, 동시 투사체 수, 동적 body 수, 측정 build와 CPU 구성을 보고서에 고정한다.
+- P50/P95와 최악 프레임, query 종류별 count/time, 미해석 hit 수를 기록한다.
+- Editor와 `-game` 패키지의 락 구현이 다르므로 최종 Gate는 `-game` 리슨 서버와 비동기 물리에서 판정한다.
 
 ### 프로파일 결과에 따른 후속 선택
 
@@ -186,7 +222,7 @@ Phase 3에서 모든 투사체가 매 프레임 다음을 수행하도록 전환
 
 ### 최외곽 반지름 안전망
 
-지각은 두께 없는 단면이다. exact segment 판정이 한 번 빗나가면 투사체나 엔티티가 지각 밖으로 빠져도 되돌릴 장치가 없다. 내부형 구에서 지면 아래는 바깥쪽이므로, 모든 옥탄트 geometry의 최대 반지름보다 바깥은 항상 월드 밖이다. `반지름 > 옥탄트 geometry 최대 반지름 + 여유` 검사는 층과 무관하게 유효하며, 이를 종료·복구 안전망으로 유지한다. 동굴은 지각보다 바깥쪽으로 파고들므로 기준은 지각 반지름이 아니라 베이크된 옥탄트 bounds의 최대 반지름이어야 한다.
+지각은 두께 없는 단면이다. exact segment 판정이 한 번 빗나가면 투사체나 엔티티가 지각 밖으로 빠져도 되돌릴 장치가 없다. 내부형 구에서 지면 아래는 바깥쪽이므로, 모든 옥탄트 geometry와 동적 요소의 authoring swept bounds보다 바깥은 항상 월드 밖이다. `반지름 > world collision envelope 최대 반지름 + 여유` 검사는 층과 무관하게 유효하며, 이를 종료·복구 안전망으로 유지한다. 동굴과 움직이는 요소는 지각보다 바깥쪽으로 갈 수 있으므로 기준은 지각 반지름이 아니라 베이크된 정적 bounds와 마커 경로 swept bounds를 합친 envelope여야 한다.
 
 ### Support 기반 충돌 horizon
 

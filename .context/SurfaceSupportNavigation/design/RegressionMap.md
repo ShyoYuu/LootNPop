@@ -7,7 +7,7 @@
 ## 1. 좌표 규약
 
 - 월드 중심은 `(0, 0, 0)`이다.
-- 기준 지각 반지름은 `25,000cm`다.
+- 기준 지각 반지름은 `25,000cm`다. 현재 맵은 Phase 4 공통 전제의 fixture 재배치 때 30,000cm로 옮긴다(D-046). 그 전까지 이 표의 좌표를 유지한다.
 - fixture는 적도 `Z=0`의 +X에서 +Y 방향 호에 놓인다.
 - 표의 방향은 중심에서 바깥쪽을 향하는 단위 벡터다.
 - 캐릭터 Up은 방향의 반대인 중심 방향이다.
@@ -70,6 +70,11 @@
 | Phase 4 착수 전 | fixture를 옥탄트 내부(위도 25~40°)로 옮기고 fixture LVI로 만들어 8 slot 통합 맵에 배치 |
 | Phase 4 착수 전 | 이음매 변 중점 사례와 꼭짓점 사례를 분리 |
 | Phase 4 착수 전 | 단순 동굴 fixture를 동굴 키트 방식(공동 모듈 + 통로)으로 교체(D-035) |
+| Phase 4 착수 전 | 내부형 double-sided normal, 한 component의 분리된 sheet, ISM/HISM instance, Support proxy↔exact counterpart fixture 추가 |
+| Phase 4 착수 전 | non-uniform/negative scale과 Nanite complex/fallback collision 검증 fixture 추가 |
+| Phase 8 착수 전 | 같은 tile에 겹치는 Conditional Patch 두 개와 중복 상태 이벤트 fixture 추가 |
+
+Phase 3 네트워크 회귀에는 이동 중 패널 late join, server-time 보정, 상태 revision 불일치 진단을 추가한다. Phase 7에는 다중 프레임 path request 실행 중 tile revision과 connectivity version이 바뀌는 사례를 추가한다.
 
 좌표를 옮기면 이 문서의 좌표·oracle 표를 같은 커밋에서 갱신한다.
 

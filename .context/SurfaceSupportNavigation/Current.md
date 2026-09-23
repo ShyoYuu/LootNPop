@@ -1,24 +1,25 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · 착수 준비
-> 마지막 갱신: 2026-09-23
+> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate -1 진행 중
+> 마지막 갱신: 2026-09-24
 
 ## 현재 목표
 
-Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). 다음 세션은 Phase 3 실행 문서를 작성하는 것부터 시작한다.
+Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`로 작성됐다. 다음 세션은 Gate -1 production exact response audit와 hit identity/lifetime 스파이크부터 시작한다.
 
 Phase 3 범위(`Roadmap.md` §4):
 
-1. D-025 스레드·쿼리 방침과 Gate 0: Mass worker 동기 scene query를 `-game` 리슨 서버와 비동기 물리 조건에서 검증
-2. Placement Marker → 서버 스폰 복제 Actor, 결정론적 움직임의 동적 패널 위 2P Mover 탑승
-3. `LNPWorldExact` 기반 MassWorldCollision API
+1. Gate -1: production exact collision response audit·마이그레이션, hit identity registry 계약, slot→Level Instance lifetime 계약
+2. D-025 스레드·쿼리 방침과 Gate 0: Mass worker 동기 scene query를 `-game` 리슨 서버와 비동기 물리 조건에서 검증
+3. `LNPWorldExact` 기반 MassWorldCollision API와 worker-safe POD hit identity 변환
 4. 투사체 서버·클라이언트 ghost·탄도 가이드의 exact 전환과 최외곽 반지름 안전망
-5. 고정 부하 시나리오의 비용 기준선
+5. Placement Marker → 서버 스폰 복제 Actor, 결정론적 움직임의 동적 패널 위 2P Mover 탑승
+6. 고정 부하 시나리오의 비용 기준선
 
 Phase 3는 Support Atlas payload를 생성하거나 소비하지 않는다. 실제 Support Atlas 생성은 Phase 4a·4b 범위다.
 
-Phase 3 다음은 exact 전용 부유섬 프로토타입(Phase 3b)과 완전 비행 NPC(Phase 3c)다. Phase 3의 부하 기준선은 3b 한계치 측정과 같은 계측 도구를 쓰도록 만든다.
+Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)→Phase 4a다. 완전 비행 NPC(Phase 3c)는 Phase 3 exact query만 의존하는 병렬 분기이며 Phase 4a를 막지 않는다. Phase 3의 부하 기준선은 3b 한계치 측정과 같은 계측 도구를 쓰도록 만든다.
 
 ## 착수 시 필수 문서
 
@@ -28,6 +29,7 @@ Phase 3 다음은 exact 전용 부유섬 프로토타입(Phase 3b)과 완전 비
 - `design/TerrainContract.md`
 - `design/RegressionMap.md`
 - `research/ChaosSceneQueries.md`
+- `phases/Phase03_MassWorldCollisionBaseline.md`
 
 ## Phase 2 인계 기준선
 
@@ -41,9 +43,12 @@ Phase 3 다음은 exact 전용 부유섬 프로토타입(Phase 3b)과 완전 비
 
 ## 바로 다음 작업
 
-1. 위 다섯 범위로 `phases/Phase03_*.md` 실행 문서와 완료 조건을 작성한다. 완료 조건에 2P 스모크(D-031)를 넣는다.
-2. 부하 시나리오의 적 수·CombatMode 비율·동시 투사체 수를 정한다. 목표 구성은 적의 90% 이상이 PureEntity다.
-3. Gate 0 스파이크부터 착수한다. 실패하면 D-025를 재논의한다.
+Gate -1 A의 audit·마이그레이션은 끝났다(`history/Phase03_Log.md` 2026-09-23~24). 남은 A 항목(8-slot oracle, 비교 CVar)은 wrapper 이후에 한다.
+
+1. 다음 에디터 재시작 빌드 뒤 `LNP.SurfaceNav.AuditExactResponse`로 HISM 행과 instance 수(1106/580/278), LootPod 외 MISSING=0을 확인한다.
+2. Gate -1 B 스파이크: slot→Loaded Level 참조 보존, exact hit에서 component/face/instance index 추출, LootPod collision proxy(D-047)와 ISM index→PodID 재매핑.
+3. 부하 시나리오의 적 수·CombatMode 비율·동시 투사체 수, warm-up, 측정 build, P50/P95 기준을 정한다. 목표 구성은 적의 90% 이상이 PureEntity다.
+4. Gate 0 스파이크에 착수한다. 실패하면 D-025를 재논의한다.
 
 ## Phase 1에서 확정된 입력 계약
 
@@ -57,10 +62,14 @@ Phase 3 다음은 exact 전용 부유섬 프로토타입(Phase 3b)과 완전 비
 
 ## 이관된 후속 작업
 
-- production Terrain Contract tag·collision profile 마이그레이션은 실제 베이커를 production source에 적용하는 Phase 4 이후에 수행한다.
+- production Terrain Contract Component Tag 마이그레이션은 실제 베이커를 production source에 적용하는 Phase 4 이후에 수행한다. 단, `LNPWorldExact` collision response/profile 마이그레이션은 D-036에 따라 Phase 3 Gate -1에서 먼저 수행한다.
 - production definition의 SurfaceData 연결과 runtime 로드는 Phase 5 소비자 전환에서 수행한다.
 - 실제 Support Atlas rasterization과 payload codec은 Phase 4a·4b 범위다.
 - `LNPOctantSourceCollector`의 무태그 충돌 컴포넌트 보고와 LVI 내 동적 태그 차단은 Phase 4 착수 전에 수정한다.
+- `LNPOctantSourceCollector`의 tag/profile/channel 검증과 marker authoring hash를 Phase 4·8 스키마에 맞춰 보강한다. owned external package를 모두 hash해 decoration 저장도 stale이 되는 현재 보수 정책은 보고서에 명시하고, false stale이 실제 문제가 될 때만 필터링한다.
+- C-option 실험 에셋과 테스트의 구형 `LNP.Terrain.*` Component Tag는 Phase 4 입력으로 재사용하기 전에 현재 `LNP.Surface.*` 계약으로 마이그레이션한다.
+- 현재 slot 순서 greedy definition 선택은 여러 slot mask가 있는 production pool을 도입하기 전에 최대 고유 제약 할당으로 교체한다(D-043).
+- Phase 3b greybox 부유섬 옥탄트부터 기준 반지름 30,000cm로 제작하고 `SphereRadius`를 함께 올린다(D-046). int16 복제 캡은 좌표 성분마다 걸리므로 옥탄트 꼭짓점(좌표축) 부근에서만 여유가 약 2,767cm로 좁다. 동굴은 꼭짓점 부근을 피한다(`design/TerrainContract.md` §7). 기존 `Meadow_00`(25,000cm)는 30,000cm로 새로 만들거나 폐기한다.
 - greybox 부유섬 옥탄트 LVI는 Phase 3b에서 만들고, Phase 4 착수 전에 동굴 키트 공동 모듈과 통로를 추가한다(`Roadmap.md` §4).
 - Phase 4 착수 전 전제: fixture 재배치·fixture LVI, 동굴 fixture의 키트 방식 교체.
 
@@ -68,7 +77,7 @@ Phase 3 다음은 exact 전용 부유섬 프로토타입(Phase 3b)과 완전 비
 
 - Phase 3 exact query의 호출 빈도와 배치 단위는 정확성 기준선 측정 뒤 결정한다.
 - 관찰 거리 축의 근처 반경과 원거리 판정 주기는 Phase 3b 실측으로 정한다.
-- `LNPSurfaceSupport`와 `LNPWorldExact` 신규 channel로 기존 소비자를 전환하는 시점은 Phase 3 회귀 결과와 함께 확정한다.
+- `LNPSurfaceSupport` 소비자 전환 시점은 Phase 3 회귀 결과와 함께 확정한다. `LNPWorldExact` 소비자 전환은 production response 마이그레이션과 audit가 통과한 뒤에만 허용한다.
 - Mover가 서버 스폰 복제 패널을 movement base로 인식했을 때 2P 예측이 안정적인지는 Phase 3 스파이크로 확인한다.
 - Nanite mesh의 complex collision이 원본 mesh와 fallback mesh 중 어디서 만들어지는지는 Phase 4a 착수 시 확인한다.
 - Development package의 기존 Lyra Mannequin material은 누락 Material Function 때문에 default material로 대체된다. Surface Navigation 검증과는 분리된 콘텐츠 문제다.

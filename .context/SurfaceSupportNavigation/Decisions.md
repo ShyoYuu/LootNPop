@@ -40,9 +40,21 @@
 | D-030 | 옥탄트 이음매는 기준 반지름에 고정된 단일 대칭 프로필이다. 부유섬·동굴·마커 영향 범위는 옥탄트 경계를 넘지 않는다. | 확정 | `design/TerrainContract.md` |
 | D-031 | 모든 Phase 완료 조건에 `-game` 리슨 서버 2P 스모크를 포함한다. | 확정 | `Roadmap.md` |
 | D-032 | Support 캐시 도입 전에 exact 전용 부유섬 프로토타입으로 플레이 감각과 exact 한계치를 실측하고, 캐시 도입 뒤 같은 시나리오로 한계치 증가를 다시 측정한다. | 확정 | `Roadmap.md` |
-| D-033 | 대규모 추격 경로는 목표별 flow field와 계층형 A*를 모두 구현하고 같은 시나리오에서 실측 비교해 채택한다. | 확정 | `design/GroundNavigation.md` |
+| D-033 | 대규모 추격 경로는 목표별 flow field와 계층형 A*를 모두 구현하고 같은 시나리오에서 실측 비교해 채택한다. | 대체됨(D-044) | `design/GroundNavigation.md` |
 | D-034 | 베이커 핵심 계산은 collision 삼각형을 입력으로 받는 순수 함수로 runtime 모듈에 둔다. source 수집·저장·검증 UI는 Editor 모듈이 담당한다. | 확정 | `design/SurfaceBaking.md` |
 | D-035 | 지하 공간은 반구·직육면체 같은 재사용 공동 모듈과 통로 조각의 키트로 만들고, 옥탄트에는 공동으로 들어가는 통로 1~2개만 뚫는다. 복층·수직 통로·분기는 지원하지 않는다. | 확정 | `design/TerrainContract.md` |
+| D-036 | `LNPWorldExact` 소비자 전환 전에 production 지형의 exact collision response를 먼저 마이그레이션한다. Surface 베이크용 Component Tag 전환은 Phase 4에 남길 수 있지만 exact response 마이그레이션은 Phase 3 Gate -1이다. | 확정 | `design/TerrainContract.md` |
+| D-037 | worker exact hit는 UObject를 역참조하지 않고 사전 게시된 hit identity registry로 의미를 해석한다. 키는 component 하나가 아니라 가능한 경우 shape/component identity, face index, ISM instance index를 포함하며 Surface Layer·DynamicSupport ID로 변환한다. | 확정 | `design/RuntimeCollision.md` |
+| D-038 | 원거리 grounded 개체는 risk·edge 결과를 거친 지지면으로 임의 통과하지 않는다. 안전한 Nav cell 내부에서만 coarse support를 쓰고, 불확실한 경계는 Nav edge로 차단하거나 실제 전환 프레임에 exact를 수행한다. | 확정 | `design/RuntimeCollision.md` |
+| D-039 | Support-only proxy는 대응 exact geometry와 명시적으로 연결된 경우에만 playable Support로 허용한다. Destructible collision profile은 Support-only, Blocker-only, Support+Blocker 의미를 구분한다. | 확정 | `design/TerrainContract.md` |
+| D-040 | 지상 A* 기본 휴리스틱은 모든 Walk Link에서 하한임이 보장되는 3D chord distance를 사용한다. 다중 프레임 요청과 cache는 snapshot generation, connectivity graph version, 지역 revision, agent/cost profile로 검증한다. | 확정 | `design/GroundNavigation.md` |
+| D-041 | Conditional Patch는 임의 로컬 Nav Grid를 런타임에 병합하지 않는다. 배치된 마커별로 base Atlas·Nav Tile에 대한 활성화 데이터와 명시적 edge를 미리 베이크하며 marker authoring 전체를 stale hash에 포함한다. | 확정 | `design/DynamicTerrain.md` |
+| D-042 | 완전 비행 NPC Phase 3c는 Phase 3 exact query 뒤 시작할 수 있는 병렬 분기이며 Phase 4a의 선행 조건이 아니다. | 확정 | `Roadmap.md` |
+| D-043 | 옥탄트 definition 선택은 slot 순서 greedy가 아니라 결정론적 제약 할당으로 현재 batch의 고유 definition 수를 최대화한다. SurfaceData 게시 전에는 seam signature와 계산 seam hash 호환성도 검증한다. | 확정 | `design/DataModel.md` |
+| D-044 | 대규모 추격 경로는 동일 benchmark harness에서 목표별 flow field와 계층형 A*의 최소 기능 프로토타입을 비교하고, 채택 기준을 통과한 방식만 production 수준으로 통합한다. | 확정 | `design/GroundNavigation.md` |
+| D-045 | 서버가 런타임에 배치하지만 스폰 뒤 transform·형상이 변하지 않는 장치(훅 앵커·스프링 런처)는 월드 의미상 정적이다. `Static` 수명주기와 `LNPStatic*` profile을 쓰고 Runtime Overlay revision을 만들지 않는다. | 확정 | `design/TerrainContract.md` |
+| D-046 | Mesh Terrain으로 만드는 부유섬·동굴 옥탄트부터 기준 지각 반지름을 30,000cm로 올린다. 이음매가 기준 반지름에 고정되므로(D-030) 한 월드의 모든 slot은 같은 반지름이어야 하며, 25,000cm 옥탄트와 섞지 않는다. | 확정 | `design/TerrainContract.md` §7 |
+| D-047 | Mass 엔티티 기반이고 Actor가 LOD로 승격되는 필드 상호작용 오브젝트는 엔티티 수명에 묶인 collision proxy ISM(단순 캡슐, `LNPStaticBlocker`)을 서버·클라이언트가 각자 유지한다. 승격 Actor는 충돌을 갖지 않는다. LootPod가 기준 구현이다. | 확정 | `design/TerrainContract.md` §2 |
 
 ## 변경 규칙
 

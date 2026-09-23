@@ -1,7 +1,7 @@
 # Phase 3 — MassWorldCollision 정확성 기준선 기록
 
-> 상태: 진행 전
-> 실행 문서: `../phases/Phase03_*.md` (작성 예정)
+> 상태: 진행 중
+> 실행 문서: `../phases/Phase03_MassWorldCollisionBaseline.md`
 
 ## 2026-09-23 — 착수 전 설계 검토와 반영
 
@@ -77,3 +77,75 @@ Surface Support·Navigation 문서 전체를 프로젝트 소스(SurfaceCache와
 ### 1차 반영분 정정
 
 - 최외곽 반지름 안전망의 기준을 지각 반지름에서 옥탄트 geometry 최대 반지름으로 바꿨다. 동굴은 지각보다 바깥쪽으로 파고들기 때문이다.
+
+## 2026-09-23 — 전체 문서 정밀 검토 반영
+
+### 결정
+
+`../Decisions.md`에 D-036~D-044를 추가하고 D-033을 D-044로 대체했다.
+
+- production `LNPWorldExact` response 마이그레이션을 Phase 3 Gate -1로 앞당김
+- face/instance identity를 포함하는 worker-safe exact hit registry
+- 원거리 risk·edge의 보수적 경계 처리
+- Support proxy exact association과 Destructible profile 역할 분리
+- A* chord heuristic과 request/cache versioning
+- Conditional Patch의 base lattice 활성화 데이터 규약
+- 완전 비행 NPC Phase 3c를 Phase 4a 선행 조건에서 분리
+- 옥탄트 선택을 greedy에서 최대 고유 결정론적 제약 할당으로 교체
+- flow field·계층형 A*는 최소 프로토타입 비교 뒤 채택 방식만 production 통합
+
+### 문서 보강
+
+- Phase 3 실행 문서를 `../phases/Phase03_MassWorldCollisionBaseline.md`로 작성하고 Gate -1·Gate 0을 독립 완료 조건으로 만들었다.
+- component 단독 Layer 역매핑을 제거하고 collision face·ISM instance 기반 identity 계약을 추가했다.
+- 동적 패널의 tick prerequisite, path revision, server epoch와 late join 검증을 추가했다.
+- Conditional Patch 겹침 합성, source hash, base tile 병합 규약을 구체화했다.
+- A* 다중 프레임 request가 snapshot/connectivity/tile revision 변경을 검출하도록 했다.
+- Phase 7을 7a 데이터 기반과 7b 경로 실행 내부 게이트로 나눴다.
+- Phase 10은 두 방식을 제품 수준으로 완성하기 전에 동일 harness의 최소 프로토타입으로 비교하도록 바꿨다.
+
+### 현재 코드와의 명시적 인계
+
+- C-option 테스트 에셋은 구형 `LNP.Terrain.*` tag를 사용하므로 Phase 4 입력 전에 마이그레이션해야 한다.
+- `LNPOctantSourceCollector`는 무태그 충돌 component, LVI 내부 동적 역할, tag/profile 응답 검증을 아직 Terrain Contract 수준으로 차단하지 않는다.
+- `LNPOctantSpawnSubsystem`은 완료 시 Level Instance 배열을 비우므로 slot→Loaded Level 참조 보존이 필요하다.
+- 현재 SurfaceData payload는 `TArray<uint8>`라 header와 stream의 선택적 I/O가 아니라 전체 asset 로드다.
+
+## 2026-09-23~24 — Gate -1 A: production exact response audit·마이그레이션
+
+### 도구
+
+- `LNP.SurfaceNav.AuditExactResponse [all]` (`Source/LootNPop/SurfaceNavigation/LNPExactResponseAudit.cpp`, 비-Shipping): 현재 월드의 query 충돌 component를 Pawn 응답과 `LNPWorldExact` 응답으로 분류한다(MISSING·ExactOnly·Ok·NonBlocking). shape가 없는 component는 `NoBody`로 따로 센다. ISM·HISM은 instance body를 쓰므로 별도로 판정한다.
+- `LNPCollisionChannels.h`: `SurfaceSupport`·`WorldExact` channel 상수.
+
+### 최초 audit (`TestMap03` PIE, 8 slot)
+
+Ok=0. 모든 world geometry가 `BlockAll`/`BlockAllDynamic`이라 custom channel 기본값(Ignore)을 따랐다. exact 경로로 전환하면 전부 관통하는 상태였다.
+
+| 대상 | 이전 | 이후 |
+|:---|:---|:---|
+| 지각 `SM_Octant_00` (`BP_Octant_Meadow_00` SCS) | BlockAll | `LNPStaticTerrain` |
+| 프랍 HISM Cone 1106·Cube 580·Cylinder 278 (`PCG_Octant_BaseProps` Mesh Selector `TemplateDescriptor`) | BlockAll | `LNPStaticBlocker` |
+| `ALNPSpringLauncher::MeshComponent` (C++ 생성자) | BlockAllDynamic | `LNPStaticTerrain` (D-045) |
+| `BP_LNPLootPod` 메시 | BlockAll | 미해결 — Gate -1 B의 collision proxy로 처리(D-047) |
+| `BP_LNPLootPod.PillarBeam` (30m 빔 실린더) | BlockAllDynamic | `NoCollision` |
+
+- `DefaultEngine.ini`에 빠져 있던 `LNPDestructibleSupport`·`LNPDestructibleBlocker` profile을 추가했다(D-039).
+- 재 audit: 지각 8개, 스프링 런처 40개 Ok. 프랍 HISM은 저장된 LVI component의 BodyInstance에서 `LNPStaticBlocker`와 `LNPWorldExact` Block을 직접 확인했다.
+
+### 함정
+
+- `LVI_Octant_Meadow_00`은 One File Per Actor다. actor 데이터는 `__ExternalActors__/.../E/D5/LH4LVIE62RWPVNDJUSEM7X.uasset`에 있다. `SceneTools.save_actor`는 이 경로를 찾지 못해 실패했고, 레벨 저장 버튼으로 저장했다.
+- PCG 그래프의 Mesh Selector를 바꿔도 LVI의 PCG component는 재생성되지 않았다. component `Seed`를 바꿨다 되돌리는 방식(43→42)으로 재생성을 일으켰다.
+- `ObjectTools.set_properties`로 `BodyInstance.collisionProfileName`만 바꾸면 `collisionEnabled`는 기존 값이 남는다. profile을 바꿀 때 `collisionEnabled`도 함께 지정한다.
+- 작업 전 working tree에 출처를 알 수 없는 `LVI_Octant_Meadow_00.umap` 변경이 있어서 저장소 상태로 롤백한 뒤 작업했다.
+
+### 결정
+
+- D-045 서버 스폰 정적 장치, D-046 기준 반지름 30,000cm, D-047 Mass 기반 상호작용 오브젝트 collision proxy
+- int16 위치 복제 캡은 좌표 성분마다 걸린다. 제약은 옥탄트 꼭짓점(좌표축) 부근에만 걸리므로, 인코딩을 바꾸지 않고 제작 규칙과 베이커 검사로 처리한다(`../design/TerrainContract.md` §7).
+
+### 남은 Gate -1 A 항목
+
+- 8-slot line/sphere/capsule oracle, exact/legacy 비교 CVar: MassWorldCollision wrapper 이후
+- audit의 ISM 판정 수정은 다음 에디터 재시작 빌드부터 적용된다(정적 콘솔 커맨드는 Live Coding으로 반영되지 않음). 적용 뒤 PIE audit에서 HISM instance 수 1106/580/278 유지를 확인한다.

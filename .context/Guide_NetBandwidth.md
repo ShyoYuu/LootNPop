@@ -100,6 +100,7 @@ Iris 델타 압축을 켜면 **스폰 후 안 변하는 멤버는 1비트**가 �
 범위를 넘으면 **조용히 clamp**하므로(먼 엔티티가 경계에 뭉친다) 반드시 시작 시
 `ensure`로 못 박는다 — `LNP::Replication::ConfigureParams`에 걸려 있다.
 현재 `ULNPSettings::SphereRadius` = 25,000 (여유 31%).
+캡은 좌표 성분마다 걸리므로 반지름 `r`, 방향 `d`의 조건은 `r × max(|dx|,|dy|,|dz|) ≤ 32,767`이다. 좌표축 방향(옥탄트 꼭짓점)에서만 반지름이 곧 성분이 된다. Surface Support·Navigation D-046에 따라 30,000으로 올리면 꼭짓점 부근 여유가 약 2,767cm가 된다. 현재 `ensure`는 `SphereRadius`만 보므로, 지각보다 바깥쪽인 동굴 geometry는 SurfaceData 베이커가 좌표 성분으로 검사한다.
 
 ### 2.5 양자화 해상도는 Dirty 허용 오차보다 미세해야 한다
 

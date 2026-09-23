@@ -27,6 +27,7 @@ Mover는 발밑 base 컴포넌트 참조를 네트워크로 직렬화한다(`Mov
 - 마커의 월드 transform에는 slot 회전이 이미 적용돼 있으므로 서버는 그대로 사용한다.
 - 스폰 시점은 현재 World Device 배치와 같은 자리다.
 - 마커 계약은 `TerrainContract.md` §2-1이 소유한다.
+- `LNPOctantSpawnSubsystem`은 완료 뒤에도 slot→Level Instance/Loaded Level weak reference를 match lifecycle 동안 보존한다. 월드 전체 Actor 검색이나 회전값 추론으로 slot을 복원하지 않는다.
 
 ### 배치 source 2종, 스폰 경로 1개
 
@@ -49,6 +50,9 @@ Mover는 발밑 base 컴포넌트 참조를 네트워크로 직렬화한다(`Mov
 - 게임 스레드 kinematic으로 transform을 설정한다. 물리 시뮬레이션으로 구동하지 않는다. 비동기 물리에서 query가 보는 GT data와 실제 자세가 어긋나지 않게 하기 위해서다.
 - Mover base 예측이 같은 시각의 같은 자세를 보게 된다.
 - 쓰러지는 기둥도 물리 낙하가 아니라 사전 정의된 전이 곡선과 안정 transform을 따른다.
+- 경로 revision, 상태, server epoch와 시작 시각을 초기 복제에 포함해 late join도 같은 자세를 재구성한다.
+- transform 갱신 tick은 Mover simulation, Mass exact query와 DynamicSupport snapshot 게시보다 먼저 실행한다. 구체적인 tick group/prerequisite는 Phase 3의 2P 스파이크에서 고정한다.
+- `ReplicatedMovement`와 결정론적 transform 갱신을 동시에 사용하지 않는다. 큰 server-time 보정이나 상태 revision 불일치는 snap/짧은 보정 중 하나를 명시적으로 적용하고 진단한다.
 
 ## 3. 움직이는 패널
 
@@ -109,9 +113,12 @@ Bridge
 
 정적 payload는 `Dynamic`·`StatefulTraversal`·`Destructible` source를 포함하지 않는다(`TerrainContract.md`). 따라서 이런 요소가 여는 보행면·점유·link는 무효화가 아니라 **추가**로 표현해야 하고, runtime bake를 하지 않으려면 그 추가분을 미리 베이크해야 한다(D-028).
 
-- 베이커는 마커의 patch source mesh를 해당 상태 transform(기둥은 안정 transform, 파괴 바닥은 파괴 전 상태)에 놓고 Support 샘플·Nav 셀·Walk Link·blocker 점유를 마커 로컬 공간으로 베이크한다.
+- 베이커는 배치된 마커의 patch source mesh를 해당 상태 transform(기둥은 안정 transform, 파괴 바닥은 파괴 전 상태)에 놓고 base Atlas·Nav Tile 좌표계에 투영한다. 런타임에 임의의 로컬 Nav Grid를 회전·병합하지 않는다(D-041).
+- patch는 base sample/cell에 대한 support·occupancy 활성화 bitset, 추가 node가 꼭 필요할 때의 명시적 overlay node, 그리고 base node와의 명시적 Walk edge를 가진다.
 - patch는 `MarkerId`를 키로 옥탄트 SurfaceData에 저장된다. stream 추가 방식은 Phase 8에서 `DataVersion`을 올려 확정한다.
 - 런타임 overlay는 `(slot, MarkerId)`의 patch를 켜고 끄며 영향 tile의 revision을 증가시킨다.
+- 여러 patch가 같은 cell에 겹치면 blocker occupancy는 reference count/활성 source 집합으로 합성하고 하나가 꺼져도 다른 blocker를 지우지 않는다. Support 추가는 stable patch surface ID로 구분하며 서로 다른 sheet를 반지름만으로 병합하지 않는다.
+- patch 경계 edge, capsule clearance, base surface와의 높이·법선 오차를 베이크 차단 조건으로 검증한다.
 
 | 요소 | patch 활성 조건 | patch 내용 |
 |:---|:---|:---|
@@ -141,6 +148,7 @@ Bridge
 - 요소 상태(Standing/Transitioning/Bridge, 파괴 여부)는 서버 권위이며 요소 Actor의 복제 프로퍼티다.
 - 클라이언트는 collision과 표현만 반영한다. Nav·overlay·revision은 서버 전용이다.
 - 동일 상태 이벤트의 중복 수신은 revision을 다시 증가시키지 않는다.
+- link가 닫히면 active link 집합으로 ReachabilityGroup을 다시 구축하고 `ConnectivityGraphVersion`을 증가시킨다. union-find에서 삭제 역연산을 시도하지 않는다.
 
 ## 8. 지역 revision과 snapshot 게시
 

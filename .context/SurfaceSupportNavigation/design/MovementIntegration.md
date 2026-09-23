@@ -15,7 +15,7 @@
 두 경로가 공유해야 하는 것은 판정이 아니라 결과다.
 
 - 착지 이벤트: 순수 엔티티는 capsule sweep 결과, Actor는 Mover 착지 결과를 같은 이벤트로 발행한다.
-- `FSurfaceHandle`: Actor 경로는 Mover floor hit 컴포넌트에서 `(slot, layer)`를 역조회해 기록한다. LOD 전환 규칙은 `Architecture.md` "실행 경로별 소유권"이 소유한다.
+- `FSurfaceHandle`: Actor 경로는 Mover floor hit의 component/shape, face index, ISM instance index를 hit identity registry에서 역조회해 기록한다. component 단독 매핑은 사용하지 않는다. LOD 전환 규칙은 `Architecture.md` "실행 경로별 소유권"이 소유한다.
 - 경로 추종: A* 결과를 순수 엔티티는 waypoint로, Actor는 AI 이동 입력으로 받는다.
 
 ### grounded 이동
@@ -32,12 +32,15 @@
 - `PreviousPosition → ProposedPosition` capsule sweep
 - earliest blocking hit 사용
 - normal이 walkable이면 착지
+- 내부형 구에서는 지역 Up이 중심 방향이다. exact hit normal의 방향·double-sided collision 동작을 회귀 테스트하고, 임의로 normal을 뒤집어 벽을 바닥으로 승격하지 않는다
 - hit 위치에서 가장 가까운 Support Layer를 resolve
 - 새 `SurfaceHandle`과 StaticNavComponent 기록. Phase 6에서는 `SurfaceHandle`만 기록하고, StaticNavComponent는 Phase 7부터 기록한다
 - DynamicSupport면 dynamic contact 상태로 진입
 - non-walkable hit면 반사/슬라이드/정지 정책을 별도 설정
 
 현재 반지름 비교 착지는 제거한다.
+
+원거리 grounded LOD는 안전한 Nav cell 내부에서만 대표 Support를 쓴다. coverage/risk 경계를 넘어야 하면 exact 전환을 수행하거나 보수적으로 이동을 멈춘다(D-038).
 
 ### 넉백 후 Pod 재귀속
 
@@ -216,4 +219,3 @@ enum class ELNPNavigationDomain : uint8
 이 경우 전역 3D grid 대신 동굴 중심선 waypoint/spline을 사용한다.
 
 ---
-
