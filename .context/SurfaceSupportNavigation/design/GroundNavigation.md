@@ -1,7 +1,7 @@
-# 지상 Nav Grid와 계층형 탐색 설계
+# 지상 Nav Grid·flow field·계층형 탐색 설계
 
 > 상태: 초안
-> 읽기 조건: Nav Grid, A*, cluster, portal, Traversal Link 또는 경로 공유를 구현할 때
+> 읽기 조건: Nav Grid, A*, flow field, cluster, portal, Traversal Link 또는 경로 공유를 구현할 때
 > 최초 설계 원본: `../history/InitialPlan.md`
 
 ## 지상 Nav Grid
@@ -65,6 +65,12 @@ Support 해상도는 접지 정확도를 위해 결정되고 Nav 해상도는 ag
 - debug visualization
 - path expansion 통계
 
+A* 요청 전에 시작과 목표의 ReachabilityGroup을 비교한다. 다르면 탐색하지 않고 즉시 "경로 없음"을 반환한다. 끊긴 섬을 향한 요청이 전체 탐색 공간을 확장하는 최악 사례를 막는다.
+
+휴리스틱은 두 위치의 각거리 × 관련 Layer 중 가장 작은 반지름이다. 내부형 구에서 부유섬은 지각보다 반지름이 작으므로, 지각 반지름을 쓰면 허용 가능성이 깨진다.
+
+Tile은 저장·스트리밍 단위가 아니라 revision 국소성과 Cluster 구성 단위다. 월드 규모에서는 Nav 전체가 수 MB 이하라 스트리밍이 필요 없다(`DataModel.md`).
+
 A* 구현이 raw grid 배열을 직접 참조하지 않도록 graph view API를 둔다.
 
 ```cpp
@@ -81,28 +87,45 @@ class FLNPNavGraphView
 다수 Enemy가 같은 플레이어나 Pod를 향하므로 다음 key의 path cache를 우선 검토한다.
 
 ```text
-(NavComponent, StartTile/Cluster, GoalTile/Cluster, RelevantRevisionSet)
+(ReachabilityGroup, StartTile/Cluster, GoalTile/Cluster, RelevantRevisionSet)
 ```
 
-초기에는 개별 A* + 결과 cache로 시작한다. 요청 수가 많으면 플레이어나 Pod를 goal로 하는 reverse flow field를 별도 최적화로 검토한다.
+Phase 7은 개별 A* + 결과 cache로 시작한다. 플레이어나 Pod를 goal로 하는 flow field는 Phase 10에서 계층형 A*와 함께 구현해 비교한다(D-033).
+
+### 실행 위치
+
+- A*는 Mass worker에서 요청별 scratch를 사용해 실행한다. snapshot과 overlay는 읽기 전용이다.
+- 프레임당 확장 node 예산을 두고, 초과한 요청은 다음 프레임으로 이어간다.
+- 결과 경로는 순수 엔티티(적의 90% 이상)에게는 waypoint fragment로, Actor 승격 엘리트에게는 기존 AI 이동 입력(`SetAIMoveInput`) 경로로 전달한다.
 
 ---
 
-## 계층형 탐색 확장
+## 대규모 추격 경로 비교 (Phase 10)
 
 ### 포트폴리오 목표
 
-계층형 탐색의 가치는 구현 자체가 아니라 LootNPop의 구면·다층·Mass 규모에 적용하고 단일 A* 대비 개선을 수치로 증명하는 데 있다.
+이 게임의 경로 수요는 수백~수천 마리가 2~4명의 플레이어와 소수의 Pod로 향하는 다대소 구조다. 계층형 A*는 출발·목표 쌍이 제각각일 때 이득이 크고, flow field는 목표가 적고 추격자가 많을 때 이득이 크다. 두 방식을 모두 구현하고, 구면·다층·동적 link 위에서 일반 A* 대비 개선을 같은 시나리오의 수치로 비교해 채택한다(D-033).
 
 비교 지표:
 
-- 확장 node 수
-- P50/P95 path latency
-- scratch memory
-- 동시 요청 처리량
+- 프레임당 경로 CPU 시간과 P50/P95 지연
+- 확장 node 수 또는 갱신 셀 수
+- scratch·field 메모리
+- 동시 추격자 수에 따른 확장성
 - 경로 길이 오차
 - 동적 변경 재계산 범위
 - cache hit rate
+
+## 목표별 flow field
+
+- 목표는 플레이어와 Pod다. 목표 하나당 field 하나를 둔다.
+- 목표 주변 반경 안에서만 Dijkstra로 거리장을 만든다. 반경 밖 개체는 반경 경계까지 일반 A* 또는 direct path로 접근한다.
+- 갱신은 여러 프레임에 나눠 수행한다. 목표가 셀 몇 개 이상 움직였거나 영향 tile의 revision이 바뀌었을 때만 다시 계산한다.
+- ReachabilityGroup이 다른 개체는 field를 조회하지 않는다.
+- 추격자는 자기 셀에서 거리가 줄어드는 이웃 방향만 읽으므로 개체당 비용이 상수다.
+- 배회, 재귀속, 목표가 드문 이동은 계속 일반 A*를 사용한다.
+
+## 계층형 탐색
 
 ### Cluster 생성
 
