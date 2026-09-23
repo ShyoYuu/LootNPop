@@ -93,6 +93,8 @@
 - 옥탄트 LVI에는 정적 지형과 Placement Marker만 둔다. 동적 요소는 서버가 스폰하는 복제 Actor다.
 - 별도의 두 번째 BVH는 프로파일 근거 없이 도입하지 않는다.
 - Support query는 지지면·근사·후보 축소 수단이며 임의 벽 충돌의 완전한 대체물이 아니다.
+- worker exact hit의 의미 판정은 사전 게시된 POD registry를 사용한다. component 하나만으로 Layer를 추론하거나 worker에서 UObject를 역참조하지 않는다.
+- 원거리 개체도 risk·edge를 임의 통과하지 않는다. coarse support는 안전한 Nav cell 내부에서만 사용한다.
 - 지상 NPC의 섬 간 이동은 실제로 이어진 정적 Walk 경로가 있을 때만 가능하다.
 - 지상 NPC는 점프·발사대·훅·텔레포트로 섬을 건너지 않는다.
 - 움직이는 패널은 우연히 올라탄 NPC를 운반하지만 AI가 계획적으로 이용하지 않는다.
@@ -102,6 +104,7 @@
 - 타게팅 가능성과 지상 경로 도달 가능성은 별개의 판정이다.
 - 완전 비행 NPC는 지상 Nav와 별도 이동 도메인을 사용한다.
 - 투사체는 exact collision 기준선을 먼저 만들고 최적화는 측정 후 도입한다.
+- 신규 exact channel 소비자 전환보다 production collision response 마이그레이션이 먼저다.
 
 ## 7. 문서별 소유 정보
 

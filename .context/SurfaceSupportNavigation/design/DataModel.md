@@ -38,9 +38,12 @@ runtime 선택은 slot 0부터 7까지 고정 순서로 수행한다.
 
 - Level reference가 유효하고 해당 slot bit가 켜진 definition만 후보로 사용한다.
 - pool index 순서로 후보를 만든 뒤 `FRandomStream`의 Fisher-Yates shuffle로 하나를 선택한다.
-- 현재 batch에서 이미 고른 definition은 가능한 동안 다시 고르지 않는다. 허용 후보를 모두 소진하면 새 batch를 시작하므로 8개보다 작은 pool도 지원한다.
+- slot별 허용 후보로 결정론적 제약 할당을 수행해 현재 batch에서 사용할 수 있는 고유 definition 수를 최대화한다(D-043). slot 순서 greedy는 제한이 강한 definition을 먼저 소비해 불필요한 중복을 만들 수 있으므로 사용하지 않는다.
+- 고유 후보를 모두 소진한 뒤에만 새 batch를 시작하므로 8개보다 작은 pool도 지원한다. 같은 최대 해가 여러 개면 pool index 순서와 `FRandomStream`으로 결정론적으로 하나를 선택한다.
 - 특정 slot에 유효한 후보가 하나도 없으면 부분 결과를 폐기하고 명시적 오류로 종료한다.
 - seed 0을 포함해 같은 seed와 같은 pool 순서에서는 같은 definition/source index 결과를 만든다.
+
+현재 Phase 2 구현은 slot 순서 greedy 기준선이다. production pool에 서로 다른 slot mask를 가진 definition을 둘 이상 넣기 전에 위 제약 할당으로 교체하고, 유효한 고유 배치가 있을 때 중복이 발생하지 않는 자동화를 추가한다.
 
 `ULNPOctantSpawnSubsystem`은 선택한 `FLNPOctantDefinition` 8개를 slot 순서로 보존하고, 그 안의 `LevelAsset`으로 Level Instance를 생성한다. Level Instance 로드 완료 후에는 actor 대기 배열만 비우며 선택된 definition 배열은 이후 SurfaceData 로더가 사용할 수 있도록 유지한다.
 
@@ -68,7 +71,9 @@ Component Tag, component transform, collision profile은 package manifest에 억
 
 Phase 2 수집기는 Asset Registry의 source LVI **직접 package dependency**만 조회하고, `ULevel::GetExternalObjectsPaths()`가 반환한 해당 LVI 소유 경로 아래의 `__ExternalActors__`·`__ExternalObjects__` package만 허용한다. 재귀 dependency를 순회하지 않는다. 현재 3-kind schema의 `ExternalActor` 값은 두 종류의 UE external package를 함께 나타낸다.
 
-Terrain mesh는 `LNP.Surface.Support` 또는 `LNP.Surface.Blocker` 역할 태그와 정확히 하나의 수명주기 태그를 가진 `UStaticMeshComponent`에서만 수집한다. `Decoration` 단독 component와 태그 없는 component는 제외하고, `Decoration`과 역할 태그의 혼용이나 수명주기 태그 오류는 수집 실패로 처리한다. Material, PCG graph와 그 하위 dependency는 manifest에 넣지 않는다.
+현재 schema는 correctness를 우선해 LVI가 직접 참조하는 owned external package를 역할과 무관하게 모두 manifest에 넣는다. 따라서 decoration external actor의 저장 변경도 stale을 만들 수 있다. "decoration 제외"는 decoration component가 참조하는 mesh/material 하위 dependency를 추가하지 않는다는 뜻이지 그 actor package 자체를 제외한다는 뜻이 아니다. 실제 제작에서 false stale이 빈번하다는 측정이 있을 때만 contributor actor package 필터를 도입한다.
+
+Terrain mesh는 `LNP.Surface.Support` 또는 `LNP.Surface.Blocker` 역할 태그와 정확히 하나의 수명주기 태그를 가진 `UStaticMeshComponent`에서만 수집한다. `Decoration` 단독 component와 태그 없는 component는 Terrain mesh dependency에서 제외하고, `Decoration`과 역할 태그의 혼용이나 수명주기 태그 오류는 수집 실패로 처리한다. Material, PCG graph와 그 하위 dependency는 manifest에 넣지 않는다.
 
 canonical hash byte stream은 domain/version 문자열로 서로 분리하며 다음 규약을 사용한다.
 
@@ -95,11 +100,11 @@ class ULNPOctantSurfaceData : public UPrimaryDataAsset
 };
 ```
 
-header는 `DataVersion`, source hash·manifest와 각 stream의 element count, uncompressed size, content hash만 가진다. payload를 읽지 않고 version·freshness·필요 stream을 판정할 수 있어야 한다.
+header는 `DataVersion`, source hash·manifest와 각 stream의 element count, uncompressed size, content hash만 가진다. 현재 payload가 일반 `UPROPERTY TArray<uint8>`인 동안에는 asset 로드 시 네 payload도 함께 역직렬화된다. "payload를 읽지 않고 판정"은 codec decode 없이 header만 검사한다는 뜻이며 선택적 I/O를 뜻하지 않는다. 실제 선택 로딩은 측정상 필요할 때 `FByteBulkData` 또는 stream별 asset으로 전환한다.
 
-Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4, Nav cell은 Phase 7의 실제 베이크 데이터로 layout을 결정한다. Conditional Patch stream은 Phase 8에서 `DataVersion`을 올려 추가한다.
+Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4, Nav cell은 Phase 7의 실제 베이크 데이터로 layout을 결정한다. Conditional Patch stream은 Phase 8에서 `DataVersion`을 올려 추가한다. 이때 MarkerId·transform·Actor class·상태/경로 파라미터·patch source mesh와 안정 transform을 source semantic/settings hash에 포함하고 모든 production SurfaceData를 재베이크한다(D-041).
 
-규모 추정: 월드 반지름이 250m라 구 전체 면적은 약 0.785km²다. 지각 Nav를 2m 셀로 잡아도 구 전체 약 19.6만 셀(셀당 4~8B, 약 0.8~1.6MB)이고, 지각 Support를 100cm로 잡아도 약 78.5만 샘플(약 6MB)이다. 메모리 때문에 BulkData 선택 로딩이나 tile 스트리밍을 도입할 이유는 없다. 클라이언트가 Nav stream을 로드하지 않는 것은 로드 시간 측정에서 이득이 확인될 때만 도입한다.
+규모 추정: 월드 반지름이 250m라 구 전체 면적은 약 0.785km²다. 지각 Nav를 2m 셀로 잡으면 구 전체 약 19.6만 셀, 지각 Support를 100cm로 잡으면 약 78.5만 샘플이다. 다만 이 수치는 sparse index, coverage, Atlas metadata, decoded buffer, 다층 섬·동굴, overlay와 allocator overhead를 제외한 하한 추정이다. Phase 4·5에서 cooked asset 크기와 peak/resident memory를 측정하기 전에는 "10MB 안쪽"을 합격 가정으로 사용하지 않는다. BulkData 선택 로딩이나 client Nav stream 제외는 측정상 이득이 확인될 때만 도입한다.
 
 `SurfaceData`와 `NavData`를 별도 asset으로 분리하지 않고 한 asset 안의 별도 stream으로 두는 이유는 다음과 같다.
 
@@ -174,6 +179,8 @@ struct FNavNodeRef
 - 옥탄트 삼각형의 세 변을 같은 해상도·같은 순서 규약으로 샘플링한다. 이음매 프로필이 기준 반지름의 단일 대칭 프로필이므로(D-030) 모든 변을 같은 규약으로 다룰 수 있다.
 - 8개 slot 회전에서 12개 변이 어느 slot의 어느 변과 만나는지, 샘플 순서가 역순인지를 고정 표로 만든다. 회전 집합이 고정이라 이 표도 상수다.
 - 게시 때 이 표로 Support 보간 이웃과 Nav 이웃 셀을 연결하고 StaticNavComponent를 병합한다.
+- `SeamSignature` 문자열 일치만 신뢰하지 않고 ordered seam sample의 계산 hash와 높이·법선 허용 오차를 함께 검증한다.
+- definition 조합 단계에서 signature가 호환되지 않는 후보는 제약 할당에서 제외하고, 실제 계산 seam hash·오차 검증은 SurfaceData 로드 뒤 snapshot 게시 전에 수행한다.
 
 ### Nav cell
 

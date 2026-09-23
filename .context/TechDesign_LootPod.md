@@ -169,7 +169,8 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 빛기둥은 "멀리서도 보인다"가 스펙이라 Actor(High LOD) 유무와 무관하게 상시 표시돼야 한다. 존재·위치는 이미 MassReplication bubble이 전 클라이언트에 전달 중이므로 시각화만 추가했다. 대안이던 "단일 Niagara + 위치 배열"은 폐기 — ISM 안이 기존 Low LOD 인프라를 재사용해 **코드 0줄**로 충족한다.
 
 - **ISMC 에미시브 빔 메시** — `MassCrowdVisualizationTrait`의 `StaticMeshInstanceDesc`에 에미시브 실린더(스케일 (0.4,0.4,30) ≈ 지름 40cm·길이 30m, +1500cm Up 오프셋)를 두 번째 ISM 메시로 추가. 머티리얼은 `M_LootPillar_LowLOD`(Unlit·Additive·양면) — ⚠️ **`bUsedWithInstancedStaticMeshes` 필수**, 누락 시 기본 회색으로 대체된다.
-- **LOD 표현:** `LODRepresentation` 마지막 항목을 `None` → `StaticMeshInstance`로 바꿔 최원거리(LOD3)에서도 빔이 보이게 했다. 빔은 LOD2-3(ISM), 상태별 색 Niagara 기둥은 LOD0-1(Actor)이라 **밴드가 겹치지 않아 이중 표시가 구조적으로 방지된다.**
+- **LOD 표현:** `LODRepresentation` 마지막 항목을 `None` → `StaticMeshInstance`로 바꿔 최원거리(LOD3)에서도 빔이 보이게 했다. 빔은 LOD2-3(ISM), LOD0-1(Actor)은 BP 컴포넌트 `PillarBeam`(같은 실린더·스케일·오프셋·머티리얼)이 그린다. **밴드가 겹치지 않아 이중 표시가 구조적으로 방지된다.** `LootPillarVFX`(Niagara)는 상태 색 파라미터 경로만 남아 있고 BP의 Asset은 비어 있다.
+- ⚠️ **`PillarBeam`은 `NoCollision`이어야 한다.** 엔진 기본값(BlockAllDynamic)이 남아 있어 승격 Actor에 보이지 않는 30m 기둥 충돌이 있었다(2026-09-24 수정). Pod 충돌은 collision proxy가 소유한다([SurfaceSupportNavigation/design/TerrainContract.md](SurfaceSupportNavigation/design/TerrainContract.md) §2, D-047).
 - **소멸:** Pod Popped → bubble 엔티티 제거 → ISM 인스턴스 자동 제거.
 
 **클라이언트 가시 거리 문제 — 원인 2건 (둘 다 해결):**

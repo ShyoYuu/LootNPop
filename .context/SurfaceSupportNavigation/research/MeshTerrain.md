@@ -165,7 +165,7 @@ Component Tag는 Static Mesh asset 자체의 직렬화 metadata가 아니라 배
 상속된 Static Mesh component의 mesh를 LVI actor instance에서 바꾸는 방식은 저장·재로드 뒤 유지되지 않았다. Blueprint Construction Script가 class default를 다시 적용하기 때문이다. 이에 production BP를 복제한 `/Game/SurfaceNavigationTests/MeshTerrain/BP_Octant_COption`을 만들고 다음 기본값을 저장했다.
 
 - crust mesh: `/Game/SurfaceNavigationTests/MeshTerrain/SM_COptionSphereSculpt`
-- Component Tags: `LNP.Terrain.Role.Support`, `LNP.Terrain.Role.PCGSurface`
+- 당시 실험 Component Tags: `LNP.Terrain.Role.Support`, `LNP.Terrain.Role.PCGSurface`
 - `bCanEverAffectNavigation=false`
 - production PCG graph와 parameter 유지
 
@@ -174,6 +174,8 @@ Component Tag는 Static Mesh asset 자체의 직렬화 metadata가 아니라 배
 왕복 테스트를 production 원본 geometry로 먼저 복원한 뒤 한 번만 스컬프트하도록 수정했다. 안정된 단일 스컬프트 산출물은 PCG spatial bounds 최대값이 25000cm이고 HISM 3개·1960개를 생성한다. 전체 자동화 5개를 연속 실행해 최대 정점 변위 2400.000000cm, seam 최대 변위 0cm, PCG bounds가 반복마다 동일함을 확인했다.
 
 production BP의 crust component tag 배열은 현재 비어 있다. 따라서 이 실험은 C안 authoring 계약은 증명하지만 production content의 Terrain Contract tag 마이그레이션까지 완료한 것은 아니다. 저장되지 않는 임시 LVI 복제본은 제거했으며 production BP/LVI는 저장하지 않았다.
+
+위 `LNP.Terrain.*` 이름은 Phase 1 실험 당시 값이며 현재 Terrain Contract가 아니다. Phase 4 입력으로 재사용할 C-option BP/LVI와 자동화는 `LNP.Surface.Support`, `LNP.Surface.Static` 및 필요 역할 조합으로 마이그레이션해야 한다.
 
 #### 자동화 조건과 남은 위험
 

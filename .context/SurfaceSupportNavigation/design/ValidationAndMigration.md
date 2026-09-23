@@ -58,6 +58,10 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 - tile 경계 neighbor
 - local revision 검증
 - earliest hit time 비교
+- exact hit identity의 face/instance→Layer 변환
+- A* chord heuristic의 admissibility
+- multi-frame path request의 snapshot/connectivity/revision 취소
+- 겹친 Conditional Patch의 occupancy reference count
 
 ### 에디터 베이크 테스트
 
@@ -70,6 +74,8 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 - static prop dilation
 - connected component
 - portal 자동 생성
+- Support proxy와 exact counterpart coverage·오차
+- collision profile 설정·marker authoring 변경 후 stale 검출
 
 ### 기능 테스트 맵
 
@@ -90,6 +96,11 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 | 옥탄트 회전 | 모든 slot에서 Support/Nav가 mesh와 일치 |
 | 멀티플레이 | server/client 초기화, asset 조합, 동적 요소 상태 일치 |
 | 패널 위 플레이어 | 2P에서 Mover가 복제된 패널을 base로 인식하고 예측이 어긋나지 않음 |
+| 패널 late join | 이동 중 접속한 클라이언트가 path revision·server epoch로 같은 자세를 복원 |
+| 한 component의 분리된 sheet | face/instance identity로 서로 다른 Layer를 정확히 resolve |
+| 내부형 double-sided shell | exact normal이 지역 Up 기준 walkable 판정과 일치 |
+| 요청 중 revision 변경 | 이전 snapshot의 다중 프레임 경로를 폐기·재시작 |
+| 겹친 Conditional Patch | 한 patch 비활성화가 다른 활성 blocker/support를 지우지 않음 |
 
 모든 Phase 완료 조건에 `-game` 리슨 서버 2P 스모크를 포함한다(D-031). PIE는 월드 서브시스템 초기화 시점의 net mode를 재현하지 못하므로 대체할 수 없다.
 
@@ -103,7 +114,7 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 
 신규 측정:
 
-- SurfaceData asset 크기와 runtime resident memory
+- SurfaceData cooked asset 크기, decode peak와 runtime resident memory
 - initial data load/validation 시간
 - cache high-confidence hit 비율
 - exact fallback 비율
@@ -124,7 +135,7 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 - 정적 smooth interior의 대다수가 exact query 없이 처리
 - correctness-mandatory query는 예산 초과를 이유로 생략하지 않음
 
-메모리는 목표로 삼지 않는다. 규모 추정상 Support·Nav 전체가 10MB 안쪽이라 현재 37.6MiB보다 작다(`DataModel.md`).
+초기 메모리 추정은 하한값으로만 사용한다. sparse index, coverage, Atlas metadata, decoded buffer, 다층과 overlay를 포함한 peak/resident memory를 Phase 4·5에서 측정하며, 그 전에는 Support·Nav 전체가 10MB 안쪽이라고 가정하지 않는다(`DataModel.md`).
 
 CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 비율, 동시 투사체 수 고정) 기준 캡처를 만든 뒤 확정한다.
 
@@ -148,6 +159,7 @@ Legacy GetSurfacePoint adapter
 
 | 순서 | 소비자 | Phase |
 |:---:|:---|:---:|
+| 0 | production `LNPWorldExact` response audit·마이그레이션과 hit identity registry | 3 Gate -1 |
 | 1 | 투사체 서버 판정·클라이언트 ghost의 exact world collision | 3 |
 | 1 | 탄도 가이드 `PredictArc` (투사체와 같은 판정 함수 불변식) | 3 |
 | 2 | World Device 절차 배치 → 서버 스폰 경로 통합, Placement Marker 스폰 | 3 |
@@ -162,6 +174,8 @@ Legacy GetSurfacePoint adapter
 | 9 | Conditional Patch와 파괴 overlay | 8 |
 
 PCG는 에디터 시점에 실행되고 결과가 LVI에 저장되므로 런타임 전환 대상이 아니다. 베이크 전에 PCG 결과가 확정돼 있으면 된다.
+
+production Terrain Contract Component Tag 전환은 Phase 4까지 나눠 진행할 수 있지만 exact response 전환보다 늦어서는 안 되는 항목과 분리한다. Phase 3 동안 신규 exact 경로를 기본값으로 만들기 전 production 옥탄트 8-slot trace/sweep 회귀를 통과해야 한다(D-036).
 
 ### 제거 대상
 
@@ -183,7 +197,7 @@ PCG는 에디터 시점에 실행되고 결과가 LVI에 저장되므로 런타�
 
 ### stale SurfaceData
 
-- 완화: cook·CI에서 source manifest와 header hash를 비교해 차단(D-029). 런타임은 `DataVersion`만 확인
+- 완화: cook·CI에서 source manifest와 header hash를 비교해 차단(D-029). collision profile 정의는 Terrain Contract/baker schema version에 반영하고, Conditional Patch 도입 시 marker authoring 전체를 hash한다(D-041). 런타임은 `DataVersion`만 확인
 
 ### 옥탄트 seam 불일치
 
@@ -211,7 +225,7 @@ PCG는 에디터 시점에 실행되고 결과가 LVI에 저장되므로 런타�
 
 ### 움직이는 패널에서 NPC 이탈
 
-- 완화: local contact, transform delta, exact contact 검증, 이탈 시 velocity 상속
+- 완화: local contact, transform delta, exact contact 검증, 이탈 시 velocity 상속, tick prerequisite, late-join과 server-time 보정 테스트
 
 ### 동적 요소의 네트워크 불일치
 

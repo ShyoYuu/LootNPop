@@ -25,6 +25,8 @@ ALNPSpringLauncher::ALNPSpringLauncher()
 
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	MeshComponent->SetupAttachment(RootComponent);
+	// 스폰은 런타임이지만 스폰 뒤 형상·transform이 변하지 않는 지지면 겸 장애물이다(Terrain Contract 서버 스폰 정적 장치).
+	MeshComponent->SetCollisionProfileName(TEXT("LNPStaticTerrain"));
 
 	LaunchSlot = CreateDefaultSubobject<USceneComponent>(TEXT("LaunchSlot"));
 	LaunchSlot->SetupAttachment(RootComponent);

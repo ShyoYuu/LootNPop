@@ -24,6 +24,12 @@
 - 정상 경로에서 런타임 호출은 하지 않는다. 목적은 코드 경계 유지와 테스트 용이성이다.
 - 부수 효과로 asset별 로드 시 베이크 시간을 실측할 수 있다. 현재 런타임 베이크 약 7초는 계산 비용이 아니라 트레이스 발사를 프레임당 3000개로 제한해 412프레임에 나눈 시간이다(`../../TechDesign_SurfaceCache.md`). asset 로컬 공간에서 한 번만 구우면 비용이 1/8 이하로 줄어 Nav 파생을 포함해도 asset당 1초 안팎으로 추정한다. 에디터 베이크를 택한 근거는 로드 시간보다 제작 시점 오류 피드백과 로드 예산 밖의 무거운 분석이다.
 
+### stale 입력 범위
+
+- collision profile/channel 정의 변경은 project config 파일 자체를 무차별 hash하지 않고 Terrain Contract version 또는 baker schema version 상승으로 반영한다.
+- Phase 2 schema는 correctness를 우선해 source LVI가 직접 참조하는 owned external actor/object package를 모두 freshness manifest에 넣는다. decoration actor 저장도 false stale을 만들 수 있음을 보고서에 명시하고, 실제 제작에서 문제가 측정될 때만 contributor package 필터를 도입한다.
+- Conditional Patch가 도입되면 MarkerId, transform, Actor class, 경로·상태 파라미터, patch mesh와 안정 transform을 canonical hash 입력으로 추가한다(D-041).
+
 ### 삼각형 원본
 
 베이커가 읽는 삼각형은 런타임 exact query가 맞히는 삼각형과 같아야 한다. 그래야 "Support와 Chaos 오차"가 구조적으로 0에 가까워진다.
@@ -31,6 +37,7 @@
 - 1순위는 cooked collision trimesh(`UBodySetup`의 Chaos triangle mesh)다.
 - Nanite mesh의 complex collision이 원본 mesh에서 만들어지는지 fallback mesh에서 만들어지는지는 Phase 4a 착수 시 확인한다.
 - 다른 삼각형 원본을 쓰면 bake 후 exact trace 샘플 검증으로 오차를 측정해야 한다.
+- Support-only proxy를 사용하면 대응 exact component association을 입력으로 받아 coverage와 오차를 검증한다. exact counterpart가 없는 proxy는 playable Support를 생성하지 않는다(D-039).
 
 ### 다층 교차 수집
 
@@ -38,6 +45,7 @@
 
 - GeometryCore `TMeshAABBTree3::FindAllHitTriangles`(`Spatial/MeshAABBTree3.h`)는 한 광선의 모든 교차를 반환한다.
 - source 컴포넌트별로 트리를 만들면 Layer 후보가 컴포넌트 단위로 1차 분리된다. 한 컴포넌트 안의 분리는 walkable triangle 연결성으로 나눈다.
+- 한 컴포넌트가 여러 Layer로 나뉠 수 있으므로 collision face/triangle과 local Layer ID의 대응표를 산출한다. ISM·HISM은 instance index를 추가 키로 사용하며 runtime hit identity registry가 이 표를 소비한다(D-037).
 
 ### 베이크 파이프라인
 
@@ -93,6 +101,8 @@ ULNPOctantSurfaceData 저장
 
 두 단계 모두 Phase 3b의 greybox 옥탄트 LVI와 fixture LVI를 입력으로 사용한다(`../Roadmap.md` §4).
 
+Phase 1 C-option fixture의 구형 `LNP.Terrain.*` Component Tag는 입력으로 재사용하기 전에 `TerrainContract.md`의 `LNP.Surface.*` 계약으로 마이그레이션한다.
+
 ### 해상도 정책
 
 Support 해상도는 지형별로 다르게 둘 수 있다.
@@ -143,8 +153,11 @@ Support 해상도는 지형별로 다르게 둘 수 있다.
 - StaticNavComponent에 portal 없는 고립 spawn candidate 존재
 - SupportData가 참조하는 source actor 누락
 - runtime collision과 Support 표면의 오차가 허용값 초과
+- collision이 켜진 무태그 primitive 또는 LVI 안의 `Dynamic`·`StatefulTraversal`·`Destructible` 역할 component
+- tag/profile/channel 조합 불일치
+- 한 component의 collision face/instance를 Layer ID로 유일하게 해석할 수 없음
+- Support proxy와 대응 exact geometry association 누락
 
 개발 초기에는 경고로 시작하되 Shipping cook/CI 단계에서는 핵심 항목을 오류로 승격한다.
 
 ---
-
