@@ -6,17 +6,28 @@
 
 ## 현재 목표
 
-Phase 2는 완료됐다. 다음 세션은 기존 Chaos cooked collision과 scene acceleration을 사용하는 `MassWorldCollision` 정확성 기준선을 정의하고, 회귀 fixture에서 벽·섬·동굴·프랍·동적 패널 충돌을 검증하는 Phase 3 실행 문서를 작성하는 것부터 시작한다.
+Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). 다음 세션은 Phase 3 실행 문서를 작성하는 것부터 시작한다.
 
-Phase 3는 Phase 2가 제공한 runtime 공개 schema와 `FLNPSurfaceBakeHeader`를 참조할 수 있지만, Support Atlas payload를 생성하거나 소비하지 않는다. 실제 Support Atlas 생성은 Phase 4 범위다.
+Phase 3 범위(`Roadmap.md` §4):
+
+1. D-025 스레드·쿼리 방침과 Gate 0: Mass worker 동기 scene query를 `-game` 리슨 서버와 비동기 물리 조건에서 검증
+2. Placement Marker → 서버 스폰 복제 Actor, 결정론적 움직임의 동적 패널 위 2P Mover 탑승
+3. `LNPWorldExact` 기반 MassWorldCollision API
+4. 투사체 서버·클라이언트 ghost·탄도 가이드의 exact 전환과 최외곽 반지름 안전망
+5. 고정 부하 시나리오의 비용 기준선
+
+Phase 3는 Support Atlas payload를 생성하거나 소비하지 않는다. 실제 Support Atlas 생성은 Phase 4a·4b 범위다.
+
+Phase 3 다음은 exact 전용 부유섬 프로토타입(Phase 3b)과 완전 비행 NPC(Phase 3c)다. Phase 3의 부하 기준선은 3b 한계치 측정과 같은 계측 도구를 쓰도록 만든다.
 
 ## 착수 시 필수 문서
 
 - `Roadmap.md`
 - `design/RuntimeCollision.md`
+- `design/DynamicTerrain.md`
 - `design/TerrainContract.md`
 - `design/RegressionMap.md`
-- `phases/Phase02_OctantDataSchema.md`
+- `research/ChaosSceneQueries.md`
 
 ## Phase 2 인계 기준선
 
@@ -30,9 +41,9 @@ Phase 3는 Phase 2가 제공한 runtime 공개 schema와 `FLNPSurfaceBakeHeader`
 
 ## 바로 다음 작업
 
-1. `design/RuntimeCollision.md`, `design/TerrainContract.md`, `design/RegressionMap.md`를 기준으로 Phase 3 실행 문서와 완료 조건을 작성한다.
-2. 기존 Chaos scene query를 사용하는 정확성 우선 `MassWorldCollision` API와 회귀 fixture 범위를 확정한다.
-3. Support 기반 후보 축소나 별도 BVH 없이 exact query의 정확성과 비용 기준선을 만든다.
+1. 위 다섯 범위로 `phases/Phase03_*.md` 실행 문서와 완료 조건을 작성한다. 완료 조건에 2P 스모크(D-031)를 넣는다.
+2. 부하 시나리오의 적 수·CombatMode 비율·동시 투사체 수를 정한다. 목표 구성은 적의 90% 이상이 PureEntity다.
+3. Gate 0 스파이크부터 착수한다. 실패하면 D-025를 재논의한다.
 
 ## Phase 1에서 확정된 입력 계약
 
@@ -44,16 +55,22 @@ Phase 3는 Phase 2가 제공한 runtime 공개 schema와 `FLNPSurfaceBakeHeader`
 - slot transform: `(Pitch 0°/180°, Yaw 0°/90°/180°/270°)` 8개
 - stale 검출 후보: source LVI·외부 actor/object·역할 mesh·semantic 값·schema version을 정렬한 manifest와 package saved hash
 
-## Phase 2에서 이관한 후속 작업
+## 이관된 후속 작업
 
 - production Terrain Contract tag·collision profile 마이그레이션은 실제 베이커를 production source에 적용하는 Phase 4 이후에 수행한다.
 - production definition의 SurfaceData 연결과 runtime 로드는 Phase 5 소비자 전환에서 수행한다.
-- 실제 Support Atlas rasterization과 payload codec은 Phase 4 범위다.
+- 실제 Support Atlas rasterization과 payload codec은 Phase 4a·4b 범위다.
+- `LNPOctantSourceCollector`의 무태그 충돌 컴포넌트 보고와 LVI 내 동적 태그 차단은 Phase 4 착수 전에 수정한다.
+- greybox 부유섬 옥탄트 LVI는 Phase 3b에서 만들고, Phase 4 착수 전에 동굴 키트 공동 모듈과 통로를 추가한다(`Roadmap.md` §4).
+- Phase 4 착수 전 전제: fixture 재배치·fixture LVI, 동굴 fixture의 키트 방식 교체.
 
 ## 알려진 불확실성
 
 - Phase 3 exact query의 호출 빈도와 배치 단위는 정확성 기준선 측정 뒤 결정한다.
+- 관찰 거리 축의 근처 반경과 원거리 판정 주기는 Phase 3b 실측으로 정한다.
 - `LNPSurfaceSupport`와 `LNPWorldExact` 신규 channel로 기존 소비자를 전환하는 시점은 Phase 3 회귀 결과와 함께 확정한다.
+- Mover가 서버 스폰 복제 패널을 movement base로 인식했을 때 2P 예측이 안정적인지는 Phase 3 스파이크로 확인한다.
+- Nanite mesh의 complex collision이 원본 mesh와 fallback mesh 중 어디서 만들어지는지는 Phase 4a 착수 시 확인한다.
 - Development package의 기존 Lyra Mannequin material은 누락 Material Function 때문에 default material로 대체된다. Surface Navigation 검증과는 분리된 콘텐츠 문제다.
 
 ## 블로커

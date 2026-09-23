@@ -12,12 +12,12 @@
 
 - Support Layer별 spawn weight
 - slope·edge·capsule clearance
-- NavComponent ID
+- StaticNavComponent ID
 - Pod 허용 여부
 - Enemy 허용 여부
 - 동굴/부유섬 인구 예산
 
-Pod와 Enemy에 초기 `SurfaceHandle`, `NavNodeRef`, `NavComponent`를 부여한다.
+Pod와 Enemy에 초기 `SurfaceHandle`을 부여한다(Phase 5). `NavNodeRef`와 StaticNavComponent는 Nav 데이터가 생기는 Phase 7에서 추가한다.
 
 ### PCG
 
@@ -29,7 +29,9 @@ Pod와 Enemy에 초기 `SurfaceHandle`, `NavNodeRef`, `NavComponent`를 부여�
 
 ### World Device
 
-중심→외부 첫 hit에 의존하는 배치를 제거한다.
+World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placement Marker는 레벨 디자인 의도대로 배치하고, seed 기반 절차 배치는 지금처럼 유지하되 두 source가 같은 서버 스폰 함수를 거친다.
+
+절차 배치에서는 중심→외부 첫 hit에 의존하는 방식을 제거한다.
 
 - 허용 Support Layer 명시
 - edge·slope·clearance 사용
@@ -84,16 +86,19 @@ Pod와 Enemy에 초기 `SurfaceHandle`, `NavNodeRef`, `NavComponent`를 부여�
 | 쓰러지는 기둥 | 정지 전 link 없음, 정지 후 경로 생성 |
 | 움직이는 패널 | 우연히 착지한 NPC가 함께 이동 |
 | 다른 섬으로 넉백 | 착지 후 가까운 reachable Pod로 재귀속 |
-| 파괴된 바닥 | cell 무효화 후 NPC가 진입하지 않음 |
+| 파괴된 바닥 | Conditional Patch 비활성화 후 NPC가 진입하지 않음 |
 | 옥탄트 회전 | 모든 slot에서 Support/Nav가 mesh와 일치 |
-| 멀티플레이 | server/client 초기화와 asset 조합 일치 |
+| 멀티플레이 | server/client 초기화, asset 조합, 동적 요소 상태 일치 |
+| 패널 위 플레이어 | 2P에서 Mover가 복제된 패널을 base로 인식하고 예측이 어긋나지 않음 |
+
+모든 Phase 완료 조건에 `-game` 리슨 서버 2P 스모크를 포함한다(D-031). PIE는 월드 서브시스템 초기화 시점의 net mode를 재현하지 못하므로 대체할 수 없다.
 
 ### 성능 측정
 
 현재 기준:
 
 - runtime bake sample: 1,233,235
-- runtime bake 시간: 약 7초
+- runtime bake 시간: 약 7초. 계산 비용이 아니라 트레이스 발사를 프레임당 3000개로 제한해 약 412프레임에 나눈 시간이다
 - 현재 sample 메모리: 약 37.6MiB
 
 신규 측정:
@@ -108,16 +113,20 @@ Pod와 Enemy에 초기 `SurfaceHandle`, `NavNodeRef`, `NavComponent`를 부여�
 - 일반 A* expanded node/P50/P95
 - path cache hit rate
 - 동적 변경 dirty cell/Tile/Cluster 수
-- 계층형 도입 전후 동일 경로 비교
+- exact 전용(Phase 3b)과 캐시 도입 후(Phase 6)의 적 수 한계치·exact 호출 비율
+- 관찰 거리 구간별 exact 호출 수
+- 일반 A*·flow field·계층형 탐색의 동일 시나리오 비교
 
 초기 목표:
 
 - 정상 실행의 runtime surface bake 제거
-- 실제 부유섬 콘텐츠를 포함한 SurfaceData resident memory가 현재 약 38MiB 범위 안에 들어오도록 시도
+- 초기화 시간: 현재 runtime bake 약 7초를 SurfaceData 로드·게시 시간으로 대체하고 그 값을 기록
 - 정적 smooth interior의 대다수가 exact query 없이 처리
 - correctness-mandatory query는 예산 초과를 이유로 생략하지 않음
 
-CPU의 절대 합격값은 목표 플랫폼과 최대 Enemy/Projectile 수의 기준 캡처를 만든 뒤 확정한다.
+메모리는 목표로 삼지 않는다. 규모 추정상 Support·Nav 전체가 10MB 안쪽이라 현재 37.6MiB보다 작다(`DataModel.md`).
+
+CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 비율, 동시 투사체 수 고정) 기준 캡처를 만든 뒤 확정한다.
 
 ---
 
@@ -137,15 +146,22 @@ Legacy GetSurfacePoint adapter
 
 ### 소비자 전환 순서
 
-1. 투사체 exact world collision
-2. Editor SupportData와 runtime query
-3. Mass Spawn
-4. Enemy grounded 이동
-5. Enemy airborne/landing
-6. Idle 배회
-7. PCG/World Device
-8. Nav Grid와 path following
-9. legacy SurfaceCache 제거
+| 순서 | 소비자 | Phase |
+|:---:|:---|:---:|
+| 1 | 투사체 서버 판정·클라이언트 ghost의 exact world collision | 3 |
+| 1 | 탄도 가이드 `PredictArc` (투사체와 같은 판정 함수 불변식) | 3 |
+| 2 | World Device 절차 배치 → 서버 스폰 경로 통합, Placement Marker 스폰 | 3 |
+| 2 | PureEntity exact 접지·낙하·넉백 (프로토타입, CVar 전환, Phase 6 exact 폴백으로 재사용) | 3b |
+| 2 | 완전 비행 NPC (exact sweep 기반, 신규 소비자) | 3c |
+| 3 | Editor SupportData와 runtime query, legacy adapter | 4a·4b·5 |
+| 4 | Mass Spawn (Spawn stream) | 5 |
+| 5 | Enemy grounded 이동·airborne/landing, Actor 경로 LOD 전환 | 6 |
+| 6 | Idle 배회 | 6 |
+| 7 | legacy SurfaceCache·adapter 제거 | 6 |
+| 8 | Nav Grid, path following, Pod 재귀속, 슬롯 도달성 | 7 |
+| 9 | Conditional Patch와 파괴 overlay | 8 |
+
+PCG는 에디터 시점에 실행되고 결과가 LVI에 저장되므로 런타임 전환 대상이 아니다. 베이크 전에 PCG 결과가 확정돼 있으면 된다.
 
 ### 제거 대상
 
@@ -167,15 +183,15 @@ Legacy GetSurfacePoint adapter
 
 ### stale SurfaceData
 
-- 완화: source hash, version, cook validation
+- 완화: cook·CI에서 source manifest와 header hash를 비교해 차단(D-029). 런타임은 `DataVersion`만 확인
 
 ### 옥탄트 seam 불일치
 
 - 완화: seam signature, 자동 비교, seam risk band exact fallback
 
-### 동굴 floor 분리 실패
+### 동굴 바닥 분리 실패
 
-- 완화: Support Proxy/attribute authoring, triangle connectivity 검사
+- 완화: 공동 모듈·통로 바닥을 별도 `Support` 컴포넌트로 분리(D-035), 모듈 제작 시 1회 검증
 
 ### Support와 Chaos 불일치
 
@@ -183,7 +199,7 @@ Legacy GetSurfacePoint adapter
 
 ### scene query 경합
 
-- 완화: 전용 channel, 쿼리 분류, interior cache, Insights 계측
+- 완화: 전용 channel, 쿼리 분류, interior cache, 관찰 거리 축(D-025), Insights 계측. query CPU 비용과 락 대기를 따로 측정
 
 ### Nav Grid가 좁은 통로 삭제
 
@@ -196,6 +212,11 @@ Legacy GetSurfacePoint adapter
 ### 움직이는 패널에서 NPC 이탈
 
 - 완화: local contact, transform delta, exact contact 검증, 이탈 시 velocity 상속
+
+### 동적 요소의 네트워크 불일치
+
+- 원인 후보: LVI 내부 Actor의 경로 불일치, 비동기 물리의 보간 자세, Mover base 참조 누락
+- 완화: 서버 스폰 복제 Actor(D-026), 결정론적 kinematic 움직임(D-027), Phase 3 2P 패널 탑승 스파이크
 
 ### 넉백 후 Pod 부재
 
@@ -212,7 +233,8 @@ Legacy GetSurfacePoint adapter
 다음 조건을 모두 만족하면 본 계획의 핵심 목표가 완료된 것으로 본다.
 
 - 랜덤 옥탄트 조합에서 runtime surface bake가 없음
-- 기본 지각·부유섬·단순 동굴의 SupportData가 에디터에서 베이크됨
+- 기본 지각·부유섬·동굴 키트의 SupportData가 에디터에서 베이크됨
+- exact 전용 대비 캐시 도입 후의 적 수 한계치 비교 자료 확보
 - Mass worker가 immutable snapshot을 안전하게 조회
 - 부유섬 가장자리와 동굴에서 유령 보간·반지름 매몰이 없음
 - 투사체가 world와 Mass target 중 실제 첫 충돌을 선택
@@ -224,7 +246,7 @@ Legacy GetSurfacePoint adapter
 - 쓰러진 기둥이 정지한 뒤 새 길이 활성화
 - 움직이는 패널이 우연히 착지한 NPC를 운반
 - 파괴가 기존 길을 열거나 닫을 수 있음
-- 일반 A*와 계층형 탐색의 성능 비교 자료 확보
+- 일반 A*·flow field·계층형 탐색의 성능 비교 자료 확보
 - server/client 초기화와 데이터 버전이 일치
 
 ---

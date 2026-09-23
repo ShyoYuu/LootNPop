@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 역할: 이 작업의 진입점과 문서 라우팅
-> 마지막 구조 갱신: 2026-09-21
+> 마지막 구조 갱신: 2026-09-23
 
 ## 1. 목적
 
@@ -12,10 +12,11 @@
 
 - 런타임 `SurfaceCache` 베이크를 옥탄트별 에디터 베이크로 교체
 - 같은 방사 방향에 여러 표면이 있는 부유섬 지원
-- Mass NPC가 출입할 수 있는 단순 동굴 지원
+- Mass NPC가 출입할 수 있는 동굴 키트(재사용 공동 모듈과 통로) 지원
 - 캐시 기반 저비용 지면 지원과 Chaos 기반 정밀 충돌의 역할 분리
 - 별도 저해상도 Nav Grid와 일반 A* 도입
-- 이후 계층형 탐색으로 확장할 수 있는 식별자와 tile 구조 확보
+- 대규모 추격을 위한 flow field·계층형 탐색 비교와 이를 받칠 식별자·tile 구조 확보
+- exact 전용 대비 캐시 도입 후 한계치 향상의 실측
 - 움직이는 패널, 상태형 다리, 파괴로 인한 길 변경 지원
 
 ## 2. 세션 시작 시 필수 문서
@@ -41,7 +42,7 @@
 | Support Atlas·동굴 layer·베이커 | `design/SurfaceBaking.md` |
 | Surface query·MassWorldCollision·투사체 | `design/RuntimeCollision.md` |
 | 이동 패널·기믹 다리·파괴 | `design/DynamicTerrain.md` |
-| Nav Grid·A*·계층형 탐색 | `design/GroundNavigation.md` |
+| Nav Grid·A*·flow field·계층형 탐색 | `design/GroundNavigation.md` |
 | 접지·낙하·넉백·Pod 재귀속·비행 NPC | `design/MovementIntegration.md` |
 | 테스트·성능·소비자 전환 | `design/ValidationAndMigration.md` |
 | Mesh Terrain 기능·제작 방식 검증 | `research/MeshTerrain.md` |
@@ -72,18 +73,24 @@
 | Support Atlas | 특정 방향에서 캐릭터를 지지할 수 있는 표면을 샘플링한 고해상도 희소 데이터 |
 | Support Layer | 같은 Atlas 좌표에 겹칠 수 있는 서로 다른 보행면 |
 | Nav Layer | 저해상도 경로 탐색용 보행 셀 집합 |
-| NavComponent | 정적 Walk 연결성으로 묶인 Nav 영역 |
-| Nav Tile | 베이크·스트리밍·지역 무효화 단위 |
+| StaticNavComponent | 정적 Walk 연결성으로 묶인 Nav 영역. 옥탄트 베이크와 이음매 병합으로 확정 |
+| ReachabilityGroup | 현재 활성 Traversal Link까지 포함해 서로 도달 가능한 StaticNavComponent 묶음 |
+| Nav Tile | 지역 revision·무효화와 Cluster 구성 단위. 월드 규모상 스트리밍 단위로는 쓰지 않음 |
 | Cluster | 계층형 탐색의 상위 노드 단위 |
 | Traversal Link | 두 Nav 영역 사이의 실제 보행 가능 연결 |
 | Dynamic Support | 이동 플랫폼처럼 transform이 시간에 따라 변하는 지지면 |
 | Home Anchor | NPC가 배회하거나 재귀속할 Pod 기준점 |
+| Placement Marker | LVI에 수동 배치하는 빈 슬롯. 서버가 이 위치에 동적 요소 Actor를 스폰 |
+| Conditional Patch | 동적 요소가 특정 상태일 때만 활성화되는 사전 베이크 Support·Nav·Link 묶음 |
+| 동굴 키트 | 재사용 공동 모듈(반구·직육면체 등)과 통로 조각. 옥탄트에는 통로 입구만 뚫는다 |
 
 ## 6. 모든 구현이 지켜야 하는 불변 조건
 
 - 런타임 정상 경로에서 전체 지표면 재베이크를 하지 않는다.
-- Mass worker는 게시 완료된 immutable snapshot만 읽는다.
+- Mass worker는 게시 완료된 immutable snapshot만 읽는다. snapshot 조회는 lock-free이고, exact scene query는 Chaos 씬 읽기 락을 잡는다.
+- 지면 조회는 Support snapshot이 기본이며 exact query는 D-025의 조건에서만 사용한다. Mass worker에서는 동기 scene query만 사용한다.
 - 정밀 충돌은 우선 기존 Chaos cooked collision과 acceleration structure를 사용한다.
+- 옥탄트 LVI에는 정적 지형과 Placement Marker만 둔다. 동적 요소는 서버가 스폰하는 복제 Actor다.
 - 별도의 두 번째 BVH는 프로파일 근거 없이 도입하지 않는다.
 - Support query는 지지면·근사·후보 축소 수단이며 임의 벽 충돌의 완전한 대체물이 아니다.
 - 지상 NPC의 섬 간 이동은 실제로 이어진 정적 Walk 경로가 있을 때만 가능하다.

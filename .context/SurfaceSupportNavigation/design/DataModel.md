@@ -97,7 +97,9 @@ class ULNPOctantSurfaceData : public UPrimaryDataAsset
 
 header는 `DataVersion`, source hash·manifest와 각 stream의 element count, uncompressed size, content hash만 가진다. payload를 읽지 않고 version·freshness·필요 stream을 판정할 수 있어야 한다.
 
-Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4, Nav cell은 Phase 7의 실제 베이크 데이터로 layout을 결정한다. resident memory와 선택 로딩 이득이 측정되면 property 배열을 BulkData로 바꾸되 header와 stream 경계는 유지한다.
+Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4, Nav cell은 Phase 7의 실제 베이크 데이터로 layout을 결정한다. Conditional Patch stream은 Phase 8에서 `DataVersion`을 올려 추가한다.
+
+규모 추정: 월드 반지름이 250m라 구 전체 면적은 약 0.785km²다. 지각 Nav를 2m 셀로 잡아도 구 전체 약 19.6만 셀(셀당 4~8B, 약 0.8~1.6MB)이고, 지각 Support를 100cm로 잡아도 약 78.5만 샘플(약 6MB)이다. 메모리 때문에 BulkData 선택 로딩이나 tile 스트리밍을 도입할 이유는 없다. 클라이언트가 Nav stream을 로드하지 않는 것은 로드 시간 측정에서 이득이 확인될 때만 도입한다.
 
 `SurfaceData`와 `NavData`를 별도 asset으로 분리하지 않고 한 asset 안의 별도 stream으로 두는 이유는 다음과 같다.
 
@@ -105,7 +107,6 @@ Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬
 - Support와 Nav의 불일치를 원천 차단
 - 옥탄트 정의 참조 수 감소
 - 베이커와 검증 도구 단순화
-- BulkData 내부 스트림으로 선택적 로딩 가능
 
 ### Support sample
 
@@ -163,6 +164,16 @@ struct FNavNodeRef
 ```
 
 전역 1차원 인덱스를 외부 API에 노출하지 않는다. 이 주소 체계가 일반 Grid A*와 계층형 탐색의 공통 기반이 된다.
+
+`NavLayerId`는 asset 로컬 ID가 아니라 런타임 전역 ID다. 같은 asset이 여러 slot에 들어가므로 snapshot 게시 때 `(slot, 로컬 Nav Layer)`에 전역 ID를 발급한다. `Generation`은 snapshot 교체용 stale 검출이며, 동적 변경을 나타내는 지역 revision과 다르다.
+
+### 옥탄트 이음매 연결
+
+베이크 시점에는 이웃 옥탄트를 알 수 없으므로 이음매 연결은 런타임 snapshot 게시 때 만든다.
+
+- 옥탄트 삼각형의 세 변을 같은 해상도·같은 순서 규약으로 샘플링한다. 이음매 프로필이 기준 반지름의 단일 대칭 프로필이므로(D-030) 모든 변을 같은 규약으로 다룰 수 있다.
+- 8개 slot 회전에서 12개 변이 어느 slot의 어느 변과 만나는지, 샘플 순서가 역순인지를 고정 표로 만든다. 회전 집합이 고정이라 이 표도 상수다.
+- 게시 때 이 표로 Support 보간 이웃과 Nav 이웃 셀을 연결하고 StaticNavComponent를 병합한다.
 
 ### Nav cell
 
