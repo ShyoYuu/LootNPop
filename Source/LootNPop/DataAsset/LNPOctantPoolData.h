@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DataAsset/LNPOctantDefinition.h"
 #include "Engine/DataAsset.h"
 #include "LNPOctantPoolData.generated.h"
 
@@ -16,7 +17,21 @@ class LOOTNPOP_API ULNPOctantPoolData : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	/** Octant로 제작된 레벨 목록. 제작 절차는 Guide_OctantLevelInstance.md 참조. */
+	/**
+	 * 새 정의 목록을 반환한다. 아직 마이그레이션되지 않은 asset은 legacy Level 목록을
+	 * 동일 순서와 전체 slot 허용값을 가진 임시 정의로 승격한다.
+	 */
+	void BuildEffectiveDefinitions(TArray<FLNPOctantDefinition>& OutDefinitions) const;
+
+	/** Level과 SurfaceData를 함께 보존하는 새 옥탄트 정의 목록. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|World Generation")
+	TArray<FLNPOctantDefinition> OctantDefinitions;
+
+	/**
+	 * Phase 2 content migration 전까지 유지하는 기존 Level 전용 목록.
+	 * 런타임 선택 경로를 OctantDefinitions로 전환한 뒤 제거한다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|World Generation",
+		meta = (DeprecatedProperty, DeprecationMessage = "Use OctantDefinitions instead."))
 	TArray<TSoftObjectPtr<UWorld>> OctantPool;
 };

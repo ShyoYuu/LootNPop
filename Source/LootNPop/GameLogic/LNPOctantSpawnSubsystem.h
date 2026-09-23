@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DataAsset/LNPOctantDefinition.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
 #include "LNPOctantSpawnSubsystem.generated.h"
@@ -32,6 +33,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|World Generation")
 	void StartWorldGeneration();
 
+	/**
+	 * 고정 8개 slot에 허용되는 정의를 결정론적으로 선택한다.
+	 * OutSourceIndices는 각 slot이 참조한 Definitions 원본 index를 같은 순서로 보존한다.
+	 */
+	static bool SelectOctantDefinitions(
+		const TArray<FLNPOctantDefinition>& Definitions,
+		int32 Seed,
+		TArray<FLNPOctantDefinition>& OutSelectedDefinitions,
+		TArray<int32>* OutSourceIndices = nullptr,
+		FString* OutError = nullptr);
+
+	/** Level Instance 로드 뒤에도 유지되는 8개 slot 순서의 선택 결과. */
+	const TArray<FLNPOctantDefinition>& GetSelectedOctantDefinitions() const
+	{
+		return SelectedOctantDefinitions;
+	}
+
 	/** 모든 Octant가 스폰되고 완전히 로드됐을 때 발동하는 이벤트. */
 	UPROPERTY(BlueprintAssignable, Category = "LNP|World Generation")
 	FLNPOnWorldGenerationFinished OnWorldGenerationFinished;
@@ -46,4 +64,7 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<ALevelInstance>> SpawnedOctants;
+
+	/** SurfaceData를 포함한 정의 전체를 slot 순서로 보존한다. */
+	TArray<FLNPOctantDefinition> SelectedOctantDefinitions;
 };
