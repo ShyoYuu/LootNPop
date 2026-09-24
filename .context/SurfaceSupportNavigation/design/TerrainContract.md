@@ -77,8 +77,11 @@
 - 형상은 단순 캡슐이고 profile은 `LNPStaticBlocker`다. Pawn(Mover), 투사체 exact, PureEntity exact가 모두 같은 형상을 본다.
 - Mass 시각화 ISM(LOD 밴드별 표시)은 충돌 소스로 쓰지 않는다. LOD에 따라 생기고 사라지므로 머신·거리마다 충돌이 달라진다.
 - 승격 Actor의 메시는 `NoCollision`이다. 상호작용 판정용 overlap(`LootingZoneSphere` 등)만 남긴다.
-- hit identity(D-037)는 ISM instance index를 오브젝트 ID로 바꾼다. ISM은 인스턴스를 제거하면 마지막 인스턴스가 빈 index로 옮겨지므로, index→ID 표는 게임 스레드가 제거할 때마다 갱신하고 registry generation을 올린다.
-- LootPod 캡슐: `SM_MatPreviewMesh_01` bounds(X ±128.7, Y ±119.9, Z 0~255.5cm)에서 반지름 128cm, 반높이 128cm, 중심은 Pod 로컬 Up +128cm이다. 반높이가 반지름과 같아 실질적으로 구다.
+- hit identity(D-037)는 ISM instance index를 오브젝트의 Mass 엔티티 핸들로 바꾼다. 엔티티 핸들은 머신 로컬 값이며, 복제되지 않는 서버 전용 식별자(LootPod의 `PodID`)는 필요하면 서버가 fragment에서 읽는다. 식별자를 복제 페이로드에 추가하지 않는다.
+- proxy ISM은 `SetRemoveSwap()`으로 만든다. 엔진 기본 제거는 `RemoveAt`이라 뒤쪽 index가 전부 한 칸씩 밀린다. swap 모드에서는 마지막 인스턴스가 빈 index로 옮겨지므로(physics body 포함), index→엔티티 표도 같은 방식으로 게임 스레드가 갱신하고 registry generation을 올린다.
+- 인스턴스 추가는 생성 observer가 아니라 proxy 미보유 태그를 조회하는 게임 스레드 프로세서가 한다. 서버는 엔티티 생성 뒤에 transform을 채우기 때문이다. 제거는 식별 태그의 Remove observer가 한다.
+- LootPod 캡슐: `SM_MatPreviewMesh_01` bounds(X ±128.7, Y ±119.9, Z 0~255.5cm)에서 반지름 128cm, 반높이 128cm, 중심은 Pod 로컬 Up +128cm이다. 반높이가 반지름과 같아 실질적으로 구이므로 엔진 `/Engine/BasicShapes/Sphere`(반지름 50cm)를 2.56배로 쓴다(`ULNPLootPodCollisionProxySubsystem`).
+- 클라이언트 proxy 위치는 양자화된 복제 위치에서 만들어지므로 서버와 수 cm 차이가 날 수 있다.
 
 ## 2-1. Placement Marker 계약
 

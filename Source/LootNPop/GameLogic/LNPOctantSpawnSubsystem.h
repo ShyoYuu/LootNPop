@@ -10,6 +10,7 @@
 
 class ULNPOctantPoolData;
 class ALevelInstance;
+class ULevel;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLNPOnWorldGenerationFinished);
 
@@ -50,6 +51,12 @@ public:
 		return SelectedOctantDefinitions;
 	}
 
+	/** 생성 완료 뒤 slot의 Level Instance 내부 레벨. 미완료·언로드면 nullptr. */
+	ULevel* GetSlotLevel(int32 SlotIndex) const;
+
+	/** 레벨이 속한 slot. 옥탄트 레벨이 아니면 INDEX_NONE. exact hit의 component 레벨로 slot을 찾는 용도다. */
+	int32 FindSlotForLevel(const ULevel* Level) const;
+
 	/** 모든 Octant가 스폰되고 완전히 로드됐을 때 발동하는 이벤트. */
 	UPROPERTY(BlueprintAssignable, Category = "LNP|World Generation")
 	FLNPOnWorldGenerationFinished OnWorldGenerationFinished;
@@ -64,6 +71,13 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<ALevelInstance>> SpawnedOctants;
+
+	/**
+	 * 완료 시점에 확정한 slot 순서의 Level Instance와 내부 레벨. match 동안 보존한다.
+	 * 월드 Actor 검색이나 회전값 추론으로 slot을 복원하지 않기 위한 원본이다.
+	 */
+	TArray<TWeakObjectPtr<ALevelInstance>> SlotLevelInstances;
+	TArray<TWeakObjectPtr<ULevel>> SlotLevels;
 
 	/** SurfaceData를 포함한 정의 전체를 slot 순서로 보존한다. */
 	TArray<FLNPOctantDefinition> SelectedOctantDefinitions;

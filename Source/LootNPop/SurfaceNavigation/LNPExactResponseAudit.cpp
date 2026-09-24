@@ -95,7 +95,8 @@ namespace
 	{
 		if (const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(&Component))
 		{
-			return ISM->GetInstanceCount() > 0 && ISM->GetBodySetup() != nullptr;
+			const UStaticMesh* Mesh = ISM->GetStaticMesh();
+			return ISM->GetInstanceCount() > 0 && Mesh != nullptr && Mesh->GetBodySetup() != nullptr;
 		}
 		const FBodyInstance* BodyInstance = Component.GetBodyInstance();
 		return BodyInstance != nullptr && BodyInstance->IsValidBodyInstance();
