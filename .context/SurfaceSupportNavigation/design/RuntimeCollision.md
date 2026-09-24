@@ -235,12 +235,14 @@ Phase 3에서 모든 투사체가 매 프레임 다음을 수행하도록 전환
 
 | 항목 | 규약 |
 |:---|:---|
-| 단일 판정 함수 | `LNPProjectileMotion::TraceWorld` — `RaycastWorld`, 분류 `ProjectileMandatory`. 서버 투사체·클라이언트 Ghost·`PredictArcExact`가 같은 함수를 쓴다 |
+| 단일 판정 함수 | `LNPProjectileMotion::TraceWorld` — `RaycastWorld`, 분류 `ProjectileMandatory`. 서버 투사체·클라이언트 Ghost·탄도 가이드 `PredictArc`가 같은 함수를 쓴다 |
 | 형상 | sphere가 아니라 **line**이다. 투사체에는 월드 판정용 반지름이 없고, `HitRadius`는 캐릭터 캡슐을 부풀리는 값이라 지형에 쓰면 턱·모서리에 먼저 걸린다. 형상이 필요해지면 무기 DA에 월드 반지름을 따로 둔다 |
 | earliest hit | 월드 hit을 먼저 구하고 캐릭터 판정 선분을 `PreviousPos → ImpactPoint`로 자른다. 잘린 선분 위의 캐릭터 hit은 항상 월드 hit보다 이르므로 hit 시각을 따로 비교하지 않는다 |
 | 월드 착탄 | 폭발·스플래시 중심은 `ImpactPoint`, 임팩트 VFX는 `ImpactNormal` 방향으로 띄운다. 미해석(`Unknown`) hit도 LNPWorldExact를 Block한 것이므로 착탄으로 처리하고 counter만 오른다 |
-| 수명 만료 | exact 경로에서는 공중 폭발이다. 표면 아래 보정은 legacy에만 있다 |
-| 전환 스위치 | CVar `LNP.SurfaceNav.ProjectileExact`(0=legacy 기본, 1=exact). 프로세스별 값이라 `-game` 2P는 서버·클라이언트 양쪽에 설정한다. 기본값 전환은 audit·8-slot oracle 뒤(D-036) |
+| 수명 만료 | 그 자리에서 공중 폭발한다 |
+| envelope 이탈 | 월드 hit 없이 `반지름 > envelope + 500cm`면 VFX·스플래시 없이 소멸하고 `EnvelopeEscapes` counter를 올린다. 가이드도 같은 스텝에서 끝난다(아래 "최외곽 반지름 안전망") |
+| 관전 Ghost 외삽 | 발사 방송 도착 지연만큼 외삽해 스폰하는 구간(최대 200ms)도 `TraceWorld`로 검사하고, 월드에 맞으면 Ghost를 만들지 않는다. 검사하지 않으면 지면·프랍 너머에서 태어난다. 착탄 VFX는 서버 확정 큐가 서버 위치에 재생한다 |
+| 기본 경로 | exact만 있다. audit(MISSING=0)와 production 8-slot oracle(`../design/ValidationAndMigration.md`) 통과 뒤 legacy `IsUnderSurface` 경로와 전환 CVar를 제거했다(D-036) |
 | 탄도 가이드 준비 신호 | exact 경로도 SurfaceCache 베이크 완료를 옥탄트 로드 완료 신호로만 쓴다. SurfaceCache 제거(Phase 5) 때 옥탄트 생성 완료로 바꾼다 |
 
 알려진 한계: 패링 반사탄은 `CurrentPos`에서 다시 스폰된다. 월드 hit으로 잘린 선분 위에서 패링이 일어나면 `CurrentPos`가 벽 너머일 수 있고, 반사탄은 다음 프레임 같은 벽에 착탄한다. 벽에 붙어 패링하는 경우만 해당하며 체감 문제가 확인되면 반사 위치를 패링 hit 지점으로 바꾼다.
@@ -251,11 +253,22 @@ Phase 3에서 모든 투사체가 매 프레임 다음을 수행하도록 전환
 - 클라이언트 ghost 투사체의 코스메틱 판정 경로
 - 게임 스레드 탄도 가이드 `PredictArc`. 기존 코드가 "가이드와 실제 착탄은 같은 판정 함수"를 불변식으로 두므로 투사체와 같은 Phase에 바꾼다.
 
-`IsUnderSurface`와 반지름 기반 착탄 판정은 제거한다.
+`IsUnderSurface`와 반지름 기반 착탄 판정은 제거했다.
 
 ### 최외곽 반지름 안전망
 
 지각은 두께 없는 단면이다. exact segment 판정이 한 번 빗나가면 투사체나 엔티티가 지각 밖으로 빠져도 되돌릴 장치가 없다. 내부형 구에서 지면 아래는 바깥쪽이므로, 모든 옥탄트 geometry와 동적 요소의 authoring swept bounds보다 바깥은 항상 월드 밖이다. `반지름 > world collision envelope 최대 반지름 + 여유` 검사는 층과 무관하게 유효하며, 이를 종료·복구 안전망으로 유지한다. 동굴과 움직이는 요소는 지각보다 바깥쪽으로 갈 수 있으므로 기준은 지각 반지름이 아니라 베이크된 정적 bounds와 마커 경로 swept bounds를 합친 envelope여야 한다.
+
+현재 구현(Phase 3):
+
+| 항목 | 규약 |
+|:---|:---|
+| 원천 | hit identity registry에 등록된 source의 `MaxRadius` 최댓값을 snapshot `WorldEnvelopeRadius`로 게시한다. LootPod proxy는 지면 위라 넣지 않는다. 조회는 `ULNPMassWorldCollisionSubsystem::GetWorldEnvelopeRadius`이고 source가 없으면 0(안전망 꺼짐)이다 |
+| `MaxRadius` 계산 | 등록 시점에 한 번(`ULNPHitIdentitySubsystem::ComputeSourceMaxRadius`). complex trimesh는 cooked 물리 정점, 단순 shape는 AABB 꼭짓점, ISM·HISM은 instance별 mesh bounds 꼭짓점. 지각 한 장의 world bounds 꼭짓점은 반지름의 약 √3배라 쓰지 않는다 |
+| 에디터 베이크 전 | Phase 4 베이커가 정적 bounds를 SurfaceData에 넣으면 그 값으로 바꾼다. 런타임 계산은 production 8 slot에서 약 7ms, 1회다 |
+| 동적 요소 | 런타임 source는 등록 시점 자세로 잰다. 스폰 뒤 움직이지 않는 장치(D-045)는 그대로 맞다. 동적 패널(구현 단위 3)은 마커 경로 swept bounds를 넣어야 한다 |
+| 여유 | 투사체 500cm(`LNPProjectileMotion::WorldEnvelopeMargin`). envelope 밖에서는 중력과 반지름 방향 속도가 모두 바깥을 향해 돌아올 수 없으므로 여유는 경계 여백일 뿐이다 |
+| 기대 빈도 | 0이 정상이다. 이음매 좌표 평면을 정확히 따라가는 선분은 두 body의 공유 모서리 사이로 빠질 수 있다(8-slot oracle의 EdgeMiss). 측도 0이지만 이 안전망이 받는다 |
 
 ### Support 기반 충돌 horizon
 

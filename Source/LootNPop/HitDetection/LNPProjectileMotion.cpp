@@ -1,10 +1,7 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "HitDetection/LNPProjectileMotion.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
-
-#include "HAL/IConsoleManager.h"
 
 namespace
 {
@@ -89,55 +86,6 @@ namespace
 
 		ResampleByArcLength(Raw, OutPoints);
 	}
-
-	int32 GProjectileExactWorldCollision = 0;
-	FAutoConsoleVariableRef CVarProjectileExactWorldCollision(
-		TEXT("LNP.SurfaceNav.ProjectileExact"), GProjectileExactWorldCollision,
-		TEXT("0 = legacy projectile ground impact (SurfaceCache IsUnderSurface, default). ")
-		TEXT("1 = exact LNPWorldExact line trace of PreviousPos->CurrentPos for server projectiles, client ghosts and the ADS arc guide."));
-}
-
-bool LNPProjectileMotion::IsUnderSurface(const ULNPSurfaceCacheSubsystem& SurfaceCache, const FVector& Pos)
-{
-	FVector SurfacePoint;
-	return SurfaceCache.GetSurfacePoint(Pos.GetSafeNormal(), SurfacePoint)
-		&& Pos.SizeSquared() >= SurfacePoint.SizeSquared();
-}
-
-bool LNPProjectileMotion::PredictArc(const ULNPSurfaceCacheSubsystem& SurfaceCache,
-	const FVector& Start, const FVector& Velocity, const float GravityAccel,
-	const float MaxSeconds, TArray<FVector>& OutPoints)
-{
-	// 베이킹 미완이면 조회가 통째로 false다. 이때 궤적을 그리면 지면을 무시하고 수명 끝까지
-	// 뻗어 나가므로, 아예 실패로 돌려 호출자가 가이드를 숨기게 한다.
-	FVector Probe;
-	if (!SurfaceCache.GetSurfacePoint(Start.GetSafeNormal(), Probe))
-		return false;
-
-	SimulateArc(Start, Velocity, GravityAccel, MaxSeconds, OutPoints,
-		[&SurfaceCache](const FVector& PrevPos, const FVector& Pos, FVector& OutImpact)
-		{
-			if (!IsUnderSurface(SurfaceCache, Pos))
-				return false;
-
-			// 스텝 하나(33ms)를 이분 탐색으로 좁힌다. 조회가 O(1)이라 반복 비용은 무시할 수 있고,
-			// 한 스텝 구간에서는 포물선을 직선으로 봐도 오차가 표면 격자 간격(200cm)보다 작다.
-			FVector Above = PrevPos;
-			FVector Below = Pos;
-			for (int32 Iter = 0; Iter < 4; ++Iter)
-			{
-				const FVector Mid = (Above + Below) * 0.5f;
-				(IsUnderSurface(SurfaceCache, Mid) ? Below : Above) = Mid;
-			}
-			OutImpact = Below;
-			return true;
-		});
-	return true;
-}
-
-bool LNPProjectileMotion::UseExactWorldCollision()
-{
-	return GProjectileExactWorldCollision != 0;
 }
 
 bool LNPProjectileMotion::TraceWorld(const ULNPMassWorldCollisionSubsystem& WorldCollision, const FVector& From, const FVector& To,
@@ -146,19 +94,27 @@ bool LNPProjectileMotion::TraceWorld(const ULNPMassWorldCollisionSubsystem& Worl
 	return WorldCollision.RaycastWorld(From, To, FLNPWorldQueryParams(ELNPWorldQueryClass::ProjectileMandatory), OutHit);
 }
 
-void LNPProjectileMotion::PredictArcExact(const ULNPMassWorldCollisionSubsystem& WorldCollision,
+void LNPProjectileMotion::PredictArc(const ULNPMassWorldCollisionSubsystem& WorldCollision,
 	const FVector& Start, const FVector& Velocity, const float GravityAccel,
 	const float MaxSeconds, TArray<FVector>& OutPoints)
 {
 	// 실탄은 프레임마다 PreviousPos→현재 위치를 같은 함수로 검사한다. 스텝 선분 안에서 포물선을 직선으로
 	// 보는 오차만 남고, 이분 탐색 없이 hit 지점이 곧 착탄점이다.
+	const float EnvelopeRadius = WorldCollision.GetWorldEnvelopeRadius();
 	SimulateArc(Start, Velocity, GravityAccel, MaxSeconds, OutPoints,
-		[&WorldCollision](const FVector& PrevPos, const FVector& Pos, FVector& OutImpact)
+		[&WorldCollision, EnvelopeRadius](const FVector& PrevPos, const FVector& Pos, FVector& OutImpact)
 		{
 			FLNPWorldHit Hit;
-			if (!TraceWorld(WorldCollision, PrevPos, Pos, Hit))
-				return false;
-			OutImpact = Hit.ImpactPoint;
-			return true;
+			if (TraceWorld(WorldCollision, PrevPos, Pos, Hit))
+			{
+				OutImpact = Hit.ImpactPoint;
+				return true;
+			}
+			if (IsOutsideWorldEnvelope(EnvelopeRadius, Pos))
+			{
+				OutImpact = Pos;
+				return true;
+			}
+			return false;
 		});
 }

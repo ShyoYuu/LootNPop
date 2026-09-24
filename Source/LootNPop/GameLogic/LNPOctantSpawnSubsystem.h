@@ -64,8 +64,10 @@ public:
 	/** 월드 생성 완료 여부. GameState가 클라이언트 베이킹 시작 조건(투-게이트)으로 참조한다. */
 	bool bGenerationComplete = false;
 
-private:
+	/** slot 순서의 Level Instance 회전. 8-slot exact oracle이 같은 로컬 방향을 slot별로 돌려 비교한다. */
 	static const FRotator OctantRotations[8];
+
+private:
 
 	bool bIsGenerating = false;
 

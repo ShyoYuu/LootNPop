@@ -6,12 +6,15 @@
 #include "LootPod/LNPLootPodCollisionProxy.h"
 #include "LootNPop.h"
 
+#include "Chaos/TriangleMeshImplicitObject.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/HitResult.h"
 #include "Engine/Level.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "PhysicsEngine/BodySetup.h"
 
 namespace
 {
@@ -22,6 +25,16 @@ namespace
 	{
 		return Component.IsQueryCollisionEnabled()
 			&& Component.GetCollisionResponseToChannel(LNPCollisionChannels::WorldExact) == ECR_Block;
+	}
+
+	/** AABB 안에서 원점에 가장 먼 점(꼭짓점)까지의 거리 제곱. */
+	double FarthestCornerDistSquared(const FBox& Box)
+	{
+		const FVector Far(
+			FMath::Max(FMath::Abs(Box.Min.X), FMath::Abs(Box.Max.X)),
+			FMath::Max(FMath::Abs(Box.Min.Y), FMath::Abs(Box.Max.Y)),
+			FMath::Max(FMath::Abs(Box.Min.Z), FMath::Abs(Box.Max.Z)));
+		return Far.SizeSquared();
 	}
 }
 
@@ -58,6 +71,64 @@ bool ULNPHitIdentitySubsystem::ClassifyProfile(const FName ProfileName, ELNPExac
 	return false;
 }
 
+float ULNPHitIdentitySubsystem::ComputeSourceMaxRadius(UPrimitiveComponent& Component)
+{
+	double MaxDistSquared = 0.0;
+
+	if (const UInstancedStaticMeshComponent* Instanced = Cast<UInstancedStaticMeshComponent>(&Component))
+	{
+		// 프랍 HISM은 작아서 instance별 mesh bounds로 충분하다.
+		if (const UStaticMesh* Mesh = Instanced->GetStaticMesh())
+		{
+			const FBox LocalBox = Mesh->GetBounds().GetBox();
+			for (int32 Index = 0; Index < Instanced->GetInstanceCount(); ++Index)
+			{
+				FTransform InstanceToWorld;
+				if (Instanced->GetInstanceTransform(Index, InstanceToWorld, /*bWorldSpace=*/true))
+				{
+					MaxDistSquared = FMath::Max(MaxDistSquared, FarthestCornerDistSquared(LocalBox.TransformBy(InstanceToWorld)));
+				}
+			}
+		}
+		return static_cast<float>(FMath::Sqrt(MaxDistSquared));
+	}
+
+	const FTransform& ToWorld = Component.GetComponentTransform();
+	bool bMeasured = false;
+	if (UBodySetup* BodySetup = Component.GetBodySetup())
+	{
+		// cooked 런타임에도 남아 있는 물리 trimesh 정점이다. 정점은 scale 전 mesh 공간이다.
+		for (const Chaos::FTriangleMeshImplicitObjectPtr& TriMesh : BodySetup->TriMeshGeometries)
+		{
+			if (!TriMesh.IsValid())
+				continue;
+
+			const Chaos::FTriangleMeshImplicitObject::ParticlesType& Particles = TriMesh->Particles();
+			for (uint32 Index = 0; Index < Particles.Size(); ++Index)
+			{
+				const FVector WorldPos = ToWorld.TransformPosition(FVector(Particles.GetX(Index)));
+				MaxDistSquared = FMath::Max(MaxDistSquared, WorldPos.SizeSquared());
+			}
+			bMeasured = true;
+		}
+
+		const FBox SimpleBox = BodySetup->AggGeom.CalcAABB(ToWorld);
+		if (SimpleBox.IsValid)
+		{
+			MaxDistSquared = FMath::Max(MaxDistSquared, FarthestCornerDistSquared(SimpleBox));
+			bMeasured = true;
+		}
+	}
+
+	if (!bMeasured)
+	{
+		// BodySetup이 없는 primitive(shape component 등)는 bounds sphere로 보수적으로 잰다.
+		const FBoxSphereBounds& Bounds = Component.Bounds;
+		return static_cast<float>(Bounds.Origin.Size() + Bounds.SphereRadius);
+	}
+	return static_cast<float>(FMath::Sqrt(MaxDistSquared));
+}
+
 void ULNPHitIdentitySubsystem::RegisterRuntimeSource(UPrimitiveComponent* Component)
 {
 	check(IsInGameThread());
@@ -72,6 +143,8 @@ void ULNPHitIdentitySubsystem::RegisterRuntimeSource(UPrimitiveComponent* Compon
 		return;
 	}
 
+	// 서버 스폰 장치는 스폰 뒤 움직이지 않는다(D-045). 동적 패널은 등록 시점 자세가 아니라 경로 swept bounds를 넣어야 한다.
+	Entry.MaxRadius = ComputeSourceMaxRadius(*Component);
 	RuntimeSources.Add(Component, Entry);
 	bDirty = true;
 }
@@ -112,6 +185,7 @@ void ULNPHitIdentitySubsystem::RefreshSlotSources()
 	SlotSources.Reset();
 	bDirty = true;
 
+	const double StartSeconds = FPlatformTime::Seconds();
 	int32 UnclassifiedCount = 0;
 	for (int32 Slot = 0; Slot < RegisteredSlotLevels.Num(); ++Slot)
 	{
@@ -137,13 +211,21 @@ void ULNPHitIdentitySubsystem::RefreshSlotSources()
 					++UnclassifiedCount;
 					return;
 				}
+				Entry.MaxRadius = ComputeSourceMaxRadius(*Component);
 				SlotSources.Add(Component, Entry);
 			});
 		}
 	}
 
-	UE_LOG(LogLootNPop, Log, TEXT("HitIdentity: Registered %d slot sources from %d slot levels (%d unclassified LNPWorldExact blockers)."),
-		SlotSources.Num(), RegisteredSlotLevels.Num(), UnclassifiedCount);
+	float SlotEnvelopeRadius = 0.f;
+	for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, FLNPExactSourceEntry>& Pair : SlotSources)
+	{
+		SlotEnvelopeRadius = FMath::Max(SlotEnvelopeRadius, Pair.Value.MaxRadius);
+	}
+
+	UE_LOG(LogLootNPop, Log, TEXT("HitIdentity: Registered %d slot sources from %d slot levels (%d unclassified LNPWorldExact blockers). ")
+		TEXT("Slot envelope radius %.0f cm, collected in %.1f ms."),
+		SlotSources.Num(), RegisteredSlotLevels.Num(), UnclassifiedCount, SlotEnvelopeRadius, (FPlatformTime::Seconds() - StartSeconds) * 1000.0);
 }
 
 void ULNPHitIdentitySubsystem::Publish()
@@ -152,6 +234,10 @@ void ULNPHitIdentitySubsystem::Publish()
 	NewSnapshot->Sources.Reserve(SlotSources.Num() + RuntimeSources.Num() + 1);
 	NewSnapshot->Sources.Append(SlotSources);
 	NewSnapshot->Sources.Append(RuntimeSources);
+	for (const TPair<TWeakObjectPtr<UPrimitiveComponent>, FLNPExactSourceEntry>& Pair : NewSnapshot->Sources)
+	{
+		NewSnapshot->WorldEnvelopeRadius = FMath::Max(NewSnapshot->WorldEnvelopeRadius, Pair.Value.MaxRadius);
+	}
 
 	if (const ULNPLootPodCollisionProxySubsystem* ProxySubsystem = GetWorld()->GetSubsystem<ULNPLootPodCollisionProxySubsystem>())
 	{

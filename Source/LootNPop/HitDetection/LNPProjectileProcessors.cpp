@@ -14,7 +14,6 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Character/LNPPlayerCharacter.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
@@ -175,7 +174,6 @@ void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMas
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
 
-	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceCacheSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPProjectileVisualSubsystem>(EMassFragmentAccess::ReadWrite);
 }
@@ -185,16 +183,41 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	UWorld* World = EntityManager.GetWorld();
 	const bool bIsServer = World && World->GetNetMode() < NM_Client;
 
-	const ULNPSurfaceCacheSubsystem& SurfaceCache = Context.GetSubsystemChecked<ULNPSurfaceCacheSubsystem>();
-	ULNPProjectileVisualSubsystem&   VisualSub    = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
+	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
 
-	// exact 경로(LNP.SurfaceNav.ProjectileExact)면 지형 착탄은 IsUnderSurface가 아니라 PreviousPos→CurrentPos
-	// 선분의 LNPWorldExact hit다. 서버와 Ghost가 같은 LNPProjectileMotion::TraceWorld를 쓴다.
+	// 지형 착탄은 PreviousPos→CurrentPos 선분의 LNPWorldExact hit다. 서버와 Ghost가 같은 LNPProjectileMotion::TraceWorld를 쓴다.
+	// 서브시스템이 없는 월드 타입(Game·PIE 외)에서는 월드 충돌 없이 수명 만료만 남는다.
 	const ULNPMassWorldCollisionSubsystem* WorldCollision = Context.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-	const bool bExactWorld = WorldCollision != nullptr && LNPProjectileMotion::UseExactWorldCollision();
 
 	/**
-	 * 캐릭터에 닿지 않은 탄의 **종말 판정** — 지면 착탄과 수명 만료를 한 자리에서 가른다.
+	 * 이번 프레임 선분의 월드 hit를 먼저 구하고 캐릭터 판정 선분의 끝을 거기로 자른다.
+	 * 잘린 선분 위의 캐릭터 hit는 월드 hit보다 항상 이르므로, 캐릭터 판정이 먼저 맞으면 그것이
+	 * earliest hit이고 아니면 월드 hit이다 — 섬 측벽·동굴 벽 뒤의 적은 맞지 않는다.
+	 */
+	auto TraceSegment = [WorldCollision](const FVector& From, const FVector& To, FLNPWorldHit& OutWorldHit) -> FVector
+	{
+		if (WorldCollision && LNPProjectileMotion::TraceWorld(*WorldCollision, From, To, OutWorldHit))
+			return OutWorldHit.ImpactPoint;
+		return To;
+	};
+
+	/**
+	 * 최외곽 반지름 안전망(RuntimeCollision.md) — 월드 판정이 빗나가 envelope 밖으로 나간 탄인가.
+	 * 바깥에는 폭발할 표면도 맞을 대상도 없으므로 호출자는 VFX·스플래시 없이 소멸만 시킨다.
+	 */
+	const float EnvelopeRadius = WorldCollision ? WorldCollision->GetWorldEnvelopeRadius() : 0.f;
+	auto HasEscapedWorld = [WorldCollision, EnvelopeRadius](const FVector& Pos, const FLNPWorldHit& WorldHit) -> bool
+	{
+		if (WorldHit.bBlockingHit || !LNPProjectileMotion::IsOutsideWorldEnvelope(EnvelopeRadius, Pos))
+			return false;
+
+		WorldCollision->NoteEnvelopeEscape();
+		return true;
+	};
+
+	/**
+	 * 캐릭터에 닿지 않은 탄의 **종말 판정** — 월드 착탄과 수명 만료를 한 자리에서 가른다.
+	 * 참이면 폭발(스플래시) 중심과 임팩트 VFX 위치·법선을 채운다.
 	 *
 	 * 표면 충돌은 예전에 ULNPProjectileMovementProcessor(PrePhysics)가 직접 파괴까지 했다.
 	 * 그러면 그 페이즈 끝에서 FLNPProjectileDeadTag가 flush되어 **이 Processor의 쿼리에서 아예
@@ -202,59 +225,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	 * 이동 Processor는 이제 전진과 수명 감소만 한다.
 	 *
 	 * 수명 만료도 폭발로 취급한다. 임팩트 VFX는 예전부터 두 경우 모두 재생하고 있었으므로,
-	 * 스플래시만 같이 붙여야 연출과 판정의 대칭이 맞는다.
+	 * 스플래시만 같이 붙여야 연출과 판정의 대칭이 맞는다. 수명 만료는 공중 폭발이라 그 자리가 맞다.
 	 */
-	auto IsTerminated = [&SurfaceCache, bExactWorld](const FVector& Pos, const float LifetimeRemaining) -> bool
-	{
-		if (LifetimeRemaining <= 0.f)
-			return true;
-
-		// exact 경로의 지형 착탄은 아래 TraceSegment가 따로 판정한다.
-		return !bExactWorld && LNPProjectileMotion::IsUnderSurface(SurfaceCache, Pos);
-	};
-
-	/**
-	 * 지면 착탄 VFX의 스폰 지점.
-	 *
-	 * IsUnderSurface는 투사체가 표면을 **이미 지난** 뒤에 참이 되므로, 종료 프레임의 위치를 그대로
-	 * 쓰면 이펙트가 직전 한 틱의 이동거리만큼 지하에 묻혀 통째로 가려진다. 같은 반경 방향의 표면
-	 * 지점으로 끌어올린다 — PredictArc이 이분 탐색으로 하는 보정과 의도가 같고, 조회가 O(1)이라
-	 * 여기서는 탐색 없이 한 번의 조회로 끝낸다.
-	 *
-	 * 수명 만료는 공중에서도 일어나므로 표면 아래일 때만 보정한다. 공중 폭발은 그 자리가 맞다.
-	 */
-	auto ImpactVfxPos = [&SurfaceCache](const FVector& Pos) -> FVector
-	{
-		if (!LNPProjectileMotion::IsUnderSurface(SurfaceCache, Pos))
-			return Pos;
-
-		FVector SurfacePoint;
-		if (!SurfaceCache.GetSurfacePoint(Pos.GetSafeNormal(), SurfacePoint))
-			return Pos;
-
-		// 표면에 정확히 놓으면 카메라를 향한 스프라이트의 아래 절반이 지형에 잘린다.
-		return SurfacePoint - Pos.GetSafeNormal() * ImpactVfxSurfaceLift;
-	};
-
-	/**
-	 * exact 경로: 이번 프레임 선분의 월드 hit를 먼저 구하고 캐릭터 판정 선분의 끝을 거기로 자른다.
-	 * 잘린 선분 위의 캐릭터 hit는 월드 hit보다 항상 이르므로, 캐릭터 판정이 먼저 맞으면 그것이
-	 * earliest hit이고 아니면 월드 hit이다 — 섬 측벽·동굴 벽 뒤의 적은 맞지 않는다.
-	 * legacy 경로는 선분을 자르지 않는다.
-	 */
-	auto TraceSegment = [WorldCollision, bExactWorld](const FVector& From, const FVector& To,
-		FLNPWorldHit& OutWorldHit) -> FVector
-	{
-		if (bExactWorld && LNPProjectileMotion::TraceWorld(*WorldCollision, From, To, OutWorldHit))
-			return OutWorldHit.ImpactPoint;
-		return To;
-	};
-
-	/**
-	 * 캐릭터에 닿지 않은 탄의 종말 지점 — 월드 hit, 또는 지면 착탄(legacy)·수명 만료.
-	 * 참이면 폭발(스플래시) 중심과 임팩트 VFX 위치·법선을 채운다.
-	 */
-	auto ResolveTermination = [&](const FVector& Pos, const float LifetimeRemaining, const FLNPWorldHit& WorldHit,
+	auto ResolveTermination = [](const FVector& Pos, const float LifetimeRemaining, const FLNPWorldHit& WorldHit,
 		FVector& OutCenter, FVector& OutVfxPos, FVector& OutVfxNormal) -> bool
 	{
 		if (WorldHit.bBlockingHit)
@@ -264,12 +237,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			OutVfxNormal = WorldHit.ImpactNormal;
 			return true;
 		}
-		if (!IsTerminated(Pos, LifetimeRemaining))
+		if (LifetimeRemaining > 0.f)
 			return false;
 
-		// exact 경로의 수명 만료는 공중 폭발이라 그 자리가 맞다. 표면 아래 보정은 legacy만 필요하다.
 		OutCenter    = Pos;
-		OutVfxPos    = bExactWorld ? Pos : ImpactVfxPos(Pos);
+		OutVfxPos    = Pos;
 		OutVfxNormal = -Pos.GetSafeNormal();
 		return true;
 	};
@@ -388,6 +360,12 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 					bHit = true;
 					break;  // 이 Projectile은 예측 판정 종료 — 서버 확정 결과가 최종
+				}
+
+				if (!bHit && HasEscapedWorld(CurrentPos, WorldHit))
+				{
+					Ctx.Defer().AddTag<FLNPProjectileDeadTag>(Ctx.GetEntity(i));
+					continue;
 				}
 
 				// 지면 착탄·수명 만료 — Ghost는 로컬 코스메틱이므로 소멸·VFX만 하고 스플래시는 서버 몫이다.
@@ -883,6 +861,12 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				FinishHit(HitPoint, (HitPoint - Player.Location).GetSafeNormal(), nullptr, &Player);
 				break;
+			}
+
+			if (!bHit && HasEscapedWorld(CurrentPos, WorldHit))
+			{
+				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
+				continue;
 			}
 
 			// 캐릭터 어디에도 닿지 않았다 — 지면 착탄·수명 만료를 여기서 가른다.

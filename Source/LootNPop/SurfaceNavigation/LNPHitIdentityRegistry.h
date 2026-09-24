@@ -64,6 +64,9 @@ struct FLNPExactSourceEntry
 	uint8 Roles = ELNPExactSourceRole::None;
 	int8 Slot = INDEX_NONE;
 	bool bLootPodProxy = false;
+
+	/** 등록 시점 collision geometry의 원점(구 중심) 최대 거리(cm). world collision envelope의 입력이다. */
+	float MaxRadius = 0.f;
 };
 
 /**
@@ -83,6 +86,12 @@ struct FLNPHitIdentitySnapshot
 
 	/** LootPod proxy ISM의 instance index→엔티티 표 사본. */
 	TArray<FMassEntityHandle> LootPodProxyInstances;
+
+	/**
+	 * world collision envelope 최대 반지름(cm) — 등록된 source의 MaxRadius 최댓값. 이보다 바깥에는 exact geometry가 없다.
+	 * 0이면 아직 source가 없다(옥탄트 생성 전). LootPod proxy는 지면 위라 포함하지 않는다.
+	 */
+	float WorldEnvelopeRadius = 0.f;
 
 	uint32 Generation = 0;
 };
@@ -120,6 +129,13 @@ public:
 
 	/** profile 이름을 수명주기·역할로 분류한다. LNPWorldExact에 응답하지 않거나 LNP profile이 아니면 false. */
 	static bool ClassifyProfile(FName ProfileName, ELNPExactSourceLifetime& OutLifetime, uint8& OutRoles);
+
+	/**
+	 * 게임 스레드 전용. component collision geometry의 원점 최대 거리(cm).
+	 * complex trimesh는 정점, 단순 shape는 AABB 꼭짓점, ISM은 instance별 mesh bounds 꼭짓점으로 잰다.
+	 * 지각 한 장의 world bounds 꼭짓점은 반지름의 √3배라 안전망으로 쓸 수 없어 정점을 직접 본다.
+	 */
+	static float ComputeSourceMaxRadius(UPrimitiveComponent& Component);
 
 	// UTickableWorldSubsystem
 	virtual void Tick(float DeltaTime) override;
