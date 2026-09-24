@@ -10,12 +10,18 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "HitDetection/LNPProjectileMotion.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPMassWorldCollisionApiTest,
 	"LootNPop.SurfaceNavigation.WorldCollision.Api",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPProjectileExactArcTest,
+	"LootNPop.SurfaceNavigation.WorldCollision.ProjectileArc",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace
@@ -165,6 +171,76 @@ bool FLNPMassWorldCollisionApiTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Some raycasts ran off the game thread"), OffGameThread.load() > 0);
 		TestEqual(TEXT("Optional class counter"), Collision->GetQueryCount(ELNPWorldQueryClass::DebugValidation), static_cast<uint64>(WorkerQueries));
 		TestEqual(TEXT("Mandatory counters are separate"), Collision->GetQueryCount(ELNPWorldQueryClass::GroundRiskFallback), static_cast<uint64>(0));
+	}
+
+	return true;
+}
+
+bool FLNPProjectileExactArcTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/false, TEXT("LNPProjectileExactArcTest"));
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.SetCurrentWorld(World);
+
+	ON_SCOPE_EXIT
+	{
+		GEngine->DestroyWorldContext(World);
+		World->DestroyWorld(false);
+	};
+
+	ULNPHitIdentitySubsystem* HitIdentity = World->GetSubsystem<ULNPHitIdentitySubsystem>();
+	ULNPMassWorldCollisionSubsystem* Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	if (!TestNotNull(TEXT("Hit identity subsystem exists"), HitIdentity)
+		|| !TestNotNull(TEXT("World collision subsystem exists"), Collision))
+		return false;
+
+	// 구 내벽 세계라 중력은 원점에서 바깥쪽이다. 원점에서 1km 아래에 두면 궤적 구간에서 중력이 거의 -Z로 균일하다.
+	// 원점 근처에 두면 바깥쪽 성분이 커서 궤적이 옆으로 휜다. 바닥 윗면 z=Base-990, 벽 앞면 x=490.
+	const FVector Base(0, 0, -100000);
+	UStaticMeshComponent* Floor = SpawnSlab(World, Base + FVector(0, 0, -1000), FVector(40, 40, 0.2), TEXT("LNPStaticTerrain"));
+	HitIdentity->RegisterRuntimeSource(Floor);
+	HitIdentity->Tick(0.f);
+
+	const FVector Start = Base + FVector(0, 0, -200);
+	const FVector Velocity(1000, 0, 0);
+	constexpr float GravityAccel = 980.f;
+	constexpr float Lifetime = 5.f;
+
+	// 1. 바닥에 닿는 궤적은 정확히 ArcPointCount개이고 마지막 점이 바닥 윗면이다.
+	{
+		Collision->ResetStats();
+		TArray<FVector> Points;
+		LNPProjectileMotion::PredictArcExact(*Collision, Start, Velocity, GravityAccel, Lifetime, Points);
+		TestEqual(TEXT("Arc point count"), Points.Num(), LNPProjectileMotion::ArcPointCount);
+		TestTrue(TEXT("First point is the muzzle"), Points[0].Equals(Start, 0.1));
+		TestEqual(TEXT("Arc ends on the floor top"), Points.Last().Z, Base.Z - 990.0, 1.0);
+		TestTrue(TEXT("Arc queries are ProjectileMandatory"), Collision->GetQueryCount(ELNPWorldQueryClass::ProjectileMandatory) > 0);
+	}
+
+	// 2. 벽이 궤적을 가로막으면 벽 앞면에서 끝난다.
+	UStaticMeshComponent* Wall = SpawnSlab(World, Base + FVector(500, 0, -500), FVector(0.2, 10, 10), TEXT("LNPStaticBlocker"));
+	HitIdentity->RegisterRuntimeSource(Wall);
+	HitIdentity->Tick(0.f);
+	{
+		TArray<FVector> Points;
+		LNPProjectileMotion::PredictArcExact(*Collision, Start, Velocity, GravityAccel, Lifetime, Points);
+		TestEqual(TEXT("Arc ends on the wall face"), Points.Last().X, 490.0, 1.0);
+		TestTrue(TEXT("Arc ends above the floor"), Points.Last().Z > Base.Z - 990.0);
+	}
+
+	// 3. 아무것도 없으면 수명 끝까지 뻗는다(월드 판정이 없는 상태).
+	{
+		TArray<FVector> Points;
+		LNPProjectileMotion::PredictArcExact(*Collision, FVector(0, 0, 5000), FVector(1000, 0, 0), 0.f, 1.f, Points);
+		TestTrue(TEXT("Arc without geometry runs to lifetime"), Points.Last().Equals(FVector(1000, 0, 5000), 1.0));
+	}
+
+	// 4. TraceWorld는 투사체 한 프레임 선분 판정과 같은 결과를 낸다(바닥 관통 선분).
+	{
+		FLNPWorldHit Hit;
+		TestTrue(TEXT("Segment crossing the floor hits"), LNPProjectileMotion::TraceWorld(*Collision, Base + FVector(-500, 0, -900), Base + FVector(-500, 0, -1100), Hit));
+		TestEqual(TEXT("Segment impact on floor top"), Hit.ImpactPoint.Z, Base.Z - 990.0, 0.5);
+		TestTrue(TEXT("Segment impact is a known static surface"), Hit.Identity.Lifetime == ELNPExactSourceLifetime::Static);
 	}
 
 	return true;

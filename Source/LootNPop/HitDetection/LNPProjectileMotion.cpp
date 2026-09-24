@@ -2,6 +2,9 @@
 
 #include "HitDetection/LNPProjectileMotion.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
+
+#include "HAL/IConsoleManager.h"
 
 namespace
 {
@@ -47,6 +50,51 @@ namespace
 			Out.Add(FMath::Lerp(Raw[Seg], Raw[Seg + 1], FMath::Clamp(Alpha, 0.f, 1.f)));
 		}
 	}
+
+	/**
+	 * 궤적을 지면에 닿거나 수명이 다할 때까지 적분하고 ArcPointCount개로 재표집한다.
+	 * HitSegment(PrevPos, Pos, OutImpact)가 참이면 OutImpact를 마지막 점으로 두고 멈춘다.
+	 * 지면에 닿지 않고 수명이 다한 경우 실제 발사체도 그 자리에서 폭발하므로 끝점을 그대로 쓴다.
+	 */
+	void SimulateArc(const FVector& Start, const FVector& Velocity, const float GravityAccel, const float MaxSeconds,
+		TArray<FVector>& OutPoints, TFunctionRef<bool(const FVector&, const FVector&, FVector&)> HitSegment)
+	{
+		using namespace LNPProjectileMotion;
+
+		TArray<FVector> Raw;
+		Raw.Reserve(MaxArcSimSteps + 1);
+		Raw.Add(Start);
+
+		FVector Pos     = Start;
+		FVector Vel     = Velocity;
+		float   Elapsed = 0.f;
+
+		for (int32 SimStep = 0; SimStep < MaxArcSimSteps && Elapsed < MaxSeconds; ++SimStep)
+		{
+			const float   Dt      = FMath::Min(ArcStepSeconds, MaxSeconds - Elapsed);
+			const FVector PrevPos = Pos;
+
+			Step(Pos, Vel, GravityAccel, Dt);
+			Elapsed += Dt;
+
+			FVector Impact;
+			if (HitSegment(PrevPos, Pos, Impact))
+			{
+				Raw.Add(Impact);
+				break;
+			}
+
+			Raw.Add(Pos);
+		}
+
+		ResampleByArcLength(Raw, OutPoints);
+	}
+
+	int32 GProjectileExactWorldCollision = 0;
+	FAutoConsoleVariableRef CVarProjectileExactWorldCollision(
+		TEXT("LNP.SurfaceNav.ProjectileExact"), GProjectileExactWorldCollision,
+		TEXT("0 = legacy projectile ground impact (SurfaceCache IsUnderSurface, default). ")
+		TEXT("1 = exact LNPWorldExact line trace of PreviousPos->CurrentPos for server projectiles, client ghosts and the ADS arc guide."));
 }
 
 bool LNPProjectileMotion::IsUnderSurface(const ULNPSurfaceCacheSubsystem& SurfaceCache, const FVector& Pos)
@@ -66,24 +114,12 @@ bool LNPProjectileMotion::PredictArc(const ULNPSurfaceCacheSubsystem& SurfaceCac
 	if (!SurfaceCache.GetSurfacePoint(Start.GetSafeNormal(), Probe))
 		return false;
 
-	TArray<FVector> Raw;
-	Raw.Reserve(MaxArcSimSteps + 1);
-	Raw.Add(Start);
-
-	FVector Pos     = Start;
-	FVector Vel     = Velocity;
-	float   Elapsed = 0.f;
-
-	for (int32 SimStep = 0; SimStep < MaxArcSimSteps && Elapsed < MaxSeconds; ++SimStep)
-	{
-		const float   Dt      = FMath::Min(ArcStepSeconds, MaxSeconds - Elapsed);
-		const FVector PrevPos = Pos;
-
-		Step(Pos, Vel, GravityAccel, Dt);
-		Elapsed += Dt;
-
-		if (IsUnderSurface(SurfaceCache, Pos))
+	SimulateArc(Start, Velocity, GravityAccel, MaxSeconds, OutPoints,
+		[&SurfaceCache](const FVector& PrevPos, const FVector& Pos, FVector& OutImpact)
 		{
+			if (!IsUnderSurface(SurfaceCache, Pos))
+				return false;
+
 			// 스텝 하나(33ms)를 이분 탐색으로 좁힌다. 조회가 O(1)이라 반복 비용은 무시할 수 있고,
 			// 한 스텝 구간에서는 포물선을 직선으로 봐도 오차가 표면 격자 간격(200cm)보다 작다.
 			FVector Above = PrevPos;
@@ -93,15 +129,36 @@ bool LNPProjectileMotion::PredictArc(const ULNPSurfaceCacheSubsystem& SurfaceCac
 				const FVector Mid = (Above + Below) * 0.5f;
 				(IsUnderSurface(SurfaceCache, Mid) ? Below : Above) = Mid;
 			}
-
-			Raw.Add(Below);
-			break;
-		}
-
-		Raw.Add(Pos);
-	}
-
-	// 지면에 닿지 않고 수명이 다한 경우 — 실제 발사체도 그 자리에서 폭발하므로 끝점을 그대로 쓴다.
-	ResampleByArcLength(Raw, OutPoints);
+			OutImpact = Below;
+			return true;
+		});
 	return true;
+}
+
+bool LNPProjectileMotion::UseExactWorldCollision()
+{
+	return GProjectileExactWorldCollision != 0;
+}
+
+bool LNPProjectileMotion::TraceWorld(const ULNPMassWorldCollisionSubsystem& WorldCollision, const FVector& From, const FVector& To,
+	FLNPWorldHit& OutHit)
+{
+	return WorldCollision.RaycastWorld(From, To, FLNPWorldQueryParams(ELNPWorldQueryClass::ProjectileMandatory), OutHit);
+}
+
+void LNPProjectileMotion::PredictArcExact(const ULNPMassWorldCollisionSubsystem& WorldCollision,
+	const FVector& Start, const FVector& Velocity, const float GravityAccel,
+	const float MaxSeconds, TArray<FVector>& OutPoints)
+{
+	// 실탄은 프레임마다 PreviousPos→현재 위치를 같은 함수로 검사한다. 스텝 선분 안에서 포물선을 직선으로
+	// 보는 오차만 남고, 이분 탐색 없이 hit 지점이 곧 착탄점이다.
+	SimulateArc(Start, Velocity, GravityAccel, MaxSeconds, OutPoints,
+		[&WorldCollision](const FVector& PrevPos, const FVector& Pos, FVector& OutImpact)
+		{
+			FLNPWorldHit Hit;
+			if (!TraceWorld(WorldCollision, PrevPos, Pos, Hit))
+				return false;
+			OutImpact = Hit.ImpactPoint;
+			return true;
+		});
 }

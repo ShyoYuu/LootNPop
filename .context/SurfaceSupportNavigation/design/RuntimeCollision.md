@@ -231,6 +231,20 @@ Phase 3에서 모든 투사체가 매 프레임 다음을 수행하도록 전환
 
 이로써 섬 측벽 뒤 적, 동굴 벽, 나무·바위, 움직이는 패널을 올바르게 처리한다.
 
+구현 규약(구현 단위 2):
+
+| 항목 | 규약 |
+|:---|:---|
+| 단일 판정 함수 | `LNPProjectileMotion::TraceWorld` — `RaycastWorld`, 분류 `ProjectileMandatory`. 서버 투사체·클라이언트 Ghost·`PredictArcExact`가 같은 함수를 쓴다 |
+| 형상 | sphere가 아니라 **line**이다. 투사체에는 월드 판정용 반지름이 없고, `HitRadius`는 캐릭터 캡슐을 부풀리는 값이라 지형에 쓰면 턱·모서리에 먼저 걸린다. 형상이 필요해지면 무기 DA에 월드 반지름을 따로 둔다 |
+| earliest hit | 월드 hit을 먼저 구하고 캐릭터 판정 선분을 `PreviousPos → ImpactPoint`로 자른다. 잘린 선분 위의 캐릭터 hit은 항상 월드 hit보다 이르므로 hit 시각을 따로 비교하지 않는다 |
+| 월드 착탄 | 폭발·스플래시 중심은 `ImpactPoint`, 임팩트 VFX는 `ImpactNormal` 방향으로 띄운다. 미해석(`Unknown`) hit도 LNPWorldExact를 Block한 것이므로 착탄으로 처리하고 counter만 오른다 |
+| 수명 만료 | exact 경로에서는 공중 폭발이다. 표면 아래 보정은 legacy에만 있다 |
+| 전환 스위치 | CVar `LNP.SurfaceNav.ProjectileExact`(0=legacy 기본, 1=exact). 프로세스별 값이라 `-game` 2P는 서버·클라이언트 양쪽에 설정한다. 기본값 전환은 audit·8-slot oracle 뒤(D-036) |
+| 탄도 가이드 준비 신호 | exact 경로도 SurfaceCache 베이크 완료를 옥탄트 로드 완료 신호로만 쓴다. SurfaceCache 제거(Phase 5) 때 옥탄트 생성 완료로 바꾼다 |
+
+알려진 한계: 패링 반사탄은 `CurrentPos`에서 다시 스폰된다. 월드 hit으로 잘린 선분 위에서 패링이 일어나면 `CurrentPos`가 벽 너머일 수 있고, 반사탄은 다음 프레임 같은 벽에 착탄한다. 벽에 붙어 패링하는 경우만 해당하며 체감 문제가 확인되면 반사 위치를 패링 hit 지점으로 바꾼다.
+
 전환 범위:
 
 - 서버 판정 경로

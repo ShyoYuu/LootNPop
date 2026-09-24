@@ -1,12 +1,12 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1 완료
-> 마지막 갱신: 2026-09-24 (Gate 0 패키지 판정·MassWorldCollision API)
+> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1 완료, 구현 단위 2 투사체 exact 경로(CVar) 완료
+> 마지막 갱신: 2026-09-24 (투사체·Ghost·탄도 가이드 exact 전환)
 
 ## 현재 목표
 
-Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`다. Gate -1 핵심 항목, Gate 0(패키지 게임 락 포함), 구현 단위 1(MassWorldCollision API)까지 끝났다.
+Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`다. Gate -1 핵심 항목, Gate 0(패키지 게임 락 포함), 구현 단위 1(MassWorldCollision API), 구현 단위 2의 exact 경로(CVar 뒤)까지 끝났다.
 
 Phase 3 범위(`Roadmap.md` §4):
 
@@ -47,9 +47,9 @@ Gate -1 A는 audit·마이그레이션까지 끝났다(8-slot oracle과 비교 C
 
 Gate 0은 2026-09-24 **통과**했다. 패키지 리슨 서버(게임 락 `FRWLOCK`)에서 게임 스레드 쓰기가 없으면 1024 q/frame에서도 프레임 락 합 P95 0.105ms, kinematic body 62개가 같은 PrePhysics 구간에 움직이면 3.35ms다. 락 대기는 쓰기 겹침이 만든다(`history/Phase03_Log.md` 2026-09-24 Gate 0 패키지 절, `design/RuntimeCollision.md` 스레드별 쿼리 API).
 
-구현 단위 1 `ULNPMassWorldCollisionSubsystem`(`SurfaceNavigation/LNPMassWorldCollision.*`)은 API·counter·debug draw 큐와 자동화 테스트까지 됐다. 아직 production 소비자는 없다.
+구현 단위 1 `ULNPMassWorldCollisionSubsystem`(`SurfaceNavigation/LNPMassWorldCollision.*`)의 첫 소비자가 투사체다. 서버 투사체·클라이언트 Ghost·ADS 탄도 가이드가 `LNPProjectileMotion::TraceWorld`(line, `ProjectileMandatory`) 하나를 쓰고, CVar `LNP.SurfaceNav.ProjectileExact`(0=legacy 기본)로 전환한다. 규약은 `design/RuntimeCollision.md` "투사체 월드 충돌".
 
-1. **구현 단위 2 — 투사체 exact 전환.** 서버 투사체 프로세서의 `PreviousPos → CurrentPos`를 `SweepSphereWorld(ProjectileMandatory)`로 판정하고, Mass target hit time과 비교해 earliest hit 하나만 채택한다. D-036에 따라 개발 CVar로 legacy(`IsUnderSurface`·반지름 착탄)와 비교할 수 있게 두고 기본값은 audit·8-slot oracle 통과 전까지 legacy다. 착수 전에 `../TechDesign_HitDetection.md`의 지면 착탄 절과 투사체 프로세서 4종(`../TechDesign_Ability.md`)을 읽는다.
+1. **구현 단위 2 잔여 — world collision envelope 안전망과 8-slot oracle.** exact 경로에서 월드 판정이 빗나간 탄은 수명 만료까지 지각 밖으로 날아간다. 옥탄트 정적 bounds(와 이후 마커 swept bounds)로 envelope 최대 반지름을 구해 `반지름 > envelope + 여유`면 종료한다. 이어서 Gate -1 A의 production 8-slot line/sphere/capsule oracle을 만들고, 통과하면 기본값을 exact로 바꾼 뒤 `IsUnderSurface`·legacy 분기를 제거한다(D-036).
 2. 구현 단위 3을 설계할 때 동적 패널 transform tick이 Mass exact query phase보다 먼저 끝나게 한다(Gate 0 결과).
 
 ## Phase 1에서 확정된 입력 계약
@@ -89,6 +89,13 @@ Gate 0은 2026-09-24 **통과**했다. 패키지 리슨 서버(게임 락 `FRWLO
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-24 구현 단위 2(투사체 exact 경로):
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음
+- 자동화 신규 `WorldCollision.ProjectileArc` 통과(바닥·벽 착탄, 무충돌 수명 끝, 분류 counter). 기존 13개는 같은 날 전체 실행에서 통과, 신규는 fixture 수정 뒤 `WorldCollision` 그룹 재실행에서 통과
+- 에디터 바이너리 `-game` 리슨 2P(`TestMap03`), CVar 1: 호스트·게스트 모두 프랍 관통 없음, 프랍 뒤 적 피해 없음, 유탄이 프랍에서 폭발. CVar 0: 양쪽 모두 기존대로 프랍 통과
+- 호스트 Report: `ProjectileMandatory count=40027 hits=1141 avg=2.08us max=306.50us`, `UnknownHits=0`, ensure 0
 
 2026-09-24 Gate 0 패키지·구현 단위 1:
 

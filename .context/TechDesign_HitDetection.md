@@ -106,6 +106,11 @@ FinishHit (공통 후처리 람다):
 트레일 해제는 판정이 하지 않는다 — DeadTag를 본 DestructionProcessor가 건다 (§6.5)
 ```
 
+**exact 월드 충돌 (CVar `LNP.SurfaceNav.ProjectileExact`, 기본 0):** 1이면 SurfaceCache 대신 `PreviousPos → CurrentPos` 선분을
+`LNPWorldExact`로 line trace하고(`LNPProjectileMotion::TraceWorld`), 캐릭터 판정 선분을 월드 착탄점에서 자른다 — 프랍·섬 측벽 뒤의
+적은 맞지 않는다. Ghost와 ADS 가이드(`PredictArcExact`)도 같은 함수를 쓴다. 규약·한계는
+[SurfaceSupportNavigation/design/RuntimeCollision.md](SurfaceSupportNavigation/design/RuntimeCollision.md) "투사체 월드 충돌".
+
 **스플래시:** `ExplosionRadius > 0`이면 직격 대상을 제외한 반경 내 대상에 거리 감쇠된 GE + `SplashKnockbackStrength` 넉백 (→ §6.3).
 
 ### 3.3 발사 (ULNPAbility_RangedAttack)
