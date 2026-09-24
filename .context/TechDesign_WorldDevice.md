@@ -169,8 +169,9 @@ TurningRate로 되감으므로 워프 회전이 즉시 상쇄된다. 근접 공�
 가능하면서, 머신 간 부동소수 일치라는 어려운 문제는 만들지 않는다.
 
 ⚠️ **`ULNPMassSpawnSubsystem`에 얹지 않는다.** 그쪽 위치 추첨은 표면 캐시 스냅샷만 쓰는 순수 수학이라
-워커 스레드에서 도는데, 이 배치는 `Hit.ImpactNormal`이 필요해 **라인트레이스가 필수**이고 그것은
-게임 스레드 전용이다. (부수적으로 Mass 스폰의 `RandomStream`은 `GenerateNewSeed()`를 쓰는 비결정론이다 —
+워커 스레드에서 도는데, 이 배치는 `Hit.ImpactNormal`이 필요해 **라인트레이스가 필수**이고 결과로 Actor를
+스폰하므로 게임 스레드 작업이다. 동기 라인트레이스 자체는 Mass 워커에서도 안전하다(`SurfaceSupportNavigation/`
+Phase 3 Gate 0). (부수적으로 Mass 스폰의 `RandomStream`은 `GenerateNewSeed()`를 쓰는 비결정론이다 —
 서버 전용 + Mass 복제 구조라 지금까지 문제가 없었을 뿐이며, 이 작업에서 건드리지 않았다.)
 
 ### 기각 단계

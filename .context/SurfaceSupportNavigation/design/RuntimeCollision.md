@@ -48,9 +48,13 @@
 - worker의 동기 query는 thread-safe지만 lock-free가 아니다. 게임 스레드의 물리 쓰기(컴포넌트 이동, Mover 이동)가 쓰기 락을 잡는 동안 대기한다.
 - 읽기 락끼리는 서로 막지 않으므로 여러 worker의 동시 query는 줄을 서지 않는다. 에디터 빌드의 공정 FIFO 락에서는 대기 중인 쓰기 뒤에 새 읽기가 선다.
 - 이 게임은 적의 90% 이상이 물리 body가 없는 PureEntity라, 매 프레임 게임 스레드가 움직이는 body는 플레이어·소수 엘리트·동적 지형뿐이다. 락 경합보다 query 자체의 CPU 비용(지각 trimesh broadphase·narrowphase)이 한계를 정할 가능성이 높다.
-- Gate 0은 query 1회당 비용·처리량과 락 대기 시간을 따로 측정한다.
+- Gate 0 패키지 측정(게임 락 `FRWLOCK`, 1024 q/frame)에서 게임 스레드 쓰기가 겹치지 않으면 프레임 락 합 P95는 0.1ms였고, kinematic body 62개를 같은 PrePhysics 구간에 움직이면 3.4ms로 30배가 됐다. query 자체도 20~30% 느려졌다. 락 대기는 읽기끼리의 경합이 아니라 **게임 스레드 물리 쓰기와 query phase의 겹침**이 만든다(`../history/Phase03_Log.md` 2026-09-24 Gate 0 패키지 절).
+- 따라서 게임 스레드가 매 프레임 움직이는 body(동적 패널 transform)는 Mass exact query phase가 시작되기 전에 끝나도록 배치한다. ActorPromoted 적·플레이어 Mover의 이동 쓰기가 같은 구간에 겹치는 비용은 구현 단위 4 부하 기준선에서 측정한다.
 - worker는 결과에서 UObject를 역참조하지 않는다. 위치·법선·거리·time·blocking 여부 같은 POD만 반환한다.
 - 서브시스템은 `TMassExternalSubsystemTraits`에서 `GameThreadOnly = false`를 선언한다.
+- 구현: `ULNPMassWorldCollisionSubsystem`(`SurfaceNavigation/LNPMassWorldCollision.*`). 입력 `FLNPWorldQueryParams`(분류·제외 Actor unique ID), 결과 `FLNPWorldHit`(POD + `FLNPExactHitIdentity`). 분류별 count·시간은 atomic counter, 락 probe는 CVar `LNP.SurfaceNav.WorldCollision.LockProbe`, debug draw는 MPSC 큐를 게임 스레드 Tick에서 그린다(`...DebugDraw`). 보고는 `LNP.SurfaceNav.WorldCollision.Report`.
+- self/owner 제외: Pawn은 채널 기본 응답이 Ignore이고, PureEntity·Mass 투사체는 world body가 없어 제외할 대상이 없다. 그 밖의 제외는 게임 스레드에서 미리 구한 Actor unique ID로만 넘긴다.
+- `ProbeSupport`는 호출자가 준 Up 기준으로 walkable 법선을 판정하고, registry 역할에 `Support`가 있어야 지지면으로 인정한다. 월드 Z를 쓰지 않는다.
 - 기존 문서와 주석의 "라인트레이스는 게임 스레드 전용" 서술은 Phase 3 Gate 0 검증 뒤 이 방침으로 정정한다.
 
 ### hit identity registry
