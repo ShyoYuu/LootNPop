@@ -332,3 +332,69 @@ worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분�
 
 - world collision envelope 최외곽 반지름 안전망.
 - 8-slot oracle 통과 뒤 기본값 전환과 `IsUnderSurface`·legacy 분기 제거(D-036).
+
+## 2026-09-24 — 구현 단위 2 완료: envelope 안전망, 8-slot oracle, exact 기본 전환
+
+### world collision envelope 안전망
+
+- `FLNPExactSourceEntry::MaxRadius`를 등록 시점에 계산(`ULNPHitIdentitySubsystem::ComputeSourceMaxRadius`)하고, 게시 때 최댓값을 snapshot `WorldEnvelopeRadius`로 둔다. LootPod proxy는 제외.
+- 처음 떠올린 component world bounds 꼭짓점은 지각 한 장이 옥탄트 전체를 덮어 반지름의 약 √3배(25,000cm면 약 43,000cm)가 된다. 탈출탄이 18,000cm를 더 날아야 걸리는 안전망은 의미가 없어 cooked trimesh 정점을 직접 본다.
+- `TestMap03` production 8 slot: envelope **26,928cm**(기준 반지름 25,000cm), 수집 6~8ms(1회).
+- 투사체(서버·Ghost): 월드 hit 없이 `반지름 > envelope + 500cm`면 VFX·스플래시 없이 DeadTag, `EnvelopeEscapes` counter. `PredictArc`도 같은 스텝에서 끝낸다. `LNP.SurfaceNav.WorldCollision.Report`에 `EnvelopeRadius`·`EnvelopeEscapes` 한 줄 추가.
+- 자동화 `WorldCollision.ProjectileArc`에 envelope 값(바닥 아랫면 모서리)과 탈출 궤적이 경계 한 스텝 안에서 끝나는 사례를 추가했다.
+
+### 8-slot oracle
+
+- `LNP.SurfaceNav.ExactOracle`(`SurfaceNavigation/LNPExactOracle.cpp`). 판정 항목은 `design/ValidationAndMigration.md` "production 8-slot exact oracle".
+- 첫 실행 `FAIL`: line Miss 827, SlotMismatch 94. 둘 다 결함이 아니었다.
+  - Miss는 전부 좌표 평면(이음매) 위에 **정확히** 놓인 방향이었다. Fibonacci·"평면 옆" 표본으로 분류된 것도 좌표를 보면 다른 좌표 평면 위였다(예: `(-0.00017, 0, 1)`은 X=0에서 떨어져 있지만 Y=0 위). 같은 방향 sphere는 모두 r≈25,000에서 맞았다.
+  - 평면에서 ±0.0001°(0.04cm)·±0.001°(0.4cm) 표본을 넣자 off-plane miss는 0. 이음매에 실제 틈은 없고, 두 body의 공유 모서리를 정확히 따라가는 ray의 측도 0 누락이다. 이를 정보 항목 EdgeMiss로 분리했다.
+  - SlotMismatch는 한 slot만 `slot=-1`(persistent level 런타임 source: 런처·앵커·LootPod proxy)을 먼저 맞은 방향이었다. seed 배치라 대칭이 아니므로 비교에서 제외.
+- 최종(에디터 바이너리 `-game`, `TestMap03`, 방향 63,008개 × 3형상 = 189,024 query, 90~140ms):
+
+| 실행 | Miss L/S/C | Unknown | StartPen | ShapeOrder | ExactDeeper | SlotMismatch(제외) | EdgeMiss | 지형 \|exact−legacy\| P50/P95/max |
+|:---|:---|:---|:---|:---|:---|:---|:---|:---|
+| 단독 | 0/0/0 | 0 | 0 | 0 | 0 | 0 (94) | 835 | 0.1/2.7/104.4cm |
+| 리슨 서버(NetMode 2) | 0/0/0 | 0 | 0 | 0 | 0 | 0 (150) | 835 | 0.1/2.7/104.4cm |
+| 클라이언트(NetMode 3) | 0/0/0 | 0 | 0 | 0 | 0 | 0 (130) | 834 | 0.1/2.7/114.6cm |
+
+- 판정: **PASS**. Gate -1 A의 oracle 항목 완료.
+
+### exact 기본 전환과 legacy 제거(D-036)
+
+- audit(MISSING=0)와 oracle 통과로 조건 충족. CVar `LNP.SurfaceNav.ProjectileExact`, `UseExactWorldCollision`, `IsUnderSurface`, SurfaceCache 기반 `PredictArc`, 판정 프로세서의 legacy 분기(`IsTerminated`·`ImpactVfxPos`)와 SurfaceCache 의존을 제거했다. exact 판 `PredictArcExact`가 `PredictArc`가 됐다.
+- 탄도 가이드는 SurfaceCache 베이크 완료를 옥탄트 로드 신호로만 계속 쓴다(Phase 5에서 옥탄트 생성 완료로 교체).
+- `ULNPOctantSpawnSubsystem::OctantRotations`를 public으로 옮겼다(oracle이 slot 회전을 쓴다).
+
+### 검증
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음.
+- `LootNPop.SurfaceNavigation` 자동화 14/14 통과.
+- 위 oracle 3회 PASS(legacy 제거 전 빌드). 제거 뒤 빌드로 헤드리스 리슨 2P를 다시 돌려 서버·클라이언트 PASS(EdgeMiss 837). 제거 뒤 2P 플레이 스모크는 아직이다.
+
+## 2026-09-24 — exact 기본 2P 플레이 스모크와 관전 Ghost 외삽 구간
+
+### 사용자 플레이(에디터 바이너리 `-game` 리슨 2P, `TestMap03`)
+
+- 호스트·게스트 모두 프랍·지면에서 투사체가 막힘, ADS 가이드 착탄점 문제 없음.
+- Report: 호스트 `ProjectileMandatory count=25913 hits=980 avg=2.29us max=138.90us`, `UnknownHits=0`, `EnvelopeEscapes=0`. 게스트 `count=40480 hits=1781 avg=1.87us max=226.70us`, `UnknownHits=0`, **`EnvelopeEscapes=1`**.
+- 게스트에서 가끔 투사체가 공중에서 사라짐. 사용자 가설은 대역폭 때문에 발사 신호가 유실됐다는 것이다.
+
+### 분석
+
+- 발사 방송 `Multicast_SpawnSpectatorGhosts`는 Reliable이라 대역폭 때문에 유실되지 않는다. 유실됐다면 Ghost가 사라지는 게 아니라 처음부터 안 보인다. 가설은 기각했다.
+- 결함: 관전 Ghost는 Dead Reckoning으로 `SpawnPos`에서 최대 200ms 외삽한 위치에 스폰되고 `PreviousPos`도 그 위치다. 외삽 구간이 월드 판정을 한 번도 받지 않아, 그 사이의 지면·프랍 너머에서 Ghost가 생긴다. 지면 너머면 지각 아래를 날다가 envelope 밖에서 조용히 사라지고(게스트 `EnvelopeEscapes=1`과 부합), 프랍 너머면 계속 날다가 서버 확정 큐에 지워진다(공중에서 사라지고 VFX는 프랍 쪽). legacy에서는 `IsUnderSurface`가 지면 아래 스폰을 즉시 폭발시켜 드러나지 않았다.
+- VFX 없이 Ghost가 사라지는 다른 경로는 서버의 예측 키 거부(`DestroyAllGhostsForKey`)와 envelope 이탈뿐이다. 서버 확정 큐가 살아 있는 Ghost를 지울 때는 서버 위치에 VFX가 뜬다.
+
+### 조치
+
+- `SpawnSpectatorGhosts`: 외삽 구간 `SpawnPos → ExtrapolatedPos`를 `TraceWorld`로 검사하고, 월드에 맞으면 Ghost를 만들지 않는다. 엔티티 예약은 검사 뒤로 옮겼다.
+- `DestroyAllGhostsForKey`(서버 거부 때만 호출)에 로그 한 줄: `Ghost: prediction key %d rejected by server`.
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공.
+
+### 재확인(사용자 2P 플레이)
+
+- 게스트 화면에서 호스트 탄이 지면·프랍을 통과하거나 공중에서 사라지는 현상 없음. 게스트 자신의 탄 소실도 없음.
+- 게스트 Report: `ProjectileMandatory count=813 hits=55 avg=13.42us max=57.10us`, `UnknownHits=0`, `EnvelopeEscapes=0`. 양쪽 로그에 `prediction key ... rejected`·ensure 없음.
+- 짧은 세션이라 표본이 적고, 평균 13us는 1차 세션(1.87us)보다 높다. 비용은 구현 단위 4 부하 기준선에서 P95로 다시 본다.
+

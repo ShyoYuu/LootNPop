@@ -3,6 +3,8 @@
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPProjectileMotion.h"
+#include "LootNPop.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "MassEntitySubsystem.h"
 #include "MassEntityManager.h"
 #include "MassCommandBuffer.h"
@@ -84,6 +86,7 @@ bool ULNPGhostProjectileSubsystem::ConsumeRecentLocalImpact(const FLNPGhostKey& 
 
 void ULNPGhostProjectileSubsystem::DestroyAllGhostsForKey(int32 InstigatorPlayerID, int32 KeyOrSalvo)
 {
+	int32 DestroyedCount = 0;
 	for (auto It = Ghosts.CreateIterator(); It; ++It)
 	{
 		if (It->Key.InstigatorPlayerID != InstigatorPlayerID || It->Key.KeyOrSalvo != KeyOrSalvo)
@@ -91,7 +94,11 @@ void ULNPGhostProjectileSubsystem::DestroyAllGhostsForKey(int32 InstigatorPlayer
 
 		DestroyEntity(It->Value.Entity);
 		It.RemoveCurrent();
+		++DestroyedCount;
 	}
+
+	// 서버 거부로 예측 Ghost가 VFX 없이 사라지는 유일한 경로라 드물게 한 줄 남긴다.
+	UE_LOG(LogLootNPop, Log, TEXT("Ghost: prediction key %d rejected by server. Destroyed %d predicted ghosts."), KeyOrSalvo, DestroyedCount);
 }
 
 void ULNPGhostProjectileSubsystem::SweepExpiredGhosts()
@@ -149,6 +156,7 @@ void ULNPGhostProjectileSubsystem::SpawnSpectatorGhosts(const FLNPProjectileShar
 		return; // 외삽 시점에 이미 수명이 다한 발사체 — 스폰 생략
 
 	FMassEntityManager& EntityManager = MassSubsystem->GetMutableEntityManager();
+	const ULNPMassWorldCollisionSubsystem* WorldCollision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 
 	FConstSharedStruct SharedStruct = EntityManager.GetOrCreateConstSharedFragment(SharedData);
 	FMassArchetypeSharedFragmentValues SharedValues;
@@ -159,7 +167,6 @@ void ULNPGhostProjectileSubsystem::SpawnSpectatorGhosts(const FLNPProjectileShar
 	for (int32 i = 0; i < Velocities.Num(); ++i)
 	{
 		const uint8 SpawnIndex = static_cast<uint8>(i);
-		const FMassEntityHandle Entity = EntityManager.ReserveEntity();
 
 		// 외삽도 실제 비행과 같은 적분을 쓴다. 포물선 탄을 직선으로 외삽하면 시작부터 어긋난다.
 		// 속도 Verlet은 상수 중력에서 스텝 분할에 불변이므로 이 구간(최대 200ms)은 1스텝으로 정확하다.
@@ -167,6 +174,15 @@ void ULNPGhostProjectileSubsystem::SpawnSpectatorGhosts(const FLNPProjectileShar
 		FVector ExtrapolatedPos = SpawnPos;
 		FVector ExtrapolatedVel = Velocities[i];
 		LNPProjectileMotion::Step(ExtrapolatedPos, ExtrapolatedVel, SharedData.GravityAccel, ExtrapolateSeconds);
+
+		// 외삽 구간은 비행 프레임이 아니라 월드 판정을 받지 않는다. 그 사이에 지면·프랍이 있으면 Ghost가 그 너머에서
+		// 태어나 지각 아래·프랍 뒤를 날게 된다. 실탄과 같은 함수로 검사해 이미 착탄한 탄은 그리지 않는다 —
+		// 착탄 VFX는 로컬 임팩트 기록이 없으므로 서버 확정 큐가 서버 위치에 재생한다.
+		FLNPWorldHit ExtrapolationHit;
+		if (WorldCollision && LNPProjectileMotion::TraceWorld(*WorldCollision, SpawnPos, ExtrapolatedPos, ExtrapolationHit))
+			continue;
+
+		const FMassEntityHandle Entity = EntityManager.ReserveEntity();
 
 		FLNPProjectileFragment FragData;
 		FragData.PreviousPos        = ExtrapolatedPos;

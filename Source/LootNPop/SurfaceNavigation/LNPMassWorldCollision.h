@@ -122,6 +122,17 @@ public:
 	uint64 GetQueryCount(const ELNPWorldQueryClass Class) const { return Stats[static_cast<int32>(Class)].Count.load(std::memory_order_relaxed); }
 	uint64 GetUnknownHitCount() const { return UnknownHits.load(std::memory_order_relaxed); }
 
+	/**
+	 * 모든 스레드. world collision envelope 최대 반지름(cm, RuntimeCollision.md "최외곽 반지름 안전망").
+	 * 이보다 바깥에는 exact geometry가 없으므로, 바깥으로 나간 개체는 exact 판정이 이미 빗나간 것이다. 0이면 아직 source가 없다.
+	 * snapshot 참조를 한 번 복사하므로 프레임마다 한 번 받아 두고 쓴다.
+	 */
+	float GetWorldEnvelopeRadius() const;
+
+	/** 모든 스레드. 소비자가 envelope 밖으로 나간 개체를 종료할 때 부른다. exact 판정 누락의 신호다. */
+	void NoteEnvelopeEscape() const { EnvelopeEscapes.fetch_add(1, std::memory_order_relaxed); }
+	uint64 GetEnvelopeEscapeCount() const { return EnvelopeEscapes.load(std::memory_order_relaxed); }
+
 	/** 게임 스레드. */
 	void ResetStats();
 	void Report() const;
@@ -163,6 +174,7 @@ private:
 	};
 	mutable FClassStats Stats[static_cast<int32>(ELNPWorldQueryClass::Count)];
 	mutable std::atomic<uint64> UnknownHits = 0;
+	mutable std::atomic<uint64> EnvelopeEscapes = 0;
 };
 
 /** worker는 const query 함수만 호출한다. 통계는 atomic, debug draw는 MPSC 큐다. */

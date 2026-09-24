@@ -63,6 +63,11 @@ void ULNPMassWorldCollisionSubsystem::Initialize(FSubsystemCollectionBase& Colle
 	HitIdentity = Collection.InitializeDependency<ULNPHitIdentitySubsystem>();
 }
 
+float ULNPMassWorldCollisionSubsystem::GetWorldEnvelopeRadius() const
+{
+	return HitIdentity ? HitIdentity->GetSnapshot()->WorldEnvelopeRadius : 0.f;
+}
+
 TStatId ULNPMassWorldCollisionSubsystem::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(ULNPMassWorldCollisionSubsystem, STATGROUP_Tickables);
@@ -217,6 +222,7 @@ void ULNPMassWorldCollisionSubsystem::ResetStats()
 		ClassStats.LockNs = 0;
 	}
 	UnknownHits = 0;
+	EnvelopeEscapes = 0;
 }
 
 void ULNPMassWorldCollisionSubsystem::Report() const
@@ -245,6 +251,8 @@ void ULNPMassWorldCollisionSubsystem::Report() const
 	}
 	UE_LOG(LogLootNPop, Display, TEXT("[WorldCollision] Mandatory count=%llu total=%.3fms | Optional count=%llu total=%.3fms | UnknownHits=%llu"),
 		GroupCount[0], GroupNs[0] / 1e6, GroupCount[1], GroupNs[1] / 1e6, UnknownHits.load(std::memory_order_relaxed));
+	UE_LOG(LogLootNPop, Display, TEXT("[WorldCollision] EnvelopeRadius=%.0fcm EnvelopeEscapes=%llu"),
+		GetWorldEnvelopeRadius(), EnvelopeEscapes.load(std::memory_order_relaxed));
 }
 
 namespace

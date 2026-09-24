@@ -99,16 +99,17 @@ FinishHit (공통 후처리 람다):
    GameplayCue.LNP.Projectile.Impact 실행 (Ghost 대조 토큰을 FLNPProjectileImpactContext로)
    → DeadTag → ApplySplash → bHit = true
 
-종말 판정 (어느 캡슐에도 안 닿았을 때 — IsTerminated, §6.4)
-   수명 만료 || SurfaceCache 표면 안쪽 진입
+종말 판정 (어느 캡슐에도 안 닿았을 때 — ResolveTermination, §6.4)
+   월드 hit(ImpactPoint) || 수명 만료(공중)
       → 로컬 임팩트 VFX → DeadTag → 스플래시(제외 대상 없음)
+   월드 hit 없이 envelope 밖 → VFX·스플래시 없이 DeadTag (안전망, counter)
 
 트레일 해제는 판정이 하지 않는다 — DeadTag를 본 DestructionProcessor가 건다 (§6.5)
 ```
 
-**exact 월드 충돌 (CVar `LNP.SurfaceNav.ProjectileExact`, 기본 0):** 1이면 SurfaceCache 대신 `PreviousPos → CurrentPos` 선분을
-`LNPWorldExact`로 line trace하고(`LNPProjectileMotion::TraceWorld`), 캐릭터 판정 선분을 월드 착탄점에서 자른다 — 프랍·섬 측벽 뒤의
-적은 맞지 않는다. Ghost와 ADS 가이드(`PredictArcExact`)도 같은 함수를 쓴다. 규약·한계는
+**월드 충돌:** 프레임마다 `PreviousPos → CurrentPos` 선분을 `LNPWorldExact`로 line trace하고(`LNPProjectileMotion::TraceWorld`),
+캐릭터 판정 선분을 월드 착탄점에서 자른다 — 프랍·섬 측벽 뒤의 적은 맞지 않는다. Ghost와 ADS 가이드(`PredictArc`)도 같은 함수를 쓴다.
+예전의 SurfaceCache 반지름 비교(`IsUnderSurface`)는 제거했다. 규약·한계는
 [SurfaceSupportNavigation/design/RuntimeCollision.md](SurfaceSupportNavigation/design/RuntimeCollision.md) "투사체 월드 충돌".
 
 **스플래시:** `ExplosionRadius > 0`이면 직격 대상을 제외한 반경 내 대상에 거리 감쇠된 GE + `SplashKnockbackStrength` 넉백 (→ §6.3).
@@ -159,7 +160,7 @@ FinishHit (공통 후처리 람다):
 - **로컬 전용성은 스폰 위치에서 나온다** — Niagara를 로컬 클라이언트에서만 스폰하므로 복제되지 않고,
   `SetOnlyOwnerSee` 같은 가시성 플래그가 필요 없다(프로젝트 사용처 0건).
 - **총구·조준 방향·지면 판정이 모두 실탄과 같은 함수다**(`LNPFireGeometry::ResolveMuzzleLocation` /
-  `ResolveAimDirection` / `LNPProjectileMotion::IsUnderSurface`). 어빌리티·판정 프로세서의 본문을 헤더로
+  `ResolveAimDirection` / `LNPProjectileMotion::TraceWorld`). 어빌리티·판정 프로세서의 본문을 헤더로
   뽑아 공유한다 — §7.6이 경고하는 "같은 식 두 벌"을 처음부터 만들지 않기 위해서다.
 - 궤적은 호 길이 기준으로 **정확히 64점**(`ArcPointCount`)에 재표집한다. 개수가 고정이라 Niagara는 64개를
   버스트하고 `ExecIndex`로 읽기만 하면 된다 — 배열 길이 조회도, 여분 정점 숨기기도 없다. 마지막 점이 곧
@@ -167,7 +168,7 @@ FinishHit (공통 후처리 람다):
 - 상태를 명령형으로 세우지 않고 **매 Tick 게이트를 다시 평가**한다. 무기 교체·ADS 해제·사망 어느 쪽으로
   빠져나가도 저절로 풀린다 — 가드가 눌린 입력을 남겨 겪었던 문제
   (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §2.6)를 되풀이하지 않기 위해서다.
-- `SurfaceCache` 베이킹 전에는 `PredictArc`가 false를 돌려주고 가이드를 숨긴다. 지면을 모르면 궤적이 지형을 뚫고 뻗는다.
+- `SurfaceCache` 베이킹 전(= 옥탄트 로드 전)에는 가이드를 숨긴다. 월드가 없으면 궤적이 수명 끝까지 뻗는다.
 - **착탄점은 `GetImpactPoint()`으로 노출만 한다** — HUD의 사거리 라벨이 당겨 읽는다
   ([TechDesign_HUD.md](TechDesign_HUD.md) §11.13). 여기서 위젯을 밀지 않는 이유는 락온 마커와 같다.
 
@@ -320,7 +321,7 @@ flush되고 판정 쿼리는 그 태그를 `None`으로 요구하므로, **지�
 
 **해결은 판정 소유권을 한 곳으로 모으는 것이었다.** 이동 프로세서는 전진과 수명 감산만 하고, 표면 조회·파괴·
 임팩트 VFX·트레일 해제가 전부 판정 프로세서로 넘어갔다(트레일 해제는 이후 다시 파괴 프로세서로 — §6.5).
-판정 프로세서는 캐릭터 캡슐이 전부 빗나간 **뒤에** 공용 람다 `IsTerminated(Pos, LifetimeRemaining)`를 부르고,
+판정 프로세서는 캐릭터 캡슐이 전부 빗나간 **뒤에** 공용 람다 `ResolveTermination`(당시 `IsTerminated`)을 부르고,
 서버 분기는 거기서 `ApplySplash`를 제외 대상 없이 호출한다. 부수 효과로 "지면과 캐릭터에 같은 프레임에 닿는"
 탄이 이제 캐릭터 판정을 먼저 받는다(예전에는 지면이 이겼다).
 

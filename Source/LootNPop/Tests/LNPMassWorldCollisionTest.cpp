@@ -210,7 +210,7 @@ bool FLNPProjectileExactArcTest::RunTest(const FString& Parameters)
 	{
 		Collision->ResetStats();
 		TArray<FVector> Points;
-		LNPProjectileMotion::PredictArcExact(*Collision, Start, Velocity, GravityAccel, Lifetime, Points);
+		LNPProjectileMotion::PredictArc(*Collision, Start, Velocity, GravityAccel, Lifetime, Points);
 		TestEqual(TEXT("Arc point count"), Points.Num(), LNPProjectileMotion::ArcPointCount);
 		TestTrue(TEXT("First point is the muzzle"), Points[0].Equals(Start, 0.1));
 		TestEqual(TEXT("Arc ends on the floor top"), Points.Last().Z, Base.Z - 990.0, 1.0);
@@ -223,7 +223,7 @@ bool FLNPProjectileExactArcTest::RunTest(const FString& Parameters)
 	HitIdentity->Tick(0.f);
 	{
 		TArray<FVector> Points;
-		LNPProjectileMotion::PredictArcExact(*Collision, Start, Velocity, GravityAccel, Lifetime, Points);
+		LNPProjectileMotion::PredictArc(*Collision, Start, Velocity, GravityAccel, Lifetime, Points);
 		TestEqual(TEXT("Arc ends on the wall face"), Points.Last().X, 490.0, 1.0);
 		TestTrue(TEXT("Arc ends above the floor"), Points.Last().Z > Base.Z - 990.0);
 	}
@@ -231,7 +231,7 @@ bool FLNPProjectileExactArcTest::RunTest(const FString& Parameters)
 	// 3. 아무것도 없으면 수명 끝까지 뻗는다(월드 판정이 없는 상태).
 	{
 		TArray<FVector> Points;
-		LNPProjectileMotion::PredictArcExact(*Collision, FVector(0, 0, 5000), FVector(1000, 0, 0), 0.f, 1.f, Points);
+		LNPProjectileMotion::PredictArc(*Collision, FVector(0, 0, 5000), FVector(1000, 0, 0), 0.f, 1.f, Points);
 		TestTrue(TEXT("Arc without geometry runs to lifetime"), Points.Last().Equals(FVector(1000, 0, 5000), 1.0));
 	}
 
@@ -241,6 +241,24 @@ bool FLNPProjectileExactArcTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Segment crossing the floor hits"), LNPProjectileMotion::TraceWorld(*Collision, Base + FVector(-500, 0, -900), Base + FVector(-500, 0, -1100), Hit));
 		TestEqual(TEXT("Segment impact on floor top"), Hit.ImpactPoint.Z, Base.Z - 990.0, 0.5);
 		TestTrue(TEXT("Segment impact is a known static surface"), Hit.Identity.Lifetime == ELNPExactSourceLifetime::Static);
+	}
+
+	// 5. envelope는 등록된 geometry 중 원점에서 가장 먼 점이다 — 바닥 아랫면 모서리.
+	const float EnvelopeRadius = Collision->GetWorldEnvelopeRadius();
+	{
+		const double Expected = FVector(2000, 2000, Base.Z - 1010.0).Size();
+		TestEqual(TEXT("Envelope is the farthest floor corner"), static_cast<double>(EnvelopeRadius), Expected, 1.0);
+		TestFalse(TEXT("No envelope means no safety net"), LNPProjectileMotion::IsOutsideWorldEnvelope(0.f, FVector(0, 0, -1e7)));
+	}
+
+	// 6. 바닥 옆을 지나 아래(바깥쪽)로 빠진 궤적은 수명 끝이 아니라 envelope + 여유를 넘은 첫 스텝에서 끝난다.
+	{
+		TArray<FVector> Points;
+		LNPProjectileMotion::PredictArc(*Collision, Base + FVector(3000, 0, -200), FVector(0, 0, -1000), GravityAccel, Lifetime, Points);
+		const double EndRadius = Points.Last().Size();
+		const double Limit = EnvelopeRadius + LNPProjectileMotion::WorldEnvelopeMargin;
+		TestTrue(TEXT("Escaped arc ends outside the envelope"), EndRadius > Limit);
+		TestTrue(TEXT("Escaped arc ends within one step of the envelope"), EndRadius < Limit + 100.0);
 	}
 
 	return true;

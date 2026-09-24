@@ -177,12 +177,26 @@ PCG는 에디터 시점에 실행되고 결과가 LVI에 저장되므로 런타�
 
 production Terrain Contract Component Tag 전환은 Phase 4까지 나눠 진행할 수 있지만 exact response 전환보다 늦어서는 안 되는 항목과 분리한다. Phase 3 동안 신규 exact 경로를 기본값으로 만들기 전 production 옥탄트 8-slot trace/sweep 회귀를 통과해야 한다(D-036).
 
+### production 8-slot exact oracle
+
+콘솔 `LNP.SurfaceNav.ExactOracle`(`SurfaceNavigation/LNPExactOracle.cpp`). 옥탄트 생성·registry 게시·SurfaceCache 베이크를 기다렸다 실행하므로 `-ExecCmds`로 시작 시 걸 수 있다. `-game` 클라이언트는 travel 뒤 월드로 옮겨 실행한다.
+
+| 항목 | 내용 |
+|:---|:---|
+| 방향 | 로컬 Fibonacci 4,096개 × slot 회전 8개, 그리고 좌표 평면 3개 위 0.25° 간격에 평면 위·±0.0001°·±0.001°·±0.01°(기준 반지름 25,000cm에서 0.04·0.4·4.4cm) |
+| query | 반지름 `SphereRadius×0.5`에서 `envelope+500cm`까지 line, sphere(30), 방사 축 capsule(34/88). `DebugValidation` 분류, ParallelFor worker 실행 |
+| 실패 | Miss, Unknown, StartPenetrating, ShapeOrder(sweep이 line보다 늦음), ExactDeeper(line hit가 legacy 표면보다 200cm 넘게 바깥), SlotMismatch(모든 slot이 같은 Level일 때 같은 로컬 방향 8개의 hit 거리 차 > 1cm) |
+| 비교 제외 | SlotMismatch는 persistent level 런타임 source(런처·앵커·LootPod proxy)를 맞힌 방향을 건너뛴다. seed 배치라 회전 대칭이 아니다 |
+| 정보 | EdgeMiss — 좌표 평면 위에 **정확히** 놓인 line이 빠지고 같은 방향 sphere는 맞는 경우. 평면에서 0.04cm만 떨어져도 맞으면 틈이 아니라 두 body 공유 모서리의 측도 0 경우다. 실제 투사체에서는 envelope 안전망이 받는다 |
+
+통과 기록은 `../history/Phase03_Log.md` 2026-09-24 "8-slot oracle" 절.
+
 ### 제거 대상
 
 - 머신별 123만 async trace 베이크
 - 등장방형 전역 단일 배열
 - `GetSurfacePoint(Direction)` 직접 사용
-- `IsUnderSurface`
+- `IsUnderSurface` — Phase 3에서 제거 완료
 - 반지름 비교 기반 공중 착지
 - `ECC_WorldStatic`을 곧바로 지면 의미로 사용하는 코드
 

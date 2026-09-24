@@ -79,32 +79,18 @@ void ULNPTrajectoryGuideComponent::TickComponent(float DeltaTime, ELevelTick Tic
 	const FVector Direction = LNPFireGeometry::ResolveAimDirection(Muzzle, Character->GetBaseAimRotation().Vector(),
 		bHasAimPoint ? &AimPoint : nullptr);
 
-	// 실탄과 같은 월드 판정 경로를 고른다(LNP.SurfaceNav.ProjectileExact).
+	// SurfaceCache 베이크 완료는 옥탄트 로드 완료의 신호로만 쓴다. 로드 전에 그리면 궤적이 수명 끝까지 뻗는다.
 	const ULNPMassWorldCollisionSubsystem* WorldCollision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-	bool bPredicted = false;
-	if (LNPProjectileMotion::UseExactWorldCollision() && WorldCollision)
+	FVector SurfaceProbe;
+	if (nullptr == WorldCollision || !SurfaceCache->GetSurfacePoint(Muzzle.GetSafeNormal(), SurfaceProbe))
 	{
-		// exact 경로는 SurfaceCache 베이크 완료를 옥탄트 로드 완료의 신호로만 쓴다.
-		FVector SurfaceProbe;
-		bPredicted = SurfaceCache->GetSurfacePoint(Muzzle.GetSafeNormal(), SurfaceProbe);
-		if (bPredicted)
-		{
-			LNPProjectileMotion::PredictArcExact(*WorldCollision, Muzzle, Direction * WeaponDef->ProjectileSpeed,
-				GravityAccel, WeaponDef->ProjectileLifetime, ArcPoints);
-		}
-	}
-	else
-	{
-		bPredicted = LNPProjectileMotion::PredictArc(*SurfaceCache, Muzzle, Direction * WeaponDef->ProjectileSpeed,
-			GravityAccel, WeaponDef->ProjectileLifetime, ArcPoints);
-	}
-
-	if (!bPredicted)
-	{
-		// 표면 Cache 베이킹 전 — 지면을 모르는 채로 그리면 궤적이 지형을 뚫고 뻗는다.
 		HideGuide();
 		return;
 	}
+
+	// 실탄과 같은 월드 판정 함수다.
+	LNPProjectileMotion::PredictArc(*WorldCollision, Muzzle, Direction * WeaponDef->ProjectileSpeed,
+		GravityAccel, WeaponDef->ProjectileLifetime, ArcPoints);
 
 	ShowGuide(WeaponDef->ExplosionRadius);
 	bGuideVisible = true;

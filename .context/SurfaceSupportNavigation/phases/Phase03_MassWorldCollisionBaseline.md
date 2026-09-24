@@ -28,9 +28,9 @@ Phase 3는 실제 Support Atlas payload를 생성하거나 소비하지 않는�
 - [x] production 옥탄트·정적 프랍·동적 지형 후보의 현재 profile과 `LNPWorldExact` response 목록 생성 (`LNP.SurfaceNav.AuditExactResponse`)
 - [x] `Support`, `Blocker`, `Support+Blocker` 역할에 맞는 profile 적용 — 지각·프랍 HISM·스프링 런처, LootPod는 B의 collision proxy로 해소(audit MISSING=0)
 - [x] Destructible Support-only, Blocker-only, Support+Blocker profile 분리(D-039)
-- [ ] production 옥탄트 8-slot에서 line/sphere/capsule query oracle 통과
-- [x] 신규 exact 경로와 legacy 경로를 비교할 개발 CVar 제공 — 투사체 `LNP.SurfaceNav.ProjectileExact`(0=legacy 기본)
-- [ ] audit 통과 전 신규 exact 경로를 production 기본값으로 만들지 않음(D-036)
+- [x] production 옥탄트 8-slot에서 line/sphere/capsule query oracle 통과 — `LNP.SurfaceNav.ExactOracle`, `-game` 단독·리슨 서버·클라이언트 PASS
+- [x] 신규 exact 경로와 legacy 경로를 비교할 개발 CVar 제공 — 투사체 `LNP.SurfaceNav.ProjectileExact`. 기본값 전환과 함께 제거
+- [x] audit 통과 전 신규 exact 경로를 production 기본값으로 만들지 않음(D-036) — audit·oracle 통과 뒤 전환
 
 Component Tag의 production 전환은 Phase 4까지 나눌 수 있다. 이 Gate는 exact collision response를 먼저 안전하게 만드는 범위다.
 
@@ -81,9 +81,9 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 - [x] 서버 투사체의 `PreviousPos → CurrentPos` exact segment — line trace(`LNPProjectileMotion::TraceWorld`), 형상 결정은 `design/RuntimeCollision.md`
 - [x] Mass target hit time과 world hit time 비교 후 earliest hit 하나만 채택 — 캐릭터 판정 선분을 월드 착탄점으로 자른다
 - [x] 클라이언트 ghost에 같은 world 판정 적용
-- [x] 게임 스레드 `PredictArc`에 같은 충돌 함수 적용 — `PredictArcExact`
-- [ ] `IsUnderSurface`와 반지름 기반 착탄 제거
-- [ ] 정적 bounds와 marker swept bounds를 합친 world collision envelope 안전망
+- [x] 게임 스레드 `PredictArc`에 같은 충돌 함수 적용
+- [x] `IsUnderSurface`와 반지름 기반 착탄 제거 — exact가 유일한 경로
+- [x] 정적 bounds와 marker swept bounds를 합친 world collision envelope 안전망 — 정적·런타임 source 정점 기준. marker swept bounds는 구현 단위 3에서 동적 패널 등록 때 넣는다
 
 ### 3. Placement Marker와 동적 패널
 
@@ -120,7 +120,7 @@ Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 - [ ] world/entity earliest hit
 - [ ] 내부형 shell normal
 - [ ] 한 component의 분리된 sheet face identity와 ISM/HISM instance identity
-- [ ] production 8-slot exact collision
+- [x] production 8-slot exact collision — `LNP.SurfaceNav.ExactOracle`(콘솔, 생성된 월드 필요)
 - [ ] 패널 탑승 2P와 이동 중 late join
 - [ ] Editor 자동화
 - [ ] `-game` 리슨 서버 2P 스모크(D-031)
