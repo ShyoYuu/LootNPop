@@ -22,7 +22,7 @@ namespace
 	constexpr double PodSpacing = 1000.0;
 
 	/** subsystem의 proxy 중심 규약과 같다: Pod 로컬 Up +128cm. */
-	constexpr double PodProxyCenterUp = 128.0;
+	constexpr double TestPodProxyCenterUp = 128.0;
 
 	FVector GetPodLocation(const int32 PodIndex)
 	{
@@ -32,7 +32,7 @@ namespace
 	/** Pod 중심을 위에서 아래로 관통하는 LNPWorldExact line trace. */
 	bool TracePod(UWorld* World, const int32 PodIndex, FHitResult& OutHit)
 	{
-		const FVector Center = GetPodLocation(PodIndex) + FVector(0.0, 0.0, PodProxyCenterUp);
+		const FVector Center = GetPodLocation(PodIndex) + FVector(0.0, 0.0, TestPodProxyCenterUp);
 		const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPLootPodProxySwapRemapTest), false);
 		return World->LineTraceSingleByChannel(OutHit, Center + FVector(0.0, 0.0, 1000.0), Center - FVector(0.0, 0.0, 1000.0),
 			LNPCollisionChannels::WorldExact, Params);
@@ -127,7 +127,7 @@ bool FLNPLootPodCollisionProxySwapRemapTest::RunTest(const FString& Parameters)
 	FTransform MovedInstanceTransform;
 	ISM->GetInstanceTransform(1, MovedInstanceTransform, /*bWorldSpace=*/true);
 	TestTrue(TEXT("ISM index 1 holds the last pod's transform"),
-		MovedInstanceTransform.GetLocation().Equals(GetPodLocation(3) + FVector(0.0, 0.0, PodProxyCenterUp), 0.1));
+		MovedInstanceTransform.GetLocation().Equals(GetPodLocation(3) + FVector(0.0, 0.0, TestPodProxyCenterUp), 0.1));
 
 	// 물리 body도 같이 swap돼야 exact hit의 Item이 표와 일치한다.
 	TestEqual(TEXT("Trace at the moved pod hits Item 1"), TraceProxyItem(World, ISM, 3), 1);

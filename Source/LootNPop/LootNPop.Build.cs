@@ -54,7 +54,9 @@ public class LootNPop : ModuleRules
             "MotionWarping",
             "LNPUI"
             ]);
-		PrivateDependencyModuleNames.AddRange([]);
+		PrivateDependencyModuleNames.AddRange([
+			"Chaos" // Gate 0 스파이크의 scene read lock 계측
+			]);
 
 		PublicIncludePaths.AddRange([
 			"LootNPop"

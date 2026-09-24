@@ -198,7 +198,8 @@ Support 베이크는 collision channel 하나에 의존하지 않고 Terrain Con
 - wrapper 전체 query 시간과 scene read-lock 대기를 별도 trace/counter로 기록한다. 엔진 기본 marker만으로 락 대기를 분리할 수 없으면 최소 범위의 엔진 trace instrumentation을 개발 빌드에 추가한다.
 - warm-up, 적 수, PureEntity 비율, 동시 투사체 수, 동적 body 수, 측정 build와 CPU 구성을 보고서에 고정한다.
 - P50/P95와 최악 프레임, query 종류별 count/time, 미해석 hit 수를 기록한다.
-- Editor와 `-game` 패키지의 락 구현이 다르므로 최종 Gate는 `-game` 리슨 서버와 비동기 물리에서 판정한다.
+- Editor와 패키지의 락 구현이 다르므로 최종 Gate는 패키지 빌드 리슨 서버와 비동기 물리에서 판정한다. `UnrealEditor.exe -game`은 `WITH_EDITOR` 빌드라 에디터 락을 쓴다.
+- 설치형 엔진에서는 쿼리 내부의 락 대기를 분리할 수 없다. 질의 직전에 같은 scene read lock을 한 번 잡았다 놓는 시간을 락 대기 추정치로 쓴다(Gate 0 스파이크 방식).
 
 ### 프로파일 결과에 따른 후속 선택
 

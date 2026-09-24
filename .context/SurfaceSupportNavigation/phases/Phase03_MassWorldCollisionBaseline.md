@@ -52,13 +52,16 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 
 ## Gate 0 — worker 동기 scene query
 
-- [ ] Mass worker에서 line, sphere, capsule query 실행
-- [ ] `bTickPhysicsAsync=True`와 동적 kinematic body 조건에서 ensure·check·data race 부재
-- [ ] Editor와 `-game` 리슨 서버 2P에서 결과 일치
-- [ ] wrapper 총시간과 scene read-lock 대기를 분리 계측
-- [ ] query 종류별 count, P50/P95, 최악 프레임 기록
-- [ ] 미해석 hit 수와 dynamic/static 분류 오류 기록
-- [ ] 실패 시 D-025 재논의 후 구현 진행 중단
+스파이크: `SurfaceNavigation/LNPExactQuerySpike.*`(CVar `LNP.SurfaceNav.ExactSpike.*`). 측정값은 `../history/Phase03_Log.md` 2026-09-24 Gate 0 절.
+
+- [x] Mass worker에서 line, sphere, capsule query 실행 — `gamethread=0`
+- [x] `bTickPhysicsAsync=True`와 동적 kinematic body 조건에서 ensure·check 부재 — PIE·에디터 바이너리 `-game`, body 62개. data race 전용 도구(TSan)는 쓰지 않았다
+- [x] Editor와 `-game` 리슨 서버 2P에서 결과 일치 — 옥탄트 slot 칸 차이 0. `-game`은 에디터 바이너리다
+- [x] wrapper 총시간과 scene read-lock 대기를 분리 계측 — 락은 질의 직전 read lock 획득 시간으로 근사
+- [x] query 종류별 count, P50/P95, 최악 프레임 기록
+- [x] 미해석 hit 수와 dynamic/static 분류 오류 기록 — 둘 다 0
+- [ ] 게임 락(`FRWLOCK`) 조건의 락 대기 — 패키지 빌드 필요. `UnrealEditor.exe -game`도 `WITH_EDITOR` 락이다. 패키지 실행이 옥탄트 로드에서 멈추는 문제부터 해결한다
+- [ ] 실패 시 D-025 재논의 후 구현 진행 중단 — 현재까지 실패 조건 없음
 
 ## 구현 단위
 
@@ -95,14 +98,18 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 
 ### 4. 부하 기준선
 
-측정 전에 다음 값을 실행 문서나 보고서에 고정한다.
+2026-09-24 사용자와 합의한 고정값이다.
 
-- 적 수와 90% 이상 PureEntity인 CombatMode 비율
-- 동시 투사체 수와 속도 분포
-- 플레이어·ActorPromoted·동적 body 수
-- warm-up과 capture 시간
-- Development/Test build, CPU, async physics 설정
-- 성공 기준 frame budget과 P50/P95
+| 항목 | 값 |
+|:---|:---|
+| 적 수 | 300(일상 전투), 1000(스트레스) 두 단계. 두 점으로 규모에 따른 비용 기울기를 본다 |
+| CombatMode 비율 | PureEntity 90% / ActorPromoted 10% — 목표 하한의 보수적 구성. 300→Actor 30, 1000→Actor 100 |
+| 동시 투사체 | 500발. 속도는 실제 무기 DA 값을 그대로 쓰고 별도 분포를 만들지 않는다 |
+| 플레이어 | 2(리슨 서버 호스트 + 게스트) |
+| 동적 body | 구현 단위 3의 동적 패널 수. 확정 전에는 Gate 0 스파이크의 kinematic body 수를 보고서에 적는다 |
+| 측정 build | Development `-game` 리슨 서버 2P, `bTickPhysicsAsync=True`. CPU 모델을 보고서에 적는다 |
+| 시간 | warm-up 10초, capture 30초 |
+| 성공 기준 | 60fps(16.6ms) 유지, exact query 합계 P95 ≤ 2ms/frame(worker 합산), scene read-lock 대기 P95 ≤ 0.2ms/frame |
 
 Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 
