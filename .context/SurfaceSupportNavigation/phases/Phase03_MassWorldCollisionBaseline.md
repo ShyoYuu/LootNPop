@@ -29,7 +29,7 @@ Phase 3는 실제 Support Atlas payload를 생성하거나 소비하지 않는�
 - [x] `Support`, `Blocker`, `Support+Blocker` 역할에 맞는 profile 적용 — 지각·프랍 HISM·스프링 런처, LootPod는 B의 collision proxy로 해소(audit MISSING=0)
 - [x] Destructible Support-only, Blocker-only, Support+Blocker profile 분리(D-039)
 - [ ] production 옥탄트 8-slot에서 line/sphere/capsule query oracle 통과
-- [ ] 신규 exact 경로와 legacy 경로를 비교할 개발 CVar 제공
+- [x] 신규 exact 경로와 legacy 경로를 비교할 개발 CVar 제공 — 투사체 `LNP.SurfaceNav.ProjectileExact`(0=legacy 기본)
 - [ ] audit 통과 전 신규 exact 경로를 production 기본값으로 만들지 않음(D-036)
 
 Component Tag의 production 전환은 Phase 4까지 나눌 수 있다. 이 Gate는 exact collision response를 먼저 안전하게 만드는 범위다.
@@ -78,10 +78,10 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 
 ### 2. 투사체·탄도 가이드
 
-- [ ] 서버 투사체의 `PreviousPos → CurrentPos` exact segment/sphere sweep
-- [ ] Mass target hit time과 world hit time 비교 후 earliest hit 하나만 채택
-- [ ] 클라이언트 ghost에 같은 world 판정 적용
-- [ ] 게임 스레드 `PredictArc`에 같은 충돌 함수 적용
+- [x] 서버 투사체의 `PreviousPos → CurrentPos` exact segment — line trace(`LNPProjectileMotion::TraceWorld`), 형상 결정은 `design/RuntimeCollision.md`
+- [x] Mass target hit time과 world hit time 비교 후 earliest hit 하나만 채택 — 캐릭터 판정 선분을 월드 착탄점으로 자른다
+- [x] 클라이언트 ghost에 같은 world 판정 적용
+- [x] 게임 스레드 `PredictArc`에 같은 충돌 함수 적용 — `PredictArcExact`
 - [ ] `IsUnderSurface`와 반지름 기반 착탄 제거
 - [ ] 정적 bounds와 marker swept bounds를 합친 world collision envelope 안전망
 

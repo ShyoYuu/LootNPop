@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 
 class ULNPSurfaceCacheSubsystem;
+class ULNPMassWorldCollisionSubsystem;
+struct FLNPWorldHit;
 
 /**
  * 발사체 궤적의 **단일 정의** — 실제 비행(Mass 이동 Processor)과 예상 궤도(ADS 가이드)가
@@ -69,6 +71,29 @@ namespace LNPProjectileMotion
 	 * @return SurfaceCache 베이킹이 끝나지 않았으면 false — 호출자는 가이드를 숨겨야 한다.
 	 */
 	bool PredictArc(const ULNPSurfaceCacheSubsystem& SurfaceCache,
+		const FVector& Start, const FVector& Velocity, float GravityAccel,
+		float MaxSeconds, TArray<FVector>& OutPoints);
+
+	/**
+	 * 투사체 월드 충돌을 exact 경로(LNPWorldExact)로 판정하는가 — CVar `LNP.SurfaceNav.ProjectileExact`.
+	 * production 기본값은 legacy(IsUnderSurface)다. audit·8-slot oracle을 통과하기 전에는 바꾸지 않는다(D-036).
+	 * 모든 스레드.
+	 */
+	bool UseExactWorldCollision();
+
+	/**
+	 * exact 경로의 **월드 착탄 판정 단일 정의** — 서버 투사체·클라이언트 Ghost·예상 궤도가 같은 함수를 본다.
+	 * From→To 선분을 LNPWorldExact로 line trace한다. 투사체는 월드 판정용 반지름이 없고, HitRadius는
+	 * 캐릭터 캡슐을 부풀리는 값이라 지형에 쓰면 턱·모서리에 먼저 걸린다.
+	 * 모든 스레드(Mass worker는 동기 query만, D-025).
+	 */
+	bool TraceWorld(const ULNPMassWorldCollisionSubsystem& WorldCollision, const FVector& From, const FVector& To, FLNPWorldHit& OutHit);
+
+	/**
+	 * PredictArc의 exact 판. 스텝마다 TraceWorld로 선분을 검사하고 첫 hit의 ImpactPoint에서 끝낸다.
+	 * 월드가 아직 로드되지 않았으면 수명 끝까지 뻗는다 — 준비 여부는 호출자가 가린다.
+	 */
+	void PredictArcExact(const ULNPMassWorldCollisionSubsystem& WorldCollision,
 		const FVector& Start, const FVector& Velocity, float GravityAccel,
 		float MaxSeconds, TArray<FVector>& OutPoints);
 }

@@ -15,6 +15,7 @@
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Character/LNPPlayerCharacter.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
 #include "GAS/LNPDamageFormula.h"
@@ -175,6 +176,7 @@ void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMas
 	PlayerQuery.RegisterWithProcessor(*this);
 
 	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceCacheSubsystem>(EMassFragmentAccess::ReadOnly);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPProjectileVisualSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
@@ -185,6 +187,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 	const ULNPSurfaceCacheSubsystem& SurfaceCache = Context.GetSubsystemChecked<ULNPSurfaceCacheSubsystem>();
 	ULNPProjectileVisualSubsystem&   VisualSub    = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
+
+	// exact 경로(LNP.SurfaceNav.ProjectileExact)면 지형 착탄은 IsUnderSurface가 아니라 PreviousPos→CurrentPos
+	// 선분의 LNPWorldExact hit다. 서버와 Ghost가 같은 LNPProjectileMotion::TraceWorld를 쓴다.
+	const ULNPMassWorldCollisionSubsystem* WorldCollision = Context.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	const bool bExactWorld = WorldCollision != nullptr && LNPProjectileMotion::UseExactWorldCollision();
 
 	/**
 	 * 캐릭터에 닿지 않은 탄의 **종말 판정** — 지면 착탄과 수명 만료를 한 자리에서 가른다.
@@ -197,12 +204,13 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	 * 수명 만료도 폭발로 취급한다. 임팩트 VFX는 예전부터 두 경우 모두 재생하고 있었으므로,
 	 * 스플래시만 같이 붙여야 연출과 판정의 대칭이 맞는다.
 	 */
-	auto IsTerminated = [&SurfaceCache](const FVector& Pos, const float LifetimeRemaining) -> bool
+	auto IsTerminated = [&SurfaceCache, bExactWorld](const FVector& Pos, const float LifetimeRemaining) -> bool
 	{
 		if (LifetimeRemaining <= 0.f)
 			return true;
 
-		return LNPProjectileMotion::IsUnderSurface(SurfaceCache, Pos);
+		// exact 경로의 지형 착탄은 아래 TraceSegment가 따로 판정한다.
+		return !bExactWorld && LNPProjectileMotion::IsUnderSurface(SurfaceCache, Pos);
 	};
 
 	/**
@@ -226,6 +234,44 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 		// 표면에 정확히 놓으면 카메라를 향한 스프라이트의 아래 절반이 지형에 잘린다.
 		return SurfacePoint - Pos.GetSafeNormal() * ImpactVfxSurfaceLift;
+	};
+
+	/**
+	 * exact 경로: 이번 프레임 선분의 월드 hit를 먼저 구하고 캐릭터 판정 선분의 끝을 거기로 자른다.
+	 * 잘린 선분 위의 캐릭터 hit는 월드 hit보다 항상 이르므로, 캐릭터 판정이 먼저 맞으면 그것이
+	 * earliest hit이고 아니면 월드 hit이다 — 섬 측벽·동굴 벽 뒤의 적은 맞지 않는다.
+	 * legacy 경로는 선분을 자르지 않는다.
+	 */
+	auto TraceSegment = [WorldCollision, bExactWorld](const FVector& From, const FVector& To,
+		FLNPWorldHit& OutWorldHit) -> FVector
+	{
+		if (bExactWorld && LNPProjectileMotion::TraceWorld(*WorldCollision, From, To, OutWorldHit))
+			return OutWorldHit.ImpactPoint;
+		return To;
+	};
+
+	/**
+	 * 캐릭터에 닿지 않은 탄의 종말 지점 — 월드 hit, 또는 지면 착탄(legacy)·수명 만료.
+	 * 참이면 폭발(스플래시) 중심과 임팩트 VFX 위치·법선을 채운다.
+	 */
+	auto ResolveTermination = [&](const FVector& Pos, const float LifetimeRemaining, const FLNPWorldHit& WorldHit,
+		FVector& OutCenter, FVector& OutVfxPos, FVector& OutVfxNormal) -> bool
+	{
+		if (WorldHit.bBlockingHit)
+		{
+			OutCenter    = WorldHit.ImpactPoint;
+			OutVfxPos    = WorldHit.ImpactPoint + WorldHit.ImpactNormal * ImpactVfxSurfaceLift;
+			OutVfxNormal = WorldHit.ImpactNormal;
+			return true;
+		}
+		if (!IsTerminated(Pos, LifetimeRemaining))
+			return false;
+
+		// exact 경로의 수명 만료는 공중 폭발이라 그 자리가 맞다. 표면 아래 보정은 legacy만 필요하다.
+		OutCenter    = Pos;
+		OutVfxPos    = bExactWorld ? Pos : ImpactVfxPos(Pos);
+		OutVfxNormal = -Pos.GetSafeNormal();
+		return true;
 	};
 
 	// 클라이언트: 로컬 예측 공격자의 Ghost Projectile에 한해 Physics/Actor 기반 예측 판정 (코스메틱 HitStop만, GE 미적용).
@@ -311,6 +357,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				FLNPProjectileFragment& Proj = Projectiles[i];
 
 				const FVector CurrentPos = Transforms[i].GetTransform().GetLocation();
+				FLNPWorldHit  WorldHit;
+				const FVector SegmentEnd = TraceSegment(Proj.PreviousPos, CurrentPos, WorldHit);
 				AActor* InstigatorActor = (ActorSub && Proj.Instigator.IsSet() && EntityManager.IsEntityActive(Proj.Instigator)) ? ActorSub->GetActorFromHandle(Proj.Instigator) : nullptr;
 
 				bool bHit = false;
@@ -328,7 +376,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						continue;
 
 					FVector HitPoint;
-					if (!LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, CurrentPos, Target.Location, Target.UpDir,
+					if (!LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, SegmentEnd, Target.Location, Target.UpDir,
 						Target.CapsuleHalfHeight, Target.CapsuleRadius + Shared.HitRadius, HitPoint))
 						continue;
 
@@ -343,10 +391,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				}
 
 				// 지면 착탄·수명 만료 — Ghost는 로컬 코스메틱이므로 소멸·VFX만 하고 스플래시는 서버 몫이다.
-				if (bHit || !IsTerminated(CurrentPos, Proj.LifetimeRemaining))
+				FVector Center, VfxPos, VfxNormal;
+				if (bHit || !ResolveTermination(CurrentPos, Proj.LifetimeRemaining, WorldHit, Center, VfxPos, VfxNormal))
 					continue;
 
-				VisualSub.EnqueueImpact(Shared.VFXData, ImpactVfxPos(CurrentPos), -CurrentPos.GetSafeNormal());
+				VisualSub.EnqueueImpact(Shared.VFXData, VfxPos, VfxNormal);
 				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(Ctx.GetEntity(i));
 			}
 		});
@@ -583,6 +632,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			FLNPProjectileFragment& Proj       = Projectiles[i];
 			const FVector           CurrentPos = Transforms[i].GetTransform().GetLocation();
 			const FMassEntityHandle ProjEnt    = Ctx.GetEntity(i);
+			FLNPWorldHit            WorldHit;
+			const FVector           SegmentEnd = TraceSegment(Proj.PreviousPos, CurrentPos, WorldHit);
 
 			// 공격자(발사자) RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (TechDesign_HitDetection.md §5).
 			// 발사(또는 패링 반사) 시점에 1회 캐싱된 값을 재사용 — "공격자가 조준해서 쏜 순간의 지연"만 보정하고
@@ -671,9 +722,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					const FVector CenterWithout = RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, RewindSeconds);
 
 					FVector Ignored;
-					const bool bWith = LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, CurrentPos,
+					const bool bWith = LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, SegmentEnd,
 						CenterWith, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius, Ignored);
-					const bool bWithout = LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, CurrentPos,
+					const bool bWithout = LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, SegmentEnd,
 						CenterWithout, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius, Ignored);
 
 					if (bWith || bWithout)
@@ -690,7 +741,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				FVector HitPoint;
 				if (!LNPHitDetection::SegmentHitsCapsule(
-					Proj.PreviousPos, CurrentPos,
+					Proj.PreviousPos, SegmentEnd,
 					RewoundEnemyCenter(Enemy), Enemy.UpDir,
 					Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius,
 					HitPoint))
@@ -752,7 +803,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				{
 					FVector HitPoint;
 					if (LNPHitDetection::SegmentHitsCapsule(
-						Proj.PreviousPos, CurrentPos,
+						Proj.PreviousPos, SegmentEnd,
 						RewoundCenter(Player.Location, Player.RawLocation, Player.History), Player.UpDir,
 						Player.CapsuleHalfHeight, Player.CapsuleRadius + ParryRadius,
 						HitPoint))
@@ -809,7 +860,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				// 2단계: 피격 체크 (HitRadius — 정상 반경)
 				FVector HitPoint;
 				if (!LNPHitDetection::SegmentHitsCapsule(
-					Proj.PreviousPos, CurrentPos,
+					Proj.PreviousPos, SegmentEnd,
 					RewoundCenter(Player.Location, Player.RawLocation, Player.History), Player.UpDir,
 					Player.CapsuleHalfHeight, Player.CapsuleRadius + HitRadius,
 					HitPoint))
@@ -836,16 +887,17 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 			// 캐릭터 어디에도 닿지 않았다 — 지면 착탄·수명 만료를 여기서 가른다.
 			// 패링으로 반사된 탄은 bHit가 서지 않아 이 검사를 그대로 통과하고 계속 비행한다.
-			if (bHit || !IsTerminated(CurrentPos, Proj.LifetimeRemaining))
+			FVector Center, VfxPos, VfxNormal;
+			if (bHit || !ResolveTermination(CurrentPos, Proj.LifetimeRemaining, WorldHit, Center, VfxPos, VfxNormal))
 				continue;
 
 			// 지면 폭발의 임팩트는 로컬 VFX로 남긴다 — 캐릭터 피격과 달리 Ghost 대조 토큰이 필요 없고,
 			// GameplayCue로 올리면 게스트가 자기 Ghost의 착탄 VFX와 겹쳐 두 번 보게 된다.
-			VisualSub.EnqueueImpact(Shared.VFXData, ImpactVfxPos(CurrentPos), -CurrentPos.GetSafeNormal());
+			VisualSub.EnqueueImpact(Shared.VFXData, VfxPos, VfxNormal);
 			Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 
 			// 제외 대상 없음 — 직격이 없었으니 반경 안의 모두가 스플래시를 받는다.
-			ApplySplash(Ctx, Shared, Proj, CurrentPos, nullptr, nullptr, bFriendlyFire);
+			ApplySplash(Ctx, Shared, Proj, Center, nullptr, nullptr, bFriendlyFire);
 		}
 	});
 }

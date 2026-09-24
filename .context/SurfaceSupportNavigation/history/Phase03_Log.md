@@ -307,3 +307,28 @@ worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분�
 - 자동화 `LootNPop.SurfaceNavigation.WorldCollision.Api`: 식별·miss·제외 Actor·sphere/capsule 정지 위치·바닥/벽 지지 판정·미등록 Unknown counter·ParallelFor worker 256회 결과 일치와 분류 counter 분리. `LootNPop.SurfaceNavigation` 13/13 통과.
 - Gate 0 뒤 정정하기로 한 "라인트레이스는 게임 스레드 전용" 서술을 `LNPWorldDeviceSpawnSubsystem.h`와 `../../TechDesign_WorldDevice.md`에서 고쳤다.
 - 남은 것: debug draw 화면 확인, Gate 0 스파이크 processor를 wrapper로 옮길지는 투사체 전환(구현 단위 2)에서 실제 소비자가 생길 때 판단한다.
+
+## 2026-09-24 — 구현 단위 2: 투사체·Ghost·탄도 가이드 exact 경로
+
+### 구현
+
+- `LNPProjectileMotion::TraceWorld`: `RaycastWorld`(`ProjectileMandatory`)를 감싼 월드 착탄 판정 단일 정의. `UseExactWorldCollision()`은 CVar `LNP.SurfaceNav.ProjectileExact`(0=legacy 기본, 1=exact)를 읽는다.
+- `ULNPProjectileHitDetectionProcessor`: 서버·Ghost 두 분기 모두 프레임 선분의 월드 hit을 먼저 구하고 캐릭터 판정 선분을 `PreviousPos → ImpactPoint`로 자른다. 캐릭터에 안 맞았으면 월드 hit 지점에서 폭발·스플래시(중심 `ImpactPoint`, VFX는 법선 방향으로 띄움). exact 경로의 수명 만료는 공중 폭발.
+- `PredictArcExact`: 스텝 선분마다 `TraceWorld`, 첫 hit의 `ImpactPoint`가 착탄점. legacy `PredictArc`와 적분·재표집 루프(`SimulateArc`)를 공유한다. `ULNPTrajectoryGuideComponent`가 CVar로 둘 중 하나를 고른다.
+- 형상은 line으로 정했다(sphere 아님). 근거와 패링 반사 한계는 `design/RuntimeCollision.md` "투사체 월드 충돌".
+- unity 빌드 묶음이 바뀌며 `LNPExactQuerySpike.cpp`와 `LNPMassWorldCollision.cpp`의 익명 네임스페이스 `CyclesToNs`(반환형 다름)가 충돌했다. 후자를 `WorldCollisionCyclesToNs`로 바꿨다.
+
+### 검증
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음.
+- 자동화 `LootNPop.SurfaceNavigation.WorldCollision.ProjectileArc` 통과. 첫 실행은 fixture를 원점 근처에 둬서 실패했다 — 중력이 원점에서 바깥쪽이라 원점 가까이서는 옆으로 크게 휘어 궤적이 바닥을 벗어났다. fixture를 원점에서 1km 떨어뜨려 해결. 기존 13개는 같은 실행에서 통과.
+- 에디터 바이너리 `-game` 리슨 2P(`TestMap03?Listen`, `-corelimit=4`), 사용자 플레이 테스트:
+  - CVar 1: 호스트·게스트 모두 소총탄이 배경 프랍을 관통하지 않음, 프랍 뒤 적에게 피해 없음, 유탄이 프랍에 막혀 그 자리에서 폭발.
+  - CVar 0: 호스트·게스트 모두 기존대로 프랍을 통과(legacy 회귀 없음).
+- 호스트 `LNP.SurfaceNav.WorldCollision.Report`(CVar 1 약 4분): `ProjectileMandatory count=40027 hits=1141 avg=2.08us max=306.50us`, 합계 83.3ms(약 167 q/s, 프레임당 0.1ms 미만), `UnknownHits=0`. 두 로그 모두 ensure·assert 0. 게스트 Report는 확인하지 않았다.
+- max 306us는 단발 이상치로 보고 부하 기준선(구현 단위 4) P95에서 다시 본다.
+
+### 남은 구현 단위 2 항목
+
+- world collision envelope 최외곽 반지름 안전망.
+- 8-slot oracle 통과 뒤 기본값 전환과 `IsUnderSurface`·legacy 분기 제거(D-036).

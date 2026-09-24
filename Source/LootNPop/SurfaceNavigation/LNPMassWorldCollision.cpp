@@ -38,7 +38,7 @@ namespace
 	};
 	static_assert(UE_ARRAY_COUNT(QueryClassNames) == static_cast<int32>(ELNPWorldQueryClass::Count));
 
-	uint64 CyclesToNs(const uint64 Cycles)
+	uint64 WorldCollisionCyclesToNs(const uint64 Cycles)
 	{
 		return static_cast<uint64>(FPlatformTime::GetSecondsPerCycle64() * 1e9 * static_cast<double>(Cycles));
 	}
@@ -129,7 +129,7 @@ bool ULNPMassWorldCollisionSubsystem::RunQuery(const FVector& Start, const FVect
 				const uint64 LockStart = FPlatformTime::Cycles64();
 				Solver->GetExternalDataLock_External().ReadLock();
 				Solver->GetExternalDataLock_External().ReadUnlock();
-				ClassStats.LockNs.fetch_add(CyclesToNs(FPlatformTime::Cycles64() - LockStart), std::memory_order_relaxed);
+				ClassStats.LockNs.fetch_add(WorldCollisionCyclesToNs(FPlatformTime::Cycles64() - LockStart), std::memory_order_relaxed);
 			}
 		}
 	}
@@ -169,7 +169,7 @@ bool ULNPMassWorldCollisionSubsystem::RunQuery(const FVector& Start, const FVect
 		OutHit.Location = End;
 	}
 
-	const uint64 QueryNs = CyclesToNs(FPlatformTime::Cycles64() - QueryStart);
+	const uint64 QueryNs = WorldCollisionCyclesToNs(FPlatformTime::Cycles64() - QueryStart);
 	ClassStats.Count.fetch_add(1, std::memory_order_relaxed);
 	ClassStats.QueryNs.fetch_add(QueryNs, std::memory_order_relaxed);
 	AtomicMax(ClassStats.MaxQueryNs, QueryNs);
