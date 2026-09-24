@@ -26,7 +26,7 @@ Phase 3는 실제 Support Atlas payload를 생성하거나 소비하지 않는�
 ### A. production exact collision response
 
 - [x] production 옥탄트·정적 프랍·동적 지형 후보의 현재 profile과 `LNPWorldExact` response 목록 생성 (`LNP.SurfaceNav.AuditExactResponse`)
-- [ ] `Support`, `Blocker`, `Support+Blocker` 역할에 맞는 profile 적용 — 지각·프랍 HISM·스프링 런처 완료, LootPod는 B의 collision proxy로 해소
+- [x] `Support`, `Blocker`, `Support+Blocker` 역할에 맞는 profile 적용 — 지각·프랍 HISM·스프링 런처, LootPod는 B의 collision proxy로 해소(audit MISSING=0)
 - [x] Destructible Support-only, Blocker-only, Support+Blocker profile 분리(D-039)
 - [ ] production 옥탄트 8-slot에서 line/sphere/capsule query oracle 통과
 - [ ] 신규 exact 경로와 legacy 경로를 비교할 개발 CVar 제공
@@ -36,13 +36,13 @@ Component Tag의 production 전환은 Phase 4까지 나눌 수 있다. 이 Gate�
 
 ### B. hit identity와 lifetime
 
-- [ ] slot→Level Instance/Loaded Level weak reference를 match lifecycle 동안 보존
-- [ ] exact hit에서 component/shape identity, face index, ISM·HISM instance index 추출 가능성 검증
+- [x] slot→Level Instance/Loaded Level weak reference를 match lifecycle 동안 보존 (`ULNPOctantSpawnSubsystem::GetSlotLevel`·`FindSlotForLevel`)
+- [x] exact hit에서 component/shape identity, face index, ISM·HISM instance index 추출 가능성 검증 (`LNP.SurfaceNav.ProbeHitIdentity`)
 - [ ] 게임 스레드에서 immutable hit identity registry 구축·게시
 - [ ] worker 결과는 UObject 역참조 없는 POD만 노출
 - [ ] component 하나의 disconnected sheet 둘이 서로 다른 face identity로 구분되는지 검증
 - [ ] 정적 지형, 동적 패널, 미등록 hit를 각각 분류
-- [ ] LootPod collision proxy(D-047) 구현. ISM instance 제거 뒤 index→PodID 재매핑과 generation 증가를 hit identity 사례로 검증
+- [ ] LootPod collision proxy(D-047) 구현. ISM instance 제거 뒤 index→엔티티 재매핑과 generation 증가를 hit identity 사례로 검증 — 구현·추가/제거·generation 확인, swap으로 옮겨진 인스턴스의 재해석 검증 남음
 - [ ] registry generation과 match reset·stream unload lifecycle gate 검증
 - [ ] 내부형 double-sided shell의 hit normal과 walkable 판정 검증
 

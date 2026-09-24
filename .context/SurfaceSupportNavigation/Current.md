@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate -1 진행 중
-> 마지막 갱신: 2026-09-24
+> 마지막 갱신: 2026-09-24 (Gate -1 B 1차)
 
 ## 현재 목표
 
@@ -43,10 +43,10 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 ## 바로 다음 작업
 
-Gate -1 A의 audit·마이그레이션은 끝났다(`history/Phase03_Log.md` 2026-09-23~24). 남은 A 항목(8-slot oracle, 비교 CVar)은 wrapper 이후에 한다.
+Gate -1 A의 audit·마이그레이션은 끝났다(audit MISSING=0). 남은 A 항목(8-slot oracle, 비교 CVar)은 wrapper 이후에 한다. Gate -1 B는 slot 참조 보존, hit identity 추출, LootPod collision proxy까지 끝났다(`history/Phase03_Log.md` 2026-09-24).
 
-1. 다음 에디터 재시작 빌드 뒤 `LNP.SurfaceNav.AuditExactResponse`로 HISM 행과 instance 수(1106/580/278), LootPod 외 MISSING=0을 확인한다.
-2. Gate -1 B 스파이크: slot→Loaded Level 참조 보존, exact hit에서 component/face/instance index 추출, LootPod collision proxy(D-047)와 ISM index→PodID 재매핑.
+1. `ULNPLootPodCollisionProxySubsystem`의 swap 재매핑 자동화 테스트: 중간 index 제거 뒤 옮겨진 인스턴스가 같은 엔티티로 해석되고 Generation이 오르는지.
+2. Gate -1 B 나머지: 게임 스레드 immutable hit identity registry(지각 component+face, HISM component+Item, proxy Item→엔티티) 게시, worker용 POD 결과와 `UnknownExactSurface`, static/dynamic/미등록 분류, generation과 match reset lifecycle gate.
 3. 부하 시나리오의 적 수·CombatMode 비율·동시 투사체 수, warm-up, 측정 build, P50/P95 기준을 정한다. 목표 구성은 적의 90% 이상이 PureEntity다.
 4. Gate 0 스파이크에 착수한다. 실패하면 D-025를 재논의한다.
 

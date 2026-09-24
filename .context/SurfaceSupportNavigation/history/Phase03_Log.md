@@ -149,3 +149,45 @@ Ok=0. 모든 world geometry가 `BlockAll`/`BlockAllDynamic`이라 custom channel
 
 - 8-slot line/sphere/capsule oracle, exact/legacy 비교 CVar: MassWorldCollision wrapper 이후
 - audit의 ISM 판정 수정은 다음 에디터 재시작 빌드부터 적용된다(정적 콘솔 커맨드는 Live Coding으로 반영되지 않음). 적용 뒤 PIE audit에서 HISM instance 수 1106/580/278 유지를 확인한다.
+
+## 2026-09-24 — Gate -1 B: slot 참조·hit identity 추출·LootPod collision proxy
+
+### 구현
+
+- `ULNPOctantSpawnSubsystem`: 완료 시 slot 순서의 `ALevelInstance`·`ULevel` weak ref를 보존한다. `GetSlotLevel(Slot)`, `FindSlotForLevel(Level)`.
+- `LootPod/LNPLootPodCollisionProxy.*`(D-047): `ULNPLootPodCollisionProxySubsystem`이 hidden ISM(`/Engine/BasicShapes/Sphere` ×2.56 = r128, `LNPStaticBlocker`, `SetRemoveSwap`)을 소유한다. `FLNPLootPodCollisionProxyTag`가 없는 Pod를 게임 스레드 프로세서가 추가하고, `FLNPLootPodTag` Remove observer가 제거한다. index→`FMassEntityHandle` 표와 `Generation`.
+- `BP_LNPLootPod`·`ALNPLootPod::MeshComponent`: `NoCollision`.
+- `LNP.SurfaceNav.ProbeHitIdentity [Distance]`(비-Shipping): 시점 방향 `LNPWorldExact` line trace, `bReturnFaceIndex`. component·profile·source level·slot·`Item`·`FaceIndex`·proxy 엔티티·PodID·generation을 로그로 남긴다.
+- 지난 세션 audit ISM 판정의 const 컴파일 오류 수정(`UStaticMesh::GetBodySetup` 사용).
+
+### 설계 정정
+
+- ISM 기본 제거는 `RemoveAt`(뒤 index 전부 이동)다. swap 전제는 `SetRemoveSwap()`이 있어야 성립한다(`InstancedStaticMesh.cpp` `RemoveInstanceInternal`, physics body도 같이 swap).
+- `PodID`는 서버 전용·비복제라 클라이언트 proxy는 PodID로 매핑할 수 없다. 사용자 결정으로 index→엔티티 핸들(머신 로컬)로 바꾸고 식별자 복제는 추가하지 않았다(`../design/TerrainContract.md` §2).
+- 서버는 엔티티 생성 뒤에 transform을 채운다(`SetupSpawnedEntities`). 그래서 추가는 생성 observer가 아니라 태그 조회 프로세서로 한다.
+
+### 검증 (`LootNPopEditor Win64 Development` 빌드 성공, TestMap03)
+
+- audit(1P PIE): `MISSING=0 ExactOnly=0`, Ok=76. HISM 1106/580/278이 8 slot 모두 유지되고, proxy ISM 117 instance가 Ok다. Current의 직전 다음 작업 1번 완료.
+- probe, 리슨 서버 2P PIE(사용자 조준):
+
+| 대상 | 결과 |
+|:---|:---|
+| 지각 | `Slot=6`, `FaceIndex=72819`, `Item=-1`, UpDot=1.000 |
+| HISM Cube | `Slot=4`, `Item=568`, `FaceIndex=-1` (단순 충돌이라 face 없음) |
+| 스프링 런처 | Persistent, `Slot=-1`, `LNPStaticTerrain` |
+| Pod A(서버) | `Item=8` → entity 17, PodID 9, Generation 118 |
+| Pod B(서버) | `Item=75` → entity 151, PodID 76 |
+| Pod(클라이언트) | `Item=72` → entity 78, `PodID=0`, Generation 119, instance 117 |
+| Popped 자리(서버·클라이언트) | proxy를 관통해 뒤쪽 Cone HISM에 hit |
+
+- 캐릭터(Mover)가 proxy에 막힌다(사용자 확인).
+- 투사체는 Pod를 관통한다. 현재 투사체는 world query 없이 SurfaceCache 반지름 판정(`IsUnderSurface`)만 쓰므로 프랍도 관통한다. 회귀가 아니며 Phase 3 구현 단위 2(투사체 exact 전환)의 범위다.
+- FaceIndex는 trimesh(complex-as-simple) 지각에서만 나오고, 단순 충돌 shape(HISM 프랍·proxy 구)는 `-1`이다. 이 shape의 identity는 `Item`이 담당한다.
+
+### 남은 Gate -1 B 항목
+
+- swap으로 옮겨진 인스턴스의 재해석 검증: 마지막 index의 Pod가 제거된 index로 옮겨진 뒤 같은 엔티티로 해석되는지. 수동 조준보다 subsystem 자동화 테스트가 확실하다.
+- immutable registry 구축·게시, worker POD 결과, static/dynamic/미등록 분류, lifecycle gate
+- disconnected sheet face identity와 double-sided shell normal: 회귀 fixture가 필요하다.
+- `-game` 리슨 서버 2P 스모크(D-031)

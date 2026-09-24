@@ -52,6 +52,13 @@ void ULNPOctantSpawnSubsystem::Tick(float DeltaTime)
 
 	if (bAllLoaded && SpawnedOctants.Num() >= 8)
 	{
+		// SpawnedOctants는 스폰 순서 = slot 순서다(StartWorldGeneration이 8개 전부 성공해야 진행).
+		for (ALevelInstance* Octant : SpawnedOctants)
+		{
+			SlotLevelInstances.Add(Octant);
+			SlotLevels.Add(LevelInstanceSub->GetLevelInstanceLevel(Octant));
+		}
+
 		bIsGenerating = false;
 		bGenerationComplete = true;
 		UE_LOG(LogLootNPop, Log, TEXT("LNPOctantSpawnSubsystem: All 8 octants are fully loaded. Broadcasting Finished event."));
@@ -63,6 +70,24 @@ void ULNPOctantSpawnSubsystem::Tick(float DeltaTime)
 TStatId ULNPOctantSpawnSubsystem::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(ULNPOctantSpawnSubsystem, STATGROUP_Tickables);
+}
+
+ULevel* ULNPOctantSpawnSubsystem::GetSlotLevel(const int32 SlotIndex) const
+{
+	return SlotLevels.IsValidIndex(SlotIndex) ? SlotLevels[SlotIndex].Get() : nullptr;
+}
+
+int32 ULNPOctantSpawnSubsystem::FindSlotForLevel(const ULevel* Level) const
+{
+	if (Level == nullptr)
+		return INDEX_NONE;
+
+	for (int32 SlotIndex = 0; SlotIndex < SlotLevels.Num(); ++SlotIndex)
+	{
+		if (SlotLevels[SlotIndex].Get() == Level)
+			return SlotIndex;
+	}
+	return INDEX_NONE;
 }
 
 bool ULNPOctantSpawnSubsystem::SelectOctantDefinitions(
@@ -187,6 +212,8 @@ void ULNPOctantSpawnSubsystem::StartWorldGeneration()
 		OctantGenSeed = GS->OctantGenSeed;
 
 	SpawnedOctants.Empty();
+	SlotLevelInstances.Empty();
+	SlotLevels.Empty();
 	SelectedOctantDefinitions.Empty();
 	bGenerationComplete = false;
 

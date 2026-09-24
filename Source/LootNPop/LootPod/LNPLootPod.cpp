@@ -37,6 +37,8 @@ ALNPLootPod::ALNPLootPod()
 	// 1. Static Mesh
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	MeshComponent->SetupAttachment(RootComponent);
+	// 충돌은 엔티티 수명에 묶인 collision proxy가 담당한다(ULNPLootPodCollisionProxySubsystem). 승격 Actor는 LOD에 따라 사라진다.
+	MeshComponent->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 
 	// 2. Smart Object Component
 	SmartObjectComponent = CreateDefaultSubobject<USmartObjectComponent>(TEXT("SmartObjectComponent"));
