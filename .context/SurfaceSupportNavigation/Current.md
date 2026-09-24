@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate -1 진행 중
-> 마지막 갱신: 2026-09-24 (Gate -1 B 1차)
+> 마지막 갱신: 2026-09-24 (Gate -1 B 2차 — hit identity registry)
 
 ## 현재 목표
 
@@ -43,12 +43,10 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 ## 바로 다음 작업
 
-Gate -1 A의 audit·마이그레이션은 끝났다(audit MISSING=0). 남은 A 항목(8-slot oracle, 비교 CVar)은 wrapper 이후에 한다. Gate -1 B는 slot 참조 보존, hit identity 추출, LootPod collision proxy까지 끝났다(`history/Phase03_Log.md` 2026-09-24).
+Gate -1 A의 audit·마이그레이션은 끝났다(audit MISSING=0). 남은 A 항목(8-slot oracle, 비교 CVar)은 wrapper 이후에 한다. Gate -1 B는 hit identity registry(`ULNPHitIdentitySubsystem`) 게시와 proxy swap 재매핑 검증까지 끝났다(`history/Phase03_Log.md` 2026-09-24 2차). 남은 B 항목은 lifecycle gate 실측, 동적 패널 분류(구현 단위 3 이후), fixture가 필요한 sheet·shell 검증이다.
 
-1. `ULNPLootPodCollisionProxySubsystem`의 swap 재매핑 자동화 테스트: 중간 index 제거 뒤 옮겨진 인스턴스가 같은 엔티티로 해석되고 Generation이 오르는지.
-2. Gate -1 B 나머지: 게임 스레드 immutable hit identity registry(지각 component+face, HISM component+Item, proxy Item→엔티티) 게시, worker용 POD 결과와 `UnknownExactSurface`, static/dynamic/미등록 분류, generation과 match reset lifecycle gate.
-3. 부하 시나리오의 적 수·CombatMode 비율·동시 투사체 수, warm-up, 측정 build, P50/P95 기준을 정한다. 목표 구성은 적의 90% 이상이 PureEntity다.
-4. Gate 0 스파이크에 착수한다. 실패하면 D-025를 재논의한다.
+1. 부하 시나리오의 적 수·CombatMode 비율·동시 투사체 수, warm-up, 측정 build, P50/P95 기준을 정한다. 목표 구성은 적의 90% 이상이 PureEntity다. 사용자와 수치를 합의한 뒤 Phase 문서 §4에 고정한다.
+2. Gate 0 스파이크에 착수한다. Mass worker 프로세서에서 `LNPWorldExact` line·sphere·capsule 동기 query를 실행하고 `ULNPHitIdentitySubsystem::ResolveHit`으로 해석한다. 실패하면 D-025를 재논의한다.
 
 ## Phase 1에서 확정된 입력 계약
 
@@ -87,6 +85,14 @@ Gate -1 A의 audit·마이그레이션은 끝났다(audit MISSING=0). 남은 A �
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-24 Gate -1 B 2차:
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음
+- `LootNPop.SurfaceNavigation` 자동화 12/12 통과(신규 `HitIdentity.LootPodProxySwapRemap` 포함)
+- 리슨 서버 2P PIE: 서버·클라이언트 slot source 32개 등록(미분류 0), 지각·HISM·런처·Pod의 registry 해석이 기대와 일치하고 `UnknownHits=0`, Pop 뒤 proxy 재해석이 일치하고 캐릭터가 Pop 자리를 통과한다
+
+Phase 2 인계 시점:
 
 - `LootNPopEditor Win64 Development`: 성공, Editor 종료 상태의 전체 빌드
 - `LootNPop Win64 Development`: 성공

@@ -1,6 +1,6 @@
 # Phase 3 — MassWorldCollision 정확성 기준선
 
-> 상태: 착수 준비
+> 상태: 진행 중
 > 예상 범위: 3~5세션
 > 선행 조건: Phase 2 Octant Definition과 베이크 스키마
 
@@ -38,11 +38,11 @@ Component Tag의 production 전환은 Phase 4까지 나눌 수 있다. 이 Gate�
 
 - [x] slot→Level Instance/Loaded Level weak reference를 match lifecycle 동안 보존 (`ULNPOctantSpawnSubsystem::GetSlotLevel`·`FindSlotForLevel`)
 - [x] exact hit에서 component/shape identity, face index, ISM·HISM instance index 추출 가능성 검증 (`LNP.SurfaceNav.ProbeHitIdentity`)
-- [ ] 게임 스레드에서 immutable hit identity registry 구축·게시
-- [ ] worker 결과는 UObject 역참조 없는 POD만 노출
+- [x] 게임 스레드에서 immutable hit identity registry 구축·게시 (`ULNPHitIdentitySubsystem`)
+- [x] worker 결과는 UObject 역참조 없는 POD만 노출 (`FLNPExactHitIdentity`) — worker 호출 검증은 Gate 0
 - [ ] component 하나의 disconnected sheet 둘이 서로 다른 face identity로 구분되는지 검증
-- [ ] 정적 지형, 동적 패널, 미등록 hit를 각각 분류
-- [ ] LootPod collision proxy(D-047) 구현. ISM instance 제거 뒤 index→엔티티 재매핑과 generation 증가를 hit identity 사례로 검증 — 구현·추가/제거·generation 확인, swap으로 옮겨진 인스턴스의 재해석 검증 남음
+- [ ] 정적 지형, 동적 패널, 미등록 hit를 각각 분류 — 정적 지형·런처·proxy와 미등록은 완료, 동적 패널은 구현 단위 3 이후
+- [x] LootPod collision proxy(D-047) 구현. ISM instance 제거 뒤 index→엔티티 재매핑과 generation 증가를 hit identity 사례로 검증 (`LootNPop.SurfaceNavigation.HitIdentity.LootPodProxySwapRemap`)
 - [ ] registry generation과 match reset·stream unload lifecycle gate 검증
 - [ ] 내부형 double-sided shell의 hit normal과 walkable 판정 검증
 

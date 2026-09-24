@@ -72,37 +72,66 @@ UInstancedStaticMeshComponent* ULNPLootPodCollisionProxySubsystem::GetOrCreatePr
 
 void ULNPLootPodCollisionProxySubsystem::AddPod(const FMassEntityHandle Entity, const FTransform& PodTransform)
 {
-	if (EntityToInstance.Contains(Entity))
+	if (EntityToInstance.Contains(Entity) || PendingAdds.ContainsByPredicate([Entity](const TPair<FMassEntityHandle, FTransform>& Pending) { return Pending.Key == Entity; }))
 		return;
 
-	UInstancedStaticMeshComponent* ISM = GetOrCreateProxyComponent();
-
-	const FVector Center = PodTransform.TransformPositionNoScale(FVector(0.f, 0.f, PodProxyCenterUp));
-	const FTransform InstanceTransform(PodTransform.GetRotation(), Center, FVector(PodProxyRadius / ProxyMeshRadius));
-	const int32 InstanceIndex = ISM->AddInstance(InstanceTransform, /*bWorldSpace=*/true);
-	check(InstanceIndex == InstanceToEntity.Num());
-
-	InstanceToEntity.Add(Entity);
-	EntityToInstance.Add(Entity, InstanceIndex);
-	++Generation;
+	PendingAdds.Emplace(Entity, PodTransform);
 }
 
 void ULNPLootPodCollisionProxySubsystem::RemovePod(const FMassEntityHandle Entity)
 {
-	int32 InstanceIndex = INDEX_NONE;
-	if (!EntityToInstance.RemoveAndCopyValue(Entity, InstanceIndex))
+	// 아직 반영되지 않은 추가는 요청째 취소한다.
+	if (PendingAdds.RemoveAll([Entity](const TPair<FMassEntityHandle, FTransform>& Pending) { return Pending.Key == Entity; }) > 0)
 		return;
 
-	check(ProxyComponent);
-	ProxyComponent->RemoveInstance(InstanceIndex);
-
-	// ISM과 같은 RemoveAtSwap — 마지막 인스턴스가 빈 index로 옮겨진다.
-	InstanceToEntity.RemoveAtSwap(InstanceIndex, EAllowShrinking::No);
-	if (InstanceToEntity.IsValidIndex(InstanceIndex))
+	if (EntityToInstance.Contains(Entity))
 	{
-		EntityToInstance[InstanceToEntity[InstanceIndex]] = InstanceIndex;
+		PendingRemoves.AddUnique(Entity);
 	}
+}
+
+bool ULNPLootPodCollisionProxySubsystem::ApplyPendingChanges()
+{
+	if (PendingAdds.IsEmpty() && PendingRemoves.IsEmpty())
+		return false;
+
+	for (const FMassEntityHandle Entity : PendingRemoves)
+	{
+		int32 InstanceIndex = INDEX_NONE;
+		if (!EntityToInstance.RemoveAndCopyValue(Entity, InstanceIndex))
+			continue;
+
+		check(ProxyComponent);
+		ProxyComponent->RemoveInstance(InstanceIndex);
+
+		// ISM과 같은 RemoveAtSwap — 마지막 인스턴스가 빈 index로 옮겨진다.
+		InstanceToEntity.RemoveAtSwap(InstanceIndex, EAllowShrinking::No);
+		if (InstanceToEntity.IsValidIndex(InstanceIndex))
+		{
+			EntityToInstance[InstanceToEntity[InstanceIndex]] = InstanceIndex;
+		}
+	}
+	PendingRemoves.Reset();
+
+	if (!PendingAdds.IsEmpty())
+	{
+		UInstancedStaticMeshComponent* ISM = GetOrCreateProxyComponent();
+		for (const TPair<FMassEntityHandle, FTransform>& Pending : PendingAdds)
+		{
+			const FTransform& PodTransform = Pending.Value;
+			const FVector Center = PodTransform.TransformPositionNoScale(FVector(0.f, 0.f, PodProxyCenterUp));
+			const FTransform InstanceTransform(PodTransform.GetRotation(), Center, FVector(PodProxyRadius / ProxyMeshRadius));
+			const int32 InstanceIndex = ISM->AddInstance(InstanceTransform, /*bWorldSpace=*/true);
+			check(InstanceIndex == InstanceToEntity.Num());
+
+			InstanceToEntity.Add(Pending.Key);
+			EntityToInstance.Add(Pending.Key, InstanceIndex);
+		}
+		PendingAdds.Reset();
+	}
+
 	++Generation;
+	return true;
 }
 
 FMassEntityHandle ULNPLootPodCollisionProxySubsystem::ResolveInstance(const int32 InstanceIndex) const

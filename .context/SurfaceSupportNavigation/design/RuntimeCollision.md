@@ -71,6 +71,20 @@
 - registry가 hit를 해석하지 못하면 임의 Layer로 스냅하지 않고 `UnknownExactSurface`를 반환한다. 착지는 보수적으로 처리하고 진단 counter를 증가시킨다.
 - registry는 Level Instance와 component lifetime보다 짧지 않아야 하며 match reset·stream unload 전에 Mass lifecycle gate로 worker 접근을 중단한다.
 
+#### Phase 3 구현 계약 (`ULNPHitIdentitySubsystem`)
+
+| 항목 | 규약 |
+|:---|:---|
+| slot source | 옥탄트 생성 완료 뒤 slot Level의 component 중 `LNPWorldExact`를 Block하는 것을 LNP collision profile로 분류해 일괄 등록한다. slot Level 목록이 바뀌면(생성 재시작·언로드) 전부 버리고 다시 모은다 |
+| 런타임 source | slot Level 밖의 source는 소유자가 BeginPlay·EndPlay에서 등록·해제한다. 분류는 같은 profile 표를 쓴다. 현재 스프링 런처, 이후 동적 패널 |
+| Mass proxy source | proxy 서브시스템의 index→엔티티 표를 게시마다 복사한다 |
+| 분류 | profile → `Static`·`Dynamic`·`Destructible` 수명주기와 `Support`·`Blocker` 역할. 분류되지 않는 Block component는 등록하지 않으므로 hit 시 `Unknown`이 된다 |
+| 키 | weak component의 index·serial. 해시와 비교 모두 UObject를 역참조하지 않는다 |
+| 게시 | 게임 스레드가 dirty만 표시하고 tickable 구간에서 새 불변 snapshot으로 교체한다. tickable은 TG_PostPhysics 완료 대기 뒤·TG_PostUpdateWork 전에 돌고(`LevelTick.cpp`), 이 구간에는 Mass phase가 없다 |
+| worker 조회 | `GetSnapshot`·`ResolveHit`. snapshot은 공유 참조로 잡고 락 없이 읽는다 |
+| 결과 | `FLNPExactHitIdentity` POD: 수명주기·역할·slot·FaceIndex·InstanceIndex·proxy 엔티티·registry generation |
+| 미해석 | 미등록 component와 proxy 표 범위 밖 Item은 `Unknown`을 반환하고 counter를 올린다 |
+
 ### 비동기 물리와 쿼리 데이터 시점
 
 프로젝트는 `bTickPhysicsAsync=True`다. 게임 스레드 밖의 scene query는 GT data, 즉 게임 스레드에서 보간된 자세를 본다(`SceneQuery.cpp` `GetThreadQueryContext`).

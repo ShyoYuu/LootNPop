@@ -4,6 +4,7 @@
 #include "DataAsset/LNPWorldDeviceConfig.h"
 #include "Interaction/LNPInteractableRegistrySubsystem.h"
 #include "Interaction/LNPInteractionPromptWidget.h"
+#include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/WidgetComponent.h"
@@ -47,6 +48,12 @@ void ALNPSpringLauncher::BeginPlay()
 	{
 		Registry->RegisterInteractable(this);
 	}
+
+	// 서버 스폰 정적 장치(D-045)는 slot Level 밖에 있으므로 exact hit identity에 직접 등록한다.
+	if (ULNPHitIdentitySubsystem* HitIdentity = UWorld::GetSubsystem<ULNPHitIdentitySubsystem>(GetWorld()))
+	{
+		HitIdentity->RegisterRuntimeSource(MeshComponent);
+	}
 }
 
 void ALNPSpringLauncher::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -54,6 +61,10 @@ void ALNPSpringLauncher::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (ULNPInteractableRegistrySubsystem* Registry = UWorld::GetSubsystem<ULNPInteractableRegistrySubsystem>(GetWorld()))
 	{
 		Registry->UnregisterInteractable(this);
+	}
+	if (ULNPHitIdentitySubsystem* HitIdentity = UWorld::GetSubsystem<ULNPHitIdentitySubsystem>(GetWorld()))
+	{
+		HitIdentity->UnregisterRuntimeSource(MeshComponent);
 	}
 
 	Super::EndPlay(EndPlayReason);

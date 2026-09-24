@@ -80,6 +80,7 @@
 - hit identity(D-037)는 ISM instance index를 오브젝트의 Mass 엔티티 핸들로 바꾼다. 엔티티 핸들은 머신 로컬 값이며, 복제되지 않는 서버 전용 식별자(LootPod의 `PodID`)는 필요하면 서버가 fragment에서 읽는다. 식별자를 복제 페이로드에 추가하지 않는다.
 - proxy ISM은 `SetRemoveSwap()`으로 만든다. 엔진 기본 제거는 `RemoveAt`이라 뒤쪽 index가 전부 한 칸씩 밀린다. swap 모드에서는 마지막 인스턴스가 빈 index로 옮겨지므로(physics body 포함), index→엔티티 표도 같은 방식으로 게임 스레드가 갱신하고 registry generation을 올린다.
 - 인스턴스 추가는 생성 observer가 아니라 proxy 미보유 태그를 조회하는 게임 스레드 프로세서가 한다. 서버는 엔티티 생성 뒤에 transform을 채우기 때문이다. 제거는 식별 태그의 Remove observer가 한다.
+- 추가·제거 요청은 큐에만 쌓고, hit identity snapshot 게시 직전에 ISM과 표에 한꺼번에 반영한다. ISM 제거는 physics body index를 즉시 swap하므로, 요청 시점에 반영하면 다음 게시까지 Mass worker가 바뀐 index를 이전 표로 해석해 다른 엔티티를 돌려준다. 대가로 proxy 충돌의 생성·소멸이 최대 1프레임 늦다.
 - LootPod 캡슐: `SM_MatPreviewMesh_01` bounds(X ±128.7, Y ±119.9, Z 0~255.5cm)에서 반지름 128cm, 반높이 128cm, 중심은 Pod 로컬 Up +128cm이다. 반높이가 반지름과 같아 실질적으로 구이므로 엔진 `/Engine/BasicShapes/Sphere`(반지름 50cm)를 2.56배로 쓴다(`ULNPLootPodCollisionProxySubsystem`).
 - 클라이언트 proxy 위치는 양자화된 복제 위치에서 만들어지므로 서버와 수 cm 차이가 날 수 있다.
 
