@@ -129,7 +129,7 @@ float ULNPHitIdentitySubsystem::ComputeSourceMaxRadius(UPrimitiveComponent& Comp
 	return static_cast<float>(FMath::Sqrt(MaxDistSquared));
 }
 
-void ULNPHitIdentitySubsystem::RegisterRuntimeSource(UPrimitiveComponent* Component)
+void ULNPHitIdentitySubsystem::RegisterRuntimeSource(UPrimitiveComponent* Component, const FLNPPlacementId& Placement, const float MaxRadiusOverride)
 {
 	check(IsInGameThread());
 	if (Component == nullptr)
@@ -143,8 +143,10 @@ void ULNPHitIdentitySubsystem::RegisterRuntimeSource(UPrimitiveComponent* Compon
 		return;
 	}
 
-	// 서버 스폰 장치는 스폰 뒤 움직이지 않는다(D-045). 동적 패널은 등록 시점 자세가 아니라 경로 swept bounds를 넣어야 한다.
-	Entry.MaxRadius = ComputeSourceMaxRadius(*Component);
+	// 서버 스폰 장치는 스폰 뒤 움직이지 않는다(D-045). 움직이는 패널은 등록 시점 자세가 아니라 경로 swept 반지름을 넘긴다.
+	Entry.MaxRadius = MaxRadiusOverride > 0.f ? MaxRadiusOverride : ComputeSourceMaxRadius(*Component);
+	Entry.Slot = Placement.Slot;
+	Entry.MarkerId = Placement.MarkerId;
 	RuntimeSources.Add(Component, Entry);
 	bDirty = true;
 }
@@ -318,6 +320,7 @@ FLNPExactHitIdentity ULNPHitIdentitySubsystem::ResolveHit(const FLNPHitIdentityS
 	Identity.Lifetime = Entry->Lifetime;
 	Identity.Roles = Entry->Roles;
 	Identity.Slot = Entry->Slot;
+	Identity.MarkerId = Entry->MarkerId;
 	return Identity;
 }
 

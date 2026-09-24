@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "DynamicTerrain/LNPPlacementTypes.h"
 #include "Mass/EntityHandle.h"
 #include "Mass/ExternalSubsystemTraits.h"
 #include "Subsystems/WorldSubsystem.h"
@@ -39,8 +40,11 @@ struct FLNPExactHitIdentity
 	ELNPExactSourceLifetime Lifetime = ELNPExactSourceLifetime::Unknown;
 	uint8 Roles = ELNPExactSourceRole::None;
 
-	/** 옥탄트 slot. persistent level의 런타임 source는 INDEX_NONE. */
+	/** 옥탄트 slot. persistent level의 런타임 source는 INDEX_NONE. 마커 요소는 마커의 slot이다. */
 	int8 Slot = INDEX_NONE;
+
+	/** 마커로 배치한 요소의 MarkerId. (Slot, MarkerId)가 DynamicSupport ID다. 그 밖의 source는 무효 GUID. */
+	FGuid MarkerId;
 
 	/** complex(trimesh) collision의 face. 단순 shape는 INDEX_NONE. */
 	int32 FaceIndex = INDEX_NONE;
@@ -64,6 +68,7 @@ struct FLNPExactSourceEntry
 	uint8 Roles = ELNPExactSourceRole::None;
 	int8 Slot = INDEX_NONE;
 	bool bLootPodProxy = false;
+	FGuid MarkerId;
 
 	/** 등록 시점 collision geometry의 원점(구 중심) 최대 거리(cm). world collision envelope의 입력이다. */
 	float MaxRadius = 0.f;
@@ -114,8 +119,12 @@ class LOOTNPOP_API ULNPHitIdentitySubsystem : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 public:
-	/** 게임 스레드 전용. component의 현재 collision profile로 분류한다. 분류할 수 없는 profile이면 경고하고 등록하지 않는다. */
-	void RegisterRuntimeSource(UPrimitiveComponent* Component);
+	/**
+	 * 게임 스레드 전용. component의 현재 collision profile로 분류한다. 분류할 수 없는 profile이면 경고하고 등록하지 않는다.
+	 * @param Placement          마커로 배치한 요소의 (slot, MarkerId). hit identity에 그대로 실린다.
+	 * @param MaxRadiusOverride  0보다 크면 등록 시점 자세 대신 쓴다. 움직이는 요소는 경로 swept 반지름을 넘긴다.
+	 */
+	void RegisterRuntimeSource(UPrimitiveComponent* Component, const FLNPPlacementId& Placement = FLNPPlacementId(), float MaxRadiusOverride = 0.f);
 	void UnregisterRuntimeSource(UPrimitiveComponent* Component);
 
 	/** 모든 스레드. 게시된 최신 snapshot. */

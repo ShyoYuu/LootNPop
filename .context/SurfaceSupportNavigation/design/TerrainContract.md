@@ -88,7 +88,7 @@
 
 - 마커는 LVI 안의 비복제 Actor이며 충돌은 `NoCollision`, 시각화 컴포넌트는 editor-only다. Terrain Contract 태그를 갖지 않는다.
 - 마커는 `UPROPERTY FGuid MarkerId`를 저장한다. 배치할 때 발급하고, 복제·붙여넣기로 생긴 마커는 새 ID를 받는다. `AActor::ActorGuid`는 editor-only 데이터라 cooked 런타임에 없으므로 사용하지 않는다.
-- 마커는 스폰할 Actor 클래스와 그 요소의 로컬 authoring 데이터(경로 spline, 안정 상태 transform, 파라미터)를 가진다.
+- 마커는 스폰할 Actor 클래스와 그 요소의 로컬 authoring 데이터(경로 spline, 안정 상태 transform, 파라미터)를 가진다. 구현은 `ALNPPlacementMarker`이고 루트가 경로 스플라인이다(스플라인 로컬 = 마커 로컬). 요소 클래스는 `ILNPPlacedElement`를 구현해야 한다.
 - 런타임 식별자는 `(slot, MarkerId)`다. 같은 LVI가 여러 slot에 들어가도 구분된다.
 - 스폰할 Actor 클래스가 Conditional Patch를 여는 요소라면, 베이커가 읽을 static patch source mesh를 제공해야 한다. 런타임 표현이 Geometry Collection이어도 patch source는 Static Mesh다.
 - `MarkerId`, marker transform, Actor class, 경로·상태 파라미터, patch source mesh와 안정 상태 transform은 Conditional Patch stale hash 입력이다(D-041).

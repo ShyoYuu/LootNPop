@@ -398,3 +398,47 @@ worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분�
 - 게스트 Report: `ProjectileMandatory count=813 hits=55 avg=13.42us max=57.10us`, `UnknownHits=0`, `EnvelopeEscapes=0`. 양쪽 로그에 `prediction key ... rejected`·ensure 없음.
 - 짧은 세션이라 표본이 적고, 평균 13us는 1차 세션(1.87us)보다 높다. 비용은 구현 단위 4 부하 기준선에서 P95로 다시 본다.
 
+
+## 2026-09-24 — 구현 단위 3: Placement Marker와 움직이는 패널
+
+### 구현 (`Source/LootNPop/DynamicTerrain/`)
+
+- `FLNPPlacementId`(`(slot, MarkerId)`), `ILNPPlacedElement::InitializeFromMarker`(deferred 스폰 중 FinishSpawning 전에 호출 → 초기 스폰 번치에 실림).
+- `ALNPPlacementMarker`: 루트가 `USplineComponent`(경로 = 마커 로컬), NoCollision·비복제. `MarkerId`는 `PostActorCreated`에서 발급, 에디터 복제(`PostDuplicate` Normal)·붙여넣기(`PostEditImport`)는 새로 발급, PIE 복제는 유지.
+- `ALNPMovingPanel`: 복제 Actor, `ReplicatedMovement` 끔, `bAlwaysRelevant`. 초기 복제 `FLNPPanelPath`(마커 원점 위치·회전, 마커 스플라인 위치 곡선 `FInterpCurveVector`, 속도, 끝 정지 시간, `Revision`, 시작 server time). 양쪽이 같은 곡선에서 등속 거리 표(구간당 16샘플)를 만들어 `Pose(serverTime)`을 계산한다. 열린 경로는 왕복, 닫힌 루프는 순환. 회전하지 않고 평행 이동만 한다. 루트 `LNPDynamicTerrain` 400×400×30cm.
+- `ULNPDynamicTerrainSubsystem`: 공통 서버 스폰 `SpawnPlacedActor`(월드 장치 앵커·런처도 이 함수로 옮김), `SpawnFromMarkers`(slot 0~7 Level + persistent level, 중복 MarkerId 경고), DynamicSupport POD snapshot 게시.
+- registry: `RegisterRuntimeSource(Component, Placement, MaxRadiusOverride)`. 패널은 `(slot, MarkerId)`와 경로 swept 반지름을 넘긴다. `FLNPExactHitIdentity::MarkerId` 추가.
+- `ALNPGameMode::OnSurfaceBakingComplete`에서 `SpawnDevices` 다음에 `SpawnFromMarkers`.
+- 콘텐츠: `LVI_Octant_Meadow_00`에 마커 1개(지면 →7.85m 상승 → 15m 수평, 300cm/s, 끝 정지 2초). 8 slot 모두 패널이 생긴다.
+- 진단: `LNP.DynamicTerrain.LogRiders N`(패널 근처 Mover 폰의 base·패널 로컬 위치·속도), `LNP.DynamicTerrain.LogDepartures 1|2`(이탈 관성, 2는 서버 플레이어 자동 점프), `LNP.DynamicTerrain.PlaceRider [i]`(Mover 텔레포트로 패널 위에 올림), `LNP.DynamicTerrain.RiderJump [i]`.
+
+### 1차 2P 플레이 — 실패
+
+- late join 자세 일치, 호스트·게스트 탄이 패널을 관통하지 않음: 통과.
+- 탑승: 상승·하강 중 떨림, 수평 이동 중 미끄러짐(입력으로 따라가야 함), 이탈 관성 없음.
+
+### 원인 1 — 틱 배치(절반만 추종)
+
+- `LogRiders` 측정: base는 패널로 잡히는데, 패널이 0.3초에 90cm 가는 동안 폰은 45cm만 따라가 가장자리에서 떨어졌다.
+- 처음 배치는 `OnWorldPreActorTick`(Mass 페이즈와 겹치지 않게)이었다. NPP 시뮬레이션도 같은 델리게이트에서 돌아 순서가 정해지지 않고, 패널 Actor에 틱이 없어 Mover의 base 추종 틱(`UpdateBasedMovementScheduling` → TG_PrePhysics, `AddTickDependency`는 base의 컴포넌트/Actor 틱이 있을 때만 prerequisite를 건다)이 패널 이동 뒤라는 보장도 없었다.
+- Mover의 전제: NPP 시뮬레이션 뒤, base가 자기 틱에서 움직이고, base 추종 틱이 그 틱을 prerequisite로 잡아 이동량을 캡슐과 pending·presentation sync state에 옮긴다(`UBasedMovementUtils::UpdateSimpleBasedMovement`).
+- 조치: 패널이 자기 Actor 틱(TG_PrePhysics)에서 자세를 갱신한다. snapshot 게시는 모든 패널 Actor 틱을 prerequisite로 갖는 서브시스템 틱 함수(TG_PrePhysics)로 옮겼다. 현재 worker exact query는 StartPhysics 페이즈(투사체 착탄)에만 있으므로 Gate 0의 쓰기 겹침 제약은 유지된다.
+- 재측정: 수평 294cm/s·정지·수직 ±292cm/s 한 주기 동안 패널 로컬 좌표 변화 7초에 0.7cm. 함께 올라탄 ActorPromoted 적도 실려 다닌다.
+
+### 원인 2 — 물리 속도 0(관성 없음)
+
+- 걸어 나가기(`UAsyncWalkingMode::CaptureFinalState`)와 점프(`FJumpImpulseEffect`)는 모두 `GetMovementBaseVelocityAtPoint` → 물리 body 속도를 관성으로 더한다. teleport로 옮긴 kinematic body의 물리 속도는 0이다. `ComponentVelocity`는 이 경로에서 읽히지 않는다.
+- 조치: 매 갱신 뒤 `SetPhysicsLinearVelocity(패널 속도)`. 프레임 선두(Mover 시뮬레이션 시점)에서 `bodyVel == panelVel` 확인.
+
+### 2차 검증
+
+- 사용자 2P(에디터 바이너리 `-game` 리슨): 호스트·게스트 모두 상승·하강·수평 이동에서 떨림 없음, 입력 없이 패널 위 고정 자리 유지.
+- 관성(PIE 리슨 서버, `LogDepartures 2` 자동 점프 5회, 양방향): 이탈 프레임 패널 접평면 299.4~299.8cm/s, 폰 296.3~296.7cm/s(전달률 0.99). +0.3초 237~241cm/s(0.80)는 `UAsyncFallingMode::FallingDeceleration` 기본 200cm/s²과 정확히 일치(300−200×0.3=240)하는 평지 점프와 같은 공중 감속이다. 5회 모두 패널 위에 다시 착지. 걸어 나가기 경로는 같은 속도원을 쓰지만 수치로 따로 재지는 않았다.
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공(경고 없음), `LootNPop.SurfaceNavigation` 자동화 14/14.
+- PIE 서버: 패널 8개 스폰·활성화 4.3ms, 경로 길이 2285cm, swept 반지름 25,435cm(envelope 26,928cm 안).
+
+### 함정
+
+- 옥탄트 LVI는 One File Per Actor다. MCP `save_assets([맵])`은 새 액터 패키지를 저장하지 않고, `save_actor`는 새 패키지에 대해 "Asset does not exist"로 실패한다. `save_assets([])`(dirty 전체)로 저장된다.
+- UE 5.8 `USplineComponent`는 `SplineCurves`가 원본이다(`SplineComponent.UseSplineCurves` 기본 true). MCP로 점 배열을 바꿀 때 크기 변경과 값 변경을 한 호출에 할 수 없다.
+- `SetActorLocation`으로 Mover 폰을 옮기면 다음 시뮬레이션이 sync state로 되돌린다. 테스트 배치는 `FTeleportEffect`로 한다.

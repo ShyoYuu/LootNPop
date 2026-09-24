@@ -49,7 +49,7 @@
 - 읽기 락끼리는 서로 막지 않으므로 여러 worker의 동시 query는 줄을 서지 않는다. 에디터 빌드의 공정 FIFO 락에서는 대기 중인 쓰기 뒤에 새 읽기가 선다.
 - 이 게임은 적의 90% 이상이 물리 body가 없는 PureEntity라, 매 프레임 게임 스레드가 움직이는 body는 플레이어·소수 엘리트·동적 지형뿐이다. 락 경합보다 query 자체의 CPU 비용(지각 trimesh broadphase·narrowphase)이 한계를 정할 가능성이 높다.
 - Gate 0 패키지 측정(게임 락 `FRWLOCK`, 1024 q/frame)에서 게임 스레드 쓰기가 겹치지 않으면 프레임 락 합 P95는 0.1ms였고, kinematic body 62개를 같은 PrePhysics 구간에 움직이면 3.4ms로 30배가 됐다. query 자체도 20~30% 느려졌다. 락 대기는 읽기끼리의 경합이 아니라 **게임 스레드 물리 쓰기와 query phase의 겹침**이 만든다(`../history/Phase03_Log.md` 2026-09-24 Gate 0 패키지 절).
-- 따라서 게임 스레드가 매 프레임 움직이는 body(동적 패널 transform)는 Mass exact query phase가 시작되기 전에 끝나도록 배치한다. ActorPromoted 적·플레이어 Mover의 이동 쓰기가 같은 구간에 겹치는 비용은 구현 단위 4 부하 기준선에서 측정한다.
+- 따라서 게임 스레드가 매 프레임 움직이는 body(동적 패널 transform)는 Mass exact query phase가 시작되기 전에 끝나도록 배치한다. 현재 패널은 TG_PrePhysics Actor 틱에서 움직이고 worker exact query는 StartPhysics 이후 페이즈에만 있다. PrePhysics 페이즈에 exact 소비자를 추가할 때는 `DynamicTerrain.md` §2의 순서를 다시 검토한다. ActorPromoted 적·플레이어 Mover의 이동 쓰기가 같은 구간에 겹치는 비용은 구현 단위 4 부하 기준선에서 측정한다.
 - worker는 결과에서 UObject를 역참조하지 않는다. 위치·법선·거리·time·blocking 여부 같은 POD만 반환한다.
 - 서브시스템은 `TMassExternalSubsystemTraits`에서 `GameThreadOnly = false`를 선언한다.
 - 구현: `ULNPMassWorldCollisionSubsystem`(`SurfaceNavigation/LNPMassWorldCollision.*`). 입력 `FLNPWorldQueryParams`(분류·제외 Actor unique ID), 결과 `FLNPWorldHit`(POD + `FLNPExactHitIdentity`). 분류별 count·시간은 atomic counter, 락 probe는 CVar `LNP.SurfaceNav.WorldCollision.LockProbe`, debug draw는 MPSC 큐를 게임 스레드 Tick에서 그린다(`...DebugDraw`). 보고는 `LNP.SurfaceNav.WorldCollision.Report`.
@@ -266,7 +266,7 @@ Phase 3에서 모든 투사체가 매 프레임 다음을 수행하도록 전환
 | 원천 | hit identity registry에 등록된 source의 `MaxRadius` 최댓값을 snapshot `WorldEnvelopeRadius`로 게시한다. LootPod proxy는 지면 위라 넣지 않는다. 조회는 `ULNPMassWorldCollisionSubsystem::GetWorldEnvelopeRadius`이고 source가 없으면 0(안전망 꺼짐)이다 |
 | `MaxRadius` 계산 | 등록 시점에 한 번(`ULNPHitIdentitySubsystem::ComputeSourceMaxRadius`). complex trimesh는 cooked 물리 정점, 단순 shape는 AABB 꼭짓점, ISM·HISM은 instance별 mesh bounds 꼭짓점. 지각 한 장의 world bounds 꼭짓점은 반지름의 약 √3배라 쓰지 않는다 |
 | 에디터 베이크 전 | Phase 4 베이커가 정적 bounds를 SurfaceData에 넣으면 그 값으로 바꾼다. 런타임 계산은 production 8 slot에서 약 7ms, 1회다 |
-| 동적 요소 | 런타임 source는 등록 시점 자세로 잰다. 스폰 뒤 움직이지 않는 장치(D-045)는 그대로 맞다. 동적 패널(구현 단위 3)은 마커 경로 swept bounds를 넣어야 한다 |
+| 동적 요소 | 런타임 source는 등록 시점 자세로 잰다. 스폰 뒤 움직이지 않는 장치(D-045)는 그대로 맞다. 움직이는 패널은 `RegisterRuntimeSource`의 `MaxRadiusOverride`로 경로 swept 반지름을 넣는다(Meadow_00 마커 25,435cm) |
 | 여유 | 투사체 500cm(`LNPProjectileMotion::WorldEnvelopeMargin`). envelope 밖에서는 중력과 반지름 방향 속도가 모두 바깥을 향해 돌아올 수 없으므로 여유는 경계 여백일 뿐이다 |
 | 기대 빈도 | 0이 정상이다. 이음매 좌표 평면을 정확히 따라가는 선분은 두 body의 공유 모서리 사이로 빠질 수 있다(8-slot oracle의 EdgeMiss). 측도 0이지만 이 안전망이 받는다 |
 

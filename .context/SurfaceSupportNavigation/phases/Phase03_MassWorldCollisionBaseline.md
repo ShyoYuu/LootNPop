@@ -41,7 +41,7 @@ Component Tag의 production 전환은 Phase 4까지 나눌 수 있다. 이 Gate�
 - [x] 게임 스레드에서 immutable hit identity registry 구축·게시 (`ULNPHitIdentitySubsystem`)
 - [x] worker 결과는 UObject 역참조 없는 POD만 노출 (`FLNPExactHitIdentity`) — worker 호출 검증은 Gate 0
 - [ ] component 하나의 disconnected sheet 둘이 서로 다른 face identity로 구분되는지 검증
-- [ ] 정적 지형, 동적 패널, 미등록 hit를 각각 분류 — 정적 지형·런처·proxy와 미등록은 완료, 동적 패널은 구현 단위 3 이후
+- [ ] 정적 지형, 동적 패널, 미등록 hit를 각각 분류 — 정적 지형·런처·proxy와 미등록은 완료. 동적 패널은 `(slot, MarkerId)`와 함께 등록되고 2P 사격이 막히는 것까지 확인, 분류 결과(Dynamic·MarkerId)의 counter 검증은 남음
 - [x] LootPod collision proxy(D-047) 구현. ISM instance 제거 뒤 index→엔티티 재매핑과 generation 증가를 hit identity 사례로 검증 (`LootNPop.SurfaceNavigation.HitIdentity.LootPodProxySwapRemap`)
 - [ ] registry generation과 match reset·stream unload lifecycle gate 검증
 - [ ] 내부형 double-sided shell의 hit normal과 walkable 판정 검증
@@ -83,18 +83,18 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 - [x] 클라이언트 ghost에 같은 world 판정 적용
 - [x] 게임 스레드 `PredictArc`에 같은 충돌 함수 적용
 - [x] `IsUnderSurface`와 반지름 기반 착탄 제거 — exact가 유일한 경로
-- [x] 정적 bounds와 marker swept bounds를 합친 world collision envelope 안전망 — 정적·런타임 source 정점 기준. marker swept bounds는 구현 단위 3에서 동적 패널 등록 때 넣는다
+- [x] 정적 bounds와 marker swept bounds를 합친 world collision envelope 안전망 — 정적·런타임 source 정점 기준, 움직이는 패널은 경로 swept 반지름으로 등록
 
 ### 3. Placement Marker와 동적 패널
 
-- [ ] marker class, `MarkerId`, path authoring 데이터 최소 계약 구현
-- [ ] 서버만 loaded LVI marker를 `(slot, MarkerId)`로 수집
-- [ ] 공통 서버 스폰 함수로 복제 Actor 생성
-- [ ] path revision, 상태, server epoch, 시작 시각 초기 복제
-- [ ] transform tick을 Mover·Mass query·DynamicSupport snapshot보다 앞에 배치 — Mass exact query phase와 겹치면 락 대기가 30배가 된다(Gate 0 패키지 측정)
-- [ ] late join에서 같은 자세 복원
-- [ ] 2P Mover movement base 직렬화와 예측 안정성 확인
-- [ ] PureEntity용 DynamicSupport POD snapshot의 기반 구조 확인
+- [x] marker class, `MarkerId`, path authoring 데이터 최소 계약 구현 — `ALNPPlacementMarker`, 스플라인 루트
+- [x] 서버만 loaded LVI marker를 `(slot, MarkerId)`로 수집 — slot 0~7 + persistent level
+- [x] 공통 서버 스폰 함수로 복제 Actor 생성 — `SpawnPlacedActor`, 월드 장치도 사용
+- [x] path revision, 상태, server epoch, 시작 시각 초기 복제 — 패널은 상태가 없고 server world time이 epoch다(`design/DynamicTerrain.md` §2)
+- [x] transform tick 배치 — 패널 Actor 틱(TG_PrePhysics): Mover NPP 시뮬레이션 뒤·base 추종 틱 앞, worker exact query(StartPhysics~) 앞. snapshot은 패널 틱 뒤 게시
+- [x] late join에서 같은 자세 복원 — 사용자 2P
+- [x] 2P Mover movement base 직렬화와 예측 안정성 확인 — 호스트·게스트 떨림·미끄러짐 없음, 이탈 관성 0.99
+- [x] PureEntity용 DynamicSupport POD snapshot의 기반 구조 확인 — `FLNPDynamicSupportFrame`(소비자는 Phase 6)
 
 ### 4. 부하 기준선
 
@@ -106,7 +106,7 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 | CombatMode 비율 | PureEntity 90% / ActorPromoted 10% — 목표 하한의 보수적 구성. 300→Actor 30, 1000→Actor 100 |
 | 동시 투사체 | 500발. 속도는 실제 무기 DA 값을 그대로 쓰고 별도 분포를 만들지 않는다 |
 | 플레이어 | 2(리슨 서버 호스트 + 게스트) |
-| 동적 body | 구현 단위 3의 동적 패널 수. 확정 전에는 Gate 0 스파이크의 kinematic body 수를 보고서에 적는다 |
+| 동적 body | 구현 단위 3의 움직이는 패널 8개(Meadow_00 마커 1개 × 8 slot) |
 | 측정 build | Development `-game` 리슨 서버 2P, `bTickPhysicsAsync=True`. CPU 모델을 보고서에 적는다 |
 | 시간 | warm-up 10초, capture 30초 |
 | 성공 기준 | 60fps(16.6ms) 유지, exact query 합계 P95 ≤ 2ms/frame(worker 합산), scene read-lock 대기 P95 ≤ 0.2ms/frame |
@@ -121,7 +121,7 @@ Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 - [ ] 내부형 shell normal
 - [ ] 한 component의 분리된 sheet face identity와 ISM/HISM instance identity
 - [x] production 8-slot exact collision — `LNP.SurfaceNav.ExactOracle`(콘솔, 생성된 월드 필요)
-- [ ] 패널 탑승 2P와 이동 중 late join
+- [x] 패널 탑승 2P와 이동 중 late join — 수동 플레이 + `LNP.DynamicTerrain.LogRiders`·`LogDepartures` 계측
 - [ ] Editor 자동화
 - [ ] `-game` 리슨 서버 2P 스모크(D-031)
 
@@ -131,7 +131,7 @@ Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 - [ ] production 콘텐츠에서 `LNPWorldExact` 기본 전환 후 관통 회귀가 없음
 - [ ] worker가 UObject를 역참조하지 않고 exact hit 의미를 해석함
 - [ ] 투사체·ghost·탄도 가이드가 같은 world collision 함수를 사용함
-- [ ] 동적 패널이 late join 포함 2P Mover의 valid movement base로 동작함
+- [x] 동적 패널이 late join 포함 2P Mover의 valid movement base로 동작함
 - [ ] 고정 부하 시나리오의 query 비용·락 대기 기준선 확보
 - [ ] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공
 - [ ] `Current.md`, `Roadmap.md`, `../history/Phase03_Log.md` 갱신
