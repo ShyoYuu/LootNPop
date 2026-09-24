@@ -7,6 +7,7 @@
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "GameLogic/LNPWorldDeviceSpawnSubsystem.h"
+#include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
 #include "Player/LNPPlayerController.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LootNPop.h"
@@ -71,6 +72,12 @@ void ALNPGameMode::OnSurfaceBakingComplete()
 	if (ULNPWorldDeviceSpawnSubsystem* DeviceSub = World->GetSubsystem<ULNPWorldDeviceSpawnSubsystem>())
 	{
 		DeviceSub->SpawnDevices();
+	}
+
+	// 마커 요소(움직이는 패널 등)도 같은 이유로 여기서 스폰한다 — slot Level이 로드돼 있어야 마커를 찾는다.
+	if (ULNPDynamicTerrainSubsystem* DynamicTerrainSub = World->GetSubsystem<ULNPDynamicTerrainSubsystem>())
+	{
+		DynamicTerrainSub->SpawnFromMarkers();
 	}
 
 	if (ULNPMassSpawnSubsystem* SpawnSub = World->GetSubsystem<ULNPMassSpawnSubsystem>())

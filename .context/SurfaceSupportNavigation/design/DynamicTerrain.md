@@ -1,6 +1,6 @@
 # 동적 지형과 Runtime Overlay 설계
 
-> 상태: 초안
+> 상태: 초안(§1~§3은 Phase 3 구현 기준 설계)
 > 읽기 조건: 움직이는 패널, 상태형 길, 파괴, 훅 앵커 같은 배치 요소 또는 지역 revision을 구현할 때
 > 최초 설계 원본: `../history/InitialPlan.md`
 
@@ -25,7 +25,7 @@ Mover는 발밑 base 컴포넌트 참조를 네트워크로 직렬화한다(`Mov
 ```
 
 - 마커의 월드 transform에는 slot 회전이 이미 적용돼 있으므로 서버는 그대로 사용한다.
-- 스폰 시점은 현재 World Device 배치와 같은 자리다.
+- 스폰 시점은 현재 World Device 배치와 같은 자리다(`ALNPGameMode::OnSurfaceBakingComplete`, `SpawnDevices` 다음).
 - 마커 계약은 `TerrainContract.md` §2-1이 소유한다.
 - `LNPOctantSpawnSubsystem`은 완료 뒤에도 slot→Level Instance/Loaded Level weak reference를 match lifecycle 동안 보존한다. 월드 전체 Actor 검색이나 회전값 추론으로 slot을 복원하지 않는다.
 
@@ -36,7 +36,7 @@ Mover는 발밑 base 컴포넌트 참조를 네트워크로 직렬화한다(`Mov
 | 수동 마커 | 레벨 디자인 의도가 필요한 패널·기둥·다리·파괴 조각·훅 앵커 |
 | seed 기반 절차 배치 | 현재의 훅 앵커·런처 랜덤 배치 |
 
-두 source 모두 같은 서버 스폰 함수를 거친다. 마커에 "그룹 내 N개 중 M개를 seed로 선택" 같은 규칙을 붙이는 것은 필요해질 때 추가한다.
+두 source 모두 같은 서버 스폰 함수(`ULNPDynamicTerrainSubsystem::SpawnPlacedActor`)를 거친다. deferred 스폰으로 초기화 콜백을 FinishSpawning 전에 불러, 거기서 채운 복제 프로퍼티가 초기 스폰 번치에 실린다. 마커 요소는 `ILNPPlacedElement::InitializeFromMarker`를 구현한다. 마커에 "그룹 내 N개 중 M개를 seed로 선택" 같은 규칙을 붙이는 것은 필요해질 때 추가한다.
 
 ### 런타임 데이터 원본
 
@@ -51,12 +51,33 @@ Mover는 발밑 base 컴포넌트 참조를 네트워크로 직렬화한다(`Mov
 - Mover base 예측이 같은 시각의 같은 자세를 보게 된다.
 - 쓰러지는 기둥도 물리 낙하가 아니라 사전 정의된 전이 곡선과 안정 transform을 따른다.
 - 경로 revision, 상태, server epoch와 시작 시각을 초기 복제에 포함해 late join도 같은 자세를 재구성한다.
-- transform 갱신 tick은 Mover simulation, Mass exact query와 DynamicSupport snapshot 게시보다 먼저 실행한다. 구체적인 tick group/prerequisite는 Phase 3의 2P 스파이크에서 고정한다.
+- transform 갱신은 요소 Actor 자신의 틱(TG_PrePhysics)에서 한다. 순서는 다음과 같이 고정한다(2026-09-24 2P 측정).
+
+```text
+OnWorldPreActorTick   NPP Mover 시뮬레이션(직전 프레임 자세의 base 위)
+TG_PrePhysics         요소 Actor 틱: 자세 갱신 + 물리 속도 설정
+                      → Mover base 추종 틱(요소 Actor 틱이 prerequisite): 이동량을 캡슐·sync state에 반영
+                      → DynamicSupport snapshot 게시 틱(모든 요소 Actor 틱이 prerequisite)
+TG_StartPhysics~      Mass worker exact query
+```
+
+  - 시뮬레이션 전(`OnWorldPreActorTick`)에 옮기거나 Actor 틱 없이 옮기면 Mover가 이동량 일부를 놓친다. 측정에서는 절반만 추종했다. Mover의 `AddTickDependency`는 base에 컴포넌트/Actor 틱이 있을 때만 prerequisite를 건다.
+  - 현재 worker exact query는 StartPhysics 이후 페이즈에만 있어 TG_PrePhysics의 transform 쓰기와 겹치지 않는다(Gate 0). PrePhysics 페이즈에 exact 소비자를 추가하면 이 배치를 다시 검토한다.
+- teleport로 옮긴 kinematic body의 물리 속도는 0이다. Mover는 base를 떠날 때(걸어 나가기·점프) `GetMovementBaseVelocityAtPoint`로 물리 속도를 관성에 더하므로, 매 갱신 뒤 물리 선속도를 결정론적 속도로 설정한다. `ComponentVelocity`도 함께 둔다.
+- 경로 revision과 시작 시각을 초기 복제에 포함해 late join도 같은 자세를 재구성한다. server world time이 곧 server epoch다(매치·월드마다 0에서 시작). 움직이는 패널은 상태가 없다. 상태 복제는 상태형 요소(§4)에서 추가한다.
 - `ReplicatedMovement`와 결정론적 transform 갱신을 동시에 사용하지 않는다. 큰 server-time 보정이나 상태 revision 불일치는 snap/짧은 보정 중 하나를 명시적으로 적용하고 진단한다.
 
 ## 3. 움직이는 패널
 
 움직이는 패널은 경로 탐색 대상이 아니지만 NPC와 플레이어가 우연히 착지할 수 있다.
+
+### 구현 규약(Phase 3, `ALNPMovingPanel`)
+
+- 경로는 마커 루트 스플라인의 위치 곡선(`FInterpCurveVector`, 마커 로컬)을 그대로 초기 복제하고 마커 월드 transform을 원점으로 쓴다. 스폰 번치의 Actor 위치는 복제 시점 위치라 원점으로 쓰지 않는다.
+- 양쪽이 같은 곡선에서 등속 거리 표를 만든다. 열린 경로는 양 끝에서 정지하며 왕복하고, 닫힌 루프는 순환한다. 회전하지 않고 마커 회전을 유지한다. 마커 scale은 무시하고 경고한다.
+- world collision envelope에는 등록 시점 자세 대신 경로 swept 반지름(원점에서 가장 먼 경로 샘플 + 최대 샘플 간격 + 메시 bounding sphere)을 넣는다.
+- hit identity에는 `(slot, MarkerId)`가 실린다.
+- `bAlwaysRelevant`다. 멀리 있는 패널에도 클라이언트 Ghost 투사체·탄도 가이드가 맞아야 하기 때문이다.
 
 ```text
 Airborne

@@ -3,6 +3,7 @@
 #include "GameLogic/LNPWorldDeviceSpawnSubsystem.h"
 #include "Config/LNPSettings.h"
 #include "DataAsset/LNPWorldDeviceConfig.h"
+#include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
 #include "GameMode/LNPGameState.h"
 #include "WorldDevice/LNPGrappleAnchor.h"
 #include "WorldDevice/LNPSpringLauncher.h"
@@ -73,15 +74,16 @@ void ULNPWorldDeviceSpawnSubsystem::SpawnDevices()
 		const FVector Up = -SurfacePoint.GetSafeNormal();
 		const FVector AnchorPoint = SurfacePoint + Up * Config->AnchorHeight;
 
-		// AnchorID는 스폰 번치에 실려야 한다 — Deferred 스폰으로 대입 후 Finish (LootDice 페이로드와 같은 규약).
-		FTransform Xform(UKismetMathLibrary::MakeRotFromZ(Up), AnchorPoint);
-		ALNPGrappleAnchor* Anchor = World->SpawnActorDeferred<ALNPGrappleAnchor>(AnchorClass, Xform);
+		// AnchorID는 스폰 번치에 실려야 한다 — 공통 스폰 함수가 Deferred 스폰으로 대입 후 Finish한다(LootDice 페이로드와 같은 규약).
+		const FTransform Xform(UKismetMathLibrary::MakeRotFromZ(Up), AnchorPoint);
+		const AActor* Anchor = ULNPDynamicTerrainSubsystem::SpawnPlacedActor(*World, AnchorClass, Xform, [NumAnchors](AActor& Spawned)
+		{
+			CastChecked<ALNPGrappleAnchor>(&Spawned)->AnchorID = NumAnchors;
+		});
 		if (Anchor == nullptr)
 		{
 			continue;
 		}
-		Anchor->AnchorID = NumAnchors;
-		Anchor->FinishSpawning(Xform);
 		++NumAnchors;
 	}
 
@@ -98,7 +100,7 @@ void ULNPWorldDeviceSpawnSubsystem::SpawnDevices()
 		const FVector Up = -SurfacePoint.GetSafeNormal();
 		const FQuat YawSpin(Up, FMath::DegreesToRadians(Yaw));
 		const FTransform Xform(YawSpin * UKismetMathLibrary::MakeRotFromZ(Up).Quaternion(), SurfacePoint);
-		if (World->SpawnActor<ALNPSpringLauncher>(LauncherClass, Xform) != nullptr)
+		if (ULNPDynamicTerrainSubsystem::SpawnPlacedActor(*World, LauncherClass, Xform, [](AActor&) {}) != nullptr)
 		{
 			++NumLaunchers;
 		}

@@ -1,12 +1,12 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1·2 완료(투사체 exact 기본, legacy 제거)
-> 마지막 갱신: 2026-09-24 (envelope 안전망, 8-slot oracle 통과, exact 기본 전환)
+> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1·2·3 완료
+> 마지막 갱신: 2026-09-24 (Placement Marker·움직이는 패널, 2P Mover 탑승 통과)
 
 ## 현재 목표
 
-Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`다. Gate -1 A(audit·마이그레이션·8-slot oracle), Gate -1 B 핵심 항목, Gate 0(패키지 게임 락 포함), 구현 단위 1(MassWorldCollision API), 구현 단위 2(투사체 exact 기본·envelope 안전망·legacy 제거)까지 끝났다.
+Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`다. Gate -1 A(audit·마이그레이션·8-slot oracle), Gate -1 B 핵심 항목, Gate 0(패키지 게임 락 포함), 구현 단위 1(MassWorldCollision API), 구현 단위 2(투사체 exact 기본·envelope 안전망·legacy 제거), 구현 단위 3(Placement Marker·움직이는 패널·2P Mover 탑승)까지 끝났다.
 
 Phase 3 범위(`Roadmap.md` §4):
 
@@ -43,11 +43,10 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 ## 바로 다음 작업
 
-Gate -1 A는 끝났다(audit MISSING=0, `LNP.SurfaceNav.ExactOracle` 8-slot PASS). Gate -1 B는 registry 게시와 proxy swap까지 끝났고 lifecycle gate, 동적 패널 분류, fixture 기반 sheet·shell 검증이 남았다. Gate 0은 통과했다(락 대기는 쓰기 겹침이 만든다, `history/Phase03_Log.md` Gate 0 패키지 절). 부하 시나리오 수치는 Phase 문서 §4에 고정돼 있다.
+Gate -1 A, Gate 0, 구현 단위 1~3은 끝났다. 움직이는 패널은 `LVI_Octant_Meadow_00` 마커 1개로 8 slot에 생기며, 자세 갱신은 패널 Actor 틱(TG_PrePhysics)이다. 순서 규칙과 이유는 `design/DynamicTerrain.md` §2에 있다. worker exact query는 StartPhysics 이후 페이즈에만 두어야 이 배치가 쓰기 겹침을 만들지 않는다.
 
-투사체·Ghost·탄도 가이드는 `LNPProjectileMotion::TraceWorld`(line, `ProjectileMandatory`)만 쓴다. 전환 CVar와 `IsUnderSurface`는 제거됐다. 월드 hit 없이 world collision envelope(+500cm) 밖으로 나간 탄은 조용히 소멸하고 `EnvelopeEscapes`가 오른다(`design/RuntimeCollision.md` "최외곽 반지름 안전망").
-
-1. **구현 단위 3 설계 — Placement Marker와 동적 패널.** 패널 transform tick을 Mass exact query phase보다 먼저 끝나게 두고(Gate 0), 동적 패널을 registry에 등록할 때 envelope용으로 등록 시점 자세가 아니라 마커 경로 swept bounds를 넣는다. 착수 전 `design/DynamicTerrain.md`를 읽는다.
+1. **구현 단위 4 — 부하 기준선 harness.** Phase 문서 §4 고정값(적 300·1000, Pure 90%, 투사체 500발, 리슨 2P, 패널 8개)을 자동으로 세우고 exact 합계·락 대기 P95를 보고하는 실행 경로를 만든다. Phase 3b 한계치 측정이 같은 harness를 쓴다.
+2. **Gate -1 B 잔여.** 패널 hit가 `Dynamic`·`MarkerId`로 분류되는지 counter로 확인하고, registry generation의 match reset·stream unload lifecycle gate를 검증한다. disconnected sheet·double-sided shell 검증은 fixture가 필요하다.
 
 ## Phase 1에서 확정된 입력 계약
 
@@ -77,7 +76,6 @@ Gate -1 A는 끝났다(audit MISSING=0, `LNP.SurfaceNav.ExactOracle` 8-slot PASS
 - Phase 3 exact query의 호출 빈도와 배치 단위는 정확성 기준선 측정 뒤 결정한다.
 - 관찰 거리 축의 근처 반경과 원거리 판정 주기는 Phase 3b 실측으로 정한다.
 - `LNPSurfaceSupport` 소비자 전환 시점은 Phase 3 회귀 결과와 함께 확정한다. `LNPWorldExact` 소비자 전환은 production response 마이그레이션과 audit가 통과한 뒤에만 허용한다.
-- Mover가 서버 스폰 복제 패널을 movement base로 인식했을 때 2P 예측이 안정적인지는 Phase 3 스파이크로 확인한다.
 - Nanite mesh의 complex collision이 원본 mesh와 fallback mesh 중 어디서 만들어지는지는 Phase 4a 착수 시 확인한다.
 - Development package의 기존 Lyra Mannequin material은 누락 Material Function 때문에 default material로 대체된다. Surface Navigation 검증과는 분리된 콘텐츠 문제다.
 
@@ -86,6 +84,14 @@ Gate -1 A는 끝났다(audit MISSING=0, `LNP.SurfaceNav.ExactOracle` 8-slot PASS
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-24 구현 단위 3(Placement Marker·움직이는 패널):
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음. `LootNPop.SurfaceNavigation` 자동화 14/14
+- PIE: 마커 1개 → 패널 8개 스폰 4.3ms, swept 반지름 25,435cm(envelope 26,928cm 안)
+- 사용자 2P(에디터 바이너리 `-game` 리슨): late join 자세 일치, 양쪽 탄이 패널에서 막힘, 호스트·게스트 탑승 중 떨림·미끄러짐 없음
+- 계측: 탑승 한 주기 패널 로컬 좌표 변화 7초 0.7cm. 점프 이탈 관성 전달률 0.99(5회), +0.3초 0.80은 `FallingDeceleration` 200cm/s²과 일치
+- 1차 실패(절반 추종·관성 0)의 원인과 조치는 `history/Phase03_Log.md` 같은 날 구현 단위 3 절
 
 2026-09-24 구현 단위 2 완료(envelope·oracle·legacy 제거):
 
@@ -107,17 +113,6 @@ Gate -1 A는 끝났다(audit MISSING=0, `LNP.SurfaceNav.ExactOracle` 8-slot PASS
 - 패키지 리슨 서버·클라이언트 2P와 서버 단독 2회(body 62/0): worker 실행, ensure 0, `UnknownHits=0`, `ClassificationErrors=0`, 옥탄트 slot 칸 차이 0(패키지↔에디터 포함)
 - `LootNPop.SurfaceNavigation` 자동화 13/13 통과(신규 `WorldCollision.Api`)
 - `LootNPop Win64 Development`(게임 타깃) 빌드 성공, 경고 없음. 새 wrapper는 아직 패키지 런타임에서 호출되지 않는다(소비자 없음)
-
-2026-09-24 Gate 0 스파이크:
-
-- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음. Win64 Development BuildCookRun 성공
-- PIE 리슨 2P와 에디터 바이너리 `-game` 리슨 2P에서 1024 q/frame과 동적 body 62개: worker 실행, ensure 0, `UnknownHits=0`, `ClassificationErrors=0`, 옥탄트 slot 결과 차이 0
-- 패키지 실행은 옥탄트 로드 대기에서 멈춰 측정하지 못했다 → 같은 날 해결됨(바로 다음 작업 1번). 락 측정은 아직 하지 않았다
-
-2026-09-24 Gate -1 B 2차:
-
-- `LootNPop.SurfaceNavigation` 자동화 12/12 통과(신규 `HitIdentity.LootPodProxySwapRemap` 포함)
-- 리슨 서버 2P PIE: 서버·클라이언트 slot source 32개 등록(미분류 0), registry 해석 일치, `UnknownHits=0`
 
 Phase 2 인계 시점:
 
