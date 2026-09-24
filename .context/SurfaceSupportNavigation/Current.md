@@ -47,7 +47,7 @@ Gate -1 A는 audit·마이그레이션까지 끝났다(8-slot oracle과 비교 C
 
 Gate 0 스파이크(`SurfaceNavigation/LNPExactQuerySpike.*`)는 PIE와 에디터 바이너리 `-game` 리슨 2P에서 worker 실행, ensure 0, 미해석·분류 오류 0, 옥탄트 결과 일치를 확인했다. 질의 1회는 평균 약 8~9us(에디터 빌드)이며, 합계 P95 ≤ 2ms 기준이면 프레임당 약 200회가 한도다(`history/Phase03_Log.md` 2026-09-24 Gate 0). 남은 항목은 게임 락 조건의 측정이다.
 
-1. 패키지 실행이 옥탄트 로드에서 멈추는 문제를 조사한다. `Saved/SurfaceNavigationPhase3Package/Windows/LootNPop.exe TestMap03?Listen`이 `Spawned 8 LevelInstances. Waiting for load...` 뒤 진행하지 않는다. `ULNPOctantSpawnSubsystem::Tick`의 `IsLoaded()`·`GetLevelInstanceLevel`·`bIsVisible` 중 무엇이 실패하는지 로그를 넣어 확인한다. 런타임 스폰 `ALevelInstance`의 cooked 로드 경로는 아직 검증된 적이 없다.
+1. ~~패키지 실행이 옥탄트 로드에서 멈추는 문제~~ — **해결됨(2026-09-24).** 엔진의 `ALevelInstance::SetWorldAsset`은 `WITH_EDITOR` 전용이라 패키지에서는 `ILevelInstanceInterface`의 no-op(`return false`)으로 떨어지고, 월드 에셋이 빈 채로 `RequestLoadLevelInstance`가 조용히 무시돼 `IsLoaded()`가 계속 false였다. `ALNPOctantLevelInstance::SetRuntimeWorldAsset`이 패키지에서 `CookedWorldAsset`을 직접 채운다. 패키지 리슨 서버 `Server init complete`, 클라이언트(`127.0.0.1`) 옥탄트 8개 로드·베이킹·폰 스폰까지 확인했다.
 2. 해결 뒤 패키지 리슨 서버·클라이언트를 `-ExecCmds="LNP.SurfaceNav.ExactSpike.QueriesPerFrame 1024, LNP.SurfaceNav.ExactSpike.MovingBodies 64, LNP.SurfaceNav.ExactSpike.AutoCapture 1"`로 띄워 락 대기를 측정하고 Gate 0을 판정한다. 에디터 바이너리 `-game`도 `WITH_EDITOR` 락이라 대체할 수 없다.
 
 Gate 0 판정 뒤에는 구현 단위 1(MassWorldCollision API)로 간다. 스파이크의 질의·해석 코드가 wrapper의 출발점이다.
@@ -94,7 +94,7 @@ Gate 0 판정 뒤에는 구현 단위 1(MassWorldCollision API)로 간다. 스�
 
 - `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음. Win64 Development BuildCookRun 성공
 - PIE 리슨 2P와 에디터 바이너리 `-game` 리슨 2P에서 1024 q/frame과 동적 body 62개: worker 실행, ensure 0, `UnknownHits=0`, `ClassificationErrors=0`, 옥탄트 slot 결과 차이 0
-- 패키지 실행은 옥탄트 로드 대기에서 멈춰 측정하지 못했다
+- 패키지 실행은 옥탄트 로드 대기에서 멈춰 측정하지 못했다 → 같은 날 해결됨(바로 다음 작업 1번). 락 측정은 아직 하지 않았다
 
 2026-09-24 Gate -1 B 2차:
 

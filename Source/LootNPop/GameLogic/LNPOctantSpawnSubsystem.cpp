@@ -8,7 +8,7 @@
 
 #include "Kismet/KismetMathLibrary.h"
 #include "Engine/Level.h"
-#include "LevelInstance/LevelInstanceActor.h"
+#include "GameLogic/LNPOctantLevelInstance.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 
 const FRotator ULNPOctantSpawnSubsystem::OctantRotations[8] = {
@@ -241,9 +241,12 @@ void ULNPOctantSpawnSubsystem::StartWorldGeneration()
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-			if (ALevelInstance* LevelInstance = World->SpawnActor<ALevelInstance>(ALevelInstance::StaticClass(), FVector::ZeroVector, OctantRotations[i], SpawnParams))
+			if (ALNPOctantLevelInstance* LevelInstance = World->SpawnActor<ALNPOctantLevelInstance>(ALNPOctantLevelInstance::StaticClass(), FVector::ZeroVector, OctantRotations[i], SpawnParams))
 			{
-				LevelInstance->SetWorldAsset(OctantLevel);
+				if (!LevelInstance->SetRuntimeWorldAsset(OctantLevel))
+				{
+					UE_LOG(LogLootNPop, Error, TEXT("LNPOctantSpawnSubsystem: Failed to set world asset %s for slot %d."), *OctantLevel.ToString(), i);
+				}
 				LevelInstance->LoadLevelInstance();
 				SpawnedOctants.Add(LevelInstance);
 #if WITH_EDITOR
