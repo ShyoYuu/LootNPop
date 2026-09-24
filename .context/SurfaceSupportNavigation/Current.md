@@ -6,7 +6,7 @@
 
 ## 현재 목표
 
-Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`로 작성됐다. 다음 세션은 Gate -1 production exact response audit와 hit identity/lifetime 스파이크부터 시작한다.
+Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`다. Gate -1 핵심 항목과 Gate 0 스파이크의 에디터 조건 측정까지 끝났다.
 
 Phase 3 범위(`Roadmap.md` §4):
 
@@ -43,10 +43,14 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 ## 바로 다음 작업
 
-Gate -1 A의 audit·마이그레이션은 끝났다(audit MISSING=0). 남은 A 항목(8-slot oracle, 비교 CVar)은 wrapper 이후에 한다. Gate -1 B는 hit identity registry(`ULNPHitIdentitySubsystem`) 게시와 proxy swap 재매핑 검증까지 끝났다(`history/Phase03_Log.md` 2026-09-24 2차). 남은 B 항목은 lifecycle gate 실측, 동적 패널 분류(구현 단위 3 이후), fixture가 필요한 sheet·shell 검증이다.
+Gate -1 A는 audit·마이그레이션까지 끝났다(8-slot oracle과 비교 CVar는 wrapper 이후). Gate -1 B는 registry 게시와 proxy swap까지 끝났고 lifecycle gate, 동적 패널 분류, fixture 기반 sheet·shell 검증이 남았다. 부하 시나리오 수치는 합의돼 Phase 문서 §4에 고정됐다.
 
-1. 부하 시나리오의 적 수·CombatMode 비율·동시 투사체 수, warm-up, 측정 build, P50/P95 기준을 정한다. 목표 구성은 적의 90% 이상이 PureEntity다. 사용자와 수치를 합의한 뒤 Phase 문서 §4에 고정한다.
-2. Gate 0 스파이크에 착수한다. Mass worker 프로세서에서 `LNPWorldExact` line·sphere·capsule 동기 query를 실행하고 `ULNPHitIdentitySubsystem::ResolveHit`으로 해석한다. 실패하면 D-025를 재논의한다.
+Gate 0 스파이크(`SurfaceNavigation/LNPExactQuerySpike.*`)는 PIE와 에디터 바이너리 `-game` 리슨 2P에서 worker 실행, ensure 0, 미해석·분류 오류 0, 옥탄트 결과 일치를 확인했다. 질의 1회는 평균 약 8~9us(에디터 빌드)이며, 합계 P95 ≤ 2ms 기준이면 프레임당 약 200회가 한도다(`history/Phase03_Log.md` 2026-09-24 Gate 0). 남은 항목은 게임 락 조건의 측정이다.
+
+1. 패키지 실행이 옥탄트 로드에서 멈추는 문제를 조사한다. `Saved/SurfaceNavigationPhase3Package/Windows/LootNPop.exe TestMap03?Listen`이 `Spawned 8 LevelInstances. Waiting for load...` 뒤 진행하지 않는다. `ULNPOctantSpawnSubsystem::Tick`의 `IsLoaded()`·`GetLevelInstanceLevel`·`bIsVisible` 중 무엇이 실패하는지 로그를 넣어 확인한다. 런타임 스폰 `ALevelInstance`의 cooked 로드 경로는 아직 검증된 적이 없다.
+2. 해결 뒤 패키지 리슨 서버·클라이언트를 `-ExecCmds="LNP.SurfaceNav.ExactSpike.QueriesPerFrame 1024, LNP.SurfaceNav.ExactSpike.MovingBodies 64, LNP.SurfaceNav.ExactSpike.AutoCapture 1"`로 띄워 락 대기를 측정하고 Gate 0을 판정한다. 에디터 바이너리 `-game`도 `WITH_EDITOR` 락이라 대체할 수 없다.
+
+Gate 0 판정 뒤에는 구현 단위 1(MassWorldCollision API)로 간다. 스파이크의 질의·해석 코드가 wrapper의 출발점이다.
 
 ## Phase 1에서 확정된 입력 계약
 
@@ -86,11 +90,16 @@ Gate -1 A의 audit·마이그레이션은 끝났다(audit MISSING=0). 남은 A �
 
 ## 마지막 검증
 
+2026-09-24 Gate 0 스파이크:
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음. Win64 Development BuildCookRun 성공
+- PIE 리슨 2P와 에디터 바이너리 `-game` 리슨 2P에서 1024 q/frame과 동적 body 62개: worker 실행, ensure 0, `UnknownHits=0`, `ClassificationErrors=0`, 옥탄트 slot 결과 차이 0
+- 패키지 실행은 옥탄트 로드 대기에서 멈춰 측정하지 못했다
+
 2026-09-24 Gate -1 B 2차:
 
-- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음
 - `LootNPop.SurfaceNavigation` 자동화 12/12 통과(신규 `HitIdentity.LootPodProxySwapRemap` 포함)
-- 리슨 서버 2P PIE: 서버·클라이언트 slot source 32개 등록(미분류 0), 지각·HISM·런처·Pod의 registry 해석이 기대와 일치하고 `UnknownHits=0`, Pop 뒤 proxy 재해석이 일치하고 캐릭터가 Pop 자리를 통과한다
+- 리슨 서버 2P PIE: 서버·클라이언트 slot source 32개 등록(미분류 0), registry 해석 일치, `UnknownHits=0`
 
 Phase 2 인계 시점:
 

@@ -48,6 +48,9 @@ Mass 쪽은 우선 기존 scene query를 사용하고, Unreal Insights와 전용
 - 락 구현은 `CHAOS_SCENE_LOCK_TYPE`로 정해지는 읽기/쓰기 락이다(`Runtime/Experimental/Chaos/Public/Framework/Threading.h`). 기본값은 에디터 빌드가 `RWFIFO_CRITICALSECTION`(공정 RW, yield), 게임 빌드가 `FRWLOCK`(플랫폼 RW 락)이다. 읽기끼리는 동시에 진행하고, 쓰기 중에는 읽기가 대기한다. 에디터와 패키지의 락 특성이 다르므로 락 대기는 패키지 빌드에서도 측정한다.
 - `GetThreadQueryContext`의 주석은 오디오·애니메이션 같은 게임 스레드 외 태스크의 query를 명시적으로 고려한다.
 
+- 락 종류는 `WITH_EDITOR`로 갈린다. `UnrealEditor.exe -game`(프로젝트 `Standalone_*.lnk`)도 `WITH_EDITOR=1`이라 PIE와 같은 RWFIFO 락을 쓴다. `FRWLOCK` 조건은 패키지 빌드에서만 재현된다.
+- 2026-09-24 Gate 0 스파이크 실측(에디터 락): 병렬 worker가 읽기만 해도 쿼리 직전 read lock 획득 P95가 5.8~10.8us였다. RWFIFO는 읽기 진입도 내부 critical section을 거치므로 읽기끼리 경합하는 것으로 본다(`../history/Phase03_Log.md`).
+
 결론: Mass worker의 동기 query는 thread-safe지만 lock-free가 아니다. 게임 스레드가 컴포넌트를 움직이는 동안 대기가 생길 수 있으므로 락 대기를 측정해야 한다.
 
 ### 비동기 query는 게임 스레드 전용이다

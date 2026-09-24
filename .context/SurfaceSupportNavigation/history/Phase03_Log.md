@@ -232,3 +232,41 @@ Ok=0. 모든 world geometry가 `BlockAll`/`BlockAllDynamic`이라 custom channel
 - 동적 패널 분류: 구현 단위 3 이후.
 - disconnected sheet face identity와 double-sided shell normal: 회귀 fixture가 필요하다.
 - `-game` 리슨 서버 2P 스모크(D-031).
+
+## 2026-09-24 — 부하 시나리오 합의와 Gate 0 스파이크
+
+### 부하 시나리오 (사용자 합의)
+
+적 300·1000 두 단계, PureEntity 90%/ActorPromoted 10%, 동시 투사체 500발(무기 DA 속도 그대로), Development `-game` 리슨 2P, warm-up 10초·capture 30초, 성공 기준 60fps·exact 합계 P95 ≤ 2ms/frame·락 대기 P95 ≤ 0.2ms/frame. 원본은 `../phases/Phase03_MassWorldCollisionBaseline.md` §4다.
+
+### 구현 (`SurfaceNavigation/LNPExactQuerySpike.*`, 비-Shipping 스파이크)
+
+- `ULNPExactQuerySpikeProcessor`: PrePhysics, 게임 스레드 강제 없음, entity 순회 없음(`ShouldAllowQueryBasedPruning=false`). 고정 Fibonacci 방향 3072개를 `k % 3`으로 line·sphere(r50)·capsule(r40 hh90) 동기 `LNPWorldExact` 질의로 순환하고 `ULNPHitIdentitySubsystem::ResolveHit`(snapshot 정적 함수)으로 해석한다. `ParallelFor` 64개 단위.
+- 락 대기: 질의 직전 `Solver->GetExternalDataLock_External()`의 `ReadLock/ReadUnlock` 시간을 따로 잰다. 쿼리 내부 대기를 직접 분리할 수 없는 설치형 엔진에서의 근사다.
+- `ALNPExactSpikeMover`: 게임 스레드 TG_PrePhysics에서 `LNPDynamicTerrain` kinematic cube(300cm)를 질의 방향 위에서 ±100cm 진동시킨다. 런타임 source로 registry에 등록해 Dynamic 분류 정답으로 쓴다.
+- `ULNPExactQuerySpikeSubsystem`: 통계, 결과 표(해시·`Saved/ExactSpike/Table_NetMode*.csv`), 자동 캡처.
+- CVar `LNP.SurfaceNav.ExactSpike.{QueriesPerFrame, MovingBodies, Parallel, LockProbe, AutoCapture}`, 명령 `.Report`·`.Reset`.
+- `LootNPop.Build.cs`: private `Chaos` 의존성(락 계측).
+- 새 파일이 unity 묶음을 바꾸면서 `LNPLootPodCollisionProxy.cpp`와 테스트의 익명 네임스페이스 상수 `PodProxyCenterUp`이 충돌했다. 테스트 쪽을 `TestPodProxyCenterUp`으로 바꿨다.
+
+### 측정 (1024 q/frame, 동적 body 62, Ryzen 7 8845HS 16 논리 코어)
+
+| 조건 | Line P50/P95 | Sphere P50/P95 | Capsule P50/P95 | 프레임 query 합 P50/P95 | 락 probe 쿼리당 P95 | 프레임 락 합 P95 | 프레임 wall P95 |
+|:---|:---|:---|:---|:---|:---|:---|:---|
+| PIE 리슨 서버(2P, 한 프로세스) | 4.0/7.9us | 8.4/15.7us | 9.0/16.0us | 8.1/10.3ms | 5.8us | 5.7ms | 3.2ms |
+| PIE 클라이언트 | 4.0/9.2us | 8.4/18.7us | 9.0/17.7us | 8.4/10.7ms | 10.8us | 5.9ms | 3.2ms |
+| 에디터 바이너리 `-game` 리슨 서버(`-corelimit=4`, 1800프레임) | 3.6/7.0us | 7.9/14.3us | 8.5/14.9us | 7.5/9.1ms | 5.8us | 1.65ms | 4.75ms |
+| 에디터 바이너리 `-game` 클라이언트(141프레임, 참고용) | 3.8/7.5us | 8.2/14.9us | 8.8/15.9us | 7.8/9.9ms | 0.2us | 0.17ms | 10.2ms |
+
+- 모든 조건에서 processor는 worker에서만 실행됐다(`gamethread=0`). ensure·assert 0, `UnknownHits=0`, `ClassificationErrors=0`. 동적 body hit는 전부 Dynamic으로 해석됐다.
+- 결과 표 비교(3072칸): PIE 서버↔클라이언트, `-game` 서버↔클라이언트, PIE↔`-game`의 모든 쌍에서 **양쪽이 모두 옥탄트 slot을 맞힌 칸의 차이는 0**이다. 차이 2~13칸은 모두 slot=-1 런타임 source(LootPod proxy 1cm 차이, 스프링 런처 가장자리를 스치는 sweep)이며, 실행마다 다른 배치이거나 복제 transform 양자화로 설명된다.
+- 비용 해석: 질의 1회 평균 약 8~9us(3종 평균)라 합계 P95 ≤ 2ms 기준에서는 프레임당 약 200~220회가 한도다. 에디터 빌드 기준이며 패키지 값으로 다시 확인한다.
+- 락 probe가 PIE에서 큰 것은 에디터 락(`RWFIFO_CRITICALSECTION`)이 읽기끼리도 내부 critical section을 거치기 때문으로 보인다. 병렬 worker끼리 경합한다.
+
+### 발견 — `-game`도 에디터 락이다
+
+`CHAOS_SCENE_LOCK_TYPE`은 `WITH_EDITOR`로 갈린다(`Chaos/Public/Framework/Threading.h`). 프로젝트의 `Standalone_*.lnk`는 `UnrealEditor.exe -game`이라 `WITH_EDITOR=1`이고, 락도 PIE와 같은 RWFIFO다. 게임 락(`FRWLOCK`) 조건의 락 대기는 **패키지 빌드에서만** 측정할 수 있다.
+
+### 막힘 — 패키지 실행이 옥탄트 로드에서 멈춤
+
+Win64 Development BuildCookRun(`Saved/SurfaceNavigationPhase3Package`)은 성공했고 `LVI_Octant_Meadow_00`도 cook 에셋 레지스트리에 있다. 그러나 `LootNPop.exe TestMap03?Listen`은 `Spawned 8 LevelInstances. Waiting for load...` 뒤 10분 넘게 로그가 없었다(프로세스는 응답). `ULNPOctantSpawnSubsystem::Tick`의 `IsLoaded()`·`bIsVisible` 조건이 만족되지 않는 것으로 추정한다. 런타임 스폰 `ALevelInstance`의 cooked 로드 경로는 Phase 2에서 검증하지 않았다(Phase 2 packaged 검증은 SurfaceData 자동화 테스트뿐). Gate 0의 게임 락 측정은 이 문제를 해결한 뒤로 미룬다.
