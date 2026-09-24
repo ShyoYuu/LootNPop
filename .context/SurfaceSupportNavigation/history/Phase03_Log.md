@@ -270,3 +270,40 @@ Ok=0. 모든 world geometry가 `BlockAll`/`BlockAllDynamic`이라 custom channel
 ### 막힘 — 패키지 실행이 옥탄트 로드에서 멈춤
 
 Win64 Development BuildCookRun(`Saved/SurfaceNavigationPhase3Package`)은 성공했고 `LVI_Octant_Meadow_00`도 cook 에셋 레지스트리에 있다. 그러나 `LootNPop.exe TestMap03?Listen`은 `Spawned 8 LevelInstances. Waiting for load...` 뒤 10분 넘게 로그가 없었다(프로세스는 응답). `ULNPOctantSpawnSubsystem::Tick`의 `IsLoaded()`·`bIsVisible` 조건이 만족되지 않는 것으로 추정한다. 런타임 스폰 `ALevelInstance`의 cooked 로드 경로는 Phase 2에서 검증하지 않았다(Phase 2 packaged 검증은 SurfaceData 자동화 테스트뿐). Gate 0의 게임 락 측정은 이 문제를 해결한 뒤로 미룬다.
+
+## 2026-09-24 — Gate 0 패키지 측정·판정과 구현 단위 1
+
+### 패키지 측정 (게임 락 `FRWLOCK`)
+
+패키지 옥탄트 로드 문제(`SetWorldAsset` 에디터 전용)가 해결돼 `LootNPop Win64 Development` BuildCookRun(`Saved/SurfaceNavigationPhase3Package`)으로 다시 측정했다. 조건은 에디터 `-game` 측정과 같다: `TestMap03?Listen`, `-corelimit=4`, `QueriesPerFrame 1024`, `AutoCapture 1`(warm-up 10초·capture 30초), Ryzen 7 8845HS. 판정은 로그로 했다(`Saved/Logs/gate0_*`).
+
+| 조건 | Line P50/P95 | Sphere P50/P95 | Capsule P50/P95 | 프레임 query 합 P50/P95 | 락 probe 쿼리당 P50/P95 | 프레임 락 합 P50/P95 | 프레임 wall P95 | 프레임 수 |
+|:---|:---|:---|:---|:---|:---|:---|:---|:---|
+| 리슨 서버 + 클라이언트 동시, body 62 — 서버 | 4.3/11.5us | 9.8/22.4us | 10.4/23.2us | 9.8/15.1ms | 0.1/17.5us | 2.27/5.40ms | 9.1ms | 845 |
+| 같은 실행 — 클라이언트(참고) | 4.1/11.8us | 9.1/23.0us | 9.7/23.3us | 9.6/14.0ms | 0.1/17.9us | 2.60/5.97ms | 9.0ms | 156 |
+| 서버 단독, body 62 | 3.5/8.8us | 8.1/17.2us | 8.7/17.8us | 8.0/10.1ms | 0.1/14.6us | 1.83/3.35ms | 6.0ms | 1710 |
+| 서버 단독, body 0 | 3.1/5.7us | 7.2/12.5us | 7.7/13.1us | 6.7/7.8ms | 0.1/0.1us | 0.084/0.105ms | 4.0ms | 1607 |
+
+- 모든 실행에서 `gamethread=0`, ensure 0, `UnknownHits=0`, `ClassificationErrors=0`.
+- 결과 표 비교: 패키지 서버↔클라이언트, 패키지↔에디터 `-game` 서버·클라이언트의 모든 쌍에서 양쪽이 옥탄트 slot을 맞힌 칸의 차이 0. 차이 2~7칸은 전부 한쪽이 slot=-1인 런타임 source 칸이다(에디터 측정과 같은 설명).
+- **락 대기는 게임 스레드 쓰기 겹침이 만든다.** 쓰기가 없으면 1024 q/frame에서도 프레임 락 합 P95 0.105ms로 부하 기준(0.2ms)을 만족한다. 같은 PrePhysics 구간에 kinematic body 62개를 teleport하면 3.35ms로 약 30배가 되고 query 자체도 20~30% 느려진다. 쿼리당 P50은 0.1us 그대로이고 꼬리(P95 14.6us ≈ query 1회 시간)만 커진다. 쓰기 락이 진행 중인 읽기를 기다리고, 대기 중인 쓰기 뒤에 새 읽기가 서는 패턴으로 해석한다.
+- 에디터 `-game` 서버(RWFIFO, body 62)의 1.65ms보다 패키지 쪽 겹침 비용이 크다. 락 구현 차이를 따로 분리하지는 않았다. 결론(겹침을 피하라)은 두 락에서 같다.
+- 동시 실행 클라이언트는 30초에 156프레임만 돌았다. 한 머신 두 프로세스의 CPU 경합으로 보이며 참고값으로만 둔다.
+- 처리량: 쓰기 없는 조건의 query 1회 평균 약 6.5us(프레임 합 P50 6.7ms/1024)라 합계 2ms 예산에서 약 300회/frame, 쓰기 겹침 조건에서는 약 250회/frame이 한도다.
+
+### Gate 0 판정 — 통과
+
+worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분리 측정을 패키지(게임 락)까지 확인했다. D-025(Mass worker는 동기 query)를 재논의할 실패는 없다. 락 대기가 쓰기 겹침에 비례한다는 결과는 배치 제약으로 남긴다.
+
+- 동적 패널 transform tick은 Mass exact query phase 전에 끝나게 배치한다(구현 단위 3 체크리스트).
+- ActorPromoted 적·플레이어 Mover의 이동 쓰기 겹침 비용은 구현 단위 4 부하 기준선(적 100 Actor 포함)에서 측정한다.
+
+### 구현 단위 1 — MassWorldCollision API
+
+- `ULNPMassWorldCollisionSubsystem`(`SurfaceNavigation/LNPMassWorldCollision.*`): `RaycastWorld`·`SweepSphereWorld`·`SweepCapsuleWorld`·`ProbeSupport`. 모든 스레드에서 호출 가능, `TMassExternalSubsystemTraits` `GameThreadOnly=false`.
+- 입력 `FLNPWorldQueryParams`: 분류(`ELNPWorldQueryClass` 6종)와 제외 Actor unique ID. 결과 `FLNPWorldHit`: POD + `FLNPExactHitIdentity`(snapshot 정적 `ResolveHit`).
+- 분류별 count·hit·총시간·최대시간·락 probe 합을 atomic으로 모으고 필수/선택 합계를 나눠 보고한다. `LNP.SurfaceNav.WorldCollision.{DebugDraw, LockProbe, Report, Reset}`.
+- `ProbeSupport`: 호출자 Up 기준 `StepUp→Drop` 구 sweep. walkable 법선이고 registry 역할에 `Support`가 있으며 시작 관통이 아니어야 지지면.
+- 자동화 `LootNPop.SurfaceNavigation.WorldCollision.Api`: 식별·miss·제외 Actor·sphere/capsule 정지 위치·바닥/벽 지지 판정·미등록 Unknown counter·ParallelFor worker 256회 결과 일치와 분류 counter 분리. `LootNPop.SurfaceNavigation` 13/13 통과.
+- Gate 0 뒤 정정하기로 한 "라인트레이스는 게임 스레드 전용" 서술을 `LNPWorldDeviceSpawnSubsystem.h`와 `../../TechDesign_WorldDevice.md`에서 고쳤다.
+- 남은 것: debug draw 화면 확인, Gate 0 스파이크 processor를 wrapper로 옮길지는 투사체 전환(구현 단위 2)에서 실제 소비자가 생길 때 판단한다.

@@ -60,21 +60,21 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 - [x] wrapper 총시간과 scene read-lock 대기를 분리 계측 — 락은 질의 직전 read lock 획득 시간으로 근사
 - [x] query 종류별 count, P50/P95, 최악 프레임 기록
 - [x] 미해석 hit 수와 dynamic/static 분류 오류 기록 — 둘 다 0
-- [ ] 게임 락(`FRWLOCK`) 조건의 락 대기 — 패키지 빌드 필요. `UnrealEditor.exe -game`도 `WITH_EDITOR` 락이다. 패키지 실행이 옥탄트 로드에서 멈추는 문제부터 해결한다
-- [ ] 실패 시 D-025 재논의 후 구현 진행 중단 — 현재까지 실패 조건 없음
+- [x] 게임 락(`FRWLOCK`) 조건의 락 대기 — 패키지 리슨 서버: 게임 스레드 쓰기 없음 P95 0.1ms/frame, body 62개 겹침 3.4ms/frame. 락 대기는 쓰기 겹침이 만든다
+- [x] 실패 시 D-025 재논의 후 구현 진행 중단 — 실패 없음. **Gate 0 통과(2026-09-24)**. 쓰기 겹침은 배치 제약으로 남긴다(구현 단위 3·4)
 
 ## 구현 단위
 
 ### 1. MassWorldCollision API
 
-- [ ] `RaycastWorld`
-- [ ] `SweepSphereWorld`
-- [ ] `SweepCapsuleWorld`
-- [ ] `ProbeSupport`
-- [ ] `LNPWorldExact` query params와 self/owner 제외 규칙
-- [ ] worker-safe POD result와 hit identity 결과
-- [ ] debug draw queue와 Unreal Insights marker
-- [ ] correctness-mandatory와 optional query counter 분리
+- [x] `RaycastWorld`
+- [x] `SweepSphereWorld`
+- [x] `SweepCapsuleWorld`
+- [x] `ProbeSupport` — Up 기준 walkable 법선 + registry `Support` 역할
+- [x] `LNPWorldExact` query params와 self/owner 제외 규칙 — 제외는 게임 스레드에서 구한 Actor unique ID만
+- [x] worker-safe POD result와 hit identity 결과 — `FLNPWorldHit`, 자동화에서 ParallelFor worker 호출 검증
+- [x] debug draw queue와 Unreal Insights marker — 화면 확인은 아직
+- [x] correctness-mandatory와 optional query counter 분리
 
 ### 2. 투사체·탄도 가이드
 
@@ -91,7 +91,7 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 - [ ] 서버만 loaded LVI marker를 `(slot, MarkerId)`로 수집
 - [ ] 공통 서버 스폰 함수로 복제 Actor 생성
 - [ ] path revision, 상태, server epoch, 시작 시각 초기 복제
-- [ ] transform tick을 Mover·Mass query·DynamicSupport snapshot보다 앞에 배치
+- [ ] transform tick을 Mover·Mass query·DynamicSupport snapshot보다 앞에 배치 — Mass exact query phase와 겹치면 락 대기가 30배가 된다(Gate 0 패키지 측정)
 - [ ] late join에서 같은 자세 복원
 - [ ] 2P Mover movement base 직렬화와 예측 안정성 확인
 - [ ] PureEntity용 DynamicSupport POD snapshot의 기반 구조 확인

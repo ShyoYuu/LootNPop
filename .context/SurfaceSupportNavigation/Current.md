@@ -1,12 +1,12 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate -1 진행 중
-> 마지막 갱신: 2026-09-24 (Gate -1 B 2차 — hit identity registry)
+> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1 완료
+> 마지막 갱신: 2026-09-24 (Gate 0 패키지 판정·MassWorldCollision API)
 
 ## 현재 목표
 
-Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`다. Gate -1 핵심 항목과 Gate 0 스파이크의 에디터 조건 측정까지 끝났다.
+Phase 2는 완료됐고, 2026-09-23 착수 전 설계 검토 결과를 문서에 반영했다(`history/Phase03_Log.md`). Phase 3 실행 문서는 `phases/Phase03_MassWorldCollisionBaseline.md`다. Gate -1 핵심 항목, Gate 0(패키지 게임 락 포함), 구현 단위 1(MassWorldCollision API)까지 끝났다.
 
 Phase 3 범위(`Roadmap.md` §4):
 
@@ -45,12 +45,12 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 Gate -1 A는 audit·마이그레이션까지 끝났다(8-slot oracle과 비교 CVar는 wrapper 이후). Gate -1 B는 registry 게시와 proxy swap까지 끝났고 lifecycle gate, 동적 패널 분류, fixture 기반 sheet·shell 검증이 남았다. 부하 시나리오 수치는 합의돼 Phase 문서 §4에 고정됐다.
 
-Gate 0 스파이크(`SurfaceNavigation/LNPExactQuerySpike.*`)는 PIE와 에디터 바이너리 `-game` 리슨 2P에서 worker 실행, ensure 0, 미해석·분류 오류 0, 옥탄트 결과 일치를 확인했다. 질의 1회는 평균 약 8~9us(에디터 빌드)이며, 합계 P95 ≤ 2ms 기준이면 프레임당 약 200회가 한도다(`history/Phase03_Log.md` 2026-09-24 Gate 0). 남은 항목은 게임 락 조건의 측정이다.
+Gate 0은 2026-09-24 **통과**했다. 패키지 리슨 서버(게임 락 `FRWLOCK`)에서 게임 스레드 쓰기가 없으면 1024 q/frame에서도 프레임 락 합 P95 0.105ms, kinematic body 62개가 같은 PrePhysics 구간에 움직이면 3.35ms다. 락 대기는 쓰기 겹침이 만든다(`history/Phase03_Log.md` 2026-09-24 Gate 0 패키지 절, `design/RuntimeCollision.md` 스레드별 쿼리 API).
 
-1. ~~패키지 실행이 옥탄트 로드에서 멈추는 문제~~ — **해결됨(2026-09-24).** 엔진의 `ALevelInstance::SetWorldAsset`은 `WITH_EDITOR` 전용이라 패키지에서는 `ILevelInstanceInterface`의 no-op(`return false`)으로 떨어지고, 월드 에셋이 빈 채로 `RequestLoadLevelInstance`가 조용히 무시돼 `IsLoaded()`가 계속 false였다. `ALNPOctantLevelInstance::SetRuntimeWorldAsset`이 패키지에서 `CookedWorldAsset`을 직접 채운다. 패키지 리슨 서버 `Server init complete`, 클라이언트(`127.0.0.1`) 옥탄트 8개 로드·베이킹·폰 스폰까지 확인했다.
-2. 해결 뒤 패키지 리슨 서버·클라이언트를 `-ExecCmds="LNP.SurfaceNav.ExactSpike.QueriesPerFrame 1024, LNP.SurfaceNav.ExactSpike.MovingBodies 64, LNP.SurfaceNav.ExactSpike.AutoCapture 1"`로 띄워 락 대기를 측정하고 Gate 0을 판정한다. 에디터 바이너리 `-game`도 `WITH_EDITOR` 락이라 대체할 수 없다.
+구현 단위 1 `ULNPMassWorldCollisionSubsystem`(`SurfaceNavigation/LNPMassWorldCollision.*`)은 API·counter·debug draw 큐와 자동화 테스트까지 됐다. 아직 production 소비자는 없다.
 
-Gate 0 판정 뒤에는 구현 단위 1(MassWorldCollision API)로 간다. 스파이크의 질의·해석 코드가 wrapper의 출발점이다.
+1. **구현 단위 2 — 투사체 exact 전환.** 서버 투사체 프로세서의 `PreviousPos → CurrentPos`를 `SweepSphereWorld(ProjectileMandatory)`로 판정하고, Mass target hit time과 비교해 earliest hit 하나만 채택한다. D-036에 따라 개발 CVar로 legacy(`IsUnderSurface`·반지름 착탄)와 비교할 수 있게 두고 기본값은 audit·8-slot oracle 통과 전까지 legacy다. 착수 전에 `../TechDesign_HitDetection.md`의 지면 착탄 절과 투사체 프로세서 4종(`../TechDesign_Ability.md`)을 읽는다.
+2. 구현 단위 3을 설계할 때 동적 패널 transform tick이 Mass exact query phase보다 먼저 끝나게 한다(Gate 0 결과).
 
 ## Phase 1에서 확정된 입력 계약
 
@@ -89,6 +89,13 @@ Gate 0 판정 뒤에는 구현 단위 1(MassWorldCollision API)로 간다. 스�
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-24 Gate 0 패키지·구현 단위 1:
+
+- `LootNPopEditor` 빌드 성공(경고 없음), Win64 Development BuildCookRun 성공
+- 패키지 리슨 서버·클라이언트 2P와 서버 단독 2회(body 62/0): worker 실행, ensure 0, `UnknownHits=0`, `ClassificationErrors=0`, 옥탄트 slot 칸 차이 0(패키지↔에디터 포함)
+- `LootNPop.SurfaceNavigation` 자동화 13/13 통과(신규 `WorldCollision.Api`)
+- `LootNPop Win64 Development`(게임 타깃) 빌드 성공, 경고 없음. 새 wrapper는 아직 패키지 런타임에서 호출되지 않는다(소비자 없음)
 
 2026-09-24 Gate 0 스파이크:
 
