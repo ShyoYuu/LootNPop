@@ -1,6 +1,7 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "SurfaceNavigation/LNPCollisionChannels.h"
+#include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "LootPod/LNPLootPodCollisionProxy.h"
 #include "LootPod/LNPLootPodMassTypes.h"
@@ -51,6 +52,19 @@ namespace
 		UE_LOG(LogLootNPop, Display,
 			TEXT("[HitIdentity] Item=%d FaceIndex=%d ElementIndex=%d MyItem=%d BoneName=%s"),
 			Hit.Item, Hit.FaceIndex, static_cast<int32>(Hit.ElementIndex), Hit.MyItem, *Hit.BoneName.ToString());
+
+		if (const ULNPHitIdentitySubsystem* HitIdentity = World.GetSubsystem<ULNPHitIdentitySubsystem>())
+		{
+			static const TCHAR* LifetimeNames[] = { TEXT("Unknown"), TEXT("Static"), TEXT("Dynamic"), TEXT("Destructible") };
+			const FLNPExactHitIdentity Identity = HitIdentity->ResolveHit(Hit);
+			UE_LOG(LogLootNPop, Display,
+				TEXT("[HitIdentity] Registry Lifetime=%s Roles=%s%s Slot=%d Face=%d Instance=%d Entity=%s Generation=%u UnknownHits=%u"),
+				LifetimeNames[static_cast<uint8>(Identity.Lifetime)],
+				(Identity.Roles & ELNPExactSourceRole::Support) ? TEXT("S") : TEXT("-"),
+				(Identity.Roles & ELNPExactSourceRole::Blocker) ? TEXT("B") : TEXT("-"),
+				Identity.Slot, Identity.FaceIndex, Identity.InstanceIndex, *Identity.Entity.DebugGetDescription(),
+				Identity.RegistryGeneration, HitIdentity->GetUnknownHitCount());
+		}
 
 		if (const UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Component))
 		{

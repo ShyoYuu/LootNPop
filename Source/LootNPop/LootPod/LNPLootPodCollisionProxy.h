@@ -23,6 +23,10 @@ USTRUCT() struct LOOTNPOP_API FLNPLootPodCollisionProxyTag : public FMassTag { G
  * index→엔티티 표를 같은 방식으로 갱신하고 Generation을 올린다. exact hit의 Item(instance index)을
  * 엔티티로 해석할 때 Generation으로 표의 시점을 확인한다(D-037).
  * 엔티티 핸들은 머신 로컬 값이다. PodID는 서버에만 있으므로 필요하면 서버가 fragment에서 읽는다.
+ *
+ * AddPod·RemovePod는 요청을 쌓기만 하고 ApplyPendingChanges가 ISM과 표에 반영한다. ISM 제거는 물리 body index를
+ * 즉시 swap하므로, 반영을 hit identity snapshot 게시와 같은 시점(ULNPHitIdentitySubsystem::Tick)에 묶어야
+ * Mass worker가 바뀐 물리 index를 이전 표로 해석하는 구간이 생기지 않는다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPLootPodCollisionProxySubsystem : public UWorldSubsystem
@@ -34,6 +38,12 @@ public:
 
 	void AddPod(FMassEntityHandle Entity, const FTransform& PodTransform);
 	void RemovePod(FMassEntityHandle Entity);
+
+	/** 쌓인 추가·제거를 ISM과 표에 반영한다. 반영한 것이 있으면 true. Mass 실행 구간 밖에서만 호출한다. */
+	bool ApplyPendingChanges();
+
+	/** instance index 순서의 엔티티 표. */
+	const TArray<FMassEntityHandle>& GetInstanceEntities() const { return InstanceToEntity; }
 
 	/** instance index에 대응하는 Pod 엔티티. 범위 밖이면 무효 핸들. */
 	FMassEntityHandle ResolveInstance(int32 InstanceIndex) const;
@@ -60,6 +70,9 @@ private:
 	/** ISM instance index 순서와 같다. */
 	TArray<FMassEntityHandle> InstanceToEntity;
 	TMap<FMassEntityHandle, int32> EntityToInstance;
+
+	TArray<TPair<FMassEntityHandle, FTransform>> PendingAdds;
+	TArray<FMassEntityHandle> PendingRemoves;
 
 	uint32 Generation = 0;
 };

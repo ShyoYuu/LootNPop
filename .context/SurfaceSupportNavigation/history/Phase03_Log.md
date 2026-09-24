@@ -191,3 +191,44 @@ Ok=0. 모든 world geometry가 `BlockAll`/`BlockAllDynamic`이라 custom channel
 - immutable registry 구축·게시, worker POD 결과, static/dynamic/미등록 분류, lifecycle gate
 - disconnected sheet face identity와 double-sided shell normal: 회귀 fixture가 필요하다.
 - `-game` 리슨 서버 2P 스모크(D-031)
+
+## 2026-09-24 — Gate -1 B: hit identity registry·proxy swap 검증
+
+### 구현
+
+- `SurfaceNavigation/LNPHitIdentityRegistry.*`: `ULNPHitIdentitySubsystem`(tickable world subsystem, `TMassExternalSubsystemTraits` GameThreadOnly=false). slot Level source는 profile 분류로 일괄 등록하고, 런타임 source는 소유자가 직접 등록하며, LootPod proxy 표는 게시마다 복사한다. 불변 snapshot 게시, `FLNPExactHitIdentity` POD 결과, `Unknown` counter. 계약은 `../design/RuntimeCollision.md` hit identity registry 절에 있다.
+- `ALNPSpringLauncher`: BeginPlay·EndPlay에서 `MeshComponent`를 런타임 source로 등록·해제한다.
+- `LNP.SurfaceNav.ProbeHitIdentity`: registry 해석 결과 한 줄을 추가로 남긴다.
+- 자동화 `LootNPop.SurfaceNavigation.HitIdentity.LootPodProxySwapRemap`: 임시 Game 월드에서 Pod 4개를 넣고 중간 index를 제거한 뒤, 옮겨진 Pod가 ISM transform·물리 trace `Item`·registry 해석 모두에서 같은 엔티티인지 확인한다. 게시 전 불변, generation, 중복 추가, 게시 전 취소, 미등록·범위 밖 Item의 `Unknown`과 counter도 확인한다.
+
+### 설계 정정 — proxy 반영 시점
+
+지난 구현은 `RemoveInstance`를 요청 즉시 호출했다. ISM 제거는 physics body index를 바로 swap하는데 snapshot 표는 다음 게시에 바뀌므로, 그 사이 worker query가 옮겨진 Pod의 `Item`을 제거된 Pod 엔티티로 해석한다. 이제 `AddPod`·`RemovePod`는 큐에만 쌓고, `ULNPHitIdentitySubsystem::Tick`이 게시 직전에 `ApplyPendingChanges`를 호출해 반영한다. proxy 충돌 생성·소멸은 최대 1프레임 늦어진다(`../design/TerrainContract.md` §2).
+
+### 검증
+
+- `LootNPopEditor Win64 Development` 빌드 성공, 경고 없음. 새 헤더는 `Mass/EntityHandle.h`·`Mass/ExternalSubsystemTraits.h`(MassCore)를 쓴다.
+- `LootNPop.SurfaceNavigation` 자동화 12/12 통과(신규 1, 기존 11).
+- 리슨 서버 2P PIE(TestMap03, 사용자 조준):
+
+| 확인 | 결과 |
+|:---|:---|
+| 등록(서버·클라이언트) | `32 slot sources from 8 slot levels (0 unclassified)` — 지각 8 + HISM 3종×8 |
+| 지각(서버) | `Static SB Slot=7 Face=57706` |
+| Cylinder HISM(서버) | `Static -B Slot=7 Instance=64` |
+| 스프링 런처(서버) | `Static SB Slot=-1` |
+| Pod(서버) | `Static -B Instance=39 Entity=79`, proxy 표 해석과 일치 |
+| Pop 뒤 서버 | instance 119→118, 다른 Pod `Instance=57 Entity=115` 일치 |
+| Pop 뒤 클라이언트 | instance 117→116, `Instance=76·88`이 엔티티로 해석 |
+| `UnknownHits` | 전 probe 0 |
+| 캐릭터(사용자 확인) | Pod에는 막히고, Pop으로 Pod가 사라진 자리는 통과한다. 큐 지연 반영 뒤에도 proxy 수명이 유지된다 |
+
+- 클라이언트 registry generation(16~19)이 서버(7~8)보다 높다. 스프링 런처 복제 BeginPlay가 여러 프레임에 걸쳐 등록돼 게시가 더 잦기 때문이며, 해석 결과에는 영향이 없다.
+- 클라이언트에서 지각·HISM·런처 probe는 하지 않았다. slot 등록 수가 서버와 같다.
+
+### 남은 Gate -1 B 항목
+
+- match reset·stream unload lifecycle gate: slot Level 목록 변경 시 재수집은 구현했지만 실제 reset·unload 시나리오로 검증하지 않았다.
+- 동적 패널 분류: 구현 단위 3 이후.
+- disconnected sheet face identity와 double-sided shell normal: 회귀 fixture가 필요하다.
+- `-game` 리슨 서버 2P 스모크(D-031).
