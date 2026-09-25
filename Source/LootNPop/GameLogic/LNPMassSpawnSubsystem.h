@@ -93,6 +93,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "LNP|Mass Spawning")
 	FLNPOnSpawningComplete OnSpawningComplete;
 
+	/** OnSpawningComplete가 이미 발동했는지. 늦게 붙는 관찰자(부하 harness)가 쓴다. */
+	bool HasFinishedSpawning() const { return bSpawningFinished; }
+
 protected:
 
 	/**
@@ -113,6 +116,8 @@ private:
 
 	/** 완료된 비동기 빌드 결과로 SpawnQueue를 조립한다. 게임 Thread에서 호출. */
 	void AssembleSpawnQueueFromAsyncResult();
+
+	bool bSpawningFinished = false;
 
 	/** 현재 처리 중인 활성 config */
 	UPROPERTY(Transient)

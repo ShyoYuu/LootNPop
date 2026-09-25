@@ -7,6 +7,7 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "Replication/LNPMassReplication.h"
+#include "SurfaceNavigation/LNPLoadBaseline.h"
 #include "LootNPop.h"
 
 #include "Async/Async.h"
@@ -290,6 +291,27 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	// 개발용 적 밀도 배수 (기본 1 = no-op). 근거는 CVarSpawnEnemyDensity 주석 참조.
 	const float EnemyDensity = GetEnemySpawnDensity();
 
+	// 부하 harness(-LNPLoadBaseline=N)는 에셋의 적을 0으로 두고 PlayerStart 주변 링에 정확히 N마리를 둔다.
+	// Pod는 에셋대로 두되 배치 seed를 고정한다. 상세는 LNPLoadBaseline.h.
+	const int32 BaselineEnemies = LNPLoadBaseline::GetEnemyCount();
+	int32 BaselineAssetIndices[static_cast<int32>(LNPLoadBaseline::EEnemyKind::Count)];
+	for (int32 Kind = 0; Kind < UE_ARRAY_COUNT(BaselineAssetIndices); ++Kind)
+	{
+		BaselineAssetIndices[Kind] = INDEX_NONE;
+		if (BaselineEnemies > 0)
+		{
+			if (UMassEntityConfigAsset* EnemyConfig = LNPLoadBaseline::LoadEnemyEntityConfig(static_cast<LNPLoadBaseline::EEnemyKind>(Kind)))
+			{
+				BaselineAssetIndices[Kind] = CapturedAssets.Num();
+				CapturedAssets.Add(EnemyConfig);
+			}
+			else
+			{
+				UE_LOG(LogLootNPop, Error, TEXT("LNPMassSpawnSubsystem: load baseline enemy config %d failed to load."), Kind);
+			}
+		}
+	}
+
 	TArray<FPodSetBuildParams> SetParams;
 	for (const FLNPLootPodSpawnEntry& PodSet : InConfig->LootPodSpawnSets)
 	{
@@ -300,7 +322,8 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 
 		for (const FLNPEnemySpawnEntry& Enemy : PodSet.AssociatedEnemies)
 		{
-			P.Enemies.Add({ FMath::RoundToInt32(Enemy.Count * EnemyDensity), CapturedAssets.Num() });
+			const int32 Count = BaselineEnemies > 0 ? 0 : FMath::RoundToInt32(Enemy.Count * EnemyDensity);
+			P.Enemies.Add({ Count, CapturedAssets.Num() });
 			CapturedAssets.Add(Enemy.EnemyEntityConfig);
 		}
 		SetParams.Add(MoveTemp(P));
@@ -318,7 +341,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	const float MinDist          = InConfig->MinDistanceBetweenPods;
 	const float EnemyRadius      = InConfig->EnemySpawnRadiusAroundPod;
 	const int32 MaxRetry         = InConfig->MaxRetryCount;
-	const FRandomStream Rand     = RandomStream;
+	const FRandomStream Rand     = BaselineEnemies > 0 ? FRandomStream(LNPLoadBaseline::GetSeed()) : RandomStream;
 
 	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: Launching async queue build."));
 
@@ -330,10 +353,43 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		 SR      = SphereRadius,
 		 MinDist,
 		 EnemyRadius,
-		 MaxRetry]() mutable
+		 MaxRetry,
+		 BaselineEnemies,
+		 BaselineAssetIndices]() mutable
 		{
 			TArray<FVector> OccupiedPods;
 			TArray<FLNPAsyncSpawnEntry> Results;
+
+			if (BaselineEnemies > 0)
+			{
+				TArray<FVector> Feet;
+				FVector RingCenter;
+				LNPLoadBaseline::BuildEnemyRing(Cache, SR, LNPLoadBaseline::GetSeed(), BaselineEnemies, Feet, RingCenter);
+
+				// 세력권 중심은 링 중심이다. Pod 엔티티는 두지 않는다(PodHandle 무효).
+				TSharedPtr<FLNPSpawnLink> RingLink = MakeShared<FLNPSpawnLink>();
+				RingLink->PodLocation = RingCenter;
+
+				FLNPAsyncSpawnEntry KindEntries[UE_ARRAY_COUNT(BaselineAssetIndices)];
+				for (int32 Index = 0; Index < Feet.Num(); ++Index)
+				{
+					const int32 Kind = static_cast<int32>(LNPLoadBaseline::GetEnemyKind(Index));
+					const FVector EUp = -Feet[Index].GetSafeNormal();
+					KindEntries[Kind].Transforms.Add(FTransform(UKismetMathLibrary::MakeRotFromZ(EUp), Feet[Index]));
+				}
+				for (int32 Kind = 0; Kind < UE_ARRAY_COUNT(KindEntries); ++Kind)
+				{
+					if (BaselineAssetIndices[Kind] == INDEX_NONE || KindEntries[Kind].Transforms.IsEmpty())
+						continue;
+					KindEntries[Kind].RequestType = ELNPSpawnRequestType::Enemy;
+					KindEntries[Kind].AssetIndex = BaselineAssetIndices[Kind];
+					KindEntries[Kind].SpawnLink = RingLink;
+					Results.Add(MoveTemp(KindEntries[Kind]));
+				}
+
+				UE_LOG(LogLootNPop, Display, TEXT("LNPMassSpawnSubsystem: load baseline placed %d/%d enemies around %s."),
+					Feet.Num(), BaselineEnemies, *RingCenter.ToString());
+			}
 
 			// FVector::DownVector(0,0,-1) 기준 10도 이내 영역 제외 (PlayerStart 배치 영역)
 			const float CosDownExclude = FMath::Cos(FMath::DegreesToRadians(10.0f));
@@ -552,6 +608,7 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 		SpawnQueueHead = 0;
 		ActiveConfig = nullptr;
 		UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: All entities spawned."));
+		bSpawningFinished = true;
 		OnSpawningComplete.Broadcast();
 	}
 }
@@ -575,7 +632,8 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 		}
 
 		// 2. Leash 메타데이터 설정 (Enemy이고 부모가 유효한 경우)
-		if (ParentLootPod.IsValid())
+		// 부하 harness의 링 적은 Pod 엔티티 없이 세력권 중심만 받는다(PodHandle 무효, 위치만 유효).
+		if (ParentLootPod.IsValid() || !ParentPodLocation.IsZero())
 		{
 			if (FLNPEnemyFragment* EnemyFragment = EntityManager.GetFragmentDataPtr<FLNPEnemyFragment>(Entity))
 			{

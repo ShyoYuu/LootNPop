@@ -211,6 +211,19 @@ void ULNPMassWorldCollisionSubsystem::Tick(const float DeltaTime)
 	DebugQueue.Empty();
 }
 
+void ULNPMassWorldCollisionSubsystem::GetTotals(uint64& OutCount, uint64& OutQueryNs, uint64& OutLockNs) const
+{
+	OutCount = 0;
+	OutQueryNs = 0;
+	OutLockNs = 0;
+	for (const FClassStats& ClassStats : Stats)
+	{
+		OutCount += ClassStats.Count.load(std::memory_order_relaxed);
+		OutQueryNs += ClassStats.QueryNs.load(std::memory_order_relaxed);
+		OutLockNs += ClassStats.LockNs.load(std::memory_order_relaxed);
+	}
+}
+
 void ULNPMassWorldCollisionSubsystem::ResetStats()
 {
 	for (FClassStats& ClassStats : Stats)
