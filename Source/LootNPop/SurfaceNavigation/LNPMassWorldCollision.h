@@ -122,6 +122,9 @@ public:
 	uint64 GetQueryCount(const ELNPWorldQueryClass Class) const { return Stats[static_cast<int32>(Class)].Count.load(std::memory_order_relaxed); }
 	uint64 GetUnknownHitCount() const { return UnknownHits.load(std::memory_order_relaxed); }
 
+	/** 모든 스레드. 전 분류 합계의 누적 count·query 시간·락 probe 시간(ns). 프레임 차분으로 프레임당 비용을 얻는다. */
+	void GetTotals(uint64& OutCount, uint64& OutQueryNs, uint64& OutLockNs) const;
+
 	/**
 	 * 모든 스레드. world collision envelope 최대 반지름(cm, RuntimeCollision.md "최외곽 반지름 안전망").
 	 * 이보다 바깥에는 exact geometry가 없으므로, 바깥으로 나간 개체는 exact 판정이 이미 빗나간 것이다. 0이면 아직 source가 없다.

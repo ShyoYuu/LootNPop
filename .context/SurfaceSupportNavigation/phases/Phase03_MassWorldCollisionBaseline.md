@@ -113,6 +113,10 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 
 Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 
+- [x] harness — `-LNPLoadBaseline=N`(`SurfaceNavigation/LNPLoadBaseline.*`): 고정 seed 링 스폰, 발사체 500발 유지, 플레이어 무적, warm-up·capture 자동, 호스트·게스트 각자 보고
+- [x] 300·1000 기준선 — exact P95 1.25·1.67ms, 락 P95 0.095·0.128ms로 통과. 프레임 기준은 호스트가 300마리부터 실패(P95 28·43ms). 원인은 exact가 아닌 서버 적 시뮬레이션이다(`../history/Phase03_Log.md` 2026-09-25)
+- [ ] 호스트 프레임 실패의 Insights 분해와 처리 방침 결정
+
 ## 자동화·회귀
 
 - [ ] 회귀 맵의 벽·섬 측벽·동굴·정적 프랍·동적 패널 exact hit
@@ -132,7 +136,7 @@ Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 - [ ] worker가 UObject를 역참조하지 않고 exact hit 의미를 해석함
 - [ ] 투사체·ghost·탄도 가이드가 같은 world collision 함수를 사용함
 - [x] 동적 패널이 late join 포함 2P Mover의 valid movement base로 동작함
-- [ ] 고정 부하 시나리오의 query 비용·락 대기 기준선 확보
+- [x] 고정 부하 시나리오의 query 비용·락 대기 기준선 확보
 - [ ] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공
 - [ ] `Current.md`, `Roadmap.md`, `../history/Phase03_Log.md` 갱신
 

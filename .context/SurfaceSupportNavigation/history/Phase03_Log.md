@@ -442,3 +442,32 @@ worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분�
 - 옥탄트 LVI는 One File Per Actor다. MCP `save_assets([맵])`은 새 액터 패키지를 저장하지 않고, `save_actor`는 새 패키지에 대해 "Asset does not exist"로 실패한다. `save_assets([])`(dirty 전체)로 저장된다.
 - UE 5.8 `USplineComponent`는 `SplineCurves`가 원본이다(`SplineComponent.UseSplineCurves` 기본 true). MCP로 점 배열을 바꿀 때 크기 변경과 값 변경을 한 호출에 할 수 없다.
 - `SetActorLocation`으로 Mover 폰을 옮기면 다음 시뮬레이션이 sync state로 되돌린다. 테스트 배치는 `FTeleportEffect`로 한다.
+
+## 2026-09-25 — 구현 단위 4: 부하 기준선 harness
+
+### 구현 (`Source/LootNPop/SurfaceNavigation/LNPLoadBaseline.*`)
+
+- 실행 인자 `-LNPLoadBaseline=N`로 켠다. 없으면 서브시스템 자체가 생성되지 않는다. 보조 인자: `-LNPLoadBaselineSeed`(기본 1), `-LNPLoadBaselinePlayers`(기본 2), `-LNPLoadBaselineProjectiles`(기본 500, 요인 분리 대조용), `-LNPLoadBaselineQuit`(보고 뒤 종료, 리슨 서버는 20초 유예).
+- 적: `DA_MassSpawnConfig`의 적 수를 0으로 두고 Pod만 유지하며, Pod 배치 seed도 고정한다. -Z 극(PlayerStart 영역) 링(안쪽 1500cm, 1마리당 150,000cm²)에 정확히 N마리를 둔다. 10마리 중 1마리가 ActorPromoted이고 나머지는 PureEntity 근접·원거리 반반이다. 세력권 중심은 링 중심이며 Pod 엔티티 없이 위치만 준다(`SetupSpawnedEntities` 조건 완화).
+- 투사체: PureEntity 원거리 적도 실제로 발사체를 쏜다(`LNPEntityAttackProcessor`). 그래서 전체 발사체 수를 query로 세고 부족분만 서버에 주입한다. 무기 값은 `DA_Enemy_PureEntity_Ranged01`의 `WeaponData`·`EntityAttackConfig`를 쓰므로 자연 발사체와 같은 공유 프래그먼트가 된다. 링 위 120cm에서 링 중심 ±1500cm를 향해 쏜다(pitch -2~+6°). Multicast를 하지 않는다.
+- 플레이어는 harness가 켜져 있는 동안 피해를 받지 않는다(`ULNPBaseAttributeSet`). 경직·넉백은 그대로다.
+- 계측: 준비(옥탄트 생성·스폰 완료·플레이어 2명 폰, 게스트는 자기 폰)가 끝나면 warm-up 10초, capture 30초. 프레임마다 `ULNPMassWorldCollisionSubsystem::GetTotals` 누적값 차분으로 exact 합계·query 수·락 probe를 표본화한다. 프레임 시간은 틱 사이 벽시계 간격이다. `FApp::GetDeltaTime()`은 0.1초로 잘려 과부하 구간이 정확히 100.00ms로 찍혔다. 락 probe CVar는 harness가 켠다.
+- 적 Actor 수는 `MaxPromotedSlotsPerPlayer = 2`가 상한이다. 2P에서는 ActorPromoted 배치 비율(10%)과 무관하게 동시 Actor가 4~6개이고(사망 연출 중인 Actor 포함), 나머지는 슬롯을 기다린다. 제품 규칙이므로 harness는 바꾸지 않는다.
+
+### 측정 (AMD Ryzen 7 8845HS, 에디터 바이너리 `-game` 리슨 2P 같은 머신, `-corelimit=4`, `t.MaxFPS 0`)
+
+게스트 창까지 렌더하면 대조군(적 1·발사체 0)도 호스트 P50 20.7ms라 프레임 판정이 환경에 묻힌다. 아래는 게스트 `-nullrhi` 기준이다.
+
+| 조건 | 호스트 프레임 P50/P95 | 호스트 exact/frame P95 | 호스트 락/frame P95 | 호스트 query/frame P50 | 게스트 프레임 P95 | 게스트 exact P95 |
+|:---|:---|:---|:---|:---|:---|:---|
+| 적 1·발사체 0 | 9.35/11.04ms | 0 | 0 | 0 | 7.26ms | 0 |
+| 적 300·발사체 500 | 22.42/28.06ms | 1.249ms | 0.095ms | 500 | 12.52ms | 0.353ms |
+| 적 1000·발사체 500 | 37.42/43.40ms | 1.665ms | 0.128ms | 507 | 16.15ms | 0.102ms |
+| 적 1000·발사체 0(자연 발사 평균 64발) | 34.13/41.32ms | 0.269ms | 0.026ms | 64 | 16.20ms | 0.114ms |
+
+- 모든 조건에서 `UnknownHits=0`, `EnvelopeEscapes=0`, 발사체 평균 502발(최소 466).
+- **exact 합계와 락 대기 기준은 1000마리까지 통과했다.** 발사체 1발 = 프레임당 line query 1개이며 평균 1.7~2.1us다.
+- **프레임 기준(P95 ≤ 16.6ms)은 호스트에서 300마리부터 실패한다.** 원인은 exact가 아니다. 발사체 500발을 더해도 호스트 프레임은 3ms 늘 뿐이고(34.1→37.4), 그중 exact 증가분은 약 1.4ms다. 적 수가 대조군 대비 +13ms(300)와 +25ms(1000)를 만든다.
+- 호스트도 `-nullrhi`로 돌리면 1000·500이 P50 49.7ms로 오히려 느려졌다. 렌더링이 아니라 서버 CPU 시뮬레이션(적 Mass 처리·복제 등)의 비용이다. 어느 프로세서인지는 아직 Insights로 나누지 않았다.
+- 게스트는 1000마리에서도 P95 약 16ms로 경계선이다. 게스트는 exact query를 거의 하지 않는다(자연 발사체 Ghost만).
+- 첫 실행(게스트 렌더 포함, `FApp` delta 측정)의 호스트 300·500: exact P95 1.081ms, 락 P95 0.092ms로 위와 같은 수준이었다.

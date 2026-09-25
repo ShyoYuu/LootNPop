@@ -1,8 +1,8 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1·2·3 완료
-> 마지막 갱신: 2026-09-24 (Placement Marker·움직이는 패널, 2P Mover 탑승 통과)
+> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1·2·3 완료, 4 harness·기준선 측정 완료
+> 마지막 갱신: 2026-09-25 (부하 harness, exact·락 기준 통과, 호스트 프레임 기준 실패)
 
 ## 현재 목표
 
@@ -43,9 +43,9 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 ## 바로 다음 작업
 
-Gate -1 A, Gate 0, 구현 단위 1~3은 끝났다. 움직이는 패널은 `LVI_Octant_Meadow_00` 마커 1개로 8 slot에 생기며, 자세 갱신은 패널 Actor 틱(TG_PrePhysics)이다. 순서 규칙과 이유는 `design/DynamicTerrain.md` §2에 있다. worker exact query는 StartPhysics 이후 페이즈에만 두어야 이 배치가 쓰기 겹침을 만들지 않는다.
+Gate -1 A, Gate 0, 구현 단위 1~3, 구현 단위 4의 harness와 기준선 측정이 끝났다. harness는 `-LNPLoadBaseline=N` 실행 인자로 켠다(`SurfaceNavigation/LNPLoadBaseline.h` 주석). exact·락 기준은 1000마리까지 통과했고, 호스트 프레임 기준(P95 ≤ 16.6ms)은 300마리부터 실패한다. 원인은 exact가 아닌 서버 적 시뮬레이션이다(`history/Phase03_Log.md` 2026-09-25).
 
-1. **구현 단위 4 — 부하 기준선 harness.** Phase 문서 §4 고정값(적 300·1000, Pure 90%, 투사체 500발, 리슨 2P, 패널 8개)을 자동으로 세우고 exact 합계·락 대기 P95를 보고하는 실행 경로를 만든다. Phase 3b 한계치 측정이 같은 harness를 쓴다.
+1. **호스트 프레임 실패 분해.** harness 1000마리·발사체 0 조건에서 호스트를 Unreal Insights(`-trace=cpu`)로 잡아 적 수에 비례하는 게임 스레드·worker 비용을 프로세서 단위로 나눈다. 그 결과로 Phase 3 완료 조건에서 프레임 기준을 다룰 방법을 사용자와 정한다. Phase 3 범위에서 최적화하거나, 기준선으로 기록하고 적 시뮬레이션 트랙으로 넘길 수 있다.
 2. **Gate -1 B 잔여.** 패널 hit가 `Dynamic`·`MarkerId`로 분류되는지 counter로 확인하고, registry generation의 match reset·stream unload lifecycle gate를 검증한다. disconnected sheet·double-sided shell 검증은 fixture가 필요하다.
 
 ## Phase 1에서 확정된 입력 계약
@@ -84,6 +84,14 @@ Gate -1 A, Gate 0, 구현 단위 1~3은 끝났다. 움직이는 패널은 `LVI_O
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-25 구현 단위 4(부하 기준선):
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음
+- 에디터 바이너리 `-game` 리슨 2P 무인 실행(게스트 `-nullrhi`, Ryzen 7 8845HS). 모든 조건에서 `UnknownHits=0`, `EnvelopeEscapes=0`, 발사체 평균 502발
+- 호스트 exact/frame P95: 300마리 1.249ms, 1000마리 1.665ms. 락 P95: 0.095ms, 0.128ms. 둘 다 통과
+- 호스트 프레임 P95: 대조군(적 1) 11.0ms, 300마리 28.1ms, 1000마리 43.4ms로 실패. 발사체 0발로 돌려도 1000마리는 41.3ms
+- 게스트 프레임 P95는 1000마리에서 약 16ms
 
 2026-09-24 구현 단위 3(Placement Marker·움직이는 패널):
 
