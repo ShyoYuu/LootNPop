@@ -26,6 +26,8 @@
 #include "MassReplicationFragments.h"   // FMassNetworkIDFragment — 호스트/게스트 로그 대조용 공유 식별자
 #include "LNPMassUtils.h"
 #include "GAS/LNPPoiseTypes.h"
+#include "Misc/ScopeExit.h"
+#include "Misc/ScopeLock.h"
 #if WITH_EDITOR
 #include "MassDebugDrawHelpers.h"
 #endif
@@ -534,8 +536,22 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	const bool bExactGround = LNPEnemyExactMovement::IsEnabled();
 	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
 
-	MovementQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& EnemyContext)
+	// 청크 병렬(Phase03b §3.6.1). 청크 사이의 공유 쓰기는 EntitiesToSignal 하나뿐이다 — 청크마다 모았다가 끝에 락을 잡고 합친다.
+	// 신호는 엔티티별로 쌓일 뿐 순서에 의미가 없다. Actor용 deferred 명령은 엔진이 병렬 잡마다 command buffer를 따로 준다.
+	// exact query·SurfaceCache 조회는 worker에서 호출할 수 있는 const 경로다(D-025).
+	FCriticalSection SignalLock;
+	const auto ExecuteChunk = [&](FMassExecutionContext& EnemyContext)
 	{
+		TArray<FMassEntityHandle> ChunkEntitiesToSignal;
+		ON_SCOPE_EXIT
+		{
+			if (ChunkEntitiesToSignal.Num() > 0)
+			{
+				FScopeLock ScopeLock(&SignalLock);
+				EntitiesToSignal.Append(ChunkEntitiesToSignal);
+			}
+		};
+
 		const TArrayView<FMassActorFragment> ActorFragments = EnemyContext.GetMutableFragmentView<FMassActorFragment>();
 		const TArrayView<FTransformFragment> Transforms = EnemyContext.GetMutableFragmentView<FTransformFragment>();
 		const TConstArrayView<FMassMoveTargetFragment> MoveTargets = EnemyContext.GetFragmentView<FMassMoveTargetFragment>();
@@ -725,7 +741,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			const bool bArrived = DistSq < FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance);
 			if (EffectiveSpeed > 0.0f && bArrived)
 			{
-				EntitiesToSignal.Add(EnemyContext.GetEntity(i));
+				ChunkEntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				EffectiveSpeed = 0.0f;
 			}
 
@@ -743,7 +759,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					// 실제 목표 폐기·재추첨은 IdleTask가 한다(배회 목표의 단일 결정 주체).
 					IdleData.TimeSinceWanderIssued = 0.0f;
 					IdleData.bWanderTargetTimedOut = true;
-					EntitiesToSignal.Add(EnemyContext.GetEntity(i));
+					ChunkEntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				}
 			}
 			else
@@ -888,7 +904,17 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				}
 			}
 		}
-	});
+	};
+
+	if (LNPEnemyExactMovement::IsParallelMovementEnabled())
+	{
+		// 청크마다 exact query 수가 달라(접지·공중·Actor 개체 비율) 미리 나눠 주지 않고 빈 스레드가 가져가게 한다.
+		MovementQuery.ParallelForEachEntityChunk(Context, ExecuteChunk, FMassEntityQuery::EParallelExecutionFlags::AutoBalance);
+	}
+	else
+	{
+		MovementQuery.ForEachEntityChunk(Context, ExecuteChunk);
+	}
 
 	if (EntitiesToSignal.Num() > 0)
 	{

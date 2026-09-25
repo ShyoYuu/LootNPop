@@ -1,4 +1,4 @@
-// Copyright (c) 2026 LootNPop. All rights reserved.
+﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "SurfaceNavigation/LNPLoadBaseline.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
@@ -818,6 +818,19 @@ void ULNPLoadBaselineSubsystem::Report()
 	EnemyCountQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
 	const int32 EnemyEntities = EnemyCountQuery.GetNumMatchingEntities();
 
+	// 이동 프로세서 병렬 실행의 잡 단위는 청크다. 청크 수가 병렬 이득의 상한이라 함께 남긴다(Phase03b §3.6.1).
+	int32 EnemyChunks = 0;
+	int32 LargestChunk = 0;
+	if (EnemyQuery.IsInitialized())
+	{
+		FMassExecutionContext ExecContext(EntityManager, 0.f);
+		EnemyQuery.ForEachEntityChunk(ExecContext, [&EnemyChunks, &LargestChunk](FMassExecutionContext& Ctx)
+		{
+			++EnemyChunks;
+			LargestChunk = FMath::Max(LargestChunk, Ctx.GetNumEntities());
+		});
+	}
+
 	const FPercentiles Frame = ComputePercentiles(FrameMs100, 0.01);
 	const FPercentiles Exact = ComputePercentiles(FrameExactNs, 1e-6);
 	const FPercentiles Lock = ComputePercentiles(FrameLockNs, 1e-6);
@@ -836,13 +849,14 @@ void ULNPLoadBaselineSubsystem::Report()
 	const bool bExactPass = Exact.P95 <= LNPLoadBaseline::ExactP95BudgetMs;
 	const bool bLockPass = Lock.P95 <= LNPLoadBaseline::LockP95BudgetMs;
 
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d projectiles=%d seed=%d ExactGround=%d LateralSweep=%d CPU=%s ====="),
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d projectiles=%d seed=%d ExactGround=%d LateralSweep=%d ParallelMovement=%d CPU=%s ====="),
 		*World->GetName(), static_cast<int32>(World->GetNetMode()), LNPLoadBaseline::GetEnemyCount(),
 		LNPLoadBaseline::GetTargetProjectiles(), LNPLoadBaseline::GetSeed(),
 		LNPEnemyExactMovement::IsEnabled() ? 1 : 0, LNPEnemyExactMovement::IsLateralSweepEnabled() ? 1 : 0,
+		LNPEnemyExactMovement::IsParallelMovementEnabled() ? 1 : 0,
 		*FPlatformMisc::GetCPUBrand().TrimStartAndEnd());
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] frames=%d EnemyEntities=%d PromotedActors avg=%.1f max=%d Projectiles avg=%.0f min=%d Injected=%d"),
-		FrameMs100.Num(), EnemyEntities, Average(PromotedActorSamples),
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] frames=%d EnemyEntities=%d EnemyChunks=%d LargestChunk=%d PromotedActors avg=%.1f max=%d Projectiles avg=%.0f min=%d Injected=%d"),
+		FrameMs100.Num(), EnemyEntities, EnemyChunks, LargestChunk, Average(PromotedActorSamples),
 		PromotedActorSamples.IsEmpty() ? 0 : FMath::Max(PromotedActorSamples),
 		Average(ProjectileSamples), ProjectileSamples.IsEmpty() ? 0 : FMath::Min(ProjectileSamples), InjectedProjectiles);
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] FrameMs P50=%.2f P95=%.2f Max=%.2f over16.6=%d(%.1f%%)"),

@@ -234,3 +234,44 @@
 
 - 단일 스레드 한계치 500은 최악 조건 기준선으로 남기고, 병렬 exact 한계치를 추가로 잰다(Phase 문서 §3.6.1). Phase 6에서 캐시와 병렬화 효과를 나눠 읽고, Phase 4 적중률 목표를 병렬 exact 기준으로 잡기 위해서다.
 - 작업량이 약 1세션이라 새 세션에서 진행한다. 측정 스크립트는 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`로 저장소에 옮겼다(`$args`는 `Where-Object` 블록 안에서 가려지므로 먼저 변수에 담는다).
+
+## 2026-09-26 — 구현 단위 3b: 이동 병렬화 측정(§3.6.1)
+
+### 구현
+
+- CVar `LNP.SurfaceNav.EnemyParallelMovement`(기본 0, 서버 전용)와 `LNPEnemyExactMovement::IsParallelMovementEnabled()`를 추가했다.
+- `ULNPEnemyMovementProcessor::Execute`: 청크 처리 람다를 하나로 두고, CVar가 1이면 `ParallelForEachEntityChunk(AutoBalance)`, 0이면 기존 `ForEachEntityChunk`로 부른다. 청크마다 exact query 수가 달라서(접지·공중·Actor 비율) 잡을 미리 나눠 주지 않고 빈 스레드가 가져가게 했다.
+  - 청크 사이의 공유 쓰기는 `EntitiesToSignal`뿐이다. 청크 로컬 배열에 모았다가 청크 끝(`ON_SCOPE_EXIT`)에서 락을 잡고 합친다. 신호는 엔티티 단위로 쌓일 뿐 순서에 의미가 없다.
+  - Actor 대상 deferred 명령은 엔진이 병렬 잡마다 command buffer를 따로 만들고 끝에 합친다(`bAllowParallelCommands` 기본 true). exact 통계는 원래 atomic이다.
+- harness 보고 머리줄에 `ParallelMovement`, 둘째 줄에 `EnemyChunks`·`LargestChunk`를 넣었다. 병렬 잡 단위가 청크라서 청크 수가 병렬 이득의 상한이다(harness의 적 query 기준, 죽어가는 개체 청크는 빠진다).
+- `RunLoadBaselineMatrix.ps1`에 `Parallel` 인자와 `N{500,650,700,750,800,850,1000,2000}_exact_par` 시나리오를 추가했다.
+
+### 결과(패키지 Development, 구현 단위 3과 같은 측정 규약)
+
+| N | 단일 스레드 P50/P95 | 병렬 P50/P95 | exact/frame P50(CPU 합) | 락 P95 | 청크 수 | 게스트 P95 |
+|:---|:---|:---|:---|:---|:---|:---|
+| 500 | 14.45/15.85ms | 11.99/**13.21ms** | 4.83ms | 0.111ms | 10 | 3.35ms |
+| 650 | — | 13.80/**15.34ms** | 6.09ms | 0.133ms | 14 | 3.63ms |
+| 700 | — | 13.95/**15.98ms** | 6.25ms | 0.136ms | 13 | 3.32ms |
+| 750 | — | 15.15/**16.40ms** | 6.86ms | 0.148ms | 13 | 3.64ms |
+| 800 | — | 16.75/**18.32ms** | 7.53ms | 0.158ms | 14 | 3.66ms |
+| 850 | — | 17.30/**18.99ms** | 7.91ms | 0.161ms | 15 | 3.73ms |
+| 1000 | 24.68/26.49ms | 19.48/**21.13ms** | 9.04ms | 0.185ms | 16 | 3.56ms |
+| 2000 | 42.96/46.80ms | 33.45/**35.72ms** | 17.32ms | 0.326ms | 26 | 3.76ms |
+
+- **병렬 exact 한계치(서버 CPU 프레임 P95 ≤ 16.6ms): 750마리.** 750은 16.40ms로 통과(여유 0.2ms), 800은 18.32ms로 실패. 조건마다 1회 실행이라 경계 부근은 ±50마리 정도의 흔들림을 감안한다. 단일 스레드 한계치 500은 최악 조건 기준선으로 그대로 둔다.
+- 청크당 최대 103마리라 500마리에서도 잡이 10개다. 청크 수는 병목이 아니다.
+- 병렬화로 줄어든 프레임 P50은 N=500 2.5ms, 1000 5.2ms, 2000 9.5ms로 exact CPU 합의 약 51~58%다. `-corelimit=4`에서 이상적인 몫은 75%다. 나머지는 잡 불균형과 병렬 진입 비용으로 보이며 Insights로 나누지는 않았다.
+- exact CPU 합과 query 수는 단일 스레드와 같다(N=1000 9.04ms·1,952회 vs 8.81ms·1,942회). 병렬화는 총량을 줄이지 않는다.
+- 락 대기는 worker 동시 query에서도 N=1000까지 P95 0.2ms 예산 안이고, N=2000에서 0.326ms로 처음 넘는다. 락 경합은 이 규모에서 병목이 아니다.
+- 모든 실행에서 `UnknownHits=0`, `EnvelopeEscapes=0`, `LayerJumps=0`, ensure·crash 0. 이벤트 비율(IslandDrops/IslandLeaves 약 17~21%)은 단일 스레드와 같은 범위다.
+
+### 검증
+
+- `LootNPopEditor Win64 Development`, 패키지 BuildCookRun 성공(새 경고 없음, 기존 Mannequin material 경고만).
+- 자동화 `LootNPop.SurfaceNavigation` 21/21(자동화가 다시 저장한 테스트 mesh 2개는 git으로 되돌림).
+- 에디터 바이너리 `-game` 리슨 2P 무인(적 300·발사체 500, 병렬 1): 호스트·게스트 `UnknownHits=0`, `MassPrePhysicsOrder` 위반 0, LayerJumps 0, ensure·crash 0. 프레임은 에디터 바이너리라 판정하지 않는다.
+
+### 결정(사용자, 2026-09-26): 병렬 이동을 기본값으로
+
+- `LNP.SurfaceNav.EnemyParallelMovement` 기본값을 1로 바꿨다. 측정 스크립트는 모든 시나리오에 값을 명시하므로(`Parallel` 없으면 0) 단일 스레드 기준선은 그대로 재현된다.

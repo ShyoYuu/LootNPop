@@ -19,7 +19,16 @@ $runs = @(
     @{ Name = "N1000_exact";      N = 1000; Exact = 1; Lateral = 1 },
     @{ Name = "N1000_exact_lat0"; N = 1000; Exact = 1; Lateral = 0 },
     @{ Name = "N2000_legacy";     N = 2000; Exact = 0; Lateral = 1 },
-    @{ Name = "N2000_exact";      N = 2000; Exact = 1; Lateral = 1 }
+    @{ Name = "N2000_exact";      N = 2000; Exact = 1; Lateral = 1 },
+    # Phase03b 3.6.1: movement processor ParallelForEachEntityChunk.
+    @{ Name = "N500_exact_par";   N = 500;  Exact = 1; Lateral = 1; Parallel = 1 },
+    @{ Name = "N650_exact_par";   N = 650;  Exact = 1; Lateral = 1; Parallel = 1 },
+    @{ Name = "N700_exact_par";   N = 700;  Exact = 1; Lateral = 1; Parallel = 1 },
+    @{ Name = "N750_exact_par";   N = 750;  Exact = 1; Lateral = 1; Parallel = 1 },
+    @{ Name = "N800_exact_par";   N = 800;  Exact = 1; Lateral = 1; Parallel = 1 },
+    @{ Name = "N850_exact_par";   N = 850;  Exact = 1; Lateral = 1; Parallel = 1 },
+    @{ Name = "N1000_exact_par";  N = 1000; Exact = 1; Lateral = 1; Parallel = 1 },
+    @{ Name = "N2000_exact_par";  N = 2000; Exact = 1; Lateral = 1; Parallel = 1 }
 )
 # $args is shadowed inside Where-Object script blocks; capture it first.
 $only = $args
@@ -27,7 +36,8 @@ if ($only.Count -gt 0) { $runs = $runs | Where-Object { $only -contains $_.Name 
 
 foreach ($r in $runs) {
     $common = "-nullrhi -nosound -corelimit=4 -unattended -LNPLoadBaseline=$($r.N) -LNPLoadBaselineQuit"
-    $cvars = "-dpcvars=LNP.SurfaceNav.EnemyExactGround=$($r.Exact),LNP.SurfaceNav.EnemyExactLateralSweep=$($r.Lateral)"
+    $parallel = if ($r.Parallel) { $r.Parallel } else { 0 }
+    $cvars = "-dpcvars=LNP.SurfaceNav.EnemyExactGround=$($r.Exact),LNP.SurfaceNav.EnemyExactLateralSweep=$($r.Lateral),LNP.SurfaceNav.EnemyParallelMovement=$parallel"
     $hostLog = Join-Path $logDir "$($r.Name)_Host.log"
     $guestLog = Join-Path $logDir "$($r.Name)_Guest.log"
     $h = Start-Process -FilePath $exe -ArgumentList "TestMap03?Listen $common $cvars -abslog=$hostLog" -PassThru
