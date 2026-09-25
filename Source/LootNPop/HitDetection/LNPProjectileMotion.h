@@ -58,6 +58,15 @@ namespace LNPProjectileMotion
 	bool TraceWorld(const ULNPMassWorldCollisionSubsystem& WorldCollision, const FVector& From, const FVector& To, FLNPWorldHit& OutHit);
 
 	/**
+	 * **world/entity earliest hit의 단일 정의** — 이번 프레임 선분의 월드 hit를 먼저 구하고 캐릭터 판정 선분의 끝을
+	 * 거기로 자른다. 잘린 선분 위의 캐릭터 hit는 월드 hit보다 항상 이르므로, 캐릭터 판정이 먼저 맞으면 그것이
+	 * earliest hit이고 아니면 월드 hit이다 — 섬 측벽·동굴 벽 뒤의 적은 맞지 않는다.
+	 * WorldCollision이 null(서브시스템이 없는 월드 타입)이면 월드 판정 없이 To를 돌려준다. 모든 스레드.
+	 */
+	FVector ClipSegmentToWorld(const ULNPMassWorldCollisionSubsystem* WorldCollision, const FVector& From, const FVector& To,
+		FLNPWorldHit& OutHit);
+
+	/**
 	 * envelope 안전망의 여유(cm). envelope 밖에서는 중력(바깥쪽)과 반지름 방향 속도가 모두 바깥을 향해 돌아올 수 없으므로,
 	 * 여유는 판정 경계를 geometry에서 떼어 놓는 용도뿐이다.
 	 */

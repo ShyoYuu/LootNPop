@@ -534,3 +534,25 @@ worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분�
 ### 이관(사용자 결정)
 
 - 한 component의 disconnected sheet face identity와 내부형 double-sided shell normal 검증은 `design/RegressionMap.md` 계획대로 Phase 4 착수 전 fixture 추가와 함께 수행한다. Phase 3에는 face→Layer 소비자가 없다.
+
+## 2026-09-25 — 자동화·회귀 잔여와 Phase 3 종료
+
+### 구현
+
+- `LNPProjectileMotion::ClipSegmentToWorld`: 투사체 처리 프로세서 안의 람다였던 world/entity earliest hit 판정(월드 hit로 캐릭터 판정 선분을 자른다)을 함수로 옮겼다. 서버 Pass와 클라이언트 Ghost가 같은 함수를 부른다. 동작 변화 없음.
+- 자동화 `WorldCollision.EarliestHit`: 벽 앞 적은 맞고 벽 뒤 적은 잘린 선분 밖이라 맞지 않는다. 월드 판정이 없으면 벽 뒤 적도 맞는 대조군 포함.
+- 자동화 `WorldCollision.RegressionMap`(`WITH_EDITOR`): `L_SurfaceRegression`을 로드해 `LNP.Regression.Fixture` 37개의 mesh·transform·profile·mobility를 테스트 월드로 복제하고 Decoration을 뺀 25개를 런타임 source로 등록한다. 맵은 일반 레벨이라 slot 등록 경로를 타지 않기 때문이다. 기대값은 생성 스크립트 치수에서 나온다.
+  - 기본 지각, 부유섬 1·2층 거리순, 섬 가장자리 안쪽 support·바깥 miss·측벽 sweep, 동굴 floor(Support)·ceiling·양벽(Blocker만), 나무·바위(Blocker만), 상태형 기둥(Dynamic Blocker), 움직이는 패널(Dynamic Support)과 아래 gap miss, 파괴 바닥(Destructible), seam 양쪽 hit와 경계를 가로지르는 sweep 무충돌.
+  - Decoration을 지나는 ray와 등록하지 않은 `Pawn` profile 판을 지나는 ray가 모두 지면에 맞고 `UnknownHits=0`.
+  - 바위는 비균등 scale 구라 표면 좌표 대신 바위 영역 안 hit만 본다.
+
+### 검증
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음.
+- `UnrealEditor-Cmd -NullRHI` `Automation RunTests LootNPop.SurfaceNavigation` 17/17 통과, 새 경고 없음.
+- 에디터 바이너리 `-game` 리슨 2P 무인(양쪽 `-nullrhi`, `-corelimit=4`, `-LNPLoadBaseline=300`, 발사체 500): 호스트·게스트 모두 `UnknownHits=0`, `EnvelopeEscapes=0`, `ProbePanels panels=8 failures=0 PASS`, exact·락 PASS, ensure·crash 0. 호스트 프레임 FAIL은 에디터 바이너리 오염(구현 단위 4 분해 절)이라 판정하지 않는다.
+
+### Phase 3 종료
+
+- 완료 조건을 모두 충족했다. Gate -1 B의 disconnected sheet face identity와 double-sided shell normal은 Phase 4 착수 전 fixture와 함께 검증한다.
+- 다음 핵심 경로는 Phase 3b(exact 전용 부유섬 프로토타입)다. 실행 문서는 착수 직전에 만든다.
