@@ -22,6 +22,9 @@ namespace LNPEnemyExactMovement
 	/** LNP.SurfaceNav.EnemyExactLateralSweep. */
 	LOOTNPOP_API bool IsLateralSweepEnabled();
 
+	/** LNP.SurfaceNav.EnemyParallelMovement. 이동 프로세서의 청크 병렬 실행 여부(측정 요인, Phase03b §3.6.1). */
+	LOOTNPOP_API bool IsParallelMovementEnabled();
+
 	struct FParams
 	{
 		FVector GravityOrigin = FVector::ZeroVector;

@@ -19,6 +19,11 @@ namespace LNPEnemyExactMovement
 			TEXT("LNP.SurfaceNav.EnemyExactLateralSweep"), GEnemyExactLateralSweep,
 			TEXT("Exact enemy grounding only. 1 = lateral capsule sweep before the support probe, 0 = skip it (measurement factor)."));
 
+		int32 GEnemyParallelMovement = 1;
+		FAutoConsoleVariableRef CVarEnemyParallelMovement(
+			TEXT("LNP.SurfaceNav.EnemyParallelMovement"), GEnemyParallelMovement,
+			TEXT("Server-only. 1 = run the enemy movement processor with ParallelForEachEntityChunk, 0 = single-threaded (measurement factor, Phase03b 3.6.1)."));
+
 		/** 시작 겹침을 풀 때 겹침 깊이에 더하는 여유(cm). */
 		constexpr float DepenetrationSkin = 0.5f;
 
@@ -132,6 +137,11 @@ namespace LNPEnemyExactMovement
 	bool IsLateralSweepEnabled()
 	{
 		return GEnemyExactLateralSweep != 0;
+	}
+
+	bool IsParallelMovementEnabled()
+	{
+		return GEnemyParallelMovement != 0;
 	}
 
 	EGroundResult StepGrounded(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
