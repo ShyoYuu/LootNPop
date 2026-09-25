@@ -10,7 +10,9 @@
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "Enemy/LNPEnemyExactMovement.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
+#include "HitDetection/LNPHitDetectionShared.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "LootNPop.h"
 
@@ -25,14 +27,81 @@
 #include "MassCommonFragments.h"
 #include "MassEntityConfigAsset.h"
 #include "MassEntitySubsystem.h"
+#include "MassExecutionContext.h"
+#include "GameFramework/GameModeBase.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "ProfilingDebugging/MiscTrace.h"
 
 namespace
 {
-	/** 링 안쪽 반지름(cm). PlayerStart 바로 옆에 적을 두지 않는다. */
+	/** 링 안쪽 반지름(cm). 링 중심에 선 플레이어 바로 옆에 적을 두지 않는다. */
 	constexpr float RingInnerRadius = 1500.f;
+
+	/**
+	 * Meadow_00 큰 섬(Phase03b §3.1, Phase03b_Log 구현 단위 1). slot 로컬 방향 (1,1,1)이고 윗면은 월드 구와 동심이다.
+	 * slot 4(pitch 180)는 -Z 반구라 PlayerStart 극에 가장 가까운 네 slot 중 하나다. 옥탄트를 고치면 이 값도 고친다.
+	 */
+	constexpr int32 IslandSlot = 4;
+	constexpr float IslandTopRadius = 25800.f;
+	constexpr float IslandRadius = 3000.f;
+
+	/** 섬 윗면 배치는 가장자리에서 이만큼 안쪽까지만. */
+	constexpr float IslandPlacementEdgeMargin = 200.f;
+
+	/**
+	 * 층 판정 반지름(cm). 섬 윗면(25,800) 위 캡슐 중심은 이보다 작고, 지각(최소 28,235) 위는 크다.
+	 * 섬 밑면(가장 깊은 곳 27,300)과 지각 사이에서 시작하는 probe는 섬 아래 지각만 찾는다.
+	 */
+	constexpr float IslandLayerRadius = 27000.f;
+	constexpr float CrustProbeStartRadius = 27700.f;
+	constexpr float CrustProbeEndRadius = 32000.f;
+	constexpr float IslandProbeStartRadius = 25000.f;
+
+	/** 배치 probe 구 반지름(cm). 캡슐 반지름과 같다. */
+	constexpr float PlacementProbeRadius = 35.f;
+
+	/** 접지 상태로 한 프레임에 이보다 크게 반지름이 변하면 층 순간이동이다. 정상 보행 단차(최대 60cm)보다 훨씬 크다. */
+	constexpr float LayerJumpThreshold = 500.f;
+
+	/** 20마리 중 섬 윗면에 두는 인덱스. 4는 근접, 15는 원거리다(GetEnemyKind). 10%. */
+	bool IsIslandTopIndex(const int32 Index)
+	{
+		const int32 Slot = Index % 20;
+		return Slot == 4 || Slot == 15;
+	}
+
+	FVector GetIslandDirection()
+	{
+		return ULNPOctantSpawnSubsystem::OctantRotations[IslandSlot].RotateVector(FVector(1.0, 1.0, 1.0).GetSafeNormal());
+	}
+
+	/** 링 중심 방향. 섬 중심에서 PlayerStart 극(-Z) 쪽으로 섬 반지름만큼 옮긴 섬 가장자리 아래다. */
+	FVector GetRingCenterDirection()
+	{
+		const FVector IslandDir = GetIslandDirection();
+		const FVector Axis = FVector::CrossProduct(IslandDir, FVector::DownVector).GetSafeNormal();
+		return FQuat(Axis, IslandRadius / IslandTopRadius).RotateVector(IslandDir);
+	}
+
+	/** Direction 방향으로 StartRadius에서 EndRadius까지 지지면을 찾아 발밑 위치를 돌려준다. */
+	bool ProbeFoot(const ULNPMassWorldCollisionSubsystem& Collision, const FVector& Direction, const float StartRadius,
+		const float EndRadius, FVector& OutFoot)
+	{
+		FLNPSupportProbeQuery Query;
+		Query.Position = Direction * StartRadius;
+		Query.Up = -Direction;
+		Query.MaxStepUp = 0.f;
+		Query.MaxDrop = EndRadius - StartRadius;
+		Query.Radius = PlacementProbeRadius;
+
+		FLNPSupportProbeResult Result;
+		if (!Collision.ProbeSupport(Query, FLNPWorldQueryParams(ELNPWorldQueryClass::DebugValidation), Result))
+			return false;
+		OutFoot = Result.Hit.Location + Direction * PlacementProbeRadius;
+		return true;
+	}
 
 	/** 적 한 마리당 링 넓이(cm²). 적 수가 늘어도 밀도가 같도록 바깥 반지름을 키운다. 간격 약 390cm. */
 	constexpr float RingAreaPerEnemy = 150000.f;
@@ -188,12 +257,35 @@ UMassEntityConfigAsset* LNPLoadBaseline::LoadEnemyEntityConfig(const EEnemyKind 
 	return LoadObject<UMassEntityConfigAsset>(nullptr, EnemyEntityConfigPaths[static_cast<int32>(Kind)]);
 }
 
-void LNPLoadBaseline::BuildEnemyRing(const FLNPSurfaceCacheSnapshot& Cache, const float SphereRadius, const int32 Seed,
+namespace
+{
+	/** Direction 주변 지각의 발밑 위치. 바위 같은 Blocker 전용 프랍이 있을 수 있어 나선으로 찍어 첫 지지면을 쓴다(결정론적). */
+	bool FindCrustNear(const ULNPMassWorldCollisionSubsystem& Collision, const FVector& Direction, FVector& OutFoot)
+	{
+		constexpr int32 SearchSteps = 24;
+		constexpr float SearchStepDistance = 150.f;
+		FVector T1, T2;
+		MakeTangentBasis(Direction, T1, T2);
+		for (int32 Step = 0; Step < SearchSteps; ++Step)
+		{
+			const FVector Candidate = MakeRingDirection(Direction, T1, T2, Step * 2.4f, Step * SearchStepDistance, CrustProbeStartRadius);
+			if (ProbeFoot(Collision, Candidate, CrustProbeStartRadius, CrustProbeEndRadius, OutFoot))
+				return true;
+		}
+		return false;
+	}
+}
+
+bool LNPLoadBaseline::FindRingCenter(const ULNPMassWorldCollisionSubsystem& Collision, FVector& OutCenter)
+{
+	return FindCrustNear(Collision, GetRingCenterDirection(), OutCenter);
+}
+
+void LNPLoadBaseline::BuildEnemyRing(const ULNPMassWorldCollisionSubsystem& Collision, const float SphereRadius, const int32 Seed,
 	const int32 Count, TArray<FVector>& OutLocations, FVector& OutCenter)
 {
-	// PlayerStart 영역은 -Z 극이다(LNPMassSpawnSubsystem이 Pod를 두지 않는 영역).
-	const FVector CenterDir = FVector::DownVector;
-	if (!Cache.GetPoint(CenterDir, OutCenter))
+	const FVector CenterDir = GetRingCenterDirection();
+	if (!FindRingCenter(Collision, OutCenter))
 	{
 		OutCenter = CenterDir * SphereRadius;
 	}
@@ -201,21 +293,38 @@ void LNPLoadBaseline::BuildEnemyRing(const FLNPSurfaceCacheSnapshot& Cache, cons
 	FVector T1, T2;
 	MakeTangentBasis(CenterDir, T1, T2);
 
+	const FVector IslandDir = GetIslandDirection();
+	FVector IslandT1, IslandT2;
+	MakeTangentBasis(IslandDir, IslandT1, IslandT2);
+
 	const float OuterRadius = GetRingOuterRadius(Count);
 	FRandomStream Rand(Seed);
 	OutLocations.Reset(Count);
 
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
+		const bool bIslandTop = IsIslandTopIndex(Index);
 		for (int32 Retry = 0; Retry < EnemyPlacementRetries; ++Retry)
 		{
 			// 넓이에 균등하게 뿌리도록 반지름의 제곱을 균등 추첨한다.
 			const float Angle = Rand.FRandRange(0.f, 2.f * PI);
-			const float Distance = FMath::Sqrt(Rand.FRandRange(FMath::Square(RingInnerRadius), FMath::Square(OuterRadius)));
-
 			FVector Candidate;
-			if (!Cache.GetPoint(MakeRingDirection(CenterDir, T1, T2, Angle, Distance, SphereRadius), Candidate))
-				continue;
+			if (bIslandTop)
+			{
+				const float MaxDistance = IslandRadius - IslandPlacementEdgeMargin;
+				const float Distance = MaxDistance * FMath::Sqrt(Rand.FRand());
+				const FVector Direction = MakeRingDirection(IslandDir, IslandT1, IslandT2, Angle, Distance, IslandTopRadius);
+				if (!ProbeFoot(Collision, Direction, IslandProbeStartRadius, IslandLayerRadius, Candidate))
+					continue;
+			}
+			else
+			{
+				// 섬 아래 방향에서도 섬 밑면과 지각 사이에서 시작하므로 지각을 찾는다.
+				const float Distance = FMath::Sqrt(Rand.FRandRange(FMath::Square(RingInnerRadius), FMath::Square(OuterRadius)));
+				const FVector Direction = MakeRingDirection(CenterDir, T1, T2, Angle, Distance, SphereRadius);
+				if (!ProbeFoot(Collision, Direction, CrustProbeStartRadius, CrustProbeEndRadius, Candidate))
+					continue;
+			}
 
 			bool bTooClose = false;
 			for (const FVector& Other : OutLocations)
@@ -265,6 +374,7 @@ void ULNPLoadBaselineSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 
 	ProjectileStream.Initialize(LNPLoadBaseline::GetSeed());
+	KnockbackStream.Initialize(LNPLoadBaseline::GetSeed() + 1);
 
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Active: enemies=%d seed=%d expectedPlayers=%d projectiles=%d world=%s"),
 		LNPLoadBaseline::GetEnemyCount(), LNPLoadBaseline::GetSeed(), ParseExpectedPlayers(),
@@ -318,14 +428,19 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		Stage = EStage::Warmup;
 		StageStartTime = Now;
 
-		if (const ULNPSurfaceCacheSubsystem* SurfaceCache = World->GetSubsystem<ULNPSurfaceCacheSubsystem>())
+		const bool bRingCenterFound = LNPLoadBaseline::FindRingCenter(*World->GetSubsystem<ULNPMassWorldCollisionSubsystem>(), RingCenter);
+		if (!bRingCenterFound)
 		{
-			SurfaceCache->GetSurfacePoint(FVector::DownVector, RingCenter);
+			UE_LOG(LogLootNPop, Warning, TEXT("[LoadBaseline] Ring center probe found no crust."));
 		}
 		RingOuterRadius = GetRingOuterRadius(LNPLoadBaseline::GetEnemyCount());
 		if (World->GetNetMode() != NM_Client)
 		{
 			ProjectileSourceConfig = LoadObject<ULNPEnemyConfig>(nullptr, ProjectileSourceConfigPath);
+		}
+		if (bRingCenterFound && World->GetNetMode() != NM_Client)
+		{
+			RespawnPlayersAtRing();
 		}
 
 		float HostToCenter = -1.f;
@@ -344,6 +459,7 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 	if (World->GetNetMode() != NM_Client)
 	{
 		TopUpProjectiles();
+		DriveEnemies(DeltaTime, Stage == EStage::Capture);
 	}
 
 	if (Stage == EStage::Warmup && Now - StageStartTime >= LNPLoadBaseline::WarmupSeconds)
@@ -351,11 +467,25 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		Stage = EStage::Capture;
 		StageStartTime = Now;
 
-		const ULNPMassWorldCollisionSubsystem* Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+		// 분류별 count·평균이 capture 구간만 담도록 비운다(배치 probe·warm-up 제외).
+		ULNPMassWorldCollisionSubsystem* Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+		Collision->ResetStats();
 		Collision->GetTotals(LastQueryCount, LastQueryNs, LastLockNs);
 		StartUnknownHits = Collision->GetUnknownHitCount();
 		StartEnvelopeEscapes = Collision->GetEnvelopeEscapeCount();
 		NextActorSampleTime = Now;
+		CaptureStartPopulation = Population;
+		if (World->GetNetMode() != NM_Client)
+		{
+			for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+			{
+				if (const APawn* Pawn = It->Get() ? It->Get()->GetPawn() : nullptr)
+				{
+					UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Player %s to ring center %.0fcm"),
+						*GetNameSafe(Pawn), FVector::Dist(Pawn->GetActorLocation(), RingCenter));
+				}
+			}
+		}
 		// Insights에서 capture 구간만 잘라 볼 수 있게 region을 남긴다(-trace 인자가 없으면 비용 없음).
 		TRACE_BEGIN_REGION(TEXT("LNPLoadBaselineCapture"));
 		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Capture %.0fs started."), LNPLoadBaseline::CaptureSeconds);
@@ -383,6 +513,169 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 			}
 		}
 	}
+}
+
+void ULNPLoadBaselineSubsystem::RespawnPlayersAtRing()
+{
+	UWorld* World = GetWorld();
+	AGameModeBase* GameMode = World->GetAuthGameMode();
+	if (GameMode == nullptr)
+		return;
+
+	const ULNPMassWorldCollisionSubsystem& Collision = *World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	const FVector CenterDir = RingCenter.GetSafeNormal();
+	FVector T1, T2;
+	MakeTangentBasis(CenterDir, T1, T2);
+
+	// Mover instant effect(FTeleportEffect)는 네트워크로 전달되지 않아(엔진 주석: Chaos Mover만 복제) 게스트 폰이
+	// 서버·게스트 어느 쪽에서 넣어도 옮겨지지 않았다(2026-09-26 스모크). 리스폰(ALNPGameMode::DoRespawn)처럼
+	// 폰을 치우고 링 중심에 새로 스폰한다. 스폰 위치는 초기 복제로 전달된다.
+	// 자리마다 지각을 exact로 찍고 캡슐 중심을 띄워 둔다(Mover가 떨어뜨려 접지시킨다). 링 중심 기준 300cm 간격.
+	// 찍지 않은 자리는 경사·프랍에 걸려 스폰이 충돌로 실패했다.
+	constexpr float DropHeight = 150.f;
+	constexpr float PlayerSpacing = 300.f;
+	TArray<APlayerController*> Controllers;
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		if (APlayerController* PC = It->Get())
+			Controllers.Add(PC);
+	}
+	for (int32 PlayerIndex = 0; PlayerIndex < Controllers.Num(); ++PlayerIndex)
+	{
+		APlayerController* PC = Controllers[PlayerIndex];
+		if (APawn* OldPawn = PC->GetPawn())
+		{
+			PC->UnPossess();
+			OldPawn->Destroy();
+		}
+		FVector Foot = RingCenter;
+		if (PlayerIndex > 0)
+		{
+			const FVector SeatDir = MakeRingDirection(CenterDir, T1, T2, 0.f, PlayerSpacing * PlayerIndex, RingCenter.Size());
+			FindCrustNear(Collision, SeatDir, Foot);
+		}
+		const FVector Up = -Foot.GetSafeNormal();
+		GameMode->RestartPlayerAtTransform(PC, FTransform(UKismetMathLibrary::MakeRotFromZ(Up), Foot + Up * DropHeight));
+		if (PC->GetPawn() == nullptr)
+		{
+			UE_LOG(LogLootNPop, Error, TEXT("[LoadBaseline] Failed to respawn %s at %s"), *GetNameSafe(PC), *Foot.ToString());
+		}
+	}
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Respawned %d players at ring center %s"), Controllers.Num(), *RingCenter.ToString());
+}
+
+void ULNPLoadBaselineSubsystem::DriveEnemies(const float DeltaTime, const bool bCount)
+{
+	FMassEntityManager& EntityManager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+	if (!EnemyQuery.IsInitialized())
+	{
+		EnemyQuery = FMassEntityQuery(EntityManager.AsShared());
+		EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+		EnemyQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
+		EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
+		EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+		EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	}
+
+	// 적마다 독립적인 포아송 과정: 이번 프레임에 넉백을 받을 확률.
+	const float KnockbackChance = 1.f - FMath::Exp(-DeltaTime / LNPLoadBaseline::KnockbackMeanIntervalSeconds);
+	const FVector IslandDir = GetIslandDirection();
+	const FVector IslandCenter = IslandDir * IslandTopRadius;
+	const float CosUnderIsland = FMath::Cos(IslandRadius / IslandTopRadius);
+
+	Population = FPopulation();
+
+	// 게임 스레드 tickable이라 Mass 페이즈 밖이다. 프래그먼트를 직접 써도 프로세서와 겹치지 않는다.
+	FMassExecutionContext ExecContext(EntityManager, DeltaTime);
+	EnemyQuery.ForEachEntityChunk(ExecContext, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		const TArrayView<FLNPEnemyVelocityFragment> Velocities = Ctx.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
+		const TConstArrayView<FMassActorFragment> Actors = Ctx.GetFragmentView<FMassActorFragment>();
+
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			const FMassEntityHandle Entity = Ctx.GetEntity(i);
+			// Actor가 있는 적은 Mover가 움직인다. exact 이동 경로의 대상이 아니다.
+			if (Actors[i].Get() != nullptr)
+			{
+				EnemyTracks.Remove(Entity);
+				continue;
+			}
+
+			const FVector Location = Transforms[i].GetTransform().GetLocation();
+			const float Radius = Location.Size();
+			const FVector Up = -Location.GetSafeNormal();
+			FVector& Velocity = Velocities[i].Velocity;
+			const bool bAirborne = !Velocity.IsNearlyZero();
+			const bool bIslandTop = !bAirborne && Radius < IslandLayerRadius;
+
+			if (bAirborne)
+				++Population.Airborne;
+			else if (bIslandTop)
+				++Population.IslandTop;
+			else if (FVector::DotProduct(-Up, IslandDir) > CosUnderIsland)
+				++Population.UnderIsland;
+			else
+				++Population.OpenCrust;
+
+			FEnemyTrack* Track = EnemyTracks.Find(Entity);
+			if (Track == nullptr)
+			{
+				Track = &EnemyTracks.Add(Entity);
+			}
+			else
+			{
+				if (!Track->bAirborne && bAirborne)
+				{
+					if (bCount && !Track->bKnockedByHarness)
+						++Events.Falls;
+					if (Track->Radius < IslandLayerRadius)
+					{
+						Track->bLeftIslandTop = true;
+						if (bCount)
+							++Events.IslandLeaves;
+					}
+				}
+				else if (Track->bAirborne && !bAirborne)
+				{
+					if (bCount)
+					{
+						++Events.Landings;
+						if (Track->bLeftIslandTop && !bIslandTop)
+							++Events.IslandDrops;
+					}
+					Track->bLeftIslandTop = false;
+				}
+				else if (!Track->bAirborne && !bAirborne && bCount
+					&& FMath::Abs(Radius - Track->Radius) > LayerJumpThreshold)
+				{
+					++Events.LayerJumps;
+				}
+			}
+
+			Track->Radius = Radius;
+			Track->bAirborne = bAirborne;
+			Track->bKnockedByHarness = false;
+
+			if (bAirborne || KnockbackStream.FRand() >= KnockbackChance)
+				continue;
+
+			// 섬 위 적은 섬 중심 반대쪽으로, 나머지는 임의 접선 방향으로 민다.
+			FVector PushDir = bIslandTop ? FVector::VectorPlaneProject(Location - IslandCenter, Up).GetSafeNormal() : FVector::ZeroVector;
+			if (PushDir.IsNearlyZero())
+			{
+				FVector T1, T2;
+				MakeTangentBasis(-Up, T1, T2);
+				const float Angle = KnockbackStream.FRandRange(0.f, 2.f * PI);
+				PushDir = T1 * FMath::Cos(Angle) + T2 * FMath::Sin(Angle);
+			}
+			LNPHitDetection::ApplyEntityKnockback(Velocity, -PushDir, Up, LNPLoadBaseline::KnockbackStrength);
+			Track->bKnockedByHarness = true;
+			if (bCount)
+				++Events.Knockbacks;
+		}
+	});
 }
 
 void ULNPLoadBaselineSubsystem::TopUpProjectiles()
@@ -413,6 +706,8 @@ void ULNPLoadBaselineSubsystem::TopUpProjectiles()
 	if (SurfaceCache == nullptr)
 		return;
 
+	// 발사 위치는 SurfaceCache로 찍는다. exact probe로 찍으면 harness가 측정 대상 counter에 query를 더한다.
+	// 섬 아래 방향에서는 섬 윗면에서 쏘게 되지만 조준점은 링 중심이라 부하 성격은 같다.
 	const FVector CenterDir = RingCenter.GetSafeNormal();
 	// 내부형 구라 위쪽은 월드 중심 방향이다.
 	const FVector CenterUp = -CenterDir;
@@ -519,9 +814,9 @@ void ULNPLoadBaselineSubsystem::Report()
 	const ULNPMassWorldCollisionSubsystem* Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 
 	FMassEntityManager& EntityManager = World->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
-	FMassEntityQuery EnemyQuery(EntityManager.AsShared());
-	EnemyQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
-	const int32 EnemyEntities = EnemyQuery.GetNumMatchingEntities();
+	FMassEntityQuery EnemyCountQuery(EntityManager.AsShared());
+	EnemyCountQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+	const int32 EnemyEntities = EnemyCountQuery.GetNumMatchingEntities();
 
 	const FPercentiles Frame = ComputePercentiles(FrameMs100, 0.01);
 	const FPercentiles Exact = ComputePercentiles(FrameExactNs, 1e-6);
@@ -541,9 +836,11 @@ void ULNPLoadBaselineSubsystem::Report()
 	const bool bExactPass = Exact.P95 <= LNPLoadBaseline::ExactP95BudgetMs;
 	const bool bLockPass = Lock.P95 <= LNPLoadBaseline::LockP95BudgetMs;
 
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d projectiles=%d seed=%d CPU=%s ====="),
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d projectiles=%d seed=%d ExactGround=%d LateralSweep=%d CPU=%s ====="),
 		*World->GetName(), static_cast<int32>(World->GetNetMode()), LNPLoadBaseline::GetEnemyCount(),
-		LNPLoadBaseline::GetTargetProjectiles(), LNPLoadBaseline::GetSeed(), *FPlatformMisc::GetCPUBrand().TrimStartAndEnd());
+		LNPLoadBaseline::GetTargetProjectiles(), LNPLoadBaseline::GetSeed(),
+		LNPEnemyExactMovement::IsEnabled() ? 1 : 0, LNPEnemyExactMovement::IsLateralSweepEnabled() ? 1 : 0,
+		*FPlatformMisc::GetCPUBrand().TrimStartAndEnd());
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] frames=%d EnemyEntities=%d PromotedActors avg=%.1f max=%d Projectiles avg=%.0f min=%d Injected=%d"),
 		FrameMs100.Num(), EnemyEntities, Average(PromotedActorSamples),
 		PromotedActorSamples.IsEmpty() ? 0 : FMath::Max(PromotedActorSamples),
@@ -553,6 +850,14 @@ void ULNPLoadBaselineSubsystem::Report()
 		FrameMs100.IsEmpty() ? 0.0 : 100.0 * FramesOverBudget / FrameMs100.Num());
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ExactPerFrame ms P50=%.3f P95=%.3f Max=%.3f | Queries/frame P50=%.0f P95=%.0f Max=%.0f | LockPerFrame ms P50=%.3f P95=%.3f Max=%.3f (probe on)"),
 		Exact.P50, Exact.P95, Exact.Max, Queries.P50, Queries.P95, Queries.Max, Lock.P50, Lock.P95, Lock.Max);
+	if (World->GetNetMode() != NM_Client)
+	{
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Population start IslandTop=%d UnderIsland=%d OpenCrust=%d Airborne=%d | end IslandTop=%d UnderIsland=%d OpenCrust=%d Airborne=%d"),
+			CaptureStartPopulation.IslandTop, CaptureStartPopulation.UnderIsland, CaptureStartPopulation.OpenCrust, CaptureStartPopulation.Airborne,
+			Population.IslandTop, Population.UnderIsland, Population.OpenCrust, Population.Airborne);
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Events Knockbacks=%d Falls=%d Landings=%d IslandLeaves=%d IslandDrops=%d LayerJumps=%d"),
+			Events.Knockbacks, Events.Falls, Events.Landings, Events.IslandLeaves, Events.IslandDrops, Events.LayerJumps);
+	}
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] UnknownHits=%llu EnvelopeEscapes=%llu"),
 		Collision->GetUnknownHitCount() - StartUnknownHits, Collision->GetEnvelopeEscapeCount() - StartEnvelopeEscapes);
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Result frame=%s(P95<=%.1fms) exact=%s(P95<=%.1fms) lock=%s(P95<=%.1fms)"),

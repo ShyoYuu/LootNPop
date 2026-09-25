@@ -8,6 +8,7 @@
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "Replication/LNPMassReplication.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "LootNPop.h"
 
 #include "Async/Async.h"
@@ -343,6 +344,9 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	const int32 MaxRetry         = InConfig->MaxRetryCount;
 	const FRandomStream Rand     = BaselineEnemies > 0 ? FRandomStream(LNPLoadBaseline::GetSeed()) : RandomStream;
 
+	// 부하 harness 배치는 섬 아래 지각과 섬 윗면을 구분해야 해서 exact probe를 쓴다(모든 스레드에서 호출 가능, D-025).
+	const ULNPMassWorldCollisionSubsystem* WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+
 	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: Launching async queue build."));
 
 	SpawnBuildFuture = Async(EAsyncExecution::TaskGraph,
@@ -355,16 +359,17 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		 EnemyRadius,
 		 MaxRetry,
 		 BaselineEnemies,
-		 BaselineAssetIndices]() mutable
+		 BaselineAssetIndices,
+		 WorldCollision]() mutable
 		{
 			TArray<FVector> OccupiedPods;
 			TArray<FLNPAsyncSpawnEntry> Results;
 
-			if (BaselineEnemies > 0)
+			if (BaselineEnemies > 0 && WorldCollision != nullptr)
 			{
 				TArray<FVector> Feet;
 				FVector RingCenter;
-				LNPLoadBaseline::BuildEnemyRing(Cache, SR, LNPLoadBaseline::GetSeed(), BaselineEnemies, Feet, RingCenter);
+				LNPLoadBaseline::BuildEnemyRing(*WorldCollision, SR, LNPLoadBaseline::GetSeed(), BaselineEnemies, Feet, RingCenter);
 
 				// 세력권 중심은 링 중심이다. Pod 엔티티는 두지 않는다(PodHandle 무효).
 				TSharedPtr<FLNPSpawnLink> RingLink = MakeShared<FLNPSpawnLink>();

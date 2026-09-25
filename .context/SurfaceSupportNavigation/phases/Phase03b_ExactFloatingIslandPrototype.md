@@ -1,6 +1,6 @@
 # Phase 3b — exact 전용 부유섬 프로토타입
 
-> 상태: 기준 설계 — 구현 단위 1·2 완료(2026-09-25), 구현 단위 3 착수 전
+> 상태: 기준 설계 — 구현 단위 1·2·3 완료(2026-09-26), 구현 단위 3b(이동 병렬화 측정) 착수 전
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 3 MassWorldCollision 정확성 기준선(완료)
 
@@ -126,6 +126,25 @@ Phase 3 harness(`-LNPLoadBaseline=N`)를 확장해 재사용한다. 측정 build
 
 이 수치가 Phase 4의 캐시 적중률 목표와 Phase 6 재측정의 기준선이다.
 
+harness 구성(구현 단위 3, 사용자 결정): 링 중심은 slot 4 큰 섬 가장자리 아래 지각이다. 적 배치는 exact probe로 층을 고른다. 서버가 플레이어를 링 중심에 다시 스폰한다(Mover 텔레포트는 게스트에 전달되지 않는다). 합성 넉백은 고정 1,200cm/s다. 상세는 `LNPLoadBaseline.h`와 로그를 따른다.
+
+결과(2026-09-26, `../history/Phase03b_Log.md` 구현 단위 3):
+
+- **exact 한계치 500마리**(P95 15.85ms). 550은 17.01ms로 실패한다. legacy는 1000에서 15.61ms로 통과한다.
+- 접지 개체 1마리당 프레임 약 1.46 query·약 8us다(GroundRiskFallback 평균 5.6~5.7us). 적 수에 선형이다. 수평 sweep은 exact 합의 약 20%다.
+- 섬 아래 순간이동(LayerJumps)은 exact 0, legacy 12~368이다. `UnknownHits=0`, `EnvelopeEscapes=0`.
+- 이동 프로세서가 단일 스레드 `ForEachEntityChunk`라 exact 합이 게임 스레드 임계 경로에 그대로 얹힌다.
+
+### 3.6.1 이동 병렬화 측정(2026-09-26 사용자 결정)
+
+단일 스레드 한계치(500)는 "캐시 없는 최악 조건"으로 그대로 남기고, 이동 프로세서를 병렬화한 exact 한계치를 한 줄 더 잰다.
+
+- 이유: Phase 6에서 캐시와 병렬화가 한꺼번에 들어가면 D-032의 "캐시 도입 뒤 한계치 증가"를 캐시 몫으로 읽을 수 없다. 단일 exact → 병렬 exact(병렬화 몫) → 병렬 + 캐시(캐시 몫)로 나눈다. Phase 4 캐시 적중률 목표도 병렬 exact 기준으로 잡는다. worker 동시 exact query의 락 경합도 이 부하로 처음 검증한다.
+- 한계: 병렬화는 CPU 총량을 줄이지 않는다. 총량 절감은 캐시의 몫이다. `-corelimit=4`라 이득은 4배 미만이다.
+- 구현: `ULNPEnemyMovementProcessor`를 `ParallelForEachEntityChunk`로 바꾼다. 공유 상태인 `EntitiesToSignal`(StateTree 신호)는 청크별로 모으거나 스레드 안전하게 합친다. Actor용 deferred 명령은 병렬 실행의 청크별 command buffer를 쓴다. 신호 순서가 바뀌어도 동작이 같은지 확인한다. 병렬 여부는 CVar로 켜고 끈다(측정 요인 분리, 기본값은 측정 뒤 정한다).
+- 측정: `Scripts/Profiling/RunLoadBaselineMatrix.ps1`에 병렬 CVar 시나리오를 추가한다. N ∈ {500, 1000, 2000} exact 병렬 + 한계치 이분 탐색 2~3회. 기록 항목은 §3.6과 같고 락 P95를 특히 본다.
+- 완료 뒤 자동화 21개와 에디터 바이너리 `-game` 2P 스모크로 동작 회귀가 없는지 본다.
+
 ### 3.7 기능 점검
 
 재미 평가는 사용자가 한다. 이 Phase는 아래 기능 항목만 점검한다.
@@ -140,6 +159,7 @@ Phase 3 harness(`-LNPLoadBaseline=N`)를 확장해 재사용한다. 측정 build
 1. **30,000cm 새 Meadow_00과 섬**: 기존 Meadow_00 백업 개명, 지각 mesh, 구면 곡면 섬 mesh, LVI, 월드 장치 마커, definition 교체, `SphereRadius` 30,000, `TestMap03` PlayerStart 보정. 검증: 8 slot 생성, `ExactOracle` PASS, audit `MISSING=0`, envelope 갱신
 2. **exact 접지 경로**: 패널→Mass PrePhysics 선행 조건(§3.5), §3.3 알고리즘, CVar 두 개, 배회 목표 재투영. 검증: 자동화(지각 접지·절벽 낙하·섬 측벽 슬라이드·섬 밑면 충돌·경사로 오르기·Unknown 미착지), 2P 스모크
 3. **측정**: harness 배치·합성 넉백 확장, §3.6 매트릭스, 결과를 `../history/Phase03b_Log.md`에 기록
+3b. **이동 병렬화 측정**: §3.6.1
 4. **기능 점검**: §3.7
 
 ## 5. 완료 조건
@@ -147,11 +167,12 @@ Phase 3 harness(`-LNPLoadBaseline=N`)를 확장해 재사용한다. 측정 build
 - [x] 8 slot 전부 30,000cm 새 Meadow_00으로 생성되고 `ExactOracle`·exact response audit가 통과함
 - [x] 기존 25,000cm Meadow_00이 pool에서 빠지고, 남긴 백업은 다른 이름임(백업 없이 제자리 갱신, 원본은 git 이력)
 - [x] Mass PrePhysics 페이즈가 모든 패널 틱 뒤에 실행됨을 확인함(아니면 B안 별도 세션으로 이관) — C안, 2P 스모크 호스트·게스트 위반 0
-- [ ] PureEntity가 exact만으로 지각·섬 윗면에 접지하고, 가장자리에서 떨어지고, 넉백 뒤 올바른 층에 착지함 — 자동화 통과, 실게임은 구현 단위 3·4
-- [ ] 섬 아래 지각의 적이 섬 윗면으로 순간이동하지 않음(legacy 대비 회귀 확인) — 구현 단위 3 harness 배치로 확인
+- [ ] PureEntity가 exact만으로 지각·섬 윗면에 접지하고, 가장자리에서 떨어지고, 넉백 뒤 올바른 층에 착지함 — 자동화 통과, harness에서 섬 이탈 뒤 아래 지각 착지 14~63회. 눈으로 보는 확인은 구현 단위 4
+- [x] 섬 아래 지각의 적이 섬 윗면으로 순간이동하지 않음(legacy 대비 회귀 확인) — harness LayerJumps exact 0, legacy 12~368
 - [ ] 벽·프랍·섬 측벽을 걸어서 통과하지 않음 — 자동화 통과, 실게임은 구현 단위 4
-- [ ] `UnknownHits=0`, 착지가 Unknown hit에 스냅하지 않음 — 자동화 통과, 호스트 스모크 0
-- [ ] §3.6 매트릭스와 exact 한계치 기록
+- [x] `UnknownHits=0`, 착지가 Unknown hit에 스냅하지 않음 — 자동화 통과, 패키지 매트릭스 10회 호스트·게스트 모두 0
+- [x] §3.6 매트릭스와 exact 한계치 기록 — 500마리
+- [ ] §3.6.1 이동 병렬화 exact 한계치 기록
 - [ ] §3.7 기능 점검 통과
 - [ ] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공, 자동화 통과
 - [ ] `-game` 리슨 서버 2P 스모크(D-031)
