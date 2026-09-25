@@ -107,15 +107,15 @@ Phase 3에는 실제 Support Layer가 없으므로 `(slot, LocalLayerId)` bindin
 | 동시 투사체 | 500발. 속도는 실제 무기 DA 값을 그대로 쓰고 별도 분포를 만들지 않는다 |
 | 플레이어 | 2(리슨 서버 호스트 + 게스트) |
 | 동적 body | 구현 단위 3의 움직이는 패널 8개(Meadow_00 마커 1개 × 8 slot) |
-| 측정 build | Development `-game` 리슨 서버 2P, `bTickPhysicsAsync=True`. CPU 모델을 보고서에 적는다 |
+| 측정 build | 패키지 Development 리슨 서버 2P(게스트 `-nullrhi`), `bTickPhysicsAsync=True`. CPU 모델을 보고서에 적는다. 에디터 바이너리 `-game`은 에디터 전용 디버그 드로우가 프레임을 오염시켜 프레임 판정에 쓰지 않는다(2026-09-25 개정) |
 | 시간 | warm-up 10초, capture 30초 |
-| 성공 기준 | 60fps(16.6ms) 유지, exact query 합계 P95 ≤ 2ms/frame(worker 합산), scene read-lock 대기 P95 ≤ 0.2ms/frame |
+| 성공 기준 | 서버 CPU 프레임(호스트 `-nullrhi`) P95 ≤ 16.6ms, exact query 합계 P95 ≤ 2ms/frame(worker 합산), scene read-lock 대기 P95 ≤ 0.2ms/frame. 렌더링 호스트 프레임은 기준선으로만 기록한다(2026-09-25 사용자 결정: GPU 비용은 Phase 3 범위 밖) |
 
 Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 
 - [x] harness — `-LNPLoadBaseline=N`(`SurfaceNavigation/LNPLoadBaseline.*`): 고정 seed 링 스폰, 발사체 500발 유지, 플레이어 무적, warm-up·capture 자동, 호스트·게스트 각자 보고
 - [x] 300·1000 기준선 — exact P95 1.25·1.67ms, 락 P95 0.095·0.128ms로 통과. 프레임 기준은 호스트가 300마리부터 실패(P95 28·43ms). 원인은 exact가 아닌 서버 적 시뮬레이션이다(`../history/Phase03_Log.md` 2026-09-25)
-- [ ] 호스트 프레임 실패의 Insights 분해와 처리 방침 결정
+- [x] 호스트 프레임 실패의 Insights 분해와 처리 방침 결정 — 원인은 에디터 전용 디버그 드로우(에디터 바이너리)와 iGPU 대기(패키지)였다. 패키지 호스트 `-nullrhi` 1000마리 P95 6.05ms로 서버 CPU 기준 통과. 렌더링 호스트는 300·1000마리 P95 26·37ms 기준선으로 기록(`../history/Phase03_Log.md` 2026-09-25 분해 절)
 
 ## 자동화·회귀
 
