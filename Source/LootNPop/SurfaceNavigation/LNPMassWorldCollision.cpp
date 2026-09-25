@@ -162,6 +162,7 @@ bool ULNPMassWorldCollisionSubsystem::RunQuery(const FVector& Start, const FVect
 		OutHit.Location = Hit.Location;
 		OutHit.ImpactPoint = Hit.ImpactPoint;
 		OutHit.ImpactNormal = Hit.ImpactNormal;
+		OutHit.PenetrationDepth = Hit.bStartPenetrating ? Hit.PenetrationDepth : 0.f;
 		// snapshot 정적 함수로 해석하고 미해석은 이 서브시스템 counter로만 센다.
 		OutHit.Identity = ULNPHitIdentitySubsystem::ResolveHit(*HitIdentity->GetSnapshot(), Hit);
 		if (!OutHit.Identity.IsKnown())

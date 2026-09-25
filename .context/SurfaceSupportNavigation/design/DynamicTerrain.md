@@ -58,11 +58,14 @@ OnWorldPreActorTick   NPP Mover 시뮬레이션(직전 프레임 자세의 base 
 TG_PrePhysics         요소 Actor 틱: 자세 갱신 + 물리 속도 설정
                       → Mover base 추종 틱(요소 Actor 틱이 prerequisite): 이동량을 캡슐·sync state에 반영
                       → DynamicSupport snapshot 게시 틱(모든 요소 Actor 틱이 prerequisite)
-TG_StartPhysics~      Mass worker exact query
+                      → Mass PrePhysics 페이즈(모든 요소 Actor 틱이 prerequisite, D-050): 적 exact 이동
+TG_StartPhysics~      그 밖의 Mass worker exact query(투사체 등)
 ```
 
   - 시뮬레이션 전(`OnWorldPreActorTick`)에 옮기거나 Actor 틱 없이 옮기면 Mover가 이동량 일부를 놓친다. 측정에서는 절반만 추종했다. Mover의 `AddTickDependency`는 base에 컴포넌트/Actor 틱이 있을 때만 prerequisite를 건다.
-  - 현재 worker exact query는 StartPhysics 이후 페이즈에만 있어 TG_PrePhysics의 transform 쓰기와 겹치지 않는다(Gate 0). PrePhysics 페이즈에 exact 소비자를 추가하면 이 배치를 다시 검토한다.
+  - Mass PrePhysics 페이즈 선행 조건은 `ULNPDynamicTerrainSubsystem::RegisterPanel`·`UnregisterPanel`이 게시 틱과 같은 자리에서 걸고 푼다(`FMassProcessingPhaseManager::GetProcessingPhaseTickFunction`). 선행 조건은 tick function 멤버라 페이즈 tick 재등록에도 남는다. 요소 Actor는 Mass에 의존하지 않아 사이클이 없다.
+  - 순서는 런타임에 검증한다. PrePhysics 페이즈 시작(`OnProcessingPhaseStarted`, 게임 스레드)마다 이번 프레임에 아직 틱하지 않은 패널을 세고 월드 종료 시 `[DynamicTerrain] MassPrePhysicsOrder checks=… violations=…`를 남긴다. 2026-09-25 2P 스모크에서 호스트·게스트 모두 위반 0이다.
+  - 요소 Actor의 transform 쓰기는 PrePhysics exact query 전에 끝나므로 Gate 0의 쓰기 겹침이 생기지 않는다. Mover 폰·ActorPromoted 적의 이동 쓰기는 여전히 겹칠 수 있다(2P·적 300 스모크에서 락 합 P95 0.153ms).
 - teleport로 옮긴 kinematic body의 물리 속도는 0이다. Mover는 base를 떠날 때(걸어 나가기·점프) `GetMovementBaseVelocityAtPoint`로 물리 속도를 관성에 더하므로, 매 갱신 뒤 물리 선속도를 결정론적 속도로 설정한다. `ComponentVelocity`도 함께 둔다.
 - 경로 revision과 시작 시각을 초기 복제에 포함해 late join도 같은 자세를 재구성한다. server world time이 곧 server epoch다(매치·월드마다 0에서 시작). 움직이는 패널은 상태가 없다. 상태 복제는 상태형 요소(§4)에서 추가한다.
 - `ReplicatedMovement`와 결정론적 transform 갱신을 동시에 사용하지 않는다. 큰 server-time 보정이나 상태 revision 불일치는 snap/짧은 보정 중 하나를 명시적으로 적용하고 진단한다.

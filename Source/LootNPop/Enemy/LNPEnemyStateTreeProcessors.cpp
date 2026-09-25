@@ -4,7 +4,9 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyCharacter.h"
+#include "Enemy/LNPEnemyExactMovement.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "LootNPop.h"
 
 #include "MassStateTreeTypes.h"
@@ -387,7 +389,22 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 
 		ULNPSurfaceCacheSubsystem* SurfaceCache = Context.GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
 		FVector WanderPoint;
-		if (SurfaceCache && SurfaceCache->GetSurfacePoint(QueryDir, WanderPoint))
+		const ULNPMassWorldCollisionSubsystem* WorldCollision = Context.GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+		if (LNPEnemyExactMovement::IsEnabled() && WorldCollision && SharedConfig.Config)
+		{
+			// SurfaceCache는 방향마다 첫 hit 한 층뿐이라 섬 아래 적에게 섬 윗면을 준다. 엔티티와 같은 반지름에서
+			// 다시 찍어 같은 층을 고른다. 없으면(섬 가장자리 밖 등) 제자리에 서서 다음 추첨을 기다린다.
+			LNPEnemyExactMovement::FParams ExactParams;
+			ExactParams.GravityOrigin = GravityOrigin;
+			ExactParams.CapsuleRadius = SharedConfig.Config->CapsuleRadius;
+			ExactParams.CapsuleHalfHeight = CapsuleHalfHeight;
+			constexpr float WanderLayerReach = 300.f;
+			if (!LNPEnemyExactMovement::ProjectToSameLayer(*WorldCollision, ExactParams, EntityLocation, QueryDir, WanderLayerReach, MoveTarget.Center))
+			{
+				MoveTarget.Center = EntityLocation;
+			}
+		}
+		else if (SurfaceCache && SurfaceCache->GetSurfacePoint(QueryDir, WanderPoint))
 		{
 			MoveTarget.Center = WanderPoint + (GravityOrigin - WanderPoint).GetSafeNormal() * CapsuleHalfHeight;
 		}

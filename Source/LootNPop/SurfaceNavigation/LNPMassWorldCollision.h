@@ -66,6 +66,9 @@ struct FLNPWorldHit
 	FVector ImpactPoint = FVector::ZeroVector;
 	FVector ImpactNormal = FVector::ZeroVector;
 
+	/** bStartPenetrating일 때 ImpactNormal 방향으로 빠져나가야 하는 거리(cm). 그 밖에는 0. */
+	float PenetrationDepth = 0.f;
+
 	FLNPExactHitIdentity Identity;
 };
 

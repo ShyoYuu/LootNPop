@@ -78,6 +78,9 @@ public:
 	FVector GetLinearVelocity() const;
 	UStaticMeshComponent* GetPanelMesh() const { return PanelMesh; }
 
+	/** 마지막으로 Actor 틱이 돈 GFrameCounter. 한 번도 안 돌았으면 0. Mass 페이즈 순서 검증용(D-050). */
+	uint64 GetLastTickFrame() const { return LastTickFrame; }
+
 	/** 경로 전체에서 collision geometry가 원점에서 가장 멀어지는 거리의 상한(cm). world collision envelope 입력이다. */
 	float GetSweptMaxRadius() const { return SweptMaxRadius; }
 
@@ -120,5 +123,6 @@ private:
 	FTransform PreviousTransform = FTransform::Identity;
 	FVector CurrentVelocity = FVector::ZeroVector;
 	double LastServerTime = -1.0;
+	uint64 LastTickFrame = 0;
 	bool bActive = false;
 };

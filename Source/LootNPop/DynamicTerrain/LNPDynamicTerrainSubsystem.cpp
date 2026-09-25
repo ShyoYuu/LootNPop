@@ -14,6 +14,7 @@
 #include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "GameFramework/PlayerController.h"
 #include "DefaultMovementSet/CharacterMoverComponent.h"
+#include "MassSimulationSubsystem.h"
 #include "MoverComponent.h"
 
 namespace
@@ -106,7 +107,9 @@ bool ULNPDynamicTerrainSubsystem::DoesSupportWorldType(const EWorldType::Type Wo
 void ULNPDynamicTerrainSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	PreActorTickHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(this, &ULNPDynamicTerrainSubsystem::OnWorldPreActorTick);
+	// 패널 선행 조건과 페이즈 델리게이트를 Mass 시뮬레이션보다 먼저 정리하도록 초기화 순서를 건다.
+	Collection.InitializeDependency<UMassSimulationSubsystem>();
+	PreActorTickHandle =FWorldDelegates::OnWorldPreActorTick.AddUObject(this, &ULNPDynamicTerrainSubsystem::OnWorldPreActorTick);
 }
 
 void ULNPDynamicTerrainSubsystem::OnWorldBeginPlay(UWorld& InWorld)
@@ -118,6 +121,12 @@ void ULNPDynamicTerrainSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	PublishTick.bStartWithTickEnabled = true;
 	PublishTick.TickGroup = TG_PrePhysics;
 	PublishTick.RegisterTickFunction(InWorld.PersistentLevel);
+
+	if (UMassSimulationSubsystem* MassSimulation = InWorld.GetSubsystem<UMassSimulationSubsystem>())
+	{
+		MassPrePhysicsStartHandle = MassSimulation->GetOnProcessingPhaseStarted(EMassProcessingPhase::PrePhysics)
+			.AddUObject(this, &ULNPDynamicTerrainSubsystem::OnMassPrePhysicsStart);
+	}
 }
 
 void ULNPDynamicTerrainSubsystem::Deinitialize()
@@ -125,6 +134,20 @@ void ULNPDynamicTerrainSubsystem::Deinitialize()
 	if (PublishTick.IsTickFunctionRegistered())
 	{
 		PublishTick.UnRegisterTickFunction();
+	}
+	if (MassPrePhysicsStartHandle.IsValid())
+	{
+		if (UMassSimulationSubsystem* MassSimulation = GetWorld()->GetSubsystem<UMassSimulationSubsystem>())
+		{
+			MassSimulation->GetOnProcessingPhaseStarted(EMassProcessingPhase::PrePhysics).Remove(MassPrePhysicsStartHandle);
+		}
+		MassPrePhysicsStartHandle.Reset();
+	}
+	if (PhaseOrderChecks > 0)
+	{
+		// 월드 해제 중이라 net mode는 이미 Standalone이다. 호스트·게스트 구분은 로그 파일로 한다.
+		UE_LOG(LogLootNPop, Log, TEXT("[DynamicTerrain] MassPrePhysicsOrder checks=%llu violations=%llu"),
+			PhaseOrderChecks, PhaseOrderViolations);
 	}
 	FWorldDelegates::OnWorldPreActorTick.Remove(PreActorTickHandle);
 	Panels.Reset();
@@ -214,6 +237,11 @@ void ULNPDynamicTerrainSubsystem::RegisterPanel(ALNPMovingPanel* Panel)
 	check(IsInGameThread());
 	Panels.AddUnique(Panel);
 	PublishTick.AddPrerequisite(Panel, Panel->PrimaryActorTick);
+	// 선행 조건은 tick function 멤버라 페이즈 tick 재등록(Mass 시뮬레이션 재시작)에도 남는다.
+	if (FTickFunction* MassPrePhysics = GetMassPrePhysicsTick())
+	{
+		MassPrePhysics->AddPrerequisite(Panel, Panel->PrimaryActorTick);
+	}
 }
 
 void ULNPDynamicTerrainSubsystem::UnregisterPanel(ALNPMovingPanel* Panel)
@@ -221,6 +249,39 @@ void ULNPDynamicTerrainSubsystem::UnregisterPanel(ALNPMovingPanel* Panel)
 	check(IsInGameThread());
 	Panels.Remove(Panel);
 	PublishTick.RemovePrerequisite(Panel, Panel->PrimaryActorTick);
+	if (FTickFunction* MassPrePhysics = GetMassPrePhysicsTick())
+	{
+		MassPrePhysics->RemovePrerequisite(Panel, Panel->PrimaryActorTick);
+	}
+}
+
+FTickFunction* ULNPDynamicTerrainSubsystem::GetMassPrePhysicsTick() const
+{
+	UMassSimulationSubsystem* MassSimulation = GetWorld() ? GetWorld()->GetSubsystem<UMassSimulationSubsystem>() : nullptr;
+	return MassSimulation ? &MassSimulation->GetMutablePhaseManager().GetProcessingPhaseTickFunction(EMassProcessingPhase::PrePhysics) : nullptr;
+}
+
+void ULNPDynamicTerrainSubsystem::OnMassPrePhysicsStart(float DeltaSeconds)
+{
+	// 게임 스레드(FMassProcessingPhase::ExecuteTick 선두). 활성 패널은 매 프레임 틱하므로
+	// 이번 프레임 틱이 아직이면 PrePhysics exact query가 옛 자세를 본다. 등록 직후 첫 틱 전인 패널은 제외한다.
+	for (const TWeakObjectPtr<ALNPMovingPanel>& WeakPanel : Panels)
+	{
+		const ALNPMovingPanel* Panel = WeakPanel.Get();
+		if (Panel == nullptr || Panel->GetLastTickFrame() == 0)
+			continue;
+
+		++PhaseOrderChecks;
+		if (Panel->GetLastTickFrame() != GFrameCounter)
+		{
+			++PhaseOrderViolations;
+			if (PhaseOrderViolations <= 5)
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[DynamicTerrain] Mass PrePhysics started before panel %s ticked (frame %llu, panel frame %llu)"),
+					*Panel->GetPlacementId().ToString(), GFrameCounter, Panel->GetLastTickFrame());
+			}
+		}
+	}
 }
 
 void FLNPDynamicSupportPublishTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
