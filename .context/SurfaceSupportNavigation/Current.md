@@ -43,7 +43,7 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 ## 바로 다음 작업
 
-Gate -1 A, Gate 0, 구현 단위 1~4가 끝났다. 부하 기준선은 패키지 Development 호스트 `-nullrhi`의 서버 CPU 프레임으로 판정한다(2026-09-25 사용자 결정). 1000마리 P95 6.05ms, exact·락 기준도 통과했다. 렌더링 호스트의 실패(iGPU 대기)는 기준선으로만 남긴다. harness는 `-LNPLoadBaseline=N`, 측정·분석 절차는 `history/Phase03_Log.md` 2026-09-25 분해 절.
+Gate -1 A, Gate 0, 구현 단위 1~4가 끝났다. 부하 기준선은 패키지 Development 호스트 `-nullrhi`의 서버 CPU 프레임으로 판정한다(2026-09-25 사용자 결정). 1000마리 P95 6.05ms, exact·락 기준도 통과했다. 렌더링 호스트의 실패(GPU 대기, RTX 4060 Laptop)는 기준선으로만 남긴다. harness는 `-LNPLoadBaseline=N`, 측정·분석 절차는 `history/Phase03_Log.md` 2026-09-25 분해 절.
 
 1. **Gate -1 B 잔여.** 패널 hit가 `Dynamic`·`MarkerId`로 분류되는지 counter로 확인하고, registry generation의 match reset·stream unload lifecycle gate를 검증한다. disconnected sheet·double-sided shell 검증은 fixture가 필요하다.
 2. **Phase 3 완료 조건 정리.** 자동화·회귀 표의 미완 항목(회귀 맵 exact hit, Decoration miss·Pawn 제외, earliest hit, shell normal)과 `-game` 리슨 2P 스모크(D-031), 두 타깃 빌드를 확인하고 `Roadmap.md`를 갱신한다.

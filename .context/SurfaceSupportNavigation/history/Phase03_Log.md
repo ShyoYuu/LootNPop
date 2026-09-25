@@ -498,12 +498,12 @@ worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분�
 
 - 모든 조건에서 `UnknownHits=0`, `EnvelopeEscapes=0`.
 - **서버 CPU 시뮬레이션은 1000마리에서 P95 6.05ms로 기준(16.6ms) 안이다.** 호스트 `-nullrhi`는 적 Mass 처리·복제·exact를 모두 수행하고 렌더만 뺀 조건이다.
-- **호스트 프레임 실패는 GPU 대기다.** 패키지 1000·P0 trace에서 worker의 `GPUBound_WaitingForGPUForOcclusionQueries`가 평균 12.0ms/프레임, 렌더 스레드 `WaitForVisibilityTasks`가 평균 13.6ms, 게임 스레드 `Sync_RenderingThread`가 평균 12.8ms다. 게임 스레드 자체 `Tick_Engine`은 평균 9.3ms(병렬 틱 대기 포함)다. 측정 머신 GPU는 내장 Radeon 780M이다. 300마리도 P95 26ms로 실패해 적 수(인스턴싱 스킨드 메시·VFX)에 따라 GPU 비용이 커진다.
+- **호스트 프레임 실패는 GPU 대기다.** 패키지 1000·P0 trace에서 worker의 `GPUBound_WaitingForGPUForOcclusionQueries`가 평균 12.0ms/프레임, 렌더 스레드 `WaitForVisibilityTasks`가 평균 13.6ms, 게임 스레드 `Sync_RenderingThread`가 평균 12.8ms다. 게임 스레드 자체 `Tick_Engine`은 평균 9.3ms(병렬 틱 대기 포함)다. 측정 GPU는 외장 NVIDIA GeForce RTX 4060 Laptop이다(`Chosen D3D12 Adapter Id = 0`, 디스플레이 출력도 이 어댑터). CPU 이름의 Radeon 780M 내장 GPU는 쓰지 않았다. 해상도 1280×720, 엔진 기본 렌더링(Lumen·VSM)이다. 300마리도 P95 26ms로 실패해 적 수(인스턴싱 스킨드 메시·VFX)에 따라 GPU 비용이 커진다.
 - exact query는 발사체 500발에서 P95 0.94ms로 에디터 바이너리(1.67ms)보다 가볍다.
 - 에디터 `-game` 수치와 패키지 수치는 섞어 비교하지 않는다. 에디터 쪽 게스트 16ms도 액션 마커 드로우의 몫이었다.
 
 ### 결정(사용자, 2026-09-25)
 
 - Phase 3 부하 기준선의 프레임 기준은 서버 CPU 프레임(패키지 호스트 `-nullrhi`) P95 ≤ 16.6ms로 재정의한다. 1000마리 P95 6.05ms로 통과.
-- 렌더링 호스트 프레임(300마리 P95 26ms, 1000마리 37ms, Radeon 780M)은 기준선으로만 기록한다. 적 수에 비례하는 GPU 비용은 Phase 3 범위 밖이며 렌더링 트랙에서 다룬다.
+- 렌더링 호스트 프레임(300마리 P95 26ms, 1000마리 37ms, RTX 4060 Laptop·엔진 기본 렌더링)은 기준선으로만 기록한다. 적 수에 비례하는 GPU 비용은 Phase 3 범위 밖이며 렌더링 트랙에서 다룬다.
 - 측정 build 규약을 패키지 Development로 바꿨다(`phases/Phase03_MassWorldCollisionBaseline.md` §4, `design/RuntimeCollision.md` Gate 0 계측 계약).
