@@ -76,7 +76,7 @@
 
 Phase 3 네트워크 회귀에는 이동 중 패널 late join, server-time 보정, 상태 revision 불일치 진단을 추가한다. Phase 7에는 다중 프레임 path request 실행 중 tile revision과 connectivity version이 바뀌는 사례를 추가한다.
 
-좌표를 옮기면 이 문서의 좌표·oracle 표를 같은 커밋에서 갱신한다.
+좌표를 옮기면 이 문서의 좌표·oracle 표와 자동화 `LootNPop.SurfaceNavigation.WorldCollision.RegressionMap`의 기대값을 같은 커밋에서 갱신한다.
 
 ## 7. 의도적으로 지원하지 않는 형상
 

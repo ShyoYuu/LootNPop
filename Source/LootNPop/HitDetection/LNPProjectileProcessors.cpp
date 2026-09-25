@@ -185,21 +185,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
 
-	// 지형 착탄은 PreviousPos→CurrentPos 선분의 LNPWorldExact hit다. 서버와 Ghost가 같은 LNPProjectileMotion::TraceWorld를 쓴다.
+	// 지형 착탄은 PreviousPos→CurrentPos 선분의 LNPWorldExact hit다. 서버와 Ghost가 같은 LNPProjectileMotion::ClipSegmentToWorld로 earliest hit를 가른다.
 	// 서브시스템이 없는 월드 타입(Game·PIE 외)에서는 월드 충돌 없이 수명 만료만 남는다.
 	const ULNPMassWorldCollisionSubsystem* WorldCollision = Context.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-
-	/**
-	 * 이번 프레임 선분의 월드 hit를 먼저 구하고 캐릭터 판정 선분의 끝을 거기로 자른다.
-	 * 잘린 선분 위의 캐릭터 hit는 월드 hit보다 항상 이르므로, 캐릭터 판정이 먼저 맞으면 그것이
-	 * earliest hit이고 아니면 월드 hit이다 — 섬 측벽·동굴 벽 뒤의 적은 맞지 않는다.
-	 */
-	auto TraceSegment = [WorldCollision](const FVector& From, const FVector& To, FLNPWorldHit& OutWorldHit) -> FVector
-	{
-		if (WorldCollision && LNPProjectileMotion::TraceWorld(*WorldCollision, From, To, OutWorldHit))
-			return OutWorldHit.ImpactPoint;
-		return To;
-	};
 
 	/**
 	 * 최외곽 반지름 안전망(RuntimeCollision.md) — 월드 판정이 빗나가 envelope 밖으로 나간 탄인가.
@@ -330,7 +318,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				const FVector CurrentPos = Transforms[i].GetTransform().GetLocation();
 				FLNPWorldHit  WorldHit;
-				const FVector SegmentEnd = TraceSegment(Proj.PreviousPos, CurrentPos, WorldHit);
+				const FVector SegmentEnd = LNPProjectileMotion::ClipSegmentToWorld(WorldCollision, Proj.PreviousPos, CurrentPos, WorldHit);
 				AActor* InstigatorActor = (ActorSub && Proj.Instigator.IsSet() && EntityManager.IsEntityActive(Proj.Instigator)) ? ActorSub->GetActorFromHandle(Proj.Instigator) : nullptr;
 
 				bool bHit = false;
@@ -611,7 +599,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			const FVector           CurrentPos = Transforms[i].GetTransform().GetLocation();
 			const FMassEntityHandle ProjEnt    = Ctx.GetEntity(i);
 			FLNPWorldHit            WorldHit;
-			const FVector           SegmentEnd = TraceSegment(Proj.PreviousPos, CurrentPos, WorldHit);
+			const FVector           SegmentEnd = LNPProjectileMotion::ClipSegmentToWorld(WorldCollision, Proj.PreviousPos, CurrentPos, WorldHit);
 
 			// 공격자(발사자) RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (TechDesign_HitDetection.md §5).
 			// 발사(또는 패링 반사) 시점에 1회 캐싱된 값을 재사용 — "공격자가 조준해서 쏜 순간의 지연"만 보정하고

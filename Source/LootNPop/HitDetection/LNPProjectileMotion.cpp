@@ -94,6 +94,14 @@ bool LNPProjectileMotion::TraceWorld(const ULNPMassWorldCollisionSubsystem& Worl
 	return WorldCollision.RaycastWorld(From, To, FLNPWorldQueryParams(ELNPWorldQueryClass::ProjectileMandatory), OutHit);
 }
 
+FVector LNPProjectileMotion::ClipSegmentToWorld(const ULNPMassWorldCollisionSubsystem* WorldCollision, const FVector& From, const FVector& To,
+	FLNPWorldHit& OutHit)
+{
+	if (WorldCollision && TraceWorld(*WorldCollision, From, To, OutHit))
+		return OutHit.ImpactPoint;
+	return To;
+}
+
 void LNPProjectileMotion::PredictArc(const ULNPMassWorldCollisionSubsystem& WorldCollision,
 	const FVector& Start, const FVector& Velocity, const float GravityAccel,
 	const float MaxSeconds, TArray<FVector>& OutPoints)

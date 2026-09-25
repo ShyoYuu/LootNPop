@@ -1,6 +1,6 @@
 # Phase 3 — MassWorldCollision 정확성 기준선
 
-> 상태: 진행 중
+> 상태: 완료(2026-09-25)
 > 예상 범위: 3~5세션
 > 선행 조건: Phase 2 Octant Definition과 베이크 스키마
 
@@ -119,26 +119,26 @@ Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 
 ## 자동화·회귀
 
-- [ ] 회귀 맵의 벽·섬 측벽·동굴·정적 프랍·동적 패널 exact hit
-- [ ] Decoration miss와 Pawn 제외
-- [ ] world/entity earliest hit
+- [x] 회귀 맵의 벽·섬 측벽·동굴·정적 프랍·동적 패널 exact hit — `WorldCollision.RegressionMap`(맵 fixture를 테스트 월드로 복제, 10개 사례)
+- [x] Decoration miss와 Pawn 제외 — 같은 자동화, `UnknownHits=0`
+- [x] world/entity earliest hit — `WorldCollision.EarliestHit`. 판정은 `LNPProjectileMotion::ClipSegmentToWorld` 하나로 서버·Ghost가 공유
 - [ ] 내부형 shell normal — Phase 4 착수 전으로 이관
 - [ ] 한 component의 분리된 sheet face identity와 ISM/HISM instance identity — Phase 4 착수 전으로 이관(ISM instance identity는 LootPod proxy 자동화로 확인)
 - [x] production 8-slot exact collision — `LNP.SurfaceNav.ExactOracle`(콘솔, 생성된 월드 필요)
 - [x] 패널 탑승 2P와 이동 중 late join — 수동 플레이 + `LNP.DynamicTerrain.LogRiders`·`LogDepartures` 계측
-- [ ] Editor 자동화
-- [ ] `-game` 리슨 서버 2P 스모크(D-031)
+- [x] Editor 자동화 — `LootNPop.SurfaceNavigation` 17/17
+- [x] `-game` 리슨 서버 2P 스모크(D-031) — 무인 300마리·발사체 500: 호스트·게스트 `UnknownHits=0`·`EnvelopeEscapes=0`·`ProbePanels` 8/8·ensure 0. 사용자 플레이 스모크는 구현 단위 2·3
 
 ## 완료 조건
 
-- [ ] Gate -1과 Gate 0이 독립적으로 통과하고 증거가 로그에 남음
-- [ ] production 콘텐츠에서 `LNPWorldExact` 기본 전환 후 관통 회귀가 없음
-- [ ] worker가 UObject를 역참조하지 않고 exact hit 의미를 해석함
-- [ ] 투사체·ghost·탄도 가이드가 같은 world collision 함수를 사용함
+- [x] Gate -1과 Gate 0이 독립적으로 통과하고 증거가 로그에 남음(Gate -1 B 두 항목은 Phase 4 착수 전 이관)
+- [x] production 콘텐츠에서 `LNPWorldExact` 기본 전환 후 관통 회귀가 없음 — 구현 단위 2 사용자 2P 스모크
+- [x] worker가 UObject를 역참조하지 않고 exact hit 의미를 해석함
+- [x] 투사체·ghost·탄도 가이드가 같은 world collision 함수를 사용함
 - [x] 동적 패널이 late join 포함 2P Mover의 valid movement base로 동작함
 - [x] 고정 부하 시나리오의 query 비용·락 대기 기준선 확보
-- [ ] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공
-- [ ] `Current.md`, `Roadmap.md`, `../history/Phase03_Log.md` 갱신
+- [x] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공
+- [x] `Current.md`, `Roadmap.md`, `../history/Phase03_Log.md` 갱신
 
 ## 제외 범위
 

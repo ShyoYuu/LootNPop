@@ -2,7 +2,7 @@
 
 > 상태: 기준 로드맵
 > 읽기 조건: Phase 전환, 전체 순서 변경, 작업 범위 재산정 시
-> 마지막 갱신: 2026-09-23
+> 마지막 갱신: 2026-09-25
 
 ## 1. 진행 원칙
 
@@ -38,8 +38,8 @@
 | 0 | 지형 의미 계약과 회귀 테스트 맵 | 1세션 | 완료 | 모든 후속 단계가 공유할 맵·좌표·지원 범위 확정 |
 | 1 | Mesh Terrain 제작 스파이크 | 1~2세션 | 완료 | runtime static mesh/collision/metadata 산출물 계약 확정 |
 | 2 | Octant Definition과 베이크 스키마 | 1~2세션 | 완료 | 기존 옥탄트를 새 정의로 결정론적으로 로드 |
-| 3 | MassWorldCollision 정확성 기준선 | 3~5세션 | 다음 | production response Gate -1, worker 동기 query Gate 0, hit identity registry, 마커→서버 스폰 동적 패널, 투사체·탄도 가이드 exact 전환, 부하 기준선 |
-| 3b | exact 전용 부유섬 프로토타입 | 2~3세션 | 대기 | greybox 섬 옥탄트에서 PureEntity가 exact만으로 접지·낙하·넉백, exact 한계치 실측 |
+| 3 | MassWorldCollision 정확성 기준선 | 3~5세션 | 완료 | production response Gate -1, worker 동기 query Gate 0, hit identity registry, 마커→서버 스폰 동적 패널, 투사체·탄도 가이드 exact 전환, 부하 기준선 |
+| 3b | exact 전용 부유섬 프로토타입 | 2~3세션 | 다음 | greybox 섬 옥탄트에서 PureEntity가 exact만으로 접지·낙하·넉백, exact 한계치 실측 |
 | 3c | 완전 비행 NPC 기반 | 2~3세션 | 대기 | 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전 |
 | 4a | 지각 Support Atlas와 옥탄트 이음매 | 2~3세션 | 대기 | greybox 옥탄트 지각의 Atlas 베이크와 8 slot 이음매 일치 |
 | 4b | 부유섬·동굴 키트 다층 베이크 | 2~3세션 | 대기 | 같은 방향 다층 Support와 공동 모듈 floor 분리 |
