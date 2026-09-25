@@ -38,8 +38,8 @@ namespace
 	using namespace LNPEnemyExactMovement;
 
 	constexpr float TestDeltaTime = 1.f / 60.f;
-	constexpr float HalfHeight = 88.f;
-	constexpr float Radius = 35.f;
+	constexpr float TestHalfHeight = 88.f;
+	constexpr float TestRadius = 35.f;
 
 	/**
 	 * 평평한 테스트 월드. 구 중심을 +Z 멀리 두어 Up이 사실상 +Z인 내부형 구를 흉내 낸다.
@@ -61,8 +61,8 @@ namespace
 			Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 
 			Params.GravityOrigin = FVector(0, 0, 1.0e7);
-			Params.CapsuleRadius = Radius;
-			Params.CapsuleHalfHeight = HalfHeight;
+			Params.CapsuleRadius = TestRadius;
+			Params.CapsuleHalfHeight = TestHalfHeight;
 		}
 
 		~FExactMovementWorld()
@@ -153,20 +153,20 @@ bool FLNPExactMovementGroundTest::RunTest(const FString& Parameters)
 	{
 		FVector Next;
 		FVector PhysVelocity;
-		const EGroundResult Result = StepGrounded(*Fixture.Collision, Fixture.Params, FVector(0, 0, 10 + HalfHeight + 30), FVector::ZeroVector,
+		const EGroundResult Result = StepGrounded(*Fixture.Collision, Fixture.Params, FVector(0, 0, 10 + TestHalfHeight + 30), FVector::ZeroVector,
 			TestDeltaTime, Next, PhysVelocity);
 		TestTrue(TEXT("Hovering entity is grounded"), Result == EGroundResult::Grounded);
-		TestEqual(TEXT("Grounded capsule center z"), Next.Z, 10.0 + HalfHeight, 1.0);
+		TestEqual(TEXT("Grounded capsule center z"), Next.Z, 10.0 + TestHalfHeight, 1.0);
 		TestTrue(TEXT("Grounded velocity is zero"), PhysVelocity.IsZero());
 	}
 
 	// 2. 절벽 낙하: +X로 걷다가 가장자리를 벗어나면 공중이 되고 아랫판에 착지한다.
 	{
 		// 약 25프레임 뒤 가장자리, 약 42프레임 낙하. 착지 뒤 아랫판 끝(x=1500)까지 걸어가지 않도록 100프레임만 돈다.
-		const FTrace Trace = Simulate(Fixture, FVector(300, 0, 10 + HalfHeight), FVector::ZeroVector, FVector(600, 0, 0), 100);
+		const FTrace Trace = Simulate(Fixture, FVector(300, 0, 10 + TestHalfHeight), FVector::ZeroVector, FVector(600, 0, 0), 100);
 		TestTrue(TEXT("Walking off the edge loses support"), Trace.LostSupportFrame != INDEX_NONE);
-		TestTrue(TEXT("Support is lost only after the whole capsule clears the edge"), Trace.LostSupportLocation.X >= 500.0 + Radius - 1.0);
-		TestEqual(TEXT("Fallen entity lands on the lower floor"), Trace.Location.Z, -490.0 + HalfHeight, 1.0);
+		TestTrue(TEXT("Support is lost only after the whole capsule clears the edge"), Trace.LostSupportLocation.X >= 500.0 + TestRadius - 1.0);
+		TestEqual(TEXT("Fallen entity lands on the lower floor"), Trace.Location.Z, -490.0 + TestHalfHeight, 1.0);
 		TestTrue(TEXT("Landed entity is grounded"), Trace.PhysVelocity.IsNearlyZero());
 		TestEqual(TEXT("Lands once"), Trace.Landings, 1);
 	}
@@ -187,19 +187,19 @@ bool FLNPExactMovementBlockTest::RunTest(const FString& Parameters)
 	Fixture.Slab(FVector(700, -1500, 300), FVector(10, 3, 0.2), TEXT("LNPStaticTerrain"), FRotator(60, 0, 0));
 	Fixture.Publish();
 
-	const double GroundZ = 10.0 + HalfHeight;
+	const double GroundZ = 10.0 + TestHalfHeight;
 
 	// 1. 벽 정면: 벽을 뚫지 않고 벽 앞에 선다.
 	{
 		const FTrace Trace = Simulate(Fixture, FVector(0, 0, GroundZ), FVector::ZeroVector, FVector(600, 0, 0), 120);
-		TestTrue(TEXT("Entity stops in front of the wall"), Trace.Location.X <= 290.0 - Radius + 1.0);
+		TestTrue(TEXT("Entity stops in front of the wall"), Trace.Location.X <= 290.0 - TestRadius + 1.0);
 		TestTrue(TEXT("Entity stays grounded at the wall"), Trace.PhysVelocity.IsNearlyZero());
 	}
 
 	// 2. 벽 사선: 벽 법선 성분만 지우고 벽을 따라 미끄러진다.
 	{
 		const FTrace Trace = Simulate(Fixture, FVector(0, -300, GroundZ), FVector::ZeroVector, FVector(424, 424, 0), 90);
-		TestTrue(TEXT("Diagonal walk does not pass the wall"), Trace.Location.X <= 290.0 - Radius + 1.0);
+		TestTrue(TEXT("Diagonal walk does not pass the wall"), Trace.Location.X <= 290.0 - TestRadius + 1.0);
 		TestTrue(TEXT("Diagonal walk slides along the wall"), Trace.Location.Y > 200.0);
 	}
 
@@ -232,12 +232,12 @@ bool FLNPExactMovementAirborneTest::RunTest(const FString& Parameters)
 	Fixture.Slab(FVector(0, 0, 460), FVector(4, 4, 0.2), TEXT("LNPStaticTerrain"));
 	Fixture.Publish();
 
-	const double GroundZ = 10.0 + HalfHeight;
+	const double GroundZ = 10.0 + TestHalfHeight;
 
 	// 1. 섬 밑면: 위로 튀어 오른 개체는 밑면에 막히고 착지하지 않으며 다시 바닥으로 떨어진다.
 	{
 		const FTrace Trace = Simulate(Fixture, FVector(0, 0, GroundZ), FVector(0, 0, 1500), FVector::ZeroVector, 180);
-		TestTrue(TEXT("Underside blocks the capsule top"), Trace.MaxZ <= 350.0 - HalfHeight + 1.0);
+		TestTrue(TEXT("Underside blocks the capsule top"), Trace.MaxZ <= 350.0 - TestHalfHeight + 1.0);
 		TestEqual(TEXT("Falls back to the floor"), Trace.Location.Z, GroundZ, 1.0);
 		TestEqual(TEXT("Lands only on the floor"), Trace.Landings, 1);
 	}
@@ -245,14 +245,14 @@ bool FLNPExactMovementAirborneTest::RunTest(const FString& Parameters)
 	// 2. 섬 측벽: 옆으로 날아간 개체는 측벽을 따라 미끄러져 떨어진다.
 	{
 		const FTrace Trace = Simulate(Fixture, FVector(-400, 0, 400), FVector(1000, 0, 0), FVector::ZeroVector, 180);
-		TestTrue(TEXT("Side wall is not passed"), Trace.Location.X <= -200.0 - Radius + 1.0);
+		TestTrue(TEXT("Side wall is not passed"), Trace.Location.X <= -200.0 - TestRadius + 1.0);
 		TestEqual(TEXT("Slides down to the floor"), Trace.Location.Z, GroundZ, 1.0);
 		TestTrue(TEXT("Grounded after sliding down"), Trace.PhysVelocity.IsNearlyZero());
 	}
 
 	// 3. 섬 윗면: 넉백으로 윗면 밖으로 밀려나면 아래 바닥에 착지한다.
 	{
-		const FTrace Trace = Simulate(Fixture, FVector(150, 0, 470 + HalfHeight), FVector(600, 0, 300), FVector::ZeroVector, 180);
+		const FTrace Trace = Simulate(Fixture, FVector(150, 0, 470 + TestHalfHeight), FVector(600, 0, 300), FVector::ZeroVector, 180);
 		TestEqual(TEXT("Knocked off the island top lands on the floor below"), Trace.Location.Z, GroundZ, 1.0);
 		TestTrue(TEXT("Lands beyond the island edge"), Trace.Location.X > 200.0);
 	}
@@ -261,7 +261,7 @@ bool FLNPExactMovementAirborneTest::RunTest(const FString& Parameters)
 	//    Reach 200: 섬 아래에서 위로 찍는 구가 섬 밑면(z=350)에 닿지 않는 거리.
 	{
 		auto DirectionTo = [&Fixture](const FVector& Point) { return (Point - Fixture.Params.GravityOrigin).GetSafeNormal(); };
-		const double IslandTopZ = 470.0 + HalfHeight;
+		const double IslandTopZ = 470.0 + TestHalfHeight;
 		FVector Center;
 
 		TestTrue(TEXT("Under-island wander target is found"),
@@ -294,7 +294,7 @@ bool FLNPExactMovementCaveTest::RunTest(const FString& Parameters)
 	Fixture.Slab(FVector(5000, 5000, 0), FVector(5, 5, 0.2), TEXT("LNPStaticTerrain"), FRotator::ZeroRotator, /*bRegister=*/false);
 	Fixture.Publish();
 
-	const double GroundZ = 10.0 + HalfHeight;
+	const double GroundZ = 10.0 + TestHalfHeight;
 
 	// 1. 천장 아래 보행: 높이가 바뀌지 않고 접지를 유지한다.
 	{
@@ -307,7 +307,7 @@ bool FLNPExactMovementCaveTest::RunTest(const FString& Parameters)
 
 	// 2. 구멍 낙하: 윗층에서 구멍으로 걸어 들어가 아래층에 착지한다.
 	{
-		const FTrace Trace = Simulate(Fixture, FVector(-400, 0, 1110 + HalfHeight), FVector::ZeroVector, FVector(300, 0, 0), 240);
+		const FTrace Trace = Simulate(Fixture, FVector(-400, 0, 1110 + TestHalfHeight), FVector::ZeroVector, FVector(300, 0, 0), 240);
 		TestTrue(TEXT("Loses support over the hole"), Trace.LostSupportFrame != INDEX_NONE);
 		TestEqual(TEXT("Lands on the cave floor"), Trace.Location.Z, GroundZ, 1.0);
 		TestTrue(TEXT("Grounded on the cave floor"), Trace.PhysVelocity.IsNearlyZero());

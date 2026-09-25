@@ -147,3 +147,90 @@
   - 게스트: 캡처 구간 `UnknownHits=0`, 전체 누적 1건(워밍업 구간, 게스트 query는 투사체 Ghost뿐). 게스트는 적 이동을 돌리지 않아 이번 변경과 무관하게 보이나 원인은 확인하지 않았다.
   - 경고는 이전 스모크와 같은 종류(Mover 시작 위치 불일치, `AttackTask` cast 실패)다.
 - 스모크는 harness 합성 넉백이 아직 없어 공중 query가 15회뿐이다. 넉백·섬 배치 시나리오는 구현 단위 3에서 돌린다.
+
+## 2026-09-26 — 구현 단위 3: 측정 harness 확장과 §3.6 매트릭스
+
+### harness 확장(`SurfaceNavigation/LNPLoadBaseline.*`)
+
+사용자 결정: 플레이어는 링 중심으로 옮긴다(추격·공격·Actor 승격 부하 유지), 합성 넉백은 고정 세기.
+
+- 링 중심: slot 4 큰 섬(slot 로컬 (1,1,1), 월드 (−1,1,−1)/√3) 가장자리 아래 지각. 섬 중심에서 −Z 극 쪽으로 섬 각반지름(3,000/25,800rad)만큼 옮긴 방향이다. −Z 극 PlayerStart에서 약 25,000cm 떨어진다.
+- 배치는 exact `ProbeSupport`로 층을 골라 찍는다. 지각은 반지름 27,700(섬 밑면 가장 깊은 27,300과 지각 최소 28,235 사이)에서 32,000까지, 섬 윗면은 25,000에서 27,000까지 찍는다. 20마리 중 2마리(인덱스 4 근접·15 원거리)가 섬 윗면이다. SurfaceCache는 섬 방향에서 섬 윗면만 알아 섬 아래 지각에 둘 수 없다.
+- 플레이어: 준비가 끝나면 서버가 모든 플레이어를 UnPossess·Destroy한 뒤 `RestartPlayerAtTransform`으로 링 중심 옆에 다시 스폰한다(`ALNPGameMode::DoRespawn`과 같은 방식). 자리마다 exact로 지각을 찾는다.
+- 합성 넉백: 서버가 접지한 PureEntity(Actor 없는 적)마다 포아송 과정으로 평균 10초에 한 번, 1,200cm/s(`ApplyEntityKnockback`, 방향 0.7·Up 0.3). 섬 윗면 적은 섬 중심 반대쪽, 나머지는 임의 접선 방향이다.
+- 이벤트 counter(서버, capture 구간): Knockbacks, Falls(harness 넉백 없는 접지→공중, 즉 지지면 상실), Landings, IslandLeaves(섬 윗면에서 공중으로), IslandDrops(섬 윗면을 떠나 반지름 27,000 밖에 착지), LayerJumps(접지 상태로 한 프레임에 반지름이 500cm 넘게 변함). 분포는 IslandTop·UnderIsland·OpenCrust·Airborne을 capture 시작과 끝에 남긴다.
+- capture 시작에 `ULNPMassWorldCollisionSubsystem::ResetStats`를 불러 분류별 count·평균이 capture 구간만 담게 했다. 보고 머리줄에 `ExactGround`·`LateralSweep` CVar 값을 넣었다.
+- 발사체 주입 위치는 계속 SurfaceCache로 찍는다. exact로 찍으면 harness가 측정 대상 counter에 query를 더한다.
+
+### 스모크에서 고친 것
+
+- 링 중심 정방향에 Blocker 전용 Static 소스(slot 4, 반지름 30,756, 평평한 윗면, 프랍으로 추정)가 있어 probe가 실패했다. 스폰 쪽도 실패해 기본 반지름 30,000을 쓰고 있었다. 링 중심·플레이어 자리는 나선으로 찍어 첫 지지면을 쓴다(`FindCrustNear`). 적 배치는 원래 재시도가 있어 영향이 없었다.
+- **Mover `FTeleportEffect`는 게스트 폰을 옮기지 못한다.** instant effect는 네트워크로 전달되지 않는다(엔진 주석: Chaos Mover만 복제). 서버만 넣은 경우, 게스트만 넣은 경우, 양쪽 모두 넣은 경우 세 가지 모두 서버에서 본 게스트 위치가 그대로였다. 호스트 폰만 옮겨졌다. 폰을 다시 스폰하는 방식으로 바꿨다.
+- 두 번째 자리를 접선으로 300cm 옮긴 곳에 그냥 스폰하자 `SpawnActor failed because of collision`이 났고, 게스트가 폰을 잃었다. 자리마다 exact로 지각을 찾아 해결했다.
+- unity 빌드 묶음이 바뀌며 `LNPEnemyExactMovementTest.cpp`의 익명 네임스페이스 `HalfHeight`·`Radius`가 다른 테스트와 엔진 헤더의 같은 이름을 가렸다(C4459). `TestHalfHeight`·`TestRadius`로 바꿨다.
+
+### 측정 규약
+
+- 패키지 Development(`Saved/SurfaceNavigationPhase3Package`), 같은 머신(AMD Ryzen 7 8845HS), 호스트·게스트 모두 `-nullrhi -corelimit=4`, 리슨 2P, 발사체 500, seed 1. 호스트 프레임이 서버 CPU 프레임이다.
+- CVar는 `-dpcvars=LNP.SurfaceNav.EnemyExactGround=…,LNP.SurfaceNav.EnemyExactLateralSweep=…`로 넣는다. 로그는 `Saved/Profiling/Phase03b/`(gitignore).
+
+### 결과
+
+| 조건 | 서버 CPU 프레임 P50/P95 | exact/frame P50/P95 | query/frame P50 | 락 P95 | 게스트 P95 |
+|:---|:---|:---|:---|:---|:---|
+| 300 legacy | 7.67/8.40ms | 0.93/1.03ms | 500 | 0.041ms | 3.55ms |
+| 300 exact | 10.06/**11.51ms** | 3.17/3.57ms | 938 | 0.075ms | 3.16ms |
+| 450 exact | 12.90/**14.09ms** | 4.30/4.80ms | 1,144 | 0.089ms | 3.04ms |
+| 500 exact | 14.45/**15.85ms** | 4.84/5.36ms | 1,224 | 0.095ms | 3.34ms |
+| 550 exact | 15.60/**17.01ms** | 5.07/5.61ms | 1,284 | 0.102ms | 3.56ms |
+| 1000 legacy | 13.97/15.61ms | 1.01/1.14ms | 500 | 0.047ms | 3.48ms |
+| 1000 exact | 24.68/**26.49ms** | 8.81/9.62ms | 1,942 | 0.157ms | 3.20ms |
+| 1000 exact, lateral 0 | 22.96/24.63ms | 7.25/7.89ms | 1,526 | 0.125ms | 3.47ms |
+| 2000 legacy | 23.42/25.63ms | 1.22/1.36ms | 500 | 0.063ms | 3.76ms |
+| 2000 exact | 42.96/**46.80ms** | 17.48/18.72ms | 3,429 | 0.271ms | 2.80ms |
+
+- **exact 한계치(서버 CPU 프레임 P95 ≤ 16.6ms): 500마리.** 500은 15.85ms로 통과, 550은 17.01ms로 실패. 이분 탐색 3회(550·450·500).
+- legacy 한계치는 1000과 2000 사이다(1000 P95 15.61ms). 이 시나리오의 legacy는 적이 섬 윗면으로 순간이동하므로 비교 기준일 뿐 정답 경로가 아니다.
+- 모든 실행에서 `UnknownHits=0`, `EnvelopeEscapes=0`, ensure·crash 0. 적 300/300~2000/2000 배치.
+
+분류별 비용(N=1000 exact, capture 구간 합을 프레임 수로 나눔):
+
+| 분류 | query/frame | 평균 | 프레임당 합 |
+|:---|:---|:---|:---|
+| GroundRiskFallback(접지 수평·슬라이드·probe, 배회 재투영) | 1,272 | 5.64us | 7.18ms |
+| AirborneMandatory(공중 sweep) | 170 | 3.71us | 0.63ms |
+| ProjectileMandatory | 503 | 2.08us | 1.05ms |
+
+- 접지 개체 1마리당 query 약 1.46회, 프레임당 약 8us다. 300·550·2000에서도 GroundRisk 평균은 5.6~5.7us로 일정하다. 비용이 적 수에 선형이다.
+- 수평 sweep 기여(N=1000): query/frame −416, exact P50 −1.56ms, 프레임 P50 −1.7ms. exact 증가분의 약 20%다.
+- exact와 legacy의 프레임 차(N=1000 P50 +10.7ms) 가운데 exact 합 증가는 약 7.8ms다. 나머지 약 3ms는 공중 개체가 늘어난 몫(분포 Airborne 약 12~15%, legacy 약 3~5%)과 다른 처리로 보이며 Insights로 나누지는 않았다.
+- **관찰: 이동 프로세서는 `ForEachEntityChunk`(단일 스레드)라 exact query 합이 게임 스레드 임계 경로에 그대로 얹힌다.** 락 대기는 N=2000에서도 P95 0.27ms라 병렬화 여지가 있다. 3b는 "캐시 없는 최악 조건" 측정이라 최적화를 넣지 않았다(§3.3). 결정은 사용자에게 넘긴다.
+
+이벤트(capture 30초):
+
+| 조건 | Knockbacks | Falls | Landings | IslandLeaves | IslandDrops | LayerJumps | 시작 분포 IslandTop/UnderIsland/OpenCrust/Airborne |
+|:---|:---|:---|:---|:---|:---|:---|:---|
+| 300 legacy | 912 | 0 | 578 | 76 | 44 | **12** | 70/10/201/13 |
+| 300 exact | 817 | 9 | 766 | 63 | 14 | **0** | 24/85/151/35 |
+| 1000 legacy | 2,942 | 0 | 2,072 | 283 | 141 | **178** | 194/18/732/52 |
+| 1000 exact | 2,570 | 6 | 2,368 | 198 | 32 | **0** | 90/167/620/119 |
+| 2000 legacy | 5,807 | 0 | 4,096 | 423 | 190 | **368** | 278/18/1,604/95 |
+| 2000 exact | 5,079 | 1 | 4,555 | 455 | 63 | **0** | 178/168/1,405/244 |
+
+- **섬 아래 순간이동: exact 0, legacy 12~368.** legacy는 capture 시작 때 이미 섬 아래 적이 10~18마리뿐이다(exact 85~168). 배치 직후 첫 이동 프레임에서 섬 윗면으로 올라갔고, capture 중에도 섬 아래로 들어간 적이 계속 올라간다. 완료 조건 "섬 아래 지각의 적이 섬 윗면으로 순간이동하지 않음"을 충족한다.
+- exact에서 섬 윗면을 떠난 적 가운데 16~23%가 아래 지각에 착지했다(IslandDrops/IslandLeaves). 나머지는 넉백 거리(약 4~5m)가 짧아 섬 위에 다시 착지했다. 착지 hit가 Unknown인 경우는 없다.
+- Falls(넉백 없이 가장자리에서 걸어 나감)는 exact에서 1~11회다. 섬 위 적은 대부분 가장자리에 닿기 전에 공격 거리에서 멈춘다.
+
+### 에디터 바이너리 스모크(참고)
+
+- `-game` 리슨 2P 무인, 적 300: 두 플레이어 링 중심 560·627cm, 배치 300/300, `UnknownHits=0`. legacy(`-dpcvars`)는 LayerJumps 146, exact 0.
+
+### 검증
+
+- `LootNPopEditor Win64 Development`, 패키지 BuildCookRun(`LootNPop Win64 Development` 포함) 성공, 경고 없음.
+- 자동화 `LootNPop.SurfaceNavigation` 21/21(자동화가 다시 저장한 `SM_COptionSphereSculpt`·`SM_BOptionExtracted`는 git으로 되돌림).
+
+### 결정(사용자, 2026-09-26): 이동 병렬화를 3b에서 측정
+
+- 단일 스레드 한계치 500은 최악 조건 기준선으로 남기고, 병렬 exact 한계치를 추가로 잰다(Phase 문서 §3.6.1). Phase 6에서 캐시와 병렬화 효과를 나눠 읽고, Phase 4 적중률 목표를 병렬 exact 기준으로 잡기 위해서다.
+- 작업량이 약 1세션이라 새 세션에서 진행한다. 측정 스크립트는 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`로 저장소에 옮겼다(`$args`는 `Where-Object` 블록 안에서 가려지므로 먼저 변수에 담는다).
