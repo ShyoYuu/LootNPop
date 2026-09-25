@@ -2,6 +2,8 @@
 
 #include "SurfaceNavigation/LNPCollisionChannels.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "DynamicTerrain/LNPMovingPanel.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "LootPod/LNPLootPodCollisionProxy.h"
 #include "LootPod/LNPLootPodMassTypes.h"
@@ -11,6 +13,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "MassEntitySubsystem.h"
@@ -143,6 +146,59 @@ namespace
 			UE_LOG(LogLootNPop, Display, TEXT("[HitIdentity] --- %s (NetMode=%d) ---"),
 				*World->GetName(), static_cast<int32>(World->GetNetMode()));
 			LogHitIdentity(Hit, *World);
+		}));
+
+	/**
+	 * LNP.SurfaceNav.ProbePanels
+	 * 활성 움직이는 패널마다 패널 법선을 따라 중심을 관통하는 MassWorldCollision raycast를 쏘고,
+	 * hit가 Dynamic·패널의 (slot, MarkerId)로 해석되는지 검사한다. 서버와 클라이언트가 각자 실행한다.
+	 */
+	FAutoConsoleCommandWithWorld GLNPProbePanels(
+		TEXT("LNP.SurfaceNav.ProbePanels"),
+		TEXT("Raycast through the center of every moving panel with MassWorldCollision and check the hit resolves to ")
+		TEXT("Dynamic with the panel's (slot, MarkerId). Logs PASS/FAIL per world."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			const ULNPMassWorldCollisionSubsystem* Collision = World ? World->GetSubsystem<ULNPMassWorldCollisionSubsystem>() : nullptr;
+			if (Collision == nullptr)
+			{
+				return;
+			}
+
+			int32 PanelCount = 0;
+			int32 Failures = 0;
+			const FLNPWorldQueryParams Params(ELNPWorldQueryClass::DebugValidation);
+			for (TActorIterator<ALNPMovingPanel> It(World); It; ++It)
+			{
+				const ALNPMovingPanel* Panel = *It;
+				const UStaticMeshComponent* Mesh = Panel->GetPanelMesh();
+				if (Mesh == nullptr)
+					continue;
+
+				// 판 두께 30cm. 법선 방향 ±100cm 선분은 패널 밖의 다른 geometry에 닿기 어렵다.
+				++PanelCount;
+				const FVector Center = Mesh->Bounds.Origin;
+				const FVector Normal = Mesh->GetUpVector();
+				FLNPWorldHit Hit;
+				const bool bHit = Collision->RaycastWorld(Center + Normal * 100.f, Center - Normal * 100.f, Params, Hit);
+
+				const FLNPPlacementId& Expected = Panel->GetPlacementId();
+				const bool bPass = bHit
+					&& Hit.Identity.Lifetime == ELNPExactSourceLifetime::Dynamic
+					&& Hit.Identity.Slot == Expected.Slot
+					&& Hit.Identity.MarkerId == Expected.MarkerId;
+				if (!bPass)
+				{
+					++Failures;
+					UE_LOG(LogLootNPop, Warning, TEXT("[ProbePanels] FAIL panel %s: hit=%d lifetime=%d slot=%d marker=%s generation=%u"),
+						*Expected.ToString(), bHit, static_cast<int32>(Hit.Identity.Lifetime), Hit.Identity.Slot,
+						*Hit.Identity.MarkerId.ToString(EGuidFormats::Short), Hit.Identity.RegistryGeneration);
+				}
+			}
+
+			UE_LOG(LogLootNPop, Display, TEXT("[ProbePanels] %s NetMode=%d panels=%d failures=%d -> %s"),
+				*World->GetName(), static_cast<int32>(World->GetNetMode()), PanelCount, Failures,
+				(PanelCount > 0 && Failures == 0) ? TEXT("PASS") : TEXT("FAIL"));
 		}));
 }
 

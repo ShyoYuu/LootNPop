@@ -74,6 +74,8 @@
 - query wrapper는 engine hit에서 registry key를 추출한 뒤 POD 의미 결과만 worker 호출자에게 돌려준다. UObject tag, Actor class, component property를 worker에서 읽지 않는다.
 - registry가 hit를 해석하지 못하면 임의 Layer로 스냅하지 않고 `UnknownExactSurface`를 반환한다. 착지는 보수적으로 처리하고 진단 counter를 증가시킨다.
 - registry는 Level Instance와 component lifetime보다 짧지 않아야 하며 match reset·stream unload 전에 Mass lifecycle gate로 worker 접근을 중단한다.
+  - Phase 3 현재는 구조로 충족한다. 옥탄트 생성은 월드당 한 번이고 match 종료는 월드 해제라, match 중 slot Level이 사라지는 경로가 없다. worker가 쥔 snapshot은 게시 교체 뒤에도 살아 있고 키 비교가 역참조하지 않는다(자동화 `WorldCollision.DynamicMarkerHit`).
+  - match 중 옥탄트 재생성이나 slot Level 언로드를 도입하는 변경은 그 직전에 Mass 처리를 멈추는 gate를 같은 변경에 포함해야 한다.
 
 #### Phase 3 구현 계약 (`ULNPHitIdentitySubsystem`)
 
@@ -88,6 +90,7 @@
 | worker 조회 | `GetSnapshot`·`ResolveHit`. snapshot은 공유 참조로 잡고 락 없이 읽는다 |
 | 결과 | `FLNPExactHitIdentity` POD: 수명주기·역할·slot·FaceIndex·InstanceIndex·proxy 엔티티·registry generation |
 | 미해석 | 미등록 component와 proxy 표 범위 밖 Item은 `Unknown`을 반환하고 counter를 올린다 |
+| 분류 counter | `MassWorldCollision`이 수명주기별 hit와 Dynamic hit의 MarkerId 유무를 센다(`Report`의 `HitLifetime`). 마커 없는 Dynamic은 분류 오류다(D-026). 실제 패널 검사는 `LNP.SurfaceNav.ProbePanels` |
 
 ### 비동기 물리와 쿼리 데이터 시점
 

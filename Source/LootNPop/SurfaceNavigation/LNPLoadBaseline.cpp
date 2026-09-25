@@ -15,6 +15,7 @@
 #include "LootNPop.h"
 
 #include "EngineUtils.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
@@ -560,4 +561,7 @@ void ULNPLoadBaselineSubsystem::Report()
 		bLockPass ? TEXT("PASS") : TEXT("FAIL"), LNPLoadBaseline::LockP95BudgetMs);
 
 	Collision->Report();
+
+	// 부하 발사체는 패널을 겨냥하지 않으므로 Dynamic 분류는 패널을 직접 쏴서 확인한다. 통계 표본화가 끝난 뒤라 측정에 섞이지 않는다.
+	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbePanels"));
 }

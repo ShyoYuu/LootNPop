@@ -507,3 +507,30 @@ worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분�
 - Phase 3 부하 기준선의 프레임 기준은 서버 CPU 프레임(패키지 호스트 `-nullrhi`) P95 ≤ 16.6ms로 재정의한다. 1000마리 P95 6.05ms로 통과.
 - 렌더링 호스트 프레임(300마리 P95 26ms, 1000마리 37ms, RTX 4060 Laptop·엔진 기본 렌더링)은 기준선으로만 기록한다. 적 수에 비례하는 GPU 비용은 Phase 3 범위 밖이며 렌더링 트랙에서 다룬다.
 - 측정 build 규약을 패키지 Development로 바꿨다(`phases/Phase03_MassWorldCollisionBaseline.md` §4, `design/RuntimeCollision.md` Gate 0 계측 계약).
+
+## 2026-09-25 — Gate -1 B 잔여: 동적 패널 분류와 registry lifecycle
+
+### 구현
+
+- `ULNPMassWorldCollisionSubsystem`에 수명주기별 hit counter를 추가했다. `GetLifetimeHitCount`, Dynamic hit 중 MarkerId가 있는 수(`GetDynamicMarkerHitCount`)와 없는 수(`GetDynamicWithoutMarkerCount`)를 센다. 동적 요소는 마커 스폰뿐이므로(D-026) 없는 쪽은 분류 오류다. `Report`에 `HitLifetime` 줄이 추가됐다.
+- 콘솔 `LNP.SurfaceNav.ProbePanels`(`LNPHitIdentityProbe.cpp`): 활성 패널마다 패널 법선을 따라 중심을 관통하는 raycast를 `MassWorldCollision`으로 쏘고, hit가 `Dynamic`·패널의 `(slot, MarkerId)`로 해석되는지 검사한다. 부하 발사체는 -Z 극 링을 겨냥해 패널에 맞지 않으므로, harness 보고 끝에서 이 명령을 호출해 호스트·게스트가 각자 검사한다.
+- 자동화 `LootNPop.SurfaceNavigation.WorldCollision.DynamicMarkerHit`:
+  - 마커 패널 hit는 Dynamic, slot, MarkerId, Support+Blocker로 해석된다.
+  - 패널을 옮겨도 identity는 자세와 무관하다. 게임 스레드가 옮긴 자세를 query가 바로 본다.
+  - 마커 없는 Dynamic hit는 `noMarker` counter로만 센다.
+  - 해제하면 generation이 올라간 snapshot이 게시되고, 옛 snapshot은 소유 Actor를 파괴한 뒤에도 index·serial 비교만으로 읽힌다.
+
+### 검증
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음. `LootNPop.SurfaceNavigation` 자동화 15/15 통과.
+- 에디터 바이너리 `-game` 리슨 2P 무인 실행(양쪽 `-nullrhi`, `-LNPLoadBaseline=1 -LNPLoadBaselineProjectiles=0`): 호스트(NetMode 2)와 게스트(NetMode 3) 모두 `[ProbePanels] panels=8 failures=0 -> PASS`. 패널은 이동 중이었다.
+
+### registry lifecycle — 구조로 충족(사용자 결정)
+
+- 현재 코드에는 match 중 reset·stream unload 경로가 없다. `StartWorldGeneration`은 월드마다 서버 GameMode와 클라이언트 GameState에서 한 번씩만 호출되고, match 종료는 월드 해제다. worker query는 월드 틱의 Mass phase 안에서만 돌므로 월드 해제와 겹치지 않는다.
+- worker가 쥔 snapshot은 공유 참조라 게시 교체나 `Deinitialize` 뒤에도 살아 있고, 키 비교가 UObject를 역참조하지 않는다(위 자동화).
+- 따라서 Phase 3에서는 별도 Mass gate를 만들지 않는다. **match 중 옥탄트 재생성이나 slot Level 언로드를 도입할 때는 그 직전에 Mass 처리를 멈추는 gate가 필수다**(`design/RuntimeCollision.md`). 참고로 지금 `StartWorldGeneration`을 다시 부르면 옛 Level Instance를 파괴하지 않고 목록만 비운다.
+
+### 이관(사용자 결정)
+
+- 한 component의 disconnected sheet face identity와 내부형 double-sided shell normal 검증은 `design/RegressionMap.md` 계획대로 Phase 4 착수 전 fixture 추가와 함께 수행한다. Phase 3에는 face→Layer 소비자가 없다.

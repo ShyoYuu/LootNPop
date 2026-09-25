@@ -40,11 +40,11 @@ Component Tag의 production 전환은 Phase 4까지 나눌 수 있다. 이 Gate�
 - [x] exact hit에서 component/shape identity, face index, ISM·HISM instance index 추출 가능성 검증 (`LNP.SurfaceNav.ProbeHitIdentity`)
 - [x] 게임 스레드에서 immutable hit identity registry 구축·게시 (`ULNPHitIdentitySubsystem`)
 - [x] worker 결과는 UObject 역참조 없는 POD만 노출 (`FLNPExactHitIdentity`) — worker 호출 검증은 Gate 0
-- [ ] component 하나의 disconnected sheet 둘이 서로 다른 face identity로 구분되는지 검증
-- [ ] 정적 지형, 동적 패널, 미등록 hit를 각각 분류 — 정적 지형·런처·proxy와 미등록은 완료. 동적 패널은 `(slot, MarkerId)`와 함께 등록되고 2P 사격이 막히는 것까지 확인, 분류 결과(Dynamic·MarkerId)의 counter 검증은 남음
+- [ ] component 하나의 disconnected sheet 둘이 서로 다른 face identity로 구분되는지 검증 — **Phase 4 착수 전으로 이관**(fixture와 함께, `../design/RegressionMap.md`)
+- [x] 정적 지형, 동적 패널, 미등록 hit를 각각 분류 — 동적 패널은 자동화 `WorldCollision.DynamicMarkerHit`와 `LNP.SurfaceNav.ProbePanels`(리슨 2P 호스트·게스트 각 8/8)로 Dynamic·`(slot, MarkerId)` 확인. 수명주기별 hit counter는 `Report`의 `HitLifetime`
 - [x] LootPod collision proxy(D-047) 구현. ISM instance 제거 뒤 index→엔티티 재매핑과 generation 증가를 hit identity 사례로 검증 (`LootNPop.SurfaceNavigation.HitIdentity.LootPodProxySwapRemap`)
-- [ ] registry generation과 match reset·stream unload lifecycle gate 검증
-- [ ] 내부형 double-sided shell의 hit normal과 walkable 판정 검증
+- [x] registry generation과 match reset·stream unload lifecycle gate 검증 — match 중 reset·unload 경로가 없어 구조로 충족. 해제 시 generation 증가와 stale snapshot 안전은 자동화. 경로를 도입할 때 gate 필수(`../design/RuntimeCollision.md`)
+- [ ] 내부형 double-sided shell의 hit normal과 walkable 판정 검증 — **Phase 4 착수 전으로 이관**
 
 식별할 수 없는 hit는 임의 Surface로 스냅하지 않고 `UnknownExactSurface`로 반환하고 counter를 기록한다(D-037).
 
@@ -122,8 +122,8 @@ Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 - [ ] 회귀 맵의 벽·섬 측벽·동굴·정적 프랍·동적 패널 exact hit
 - [ ] Decoration miss와 Pawn 제외
 - [ ] world/entity earliest hit
-- [ ] 내부형 shell normal
-- [ ] 한 component의 분리된 sheet face identity와 ISM/HISM instance identity
+- [ ] 내부형 shell normal — Phase 4 착수 전으로 이관
+- [ ] 한 component의 분리된 sheet face identity와 ISM/HISM instance identity — Phase 4 착수 전으로 이관(ISM instance identity는 LootPod proxy 자동화로 확인)
 - [x] production 8-slot exact collision — `LNP.SurfaceNav.ExactOracle`(콘솔, 생성된 월드 필요)
 - [x] 패널 탑승 2P와 이동 중 late join — 수동 플레이 + `LNP.DynamicTerrain.LogRiders`·`LogDepartures` 계측
 - [ ] Editor 자동화

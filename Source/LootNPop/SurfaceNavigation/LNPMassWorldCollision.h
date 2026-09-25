@@ -122,6 +122,16 @@ public:
 	uint64 GetQueryCount(const ELNPWorldQueryClass Class) const { return Stats[static_cast<int32>(Class)].Count.load(std::memory_order_relaxed); }
 	uint64 GetUnknownHitCount() const { return UnknownHits.load(std::memory_order_relaxed); }
 
+	/** 모든 스레드. 해석된 수명주기별 hit 수. Unknown은 GetUnknownHitCount와 같다. */
+	uint64 GetLifetimeHitCount(const ELNPExactSourceLifetime Lifetime) const
+	{
+		return LifetimeHits[static_cast<int32>(Lifetime)].load(std::memory_order_relaxed);
+	}
+
+	/** 모든 스레드. MarkerId가 있는 Dynamic hit 수와 없는 Dynamic hit 수. 동적 요소는 마커 스폰뿐이라(D-026) 없는 쪽은 분류 오류다. */
+	uint64 GetDynamicMarkerHitCount() const { return DynamicMarkerHits.load(std::memory_order_relaxed); }
+	uint64 GetDynamicWithoutMarkerCount() const { return DynamicWithoutMarker.load(std::memory_order_relaxed); }
+
 	/** 모든 스레드. 전 분류 합계의 누적 count·query 시간·락 probe 시간(ns). 프레임 차분으로 프레임당 비용을 얻는다. */
 	void GetTotals(uint64& OutCount, uint64& OutQueryNs, uint64& OutLockNs) const;
 
@@ -178,6 +188,11 @@ private:
 	mutable FClassStats Stats[static_cast<int32>(ELNPWorldQueryClass::Count)];
 	mutable std::atomic<uint64> UnknownHits = 0;
 	mutable std::atomic<uint64> EnvelopeEscapes = 0;
+
+	/** ELNPExactSourceLifetime 순서. */
+	mutable std::atomic<uint64> LifetimeHits[4] = {};
+	mutable std::atomic<uint64> DynamicMarkerHits = 0;
+	mutable std::atomic<uint64> DynamicWithoutMarker = 0;
 };
 
 /** worker는 const query 함수만 호출한다. 통계는 atomic, debug draw는 MPSC 큐다. */
