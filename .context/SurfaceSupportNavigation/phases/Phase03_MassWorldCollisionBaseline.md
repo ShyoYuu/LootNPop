@@ -115,7 +115,7 @@ Phase 3b와 Phase 6은 같은 harness와 seed를 사용한다.
 
 - [x] harness — `-LNPLoadBaseline=N`(`SurfaceNavigation/LNPLoadBaseline.*`): 고정 seed 링 스폰, 발사체 500발 유지, 플레이어 무적, warm-up·capture 자동, 호스트·게스트 각자 보고
 - [x] 300·1000 기준선 — exact P95 1.25·1.67ms, 락 P95 0.095·0.128ms로 통과. 프레임 기준은 호스트가 300마리부터 실패(P95 28·43ms). 원인은 exact가 아닌 서버 적 시뮬레이션이다(`../history/Phase03_Log.md` 2026-09-25)
-- [x] 호스트 프레임 실패의 Insights 분해와 처리 방침 결정 — 원인은 에디터 전용 디버그 드로우(에디터 바이너리)와 iGPU 대기(패키지)였다. 패키지 호스트 `-nullrhi` 1000마리 P95 6.05ms로 서버 CPU 기준 통과. 렌더링 호스트는 300·1000마리 P95 26·37ms 기준선으로 기록(`../history/Phase03_Log.md` 2026-09-25 분해 절)
+- [x] 호스트 프레임 실패의 Insights 분해와 처리 방침 결정 — 원인은 에디터 전용 디버그 드로우(에디터 바이너리)와 GPU 대기(패키지, RTX 4060 Laptop)였다. 패키지 호스트 `-nullrhi` 1000마리 P95 6.05ms로 서버 CPU 기준 통과. 렌더링 호스트는 300·1000마리 P95 26·37ms 기준선으로 기록(`../history/Phase03_Log.md` 2026-09-25 분해 절)
 
 ## 자동화·회귀
 
