@@ -168,6 +168,11 @@ bool ULNPMassWorldCollisionSubsystem::RunQuery(const FVector& Start, const FVect
 		{
 			UnknownHits.fetch_add(1, std::memory_order_relaxed);
 		}
+		LifetimeHits[static_cast<int32>(OutHit.Identity.Lifetime)].fetch_add(1, std::memory_order_relaxed);
+		if (OutHit.Identity.Lifetime == ELNPExactSourceLifetime::Dynamic)
+		{
+			(OutHit.Identity.MarkerId.IsValid() ? DynamicMarkerHits : DynamicWithoutMarker).fetch_add(1, std::memory_order_relaxed);
+		}
 	}
 	else
 	{
@@ -236,6 +241,12 @@ void ULNPMassWorldCollisionSubsystem::ResetStats()
 	}
 	UnknownHits = 0;
 	EnvelopeEscapes = 0;
+	for (std::atomic<uint64>& Hits : LifetimeHits)
+	{
+		Hits = 0;
+	}
+	DynamicMarkerHits = 0;
+	DynamicWithoutMarker = 0;
 }
 
 void ULNPMassWorldCollisionSubsystem::Report() const
@@ -266,6 +277,9 @@ void ULNPMassWorldCollisionSubsystem::Report() const
 		GroupCount[0], GroupNs[0] / 1e6, GroupCount[1], GroupNs[1] / 1e6, UnknownHits.load(std::memory_order_relaxed));
 	UE_LOG(LogLootNPop, Display, TEXT("[WorldCollision] EnvelopeRadius=%.0fcm EnvelopeEscapes=%llu"),
 		GetWorldEnvelopeRadius(), EnvelopeEscapes.load(std::memory_order_relaxed));
+	UE_LOG(LogLootNPop, Display, TEXT("[WorldCollision] HitLifetime Static=%llu Dynamic=%llu (marker=%llu, noMarker=%llu) Destructible=%llu"),
+		GetLifetimeHitCount(ELNPExactSourceLifetime::Static), GetLifetimeHitCount(ELNPExactSourceLifetime::Dynamic),
+		GetDynamicMarkerHitCount(), GetDynamicWithoutMarkerCount(), GetLifetimeHitCount(ELNPExactSourceLifetime::Destructible));
 }
 
 namespace

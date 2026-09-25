@@ -7,6 +7,7 @@
 #include "Async/ParallelFor.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/HitResult.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -20,6 +21,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPDynamicMarkerHitTest,
+	"LootNPop.SurfaceNavigation.WorldCollision.DynamicMarkerHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPProjectileExactArcTest,
 	"LootNPop.SurfaceNavigation.WorldCollision.ProjectileArc",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -27,12 +33,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 namespace
 {
 	/** 기본 Cube(100cm)를 Scale로 늘린 판을 Actor 하나에 붙인다. */
-	UStaticMeshComponent* SpawnSlab(UWorld* World, const FVector& Location, const FVector& Scale, const FName Profile)
+	UStaticMeshComponent* SpawnSlab(UWorld* World, const FVector& Location, const FVector& Scale, const FName Profile,
+		const EComponentMobility::Type Mobility = EComponentMobility::Static)
 	{
 		AActor* Owner = World->SpawnActor<AActor>();
 		UStaticMeshComponent* Slab = NewObject<UStaticMeshComponent>(Owner);
 		Slab->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
-		Slab->SetMobility(EComponentMobility::Static);
+		Slab->SetMobility(Mobility);
 		Slab->SetCollisionProfileName(Profile);
 		Slab->SetWorldLocation(Location);
 		Slab->SetWorldScale3D(Scale);
@@ -260,6 +267,87 @@ bool FLNPProjectileExactArcTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Escaped arc ends outside the envelope"), EndRadius > Limit);
 		TestTrue(TEXT("Escaped arc ends within one step of the envelope"), EndRadius < Limit + 100.0);
 	}
+
+	return true;
+}
+
+bool FLNPDynamicMarkerHitTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/false, TEXT("LNPDynamicMarkerHitTest"));
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.SetCurrentWorld(World);
+
+	ON_SCOPE_EXIT
+	{
+		GEngine->DestroyWorldContext(World);
+		World->DestroyWorld(false);
+	};
+
+	ULNPHitIdentitySubsystem* HitIdentity = World->GetSubsystem<ULNPHitIdentitySubsystem>();
+	ULNPMassWorldCollisionSubsystem* Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	if (!TestNotNull(TEXT("Hit identity subsystem exists"), HitIdentity)
+		|| !TestNotNull(TEXT("World collision subsystem exists"), Collision))
+		return false;
+
+	// 마커 요소 패널(x=0)과 마커 없이 등록한 Dynamic 판(x=2000). 움직이는 패널과 같은 Movable·LNPDynamicTerrain이다.
+	FLNPPlacementId Placement;
+	Placement.Slot = 3;
+	Placement.MarkerId = FGuid::NewGuid();
+	UStaticMeshComponent* Panel = SpawnSlab(World, FVector(0, 0, 0), FVector(4, 4, 0.3), TEXT("LNPDynamicTerrain"), EComponentMobility::Movable);
+	UStaticMeshComponent* Orphan = SpawnSlab(World, FVector(2000, 0, 0), FVector(4, 4, 0.3), TEXT("LNPDynamicTerrain"), EComponentMobility::Movable);
+	HitIdentity->RegisterRuntimeSource(Panel, Placement);
+	HitIdentity->RegisterRuntimeSource(Orphan);
+	HitIdentity->Tick(0.f);
+
+	const FLNPWorldQueryParams Mandatory(ELNPWorldQueryClass::ProjectileMandatory);
+	Collision->ResetStats();
+
+	// 1. 패널 hit는 Dynamic이고 (slot, MarkerId)를 싣는다.
+	{
+		FLNPWorldHit Hit;
+		TestTrue(TEXT("Raycast hits the panel"), Collision->RaycastWorld(FVector(0, 0, 300), FVector(0, 0, -300), Mandatory, Hit));
+		TestTrue(TEXT("Panel hit is Dynamic"), Hit.Identity.Lifetime == ELNPExactSourceLifetime::Dynamic);
+		TestEqual(TEXT("Panel hit carries the marker slot"), static_cast<int32>(Hit.Identity.Slot), 3);
+		TestTrue(TEXT("Panel hit carries the MarkerId"), Hit.Identity.MarkerId == Placement.MarkerId);
+		TestEqual(TEXT("Panel hit roles are Support+Blocker"), static_cast<int32>(Hit.Identity.Roles),
+			static_cast<int32>(ELNPExactSourceRole::Support | ELNPExactSourceRole::Blocker));
+	}
+
+	// 2. 패널이 움직여도 identity는 자세와 무관하다. 게임 스레드가 옮긴 자세를 query가 바로 본다(D-027).
+	Panel->SetWorldLocation(FVector(0, 1000, 0));
+	{
+		FLNPWorldHit Hit;
+		TestFalse(TEXT("Old panel pose is empty"), Collision->RaycastWorld(FVector(0, 0, 300), FVector(0, 0, -300), Mandatory, Hit));
+		TestTrue(TEXT("Moved panel is hit"), Collision->RaycastWorld(FVector(0, 1000, 300), FVector(0, 1000, -300), Mandatory, Hit));
+		TestTrue(TEXT("Moved panel keeps its MarkerId"), Hit.Identity.MarkerId == Placement.MarkerId);
+	}
+
+	// 3. 마커 없는 Dynamic은 분류 오류 counter로 따로 센다.
+	{
+		FLNPWorldHit Hit;
+		TestTrue(TEXT("Raycast hits the orphan"), Collision->RaycastWorld(FVector(2000, 0, 300), FVector(2000, 0, -300), Mandatory, Hit));
+		TestTrue(TEXT("Orphan hit is Dynamic"), Hit.Identity.Lifetime == ELNPExactSourceLifetime::Dynamic);
+		TestFalse(TEXT("Orphan hit has no MarkerId"), Hit.Identity.MarkerId.IsValid());
+	}
+	TestEqual(TEXT("Dynamic hit count"), Collision->GetLifetimeHitCount(ELNPExactSourceLifetime::Dynamic), static_cast<uint64>(3));
+	TestEqual(TEXT("Dynamic marker hit count"), Collision->GetDynamicMarkerHitCount(), static_cast<uint64>(2));
+	TestEqual(TEXT("Dynamic without marker count"), Collision->GetDynamicWithoutMarkerCount(), static_cast<uint64>(1));
+	TestEqual(TEXT("No static hits"), Collision->GetLifetimeHitCount(ELNPExactSourceLifetime::Static), static_cast<uint64>(0));
+
+	// 4. 해제는 generation을 올린 새 snapshot으로 게시된다. worker가 쥐고 있던 옛 snapshot은 그대로 읽힌다.
+	const TSharedRef<const FLNPHitIdentitySnapshot, ESPMode::ThreadSafe> OldSnapshot = HitIdentity->GetSnapshot();
+	FHitResult PanelHit;
+	PanelHit.Component = Panel;
+	HitIdentity->UnregisterRuntimeSource(Panel);
+	HitIdentity->Tick(0.f);
+	TestTrue(TEXT("Unregister publishes a newer generation"), HitIdentity->GetSnapshot()->Generation > OldSnapshot->Generation);
+	TestFalse(TEXT("New snapshot no longer knows the panel"), ULNPHitIdentitySubsystem::ResolveHit(*HitIdentity->GetSnapshot(), PanelHit).IsKnown());
+
+	// 소유 Actor까지 파괴해도 옛 snapshot 조회는 index·serial 비교만 하므로 역참조하지 않는다.
+	Panel->GetOwner()->Destroy();
+	const FLNPExactHitIdentity Stale = ULNPHitIdentitySubsystem::ResolveHit(*OldSnapshot, PanelHit);
+	TestTrue(TEXT("Old snapshot still resolves the destroyed panel"), Stale.MarkerId == Placement.MarkerId);
+	TestEqual(TEXT("Stale result reports the old generation"), Stale.RegistryGeneration, OldSnapshot->Generation);
 
 	return true;
 }

@@ -1,8 +1,8 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1~4 완료
-> 마지막 갱신: 2026-09-25 (호스트 프레임 실패 분해, 서버 CPU 기준으로 재정의해 통과)
+> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate -1·Gate 0 통과, 구현 단위 1~4 완료
+> 마지막 갱신: 2026-09-25 (Gate -1 B 잔여 종료: 동적 패널 분류 검증, lifecycle 구조 충족, fixture 항목 Phase 4 이관)
 
 ## 현재 목표
 
@@ -45,8 +45,9 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 Gate -1 A, Gate 0, 구현 단위 1~4가 끝났다. 부하 기준선은 패키지 Development 호스트 `-nullrhi`의 서버 CPU 프레임으로 판정한다(2026-09-25 사용자 결정). 1000마리 P95 6.05ms, exact·락 기준도 통과했다. 렌더링 호스트의 실패(GPU 대기, RTX 4060 Laptop)는 기준선으로만 남긴다. harness는 `-LNPLoadBaseline=N`, 측정·분석 절차는 `history/Phase03_Log.md` 2026-09-25 분해 절.
 
-1. **Gate -1 B 잔여.** 패널 hit가 `Dynamic`·`MarkerId`로 분류되는지 counter로 확인하고, registry generation의 match reset·stream unload lifecycle gate를 검증한다. disconnected sheet·double-sided shell 검증은 fixture가 필요하다.
-2. **Phase 3 완료 조건 정리.** 자동화·회귀 표의 미완 항목(회귀 맵 exact hit, Decoration miss·Pawn 제외, earliest hit, shell normal)과 `-game` 리슨 2P 스모크(D-031), 두 타깃 빌드를 확인하고 `Roadmap.md`를 갱신한다.
+Gate -1 B도 닫혔다. 동적 패널 분류는 자동화와 리슨 2P `ProbePanels`로 확인했고, lifecycle gate는 match 중 reset·unload 경로가 없어 구조로 충족한다(도입 시 gate 필수). disconnected sheet·double-sided shell은 Phase 4 착수 전으로 이관했다(`history/Phase03_Log.md` 2026-09-25 Gate -1 B 절).
+
+1. **Phase 3 완료 조건 정리.** 자동화·회귀 표의 미완 항목(회귀 맵 exact hit, Decoration miss·Pawn 제외, world/entity earliest hit, Editor 자동화)과 `-game` 리슨 2P 스모크(D-031), 두 타깃 빌드를 확인하고 `Roadmap.md`를 갱신한다.
 
 ## Phase 1에서 확정된 입력 계약
 
@@ -70,6 +71,8 @@ Gate -1 A, Gate 0, 구현 단위 1~4가 끝났다. 부하 기준선은 패키지
 - Phase 3b greybox 부유섬 옥탄트부터 기준 반지름 30,000cm로 제작하고 `SphereRadius`를 함께 올린다(D-046). int16 복제 캡은 좌표 성분마다 걸리므로 옥탄트 꼭짓점(좌표축) 부근에서만 여유가 약 2,767cm로 좁다. 동굴은 꼭짓점 부근을 피한다(`design/TerrainContract.md` §7). 기존 `Meadow_00`(25,000cm)는 30,000cm로 새로 만들거나 폐기한다.
 - greybox 부유섬 옥탄트 LVI는 Phase 3b에서 만들고, Phase 4 착수 전에 동굴 키트 공동 모듈과 통로를 추가한다(`Roadmap.md` §4).
 - Phase 4 착수 전 전제: fixture 재배치·fixture LVI, 동굴 fixture의 키트 방식 교체.
+- Phase 3 Gate -1 B에서 이관: 한 component의 disconnected sheet face identity, 내부형 double-sided shell의 hit normal·walkable 판정. `design/RegressionMap.md`의 Phase 4 착수 전 fixture로 검증한다.
+- match 중 옥탄트 재생성이나 slot Level 언로드를 도입하면 그 직전에 Mass 처리를 멈추는 gate를 함께 만든다(`design/RuntimeCollision.md`).
 
 ## 알려진 불확실성
 
@@ -84,6 +87,12 @@ Gate -1 A, Gate 0, 구현 단위 1~4가 끝났다. 부하 기준선은 패키지
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-25 Gate -1 B 잔여:
+
+- `LootNPopEditor` 빌드 성공, 경고 없음. `LootNPop.SurfaceNavigation` 자동화 15/15(신규 `WorldCollision.DynamicMarkerHit`)
+- 에디터 바이너리 `-game` 리슨 2P 무인(`-LNPLoadBaseline=1`, 발사체 0): 호스트·게스트 모두 `ProbePanels panels=8 failures=0 PASS`
+- `LootNPop Win64 Development` 게임 타깃 빌드 성공, 경고 없음
 
 2026-09-25 구현 단위 4(호스트 프레임 분해):
 
