@@ -1,6 +1,6 @@
 # Phase 3b — exact 전용 부유섬 프로토타입
 
-> 상태: 기준 설계 — 결정 확정(2026-09-25), 구현 착수 전
+> 상태: 기준 설계 — 구현 단위 1·2 완료(2026-09-25), 구현 단위 3 착수 전
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 3 MassWorldCollision 정확성 기준선(완료)
 
@@ -77,11 +77,22 @@ Phase 3 부하 기준선은 25,000cm 월드 수치다. 3b는 30,000cm 월드에�
 - 걸을 수 없는 hit(섬 측벽·밑면)는 속도의 법선 성분을 지우고 미끄러진다. 멈추게 하면 섬 밑면에 달라붙는다.
 - `UnknownExactSurface`는 Blocker로만 취급하고 착지하지 않는다(D-037).
 
+구현 규약(구현 단위 2, `Source/LootNPop/Enemy/LNPEnemyExactMovement.*`):
+
+- 이동 프로세서와 자동화가 같은 함수(`StepGrounded`·`StepAirborne`·`ProjectToSameLayer`)를 부른다. 공중 여부는 기존 규약(`FLNPEnemyVelocityFragment::Velocity == 0`이면 접지)을 그대로 쓴다. 지지면을 잃거나 착지하지 않은 채 속도가 0이 되면 중력 한 스텝 속도를 실어 공중에 남긴다.
+- 하향 probe 구는 캡슐 바닥 구와 같다(반지름 = 캡슐 반지름). 더 작으면 probe가 빠졌는데 캡슐 옆면이 모서리 위에 걸려, 수직 낙하 sweep이 모서리에 착지하고 다음 프레임 다시 지지면을 잃는 진동이 생긴다.
+- 수평 sweep이 막히면 벽 바깥으로 1cm 물러나 멈춘다. 벽에 딱 붙으면 같은 반지름의 probe가 벽을 먼저 맞혀 Rejected로 멈췄다(자동화에서 발견).
+- sweep이 시작부터 겹치면(벽에 붙어 선 개체, 접지 자리에서 받은 넉백) 겹침 깊이만큼 법선 방향으로 풀고 파고드는 성분을 지운 뒤 한 번 더 sweep한다. sweep 없이 옮기면 측벽을 따라 내려가다 바닥을 뚫는다. `FLNPWorldHit::PenetrationDepth`를 이 용도로 추가했다.
+- probe hit가 walkable Support가 아니면(가파른 경사·Blocker·Unknown) 수평 이동을 취소하고 제자리에 선다(`Rejected`). hit가 없으면 절벽 낙하(`LostSupport`)다.
+- 단차 45cm(캡슐 반지름 이상, walkable 경사에서 올린 캡슐이 지면에 박히지 않는 값), 접지 유지 낙차 60cm, walkable dot 0.71.
+- query 분류: 접지(수평·슬라이드·probe)와 배회 재투영은 `GroundRiskFallback`, 공중은 `AirborneMandatory`.
+- 배회 재투영은 엔티티와 같은 반지름에서 위아래 300cm를 찍는다. 지각 위 섬 밑면 여유(최소 약 470cm)보다 작아야 섬 아래에서 찍은 구가 섬 밑면과 시작부터 겹치지 않는다.
+
 ### 3.4 CVar와 적용 범위
 
 - `LNP.SurfaceNav.EnemyExactGround`(0 legacy / 1 exact)와 `LNP.SurfaceNav.EnemyExactLateralSweep`(0/1, 측정 요인 분리용).
 - 이동 시뮬레이션은 서버 전용이라 CVar도 서버에서만 의미가 있다. 복제·클라이언트 경로는 바뀌지 않는다.
-- 기본값은 구현과 2P 스모크 통과 뒤 1로 바꾼다. 섬 월드에서 legacy는 섬 윗면으로 순간이동하므로 비교용으로만 남기고, Phase 6에서 제거한다.
+- 기본값은 구현과 2P 스모크 통과 뒤 1로 바꾼다. 섬 월드에서 legacy는 섬 윗면으로 순간이동하므로 비교용으로만 남기고, Phase 6에서 제거한다. → 2026-09-25 구현 단위 2 스모크 통과 뒤 `EnemyExactGround` 기본값 1(`EnemyExactLateralSweep`은 처음부터 1).
 
 | 소비자 | 처리 |
 |:---|:---|
@@ -135,11 +146,11 @@ Phase 3 harness(`-LNPLoadBaseline=N`)를 확장해 재사용한다. 측정 build
 
 - [x] 8 slot 전부 30,000cm 새 Meadow_00으로 생성되고 `ExactOracle`·exact response audit가 통과함
 - [x] 기존 25,000cm Meadow_00이 pool에서 빠지고, 남긴 백업은 다른 이름임(백업 없이 제자리 갱신, 원본은 git 이력)
-- [ ] Mass PrePhysics 페이즈가 모든 패널 틱 뒤에 실행됨을 확인함(아니면 B안 별도 세션으로 이관)
-- [ ] PureEntity가 exact만으로 지각·섬 윗면에 접지하고, 가장자리에서 떨어지고, 넉백 뒤 올바른 층에 착지함
-- [ ] 섬 아래 지각의 적이 섬 윗면으로 순간이동하지 않음(legacy 대비 회귀 확인)
-- [ ] 벽·프랍·섬 측벽을 걸어서 통과하지 않음
-- [ ] `UnknownHits=0`, 착지가 Unknown hit에 스냅하지 않음
+- [x] Mass PrePhysics 페이즈가 모든 패널 틱 뒤에 실행됨을 확인함(아니면 B안 별도 세션으로 이관) — C안, 2P 스모크 호스트·게스트 위반 0
+- [ ] PureEntity가 exact만으로 지각·섬 윗면에 접지하고, 가장자리에서 떨어지고, 넉백 뒤 올바른 층에 착지함 — 자동화 통과, 실게임은 구현 단위 3·4
+- [ ] 섬 아래 지각의 적이 섬 윗면으로 순간이동하지 않음(legacy 대비 회귀 확인) — 구현 단위 3 harness 배치로 확인
+- [ ] 벽·프랍·섬 측벽을 걸어서 통과하지 않음 — 자동화 통과, 실게임은 구현 단위 4
+- [ ] `UnknownHits=0`, 착지가 Unknown hit에 스냅하지 않음 — 자동화 통과, 호스트 스모크 0
 - [ ] §3.6 매트릭스와 exact 한계치 기록
 - [ ] §3.7 기능 점검 통과
 - [ ] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공, 자동화 통과

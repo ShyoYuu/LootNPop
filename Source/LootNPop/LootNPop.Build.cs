@@ -40,6 +40,7 @@ public class LootNPop : ModuleRules
             "MassAIBehavior",
             "MassLOD",
             "MassSignals",
+            "MassSimulation",
             "MassGameplayDebug",
             "Niagara",
             "ModelViewViewModel",

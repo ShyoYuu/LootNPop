@@ -266,16 +266,23 @@ Actor 모드 (High LOD):
   → SetAIOrientationIntent / SetAIMoveInput 위임 (게임 스레드 커맨드)
   → 실제 이동은 캐릭터의 Mover 컴포넌트가 처리 (플레이어와 동일 파이프라인)
 
-Entity 모드 (Low LOD):
+Entity 모드 (Low LOD), 기본(LNP.SurfaceNav.EnemyExactGround 1):
   ├─ PhysVelocity ≠ 0 (공중 — 넉백/사망 팝/포물선):
-  │    중력 적분 → SurfaceCache로 착지 판정 → 착지 시 표면 스냅 + 속도 0
+  │    중력 적분 → 이전→제안 위치 capsule sweep → walkable Support hit면 착지 + 속도 0, 그 밖은 미끄러짐
   └─ 접지:
-       QInterpConstantTo 회전 (RotationRate) → 분리력 가산 → 경사 차단(§7.4) → SurfaceCache 표면 스냅 이동
+       QInterpConstantTo 회전 (RotationRate) → 분리력 가산 → 올린 캡슐 수평 sweep(벽 슬라이드)
+       → 하향 support probe(지지면 스냅 / 없으면 낙하 / 가파른 경사·Blocker면 이동 취소)
+
+Entity 모드, legacy(EnemyExactGround 0, 비교용 — Phase 6에서 제거):
+  ├─ 공중: 중력 적분 → SurfaceCache로 착지 판정 → 착지 시 표면 스냅 + 속도 0
+  └─ 접지: 회전 → 분리력 가산 → 경사 차단(§7.4) → SurfaceCache 표면 스냅 이동
 ```
 
 - 구형 UpDir은 `(GravityOrigin - Location).GetSafeNormal()`로 실시간 계산 (Fragment 저장 없음 — 캐시 효율).
-- 지표면 좌표는 전부 `ULNPSurfaceCacheSubsystem` O(1) 조회 (워커 스레드에서 직접 호출 —
-  → [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md)).
+- exact 경로는 `LNPEnemyExactMovement`(Mass worker 동기 exact query)이고 움직이는 패널 틱 뒤에 돈다.
+  규약·근거는 `SurfaceSupportNavigation/phases/Phase03b_ExactFloatingIslandPrototype.md` §3.3.
+- legacy 경로의 지표면 좌표는 전부 `ULNPSurfaceCacheSubsystem` O(1) 조회 (워커 스레드에서 직접 호출 —
+  → [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md)). 캐시는 방향마다 첫 hit 한 층이라 부유섬 아래 적을 섬 윗면으로 옮긴다.
   ⚠️ **접지 스냅은 캐시 값을 검증 없이 그대로 위치로 쓴다** — 즉 **캐시 오차가 곧 매몰 깊이**다.
   승격 시 `TeleportActor`가 그 좌표를 그대로 옮기는데 Mover는 깊은 침투를 한 프레임에 풀지 못하고,
   경사 게이트(§7.4)까지 벽으로 판정해 속도를 0으로 만든다 — "꼼짝 못 하는데 공격은 하는" 상태가 된다
@@ -441,7 +448,7 @@ Actor 상태에서도 이동 결정은 Mass 프로세서가 내리고, 실행만
 
 ### 7.4 구면 지형의 경사 차단
 
-Mover가 없는 엔티티도 45° 이상 오름 경사를 오르지 못하도록, 현재/목표 지점의 SurfaceCache 표면 좌표 차이에서 "Up 성분 대비 수평 성분 비율"을 검사한다 (`MaxWalkSlopeCosine = 0.71` — Mover CommonLegacySettings와 동일 기준).
+(legacy 경로. exact 경로는 하향 probe hit 법선으로 같은 기준을 판정한다.) Mover가 없는 엔티티도 45° 이상 오름 경사를 오르지 못하도록, 현재/목표 지점의 SurfaceCache 표면 좌표 차이에서 "Up 성분 대비 수평 성분 비율"을 검사한다 (`MaxWalkSlopeCosine = 0.71` — Mover CommonLegacySettings와 동일 기준).
 
 ### 7.5 Actor 동기화의 의도된 트레이드오프
 

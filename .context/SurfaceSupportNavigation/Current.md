@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3b — exact 전용 부유섬 프로토타입 · 구현 단위 1 완료, 구현 단위 2 착수 전
+> 현재 Phase: Phase 3b — exact 전용 부유섬 프로토타입 · 구현 단위 1·2 완료, 구현 단위 3(측정) 착수 전
 > 마지막 갱신: 2026-09-25
 
 ## 현재 목표
@@ -32,12 +32,17 @@ Phase 3b는 Support 캐시를 만들기 전에 두 가지를 실측한다(D-032,
 - 투사체 서버·Ghost·탄도 가이드는 exact 전용(`LNPProjectileMotion::TraceWorld`·`ClipSegmentToWorld`), world collision envelope 안전망
 - Placement Marker → 서버 스폰 복제 Actor(`SpawnPlacedActor`), 결정론 움직이는 패널과 2P Mover 탑승
 - 부하 harness `-LNPLoadBaseline=N`. 프레임 판정은 패키지 Development 호스트 `-nullrhi` 서버 CPU 프레임(1000마리 P95 6.05ms). 에디터 바이너리 `-game` 프레임은 오염돼 쓰지 않는다
-- 자동화 `LootNPop.SurfaceNavigation` 17개(회귀 맵 exact oracle `WorldCollision.RegressionMap` 포함)
+- 자동화 `LootNPop.SurfaceNavigation` 17개(회귀 맵 exact oracle `WorldCollision.RegressionMap` 포함). 3b 구현 단위 2에서 `ExactMovement.*` 4개 추가(21개)
+
+## Phase 3b 진행 상태
+
+- 구현 단위 1: 30,000cm `Meadow_00`, 섬 3개, 경사로 두 방식, 간이 동굴, 월드 장치 마커
+- 구현 단위 2: 패널 → Mass PrePhysics 선행 조건(D-050 C안, 2P 위반 0), exact 접지·공중·배회 재투영(`Enemy/LNPEnemyExactMovement.*`), CVar `LNP.SurfaceNav.EnemyExactGround`(기본 1)·`EnemyExactLateralSweep`(기본 1), 자동화 `ExactMovement.*` 4개. 세부 규약은 Phase 문서 §3.3 "구현 규약"
 
 ## 바로 다음 작업
 
-1. **구현 단위 2: exact 접지 경로.** 구현 단위 1(30,000cm `Meadow_00`, 섬 3개, 경사로 두 방식, 간이 동굴, 월드 장치 마커)은 끝났다(`history/Phase03b_Log.md` 2026-09-25). 자동화 대상 사례에 간이 동굴(천장 아래 보행, 구멍 낙하 후 아래층 착지)을 넣는다.
-2. **구현 단위 2 세부.** 먼저 패널 틱→Mass PrePhysics 선행 조건을 걸고 실행 순서를 확인한다(D-050). 보장이 안 되면 B안(PostPhysics 이전)은 별도 세션으로 뺀다. 이어서 D-049 알고리즘과 CVar.
+1. **구현 단위 3: 측정 harness 확장.** `LNPLoadBaseline`의 링 배치를 exact probe로 지각·섬 윗면에 직접 놓고(링 일부가 큰 섬 아래를 지나게, 적 10%는 섬 위), 적마다 평균 10초에 한 번 합성 넉백(섬 위 적은 가장자리 밖으로)을 준다. 착지·낙하 이벤트 수와 섬 가장자리 이탈 수 counter를 추가한다. 섬 아래 적이 섬 윗면으로 순간이동하지 않는지도 이 배치로 확인한다(legacy 0 대비).
+2. **§3.6 매트릭스.** 패키지 Development 호스트 `-nullrhi` 서버 CPU 프레임으로 N ∈ {300, 1000, 2000} × {legacy, exact} + N=1000 lateral 0/1. 에디터 바이너리 스모크에서 exact 접지 query는 적 300에 프레임당 약 1,000회(평균 3.9us)였다.
 
 ## 이관된 후속 작업
 
@@ -70,14 +75,13 @@ Phase 3b는 Support 캐시를 만들기 전에 두 가지를 실측한다(D-032,
 
 ## 마지막 검증
 
+2026-09-25 Phase 3b 구현 단위 2(exact 접지 경로):
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음, 자동화 21/21
+- 에디터 바이너리 `-game` 리슨 2P 무인(적 300·발사체 500, exact 1): `MassPrePhysicsOrder` 위반 호스트·게스트 0, 호스트 `UnknownHits=0`·`EnvelopeEscapes=0`·락 P95 0.153ms, 크래시·ensure 0. 게스트 워밍업 구간 Unknown 1건은 원인 미확인(투사체 Ghost 쪽)
+
 2026-09-25 Phase 3b 구현 단위 1(30,000cm Meadow_00):
 
 - `LootNPopEditor` 빌드 성공, 자동화 17/17
 - 8 slot 생성, 마커 요소 48개 스폰(0 skipped), audit `MISSING=0`, `UnknownHits=0`, envelope 32,636cm
-- `ExactOracle`: ExactDeeper 20건 외 0(위 다음 작업 참조)
-
-2026-09-25 Phase 3 종료:
-
-- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음
-- `LootNPop.SurfaceNavigation` 자동화 17/17(신규 `WorldCollision.EarliestHit`, `WorldCollision.RegressionMap`)
-- 에디터 바이너리 `-game` 리슨 2P 무인(양쪽 `-nullrhi`, 300마리·발사체 500): 호스트·게스트 `UnknownHits=0`, `EnvelopeEscapes=0`, `ProbePanels` 8/8, ensure 0
+- `ExactOracle`: ExactDeeper 20건(정보 항목, legacy 캐시 결함) 외 0

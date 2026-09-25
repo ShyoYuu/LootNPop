@@ -5,7 +5,9 @@
 #include "Enemy/LNPTargetingSubsystem.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPEnemyExactMovement.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "Config/LNPSettings.h"
 #include "LootNPop.h"
 
@@ -513,6 +515,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceCacheSubsystem>(EMassFragmentAccess::ReadOnly);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -525,6 +528,11 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	const ULNPSurfaceCacheSubsystem& SurfaceCache = Context.GetSubsystemChecked<ULNPSurfaceCacheSubsystem>();
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 	TArray<FMassEntityHandle> EntitiesToSignal;
+
+	// exact 경로(D-049): 접지는 수평 capsule sweep + 하향 probe, 공중은 이전→제안 위치 capsule sweep.
+	// 움직이는 패널은 이 페이즈보다 먼저 자세를 옮긴다(D-050, ULNPDynamicTerrainSubsystem).
+	const bool bExactGround = LNPEnemyExactMovement::IsEnabled();
+	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
 
 	MovementQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& EnemyContext)
 	{
@@ -561,6 +569,22 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		// 엔티티마다 물어볼 필요가 없다.
 		const bool bChunkIsDying = EnemyContext.DoesArchetypeHaveTag<FLNPEnemyDyingTag>();
 
+		LNPEnemyExactMovement::FParams ExactParams;
+		ExactParams.GravityOrigin = GravityOrigin;
+		ExactParams.GravityStrength = GravityStrength;
+		ExactParams.CapsuleRadius = SharedFragment.Config->CapsuleRadius;
+		ExactParams.CapsuleHalfHeight = CapsuleHalfHeight;
+		ExactParams.bLateralSweep = LNPEnemyExactMovement::IsLateralSweepEnabled();
+
+		// 공중 개체는 몸을 새 Up에 맞춘다. 전방은 접평면 성분을 유지한다.
+		auto AlignToUp = [&GravityOrigin](FTransform& EntityTransform, const FVector& NewPos)
+		{
+			const FVector NewUp = (GravityOrigin - NewPos).GetSafeNormal();
+			const FVector HorizForward = FVector::VectorPlaneProject(EntityTransform.GetRotation().GetForwardVector(), NewUp).GetSafeNormal();
+			if (!HorizForward.IsNearlyZero())
+				EntityTransform.SetRotation(FRotationMatrix::MakeFromXZ(HorizForward, NewUp).ToQuat());
+		};
+
 		/**
 		 * 공중 물리(넉백·사망 팝)의 **단일 구현**. 살아 있는 개체와 죽어가는 개체가 같은 코드를 타야
 		 * 죽는 순간에만 다른 곡선을 그리는 어긋남이 생기지 않는다.
@@ -573,6 +597,15 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		 */
 		auto IntegrateAirborne = [&](FTransform& EntityTransform, FVector& PhysVelocity, const FVector& EntityLocation)
 		{
+			if (bExactGround)
+			{
+				FVector NewPos;
+				LNPEnemyExactMovement::StepAirborne(WorldCollision, ExactParams, EntityLocation, PhysVelocity, DeltaTime, NewPos);
+				EntityTransform.SetLocation(NewPos);
+				AlignToUp(EntityTransform, NewPos);
+				return;
+			}
+
 			// 공중 물리: 중력 적용 및 속도 적분
 			const FVector GravityDir = (EntityLocation - GravityOrigin).GetSafeNormal(); // 외향 = 아래
 			PhysVelocity += GravityDir * GravityStrength * DeltaTime;
@@ -601,10 +634,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 			// 아직 공중: 자유 이동 및 Up 정렬 회전 유지
 			EntityTransform.SetLocation(NewPos);
-			const FVector NewUp = (GravityOrigin - NewPos).GetSafeNormal();
-			const FVector HorizForward = FVector::VectorPlaneProject(EntityTransform.GetRotation().GetForwardVector(), NewUp).GetSafeNormal();
-			if (!HorizForward.IsNearlyZero())
-				EntityTransform.SetRotation(FRotationMatrix::MakeFromXZ(HorizForward, NewUp).ToQuat());
+			AlignToUp(EntityTransform, NewPos);
 		};
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
@@ -808,6 +838,15 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					// 서로 밀어내야 한다. 아래 경사 체크와 표면 스냅이 그대로 뒤따르므로 구면 규약이
 					// 깨지지 않는다(이것이 분리 프로세서가 Transform을 직접 만지지 않는 이유다).
 					Velocity += SeparationFragments[i].Push;
+
+					if (bExactGround)
+					{
+						// 경사·벽·절벽 판정을 모두 exact가 맡는다. 지지면을 잃으면 PhysVelocity가 0이 아니게 되어 다음 프레임부터 공중이다.
+						FVector FinalPos;
+						LNPEnemyExactMovement::StepGrounded(WorldCollision, ExactParams, EntityLocation, Velocity, DeltaTime, FinalPos, PhysVelocity);
+						EntityTransform.SetLocation(FinalPos);
+						continue;
+					}
 
 					// 경사 체크: ~45도보다 가파른 경사 오름 이동 차단 (MaxWalkSlopeCosine = 0.71f, Mover CommonLegacyMovementSettings 기준)
 					constexpr float MaxWalkSlopeCosine = 0.71f;

@@ -87,6 +87,7 @@ void ALNPMovingPanel::BeginPlay()
 void ALNPMovingPanel::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	LastTickFrame = GFrameCounter;
 
 	// 클라이언트의 server world time은 GameState 복제 전에는 없다. 그동안 활성화 때 자세에 머문다.
 	if (const AGameStateBase* GameState = GetWorld()->GetGameState())

@@ -112,3 +112,38 @@
 - A 관통 터널: 섬 중심에서 1,900~2,300cm, 경사로를 옆으로 관통, 천장 29,359(지면 약 +400cm). B 방: 1,300~1,600cm, 한쪽 옆면(런처 반대편)으로 열림, 천장 28,929. B 수직 구멍: 1,400~1,600cm × 폭 200cm, 윗면에서 방 바닥(지각)까지 약 11m 낙하.
 - 트레이스: 구멍은 윗면에서 바닥까지 열림, 터널은 바닥 +150cm에서 옆으로 관통, 방은 열린 쪽만 통과, 천장은 아래에서 막힘(29,359·28,929).
 - `import_file`은 같은 이름 덮어쓰기를 거부한다. 새 이름 `SM_Ramp_A_Cave_Top`·`SM_Ramp_A_Cave_Body`로 임포트하고 액터 메시를 교체한 뒤 옛 메시를 삭제했다.
+
+## 2026-09-25 — 구현 단위 2: exact 접지 경로
+
+### 패널 → Mass PrePhysics 선행 조건(D-050, C안)
+
+- `ULNPDynamicTerrainSubsystem::RegisterPanel`·`UnregisterPanel`이 게시 틱과 같은 자리에서 Mass PrePhysics 페이즈 tick function(`UMassSimulationSubsystem::GetMutablePhaseManager().GetProcessingPhaseTickFunction`)에 패널 Actor 틱 선행 조건을 걸고 푼다. `MassSimulation` 모듈 의존성 추가, `InitializeDependency<UMassSimulationSubsystem>`으로 정리 순서를 건다.
+- 엔진 확인: 페이즈 tick 재등록(`EnableTickFunctions`)은 `RegisterTickFunction`만 다시 부르고 선행 조건 배열은 멤버라 남는다. `Stop`은 enable만 끈다. 페이즈 `ExecuteTick`은 게임 스레드에서 `OnPhaseStart`를 먼저 방송한다.
+- 검증 장치: `OnProcessingPhaseStarted(PrePhysics)`에서 등록 패널 중 이번 프레임(`GFrameCounter`)에 아직 틱하지 않은 수를 센다(`ALNPMovingPanel::GetLastTickFrame`). 월드 종료 시 `[DynamicTerrain] MassPrePhysicsOrder checks=… violations=…`.
+- 2P 스모크 결과: 호스트 checks 42,096·게스트 40,976, **위반 0**. 클라이언트도 같은 순서다. B안(PostPhysics 이전)은 필요 없다.
+
+### exact 이동(D-049)
+
+- `Enemy/LNPEnemyExactMovement.*`: `StepGrounded`(수평 capsule sweep + 하향 support probe), `StepAirborne`(이전→제안 capsule sweep), `ProjectToSameLayer`(배회 재투영). 이동 프로세서와 자동화가 같은 함수를 부른다. 세부 규약은 Phase 문서 §3.3 "구현 규약".
+- 이동 프로세서: `bExactGround`면 접지 분기의 캐시 경사 검사·표면 스냅을 건너뛰고 `StepGrounded`, `IntegrateAirborne`(넉백·사망 팝 공용)은 `StepAirborne`. Actor가 있는 적은 그대로 Mover다.
+- 배회 목표(`FLNPEnemyIdleTask`): exact 모드에서 엔티티와 같은 반지름에서 위아래 300cm를 찍는다. 없으면(섬 가장자리 밖 등) 목표를 현재 위치로 두어 다음 추첨을 기다린다.
+- CVar `LNP.SurfaceNav.EnemyExactGround`(기본 1, 스모크 뒤 변경)·`LNP.SurfaceNav.EnemyExactLateralSweep`(기본 1).
+
+### 자동화에서 드러난 문제 두 가지
+
+- 벽 사선 보행이 벽에 닿은 뒤 멈췄다. 처음에는 시작 겹침 sweep이 이동 전체를 막았고, 고친 뒤에는 벽에 딱 붙은 캡슐과 같은 반지름의 하향 probe가 벽을 먼저 맞혀 Rejected가 됐다(프레임별 위치 진단으로 확인). 겹침을 풀고 법선 성분만 지워 다시 sweep하고, 막힌 자리에서 1cm 물러나 멈추게 했다.
+- 설계 중 발견: probe 구를 캡슐보다 작게 하면 절벽 끝에서 착지·지지면 상실이 반복될 수 있어 캡슐 바닥 구와 같게 했다.
+
+### 검증
+
+- `LootNPopEditor`·`LootNPop Win64 Development` 빌드 성공, 경고 없음.
+- 자동화 `LootNPop.SurfaceNavigation` 21/21. 신규 `ExactMovement.*` 4개:
+  - `GroundAndCliff`: 30cm 떠 있어도 접지, 캡슐 전체가 가장자리를 벗어난 뒤에만 낙하, 아랫판 1회 착지
+  - `WallAndSlope`: 벽 정면 정지, 사선 보행이 벽을 따라 424cm/s로 미끄러짐, 25도 경사로 오르기, 60도 경사 못 오름
+  - `IslandBody`: 섬 밑면에 막히고 착지하지 않은 채 바닥으로 복귀, 측벽을 따라 미끄러져 바닥 착지, 섬 윗면에서 밀려나 아래 착지, 배회 재투영(섬 아래→바닥, 섬 위→섬, 가장자리 밖→실패)
+  - `CaveAndUnknown`: 천장(바닥 +400cm) 아래 보행 높이 불변, 수직 구멍으로 떨어져 아래층 착지, 미등록 판에 착지하지 않고 뚫지도 않음
+- 에디터 바이너리 `-game` 리슨 2P 무인(양쪽 `-nullrhi`, `-corelimit=4`, `-LNPLoadBaseline=300`, 발사체 500, 호스트 `EnemyExactGround 1`):
+  - 호스트: `UnknownHits=0`, `EnvelopeEscapes=0`, 락 합 P95 0.153ms PASS, 크래시·ensure 0. exact query 프레임당 약 1,000회(GroundRiskFallback 평균 3.86us). 프레임·exact 합계 FAIL은 에디터 바이너리 측정이라 판정하지 않는다(측정은 구현 단위 3에서 패키지로).
+  - 게스트: 캡처 구간 `UnknownHits=0`, 전체 누적 1건(워밍업 구간, 게스트 query는 투사체 Ghost뿐). 게스트는 적 이동을 돌리지 않아 이번 변경과 무관하게 보이나 원인은 확인하지 않았다.
+  - 경고는 이전 스모크와 같은 종류(Mover 시작 위치 불일치, `AttackTask` cast 실패)다.
+- 스모크는 harness 합성 넉백이 아직 없어 공중 query가 15회뿐이다. 넉백·섬 배치 시나리오는 구현 단위 3에서 돌린다.

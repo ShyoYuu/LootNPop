@@ -60,8 +60,9 @@ struct FLNPDynamicSupportFrame
  *   seed 기반 장치 배치도 같은 스폰 함수(SpawnPlacedActor)를 거친다.
  * - 서버·클라: 패널은 자기 Actor 틱(TG_PrePhysics)에서 자세를 갱신하고, 이 서브시스템이 모든 패널 틱 뒤
  *   같은 그룹에서 DynamicSupport snapshot을 게시한다(FLNPDynamicSupportPublishTickFunction).
- *   worker exact query는 StartPhysics 이후 페이즈에만 있으므로 TG_PrePhysics의 transform 쓰기와 겹치지 않는다(Gate 0).
- *   PrePhysics 페이즈에 exact 소비자를 추가하려면 이 배치를 다시 검토해야 한다.
+ * - 서버·클라: 패널 Actor 틱을 Mass PrePhysics 페이즈 tick function의 선행 조건으로도 건다(D-050).
+ *   PrePhysics 페이즈의 worker exact query(적 exact 이동)는 모든 패널이 자세를 옮긴 뒤에 돈다.
+ *   페이즈 시작마다 이번 프레임에 아직 틱하지 않은 패널을 세어 순서를 검증한다(월드 종료 시 로그).
  */
 UCLASS()
 class LOOTNPOP_API ULNPDynamicTerrainSubsystem : public UWorldSubsystem
@@ -89,6 +90,10 @@ public:
 	void NotePoseSnap() { ++PoseSnapCount; }
 	int32 GetPoseSnapCount() const { return PoseSnapCount; }
 
+	/** Mass PrePhysics 페이즈 시작 시 검사한 패널 수와 그중 이번 프레임에 아직 틱하지 않은 수(D-050). */
+	uint64 GetPhaseOrderChecks() const { return PhaseOrderChecks; }
+	uint64 GetPhaseOrderViolations() const { return PhaseOrderViolations; }
+
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -100,6 +105,10 @@ private:
 
 	void Publish();
 	void OnWorldPreActorTick(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+
+	/** Mass PrePhysics 페이즈 tick function. Mass 시뮬레이션 서브시스템이 없으면 null. */
+	FTickFunction* GetMassPrePhysicsTick() const;
+	void OnMassPrePhysicsStart(float DeltaSeconds);
 
 	/** 진단(LNP.DynamicTerrain.LogRiders). 패널 근처 Mover 폰의 base와 패널 로컬 위치를 남긴다. */
 	void LogRiders(double ServerTime) const;
@@ -121,7 +130,10 @@ private:
 	TSharedRef<const FLNPDynamicSupportFrame, ESPMode::ThreadSafe> Frame = MakeShared<FLNPDynamicSupportFrame, ESPMode::ThreadSafe>();
 	FLNPDynamicSupportPublishTickFunction PublishTick;
 	FDelegateHandle PreActorTickHandle;
+	FDelegateHandle MassPrePhysicsStartHandle;
 	int32 PoseSnapCount = 0;
+	uint64 PhaseOrderChecks = 0;
+	uint64 PhaseOrderViolations = 0;
 };
 
 /** worker는 GetDynamicSupportFrame만 호출한다. 게시는 Mass 실행 구간 밖(프레임 선두)이다. */
