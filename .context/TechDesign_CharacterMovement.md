@@ -88,8 +88,9 @@ UE 5.8 **Mover 2.0** 기반. 구형 중력(위치마다 Up이 다른 Dyson Spher
 | 4 | **`LNPGravityRollCorrection`** | 피벗 회전을 중력 정렬로 보정 (위치·회전 동시) | — |
 | 5 | `DampenPosition` | 고무줄 지연. `DampenSpace = CameraPose` | 4번이 보정한 회전 |
 | 6 | `Offset` (카메라오프셋) | 붐 거리. `CameraOffset` 파라미터. `OffsetSpace = CameraPose` | 4번이 보정한 회전 |
-| 7 | `FieldOfView` / `PostProcess` | 포즈 미변경 | — |
-| 8 | **`LNPLobbedADSPitch`** | 유탄 ADS일 때만 시선을 아래로 기울임(§2.7). `CR_ADS` **맨 끝** | 4번이 보정한 회전 |
+| 7 | `CollisionPush` | 카메라가 지형을 뚫지 않게 피벗(safe position) 쪽으로 당김. 엔진 기본값(`Pivot`·`ECC_Camera`·구 10cm·동기 sweep, 플레이어 폰 무시). **위치를 바꾸는 노드 중 맨 뒤** — 앞에 두면 뒤 노드가 붐을 다시 늘려 지형을 뚫는다 | 3번이 발행한 피벗 |
+| 8 | `FieldOfView` / `PostProcess` | 포즈 미변경 | — |
+| 9 | **`LNPLobbedADSPitch`** | 유탄 ADS일 때만 시선을 아래로 기울임(§2.7). `CR_ADS` **맨 끝** | 4번이 보정한 회전 |
 
 **근본 원인 — Boom Arm이 Roll을 버린다.** `FBoomArmCameraNodeEvaluator::ComputeBoomRotation()`은 피벗 회전을 `FRotator3d(Pitch, Yaw, 0)`으로 만든다. 항상 월드 Z-Up 기준이라, 중력 Up이 월드 Z와 벌어질수록 이 회전을 프레임으로 쓰는 하위 노드가 전부 어긋난다. 어긋나는 각은 위치**와** 시선 방향에 함께 의존해 같은 지점에서도 0°~180°를 오간다.
 
