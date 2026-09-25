@@ -26,6 +26,7 @@
 #include "MassEntitySubsystem.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "ProfilingDebugging/MiscTrace.h"
 
 namespace
 {
@@ -354,6 +355,8 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		StartUnknownHits = Collision->GetUnknownHitCount();
 		StartEnvelopeEscapes = Collision->GetEnvelopeEscapeCount();
 		NextActorSampleTime = Now;
+		// Insights에서 capture 구간만 잘라 볼 수 있게 region을 남긴다(-trace 인자가 없으면 비용 없음).
+		TRACE_BEGIN_REGION(TEXT("LNPLoadBaselineCapture"));
 		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Capture %.0fs started."), LNPLoadBaseline::CaptureSeconds);
 		return;
 	}
@@ -363,6 +366,7 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		SampleFrame();
 		if (Now - StageStartTime >= LNPLoadBaseline::CaptureSeconds)
 		{
+			TRACE_END_REGION(TEXT("LNPLoadBaselineCapture"));
 			Report();
 			Stage = EStage::Done;
 

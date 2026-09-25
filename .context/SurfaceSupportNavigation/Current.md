@@ -1,8 +1,8 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1·2·3 완료, 4 harness·기준선 측정 완료
-> 마지막 갱신: 2026-09-25 (부하 harness, exact·락 기준 통과, 호스트 프레임 기준 실패)
+> 현재 Phase: Phase 3 — MassWorldCollision 정확성 기준선 · Gate 0 통과, 구현 단위 1~4 완료
+> 마지막 갱신: 2026-09-25 (호스트 프레임 실패 분해, 서버 CPU 기준으로 재정의해 통과)
 
 ## 현재 목표
 
@@ -43,10 +43,10 @@ Phase 3 다음 핵심 경로는 exact 전용 부유섬 프로토타입(Phase 3b)
 
 ## 바로 다음 작업
 
-Gate -1 A, Gate 0, 구현 단위 1~3, 구현 단위 4의 harness와 기준선 측정이 끝났다. harness는 `-LNPLoadBaseline=N` 실행 인자로 켠다(`SurfaceNavigation/LNPLoadBaseline.h` 주석). exact·락 기준은 1000마리까지 통과했고, 호스트 프레임 기준(P95 ≤ 16.6ms)은 300마리부터 실패한다. 원인은 exact가 아닌 서버 적 시뮬레이션이다(`history/Phase03_Log.md` 2026-09-25).
+Gate -1 A, Gate 0, 구현 단위 1~4가 끝났다. 부하 기준선은 패키지 Development 호스트 `-nullrhi`의 서버 CPU 프레임으로 판정한다(2026-09-25 사용자 결정). 1000마리 P95 6.05ms, exact·락 기준도 통과했다. 렌더링 호스트의 실패(iGPU 대기)는 기준선으로만 남긴다. harness는 `-LNPLoadBaseline=N`, 측정·분석 절차는 `history/Phase03_Log.md` 2026-09-25 분해 절.
 
-1. **호스트 프레임 실패 분해.** harness 1000마리·발사체 0 조건에서 호스트를 Unreal Insights(`-trace=cpu`)로 잡아 적 수에 비례하는 게임 스레드·worker 비용을 프로세서 단위로 나눈다. 그 결과로 Phase 3 완료 조건에서 프레임 기준을 다룰 방법을 사용자와 정한다. Phase 3 범위에서 최적화하거나, 기준선으로 기록하고 적 시뮬레이션 트랙으로 넘길 수 있다.
-2. **Gate -1 B 잔여.** 패널 hit가 `Dynamic`·`MarkerId`로 분류되는지 counter로 확인하고, registry generation의 match reset·stream unload lifecycle gate를 검증한다. disconnected sheet·double-sided shell 검증은 fixture가 필요하다.
+1. **Gate -1 B 잔여.** 패널 hit가 `Dynamic`·`MarkerId`로 분류되는지 counter로 확인하고, registry generation의 match reset·stream unload lifecycle gate를 검증한다. disconnected sheet·double-sided shell 검증은 fixture가 필요하다.
+2. **Phase 3 완료 조건 정리.** 자동화·회귀 표의 미완 항목(회귀 맵 exact hit, Decoration miss·Pawn 제외, earliest hit, shell normal)과 `-game` 리슨 2P 스모크(D-031), 두 타깃 빌드를 확인하고 `Roadmap.md`를 갱신한다.
 
 ## Phase 1에서 확정된 입력 계약
 
@@ -84,6 +84,13 @@ Gate -1 A, Gate 0, 구현 단위 1~3, 구현 단위 4의 harness와 기준선 �
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-25 구현 단위 4(호스트 프레임 분해):
+
+- harness capture 구간 trace region 추가, `LootNPopEditor` 빌드·Win64 Development BuildCookRun 성공
+- 에디터 바이너리 `-game` 오염 두 가지 확인: `LNP.Debug.DrawEnemyAction` 기본 1(렌더 스레드 +16ms), `-nullrhi`의 수명 0 디버그 라인 누적(`LineBatchComponent` 약 29ms/프레임)
+- 패키지 호스트 `-nullrhi` 1000마리·발사체 0: P95 6.05ms. 렌더링 호스트 P95: 1000·0 37.7ms, 1000·500 37.0ms, 300·500 26.0ms(GPU 오클루전 쿼리 대기 평균 12ms/프레임)
+- 패키지 exact P95 0.94ms(발사체 500), 락 P95 0.046ms, 모든 조건 `UnknownHits=0`·`EnvelopeEscapes=0`
 
 2026-09-25 구현 단위 4(부하 기준선):
 

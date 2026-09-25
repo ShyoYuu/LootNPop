@@ -471,3 +471,39 @@ worker 실행, ensure 부재, 머신·빌드 간 결과 일치, 락 대기 분�
 - 호스트도 `-nullrhi`로 돌리면 1000·500이 P50 49.7ms로 오히려 느려졌다. 렌더링이 아니라 서버 CPU 시뮬레이션(적 Mass 처리·복제 등)의 비용이다. 어느 프로세서인지는 아직 Insights로 나누지 않았다.
 - 게스트는 1000마리에서도 P95 약 16ms로 경계선이다. 게스트는 exact query를 거의 하지 않는다(자연 발사체 Ghost만).
 - 첫 실행(게스트 렌더 포함, `FApp` delta 측정)의 호스트 300·500: exact P95 1.081ms, 락 P95 0.092ms로 위와 같은 수준이었다.
+
+## 2026-09-25 — 구현 단위 4: 호스트 프레임 실패 분해(Insights)
+
+### 계측 준비
+
+- harness capture 30초 구간에 trace region `LNPLoadBaselineCapture`를 남긴다(`TRACE_BEGIN_REGION`/`TRACE_END_REGION`). `-trace` 인자가 없으면 비용이 없다.
+- 호스트만 `-trace=cpu,frame,bookmark,region,log -tracefile=...`로 잡고, 통계는 헤드리스 Insights로 뽑는다: `UnrealInsights.exe -OpenTraceFile=<utrace> -AutoQuit -NoUI -ExecOnAnalysisCompleteCmd="@=<rsp>"`, rsp 한 줄에 `TimingInsights.ExportTimerStatistics "<csv>" -threads="GameThread" -region="LNPLoadBaselineCapture" -sortBy=TotalInclusiveTime`. 산출물은 `Saved/Profiling/Phase03/`(gitignore).
+- trace 오버헤드는 무시할 수준이다. 에디터 `-game` 1000·P0 재현이 P95 41.9ms(기존 41.3ms)였다.
+
+### 에디터 바이너리 `-game` 측정의 오염 두 가지
+
+1. **`LNP.Debug.DrawEnemyAction` 기본값 1.** 에디터 전용(`WITH_EDITOR`) 프로세서가 로컬 폰 5,000cm 안의 적마다 `DrawSolidBox`를 그린다. 링 외곽이 7,071cm라 1000마리 대부분이 들어온다. 호스트 렌더 스레드 `FinishDynamicMeshElements`가 평균 16ms/프레임이었고 게임 스레드는 `Sync_RenderingThread`에서 평균 20ms를 기다렸다. 이것만 끄면 호스트 P50 35.1→20.3ms, 게스트 P95 16.2→10.4ms.
+2. **`-nullrhi`에서 수명 0 디버그 라인이 영원히 쌓인다.** 비지속 라인은 `UGameViewportClient::Draw`(`GameViewportClient.cpp:2107` `FlushLineBatchers`)에서만 비워지는데 `-nullrhi`는 이 경로를 타지 않는다. Mass 디버그 드로우(플레이어 구·근접 적 캡슐·패링 라인)가 매 프레임 추가되고 `ULineBatchComponent::TickComponent`가 전체 배열을 훑어 프레임당 약 29ms가 됐다. 2026-09-25 첫 측정의 "호스트도 `-nullrhi`면 더 느리다"는 이 때문이다.
+
+그래서 프레임 판정은 에디터 전용 프로세서가 없는 **패키지 Development 빌드**로 다시 했다.
+
+### 패키지 Development 측정 (`Saved/SurfaceNavigationPhase3Package`, 같은 머신·`-corelimit=4`·게스트 `-nullrhi`)
+
+| 조건 | 호스트 프레임 P50/P95 | 호스트 exact P95 | 호스트 락 P95 | 게스트 프레임 P95 |
+|:---|:---|:---|:---|:---|
+| 적 1000·발사체 0 | 26.48/37.67ms | 0.237ms | 0.011ms | 3.47ms |
+| 적 1000·발사체 500 | 28.71/37.02ms | 0.941ms | 0.046ms | 3.51ms |
+| 적 300·발사체 500 | 14.24/26.02ms | 0.916ms | 0.046ms | 3.43ms |
+| 적 1000·발사체 0, **호스트 `-nullrhi`** | **5.18/6.05ms** | 0.126ms | 0.005ms | 2.62ms |
+
+- 모든 조건에서 `UnknownHits=0`, `EnvelopeEscapes=0`.
+- **서버 CPU 시뮬레이션은 1000마리에서 P95 6.05ms로 기준(16.6ms) 안이다.** 호스트 `-nullrhi`는 적 Mass 처리·복제·exact를 모두 수행하고 렌더만 뺀 조건이다.
+- **호스트 프레임 실패는 GPU 대기다.** 패키지 1000·P0 trace에서 worker의 `GPUBound_WaitingForGPUForOcclusionQueries`가 평균 12.0ms/프레임, 렌더 스레드 `WaitForVisibilityTasks`가 평균 13.6ms, 게임 스레드 `Sync_RenderingThread`가 평균 12.8ms다. 게임 스레드 자체 `Tick_Engine`은 평균 9.3ms(병렬 틱 대기 포함)다. 측정 머신 GPU는 내장 Radeon 780M이다. 300마리도 P95 26ms로 실패해 적 수(인스턴싱 스킨드 메시·VFX)에 따라 GPU 비용이 커진다.
+- exact query는 발사체 500발에서 P95 0.94ms로 에디터 바이너리(1.67ms)보다 가볍다.
+- 에디터 `-game` 수치와 패키지 수치는 섞어 비교하지 않는다. 에디터 쪽 게스트 16ms도 액션 마커 드로우의 몫이었다.
+
+### 결정(사용자, 2026-09-25)
+
+- Phase 3 부하 기준선의 프레임 기준은 서버 CPU 프레임(패키지 호스트 `-nullrhi`) P95 ≤ 16.6ms로 재정의한다. 1000마리 P95 6.05ms로 통과.
+- 렌더링 호스트 프레임(300마리 P95 26ms, 1000마리 37ms, Radeon 780M)은 기준선으로만 기록한다. 적 수에 비례하는 GPU 비용은 Phase 3 범위 밖이며 렌더링 트랙에서 다룬다.
+- 측정 build 규약을 패키지 Development로 바꿨다(`phases/Phase03_MassWorldCollisionBaseline.md` §4, `design/RuntimeCollision.md` Gate 0 계측 계약).
