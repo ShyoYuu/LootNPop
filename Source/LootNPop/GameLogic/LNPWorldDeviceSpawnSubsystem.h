@@ -42,7 +42,12 @@ public:
 	 */
 	void SpawnDevices();
 
+	/** 서버 전용. 시드 배치와 마커 배치가 공유하는 AnchorID 카운터. 두 경로의 ID가 겹치지 않게 한다. */
+	int32 AllocateAnchorID() { return NextAnchorID++; }
+
 private:
+	int32 NextAnchorID = 0;
+
 	/**
 	 * 조건을 만족하는 배치 지점을 하나 찾는다. 실패하면 false.
 	 * @param OutLaunchYaw  런처의 표면 Up축 주위 회전(도). MakeRotFromZ는 Up만 맞추고 Yaw는 구현 정의라

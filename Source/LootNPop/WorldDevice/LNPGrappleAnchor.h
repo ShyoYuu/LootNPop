@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Interaction/LNPInteractable.h"
+#include "DynamicTerrain/LNPPlacementTypes.h"
 #include "LNPGrappleAnchor.generated.h"
 
 class UNiagaraComponent;
@@ -23,7 +24,7 @@ class UWidgetComponent;
  * 서버의 원격 폰은 `GetControlRotation()`이 최신이 아니라서 여기서 각도를 볼 수 없다.
  */
 UCLASS()
-class LOOTNPOP_API ALNPGrappleAnchor : public AActor, public ILNPInteractable
+class LOOTNPOP_API ALNPGrappleAnchor : public AActor, public ILNPInteractable, public ILNPPlacedElement
 {
 	GENERATED_BODY()
 
@@ -54,6 +55,10 @@ public:
 	virtual void SetInteractionPromptVisible(bool bVisible) override;
 	/** 근접 대상(Pod·Dice·런처)에게 항상 진다 — 앵커 프롬프트가 루팅을 가리는 것을 막는다. */
 	virtual int32 GetInteractionPriority() const override { return -10; }
+
+	// --- ILNPPlacedElement ---
+	/** 마커 배치 앵커도 시드 배치와 같은 카운터에서 AnchorID를 받는다(ULNPWorldDeviceSpawnSubsystem::AllocateAnchorID). */
+	virtual void InitializeFromMarker(const ALNPPlacementMarker& Marker, const FLNPPlacementId& Id) override;
 
 protected:
 	virtual void BeginPlay() override;

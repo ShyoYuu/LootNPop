@@ -2,6 +2,7 @@
 
 #include "WorldDevice/LNPGrappleAnchor.h"
 #include "DataAsset/LNPWorldDeviceConfig.h"
+#include "GameLogic/LNPWorldDeviceSpawnSubsystem.h"
 #include "Interaction/LNPInteractableRegistrySubsystem.h"
 #include "Interaction/LNPInteractionPromptWidget.h"
 
@@ -40,6 +41,14 @@ void ALNPGrappleAnchor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALNPGrappleAnchor, AnchorID);
+}
+
+void ALNPGrappleAnchor::InitializeFromMarker(const ALNPPlacementMarker& Marker, const FLNPPlacementId& Id)
+{
+	if (ULNPWorldDeviceSpawnSubsystem* DeviceSub = GetWorld()->GetSubsystem<ULNPWorldDeviceSpawnSubsystem>())
+	{
+		AnchorID = DeviceSub->AllocateAnchorID();
+	}
 }
 
 void ALNPGrappleAnchor::BeginPlay()

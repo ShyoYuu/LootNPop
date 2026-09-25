@@ -1,7 +1,7 @@
 # Surface Support·Navigation 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-09-23
+> 마지막 갱신: 2026-09-25
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다.
 
 ## 결정 목록
@@ -55,6 +55,10 @@
 | D-045 | 서버가 런타임에 배치하지만 스폰 뒤 transform·형상이 변하지 않는 장치(훅 앵커·스프링 런처)는 월드 의미상 정적이다. `Static` 수명주기와 `LNPStatic*` profile을 쓰고 Runtime Overlay revision을 만들지 않는다. | 확정 | `design/TerrainContract.md` |
 | D-046 | Mesh Terrain으로 만드는 부유섬·동굴 옥탄트부터 기준 지각 반지름을 30,000cm로 올린다. 이음매가 기준 반지름에 고정되므로(D-030) 한 월드의 모든 slot은 같은 반지름이어야 하며, 25,000cm 옥탄트와 섞지 않는다. | 확정 | `design/TerrainContract.md` §7 |
 | D-047 | Mass 엔티티 기반이고 Actor가 LOD로 승격되는 필드 상호작용 오브젝트는 엔티티 수명에 묶인 collision proxy ISM(단순 캡슐, `LNPStaticBlocker`)을 서버·클라이언트가 각자 유지한다. 승격 Actor는 충돌을 갖지 않는다. LootPod가 기준 구현이다. | 확정 | `design/TerrainContract.md` §2 |
+| D-048 | 부유섬은 옥탄트 LVI 안에 레벨 디자이너가 배치하는 옥탄트의 일부다. 옥탄트와 섬을 따로 만들어 런타임에 조합하지 않는다. 섬은 옥탄트 경계면에 걸치지 않고, 기본 보행면은 월드 구와 중심을 공유하는 구면 곡면이다. | 확정 | `phases/Phase03b_ExactFloatingIslandPrototype.md` §3.1 |
+| D-049 | PureEntity exact 이동은 접지 시 수평 capsule sweep + 하향 support probe, 공중 시 이전→제안 위치 capsule sweep이다. 걸을 수 없는 hit는 미끄러지고 Unknown hit에는 착지하지 않는다. Phase 6 exact 폴백으로 재사용한다. | 확정 | `phases/Phase03b_ExactFloatingIslandPrototype.md` §3.3 |
+| D-050 | 움직이는 패널 Actor 틱을 Mass PrePhysics 페이즈 tick function의 선행 조건으로 걸어, PrePhysics exact query가 패널 자세 갱신 뒤에 돌게 한다. 보장이 안 되면 이동 프로세서를 PostPhysics로 옮기는 안을 별도 세션에서 검토한다. | 확정 | `phases/Phase03b_ExactFloatingIslandPrototype.md` §3.5 |
+| D-051 | 섬과 지각을 잇는 경사로는 별도 메시와 지각 일체형 언덕 두 방법을 모두 허용하고 옥탄트마다 고른다. | 확정 | `design/TerrainContract.md` §5 |
 
 ## 변경 규칙
 

@@ -285,3 +285,16 @@ stale 검출의 1차 후보는 Asset Registry의 `FAssetPackageData::GetPackageS
 - baker schema version과 bake settings
 
 실험 LVI의 Asset Registry dependency에는 실제 `/Game/__ExternalActors__/.../LVI_Octant_COption/...` package가 포함됨을 확인했다. 따라서 OFPA actor 변경도 manifest에 포함할 수 있다. 전체 재귀 dependency를 무차별 포함하면 material thumbnail이나 PCG decoration 변경까지 불필요한 재베이크를 만들 수 있으므로, Phase 2에서는 역할 component를 기준으로 dependency를 필터링한다. `PackageSavedHash`는 20바이트이므로 현재 `FGuid SourceContentHash` 초안에 억지로 잘라 넣지 않고 `FIoHash` 또는 동등한 고정 크기 hash 저장 타입을 검토한다.
+
+## 부유섬 옥탄트에서 Sphere Height Sculpt 한계 (2026-09-25, Phase 3b)
+
+C안의 Sphere Height Sculpt를 부유섬 옥탄트에 적용해 본 결과다. 상세 경위는 `../history/Phase03b_Log.md` 2026-09-25 "섬 A 경사로 비교" 절.
+
+| 대상 | Sphere 기준면 | Plane 기준면 |
+|:---|:---|:---|
+| 지각(피벗 = 월드 중심, bounds 30,000cm) | 반지름 30,000cm 이하 정점만 편집됨 | 동작 |
+| 섬 메시(피벗 = 섬 윗면, bounds 약 2,000cm) | 편집 불가 | 동작(기본 설정이면 섬 Up 축 기준) |
+
+- 원인: 구 모드 브러시 영역이 구 중심에서 `max(메시 bounds 최대 변, 1000)` 높이의 원기둥으로 제한된다(`MeshVertexSculptTool.cpp` CylinderOnSphere, 멤버 `InitialBoundsMaxDim`은 private).
+- Plane 모드는 정점을 법선 방향으로 평행 이동하므로, 편집 폭이 반지름에 비해 작을 때(섬·국소 언덕)만 방사 방향 근사로 쓸 수 있다.
+- Sculpt 도구는 `LNP.MeshTerrain.SphereSculpt` 콘솔 명령으로 경로 스트로크를 자동 구동할 수 있지만, 경사·단면을 동시에 맞추는 정밀 성형에는 부적합하다. 정확한 프로필이 필요한 지형(경사로·언덕)은 `LNP.MeshTerrain.RadialRamp`처럼 목표 반지름을 직접 계산하는 편이 낫다.

@@ -1,8 +1,8 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3b — exact 전용 부유섬 프로토타입 · 실행 문서 초안(결정 확정 대기)
-> 마지막 갱신: 2026-09-25 (Phase 3 완료)
+> 현재 Phase: Phase 3b — exact 전용 부유섬 프로토타입 · 구현 단위 1 완료, 구현 단위 2 착수 전
+> 마지막 갱신: 2026-09-25
 
 ## 현재 목표
 
@@ -36,8 +36,8 @@ Phase 3b는 Support 캐시를 만들기 전에 두 가지를 실측한다(D-032,
 
 ## 바로 다음 작업
 
-1. **Phase 3b 결정 확정.** `phases/Phase03b_ExactFloatingIslandPrototype.md` §3의 일곱 항목(섬 구성, Meadow_00 처리, exact 이동 알고리즘, CVar·적용 범위, Mass 페이즈 순서, 측정 매트릭스, 플레이테스트 체크리스트)을 사용자와 확정하고 §3을 결론만 남기도록 정리한다. 전체 결정은 `Decisions.md`에 추가한다.
-2. **구현 단위 1: 30,000cm greybox 부유섬 옥탄트.** `SphereRadius`를 30,000으로 올리고 8 slot을 모두 새 옥탄트로 채운다(D-046).
+1. **구현 단위 2: exact 접지 경로.** 구현 단위 1(30,000cm `Meadow_00`, 섬 3개, 경사로 두 방식, 간이 동굴, 월드 장치 마커)은 끝났다(`history/Phase03b_Log.md` 2026-09-25). 자동화 대상 사례에 간이 동굴(천장 아래 보행, 구멍 낙하 후 아래층 착지)을 넣는다.
+2. **구현 단위 2 세부.** 먼저 패널 틱→Mass PrePhysics 선행 조건을 걸고 실행 순서를 확인한다(D-050). 보장이 안 되면 B안(PostPhysics 이전)은 별도 세션으로 뺀다. 이어서 D-049 알고리즘과 CVar.
 
 ## 이관된 후속 작업
 
@@ -54,6 +54,8 @@ Phase 3b는 Support 캐시를 만들기 전에 두 가지를 실측한다(D-032,
 - match 중 옥탄트 재생성이나 slot Level 언로드를 도입하면 그 직전에 Mass 처리를 멈추는 gate를 함께 만든다(`design/RuntimeCollision.md`).
 - 회귀 맵을 30,000cm로 옮기면 `WorldCollision.RegressionMap` 자동화의 좌표 기대값도 같은 커밋에서 갱신한다.
 
+- 스프링 런처는 개체별 발사 속도·각도 입력이 없다(`DA_WorldDeviceConfig` 전역값, 정점 약 2,530cm). 섬별 튜닝은 이 입력을 만든 뒤에 한다. 지금은 런처→섬 A, 앵커→섬 B·큰 섬으로 역할을 나눴다.
+
 ## 알려진 불확실성
 
 - exact query의 호출 빈도와 배치 단위, 관찰 거리 축의 근처 반경과 원거리 판정 주기는 Phase 3b 실측으로 정한다.
@@ -67,6 +69,12 @@ Phase 3b는 Support 캐시를 만들기 전에 두 가지를 실측한다(D-032,
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-25 Phase 3b 구현 단위 1(30,000cm Meadow_00):
+
+- `LootNPopEditor` 빌드 성공, 자동화 17/17
+- 8 slot 생성, 마커 요소 48개 스폰(0 skipped), audit `MISSING=0`, `UnknownHits=0`, envelope 32,636cm
+- `ExactOracle`: ExactDeeper 20건 외 0(위 다음 작업 참조)
 
 2026-09-25 Phase 3 종료:
 
