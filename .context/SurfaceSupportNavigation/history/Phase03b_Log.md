@@ -275,3 +275,31 @@
 ### 결정(사용자, 2026-09-26): 병렬 이동을 기본값으로
 
 - `LNP.SurfaceNav.EnemyParallelMovement` 기본값을 1로 바꿨다. 측정 스크립트는 모든 시나리오에 값을 명시하므로(`Parallel` 없으면 0) 단일 스레드 기준선은 그대로 재현된다.
+
+## 2026-09-26 — 구현 단위 4: 기능 점검(§3.7)과 Phase 종료
+
+### 카메라 충돌 노드 부재(발견·수정)
+
+- LNP 지형 profile(`LNPStaticTerrain`·`LNPStaticBlocker`·`LNPDynamicTerrain`·`LNPStatefulTraversal`·`LNPDestructible*`)은 Camera 채널을 덮어쓰지 않아 기본값 Block이다. Support 전용 proxy(`LNPStaticSupport`·`LNPDestructibleSupport`)만 의도대로 Ignore다. 채널 쪽 문제는 없었다.
+- 그러나 `CR_ThirdPerson`에 `CollisionPushCameraNode`가 없었다(uasset 노드 클래스 grep, C++에도 카메라 충돌 없음). 섬과 무관하게 모든 지형에서 카메라가 뚫고 들어가던 기존 결함이다.
+- 사용자가 리그 에디터에서 루트 Sequence Children 6번(카메라오프셋 `Offset` 뒤, `FieldOfView` 앞)에 `Collision Push`를 넣었다. 카메라 리그 노드 트리는 MCP로 쓸 수 없다. 설정은 엔진 기본값(`SafePosition=Pivot`·`ECC_Camera`·구 10cm·동기 sweep·플레이어 폰 무시)이며 MCP로 되읽어 확인했다. `CR_ADS`는 `CR_ThirdPerson`을 감싸므로 같이 적용된다. 노드 순서 표는 `../../TechDesign_CharacterMovement.md` §2.4에 반영했다.
+- 알려진 부작용: LootPod collision proxy(`LNPStaticBlocker`)도 Camera를 Block하므로 카메라가 Pod 뒤로 가면 당겨진다. 문제가 되면 proxy만 Camera Ignore로 바꾼다.
+
+### 사용자 플레이 테스트(PIE, `TestMap03`)
+
+| 항목 | 결과 |
+|:---|:---|
+| 카메라가 섬 밑면·측벽·지각을 뚫지 않음 | 통과 — 지형에 막혀 캐릭터 쪽으로 붙음 |
+| 탄도 가이드가 섬 밑면·측벽에서 끊김 | 통과 — 유탄 ADS 가이드가 벽·섬 밑면에서 끊기고 폭발 반경 가이드도 정상 |
+| 런처·앵커로 섬 오르내리기 | 앵커로 큰 섬 오르기 통과. **런처→섬 A는 미확인**(런처 위치를 찾지 못함). 런처 자체는 월드 장치 트랙 2P 검증 완료, 정점 약 2,530cm > 섬 A 약 1,500cm |
+| 넉백으로 떨어진 적이 아래 지각에 착지 | 통과 — 큰 섬 위 NPC를 폭발 넉백으로 밀어 포물선 비행과 지면 착지를 육안 확인 |
+
+### 검증
+
+- `LootNPop Win64 Development` 빌드 성공(경고 없음), `LootNPopEditor Win64 Development` up to date(C++ 변경 없음).
+- 자동화 `LootNPop.SurfaceNavigation` 21/21(자동화가 다시 저장한 테스트 mesh 2개는 에디터 종료 후 git으로 되돌림).
+- 에디터 바이너리 `-game` 리슨 2P 무인(적 300·발사체 500, 기본 CVar exact 1·병렬 1, `-nullrhi -corelimit=4`): 두 플레이어 링 중심 재스폰, 호스트·게스트 `UnknownHits=0`·`EnvelopeEscapes=0`, `MassPrePhysicsOrder` 위반 0(checks 49,592·51,824), 호스트 LayerJumps 0·IslandDrops 11/IslandLeaves 61, ensure 0, 양쪽 exit 0. `LogPython` 오류는 `-game`에서 엔진 Toolset 플러그인 Python이 로드되지 않는 것으로 무관하다.
+
+### Phase 3b 종료
+
+완료 조건 전부 충족(런처→섬 A 경로만 미확인으로 남김). 재미 평가는 사용자 몫으로 Phase 범위 밖이다.

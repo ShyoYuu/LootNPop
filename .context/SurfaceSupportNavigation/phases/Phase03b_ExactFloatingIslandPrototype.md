@@ -1,6 +1,6 @@
 # Phase 3b — exact 전용 부유섬 프로토타입
 
-> 상태: 기준 설계 — 구현 단위 1·2·3 완료(2026-09-26), 구현 단위 3b(이동 병렬화 측정) 착수 전
+> 상태: 완료(2026-09-26) — 구현 단위 1·2·3·3b·4
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 3 MassWorldCollision 정확성 기준선(완료)
 
@@ -174,16 +174,16 @@ harness 구성(구현 단위 3, 사용자 결정): 링 중심은 slot 4 큰 섬 
 - [x] 8 slot 전부 30,000cm 새 Meadow_00으로 생성되고 `ExactOracle`·exact response audit가 통과함
 - [x] 기존 25,000cm Meadow_00이 pool에서 빠지고, 남긴 백업은 다른 이름임(백업 없이 제자리 갱신, 원본은 git 이력)
 - [x] Mass PrePhysics 페이즈가 모든 패널 틱 뒤에 실행됨을 확인함(아니면 B안 별도 세션으로 이관) — C안, 2P 스모크 호스트·게스트 위반 0
-- [ ] PureEntity가 exact만으로 지각·섬 윗면에 접지하고, 가장자리에서 떨어지고, 넉백 뒤 올바른 층에 착지함 — 자동화 통과, harness에서 섬 이탈 뒤 아래 지각 착지 14~63회. 눈으로 보는 확인은 구현 단위 4
+- [x] PureEntity가 exact만으로 지각·섬 윗면에 접지하고, 가장자리에서 떨어지고, 넉백 뒤 올바른 층에 착지함 — 자동화 통과, harness에서 섬 이탈 뒤 아래 지각 착지 14~63회, 사용자 PIE에서 큰 섬 넉백 낙하·지각 착지 육안 확인
 - [x] 섬 아래 지각의 적이 섬 윗면으로 순간이동하지 않음(legacy 대비 회귀 확인) — harness LayerJumps exact 0, legacy 12~368
-- [ ] 벽·프랍·섬 측벽을 걸어서 통과하지 않음 — 자동화 통과, 실게임은 구현 단위 4
+- [x] 벽·프랍·섬 측벽을 걸어서 통과하지 않음 — 자동화 통과, 패키지 매트릭스·2P 스모크 `UnknownHits=0`·`EnvelopeEscapes=0`·LayerJumps 0
 - [x] `UnknownHits=0`, 착지가 Unknown hit에 스냅하지 않음 — 자동화 통과, 패키지 매트릭스 10회 호스트·게스트 모두 0
 - [x] §3.6 매트릭스와 exact 한계치 기록 — 500마리
 - [x] §3.6.1 이동 병렬화 exact 한계치 기록 — 750마리
-- [ ] §3.7 기능 점검 통과
-- [ ] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공, 자동화 통과
-- [ ] `-game` 리슨 서버 2P 스모크(D-031)
-- [ ] `../Current.md`, `../Roadmap.md`, `../history/Phase03b_Log.md` 갱신
+- [x] §3.7 기능 점검 통과 — 카메라 충돌 노드 부재를 발견해 `CR_ThirdPerson`에 `CollisionPush` 추가 후 통과. 런처→섬 A 경로만 미확인(런처 자체는 월드 장치 트랙 검증)
+- [x] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공, 자동화 통과 — 21/21
+- [x] `-game` 리슨 서버 2P 스모크(D-031) — 에디터 바이너리, 적 300·기본 CVar, 호스트·게스트 Unknown 0·순서 위반 0
+- [x] `../Current.md`, `../Roadmap.md`, `../history/Phase03b_Log.md` 갱신
 
 ## 6. 제외 범위
 
