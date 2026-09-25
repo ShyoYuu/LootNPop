@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Interaction/LNPInteractable.h"
+#include "DynamicTerrain/LNPPlacementTypes.h"
 #include "LNPSpringLauncher.generated.h"
 
 class UStaticMeshComponent;
@@ -21,7 +22,7 @@ class UWidgetComponent;
  * 발사 자체는 ULNPAbility_SpringLaunch가 수행한다. 이 액터는 "어디서 어느 방향으로 얼마나"만 들고 있다.
  */
 UCLASS()
-class LOOTNPOP_API ALNPSpringLauncher : public AActor, public ILNPInteractable
+class LOOTNPOP_API ALNPSpringLauncher : public AActor, public ILNPInteractable, public ILNPPlacedElement
 {
 	GENERATED_BODY()
 
@@ -43,6 +44,10 @@ public:
 	virtual void SetInteractionPromptVisible(bool bVisible) override;
 	/** 각도 제한이 없어 근접 3종 중 수용 범위가 가장 넓다 — 그만큼 셋 중 가장 낮다. */
 	virtual int32 GetInteractionPriority() const override { return 10; }
+
+	// --- ILNPPlacedElement ---
+	/** 발사 방향은 마커 transform(스폰 transform)의 Yaw가 정한다. 추가로 받을 값이 없다. */
+	virtual void InitializeFromMarker(const ALNPPlacementMarker& Marker, const FLNPPlacementId& Id) override {}
 
 protected:
 	virtual void BeginPlay() override;

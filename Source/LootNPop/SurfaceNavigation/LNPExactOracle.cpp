@@ -24,13 +24,14 @@
  * - Unknown: hit identity registry가 해석하지 못함
  * - StartPenetrating: 시작점이 geometry 안
  * - ShapeOrder: sphere·capsule이 같은 방향 line보다 늦게 맞음 — 형상 sweep이 틈으로 빠짐
- * - ExactDeeper: line hit가 legacy SurfaceCache 표면보다 허용치 이상 바깥 — legacy가 보는 지면을 exact가 놓침
  * - SlotMismatch: 모든 slot이 같은 Level이면, 같은 로컬 방향을 slot 회전으로 돌린 8개 방향의 hit 거리가 같아야 함.
  *   persistent level의 런타임 source(런처·앵커·LootPod proxy)는 seed 배치라 대칭이 아니므로 그 방향은 비교하지 않는다.
  *
  * 정보 항목:
  * - EdgeMiss: 이음매 좌표 평면 위에 **정확히** 놓인 line의 miss. 서로 다른 body의 공유 모서리를 따라가는 측도 0의 경우로,
  *   같은 방향의 sphere가 맞고 평면에서 조금만 떨어져도 맞으면 틈이 아니다. 실제 투사체에서 새면 envelope 안전망이 받는다.
+ * - ExactDeeper: line hit가 legacy SurfaceCache 표면보다 허용치 이상 바깥. 부유섬이 있으면 첫 hit 단층 캐시가 섬 가장자리
+ *   바깥 방향에 이웃 셀의 섬 윗면을 보간하므로 exact가 맞아도 생긴다(Phase 3b). legacy 캐시를 제거하는 Phase 6까지 정보로만 센다.
  *
  * 방향은 로컬 Fibonacci 방향을 8개 slot 회전으로 돌린 집합과, 좌표 평면 3개를 따라 평면 위·양옆에 촘촘히 뿌린 집합이다.
  * query는 ParallelFor로 worker에서 실행한다.
@@ -221,7 +222,7 @@ namespace
 		int32 StartPenetrations[ShapeCount] = {};
 		int32 EdgeMisses = 0;
 		int32 ShapeOrderFailures = 0;
-		int32 ExactDeeperFailures = 0;
+		int32 ExactDeeperCount = 0;
 		int32 SlotMismatches = 0;
 		int32 SlotComparisonsSkipped = 0;
 		int32 LoggedFailures = 0;
@@ -284,9 +285,7 @@ namespace
 			{
 				if (LineResult.HitRadius > Result.LegacyRadius + LegacyDeeperTolerance)
 				{
-					++ExactDeeperFailures;
-					LogFailure(TEXT("ExactDeeper"), Index,
-						FString::Printf(TEXT("exact=%.1f legacy=%.1f"), LineResult.HitRadius, Result.LegacyRadius));
+					++ExactDeeperCount;
 				}
 				if (LineResult.Slot != INDEX_NONE && !LineResult.bInstance)
 				{
@@ -338,7 +337,7 @@ namespace
 				static_cast<int32>(P * TerrainLegacyDiffs.Num()))];
 		};
 
-		int32 TotalFailures = ShapeOrderFailures + ExactDeeperFailures + SlotMismatches;
+		int32 TotalFailures = ShapeOrderFailures + SlotMismatches;
 		for (int32 Shape = 0; Shape < ShapeCount; ++Shape)
 		{
 			TotalFailures += Misses[Shape] + Unknowns[Shape] + StartPenetrations[Shape];
@@ -352,10 +351,12 @@ namespace
 			UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] %-7s Miss=%d Unknown=%d StartPenetrating=%d"),
 				ShapeNames[Shape], Misses[Shape], Unknowns[Shape], StartPenetrations[Shape]);
 		}
-		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] ShapeOrder=%d ExactDeeper=%d SlotMismatch=%d%s (skipped %d runtime-source comparisons)"),
-			ShapeOrderFailures, ExactDeeperFailures, SlotMismatches,
+		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] ShapeOrder=%d SlotMismatch=%d%s (skipped %d runtime-source comparisons)"),
+			ShapeOrderFailures, SlotMismatches,
 			bCheckSlotEquivalence ? TEXT("") : TEXT(" (not checked: slots use different levels)"), SlotComparisonsSkipped);
 		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Info: EdgeMiss=%d (line exactly on a seam plane, sphere hits)"), EdgeMisses);
+		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Info: ExactDeeper=%d (line hit beyond legacy SurfaceCache by > %.0fcm; legacy blurs floating island edges)"),
+			ExactDeeperCount, LegacyDeeperTolerance);
 		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Info: slot terrain |exact-legacy| radius cm: n=%d P50=%.1f P95=%.1f max=%.1f"),
 			TerrainLegacyDiffs.Num(), Percentile(0.5), Percentile(0.95), TerrainLegacyDiffs.IsEmpty() ? 0.0 : TerrainLegacyDiffs.Last());
 		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Result=%s Failures=%d"), TotalFailures == 0 ? TEXT("PASS") : TEXT("FAIL"), TotalFailures);

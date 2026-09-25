@@ -76,9 +76,9 @@ void ULNPWorldDeviceSpawnSubsystem::SpawnDevices()
 
 		// AnchorID는 스폰 번치에 실려야 한다 — 공통 스폰 함수가 Deferred 스폰으로 대입 후 Finish한다(LootDice 페이로드와 같은 규약).
 		const FTransform Xform(UKismetMathLibrary::MakeRotFromZ(Up), AnchorPoint);
-		const AActor* Anchor = ULNPDynamicTerrainSubsystem::SpawnPlacedActor(*World, AnchorClass, Xform, [NumAnchors](AActor& Spawned)
+		const AActor* Anchor = ULNPDynamicTerrainSubsystem::SpawnPlacedActor(*World, AnchorClass, Xform, [this](AActor& Spawned)
 		{
-			CastChecked<ALNPGrappleAnchor>(&Spawned)->AnchorID = NumAnchors;
+			CastChecked<ALNPGrappleAnchor>(&Spawned)->AnchorID = AllocateAnchorID();
 		});
 		if (Anchor == nullptr)
 		{
