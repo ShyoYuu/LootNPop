@@ -170,6 +170,14 @@ bool FLNPExactMovementGroundTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Landed entity is grounded"), Trace.PhysVelocity.IsNearlyZero());
 		TestEqual(TEXT("Lands once"), Trace.Landings, 1);
 	}
+
+	// 3. 묻힌 채 시작: 캡슐 중심이 지면 높이(반높이만큼 묻힘)에 있어도 서 있는 채로 몇 프레임 안에 지면 위로 올라온다.
+	//    발밑 점에 스폰하던 결함(Phase03c 로그)에서 probe가 시작 겹침을 Rejected로 두어 영영 묻혀 있었다.
+	{
+		const FTrace Trace = Simulate(Fixture, FVector(0, 0, 10), FVector::ZeroVector, FVector::ZeroVector, 10);
+		TestEqual(TEXT("Buried standing entity rises to the ground"), Trace.Location.Z, 10.0 + TestHalfHeight, 1.0);
+		TestTrue(TEXT("Buried entity stays grounded"), Trace.PhysVelocity.IsNearlyZero());
+	}
 	return true;
 }
 

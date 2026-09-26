@@ -174,6 +174,15 @@ namespace LNPEnemyExactMovement
 			return EGroundResult::LostSupport;
 		}
 
+		if (Probe.Hit.bStartPenetrating)
+		{
+			// probe 구가 처음부터 지형 안에 있다(묻힌 채 스폰됐거나 겹친 자리로 밀려났다). 겹침 법선으로 풀어 두면
+			// 다음 프레임 probe가 지형 밖에서 시작해 지지면을 다시 찾는다. 이 자리에서 그대로 서면 영영 묻혀 있다.
+			OutLocation = Target + Probe.Hit.ImpactNormal * (Probe.Hit.PenetrationDepth + DepenetrationSkin);
+			OutVelocity = FVector::ZeroVector;
+			return EGroundResult::Rejected;
+		}
+
 		// 가파른 경사·Blocker·Unknown. 지금 위치는 직전 프레임에 지지면이었으므로 그대로 선다.
 		OutLocation = Location;
 		OutVelocity = FVector::ZeroVector;
