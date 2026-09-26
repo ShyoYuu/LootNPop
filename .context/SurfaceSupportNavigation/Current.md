@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3c — 완전 비행 NPC 기반 · 구현 단위 1 완료, 구현 단위 2 대기
+> 현재 Phase: Phase 3c — 완전 비행 NPC 기반 · 구현 단위 1·2 완료, 구현 단위 3 대기
 > 마지막 갱신: 2026-09-26
 
 ## 현재 목표
@@ -36,7 +36,7 @@ Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완
 
 ## 바로 다음 작업
 
-1. **구현 단위 2 — 3D local planner.** `LNPFlightSteering::Step`의 Blocked 결과에 후보 heading 평가·회피 방향 유지·교착 복구를 붙이고 비행 개체끼리 3D 분리의 이웃 탐색원을 정한다(Phase 문서 §3.3)
+1. **구현 단위 3 — 교전 마무리.** LoS 게이트 모듈(`LNPEnemyLineOfSight`, `FLNPEntityAttackConfig::bRequireLineOfSight`, query 분류 `EnemyLineOfSight`)과 막혔을 때 교전 측면 재배치, 비행 넉백 감쇠·조종 약화, 사망 낙하 점검(Phase 문서 §3.2·§3.5)
 2. Phase 4a는 3c 뒤에 Phase 4 공통 전제부터 처리한다(fixture 재배치·fixture LVI 30,000cm 좌표 재계산과 `WorldCollision.RegressionMap` 기대값 동시 갱신, 동굴 fixture 키트 교체, greybox 섬 옥탄트에 동굴 키트 공동 모듈과 통로).
 
 ## 이관된 후속 작업
@@ -68,6 +68,12 @@ Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-26 Phase 3c 구현 단위 2:
+
+- `LootNPopEditor Win64 Development` 성공, 자동화 23/23(신규 `FlightSteering.DetourAndStuck`)
+- PIE `TestMap03` 비행 240: `FlightSteering` 평균 3.11us, `UnknownHits=0`, `EnvelopeEscapes=0`, ensure 0
+- 사용자 PIE(Pod당 드론 10): 동굴형 경사로 근처 우회·드론 간 비겹침 확인
 
 2026-09-26 Phase 3c 구현 단위 1:
 

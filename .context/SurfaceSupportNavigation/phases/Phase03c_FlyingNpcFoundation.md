@@ -1,6 +1,6 @@
 # Phase 3c — 완전 비행 NPC 기반
 
-> 상태: 진행 중(2026-09-26 착수) — 구현 단위 1 완료, 구현 단위 2 대기
+> 상태: 진행 중(2026-09-26 착수) — 구현 단위 1·2 완료, 구현 단위 3 대기
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 3 exact sweep(완료), Phase 3b 부유섬 옥탄트(완료). 베이커·Nav와 무관(D-042)
 
@@ -54,13 +54,21 @@
 
 교착 복구(`../design/MovementIntegration.md` "교착 복구"): progress 없음이 일정 시간 이어지면 후보 cone 확대 → 반대 radial band → 짧은 후퇴 → 실패하면 Home 복귀.
 
+구현(구현 단위 2, `LNPFlightSteering::Steer`):
+
+- 진행은 "목표까지 거리가 50cm 이상 줄었는가"로 잰다. 목표가 300cm 이상 옮겨 가면(움직이는 타겟) 기준을 새로 잡는다.
+- 막힌 프레임: 원하는 방향 주위 원뿔 45°의 후보 8개 + 직전 회피 방향을 sweep하고 `트임(트인 후보 2, 막힌 후보 hit Time) + 진행 + 0.3·회피 연속성 + 0.25·위아래 선호`로 고른다. 고른 방향은 0.25초 유지한다.
+- 교착 1.5초: 원뿔 90°, 후퇴 방향(-전방) 후보 추가. 3초: 위·아래 선호 반전. 5초: `Stuck`을 돌려준다.
+- `Stuck` 처리: 배회는 배회 타임아웃 경로로 목표를 다시 뽑고, 교전은 교전 측면을 타겟 Up 기준 90° 돌린다. 교전 측면(`FLNPEnemyFlightFragment::EngageSide`)은 재배치를 시작할 때 한 번 정하고 도착할 때까지 유지한다 — 매 프레임 현재 위치에서 다시 뽑으면 우회 중 목표가 따라 돌아 교착 판정이 성립하지 않는다.
+- 개체별 기억은 `FSteeringState` 순수 구조체이고 Mass fragment가 멤버로 든다. 엘리트 Actor도 같은 구조체를 들면 된다.
+
 규약:
 
 - planner는 `LNPFlightSteering` 모듈의 순수 함수다(`LNPEnemyExactMovement`와 같은 형태). 입력은 `ULNPMassWorldCollisionSubsystem`, 파라미터 구조체, 개체별 steering 상태(회피 방향·유지 시간·progress 타이머)이고, 출력은 이번 프레임 속도다. Mass fragment를 직접 받지 않으므로 Mass 이동 프로세서와 자동화, 나중의 엘리트 Actor 경로가 같은 함수를 부른다.
 - 몸 기준점은 캡슐 중심이다(`../../TechDesign_EnemyNPC.md` §5.1). 몸의 Up은 지상과 같이 구 중심 방향이고, 전방은 비행 방향의 접평면 성분이다. 복제 Yaw 규약과 맞는다.
 - query 분류에 `FlightSteering`(생략 불가)을 추가한다. 후보 평가 sweep도 같은 분류다. LoS 게이트는 `EnemyLineOfSight`(생략 불가)를 추가한다. 두 분류는 `../design/RuntimeCollision.md` 쿼리 분류 표에 올린다.
 - `UnknownExactSurface` hit는 막힘으로 취급한다(D-037).
-- 비행 개체끼리의 분리는 **3D 거리 기반**이다. 지상 분리 프로세서의 접평면 규약을 비행에 섞지 않는다. 구현 단위 1에서 비행 개체를 적 격자(`ULNPEnemySpatialGridSubsystem`)에서 뺐다. 격자의 유일한 소비처인 지상 분리가 접평면 거리만 재므로, 넣으면 머리 위 비행 개체가 지상 적을 밀어낸다. 비행 분리의 이웃 탐색원(별도 격자 또는 도메인 플래그)은 구현 단위 2에서 정한다.
+- 비행 개체끼리의 분리는 **3D 거리 기반**이다. 지상 분리 프로세서의 접평면 규약을 비행에 섞지 않는다. 비행 개체는 지상 격자에서 빼고(지상 분리가 접평면 거리만 재 머리 위 드론이 지상 적을 밀어낸다) 같은 구현의 별도 인스턴스 `ULNPFlyingSpatialGridSubsystem`에 짓는다(구현 단위 2). `FlightConfig.SeparationRadius` 250cm·`SeparationStrength` 400cm/s, 분리력은 방향 선택과 무관하게 더하고 이동은 sweep을 거친다.
 
 ### 3.4 고도: 교전은 타겟 상대, 비교전은 Home 기준(D-053, 사용자 결정)
 

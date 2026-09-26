@@ -340,6 +340,17 @@ struct FLNPEnemyFlightConfig
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "5.0", ClampMax = "45.0"))
 	float EngageElevationDeg = 30.f;
+
+	/**
+	 * 비행 개체끼리 밀어내기 시작하는 **3D** 거리(cm). 몸 지름보다 조금 크게 잡는다. 0 이하면 꺼진다.
+	 * 지상 `MovementConfig.SeparationRadius`는 접평면 거리이자 지상 캡슐 기준이라 따로 둔다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float SeparationRadius = 250.f;
+
+	/** 완전히 겹쳤을 때 밀어내는 속도(cm/s). 거리에 반비례해 선형으로 줄어든다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float SeparationStrength = 400.f;
 };
 
 /**

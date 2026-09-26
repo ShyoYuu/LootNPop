@@ -196,6 +196,7 @@ void ULNPEnemySpatialGridSubsystem::ForEachNeighbor(const FVector& Center, const
 
 ULNPEnemySpatialGridProcessor::ULNPEnemySpatialGridProcessor()
 	: EnemyQuery(*this)
+	, FlyingQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Movement;
@@ -209,12 +210,19 @@ void ULNPEnemySpatialGridProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	// 시체는 밀어낼 대상도, 피해 갈 대상도 아니다.
 	EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
-	// 비행 개체는 넣지 않는다. 유일한 소비처(지상 분리)가 거리를 접평면으로만 재므로,
-	// 넣으면 머리 위 수천 cm의 비행 개체가 지상 적을 밀어낸다. 비행끼리의 분리는 Phase03c 구현 단위 2에서 정한다.
+	// 비행 개체는 지상 격자에 넣지 않는다. 지상 분리가 거리를 접평면으로만 재므로,
+	// 넣으면 머리 위 수천 cm의 비행 개체가 지상 적을 밀어낸다. 비행 개체는 비행 전용 격자에 따로 짓는다.
 	EnemyQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None);
 	EnemyQuery.RegisterWithProcessor(*this);
 
+	FlyingQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	FlyingQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	FlyingQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::All);
+	FlyingQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	FlyingQuery.RegisterWithProcessor(*this);
+
 	ProcessorRequirements.AddSubsystemRequirement<ULNPEnemySpatialGridSubsystem>(EMassFragmentAccess::ReadWrite);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPFlyingSpatialGridSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
 void ULNPEnemySpatialGridProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -236,6 +244,16 @@ void ULNPEnemySpatialGridProcessor::Execute(FMassEntityManager& EntityManager, F
 	});
 
 	Grid.FinishRebuild();
+
+	ULNPFlyingSpatialGridSubsystem& FlyingGrid = Context.GetMutableSubsystemChecked<ULNPFlyingSpatialGridSubsystem>();
+	FlyingGrid.BeginRebuild(64);
+	FlyingQuery.ForEachEntityChunk(Context, [&FlyingGrid](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+			FlyingGrid.AddEntity(Ctx.GetEntity(i), Transforms[i].GetTransform().GetLocation());
+	});
+	FlyingGrid.FinishRebuild();
 }
 
 // ============================================================

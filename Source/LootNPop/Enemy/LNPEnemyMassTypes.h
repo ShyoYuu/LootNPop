@@ -7,6 +7,7 @@
 #include "MassEntityTraitBase.h"
 #include "Mass/EntityHandle.h"
 #include "GameplayTagContainer.h"
+#include "Enemy/LNPFlightSteering.h"
 #include "LNPEnemyMassTypes.generated.h"
 
 /** 타게팅 슬롯과 인식에 관한 Enemy 상태 */
@@ -539,6 +540,16 @@ struct LOOTNPOP_API FLNPEnemyFlightFragment : public FMassFragment
 	 * 켜진 동안에는 타겟이 조금 움직여도 자리를 바꾸지 않는다 — 발밑으로 파고드는 플레이어에게서 도망치지 않게 한다.
 	 */
 	bool bHoldingFirePosition = false;
+
+	/**
+	 * 재배치 중 향하는 교전 측면(타겟 접평면의 단위 벡터, 타겟 → 교전 지점 수평 방향). 재배치를 시작할 때 한 번 정하고
+	 * 도착할 때까지 유지한다 — 매 프레임 현재 위치에서 다시 뽑으면 우회 중 목표가 따라 돌아 교착 판정이 성립하지 않는다.
+	 * steering이 포기(Stuck)하면 타겟 Up 기준으로 90도 돌린다. 0이면 아직 정하지 않았다.
+	 */
+	FVector EngageSide = FVector::ZeroVector;
+
+	/** 조향 기억(회피 방향 유지·교착 측정). */
+	LNPFlightSteering::FSteeringState Steering;
 };
 
 /**
