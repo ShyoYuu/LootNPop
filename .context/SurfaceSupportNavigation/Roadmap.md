@@ -40,7 +40,7 @@
 | 2 | Octant Definition과 베이크 스키마 | 1~2세션 | 완료 | 기존 옥탄트를 새 정의로 결정론적으로 로드 |
 | 3 | MassWorldCollision 정확성 기준선 | 3~5세션 | 완료 | production response Gate -1, worker 동기 query Gate 0, hit identity registry, 마커→서버 스폰 동적 패널, 투사체·탄도 가이드 exact 전환, 부하 기준선 |
 | 3b | exact 전용 부유섬 프로토타입 | 2~3세션 | 완료 | greybox 섬 옥탄트에서 PureEntity가 exact만으로 접지·낙하·넉백, exact 한계치 실측 |
-| 3c | 완전 비행 NPC 기반 | 2~3세션 | 진행 | 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전 |
+| 3c | 완전 비행 NPC 기반 | 2~3세션 | 완료 | 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전 |
 | 4a | 지각 Support Atlas와 옥탄트 이음매 | 2~3세션 | 대기 | greybox 옥탄트 지각의 Atlas 베이크와 8 slot 이음매 일치 |
 | 4b | 부유섬·동굴 키트 다층 베이크 | 2~3세션 | 대기 | 같은 방향 다층 Support와 공동 모듈 floor 분리 |
 | 5 | 런타임 로더와 SurfaceCache 교체 | 2~3세션 | 대기 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 단계 stale 검출 |
@@ -81,6 +81,10 @@ Support 캐시를 만들기 전에 두 가지를 확인한다(D-032).
 
 지상 NPC는 섬을 건너지 않으므로(D-011) 섬은 근접 적에게서 안전한 지대가 된다. 그 공백을 메우는 것이 원거리 NPC와 비행 NPC다. 의존성은 Phase 3의 exact sweep뿐이며 베이커·Nav와 무관하므로 Phase 3b 이후 언제든 병렬로 진행할 수 있고 Phase 4a를 막지 않는다(D-042). 설계는 `design/MovementIntegration.md` "완전 비행 NPC"를 따른다. 실행 계획은 `phases/Phase03c_FlyingNpcFoundation.md`다.
 
+- 2026-09-27 완료. PureEntity 비행 드론(3D local planner·LoS 게이트·교전 고도), 비행 적 총수 200·Pod 타입 분리(D-054).
+- 동시 교전 비행 수는 원거리 슬롯 상한으로 묶인다. 비행 비용은 대부분 엔티티당 공통 비용이라 Phase 4 캐시의 절감 대상이 아니다.
+- ActorPromoted 비행 엘리트는 후속 작업이다(`LNPFlightSteering` 순수 함수를 재사용).
+
 ### Phase 4 공통 전제
 
 - 회귀 fixture를 옥탄트 내부로 옮기고 fixture LVI로 만들어 8 slot 통합 경로를 탄다. 이때 fixture 좌표를 기준 반지름 30,000cm로 다시 계산한다(D-046).
@@ -90,7 +94,7 @@ Support 캐시를 만들기 전에 두 가지를 확인한다(D-032).
 
 ### Phase 6 재측정
 
-Phase 3b와 같은 시나리오를 캐시 경로로 다시 측정해, 캐시 도입 전후의 적 수 한계치와 exact 호출 비율을 비교한다. 캐시 몫은 병렬 exact 한계치(750마리)와 비교해 읽고, 단일 스레드 exact(500마리)는 최악 조건 기준선으로만 쓴다.
+Phase 3b와 같은 시나리오를 캐시 경로로 다시 측정해, 캐시 도입 전후의 적 수 한계치와 exact 호출 비율을 비교한다. 캐시 몫은 병렬 exact 한계치(약 700마리. 3b는 750이었으나 3c에서 재확인 결과 내려왔다)와 비교해 읽고, 단일 스레드 exact(500마리)는 최악 조건 기준선으로만 쓴다.
 
 ### Phase 7 내부 게이트
 

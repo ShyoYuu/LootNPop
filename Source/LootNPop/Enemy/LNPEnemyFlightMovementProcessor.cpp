@@ -18,6 +18,37 @@
 #include "Misc/ScopeExit.h"
 #include "Misc/ScopeLock.h"
 
+#include <atomic>
+
+namespace
+{
+	std::atomic<uint64> GStatHover{0};
+	std::atomic<uint64> GStatClear{0};
+	std::atomic<uint64> GStatBlocked{0};
+	std::atomic<uint64> GStatStuck{0};
+	std::atomic<uint64> GStatRecoveryEntries{0};
+}
+
+LNPEnemyFlightStats::FCounts LNPEnemyFlightStats::Get()
+{
+	FCounts Counts;
+	Counts.Hover = GStatHover.load(std::memory_order_relaxed);
+	Counts.Clear = GStatClear.load(std::memory_order_relaxed);
+	Counts.Blocked = GStatBlocked.load(std::memory_order_relaxed);
+	Counts.Stuck = GStatStuck.load(std::memory_order_relaxed);
+	Counts.RecoveryEntries = GStatRecoveryEntries.load(std::memory_order_relaxed);
+	return Counts;
+}
+
+void LNPEnemyFlightStats::Reset()
+{
+	GStatHover.store(0, std::memory_order_relaxed);
+	GStatClear.store(0, std::memory_order_relaxed);
+	GStatBlocked.store(0, std::memory_order_relaxed);
+	GStatStuck.store(0, std::memory_order_relaxed);
+	GStatRecoveryEntries.store(0, std::memory_order_relaxed);
+}
+
 ULNPEnemyFlightMovementProcessor::ULNPEnemyFlightMovementProcessor()
 	: FlightQuery(*this)
 {
@@ -79,6 +110,17 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 				FScopeLock ScopeLock(&SignalLock);
 				EntitiesToSignal.Append(ChunkEntitiesToSignal);
 			}
+		};
+
+		// 측정 누계는 청크 끝에 한 번만 더한다.
+		LNPEnemyFlightStats::FCounts ChunkStats;
+		ON_SCOPE_EXIT
+		{
+			GStatHover.fetch_add(ChunkStats.Hover, std::memory_order_relaxed);
+			GStatClear.fetch_add(ChunkStats.Clear, std::memory_order_relaxed);
+			GStatBlocked.fetch_add(ChunkStats.Blocked, std::memory_order_relaxed);
+			GStatStuck.fetch_add(ChunkStats.Stuck, std::memory_order_relaxed);
+			GStatRecoveryEntries.fetch_add(ChunkStats.RecoveryEntries, std::memory_order_relaxed);
 		};
 
 		const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
@@ -316,9 +358,22 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 				: 1.f;
 
 			FVector NewLocation;
+			const float NoProgressBefore = FlightData.Steering.NoProgressTime;
 			const LNPFlightSteering::EStepResult SteerResult = LNPFlightSteering::Steer(WorldCollision, SteeringParams, Location, UpDir,
 				Goal, Speed * Control, SeparationPush + ExternalVelocity, DeltaTime, FlightData.Steering, NewLocation);
 			EntityTransform.SetLocation(NewLocation);
+
+			switch (SteerResult)
+			{
+			case LNPFlightSteering::EStepResult::Hover:   ++ChunkStats.Hover; break;
+			case LNPFlightSteering::EStepResult::Clear:   ++ChunkStats.Clear; break;
+			case LNPFlightSteering::EStepResult::Blocked: ++ChunkStats.Blocked; break;
+			case LNPFlightSteering::EStepResult::Stuck:   ++ChunkStats.Stuck; break;
+			}
+			if (NoProgressBefore < SteeringParams.StuckWidenTime && FlightData.Steering.NoProgressTime >= SteeringParams.StuckWidenTime)
+			{
+				++ChunkStats.RecoveryEntries;
+			}
 
 			if (SteerResult == LNPFlightSteering::EStepResult::Stuck)
 			{

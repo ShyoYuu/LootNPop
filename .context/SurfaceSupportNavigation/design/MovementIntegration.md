@@ -207,6 +207,15 @@ enum class ELNPNavigationDomain : uint8
 - 짧은 orbit/후퇴
 - 그래도 실패하면 home 또는 다른 target 선택
 
+### 구현 규약(Phase 3c, 상세는 `../phases/Phase03c_FlyingNpcFoundation.md`)
+
+- **archetype**: PureEntity 전용(D-052). 같은 `ULNPEnemyTrait`에 `NavigationDomain = FreeFlight`면 `FLNPEnemyFlyingTag`가 붙고, 지상 이동·분리·격자는 이 태그를 거른다. 이동은 `ULNPEnemyFlightMovementProcessor`, 조향은 Mass 비의존 순수 함수 `LNPFlightSteering`(엘리트 Actor 재사용 대비)이다. 비행끼리 분리는 별도 격자의 3D 거리다.
+- **고도(D-053)**: 비교전은 Home 위 `IdleAltitude` 대역 3D 배회, 교전은 타겟 위 `EngageAltitude`·올려다보는 각 `EngageElevationDeg`의 교전 지점. 쏠 수 있는 동안은 자리를 지키고, 사거리·조준 각도를 벗어나거나 LoS가 막힐 때만 재배치한다.
+- **교전 수 상한**: 비행 적은 원거리 슬롯 풀을 쓰므로 동시 교전 수는 플레이어당 원거리 슬롯(20)으로 묶이고 나머지는 Alert로 호버한다. 지상 원거리 적과 같은 풀을 나눈다.
+- **넉백**: 생산자(`ApplyEntityKnockback`)는 지상과 같고, 비행 소비는 중력 없이 반감기 감쇠·steering 추가 속도로 sweep. "`Velocity != 0`이면 공중"이라는 지상 규약은 비행 개체에 적용하지 않는다.
+- **사망**: 비행을 끊고 `StepAirborne` 낙하, 착지 여부는 `bDeathLanded`로 기억한다.
+- **예산(D-054)**: 비행 적 총수 200. 서버 프레임은 비행 100마리당 약 1.0~1.5ms이고 그중 exact는 0.1~0.3ms라 대부분 엔티티당 공통 비용이다. 이동 프로세서에 시뮬레이션 LOD가 없어 동시 교전 수가 아니라 총수로 예산을 잡는다.
+
 ### Flight Corridor 도입 조건
 
 다음 요구가 생길 때만 추가한다.

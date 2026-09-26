@@ -1,7 +1,7 @@
 # Surface Support·Navigation 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-09-26
+> 마지막 갱신: 2026-09-27
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다.
 
 ## 결정 목록
@@ -61,6 +61,7 @@
 | D-051 | 섬과 지각을 잇는 경사로는 별도 메시와 지각 일체형 언덕 두 방법을 모두 허용하고 옥탄트마다 고른다. | 확정 | `design/TerrainContract.md` §5 |
 | D-052 | 완전 비행 NPC 1차는 PureEntity 원거리 사격형이다. 같은 `ULNPEnemyTrait`에 `NavigationDomain`과 비행 태그를 더하고, 이동만 별도 비행 이동 프로세서가 맡는다. 발사 전 LoS를 검사한다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.1·§3.2 |
 | D-053 | 비행 NPC 고도는 교전 중 타겟 상대 대역, 비교전 중 Home 기준 대역이다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.4 |
+| D-054 | 비행 적 총수는 200이다. Pod 편성 타입을 나눠 비행 적이 없는 Pod와 3~6기를 편성한 Pod를 둔다. 비행 100마리당 서버 프레임 약 1.5ms로 본다. | 확정 | `history/Phase03c_Log.md` 2026-09-27 |
 
 ## 변경 규칙
 

@@ -11,6 +11,7 @@
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemyFlightMovementProcessor.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
@@ -85,6 +86,21 @@ namespace
 		return FQuat(Axis, IslandRadius / IslandTopRadius).RotateVector(IslandDir);
 	}
 
+	/** 비행 전용 실행의 플레이어 자리가 섬 가장자리에서 들어온 거리(cm). */
+	constexpr float IslandPlayerEdgeInset = 500.f;
+
+	/**
+	 * 비행 전용 실행의 플레이어 자리 방향. 링 중심 쪽 섬 가장자리에서 IslandPlayerEdgeInset만큼 안쪽 섬 윗면이다.
+	 * Home(링 중심)에서 직선 약 2,500cm라 비행 적의 시야·세력권 안이고, 드론은 섬 밑에서 가장자리를 돌아 올라와야 교전할 수 있다.
+	 * 섬 윗면 가운데(Home에서 약 6,000cm)에 두면 시야 밖이라 거의 교전하지 않았다(Phase03c 로그).
+	 */
+	FVector GetIslandPlayerDirection()
+	{
+		const FVector IslandDir = GetIslandDirection();
+		const FVector Axis = FVector::CrossProduct(IslandDir, FVector::DownVector).GetSafeNormal();
+		return FQuat(Axis, (IslandRadius - IslandPlayerEdgeInset) / IslandTopRadius).RotateVector(IslandDir);
+	}
+
 	/** Direction 방향으로 StartRadius에서 EndRadius까지 지지면을 찾아 발밑 위치를 돌려준다. */
 	bool ProbeFoot(const ULNPMassWorldCollisionSubsystem& Collision, const FVector& Direction, const float StartRadius,
 		const float EndRadius, FVector& OutFoot)
@@ -129,6 +145,15 @@ namespace
 		TEXT("/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01"),
 	};
 	static_assert(UE_ARRAY_COUNT(EnemyEntityConfigPaths) == static_cast<int32>(LNPLoadBaseline::EEnemyKind::Count));
+
+	const TCHAR* FlyerEntityConfigPath = TEXT("/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01");
+
+	int32 GFlightPenetrationCheck = 0;
+	FAutoConsoleVariableRef CVarFlightPenetrationCheck(
+		TEXT("LNP.SurfaceNav.LoadBaseline.FlightPenetrationCheck"),
+		GFlightPenetrationCheck,
+		TEXT("Load baseline only. 1 = every capture frame, test each living flying enemy capsule for overlap with exact terrain (DebugValidation class). Adds one query per flyer per frame, so do not use the run for frame timing."),
+		ECVF_Default);
 
 	/** 주입 발사체의 무기 값 원본. PureEntity 원거리 적이 쏘는 것과 같은 공유 프래그먼트가 된다. */
 	const TCHAR* ProjectileSourceConfigPath = TEXT("/Game/Enemy/DA_Enemy_PureEntity_Ranged01.DA_Enemy_PureEntity_Ranged01");
@@ -216,9 +241,20 @@ int32 LNPLoadBaseline::GetEnemyCount()
 	return Count;
 }
 
+int32 LNPLoadBaseline::GetFlyerCount()
+{
+	static const int32 Count = []()
+	{
+		int32 Value = 0;
+		FParse::Value(FCommandLine::Get(), TEXT("LNPLoadBaselineFlyers="), Value);
+		return FMath::Max(0, Value);
+	}();
+	return Count;
+}
+
 bool LNPLoadBaseline::IsActive()
 {
-	return GetEnemyCount() > 0;
+	return GetEnemyCount() + GetFlyerCount() > 0;
 }
 
 int32 LNPLoadBaseline::GetSeed()
@@ -257,10 +293,16 @@ UMassEntityConfigAsset* LNPLoadBaseline::LoadEnemyEntityConfig(const EEnemyKind 
 	return LoadObject<UMassEntityConfigAsset>(nullptr, EnemyEntityConfigPaths[static_cast<int32>(Kind)]);
 }
 
+UMassEntityConfigAsset* LNPLoadBaseline::LoadFlyerEntityConfig()
+{
+	return LoadObject<UMassEntityConfigAsset>(nullptr, FlyerEntityConfigPath);
+}
+
 namespace
 {
-	/** Direction 주변 지각의 발밑 위치. 바위 같은 Blocker 전용 프랍이 있을 수 있어 나선으로 찍어 첫 지지면을 쓴다(결정론적). */
-	bool FindCrustNear(const ULNPMassWorldCollisionSubsystem& Collision, const FVector& Direction, FVector& OutFoot)
+	/** Direction 주변 [StartRadius, EndRadius] 층의 발밑 위치. 바위 같은 Blocker 전용 프랍이 있을 수 있어 나선으로 찍어 첫 지지면을 쓴다(결정론적). */
+	bool FindFootNear(const ULNPMassWorldCollisionSubsystem& Collision, const FVector& Direction, const float StartRadius,
+		const float EndRadius, FVector& OutFoot)
 	{
 		constexpr int32 SearchSteps = 24;
 		constexpr float SearchStepDistance = 150.f;
@@ -268,11 +310,22 @@ namespace
 		MakeTangentBasis(Direction, T1, T2);
 		for (int32 Step = 0; Step < SearchSteps; ++Step)
 		{
-			const FVector Candidate = MakeRingDirection(Direction, T1, T2, Step * 2.4f, Step * SearchStepDistance, CrustProbeStartRadius);
-			if (ProbeFoot(Collision, Candidate, CrustProbeStartRadius, CrustProbeEndRadius, OutFoot))
+			const FVector Candidate = MakeRingDirection(Direction, T1, T2, Step * 2.4f, Step * SearchStepDistance, StartRadius);
+			if (ProbeFoot(Collision, Candidate, StartRadius, EndRadius, OutFoot))
 				return true;
 		}
 		return false;
+	}
+
+	bool FindCrustNear(const ULNPMassWorldCollisionSubsystem& Collision, const FVector& Direction, FVector& OutFoot)
+	{
+		return FindFootNear(Collision, Direction, CrustProbeStartRadius, CrustProbeEndRadius, OutFoot);
+	}
+
+	/** 비행 적만 있는 실행은 플레이어를 큰 섬 윗면에 둔다(LNPLoadBaseline.h). */
+	bool ArePlayersOnIsland()
+	{
+		return LNPLoadBaseline::GetEnemyCount() == 0 && LNPLoadBaseline::GetFlyerCount() > 0;
 	}
 }
 
@@ -376,8 +429,8 @@ void ULNPLoadBaselineSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	ProjectileStream.Initialize(LNPLoadBaseline::GetSeed());
 	KnockbackStream.Initialize(LNPLoadBaseline::GetSeed() + 1);
 
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Active: enemies=%d seed=%d expectedPlayers=%d projectiles=%d world=%s"),
-		LNPLoadBaseline::GetEnemyCount(), LNPLoadBaseline::GetSeed(), ParseExpectedPlayers(),
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Active: enemies=%d flyers=%d seed=%d expectedPlayers=%d projectiles=%d world=%s"),
+		LNPLoadBaseline::GetEnemyCount(), LNPLoadBaseline::GetFlyerCount(), LNPLoadBaseline::GetSeed(), ParseExpectedPlayers(),
 		LNPLoadBaseline::GetTargetProjectiles(), *GetWorld()->GetName());
 }
 
@@ -460,6 +513,10 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 	{
 		TopUpProjectiles();
 		DriveEnemies(DeltaTime, Stage == EStage::Capture);
+		if (Stage == EStage::Capture)
+		{
+			CheckFlyerPenetration();
+		}
 	}
 
 	if (Stage == EStage::Warmup && Now - StageStartTime >= LNPLoadBaseline::WarmupSeconds)
@@ -473,6 +530,7 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		Collision->GetTotals(LastQueryCount, LastQueryNs, LastLockNs);
 		StartUnknownHits = Collision->GetUnknownHitCount();
 		StartEnvelopeEscapes = Collision->GetEnvelopeEscapeCount();
+		LNPEnemyFlightStats::Reset();
 		NextActorSampleTime = Now;
 		CaptureStartPopulation = Population;
 		if (World->GetNetMode() != NM_Client)
@@ -523,7 +581,19 @@ void ULNPLoadBaselineSubsystem::RespawnPlayersAtRing()
 		return;
 
 	const ULNPMassWorldCollisionSubsystem& Collision = *World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-	const FVector CenterDir = RingCenter.GetSafeNormal();
+
+	// 비행 적만 있는 실행은 링 중심 쪽 큰 섬 가장자리 안쪽 윗면, 그 밖에는 링 중심 지각이 기준 자리다.
+	const bool bOnIsland = ArePlayersOnIsland();
+	const float SeatStartRadius = bOnIsland ? IslandProbeStartRadius : CrustProbeStartRadius;
+	const float SeatEndRadius = bOnIsland ? IslandLayerRadius : CrustProbeEndRadius;
+	FVector BaseFoot = RingCenter;
+	if (bOnIsland && !FindFootNear(Collision, GetIslandPlayerDirection(), SeatStartRadius, SeatEndRadius, BaseFoot))
+	{
+		UE_LOG(LogLootNPop, Warning, TEXT("[LoadBaseline] Island top probe found no support. Players stay at ring center."));
+		BaseFoot = RingCenter;
+	}
+
+	const FVector CenterDir = BaseFoot.GetSafeNormal();
 	FVector T1, T2;
 	MakeTangentBasis(CenterDir, T1, T2);
 
@@ -548,11 +618,11 @@ void ULNPLoadBaselineSubsystem::RespawnPlayersAtRing()
 			PC->UnPossess();
 			OldPawn->Destroy();
 		}
-		FVector Foot = RingCenter;
+		FVector Foot = BaseFoot;
 		if (PlayerIndex > 0)
 		{
-			const FVector SeatDir = MakeRingDirection(CenterDir, T1, T2, 0.f, PlayerSpacing * PlayerIndex, RingCenter.Size());
-			FindCrustNear(Collision, SeatDir, Foot);
+			const FVector SeatDir = MakeRingDirection(CenterDir, T1, T2, 0.f, PlayerSpacing * PlayerIndex, BaseFoot.Size());
+			FindFootNear(Collision, SeatDir, SeatStartRadius, SeatEndRadius, Foot);
 		}
 		const FVector Up = -Foot.GetSafeNormal();
 		GameMode->RestartPlayerAtTransform(PC, FTransform(UKismetMathLibrary::MakeRotFromZ(Up), Foot + Up * DropHeight));
@@ -561,7 +631,8 @@ void ULNPLoadBaselineSubsystem::RespawnPlayersAtRing()
 			UE_LOG(LogLootNPop, Error, TEXT("[LoadBaseline] Failed to respawn %s at %s"), *GetNameSafe(PC), *Foot.ToString());
 		}
 	}
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Respawned %d players at ring center %s"), Controllers.Num(), *RingCenter.ToString());
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Respawned %d players at %s %s"), Controllers.Num(),
+		bOnIsland ? TEXT("island top") : TEXT("ring center"), *BaseFoot.ToString());
 }
 
 void ULNPLoadBaselineSubsystem::DriveEnemies(const float DeltaTime, const bool bCount)
@@ -575,6 +646,8 @@ void ULNPLoadBaselineSubsystem::DriveEnemies(const float DeltaTime, const bool b
 		EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
 		EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 		EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+		// 비행 적의 Velocity는 공중 상태가 아니라 넉백 잔여다. 분포·이동 이벤트·합성 넉백은 지상 개념이다.
+		EnemyQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None);
 	}
 
 	// 적마다 독립적인 포아송 과정: 이번 프레임에 넉백을 받을 확률.
@@ -676,6 +749,55 @@ void ULNPLoadBaselineSubsystem::DriveEnemies(const float DeltaTime, const bool b
 				++Events.Knockbacks;
 		}
 	});
+}
+
+void ULNPLoadBaselineSubsystem::CheckFlyerPenetration()
+{
+	FMassEntityManager& EntityManager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+	if (!FlyerQuery.IsInitialized())
+	{
+		FlyerQuery = FMassEntityQuery(EntityManager.AsShared());
+		FlyerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+		FlyerQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+		FlyerQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
+		FlyerQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::All);
+		// 시체는 착지 뒤 지면에 닿아 있는 것이 정상이다.
+		FlyerQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	}
+	if (GFlightPenetrationCheck == 0)
+		return;
+
+	const ULNPMassWorldCollisionSubsystem& Collision = *GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	const FLNPWorldQueryParams QueryParams(ELNPWorldQueryClass::DebugValidation);
+	int32 Penetrating = 0;
+
+	FMassExecutionContext ExecContext(EntityManager, 0.f);
+	FlyerQuery.ForEachEntityChunk(ExecContext, [&](FMassExecutionContext& Ctx)
+	{
+		const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
+		if (Config == nullptr)
+			return;
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			// 몸 캡슐(피격 판정의 단일 정의)을 Up 방향으로 1cm만 sweep해 시작 겹침을 본다. 겹침 query의 대용이다.
+			const FVector Location = Transforms[i].GetTransform().GetLocation();
+			const FVector Up = (Config->MovementConfig.GravityOrigin - Location).GetSafeNormal();
+			FLNPWorldHit Hit;
+			if (Collision.SweepCapsuleWorld(Location, Location + Up, FQuat::FindBetweenNormals(FVector::UpVector, Up),
+				Config->CapsuleRadius, Config->CapsuleHalfHeight, QueryParams, Hit) && Hit.bStartPenetrating)
+			{
+				++Penetrating;
+			}
+		}
+	});
+
+	++PenetrationCheckedFrames;
+	PenetrationEntityFrames += Penetrating;
+	if (Penetrating > 0)
+	{
+		++PenetrationFrames;
+	}
 }
 
 void ULNPLoadBaselineSubsystem::TopUpProjectiles()
@@ -805,6 +927,21 @@ void ULNPLoadBaselineSubsystem::SampleFrame()
 			++Promoted;
 		}
 		PromotedActorSamples.Add(Promoted);
+
+		// 비행 적 행동 상태 분포. 호버가 배회 대기인지 교전 자리 유지·슬롯 대기인지 가른다(슬롯 기반 타게팅이라 Confirmed 수에 상한이 있다).
+		if (FlyerQuery.IsInitialized() && World->GetNetMode() != NM_Client)
+		{
+			FMassEntityManager& EntityManager = World->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+			FMassExecutionContext ExecContext(EntityManager, 0.f);
+			FlyerQuery.ForEachEntityChunk(ExecContext, [this](FMassExecutionContext& Ctx)
+			{
+				for (const FLNPEnemyTargetingFragment& Targeting : Ctx.GetFragmentView<FLNPEnemyTargetingFragment>())
+				{
+					++FlyerStateSums[static_cast<int32>(Targeting.State)];
+				}
+			});
+			++FlyerStateSampleCount;
+		}
 	}
 }
 
@@ -849,8 +986,8 @@ void ULNPLoadBaselineSubsystem::Report()
 	const bool bExactPass = Exact.P95 <= LNPLoadBaseline::ExactP95BudgetMs;
 	const bool bLockPass = Lock.P95 <= LNPLoadBaseline::LockP95BudgetMs;
 
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d projectiles=%d seed=%d ExactGround=%d LateralSweep=%d ParallelMovement=%d CPU=%s ====="),
-		*World->GetName(), static_cast<int32>(World->GetNetMode()), LNPLoadBaseline::GetEnemyCount(),
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d flyers=%d projectiles=%d seed=%d ExactGround=%d LateralSweep=%d ParallelMovement=%d CPU=%s ====="),
+		*World->GetName(), static_cast<int32>(World->GetNetMode()), LNPLoadBaseline::GetEnemyCount(), LNPLoadBaseline::GetFlyerCount(),
 		LNPLoadBaseline::GetTargetProjectiles(), LNPLoadBaseline::GetSeed(),
 		LNPEnemyExactMovement::IsEnabled() ? 1 : 0, LNPEnemyExactMovement::IsLateralSweepEnabled() ? 1 : 0,
 		LNPEnemyExactMovement::IsParallelMovementEnabled() ? 1 : 0,
@@ -871,6 +1008,27 @@ void ULNPLoadBaselineSubsystem::Report()
 			Population.IslandTop, Population.UnderIsland, Population.OpenCrust, Population.Airborne);
 		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Events Knockbacks=%d Falls=%d Landings=%d IslandLeaves=%d IslandDrops=%d LayerJumps=%d"),
 			Events.Knockbacks, Events.Falls, Events.Landings, Events.IslandLeaves, Events.IslandDrops, Events.LayerJumps);
+
+		// 비행 적(Phase03c §3.8). 개체당 프레임 query는 capture 표본 프레임 수로 나눈다.
+		const int32 Flyers = FlyerQuery.IsInitialized() ? FlyerQuery.GetNumMatchingEntities() : 0;
+		if (Flyers > 0)
+		{
+			const LNPEnemyFlightStats::FCounts Steer = LNPEnemyFlightStats::Get();
+			const uint64 Moving = Steer.Clear + Steer.Blocked + Steer.Stuck;
+			const double FlyerFrames = static_cast<double>(Flyers) * FMath::Max(1, FrameQueryCount.Num());
+			const uint64 SteeringQueries = Collision->GetQueryCount(ELNPWorldQueryClass::FlightSteering);
+			const uint64 LineOfSightQueries = Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Flyers alive=%d PlayersOnIsland=%d | Steer hover=%llu clear=%llu blocked=%llu(%.2f%% of moving) stuck=%llu recoveryEntries=%llu"),
+				Flyers, ArePlayersOnIsland() ? 1 : 0, Steer.Hover, Steer.Clear, Steer.Blocked,
+				Moving > 0 ? 100.0 * Steer.Blocked / Moving : 0.0, Steer.Stuck, Steer.RecoveryEntries);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Flyers queries per flyer-frame FlightSteering=%.3f EnemyLineOfSight=%.4f (LoS total=%llu)"),
+				SteeringQueries / FlyerFrames, LineOfSightQueries / FlyerFrames, LineOfSightQueries);
+			const double StateSamples = FMath::Max(1, FlyerStateSampleCount);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Flyers state avg None=%.1f Alert=%.1f Confirmed=%.1f (samples=%d, 1s)"),
+				FlyerStateSums[0] / StateSamples, FlyerStateSums[1] / StateSamples, FlyerStateSums[2] / StateSamples, FlyerStateSampleCount);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Flyers penetration check=%d checkedFrames=%d penetratingFrames=%d penetratingEntityFrames=%d"),
+				GFlightPenetrationCheck, PenetrationCheckedFrames, PenetrationFrames, PenetrationEntityFrames);
+		}
 	}
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] UnknownHits=%llu EnvelopeEscapes=%llu"),
 		Collision->GetUnknownHitCount() - StartUnknownHits, Collision->GetEnvelopeEscapeCount() - StartEnvelopeEscapes);

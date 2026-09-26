@@ -1,46 +1,36 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3c — 완전 비행 NPC 기반 · 구현 단위 1·2·3 완료, 구현 단위 4 대기
-> 마지막 갱신: 2026-09-26
+> 현재 Phase: Phase 4a — 지각 Support Atlas와 옥탄트 이음매 · 착수 전(실행 문서 미작성)
+> 마지막 갱신: 2026-09-27
 
 ## 현재 목표
 
-Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완료 증거는 `phases/Phase03b_ExactFloatingIslandPrototype.md`와 `history/Phase03b_Log.md`에 있다.
+Phase 3c(완전 비행 NPC 기반)가 2026-09-27에 끝났다. 완료 증거는 `phases/Phase03c_FlyingNpcFoundation.md`와 `history/Phase03c_Log.md`에 있다.
 
-현재는 Phase 3c(완전 비행 NPC 기반)다(사용자 결정, 2026-09-26). 실행 문서는 `phases/Phase03c_FlyingNpcFoundation.md`다. 지상 NPC가 섬을 건너지 않아(D-011) 섬이 안전 지대가 되는 공백을 비행 NPC로 메운다. 핵심 완료 조건은 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전이다(`Roadmap.md` §3). 의존성은 Phase 3 exact sweep뿐이다(D-042). Phase 4a(지각 Support Atlas와 옥탄트 이음매)는 3c 뒤에 진행한다.
+다음은 Phase 4a(지각 Support Atlas와 옥탄트 이음매)다. 핵심 완료 조건은 greybox 옥탄트 지각의 Atlas 베이크와 8 slot 이음매 일치다(`Roadmap.md`). 실행 문서 `phases/Phase04a_*.md`는 아직 없다 — 착수 직전에 만든다(README §8 "Phase 종료").
 
 ## 착수 시 필수 문서
 
-- `phases/Phase03c_FlyingNpcFoundation.md`(범위·확정 결정·구현 단위·완료 조건)
-- 구현 단위 1·2: `design/MovementIntegration.md` "완전 비행 NPC", `design/RuntimeCollision.md` 쿼리 분류
-- 구현 단위 3: `../TechDesign_EnemyNPC_LowLOD.md` §4.4(원거리)·§8(사망)
+- `Roadmap.md` "Phase 4 공통 전제"
+- `design/SurfaceBaking.md`(Support Atlas·베이커), `design/DataModel.md`(베이크 에셋·ID), `design/TerrainContract.md`(태그·이음매·int16 캡)
+- `design/RegressionMap.md`(fixture 재배치와 Phase 4 착수 전 fixture)
 
-## Phase 3c 확정 사항(2026-09-26 사용자 결정)
-
-- PureEntity 전용, 같은 Enemy Trait + 비행 태그, 별도 비행 이동 프로세서(D-052)
-- 1차 공격은 기존 PureEntity 원거리 사격 재사용 + 발사 전 LoS 게이트(D-052)
-- 고도: 교전은 타겟 상대 대역·선회, 비교전은 Home 기준 대역(D-053)
-- 외형: 블렌더 MCP로 새 저폴리 static mesh, ISM 표현
-- 목표 개체 수·예산: 구현 단위 4 측정 뒤 결정
-
-## Phase 3b 인계 기준선
+## 인계 기준선(3b·3c)
 
 - 30,000cm `Meadow_00`: 섬 3개(큰 섬·섬 A 경사로 두 방식·섬 B), 간이 동굴, 월드 장치 마커. 8 slot 모두 이 definition
 - PureEntity exact 이동(`Enemy/LNPEnemyExactMovement.*`, D-049). CVar `LNP.SurfaceNav.EnemyExactGround`·`EnemyExactLateralSweep`·`EnemyParallelMovement` 모두 기본 1. Phase 6 exact 폴백으로 재사용
 - 패널 → Mass PrePhysics 선행 조건(D-050 C안)
-- **exact 한계치: 단일 스레드 500마리(최악 조건 기준선), 병렬 750마리.** 접지 개체당 프레임 약 1.46 query·8us. Phase 4 캐시 적중률 목표와 Phase 6 재측정은 병렬 750 기준으로 읽는다
-- 부하 harness `-LNPLoadBaseline=N`(slot 4 큰 섬 가장자리 링), 측정 스크립트 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`. 프레임 판정은 패키지 Development 호스트 `-nullrhi`
-- 자동화 `LootNPop.SurfaceNavigation` 21개
-- 카메라 리그 `CR_ThirdPerson`에 `CollisionPush` 노드를 추가했다(`../TechDesign_CharacterMovement.md` §2.4)
+- **exact 한계치: 단일 스레드 500마리(최악 조건 기준선), 병렬 약 700마리.** 3b 측정은 750이었으나 3c에서 750이 3회 모두 실패하고 700은 2회 중 1회 통과했다(query 수·호출당 비용은 3b와 같음). 접지 개체당 프레임 약 1.46 query·8us. Phase 4 캐시 적중률 목표와 Phase 6 재측정은 병렬 700 기준으로 읽는다
+- 비행 드론(PureEntity, D-052·053): 총수 200, Pod 타입 분리(지상 전용 74, 드론 3기 20·5기 16·6기 10, D-054). 동시 교전은 원거리 슬롯 상한(플레이어당 20)으로 묶인다. 비행 비용은 대부분 엔티티당 공통 비용이라 Support 캐시의 절감 대상이 아니다
+- 부하 harness `-LNPLoadBaseline=N`·`-LNPLoadBaselineFlyers=F`(slot 4 큰 섬 가장자리 링), 측정 스크립트 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`. 프레임 판정은 패키지 Development 호스트 `-nullrhi`. 측정 전에 다른 게임·무거운 프로세스를 끈다
+- 자동화 `LootNPop.SurfaceNavigation` 24개
+- 카메라 리그 `CR_ThirdPerson`에 `CollisionPush` 노드(`../TechDesign_CharacterMovement.md` §2.4)
 
 ## 바로 다음 작업
 
-1. **구현 단위 4 — 측정.** 부하 harness(`-LNPLoadBaseline`)에 비행 개체 수 인자를 추가하고 Phase 문서 §3.8 매트릭스(비행 N ∈ {100, 300, 500}, 지상 0 + 혼합 지상 500·비행 100)를 패키지 Development 호스트 `-nullrhi`로 잰다. 함께 지상 N=750 병렬을 한 번 다시 재 3b 기준선이 스폰 매몰 수정 뒤에도 유지되는지 확인한다(`history/Phase03c_Log.md` 결함 수정 절). 결과로 목표 동시 비행 수·예산을 사용자와 정한다
-   - 현재 스폰 편성은 Pod당 드론 10(총 1,200, 사용자 결정). 측정 결과에 따라 조정할 수 있다
-   - 패키지는 `Saved/SurfaceNavigationPhase3Package`(RunUAT BuildCookRun)를 다시 만들어야 한다
-2. 구현 단위 5 — 기능 점검과 Phase 종료(D-031 2P 스모크, `../TechDesign_EnemyNPC.md` 프로세서 표·`design/RuntimeCollision.md` 쿼리 분류·`design/MovementIntegration.md` 갱신)
-3. Phase 4a는 3c 뒤에 Phase 4 공통 전제부터 처리한다(fixture 재배치·fixture LVI 30,000cm 좌표 재계산과 `WorldCollision.RegressionMap` 기대값 동시 갱신, 동굴 fixture 키트 교체, greybox 섬 옥탄트에 동굴 키트 공동 모듈과 통로).
+1. **Phase 4a 실행 문서 작성.** `Roadmap.md` Phase 4a 행과 "Phase 4 공통 전제", 아래 이관 작업 중 "Phase 4 착수 전" 항목을 모아 `phases/Phase04a_*.md`(범위·확정 결정·구현 단위·완료 조건)를 만들고 사용자와 범위를 정한다
+2. **Phase 4 공통 전제부터 처리.** fixture 재배치·fixture LVI 30,000cm 좌표 재계산과 `WorldCollision.RegressionMap` 기대값 동시 갱신, 동굴 fixture 키트 교체, greybox 섬 옥탄트에 동굴 키트 공동 모듈과 통로, `LNPOctantSourceCollector` 무태그 충돌 컴포넌트 보고·동적 태그 차단
 
 ## 이관된 후속 작업
 
@@ -60,6 +50,8 @@ Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완
 
 ## 알려진 불확실성
 
+- 3c 측정 중 부하 harness 호스트가 비동기 스폰 배치 직후 한 번 멈췄다(재현 안 됨, `history/Phase03c_Log.md`). 재발하면 작업 스레드 exact probe와 게임 스레드 경합부터 본다.
+- 병렬 한계치가 750 → 약 700으로 내려온 원인(비 query 비용 증가로 추정)은 나누어 재지 않았다.
 - exact query의 배치 단위, 관찰 거리 축의 근처 반경과 원거리 판정 주기는 아직 정하지 않았다.
 - `LNPSurfaceSupport` 소비자 전환 시점은 Phase 5 착수 시 확정한다.
 - Nanite mesh의 complex collision이 원본 mesh와 fallback mesh 중 어디서 만들어지는지는 Phase 4a 착수 시 확인한다.
@@ -72,24 +64,12 @@ Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완
 
 ## 마지막 검증
 
-2026-09-26 Phase 3c 구현 단위 3 + 스폰 매몰 수정:
+2026-09-27 Phase 3c 구현 단위 5(Phase 종료):
 
-- `LootNPopEditor Win64 Development` 성공, 자동화 24/24
-- 사용자 PIE: 드론 사격 위치 탐색·LoS 재배치·넉백 회복·사망 센서 소등, 지상 NPC 매몰 해소(`EnemyExactGround 1`)
+- `LootNPopEditor Win64 Development` 성공, 자동화 24/24, 패키지 BuildCookRun 성공
+- 에디터 바이너리 `-game` 리슨 2P(새 편성): 게스트에서 드론 교전·Ghost 발사체·HP 바 정상(사용자 확인), 호스트·게스트 ensure·크래시 0
+- 사용자 PIE: 새 Pod 편성 체감 이상 없음
 
-2026-09-26 Phase 3c 구현 단위 2:
+2026-09-27 Phase 3c 구현 단위 4(측정·예산):
 
-- `LootNPopEditor Win64 Development` 성공, 자동화 23/23(신규 `FlightSteering.DetourAndStuck`)
-- PIE `TestMap03` 비행 240: `FlightSteering` 평균 3.11us, `UnknownHits=0`, `EnvelopeEscapes=0`, ensure 0
-- 사용자 PIE(Pod당 드론 10): 동굴형 경사로 근처 우회·드론 간 비겹침 확인
-
-2026-09-26 Phase 3c 구현 단위 1:
-
-- `LootNPopEditor Win64 Development` 성공, 자동화 22/22(신규 `FlightSteering.LookaheadStop`)
-- PIE `TestMap03`, 비행 240: `FlightSteering` 평균 3.71us·비행 1마리당 프레임 약 0.3회, `UnknownHits=0`, `EnvelopeEscapes=0`, ensure 0
-
-2026-09-26 Phase 3b 구현 단위 4(기능 점검·Phase 종료):
-
-- 사용자 PIE: 카메라 지형 비관통(CollisionPush 추가 후), 탄도 가이드 섬 밑면·측벽 끊김, 앵커로 큰 섬 오르기, 넉백 낙하 뒤 지각 착지 통과. 런처→섬 A 미확인
-- `LootNPop Win64 Development` 성공, `LootNPopEditor` up to date, 자동화 21/21
-- 에디터 바이너리 `-game` 리슨 2P(적 300·기본 CVar): 호스트·게스트 `UnknownHits=0`·`EnvelopeEscapes=0`·`MassPrePhysicsOrder` 위반 0, LayerJumps 0, ensure 0
+- 패키지 매트릭스(비행 100/300/500, 지상 500+비행 100, 관통 검출 비행 500, 지상 500·700×2·750×3): 모든 실행 `UnknownHits=0`·`EnvelopeEscapes=0`·ensure 0, 관통 0

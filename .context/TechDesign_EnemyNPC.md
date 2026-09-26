@@ -225,19 +225,20 @@ Scoring·Targeting의 `PlayerQuery`가 이를 배제한다 (적 쪽 `FLNPEnemyDy
 
 ---
 
-## 4. Mass 프로세서 파이프라인 (`Enemy/` 18종)
+## 4. Mass 프로세서 파이프라인 (`Enemy/` 21종)
 
 "서버 전용"은 전부 `Execute` 첫 줄의 `LNPMass::IsClientWorld()` 가드다 — `ExecutionFlags`로 거르는
-것은 표에 따로 적은 셋뿐이다.
+것은 표에 따로 적은 다섯뿐이다.
 
 | 프로세서 | 단계 | 역할 |
 |:---|:---|:---|
 | `ULNPEnemyScoringProcessor` | PostPhysics (UpdateWorldFromMass) | 인식 + 후보 4명 정렬 + 슬롯 점수 등록 |
 | `ULNPEnemyTargetingProcessor` | Behavior | `RebalanceSlots()` 호출 → State 동기화(Confirmed/Alert/None) → 변경 시 StateTree 신호 |
 | `ULNPEnemyTargetFollowProcessor` | Behavior (Targeting 이후) | MoveTarget 목적지 산출 (정지 거리 반영), 공격 루프용 StateTree 신호 |
-| `ULNPEnemySpatialGridProcessor` | PrePhysics — Movement (Separation 이전) | 서버 전용: 살아 있는 적 전원의 브로드페이즈 격자를 매 프레임 재구축 — §5.0 |
+| `ULNPEnemySpatialGridProcessor` | PrePhysics — Movement (Separation 이전) | 서버 전용: 살아 있는 적 전원의 브로드페이즈 격자를 매 프레임 재구축 — §5.0. 비행 적은 지상 격자에서 빼고 같은 구현의 별도 인스턴스(`ULNPFlyingSpatialGridSubsystem`)에 짓는다 |
 | `ULNPEnemySeparationProcessor` | PrePhysics — Movement (Grid 이후, Movement 이전) | 서버 전용: 이웃 질의 → 겹침 분리력 산출. Transform은 건드리지 않는다 — §5.0 |
-| `ULNPEnemyMovementProcessor` | Movement | 실제 이동/회전 적용 + 분리력·공중 물리 소비 — §5 상세 |
+| `ULNPEnemyMovementProcessor` | Movement | 실제 이동/회전 적용 + 분리력·공중 물리 소비 — §5 상세. 비행 적(`FLNPEnemyFlyingTag`)은 거른다 |
+| `ULNPEnemyFlightMovementProcessor` | Movement (EntityAttack·격자 이후) | 서버 전용: 비행 적(`FLNPEnemyFlyingTag`) 이동 — 3D 배회·교전 고도·LoS 막힘 재배치·넉백 감쇠·사망 낙하, 조향은 `LNPFlightSteering` 순수 함수 → [Phase03c](SurfaceSupportNavigation/phases/Phase03c_FlyingNpcFoundation.md) §3.3~3.5 |
 | `ULNPHealthProcessor` | PostPhysics | HP ≤ 0 → DyingTag + `DeathCountdown`. 모드로 갈린다: `ActorPromoted`는 `TriggerRagdoll()` 방송 + `ULNPSettings::EnemyRagdollDuration`, `PureEntity`는 **사망 팝**(속도 프래그먼트에 Up 방향 속도) + `Config::PureEntityDeathDuration` |
 | `ULNPEnemyDeathTimerProcessor` | PostPhysics (Health 이후) | DeathCountdown 만료 엔티티 파괴 |
 | `ULNPEnemyLODOverrideProcessor` | **PostPhysics** — LOD 그룹 | 서버 전용: Confirmed면 `RepresentationLOD.LOD = High` 강제 — §7.2 |
@@ -246,6 +247,8 @@ Scoring·Targeting의 `PlayerQuery`가 이를 배제한다 (적 쪽 `FLNPEnemyDy
 | `ULNPEnemyActorSyncProcessor` | PostPhysics (LOD 이전, 게임 스레드) | Actor 유효: `SyncToEntity`(HP·속도 역동기화) / null: InitializedTag 제거 → 재초기화 유도 |
 | `ULNPEnemyActionProcessor` | PrePhysics — Tasks (EntityAttack 이후) | 서버 전용: 행동 상태 산출 → `FLNPEnemyActionFragment` (게스트 연출의 단일 입력) |
 | `ULNPEnemyAnimationProcessor` | **PrePhysics** — Representation 그룹, 게임 스레드 | 행동 상태 → ISKM 애니 데이터. `ExecutionFlags = Client \| Standalone`(데디 서버는 그리지 않는다). 페이즈 근거는 §7.10과 같다 |
+| `ULNPEnemyHitStopProcessor` | **PostPhysics**, 게임 스레드 | `ExecutionFlags = Client \| Standalone`: 순수 엔티티 공격이 플레이어에 닿으면(`HitStopSeq`) ISKM 트랙 재생 속도를 잠깐 누른다 → [LowLOD](TechDesign_EnemyNPC_LowLOD.md) |
+| `ULNPUpdateISMProcessor` | Representation 이후, 게임 스레드 | `ExecutionFlags = Client \| Standalone`: 엔진 `UMassUpdateISMProcessor`(DefaultMass.ini에서 끔)의 대체. 동작은 같고 비행 적 청크만 transform 바로 뒤에 인스턴스 커스텀 데이터(센서 발광, `Dying`이면 0)를 붙인다 |
 | `ULNPEnemyActionDebugDrawProcessor` | 에디터 전용 (`LNP.Debug.DrawEnemyAction`, 기본 0) | 행동 상태별 색상 박스 + 전이 로그. 서버/클라 분기가 없는 것이 곧 채널 검증 수단이다 |
 | `ULNPEnemyMarkerProcessor` | **PrePhysics** (HUD Tick과 같은 페이즈) | 적 HP 바 표시 후보 상위 N개 수집 → [TechDesign_HUD.md](TechDesign_HUD.md) §11 |
 | `ULNPEntityAttackProcessor` | PrePhysics — Tasks | 서버 전용: 순수 엔티티 공격 위상 진행·가상 칼날·발사 → [LowLOD](TechDesign_EnemyNPC_LowLOD.md) §4 |

@@ -7,6 +7,26 @@
 #include "LNPEnemyFlightMovementProcessor.generated.h"
 
 /**
+ * 비행 steering 결과 누계 — 부하 harness 측정용(SurfaceSupportNavigation Phase03c §3.8).
+ * 모든 스레드. 모든 월드가 한 누계를 공유하지만 steering은 서버만 돌리므로 측정 호스트의 값이다.
+ */
+namespace LNPEnemyFlightStats
+{
+	struct FCounts
+	{
+		uint64 Hover = 0;
+		uint64 Clear = 0;
+		uint64 Blocked = 0;
+		uint64 Stuck = 0;
+		/** 진행 없음이 교착 복구 첫 단계(StuckWidenTime)에 들어선 횟수. */
+		uint64 RecoveryEntries = 0;
+	};
+
+	LOOTNPOP_API FCounts Get();
+	LOOTNPOP_API void Reset();
+}
+
+/**
  * `ELNPNavigationDomain::FreeFlight` 적(FLNPEnemyFlyingTag)의 이동 — 지상 ULNPEnemyMovementProcessor의 비행판이다.
  *
  * - 서버 전용, PureEntity 전용(D-052). 위치는 Mass 복제(3D 위치 + 접평면 Yaw)로 게스트에 전달된다.

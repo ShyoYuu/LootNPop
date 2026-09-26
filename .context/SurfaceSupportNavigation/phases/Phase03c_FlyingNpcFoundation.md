@@ -1,6 +1,6 @@
 # Phase 3c — 완전 비행 NPC 기반
 
-> 상태: 진행 중(2026-09-26 착수) — 구현 단위 1·2·3 완료, 구현 단위 4 대기
+> 상태: 완료(2026-09-26 착수, 2026-09-27 종료)
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 3 exact sweep(완료), Phase 3b 부유섬 옥탄트(완료). 베이커·Nav와 무관(D-042)
 
@@ -104,6 +104,7 @@
 
 - Pod `AssociatedEnemies`에 비행 EntityConfig를 추가한다. 스폰 위치는 기존 지면 점에서 Up으로 `IdleAltitude` 하한만큼 띄운다. 지면 점에서 위로 sphere sweep 1회를 하고, 섬 밑면에 막히면 그 아래(여유 구가 닿는 자리)에 둔다. 재시도 없이 한 번에 정해져 결정론적이다(`ULNPMassSpawnSubsystem::LiftFlyingSpawn`, 구현 단위 1).
 - 부하 harness `-LNPLoadBaseline`에 비행 개체 수 인자를 추가한다(§3.8).
+- 편성(D-054, 2026-09-27): 비행 적 총수 200. Pod 타입을 나눠 지상 전용 74, 드론 3기 20·5기 16·6기 10 Pod를 둔다. 지상 편성은 모든 타입이 같다(`DA_MassSpawnConfig` 세트 4개).
 
 ### 3.8 측정(사용자 결정: 측정 후 예산 결정)
 
@@ -118,6 +119,8 @@
 
 결과를 보고 목표 동시 비행 수와 비용 예산을 사용자와 정해 `Decisions.md`에 한 줄로 남긴다.
 
+결과(2026-09-27, 상세 `../history/Phase03c_Log.md`): 비행 1마리당 프레임 exact 0.2~0.45회·호출당 약 4~6us, 서버 프레임은 비행 100마리당 약 1.0~1.5ms(대부분 엔티티당 공통 비용). 동시 교전 수는 원거리 슬롯 상한(플레이어당 20)으로 고정된다. 관통 0, `UnknownHits=0`. 지상 병렬 한계치는 750 → 약 700으로 재확인했다. 예산은 D-054.
+
 ## 4. 구현 단위
 
 1. **비행 archetype 골격과 메시**: `ELNPNavigationDomain`·Config 필드, `FLNPEnemyFlyingTag`, 지상 이동·분리 쿼리에서 제외, `ULNPEnemyFlightMovementProcessor`(목표점 직선 비행 + lookahead sweep 정지까지), 블렌더 드론 메시·ISM 표현, `DA_Enemy_PureEntity_Flyer01`·EntityConfig, Pod 스폰. 검증: PIE에서 스폰·호버·배회, 게스트 복제 위치 일치, 지상 적 회귀 없음(자동화 21개)
@@ -128,15 +131,15 @@
 
 ## 5. 완료 조건
 
-- [ ] 비행 개체가 PureEntity로 스폰·배회·교전하고 지상 적 동작이 바뀌지 않음(자동화 통과)
-- [ ] 비행 개체가 섬·지각·측벽을 관통하지 않음 — 자동화, 측정 관통 프레임 0, `UnknownHits=0`
-- [ ] 막힌 비행 개체가 교착 복구로 빠져나오거나 Home으로 돌아감 — 자동화
-- [ ] 큰 섬 위 플레이어가 비행 개체에게 사격받고, LoS가 막힌 발사가 없음 — PIE, LoS 거부 수 기록
-- [ ] 넉백·경직·사망 낙하가 비행 개체에서 동작함
-- [ ] §3.8 매트릭스 기록과 목표 개체 수·예산 결정
-- [ ] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공, 자동화 통과
-- [ ] `-game` 리슨 서버 2P 스모크(D-031): 게스트에서 비행 개체 위치·Ghost 발사체·HP 바 정상, ensure 0
-- [ ] `../Current.md`, `../Roadmap.md`, `../history/Phase03c_Log.md`, `../design/MovementIntegration.md`, `../design/RuntimeCollision.md`(쿼리 분류), `../../TechDesign_EnemyNPC.md`(프로세서 표) 갱신
+- [x] 비행 개체가 PureEntity로 스폰·배회·교전하고 지상 적 동작이 바뀌지 않음(자동화 통과)
+- [x] 비행 개체가 섬·지각·측벽을 관통하지 않음 — 자동화, 측정 관통 프레임 0, `UnknownHits=0`
+- [x] 막힌 비행 개체가 교착 복구로 빠져나오거나 Home으로 돌아감 — 자동화
+- [x] 큰 섬 위 플레이어가 비행 개체에게 사격받고, LoS가 막힌 발사가 없음 — PIE, LoS 거부 수 기록
+- [x] 넉백·경직·사망 낙하가 비행 개체에서 동작함
+- [x] §3.8 매트릭스 기록과 목표 개체 수·예산 결정
+- [x] `LootNPopEditor Win64 Development`와 `LootNPop Win64 Development` 성공, 자동화 통과
+- [x] `-game` 리슨 서버 2P 스모크(D-031): 게스트에서 비행 개체 위치·Ghost 발사체·HP 바 정상, ensure 0
+- [x] `../Current.md`, `../Roadmap.md`, `../history/Phase03c_Log.md`, `../design/MovementIntegration.md`, `../design/RuntimeCollision.md`(쿼리 분류), `../../TechDesign_EnemyNPC.md`(프로세서 표) 갱신
 
 ## 6. 제외 범위
 

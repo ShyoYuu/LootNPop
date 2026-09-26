@@ -31,9 +31,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 namespace
 {
-	using namespace LNPFlightSteering;
+	// 유니티 빌드에서 다른 테스트 파일의 익명 네임스페이스와 합쳐진다. using-directive를 두지 않고 LNPFlightSteering을 한정해 쓴다.
 
-	constexpr float TestDeltaTime = 1.f / 60.f;
+	constexpr float FlightTestDeltaTime = 1.f / 60.f;
 	constexpr float TestSpeed = 900.f;
 
 	/** 비행 steering 테스트 월드. 판은 기본 Cube(100cm)를 Scale로 늘린다. */
@@ -42,7 +42,7 @@ namespace
 		UWorld* World = nullptr;
 		ULNPHitIdentitySubsystem* HitIdentity = nullptr;
 		ULNPMassWorldCollisionSubsystem* Collision = nullptr;
-		FParams Params;
+		LNPFlightSteering::FParams Params;
 
 		explicit FFlightWorld(const TCHAR* Name)
 		{
@@ -99,9 +99,9 @@ namespace
 		Trace.Location = Start;
 		for (int32 Frame = 0; Frame < Frames; ++Frame)
 		{
-			const FVector Desired = ComputeArrivalVelocity(Trace.Location, Goal, TestSpeed, TestDeltaTime);
+			const FVector Desired = LNPFlightSteering::ComputeArrivalVelocity(Trace.Location, Goal, TestSpeed, FlightTestDeltaTime);
 			FVector Next;
-			Trace.BlockedFrames += Step(*Fixture.Collision, Fixture.Params, Trace.Location, Desired, TestDeltaTime, Next) == EStepResult::Blocked ? 1 : 0;
+			Trace.BlockedFrames += LNPFlightSteering::Step(*Fixture.Collision, Fixture.Params, Trace.Location, Desired, FlightTestDeltaTime, Next) == LNPFlightSteering::EStepResult::Blocked ? 1 : 0;
 			Trace.Location = Next;
 			Trace.MaxX = FMath::Max(Trace.MaxX, Next.X);
 		}
@@ -127,15 +127,15 @@ namespace
 	{
 		FSteerTrace Trace;
 		Trace.Location = Start;
-		FSteeringState State;
+		LNPFlightSteering::FSteeringState State;
 		for (int32 Frame = 0; Frame < Frames; ++Frame)
 		{
 			FVector Next;
-			const EStepResult Result = Steer(*Fixture.Collision, Fixture.Params, Trace.Location, FVector::UpVector, Goal, TestSpeed,
-				FVector::ZeroVector, TestDeltaTime, State, Next);
+			const LNPFlightSteering::EStepResult Result = LNPFlightSteering::Steer(*Fixture.Collision, Fixture.Params, Trace.Location, FVector::UpVector, Goal, TestSpeed,
+				FVector::ZeroVector, FlightTestDeltaTime, State, Next);
 			Trace.Location = Next;
 			Trace.MinBoxDistance = FMath::Min(Trace.MinBoxDistance, DistanceToBox(Next, Obstacle));
-			if (Result == EStepResult::Stuck)
+			if (Result == LNPFlightSteering::EStepResult::Stuck)
 			{
 				Trace.StuckFrame = Frame;
 				break;
@@ -184,8 +184,8 @@ bool FLNPFlightSteeringLookaheadTest::RunTest(const FString& Parameters)
 	{
 		const FVector Start(StopX + 20.0, 0, 500);
 		FVector Next;
-		const EStepResult Result = Step(*Fixture.Collision, Fixture.Params, Start, FVector(TestSpeed, 0, 0), TestDeltaTime, Next);
-		TestTrue(TEXT("Starting inside the clearance is blocked"), Result == EStepResult::Blocked);
+		const LNPFlightSteering::EStepResult Result = LNPFlightSteering::Step(*Fixture.Collision, Fixture.Params, Start, FVector(TestSpeed, 0, 0), FlightTestDeltaTime, Next);
+		TestTrue(TEXT("Starting inside the clearance is blocked"), Result == LNPFlightSteering::EStepResult::Blocked);
 		TestTrue(TEXT("Depenetrates away from the wall"), Next.X < Start.X);
 	}
 
@@ -199,8 +199,8 @@ bool FLNPFlightSteeringLookaheadTest::RunTest(const FString& Parameters)
 	{
 		const uint64 Before = Fixture.Collision->GetQueryCount(ELNPWorldQueryClass::FlightSteering);
 		FVector Next;
-		const EStepResult Result = Step(*Fixture.Collision, Fixture.Params, FVector(0, 0, 500), FVector::ZeroVector, TestDeltaTime, Next);
-		TestTrue(TEXT("Zero velocity hovers"), Result == EStepResult::Hover);
+		const LNPFlightSteering::EStepResult Result = LNPFlightSteering::Step(*Fixture.Collision, Fixture.Params, FVector(0, 0, 500), FVector::ZeroVector, FlightTestDeltaTime, Next);
+		TestTrue(TEXT("Zero velocity hovers"), Result == LNPFlightSteering::EStepResult::Hover);
 		TestEqual(TEXT("Hover issues no query"), Fixture.Collision->GetQueryCount(ELNPWorldQueryClass::FlightSteering), Before);
 		TestTrue(TEXT("Hover stays in place"), Next.Equals(FVector(0, 0, 500)));
 	}
