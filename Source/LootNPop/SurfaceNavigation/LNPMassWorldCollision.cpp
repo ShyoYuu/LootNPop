@@ -34,6 +34,7 @@ namespace
 		TEXT("GroundRiskFallback"),
 		TEXT("DynamicSupportContact"),
 		TEXT("FlightSteering"),
+		TEXT("EnemyLineOfSight"),
 		TEXT("PeriodicGroundValidation"),
 		TEXT("DebugValidation"),
 	};

@@ -65,6 +65,15 @@ namespace LNPEntityAttack
 	}
 
 	/**
+	 * 조준점 — 타겟 캡슐 중심에 상하 보정을 얹는다. 캡슐 중심은 골반 높이라 가슴께를 겨누려면 보정이 필요하다.
+	 * 발사와 LoS 게이트가 같은 점을 봐야 "보인다고 판정했는데 탄은 막히는" 어긋남이 없다.
+	 */
+	inline FVector ComputeAimPoint(const FBasis& Basis, const FVector& TargetLocation, const FLNPEntityAttackConfig& AttackConfig)
+	{
+		return TargetLocation + Basis.Up * AttackConfig.AimTargetUpOffset;
+	}
+
+	/**
 	 * 발사체 상수 — 무기 데이터가 대부분이고, **지금까지 어빌리티 인스턴스가 공급하던 값만**
 	 * `FLNPEntityAttackConfig`가 대신한다.
 	 */

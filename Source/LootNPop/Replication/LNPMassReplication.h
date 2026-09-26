@@ -506,7 +506,7 @@ protected:
  * 클라이언트 전용 — FLNPReplicatedMovementFragment의 보간값을 매 프레임 Transform에 쓴다.
  *
  * SyncWorldToMass 그룹(PrePhysics의 첫 그룹)에 두는 이유: 이 프레임의 LOD 판정·Representation·
- * UMassUpdateISMProcessor가 모두 뒤에서 돌기 때문에, 여기서 채운 값이 그대로 그려진다.
+ * ISM transform 갱신(ULNPUpdateISMProcessor, 엔진 UMassUpdateISMProcessor 대체)이 모두 뒤에서 돌기 때문에, 여기서 채운 값이 그대로 그려진다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPMassSmoothingProcessor : public UMassProcessor

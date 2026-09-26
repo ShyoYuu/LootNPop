@@ -1,6 +1,6 @@
 # Phase 3c — 완전 비행 NPC 기반
 
-> 상태: 진행 중(2026-09-26 착수) — 구현 단위 1·2 완료, 구현 단위 3 대기
+> 상태: 진행 중(2026-09-26 착수) — 구현 단위 1·2 완료, 구현 단위 3 코드 작성
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 3 exact sweep(완료), Phase 3b 부유섬 옥탄트(완료). 베이커·Nav와 무관(D-042)
 
@@ -38,7 +38,7 @@
 
 - 기존 PureEntity Ranged 경로(Windup 끝 1회 발사, SalvoID, 게스트 Ghost)를 그대로 쓴다.
 - **발사 전 LoS 게이트를 추가한다.** Windup 진입 시 총구 → 조준점 `RaycastWorld` 1회. 막히면 공격을 시작하지 않고 교전 위치를 다시 잡는다(§3.4). 섬 밑에서 섬 위를 향해 쏜 탄은 전부 섬 밑면에 막히기 때문이다.
-- **LoS 게이트는 모듈로 분리하고 Config 플래그로 켠다.** 판정은 `LNPEnemyLineOfSight`(총구·조준점 계산과 exact raycast, worker 호출 가능)에 두고, `ULNPEntityAttackProcessor`는 `FLNPEntityAttackConfig::bRequireLineOfSight`가 켜진 개체에만 부른다. 3c에서는 비행 Config만 켠다. 지상 원거리형도 필요한 기능이지만 적용은 이 세션 범위가 아니다(사용자 결정). 나중에 플래그를 켜고 재배치 반응만 붙이면 된다.
+- **LoS 게이트는 모듈로 분리하고 Config 플래그로 켠다.** 판정은 `LNPEnemyLineOfSight::HasClearShot`(총구 → 조준점 exact raycast 1회, query 분류 `EnemyLineOfSight`)이고, 총구·조준점은 발사와 같은 `LNPEntityAttack::ComputeMuzzle`·`ComputeAimPoint`다. `ULNPEntityAttackProcessor`는 `FLNPEntityAttackConfig::bRequireLineOfSight`가 켜진 원거리 개체만 공격 시작(`None → Windup`) 전에 부르고, 막히면 공격을 시작하지 않고 `FLNPEntityAttackFragment::bLineOfSightBlocked`를 세운 뒤 0.25초 뒤 다시 본다(요청이 매 프레임 오므로 매 프레임 raycast하지 않는다). 반응은 이동 도메인이 맡는다 — 비행형은 교전 자리를 지키던 중 막히면 유지를 풀고 교전 측면을 타겟 기준 90° 돌린다. 접근 중의 막힘에는 반응하지 않는다(매번 돌리면 도착 전에 맴돈다). 3c에서는 비행 Config만 켠다. 지상 원거리형도 필요한 기능이지만 적용은 이 세션 범위가 아니다(사용자 결정). 나중에 플래그를 켜고 지상 이동의 재배치 반응만 붙이면 된다.
 - 공중에서는 아래를 향해 쏘는 경우가 많다. `AimPitchMin`을 비행 Config에서 -90 가까이로 연다. 짐벌 수렴 방지는 `LNPSpread` 공용 기저를 그대로 쓴다.
 - 급강하 근접은 제외 범위다.
 
@@ -85,11 +85,11 @@
 - 넉백: **생산자는 바꾸지 않고 소비만 다르게 한다.**
   - 생산자: 발사체·근접 판정·스플래시·패링이 `LNPHitDetection::ApplyEntityKnockback`으로 `FLNPEnemyVelocityFragment::Velocity`에 `(공격 반대 방향 0.7 + Up 0.3) × 세기`를 덮어쓴다. 비행 개체도 같은 fragment를 가지므로 판정 코드는 비행을 알 필요가 없다.
   - 지상 소비: `Velocity != 0`이 곧 공중 상태다. 중력으로 포물선을 그리고 착지하면 0이 된다.
-  - 비행 소비: 중력을 적용하지 않고 지수 감쇠시킨다(초안 반감기 0.25초, 속도 1,200cm/s면 밀리는 거리 약 430cm). 이동은 steering 속도와 같은 sweep으로 막히고, 벽·섬 hit면 법선 성분을 지우고 미끄러진다. 크기가 임계값(초안 50cm/s) 아래로 떨어지면 0으로 끊는다. 넉백 속도가 남아 있는 동안 steering 출력은 넉백 크기에 비례해 약하게 섞는다. 맞는 순간 경로 제어를 잃고 밀려나는 느낌을 주기 위해서다.
+  - 비행 소비: 중력을 적용하지 않고 지수 감쇠시킨다(`FlightConfig.KnockbackHalfLife` 0.25초, 속도 1,200cm/s면 밀리는 거리 약 430cm). 이동은 steering의 추가 속도로 더해져 같은 sweep에 막힌다. 벽·섬에 닿으면 여유 앞에 멈추고, 미끄러뜨리지는 않는다(0.5초 안에 감쇠해 끝나므로). `KnockbackStopSpeed`(50cm/s) 아래로 떨어지면 0으로 끊는다. 넉백 속도가 남아 있는 동안 원하는 속도에 `1 - |넉백|/FlightSpeed`를 곱한다. 맞는 순간 경로 제어를 잃고 밀려나는 느낌을 주기 위해서다.
   - 중력을 쓰지 않는 이유: 쓰면 날던 개체가 지면까지 떨어지고, 이륙 로직이 새로 필요해진다. 또 "`Velocity != 0`이면 공중"이라는 지상 규약이 비행 개체에서는 성립하지 않는다(비행 개체는 늘 공중이다). 그래서 이 fragment는 비행 개체에서 "외부에서 받은 속도" 의미로만 읽는다.
   - Up 0.3 성분은 지상에서 즉시 흡수되지 않게 하려고 넣은 값이다. 비행 개체에서는 살짝 떠오르는 효과만 낸다. 거슬리면 비행 소비 쪽에서 Up 성분을 줄인다(생산자는 그대로 둔다).
 - 경직·다운: 제자리 호버, 공격 중단은 기존 `ULNPEntityAttackProcessor` 규약을 따른다.
-- 사망: 비행을 끊고 중력 낙하(`LNPEnemyExactMovement::StepAirborne` 재사용), 지면이나 섬에 닿으면 멈추고 `PureEntityDeathDuration` 뒤 소멸한다. 사망 중인 엔티티를 쿼리에서 빼지 않는 규약(`../../TechDesign_EnemyNPC.md` §5)을 비행 프로세서도 지킨다.
+- 사망: 비행을 끊고 중력 낙하(`LNPEnemyExactMovement::StepAirborne` 재사용), 지면이나 섬에 닿으면 멈추고 `PureEntityDeathDuration` 뒤 소멸한다. 착지 여부는 `FLNPEnemyFlightFragment::bDeathLanded`로 기억한다 — 속도 0을 "착지"로 읽으면 사망 팝이 0인 개체가 공중에 멈춘다. 비행형 `PureEntityDeathPopSpeed`는 300cm/s(기본 2,000이면 1,000cm 솟구친다). 배회 고도 상한에서 착지까지 약 1.7초로 소멸 시간 2.2초 안이다. 사망 중인 엔티티를 쿼리에서 빼지 않는 규약(`../../TechDesign_EnemyNPC.md` §5)을 비행 프로세서도 지킨다.
 
 ### 3.6 외형: 블렌더 새 메시(사용자 결정)
 
@@ -97,6 +97,8 @@
 - 왕복 규약은 `blender-mcp-ue-roundtrip` 메모리를 따른다(좌표 규약, `transform_apply`, EMPTY 금지).
 - 방향 규약은 마네킹과 같다(사용자 결정, 2026-09-26): 에셋 공간 전방 = +Y, EntityConfig ISM `transformOffset` Yaw -90°로 Actor 전방 +X에 맞춘다. 외부 캐릭터 에셋 관행과 같게 두어 헷갈리지 않게 한다.
 - 충돌 크기는 Config 캡슐(`CapsuleRadius`·`CapsuleHalfHeight`)이 피격 판정의 단일 정의다. 메시는 그 캡슐 안에 들어가게 만든다.
+- 사망 연출(사용자 요청, 2026-09-26): 죽으면 센서가 꺼진다. 센서 머티리얼(`M_EnemyDroneEye`)이 `PerInstanceCustomData[0]`(기본 1)을 발광에 곱하고 표면색을 어두운 회색과 보간한다. 값은 행동 상태가 `Dying`이면 0이라, 게스트도 이미 복제받는 값으로 추가 네트워크 비용 없이 같은 연출을 본다.
+- 인스턴스별 커스텀 데이터는 한 ISM의 모든 인스턴스에 transform과 **같은 순서로** 넣어야 해서, 엔진 `UMassUpdateISMProcessor`를 `DefaultMass.ini`에서 끄고 같은 동작의 `ULNPUpdateISMProcessor`로 대체했다. 비행 태그 청크만 transform 바로 뒤에 커스텀 데이터를 붙인다. 그 밖의 ISM 개체 처리는 엔진과 같다.
 
 ### 3.7 스폰
 

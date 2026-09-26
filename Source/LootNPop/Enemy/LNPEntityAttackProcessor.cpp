@@ -4,6 +4,8 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEntityAttackShared.h"
+#include "Enemy/LNPEnemyLineOfSight.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
@@ -80,6 +82,8 @@ void ULNPEntityAttackProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 	SwingQuery.AddRequirement<FLNPWeaponTraceFragment>(EMassFragmentAccess::ReadWrite);
 	SwingQuery.AddRequirement<FLNPEntitySwingFragment>(EMassFragmentAccess::ReadOnly);
 	SwingQuery.RegisterWithProcessor(*this);
+
+	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly); // LoS 게이트
 }
 
 void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -89,6 +93,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
 
 	// Pass 1이 계산해 Pass 2가 반영한다. 칼날은 적과 다른 엔티티라 이 자리를 거치지 않고는
 	// 서로의 프래그먼트에 닿을 수 없다 (헤더의 SwingQuery 주석).
@@ -170,6 +175,23 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 			{
 				if (bRequested && Attack.CooldownRemaining <= 0.f)
 				{
+					// LoS 게이트: 사선이 막혔으면 공격을 시작하지 않는다. 섬 밑에서 섬 위를 쏘면 탄이 전부 밑면에 막힌다.
+					// 요청은 Task가 매 프레임 다시 세우므로, 막히면 잠시 뒤에 다시 본다 — 매 프레임 raycast하지 않는다.
+					if (AttackConfig.bRequireLineOfSight && bIsRanged)
+					{
+						const LNPEntityAttack::FBasis GateBasis = LNPEntityAttack::MakeBasis(Transforms[i].GetTransform());
+						const FVector Muzzle = LNPEntityAttack::ComputeMuzzle(GateBasis, AttackConfig);
+						const FVector AimPoint = LNPEntityAttack::ComputeAimPoint(GateBasis, TargetingFrags[i].TargetLocation, AttackConfig);
+						if (!LNPEnemyLineOfSight::HasClearShot(WorldCollision, Muzzle, AimPoint))
+						{
+							constexpr float LineOfSightRetryInterval = 0.25f;
+							Attack.bLineOfSightBlocked = 1;
+							Attack.CooldownRemaining = LineOfSightRetryInterval;
+							continue;
+						}
+						Attack.bLineOfSightBlocked = 0;
+					}
+
 					Attack.Phase        = ELNPEntityAttackPhase::Windup;
 					Attack.PhaseElapsed = 0.f;
 				}
@@ -206,7 +228,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					// 클램프 값이 조준 자세·발사 방향·피격 인지 게이트의 공용 원본이므로 여기서도 그 값을 읽는다.
 					// 타겟 Transform은 좌표 규약상 **캡슐 중심**이다(플레이어·적 모두). 다만 캡슐 중심은
 					// 골반 높이라, 가슴께를 겨누려면 Config의 상하 보정을 얹는다.
-					const FVector AimPoint   = TargetingFrags[i].TargetLocation + Basis.Up * AttackConfig.AimTargetUpOffset;
+					const FVector AimPoint   = LNPEntityAttack::ComputeAimPoint(Basis, TargetingFrags[i].TargetLocation, AttackConfig);
 					const FVector ToTarget   = AimPoint - Muzzle;
 					const float   VerticalUp = FVector::DotProduct(ToTarget, Basis.Up);
 					const float   Horizontal = (ToTarget - Basis.Up * VerticalUp).Size();

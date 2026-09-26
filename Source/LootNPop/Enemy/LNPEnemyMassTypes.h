@@ -279,6 +279,12 @@ struct LOOTNPOP_API FLNPEntityAttackFragment : public FMassFragment
 	uint8 bAttackRequested : 1 = 0;
 
 	/**
+	 * 마지막 공격 시도가 LoS 게이트에 막혔다(`FLNPEntityAttackConfig::bRequireLineOfSight`). ULNPEntityAttackProcessor가 세우고,
+	 * 이동 도메인(비행: ULNPEnemyFlightMovementProcessor)이 읽어 재배치한 뒤 지운다. 공격을 시작하면 지워진다.
+	 */
+	uint8 bLineOfSightBlocked : 1 = 0;
+
+	/**
 	 * **서버 전용 장부** — 패링당해 자세가 무너진 채로 남은 시간(초).
 	 * `FLNPMeleeParryCommand`가 `FLNPEntityAttackConfig::ParriedRecoveryTime`으로 세우고
 	 * `ULNPEntityAttackProcessor`가 감소시킨다. 0보다 크면 행동 상태가 `Parried`로 나간다.
@@ -550,6 +556,9 @@ struct LOOTNPOP_API FLNPEnemyFlightFragment : public FMassFragment
 
 	/** 조향 기억(회피 방향 유지·교착 측정). */
 	LNPFlightSteering::FSteeringState Steering;
+
+	/** 죽은 뒤 떨어져 지면에 닿았는가. 닿기 전까지는 속도가 0이어도 떨어진다. */
+	bool bDeathLanded = false;
 };
 
 /**
