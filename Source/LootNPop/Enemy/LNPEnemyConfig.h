@@ -49,6 +49,22 @@ enum class ELNPEnemyAttackType : uint8
 };
 
 /**
+ * 이 적이 어느 이동 도메인에서 움직이는가(SurfaceSupportNavigation `design/MovementIntegration.md`).
+ *
+ * 스폰 뒤 바뀌지 않는다. 지상 적이 잠시 날아오르는 상태(넉백·사망 팝)는 도메인이 아니라 지상 도메인 안의 공중 상태다.
+ * 동굴 중심선을 따르는 `FlightCorridor`는 도입 조건이 생길 때 끝에 붙인다.
+ */
+UENUM(BlueprintType)
+enum class ELNPNavigationDomain : uint8
+{
+	/** 지면을 걷는다 — ULNPEnemyMovementProcessor. */
+	GroundSupport,
+
+	/** 처음부터 3D로 난다 — ULNPEnemyFlightMovementProcessor. 현재 PureEntity 전용이다(D-052). */
+	FreeFlight,
+};
+
+/**
  * 타게팅 슬롯 풀 — 어떤 적이 어떤 예산을 놓고 경쟁하는가.
  *
  * ⚠️ **`ActorPromoted`는 근접/원거리를 나누지 않는다.** 이 풀을 가르는 실제 비용 축은
@@ -272,6 +288,58 @@ struct FLNPEnemyMovementConfig
 		const float StopBuffer = FMath::Max(ArrivalTolerance, FMath::Min(AttackRange * 0.1f, 100.f));
 		return FMath::Max(0.f, AttackRange - StopBuffer);
 	}
+};
+
+/**
+ * `ELNPNavigationDomain::FreeFlight` 적의 비행 설정(Phase03c §3.3·§3.4).
+ *
+ * 고도는 모두 **Up 방향(구 중심 쪽) 거리**다. 비교전 고도는 Home(부모 Pod 지면점) 기준, 교전 고도는 타겟 캡슐 중심 기준이다(D-053).
+ * 회전 속도와 배회 거리는 `FLNPEnemyMovementConfig`의 값을 그대로 쓴다.
+ */
+USTRUCT(BlueprintType)
+struct FLNPEnemyFlightConfig
+{
+	GENERATED_BODY()
+
+	/** 추격 비행 속도(cm/s). 배회는 지상과 같은 비율(0.3배)로 느리게 난다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float FlightSpeed = 900.f;
+
+	/**
+	 * 전방 lookahead 길이(초). 현재 속도 × 이 값만큼 앞을 sweep한다.
+	 * 한 프레임 이동 거리보다 반드시 길어야 clear 판정이 그 프레임 이동의 안전을 보장한다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.05"))
+	float LookaheadTime = 1.f;
+
+	/** 몸과 지형 사이에 남길 여유(cm). lookahead 구 반지름 = 몸 반지름 + 이 값. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float Clearance = 50.f;
+
+	/** 비교전 배회 고도 대역(cm, Home 지면점 기준). 스폰도 하한 고도에 띄운다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float IdleAltitudeMin = 1300.f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float IdleAltitudeMax = 2300.f;
+
+	/**
+	 * 교전 고도 대역(cm, 타겟 캡슐 중심 기준). 구현 단위 1은 가운데 값 한 점을 쓴다 — 대역 안의 선회는 구현 단위 3.
+	 * ⚠️ `MovementConfig.AttackRange`가 교전 지점까지의 거리(고도 / sin(EngageElevationDeg))보다 넉넉히 커야 공격 루프가 돈다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float EngageAltitudeMin = 500.f;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float EngageAltitudeMax = 1000.f;
+
+	/**
+	 * 교전 지점을 타겟이 올려다보는 각도(도, 타겟 접평면 기준). 수평 거리는 `고도 / tan(이 값)`이다.
+	 * 교전 고도만 두면 목표점이 타겟 바로 위(90도)라, 플레이어가 정수리 방향을 올려다보며 싸워야 한다.
+	 * 전투 대부분이 플레이어 정면 기준 위로 50도 안에서 일어나게 하는 것이 목표라(사용자 결정, 2026-09-26) 상한을 45도로 둔다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "5.0", ClampMax = "45.0"))
+	float EngageElevationDeg = 30.f;
 };
 
 /**
@@ -581,6 +649,16 @@ public:
 	/** 이동 및 회전 설정 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	FLNPEnemyMovementConfig MovementConfig;
+
+	/** 이동 도메인. `FreeFlight`면 Trait가 FLNPEnemyFlyingTag를 붙이고 비행 이동 프로세서가 맡는다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
+	ELNPNavigationDomain NavigationDomain = ELNPNavigationDomain::GroundSupport;
+
+	/** NavigationDomain == FreeFlight일 때만 쓰인다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Movement", meta = (EditCondition = "NavigationDomain == ELNPNavigationDomain::FreeFlight"))
+	FLNPEnemyFlightConfig FlightConfig;
+
+	bool IsFlying() const { return NavigationDomain == ELNPNavigationDomain::FreeFlight; }
 
 	/** 피격 감지 Processor가 사용하는 충돌 Capsule 크기. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))

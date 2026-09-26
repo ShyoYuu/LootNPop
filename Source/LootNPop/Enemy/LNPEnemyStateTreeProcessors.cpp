@@ -354,6 +354,15 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 	const FVector GravityOrigin = SharedConfig.Config ? SharedConfig.Config->MovementConfig.GravityOrigin : FVector::ZeroVector;
 	const FVector UpDir = (GravityOrigin - EntityLocation).GetSafeNormal();
 
+	// 비행 개체는 고도 차이도 날아서 좁힐 수 있는 거리라 **3D 거리**로 잰다 — ULNPEnemyFlightMovementProcessor의 도착 신호와 같은 규약이다.
+	const bool bFlying = SharedConfig.Config && SharedConfig.Config->IsFlying();
+	const auto GoalDistSq = [&](const FVector& Goal)
+	{
+		return bFlying
+			? FVector::DistSquared(Goal, EntityLocation)
+			: FVector::VectorPlaneProject(Goal - EntityLocation, UpDir).SizeSquared();
+	};
+
 	// 2. 교착 복구: MovementProcessor가 미도달 타임아웃을 보고하면 목표를 폐기하고 즉시 재추첨한다.
 	//    LastWanderTime을 0으로 되돌려 대기 인터벌을 건너뛴다 — 이미 타임아웃만큼 기다린 상태다.
 	if (IdleData.bWanderTargetTimedOut)
@@ -390,7 +399,15 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 		ULNPSurfaceCacheSubsystem* SurfaceCache = Context.GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
 		FVector WanderPoint;
 		const ULNPMassWorldCollisionSubsystem* WorldCollision = Context.GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-		if (LNPEnemyExactMovement::IsEnabled() && WorldCollision && SharedConfig.Config)
+		if (bFlying)
+		{
+			// 비행 개체는 지면을 찾지 않는다 — Home(Pod 지면점) 위 배회 고도 대역의 3D 점이다(D-053).
+			// 섬 안에 떨어진 점은 비행 이동의 lookahead가 앞에서 멈추고 배회 타임아웃이 다시 뽑는다.
+			const FLNPEnemyFlightConfig& Flight = SharedConfig.Config->FlightConfig;
+			const float Altitude = FMath::FRandRange(Flight.IdleAltitudeMin, FMath::Max(Flight.IdleAltitudeMin, Flight.IdleAltitudeMax));
+			MoveTarget.Center = Enemy.ParentPodLocation + TangentOffset - PodOutDir * Altitude;
+		}
+		else if (LNPEnemyExactMovement::IsEnabled() && WorldCollision && SharedConfig.Config)
 		{
 			// SurfaceCache는 방향마다 첫 hit 한 층뿐이라 섬 아래 적에게 섬 윗면을 준다. 엔티티와 같은 반지름에서
 			// 다시 찍어 같은 층을 고른다. 없으면(섬 가장자리 밖 등) 제자리에 서서 다음 추첨을 기다린다.
@@ -416,7 +433,7 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 
 		// DistanceToGoal은 도착 임계값이 아니라 **남은 거리**다 — TargetFollow·SteeringTask 등
 		// 다른 기록 지점과 같은 규약으로 실제 값을 넣는다(상수를 넣어두면 임계값으로 오해된다).
-		MoveTarget.DistanceToGoal = FVector::VectorPlaneProject(MoveTarget.Center - EntityLocation, UpDir).Size();
+		MoveTarget.DistanceToGoal = FMath::Sqrt(GoalDistSq(MoveTarget.Center));
 		MoveTarget.DesiredSpeed = FMassInt16Real(0.0f);
 
 		IdleData.bNeedNewWanderTarget = false;
@@ -426,7 +443,7 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 	// 3. 완료 체크: 현재 배회 타겟 도달 시 다음 인터벌 대기.
 	//    임계값은 MovementProcessor의 도착 신호 조건과 **같은 상수**여야 한다 — 이쪽이 더 느슨하면
 	//    신호 없이는 어차피 Tick이 안 돌아 의미가 없고, 더 빡빡하면 신호가 와도 완료가 안 잡힌다.
-	const float DistSq = FVector::VectorPlaneProject(MoveTarget.Center - EntityLocation, UpDir).SizeSquared();
+	const float DistSq = GoalDistSq(MoveTarget.Center);
 	if (DistSq < FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance))
 	{
 		if (IdleData.bNeedNewWanderTarget == false)

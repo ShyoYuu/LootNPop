@@ -5,6 +5,7 @@
 #include "DataAsset/LNPMassSpawnConfig.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "Enemy/LNPEnemyConfig.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "Replication/LNPMassReplication.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
@@ -618,6 +619,27 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 	}
 }
 
+FVector ULNPMassSpawnSubsystem::LiftFlyingSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint) const
+{
+	// 스폰 배치는 지상 적과 같은 지면점을 준다. 비행 개체는 배회 고도 하한까지 Up으로 띄운다(Phase03c §3.7).
+	// 위에 섬이 있으면 섬 밑면 아래에 여유를 남기고 선다 — 재시도 없이 한 번의 sweep으로 정해져 결정론적이다.
+	const FLNPEnemyFlightConfig& Flight = Config.FlightConfig;
+	const float BodyRadius = FMath::Max(Config.CapsuleRadius, Config.CapsuleHalfHeight);
+	const float SweepRadius = BodyRadius + Flight.Clearance;
+	const FVector Up = (Config.MovementConfig.GravityOrigin - GroundPoint).GetSafeNormal();
+	const FVector Start = GroundPoint + Up * (SweepRadius + 1.f);
+	const FVector End = GroundPoint + Up * FMath::Max(Flight.IdleAltitudeMin, SweepRadius + 1.f);
+
+	const ULNPMassWorldCollisionSubsystem* WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	FLNPWorldHit Hit;
+	if (WorldCollision == nullptr
+		|| !WorldCollision->SweepSphereWorld(Start, End, SweepRadius, FLNPWorldQueryParams(ELNPWorldQueryClass::FlightSteering), Hit))
+	{
+		return End;
+	}
+	return Hit.bStartPenetrating ? Start : Hit.Location;
+}
+
 void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms, FMassEntityHandle ParentLootPod, const FVector& ParentPodLocation)
 {
 	UWorld* World = GetWorld();
@@ -633,7 +655,13 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 		// 1. Transform 설정
 		if (FTransformFragment* TransformFragment = EntityManager.GetFragmentDataPtr<FTransformFragment>(Entity))
 		{
-			TransformFragment->SetTransform(Transforms[i]);
+			FTransform SpawnTransform = Transforms[i];
+			const FLNPEnemySharedFragment* EnemyShared = EntityManager.GetConstSharedFragmentDataPtr<FLNPEnemySharedFragment>(Entity);
+			if (EnemyShared && EnemyShared->Config && EnemyShared->Config->IsFlying())
+			{
+				SpawnTransform.SetLocation(LiftFlyingSpawn(*EnemyShared->Config, SpawnTransform.GetLocation()));
+			}
+			TransformFragment->SetTransform(SpawnTransform);
 		}
 
 		// 2. Leash 메타데이터 설정 (Enemy이고 부모가 유효한 경우)

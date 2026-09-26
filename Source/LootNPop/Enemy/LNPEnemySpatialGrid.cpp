@@ -209,6 +209,9 @@ void ULNPEnemySpatialGridProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	// 시체는 밀어낼 대상도, 피해 갈 대상도 아니다.
 	EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	// 비행 개체는 넣지 않는다. 유일한 소비처(지상 분리)가 거리를 접평면으로만 재므로,
+	// 넣으면 머리 위 수천 cm의 비행 개체가 지상 적을 밀어낸다. 비행끼리의 분리는 Phase03c 구현 단위 2에서 정한다.
+	EnemyQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None);
 	EnemyQuery.RegisterWithProcessor(*this);
 
 	ProcessorRequirements.AddSubsystemRequirement<ULNPEnemySpatialGridSubsystem>(EMassFragmentAccess::ReadWrite);
@@ -258,6 +261,7 @@ void ULNPEnemySeparationProcessor::ConfigureQueries(const TSharedRef<FMassEntity
 	SeparationQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	SeparationQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	SeparationQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	SeparationQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None); // 접평면 분리는 지상 도메인 규약이다
 	SeparationQuery.RegisterWithProcessor(*this);
 
 	ProcessorRequirements.AddSubsystemRequirement<ULNPEnemySpatialGridSubsystem>(EMassFragmentAccess::ReadOnly);

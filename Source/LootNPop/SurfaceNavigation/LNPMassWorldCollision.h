@@ -19,6 +19,8 @@ enum class ELNPWorldQueryClass : uint8
 	AirborneMandatory,
 	GroundRiskFallback,
 	DynamicSupportContact,
+	/** 비행 개체의 전방 lookahead와 회피 후보 sweep(Phase03c §3.3). 필수 분류는 PeriodicGroundValidation 앞에 둔다. */
+	FlightSteering,
 	PeriodicGroundValidation,
 	DebugValidation,
 
@@ -27,7 +29,7 @@ enum class ELNPWorldQueryClass : uint8
 
 namespace LNPWorldQuery
 {
-	/** 생략할 수 없는 분류인지. 앞의 네 분류가 필수다. */
+	/** 생략할 수 없는 분류인지. PeriodicGroundValidation 앞의 분류가 모두 필수다. */
 	inline bool IsMandatory(const ELNPWorldQueryClass Class)
 	{
 		return Class < ELNPWorldQueryClass::PeriodicGroundValidation;

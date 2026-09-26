@@ -79,6 +79,25 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	 */
 	UPROPERTY(Transient)
 	float FlinchTimeRemaining = 0.0f;
+
+	/**
+	 * 피격 반응 두 타이머를 상태와 무관하게 감소시킨다. 매 프레임 도는 이동 프로세서(지상·비행)가 부른다 —
+	 * 시계는 한 곳에서 정의해야 두 도메인의 반응 시간이 어긋나지 않는다.
+	 * @return 감소 전 HitReactTimer가 살아 있었는지(이번 프레임 피격 주시 중인지)
+	 */
+	bool TickReactionTimers(const float DeltaTime)
+	{
+		const bool bHitReacting = (HitReactTimer > 0.0f);
+		if (bHitReacting)
+		{
+			HitReactTimer = FMath::Max(HitReactTimer - DeltaTime, 0.0f);
+		}
+		if (FlinchTimeRemaining > 0.0f)
+		{
+			FlinchTimeRemaining = FMath::Max(FlinchTimeRemaining - DeltaTime, 0.0f);
+		}
+		return bHitReacting;
+	}
 };
 
 /** 인식으로 감지된 후보 Player, 슬롯 확인 대기 중 */
@@ -505,6 +524,28 @@ USTRUCT() struct LOOTNPOP_API FLNPEnemyActorInitializedTag : public FMassTag { G
 
 /** Destroy 대기 상태 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyDyingTag : public FMassTag { GENERATED_BODY() };
+
+/**
+ * 비행 적의 이동 상태(서버 전용, 복제하지 않는다). `ELNPNavigationDomain::FreeFlight` 적에게만 붙는다.
+ * 소비자는 ULNPEnemyFlightMovementProcessor 하나다.
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemyFlightFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	/**
+	 * 교전 중 지금 자리에서 쏘고 있는가. 교전 지점에 도착하면 켜고, 사거리나 조준 각도를 벗어나면 끈다.
+	 * 켜진 동안에는 타겟이 조금 움직여도 자리를 바꾸지 않는다 — 발밑으로 파고드는 플레이어에게서 도망치지 않게 한다.
+	 */
+	bool bHoldingFirePosition = false;
+};
+
+/**
+ * `ELNPNavigationDomain::FreeFlight` 적 Tag. Trait가 스폰 템플릿에 붙이고 떼지 않는다(도메인은 스폰 뒤 바뀌지 않는다).
+ * 지상 이동·분리·격자 프로세서는 이 Tag를 None으로 거르고, ULNPEnemyFlightMovementProcessor가 All로 받는다.
+ */
+USTRUCT() struct LOOTNPOP_API FLNPEnemyFlyingTag : public FMassTag { GENERATED_BODY() };
 
 class ULNPEnemyConfig;
 
