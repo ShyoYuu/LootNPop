@@ -7,6 +7,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
 #include "Engine/StaticMesh.h"
@@ -26,6 +27,10 @@ constexpr TCHAR SourceLevelPackageName[] =
 	TEXT("/Game/SurfaceNavigationTests/MeshTerrain/LVI_Octant_COption");
 constexpr TCHAR CubeMeshPath[] = TEXT("/Engine/BasicShapes/Cube.Cube");
 constexpr TCHAR SphereMeshPath[] = TEXT("/Engine/BasicShapes/Sphere.Sphere");
+constexpr const TCHAR* ContractOctantLevelPaths[] = {
+	TEXT("/Game/Maps/Meadow_00/LVI_Octant_Meadow_00.LVI_Octant_Meadow_00"),
+	TEXT("/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Crust.LVI_Octant_Fixture_Crust"),
+};
 constexpr TCHAR SurfaceDataPackageName[] =
 	TEXT("/Game/SurfaceNavigationTests/Schema/DA_MinimalOctantSurfaceData");
 constexpr TCHAR SurfaceDataAssetName[] = TEXT("DA_MinimalOctantSurfaceData");
@@ -74,6 +79,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPOctantSourceDependencyCollectionTest,
 	"LootNPop.SurfaceNavigation.Schema.SourceDependencyCollection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPOctantSourceContractValidationTest,
+	"LootNPop.SurfaceNavigation.Schema.SourceContractValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPProductionOctantSourceValidationTest,
+	"LootNPop.SurfaceNavigation.Schema.ProductionOctantSourceValidation",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -301,7 +316,7 @@ bool FLNPOctantSourceDependencyCollectionTest::RunTest(const FString& Parameters
 		.ShouldSimulatePhysics(false)
 		.SetTransactional(false));
 
-	auto SpawnMeshActor = [&TestWorld](UStaticMesh* Mesh, TArray<FName> Tags, const FVector& Location)
+	auto SpawnMeshActor = [&TestWorld](UStaticMesh* Mesh, TArray<FName> Tags, FName Profile, const FVector& Location)
 	{
 		AStaticMeshActor* Actor = TestWorld->SpawnActor<AStaticMeshActor>(Location, FRotator::ZeroRotator);
 		if (Actor)
@@ -309,7 +324,7 @@ bool FLNPOctantSourceDependencyCollectionTest::RunTest(const FString& Parameters
 			UStaticMeshComponent* Component = Actor->GetStaticMeshComponent();
 			Component->SetStaticMesh(Mesh);
 			Component->ComponentTags = MoveTemp(Tags);
-			Component->SetCollisionProfileName(TEXT("BlockAll"));
+			Component->SetCollisionProfileName(Profile);
 		}
 		return Actor;
 	};
@@ -317,23 +332,27 @@ bool FLNPOctantSourceDependencyCollectionTest::RunTest(const FString& Parameters
 	AStaticMeshActor* TerrainActorA = SpawnMeshActor(
 		CubeMesh,
 		{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static"), TEXT("Ignored.Tag")},
+		TEXT("LNPStaticTerrain"),
 		FVector(10.0, 20.0, 30.0));
 	AStaticMeshActor* TerrainActorB = SpawnMeshActor(
 		CubeMesh,
 		{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Static")},
+		TEXT("LNPStaticSupport"),
 		FVector(-10.0, 15.0, 45.0));
 	AStaticMeshActor* DecorationActor = SpawnMeshActor(
 		SphereMesh,
 		{TEXT("LNP.Surface.Decoration")},
+		TEXT("LNPDecoration"),
 		FVector(0.0, 100.0, 0.0));
 	AStaticMeshActor* UntaggedActor = SpawnMeshActor(
 		SphereMesh,
 		{},
+		UCollisionProfile::NoCollision_ProfileName,
 		FVector(0.0, -100.0, 0.0));
 	TestNotNull(TEXT("First Terrain Contract actor spawns"), TerrainActorA);
 	TestNotNull(TEXT("Second Terrain Contract actor spawns"), TerrainActorB);
 	TestNotNull(TEXT("Decoration actor spawns"), DecorationActor);
-	TestNotNull(TEXT("Untagged actor spawns"), UntaggedActor);
+	TestNotNull(TEXT("Untagged NoCollision actor spawns"), UntaggedActor);
 
 	TArray<FLNPOctantSourcePackage> MeshManifest;
 	TArray<FLNPTerrainSourceSemantic> Semantics;
@@ -414,6 +433,126 @@ bool FLNPOctantSourceDependencyCollectionTest::RunTest(const FString& Parameters
 	GEngine->DestroyWorldContext(TestWorld.Get());
 	TestWorld->DestroyWorld(true);
 	TestWorld.Reset();
+	return !HasAnyErrors();
+}
+
+bool FLNPOctantSourceContractValidationTest::RunTest(const FString& Parameters)
+{
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	AssetRegistry.WaitForCompletion();
+
+	UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, CubeMeshPath);
+	TestNotNull(TEXT("Cube mesh fixture loads"), CubeMesh);
+	if (!CubeMesh)
+	{
+		return false;
+	}
+
+	struct FContractCase
+	{
+		const TCHAR* Name;
+		TArray<FName> Tags;
+		FName Profile;
+		bool bExpectSuccess;
+	};
+	const TArray<FContractCase> Cases = {
+		{TEXT("Static terrain with matching profile"),
+			{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+			TEXT("LNPStaticTerrain"), true},
+		{TEXT("Static blocker with matching profile"),
+			{TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+			TEXT("LNPStaticBlocker"), true},
+		{TEXT("Untagged component without collision"),
+			{}, UCollisionProfile::NoCollision_ProfileName, true},
+		{TEXT("Untagged component with collision"),
+			{}, TEXT("BlockAll"), false},
+		{TEXT("Lifecycle tag without role and with collision"),
+			{TEXT("LNP.Surface.Static")}, TEXT("LNPStaticTerrain"), false},
+		{TEXT("Dynamic lifecycle inside an octant LVI"),
+			{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Dynamic")},
+			TEXT("LNPDynamicTerrain"), false},
+		{TEXT("Blocker tag on a Support-only profile"),
+			{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+			TEXT("LNPStaticSupport"), false},
+		{TEXT("Support tag missing on a terrain profile"),
+			{TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+			TEXT("LNPStaticTerrain"), false},
+		{TEXT("Role tags with legacy BlockAll profile"),
+			{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+			TEXT("BlockAll"), false},
+		{TEXT("Decoration with a non-Decoration profile"),
+			{TEXT("LNP.Surface.Decoration")}, TEXT("BlockAll"), false},
+		{TEXT("Decoration combined with a lifecycle tag"),
+			{TEXT("LNP.Surface.Decoration"), TEXT("LNP.Surface.Static")}, TEXT("LNPDecoration"), false},
+	};
+
+	for (const FContractCase& Case : Cases)
+	{
+		TStrongObjectPtr<UWorld> TestWorld(NewObject<UWorld>(GetTransientPackage()));
+		TestWorld->WorldType = EWorldType::EditorPreview;
+		FWorldContext& WorldContext = GEngine->CreateNewWorldContext(TestWorld->WorldType);
+		WorldContext.SetCurrentWorld(TestWorld.Get());
+		TestWorld->InitializeNewWorld(UWorld::InitializationValues()
+			.AllowAudioPlayback(false)
+			.CreatePhysicsScene(false)
+			.RequiresHitProxies(false)
+			.CreateNavigation(false)
+			.CreateAISystem(false)
+			.ShouldSimulatePhysics(false)
+			.SetTransactional(false));
+
+		AStaticMeshActor* Actor = TestWorld->SpawnActor<AStaticMeshActor>(FVector::ZeroVector, FRotator::ZeroRotator);
+		if (Actor)
+		{
+			UStaticMeshComponent* Component = Actor->GetStaticMeshComponent();
+			Component->SetStaticMesh(CubeMesh);
+			Component->ComponentTags = Case.Tags;
+			Component->SetCollisionProfileName(Case.Profile);
+
+			TArray<FLNPOctantSourcePackage> Manifest;
+			TArray<FLNPTerrainSourceSemantic> Semantics;
+			FString Error;
+			const bool bCollected = FLNPOctantSourceCollector::CollectTerrainComponents(
+				*TestWorld, AssetRegistry, Manifest, Semantics, Error);
+			TestEqual(FString::Printf(TEXT("%s: collection result"), Case.Name), bCollected, Case.bExpectSuccess);
+			if (!Case.bExpectSuccess)
+			{
+				TestTrue(FString::Printf(TEXT("%s: error names the component"), Case.Name),
+					Error.Contains(Component->GetPathName()));
+			}
+		}
+		else
+		{
+			AddError(FString::Printf(TEXT("%s: actor failed to spawn"), Case.Name));
+		}
+
+		GEngine->DestroyWorldContext(TestWorld.Get());
+		TestWorld->DestroyWorld(true);
+	}
+
+	return !HasAnyErrors();
+}
+
+bool FLNPProductionOctantSourceValidationTest::RunTest(const FString& Parameters)
+{
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	AssetRegistry.WaitForCompletion();
+
+	for (const TCHAR* LevelPath : ContractOctantLevelPaths)
+	{
+		FLNPOctantSourceCollection Collection;
+		FString Error;
+		const bool bCollected = FLNPOctantSourceCollector::CollectFromLevel(
+			FSoftObjectPath(LevelPath), 1, {}, Collection, Error);
+		TestTrue(FString::Printf(TEXT("%s satisfies the Terrain Contract"), LevelPath), bCollected);
+		if (!bCollected)
+		{
+			AddError(Error);
+			continue;
+		}
+		TestTrue(FString::Printf(TEXT("%s has Terrain Contract role components"), LevelPath),
+			Collection.TerrainSemantics.Num() > 0);
+	}
 	return !HasAnyErrors();
 }
 
