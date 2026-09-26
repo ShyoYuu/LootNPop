@@ -293,9 +293,11 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	// 개발용 적 밀도 배수 (기본 1 = no-op). 근거는 CVarSpawnEnemyDensity 주석 참조.
 	const float EnemyDensity = GetEnemySpawnDensity();
 
-	// 부하 harness(-LNPLoadBaseline=N)는 에셋의 적을 0으로 두고 PlayerStart 주변 링에 정확히 N마리를 둔다.
+	// 부하 harness(-LNPLoadBaseline=N, -LNPLoadBaselineFlyers=F)는 에셋의 적을 0으로 두고 링에 정확히 N·F마리를 둔다.
 	// Pod는 에셋대로 두되 배치 seed를 고정한다. 상세는 LNPLoadBaseline.h.
+	const bool bBaseline = LNPLoadBaseline::IsActive();
 	const int32 BaselineEnemies = LNPLoadBaseline::GetEnemyCount();
+	const int32 BaselineFlyers = LNPLoadBaseline::GetFlyerCount();
 	int32 BaselineAssetIndices[static_cast<int32>(LNPLoadBaseline::EEnemyKind::Count)];
 	for (int32 Kind = 0; Kind < UE_ARRAY_COUNT(BaselineAssetIndices); ++Kind)
 	{
@@ -313,6 +315,19 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 			}
 		}
 	}
+	int32 BaselineFlyerAssetIndex = INDEX_NONE;
+	if (BaselineFlyers > 0)
+	{
+		if (UMassEntityConfigAsset* FlyerConfig = LNPLoadBaseline::LoadFlyerEntityConfig())
+		{
+			BaselineFlyerAssetIndex = CapturedAssets.Num();
+			CapturedAssets.Add(FlyerConfig);
+		}
+		else
+		{
+			UE_LOG(LogLootNPop, Error, TEXT("LNPMassSpawnSubsystem: load baseline flyer config failed to load."));
+		}
+	}
 
 	TArray<FPodSetBuildParams> SetParams;
 	for (const FLNPLootPodSpawnEntry& PodSet : InConfig->LootPodSpawnSets)
@@ -324,7 +339,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 
 		for (const FLNPEnemySpawnEntry& Enemy : PodSet.AssociatedEnemies)
 		{
-			const int32 Count = BaselineEnemies > 0 ? 0 : FMath::RoundToInt32(Enemy.Count * EnemyDensity);
+			const int32 Count = bBaseline ? 0 : FMath::RoundToInt32(Enemy.Count * EnemyDensity);
 			P.Enemies.Add({ Count, CapturedAssets.Num() });
 			CapturedAssets.Add(Enemy.EnemyEntityConfig);
 		}
@@ -343,7 +358,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	const float MinDist          = InConfig->MinDistanceBetweenPods;
 	const float EnemyRadius      = InConfig->EnemySpawnRadiusAroundPod;
 	const int32 MaxRetry         = InConfig->MaxRetryCount;
-	const FRandomStream Rand     = BaselineEnemies > 0 ? FRandomStream(LNPLoadBaseline::GetSeed()) : RandomStream;
+	const FRandomStream Rand     = bBaseline ? FRandomStream(LNPLoadBaseline::GetSeed()) : RandomStream;
 
 	// 부하 harness 배치는 섬 아래 지각과 섬 윗면을 구분해야 해서 exact probe를 쓴다(모든 스레드에서 호출 가능, D-025).
 	const ULNPMassWorldCollisionSubsystem* WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
@@ -359,14 +374,17 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		 MinDist,
 		 EnemyRadius,
 		 MaxRetry,
+		 bBaseline,
 		 BaselineEnemies,
+		 BaselineFlyers,
 		 BaselineAssetIndices,
+		 BaselineFlyerAssetIndex,
 		 WorldCollision]() mutable
 		{
 			TArray<FVector> OccupiedPods;
 			TArray<FLNPAsyncSpawnEntry> Results;
 
-			if (BaselineEnemies > 0 && WorldCollision != nullptr)
+			if (bBaseline && WorldCollision != nullptr)
 			{
 				TArray<FVector> Feet;
 				FVector RingCenter;
@@ -395,6 +413,30 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 
 				UE_LOG(LogLootNPop, Display, TEXT("LNPMassSpawnSubsystem: load baseline placed %d/%d enemies around %s."),
 					Feet.Num(), BaselineEnemies, *RingCenter.ToString());
+
+				// 비행 적은 다른 seed의 두 번째 링 지면점에 둔다. 고도는 SetupSpawnedEntities가 스폰 규약대로 띄운다(Phase03c §3.7).
+				if (BaselineFlyers > 0 && BaselineFlyerAssetIndex != INDEX_NONE)
+				{
+					TArray<FVector> FlyerFeet;
+					FVector FlyerRingCenter;
+					LNPLoadBaseline::BuildEnemyRing(*WorldCollision, SR, LNPLoadBaseline::GetSeed() + LNPLoadBaseline::FlyerSeedOffset,
+						BaselineFlyers, FlyerFeet, FlyerRingCenter);
+
+					FLNPAsyncSpawnEntry FlyerEntry;
+					for (const FVector& Foot : FlyerFeet)
+					{
+						FlyerEntry.Transforms.Add(FTransform(UKismetMathLibrary::MakeRotFromZ(-Foot.GetSafeNormal()), Foot));
+					}
+					if (!FlyerEntry.Transforms.IsEmpty())
+					{
+						FlyerEntry.RequestType = ELNPSpawnRequestType::Enemy;
+						FlyerEntry.AssetIndex = BaselineFlyerAssetIndex;
+						FlyerEntry.SpawnLink = RingLink;
+						Results.Add(MoveTemp(FlyerEntry));
+					}
+
+					UE_LOG(LogLootNPop, Display, TEXT("LNPMassSpawnSubsystem: load baseline placed %d/%d flyers."), FlyerFeet.Num(), BaselineFlyers);
+				}
 			}
 
 			// FVector::DownVector(0,0,-1) 기준 10도 이내 영역 제외 (PlayerStart 배치 영역)

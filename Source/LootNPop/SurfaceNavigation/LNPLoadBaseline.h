@@ -15,7 +15,8 @@ class ULNPMassWorldCollisionSubsystem;
  * Phase 3 구현 단위 4 — 고정 부하 시나리오 harness(Phase03 문서 §4). Phase 3b·6도 같은 harness와 seed를 쓴다.
  *
  * 켜는 방법은 실행 인자 하나다. 스폰은 월드 개시 직후 한 번뿐이라 콘솔로는 늦다(LNP.Spawn.EnemyDensity와 같은 이유).
- *     -LNPLoadBaseline=300        적 수. 0이거나 없으면 harness 전체가 no-op이다
+ *     -LNPLoadBaseline=300        지상 적 수. 비행 수와 함께 0이거나 없으면 harness 전체가 no-op이다
+ *     -LNPLoadBaselineFlyers=100  비행 적 수(기본 0, Phase03c §3.8)
  *     -LNPLoadBaselineSeed=1      적 배치 seed(기본 1). Pod 배치 seed도 이 값으로 고정된다
  *     -LNPLoadBaselinePlayers=2   서버가 capture를 시작하기 전에 기다리는 플레이어 수(기본 2)
  *     -LNPLoadBaselineProjectiles=500  유지할 전체 발사체 수(기본 500). 요인 분리용 대조 실행에서만 바꾼다
@@ -25,8 +26,12 @@ class ULNPMassWorldCollisionSubsystem;
  *   링 일부가 섬 아래 지각을 지나고, 20마리 중 2마리(근접·원거리 1마리씩)는 섬 윗면에 둔다(Phase03b §3.6).
  *   배치는 exact support probe로 층을 골라 찍는다. SurfaceCache는 섬 방향에서 섬 윗면만 알아 섬 아래 지각에 둘 수 없다.
  *   10마리 중 1마리가 ActorPromoted, 나머지는 PureEntity 근접·원거리 반반이다. 세력권 중심은 링 중심이다.
+ * - 비행 적: 같은 방식의 두 번째 링(다른 seed)의 지면점에서 스폰 규약대로 배회 고도 하한까지 띄운다. Home은 링 중심(섬 가장자리 아래 지각)이라
+ *   배회·교전 경로가 섬 밑면·측벽 사이를 지난다. 합성 넉백·분포·이동 이벤트는 지상 개념이라 비행 적을 세지 않는다.
  * - 플레이어: 준비가 끝나면 서버가 모든 플레이어를 링 중심에 다시 스폰한다(Mover 텔레포트는 게스트에 전달되지 않는다). 적이 추격·공격하고 Actor로 승격되는 부하를 유지하고,
- *   섬 위 적이 가장자리 아래 플레이어를 쫓다가 떨어지게 한다.
+ *   섬 위 적이 가장자리 아래 플레이어를 쫓다가 떨어지게 한다. 지상 적이 0이고 비행 적만 있으면 링 중심 쪽 큰 섬 가장자리에서 500cm 안쪽
+ *   윗면에 스폰한다 — Home의 시야·세력권 안이라 비행 적이 교전하고, 섬 밑에서 가장자리를 돌아 올라가야 쏠 수 있다(Phase03c §3.8).
+ *   혼합 실행은 지상 기준선과 비교하려고 링 중심을 유지한다.
  * - 투사체: 서버가 실제 원거리 적 DA의 무기 값으로 발사체를 채워 전체 수를 500발로 유지한다. PureEntity 원거리 적이 쏜
  *   발사체도 전체 수에 들어간다. 주입분은 Multicast를 하지 않아 게스트 Ghost 비용은 자연 발사분만 포함한다.
  * - 합성 넉백: 서버가 접지한 PureEntity 적마다 평균 10초에 한 번 고정 세기 넉백을 준다. 섬 위 적은 섬 중심 반대쪽으로 민다.
@@ -35,11 +40,16 @@ class ULNPMassWorldCollisionSubsystem;
  * - 계측: 준비 완료 뒤 warm-up 10초, capture 30초. capture 시작에 MassWorldCollision 통계를 비우고, 프레임마다 누적 counter의
  *   차분으로 프레임당 exact 합계·락 대기를 표본화한다. 서버는 적 이동 이벤트(낙하·착지·섬 이탈·층 순간이동)를 센다.
  *   P50/P95/최대와 성공 기준 판정을 한 번 로그로 남긴다. 락 probe CVar를 켠다.
+ *   비행 적은 steering 결과 누계(LNPEnemyFlightStats)를 함께 남긴다. 관통 검출(LNP.SurfaceNav.LoadBaseline.FlightPenetrationCheck)은
+ *   비행 적마다 프레임당 query 1회를 더해 프레임·exact 통계를 오염시키므로 켠 실행은 관통 판정에만 쓴다.
  */
 namespace LNPLoadBaseline
 {
-	/** 모든 스레드. 실행 인자의 적 수. 0이면 harness가 꺼져 있다. */
+	/** 모든 스레드. 실행 인자의 지상 적 수. */
 	LOOTNPOP_API int32 GetEnemyCount();
+	/** 모든 스레드. 실행 인자의 비행 적 수. */
+	LOOTNPOP_API int32 GetFlyerCount();
+	/** 모든 스레드. 지상·비행 적 수의 합이 0이면 harness가 꺼져 있다. */
 	LOOTNPOP_API bool IsActive();
 	LOOTNPOP_API int32 GetSeed();
 	int32 GetTargetProjectiles();
@@ -64,6 +74,12 @@ namespace LNPLoadBaseline
 
 	/** 게임 스레드. 적 종류별 Mass entity config. 없으면 nullptr. */
 	UMassEntityConfigAsset* LoadEnemyEntityConfig(EEnemyKind Kind);
+
+	/** 게임 스레드. 비행 적 Mass entity config. 없으면 nullptr. */
+	UMassEntityConfigAsset* LoadFlyerEntityConfig();
+
+	/** 비행 적 링 배치 seed = 적 seed + 이 값. 지상 링과 자리가 겹치지 않게 한다. */
+	inline constexpr int32 FlyerSeedOffset = 7919;
 
 	/** 모든 스레드. 링 중심(큰 섬 가장자리 아래 지각)의 발밑 위치. exact probe가 지각을 못 찾으면 false. */
 	bool FindRingCenter(const ULNPMassWorldCollisionSubsystem& Collision, FVector& OutCenter);
@@ -100,6 +116,8 @@ private:
 
 	/** 서버. 합성 넉백을 주고 적 이동 이벤트·분포를 센다. bCount가 false면 상태만 갱신한다(warm-up). */
 	void DriveEnemies(float DeltaTime, bool bCount);
+	/** 서버. 관통 검출 CVar가 켜져 있으면 살아 있는 비행 적 캡슐이 exact 지형과 겹치는지 본다. */
+	void CheckFlyerPenetration();
 	void SampleFrame();
 	void Report();
 
@@ -108,7 +126,10 @@ private:
 	TObjectPtr<const ULNPEnemyConfig> ProjectileSourceConfig;
 
 	FMassEntityQuery ProjectileQuery;
+	/** Actor 없는 지상 적(비행 제외). */
 	FMassEntityQuery EnemyQuery;
+	/** 살아 있는 비행 적. */
+	FMassEntityQuery FlyerQuery;
 	FRandomStream ProjectileStream;
 	FRandomStream KnockbackStream;
 	FVector RingCenter = FVector::ZeroVector;
@@ -124,6 +145,15 @@ private:
 	uint64 LastLockNs = 0;
 	uint64 StartUnknownHits = 0;
 	uint64 StartEnvelopeEscapes = 0;
+
+	/** 서버. capture 구간 관통 검출 결과. */
+	int32 PenetrationFrames = 0;
+	int32 PenetrationEntityFrames = 0;
+	int32 PenetrationCheckedFrames = 0;
+
+	/** 서버. 비행 적 행동 상태(ELNPTargetingState: None·Alert·Confirmed)별 1초 표본 합과 표본 수. */
+	int64 FlyerStateSums[3] = {};
+	int32 FlyerStateSampleCount = 0;
 
 	/** capture 표본(프레임당). 프레임 시간은 0.01ms 단위, exact·락은 ns, 나머지는 개수. */
 	TArray<uint64> FrameMs100;

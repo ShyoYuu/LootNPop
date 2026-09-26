@@ -94,3 +94,70 @@
 - 영향: 3b 한계치 측정(단일 500·병렬 750)도 같은 harness 배치라 서 있는 일부 적이 묻힌 상태였다. 묻힌 적의 probe는 지지면 없이 `Rejected`로 끝나 query 수·비용이 정상 접지와 조금 다를 수 있다. 구현 단위 4 측정에서 지상 N=750 병렬을 한 번 다시 재 기준선이 유지되는지 확인한다.
 - 검증: Live Coding, 자동화 24/24(`ExactMovement.GroundAndCliff`에 묻힌 채 시작 케이스 추가).
 - 사용자 PIE(`EnemyExactGround 1`): 묻힌 지상 NPC 없음, 정상.
+
+## 2026-09-27 구현 단위 4 — 측정과 예산 결정
+
+### harness 확장
+
+- `-LNPLoadBaselineFlyers=F`: 비행 적을 지상 링과 다른 seed(`+7919`)의 두 번째 링 지면점에 두고 스폰 규약대로 띄운다. Home은 링 중심(섬 가장자리 아래 지각).
+- 비행 전용 실행(지상 0)은 플레이어를 링 중심 쪽 큰 섬 가장자리에서 500cm 안쪽 윗면에 둔다. 혼합 실행은 지상 기준선 비교를 위해 링 중심을 유지한다.
+  - 처음에는 섬 윗면 가운데에 뒀으나 Home에서 약 6,000cm라 시야(5,000cm) 밖이어서 교전이 거의 없었다(LoS 30초 140~406회).
+  - 섬 윗면(반지름 25,800)과 링 중심 지각(약 30,980)의 높이 차가 약 5,000cm라 가장자리 자리도 Home에서 직선 약 5,300cm다. 그래도 교전 수는 슬롯 상한(아래)까지 찬다.
+- 합성 넉백·분포·이동 이벤트는 지상 개념이라 비행 적을 뺀다(비행 적의 Velocity는 넉백 잔여).
+- 보고 추가: steering 결과 누계(`LNPEnemyFlightStats`: Hover·Clear·Blocked·Stuck·교착 복구 진입), 비행 1마리당 프레임 `FlightSteering`·`EnemyLineOfSight` query 수, 비행 적 행동 상태(None·Alert·Confirmed) 1초 표본 평균, 관통 검출(CVar `LNP.SurfaceNav.LoadBaseline.FlightPenetrationCheck`, 비행 캡슐을 Up 1cm sweep해 시작 겹침. 켠 실행은 프레임 판정에 쓰지 않는다).
+- `RunLoadBaselineMatrix.ps1`: `Flyers`·`Pen`·`Phase` 인자와 3c 시나리오(`F100/300/500_par`, `N500_F100_par`, `F500_par_pen`, 대조 `N500/700/750_exact_par_3c`). 로그는 `Saved/Profiling/Phase03c`.
+- 유니티 빌드 묶음이 바뀌며 `LNPFlightSteeringTest.cpp`와 `LNPEnemyExactMovementTest.cpp`의 익명 네임스페이스 `using namespace`·`TestDeltaTime`이 충돌했다. 비행 테스트에서 using-directive를 없애고 `LNPFlightSteering::`로 한정했다.
+
+### 측정 오염(1차, 폐기)
+
+1차 매트릭스는 백그라운드 게임 클라이언트가 CPU 약 0.5코어와 GPU를 쓰는 중에 돌았다. 지상 N750이 query 수는 같은데(1,576) 호출당 비용이 모든 분류에서 올라(발사체 1.81→2.22us) P95 19.48ms가 나왔다. 게임 종료 뒤 대조 N500이 3b와 같아(12.94 vs 13.21ms) 1차 수치는 버렸다(`Saved/Profiling/Phase03c/run1_withBackgroundGame`). 측정 전에 다른 게임·무거운 프로세스가 없는지 확인한다.
+
+### 결과(패키지 Development 호스트, `-nullrhi -corelimit=4`, 병렬 기본값, 조건당 1회)
+
+| 시나리오 | 서버 프레임 P50/P95 | exact/프레임 P50 | 상태 평균 None/Alert/Confirmed | `FlightSteering` 1마리당 프레임 · 호출당 | 막힘(이동 프레임 중) | 교착 포기 / 복구 진입 |
+|:---|:---|:---|:---|:---|:---|:---|
+| 비행 100 | 4.16/4.75ms | 0.85ms | 0 / 60 / 40 | 0.20 · 3.89us | 0.0% | 0 / 0 |
+| 비행 300 | 6.57/8.28ms | 1.52ms | 40 / 220 / 40 | 0.45 · 5.82us | 12.9% | 29 / 93 |
+| 비행 500 | 8.20/11.39ms | 1.12ms | 9 / 451 / 40 | 0.20 · 4.03us | 3.0% | 9 / 24 |
+| 지상 500 + 비행 100 | 13.06/14.44ms | 5.53ms | 3 / 92 / 5 | 0.14 · 6.06us | 18.9% | 4 / 12 |
+| 지상 500(대조) | 11.75/12.94ms | 4.99ms | — | — | — | — |
+
+- **동시 교전 비행 수는 슬롯 상한으로 고정된다.** 비행 적은 PureEntity 원거리라 원거리 슬롯 풀(`MaxRangedSlotsPerPlayer` 20)을 쓴다. 플레이어 2명이면 Confirmed는 40이고 나머지는 Alert(제자리 호버·주시)다. 혼합 실행은 지상 원거리 적이 같은 풀을 먼저 차지해 비행 Confirmed가 5뿐이었다. 비행 수를 늘리면 교전 비용이 아니라 대기·배회 비용이 는다.
+- **비행 exact 비용은 작다.** 1마리당 프레임 0.2~0.45 query, 호출당 약 4~6us. LoS는 30초 468~589회(개체당 프레임 0.0003~0.0006)이고 거부는 0~9회다.
+- **서버 프레임은 비행 100마리당 약 1.0~1.5ms 는다.** exact 몫은 0.1~0.3ms이고 나머지는 엔티티당 공통 비용(타게팅·StateTree·복제 등)이다. 지상 100마리당 약 1.7ms(그중 exact 약 0.85ms)와 비교하면 비행 1마리는 지상 1마리의 약 60~85%다. Phase 4 캐시로 줄어드는 부분이 아니다.
+- 안전성: 모든 실행에서 `UnknownHits=0`, `EnvelopeEscapes=0`, 호스트·게스트 ensure·crash 0. 관통 검출(비행 500, 2,921프레임) 관통 0. 게스트 프레임 P95 2.3~3.9ms.
+- 미해결: 2차 매트릭스의 비행 100 실행에서 호스트 게임 스레드가 비동기 스폰 배치 로그 직후 멈춰 게스트가 연결 타임아웃으로 끊겼다. 같은 조건 재실행과 다른 모든 실행에서는 재현되지 않았다. 덤프가 없어 원인 미상이다. 재발하면 `-LNPLoadBaseline` 스폰 배치(작업 스레드 exact probe)와 게임 스레드의 경합부터 본다.
+
+### 지상 한계치 재확인(스폰 매몰 수정 뒤)
+
+| N | 3b | 3c 1 | 3c 2 | 3c 3 |
+|:---|:---|:---|:---|:---|
+| 700 | 15.98ms | 16.81ms ✗ | 15.74ms ✓ | — |
+| 750 | 16.40ms | 17.59ms ✗ | 17.60ms ✗ | 16.89ms ✗ |
+
+- N750은 세 번 모두 16.6ms를 넘었다. 병렬 한계치는 **약 700(경계)**으로 내려왔다. N500은 3b와 같다.
+- query 수(750: 1,574~1,584 vs 1,575)와 분류별 호출당 비용(`GroundRiskFallback` 5.89 vs 5.92us)이 3b와 같다. exact 비용이 아니라 3b 이후 늘어난 비 query 비용(비행 이동·비행 격자 프로세서의 빈 실행, ISM 갱신 프로세서 교체, 매몰 수정 뒤 접지 분포 변화 등)으로 보이나 나누어 재지 않았다.
+- Phase 4 캐시 적중률 목표와 Phase 6 재측정의 비교 기준은 병렬 700으로 읽는다.
+
+### 결정(사용자, 2026-09-27)
+
+- 비행 적 총수는 **200**이다. Pod 편성을 타입으로 나눠 비행 적이 없는 Pod와 비행 적이 편성된 Pod를 둔다. 편성 Pod는 2~6기(2기만이면 허전해서 3·5·6 사용).
+- `DA_MassSpawnConfig`: 세트 4개, Pod 설정·지상 편성(ActorPromoted 근접 2, PureEntity 근접 10·원거리 2)은 모두 같다.
+
+| 타입 | Pod 수 | 드론/Pod | 드론 계 |
+|:---|:---|:---|:---|
+| 지상 전용 | 74 | 0 | 0 |
+| 경 편성 | 20 | 3 | 60 |
+| 표준 편성 | 16 | 5 | 80 |
+| 중 편성 | 10 | 6 | 60 |
+| 계 | 120 | | 200 |
+
+- 예산 근거: 한 플레이어 주변에 지상 500이 몰린 harness에서 P95 여유는 약 3.7ms이고 비행 100마리당 약 1.5ms라 동시 비행 약 200이 한계다. 실제 월드는 Pod가 흩어져 있지만 지상·비행 이동 프로세서에 시뮬레이션 LOD·가변 틱이 없어 서버는 거리와 무관하게 모든 적을 매 프레임 처리한다. 그래서 동시 교전 수가 아니라 총수를 예산으로 삼는다.
+
+## 2026-09-27 구현 단위 5 — 기능 점검과 Phase 종료
+
+- 사용자 PIE: 새 Pod 편성(D-054) 체감 이상 없음 — 드론 3·5·6기 Pod와 드론 없는 Pod의 분포 자연스러움.
+- D-031 2P 스모크(에디터 바이너리 `-game` 리슨, 기본 스폰 = 새 편성, 로그 `Saved/Logs/Smoke3c_U5`): 스폰 요청 526건(Pod 120 + 지상 360 + 드론 46)으로 편성과 일치. 사용자가 게스트 화면에서 드론과 교전 — 드론 위치·Ghost 발사체·HP 바 정상. 호스트·게스트 ensure·크래시 0, `LogLootNPop` 오류 0(기존 `CharacterMovementComponent` 추출 오류와 종료 시 연결 닫힘만).
+- `LootNPopEditor Win64 Development` 성공, 자동화 `LootNPop.SurfaceNavigation` 24/24, 패키지 BuildCookRun(`LootNPop Win64 Development`) 성공.
+- 문서: `../../TechDesign_EnemyNPC.md` 프로세서 표 18 → 21종(비행 이동, ISM 갱신 대체, 3c 이전부터 누락된 HitStop) — 인덱스 3곳(`CLAUDE.md`·`ProjectOverview.md`·Notion)과 `TechDesign_Networking.md`의 개수도 갱신. `design/RuntimeCollision.md` 쿼리 분류에 `FlightSteering`·`EnemyLineOfSight`, `design/MovementIntegration.md`에 3c 구현 규약, `Roadmap.md` 3c 완료·Phase 6 비교 기준 약 700.
+- Phase 3c 완료. 완료 조건 전부 충족(`../phases/Phase03c_FlyingNpcFoundation.md` §5).

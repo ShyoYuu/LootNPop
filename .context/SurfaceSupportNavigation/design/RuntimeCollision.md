@@ -193,10 +193,14 @@ Support 베이크는 collision channel 하나에 의존하지 않고 Terrain Con
 | AirborneMandatory | 아니오 | 넉백·낙하 착지 |
 | GroundRiskFallback | 아니오 | edge·절벽·불연속·동적 overlay |
 | DynamicSupportContact | 아니오 | 움직이는 패널 위 접촉 |
+| FlightSteering | 아니오 | 비행 개체의 전방 lookahead와 막혔을 때의 회피 후보 sweep(Phase03c §3.3). 비행 1마리당 프레임 0.2~0.45회·호출당 약 4~6us(2026-09-27 측정) |
+| EnemyLineOfSight | 아니오 | 적 사격 시작 전 총구 → 조준점 사선 raycast(Phase03c §3.2). 막히면 0.25초 뒤 재시도 |
 | PeriodicGroundValidation | 가능 | 고신뢰 지면의 주기 검증 |
 | DebugValidation | 가능 | Support와 Chaos 오차 측정 |
 
 정확성 필수 쿼리와 품질 향상용 쿼리의 예산을 섞지 않는다.
+
+코드(`ELNPWorldQueryClass`)는 `PeriodicGroundValidation` 앞의 분류를 모두 필수로 본다(`LNPWorldQuery::IsMandatory`). 새 필수 분류는 그 앞에 넣는다.
 
 원거리 LOD에서 경계를 통과하지 않고 보수적으로 정지하는 것은 `GroundRiskFallback` 생략이 아니다. 실제 전환을 요청한 프레임에는 반드시 exact를 수행한다.
 
