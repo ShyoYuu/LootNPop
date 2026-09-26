@@ -351,6 +351,17 @@ struct FLNPEnemyFlightConfig
 	/** 완전히 겹쳤을 때 밀어내는 속도(cm/s). 거리에 반비례해 선형으로 줄어든다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
 	float SeparationStrength = 400.f;
+
+	/**
+	 * 넉백 속도가 절반으로 줄어드는 시간(초). 비행 개체는 넉백에 중력을 쓰지 않고 이 반감기로 감쇠시킨다(Phase03c §3.5).
+	 * 1,200cm/s 넉백이면 밀리는 거리가 약 `1200 × 이 값 / ln2`다(0.25초면 약 430cm).
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.01"))
+	float KnockbackHalfLife = 0.25f;
+
+	/** 넉백 속도가 이 아래(cm/s)로 떨어지면 0으로 끊는다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Flight", meta = (ClampMin = "0.0"))
+	float KnockbackStopSpeed = 50.f;
 };
 
 /**
@@ -496,6 +507,14 @@ struct FLNPEntityAttackConfig
 	/** 인접한 육각 셀 사이의 각도 간격(도). 링 수와 곱한 값이 확산의 최대 반각이 된다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Ranged", meta = (ClampMin = "0.0"))
 	float HexStepDegrees = 5.f;
+
+	/**
+	 * 공격을 시작하기 전에 총구 → 조준점 사선이 트였는지 exact로 확인한다(`LNPEnemyLineOfSight`).
+	 * 막히면 공격을 시작하지 않고 `FLNPEntityAttackFragment::bLineOfSightBlocked`를 세운다 — 반응(재배치)은 이동 도메인이 맡는다.
+	 * 지금은 비행형만 켠다(Phase03c D-052). 지상 원거리형도 필요한 기능이지만, 켤 때 지상 이동의 재배치 반응을 함께 붙여야 한다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Ranged")
+	bool bRequireLineOfSight = false;
 };
 
 /**

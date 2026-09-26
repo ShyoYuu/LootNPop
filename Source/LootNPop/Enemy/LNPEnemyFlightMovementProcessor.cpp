@@ -35,9 +35,9 @@ void ULNPEnemyFlightMovementProcessor::ConfigureQueries(const TSharedRef<FMassEn
 	FlightQuery.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadOnly);
 	FlightQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	FlightQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);          // 피격 반응 시계
-	FlightQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);  // 사망 낙하
+	FlightQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);  // 넉백 감쇠·사망 낙하
 	FlightQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite);      // 배회 타임아웃 계측
-	FlightQuery.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly);    // 공격 중 정지·회전 고정
+	FlightQuery.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadWrite);   // 공격 중 정지·회전 고정, LoS 막힘 소비
 	FlightQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	FlightQuery.AddRequirement<FLNPEnemyFlightFragment>(EMassFragmentAccess::ReadWrite);     // 교전 위치 유지·조향 기억
 	FlightQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
@@ -91,7 +91,7 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 		const TArrayView<FLNPEnemyFragment> EnemyFragments = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
 		const TArrayView<FLNPEnemyVelocityFragment> VelocityFragments = Ctx.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 		const TArrayView<FLNPEnemyIdleFragment> IdleFragments = Ctx.GetMutableFragmentView<FLNPEnemyIdleFragment>();
-		const TConstArrayView<FLNPEntityAttackFragment> AttackFragments = Ctx.GetFragmentView<FLNPEntityAttackFragment>();
+		const TArrayView<FLNPEntityAttackFragment> AttackFragments = Ctx.GetMutableFragmentView<FLNPEntityAttackFragment>();
 		const TConstArrayView<FLNPPoiseFragment> PoiseFragments = Ctx.GetFragmentView<FLNPPoiseFragment>();
 		const TArrayView<FLNPEnemyFlightFragment> FlightFragments = Ctx.GetMutableFragmentView<FLNPEnemyFlightFragment>();
 
@@ -104,6 +104,8 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 		const float EngageStandoff = EngageAltitude / FMath::Tan(FMath::DegreesToRadians(FlightConfig.EngageElevationDeg));
 		const float AttackRangeSq = FMath::Square(MoveConfig.AttackRange);
 		const float AimTargetUpOffset = Config->EntityAttackConfig.AimTargetUpOffset;
+		// 넉백 감쇠 계수(프레임당). 반감기 기준 지수 감쇠다.
+		const float KnockbackDecay = FMath::Exp(-UE_LN2 * DeltaTime / FlightConfig.KnockbackHalfLife);
 
 		LNPFlightSteering::FParams SteeringParams;
 		SteeringParams.BodyRadius = FMath::Max(Config->CapsuleRadius, Config->CapsuleHalfHeight);
@@ -128,21 +130,32 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 			FLNPEnemyFragment& EnemyData = EnemyFragments[i];
 			const bool bHitReacting = EnemyData.TickReactionTimers(DeltaTime);
 
+			FLNPEnemyFlightFragment& FlightData = FlightFragments[i];
+			FVector& ExternalVelocity = VelocityFragments[i].Velocity;
+
 			if (bChunkIsDying)
 			{
-				// 비행을 끊고 떨어진다. 착지하면 속도가 0이 되어 그 자리에 멈춘다.
-				FVector& FallVelocity = VelocityFragments[i].Velocity;
-				if (!FallVelocity.IsNearlyZero())
+				// 비행을 끊고 착지할 때까지 떨어진다. 사망 팝이 0이어도 중력이 적분되므로 공중에 멈추지 않는다.
+				if (!FlightData.bDeathLanded)
 				{
 					FVector NewLocation;
-					LNPEnemyExactMovement::StepAirborne(WorldCollision, FallParams, Location, FallVelocity, DeltaTime, NewLocation);
+					FlightData.bDeathLanded = LNPEnemyExactMovement::StepAirborne(WorldCollision, FallParams, Location, ExternalVelocity, DeltaTime, NewLocation);
 					EntityTransform.SetLocation(NewLocation);
 				}
 				continue;
 			}
 
+			// 살아 있는 비행 개체에게 이 속도는 "공중 상태"가 아니라 외부에서 받은 속도(넉백)다(Phase03c §3.5).
+			// 생산자(ApplyEntityKnockback)는 지상과 같고, 소비만 다르다 — 중력 없이 감쇠한다.
+			if (!ExternalVelocity.IsZero())
+			{
+				ExternalVelocity *= KnockbackDecay;
+				if (ExternalVelocity.SizeSquared() < FMath::Square(FlightConfig.KnockbackStopSpeed))
+					ExternalVelocity = FVector::ZeroVector;
+			}
+
 			const FLNPEnemyTargetingFragment& Targeting = TargetingFragments[i];
-			FLNPEnemyFlightFragment& FlightData = FlightFragments[i];
+			FLNPEntityAttackFragment& Attack = AttackFragments[i];
 			if (Targeting.State != ELNPTargetingState::Confirmed)
 			{
 				FlightData.bHoldingFirePosition = false;
@@ -187,6 +200,18 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 					const float AimPitchDeg = FMath::RadiansToDegrees(FMath::Atan2(AimUp, (ToAim - UpDir * AimUp).Size()));
 					const bool bCanFireHere = ToAim.SizeSquared() <= AttackRangeSq
 						&& AimPitchDeg >= MoveConfig.AimPitchMinDeg && AimPitchDeg <= MoveConfig.AimPitchMaxDeg;
+
+					// 자리를 지키며 쏘려다 사선이 막혔다(섬 밑면·측벽). 타겟 기준 90도 옆 측면으로 옮긴다.
+					// 접근 중의 막힘에는 반응하지 않는다 — 매번 돌리면 도착하기 전에 제자리에서 맴돈다.
+					const bool bLineOfSightBlocked = Attack.bLineOfSightBlocked != 0;
+					Attack.bLineOfSightBlocked = 0;
+					if (FlightData.bHoldingFirePosition && bLineOfSightBlocked)
+					{
+						const FVector TargetUp = (GravityOrigin - Targeting.TargetLocation).GetSafeNormal();
+						const FVector CurrentSide = FVector::VectorPlaneProject(Location - Targeting.TargetLocation, TargetUp).GetSafeNormal();
+						FlightData.bHoldingFirePosition = false;
+						FlightData.EngageSide = FVector::CrossProduct(TargetUp, CurrentSide).GetSafeNormal();
+					}
 
 					// 쏠 수 있는 자리에 선 뒤에는 타겟이 조금 움직여도 따라 옮기지 않는다. 사거리·각도를 벗어날 때만 새 교전 지점으로 간다.
 					if (FlightData.bHoldingFirePosition && bCanFireHere)
@@ -256,7 +281,7 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 			}
 
 			// 공격 중에는 제자리 호버. 회전은 Active부터 잠근다(지상과 같은 규약 — 선딜만 조준이 따라온다).
-			const ELNPEntityAttackPhase AttackPhase = AttackFragments[i].Phase;
+			const ELNPEntityAttackPhase AttackPhase = Attack.Phase;
 			if (AttackPhase != ELNPEntityAttackPhase::None)
 			{
 				Speed = 0.f;
@@ -285,9 +310,14 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 				SeparationPush = SeparationPush.GetClampedToMaxSize(1.f) * FlightConfig.SeparationStrength;
 			}
 
+			// 넉백 중에는 조종이 약해진다 — 넉백 속도가 비행 속도에 가까울수록 원하는 속도를 줄인다. 맞는 순간 밀려나는 느낌을 준다.
+			const float Control = FlightConfig.FlightSpeed > 0.f
+				? 1.f - FMath::Clamp(ExternalVelocity.Size() / FlightConfig.FlightSpeed, 0.f, 1.f)
+				: 1.f;
+
 			FVector NewLocation;
 			const LNPFlightSteering::EStepResult SteerResult = LNPFlightSteering::Steer(WorldCollision, SteeringParams, Location, UpDir,
-				Goal, Speed, SeparationPush, DeltaTime, FlightData.Steering, NewLocation);
+				Goal, Speed * Control, SeparationPush + ExternalVelocity, DeltaTime, FlightData.Steering, NewLocation);
 			EntityTransform.SetLocation(NewLocation);
 
 			if (SteerResult == LNPFlightSteering::EStepResult::Stuck)

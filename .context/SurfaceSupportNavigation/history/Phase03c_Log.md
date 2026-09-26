@@ -68,3 +68,20 @@
 - 자동화 `FlightSteering.DetourAndStuck`: 섬 크기 블록 우회 도착·비접촉, 블록 속 목표는 `Stuck`·비관통.
 - 검증: `LootNPopEditor` 빌드 성공, 자동화 23/23, PIE `TestMap03`(비행 240) `FlightSteering` 779,577회·평균 3.11us·hit 388(0.05%, 구현 단위 1 PIE는 3.6%. 원인은 확인하지 않았다 — 스폰 배치가 실행마다 달라 같은 조건 비교가 아니다), `UnknownHits=0`, `EnvelopeEscapes=0`, ensure 0. 우회·분리의 체감은 사용자 PIE 확인 대기.
 - 사용자 PIE: Pod당 드론 10(120 Pod, 총 1,200)으로 늘려 섬 아래·경사로 아래 관통 동굴(유일한 동굴형 지형) 근처에서 확인 — 드론끼리 겹치지 않고 자연스럽게 우회해 온다. 스폰 편성 Pod당 10을 기본으로 유지(사용자 결정). 구현 단위 2 종료.
+
+## 2026-09-26 구현 단위 3 — 교전 마무리
+
+- LoS 게이트: `LNPEnemyLineOfSight::HasClearShot`, `FLNPEntityAttackConfig::bRequireLineOfSight`(기본 끔, 비행형만 켬), query 분류 `EnemyLineOfSight`, 공용 `LNPEntityAttack::ComputeAimPoint`(발사도 같은 함수로 교체). 막히면 공격 미시작 + `bLineOfSightBlocked` + 0.25초 뒤 재시도.
+- 비행 반응: 교전 자리 유지 중 막히면 유지 해제·교전 측면 90° 회전. 접근 중 막힘은 무시.
+- 넉백: `ApplyEntityKnockback`이 쓴 속도를 비행 프로세서가 반감기 0.25초로 감쇠, steering 추가 속도로 sweep, 조종 `1 - |넉백|/FlightSpeed`.
+- 사망: `bDeathLanded`로 착지까지 낙하(속도 0이어도 중력 적분). 비행형 사망 팝 300cm/s.
+- 자동화 `EnemyLineOfSight.Gate`: 섬 밑면 너머 막힘, 옆 트임, Unknown 막힘, 판정 1회 = query 1회.
+- 검증: `LootNPopEditor` 빌드 성공, `DA_Enemy_PureEntity_Flyer01` `bRequireLineOfSight` 켬, 자동화 24/24. PIE `TestMap03`(드론 1,200) `FlightSteering` 평균 3.55us, `UnknownHits=0`, `EnvelopeEscapes=0`, ensure 0. 플레이어가 교전하지 않아 `EnemyLineOfSight` query는 0 — 게이트·넉백·사망 낙하의 실제 동작은 사용자 PIE 확인 대기.
+
+### 사용자 PIE 피드백(구현 단위 3)
+
+- 섬 밑·계단 밑 등 입체 지형 주변으로 도망쳐도 드론이 사격 가능한 위치를 찾아가 공격한다. 런처 유탄 넉백 뒤 조종 회복도 자연스럽다.
+- 사망 팝(300cm/s, 높이 약 22cm)은 "살짝 움찔" 정도로 미미하다. 낙하 후 지면에 닿는 순간이 딱 멈춰 어색하다 — PureEntity라 물리 시뮬레이션이 없어 받아들이되, 착지 연출(짧은 바운스·기울기)은 후속 연출 과제로 둔다.
+- 요청: 사망 시 빨간 센서 끄기 → `ULNPUpdateISMProcessor`(엔진 ISM 갱신 대체) + 인스턴스 커스텀 데이터 + 센서 머티리얼 `PerInstanceCustomData[0]`.
+- 검증: `LootNPopEditor` 빌드 성공, 자동화 24/24, PIE `TestMap03`(드론 1,200) 약 40초 ensure 0·`LogMass`/`LogLootNPop` 오류 0(커스텀 데이터 개수 불일치 ensure 없음). 센서 소등과 ISM 전반 표시는 사용자 PIE 확인 대기.
+- 사용자 PIE: 사망 시 센서 소등(어두운 회색)·생존 드론 발광 유지 확인. ISKM에서도 지상 적 매몰이 보여 ISM 프로세서 교체와 무관함을 확인했다(매몰은 3b 버그로 별도 수정, 아래). 구현 단위 3 종료.

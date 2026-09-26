@@ -10,12 +10,18 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Enemy/LNPFlightSteering.h"
+#include "Enemy/LNPEnemyLineOfSight.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPFlightSteeringLookaheadTest,
 	"LootNPop.SurfaceNavigation.FlightSteering.LookaheadStop",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPEnemyLineOfSightGateTest,
+	"LootNPop.SurfaceNavigation.EnemyLineOfSight.Gate",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -231,6 +237,29 @@ bool FLNPFlightSteeringDetourTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Unreachable goal ends in Stuck"), Trace.StuckFrame != INDEX_NONE);
 		TestTrue(TEXT("Never enters the solid block"), Trace.MinBoxDistance >= Fixture.Params.BodyRadius - 1.0);
 	}
+	return true;
+}
+
+bool FLNPEnemyLineOfSightGateTest::RunTest(const FString& Parameters)
+{
+	FFlightWorld Fixture(TEXT("LNPEnemyLineOfSightGateTest"));
+	if (!TestNotNull(TEXT("World collision subsystem exists"), Fixture.Collision))
+		return false;
+
+	// 섬 밑면처럼 가로놓인 판 z∈[480,520], x·y∈[-500,500]. 등록하지 않은(Unknown) 판은 y=3000 줄.
+	Fixture.Slab(FVector(0, 0, 500), FVector(10, 10, 0.4), TEXT("LNPStaticTerrain"));
+	Fixture.Slab(FVector(0, 3000, 500), FVector(10, 10, 0.4), TEXT("LNPStaticTerrain"), /*bRegister=*/false);
+	Fixture.Publish();
+
+	const uint64 Before = Fixture.Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight);
+	TestFalse(TEXT("Shot from under the island to its top is blocked"),
+		LNPEnemyLineOfSight::HasClearShot(*Fixture.Collision, FVector(0, 0, 200), FVector(0, 0, 800)));
+	TestTrue(TEXT("Shot beside the island is clear"),
+		LNPEnemyLineOfSight::HasClearShot(*Fixture.Collision, FVector(800, 0, 200), FVector(800, 0, 800)));
+	TestFalse(TEXT("Unknown geometry also blocks the shot"),
+		LNPEnemyLineOfSight::HasClearShot(*Fixture.Collision, FVector(0, 3000, 200), FVector(0, 3000, 800)));
+	TestEqual(TEXT("Each gate check is one EnemyLineOfSight query"),
+		Fixture.Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight) - Before, static_cast<uint64>(3));
 	return true;
 }
 

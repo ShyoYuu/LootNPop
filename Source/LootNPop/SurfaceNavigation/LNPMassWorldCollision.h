@@ -21,6 +21,8 @@ enum class ELNPWorldQueryClass : uint8
 	DynamicSupportContact,
 	/** 비행 개체의 전방 lookahead와 회피 후보 sweep(Phase03c §3.3). 필수 분류는 PeriodicGroundValidation 앞에 둔다. */
 	FlightSteering,
+	/** 적 사격 전 총구 → 조준점 사선 확인(Phase03c §3.2, LNPEnemyLineOfSight). */
+	EnemyLineOfSight,
 	PeriodicGroundValidation,
 	DebugValidation,
 
