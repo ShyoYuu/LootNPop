@@ -40,7 +40,7 @@
 | 2 | Octant Definition과 베이크 스키마 | 1~2세션 | 완료 | 기존 옥탄트를 새 정의로 결정론적으로 로드 |
 | 3 | MassWorldCollision 정확성 기준선 | 3~5세션 | 완료 | production response Gate -1, worker 동기 query Gate 0, hit identity registry, 마커→서버 스폰 동적 패널, 투사체·탄도 가이드 exact 전환, 부하 기준선 |
 | 3b | exact 전용 부유섬 프로토타입 | 2~3세션 | 완료 | greybox 섬 옥탄트에서 PureEntity가 exact만으로 접지·낙하·넉백, exact 한계치 실측 |
-| 3c | 완전 비행 NPC 기반 | 2~3세션 | 다음 | 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전 |
+| 3c | 완전 비행 NPC 기반 | 2~3세션 | 진행 | 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전 |
 | 4a | 지각 Support Atlas와 옥탄트 이음매 | 2~3세션 | 대기 | greybox 옥탄트 지각의 Atlas 베이크와 8 slot 이음매 일치 |
 | 4b | 부유섬·동굴 키트 다층 베이크 | 2~3세션 | 대기 | 같은 방향 다층 Support와 공동 모듈 floor 분리 |
 | 5 | 런타임 로더와 SurfaceCache 교체 | 2~3세션 | 대기 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 단계 stale 검출 |
@@ -79,7 +79,7 @@ Support 캐시를 만들기 전에 두 가지를 확인한다(D-032).
 
 ### Phase 3c — 완전 비행 NPC 기반
 
-지상 NPC는 섬을 건너지 않으므로(D-011) 섬은 근접 적에게서 안전한 지대가 된다. 그 공백을 메우는 것이 원거리 NPC와 비행 NPC다. 의존성은 Phase 3의 exact sweep뿐이며 베이커·Nav와 무관하므로 Phase 3b 이후 언제든 병렬로 진행할 수 있고 Phase 4a를 막지 않는다(D-042). 설계는 `design/MovementIntegration.md` "완전 비행 NPC"를 따른다.
+지상 NPC는 섬을 건너지 않으므로(D-011) 섬은 근접 적에게서 안전한 지대가 된다. 그 공백을 메우는 것이 원거리 NPC와 비행 NPC다. 의존성은 Phase 3의 exact sweep뿐이며 베이커·Nav와 무관하므로 Phase 3b 이후 언제든 병렬로 진행할 수 있고 Phase 4a를 막지 않는다(D-042). 설계는 `design/MovementIntegration.md` "완전 비행 NPC"를 따른다. 실행 계획은 `phases/Phase03c_FlyingNpcFoundation.md`다.
 
 ### Phase 4 공통 전제
 

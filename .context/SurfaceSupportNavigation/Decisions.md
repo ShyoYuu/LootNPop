@@ -1,7 +1,7 @@
 # Surface Support·Navigation 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-09-25
+> 마지막 갱신: 2026-09-26
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다.
 
 ## 결정 목록
@@ -59,6 +59,8 @@
 | D-049 | PureEntity exact 이동은 접지 시 수평 capsule sweep + 하향 support probe, 공중 시 이전→제안 위치 capsule sweep이다. 걸을 수 없는 hit는 미끄러지고 Unknown hit에는 착지하지 않는다. Phase 6 exact 폴백으로 재사용한다. | 확정 | `phases/Phase03b_ExactFloatingIslandPrototype.md` §3.3 |
 | D-050 | 움직이는 패널 Actor 틱을 Mass PrePhysics 페이즈 tick function의 선행 조건으로 걸어, PrePhysics exact query가 패널 자세 갱신 뒤에 돌게 한다. 보장이 안 되면 이동 프로세서를 PostPhysics로 옮기는 안을 별도 세션에서 검토한다. | 확정 | `phases/Phase03b_ExactFloatingIslandPrototype.md` §3.5 |
 | D-051 | 섬과 지각을 잇는 경사로는 별도 메시와 지각 일체형 언덕 두 방법을 모두 허용하고 옥탄트마다 고른다. | 확정 | `design/TerrainContract.md` §5 |
+| D-052 | 완전 비행 NPC 1차는 PureEntity 원거리 사격형이다. 같은 `ULNPEnemyTrait`에 `NavigationDomain`과 비행 태그를 더하고, 이동만 별도 비행 이동 프로세서가 맡는다. 발사 전 LoS를 검사한다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.1·§3.2 |
+| D-053 | 비행 NPC 고도는 교전 중 타겟 상대 대역, 비교전 중 Home 기준 대역이다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.4 |
 
 ## 변경 규칙
 

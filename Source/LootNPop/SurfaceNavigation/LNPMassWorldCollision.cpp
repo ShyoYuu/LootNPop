@@ -33,6 +33,7 @@ namespace
 		TEXT("AirborneMandatory"),
 		TEXT("GroundRiskFallback"),
 		TEXT("DynamicSupportContact"),
+		TEXT("FlightSteering"),
 		TEXT("PeriodicGroundValidation"),
 		TEXT("DebugValidation"),
 	};

@@ -1,22 +1,28 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3c — 완전 비행 NPC 기반 · 착수 전(실행 문서 미작성)
+> 현재 Phase: Phase 3c — 완전 비행 NPC 기반 · 구현 단위 1 완료, 구현 단위 2 대기
 > 마지막 갱신: 2026-09-26
 
 ## 현재 목표
 
 Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완료 증거는 `phases/Phase03b_ExactFloatingIslandPrototype.md`와 `history/Phase03b_Log.md`에 있다.
 
-다음은 Phase 3c(완전 비행 NPC 기반)다(사용자 결정, 2026-09-26). 지상 NPC가 섬을 건너지 않아(D-011) 섬이 안전 지대가 되는 공백을 비행 NPC로 메운다. 핵심 완료 조건은 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전이다(`Roadmap.md` §3). 의존성은 Phase 3 exact sweep뿐이다(D-042). Phase 4a(지각 Support Atlas와 옥탄트 이음매)는 3c 뒤에 진행한다.
+현재는 Phase 3c(완전 비행 NPC 기반)다(사용자 결정, 2026-09-26). 실행 문서는 `phases/Phase03c_FlyingNpcFoundation.md`다. 지상 NPC가 섬을 건너지 않아(D-011) 섬이 안전 지대가 되는 공백을 비행 NPC로 메운다. 핵심 완료 조건은 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전이다(`Roadmap.md` §3). 의존성은 Phase 3 exact sweep뿐이다(D-042). Phase 4a(지각 Support Atlas와 옥탄트 이음매)는 3c 뒤에 진행한다.
 
 ## 착수 시 필수 문서
 
-- `Roadmap.md` §4 Phase 3c
-- `design/MovementIntegration.md` "완전 비행 NPC"(별도 archetype, 1차 이동 방식)
-- `design/RuntimeCollision.md`(worker 동기 exact sweep, D-025·D-037)
-- `phases/Phase03b_ExactFloatingIslandPrototype.md` §3.3(exact 이동 규약)·§3.6(harness·한계치 측정 규약)
-- 기존 적 구조: `../TechDesign_EnemyNPC.md`, `../TechDesign_EnemyNPC_LowLOD.md`(PureEntity·복제·표현)
+- `phases/Phase03c_FlyingNpcFoundation.md`(범위·확정 결정·구현 단위·완료 조건)
+- 구현 단위 1·2: `design/MovementIntegration.md` "완전 비행 NPC", `design/RuntimeCollision.md` 쿼리 분류
+- 구현 단위 3: `../TechDesign_EnemyNPC_LowLOD.md` §4.4(원거리)·§8(사망)
+
+## Phase 3c 확정 사항(2026-09-26 사용자 결정)
+
+- PureEntity 전용, 같은 Enemy Trait + 비행 태그, 별도 비행 이동 프로세서(D-052)
+- 1차 공격은 기존 PureEntity 원거리 사격 재사용 + 발사 전 LoS 게이트(D-052)
+- 고도: 교전은 타겟 상대 대역·선회, 비교전은 Home 기준 대역(D-053)
+- 외형: 블렌더 MCP로 새 저폴리 static mesh, ISM 표현
+- 목표 개체 수·예산: 구현 단위 4 측정 뒤 결정
 
 ## Phase 3b 인계 기준선
 
@@ -30,9 +36,8 @@ Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완
 
 ## 바로 다음 작업
 
-1. **Phase 3c 실행 문서 작성.** 위 필수 문서와 현재 적 코드(archetype·이동 프로세서·StateTree·복제)를 읽고 `phases/Phase03c_FlyingNpcFoundation.md`를 만든다. 범위·확정 결정·구현 단위·완료 조건(D-031 2P 스모크 포함)을 담고, 미정 사항(비행 archetype 구성, 섬 회피 방식, 공격 패턴, 목표 개체 수·비용 예산)은 사용자에게 질문해 확정한다.
-2. 실행 문서 확정 뒤 구현 단위 1에 착수한다.
-3. Phase 4a는 3c 뒤에 Phase 4 공통 전제부터 처리한다(fixture 재배치·fixture LVI 30,000cm 좌표 재계산과 `WorldCollision.RegressionMap` 기대값 동시 갱신, 동굴 fixture 키트 교체, greybox 섬 옥탄트에 동굴 키트 공동 모듈과 통로).
+1. **구현 단위 2 — 3D local planner.** `LNPFlightSteering::Step`의 Blocked 결과에 후보 heading 평가·회피 방향 유지·교착 복구를 붙이고 비행 개체끼리 3D 분리의 이웃 탐색원을 정한다(Phase 문서 §3.3)
+2. Phase 4a는 3c 뒤에 Phase 4 공통 전제부터 처리한다(fixture 재배치·fixture LVI 30,000cm 좌표 재계산과 `WorldCollision.RegressionMap` 기대값 동시 갱신, 동굴 fixture 키트 교체, greybox 섬 옥탄트에 동굴 키트 공동 모듈과 통로).
 
 ## 이관된 후속 작업
 
@@ -63,6 +68,11 @@ Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-26 Phase 3c 구현 단위 1:
+
+- `LootNPopEditor Win64 Development` 성공, 자동화 22/22(신규 `FlightSteering.LookaheadStop`)
+- PIE `TestMap03`, 비행 240: `FlightSteering` 평균 3.71us·비행 1마리당 프레임 약 0.3회, `UnknownHits=0`, `EnvelopeEscapes=0`, ensure 0
 
 2026-09-26 Phase 3b 구현 단위 4(기능 점검·Phase 종료):
 

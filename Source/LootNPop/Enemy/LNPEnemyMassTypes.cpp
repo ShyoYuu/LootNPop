@@ -110,6 +110,13 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 	// 3. 식별 Tag
 	BuildContext.AddTag<FLNPEnemyTag>();
 
+	// 이동 도메인. 서버·클라이언트 템플릿이 같은 Config에서 만들어지므로 양쪽 아키타입이 일치한다.
+	if (EnemyConfig && EnemyConfig->IsFlying())
+	{
+		BuildContext.AddTag<FLNPEnemyFlyingTag>();
+		BuildContext.AddFragment<FLNPEnemyFlightFragment>();
+	}
+
 	// 4. 필수 Mass 시스템 Fragment
 	BuildContext.AddFragment<FMassActorFragment>();
 
@@ -138,6 +145,15 @@ bool ULNPEnemyTrait::ValidateTemplate(const FMassEntityTemplateBuildContext& Bui
 
 	if (EnemyConfig == nullptr)
 		return bResult;
+
+	// 비행 이동은 Actor 없는 경로만 구현돼 있다. 승격되면 Mover가 지상 모드로 넘겨받아 떨어진다.
+	if (EnemyConfig->IsFlying() && EnemyConfig->CombatMode != ELNPEnemyCombatMode::PureEntity)
+	{
+		UE_LOG(LogLootNPop, Warning,
+			TEXT("Enemy config '%s' uses FreeFlight navigation but is not PureEntity. ")
+			TEXT("Flight movement only exists for actorless entities, so a promoted actor would fall under ground movement."),
+			*EnemyConfig->GetName());
+	}
 
 	// 표현 매핑은 이웃 트레이트(MassCrowdVisualizationTrait)가 갖고 있다. BuildContext의 템플릿 데이터는
 	// protected라 읽을 수 없으므로, 트레이트의 소유 EntityConfig에서 직접 찾는다 —

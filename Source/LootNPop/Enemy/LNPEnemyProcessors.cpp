@@ -509,6 +509,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional); // 경직 중 정지
 	MovementQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	MovementQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	MovementQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None); // 비행 도메인은 ULNPEnemyFlightMovementProcessor
 	// ⚠️ **FLNPEnemyDyingTag를 None으로 걸지 않는다.** 죽는 순간 쿼리에서 빠지면
 	//    사망 팝(ULNPHealthProcessor가 세운 속도)을 **아무도 적분하지 못한다.**
 	//    시체의 AI 이동은 Execute 안에서 태그로 따로 차단한다.
@@ -677,19 +678,10 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 			// 피격 반응 타이머는 **상태와 무관하게** 매 프레임 감소시킨다. Alert/Confirmed 중에 맞아
 			// 남은 타이머가 나중에 Idle이 될 때 엉뚱하게 발동하는 것을 막기 위해서다.
-			FLNPEnemyFragment& EnemyData = EnemyFragments[i];
-			const bool bHitReacting = (EnemyData.HitReactTimer > 0.0f);
-			if (bHitReacting)
-			{
-				EnemyData.HitReactTimer = FMath::Max(EnemyData.HitReactTimer - DeltaTime, 0.0f);
-			}
-
 			// 플린치는 연출일 뿐이라 이동을 막지 않는다 — 여기서 감소만 시키고 소비는
 			// ULNPEnemyActionProcessor가 한다. 매 프레임 도는 경로가 이쪽뿐이라 자리는 위와 같다.
-			if (EnemyData.FlinchTimeRemaining > 0.0f)
-			{
-				EnemyData.FlinchTimeRemaining = FMath::Max(EnemyData.FlinchTimeRemaining - DeltaTime, 0.0f);
-			}
+			FLNPEnemyFragment& EnemyData = EnemyFragments[i];
+			const bool bHitReacting = EnemyData.TickReactionTimers(DeltaTime);
 
 			// 시체는 결정도 신호도 내지 않는다 — 남은 것은 사망 팝의 적분뿐이다.
 			// ⚠️ 랙돌이 붙은 시체(ActorPromoted)는 물리의 주인이 Actor이므로 아예 손대지 않는다.
