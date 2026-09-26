@@ -85,3 +85,12 @@
 - 요청: 사망 시 빨간 센서 끄기 → `ULNPUpdateISMProcessor`(엔진 ISM 갱신 대체) + 인스턴스 커스텀 데이터 + 센서 머티리얼 `PerInstanceCustomData[0]`.
 - 검증: `LootNPopEditor` 빌드 성공, 자동화 24/24, PIE `TestMap03`(드론 1,200) 약 40초 ensure 0·`LogMass`/`LogLootNPop` 오류 0(커스텀 데이터 개수 불일치 ensure 없음). 센서 소등과 ISM 전반 표시는 사용자 PIE 확인 대기.
 - 사용자 PIE: 사망 시 센서 소등(어두운 회색)·생존 드론 발광 유지 확인. ISKM에서도 지상 적 매몰이 보여 ISM 프로세서 교체와 무관함을 확인했다(매몰은 3b 버그로 별도 수정, 아래). 구현 단위 3 종료.
+
+## 2026-09-26 결함 수정 — 지상 적 스폰 매몰(3b부터)
+
+- 증상(사용자 PIE): 지상 NPC의 절반가량이 허리~가슴까지 지면에 묻혀 있다. ISKM으로 바뀌어도 묻혀 있고, `LNP.SurfaceNav.EnemyExactGround 0`(legacy)으로 바꾸는 순간 전부 정상화된다 → 표현(ISM 프로세서 교체)이 아니라 위치 문제.
+- 원인: Pod 스폰·부하 harness 배치가 적 Transform을 **발밑 점**으로 둔다(기준점은 캡슐 중심). 반높이만큼 묻혀 시작하고, exact 하향 probe는 시작부터 겹친 hit를 지지면으로 인정하지 않아 `Rejected`(제자리)로 둔다. 움직이는 적은 수평 sweep의 겹침 풀기로 빠져나오지만 서 있는 적은 계속 묻힌다. legacy는 매 프레임 표면에 스냅해 드러나지 않았다. exact 접지를 기본값으로 켠 3b 구현 단위 2(2026-09-25)부터의 결함이다.
+- 수정: `SetupSpawnedEntities`가 비행형이 아닌 적을 발밑 점에서 Up으로 `CapsuleHalfHeight`만큼 올린다(Pod 스폰·harness 공통). `StepGrounded`는 probe가 시작부터 겹치면 겹침 법선으로 풀어 다음 프레임에 지지면을 다시 찾게 한다(Phase 6 exact 폴백의 안전망).
+- 영향: 3b 한계치 측정(단일 500·병렬 750)도 같은 harness 배치라 서 있는 일부 적이 묻힌 상태였다. 묻힌 적의 probe는 지지면 없이 `Rejected`로 끝나 query 수·비용이 정상 접지와 조금 다를 수 있다. 구현 단위 4 측정에서 지상 N=750 병렬을 한 번 다시 재 기준선이 유지되는지 확인한다.
+- 검증: Live Coding, 자동화 24/24(`ExactMovement.GroundAndCliff`에 묻힌 채 시작 케이스 추가).
+- 사용자 PIE(`EnemyExactGround 1`): 묻힌 지상 NPC 없음, 정상.

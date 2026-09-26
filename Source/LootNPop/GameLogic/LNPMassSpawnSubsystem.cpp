@@ -657,9 +657,22 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 		{
 			FTransform SpawnTransform = Transforms[i];
 			const FLNPEnemySharedFragment* EnemyShared = EntityManager.GetConstSharedFragmentDataPtr<FLNPEnemySharedFragment>(Entity);
-			if (EnemyShared && EnemyShared->Config && EnemyShared->Config->IsFlying())
+			if (EnemyShared && EnemyShared->Config)
 			{
-				SpawnTransform.SetLocation(LiftFlyingSpawn(*EnemyShared->Config, SpawnTransform.GetLocation()));
+				const ULNPEnemyConfig& Config = *EnemyShared->Config;
+				const FVector GroundPoint = SpawnTransform.GetLocation();
+				if (Config.IsFlying())
+				{
+					SpawnTransform.SetLocation(LiftFlyingSpawn(Config, GroundPoint));
+				}
+				else
+				{
+					// 배치가 주는 점은 발밑(지면)이고 적 Transform의 기준점은 캡슐 중심이다(TechDesign_EnemyNPC.md §5.1).
+					// 올리지 않으면 반높이만큼 묻힌 채 시작하고, exact 접지의 하향 probe는 시작부터 겹친 hit를
+					// 지지면으로 인정하지 않아 서 있는 적이 그대로 묻혀 있었다(Phase03c 로그, 3b부터의 결함).
+					const FVector Up = (Config.MovementConfig.GravityOrigin - GroundPoint).GetSafeNormal();
+					SpawnTransform.SetLocation(GroundPoint + Up * Config.CapsuleHalfHeight);
+				}
 			}
 			TransformFragment->SetTransform(SpawnTransform);
 		}

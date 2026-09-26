@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 3c — 완전 비행 NPC 기반 · 구현 단위 1·2 완료, 구현 단위 3 대기
+> 현재 Phase: Phase 3c — 완전 비행 NPC 기반 · 구현 단위 1·2·3 완료, 구현 단위 4 대기
 > 마지막 갱신: 2026-09-26
 
 ## 현재 목표
@@ -36,8 +36,11 @@ Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완
 
 ## 바로 다음 작업
 
-1. **구현 단위 3 — 교전 마무리.** LoS 게이트 모듈(`LNPEnemyLineOfSight`, `FLNPEntityAttackConfig::bRequireLineOfSight`, query 분류 `EnemyLineOfSight`)과 막혔을 때 교전 측면 재배치, 비행 넉백 감쇠·조종 약화, 사망 낙하 점검(Phase 문서 §3.2·§3.5)
-2. Phase 4a는 3c 뒤에 Phase 4 공통 전제부터 처리한다(fixture 재배치·fixture LVI 30,000cm 좌표 재계산과 `WorldCollision.RegressionMap` 기대값 동시 갱신, 동굴 fixture 키트 교체, greybox 섬 옥탄트에 동굴 키트 공동 모듈과 통로).
+1. **구현 단위 4 — 측정.** 부하 harness(`-LNPLoadBaseline`)에 비행 개체 수 인자를 추가하고 Phase 문서 §3.8 매트릭스(비행 N ∈ {100, 300, 500}, 지상 0 + 혼합 지상 500·비행 100)를 패키지 Development 호스트 `-nullrhi`로 잰다. 함께 지상 N=750 병렬을 한 번 다시 재 3b 기준선이 스폰 매몰 수정 뒤에도 유지되는지 확인한다(`history/Phase03c_Log.md` 결함 수정 절). 결과로 목표 동시 비행 수·예산을 사용자와 정한다
+   - 현재 스폰 편성은 Pod당 드론 10(총 1,200, 사용자 결정). 측정 결과에 따라 조정할 수 있다
+   - 패키지는 `Saved/SurfaceNavigationPhase3Package`(RunUAT BuildCookRun)를 다시 만들어야 한다
+2. 구현 단위 5 — 기능 점검과 Phase 종료(D-031 2P 스모크, `../TechDesign_EnemyNPC.md` 프로세서 표·`design/RuntimeCollision.md` 쿼리 분류·`design/MovementIntegration.md` 갱신)
+3. Phase 4a는 3c 뒤에 Phase 4 공통 전제부터 처리한다(fixture 재배치·fixture LVI 30,000cm 좌표 재계산과 `WorldCollision.RegressionMap` 기대값 동시 갱신, 동굴 fixture 키트 교체, greybox 섬 옥탄트에 동굴 키트 공동 모듈과 통로).
 
 ## 이관된 후속 작업
 
@@ -68,6 +71,11 @@ Phase 3b(exact 전용 부유섬 프로토타입)가 2026-09-26에 끝났다. 완
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-26 Phase 3c 구현 단위 3 + 스폰 매몰 수정:
+
+- `LootNPopEditor Win64 Development` 성공, 자동화 24/24
+- 사용자 PIE: 드론 사격 위치 탐색·LoS 재배치·넉백 회복·사망 센서 소등, 지상 NPC 매몰 해소(`EnemyExactGround 1`)
 
 2026-09-26 Phase 3c 구현 단위 2:
 
