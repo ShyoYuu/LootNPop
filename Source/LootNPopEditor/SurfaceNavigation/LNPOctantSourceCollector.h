@@ -92,7 +92,10 @@ public:
 		TArray<FLNPOctantSourcePackage>& OutManifest,
 		FString& OutError);
 
-	/** Terrain Contract 역할 StaticMeshComponent의 mesh와 의미 값을 수집한다. */
+	/**
+	 * Terrain Contract 역할 StaticMeshComponent의 mesh와 의미 값을 수집한다.
+	 * 무태그 충돌 컴포넌트, LVI 안의 비-Static 수명주기, tag와 profile 응답 불일치는 오류다.
+	 */
 	static bool CollectTerrainComponents(
 		const UWorld& SourceWorld,
 		IAssetRegistry& AssetRegistry,

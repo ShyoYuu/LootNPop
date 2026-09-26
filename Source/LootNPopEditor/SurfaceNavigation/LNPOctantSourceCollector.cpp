@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Modules/ModuleManager.h"
+#include "SurfaceNavigation/LNPCollisionChannels.h"
 
 namespace
 {
@@ -27,6 +28,7 @@ const FName DynamicTag(TEXT("LNP.Surface.Dynamic"));
 const FName StatefulTraversalTag(TEXT("LNP.Surface.StatefulTraversal"));
 const FName DestructibleTag(TEXT("LNP.Surface.Destructible"));
 const FName DecorationTag(TEXT("LNP.Surface.Decoration"));
+const FName DecorationProfileName(TEXT("LNPDecoration"));
 
 class FCanonicalBytes
 {
@@ -514,9 +516,12 @@ bool FLNPOctantSourceCollector::CollectTerrainComponents(
 		return false;
 	}
 
+	// PCG 레벨은 무태그 HISM이 여러 개라 하나씩 고치지 않도록 모아서 한 번에 보고한다.
+	TArray<FString> UntaggedCollisionComponents;
 	for (const AActor* Actor : SourceWorld.PersistentLevel->Actors)
 	{
-		if (!IsValid(Actor))
+		// 저장되지 않는 transient 액터(에디터가 연 레벨에 붙이는 디버그 렌더러 등)는 source가 아니다.
+		if (!IsValid(Actor) || Actor->HasAnyFlags(RF_Transient))
 		{
 			continue;
 		}
@@ -530,10 +535,39 @@ bool FLNPOctantSourceCollector::CollectTerrainComponents(
 				continue;
 			}
 
-			const bool bHasRole = HasTag(*PrimitiveComponent, SupportTag) || HasTag(*PrimitiveComponent, BlockerTag);
+			const bool bHasSupport = HasTag(*PrimitiveComponent, SupportTag);
+			const bool bHasBlocker = HasTag(*PrimitiveComponent, BlockerTag);
+			const bool bHasRole = bHasSupport || bHasBlocker;
 			const bool bIsDecoration = HasTag(*PrimitiveComponent, DecorationTag);
 			if (!bHasRole)
 			{
+				if (bIsDecoration)
+				{
+					const bool bHasOtherContractTag = PrimitiveComponent->ComponentTags.ContainsByPredicate(
+						[](FName Tag)
+						{
+							return Tag != DecorationTag && IsTerrainContractTag(Tag);
+						});
+					if (bHasOtherContractTag || PrimitiveComponent->GetCollisionProfileName() != DecorationProfileName)
+					{
+						OutError = FString::Printf(
+							TEXT("Decoration component '%s' must use only the Decoration tag and the '%s' profile."),
+							*PrimitiveComponent->GetPathName(),
+							*DecorationProfileName.ToString());
+						return false;
+					}
+					continue;
+				}
+
+				// 태그 없는 충돌 geometry를 건너뛰면 나무 HISM 같은 blocker가 Nav 점유에서 말없이 빠진다.
+				// 모든 레벨이 가진 builder brush는 편집 도구라 제외한다. BSP·볼륨 brush는 그대로 오류다.
+				if (PrimitiveComponent->IsCollisionEnabled()
+					&& !PrimitiveComponent->IsEditorOnly()
+					&& !Actor->IsEditorOnly()
+					&& Actor != SourceWorld.PersistentLevel->GetDefaultBrush())
+				{
+					UntaggedCollisionComponents.Add(PrimitiveComponent->GetPathName());
+				}
 				continue;
 			}
 			if (bIsDecoration)
@@ -553,6 +587,32 @@ bool FLNPOctantSourceCollector::CollectTerrainComponents(
 				OutError = FString::Printf(
 					TEXT("Component '%s' must have exactly one Terrain Contract lifecycle tag."),
 					*PrimitiveComponent->GetPathName());
+				return false;
+			}
+			if (!HasTag(*PrimitiveComponent, StaticTag))
+			{
+				OutError = FString::Printf(
+					TEXT("Component '%s' has a non-Static lifecycle inside an octant LVI. Spawn it from a Placement Marker instead."),
+					*PrimitiveComponent->GetPathName());
+				return false;
+			}
+
+			// profile은 물리 응답, tag는 제품 의미를 소유한다. 둘이 어긋나면 베이크와 exact query가 다른 표면을 본다.
+			const bool bQueryEnabled = PrimitiveComponent->IsQueryCollisionEnabled();
+			const bool bSupportBlocks = bQueryEnabled
+				&& PrimitiveComponent->GetCollisionResponseToChannel(LNPCollisionChannels::SurfaceSupport) == ECR_Block;
+			const bool bExactBlocks = bQueryEnabled
+				&& PrimitiveComponent->GetCollisionResponseToChannel(LNPCollisionChannels::WorldExact) == ECR_Block;
+			if (bSupportBlocks != bHasSupport || bExactBlocks != bHasBlocker)
+			{
+				OutError = FString::Printf(
+					TEXT("Component '%s' profile '%s' responses (SurfaceSupport=%s, WorldExact=%s) do not match its role tags (Support=%s, Blocker=%s)."),
+					*PrimitiveComponent->GetPathName(),
+					*PrimitiveComponent->GetCollisionProfileName().ToString(),
+					bSupportBlocks ? TEXT("Block") : TEXT("NotBlock"),
+					bExactBlocks ? TEXT("Block") : TEXT("NotBlock"),
+					bHasSupport ? TEXT("yes") : TEXT("no"),
+					bHasBlocker ? TEXT("yes") : TEXT("no"));
 				return false;
 			}
 
@@ -590,6 +650,15 @@ bool FLNPOctantSourceCollector::CollectTerrainComponents(
 			Semantic.CollisionProfileName = PrimitiveComponent->GetCollisionProfileName();
 			Semantic.StaticMeshPackageName = MeshPackageName;
 		}
+	}
+
+	if (!UntaggedCollisionComponents.IsEmpty())
+	{
+		OutError = FString::Printf(
+			TEXT("%d component(s) have collision but no Terrain Contract role or Decoration tag:\n%s"),
+			UntaggedCollisionComponents.Num(),
+			*FString::Join(UntaggedCollisionComponents, TEXT("\n")));
+		return false;
 	}
 
 	return CanonicalizeManifest(InOutManifest, OutError);
