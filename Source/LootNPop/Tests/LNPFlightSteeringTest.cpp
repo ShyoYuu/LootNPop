@@ -18,6 +18,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"LootNPop.SurfaceNavigation.FlightSteering.LookaheadStop",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPFlightSteeringDetourTest,
+	"LootNPop.SurfaceNavigation.FlightSteering.DetourAndStuck",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 namespace
 {
 	using namespace LNPFlightSteering;
@@ -96,6 +101,47 @@ namespace
 		}
 		return Trace;
 	}
+
+	/** 점과 축 정렬 상자 사이 거리. 상자 안이면 0. */
+	double DistanceToBox(const FVector& Point, const FBox& Box)
+	{
+		return FMath::Sqrt(Box.ComputeSquaredDistanceToPoint(Point));
+	}
+
+	struct FSteerTrace
+	{
+		FVector Location = FVector::ZeroVector;
+		double MinBoxDistance = UE_BIG_NUMBER;
+		int32 StuckFrame = INDEX_NONE;
+		int32 ArrivedFrame = INDEX_NONE;
+	};
+
+	/** 비행 이동 프로세서와 같은 흐름(Steer, 분리력 없음)으로 목표점을 향해 난다. Stuck이면 멈춘다. */
+	FSteerTrace SteerToward(const FFlightWorld& Fixture, const FVector& Start, const FVector& Goal, const FBox& Obstacle, const int32 Frames)
+	{
+		FSteerTrace Trace;
+		Trace.Location = Start;
+		FSteeringState State;
+		for (int32 Frame = 0; Frame < Frames; ++Frame)
+		{
+			FVector Next;
+			const EStepResult Result = Steer(*Fixture.Collision, Fixture.Params, Trace.Location, FVector::UpVector, Goal, TestSpeed,
+				FVector::ZeroVector, TestDeltaTime, State, Next);
+			Trace.Location = Next;
+			Trace.MinBoxDistance = FMath::Min(Trace.MinBoxDistance, DistanceToBox(Next, Obstacle));
+			if (Result == EStepResult::Stuck)
+			{
+				Trace.StuckFrame = Frame;
+				break;
+			}
+			if (Trace.ArrivedFrame == INDEX_NONE && FVector::Dist(Next, Goal) < 1.0)
+			{
+				Trace.ArrivedFrame = Frame;
+				break;
+			}
+		}
+		return Trace;
+	}
 }
 
 bool FLNPFlightSteeringLookaheadTest::RunTest(const FString& Parameters)
@@ -151,6 +197,39 @@ bool FLNPFlightSteeringLookaheadTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Zero velocity hovers"), Result == EStepResult::Hover);
 		TestEqual(TEXT("Hover issues no query"), Fixture.Collision->GetQueryCount(ELNPWorldQueryClass::FlightSteering), Before);
 		TestTrue(TEXT("Hover stays in place"), Next.Equals(FVector(0, 0, 500)));
+	}
+	return true;
+}
+
+bool FLNPFlightSteeringDetourTest::RunTest(const FString& Parameters)
+{
+	FFlightWorld Fixture(TEXT("LNPFlightSteeringDetourTest"));
+	if (!TestNotNull(TEXT("World collision subsystem exists"), Fixture.Collision))
+		return false;
+
+	// 바닥 top z=10. 섬 크기 블록 x·y∈[-600,600], z∈[300,700] — 비행 고도 500이 블록 한가운데를 지난다.
+	// 두 번째 블록은 y=5000 줄, 목표가 그 안에 있는 닿을 수 없는 배치.
+	Fixture.Slab(FVector(0, 0, 0), FVector(120, 120, 0.2), TEXT("LNPStaticTerrain"));
+	Fixture.Slab(FVector(0, 0, 500), FVector(12, 12, 4), TEXT("LNPStaticTerrain"));
+	Fixture.Slab(FVector(0, 5000, 500), FVector(12, 12, 4), TEXT("LNPStaticTerrain"));
+	Fixture.Publish();
+
+	const FBox Island(FVector(-600, -600, 300), FVector(600, 600, 700));
+	const FBox Solid(FVector(-600, 4400, 300), FVector(600, 5600, 700));
+
+	// 1. 우회: 블록을 돌아 반대편 목표에 도착하고, 몸이 블록에 닿지 않는다.
+	{
+		const FSteerTrace Trace = SteerToward(Fixture, FVector(-2500, 0, 500), FVector(2500, 0, 500), Island, 60 * 30);
+		TestTrue(TEXT("Detours around the island block and arrives"), Trace.ArrivedFrame != INDEX_NONE);
+		TestTrue(TEXT("Never touches the island block"), Trace.MinBoxDistance >= Fixture.Params.BodyRadius - 1.0);
+		TestEqual(TEXT("Detour is not reported as stuck"), Trace.StuckFrame, static_cast<int32>(INDEX_NONE));
+	}
+
+	// 2. 포기: 목표가 블록 속이면 교착 복구 끝에 Stuck을 돌려주고, 그동안 블록을 관통하지 않는다.
+	{
+		const FSteerTrace Trace = SteerToward(Fixture, FVector(-2500, 5000, 500), FVector(0, 5000, 500), Solid, 60 * 30);
+		TestTrue(TEXT("Unreachable goal ends in Stuck"), Trace.StuckFrame != INDEX_NONE);
+		TestTrue(TEXT("Never enters the solid block"), Trace.MinBoxDistance >= Fixture.Params.BodyRadius - 1.0);
 	}
 	return true;
 }

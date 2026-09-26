@@ -59,3 +59,12 @@
 - 사용자 PIE: 교전 위치 유지·센서 방향·고도·교전 각도 모두 자연스러움. 구현 단위 1 종료.
 - 에디터 바이너리 `-game` 리슨 2P(기본 스폰, 비행 240 포함, 약 4분, 로그 `Saved/Logs/Smoke3c_U1`): 호스트·게스트 ensure·크래시·`LogLootNPop`/`LogMass` 오류 0(기존 `CharacterMovementComponent` 추출 오류 제외). 게스트는 접속 후 적 프록시를 받았다. Mover 시작 위치 경고는 이전 스모크와 같은 종류다.
 - 한계: 게스트 쪽 드론 위치를 로그로 확인하는 수단이 없다(행동 상태 로그는 `-game`에서 꺼짐). 게스트 육안 확인은 Phase 종료 2P 스모크(D-031)에서 한다. 데스크톱 전체 캡처는 사용자 화면의 다른 창을 담으므로 쓰지 않는다.
+
+## 2026-09-26 구현 단위 2 — 3D local planner
+
+- `LNPFlightSteering::Steer`와 `FSteeringState`: 막히면 후보 heading 평가·0.25초 유지, 교착 1.5초 원뿔 90°+후퇴, 3초 위아래 선호 반전, 5초 `Stuck`.
+- 비행 이동 프로세서가 `Step` 대신 `Steer`를 부른다. `Stuck`이면 배회 재추첨·교전 측면 90° 회전. 교전 측면을 재배치 동안 고정(`EngageSide`).
+- 비행 전용 격자 `ULNPFlyingSpatialGridSubsystem`(격자 서브클래스, 같은 격자 프로세서가 짓는다)과 3D 분리(`FlightConfig.SeparationRadius` 250·`SeparationStrength` 400).
+- 자동화 `FlightSteering.DetourAndStuck`: 섬 크기 블록 우회 도착·비접촉, 블록 속 목표는 `Stuck`·비관통.
+- 검증: `LootNPopEditor` 빌드 성공, 자동화 23/23, PIE `TestMap03`(비행 240) `FlightSteering` 779,577회·평균 3.11us·hit 388(0.05%, 구현 단위 1 PIE는 3.6%. 원인은 확인하지 않았다 — 스폰 배치가 실행마다 달라 같은 조건 비교가 아니다), `UnknownHits=0`, `EnvelopeEscapes=0`, ensure 0. 우회·분리의 체감은 사용자 PIE 확인 대기.
+- 사용자 PIE: Pod당 드론 10(120 Pod, 총 1,200)으로 늘려 섬 아래·경사로 아래 관통 동굴(유일한 동굴형 지형) 근처에서 확인 — 드론끼리 겹치지 않고 자연스럽게 우회해 온다. 스폰 편성 Pod당 10을 기본으로 유지(사용자 결정). 구현 단위 2 종료.

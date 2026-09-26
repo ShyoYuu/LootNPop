@@ -4,6 +4,7 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemySpatialGrid.h"
 #include "Enemy/LNPFlightSteering.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "GAS/LNPPoiseTypes.h"
@@ -24,6 +25,8 @@ ULNPEnemyFlightMovementProcessor::ULNPEnemyFlightMovementProcessor()
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Movement;
 	// 지상 이동 프로세서와 같은 이유 — 같은 프레임의 공격 위상을 읽어야 정지가 한 박자 늦지 않는다.
 	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEntityAttackProcessor"));
+	// 비행 격자(3D 분리의 이웃 탐색원)가 이번 프레임 위치로 지어진 뒤에 돈다.
+	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEnemySpatialGridProcessor"));
 }
 
 void ULNPEnemyFlightMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -36,7 +39,7 @@ void ULNPEnemyFlightMovementProcessor::ConfigureQueries(const TSharedRef<FMassEn
 	FlightQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite);      // 배회 타임아웃 계측
 	FlightQuery.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly);    // 공격 중 정지·회전 고정
 	FlightQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
-	FlightQuery.AddRequirement<FLNPEnemyFlightFragment>(EMassFragmentAccess::ReadWrite);     // 교전 위치 유지
+	FlightQuery.AddRequirement<FLNPEnemyFlightFragment>(EMassFragmentAccess::ReadWrite);     // 교전 위치 유지·조향 기억
 	FlightQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	FlightQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	FlightQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::All);
@@ -46,6 +49,7 @@ void ULNPEnemyFlightMovementProcessor::ConfigureQueries(const TSharedRef<FMassEn
 
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPFlyingSpatialGridSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -59,6 +63,7 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
+	const ULNPFlyingSpatialGridSubsystem& FlyingGrid = Context.GetSubsystemChecked<ULNPFlyingSpatialGridSubsystem>();
 
 	// 청크 사이의 공유 쓰기는 신호 목록 하나뿐이다 — 지상 이동 프로세서와 같은 방식으로 모은다.
 	TArray<FMassEntityHandle> EntitiesToSignal;
@@ -141,6 +146,7 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 			if (Targeting.State != ELNPTargetingState::Confirmed)
 			{
 				FlightData.bHoldingFirePosition = false;
+				FlightData.EngageSide = FVector::ZeroVector;
 			}
 
 			FVector Goal = Location;
@@ -189,14 +195,19 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 
 					// 교전 지점은 타겟 위 교전 고도(D-053)이되, 바로 위가 아니라 드론이 있는 쪽으로 수평 거리만큼 떨어진 점이다 —
 					// 타겟이 EngageElevationDeg만큼만 올려다보면 된다. 대역 안의 선회·LoS 재배치는 구현 단위 3이다.
+					// 측면은 재배치를 시작할 때 한 번 정하고 도착할 때까지 유지한다 — 우회 중에 목표가 따라 돌지 않게 한다.
 					const FVector TargetUp = (GravityOrigin - Targeting.TargetLocation).GetSafeNormal();
-					FVector AwayFromTarget = FVector::VectorPlaneProject(Location - Targeting.TargetLocation, TargetUp).GetSafeNormal();
-					if (AwayFromTarget.IsNearlyZero())
+					if (FlightData.EngageSide.IsNearlyZero())
 					{
-						// 타겟 바로 위에 있으면 수평 방향이 없다. 현재 전방의 반대쪽으로 물러난다.
-						AwayFromTarget = FVector::VectorPlaneProject(-EntityTransform.GetRotation().GetForwardVector(), TargetUp).GetSafeNormal();
+						FlightData.EngageSide = FVector::VectorPlaneProject(Location - Targeting.TargetLocation, TargetUp).GetSafeNormal();
+						if (FlightData.EngageSide.IsNearlyZero())
+						{
+							// 타겟 바로 위에 있으면 수평 방향이 없다. 현재 전방의 반대쪽으로 물러난다.
+							FlightData.EngageSide = FVector::VectorPlaneProject(-EntityTransform.GetRotation().GetForwardVector(), TargetUp).GetSafeNormal();
+						}
 					}
-					Goal = Targeting.TargetLocation + TargetUp * EngageAltitude + AwayFromTarget * EngageStandoff;
+					const FVector Side = FVector::VectorPlaneProject(FlightData.EngageSide, TargetUp).GetSafeNormal();
+					Goal = Targeting.TargetLocation + TargetUp * EngageAltitude + Side * EngageStandoff;
 					Speed = FlightConfig.FlightSpeed;
 
 					// 움직이는 타겟을 쫓으면 30cm 도착 판정이 좀처럼 성립하지 않는다. 교전 지점은 이 정도면 도착으로 본다.
@@ -204,6 +215,7 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 					if (bCanFireHere && FVector::DistSquared(Goal, Location) < FMath::Square(EngageArrivalTolerance))
 					{
 						FlightData.bHoldingFirePosition = true;
+						FlightData.EngageSide = FVector::ZeroVector;
 						Goal = Location;
 						Speed = 0.f;
 					}
@@ -252,10 +264,47 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 					FacingDir = FVector::ZeroVector;
 			}
 
-			const FVector DesiredVelocity = LNPFlightSteering::ComputeArrivalVelocity(Location, Goal, Speed, DeltaTime);
+			// 비행 개체끼리의 3D 분리. 방향 선택과 무관하게 더하고, 이동은 steering의 sweep을 거친다.
+			FVector SeparationPush = FVector::ZeroVector;
+			if (FlightConfig.SeparationRadius > 0.f && FlightConfig.SeparationStrength > 0.f)
+			{
+				const FMassEntityHandle Self = Ctx.GetEntity(i);
+				const float Radius = FlightConfig.SeparationRadius;
+				FlyingGrid.ForEachNeighbor(Location, Radius, [&](const FMassEntityHandle Neighbor, const FVector& NeighborPos)
+				{
+					if (Neighbor == Self)
+						return;
+					const FVector Delta = Location - NeighborPos;
+					const float Dist = Delta.Size();
+					if (Dist >= Radius)
+						return;
+					// 정확히 겹친 쌍은 핸들 순서로 위·아래를 갈라 서로 반대로 흩어지게 한다.
+					const FVector PushDir = Dist > 1.f ? Delta / Dist : (Self.Index < Neighbor.Index ? UpDir : -UpDir);
+					SeparationPush += PushDir * (1.f - Dist / Radius);
+				});
+				SeparationPush = SeparationPush.GetClampedToMaxSize(1.f) * FlightConfig.SeparationStrength;
+			}
+
 			FVector NewLocation;
-			LNPFlightSteering::Step(WorldCollision, SteeringParams, Location, DesiredVelocity, DeltaTime, NewLocation);
+			const LNPFlightSteering::EStepResult SteerResult = LNPFlightSteering::Steer(WorldCollision, SteeringParams, Location, UpDir,
+				Goal, Speed, SeparationPush, DeltaTime, FlightData.Steering, NewLocation);
 			EntityTransform.SetLocation(NewLocation);
+
+			if (SteerResult == LNPFlightSteering::EStepResult::Stuck)
+			{
+				// 교착 복구를 다 해도 가까워지지 않았다. 배회는 목표를 다시 뽑고, 교전은 측면을 90도 돌린다.
+				if (Targeting.State == ELNPTargetingState::None)
+				{
+					IdleData.TimeSinceWanderIssued = 0.0f;
+					IdleData.bWanderTargetTimedOut = true;
+					ChunkEntitiesToSignal.Add(Ctx.GetEntity(i));
+				}
+				else if (Targeting.State == ELNPTargetingState::Confirmed && !FlightData.EngageSide.IsNearlyZero())
+				{
+					const FVector TargetUp = (GravityOrigin - Targeting.TargetLocation).GetSafeNormal();
+					FlightData.EngageSide = FVector::CrossProduct(TargetUp, FlightData.EngageSide).GetSafeNormal();
+				}
+			}
 
 			// 몸은 늘 새 위치의 Up에 선다. 전방은 바라볼 방향의 접평면 성분이고, 없으면 현재 전방을 유지한다.
 			// 복제 Yaw가 접평면 로컬 Yaw라 pitch·bank는 게스트에 전달되지 않는다(Phase03c §2).

@@ -113,6 +113,28 @@ struct TMassExternalSubsystemTraits<ULNPEnemySpatialGridSubsystem> final
 };
 
 /**
+ * 비행 적(`FLNPEnemyFlyingTag`) 전용 격자 — 구현은 같고 인스턴스만 따로다(SurfaceSupportNavigation Phase03c §3.3).
+ *
+ * 지상 격자에 섞지 않는 이유: 지상 분리가 **접평면 거리**만 재므로 머리 위 수천 cm의 비행 개체가 지상 적을 밀어낸다.
+ * 이 격자의 소비처는 ULNPEnemyFlightMovementProcessor의 3D 분리 하나이고, 고도를 버린 과다포함은 3D 거리로 거른다.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPFlyingSpatialGridSubsystem : public ULNPEnemySpatialGridSubsystem
+{
+	GENERATED_BODY()
+};
+
+template<>
+struct TMassExternalSubsystemTraits<ULNPFlyingSpatialGridSubsystem> final
+{
+	enum
+	{
+		GameThreadOnly  = false,
+		ThreadSafeWrite = false,
+	};
+};
+
+/**
  * 매 프레임 격자를 다시 짓는다. **서버 전용** — 유일한 소비처인 분리력이 서버 이동 시뮬레이션의 일부다.
  *
  * ⚠️ 순서는 그룹이 아니라 **이름으로** 건다. 그룹 간 순서는 엔진의 고정 목록이 아니라 프로세서들이
@@ -132,6 +154,9 @@ protected:
 
 private:
 	FMassEntityQuery EnemyQuery;
+
+	/** 비행 적 — ULNPFlyingSpatialGridSubsystem에 따로 짓는다. */
+	FMassEntityQuery FlyingQuery;
 };
 
 /**
