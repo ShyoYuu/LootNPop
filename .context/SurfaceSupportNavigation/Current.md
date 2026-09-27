@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 4b — 부유섬·동굴 키트 다층 베이크 · 구현 단위 0 완료, 구현 단위 1 착수 전
+> 현재 Phase: Phase 4b — 부유섬·동굴 키트 다층 베이크 · 구현 단위 0·1 완료, 구현 단위 2 착수 전
 > 마지막 갱신: 2026-09-27
 
 ## 현재 목표
@@ -33,8 +33,8 @@ Phase 4a(지각 Support Atlas와 옥탄트 이음매)가 2026-09-27에 끝났다
 
 ## 바로 다음 작업
 
-1. 구현 단위 1: runtime 순수 함수 `LNPSupportLayers`에서 walkable 분류, 위치 용접 연결 성분, Layer ID 정렬, face 표 생성(Phase 문서 §3.3·§3.4). 합성 자동화 4종과 세 LVI의 Layer 수 보고
-2. 입력 삼각형의 face 번호는 `FLNPBakeTriangleMesh::ExternalFaceIndices`(exact hit `FaceIndex`와 같은 번호)를 쓴다. 추출 순서 인덱스를 표 키로 쓰지 않는다
+1. 구현 단위 2: `LNPCrustAtlas`의 격자·보간을 Layer 공용으로 옮기고, `LNPSupportLayers::BuildLayers` 결과로 비지각 Layer row span rasterize, codec v2(`DataVersion` 3, `BakerSchemaVersion` 2), `QueryLayers`(Phase 문서 §3.2·§3.5~§3.7)
+2. 합성 자동화(3층 캡·30cm 계단·가장자리 NeedsExact 전파·접힌 sheet 오류·codec 왕복) 뒤 세 옥탄트 재베이크, 4a `Bake.*` 무회귀
 
 ## 이관된 후속 작업
 
@@ -69,6 +69,8 @@ Phase 4a(지각 Support Atlas와 옥탄트 이음매)가 2026-09-27에 끝났다
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-27 Phase 4b 구현 단위 1: 에디터 빌드 성공, 자동화 `LootNPop.SurfaceNavigation` 48/48.
 
 2026-09-27 Phase 4b 구현 단위 0:
 

@@ -13,6 +13,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "MeshDescription.h"
+#include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "StaticMeshAttributes.h"
@@ -21,6 +22,7 @@
 #include "StaticMeshResources.h"
 #include "SurfaceNavigation/LNPOctantSourceCollector.h"
 #include "SurfaceNavigation/LNPOctantTriangleExtractor.h"
+#include "SurfaceNavigation/LNPSupportLayers.h"
 #include "UObject/StrongObjectPtr.h"
 
 namespace LNPOctantTriangleExtractorTest
@@ -371,6 +373,84 @@ bool FLNPOctantCrustIdentificationTest::RunTest(const FString& Parameters)
 		if (LevelPath == FixtureLevelPath)
 		{
 			TestEqual(TEXT("Fixture crust is the perfect-sphere crust mesh"), CrustMeshName, FString(FixtureCrustMeshName));
+		}
+	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPOctantSupportLayersTest,
+	"LootNPop.SurfaceNavigation.Bake.OctantSupportLayers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPOctantSupportLayersTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPOctantTriangleExtractorTest;
+	constexpr TCHAR RegressionLevelPath[] =
+		TEXT("/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Regression.LVI_Octant_Fixture_Regression");
+
+	for (const TCHAR* LevelPath : {FixtureLevelPath, RegressionLevelPath, MeadowLevelPath})
+	{
+		UWorld* SourceWorld = LoadSourceWorld(LevelPath);
+		if (!TestNotNull(FString::Printf(TEXT("%s is loadable"), LevelPath), SourceWorld))
+		{
+			continue;
+		}
+		TArray<FLNPBakeSupportSource> Sources;
+		int32 CrustIndex = INDEX_NONE;
+		FLNPSupportLayerSet Set;
+		FString Error;
+		if (!FLNPOctantTriangleExtractor::ExtractSupportSources(*SourceWorld, Sources, Error)
+			|| !LNPSurfaceBake::IdentifyCrust(Sources, CrustIndex, Error)
+			|| !LNPSupportLayers::BuildLayers(Sources, CrustIndex, FLNPSupportLayerSettings(), Set, Error))
+		{
+			AddError(FString::Printf(TEXT("%s: %s"), LevelPath, *Error));
+			continue;
+		}
+
+		// source별 Layer 수와 face 표 종류를 보고한다. 기대값은 source key로 찾는다.
+		TMap<FString, int32> LayerCountByKey;
+		for (const FLNPSupportLayer& Layer : Set.Layers)
+		{
+			++LayerCountByKey.FindOrAdd(Sources[Layer.SourceIndex].Key);
+		}
+		for (int32 SourceIndex = 0; SourceIndex < Sources.Num(); ++SourceIndex)
+		{
+			const FLNPSupportFaceMap& FaceMap = Set.FaceMaps[SourceIndex];
+			AddInfo(FString::Printf(TEXT("%s: %s layers=%d triangles=%d faceMap=%s"),
+				*FPaths::GetBaseFilename(LevelPath), *Sources[SourceIndex].Key,
+				LayerCountByKey.FindRef(Sources[SourceIndex].Key), Sources[SourceIndex].Mesh.Triangles.Num(),
+				FaceMap.IsUniform() ? *FString::Printf(TEXT("uniform(%d)"), FaceMap.UniformLayer) : TEXT("per-face")));
+		}
+		TestEqual(FString::Printf(TEXT("%s: crust is Layer 0"), LevelPath), Set.Layers[0].SourceIndex, CrustIndex);
+
+		// source key는 actor FName이라 에디터 label(FX_*)과 다르다. 사례는 mesh 이름으로 찾는다.
+		auto LayersOf = [&Sources, &LayerCountByKey](const TCHAR* MeshName)
+		{
+			for (const FLNPBakeSupportSource& Source : Sources)
+			{
+				const UStaticMeshComponent* Component = FindObject<UStaticMeshComponent>(nullptr, *Source.Name);
+				if (Component && Component->GetStaticMesh()->GetName() == MeshName)
+				{
+					return LayerCountByKey.FindRef(Source.Key);
+				}
+			}
+			return -1;
+		};
+		if (LevelPath == FixtureLevelPath)
+		{
+			TestEqual(TEXT("Crust fixture: crust + split(2) + double-sided(1) + slab(1)"), Set.Layers.Num(), 5);
+			TestEqual(TEXT("Split sheet gives two Layers"), LayersOf(TEXT("SM_FixtureSplitSheet")), 2);
+			TestEqual(TEXT("Double-sided plate gives one Layer"), LayersOf(TEXT("SM_FixtureDoubleSidedPlate")), 1);
+			TestEqual(TEXT("Negative-scale slab gives one Layer (its top)"), LayersOf(TEXT("SM_FixtureSlab")), 1);
+		}
+		else if (LevelPath == RegressionLevelPath)
+		{
+			TestEqual(TEXT("Regression fixture: crust + 4 island tops + 2 cave floors"), Set.Layers.Num(), Sources.Num());
+			for (const FLNPBakeSupportSource& Source : Sources)
+			{
+				TestEqual(FString::Printf(TEXT("%s gives one Layer"), *Source.Key), LayerCountByKey.FindRef(Source.Key), 1);
+			}
 		}
 	}
 	return !HasAnyErrors();

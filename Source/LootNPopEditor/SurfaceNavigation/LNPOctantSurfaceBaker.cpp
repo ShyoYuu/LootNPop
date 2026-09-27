@@ -16,6 +16,7 @@
 #include "Misc/PackageName.h"
 #include "SurfaceNavigation/LNPOctantSourceCollector.h"
 #include "SurfaceNavigation/LNPOctantTriangleExtractor.h"
+#include "SurfaceNavigation/LNPSupportLayers.h"
 #include "SurfaceNavigation/LNPSurfaceBakeGeometry.h"
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
@@ -91,9 +92,9 @@ namespace LNPOctantSurfaceBaker
 FString FLNPOctantBakeReport::ToString() const
 {
 	return FString::Printf(
-		TEXT("Crust=%s (%d tris, %d Support sources) N=%d Samples=%d Valid=%d Walkable=%d NeedsExact=%d (%.2f%%) ")
+		TEXT("Crust=%s (%d tris, %d Support sources, %d Layers) N=%d Samples=%d Valid=%d Walkable=%d NeedsExact=%d (%.2f%%) ")
 		TEXT("Radius=[%.2f, %.2f] Payload=%lld bytes Time collect=%.2fs extract=%.2fs raster=%.2fs encode=%.2fs"),
-		*CrustName, CrustTriangleCount, SupportSourceCount, Subdivisions, SampleCount, ValidCount, WalkableCount,
+		*CrustName, CrustTriangleCount, SupportSourceCount, SupportLayerCount, Subdivisions, SampleCount, ValidCount, WalkableCount,
 		NeedsExactCount, SampleCount > 0 ? 100.0 * NeedsExactCount / SampleCount : 0.0,
 		MinRadius, MaxRadius, PayloadBytes, CollectSeconds, ExtractSeconds, RasterSeconds, EncodeSeconds);
 }
@@ -147,6 +148,13 @@ bool FLNPOctantSurfaceBaker::Bake(
 		return false;
 	}
 	const FLNPBakeSupportSource& Crust = Sources[CrustIndex];
+	// 비지각 Layer는 아직 굽지 않는다(Phase 4b 구현 단위 2). 분리 규칙과 face 번호 검증만 베이크 경로에 건다.
+	FLNPSupportLayerSet LayerSet;
+	if (!LNPSupportLayers::BuildLayers(Sources, CrustIndex, FLNPSupportLayerSettings(), LayerSet, OutError))
+	{
+		return false;
+	}
+	OutReport.SupportLayerCount = LayerSet.Layers.Num();
 	OutReport.ExtractSeconds = FPlatformTime::Seconds() - StartSeconds;
 
 	StartSeconds = FPlatformTime::Seconds();
