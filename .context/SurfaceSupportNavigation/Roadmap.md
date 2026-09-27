@@ -87,6 +87,8 @@ Support 캐시를 만들기 전에 두 가지를 확인한다(D-032).
 
 ### Phase 4 공통 전제
 
+2026-09-27 앞의 세 항목 완료(`history/Phase04b_Log.md`). 회귀 공간은 정적 fixture LVI와 동적 사례 맵으로 나눴고(D-056), 동굴 키트 greybox 모듈과 에셋 규약(`design/TerrainContract.md` §6), `Meadow_00` 동굴(위도 15°·방위 60°), 마커 로컬 공간 규약(`design/DynamicTerrain.md` §5)이 들어갔다. 마지막 항목은 해당 definition을 도입할 때 처리한다.
+
 - 회귀 fixture를 옥탄트 내부로 옮기고 fixture LVI로 만들어 8 slot 통합 경로를 탄다. 이때 fixture 좌표를 기준 반지름 30,000cm로 다시 계산한다(D-046).
 - Phase 3b의 greybox 섬 옥탄트에 동굴 키트 공동 모듈 하나와 통로를 추가한다. 아트 품질은 요구하지 않는다. 동굴 geometry의 좌표 성분이 int16 복제 캡 안에 드는지 확인한다. 동굴은 옥탄트 꼭짓점(좌표축) 부근을 피한다(`design/TerrainContract.md` §7).
 - Conditional Patch의 데이터 개념과 마커 로컬 공간 규약을 설계 문서에 확정한다. 구현은 Phase 8이다.

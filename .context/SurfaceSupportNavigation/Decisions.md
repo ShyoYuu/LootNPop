@@ -30,7 +30,7 @@
 | D-020 | 투사체는 exact segment query 기준선을 먼저 만들고 Support collision horizon은 후속 최적화로 둔다. | 확정 | `design/RuntimeCollision.md` |
 | D-021 | 지형 의미는 GameplayTag나 Actor 종류가 아니라 source `UPrimitiveComponent`의 역할·수명주기 Component Tag 조합으로 authoring한다. | 확정 | `design/TerrainContract.md` |
 | D-022 | Support source 검증과 정밀 world query는 각각 `LNPSurfaceSupport`, `LNPWorldExact` trace channel을 사용하며 기존 소비자는 단계적으로 전환한다. | 확정 | `design/TerrainContract.md` |
-| D-023 | 모든 후속 Phase의 공통 기능 검증은 `/Game/Maps/SurfaceNavigation/L_SurfaceRegression`의 고정 fixture와 oracle을 재사용한다. | 확정 | `design/RegressionMap.md` |
+| D-023 | 모든 후속 Phase의 공통 기능 검증은 `/Game/Maps/SurfaceNavigation/L_SurfaceRegression`의 고정 fixture와 oracle을 재사용한다. | 대체됨(D-056) | `design/RegressionMap.md` |
 | D-024 | 옥탄트 지형의 기본 제작 경로는 비-WP 일반 Static Mesh + Sphere Height Sculpt로 한다. WP Mesh Terrain은 Boolean 등 고유 modifier가 필요한 특수 제작의 보조 경로로만 사용하고, runtime에는 독립 Static Mesh와 component metadata만 전달한다. | 확정 | `research/MeshTerrain.md` |
 | D-025 | 지면 조회는 Support snapshot이 기본이다. exact scene query는 캐시가 표현하지 못하는 대상, risk·edge 결과, 상태 전환 순간에만 사용하며, 플레이어에게서 먼 개체는 risk 구간에서도 거친 지지면을 쓰고 정확성 필수 전환만 exact로 처리한다. PureEntity를 포함한 Mass worker는 동기 scene query만, 게임 스레드는 결과가 필요한 시점에 따라 동기·비동기를 선택한다. | 확정 | `design/RuntimeCollision.md` |
 | D-026 | 옥탄트 LVI에는 정적 지형과 배치 마커만 둔다. 움직이는 패널·상태형 기둥·파괴 조각·훅 앵커 같은 동적 요소는 서버가 마커 위치에 스폰하는 복제 Actor이며 런타임 식별자는 `(slot, MarkerId)`다. | 확정 | `design/DynamicTerrain.md` |
@@ -63,6 +63,7 @@
 | D-053 | 비행 NPC 고도는 교전 중 타겟 상대 대역, 비교전 중 Home 기준 대역이다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.4 |
 | D-054 | 비행 적 총수는 200이다. Pod 편성 타입을 나눠 비행 적이 없는 Pod와 3~6기를 편성한 Pod를 둔다. 비행 100마리당 서버 프레임 약 1.5ms로 본다. | 확정 | `history/Phase03c_Log.md` 2026-09-27 |
 | D-055 | 옥탄트의 지각 Layer는 세 이음매 변 모두에 닿는 유일한 `Support+Static` 컴포넌트로 식별한다. 새 태그를 두지 않으며, 해당 컴포넌트가 0개나 2개 이상이면 베이크 오류다. | 확정 | `phases/Phase04a_CrustAtlasAndSeams.md` §3.2 |
+| D-056 | 공통 기능 검증의 정적 사례는 fixture LVI `LVI_Octant_Fixture_Regression`을 8 slot 회전으로 합성해 검사하고, LVI에 둘 수 없는 동적 사례만 `L_SurfaceRegression` 일반 레벨에 둔다. 두 곳의 fixture와 oracle을 모든 후속 Phase가 재사용한다. | 확정 | `design/RegressionMap.md` §1 |
 
 ## 변경 규칙
 
