@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 4b — 부유섬·동굴 키트 다층 베이크 · 구현 단위 0·1 완료, 구현 단위 2 착수 전
+> 현재 Phase: Phase 4b — 부유섬·동굴 키트 다층 베이크 · 구현 단위 0·1·2 완료, 구현 단위 3 착수 전
 > 마지막 갱신: 2026-09-27
 
 ## 현재 목표
@@ -23,18 +23,18 @@ Phase 4a(지각 Support Atlas와 옥탄트 이음매)가 2026-09-27에 끝났다
 - **exact 한계치: 단일 스레드 500마리(최악 조건 기준선), 병렬 약 700마리.** 접지 개체당 프레임 약 1.46 query·8us. Phase 4 캐시 적중률 목표와 Phase 6 재측정은 병렬 700 기준으로 읽는다
 - 비행 드론(PureEntity, D-052·053·054): 총수 200, Pod 타입 분리. 비행 비용은 Support 캐시의 절감 대상이 아니다
 - 부하 harness `-LNPLoadBaseline=N`·`-LNPLoadBaselineFlyers=F`, 측정 스크립트 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`. 프레임 판정은 패키지 Development 호스트 `-nullrhi`
-- 지각 Atlas(4a): runtime `LNPCrustAtlas`(rasterize·codec v1·`QuerySupport`·`ComputeSeamPairs`), Editor `LNPOctantSurfaceBaker`·`LNP.SurfaceNav.BakeOctant <LevelPath>`. N=735(100cm), 옥탄트당 약 1.9MB, `DataVersion` 2. `Meadow_00` 조회 NeedsExact 2.32%, 반지름 P99 1.06cm
+- Support Atlas: runtime `LNPSupportAtlas`(격자·row span·rasterize·codec v2·`QueryLayer`·`QueryLayers`), 지각 전용 `LNPCrustAtlas`(이음매 스냅 rasterize·seam 규약), Editor `LNPOctantSurfaceBaker`·`LNP.SurfaceNav.BakeOctant <LevelPath>`. 지각 N=735(100cm), 비지각 Layer m=2(50cm, 잠정). `DataVersion` 3. `Meadow_00` payload 2.09MB, 지각 조회 NeedsExact 2.35%, 반지름 P99 1.06cm
 - `DA_OctantSurface_Meadow_00`·`DA_OctantSurface_Fixture_Crust`는 LVI 옆에 저장돼 있다. `Bake.OctantBakeDeterministic`가 저장본과 현재 source의 일치를 검사하므로 LVI나 베이크 설정을 바꾸면 `BakeOctant`로 다시 굽는다
 - 회귀 공간(D-056): 정적 사례는 `LVI_Octant_Fixture_Regression`(생성 `LNP.SurfaceNav.BuildRegressionFixture`, 배치 원본 `LNPRegressionFixture.h`)을 8 slot 합성으로 검사하고, 동적 3사례만 `L_SurfaceRegression`(30,000cm)에 있다. `DA_OctantSurface_Fixture_Regression`도 결정론 베이크 검사 대상이다
 - 동굴 키트 greybox(`/Game/Maps/CaveKit`, `LNP.SurfaceNav.BuildCaveKit`, 치수 원본 `LNPCaveKit.h`): 직육면체 공동 + 경사 통로, Floor/Shell 분리, 규약 검사 `Bake.CaveKitContract`. `Meadow_00` 동굴은 (위도 15°, 방위 60°)에 있고 `LNP.SurfaceNav.PlaceCaveKit`으로 배치했다(지각 메시 입구 절단 포함)
-- 자동화 `LootNPop.SurfaceNavigation` 46개(`Bake.*` 18개). 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`를 다시 저장하므로 커밋 전에 git으로 되돌린다
+- 자동화 `LootNPop.SurfaceNavigation` 52개(`Bake.*` 24개). 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`를 다시 저장하므로 커밋 전에 git으로 되돌린다
 - 헤드리스 `-ExecCmds`는 쉼표로 명령을 나누고, 에디터 바이너리에서는 `Quit`로 종료되지 않는다(`Automation RunTests`는 종료함)
 - 카메라 리그 `CR_ThirdPerson`에 `CollisionPush` 노드(`../TechDesign_CharacterMovement.md` §2.4)
 
 ## 바로 다음 작업
 
-1. 구현 단위 2: `LNPCrustAtlas`의 격자·보간을 Layer 공용으로 옮기고, `LNPSupportLayers::BuildLayers` 결과로 비지각 Layer row span rasterize, codec v2(`DataVersion` 3, `BakerSchemaVersion` 2), `QueryLayers`(Phase 문서 §3.2·§3.5~§3.7)
-2. 합성 자동화(3층 캡·30cm 계단·가장자리 NeedsExact 전파·접힌 sheet 오류·codec 왕복) 뒤 세 옥탄트 재베이크, 4a `Bake.*` 무회귀
+1. 구현 단위 3: 자동화 `Bake.LayerAtlasExactError`로 Layer별 Atlas 조회와 그 컴포넌트만 대상으로 한 exact trace를 m=2·4에서 비교하고 m을 정한다(Phase 문서 §4 구현 단위 3). `FLNPOctantBakeOptions::LayerSubdivisionMultiplier`로 바꿔 굽는다
+2. m 결정 때 `Meadow_00` 섬 B 계단 칸(Layer 5~7)을 따로 본다. m=2에서는 칸마다 샘플 14~15개가 전부 NeedsExact라 칸 위에서 Atlas가 Layer를 고르지 못한다. m=4에서도 내부 샘플이 없으면 구현 단위 4 계단 검증 기준을 사용자와 다시 정한다
 
 ## 이관된 후속 작업
 
@@ -70,16 +70,11 @@ Phase 4a(지각 Support Atlas와 옥탄트 이음매)가 2026-09-27에 끝났다
 
 ## 마지막 검증
 
+2026-09-27 Phase 4b 구현 단위 2: 에디터 빌드 성공, 세 옥탄트 `BakeOctant` 재저장, 자동화 `LootNPop.SurfaceNavigation` 52/52(로그 `Saved/Logs/Auto4b_U2.log`). 지각 Atlas 지표(이음매·오차·결정론)는 4b 공통 전제 때와 같다.
+
 2026-09-27 Phase 4b 구현 단위 1: 에디터 빌드 성공, 자동화 `LootNPop.SurfaceNavigation` 48/48.
 
 2026-09-27 Phase 4b 구현 단위 0:
 
 - `LootNPopEditor Win64 Development` 성공, 자동화 `LootNPop.SurfaceNavigation` 46/46
 - Development 패키지 BuildCookRun 성공. 리슨 2P(`-LNPLoadBaseline=50`, 로그 `Saved/Logs/FaceIndex4b_*`)에서 호스트·게스트 모두 `ProbeFaceIndex` 2,000/2,000 PASS, `ProbePanels` PASS
-
-2026-09-27 Phase 4 공통 전제:
-
-- `LootNPopEditor Win64 Development` 성공
-- `BakeOctant`로 `Fixture_Regression`(신규)·`Meadow_00`(동굴 반영) 재저장 → 자동화 `LootNPop.SurfaceNavigation` 46개 중 45개 통과. `WorldCollision.Api` 간헐 실패 1건은 단독 재실행 2회 통과(위 이관 항목)
-- 에디터 바이너리 `-game` 리슨 2P 스모크(`Saved/Logs/Smoke4b_*`): 8 옥탄트 로드·게스트 접속 성공, ensure·크래시·`LogLootNPop` 오류 0, 기존 종류의 오류만
-- 사용자 PIE: `Meadow_00` 동굴 진입, 내부 바닥·벽 사격 정상, 입구 프랍 간섭 없음

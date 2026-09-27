@@ -306,3 +306,19 @@ bool LNPSupportLayers::BuildLayers(
 	}
 	return true;
 }
+
+FLNPBakeTriangleMesh LNPSupportLayers::MakeLayerMesh(const FLNPBakeTriangleMesh& SourceMesh, const FLNPSupportLayer& Layer)
+{
+	FLNPBakeTriangleMesh Mesh;
+	Mesh.Vertices = SourceMesh.Vertices;
+	Mesh.Triangles.Reserve(Layer.Triangles.Num());
+	for (const int32 TriangleIndex : Layer.Triangles)
+	{
+		Mesh.Triangles.Add(SourceMesh.Triangles[TriangleIndex]);
+		if (SourceMesh.ExternalFaceIndices.IsValidIndex(TriangleIndex))
+		{
+			Mesh.ExternalFaceIndices.Add(SourceMesh.ExternalFaceIndices[TriangleIndex]);
+		}
+	}
+	return Mesh;
+}

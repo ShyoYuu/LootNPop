@@ -125,6 +125,12 @@
 - Editor: 베이커가 Layer 전체를 굽고 보고서에 Layer별 샘플 수·Valid·NeedsExact·크기·시간, Layer 쌍 겹침 수를 적는다.
 - 합성 자동화: 같은 방향 3층 캡(창에 따라 각 층 선택), 계단형 30cm 단차(StepUp 안이면 위 칸), 가장자리 NeedsExact 전파(가까운 Layer 보간 실패 시 먼 Layer로 떨어지지 않음), 접힌 sheet 오류, codec 왕복.
 - 세 옥탄트 재베이크, `Bake.OctantBakeDeterministic`·`CrustSeamMatch`·`CrustAtlasExactError` 통과 유지.
+- 상태(2026-09-27): 완료. 형식 원본은 `../design/SurfaceBaking.md` "다층 Atlas 규약".
+  - runtime `LNPSupportAtlas`(격자·row span `ComputeFootprint`·공용 `Rasterize`·codec v2·`QueryLayer`·`QueryLayers`). `LNPCrustAtlas`에는 이음매 스냅 rasterize와 seam 규약만 남겼다. codec v1 decode는 없다.
+  - 레이아웃 초안(§3.7)에서 바꾼 점: header에 지각 N·기준 반지름을 두지 않고 Layer 표에 Layer마다 분할 수·기준 반지름을 둔다(지각은 Layer 0). 샘플 offset은 행 `Count` 누적으로 정해지므로 저장하지 않는다.
+  - 베이커는 source를 Key 순으로 정렬한 뒤 굽는다. Layer 설정(m, 겹침 보고 높이, Layer 분리 walkable·용접 거리)을 bake settings hash에 넣었다. 겹침 보고 높이는 200cm로 두었다(보고 전용).
+  - 합성 자동화 4개: `Bake.SupportAtlasFootprint`(row span이 전체 배치의 Valid·플래그를 그대로 보존), `SupportAtlasLayerQuery`(3층 캡·30cm 계단·가장자리 전파), `SupportAtlasFoldedSheet`(1.3바퀴 나선 경사로 → 오류), `SupportAtlasCodec`(왕복·거부 사례).
+  - m=2 결과: `Meadow_00` 비지각 Layer 10개 샘플 25,623개, payload 2,088,939바이트(지각 대비 +10%). 섬 B 계단 3칸(Layer 5~7)은 샘플 14~15개가 모두 NeedsExact다. 칸이 50cm 격자로는 내부 샘플이 없을 만큼 좁다. 구현 단위 3의 m 결정과 구현 단위 4 계단 검증에 직접 걸린다.
 
 ### 구현 단위 3 — 오차 측정과 해상도 확정
 
@@ -142,9 +148,9 @@
 ## 5. 완료 조건
 
 - [x] Support-only proxy와 ISM Support가 베이크 오류로 막히고, 세 LVI는 통과함
-- [ ] 분리 sheet는 Layer 2개, 양면 판은 Layer 1개(바깥 winding은 None), 접힌 sheet는 오류 — 앞의 둘은 구현 단위 1에서 확인
-- [ ] 세 옥탄트의 다층 SupportPayload(codec v2, `DataVersion` 3)가 베이크·저장되고, 두 번 구운 결과가 같음
-- [ ] `QueryLayers`가 3층 겹침·계단 단차·가장자리에서 규칙대로 Layer를 고르고, 가장자리에서 다른 Layer로 떨어지지 않음
+- [x] 분리 sheet는 Layer 2개, 양면 판은 Layer 1개(바깥 winding은 None), 접힌 sheet는 오류
+- [x] 세 옥탄트의 다층 SupportPayload(codec v2, `DataVersion` 3)가 베이크·저장되고, 두 번 구운 결과가 같음
+- [x] `QueryLayers`가 3층 겹침·계단 단차·가장자리에서 규칙대로 Layer를 고르고, 가장자리에서 다른 Layer로 떨어지지 않음(합성 입력. `Meadow_00` 계단은 구현 단위 4)
 - [ ] Layer Atlas와 exact 오차가 측정됐고, 그 결과로 해상도 m과 허용값이 문서에 확정됨
 - [ ] 동굴 바닥 Layer가 지각·천장 뒤에서도 샘플되고, 섬 가장자리 밖에 유령 지면이 없음
 - [ ] 8 slot에서 exact hit `FaceIndex` → face 표 → Layer가 Atlas 조회 Layer와 일치하고, 패키지 빌드에서 `FaceIndex`가 유효함

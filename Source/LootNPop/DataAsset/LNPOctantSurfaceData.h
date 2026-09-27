@@ -87,8 +87,8 @@ struct LOOTNPOP_API FLNPSurfaceBakeHeader
 {
 	GENERATED_BODY()
 
-	/** 2: Support payload에 지각 Atlas codec v1(`LNPCrustAtlas::Encode`). */
-	static constexpr uint32 CurrentDataVersion = 2;
+	/** 3: Support payload에 다층 Support Atlas codec v2(`LNPSupportAtlas::Encode`). 2는 지각 전용 codec v1이었다. */
+	static constexpr uint32 CurrentDataVersion = 3;
 
 	FLNPSurfaceBakeHeader();
 
@@ -140,7 +140,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	FLNPSurfaceBakeHeader Header;
 
-	/** 지각 Support Atlas(`LNPCrustAtlas` codec v1). Header.Support의 ElementCount는 샘플 수다. */
+	/** 다층 Support Atlas(`LNPSupportAtlas` codec v2). Header.Support의 ElementCount는 모든 Layer의 샘플 수 합이다. */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	TArray<uint8> SupportPayload;
 

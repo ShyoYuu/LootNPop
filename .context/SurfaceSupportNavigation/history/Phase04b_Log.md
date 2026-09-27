@@ -102,3 +102,27 @@
 - source key는 에디터 label이 아니라 actor FName이다(OFPA는 `StaticMeshActor_UAID_...`). 처음 쓴 테스트가 label(`FX_*`)로 찾다 실패해서, mesh 이름으로 찾도록 고쳤다.
 - 접힌 sheet 오류는 광선 교차로만 드러나므로 구현 단위 2 검사로 옮겼다.
 - 자동화 `LootNPop.SurfaceNavigation` 48/48(`Bake.SupportLayersSplit`·`OctantSupportLayers` 추가).
+
+### 구현 단위 2 — sparse rasterization·codec v2·다층 조회
+
+- runtime `LNPSupportAtlas`(`LNPSupportAtlas.*`)를 새로 두고 4a `LNPCrustAtlas`의 격자·법선 codec·rasterize·보간을 옮겼다. `LNPCrustAtlas`에는 이음매 스냅 rasterize, seam 좌표·짝·hash만 남았다. 지각은 `FLNPSupportLayout::MakeFull`(전체 배치)이라 샘플 인덱스가 4a와 같다.
+- row span(`ComputeFootprint`): Layer 삼각형을 옥탄트 면에 중심 투영한 삼각형을 행마다 잘라 `i` 구간을 모은다. 여유 1e-4 격자 단위. 광선은 투영 영역 밖을 맞힐 수 없으므로 구간 밖은 모두 coverage hole이다. `Bake.SupportAtlasFootprint`가 전체 배치로 구운 결과와 Valid 샘플·플래그가 모두 같음을 확인했다(구간 밖 이웃을 invalid로 보기 때문에 NeedsExact도 같다).
+- codec v2는 Phase 문서 §3.7 초안에서 두 가지를 바꿨다. header에 지각 N·기준 반지름을 두지 않고 Layer 표가 Layer마다 분할 수·기준 반지름을 가진다. 샘플 offset은 행 `Count` 누적이라 저장하지 않는다. 형식 원본은 `design/SurfaceBaking.md` "다층 Atlas 규약"으로 옮겼다.
+- `QueryLayers`: 창에 걸친 보간 실패 Layer가 있으면 즉시 NeedsExact, 아니면 선호 Layer 우선·가장 위 Layer. 걸침 판정은 Valid 꼭짓점 반지름 범위와 창의 겹침이다(꼭짓점 하나만 창 안인지 보는 것보다 보수적).
+- 베이커: source를 Key 순으로 정렬한 뒤 Layer 분리·rasterize·encode하고, 저장 전에 payload를 decode해 Layer 쌍 겹침 수를 보고서에 적는다. `BakerSchemaVersion` 2, `CurrentDataVersion` 3. bake settings hash에 `Layer.SubdivisionMultiplier`·`OverlapReportHeight`(200cm, 보고 전용)·Layer 분리 walkable·용접 거리를 넣었다.
+- 합성 자동화(지각 N=200, m=2):
+  - `SupportAtlasLayerQuery`: 3층 캡은 발 위치마다 각 층, 넓은 창은 가장 위, 선호 Layer 우선. 30cm 계단은 StepUp 50이면 위 칸, 20이면 섬 윗면. 위 캡 가장자리 스캔 501방향에서 NeedsExact 181, 아래 Layer로 떨어짐 0, 유령 지면 0, 가장자리를 벗어나면 가운데 캡 237.
+  - `SupportAtlasFoldedSheet`: 1.3바퀴 나선 경사로는 한 Layer로 분리되고 rasterize에서 오류다.
+  - `SupportAtlasCodec`: 8 Layer 23,611샘플 왕복(반지름 오차 ≤ step/2, 플래그·법선·배치·source 표 일치), 잘린·남는 바이트·v1·Key 정렬 위반·Layer 0 비전체·정수배 아닌 분할 수·int16 범위 초과를 거부.
+- 세 옥탄트 재베이크(m=2):
+
+| 옥탄트 | Layer | 비지각 샘플 | payload | 비고 |
+|:---|---:|---:|---:|:---|
+| `Fixture_Crust` | 5 | 1,502 | 1,918,176 | split 2 Layer 각 약 460샘플, 슬래브 윗면 62샘플 중 29 NeedsExact |
+| `Fixture_Regression` | 7 | 5,717 | 1,947,109 | 통로 바닥 Layer 3이 지각·공동 바닥과 겹침 보고(39·7샘플) |
+| `Meadow_00` | 11 | 25,623 | 2,088,939 | 큰 섬 17,785샘플, 섬 B 계단 3칸 각 14~15샘플 100% NeedsExact |
+
+- 지각 지표는 4b 공통 전제 재베이크 때와 같다(`Meadow_00` 조회 NeedsExact 2.35%, 반지름 P99 1.055cm·최대 5.009cm).
+- 발견: `Meadow_00` 섬 B 계단 칸은 50cm 격자에서 내부 샘플이 없다. 모든 칸 샘플이 구간 밖 이웃을 가져 NeedsExact다. 칸 위에서는 Atlas가 Layer를 고르지 못하고 exact로 간다. 구현 단위 3에서 m=4를 볼 때 이 Layer들을 따로 기록한다.
+- 기존 테스트는 API 이름만 바꿨다(`FLNPCrustSample`→`FLNPSupportSample` 등, 지각 조회는 `QueryLayer(Atlas.Layers[0], …)`).
+- 검증: 에디터 빌드 성공, 자동화 `LootNPop.SurfaceNavigation` 52/52(`Saved/Logs/Auto4b_U2.log`). `SurfaceNavigationTests/MeshTerrain` 두 에셋은 git으로 원복했다. `Schema/DA_MinimalOctantSurfaceData`는 저장·재로드 테스트가 `CurrentDataVersion` 3을 기록한 것이라 4a 때처럼 커밋 대상이다.
