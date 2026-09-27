@@ -56,7 +56,8 @@ public class LootNPop : ModuleRules
             "LNPUI"
             ]);
 		PrivateDependencyModuleNames.AddRange([
-			"Chaos" // Gate 0 스파이크의 scene read lock 계측
+			"Chaos", // Gate 0 스파이크의 scene read lock 계측
+			"GeometryCore" // Support Atlas 베이크 광선 교차(TMeshAABBTree3)
 			]);
 
 		PublicIncludePaths.AddRange([
