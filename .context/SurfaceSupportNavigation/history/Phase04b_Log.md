@@ -141,3 +141,24 @@
   - 한계: 격자 한 칸보다 가는 형상이 가장 가까운 Valid 샘플에서 두 칸 넘게 뻗으면 이 판정이 덮지 못한다. 현재 콘텐츠에는 없으며, 새 콘텐츠는 `Bake.LayerAtlasExactError`의 missedFloor 단언이 잡는다.
 - 섬 B 계단은 m=4에서도 칸당 55샘플 중 약 70%가 NeedsExact이고 조회는 98~99%가 NeedsExact다. 보간 가능한 내부는 가장자리에서 격자 약 2칸 안쪽뿐이라 칸이 좁으면 사라진다. 구현 단위 4 계단 기준은 "칸 위에서 그 칸 Layer로 Supported이거나 NeedsExact이고, 다른 Layer는 고르지 않음"으로 바꿨다(사용자 결정). 넓은 칸과 좁은 칸을 같은 기준으로 검사한다.
 - 검증: 에디터 빌드 성공, 자동화 `LootNPop.SurfaceNavigation` 53/53(`Saved/Logs/Auto4b_U3.log`). `OctantBakeDeterministic`은 m=4 저장본과 일치하고, 지각 `CrustAtlasExactError`·`CrustSeamMatch`는 무회귀다. `SurfaceNavigationTests/MeshTerrain` 두 에셋은 git으로 원복했다.
+
+### 구현 단위 4 — face→Layer 종단 검증과 Phase 종료
+
+- 자동화 `WorldCollision.LayerIdentity`를 추가했다(`LootNPopEditor/Tests/LNPRegressionFixtureTest.cpp`). 저장된 SurfaceData를 디코딩하고, 추출기 Support source를 key로 Atlas source 표에 묶는다. 복제 component → source 번호 표로 exact hit를 해석한다. runtime `FLNPExactHitIdentity`에는 아직 source key가 없어서(Phase 5 binding) world `LNPSurfaceSupport` trace와 이 표를 쓴다.
+  - 비교 규칙: 발 반지름 창 `[Feet-50, Feet+100]`(가장자리 스캔은 지각까지 넓힌다)에서 `QueryLayers`와, 창 안 trace의 첫 walkable face Layer(non-walkable은 hit 뒤 0.01cm에서 다시 쏜다)를 비교한다. `Supported`면 같은 Layer, `NoSupport`면 exact도 없어야 한다. `NeedsExact`는 exact가 판정하므로 통과다.
+  - fixture 8 slot: 섬 둘 세 층, 공동·통로 바닥, 가장자리 바깥이 모두 `Supported`이고 반지름 오차 1cm 이내다. 섬 둘 두 섬과 동굴 두 바닥은 서로 다른 비지각 Layer이고 섬 밑은 Layer 0이다. 가장자리 스캔(접선 300~900, 5cm 간격, slot당 121지점): 섬 윗면 `Supported` 416, 지각 `Supported` 440, NeedsExact 112, 불일치 0이다.
+  - `Meadow_00` 섬 B 계단: 계단 Layer footprint에 8칸 여유를 둔 영역에서 무작위 4,000방향(seed 20260927)을 뽑는다. 위에서 본 첫 지지면에 발을 2cm 띄워 둔다.
+
+| Layer | 대상 | Supported | NeedsExact |
+|:---|:---|---:|---:|
+| 5·6·7 | 칸 3개 | 4·2·4 | 115·123·113 |
+| 8 | 플랫폼 | 399 | 202 |
+| 기타 | 칸 옆 섬 윗면 | 2,944 | 94 |
+
+  - 다른 Layer를 고른 방향과 지지면을 못 찾은 방향은 모두 0이다. 칸 위는 거의 exact로 간다는 구현 단위 3 예상과 같다.
+- 검증
+  - 에디터 빌드 성공.
+  - 자동화 `LootNPop.SurfaceNavigation` 54/54(`Saved/Logs/Auto4b_U4.log`). 지각 `CrustAtlasExactError`·`CrustSeamMatch`·`OctantBakeDeterministic` 무회귀다. `SurfaceNavigationTests/MeshTerrain` 두 에셋은 git으로 원복했다.
+  - D-031 2P 스모크: 에디터 바이너리 `-game` 리슨 `TestMap03?Listen`, 기본 스폰, 게스트 접속 후 약 3분(로그 `Saved/Logs/Smoke4b_Host.log`·`Smoke4b_Guest.log`). 접속 성공, 연결 끊김 0, 호스트·게스트 ensure·크래시·`LogLootNPop` 오류 0이다. 오류는 4a와 같은 기존 종류(`CharacterMovementComponent` 추출 실패, 엔진 Experimental 툴셋 Python 초기화)뿐이다. 4b는 런타임 경로를 바꾸지 않았다.
+- 문서: `design/RegressionMap.md` §3(Layer 식별 사례)·§7, `design/RuntimeCollision.md`(face 표 해석 경로). 다층 규약·codec v2(`design/SurfaceBaking.md`)와 `DataVersion` 3(`design/DataModel.md`)은 구현 단위 2에서 반영했다.
+- **Phase 4b 완료.** 완료 조건 9개 모두 충족(`phases/Phase04b_MultiLayerSupport.md` §5).
