@@ -863,7 +863,30 @@ bool LNPSupportAtlas::QueryLayer(const FLNPSupportAtlasLayer& Layer, const FVect
 		Radius += Weights[Corner] * CornerRadius;
 		Normal += static_cast<float>(Weights[Corner]) * Layer.GetNormal(Index);
 	}
-	if (OutQuery.ValidCorners == 0)
+	// 꼭짓점이 모두 invalid여도 Layer 가장자리가 격자점 사이로 이 삼각형까지 걸칠 수 있다. 꼭짓점 행이 Layer 행 구간에서
+	// 한 행 넘게 떨어져 있으면 이웃도 구간 밖이므로 바로 넘긴다(대부분의 Layer가 여기서 끝난다).
+	const int32 FirstRow = Layer.Layout.J0 - 1;
+	const int32 LastRow = Layer.Layout.J0 + Layer.Layout.Rows.Num();
+	for (int32 Corner = 0; Corner < 3 && OutQuery.ValidCorners == 0; ++Corner)
+	{
+		if (Corners[Corner].Y < FirstRow || Corners[Corner].Y > LastRow)
+		{
+			continue;
+		}
+		for (const int32 (&Offset)[2] : NeighborOffsets)
+		{
+			const int32 Index = Layer.Layout.Find(Corners[Corner].X + Offset[0], Corners[Corner].Y + Offset[1]);
+			if (Index == INDEX_NONE || !EnumHasAnyFlags(Layer.GetFlags(Index), ELNPSupportSampleFlags::Valid))
+			{
+				continue;
+			}
+			const double NeighborRadius = Layer.GetRadius(Index);
+			OutQuery.bNearFootprintEdge = true;
+			OutQuery.MinCornerRadius = FMath::Min(OutQuery.MinCornerRadius, NeighborRadius);
+			OutQuery.MaxCornerRadius = FMath::Max(OutQuery.MaxCornerRadius, NeighborRadius);
+		}
+	}
+	if (!OutQuery.IsCandidate())
 	{
 		OutQuery.MinCornerRadius = 0.0;
 		OutQuery.MaxCornerRadius = 0.0;
@@ -902,7 +925,7 @@ ELNPSupportQueryResult LNPSupportAtlas::QueryLayers(
 	{
 		FLNPSupportLayerQuery Query;
 		QueryLayer(Atlas.Layers[LayerId], LocalDirection, Query);
-		if (Query.ValidCorners == 0)
+		if (!Query.IsCandidate())
 		{
 			continue;
 		}

@@ -146,9 +146,16 @@ struct FLNPSupportLayerQuery
 	/** bInterpolated일 때만 의미가 있다. */
 	double Radius = 0.0;
 	FVector3f Normal = FVector3f::ZeroVector;
-	/** ValidCorners > 0일 때 Valid 꼭짓점 반지름 범위. */
+	/**
+	 * ValidCorners가 0이지만 꼭짓점의 6-이웃에 Valid 샘플이 있다. Layer 형상이 격자점 없이 이 삼각형까지 걸칠 수 있는
+	 * footprint 가장자리 띠이므로 후보로 본다. 이때 Min/MaxCornerRadius는 그 이웃 샘플의 반지름 범위다.
+	 */
+	bool bNearFootprintEdge = false;
+	/** ValidCorners > 0일 때 Valid 꼭짓점, bNearFootprintEdge일 때 Valid 이웃의 반지름 범위. */
 	double MinCornerRadius = 0.0;
 	double MaxCornerRadius = 0.0;
+
+	bool IsCandidate() const { return ValidCorners > 0 || bNearFootprintEdge; }
 };
 
 enum class ELNPSupportQueryResult : uint8
@@ -245,7 +252,8 @@ namespace LNPSupportAtlas
 	 * 같은 방향에 겹친 Layer 중 발 위치 기준 하나를 고른다(`phases/Phase04b_MultiLayerSupport.md` §3.5). 반지름이 작을수록 위다.
 	 * 탐색 창은 [FeetRadius - MaxStepUp, FeetRadius + MaxDrop]이다.
 	 * 1. 창에 Valid 꼭짓점 반지름 범위가 걸치는데 보간되지 않는 Layer가 하나라도 있으면 NeedsExact다.
-	 *    가장자리에서 가까운 Layer를 건너뛰고 먼 Layer로 떨어지지 않게 하기 위해서다.
+	 *    가장자리에서 가까운 Layer를 건너뛰고 먼 Layer로 떨어지지 않게 하기 위해서다. 꼭짓점이 모두 invalid여도
+	 *    footprint 가장자리 띠(`FLNPSupportLayerQuery::bNearFootprintEdge`)면 이웃 반지름으로 같은 판정을 한다.
 	 * 2. 아니면 보간 반지름이 창 안인 Layer 중 PreferredLayer를 우선하고, 없으면 가장 위 Layer를 고른다.
 	 * 3. 창 안에 없으면 NoSupport다. 방향이 이 옥탄트가 아니면 NeedsExact다.
 	 */

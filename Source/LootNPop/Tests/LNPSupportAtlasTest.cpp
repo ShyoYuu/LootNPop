@@ -315,7 +315,7 @@ bool FLNPSupportAtlasLayerQueryTest::RunTest(const FString& Parameters)
 	Expect(TEXT("Beside the step is the island top"), Direction(StairLat, StairAz + StairStepHalf + 0.8), StairBase - StairHeight, 50.0, 100.0,
 		LNPSupportLayers::NoLayer, Supported, StairBaseLayer, StairBase);
 
-	// 위 캡 가장자리를 가로지른다. 위 캡 꼭짓점이 하나라도 걸치면 아래 Layer로 떨어지지 않고 NeedsExact여야 한다.
+	// 위 캡 가장자리를 가로지른다. 위 캡이 후보(꼭짓점이 하나라도 Valid이거나 가장자리 띠)면 아래 Layer로 떨어지지 않고 NeedsExact여야 한다.
 	int32 NeedsExactCount = 0;
 	int32 FellThrough = 0;
 	int32 GhostTop = 0;
@@ -330,8 +330,8 @@ bool FLNPSupportAtlasLayerQueryTest::RunTest(const FString& Parameters)
 		NeedsExactCount += Result == NeedsExact ? 1 : 0;
 		const bool bSupportedTop = Result == Supported && Hit.Layer == TopLayer;
 		GhostTop += bSupportedTop && Offset > TopHalf ? 1 : 0;
-		FellThrough += Top.ValidCorners > 0 && Result == Supported && Hit.Layer != TopLayer ? 1 : 0;
-		MidBeyondEdge += Top.ValidCorners == 0 && Result == Supported && Hit.Layer == MidLayer ? 1 : 0;
+		FellThrough += Top.IsCandidate() && Result == Supported && Hit.Layer != TopLayer ? 1 : 0;
+		MidBeyondEdge += !Top.IsCandidate() && Result == Supported && Hit.Layer == MidLayer ? 1 : 0;
 	}
 	AddInfo(FString::Printf(TEXT("Top cap edge scan: NeedsExact=%d fellThrough=%d ghostTop=%d midBeyondEdge=%d"),
 		NeedsExactCount, FellThrough, GhostTop, MidBeyondEdge));

@@ -16,8 +16,11 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeOptions
 	/** 0 이하면 `ULNPSettings::SphereRadius`를 쓴다. */
 	double BaseRadius = 0.0;
 
-	/** 비지각 Layer 격자 분할 수 = 지각 N × 이 값(D-057). 2는 50cm, 4는 25cm 간격이다. 구현 단위 3 오차 측정으로 확정한다. */
-	int32 LayerSubdivisionMultiplier = 2;
+	/**
+	 * 비지각 Layer 격자 분할 수 = 지각 N × 이 값(D-057). 4는 25cm 간격이다. 오차는 2·4 모두 합격이고, 4가 섬·경사로의
+	 * NeedsExact를 절반으로 줄여 채택했다(`phases/Phase04b_MultiLayerSupport.md` 구현 단위 3).
+	 */
+	int32 LayerSubdivisionMultiplier = 4;
 
 	/** 두 Layer가 같은 방향에서 이 반지름 차(cm) 안에 있으면 겹침으로 보고서에 센다. 베이크 결과에는 영향이 없다. */
 	double OverlapReportHeight = 200.0;
@@ -31,6 +34,8 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeOptions
 struct LOOTNPOPEDITOR_API FLNPOctantBakeLayerReport
 {
 	FString SourceKey;
+	/** source 컴포넌트 전체 경로. 오차 측정 자동화가 컴포넌트를 찾는 데 쓴다. */
+	FString SourceName;
 	int32 Subdivisions = 0;
 	int32 TriangleCount = 0;
 	int32 RowCount = 0;
