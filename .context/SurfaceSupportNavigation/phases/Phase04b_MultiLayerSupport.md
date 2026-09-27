@@ -1,6 +1,6 @@
 # Phase 4b — 부유섬·동굴 키트 다층 Support
 
-> 상태: 진행 중
+> 상태: 완료(2026-09-27)
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 4a(완료), Phase 4 공통 전제(완료, `../history/Phase04b_Log.md`)
 
@@ -157,6 +157,11 @@
 - `Meadow_00` 섬 B 계단(사용자 결정, 2026-09-27): 각 칸 위 발 위치에서 `QueryLayers`는 **그 칸 Layer로 Supported이거나 NeedsExact**여야 하고 다른 Layer를 고르면 안 된다. NeedsExact인 지점은 exact hit face→Layer가 그 칸 Layer여야 한다. 칸 옆에서는 섬 윗면이 선택된다. 해상도에 따라 넓은 칸은 가운데에서 보간되고 좁은 칸은 exact로 가므로, 이 기준 하나로 칸 폭과 무관하게 검사한다.
 - 에디터 빌드, 자동화 전체, `-game` 리슨 2P 스모크(D-031. 4b는 런타임 경로를 바꾸지 않으므로 무회귀 확인).
 - 문서: `../design/SurfaceBaking.md`(다층 규약·codec v2), `../design/DataModel.md`(DataVersion 3), `../design/RuntimeCollision.md`(face 표 형식과 external index), `../design/RegressionMap.md` §3·§7, Roadmap·Current.
+- 상태(2026-09-27): 완료.
+  - 자동화 `WorldCollision.LayerIdentity`(`LNPRegressionFixtureTest.cpp`). 저장된 SurfaceData를 디코딩하고, Support source를 key로 Atlas source 표에 묶어 테스트 월드에 복제한다. 발 위치마다 `QueryLayers`(창 StepUp 50·Drop 100)와 창 안 `LNPSurfaceSupport` trace의 첫 walkable face→Layer를 비교한다. `Supported`는 같은 Layer, `NoSupport`는 exact도 없음이어야 한다.
+  - fixture 8 slot: 섬 둘 3층, 공동·통로 바닥, 가장자리 바깥(접선 750 → 지각)이 모두 `Supported`이고 기대 반지름 1cm 이내다. 가장자리 스캔 968지점(slot당 121)은 섬 윗면 416, 지각 440, NeedsExact 112이고 불일치 0이다.
+  - `Meadow_00` 계단: 무작위 4,000방향에서 위에서 본 첫 지지면에 발을 둔다. 칸 Layer 5·6·7은 `Supported` 2~4, NeedsExact 113~123이고 플랫폼 Layer 8은 399·202다. 칸 옆 섬 윗면은 `Supported` 2,944, NeedsExact 94다. 다른 Layer를 고른 방향은 0이다.
+  - 검증: 에디터 빌드 성공, 자동화 `LootNPop.SurfaceNavigation` 54/54(`Saved/Logs/Auto4b_U4.log`), `-game` 리슨 2P 스모크 통과(`Saved/Logs/Smoke4b_*.log`).
 
 ## 5. 완료 조건
 
@@ -166,6 +171,6 @@
 - [x] `QueryLayers`가 3층 겹침·계단 단차·가장자리에서 규칙대로 Layer를 고르고, 가장자리에서 다른 Layer로 떨어지지 않음(합성 입력. `Meadow_00` 계단은 구현 단위 4)
 - [x] Layer Atlas와 exact 오차가 측정됐고, 그 결과로 해상도 m과 허용값이 문서에 확정됨
 - [x] 동굴 바닥 Layer가 지각·천장 뒤에서도 샘플되고, 섬 가장자리 밖에 유령 지면이 없음(`Bake.LayerAtlasExactError`)
-- [ ] 8 slot에서 exact hit `FaceIndex` → face 표 → Layer가 Atlas 조회 Layer와 일치하고, 패키지 빌드에서 `FaceIndex`가 유효함
-- [ ] 지각 Atlas 4a 검증(이음매·오차·결정론) 무회귀
-- [ ] 에디터 빌드, 자동화 전체 통과, `-game` 리슨 2P 스모크 통과
+- [x] 8 slot에서 exact hit `FaceIndex` → face 표 → Layer가 Atlas 조회 Layer와 일치하고, 패키지 빌드에서 `FaceIndex`가 유효함
+- [x] 지각 Atlas 4a 검증(이음매·오차·결정론) 무회귀
+- [x] 에디터 빌드, 자동화 전체 통과, `-game` 리슨 2P 스모크 통과

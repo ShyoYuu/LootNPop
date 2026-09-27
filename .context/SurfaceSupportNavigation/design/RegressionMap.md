@@ -50,6 +50,16 @@ fixture LVI 한 개를 8 slot 회전으로 테스트 월드에 복제하고 **�
 
 지각 Atlas도 이 LVI로 굽는다(`DA_OctantSurface_Fixture_Regression`). 자동화 `Bake.OctantBakeDeterministic`·`CrustSeamMatch`·`CrustAtlasExactError`가 저장본 일치, 이음매 일치, Atlas–exact 오차를 검사한다. 2026-09-27 기준 유령 지면 0, 100cm 해상도 반지름 오차 P99 0.16cm, 이음매 반지름 차 0이다. 동굴 입구는 Atlas에서 coverage hole(Invalid 61샘플)이다.
 
+다층 Atlas(Phase 4b)의 Layer 식별은 자동화 `WorldCollision.LayerIdentity`가 이 LVI의 8 slot 합성으로 검사한다. exact `LNPSurfaceSupport` trace hit의 (source key, `FaceIndex`)를 저장된 SurfaceData의 face 표로 해석한 Layer가 같은 발 위치의 `QueryLayers` Layer와 같아야 한다. Atlas가 `Supported`면 같은 Layer, `NoSupport`면 exact도 창 안에 지지면이 없어야 하고, `NeedsExact`는 exact가 판정한다.
+
+| 사례 | 발 위치 | 기대 |
+|:---|:---|:---|
+| 부유섬 둘 | 안쪽 섬 윗면, 안쪽 섬 밑(바깥 섬 윗면), 바깥 섬 밑(지각) | 셋 다 `Supported`, 반지름 오차 1cm 이내, 서로 다른 Layer이고 마지막만 Layer 0 |
+| 동굴 키트 | 공동 바닥 중심, 통로 경사 바닥 중간 | `Supported`, 지각보다 깊고 서로 다른 비지각 Layer. 지각·천장 뒤에서도 조회된다 |
+| 섬 가장자리 | 윗면 높이, 접선 300~900을 5cm 간격, 창은 지각까지 | 모든 지점에서 Atlas와 exact 일치(유령 지면 없음). 접선 750은 지각 `Supported` |
+
+`Meadow_00` 섬 B 계단(`SM_TerrainBox` 칸 Layer)도 같은 테스트가 slot 0에서 본다. 칸 위에서는 그 칸 Layer로 `Supported`이거나 `NeedsExact`이고, 칸 옆에서는 섬 윗면이 `Supported`여야 한다.
+
 ## 4. 동굴 키트 사례
 
 키트 규약은 `TerrainContract.md` §6, 치수 원본은 `LootNPopEditor/SurfaceNavigation/LNPCaveKit.h`다.
@@ -100,7 +110,7 @@ fixture LVI 한 개를 8 slot 회전으로 테스트 월드에 복제하고 **�
 
 | 시점 | 변경 |
 |:---|:---|
-| Phase 4b | 한 component의 분리된 sheet, 내부형 double-sided normal의 Layer 분리 검증. 입력은 4a `LVI_Octant_Fixture_Crust`의 `FX_SplitSheet`·`FX_DoubleSidedPlate`다 |
+| Phase 4b(완료) | 한 component의 분리된 sheet, 내부형 double-sided normal의 Layer 분리 검증. 입력은 4a `LVI_Octant_Fixture_Crust`의 `FX_SplitSheet`·`FX_DoubleSidedPlate`다(`Bake.OctantSupportLayers`) |
 | 콘텐츠가 필요할 때 | ISM/HISM instance와 Support proxy↔exact counterpart fixture(D-037·D-039). 그 전까지 둘 다 베이크 오류다(D-058) |
 | Phase 8 착수 전 | 동적 사례 3종을 Placement Marker와 서버 스폰 요소로 전환 |
 | Phase 8 착수 전 | 같은 tile에 겹치는 Conditional Patch 두 개와 중복 상태 이벤트 fixture |

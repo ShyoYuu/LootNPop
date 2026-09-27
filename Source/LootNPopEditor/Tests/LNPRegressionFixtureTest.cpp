@@ -5,6 +5,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Components/StaticMeshComponent.h"
+#include "DataAsset/LNPOctantSurfaceData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Engine/Engine.h"
@@ -14,11 +15,15 @@
 #include "Engine/StaticMeshSocket.h"
 #include "Engine/World.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
+#include "Misc/PackageName.h"
 #include "SurfaceNavigation/LNPCaveKit.h"
+#include "SurfaceNavigation/LNPCollisionChannels.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "SurfaceNavigation/LNPOctantSurfaceBaker.h"
 #include "SurfaceNavigation/LNPOctantTriangleExtractor.h"
 #include "SurfaceNavigation/LNPRegressionFixture.h"
+#include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/Package.h"
 
@@ -35,6 +40,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPCaveKitContractTest,
 	"LootNPop.SurfaceNavigation.Bake.CaveKitContract",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPLayerIdentityTest,
+	"LootNPop.SurfaceNavigation.WorldCollision.LayerIdentity",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace LNPRegressionFixtureTest
@@ -612,6 +622,413 @@ bool FLNPCaveKitContractTest::RunTest(const FString& Parameters)
 			CorridorSamples.Emplace(RampLength * I / 12.0, Y);
 	CheckClearance(TEXT("Corridor"), CorridorFloor.Triangles, CorridorShell.Triangles, CorridorSamples);
 	return true;
+}
+
+namespace LNPLayerIdentityTest
+{
+	/** 발은 지지면보다 이만큼(cm) 위에 둔다. */
+	constexpr double FeetClearance = 2.0;
+	/** `FLNPSupportProbeQuery` 기본값과 같은 탐색 창. 적 exact 이동 기준값은 Phase 6에서 맞춘다. */
+	constexpr double MaxStepUp = 50.0;
+	constexpr double MaxDrop = 100.0;
+	/** 한 광선에서 non-walkable face를 건너뛰는 최대 횟수. */
+	constexpr int32 MaxTraceSkips = 8;
+
+	/** 한 방향·발 반지름에서 Atlas 조회와 exact hit face→Layer 해석을 함께 한 결과. */
+	struct FLayerProbe
+	{
+		ELNPSupportQueryResult Result = ELNPSupportQueryResult::NoSupport;
+		FLNPSupportLayerHit Atlas;
+		/** 탐색 창 안에서 exact가 처음 맞힌 walkable face의 Layer. 없으면 NoLayer다. */
+		uint16 ExactLayer = LNPSupportLayers::NoLayer;
+		double ExactRadius = 0.0;
+		/** exact hit의 component나 FaceIndex를 해석하지 못했다. */
+		bool bUnresolved = false;
+
+		/** Supported면 exact와 같은 Layer, NoSupport면 exact도 없음, NeedsExact면 exact가 판정한다. */
+		bool IsConsistent() const
+		{
+			switch (Result)
+			{
+			case ELNPSupportQueryResult::Supported: return Atlas.Layer == ExactLayer;
+			case ELNPSupportQueryResult::NoSupport: return ExactLayer == LNPSupportLayers::NoLayer;
+			default: return true;
+			}
+		}
+
+		FString ToString() const
+		{
+			static const TCHAR* Results[] = {TEXT("Supported"), TEXT("NeedsExact"), TEXT("NoSupport")};
+			return FString::Printf(TEXT("atlas %s Layer %d r=%.2f, exact Layer %d r=%.2f"), Results[static_cast<int32>(Result)],
+				Result == ELNPSupportQueryResult::Supported ? Atlas.Layer : -1, Atlas.Radius,
+				ExactLayer == LNPSupportLayers::NoLayer ? -1 : ExactLayer, ExactRadius);
+		}
+	};
+
+	bool LoadSavedAtlas(const TCHAR* LevelPath, FLNPSupportAtlas& OutAtlas, FString& OutError)
+	{
+		const FString Package = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(FSoftObjectPath(LevelPath));
+		const ULNPOctantSurfaceData* Data = LoadObject<ULNPOctantSurfaceData>(
+			nullptr, *FString::Printf(TEXT("%s.%s"), *Package, *FPackageName::GetShortName(Package)));
+		if (!Data)
+		{
+			OutError = FString::Printf(TEXT("SurfaceData %s is missing"), *Package);
+			return false;
+		}
+		return LNPSupportAtlas::Decode(Data->SupportPayload, OutAtlas, OutError);
+	}
+
+	/**
+	 * 옥탄트 Support source를 slot 회전으로 테스트 월드에 복제하고, exact hit의 (component, FaceIndex)를 저장된 Atlas의
+	 * source 표로 Layer까지 해석한다. component → source 대응은 source key로 맺는다(Phase 5 registry binding과 같은 key).
+	 */
+	class FLayerIdentityWorld
+	{
+	public:
+		explicit FLayerIdentityWorld(const FLNPSupportAtlas& InAtlas) : Atlas(InAtlas)
+		{
+			World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/false, TEXT("LNPLayerIdentityTest"));
+			FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+			WorldContext.SetCurrentWorld(World);
+		}
+
+		~FLayerIdentityWorld()
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(false);
+		}
+
+		bool AddSources(TConstArrayView<FLNPBakeSupportSource> Sources, const FQuat& SlotRotation, FString& OutError)
+		{
+			for (const FLNPBakeSupportSource& Source : Sources)
+			{
+				const int32 AtlasSource = Atlas.Sources.IndexOfByPredicate(
+					[&Source](const FLNPSupportAtlasSource& Entry) { return Entry.Key.Equals(Source.Key, ESearchCase::CaseSensitive); });
+				const UStaticMeshComponent* Component = FindObject<UStaticMeshComponent>(nullptr, *Source.Name);
+				if (AtlasSource == INDEX_NONE || !Component)
+				{
+					OutError = FString::Printf(TEXT("Source %s (key %s) is not in the saved Atlas or does not resolve"), *Source.Name, *Source.Key);
+					return false;
+				}
+				AActor* Owner = World->SpawnActor<AActor>();
+				UStaticMeshComponent* Copy = NewObject<UStaticMeshComponent>(Owner);
+				Copy->SetStaticMesh(Component->GetStaticMesh());
+				Copy->SetCollisionProfileName(Component->GetCollisionProfileName());
+				Copy->SetWorldTransform(FLNPOctantTriangleExtractor::GetSourceTransform(*Component) * FTransform(SlotRotation));
+				Owner->SetRootComponent(Copy);
+				Copy->RegisterComponent();
+				SourceByComponent.Add(Copy, AtlasSource);
+			}
+			return true;
+		}
+
+		FLayerProbe Probe(const FQuat& SlotRotation, const FVector3d& WorldDirection, double FeetRadius, double StepUp, double Drop) const
+		{
+			FLayerProbe Out;
+			Out.Result = LNPSupportAtlas::QueryLayers(Atlas, SlotRotation.UnrotateVector(WorldDirection), FeetRadius, StepUp, Drop,
+				LNPSupportLayers::NoLayer, Out.Atlas);
+
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPLayerIdentity), /*bTraceComplex=*/false);
+			Params.bReturnFaceIndex = true;
+			double StartRadius = FeetRadius - StepUp;
+			for (int32 Skip = 0; Skip <= MaxTraceSkips; ++Skip)
+			{
+				FHitResult Hit;
+				if (!World->LineTraceSingleByChannel(Hit, WorldDirection * StartRadius, WorldDirection * (FeetRadius + Drop),
+					LNPCollisionChannels::SurfaceSupport, Params))
+				{
+					break;
+				}
+				const int32* AtlasSource = SourceByComponent.Find(Hit.GetComponent());
+				if (!AtlasSource || Hit.FaceIndex < 0)
+				{
+					Out.bUnresolved = true;
+					break;
+				}
+				const double Radius = FVector3d::DotProduct(FVector3d(Hit.ImpactPoint), WorldDirection);
+				const uint16 Layer = Atlas.Sources[*AtlasSource].FaceMap.Resolve(Hit.FaceIndex);
+				if (Layer != LNPSupportLayers::NoLayer)
+				{
+					Out.ExactLayer = Layer;
+					Out.ExactRadius = Radius;
+					break;
+				}
+				StartRadius = Radius + 0.01;
+			}
+			return Out;
+		}
+
+		/** 위에서 내려다본 첫 walkable 지지면에 발을 두고 조회한다. 지지면이 없으면 ExactLayer가 NoLayer다. */
+		FLayerProbe ProbeStandingOn(const FQuat& SlotRotation, const FVector3d& WorldDirection, double AboveRadius, double BelowRadius) const
+		{
+			const FLayerProbe Surface = Probe(SlotRotation, WorldDirection, AboveRadius, 0.0, BelowRadius - AboveRadius);
+			if (Surface.bUnresolved || Surface.ExactLayer == LNPSupportLayers::NoLayer)
+			{
+				return Surface;
+			}
+			return Probe(SlotRotation, WorldDirection, Surface.ExactRadius - FeetClearance, MaxStepUp, MaxDrop);
+		}
+
+	private:
+		const FLNPSupportAtlas& Atlas;
+		UWorld* World = nullptr;
+		TMap<const UPrimitiveComponent*, int32> SourceByComponent;
+	};
+}
+
+/**
+ * exact hit의 (source key, FaceIndex)를 face 표로 해석한 Layer가 같은 지점의 `QueryLayers` Layer와 같은지 본다
+ * (`phases/Phase04b_MultiLayerSupport.md` 구현 단위 4). 저장된 SurfaceData를 쓰므로 `Bake.OctantBakeDeterministic`이
+ * 통과한 상태를 전제한다.
+ * 1. fixture 회귀 LVI를 8 slot으로 합성해 섬 둘 3층, 동굴 공동·통로 바닥, 섬 가장자리 안팎을 검사한다.
+ * 2. `Meadow_00` 섬 B 계단(`SM_TerrainBox`)에서 칸 위는 그 칸 Layer로 Supported이거나 NeedsExact, 칸 옆은 다른 Layer다.
+ */
+bool FLNPLayerIdentityTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPRegressionFixture;
+	using namespace LNPLayerIdentityTest;
+	constexpr double Tolerance = 1.0;
+	constexpr uint16 NoLayer = LNPSupportLayers::NoLayer;
+
+	auto CheckProbe = [this](const FString& Label, const FLayerProbe& Probe)
+	{
+		TestFalse(Label + TEXT(": exact hit resolves"), Probe.bUnresolved);
+		if (!Probe.IsConsistent())
+		{
+			AddError(FString::Printf(TEXT("%s: Atlas and exact disagree (%s)"), *Label, *Probe.ToString()));
+		}
+	};
+
+	// 1. fixture 회귀 LVI, 8 slot.
+	{
+		FLNPSupportAtlas Atlas;
+		FString Error;
+		UPackage* MapPackage = LoadPackage(nullptr, *FPackageName::ObjectPathToPackageName(FString(LevelPath)), LOAD_None);
+		UWorld* MapWorld = MapPackage ? UWorld::FindWorldInPackage(MapPackage) : nullptr;
+		TArray<FLNPBakeSupportSource> Sources;
+		if (!TestNotNull(TEXT("Regression fixture LVI loads"), MapWorld)
+			|| !TestTrue(TEXT("Fixture support sources extract"), FLNPOctantTriangleExtractor::ExtractSupportSources(*MapWorld, Sources, Error))
+			|| !TestTrue(TEXT("Fixture SurfaceData decodes"), LoadSavedAtlas(LevelPath, Atlas, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+
+		FLayerIdentityWorld Identity(Atlas);
+		constexpr int32 SlotCount = UE_ARRAY_COUNT(ULNPOctantSpawnSubsystem::OctantRotations);
+		for (int32 Slot = 0; Slot < SlotCount; ++Slot)
+		{
+			if (!TestTrue(TEXT("Fixture sources copy"), Identity.AddSources(Sources, ULNPOctantSpawnSubsystem::OctantRotations[Slot].Quaternion(), Error)))
+			{
+				AddError(Error);
+				return false;
+			}
+		}
+
+		const LNPCaveKit::FPlacement CavePlacement = LNPCaveKit::PlaceUnderSphere(Cave().Radial, Cave().Bitangent, CrustRadius);
+		int32 EdgeCounts[3] = {};
+		for (int32 Slot = 0; Slot < SlotCount; ++Slot)
+		{
+			const FQuat SlotRotation = ULNPOctantSpawnSubsystem::OctantRotations[Slot].Quaternion();
+			auto Name = [Slot](const TCHAR* Text) { return FString::Printf(TEXT("Slot %d %s"), Slot, Text); };
+
+			// 섬 둘: 안쪽 섬 위 → 안쪽 섬, 안쪽 섬 밑 → 바깥 섬, 바깥 섬 밑 → 지각. 세 Layer가 서로 다르다.
+			{
+				const FVector3d Direction = SlotRotation.RotateVector(IslandTwo().Radial);
+				const double Tops[] = {IslandTwoInnerTop, IslandTwoOuterTop, CrustRadius};
+				uint16 Layers[3];
+				for (int32 Index = 0; Index < 3; ++Index)
+				{
+					const FString Label = Name(*FString::Printf(TEXT("IslandTwo level %d"), Index));
+					const FLayerProbe Probe = Identity.Probe(SlotRotation, Direction, Tops[Index] - FeetClearance, MaxStepUp, MaxDrop);
+					CheckProbe(Label, Probe);
+					TestTrue(Label + TEXT(": Atlas supports"), Probe.Result == ELNPSupportQueryResult::Supported);
+					TestEqual(Label + TEXT(": Atlas radius"), Probe.Atlas.Radius, Tops[Index], Tolerance);
+					Layers[Index] = Probe.Atlas.Layer;
+				}
+				TestTrue(Name(TEXT("IslandTwo: islands are not the crust")), Layers[0] != 0 && Layers[1] != 0);
+				TestEqual(Name(TEXT("IslandTwo: bottom is the crust")), static_cast<int32>(Layers[2]), 0);
+				TestTrue(Name(TEXT("IslandTwo: three distinct Layers")), Layers[0] != Layers[1]);
+			}
+
+			// 동굴: 공동·통로 바닥은 지각·천장 뒤에 있어도 각자의 Layer로 조회된다.
+			{
+				const FTransform SlotTransform(SlotRotation);
+				const FTransform Room = CavePlacement.Room * SlotTransform;
+				const FTransform Corridor = CavePlacement.Corridor * SlotTransform;
+				const double RampX = LNPCaveKit::RampLength * 0.5;
+				const FVector Floors[] = {
+					Room.TransformPosition(FVector::ZeroVector),
+					Corridor.TransformPosition(FVector(RampX, 0.0, RampX * LNPCaveKit::RampSlope())),
+				};
+				uint16 Layers[2];
+				for (int32 Index = 0; Index < 2; ++Index)
+				{
+					const FString Label = Name(Index == 0 ? TEXT("Cave room floor") : TEXT("Cave corridor floor"));
+					const FLayerProbe Probe = Identity.Probe(SlotRotation, Floors[Index].GetSafeNormal(), Floors[Index].Size() - FeetClearance, MaxStepUp, MaxDrop);
+					CheckProbe(Label, Probe);
+					TestTrue(Label + TEXT(": Atlas supports"), Probe.Result == ELNPSupportQueryResult::Supported);
+					TestEqual(Label + TEXT(": Atlas radius"), Probe.Atlas.Radius, Floors[Index].Size(), Tolerance);
+					TestTrue(Label + TEXT(": floor is below the crust"), Floors[Index].Size() > CrustRadius);
+					Layers[Index] = Probe.Atlas.Layer;
+				}
+				TestTrue(Name(TEXT("Cave: room and corridor floors are distinct non-crust Layers")),
+					Layers[0] != 0 && Layers[1] != 0 && Layers[0] != Layers[1]);
+			}
+
+			// 섬 가장자리: 윗면 높이의 발로 가장자리를 가로지른다. 창을 지각까지 넓혀 밖에서 지각으로 떨어지게 한다.
+			// 안(윗면 Layer)·밖(지각)에서 Atlas가 고른 Layer는 항상 exact와 같고, 가장자리 밖에 유령 지면이 없다.
+			{
+				const LNPRegressionFixtureTest::FSlotFrame F(SlotRotation, IslandEdge());
+				const double Drop = CrustRadius - IslandEdgeTop + 100.0;
+				uint16 TopLayer = NoLayer;
+				for (double Tangent = 300.0; Tangent <= 900.0; Tangent += 5.0)
+				{
+					const FVector3d Direction = F.At(IslandEdgeTop, Tangent).GetSafeNormal();
+					const FLayerProbe Probe = Identity.Probe(SlotRotation, Direction, IslandEdgeTop - FeetClearance, MaxStepUp, Drop);
+					CheckProbe(Name(*FString::Printf(TEXT("IslandEdge tangent %.0f"), Tangent)), Probe);
+					if (Probe.Result == ELNPSupportQueryResult::Supported)
+					{
+						TopLayer = Probe.Atlas.Layer != 0 ? Probe.Atlas.Layer : TopLayer;
+						++EdgeCounts[Probe.Atlas.Layer == 0 ? 1 : 0];
+					}
+					else
+					{
+						++EdgeCounts[2];
+					}
+				}
+				const FLayerProbe Outside = Identity.Probe(SlotRotation, F.At(IslandEdgeTop, 750.0).GetSafeNormal(), IslandEdgeTop - FeetClearance, MaxStepUp, Drop);
+				TestTrue(Name(TEXT("IslandEdge outside: Atlas falls to the crust")),
+					Outside.Result == ELNPSupportQueryResult::Supported && Outside.Atlas.Layer == 0);
+				TestTrue(Name(TEXT("IslandEdge inside: top Layer is supported")), TopLayer != NoLayer);
+			}
+		}
+		AddInfo(FString::Printf(TEXT("Fixture IslandEdge scan over 8 slots: top Supported=%d crust Supported=%d NeedsExact=%d"),
+			EdgeCounts[0], EdgeCounts[1], EdgeCounts[2]));
+	}
+
+	// 2. Meadow_00 섬 B 계단, slot 0.
+	{
+		constexpr TCHAR MeadowLevelPath[] = TEXT("/Game/Maps/Meadow_00/LVI_Octant_Meadow_00.LVI_Octant_Meadow_00");
+		constexpr TCHAR StairMeshName[] = TEXT("SM_TerrainBox");
+		/** 계단 footprint 주변에 두는 여유(격자 칸). 칸 옆 섬 윗면을 포함한다. */
+		constexpr int32 StairMargin = 8;
+		constexpr int32 StairDirectionCount = 4000;
+		constexpr int32 RandomSeed = 20260927;
+
+		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+		AssetRegistry.WaitForCompletion();
+		TSet<FName> LoadTags;
+		LoadTags.Add(ULevel::LoadAllExternalObjectsTag);
+		const FAssetData Asset = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(MeadowLevelPath));
+		UWorld* SourceWorld = Asset.IsValid() ? Cast<UWorld>(Asset.GetAsset(MoveTemp(LoadTags))) : nullptr;
+		FLNPSupportAtlas Atlas;
+		TArray<FLNPBakeSupportSource> Sources;
+		FString Error;
+		if (!TestNotNull(TEXT("Meadow_00 loads"), SourceWorld)
+			|| !TestTrue(TEXT("Meadow support sources extract"), FLNPOctantTriangleExtractor::ExtractSupportSources(*SourceWorld, Sources, Error))
+			|| !TestTrue(TEXT("Meadow SurfaceData decodes"), LoadSavedAtlas(MeadowLevelPath, Atlas, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		FLayerIdentityWorld Identity(Atlas);
+		const FQuat Slot0 = FQuat::Identity;
+		if (!TestTrue(TEXT("Meadow sources copy"), Identity.AddSources(Sources, Slot0, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+
+		// 계단 칸 Layer와 그 footprint 행·열 범위.
+		TSet<uint16> StairLayers;
+		for (const FLNPBakeSupportSource& Source : Sources)
+		{
+			const UStaticMeshComponent* Component = FindObject<UStaticMeshComponent>(nullptr, *Source.Name);
+			if (!Component || !Component->GetStaticMesh() || Component->GetStaticMesh()->GetName() != StairMeshName)
+				continue;
+			for (int32 LayerId = 1; LayerId < Atlas.Layers.Num(); ++LayerId)
+			{
+				if (Atlas.Sources[Atlas.Layers[LayerId].SourceIndex].Key == Source.Key)
+				{
+					StairLayers.Add(LayerId);
+				}
+			}
+		}
+		if (!TestTrue(TEXT("Meadow stairs: at least three step Layers"), StairLayers.Num() >= 3))
+			return false;
+
+		int32 N = 0;
+		int32 IMin = MAX_int32, IMax = MIN_int32, JMin = MAX_int32, JMax = MIN_int32;
+		double TopRadius = TNumericLimits<double>::Max();
+		for (const uint16 LayerId : StairLayers)
+		{
+			const FLNPSupportAtlasLayer& Layer = Atlas.Layers[LayerId];
+			N = Layer.Layout.Subdivisions;
+			JMin = FMath::Min(JMin, Layer.Layout.J0);
+			JMax = FMath::Max(JMax, Layer.Layout.J0 + Layer.Layout.Rows.Num() - 1);
+			for (const FLNPSupportRowSpan& Span : Layer.Layout.Rows)
+			{
+				IMin = FMath::Min(IMin, Span.IStart);
+				IMax = FMath::Max(IMax, Span.IStart + Span.Count - 1);
+			}
+			for (int32 Index = 0; Index < Layer.Num(); ++Index)
+			{
+				TopRadius = EnumHasAnyFlags(Layer.GetFlags(Index), ELNPSupportSampleFlags::Valid) ? FMath::Min(TopRadius, Layer.GetRadius(Index)) : TopRadius;
+			}
+		}
+
+		// 칸마다 Supported·NeedsExact, 칸 옆(다른 Layer 위) Supported·NeedsExact.
+		TMap<uint16, TPair<int32, int32>> OnStair;
+		int32 BesideSupported = 0;
+		int32 BesideNeedsExact = 0;
+		int32 Inconsistent = 0;
+		int32 NoSurface = 0;
+		FRandomStream Random(RandomSeed);
+		for (int32 Sample = 0; Sample < StairDirectionCount; ++Sample)
+		{
+			const double U = Random.FRandRange(IMin - StairMargin, IMax + StairMargin);
+			const double V = Random.FRandRange(JMin - StairMargin, JMax + StairMargin);
+			const FVector3d Direction = FVector3d(U, V, N - U - V).GetSafeNormal();
+			const FLayerProbe Probe = Identity.ProbeStandingOn(Slot0, Direction, TopRadius - 1000.0, Atlas.Layers[0].BaseRadius + 1000.0);
+			TestFalse(TEXT("Meadow stairs: exact hit resolves"), Probe.bUnresolved);
+			if (Probe.ExactLayer == NoLayer)
+			{
+				++NoSurface;
+				continue;
+			}
+			if (!Probe.IsConsistent())
+			{
+				if (++Inconsistent <= 10)
+				{
+					AddError(FString::Printf(TEXT("Meadow stairs direction (%.3f, %.3f): %s"), U, V, *Probe.ToString()));
+				}
+				continue;
+			}
+			const bool bSupported = Probe.Result == ELNPSupportQueryResult::Supported;
+			if (StairLayers.Contains(Probe.ExactLayer))
+			{
+				TPair<int32, int32>& Counts = OnStair.FindOrAdd(Probe.ExactLayer);
+				++(bSupported ? Counts.Key : Counts.Value);
+			}
+			else
+			{
+				++(bSupported ? BesideSupported : BesideNeedsExact);
+			}
+		}
+		FString StairReport;
+		for (const uint16 LayerId : StairLayers)
+		{
+			const TPair<int32, int32> Counts = OnStair.FindRef(LayerId);
+			StairReport += FString::Printf(TEXT(" Layer %d Supported=%d NeedsExact=%d;"), LayerId, Counts.Key, Counts.Value);
+			TestTrue(FString::Printf(TEXT("Meadow stairs: Layer %d is stood on"), LayerId), Counts.Key + Counts.Value > 0);
+		}
+		AddInfo(FString::Printf(TEXT("Meadow stairs N=%d:%s beside Supported=%d NeedsExact=%d, no surface=%d"),
+			N, *StairReport, BesideSupported, BesideNeedsExact, NoSurface));
+		TestEqual(TEXT("Meadow stairs: Atlas never picks another Layer"), Inconsistent, 0);
+		TestTrue(TEXT("Meadow stairs: the island top is supported beside the steps"), BesideSupported > 0);
+	}
+	return !HasAnyErrors();
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
