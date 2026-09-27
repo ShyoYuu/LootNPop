@@ -117,7 +117,7 @@ namespace LNPOctantSurfaceBakerTest
 		TArray<double> RadiusErrors;
 		TArray<double> NormalErrorsDeg;
 
-		void Add(bool bSupported, const FLNPCrustSupportHit& Atlas, bool bExactHit, const FHitResult& Exact, const FVector3d& Direction)
+		void Add(bool bSupported, const FLNPSupportLayerQuery& Atlas, bool bExactHit, const FHitResult& Exact, const FVector3d& Direction)
 		{
 			if (!bSupported)
 			{
@@ -181,7 +181,7 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("%s: descriptor size"), LevelPath),
 			First->Header.Support.UncompressedSize, static_cast<uint64>(First->SupportPayload.Num()));
 		TestEqual(FString::Printf(TEXT("%s: descriptor element count"), LevelPath),
-			First->Header.Support.ElementCount, static_cast<uint32>(FirstReport.SampleCount));
+			First->Header.Support.ElementCount, static_cast<uint32>(FirstReport.TotalSampleCount));
 
 		// 저장된 에셋이 현재 source로 구운 결과와 같아야 한다. 다르면 `LNP.SurfaceNav.BakeOctant`로 다시 굽는다.
 		const FString SavedPackage = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(FSoftObjectPath(LevelPath));
@@ -198,13 +198,15 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 				&& Saved->SupportPayload == First->SupportPayload);
 		}
 
-		FLNPCrustAtlas Atlas;
+		FLNPSupportAtlas Atlas;
 		if (!TestTrue(FString::Printf(TEXT("%s: payload decodes"), LevelPath),
-			LNPCrustAtlas::Decode(First->SupportPayload, Atlas, Error)))
+			LNPSupportAtlas::Decode(First->SupportPayload, Atlas, Error)))
 		{
 			AddError(Error);
 			continue;
 		}
+		TestEqual(FString::Printf(TEXT("%s: decoded Layer count"), LevelPath), Atlas.Layers.Num(), FirstReport.SupportLayerCount);
+		TestEqual(FString::Printf(TEXT("%s: decoded source count"), LevelPath), Atlas.Sources.Num(), FirstReport.SupportSourceCount);
 		AddInfo(FString::Printf(TEXT("%s: seam hash x=0 %s y=0 %s z=0 %s"), LevelPath,
 			*LexToString(Atlas.SeamHashes[0]), *LexToString(Atlas.SeamHashes[1]), *LexToString(Atlas.SeamHashes[2])));
 	}
@@ -228,9 +230,9 @@ bool FLNPCrustAtlasExactErrorTest::RunTest(const FString& Parameters)
 			TStrongObjectPtr<ULNPOctantSurfaceData> Data(NewObject<ULNPOctantSurfaceData>(GetTransientPackage()));
 			FLNPOctantBakeReport Report;
 			FString Error;
-			FLNPCrustAtlas Atlas;
+			FLNPSupportAtlas Atlas;
 			if (!FLNPOctantSurfaceBaker::Bake(FSoftObjectPath(LevelPath), Options, *Data, Report, Error)
-				|| !LNPCrustAtlas::Decode(Data->SupportPayload, Atlas, Error))
+				|| !LNPSupportAtlas::Decode(Data->SupportPayload, Atlas, Error))
 			{
 				AddError(FString::Printf(TEXT("%s: %s"), LevelPath, *Error));
 				continue;
@@ -242,19 +244,19 @@ bool FLNPCrustAtlasExactErrorTest::RunTest(const FString& Parameters)
 			}
 
 			const FCrustExactWorld ExactWorld(*Crust);
-			const double MaxRadius = Atlas.BaseRadius * 2.0;
+			const double MaxRadius = Atlas.Layers[0].BaseRadius * 2.0;
 			FRandomStream Random(RandomSeed);
 			FErrorStats Stats;
 			for (int32 Sample = 0; Sample < RandomDirectionCount; ++Sample)
 			{
 				const FVector3d Direction = Random.GetUnitVector().GetAbs();
-				FLNPCrustSupportHit AtlasHit;
+				FLNPSupportLayerQuery AtlasHit;
 				FHitResult ExactHit;
-				const bool bSupported = LNPCrustAtlas::QuerySupport(Atlas, Direction, AtlasHit);
+				const bool bSupported = LNPSupportAtlas::QueryLayer(Atlas.Layers[0], Direction, AtlasHit);
 				Stats.Add(bSupported, AtlasHit, ExactWorld.Trace(Direction, MaxRadius, ExactHit), ExactHit, Direction);
 			}
 			AddInfo(FString::Printf(TEXT("%s spacing=%.0fcm N=%d payload=%lld bytes raster=%.2fs samplesNeedsExact=%.2f%% | %s"),
-				LevelPath, Spacing, Atlas.Subdivisions, Report.PayloadBytes, Report.RasterSeconds,
+				LevelPath, Spacing, Atlas.Layers[0].Layout.Subdivisions, Report.PayloadBytes, Report.RasterSeconds,
 				100.0 * Report.NeedsExactCount / Report.SampleCount, *Stats.ToString()));
 			TestEqual(FString::Printf(TEXT("%s spacing %.0f: no ghost floor"), LevelPath, Spacing), Stats.GhostFloor, 0);
 			if (Spacing == FLNPOctantBakeOptions().CrustSpacing)
@@ -281,11 +283,11 @@ bool FLNPCrustAtlasExactErrorTest::RunTest(const FString& Parameters)
 					const double Phi = UE_TWO_PI * Random.GetFraction();
 					const FVector3d Direction = (HoleDirection * FMath::Cos(Angle)
 						+ (TangentA * FMath::Cos(Phi) + TangentB * FMath::Sin(Phi)) * FMath::Sin(Angle)).GetSafeNormal();
-					FLNPCrustSupportHit AtlasHit;
+					FLNPSupportLayerQuery AtlasHit;
 					FHitResult ExactHit;
 					const bool bExactHit = ExactWorld.Trace(Direction, MaxRadius, ExactHit);
 					ExactHoleCount += bExactHit ? 0 : 1;
-					HoleStats.Add(LNPCrustAtlas::QuerySupport(Atlas, Direction, AtlasHit), AtlasHit, bExactHit, ExactHit, Direction);
+					HoleStats.Add(LNPSupportAtlas::QueryLayer(Atlas.Layers[0], Direction, AtlasHit), AtlasHit, bExactHit, ExactHit, Direction);
 				}
 				AddInfo(FString::Printf(TEXT("%s spacing=%.0fcm hole cone: exactMiss=%d | %s"),
 					LevelPath, Spacing, ExactHoleCount, *HoleStats.ToString()));
@@ -320,30 +322,30 @@ bool FLNPCrustSeamMatchTest::RunTest(const FString& Parameters)
 		const FString SavedPackage = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(FSoftObjectPath(LevelPath));
 		const ULNPOctantSurfaceData* Saved = LoadObject<ULNPOctantSurfaceData>(
 			nullptr, *FString::Printf(TEXT("%s.%s"), *SavedPackage, *FPackageName::GetShortName(SavedPackage)));
-		FLNPCrustAtlas Atlas;
+		FLNPSupportAtlas Atlas;
 		if (!TestNotNull(FString::Printf(TEXT("%s: saved SurfaceData exists"), *SavedPackage), Saved)
-			|| !LNPCrustAtlas::Decode(Saved->SupportPayload, Atlas, Error))
+			|| !LNPSupportAtlas::Decode(Saved->SupportPayload, Atlas, Error))
 		{
 			AddError(FString::Printf(TEXT("%s: %s"), *SavedPackage, *Error));
 			continue;
 		}
-		const int32 N = Atlas.Subdivisions;
+		const int32 N = Atlas.Layers[0].Layout.Subdivisions;
 
 		auto WorldDirection = [N, SlotRotations](int32 Slot, const FIntPoint& Coord)
 		{
-			return SlotRotations[Slot].RotateVector(LNPCrustAtlas::GetSampleDirection(N, Coord.X, Coord.Y));
+			return SlotRotations[Slot].RotateVector(LNPSupportAtlas::GetSampleDirection(N, Coord.X, Coord.Y));
 		};
 		auto WorldNormal = [&Atlas, N, SlotRotations](int32 Slot, const FIntPoint& Coord)
 		{
-			return SlotRotations[Slot].RotateVector(FVector3d(Atlas.GetNormal(LNPCrustAtlas::GetSampleIndex(N, Coord.X, Coord.Y))));
+			return SlotRotations[Slot].RotateVector(FVector3d(Atlas.Layers[0].GetNormal(LNPSupportAtlas::GetSampleIndex(N, Coord.X, Coord.Y))));
 		};
 		auto IsValid = [&Atlas, N](const FIntPoint& Coord)
 		{
-			return EnumHasAnyFlags(Atlas.GetFlags(LNPCrustAtlas::GetSampleIndex(N, Coord.X, Coord.Y)), ELNPSupportSampleFlags::Valid);
+			return EnumHasAnyFlags(Atlas.Layers[0].GetFlags(LNPSupportAtlas::GetSampleIndex(N, Coord.X, Coord.Y)), ELNPSupportSampleFlags::Valid);
 		};
 		auto RadiusAt = [&Atlas, N](const FIntPoint& Coord)
 		{
-			return Atlas.GetRadius(LNPCrustAtlas::GetSampleIndex(N, Coord.X, Coord.Y));
+			return Atlas.Layers[0].GetRadius(LNPSupportAtlas::GetSampleIndex(N, Coord.X, Coord.Y));
 		};
 
 		// 변 중점을 포함한 모든 변 샘플.
@@ -408,7 +410,7 @@ bool FLNPCrustSeamMatchTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: corner radii match within %.1fcm"), LevelPath, SeamRadiusTolerance),
 			MaxCornerSpread <= SeamRadiusTolerance);
 		// 법선은 옥탄트마다 한쪽 삼각형만 봐서 이음매에서 꺾인다(변위 마스크 기울기). 옥탄트 안이었다면 NeedsExact가 될 각도는 넘지 않아야 한다.
-		const double MaxSeamNormalDiffDeg = FLNPCrustRasterSettings().MaxNeighborNormalAngleDeg;
+		const double MaxSeamNormalDiffDeg = FLNPSupportRasterSettings().MaxNeighborNormalAngleDeg;
 		TestTrue(FString::Printf(TEXT("%s: seam normal crease within %.0fdeg"), LevelPath, MaxSeamNormalDiffDeg),
 			Percentile(NormalDiffsDeg, 1.0) <= MaxSeamNormalDiffDeg);
 

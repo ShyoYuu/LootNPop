@@ -106,20 +106,16 @@ ULNPOctantSurfaceData 저장
 - 저장 순서는 `j` 행 우선, 행 안에서 `i` 증가다. 인덱스 `j·(N+1) - j·(j-1)/2 + i`, 샘플 수 `(N+1)(N+2)/2`.
 - N은 옥탄트 중심 간격 `R·√6 / N`이 bake setting `CrustSpacing` 이하가 되는 최소값이다. 기본 100cm, R=30,000cm에서 N=735(샘플 271,216개)다.
 
-**샘플 계산**(`LNPCrustAtlas::Rasterize`, runtime 순수 함수, D-034)
+**샘플 계산**(`LNPCrustAtlas::Rasterize` → 공용 `LNPSupportAtlas::Rasterize`, runtime 순수 함수, D-034)
 
 - 격자 방향마다 구 중심에서 바깥쪽 광선을 쏴 지각 삼각형의 앞면 교차만 센다(`TMeshAABBTree3::FindAllHitTriangles`, watertight ray). 0개면 coverage hole(`Valid=0`), 1개면 반지름·면 법선 기록, 2개 이상이면 overhang 베이크 오류다. `HitMergeDistance`(0.1cm) 안의 교차는 삼각형 모서리 중복으로 합친다.
 - 광선 전에 이음매 평면에서 `SeamSnapDistance`(1e-3cm) 안의 정점 성분을 0으로 맞춘다. 변 위 광선은 이음매 평면 위를 지나므로, 경계 정점이 부동소수점 잡음만큼 옥탄트 안쪽에 있으면 경계 변을 스쳐 빗나간다(`Meadow_00` 실측 `|d| < 5e-7cm`, 스냅 전 이음매 샘플 528개 Invalid).
 - `Walkable`은 법선과 지역 Up(`-방향`)의 dot ≥ 0.71(exact 이동과 같은 약 45°)이다.
 - `NeedsExact`: 자신이 invalid·non-walkable이거나, 6-이웃 중 invalid가 있거나, 이웃과의 선분 경사가 walkable 각도보다 가파르거나, 이웃과 법선 각도 차가 25°를 넘을 때다. 높이 차 허용값은 따로 두지 않는다.
 
-**codec v1**(`LNPCrustAtlas::Encode`·`Decode`, little-endian)
+**샘플 인코딩**: `int16` 반지름 offset(step 0.25cm, Layer 기준 반지름 ±81.9m), `int16` octahedral 법선 2개, `uint8` 플래그. 샘플당 7바이트이고 지각 기본 해상도 body는 1,898,512바이트다. invalid 샘플의 반지름·법선은 0이다. 범위 초과·비유한 값은 인코딩 오류다. payload 배치는 아래 "다층 Atlas 규약"의 codec v2다(Phase 4a의 지각 전용 codec v1은 폐기했다).
 
-- header 88바이트: `uint16` codec version, `uint8` Layer 수(1), `uint8` 예약, `int32` N, `double` 기준 반지름, `double` 반지름 step, `uint32` 샘플 수, seam hash 3개(`FIoHash`, 변 `x=0`·`y=0`·`z=0` 순).
-- body(SoA): `int16` 반지름 offset(step 0.25cm, 기준 반지름 ±81.9m), `int16` octahedral 법선 2개, `uint8` 플래그. 샘플당 7바이트, 기본 해상도 payload 1,898,600바이트. invalid 샘플의 반지름·법선은 0이다. 범위 초과·비유한 값은 인코딩 오류다.
-- 레이아웃을 바꾸면 codec version과 `FLNPSurfaceBakeHeader::CurrentDataVersion`을 함께 올린다(현재 1과 2).
-
-**조회**(`LNPCrustAtlas::QuerySupport`)는 위 "보간 규칙"을 따른다.
+**조회**(`LNPSupportAtlas::QueryLayer`, 지각은 Layer 0)는 위 "보간 규칙"을 따른다.
 
 **이음매**
 
@@ -128,6 +124,40 @@ ULNPOctantSurfaceData 저장
 - 일치 기준: 같은 월드 변의 양쪽 샘플이 같은 방향(1e-6), 반지름 차 1cm 이하, 둘 다 Valid. 옥탄트 꼭짓점(좌표축)은 네 slot 샘플이 모두 이 기준을 만족해야 한다.
 - 법선은 옥탄트마다 한쪽 삼각형만 보므로 이음매에서 꺾인다. 변위 마스크 `(X·Y·Z)/R³`는 이음매에서 값은 0이지만 기울기는 0이 아니기 때문이다. 이음매 법선 차는 옥탄트 안 `NeedsExact` 기준과 같은 25° 이하여야 한다(`Meadow_00` 최대 17.7°). 이 꺾임은 exact도 똑같이 보므로 Atlas 오차가 아니다.
 - seam hash는 변 샘플을 규약 순서로 읽은 양자화 반지름(int16)과 Valid 비트의 hash다. 법선은 넣지 않는다. 짝 관계만 보면 `x=0`·`y=0` hash 일치와 `z=0` 회문이면 충분하지만, 단일 대칭 프로필(D-030)이므로 세 변의 hash가 모두 같아야 한다. `SeamSignature` 문자열 대신 이 hash로 호환성을 판정한다(D-043, 런타임 검사는 Phase 5).
+
+### 다층 Atlas 규약(Phase 4b)
+
+Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_MultiLayerSupport.md` §3이다. 이 절은 구현이 따르는 형식의 원본이다.
+
+**Layer**(`LNPSupportLayers::BuildLayers`)
+
+- Layer 0은 지각(D-055)이고 non-walkable face까지 전부 담는다. 나머지 source는 walkable 삼각형(법선과 삼각형 중심 지역 Up의 dot ≥ 0.71)의 연결 성분(0.1cm 위치 용접 후 모서리 공유)마다 Layer 하나다.
+- `LocalLayerId`는 지각 뒤에 source Key(`<Actor FName>.<Component FName>`) 오름차순, 같은 source 안에서는 최소 external face 번호 순이다.
+- face 표는 external face 번호(exact hit `FaceIndex`)를 키로 한다. 모든 face 값이 같으면 컴포넌트 단위 값 하나, 아니면 face 단위 `uint16` 배열(None=0xFFFF)이다.
+
+**격자와 row span**(`LNPSupportAtlas::ComputeFootprint`·`Rasterize`)
+
+- 비지각 Layer 격자는 지각과 같은 octahedral 격자이고 분할 수가 `m·N`이다(D-057). m은 bake setting `LayerSubdivisionMultiplier`(현재 2, 구현 단위 3에서 확정)이고 옥탄트 안 모든 비지각 Layer가 같다.
+- 배치는 `j` 범위 `[J0, J0+RowCount)`와 행별 `i` 구간 `[IStart, IStart+Count)`다. Layer 삼각형을 옥탄트 면에 중심 투영한 영역 안의 격자점을 모두 담는 최소 구간이다. 광선은 투영 영역 밖에서 삼각형을 맞힐 수 없으므로 구간 밖은 모두 coverage hole과 같다. 지각은 전체 배치(`J0=0`, 행 `j`는 `[0, N-j]`)라 인덱스가 지각 격자 인덱스와 같다.
+- 광선은 그 Layer 삼각형만으로 만든 트리에 쏜다. 앞면 교차가 둘 이상이면 베이크 오류다(지각 overhang, Layer의 접힌 sheet).
+- 플래그 규칙은 지각과 같다. 구간 밖 이웃은 invalid로 보므로 Layer 경계 샘플은 `NeedsExact`다. 이음매 스냅은 지각에만 한다.
+
+**codec v2**(`LNPSupportAtlas::Encode`·`Decode`, little-endian)
+
+- header 76바이트: `uint16` codec version(2), `uint16` Layer 수, `uint16` source 수, `uint16` 예약, `double` 반지름 step, 지각 seam hash 3개(`FIoHash`, 변 `x=0`·`y=0`·`z=0` 순).
+- Layer 표(Layer 순): `uint16` source 번호, `uint16` 예약, `double` Layer 기준 반지름, `int32` 분할 수, `int32` `J0`, `int32` 행 수, 행마다 `int32` `IStart`·`int32` `Count`. 샘플 offset은 행 `Count` 누적으로 정해지므로 저장하지 않는다.
+- body(Layer 순, Layer마다 SoA): 위 "샘플 인코딩"의 반지름·법선·플래그 배열.
+- source 표(Key 오름차순): `int32` Key 바이트 수, UTF-8 Key, `uint8` 표 종류(0 컴포넌트 단위, 1 face 단위), 종류 0이면 `uint16` Layer, 1이면 `int32` 길이와 `uint16` Layer 배열.
+- 기준 반지름: Layer 0은 옥탄트 기준 반지름이다. 비지각 Layer는 Valid 샘플 반지름 범위의 중간값을 step 단위로 반올림한 값이다(Valid가 없으면 옥탄트 기준 반지름).
+- decode는 Layer 0 전체 배치, 비지각 분할 수가 지각 N의 정수배, 행 구간이 옥탄트 안, source Key 오름차순, face 표 값이 있는 Layer, 남는 바이트 없음을 검사한다.
+- `Header.Support.ElementCount`는 모든 Layer 샘플 수 합이다. `FLNPSurfaceBakeHeader::CurrentDataVersion` 3, `FLNPOctantSurfaceBaker::BakerSchemaVersion` 2. 레이아웃을 바꾸면 codec version과 `CurrentDataVersion`을 함께 올린다.
+
+**같은 방향 다층 조회**(`LNPSupportAtlas::QueryLayers`)
+
+- 입력은 옥탄트 로컬 방향, 발 반지름, `MaxStepUp`, `MaxDrop`, 선호 Layer다. 탐색 창은 `[FeetRadius - MaxStepUp, FeetRadius + MaxDrop]`이고 반지름이 작을수록 위다.
+- 후보 Layer는 방향을 담은 격자 삼각형 꼭짓점 중 하나라도 Valid인 Layer다. 후보 중 Valid 꼭짓점 반지름 범위가 창에 걸치는데 보간되지 않는 Layer가 하나라도 있으면 `NeedsExact`다. 가장자리에서 가까운 Layer를 건너뛰고 먼 Layer로 떨어지지 않게 하기 위해서다.
+- 아니면 보간 반지름이 창 안인 Layer 중 선호 Layer, 없으면 가장 위 Layer를 고른다. 창 안에 없으면 `NoSupport`, 방향이 이 옥탄트가 아니면 `NeedsExact`다.
+- Layer 사이 겹침(같은 방향 반지름 차 `OverlapReportHeight` 200cm 이내)은 오류가 아니며 베이크 보고서에 Layer 쌍별 샘플 수로만 적는다.
 
 ### 단계 분할
 
@@ -162,7 +192,7 @@ Support 해상도는 지형별로 다르게 둘 수 있다.
 
 조건을 만족하지 않으면 nearest sample로 지면을 연장하지 않고 `NeedsExact`를 반환한다. 섬 가장자리 밖에 유령 지면이 생기는 것을 방지한다.
 
-지각 Atlas는 베이크 때 위 조건을 샘플 플래그 `NeedsExact`로 미리 계산한다. 조회(`LNPCrustAtlas::QuerySupport`)는 방향을 담은 격자 삼각형 세 꼭짓점이 모두 Valid이면서 `NeedsExact`가 아닐 때만 barycentric 보간한다.
+지각 Atlas는 베이크 때 위 조건을 샘플 플래그 `NeedsExact`로 미리 계산한다. 조회(`LNPSupportAtlas::QueryLayer`)는 방향을 담은 격자 삼각형 세 꼭짓점이 모두 Valid이면서 `NeedsExact`가 아닐 때만 barycentric 보간한다.
 
 ### 동굴 키트 베이크
 

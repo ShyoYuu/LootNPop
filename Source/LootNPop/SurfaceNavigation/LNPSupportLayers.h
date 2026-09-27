@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 struct FLNPBakeSupportSource;
+struct FLNPBakeTriangleMesh;
 
 struct FLNPSupportLayerSettings
 {
@@ -70,4 +71,7 @@ namespace LNPSupportLayers
 		const FLNPSupportLayerSettings& Settings,
 		FLNPSupportLayerSet& OutSet,
 		FString& OutError);
+
+	/** Layer 삼각형만 남긴 mesh. 정점 배열은 그대로 두고 삼각형과 ExternalFaceIndices만 거른다. */
+	LOOTNPOP_API FLNPBakeTriangleMesh MakeLayerMesh(const FLNPBakeTriangleMesh& SourceMesh, const FLNPSupportLayer& Layer);
 }
