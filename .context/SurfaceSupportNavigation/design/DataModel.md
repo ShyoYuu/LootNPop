@@ -100,9 +100,9 @@ class ULNPOctantSurfaceData : public UPrimaryDataAsset
 };
 ```
 
-header는 `DataVersion`, source hash·manifest와 각 stream의 element count, uncompressed size, content hash만 가진다. 현재 payload가 일반 `UPROPERTY TArray<uint8>`인 동안에는 asset 로드 시 네 payload도 함께 역직렬화된다. "payload를 읽지 않고 판정"은 codec decode 없이 header만 검사한다는 뜻이며 선택적 I/O를 뜻하지 않는다. 실제 선택 로딩은 측정상 필요할 때 `FByteBulkData` 또는 stream별 asset으로 전환한다.
+header는 `DataVersion`, source hash·manifest와 각 stream의 element count, uncompressed size, content hash만 가진다. `DataVersion`의 C++ 기본값은 0이고 베이커가 `CurrentDataVersion`을 명시적으로 쓴다. 기본값이 현재 버전이면 tagged property 직렬화가 기본값과 같은 값을 저장하지 않아, 버전을 올린 뒤 옛 에셋을 로드해도 새 버전으로 보인다(2026-09-27, `DataVersion` 2 도입 때 발견). 현재 payload가 일반 `UPROPERTY TArray<uint8>`인 동안에는 asset 로드 시 네 payload도 함께 역직렬화된다. "payload를 읽지 않고 판정"은 codec decode 없이 header만 검사한다는 뜻이며 선택적 I/O를 뜻하지 않는다. 실제 선택 로딩은 측정상 필요할 때 `FByteBulkData` 또는 stream별 asset으로 전환한다.
 
-Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4, Nav cell은 Phase 7의 실제 베이크 데이터로 layout을 결정한다. Conditional Patch stream은 Phase 8에서 `DataVersion`을 올려 추가한다. 이때 MarkerId·transform·Actor class·상태/경로 파라미터·patch source mesh와 안정 transform을 source semantic/settings hash에 포함하고 모든 production SurfaceData를 재베이크한다(D-041).
+Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4a에서 지각 codec v1로 확정했고 `DataVersion`은 2다(`SurfaceBaking.md` "지각 Atlas 규약"). Nav cell은 Phase 7의 실제 베이크 데이터로 layout을 결정한다. Conditional Patch stream은 Phase 8에서 `DataVersion`을 올려 추가한다. 이때 MarkerId·transform·Actor class·상태/경로 파라미터·patch source mesh와 안정 transform을 source semantic/settings hash에 포함하고 모든 production SurfaceData를 재베이크한다(D-041).
 
 규모 추정: 월드 반지름이 250m라 구 전체 면적은 약 0.785km²다. 지각 Nav를 2m 셀로 잡으면 구 전체 약 19.6만 셀, 지각 Support를 100cm로 잡으면 약 78.5만 샘플이다. 다만 이 수치는 sparse index, coverage, Atlas metadata, decoded buffer, 다층 섬·동굴, overlay와 allocator overhead를 제외한 하한 추정이다. Phase 4·5에서 cooked asset 크기와 peak/resident memory를 측정하기 전에는 "10MB 안쪽"을 합격 가정으로 사용하지 않는다. BulkData 선택 로딩이나 client Nav stream 제외는 측정상 이득이 확인될 때만 도입한다.
 
@@ -139,7 +139,7 @@ struct FSupportSample
 
 `SurfaceLayerId`는 샘플마다 저장하지 않고 Atlas 단위로 둔다. coverage는 bitset 또는 sparse row로 분리할 수 있다.
 
-정확한 반지름 양자화 범위와 normal packing은 spike 데이터로 오차를 측정한 뒤 확정한다.
+지각 Atlas(Phase 4a)는 반지름을 기준 반지름 대비 int16 offset(step 0.25cm), 법선을 octahedral 2×int16, 플래그를 uint8로 SoA 저장한다(샘플당 7바이트). 현재 쓰는 플래그는 Valid·Walkable·NeedsExact이고 나머지는 소비자가 생길 때 채운다. 세부는 `SurfaceBaking.md` "지각 Atlas 규약"이 소유한다.
 
 ### 런타임 Surface Handle
 

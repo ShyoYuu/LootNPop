@@ -41,7 +41,7 @@
 | 3 | MassWorldCollision 정확성 기준선 | 3~5세션 | 완료 | production response Gate -1, worker 동기 query Gate 0, hit identity registry, 마커→서버 스폰 동적 패널, 투사체·탄도 가이드 exact 전환, 부하 기준선 |
 | 3b | exact 전용 부유섬 프로토타입 | 2~3세션 | 완료 | greybox 섬 옥탄트에서 PureEntity가 exact만으로 접지·낙하·넉백, exact 한계치 실측 |
 | 3c | 완전 비행 NPC 기반 | 2~3세션 | 완료 | 저비용 3D steering과 섬 회피, 섬 위 플레이어 교전 |
-| 4a | 지각 Support Atlas와 옥탄트 이음매 | 2~3세션 | 진행 중 | greybox 옥탄트 지각의 Atlas 베이크와 8 slot 이음매 일치 |
+| 4a | 지각 Support Atlas와 옥탄트 이음매 | 2~3세션 | 완료 | greybox 옥탄트 지각의 Atlas 베이크와 8 slot 이음매 일치 |
 | 4b | 부유섬·동굴 키트 다층 베이크 | 2~3세션 | 대기 | 같은 방향 다층 Support와 공동 모듈 floor 분리 |
 | 5 | 런타임 로더와 SurfaceCache 교체 | 2~3세션 | 대기 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 단계 stale 검출 |
 | 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 대기 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |

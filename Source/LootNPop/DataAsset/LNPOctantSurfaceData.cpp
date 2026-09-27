@@ -33,6 +33,6 @@ bool FLNPContentHash::operator==(const FLNPContentHash& Other) const
 }
 
 FLNPSurfaceBakeHeader::FLNPSurfaceBakeHeader()
-	: DataVersion(CurrentDataVersion)
+	: DataVersion(0)
 {
 }

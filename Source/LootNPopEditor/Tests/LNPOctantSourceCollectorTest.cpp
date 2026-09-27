@@ -583,6 +583,7 @@ bool FLNPOctantSurfaceDataPackageRoundTripTest::RunTest(const FString& Parameter
 	}
 
 	SurfaceData->Header = FLNPSurfaceBakeHeader();
+	SurfaceData->Header.DataVersion = FLNPSurfaceBakeHeader::CurrentDataVersion;
 	SurfaceData->Header.SourceSemanticHash = FLNPContentHash(
 		FIoHash(TEXTVIEW("00112233445566778899aabbccddeeff00112233")));
 	SurfaceData->Header.BakeSettingsHash = FLNPContentHash(

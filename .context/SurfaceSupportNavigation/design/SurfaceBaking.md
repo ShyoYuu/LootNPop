@@ -83,7 +83,7 @@ ULNPOctantSurfaceData 저장
 
 ### Support Atlas 파라미터화
 
-기본 지각은 등장방형보다 옥탄트 단위 octahedral/삼각 파라미터화를 우선 검토한다.
+기본 지각은 등장방형 대신 옥탄트 단위 octahedral 삼각 파라미터화를 사용한다(Phase 4a 확정, 아래 "지각 Atlas 규약").
 
 이유:
 
@@ -95,6 +95,39 @@ ULNPOctantSurfaceData 저장
 부유섬과 동굴은 전체 구체 격자를 점유하지 않고 자신의 angular footprint만 가진 sparse Atlas로 저장한다. footprint는 옥탄트 경계를 넘지 않는다(D-030).
 
 단순 octahedral 사상(`p / |p|`, `x+y+z=1`)은 옥탄트 중심의 셀이 꼭짓점 근처보다 면적 약 5.2배(`3√3`), 선 길이 약 2.3배 크다. 변 중점 대비로는 선 길이 약 1.35배다. 목표 해상도는 가장 큰 셀인 중심 기준으로 잡고, 왜곡을 줄이는 사상은 메모리나 품질 문제가 측정될 때만 검토한다.
+
+### 지각 Atlas 규약(Phase 4a 확정)
+
+지각 Atlas의 격자·샘플·codec·조회·이음매 규약의 원본은 이 절이다. 결정 경위와 측정값은 `../phases/Phase04a_CrustAtlasAndSeams.md`와 `../history/Phase04a_Log.md`에 있다. 지각 식별 규칙은 `TerrainContract.md` §7(D-055)이 소유한다.
+
+**격자**
+
+- 옥탄트 면 `x+y+z=1`(x,y,z≥0) 위의 꼭짓점 중심 삼각 격자다. 분할 수 N에 대해 격자점은 `(i, j, k=N-i-j)`, 방향은 `normalize(i, j, k)`다. 변 위 격자점이 이웃 옥탄트와 정확히 같은 방향이라 이음매 비교가 보간 없는 샘플 대 샘플 비교가 된다.
+- 저장 순서는 `j` 행 우선, 행 안에서 `i` 증가다. 인덱스 `j·(N+1) - j·(j-1)/2 + i`, 샘플 수 `(N+1)(N+2)/2`.
+- N은 옥탄트 중심 간격 `R·√6 / N`이 bake setting `CrustSpacing` 이하가 되는 최소값이다. 기본 100cm, R=30,000cm에서 N=735(샘플 271,216개)다.
+
+**샘플 계산**(`LNPCrustAtlas::Rasterize`, runtime 순수 함수, D-034)
+
+- 격자 방향마다 구 중심에서 바깥쪽 광선을 쏴 지각 삼각형의 앞면 교차만 센다(`TMeshAABBTree3::FindAllHitTriangles`, watertight ray). 0개면 coverage hole(`Valid=0`), 1개면 반지름·면 법선 기록, 2개 이상이면 overhang 베이크 오류다. `HitMergeDistance`(0.1cm) 안의 교차는 삼각형 모서리 중복으로 합친다.
+- 광선 전에 이음매 평면에서 `SeamSnapDistance`(1e-3cm) 안의 정점 성분을 0으로 맞춘다. 변 위 광선은 이음매 평면 위를 지나므로, 경계 정점이 부동소수점 잡음만큼 옥탄트 안쪽에 있으면 경계 변을 스쳐 빗나간다(`Meadow_00` 실측 `|d| < 5e-7cm`, 스냅 전 이음매 샘플 528개 Invalid).
+- `Walkable`은 법선과 지역 Up(`-방향`)의 dot ≥ 0.71(exact 이동과 같은 약 45°)이다.
+- `NeedsExact`: 자신이 invalid·non-walkable이거나, 6-이웃 중 invalid가 있거나, 이웃과의 선분 경사가 walkable 각도보다 가파르거나, 이웃과 법선 각도 차가 25°를 넘을 때다. 높이 차 허용값은 따로 두지 않는다.
+
+**codec v1**(`LNPCrustAtlas::Encode`·`Decode`, little-endian)
+
+- header 88바이트: `uint16` codec version, `uint8` Layer 수(1), `uint8` 예약, `int32` N, `double` 기준 반지름, `double` 반지름 step, `uint32` 샘플 수, seam hash 3개(`FIoHash`, 변 `x=0`·`y=0`·`z=0` 순).
+- body(SoA): `int16` 반지름 offset(step 0.25cm, 기준 반지름 ±81.9m), `int16` octahedral 법선 2개, `uint8` 플래그. 샘플당 7바이트, 기본 해상도 payload 1,898,600바이트. invalid 샘플의 반지름·법선은 0이다. 범위 초과·비유한 값은 인코딩 오류다.
+- 레이아웃을 바꾸면 codec version과 `FLNPSurfaceBakeHeader::CurrentDataVersion`을 함께 올린다(현재 1과 2).
+
+**조회**(`LNPCrustAtlas::QuerySupport`)는 위 "보간 규칙"을 따른다.
+
+**이음매**
+
+- 변 샘플 순서: 각 변은 로컬 축 번호가 작은 꼭짓점에서 큰 쪽으로 N+1개다(`z=0`은 +X→+Y, `x=0`은 +Y→+Z, `y=0`은 +X→+Z). `LNPCrustAtlas::GetSeamSampleCoord`.
+- 대응표: `LNPCrustAtlas::ComputeSeamPairs`가 slot 회전으로 변 양 끝 꼭짓점을 월드 축에 놓아 24개 변 인스턴스를 12개 월드 변으로 짝짓는다. 현재 회전 집합(`ULNPOctantSpawnSubsystem::OctantRotations`)에서는 `x=0`·`y=0` 변끼리 정순으로, `z=0` 변끼리 역순으로 만난다. 고정 기대값은 자동화 `Bake.CrustSeamPairs`가 가진다.
+- 일치 기준: 같은 월드 변의 양쪽 샘플이 같은 방향(1e-6), 반지름 차 1cm 이하, 둘 다 Valid. 옥탄트 꼭짓점(좌표축)은 네 slot 샘플이 모두 이 기준을 만족해야 한다.
+- 법선은 옥탄트마다 한쪽 삼각형만 보므로 이음매에서 꺾인다. 변위 마스크 `(X·Y·Z)/R³`는 이음매에서 값은 0이지만 기울기는 0이 아니기 때문이다. 이음매 법선 차는 옥탄트 안 `NeedsExact` 기준과 같은 25° 이하여야 한다(`Meadow_00` 최대 17.7°). 이 꺾임은 exact도 똑같이 보므로 Atlas 오차가 아니다.
+- seam hash는 변 샘플을 규약 순서로 읽은 양자화 반지름(int16)과 Valid 비트의 hash다. 법선은 넣지 않는다. 짝 관계만 보면 `x=0`·`y=0` hash 일치와 `z=0` 회문이면 충분하지만, 단일 대칭 프로필(D-030)이므로 세 변의 hash가 모두 같아야 한다. `SeamSignature` 문자열 대신 이 hash로 호환성을 판정한다(D-043, 런타임 검사는 Phase 5).
 
 ### 단계 분할
 
@@ -109,7 +142,7 @@ Phase 1 C-option fixture의 구형 `LNP.Terrain.*` Component Tag는 입력으로
 
 Support 해상도는 지형별로 다르게 둘 수 있다.
 
-- 기본 지각: 100cm 전후에서 시작
+- 기본 지각: 100cm(옥탄트 중심 간격, N=735). Phase 4a에서 200·100·50cm를 exact와 비교해 확정했다(`../phases/Phase04a_CrustAtlasAndSeams.md` §3.6)
 - 부유섬: 25~50cm 후보
 - 동굴 바닥: 25~50cm 또는 콘텐츠 폭에 맞춤
 - 경계와 급격한 곡률 구간: risk 표시 후 exact 폴백
@@ -128,6 +161,8 @@ Support 해상도는 지형별로 다르게 둘 수 있다.
 - risk/edge 플래그 없음
 
 조건을 만족하지 않으면 nearest sample로 지면을 연장하지 않고 `NeedsExact`를 반환한다. 섬 가장자리 밖에 유령 지면이 생기는 것을 방지한다.
+
+지각 Atlas는 베이크 때 위 조건을 샘플 플래그 `NeedsExact`로 미리 계산한다. 조회(`LNPCrustAtlas::QuerySupport`)는 방향을 담은 격자 삼각형 세 꼭짓점이 모두 Valid이면서 `NeedsExact`가 아닐 때만 barycentric 보간한다.
 
 ### 동굴 키트 베이크
 

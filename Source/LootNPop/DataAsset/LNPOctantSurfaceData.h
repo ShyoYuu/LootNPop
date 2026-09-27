@@ -87,10 +87,15 @@ struct LOOTNPOP_API FLNPSurfaceBakeHeader
 {
 	GENERATED_BODY()
 
-	static constexpr uint32 CurrentDataVersion = 1;
+	/** 2: Support payload에 지각 Atlas codec v1(`LNPCrustAtlas::Encode`). */
+	static constexpr uint32 CurrentDataVersion = 2;
 
 	FLNPSurfaceBakeHeader();
 
+	/**
+	 * 베이커가 CurrentDataVersion을 명시적으로 쓴다. 기본값이 0이어야 한다. 기본값이 현재 버전이면 tagged property
+	 * 직렬화가 기본값과 같은 값을 저장하지 않아, 버전을 올린 뒤 옛 에셋을 로드해도 새 버전으로 보인다.
+	 */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	uint32 DataVersion;
 
@@ -135,7 +140,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	FLNPSurfaceBakeHeader Header;
 
-	/** Phase 4에서 Support Atlas codec을 확정하기 전까지 사용하는 직렬화 경계. */
+	/** 지각 Support Atlas(`LNPCrustAtlas` codec v1). Header.Support의 ElementCount는 샘플 수다. */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	TArray<uint8> SupportPayload;
 

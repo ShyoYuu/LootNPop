@@ -37,11 +37,11 @@ namespace LNPSurfaceBakeGeometryTest
 	}
 
 	/** Direction 방향에 놓인 작은 삼각형 하나(섬 윗면 대역). */
-	FLNPBakeSupportSource MakeIsland(const TCHAR* Name, const FVector3d& Direction, double IslandRadius)
+	FLNPBakeSupportSource MakeIsland(const TCHAR* Name, const FVector3d& Direction, double IslandDistance)
 	{
 		FVector3d TangentA, TangentB;
 		Direction.FindBestAxisVectors(TangentA, TangentB);
-		const FVector3d Center = Direction * IslandRadius;
+		const FVector3d Center = Direction * IslandDistance;
 		FLNPBakeSupportSource Source;
 		Source.Name = Name;
 		Source.Mesh.Vertices = {Center + TangentA * 500.0, Center + TangentB * 500.0, Center - TangentA * 500.0};
