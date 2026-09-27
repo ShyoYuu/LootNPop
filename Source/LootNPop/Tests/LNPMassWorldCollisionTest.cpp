@@ -430,17 +430,18 @@ bool FLNPProjectileEarliestHitTest::RunTest(const FString& Parameters)
 #if WITH_EDITOR
 namespace
 {
-	/** 회귀 맵 사례 각도의 방사·접선 축(Scripts/GenerateSurfaceRegressionMap.py radial_basis). */
+	/** 회귀 맵 사례 (위도, 방위)의 방사·방위 접선 축(Scripts/GenerateSurfaceRegressionMap.py radial_basis). */
 	struct FRegressionFrame
 	{
 		FVector Radial;
 		FVector Tangent;
 
-		explicit FRegressionFrame(const double AngleDegrees)
+		FRegressionFrame(const double LatDegrees, const double AzDegrees)
 		{
-			const double Radians = FMath::DegreesToRadians(AngleDegrees);
-			Radial = FVector(FMath::Cos(Radians), FMath::Sin(Radians), 0.0);
-			Tangent = FVector(-FMath::Sin(Radians), FMath::Cos(Radians), 0.0);
+			const double Lat = FMath::DegreesToRadians(LatDegrees);
+			const double Az = FMath::DegreesToRadians(AzDegrees);
+			Radial = FVector(FMath::Cos(Lat) * FMath::Cos(Az), FMath::Cos(Lat) * FMath::Sin(Az), FMath::Sin(Lat));
+			Tangent = FVector(-FMath::Sin(Az), FMath::Cos(Az), 0.0);
 		}
 
 		FVector At(const double Radius, const double TangentOffset = 0.0) const { return Radial * Radius + Tangent * TangentOffset; }
@@ -450,7 +451,8 @@ namespace
 }
 
 /**
- * design/RegressionMap.md §3의 exact 기대를 회귀 맵 fixture로 확인한다.
+ * design/RegressionMap.md §4의 동적 사례 exact 기대를 회귀 맵 fixture로 확인한다. 정적 사례는
+ * 에디터 모듈의 `WorldCollision.RegressionFixture`가 fixture LVI로 검사한다.
  * 맵은 일반 레벨이라 slot 등록 경로를 타지 않는다. fixture component의 mesh·transform·profile·mobility를 테스트 월드로
  * 복제하고 런타임 source로 등록한다. 맵 에셋이 입력의 원본이고 좌표는 생성 스크립트의 치수에서 나온다.
  */
@@ -505,12 +507,8 @@ bool FLNPRegressionMapExactTest::RunTest(const FString& Parameters)
 			++RegisteredCount;
 		}
 	}
-	TestEqual(TEXT("Fixture actor count"), FixtureCount, 37);
-	TestEqual(TEXT("Exact source count (fixtures minus 12 decorations)"), RegisteredCount, 25);
-
-	// Pawn 제외: 정적 프랍 사례의 지면 앞에 Pawn profile 판을 둔다. 등록하지 않으므로 맞으면 Unknown counter가 오른다.
-	const FRegressionFrame Props(45.0);
-	SpawnSlab(World, Props.At(24500.0, -700.0), FVector(1, 1, 1), TEXT("Pawn"), EComponentMobility::Movable);
+	TestEqual(TEXT("Fixture actor count"), FixtureCount, 12);
+	TestEqual(TEXT("Exact source count (fixtures minus 3 decorations)"), RegisteredCount, 9);
 	HitIdentity->Tick(0.f);
 	Collision->ResetStats();
 
@@ -518,141 +516,34 @@ bool FLNPRegressionMapExactTest::RunTest(const FString& Parameters)
 	const FLNPWorldQueryParams Query(ELNPWorldQueryClass::DebugValidation);
 	constexpr double Tolerance = 1.0;
 
-	// 1. 기본 지각: 바깥 ray가 지각 안쪽 면(r=25000)에 맞는다.
+	constexpr double Ground = 30000.0;
+
+	// 상태형 기둥: 기둥 자체는 항상 hit(Dynamic, Blocker만).
 	{
-		const FRegressionFrame F(5.0);
+		const FRegressionFrame F(30.0, 20.0);
 		FLNPWorldHit Hit;
-		TestTrue(TEXT("BasicCrust: outward ray hits"), Collision->RaycastWorld(F.At(24000.0), F.At(26000.0), Query, Hit));
-		TestEqual(TEXT("BasicCrust: hit radius"), F.RadiusOf(Hit.ImpactPoint), 25000.0, Tolerance);
-		TestTrue(TEXT("BasicCrust: normal faces the center"), FVector::DotProduct(Hit.ImpactNormal, -F.Radial) > 0.99);
-		TestTrue(TEXT("BasicCrust: static support"), Hit.Identity.Lifetime == ELNPExactSourceLifetime::Static && (Hit.Identity.Roles & Support) != 0);
-	}
-
-	// 2. 부유섬 하나: 섬 윗면(23000)이 먼저, 섬을 지난 ray는 지각(25000)에 맞는다.
-	{
-		const FRegressionFrame F(13.0);
-		FLNPWorldHit Hit;
-		TestTrue(TEXT("IslandOne: island hit"), Collision->RaycastWorld(F.At(22000.0), F.At(26000.0), Query, Hit));
-		TestEqual(TEXT("IslandOne: island top radius"), F.RadiusOf(Hit.ImpactPoint), 23000.0, Tolerance);
-		TestTrue(TEXT("IslandOne: crust behind island"), Collision->RaycastWorld(F.At(23150.0), F.At(26000.0), Query, Hit));
-		TestEqual(TEXT("IslandOne: crust radius"), F.RadiusOf(Hit.ImpactPoint), 25000.0, Tolerance);
-	}
-
-	// 3. 부유섬 둘: 안쪽 섬 → 바깥 섬 → 지각 순서로 구분된다.
-	{
-		const FRegressionFrame F(21.0);
-		const double Starts[] = { 20000.0, 21550.0, 23350.0 };
-		const double Expected[] = { 21400.0, 23200.0, 25000.0 };
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(Starts); ++Index)
-		{
-			FLNPWorldHit Hit;
-			TestTrue(FString::Printf(TEXT("IslandTwo: layer %d hit"), Index), Collision->RaycastWorld(F.At(Starts[Index]), F.At(26000.0), Query, Hit));
-			TestEqual(FString::Printf(TEXT("IslandTwo: layer %d radius"), Index), F.RadiusOf(Hit.ImpactPoint), Expected[Index], Tolerance);
-		}
-	}
-
-	// 4·5. 섬 가장자리: 안쪽(접선 550)은 윗면 support, 바깥(750)은 support miss, 측벽(접선 600)은 sweep hit.
-	{
-		const FRegressionFrame F(29.0);
-		FLNPSupportProbeQuery Probe;
-		Probe.Up = -F.Radial;
-		FLNPSupportProbeResult Result;
-
-		Probe.Position = F.At(22950.0, 550.0);
-		TestTrue(TEXT("IslandEdge inside: supported"), Collision->ProbeSupport(Probe, Query, Result));
-		TestEqual(TEXT("IslandEdge inside: top radius"), F.RadiusOf(Result.Hit.ImpactPoint), 23000.0, Tolerance);
-
-		Probe.Position = F.At(22950.0, 750.0);
-		TestFalse(TEXT("IslandEdge outside: not supported"), Collision->ProbeSupport(Probe, Query, Result));
-		TestFalse(TEXT("IslandEdge outside: nothing below"), Result.Hit.bBlockingHit);
-
-		FLNPWorldHit Hit;
-		TestTrue(TEXT("IslandEdge side wall: sweep hits"), Collision->SweepSphereWorld(F.At(23050.0, 900.0), F.At(23050.0, 0.0), 20.f, Query, Hit));
-		TestEqual(TEXT("IslandEdge side wall: tangent"), F.TangentOf(Hit.ImpactPoint), 600.0, Tolerance);
-		TestTrue(TEXT("IslandEdge side wall: normal faces outward"), FVector::DotProduct(Hit.ImpactNormal, F.Tangent) > 0.99);
-	}
-
-	// 6. 단순 동굴: 바깥은 floor(Support), 안쪽은 ceiling, 옆은 벽(둘 다 Blocker만).
-	{
-		const FRegressionFrame F(37.0);
-		const FVector Inside = F.At(24600.0);
-		FLNPWorldHit Hit;
-		TestTrue(TEXT("Cave: floor hit"), Collision->RaycastWorld(Inside, F.At(26000.0), Query, Hit));
-		TestEqual(TEXT("Cave: floor radius"), F.RadiusOf(Hit.ImpactPoint), 25000.0, Tolerance);
-		TestTrue(TEXT("Cave: floor is support"), (Hit.Identity.Roles & Support) != 0);
-
-		TestTrue(TEXT("Cave: ceiling hit"), Collision->RaycastWorld(Inside, F.At(23000.0), Query, Hit));
-		TestEqual(TEXT("Cave: ceiling radius"), F.RadiusOf(Hit.ImpactPoint), 24200.0, Tolerance);
-		TestEqual(TEXT("Cave: ceiling is blocker only"), static_cast<int32>(Hit.Identity.Roles), static_cast<int32>(Blocker));
-
-		for (const double Sign : { 1.0, -1.0 })
-		{
-			TestTrue(TEXT("Cave: wall hit"), Collision->RaycastWorld(Inside, F.At(24600.0, Sign * 2000.0), Query, Hit));
-			TestEqual(TEXT("Cave: wall tangent"), F.TangentOf(Hit.ImpactPoint), Sign * 800.0, Tolerance);
-			TestEqual(TEXT("Cave: wall is blocker only"), static_cast<int32>(Hit.Identity.Roles), static_cast<int32>(Blocker));
-		}
-	}
-
-	// 7. 정적 프랍: 나무·바위는 hit(Blocker만), 장식과 Pawn은 통과해 지면에 맞는다.
-	{
-		const FRegressionFrame& F = Props;
-		FLNPWorldHit Hit;
-		TestTrue(TEXT("Props: tree hit"), Collision->RaycastWorld(F.At(24700.0), F.At(24700.0, -1000.0), Query, Hit));
-		TestEqual(TEXT("Props: tree surface tangent"), F.TangentOf(Hit.ImpactPoint), -260.0, 5.0);
-		TestEqual(TEXT("Props: tree is blocker only"), static_cast<int32>(Hit.Identity.Roles), static_cast<int32>(Blocker));
-
-		// 바위는 비균등 scale 구라 표면 위치 대신 바위 영역(접선 125~350) 안에서 맞았는지만 본다.
-		TestTrue(TEXT("Props: rock hit"), Collision->RaycastWorld(F.At(24800.0), F.At(24800.0, 1000.0), Query, Hit));
-		TestTrue(TEXT("Props: rock surface is before the rock center"), F.TangentOf(Hit.ImpactPoint) > 100.0 && F.TangentOf(Hit.ImpactPoint) < 350.0);
-		TestEqual(TEXT("Props: rock is blocker only"), static_cast<int32>(Hit.Identity.Roles), static_cast<int32>(Blocker));
-
-		TestTrue(TEXT("Props: ray through decoration hits ground"), Collision->RaycastWorld(F.At(24000.0, 700.0), F.At(26000.0, 700.0), Query, Hit));
-		TestEqual(TEXT("Props: decoration is missed"), F.RadiusOf(Hit.ImpactPoint), 25000.0, Tolerance);
-
-		TestTrue(TEXT("Props: ray through pawn hits ground"), Collision->RaycastWorld(F.At(24000.0, -700.0), F.At(26000.0, -700.0), Query, Hit));
-		TestEqual(TEXT("Props: pawn is excluded"), F.RadiusOf(Hit.ImpactPoint), 25000.0, Tolerance);
-	}
-
-	// 8. 상태형 기둥: 기둥 자체는 항상 hit(Dynamic, Blocker만).
-	{
-		const FRegressionFrame F(53.0);
-		FLNPWorldHit Hit;
-		TestTrue(TEXT("Pillar: hit"), Collision->RaycastWorld(F.At(24500.0, -500.0), F.At(24500.0, 500.0), Query, Hit));
+		TestTrue(TEXT("Pillar: hit"), Collision->RaycastWorld(F.At(Ground - 500.0, -500.0), F.At(Ground - 500.0, 500.0), Query, Hit));
 		TestEqual(TEXT("Pillar: surface tangent"), F.TangentOf(Hit.ImpactPoint), -90.0, 5.0);
 		TestTrue(TEXT("Pillar: dynamic blocker"), Hit.Identity.Lifetime == ELNPExactSourceLifetime::Dynamic && Hit.Identity.Roles == Blocker);
 	}
 
-	// 9. 움직이는 패널: 현재 transform에서 hit(Dynamic Support), 패널을 지난 gap은 miss.
+	// 움직이는 패널: 현재 transform에서 hit(Dynamic Support), 패널을 지난 gap은 miss.
 	{
-		const FRegressionFrame F(61.0);
+		const FRegressionFrame F(30.0, 45.0);
 		FLNPWorldHit Hit;
-		TestTrue(TEXT("Panel: hit"), Collision->RaycastWorld(F.At(23800.0), F.At(26000.0), Query, Hit));
-		TestEqual(TEXT("Panel: radius"), F.RadiusOf(Hit.ImpactPoint), 24200.0, Tolerance);
+		TestTrue(TEXT("Panel: hit"), Collision->RaycastWorld(F.At(Ground - 1200.0), F.At(Ground + 1000.0), Query, Hit));
+		TestEqual(TEXT("Panel: radius"), F.RadiusOf(Hit.ImpactPoint), Ground - 800.0, Tolerance);
 		TestTrue(TEXT("Panel: dynamic support"), Hit.Identity.Lifetime == ELNPExactSourceLifetime::Dynamic && (Hit.Identity.Roles & Support) != 0);
-		TestFalse(TEXT("Panel: gap below the panel misses"), Collision->RaycastWorld(F.At(24350.0), F.At(26000.0), Query, Hit));
+		TestFalse(TEXT("Panel: gap below the panel misses"), Collision->RaycastWorld(F.At(Ground - 650.0), F.At(Ground + 1000.0), Query, Hit));
 	}
 
-	// 10. 파괴 바닥: 파괴 전에는 hit(Destructible).
+	// 파괴 바닥: 파괴 전에는 hit(Destructible).
 	{
-		const FRegressionFrame F(69.0);
+		const FRegressionFrame F(30.0, 70.0);
 		FLNPWorldHit Hit;
-		TestTrue(TEXT("Destructible: hit"), Collision->RaycastWorld(F.At(24500.0), F.At(26000.0), Query, Hit));
-		TestEqual(TEXT("Destructible: radius"), F.RadiusOf(Hit.ImpactPoint), 25000.0, Tolerance);
+		TestTrue(TEXT("Destructible: hit"), Collision->RaycastWorld(F.At(Ground - 500.0), F.At(Ground + 1000.0), Query, Hit));
+		TestEqual(TEXT("Destructible: radius"), F.RadiusOf(Hit.ImpactPoint), Ground, Tolerance);
 		TestTrue(TEXT("Destructible: lifetime"), Hit.Identity.Lifetime == ELNPExactSourceLifetime::Destructible);
-	}
-
-	// 11. 옥탄트 seam: 경계 양쪽에서 같은 높이로 hit, 경계를 가로지르는 sweep에 턱이 없다.
-	{
-		const FRegressionFrame F(90.0);
-		for (const double Offset : { -5.0, 5.0 })
-		{
-			FLNPWorldHit Hit;
-			TestTrue(TEXT("Seam: hit"), Collision->RaycastWorld(F.At(24000.0, Offset), F.At(26000.0, Offset), Query, Hit));
-			TestEqual(TEXT("Seam: radius"), F.RadiusOf(Hit.ImpactPoint), 25000.0, Tolerance);
-		}
-		FLNPWorldHit Hit;
-		TestFalse(TEXT("Seam: sweep along the surface has no step"),
-			Collision->SweepSphereWorld(F.At(24900.0, -500.0), F.At(24900.0, 500.0), 50.f, Query, Hit));
 	}
 
 	TestEqual(TEXT("No unknown hits"), Collision->GetUnknownHitCount(), static_cast<uint64>(0));

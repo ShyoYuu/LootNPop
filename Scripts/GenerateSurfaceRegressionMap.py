@@ -5,18 +5,13 @@ import unreal
 
 
 MAP_PATH = "/Game/Maps/SurfaceNavigation/L_SurfaceRegression"
-GROUND_RADIUS = 25000.0
-CASE_ANGLES = {
-    "BasicCrust": 5.0,
-    "FloatingIslandOne": 13.0,
-    "FloatingIslandTwo": 21.0,
-    "IslandEdge": 29.0,
-    "SimpleCave": 37.0,
-    "StaticProps": 45.0,
-    "StatefulPillar": 53.0,
-    "MovingPanel": 61.0,
-    "DestructibleFloor": 69.0,
-    "OctantSeam": 90.0,
+GROUND_RADIUS = 30000.0
+# 동적 사례만 남는다. 정적 사례는 LVI_Octant_Fixture_Regression(LNP.SurfaceNav.BuildRegressionFixture)이 소유한다.
+# 옥탄트 내부(위도 25~40°)에 두어 이음매·꼭짓점에서 떨어뜨린다. (위도, 방위) 도.
+CASE_DIRECTIONS = {
+    "StatefulPillar": (30.0, 20.0),
+    "MovingPanel": (30.0, 45.0),
+    "DestructibleFloor": (30.0, 70.0),
 }
 
 TAG_SUPPORT = "LNP.Surface.Support"
@@ -28,10 +23,11 @@ TAG_DESTRUCTIBLE = "LNP.Surface.Destructible"
 TAG_DECORATION = "LNP.Surface.Decoration"
 
 
-def radial_basis(angle_degrees):
-    radians = math.radians(angle_degrees)
-    radial = unreal.Vector(math.cos(radians), math.sin(radians), 0.0)
-    tangent = unreal.Vector(-math.sin(radians), math.cos(radians), 0.0)
+def radial_basis(direction):
+    lat = math.radians(direction[0])
+    az = math.radians(direction[1])
+    radial = unreal.Vector(math.cos(lat) * math.cos(az), math.cos(lat) * math.sin(az), math.sin(lat))
+    tangent = unreal.Vector(-math.sin(az), math.cos(az), 0.0)
     return radial, tangent
 
 
@@ -56,22 +52,18 @@ def spawn_mesh(
     mesh,
     label,
     case_name,
-    angle,
+    direction,
     radius,
     dimensions,
     profile,
     semantic_tags,
     tangent_offset=0.0,
-    vertical_offset=0.0,
     movable=False,
 ):
-    radial, tangent = radial_basis(angle)
-    location = add_vectors(
-        scaled(radial, radius),
-        scaled(tangent, tangent_offset),
-        unreal.Vector(0.0, 0.0, vertical_offset),
-    )
-    rotation = unreal.Rotator(pitch=90.0, yaw=angle, roll=0.0)
+    radial, tangent = radial_basis(direction)
+    location = add_vectors(scaled(radial, radius), scaled(tangent, tangent_offset))
+    # 로컬 Z = 방사, 로컬 Y = 방위 접선, 로컬 X = 위도 접선.
+    rotation = unreal.MathLibrary.make_rot_from_zy(radial, tangent)
     actor = actor_subsystem.spawn_actor_from_class(unreal.StaticMeshActor, location, rotation)
     if not actor:
         raise RuntimeError("Failed to spawn " + label)
@@ -93,27 +85,24 @@ def spawn_mesh(
     if movable:
         component.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
 
-    radial_size, tangent_size, vertical_size = dimensions
+    radial_size, tangent_size, latitude_size = dimensions
     actor.set_actor_scale3d(
-        unreal.Vector(vertical_size / 100.0, tangent_size / 100.0, radial_size / 100.0)
+        unreal.Vector(latitude_size / 100.0, tangent_size / 100.0, radial_size / 100.0)
     )
     return actor
 
 
-def spawn_probe(actor_subsystem, sphere_mesh, case_name, angle, radius, tangent_offset=0.0, vertical_offset=0.0):
+def spawn_probe(actor_subsystem, sphere_mesh, case_name, radius):
     return spawn_mesh(
         actor_subsystem,
         sphere_mesh,
         "Probe_" + case_name,
         case_name,
-        angle,
+        CASE_DIRECTIONS[case_name],
         radius,
         (30.0, 30.0, 30.0),
         "LNPDecoration",
         [TAG_DECORATION],
-        tangent_offset,
-        vertical_offset,
-        False,
     )
 
 
@@ -127,12 +116,12 @@ def validate_map(actor_subsystem):
         "LNPDecoration": {TAG_DECORATION},
     }
     expected_profile_counts = {
-        "LNPStaticTerrain": 17,
-        "LNPStaticBlocker": 5,
+        "LNPStaticTerrain": 6,
+        "LNPStaticBlocker": 0,
         "LNPDynamicTerrain": 1,
         "LNPStatefulTraversal": 1,
         "LNPDestructibleTerrain": 1,
-        "LNPDecoration": 12,
+        "LNPDecoration": 3,
     }
 
     actors = actor_subsystem.get_all_level_actors()
@@ -141,7 +130,7 @@ def validate_map(actor_subsystem):
         for actor in actors
         if unreal.Name("LNP.Regression.Fixture") in actor.get_editor_property("tags")
     ]
-    if len(fixtures) != 37:
+    if len(fixtures) != 12:
         raise RuntimeError("Unexpected fixture actor count: " + str(len(fixtures)))
 
     profile_counts = {profile: 0 for profile in expected_profile_counts}
@@ -166,7 +155,7 @@ def validate_map(actor_subsystem):
     if profile_counts != expected_profile_counts:
         raise RuntimeError("Unexpected profile counts: " + str(profile_counts))
 
-    expected_cases = {case_tag(case_name) for case_name in CASE_ANGLES}
+    expected_cases = {case_tag(case_name) for case_name in CASE_DIRECTIONS}
     if found_cases != expected_cases:
         raise RuntimeError("Regression case tags do not match the contract")
 
@@ -195,88 +184,36 @@ def build_map():
     if not cube_mesh or not sphere_mesh or not cylinder_mesh:
         raise RuntimeError("Failed to load Engine basic shape meshes")
 
-    angle = CASE_ANGLES["BasicCrust"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_01_BasicCrust", "BasicCrust", angle, 25050.0,
-               (100.0, 1800.0, 1800.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_probe(actor_subsystem, sphere_mesh, "BasicCrust", angle, 24500.0)
+    # 지면 판은 반지름 R+50 중심, 두께 100이라 안쪽 면이 R에 온다.
+    ground = GROUND_RADIUS + 50.0
+    terrain_tags = [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC]
 
-    angle = CASE_ANGLES["FloatingIslandOne"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_02_Crust", "FloatingIslandOne", angle, 25050.0,
-               (100.0, 1800.0, 1800.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_02_Island", "FloatingIslandOne", angle, 23050.0,
-               (100.0, 1300.0, 1300.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_probe(actor_subsystem, sphere_mesh, "FloatingIslandOne", angle, 22500.0)
-
-    angle = CASE_ANGLES["FloatingIslandTwo"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_03_Crust", "FloatingIslandTwo", angle, 25050.0,
-               (100.0, 1800.0, 1800.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_03_IslandOuter", "FloatingIslandTwo", angle, 23250.0,
-               (100.0, 1400.0, 1400.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_03_IslandInner", "FloatingIslandTwo", angle, 21450.0,
-               (100.0, 1100.0, 1100.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_probe(actor_subsystem, sphere_mesh, "FloatingIslandTwo", angle, 20800.0)
-
-    angle = CASE_ANGLES["IslandEdge"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_04_EdgeIsland", "IslandEdge", angle, 23050.0,
-               (100.0, 1200.0, 1600.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_probe(actor_subsystem, sphere_mesh, "IslandEdge", angle, 22500.0, tangent_offset=550.0)
-    spawn_probe(actor_subsystem, sphere_mesh, "IslandEdge", angle, 22500.0, tangent_offset=750.0)
-
-    angle = CASE_ANGLES["SimpleCave"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_05_CaveFloor", "SimpleCave", angle, 25050.0,
-               (100.0, 1800.0, 1400.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_05_CaveCeiling", "SimpleCave", angle, 24150.0,
-               (100.0, 1800.0, 1400.0), "LNPStaticBlocker", [TAG_BLOCKER, TAG_STATIC])
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_05_CaveWallLeft", "SimpleCave", angle, 24600.0,
-               (900.0, 100.0, 1400.0), "LNPStaticBlocker", [TAG_BLOCKER, TAG_STATIC], tangent_offset=-850.0)
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_05_CaveWallRight", "SimpleCave", angle, 24600.0,
-               (900.0, 100.0, 1400.0), "LNPStaticBlocker", [TAG_BLOCKER, TAG_STATIC], tangent_offset=850.0)
-    spawn_probe(actor_subsystem, sphere_mesh, "SimpleCave", angle, 24600.0)
-
-    angle = CASE_ANGLES["StaticProps"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_06_PropGround", "StaticProps", angle, 25050.0,
-               (100.0, 2000.0, 1600.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC])
-    spawn_mesh(actor_subsystem, cylinder_mesh, "SSN_06_TreeBlocker", "StaticProps", angle, 24650.0,
-               (700.0, 180.0, 180.0), "LNPStaticBlocker", [TAG_BLOCKER, TAG_STATIC], tangent_offset=-350.0)
-    spawn_mesh(actor_subsystem, sphere_mesh, "SSN_06_RockBlocker", "StaticProps", angle, 24800.0,
-               (400.0, 450.0, 450.0), "LNPStaticBlocker", [TAG_BLOCKER, TAG_STATIC], tangent_offset=350.0)
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_06_Decoration", "StaticProps", angle, 24600.0,
-               (200.0, 250.0, 500.0), "LNPDecoration", [TAG_DECORATION], tangent_offset=700.0)
-    spawn_probe(actor_subsystem, sphere_mesh, "StaticProps", angle, 24400.0)
-
-    angle = CASE_ANGLES["StatefulPillar"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_07_GroundLeft", "StatefulPillar", angle, 25050.0,
-               (100.0, 1100.0, 1500.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC], tangent_offset=-800.0)
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_07_GroundRight", "StatefulPillar", angle, 25050.0,
-               (100.0, 1100.0, 1500.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC], tangent_offset=800.0)
-    spawn_mesh(actor_subsystem, cylinder_mesh, "SSN_07_StatefulPillar", "StatefulPillar", angle, 24500.0,
+    direction = CASE_DIRECTIONS["StatefulPillar"]
+    spawn_mesh(actor_subsystem, cube_mesh, "SSN_07_GroundLeft", "StatefulPillar", direction, ground,
+               (100.0, 1100.0, 1500.0), "LNPStaticTerrain", terrain_tags, tangent_offset=-800.0)
+    spawn_mesh(actor_subsystem, cube_mesh, "SSN_07_GroundRight", "StatefulPillar", direction, ground,
+               (100.0, 1100.0, 1500.0), "LNPStaticTerrain", terrain_tags, tangent_offset=800.0)
+    spawn_mesh(actor_subsystem, cylinder_mesh, "SSN_07_StatefulPillar", "StatefulPillar", direction, GROUND_RADIUS - 500.0,
                (1000.0, 180.0, 180.0), "LNPStatefulTraversal", [TAG_BLOCKER, TAG_STATEFUL], movable=True)
-    spawn_probe(actor_subsystem, sphere_mesh, "StatefulPillar", angle, 24200.0)
+    spawn_probe(actor_subsystem, sphere_mesh, "StatefulPillar", GROUND_RADIUS - 800.0)
 
-    angle = CASE_ANGLES["MovingPanel"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_08_GroundLeft", "MovingPanel", angle, 25050.0,
-               (100.0, 1100.0, 1500.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC], tangent_offset=-800.0)
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_08_GroundRight", "MovingPanel", angle, 25050.0,
-               (100.0, 1100.0, 1500.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC], tangent_offset=800.0)
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_08_MovingPanel", "MovingPanel", angle, 24250.0,
+    direction = CASE_DIRECTIONS["MovingPanel"]
+    spawn_mesh(actor_subsystem, cube_mesh, "SSN_08_GroundLeft", "MovingPanel", direction, ground,
+               (100.0, 1100.0, 1500.0), "LNPStaticTerrain", terrain_tags, tangent_offset=-800.0)
+    spawn_mesh(actor_subsystem, cube_mesh, "SSN_08_GroundRight", "MovingPanel", direction, ground,
+               (100.0, 1100.0, 1500.0), "LNPStaticTerrain", terrain_tags, tangent_offset=800.0)
+    spawn_mesh(actor_subsystem, cube_mesh, "SSN_08_MovingPanel", "MovingPanel", direction, GROUND_RADIUS - 750.0,
                (100.0, 800.0, 800.0), "LNPDynamicTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_DYNAMIC], movable=True)
-    spawn_probe(actor_subsystem, sphere_mesh, "MovingPanel", angle, 23800.0)
+    spawn_probe(actor_subsystem, sphere_mesh, "MovingPanel", GROUND_RADIUS - 1200.0)
 
-    angle = CASE_ANGLES["DestructibleFloor"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_09_GroundLeft", "DestructibleFloor", angle, 25050.0,
-               (100.0, 1200.0, 1500.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC], tangent_offset=-950.0)
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_09_GroundRight", "DestructibleFloor", angle, 25050.0,
-               (100.0, 1200.0, 1500.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC], tangent_offset=950.0)
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_09_DestructibleFloor", "DestructibleFloor", angle, 25050.0,
+    direction = CASE_DIRECTIONS["DestructibleFloor"]
+    spawn_mesh(actor_subsystem, cube_mesh, "SSN_09_GroundLeft", "DestructibleFloor", direction, ground,
+               (100.0, 1200.0, 1500.0), "LNPStaticTerrain", terrain_tags, tangent_offset=-950.0)
+    spawn_mesh(actor_subsystem, cube_mesh, "SSN_09_GroundRight", "DestructibleFloor", direction, ground,
+               (100.0, 1200.0, 1500.0), "LNPStaticTerrain", terrain_tags, tangent_offset=950.0)
+    spawn_mesh(actor_subsystem, cube_mesh, "SSN_09_DestructibleFloor", "DestructibleFloor", direction, ground,
                (100.0, 700.0, 1500.0), "LNPDestructibleTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_DESTRUCTIBLE], movable=True)
-    spawn_probe(actor_subsystem, sphere_mesh, "DestructibleFloor", angle, 24500.0)
-
-    angle = CASE_ANGLES["OctantSeam"]
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_10_SeamA", "OctantSeam", angle, 25050.0,
-               (100.0, 1000.0, 1600.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC], tangent_offset=-500.0)
-    spawn_mesh(actor_subsystem, cube_mesh, "SSN_10_SeamB", "OctantSeam", angle, 25050.0,
-               (100.0, 1000.0, 1600.0), "LNPStaticTerrain", [TAG_SUPPORT, TAG_BLOCKER, TAG_STATIC], tangent_offset=500.0)
-    spawn_probe(actor_subsystem, sphere_mesh, "OctantSeam", angle, 24500.0)
+    spawn_probe(actor_subsystem, sphere_mesh, "DestructibleFloor", GROUND_RADIUS - 500.0)
 
     light = actor_subsystem.spawn_actor_from_class(
         unreal.DirectionalLight,

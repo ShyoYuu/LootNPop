@@ -50,7 +50,7 @@
 
 - `Static`·`Decoration` source는 옥탄트 LVI에 직접 둔다.
 - `Dynamic`·`StatefulTraversal`·`Destructible` source는 옥탄트 LVI에 두지 않는다. 이 태그는 서버가 스폰하는 동적 요소 Actor 클래스의 컴포넌트에만 붙는다(D-026). LVI에는 그 위치를 가리키는 Placement Marker만 둔다.
-- 회귀 맵(`RegressionMap.md`)의 동적 fixture는 Phase 3에서 마커 방식으로 전환하기 전까지 예외로 둔다.
+- 회귀 공간의 동적 사례는 LVI가 아닌 일반 레벨 `L_SurfaceRegression`에 직접 둔다(D-056). Phase 8에서 마커 방식으로 전환하기 전까지의 예외다.
 
 ### 서버 스폰 정적 장치
 
@@ -180,6 +180,25 @@ profile은 물리 응답을, Component Tag는 제품 의미를 소유한다. 둘
 - 방사 방향의 첫 표면이 지각이나 천장이어도 바닥 Support Layer를 잃지 않아야 한다.
 - 투사체와 sweep은 Support 결과가 아니라 `LNPWorldExact` 기준으로 천장·측벽을 맞힌다.
 - 공동과 통로는 옥탄트 경계를 넘지 않는다(D-030).
+
+### 키트 에셋 규약
+
+제작 도구(코드 greybox·Blender 등)와 무관하게 모든 키트 에셋이 따른다. 규약을 지킨 에셋은 서로 1:1로 교체된다. 자동화 `Bake.CaveKitContract`가 저장된 에셋의 cooked 충돌 삼각형으로 검사한다.
+
+| 항목 | 규약 |
+|:---|:---|
+| 이름 | 모듈마다 `SM_CaveKit_<Module>_Floor`와 `SM_CaveKit_<Module>_Shell` 두 메시 |
+| 역할 | Floor는 `Support+Blocker+Static`(`LNPStaticTerrain`), Shell은 `Blocker+Static`(`LNPStaticBlocker`) |
+| 피벗 | 바닥 기준점. 로컬 +Z = Up(월드 중심 방향), 로컬 +X = 통로가 지각 입구로 향하는 쪽 |
+| 면 | Floor는 +Z를 향하는 단면이고 모든 삼각형이 walkable(법선 dot ≥ 0.71). Shell은 양면이라 안팎 모두 막는다 |
+| 연결점 | StaticMesh 소켓. 공동의 문은 `Door_<n>`, 통로는 `Lower`(공동 쪽)·`Mouth`(지각 쪽). 소켓은 바닥 위에 있다 |
+| clearance | 바닥에서 천장까지 250cm 이상(적 캡슐 높이 176cm + 여유) |
+| 충돌 | complex-as-simple |
+
+- 연결은 `Door_<n>` 소켓 transform에 통로 `Lower` 피벗을 맞춘다. 벽을 바닥 아래로 30cm 내려 접합부 틈을 막는다.
+- 통로 입구의 지각 구멍은 통로 내부 볼록 영역(두 벽·바닥·천장·양 끝 평면)과 겹치는 지각만 평면으로 잘라 만든다. 통로 천장·벽은 지각 위로 솟은 입구 구간에도 그대로 둔다. 지각 곡률·요철과 무관하게 입구 주변이 닫힌다.
+- 현재 greybox 모듈은 직육면체 공동(`RoomBox`, 1600×1600×500)과 경사 통로(`RampCorridor`, 수평 2,400cm·20°, 단면 400×350) 두 가지다. 생성 명령은 `LNP.SurfaceNav.BuildCaveKit`, 치수 원본은 `LootNPopEditor/SurfaceNavigation/LNPCaveKit.h`다.
+- 프로덕션 품질 모듈은 아트 패스에서 Blender로 만들고 같은 규약·검사를 통과시킨다. 규약은 4b 베이크와 Phase 7 Nav(입구 portal·clearance)를 거치며 바뀔 수 있으므로 그 전에는 제작 파이프라인을 다듬지 않는다.
 
 ### 제작 가이드
 

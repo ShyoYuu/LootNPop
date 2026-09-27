@@ -42,7 +42,7 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 
 ## 테스트 계획
 
-모든 기능 테스트는 `/Game/Maps/SurfaceNavigation/L_SurfaceRegression`과 `RegressionMap.md`의 고정 probe·oracle을 공통 기준으로 사용한다. Phase별 구현은 새 전용 맵을 복제하지 않고 같은 사례에 측정 항목을 추가한다.
+모든 기능 테스트는 `RegressionMap.md`의 회귀 공간(정적 fixture LVI `LVI_Octant_Fixture_Regression`과 동적 사례 맵 `L_SurfaceRegression`, D-056)의 고정 probe·oracle을 공통 기준으로 사용한다. Phase별 구현은 새 전용 맵을 복제하지 않고 같은 사례에 측정 항목을 추가한다.
 
 ### 단위 테스트
 

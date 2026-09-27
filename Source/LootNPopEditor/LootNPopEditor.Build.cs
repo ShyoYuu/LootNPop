@@ -17,7 +17,10 @@ public class LootNPopEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange([
 			"AssetRegistry",
 			"Chaos",
+			"DynamicMesh",
+			"GeometryCore",
 			"InteractiveToolsFramework",
+			"MeshConversion",
 			"MeshDescription",
 			"MeshModelingTools",
 			"MeshPartitionModelingToolset",

@@ -150,6 +150,23 @@ Bridge
 | 파괴 가능한 바닥 | 파괴 전 | 바닥 Support, 통과 link |
 | 파괴 가능한 blocker | 파괴 전 | Nav 점유 |
 
+### 마커 로컬 공간 규약(Phase 4 공통 전제에서 확정, 구현은 Phase 8)
+
+좌표계는 세 단계다. 뒤 단계로 갈수록 slot과 무관해진다.
+
+| 단계 | 좌표계 | 담는 것 |
+|:---|:---|:---|
+| authoring | 마커 로컬 | 요소 클래스가 정의하는 patch source mesh와 상태별 transform(기둥의 안정 transform, 파괴 바닥의 온전한 형상). 마커 배치와 무관하다 |
+| bake | 옥탄트 로컬(= LVI 로컬) | `마커의 LVI 내 transform × 마커 로컬`로 옮긴 형상을 base Atlas·Nav Tile에 투영한 결과 |
+| runtime | slot 인스턴스 | `(slot, MarkerId)`로 해당 slot SurfaceData의 patch를 켠다. slot 회전은 옥탄트 데이터 전체에 걸리므로 patch를 따로 회전하지 않는다 |
+
+- patch 데이터는 좌표가 아니라 **base 데이터의 인덱스**로 저장한다. Support는 base Atlas 격자 샘플, Nav는 base Nav cell을 가리킨다. 그래서 같은 definition을 쓰는 모든 slot이 같은 patch를 공유하고, 런타임에 형상을 변환하거나 로컬 grid를 병합하지 않는다(D-041).
+- patch가 추가하는 보행면은 새 Support Layer다. 격자·codec은 4b의 섬·동굴 sparse Atlas를 그대로 쓰고 "patch 소유" 표시와 활성 여부만 더한다. patch Layer ID는 정적 Layer ID 뒤에 MarkerId 오름차순으로 붙여 결정론을 유지한다. 반지름이 비슷해도 정적 Layer와 병합하지 않는다.
+- 파괴 바닥처럼 **처음부터 있는** 보행면도 patch다. 정적 payload에는 `Destructible` source가 없으므로(`TerrainContract.md`) 온전한 상태의 Support를 patch로 굽고 파괴 시 끈다.
+- 런타임 활성화 조건은 상태 값만 본다(Bridge 도달, 파괴 전). 요소 Actor의 실제 transform과 베이크 transform의 비교는 debug 진단으로만 둔다. 결정론적 움직임(D-027)이라 안정 transform은 authoring 값과 같다.
+- patch footprint와 영향 범위는 옥탄트 경계를 넘지 않는다(D-030). 같은 방향에서 정적 Layer와 patch Layer가 캡슐 높이 안쪽으로 겹치면 Layer 해석이 모호하므로 베이크 오류로 막는다.
+- stale 입력: MarkerId, 마커 transform, 요소 클래스, 경로·상태 파라미터, patch source mesh와 상태별 transform을 canonical hash에 넣는다(D-041, `DataModel.md`). stream 형식과 `DataVersion` 상승은 Phase 8에서 확정한다.
+
 ## 6. 파괴
 
 지원 범위:

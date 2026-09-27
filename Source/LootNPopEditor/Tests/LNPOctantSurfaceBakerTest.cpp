@@ -15,6 +15,7 @@
 #include "SurfaceNavigation/LNPCrustAtlas.h"
 #include "SurfaceNavigation/LNPOctantSurfaceBaker.h"
 #include "SurfaceNavigation/LNPOctantTriangleExtractor.h"
+#include "SurfaceNavigation/LNPRegressionFixture.h"
 #include "UObject/StrongObjectPtr.h"
 
 namespace LNPOctantSurfaceBakerTest
@@ -153,7 +154,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 {
 	using namespace LNPOctantSurfaceBakerTest;
-	for (const TCHAR* LevelPath : {FixtureLevelPath, MeadowLevelPath})
+	for (const TCHAR* LevelPath : {FixtureLevelPath, LNPRegressionFixture::LevelPath, MeadowLevelPath})
 	{
 		TStrongObjectPtr<ULNPOctantSurfaceData> First(NewObject<ULNPOctantSurfaceData>(GetTransientPackage()));
 		TStrongObjectPtr<ULNPOctantSurfaceData> Second(NewObject<ULNPOctantSurfaceData>(GetTransientPackage()));
@@ -218,7 +219,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FLNPCrustAtlasExactErrorTest::RunTest(const FString& Parameters)
 {
 	using namespace LNPOctantSurfaceBakerTest;
-	for (const TCHAR* LevelPath : {FixtureLevelPath, MeadowLevelPath})
+	for (const TCHAR* LevelPath : {FixtureLevelPath, LNPRegressionFixture::LevelPath, MeadowLevelPath})
 	{
 		for (const double Spacing : {200.0, 100.0, 50.0})
 		{
@@ -314,7 +315,7 @@ bool FLNPCrustSeamMatchTest::RunTest(const FString& Parameters)
 	}
 
 	// 같은 definition이 8 slot을 모두 채운다고 보고 저장된 Atlas를 slot 회전으로 합성한다.
-	for (const TCHAR* LevelPath : {FixtureLevelPath, MeadowLevelPath})
+	for (const TCHAR* LevelPath : {FixtureLevelPath, LNPRegressionFixture::LevelPath, MeadowLevelPath})
 	{
 		const FString SavedPackage = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(FSoftObjectPath(LevelPath));
 		const ULNPOctantSurfaceData* Saved = LoadObject<ULNPOctantSurfaceData>(
