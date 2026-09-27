@@ -41,7 +41,8 @@
 - Layer 격자는 지각과 같은 면 `x+y+z=1` 위 꼭짓점 중심 삼각 격자이고, 분할 수만 지각 N의 정수배 `N_L = m·N`이다. 방향·인덱스·보간 수식은 `LNPCrustAtlas`와 같다.
 - 정수배라서 지각 격자점은 모두 Layer 격자점이기도 하다. Phase 8 patch가 "base 격자 인덱스"로 저장될 때 지각·Layer 어느 쪽이든 같은 규약을 쓴다(`../design/DynamicTerrain.md` §5).
 - **저장은 row span.** Layer마다 `j` 범위 `[J0, J0+RowCount)`와 행별 `i` 구간 `[IStart, IStart+Count)`만 가진다. 행별 누적 offset으로 `(i, j)` → 샘플 인덱스가 O(1)이다. footprint의 격자점을 모두 담는 최소 행 구간이며, 구간 안에서 광선이 빗나간 샘플은 `Valid=0`이다.
-- 해상도 후보는 50cm(m=2, N_L=1,470)와 25cm(m=4, N_L=2,940)다. 간격은 기준 반지름 R 기준이며 섬은 R보다 안쪽이라 실제 간격이 조금 더 좁다. 구현 단위 3의 오차 측정으로 m을 정한다. 옥탄트 안 모든 비지각 Layer는 같은 m을 쓴다.
+- 해상도 후보는 50cm(m=2, N_L=1,470)와 25cm(m=4, N_L=2,940)다. 간격은 기준 반지름 R 기준이며 섬은 R보다 안쪽이라 실제 간격이 조금 더 좁다. 옥탄트 안 모든 비지각 Layer는 같은 m을 쓴다.
+- **m=4로 확정(사용자 결정, 2026-09-27).** 구현 단위 3에서 오차는 두 해상도 모두 합격이었다. m=4는 섬·경사로의 NeedsExact를 절반으로 줄이고, 옥탄트당 payload는 약 0.54MB 늘어난다.
 - Layer별 반지름 양자화 기준은 기준 반지름이 아니라 **Layer 자체 기준 반지름**(Layer 샘플 반지름 범위의 중간값을 step 단위로 반올림)이다. 섬은 R에서 30m 이상 안쪽이지만 Layer 안의 반지름 폭은 작다. 범위는 codec v1과 같이 ±81.9m이고, 넘으면 인코딩 오류다.
 
 ### 3.3 Layer 분리 규칙
@@ -68,7 +69,7 @@
 
 순수 함수 `LNPSupportAtlas::QueryLayers(Atlas, LocalDirection, FeetRadius, MaxStepUp, MaxDrop, PreferredLayer)`다. 반지름이 작을수록 위(중심 쪽)다.
 
-1. 후보 Layer: 방향을 담은 격자 삼각형의 꼭짓점 중 하나라도 Layer footprint 안에서 Valid인 Layer. 지각 포함.
+1. 후보 Layer: 방향을 담은 격자 삼각형의 꼭짓점 중 하나라도 Layer footprint 안에서 Valid인 Layer. 지각 포함. 꼭짓점이 모두 invalid여도 그 6-이웃에 Valid 샘플이 있으면 footprint 가장자리 띠로 보고 후보에 넣는다. 이때 걸침 판정은 이웃 반지름으로 한다(구현 단위 3에서 추가, 사용자 결정 2026-09-27).
 2. 후보마다 4a 규칙으로 보간한다(세 꼭짓점 Valid이고 NeedsExact 아님).
 3. 탐색 창은 `[FeetRadius - MaxStepUp, FeetRadius + MaxDrop]`이다.
 4. 창에 걸치는 후보 중 **보간 실패인 Layer가 있으면 `NeedsExact`**를 반환한다. 걸침 판정은 그 Layer의 Valid 꼭짓점 반지름이 창 안에 있는지로 한다. 가장자리에서 가까운 Layer를 건너뛰고 먼 Layer로 떨어지지 않게 하기 위해서다.
@@ -137,11 +138,23 @@
 - 자동화 `Bake.LayerAtlasExactError`: Layer마다 footprint 안 무작위 방향(고정 seed)에서 Atlas 조회와 그 컴포넌트만 대상으로 한 exact trace(`LineTraceComponent`)를 비교한다. 유령 지면, 반지름 오차 P50/P99/최대, 법선 오차, NeedsExact 비율. m=2·4 비교.
 - 합격 기준 초안: 4a와 같이 유령 지면 0, 반지름 P99 ≤ 2cm·최대 ≤ 10cm, 법선 P99 ≤ 5°. 측정 뒤 확정한다.
 - 기록: Layer payload 크기, 옥탄트 총 payload, 베이크 시간. 결과로 m을 정한다.
+- 상태(2026-09-27): 완료. **m=4 확정**, 합격 기준은 초안 그대로(비지각 Layer도 지각과 같은 값)다.
+  - 자동화 `Bake.LayerAtlasExactError`: Layer마다 footprint 행·열 범위에 격자 2칸 여유를 둔 영역에서 무작위 방향 4,000개를 뽑는다. Atlas `QueryLayer`와, 그 source 컴포넌트만 대상으로 한 `LineTraceComponent`를 비교한다. exact가 같은 source의 다른 Layer나 non-walkable face를 먼저 맞히면 hit `FaceIndex`를 face 표로 해석해 확인한 뒤 그 뒤에서 다시 쏜다. 그래서 face 표 해석도 함께 검사된다(해석 실패 0).
+  - `Meadow_00` 비지각 Layer 10개 합계:
+
+| m | 반지름 오차 P99 / 최대 | 법선 P99 / 최대 | NeedsExact(exact가 맞힌 방향 중) | 큰 섬 / 섬 A·B / 경사로 | 계단 3칸 | payload(Layer body) | Layer 굽기 |
+|:---|:---|:---|---:|:---|:---|---:|---:|
+| 2 | 0.12 / 0.72cm | 0.25° / 4.2° | 27.2% | 3.8% / 10~11% / 31% | 100% | 2,088,939(179,361) | 0.01s |
+| 4 | 0.12 / 0.34cm | 0.20° / 3.6° | 20.6% | 1.9% / 5~6% / 16% | 98~99% | 2,630,943(717,717) | 0.03s |
+
+  - 두 fixture도 경향이 같다. 반지름 최대 0.13cm, 유령 지면은 모든 옥탄트·해상도·Layer에서 0이다. 동굴 공동·통로 바닥 Layer도 지각·천장과 무관하게 샘플되고 보간된다.
+  - **발견·수정: footprint 가장자리 띠.** exact는 Layer를 맞히는데 격자 삼각형 꼭짓점이 모두 footprint 밖이라 `QueryLayers`가 그 Layer를 후보로도 보지 않는 방향이 있었다(m=2 `Meadow_00` 14,982개 중 5개. 계단 칸 가장자리, 슬래브 등). 이 경우 아래 Layer로 떨어진다. §3.5 1단계에 가장자리 띠 후보를 추가해 모든 옥탄트·해상도에서 0이 됐고, 자동화가 0을 단언한다. 합성 가장자리 스캔은 NeedsExact 181 → 260, 가장자리 밖 가운데 캡 선택 237 → 158로 바뀌었다(떨어짐·유령 지면은 여전히 0). 이 띠에서는 exact가 조금 더 자주 불린다.
+  - 섬 B 계단 칸은 m=4에서도 거의 exact 전용이다. 가장자리에서 격자 약 2칸 안쪽은 보간되지 않는데 칸이 그보다 좁기 때문이다. 구현 단위 4 기준은 아래처럼 바꿨다.
 
 ### 구현 단위 4 — face→Layer 종단 검증과 Phase 종료
 
 - 자동화 `WorldCollision.LayerIdentity`: fixture 회귀 LVI를 8 slot으로 복제한 테스트 월드에서 §3 정적 사례마다 exact trace hit의 (source key, `FaceIndex`)를 face 표로 해석한 Layer가 같은 지점의 `QueryLayers` 결과 Layer와 같은지 확인한다. 섬 둘(3층), 동굴 바닥(지각·천장 뒤), 섬 가장자리 바깥(Layer 없음 → 지각).
-- `Meadow_00` 섬 B 계단: 각 칸 위 발 위치에서 그 칸이 선택되고, 칸 옆에서는 섬 윗면이 선택된다.
+- `Meadow_00` 섬 B 계단(사용자 결정, 2026-09-27): 각 칸 위 발 위치에서 `QueryLayers`는 **그 칸 Layer로 Supported이거나 NeedsExact**여야 하고 다른 Layer를 고르면 안 된다. NeedsExact인 지점은 exact hit face→Layer가 그 칸 Layer여야 한다. 칸 옆에서는 섬 윗면이 선택된다. 해상도에 따라 넓은 칸은 가운데에서 보간되고 좁은 칸은 exact로 가므로, 이 기준 하나로 칸 폭과 무관하게 검사한다.
 - 에디터 빌드, 자동화 전체, `-game` 리슨 2P 스모크(D-031. 4b는 런타임 경로를 바꾸지 않으므로 무회귀 확인).
 - 문서: `../design/SurfaceBaking.md`(다층 규약·codec v2), `../design/DataModel.md`(DataVersion 3), `../design/RuntimeCollision.md`(face 표 형식과 external index), `../design/RegressionMap.md` §3·§7, Roadmap·Current.
 
@@ -151,8 +164,8 @@
 - [x] 분리 sheet는 Layer 2개, 양면 판은 Layer 1개(바깥 winding은 None), 접힌 sheet는 오류
 - [x] 세 옥탄트의 다층 SupportPayload(codec v2, `DataVersion` 3)가 베이크·저장되고, 두 번 구운 결과가 같음
 - [x] `QueryLayers`가 3층 겹침·계단 단차·가장자리에서 규칙대로 Layer를 고르고, 가장자리에서 다른 Layer로 떨어지지 않음(합성 입력. `Meadow_00` 계단은 구현 단위 4)
-- [ ] Layer Atlas와 exact 오차가 측정됐고, 그 결과로 해상도 m과 허용값이 문서에 확정됨
-- [ ] 동굴 바닥 Layer가 지각·천장 뒤에서도 샘플되고, 섬 가장자리 밖에 유령 지면이 없음
+- [x] Layer Atlas와 exact 오차가 측정됐고, 그 결과로 해상도 m과 허용값이 문서에 확정됨
+- [x] 동굴 바닥 Layer가 지각·천장 뒤에서도 샘플되고, 섬 가장자리 밖에 유령 지면이 없음(`Bake.LayerAtlasExactError`)
 - [ ] 8 slot에서 exact hit `FaceIndex` → face 표 → Layer가 Atlas 조회 Layer와 일치하고, 패키지 빌드에서 `FaceIndex`가 유효함
 - [ ] 지각 Atlas 4a 검증(이음매·오차·결정론) 무회귀
 - [ ] 에디터 빌드, 자동화 전체 통과, `-game` 리슨 2P 스모크 통과

@@ -30,8 +30,9 @@ namespace LNPOctantSurfaceBakerTest
 	constexpr double FixtureHoleAngleDeg = 1.5;
 
 	/**
-	 * 기본 해상도(100cm)의 Atlas 보간 대 exact 합격 기준. 2026-09-27 `Meadow_00` 실측(P99 1.06cm, 최대 5.0cm,
-	 * 법선 P99 2.2°)에 약 2배 여유를 둔 값이다(`phases/Phase04a_CrustAtlasAndSeams.md` §3.6).
+	 * 기본 해상도(지각 100cm, 비지각 Layer 25cm)의 Atlas 보간 대 exact 합격 기준. 2026-09-27 `Meadow_00` 지각 실측(P99 1.06cm,
+	 * 최대 5.0cm, 법선 P99 2.2°)에 약 2배 여유를 둔 값이다(`phases/Phase04a_CrustAtlasAndSeams.md` §3.6). 비지각 Layer는 실측
+	 * (P99 0.12cm, 최대 0.34cm, 법선 P99 0.2°)이 훨씬 작지만 같은 값을 쓴다.
 	 */
 	constexpr double MaxRadiusErrorP99 = 2.0;
 	constexpr double MaxRadiusError = 10.0;
@@ -66,12 +67,12 @@ namespace LNPOctantSurfaceBakerTest
 		return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector3d::DotProduct(A, B), -1.0, 1.0)));
 	}
 
-	/** 지각 component 하나만 등록한 physics world. exact 기준값은 `LNPSurfaceSupport` 채널 trace다. */
-	struct FCrustExactWorld
+	/** 로드만 한 source World에는 physics scene이 없으므로 exact 기준값은 새 physics world에 복제한 component로 잰다. */
+	struct FExactPhysicsWorld
 	{
 		TStrongObjectPtr<UWorld> World;
 
-		explicit FCrustExactWorld(const UStaticMeshComponent& Crust)
+		FExactPhysicsWorld()
 		{
 			World.Reset(NewObject<UWorld>(GetTransientPackage()));
 			World->WorldType = EWorldType::EditorPreview;
@@ -85,18 +86,31 @@ namespace LNPOctantSurfaceBakerTest
 				.CreateAISystem(false)
 				.ShouldSimulatePhysics(false)
 				.SetTransactional(false));
-
-			UStaticMeshComponent* Probe = NewObject<UStaticMeshComponent>(World.Get());
-			Probe->SetStaticMesh(Crust.GetStaticMesh());
-			Probe->SetWorldTransform(FLNPOctantTriangleExtractor::GetSourceTransform(Crust));
-			Probe->SetCollisionProfileName(Crust.GetCollisionProfileName());
-			Probe->RegisterComponentWithWorld(World.Get());
 		}
 
-		~FCrustExactWorld()
+		~FExactPhysicsWorld()
 		{
 			GEngine->DestroyWorldContext(World.Get());
 			World->DestroyWorld(true);
+		}
+
+		UStaticMeshComponent* AddProbe(const UStaticMeshComponent& Source) const
+		{
+			UStaticMeshComponent* Probe = NewObject<UStaticMeshComponent>(World.Get());
+			Probe->SetStaticMesh(Source.GetStaticMesh());
+			Probe->SetWorldTransform(FLNPOctantTriangleExtractor::GetSourceTransform(Source));
+			Probe->SetCollisionProfileName(Source.GetCollisionProfileName());
+			Probe->RegisterComponentWithWorld(World.Get());
+			return Probe;
+		}
+	};
+
+	/** 지각 component 하나만 등록한 physics world. exact 기준값은 `LNPSurfaceSupport` 채널 trace다. */
+	struct FCrustExactWorld : FExactPhysicsWorld
+	{
+		explicit FCrustExactWorld(const UStaticMeshComponent& Crust)
+		{
+			AddProbe(Crust);
 		}
 
 		/** 구 중심에서 바깥쪽 방향의 첫 지각 hit. 지각 앞면은 중심 쪽이다. */
@@ -144,6 +158,44 @@ namespace LNPOctantSurfaceBakerTest
 				Percentile(NormalErrorsDeg, 0.5), Percentile(NormalErrorsDeg, 0.99), Percentile(NormalErrorsDeg, 1.0));
 		}
 	};
+
+	constexpr int32 LayerDirectionCount = 4000;
+	/** Layer footprint 밖 유령 지면도 보도록 무작위 방향 영역을 footprint 행·열 범위보다 이만큼(격자 칸) 넓힌다. */
+	constexpr double LayerFootprintMargin = 2.0;
+	/** 한 광선에서 다른 Layer·non-walkable face를 건너뛰는 최대 횟수. */
+	constexpr int32 MaxLayerTraceSkips = 8;
+
+	/**
+	 * source component 하나만 대상으로 구 중심에서 바깥쪽 광선을 쏴 Layer의 첫 앞면 hit를 찾는다. 앞선 hit가 같은 source의
+	 * 다른 Layer나 non-walkable face면 그 뒤에서 다시 쏜다. Atlas가 Layer 삼각형만으로 샘플링하는 것과 같은 기준이다.
+	 * hit FaceIndex를 face 표로 해석하지 못하면 OutUnresolved를 올리고 false다.
+	 */
+	bool TraceLayer(UStaticMeshComponent& Probe, const FLNPSupportFaceMap& FaceMap, uint16 Layer,
+		const FVector3d& Direction, double MaxRadius, FHitResult& OutHit, int32& OutUnresolved)
+	{
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPLayerExactError), /*bTraceComplex=*/false);
+		Params.bReturnFaceIndex = true;
+		double StartRadius = 0.0;
+		for (int32 Skip = 0; Skip <= MaxLayerTraceSkips; ++Skip)
+		{
+			if (!Probe.LineTraceComponent(OutHit, Direction * StartRadius, Direction * MaxRadius, Params))
+			{
+				return false;
+			}
+			if (OutHit.FaceIndex < 0)
+			{
+				++OutUnresolved;
+				return false;
+			}
+			if (FaceMap.Resolve(OutHit.FaceIndex) == Layer)
+			{
+				return true;
+			}
+			StartRadius = FVector3d::DotProduct(FVector3d(OutHit.ImpactPoint), Direction) + 0.01;
+		}
+		++OutUnresolved;
+		return false;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -293,6 +345,125 @@ bool FLNPCrustAtlasExactErrorTest::RunTest(const FString& Parameters)
 					LevelPath, Spacing, ExactHoleCount, *HoleStats.ToString()));
 				TestTrue(FString::Printf(TEXT("Spacing %.0f: hole cone contains exact misses"), Spacing), ExactHoleCount > 0);
 				TestEqual(FString::Printf(TEXT("Spacing %.0f: no ghost floor in the hole cone"), Spacing), HoleStats.GhostFloor, 0);
+			}
+		}
+	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPLayerAtlasExactErrorTest,
+	"LootNPop.SurfaceNavigation.Bake.LayerAtlasExactError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPLayerAtlasExactErrorTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPOctantSurfaceBakerTest;
+	for (const TCHAR* LevelPath : {FixtureLevelPath, LNPRegressionFixture::LevelPath, MeadowLevelPath})
+	{
+		// source component는 Layer 해상도와 무관하므로 옥탄트마다 한 번만 복제한다.
+		const FExactPhysicsWorld ExactWorld;
+		TMap<FString, UStaticMeshComponent*> Probes;
+		for (const int32 Multiplier : {2, 4})
+		{
+			FLNPOctantBakeOptions Options;
+			Options.LayerSubdivisionMultiplier = Multiplier;
+			TStrongObjectPtr<ULNPOctantSurfaceData> Data(NewObject<ULNPOctantSurfaceData>(GetTransientPackage()));
+			FLNPOctantBakeReport Report;
+			FString Error;
+			FLNPSupportAtlas Atlas;
+			if (!FLNPOctantSurfaceBaker::Bake(FSoftObjectPath(LevelPath), Options, *Data, Report, Error)
+				|| !LNPSupportAtlas::Decode(Data->SupportPayload, Atlas, Error))
+			{
+				AddError(FString::Printf(TEXT("%s m=%d: %s"), LevelPath, Multiplier, *Error));
+				continue;
+			}
+
+			FErrorStats LevelStats;
+			int64 LayerBodyBytes = 0;
+			for (int32 LayerId = 1; LayerId < Atlas.Layers.Num(); ++LayerId)
+			{
+				const FLNPSupportAtlasLayer& Layer = Atlas.Layers[LayerId];
+				const FLNPOctantBakeLayerReport& LayerReport = Report.Layers[LayerId];
+				LayerBodyBytes += LayerReport.BodyBytes;
+				UStaticMeshComponent* Probe = Probes.FindRef(LayerReport.SourceName);
+				if (!Probe)
+				{
+					const UStaticMeshComponent* Source = FindObject<UStaticMeshComponent>(nullptr, *LayerReport.SourceName);
+					if (!TestNotNull(FString::Printf(TEXT("%s: Layer source component resolves"), *LayerReport.SourceName), Source))
+					{
+						continue;
+					}
+					Probe = Probes.Add(LayerReport.SourceName, ExactWorld.AddProbe(*Source));
+				}
+				const FLNPSupportFaceMap& FaceMap = Atlas.Sources[Layer.SourceIndex].FaceMap;
+
+				// footprint 행·열 범위에 여유를 둔 영역에서 연속 격자 좌표를 고른다.
+				const int32 N = Layer.Layout.Subdivisions;
+				int32 IMin = MAX_int32;
+				int32 IMax = MIN_int32;
+				for (const FLNPSupportRowSpan& Span : Layer.Layout.Rows)
+				{
+					IMin = FMath::Min(IMin, Span.IStart);
+					IMax = FMath::Max(IMax, Span.IStart + Span.Count - 1);
+				}
+				const double UMin = IMin - LayerFootprintMargin;
+				const double UMax = IMax + LayerFootprintMargin;
+				const double VMin = Layer.Layout.J0 - LayerFootprintMargin;
+				const double VMax = Layer.Layout.J0 + Layer.Layout.Rows.Num() - 1 + LayerFootprintMargin;
+				const double MaxRadius = Atlas.Layers[0].BaseRadius * 2.0;
+
+				FRandomStream Random(RandomSeed + LayerId);
+				FErrorStats Stats;
+				int32 ExactHitCount = 0;
+				int32 MissedFloor = 0;
+				int32 Unresolved = 0;
+				for (int32 Sample = 0; Sample < LayerDirectionCount;)
+				{
+					const double U = Random.FRandRange(UMin, UMax);
+					const double V = Random.FRandRange(VMin, VMax);
+					if (U < 0.0 || V < 0.0 || U + V > N)
+					{
+						continue;
+					}
+					++Sample;
+					const FVector3d Direction = FVector3d(U, V, N - U - V).GetSafeNormal();
+					FLNPSupportLayerQuery AtlasHit;
+					FHitResult ExactHit;
+					const bool bInterpolated = LNPSupportAtlas::QueryLayer(Layer, Direction, AtlasHit);
+					const bool bExactHit = TraceLayer(*Probe, FaceMap, LayerId, Direction, MaxRadius, ExactHit, Unresolved);
+					ExactHitCount += bExactHit ? 1 : 0;
+					// Atlas가 Layer 후보로도 보지 않는데 exact는 Layer가 있는 방향. QueryLayers가 이 Layer를 건너뛰고 아래 Layer로 떨어진다.
+					MissedFloor += bExactHit && !AtlasHit.IsCandidate() ? 1 : 0;
+					// 둘 다 Layer가 없는 방향은 세지 않는다. NeedsExact 비율은 exact가 Layer를 맞힌 방향 중 보간하지 못한 비율이다.
+					if (bExactHit || bInterpolated)
+					{
+						Stats.Add(bInterpolated, AtlasHit, bExactHit, ExactHit, Direction);
+						LevelStats.Add(bInterpolated, AtlasHit, bExactHit, ExactHit, Direction);
+					}
+				}
+				AddInfo(FString::Printf(TEXT("%s m=%d Layer %d %s: N=%d samples=%d valid=%d bakeNeedsExact=%.1f%% exactHits=%d missedFloor=%d | %s"),
+					LevelPath, Multiplier, LayerId, *LayerReport.SourceKey, N, LayerReport.SampleCount, LayerReport.ValidCount,
+					LayerReport.SampleCount > 0 ? 100.0 * LayerReport.NeedsExactCount / LayerReport.SampleCount : 0.0,
+					ExactHitCount, MissedFloor, *Stats.ToString()));
+				TestTrue(FString::Printf(TEXT("%s m=%d Layer %d: exact trace hits the Layer"), LevelPath, Multiplier, LayerId), ExactHitCount > 0);
+				TestEqual(FString::Printf(TEXT("%s m=%d Layer %d: exact hits resolve through the face map"), LevelPath, Multiplier, LayerId),
+					Unresolved, 0);
+				TestEqual(FString::Printf(TEXT("%s m=%d Layer %d: no ghost floor"), LevelPath, Multiplier, LayerId), Stats.GhostFloor, 0);
+				TestEqual(FString::Printf(TEXT("%s m=%d Layer %d: no missed floor at the footprint edge"), LevelPath, Multiplier, LayerId),
+					MissedFloor, 0);
+			}
+			AddInfo(FString::Printf(TEXT("%s m=%d: Layers=%d payload=%lld bytes (Layer bodies %lld) layerRaster=%.2fs | all Layers %s"),
+				LevelPath, Multiplier, Atlas.Layers.Num() - 1, Report.PayloadBytes, LayerBodyBytes, Report.LayerRasterSeconds,
+				*LevelStats.ToString()));
+			if (Multiplier == FLNPOctantBakeOptions().LayerSubdivisionMultiplier)
+			{
+				TestTrue(FString::Printf(TEXT("%s: Layer radius error P99 within %.1fcm"), LevelPath, MaxRadiusErrorP99),
+					Percentile(LevelStats.RadiusErrors, 0.99) <= MaxRadiusErrorP99);
+				TestTrue(FString::Printf(TEXT("%s: Layer radius error within %.1fcm"), LevelPath, MaxRadiusError),
+					Percentile(LevelStats.RadiusErrors, 1.0) <= MaxRadiusError);
+				TestTrue(FString::Printf(TEXT("%s: Layer normal error P99 within %.1fdeg"), LevelPath, MaxNormalErrorP99Deg),
+					Percentile(LevelStats.NormalErrorsDeg, 0.99) <= MaxNormalErrorP99Deg);
 			}
 		}
 	}

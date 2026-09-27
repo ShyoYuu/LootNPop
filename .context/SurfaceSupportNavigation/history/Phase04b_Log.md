@@ -126,3 +126,18 @@
 - 발견: `Meadow_00` 섬 B 계단 칸은 50cm 격자에서 내부 샘플이 없다. 모든 칸 샘플이 구간 밖 이웃을 가져 NeedsExact다. 칸 위에서는 Atlas가 Layer를 고르지 못하고 exact로 간다. 구현 단위 3에서 m=4를 볼 때 이 Layer들을 따로 기록한다.
 - 기존 테스트는 API 이름만 바꿨다(`FLNPCrustSample`→`FLNPSupportSample` 등, 지각 조회는 `QueryLayer(Atlas.Layers[0], …)`).
 - 검증: 에디터 빌드 성공, 자동화 `LootNPop.SurfaceNavigation` 52/52(`Saved/Logs/Auto4b_U2.log`). `SurfaceNavigationTests/MeshTerrain` 두 에셋은 git으로 원복했다. `Schema/DA_MinimalOctantSurfaceData`는 저장·재로드 테스트가 `CurrentDataVersion` 3을 기록한 것이라 4a 때처럼 커밋 대상이다.
+
+### 구현 단위 3 — Layer Atlas 오차 측정과 해상도 확정
+
+- 자동화 `Bake.LayerAtlasExactError`를 추가했다. 세 옥탄트를 m=2·4로 굽는다. Layer마다 footprint 행·열 범위에 격자 2칸 여유를 둔 영역에서 무작위 방향 4,000개(seed 20260927+LayerId)를 뽑고, Atlas `QueryLayer`와 source 컴포넌트 하나만 복제한 physics world의 `LineTraceComponent`를 비교한다.
+  - exact가 같은 source의 다른 Layer나 non-walkable face를 먼저 맞히면 face 표로 확인하고 hit 뒤 0.01cm에서 다시 쏜다(최대 8회). Atlas가 Layer 삼각형만으로 샘플링하는 기준과 맞추기 위해서다. face 표 해석 실패는 모든 경우 0이었다.
+  - NeedsExact 비율의 분모는 exact가 Layer를 맞힌 방향이다(둘 다 Layer가 없는 방향은 뺐다).
+  - 베이커 보고서 Layer 행에 `SourceName`(컴포넌트 전체 경로)을 추가했다. 테스트가 컴포넌트를 찾는 데 쓴다. `FLNPSupportFaceMap`은 테스트 모듈에서 `Resolve`를 부르려고 `LOOTNPOP_API`로 export했다. Phase 5 registry도 쓸 함수다.
+- 결과(`Saved/Logs/Auto4b_U3_Layer.log`): 유령 지면은 모든 옥탄트·해상도·Layer에서 0이다. 반지름 오차는 두 해상도 모두 P99 약 0.12cm이고, 최대는 m=2 0.72cm(`Meadow_00` 구멍 난 경사로), m=4 0.34cm다. 법선 P99는 0.25°/0.20°다. 해상도 차이는 정확도가 아니라 NeedsExact 비율에서 나온다. `Meadow_00` 기준 27.2% → 20.6%이고, 큰 섬 3.8 → 1.9%, 섬 A·B 10~11 → 5~6%, 경사로 31 → 16%다. payload는 2,088,939 → 2,630,943바이트(Layer body 179KB → 718KB)이고 Layer 굽기 시간은 둘 다 0.1초 미만이다.
+- **m=4로 확정(사용자 결정).** `FLNPOctantBakeOptions::LayerSubdivisionMultiplier` 기본값을 4로 바꾸고 세 옥탄트를 다시 구웠다(`Saved/Logs/Bake4b_U3_m4.log`, payload `Fixture_Crust` 1,950,311, `Fixture_Regression` 2,069,402, `Meadow_00` 2,630,943바이트). 합격 기준은 지각과 같은 값(P99 ≤ 2cm, 최대 ≤ 10cm, 법선 P99 ≤ 5°)을 기본 m에 단언한다.
+- **발견·수정: footprint 가장자리 띠.** exact가 Layer를 맞히는데 방향을 담은 격자 삼각형 꼭짓점이 모두 footprint 밖이면, `QueryLayers`는 그 Layer를 후보로 보지 않고 아래 Layer를 고른다. m=2 `Meadow_00`에서 14,982개 중 5개였다(계단 Layer 5에서 3개, Layer 7에서 2개). `Fixture_Crust` 슬래브는 3개, `Fixture_Regression` 섬은 1개, m=4 `Meadow_00` Layer 8은 1개였다. 격자 한 칸 미만 폭의 띠지만 §3.5가 막으려던 "가장자리에서 먼 Layer로 떨어짐"에 해당한다.
+  - 수정(사용자 결정): `QueryLayer`는 꼭짓점이 모두 invalid여도 꼭짓점의 6-이웃에 Valid 샘플이 있으면 `bNearFootprintEdge`로 표시하고, 반지름 범위를 그 이웃 샘플에서 가져온다. `QueryLayers`는 `IsCandidate()`로 후보를 판정한다. 꼭짓점 행이 Layer 행 구간에서 한 행 넘게 떨어져 있으면 이웃 조회를 건너뛴다.
+  - 결과: missedFloor는 모든 경우 0이 됐고 자동화가 이를 단언한다. 합성 `SupportAtlasLayerQuery` 위 캡 가장자리 스캔은 NeedsExact 181 → 260, 가장자리 밖 가운데 캡 선택 237 → 158이 됐다. 떨어짐·유령 지면은 여전히 0이다. Layer 가장자리 약 한 칸 폭에서 exact 호출이 늘어난다.
+  - 한계: 격자 한 칸보다 가는 형상이 가장 가까운 Valid 샘플에서 두 칸 넘게 뻗으면 이 판정이 덮지 못한다. 현재 콘텐츠에는 없으며, 새 콘텐츠는 `Bake.LayerAtlasExactError`의 missedFloor 단언이 잡는다.
+- 섬 B 계단은 m=4에서도 칸당 55샘플 중 약 70%가 NeedsExact이고 조회는 98~99%가 NeedsExact다. 보간 가능한 내부는 가장자리에서 격자 약 2칸 안쪽뿐이라 칸이 좁으면 사라진다. 구현 단위 4 계단 기준은 "칸 위에서 그 칸 Layer로 Supported이거나 NeedsExact이고, 다른 Layer는 고르지 않음"으로 바꿨다(사용자 결정). 넓은 칸과 좁은 칸을 같은 기준으로 검사한다.
+- 검증: 에디터 빌드 성공, 자동화 `LootNPop.SurfaceNavigation` 53/53(`Saved/Logs/Auto4b_U3.log`). `OctantBakeDeterministic`은 m=4 저장본과 일치하고, 지각 `CrustAtlasExactError`·`CrustSeamMatch`는 무회귀다. `SurfaceNavigationTests/MeshTerrain` 두 에셋은 git으로 원복했다.

@@ -137,7 +137,7 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 
 **격자와 row span**(`LNPSupportAtlas::ComputeFootprint`·`Rasterize`)
 
-- 비지각 Layer 격자는 지각과 같은 octahedral 격자이고 분할 수가 `m·N`이다(D-057). m은 bake setting `LayerSubdivisionMultiplier`(현재 2, 구현 단위 3에서 확정)이고 옥탄트 안 모든 비지각 Layer가 같다.
+- 비지각 Layer 격자는 지각과 같은 octahedral 격자이고 분할 수가 `m·N`이다(D-057). m은 bake setting `LayerSubdivisionMultiplier`이고 옥탄트 안 모든 비지각 Layer가 같다. **기본 m=4(25cm, N_L=2,940)**. 구현 단위 3에서 m=2·4를 exact와 비교해 정했다. 오차는 둘 다 합격이었고, m=4가 섬·경사로의 NeedsExact를 절반으로 줄이는 대가로 `Meadow_00` payload가 2.09 → 2.63MB가 된다(`../phases/Phase04b_MultiLayerSupport.md` 구현 단위 3).
 - 배치는 `j` 범위 `[J0, J0+RowCount)`와 행별 `i` 구간 `[IStart, IStart+Count)`다. Layer 삼각형을 옥탄트 면에 중심 투영한 영역 안의 격자점을 모두 담는 최소 구간이다. 광선은 투영 영역 밖에서 삼각형을 맞힐 수 없으므로 구간 밖은 모두 coverage hole과 같다. 지각은 전체 배치(`J0=0`, 행 `j`는 `[0, N-j]`)라 인덱스가 지각 격자 인덱스와 같다.
 - 광선은 그 Layer 삼각형만으로 만든 트리에 쏜다. 앞면 교차가 둘 이상이면 베이크 오류다(지각 overhang, Layer의 접힌 sheet).
 - 플래그 규칙은 지각과 같다. 구간 밖 이웃은 invalid로 보므로 Layer 경계 샘플은 `NeedsExact`다. 이음매 스냅은 지각에만 한다.
@@ -155,7 +155,8 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 **같은 방향 다층 조회**(`LNPSupportAtlas::QueryLayers`)
 
 - 입력은 옥탄트 로컬 방향, 발 반지름, `MaxStepUp`, `MaxDrop`, 선호 Layer다. 탐색 창은 `[FeetRadius - MaxStepUp, FeetRadius + MaxDrop]`이고 반지름이 작을수록 위다.
-- 후보 Layer는 방향을 담은 격자 삼각형 꼭짓점 중 하나라도 Valid인 Layer다. 후보 중 Valid 꼭짓점 반지름 범위가 창에 걸치는데 보간되지 않는 Layer가 하나라도 있으면 `NeedsExact`다. 가장자리에서 가까운 Layer를 건너뛰고 먼 Layer로 떨어지지 않게 하기 위해서다.
+- 후보 Layer는 방향을 담은 격자 삼각형 꼭짓점 중 하나라도 Valid인 Layer다. 꼭짓점이 모두 invalid여도 꼭짓점의 6-이웃에 Valid 샘플이 있으면 **footprint 가장자리 띠**로 보고 후보에 넣으며, 이때 반지름 범위는 그 이웃 샘플의 범위다. Layer 형상은 격자점 없이 격자 한 칸 미만만큼 삼각형 안으로 걸칠 수 있기 때문이다(구현 단위 3 실측: 이 띠를 빼면 m=2 `Meadow_00`에서 exact가 맞힌 방향 14,982개 중 5개가 아래 Layer로 떨어졌다).
+- 후보 중 반지름 범위가 창에 걸치는데 보간되지 않는 Layer가 하나라도 있으면 `NeedsExact`다. 가장자리에서 가까운 Layer를 건너뛰고 먼 Layer로 떨어지지 않게 하기 위해서다.
 - 아니면 보간 반지름이 창 안인 Layer 중 선호 Layer, 없으면 가장 위 Layer를 고른다. 창 안에 없으면 `NoSupport`, 방향이 이 옥탄트가 아니면 `NeedsExact`다.
 - Layer 사이 겹침(같은 방향 반지름 차 `OverlapReportHeight` 200cm 이내)은 오류가 아니며 베이크 보고서에 Layer 쌍별 샘플 수로만 적는다.
 
@@ -173,8 +174,8 @@ Phase 1 C-option fixture의 구형 `LNP.Terrain.*` Component Tag는 입력으로
 Support 해상도는 지형별로 다르게 둘 수 있다.
 
 - 기본 지각: 100cm(옥탄트 중심 간격, N=735). Phase 4a에서 200·100·50cm를 exact와 비교해 확정했다(`../phases/Phase04a_CrustAtlasAndSeams.md` §3.6)
-- 부유섬: 25~50cm 후보
-- 동굴 바닥: 25~50cm 또는 콘텐츠 폭에 맞춤
+- 부유섬·경사로·계단·동굴 바닥(비지각 Layer): 25cm(m=4). Phase 4b 구현 단위 3에서 50cm와 비교해 확정했다. Layer마다 다른 해상도는 두지 않는다(D-057)
+- 가장자리에서 격자 약 2칸(m=4면 약 50cm) 안쪽은 보간되지 않고 exact로 간다. 그보다 좁은 칸(예: `Meadow_00` 섬 B 계단)은 사실상 exact 전용이며 이는 의도한 동작이다
 - 경계와 급격한 곡률 구간: risk 표시 후 exact 폴백
 
 전 구체를 25cm로 만드는 대신 정밀도가 필요한 Atlas에만 고해상도를 사용한다.

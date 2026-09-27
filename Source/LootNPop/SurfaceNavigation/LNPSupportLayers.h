@@ -33,7 +33,7 @@ struct FLNPSupportLayer
  * source 하나의 face→Layer 표(D-037). 키는 exact hit FaceIndex와 같은 external face 번호다.
  * 모든 face가 같은 값이면 UniformLayer 하나로 두고 LayerByExternalFace는 비운다.
  */
-struct FLNPSupportFaceMap
+struct LOOTNPOP_API FLNPSupportFaceMap
 {
 	uint16 UniformLayer = 0;
 	/** 비어 있지 않으면 face 단위 표. 길이는 external 번호 최댓값+1, 추출되지 않은 번호와 non-walkable face는 NoLayer다. */

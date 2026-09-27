@@ -324,6 +324,7 @@ bool FLNPOctantSurfaceBaker::Bake(
 	{
 		FLNPOctantBakeLayerReport& LayerReport = OutReport.Layers[LayerId];
 		LayerReport.SourceKey = Sources[Rasters[LayerId].SourceIndex].Key;
+		LayerReport.SourceName = Sources[Rasters[LayerId].SourceIndex].Name;
 		LayerReport.TriangleCount = LayerSet.Layers[LayerId].Triangles.Num();
 		FillLayerReport(Rasters[LayerId], LayerReport);
 		OutReport.TotalSampleCount += LayerReport.SampleCount;
