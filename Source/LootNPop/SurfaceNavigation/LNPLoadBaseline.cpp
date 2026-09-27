@@ -1041,4 +1041,6 @@ void ULNPLoadBaselineSubsystem::Report()
 
 	// 부하 발사체는 패널을 겨냥하지 않으므로 Dynamic 분류는 패널을 직접 쏴서 확인한다. 통계 표본화가 끝난 뒤라 측정에 섞이지 않는다.
 	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbePanels"));
+	// face→Layer 표(D-037)는 cooked trimesh의 external face 표에 기댄다. 패키지에서도 FaceIndex가 나오는지 확인한다.
+	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeFaceIndex"));
 }

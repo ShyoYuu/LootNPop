@@ -13,14 +13,25 @@ struct LOOTNPOP_API FLNPBakeTriangleMesh
 	TArray<FVector3d> Vertices;
 	TArray<FIntVector3> Triangles;
 
+	/**
+	 * 삼각형마다 exact hit의 FaceIndex와 같은 번호. 엔진은 Chaos 내부 face 번호를 원본 mesh 삼각형 번호(external)로
+	 * 바꿔 돌려주므로 추출 순서와 다르다. face→Layer 표(D-037)의 키다. 합성 입력은 비워 둔다.
+	 */
+	TArray<int32> ExternalFaceIndices;
+
 	/** 정규화한 앞면 법선. 퇴화 삼각형이면 영벡터다. */
 	FVector3d GetTriangleNormal(int32 TriangleIndex) const;
 };
 
-/** Support 역할 source 하나의 삼각형. Name은 오류 보고용 component 경로다. */
+/**
+ * Support 역할 source 하나의 삼각형. Name은 오류 보고용 component 경로다.
+ * Key는 `<Actor FName>.<Component FName>`이다. slot Level Instance의 component는 outer 경로가 달라서
+ * runtime이 같은 source를 찾을 수 있도록 LVI 패키지 경로를 넣지 않는다.
+ */
 struct LOOTNPOP_API FLNPBakeSupportSource
 {
 	FString Name;
+	FString Key;
 	FLNPBakeTriangleMesh Mesh;
 };
 

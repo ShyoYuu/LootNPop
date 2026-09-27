@@ -233,7 +233,7 @@ profile은 물리 응답을, Component Tag는 제품 의미를 소유한다. 둘
 - `LNPDecoration` 이외 profile을 사용하는 `Decoration`
 - 태그와 collision profile의 `LNPSurfaceSupport`·`LNPWorldExact` 응답 불일치
 - `Support` component의 mesh가 `CTF_UseComplexAsSimple`이 아님. exact query는 단순 shape를 맞히고 베이커는 trimesh를 읽어 서로 다른 표면을 보기 때문이다. 엔진 기본 Cube 같은 box 충돌 mesh를 Support로 쓰지 않는다(`SurfaceBaking.md` "삼각형 원본")
-- playable Support proxy에 대응 exact geometry association이 없거나 허용 오차를 초과함
+- playable Support proxy에 대응 exact geometry association이 없거나 허용 오차를 초과함. 현재는 association 규칙이 없으므로 `Blocker` 없는 `Support` source 자체가 오류다(D-058)
 - Destructible 역할 조합과 세 profile 중 하나가 일치하지 않음
 
 태그가 없는 기존 콘텐츠는 마이그레이션 기간에는 legacy 대상으로 보고 보고서에 집계한다. 신규 SurfaceData의 정식 source로는 사용할 수 없다.

@@ -1,18 +1,18 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 4b — 부유섬·동굴 키트 다층 베이크 · 공통 전제 완료, 실행 문서 미작성
+> 현재 Phase: Phase 4b — 부유섬·동굴 키트 다층 베이크 · 구현 단위 0 완료, 구현 단위 1 착수 전
 > 마지막 갱신: 2026-09-27
 
 ## 현재 목표
 
 Phase 4a(지각 Support Atlas와 옥탄트 이음매)가 2026-09-27에 끝났다. 완료 증거는 `phases/Phase04a_CrustAtlasAndSeams.md`와 `history/Phase04a_Log.md`에 있다. 지각 Atlas의 격자·codec·조회·이음매 규약 원본은 `design/SurfaceBaking.md` "지각 Atlas 규약"이다.
 
-다음은 Phase 4b(같은 방향 다층 Support와 동굴 키트 공동 바닥 분리)다. `Roadmap.md` §4 "Phase 4 공통 전제"는 2026-09-27에 끝났다(`history/Phase04b_Log.md`). 실행 문서 `phases/Phase04b_*.md`를 만들고 착수한다.
+지금은 Phase 4b(같은 방향 다층 Support와 동굴 키트 공동 바닥 분리)다. 실행 문서는 `phases/Phase04b_MultiLayerSupport.md`다. 범위 결정: sparse Atlas는 지각과 같은 octahedral 격자 계열에 row span 저장(D-057), ISM Support와 Support proxy는 미루고 베이크 오류로 막는다(D-058).
 
 ## 착수 시 필수 문서
 
-- `Roadmap.md` §4(Phase 4 공통 전제·4b 목표)
+- `phases/Phase04b_MultiLayerSupport.md`
 - `design/SurfaceBaking.md`(다층 교차 수집·동굴 키트 베이크·지각 Atlas 규약), `design/TerrainContract.md` §5·§6(키트 에셋 규약)·§7, `design/RegressionMap.md` §3·§4·§7, `design/DynamicTerrain.md` §5(patch Layer가 4b sparse Atlas를 재사용)
 
 ## 인계 기준선(3b·3c·4a·4 공통 전제)
@@ -33,20 +33,19 @@ Phase 4a(지각 Support Atlas와 옥탄트 이음매)가 2026-09-27에 끝났다
 
 ## 바로 다음 작업
 
-1. Phase 4b 실행 문서 작성: sparse Atlas 저장 형식, 같은 방향 다층 선택, face→Layer 대응표(D-037), 4a fixture의 분리 sheet·양면 판 Layer 분리 검증, ISM/HISM·Support proxy fixture(`design/RegressionMap.md` §7). 입력은 `LVI_Octant_Fixture_Regression`(섬·동굴 키트)과 `Meadow_00`
+1. 구현 단위 1: runtime 순수 함수 `LNPSupportLayers`에서 walkable 분류, 위치 용접 연결 성분, Layer ID 정렬, face 표 생성(Phase 문서 §3.3·§3.4). 합성 자동화 4종과 세 LVI의 Layer 수 보고
+2. 입력 삼각형의 face 번호는 `FLNPBakeTriangleMesh::ExternalFaceIndices`(exact hit `FaceIndex`와 같은 번호)를 쓴다. 추출 순서 인덱스를 표 키로 쓰지 않는다
 
 ## 이관된 후속 작업
 
 - production Terrain Contract Component Tag 마이그레이션은 `Meadow_00`만 끝났다(4a 입력). 다른 production 옥탄트를 pool에 넣을 때 같은 방식으로 한다.
 - production definition의 SurfaceData 연결과 runtime 로드는 Phase 5 소비자 전환에서 수행한다.
-- 섬·동굴 sparse Atlas와 다층 codec은 4b 범위다. 지각 codec v1은 Layer 수 필드만 두었다.
 - Phase 5 로더는 SurfaceData 게시 전에 seam hash 호환성을 검사한다(D-043). 대응표는 `LNPCrustAtlas::ComputeSeamPairs`, 규약은 `design/SurfaceBaking.md` "지각 Atlas 규약".
 - `Meadow_00` 지각 이음매 경계 정점에 `|d| < 5e-7cm` 부동소수점 잡음이 있다. 베이커가 스냅하므로 Atlas에는 영향이 없다. 출처(mesh 생성기·빌드)는 추적하지 않았다.
 - `LNPOctantSourceCollector`의 tag/profile/channel 검증과 marker authoring hash를 Phase 4·8 스키마에 맞춰 보강한다. owned external package를 모두 hash해 decoration 저장도 stale이 되는 현재 보수 정책은 보고서에 명시하고, false stale이 실제 문제가 될 때만 필터링한다.
 - C-option 실험 에셋과 테스트의 구형 `LNP.Terrain.*` Component Tag는 Phase 4 입력으로 재사용하기 전에 현재 `LNP.Surface.*` 계약으로 마이그레이션한다.
 - 현재 slot 순서 greedy definition 선택은 여러 slot mask가 있는 production pool을 도입하기 전에 최대 고유 제약 할당으로 교체한다(D-043).
 - int16 복제 캡은 좌표 성분마다 걸리므로 30,000cm 옥탄트의 꼭짓점(좌표축) 부근 여유가 약 2,767cm다. 동굴은 꼭짓점 부근을 피한다(`design/TerrainContract.md` §7).
-- Phase 3 Gate -1 B에서 이관: 한 component의 disconnected sheet face identity, 내부형 double-sided shell의 hit normal·walkable 판정. 4b에서 4a fixture(`FX_SplitSheet`·`FX_DoubleSidedPlate`)로 검증한다(`design/RegressionMap.md` §7).
 - **PCG 제외 구역(옥탄트 양산 전 필수, 사용자 결정 2026-09-27):** PCG 프랍은 지각에만 광선을 쏘므로 동굴 입구 구멍에는 생기지 않지만 지붕 덮인 입구 옆·경사로 위에는 생길 수 있다. `Meadow_00`은 입구 주변 4개가 통행을 막지 않아 문제없지만 양산 옥탄트에서는 충분히 생길 수 있으므로 제외 구역을 만든다(`design/TerrainContract.md` §5 경사로와 같은 과제).
 - `WorldCollision.Api`의 "Some raycasts ran off the game thread"는 `ParallelFor`가 워커를 못 받으면 간헐 실패한다(2026-09-27 1회, 재실행 통과). 반복되면 워커 강제 실행으로 테스트를 고친다.
 - match 중 옥탄트 재생성이나 slot Level 언로드를 도입하면 그 직전에 Mass 처리를 멈추는 gate를 함께 만든다(`design/RuntimeCollision.md`).
@@ -70,6 +69,11 @@ Phase 4a(지각 Support Atlas와 옥탄트 이음매)가 2026-09-27에 끝났다
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-27 Phase 4b 구현 단위 0:
+
+- `LootNPopEditor Win64 Development` 성공, 자동화 `LootNPop.SurfaceNavigation` 46/46
+- Development 패키지 BuildCookRun 성공. 리슨 2P(`-LNPLoadBaseline=50`, 로그 `Saved/Logs/FaceIndex4b_*`)에서 호스트·게스트 모두 `ProbeFaceIndex` 2,000/2,000 PASS, `ProbePanels` PASS
 
 2026-09-27 Phase 4 공통 전제:
 
