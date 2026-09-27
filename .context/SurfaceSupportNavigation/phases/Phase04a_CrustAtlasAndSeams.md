@@ -53,14 +53,16 @@
 
 ### 3.5 샘플 계산
 
-- 각 격자 방향으로 원점에서 바깥쪽 광선을 쏘고 지각 컴포넌트의 `TMeshAABBTree3::FindAllHitTriangles`로 모든 교차를 모은다.
-  - 교차 0: coverage hole(지각 입구). `Valid=0`.
-  - 교차 1: 반지름·법선 기록.
-  - 교차 2 이상: 지각이 한 방향에서 여러 면을 가진다(overhang). 설계상 한 Layer의 방향당 바닥은 하나이므로(`../design/SurfaceBaking.md` "베이크 검증 실패 조건") 베이크 오류로 보고한다. 이음매 정점처럼 삼각형 모서리에서 생기는 중복 교차는 거리 허용값으로 하나로 합친다.
-- 법선은 hit 삼각형의 면 법선이다. 내부형 구이므로 walkable 판정은 법선과 지역 Up(`-방향`)의 각도로 한다. 기준은 기존 walkable 각도 설정을 재사용한다.
-- 플래그(초안): `Valid`, `Walkable`, `NeedsExact`. 이웃 샘플이 invalid이거나, 이웃과 높이 차·법선 각도가 허용값을 넘거나, walkable이 아니면 `NeedsExact`를 세운다. 세부 원인 비트(`NearCoverageEdge`·`HeightDiscontinuity`·`SteepSlope`)는 codec에 자리만 두고 소비자가 생길 때 채운다.
+- 각 격자 방향으로 원점에서 바깥쪽 광선을 쏘고 지각 컴포넌트의 `TMeshAABBTree3::FindAllHitTriangles`(`FWatertightRay3d`, 인접 삼각형 사이 틈 없음)로 모든 교차를 모은다.
+  - **앞면 교차만 센다.** Chaos 단순 query는 trimesh 뒷면을 맞히지 않으므로(구현 단위 1 실측) 뒷면까지 세면 exact와 달라진다.
+  - 앞면 교차 0: coverage hole(지각 입구). `Valid=0`.
+  - 앞면 교차 1: 반지름·법선 기록.
+  - 앞면 교차 2 이상: 지각이 한 방향에서 여러 면을 가진다(overhang). 설계상 한 Layer의 방향당 바닥은 하나이므로(`../design/SurfaceBaking.md` "베이크 검증 실패 조건") 베이크 오류로 보고한다. 이음매 정점처럼 삼각형 모서리에서 생기는 중복 교차는 거리 허용값으로 하나로 합친다.
+- 법선은 hit 삼각형의 면 법선이다. 내부형 구이므로 walkable 판정은 법선과 지역 Up(`-방향`)의 각도로 한다. 기준은 exact 이동의 `WalkableMinDot` 0.71(약 45°)과 같다.
+- 플래그(초안): `Valid`, `Walkable`, `NeedsExact`. 자신이 invalid·non-walkable이거나, 6-이웃 중 invalid가 있거나, 이웃과의 선분 경사가 walkable 각도보다 가파르거나(`|Δr| > 호 길이 × tan(walkable)`), 이웃과 법선 각도 차가 허용값(초안 25°)을 넘으면 `NeedsExact`를 세운다. 높이 차는 별도 허용값을 두지 않는다. 격자 간격보다 완만한 단차는 Atlas 입장에서 걸을 수 있는 비탈이기 때문이다. 세부 원인 비트(`NearCoverageEdge`·`HeightDiscontinuity`·`SteepSlope`)는 codec에 자리만 두고 소비자가 생길 때 채운다.
 - 삼각형 원본은 cooked Chaos triangle mesh다. exact query가 맞히는 삼각형과 같아야 Support와 exact 오차가 구조적으로 0에 가깝기 때문이다(`../design/SurfaceBaking.md` "삼각형 원본"). 컴포넌트 transform을 적용하고, 음수 scale이면 winding을 뒤집는다.
 - 핵심 계산(격자·광선·플래그·codec)은 runtime 모듈의 순수 함수다(D-034). Editor 모듈은 수집·삼각형 추출·저장만 한다.
+- 코드: 추출 `LootNPopEditor/SurfaceNavigation/LNPOctantTriangleExtractor.*`, geometry 검증·지각 식별 `LootNPop/SurfaceNavigation/LNPSurfaceBakeGeometry.*`, 격자·rasterization `LootNPop/SurfaceNavigation/LNPCrustAtlas.*`.
 
 ### 3.6 codec v1(초안, 구현 단위 3에서 확정)
 
@@ -80,6 +82,7 @@
 
 - 구현 단위 1에서 `Meadow_00` 지각의 cooked Chaos trimesh를 원본 mesh LOD0·Nanite fallback mesh와 정점 수·위치로 비교해 어느 쪽에서 만들어지는지 기록한다(`../research/MeshTerrain.md`).
 - 베이커는 결과와 무관하게 cooked Chaos trimesh를 읽으므로 Atlas 정확성에는 영향이 없다. 확인 목적은 fallback 설정 변경이 exact 충돌을 바꾸는지 제작 규약에 남기는 것이다.
+- **결과(2026-09-27): Nanite fallback에서 만들어진다.** 원본 2,304 / fallback 230 / Chaos trimesh 230. `Meadow_00` 지각은 Nanite가 꺼져 있다. 제작 규약은 `../research/MeshTerrain.md`에 남겼다.
 
 ## 4. 구현 단위
 
@@ -93,7 +96,7 @@
 - 지각 fixture LVI `/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Crust`(30,000cm). 에디터 명령 `LNP.SurfaceNav.BuildCrustFixture`(`LNPSurfaceFixtureBuilder.cpp`)가 결정론적으로 만든다. 기존 LVI가 있으면 거부하므로 다시 만들 때는 LVI를 지운 뒤 실행한다.
   - 지각 `SM_FixtureCrust_R30000`: 노이즈 없는 완전 구면 옥탄트 패치(octahedral 격자 N=96, 삼각형 9,209개)다. 기대값이 "반지름 R, 법선은 중심 방향"으로 해석적으로 정해진다. N은 Atlas 분할 수와 배수 관계가 아니어서 샘플이 정점에만 떨어지지 않는다. 입구 구멍은 위도 30°·방위 45° 방향 각반지름 1.5°(약 785cm)로 뚫었다.
   - 이음매 변 중점 3개·꼭짓점 3개·구멍 위치에 `Probe_*` decoration을 둔다.
-  - 한 컴포넌트 안의 분리된 sheet(`SM_FixtureSplitSheet`, 캡 2개), 양면 판(`SM_FixtureDoubleSidedPlate`, 삼각형을 양 winding으로 중복), 음수·비균일 scale 슬래브(엔진 Cube, scale (4,-3,0.2))를 지각 800cm 안쪽에 둔다. 4a는 이들의 삼각형 추출·transform·법선을 검증하고 Layer 분리는 4b가 검증한다.
+  - 한 컴포넌트 안의 분리된 sheet(`SM_FixtureSplitSheet`, 캡 2개), 양면 판(`SM_FixtureDoubleSidedPlate`, 삼각형을 양 winding으로 중복), 음수·비균일 scale 슬래브(`SM_FixtureSlab` 100cm 정육면체, scale (4,-3,0.2). 엔진 Cube는 단순 box 충돌이라 exact가 trimesh를 맞히지 않아 구현 단위 1에서 교체)를 지각 800cm 안쪽에 둔다. 4a는 이들의 삼각형 추출·transform·법선을 검증하고 Layer 분리는 4b가 검증한다.
   - fixture는 옥탄트 내부(위도 25~40°)에 두어 꼭짓점 부근을 피한다(int16 캡, `../design/TerrainContract.md` §7).
   - Nanite complex/fallback 확인은 LVI fixture 대신 구현 단위 1의 자동화에서 transient mesh로 한다(§3.8).
 - 8 slot 통합은 테스트 맵 대신 구현 단위 4 자동화가 slot 회전을 수학적으로 합성해 검증한다. 런타임 로더가 없는 4a에서 맵은 검증 이득이 없다.
@@ -105,11 +108,13 @@
 - runtime 순수 함수: 지각 식별(§3.2), int16 캡 검사(`../design/TerrainContract.md` §7).
 - Nanite 원본 확인(§3.8).
 - 검증: fixture의 음수·비균일 scale 삼각형이 exact trace hit 위치·법선과 일치, 지각 식별 성공·0개·2개 사례.
+- 상태(2026-09-27): 완료. fixture 추출 삼각형과 exact trace는 4개 컴포넌트 모두 위치 오차 0·법선 불일치 0이다. `Meadow_00` 섬 B의 엔진 Cube Support 액터 4개(계단 3단·플랫폼)가 complex-as-simple 규칙에 걸려 `SM_TerrainBox`(엔진 Cube 복제, complex-as-simple)로 교체했다. 지각 식별은 두 옥탄트 모두 정확히 하나를 고른다(`Meadow_00` Support 9개 중 `SM_Octant_Meadow_00_R30000`, 삼각형 237,606개).
 
 ### 구현 단위 2 — 격자와 rasterization
 
 - runtime 순수 함수: 격자 인덱스·방향, 광선 교차, 샘플 반지름·법선·플래그(§3.4·§3.5).
 - 합성 입력 자동화: 완전한 구면 지각(반지름 R 정확 일치), 구멍 뚫린 지각(구멍 둘레 `NeedsExact`), overhang 지각(오류).
+- 상태(2026-09-27): 완료. `Bake.CrustAtlasGrid`·`Sphere`·`Hole`·`Overhang`(뒷면 판 무시 포함)·`Cliff` 통과. 실제 fixture·`Meadow_00` 지각 rasterization은 구현 단위 3에서 저장과 함께 한다.
 
 ### 구현 단위 3 — codec·저장·오차 측정
 
@@ -130,9 +135,9 @@
 
 - [x] 수집기가 무태그 충돌·LVI 내 동적 수명주기·tag/profile 불일치를 오류로 보고하고, `Meadow_00`·fixture LVI는 통과함
 - [ ] `Meadow_00`과 fixture LVI의 지각 Atlas가 베이크·저장되고, 두 번 구운 결과가 같음
-- [ ] 지각 식별이 두 옥탄트에서 정확히 하나를 고르고, 합성 0개·2개 사례가 오류를 냄
+- [x] 지각 식별이 두 옥탄트에서 정확히 하나를 고르고, 합성 0개·2개 사례가 오류를 냄
 - [ ] Atlas와 exact 오차가 측정됐고, 그 결과로 N·양자화 step·허용값이 문서에 확정됨
 - [ ] coverage hole 둘레가 `NeedsExact`이고 구멍 안에 유령 지면이 없음
 - [ ] 8 slot 합성에서 12개 변의 양쪽 샘플이 허용값 안에서 일치하고, 이음매 대응표가 고정 기대값과 같음
-- [ ] Nanite complex collision 원본이 기록됨
+- [x] Nanite complex collision 원본이 기록됨
 - [ ] 에디터 빌드, 자동화 전체 통과, `-game` 리슨 2P 스모크 통과

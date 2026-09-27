@@ -227,6 +227,15 @@ Simulate-In-Editor 결과는 다음과 같다.
 
 cook resource 통계에는 `StaticMesh` 4.10MiB, `BodySetup` 0.31MiB, `NavCollision` 0.05MiB, `DistanceField` 0.77MiB가 기록됐다. Editor asset의 `CTF_UseComplexAsSimple`과 physics triangle mesh data 보존 테스트를 함께 보면 C안 산출물이 Windows cooked collision을 직렬화할 수 있다는 근거가 된다.
 
+#### Nanite mesh의 complex collision 원본 (2026-09-27, Phase 4a)
+
+**Nanite를 켠 mesh의 complex collision은 Nanite fallback mesh에서 만들어진다.** 원본 mesh가 아니다.
+
+- 엔진 소스: `UStaticMesh::GetPhysicsTriMeshDataCheckComplex`는 `RenderData->LODResources[LODForCollision]`에서 삼각형을 읽는다. Nanite mesh의 LOD0 render resource가 fallback이다.
+- 실측(`Bake.NaniteComplexCollisionSource`, transient 구면 패치): 원본 2,304 삼각형, `FallbackPercentTriangles=0.1`인 fallback LOD0 230, Chaos trimesh 230.
+- 제작 규약: Nanite를 켠 지형 mesh에서 fallback 설정(`FallbackTarget`·`FallbackPercentTriangles`·`FallbackRelativeError`)을 바꾸면 exact 충돌 형상이 바뀐다. Support 베이크는 cooked trimesh를 읽으므로 fallback을 바꾼 뒤 다시 구워야 한다. 원본 해상도의 충돌이 필요하면 fallback을 100%로 두거나 `ComplexCollisionMesh`를 따로 지정한다.
+- 현재 `Meadow_00` 지각(`SM_Octant_Meadow_00_R30000`)은 Nanite가 꺼져 있어 영향이 없다.
+
 ### Development packaged runtime
 
 테스트 `LootNPop.SurfaceNavigation.PackagedRuntime.COptionNaniteAndExactCollision`을 게임 모듈에 추가하고 `L_COptionEightSlotIntegration`을 포함한 Win64 Development 패키지를 생성했다. D3D12 `-RenderOffscreen` 실행에서 다음 계약을 직접 검증했다.

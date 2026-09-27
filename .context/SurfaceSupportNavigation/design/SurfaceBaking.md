@@ -34,8 +34,10 @@
 
 베이커가 읽는 삼각형은 런타임 exact query가 맞히는 삼각형과 같아야 한다. 그래야 "Support와 Chaos 오차"가 구조적으로 0에 가까워진다.
 
-- 1순위는 cooked collision trimesh(`UBodySetup`의 Chaos triangle mesh)다.
-- Nanite mesh의 complex collision이 원본 mesh에서 만들어지는지 fallback mesh에서 만들어지는지는 Phase 4a 착수 시 확인한다.
+- 1순위는 cooked collision trimesh(`UBodySetup`의 Chaos triangle mesh)다. Editor `FLNPOctantTriangleExtractor`가 component transform을 적용해 옥탄트 로컬 삼각형으로 옮기고, 음수 scale이면 winding을 뒤집는다. 앞면 법선은 `(B-A)×(C-A)`로 Chaos 면 법선 규약과 같다.
+- exact query는 `bTraceComplex=false`다. 그래서 Support component의 mesh는 `CTF_UseComplexAsSimple`이어야 한다. 아니면 exact는 단순 shape(box·convex)를 맞히고 베이커는 trimesh를 읽어 두 표면이 달라지므로 베이크 오류로 막는다(`TerrainContract.md` §8).
+- Chaos 단순 query는 trimesh를 **단면**으로 본다. 뒷면에서 들어오는 trace는 맞지 않는다(Phase 4a 실측). Atlas 광선도 앞면 교차만 센다.
+- Nanite mesh의 complex collision은 원본이 아니라 Nanite fallback mesh에서 만들어진다(`../research/MeshTerrain.md` "Nanite mesh의 complex collision 원본"). fallback 설정을 바꾸면 다시 굽는다.
 - 다른 삼각형 원본을 쓰면 bake 후 exact trace 샘플 검증으로 오차를 측정해야 한다.
 - Support-only proxy를 사용하면 대응 exact component association을 입력으로 받아 coverage와 오차를 검증한다. exact counterpart가 없는 proxy는 playable Support를 생성하지 않는다(D-039).
 

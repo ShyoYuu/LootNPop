@@ -32,7 +32,6 @@ namespace LNPSurfaceFixture
 	const TCHAR* const FixtureFolder = TEXT("/Game/Maps/SurfaceNavigation/Fixtures");
 	const TCHAR* const LevelName = TEXT("LVI_Octant_Fixture_Crust");
 	const TCHAR* const SphereMeshPath = TEXT("/Engine/BasicShapes/Sphere.Sphere");
-	const TCHAR* const CubeMeshPath = TEXT("/Engine/BasicShapes/Cube.Cube");
 
 	/** 지각 격자 분할 수. Atlas 분할 수와 배수 관계가 아니어야 샘플이 우연히 정점에만 떨어지지 않는다. */
 	constexpr int32 CrustSubdivisions = 96;
@@ -171,6 +170,31 @@ namespace LNPSurfaceFixture
 		}
 	}
 
+	/** 원점 중심 100cm 정육면체. 법선은 바깥쪽이다. 엔진 Cube는 단순 box 충돌이라 exact가 trimesh를 맞히지 않는다. */
+	FFixtureMesh BuildUnitBox()
+	{
+		FFixtureMesh Mesh;
+		for (int32 Corner = 0; Corner < 8; ++Corner)
+		{
+			Mesh.AddVertex(FVector(Corner & 1 ? 50.0 : -50.0, Corner & 2 ? 50.0 : -50.0, Corner & 4 ? 50.0 : -50.0));
+		}
+		for (int32 Axis = 0; Axis < 3; ++Axis)
+		{
+			const int32 AxisBit = 1 << Axis;
+			const int32 BitA = 1 << ((Axis + 1) % 3);
+			const int32 BitB = 1 << ((Axis + 2) % 3);
+			for (int32 Side = 0; Side < 2; ++Side)
+			{
+				const int32 Base = Side ? AxisBit : 0;
+				FVector Up = FVector::ZeroVector;
+				Up[Axis] = Side ? 1.0 : -1.0;
+				Mesh.AddTriangle(Base, Base | BitA, Base | BitA | BitB, Up);
+				Mesh.AddTriangle(Base, Base | BitA | BitB, Base | BitB, Up);
+			}
+		}
+		return Mesh;
+	}
+
 	FMeshDescription ToMeshDescription(const FFixtureMesh& Mesh)
 	{
 		FMeshDescription Description;
@@ -307,8 +331,8 @@ namespace LNPSurfaceFixture
 		UStaticMesh* SplitMesh = WriteStaticMesh(TEXT("SM_FixtureSplitSheet"), SplitSheet);
 		UStaticMesh* DoubleSidedMesh = WriteStaticMesh(TEXT("SM_FixtureDoubleSidedPlate"), DoubleSided);
 		UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(nullptr, SphereMeshPath);
-		UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, CubeMeshPath);
-		if (!CrustMesh || !SplitMesh || !DoubleSidedMesh || !SphereMesh || !CubeMesh)
+		UStaticMesh* SlabMesh = WriteStaticMesh(TEXT("SM_FixtureSlab"), BuildUnitBox());
+		if (!CrustMesh || !SplitMesh || !DoubleSidedMesh || !SphereMesh || !SlabMesh)
 		{
 			UE_LOG(LogLNPSurfaceFixture, Error, TEXT("[CrustFixture] Mesh creation failed"));
 			return;
@@ -327,12 +351,12 @@ namespace LNPSurfaceFixture
 		SpawnMeshActor(*World, *DoubleSidedMesh, TEXT("FX_DoubleSidedPlate"), FTransform::Identity, TerrainTags,
 			TEXT("LNPStaticTerrain"));
 
-		// 엔진 Cube(100cm)를 음수·비균일 scale로 400×300×20cm 슬래브로 만들고 로컬 Z를 중심 쪽 Up에 맞춘다.
+		// 100cm 정육면체를 음수·비균일 scale로 400×300×20cm 슬래브로 만들고 로컬 Z를 중심 쪽 Up에 맞춘다.
 		const FTransform SlabTransform(
 			FRotationMatrix::MakeFromZ(-SlabDir).ToQuat(),
 			SlabDir * (Radius - InnerOffset),
 			FVector(4.0, -3.0, 0.2));
-		SpawnMeshActor(*World, *CubeMesh, TEXT("FX_NegativeScaleSlab"), SlabTransform, TerrainTags, TEXT("LNPStaticTerrain"));
+		SpawnMeshActor(*World, *SlabMesh, TEXT("FX_NegativeScaleSlab"), SlabTransform, TerrainTags, TEXT("LNPStaticTerrain"));
 
 		// 이음매 변 중점·꼭짓점·구멍 oracle 위치 표시. 지각 100cm 안쪽에 둔다.
 		const TArray<TPair<FString, FVector>> Probes = {
