@@ -1,6 +1,6 @@
 # Phase 4a — 지각 Support Atlas와 옥탄트 이음매
 
-> 상태: 진행 중(2026-09-27 착수)
+> 상태: 완료(2026-09-27)
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 3b greybox 옥탄트 `Meadow_00`(완료). Phase 3c와 무관(D-042)
 
@@ -64,12 +64,21 @@
 - 핵심 계산(격자·광선·플래그·codec)은 runtime 모듈의 순수 함수다(D-034). Editor 모듈은 수집·삼각형 추출·저장만 한다.
 - 코드: 추출 `LootNPopEditor/SurfaceNavigation/LNPOctantTriangleExtractor.*`, geometry 검증·지각 식별 `LootNPop/SurfaceNavigation/LNPSurfaceBakeGeometry.*`, 격자·rasterization `LootNPop/SurfaceNavigation/LNPCrustAtlas.*`.
 
-### 3.6 codec v1(초안, 구현 단위 3에서 확정)
+### 3.6 codec v1과 조회(확정, 2026-09-27)
 
-- payload header: codec version, N, 기준 반지름, 반지름 양자화 step, Layer 수(4a는 1).
-- 샘플: 반지름은 기준 반지름 대비 부호 있는 offset의 int16 양자화, 법선은 octahedral 2×int16(또는 2×int8) 인코딩, 플래그 uint8. 샘플당 약 5~7바이트, 옥탄트당 약 1.5~2MB다.
-- 양자화 step과 법선 정밀도는 exact 오차 측정으로 정한다. 지각 높이 범위가 step × 32,767을 넘으면 베이크 오류다.
-- `FLNPSurfaceBakeHeader::CurrentDataVersion`을 2로 올린다. `Header.Support` descriptor에 샘플 수·크기·content hash를 채운다.
+- **해상도 N=735**(옥탄트 중심 간격 100cm, `CrustSpacing` 기본값). 샘플 271,216개, payload 1,898,600바이트(에셋 약 1.9MB).
+- **payload 레이아웃**(little-endian, `LNPCrustAtlas::Encode`):
+  - header 88바이트: `uint16` codec version(1), `uint8` Layer 수(1), `uint8` 예약, `int32` N, `double` 기준 반지름, `double` 반지름 step, `uint32` 샘플 수, seam hash 3개(`FIoHash`, 변 `x=0`·`y=0`·`z=0` 순)
+  - body(SoA): `int16` 반지름 offset[샘플 수], `int16` octahedral 법선[2×샘플 수], `uint8` 플래그[샘플 수]. 샘플당 7바이트
+- **반지름 step 0.25cm.** 표현 범위는 기준 반지름 ±81.9m다. `Meadow_00` 지각은 -17.4m~+17.8m를 쓴다. 양자화 오차(최대 0.125cm)는 보간 오차보다 작다. 범위를 넘으면 인코딩 오류다.
+- **법선 octahedral 2×int16.** codec 왕복 오차는 최대 0.034°다. int8(약 1°)로 줄여도 샘플당 2바이트만 아끼므로 쓰지 않는다.
+- invalid 샘플의 반지름·법선은 0으로 저장한다.
+- **seam hash**: 변 샘플을 §3.4 규약 순서로 읽어 양자화 반지름(int16)과 Valid 비트를 hash한다. 법선은 옥탄트마다 한쪽 삼각형만 보므로 넣지 않는다.
+- `FLNPSurfaceBakeHeader::CurrentDataVersion`은 2다. `Header.Support`에 샘플 수·payload 크기·payload hash(`FIoHash::HashBuffer`)를 채운다.
+- **조회**(`LNPCrustAtlas::QuerySupport`): 방향을 옥탄트 면 `x+y+z=1`로 옮겨 격자 삼각형을 찾고, 세 꼭짓점이 모두 Valid이면서 NeedsExact가 아닐 때만 반지름·법선을 barycentric 보간한다. 아니면 false(exact 폴백)다. NeedsExact가 이미 invalid·non-walkable 이웃, 가파른 선분, 큰 법선 변화를 담고 있어 조회는 플래그만 본다. 반지름은 선형 보간이라 구면 fixture에서 오차가 0이다.
+- **합격 기준(기본 해상도)**: 무작위 방향에서 유령 지면(Atlas는 지면, exact는 없음) 0, 반지름 오차 P99 ≤ 2cm·최대 ≤ 10cm, 법선 오차 P99 ≤ 5°. `Meadow_00` 실측에 약 2배 여유를 둔 값이다. 측정표는 `../history/Phase04a_Log.md` 2026-09-27 "구현 단위 3"에 있다.
+- `MaxNeighborNormalAngleDeg` 25°는 유지한다. `Meadow_00`의 조회 NeedsExact 비율이 2.40%라서 더 조일 이유가 없다.
+- 한계: 격자 간격(약 1~2셀)보다 좁은 coverage hole은 양쪽 샘플이 모두 Valid일 수 있어 검출을 보장하지 않는다. 지각 입구는 이보다 충분히 넓게 만든다.
 
 ### 3.7 이음매 검증
 
@@ -77,6 +86,8 @@
 - **일치 기준**: 같은 월드 변의 양쪽 샘플이 같은 방향(허용 1e-6)이고, 반지름 차가 허용값(초안 1cm) 이하이며, 둘 다 Valid다. 법선은 각 옥탄트 한쪽 삼각형만 보므로 이음매에서 꺾일 수 있다. 법선 차는 측정만 하고, 허용값은 측정 뒤 정한다.
 - **seam hash**: 변 샘플을 규약 순서로 양자화한 값의 hash를 payload header에 기록한다. `SeamSignature` 문자열은 신뢰하지 않고 이 hash와 오차를 함께 본다(D-043). 같은 definition이 8 slot을 채우는 현재 구성에서는 세 변의 hash가 서로 같아야 한다(단일 대칭 프로필, D-030).
 - 옥탄트 꼭짓점(좌표축)은 네 옥탄트가 만난다. 변 중점 사례와 꼭짓점 사례를 따로 검증한다.
+- **결과(2026-09-27):** 대응표는 `x=0`·`y=0` 변끼리 정순, `z=0` 변끼리 역순이다. 두 옥탄트 모두 12개 변 양쪽 반지름 차 0, 꼭짓점 6개의 4-slot 반지름 차 0, 세 변 seam hash 동일. 법선 차 허용값은 옥탄트 안 `NeedsExact` 기준과 같은 25°로 정했다(`Meadow_00` 최대 17.7°, fixture 1.1°). 규약 원본은 `../design/SurfaceBaking.md` "지각 Atlas 규약"으로 옮겼다.
+- 검증 중 `Meadow_00` 이음매 경계 정점의 부동소수점 잡음(`|d| < 5e-7cm`)으로 변 샘플 528개가 Invalid인 것을 찾아, rasterize 전에 이음매 평면 1e-3cm 안의 정점 성분을 0으로 맞추게 했다(`SeamSnapDistance`).
 
 ### 3.8 Nanite complex collision 원본 확인
 
@@ -123,6 +134,7 @@
 - runtime 순수 조회 함수: 방향 → 보간 반지름·법선 또는 `NeedsExact`(`../design/SurfaceBaking.md` "보간 규칙"). Phase 5 소비자가 이 함수를 쓴다.
 - 오차 측정 자동화: 무작위 방향 K개(고정 seed)에서 Atlas 조회와 `LNPSurfaceSupport` exact trace를 비교해 반지름 오차 P50/P99/최대, 법선 각 오차, `NeedsExact` 비율을 기록한다. 이 결과로 N·양자화 step·허용값을 정한다.
 - 기록: asset 크기, 베이크 시간.
+- 상태(2026-09-27): 완료. 코드는 runtime `LNPCrustAtlas`(codec·조회), Editor `LNPOctantSurfaceBaker.*`(베이크·저장·명령). 두 옥탄트의 `DA_OctantSurface_*`를 LVI 옆에 저장했다. 자동화 `Bake.CrustAtlasCodec`·`CrustAtlasQuery`·`OctantBakeDeterministic`(두 번 구운 payload 동일, 저장본이 현재 source와 일치)·`CrustAtlasExactError`(해상도 200·100·50cm 비교, §3.6 합격 기준).
 
 ### 구현 단위 4 — 이음매 검증과 Phase 종료
 
@@ -130,14 +142,15 @@
 - 8 slot 합성 자동화: `Meadow_00`과 fixture LVI 각각으로 12개 변 일치, seam hash 기록.
 - 에디터 빌드, 자동화 전체, `-game` 리슨 2P 스모크(D-031. 4a는 런타임 경로를 바꾸지 않으므로 기존 동작 무회귀 확인).
 - 문서: `../design/SurfaceBaking.md`(격자·codec·이음매 규약 확정), `../design/DataModel.md`(DataVersion 2), `../design/TerrainContract.md`(지각 식별 규칙), Roadmap·Current.
+- 상태(2026-09-27): 완료. runtime `LNPCrustAtlas::ComputeSeamPairs`, 자동화 `Bake.CrustSeamPairs`(고정 기대값)·`CrustSeamMatch`(저장된 두 옥탄트 8 slot 합성)·`CrustAtlasSeamSnap`(경계 정점 잡음 회귀).
 
 ## 5. 완료 조건
 
 - [x] 수집기가 무태그 충돌·LVI 내 동적 수명주기·tag/profile 불일치를 오류로 보고하고, `Meadow_00`·fixture LVI는 통과함
-- [ ] `Meadow_00`과 fixture LVI의 지각 Atlas가 베이크·저장되고, 두 번 구운 결과가 같음
+- [x] `Meadow_00`과 fixture LVI의 지각 Atlas가 베이크·저장되고, 두 번 구운 결과가 같음
 - [x] 지각 식별이 두 옥탄트에서 정확히 하나를 고르고, 합성 0개·2개 사례가 오류를 냄
-- [ ] Atlas와 exact 오차가 측정됐고, 그 결과로 N·양자화 step·허용값이 문서에 확정됨
-- [ ] coverage hole 둘레가 `NeedsExact`이고 구멍 안에 유령 지면이 없음
-- [ ] 8 slot 합성에서 12개 변의 양쪽 샘플이 허용값 안에서 일치하고, 이음매 대응표가 고정 기대값과 같음
+- [x] Atlas와 exact 오차가 측정됐고, 그 결과로 N·양자화 step·허용값이 문서에 확정됨
+- [x] coverage hole 둘레가 `NeedsExact`이고 구멍 안에 유령 지면이 없음
+- [x] 8 slot 합성에서 12개 변의 양쪽 샘플이 허용값 안에서 일치하고, 이음매 대응표가 고정 기대값과 같음
 - [x] Nanite complex collision 원본이 기록됨
-- [ ] 에디터 빌드, 자동화 전체 통과, `-game` 리슨 2P 스모크 통과
+- [x] 에디터 빌드, 자동화 전체 통과, `-game` 리슨 2P 스모크 통과

@@ -4,6 +4,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
 #include "SurfaceNavigation/LNPSurfaceBakeGeometry.h"
 
@@ -222,6 +223,65 @@ bool FLNPCrustAtlasSphereTest::RunTest(const FString& Parameters)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPCrustAtlasSeamSnapTest,
+	"LootNPop.SurfaceNavigation.Bake.CrustAtlasSeamSnap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPCrustAtlasSeamSnapTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPCrustAtlasTest;
+	constexpr int32 MeshN = 40;
+	constexpr int32 AtlasN = 37;
+
+	// 경계 정점을 부동소수점 잡음만큼 옥탄트 안쪽으로 민다(`Meadow_00` 실측과 같은 크기).
+	FLNPBakeTriangleMesh Crust = MakeSphereCrust(MeshN);
+	for (FVector3d& Vertex : Crust.Vertices)
+	{
+		for (int32 Axis = 0; Axis < 3; ++Axis)
+		{
+			Vertex[Axis] = Vertex[Axis] == 0.0 ? 5e-7 : Vertex[Axis];
+		}
+	}
+
+	auto CountInvalidSeamSamples = [AtlasN](const FLNPCrustAtlasRaster& Raster)
+	{
+		int32 Invalid = 0;
+		for (int32 Edge = 0; Edge < 3; ++Edge)
+		{
+			for (int32 Step = 0; Step <= AtlasN; ++Step)
+			{
+				const FIntPoint Coord = LNPCrustAtlas::GetSeamSampleCoord(AtlasN, static_cast<ELNPCrustSeamEdge>(Edge), Step);
+				Invalid += HasFlags(Raster.Samples[LNPCrustAtlas::GetSampleIndex(AtlasN, Coord.X, Coord.Y)], ELNPSupportSampleFlags::Valid) ? 0 : 1;
+			}
+		}
+		return Invalid;
+	};
+
+	FString Error;
+	FLNPCrustRasterSettings Unsnapped = MakeSettings(AtlasN);
+	Unsnapped.SeamSnapDistance = 0.0;
+	FLNPCrustAtlasRaster Raster;
+	if (!LNPCrustAtlas::Rasterize(Crust, Unsnapped, Raster, Error))
+	{
+		AddError(Error);
+		return false;
+	}
+	const int32 UnsnappedInvalid = CountInvalidSeamSamples(Raster);
+
+	if (!LNPCrustAtlas::Rasterize(Crust, MakeSettings(AtlasN), Raster, Error))
+	{
+		AddError(Error);
+		return false;
+	}
+	const int32 SnappedInvalid = CountInvalidSeamSamples(Raster);
+
+	AddInfo(FString::Printf(TEXT("Seam samples invalid: unsnapped=%d snapped=%d of %d"), UnsnappedInvalid, SnappedInvalid, 3 * (AtlasN + 1)));
+	TestTrue(TEXT("Without snapping, seam rays graze past inward-shifted boundary edges"), UnsnappedInvalid > 0);
+	TestEqual(TEXT("With snapping, every seam sample is valid"), SnappedInvalid, 0);
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPCrustAtlasHoleTest,
 	"LootNPop.SurfaceNavigation.Bake.CrustAtlasHole",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -389,6 +449,303 @@ bool FLNPCrustAtlasCliffTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Rays that hit the cliff wall are not walkable"), SteepCount > 0);
 	TestEqual(TEXT("Both samples across a cliff need exact"), UnflaggedJumpCount, 0);
 	TestEqual(TEXT("Flat terraces away from the cliff stay interpolable"), FarNeedsExactCount, 0);
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPCrustAtlasCodecTest,
+	"LootNPop.SurfaceNavigation.Bake.CrustAtlasCodec",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPCrustAtlasCodecTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPCrustAtlasTest;
+	constexpr int32 MeshN = 64;
+	constexpr int32 AtlasN = 50;
+	const FLNPBakeTriangleMesh Crust = MakeCrust(
+		MeshN,
+		[](const FVector3d& Direction) { return Radius + 300.0 * FMath::Sin(5.0 * Direction.X) * FMath::Cos(7.0 * Direction.Y); },
+		[](const FVector3d&) { return true; });
+
+	FLNPCrustAtlasRaster Raster;
+	FString Error;
+	if (!TestTrue(TEXT("Rolling crust rasterizes"), LNPCrustAtlas::Rasterize(Crust, MakeSettings(AtlasN), Raster, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	FLNPCrustCodecSettings Codec;
+	Codec.BaseRadius = Radius;
+	TArray<uint8> Payload;
+	if (!TestTrue(TEXT("Raster encodes"), LNPCrustAtlas::Encode(Raster, Codec, Payload, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	FLNPCrustAtlas Atlas;
+	if (!TestTrue(TEXT("Payload decodes"), LNPCrustAtlas::Decode(Payload, Atlas, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	TestEqual(TEXT("Decoded subdivisions"), Atlas.Subdivisions, AtlasN);
+	TestEqual(TEXT("Decoded sample count"), Atlas.Num(), Raster.Samples.Num());
+	double MaxRadiusError = 0.0;
+	double MaxNormalAngle = 0.0;
+	int32 FlagMismatch = 0;
+	for (int32 Index = 0; Index < Raster.Samples.Num(); ++Index)
+	{
+		const FLNPCrustSample& Sample = Raster.Samples[Index];
+		FlagMismatch += Atlas.GetFlags(Index) == Sample.Flags ? 0 : 1;
+		if (!HasFlags(Sample, ELNPSupportSampleFlags::Valid))
+		{
+			continue;
+		}
+		MaxRadiusError = FMath::Max(MaxRadiusError, FMath::Abs(Atlas.GetRadius(Index) - Sample.Radius));
+		const double Dot = FVector3f::DotProduct(Atlas.GetNormal(Index), Sample.Normal);
+		MaxNormalAngle = FMath::Max(MaxNormalAngle, FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(Dot, -1.0, 1.0))));
+	}
+	AddInfo(FString::Printf(TEXT("Codec: payload=%d bytes maxRadiusError=%.4fcm maxNormalAngle=%.5fdeg"),
+		Payload.Num(), MaxRadiusError, MaxNormalAngle));
+	TestEqual(TEXT("Flags survive the codec"), FlagMismatch, 0);
+	TestTrue(TEXT("Radius error is at most half a step"), MaxRadiusError <= Codec.RadiusStep * 0.5 + 1e-9);
+	TestTrue(TEXT("Normal error is below 0.05 degree"), MaxNormalAngle < 0.05);
+
+	// 법선 인코딩은 아래 반구와 축 방향도 복원한다.
+	for (const FVector3f Normal : {FVector3f(0.0f, 0.0f, -1.0f), FVector3f(1.0f, 0.0f, 0.0f), FVector3f(-0.3f, 0.5f, -0.8f).GetSafeNormal()})
+	{
+		int16 X, Y;
+		LNPCrustAtlas::EncodeNormal(Normal, X, Y);
+		TestTrue(FString::Printf(TEXT("Normal %s round-trips"), *Normal.ToString()),
+			FVector3f::DotProduct(LNPCrustAtlas::DecodeNormal(X, Y), Normal) > 0.99999f);
+	}
+
+	TestFalse(TEXT("Truncated payload is rejected"),
+		LNPCrustAtlas::Decode(MakeArrayView(Payload.GetData(), Payload.Num() - 1), Atlas, Error));
+
+	FLNPCrustCodecSettings TinyStep = Codec;
+	TinyStep.RadiusStep = 0.001;
+	TArray<uint8> Rejected;
+	TestFalse(TEXT("Radius offset beyond the int16 range is an encoding error"),
+		LNPCrustAtlas::Encode(Raster, TinyStep, Rejected, Error));
+
+	// 단일 대칭 이음매 프로필(구면)이면 세 변의 hash가 같다.
+	FLNPCrustAtlasRaster SphereRaster;
+	TArray<uint8> SpherePayload;
+	FLNPCrustAtlas SphereAtlas;
+	if (LNPCrustAtlas::Rasterize(MakeSphereCrust(AtlasN), MakeSettings(AtlasN), SphereRaster, Error)
+		&& LNPCrustAtlas::Encode(SphereRaster, Codec, SpherePayload, Error)
+		&& LNPCrustAtlas::Decode(SpherePayload, SphereAtlas, Error))
+	{
+		TestTrue(TEXT("Sphere seam hash x=0 equals y=0"), SphereAtlas.SeamHashes[0] == SphereAtlas.SeamHashes[1]);
+		TestTrue(TEXT("Sphere seam hash y=0 equals z=0"), SphereAtlas.SeamHashes[1] == SphereAtlas.SeamHashes[2]);
+	}
+	else
+	{
+		AddError(Error);
+	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPCrustAtlasQueryTest,
+	"LootNPop.SurfaceNavigation.Bake.CrustAtlasQuery",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPCrustAtlasQueryTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPCrustAtlasTest;
+	FString Error;
+	FLNPCrustCodecSettings Codec;
+	Codec.BaseRadius = Radius;
+
+	auto BuildAtlas = [this, &Codec, &Error](const FLNPBakeTriangleMesh& Crust, int32 AtlasN, FLNPCrustAtlas& OutAtlas)
+	{
+		FLNPCrustAtlasRaster Raster;
+		TArray<uint8> Payload;
+		const bool bBuilt = LNPCrustAtlas::Rasterize(Crust, MakeSettings(AtlasN), Raster, Error)
+			&& LNPCrustAtlas::Encode(Raster, Codec, Payload, Error)
+			&& LNPCrustAtlas::Decode(Payload, OutAtlas, Error);
+		if (!bBuilt)
+		{
+			AddError(Error);
+		}
+		return bBuilt;
+	};
+
+	// 정점 정렬 구면: 모든 방향이 보간되고 반지름은 R, 법선은 중심 방향이다.
+	{
+		constexpr int32 N = 40;
+		FLNPCrustAtlas Atlas;
+		if (!BuildAtlas(MakeSphereCrust(N), N, Atlas))
+		{
+			return false;
+		}
+		FRandomStream Random(4242);
+		int32 Unsupported = 0;
+		double MaxRadiusError = 0.0;
+		double MaxNormalAngle = 0.0;
+		for (int32 Sample = 0; Sample < 5000; ++Sample)
+		{
+			const FVector3d Direction = Random.GetUnitVector().GetAbs();
+			FLNPCrustSupportHit Hit;
+			if (!LNPCrustAtlas::QuerySupport(Atlas, Direction, Hit))
+			{
+				++Unsupported;
+				continue;
+			}
+			MaxRadiusError = FMath::Max(MaxRadiusError, FMath::Abs(Hit.Radius - Radius));
+			const double Dot = FVector3d::DotProduct(FVector3d(Hit.Normal), -Direction);
+			MaxNormalAngle = FMath::Max(MaxNormalAngle, FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(Dot, -1.0, 1.0))));
+		}
+		AddInfo(FString::Printf(TEXT("Sphere query: unsupported=%d maxRadiusError=%.6fcm maxNormalAngle=%.3fdeg"),
+			Unsupported, MaxRadiusError, MaxNormalAngle));
+		TestEqual(TEXT("Every sphere direction interpolates"), Unsupported, 0);
+		TestTrue(TEXT("Interpolated radius is R"), MaxRadiusError <= 1e-6);
+		TestTrue(TEXT("Interpolated normal stays within one cell angle of the center direction"),
+			MaxNormalAngle <= FMath::RadiansToDegrees(UE_DOUBLE_SQRT_3 * UE_DOUBLE_SQRT_2 / N));
+
+		// 이음매·꼭짓점 위 방향과 회전 오차 수준의 음수 성분은 받아들이고, 다른 옥탄트 방향은 거부한다.
+		FLNPCrustSupportHit Hit;
+		for (const FVector3d Direction : {
+			FVector3d::XAxisVector, FVector3d::YAxisVector, FVector3d::ZAxisVector,
+			FVector3d(1.0, 1.0, 0.0).GetSafeNormal(), FVector3d(0.0, 1.0, 1.0).GetSafeNormal(), FVector3d(1.0, 0.0, 1.0).GetSafeNormal(),
+			FVector3d(-1e-12, 1.0, 1.0).GetSafeNormal()})
+		{
+			TestTrue(FString::Printf(TEXT("Seam direction %s interpolates"), *Direction.ToString()),
+				LNPCrustAtlas::QuerySupport(Atlas, Direction, Hit) && FMath::Abs(Hit.Radius - Radius) <= 1e-6);
+		}
+		TestFalse(TEXT("Direction in another octant is rejected"),
+			LNPCrustAtlas::QuerySupport(Atlas, FVector3d(-0.1, 1.0, 1.0).GetSafeNormal(), Hit));
+	}
+
+	// 구멍: 구멍 안은 지면을 연장하지 않고, 멀리 떨어진 곳은 보간된다.
+	{
+		constexpr int32 MeshN = 48;
+		constexpr int32 AtlasN = 40;
+		constexpr double HoleAngleDeg = 6.0;
+		const double HoleCos = FMath::Cos(FMath::DegreesToRadians(HoleAngleDeg));
+		FLNPCrustAtlas Atlas;
+		if (!BuildAtlas(MakeCrust(
+				MeshN,
+				[](const FVector3d&) { return Radius; },
+				[HoleCos](const FVector3d& Direction) { return FVector3d::DotProduct(Direction, HoleDirection) <= HoleCos; }),
+			AtlasN, Atlas))
+		{
+			return false;
+		}
+
+		const double MeshCellDeg = FMath::RadiansToDegrees(UE_DOUBLE_SQRT_3 * UE_DOUBLE_SQRT_2 / MeshN);
+		const double AtlasCellDeg = FMath::RadiansToDegrees(UE_DOUBLE_SQRT_3 * UE_DOUBLE_SQRT_2 / AtlasN);
+		FRandomStream Random(777);
+		int32 GhostFloor = 0;
+		int32 InsideCount = 0;
+		int32 FarUnsupported = 0;
+		int32 FarCount = 0;
+		for (int32 Sample = 0; Sample < 20000; ++Sample)
+		{
+			const FVector3d Direction = Random.GetUnitVector().GetAbs();
+			const double AngleDeg = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(
+				FVector3d::DotProduct(Direction, HoleDirection), -1.0, 1.0)));
+			FLNPCrustSupportHit Hit;
+			const bool bSupported = LNPCrustAtlas::QuerySupport(Atlas, Direction, Hit);
+			if (AngleDeg < HoleAngleDeg - MeshCellDeg)
+			{
+				++InsideCount;
+				GhostFloor += bSupported ? 1 : 0;
+			}
+			else if (AngleDeg > HoleAngleDeg + MeshCellDeg + 3.0 * AtlasCellDeg)
+			{
+				++FarCount;
+				FarUnsupported += bSupported ? 0 : 1;
+			}
+		}
+		AddInfo(FString::Printf(TEXT("Hole query: inside=%d ghostFloor=%d far=%d farUnsupported=%d"),
+			InsideCount, GhostFloor, FarCount, FarUnsupported));
+		TestTrue(TEXT("Random directions land inside the hole"), InsideCount > 0);
+		TestEqual(TEXT("No ghost floor inside the hole"), GhostFloor, 0);
+		TestEqual(TEXT("Directions away from the hole interpolate"), FarUnsupported, 0);
+	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPCrustSeamPairsTest,
+	"LootNPop.SurfaceNavigation.Bake.CrustSeamPairs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPCrustSeamPairsTest::RunTest(const FString& Parameters)
+{
+	constexpr ELNPCrustSeamEdge X0 = ELNPCrustSeamEdge::X0;
+	constexpr ELNPCrustSeamEdge Y0 = ELNPCrustSeamEdge::Y0;
+	constexpr ELNPCrustSeamEdge Z0 = ELNPCrustSeamEdge::Z0;
+	// `ULNPOctantSpawnSubsystem::OctantRotations`로 손 계산한 대응표. 회전 집합을 바꾸면 이 표도 다시 계산한다.
+	// x=0·y=0 변은 서로 정순으로, z=0 변은 z=0 변과 역순으로 만난다.
+	const FLNPCrustSeamPair Expected[] = {
+		{{0, X0}, {1, Y0}, false},
+		{{0, Y0}, {3, X0}, false},
+		{{0, Z0}, {7, Z0}, true},
+		{{1, X0}, {2, Y0}, false},
+		{{1, Z0}, {4, Z0}, true},
+		{{2, X0}, {3, Y0}, false},
+		{{2, Z0}, {5, Z0}, true},
+		{{3, Z0}, {6, Z0}, true},
+		{{4, X0}, {7, Y0}, false},
+		{{4, Y0}, {5, X0}, false},
+		{{5, Y0}, {6, X0}, false},
+		{{6, Y0}, {7, X0}, false},
+	};
+
+	TArray<FLNPCrustSeamPair> Pairs;
+	FString Error;
+	if (!TestTrue(TEXT("Seam pairs compute for the slot rotations"),
+		LNPCrustAtlas::ComputeSeamPairs(ULNPOctantSpawnSubsystem::OctantRotations, Pairs, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	if (!TestEqual(TEXT("12 world seams"), Pairs.Num(), static_cast<int32>(UE_ARRAY_COUNT(Expected))))
+	{
+		return false;
+	}
+	for (int32 Index = 0; Index < Pairs.Num(); ++Index)
+	{
+		const FLNPCrustSeamPair& Actual = Pairs[Index];
+		const FLNPCrustSeamPair& Want = Expected[Index];
+		TestTrue(FString::Printf(TEXT("Seam pair %d is slot %d edge %d <-> slot %d edge %d reversed=%d"), Index,
+			Want.A.Slot, static_cast<int32>(Want.A.Edge), Want.B.Slot, static_cast<int32>(Want.B.Edge), Want.bReversed),
+			Actual.A.Slot == Want.A.Slot && Actual.A.Edge == Want.A.Edge
+			&& Actual.B.Slot == Want.B.Slot && Actual.B.Edge == Want.B.Edge && Actual.bReversed == Want.bReversed);
+	}
+
+	// 대응표가 실제로 같은 방향의 샘플을 짝짓는지 확인한다.
+	constexpr int32 N = 7;
+	for (const FLNPCrustSeamPair& Pair : Pairs)
+	{
+		for (int32 Step = 0; Step <= N; ++Step)
+		{
+			const FIntPoint CoordA = LNPCrustAtlas::GetSeamSampleCoord(N, Pair.A.Edge, Step);
+			const FIntPoint CoordB = LNPCrustAtlas::GetSeamSampleCoord(N, Pair.B.Edge, Pair.bReversed ? N - Step : Step);
+			const FVector3d WorldA = ULNPOctantSpawnSubsystem::OctantRotations[Pair.A.Slot].RotateVector(
+				LNPCrustAtlas::GetSampleDirection(N, CoordA.X, CoordA.Y));
+			const FVector3d WorldB = ULNPOctantSpawnSubsystem::OctantRotations[Pair.B.Slot].RotateVector(
+				LNPCrustAtlas::GetSampleDirection(N, CoordB.X, CoordB.Y));
+			// 회전은 FMath::SinCos 다항 근사라 180° slot에서 1e-8 수준 오차가 난다. 기준은 §3.7의 1e-6이다.
+			if (!WorldA.Equals(WorldB, 1e-6))
+			{
+				AddError(FString::Printf(TEXT("Slot %d edge %d step %d does not meet slot %d: %s vs %s"),
+					Pair.A.Slot, static_cast<int32>(Pair.A.Edge), Step, Pair.B.Slot, *WorldA.ToString(), *WorldB.ToString()));
+			}
+		}
+	}
+
+	// 같은 월드 변에 인스턴스가 둘이 아니면 오류다. slot 하나면 모든 변이 짝을 잃는다.
+	const FRotator SingleSlot[] = {FRotator::ZeroRotator};
+	TestFalse(TEXT("Unpaired seams are rejected"), LNPCrustAtlas::ComputeSeamPairs(SingleSlot, Pairs, Error));
+	const FRotator TripleSlot[] = {FRotator::ZeroRotator, FRotator::ZeroRotator, FRotator::ZeroRotator};
+	TestFalse(TEXT("Seams shared by three instances are rejected"), LNPCrustAtlas::ComputeSeamPairs(TripleSlot, Pairs, Error));
 	return !HasAnyErrors();
 }
 
