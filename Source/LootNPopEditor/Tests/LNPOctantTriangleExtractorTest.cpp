@@ -186,7 +186,8 @@ bool FLNPFixtureTriangleExtractionMatchesExactTest::RunTest(const FString& Param
 	TestEqual(TEXT("Fixture has crust, split sheet, double-sided plate and slab Support components"), Components.Num(), 4);
 
 	FPhysicsTestWorld PhysicsWorld;
-	const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(LNPTriangleExtractionTest), /*bTraceComplex=*/false);
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(LNPTriangleExtractionTest), /*bTraceComplex=*/false);
+	QueryParams.bReturnFaceIndex = true;
 	for (const UStaticMeshComponent* Source : Components)
 	{
 		const FString MeshName = Source->GetStaticMesh()->GetName();
@@ -216,6 +217,21 @@ bool FLNPFixtureTriangleExtractionMatchesExactTest::RunTest(const FString& Param
 		TestEqual(FString::Printf(TEXT("%s: extracted winding matches the authored facing"), *MeshName),
 			AuthoredFacingCount, bDoubleSided ? Mesh.Triangles.Num() / 2 : Mesh.Triangles.Num());
 
+		// face→Layer 표(D-037)의 키: exact hit FaceIndex는 추출 순서가 아니라 external 번호다.
+		TMap<int32, int32> InternalByExternal;
+		bool bExternalUnique = Mesh.ExternalFaceIndices.Num() == Mesh.Triangles.Num();
+		for (int32 Internal = 0; Internal < Mesh.ExternalFaceIndices.Num() && bExternalUnique; ++Internal)
+		{
+			bExternalUnique = !InternalByExternal.Contains(Mesh.ExternalFaceIndices[Internal]);
+			InternalByExternal.Add(Mesh.ExternalFaceIndices[Internal], Internal);
+		}
+		TestTrue(FString::Printf(TEXT("%s: every triangle has a unique external face index"), *MeshName), bExternalUnique);
+		int32 ReorderedCount = 0;
+		for (int32 Internal = 0; Internal < Mesh.ExternalFaceIndices.Num(); ++Internal)
+		{
+			ReorderedCount += Mesh.ExternalFaceIndices[Internal] != Internal ? 1 : 0;
+		}
+
 		UStaticMeshComponent* Probe = NewObject<UStaticMeshComponent>(PhysicsWorld.World.Get());
 		Probe->SetStaticMesh(Source->GetStaticMesh());
 		Probe->SetWorldTransform(SourceTransform);
@@ -227,6 +243,7 @@ bool FLNPFixtureTriangleExtractionMatchesExactTest::RunTest(const FString& Param
 		int32 MissCount = 0;
 		int32 PositionMismatchCount = 0;
 		int32 NormalMismatchCount = 0;
+		int32 FaceIndexMismatchCount = 0;
 		double MaxPositionError = 0.0;
 		for (int32 TriangleIndex = 0; TriangleIndex < Mesh.Triangles.Num(); TriangleIndex += Stride)
 		{
@@ -258,16 +275,25 @@ bool FLNPFixtureTriangleExtractionMatchesExactTest::RunTest(const FString& Param
 					&& FVector3d::DotProduct(Mesh.GetTriangleNormal(Other), FVector3d(Hit.ImpactNormal)) >= NormalDotTolerance;
 			}
 			NormalMismatchCount += bNormalMatches ? 0 : 1;
+
+			// hit FaceIndex가 가리키는 추출 삼각형이 hit 지점을 담고 법선이 같아야 한다. 양면 판도 hit한 winding 하나로 정해진다.
+			const int32* HitInternal = InternalByExternal.Find(Hit.FaceIndex);
+			const bool bFaceMatches = HitInternal
+				&& PointTriangleDistance(Mesh, *HitInternal, HitPoint) <= PositionTolerance
+				&& FVector3d::DotProduct(Mesh.GetTriangleNormal(*HitInternal), FVector3d(Hit.ImpactNormal)) >= NormalDotTolerance;
+			FaceIndexMismatchCount += bFaceMatches ? 0 : 1;
 		}
 
 		AddInfo(FString::Printf(
-			TEXT("%s: triangles=%d samples=%d misses=%d positionMismatch=%d normalMismatch=%d maxPositionError=%.4fcm det=%.2f"),
+			TEXT("%s: triangles=%d samples=%d misses=%d positionMismatch=%d normalMismatch=%d faceIndexMismatch=%d ")
+			TEXT("externalReordered=%d maxPositionError=%.4fcm det=%.2f"),
 			*MeshName, Mesh.Triangles.Num(), SampleCount, MissCount, PositionMismatchCount, NormalMismatchCount,
-			MaxPositionError, SourceTransform.GetDeterminant()));
+			FaceIndexMismatchCount, ReorderedCount, MaxPositionError, SourceTransform.GetDeterminant()));
 		TestTrue(FString::Printf(TEXT("%s: sampled triangles"), *MeshName), SampleCount > 0);
 		TestEqual(FString::Printf(TEXT("%s: every front-face exact trace hits"), *MeshName), MissCount, 0);
 		TestEqual(FString::Printf(TEXT("%s: exact hit lies on the extracted triangle"), *MeshName), PositionMismatchCount, 0);
 		TestEqual(FString::Printf(TEXT("%s: exact hit normal equals the extracted normal"), *MeshName), NormalMismatchCount, 0);
+		TestEqual(FString::Printf(TEXT("%s: exact hit FaceIndex names the extracted triangle"), *MeshName), FaceIndexMismatchCount, 0);
 
 		// 뒷면 접근은 Atlas 광선(중심→바깥, 지각 앞면)과 반대 경우다. 동작을 기록만 한다.
 		if (MeshName == FixtureCrustMeshName)

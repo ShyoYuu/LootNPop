@@ -101,7 +101,7 @@ fixture LVI 한 개를 8 slot 회전으로 테스트 월드에 복제하고 **�
 | 시점 | 변경 |
 |:---|:---|
 | Phase 4b | 한 component의 분리된 sheet, 내부형 double-sided normal의 Layer 분리 검증. 입력은 4a `LVI_Octant_Fixture_Crust`의 `FX_SplitSheet`·`FX_DoubleSidedPlate`다 |
-| Phase 4b | ISM/HISM instance와 Support proxy↔exact counterpart fixture(D-037·D-039) |
+| 콘텐츠가 필요할 때 | ISM/HISM instance와 Support proxy↔exact counterpart fixture(D-037·D-039). 그 전까지 둘 다 베이크 오류다(D-058) |
 | Phase 8 착수 전 | 동적 사례 3종을 Placement Marker와 서버 스폰 요소로 전환 |
 | Phase 8 착수 전 | 같은 tile에 겹치는 Conditional Patch 두 개와 중복 상태 이벤트 fixture |
 

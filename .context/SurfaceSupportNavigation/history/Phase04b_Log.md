@@ -73,3 +73,19 @@
 - D-031 2P 스모크(에디터 바이너리 `-game` 리슨 `TestMap03?Listen`, 게스트 접속 후 약 2분 30초, 로그 `Saved/Logs/Smoke4b_Host.log`·`Smoke4b_Guest.log`): 8 옥탄트 로드와 게스트 접속 성공. 호스트·게스트 ensure·크래시·`LogLootNPop` 오류 0. 오류는 기존 종류(엔진 Experimental 툴셋 Python 초기화, `CharacterMovementComponent` 추출 실패)뿐이다. 키트 메시·지각 메시 로드 경고 없음.
 - 사용자 PIE: `Meadow_00` 동굴에 걸어 들어가 내부 바닥·벽면 사격을 확인했다. 입구 통행을 막는 프랍은 없었다.
 - 사용자 결정: 입구 주변 프랍 간섭은 옥탄트 양산 때 충분히 생길 수 있으므로 PCG 제외 구역을 만든다(시점 미정, `Current.md` 이관 항목).
+
+### Phase 4b 실행 문서
+
+- `phases/Phase04b_MultiLayerSupport.md` 작성. 구현 단위 0~4: 전제 검증·proxy 차단 → Layer 분리·face 표 → sparse rasterization·codec v2·다층 조회 → 오차 측정·해상도 → face→Layer 종단 검증.
+- 사용자 결정 두 가지:
+  - sparse Atlas는 지각과 같은 octahedral 격자 계열(분할 수 = 지각 N의 정수배)에 row span으로 저장한다(D-057). 조회·보간 코드를 지각과 공유하고, Phase 8 patch의 base 격자 인덱스 규약과 바로 맞는다.
+  - ISM·HISM Support와 Support-only proxy는 현재 콘텐츠에 없으므로 미루고 베이크 오류로 막는다(D-058). proxy는 지금 검증 없이 일반 Support처럼 구워지는 빈틈이 있어 구현 단위 0에서 차단한다. `design/RegressionMap.md` §7의 해당 행을 "콘텐츠가 필요할 때"로 옮겼다.
+- 엔진 확인: trimesh hit의 `FaceIndex`는 Chaos 내부 face 번호가 아니라 `GetExternalFaceIndexFromInternal`을 거친 원본 mesh 삼각형 번호다(`CollisionConversions.cpp` `ConvertQueryImpactHitImp`). 현재 추출기는 내부 순서로 삼각형을 읽으므로 face→Layer 표는 external 번호로 만든다. cooked trimesh의 external 표는 `UBodySetup::bSupportFaceRemapOnMeshBVH`(기본 true) 경로로 유지되는 것으로 보이지만 패키지에서 실측해 확인한다.
+
+### 구현 단위 0 — 전제 검증과 proxy 차단
+
+- 추출기(`LNPOctantTriangleExtractor.cpp`)는 삼각형마다 `GetExternalFaceIndexFromInternal`로 얻은 external 번호를 기록한다. 번호가 없거나(-1) 유효한 trimesh가 2개 이상이면 오류다. source key `<Actor>.<Component>`를 만들고, 옥탄트 안에서 key가 겹치면 오류다.
+- 수집기는 `Support`는 있고 `Blocker`는 없는 컴포넌트를 오류로 막는다(D-058). 기존 manifest 테스트는 proxy 액터를 Blocker 액터로 바꿨다. 이 테스트는 role 행 2개를 보는 목적이라 의미가 같다.
+- editor 결과(`Bake.FixtureTriangleExtractionMatchesExact`): 지각·분리 sheet·양면 판·음수 scale 슬래브 모두 hit `FaceIndex` → 추출 삼각형의 위치·법선 불일치가 0이다. 내부 순서와 external 번호가 다른 삼각형은 지각 9,208/9,209, sheet 528/528, 판 528/528, 슬래브 0/12다. Chaos 쿠킹이 BVH 순서로 삼각형을 재배열하기 때문이다.
+- 패키지 결과: 비-Shipping 명령 `LNP.SurfaceNav.ProbeFaceIndex [Count]`를 추가했다. 월드 중심에서 Fibonacci 2,000방향으로 `LNPSurfaceSupport` trace를 쏜다. 부하 harness 보고 끝에서 `ProbePanels` 뒤에 호출한다. Development 패키지 리슨 2P(`-LNPLoadBaseline=50`)에서 호스트(NetMode 2)·게스트(NetMode 3) 모두 hit 2,000, 누락 0으로 PASS다. cooked trimesh에 external 표가 남는다(`bSupportFaceRemapOnMeshBVH` 기본 true). 같은 실행에서 `ProbePanels`도 PASS했다.
+- 자동화 `LootNPop.SurfaceNavigation` 46/46 통과. 다시 저장된 `SurfaceNavigationTests/MeshTerrain` 두 에셋은 git으로 원복했다.

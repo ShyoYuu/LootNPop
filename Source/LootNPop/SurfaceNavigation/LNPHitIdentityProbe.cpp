@@ -1,5 +1,6 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
+#include "Config/LNPSettings.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
@@ -199,6 +200,60 @@ namespace
 			UE_LOG(LogLootNPop, Display, TEXT("[ProbePanels] %s NetMode=%d panels=%d failures=%d -> %s"),
 				*World->GetName(), static_cast<int32>(World->GetNetMode()), PanelCount, Failures,
 				(PanelCount > 0 && Failures == 0) ? TEXT("PASS") : TEXT("FAIL"));
+		}));
+
+	/**
+	 * LNP.SurfaceNav.ProbeFaceIndex [Count]
+	 * 월드 중심에서 고르게 퍼진 방향으로 LNPSurfaceSupport trace를 쏴 hit FaceIndex가 유효한지 센다.
+	 * Support source는 모두 complex-as-simple trimesh라서 face→Layer 표(D-037)가 쓰려면 모든 hit에 FaceIndex가 있어야 한다.
+	 * cooked 패키지에서 external face 표가 살아 있는지 확인하는 용도다. 시점과 무관해 헤드리스 호스트에서도 돈다.
+	 */
+	FAutoConsoleCommandWithWorldAndArgs GLNPProbeFaceIndex(
+		TEXT("LNP.SurfaceNav.ProbeFaceIndex"),
+		TEXT("Trace LNPSurfaceSupport outward from the world center along evenly spread directions and check every hit ")
+		TEXT("returns a valid FaceIndex. Args: [Count] (default 2000). Logs PASS/FAIL per world."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (World == nullptr)
+			{
+				return;
+			}
+
+			const int32 Count = Args.Num() > 0 ? FMath::Max(1, FCString::Atoi(*Args[0])) : 2000;
+			const double TraceLength = GetDefault<ULNPSettings>()->SphereRadius * 1.5;
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPProbeFaceIndex), /*bTraceComplex=*/false);
+			Params.bReturnFaceIndex = true;
+
+			int32 HitCount = 0;
+			int32 MissingFaceCount = 0;
+			for (int32 Index = 0; Index < Count; ++Index)
+			{
+				// Fibonacci 구면 분포.
+				const double Z = 1.0 - 2.0 * (Index + 0.5) / Count;
+				const double Ring = FMath::Sqrt(FMath::Max(0.0, 1.0 - Z * Z));
+				const double Phi = Index * UE_PI * (3.0 - FMath::Sqrt(5.0));
+				const FVector Direction(Ring * FMath::Cos(Phi), Ring * FMath::Sin(Phi), Z);
+
+				FHitResult Hit;
+				if (!World->LineTraceSingleByChannel(Hit, FVector::ZeroVector, Direction * TraceLength, LNPCollisionChannels::SurfaceSupport, Params))
+				{
+					continue;
+				}
+				++HitCount;
+				if (Hit.FaceIndex < 0)
+				{
+					if (MissingFaceCount == 0)
+					{
+						UE_LOG(LogLootNPop, Warning, TEXT("[ProbeFaceIndex] First hit without FaceIndex: %s at %s"),
+							*GetNameSafe(Hit.GetComponent()), *Hit.ImpactPoint.ToCompactString());
+					}
+					++MissingFaceCount;
+				}
+			}
+
+			UE_LOG(LogLootNPop, Display, TEXT("[ProbeFaceIndex] %s NetMode=%d directions=%d hits=%d missingFaceIndex=%d -> %s"),
+				*World->GetName(), static_cast<int32>(World->GetNetMode()), Count, HitCount, MissingFaceCount,
+				(HitCount > 0 && MissingFaceCount == 0) ? TEXT("PASS") : TEXT("FAIL"));
 		}));
 }
 

@@ -596,6 +596,14 @@ bool FLNPOctantSourceCollector::CollectTerrainComponents(
 					*PrimitiveComponent->GetPathName());
 				return false;
 			}
+			// Support-only proxy는 exact 짝 검증(D-039)이 없으면 유령 지면을 만들 수 있다. 짝 규칙을 정할 때까지 막는다(D-058).
+			if (bHasSupport && !bHasBlocker)
+			{
+				OutError = FString::Printf(
+					TEXT("Component '%s' is a Support-only proxy. Support proxies are not supported yet; add the Blocker role or remove Support."),
+					*PrimitiveComponent->GetPathName());
+				return false;
+			}
 
 			// profile은 물리 응답, tag는 제품 의미를 소유한다. 둘이 어긋나면 베이크와 exact query가 다른 표면을 본다.
 			const bool bQueryEnabled = PrimitiveComponent->IsQueryCollisionEnabled();

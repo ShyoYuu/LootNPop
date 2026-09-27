@@ -18,15 +18,14 @@ const FName SupportTag(TEXT("LNP.Surface.Support"));
 template <typename IndexType>
 void AppendTriangles(
 	const TArray<Chaos::TVec3<IndexType>>& Elements,
-	int32 VertexOffset,
 	bool bFlipWinding,
 	TArray<FIntVector3>& OutTriangles)
 {
 	for (const Chaos::TVec3<IndexType>& Element : Elements)
 	{
-		const int32 A = VertexOffset + static_cast<int32>(Element[0]);
-		const int32 B = VertexOffset + static_cast<int32>(Element[1]);
-		const int32 C = VertexOffset + static_cast<int32>(Element[2]);
+		const int32 A = static_cast<int32>(Element[0]);
+		const int32 B = static_cast<int32>(Element[1]);
+		const int32 C = static_cast<int32>(Element[2]);
 		OutTriangles.Emplace(A, bFlipWinding ? C : B, bFlipWinding ? B : C);
 	}
 }
@@ -82,19 +81,31 @@ bool FLNPOctantTriangleExtractor::ExtractComponent(
 		return false;
 	}
 
-	const FTransform Transform = GetSourceTransform(Component);
-	const bool bFlipWinding = Transform.GetDeterminant() < 0.0;
-	for (const Chaos::FTriangleMeshImplicitObjectPtr& TriMesh : BodySetup->TriMeshGeometries)
+	// exact hit의 FaceIndex는 trimesh 하나 안의 원본 삼각형 번호라서, trimesh가 여럿이면 어느 것의 번호인지 알 수 없다.
+	const Chaos::FTriangleMeshImplicitObject* TriMesh = nullptr;
+	for (const Chaos::FTriangleMeshImplicitObjectPtr& Candidate : BodySetup->TriMeshGeometries)
 	{
-		if (!TriMesh.IsValid())
+		if (!Candidate.IsValid())
 		{
 			continue;
 		}
+		if (TriMesh)
+		{
+			OutError = FString::Printf(
+				TEXT("Support component '%s' mesh '%s' has more than one Chaos triangle mesh; exact hit face indices would be ambiguous."),
+				*Component.GetPathName(), *StaticMesh->GetPathName());
+			return false;
+		}
+		TriMesh = Candidate.GetReference();
+	}
 
-		const int32 VertexOffset = OutMesh.Vertices.Num();
+	const FTransform Transform = GetSourceTransform(Component);
+	const bool bFlipWinding = Transform.GetDeterminant() < 0.0;
+	if (TriMesh)
+	{
 		const Chaos::FTriangleMeshImplicitObject::ParticlesType& Particles = TriMesh->Particles();
 		const int32 ParticleCount = static_cast<int32>(Particles.Size());
-		OutMesh.Vertices.Reserve(VertexOffset + ParticleCount);
+		OutMesh.Vertices.Reserve(ParticleCount);
 		for (int32 Index = 0; Index < ParticleCount; ++Index)
 		{
 			const Chaos::FVec3f& Local = Particles.GetX(Index);
@@ -104,11 +115,26 @@ bool FLNPOctantTriangleExtractor::ExtractComponent(
 		const Chaos::FTrimeshIndexBuffer& Elements = TriMesh->Elements();
 		if (Elements.RequiresLargeIndices())
 		{
-			AppendTriangles(Elements.GetLargeIndexBuffer(), VertexOffset, bFlipWinding, OutMesh.Triangles);
+			AppendTriangles(Elements.GetLargeIndexBuffer(), bFlipWinding, OutMesh.Triangles);
 		}
 		else
 		{
-			AppendTriangles(Elements.GetSmallIndexBuffer(), VertexOffset, bFlipWinding, OutMesh.Triangles);
+			AppendTriangles(Elements.GetSmallIndexBuffer(), bFlipWinding, OutMesh.Triangles);
+		}
+
+		// 엔진은 hit의 내부 face 번호를 이 표로 바꿔 FaceIndex로 돌려준다(CollisionConversions.cpp).
+		OutMesh.ExternalFaceIndices.SetNumUninitialized(OutMesh.Triangles.Num());
+		for (int32 Internal = 0; Internal < OutMesh.Triangles.Num(); ++Internal)
+		{
+			const int32 External = TriMesh->GetExternalFaceIndexFromInternal(Internal);
+			if (External < 0)
+			{
+				OutError = FString::Printf(
+					TEXT("Support component '%s' mesh '%s' has no external face index for triangle %d; exact hits cannot be mapped to Layers."),
+					*Component.GetPathName(), *StaticMesh->GetPathName(), Internal);
+				return false;
+			}
+			OutMesh.ExternalFaceIndices[Internal] = External;
 		}
 	}
 
@@ -160,6 +186,7 @@ bool FLNPOctantTriangleExtractor::ExtractSupportSources(
 
 			FLNPBakeSupportSource& Source = OutSources.AddDefaulted_GetRef();
 			Source.Name = Component->GetPathName();
+			Source.Key = FString::Printf(TEXT("%s.%s"), *Actor->GetFName().ToString(), *Component->GetFName().ToString());
 			if (!ExtractComponent(*Component, Source.Mesh, OutError))
 			{
 				OutSources.Reset();
@@ -172,5 +199,18 @@ bool FLNPOctantTriangleExtractor::ExtractSupportSources(
 	{
 		return A.Name.Compare(B.Name, ESearchCase::CaseSensitive) < 0;
 	});
+	for (int32 Index = 1; Index < OutSources.Num(); ++Index)
+	{
+		for (int32 Other = 0; Other < Index; ++Other)
+		{
+			if (OutSources[Index].Key.Equals(OutSources[Other].Key, ESearchCase::CaseSensitive))
+			{
+				OutError = FString::Printf(TEXT("Support components '%s' and '%s' share the source key '%s'."),
+					*OutSources[Other].Name, *OutSources[Index].Name, *OutSources[Index].Key);
+				OutSources.Reset();
+				return false;
+			}
+		}
+	}
 	return true;
 }

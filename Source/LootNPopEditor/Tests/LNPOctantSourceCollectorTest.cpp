@@ -336,8 +336,8 @@ bool FLNPOctantSourceDependencyCollectionTest::RunTest(const FString& Parameters
 		FVector(10.0, 20.0, 30.0));
 	AStaticMeshActor* TerrainActorB = SpawnMeshActor(
 		CubeMesh,
-		{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Static")},
-		TEXT("LNPStaticSupport"),
+		{TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+		TEXT("LNPStaticBlocker"),
 		FVector(-10.0, 15.0, 45.0));
 	AStaticMeshActor* DecorationActor = SpawnMeshActor(
 		SphereMesh,
@@ -473,6 +473,9 @@ bool FLNPOctantSourceContractValidationTest::RunTest(const FString& Parameters)
 			TEXT("LNPDynamicTerrain"), false},
 		{TEXT("Blocker tag on a Support-only profile"),
 			{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+			TEXT("LNPStaticSupport"), false},
+		{TEXT("Support-only proxy"),
+			{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Static")},
 			TEXT("LNPStaticSupport"), false},
 		{TEXT("Support tag missing on a terrain profile"),
 			{TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},

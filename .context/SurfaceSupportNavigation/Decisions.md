@@ -64,6 +64,8 @@
 | D-054 | 비행 적 총수는 200이다. Pod 편성 타입을 나눠 비행 적이 없는 Pod와 3~6기를 편성한 Pod를 둔다. 비행 100마리당 서버 프레임 약 1.5ms로 본다. | 확정 | `history/Phase03c_Log.md` 2026-09-27 |
 | D-055 | 옥탄트의 지각 Layer는 세 이음매 변 모두에 닿는 유일한 `Support+Static` 컴포넌트로 식별한다. 새 태그를 두지 않으며, 해당 컴포넌트가 0개나 2개 이상이면 베이크 오류다. | 확정 | `phases/Phase04a_CrustAtlasAndSeams.md` §3.2 |
 | D-056 | 공통 기능 검증의 정적 사례는 fixture LVI `LVI_Octant_Fixture_Regression`을 8 slot 회전으로 합성해 검사하고, LVI에 둘 수 없는 동적 사례만 `L_SurfaceRegression` 일반 레벨에 둔다. 두 곳의 fixture와 oracle을 모든 후속 Phase가 재사용한다. | 확정 | `design/RegressionMap.md` §1 |
+| D-057 | 섬·동굴 sparse Atlas는 지각과 같은 octahedral 격자 계열(분할 수 = 지각 N의 정수배)을 쓰고, Layer마다 행별 i 구간(row span)만 저장한다. | 확정 | `phases/Phase04b_MultiLayerSupport.md` §3.2 |
+| D-058 | ISM·HISM Support와 Support-only proxy(D-039)는 콘텐츠가 필요해질 때까지 구현하지 않고 베이크 오류로 막는다. | 확정 | `phases/Phase04b_MultiLayerSupport.md` §3.1 |
 
 ## 변경 규칙
 
