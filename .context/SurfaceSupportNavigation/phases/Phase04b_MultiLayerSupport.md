@@ -111,14 +111,19 @@
 ### 구현 단위 1 — Layer 분리와 face 표
 
 - runtime 순수 함수: walkable 분류, 위치 용접 연결 성분, Layer ID 정렬, face 표 생성(§3.3·§3.4). 코드 위치 초안 `LootNPop/SurfaceNavigation/LNPSupportLayers.*`.
-- 합성 자동화: 떨어진 캡 2개 → Layer 2, 양면 캡 → Layer 1과 바깥 winding None, non-walkable 띠로 끊긴 판 → Layer 2, 접힌 sheet → 오류.
-- 실제 입력: `Fixture_Crust`(split 2, double-sided 1, slab 1), `Fixture_Regression`(지각 + 7), `Meadow_00` Layer 수와 source별 face 표 종류를 보고한다.
+- 합성 자동화: 떨어진 캡 2개 → Layer 2, 양면 캡 → Layer 1과 바깥 winding None, non-walkable 띠로 끊긴 판 → Layer 2. 접힌 sheet 오류는 광선 교차로만 드러나므로 구현 단위 2에서 검사한다.
+- 실제 입력: `Fixture_Crust`(split 2, double-sided 1, slab 1), `Fixture_Regression`(지각 + 6), `Meadow_00` Layer 수와 source별 face 표 종류를 보고한다.
+- 상태(2026-09-27): 완료. runtime `LNPSupportLayers::BuildLayers`, 자동화 `Bake.SupportLayersSplit`(합성: 분리 sheet·양면·계단 벽·삼각형 soup 용접·Key 순서·오류 2종)과 `Bake.OctantSupportLayers`(세 LVI). 베이커는 Layer 분리를 실행하고 보고서에 Layer 수를 적는다(payload는 아직 지각만).
+  - `Fixture_Crust`: Layer 5개. split 2(per-face 표), 양면 판 1(per-face, 바깥 winding None), 슬래브 1(윗면, 옆면 None).
+  - `Fixture_Regression`: source 7개 = Layer 7개(지각, 섬 윗면 4, 공동·통로 바닥 2), 모두 컴포넌트 단위 표.
+  - `Meadow_00`: source 11개 = Layer 11개. 섬 B 계단·플랫폼(`SM_TerrainBox`, 삼각형 48개) 4개는 옆면 때문에 per-face 표이고, 나머지는 컴포넌트 단위다. 구멍 난 경사로 윗면도 Layer 1개다.
+  - source key는 actor FName이다. OFPA 옥탄트는 `StaticMeshActor_UAID_...` 형태이고 에디터 label과 다르다. runtime slot Level Instance에서 같은 이름이 나오는지는 Phase 5 registry binding에서 확인한다.
 
 ### 구현 단위 2 — sparse rasterization·codec v2·다층 조회
 
 - runtime: row span 산출, Layer rasterize, codec v2 encode/decode, `QueryLayers`(§3.5·§3.6·§3.7). 4a `LNPCrustAtlas`의 격자·보간 코드는 공유하도록 옮기고 지각 전용 함수는 Layer 0 경로로 흡수한다.
 - Editor: 베이커가 Layer 전체를 굽고 보고서에 Layer별 샘플 수·Valid·NeedsExact·크기·시간, Layer 쌍 겹침 수를 적는다.
-- 합성 자동화: 같은 방향 3층 캡(창에 따라 각 층 선택), 계단형 30cm 단차(StepUp 안이면 위 칸), 가장자리 NeedsExact 전파(가까운 Layer 보간 실패 시 먼 Layer로 떨어지지 않음), codec 왕복.
+- 합성 자동화: 같은 방향 3층 캡(창에 따라 각 층 선택), 계단형 30cm 단차(StepUp 안이면 위 칸), 가장자리 NeedsExact 전파(가까운 Layer 보간 실패 시 먼 Layer로 떨어지지 않음), 접힌 sheet 오류, codec 왕복.
 - 세 옥탄트 재베이크, `Bake.OctantBakeDeterministic`·`CrustSeamMatch`·`CrustAtlasExactError` 통과 유지.
 
 ### 구현 단위 3 — 오차 측정과 해상도 확정
@@ -137,7 +142,7 @@
 ## 5. 완료 조건
 
 - [x] Support-only proxy와 ISM Support가 베이크 오류로 막히고, 세 LVI는 통과함
-- [ ] 분리 sheet는 Layer 2개, 양면 판은 Layer 1개(바깥 winding은 None), 접힌 sheet는 오류
+- [ ] 분리 sheet는 Layer 2개, 양면 판은 Layer 1개(바깥 winding은 None), 접힌 sheet는 오류 — 앞의 둘은 구현 단위 1에서 확인
 - [ ] 세 옥탄트의 다층 SupportPayload(codec v2, `DataVersion` 3)가 베이크·저장되고, 두 번 구운 결과가 같음
 - [ ] `QueryLayers`가 3층 겹침·계단 단차·가장자리에서 규칙대로 Layer를 고르고, 가장자리에서 다른 Layer로 떨어지지 않음
 - [ ] Layer Atlas와 exact 오차가 측정됐고, 그 결과로 해상도 m과 허용값이 문서에 확정됨

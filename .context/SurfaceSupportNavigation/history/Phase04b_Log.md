@@ -89,3 +89,16 @@
 - editor 결과(`Bake.FixtureTriangleExtractionMatchesExact`): 지각·분리 sheet·양면 판·음수 scale 슬래브 모두 hit `FaceIndex` → 추출 삼각형의 위치·법선 불일치가 0이다. 내부 순서와 external 번호가 다른 삼각형은 지각 9,208/9,209, sheet 528/528, 판 528/528, 슬래브 0/12다. Chaos 쿠킹이 BVH 순서로 삼각형을 재배열하기 때문이다.
 - 패키지 결과: 비-Shipping 명령 `LNP.SurfaceNav.ProbeFaceIndex [Count]`를 추가했다. 월드 중심에서 Fibonacci 2,000방향으로 `LNPSurfaceSupport` trace를 쏜다. 부하 harness 보고 끝에서 `ProbePanels` 뒤에 호출한다. Development 패키지 리슨 2P(`-LNPLoadBaseline=50`)에서 호스트(NetMode 2)·게스트(NetMode 3) 모두 hit 2,000, 누락 0으로 PASS다. cooked trimesh에 external 표가 남는다(`bSupportFaceRemapOnMeshBVH` 기본 true). 같은 실행에서 `ProbePanels`도 PASS했다.
 - 자동화 `LootNPop.SurfaceNavigation` 46/46 통과. 다시 저장된 `SurfaceNavigationTests/MeshTerrain` 두 에셋은 git으로 원복했다.
+
+### 구현 단위 1 — Layer 분리와 face 표
+
+- runtime `LNPSupportLayers::BuildLayers`(`LNPSupportLayers.*`):
+  - 지각은 Layer 0 하나이고, 나머지 source는 walkable 삼각형 연결 성분마다 Layer 하나다.
+  - 연결은 0.1cm 격자 해시로 정점을 용접한 뒤 모서리 공유로 판정한다. union-find root는 작은 인덱스라서 입력 순서만으로 결과가 정해진다.
+  - Layer ID는 source Key 순, 같은 source 안에서는 최소 external face 순이다.
+  - face 표는 모든 face 값이 같으면 컴포넌트 단위로 두고, 아니면 external 번호 배열로 둔다.
+- 베이커는 Layer 분리를 실행하고 보고서에 Layer 수를 적는다. payload는 아직 지각만 담아서 `OctantBakeDeterministic`은 저장본과 그대로 일치한다.
+- 결과: `Fixture_Crust`는 Layer 5개(split 2, 양면 1, 슬래브 1)다. `Fixture_Regression`은 source 7개가 Layer 7개가 됐다. `Meadow_00`은 source 11개가 Layer 11개이고, 섬 B `SM_TerrainBox` 4개만 옆면 때문에 per-face 표를 쓴다.
+- source key는 에디터 label이 아니라 actor FName이다(OFPA는 `StaticMeshActor_UAID_...`). 처음 쓴 테스트가 label(`FX_*`)로 찾다 실패해서, mesh 이름으로 찾도록 고쳤다.
+- 접힌 sheet 오류는 광선 교차로만 드러나므로 구현 단위 2 검사로 옮겼다.
+- 자동화 `LootNPop.SurfaceNavigation` 48/48(`Bake.SupportLayersSplit`·`OctantSupportLayers` 추가).

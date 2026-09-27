@@ -25,6 +25,7 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeReport
 {
 	FString CrustName;
 	int32 SupportSourceCount = 0;
+	int32 SupportLayerCount = 0;
 	int32 CrustTriangleCount = 0;
 	int32 Subdivisions = 0;
 	int32 SampleCount = 0;
