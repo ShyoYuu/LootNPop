@@ -34,8 +34,15 @@ Phase 4b(부유섬·동굴 키트 다층 베이크)가 2026-09-27에 끝났다. 
 
 ## 바로 다음 작업
 
-1. Phase 5 실행 문서 `phases/Phase05_RuntimeLoader.md`를 쓴다. 범위 결정이 필요한 항목을 사용자와 먼저 정한다: `LNPSurfaceSupport` 소비자 전환 시점(알려진 불확실성), Mass 스폰·Pod 배치를 Spawn stream으로 옮길지, hit identity registry의 `(slot, LocalLayerId)` binding과 source key 대응 방식(runtime slot Level Instance의 actor FName이 베이크 key와 같은지 먼저 확인)
-2. 구현 단위 0 후보: production definition에 SurfaceData를 연결하고, 게시 전 `DataVersion`·seam hash 호환성(D-043) 검사로 로드만 하는 경로. 기존 SurfaceCache는 그대로 두고 병행 비교한다
+Phase 5 실행 문서 `phases/Phase05_RuntimeLoader.md`를 쓰기 전에 아래 순서로 범위를 정한다(2026-09-27 사용자 합의).
+
+1. 먼저 코드·실측으로 확인한다(결정 전 사실 수집)
+   - **source key 유지 여부:** runtime slot Level Instance로 로드된 `Meadow_00` 컴포넌트의 `<Actor FName>.<Component FName>`이 베이크 key(OFPA `StaticMeshActor_UAID_...`)와 같은지 에디터 `-game`과 Development 패키지에서 모두 본다. 다르면 대안(베이크 시 안정 ID 태그, 메시+transform 대응 등)을 비교해 사용자에게 올린다
+   - **게스트 소비자 목록:** SurfaceCache(`GetSurfacePoint`) 소비처 10여 곳 중 게스트에서 도는 것을 분류한다. 게스트 Support 로드 필요 여부(`design/Architecture.md` "실행 경로별 소유권"의 미정 칸, Roadmap 완료 조건 "클라이언트 로드")가 여기서 정해진다
+2. 그 결과를 들고 사용자와 정한다
+   - **소비자 전환 경계:** Phase 5에서 어떤 소비자를 지각 전용 legacy adapter로, 어떤 소비자를 `QueryLayers`로 바로 옮길지, 기존 SurfaceCache와 병행 비교를 둘지. 적 이동 전환은 Phase 6이다
+   - **스폰 위치:** (a) 스폰 후보를 지각 Layer 0으로 제한(작음, 섬 윗면 Pod 문제 즉시 해결) vs (b) 에디터 베이크 Spawn stream(섬·동굴 의도 배치 가능, 베이커·codec 추가). 적을 처음부터 섬 위·동굴 안에 둘지는 게임 디자인 결정이다
+3. 결정을 Phase 5 실행 문서 §확정 결정과 필요하면 `Decisions.md`에 적고 구현 단위를 나눈다. 구현 단위 0 후보: production definition에 SurfaceData를 연결하고 게시 전 `DataVersion`·seam hash 호환성(D-043)만 검사하는 로드 경로
 
 ## 이관된 후속 작업
 
