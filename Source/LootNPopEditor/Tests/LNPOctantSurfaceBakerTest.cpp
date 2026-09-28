@@ -5,17 +5,21 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Components/StaticMeshComponent.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "DataAsset/LNPOctantSurfaceData.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "Misc/PackageName.h"
+#include "Misc/ScopeExit.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
+#include "SurfaceNavigation/LNPMassSpawnPoint.h"
 #include "SurfaceNavigation/LNPOctantSurfaceBaker.h"
 #include "SurfaceNavigation/LNPOctantTriangleExtractor.h"
 #include "SurfaceNavigation/LNPRegressionFixture.h"
+#include "SurfaceNavigation/LNPSpawnData.h"
 #include "UObject/StrongObjectPtr.h"
 
 namespace LNPOctantSurfaceBakerTest
@@ -228,12 +232,21 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 			First->SupportPayload == Second->SupportPayload);
 		TestTrue(FString::Printf(TEXT("%s: payload hash is identical across bakes"), LevelPath),
 			First->Header.Support.ContentHash == Second->Header.Support.ContentHash);
+		TestTrue(FString::Printf(TEXT("%s: Spawn payload is identical across bakes"), LevelPath),
+			First->SpawnPayload == Second->SpawnPayload);
+		TestTrue(FString::Printf(TEXT("%s: Spawn payload hash is identical across bakes"), LevelPath),
+			First->Header.Spawn.ContentHash == Second->Header.Spawn.ContentHash);
 		TestTrue(FString::Printf(TEXT("%s: source hash is identical across bakes"), LevelPath),
 			First->Header.SourceContentHash == Second->Header.SourceContentHash);
 		TestEqual(FString::Printf(TEXT("%s: descriptor size"), LevelPath),
 			First->Header.Support.UncompressedSize, static_cast<uint64>(First->SupportPayload.Num()));
 		TestEqual(FString::Printf(TEXT("%s: descriptor element count"), LevelPath),
 			First->Header.Support.ElementCount, static_cast<uint32>(FirstReport.TotalSampleCount));
+		TestEqual(FString::Printf(TEXT("%s: Spawn descriptor size"), LevelPath),
+			First->Header.Spawn.UncompressedSize, static_cast<uint64>(First->SpawnPayload.Num()));
+		TestEqual(FString::Printf(TEXT("%s: Spawn descriptor element count"), LevelPath),
+			First->Header.Spawn.ElementCount,
+			static_cast<uint32>(FirstReport.SpawnAuthoredCount + FirstReport.SpawnCandidateCount));
 
 		// 저장된 에셋이 현재 source로 구운 결과와 같아야 한다. 다르면 `LNP.SurfaceNav.BakeOctant`로 다시 굽는다.
 		const FString SavedPackage = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(FSoftObjectPath(LevelPath));
@@ -248,6 +261,9 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 			TestTrue(FString::Printf(TEXT("%s: saved Support payload is current"), *SavedPackage),
 				Saved->Header.Support.ContentHash == First->Header.Support.ContentHash
 				&& Saved->SupportPayload == First->SupportPayload);
+			TestTrue(FString::Printf(TEXT("%s: saved Spawn payload is current"), *SavedPackage),
+				Saved->Header.Spawn.ContentHash == First->Header.Spawn.ContentHash
+				&& Saved->SpawnPayload == First->SpawnPayload);
 		}
 
 		FLNPSupportAtlas Atlas;
@@ -259,9 +275,120 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 		}
 		TestEqual(FString::Printf(TEXT("%s: decoded Layer count"), LevelPath), Atlas.Layers.Num(), FirstReport.SupportLayerCount);
 		TestEqual(FString::Printf(TEXT("%s: decoded source count"), LevelPath), Atlas.Sources.Num(), FirstReport.SupportSourceCount);
+		FLNPSpawnData SpawnData;
+		if (TestTrue(FString::Printf(TEXT("%s: Spawn payload decodes"), LevelPath),
+			LNPSpawnData::Decode(First->SpawnPayload, SpawnData, Error)))
+		{
+			TestEqual(FString::Printf(TEXT("%s: decoded authored count"), LevelPath),
+				SpawnData.AuthoredAnchors.Num(), FirstReport.SpawnAuthoredCount);
+			TestEqual(FString::Printf(TEXT("%s: decoded random count"), LevelPath),
+				SpawnData.RandomCandidates.Num(), FirstReport.SpawnCandidateCount);
+			TestTrue(FString::Printf(TEXT("%s: has random spawn candidates"), LevelPath),
+				!SpawnData.RandomCandidates.IsEmpty());
+			if (FStringView(LevelPath) == FStringView(LNPRegressionFixture::LevelPath))
+			{
+				TestEqual(TEXT("Regression fixture has crust, island, and cave anchors"), SpawnData.AuthoredAnchors.Num(), 3);
+				TSet<uint16> AuthoredLayers;
+				for (const FLNPSpawnAuthoredAnchor& Anchor : SpawnData.AuthoredAnchors)
+				{
+					AuthoredLayers.Add(Anchor.LocalLayerId);
+				}
+				TestTrue(TEXT("Regression authored anchors include crust Layer 0"), AuthoredLayers.Contains(0));
+				TestTrue(TEXT("Regression authored anchors include non-crust Layers"), AuthoredLayers.Num() >= 2);
+			}
+		}
 		AddInfo(FString::Printf(TEXT("%s: seam hash x=0 %s y=0 %s z=0 %s"), LevelPath,
 			*LexToString(Atlas.SeamHashes[0]), *LexToString(Atlas.SeamHashes[1]), *LexToString(Atlas.SeamHashes[2])));
 	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSpawnAuthoringValidationTest,
+	"LootNPop.SurfaceNavigation.Bake.SpawnAuthoringValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPSpawnAuthoringValidationTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPOctantSurfaceBakerTest;
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	const FAssetData Asset = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(LNPRegressionFixture::LevelPath));
+	TSet<FName> LoadTags;
+	LoadTags.Add(ULevel::LoadAllExternalObjectsTag);
+	UWorld* SourceWorld = Asset.IsValid() ? Cast<UWorld>(Asset.GetAsset(MoveTemp(LoadTags))) : nullptr;
+	if (!TestNotNull(TEXT("Regression fixture loads for Spawn authoring validation"), SourceWorld))
+	{
+		return false;
+	}
+
+	TArray<ALNPMassSpawnPoint*> Points;
+	for (AActor* Actor : SourceWorld->PersistentLevel->Actors)
+	{
+		if (ALNPMassSpawnPoint* Point = Cast<ALNPMassSpawnPoint>(Actor))
+		{
+			Points.Add(Point);
+		}
+	}
+	if (!TestEqual(TEXT("Regression fixture contains three authored anchors"), Points.Num(), 3))
+	{
+		return false;
+	}
+	Points.Sort([](const ALNPMassSpawnPoint& A, const ALNPMassSpawnPoint& B)
+	{
+		return A.GetActorLabel() < B.GetActorLabel();
+	});
+
+	const TArray<FTransform> OriginalTransforms = {
+		Points[0]->GetActorTransform(), Points[1]->GetActorTransform(), Points[2]->GetActorTransform()};
+	const TArray<FGuid> OriginalIds = {Points[0]->SpawnPointId, Points[1]->SpawnPointId, Points[2]->SpawnPointId};
+	const TArray<FName> OriginalTargets = {Points[0]->TargetSpawnSetId, Points[1]->TargetSpawnSetId, Points[2]->TargetSpawnSetId};
+	ON_SCOPE_EXIT
+	{
+		for (int32 Index = 0; Index < Points.Num(); ++Index)
+		{
+			Points[Index]->SetActorTransform(OriginalTransforms[Index]);
+			Points[Index]->SpawnPointId = OriginalIds[Index];
+			Points[Index]->TargetSpawnSetId = OriginalTargets[Index];
+		}
+	};
+
+	auto Restore = [&]()
+	{
+		for (int32 Index = 0; Index < Points.Num(); ++Index)
+		{
+			Points[Index]->SetActorTransform(OriginalTransforms[Index]);
+			Points[Index]->SpawnPointId = OriginalIds[Index];
+			Points[Index]->TargetSpawnSetId = OriginalTargets[Index];
+		}
+	};
+	auto ExpectBakeFailure = [&](const TCHAR* Case, const TCHAR* Expected)
+	{
+		TStrongObjectPtr<ULNPOctantSurfaceData> Data(NewObject<ULNPOctantSurfaceData>(GetTransientPackage()));
+		FLNPOctantBakeReport Report;
+		FString Error;
+		const bool bResult = FLNPOctantSurfaceBaker::Bake(
+			FSoftObjectPath(LNPRegressionFixture::LevelPath), FLNPOctantBakeOptions(), *Data, Report, Error);
+		TestFalse(FString::Printf(TEXT("%s is rejected"), Case), bResult);
+		TestTrue(FString::Printf(TEXT("%s reports '%s' (actual: %s)"), Case, Expected, *Error), Error.Contains(Expected));
+	};
+
+	Points[0]->TargetSpawnSetId = TEXT("DefinitelyMissing");
+	ExpectBakeFailure(TEXT("Unknown SpawnSetId"), TEXT("unknown SpawnSetId"));
+	Restore();
+
+	const FVector AirDirection = OriginalTransforms[0].GetLocation().GetSafeNormal();
+	Points[0]->SetActorLocation(AirDirection * (OriginalTransforms[0].GetLocation().Size() - 500.0));
+	ExpectBakeFailure(TEXT("Airborne authored point"), TEXT("nearest interpolable Support surface"));
+	Restore();
+
+	Points[1]->SpawnPointId = Points[0]->SpawnPointId;
+	ExpectBakeFailure(TEXT("Duplicate SpawnPointId"), TEXT("duplicates SpawnPointId"));
+	Restore();
+
+	const LNPRegressionFixture::FCaseFrame Props = LNPRegressionFixture::StaticProps();
+	Points[0]->SetActorTransform(FTransform(
+		Props.UpRotation(), Props.At(LNPRegressionFixture::CrustRadius, LNPRegressionFixture::TreeTangent)));
+	ExpectBakeFailure(TEXT("Insufficient blocker clearance"), TEXT("does not have Pod capsule clearance"));
 	return !HasAnyErrors();
 }
 

@@ -87,8 +87,8 @@ struct LOOTNPOP_API FLNPSurfaceBakeHeader
 {
 	GENERATED_BODY()
 
-	/** 3: Support payload에 다층 Support Atlas codec v2(`LNPSupportAtlas::Encode`). 2는 지각 전용 codec v1이었다. */
-	static constexpr uint32 CurrentDataVersion = 3;
+	/** 4: Spawn payload codec v1. 3은 다층 Support Atlas codec v2만 저장했다. */
+	static constexpr uint32 CurrentDataVersion = 4;
 
 	FLNPSurfaceBakeHeader();
 
@@ -152,7 +152,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	TArray<uint8> TraversalPayload;
 
-	/** spawn candidate와 clearance stream. */
+	/** authored anchor와 random candidate·clearance stream(`LNPSpawnData` codec v1). */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	TArray<uint8> SpawnPayload;
 };

@@ -13,6 +13,7 @@
 #include "GameFramework/Actor.h"
 #include "Modules/ModuleManager.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
+#include "SurfaceNavigation/LNPMassSpawnPoint.h"
 
 namespace
 {
@@ -255,6 +256,51 @@ bool BuildSemanticBytes(
 	return true;
 }
 
+bool BuildSpawnPointSemanticBytes(
+	const FLNPSpawnPointSemantic& Semantic,
+	TArray<uint8>& OutBytes,
+	FString& OutError)
+{
+	if (!Semantic.SpawnPointId.IsValid())
+	{
+		OutError = TEXT("Mass spawn point has an invalid SpawnPointId.");
+		return false;
+	}
+	const FVector Location = Semantic.Transform.GetLocation();
+	FQuat Rotation = Semantic.Transform.GetRotation();
+	if (!FMath::IsFinite(Location.X) || !FMath::IsFinite(Location.Y) || !FMath::IsFinite(Location.Z)
+		|| !FMath::IsFinite(Rotation.X) || !FMath::IsFinite(Rotation.Y)
+		|| !FMath::IsFinite(Rotation.Z) || !FMath::IsFinite(Rotation.W)
+		|| Rotation.SizeSquared() <= UE_SMALL_NUMBER)
+	{
+		OutError = FString::Printf(TEXT("Mass spawn point %s has an invalid transform."),
+			*Semantic.SpawnPointId.ToString(EGuidFormats::Short));
+		return false;
+	}
+	Rotation.Normalize();
+	if (Rotation.W < 0.0)
+	{
+		Rotation = Rotation * -1.0;
+	}
+
+	FCanonicalBytes Writer;
+	Writer.WriteAnsi("SpawnPoint", 10);
+	Writer.WriteUInt32(Semantic.SpawnPointId.A);
+	Writer.WriteUInt32(Semantic.SpawnPointId.B);
+	Writer.WriteUInt32(Semantic.SpawnPointId.C);
+	Writer.WriteUInt32(Semantic.SpawnPointId.D);
+	Writer.WriteName(Semantic.TargetSpawnSetId);
+	Writer.WriteDouble(Location.X);
+	Writer.WriteDouble(Location.Y);
+	Writer.WriteDouble(Location.Z);
+	Writer.WriteDouble(Rotation.X);
+	Writer.WriteDouble(Rotation.Y);
+	Writer.WriteDouble(Rotation.Z);
+	Writer.WriteDouble(Rotation.W);
+	OutBytes = MoveTemp(Writer.Bytes);
+	return true;
+}
+
 struct FCanonicalSetting
 {
 	FString Name;
@@ -409,9 +455,11 @@ bool FLNPOctantSourceCollector::CollectFromWorld(
 			OutCollection.Manifest,
 			OutCollection.TerrainSemantics,
 			OutError)
+		|| !CollectSpawnPoints(SourceWorld, OutCollection.SpawnPointSemantics, OutError)
 		|| !CanonicalizeManifest(OutCollection.Manifest, OutError)
 		|| !BuildSourceSemanticHash(
 			OutCollection.TerrainSemantics,
+			OutCollection.SpawnPointSemantics,
 			OutCollection.SourceSemanticHash,
 			OutError)
 		|| !BuildBakeSettingsHash(
@@ -430,6 +478,42 @@ bool FLNPOctantSourceCollector::CollectFromWorld(
 		return false;
 	}
 
+	return true;
+}
+
+bool FLNPOctantSourceCollector::CollectSpawnPoints(
+	const UWorld& SourceWorld,
+	TArray<FLNPSpawnPointSemantic>& OutSemantics,
+	FString& OutError)
+{
+	OutSemantics.Reset();
+	if (!SourceWorld.PersistentLevel)
+	{
+		OutError = TEXT("Source World has no persistent Level.");
+		return false;
+	}
+	TSet<FGuid> SeenIds;
+	for (const AActor* Actor : SourceWorld.PersistentLevel->Actors)
+	{
+		const ALNPMassSpawnPoint* SpawnPoint = Cast<ALNPMassSpawnPoint>(Actor);
+		if (!IsValid(SpawnPoint) || SpawnPoint->HasAnyFlags(RF_Transient))
+		{
+			continue;
+		}
+		if (!SpawnPoint->SpawnPointId.IsValid())
+		{
+			OutError = FString::Printf(TEXT("Mass spawn point '%s' has an invalid SpawnPointId."), *SpawnPoint->GetPathName());
+			return false;
+		}
+		if (SeenIds.Contains(SpawnPoint->SpawnPointId))
+		{
+			OutError = FString::Printf(TEXT("Mass spawn point '%s' duplicates SpawnPointId %s."),
+				*SpawnPoint->GetPathName(), *SpawnPoint->SpawnPointId.ToString(EGuidFormats::Short));
+			return false;
+		}
+		SeenIds.Add(SpawnPoint->SpawnPointId);
+		OutSemantics.Add({SpawnPoint->SpawnPointId, SpawnPoint->TargetSpawnSetId, SpawnPoint->GetActorTransform()});
+	}
 	return true;
 }
 
@@ -716,13 +800,31 @@ bool FLNPOctantSourceCollector::BuildSourceSemanticHash(
 	FLNPContentHash& OutHash,
 	FString& OutError)
 {
+	return BuildSourceSemanticHash(Semantics, TConstArrayView<FLNPSpawnPointSemantic>(), OutHash, OutError);
+}
+
+bool FLNPOctantSourceCollector::BuildSourceSemanticHash(
+	TConstArrayView<FLNPTerrainSourceSemantic> TerrainSemantics,
+	TConstArrayView<FLNPSpawnPointSemantic> SpawnPointSemantics,
+	FLNPContentHash& OutHash,
+	FString& OutError)
+{
 	OutError.Reset();
 	TArray<TArray<uint8>> Entries;
-	Entries.Reserve(Semantics.Num());
-	for (const FLNPTerrainSourceSemantic& Semantic : Semantics)
+	Entries.Reserve(TerrainSemantics.Num() + SpawnPointSemantics.Num());
+	for (const FLNPTerrainSourceSemantic& Semantic : TerrainSemantics)
 	{
 		TArray<uint8>& Entry = Entries.AddDefaulted_GetRef();
 		if (!BuildSemanticBytes(Semantic, Entry, OutError))
+		{
+			OutHash = FLNPContentHash();
+			return false;
+		}
+	}
+	for (const FLNPSpawnPointSemantic& Semantic : SpawnPointSemantics)
+	{
+		TArray<uint8>& Entry = Entries.AddDefaulted_GetRef();
+		if (!BuildSpawnPointSemanticBytes(Semantic, Entry, OutError))
 		{
 			OutHash = FLNPContentHash();
 			return false;

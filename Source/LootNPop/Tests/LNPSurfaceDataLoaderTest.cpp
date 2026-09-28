@@ -10,6 +10,7 @@
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "SurfaceNavigation/LNPSpawnData.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Engine/HitResult.h"
@@ -61,6 +62,25 @@ namespace
 		Data->Header.Support.UncompressedSize = Data->SupportPayload.Num();
 		Data->Header.Support.ContentHash = FLNPContentHash(
 			FIoHash::HashBuffer(Data->SupportPayload.GetData(), Data->SupportPayload.Num()));
+
+		FLNPSpawnData SpawnData;
+		FLNPSpawnRandomCandidate& Candidate = SpawnData.RandomCandidates.AddDefaulted_GetRef();
+		Candidate.CandidateIndex = 0;
+		Candidate.LocalPosition = FVector3f(0.0f, 0.0f, 30000.0f);
+		Candidate.LocalNormal = FVector3f(0.0f, 0.0f, -1.0f);
+		Candidate.LocalLayerId = 0;
+		Candidate.Allowed = ELNPSpawnCandidateFlags::Pod | ELNPSpawnCandidateFlags::Enemy;
+		Candidate.SlopeDot = 1.0f;
+		Candidate.EdgeClearance = 800.0f;
+		Candidate.CapsuleClearance = 800.0f;
+		if (!LNPSpawnData::Encode(SpawnData, Data->SpawnPayload, Error))
+		{
+			return nullptr;
+		}
+		Data->Header.Spawn.ElementCount = 1;
+		Data->Header.Spawn.UncompressedSize = Data->SpawnPayload.Num();
+		Data->Header.Spawn.ContentHash = FLNPContentHash(
+			FIoHash::HashBuffer(Data->SpawnPayload.GetData(), Data->SpawnPayload.Num()));
 		return Data;
 	}
 
@@ -111,6 +131,8 @@ bool FLNPSurfaceDataLoaderValidationTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Decoded Support is shared into every slot"), Snapshot.Slots[0].Support.IsValid());
 		TestTrue(TEXT("Repeated SurfaceData decodes only once"),
 			Snapshot.Slots[0].Support == Snapshot.Slots[1].Support);
+		TestTrue(TEXT("Repeated Spawn payload decodes only once"),
+			Snapshot.Slots[0].Spawn == Snapshot.Slots[1].Spawn);
 		TestEqual(TEXT("Slot rotation 0 is identity"), Snapshot.Slots[0].SlotRotation, FQuat4d::Identity);
 
 		for (int32 Slot = 0; Slot < Snapshot.Slots.Num(); ++Slot)

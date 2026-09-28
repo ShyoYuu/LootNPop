@@ -133,6 +133,14 @@ snapshot 게시 전에 한 번에 다음을 검사한다.
 - authored anchor 투영·Layer 해석·yaw 보존, random candidate·clearance 생성.
 - Spawn codec 순수 encode/decode와 결정론 테스트. `DataVersion=4`, `BakerSchemaVersion=3`, 세 SurfaceData 재베이크.
 - fixture: 지각·섬·동굴 authored anchor, 잘못된 공중 point, 중복 GUID, unknown SpawnSetId, clearance 부족.
+- 상태(2026-09-28): 완료.
+  - editor-only `ALNPMassSpawnPoint`를 추가했다. 생성 시 GUID를 발급하고 일반 복제·붙여넣기에는 새 GUID를 주며, source semantic hash에 GUID·세트 ID·transform을 포함한다.
+  - production `DA_MassSpawnConfig`의 네 entry를 안정 `SpawnSetId`로 마이그레이션하고 config validation에서 빈 ID·중복 ID·잘못된 수량을 차단한다.
+  - 베이커가 authored anchor를 같은 방향의 가장 가까운 보간 가능 Support Layer로 투영하고 접평면 yaw를 보존한다. random candidate는 안전한 Support raster에서 안정 index 순서로 만들며 Pod·Enemy capsule clearance를 bake-only physics preview world에서 검사한다.
+  - Spawn codec v1은 authored/random 레코드를 canonical 정렬해 little-endian payload로 저장한다. 로더는 descriptor·content hash·decode·element count를 검사하고 같은 SurfaceData를 쓰는 slot끼리 decode 결과를 공유한다.
+  - 지각·섬·동굴 anchor 3개를 회귀 LVI에 배치했다. unknown `SpawnSetId`, 공중 point, 중복 GUID, blocker clearance 부족을 자동화에서 모두 차단했다.
+  - `DataVersion=4`, `BakerSchemaVersion=3`으로 올리고 production/fixture SurfaceData 3개를 다시 구웠다. 마지막 Spawn 레코드는 Crust 10,573개, Regression 10,619개(3 authored + 10,616 random), Meadow 10,538개다.
+  - 전체 에디터 빌드, Spawn 자동화 2/2, 결정론 베이크 1/1, runtime loader 2/2가 통과했다. 세부 로그와 payload 크기는 `../history/Phase05_Log.md`에 기록했다.
 
 ### 구현 단위 3 — Mass spawn 전환
 
