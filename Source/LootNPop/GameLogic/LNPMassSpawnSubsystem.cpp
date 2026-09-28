@@ -1,7 +1,6 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GameLogic/LNPMassSpawnSubsystem.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "DataAsset/LNPMassSpawnConfig.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
@@ -9,7 +8,10 @@
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "Replication/LNPMassReplication.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
+#include "SurfaceNavigation/LNPMassSpawnPlan.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "GameMode/LNPGameState.h"
 #include "LootNPop.h"
 
 #include "Async/Async.h"
@@ -75,7 +77,6 @@ namespace
 void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	RandomStream.GenerateNewSeed();
 
 	// MassReplication(Phase 6/6.5/7): 클라이언트가 접속하기 전에 BubbleInfoClass를 등록해야 한다 (RegisterBubbleInfoClass 문서 제약).
 	// 모든 복제 타입(Enemy·Player·LootPod)이 통합 버블 하나를 공유한다 — 다중 버블은 엔진 파괴 경로가
@@ -277,19 +278,13 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	ActiveConfig = InConfig;
 	SpawnQueue.Empty();
 	AsyncBuildResult.Empty();
+	AsyncBuildError.Reset();
 	CapturedAssets.Empty();
 	SpawnQueueHead = 0;
+	bSpawningFinished = false;
 
 	// UObject 참조를 미리 캡처하고 (게임 Thread 전용) 정수 Index 할당.
 	// pod 세트당 레이아웃: [pod_config, enemy_config_0, enemy_config_1, ...]
-	struct FPodSetBuildParams
-	{
-		int32 PodSetCount;
-		int32 PodAssetIndex;
-		struct FEnemyEntry { int32 Count; int32 AssetIndex; };
-		TArray<FEnemyEntry> Enemies;
-	};
-
 	// 개발용 적 밀도 배수 (기본 1 = no-op). 근거는 CVarSpawnEnemyDensity 주석 참조.
 	const float EnemyDensity = GetEnemySpawnDensity();
 
@@ -329,11 +324,12 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		}
 	}
 
-	TArray<FPodSetBuildParams> SetParams;
+	TArray<FLNPMassSpawnSetPlanInput> SetParams;
 	for (const FLNPLootPodSpawnEntry& PodSet : InConfig->LootPodSpawnSets)
 	{
-		FPodSetBuildParams P;
-		P.PodSetCount = PodSet.PodSetCount;
+		FLNPMassSpawnSetPlanInput P;
+		P.SpawnSetId = PodSet.SpawnSetId;
+		P.RequestedPods = PodSet.PodSetCount;
 		P.PodAssetIndex = CapturedAssets.Num();
 		CapturedAssets.Add(PodSet.LootPodEntityConfig);
 
@@ -351,14 +347,22 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		UE_LOG(LogLootNPop, Warning, TEXT("LNPMassSpawnSubsystem: enemy spawn counts scaled by %.2f (LNP.Spawn.EnemyDensity)."), EnemyDensity);
 	}
 
-	// 표면 Cache의 읽기 전용 Snapshot 획득 — 태스크에서 UObject 접근 불필요
-	ULNPSurfaceCacheSubsystem* SurfaceCache = GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
-	FLNPSurfaceCacheSnapshot CacheSnap = SurfaceCache->TakeSnapshot();
+	// 게시 완료된 8-slot Spawn snapshot만 태스크에 전달한다. UObject나 legacy SurfaceCache는 읽지 않는다.
+	const ULNPSurfaceDataSubsystem* SurfaceData = GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
+	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> SurfaceSnapshot =
+		SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
+	if (!SurfaceSnapshot.IsValid())
+	{
+		UE_LOG(LogLootNPop, Error, TEXT("LNPMassSpawnSubsystem: SurfaceData snapshot is not ready."));
+		return;
+	}
 
 	const float MinDist          = InConfig->MinDistanceBetweenPods;
 	const float EnemyRadius      = InConfig->EnemySpawnRadiusAroundPod;
-	const int32 MaxRetry         = InConfig->MaxRetryCount;
-	const FRandomStream Rand     = bBaseline ? FRandomStream(LNPLoadBaseline::GetSeed()) : RandomStream;
+	const ALNPGameState* GameState = GetWorld()->GetGameState<ALNPGameState>();
+	const int32 WorldSeed = bBaseline
+		? LNPLoadBaseline::GetSeed()
+		: (GameState ? GameState->OctantGenSeed : 0);
 
 	// 부하 harness 배치는 섬 아래 지각과 섬 윗면을 구분해야 해서 exact probe를 쓴다(모든 스레드에서 호출 가능, D-025).
 	const ULNPMassWorldCollisionSubsystem* WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
@@ -368,12 +372,11 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	SpawnBuildFuture = Async(EAsyncExecution::TaskGraph,
 		[this,
 		 Sets    = MoveTemp(SetParams),
-		 Cache   = MoveTemp(CacheSnap),
-		 Rand,
+		 SurfaceSnapshot,
+		 WorldSeed,
 		 SR      = SphereRadius,
 		 MinDist,
 		 EnemyRadius,
-		 MaxRetry,
 		 bBaseline,
 		 BaselineEnemies,
 		 BaselineFlyers,
@@ -381,7 +384,6 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		 BaselineFlyerAssetIndex,
 		 WorldCollision]() mutable
 		{
-			TArray<FVector> OccupiedPods;
 			TArray<FLNPAsyncSpawnEntry> Results;
 
 			if (bBaseline && WorldCollision != nullptr)
@@ -439,117 +441,57 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 				}
 			}
 
-			// FVector::DownVector(0,0,-1) 기준 10도 이내 영역 제외 (PlayerStart 배치 영역)
-			const float CosDownExclude = FMath::Cos(FMath::DegreesToRadians(10.0f));
-
-			for (const auto& Set : Sets)
+			FLNPMassSpawnPlan Plan;
+			FString PlanError;
+			if (!LNPMassSpawnPlanning::BuildPlan(
+				*SurfaceSnapshot, Sets, WorldSeed, MinDist, EnemyRadius, Plan, PlanError))
 			{
-				for (int32 i = 0; i < Set.PodSetCount; ++i)
+				AsyncBuildResult.Empty();
+				AsyncBuildError = MoveTemp(PlanError);
+				return;
+			}
+
+			for (const FLNPMassSpawnSetStats& Stats : Plan.SetStats)
+			{
+				if (Stats.Shortfall > 0 || Stats.EnemyPlaced < Stats.EnemyRequested)
 				{
-					// Cache 조회 + 최소 거리 체크로 LootPod 표면 지점 탐색
-					FVector PodLocation;
-					bool bFoundPod = false;
-					FVector BaseDir = Rand.GetUnitVector();
+					UE_LOG(LogLootNPop, Error,
+						TEXT("LNPMassSpawnSubsystem: set=%s requested=%d authored=%d generic=%d random=%d placed=%d shortfall=%d unused_authored=%d enemy_requested=%d enemy_placed=%d."),
+						*Stats.SpawnSetId.ToString(), Stats.Requested, Stats.Authored, Stats.Generic, Stats.Random,
+						Stats.Placed, Stats.Shortfall, Stats.UnusedAuthored, Stats.EnemyRequested, Stats.EnemyPlaced);
+				}
+				else
+				{
+					UE_LOG(LogLootNPop, Display,
+						TEXT("LNPMassSpawnSubsystem: set=%s requested=%d authored=%d generic=%d random=%d placed=%d shortfall=%d unused_authored=%d enemy_requested=%d enemy_placed=%d."),
+						*Stats.SpawnSetId.ToString(), Stats.Requested, Stats.Authored, Stats.Generic, Stats.Random,
+						Stats.Placed, Stats.Shortfall, Stats.UnusedAuthored, Stats.EnemyRequested, Stats.EnemyPlaced);
+				}
+			}
+			UE_LOG(LogLootNPop, Display, TEXT("LNPMassSpawnSubsystem: unused generic authored anchors=%d."), Plan.UnusedGenericAnchors);
 
-					for (int32 Retry = 0; Retry < MaxRetry; ++Retry)
-					{
-						FVector SearchDir = (Retry == 0) ? BaseDir : (BaseDir + Rand.GetUnitVector() * 0.05f).GetSafeNormal();
-						FVector Candidate;
-						if (!Cache.GetPoint(SearchDir, Candidate))
-							continue;
+			for (FLNPMassSpawnPlannedPod& PlannedPod : Plan.Pods)
+			{
+				TSharedPtr<FLNPSpawnLink> SpawnLink = MakeShared<FLNPSpawnLink>();
+				SpawnLink->PodLocation = PlannedPod.Transform.GetLocation();
 
-						// FVector::DownVector 10도 이내 제외
-						if (FVector::DotProduct(Candidate.GetSafeNormal(), FVector::DownVector) > CosDownExclude)
-							continue;
+				FLNPAsyncSpawnEntry PodEntry;
+				PodEntry.RequestType = ELNPSpawnRequestType::LootPod;
+				PodEntry.AssetIndex = PlannedPod.PodAssetIndex;
+				PodEntry.SpawnLink = SpawnLink;
+				PodEntry.Surface = PlannedPod.Surface;
+				PodEntry.Transforms.Add(PlannedPod.Transform);
+				Results.Add(MoveTemp(PodEntry));
 
-						if (MinDist > 0.0f)
-						{
-							bool bTooClose = false;
-							for (const FVector& Occ : OccupiedPods)
-							{
-								if (FVector::DistSquared(Candidate, Occ) < FMath::Square(MinDist))
-								{
-									bTooClose = true;
-									break;
-								}
-							}
-							if (bTooClose)
-								continue;
-						}
-
-						PodLocation = Candidate;
-						bFoundPod = true;
-						break;
-					}
-
-					if (!bFoundPod)
-						continue;
-
-					OccupiedPods.Add(PodLocation);
-					TSharedPtr<FLNPSpawnLink> SpawnLink = MakeShared<FLNPSpawnLink>();
-					SpawnLink->PodLocation = PodLocation;
-
-					// Pod 항목
-					FLNPAsyncSpawnEntry PodEntry;
-					PodEntry.RequestType = ELNPSpawnRequestType::LootPod;
-					PodEntry.AssetIndex  = Set.PodAssetIndex;
-					PodEntry.SpawnLink   = SpawnLink;
-					FVector PodUp = -PodLocation.GetSafeNormal();
-					PodEntry.Transforms.Add(FTransform(UKismetMathLibrary::MakeRotFromZ(PodUp), PodLocation));
-					Results.Add(MoveTemp(PodEntry));
-
-					// Enemy 항목
-					const FVector PodNormal = PodLocation.GetSafeNormal();
-					for (const auto& EnemySet : Set.Enemies)
-					{
-						FLNPAsyncSpawnEntry EnemyEntry;
-						EnemyEntry.RequestType = ELNPSpawnRequestType::Enemy;
-						EnemyEntry.AssetIndex  = EnemySet.AssetIndex;
-						EnemyEntry.SpawnLink   = SpawnLink;
-
-						TArray<FVector> BatchLocations;
-						for (int32 j = 0; j < EnemySet.Count; ++j)
-						{
-							FVector EnemyPos;
-							bool bFoundSpot = false;
-
-							for (int32 ERetry = 0; ERetry < 10; ++ERetry)
-							{
-								FVector Tangent = Rand.GetUnitVector();
-								Tangent = FVector::VectorPlaneProject(Tangent, PodNormal).GetSafeNormal();
-								float Dist = Rand.FRandRange(400.0f, EnemyRadius);
-								FVector EDir = (PodNormal + (Tangent * (Dist / SR))).GetSafeNormal();
-
-								if (!Cache.GetPoint(EDir, EnemyPos))
-									continue;
-
-								bool bTooClose = false;
-								for (const FVector& OtherPos : BatchLocations)
-								{
-									if (FVector::DistSquared(EnemyPos, OtherPos) < FMath::Square(200.0f))
-									{
-										bTooClose = true;
-										break;
-									}
-								}
-								if (!bTooClose)
-								{
-									bFoundSpot = true;
-									break;
-								}
-							}
-
-							if (bFoundSpot)
-							{
-								BatchLocations.Add(EnemyPos);
-								FVector EUp = -EnemyPos.GetSafeNormal();
-								EnemyEntry.Transforms.Add(FTransform(UKismetMathLibrary::MakeRotFromZ(EUp), EnemyPos));
-							}
-						}
-
-						if (EnemyEntry.Transforms.Num() > 0)
-							Results.Add(MoveTemp(EnemyEntry));
-					}
+				for (FLNPMassSpawnPlannedEnemyGroup& PlannedEnemies : PlannedPod.Enemies)
+				{
+					FLNPAsyncSpawnEntry EnemyEntry;
+					EnemyEntry.RequestType = ELNPSpawnRequestType::Enemy;
+					EnemyEntry.AssetIndex = PlannedEnemies.AssetIndex;
+					EnemyEntry.SpawnLink = SpawnLink;
+					EnemyEntry.Surface = PlannedPod.Surface;
+					EnemyEntry.Transforms = MoveTemp(PlannedEnemies.Transforms);
+					Results.Add(MoveTemp(EnemyEntry));
 				}
 			}
 
@@ -561,6 +503,13 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 void ULNPMassSpawnSubsystem::AssembleSpawnQueueFromAsyncResult()
 {
 	SpawnQueue.Empty();
+	if (!AsyncBuildError.IsEmpty())
+	{
+		UE_LOG(LogLootNPop, Error, TEXT("LNPMassSpawnSubsystem: spawn plan failed: %s"), *AsyncBuildError);
+		AsyncBuildResult.Empty();
+		CapturedAssets.Empty();
+		return;
+	}
 	SpawnQueue.Reserve(AsyncBuildResult.Num());
 
 	for (FLNPAsyncSpawnEntry& Entry : AsyncBuildResult)
@@ -573,6 +522,7 @@ void ULNPMassSpawnSubsystem::AssembleSpawnQueueFromAsyncResult()
 		Req.TargetTransforms = MoveTemp(Entry.Transforms);
 		Req.RequestType     = Entry.RequestType;
 		Req.SpawnLink       = Entry.SpawnLink;
+		Req.Surface         = Entry.Surface;
 		SpawnQueue.Add(MoveTemp(Req));
 	}
 
@@ -635,7 +585,7 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 						ParentLoc = Request.SpawnLink->PodLocation;
 					}
 
-					SetupSpawnedEntities(OutEntities, Slice, ParentPod, ParentLoc);
+					SetupSpawnedEntities(OutEntities, Slice, ParentPod, ParentLoc, Request.Surface);
 				}
 			}
 
@@ -682,7 +632,12 @@ FVector ULNPMassSpawnSubsystem::LiftFlyingSpawn(const ULNPEnemyConfig& Config, c
 	return Hit.bStartPenetrating ? Start : Hit.Location;
 }
 
-void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms, FMassEntityHandle ParentLootPod, const FVector& ParentPodLocation)
+void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
+	TConstArrayView<FMassEntityHandle> Entities,
+	TConstArrayView<FTransform> Transforms,
+	FMassEntityHandle ParentLootPod,
+	const FVector& ParentPodLocation,
+	const FLNPSurfaceHandle& Surface)
 {
 	UWorld* World = GetWorld();
 	check(World);
@@ -727,6 +682,7 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 			{
 				EnemyFragment->ParentLootPod = ParentLootPod;
 				EnemyFragment->ParentPodLocation = ParentPodLocation;
+				EnemyFragment->SurfaceHandle = Surface;
 			}
 		}
 
@@ -735,6 +691,7 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(TConstArrayView<FMassEntityHan
 		if (FLNPLootPodFragment* PodFragment = EntityManager.GetFragmentDataPtr<FLNPLootPodFragment>(Entity))
 		{
 			PodFragment->PodID = NextPodID++;
+			PodFragment->SurfaceHandle = Surface;
 		}
 	}
 	

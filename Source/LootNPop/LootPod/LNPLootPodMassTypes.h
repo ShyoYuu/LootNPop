@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
 #include "MassEntityTraitBase.h"
+#include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "LNPLootPodMassTypes.generated.h"
 
 // 1. LootPod 상태 정의
@@ -58,6 +59,9 @@ struct LOOTNPOP_API FLNPLootPodFragment : public FMassFragment
 	 * 조회가 서버에서만 일어나므로(ALNPLootDice::SpawnPodRewards) 복제하지 않는다.
 	 */
 	int32 PodID = 0;
+
+	/** 초기 배치 지면. 이후 NavComponent와 재귀속 정보의 기준이 된다. */
+	FLNPSurfaceHandle SurfaceHandle;
 };
 
 /** 3. Player 루팅 속도 Fragment — 최초 상호작용 시 부착되어 상주한다. 없는 플레이어는 기본 속도 1.0으로 기여한다. */

@@ -15,11 +15,76 @@
 #include "Engine/StreamableManager.h"
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformMemory.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/PackageName.h"
 
 namespace
 {
 	constexpr int32 SlotCount = 8;
+
+	uint64 GetSupportAllocatedBytes(const FLNPSupportAtlas& Atlas)
+	{
+		uint64 Bytes = sizeof(FLNPSupportAtlas) + Atlas.Layers.GetAllocatedSize() + Atlas.Sources.GetAllocatedSize();
+		for (const FLNPSupportAtlasLayer& Layer : Atlas.Layers)
+		{
+			Bytes += Layer.Layout.Rows.GetAllocatedSize();
+			Bytes += Layer.Layout.RowOffsets.GetAllocatedSize();
+			Bytes += Layer.RadiusQ.GetAllocatedSize();
+			Bytes += Layer.NormalQ.GetAllocatedSize();
+			Bytes += Layer.Flags.GetAllocatedSize();
+		}
+		for (const FLNPSupportAtlasSource& Source : Atlas.Sources)
+		{
+			Bytes += Source.Key.GetAllocatedSize();
+			Bytes += Source.FaceMap.LayerByExternalFace.GetAllocatedSize();
+		}
+		return Bytes;
+	}
+
+	uint64 GetSpawnAllocatedBytes(const FLNPSpawnData& Spawn)
+	{
+		return sizeof(FLNPSpawnData)
+			+ Spawn.AuthoredAnchors.GetAllocatedSize()
+			+ Spawn.RandomCandidates.GetAllocatedSize();
+	}
+
+	uint64 GetDecodedResidentBytes(const FLNPSurfaceDataSnapshot& Snapshot)
+	{
+		uint64 Bytes = sizeof(FLNPSurfaceDataSnapshot) + Snapshot.Slots.GetAllocatedSize();
+		TSet<const FLNPSupportAtlas*> CountedSupport;
+		TSet<const FLNPSpawnData*> CountedSpawn;
+		for (const FLNPSurfaceDataSlotSnapshot& Slot : Snapshot.Slots)
+		{
+			if (const FLNPSupportAtlas* Support = Slot.Support.Get(); Support != nullptr && !CountedSupport.Contains(Support))
+			{
+				CountedSupport.Add(Support);
+				Bytes += GetSupportAllocatedBytes(*Support);
+			}
+			if (const FLNPSpawnData* Spawn = Slot.Spawn.Get(); Spawn != nullptr && !CountedSpawn.Contains(Spawn))
+			{
+				CountedSpawn.Add(Spawn);
+				Bytes += GetSpawnAllocatedBytes(*Spawn);
+			}
+		}
+		return Bytes;
+	}
+
+	uint64 GetSerializedPayloadBytes(TConstArrayView<TObjectPtr<ULNPOctantSurfaceData>> Assets)
+	{
+		uint64 Bytes = 0;
+		for (const ULNPOctantSurfaceData* Asset : Assets)
+		{
+			if (Asset != nullptr)
+			{
+				Bytes += Asset->SupportPayload.GetAllocatedSize();
+				Bytes += Asset->NavigationPayload.GetAllocatedSize();
+				Bytes += Asset->TraversalPayload.GetAllocatedSize();
+				Bytes += Asset->SpawnPayload.GetAllocatedSize();
+			}
+		}
+		return Bytes;
+	}
 
 	bool ValidatePayload(
 		const TCHAR* Name,
@@ -553,6 +618,8 @@ void ULNPSurfaceDataSubsystem::BeginLoading()
 	}
 
 	LoadState = ELNPSurfaceDataLoadState::Loading;
+	LoadStartTimeSeconds = FPlatformTime::Seconds();
+	LoadStartPhysicalBytes = FPlatformMemory::GetStats().UsedPhysical;
 	LoadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
 		Paths,
 		FStreamableDelegate::CreateUObject(this, &ULNPSurfaceDataSubsystem::OnAssetsLoaded),
@@ -615,6 +682,7 @@ void ULNPSurfaceDataSubsystem::OnAssetsLoaded()
 		return;
 	}
 
+	const uint64 DecodedResidentBytes = GetDecodedResidentBytes(Snapshot);
 	PublishedSnapshot = MakeShared<FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe>(MoveTemp(Snapshot));
 	++NextGeneration;
 	bSnapshotReady.store(true, std::memory_order_release);
@@ -624,6 +692,15 @@ void ULNPSurfaceDataSubsystem::OnAssetsLoaded()
 	UE_LOG(LogLootNPop, Log,
 		TEXT("LNPSurfaceDataSubsystem: Published generation %llu with 8 validated slots, %d source bindings, registry generation %u."),
 		PublishedSnapshot->Generation, SourceBindings.Num(), HitIdentity->GetSnapshot()->Generation);
+	const FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
+	UE_LOG(LogLootNPop, Log,
+		TEXT("LNPSurfaceDataSubsystem: Load metrics elapsed=%.2fms serialized=%.2fMiB decodedResident=%.2fMiB processPhysicalStart=%.2fMiB processPhysicalPublish=%.2fMiB processPhysicalPeak=%.2fMiB."),
+		(FPlatformTime::Seconds() - LoadStartTimeSeconds) * 1000.0,
+		GetSerializedPayloadBytes(LoadedAssets) / (1024.0 * 1024.0),
+		DecodedResidentBytes / (1024.0 * 1024.0),
+		LoadStartPhysicalBytes / (1024.0 * 1024.0),
+		MemoryStats.UsedPhysical / (1024.0 * 1024.0),
+		MemoryStats.PeakUsedPhysical / (1024.0 * 1024.0));
 	OnSurfaceDataReady.Broadcast();
 }
 
@@ -712,6 +789,8 @@ void ULNPSurfaceDataSubsystem::Deinitialize()
 	}
 	LoadState = ELNPSurfaceDataLoadState::NotStarted;
 	LastError.Reset();
+	LoadStartTimeSeconds = 0.0;
+	LoadStartPhysicalBytes = 0;
 	bLegacyMultiLayerWarningEmitted.store(false, std::memory_order_relaxed);
 	Super::Deinitialize();
 }

@@ -111,3 +111,54 @@
 - `git diff --check`는 오류 없이 통과했다. 표시된 내용은 기존 checkout의 LF→CRLF 변환 경고뿐이다.
 
 다음은 구현 단위 3: Mass spawn이 8-slot Spawn snapshot을 직접 소비하도록 바꾸고 authored 우선 Pod·enemy 후보 할당과 shortfall 통계를 구현한다.
+
+## 2026-09-28 — 구현 단위 3 완료
+
+### Mass spawn 전환
+
+- 공용 `LNPSurfaceTypes.h`로 `FLNPSurfaceHandle`을 분리하고 Pod·Enemy Mass fragment에 초기 handle을 추가했다.
+- 순수 `FLNPMassSpawnPlan`이 immutable 8-slot Spawn snapshot을 world 후보로 조립한다. 후보를 안정 정렬한 뒤 world seed로 shuffle하며, 특정 세트 authored → 일반 authored → random 순서로 Pod를 배정한다.
+- marker는 `PodSetCount`를 늘리지 않는다. random Pod는 이미 고른 모든 Pod와 `MinDistanceBetweenPods`를 지키고, enemy 후보는 같은 slot·`LocalLayerId`·반경 안에서 단일 사용하며 200cm 간격을 지킨다.
+- 세트별 requested/authored/generic/random/placed/shortfall/unused authored와 enemy requested/placed를 보고한다. 기존 `MaxSpawnsPerFrame`, Pod link, PodID, density CVar, 비행 고도 보정과 부하 harness는 유지했다.
+
+### 검증
+
+- `Runtime.MassSpawnPlanning` 자동화 성공. unknown `SpawnSetId`, authored 거리 위반, 우선순위·총량·enemy Layer 규약을 검사한다.
+- `LootNPopEditor Win64 Development` 전체 빌드와 runtime 자동화 3/3 성공.
+- 에디터 `-game`에서 production 네 세트 74+20+16+10=120 Pod, shortfall 0, Mass spawn 완료를 확인했다.
+
+## 2026-09-28 — 구현 단위 4 완료
+
+- `ALNPGameMode::OnSurfaceDataReady()`가 바로 `BeginEntitySpawning()`을 호출한다. production `ULNPSurfaceCacheSubsystem::BeginBaking()`과 `OnBakingComplete` 경로를 제거했다.
+- 적 이동 fallback, Idle StateTree fallback, 부하 baseline projectile, exact oracle을 `ULNPSurfaceDataSubsystem::GetSurfacePoint()` Layer 0 adapter로 옮겼다.
+- 에디터 `-game`에서 snapshot publish 뒤 약 51ms에 Mass spawn이 끝났고 legacy "Surface cache baking complete" 로그와 runtime trace bake는 없었다. load baseline과 `ProbeFaceIndex`·`ProbeSourceKeys`·`ProbeSurfaceData`가 모두 통과했다.
+
+## 2026-09-28 — 구현 단위 5와 Phase 5 종료
+
+### stale gate와 베이크 결정론 보정
+
+- `Bake.OctantBakeDeterministic`를 CI cook 전 freshness gate로 사용한다. plain BuildCookRun에 별도 validator를 넣지는 않았으며, 패키지는 이 자동화 통과 뒤 만든다. 런타임 게시 전 validator가 codec/DataVersion·descriptor/hash·seam·source key를 다시 검사한다.
+- 전체 스위트에서만 Meadow Spawn 후보가 10,538→9,990으로 달라지는 순서 의존성을 발견했다. Spawn clearance preview가 비동기 컴파일 중인 PCG blocker Static Mesh를 probe로 등록해 일부 collision을 놓친 것이 원인이었다.
+- preview 입력에서 transient/editor-only actor·component를 제외하고, 각 Static Mesh의 비동기 compile을 완료한 뒤 probe를 만든다. 새 프로세스와 워밍된 전체 스위트가 모두 9,990 candidates를 만든다.
+- production `DA_OctantSurface_Meadow_00`을 Spawn 9,990 records·359,652 B로 다시 구웠다. 로그 `Saved/Logs/Phase05_Unit5_Meadow_Rebake.log`.
+
+### 종료 검증
+
+- `LootNPopEditor Win64 Development` 전체 빌드 성공.
+- `LootNPop.SurfaceNavigation` 전체 자동화 59/59 성공. 로그 `Saved/Logs/Phase05_Unit5_AllAutomation.log`. 자동화가 다시 저장한 테스트 uasset 3개는 HEAD로 원복했다.
+- Win64 Development BuildCookRun 성공: build·full cook 972 packages·stage·pak·package, 오류 0. 기존 Lyra Mannequin 누락 Material Function 경고만 남았다.
+- 패키지 1P: 네 SpawnSet 120 Pod·shortfall 0, baseline·face index·source key·SurfaceData probe PASS, legacy bake 로그 없음. 로그 `Saved/Logs/Phase05_Unit5_Package.log`.
+- 패키지 리슨 2P: host와 guest 모두 baseline PASS, query 8/8, bindings 88/88, SurfaceData generation 1. 로그 `Saved/Logs/Phase05_Unit5_2P_Host.log`·`Phase05_Unit5_2P_Guest.log`.
+
+### load·memory 계측
+
+| 실행 | load→publish | serialized | decoded resident | process physical start→publish | process peak |
+|:---|---:|---:|---:|---:|---:|
+| 패키지 1P | 17.85ms | 2.86MiB | 2.97MiB | 488.35→501.97MiB | 501.97MiB |
+| 패키지 2P host | 15.89ms | 2.86MiB | 2.97MiB | 488.10→500.98MiB | 500.98MiB |
+| 패키지 2P guest | 14.44ms | 2.86MiB | 2.97MiB | 561.39→576.28MiB | 576.85MiB |
+
+- `serialized`와 `decoded resident`는 같은 SurfaceData를 8 slot이 공유하는 것을 중복 제외한 값이다.
+- `process peak`은 decode 전용 순간 peak가 아니라 해당 프로세스 실행 전역 상한이다. decoded resident는 snapshot과 고유 Support/Spawn 배열의 allocator 크기 합이다.
+
+Phase 5 완료. 다음은 Phase 6 실행 계획 작성과 Enemy 접지·공중·넉백 전환이다.

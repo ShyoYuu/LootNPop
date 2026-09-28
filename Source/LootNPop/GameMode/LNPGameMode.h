@@ -48,7 +48,7 @@ private:
 	void OnSurfaceDataReady();
 
 	UFUNCTION()
-	void OnSurfaceBakingComplete();
+	void BeginEntitySpawning();
 
 	UFUNCTION()
 	void OnEntitySpawningComplete();

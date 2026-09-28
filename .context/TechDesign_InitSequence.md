@@ -2,7 +2,7 @@
 
 ## 1. 한눈에 보기
 
-월드는 **옥탄트 월드 생성 → SurfaceData snapshot 게시 → Mass 엔티티 스폰**이 끝나야 플레이 가능하다. 서버가 순서를 주도하고 클라이언트는 복제 신호에 반응한다. Phase 5 전환 중에는 Mass spawn만 아직 legacy SurfaceCache snapshot을 요구하므로 서버가 새 snapshot 게시 뒤 임시 runtime bake를 이어서 실행한다.
+월드는 **옥탄트 월드 생성 → SurfaceData snapshot 게시 → Mass 엔티티 스폰**이 끝나야 플레이 가능하다. 서버가 순서를 주도하고 클라이언트는 복제 신호에 반응한다. Phase 5부터 정상 초기화에는 legacy SurfaceCache runtime bake가 없으며 Support/Spawn payload를 게시한 snapshot이 직접 Mass spawn 입력이 된다.
 
 - 서버(`ALNPGameMode`)가 단계를 진행하고 `ALNPGameState::ServerPhase` 복제로 전파한다.
 - 클라이언트는 OnRep 콜백에서 로컬 작업(월드 생성·SurfaceData 로드)을 한다.
@@ -11,7 +11,7 @@
 | 단계 (`ELNPInitPhase`) | 담당 |
 |:---|:---|
 | `WorldGeneration` | `ULNPOctantSpawnSubsystem` |
-| `SurfaceBaking` | `ULNPSurfaceDataSubsystem` 게시, 이후 서버만 임시 `ULNPSurfaceCacheSubsystem` bake |
+| `SurfaceBaking` | `ULNPSurfaceDataSubsystem` load·검증·decode·source binding·snapshot 게시(호환을 위해 enum 이름 유지) |
 | `EntitySpawning` | `ULNPMassSpawnSubsystem` (서버 전용) |
 | `Complete` | — |
 
@@ -38,12 +38,9 @@ OnWorldGenerationComplete()
 └─ SurfaceDataSubsystem::BeginLoading()
         ▼ 8-slot asset load·검증·decode·source binding·snapshot 게시
 OnSurfaceDataReady()
-└─ SurfaceCacheSubsystem::BeginBaking() ──────────────── (Phase 5 구현 단위 3까지의 서버 임시 경로)
-        ▼ Tick 분할 비동기 트레이스 → 전체 콜백 수집
-OnSurfaceBakingComplete()
 ├─ ServerPhase = EntitySpawning ──────────────────────── (복제)
 └─ MassSpawnSubsystem::BeginSpawning()
-        │ SurfaceCache 스냅샷 + TaskGraph에서 위치 계산 → 게임 스레드에서 큐 조립
+        │ immutable Spawn snapshot + TaskGraph에서 위치 계획 → 게임 스레드에서 큐 조립
         ▼ Tick마다 MaxSpawnsPerFrame씩 스폰
 OnEntitySpawningComplete()
 ├─ ServerPhase = Complete ────────────────────────────── (복제)
@@ -132,4 +129,4 @@ SurfaceData 로드 시작에는 복제 신호(서버 페이즈)와 로컬 이벤
 
 - **라운드 재시작:** 멀티 판 세션 관리(승리 → 리셋 → 재초기화)는 미구현이다. SurfaceData generation을 교체하려면 Mass worker 접근을 먼저 멈추는 lifecycle gate가 필요하다.
 - **로딩 진행률 UI:** `GetLoadProgress()`가 asset load 진행률을 제공하지만, 로딩 스크린(`ShowLoadingScreen`/`HideLoadingScreen` — BlueprintImplementableEvent)에 게이지로 표시하는 연동은 없다.
-- **초기화 실패 처리:** 옥탄트 로드 실패·트레이스 전체 미스 등에 재시도/에러 플로우가 없다.
+- **초기화 실패 처리:** 옥탄트 로드 또는 SurfaceData 검증 실패에 재시도/사용자 에러 UI가 없다. SurfaceData는 빈 결과로 계속 진행하지 않고 `Failed`로 끝나 match 진입을 막는다.
