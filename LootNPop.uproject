@@ -312,6 +312,10 @@
 		{
 			"Name": "MeshPartitionWater",
 			"Enabled": true
+		},
+		{
+			"Name": "GeometryProcessing",
+			"Enabled": true
 		}
 	]
 }

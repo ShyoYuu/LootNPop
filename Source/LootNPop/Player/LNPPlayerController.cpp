@@ -7,7 +7,7 @@
 #include "UI/Menu/LNPUILayoutWidget.h"
 #include "Character/LNPCharacterBase.h"
 #include "Character/LNPInputHandlerComponent.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "GameMode/LNPGameMode.h"
 #include "GameMode/LNPGameState.h"
 #include "Player/LNPPlayerState.h"
@@ -179,21 +179,21 @@ void ALNPPlayerController::BeginPlay()
 	UWorld* World = GetWorld();
 	check(World);
 
-	if (ULNPSurfaceCacheSubsystem* SurfaceSub = World->GetSubsystem<ULNPSurfaceCacheSubsystem>())
+	if (ULNPSurfaceDataSubsystem* SurfaceData = World->GetSubsystem<ULNPSurfaceDataSubsystem>())
 	{
-		if (SurfaceSub->GetBakingProgress() >= 1.0f)
+		if (SurfaceData->IsReady())
 		{
-			// 베이킹 이미 완료됨 (예: 리슨 서버 로컬 Player)
-			OnLocalBakingComplete();
+			// snapshot이 이미 게시됨(예: 리슨 서버 로컬 Player).
+			OnLocalSurfaceDataReady();
 		}
 		else
 		{
-			SurfaceSub->OnBakingComplete.AddDynamic(this, &ALNPPlayerController::OnLocalBakingComplete);
+			SurfaceData->OnSurfaceDataReady.AddDynamic(this, &ALNPPlayerController::OnLocalSurfaceDataReady);
 		}
 	}
 }
 
-void ALNPPlayerController::OnLocalBakingComplete()
+void ALNPPlayerController::OnLocalSurfaceDataReady()
 {
 	bLoadingComplete = true;
 	HideLoadingScreen();

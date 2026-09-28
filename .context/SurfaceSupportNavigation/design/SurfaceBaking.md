@@ -81,6 +81,15 @@ source hash·통계·오류 기록
 ULNPOctantSurfaceData 저장
 ```
 
+### Mass Spawn stream(Phase 5)
+
+Mass Spawn stream은 LVI에 수동 배치한 Pod 세트 앵커와 베이커가 만든 절차 후보를 분리해 저장한다(D-059). 수동 앵커는 `SpawnPointId`, 선택적 `SpawnSetId`, 옥탄트 로컬 transform, Support `LocalLayerId`, clearance를 가진다. 절차 후보는 안정 index, 위치·법선, Layer, slope·edge·capsule clearance와 Pod/Enemy 허용 비트를 가진다.
+
+- 수동 앵커와 절차 후보 모두 같은 정적 Support geometry에서 검증하지만, runtime 선택을 위해 Support 샘플을 다시 훑거나 scene trace를 하지 않는다.
+- LVI의 point 수는 spawn 총량이 아니다. `DA_MassSpawnConfig`가 정한 총량 안에서 수동 앵커가 먼저 소비되고 부족분만 절차 후보가 채운다.
+- marker transform과 ID·세트 지정, 후보 생성 설정은 stale hash 입력이다.
+- codec과 할당 규약의 원본은 `../phases/Phase05_RuntimeLoader.md` §3.3~§3.5다.
+
 ### Support Atlas 파라미터화
 
 기본 지각은 등장방형 대신 옥탄트 단위 octahedral 삼각 파라미터화를 사용한다(Phase 4a 확정, 아래 "지각 Atlas 규약").

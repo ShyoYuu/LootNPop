@@ -148,6 +148,8 @@ EntitySpawning
 Complete
 ```
 
+`EntitySpawning`의 Mass 초기 배치는 Phase 5부터 SurfaceData의 Spawn stream을 사용한다(D-059). 서버는 LVI authored Pod 세트 앵커를 먼저 소비하고 부족분만 절차 후보로 채운다. 총량과 편성은 `DA_MassSpawnConfig`가 소유하며 클라이언트는 Spawn stream을 로드하되 Mass 스폰을 실행하지 않는다.
+
 런타임은 source hash를 재계산하지 않는다(D-029). 런타임에는 cooked 패키지만 있어 에디터 source 패키지의 saved hash를 다시 만들 수 없기 때문이다. stale 검출은 cook·CI에서 source manifest와 header hash를 비교해 차단 오류로 처리한다.
 
 Enum 이름 변경으로 네트워크 초기화가 한 번에 깨지는 것을 피하기 위해 첫 전환에서는 기존 `SurfaceBaking` 이름을 유지하고 내부 의미만 로딩으로 바꿀 수 있다. 전체 소비자 전환 후 이름을 정리한다.
@@ -172,6 +174,7 @@ Enum 이름 변경으로 네트워크 초기화가 한 번에 깨지는 것을 �
 - 완료 전 Mass 조회는 `NotReady`
 - 완료 시 release store로 snapshot 게시
 - worker는 acquire 후 read-only 접근
+- 게시 직전에 runtime Support component key를 저장된 source 표와 전부 연결하고 hit identity registry에 같은 SurfaceData generation을 먼저 게시한다. ready release store를 본 reader는 두 snapshot이 모두 준비된 상태만 본다
 - 진행 중 snapshot payload 수정 금지
 - 매치 중 바뀌는 overlay snapshot은 Mass phase 경계의 게임 스레드 지점에서만 교체
 - 매치 리셋은 Mass 접근을 중단하는 별도 lifecycle gate 뒤에 수행

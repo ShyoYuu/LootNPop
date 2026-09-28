@@ -70,12 +70,12 @@
 
 - component 하나가 여러 disconnected Support Layer를 만들 수 있으므로 component→Layer 단일 매핑은 금지한다.
 - complex collision은 `FaceIndex`, ISM·HISM은 hit item/instance index를 함께 사용한다. Nanite/fallback collision에서 식별자가 안정적인지는 Phase 3 Gate 0과 Phase 4a에서 각각 검증한다.
-- Phase 3은 identity 추출과 static/dynamic 의미 분류까지만 요구한다. 실제 `(slot, LocalLayerId)` binding은 Phase 4가 face/instance→Layer 표를 만들고 Phase 5 snapshot이 게시할 때 추가한다.
+- Phase 3은 identity 추출과 static/dynamic 의미 분류까지 구현했고, Phase 5의 `ULNPSurfaceDataSubsystem`이 snapshot 게시 직전에 실제 `(slot, LocalLayerId)` binding을 추가한다.
 - face→Layer 표(Phase 4b)는 SurfaceData Support payload의 source 표에 있다. 형식 원본은 `SurfaceBaking.md` "다층 Atlas 규약"이다.
   - source는 `<Actor FName>.<Component FName>` key로 찾는다. slot Level Instance의 component는 outer 경로가 달라지므로 경로를 쓰지 않는다.
   - 표의 키는 hit `FaceIndex` 그대로다. 엔진이 trimesh 내부 face 번호를 원본 mesh 삼각형 번호(external index)로 바꿔 돌려주므로 추출기 내부 순서와 다르다(`Fixture_Crust` 지각 9,209개 중 9,208개가 다름). Development 패키지 리슨 2P에서도 `FaceIndex`가 모두 유효했다(`LNP.SurfaceNav.ProbeFaceIndex`).
   - 표는 source마다 컴포넌트 단위 값 하나이거나 face 단위 `uint16` 배열이다. None(0xFFFF)은 non-walkable face라 Layer가 아니다. 지각은 non-walkable face도 Layer 0이다.
-  - 해석 경로(hit component → key → source 표 → `FLNPSupportFaceMap::Resolve`)가 `QueryLayers`와 같은 Layer를 내는지는 자동화 `WorldCollision.LayerIdentity`가 검사한다(`RegressionMap.md` §3). Phase 5 registry는 key 대응을 등록 시점에 미리 풀어 두고 worker에서는 표만 읽는다.
+  - 해석 경로(hit component → key → source 표 → `FLNPSupportFaceMap::Resolve`)가 `QueryLayers`와 같은 Layer를 내는지는 자동화 `WorldCollision.LayerIdentity`가 검사한다(`RegressionMap.md` §3). Phase 5 registry는 slot별 runtime key의 missing·duplicate·unexpected source를 게시 전에 차단하고, entry에 immutable Atlas shared pointer와 source index를 저장한다. worker에서는 UObject나 문자열을 보지 않고 face 표만 읽으며 결과에 SurfaceData generation을 함께 싣는다.
 - query wrapper는 engine hit에서 registry key를 추출한 뒤 POD 의미 결과만 worker 호출자에게 돌려준다. UObject tag, Actor class, component property를 worker에서 읽지 않는다.
 - registry가 hit를 해석하지 못하면 임의 Layer로 스냅하지 않고 `UnknownExactSurface`를 반환한다. 착지는 보수적으로 처리하고 진단 counter를 증가시킨다.
 - registry는 Level Instance와 component lifetime보다 짧지 않아야 하며 match reset·stream unload 전에 Mass lifecycle gate로 worker 접근을 중단한다.

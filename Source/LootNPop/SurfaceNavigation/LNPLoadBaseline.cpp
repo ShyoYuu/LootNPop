@@ -1043,4 +1043,8 @@ void ULNPLoadBaselineSubsystem::Report()
 	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbePanels"));
 	// face→Layer 표(D-037)는 cooked trimesh의 external face 표에 기댄다. 패키지에서도 FaceIndex가 나오는지 확인한다.
 	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeFaceIndex"));
+	// Phase 5 registry가 베이크 face 표를 runtime component에 연결할 수 있도록 Level Instance에서도 source key가 유지되는지 확인한다.
+	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeSourceKeys"));
+	// 새 Support snapshot의 8-slot 역회전 조회와 hit registry generation/binding 수를 함께 확인한다.
+	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeSurfaceData"));
 }

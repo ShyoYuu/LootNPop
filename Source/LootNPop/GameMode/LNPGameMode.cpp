@@ -5,6 +5,7 @@
 #include "Player/LNPPlayerState.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "GameLogic/LNPWorldDeviceSpawnSubsystem.h"
 #include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
@@ -54,7 +55,18 @@ void ALNPGameMode::OnWorldGenerationComplete()
 	ALNPGameState* GS = World->GetGameState<ALNPGameState>();
 	GS->ServerPhase = ELNPInitPhase::SurfaceBaking;
 
-	if (ULNPSurfaceCacheSubsystem* SurfaceSub = World->GetSubsystem<ULNPSurfaceCacheSubsystem>())
+	if (ULNPSurfaceDataSubsystem* SurfaceData = World->GetSubsystem<ULNPSurfaceDataSubsystem>())
+	{
+		SurfaceData->OnSurfaceDataReady.AddDynamic(this, &ALNPGameMode::OnSurfaceDataReady);
+		SurfaceData->BeginLoading();
+	}
+}
+
+void ALNPGameMode::OnSurfaceDataReady()
+{
+	// Phase 5 구현 단위 3까지 Mass spawn은 legacy SurfaceCache snapshot을 소비한다.
+	// 새 Support snapshot과 hit registry가 원자적으로 준비된 뒤에만 임시 runtime bake를 시작한다.
+	if (ULNPSurfaceCacheSubsystem* SurfaceSub = GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>())
 	{
 		SurfaceSub->OnBakingComplete.AddDynamic(this, &ALNPGameMode::OnSurfaceBakingComplete);
 		SurfaceSub->BeginBaking();

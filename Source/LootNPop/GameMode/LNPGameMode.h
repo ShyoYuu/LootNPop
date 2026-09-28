@@ -31,7 +31,7 @@ public:
 	 */
 	virtual bool ShouldSpawnAtStartSpot(AController* Player) override { return false; }
 
-	/** 클라이언트의 로컬 베이킹이 완료되면 RPC를 통해 호출된다 */
+	/** 클라이언트의 로컬 SurfaceData snapshot 게시가 완료되면 RPC를 통해 호출된다. */
 	void OnClientReady(ALNPPlayerController* PC);
 
 	/** 사망한 컨트롤러의 리스폰을 Delay 초 뒤로 예약한다. 서버 전용. */
@@ -43,6 +43,9 @@ private:
 
 	UFUNCTION()
 	void OnWorldGenerationComplete();
+
+	UFUNCTION()
+	void OnSurfaceDataReady();
 
 	UFUNCTION()
 	void OnSurfaceBakingComplete();

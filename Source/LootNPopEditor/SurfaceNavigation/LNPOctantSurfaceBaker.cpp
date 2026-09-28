@@ -9,6 +9,7 @@
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Config/LNPSettings.h"
+#include "DataAsset/LNPOctantPoolData.h"
 #include "DataAsset/LNPOctantSurfaceData.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -168,11 +169,89 @@ namespace LNPOctantSurfaceBaker
 		}
 	}
 
+	void LinkPoolSurfaceData(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 1)
+		{
+			UE_LOG(LogLNPSurfaceBake, Error,
+				TEXT("Usage: LNP.SurfaceNav.LinkPoolSurfaceData [SeamSignature]"));
+			return;
+		}
+
+		const FName SeamSignature = Args.IsEmpty() ? FName(TEXT("DysonSphere_R300m_V1")) : FName(*Args[0]);
+		if (SeamSignature.IsNone())
+		{
+			UE_LOG(LogLNPSurfaceBake, Error, TEXT("[LinkPoolSurfaceData] SeamSignature must not be None."));
+			return;
+		}
+
+		const ULNPSettings* Settings = GetDefault<ULNPSettings>();
+		ULNPOctantPoolData* Pool = Settings ? Settings->OctantPool.LoadSynchronous() : nullptr;
+		if (Pool == nullptr || Pool->OctantDefinitions.IsEmpty())
+		{
+			UE_LOG(LogLNPSurfaceBake, Error,
+				TEXT("[LinkPoolSurfaceData] Production pool is missing or still uses the legacy OctantPool list."));
+			return;
+		}
+
+		Pool->Modify();
+		for (int32 Index = 0; Index < Pool->OctantDefinitions.Num(); ++Index)
+		{
+			FLNPOctantDefinition& Definition = Pool->OctantDefinitions[Index];
+			if (Definition.LevelAsset.IsNull())
+			{
+				UE_LOG(LogLNPSurfaceBake, Error,
+					TEXT("[LinkPoolSurfaceData] Definition %d has no LevelAsset; pool was not saved."), Index);
+				return;
+			}
+
+			const FString SurfacePackage = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(
+				Definition.LevelAsset.ToSoftObjectPath());
+			const FString SurfaceAssetName = FPackageName::GetShortName(SurfacePackage);
+			const FSoftObjectPath SurfacePath(FString::Printf(
+				TEXT("%s.%s"), *SurfacePackage, *SurfaceAssetName));
+			ULNPOctantSurfaceData* SurfaceData = Cast<ULNPOctantSurfaceData>(SurfacePath.TryLoad());
+			if (SurfaceData == nullptr)
+			{
+				UE_LOG(LogLNPSurfaceBake, Error,
+					TEXT("[LinkPoolSurfaceData] Definition %d expected missing asset %s; pool was not saved."),
+					Index, *SurfacePath.ToString());
+				return;
+			}
+
+			Definition.SurfaceData = TSoftObjectPtr<ULNPOctantSurfaceData>(SurfacePath);
+			Definition.SeamSignature = SeamSignature;
+			UE_LOG(LogLNPSurfaceBake, Display,
+				TEXT("[LinkPoolSurfaceData] Definition %d %s -> %s Seam=%s"),
+				Index, *Definition.LevelAsset.ToString(), *SurfacePath.ToString(), *SeamSignature.ToString());
+		}
+
+		UPackage* Package = Pool->GetOutermost();
+		Package->MarkPackageDirty();
+		const FString Filename = FPackageName::LongPackageNameToFilename(
+			Package->GetName(), FPackageName::GetAssetPackageExtension());
+		FSavePackageArgs SaveArgs;
+		SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+		if (!UPackage::SavePackage(Package, Pool, *Filename, SaveArgs))
+		{
+			UE_LOG(LogLNPSurfaceBake, Error, TEXT("[LinkPoolSurfaceData] Failed to save %s."), *Filename);
+			return;
+		}
+		UE_LOG(LogLNPSurfaceBake, Display,
+			TEXT("[LinkPoolSurfaceData] Saved %d definitions to %s."), Pool->OctantDefinitions.Num(), *Filename);
+	}
+
 	static FAutoConsoleCommand Command(
 		TEXT("LNP.SurfaceNav.BakeOctant"),
 		TEXT("Bake the multi-layer Support Atlas of an octant LVI into DA_OctantSurface_<Name> next to it and save it. ")
 		TEXT("Usage: LNP.SurfaceNav.BakeOctant <LevelPath>"),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&Run));
+
+	static FAutoConsoleCommand LinkPoolCommand(
+		TEXT("LNP.SurfaceNav.LinkPoolSurfaceData"),
+		TEXT("Link each production octant definition to its sibling DA_OctantSurface asset and save the pool. ")
+		TEXT("Usage: LNP.SurfaceNav.LinkPoolSurfaceData [SeamSignature]"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&LinkPoolSurfaceData));
 }
 
 FString FLNPOctantBakeReport::ToString() const

@@ -2,6 +2,7 @@
 
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "LootPod/LNPLootPodCollisionProxy.h"
 #include "LootNPop.h"
@@ -160,6 +161,73 @@ void ULNPHitIdentitySubsystem::UnregisterRuntimeSource(UPrimitiveComponent* Comp
 	}
 }
 
+bool ULNPHitIdentitySubsystem::PublishSurfaceBindings(
+	const uint64 SurfaceDataGeneration,
+	const TConstArrayView<FLNPSurfaceSourceBinding> Bindings,
+	FString& OutError)
+{
+	check(IsInGameThread());
+	OutError.Reset();
+	if (SurfaceDataGeneration == 0)
+	{
+		OutError = TEXT("Surface binding generation must be non-zero.");
+		return false;
+	}
+
+	RefreshSlotSources();
+	TSet<TWeakObjectPtr<UPrimitiveComponent>> Seen;
+	for (const FLNPSurfaceSourceBinding& Binding : Bindings)
+	{
+		UPrimitiveComponent* Component = Binding.Component.Get();
+		if (Component == nullptr)
+		{
+			OutError = TEXT("Surface binding contains an invalid runtime component.");
+			return false;
+		}
+		if (Seen.Contains(Component))
+		{
+			OutError = FString::Printf(TEXT("Surface binding contains component %s more than once."), *GetPathNameSafe(Component));
+			return false;
+		}
+		Seen.Add(Component);
+
+		FLNPExactSourceEntry* Entry = SlotSources.Find(Component);
+		if (Entry == nullptr)
+		{
+			OutError = FString::Printf(TEXT("Surface source %s is not registered as an exact slot source."), *GetPathNameSafe(Component));
+			return false;
+		}
+		if (Entry->Slot != Binding.Slot || (Entry->Roles & ELNPExactSourceRole::Support) == 0)
+		{
+			OutError = FString::Printf(TEXT("Surface source %s has slot/role mismatch (registry slot %d, binding slot %d, roles %u)."),
+				*GetPathNameSafe(Component), Entry->Slot, Binding.Slot, Entry->Roles);
+			return false;
+		}
+		if (!Binding.Support.IsValid() || !Binding.Support->Sources.IsValidIndex(Binding.SourceIndex))
+		{
+			OutError = FString::Printf(TEXT("Surface source %s has an invalid Atlas source binding."), *GetPathNameSafe(Component));
+			return false;
+		}
+	}
+
+	for (TPair<TWeakObjectPtr<UPrimitiveComponent>, FLNPExactSourceEntry>& Pair : SlotSources)
+	{
+		Pair.Value.Support.Reset();
+		Pair.Value.SupportSourceIndex = INDEX_NONE;
+	}
+	for (const FLNPSurfaceSourceBinding& Binding : Bindings)
+	{
+		FLNPExactSourceEntry& Entry = SlotSources.FindChecked(Binding.Component);
+		Entry.Support = Binding.Support;
+		Entry.SupportSourceIndex = Binding.SourceIndex;
+	}
+
+	BoundSurfaceDataGeneration = SurfaceDataGeneration;
+	bDirty = false;
+	Publish();
+	return true;
+}
+
 void ULNPHitIdentitySubsystem::RefreshSlotSources()
 {
 	TArray<TWeakObjectPtr<ULevel>> CurrentSlotLevels;
@@ -185,6 +253,7 @@ void ULNPHitIdentitySubsystem::RefreshSlotSources()
 	// 생성 재시작·언로드도 여기로 온다. 이전 slot의 source는 모두 버린다.
 	RegisteredSlotLevels = CurrentSlotLevels;
 	SlotSources.Reset();
+	BoundSurfaceDataGeneration = 0;
 	bDirty = true;
 
 	const double StartSeconds = FPlatformTime::Seconds();
@@ -256,6 +325,7 @@ void ULNPHitIdentitySubsystem::Publish()
 	}
 
 	NewSnapshot->Generation = Snapshot->Generation + 1;
+	NewSnapshot->SurfaceDataGeneration = BoundSurfaceDataGeneration;
 	Snapshot = NewSnapshot;
 }
 
@@ -288,6 +358,7 @@ void ULNPHitIdentitySubsystem::Deinitialize()
 	SlotSources.Reset();
 	RuntimeSources.Reset();
 	RegisteredSlotLevels.Reset();
+	BoundSurfaceDataGeneration = 0;
 	Snapshot = MakeShared<FLNPHitIdentitySnapshot, ESPMode::ThreadSafe>();
 
 	Super::Deinitialize();
@@ -297,6 +368,7 @@ FLNPExactHitIdentity ULNPHitIdentitySubsystem::ResolveHit(const FLNPHitIdentityS
 {
 	FLNPExactHitIdentity Identity;
 	Identity.RegistryGeneration = InSnapshot.Generation;
+	Identity.SurfaceDataGeneration = InSnapshot.SurfaceDataGeneration;
 	Identity.FaceIndex = Hit.FaceIndex;
 
 	const FLNPExactSourceEntry* Entry = InSnapshot.Sources.Find(Hit.Component);
@@ -321,6 +393,10 @@ FLNPExactHitIdentity ULNPHitIdentitySubsystem::ResolveHit(const FLNPHitIdentityS
 	Identity.Roles = Entry->Roles;
 	Identity.Slot = Entry->Slot;
 	Identity.MarkerId = Entry->MarkerId;
+	if (Entry->HasSupportFaceMap())
+	{
+		Identity.LocalLayerId = Entry->Support->Sources[Entry->SupportSourceIndex].FaceMap.Resolve(Hit.FaceIndex);
+	}
 	return Identity;
 }
 

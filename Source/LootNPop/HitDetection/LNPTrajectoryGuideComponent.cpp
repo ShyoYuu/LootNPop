@@ -5,9 +5,9 @@
 #include "HitDetection/LNPProjectileMotion.h"
 #include "Character/LNPCharacterBase.h"
 #include "Character/LNPInputHandlerComponent.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "Item/LNPWeaponData.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 
 #include "Components/DecalComponent.h"
 #include "NiagaraComponent.h"
@@ -63,8 +63,8 @@ void ULNPTrajectoryGuideComponent::TickComponent(float DeltaTime, ELevelTick Tic
 	}
 
 	const UWorld* World = GetWorld();
-	const ULNPSurfaceCacheSubsystem* SurfaceCache = World ? World->GetSubsystem<ULNPSurfaceCacheSubsystem>() : nullptr;
-	if (nullptr == SurfaceCache)
+	const ULNPSurfaceDataSubsystem* SurfaceData = World ? World->GetSubsystem<ULNPSurfaceDataSubsystem>() : nullptr;
+	if (nullptr == SurfaceData || !SurfaceData->IsReady())
 	{
 		HideGuide();
 		return;
@@ -79,10 +79,9 @@ void ULNPTrajectoryGuideComponent::TickComponent(float DeltaTime, ELevelTick Tic
 	const FVector Direction = LNPFireGeometry::ResolveAimDirection(Muzzle, Character->GetBaseAimRotation().Vector(),
 		bHasAimPoint ? &AimPoint : nullptr);
 
-	// SurfaceCache 베이크 완료는 옥탄트 로드 완료의 신호로만 쓴다. 로드 전에 그리면 궤적이 수명 끝까지 뻗는다.
+	// SurfaceData snapshot 준비를 옥탄트와 exact registry 준비 신호로 쓴다. 준비 전에 그리면 궤적이 수명 끝까지 뻗는다.
 	const ULNPMassWorldCollisionSubsystem* WorldCollision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-	FVector SurfaceProbe;
-	if (nullptr == WorldCollision || !SurfaceCache->GetSurfacePoint(Muzzle.GetSafeNormal(), SurfaceProbe))
+	if (nullptr == WorldCollision)
 	{
 		HideGuide();
 		return;

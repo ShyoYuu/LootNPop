@@ -2,7 +2,7 @@
 
 #include "LNPGameState.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "LootNPop.h"
 
 #include "Net/UnrealNetwork.h"
@@ -42,30 +42,30 @@ void ALNPGameState::OnRep_ServerPhase()
 {
 	UE_LOG(LogLootNPop, Log, TEXT("LNPGameState: Server phase changed to %d"), (int32)ServerPhase);
 
-	if (ServerPhase == ELNPInitPhase::SurfaceBaking)
+	if (ServerPhase >= ELNPInitPhase::SurfaceBaking)
 	{
-		// 조건 1 충족. 클라이언트 Octant도 준비된 경우에만 베이킹.
-		TryBeginClientBaking();
+		// 조건 1 충족. 중간 참여에서 SurfaceBaking을 건너뛴 복제값을 받아도 로드를 놓치지 않는다.
+		TryBeginClientSurfaceDataLoading();
 	}
 }
 
 void ALNPGameState::OnClientWorldGenerationFinished()
 {
-	// 조건 2 충족. 서버가 이미 SurfaceBaking으로 진행된 경우에만 베이킹.
+	// 조건 2 충족. 서버가 이미 SurfaceBaking으로 진행된 경우에만 snapshot 로드·게시.
 	if (ServerPhase >= ELNPInitPhase::SurfaceBaking)
 	{
-		TryBeginClientBaking();
+		TryBeginClientSurfaceDataLoading();
 	}
 }
 
-void ALNPGameState::TryBeginClientBaking()
+void ALNPGameState::TryBeginClientSurfaceDataLoading()
 {
 	ULNPOctantSpawnSubsystem* OctantSub = GetWorld()->GetSubsystem<ULNPOctantSpawnSubsystem>();
 	if (!OctantSub || !OctantSub->bGenerationComplete)
 		return;
 
-	if (ULNPSurfaceCacheSubsystem* SurfaceSub = GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>())
+	if (ULNPSurfaceDataSubsystem* SurfaceData = GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>())
 	{
-		SurfaceSub->BeginBaking(); // no-op if already baking or complete
+		SurfaceData->BeginLoading(); // no-op if already loading, ready, or failed
 	}
 }
