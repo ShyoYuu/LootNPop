@@ -6,6 +6,7 @@
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemySurfaceMovement.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "Config/LNPSettings.h"
@@ -529,6 +530,9 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
 	const ULNPSurfaceDataSubsystem& SurfaceData = Context.GetSubsystemChecked<ULNPSurfaceDataSubsystem>();
+	// 한 실행 동안 immutable generation을 고정한다. 엔티티마다 shared ref를 증감하지 않고
+	// 병렬 worker가 같은 snapshot을 lock-free로 읽는다.
+	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> SurfaceSnapshot = SurfaceData.TakeSnapshot();
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 	TArray<FMassEntityHandle> EntitiesToSignal;
 
@@ -612,12 +616,14 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		 * 현재 넉백·사망 팝 케이스에서 분기 비용은 무시할 수 있으며
 		 * 매 피격/착지 시 반복적인 Deferred AddTag/RemoveTag Archetype 마이그레이션을 피할 수 있다.
 		 */
-		auto IntegrateAirborne = [&](FTransform& EntityTransform, FVector& PhysVelocity, const FVector& EntityLocation)
+		auto IntegrateAirborne = [&](FTransform& EntityTransform, FVector& PhysVelocity,
+			FLNPSurfaceHandle& SurfaceHandle, const FVector& EntityLocation)
 		{
 			if (bExactGround)
 			{
 				FVector NewPos;
-				LNPEnemyExactMovement::StepAirborne(WorldCollision, ExactParams, EntityLocation, PhysVelocity, DeltaTime, NewPos);
+				LNPEnemySurfaceMovement::StepAirborne(
+					WorldCollision, ExactParams, EntityLocation, PhysVelocity, DeltaTime, NewPos, SurfaceHandle);
 				EntityTransform.SetLocation(NewPos);
 				AlignToUp(EntityTransform, NewPos);
 				return;
@@ -691,7 +697,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				{
 					FVector& DeathVelocity = VelocityFragments[i].Velocity;
 					if (!DeathVelocity.IsNearlyZero())
-						IntegrateAirborne(EntityTransform, DeathVelocity, EntityLocation);
+						IntegrateAirborne(EntityTransform, DeathVelocity, EnemyData.SurfaceHandle, EntityLocation);
 				}
 				continue;
 			}
@@ -820,7 +826,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 				if (!PhysVelocity.IsNearlyZero())
 				{
-					IntegrateAirborne(EntityTransform, PhysVelocity, EntityLocation);
+					IntegrateAirborne(EntityTransform, PhysVelocity, EnemyData.SurfaceHandle, EntityLocation);
 				}
 				else
 				{
@@ -851,7 +857,9 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					{
 						// 경사·벽·절벽 판정을 모두 exact가 맡는다. 지지면을 잃으면 PhysVelocity가 0이 아니게 되어 다음 프레임부터 공중이다.
 						FVector FinalPos;
-						LNPEnemyExactMovement::StepGrounded(WorldCollision, ExactParams, EntityLocation, Velocity, DeltaTime, FinalPos, PhysVelocity);
+						LNPEnemySurfaceMovement::StepGrounded(
+							SurfaceSnapshot.Get(), WorldCollision, ExactParams, EntityLocation, Velocity, DeltaTime,
+							FinalPos, PhysVelocity, EnemyData.SurfaceHandle);
 						EntityTransform.SetLocation(FinalPos);
 						continue;
 					}
