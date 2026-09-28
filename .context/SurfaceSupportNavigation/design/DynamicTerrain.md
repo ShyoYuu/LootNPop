@@ -25,7 +25,7 @@ Mover는 발밑 base 컴포넌트 참조를 네트워크로 직렬화한다(`Mov
 ```
 
 - 마커의 월드 transform에는 slot 회전이 이미 적용돼 있으므로 서버는 그대로 사용한다.
-- 스폰 시점은 현재 World Device 배치와 같은 자리다(`ALNPGameMode::OnSurfaceBakingComplete`, `SpawnDevices` 다음).
+- 스폰 시점은 현재 World Device 배치와 같은 자리다(`ALNPGameMode::BeginEntitySpawning`, `SpawnDevices` 다음).
 - 마커 계약은 `TerrainContract.md` §2-1이 소유한다.
 - `LNPOctantSpawnSubsystem`은 완료 뒤에도 slot→Level Instance/Loaded Level weak reference를 match lifecycle 동안 보존한다. 월드 전체 Actor 검색이나 회전값 추론으로 slot을 복원하지 않는다.
 

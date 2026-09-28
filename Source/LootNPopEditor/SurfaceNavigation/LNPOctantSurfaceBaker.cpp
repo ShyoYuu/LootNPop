@@ -19,6 +19,7 @@
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/PackageName.h"
+#include "StaticMeshCompiler.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
 #include "SurfaceNavigation/LNPOctantSourceCollector.h"
@@ -97,11 +98,13 @@ namespace LNPOctantSurfaceBaker
 				TInlineComponentArray<UStaticMeshComponent*> Components(Actor);
 				for (const UStaticMeshComponent* Source : Components)
 				{
-					if (!IsValid(Source) || !Source->GetStaticMesh() || !Source->IsQueryCollisionEnabled()
+					if (!IsValid(Source) || Source->HasAnyFlags(RF_Transient) || Source->IsEditorOnly()
+						|| Actor->IsEditorOnly() || !Source->GetStaticMesh() || !Source->IsQueryCollisionEnabled()
 						|| Source->GetCollisionResponseToChannel(LNPCollisionChannels::WorldExact) != ECR_Block)
 					{
 						continue;
 					}
+					FStaticMeshCompilingManager::Get().FinishCompilation({Source->GetStaticMesh()});
 					const FTransform ComponentTransform = FLNPOctantTriangleExtractor::GetSourceTransform(*Source);
 					if (const UInstancedStaticMeshComponent* Instances = Cast<UInstancedStaticMeshComponent>(Source))
 					{

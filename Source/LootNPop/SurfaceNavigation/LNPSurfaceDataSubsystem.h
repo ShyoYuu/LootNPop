@@ -7,6 +7,7 @@
 #include "Mass/ExternalSubsystemTraits.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "SurfaceNavigation/LNPSpawnData.h"
+#include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "Subsystems/WorldSubsystem.h"
 #include <atomic>
 #include "LNPSurfaceDataSubsystem.generated.h"
@@ -40,19 +41,6 @@ struct FLNPSurfaceDataSnapshot
 {
 	uint64 Generation = 0;
 	TArray<FLNPSurfaceDataSlotSnapshot> Slots;
-};
-
-/** snapshot generation 안에서 Support Layer를 가리키는 안정 handle. */
-struct FLNPSurfaceHandle
-{
-	uint16 OctantSlot = MAX_uint16;
-	uint16 LocalLayerId = LNPSupportLayers::NoLayer;
-	uint64 Generation = 0;
-
-	bool IsValid() const
-	{
-		return OctantSlot != MAX_uint16 && LocalLayerId != LNPSupportLayers::NoLayer && Generation != 0;
-	}
 };
 
 enum class ELNPSurfaceQueryStatus : uint8
@@ -177,6 +165,8 @@ private:
 	ELNPSurfaceDataLoadState LoadState = ELNPSurfaceDataLoadState::NotStarted;
 	FString LastError;
 	uint64 NextGeneration = 1;
+	double LoadStartTimeSeconds = 0.0;
+	uint64 LoadStartPhysicalBytes = 0;
 
 	TSharedPtr<FStreamableHandle> LoadHandle;
 	TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> PublishedSnapshot;

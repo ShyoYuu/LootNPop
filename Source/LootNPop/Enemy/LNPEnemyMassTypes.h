@@ -8,6 +8,7 @@
 #include "Mass/EntityHandle.h"
 #include "GameplayTagContainer.h"
 #include "Enemy/LNPFlightSteering.h"
+#include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "LNPEnemyMassTypes.generated.h"
 
 /** 타게팅 슬롯과 인식에 관한 Enemy 상태 */
@@ -50,6 +51,9 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	/** 이 Enemy가 속한 LootPod */
 	UPROPERTY(Transient)
 	FMassEntityHandle ParentLootPod;
+
+	/** 초기 스폰 지면. Phase 6의 Support query가 현재 Layer를 이어받는다. */
+	FLNPSurfaceHandle SurfaceHandle;
 
 	/** --- 피격 반응 --- */
 

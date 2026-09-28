@@ -4,7 +4,6 @@
 #include "GameMode/LNPGameState.h"
 #include "Player/LNPPlayerState.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "GameLogic/LNPWorldDeviceSpawnSubsystem.h"
@@ -64,22 +63,18 @@ void ALNPGameMode::OnWorldGenerationComplete()
 
 void ALNPGameMode::OnSurfaceDataReady()
 {
-	// Phase 5 구현 단위 3까지 Mass spawn은 legacy SurfaceCache snapshot을 소비한다.
-	// 새 Support snapshot과 hit registry가 원자적으로 준비된 뒤에만 임시 runtime bake를 시작한다.
-	if (ULNPSurfaceCacheSubsystem* SurfaceSub = GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>())
-	{
-		SurfaceSub->OnBakingComplete.AddDynamic(this, &ALNPGameMode::OnSurfaceBakingComplete);
-		SurfaceSub->BeginBaking();
-	}
+	// SurfaceData와 hit registry의 한 generation이 원자적으로 게시된 직후 동적 요소와 Mass spawn으로 진행한다.
+	// 정상 초기화에서는 머신별 legacy SurfaceCache trace bake를 더 이상 실행하지 않는다.
+	BeginEntitySpawning();
 }
 
-void ALNPGameMode::OnSurfaceBakingComplete()
+void ALNPGameMode::BeginEntitySpawning()
 {
 	UWorld* World = GetWorld();
 	ALNPGameState* GS = World->GetGameState<ALNPGameState>();
 	GS->ServerPhase = ELNPInitPhase::EntitySpawning;
 
-	// 월드 장치 배치는 동기이고 수십 ms다. 표면 베이킹이 끝난 지금이어야 하는 이유는 두 가지 —
+	// 월드 장치 배치는 동기이고 수십 ms다. SurfaceData 게시 뒤여야 하는 이유는 두 가지 —
 	// 옥탄트 레벨이 가시화되어 트레이스가 지면을 맞히고, Complete 이전이라 플레이어가 완성된 월드에 스폰된다.
 	if (ULNPWorldDeviceSpawnSubsystem* DeviceSub = World->GetSubsystem<ULNPWorldDeviceSpawnSubsystem>())
 	{

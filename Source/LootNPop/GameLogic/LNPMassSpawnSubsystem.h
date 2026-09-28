@@ -7,6 +7,7 @@
 #include "Tickable.h"
 #include "Mass/EntityHandle.h"
 #include "Async/Future.h"
+#include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "LNPMassSpawnSubsystem.generated.h"
 
 class ULNPMassSpawnConfig;
@@ -41,6 +42,7 @@ struct FLNPMassSpawnRequest
 
 	/** Pod Handle을 Enemy에게 전달하기 위한 공유 링크 */
 	TSharedPtr<FLNPSpawnLink> SpawnLink;
+	FLNPSurfaceHandle Surface;
 
 	bool IsComplete() const { return ProcessedCount >= TargetTransforms.Num(); }
 };
@@ -54,6 +56,7 @@ struct FLNPAsyncSpawnEntry
 	TArray<FTransform> Transforms;
 	ELNPSpawnRequestType RequestType = ELNPSpawnRequestType::Enemy;
 	TSharedPtr<FLNPSpawnLink> SpawnLink;
+	FLNPSurfaceHandle Surface;
 	int32 AssetIndex = -1;
 };
 
@@ -102,7 +105,9 @@ protected:
 	/**
 	 * 스폰된 Entity를 Transform과 선택적 메타데이터 (Leash 등)로 초기화한다.
 	 */
-	void SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms, FMassEntityHandle ParentLootPod = FMassEntityHandle(), const FVector& ParentPodLocation = FVector::ZeroVector);
+	void SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms,
+		FMassEntityHandle ParentLootPod = FMassEntityHandle(), const FVector& ParentPodLocation = FVector::ZeroVector,
+		const FLNPSurfaceHandle& Surface = FLNPSurfaceHandle());
 
 	/** 비행 적의 지면 스폰점을 배회 고도 하한까지 띄운 위치. 위에 섬이 있으면 그 밑면 아래에 선다. */
 	FVector LiftFlyingSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint) const;
@@ -143,9 +148,9 @@ private:
 
 	/** 비동기 빌드 태스크가 작성한 결과; IsReady() 이후 게임 Thread에서 읽음 */
 	TArray<FLNPAsyncSpawnEntry> AsyncBuildResult;
+	FString AsyncBuildError;
 
 	/** 백그라운드 큐 빌드 태스크의 Future */
 	TFuture<void> SpawnBuildFuture;
 
-	FRandomStream RandomStream;
 };

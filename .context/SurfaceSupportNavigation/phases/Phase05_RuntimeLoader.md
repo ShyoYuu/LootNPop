@@ -1,6 +1,6 @@
 # Phase 5 — 런타임 로더와 SurfaceCache 교체
 
-> 상태: 진행
+> 상태: 완료(2026-09-28)
 > 예상 범위: 3~4세션
 > 선행 조건: Phase 4b 완료, source key·게스트 소비자 사전 조사 완료(`../history/Phase05_Log.md`)
 
@@ -149,6 +149,11 @@ snapshot 게시 전에 한 번에 다음을 검사한다.
 - 같은 Layer·반경의 enemy 후보를 연관 적에 배정하고 `SurfaceHandle`을 초기화한다.
 - 기존 `MaxSpawnsPerFrame`, Pod link, PodID, density CVar, 부하 harness 경로는 유지한다.
 - 할당 통계: 세트별 requested/authored/generic/random/shortfall, enemy requested/placed.
+- 상태(2026-09-28): 완료.
+  - `FLNPMassSpawnPlan` 순수 계획 경계를 추가했다. 8-slot Spawn snapshot을 안정 정렬한 뒤 world seed로 shuffle하고, 특정 세트 authored → 일반 authored → random 순서로 Pod를 배정한다.
+  - marker 수는 `PodSetCount`를 늘리지 않는다. random Pod는 기존 Pod 최소 거리를 지키며, 연관 적은 같은 slot·`LocalLayerId`·반경 안의 단일 사용 후보만 고른다.
+  - Pod·Enemy fragment가 초기 `FLNPSurfaceHandle`을 보유한다. 기존 per-frame queue, Pod link, PodID, density와 부하 harness는 유지했다.
+  - `Runtime.MassSpawnPlanning` 자동화와 에디터 `-game`에서 production 네 세트 74+20+16+10=120개가 모두 배치되고 shortfall 0임을 확인했다.
 
 ### 구현 단위 4 — runtime bake 제거와 초기화 종단 전환
 
@@ -156,6 +161,10 @@ snapshot 게시 전에 한 번에 다음을 검사한다.
 - production `BeginBaking` 호출과 123만 runtime trace 경로 제거. Phase 6까지 필요한 adapter facade만 유지.
 - 서버 초기화 순서: snapshot 게시 → 동적 요소 스폰 → Mass spawn → Complete.
 - 클라이언트 초기화 순서: snapshot 게시 → 복제 동적 요소 준비 → Ready RPC.
+- 상태(2026-09-28): 완료.
+  - `ALNPGameMode::OnSurfaceDataReady()`가 legacy bake 없이 바로 `BeginEntitySpawning()`을 호출한다. production 초기화에서 `ULNPSurfaceCacheSubsystem::BeginBaking()`과 `OnBakingComplete`를 제거했다.
+  - 적 이동·Idle StateTree·부하 baseline projectile·exact oracle의 Layer 0 호환 조회를 `ULNPSurfaceDataSubsystem::GetSurfacePoint()`로 옮겼다.
+  - `ULNPSurfaceCacheSubsystem` 구현은 과거 진단 코드로 남아 있지만 production 호출자는 없다. 패키지 로그에도 legacy bake 시작·완료가 없다.
 
 ### 구현 단위 5 — cook validation·패키지·2P 종료 검증
 
@@ -164,17 +173,23 @@ snapshot 게시 전에 한 번에 다음을 검사한다.
 - 에디터 `-game`과 Development package에서 source key·Support query·Spawn allocation 결과 비교.
 - 2P에서 서버·게스트 snapshot generation과 Ready 순서, Mass 복제 무회귀 확인.
 - 기존 약 7초 bake 구간이 load·decode·publish로 대체된 시간, payload 크기, decode peak/resident memory 기록.
+- 상태(2026-09-28): 완료.
+  - `Bake.OctantBakeDeterministic`를 CI의 cook 전 freshness gate로 사용한다. source manifest·semantic/settings hash, marker, Spawn payload가 저장본과 다르면 실패한다. 런타임은 게시 전에 codec/DataVersion·descriptor/hash·seam·source key·SpawnSetId를 다시 검증한다. plain BuildCookRun 자체에 별도 validator를 추가한 것은 아니다.
+  - 전체 자동화 59/59, `LootNPopEditor Win64 Development`, Win64 Development BuildCookRun(972 packages), 패키지 1P와 리슨 2P host/guest가 통과했다.
+  - 베이크 clearance preview가 비동기 Static Mesh 컴파일 완료 여부에 따라 Meadow PCG blocker를 다르게 보던 순서 의존성을 제거했다. transient/editor-only 입력을 제외하고 mesh compile을 완료한 뒤 physics probe를 만들며, Meadow Spawn은 9,990 candidates·359,652 B로 다시 구웠다.
+  - 패키지 1P: load→validation→decode→binding→publish 17.85ms, 고유 serialized payload 2.86MiB, 고유 decoded snapshot resident 2.97MiB. 프로세스 물리 메모리는 488.35→501.97MiB, 실행 전역 peak 501.97MiB였다.
+  - 리슨 2P: host 15.89ms, guest 14.44ms. 양쪽 모두 SurfaceData generation 1, query 8/8, bindings 88/88였다. `processPhysicalPeak`은 decode 구간 전용 peak가 아니라 해당 프로세스 실행 전역 상한이다.
 
 ## 5. 완료 조건
 
-- [ ] 서버와 클라이언트가 같은 8-slot immutable Support/Spawn snapshot을 게시한다.
-- [ ] 정상 실행에 SurfaceCache runtime bake trace가 없고, publish 전 query는 `NotReady`다.
-- [ ] runtime source key 11개가 저장된 source 표와 정확히 bind되고 exact face가 올바른 Layer를 반환한다.
-- [ ] Layer 0 legacy adapter가 기존 소비자를 유지하며 다층 신규 사용을 경고한다.
-- [ ] LVI authored spawn point가 같은 seed에서 random 후보보다 먼저 채워진다.
-- [ ] `PodSetCount`·`AssociatedEnemies.Count`가 총량의 단일 원본이고 marker 수가 총량을 늘리지 않는다.
-- [ ] 지정점 부족분만 random candidate로 채워지며, Pod와 연관 적 shortfall이 측정·보고된다.
-- [ ] 지각·섬·동굴 marker와 random 후보가 올바른 `LocalLayerId`·clearance를 가진다.
-- [ ] stale·구버전·seam 불일치·unknown SpawnSetId·중복 key/ID가 cook 또는 게시 전에 차단된다.
-- [ ] 자동화, 에디터 빌드, Development package, `-game` 리슨 2P가 통과한다.
-- [ ] load/decode/publish 시간과 메모리 수치가 기록된다.
+- [x] 서버와 클라이언트가 같은 8-slot immutable Support/Spawn snapshot을 게시한다.
+- [x] 정상 실행에 SurfaceCache runtime bake trace가 없고, publish 전 query는 `NotReady`다.
+- [x] runtime source key 11개가 저장된 source 표와 정확히 bind되고 exact face가 올바른 Layer를 반환한다.
+- [x] Layer 0 legacy adapter가 기존 소비자를 유지하며 다층 신규 사용을 경고한다.
+- [x] LVI authored spawn point가 같은 seed에서 random 후보보다 먼저 채워진다.
+- [x] `PodSetCount`·`AssociatedEnemies.Count`가 총량의 단일 원본이고 marker 수가 총량을 늘리지 않는다.
+- [x] 지정점 부족분만 random candidate로 채워지며, Pod와 연관 적 shortfall이 측정·보고된다.
+- [x] 지각·섬·동굴 marker와 random 후보가 올바른 `LocalLayerId`·clearance를 가진다.
+- [x] stale·구버전·seam 불일치·unknown SpawnSetId·중복 key/ID가 cook 또는 게시 전에 차단된다.
+- [x] 자동화, 에디터 빌드, Development package, `-game` 리슨 2P가 통과한다.
+- [x] load/decode/publish 시간과 메모리 수치가 기록된다.

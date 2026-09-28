@@ -1,10 +1,12 @@
 # 표면 캐시 (SurfaceCache) 기술 설계
 
+> 상태: legacy 진단 구현. Phase 5(2026-09-28)부터 production 초기화·Mass spawn·Layer 0 소비자는 `ULNPSurfaceDataSubsystem`을 사용하며 `BeginBaking()` 호출자는 없다. 이 문서는 과거 캐시의 설계 근거를 보존한다. Phase 6 완료 때 adapter와 함께 제거한다.
+
 ## 1. 한눈에 보기
 
 **문제:** 구형 월드(Dyson Sphere 내벽)에서는 NavMesh가 동작하지 않는데, 수천 규모 MassEntity가 워커 스레드에서 매 프레임 지표면 좌표를 조회해야 한다.
 
-**해결:** 월드 생성 직후 내벽 전체를 등장방형(Equirectangular) 그리드로 **사전 베이킹**한다. 완료 후 배열은 불변이므로 워커 스레드에서 **락 없이 O(1) 조회**한다.
+**과거 해결:** 월드 생성 직후 내벽 전체를 등장방형(Equirectangular) 그리드로 **사전 베이킹**했다. 완료 후 배열은 불변이므로 워커 스레드에서 **락 없이 O(1) 조회**했다.
 
 ```
 [월드 생성 완료]
@@ -71,8 +73,8 @@ Mass 프로세서(워커 포함): GetSurfacePoint()
 | 완료 후 | 읽기 전용, 다중 스레드 | 쓰기 없음 |
 
 - **완료 플래그는 `std::atomic<bool>`이다.** 배열을 다 채운 뒤 `memory_order_release`로 세우고 조회 쪽이 `memory_order_acquire`로 읽는다. 그래서 `true`를 본 스레드는 배열 쓰기도 전부 본다 — 락 없는 안전의 유일한 근거다. 평범한 `bool`은 x86에서만 우연히 동작한다.
-- **Mass 프로세서는 `GetSurfacePoint()`를 워커에서 직접 호출한다**(적 이동·StateTree 배회 지점·발사체 지면 판정). 이를 위해 `TMassExternalSubsystemTraits`를 `GameThreadOnly = false`, `ThreadSafeWrite = false`로 선언했다. 없으면 이 서브시스템을 요구하는 프로세서가 통째로 게임 스레드로 승격된다.
-- `TakeSnapshot()`의 현재 소비처는 `ULNPMassSpawnSubsystem`의 TaskGraph 스폰 위치 계산뿐이다.
+- 과거 Mass 프로세서는 `GetSurfacePoint()`를 워커에서 직접 호출했다. Phase 5에서는 Layer 0 호환 소비자와 Mass spawn 모두 `ULNPSurfaceDataSubsystem`으로 이동했다.
+- `TakeSnapshot()`의 production 소비처는 없다. 새 Mass spawn은 `FLNPSurfaceDataSnapshot`의 Spawn stream을 사용한다.
 - ⚠️ **베이킹은 머신당 1회다.** `BeginBaking()`은 완료 후 재호출도 차단한다. 재대입하면 워커가 읽는 도중 `TSharedPtr` 참조 카운트 조작이 깨진다. 매치 재시작으로 재베이킹이 필요해지면 가드를 풀지 말고, **모든 워커 접근 정지를 보장하는 리셋 진입점**을 따로 만든다.
 
 ---
@@ -93,11 +95,11 @@ Mass 프로세서(워커 포함): GetSurfacePoint()
 
 | 함수 | 설명 |
 |:---|:---|
-| `BeginBaking()` | 해상도·배열 준비. 진행 중이거나 완료됐으면 no-op |
+| `BeginBaking()` | legacy 진단용. production 호출자 없음 |
 | `GetSurfacePoint(Dir, OutPoint)` | 스레드 안전 조회. 완료 전에는 `false` |
 | `TakeSnapshot()` | 복사 없는 스냅샷 |
 | `GetBakingProgress()` | 0~1 진행률 |
-| `OnBakingComplete` | GameMode(페이즈 진행)와 PlayerController(로딩 해제)가 구독 |
+| `OnBakingComplete` | legacy delegate. GameMode·PlayerController는 더 이상 구독하지 않음 |
 
 ---
 

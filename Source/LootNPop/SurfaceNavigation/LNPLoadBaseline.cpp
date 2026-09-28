@@ -9,7 +9,7 @@
 #include "Enemy/LNPEntityAttackShared.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemyFlightMovementProcessor.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
@@ -824,11 +824,11 @@ void ULNPLoadBaselineSubsystem::TopUpProjectiles()
 
 	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
 	const float SphereRadius = Settings ? Settings->SphereRadius : 25000.f;
-	const ULNPSurfaceCacheSubsystem* SurfaceCache = GetWorld()->GetSubsystem<ULNPSurfaceCacheSubsystem>();
-	if (SurfaceCache == nullptr)
+	const ULNPSurfaceDataSubsystem* SurfaceData = GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
+	if (SurfaceData == nullptr)
 		return;
 
-	// 발사 위치는 SurfaceCache로 찍는다. exact probe로 찍으면 harness가 측정 대상 counter에 query를 더한다.
+	// 발사 위치는 SurfaceData Layer 0 adapter로 찍는다. exact probe로 찍으면 harness가 측정 대상 counter에 query를 더한다.
 	// 섬 아래 방향에서는 섬 윗면에서 쏘게 되지만 조준점은 링 중심이라 부하 성격은 같다.
 	const FVector CenterDir = RingCenter.GetSafeNormal();
 	// 내부형 구라 위쪽은 월드 중심 방향이다.
@@ -841,7 +841,7 @@ void ULNPLoadBaselineSubsystem::TopUpProjectiles()
 		const float Angle = ProjectileStream.FRandRange(0.f, 2.f * PI);
 		const float Distance = FMath::Sqrt(ProjectileStream.FRandRange(FMath::Square(RingInnerRadius), FMath::Square(RingOuterRadius)));
 		FVector Foot;
-		if (!SurfaceCache->GetSurfacePoint(MakeRingDirection(CenterDir, T1, T2, Angle, Distance, SphereRadius), Foot))
+		if (!SurfaceData->GetSurfacePoint(MakeRingDirection(CenterDir, T1, T2, Angle, Distance, SphereRadius), Foot))
 			continue;
 
 		const FVector Up = -Foot.GetSafeNormal();

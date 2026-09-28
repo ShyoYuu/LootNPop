@@ -3,7 +3,7 @@
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "Config/LNPSettings.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "HitDetection/LNPProjectileMotion.h"
 #include "LootNPop.h"
 
@@ -129,16 +129,16 @@ namespace
 	bool IsReady(UWorld& World)
 	{
 		const ULNPMassWorldCollisionSubsystem* Collision = World.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-		const ULNPSurfaceCacheSubsystem* SurfaceCache = World.GetSubsystem<ULNPSurfaceCacheSubsystem>();
+		const ULNPSurfaceDataSubsystem* SurfaceData = World.GetSubsystem<ULNPSurfaceDataSubsystem>();
 		FVector Probe;
 		return Collision && Collision->GetWorldEnvelopeRadius() > 0.f
-			&& SurfaceCache && SurfaceCache->GetSurfacePoint(FVector::UpVector, Probe);
+			&& SurfaceData && SurfaceData->GetSurfacePoint(FVector::UpVector, Probe);
 	}
 
 	void RunOracle(UWorld& World)
 	{
 		const ULNPMassWorldCollisionSubsystem& Collision = *World.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-		const ULNPSurfaceCacheSubsystem& SurfaceCache = *World.GetSubsystem<ULNPSurfaceCacheSubsystem>();
+		const ULNPSurfaceDataSubsystem& SurfaceData = *World.GetSubsystem<ULNPSurfaceDataSubsystem>();
 		const ULNPOctantSpawnSubsystem* Octants = World.GetSubsystem<ULNPOctantSpawnSubsystem>();
 
 		const double StartRadius = GetDefault<ULNPSettings>()->SphereRadius * StartRadiusRatio;
@@ -211,7 +211,7 @@ namespace
 			}
 
 			FVector SurfacePoint;
-			Result.bLegacyValid = SurfaceCache.GetSurfacePoint(Direction, SurfacePoint);
+			Result.bLegacyValid = SurfaceData.GetSurfacePoint(Direction, SurfacePoint);
 			Result.LegacyRadius = SurfacePoint.Size();
 		});
 

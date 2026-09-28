@@ -6,8 +6,8 @@
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
-#include "GameLogic/LNPSurfaceCacheSubsystem.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "Config/LNPSettings.h"
 #include "LootNPop.h"
 
@@ -517,7 +517,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.RegisterWithProcessor(*this);
 
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
-	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceCacheSubsystem>(EMassFragmentAccess::ReadOnly);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceDataSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
@@ -528,7 +528,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
-	const ULNPSurfaceCacheSubsystem& SurfaceCache = Context.GetSubsystemChecked<ULNPSurfaceCacheSubsystem>();
+	const ULNPSurfaceDataSubsystem& SurfaceData = Context.GetSubsystemChecked<ULNPSurfaceDataSubsystem>();
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 	TArray<FMassEntityHandle> EntitiesToSignal;
 
@@ -539,7 +539,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 	// 청크 병렬(Phase03b §3.6.1). 청크 사이의 공유 쓰기는 EntitiesToSignal 하나뿐이다 — 청크마다 모았다가 끝에 락을 잡고 합친다.
 	// 신호는 엔티티별로 쌓일 뿐 순서에 의미가 없다. Actor용 deferred 명령은 엔진이 병렬 잡마다 command buffer를 따로 준다.
-	// exact query·SurfaceCache 조회는 worker에서 호출할 수 있는 const 경로다(D-025).
+	// exact query·SurfaceData legacy adapter 조회는 worker에서 호출할 수 있는 const 경로다(D-025).
 	FCriticalSection SignalLock;
 	const auto ExecuteChunk = [&](FMassExecutionContext& EnemyContext)
 	{
@@ -631,7 +631,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			const FVector NewDir = (NewPos - GravityOrigin).GetSafeNormal();
 
 			FVector SurfacePoint;
-			if (!SurfaceCache.GetSurfacePoint(NewDir, SurfacePoint))
+			if (!SurfaceData.GetSurfacePoint(NewDir, SurfacePoint))
 			{
 				EntityTransform.SetLocation(NewPos);
 				return;
@@ -863,8 +863,8 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 						const FVector CurrentSurfaceDir = (EntityLocation - GravityOrigin).GetSafeNormal();
 						const FVector TargetSurfaceDir = (EntityLocation + Velocity * DeltaTime - GravityOrigin).GetSafeNormal();
 						FVector CurrentSurface, TargetSurface;
-						if (SurfaceCache.GetSurfacePoint(CurrentSurfaceDir, CurrentSurface) &&
-							SurfaceCache.GetSurfacePoint(TargetSurfaceDir, TargetSurface))
+						if (SurfaceData.GetSurfacePoint(CurrentSurfaceDir, CurrentSurface) &&
+							SurfaceData.GetSurfacePoint(TargetSurfaceDir, TargetSurface))
 						{
 							const FVector SlopeDelta = TargetSurface - CurrentSurface;
 							if (FVector::DotProduct(SlopeDelta, UpDir) > 0.f) // 오름 경사만
@@ -887,7 +887,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 					FVector FinalPos = DesiredPos;
 					FVector SurfacePoint;
-					if (SurfaceCache.GetSurfacePoint(DirToSurface, SurfacePoint))
+					if (SurfaceData.GetSurfacePoint(DirToSurface, SurfacePoint))
 					{
 						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint) - CapsuleHalfHeight;
 						FinalPos = GravityOrigin + DirToSurface * SurfaceRadius;
