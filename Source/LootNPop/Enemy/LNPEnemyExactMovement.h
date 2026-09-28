@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 class ULNPMassWorldCollisionSubsystem;
+struct FLNPExactHitIdentity;
 
 /**
  * Actor 없는 적(PureEntity)의 exact 이동 한 프레임(D-049, Phase03b §3.3).
@@ -56,11 +57,27 @@ namespace LNPEnemyExactMovement
 	};
 
 	/**
+	 * 접지 이동의 수평 blocker 판정만 수행한다. Support Atlas는 벽·프랍을 표현하지 않으므로
+	 * Phase 6 cache-first 경로도 이동량이 있을 때 이 sweep을 유지한다.
+	 */
+	LOOTNPOP_API FVector MoveGroundedLaterally(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Location, const FVector& Velocity, float DeltaTime);
+
+	/**
+	 * 이미 수평 이동을 마친 캡슐 중심에서 exact support probe만 수행한다.
+	 * OutSurfaceIdentity는 Grounded일 때만 채운다.
+	 */
+	LOOTNPOP_API EGroundResult ProbeGroundedAt(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& OriginalLocation, const FVector& TargetLocation, float DeltaTime,
+		FVector& OutLocation, FVector& OutVelocity, FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
+
+	/**
 	 * 접지 상태 한 프레임. Velocity는 접평면 이동 속도다(법선 성분은 버린다).
 	 * query: 수평 sweep 1회(막히면 미끄러짐 sweep 1회 추가) + 하향 probe 1회.
 	 */
 	LOOTNPOP_API EGroundResult StepGrounded(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
-		const FVector& Location, const FVector& Velocity, float DeltaTime, FVector& OutLocation, FVector& OutVelocity);
+		const FVector& Location, const FVector& Velocity, float DeltaTime, FVector& OutLocation, FVector& OutVelocity,
+		FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
 
 	/**
 	 * 공중 상태 한 프레임. 중력을 적분하고 이전→제안 위치 capsule sweep의 earliest hit를 쓴다.
@@ -69,7 +86,8 @@ namespace LNPEnemyExactMovement
 	 * query: capsule sweep 1회(시작부터 겹쳐 있으면 겹침을 풀고 1회 추가).
 	 */
 	LOOTNPOP_API bool StepAirborne(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
-		const FVector& Location, FVector& InOutVelocity, float DeltaTime, FVector& OutLocation);
+		const FVector& Location, FVector& InOutVelocity, float DeltaTime, FVector& OutLocation,
+		FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
 
 	/**
 	 * 배회 목표 재투영. Direction 방향, 기준 위치와 같은 반지름의 점에서 위아래 Reach만큼 지지면을 찾는다.

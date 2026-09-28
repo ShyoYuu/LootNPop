@@ -2,7 +2,7 @@
 
 > 상태: 기준 로드맵
 > 읽기 조건: Phase 전환, 전체 순서 변경, 작업 범위 재산정 시
-> 마지막 갱신: 2026-09-27
+> 마지막 갱신: 2026-09-29
 
 ## 1. 진행 원칙
 
@@ -44,7 +44,7 @@
 | 4a | 지각 Support Atlas와 옥탄트 이음매 | 2~3세션 | 완료 | greybox 옥탄트 지각의 Atlas 베이크와 8 slot 이음매 일치 |
 | 4b | 부유섬·동굴 키트 다층 베이크 | 2~3세션 | 완료 | 같은 방향 다층 Support와 공동 모듈 floor 분리 |
 | 5 | 런타임 로더와 SurfaceCache 교체 | 3~4세션 | 완료 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 전 CI·게시 단계 stale 검출, LVI 지정점 우선 Spawn stream |
-| 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 대기 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
+| 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 진행 중 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
 | 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 대기 | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
 | 8 | Conditional Patch와 파괴 Overlay | 2~3세션 | 대기 | 지역 길 열림·닫힘, revision 기반 재탐색, 상태 복제 |
 | 9 | 부유섬·동굴 Vertical Slice | 2~3세션 | 대기 | 실제 품질 옥탄트와 멀티플레이에서 설계 검증 |

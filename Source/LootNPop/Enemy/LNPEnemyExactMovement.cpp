@@ -144,8 +144,8 @@ namespace LNPEnemyExactMovement
 		return GEnemyParallelMovement != 0;
 	}
 
-	EGroundResult StepGrounded(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
-		const FVector& Location, const FVector& Velocity, const float DeltaTime, FVector& OutLocation, FVector& OutVelocity)
+	FVector MoveGroundedLaterally(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Location, const FVector& Velocity, const float DeltaTime)
 	{
 		const FVector Up = UpAt(Params, Location);
 		const FVector Delta = FVector::VectorPlaneProject(Velocity, Up) * DeltaTime;
@@ -155,13 +155,28 @@ namespace LNPEnemyExactMovement
 		{
 			Target = SweepLateral(Collision, Params, Location, Up, Delta);
 		}
+		return Target;
+	}
 
-		const FVector TargetUp = UpAt(Params, Target);
+	EGroundResult ProbeGroundedAt(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& OriginalLocation, const FVector& TargetLocation, const float DeltaTime,
+		FVector& OutLocation, FVector& OutVelocity, FLNPExactHitIdentity* OutSurfaceIdentity)
+	{
+		if (OutSurfaceIdentity != nullptr)
+		{
+			*OutSurfaceIdentity = FLNPExactHitIdentity();
+		}
+
+		const FVector TargetUp = UpAt(Params, TargetLocation);
 		FLNPSupportProbeResult Probe;
-		if (ProbeAt(Collision, Params, Target, TargetUp, Params.MaxStepUp, Params.MaxStepDown, Probe))
+		if (ProbeAt(Collision, Params, TargetLocation, TargetUp, Params.MaxStepUp, Params.MaxStepDown, Probe))
 		{
 			OutLocation = Probe.Hit.Location + TargetUp * ProbeToCenter(Params);
 			OutVelocity = FVector::ZeroVector;
+			if (OutSurfaceIdentity != nullptr)
+			{
+				*OutSurfaceIdentity = Probe.Hit.Identity;
+			}
 			return EGroundResult::Grounded;
 		}
 
@@ -169,7 +184,7 @@ namespace LNPEnemyExactMovement
 		{
 			// 절벽 끝. probe 구 전체가 가장자리를 벗어났으므로 곧장 떨어져도 가장자리에 걸리지 않는다.
 			// 속도 0은 접지를 뜻하므로 중력 한 스텝을 실어 공중으로 넘긴다.
-			OutLocation = Target;
+			OutLocation = TargetLocation;
 			OutVelocity = -TargetUp * Params.GravityStrength * DeltaTime;
 			return EGroundResult::LostSupport;
 		}
@@ -178,20 +193,33 @@ namespace LNPEnemyExactMovement
 		{
 			// probe 구가 처음부터 지형 안에 있다(묻힌 채 스폰됐거나 겹친 자리로 밀려났다). 겹침 법선으로 풀어 두면
 			// 다음 프레임 probe가 지형 밖에서 시작해 지지면을 다시 찾는다. 이 자리에서 그대로 서면 영영 묻혀 있다.
-			OutLocation = Target + Probe.Hit.ImpactNormal * (Probe.Hit.PenetrationDepth + DepenetrationSkin);
+			OutLocation = TargetLocation + Probe.Hit.ImpactNormal * (Probe.Hit.PenetrationDepth + DepenetrationSkin);
 			OutVelocity = FVector::ZeroVector;
 			return EGroundResult::Rejected;
 		}
 
 		// 가파른 경사·Blocker·Unknown. 지금 위치는 직전 프레임에 지지면이었으므로 그대로 선다.
-		OutLocation = Location;
+		OutLocation = OriginalLocation;
 		OutVelocity = FVector::ZeroVector;
 		return EGroundResult::Rejected;
 	}
 
-	bool StepAirborne(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
-		const FVector& Location, FVector& InOutVelocity, const float DeltaTime, FVector& OutLocation)
+	EGroundResult StepGrounded(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Location, const FVector& Velocity, const float DeltaTime, FVector& OutLocation, FVector& OutVelocity,
+		FLNPExactHitIdentity* OutSurfaceIdentity)
 	{
+		const FVector Target = MoveGroundedLaterally(Collision, Params, Location, Velocity, DeltaTime);
+		return ProbeGroundedAt(Collision, Params, Location, Target, DeltaTime, OutLocation, OutVelocity, OutSurfaceIdentity);
+	}
+
+	bool StepAirborne(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Location, FVector& InOutVelocity, const float DeltaTime, FVector& OutLocation,
+		FLNPExactHitIdentity* OutSurfaceIdentity)
+	{
+		if (OutSurfaceIdentity != nullptr)
+		{
+			*OutSurfaceIdentity = FLNPExactHitIdentity();
+		}
 		const FVector Up = UpAt(Params, Location);
 		const FQuat Rotation = CapsuleRotation(Up);
 		const FLNPWorldQueryParams QueryParams(ELNPWorldQueryClass::AirborneMandatory);
@@ -240,6 +268,10 @@ namespace LNPEnemyExactMovement
 		if (bWalkable && bSupport)
 		{
 			InOutVelocity = FVector::ZeroVector;
+			if (OutSurfaceIdentity != nullptr)
+			{
+				*OutSurfaceIdentity = Hit.Identity;
+			}
 			return true;
 		}
 

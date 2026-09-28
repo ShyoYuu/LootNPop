@@ -11,7 +11,7 @@ namespace
 	constexpr int32 MaxRecordCount = 4 * 1024 * 1024;
 	constexpr int32 MaxNameBytes = 1024;
 
-	bool GuidLess(const FGuid& A, const FGuid& B)
+	bool SpawnGuidLess(const FGuid& A, const FGuid& B)
 	{
 		return A.A != B.A ? A.A < B.A : A.B != B.B ? A.B < B.B : A.C != B.C ? A.C < B.C : A.D < B.D;
 	}
@@ -103,7 +103,7 @@ bool LNPSpawnData::Encode(const FLNPSpawnData& Data, TArray<uint8>& OutPayload, 
 	FLNPSpawnData Canonical = Data;
 	Canonical.AuthoredAnchors.Sort([](const FLNPSpawnAuthoredAnchor& A, const FLNPSpawnAuthoredAnchor& B)
 	{
-		return GuidLess(A.SpawnPointId, B.SpawnPointId);
+		return SpawnGuidLess(A.SpawnPointId, B.SpawnPointId);
 	});
 	Canonical.RandomCandidates.Sort([](const FLNPSpawnRandomCandidate& A, const FLNPSpawnRandomCandidate& B)
 	{
@@ -234,7 +234,7 @@ bool LNPSpawnData::Decode(TConstArrayView<uint8> Payload, FLNPSpawnData& OutData
 	for (int32 Index = 0; Index < OutData.AuthoredAnchors.Num(); ++Index)
 	{
 		if (!ValidateAnchor(OutData.AuthoredAnchors[Index], OutError)
-			|| (Index > 0 && !GuidLess(OutData.AuthoredAnchors[Index - 1].SpawnPointId, OutData.AuthoredAnchors[Index].SpawnPointId)))
+			|| (Index > 0 && !SpawnGuidLess(OutData.AuthoredAnchors[Index - 1].SpawnPointId, OutData.AuthoredAnchors[Index].SpawnPointId)))
 		{
 			if (OutError.IsEmpty()) OutError = TEXT("Authored anchors are not uniquely sorted.");
 			OutData = FLNPSpawnData();

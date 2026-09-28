@@ -1,14 +1,16 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 5 — 런타임 로더와 SurfaceCache 교체 · 완료(구현 단위 0~5)
-> 마지막 갱신: 2026-09-28
+> 현재 Phase: Phase 6 — Enemy 접지·공중·넉백 전환 · 진행 중(구현 단위 0 완료·1 진행 중)
+> 마지막 갱신: 2026-09-29
 
 ## 현재 목표
 
 Phase 4b(부유섬·동굴 키트 다층 베이크)가 2026-09-27에 끝났다. 완료 증거는 `phases/Phase04b_MultiLayerSupport.md` §5와 `history/Phase04b_Log.md`에 있다. 다층 Atlas·face 표·codec v2 규약 원본은 `design/SurfaceBaking.md` "다층 Atlas 규약"이다.
 
 Phase 5(런타임 로더와 SurfaceCache 교체)는 2026-09-28에 구현 단위 0~5와 종료 검증까지 완료했다. 정상 실행의 123만 runtime trace bake를 없애고 서버·클라이언트가 같은 immutable Support/Spawn snapshot을 게시한다. stale은 cook 전 CI 결정론 자동화와 게시 전 런타임 validation에서 차단한다. 기본 지각 Layer만 반환하는 legacy `GetSurfacePoint` adapter는 Phase 6 완료 때 제거한다(`Roadmap.md` "Phase 5와 6 사이"). 실행·완료 증거는 `phases/Phase05_RuntimeLoader.md`와 `history/Phase05_Log.md`에 있다.
+
+Phase 6은 2026-09-28에 착수했다. 실행 계획은 `phases/Phase06_EnemyMovementMigration.md`, 작업 기록은 `history/Phase06_Log.md`가 소유한다. 구현 단위 0은 2026-09-29에 완료했다. PureEntity grounded의 수평 blocker sweep은 유지하고 하향 support probe만 cache-first로 바꾸며, 모든 비확신 결과와 공중 착지는 Phase 3b exact 경로로 처리한다. `LNP.SurfaceNav.EnemySupportCache`로 exact-only/cache-first를 비교하고 `LNP.SurfaceNav.EnemyGround.Report`에서 적중·폴백 수를 본다. 현재 Layer handle이 없거나 snapshot generation이 다르면 임의 Layer를 고르지 않고 exact로 간다.
 
 ## Phase 5 구현 단위 3~5 결과(2026-09-28)
 
@@ -57,12 +59,12 @@ Phase 5(런타임 로더와 SurfaceCache 교체)는 2026-09-28에 구현 단위 
 
 ## 바로 다음 작업
 
-Phase 6 실행 계획을 작성하고 Enemy 접지·공중·넉백 소비자를 새 다층 query로 전환한다.
+Phase 6 구현 단위 0과 1을 진행한다.
 
-1. `design/MovementIntegration.md`와 Phase 3b exact 기준선을 다시 읽고 PureEntity·ActorPromoted·StateTree 소비자 목록을 확정한다.
-2. `QueryLayers` high-confidence 경로와 Phase 3b exact 폴백을 결합하고 낙하·착지·넉백·LOD 전환·패널 탑승 규약을 구현 단위로 나눈다.
-3. Phase 3b와 같은 부하 시나리오로 exact 호출 비율과 적 수 한계치를 재측정한다.
-4. 전환이 끝나면 legacy `GetSurfacePoint` adapter와 dormant `ULNPSurfaceCacheSubsystem`을 제거한다.
+1. 회귀 fixture에서 지각·섬 가장자리·동굴·정적 blocker의 cache-first 결과가 Phase 3b와 같은지 검사한다.
+2. `-game`에서 `EnemyGround.Report`로 smooth interior의 cache hit와 exact fallback을 확인한다.
+3. exact 착지의 `FLNPSurfaceHandle` 갱신과 넉백·사망 팝 handle 무효화·재획득 자동화를 추가한다.
+4. Idle 배회를 다층 query 우선·exact 폴백으로 전환한다.
 
 ## 이관된 후속 작업
 
@@ -94,6 +96,8 @@ Phase 6 실행 계획을 작성하고 Enemy 접지·공중·넉백 소비자를 
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-29 Phase 6 구현 단위 0: `LootNPopEditor Win64 Development` 전체 빌드 성공. EnemyMovement 자동화 2/2(`CachedGroundDecision`, `SurfaceHandleIdentity`)와 기존 ExactMovement 회귀 4/4 통과(`Saved/Logs/Phase06_Unit0_EnemyMovementTests.log`, `Phase06_Unit0_ExactMovementTests.log`).
 
 2026-09-28 Phase 5 종료: `LootNPopEditor Win64 Development`와 Win64 Development BuildCookRun 성공. 전체 자동화 59/59(`Saved/Logs/Phase05_Unit5_AllAutomation.log`), 패키지 1P(`Phase05_Unit5_Package.log`)와 리슨 2P host/guest(`Phase05_Unit5_2P_*.log`) 모두 baseline·face index·source key·SurfaceData probe PASS. production Meadow는 mesh compile 동기화 후 9,990 candidates·359,652 B로 재베이크했다(`Phase05_Unit5_Meadow_Rebake.log`).
 
