@@ -9,19 +9,27 @@
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Config/LNPSettings.h"
+#include "DataAsset/LNPMassSpawnConfig.h"
 #include "DataAsset/LNPOctantPoolData.h"
 #include "DataAsset/LNPOctantSurfaceData.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/Engine.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/PackageName.h"
+#include "SurfaceNavigation/LNPCollisionChannels.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
 #include "SurfaceNavigation/LNPOctantSourceCollector.h"
 #include "SurfaceNavigation/LNPOctantTriangleExtractor.h"
 #include "SurfaceNavigation/LNPSupportLayers.h"
 #include "SurfaceNavigation/LNPSurfaceBakeGeometry.h"
+#include "SurfaceNavigation/LNPMassSpawnPoint.h"
+#include "SurfaceNavigation/LNPSpawnData.h"
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
+#include "UObject/StrongObjectPtr.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogLNPSurfaceBake, Log, All);
 
@@ -46,7 +54,350 @@ namespace LNPOctantSurfaceBaker
 			FLNPOctantBakeSetting::Real(TEXT("Layer.OverlapReportHeight"), Options.OverlapReportHeight),
 			FLNPOctantBakeSetting::Real(TEXT("Layer.WalkableMinDot"), Layers.WalkableMinDot),
 			FLNPOctantBakeSetting::Real(TEXT("Layer.WeldDistance"), Layers.WeldDistance),
+			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Spawn.CodecVersion"), LNPSpawnData::CodecVersion),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.CandidateSpacing"), Options.SpawnCandidateSpacing),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.AnchorProjectionTolerance"), Options.SpawnAnchorProjectionTolerance),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.MaxClearance"), Options.SpawnMaxClearance),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.PodClearance"), Options.SpawnPodClearance),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.EnemyClearance"), Options.SpawnEnemyClearance),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.PodCapsuleRadius"), Options.SpawnPodCapsuleRadius),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.PodCapsuleHalfHeight"), Options.SpawnPodCapsuleHalfHeight),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.EnemyCapsuleRadius"), Options.SpawnEnemyCapsuleRadius),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.EnemyCapsuleHalfHeight"), Options.SpawnEnemyCapsuleHalfHeight),
 		};
+	}
+
+	/** source LVI의 exact blocker를 등록해 Spawn capsule clearance를 검사하는 베이크 전용 physics world. */
+	struct FSpawnClearanceWorld
+	{
+		TStrongObjectPtr<UWorld> World;
+		int32 ProbeCount = 0;
+
+		explicit FSpawnClearanceWorld(const UWorld& SourceWorld)
+		{
+			World.Reset(NewObject<UWorld>(GetTransientPackage()));
+			World->WorldType = EWorldType::EditorPreview;
+			FWorldContext& WorldContext = GEngine->CreateNewWorldContext(World->WorldType);
+			WorldContext.SetCurrentWorld(World.Get());
+			World->InitializeNewWorld(UWorld::InitializationValues()
+				.AllowAudioPlayback(false)
+				.CreatePhysicsScene(true)
+				.RequiresHitProxies(false)
+				.CreateNavigation(false)
+				.CreateAISystem(false)
+				.ShouldSimulatePhysics(false)
+				.SetTransactional(false));
+
+			for (const AActor* Actor : SourceWorld.PersistentLevel->Actors)
+			{
+				if (!IsValid(Actor) || Actor->HasAnyFlags(RF_Transient))
+				{
+					continue;
+				}
+				TInlineComponentArray<UStaticMeshComponent*> Components(Actor);
+				for (const UStaticMeshComponent* Source : Components)
+				{
+					if (!IsValid(Source) || !Source->GetStaticMesh() || !Source->IsQueryCollisionEnabled()
+						|| Source->GetCollisionResponseToChannel(LNPCollisionChannels::WorldExact) != ECR_Block)
+					{
+						continue;
+					}
+					const FTransform ComponentTransform = FLNPOctantTriangleExtractor::GetSourceTransform(*Source);
+					if (const UInstancedStaticMeshComponent* Instances = Cast<UInstancedStaticMeshComponent>(Source))
+					{
+						for (int32 InstanceIndex = 0; InstanceIndex < Instances->GetInstanceCount(); ++InstanceIndex)
+						{
+							FTransform InstanceTransform;
+							if (Instances->GetInstanceTransform(InstanceIndex, InstanceTransform, false))
+							{
+								AddProbe(*Source, InstanceTransform * ComponentTransform);
+							}
+						}
+					}
+					else
+					{
+						AddProbe(*Source, ComponentTransform);
+					}
+				}
+			}
+		}
+
+		~FSpawnClearanceWorld()
+		{
+			GEngine->DestroyWorldContext(World.Get());
+			World->DestroyWorld(true);
+		}
+
+		void AddProbe(const UStaticMeshComponent& Source, const FTransform& Transform)
+		{
+			UStaticMeshComponent* Probe = NewObject<UStaticMeshComponent>(World.Get());
+			Probe->SetStaticMesh(Source.GetStaticMesh());
+			Probe->SetWorldTransform(Transform);
+			Probe->SetCollisionProfileName(Source.GetCollisionProfileName());
+			Probe->RegisterComponentWithWorld(World.Get());
+			++ProbeCount;
+		}
+
+		bool HasCapsuleClearance(
+			const FVector& Feet,
+			const FVector& SurfaceNormal,
+			double CapsuleRadius,
+			double CapsuleHalfHeight) const
+		{
+			const FVector Up = SurfaceNormal.GetSafeNormal();
+			const FVector Center = Feet + Up * (CapsuleHalfHeight + 1.0);
+			const FQuat Rotation = FRotationMatrix::MakeFromZ(Up).ToQuat();
+			const FCollisionShape Shape = FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight);
+			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPSpawnClearance), false);
+			return !World->OverlapBlockingTestByChannel(
+				Center, Rotation, LNPCollisionChannels::WorldExact, Shape, Params);
+		}
+	};
+
+	bool IsSpawnSafeSample(const FLNPSupportLayerRaster& Raster, int32 I, int32 J)
+	{
+		const int32 Index = Raster.Layout.Find(I, J);
+		if (!Raster.Samples.IsValidIndex(Index))
+		{
+			return false;
+		}
+		const ELNPSupportSampleFlags Flags = Raster.Samples[Index].Flags;
+		return EnumHasAllFlags(Flags, ELNPSupportSampleFlags::Valid | ELNPSupportSampleFlags::Walkable)
+			&& !EnumHasAnyFlags(Flags, ELNPSupportSampleFlags::NeedsExact);
+	}
+
+	float ComputeSpawnClearance(
+		const FLNPSupportLayerRaster& Raster,
+		int32 I,
+		int32 J,
+		double Radius,
+		double MaxClearance)
+	{
+		const double CellSpacing = Radius * FMath::Sqrt(6.0) / Raster.Layout.Subdivisions;
+		const int32 MaxRings = FMath::Max(1, FMath::CeilToInt(MaxClearance / CellSpacing));
+		for (int32 Ring = 0; Ring <= MaxRings; ++Ring)
+		{
+			for (int32 DI = -Ring; DI <= Ring; ++DI)
+			{
+				for (int32 DJ = -Ring; DJ <= Ring; ++DJ)
+				{
+					if (FMath::Max3(FMath::Abs(DI), FMath::Abs(DJ), FMath::Abs(DI + DJ)) != Ring)
+					{
+						continue;
+					}
+					if (!IsSpawnSafeSample(Raster, I + DI, J + DJ))
+					{
+						return static_cast<float>(FMath::Clamp((Ring - 1) * CellSpacing, 0.0, MaxClearance));
+					}
+				}
+			}
+		}
+		return static_cast<float>(MaxClearance);
+	}
+
+	FIntPoint ClosestSampleCoord(const FLNPSupportLayout& Layout, const FVector3d& Direction)
+	{
+		const FVector3d Positive = Direction.ComponentMax(FVector3d::ZeroVector);
+		const double Sum = Positive.X + Positive.Y + Positive.Z;
+		int32 I = FMath::RoundToInt32(Positive.X / Sum * Layout.Subdivisions);
+		int32 J = FMath::RoundToInt32(Positive.Y / Sum * Layout.Subdivisions);
+		I = FMath::Clamp(I, 0, Layout.Subdivisions);
+		J = FMath::Clamp(J, 0, Layout.Subdivisions);
+		while (I + J > Layout.Subdivisions)
+		{
+			I >= J ? --I : --J;
+		}
+		return FIntPoint(I, J);
+	}
+
+	bool BuildSpawnData(
+		const UWorld& SourceWorld,
+		TConstArrayView<FLNPSupportLayerRaster> Rasters,
+		const FLNPSupportAtlas& Atlas,
+		const FLNPOctantBakeOptions& Options,
+		FLNPSpawnData& OutSpawnData,
+		FString& OutError)
+	{
+		OutSpawnData = FLNPSpawnData();
+		const ULNPSettings* Settings = GetDefault<ULNPSettings>();
+		const ULNPMassSpawnConfig* SpawnConfig = Settings ? Settings->MassSpawnConfig.LoadSynchronous() : nullptr;
+		if (!SpawnConfig)
+		{
+			OutError = TEXT("LNPSettings has no loadable MassSpawnConfig.");
+			return false;
+		}
+		TSet<FName> ValidSpawnSetIds;
+		for (const FLNPLootPodSpawnEntry& Entry : SpawnConfig->LootPodSpawnSets)
+		{
+			if (Entry.SpawnSetId.IsNone() || ValidSpawnSetIds.Contains(Entry.SpawnSetId))
+			{
+				OutError = FString::Printf(TEXT("MassSpawnConfig has an empty or duplicate SpawnSetId '%s'."), *Entry.SpawnSetId.ToString());
+				return false;
+			}
+			ValidSpawnSetIds.Add(Entry.SpawnSetId);
+		}
+		const FSpawnClearanceWorld ClearanceWorld(SourceWorld);
+
+		for (int32 LayerId = 0; LayerId < Rasters.Num(); ++LayerId)
+		{
+			const FLNPSupportLayerRaster& Raster = Rasters[LayerId];
+			const double Radius = Atlas.Layers[LayerId].BaseRadius;
+			const double CellSpacing = Radius * FMath::Sqrt(6.0) / Raster.Layout.Subdivisions;
+			const int32 Stride = FMath::Max(1, FMath::CeilToInt(Options.SpawnCandidateSpacing / CellSpacing));
+			for (int32 Row = 0; Row < Raster.Layout.Rows.Num(); ++Row)
+			{
+				const int32 J = Raster.Layout.J0 + Row;
+				const FLNPSupportRowSpan& Span = Raster.Layout.Rows[Row];
+				for (int32 I = Span.IStart; I < Span.IStart + Span.Count; ++I)
+				{
+					if ((I % Stride) != 0 || (J % Stride) != 0 || !IsSpawnSafeSample(Raster, I, J))
+					{
+						continue;
+					}
+					const int32 SampleIndex = Raster.Layout.Find(I, J);
+					const FLNPSupportSample& Sample = Raster.Samples[SampleIndex];
+					const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(Raster.Layout.Subdivisions, I, J);
+					const float Clearance = ComputeSpawnClearance(Raster, I, J, Sample.Radius, Options.SpawnMaxClearance);
+					ELNPSpawnCandidateFlags Allowed = ELNPSpawnCandidateFlags::None;
+					const FVector Position(Direction * Sample.Radius);
+					const FVector Normal(Sample.Normal);
+					if (Clearance >= Options.SpawnPodClearance
+						&& ClearanceWorld.HasCapsuleClearance(Position, Normal,
+							Options.SpawnPodCapsuleRadius, Options.SpawnPodCapsuleHalfHeight))
+					{
+						Allowed |= ELNPSpawnCandidateFlags::Pod;
+					}
+					if (Clearance >= Options.SpawnEnemyClearance
+						&& ClearanceWorld.HasCapsuleClearance(Position, Normal,
+							Options.SpawnEnemyCapsuleRadius, Options.SpawnEnemyCapsuleHalfHeight))
+					{
+						Allowed |= ELNPSpawnCandidateFlags::Enemy;
+					}
+					if (Allowed == ELNPSpawnCandidateFlags::None)
+					{
+						continue;
+					}
+					FLNPSpawnRandomCandidate& Candidate = OutSpawnData.RandomCandidates.AddDefaulted_GetRef();
+					Candidate.CandidateIndex = OutSpawnData.RandomCandidates.Num() - 1;
+					Candidate.LocalPosition = FVector3f(Direction * Sample.Radius);
+					Candidate.LocalNormal = Sample.Normal;
+					Candidate.LocalLayerId = static_cast<uint16>(LayerId);
+					Candidate.Allowed = Allowed;
+					Candidate.SlopeDot = FVector3f::DotProduct(Sample.Normal, FVector3f(-Direction));
+					Candidate.EdgeClearance = Clearance;
+					Candidate.CapsuleClearance = static_cast<float>(EnumHasAnyFlags(Allowed, ELNPSpawnCandidateFlags::Pod)
+						? Options.SpawnPodCapsuleRadius : Options.SpawnEnemyCapsuleRadius);
+				}
+			}
+		}
+
+		TSet<FGuid> SeenIds;
+		for (const AActor* Actor : SourceWorld.PersistentLevel->Actors)
+		{
+			const ALNPMassSpawnPoint* SpawnPoint = Cast<ALNPMassSpawnPoint>(Actor);
+			if (!IsValid(SpawnPoint) || SpawnPoint->HasAnyFlags(RF_Transient))
+			{
+				continue;
+			}
+			if (!SpawnPoint->SpawnPointId.IsValid() || SeenIds.Contains(SpawnPoint->SpawnPointId))
+			{
+				OutError = FString::Printf(TEXT("Mass spawn point '%s' has an invalid or duplicate SpawnPointId."), *SpawnPoint->GetPathName());
+				return false;
+			}
+			SeenIds.Add(SpawnPoint->SpawnPointId);
+			if (!SpawnPoint->TargetSpawnSetId.IsNone() && !ValidSpawnSetIds.Contains(SpawnPoint->TargetSpawnSetId))
+			{
+				OutError = FString::Printf(TEXT("Mass spawn point '%s' references unknown SpawnSetId '%s'."),
+					*SpawnPoint->GetPathName(), *SpawnPoint->TargetSpawnSetId.ToString());
+				return false;
+			}
+
+			const FTransform AuthoredTransform = SpawnPoint->GetActorTransform();
+			const FVector3d AuthoredLocation(AuthoredTransform.GetLocation());
+			const double AuthoredRadius = AuthoredLocation.Length();
+			if (AuthoredRadius <= UE_SMALL_NUMBER)
+			{
+				OutError = FString::Printf(TEXT("Mass spawn point '%s' is at the octant origin."), *SpawnPoint->GetPathName());
+				return false;
+			}
+			const FVector3d Direction = AuthoredLocation / AuthoredRadius;
+			int32 BestLayer = INDEX_NONE;
+			FLNPSupportLayerQuery BestQuery;
+			double BestDistance = TNumericLimits<double>::Max();
+			for (int32 LayerId = 0; LayerId < Atlas.Layers.Num(); ++LayerId)
+			{
+				FLNPSupportLayerQuery Query;
+				if (LNPSupportAtlas::QueryLayer(Atlas.Layers[LayerId], Direction, Query))
+				{
+					const double Distance = FMath::Abs(Query.Radius - AuthoredRadius);
+					if (Distance < BestDistance)
+					{
+						BestDistance = Distance;
+						BestLayer = LayerId;
+						BestQuery = Query;
+					}
+				}
+			}
+			if (BestLayer == INDEX_NONE || BestDistance > Options.SpawnAnchorProjectionTolerance)
+			{
+				OutError = FString::Printf(TEXT("Mass spawn point '%s' is %.1f cm from the nearest interpolable Support surface (limit %.1f cm)."),
+					*SpawnPoint->GetPathName(), BestDistance, Options.SpawnAnchorProjectionTolerance);
+				return false;
+			}
+
+			const FIntPoint Coord = ClosestSampleCoord(Rasters[BestLayer].Layout, Direction);
+			const float Clearance = ComputeSpawnClearance(
+				Rasters[BestLayer], Coord.X, Coord.Y, BestQuery.Radius, Options.SpawnMaxClearance);
+			if (Clearance < Options.SpawnPodClearance)
+			{
+				OutError = FString::Printf(TEXT("Mass spawn point '%s' has only %.1f cm clearance (requires %.1f cm)."),
+					*SpawnPoint->GetPathName(), Clearance, Options.SpawnPodClearance);
+				return false;
+			}
+			if (!ClearanceWorld.HasCapsuleClearance(
+				FVector(Direction * BestQuery.Radius), FVector(BestQuery.Normal),
+				Options.SpawnPodCapsuleRadius, Options.SpawnPodCapsuleHalfHeight))
+			{
+				OutError = FString::Printf(TEXT("Mass spawn point '%s' does not have Pod capsule clearance."),
+					*SpawnPoint->GetPathName());
+				return false;
+			}
+
+			const FVector SurfaceNormal(BestQuery.Normal);
+			FVector Forward = FVector::VectorPlaneProject(AuthoredTransform.GetUnitAxis(EAxis::X), SurfaceNormal).GetSafeNormal();
+			if (Forward.IsNearlyZero())
+			{
+				FVector Side;
+				SurfaceNormal.FindBestAxisVectors(Forward, Side);
+			}
+			const FQuat Rotation = FRotationMatrix::MakeFromZX(SurfaceNormal, Forward).ToQuat();
+			FLNPSpawnAuthoredAnchor& Anchor = OutSpawnData.AuthoredAnchors.AddDefaulted_GetRef();
+			Anchor.SpawnPointId = SpawnPoint->SpawnPointId;
+			Anchor.TargetSpawnSetId = SpawnPoint->TargetSpawnSetId;
+			Anchor.LocalTransform = FTransform3f(FQuat4f(Rotation), FVector3f(Direction * BestQuery.Radius));
+			Anchor.LocalLayerId = static_cast<uint16>(BestLayer);
+			Anchor.EdgeClearance = Clearance;
+			Anchor.CapsuleClearance = static_cast<float>(Options.SpawnPodCapsuleRadius);
+		}
+
+		for (int32 A = 0; A < OutSpawnData.AuthoredAnchors.Num(); ++A)
+		{
+			for (int32 B = A + 1; B < OutSpawnData.AuthoredAnchors.Num(); ++B)
+			{
+				const float Distance = (
+					OutSpawnData.AuthoredAnchors[A].LocalTransform.GetLocation()
+					- OutSpawnData.AuthoredAnchors[B].LocalTransform.GetLocation()).Length();
+				if (Distance < SpawnConfig->MinDistanceBetweenPods)
+				{
+					OutError = FString::Printf(TEXT("Authored spawn points %s and %s are %.1f cm apart (minimum %.1f cm)."),
+						*OutSpawnData.AuthoredAnchors[A].SpawnPointId.ToString(EGuidFormats::Short),
+						*OutSpawnData.AuthoredAnchors[B].SpawnPointId.ToString(EGuidFormats::Short),
+						Distance, SpawnConfig->MinDistanceBetweenPods);
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	/** Raster 통계를 Layer 보고서에 채운다. */
@@ -258,10 +609,11 @@ FString FLNPOctantBakeReport::ToString() const
 {
 	FString Result = FString::Printf(
 		TEXT("Crust=%s (%d tris, %d Support sources, %d Layers) N=%d Samples=%d Valid=%d Walkable=%d NeedsExact=%d (%.2f%%) ")
-		TEXT("Radius=[%.2f, %.2f] TotalSamples=%d Payload=%lld bytes Time collect=%.2fs extract=%.2fs raster=%.2fs layers=%.2fs encode=%.2fs"),
+		TEXT("Radius=[%.2f, %.2f] TotalSamples=%d SupportPayload=%lld bytes Spawn authored=%d candidates=%d payload=%lld bytes Time collect=%.2fs extract=%.2fs raster=%.2fs layers=%.2fs encode=%.2fs"),
 		*CrustName, CrustTriangleCount, SupportSourceCount, SupportLayerCount, Subdivisions, SampleCount, ValidCount, WalkableCount,
 		NeedsExactCount, SampleCount > 0 ? 100.0 * NeedsExactCount / SampleCount : 0.0,
-		MinRadius, MaxRadius, TotalSampleCount, PayloadBytes, CollectSeconds, ExtractSeconds, RasterSeconds, LayerRasterSeconds, EncodeSeconds);
+		MinRadius, MaxRadius, TotalSampleCount, PayloadBytes, SpawnAuthoredCount, SpawnCandidateCount, SpawnPayloadBytes,
+		CollectSeconds, ExtractSeconds, RasterSeconds, LayerRasterSeconds, EncodeSeconds);
 	for (int32 LayerId = 1; LayerId < Layers.Num(); ++LayerId)
 	{
 		const FLNPOctantBakeLayerReport& Layer = Layers[LayerId];
@@ -399,6 +751,20 @@ bool FLNPOctantSurfaceBaker::Bake(
 	}
 	OutReport.Overlaps = CountOverlaps(Rasters, Decoded, Options.OverlapReportHeight);
 
+	FLNPSpawnData SpawnData;
+	if (!BuildSpawnData(*SourceWorld, Rasters, Decoded, Options, SpawnData, OutError))
+	{
+		return false;
+	}
+	TArray<uint8> SpawnPayload;
+	if (!LNPSpawnData::Encode(SpawnData, SpawnPayload, OutError))
+	{
+		return false;
+	}
+	OutReport.SpawnAuthoredCount = SpawnData.AuthoredAnchors.Num();
+	OutReport.SpawnCandidateCount = SpawnData.RandomCandidates.Num();
+	OutReport.SpawnPayloadBytes = SpawnPayload.Num();
+
 	for (int32 LayerId = 0; LayerId < Rasters.Num(); ++LayerId)
 	{
 		FLNPOctantBakeLayerReport& LayerReport = OutReport.Layers[LayerId];
@@ -435,12 +801,15 @@ bool FLNPOctantSurfaceBaker::Bake(
 	Header.Support.ElementCount = static_cast<uint32>(OutReport.TotalSampleCount);
 	Header.Support.UncompressedSize = static_cast<uint64>(Payload.Num());
 	Header.Support.ContentHash = FLNPContentHash(FIoHash::HashBuffer(Payload.GetData(), Payload.Num()));
+	Header.Spawn.ElementCount = static_cast<uint32>(SpawnData.AuthoredAnchors.Num() + SpawnData.RandomCandidates.Num());
+	Header.Spawn.UncompressedSize = static_cast<uint64>(SpawnPayload.Num());
+	Header.Spawn.ContentHash = FLNPContentHash(FIoHash::HashBuffer(SpawnPayload.GetData(), SpawnPayload.Num()));
 
 	OutData.Header = MoveTemp(Header);
 	OutData.SupportPayload = MoveTemp(Payload);
 	OutData.NavigationPayload.Reset();
 	OutData.TraversalPayload.Reset();
-	OutData.SpawnPayload.Reset();
+	OutData.SpawnPayload = MoveTemp(SpawnPayload);
 	return true;
 }
 
@@ -480,7 +849,7 @@ bool FLNPOctantSurfaceBaker::BakeAndSave(
 	SurfaceData->SupportPayload = Baked->SupportPayload;
 	SurfaceData->NavigationPayload.Reset();
 	SurfaceData->TraversalPayload.Reset();
-	SurfaceData->SpawnPayload.Reset();
+	SurfaceData->SpawnPayload = Baked->SpawnPayload;
 	Package->MarkPackageDirty();
 
 	const FString Filename = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());

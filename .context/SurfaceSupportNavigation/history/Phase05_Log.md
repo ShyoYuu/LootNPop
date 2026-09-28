@@ -72,3 +72,42 @@
 - `-game`에서 experimental Toolsets Python bootstrap이 `ToolsetDefinition`·`AgentSkill` 미노출 오류를 남기고, 기존 Mass translator가 CharacterMovementComponent 추출 오류를 남겼다. `LogLootNPop` 오류·ensure·크래시는 없었고 Surface Navigation probe에는 영향이 없어 별도 환경/기존 문제로 분리했다.
 
 다음은 구현 단위 2: spawn authoring actor, `SpawnSetId`, authored/random candidate baker와 Spawn codec이다.
+
+## 2026-09-28 — 구현 단위 2 완료
+
+### Authoring과 production 마이그레이션
+
+- editor-only `ALNPMassSpawnPoint`를 추가했다. 최초 배치에는 안정 `SpawnPointId` GUID를 만들고 일반 복제·붙여넣기에는 새 GUID를 발급한다. `TargetSpawnSetId`는 선택 사항이며 GUID·세트 ID·transform 전체가 source semantic hash에 들어간다.
+- `FLNPLootPodSpawnEntry.SpawnSetId`를 추가했다. `ULNPMassSpawnConfig::IsDataValid`이 빈 ID, 중복 ID, null Pod config, 음수 수량을 차단한다.
+- `LNP.SurfaceNav.MigrateMassSpawnConfig`로 production `DA_MassSpawnConfig` 네 entry를 `Bench01`, `Bench01_2`, `Bench01_3`, `Bench01_4`로 마이그레이션했다.
+- `LNP.SurfaceNav.PlaceRegressionSpawnAnchors`로 `LVI_Octant_Fixture_Regression`의 지각·부유섬·동굴에 authored anchor 3개를 배치했다.
+
+### Spawn 베이크와 codec
+
+- authored anchor는 가장 가까운 보간 가능 Support Layer로 투영하며 원래 forward를 접평면에 투영해 yaw를 보존한다. 공중 point는 투영 허용 거리를 넘으면, authored point끼리 Pod 최소 거리를 어기면 베이크를 실패시킨다.
+- random candidate는 안전한 Support raster를 안정 stride로 샘플링해 안정 candidate index를 부여한다. slope·edge clearance와 Pod/Enemy 허용 비트를 저장한다.
+- 베이크 전용 physics preview world에 exact blocker static mesh와 ISM instance를 복제했다. 후보 위치를 Support 법선 방향으로 capsule 반높이만큼 띄워 Pod(반지름 120cm·반높이 150cm)와 Enemy(반지름 50cm·반높이 100cm) overlap clearance를 검사한다. authored anchor는 Pod capsule clearance를 필수로 한다.
+- `LNPSpawnData` codec v1은 authored anchor를 GUID, random candidate를 안정 index로 canonical 정렬해 little-endian payload를 만든다. decode 시 버전·reserved·범위·유한값·GUID/index 중복과 정렬·trailing bytes를 검사한다.
+- loader가 Spawn descriptor와 content hash를 필수로 검증하고 payload를 decode한다. 같은 SurfaceData asset을 여러 slot이 사용하면 Support와 마찬가지로 immutable Spawn data를 한 번만 decode해 공유한다.
+- `FLNPSurfaceBakeHeader::CurrentDataVersion=4`, `FLNPOctantSurfaceBaker::BakerSchemaVersion=3`으로 올렸다. 이전 Spawn 없는 SurfaceData는 runtime 호환 decode하지 않는다.
+
+### 재베이크 결과
+
+| SurfaceData | authored | random candidate | Spawn payload |
+|:---|---:|---:|---:|
+| `DA_OctantSurface_Fixture_Crust` | 0 | 10,573 | 380,640 B |
+| `DA_OctantSurface_Fixture_Regression` | 3 | 10,616 | 382,368 B |
+| `DA_OctantSurface_Meadow_00` | 0 | 10,538 | 379,380 B |
+
+- capsule clearance 도입 전과 비교해 Regression의 blocker 인접 후보 1개, Meadow의 blocker 인접 후보 8개가 제거됐다.
+- 최종 재베이크 로그는 `Saved/Logs/Phase05_SpawnBake_Clearance.log`다.
+
+### 검증
+
+- `LootNPopEditor Win64 Development` 전체 빌드 성공.
+- `LootNPop.SurfaceNavigation.Bake.SpawnCodec`과 `Bake.SpawnAuthoringValidation` 2/2 성공. 후자는 unknown `SpawnSetId`, 공중 point, 중복 GUID, blocker capsule clearance 부족을 각각 실패시키는지 검사한다. 로그 `Saved/Logs/Phase05_SpawnTests.log`.
+- `Bake.OctantBakeDeterministic` 1/1 성공. 저장본과 재베이크 Support/Spawn payload가 일치하고 회귀 LVI의 authored anchor 3개가 기대 Layer로 해석되는지 검사한다. 로그 `Saved/Logs/Phase05_DeterministicTest.log`.
+- `Runtime.ProductionSurfaceDataDefinitions`와 `Runtime.SurfaceDataLoaderValidation` 2/2 성공. production `DataVersion=4` asset과 Spawn payload decode·공유가 유효하다. 로그 `Saved/Logs/Phase05_RuntimeTests.log`.
+- `git diff --check`는 오류 없이 통과했다. 표시된 내용은 기존 checkout의 LF→CRLF 변환 경고뿐이다.
+
+다음은 구현 단위 3: Mass spawn이 8-slot Spawn snapshot을 직접 소비하도록 바꾸고 authored 우선 Pod·enemy 후보 할당과 shortfall 통계를 구현한다.

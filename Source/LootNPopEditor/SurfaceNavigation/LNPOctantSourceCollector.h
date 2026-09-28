@@ -52,11 +52,20 @@ struct LOOTNPOPEDITOR_API FLNPTerrainSourceSemantic
 	FName StaticMeshPackageName;
 };
 
+/** Spawn point authoring 중 source semantic hash에 들어가는 값. */
+struct LOOTNPOPEDITOR_API FLNPSpawnPointSemantic
+{
+	FGuid SpawnPointId;
+	FName TargetSpawnSetId;
+	FTransform Transform = FTransform::Identity;
+};
+
 /** Source manifest와 세 freshness hash를 한 번에 생성한 결과. */
 struct LOOTNPOPEDITOR_API FLNPOctantSourceCollection
 {
 	TArray<FLNPOctantSourcePackage> Manifest;
 	TArray<FLNPTerrainSourceSemantic> TerrainSemantics;
+	TArray<FLNPSpawnPointSemantic> SpawnPointSemantics;
 	FLNPContentHash SourceSemanticHash;
 	FLNPContentHash BakeSettingsHash;
 	FLNPContentHash SourceContentHash;
@@ -103,6 +112,12 @@ public:
 		TArray<FLNPTerrainSourceSemantic>& OutSemantics,
 		FString& OutError);
 
+	/** editor-only Mass spawn point를 수집하고 ID 중복·transform 유효성을 검사한다. */
+	static bool CollectSpawnPoints(
+		const UWorld& SourceWorld,
+		TArray<FLNPSpawnPointSemantic>& OutSemantics,
+		FString& OutError);
+
 	/** PackageName, Kind 순으로 정렬하고 완전히 동일한 행을 중복 제거한다. */
 	static bool CanonicalizeManifest(
 		TArray<FLNPOctantSourcePackage>& InOutManifest,
@@ -110,6 +125,12 @@ public:
 
 	static bool BuildSourceSemanticHash(
 		TConstArrayView<FLNPTerrainSourceSemantic> Semantics,
+		FLNPContentHash& OutHash,
+		FString& OutError);
+
+	static bool BuildSourceSemanticHash(
+		TConstArrayView<FLNPTerrainSourceSemantic> TerrainSemantics,
+		TConstArrayView<FLNPSpawnPointSemantic> SpawnPointSemantics,
 		FLNPContentHash& OutHash,
 		FString& OutError);
 

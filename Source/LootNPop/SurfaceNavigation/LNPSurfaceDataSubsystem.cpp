@@ -7,6 +7,7 @@
 #include "LootNPop.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
+#include "SurfaceNavigation/LNPSpawnData.h"
 
 #include "Components/PrimitiveComponent.h"
 #include "Engine/AssetManager.h"
@@ -256,6 +257,7 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 	TArray<TSharedPtr<const FLNPSupportAtlas, ESPMode::ThreadSafe>> Atlases;
 	Atlases.Reserve(SlotCount);
 	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPSupportAtlas, ESPMode::ThreadSafe>> DecodedByAsset;
+	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPSpawnData, ESPMode::ThreadSafe>> DecodedSpawnByAsset;
 	OutSnapshot.Generation = Generation;
 	OutSnapshot.Slots.Reserve(SlotCount);
 
@@ -284,7 +286,7 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 			|| !ValidatePayload(TEXT("Support"), SurfaceData->Header.Support, SurfaceData->SupportPayload, true, OutError)
 			|| !ValidatePayload(TEXT("Navigation"), SurfaceData->Header.Navigation, SurfaceData->NavigationPayload, false, OutError)
 			|| !ValidatePayload(TEXT("Traversal"), SurfaceData->Header.Traversal, SurfaceData->TraversalPayload, false, OutError)
-			|| !ValidatePayload(TEXT("Spawn"), SurfaceData->Header.Spawn, SurfaceData->SpawnPayload, false, OutError))
+			|| !ValidatePayload(TEXT("Spawn"), SurfaceData->Header.Spawn, SurfaceData->SpawnPayload, true, OutError))
 		{
 			OutError = FString::Printf(TEXT("Slot %d: %s"), Slot, *OutError);
 			return false;
@@ -315,6 +317,26 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 			DecodedByAsset.Add(SurfaceData, Atlas);
 		}
 
+		TSharedPtr<const FLNPSpawnData, ESPMode::ThreadSafe> Spawn = DecodedSpawnByAsset.FindRef(SurfaceData);
+		if (!Spawn.IsValid())
+		{
+			TSharedPtr<FLNPSpawnData, ESPMode::ThreadSafe> Decoded = MakeShared<FLNPSpawnData, ESPMode::ThreadSafe>();
+			if (!LNPSpawnData::Decode(SurfaceData->SpawnPayload, *Decoded, OutError))
+			{
+				OutError = FString::Printf(TEXT("Slot %d Spawn decode/validation failed: %s"), Slot, *OutError);
+				return false;
+			}
+			const uint64 ElementCount = Decoded->AuthoredAnchors.Num() + Decoded->RandomCandidates.Num();
+			if (ElementCount != SurfaceData->Header.Spawn.ElementCount)
+			{
+				OutError = FString::Printf(TEXT("Slot %d Spawn record count is %llu but descriptor says %u."),
+					Slot, ElementCount, SurfaceData->Header.Spawn.ElementCount);
+				return false;
+			}
+			Spawn = MoveTemp(Decoded);
+			DecodedSpawnByAsset.Add(SurfaceData, Spawn);
+		}
+
 		Atlases.Add(Atlas);
 		FLNPSurfaceDataSlotSnapshot& SlotSnapshot = OutSnapshot.Slots.AddDefaulted_GetRef();
 		SlotSnapshot.LevelAsset = Definition.LevelAsset.ToSoftObjectPath();
@@ -322,6 +344,7 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 		SlotSnapshot.SlotRotation = FQuat4d(ULNPOctantSpawnSubsystem::OctantRotations[Slot].Quaternion());
 		SlotSnapshot.WorldToSlotRotation = SlotSnapshot.SlotRotation.Inverse();
 		SlotSnapshot.Support = Atlas;
+		SlotSnapshot.Spawn = Spawn;
 	}
 
 	if (!ValidateSeams(Atlases, OutError))

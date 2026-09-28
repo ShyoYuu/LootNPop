@@ -1,21 +1,23 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 5 — 런타임 로더와 SurfaceCache 교체 · 진행(구현 단위 0·1 완료, 단위 2 대기)
+> 현재 Phase: Phase 5 — 런타임 로더와 SurfaceCache 교체 · 진행(구현 단위 0·1·2 완료, 단위 3 대기)
 > 마지막 갱신: 2026-09-28
 
 ## 현재 목표
 
 Phase 4b(부유섬·동굴 키트 다층 베이크)가 2026-09-27에 끝났다. 완료 증거는 `phases/Phase04b_MultiLayerSupport.md` §5와 `history/Phase04b_Log.md`에 있다. 다층 Atlas·face 표·codec v2 규약 원본은 `design/SurfaceBaking.md` "다층 Atlas 규약"이다.
 
-Phase 5(런타임 로더와 SurfaceCache 교체)를 진행한다. 완료 조건은 `Roadmap.md` §3, 실행 문서는 `phases/Phase05_RuntimeLoader.md`다. 정상 실행에서 전체 runtime trace bake를 없애고, 클라이언트도 같은 snapshot을 게시하며, stale은 cook 단계에서 검출한다. 기본 지각 Layer만 반환하는 legacy `GetSurfacePoint` adapter도 Phase 6까지의 산출물이다(`Roadmap.md` "Phase 5와 6 사이"). 2026-09-28에 구현 단위 0(loader 골격)과 1(Support query·hit registry·Ready 게이트)을 끝냈다.
+Phase 5(런타임 로더와 SurfaceCache 교체)를 진행한다. 완료 조건은 `Roadmap.md` §3, 실행 문서는 `phases/Phase05_RuntimeLoader.md`다. 정상 실행에서 전체 runtime trace bake를 없애고, 클라이언트도 같은 snapshot을 게시하며, stale은 cook 단계에서 검출한다. 기본 지각 Layer만 반환하는 legacy `GetSurfacePoint` adapter도 Phase 6까지의 산출물이다(`Roadmap.md` "Phase 5와 6 사이"). 2026-09-28에 구현 단위 0(loader 골격), 1(Support query·hit registry·Ready 게이트), 2(Spawn authoring·baker·codec)를 끝냈다.
 
-## Phase 5 구현 단위 1 결과(2026-09-28)
+## Phase 5 구현 단위 2 결과(2026-09-28)
 
-- `ULNPSurfaceDataSubsystem` snapshot이 slot inverse rotation 기반 `QuerySupport`와 Layer 0 legacy adapter를 제공한다. handle은 `(OctantSlot, LocalLayerId, Generation)`이다.
-- runtime Support key 11개/slot을 저장된 source 표에 bind해 총 88개 face map을 hit registry에 게시한다. registry는 Atlas shared pointer+source index를 보유하며 exact hit가 `LocalLayerId`와 SurfaceData generation을 반환한다.
-- 탄도 가이드와 로컬 PlayerController Ready는 SurfaceData ready를 직접 본다. 게스트가 서버 phase `Complete`를 먼저 받아도 `>= SurfaceBaking` 투-게이트로 로드를 시작한다.
-- 서버 Mass spawn은 아직 legacy SurfaceCache snapshot을 소비하므로 새 snapshot 게시 뒤 runtime bake를 임시로 이어 간다. Spawn stream 전환 뒤 제거한다.
+- `ALNPMassSpawnPoint`가 안정 GUID와 선택적 `TargetSpawnSetId`를 authoring하며, 복제·붙여넣기에는 새 GUID를 발급한다. 회귀 LVI에는 지각·섬·동굴 anchor 3개가 있다.
+- production `DA_MassSpawnConfig`의 네 entry에 안정 `SpawnSetId`를 저장했다. 빈 ID·중복 ID와 unknown anchor 참조는 config/bake validation에서 차단된다.
+- 베이커가 authored anchor를 Support Layer에 투영하고 yaw를 접평면에 보존한다. random candidate는 Support raster에서 결정론적으로 만들며 Pod·Enemy capsule clearance를 bake-only physics preview world에서 검증한다.
+- Spawn codec v1을 도입해 `DataVersion=4`, `BakerSchemaVersion=3`으로 올렸다. 로더는 Spawn payload도 원자적 snapshot의 일부로 decode·검증하고 같은 asset을 쓰는 slot끼리 결과를 공유한다.
+- SurfaceData 3개를 다시 구웠다. Spawn 레코드는 Crust 10,573개, Regression 10,619개(3 authored), Meadow 10,538개다.
+- 서버 Mass spawn은 아직 legacy SurfaceCache snapshot을 소비하므로 새 snapshot 게시 뒤 runtime bake를 임시로 이어 간다. 구현 단위 3에서 Spawn stream으로 전환한다.
 
 ## Phase 5 착수 사실(2026-09-28)
 
@@ -37,22 +39,22 @@ Phase 5(런타임 로더와 SurfaceCache 교체)를 진행한다. 완료 조건�
 - **exact 한계치: 단일 스레드 500마리(최악 조건 기준선), 병렬 약 700마리.** 접지 개체당 프레임 약 1.46 query·8us. Phase 4 캐시 적중률 목표와 Phase 6 재측정은 병렬 700 기준으로 읽는다
 - 비행 드론(PureEntity, D-052·053·054): 총수 200, Pod 타입 분리. 비행 비용은 Support 캐시의 절감 대상이 아니다
 - 부하 harness `-LNPLoadBaseline=N`·`-LNPLoadBaselineFlyers=F`, 측정 스크립트 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`. 프레임 판정은 패키지 Development 호스트 `-nullrhi`
-- Support Atlas: runtime `LNPSupportAtlas`(격자·row span·rasterize·codec v2·`QueryLayer`·`QueryLayers`), 지각 전용 `LNPCrustAtlas`(이음매 스냅 rasterize·seam 규약), Editor `LNPOctantSurfaceBaker`·`LNP.SurfaceNav.BakeOctant <LevelPath>`. 지각 N=735(100cm), 비지각 Layer m=4(25cm, 확정). `DataVersion` 3. `Meadow_00` payload 2.63MB, 지각 조회 NeedsExact 2.35%, 반지름 P99 1.06cm. 비지각 Layer 반지름 P99 0.12cm, 조회 NeedsExact 20.6%(큰 섬 1.9%, 섬 B 계단 칸은 거의 전부). `QueryLayers`는 footprint 가장자리 띠도 후보로 본다. face→Layer 표는 source key(`<Actor FName>.<Component FName>`)와 external `FaceIndex`로 찾는다(`design/RuntimeCollision.md`)
+- Support Atlas: runtime `LNPSupportAtlas`(격자·row span·rasterize·codec v2·`QueryLayer`·`QueryLayers`), 지각 전용 `LNPCrustAtlas`(이음매 스냅 rasterize·seam 규약), Editor `LNPOctantSurfaceBaker`·`LNP.SurfaceNav.BakeOctant <LevelPath>`. 지각 N=735(100cm), 비지각 Layer m=4(25cm, 확정). Spawn codec v1을 포함한 `DataVersion` 4. `Meadow_00` Support payload 2.63MB, 지각 조회 NeedsExact 2.35%, 반지름 P99 1.06cm. 비지각 Layer 반지름 P99 0.12cm, 조회 NeedsExact 20.6%(큰 섬 1.9%, 섬 B 계단 칸은 거의 전부). `QueryLayers`는 footprint 가장자리 띠도 후보로 본다. face→Layer 표는 source key(`<Actor FName>.<Component FName>`)와 external `FaceIndex`로 찾는다(`design/RuntimeCollision.md`)
 - `DA_OctantSurface_Meadow_00`·`DA_OctantSurface_Fixture_Crust`는 LVI 옆에 저장돼 있다. `Bake.OctantBakeDeterministic`가 저장본과 현재 source의 일치를 검사하므로 LVI나 베이크 설정을 바꾸면 `BakeOctant`로 다시 굽는다
 - 회귀 공간(D-056): 정적 사례는 `LVI_Octant_Fixture_Regression`(생성 `LNP.SurfaceNav.BuildRegressionFixture`, 배치 원본 `LNPRegressionFixture.h`)을 8 slot 합성으로 검사하고, 동적 3사례만 `L_SurfaceRegression`(30,000cm)에 있다. `DA_OctantSurface_Fixture_Regression`도 결정론 베이크 검사 대상이다
 - 동굴 키트 greybox(`/Game/Maps/CaveKit`, `LNP.SurfaceNav.BuildCaveKit`, 치수 원본 `LNPCaveKit.h`): 직육면체 공동 + 경사 통로, Floor/Shell 분리, 규약 검사 `Bake.CaveKitContract`. `Meadow_00` 동굴은 (위도 15°, 방위 60°)에 있고 `LNP.SurfaceNav.PlaceCaveKit`으로 배치했다(지각 메시 입구 절단 포함)
-- 자동화 `LootNPop.SurfaceNavigation` 54개(`Bake.*` 25개). `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 본다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`를 다시 저장하므로 커밋 전에 git으로 되돌린다
+- 자동화 `LootNPop.SurfaceNavigation` 56개(`Bake.*` 27개). `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 본다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`를 다시 저장하므로 커밋 전에 git으로 되돌린다
 - 헤드리스 `-ExecCmds`는 쉼표로 명령을 나누고, 에디터 바이너리에서는 `Quit`로 종료되지 않는다(`Automation RunTests`는 종료함)
 - 카메라 리그 `CR_ThirdPerson`에 `CollisionPush` 노드(`../TechDesign_CharacterMovement.md` §2.4)
 
 ## 바로 다음 작업
 
-`phases/Phase05_RuntimeLoader.md` 구현 단위 2를 진행한다.
+`phases/Phase05_RuntimeLoader.md` 구현 단위 3을 진행한다.
 
-1. `ALNPMassSpawnPoint`와 GUID 복제·붙여넣기 수명주기, `TargetSpawnSetId` authoring validation을 만든다.
-2. `FLNPLootPodSpawnEntry.SpawnSetId`를 추가하고 production `DA_MassSpawnConfig`를 마이그레이션한다.
-3. authored anchor 투영·Layer/yaw 해석과 random candidate·clearance 생성, Spawn codec 결정론 자동화를 추가한다.
-4. `DataVersion=4`, `BakerSchemaVersion=3`으로 올리고 production SurfaceData를 다시 굽는다.
+1. `ULNPMassSpawnSubsystem` 입력을 legacy SurfaceCache snapshot에서 8-slot world Spawn snapshot으로 바꾼다.
+2. 특정 세트 authored anchor → 일반 authored anchor → random candidate 순으로 Pod 요청을 배정하고, marker 수가 `PodSetCount` 총량을 늘리지 않게 한다.
+3. 선택된 Pod와 같은 `LocalLayerId`·반경의 enemy 후보를 배정하고 초기 `SurfaceHandle`을 기록한다.
+4. 세트별 Pod와 enemy의 requested/authored/generic/random/placed/shortfall 통계를 남기며 기존 per-frame spawn·Pod link·PodID·density·부하 harness 경로를 유지한다.
 
 ## 이관된 후속 작업
 
@@ -87,6 +89,8 @@ Phase 5(런타임 로더와 SurfaceCache 교체)를 진행한다. 완료 조건�
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-28 Phase 5 구현 단위 2: `LootNPopEditor Win64 Development` 전체 빌드 성공. Spawn codec/authoring validation 2/2, 결정론 베이크 1/1, runtime loader 2/2 통과(`Saved/Logs/Phase05_SpawnTests.log`, `Phase05_DeterministicTest.log`, `Phase05_RuntimeTests.log`). 세 SurfaceData를 `DataVersion=4`·`BakerSchemaVersion=3`으로 재베이크했고 마지막 로그는 `Saved/Logs/Phase05_SpawnBake_Clearance.log`다.
 
 2026-09-28 Phase 5 구현 단위 1: `LootNPopEditor Win64 Development` 전체 빌드 성공. runtime 자동화 2/2와 WorldCollision 회귀 8/8 통과(`Saved/Logs/Phase05_LoaderUnit1_RuntimeTests.log`, `Phase05_LoaderUnit1_WorldCollisionTests.log`). 에디터 `-game` 1P와 리슨 2P host/guest 모두 snapshot generation 1, query 8/8, binding 88/88, registry SurfaceData generation 1로 PASS(`Phase05_LoaderUnit1_EditorGame_Final.log`, `Phase05_LoaderUnit1_2P_*.log`).
 

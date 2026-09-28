@@ -25,6 +25,29 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeOptions
 	/** 두 Layer가 같은 방향에서 이 반지름 차(cm) 안에 있으면 겹침으로 보고서에 센다. 베이크 결과에는 영향이 없다. */
 	double OverlapReportHeight = 200.0;
 
+	/** 절차 Spawn 후보의 목표 간격(cm). 각 Layer 격자에서 이 간격 이상의 stride로 뽑는다. */
+	double SpawnCandidateSpacing = 400.0;
+
+	/** authored anchor 위치가 투영된 Support와 이 거리(cm)보다 멀면 공중 point 오류다. */
+	double SpawnAnchorProjectionTolerance = 100.0;
+
+	/** 후보에서 계산해 저장하는 최대 edge/capsule clearance(cm). */
+	double SpawnMaxClearance = 800.0;
+
+	/** Pod 후보 허용에 필요한 최소 clearance(cm). */
+	double SpawnPodClearance = 250.0;
+
+	/** Enemy 후보 허용에 필요한 최소 clearance(cm). */
+	double SpawnEnemyClearance = 150.0;
+
+	/** Pod clearance overlap에 쓰는 캡슐 반지름·반높이(cm). */
+	double SpawnPodCapsuleRadius = 120.0;
+	double SpawnPodCapsuleHalfHeight = 150.0;
+
+	/** Enemy clearance overlap에 쓰는 일반 지상 적 캡슐 반지름·반높이(cm). */
+	double SpawnEnemyCapsuleRadius = 50.0;
+	double SpawnEnemyCapsuleHalfHeight = 100.0;
+
 	/** Subdivisions는 무시하고 CrustSpacing으로 정한다. */
 	FLNPSupportRasterSettings Raster;
 	FLNPSupportCodecSettings Codec;
@@ -74,6 +97,9 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeReport
 	/** 모든 Layer 샘플 수. `Header.Support.ElementCount`와 같다. */
 	int32 TotalSampleCount = 0;
 	int64 PayloadBytes = 0;
+	int32 SpawnAuthoredCount = 0;
+	int32 SpawnCandidateCount = 0;
+	int64 SpawnPayloadBytes = 0;
 	double CollectSeconds = 0.0;
 	double ExtractSeconds = 0.0;
 	double RasterSeconds = 0.0;
@@ -95,7 +121,7 @@ class LOOTNPOPEDITOR_API FLNPOctantSurfaceBaker
 {
 public:
 	/** 베이커 schema 버전. 베이크 규칙이 바뀌면 올린다. BakeSettingsHash에 들어간다. */
-	static constexpr uint32 BakerSchemaVersion = 2;
+	static constexpr uint32 BakerSchemaVersion = 3;
 
 	/** OutData의 Header와 SupportPayload를 채운다. 같은 입력이면 같은 payload를 만든다. */
 	static bool Bake(

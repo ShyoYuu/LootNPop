@@ -6,6 +6,7 @@
 #include "DataAsset/LNPOctantDefinition.h"
 #include "Mass/ExternalSubsystemTraits.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
+#include "SurfaceNavigation/LNPSpawnData.h"
 #include "Subsystems/WorldSubsystem.h"
 #include <atomic>
 #include "LNPSurfaceDataSubsystem.generated.h"
@@ -31,9 +32,10 @@ struct FLNPSurfaceDataSlotSnapshot
 	FQuat4d SlotRotation = FQuat4d::Identity;
 	FQuat4d WorldToSlotRotation = FQuat4d::Identity;
 	TSharedPtr<const FLNPSupportAtlas, ESPMode::ThreadSafe> Support;
+	TSharedPtr<const FLNPSpawnData, ESPMode::ThreadSafe> Spawn;
 };
 
-/** One fully validated 8-slot generation. Later phases add Spawn/Nav views without changing publication semantics. */
+/** One fully validated 8-slot Support/Spawn generation. Later phases add Nav views without changing publication semantics. */
 struct FLNPSurfaceDataSnapshot
 {
 	uint64 Generation = 0;

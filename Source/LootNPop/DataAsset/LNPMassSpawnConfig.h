@@ -25,6 +25,10 @@ struct FLNPLootPodSpawnEntry
 {
 	GENERATED_BODY()
 
+	/** authored spawn anchor가 참조하는 안정 ID. config 하나 안에서 비어 있거나 중복될 수 없다. */
+	UPROPERTY(EditAnywhere, Category = "LNP")
+	FName SpawnSetId;
+
 	UPROPERTY(EditAnywhere, Category = "LNP")
 	TObjectPtr<UMassEntityConfigAsset> LootPodEntityConfig;
 
@@ -61,4 +65,8 @@ public:
 	/** FPS 유지를 위해 단일 프레임에 허용되는 최대 스폰 Entity 수 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Performance")
 	int32 MaxSpawnsPerFrame = 50;
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
 };
