@@ -6,6 +6,7 @@
 #include "DynamicTerrain/LNPPlacementTypes.h"
 #include "Mass/EntityHandle.h"
 #include "Mass/ExternalSubsystemTraits.h"
+#include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "Subsystems/WorldSubsystem.h"
 #include <atomic>
 #include "LNPHitIdentityRegistry.generated.h"
@@ -13,6 +14,7 @@
 class ULevel;
 class UPrimitiveComponent;
 struct FHitResult;
+struct FLNPSurfaceSourceBinding;
 
 /** exact collision source의 수명주기. Terrain Contract의 profile 계열과 같다. Unknown은 미등록 hit(UnknownExactSurface)다. */
 enum class ELNPExactSourceLifetime : uint8
@@ -58,10 +60,16 @@ struct FLNPExactHitIdentity
 	/** 해석에 쓴 snapshot의 generation. */
 	uint32 RegistryGeneration = 0;
 
+	/** 저장된 face 표로 해석한 Support Layer. Support source가 아니거나 face가 비보행이면 NoLayer다. */
+	uint16 LocalLayerId = LNPSupportLayers::NoLayer;
+
+	/** LocalLayerId를 해석한 SurfaceData snapshot generation. 0이면 아직 binding되지 않았다. */
+	uint64 SurfaceDataGeneration = 0;
+
 	bool IsKnown() const { return Lifetime != ELNPExactSourceLifetime::Unknown; }
 };
 
-/** component 단위 등록 정보. component 하나가 여러 Layer를 가질 수 있으므로 Layer는 여기 두지 않는다. */
+/** component 단위 등록 정보. component 하나가 여러 Layer를 가질 수 있어 단일 Layer가 아니라 Atlas source 표를 연결한다. */
 struct FLNPExactSourceEntry
 {
 	ELNPExactSourceLifetime Lifetime = ELNPExactSourceLifetime::Unknown;
@@ -72,6 +80,15 @@ struct FLNPExactSourceEntry
 
 	/** 등록 시점 collision geometry의 원점(구 중심) 최대 거리(cm). world collision envelope의 입력이다. */
 	float MaxRadius = 0.f;
+
+	/** Phase 5 SurfaceData 게시 때 runtime source key로 연결한 immutable Atlas source. */
+	TSharedPtr<const FLNPSupportAtlas, ESPMode::ThreadSafe> Support;
+	int32 SupportSourceIndex = INDEX_NONE;
+
+	bool HasSupportFaceMap() const
+	{
+		return Support.IsValid() && Support->Sources.IsValidIndex(SupportSourceIndex);
+	}
 };
 
 /**
@@ -99,6 +116,9 @@ struct FLNPHitIdentitySnapshot
 	float WorldEnvelopeRadius = 0.f;
 
 	uint32 Generation = 0;
+
+	/** slot source의 face 표와 함께 게시된 SurfaceData generation. */
+	uint64 SurfaceDataGeneration = 0;
 };
 
 /**
@@ -126,6 +146,15 @@ public:
 	 */
 	void RegisterRuntimeSource(UPrimitiveComponent* Component, const FLNPPlacementId& Placement = FLNPPlacementId(), float MaxRadiusOverride = 0.f);
 	void UnregisterRuntimeSource(UPrimitiveComponent* Component);
+
+	/**
+	 * 게임 스레드 전용. 검증 완료된 runtime component→face map을 slot source에 설치하고 즉시 게시한다.
+	 * 성공 뒤 GetSnapshot()->SurfaceDataGeneration은 Support snapshot generation과 같다.
+	 */
+	bool PublishSurfaceBindings(
+		uint64 SurfaceDataGeneration,
+		TConstArrayView<FLNPSurfaceSourceBinding> Bindings,
+		FString& OutError);
 
 	/** 모든 스레드. 게시된 최신 snapshot. */
 	TSharedRef<const FLNPHitIdentitySnapshot, ESPMode::ThreadSafe> GetSnapshot() const { return Snapshot; }
@@ -166,6 +195,7 @@ private:
 	FSourceMap RuntimeSources;
 	TArray<TWeakObjectPtr<ULevel>> RegisteredSlotLevels;
 	uint32 SeenLootPodProxyGeneration = 0;
+	uint64 BoundSurfaceDataGeneration = 0;
 	bool bDirty = false;
 
 	TSharedRef<const FLNPHitIdentitySnapshot, ESPMode::ThreadSafe> Snapshot = MakeShared<FLNPHitIdentitySnapshot, ESPMode::ThreadSafe>();

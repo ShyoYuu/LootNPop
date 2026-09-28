@@ -10,6 +10,8 @@
 
 현재의 임의 방향→단일 표면 투영을 region-aware candidate 방식으로 바꾼다.
 
+초기 스폰 총량은 `DA_MassSpawnConfig`가 계속 소유한다(D-059). LVI에는 editor-only Mass spawn point를 Pod 세트 앵커로 배치하고, 베이커가 이를 Spawn stream의 authored anchor로 저장한다. 런타임 할당은 특정 `SpawnSetId` 앵커, 일반 앵커, 절차 random candidate 순이다. 앵커 수가 `PodSetCount`를 늘리지는 않는다. 연관 적은 선택된 Pod와 같은 Support Layer의 반경 내 후보에서 고른다. 상세 schema와 shortfall 정책은 `../phases/Phase05_RuntimeLoader.md` §3.3~§3.5가 소유한다.
+
 - Support Layer별 spawn weight
 - slope·edge·capsule clearance
 - StaticNavComponent ID
@@ -153,7 +155,7 @@ CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 
 Legacy GetSurfacePoint adapter
 ```
 
-단, adapter는 기본 지각 Layer만 반환하고 다층 환경에서 사용하면 경고하도록 한다. 새 기능이 legacy API에 의존해 출시되지 않게 한다.
+단, adapter는 기본 지각 Layer만 반환하고 다층 snapshot에서 처음 사용될 때 비-Shipping 경고를 한 번 남긴다. 새 기능이 legacy API에 의존해 출시되지 않게 한다. 구현은 `ULNPSurfaceDataSubsystem::GetSurfacePoint`이며 risk·coverage 구간에서는 임의 근접점 대신 실패한다.
 
 ### 소비자 전환 순서
 

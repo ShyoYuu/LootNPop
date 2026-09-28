@@ -204,8 +204,9 @@ namespace
 
 	/**
 	 * LNP.SurfaceNav.ProbeFaceIndex [Count]
-	 * 월드 중심에서 고르게 퍼진 방향으로 LNPSurfaceSupport trace를 쏴 hit FaceIndex가 유효한지 센다.
-	 * Support source는 모두 complex-as-simple trimesh라서 face→Layer 표(D-037)가 쓰려면 모든 hit에 FaceIndex가 있어야 한다.
+	 * 월드 중심에서 고르게 퍼진 방향으로 LNPSurfaceSupport trace를 쏴 slot Level의 hit FaceIndex가 유효한지 센다.
+	 * 베이크 Support source는 모두 complex-as-simple trimesh라서 face→Layer 표(D-037)가 쓰려면 모든 hit에 FaceIndex가 있어야 한다.
+	 * slot 밖의 런타임 source(스프링 런처 등)는 simple collision일 수 있고 베이크 face 표 대상이 아니므로 건너뛴다.
 	 * cooked 패키지에서 external face 표가 살아 있는지 확인하는 용도다. 시점과 무관해 헤드리스 호스트에서도 돈다.
 	 */
 	FAutoConsoleCommandWithWorldAndArgs GLNPProbeFaceIndex(
@@ -221,10 +222,12 @@ namespace
 
 			const int32 Count = Args.Num() > 0 ? FMath::Max(1, FCString::Atoi(*Args[0])) : 2000;
 			const double TraceLength = GetDefault<ULNPSettings>()->SphereRadius * 1.5;
+			const ULNPOctantSpawnSubsystem* OctantSubsystem = World->GetSubsystem<ULNPOctantSpawnSubsystem>();
 			FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPProbeFaceIndex), /*bTraceComplex=*/false);
 			Params.bReturnFaceIndex = true;
 
 			int32 HitCount = 0;
+			int32 NonSlotHitCount = 0;
 			int32 MissingFaceCount = 0;
 			for (int32 Index = 0; Index < Count; ++Index)
 			{
@@ -239,6 +242,12 @@ namespace
 				{
 					continue;
 				}
+				const UPrimitiveComponent* Component = Hit.GetComponent();
+				if (OctantSubsystem == nullptr || OctantSubsystem->FindSlotForLevel(Component ? Component->GetComponentLevel() : nullptr) == INDEX_NONE)
+				{
+					++NonSlotHitCount;
+					continue;
+				}
 				++HitCount;
 				if (Hit.FaceIndex < 0)
 				{
@@ -251,9 +260,108 @@ namespace
 				}
 			}
 
-			UE_LOG(LogLootNPop, Display, TEXT("[ProbeFaceIndex] %s NetMode=%d directions=%d hits=%d missingFaceIndex=%d -> %s"),
-				*World->GetName(), static_cast<int32>(World->GetNetMode()), Count, HitCount, MissingFaceCount,
+			UE_LOG(LogLootNPop, Display, TEXT("[ProbeFaceIndex] %s NetMode=%d directions=%d slotHits=%d nonSlotHits=%d missingFaceIndex=%d -> %s"),
+				*World->GetName(), static_cast<int32>(World->GetNetMode()), Count, HitCount, NonSlotHitCount, MissingFaceCount,
 				(HitCount > 0 && MissingFaceCount == 0) ? TEXT("PASS") : TEXT("FAIL"));
+		}));
+
+	/**
+	 * LNP.SurfaceNav.ProbeSourceKeys
+	 * runtime slot Level Instance의 Support component key를 모아 slot 사이에서 같은 이름이 유지되는지 검사한다.
+	 * 베이크 key와 같은 `<Actor FName>.<Component FName>` 형식을 출력하므로 에디터 베이크 결과와 직접 대조할 수 있다.
+	 */
+	FAutoConsoleCommandWithWorld GLNPProbeSourceKeys(
+		TEXT("LNP.SurfaceNav.ProbeSourceKeys"),
+		TEXT("List <Actor FName>.<Component FName> keys for Support components in runtime octant slots and verify "
+			"that every key occurs once per loaded slot. Logs PASS/FAIL per world."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			const ULNPOctantSpawnSubsystem* OctantSubsystem = World
+				? World->GetSubsystem<ULNPOctantSpawnSubsystem>()
+				: nullptr;
+			if (OctantSubsystem == nullptr || !OctantSubsystem->bGenerationComplete)
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[ProbeSourceKeys] World generation is not complete."));
+				return;
+			}
+
+			const FName SupportTag(TEXT("LNP.Surface.Support"));
+			TMap<FString, int32> Occurrences;
+			int32 LoadedSlotCount = 0;
+			int32 DuplicateCount = 0;
+			int32 ReferenceSourceCount = INDEX_NONE;
+			bool bSameCountPerSlot = true;
+
+			for (int32 SlotIndex = 0; SlotIndex < 8; ++SlotIndex)
+			{
+				const ULevel* Level = OctantSubsystem->GetSlotLevel(SlotIndex);
+				if (Level == nullptr)
+				{
+					continue;
+				}
+				++LoadedSlotCount;
+
+				TSet<FString> SlotKeys;
+				for (const AActor* Actor : Level->Actors)
+				{
+					if (!IsValid(Actor))
+					{
+						continue;
+					}
+
+					TInlineComponentArray<UPrimitiveComponent*> Components(Actor);
+					for (const UPrimitiveComponent* Component : Components)
+					{
+						if (!IsValid(Component) || !Component->ComponentHasTag(SupportTag))
+						{
+							continue;
+						}
+
+						const FString Key = FString::Printf(TEXT("%s.%s"),
+							*Actor->GetFName().ToString(), *Component->GetFName().ToString());
+						if (SlotKeys.Contains(Key))
+						{
+							++DuplicateCount;
+						}
+						SlotKeys.Add(Key);
+						++Occurrences.FindOrAdd(Key);
+					}
+				}
+
+				if (ReferenceSourceCount == INDEX_NONE)
+				{
+					ReferenceSourceCount = SlotKeys.Num();
+				}
+				else if (ReferenceSourceCount != SlotKeys.Num())
+				{
+					bSameCountPerSlot = false;
+				}
+
+				UE_LOG(LogLootNPop, Display, TEXT("[ProbeSourceKeys] Slot=%d Sources=%d Level=%s"),
+					SlotIndex, SlotKeys.Num(), *FPackageName::GetShortName(Level->GetOutermost()->GetName()));
+			}
+
+			TArray<FString> SortedKeys;
+			Occurrences.GenerateKeyArray(SortedKeys);
+			SortedKeys.Sort();
+			int32 InconsistentKeyCount = 0;
+			for (const FString& Key : SortedKeys)
+			{
+				const int32 Count = Occurrences.FindChecked(Key);
+				InconsistentKeyCount += Count == LoadedSlotCount ? 0 : 1;
+				UE_LOG(LogLootNPop, Display, TEXT("[ProbeSourceKeys] Key=%s Slots=%d/%d"),
+					*Key, Count, LoadedSlotCount);
+			}
+
+			const bool bPass = LoadedSlotCount == 8
+				&& ReferenceSourceCount > 0
+				&& bSameCountPerSlot
+				&& DuplicateCount == 0
+				&& InconsistentKeyCount == 0;
+			UE_LOG(LogLootNPop, Display,
+				TEXT("[ProbeSourceKeys] %s NetMode=%d loadedSlots=%d uniqueKeys=%d sourcesPerSlot=%d duplicates=%d inconsistentKeys=%d -> %s"),
+				*World->GetName(), static_cast<int32>(World->GetNetMode()), LoadedSlotCount, SortedKeys.Num(),
+				ReferenceSourceCount, DuplicateCount, InconsistentKeyCount, bPass ? TEXT("PASS") : TEXT("FAIL"));
 		}));
 }
 

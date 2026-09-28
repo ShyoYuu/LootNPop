@@ -53,9 +53,9 @@ public:
 
 protected:
 	UFUNCTION()
-	void OnLocalBakingComplete();
+	void OnLocalSurfaceDataReady();
 
-	/** 이 클라이언트가 로컬 초기화를 완료했음을 서버에 알린다 */
+	/** 이 클라이언트가 로컬 SurfaceData snapshot 게시를 완료했음을 서버에 알린다. */
 	UFUNCTION(Server, Reliable)
 	void ServerNotifyClientReady();
 
