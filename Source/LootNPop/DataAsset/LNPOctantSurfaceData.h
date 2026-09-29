@@ -87,8 +87,8 @@ struct LOOTNPOP_API FLNPSurfaceBakeHeader
 {
 	GENERATED_BODY()
 
-	/** 4: Spawn payload codec v1. 3은 다층 Support Atlas codec v2만 저장했다. */
-	static constexpr uint32 CurrentDataVersion = 4;
+	/** 5: Navigation/Traversal codec v1. 4는 Spawn payload codec v1까지 저장했다. */
+	static constexpr uint32 CurrentDataVersion = 5;
 
 	FLNPSurfaceBakeHeader();
 

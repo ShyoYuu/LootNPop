@@ -28,6 +28,19 @@ namespace LNPOctantSurfaceBakerTest
 		TEXT("/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Crust.LVI_Octant_Fixture_Crust");
 	constexpr TCHAR MeadowLevelPath[] = TEXT("/Game/Maps/Meadow_00/LVI_Octant_Meadow_00.LVI_Octant_Meadow_00");
 
+	FIntPoint DirectionToNavCoord(const FVector3d& Position, const int32 Subdivisions)
+	{
+		const FVector3d Direction = Position.GetSafeNormal();
+		const double Sum = Direction.X + Direction.Y + Direction.Z;
+		int32 I = FMath::Clamp(FMath::RoundToInt32(Direction.X / Sum * Subdivisions), 0, Subdivisions);
+		int32 J = FMath::Clamp(FMath::RoundToInt32(Direction.Y / Sum * Subdivisions), 0, Subdivisions);
+		while (I + J > Subdivisions)
+		{
+			I >= J ? --I : --J;
+		}
+		return FIntPoint(I, J);
+	}
+
 	/** fixture 입구 구멍(`LNPSurfaceFixtureBuilder.cpp`): 위도 30°·방위 45°, 각반지름 1.5°. */
 	constexpr double FixtureHoleLatDeg = 30.0;
 	constexpr double FixtureHoleAzDeg = 45.0;
@@ -232,6 +245,14 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 			First->SupportPayload == Second->SupportPayload);
 		TestTrue(FString::Printf(TEXT("%s: payload hash is identical across bakes"), LevelPath),
 			First->Header.Support.ContentHash == Second->Header.Support.ContentHash);
+		TestTrue(FString::Printf(TEXT("%s: Navigation payload is identical across bakes"), LevelPath),
+			First->NavigationPayload == Second->NavigationPayload);
+		TestTrue(FString::Printf(TEXT("%s: Navigation payload hash is identical across bakes"), LevelPath),
+			First->Header.Navigation.ContentHash == Second->Header.Navigation.ContentHash);
+		TestTrue(FString::Printf(TEXT("%s: Traversal payload is identical across bakes"), LevelPath),
+			First->TraversalPayload == Second->TraversalPayload);
+		TestTrue(FString::Printf(TEXT("%s: Traversal payload hash is identical across bakes"), LevelPath),
+			First->Header.Traversal.ContentHash == Second->Header.Traversal.ContentHash);
 		TestTrue(FString::Printf(TEXT("%s: Spawn payload is identical across bakes"), LevelPath),
 			First->SpawnPayload == Second->SpawnPayload);
 		TestTrue(FString::Printf(TEXT("%s: Spawn payload hash is identical across bakes"), LevelPath),
@@ -242,6 +263,12 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 			First->Header.Support.UncompressedSize, static_cast<uint64>(First->SupportPayload.Num()));
 		TestEqual(FString::Printf(TEXT("%s: descriptor element count"), LevelPath),
 			First->Header.Support.ElementCount, static_cast<uint32>(FirstReport.TotalSampleCount));
+		TestEqual(FString::Printf(TEXT("%s: Navigation descriptor size"), LevelPath),
+			First->Header.Navigation.UncompressedSize, static_cast<uint64>(First->NavigationPayload.Num()));
+		TestEqual(FString::Printf(TEXT("%s: Navigation descriptor element count"), LevelPath),
+			First->Header.Navigation.ElementCount, static_cast<uint32>(FirstReport.Nav.CellCount));
+		TestEqual(FString::Printf(TEXT("%s: Traversal descriptor size"), LevelPath),
+			First->Header.Traversal.UncompressedSize, static_cast<uint64>(First->TraversalPayload.Num()));
 		TestEqual(FString::Printf(TEXT("%s: Spawn descriptor size"), LevelPath),
 			First->Header.Spawn.UncompressedSize, static_cast<uint64>(First->SpawnPayload.Num()));
 		TestEqual(FString::Printf(TEXT("%s: Spawn descriptor element count"), LevelPath),
@@ -261,6 +288,12 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 			TestTrue(FString::Printf(TEXT("%s: saved Support payload is current"), *SavedPackage),
 				Saved->Header.Support.ContentHash == First->Header.Support.ContentHash
 				&& Saved->SupportPayload == First->SupportPayload);
+			TestTrue(FString::Printf(TEXT("%s: saved Navigation payload is current"), *SavedPackage),
+				Saved->Header.Navigation.ContentHash == First->Header.Navigation.ContentHash
+				&& Saved->NavigationPayload == First->NavigationPayload);
+			TestTrue(FString::Printf(TEXT("%s: saved Traversal payload is current"), *SavedPackage),
+				Saved->Header.Traversal.ContentHash == First->Header.Traversal.ContentHash
+				&& Saved->TraversalPayload == First->TraversalPayload);
 			TestTrue(FString::Printf(TEXT("%s: saved Spawn payload is current"), *SavedPackage),
 				Saved->Header.Spawn.ContentHash == First->Header.Spawn.ContentHash
 				&& Saved->SpawnPayload == First->SpawnPayload);
@@ -275,6 +308,65 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 		}
 		TestEqual(FString::Printf(TEXT("%s: decoded Layer count"), LevelPath), Atlas.Layers.Num(), FirstReport.SupportLayerCount);
 		TestEqual(FString::Printf(TEXT("%s: decoded source count"), LevelPath), Atlas.Sources.Num(), FirstReport.SupportSourceCount);
+		FLNPNavData Navigation;
+		if (TestTrue(FString::Printf(TEXT("%s: Navigation payload decodes"), LevelPath),
+			LNPNavData::DecodeNavigation(First->NavigationPayload, Navigation, Error)))
+		{
+			TestEqual(FString::Printf(TEXT("%s: decoded Nav Layer count"), LevelPath),
+				Navigation.Layers.Num(), FirstReport.Nav.LayerCount);
+			FLNPNavTraversalData Traversal;
+			if (TestTrue(FString::Printf(TEXT("%s: Traversal payload decodes"), LevelPath),
+				LNPNavData::DecodeTraversal(First->TraversalPayload, Navigation, Traversal, Error)))
+			{
+				TestEqual(FString::Printf(TEXT("%s: decoded portal count"), LevelPath),
+					Traversal.Portals.Num(), FirstReport.Nav.PortalCount);
+				TestEqual(FString::Printf(TEXT("%s: decoded seam count"), LevelPath),
+					Traversal.SeamEndpoints.Num(), FirstReport.Nav.SeamEndpointCount);
+				if (FStringView(LevelPath) == FStringView(LNPRegressionFixture::LevelPath))
+				{
+					TestEqual(TEXT("Regression fixture keeps seven Layer-local components"),
+						Navigation.LocalStaticComponentCount, static_cast<uint16>(7));
+					TestEqual(TEXT("Regression fixture connects room-corridor and corridor-crust"), Traversal.Portals.Num(), 2);
+					TSet<uint32> PortalLayerPairs;
+					for (const FLNPNavPortal& Portal : Traversal.Portals)
+					{
+						PortalLayerPairs.Add(
+							(static_cast<uint32>(Portal.A.LocalNavLayerId) << 16) | Portal.B.LocalNavLayerId);
+						FIntPoint ACoord;
+						FIntPoint BCoord;
+						const FLNPNavCell* ACell = LNPNavData::ResolveLocalNode(Navigation, Portal.A, &ACoord);
+						const FLNPNavCell* BCell = LNPNavData::ResolveLocalNode(Navigation, Portal.B, &BCoord);
+						AddInfo(FString::Printf(TEXT("Regression portal Layer %u (%d,%d) Component %u -> Layer %u (%d,%d) Component %u"),
+							Portal.A.LocalNavLayerId, ACoord.X, ACoord.Y,
+							ACell ? ACell->LocalStaticComponentId : MAX_uint16,
+							Portal.B.LocalNavLayerId, BCoord.X, BCoord.Y,
+							BCell ? BCell->LocalStaticComponentId : MAX_uint16));
+					}
+					TestTrue(TEXT("Regression portal joins the cave room and corridor Layers"),
+						PortalLayerPairs.Contains((2u << 16) | 3u));
+					TestTrue(TEXT("Regression portal joins the corridor to the crust entrance"),
+						PortalLayerPairs.Contains((0u << 16) | 3u));
+
+					const FLNPNavLayer& CrustNav = Navigation.Layers[0];
+					const LNPRegressionFixture::FCaseFrame Props = LNPRegressionFixture::StaticProps();
+					for (const TPair<FString, FVector>& Blocker : {
+						TPair<FString, FVector>(TEXT("Tree"), Props.At(LNPRegressionFixture::CrustRadius, LNPRegressionFixture::TreeTangent)),
+						TPair<FString, FVector>(TEXT("Rock"), Props.At(LNPRegressionFixture::CrustRadius, LNPRegressionFixture::RockTangent))})
+					{
+						const FIntPoint Coord = DirectionToNavCoord(Blocker.Value, CrustNav.Subdivisions);
+						FLNPLocalNavNodeRef Node;
+						TestFalse(FString::Printf(TEXT("Regression %s is dilated out of the crust Grid"), *Blocker.Key),
+							LNPNavData::MakeLocalNodeRef(Navigation, 0, Coord.X, Coord.Y, Node));
+					}
+					const FIntPoint DecorationCoord = DirectionToNavCoord(
+						Props.At(LNPRegressionFixture::CrustRadius, LNPRegressionFixture::DecorationTangent), CrustNav.Subdivisions);
+					FLNPLocalNavNodeRef DecorationNode;
+					TestTrue(TEXT("Regression Decoration does not remove its crust node"),
+						LNPNavData::MakeLocalNodeRef(
+							Navigation, 0, DecorationCoord.X, DecorationCoord.Y, DecorationNode));
+				}
+			}
+		}
 		FLNPSpawnData SpawnData;
 		if (TestTrue(FString::Printf(TEXT("%s: Spawn payload decodes"), LevelPath),
 			LNPSpawnData::Decode(First->SpawnPayload, SpawnData, Error)))

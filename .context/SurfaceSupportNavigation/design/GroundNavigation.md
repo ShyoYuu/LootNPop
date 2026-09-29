@@ -55,7 +55,7 @@ Support 해상도는 접지 정확도를 위해 결정되고 Nav 해상도는 ag
 
 - Tiled Nav Grid
 - stable `FNavNodeRef`
-- 4방향 또는 8방향 암묵적 이웃
+- Support와 같은 삼각 좌표계의 6방향 암묵적 이웃
 - slope·step·clearance 기반 edge cost
 - bounded path request
 - request scratch pool
@@ -70,6 +70,10 @@ A* 요청 전에 시작과 목표의 ReachabilityGroup을 비교한다. 다르�
 기본 휴리스틱은 두 node의 월드 위치 사이 3D chord distance다(D-040). 구면 arc 기반 값은 자연석 다리·기둥·동굴 shortcut보다 커질 수 있어 허용적이지 않을 수 있다. edge cost가 거리 외 가중치를 포함하면 항상 1 이상인 최소 cost multiplier만 chord distance에 곱한다. 하한을 증명할 수 없는 특수 link가 생기면 해당 query는 휴리스틱 0으로 폴백한다.
 
 Tile은 저장·스트리밍 단위가 아니라 revision 국소성과 Cluster 구성 단위다. 월드 규모에서는 Nav 전체가 수 MB 이하라 스트리밍이 필요 없다(`DataModel.md`).
+
+Phase 7a 첫 codec은 16×16 Tile을 사용한다. 지각 목표 간격은 200cm, 비지각 Layer는 100cm이며, 삼각 격자 이웃은 `(±1,0)`, `(0,±1)`, `(+1,-1)`, `(-1,+1)` 여섯 방향이다. 같은 Layer의 edge는 양쪽 cell이 reciprocal bit를 가져야 하며 codec decode가 이를 검증한다. 세부 agent profile과 codec 규약은 `../phases/Phase07a_NavDataFoundation.md`를 따른다.
+
+정적 베이크 agent는 반지름 50cm·반높이 88cm이고 캡슐 축은 바닥 법선이 아니라 지역 중력 Up이다. 경사면에서는 floor normal과 Up의 dot으로 접촉 높이를 보정한다. Layer 간 portal은 800cm 범위의 coarse node 후보를 거리만으로 연결하지 않는다. 50cm 간격 exact Support trace가 만든 floor point·normal polyline이 연속·walkable이어야 하며, 캡슐이 그 polyline을 양방향 sweep할 수 있을 때만 portal을 저장한다. endpoint 직선 sweep은 구면 지각과 20° 동굴 경사 사이에서 실제 바닥을 관통하므로 사용하지 않는다(회귀 fixture Layer 0↔3 사례, 2026-09-30).
 
 A* 구현이 raw grid 배열을 직접 참조하지 않도록 graph view API를 둔다.
 

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "SurfaceNavigation/LNPNavBaking.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 
 class ULNPOctantSurfaceData;
@@ -24,6 +25,9 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeOptions
 
 	/** 두 Layer가 같은 방향에서 이 반지름 차(cm) 안에 있으면 겹침으로 보고서에 센다. 베이크 결과에는 영향이 없다. */
 	double OverlapReportHeight = 200.0;
+
+	/** 정적 Navigation/Traversal 생성 설정. */
+	FLNPNavBakeSettings Nav;
 
 	/** 절차 Spawn 후보의 목표 간격(cm). 각 Layer 격자에서 이 간격 이상의 stride로 뽑는다. */
 	double SpawnCandidateSpacing = 400.0;
@@ -100,6 +104,9 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeReport
 	int32 SpawnAuthoredCount = 0;
 	int32 SpawnCandidateCount = 0;
 	int64 SpawnPayloadBytes = 0;
+	FLNPNavBakeReport Nav;
+	int64 NavigationPayloadBytes = 0;
+	int64 TraversalPayloadBytes = 0;
 	double CollectSeconds = 0.0;
 	double ExtractSeconds = 0.0;
 	double RasterSeconds = 0.0;
@@ -121,7 +128,7 @@ class LOOTNPOPEDITOR_API FLNPOctantSurfaceBaker
 {
 public:
 	/** 베이커 schema 버전. 베이크 규칙이 바뀌면 올린다. BakeSettingsHash에 들어간다. */
-	static constexpr uint32 BakerSchemaVersion = 3;
+	static constexpr uint32 BakerSchemaVersion = 4;
 
 	/** OutData의 Header와 SupportPayload를 채운다. 같은 입력이면 같은 payload를 만든다. */
 	static bool Bake(

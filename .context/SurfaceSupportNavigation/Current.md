@@ -1,10 +1,12 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 6 — Enemy 접지·공중·넉백 전환 · 완료(Phase 7 실행 계획 작성 다음)
-> 마지막 갱신: 2026-09-29
+> 현재 Phase: Phase 7a — Nav 데이터 기반 · 진행 중(구현 단위 0~1 완료, 다음은 구현 단위 2)
+> 마지막 갱신: 2026-09-30
 
 ## 현재 목표
+
+Phase 7은 2026-09-29에 7a Nav 데이터 기반부터 착수했다. 실행 계획은 `phases/Phase07a_NavDataFoundation.md`다. 구현 단위 0의 runtime 순수 자료구조·codec에 이어 구현 단위 1에서 coarse Grid, blocker dilation, 6방향 edge, local component, Layer portal, ordered seam endpoint와 editor payload 저장을 완료했고 `DataVersion=5`, `BakerSchemaVersion=4`를 활성화했다. 회귀 동굴은 exact Support polyline capsule sweep으로 지각↔통로와 공동↔통로 portal 두 개를 보존한다. 세 SurfaceData 재베이크, Nav 자동화 4/4, 결정론/저장본 회귀와 전체 빌드가 통과했다. 다음은 구현 단위 2 runtime load와 8-slot 조립이다. 7a cooked load와 8-slot 연결성 검증 전에는 7b scheduler·path cache 형식을 고정하지 않는다.
 
 Phase 4b(부유섬·동굴 키트 다층 베이크)가 2026-09-27에 끝났다. 완료 증거는 `phases/Phase04b_MultiLayerSupport.md` §5와 `history/Phase04b_Log.md`에 있다. 다층 Atlas·face 표·codec v2 규약 원본은 `design/SurfaceBaking.md` "다층 Atlas 규약"이다.
 
@@ -49,7 +51,7 @@ Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증
 - **exact 한계치: 단일 스레드 500마리(최악 조건 기준선), 병렬 약 700마리.** 접지 개체당 프레임 약 1.46 query·8us. Phase 4 캐시 적중률 목표와 Phase 6 재측정은 병렬 700 기준으로 읽는다
 - 비행 드론(PureEntity, D-052·053·054): 총수 200, Pod 타입 분리. 비행 비용은 Support 캐시의 절감 대상이 아니다
 - 부하 harness `-LNPLoadBaseline=N`·`-LNPLoadBaselineFlyers=F`, 측정 스크립트 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`. 프레임 판정은 패키지 Development 호스트 `-nullrhi`
-- Support Atlas: runtime `LNPSupportAtlas`(격자·row span·rasterize·codec v2·`QueryLayer`·`QueryLayers`), 지각 전용 `LNPCrustAtlas`(이음매 스냅 rasterize·seam 규약), Editor `LNPOctantSurfaceBaker`·`LNP.SurfaceNav.BakeOctant <LevelPath>`. 지각 N=735(100cm), 비지각 Layer m=4(25cm, 확정). Spawn codec v1을 포함한 `DataVersion` 4. `Meadow_00` Support payload 2.63MB, 지각 조회 NeedsExact 2.35%, 반지름 P99 1.06cm. 비지각 Layer 반지름 P99 0.12cm, 조회 NeedsExact 20.6%(큰 섬 1.9%, 섬 B 계단 칸은 거의 전부). `QueryLayers`는 footprint 가장자리 띠도 후보로 본다. face→Layer 표는 source key(`<Actor FName>.<Component FName>`)와 external `FaceIndex`로 찾는다(`design/RuntimeCollision.md`)
+- Support Atlas: runtime `LNPSupportAtlas`(격자·row span·rasterize·codec v2·`QueryLayer`·`QueryLayers`), 지각 전용 `LNPCrustAtlas`(이음매 스냅 rasterize·seam 규약), Editor `LNPOctantSurfaceBaker`·`LNP.SurfaceNav.BakeOctant <LevelPath>`. 지각 N=735(100cm), 비지각 Layer m=4(25cm, 확정). 현재 `DataVersion` 5는 Navigation/Traversal codec v1까지 포함하며 세 저장 asset도 최신 hash로 재베이크됐다. `Meadow_00` Support payload 2.63MB, Nav/Traversal payload 약 535KiB/54KiB다. 지각 조회 NeedsExact 2.35%, 반지름 P99 1.06cm. 비지각 Layer 반지름 P99 0.12cm, 조회 NeedsExact 20.6%(큰 섬 1.9%, 섬 B 계단 칸은 거의 전부). `QueryLayers`는 footprint 가장자리 띠도 후보로 본다. face→Layer 표는 source key(`<Actor FName>.<Component FName>`)와 external `FaceIndex`로 찾는다(`design/RuntimeCollision.md`)
 - `DA_OctantSurface_Meadow_00`·`DA_OctantSurface_Fixture_Crust`는 LVI 옆에 저장돼 있다. `Bake.OctantBakeDeterministic`가 저장본과 현재 source의 일치를 검사하므로 LVI나 베이크 설정을 바꾸면 `BakeOctant`로 다시 굽는다
 - 회귀 공간(D-056): 정적 사례는 `LVI_Octant_Fixture_Regression`(생성 `LNP.SurfaceNav.BuildRegressionFixture`, 배치 원본 `LNPRegressionFixture.h`)을 8 slot 합성으로 검사하고, 동적 3사례만 `L_SurfaceRegression`(30,000cm)에 있다. `DA_OctantSurface_Fixture_Regression`도 결정론 베이크 검사 대상이다
 - 동굴 키트 greybox(`/Game/Maps/CaveKit`, `LNP.SurfaceNav.BuildCaveKit`, 치수 원본 `LNPCaveKit.h`): 직육면체 공동 + 경사 통로, Floor/Shell 분리, 규약 검사 `Bake.CaveKitContract`. `Meadow_00` 동굴은 (위도 15°, 방위 60°)에 있고 `LNP.SurfaceNav.PlaceCaveKit`으로 배치했다(지각 메시 입구 절단 포함)
@@ -59,11 +61,12 @@ Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증
 
 ## 바로 다음 작업
 
-Phase 7 실행 계획을 작성한다.
+Phase 7a 구현 단위 2를 시작한다.
 
-1. `design/GroundNavigation.md`와 Roadmap의 Phase 7 내부 게이트를 기준으로 7a Nav 데이터 기반 실행 문서를 작성한다.
-2. Nav codec·tile 경계·static connected component·seam/portal·ReachabilityGroup 검증 입력을 먼저 확정한다.
-3. 7a cooked load와 8-slot 연결성 검증 전에는 7b scheduler·path cache 형식을 고정하지 않는다.
+1. loader가 Navigation/Traversal을 필수 descriptor·codec validation으로 decode하고 같은 SurfaceData asset의 decoded Nav를 8 slot이 공유하게 한다.
+2. slot별 runtime Nav Layer ID와 generation이 붙은 node ref를 만들고, ordered seam endpoint를 고정 seam pair 표로 연결한다.
+3. asset-local component를 portal과 12개 world seam으로 union해 immutable Nav/connectivity view를 Support snapshot과 같은 release publication에 넣는다.
+4. 합성·production loader 자동화에서 partial publish를 거부하고 serialized/decoded resident bytes와 load 시간을 기록한다.
 
 ## 이관된 후속 작업
 
@@ -95,6 +98,8 @@ Phase 7 실행 계획을 작성한다.
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-30 Phase 7a 구현 단위 1 완료: `DataVersion=5`·`BakerSchemaVersion=4`로 세 SurfaceData를 재베이크했다. Crust/Regression/Meadow Navigation payload는 553,104/560,328/547,584 B, Traversal payload는 14,447/14,503/55,058 B다. 회귀 fixture는 69,378 cells·7 components·portal 2개(지각↔통로, 공동↔통로)·seam 1,107개다. `LootNPopEditor Win64 Development` 전체 빌드, Nav 4/4(`Saved/Logs/Phase07a_Unit1_NavTests_Final.log`), 결정론/저장본/회귀 oracle 1/1(`Phase07a_Unit1_Deterministic_Final.log`)이 통과했다. 재베이크 로그는 `Phase07a_Unit1_Rebake_Final.log`다.
 
 2026-09-29 Phase 6 구현 단위 5 및 Phase 종료: Win64 Development BuildCookRun이 972 packages cook·stage·pak·archive까지 성공했다. 같은 패키지의 리슨 2P `-nullrhi -corelimit=4`·투사체 500 조건에서 exact-only는 700마리 P95 16.17ms 통과·750마리 17.44ms 실패, cache-first는 800마리 16.46ms 통과·850마리 17.44ms 실패로 한계가 약 700→800마리로 늘었다. 700마리 cache-first는 grounded cache hit 90.60%, query/frame P50 1,524→902, exact CPU P95 7.354→3.082ms, 프레임 P95 16.17→14.65ms였다(`Saved/Profiling/Phase06`). Development package 1P 100마리도 frame/exact/lock, `ProbePanels`, `ProbeSurfaceData`가 모두 PASS했고 순서 위반·Unknown hit·Envelope escape·Layer jump·ensure·crash 0이었다(`Saved/Logs/Phase06_Unit5_1P.log`). Phase 6 완료.
 

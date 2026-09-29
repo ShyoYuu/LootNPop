@@ -90,7 +90,7 @@ D-016의 "다른 정적 NavComponent"는 StaticNavComponent를 뜻한다. Pod �
 
 ### Nav Tile과 Cluster
 
-- Tile: 저장·스트리밍·국소 revision의 최소 공간 단위
+- Tile: 지역 revision·무효화와 Cluster 구성의 최소 공간 단위. 현재 월드 규모에서는 스트리밍 단위로 쓰지 않는다
 - Cluster: 계층형 탐색에서 여러 Tile 또는 셀을 묶는 추상 영역
 
 1차 버전에서는 Tile만 사용하고 Cluster graph는 후속 단계에서 생성한다.

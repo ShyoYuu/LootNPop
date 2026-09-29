@@ -27,6 +27,7 @@
 #include "SurfaceNavigation/LNPSupportLayers.h"
 #include "SurfaceNavigation/LNPSurfaceBakeGeometry.h"
 #include "SurfaceNavigation/LNPMassSpawnPoint.h"
+#include "SurfaceNavigation/LNPNavData.h"
 #include "SurfaceNavigation/LNPSpawnData.h"
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
@@ -44,6 +45,8 @@ namespace LNPOctantSurfaceBaker
 	{
 		return {
 			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Support.CodecVersion"), LNPSupportAtlas::CodecVersion),
+			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Navigation.CodecVersion"), LNPNavData::NavigationCodecVersion),
+			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Traversal.CodecVersion"), LNPNavData::TraversalCodecVersion),
 			FLNPOctantBakeSetting::SignedInteger(TEXT("Crust.Subdivisions"), Raster.Subdivisions),
 			FLNPOctantBakeSetting::Real(TEXT("Crust.WalkableMinDot"), Raster.WalkableMinDot),
 			FLNPOctantBakeSetting::Real(TEXT("Crust.MaxNeighborNormalAngleDeg"), Raster.MaxNeighborNormalAngleDeg),
@@ -55,6 +58,15 @@ namespace LNPOctantSurfaceBaker
 			FLNPOctantBakeSetting::Real(TEXT("Layer.OverlapReportHeight"), Options.OverlapReportHeight),
 			FLNPOctantBakeSetting::Real(TEXT("Layer.WalkableMinDot"), Layers.WalkableMinDot),
 			FLNPOctantBakeSetting::Real(TEXT("Layer.WeldDistance"), Layers.WeldDistance),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.CrustSpacing"), Options.Nav.CrustSpacing),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.LayerSpacing"), Options.Nav.LayerSpacing),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.PortalSearchDistance"), Options.Nav.PortalSearchDistance),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.ClearanceClassStep"), Options.Nav.ClearanceClassStep),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentRadius"), Options.Nav.Agent.Radius),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentHalfHeight"), Options.Nav.Agent.HalfHeight),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentMaxStepUp"), Options.Nav.Agent.MaxStepUp),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentMaxStepDown"), Options.Nav.Agent.MaxStepDown),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentWalkableMinDot"), Options.Nav.Agent.WalkableMinDot),
 			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Spawn.CodecVersion"), LNPSpawnData::CodecVersion),
 			FLNPOctantBakeSetting::Real(TEXT("Spawn.CandidateSpacing"), Options.SpawnCandidateSpacing),
 			FLNPOctantBakeSetting::Real(TEXT("Spawn.AnchorProjectionTolerance"), Options.SpawnAnchorProjectionTolerance),
@@ -155,6 +167,129 @@ namespace LNPOctantSurfaceBaker
 			return !World->OverlapBlockingTestByChannel(
 				Center, Rotation, LNPCollisionChannels::WorldExact, Shape, Params);
 		}
+
+		bool HasGravityCapsuleClearance(
+			const FVector& Feet,
+			const FVector& Up,
+			const FVector& SurfaceNormal,
+			double CapsuleRadius,
+			double CapsuleHalfHeight) const
+		{
+			const FVector SafeUp = Up.GetSafeNormal();
+			const double FloorDot = FMath::Max(
+				static_cast<double>(FVector::DotProduct(SafeUp, SurfaceNormal.GetSafeNormal())), 0.01);
+			const double SlopeLift = CapsuleRadius * (1.0 / FloorDot - 1.0);
+			const FVector Center = Feet + SafeUp * (CapsuleHalfHeight + SlopeLift + 1.0);
+			const FQuat Rotation = FRotationMatrix::MakeFromZ(SafeUp).ToQuat();
+			const FCollisionShape Shape = FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight);
+			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPNavNodeClearance), false);
+			return !World->OverlapBlockingTestByChannel(
+				Center, Rotation, LNPCollisionChannels::WorldExact, Shape, Params);
+		}
+
+		bool HasCapsulePolylineClearance(
+			TConstArrayView<FVector> FeetPoints,
+			TConstArrayView<FVector> SurfaceNormals,
+			double CapsuleRadius,
+			double CapsuleHalfHeight) const
+		{
+			check(FeetPoints.Num() >= 2 && FeetPoints.Num() == SurfaceNormals.Num());
+			const FCollisionShape Shape = FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight);
+			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPNavClearance), false);
+			const int32 SegmentCount = FeetPoints.Num() - 1;
+			for (int32 Segment = 0; Segment < SegmentCount; ++Segment)
+			{
+				const FVector& SegmentFromFeet = FeetPoints[Segment];
+				const FVector& SegmentToFeet = FeetPoints[Segment + 1];
+				const FVector SegmentFromUp = -SegmentFromFeet.GetSafeNormal();
+				const FVector SegmentToUp = -SegmentToFeet.GetSafeNormal();
+				const FVector SegmentFromNormal = SurfaceNormals[Segment].GetSafeNormal();
+				const FVector SegmentToNormal = SurfaceNormals[Segment + 1].GetSafeNormal();
+				const double FromDot = FMath::Max(
+					static_cast<double>(FVector::DotProduct(SegmentFromUp, SegmentFromNormal)), 0.01);
+				const double ToDot = FMath::Max(
+					static_cast<double>(FVector::DotProduct(SegmentToUp, SegmentToNormal)), 0.01);
+				const FVector SegmentFromCenter = SegmentFromFeet + SegmentFromUp
+					* (CapsuleHalfHeight + CapsuleRadius * (1.0 / FromDot - 1.0) + 1.0);
+				const FVector SegmentToCenter = SegmentToFeet + SegmentToUp
+					* (CapsuleHalfHeight + CapsuleRadius * (1.0 / ToDot - 1.0) + 1.0);
+				if (World->SweepTestByChannel(
+					SegmentFromCenter, SegmentToCenter, FRotationMatrix::MakeFromZ(SegmentFromUp).ToQuat(),
+					LNPCollisionChannels::WorldExact, Shape, Params)
+					|| World->SweepTestByChannel(
+						SegmentToCenter, SegmentFromCenter, FRotationMatrix::MakeFromZ(SegmentToUp).ToQuat(),
+						LNPCollisionChannels::WorldExact, Shape, Params))
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		bool HasCapsulePathClearance(
+			const FVector& FromFeet,
+			const FVector& FromSurfaceNormal,
+			const FVector& ToFeet,
+			const FVector& ToSurfaceNormal,
+			double CapsuleRadius,
+			double CapsuleHalfHeight) const
+		{
+			const int32 SegmentCount = FMath::Max(1, FMath::CeilToInt(FVector::Distance(FromFeet, ToFeet) / 50.0));
+			TArray<FVector, TInlineAllocator<8>> FeetPoints;
+			TArray<FVector, TInlineAllocator<8>> SurfaceNormals;
+			FeetPoints.Reserve(SegmentCount + 1);
+			SurfaceNormals.Reserve(SegmentCount + 1);
+			for (int32 Segment = 0; Segment <= SegmentCount; ++Segment)
+			{
+				const double Alpha = static_cast<double>(Segment) / SegmentCount;
+				FeetPoints.Add(FMath::Lerp(FromFeet, ToFeet, Alpha));
+				SurfaceNormals.Add(FMath::Lerp(FromSurfaceNormal, ToSurfaceNormal, Alpha).GetSafeNormal());
+			}
+			return HasCapsulePolylineClearance(FeetPoints, SurfaceNormals, CapsuleRadius, CapsuleHalfHeight);
+		}
+
+		bool HasWalkableSupportPath(
+			const FVector& FromFeet,
+			const FVector& FromSurfaceNormal,
+			const FVector& ToFeet,
+			const FVector& ToSurfaceNormal,
+			double MaxStepUp,
+			double MaxStepDown,
+			double WalkableMinDot,
+			TArray<FVector>& OutFeetPoints,
+			TArray<FVector>& OutSurfaceNormals) const
+		{
+			OutFeetPoints.Reset();
+			OutSurfaceNormals.Reset();
+			const int32 SegmentCount = FMath::Max(2, FMath::CeilToInt(FVector::Distance(FromFeet, ToFeet) / 50.0));
+			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPNavPortalSupport), false);
+			OutFeetPoints.Reserve(SegmentCount + 1);
+			OutSurfaceNormals.Reserve(SegmentCount + 1);
+			OutFeetPoints.Add(FromFeet);
+			OutSurfaceNormals.Add(FromSurfaceNormal.GetSafeNormal());
+			for (int32 Segment = 1; Segment < SegmentCount; ++Segment)
+			{
+				const double Alpha = static_cast<double>(Segment) / SegmentCount;
+				const FVector Feet = FMath::Lerp(FromFeet, ToFeet, Alpha);
+				const FVector Up = -Feet.GetSafeNormal();
+				FHitResult Hit;
+				if (!World->LineTraceSingleByChannel(
+					Hit,
+					Feet + Up * MaxStepUp,
+					Feet - Up * MaxStepDown,
+					LNPCollisionChannels::SurfaceSupport,
+					Params)
+					|| FVector::DotProduct(Hit.ImpactNormal.GetSafeNormal(), Up) < WalkableMinDot)
+				{
+					return false;
+				}
+				OutFeetPoints.Add(Hit.ImpactPoint);
+				OutSurfaceNormals.Add(Hit.ImpactNormal.GetSafeNormal());
+			}
+			OutFeetPoints.Add(ToFeet);
+			OutSurfaceNormals.Add(ToSurfaceNormal.GetSafeNormal());
+			return true;
+		}
 	};
 
 	bool IsSpawnSafeSample(const FLNPSupportLayerRaster& Raster, int32 I, int32 J)
@@ -215,6 +350,7 @@ namespace LNPOctantSurfaceBaker
 
 	bool BuildSpawnData(
 		const UWorld& SourceWorld,
+		const FSpawnClearanceWorld& ClearanceWorld,
 		TConstArrayView<FLNPSupportLayerRaster> Rasters,
 		const FLNPSupportAtlas& Atlas,
 		const FLNPOctantBakeOptions& Options,
@@ -239,8 +375,6 @@ namespace LNPOctantSurfaceBaker
 			}
 			ValidSpawnSetIds.Add(Entry.SpawnSetId);
 		}
-		const FSpawnClearanceWorld ClearanceWorld(SourceWorld);
-
 		for (int32 LayerId = 0; LayerId < Rasters.Num(); ++LayerId)
 		{
 			const FLNPSupportLayerRaster& Raster = Rasters[LayerId];
@@ -612,10 +746,14 @@ FString FLNPOctantBakeReport::ToString() const
 {
 	FString Result = FString::Printf(
 		TEXT("Crust=%s (%d tris, %d Support sources, %d Layers) N=%d Samples=%d Valid=%d Walkable=%d NeedsExact=%d (%.2f%%) ")
-		TEXT("Radius=[%.2f, %.2f] TotalSamples=%d SupportPayload=%lld bytes Spawn authored=%d candidates=%d payload=%lld bytes Time collect=%.2fs extract=%.2fs raster=%.2fs layers=%.2fs encode=%.2fs"),
+		TEXT("Radius=[%.2f, %.2f] TotalSamples=%d SupportPayload=%lld bytes Nav cells=%d components=%d portals=%d candidates=%d/%d/%d seams=%d payloads=%lld/%lld bytes ")
+		TEXT("Spawn authored=%d candidates=%d payload=%lld bytes Time collect=%.2fs extract=%.2fs raster=%.2fs layers=%.2fs encode=%.2fs"),
 		*CrustName, CrustTriangleCount, SupportSourceCount, SupportLayerCount, Subdivisions, SampleCount, ValidCount, WalkableCount,
 		NeedsExactCount, SampleCount > 0 ? 100.0 * NeedsExactCount / SampleCount : 0.0,
-		MinRadius, MaxRadius, TotalSampleCount, PayloadBytes, SpawnAuthoredCount, SpawnCandidateCount, SpawnPayloadBytes,
+		MinRadius, MaxRadius, TotalSampleCount, PayloadBytes, Nav.CellCount, Nav.StaticComponentCount, Nav.PortalCount,
+		Nav.PortalDistanceCandidateCount, Nav.PortalStepCandidateCount, Nav.PortalClearanceCandidateCount,
+		Nav.SeamEndpointCount, NavigationPayloadBytes, TraversalPayloadBytes,
+		SpawnAuthoredCount, SpawnCandidateCount, SpawnPayloadBytes,
 		CollectSeconds, ExtractSeconds, RasterSeconds, LayerRasterSeconds, EncodeSeconds);
 	for (int32 LayerId = 1; LayerId < Layers.Num(); ++LayerId)
 	{
@@ -753,9 +891,65 @@ bool FLNPOctantSurfaceBaker::Bake(
 		return false;
 	}
 	OutReport.Overlaps = CountOverlaps(Rasters, Decoded, Options.OverlapReportHeight);
+	const FSpawnClearanceWorld ClearanceWorld(*SourceWorld);
+
+	FLNPNavData Navigation;
+	FLNPNavTraversalData Traversal;
+	if (!LNPNavBaking::Build(
+		Decoded,
+		Options.Nav,
+		[&](const uint16 LocalNavLayerId, const FVector3d& Position, const FVector3f& Normal)
+		{
+			return ClearanceWorld.HasGravityCapsuleClearance(
+				FVector(Position), FVector(-Position.GetSafeNormal()), FVector(Normal),
+				Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight);
+		},
+		[&](const uint16 FromLayer, const FVector3d& FromPosition, const FVector3f& FromNormal,
+			const uint16 ToLayer, const FVector3d& ToPosition, const FVector3f& ToNormal)
+		{
+			bool bHasCapsulePath = false;
+			if (FromLayer != ToLayer)
+			{
+				TArray<FVector> SupportFeetPoints;
+				TArray<FVector> SupportNormals;
+				if (!ClearanceWorld.HasWalkableSupportPath(
+					FVector(FromPosition), FVector(FromNormal), FVector(ToPosition), FVector(ToNormal),
+					Options.Nav.Agent.MaxStepUp, Options.Nav.Agent.MaxStepDown, Options.Nav.Agent.WalkableMinDot,
+					SupportFeetPoints, SupportNormals))
+				{
+					return false;
+				}
+				bHasCapsulePath = ClearanceWorld.HasCapsulePolylineClearance(
+					SupportFeetPoints, SupportNormals,
+					Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight);
+			}
+			else
+			{
+				bHasCapsulePath = ClearanceWorld.HasCapsulePathClearance(
+					FVector(FromPosition), FVector(FromNormal), FVector(ToPosition), FVector(ToNormal),
+					Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight);
+			}
+			return bHasCapsulePath;
+		},
+		Navigation,
+		Traversal,
+		OutReport.Nav,
+		OutError))
+	{
+		return false;
+	}
+	TArray<uint8> NavigationPayload;
+	TArray<uint8> TraversalPayload;
+	if (!LNPNavData::EncodeNavigation(Navigation, NavigationPayload, OutError)
+		|| !LNPNavData::EncodeTraversal(Traversal, Navigation, TraversalPayload, OutError))
+	{
+		return false;
+	}
+	OutReport.NavigationPayloadBytes = NavigationPayload.Num();
+	OutReport.TraversalPayloadBytes = TraversalPayload.Num();
 
 	FLNPSpawnData SpawnData;
-	if (!BuildSpawnData(*SourceWorld, Rasters, Decoded, Options, SpawnData, OutError))
+	if (!BuildSpawnData(*SourceWorld, ClearanceWorld, Rasters, Decoded, Options, SpawnData, OutError))
 	{
 		return false;
 	}
@@ -804,14 +998,20 @@ bool FLNPOctantSurfaceBaker::Bake(
 	Header.Support.ElementCount = static_cast<uint32>(OutReport.TotalSampleCount);
 	Header.Support.UncompressedSize = static_cast<uint64>(Payload.Num());
 	Header.Support.ContentHash = FLNPContentHash(FIoHash::HashBuffer(Payload.GetData(), Payload.Num()));
+	Header.Navigation.ElementCount = static_cast<uint32>(OutReport.Nav.CellCount);
+	Header.Navigation.UncompressedSize = static_cast<uint64>(NavigationPayload.Num());
+	Header.Navigation.ContentHash = FLNPContentHash(FIoHash::HashBuffer(NavigationPayload.GetData(), NavigationPayload.Num()));
+	Header.Traversal.ElementCount = static_cast<uint32>(Traversal.Portals.Num() + Traversal.SeamEndpoints.Num());
+	Header.Traversal.UncompressedSize = static_cast<uint64>(TraversalPayload.Num());
+	Header.Traversal.ContentHash = FLNPContentHash(FIoHash::HashBuffer(TraversalPayload.GetData(), TraversalPayload.Num()));
 	Header.Spawn.ElementCount = static_cast<uint32>(SpawnData.AuthoredAnchors.Num() + SpawnData.RandomCandidates.Num());
 	Header.Spawn.UncompressedSize = static_cast<uint64>(SpawnPayload.Num());
 	Header.Spawn.ContentHash = FLNPContentHash(FIoHash::HashBuffer(SpawnPayload.GetData(), SpawnPayload.Num()));
 
 	OutData.Header = MoveTemp(Header);
 	OutData.SupportPayload = MoveTemp(Payload);
-	OutData.NavigationPayload.Reset();
-	OutData.TraversalPayload.Reset();
+	OutData.NavigationPayload = MoveTemp(NavigationPayload);
+	OutData.TraversalPayload = MoveTemp(TraversalPayload);
 	OutData.SpawnPayload = MoveTemp(SpawnPayload);
 	return true;
 }
@@ -850,8 +1050,8 @@ bool FLNPOctantSurfaceBaker::BakeAndSave(
 	SurfaceData->Modify();
 	SurfaceData->Header = Baked->Header;
 	SurfaceData->SupportPayload = Baked->SupportPayload;
-	SurfaceData->NavigationPayload.Reset();
-	SurfaceData->TraversalPayload.Reset();
+	SurfaceData->NavigationPayload = Baked->NavigationPayload;
+	SurfaceData->TraversalPayload = Baked->TraversalPayload;
 	SurfaceData->SpawnPayload = Baked->SpawnPayload;
 	Package->MarkPackageDirty();
 

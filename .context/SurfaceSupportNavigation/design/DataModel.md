@@ -102,7 +102,7 @@ class ULNPOctantSurfaceData : public UPrimaryDataAsset
 
 header는 `DataVersion`, source hash·manifest와 각 stream의 element count, uncompressed size, content hash만 가진다. `DataVersion`의 C++ 기본값은 0이고 베이커가 `CurrentDataVersion`을 명시적으로 쓴다. 기본값이 현재 버전이면 tagged property 직렬화가 기본값과 같은 값을 저장하지 않아, 버전을 올린 뒤 옛 에셋을 로드해도 새 버전으로 보인다(2026-09-27, `DataVersion` 2 도입 때 발견). 현재 payload가 일반 `UPROPERTY TArray<uint8>`인 동안에는 asset 로드 시 네 payload도 함께 역직렬화된다. "payload를 읽지 않고 판정"은 codec decode 없이 header만 검사한다는 뜻이며 선택적 I/O를 뜻하지 않는다. 실제 선택 로딩은 측정상 필요할 때 `FByteBulkData` 또는 stream별 asset으로 전환한다.
 
-Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4a에서 지각 codec v1(`DataVersion` 2)로 시작해 Phase 4b에서 다층 codec v2로 바꿨고 현재 구현의 `DataVersion`은 3이다(`SurfaceBaking.md` "다층 Atlas 규약"). Phase 5는 LVI authored anchor와 절차 후보를 담는 Spawn codec v1을 추가하면서 `DataVersion`을 4로 올린다(D-059, `../phases/Phase05_RuntimeLoader.md`). Nav cell은 Phase 7의 실제 베이크 데이터로 layout을 결정한다. Conditional Patch stream은 Phase 8에서 다시 `DataVersion`을 올려 추가한다. 이때 MarkerId·transform·Actor class·상태/경로 파라미터·patch source mesh와 안정 transform을 source semantic/settings hash에 포함하고 모든 production SurfaceData를 재베이크한다(D-041).
+Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4a에서 지각 codec v1(`DataVersion` 2)로 시작해 Phase 4b에서 다층 codec v2(`DataVersion` 3)로 바꿨다(`SurfaceBaking.md` "다층 Atlas 규약"). Phase 5는 LVI authored anchor와 절차 후보를 담는 Spawn codec v1을 추가하면서 `DataVersion`을 4로 올렸다(D-059, `../phases/Phase05_RuntimeLoader.md`). Phase 7a 구현 단위 1은 16×16 Tile·6방향 edge·local component를 담는 Navigation codec v1과 정적 portal·ordered seam endpoint를 담는 Traversal codec v1을 추가해 현재 `DataVersion`을 5로 올렸다. `Header.Navigation.ElementCount`는 walkable cell 수, `Header.Traversal.ElementCount`는 portal과 seam endpoint 수의 합이다. Conditional Patch stream은 Phase 8에서 다시 `DataVersion`을 올려 추가한다. 이때 MarkerId·transform·Actor class·상태/경로 파라미터·patch source mesh와 안정 transform을 source semantic/settings hash에 포함하고 모든 production SurfaceData를 재베이크한다(D-041).
 
 규모 추정: 월드 반지름이 250m라 구 전체 면적은 약 0.785km²다. 지각 Nav를 2m 셀로 잡으면 구 전체 약 19.6만 셀, 지각 Support를 100cm로 잡으면 약 78.5만 샘플이다. 다만 이 수치는 sparse index, coverage, Atlas metadata, decoded buffer, 다층 섬·동굴, overlay와 allocator overhead를 제외한 하한 추정이다. Phase 4·5에서 cooked asset 크기와 peak/resident memory를 측정하기 전에는 "10MB 안쪽"을 합격 가정으로 사용하지 않는다. BulkData 선택 로딩이나 client Nav stream 제외는 측정상 이득이 확인될 때만 도입한다.
 
@@ -161,16 +161,16 @@ struct FSurfaceHandle
 ```cpp
 struct FNavNodeRef
 {
-    uint16 NavLayerId;
-    uint16 TileId;
-    uint16 LocalCellIndex;
-    uint16 Generation;
+	uint16 RuntimeNavLayerId;
+	uint16 TileId;
+	uint16 LocalCellIndex;
+	uint64 SnapshotGeneration;
 };
 ```
 
 전역 1차원 인덱스를 외부 API에 노출하지 않는다. 이 주소 체계가 일반 Grid A*와 계층형 탐색의 공통 기반이 된다.
 
-`NavLayerId`는 asset 로컬 ID가 아니라 런타임 전역 ID다. 같은 asset이 여러 slot에 들어가므로 snapshot 게시 때 `(slot, 로컬 Nav Layer)`에 전역 ID를 발급한다. `Generation`은 snapshot 교체용 stale 검출이며, 동적 변경을 나타내는 지역 revision과 다르다.
+`RuntimeNavLayerId`는 asset 로컬 ID가 아니라 런타임 전역 ID다. 같은 asset이 여러 slot에 들어가므로 snapshot 게시 때 `(slot, 로컬 Nav Layer)`에 전역 ID를 발급한다. `SnapshotGeneration`은 Surface snapshot의 `uint64` 값을 truncation 없이 보존하는 stale 검출 값이며, 동적 변경을 나타내는 지역 revision과 다르다. codec 안에서는 `(LocalNavLayerId, TileId, LocalCellIndex)`만 저장한다.
 
 ### 옥탄트 이음매 연결
 
@@ -197,5 +197,7 @@ Nav cell은 위치와 법선을 중복 저장하지 않는다. 해당 셀의 대
 - Representative support coordinate
 
 목표는 셀당 4~8바이트 수준이다. 실제 layout은 베이크된 테스트 데이터로 결정한다.
+
+Phase 7a codec v1은 Support와 같은 삼각 격자 좌표를 쓰며 6방향 edge mask를 저장한다. Tile은 `(i / 16, j / 16)`의 16×16 블록이고 `LocalCellIndex=(j%16)*16+(i%16)`이다. 비보행 셀은 저장하지 않으며 cell record는 local index, edge mask, clearance class, flags와 asset-local StaticNavComponent ID를 가진다. 상세 byte layout과 validation은 `../phases/Phase07a_NavDataFoundation.md` §3.2~§3.4가 소유한다.
 
 ---
