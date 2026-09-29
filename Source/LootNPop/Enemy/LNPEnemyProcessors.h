@@ -177,7 +177,7 @@ protected:
 
 /**
  * 게임 Thread에서 Representation 그룹 이후 실행된다.
- * - Actor 유효: ASC HP를 FLNPEnemyFragment에 다시 동기화 (SyncToEntity).
+ * - Actor 유효: ASC HP와 Mover 공중 속도·현재 floor identity를 Fragment에 다시 동기화한다.
  * - Actor null:  FLNPEnemyActorInitializedTag를 제거하여 다음 스폰 시 ActorInitializer가 재실행됨.
  *
  * 별도 Processor 둘로 나누는 방식과의 트레이드오프: 같은 프레임에 Entity가 GE 피해를 입고

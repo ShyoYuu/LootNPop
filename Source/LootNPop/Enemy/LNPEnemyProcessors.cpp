@@ -7,6 +7,8 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
+#include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
+#include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "Config/LNPSettings.h"
@@ -520,6 +522,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceDataSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPDynamicTerrainSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -538,12 +541,13 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 	// exact 경로(D-049): 접지는 수평 capsule sweep + 하향 probe, 공중은 이전→제안 위치 capsule sweep.
 	// 움직이는 패널은 이 페이즈보다 먼저 자세를 옮긴다(D-050, ULNPDynamicTerrainSubsystem).
-	const bool bExactGround = LNPEnemyExactMovement::IsEnabled();
 	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
+	const TSharedRef<const FLNPDynamicSupportFrame, ESPMode::ThreadSafe> DynamicFrame =
+		Context.GetSubsystemChecked<ULNPDynamicTerrainSubsystem>().GetDynamicSupportFrame();
 
 	// 청크 병렬(Phase03b §3.6.1). 청크 사이의 공유 쓰기는 EntitiesToSignal 하나뿐이다 — 청크마다 모았다가 끝에 락을 잡고 합친다.
 	// 신호는 엔티티별로 쌓일 뿐 순서에 의미가 없다. Actor용 deferred 명령은 엔진이 병렬 잡마다 command buffer를 따로 준다.
-	// exact query·SurfaceData legacy adapter 조회는 worker에서 호출할 수 있는 const 경로다(D-025).
+	// exact query와 immutable SurfaceData snapshot 조회는 worker에서 호출할 수 있는 const 경로다(D-025).
 	FCriticalSection SignalLock;
 	const auto ExecuteChunk = [&](FMassExecutionContext& EnemyContext)
 	{
@@ -617,45 +621,18 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		 * 매 피격/착지 시 반복적인 Deferred AddTag/RemoveTag Archetype 마이그레이션을 피할 수 있다.
 		 */
 		auto IntegrateAirborne = [&](FTransform& EntityTransform, FVector& PhysVelocity,
-			FLNPSurfaceHandle& SurfaceHandle, const FVector& EntityLocation)
+			FLNPSurfaceHandle& SurfaceHandle, FLNPEnemyDynamicSupportContact& DynamicContact,
+			const FVector& EntityLocation)
 		{
-			if (bExactGround)
+			FVector NewPos;
+			FLNPExactHitIdentity Identity;
+			const bool bLanded = LNPEnemySurfaceMovement::StepAirborne(
+				WorldCollision, ExactParams, EntityLocation, PhysVelocity, DeltaTime, NewPos, SurfaceHandle, &Identity);
+			DynamicContact.Reset();
+			if (bLanded)
 			{
-				FVector NewPos;
-				LNPEnemySurfaceMovement::StepAirborne(
-					WorldCollision, ExactParams, EntityLocation, PhysVelocity, DeltaTime, NewPos, SurfaceHandle);
-				EntityTransform.SetLocation(NewPos);
-				AlignToUp(EntityTransform, NewPos);
-				return;
+				LNPEnemySurfaceMovement::MakeDynamicSupportContact(Identity, *DynamicFrame, NewPos, DynamicContact);
 			}
-
-			// 공중 물리: 중력 적용 및 속도 적분
-			const FVector GravityDir = (EntityLocation - GravityOrigin).GetSafeNormal(); // 외향 = 아래
-			PhysVelocity += GravityDir * GravityStrength * DeltaTime;
-
-			const FVector NewPos = EntityLocation + PhysVelocity * DeltaTime;
-			const FVector NewDir = (NewPos - GravityOrigin).GetSafeNormal();
-
-			FVector SurfacePoint;
-			if (!SurfaceData.GetSurfacePoint(NewDir, SurfacePoint))
-			{
-				EntityTransform.SetLocation(NewPos);
-				return;
-			}
-
-			// 접지 상태의 캡슐 중심 반지름 — 발이 표면에 닿았을 때의 중심 위치
-			const float SurfaceRadius  = FVector::Dist(GravityOrigin, SurfacePoint) - CapsuleHalfHeight;
-			const float DistFromCenter = FVector::Dist(GravityOrigin, NewPos);
-
-			if (DistFromCenter >= SurfaceRadius)
-			{
-				// 착지: 표면에 스냅하고 물리 정지
-				EntityTransform.SetLocation(GravityOrigin + NewDir * SurfaceRadius);
-				PhysVelocity = FVector::ZeroVector;
-				return;
-			}
-
-			// 아직 공중: 자유 이동 및 Up 정렬 회전 유지
 			EntityTransform.SetLocation(NewPos);
 			AlignToUp(EntityTransform, NewPos);
 		};
@@ -663,9 +640,35 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
 			FTransform& EntityTransform = Transforms[i].GetMutableTransform();
-			const FVector EntityLocation = EntityTransform.GetLocation();
+			FVector EntityLocation = EntityTransform.GetLocation();
 			const FMassMoveTargetFragment& MoveTarget = MoveTargets[i];
 			const FLNPEnemyTargetingFragment& Targeting = TargetingFragments[i];
+			FLNPEnemyFragment& EnemyData = EnemyFragments[i];
+			FVector& PhysVelocity = VelocityFragments[i].Velocity;
+
+			// PureEntity가 패널 위에 있으면 먼저 저장된 로컬 접촉을 최신 패널 자세로 운반한다.
+			// snapshot에서 패널이 사라지거나 비보행이 되면 그 프레임부터 마지막 패널 속도를 상속해 공중으로 전환한다.
+			if (ActorFragments[i].Get() == nullptr && PhysVelocity.IsNearlyZero() && EnemyData.DynamicSupportContact.IsValid())
+			{
+				if (LNPEnemySurfaceMovement::ApplyDynamicSupportDelta(*DynamicFrame, EnemyData.DynamicSupportContact, EntityTransform))
+				{
+					EntityLocation = EntityTransform.GetLocation();
+				}
+				else
+				{
+					PhysVelocity = EnemyData.DynamicSupportContact.LastLinearVelocity;
+					EnemyData.DynamicSupportContact.Reset();
+					EnemyData.SurfaceHandle = FLNPSurfaceHandle();
+					if (PhysVelocity.IsNearlyZero())
+					{
+						const FVector Up = (GravityOrigin - EntityLocation).GetSafeNormal();
+						PhysVelocity = -Up * GravityStrength * DeltaTime;
+					}
+					IntegrateAirborne(EntityTransform, PhysVelocity, EnemyData.SurfaceHandle,
+						EnemyData.DynamicSupportContact, EntityLocation);
+					continue;
+				}
+			}
 
 			const FVector UpDir = (GravityOrigin - EntityLocation).GetSafeNormal(); // 내부 구형 세계에서 중심 방향 = Up
 			const FQuat CurrentRotation = EntityTransform.GetRotation();
@@ -686,7 +689,6 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			// 남은 타이머가 나중에 Idle이 될 때 엉뚱하게 발동하는 것을 막기 위해서다.
 			// 플린치는 연출일 뿐이라 이동을 막지 않는다 — 여기서 감소만 시키고 소비는
 			// ULNPEnemyActionProcessor가 한다. 매 프레임 도는 경로가 이쪽뿐이라 자리는 위와 같다.
-			FLNPEnemyFragment& EnemyData = EnemyFragments[i];
 			const bool bHitReacting = EnemyData.TickReactionTimers(DeltaTime);
 
 			// 시체는 결정도 신호도 내지 않는다 — 남은 것은 사망 팝의 적분뿐이다.
@@ -695,9 +697,10 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				if (ActorFragments[i].Get() == nullptr)
 				{
-					FVector& DeathVelocity = VelocityFragments[i].Velocity;
+					FVector& DeathVelocity = PhysVelocity;
 					if (!DeathVelocity.IsNearlyZero())
-						IntegrateAirborne(EntityTransform, DeathVelocity, EnemyData.SurfaceHandle, EntityLocation);
+						IntegrateAirborne(EntityTransform, DeathVelocity, EnemyData.SurfaceHandle,
+							EnemyData.DynamicSupportContact, EntityLocation);
 				}
 				continue;
 			}
@@ -822,11 +825,10 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			}
 			else
 			{
-				FVector& PhysVelocity = VelocityFragments[i].Velocity;
-
 				if (!PhysVelocity.IsNearlyZero())
 				{
-					IntegrateAirborne(EntityTransform, PhysVelocity, EnemyData.SurfaceHandle, EntityLocation);
+					IntegrateAirborne(EntityTransform, PhysVelocity, EnemyData.SurfaceHandle,
+						EnemyData.DynamicSupportContact, EntityLocation);
 				}
 				else
 				{
@@ -853,54 +855,30 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					// 깨지지 않는다(이것이 분리 프로세서가 Transform을 직접 만지지 않는 이유다).
 					Velocity += SeparationFragments[i].Push;
 
-					if (bExactGround)
-					{
-						// 경사·벽·절벽 판정을 모두 exact가 맡는다. 지지면을 잃으면 PhysVelocity가 0이 아니게 되어 다음 프레임부터 공중이다.
-						FVector FinalPos;
-						LNPEnemySurfaceMovement::StepGrounded(
-							SurfaceSnapshot.Get(), WorldCollision, ExactParams, EntityLocation, Velocity, DeltaTime,
-							FinalPos, PhysVelocity, EnemyData.SurfaceHandle);
-						EntityTransform.SetLocation(FinalPos);
-						continue;
-					}
+					// 경사·벽·절벽 판정을 cache-first와 exact 폴백이 맡는다. 지지면을 잃으면
+					// PhysVelocity가 0이 아니게 되어 다음 프레임부터 공중이다.
+					FVector FinalPos;
+					FLNPExactHitIdentity Identity;
+					const LNPEnemyExactMovement::EGroundResult GroundResult = LNPEnemySurfaceMovement::StepGrounded(
+						SurfaceSnapshot.Get(), WorldCollision, ExactParams, EntityLocation, Velocity, DeltaTime,
+						FinalPos, PhysVelocity, EnemyData.SurfaceHandle, &Identity);
+					EntityTransform.SetLocation(FinalPos);
 
-					// 경사 체크: ~45도보다 가파른 경사 오름 이동 차단 (MaxWalkSlopeCosine = 0.71f, Mover CommonLegacyMovementSettings 기준)
-					constexpr float MaxWalkSlopeCosine = 0.71f;
-					if (!Velocity.IsNearlyZero())
+					if (GroundResult == LNPEnemyExactMovement::EGroundResult::Grounded)
 					{
-						const FVector CurrentSurfaceDir = (EntityLocation - GravityOrigin).GetSafeNormal();
-						const FVector TargetSurfaceDir = (EntityLocation + Velocity * DeltaTime - GravityOrigin).GetSafeNormal();
-						FVector CurrentSurface, TargetSurface;
-						if (SurfaceData.GetSurfacePoint(CurrentSurfaceDir, CurrentSurface) &&
-							SurfaceData.GetSurfacePoint(TargetSurfaceDir, TargetSurface))
+						if (!LNPEnemySurfaceMovement::MakeDynamicSupportContact(
+							Identity, *DynamicFrame, FinalPos, EnemyData.DynamicSupportContact))
 						{
-							const FVector SlopeDelta = TargetSurface - CurrentSurface;
-							if (FVector::DotProduct(SlopeDelta, UpDir) > 0.f) // 오름 경사만
-							{
-								const float TotalDist = SlopeDelta.Size();
-								if (TotalDist > KINDA_SMALL_NUMBER)
-								{
-									const float HorizDist = FVector::VectorPlaneProject(SlopeDelta, UpDir).Size();
-									if (HorizDist / TotalDist < MaxWalkSlopeCosine)
-									{
-										Velocity = FVector::ZeroVector;
-									}
-								}
-							}
+							EnemyData.DynamicSupportContact.Reset();
 						}
 					}
-
-					const FVector DesiredPos = EntityLocation + Velocity * DeltaTime;
-					const FVector DirToSurface = (DesiredPos - GravityOrigin).GetSafeNormal();
-
-					FVector FinalPos = DesiredPos;
-					FVector SurfacePoint;
-					if (SurfaceData.GetSurfacePoint(DirToSurface, SurfacePoint))
+					else if (GroundResult == LNPEnemyExactMovement::EGroundResult::LostSupport
+						&& EnemyData.DynamicSupportContact.IsValid())
 					{
-						const float SurfaceRadius = FVector::Dist(GravityOrigin, SurfacePoint) - CapsuleHalfHeight;
-						FinalPos = GravityOrigin + DirToSurface * SurfaceRadius;
+						PhysVelocity += EnemyData.DynamicSupportContact.LastLinearVelocity;
+						EnemyData.DynamicSupportContact.Reset();
 					}
-					EntityTransform.SetLocation(FinalPos);
+					continue;
 				}
 			}
 		}
@@ -1216,6 +1194,9 @@ void ULNPEnemyActorSyncProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 	SyncQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
 	SyncQuery.AddTagRequirement<FLNPEnemyActorInitializedTag>(EMassFragmentPresence::All);
 	SyncQuery.RegisterWithProcessor(*this);
+
+	ProcessorRequirements.AddSubsystemRequirement<ULNPHitIdentitySubsystem>(EMassFragmentAccess::ReadOnly);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPDynamicTerrainSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -1224,6 +1205,10 @@ void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMa
 	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 
+	const TSharedRef<const FLNPHitIdentitySnapshot, ESPMode::ThreadSafe> IdentitySnapshot =
+		Context.GetSubsystemChecked<ULNPHitIdentitySubsystem>().GetSnapshot();
+	const TSharedRef<const FLNPDynamicSupportFrame, ESPMode::ThreadSafe> DynamicFrame =
+		Context.GetSubsystemChecked<ULNPDynamicTerrainSubsystem>().GetDynamicSupportFrame();
 	TArray<FMassEntityHandle> ToCleanup;
 
 	SyncQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
@@ -1235,7 +1220,22 @@ void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMa
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			if (const ALNPEnemyCharacter* EnemyChar = Cast<ALNPEnemyCharacter>(ActorFrags[i].Get()))
-				EnemyChar->SyncToEntity(EnemyFrags[i].Health, VelocityFrags[i].Velocity);
+			{
+				FLNPEnemyFragment& Enemy = EnemyFrags[i];
+				FVector& Velocity = VelocityFrags[i].Velocity;
+				FHitResult FloorHit;
+				const bool bAirborne = EnemyChar->SyncToEntity(Enemy.Health, Velocity, &FloorHit);
+				FLNPExactHitIdentity FloorIdentity;
+				const FLNPExactHitIdentity* FloorIdentityPtr = nullptr;
+				if (!bAirborne && FloorHit.IsValidBlockingHit())
+				{
+					FloorIdentity = ULNPHitIdentitySubsystem::ResolveHit(*IdentitySnapshot, FloorHit);
+					FloorIdentityPtr = &FloorIdentity;
+				}
+				LNPEnemySurfaceMovement::UpdateActorHandoff(
+					bAirborne, Velocity, FloorIdentityPtr, *DynamicFrame, EnemyChar->GetActorLocation(),
+					Velocity, Enemy.SurfaceHandle, Enemy.DynamicSupportContact);
+			}
 			else
 				ToCleanup.Add(Ctx.GetEntity(i));
 		}

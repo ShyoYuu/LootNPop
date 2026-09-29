@@ -234,10 +234,24 @@ void ALNPEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ALNPEnemyCharacter, AimPitchDeg);
 }
 
-void ALNPEnemyCharacter::SyncToEntity(float& OutHealth, FVector& OutVelocity) const
+bool ALNPEnemyCharacter::SyncToEntity(float& OutHealth, FVector& OutVelocity, FHitResult* OutFloorHit) const
 {
 	OutHealth = AttributeSet ? AttributeSet->GetHealth() : 0.f;
-	OutVelocity = (MoverComponent && MoverComponent->IsAirborne())
-		? MoverComponent->GetVelocity()
-		: FVector::ZeroVector;
+	if (OutFloorHit != nullptr)
+	{
+		*OutFloorHit = FHitResult();
+	}
+
+	if (MoverComponent && MoverComponent->IsAirborne())
+	{
+		OutVelocity = MoverComponent->GetVelocity();
+		return true;
+	}
+
+	OutVelocity = FVector::ZeroVector;
+	if (MoverComponent && OutFloorHit != nullptr)
+	{
+		MoverComponent->TryGetFloorCheckHitResult(*OutFloorHit);
+	}
+	return false;
 }

@@ -5,6 +5,7 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemySurfaceMovement.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "LootNPop.h"
@@ -391,13 +392,11 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 		const FVector QueryDir = (PodOutDir * PodRadius + TangentOffset).GetSafeNormal();
 
 		// 목적지도 엔티티와 같은 **캡슐 중심** 기준이어야 한다 (TechDesign_EnemyNPC.md §5.1).
-		// SurfaceData legacy adapter가 주는 점은 발밑이므로 중심 높이로 끌어올린다. 이 보정을 빼면 목적지와
-		// 현재 위치 사이에 HalfHeight만큼의 수직 성분이 상시로 남아, MovementProcessor의
-		// 도착 임계값(30cm)을 영영 넘지 못하고 배회가 교착된다.
+		// ProjectWanderTarget은 Atlas 지면점과 exact 결과를 모두 중심 높이로 보정한다. 이 보정을 빼면
+		// 현재 위치 사이에 HalfHeight만큼의 수직 성분이 상시로 남아, MovementProcessor의 도착 임계값을 넘지 못한다.
 		const float CapsuleHalfHeight = SharedConfig.Config ? SharedConfig.Config->CapsuleHalfHeight : 96.0f;
 
 		ULNPSurfaceDataSubsystem* SurfaceData = Context.GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
-		FVector WanderPoint;
 		const ULNPMassWorldCollisionSubsystem* WorldCollision = Context.GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 		if (bFlying)
 		{
@@ -407,28 +406,27 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 			const float Altitude = FMath::FRandRange(Flight.IdleAltitudeMin, FMath::Max(Flight.IdleAltitudeMin, Flight.IdleAltitudeMax));
 			MoveTarget.Center = Enemy.ParentPodLocation + TangentOffset - PodOutDir * Altitude;
 		}
-		else if (LNPEnemyExactMovement::IsEnabled() && WorldCollision && SharedConfig.Config)
+		else if (WorldCollision && SharedConfig.Config)
 		{
-			// Layer 0 adapter는 방향마다 지각 한 층뿐이라 섬 아래 적에게 쓸 수 없다. 엔티티와 같은 반지름에서
-			// 다시 찍어 같은 층을 고른다. 없으면(섬 가장자리 밖 등) 제자리에 서서 다음 추첨을 기다린다.
+			// 현재 Layer의 Atlas를 먼저 조회하고 risk·coverage 구간만 exact로 검증한다. 다른 Layer가 나오거나
+			// 지면이 없으면 제자리에 서서 다음 추첨을 기다린다.
 			LNPEnemyExactMovement::FParams ExactParams;
 			ExactParams.GravityOrigin = GravityOrigin;
 			ExactParams.CapsuleRadius = SharedConfig.Config->CapsuleRadius;
 			ExactParams.CapsuleHalfHeight = CapsuleHalfHeight;
 			constexpr float WanderLayerReach = 300.f;
-			if (!LNPEnemyExactMovement::ProjectToSameLayer(*WorldCollision, ExactParams, EntityLocation, QueryDir, WanderLayerReach, MoveTarget.Center))
+			const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> SurfaceSnapshot =
+				SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
+			if (!LNPEnemySurfaceMovement::ProjectWanderTarget(
+				SurfaceSnapshot.Get(), *WorldCollision, ExactParams, EntityLocation, QueryDir,
+				WanderLayerReach, Enemy.SurfaceHandle, MoveTarget.Center))
 			{
 				MoveTarget.Center = EntityLocation;
 			}
 		}
-		else if (SurfaceData && SurfaceData->GetSurfacePoint(QueryDir, WanderPoint))
-		{
-			MoveTarget.Center = WanderPoint + (GravityOrigin - WanderPoint).GetSafeNormal() * CapsuleHalfHeight;
-		}
 		else
 		{
-			MoveTarget.Center = Enemy.ParentPodLocation + TangentOffset;
-			//UE_LOG(LogLootNPop, Warning, TEXT("IdleTask: Surface data unavailable, using fallback wander target at %s"), *MoveTarget.Center.ToString());
+			MoveTarget.Center = EntityLocation;
 		}
 
 		// DistanceToGoal은 도착 임계값이 아니라 **남은 거리**다 — TargetFollow·SteeringTask 등

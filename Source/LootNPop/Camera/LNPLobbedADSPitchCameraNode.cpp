@@ -48,7 +48,7 @@ double FLNPLobbedADSPitchNodeEvaluator::ResolveTargetPitchDown(
 	// 착탄점은 가이드가 이미 푼 값을 당겨 읽는다 — 카메라가 궤적을 다시 적분하면 카메라가 겨냥하는
 	// 곳과 장판이 놓인 곳이 갈린다 (TechDesign_HitDetection.md §7.6과 같은 교훈).
 	//
-	// 장판을 모르는 프레임(SurfaceCache 베이킹 전 등)에는 기울이지 않는다 — 이 노드는 장판을
+	// 가이드가 아직 착탄점을 계산하지 못한 프레임에는 기울이지 않는다 — 이 노드는 장판을
 	// 프레임 안에 붙잡기 위해 존재하므로, 붙잡을 것이 없으면 기울일 이유도 없다.
 	const ULNPTrajectoryGuideComponent* Guide = Character.FindComponentByClass<ULNPTrajectoryGuideComponent>();
 	FVector ImpactPoint = FVector::ZeroVector;  // UE 수학 타입은 기본 생성자가 초기화하지 않는다 (C4701)

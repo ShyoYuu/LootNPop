@@ -30,8 +30,8 @@
  * 정보 항목:
  * - EdgeMiss: 이음매 좌표 평면 위에 **정확히** 놓인 line의 miss. 서로 다른 body의 공유 모서리를 따라가는 측도 0의 경우로,
  *   같은 방향의 sphere가 맞고 평면에서 조금만 떨어져도 맞으면 틈이 아니다. 실제 투사체에서 새면 envelope 안전망이 받는다.
- * - ExactDeeper: line hit가 legacy SurfaceCache 표면보다 허용치 이상 바깥. 부유섬이 있으면 첫 hit 단층 캐시가 섬 가장자리
- *   바깥 방향에 이웃 셀의 섬 윗면을 보간하므로 exact가 맞아도 생긴다(Phase 3b). legacy 캐시를 제거하는 Phase 6까지 정보로만 센다.
+ * - ExactDeeper: line hit가 Support Atlas의 지각 Layer 0보다 허용치 이상 바깥. 부유섬이 있으면 Layer 0과 exact의
+ *   첫 hit 대상이 다를 수 있으므로 실패가 아닌 정보로만 센다.
  *
  * 방향은 로컬 Fibonacci 방향을 8개 slot 회전으로 돌린 집합과, 좌표 평면 3개를 따라 평면 위·양옆에 촘촘히 뿌린 집합이다.
  * query는 ParallelFor로 worker에서 실행한다.
@@ -55,7 +55,7 @@ namespace
 	constexpr float SweepCapsuleHalfHeight = 88.f;
 
 	constexpr double ShapeOrderTolerance = 0.5;
-	constexpr double LegacyDeeperTolerance = 200.0;
+	constexpr double LayerZeroDeeperTolerance = 200.0;
 	constexpr double SlotMismatchTolerance = 1.0;
 
 	constexpr double ReadyTimeoutSeconds = 120.0;
@@ -78,8 +78,8 @@ namespace
 	struct FOracleResult
 	{
 		FOracleShapeResult Shapes[ShapeCount];
-		double LegacyRadius = 0.0;
-		bool bLegacyValid = false;
+		double LayerZeroRadius = 0.0;
+		bool bLayerZeroValid = false;
 	};
 
 	/** 단위 구 위의 고른 방향. */
@@ -130,9 +130,8 @@ namespace
 	{
 		const ULNPMassWorldCollisionSubsystem* Collision = World.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 		const ULNPSurfaceDataSubsystem* SurfaceData = World.GetSubsystem<ULNPSurfaceDataSubsystem>();
-		FVector Probe;
 		return Collision && Collision->GetWorldEnvelopeRadius() > 0.f
-			&& SurfaceData && SurfaceData->GetSurfacePoint(FVector::UpVector, Probe);
+			&& SurfaceData && SurfaceData->IsReady();
 	}
 
 	void RunOracle(UWorld& World)
@@ -140,6 +139,8 @@ namespace
 		const ULNPMassWorldCollisionSubsystem& Collision = *World.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 		const ULNPSurfaceDataSubsystem& SurfaceData = *World.GetSubsystem<ULNPSurfaceDataSubsystem>();
 		const ULNPOctantSpawnSubsystem* Octants = World.GetSubsystem<ULNPOctantSpawnSubsystem>();
+		const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> SurfaceSnapshot = SurfaceData.TakeSnapshot();
+		check(SurfaceSnapshot.IsValid());
 
 		const double StartRadius = GetDefault<ULNPSettings>()->SphereRadius * StartRadiusRatio;
 		const double EndRadius = Collision.GetWorldEnvelopeRadius() + LNPProjectileMotion::WorldEnvelopeMargin;
@@ -210,9 +211,9 @@ namespace
 				ShapeResult.bInstance = Hit.Identity.InstanceIndex != INDEX_NONE;
 			}
 
-			FVector SurfacePoint;
-			Result.bLegacyValid = SurfaceData.GetSurfacePoint(Direction, SurfacePoint);
-			Result.LegacyRadius = SurfacePoint.Size();
+			FVector3d SurfacePoint = FVector3d::ZeroVector;
+			Result.bLayerZeroValid = LNPSurfaceDataLoading::QueryLayerZero(*SurfaceSnapshot, FVector3d(Direction), SurfacePoint);
+			Result.LayerZeroRadius = SurfacePoint.Length();
 		});
 
 		const double ElapsedMs = (FPlatformTime::Seconds() - StartSeconds) * 1000.0;
@@ -226,7 +227,7 @@ namespace
 		int32 SlotMismatches = 0;
 		int32 SlotComparisonsSkipped = 0;
 		int32 LoggedFailures = 0;
-		TArray<double> TerrainLegacyDiffs;
+		TArray<double> TerrainLayerZeroDiffs;
 
 		auto LogFailure = [&LoggedFailures, &Directions](const TCHAR* Reason, const int32 Index, const FString& Detail)
 		{
@@ -281,15 +282,15 @@ namespace
 				}
 			}
 
-			if (Result.bLegacyValid)
+			if (Result.bLayerZeroValid)
 			{
-				if (LineResult.HitRadius > Result.LegacyRadius + LegacyDeeperTolerance)
+				if (LineResult.HitRadius > Result.LayerZeroRadius + LayerZeroDeeperTolerance)
 				{
 					++ExactDeeperCount;
 				}
 				if (LineResult.Slot != INDEX_NONE && !LineResult.bInstance)
 				{
-					TerrainLegacyDiffs.Add(FMath::Abs(LineResult.HitRadius - Result.LegacyRadius));
+					TerrainLayerZeroDiffs.Add(FMath::Abs(LineResult.HitRadius - Result.LayerZeroRadius));
 				}
 			}
 		}
@@ -330,11 +331,11 @@ namespace
 			}
 		}
 
-		TerrainLegacyDiffs.Sort();
-		auto Percentile = [&TerrainLegacyDiffs](const double P)
+		TerrainLayerZeroDiffs.Sort();
+		auto Percentile = [&TerrainLayerZeroDiffs](const double P)
 		{
-			return TerrainLegacyDiffs.IsEmpty() ? 0.0 : TerrainLegacyDiffs[FMath::Min(TerrainLegacyDiffs.Num() - 1,
-				static_cast<int32>(P * TerrainLegacyDiffs.Num()))];
+			return TerrainLayerZeroDiffs.IsEmpty() ? 0.0 : TerrainLayerZeroDiffs[FMath::Min(TerrainLayerZeroDiffs.Num() - 1,
+				static_cast<int32>(P * TerrainLayerZeroDiffs.Num()))];
 		};
 
 		int32 TotalFailures = ShapeOrderFailures + SlotMismatches;
@@ -355,22 +356,22 @@ namespace
 			ShapeOrderFailures, SlotMismatches,
 			bCheckSlotEquivalence ? TEXT("") : TEXT(" (not checked: slots use different levels)"), SlotComparisonsSkipped);
 		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Info: EdgeMiss=%d (line exactly on a seam plane, sphere hits)"), EdgeMisses);
-		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Info: ExactDeeper=%d (line hit beyond legacy SurfaceCache by > %.0fcm; legacy blurs floating island edges)"),
-			ExactDeeperCount, LegacyDeeperTolerance);
-		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Info: slot terrain |exact-legacy| radius cm: n=%d P50=%.1f P95=%.1f max=%.1f"),
-			TerrainLegacyDiffs.Num(), Percentile(0.5), Percentile(0.95), TerrainLegacyDiffs.IsEmpty() ? 0.0 : TerrainLegacyDiffs.Last());
+		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Info: ExactDeeper=%d (line hit beyond Support Atlas Layer 0 by > %.0fcm)"),
+			ExactDeeperCount, LayerZeroDeeperTolerance);
+		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Info: slot terrain |exact-layer0| radius cm: n=%d P50=%.1f P95=%.1f max=%.1f"),
+			TerrainLayerZeroDiffs.Num(), Percentile(0.5), Percentile(0.95), TerrainLayerZeroDiffs.IsEmpty() ? 0.0 : TerrainLayerZeroDiffs.Last());
 		UE_LOG(LogLootNPop, Display, TEXT("[ExactOracle] Result=%s Failures=%d"), TotalFailures == 0 ? TEXT("PASS") : TEXT("FAIL"), TotalFailures);
 	}
 
 	/**
 	 * LNP.SurfaceNav.ExactOracle
-	 * 옥탄트 생성·registry 게시·SurfaceCache 베이크가 끝나지 않았으면 끝날 때까지 기다렸다 실행한다(-ExecCmds 시작 실행용).
+	 * 옥탄트 생성·registry·SurfaceData 게시가 끝나지 않았으면 끝날 때까지 기다렸다 실행한다(-ExecCmds 시작 실행용).
 	 */
 	FAutoConsoleCommandWithWorld GLNPExactOracle(
 		TEXT("LNP.SurfaceNav.ExactOracle"),
 		TEXT("Run the production 8-slot LNPWorldExact oracle: radial line/sphere/capsule queries over every slot and the seam planes. ")
-		TEXT("Checks misses, unknown hits, start penetration, sweep order, exact-vs-legacy surface depth and slot equivalence. ")
-		TEXT("Waits for world generation and SurfaceCache bake if they are not finished yet."),
+		TEXT("Checks misses, unknown hits, start penetration, sweep order, exact-vs-layer0 surface depth and slot equivalence. ")
+		TEXT("Waits for world generation and SurfaceData publication if they are not finished yet."),
 		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
 		{
 			if (World == nullptr)
@@ -402,7 +403,7 @@ namespace
 				}
 				if (FPlatformTime::Seconds() > Deadline)
 				{
-					UE_LOG(LogLootNPop, Error, TEXT("[ExactOracle] Timed out waiting for world generation, hit identity registry and SurfaceCache bake."));
+					UE_LOG(LogLootNPop, Error, TEXT("[ExactOracle] Timed out waiting for world generation, hit identity registry and SurfaceData publication."));
 					return false;
 				}
 				return true;

@@ -7,6 +7,7 @@
 #include "MassEntityTraitBase.h"
 #include "Mass/EntityHandle.h"
 #include "GameplayTagContainer.h"
+#include "DynamicTerrain/LNPPlacementTypes.h"
 #include "Enemy/LNPFlightSteering.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "LNPEnemyMassTypes.generated.h"
@@ -18,6 +19,34 @@ enum class ELNPTargetingState : uint8
 	None,           // 타겟 미감지, 대기 동작
 	Alert,          // 타겟 감지됐으나 슬롯 미확보, 타겟 방향 전환
 	Confirmed,      // 슬롯 확보, 적극적 추격/공격
+};
+
+/**
+ * PureEntity가 움직이는 지지면 위에 서 있을 때만 유지하는 접촉 상태.
+ * 정적 지면의 `FLNPSurfaceHandle`과 수명·식별자가 다르므로 같은 필드에 겹쳐 싣지 않는다.
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemyDynamicSupportContact
+{
+	GENERATED_BODY()
+
+	/** `(slot, MarkerId)` 동적 지지면 식별자. */
+	FLNPPlacementId SupportId;
+
+	/** 마지막으로 검증된 캡슐 중심을 지지면 로컬 좌표로 저장한다. */
+	FVector LocalCapsuleCenter = FVector::ZeroVector;
+
+	/** 접촉을 잃는 프레임에 상속할 마지막 지지면 선속도. */
+	FVector LastLinearVelocity = FVector::ZeroVector;
+
+	bool IsValid() const { return SupportId.IsValid(); }
+
+	void Reset()
+	{
+		SupportId = FLNPPlacementId();
+		LocalCapsuleCenter = FVector::ZeroVector;
+		LastLinearVelocity = FVector::ZeroVector;
+	}
 };
 
 /** Enemy Entity의 핵심 전투 데이터 */
@@ -54,6 +83,9 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 
 	/** 초기 스폰 지면. Phase 6의 Support query가 현재 Layer를 이어받는다. */
 	FLNPSurfaceHandle SurfaceHandle;
+
+	/** 움직이는 패널 접촉. 유효한 동안 정적 `SurfaceHandle`은 비어 있다. */
+	FLNPEnemyDynamicSupportContact DynamicSupportContact;
 
 	/** --- 피격 반응 --- */
 

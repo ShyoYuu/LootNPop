@@ -63,7 +63,7 @@ TG_StartPhysics~      그 밖의 Mass worker exact query(투사체 등)
 ```
 
   - 시뮬레이션 전(`OnWorldPreActorTick`)에 옮기거나 Actor 틱 없이 옮기면 Mover가 이동량 일부를 놓친다. 측정에서는 절반만 추종했다. Mover의 `AddTickDependency`는 base에 컴포넌트/Actor 틱이 있을 때만 prerequisite를 건다.
-  - Mass PrePhysics 페이즈 선행 조건은 `ULNPDynamicTerrainSubsystem::RegisterPanel`·`UnregisterPanel`이 게시 틱과 같은 자리에서 걸고 푼다(`FMassProcessingPhaseManager::GetProcessingPhaseTickFunction`). 선행 조건은 tick function 멤버라 페이즈 tick 재등록에도 남는다. 요소 Actor는 Mass에 의존하지 않아 사이클이 없다.
+  - Mass PrePhysics 페이즈는 `DynamicSupport` 게시 tick 자체를 선행 조건으로 둔다. 각 패널 Actor tick은 게시 tick의 선행 조건이므로 최종 순서는 `패널 -> 게시 -> Mass`다. 패널만 게시와 Mass 양쪽에 각각 걸면 둘이 같은 패널 뒤 동시에 시작해 `Frame` shared ref 교체와 worker 복사가 경쟁할 수 있다(Phase 6 2P에서 검출·수정). 선행 조건은 tick function 멤버라 페이즈 tick 재등록에도 남는다. 요소 Actor는 Mass에 의존하지 않아 사이클이 없다.
   - 순서는 런타임에 검증한다. PrePhysics 페이즈 시작(`OnProcessingPhaseStarted`, 게임 스레드)마다 이번 프레임에 아직 틱하지 않은 패널을 세고 월드 종료 시 `[DynamicTerrain] MassPrePhysicsOrder checks=… violations=…`를 남긴다. 2026-09-25 2P 스모크에서 호스트·게스트 모두 위반 0이다.
   - 요소 Actor의 transform 쓰기는 PrePhysics exact query 전에 끝나므로 Gate 0의 쓰기 겹침이 생기지 않는다. Mover 폰·ActorPromoted 적의 이동 쓰기는 여전히 겹칠 수 있다(2P·적 300 스모크에서 락 합 P95 0.153ms).
 - teleport로 옮긴 kinematic body의 물리 속도는 0이다. Mover는 base를 떠날 때(걸어 나가기·점프) `GetMovementBaseVelocityAtPoint`로 물리 속도를 관성에 더하므로, 매 갱신 뒤 물리 선속도를 결정론적 속도로 설정한다. `ComponentVelocity`도 함께 둔다.

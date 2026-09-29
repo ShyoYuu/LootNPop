@@ -1,6 +1,8 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "SurfaceNavigation/LNPLoadBaseline.h"
+
+#include "Enemy/LNPEnemySurfaceMovement.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyCharacter.h"
@@ -531,6 +533,7 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		StartUnknownHits = Collision->GetUnknownHitCount();
 		StartEnvelopeEscapes = Collision->GetEnvelopeEscapeCount();
 		LNPEnemyFlightStats::Reset();
+		LNPEnemySurfaceMovement::ResetGroundStats();
 		NextActorSampleTime = Now;
 		CaptureStartPopulation = Population;
 		if (World->GetNetMode() != NM_Client)
@@ -827,8 +830,11 @@ void ULNPLoadBaselineSubsystem::TopUpProjectiles()
 	const ULNPSurfaceDataSubsystem* SurfaceData = GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
 	if (SurfaceData == nullptr)
 		return;
+	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> SurfaceSnapshot = SurfaceData->TakeSnapshot();
+	if (!SurfaceSnapshot.IsValid())
+		return;
 
-	// 발사 위치는 SurfaceData Layer 0 adapter로 찍는다. exact probe로 찍으면 harness가 측정 대상 counter에 query를 더한다.
+	// 발사 위치는 immutable SurfaceData의 명시적 Layer 0 조회로 찍는다. exact probe로 찍으면 harness가 측정 대상 counter에 query를 더한다.
 	// 섬 아래 방향에서는 섬 윗면에서 쏘게 되지만 조준점은 링 중심이라 부하 성격은 같다.
 	const FVector CenterDir = RingCenter.GetSafeNormal();
 	// 내부형 구라 위쪽은 월드 중심 방향이다.
@@ -840,9 +846,11 @@ void ULNPLoadBaselineSubsystem::TopUpProjectiles()
 	{
 		const float Angle = ProjectileStream.FRandRange(0.f, 2.f * PI);
 		const float Distance = FMath::Sqrt(ProjectileStream.FRandRange(FMath::Square(RingInnerRadius), FMath::Square(RingOuterRadius)));
-		FVector Foot;
-		if (!SurfaceData->GetSurfacePoint(MakeRingDirection(CenterDir, T1, T2, Angle, Distance, SphereRadius), Foot))
+		FVector3d FootPoint;
+		if (!LNPSurfaceDataLoading::QueryLayerZero(
+			*SurfaceSnapshot, FVector3d(MakeRingDirection(CenterDir, T1, T2, Angle, Distance, SphereRadius)), FootPoint))
 			continue;
+		const FVector Foot(FootPoint);
 
 		const FVector Up = -Foot.GetSafeNormal();
 		const FVector Muzzle = Foot + Up * MuzzleHeight;
@@ -986,10 +994,10 @@ void ULNPLoadBaselineSubsystem::Report()
 	const bool bExactPass = Exact.P95 <= LNPLoadBaseline::ExactP95BudgetMs;
 	const bool bLockPass = Lock.P95 <= LNPLoadBaseline::LockP95BudgetMs;
 
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d flyers=%d projectiles=%d seed=%d ExactGround=%d LateralSweep=%d ParallelMovement=%d CPU=%s ====="),
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d flyers=%d projectiles=%d seed=%d LateralSweep=%d ParallelMovement=%d CPU=%s ====="),
 		*World->GetName(), static_cast<int32>(World->GetNetMode()), LNPLoadBaseline::GetEnemyCount(), LNPLoadBaseline::GetFlyerCount(),
 		LNPLoadBaseline::GetTargetProjectiles(), LNPLoadBaseline::GetSeed(),
-		LNPEnemyExactMovement::IsEnabled() ? 1 : 0, LNPEnemyExactMovement::IsLateralSweepEnabled() ? 1 : 0,
+		LNPEnemyExactMovement::IsLateralSweepEnabled() ? 1 : 0,
 		LNPEnemyExactMovement::IsParallelMovementEnabled() ? 1 : 0,
 		*FPlatformMisc::GetCPUBrand().TrimStartAndEnd());
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] frames=%d EnemyEntities=%d EnemyChunks=%d LargestChunk=%d PromotedActors avg=%.1f max=%d Projectiles avg=%.0f min=%d Injected=%d"),
@@ -1003,6 +1011,7 @@ void ULNPLoadBaselineSubsystem::Report()
 		Exact.P50, Exact.P95, Exact.Max, Queries.P50, Queries.P95, Queries.Max, Lock.P50, Lock.P95, Lock.Max);
 	if (World->GetNetMode() != NM_Client)
 	{
+		LNPEnemySurfaceMovement::ReportGroundStats();
 		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Population start IslandTop=%d UnderIsland=%d OpenCrust=%d Airborne=%d | end IslandTop=%d UnderIsland=%d OpenCrust=%d Airborne=%d"),
 			CaptureStartPopulation.IslandTop, CaptureStartPopulation.UnderIsland, CaptureStartPopulation.OpenCrust, CaptureStartPopulation.Airborne,
 			Population.IslandTop, Population.UnderIsland, Population.OpenCrust, Population.Airborne);

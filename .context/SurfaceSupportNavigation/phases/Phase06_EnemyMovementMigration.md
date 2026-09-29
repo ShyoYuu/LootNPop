@@ -1,6 +1,6 @@
 # Phase 6 — Enemy 접지·공중·넉백 전환
 
-> 상태: 진행 중(2026-09-29) — 구현 단위 0 완료, 구현 단위 1 진행 중
+> 상태: 완료(2026-09-29) — 구현 단위 0~5와 종료 검증 완료
 > 예상 범위: 3~4세션
 > 선행 조건: Phase 5 런타임 로더와 SurfaceCache 교체(완료)
 
@@ -91,44 +91,44 @@ Phase 3b exact-only 기준과 직접 비교할 수 있도록 한 빌드에서 �
 
 - [x] 수평 sweep과 하향 support 판정을 분리해 중복 exact query 없이 조합한다.
 - [x] `HighConfidence` 접지와 모든 비확신 exact 폴백을 구현한다.
-- 접지 유지·절벽 낙하·가파른 경사·정적 blocker·섬 가장자리·동굴 바닥을 회귀 검사한다.
+- [x] 접지 유지·절벽 낙하·가파른 경사·정적 blocker·섬 가장자리·동굴 바닥을 회귀 검사한다.
 - [x] 초기 스폰 handle이 cache hit와 exact fallback에서 유지·갱신되는 단위 경계를 검사한다.
 
 완료 조건: smooth interior의 grounded 하향 exact probe가 사라지고 회귀 fixture의 결과가 Phase 3b와 같다.
 
 ### 구현 단위 2 — airborne·착지·넉백과 배회
 
-- exact 착지 결과에서 static Layer handle을 기록한다.
-- 넉백·사망 팝에서 handle 무효화와 재획득을 검사한다.
-- Idle 배회를 다층 query 우선·exact 폴백으로 전환한다.
-- 지각 아래·부유섬·동굴에서 다른 Layer로 목표가 튀지 않는지 검사한다.
+- [x] exact 착지 결과에서 static Layer handle을 기록한다.
+- [x] 넉백·사망 팝에서 handle 무효화와 재획득을 검사한다.
+- [x] Idle 배회를 다층 query 우선·exact 폴백으로 전환한다.
+- [x] 지각 아래·부유섬·동굴에서 다른 Layer로 목표가 튀지 않는지 검사한다.
 
 완료 조건: 낙하와 착지가 반지름 비교 없이 exact이며 배회 목표가 현재 Layer를 유지한다.
 
 ### 구현 단위 3 — Actor LOD와 움직이는 패널
 
-- Actor→Entity Mover floor identity·공중 속도 인계를 구현한다.
-- Entity→Actor→Entity 왕복 시 위치·속도·handle 연속성을 검사한다.
-- DynamicSupport contact, 패널 transform delta, 이탈 속도 상속을 구현한다.
-- 패널 tick prerequisite와 2P late join 자세를 회귀 검사한다.
+- [x] Actor→Entity Mover floor identity·공중 속도 인계를 구현한다.
+- [x] Entity→Actor→Entity 왕복 시 위치·속도·handle 연속성을 검사한다.
+- [x] DynamicSupport contact, 패널 transform delta, 이탈 속도 상속을 구현한다.
+- [x] 패널 tick prerequisite와 2P late join 자세를 회귀 검사한다.
 
 완료 조건: PureEntity·ActorPromoted 모두 패널 착지와 LOD 전환에서 순간이동하거나 Layer를 잃지 않는다.
 
 ### 구현 단위 4 — legacy 제거
 
-- `GetSurfacePoint` 직접 사용을 모두 제거한다.
-- `ULNPSurfaceCacheSubsystem`과 runtime bake 잔여 코드를 제거한다.
-- legacy CVar·경로·문서 주석을 정리한다.
-- 전체 자동화, 에디터 빌드, `-game` 리슨 2P 스모크를 수행한다.
+- [x] `GetSurfacePoint` 직접 사용을 모두 제거한다.
+- [x] `ULNPSurfaceCacheSubsystem`과 runtime bake 잔여 코드를 제거한다.
+- [x] legacy CVar·경로·문서 주석을 정리한다.
+- [x] 전체 자동화, 에디터 빌드, `-game` 리슨 2P 스모크를 수행한다.
 
 완료 조건: 검색과 실행 로그에 legacy SurfaceCache 소비·베이크가 없고 모든 지상 소비자가 다층 API 또는 exact를 사용한다.
 
 ### 구현 단위 5 — 부하 재측정과 종료
 
-- Phase 3b와 같은 Development package `-nullrhi` 시나리오를 exact-only/cache-first로 실행한다.
-- 병렬 약 700마리 exact 기준과 비교해 한계치·query 비율·프레임 P50/P95를 기록한다.
-- 1P와 리슨 2P에서 지각·섬·동굴·패널·LOD 전환을 스모크한다.
-- `Current.md`, `Roadmap.md`, `history/Phase06_Log.md`를 종료 상태로 갱신한다.
+- [x] Phase 3b와 같은 Development package `-nullrhi` 시나리오를 exact-only/cache-first로 실행한다.
+- [x] 병렬 약 700마리 exact 기준과 비교해 한계치·query 비율·프레임 P50/P95를 기록한다.
+- [x] 1P와 리슨 2P에서 지각·섬·동굴·패널·LOD 전환을 스모크한다.
+- [x] `Current.md`, `Roadmap.md`, `history/Phase06_Log.md`를 종료 상태로 갱신한다.
 
 ## 5. 전체 완료 조건
 

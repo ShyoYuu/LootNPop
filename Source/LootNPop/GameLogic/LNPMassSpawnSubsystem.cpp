@@ -347,7 +347,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		UE_LOG(LogLootNPop, Warning, TEXT("LNPMassSpawnSubsystem: enemy spawn counts scaled by %.2f (LNP.Spawn.EnemyDensity)."), EnemyDensity);
 	}
 
-	// 게시 완료된 8-slot Spawn snapshot만 태스크에 전달한다. UObject나 legacy SurfaceCache는 읽지 않는다.
+	// 게시 완료된 8-slot Spawn snapshot만 태스크에 전달한다. UObject는 읽지 않는다.
 	const ULNPSurfaceDataSubsystem* SurfaceData = GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
 	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> SurfaceSnapshot =
 		SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;

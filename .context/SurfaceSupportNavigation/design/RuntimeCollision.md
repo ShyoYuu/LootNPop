@@ -109,7 +109,7 @@
 
 ## Surface query API
 
-기존 `GetSurfacePoint(Direction)`는 다층 환경에서 제거 대상이다.
+기존 `GetSurfacePoint(Direction)`는 Phase 6에서 제거했다. 일반 이동 소비자는 아래 다층 query와 exact만 사용한다.
 
 개념 API:
 
@@ -256,7 +256,7 @@ Phase 3에서 모든 투사체가 매 프레임 다음을 수행하도록 전환
 | envelope 이탈 | 월드 hit 없이 `반지름 > envelope + 500cm`면 VFX·스플래시 없이 소멸하고 `EnvelopeEscapes` counter를 올린다. 가이드도 같은 스텝에서 끝난다(아래 "최외곽 반지름 안전망") |
 | 관전 Ghost 외삽 | 발사 방송 도착 지연만큼 외삽해 스폰하는 구간(최대 200ms)도 `TraceWorld`로 검사하고, 월드에 맞으면 Ghost를 만들지 않는다. 검사하지 않으면 지면·프랍 너머에서 태어난다. 착탄 VFX는 서버 확정 큐가 서버 위치에 재생한다 |
 | 기본 경로 | exact만 있다. audit(MISSING=0)와 production 8-slot oracle(`../design/ValidationAndMigration.md`) 통과 뒤 legacy `IsUnderSurface` 경로와 전환 CVar를 제거했다(D-036) |
-| 탄도 가이드 준비 신호 | exact 경로도 SurfaceCache 베이크 완료를 옥탄트 로드 완료 신호로만 쓴다. SurfaceCache 제거(Phase 5) 때 옥탄트 생성 완료로 바꾼다 |
+| 탄도 가이드 준비 신호 | SurfaceData 게시와 옥탄트 생성 완료를 준비 신호로 쓴다 |
 
 알려진 한계: 패링 반사탄은 `CurrentPos`에서 다시 스폰된다. 월드 hit으로 잘린 선분 위에서 패링이 일어나면 `CurrentPos`가 벽 너머일 수 있고, 반사탄은 다음 프레임 같은 벽에 착탄한다. 벽에 붙어 패링하는 경우만 해당하며 체감 문제가 확인되면 반사 위치를 패링 hit 지점으로 바꾼다.
 

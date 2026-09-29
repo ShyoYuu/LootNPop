@@ -101,7 +101,7 @@ namespace LNPSurfaceDataLoading
 		const FLNPSurfaceQuery& Query,
 		FLNPSurfaceQueryResult& OutResult);
 
-	/** Phase 6까지 유지하는 지각 Layer 0 전용 호환 조회. */
+	/** 진단·부하 harness가 명시적으로 쓰는 지각 Layer 0 조회. 일반 이동 소비자는 사용하지 않는다. */
 	LOOTNPOP_API bool QueryLayerZero(
 		const FLNPSurfaceDataSnapshot& Snapshot,
 		const FVector3d& WorldDirection,
@@ -149,9 +149,6 @@ public:
 	/** 다층 Support query. 게시 전에는 NotReady를 반환한다. */
 	ELNPSurfaceQueryStatus QuerySupport(const FLNPSurfaceQuery& Query, FLNPSurfaceQueryResult& OutResult) const;
 
-	/** Phase 6까지의 지각 Layer 0 호환 adapter. 게시 전 또는 risk 구간이면 false다. */
-	bool GetSurfacePoint(const FVector& WorldDirection, FVector& OutPoint) const;
-
 	UPROPERTY(BlueprintAssignable, Category = "LNP|Surface Navigation")
 	FLNPOnSurfaceDataReady OnSurfaceDataReady;
 
@@ -171,7 +168,6 @@ private:
 	TSharedPtr<FStreamableHandle> LoadHandle;
 	TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> PublishedSnapshot;
 	std::atomic<bool> bSnapshotReady = false;
-	mutable std::atomic<bool> bLegacyMultiLayerWarningEmitted = false;
 
 	/** Strong UObject references backing PublishedSnapshot's decoded POD views. */
 	UPROPERTY(Transient)

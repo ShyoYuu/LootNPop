@@ -1,16 +1,16 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 6 — Enemy 접지·공중·넉백 전환 · 진행 중(구현 단위 0 완료·1 진행 중)
+> 현재 Phase: Phase 6 — Enemy 접지·공중·넉백 전환 · 완료(Phase 7 실행 계획 작성 다음)
 > 마지막 갱신: 2026-09-29
 
 ## 현재 목표
 
 Phase 4b(부유섬·동굴 키트 다층 베이크)가 2026-09-27에 끝났다. 완료 증거는 `phases/Phase04b_MultiLayerSupport.md` §5와 `history/Phase04b_Log.md`에 있다. 다층 Atlas·face 표·codec v2 규약 원본은 `design/SurfaceBaking.md` "다층 Atlas 규약"이다.
 
-Phase 5(런타임 로더와 SurfaceCache 교체)는 2026-09-28에 구현 단위 0~5와 종료 검증까지 완료했다. 정상 실행의 123만 runtime trace bake를 없애고 서버·클라이언트가 같은 immutable Support/Spawn snapshot을 게시한다. stale은 cook 전 CI 결정론 자동화와 게시 전 런타임 validation에서 차단한다. 기본 지각 Layer만 반환하는 legacy `GetSurfacePoint` adapter는 Phase 6 완료 때 제거한다(`Roadmap.md` "Phase 5와 6 사이"). 실행·완료 증거는 `phases/Phase05_RuntimeLoader.md`와 `history/Phase05_Log.md`에 있다.
+Phase 5(런타임 로더와 SurfaceCache 교체)는 2026-09-28에 구현 단위 0~5와 종료 검증까지 완료했다. 정상 실행의 123만 runtime trace bake를 없애고 서버·클라이언트가 같은 immutable Support/Spawn snapshot을 게시한다. stale은 cook 전 CI 결정론 자동화와 게시 전 런타임 validation에서 차단한다. 실행·완료 증거는 `phases/Phase05_RuntimeLoader.md`와 `history/Phase05_Log.md`에 있다.
 
-Phase 6은 2026-09-28에 착수했다. 실행 계획은 `phases/Phase06_EnemyMovementMigration.md`, 작업 기록은 `history/Phase06_Log.md`가 소유한다. 구현 단위 0은 2026-09-29에 완료했다. PureEntity grounded의 수평 blocker sweep은 유지하고 하향 support probe만 cache-first로 바꾸며, 모든 비확신 결과와 공중 착지는 Phase 3b exact 경로로 처리한다. `LNP.SurfaceNav.EnemySupportCache`로 exact-only/cache-first를 비교하고 `LNP.SurfaceNav.EnemyGround.Report`에서 적중·폴백 수를 본다. 현재 Layer handle이 없거나 snapshot generation이 다르면 임의 Layer를 고르지 않고 exact로 간다.
+Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증까지 완료했다. PureEntity grounded의 수평 blocker sweep은 유지하고 하향 support probe만 cache-first로 바꾸며, 모든 비확신 결과와 공중 착지는 Phase 3b exact 경로로 처리한다. `LNP.SurfaceNav.EnemySupportCache`로 exact-only/cache-first를 비교하고 `LNP.SurfaceNav.EnemyGround.Report`에서 적중·폴백 수를 본다. 현재 Layer handle이 없거나 snapshot generation이 다르면 임의 Layer를 고르지 않고 exact로 간다. 저장된 회귀 fixture로 지각·동굴 cache hit, 섬 가장자리 낙하, 정적 blocker를 exact-only와 비교한다. 공중 프레임은 이전 handle을 즉시 지우고 정적 Support 착지 exact identity로만 재획득한다. Idle 배회는 현재 handle의 다층 snapshot을 우선하고 비확신 결과만 exact로 검증하며, 다른 Layer 결과는 거부한다. ActorPromoted는 Mover floor identity·공중 속도를 Entity로 인계하며, PureEntity의 움직이는 패널 접촉은 별도 contact로 transform delta와 이탈 속도를 잇는다. DynamicSupport 게시 tick은 Mass PrePhysics의 선행 조건이다. `GetSurfacePoint` adapter, `ULNPSurfaceCacheSubsystem`, runtime bake 설정과 `EnemyExactGround` 비교 분기를 제거했다. Development package 재측정에서 exact-only 한계는 약 700마리, cache-first는 약 800마리였다. 700마리 cache-first는 grounded cache hit 90.60%, query/frame P50 902, 프레임 P95 14.65ms였다.
 
 ## Phase 5 구현 단위 3~5 결과(2026-09-28)
 
@@ -44,8 +44,8 @@ Phase 6은 2026-09-28에 착수했다. 실행 계획은 `phases/Phase06_EnemyMov
 ## 인계 기준선(3b·3c·4a·4b)
 
 - 30,000cm `Meadow_00`: 섬 3개(큰 섬·섬 A 경사로 두 방식·섬 B), 간이 동굴, 월드 장치 마커. 8 slot 모두 이 definition
-- PureEntity exact 이동(`Enemy/LNPEnemyExactMovement.*`, D-049). CVar `LNP.SurfaceNav.EnemyExactGround`·`EnemyExactLateralSweep`·`EnemyParallelMovement` 모두 기본 1. Phase 6 exact 폴백으로 재사용
-- 패널 → Mass PrePhysics 선행 조건(D-050 C안)
+- PureEntity cache-first 이동(`Enemy/LNPEnemySurfaceMovement.*`)과 exact 이동 primitive(`Enemy/LNPEnemyExactMovement.*`, D-049). 접지는 cache-first가 필수이고 `EnemyExactLateralSweep`·`EnemyParallelMovement`만 측정 CVar로 남는다
+- 패널 → DynamicSupport 게시 tick → Mass PrePhysics 선행 조건(D-050 C안). 게시와 Mass가 같은 패널 뒤에서 동시에 시작하지 않도록 완전한 체인으로 건다
 - **exact 한계치: 단일 스레드 500마리(최악 조건 기준선), 병렬 약 700마리.** 접지 개체당 프레임 약 1.46 query·8us. Phase 4 캐시 적중률 목표와 Phase 6 재측정은 병렬 700 기준으로 읽는다
 - 비행 드론(PureEntity, D-052·053·054): 총수 200, Pod 타입 분리. 비행 비용은 Support 캐시의 절감 대상이 아니다
 - 부하 harness `-LNPLoadBaseline=N`·`-LNPLoadBaselineFlyers=F`, 측정 스크립트 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`. 프레임 판정은 패키지 Development 호스트 `-nullrhi`
@@ -53,18 +53,17 @@ Phase 6은 2026-09-28에 착수했다. 실행 계획은 `phases/Phase06_EnemyMov
 - `DA_OctantSurface_Meadow_00`·`DA_OctantSurface_Fixture_Crust`는 LVI 옆에 저장돼 있다. `Bake.OctantBakeDeterministic`가 저장본과 현재 source의 일치를 검사하므로 LVI나 베이크 설정을 바꾸면 `BakeOctant`로 다시 굽는다
 - 회귀 공간(D-056): 정적 사례는 `LVI_Octant_Fixture_Regression`(생성 `LNP.SurfaceNav.BuildRegressionFixture`, 배치 원본 `LNPRegressionFixture.h`)을 8 slot 합성으로 검사하고, 동적 3사례만 `L_SurfaceRegression`(30,000cm)에 있다. `DA_OctantSurface_Fixture_Regression`도 결정론 베이크 검사 대상이다
 - 동굴 키트 greybox(`/Game/Maps/CaveKit`, `LNP.SurfaceNav.BuildCaveKit`, 치수 원본 `LNPCaveKit.h`): 직육면체 공동 + 경사 통로, Floor/Shell 분리, 규약 검사 `Bake.CaveKitContract`. `Meadow_00` 동굴은 (위도 15°, 방위 60°)에 있고 `LNP.SurfaceNav.PlaceCaveKit`으로 배치했다(지각 메시 입구 절단 포함)
-- 자동화 `LootNPop.SurfaceNavigation` 59개. `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 보고, `Runtime.MassSpawnPlanning`이 Spawn 할당 규약을 검사한다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`와 `Schema/DA_MinimalOctantSurfaceData`를 다시 저장하므로 커밋 전에 git으로 되돌린다
+- 자동화 `LootNPop.SurfaceNavigation` 64개. `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 보고, `Runtime.MassSpawnPlanning`이 Spawn 할당 규약을 검사한다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`와 `Schema/DA_MinimalOctantSurfaceData`를 다시 저장하므로 커밋 전에 git으로 되돌린다
 - 헤드리스 `-ExecCmds`는 쉼표로 명령을 나누고, 에디터 바이너리에서는 `Quit`로 종료되지 않는다(`Automation RunTests`는 종료함)
 - 카메라 리그 `CR_ThirdPerson`에 `CollisionPush` 노드(`../TechDesign_CharacterMovement.md` §2.4)
 
 ## 바로 다음 작업
 
-Phase 6 구현 단위 0과 1을 진행한다.
+Phase 7 실행 계획을 작성한다.
 
-1. 회귀 fixture에서 지각·섬 가장자리·동굴·정적 blocker의 cache-first 결과가 Phase 3b와 같은지 검사한다.
-2. `-game`에서 `EnemyGround.Report`로 smooth interior의 cache hit와 exact fallback을 확인한다.
-3. exact 착지의 `FLNPSurfaceHandle` 갱신과 넉백·사망 팝 handle 무효화·재획득 자동화를 추가한다.
-4. Idle 배회를 다층 query 우선·exact 폴백으로 전환한다.
+1. `design/GroundNavigation.md`와 Roadmap의 Phase 7 내부 게이트를 기준으로 7a Nav 데이터 기반 실행 문서를 작성한다.
+2. Nav codec·tile 경계·static connected component·seam/portal·ReachabilityGroup 검증 입력을 먼저 확정한다.
+3. 7a cooked load와 8-slot 연결성 검증 전에는 7b scheduler·path cache 형식을 고정하지 않는다.
 
 ## 이관된 후속 작업
 
@@ -96,6 +95,16 @@ Phase 6 구현 단위 0과 1을 진행한다.
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-09-29 Phase 6 구현 단위 5 및 Phase 종료: Win64 Development BuildCookRun이 972 packages cook·stage·pak·archive까지 성공했다. 같은 패키지의 리슨 2P `-nullrhi -corelimit=4`·투사체 500 조건에서 exact-only는 700마리 P95 16.17ms 통과·750마리 17.44ms 실패, cache-first는 800마리 16.46ms 통과·850마리 17.44ms 실패로 한계가 약 700→800마리로 늘었다. 700마리 cache-first는 grounded cache hit 90.60%, query/frame P50 1,524→902, exact CPU P95 7.354→3.082ms, 프레임 P95 16.17→14.65ms였다(`Saved/Profiling/Phase06`). Development package 1P 100마리도 frame/exact/lock, `ProbePanels`, `ProbeSurfaceData`가 모두 PASS했고 순서 위반·Unknown hit·Envelope escape·Layer jump·ensure·crash 0이었다(`Saved/Logs/Phase06_Unit5_1P.log`). Phase 6 완료.
+
+2026-09-29 Phase 6 구현 단위 4: Enemy 이동·Idle 배회의 `GetSurfacePoint`와 `EnemyExactGround=0` 분기를 제거해 cache-first 또는 exact만 사용하게 했다. 진단·부하 도구의 Layer 0 비교는 immutable snapshot의 명시적 `QueryLayerZero`로 분리했다. `ULNPSurfaceCacheSubsystem` 구현, runtime bake 설정과 CVar를 삭제했다. `LootNPopEditor Win64 Development` 전체 빌드, EnemyMovement 5/5, ExactMovement 4/4, 전체 SurfaceNavigation 64/64가 통과했다(`Saved/Logs/Phase06_Unit4_*Tests.log`). 리슨 2P 100마리 스모크는 양쪽 `ProbePanels`·`ProbeSurfaceData` PASS, 순서 위반·Unknown hit·Envelope escape·Layer jump·ensure·crash 0으로 정상 종료했다. 서버 cache hit는 112,950/125,700(89.86%)이었다(`Phase06_Unit4_2P_Host.log`, `Phase06_Unit4_2P_Guest.log`). 호스트 프레임 P95 29.35ms는 에디터 2개 동시 실행 결과라 성능 Gate가 아니며 구현 단위 5의 Development package 측정으로 판정한다.
+
+2026-09-29 Phase 6 구현 단위 3: Actor 활성 중 Mover floor hit을 registry로 해석해 정적 handle·동적 contact를 갱신하고, 공중 강등은 Mover 속도를 그대로 Entity에 인계한다. PureEntity에는 별도 DynamicSupport contact, 패널 transform delta, 이탈 선속도 상속을 추가했다. 합성 패널 exact 착지→운반 fixture를 포함한 EnemyMovement 5/5와 ExactMovement 4/4, `LootNPopEditor Win64 Development` 전체 빌드가 통과했다(`Saved/Logs/Phase06_Unit3_EnemyMovementTests.log`, `Phase06_Unit3_ExactMovementTests.log`). late-join 리슨 2P에서 발견한 DynamicSupport 게시 tick/worker snapshot 경쟁을 `패널 -> 게시 -> Mass PrePhysics` 선행 조건으로 수정했다. 재실행 결과 호스트·게스트 모두 `ProbePanels` 8/8, SurfaceData query 8/8·binding 88/88, 순서 위반 0, ensure·crash 0으로 정상 종료했다(`Phase06_Unit3_2P_Host.log`, `Phase06_Unit3_2P_Guest.log`).
+
+2026-09-29 Phase 6 구현 단위 2: `LootNPopEditor Win64 Development` 전체 빌드 성공. EnemyMovement 3/3과 ExactMovement 4/4 통과(`Saved/Logs/Phase06_Unit2_EnemyMovementTests.log`, `Phase06_Unit2_ExactMovementTests.log`). 에디터 `-game` 100마리 capture는 cache hit 91.90%(226,992/247,012), exact fallback 20,020, 합성 넉백 270회·착지 266회, Layer jump·Unknown hit 0이며 frame/exact/lock과 face/source/snapshot probe가 모두 PASS(`Phase06_Unit2_EditorGame.log`).
+
+2026-09-29 Phase 6 구현 단위 1: `LootNPopEditor Win64 Development` 전체 빌드 성공. EnemyMovement 자동화 3/3(새 `GroundedFixture` 포함)과 ExactMovement 회귀 4/4 통과(`Saved/Logs/Phase06_Unit1_EnemyMovementTests.log`, `Phase06_Unit1_ExactMovementTests.log`). 에디터 `-game` 100마리 capture는 cache hit 86.07%(167,090/194,138), exact fallback 27,048, Unknown hit 0, Layer jump 0이며 face/source/snapshot probe PASS(`Phase06_Unit1_EditorGame.log`). 에디터 빌드 프레임 P95 20.35ms는 패키지 성능 Gate가 아니고 exact P95 0.630ms·lock P95 0.025ms는 통과했다.
 
 2026-09-29 Phase 6 구현 단위 0: `LootNPopEditor Win64 Development` 전체 빌드 성공. EnemyMovement 자동화 2/2(`CachedGroundDecision`, `SurfaceHandleIdentity`)와 기존 ExactMovement 회귀 4/4 통과(`Saved/Logs/Phase06_Unit0_EnemyMovementTests.log`, `Phase06_Unit0_ExactMovementTests.log`).
 

@@ -70,21 +70,6 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "World Device")
 	TSoftObjectPtr<class ULNPWorldDeviceConfig> WorldDeviceConfig;
 
-	/** 적도에서 인접 Cache 셀 간의 목표 호 길이 거리 (cm). */
-	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1.0", Units="cm"))
-	float SurfaceCacheCellSpacing = 200.0f;
-
-	/**
-	 * 베이킹 중 한 프레임에 발사할 표면 트레이스 수.
-	 *
-	 * 전량을 한 프레임에 발사하면 다음 프레임 UWorld::ResetAsyncTrace가 WaitForAllAsyncTraceTasks로
-	 * 게임 Thread를 막고 전체 Callback을 한 번에 쏟아내 큰 히치가 발생한다. 나눠 쏘면 부하가 분산되고
-	 * GetBakingProgress()도 실제로 차오르는 값이 된다.
-	 * 기본값 기준 308,505 샘플 / 2,000 = 약 155 프레임 (60fps에서 약 2.6초).
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Surface Cache", meta=(ClampMin="1"))
-	int32 SurfaceCacheSamplesPerFrame = 2000;
-
 	/**
 	 * 적 브로드페이즈 격자의 위도 행 수. 경도 칸 수는 행마다 `2 * 이 값 * cos(위도)`로 줄어들어
 	 * 셀 면적이 어디서나 균일해진다(축소 행 — 극점에서 선형 스캔으로 퇴화하지 않게 하는 장치).
@@ -93,8 +78,7 @@ public:
 	 * 회피 이웃 반경(수십~수백 cm)보다 넉넉히 크므로 3x3 스텐실이 과다포함이 되지만,
 	 * **브로드페이즈는 과다포함은 괜찮고 누락만 안 된다.**
 	 *
-	 * ⚠️ **표면 캐시(`SurfaceCacheCellSpacing`)와 해상도를 공유하지 않는다.** 방향→인덱스 관례만
-	 * 같고 목적이 다르다 — 저쪽은 지형 샘플링 정밀도, 이쪽은 이웃 탐색 가지치기다.
+	 * Support Atlas와는 독립된 런타임 브로드페이즈 해상도다.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Enemy NPC", meta=(ClampMin="8", ClampMax="1024"))
 	int32 EnemyGridLatResolution = 128;

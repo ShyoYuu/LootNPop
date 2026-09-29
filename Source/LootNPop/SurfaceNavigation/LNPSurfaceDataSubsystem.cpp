@@ -745,38 +745,6 @@ ELNPSurfaceQueryStatus ULNPSurfaceDataSubsystem::QuerySupport(
 		: (OutResult = FLNPSurfaceQueryResult()).Status;
 }
 
-bool ULNPSurfaceDataSubsystem::GetSurfacePoint(const FVector& WorldDirection, FVector& OutPoint) const
-{
-	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> Snapshot = TakeSnapshot();
-	if (!Snapshot.IsValid())
-	{
-		return false;
-	}
-
-#if !UE_BUILD_SHIPPING
-	if (!bLegacyMultiLayerWarningEmitted.load(std::memory_order_relaxed)
-		&& Snapshot->Slots.ContainsByPredicate([](const FLNPSurfaceDataSlotSnapshot& Slot)
-		{
-			return Slot.Support.IsValid() && Slot.Support->Layers.Num() > 1;
-		}))
-	{
-		bool bExpected = false;
-		if (bLegacyMultiLayerWarningEmitted.compare_exchange_strong(bExpected, true, std::memory_order_relaxed))
-		{
-			UE_LOG(LogLootNPop, Warning, TEXT("LNPSurfaceDataSubsystem: Legacy GetSurfacePoint queries crust Layer 0 only in a multi-layer world."));
-		}
-	}
-#endif
-
-	FVector3d Point;
-	if (!LNPSurfaceDataLoading::QueryLayerZero(*Snapshot, FVector3d(WorldDirection), Point))
-	{
-		return false;
-	}
-	OutPoint = FVector(Point);
-	return true;
-}
-
 void ULNPSurfaceDataSubsystem::Deinitialize()
 {
 	bSnapshotReady.store(false, std::memory_order_release);
@@ -791,7 +759,6 @@ void ULNPSurfaceDataSubsystem::Deinitialize()
 	LastError.Reset();
 	LoadStartTimeSeconds = 0.0;
 	LoadStartPhysicalBytes = 0;
-	bLegacyMultiLayerWarningEmitted.store(false, std::memory_order_relaxed);
 	Super::Deinitialize();
 }
 

@@ -24,7 +24,7 @@ class ULNPMassWorldCollisionSubsystem;
  *
  * - 적: DA_MassSpawnConfig의 적 수를 0으로 두고(Pod는 유지), slot 4 큰 섬 가장자리 아래를 중심으로 한 링에 정확히 N마리를 둔다.
  *   링 일부가 섬 아래 지각을 지나고, 20마리 중 2마리(근접·원거리 1마리씩)는 섬 윗면에 둔다(Phase03b §3.6).
- *   배치는 exact support probe로 층을 골라 찍는다. SurfaceCache는 섬 방향에서 섬 윗면만 알아 섬 아래 지각에 둘 수 없다.
+ *   배치는 exact support probe로 층을 골라 찍어 섬 위와 섬 아래 지각을 명시적으로 구분한다.
  *   10마리 중 1마리가 ActorPromoted, 나머지는 PureEntity 근접·원거리 반반이다. 세력권 중심은 링 중심이다.
  * - 비행 적: 같은 방식의 두 번째 링(다른 seed)의 지면점에서 스폰 규약대로 배회 고도 하한까지 띄운다. Home은 링 중심(섬 가장자리 아래 지각)이라
  *   배회·교전 경로가 섬 밑면·측벽 사이를 지난다. 합성 넉백·분포·이동 이벤트는 지상 개념이라 비행 적을 세지 않는다.

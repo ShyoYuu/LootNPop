@@ -39,8 +39,8 @@ public:
 	 */
 	void SyncFromEntity(float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity);
 
-	/** Actor -> Mass 동기화: Actor가 Mass로 비활성화/Destroy되기 전 호출 */
-	void SyncToEntity(float& OutHealth, FVector& OutVelocity) const;
+	/** Actor -> Mass 동기화: Actor가 Mass로 비활성화/Destroy되기 전 호출. 접지 중이면 Mover의 현재 floor hit도 돌려준다. */
+	bool SyncToEntity(float& OutHealth, FVector& OutVelocity, FHitResult* OutFloorHit = nullptr) const;
 
 	/**
 	 * 사망 연출 진입점. **서버 전용** — 전 클라이언트에 랙돌을 방송한다. 여러 번 호출해도 안전.

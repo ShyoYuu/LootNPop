@@ -60,8 +60,8 @@ struct FLNPDynamicSupportFrame
  *   seed 기반 장치 배치도 같은 스폰 함수(SpawnPlacedActor)를 거친다.
  * - 서버·클라: 패널은 자기 Actor 틱(TG_PrePhysics)에서 자세를 갱신하고, 이 서브시스템이 모든 패널 틱 뒤
  *   같은 그룹에서 DynamicSupport snapshot을 게시한다(FLNPDynamicSupportPublishTickFunction).
- * - 서버·클라: 패널 Actor 틱을 Mass PrePhysics 페이즈 tick function의 선행 조건으로도 건다(D-050).
- *   PrePhysics 페이즈의 worker exact query(적 exact 이동)는 모든 패널이 자세를 옮긴 뒤에 돈다.
+ * - 서버·클라: `패널 Actor 틱 -> DynamicSupport 게시 틱 -> Mass PrePhysics` 선행 조건을 건다(D-050).
+ *   PrePhysics 페이즈의 worker exact query(적 exact 이동)는 모든 패널 자세와 불변 snapshot 게시가 끝난 뒤에 돈다.
  *   페이즈 시작마다 이번 프레임에 아직 틱하지 않은 패널을 세어 순서를 검증한다(월드 종료 시 로그).
  */
 UCLASS()
