@@ -9,11 +9,6 @@ namespace LNPEnemyExactMovement
 {
 	namespace
 	{
-		int32 GEnemyExactGround = 1;
-		FAutoConsoleVariableRef CVarEnemyExactGround(
-			TEXT("LNP.SurfaceNav.EnemyExactGround"), GEnemyExactGround,
-			TEXT("Server-only. 0 = legacy SurfaceCache grounding for actorless enemies, 1 = exact capsule sweep + support probe (D-049)."));
-
 		int32 GEnemyExactLateralSweep = 1;
 		FAutoConsoleVariableRef CVarEnemyExactLateralSweep(
 			TEXT("LNP.SurfaceNav.EnemyExactLateralSweep"), GEnemyExactLateralSweep,
@@ -127,11 +122,6 @@ namespace LNPEnemyExactMovement
 			FLNPWorldHit SlideHit;
 			return SweepTangent(Collision, Params, Up, Reached, Slide, SlideHit) - Raise;
 		}
-	}
-
-	bool IsEnabled()
-	{
-		return GEnemyExactGround != 0;
 	}
 
 	bool IsLateralSweepEnabled()
@@ -281,8 +271,13 @@ namespace LNPEnemyExactMovement
 	}
 
 	bool ProjectToSameLayer(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
-		const FVector& ReferenceLocation, const FVector& Direction, const float Reach, FVector& OutCapsuleCenter)
+		const FVector& ReferenceLocation, const FVector& Direction, const float Reach, FVector& OutCapsuleCenter,
+		FLNPExactHitIdentity* OutSurfaceIdentity)
 	{
+		if (OutSurfaceIdentity != nullptr)
+		{
+			*OutSurfaceIdentity = FLNPExactHitIdentity();
+		}
 		const FVector Dir = Direction.GetSafeNormal();
 		const FVector Up = -Dir;
 		const FVector SameRadius = Params.GravityOrigin + Dir * FVector::Dist(Params.GravityOrigin, ReferenceLocation);
@@ -292,6 +287,10 @@ namespace LNPEnemyExactMovement
 			return false;
 
 		OutCapsuleCenter = Probe.Hit.Location + Up * ProbeToCenter(Params);
+		if (OutSurfaceIdentity != nullptr)
+		{
+			*OutSurfaceIdentity = Probe.Hit.Identity;
+		}
 		return true;
 	}
 }

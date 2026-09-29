@@ -64,7 +64,6 @@ void ALNPGameMode::OnWorldGenerationComplete()
 void ALNPGameMode::OnSurfaceDataReady()
 {
 	// SurfaceData와 hit registry의 한 generation이 원자적으로 게시된 직후 동적 요소와 Mass spawn으로 진행한다.
-	// 정상 초기화에서는 머신별 legacy SurfaceCache trace bake를 더 이상 실행하지 않는다.
 	BeginEntitySpawning();
 }
 

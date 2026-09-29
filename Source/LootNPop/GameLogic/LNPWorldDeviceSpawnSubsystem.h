@@ -25,10 +25,10 @@ struct FLNPDevicePlacementStats
  * 동적 스폰된 비복제 액터는 NetGUID가 없어 런처 발동 요청이 참조를 잃는다.
  * 정적 액터 하나의 초기 복제 비용은 약 30B이고 이후 갱신이 없어, 50개를 다 합쳐도 적 1기가 2.5초 쓰는 양이다.
  *
- * **왜 ULNPMassSpawnSubsystem에 얹지 않는가.** 그쪽 위치 추첨은 표면 캐시 스냅샷만 쓰는 순수 수학이라
+	 * **왜 ULNPMassSpawnSubsystem에 얹지 않는가.** 그쪽 위치 추첨은 immutable Spawn snapshot만 쓰는 순수 수학이라
  * 워커 스레드에서 돈다. 이 배치는 `Hit.ImpactNormal`이 필요해 **라인트레이스가 필수**이고 결과로 Actor를
  * 스폰하므로 게임 스레드 작업이다. 동기 라인트레이스 자체는 워커에서도 안전하다(SurfaceSupportNavigation
- * Phase 3 Gate 0). 표면 캐시에는 법선이 없다(TechDesign_SurfaceCache.md).
+	 * Phase 3 Gate 0). Spawn snapshot은 장치 배치에 필요한 충돌 법선을 제공하지 않는다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPWorldDeviceSpawnSubsystem : public UWorldSubsystem

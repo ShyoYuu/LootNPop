@@ -168,7 +168,7 @@ Enum 이름 변경으로 네트워크 초기화가 한 번에 깨지는 것을 �
 
 ### 게시 규약
 
-현재 SurfaceCache의 장점인 immutable read model을 유지한다.
+런타임 지면 데이터는 immutable read model로 게시한다.
 
 - 게임 스레드에서 모든 asset·transform·index 조립
 - 완료 전 Mass 조회는 `NotReady`

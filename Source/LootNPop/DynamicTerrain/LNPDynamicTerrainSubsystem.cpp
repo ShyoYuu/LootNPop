@@ -121,6 +121,13 @@ void ULNPDynamicTerrainSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	PublishTick.bStartWithTickEnabled = true;
 	PublishTick.TickGroup = TG_PrePhysics;
 	PublishTick.RegisterTickFunction(InWorld.PersistentLevel);
+	// Mass worker는 Frame shared ref를 복사해 실행 내내 읽는다. 패널 틱만 선행 조건으로 걸면
+	// PublishTick과 Mass가 같은 패널 뒤에서 동시에 시작해 Frame 교체와 ref 복사가 경쟁할 수 있다.
+	// 반드시 `패널 -> 게시 -> Mass`의 완전한 체인을 만든다.
+	if (FTickFunction* MassPrePhysics = GetMassPrePhysicsTick())
+	{
+		MassPrePhysics->AddPrerequisite(this, PublishTick);
+	}
 
 	if (UMassSimulationSubsystem* MassSimulation = InWorld.GetSubsystem<UMassSimulationSubsystem>())
 	{
@@ -131,6 +138,10 @@ void ULNPDynamicTerrainSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 void ULNPDynamicTerrainSubsystem::Deinitialize()
 {
+	if (FTickFunction* MassPrePhysics = GetMassPrePhysicsTick())
+	{
+		MassPrePhysics->RemovePrerequisite(this, PublishTick);
+	}
 	if (PublishTick.IsTickFunctionRegistered())
 	{
 		PublishTick.UnRegisterTickFunction();

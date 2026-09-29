@@ -44,7 +44,7 @@
 | 4a | 지각 Support Atlas와 옥탄트 이음매 | 2~3세션 | 완료 | greybox 옥탄트 지각의 Atlas 베이크와 8 slot 이음매 일치 |
 | 4b | 부유섬·동굴 키트 다층 베이크 | 2~3세션 | 완료 | 같은 방향 다층 Support와 공동 모듈 floor 분리 |
 | 5 | 런타임 로더와 SurfaceCache 교체 | 3~4세션 | 완료 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 전 CI·게시 단계 stale 검출, LVI 지정점 우선 Spawn stream |
-| 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 진행 중 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
+| 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 완료 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
 | 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 대기 | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
 | 8 | Conditional Patch와 파괴 Overlay | 2~3세션 | 대기 | 지역 길 열림·닫힘, revision 기반 재탐색, 상태 복제 |
 | 9 | 부유섬·동굴 Vertical Slice | 2~3세션 | 대기 | 실제 품질 옥탄트와 멀티플레이에서 설계 검증 |
@@ -96,7 +96,7 @@ Support 캐시를 만들기 전에 두 가지를 확인한다(D-032).
 
 ### Phase 6 재측정
 
-Phase 3b와 같은 시나리오를 캐시 경로로 다시 측정해, 캐시 도입 전후의 적 수 한계치와 exact 호출 비율을 비교한다. 캐시 몫은 병렬 exact 한계치(약 700마리. 3b는 750이었으나 3c에서 재확인 결과 내려왔다)와 비교해 읽고, 단일 스레드 exact(500마리)는 최악 조건 기준선으로만 쓴다.
+2026-09-29 완료. Phase 3b와 같은 Development package 리슨 2P·`-nullrhi`·`-corelimit=4`·투사체 500 조건에서 병렬 exact-only 한계는 약 700마리(P95 16.17ms, 750은 17.44ms), cache-first 한계는 약 800마리(P95 16.46ms, 850은 17.44ms)였다. 700마리 cache-first의 grounded cache hit는 90.60%이고 query/frame P50은 1,524→902, exact CPU P95는 7.354→3.082ms, 프레임 P95는 16.17→14.65ms로 줄었다. 상세는 `history/Phase06_Log.md` 구현 단위 5를 따른다.
 
 ### Phase 7 내부 게이트
 
@@ -118,7 +118,7 @@ Phase 7의 일반 A* 캡처를 재생하는 동일 benchmark harness에서 두 �
 
 ### Phase 5와 6 사이
 
-Phase 5는 기본 지각 Layer만 반환하는 legacy `GetSurfacePoint` adapter를 산출물로 포함한다. Phase 6 완료 전까지 부유섬이 있는 콘텐츠를 production pool에 넣지 않는다. legacy SurfaceCache와 adapter는 Phase 6 완료 조건에서 제거한다.
+Phase 5가 임시로 남긴 기본 지각 Layer 전용 `GetSurfacePoint` adapter와 legacy SurfaceCache는 Phase 6에서 제거했다. production 이동 소비자는 다층 Support snapshot 또는 exact만 사용한다.
 
 ### Pod 재귀속
 

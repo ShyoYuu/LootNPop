@@ -118,7 +118,7 @@ bool FLNPOctantThemeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		// SurfaceCache의 지면 조회와 같은 조합(bTraceComplex=false). SM_Octant는 UseComplexAsSimple이라
+		// 런타임 지면 조회와 같은 조합(bTraceComplex=false). SM_Octant는 UseComplexAsSimple이라
 		// 단순 트레이스가 실제 삼각형을 맞히고, 두 시스템이 같은 면을 기준으로 삼게 된다.
 		const FCollisionQueryParams TraceParams(NAME_None, /*bInTraceComplex=*/false);
 

@@ -14,7 +14,12 @@
 #include "Engine/StaticMeshActor.h"
 #include "Engine/StaticMeshSocket.h"
 #include "Engine/World.h"
+#include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
+#include "Enemy/LNPEnemyMassTypes.h"
+#include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemySurfaceMovement.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/PackageName.h"
 #include "SurfaceNavigation/LNPCaveKit.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
@@ -23,6 +28,7 @@
 #include "SurfaceNavigation/LNPOctantSurfaceBaker.h"
 #include "SurfaceNavigation/LNPOctantTriangleExtractor.h"
 #include "SurfaceNavigation/LNPRegressionFixture.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/Package.h"
@@ -45,6 +51,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPLayerIdentityTest,
 	"LootNPop.SurfaceNavigation.WorldCollision.LayerIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPEnemyGroundedFixtureTest,
+	"LootNPop.SurfaceNavigation.EnemyMovement.GroundedFixture",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace LNPRegressionFixtureTest
@@ -774,6 +785,429 @@ namespace LNPLayerIdentityTest
 		UWorld* World = nullptr;
 		TMap<const UPrimitiveComponent*, int32> SourceByComponent;
 	};
+}
+
+namespace LNPEnemyGroundedFixtureTest
+{
+	using namespace LNPRegressionFixture;
+
+	constexpr uint64 SnapshotGeneration = 20260929;
+	constexpr float TestDeltaTime = 1.f / 60.f;
+
+	/** 저장된 fixture Atlas와 같은 정적 메시를 넣은 exact query 월드. */
+	class FFixtureWorld
+	{
+	public:
+		FFixtureWorld()
+		{
+			World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/false, TEXT("LNPEnemyGroundedFixtureTest"));
+			FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+			WorldContext.SetCurrentWorld(World);
+			HitIdentity = World->GetSubsystem<ULNPHitIdentitySubsystem>();
+			Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+		}
+
+		~FFixtureWorld()
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(false);
+		}
+
+		bool AddSources(UWorld& SourceWorld, FString& OutError)
+		{
+			int32 RegisteredSources = 0;
+			for (ULevel* Level : SourceWorld.GetLevels())
+			{
+				if (Level == nullptr)
+					continue;
+				for (AActor* SourceActor : Level->Actors)
+				{
+					if (SourceActor == nullptr)
+						continue;
+
+					TInlineComponentArray<UStaticMeshComponent*> Components(SourceActor);
+					for (UStaticMeshComponent* Component : Components)
+					{
+						ELNPExactSourceLifetime Lifetime;
+						uint8 Roles = 0;
+						if (Component == nullptr || Component->GetStaticMesh() == nullptr
+							|| !ULNPHitIdentitySubsystem::ClassifyProfile(Component->GetCollisionProfileName(), Lifetime, Roles))
+						{
+							continue;
+						}
+
+						AActor* Owner = World->SpawnActor<AActor>();
+						UStaticMeshComponent* Copy = NewObject<UStaticMeshComponent>(Owner);
+						Copy->SetStaticMesh(Component->GetStaticMesh());
+						Copy->SetMobility(Component->Mobility);
+						Copy->SetCollisionProfileName(Component->GetCollisionProfileName());
+						Copy->SetWorldTransform(FLNPOctantTriangleExtractor::GetSourceTransform(*Component));
+						Owner->SetRootComponent(Copy);
+						Copy->RegisterComponent();
+						HitIdentity->RegisterRuntimeSource(Copy);
+						++RegisteredSources;
+					}
+				}
+			}
+			if (RegisteredSources != LNPRegressionFixtureTest::ExpectedExactSourcesPerSlot)
+			{
+				OutError = FString::Printf(TEXT("Expected %d exact fixture sources, found %d"),
+					LNPRegressionFixtureTest::ExpectedExactSourcesPerSlot, RegisteredSources);
+				return false;
+			}
+
+			// 정적 Atlas fixture에는 의도적으로 동적 요소가 없다. 같은 테스트 월드의 반대 반구에
+			// 마커 패널을 하나 더 만들어 exact 착지·운반 경로만 독립적으로 검증한다.
+			UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+			if (Cube == nullptr)
+			{
+				OutError = TEXT("Engine cube mesh for the synthetic dynamic panel is missing");
+				return false;
+			}
+			const FVector PanelRadial(0.f, -1.f, 0.f);
+			const FVector PanelTangent(1.f, 0.f, 0.f);
+			AActor* PanelOwner = World->SpawnActor<AActor>();
+			DynamicPanel = NewObject<UStaticMeshComponent>(PanelOwner);
+			DynamicPanel->SetStaticMesh(Cube);
+			DynamicPanel->SetMobility(EComponentMobility::Movable);
+			DynamicPanel->SetCollisionProfileName(TEXT("LNPDynamicTerrain"));
+			DynamicPanel->SetWorldTransform(FTransform(
+				FRotationMatrix::MakeFromZY(PanelRadial, PanelTangent).ToQuat(),
+				PanelRadial * 28500.f,
+				FVector(8.f, 8.f, 1.f)));
+			PanelOwner->SetRootComponent(DynamicPanel);
+			DynamicPanel->RegisterComponent();
+			DynamicPanelId.Slot = 3;
+			DynamicPanelId.MarkerId = FGuid(6, 9, 2, 9);
+			HitIdentity->RegisterRuntimeSource(DynamicPanel, DynamicPanelId);
+
+			HitIdentity->Tick(0.f);
+			return true;
+		}
+
+		ULNPMassWorldCollisionSubsystem& GetCollision() const { return *Collision; }
+		const FLNPPlacementId& GetDynamicPanelId() const { return DynamicPanelId; }
+		FTransform GetDynamicPanelTransform() const { return DynamicPanel->GetComponentTransform(); }
+		void SetDynamicPanelTransform(const FTransform& Transform) { DynamicPanel->SetWorldTransform(Transform); }
+
+	private:
+		UWorld* World = nullptr;
+		ULNPHitIdentitySubsystem* HitIdentity = nullptr;
+		ULNPMassWorldCollisionSubsystem* Collision = nullptr;
+		TObjectPtr<UStaticMeshComponent> DynamicPanel;
+		FLNPPlacementId DynamicPanelId;
+	};
+
+	/** 예상 지면점에서 HighConfidence Layer와 캡슐 중심을 얻는다. */
+	bool ResolveStanding(
+		const FLNPSurfaceDataSnapshot& Snapshot,
+		const LNPEnemyExactMovement::FParams& Params,
+		const FVector& ApproximateSurfacePoint,
+		FLNPSurfaceHandle& OutHandle,
+		FVector& OutCenter,
+		FString& OutError)
+	{
+		FLNPSurfaceQuery Query;
+		Query.WorldPosition = FVector3d(ApproximateSurfacePoint);
+		Query.MaxStepUp = Params.MaxStepUp;
+		Query.MaxDrop = Params.MaxStepDown;
+		FLNPSurfaceQueryResult Result;
+		const ELNPSurfaceQueryStatus Status = LNPSurfaceDataLoading::QuerySupport(Snapshot, Query, Result);
+		if (Status != ELNPSurfaceQueryStatus::HighConfidence)
+		{
+			OutError = FString::Printf(TEXT("Expected HighConfidence support at %s, got status %d"),
+				*ApproximateSurfacePoint.ToCompactString(), static_cast<int32>(Status));
+			return false;
+		}
+		const FVector Up = (-FVector(Result.Point)).GetSafeNormal();
+		OutHandle = Result.Surface;
+		OutCenter = FVector(Result.Point) + Up * Params.CapsuleHalfHeight;
+		return true;
+	}
+}
+
+/**
+ * 저장된 회귀 fixture에서 cache-first grounded 결과를 Phase 3b exact 결과와 비교한다.
+ * smooth 지각·동굴은 캐시 적중, 섬 가장자리는 exact 낙하 전환, 정적 프랍은 공통 수평 sweep을 검사한다.
+ * 가파른 경사는 `ExactMovement.WallAndSlope`, NeedsExact 의사결정은 `EnemyMovement.CachedGroundDecision`이 소유한다.
+ */
+bool FLNPEnemyGroundedFixtureTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPEnemyGroundedFixtureTest;
+	using namespace LNPRegressionFixture;
+
+	UPackage* MapPackage = LoadPackage(nullptr, *FPackageName::ObjectPathToPackageName(FString(LevelPath)), LOAD_None);
+	UWorld* MapWorld = MapPackage ? UWorld::FindWorldInPackage(MapPackage) : nullptr;
+	TArray<FLNPBakeSupportSource> Sources;
+	FString Error;
+	if (!TestNotNull(TEXT("Regression fixture LVI loads"), MapWorld)
+		|| !TestTrue(TEXT("Fixture support sources extract"), FLNPOctantTriangleExtractor::ExtractSupportSources(*MapWorld, Sources, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	const FString SurfacePackage = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(FSoftObjectPath(LevelPath));
+	const ULNPOctantSurfaceData* Data = LoadObject<ULNPOctantSurfaceData>(
+		nullptr, *FString::Printf(TEXT("%s.%s"), *SurfacePackage, *FPackageName::GetShortName(SurfacePackage)));
+	if (!TestNotNull(TEXT("Fixture SurfaceData loads"), Data))
+		return false;
+
+	TSharedPtr<FLNPSupportAtlas, ESPMode::ThreadSafe> Atlas = MakeShared<FLNPSupportAtlas, ESPMode::ThreadSafe>();
+	if (!TestTrue(TEXT("Fixture SurfaceData decodes"), LNPSupportAtlas::Decode(Data->SupportPayload, *Atlas, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	FLNPSurfaceDataSnapshot Snapshot;
+	Snapshot.Generation = SnapshotGeneration;
+	Snapshot.Slots.SetNum(UE_ARRAY_COUNT(ULNPOctantSpawnSubsystem::OctantRotations));
+	for (int32 Slot = 0; Slot < Snapshot.Slots.Num(); ++Slot)
+	{
+		const FQuat4d Rotation(ULNPOctantSpawnSubsystem::OctantRotations[Slot].Quaternion());
+		Snapshot.Slots[Slot].SlotRotation = Rotation;
+		Snapshot.Slots[Slot].WorldToSlotRotation = Rotation.Inverse();
+		Snapshot.Slots[Slot].Support = Atlas;
+	}
+
+	FFixtureWorld Fixture;
+	if (!TestTrue(TEXT("Fixture exact sources register"), Fixture.AddSources(*MapWorld, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	LNPEnemyExactMovement::FParams MoveParams;
+	MoveParams.GravityOrigin = FVector::ZeroVector;
+	MoveParams.CapsuleRadius = 35.f;
+	MoveParams.CapsuleHalfHeight = 88.f;
+	MoveParams.bLateralSweep = true;
+
+	IConsoleVariable* SupportCache = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.SurfaceNav.EnemySupportCache"));
+	if (!TestNotNull(TEXT("EnemySupportCache CVar exists"), SupportCache))
+		return false;
+	const int32 PreviousSupportCache = SupportCache->GetInt();
+	SupportCache->Set(1, ECVF_SetByCode);
+	ON_SCOPE_EXIT { SupportCache->Set(PreviousSupportCache, ECVF_SetByCode); };
+
+	auto CompareStep = [this, &Fixture, &Snapshot, &MoveParams](
+		const FString& Label,
+		const FVector& Start,
+		const FVector& Velocity,
+		const float DeltaTime,
+		const FLNPSurfaceHandle& InitialHandle,
+		const LNPEnemyExactMovement::EGroundResult ExpectedResult,
+		const double LocationTolerance)
+	{
+		FVector ExactLocation;
+		FVector ExactVelocity;
+		const LNPEnemyExactMovement::EGroundResult ExactResult = LNPEnemyExactMovement::StepGrounded(
+			Fixture.GetCollision(), MoveParams, Start, Velocity, DeltaTime, ExactLocation, ExactVelocity);
+
+		FVector CachedLocation;
+		FVector CachedVelocity;
+		FLNPSurfaceHandle CachedHandle = InitialHandle;
+		const LNPEnemyExactMovement::EGroundResult CachedResult = LNPEnemySurfaceMovement::StepGrounded(
+			&Snapshot, Fixture.GetCollision(), MoveParams, Start, Velocity, DeltaTime,
+			CachedLocation, CachedVelocity, CachedHandle);
+
+		TestEqual(Label + TEXT(": exact result"), static_cast<int32>(ExactResult), static_cast<int32>(ExpectedResult));
+		TestEqual(Label + TEXT(": cache-first result"), static_cast<int32>(CachedResult), static_cast<int32>(ExpectedResult));
+		TestTrue(Label + TEXT(": location matches exact"), FVector::Dist(ExactLocation, CachedLocation) <= LocationTolerance);
+		TestTrue(Label + TEXT(": velocity matches exact"), FVector::Dist(ExactVelocity, CachedVelocity) <= 0.1);
+		return TTuple<FVector, FLNPSurfaceHandle>(CachedLocation, CachedHandle);
+	};
+
+	// 1. 완만한 지각 내부: scene query 없이 HighConfidence로 접지를 유지한다.
+	{
+		FLNPSurfaceHandle Handle;
+		FVector Start;
+		if (!TestTrue(TEXT("Crust standing point resolves"),
+			ResolveStanding(Snapshot, MoveParams, BasicCrust().At(CrustRadius), Handle, Start, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		FVector CachedLocation;
+		FLNPSurfaceHandle CachedHandle = Handle;
+		TestTrue(TEXT("Crust interior is a direct cache hit"),
+			LNPEnemySurfaceMovement::TryResolveCachedGround(Snapshot, MoveParams, Start, CachedHandle, CachedLocation));
+		CompareStep(TEXT("Crust interior"), Start, FVector::ZeroVector, TestDeltaTime, Handle,
+			LNPEnemyExactMovement::EGroundResult::Grounded, 2.0);
+	}
+
+	// 2. 동굴 공동 바닥: 지각과 같은 방향에 겹쳐도 현재 비지각 Layer를 유지한다.
+	{
+		const LNPCaveKit::FPlacement CavePlacement = LNPCaveKit::PlaceUnderSphere(Cave().Radial, Cave().Bitangent, CrustRadius);
+		FLNPSurfaceHandle Handle;
+		FVector Start;
+		if (!TestTrue(TEXT("Cave standing point resolves"),
+			ResolveStanding(Snapshot, MoveParams, CavePlacement.Room.TransformPosition(FVector::ZeroVector), Handle, Start, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		TestTrue(TEXT("Cave floor uses a non-crust Layer"), Handle.LocalLayerId != 0);
+		FVector CachedLocation;
+		FLNPSurfaceHandle CachedHandle = Handle;
+		TestTrue(TEXT("Cave floor is a direct cache hit"),
+			LNPEnemySurfaceMovement::TryResolveCachedGround(Snapshot, MoveParams, Start, CachedHandle, CachedLocation));
+		const TTuple<FVector, FLNPSurfaceHandle> Result = CompareStep(TEXT("Cave floor"), Start, FVector::ZeroVector,
+			TestDeltaTime, Handle, LNPEnemyExactMovement::EGroundResult::Grounded, 2.0);
+		TestEqual(TEXT("Cave floor keeps its Layer"), Result.Get<1>().LocalLayerId, Handle.LocalLayerId);
+
+		const FVector TargetDirection = CavePlacement.Room.TransformPosition(FVector(0.0, 250.0, 0.0)).GetSafeNormal();
+		FVector WanderTarget;
+		TestTrue(TEXT("Cave wander target resolves from the current Layer cache"),
+			LNPEnemySurfaceMovement::ProjectWanderTarget(
+				&Snapshot, Fixture.GetCollision(), MoveParams, Start, TargetDirection, 300.f, Handle, WanderTarget));
+		FLNPSurfaceHandle WanderHandle = Handle;
+		FVector ResolvedWander;
+		TestTrue(TEXT("Cave wander target remains a cache hit on the current Layer"),
+			LNPEnemySurfaceMovement::TryResolveCachedGround(
+				Snapshot, MoveParams, WanderTarget, WanderHandle, ResolvedWander));
+		TestEqual(TEXT("Cave wander target keeps the current Layer"), WanderHandle.LocalLayerId, Handle.LocalLayerId);
+	}
+
+	// 3. 섬 가장자리: 현재 섬 Layer의 창 밖으로 나가면 지각으로 스냅하지 않고 exact로 낙하한다.
+	{
+		const FCaseFrame Edge = IslandEdge();
+		FLNPSurfaceHandle Handle;
+		FVector Start;
+		if (!TestTrue(TEXT("Island edge top standing point resolves"),
+			ResolveStanding(Snapshot, MoveParams, Edge.At(IslandEdgeTop), Handle, Start, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		TestTrue(TEXT("Island edge top uses a non-crust Layer"), Handle.LocalLayerId != 0);
+		const TTuple<FVector, FLNPSurfaceHandle> Result = CompareStep(TEXT("Island edge fall"), Start, Edge.Tangent * 800.f,
+			1.f, Handle, LNPEnemyExactMovement::EGroundResult::LostSupport, 0.1);
+		TestFalse(TEXT("Lost support invalidates the handle"), Result.Get<1>().IsValid());
+
+		FVector WanderTarget;
+		TestFalse(TEXT("Island wander target beyond the current Layer edge is rejected"),
+			LNPEnemySurfaceMovement::ProjectWanderTarget(
+				&Snapshot, Fixture.GetCollision(), MoveParams, Start,
+				Edge.At(IslandEdgeTop, 800.0).GetSafeNormal(), 300.f, Handle, WanderTarget));
+	}
+
+	// 4. 섬 아래 지각: 같은 방사 방향의 섬 윗면으로 올라가지 않고 Layer 0을 유지한다.
+	{
+		const FCaseFrame Island = IslandOne();
+		FLNPSurfaceHandle Handle;
+		FVector Start;
+		if (!TestTrue(TEXT("Under-island crust standing point resolves"),
+			ResolveStanding(Snapshot, MoveParams, Island.At(CrustRadius), Handle, Start, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		TestEqual(TEXT("Under-island standing point uses the crust Layer"), Handle.LocalLayerId, static_cast<uint16>(0));
+		FVector WanderTarget;
+		TestTrue(TEXT("Under-island wander target resolves on the current crust Layer"),
+			LNPEnemySurfaceMovement::ProjectWanderTarget(
+				&Snapshot, Fixture.GetCollision(), MoveParams, Start,
+				Island.At(CrustRadius, 300.0).GetSafeNormal(), 300.f, Handle, WanderTarget));
+		FLNPSurfaceHandle WanderHandle = Handle;
+		FVector ResolvedWander;
+		TestTrue(TEXT("Under-island wander target remains a crust cache hit"),
+			LNPEnemySurfaceMovement::TryResolveCachedGround(
+				Snapshot, MoveParams, WanderTarget, WanderHandle, ResolvedWander));
+		TestEqual(TEXT("Under-island wander target does not snap to the island"),
+			WanderHandle.LocalLayerId, static_cast<uint16>(0));
+	}
+
+	// 5. 정적 프랍: cache-first도 exact-only와 같은 수평 capsule sweep에서 나무 앞에 멈춘다.
+	{
+		const FCaseFrame Props = StaticProps();
+		FLNPSurfaceHandle Handle;
+		FVector Start;
+		constexpr double StartTangent = TreeTangent - 250.0;
+		if (!TestTrue(TEXT("Static blocker approach point resolves"),
+			ResolveStanding(Snapshot, MoveParams, Props.At(CrustRadius, StartTangent), Handle, Start, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		const TTuple<FVector, FLNPSurfaceHandle> Result = CompareStep(TEXT("Static blocker"), Start, Props.Tangent * 600.f,
+			0.5f, Handle, LNPEnemyExactMovement::EGroundResult::Grounded, 2.0);
+		const double StopTangent = Props.TangentOf(Result.Get<0>());
+		TestTrue(TEXT("Static blocker stops before the tree"),
+			StopTangent <= TreeTangent - TreeDiameter * 0.5 - MoveParams.CapsuleRadius + 2.0);
+	}
+
+	// 6. 움직이는 패널: 공중 exact 착지로 동적 contact를 만들고, 패널 transform delta를 적용한 다음
+	// 새 collision 자세에서도 같은 `(slot, MarkerId)` 지지면으로 접지를 유지한다.
+	{
+		const FTransform InitialPanelTransform = Fixture.GetDynamicPanelTransform();
+		const FVector Radial = InitialPanelTransform.GetLocation().GetSafeNormal();
+		const FVector Up = -Radial;
+		const FLNPWorldQueryParams Query(ELNPWorldQueryClass::DebugValidation);
+		FLNPWorldHit PanelHit;
+		if (!TestTrue(TEXT("Dynamic panel inward face resolves"), Fixture.GetCollision().RaycastWorld(
+			Radial * (InitialPanelTransform.GetLocation().Size() - 1000.f),
+			Radial * (InitialPanelTransform.GetLocation().Size() + 1000.f), Query, PanelHit)))
+		{
+			return false;
+		}
+		TestTrue(TEXT("Dynamic panel fixture carries marker identity"),
+			PanelHit.Identity.Lifetime == ELNPExactSourceLifetime::Dynamic
+			&& PanelHit.Identity.MarkerId == Fixture.GetDynamicPanelId().MarkerId);
+
+		LNPEnemyExactMovement::FParams AirParams = MoveParams;
+		AirParams.GravityStrength = 0.f;
+		const FVector AirStart = PanelHit.ImpactPoint + Up * (AirParams.CapsuleHalfHeight + 300.f);
+		FVector AirVelocity = Radial * 1500.f;
+		FVector LandedCenter;
+		FLNPSurfaceHandle StaticHandle;
+		FLNPExactHitIdentity LandingIdentity;
+		TestTrue(TEXT("Airborne capsule lands on the dynamic panel"), LNPEnemySurfaceMovement::StepAirborne(
+			Fixture.GetCollision(), AirParams, AirStart, AirVelocity, 0.4f, LandedCenter, StaticHandle, &LandingIdentity));
+		TestFalse(TEXT("Dynamic landing does not invent a static handle"), StaticHandle.IsValid());
+
+		FLNPDynamicSupportFrame DynamicFrame;
+		FLNPDynamicSupportSnapshot& PanelSnapshot = DynamicFrame.Supports.AddDefaulted_GetRef();
+		PanelSnapshot.Id = Fixture.GetDynamicPanelId();
+		PanelSnapshot.PreviousTransform = InitialPanelTransform;
+		PanelSnapshot.CurrentTransform = InitialPanelTransform;
+		PanelSnapshot.LinearVelocity = FVector::ZeroVector;
+		PanelSnapshot.bWalkable = true;
+		FLNPEnemyDynamicSupportContact Contact;
+		TestTrue(TEXT("Dynamic landing creates a panel-local contact"),
+			LNPEnemySurfaceMovement::MakeDynamicSupportContact(
+				LandingIdentity, DynamicFrame, LandedCenter, Contact));
+
+		const FVector Tangent = FVector::CrossProduct(Radial, FVector::UpVector).GetSafeNormal();
+		const FVector SafeTangent = Tangent.IsNearlyZero()
+			? FVector::CrossProduct(Radial, FVector::ForwardVector).GetSafeNormal()
+			: Tangent;
+		FTransform MovedPanelTransform = InitialPanelTransform;
+		MovedPanelTransform.AddToTranslation(SafeTangent * 100.f);
+		Fixture.SetDynamicPanelTransform(MovedPanelTransform);
+		PanelSnapshot.PreviousTransform = InitialPanelTransform;
+		PanelSnapshot.CurrentTransform = MovedPanelTransform;
+		PanelSnapshot.LinearVelocity = SafeTangent * 600.f;
+
+		FTransform EnemyTransform(FQuat::Identity, LandedCenter);
+		TestTrue(TEXT("Dynamic contact applies the panel transform delta"),
+			LNPEnemySurfaceMovement::ApplyDynamicSupportDelta(DynamicFrame, Contact, EnemyTransform));
+		FVector RegroundedCenter;
+		FVector RegroundedVelocity;
+		FLNPExactHitIdentity RegroundedIdentity;
+		const LNPEnemyExactMovement::EGroundResult Regrounded = LNPEnemySurfaceMovement::StepGrounded(
+			nullptr, Fixture.GetCollision(), MoveParams, EnemyTransform.GetLocation(), FVector::ZeroVector, TestDeltaTime,
+			RegroundedCenter, RegroundedVelocity, StaticHandle, &RegroundedIdentity);
+		TestEqual(TEXT("Carried capsule remains grounded on moved collision"),
+			static_cast<int32>(Regrounded), static_cast<int32>(LNPEnemyExactMovement::EGroundResult::Grounded));
+		TestTrue(TEXT("Regrounded dynamic identity is the same panel"),
+			RegroundedIdentity.MarkerId == Fixture.GetDynamicPanelId().MarkerId);
+		TestTrue(TEXT("Carried capsule moved by the panel delta"),
+			FVector::Dist(RegroundedCenter, LandedCenter + SafeTangent * 100.f) <= 2.f);
+	}
+
+	return true;
 }
 
 /**

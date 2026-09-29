@@ -17,9 +17,6 @@ struct FLNPExactHitIdentity;
  */
 namespace LNPEnemyExactMovement
 {
-	/** LNP.SurfaceNav.EnemyExactGround. 서버 이동 시뮬레이션에서만 의미가 있다. */
-	LOOTNPOP_API bool IsEnabled();
-
 	/** LNP.SurfaceNav.EnemyExactLateralSweep. */
 	LOOTNPOP_API bool IsLateralSweepEnabled();
 
@@ -94,5 +91,6 @@ namespace LNPEnemyExactMovement
 	 * 찾으면 그 위의 캡슐 중심을 돌려준다. 섬 위 적이 가장자리 밖을, 섬 아래 적이 섬 윗면을 목표로 잡지 않게 한다.
 	 */
 	LOOTNPOP_API bool ProjectToSameLayer(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
-		const FVector& ReferenceLocation, const FVector& Direction, float Reach, FVector& OutCapsuleCenter);
+		const FVector& ReferenceLocation, const FVector& Direction, float Reach, FVector& OutCapsuleCenter,
+		FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
 }
