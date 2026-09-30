@@ -107,3 +107,29 @@
   - runtime component 689: 1 node 432, 2~10 200, 11~100 40, 101~1,000 8, 1,000 초과 9. 가장 큰 지각 component가 510,352 node(94.2%), 다음 8개는 slot별 큰 섬 3,222 node다. 탐색 1회의 최악 탐색 공간은 지각 전체 약 51만 node다
   - Spawn 후보 9,990개 투영: P50 55.8·P90 82.9·P99 124.3·최대 290.5cm. 고립 node 적중 5, node 10개 이하 component 적중 25(0.25%)
 - 7b 설계 질문(목표 스냅): 패키지 2P 호스트 폰도 106.5cm 거리의 node 1개짜리 component에 투영됐다(단위 3 에디터 2P와 같은 현상). 가장 가까운 node 규칙은 고립 node를 고르므로 7b는 목표 스냅이 edge 유무·group 크기를 볼지, 반경 안 대체 node를 찾을지 정해야 한다. 1P 폰과 2P 게스트 폰은 발 반지름 31,020·31,131cm에서 Support 결과가 없어(status 2) 투영하지 않았다. 종료 probe 시점의 폰 위치 문제로 보이며 Nav 게시와 무관하다.
+
+## 2026-10-01 — Phase 7b 실행 계획 작성
+
+- `phases/Phase07b_PathExecution.md`(초안)를 작성했다. 입력은 7a 인계 통계와 현재 추격·배회·이동 코드다.
+- 코드 확인에서 나온 계획 전제:
+  - `LNPNavQuery`의 node 해석은 Tile 표 선형 탐색과 Support 보간이라 A* 확장 루프에 쓸 수 없다. 구현 단위 0에서 asset 단위 조밀 graph view(지면점·이웃·edge cost·component, asset당 약 2.4MiB)를 먼저 만든다.
+  - 추격은 `MoveTarget.Center`를 매 프레임 타겟 쪽으로 쓰고 이동 프로세서가 직진한다. 경로는 MoveTarget을 바꾸지 않고 별도 조향점만 준다. 그래서 StateTree Task와 TargetFollow를 고치지 않고 PureEntity·ActorPromoted가 같은 결과를 받는다.
+  - 플레이어 Mass 엔티티에는 Surface handle이 없다. 적 ActorPromoted의 Mover floor → `ResolveHit` 경로를 재사용해 만든다.
+  - Pod는 Popped 때 엔티티가 사라지므로, Nav 차단은 추가뿐 아니라 해제와 revision 무효화가 필요하다.
+- 결정 두 건을 확정했다.
+  - D-061: Pod Nav 차단을 7b 최소 overlay로 넣는다. overlay는 A*만 막고 ReachabilityGroup은 바꾸지 않는다.
+  - D-062: 스냅 정책. 처음 권장안(node 16개 미만 component 제외)을 사용자 제안으로 바꿨다. 가장 가까운 node를 우선하고, group이 어긋날 때만 양쪽 300cm 반경 안에서 공통 group 짝을 다시 고른다. 재선택은 A* 재시도가 아니라 투영 창의 group 비교다. 기준값이 필요 없고 실제로 끊긴 작은 자리도 존중한다. 끊긴 섬 위 목표는 반경 안에 지각 node가 없어 여전히 도달 불가이며 근접 적은 Alert에 머문다.
+  - D-063: 도달 불가 대상에게 제자리 Alert 대신 접근점까지 이동한다. 상태 머신·슬롯·Alert 인내 규칙을 그대로 두고 이동 목표만 더하는 작은 변경이라 채택했다. 접근점은 자기 group의 6방향 내부 node 중 목표에 가장 가까운 node(초기 3,000cm)이다. 플레이어가 섬 위이고 적이 지각이면 지각 쪽 최근접점은 섬 바로 아래라서 적이 섬 밑에 모인다. 이 점은 사용자에게 알렸다.
+
+## 2026-10-01 — Phase 7b 구현 단위 0 완료
+
+- `LNPNavGraph`·`LNPNavPathfinding`을 추가하고 `LNPNavRuntime::BuildSnapshot` 끝에서 조밀 graph를 게시한다. 상세 구조는 `phases/Phase07b_PathExecution.md` 구현 단위 0 결과.
+- 첫 실행에서 `Nav.GraphView`가 창 조회 최근접 node를 7a `ProjectToNode`와 비교해 회귀 31건·production 1건 불일치를 냈다. 거리 차를 찍어 보니 모두 등거리 동률(최대 0.0006cm)이었다. 7a는 (J, I) 순, 조밀 view는 index 순으로 동률을 깨기 때문이다. 테스트를 "0.01cm 넘는 거리 차만 불일치"로 고쳤다. 동률 규칙 자체는 각자 결정론적이라 맞출 필요가 없다.
+- 검증:
+  - `LootNPopEditor Win64 Development` 전체 빌드 성공
+  - 전체 `LootNPop.SurfaceNavigation` 75/75(`Saved/Logs/Phase07b_Unit0_AllSurfaceNavTests.log`)
+  - 조밀 graph: 회귀 555,024 node·extra link 8,888, production 541,832 node·extra link 8,136·막힌 edge 32(16쌍 양방향), 7a 지면점과 최대 0.0016cm 차, resident 4.05/4.10MiB
+  - Meadow 벤치마크(주 group 지각, 직선 20~80m, 300쌍, 에디터 Development 단일 스레드): 확장 P50 308·P95 1,439·최대 2,308, 시간 P50 118us·P95 512us·최대 825us, 확장당 0.379us, 전부 Found, 직선 보행 가능 37쌍, waypoint P50 5·P95 9, 스냅 P50 5.9us
+  - D-062: 주 group 옆 고립 node 위 목표 40건 모두 주 group으로 재선택
+- 구현 단위 1 입력: 계획 초기 예산 8,000 확장/프레임은 CPU 약 3ms라 목표(경로 CPU P95 1.5ms)의 두 배다. 약 4,000에서 시작한다.
+- `-game` 스모크는 하지 않았다. 게시 경로는 자동화가 부르는 `ValidateAndBuildSnapshot`과 같지만, 실제 게시·게스트 확인은 구현 단위 5 Gate에서 한다.

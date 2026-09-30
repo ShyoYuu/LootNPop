@@ -68,6 +68,9 @@
 | D-058 | ISM·HISM Support와 Support-only proxy(D-039)는 콘텐츠가 필요해질 때까지 구현하지 않고 베이크 오류로 막는다. | 확정 | `phases/Phase04b_MultiLayerSupport.md` §3.1 |
 | D-059 | Mass 초기 스폰의 총량은 `DA_MassSpawnConfig`가 소유한다. LVI의 수동 Pod 세트 앵커를 Spawn stream에 베이크해 먼저 소비하고, 부족분만 베이크된 절차 후보로 채운다. 수동 point 수는 총량을 늘리지 않는다. | 확정 | `phases/Phase05_RuntimeLoader.md` §3.3·§3.4 |
 | D-060 | 이음매 줄 Nav node와 이음매 방향 edge는 양쪽 slot 사본이 모두 통과한 경우에만 유효하다. 각 옥탄트 베이크는 이웃 지오메트리를 보지 못하므로 사본 간 clearance 차이는 게시 실패가 아니라 막힘으로 합치고 snapshot에 기록한다. 지면 반지름·법선·해상도·agent profile 불일치는 계속 게시 실패다. 이음매 근처 정적 배치 금지는 기술 제한이 아닌 콘텐츠 규칙이며, 동적 스폰 오브젝트는 이음매 위에도 둘 수 있다. | 확정 | `phases/Phase07a_NavDataFoundation.md` §3.4 |
+| D-061 | 스폰 뒤 움직이지 않는 Pod가 덮는 Nav node는 Phase 7b의 최소 runtime overlay로 막는다. 스폰 때 막고 Pod 소멸 때 풀며 Tile revision으로 경로를 다시 계획한다. 이음매 위 Pod는 양쪽 사본을 함께 막는다. overlay는 A*만 막고 ReachabilityGroup은 바꾸지 않는다. Phase 8은 같은 overlay를 확장한다. | 확정 | `phases/Phase07b_PathExecution.md` §3.6 |
+| D-062 | 경로·도달성 스냅은 시작·목표 각각 가장 가까운 walkable node를 우선한다. 두 node의 ReachabilityGroup이 다를 때만 양쪽 스냅 반경 안에서 공통 group의 (시작, 목표) 짝을 스냅 거리 합 최소로 다시 고르고, 없으면 A* 없이 도달 불가다. component 크기 기준값은 두지 않으며 근접 슬롯 도달성과 Pod 재귀속도 같은 규칙을 쓴다. | 확정 | `phases/Phase07b_PathExecution.md` §3.3 |
+| D-063 | 도달 불가 대상의 지상 적은 슬롯을 받지 않지만 제자리 대신 접근점(자기 ReachabilityGroup의 6방향 내부 node 중 목표에 가장 가까운 node, 초기 반경 3,000cm)까지 경로로 이동한다. 근접은 Alert로 서고, 원거리는 사거리에 들거나 접근점에 닿을 때까지 이동한다. 상태 머신·슬롯·Alert 인내 규칙은 바꾸지 않는다. | 확정 | `design/MovementIntegration.md` "근접 NPC", `phases/Phase07b_PathExecution.md` §3.3·§3.8 |
 
 ## 변경 규칙
 

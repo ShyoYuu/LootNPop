@@ -313,6 +313,31 @@ bool LNPNavRuntime::BuildSnapshot(
 	Snapshot.ReachabilityGroupCount = Snapshot.RuntimeStaticComponentCount;
 	Snapshot.ConnectivityGraphVersion = 1;
 
+	// 조밀 graph는 decode 공유와 같은 단위(asset)로 한 번만 만든다.
+	TMap<const FLNPNavData*, TSharedPtr<const FLNPNavAssetGraph, ESPMode::ThreadSafe>> AssetGraphs;
+	TArray<TSharedPtr<const FLNPNavAssetGraph, ESPMode::ThreadSafe>> SlotGraphs;
+	for (int32 Slot = 0; Slot < NavSlotCount; ++Slot)
+	{
+		const FLNPNavSlotInput& Input = Slots[Slot];
+		TSharedPtr<const FLNPNavAssetGraph, ESPMode::ThreadSafe>& AssetGraph = AssetGraphs.FindOrAdd(Input.Navigation.Get());
+		if (!AssetGraph.IsValid())
+		{
+			TSharedRef<FLNPNavAssetGraph, ESPMode::ThreadSafe> Built = MakeShared<FLNPNavAssetGraph, ESPMode::ThreadSafe>();
+			if (!LNPNavGraph::BuildAssetGraph(*Input.Support, *Input.Navigation, *Input.Traversal, *Built, OutError))
+			{
+				return Fail(FString::Printf(TEXT("Nav slot %d graph: %s"), Slot, *OutError));
+			}
+			AssetGraph = Built;
+		}
+		SlotGraphs.Add(AssetGraph);
+	}
+	FLNPNavGraph Graph;
+	if (!LNPNavGraph::BuildRuntimeGraph(SlotGraphs, SlotRotations, Snapshot, Graph, OutError))
+	{
+		return Fail(MoveTemp(OutError));
+	}
+	Snapshot.Graph = MoveTemp(Graph);
+
 	OutSnapshot = MoveTemp(Snapshot);
 	return true;
 }
@@ -404,5 +429,6 @@ uint64 LNPNavRuntime::GetAllocatedBytes(const FLNPNavSnapshot& Snapshot)
 		+ Snapshot.BlockedSeamNodes.GetAllocatedSize()
 		+ Snapshot.BlockedSeamEdges.GetAllocatedSize()
 		+ Snapshot.BlockedSeamNodeKeys.GetAllocatedSize()
-		+ Snapshot.ReachabilityGroupByStaticComponent.GetAllocatedSize();
+		+ Snapshot.ReachabilityGroupByStaticComponent.GetAllocatedSize()
+		+ Snapshot.Graph.GetAllocatedBytes();
 }
