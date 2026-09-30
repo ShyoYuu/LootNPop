@@ -226,28 +226,6 @@ namespace LNPOctantSurfaceBaker
 			return true;
 		}
 
-		bool HasCapsulePathClearance(
-			const FVector& FromFeet,
-			const FVector& FromSurfaceNormal,
-			const FVector& ToFeet,
-			const FVector& ToSurfaceNormal,
-			double CapsuleRadius,
-			double CapsuleHalfHeight) const
-		{
-			const int32 SegmentCount = FMath::Max(1, FMath::CeilToInt(FVector::Distance(FromFeet, ToFeet) / 50.0));
-			TArray<FVector, TInlineAllocator<8>> FeetPoints;
-			TArray<FVector, TInlineAllocator<8>> SurfaceNormals;
-			FeetPoints.Reserve(SegmentCount + 1);
-			SurfaceNormals.Reserve(SegmentCount + 1);
-			for (int32 Segment = 0; Segment <= SegmentCount; ++Segment)
-			{
-				const double Alpha = static_cast<double>(Segment) / SegmentCount;
-				FeetPoints.Add(FMath::Lerp(FromFeet, ToFeet, Alpha));
-				SurfaceNormals.Add(FMath::Lerp(FromSurfaceNormal, ToSurfaceNormal, Alpha).GetSafeNormal());
-			}
-			return HasCapsulePolylineClearance(FeetPoints, SurfaceNormals, CapsuleRadius, CapsuleHalfHeight);
-		}
-
 		bool HasWalkableSupportPath(
 			const FVector& FromFeet,
 			const FVector& FromSurfaceNormal,
@@ -262,7 +240,7 @@ namespace LNPOctantSurfaceBaker
 			OutFeetPoints.Reset();
 			OutSurfaceNormals.Reset();
 			const int32 SegmentCount = FMath::Max(2, FMath::CeilToInt(FVector::Distance(FromFeet, ToFeet) / 50.0));
-			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPNavPortalSupport), false);
+			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPNavEdgeSupport), false);
 			OutFeetPoints.Reserve(SegmentCount + 1);
 			OutSurfaceNormals.Reserve(SegmentCount + 1);
 			OutFeetPoints.Add(FromFeet);
@@ -288,6 +266,20 @@ namespace LNPOctantSurfaceBaker
 			}
 			OutFeetPoints.Add(ToFeet);
 			OutSurfaceNormals.Add(ToSurfaceNormal.GetSafeNormal());
+
+			// 이웃 샘플 사이 높이 차는 step 한도나 walkable 경사 중 큰 쪽까지 허용한다. 끝점 보간 창만으로는
+			// 창 크기만큼의 절벽이 샘플 사이에 숨을 수 있다.
+			const double TanMaxSlope = FMath::Tan(FMath::Acos(FMath::Clamp(WalkableMinDot, 0.0, 1.0)));
+			for (int32 Index = 1; Index < OutFeetPoints.Num(); ++Index)
+			{
+				const FVector Delta = OutFeetPoints[Index] - OutFeetPoints[Index - 1];
+				const double Rise = FVector::DotProduct(Delta, -OutFeetPoints[Index - 1].GetSafeNormal());
+				const double SlopeRise = FMath::Sqrt(FMath::Max(0.0, Delta.SizeSquared() - Rise * Rise)) * TanMaxSlope;
+				if (Rise > FMath::Max(MaxStepUp, SlopeRise) || Rise < -FMath::Max(MaxStepDown, SlopeRise))
+				{
+					return false;
+				}
+			}
 			return true;
 		}
 	};
@@ -755,6 +747,12 @@ FString FLNPOctantBakeReport::ToString() const
 		Nav.SeamEndpointCount, NavigationPayloadBytes, TraversalPayloadBytes,
 		SpawnAuthoredCount, SpawnCandidateCount, SpawnPayloadBytes,
 		CollectSeconds, ExtractSeconds, RasterSeconds, LayerRasterSeconds, EncodeSeconds);
+	if (Nav.SeamClearanceRejectCount > 0)
+	{
+		Result += FString::Printf(
+			TEXT("\n  Warning: %d crust seam Nav nodes failed capsule clearance; keep static blockers away from octant seams."),
+			Nav.SeamClearanceRejectCount);
+	}
 	for (int32 LayerId = 1; LayerId < Layers.Num(); ++LayerId)
 	{
 		const FLNPOctantBakeLayerReport& Layer = Layers[LayerId];
@@ -904,32 +902,18 @@ bool FLNPOctantSurfaceBaker::Bake(
 				FVector(Position), FVector(-Position.GetSafeNormal()), FVector(Normal),
 				Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight);
 		},
-		[&](const uint16 FromLayer, const FVector3d& FromPosition, const FVector3f& FromNormal,
-			const uint16 ToLayer, const FVector3d& ToPosition, const FVector3f& ToNormal)
+		[&](const uint16, const FVector3d& FromPosition, const FVector3f& FromNormal,
+			const uint16, const FVector3d& ToPosition, const FVector3f& ToNormal)
 		{
-			bool bHasCapsulePath = false;
-			if (FromLayer != ToLayer)
-			{
-				TArray<FVector> SupportFeetPoints;
-				TArray<FVector> SupportNormals;
-				if (!ClearanceWorld.HasWalkableSupportPath(
+			// 같은 Layer edge와 Layer 간 portal 모두 exact Support 경로의 step·경사를 본 뒤 그 경로를 따라 sweep한다.
+			TArray<FVector> SupportFeetPoints;
+			TArray<FVector> SupportNormals;
+			return ClearanceWorld.HasWalkableSupportPath(
 					FVector(FromPosition), FVector(FromNormal), FVector(ToPosition), FVector(ToNormal),
 					Options.Nav.Agent.MaxStepUp, Options.Nav.Agent.MaxStepDown, Options.Nav.Agent.WalkableMinDot,
-					SupportFeetPoints, SupportNormals))
-				{
-					return false;
-				}
-				bHasCapsulePath = ClearanceWorld.HasCapsulePolylineClearance(
-					SupportFeetPoints, SupportNormals,
-					Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight);
-			}
-			else
-			{
-				bHasCapsulePath = ClearanceWorld.HasCapsulePathClearance(
-					FVector(FromPosition), FVector(FromNormal), FVector(ToPosition), FVector(ToNormal),
-					Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight);
-			}
-			return bHasCapsulePath;
+					SupportFeetPoints, SupportNormals)
+				&& ClearanceWorld.HasCapsulePolylineClearance(
+					SupportFeetPoints, SupportNormals, Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight);
 		},
 		Navigation,
 		Traversal,

@@ -1056,4 +1056,7 @@ void ULNPLoadBaselineSubsystem::Report()
 	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeSourceKeys"));
 	// 새 Support snapshot의 8-slot 역회전 조회와 hit registry generation/binding 수를 함께 확인한다.
 	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeSurfaceData"));
+	// Nav 게시 결과와 시각화 경로가 폰 위치 node에 같은 component·group ID를 보고하는지 확인한다.
+	GEngine->Exec(World, TEXT("LNP.SurfaceNav.NavReport"));
+	GEngine->Exec(World, TEXT("LNP.SurfaceNav.DrawNav group 3000 1"));
 }

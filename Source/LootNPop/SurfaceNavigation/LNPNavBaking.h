@@ -28,13 +28,21 @@ struct LOOTNPOP_API FLNPNavBakeReport
 	int32 PortalStepCandidateCount = 0;
 	int32 PortalClearanceCandidateCount = 0;
 	int32 SeamEndpointCount = 0;
+	/**
+	 * walkable 지각 seam 좌표 중 capsule clearance로 탈락한 node 수. 이웃 slot 사본과 비대칭이 되어
+	 * runtime에서 막힘으로 합쳐진다(D-060). 이음매 근처 정적 배치 금지 규칙의 콘텐츠 경고 지표다.
+	 */
+	int32 SeamClearanceRejectCount = 0;
 };
 
 /** node 발 위치에 bake agent 캡슐을 놓을 수 있는지 판정한다. */
 using FLNPNavNodeClearance = TFunctionRef<bool(
 	uint16 LocalNavLayerId, const FVector3d& Position, const FVector3f& Normal)>;
 
-/** 두 node의 agent capsule center를 연속 sweep할 수 있는지 판정한다. Layer가 다르면 정적 portal 후보 검사다. */
+/**
+ * 두 node 사이를 걸어서 이동할 수 있는지 판정한다. 사이 지형의 step·경사와 agent capsule 연속 sweep을 모두 본다.
+ * Layer가 다르면 정적 portal 후보 검사다.
+ */
 using FLNPNavEdgeClearance = TFunctionRef<bool(
 	uint16 FromLayer, const FVector3d& FromPosition, const FVector3f& FromNormal,
 	uint16 ToLayer, const FVector3d& ToPosition, const FVector3f& ToNormal)>;

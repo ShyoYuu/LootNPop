@@ -47,3 +47,38 @@
   - Meadow: 67,729 cells, 5,151 components, 4 portals, 1,058 seams, Navigation 547,584 B, Traversal 55,058 B
 - 세 asset의 `DataVersion=5`·`BakerSchemaVersion=4` 저장본을 최신 settings hash로 정렬했다(`Saved/Logs/Phase07a_Unit1_Rebake_Final.log`).
 - 최종 `LootNPopEditor Win64 Development` 전체 빌드 성공. Nav 자동화 4/4(`Phase07a_Unit1_NavTests_Final.log`)와 결정론/저장본/회귀 oracle 1/1(`Phase07a_Unit1_Deterministic_Final.log`) 통과. 구현 단위 1 완료.
+
+## 2026-10-01 — Phase 7a 구현 단위 2 완료
+
+- 순수 runtime 모듈 `LNPNavRuntime`을 추가했다. 8-slot의 decoded Support·Navigation·Traversal과 slot 회전 표로 `FLNPNavSnapshot`을 만든다. runtime Nav Layer ID는 slot별 base + local ID이고, runtime component는 portal과 seam link를 union한 뒤 결정론적으로 번호를 매긴다.
+- loader는 Navigation/Traversal을 필수 payload로 바꿨다. hash·codec·descriptor count를 검증하고 asset별로 한 번만 decode해 slot이 공유한다. Nav view는 같은 `FLNPSurfaceDataSnapshot`에 들어가 Support와 원자적으로 게시된다. `ValidateAndBuildSnapshot`은 모든 실패 경로에서 부분 결과를 비운다.
+- 첫 production 조립이 Meadow 8-slot에서 실패했다. 이음매 한쪽 사본에만 있는 node가 392개, 비대칭 이음매 방향 edge가 16개였다. 누락 측 법선은 모두 walkable이었으므로 전부 capsule clearance 탈락이다. asset 변별로 보면 X0 17·Y0 18·Z0 14개가 1~3 step(200~600cm)씩 흩어져 있었다. 이음매 근처 정적 blocker가 한쪽 slot 베이크에만 보이는 구조적 비대칭으로 판단했다. 회귀 fixture는 막힘 0이다.
+- 사용자와 D-060을 확정했다. 이음매 줄 node·이음매 방향 edge는 양쪽 사본이 모두 통과할 때만 유효하고, 차이는 `BlockedSeamNodes`·`BlockedSeamEdges`로 기록한다. 지면·해상도·profile 불일치는 계속 게시 실패다. 이음매 근처 정적 배치 금지는 콘텐츠 규칙(`design/TerrainContract.md` §7)이고, 동적 스폰 오브젝트는 이음매 위에 둘 수 있다. 베이커 report에 이음매 clearance 탈락 경고를 추가했다(Meadow 49개).
+- 새 파일이 unity build 묶음을 바꾸면서 `LNPNavBaking.cpp`와 `LNPNavData.cpp`의 익명 네임스페이스 helper 이름(`NodeLess`·`PortalLess`·`CoordKey`)이 충돌했다. 베이커 쪽 helper에 `Bake` 접두사를 붙였다.
+- 결과 수치:
+  - 회귀 fixture 8-slot: runtime Layer 56, local component 56, runtime component 33, seam link 4,428, 막힘 0/0, seam 반지름 차 0cm, 최소 법선 dot 0.99999
+  - Meadow 8-slot: runtime Layer 88, local component 41,208, runtime component 41,169, seam link 4,036, 막힘 392/16, 최소 법선 dot 0.95296
+  - Nav resident 0.74MiB, 전체 decoded resident 3.68MiB, serialized 3.43MiB
+  - 에디터 `-game` validateBuild 20.6ms, 게시 597ms(이전 641ms, 에디터 async load가 지배)
+- 검증:
+  - `LootNPopEditor Win64 Development` 전체 빌드 성공
+  - 전체 `LootNPop.SurfaceNavigation` 69/69(`Saved/Logs/Phase07a_Unit2_AllSurfaceNavTests.log`). 새 `Runtime.NavAssembly`는 공유 decode, Layer base, seam link 수, node ref 왕복과 stale 거부, Nav 손상·누락 시 부분 게시 거부, 한쪽 node와 비대칭 edge의 막힘 기록, 반지름 불일치 실패, 회귀 8-slot의 지각·portal component 병합을 검사한다.
+  - 에디터 `-game` 1P(`Phase07a_Unit2_EditorGame.log`)와 리슨 2P(`Phase07a_Unit2_2P_Host.log`·`_Guest.log`): 호스트·게스트가 같은 Nav 결과를 게시했다. `ProbeSurfaceData`(Nav generation 포함)와 `ProbePanels`가 PASS이고 ensure·crash는 0이다. 1P 두 번째 실행의 frame FAIL은 에디터 `-game` 측정 오염이며 성능 Gate가 아니다(첫 실행 PASS).
+- Meadow의 slot당 local component 5,151개 중 seam으로 합쳐지는 것은 극소수다. 대부분 작은 고립 조각으로 보이며, 7b 입력 통계(구현 단위 4)에서 크기 분포를 확인한다.
+
+## 2026-10-01 — Phase 7a 구현 단위 3 완료
+
+- `FLNPNavSnapshot`에 ReachabilityGroup(초기 StaticNavComponent 1:1)·`ConnectivityGraphVersion=1`·정렬된 막힘 이음매 node key를 추가했다. 새 `LNPNavQuery`는 Surface handle의 slot·Layer 안에서만 가장 가까운 walkable node를 찾고(기본 300cm, 막힌 이음매 node 제외), node의 Support 지면점 복원, component·group 조회, generation·version을 함께 보는 `TestReachability`를 제공한다.
+- 진단 명령 `LNP.SurfaceNav.NavReport`·`LNP.SurfaceNav.DrawNav`를 추가하고 부하 harness 종료 probe에 넣었다. 두 명령은 같은 ID 해시 색과 폰 node 줄을 찍어 그림과 보고서를 대조할 수 있다.
+- 첫 1P 스모크에서 Meadow runtime component 41,169개 중 35,832개가 node 1개였고, 폰 주변 node 395개에 edge가 227개뿐이었으며 폰이 node 3개 component에 서 있었다. 임시 분석으로 slot 0 지각의 끊긴 인접 edge 32,090개 중 24,490개가 `CanStep`(200cm 끝점 높이 차 ≤ 45cm) 탈락이고 전부 45° walkable 경사 안임을 확인했다. 존재하는 edge의 최대 높이 차가 정확히 45.0cm였다. 약 12.7°를 넘는 경사가 모두 끊기던 단위 1 결함이다.
+- step과 경사를 구분하는 규칙(`max(step, 수평 × tan 최대 경사)`)으로 끝점 사전 필터를 바꾸고, 같은 Layer edge도 portal처럼 50cm exact Support polyline(구간별 같은 규칙)과 그 polyline sweep을 쓰게 했다. 사용하지 않게 된 endpoint 직선 sweep helper는 지웠다. `BakerSchemaVersion` 4→5로 세 asset을 재베이크했다(`Saved/Logs/Phase07a_Unit3_Rebake.log`).
+  - Meadow: local component 5,151→91, Traversal payload 55,058→14,578 B, 8-slot runtime component 41,169→689, slot당 고립 cell 4,479→54, edge 188,120, 끊긴 인접 지각 edge 32,090→3,044, portal 4개 유지
+  - 크기 분포(8-slot runtime): 1 node 432, 2~10 200, 11~100 40, 101~1,000 8, 1,000 초과 9. 가장 큰 지각 component 510,352 node
+  - 회귀·Crust fixture는 cells·components·portals·seams와 payload 크기가 변하지 않았다
+- `WorldCollision.Api`의 "Some raycasts ran off the game thread" 간헐 실패가 두 번째로 재발해, `ParallelFor`를 스레드 풀 작업 안에서 호출하도록 테스트를 고쳤다(호출 스레드 몫도 워커 실행이 된다).
+- 검증:
+  - `LootNPopEditor Win64 Development` 전체 빌드 성공
+  - 전체 `LootNPop.SurfaceNavigation` 72/72(`Saved/Logs/Phase07a_Unit3_AllSurfaceNavTests.log`). 새 테스트는 `Nav.RegressionReachability`, `Nav.ProductionSpawnProjection`, `Nav.StepAndSlope`이고 `Runtime.NavAssembly`를 보강했다
+  - 회귀 oracle: group 33, anchor 24, random 후보 10,616개 투영 P50 55.3·P99 106.9·최대 115.3cm. Meadow 후보 9,990개 투영 P50 55.8·P99 124.3·최대 290.5cm
+  - 에디터 `-game` 1P(`Phase07a_Unit3_EditorGame.log`)와 리슨 2P(`Phase07a_Unit3_2P_Host.log`·`_Guest.log`): 양쪽이 같은 Nav(component·group 689, version 1, seam link 4,036, 막힘 392/16, Nav resident 0.56MiB)를 게시했고 `ProbeSurfaceData`·`ProbePanels` PASS, ensure·crash 0. 1P 폰은 지각 주 component, 폰 주변 node 363개·edge 721개. 1P frame FAIL은 에디터 `-game` 측정 오염이다
+- 7b 입력 메모: 가장 가까운 node 규칙은 edge 없는 고립 node(8-slot 432개)도 고른다. 2P 호스트 폰이 그런 node에 투영됐다. 게스트 폰은 Support NeedsExact 구역이라 투영하지 않았다. 7b 목표 스냅은 group 크기나 edge 유무를 볼지 정해야 한다.
