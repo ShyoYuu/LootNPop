@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 7 — 7a Nav 데이터 기반 완료(2026-10-01), 다음은 7b 경로 실행 착수
+> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 구현 단위 0 완료(2026-10-01), 다음은 구현 단위 1
 > 마지막 갱신: 2026-10-01
 
 ## 현재 목표
@@ -63,16 +63,16 @@ Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증
 - `DA_OctantSurface_Meadow_00`·`DA_OctantSurface_Fixture_Crust`는 LVI 옆에 저장돼 있다. `Bake.OctantBakeDeterministic`가 저장본과 현재 source의 일치를 검사하므로 LVI나 베이크 설정을 바꾸면 `BakeOctant`로 다시 굽는다
 - 회귀 공간(D-056): 정적 사례는 `LVI_Octant_Fixture_Regression`(생성 `LNP.SurfaceNav.BuildRegressionFixture`, 배치 원본 `LNPRegressionFixture.h`)을 8 slot 합성으로 검사하고, 동적 3사례만 `L_SurfaceRegression`(30,000cm)에 있다. `DA_OctantSurface_Fixture_Regression`도 결정론 베이크 검사 대상이다
 - 동굴 키트 greybox(`/Game/Maps/CaveKit`, `LNP.SurfaceNav.BuildCaveKit`, 치수 원본 `LNPCaveKit.h`): 직육면체 공동 + 경사 통로, Floor/Shell 분리, 규약 검사 `Bake.CaveKitContract`. `Meadow_00` 동굴은 (위도 15°, 방위 60°)에 있고 `LNP.SurfaceNav.PlaceCaveKit`으로 배치했다(지각 메시 입구 절단 포함)
-- 자동화 `LootNPop.SurfaceNavigation` 72개(`Runtime.NavAssembly`가 8-slot Nav 조립·D-060 막힘·group·Stale을, `Nav.RegressionReachability`가 회귀 8-slot 도달성 oracle을, `Nav.ProductionSpawnProjection`이 Meadow Spawn 후보 투영을, `Nav.StepAndSlope`가 경사로·절벽 edge 규칙을 검사). `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 보고, `Runtime.MassSpawnPlanning`이 Spawn 할당 규약을 검사한다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`와 `Schema/DA_MinimalOctantSurfaceData`를 다시 저장하므로 커밋 전에 git으로 되돌린다
+- 자동화 `LootNPop.SurfaceNavigation` 75개(`Nav.GraphView`가 조밀 graph와 7a 조회 일치를, `Nav.RegressionPath`가 회귀 8-slot A*·스냅·접근점을, `Nav.ProductionPath`가 D-062 재선택과 Meadow A* 벤치마크를 검사. `Runtime.NavAssembly`가 8-slot Nav 조립·D-060 막힘·group·Stale을, `Nav.RegressionReachability`가 회귀 8-slot 도달성 oracle을, `Nav.ProductionSpawnProjection`이 Meadow Spawn 후보 투영을, `Nav.StepAndSlope`가 경사로·절벽 edge 규칙을 검사). `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 보고, `Runtime.MassSpawnPlanning`이 Spawn 할당 규약을 검사한다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`와 `Schema/DA_MinimalOctantSurfaceData`를 다시 저장하므로 커밋 전에 git으로 되돌린다
 - 헤드리스 `-ExecCmds`는 쉼표로 명령을 나누고, 에디터 바이너리에서는 `Quit`로 종료되지 않는다(`Automation RunTests`는 종료함)
 - 카메라 리그 `CR_ThirdPerson`에 `CollisionPush` 노드(`../TechDesign_CharacterMovement.md` §2.4)
 
 ## 바로 다음 작업
 
-Phase 7b(경로 실행) 착수. `Roadmap.md` §Phase 7 내부 게이트와 `design/GroundNavigation.md`를 읽는다.
+Phase 7b(경로 실행) 계획 `phases/Phase07b_PathExecution.md`와 결정 D-061~063을 2026-10-01에 확정했고, 같은 날 구현 단위 0(조밀 graph·재개 가능 A*·직선 보행 검사·D-062/D-063 스냅)을 끝냈다. 다음은 구현 단위 1이다.
 
-1. 위 인계 통계를 입력으로 `phases/Phase07b_PathExecution.md` 실행 계획을 만든다. 510k node 지각 component에서 chord heuristic A*의 frame당 확장 예산·다중 프레임 request lifecycle·path cache 키(generation·connectivity version 포함)·waypoint following과 PureEntity·Actor 전달 범위를 정한다.
-2. 목표 스냅 정책(고립·소형 component node 처리)과 Pod 동적 Nav 차단(아래 이관 작업)의 7b/Phase 8 위치를 계획 문서에서 확정한다.
+1. `ULNPNavPathSubsystem`: 요청 대기열·우선순위, scratch pool(초기 4개, 개당 6.21MiB), 프레임 확장 예산, 다중 프레임 재개와 generation·version·overlay revision 검증, 경로 pool과 cache를 만든다. 예산은 벤치마크(확장당 0.38us)에 따라 프레임 약 4,000 확장에서 시작한다(계획 초기값 8,000은 CPU 약 3ms).
+2. 예산 분할 결정론·lifecycle(`Stale`·`Cancelled`·`NoPath`) 자동화를 추가한다.
 
 ## 이관된 후속 작업
 
@@ -82,9 +82,9 @@ Phase 7b(경로 실행) 착수. `Roadmap.md` §Phase 7 내부 게이트와 `desi
 - C-option 실험 에셋과 테스트의 구형 `LNP.Terrain.*` Component Tag는 Phase 4 입력으로 재사용하기 전에 현재 `LNP.Surface.*` 계약으로 마이그레이션한다.
 - 현재 slot 순서 greedy definition 선택은 여러 slot mask가 있는 production pool을 도입하기 전에 최대 고유 제약 할당으로 교체한다(D-043).
 - int16 복제 캡은 좌표 성분마다 걸리므로 30,000cm 옥탄트의 꼭짓점(좌표축) 부근 여유가 약 2,767cm다. 동굴은 꼭짓점 부근을 피한다(`design/TerrainContract.md` §7).
-- **Pod 등 동적 스폰 오브젝트의 Nav 차단(사용자 요구 2026-10-01):** Pod는 정적 Nav 베이크에 없으므로 지금은 이동 단계의 충돌 미끄러짐으로만 피한다. 경로가 Pod를 미리 돌아가도록, 스폰 뒤 움직이지 않는 Pod가 덮는 Nav node를 runtime overlay에서 막는다. 이음매 위 Pod도 seam link로 양쪽 사본을 함께 막을 수 있어야 한다. 7b 또는 Phase 8에서 위치를 정한다.
+- **Pod 등 동적 스폰 오브젝트의 Nav 차단(사용자 요구 2026-10-01):** Pod는 정적 Nav 베이크에 없으므로 지금은 이동 단계의 충돌 미끄러짐으로만 피한다. 7b 구현 단위 2의 최소 runtime overlay로 넣는다(D-061).
 - **PCG 제외 구역(옥탄트 양산 전 필수, 사용자 결정 2026-09-27):** 2026-10-01부터 이음매 근처 제외 띠도 포함한다(콘텐츠 규칙, D-060). Meadow는 현재 이음매 clearance 탈락 49개(베이크 경고)이며 runtime에서 막힘으로 처리된다. PCG 프랍은 지각에만 광선을 쏘므로 동굴 입구 구멍에는 생기지 않지만 지붕 덮인 입구 옆·경사로 위에는 생길 수 있다. `Meadow_00`은 입구 주변 4개가 통행을 막지 않아 문제없지만 양산 옥탄트에서는 충분히 생길 수 있으므로 제외 구역을 만든다(`design/TerrainContract.md` §5 경사로와 같은 과제).
-- **7b 목표 스냅 정책:** `ProjectToNode`는 가장 가까운 walkable node를 고르므로 edge 없는 고립 node(Meadow 8-slot 432개)도 반환한다. 에디터·패키지 2P 스모크 호스트 폰이 모두 그런 node에 투영됐고 Spawn 후보는 5/9,990이 고립 node에 투영된다. 7b에서 목표 스냅이 group 크기·edge 유무를 볼지 정한다.
+- **7b 목표 스냅 정책:** `ProjectToNode`는 edge 없는 고립 node(Meadow 8-slot 432개)도 반환한다. 7b는 가장 가까운 node를 우선하고 group이 어긋날 때만 반경 안 공통 group 짝을 다시 고른다(D-062).
 - match 중 옥탄트 재생성이나 slot Level 언로드를 도입하면 그 직전에 Mass 처리를 멈추는 gate를 함께 만든다(`design/RuntimeCollision.md`).
 - 스프링 런처는 개체별 발사 속도·각도 입력이 없다(`DA_WorldDeviceConfig` 전역값, 정점 약 2,530cm). 섬별 튜닝은 이 입력을 만든 뒤에 한다. 지금은 런처→섬 A, 앵커→섬 B·큰 섬으로 역할을 나눴다. 런처→섬 A 경로는 3b 기능 점검에서 육안 미확인이다.
 - LootPod collision proxy(`LNPStaticBlocker`)가 Camera 채널을 Block해 카메라가 Pod 뒤에서 당겨진다. 거슬리면 proxy만 Camera Ignore로 바꾼다.
@@ -107,6 +107,8 @@ Phase 7b(경로 실행) 착수. `Roadmap.md` §Phase 7 내부 게이트와 `desi
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-10-01 Phase 7b 구현 단위 0: `LootNPopEditor Win64 Development` 전체 빌드, 전체 SurfaceNavigation 자동화 75/75(`Saved/Logs/Phase07b_Unit0_AllSurfaceNavTests.log`, 신규 `Nav.GraphView`·`Nav.RegressionPath`·`Nav.ProductionPath`)가 통과했다. Meadow A* 300쌍(20~80m) 확장 P50 308·P95 1,439, 시간 P50 118us·P95 512us, 확장당 0.38us, 전부 Found. 조밀 graph resident 4.10MiB. `-game` 스모크와 cooked 측정은 하지 않았다(구현 단위 5 Gate).
 
 2026-10-01 Phase 7a 구현 단위 4(7a 종료): 에디터 전체 빌드, 전체 SurfaceNavigation 72/72(`Saved/Logs/Phase07a_Unit4_AllSurfaceNavTests.log`), Win64 Development BuildCookRun(972 packages, 오류 0, `Phase07a_Unit4_BuildCookRun.log`)이 통과했다. 패키지 1P와 리슨 2P host/guest(`Phase07a_Unit4_Package1P.log`, `Phase07a_Unit4_Package2P_*.log`)가 같은 Nav(component·group 689, version 1, seam link 4,036, 막힘 392/16)를 게시했고 `ProbeSurfaceData`·`ProbePanels`·`ProbeFaceIndex`·`ProbeSourceKeys`·LoadBaseline PASS, ensure·assert 0이다. cooked load elapsed 34~35ms, validateBuild 21~24ms, serialized 3.39MiB, decoded resident 3.56MiB, Nav resident 0.59MiB.
 

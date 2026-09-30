@@ -45,7 +45,7 @@
 | 4b | 부유섬·동굴 키트 다층 베이크 | 2~3세션 | 완료 | 같은 방향 다층 Support와 공동 모듈 floor 분리 |
 | 5 | 런타임 로더와 SurfaceCache 교체 | 3~4세션 | 완료 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 전 CI·게시 단계 stale 검출, LVI 지정점 우선 Spawn stream |
 | 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 완료 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
-| 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 진행 중(7a 완료, 다음 7b) | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
+| 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 진행 중(7a 완료, 7b 계획 작성) | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
 | 8 | Conditional Patch와 파괴 Overlay | 2~3세션 | 대기 | 지역 길 열림·닫힘, revision 기반 재탐색, 상태 복제 |
 | 9 | 부유섬·동굴 Vertical Slice | 2~3세션 | 대기 | 실제 품질 옥탄트와 멀티플레이에서 설계 검증 |
 | 10 | 대규모 추격 경로: flow field와 계층형 A* | 4~6세션 | 대기 | 두 방식 구현, 같은 시나리오에서 일반 A* 대비 실측 비교 후 채택 |
@@ -106,7 +106,7 @@ Phase 7은 한 번에 완료하려 하지 않고 두 개의 독립 게이트로 
 - **7b — 경로 실행**: chord heuristic 일반 A*, 다중 프레임 request lifecycle, revision 검증, path cache, waypoint following, PureEntity·Actor 전달
 
 7a의 cooked load와 8-slot 연결성 검증이 끝나기 전에 7b의 scheduler/cache 형식을 고정하지 않는다.
-7a 실행 계획과 고정 입력은 `phases/Phase07a_NavDataFoundation.md`를 따른다.
+7a 실행 계획과 고정 입력은 `phases/Phase07a_NavDataFoundation.md`, 7b는 `phases/Phase07b_PathExecution.md`를 따른다.
 2026-09-30 구현 단위 1까지 완료했다. `DataVersion=5` Navigation/Traversal stream, local component, 동굴 Layer portal과 ordered seam endpoint를 세 SurfaceData에 결정론적으로 저장했다. 다음은 runtime load와 8-slot 조립이다.
 
 ### Phase 10 — 대규모 추격 경로 비교

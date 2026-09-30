@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "SurfaceNavigation/LNPNavData.h"
+#include "SurfaceNavigation/LNPNavGraph.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 
 /** 이음매 양쪽 slot에 같은 월드 위치로 존재하는 지각 node 사본 두 개. 7b 경로 탐색의 비용 0 전이다. */
@@ -63,6 +64,8 @@ struct LOOTNPOP_API FLNPNavSnapshot
 	/** 게시 전 검증에서 측정한 seam 양쪽 지면 반지름·법선 차이. */
 	double MaxSeamRadiusDelta = 0.0;
 	double MinSeamNormalDot = 1.0;
+	/** A* 확장 루프용 조밀 graph(7b). 같은 asset을 쓰는 slot은 asset graph를 공유한다. */
+	FLNPNavGraph Graph;
 
 	bool IsValid() const { return SnapshotGeneration != 0 && SlotLayerBase.Num() == 9; }
 };
