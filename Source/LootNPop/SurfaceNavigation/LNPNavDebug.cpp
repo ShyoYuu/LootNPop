@@ -138,6 +138,8 @@ namespace
 			}
 			const int32 TopCount = Args.Num() > 0 ? FMath::Max(0, FCString::Atoi(*Args[0])) : 10;
 			const FLNPNavSnapshot& Nav = Snapshot->Nav;
+			// 7b 탐색 분기 수 입력. seam link·portal은 제외한 같은 Layer grid edge 기준 차수다.
+			int64 GridDegrees[7] = {};
 			UE_LOG(LogLootNPop, Display,
 				TEXT("[%s] %s NetMode=%d generation=%llu connectivityVersion=%u runtimeLayers=%u runtimeComponents=%u groups=%u seamLinks=%d blockedSeamNodes=%d blockedSeamEdges=%d"),
 				Tag, *GetNameSafe(World), static_cast<int32>(World->GetNetMode()), Nav.SnapshotGeneration,
@@ -159,8 +161,10 @@ namespace
 						Cells += Tile.Cells.Num();
 						for (const FLNPNavCell& Cell : Tile.Cells)
 						{
-							EdgeEnds += FMath::CountBits(Cell.EdgeMask);
-							IsolatedCells += Cell.EdgeMask == 0 ? 1 : 0;
+							const int32 Degree = FMath::CountBits(Cell.EdgeMask);
+							EdgeEnds += Degree;
+							IsolatedCells += Degree == 0 ? 1 : 0;
+							++GridDegrees[FMath::Min(Degree, 6)];
 						}
 					}
 				}
@@ -176,6 +180,11 @@ namespace
 					SlotSnapshot.Navigation->LocalStaticComponentCount, RuntimeComponents.Num(),
 					SlotSnapshot.Traversal->Portals.Num(), SlotSnapshot.Traversal->SeamEndpoints.Num());
 			}
+
+			UE_LOG(LogLootNPop, Display,
+				TEXT("[%s] gridDegree 0:%lld 1:%lld 2:%lld 3:%lld 4:%lld 5:%lld 6:%lld (all slots, excludes seam links and portals)"),
+				Tag, GridDegrees[0], GridDegrees[1], GridDegrees[2], GridDegrees[3], GridDegrees[4], GridDegrees[5],
+				GridDegrees[6]);
 
 			const TArray<uint64> Sizes = ComputeComponentSizes(*Snapshot);
 			int32 Buckets[5] = {};

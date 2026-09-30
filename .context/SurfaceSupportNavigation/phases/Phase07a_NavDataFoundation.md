@@ -1,6 +1,6 @@
 # Phase 7a — Nav 데이터 기반
 
-> 상태: 진행 중(2026-10-01) — 구현 단위 0~3 완료, 다음은 구현 단위 4
+> 상태: 완료(2026-10-01) — 구현 단위 0~4와 cooked Gate 통과
 > 예상 범위: 2~3세션
 > 선행 조건: Phase 6 Enemy 접지·공중·넉백 전환(완료)
 
@@ -169,13 +169,21 @@ Nav stream 추가로 `FLNPSurfaceBakeHeader::CurrentDataVersion`을 5로, `Baker
 
 ### 구현 단위 4 — cooked Gate와 7b 인계
 
-- [ ] 전체 SurfaceNavigation 자동화와 `LootNPopEditor Win64 Development` 전체 빌드 통과
-- [ ] Development cook/package에서 DataVersion 5 SurfaceData load·게시 검증
-- [ ] `-game` 1P와 리슨 서버 2P에서 asset 조합, generation, component/group 결과 일치 검증
-- [ ] Nav serialized/resident memory와 publish 시간 기록
-- [ ] 실제 node 수·분기 수·component 크기 분포를 7b scheduler/cache 입력으로 기록
+- [x] 전체 SurfaceNavigation 자동화와 `LootNPopEditor Win64 Development` 전체 빌드 통과
+- [x] Development cook/package에서 DataVersion 5 SurfaceData load·게시 검증
+- [x] `-game` 1P와 리슨 서버 2P에서 asset 조합, generation, component/group 결과 일치 검증
+- [x] Nav serialized/resident memory와 publish 시간 기록
+- [x] 실제 node 수·분기 수·component 크기 분포를 7b scheduler/cache 입력으로 기록
 
 완료 조건: 7a cooked load와 8-slot 연결성 검증이 끝나고, 7b가 추정이 아니라 실제 graph 통계로 시작할 수 있다.
+
+결과(2026-10-01):
+
+- 전체 SurfaceNavigation 72/72와 에디터 전체 빌드, Win64 Development BuildCookRun(972 packages, 오류 0)이 통과했다.
+- 패키지 1P와 리슨 2P host/guest가 DataVersion 5·`BakerSchemaVersion=5` Meadow 8-slot을 generation 1로 게시했고 runtime component·group 689, version 1, seam link 4,036, 막힘 392/16이 모두 같다. `ProbeSurfaceData`·`ProbePanels`·`ProbeFaceIndex`·`ProbeSourceKeys`와 LoadBaseline이 PASS이고 ensure·assert는 0이다.
+- cooked load: elapsed 34~35ms, validateBuild 21~24ms, serialized 3.39MiB, decoded resident 3.56MiB, Nav resident 0.59MiB.
+- 7b 입력: node 541,832, grid edge 1,504,960, seam link 4,036, portal 32. grid 차수 평균 약 5.55(73.1%가 6), 가장 큰 지각 component 510,352 node(94.2%). Spawn 후보 투영 P50 55.8·P90 82.9·P99 124.3·최대 290.5cm, 고립 node 적중 5·소형 component(≤10 node) 적중 25/9,990. `NavReport`에 `gridDegree` 줄을 추가했다.
+- 7b 설계 질문으로 남긴 것: 가장 가까운 node 규칙이 고립 node를 고른다. 패키지 2P 호스트 폰도 node 1개짜리 component에 투영됐다. 상세 수치는 `history/Phase07_Log.md` 2026-10-01 "구현 단위 4"에 있다.
 
 ## 5. 전체 완료 조건
 
@@ -188,3 +196,5 @@ Nav stream 추가로 `FLNPSurfaceBakeHeader::CurrentDataVersion`을 5로, `Baker
 - immutable snapshot의 generation과 connectivity version으로 stale 조회가 차단된다.
 - debug visualization과 수치 보고가 cell·Tile·component·portal·group을 식별한다.
 - 전체 자동화, 전체 에디터 빌드, Development package, `-game` 리슨 서버 2P 스모크가 통과한다.
+
+위 조건을 모두 충족했다(2026-10-01). 증거는 §4 각 구현 단위 결과와 `history/Phase07_Log.md`에 있다.
