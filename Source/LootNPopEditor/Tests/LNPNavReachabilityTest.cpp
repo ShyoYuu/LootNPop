@@ -61,6 +61,10 @@ namespace LNPNavReachabilityTest
 		int32 CandidateFailures = 0;
 		/** 성공한 투영 거리. 7b 목표 스냅 반경 입력이다. */
 		TArray<double> Distances;
+		/** grid edge가 없는 node와 작은 runtime StaticNavComponent로 투영된 수. 7b 목표 스냅 정책 입력이다. */
+		int32 IsolatedNodeHits = 0;
+		int32 SmallComponentHits = 0;
+		static constexpr uint64 SmallComponentNodes = 10;
 		TArray<FString> FailureSamples;
 
 		double Percentile(const double Fraction) const
@@ -75,11 +79,36 @@ namespace LNPNavReachabilityTest
 	{
 		FSpawnProjectionStats Stats;
 		TSet<const FLNPSpawnData*> CandidateAssets;
-		auto Record = [&Stats](const bool bProjected, const double Distance, int32& Failures, const FString& Label)
+		// runtime StaticNavComponent별 node 수. asset-local descriptor를 runtime ID로 합산한다.
+		TArray<uint64> ComponentSizes;
+		ComponentSizes.SetNumZeroed(Snapshot.Nav.RuntimeStaticComponentCount);
+		for (int32 Slot = 0; Slot < Snapshot.Slots.Num(); ++Slot)
+		{
+			for (const FLNPNavStaticComponent& Component : Snapshot.Slots[Slot].Traversal->StaticComponents)
+			{
+				const uint32 Runtime = LNPNavRuntime::GetRuntimeStaticComponent(
+					Snapshot.Nav, Slot, Component.LocalStaticComponentId);
+				if (ComponentSizes.IsValidIndex(Runtime))
+				{
+					ComponentSizes[Runtime] += Component.NodeCount;
+				}
+			}
+		}
+		auto Record = [&Stats, &Snapshot, &ComponentSizes](
+			const bool bProjected, const FLNPNavProjection& Projection, int32& Failures, const FString& Label)
 		{
 			if (bProjected)
 			{
-				Stats.Distances.Add(Distance);
+				Stats.Distances.Add(Projection.Distance);
+				int32 Slot = INDEX_NONE;
+				FLNPLocalNavNodeRef Local;
+				const FLNPNavCell* Cell = LNPNavRuntime::ResolveRuntimeNodeRef(Snapshot.Nav, Projection.Node, Slot, Local)
+					? LNPNavData::ResolveLocalNode(*Snapshot.Slots[Slot].Navigation, Local) : nullptr;
+				Stats.IsolatedNodeHits += Cell != nullptr && Cell->EdgeMask == 0 ? 1 : 0;
+				uint32 Component = MAX_uint32;
+				Stats.SmallComponentHits += LNPNavQuery::GetStaticComponent(Snapshot, Projection.Node, Component)
+					&& ComponentSizes.IsValidIndex(Component)
+					&& ComponentSizes[Component] <= FSpawnProjectionStats::SmallComponentNodes ? 1 : 0;
 				return;
 			}
 			++Failures;
@@ -99,7 +128,7 @@ namespace LNPNavReachabilityTest
 				++Stats.Anchors;
 				Record(ProjectOnLayer(Snapshot, Slot, Anchor.LocalLayerId, SlotSnapshot.SlotRotation.RotateVector(Local),
 						Projection, Group),
-					Projection.Distance, Stats.AnchorFailures,
+					Projection, Stats.AnchorFailures,
 					FString::Printf(TEXT("anchor slot=%d layer=%u local=%s"), Slot, Anchor.LocalLayerId, *Local.ToString()));
 			}
 			bool bAlreadyCounted = false;
@@ -116,7 +145,7 @@ namespace LNPNavReachabilityTest
 				++Stats.Candidates;
 				Record(ProjectOnLayer(Snapshot, Slot, Candidate.LocalLayerId, SlotSnapshot.SlotRotation.RotateVector(Local),
 						Projection, Group),
-					Projection.Distance, Stats.CandidateFailures,
+					Projection, Stats.CandidateFailures,
 					FString::Printf(TEXT("candidate %u slot=%d layer=%u allowed=%u local=%s"), Candidate.CandidateIndex,
 						Slot, Candidate.LocalLayerId, static_cast<uint32>(Candidate.Allowed), *Local.ToString()));
 			}
@@ -379,10 +408,11 @@ bool FLNPNavProductionSpawnProjectionTest::RunTest(const FString& Parameters)
 		AddInfo(Sample);
 	}
 	AddInfo(FString::Printf(
-		TEXT("Production Nav projection: groups=%u version=%u anchors=%d anchorFailures=%d candidates=%d candidateFailures=%d projection P50=%.1f P99=%.1f max=%.1fcm"),
+		TEXT("Production Nav projection: groups=%u version=%u anchors=%d anchorFailures=%d candidates=%d candidateFailures=%d projection P50=%.1f P90=%.1f P99=%.1f max=%.1fcm isolatedNodeHits=%d smallComponentHits(<=%llu nodes)=%d"),
 		Snapshot.Nav.ReachabilityGroupCount, Snapshot.Nav.ConnectivityGraphVersion, Stats.Anchors, Stats.AnchorFailures,
 		Stats.Candidates, Stats.CandidateFailures,
-		Stats.Percentile(0.5), Stats.Percentile(0.99), Stats.Percentile(1.0)));
+		Stats.Percentile(0.5), Stats.Percentile(0.9), Stats.Percentile(0.99), Stats.Percentile(1.0),
+		Stats.IsolatedNodeHits, FSpawnProjectionStats::SmallComponentNodes, Stats.SmallComponentHits));
 	return !HasAnyErrors();
 }
 

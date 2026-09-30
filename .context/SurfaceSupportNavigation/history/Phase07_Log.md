@@ -82,3 +82,28 @@
   - 회귀 oracle: group 33, anchor 24, random 후보 10,616개 투영 P50 55.3·P99 106.9·최대 115.3cm. Meadow 후보 9,990개 투영 P50 55.8·P99 124.3·최대 290.5cm
   - 에디터 `-game` 1P(`Phase07a_Unit3_EditorGame.log`)와 리슨 2P(`Phase07a_Unit3_2P_Host.log`·`_Guest.log`): 양쪽이 같은 Nav(component·group 689, version 1, seam link 4,036, 막힘 392/16, Nav resident 0.56MiB)를 게시했고 `ProbeSurfaceData`·`ProbePanels` PASS, ensure·crash 0. 1P 폰은 지각 주 component, 폰 주변 node 363개·edge 721개. 1P frame FAIL은 에디터 `-game` 측정 오염이다
 - 7b 입력 메모: 가장 가까운 node 규칙은 edge 없는 고립 node(8-slot 432개)도 고른다. 2P 호스트 폰이 그런 node에 투영됐다. 게스트 폰은 Support NeedsExact 구역이라 투영하지 않았다. 7b 목표 스냅은 group 크기나 edge 유무를 볼지 정해야 한다.
+
+## 2026-10-01 — Phase 7a 구현 단위 4 완료(Phase 7a 종료)
+
+- 7b 입력 통계용 진단 두 가지를 추가했다. 둘 다 기록 전용이며 판정에는 쓰지 않는다.
+  - `NavReport`에 같은 Layer grid edge 기준 node 차수 분포 한 줄(`gridDegree`, seam link·portal 제외)
+  - `Nav.ProductionSpawnProjection` 보고에 투영 P90, 고립 node 적중 수, node 10개 이하 component 적중 수
+- 검증:
+  - `LootNPopEditor Win64 Development` 전체 빌드 성공, 전체 `LootNPop.SurfaceNavigation` 72/72(`Saved/Logs/Phase07a_Unit4_AllSurfaceNavTests.log`)
+  - Win64 Development BuildCookRun: build·cook 972 packages·stage·pak·archive 성공, 오류 0. 기존 Lyra Mannequin Material 경고만 재현(`Phase07a_Unit4_BuildCookRun.log`, archive `Saved/SurfaceNavigationPhase3Package`)
+  - 패키지 1P(`Phase07a_Unit4_Package1P.log`)와 리슨 2P(`Phase07a_Unit4_Package2P_Host.log`·`_Guest.log`), `-nullrhi -corelimit=4`, 적 100: 세 프로세스 모두 DataVersion 5·`BakerSchemaVersion=5` Meadow 8-slot을 generation 1로 게시했다. runtime Layer 88, local component 728, runtime component·group 689, version 1, seam link 4,036, 막힘 392/16, seam 반지름 차 0cm로 같다. `ProbeSurfaceData`(Nav 포함)·`ProbePanels`·`ProbeFaceIndex`·`ProbeSourceKeys`와 LoadBaseline frame/exact/lock 모두 PASS, ensure·assert 0
+- 패키지 load 지표:
+
+| 실행 | elapsed | validateBuild | serialized | decoded resident | Nav resident |
+|:---|---:|---:|---:|---:|---:|
+| 1P | 35.35ms | 22.29ms | 3.39MiB | 3.56MiB | 0.59MiB |
+| 2P host | 33.99ms | 21.38ms | 3.39MiB | 3.56MiB | 0.59MiB |
+| 2P guest | 34.90ms | 23.77ms | 3.39MiB | 3.56MiB | 0.59MiB |
+
+  Meadow 한 asset의 Nav/Traversal payload는 약 535KiB/14KiB이고 8 slot이 decode 결과를 공유한다. 에디터 `-game`의 게시 597ms는 async load 지배였고 cooked에서는 35ms 안팎이다.
+- 7b 입력 통계(production Meadow 8-slot, cooked 실행과 자동화 수치 일치):
+  - node 541,832(slot당 67,729, Tile 349개, Tile당 평균 약 194 node), 같은 Layer grid edge 1,504,960, seam link 4,036, portal 32
+  - grid 차수: 0:432, 1:1,416, 2:4,288, 3:13,800, 4:46,896, 5:79,056, 6:395,944. 평균 약 5.55이고 73.1%가 6방향 전부 열린 내부 node다. A* 분기 수는 사실상 6이다
+  - runtime component 689: 1 node 432, 2~10 200, 11~100 40, 101~1,000 8, 1,000 초과 9. 가장 큰 지각 component가 510,352 node(94.2%), 다음 8개는 slot별 큰 섬 3,222 node다. 탐색 1회의 최악 탐색 공간은 지각 전체 약 51만 node다
+  - Spawn 후보 9,990개 투영: P50 55.8·P90 82.9·P99 124.3·최대 290.5cm. 고립 node 적중 5, node 10개 이하 component 적중 25(0.25%)
+- 7b 설계 질문(목표 스냅): 패키지 2P 호스트 폰도 106.5cm 거리의 node 1개짜리 component에 투영됐다(단위 3 에디터 2P와 같은 현상). 가장 가까운 node 규칙은 고립 node를 고르므로 7b는 목표 스냅이 edge 유무·group 크기를 볼지, 반경 안 대체 node를 찾을지 정해야 한다. 1P 폰과 2P 게스트 폰은 발 반지름 31,020·31,131cm에서 Support 결과가 없어(status 2) 투영하지 않았다. 종료 probe 시점의 폰 위치 문제로 보이며 Nav 게시와 무관하다.
