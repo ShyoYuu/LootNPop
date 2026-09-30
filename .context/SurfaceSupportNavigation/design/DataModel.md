@@ -179,6 +179,7 @@ struct FNavNodeRef
 - 옥탄트 삼각형의 세 변을 같은 해상도·같은 순서 규약으로 샘플링한다. 이음매 프로필이 기준 반지름의 단일 대칭 프로필이므로(D-030) 모든 변을 같은 규약으로 다룰 수 있다.
 - 8개 slot 회전에서 12개 변이 어느 slot의 어느 변과 만나는지, 샘플 순서가 역순인지를 고정 표로 만든다. 회전 집합이 고정이라 이 표도 상수다.
 - 게시 때 이 표로 Support 보간 이웃과 Nav 이웃 셀을 연결하고 StaticNavComponent를 병합한다.
+- 이음매 줄 Nav node·이음매 방향 edge는 양쪽 사본이 모두 통과할 때만 유효하다. 한쪽 사본의 clearance 탈락은 게시 실패가 아니라 막힘 목록으로 기록한다(D-060, `phases/Phase07a_NavDataFoundation.md` §3.4).
 - `SeamSignature` 문자열 일치만 신뢰하지 않고 ordered seam sample의 계산 hash와 높이·법선 허용 오차를 함께 검증한다.
 - definition 조합 단계에서 signature가 호환되지 않는 후보는 제약 할당에서 제외하고, 실제 계산 seam hash·오차 검증은 SurfaceData 로드 뒤 snapshot 게시 전에 수행한다.
 

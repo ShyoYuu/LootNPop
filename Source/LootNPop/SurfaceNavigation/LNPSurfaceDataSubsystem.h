@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "DataAsset/LNPOctantDefinition.h"
 #include "Mass/ExternalSubsystemTraits.h"
+#include "SurfaceNavigation/LNPNavRuntime.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "SurfaceNavigation/LNPSpawnData.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
@@ -34,13 +35,16 @@ struct FLNPSurfaceDataSlotSnapshot
 	FQuat4d WorldToSlotRotation = FQuat4d::Identity;
 	TSharedPtr<const FLNPSupportAtlas, ESPMode::ThreadSafe> Support;
 	TSharedPtr<const FLNPSpawnData, ESPMode::ThreadSafe> Spawn;
+	TSharedPtr<const FLNPNavData, ESPMode::ThreadSafe> Navigation;
+	TSharedPtr<const FLNPNavTraversalData, ESPMode::ThreadSafe> Traversal;
 };
 
-/** One fully validated 8-slot Support/Spawn generation. Later phases add Nav views without changing publication semantics. */
+/** One fully validated 8-slot Support/Spawn/Nav generation. Nav is assembled before publication, never published partially. */
 struct FLNPSurfaceDataSnapshot
 {
 	uint64 Generation = 0;
 	TArray<FLNPSurfaceDataSlotSnapshot> Slots;
+	FLNPNavSnapshot Nav;
 };
 
 enum class ELNPSurfaceQueryStatus : uint8

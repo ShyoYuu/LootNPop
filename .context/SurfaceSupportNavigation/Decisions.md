@@ -1,7 +1,7 @@
 # Surface Support·Navigation 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-09-27
+> 마지막 갱신: 2026-10-01
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다.
 
 ## 결정 목록
@@ -67,6 +67,7 @@
 | D-057 | 섬·동굴 sparse Atlas는 지각과 같은 octahedral 격자 계열(분할 수 = 지각 N의 정수배)을 쓰고, Layer마다 행별 i 구간(row span)만 저장한다. | 확정 | `phases/Phase04b_MultiLayerSupport.md` §3.2 |
 | D-058 | ISM·HISM Support와 Support-only proxy(D-039)는 콘텐츠가 필요해질 때까지 구현하지 않고 베이크 오류로 막는다. | 확정 | `phases/Phase04b_MultiLayerSupport.md` §3.1 |
 | D-059 | Mass 초기 스폰의 총량은 `DA_MassSpawnConfig`가 소유한다. LVI의 수동 Pod 세트 앵커를 Spawn stream에 베이크해 먼저 소비하고, 부족분만 베이크된 절차 후보로 채운다. 수동 point 수는 총량을 늘리지 않는다. | 확정 | `phases/Phase05_RuntimeLoader.md` §3.3·§3.4 |
+| D-060 | 이음매 줄 Nav node와 이음매 방향 edge는 양쪽 slot 사본이 모두 통과한 경우에만 유효하다. 각 옥탄트 베이크는 이웃 지오메트리를 보지 못하므로 사본 간 clearance 차이는 게시 실패가 아니라 막힘으로 합치고 snapshot에 기록한다. 지면 반지름·법선·해상도·agent profile 불일치는 계속 게시 실패다. 이음매 근처 정적 배치 금지는 기술 제한이 아닌 콘텐츠 규칙이며, 동적 스폰 오브젝트는 이음매 위에도 둘 수 있다. | 확정 | `phases/Phase07a_NavDataFoundation.md` §3.4 |
 
 ## 변경 규칙
 

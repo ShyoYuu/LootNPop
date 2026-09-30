@@ -38,34 +38,42 @@ namespace
 		int32 NodeIndex = INDEX_NONE;
 	};
 
-	uint64 CoordKey(const int32 I, const int32 J)
+	uint64 BakeCoordKey(const int32 I, const int32 J)
 	{
 		return (static_cast<uint64>(static_cast<uint32>(I)) << 32) | static_cast<uint32>(J);
 	}
 
-	bool NodeLess(const FLNPLocalNavNodeRef& A, const FLNPLocalNavNodeRef& B)
+	bool BakeNodeLess(const FLNPLocalNavNodeRef& A, const FLNPLocalNavNodeRef& B)
 	{
 		return A.LocalNavLayerId != B.LocalNavLayerId ? A.LocalNavLayerId < B.LocalNavLayerId
 			: A.TileId != B.TileId ? A.TileId < B.TileId
 			: A.LocalCellIndex < B.LocalCellIndex;
 	}
 
-	bool PortalLess(const FLNPNavPortal& A, const FLNPNavPortal& B)
+	bool BakePortalLess(const FLNPNavPortal& A, const FLNPNavPortal& B)
 	{
-		return NodeLess(A.A, B.A) || (!NodeLess(B.A, A.A)
-			&& (NodeLess(A.B, B.B) || (!NodeLess(B.B, A.B)
+		return BakeNodeLess(A.A, B.A) || (!BakeNodeLess(B.A, A.A)
+			&& (BakeNodeLess(A.B, B.B) || (!BakeNodeLess(B.B, A.B)
 				&& A.MinClearanceClass < B.MinClearanceClass)));
 	}
 
+	/**
+	 * 두 node의 높이 차가 불연속 step 한도나 walkable 경사로 설명되는지 보는 사전 필터다. 사이 지형의 step과 경사는
+	 * edge clearance callback이 exact Support 경로로 다시 검사한다. 끝점 높이 차만 step 한도와 비교하면 200cm 격자에서
+	 * 약 12.7°를 넘는 경사가 모두 끊긴다.
+	 */
 	bool CanStep(const FBakeNode& A, const FBakeNode& B, const FLNPNavAgentProfile& Agent)
 	{
+		const double TanMaxSlope = FMath::Tan(FMath::Acos(FMath::Clamp(static_cast<double>(Agent.WalkableMinDot), 0.0, 1.0)));
+		auto CanRise = [&Agent, TanMaxSlope](const FVector3d& Delta, const FVector3d& Up)
+		{
+			const double Rise = FVector3d::DotProduct(Delta, Up);
+			const double SlopeRise = FMath::Sqrt(FMath::Max(0.0, Delta.SizeSquared() - Rise * Rise)) * TanMaxSlope;
+			return Rise <= FMath::Max(static_cast<double>(Agent.MaxStepUp), SlopeRise)
+				&& Rise >= -FMath::Max(static_cast<double>(Agent.MaxStepDown), SlopeRise);
+		};
 		const FVector3d Delta = B.Position - A.Position;
-		const FVector3d UpA = -A.Position.GetSafeNormal();
-		const FVector3d UpB = -B.Position.GetSafeNormal();
-		const double AToB = FVector3d::DotProduct(Delta, UpA);
-		const double BToA = FVector3d::DotProduct(-Delta, UpB);
-		return AToB <= Agent.MaxStepUp && AToB >= -Agent.MaxStepDown
-			&& BToA <= Agent.MaxStepUp && BToA >= -Agent.MaxStepDown;
+		return CanRise(Delta, -A.Position.GetSafeNormal()) && CanRise(-Delta, -B.Position.GetSafeNormal());
 	}
 
 	void BuildTiles(const FBakeLayer& Baked, FLNPNavLayer& OutLayer)
@@ -187,6 +195,8 @@ bool LNPNavBaking::Build(
 				const FVector3d Position = Direction * Query.Radius;
 				if (!HasNodeClearance(Baked.LayerId, Position, Query.Normal))
 				{
+					const bool bCrustSeam = LayerIndex == 0 && (I == 0 || J == 0 || I + J == Baked.Subdivisions);
+					OutReport.SeamClearanceRejectCount += bCrustSeam ? 1 : 0;
 					continue;
 				}
 				const int32 NodeIndex = Baked.Nodes.AddDefaulted();
@@ -196,7 +206,7 @@ bool LNPNavBaking::Build(
 				Node.Position = Position;
 				Node.Normal = Query.Normal;
 				Node.ClearanceClass = ClearanceClass;
-				Baked.NodeByCoord.Add(CoordKey(I, J), NodeIndex);
+				Baked.NodeByCoord.Add(BakeCoordKey(I, J), NodeIndex);
 			}
 		}
 
@@ -211,7 +221,7 @@ bool LNPNavBaking::Build(
 				{
 					continue;
 				}
-				const int32* NeighborIndex = Baked.NodeByCoord.Find(CoordKey(NeighborCoord.X, NeighborCoord.Y));
+				const int32* NeighborIndex = Baked.NodeByCoord.Find(BakeCoordKey(NeighborCoord.X, NeighborCoord.Y));
 				if (NeighborIndex == nullptr)
 				{
 					Node.bBoundary = true;
@@ -265,7 +275,7 @@ bool LNPNavBaking::Build(
 					LNPNavData::TryGetNeighborCoord(
 						Baked.Subdivisions, Current.I, Current.J,
 						static_cast<ELNPNavNeighbor>(Direction), NeighborCoord);
-					const int32 NeighborIndex = Baked.NodeByCoord.FindChecked(CoordKey(NeighborCoord.X, NeighborCoord.Y));
+					const int32 NeighborIndex = Baked.NodeByCoord.FindChecked(BakeCoordKey(NeighborCoord.X, NeighborCoord.Y));
 					if (Baked.Nodes[NeighborIndex].Component == MAX_uint16)
 					{
 						Baked.Nodes[NeighborIndex].Component = Component;
@@ -363,15 +373,15 @@ bool LNPNavBaking::Build(
 							{
 								return Fail(TEXT("Failed to resolve a baked portal endpoint."));
 							}
-							if (NodeLess(NodeRef, OtherNodeRef))
+							if (BakeNodeLess(NodeRef, OtherNodeRef))
 							{
 								Swap(NodeRef, OtherNodeRef);
 							}
 							FPortalCandidate& Best = BestPortalByComponentPair.FindOrAdd(PairKey);
 							const bool bBetter = DistanceSquared < Best.DistanceSquared
 								|| (DistanceSquared == Best.DistanceSquared
-									&& (NodeLess(OtherNodeRef, Best.A)
-										|| (!NodeLess(Best.A, OtherNodeRef) && NodeLess(NodeRef, Best.B))));
+									&& (BakeNodeLess(OtherNodeRef, Best.A)
+										|| (!BakeNodeLess(Best.A, OtherNodeRef) && BakeNodeLess(NodeRef, Best.B))));
 							if (bBetter)
 							{
 								Best.A = OtherNodeRef;
@@ -399,7 +409,7 @@ bool LNPNavBaking::Build(
 		Portal.MinClearanceClass = Candidate.MinClearanceClass;
 		Portal.Flags = ELNPNavPortalFlags::Bidirectional;
 	}
-	OutTraversal.Portals.Sort(PortalLess);
+	OutTraversal.Portals.Sort(BakePortalLess);
 
 	const FBakeLayer& Crust = BakedLayers[0];
 	for (int32 Edge = 0; Edge < 3; ++Edge)
@@ -408,7 +418,7 @@ bool LNPNavBaking::Build(
 		{
 			const FIntPoint Coord = LNPCrustAtlas::GetSeamSampleCoord(
 				Crust.Subdivisions, static_cast<ELNPCrustSeamEdge>(Edge), Step);
-			const int32* NodeIndex = Crust.NodeByCoord.Find(CoordKey(Coord.X, Coord.Y));
+			const int32* NodeIndex = Crust.NodeByCoord.Find(BakeCoordKey(Coord.X, Coord.Y));
 			if (NodeIndex == nullptr)
 			{
 				continue;

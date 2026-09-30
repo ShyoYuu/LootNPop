@@ -154,4 +154,67 @@ bool FLNPNavBakingTest::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavStepAndSlopeTest,
+	"LootNPop.SurfaceNavigation.Nav.StepAndSlope",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPNavStepAndSlopeTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavBakingTest;
+	// 지각 R=30,000, Nav 간격 200cm. Support i 좌표로 평지 → 경사로(Nav 한 칸당 60cm 상승) → 평지 → 400cm 절벽.
+	// 60cm는 step 한도 45cm보다 크지만 Nav 간격(81~200cm)의 45° 경사 안이므로 이어져야 한다.
+	constexpr double Radius = 30000.0;
+	FLNPNavBakeSettings Settings;
+	const int32 NavSubdivisions = LNPSupportAtlas::ComputeSubdivisionsForSpacing(Radius, Settings.CrustSpacing);
+	const int32 SupportSubdivisions = NavSubdivisions * 2;
+	const int32 RampStart = 300;
+	const int32 RampEnd = 340;
+	const int32 Cliff = 500;
+	FLNPSupportAtlasLayer Crust = MakeFullLayer(SupportSubdivisions, Radius);
+	for (int32 J = 0; J <= SupportSubdivisions; ++J)
+	{
+		for (int32 I = 0; I + J <= SupportSubdivisions; ++I)
+		{
+			const double Rise = 30.0 * FMath::Clamp(I - RampStart, 0, RampEnd - RampStart) + (I >= Cliff ? 400.0 : 0.0);
+			Crust.RadiusQ[Crust.Layout.Find(I, J)] = static_cast<int16>(FMath::RoundToInt32(-Rise / Crust.RadiusStep));
+		}
+	}
+	FLNPSupportAtlas Support;
+	Support.Layers.Add(MoveTemp(Crust));
+
+	FLNPNavData Navigation;
+	FLNPNavTraversalData Traversal;
+	FLNPNavBakeReport Report;
+	FString Error;
+	if (!TestTrue(TEXT("Stepped Support Atlas builds Navigation"), LNPNavBaking::Build(
+		Support,
+		Settings,
+		[](uint16, const FVector3d&, const FVector3f&) { return true; },
+		[](uint16, const FVector3d&, const FVector3f&, uint16, const FVector3d&, const FVector3f&) { return true; },
+		Navigation, Traversal, Report, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("Nav uses the expected crust resolution"), Navigation.Layers[0].Subdivisions, NavSubdivisions);
+
+	auto ComponentAt = [&Navigation](const int32 I, const int32 J)
+	{
+		FLNPLocalNavNodeRef Node;
+		const FLNPNavCell* Cell = LNPNavData::MakeLocalNodeRef(Navigation, 0, I, J, Node)
+			? LNPNavData::ResolveLocalNode(Navigation, Node)
+			: nullptr;
+		return Cell ? static_cast<int32>(Cell->LocalStaticComponentId) : INDEX_NONE;
+	};
+	const int32 Low = ComponentAt(RampStart / 2 - 20, 60);
+	const int32 High = ComponentAt(RampEnd / 2 + 20, 60);
+	const int32 BeyondCliff = ComponentAt(Cliff / 2 + 20, 60);
+	TestTrue(TEXT("All probe nodes exist"), Low != INDEX_NONE && High != INDEX_NONE && BeyondCliff != INDEX_NONE);
+	TestEqual(TEXT("A walkable ramp steeper than step-up per cell stays connected"), High, Low);
+	TestNotEqual(TEXT("A cliff higher than step and slope allowance splits the crust"), BeyondCliff, Low);
+	TestEqual(TEXT("Only the cliff splits the crust"), static_cast<int32>(Navigation.LocalStaticComponentCount), 2);
+	return !HasAnyErrors();
+}
+
 #endif

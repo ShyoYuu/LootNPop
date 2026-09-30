@@ -9,6 +9,8 @@
 #include "DataAsset/LNPOctantSurfaceData.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
+#include "SurfaceNavigation/LNPNavBaking.h"
+#include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "SurfaceNavigation/LNPSpawnData.h"
 
@@ -20,7 +22,59 @@ namespace
 	constexpr TCHAR TestLevelPath[] = TEXT("/Game/Tests/LVI_SurfaceLoader.LVI_SurfaceLoader");
 	constexpr TCHAR TestSurfacePath[] = TEXT("/Game/Tests/DA_SurfaceLoader.DA_SurfaceLoader");
 
-	ULNPOctantSurfaceData* MakeSurfaceData(const double ChangedRadius = 30000.0)
+	constexpr TCHAR RegressionLevelPath[] =
+		TEXT("/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Regression.LVI_Octant_Fixture_Regression");
+	constexpr TCHAR RegressionSurfacePath[] =
+		TEXT("/Game/Maps/SurfaceNavigation/Fixtures/DA_OctantSurface_Fixture_Regression.DA_OctantSurface_Fixture_Regression");
+
+	/** 합성 Support에서 blocker 없는 Nav/Traversal payload를 굽는다. RejectNode가 true인 node는 clearance 실패로 뺀다. */
+	bool BakeSyntheticNav(
+		ULNPOctantSurfaceData& Data,
+		TFunctionRef<bool(const FVector3d& LocalDirection)> RejectNode,
+		TFunctionRef<bool(const FVector3d& FromDirection, const FVector3d& ToDirection)> RejectEdge,
+		FString& OutError)
+	{
+		FLNPSupportAtlas Atlas;
+		if (!LNPSupportAtlas::Decode(Data.SupportPayload, Atlas, OutError))
+		{
+			return false;
+		}
+		FLNPNavData Navigation;
+		FLNPNavTraversalData Traversal;
+		FLNPNavBakeReport Report;
+		if (!LNPNavBaking::Build(
+			Atlas,
+			FLNPNavBakeSettings(),
+			[&RejectNode](uint16, const FVector3d& Position, const FVector3f&)
+			{
+				return !RejectNode(Position.GetSafeNormal());
+			},
+			[&RejectEdge](uint16, const FVector3d& From, const FVector3f&, uint16, const FVector3d& To, const FVector3f&)
+			{
+				return !RejectEdge(From.GetSafeNormal(), To.GetSafeNormal());
+			},
+			Navigation, Traversal, Report, OutError)
+			|| !LNPNavData::EncodeNavigation(Navigation, Data.NavigationPayload, OutError)
+			|| !LNPNavData::EncodeTraversal(Traversal, Navigation, Data.TraversalPayload, OutError))
+		{
+			return false;
+		}
+		Data.Header.Navigation.ElementCount = Report.CellCount;
+		Data.Header.Navigation.UncompressedSize = Data.NavigationPayload.Num();
+		Data.Header.Navigation.ContentHash = FLNPContentHash(
+			FIoHash::HashBuffer(Data.NavigationPayload.GetData(), Data.NavigationPayload.Num()));
+		Data.Header.Traversal.ElementCount = Traversal.Portals.Num() + Traversal.SeamEndpoints.Num();
+		Data.Header.Traversal.UncompressedSize = Data.TraversalPayload.Num();
+		Data.Header.Traversal.ContentHash = FLNPContentHash(
+			FIoHash::HashBuffer(Data.TraversalPayload.GetData(), Data.TraversalPayload.Num()));
+		return true;
+	}
+
+	ULNPOctantSurfaceData* MakeSurfaceData(
+		const double ChangedRadius = 30000.0,
+		TFunctionRef<bool(const FVector3d& LocalDirection)> RejectNavNode = [](const FVector3d&) { return false; },
+		TFunctionRef<bool(const FVector3d& FromDirection, const FVector3d& ToDirection)> RejectNavEdge =
+			[](const FVector3d&, const FVector3d&) { return false; })
 	{
 		ULNPOctantSurfaceData* Data = NewObject<ULNPOctantSurfaceData>(GetTransientPackage());
 		Data->Header.DataVersion = FLNPSurfaceBakeHeader::CurrentDataVersion;
@@ -81,7 +135,7 @@ namespace
 		Data->Header.Spawn.UncompressedSize = Data->SpawnPayload.Num();
 		Data->Header.Spawn.ContentHash = FLNPContentHash(
 			FIoHash::HashBuffer(Data->SpawnPayload.GetData(), Data->SpawnPayload.Num()));
-		return Data;
+		return BakeSyntheticNav(*Data, RejectNavNode, RejectNavEdge, Error) ? Data : nullptr;
 	}
 
 	TArray<FLNPOctantDefinition> MakeDefinitions()
@@ -101,6 +155,11 @@ namespace
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPSurfaceDataLoaderValidationTest,
 	"LootNPop.SurfaceNavigation.Runtime.SurfaceDataLoaderValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSurfaceDataNavAssemblyTest,
+	"LootNPop.SurfaceNavigation.Runtime.NavAssembly",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -254,6 +313,278 @@ bool FLNPSurfaceDataLoaderValidationTest::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
+bool FLNPSurfaceDataNavAssemblyTest::RunTest(const FString& Parameters)
+{
+	TArray<FLNPOctantDefinition> Definitions = MakeDefinitions();
+	ULNPOctantSurfaceData* ValidData = MakeSurfaceData();
+	if (!TestNotNull(TEXT("Synthetic SurfaceData with Nav encodes"), ValidData))
+	{
+		return false;
+	}
+	TArray<ULNPOctantSurfaceData*> LoadedData;
+	LoadedData.Init(ValidData, 8);
+	FLNPSurfaceDataSnapshot Snapshot;
+	FString Error;
+	if (!TestTrue(TEXT("Eight slots with Nav validate"),
+		LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, LoadedData, 17, Snapshot, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	const FLNPNavSnapshot& Nav = Snapshot.Nav;
+	TestEqual(TEXT("Nav view carries the Surface generation"), Nav.SnapshotGeneration, static_cast<uint64>(17));
+	TestTrue(TEXT("Decoded Navigation is shared by slots using one asset"),
+		Snapshot.Slots[0].Navigation.IsValid() && Snapshot.Slots[0].Navigation == Snapshot.Slots[7].Navigation);
+	TestTrue(TEXT("Decoded Traversal is shared by slots using one asset"),
+		Snapshot.Slots[0].Traversal.IsValid() && Snapshot.Slots[0].Traversal == Snapshot.Slots[7].Traversal);
+	for (int32 Slot = 0; Slot <= 8; ++Slot)
+	{
+		TestEqual(FString::Printf(TEXT("Slot %d runtime Nav Layer base"), Slot),
+			static_cast<int32>(Nav.SlotLayerBase[Slot]), Slot);
+	}
+	const int32 N = Snapshot.Slots[0].Navigation->Layers[0].Subdivisions;
+	AddInfo(FString::Printf(TEXT("Synthetic crust Nav subdivisions=%d"), N));
+	TestEqual(TEXT("Every crust seam sample links across all 12 world seams"), Nav.SeamLinks.Num(), 12 * (N + 1));
+	TestEqual(TEXT("Eight seamless crusts merge into one runtime StaticNavComponent"),
+		Nav.RuntimeStaticComponentCount, 1u);
+	TestTrue(TEXT("Seam radius mismatch stays within tolerance"),
+		Nav.MaxSeamRadiusDelta <= LNPNavRuntime::MaxSeamRadiusDelta);
+	TestTrue(TEXT("Symmetric synthetic seams have no blocked seam nodes or edges"),
+		Nav.BlockedSeamNodes.IsEmpty() && Nav.BlockedSeamEdges.IsEmpty());
+
+	const FLNPNavTile& FirstTile = Snapshot.Slots[5].Navigation->Layers[0].Tiles[0];
+	FLNPLocalNavNodeRef Local;
+	Local.LocalNavLayerId = 0;
+	Local.TileId = FirstTile.TileId;
+	Local.LocalCellIndex = FirstTile.Cells[0].LocalCellIndex;
+	FLNPNavNodeRef Runtime;
+	TestTrue(TEXT("Local node gets a slot-specific runtime ref"), LNPNavRuntime::MakeRuntimeNodeRef(Nav, 5, Local, Runtime));
+	TestEqual(TEXT("Runtime ref uses slot 5 Layer ID"), Runtime.RuntimeNavLayerId, static_cast<uint16>(5));
+	int32 ResolvedSlot = INDEX_NONE;
+	FLNPLocalNavNodeRef ResolvedLocal;
+	TestTrue(TEXT("Runtime ref resolves back"),
+		LNPNavRuntime::ResolveRuntimeNodeRef(Nav, Runtime, ResolvedSlot, ResolvedLocal));
+	TestEqual(TEXT("Runtime ref resolves to slot 5"), ResolvedSlot, 5);
+	TestTrue(TEXT("Runtime ref resolves to the same local node"), ResolvedLocal == Local);
+	FLNPNavNodeRef StaleRef = Runtime;
+	StaleRef.SnapshotGeneration = 16;
+	TestFalse(TEXT("Stale generation ref is rejected"),
+		LNPNavRuntime::ResolveRuntimeNodeRef(Nav, StaleRef, ResolvedSlot, ResolvedLocal));
+
+	// 초기 ReachabilityGroup은 StaticNavComponent와 1:1이고 version 1로 게시된다.
+	TestEqual(TEXT("Initial ConnectivityGraphVersion is 1"), Nav.ConnectivityGraphVersion, 1u);
+	TestEqual(TEXT("Initial ReachabilityGroups match StaticNavComponents"),
+		Nav.ReachabilityGroupCount, Nav.RuntimeStaticComponentCount);
+	const FVector3d CenterDirection = FVector3d(1.0, 1.0, 1.0).GetSafeNormal();
+	FLNPNavGroupRef Groups[2];
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		const int32 Slot = Index == 0 ? 0 : 5;
+		const FVector3d Position = Snapshot.Slots[Slot].SlotRotation.RotateVector(CenterDirection * 29990.0);
+		FLNPNavProjection Projection;
+		TestTrue(FString::Printf(TEXT("Slot %d octant center projects to a crust node"), Slot),
+			LNPNavQuery::ProjectToNode(Snapshot, Position, {static_cast<uint16>(Slot), 0, Snapshot.Generation},
+				LNPNavQuery::DefaultProjectionRadius, Projection)
+			&& Projection.Distance < 200.0
+			&& LNPNavQuery::GetReachabilityGroup(Snapshot, Projection.Node, Groups[Index]));
+		FVector3d NodePoint;
+		FVector3f NodeNormal;
+		TestTrue(FString::Printf(TEXT("Slot %d projected node returns its Support point"), Slot),
+			LNPNavQuery::GetNodeSupport(Snapshot, Projection.Node, NodePoint, NodeNormal)
+			&& NodePoint.Equals(Projection.Point, 1.e-6)
+			&& FMath::IsNearlyEqual(NodePoint.Length(), 30000.0, 0.5)
+			&& FVector3d::DotProduct(FVector3d(NodeNormal), -NodePoint.GetSafeNormal()) > 0.999);
+	}
+	TestTrue(TEXT("Seam-merged crusts are reachable across slots"),
+		LNPNavQuery::TestReachability(Nav, Groups[0], Groups[1]) == ELNPNavReachability::Reachable);
+	FLNPNavGroupRef OldVersionGroup = Groups[1];
+	OldVersionGroup.ConnectivityGraphVersion = Nav.ConnectivityGraphVersion + 1;
+	TestTrue(TEXT("A group from another ConnectivityGraphVersion is stale"),
+		LNPNavQuery::TestReachability(Nav, Groups[0], OldVersionGroup) == ELNPNavReachability::Stale);
+	FLNPNavGroupRef OldGenerationGroup = Groups[1];
+	OldGenerationGroup.SnapshotGeneration = 16;
+	TestTrue(TEXT("A group from another snapshot generation is stale"),
+		LNPNavQuery::TestReachability(Nav, OldGenerationGroup, Groups[0]) == ELNPNavReachability::Stale);
+	FLNPNavGroupRef StaleNodeGroup;
+	TestFalse(TEXT("Stale node ref has no ReachabilityGroup"),
+		LNPNavQuery::GetReachabilityGroup(Snapshot, StaleRef, StaleNodeGroup));
+	FLNPNavProjection StaleHandleProjection;
+	TestFalse(TEXT("Stale Surface handle does not project"),
+		LNPNavQuery::ProjectToNode(Snapshot, CenterDirection * 29990.0, {0, 0, 16},
+			LNPNavQuery::DefaultProjectionRadius, StaleHandleProjection));
+	TestFalse(TEXT("A missing Nav Layer does not project"),
+		LNPNavQuery::ProjectToNode(Snapshot, CenterDirection * 29990.0, {0, 1, Snapshot.Generation},
+			LNPNavQuery::DefaultProjectionRadius, StaleHandleProjection));
+	TestFalse(TEXT("Projection does not snap beyond its radius"),
+		LNPNavQuery::ProjectToNode(Snapshot, CenterDirection * 29000.0, {0, 0, Snapshot.Generation},
+			LNPNavQuery::DefaultProjectionRadius, StaleHandleProjection));
+
+	ValidData->NavigationPayload.Last() ^= 0x1;
+	TestFalse(TEXT("Navigation payload corruption rejects the whole snapshot"),
+		LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, LoadedData, 18, Snapshot, Error));
+	TestTrue(TEXT("Navigation corruption reports hash mismatch"), Error.Contains(TEXT("Navigation payload hash mismatch")));
+	TestTrue(TEXT("Rejected Nav leaves no partial Support snapshot"),
+		Snapshot.Generation == 0 && Snapshot.Slots.IsEmpty() && !Snapshot.Nav.IsValid());
+	ValidData->NavigationPayload.Last() ^= 0x1;
+
+	const TArray<uint8> TraversalPayload = ValidData->TraversalPayload;
+	const FLNPSurfacePayloadDescriptor TraversalDescriptor = ValidData->Header.Traversal;
+	ValidData->TraversalPayload.Reset();
+	ValidData->Header.Traversal = FLNPSurfacePayloadDescriptor();
+	TestFalse(TEXT("Missing Traversal payload is rejected"),
+		LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, LoadedData, 19, Snapshot, Error));
+	TestTrue(TEXT("Missing Traversal reports its cause"), Error.Contains(TEXT("Traversal payload is empty")));
+	ValidData->TraversalPayload = TraversalPayload;
+	ValidData->Header.Traversal = TraversalDescriptor;
+
+	// slot 7 사본만 x=0 이음매 중점 node를 잃는다. 다른 사본은 막힘으로 기록되고 그 step만 연결되지 않는다(D-060).
+	const FVector3d SeamMidpoint = FVector3d(0.0, 1.0, 1.0).GetSafeNormal();
+	ULNPOctantSurfaceData* OneSidedData = MakeSurfaceData(30000.0, [&SeamMidpoint](const FVector3d& Direction)
+	{
+		return FVector3d::Dist(Direction, SeamMidpoint) < 0.004;
+	});
+	if (TestNotNull(TEXT("One-sided seam SurfaceData encodes"), OneSidedData))
+	{
+		LoadedData[7] = OneSidedData;
+		if (TestTrue(TEXT("A one-sided Nav seam node still publishes"),
+			LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, LoadedData, 20, Snapshot, Error)))
+		{
+			TestEqual(TEXT("The surviving copy is recorded as a blocked seam node"), Snapshot.Nav.BlockedSeamNodes.Num(), 1);
+			TestEqual(TEXT("The blocked seam step is not linked"), Snapshot.Nav.SeamLinks.Num(), 12 * (N + 1) - 1);
+			int32 BlockedSlot = INDEX_NONE;
+			FLNPLocalNavNodeRef BlockedLocal;
+			TestTrue(TEXT("Blocked seam node is the copy outside slot 7"),
+				Snapshot.Nav.BlockedSeamNodes.Num() == 1
+				&& LNPNavRuntime::ResolveRuntimeNodeRef(Snapshot.Nav, Snapshot.Nav.BlockedSeamNodes[0], BlockedSlot, BlockedLocal)
+				&& BlockedSlot != 7);
+			if (Snapshot.Nav.BlockedSeamNodes.Num() == 1 && BlockedSlot != INDEX_NONE)
+			{
+				const FLNPNavNodeRef& Blocked = Snapshot.Nav.BlockedSeamNodes[0];
+				FVector3d BlockedPoint;
+				FVector3f BlockedNormal;
+				FLNPNavProjection Projection;
+				uint32 BlockedComponent = MAX_uint32;
+				TestTrue(TEXT("Blocked seam node is recognized"), LNPNavRuntime::IsBlockedSeamNode(Snapshot.Nav, Blocked));
+				TestFalse(TEXT("Blocked seam node has no StaticNavComponent"),
+					LNPNavQuery::GetStaticComponent(Snapshot, Blocked, BlockedComponent));
+				TestTrue(TEXT("Projection onto a blocked seam node picks another node"),
+					LNPNavQuery::GetNodeSupport(Snapshot, Blocked, BlockedPoint, BlockedNormal)
+					&& LNPNavQuery::ProjectToNode(Snapshot, BlockedPoint,
+						{static_cast<uint16>(BlockedSlot), 0, Snapshot.Generation},
+						LNPNavQuery::DefaultProjectionRadius, Projection)
+					&& LNPNavRuntime::MakeNodeKey(Projection.Node) != LNPNavRuntime::MakeNodeKey(Blocked)
+					&& Projection.Distance > 1.0);
+			}
+		}
+		else
+		{
+			AddError(Error);
+		}
+		LoadedData[7] = ValidData;
+	}
+
+	// slot 7 사본만 x=0 이음매 중점 양옆 seam 방향 edge 두 개를 닫는다. 열린 사본 두 개가 막힘으로 기록된다.
+	ULNPOctantSurfaceData* AsymmetricEdgeData = MakeSurfaceData(
+		30000.0,
+		[](const FVector3d&) { return false; },
+		[&SeamMidpoint](const FVector3d& From, const FVector3d& To)
+		{
+			return FMath::Abs(From.X) < 1.e-9 && FMath::Abs(To.X) < 1.e-9
+				&& FVector3d::Dist(From, SeamMidpoint) < 0.008 && FVector3d::Dist(To, SeamMidpoint) < 0.008;
+		});
+	if (TestNotNull(TEXT("Asymmetric seam edge SurfaceData encodes"), AsymmetricEdgeData))
+	{
+		LoadedData[7] = AsymmetricEdgeData;
+		if (TestTrue(TEXT("Asymmetric seam edges still publish"),
+			LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, LoadedData, 21, Snapshot, Error)))
+		{
+			TestEqual(TEXT("Both open copies are recorded as blocked seam edges"), Snapshot.Nav.BlockedSeamEdges.Num(), 2);
+			TestTrue(TEXT("Asymmetric edges keep every seam node linked"),
+				Snapshot.Nav.BlockedSeamNodes.IsEmpty() && Snapshot.Nav.SeamLinks.Num() == 12 * (N + 1));
+		}
+		else
+		{
+			AddError(Error);
+		}
+		LoadedData[7] = ValidData;
+	}
+
+	// 지면 반지름이 다른 seam은 여전히 전체 실패다.
+	ULNPOctantSurfaceData* ChangedSeamData = MakeSurfaceData(30001.0);
+	if (TestNotNull(TEXT("Mismatched seam payload encodes"), ChangedSeamData))
+	{
+		LoadedData[7] = ChangedSeamData;
+		TestFalse(TEXT("A geometric seam mismatch rejects the whole snapshot"),
+			LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, LoadedData, 22, Snapshot, Error));
+		TestTrue(TEXT("Geometric seam mismatch leaves no partial snapshot"), Snapshot.Slots.IsEmpty());
+		LoadedData[7] = ValidData;
+	}
+
+	// 정적 회귀 LVI 8-slot: 지각은 seam으로, 동굴은 portal로 하나의 runtime component가 된다.
+	ULNPOctantSurfaceData* Regression = TSoftObjectPtr<ULNPOctantSurfaceData>(
+		FSoftObjectPath(RegressionSurfacePath)).LoadSynchronous();
+	if (TestNotNull(TEXT("Regression SurfaceData loads"), Regression))
+	{
+		TArray<FLNPOctantDefinition> RegressionDefinitions = MakeDefinitions();
+		for (FLNPOctantDefinition& Definition : RegressionDefinitions)
+		{
+			Definition.LevelAsset = TSoftObjectPtr<UWorld>(FSoftObjectPath(RegressionLevelPath));
+			Definition.SurfaceData = TSoftObjectPtr<ULNPOctantSurfaceData>(FSoftObjectPath(RegressionSurfacePath));
+		}
+		LoadedData.Init(Regression, 8);
+		if (TestTrue(TEXT("Regression 8-slot Nav assembles"),
+			LNPSurfaceDataLoading::ValidateAndBuildSnapshot(RegressionDefinitions, LoadedData, 3, Snapshot, Error)))
+		{
+			const FLNPNavTraversalData& Traversal = *Snapshot.Slots[0].Traversal;
+			const FLNPNavData& Navigation = *Snapshot.Slots[0].Navigation;
+			const FLNPNavCell* CrustCell = LNPNavData::ResolveLocalNode(Navigation, Traversal.SeamEndpoints[0].Node);
+			TestNotNull(TEXT("Regression crust seam endpoint resolves"), CrustCell);
+			const uint32 CrustComponent = CrustCell
+				? LNPNavRuntime::GetRuntimeStaticComponent(Snapshot.Nav, 0, CrustCell->LocalStaticComponentId)
+				: MAX_uint32;
+			for (const FLNPNavSeamLink& Link : Snapshot.Nav.SeamLinks)
+			{
+				int32 Slot = INDEX_NONE;
+				FLNPLocalNavNodeRef LinkLocal;
+				const FLNPNavCell* Cell = LNPNavRuntime::ResolveRuntimeNodeRef(Snapshot.Nav, Link.A, Slot, LinkLocal)
+					? LNPNavData::ResolveLocalNode(*Snapshot.Slots[Slot].Navigation, LinkLocal)
+					: nullptr;
+				if (Cell == nullptr
+					|| LNPNavRuntime::GetRuntimeStaticComponent(Snapshot.Nav, Slot, Cell->LocalStaticComponentId) != CrustComponent)
+				{
+					AddError(TEXT("A regression seam link is not in the merged crust component."));
+					break;
+				}
+			}
+			for (int32 Slot = 0; Slot < 8; ++Slot)
+			{
+				for (const FLNPNavPortal& Portal : Traversal.Portals)
+				{
+					const FLNPNavCell* A = LNPNavData::ResolveLocalNode(Navigation, Portal.A);
+					const FLNPNavCell* B = LNPNavData::ResolveLocalNode(Navigation, Portal.B);
+					TestTrue(FString::Printf(TEXT("Slot %d portal joins the crust component"), Slot),
+						A && B
+						&& LNPNavRuntime::GetRuntimeStaticComponent(Snapshot.Nav, Slot, A->LocalStaticComponentId) == CrustComponent
+						&& LNPNavRuntime::GetRuntimeStaticComponent(Snapshot.Nav, Slot, B->LocalStaticComponentId) == CrustComponent);
+				}
+			}
+			AddInfo(FString::Printf(
+				TEXT("Regression Nav: runtimeLayers=%u localComponents=%u runtimeComponents=%u seamLinks=%d blockedSeamNodes=%d blockedSeamEdges=%d portals/slot=%d maxSeamRadiusDelta=%.3f minSeamNormalDot=%.5f"),
+				Snapshot.Nav.SlotLayerBase.Last(), Snapshot.Nav.SlotComponentBase.Last(),
+				Snapshot.Nav.RuntimeStaticComponentCount, Snapshot.Nav.SeamLinks.Num(),
+				Snapshot.Nav.BlockedSeamNodes.Num(), Snapshot.Nav.BlockedSeamEdges.Num(), Traversal.Portals.Num(),
+				Snapshot.Nav.MaxSeamRadiusDelta, Snapshot.Nav.MinSeamNormalDot));
+		}
+		else
+		{
+			AddError(Error);
+		}
+	}
+
+	return !HasAnyErrors();
+}
+
 bool FLNPProductionSurfaceDataDefinitionsTest::RunTest(const FString& Parameters)
 {
 	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
@@ -295,6 +626,18 @@ bool FLNPProductionSurfaceDataDefinitionsTest::RunTest(const FString& Parameters
 			SelectedDefinitions, LoadedData, 1, Snapshot, Error)))
 	{
 		AddError(Error);
+	}
+	else
+	{
+		TestTrue(TEXT("Production Nav view is published with the Surface generation"),
+			Snapshot.Nav.SnapshotGeneration == 1 && Snapshot.Nav.RuntimeStaticComponentCount > 0
+			&& !Snapshot.Nav.SeamLinks.IsEmpty());
+		AddInfo(FString::Printf(
+			TEXT("Production Nav: runtimeLayers=%u localComponents=%u runtimeComponents=%u seamLinks=%d blockedSeamNodes=%d blockedSeamEdges=%d maxSeamRadiusDelta=%.3f minSeamNormalDot=%.5f"),
+			Snapshot.Nav.SlotLayerBase.Last(), Snapshot.Nav.SlotComponentBase.Last(),
+			Snapshot.Nav.RuntimeStaticComponentCount, Snapshot.Nav.SeamLinks.Num(),
+			Snapshot.Nav.BlockedSeamNodes.Num(), Snapshot.Nav.BlockedSeamEdges.Num(),
+			Snapshot.Nav.MaxSeamRadiusDelta, Snapshot.Nav.MinSeamNormalDot));
 	}
 
 	return !HasAnyErrors();

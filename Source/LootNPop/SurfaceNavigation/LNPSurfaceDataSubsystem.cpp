@@ -18,6 +18,7 @@
 #include "HAL/PlatformMemory.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/PackageName.h"
+#include "Misc/ScopeExit.h"
 
 namespace
 {
@@ -49,6 +50,27 @@ namespace
 			+ Spawn.RandomCandidates.GetAllocatedSize();
 	}
 
+	uint64 GetNavResidentBytes(const FLNPSurfaceDataSnapshot& Snapshot)
+	{
+		uint64 Bytes = LNPNavRuntime::GetAllocatedBytes(Snapshot.Nav);
+		TSet<const FLNPNavData*> CountedNavigation;
+		TSet<const FLNPNavTraversalData*> CountedTraversal;
+		for (const FLNPSurfaceDataSlotSnapshot& Slot : Snapshot.Slots)
+		{
+			if (const FLNPNavData* Navigation = Slot.Navigation.Get(); Navigation != nullptr && !CountedNavigation.Contains(Navigation))
+			{
+				CountedNavigation.Add(Navigation);
+				Bytes += LNPNavRuntime::GetAllocatedBytes(*Navigation);
+			}
+			if (const FLNPNavTraversalData* Traversal = Slot.Traversal.Get(); Traversal != nullptr && !CountedTraversal.Contains(Traversal))
+			{
+				CountedTraversal.Add(Traversal);
+				Bytes += LNPNavRuntime::GetAllocatedBytes(*Traversal);
+			}
+		}
+		return Bytes;
+	}
+
 	uint64 GetDecodedResidentBytes(const FLNPSurfaceDataSnapshot& Snapshot)
 	{
 		uint64 Bytes = sizeof(FLNPSurfaceDataSnapshot) + Snapshot.Slots.GetAllocatedSize();
@@ -67,7 +89,7 @@ namespace
 				Bytes += GetSpawnAllocatedBytes(*Spawn);
 			}
 		}
-		return Bytes;
+		return Bytes + GetNavResidentBytes(Snapshot);
 	}
 
 	uint64 GetSerializedPayloadBytes(TConstArrayView<TObjectPtr<ULNPOctantSurfaceData>> Assets)
@@ -304,6 +326,15 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 {
 	OutSnapshot = FLNPSurfaceDataSnapshot();
 	OutError.Reset();
+	// 모든 실패 경로에서 부분 조립된 Support·Spawn·Nav를 남기지 않는다.
+	bool bBuilt = false;
+	ON_SCOPE_EXIT
+	{
+		if (!bBuilt)
+		{
+			OutSnapshot = FLNPSurfaceDataSnapshot();
+		}
+	};
 
 	if (Definitions.Num() != SlotCount || LoadedData.Num() != SlotCount)
 	{
@@ -323,6 +354,10 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 	Atlases.Reserve(SlotCount);
 	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPSupportAtlas, ESPMode::ThreadSafe>> DecodedByAsset;
 	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPSpawnData, ESPMode::ThreadSafe>> DecodedSpawnByAsset;
+	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPNavData, ESPMode::ThreadSafe>> DecodedNavigationByAsset;
+	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPNavTraversalData, ESPMode::ThreadSafe>> DecodedTraversalByAsset;
+	TArray<FLNPNavSlotInput> NavInputs;
+	NavInputs.Reserve(SlotCount);
 	OutSnapshot.Generation = Generation;
 	OutSnapshot.Slots.Reserve(SlotCount);
 
@@ -349,8 +384,8 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 		}
 		if (!ValidateLevelPair(Definition, *SurfaceData, OutError)
 			|| !ValidatePayload(TEXT("Support"), SurfaceData->Header.Support, SurfaceData->SupportPayload, true, OutError)
-			|| !ValidatePayload(TEXT("Navigation"), SurfaceData->Header.Navigation, SurfaceData->NavigationPayload, false, OutError)
-			|| !ValidatePayload(TEXT("Traversal"), SurfaceData->Header.Traversal, SurfaceData->TraversalPayload, false, OutError)
+			|| !ValidatePayload(TEXT("Navigation"), SurfaceData->Header.Navigation, SurfaceData->NavigationPayload, true, OutError)
+			|| !ValidatePayload(TEXT("Traversal"), SurfaceData->Header.Traversal, SurfaceData->TraversalPayload, true, OutError)
 			|| !ValidatePayload(TEXT("Spawn"), SurfaceData->Header.Spawn, SurfaceData->SpawnPayload, true, OutError))
 		{
 			OutError = FString::Printf(TEXT("Slot %d: %s"), Slot, *OutError);
@@ -402,7 +437,45 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 			DecodedSpawnByAsset.Add(SurfaceData, Spawn);
 		}
 
+		TSharedPtr<const FLNPNavData, ESPMode::ThreadSafe> Navigation = DecodedNavigationByAsset.FindRef(SurfaceData);
+		TSharedPtr<const FLNPNavTraversalData, ESPMode::ThreadSafe> Traversal = DecodedTraversalByAsset.FindRef(SurfaceData);
+		if (!Navigation.IsValid())
+		{
+			TSharedPtr<FLNPNavData, ESPMode::ThreadSafe> DecodedNavigation = MakeShared<FLNPNavData, ESPMode::ThreadSafe>();
+			TSharedPtr<FLNPNavTraversalData, ESPMode::ThreadSafe> DecodedTraversal =
+				MakeShared<FLNPNavTraversalData, ESPMode::ThreadSafe>();
+			if (!LNPNavData::DecodeNavigation(SurfaceData->NavigationPayload, *DecodedNavigation, OutError)
+				|| !LNPNavData::DecodeTraversal(SurfaceData->TraversalPayload, *DecodedNavigation, *DecodedTraversal, OutError))
+			{
+				OutError = FString::Printf(TEXT("Slot %d Nav decode/validation failed: %s"), Slot, *OutError);
+				return false;
+			}
+			uint64 CellCount = 0;
+			for (const FLNPNavLayer& Layer : DecodedNavigation->Layers)
+			{
+				for (const FLNPNavTile& Tile : Layer.Tiles)
+				{
+					CellCount += Tile.Cells.Num();
+				}
+			}
+			const uint64 TraversalCount = DecodedTraversal->Portals.Num() + DecodedTraversal->SeamEndpoints.Num();
+			if (CellCount != SurfaceData->Header.Navigation.ElementCount
+				|| TraversalCount != SurfaceData->Header.Traversal.ElementCount)
+			{
+				OutError = FString::Printf(
+					TEXT("Slot %d Nav counts cells=%llu traversal=%llu do not match descriptors %u/%u."),
+					Slot, CellCount, TraversalCount,
+					SurfaceData->Header.Navigation.ElementCount, SurfaceData->Header.Traversal.ElementCount);
+				return false;
+			}
+			Navigation = MoveTemp(DecodedNavigation);
+			Traversal = MoveTemp(DecodedTraversal);
+			DecodedNavigationByAsset.Add(SurfaceData, Navigation);
+			DecodedTraversalByAsset.Add(SurfaceData, Traversal);
+		}
+
 		Atlases.Add(Atlas);
+		NavInputs.Add({Atlas, Navigation, Traversal});
 		FLNPSurfaceDataSlotSnapshot& SlotSnapshot = OutSnapshot.Slots.AddDefaulted_GetRef();
 		SlotSnapshot.LevelAsset = Definition.LevelAsset.ToSoftObjectPath();
 		SlotSnapshot.SurfaceDataAsset = Definition.SurfaceData.ToSoftObjectPath();
@@ -410,13 +483,17 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 		SlotSnapshot.WorldToSlotRotation = SlotSnapshot.SlotRotation.Inverse();
 		SlotSnapshot.Support = Atlas;
 		SlotSnapshot.Spawn = Spawn;
+		SlotSnapshot.Navigation = Navigation;
+		SlotSnapshot.Traversal = Traversal;
 	}
 
-	if (!ValidateSeams(Atlases, OutError))
+	if (!ValidateSeams(Atlases, OutError)
+		|| !LNPNavRuntime::BuildSnapshot(
+			NavInputs, MakeArrayView(ULNPOctantSpawnSubsystem::OctantRotations), Generation, OutSnapshot.Nav, OutError))
 	{
-		OutSnapshot = FLNPSurfaceDataSnapshot();
 		return false;
 	}
+	bBuilt = true;
 	return true;
 }
 
@@ -656,11 +733,13 @@ void ULNPSurfaceDataSubsystem::OnAssetsLoaded()
 
 	FLNPSurfaceDataSnapshot Snapshot;
 	FString Error;
+	const double BuildStartSeconds = FPlatformTime::Seconds();
 	if (!LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, SlotData, NextGeneration, Snapshot, Error))
 	{
 		Fail(MoveTemp(Error));
 		return;
 	}
+	const double BuildMilliseconds = (FPlatformTime::Seconds() - BuildStartSeconds) * 1000.0;
 
 	TArray<TArray<FLNPRuntimeSupportSource>> RuntimeSources;
 	TArray<FLNPSurfaceSourceBinding> SourceBindings;
@@ -683,6 +762,7 @@ void ULNPSurfaceDataSubsystem::OnAssetsLoaded()
 	}
 
 	const uint64 DecodedResidentBytes = GetDecodedResidentBytes(Snapshot);
+	const uint64 NavResidentBytes = GetNavResidentBytes(Snapshot);
 	PublishedSnapshot = MakeShared<FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe>(MoveTemp(Snapshot));
 	++NextGeneration;
 	bSnapshotReady.store(true, std::memory_order_release);
@@ -692,10 +772,17 @@ void ULNPSurfaceDataSubsystem::OnAssetsLoaded()
 	UE_LOG(LogLootNPop, Log,
 		TEXT("LNPSurfaceDataSubsystem: Published generation %llu with 8 validated slots, %d source bindings, registry generation %u."),
 		PublishedSnapshot->Generation, SourceBindings.Num(), HitIdentity->GetSnapshot()->Generation);
+	const FLNPNavSnapshot& Nav = PublishedSnapshot->Nav;
+	UE_LOG(LogLootNPop, Log,
+		TEXT("LNPSurfaceDataSubsystem: Nav runtimeLayers=%u localComponents=%u runtimeStaticComponents=%u reachabilityGroups=%u connectivityVersion=%u seamLinks=%d blockedSeamNodes=%d blockedSeamEdges=%d maxSeamRadiusDelta=%.3fcm minSeamNormalDot=%.5f navResident=%.2fMiB."),
+		Nav.SlotLayerBase.Last(), Nav.SlotComponentBase.Last(), Nav.RuntimeStaticComponentCount,
+		Nav.ReachabilityGroupCount, Nav.ConnectivityGraphVersion, Nav.SeamLinks.Num(), Nav.BlockedSeamNodes.Num(), Nav.BlockedSeamEdges.Num(),
+		Nav.MaxSeamRadiusDelta, Nav.MinSeamNormalDot, NavResidentBytes / (1024.0 * 1024.0));
 	const FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
 	UE_LOG(LogLootNPop, Log,
-		TEXT("LNPSurfaceDataSubsystem: Load metrics elapsed=%.2fms serialized=%.2fMiB decodedResident=%.2fMiB processPhysicalStart=%.2fMiB processPhysicalPublish=%.2fMiB processPhysicalPeak=%.2fMiB."),
+		TEXT("LNPSurfaceDataSubsystem: Load metrics elapsed=%.2fms validateBuild=%.2fms serialized=%.2fMiB decodedResident=%.2fMiB processPhysicalStart=%.2fMiB processPhysicalPublish=%.2fMiB processPhysicalPeak=%.2fMiB."),
 		(FPlatformTime::Seconds() - LoadStartTimeSeconds) * 1000.0,
+		BuildMilliseconds,
 		GetSerializedPayloadBytes(LoadedAssets) / (1024.0 * 1024.0),
 		DecodedResidentBytes / (1024.0 * 1024.0),
 		LoadStartPhysicalBytes / (1024.0 * 1024.0),
@@ -767,7 +854,7 @@ namespace
 {
 	FAutoConsoleCommandWithWorld GLNPProbeSurfaceData(
 		TEXT("LNP.SurfaceNav.ProbeSurfaceData"),
-		TEXT("Validate the published 8-slot Support snapshot, inverse-rotation queries, and hit identity SurfaceData generation."),
+		TEXT("Validate the published 8-slot Support/Nav snapshot, inverse-rotation queries, and hit identity SurfaceData generation."),
 		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
 		{
 			const ULNPSurfaceDataSubsystem* SurfaceData = World
@@ -825,12 +912,19 @@ namespace
 			const bool bPass = SurfaceSnapshot->Slots.Num() == SlotCount
 				&& QueryPasses == SlotCount
 				&& BoundSources == ExpectedBindings
-				&& IdentitySnapshot->SurfaceDataGeneration == SurfaceSnapshot->Generation;
+				&& IdentitySnapshot->SurfaceDataGeneration == SurfaceSnapshot->Generation
+				&& SurfaceSnapshot->Nav.SnapshotGeneration == SurfaceSnapshot->Generation
+				&& SurfaceSnapshot->Nav.RuntimeStaticComponentCount > 0
+				&& SurfaceSnapshot->Nav.ReachabilityGroupCount > 0
+				&& SurfaceSnapshot->Nav.ConnectivityGraphVersion != 0;
 			UE_LOG(LogLootNPop, Display,
-				TEXT("[ProbeSurfaceData] %s NetMode=%d surfaceGeneration=%llu registrySurfaceGeneration=%llu slots=%d queries=%d/%d bindings=%d/%d -> %s"),
+				TEXT("[ProbeSurfaceData] %s NetMode=%d surfaceGeneration=%llu registrySurfaceGeneration=%llu navGeneration=%llu slots=%d queries=%d/%d bindings=%d/%d navComponents=%u navGroups=%u connectivityVersion=%u seamLinks=%d -> %s"),
 				*GetNameSafe(World), static_cast<int32>(World->GetNetMode()), SurfaceSnapshot->Generation,
-				IdentitySnapshot->SurfaceDataGeneration, SurfaceSnapshot->Slots.Num(), QueryPasses, SlotCount,
-				BoundSources, ExpectedBindings, bPass ? TEXT("PASS") : TEXT("FAIL"));
+				IdentitySnapshot->SurfaceDataGeneration, SurfaceSnapshot->Nav.SnapshotGeneration,
+				SurfaceSnapshot->Slots.Num(), QueryPasses, SlotCount, BoundSources, ExpectedBindings,
+				SurfaceSnapshot->Nav.RuntimeStaticComponentCount, SurfaceSnapshot->Nav.ReachabilityGroupCount,
+				SurfaceSnapshot->Nav.ConnectivityGraphVersion, SurfaceSnapshot->Nav.SeamLinks.Num(),
+				bPass ? TEXT("PASS") : TEXT("FAIL"));
 		}));
 }
 #endif

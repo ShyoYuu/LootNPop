@@ -4,6 +4,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Async/Async.h"
 #include "Async/ParallelFor.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
@@ -169,15 +170,20 @@ bool FLNPMassWorldCollisionApiTest::RunTest(const FString& Parameters)
 		std::atomic<int32> OffGameThread = 0;
 		const FLNPWorldQueryParams Optional(ELNPWorldQueryClass::DebugValidation);
 		Collision->ResetStats();
-		ParallelFor(WorkerQueries, [&](const int32 Index)
+		// 게임 스레드에서 ParallelFor를 부르면 워커를 못 받을 때 전부 게임 스레드에서 돈다. 풀 스레드에서 호출해
+		// 호출 스레드 몫도 워커 실행이 되게 한다. TFuture 대기는 작업을 게임 스레드로 끌어오지 않는다.
+		Async(EAsyncExecution::ThreadPool, [&]()
 		{
-			if (!IsInGameThread())
+			ParallelFor(WorkerQueries, [&](const int32 Index)
 			{
-				OffGameThread.fetch_add(1, std::memory_order_relaxed);
-			}
-			const double X = -400.0 + 800.0 * Index / WorkerQueries;
-			Collision->RaycastWorld(FVector(X, 0, 300), FVector(X, 0, -300), Optional, Hits[Index]);
-		});
+				if (!IsInGameThread())
+				{
+					OffGameThread.fetch_add(1, std::memory_order_relaxed);
+				}
+				const double X = -400.0 + 800.0 * Index / WorkerQueries;
+				Collision->RaycastWorld(FVector(X, 0, 300), FVector(X, 0, -300), Optional, Hits[Index]);
+			});
+		}).Wait();
 
 		int32 Mismatches = 0;
 		for (int32 Index = 0; Index < WorkerQueries; ++Index)
