@@ -148,7 +148,7 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 
 - 비지각 Layer 격자는 지각과 같은 octahedral 격자이고 분할 수가 `m·N`이다(D-057). m은 bake setting `LayerSubdivisionMultiplier`이고 옥탄트 안 모든 비지각 Layer가 같다. **기본 m=4(25cm, N_L=2,940)**. 구현 단위 3에서 m=2·4를 exact와 비교해 정했다. 오차는 둘 다 합격이었고, m=4가 섬·경사로의 NeedsExact를 절반으로 줄이는 대가로 `Meadow_00` payload가 2.09 → 2.63MB가 된다(`../phases/Phase04b_MultiLayerSupport.md` 구현 단위 3).
 - 배치는 `j` 범위 `[J0, J0+RowCount)`와 행별 `i` 구간 `[IStart, IStart+Count)`다. Layer 삼각형을 옥탄트 면에 중심 투영한 영역 안의 격자점을 모두 담는 최소 구간이다. 광선은 투영 영역 밖에서 삼각형을 맞힐 수 없으므로 구간 밖은 모두 coverage hole과 같다. 지각은 전체 배치(`J0=0`, 행 `j`는 `[0, N-j]`)라 인덱스가 지각 격자 인덱스와 같다.
-- 광선은 그 Layer 삼각형만으로 만든 트리에 쏜다. 앞면 교차가 둘 이상이면 베이크 오류다(지각 overhang, Layer의 접힌 sheet).
+- 광선은 그 Layer 삼각형만으로 만든 트리에 쏜다. 앞면 교차가 둘 이상이면 베이크 오류다(지각 overhang, Layer의 접힌 sheet). Phase 7c부터 비지각 Layer의 접힌 sheet는 Layer를 만들기 전에 자동 분할하므로(아래 "접힌 sheet 자동 분할") 이 오류는 지각 overhang과 분할 결함의 안전망으로만 남는다.
 - 플래그 규칙은 지각과 같다. 구간 밖 이웃은 invalid로 보므로 Layer 경계 샘플은 `NeedsExact`다. 이음매 스냅은 지각에만 한다.
 
 **codec v2**(`LNPSupportAtlas::Encode`·`Decode`, little-endian)
@@ -169,10 +169,25 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 - 아니면 보간 반지름이 창 안인 Layer 중 선호 Layer, 없으면 가장 위 Layer를 고른다. 창 안에 없으면 `NoSupport`, 방향이 이 옥탄트가 아니면 `NeedsExact`다.
 - Layer 사이 겹침(같은 방향 반지름 차 `OverlapReportHeight` 200cm 이내)은 오류가 아니며 베이크 보고서에 Layer 쌍별 샘플 수로만 적는다.
 
+### 접힌 sheet 자동 분할(D-064, Phase 7c 예정)
+
+> 상태: 초안. 세부 규칙은 Phase 7c 실행 문서에서 확정한다.
+
+건물·탑을 도입하면 나선 경사로, 한 메시 안에서 경사로로 이어진 여러 층처럼 **walkable 연결 성분 하나가 같은 방향에서 자기 위를 덮는** 콘텐츠가 흔해진다. 벽으로 끊긴 층 바닥들은 이미 서로 다른 sheet이므로 대상이 아니다. 콘텐츠 메시를 수동으로 쪼개면 반복 비용이 쌓이고, 분할 툴은 같은 판정 알고리즘에 에셋 생성·컴포넌트 교체·태그 부여가 더해진다. 그래서 베이커가 메모리 안의 삼각형 집합만 나눈다.
+
+- 위치: `LNPSupportLayers::BuildLayers`가 비지각 walkable sheet를 만든 직후, Layer로 확정하기 전이다. 지각(Layer 0)은 분할하지 않으며 overhang은 계속 오류다.
+- 접힘 판정: sheet 삼각형을 비지각 Layer 격자(`m·N`)에 중심 투영해 덮는 격자점마다 반지름을 기록한다. 같은 격자점을 `HitMergeDistance`보다 큰 반지름 차로 덮는 두 삼각형이 있으면 접힌 sheet다.
+- 분할: 외부 face 번호가 가장 작은 삼각형을 시드로 모서리 인접 삼각형을 넓혀 가되, 현재 sub-sheet가 이미 다른 반지름으로 덮은 격자점을 덮는 삼각형은 받지 않고 다음 sub-sheet로 미룬다. 결과는 입력 순서만으로 정해진다(결정론, `Bake.OctantBakeDeterministic` 대상).
+- 식별: sub-sheet는 기존 `LocalLayerId` 규칙(source Key 오름차순 → 최소 external face 순)을 그대로 따른다. 한 컴포넌트가 여러 Layer가 되므로 face 표는 face 단위 배열이다.
+- 연결: 잘린 경계는 서로 다른 컴포넌트 Layer가 맞닿은 경계와 같게 다룬다. runtime Layer 전환은 지금의 경사로·섬 윗면 경계와 같은 exact 재획득 경로를 타고, Nav는 portal 탐색의 exact polyline sweep으로 잇는다. 잘린 선이 길면 D-065에 따라 portal을 여러 개 둔다.
+- 대가: 잘린 경계 양쪽 격자 약 2칸 띠가 `NeedsExact`가 된다. 분할 수·잘린 경계 길이를 베이크 보고서에 적는다.
+- 검증: 기존 자동화 `SupportAtlasFoldedSheet`(1.3바퀴 나선 경사로)를 "오류"에서 "분할 성공, sub-sheet마다 방향당 앞면 교차 1개, 인접 sub-sheet 사이 portal 존재"로 바꾼다.
+
 ### 단계 분할
 
 - Phase 4a: 지각 Atlas, 옥탄트 세 변의 샘플링 규약, 8 slot 이음매 일치 검증
 - Phase 4b: 부유섬·동굴 키트 sparse Atlas, 같은 방향 다층 선택, 공동 바닥 분리
+- Phase 7c: 건물·탑 같은 입체 지형을 위한 접힌 sheet 자동 분할(D-064)
 
 두 단계 모두 Phase 3b의 greybox 옥탄트 LVI와 fixture LVI를 입력으로 사용한다(`../Roadmap.md` §4).
 

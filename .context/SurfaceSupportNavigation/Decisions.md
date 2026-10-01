@@ -18,7 +18,7 @@
 | D-008 | 별도 BVH는 scene query 병목을 입증하기 전에는 추가하지 않는다. | 확정 | `research/ChaosSceneQueries.md` |
 | D-009 | 경로 탐색은 Support Atlas와 별도 해상도의 Tiled Nav Grid를 사용한다. | 확정 | `design/GroundNavigation.md` |
 | D-010 | 일반 A*를 먼저 구현하되 stable node ID, tile, portal, revision으로 계층형 탐색 확장을 준비한다. | 확정 | `design/GroundNavigation.md` |
-| D-011 | 지상 NPC의 traversal은 Walk만 지원한다. | 확정 | `design/GroundNavigation.md` |
+| D-011 | 지상 NPC의 traversal은 Walk만 지원한다. 적용 범위는 `GroundSupport` 도메인이다(D-066). | 확정 | `design/GroundNavigation.md` |
 | D-012 | 섬 간 추격은 자연 지형·다리·완전히 정지한 기둥 등 실제 보행면이 연결될 때만 허용한다. | 확정 | `design/DynamicTerrain.md` |
 | D-013 | NPC는 움직이는 패널을 계획적으로 이용하지 않지만 우연히 착지하면 패널과 함께 이동할 수 있다. | 확정 | `design/DynamicTerrain.md` |
 | D-014 | 파괴 잔해는 새 보행면을 만들지 않는다. 파괴는 기존 길이나 blocker를 열고 닫을 수 있다. | 확정 | `design/DynamicTerrain.md` |
@@ -61,7 +61,7 @@
 | D-051 | 섬과 지각을 잇는 경사로는 별도 메시와 지각 일체형 언덕 두 방법을 모두 허용하고 옥탄트마다 고른다. | 확정 | `design/TerrainContract.md` §5 |
 | D-052 | 완전 비행 NPC 1차는 PureEntity 원거리 사격형이다. 같은 `ULNPEnemyTrait`에 `NavigationDomain`과 비행 태그를 더하고, 이동만 별도 비행 이동 프로세서가 맡는다. 발사 전 LoS를 검사한다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.1·§3.2 |
 | D-053 | 비행 NPC 고도는 교전 중 타겟 상대 대역, 비교전 중 Home 기준 대역이다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.4 |
-| D-054 | 비행 적 총수는 200이다. Pod 편성 타입을 나눠 비행 적이 없는 Pod와 3~6기를 편성한 Pod를 둔다. 비행 100마리당 서버 프레임 약 1.5ms로 본다. | 확정 | `history/Phase03c_Log.md` 2026-09-27 |
+| D-054 | 비행 적 총수는 200이다. Pod 편성 타입을 나눠 비행 적이 없는 Pod와 3~6기를 편성한 Pod를 둔다. 비행 100마리당 서버 프레임 약 1.5ms로 본다. 이 총수는 활동 대역이 없는 조건의 값이며 Phase 13 뒤 재측정한다(D-069). | 확정 | `history/Phase03c_Log.md` 2026-09-27 |
 | D-055 | 옥탄트의 지각 Layer는 세 이음매 변 모두에 닿는 유일한 `Support+Static` 컴포넌트로 식별한다. 새 태그를 두지 않으며, 해당 컴포넌트가 0개나 2개 이상이면 베이크 오류다. | 확정 | `phases/Phase04a_CrustAtlasAndSeams.md` §3.2 |
 | D-056 | 공통 기능 검증의 정적 사례는 fixture LVI `LVI_Octant_Fixture_Regression`을 8 slot 회전으로 합성해 검사하고, LVI에 둘 수 없는 동적 사례만 `L_SurfaceRegression` 일반 레벨에 둔다. 두 곳의 fixture와 oracle을 모든 후속 Phase가 재사용한다. | 확정 | `design/RegressionMap.md` §1 |
 | D-057 | 섬·동굴 sparse Atlas는 지각과 같은 octahedral 격자 계열(분할 수 = 지각 N의 정수배)을 쓰고, Layer마다 행별 i 구간(row span)만 저장한다. | 확정 | `phases/Phase04b_MultiLayerSupport.md` §3.2 |
@@ -71,6 +71,13 @@
 | D-061 | 스폰 뒤 움직이지 않는 Pod가 덮는 Nav node는 Phase 7b의 최소 runtime overlay로 막는다. 스폰 때 막고 Pod 소멸 때 풀며 Tile revision으로 경로를 다시 계획한다. 이음매 위 Pod는 양쪽 사본을 함께 막는다. overlay는 A*만 막고 ReachabilityGroup은 바꾸지 않는다. Phase 8은 같은 overlay를 확장한다. | 확정 | `phases/Phase07b_PathExecution.md` §3.6 |
 | D-062 | 경로·도달성 스냅은 시작·목표 각각 가장 가까운 walkable node를 우선한다. 두 node의 ReachabilityGroup이 다를 때만 양쪽 스냅 반경 안에서 공통 group의 (시작, 목표) 짝을 스냅 거리 합 최소로 다시 고르고, 없으면 A* 없이 도달 불가다. component 크기 기준값은 두지 않으며 근접 슬롯 도달성과 Pod 재귀속도 같은 규칙을 쓴다. | 확정 | `phases/Phase07b_PathExecution.md` §3.3 |
 | D-063 | 도달 불가 대상의 지상 적은 슬롯을 받지 않지만 제자리 대신 접근점(자기 ReachabilityGroup의 6방향 내부 node 중 목표에 가장 가까운 node, 초기 반경 3,000cm)까지 경로로 이동한다. 근접은 Alert로 서고, 원거리는 사거리에 들거나 접근점에 닿을 때까지 이동한다. 상태 머신·슬롯·Alert 인내 규칙은 바꾸지 않는다. | 확정 | `design/MovementIntegration.md` "근접 NPC", `phases/Phase07b_PathExecution.md` §3.3·§3.8 |
+| D-064 | 한 Support source의 walkable 연결 성분이 같은 방향에서 자기 위를 덮으면(접힌 sheet) 베이커가 서로 겹치지 않는 sub-sheet로 자동 분할하고 각각을 Layer로 둔다. 콘텐츠 메시를 수동으로 쪼개거나 분할 툴을 만들지 않는다. 지각 overhang은 계속 베이크 오류다. | 확정(Phase 7c 구현) | `design/SurfaceBaking.md` "접힌 sheet 자동 분할" |
+| D-065 | 서로 다른 Layer component 쌍 사이 portal은 쌍마다 하나가 아니라 최소 간격을 둔 여러 개를 저장한다. 입구가 여럿인 건물·계단이 둘인 층에서 A*가 한 연결로만 우회하지 않게 한다. | 확정(Phase 7c 구현) | `design/GroundNavigation.md` |
+| D-066 | 벽 타기 NPC는 `SurfaceCrawl` 이동 도메인이다. Support·Nav를 쓰지 않고 exact 표면(벽·천장·섬 밑면 포함)을 기어 다니며, 스스로 점프하지 않는다. 넉백 낙하로는 어디든 착지할 수 있다. 공격은 원거리 투사체만, 인지 시야각은 360°다. 재귀속은 Home 쪽으로 기어가다 일정 시간 가까워지지 않으면 직선거리로 가장 가까운 활성 Pod로 바꾼다. D-011은 `GroundSupport` 도메인에만 적용된다. | 확정(Phase 14 구현) | `design/MovementIntegration.md` "벽 타기 NPC" |
+| D-067 | Pod에 귀속된 PureEntity는 Pod 단위 활동 대역(휴면·배회·활성)을 가진다. 휴면은 복제 컬 거리 바깥에서 제자리에 멈추고 이동·분리·배회·인지 비용을 내지 않는다. 플레이어 접근·무리 피격·Pod 루팅이 Pod 무리 전체를 깨운다. Pod에 귀속되지 않은 NPC(향후 보스)는 항상 활성이며 서버가 시뮬레이션한다. 대역 경계는 상수가 아니라 기존 거리에서 유도한다. 휴면 경계는 적 복제 컬 거리에 여유를 더한 값(현재 약 130m), 활성 경계는 적 Actor 스폰 거리(현재 60m)다. | 확정(Phase 13 구현) | `design/MovementIntegration.md` "활동 대역" |
+| D-068 | 배회 대역의 이동은 서버가 정한 구간(다음 지점·도착 시각·정지 시간)을 구간 시작 때 한 번 복제하고 서버·클라이언트가 같은 보간으로 위치를 계산한다. 구간 중에는 위치 갱신을 보내지 않는다. 클라이언트가 경로까지 생성하는 완전 결정론은 측정에서 대역폭 문제가 확인될 때만 도입한다. 벽 타기 NPC는 같은 표면 안의 짧은 구간과 긴 정지로 같은 방식을 쓴다. | 확정(Phase 13 구현) | `design/MovementIntegration.md` "구간 배회 복제" |
+| D-069 | 비행 진형(리더만 복제하고 멤버 위치를 추론)은 채택하지 않는다. 멤버별 락온·HP·넉백을 유지하려면 전투 규칙 전반에 예외가 생기며, 비용 절감은 D-067·D-068이 맡는다. D-054 총수는 Phase 13 뒤 재측정해 새 결정으로 대체한다. | 기각 | `../DiscardedApproaches.md` [Case 06] |
+| D-070 | 입체 지형 레벨 디자인 규칙: 계단의 충돌은 계단 전체를 덮는 경사로 형상 메시(`Support+Blocker+Static`)가 맡고 보이는 계단 칸은 `Decoration`이다. 문·통로 폭은 200cm 이상이다. 두 규칙 모두 콘텐츠 규칙이며 베이크 오류로 막지 않는다. | 확정 | `design/TerrainContract.md` §6-1 |
 
 ## 변경 규칙
 

@@ -18,6 +18,8 @@
 - 대규모 추격을 위한 flow field·계층형 탐색 비교와 이를 받칠 식별자·tile 구조 확보
 - exact 전용 대비 캐시 도입 후 한계치 향상의 실측
 - 움직이는 패널, 상태형 다리, 파괴로 인한 길 변경 지원
+- 건물·탑·계단·벽이 많은 입체 지형 베이크 지원(Phase 7c)
+- PureEntity 활동 대역·구간 배회 복제로 적 총수 확대(Phase 13), 벽 타기 NPC(Phase 14)
 
 ## 2. 세션 시작 시 필수 문서
 
@@ -43,7 +45,8 @@
 | Surface query·MassWorldCollision·투사체 | `design/RuntimeCollision.md` |
 | 이동 패널·기믹 다리·파괴 | `design/DynamicTerrain.md` |
 | Nav Grid·A*·flow field·계층형 탐색 | `design/GroundNavigation.md` |
-| 접지·낙하·넉백·Pod 재귀속·비행 NPC | `design/MovementIntegration.md` |
+| 접지·낙하·넉백·Pod 재귀속·비행 NPC·활동 대역·구간 배회·벽 타기 NPC | `design/MovementIntegration.md` |
+| 건물·탑·계단 입체 지형 제작 규칙 | `design/TerrainContract.md` §6-1 |
 | 테스트·성능·소비자 전환 | `design/ValidationAndMigration.md` |
 | Mesh Terrain 기능·제작 방식 검증 | `research/MeshTerrain.md` |
 | Chaos BVH·scene query 재검토 | `research/ChaosSceneQueries.md` |
@@ -103,6 +106,9 @@
 - 다른 NavComponent에 착지한 NPC는 가까운 도달 가능한 활성 Pod로 재귀속한다.
 - 타게팅 가능성과 지상 경로 도달 가능성은 별개의 판정이다.
 - 완전 비행 NPC는 지상 Nav와 별도 이동 도메인을 사용한다.
+- 벽 타기 NPC(`SurfaceCrawl`)도 Support·Nav와 별도 도메인이며 exact 표면만 따라간다. 스스로 점프하지 않는다(D-066).
+- Pod에 귀속된 PureEntity의 비용은 총수가 아니라 활동 대역(휴면·배회·활성)이 정한다. Pod에 귀속되지 않은 NPC는 항상 활성이다(D-067).
+- 복제 대역폭은 위치가 바뀐 갱신 횟수가 비용이다. 엔티티를 복제에서 빼기보다 갱신을 줄인다(D-068·D-069).
 - 투사체는 exact collision 기준선을 먼저 만들고 최적화는 측정 후 도입한다.
 - 신규 exact channel 소비자 전환보다 production collision response 마이그레이션이 먼저다.
 

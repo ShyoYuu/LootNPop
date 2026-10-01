@@ -2,7 +2,7 @@
 
 > 상태: 기준 로드맵
 > 읽기 조건: Phase 전환, 전체 순서 변경, 작업 범위 재산정 시
-> 마지막 갱신: 2026-09-30
+> 마지막 갱신: 2026-10-01
 
 ## 1. 진행 원칙
 
@@ -25,11 +25,19 @@
 → `Phase 5 런타임 전환`
 → `Phase 6 Enemy 이동 전환`
 → `Phase 7 일반 A*와 도달성`
+→ `Phase 7c 입체 지형 베이크 대응`
 → `Phase 8 동적 연결`
 → `Phase 9 Vertical Slice`
 → `Phase 10 대규모 추격 경로 비교`
 
 `Phase 3c 완전 비행 NPC 기반`은 Phase 3 exact query에서 갈라지는 병렬 분기이며 Phase 4a의 선행 조건이 아니다(D-042). `Phase 12 투사체 최적화`는 핵심 지상 경로가 안정된 뒤 독립적으로 진행할 수 있다. 기존 `Phase 11 비행 NPC`는 `Phase 3c`로 앞당겼고, 11번은 결번으로 둔다.
+
+2026-10-01 범위 확장 검토(건물·탑 입체 지형, 벽 타기 NPC, 비행 NPC 대량화)로 세 단계를 더했다. 기존 Phase는 버리지 않는다.
+
+- `Phase 7c`는 7b 뒤, 8 앞의 본선이다. Phase 9의 입체 지형 콘텐츠가 이 단계에 의존한다.
+- `Phase 13 활동 대역과 구간 배회 복제`는 7b의 직선 보행 검사에 의존하는 병렬 분기다.
+- `Phase 14 벽 타기 NPC`는 Phase 3 exact query와 Phase 13 구간 복제에 의존하는 병렬 분기다.
+- 권장 순서: 7b → 7c → 13 → 14. 8은 그 사이 필요에 따라 둔다. 비행 진형은 기각했다(D-069).
 
 ## 3. Phase 요약
 
@@ -46,10 +54,13 @@
 | 5 | 런타임 로더와 SurfaceCache 교체 | 3~4세션 | 완료 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 전 CI·게시 단계 stale 검출, LVI 지정점 우선 Spawn stream |
 | 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 완료 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
 | 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 진행 중(7a 완료, 7b 계획 작성) | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
+| 7c | 입체 지형 베이크 대응 | 2~3세션 | 대기 | 접힌 sheet 자동 분할(D-064), component 쌍당 여러 portal(D-065), 입체 지형 회귀 사례와 계약 확정, cache 적중률·수용량 재측정 |
 | 8 | Conditional Patch와 파괴 Overlay | 2~3세션 | 대기 | 지역 길 열림·닫힘, revision 기반 재탐색, 상태 복제 |
-| 9 | 부유섬·동굴 Vertical Slice | 2~3세션 | 대기 | 실제 품질 옥탄트와 멀티플레이에서 설계 검증 |
+| 9 | 부유섬·동굴·입체 지형 Vertical Slice | 2~3세션 | 대기 | 건물·탑·계단·벽과 마커 앵커 동선을 갖춘 실제 품질 옥탄트와 멀티플레이에서 설계 검증 |
 | 10 | 대규모 추격 경로: flow field와 계층형 A* | 4~6세션 | 대기 | 두 방식 구현, 같은 시나리오에서 일반 A* 대비 실측 비교 후 채택 |
 | 12 | 선택적 투사체 최적화 | 1~3세션 | 대기 | 정확성 유지와 측정 가능한 이득이 있을 때만 채택 |
+| 13 | PureEntity 활동 대역과 구간 배회 복제 | 3~4세션 | 대기 | Pod 단위 휴면·배회·활성(D-067), 구간 배회 복제(D-068), 공통 비용 분해 측정, 총수 재측정으로 D-054·지상 한계 대체 |
+| 14 | 벽 타기 NPC(`SurfaceCrawl`) | 3~4세션 | 대기 | wall-walker 이동·Up 리팩터·법선 복제(D-066), 원거리 공격·360° 인지·재귀속, 개체 수 측정 후 예산 결정 |
 
 ## 4. Phase별 범위 보충
 
@@ -109,6 +120,34 @@ Phase 7은 한 번에 완료하려 하지 않고 두 개의 독립 게이트로 
 7a 실행 계획과 고정 입력은 `phases/Phase07a_NavDataFoundation.md`, 7b는 `phases/Phase07b_PathExecution.md`를 따른다.
 2026-09-30 구현 단위 1까지 완료했다. `DataVersion=5` Navigation/Traversal stream, local component, 동굴 Layer portal과 ordered seam endpoint를 세 SurfaceData에 결정론적으로 저장했다. 다음은 runtime load와 8-slot 조립이다.
 
+### Phase 7c — 입체 지형 베이크 대응
+
+건물·탑·계단·벽을 늘리고 높이를 다양하게 한 그래플 입체기동 지형을 받기 위한 베이커·Nav 수정이다. Support·Nav 구조는 그대로 쓴다. 설계와 콘텐츠 규칙은 `design/SurfaceBaking.md` "접힌 sheet 자동 분할", `design/GroundNavigation.md` portal 절, `design/TerrainContract.md` §6-1이 소유한다.
+
+- 접힌 sheet 자동 분할(D-064): 나선 경사로·경사로로 이어진 여러 층을 한 메시로 만들어도 베이크한다. `SupportAtlasFoldedSheet` 자동화를 분할 성공 기준으로 바꾼다.
+- component 쌍당 여러 portal(D-065): 간격·상한을 정하고 베이크 시간 영향을 잰다.
+- 입체 지형 회귀 사례: 여러 층 건물(입구 2개 이상), 나선 경사로 탑, 경사로 충돌 계단을 회귀 fixture에 더하고 §6-1 계약(계단 충돌·문 폭, D-070)을 검증한다.
+- 수용량 재측정: 좁은 실내 때문에 cache 적중률이 떨어지는 만큼 Phase 6 cache-first 한계(약 800)가 exact 전용 한계(약 700) 쪽으로 내려가는지 확인한다.
+- 앵커: 설계 동선은 마커 배치를 쓰고 시드 랜덤 수를 줄인다(코드 변경 최소).
+- 실제 품질 입체 지형 콘텐츠 제작은 Phase 9 입력이다.
+
+### Phase 13 — PureEntity 활동 대역과 구간 배회 복제
+
+비행 NPC 대량화 검토에서 나왔지만 모든 Pod 귀속 PureEntity에 적용한다. 설계는 `design/MovementIntegration.md` "활동 대역"·"구간 배회 복제"를 따른다.
+
+1. 측정: 비행 1기당 약 10~15us 공통 비용과 지상 개체의 비 query 비용을 Insights로 분해한다.
+2. Pod 단위 휴면·배회·활성 대역과 깨움 조건(D-067). Pod에 귀속되지 않은 NPC는 항상 활성이다.
+3. 구간 배회 복제(D-068): 지상·비행부터 적용하고, 벽 타기는 Phase 14에서 같은 구간 구조를 쓴다.
+4. 재측정: Phase 6·3c와 같은 패키지 조건으로 지상·비행 총수 한계를 다시 재고 D-054를 새 결정으로 대체한다. 게스트 대역폭은 `../Guide_NetBandwidth.md`의 절제·사유별 계수 방법으로 잰다.
+
+### Phase 14 — 벽 타기 NPC
+
+거미형(다족 보행 드론) PureEntity다. 설계는 `design/MovementIntegration.md` "벽 타기 NPC"(D-066)를 따른다. Support·Nav·베이커와 무관하므로 Phase 3c처럼 병렬로 진행할 수 있다.
+
+- 적 코드의 "Up = 구 중심 방향" 가정을 "Up = 엔티티 회전 Z축"으로 통일하는 리팩터를 먼저 한다. 지상·비행 회귀가 없어야 한다.
+- wall-walker 이동, 표면 법선 복제, 3D 분리, 원거리 공격·LoS 게이트, 360° 인지, 재귀속, 구간 배회(같은 표면 안 짧은 구간·긴 정지).
+- 개체 수는 측정 뒤 정한다(Phase 3c §3.8 매트릭스 방식).
+
 ### Phase 10 — 대규모 추격 경로 비교
 
 수백 마리가 소수의 플레이어·Pod로 향하는 다대소 수요에 맞춰 두 방식의 비교 가능한 최소 기능 프로토타입을 만든다(D-044).
@@ -163,6 +202,9 @@ production exact response audit와 hit identity 계약을 Gate -1로 통과한 �
 - 전면 runtime MeshPartition/MegaMesh 전환
 - 근거 없는 custom Chaos BVH 복제
 - 동적 요소를 LVI 내부 복제 Actor나 복제 Level Instance로 제공하는 방식
+- 비행 진형(리더만 복제하고 멤버를 추론, D-069)
+- 벽 타기 NPC의 자발 점프·근접 공격
+- 접힌 sheet를 해결하려고 콘텐츠 메시를 수동으로 쪼개거나 분할 툴을 만드는 방식(D-064)
 
 ## 7. 전체 완료 정의
 
@@ -181,4 +223,7 @@ production exact response audit와 hit identity 계약을 Gate -1로 통과한 �
 - 움직이는 패널이 우연히 착지한 NPC와 플레이어를 운반한다.
 - 파괴가 기존 길을 열거나 닫을 수 있다.
 - 일반 A*, flow field, 계층형 탐색의 성능 비교 자료가 있다.
+- 건물·탑·계단이 있는 옥탄트가 수동 메시 분할 없이 베이크되고, 입구가 여럿인 건물을 지상 적이 여러 경로로 추격한다.
+- 플레이어에게서 먼 Pod 무리는 휴면하고, 배회 대역은 구간 복제로 움직이며, 활동 대역 도입 전후의 총수 한계 비교 자료가 있다.
+- 벽 타기 NPC가 벽·천장·섬 밑면을 기어 다니며 원거리로 교전한다.
 - 서버와 클라이언트의 초기화·데이터 버전·동적 요소 상태가 일치한다.
