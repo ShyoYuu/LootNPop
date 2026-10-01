@@ -80,6 +80,7 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 - 결정은 D-064~D-070이다: 접힌 sheet 자동 분할, 여러 portal, `SurfaceCrawl` 도메인, Pod 단위 활동 대역(경계는 복제 컬·Actor 스폰 거리에서 유도), 구간 배회 복제, 비행 진형 기각, 입체 지형 레벨 디자인 규칙(계단 경사로 충돌·문 폭 200cm 이상).
 - 새 단계는 Roadmap Phase 7c·13·14이며, 권장 순서는 7b → 7c → 13 → 14다. 7b 진행 순서는 바뀌지 않는다.
 - D-054(비행 총수 200)의 근거는 대역폭이 아니라 서버 CPU다. Phase 13 뒤 재측정해 대체한다.
+- 같은 날 지하 공간 검토로 D-071~D-073을 더했다. D-035를 대체해 옥탄트 중심 근방 대형 공동·복층 구조물·분기·여러 입구를 허용하고, 입구는 긴 경사로(지상 적 출입)와 수직 통로(Nav 미연결)를 옥탄트마다 조합한다. 넓은 공동 바닥은 `LNP.Surface.CoarseSupport`로 100cm 해상도를 쓰고, 비행 편성 Pod는 headroom이 충분한 후보에만 둔다. 구현은 Phase 7c 범위다.
 
 ## 이관된 후속 작업
 
@@ -88,7 +89,7 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 - `LNPOctantSourceCollector`의 tag/profile/channel 검증과 marker authoring hash를 Phase 4·8 스키마에 맞춰 보강한다. owned external package를 모두 hash해 decoration 저장도 stale이 되는 현재 보수 정책은 보고서에 명시하고, false stale이 실제 문제가 될 때만 필터링한다.
 - C-option 실험 에셋과 테스트의 구형 `LNP.Terrain.*` Component Tag는 Phase 4 입력으로 재사용하기 전에 현재 `LNP.Surface.*` 계약으로 마이그레이션한다.
 - 현재 slot 순서 greedy definition 선택은 여러 slot mask가 있는 production pool을 도입하기 전에 최대 고유 제약 할당으로 교체한다(D-043).
-- int16 복제 캡은 좌표 성분마다 걸리므로 30,000cm 옥탄트의 꼭짓점(좌표축) 부근 여유가 약 2,767cm다. 동굴은 꼭짓점 부근을 피한다(`design/TerrainContract.md` §7).
+- int16 복제 캡은 좌표 성분마다 걸리므로 30,000cm 옥탄트의 꼭짓점(좌표축) 부근 여유가 약 2,767cm다. 지하 공간은 옥탄트 경계·꼭짓점 근처를 피하고 옥탄트 중심 방향에 둔다(D-071, 허용 깊이 표는 `design/TerrainContract.md` §7).
 - **Pod 등 동적 스폰 오브젝트의 Nav 차단(사용자 요구 2026-10-01):** Pod는 정적 Nav 베이크에 없으므로 지금은 이동 단계의 충돌 미끄러짐으로만 피한다. 7b 구현 단위 2의 최소 runtime overlay로 넣는다(D-061).
 - **PCG 제외 구역(옥탄트 양산 전 필수, 사용자 결정 2026-09-27):** 2026-10-01부터 이음매 근처 제외 띠도 포함한다(콘텐츠 규칙, D-060). Meadow는 현재 이음매 clearance 탈락 49개(베이크 경고)이며 runtime에서 막힘으로 처리된다. PCG 프랍은 지각에만 광선을 쏘므로 동굴 입구 구멍에는 생기지 않지만 지붕 덮인 입구 옆·경사로 위에는 생길 수 있다. `Meadow_00`은 입구 주변 4개가 통행을 막지 않아 문제없지만 양산 옥탄트에서는 충분히 생길 수 있으므로 제외 구역을 만든다(`design/TerrainContract.md` §5 경사로와 같은 과제).
 - **7b 목표 스냅 정책:** `ProjectToNode`는 edge 없는 고립 node(Meadow 8-slot 432개)도 반환한다. 7b는 가장 가까운 node를 우선하고 group이 어긋날 때만 반경 안 공통 group 짝을 다시 고른다(D-062).
