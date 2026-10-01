@@ -111,6 +111,27 @@ namespace
 	}
 }
 
+void LNPNavData::GetGridSearchBounds(
+	const int32 Subdivisions, const FVector3d& LocalPosition, const double Radius, FIntPoint& OutMin, FIntPoint& OutMax)
+{
+	// 반경 구 안의 점은 각 성분이 [위치-R, 위치+R] 안에 있다. 옥탄트는 양의 성분만 쓴다.
+	// i/N=x/(x+y+z)는 x에 증가하고 y,z에 감소하므로 상자의 반대 꼭짓점으로 범위를 보장한다.
+	const FVector3d Low(FMath::Max(0.0, LocalPosition.X - Radius),
+		FMath::Max(0.0, LocalPosition.Y - Radius), FMath::Max(0.0, LocalPosition.Z - Radius));
+	const FVector3d High(FMath::Max(0.0, LocalPosition.X + Radius),
+		FMath::Max(0.0, LocalPosition.Y + Radius), FMath::Max(0.0, LocalPosition.Z + Radius));
+	auto Bound = [Subdivisions](const double Axis, const double OtherSum, const bool bUpper)
+	{
+		const double Sum = Axis + OtherSum;
+		const double Coord = Sum > 0.0 ? Axis / Sum * Subdivisions : (bUpper ? Subdivisions : 0.0);
+		// 조밀 node의 float 지면점과 double 격자 투영 사이 반올림 차이는 한 cell 여유로 덮는다.
+		return bUpper ? FMath::Min(Subdivisions, FMath::CeilToInt32(Coord) + 1)
+			: FMath::Max(0, FMath::FloorToInt32(Coord) - 1);
+	};
+	OutMin = FIntPoint(Bound(Low.X, High.Y + High.Z, false), Bound(Low.Y, High.X + High.Z, false));
+	OutMax = FIntPoint(Bound(High.X, Low.Y + Low.Z, true), Bound(High.Y, Low.X + Low.Z, true));
+}
+
 uint8 LNPNavData::GetNeighborBit(const ELNPNavNeighbor Neighbor)
 {
 	return 1u << static_cast<uint8>(Neighbor);

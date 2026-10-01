@@ -1,6 +1,9 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Misc/AutomationTest.h"
+#include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Parse.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -286,8 +289,8 @@ namespace LNPNavPathfindingTest
 		Test.AddInfo(FString::Printf(TEXT("%s window scan: samples=%d equidistantTies=%d maxTieDelta=%.4fcm"),
 			Label, Compared, Ties, MaxTieDelta));
 
-		// 기존 검색 창의 범위를 유지하면서 Tile 경계·삼각 격자 끝·희소 Layer의 모든 후보를 빠짐없이 방문한다.
-		// 주소 조회를 쓰지 않는 독립 oracle: 전 node를 훑고 기존 창의 좌표·거리 조건으로 걸러 비교한다.
+		// Tile 경계·삼각 격자 끝·희소 Layer에서 반경 내 모든 후보를 빠짐없이 방문한다.
+		// 주소 조회나 검색 창을 쓰지 않는 독립 oracle: 전 node를 거리만으로 걸러 비교한다.
 		int32 WindowMismatches = 0;
 		int32 WindowSamples = 0;
 		for (int32 Slot = 0; Slot < Graph.SlotGraphs.Num(); ++Slot)
@@ -302,14 +305,8 @@ namespace LNPNavPathfindingTest
 				for (const int32 Center : {Layer.NodeBegin, (Layer.NodeBegin + Layer.NodeEnd) / 2, Layer.NodeEnd - 1})
 				{
 					const FVector3d World = Graph.GetWorldPoint(Slot, Graph.SlotNodeBase[Slot] + Center) + FVector3d(97.0, -61.0, 43.0);
-					const FVector3d Local = Graph.SlotRotations[Slot].UnrotateVector(World);
-					const FVector3d Clamped(FMath::Max(0.0, Local.X), FMath::Max(0.0, Local.Y), FMath::Max(0.0, Local.Z));
-					const double Sum = Clamped.X + Clamped.Y + Clamped.Z;
-					const double CenterI = Clamped.X / Sum * Layer.Subdivisions;
-					const double CenterJ = Clamped.Y / Sum * Layer.Subdivisions;
 					for (const double Radius : {300.0, 3000.0})
 					{
-						const int32 Window = FMath::CeilToInt32(Radius / FMath::Max(1.0, FMath::Min(Layer.BaseRadius, World.Length())) * Layer.Subdivisions) + 1;
 						LNPNavGraph::CollectNodesNear(Nav, Slot, Layer.LocalNavLayerId, World, Radius, Candidates);
 						TArray<int32> Actual;
 						for (const FLNPNavGraphCandidate& Candidate : Candidates)
@@ -321,10 +318,7 @@ namespace LNPNavPathfindingTest
 						for (int32 Node = Layer.NodeBegin; Node < Layer.NodeEnd; ++Node)
 						{
 							const int32 Global = Graph.SlotNodeBase[Slot] + Node;
-							const FLNPNavGraphNode& Cell = Asset.Nodes[Node];
-							if (Cell.I >= FMath::FloorToInt32(CenterI) - Window && Cell.I <= FMath::CeilToInt32(CenterI) + Window
-								&& Cell.J >= FMath::FloorToInt32(CenterJ) - Window && Cell.J <= FMath::CeilToInt32(CenterJ) + Window
-								&& !Graph.BlockedNodes[Global]
+							if (!Graph.BlockedNodes[Global]
 								&& FVector3d::DistSquared(Graph.GetWorldPoint(Slot, Global), World) <= FMath::Square(Radius))
 							{
 								Expected.Add(Global);
@@ -455,6 +449,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPNavProductionSchedulerTest,
 	"LootNPop.SurfaceNavigation.Nav.ProductionScheduler",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavRequestCostReplayTest,
+	"LootNPop.SurfaceNavigation.Nav.RequestCostReplay",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -1340,6 +1339,150 @@ bool FLNPNavProductionSchedulerTest::RunTest(const FString& Parameters)
 			Percentile(RunningTicks, 0.5), Percentile(RunningTicks, 0.95), Percentile(RunningTicks, 1.0),
 			Scheduler.GetScratchBytes() / (1024.0 * 1024.0)));
 	}
+	return !HasAnyErrors();
+}
+
+bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavPathfindingTest;
+	FString InputPath;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("LNPNavReplayCsv="), InputPath))
+	{
+		AddInfo(TEXT("Request cost replay skipped: supply -LNPNavReplayCsv=<capture.csv>."));
+		return true;
+	}
+	FString OutputPath;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("LNPNavReplayOutput="), OutputPath))
+	{
+		AddError(TEXT("Supply -LNPNavReplayOutput=<tick-cost.csv>."));
+		return false;
+	}
+	TArray<FString> Lines;
+	if (!TestTrue(TEXT("Request CSV loads"), FFileHelper::LoadFileToStringArray(Lines, *InputPath)))
+	{
+		return false;
+	}
+	const FString Header = TEXT("time,owner,ownerSerial,requestSerial,priority,startX,startY,startZ,startSlot,startLayer,startGeneration,goalX,goalY,goalZ,goalSlot,goalLayer,goalGeneration,snapRadius,approachRadius,graphVersion,overlayRevision");
+	if (!TestTrue(TEXT("Capture schema and rows exist"), Lines.Num() > 1 && Lines[0] == Header))
+	{
+		return false;
+	}
+	FLNPSurfaceDataSnapshot Snapshot;
+	double BuildMs = 0.0;
+	if (!BuildProductionSnapshot(*this, Snapshot, BuildMs))
+	{
+		return false;
+	}
+	TArray<FLNPNavPathRequest> Requests;
+	TArray<double> Times;
+	for (int32 Row = 1; Row < Lines.Num(); ++Row)
+	{
+		TArray<FString> Fields;
+		Lines[Row].ParseIntoArray(Fields, TEXT(","), false);
+		double Values[21] = {};
+		bool bValid = Fields.Num() == UE_ARRAY_COUNT(Values);
+		for (int32 Column = 0; bValid && Column < Fields.Num(); ++Column)
+		{
+			bValid = LexTryParseString(Values[Column], *Fields[Column]) && FMath::IsFinite(Values[Column]);
+		}
+		bValid = bValid && Values[0] >= 0.0 && (Times.IsEmpty() || Values[0] >= Times.Last())
+			&& Values[4] >= 0 && Values[4] <= 2 && Values[4] == FMath::FloorToDouble(Values[4])
+			&& Values[10] == Snapshot.Generation && Values[16] == Snapshot.Generation
+			&& Values[19] == Snapshot.Nav.ConnectivityGraphVersion && Values[17] > 0 && Values[18] >= 0;
+		for (const int32 Column : {8, 9, 14, 15})
+		{
+			bValid = bValid && Values[Column] >= 0 && Values[Column] <= MAX_uint16
+				&& Values[Column] == FMath::FloorToDouble(Values[Column]);
+		}
+		if (!TestTrue(FString::Printf(TEXT("CSV row %d is compatible with this snapshot"), Row), bValid))
+		{
+			return false;
+		}
+		FLNPNavPathRequest& Request = Requests.AddDefaulted_GetRef();
+		// 취소 시점 차이를 없애고 모든 CSV 요청의 비용을 비교한다. 원래 owner·serial은 재생하지 않는다.
+		Request.Owner = FMassEntityHandle(Row, 1);
+		Request.Priority = static_cast<ELNPNavPathPriority>(static_cast<int32>(Values[4]));
+		Request.StartPosition = FVector3d(Values[5], Values[6], Values[7]);
+		Request.StartSurface = {static_cast<uint16>(Values[8]), static_cast<uint16>(Values[9]), Snapshot.Generation};
+		Request.GoalPosition = FVector3d(Values[11], Values[12], Values[13]);
+		Request.GoalSurface = {static_cast<uint16>(Values[14]), static_cast<uint16>(Values[15]), Snapshot.Generation};
+		Request.SnapRadius = Values[17];
+		Request.ApproachRadius = Values[18];
+		Times.Add(Values[0]);
+	}
+	AddInfo(FString::Printf(TEXT("Request cost replay: rows=%d input=%s; timestamp batches drained independently, unique owners, no Pod overlay, empty initial cache; not a gameplay Gate."), Requests.Num(), *InputPath));
+
+	struct FReference
+	{
+		ELNPNavPathStatus Status;
+		TArray<int32> Waypoints;
+		int32 Expansions;
+		double Cost;
+	};
+	TArray<FReference> References;
+	FString Output = TEXT("variant,batch,tick,started,expansions,queued,running,tickUs,startUs,stepUs,finishUs,workerSumUs\n");
+	for (int32 Variant = 0; Variant < 5; ++Variant)
+	{
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.CacheCapacity = Variant == 4 ? 256 : 0;
+		Scheduler.Settings.ExpansionsPerFrame = Variant == 1 ? 2000 : 4000;
+		Scheduler.Settings.ResolveCostInExpansions = Variant == 2 ? 64 : 16;
+		Scheduler.Settings.bParallel = Variant != 3;
+		const TCHAR* Labels[] = {TEXT("base"), TEXT("budget2000"), TEXT("resolve64"), TEXT("serial"), TEXT("cache256")};
+		TArray<double> TickUs, StartUs, StepUs, FinishUs, QueueSamples;
+		double TotalStart = 0, TotalStep = 0, TotalFinish = 0, TotalTick = 0;
+		int32 Batch = 0, Mismatches = 0, MaxCharged = 0;
+		for (int32 First = 0; First < Requests.Num(); ++Batch)
+		{
+			int32 End = First + 1;
+			while (End < Requests.Num() && Times[End] == Times[First]) { ++End; }
+			TArray<uint32> Serials;
+			for (int32 Index = First; Index < End; ++Index) { Serials.Add(Scheduler.Submit(Requests[Index])); }
+			int32 Tick = 0;
+			while (Scheduler.HasWork() && Tick < 10000)
+			{
+				const double Begin = FPlatformTime::Seconds();
+				Scheduler.Tick(Snapshot.Nav, nullptr, [](FMassEntityHandle) { return true; });
+				const double Elapsed = (FPlatformTime::Seconds() - Begin) * 1.e6;
+				const auto& Stats = Scheduler.GetStats();
+				const double Start = Stats.LastTickStartSeconds * 1.e6;
+				const double Step = Stats.LastTickStepSeconds * 1.e6;
+				const double Finish = Stats.LastTickFinishSeconds * 1.e6;
+				TickUs.Add(Elapsed); StartUs.Add(Start); StepUs.Add(Step); FinishUs.Add(Finish);
+				QueueSamples.Add(Scheduler.GetQueuedCount());
+				TotalTick += Elapsed; TotalStart += Start; TotalStep += Step; TotalFinish += Finish;
+				MaxCharged = FMath::Max(MaxCharged, Stats.LastTickExpansions + Stats.LastTickStarted * Scheduler.Settings.ResolveCostInExpansions);
+				Output += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f\n"), Labels[Variant], Batch, Tick++,
+					Stats.LastTickStarted, Stats.LastTickExpansions, Scheduler.GetQueuedCount(), Scheduler.GetRunningCount(),
+					Elapsed, Start, Step, Finish, Stats.LastTickSearchSeconds * 1.e6);
+			}
+			if (!TestTrue(TEXT("Replay batch drains"), !Scheduler.HasWork())) { return false; }
+			for (int32 Index = First; Index < End; ++Index)
+			{
+				FLNPNavPathResult Result;
+				Scheduler.GetResult(Requests[Index].Owner, Serials[Index - First], Result);
+				const double Cost = Result.Path.IsValid() ? Result.Path->Cost : 0.0;
+				if (Variant == 0) { References.Add({Result.Status, WaypointNodes(Result), Result.Expansions, Cost}); }
+				else if (Variant != 4)
+				{
+					const FReference& Reference = References[Index];
+					Mismatches += Result.Status != Reference.Status || WaypointNodes(Result) != Reference.Waypoints
+						|| Result.Expansions != Reference.Expansions || !FMath::IsNearlyEqual(Cost, Reference.Cost, 1.e-6) ? 1 : 0;
+				}
+				// 완료된 owner가 누적되어 관리 비용을 왜곡하지 않도록 제거한다. cache는 유지한다.
+				Scheduler.Cancel(Requests[Index].Owner);
+			}
+			First = End;
+		}
+		TestEqual(TEXT("Uncached variants preserve statuses, waypoints, expansions and costs"), Mismatches, 0);
+		const auto& Stats = Scheduler.GetStats();
+		AddInfo(FString::Printf(TEXT("Replay %s: batches=%d ticks=%d requests=%llu expansions=%llu hits=%llu mismatches=%d maxCharged=%d budget=%d; tick P50/P95/max=%.1f/%.1f/%.1fus startP95=%.1f stepP95=%.1f finishP95=%.1f queuedP95=%.0f; total tick/start/step/finish=%.1f/%.1f/%.1f/%.1fms"),
+			Labels[Variant], Batch, TickUs.Num(), Stats.Submitted, Stats.Expansions, Stats.CacheHits, Mismatches, MaxCharged,
+			Scheduler.Settings.ExpansionsPerFrame, Percentile(TickUs, .5), Percentile(TickUs, .95), Percentile(TickUs, 1),
+			Percentile(StartUs, .95), Percentile(StepUs, .95), Percentile(FinishUs, .95), Percentile(QueueSamples, .95),
+			TotalTick / 1000, TotalStart / 1000, TotalStep / 1000, TotalFinish / 1000));
+	}
+	TestTrue(TEXT("Replay tick costs saved"), FFileHelper::SaveStringToFile(Output, *OutputPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
 	return !HasAnyErrors();
 }
 

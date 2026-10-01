@@ -87,25 +87,14 @@ namespace
 		{
 			return;
 		}
-		// 이음매 근처 위치는 옥탄트 밖 성분이 조금 음수일 수 있으므로 옥탄트 면으로 자른다(7a ProjectToNode와 같은 규칙).
 		const FVector3d Local = Graph.SlotRotations[Slot].UnrotateVector(WorldPosition);
-		const FVector3d Clamped(FMath::Max(0.0, Local.X), FMath::Max(0.0, Local.Y), FMath::Max(0.0, Local.Z));
-		const double Sum = Clamped.X + Clamped.Y + Clamped.Z;
-		if (Sum <= UE_DOUBLE_SMALL_NUMBER)
-		{
-			return;
-		}
 		const int32 N = Layer.Subdivisions;
-		const double CenterI = Clamped.X / Sum * N;
-		const double CenterJ = Clamped.Y / Sum * N;
-		// 격자 한 칸의 각간격은 옥탄트 꼭짓점 부근에서 가장 작은 약 1/N rad다. 위치와 Layer 중 작은 반지름으로 각도를 잡아
-		// 섬 윗면에서 아래 지각을 찾는 것처럼 반지름이 다른 경우에도 창이 반경을 덮게 한다.
-		const double AngleRadius = Radius / FMath::Max(1.0, FMath::Min(Layer.BaseRadius, WorldPosition.Length()));
-		const int32 Window = FMath::CeilToInt32(AngleRadius * N) + 1;
-		const int32 MinJ = FMath::Max(0, FMath::FloorToInt32(CenterJ) - Window);
-		const int32 MaxJ = FMath::Min(N, FMath::CeilToInt32(CenterJ) + Window);
-		const int32 MinI = FMath::Max(0, FMath::FloorToInt32(CenterI) - Window);
-		const int32 MaxI = FMath::Min(N, FMath::CeilToInt32(CenterI) + Window);
+		FIntPoint Min, Max;
+		LNPNavData::GetGridSearchBounds(N, Local, Radius, Min, Max);
+		const int32 MinJ = Min.Y;
+		const int32 MaxJ = Max.Y;
+		const int32 MinI = Min.X;
+		const int32 MaxI = Max.X;
 		const double RadiusSquared = FMath::Square(Radius);
 		const int32 Base = Graph.SlotNodeBase[Slot];
 		for (int32 J = MinJ; J <= MaxJ; ++J)

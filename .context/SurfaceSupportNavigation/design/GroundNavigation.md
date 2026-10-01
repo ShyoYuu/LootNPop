@@ -81,6 +81,8 @@ Phase 7a 첫 codec은 16×16 Tile을 사용한다. 지각 목표 간격은 200cm
 
 도달성 조회는 게시된 snapshot 위에서만 한다. world 위치는 `FLNPSurfaceHandle`이 가리키는 같은 slot·Layer의 가장 가까운 walkable node로 제한 반경(기본 300cm) 안에서 투영한다. 다른 Layer나 slot으로 스냅하지 않고, D-060으로 막힌 이음매 node는 제외한다. node 위치·법선은 저장하지 않으므로 대응 Support Layer를 node 방향에서 보간해 복원한다. group 조회 결과는 `SnapshotGeneration`·`ConnectivityGraphVersion`을 함께 담고, 어느 하나라도 현재 snapshot과 다르면 도달성 판정은 `Stale`이다.
 
+반경 검색은 slot local 위치의 각 성분에 ±반경을 적용한 상자를 양의 옥탄트로 제한하고, `i/N=x/(x+y+z)`, `j/N=y/(x+y+z)`의 단조성으로 격자 검색 범위를 구한다(`LNPNavData::GetGridSearchBounds`). float 지면점의 반올림을 덮는 한 cell 여유를 더하고 최종 world 거리로 후보를 거른다. 조밀 graph 검색과 `ProjectToNode`가 같은 범위를 쓴다. 각도 반경에 N만 곱한 창은 꼭짓점 근처 후보를 누락하므로 쓰지 않는다. Layer 기준 반지름과 실제 표면 높이에 의존하지 않는다.
+
 A* 구현이 raw grid 배열을 직접 참조하지 않도록 graph view API를 둔다.
 
 ```cpp
@@ -107,6 +109,7 @@ class FLNPNavGraphView
 
 - A*는 Mass worker에서 요청별 scratch를 사용해 실행한다. snapshot과 overlay는 읽기 전용이다.
 - 프레임당 확장 node 예산을 두고, 초과한 요청은 다음 프레임으로 이어간다.
+- 동일 요청 비용의 통제 비교는 `Nav.RequestCostReplay` 자동화를 쓴다. CSV의 같은 시각 요청 묶음을 모두 완료한 뒤 다음 묶음을 넣고 독립 owner를 사용한다. Pod overlay·원래 owner 취소·실제 프레임 경계·warm-up cache는 복원하지 않으므로 실제 부하 Gate는 별도로 검사한다. 실행법·예산 검토 근거는 `../history/Phase07_Log.md`의 2026-10-02 기록을 따른다.
 - 결과 경로는 순수 엔티티(적의 90% 이상)에게는 waypoint fragment로, Actor 승격 엘리트에게는 기존 AI 이동 입력(`SetAIMoveInput`) 경로로 전달한다.
 - 다음 프레임으로 넘기는 request는 시작 당시 `SnapshotGeneration`, `ConnectivityGraphVersion`과 이미 읽은 tile revision을 보존한다. 어느 하나라도 바뀌면 영향 범위를 확인해 재시작하거나 실패시키며 서로 다른 snapshot의 node를 한 결과에 섞지 않는다.
 

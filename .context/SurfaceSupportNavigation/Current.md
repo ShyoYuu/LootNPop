@@ -1,8 +1,8 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 단위 0~4 완료, 단위 5 계측·기능 검증·성능 개선 1 완료 / 700마리 반복 Gate 미통과
-> 마지막 갱신: 2026-10-01
+> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 단위 0~4 완료, 단위 5 계측·기능 검증·성능 개선 1·검색 창 정확성 수정·동일 CSV 비용 비교와 예산 검토 완료 / 700마리 반복 Gate 미통과
+> 마지막 갱신: 2026-10-02
 
 ## 현재 목표
 
@@ -73,7 +73,9 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 
 1. 단위 5의 계측·기능 검증과 성능 개선 단위 1을 완료했다. scheduler의 요청 시작·확장 대기·종료 처리와 Enemy/슬롯 소비자 비용을 분해하고, 검색 창에서 빈 Tile을 셀마다 조회하는 비용을 줄였다. 기존 창 범위·거리·후보 선택·방문 순서·확장 예산은 유지했다. 전체 자동화 79/79(회귀·production 창 비교 720입력 포함), 전체 빌드·BuildCookRun·패키지 리슨 2P 측정 5회의 정상 종료·probe·CSV 일치를 통과했다.
 2. 700마리 합성 추격은 첫 실행에서 프레임 P95 14.97ms·경로 tick P95 0.640ms로 통과했지만, 반복 실행은 19.61ms·1.891ms로 실패했다. 자연 행동 700은 13.63ms·0.546ms로 통과, 합성 800은 21.17ms·1.794ms로 실패다. 실행별 경로 수요가 달라 안정적인 Gate 통과·최대 수용량으로 확정하지 않는다. Phase 7b는 미완료이며 Gate 16.67ms·1.5ms는 유지한다. 상세는 `history/Phase07_Log.md` 성능 개선 단위 1을 따른다.
-3. 다음 구현 단위 진행 여부를 사용자에게 확인한다. 다음 후보는 동일 CSV 입력으로 요청 비용을 비교하고 시작·확장 대기·종료 처리의 예산을 검토하는 것이다. 독립 검사에서 기존 검색 창이 옥탄트 꼭짓점 근처 3,000cm 반경의 일부 node를 놓치는 점도 발견했다. 이번 최적화는 기존 창을 유지했으므로 경계 누락은 별도 정확성 수정·전체 node oracle·Gate 재측정이 필요하다. 승인 전에는 다음 구현이나 7c로 넘어가지 않는다.
+3. 검색 창 정확성 수정 단위에서 꼭짓점 근처 3,000cm 반경 누락을 해결했다. 반경 구를 포함하는 로컬 좌표 상자의 격자 투영 범위를 조밀 검색과 `ProjectToNode`에 공통 적용했다. 수정 전 회귀·production 각각 8입력 실패를 재현했고, 수정 후 창 제한 없는 전 node 거리 oracle 720입력과 전체 자동화 79/79가 통과했다. 상세 재측정은 `history/Phase07_Log.md` 검색 창 정확성 수정 기록을 따른다.
+4. 동일 CSV 비용 비교·scheduler 예산 검토 단위를 완료했다(2026-10-02). `Nav.RequestCostReplay`로 저장된 700마리 CSV 8,610/9,298건을 같은 시각 묶음별로 재생했다. 캐시 없는 네 설정의 상태·waypoint·확장·cost가 모두 같다. 기본 병렬 tick P95는 1.285/1.302ms, 예산 2,000은 0.732/0.831ms지만 완료 tick 수가 약 10% 늘었다. 시작 비용 64는 1.032/1.164ms이고, 직렬은 1.681/1.834ms다. 실제 차감량이 예산을 최대 15(시작 비용 64는 63) 넘는 경우를 확인했다. 시작·종료·병렬 대기를 포함한 시간 상한은 현재 없다. 기본값은 유지했다. Pod overlay·원래 owner 취소·실제 프레임 경계를 복원하지 않는 통제 비교이며 플레이 성능 Gate를 대체하지 않는다. 실행법·전체 표·한계는 `history/Phase07_Log.md`의 동일 CSV 비용 비교 기록을 따른다.
+5. 다음 구현 단위 진행 여부를 사용자에게 확인한다. 권장 후보는 예산 차감 초과를 먼저 막고, 시작·확장·종료를 포함한 시간 예산의 필요성을 실제 패키지 요청 지연과 함께 검증하는 것이다. 승인 전에는 다음 구현이나 7c로 넘어가지 않는다.
 
 ## 범위 확장 결정(2026-10-01, 검토 세션)
 
@@ -113,9 +115,13 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 
 ## 블로커
 
-Phase 7b 단위 5 성능 Gate 미통과: 최종 700마리 합성 추격은 프레임 P95 22.89ms·경로 tick P95 4.781ms다. 작은 정렬 절감만으로 해결되지 않았으며 후속 성능 개선 진행 확인을 기다린다.
+Phase 7b 단위 5 성능 Gate 미통과: 검색 창 정확성 수정 후 700마리 합성 추격 두 번은 프레임 P95 18.60/17.19ms로 실패, 경로 tick P95 1.042/1.287ms로 통과다. 두 Gate의 동시 통과는 아직 없으며 후속 성능 개선 진행 확인을 기다린다.
 
 ## 마지막 검증
+
+2026-10-02 동일 CSV 비용 비교·예산 검토: 전체 빌드(19.81초), 전체 SurfaceNavigation 자동화 80/80(신규 CSV 항목은 인자 없이 건너뜀, 기존 79개 통과), 별도 `Nav.RequestCostReplay` CSV 두 번 PASS·exit 0. 8,610/9,298건의 캐시 없는 네 설정은 상태·waypoint·확장·cost가 일치했다. 로그는 `Saved/Logs/Phase07b_RequestCostReplay{1,2,_AllTests}.log`, tick 비용 CSV는 `Saved/Profiling/Phase07b/WindowFix{1,2}_RequestCosts.csv`다. 테스트 에셋 세 개는 실행 전 내용으로 복구했고 `git diff --check`가 통과했다. runtime 변경·패키지 재측정은 없으며 700마리 Gate 미통과 상태를 유지한다.
+
+2026-10-01 검색 창 정확성 수정: 전체 빌드, 전체 자동화 79/79(`Saved/Logs/Phase07b_WindowFix_AllTests.log`, 전 node 거리 oracle 720입력 포함), Development BuildCookRun(`Phase07b_WindowFix_Package.log`) 통과. 패키지 700마리 합성 추격 리슨 2P 두 번에서 host/guest 네 프로세스 exit 0·probe 16개 PASS·assert/ensure/crash/Unknown hit/Envelope escape/Layer jump/게시 순서 위반 0, CSV 8,610/9,298행이 제출 수와 일치했다. 파일 접두사는 `Saved/Profiling/Phase07b/N700_chase_WindowFix{1,2}`다. 프레임 Gate는 두 번 모두 실패했으며 7b는 미완료다.
 
 2026-10-01 Phase 7b 단위 5 계측·기능 검증: 전체 자동화 79/79(`Saved/Logs/Phase07b_Unit5_OptimizedTests.log`), 에디터 전체 빌드, Win64 Development BuildCookRun(`Phase07b_Unit5_OptimizedPackage.log`) 통과. 최종 패키지 1P 100마리(`Phase07b_Unit5_FinalPackage1P.log`)는 프레임 P95 5.00ms·경로 tick P95 0.024ms, 요청 1,186건·waypoint 진행 4,211회다. 최종 리슨 2P 자연 추격 700 및 합성 추격 500·600·700·800의 host/guest 10개 로그에서 assert·ensure·crash·Layer jump·Unknown hit·Envelope escape·패널 게시 순서 위반 0, probe PASS를 확인했다. CSV 행 수는 각 실행의 제출 요청 수와 같다. 합성 추격 700·800은 성능 실패, 500은 통과, 600은 경로 Gate 경계 실패다. Phase 7b 완료 조건은 남아 있다.
 
