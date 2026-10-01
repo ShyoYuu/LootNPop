@@ -279,3 +279,90 @@ Phase 6 cache-first의 최대 확인 통과점은 800마리였다. 이번 합성
 최초 독립 검사는 창 좌표 제한 없이 전체 node를 거리만으로 거른 결과와 비교했다. 회귀·production 각각 8개 입력(각 slot의 Layer 0 끝 node 근처 3,000cm)에서 기존 창 밖의 후보를 놓쳤다. 예를 들어 회귀 slot 0은 창 안 810개·반경 안 전체 924개, production slot 0은 763개·869개다. 진단은 `Saved/Logs/Phase07b_Perf1_WindowDiagnostic.log`에 남았다. 최적화 이전부터 쓰던 각도→(I, J) 창의 범위 문제이며 이번 변경은 범위를 유지했다. 최종 oracle은 이번 최적화의 보존 조건인 기존 창 안 후보 일치를 검증한다. 반경 내 전체 후보를 보장하는 검증과 수정은 아직 끝나지 않았다.
 
 이 구현 단위를 끝낸 뒤 사용자에게 다시 진행 여부를 확인한다. 다음 단위는 기존 검색 창의 경계 누락을 먼저 수정·회귀 검증하고, 동일 CSV 입력 비용 비교와 요청 시작·확장 대기·종료 예산 검토로 이어갈 수 있다. Gate 16.67ms·1.5ms는 유지한다. 승인 전에는 추가 구현이나 7c로 넘어가지 않는다.
+
+## 2026-10-01 — 검색 창 정확성 수정 단위
+
+사용자의 Phase 7 재개 요청으로 이전 기록의 꼭짓점 검색 누락을 먼저 해결했다. 구현 단위 완료 뒤 다음 단위를 다시 확인하는 규칙을 유지한다.
+
+### 구현과 재현
+
+- `Nav.GraphView`의 독립 oracle에서 기존 창 좌표 제한을 제거했다. 같은 720입력(회귀 336·production 384, 300/3,000cm 반경)을 전 node의 world 거리·막힘 조건만으로 비교한다. 수정 전 회귀·production 각각 8입력이 실패했다(`Saved/Logs/Phase07b_WindowFix_Repro.log`). 실행 프로세스는 exit 0이었지만 테스트의 `Result={Fail}`을 확인했다.
+- `LNPNavData::GetGridSearchBounds`는 slot local 반경 구를 포함하는 양의 좌표 상자에서 `x/(x+y+z)`, `y/(x+y+z)`의 단조성으로 좌표 범위를 계산한다. float node 반올림을 덮는 한 cell 여유와 최종 world 거리 필터를 쓴다. Layer 기준 반지름·실제 지면 높이에 의존하지 않는다.
+- 조밀 `ScanLayer`와 진단 `ProjectToNode`의 각도 기반 창을 이 공통 범위로 교체했다. Tile 건너뛰기·(J,I) 방문 순서·동률·overlay·요청 예산은 유지했다. 스키마·베이크 입력은 바뀌지 않았다.
+- `LootNPopEditor Win64 Development` 전체 빌드 성공(49.04초), 전체 SurfaceNavigation 79/79 통과(`Saved/Logs/Phase07b_WindowFix_AllTests.log`). 창 제한 없는 oracle 720입력이 모두 일치했다. 자동화가 다시 저장한 테스트 에셋 세 개는 실행 전 상태로 복구했다.
+- Development BuildCookRun의 build·cook·stage·pak·archive 성공(99.03초, `Saved/Logs/Phase07b_WindowFix_Package.log`).
+
+### 수정 후 패키지 700마리 반복 측정
+
+기존과 같은 seed 1·투사체 500·리슨 2P·합성 추격·`-nullrhi -corelimit=4`, warm-up 10초·capture 30초 조건이다. 아래 파일은 `Saved/Profiling/Phase07b`에 있고 접두사 뒤 `_{Host.log,Guest.log,Requests.csv}`가 붙는다.
+
+| 실행 / 파일 접두사 | 프레임 P50 / P95(ms) | 경로 tick P50 / P95(ms) | 확장 P50 / P95 | running / queued P95 | 제출·CSV | cache hit율 | Gate |
+|:---|---:|---:|---:|---:|---:|---:|:---|
+| 1 / N700_chase_WindowFix1 | 16.16 / 18.60 | 0.102 / 1.042 | 74 / 2,200 | 0 / 0 | 8,610 | 61.90% | 프레임 실패·경로 통과 |
+| 2 / N700_chase_WindowFix2 | 15.00 / 17.19 | 0.122 / 1.287 | 74 / 2,913 | 1 / 0 | 9,298 | 60.29% | 프레임 실패·경로 통과 |
+
+| 실행 | 시작 P50 / P95(ms) | 확장 대기 P50 / P95(ms) | 종료 P50 / P95(ms) | Enemy 소비 P50 / P95(ms) | 슬롯 P50 / P95(ms) |
+|:---|---:|---:|---:|---:|---:|
+| 1 | 0.020 / 0.188 | 0.033 / 0.623 | 0.014 / 0.105 | 1.737 / 2.142 | 0.660 / 0.903 |
+| 2 | 0.045 / 0.270 | 0.036 / 0.678 | 0.015 / 0.105 | 1.794 / 2.114 | 0.613 / 0.817 |
+
+host/guest 네 프로세스 모두 exit 0, 네 probe가 각 로그마다 PASS(총 16개), assert·ensure·crash·Unknown hit·Envelope escape·Layer jump·게시 순서 위반 0이다. CSV 행 수는 제출 수와 일치한다. 기존 Mover 초기화 경고와 Mass의 CharacterMovementComponent 추출 오류 로그는 남아 있으며 이번 단위에서 변경하지 않았다.
+
+검색 정확성 단위는 완료했지만 두 실행 모두 프레임 Gate를 넘으므로 Phase 7b는 미완료다. 실행별 실제 경로 수요가 다르므로 이전 패키지와의 수치 차이를 이번 수정의 성능 개선으로 단정하지 않는다. 1P·800마리 재측정은 이번 단위에서 하지 않았다. 다음 후보는 저장된 동일 CSV 입력으로 요청 비용을 비교하고 시작·확장 대기·종료 예산을 검토하는 것이다. 추가 구현이나 7c로 넘어가기 전에 사용자에게 진행 여부를 확인한다.
+
+## 2026-10-02 — 동일 CSV 요청 비용 비교·scheduler 예산 검토 단위
+
+사용자가 다음 단위로 승인한 동일 CSV 비교와 예산 검토를 수행했다. 이번 변경은 에디터 자동화 `Nav.RequestCostReplay`와 문서다. 기존 검색 창 정확성 수정은 유지했으며 runtime scheduler·CVar 기본값·Gate는 바꾸지 않았다.
+
+### 비교 규약과 재실행
+
+- 입력은 `Saved/Profiling/Phase07b/N700_chase_WindowFix{1,2}_Requests.csv`의 8,610/9,298건 전부다. production 8-slot snapshot generation 1·graph version 1과 CSV schema·숫자·시각 순서·generation/version 호환성을 검사한다.
+- 같은 CSV 시각의 요청을 한 묶음으로 제출하고 모두 완료한 뒤 다음 묶음을 넣는다. 시간 간격은 재생하지 않는다. 원래 owner·serial 대신 행별 독립 owner를 부여해 취소·소비자 타이밍의 차이가 비용 비교를 바꾸지 않게 한다. 완료 owner는 묶음 뒤 제거하며 cache는 유지한다.
+- CSV는 Pod 차단 mask·Pod 위치·취소/owner 소멸·프레임 경계·warm-up cache를 담지 않는다. overlay 없이 재생하며 캡처의 overlay revision을 실제 차단 상태로 간주하지 않는다. 이 도구는 입력 좌표가 같은 통제 비교이며 원래 플레이의 요청 상태·cache hit율·프레임 Gate를 재현하는 도구가 아니다.
+- 같은 입력마다 기본(4,000/16/병렬/cache 0), 예산 2,000, 시작 비용 64, 직렬, cache 256 순으로 실행한다. scratch 4·누적 확장 상한 30,000은 같다. 순서가 고정된 한 번씩의 실행이므로 작은 시간 차이는 반복 측정 없이 확정하지 않는다. 각 설정은 새 scheduler·빈 scratch/cache로 시작해 최초 할당 시간도 포함한다.
+- 캐시 없는 네 설정은 요청별 상태·waypoint node 열·확장 수·cost를 기본과 비교한다. 두 CSV 모두 불일치 0이다. cache 설정은 공유 경로가 달라질 수 있어 이 동일성 비교에서 제외하며 비용과 hit만 기록한다.
+- tick CSV는 `WindowFix{1,2}_RequestCosts.csv`, 자동화 로그는 `Saved/Logs/Phase07b_RequestCostReplay{1,2}.log`다. tick·시작·확장 대기·종료 시간과 worker 시간 합, 시작 수·확장 수·잔여 queue/running을 남긴다. 병렬 worker 시간 합은 게임 스레드 확장 대기 시간과 다르다.
+
+PowerShell 재실행 예시(엔진·사용자 캐시에 기록하므로 권한 확장 실행):
+
+```powershell
+& 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe' 'D:\UnrealProjects\LootNPop\LootNPop.uproject' -unattended -nullrhi -nosound -corelimit=4 '-ExecCmds=Automation RunTests LootNPop.SurfaceNavigation.Nav.RequestCostReplay' '-TestExit=Automation Test Queue Empty' '-LNPNavReplayCsv=D:\UnrealProjects\LootNPop\Saved\Profiling\Phase07b\N700_chase_WindowFix1_Requests.csv' '-LNPNavReplayOutput=D:\UnrealProjects\LootNPop\Saved\Profiling\Phase07b\WindowFix1_RequestCosts.csv' '-abslog=D:\UnrealProjects\LootNPop\Saved\Logs\Phase07b_RequestCostReplay1.log'
+```
+
+CSV 인자가 없는 전체 자동화에서는 안내를 남기고 비교를 건너뛴다. 입력을 지정하면 출력 경로도 필수이며 잘못된 schema·숫자·generation/version이면 실패한다.
+
+### 동일 입력 측정
+
+시간은 ms다. P95 분모는 **실제로 실행한 scheduler tick**이며 idle tick·실제 플레이 프레임은 포함하지 않는다. 처리 tick 수·잔여 큐는 실제 게임의 요청 지연이 아니라 묶음별 통제 부하 지표다. 단계별 P95의 합은 tick P95가 아니다.
+
+| CSV / 설정 | tick 수 | tick P50 / P95 / 최대 | 시작 / 확장 대기 / 종료 P95 | 확장 합 | cache hit | 잔여 큐 P95 |
+|:---|---:|:---|:---|---:|---:|---:|
+| 1 기본 | 1,900 | 0.119 / 1.285 / 2.635 | 0.193 / 0.859 / 0.224 | 1,150,364 | 0 | 163 |
+| 1 예산 2,000 | 2,087 | 0.134 / 0.732 / 2.160 | 0.144 / 0.473 / 0.129 | 1,150,364 | 0 | 349 |
+| 1 시작 비용 64 | 1,943 | 0.120 / 1.032 / 1.911 | 0.168 / 0.671 / 0.176 | 1,150,364 | 0 | 248 |
+| 1 직렬 | 1,900 | 0.124 / 1.681 / 2.713 | 0.196 / 1.293 / 0.196 | 1,150,364 | 0 | 163 |
+| 1 cache 256 | 1,806 | 0.072 / 0.782 / 2.677 | 0.123 / 0.553 / 0.078 | 564,829 | 4,143 | 0 |
+| 2 기본 | 2,024 | 0.130 / 1.302 / 2.311 | 0.201 / 0.825 / 0.221 | 1,243,024 | 0 | 129 |
+| 2 예산 2,000 | 2,230 | 0.154 / 0.831 / 2.472 | 0.172 / 0.523 / 0.149 | 1,243,024 | 0 | 313 |
+| 2 시작 비용 64 | 2,068 | 0.147 / 1.164 / 2.932 | 0.207 / 0.746 / 0.204 | 1,243,024 | 0 | 208 |
+| 2 직렬 | 2,024 | 0.135 / 1.834 / 2.699 | 0.211 / 1.366 / 0.218 | 1,243,024 | 0 | 129 |
+| 2 cache 256 | 1,941 | 0.087 / 1.291 / 2.327 | 0.206 / 0.712 / 0.099 | 673,813 | 4,147 | 0 |
+
+기본 설정의 요청당 시작 단계 평균은 9.84/10.90us다(시작 단계 합/시작 수, cache 조회·초기 scratch 할당·즉시 종료도 포함). 기본 tick의 시간 합은 488.3/547.0ms이며 시작 84.7/101.3ms, 확장 대기 320.7/355.5ms, 종료 81.4/88.6ms다. cache 256의 총 tick 시간은 287.7/384.6ms이고 확장량은 약 51%/46% 줄었다. 현재 cache를 유지할 근거이며 실제 플레이 hit율과 같은 수치는 아니다.
+
+### scheduler 예산 검토 결론
+
+1. **확장 수 예산은 엄격한 상한이 아니다.** `Budget > 0`이면 다음 요청을 시작해 16/64를 차감하므로 잔여 예산이 시작 비용보다 작아도 실행한다. 또 남은 예산이 running 수보다 작으면 `Share=max(1, Budget/RunningCount)`가 전체 잔여량을 넘는다. 기본 설정의 최대 차감(`started×16+expansions`)은 4,014/4,015, 시작 비용 64는 4,062/4,063이다. 기본 125/139 tick에서 4,000을 넘었다. 작은 수치 초과만으로 기존 프레임 Gate 실패 원인이라고 단정하지 않는다.
+2. **시작 비용 16은 시간 상한이 아니다.** 초기 근거 0.38us/확장으로 환산하면 6.08us이고 이번 평균 시작 비용보다 작다. 고정 비용만 64로 올리면 P95가 낮아졌지만 큐 P95와 처리 tick이 늘며 시간 최대값을 보장하지 않는다. 전체 평균으로 접근점·cache hit·NoNode 각각의 비용을 확정할 수는 없다.
+3. **종료 처리는 확장 예산에 별도 차감되지 않는다.** waypoint 단순화·통과 Tile 수집·cache 등록은 완료된 요청 수와 길이에 따라 실행된다. `StartRequest`의 즉시 종료는 현재 시작 단계 시간에 들어간다. 종료 P95 약 0.22ms도 실제 비용이므로 확장량만으로 전체 tick 시간을 추정하면 빠진다.
+4. **병렬 대기는 시간 예산에 묶이지 않는다.** 동일 확장량에서 직렬은 두 CSV 모두 tick P95가 1.5ms보다 높았다. 병렬은 유지한다. worker 작업 합을 시간 상한에 쓰면 병렬 대기를 놓치므로 실제 게임 스레드 경과 시간으로 검토해야 한다. 이 재생에는 Enemy 이동·슬롯·physics·복제 등 실제 워커 경합이 없다.
+5. **예산을 2,000으로 낮추면 비용을 줄이기보다 여러 tick으로 나눈다.** tick 수가 9.8%/10.2% 늘고 큐 P95도 증가한다. 각 설정의 1.5ms 초과 tick도 남는다. 기본 경로 Gate가 최근 실제 패키지 두 번에서 이미 통과했으므로 이 결과만으로 runtime 기본값을 낮추거나 시간 예산을 추가하지 않는다.
+
+다음 권장 단위는 차감 초과를 먼저 막는 최소 변경과 그 결정론·낮은 예산 회귀 검증이다. 시작·확장·종료를 포함한 시간 예산은 실제 패키지의 요청 대기 지연과 함께 판단한다. 비교용 overlay/취소/프레임 경계 캡처를 확장하면 실제 scheduler trace 재생이 가능하지만 이번 단위에는 넣지 않았다. 사용자에게 다음 단위를 진행할지 확인하며, Phase 7b 완료나 7c 전환은 하지 않는다.
+
+### 검증
+
+- `LootNPopEditor Win64 Development` 전체 빌드 성공(19.81초, 컴파일 오류·경고 0).
+- CSV 자동화 두 번 모두 `Result={Success}`·exit 0. 캐시 없는 설정 비교 17,908요청 × 3변형의 상태·경로·확장·cost 불일치 0.
+- 전체 SurfaceNavigation 자동화 80/80·exit 0(`Saved/Logs/Phase07b_RequestCostReplay_AllTests.log`). 기존 79개가 통과했고 신규 비교 항목은 CSV 인자가 없어 안내 후 건너뛰었다(실제 CSV 검증은 위 두 별도 실행). 테스트가 저장한 세 에셋은 실행 전 백업 내용으로 복구해 에셋 diff가 없다. `git diff --check` 통과.
+- runtime 코드는 이번 단위에서 바꾸지 않았으며 cook/package·리슨 2P는 재실행하지 않았다. 앞선 패키지 Gate 실패 상태를 유지한다.

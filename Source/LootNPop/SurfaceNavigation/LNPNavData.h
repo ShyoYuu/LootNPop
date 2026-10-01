@@ -152,6 +152,9 @@ namespace LNPNavData
 	LOOTNPOP_API uint8 GetNeighborBit(ELNPNavNeighbor Neighbor);
 	LOOTNPOP_API ELNPNavNeighbor GetOppositeNeighbor(ELNPNavNeighbor Neighbor);
 	LOOTNPOP_API bool IsValidGridCoord(int32 Subdivisions, int32 I, int32 J);
+	/** slot local 반경 구를 포함하는 격자 검색 범위. 양 끝을 포함하며 Layer 높이에 의존하지 않는다. */
+	LOOTNPOP_API void GetGridSearchBounds(
+		int32 Subdivisions, const FVector3d& LocalPosition, double Radius, FIntPoint& OutMin, FIntPoint& OutMax);
 	LOOTNPOP_API bool TryGetNeighborCoord(
 		int32 Subdivisions, int32 I, int32 J, ELNPNavNeighbor Neighbor, FIntPoint& OutCoord);
 

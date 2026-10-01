@@ -102,23 +102,14 @@ bool LNPNavQuery::ProjectToNode(
 		return false;
 	}
 
-	// 이음매 근처 위치는 옥탄트 밖 성분이 조금 음수일 수 있으므로 옥탄트 면으로 자른다.
 	const FVector3d Local = SlotSnapshot.WorldToSlotRotation.RotateVector(WorldPosition);
-	const FVector3d Clamped(FMath::Max(0.0, Local.X), FMath::Max(0.0, Local.Y), FMath::Max(0.0, Local.Z));
-	const double Sum = Clamped.X + Clamped.Y + Clamped.Z;
-	if (Sum <= UE_DOUBLE_SMALL_NUMBER)
-	{
-		return false;
-	}
 	const int32 N = Layer->Subdivisions;
-	const double CenterI = Clamped.X / Sum * N;
-	const double CenterJ = Clamped.Y / Sum * N;
-	// 격자 한 칸의 각간격은 옥탄트 꼭짓점 부근에서 가장 작은 약 1/N rad다. 그 간격으로 반경을 덮는 창을 잡는다.
-	const int32 Window = FMath::CeilToInt32(MaxDistance * N / SupportLayer->BaseRadius) + 1;
-	const int32 MinJ = FMath::Max(0, FMath::FloorToInt32(CenterJ) - Window);
-	const int32 MaxJ = FMath::Min(N, FMath::CeilToInt32(CenterJ) + Window);
-	const int32 MinI = FMath::Max(0, FMath::FloorToInt32(CenterI) - Window);
-	const int32 MaxI = FMath::Min(N, FMath::CeilToInt32(CenterI) + Window);
+	FIntPoint Min, Max;
+	LNPNavData::GetGridSearchBounds(N, Local, MaxDistance, Min, Max);
+	const int32 MinJ = Min.Y;
+	const int32 MaxJ = Max.Y;
+	const int32 MinI = Min.X;
+	const int32 MaxI = Max.X;
 
 	double BestDistanceSquared = FMath::Square(MaxDistance);
 	bool bFound = false;
