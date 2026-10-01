@@ -17,7 +17,7 @@ namespace
 	constexpr float ProxyMeshRadius = 50.f;
 
 	/** LootPod 캡슐(TerrainContract §2): 반지름 128cm, 반높이 128cm라 실질적으로 구다. 중심은 Pod 로컬 Up +128cm. */
-	constexpr float PodProxyRadius = 128.f;
+	constexpr float PodProxyRadius = LNPLootPodCollisionProxy::Radius;
 	constexpr float PodProxyCenterUp = 128.f;
 
 }

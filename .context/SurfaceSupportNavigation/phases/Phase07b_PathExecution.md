@@ -1,6 +1,6 @@
 # Phase 7b — 경로 실행
 
-> 상태: 기준 계획(2026-10-01 작성·결정 확정) — 구현 단위 0·1 완료, 다음은 구현 단위 2
+> 상태: 기준 계획(2026-10-01 작성·결정 확정) — 구현 단위 0~3 완료, 다음은 단위 4
 > 예상 범위: 3~4세션
 > 선행 조건: Phase 7a Nav 데이터 기반(완료, 2026-10-01)
 
@@ -213,23 +213,28 @@ A*는 `FLNPNavNodeRef`를 직접 해석하지 않고 게시 때 만든 조밀 in
 
 ### 구현 단위 2 — Pod runtime blocker overlay
 
-- [ ] overlay 객체(막힘 bitset·Tile revision·전역 revision) 게시와 교체
-- [ ] Mass spawn Pod 배치 후 일괄 추가, Pod Popped 시 제거, 이음매 사본 동시 막힘
-- [ ] 경로의 Tile revision 대조와 재계획 요청
-- [ ] overlay 자동화와 `DrawNav`에 overlay 막힘 표시 추가
+- [x] overlay 객체(막힘 bitset·Tile revision·전역 revision) 게시와 교체
+- [x] Mass spawn Pod 배치 후 일괄 추가, Pod Popped 시 제거, 이음매 사본 동시 막힘
+- [x] 경로의 Tile revision 대조와 재계획 요청
+- [x] overlay 자동화와 `DrawNav`에 overlay 막힘 표시 추가
 
 완료 조건: Meadow production Pod 120개가 overlay에 반영되고, 경로가 Pod를 미리 돌아가며, Pod 소멸 뒤 재계획이 일어난다.
 
+결과(2026-10-01): 실제 스폰 120 Pod에서 overlay revision 1·차단 node 623개를 게시했다. 자동화는 Pod 우회 A*, 직접 보행 차단·복귀, Popped 후 같은 serial 재계획, 이음매 양쪽 사본 차단을 검증했다. 적이 재계획 경로를 조향에 쓰는 검증은 소비자 연결 단위 3에서 한다.
+
 ### 구현 단위 3 — 경로 추종과 Enemy 연결
 
-- [ ] `FLNPEnemyPathFragment`와 경로 요청·추종 프로세서(서버, Behavior 그룹, TargetFollow 뒤·Movement 앞)
-- [ ] 이동 프로세서의 조향점 사용(PureEntity·ActorPromoted 공통)
-- [ ] 추격 직선 경로 우선과 재요청 조건, 배회 후보의 group 필터와 경로 요청
-- [ ] 플레이어 Surface handle·node·group fragment
-- [ ] `DrawNav`·`NavReport`에 개체 경로, 요청 상태 분포, 예산 사용량 추가
-- [ ] 회귀 fixture 시나리오: 프랍 우회 추격, 동굴 안 추격, 이음매 넘어 추격
+- [x] `FLNPEnemyPathFragment`와 경로 요청·추종 프로세서(서버, Behavior 그룹, TargetFollow 뒤·Movement 앞)
+- [x] 이동 프로세서의 조향점 사용(PureEntity·ActorPromoted 공통)
+- [x] 추격 직선 경로 우선과 재요청 조건, 배회 후보의 group 필터와 경로 요청
+- [x] 플레이어 Surface handle·node·group fragment
+- [x] `DrawNav`·`NavReport`에 개체 경로, 요청 상태 분포, 예산 사용량 추가
+- [x] PIE 수동 플레이: NPC가 배경 프랍을 우회하고 동굴 안쪽까지 추격(사용자 확인, 2026-10-01)
+- [x] 회귀 fixture의 이음매 경로 12개가 시작·목표 슬롯을 모두 지나는지 자동화 확인(`Nav.RegressionPath`); 실제 경로 추종은 PIE 수동 플레이·`-game` 계측으로 확인
 
 완료 조건: 에디터 `-game`에서 적이 나무·바위를 돌아 추격하고 동굴 입구를 거쳐 공동까지 따라간다. ensure·crash가 없다.
+
+결과(2026-10-01): 사용자 PIE 수동 플레이에서 NPC의 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 동굴 경로는 같은 슬롯의 지각→통로→공동 portal 두 개를 지나며, 슬롯 경계 이음매와는 별개다. 이음매 12개는 `Nav.RegressionPath`에서 각 경로가 양쪽 슬롯을 실제로 지나는지 검증했다. `-game` 100마리 스모크에서 경로 추종 109,883프레임·waypoint 전진 1,099회, ensure·assert·crash 0을 기록했고 SurfaceNavigation 78/78 및 전체 빌드가 통과했다. 이음매 추격의 별도 수동 플레이는 수행하지 않았다.
 
 ### 구현 단위 4 — 슬롯 도달성과 Pod 재귀속
 

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "SurfaceNavigation/LNPNavPathScheduler.h"
+#include "SurfaceNavigation/LNPNavOverlay.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "LNPNavPathSubsystem.generated.h"
 
@@ -29,8 +30,22 @@ public:
 	}
 
 	const FLNPNavPathScheduler& GetScheduler() const { return Scheduler; }
+	void AddPodBlocker(int32 PodID, const FVector& Location, const FLNPSurfaceHandle& Surface);
+	void RemovePodBlocker(int32 PodID);
+	/** 스폰 중 모은 Pod blocker를 overlay revision 하나로 게시한다. */
+	void CommitPodBlockers();
+	TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> TakeOverlay() const { return Overlay; }
 	/** 마지막 tick의 scheduler 게임 스레드 시간(병렬 확장 대기 포함). */
 	double GetLastTickSeconds() const { return LastTickSeconds; }
+	void RecordFollowerFrame(const bool bFollowingPath, const int32 WaypointsAdvanced)
+	{
+		++FollowerFrames;
+		FollowingPathFrames += bFollowingPath ? 1 : 0;
+		FollowerWaypointsAdvanced += WaypointsAdvanced;
+	}
+	uint64 GetFollowerFrames() const { return FollowerFrames; }
+	uint64 GetFollowingPathFrames() const { return FollowingPathFrames; }
+	uint64 GetFollowerWaypointsAdvanced() const { return FollowerWaypointsAdvanced; }
 
 	// UTickableWorldSubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -43,7 +58,13 @@ protected:
 
 private:
 	FLNPNavPathScheduler Scheduler;
+	TMap<int32, FLNPNavPodBlocker> PodBlockers;
+	TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> Overlay;
+	uint64 OverlayGeneration = 0;
 	double LastTickSeconds = 0.0;
+	uint64 FollowerFrames = 0;
+	uint64 FollowingPathFrames = 0;
+	uint64 FollowerWaypointsAdvanced = 0;
 
 	UPROPERTY(Transient)
 	TObjectPtr<ULNPSurfaceDataSubsystem> SurfaceData;

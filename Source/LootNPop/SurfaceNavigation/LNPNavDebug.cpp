@@ -1,6 +1,7 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "SurfaceNavigation/LNPNavQuery.h"
+#include "SurfaceNavigation/LNPNavPathSubsystem.h"
 
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
@@ -234,6 +235,28 @@ namespace
 			{
 				LogNodeLine(Tag, *Snapshot, Projection, Sizes);
 			}
+			if (const ULNPNavPathSubsystem* Paths = World->GetSubsystem<ULNPNavPathSubsystem>())
+			{
+				int32 StatusCounts[static_cast<int32>(ELNPNavPathStatus::Cancelled) + 1] = {};
+				Paths->GetScheduler().VisitResults([&](FMassEntityHandle, const FLNPNavPathResult& Result)
+				{
+					++StatusCounts[static_cast<int32>(Result.Status)];
+				});
+				const FLNPNavPathScheduler& Scheduler = Paths->GetScheduler();
+				const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
+				UE_LOG(LogLootNPop, Display,
+					TEXT("[%s] paths queued=%d running=%d success=%d noPath=%d unreachable=%d noNode=%d stale=%d cancelled=%d submitted=%llu expansions=%llu lastTickExpansions=%d lastTickMs=%.3f cacheHits=%llu cacheMisses=%llu followerFrames=%llu followingPathFrames=%llu waypointsAdvanced=%llu"),
+					Tag, Scheduler.GetQueuedCount(), Scheduler.GetRunningCount(),
+					StatusCounts[static_cast<int32>(ELNPNavPathStatus::Succeeded)],
+					StatusCounts[static_cast<int32>(ELNPNavPathStatus::NoPath)],
+					StatusCounts[static_cast<int32>(ELNPNavPathStatus::Unreachable)],
+					StatusCounts[static_cast<int32>(ELNPNavPathStatus::NoNode)],
+					StatusCounts[static_cast<int32>(ELNPNavPathStatus::Stale)],
+					StatusCounts[static_cast<int32>(ELNPNavPathStatus::Cancelled)],
+					Stats.Submitted, Stats.Expansions, Stats.LastTickExpansions,
+					Paths->GetLastTickSeconds() * 1000.0, Stats.CacheHits, Stats.CacheMisses,
+					Paths->GetFollowerFrames(), Paths->GetFollowingPathFrames(), Paths->GetFollowerWaypointsAdvanced());
+			}
 		}));
 
 	/**
@@ -266,6 +289,8 @@ namespace
 			const double Radius = Args.Num() > 1 ? FMath::Max(100.0, FCString::Atod(*Args[1])) : 3000.0;
 			const float Seconds = Args.Num() > 2 ? FMath::Max(0.1f, FCString::Atof(*Args[2])) : 15.0f;
 			const FLNPNavSnapshot& Nav = Snapshot->Nav;
+			const ULNPNavPathSubsystem* NavPaths = World->GetSubsystem<ULNPNavPathSubsystem>();
+			const TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> Overlay = NavPaths ? NavPaths->TakeOverlay() : nullptr;
 			// 지면과 겹쳐 가려지지 않도록 중심 방향(위)으로 살짝 띄운다.
 			auto Lift = [](const FVector3d& Point) { return Point - Point.GetSafeNormal() * 8.0; };
 			auto NodeColor = [&](const FLNPNavNodeRef& Node, const uint16 TileId)
@@ -316,11 +341,12 @@ namespace
 							{
 								continue;
 							}
-							const bool bBlocked = LNPNavRuntime::IsBlockedSeamNode(Nav, Node);
-							const FColor Color = bBlocked ? FColor::Red : NodeColor(Node, Tile.TileId);
-							DrawDebugPoint(World, Lift(Point), bBlocked ? 16.0f : 9.0f, Color, false, Seconds);
+						const bool bBlocked = LNPNavRuntime::IsBlockedSeamNode(Nav, Node);
+						const bool bPodBlocked = LNPNavOverlay::IsBlocked(Overlay.Get(), LNPNavGraph::ToGraphNode(Nav, Node));
+						const FColor Color = bPodBlocked ? FColor::Orange : bBlocked ? FColor::Red : NodeColor(Node, Tile.TileId);
+						DrawDebugPoint(World, Lift(Point), bBlocked || bPodBlocked ? 16.0f : 9.0f, Color, false, Seconds);
 							++DrawnNodes;
-							DrawnBlocked += bBlocked ? 1 : 0;
+						DrawnBlocked += bBlocked || bPodBlocked ? 1 : 0;
 							// 대칭 edge를 한 번만 그리도록 양의 방향(0, 2, 4)만 본다.
 							for (const ELNPNavNeighbor Direction :
 								{ELNPNavNeighbor::IPositive, ELNPNavNeighbor::JPositive, ELNPNavNeighbor::IPositiveJNegative})
@@ -406,9 +432,30 @@ namespace
 				const TArray<uint64> Sizes = ComputeComponentSizes(*Snapshot);
 				LogNodeLine(Tag, *Snapshot, Projection, Sizes);
 			}
+			int32 DrawnPaths = 0;
+			if (NavPaths)
+			{
+				NavPaths->GetScheduler().VisitResults([&](FMassEntityHandle, const FLNPNavPathResult& Result)
+				{
+					if (!Result.Path.IsValid())
+					{
+						return;
+					}
+					const TArray<FLNPNavPathWaypoint>& Waypoints = Result.Path->Waypoints;
+					for (int32 Index = 1; Index < Waypoints.Num(); ++Index)
+					{
+						if (FVector3d::DistSquared(Waypoints[Index].Location, Center) <= FMath::Square(Radius))
+						{
+							DrawDebugLine(World, Lift(Waypoints[Index - 1].Location), Lift(Waypoints[Index].Location),
+								FColor::Yellow, false, Seconds, 0, 3.0f);
+							++DrawnPaths;
+						}
+					}
+				});
+			}
 			UE_LOG(LogLootNPop, Display,
-				TEXT("[%s] mode=%s radius=%.0f nodes=%d edges=%d blockedNodes=%d seamLinks=%d portals=%d"),
-				Tag, LexToString(Mode), Radius, DrawnNodes, DrawnEdges, DrawnBlocked, DrawnSeamLinks, DrawnPortals);
+				TEXT("[%s] mode=%s radius=%.0f nodes=%d edges=%d blockedNodes=%d seamLinks=%d portals=%d pathSegments=%d"),
+				Tag, LexToString(Mode), Radius, DrawnNodes, DrawnEdges, DrawnBlocked, DrawnSeamLinks, DrawnPortals, DrawnPaths);
 		}));
 }
 #endif

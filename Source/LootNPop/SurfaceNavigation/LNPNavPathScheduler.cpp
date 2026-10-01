@@ -2,6 +2,14 @@
 
 #include "SurfaceNavigation/LNPNavPathScheduler.h"
 
+void FLNPNavPathScheduler::VisitResults(TFunctionRef<void(FMassEntityHandle, const FLNPNavPathResult&)> Visitor) const
+{
+	for (const TPair<FMassEntityHandle, FRecord>& Entry : Records)
+	{
+		Visitor(Entry.Key, Entry.Value.Result);
+	}
+}
+
 #include "SurfaceNavigation/LNPNavOverlay.h"
 #include "SurfaceNavigation/LNPNavRuntime.h"
 
@@ -59,6 +67,29 @@ void FLNPNavPathScheduler::Cancel(const FMassEntityHandle Owner)
 	}
 	// 큐에 남은 옛 항목은 serial 불일치로 건너뛴다.
 	Records.Remove(Owner);
+}
+
+int32 FLNPNavPathScheduler::RequeueInvalidatedPaths(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay)
+{
+	int32 Requeued = 0;
+	for (auto& Pair : Records)
+	{
+		FRecord& Record = Pair.Value;
+		if (!Record.Result.Path.IsValid() || Record.Result.Status == ELNPNavPathStatus::Queued
+			|| Record.Result.Status == ELNPNavPathStatus::Running || Record.Result.Path->IsCurrent(Nav, Overlay))
+		{
+			continue;
+		}
+		Record.Result.Path.Reset();
+		Record.Result.Status = ELNPNavPathStatus::Queued;
+		Record.Result.bFromCache = false;
+		Record.Result.Expansions = 0;
+		Record.Request.Priority = ELNPNavPathPriority::Replan;
+		Queues[static_cast<int32>(ELNPNavPathPriority::Replan)].PushLast({Pair.Key, Record.Result.Serial});
+		++QueuedCount;
+		++Requeued;
+	}
+	return Requeued;
 }
 
 ELNPNavPathStatus FLNPNavPathScheduler::GetResult(
@@ -220,10 +251,10 @@ void FLNPNavPathScheduler::Tick(
 		{
 			Search.ExpansionsBefore = Search.Search.Expansions;
 		}
-		auto Step = [this, &Nav, Share](const int32 Index)
+		auto Step = [this, &Nav, Overlay, Share](const int32 Index)
 		{
 			FRunningSearch& Search = Running[Index];
-			LNPNavPathfinding::StepSearch(Nav, Scratches[Search.ScratchIndex], Search.Search, Share);
+			LNPNavPathfinding::StepSearch(Nav, Scratches[Search.ScratchIndex], Search.Search, Share, Overlay);
 		};
 		if (Settings.bParallel && Running.Num() > 1)
 		{
@@ -268,7 +299,7 @@ void FLNPNavPathScheduler::StartRequest(const FLNPNavSnapshot& Nav, const FLNPNa
 	Query.GoalSurface = &Request.GoalSurface;
 	Query.SnapRadius = Request.SnapRadius;
 	Query.ApproachRadius = Request.ApproachRadius;
-	const FLNPNavEndpoints Endpoints = LNPNavGraph::ResolveEndpoints(Nav, Query);
+	const FLNPNavEndpoints Endpoints = LNPNavGraph::ResolveEndpoints(Nav, Query, Overlay);
 
 	int32 Target = INDEX_NONE;
 	ELNPNavPathStatus EndpointStatus = ELNPNavPathStatus::Succeeded;
@@ -317,7 +348,7 @@ void FLNPNavPathScheduler::StartRequest(const FLNPNavSnapshot& Nav, const FLNPNa
 	FLNPNavSearchParams Params;
 	Params.MaxExpansions = Settings.MaxExpansionsPerRequest;
 	Record.Result.Status = ELNPNavPathStatus::Running;
-	LNPNavPathfinding::BeginSearch(Nav, Endpoints.StartNode, Target, Params, Scratches[ScratchIndex], Search.Search);
+	LNPNavPathfinding::BeginSearch(Nav, Endpoints.StartNode, Target, Params, Scratches[ScratchIndex], Search.Search, Overlay);
 	if (Search.Search.Status != ELNPNavSearchStatus::Running)
 	{
 		FinishSearch(Nav, Overlay, Search);
@@ -374,7 +405,7 @@ FLNPNavPathPtr FLNPNavPathScheduler::BuildPath(
 	Path->ConnectivityGraphVersion = Nav.ConnectivityGraphVersion;
 	Path->Cost = Cost;
 	TArray<int32> Waypoints;
-	LNPNavPathfinding::SimplifyPath(Nav, Nodes, Waypoints);
+	LNPNavPathfinding::SimplifyPath(Nav, Nodes, Waypoints, Overlay);
 	const FLNPNavGraph& Graph = Nav.Graph;
 	Path->Waypoints.Reserve(Waypoints.Num());
 	for (const int32 Node : Waypoints)
@@ -388,7 +419,7 @@ FLNPNavPathPtr FLNPNavPathScheduler::BuildPath(
 	for (int32 Index = 0; Index < Waypoints.Num(); ++Index)
 	{
 		Tiles.Add(LNPNavGraph::GetTileKey(Nav, Waypoints[Index]));
-		if (Index > 0 && LNPNavGraph::CollectDirectWalkNodes(Nav, Waypoints[Index - 1], Waypoints[Index], SegmentNodes))
+		if (Index > 0 && LNPNavGraph::CollectDirectWalkNodes(Nav, Waypoints[Index - 1], Waypoints[Index], SegmentNodes, Overlay))
 		{
 			for (const int32 Node : SegmentNodes)
 			{
@@ -420,8 +451,8 @@ FLNPNavPathPtr FLNPNavPathScheduler::FindCachedPath(
 	const FLNPNavPath& Path = *Entry->Path;
 	// 요청자는 자기 시작 node에서 첫 waypoint로, 마지막 waypoint에서 자기 목표 node로 곧게 걸을 수 있어야 경로를 나눠 쓴다.
 	if (!Path.IsCurrent(Nav, Overlay)
-		|| !LNPNavGraph::IsDirectWalkable(Nav, StartNode, Path.Waypoints[0].Node)
-		|| !LNPNavGraph::IsDirectWalkable(Nav, Path.Waypoints.Last().Node, GoalNode))
+		|| !LNPNavGraph::IsDirectWalkable(Nav, StartNode, Path.Waypoints[0].Node, Overlay)
+		|| !LNPNavGraph::IsDirectWalkable(Nav, Path.Waypoints.Last().Node, GoalNode, Overlay))
 	{
 		++Stats.CacheRejects;
 		++Stats.CacheMisses;

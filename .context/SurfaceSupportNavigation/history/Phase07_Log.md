@@ -3,6 +3,24 @@
 > 상태: 진행 중
 > 실행 계획: `../phases/Phase07a_NavDataFoundation.md`
 
+## 2026-10-01 — Phase 7b 구현 단위 3 완료
+
+- `FLNPEnemyPathFragment`와 서버 Behavior 단계의 `ULNPEnemyPathProcessor`를 TargetFollow 뒤·Movement 앞에 연결했다. `FMassMoveTargetFragment`는 의미상 목표를 유지하고, PureEntity·ActorPromoted 이동이 공통 waypoint 조향점을 소비한다. 공중·비행 개체는 경로를 따르지 않는다.
+- `ULNPPlayerNavProcessor`가 플레이어 Mover floor hit을 hit identity registry로 해석해 Surface handle·node·group fragment에 기록한다. 공중일 때는 마지막 접지 정보를 보존한다.
+- 추격은 Nav 직선 보행을 먼저 검사하고, 막히면 scheduler에 요청한다. 목표 Tile·이동량·경로 revision 변경과 Pod overlay 변경 뒤 재요청한다. 배회는 Pod ReachabilityGroup 밖 후보를 버리고 직선 보행 후보를 우선한다.
+- `NavReport`에 요청 상태·예산·cache·추종 프레임·waypoint 진행 수를, `DrawNav`에 개체 경로 선을 추가했다.
+- 전체 빌드와 SurfaceNavigation 자동화 78/78이 통과했다(`Saved/Logs/Phase07b_Unit3_AllSurfaceNavTests.log`). 에디터 `-game` 1P 100마리 스모크는 프레임·exact·lock 기준을 통과했고, 추종 프레임 109,883회·waypoint 진행 1,099회를 기록했다(`Phase07b_Unit3_EditorGame_WanderFinal.log`). ensure·assert·crash는 없었다. 기존 Mass의 CharacterMovementComponent 추출 오류는 단위 2 스모크에도 있었다.
+- Unreal MCP 에디터 자동화에서 `LootNPop.SurfaceNavigation.Nav.RegressionPath` 1/1을 다시 통과했다(오류·경고 0). 이 테스트는 프랍 우회, 지각→동굴 통로→공동 portal, 12개 seam 경유를 검증한다. 라이브 PIE의 동굴 공동에 플레이어를 스폰해 group 0 투영과 portal 1개를 `DrawNav`로 확인했고, 별도 PIE에서 `NavReport`가 성공 경로 222개·경로 추종 1,977,984프레임·waypoint 전진 34,613회를 기록했다. 다만 공동 PIE에서는 적이 시야 범위 바깥에 있어 실제 동굴 진입 추격이 발생하지 않았다.
+- 사용자 PIE 수동 플레이에서 NPC의 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 이 경로는 같은 슬롯의 Layer portal 두 개를 지나며 슬롯 이음매를 지나지는 않는다. 이음매 12개는 `Nav.RegressionPath`가 양쪽 슬롯을 실제로 지나는 경로를 검증했고, 경로 추종은 PIE와 `-game` 계측으로 확인했다. 별도 수동 이음매 추격은 요구하지 않고 단위 3을 완료했다.
+
+## 2026-10-01 — Phase 7b 구현 단위 2
+
+- `FLNPNavOverlay`에 조밀 node 차단 bitset을 추가했다. Pod footprint는 collision proxy의 공통 반지름 128cm와 Nav agent 반지름을 합산한다. 같은 slot·Support Layer node만 차단하고 seam link의 양쪽 사본을 함께 막는다.
+- Mass spawn은 Pod ID·배치 지면·Surface handle을 모아 모든 스폰이 끝난 뒤 한 번 게시한다. Popped 후 서버의 지연 상태 전환 커맨드가 해당 Pod를 제거하며, 바뀐 Tile revision과 전역 overlay revision만 올린 새 객체를 게시한다.
+- A* 확장·시작/목표 스냅·Nav 직선 보행·경로 단순화·cache 검증에 overlay 차단을 적용했다. 기존 완료 경로는 통과 Tile의 revision이 달라지면 같은 serial로 재계획 대기열에 넣는다. `DrawNav`는 Pod 차단 node를 주황색으로 표시한다.
+- `LootNPopEditor Win64 Development` 전체 빌드 통과. 신규 `Nav.PodOverlay` 자동화는 Pod 우회, 제거 뒤 직접 경로 복귀, 같은 serial 재계획, seam 양쪽 차단을 통과했다(`Saved/Logs/Phase07b_Unit2_PodOverlayTest_Final.log`). 전체 SurfaceNavigation은 78/78 통과(`Phase07b_Unit2_AllSurfaceNavTests.log`). 자동화가 재저장한 fixture 에셋 3개는 작업 시작 상태로 되돌렸다.
+- 에디터 `-game` 1P 스모크에서 production Pod 120개를 overlay revision 1·차단 node 623개로 게시하고 정상 종료했다(`Saved/Logs/Phase07b_Unit2_EditorGame.log`). 부하 harness의 프레임 P95 16.67ms는 에디터 1P 수치이며 단위 5 패키지 Gate로 사용하지 않는다. 이번 단위에는 Enemy 경로 소비자가 없으므로 실제 조향·Popped 뒤 이동 전환은 단위 3에서 검증한다.
+
 ## 2026-09-29 — Phase 7a 실행 계약
 
 - Phase 7을 7a Nav 데이터 기반과 7b 경로 실행으로 분리한 Roadmap 내부 게이트에 따라 7a를 시작했다.

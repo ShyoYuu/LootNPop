@@ -6,6 +6,7 @@
 #include "Algo/BinarySearch.h"
 #include "SurfaceNavigation/LNPNavData.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
+#include "SurfaceNavigation/LNPNavOverlay.h"
 
 struct FLNPNavSnapshot;
 struct FLNPSupportAtlas;
@@ -129,8 +130,12 @@ struct LOOTNPOP_API FLNPNavGraph
 	 * 막힌 이음매 node·edge는 넘기지 않는다. 순서가 결정론적이어야 A* 결과가 같다.
 	 */
 	template <typename FVisitor>
-	void ForEachNeighbor(const int32 Slot, const int32 From, FVisitor&& Visitor) const
+	void ForEachNeighbor(const int32 Slot, const int32 From, FVisitor&& Visitor, const FLNPNavOverlay* Overlay = nullptr) const
 	{
+		if (LNPNavOverlay::IsBlocked(Overlay, From))
+		{
+			return;
+		}
 		const int32 Base = SlotNodeBase[Slot];
 		const FLNPNavGraphNode& Node = SlotGraphs[Slot]->Nodes[From - Base];
 		const bool bCheckEdges = HasBlockedEdge[From];
@@ -141,7 +146,7 @@ struct LOOTNPOP_API FLNPNavGraph
 				continue;
 			}
 			const int32 To = Base + LocalNeighbor;
-			if (!BlockedNodes[To] && !(bCheckEdges && IsEdgeBlocked(From, To)))
+			if (!BlockedNodes[To] && !LNPNavOverlay::IsBlocked(Overlay, To) && !(bCheckEdges && IsEdgeBlocked(From, To)))
 			{
 				Visitor(To);
 			}
@@ -151,7 +156,7 @@ struct LOOTNPOP_API FLNPNavGraph
 			int32 Index = Algo::LowerBoundBy(ExtraLinks, From, &FLNPNavGraphLink::From);
 			for (; Index < ExtraLinks.Num() && ExtraLinks[Index].From == From; ++Index)
 			{
-				if (!BlockedNodes[ExtraLinks[Index].To])
+				if (!BlockedNodes[ExtraLinks[Index].To] && !LNPNavOverlay::IsBlocked(Overlay, ExtraLinks[Index].To))
 				{
 					Visitor(ExtraLinks[Index].To);
 				}
@@ -237,7 +242,7 @@ namespace LNPNavGraph
 	 */
 	LOOTNPOP_API void CollectNodesNear(
 		const FLNPNavSnapshot& Nav, int32 Slot, uint16 LocalNavLayerId, const FVector3d& WorldPosition, double Radius,
-		TArray<FLNPNavGraphCandidate>& OutCandidates);
+		TArray<FLNPNavGraphCandidate>& OutCandidates, const FLNPNavOverlay* Overlay = nullptr);
 
 	/**
 	 * D-062 시작·목표 스냅과 D-063 접근점.
@@ -245,16 +250,19 @@ namespace LNPNavGraph
 	 * 2) 다르면 양쪽 SnapRadius 안에서 공통 group 짝을 스냅 거리 합 최소로 다시 고른다.
 	 * 3) 없으면 A* 없이 Unreachable이고, 시작 후보 group들의 내부 node 중 목표에 가장 가까운 것을 ApproachRadius 안에서 찾는다.
 	 */
-	LOOTNPOP_API FLNPNavEndpoints ResolveEndpoints(const FLNPNavSnapshot& Nav, const FLNPNavEndpointQuery& Query);
+	LOOTNPOP_API FLNPNavEndpoints ResolveEndpoints(const FLNPNavSnapshot& Nav, const FLNPNavEndpointQuery& Query,
+		const FLNPNavOverlay* Overlay = nullptr);
 
 	/**
 	 * Nav 직선 보행 검사. 같은 slot·Layer의 두 node 사이 대원호를 격자 간격의 1/4로 샘플링해,
 	 * 연속 샘플이 같은 node이거나 통과 가능한 grid edge로 이어진 이웃인지 본다. slot·Layer가 다르면 false다.
 	 */
-	LOOTNPOP_API bool IsDirectWalkable(const FLNPNavSnapshot& Nav, int32 From, int32 To);
+	LOOTNPOP_API bool IsDirectWalkable(const FLNPNavSnapshot& Nav, int32 From, int32 To,
+		const FLNPNavOverlay* Overlay = nullptr);
 
 	/** IsDirectWalkable과 같은 검사이며, 통과한 cell의 전역 index를 From부터 순서대로(중복 없이) 모은다. 경로 Tile fingerprint에 쓴다. */
-	LOOTNPOP_API bool CollectDirectWalkNodes(const FLNPNavSnapshot& Nav, int32 From, int32 To, TArray<int32>& OutNodes);
+	LOOTNPOP_API bool CollectDirectWalkNodes(const FLNPNavSnapshot& Nav, int32 From, int32 To, TArray<int32>& OutNodes,
+		const FLNPNavOverlay* Overlay = nullptr);
 
 	/** node가 속한 Tile의 전역 key `(RuntimeNavLayerId << 16) | TileId`. overlay Tile revision의 주소다. 범위 밖이면 MAX_uint32. */
 	LOOTNPOP_API uint32 GetTileKey(const FLNPNavSnapshot& Nav, int32 GraphNode);

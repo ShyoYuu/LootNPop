@@ -63,6 +63,32 @@ protected:
 	FMassEntityQuery FollowQuery;
 };
 
+/** 서버에서 플레이어 Mover floor hit을 Support handle·Nav node로 기록한다. */
+UCLASS()
+class LOOTNPOP_API ULNPPlayerNavProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+public:
+	ULNPPlayerNavProcessor();
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+	FMassEntityQuery PlayerNavQuery;
+};
+
+/** 의미상 목표와 별도로 지상 적의 경로 요청·waypoint 조향을 갱신한다. */
+UCLASS()
+class LOOTNPOP_API ULNPEnemyPathProcessor : public UMassProcessor
+{
+	GENERATED_BODY()
+public:
+	ULNPEnemyPathProcessor();
+protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
+	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
+	FMassEntityQuery PathQuery;
+};
+
 /**
  * 순수 이동 실행 Processor.
  * MoveTarget Intent를 읽어 실제 이동/회전을 적용한다.

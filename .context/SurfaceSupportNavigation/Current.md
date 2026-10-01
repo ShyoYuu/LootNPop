@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 구현 단위 0·1 완료(2026-10-01), 다음은 구현 단위 2
+> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 구현 단위 0~3 완료, 다음은 단위 4
 > 마지막 갱신: 2026-10-01
 
 ## 현재 목표
@@ -69,10 +69,10 @@ Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증
 
 ## 바로 다음 작업
 
-Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구현 단위 0(조밀 graph·A*·스냅)과 구현 단위 1(`FLNPNavPathScheduler` 코어·`ULNPNavPathSubsystem`·경로 cache·`FLNPNavOverlay` revision view, 예산 4,000 확정)을 2026-10-01에 끝냈다. 다음은 구현 단위 2(Pod runtime blocker overlay, D-061)다.
+Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구현 단위 0(조밀 graph·A*·스냅), 단위 1(`FLNPNavPathScheduler`·경로 cache·revision view), 단위 2(Pod blocker overlay·Pod 소멸 시 재계획), 단위 3(Enemy 경로 연결·플레이어 접지 Nav 정보·배회 group 필터·진단)을 2026-10-01에 끝냈다. 단위 3은 자동화 78/78·전체 빌드·`-game` 추종 계측을 통과했고, 사용자 PIE 수동 플레이로 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 이음매 경로 12개는 회귀 자동화에서 검증했다. 다음은 단위 4다.
 
-1. `FLNPNavOverlay`에 조밀 전역 index 막힘 bitset을 더하고, Mass spawn Pod 배치 뒤 일괄 추가·Pod Popped 때 제거로 새 overlay를 게시한다(이음매 사본 동시 막힘). `ULNPNavPathSubsystem::Tick`이 지금 `nullptr`로 넘기는 overlay 자리에 연결한다.
-2. A*(`ForEachNeighbor` 경유)와 직선 보행 검사가 overlay 막힘 node를 열지 않게 하고, overlay 자동화(Pod 회피·제거 후 복귀·이음매 양쪽)와 `DrawNav` 표시를 추가한다.
+1. 단위 3 최종 변경의 전체 빌드를 통과시키고, 나무·바위 우회, 동굴 공동, 이음매 횡단의 적 추격을 에디터 `-game`에서 개별 확인한다.
+2. 완료 조건을 충족하면 단위 3 체크리스트·로그를 마무리하고, 사용자에게 단위 4 진행 여부를 확인한다.
 
 ## 범위 확장 결정(2026-10-01, 검토 세션)
 
@@ -114,6 +114,10 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-10-01 Phase 7b 구현 단위 3 완료: `LootNPopEditor Win64 Development` 전체 빌드, 전체 SurfaceNavigation 자동화 78/78(`Saved/Logs/Phase07b_Unit3_AllSurfaceNavTests.log`) 통과. `-game` 1P 100마리 스모크(`Phase07b_Unit3_EditorGame_WanderFinal.log`)에서 프레임·exact·lock PASS, 경로 추종 프레임 109,883회·waypoint 진행 1,099회, ensure·assert·crash 0. MCP 에디터 자동화로 `Nav.RegressionPath` 1/1을 재확인했고 이음매 12개 경로는 양쪽 슬롯을 지났다. 사용자 PIE 수동 플레이에서 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 동굴은 같은 슬롯의 Layer portal 두 개를 지나므로 슬롯 이음매와는 별개이며, 이음매 추격의 별도 수동 플레이는 수행하지 않았다.
+
+2026-10-01 Phase 7b 구현 단위 2: `LootNPopEditor Win64 Development` 전체 빌드 통과. 신규 `Nav.PodOverlay`는 Pod 우회·Popped 뒤 직접 경로 복귀·같은 serial 재계획·이음매 양쪽 차단을 통과했다(`Saved/Logs/Phase07b_Unit2_PodOverlayTest_Final.log`). 전체 SurfaceNavigation 78/78도 통과했다(`Phase07b_Unit2_AllSurfaceNavTests.log`). 에디터 `-game` 1P에서 Pod 120개가 overlay revision 1·차단 node 623개로 게시됐고 ensure·crash 없이 종료했다(`Phase07b_Unit2_EditorGame.log`). 이 스모크의 부하 harness 프레임 P95 16.67ms는 단위 5 패키지 Gate가 아니다.
 
 2026-10-01 Phase 7b 구현 단위 1: `LootNPopEditor Win64 Development` 전체 빌드(경고 0), Nav 12/12(`Saved/Logs/Phase07b_Unit1_NavTests.log`)와 전체 SurfaceNavigation 자동화 77/77(`Phase07b_Unit1_AllSurfaceNavTests.log`)가 통과했다. Meadow 300요청 동시 투입(예산 4,000·scratch 4)은 36 tick, 병렬 tick P50 1.09ms·P95 1.38ms, 직렬 P50 1.72ms·P95 2.00ms, 결과는 직접 탐색과 모두 같다. `-game` 스모크는 소비자가 없어 하지 않았다(구현 단위 3·5).
 

@@ -10,6 +10,7 @@
 #include "DynamicTerrain/LNPPlacementTypes.h"
 #include "Enemy/LNPFlightSteering.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
+#include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "LNPEnemyMassTypes.generated.h"
 
 /** 타게팅 슬롯과 인식에 관한 Enemy 상태 */
@@ -242,6 +243,45 @@ struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 	 */
 	UPROPERTY(Transient)
 	uint8 bWanderTargetTimedOut : 1 = false;
+};
+
+/** 서버 경로와 현재 조향점. MoveTarget은 계속 의미상 목표를 소유한다. */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	FLNPNavPathPtr Path;
+	FVector SteeringPoint = FVector::ZeroVector;
+	FVector RequestedGoal = FVector::ZeroVector;
+	FMassEntityHandle RequestedTarget;
+	uint32 RequestSerial = 0;
+	int32 WaypointIndex = 0;
+	uint32 GoalTile = MAX_uint32;
+	uint32 RequestedOverlayRevision = 0;
+	ELNPNavPathStatus Status = ELNPNavPathStatus::None;
+	double LastRequestTime = -DBL_MAX;
+	uint32 Replans = 0;
+	bool bHasSteeringPoint = false;
+};
+
+/** Mass가 archetype 이동 시 shared path handle을 정상 복사·파괴하도록 명시적으로 허용한다. */
+template<>
+struct TMassFragmentTraits<FLNPEnemyPathFragment> final
+{
+	enum { AuthorAcceptsItsNotTriviallyCopyable = true };
+};
+
+/** 플레이어의 마지막 접지 Surface와 Nav 위치. 공중에서는 마지막 접지를 유지한다. */
+USTRUCT()
+struct LOOTNPOP_API FLNPPlayerNavFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	FLNPSurfaceHandle Surface;
+	int32 Node = INDEX_NONE;
+	uint32 Group = MAX_uint32;
+	bool bGrounded = false;
 };
 
 /** Entity 모드 시뮬레이션용 물리 속도 (넉백, 포물선). 지면 접지 시 0. */

@@ -405,6 +405,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"LootNPop.SurfaceNavigation.Nav.ProductionPath",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavPodOverlayTest,
+	"LootNPop.SurfaceNavigation.Nav.PodOverlay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FLNPNavGraphViewTest::RunTest(const FString& Parameters)
 {
 	using namespace LNPNavPathfindingTest;
@@ -1097,6 +1102,130 @@ bool FLNPNavProductionSchedulerTest::RunTest(const FString& Parameters)
 			Percentile(TickMicroseconds, 0.5), Percentile(TickMicroseconds, 0.95), Percentile(TickMicroseconds, 1.0),
 			Percentile(RunningTicks, 0.5), Percentile(RunningTicks, 0.95), Percentile(RunningTicks, 1.0),
 			Scheduler.GetScratchBytes() / (1024.0 * 1024.0)));
+	}
+	return !HasAnyErrors();
+}
+
+bool FLNPNavPodOverlayTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavPathfindingTest;
+	FLNPSurfaceDataSnapshot Snapshot;
+	double BuildMs = 0.0;
+	if (!BuildProductionSnapshot(*this, Snapshot, BuildMs))
+	{
+		return false;
+	}
+	const FLNPNavSnapshot& Nav = Snapshot.Nav;
+	const FLNPNavGraph& Graph = Nav.Graph;
+	const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[0];
+	const FLNPNavLayer* SurfaceLayer = LNPNavData::FindLayer(*Snapshot.Slots[0].Navigation,
+		Asset.Layers[0].LocalNavLayerId);
+	if (!TestTrue(TEXT("First Nav layer has a Support layer"), SurfaceLayer != nullptr))
+	{
+		return false;
+	}
+	FLNPSurfaceHandle Handle;
+	Handle.OctantSlot = 0;
+	Handle.LocalLayerId = SurfaceLayer->LocalSupportLayerId;
+	Handle.Generation = Snapshot.Generation;
+	const int32 Base = Graph.SlotNodeBase[0];
+	int32 Center = INDEX_NONE;
+	int32 Start = INDEX_NONE;
+	int32 Goal = INDEX_NONE;
+	FLNPNavOverlay Blocked;
+	for (int32 Local = Asset.Layers[0].NodeBegin; Local < Asset.Layers[0].NodeEnd; ++Local)
+	{
+		const FLNPNavGraphNode& Node = Asset.Nodes[Local];
+		if (Node.GridDegree != 6 || Node.Neighbors[0] == INDEX_NONE || Node.Neighbors[1] == INDEX_NONE)
+		{
+			continue;
+		}
+		const int32 Candidate = Base + Local;
+		const FVector3d Position = Graph.GetWorldPoint(0, Candidate);
+		const FLNPNavPodBlocker Pod{1, Position, Handle};
+		if (!LNPNavOverlay::BuildPodOverlay(Snapshot, MakeArrayView(&Pod, 1), nullptr, Blocked))
+		{
+			continue;
+		}
+		const int32 A = Base + Node.Neighbors[0];
+		const int32 B = Base + Node.Neighbors[1];
+		if (!Blocked.IsBlocked(A) && !Blocked.IsBlocked(B)
+			&& LNPNavGraph::IsDirectWalkable(Nav, A, B)
+			&& !LNPNavGraph::IsDirectWalkable(Nav, A, B, &Blocked))
+		{
+			Center = Candidate;
+			Start = A;
+			Goal = B;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("Pod blocks a direct walk while leaving both endpoints open"), Center != INDEX_NONE))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Pod center is blocked"), Blocked.IsBlocked(Center));
+	const uint32 Tile = LNPNavGraph::GetTileKey(Nav, Center);
+	TestEqual(TEXT("Pod tile revision after spawn"), Blocked.GetTileRevision(Tile), 1u);
+	FLNPNavSearchScratch Scratch;
+	FLNPNavSearch Search;
+	FLNPNavSearchParams Params;
+	LNPNavPathfinding::BeginSearch(Nav, Start, Goal, Params, Scratch, Search, &Blocked);
+	while (Search.Status == ELNPNavSearchStatus::Running)
+	{
+		LNPNavPathfinding::StepSearch(Nav, Scratch, Search, 4000, &Blocked);
+	}
+	TestEnum(*this, TEXT("A* routes around the Pod"), Search.Status, ELNPNavSearchStatus::Found);
+	TArray<int32> Nodes;
+	if (TestTrue(TEXT("Detour path extracts"), LNPNavPathfinding::ExtractNodePath(Scratch, Search, Nodes)))
+	{
+		TestTrue(TEXT("Detour excludes blocked center"), !Nodes.Contains(Center));
+	}
+	FLNPNavOverlay Cleared;
+	TestTrue(TEXT("Popped Pod changes the overlay"), LNPNavOverlay::BuildPodOverlay(Snapshot, {}, &Blocked, Cleared));
+	TestTrue(TEXT("Popped Pod clears the center"), !Cleared.IsBlocked(Center));
+	TestEqual(TEXT("Popped Pod advances the tile revision"), Cleared.GetTileRevision(Tile), 2u);
+	TestTrue(TEXT("Direct walk returns after Pod removal"), LNPNavGraph::IsDirectWalkable(Nav, Start, Goal, &Cleared));
+	FSchedulerCase Case;
+	Case.Start = Graph.GetWorldPoint(0, Start);
+	Case.StartHandle = Handle;
+	Case.Goal = Graph.GetWorldPoint(0, Goal);
+	Case.GoalHandle = Handle;
+	FLNPNavPathScheduler Scheduler;
+	const uint32 Serial = Scheduler.Submit(MakeRequest(Case, 1));
+	DrainScheduler(Scheduler, Nav, &Blocked);
+	FLNPNavPathResult Result;
+	TestEnum(*this, TEXT("Blocked route is planned"),
+		Scheduler.GetResult(FMassEntityHandle(1, 1), Serial, Result), ELNPNavPathStatus::Succeeded);
+	TestEqual(TEXT("Pod removal queues the affected path"), Scheduler.RequeueInvalidatedPaths(Nav, &Cleared), 1);
+	TestEnum(*this, TEXT("Same serial waits for replanning"),
+		Scheduler.GetResult(FMassEntityHandle(1, 1), Serial, Result), ELNPNavPathStatus::Queued);
+	DrainScheduler(Scheduler, Nav, &Cleared);
+	TestEnum(*this, TEXT("Popped Pod route is replanned"),
+		Scheduler.GetResult(FMassEntityHandle(1, 1), Serial, Result), ELNPNavPathStatus::Succeeded);
+	TestEqual(TEXT("Unchanged overlay queues nothing"), Scheduler.RequeueInvalidatedPaths(Nav, &Cleared), 0);
+
+	if (!Nav.SeamLinks.IsEmpty())
+	{
+		const FLNPNavSeamLink& Link = Nav.SeamLinks[0];
+		const int32 A = LNPNavGraph::ToGraphNode(Nav, Link.A);
+		const int32 B = LNPNavGraph::ToGraphNode(Nav, Link.B);
+		if (!TestTrue(TEXT("Seam endpoints resolve"), A != INDEX_NONE && B != INDEX_NONE))
+		{
+			return false;
+		}
+		const int32 Slot = Graph.GetSlot(A);
+		const FLNPNavGraphNode& SeamNode = Graph.GetNode(Slot, A);
+		const uint16 LayerId = Graph.SlotGraphs[Slot]->Layers[SeamNode.LayerOrdinal].LocalNavLayerId;
+		const FLNPNavLayer* SeamLayer = LNPNavData::FindLayer(*Snapshot.Slots[Slot].Navigation, LayerId);
+		if (TestTrue(TEXT("Seam Nav layer has a Support layer"), SeamLayer != nullptr))
+		{
+			FLNPSurfaceHandle SeamHandle{static_cast<uint16>(Slot), SeamLayer->LocalSupportLayerId, Snapshot.Generation};
+			const FLNPNavPodBlocker Pod{2, Graph.GetWorldPoint(Slot, A), SeamHandle};
+			FLNPNavOverlay SeamOverlay;
+			TestTrue(TEXT("Seam Pod publishes an overlay"),
+				LNPNavOverlay::BuildPodOverlay(Snapshot, MakeArrayView(&Pod, 1), nullptr, SeamOverlay));
+			TestTrue(TEXT("Both seam copies are blocked"), SeamOverlay.IsBlocked(A) && SeamOverlay.IsBlocked(B));
+		}
 	}
 	return !HasAnyErrors();
 }

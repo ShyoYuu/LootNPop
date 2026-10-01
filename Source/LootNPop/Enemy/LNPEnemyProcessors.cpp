@@ -496,6 +496,7 @@ ULNPEnemyMovementProcessor::ULNPEnemyMovementProcessor()
 	//    유도되므로, 기대지 않고 이름으로 직접 건다. 둘 다 페이즈가 기본값(PrePhysics)이라 성립한다 —
 	//    페이즈가 다르면 이 선언은 조용히 무시된다.
 	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEntityAttackProcessor"));
+	ExecutionOrder.ExecuteAfter.Add(ULNPEnemyPathProcessor::StaticClass()->GetFName());
 }
 
 void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -508,6 +509,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
 	MovementQuery.AddRequirement<FLNPEnemySeparationFragment>(EMassFragmentAccess::ReadOnly); // 겹침 분리력 (생산자는 분리 프로세서)
 	MovementQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite); // 배회 타임아웃 계측
+	MovementQuery.AddRequirement<FLNPEnemyPathFragment>(EMassFragmentAccess::ReadOnly);
 	MovementQuery.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly); // 공격 중 이동·회전 고정
 	MovementQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional); // 경직 중 정지
 	MovementQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
@@ -569,6 +571,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const TArrayView<FLNPEnemyVelocityFragment> VelocityFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
 		const TConstArrayView<FLNPEnemySeparationFragment> SeparationFragments = EnemyContext.GetFragmentView<FLNPEnemySeparationFragment>();
 		const TArrayView<FLNPEnemyIdleFragment> IdleFragments = EnemyContext.GetMutableFragmentView<FLNPEnemyIdleFragment>();
+		const TConstArrayView<FLNPEnemyPathFragment> PathFragments = EnemyContext.GetFragmentView<FLNPEnemyPathFragment>();
 		const TConstArrayView<FLNPEntityAttackFragment> AttackFragments = EnemyContext.GetFragmentView<FLNPEntityAttackFragment>();
 		const TConstArrayView<FLNPPoiseFragment> PoiseFragments = EnemyContext.GetFragmentView<FLNPPoiseFragment>();
 		const FLNPEnemySharedFragment& SharedFragment = EnemyContext.GetConstSharedFragment<FLNPEnemySharedFragment>();
@@ -680,7 +683,10 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			// 어긋나면 접평면 투영이 0이 되어 방향 벡터까지 사라져 엔티티가 완전히 굳는다.
 			const FVector ToTargetOnPlane = FVector::VectorPlaneProject(TargetPos - EntityLocation, UpDir);
 			const float DistSq = ToTargetOnPlane.SizeSquared();
-			const FVector TargetDirOnPlane = ToTargetOnPlane.GetSafeNormal();
+			const FLNPEnemyPathFragment& Path = PathFragments[i];
+			const FVector SteeringTarget = Path.bHasSteeringPoint && PhysVelocity.IsNearlyZero()
+				? Path.SteeringPoint : TargetPos;
+			const FVector TargetDirOnPlane = FVector::VectorPlaneProject(SteeringTarget - EntityLocation, UpDir).GetSafeNormal();
 
 			float EffectiveSpeed = 0.0f;
 			FVector OrientationIntent = FVector::ZeroVector;

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 struct FLNPNavSnapshot;
+struct FLNPNavOverlay;
 
 struct FLNPNavOpenEntry
 {
@@ -72,14 +73,15 @@ namespace LNPNavPathfinding
 	/** scratch를 snapshot node 수에 맞추고 시작 node를 open에 넣는다. group이 다르면 Unreachable로 바로 끝난다. */
 	LOOTNPOP_API ELNPNavSearchStatus BeginSearch(
 		const FLNPNavSnapshot& Nav, int32 Start, int32 Goal, const FLNPNavSearchParams& Params,
-		FLNPNavSearchScratch& Scratch, FLNPNavSearch& OutSearch);
+		FLNPNavSearchScratch& Scratch, FLNPNavSearch& OutSearch, const FLNPNavOverlay* Overlay = nullptr);
 
 	/**
 	 * 최대 ExpansionBudget개 node를 확장한다. 재개할 때 snapshot generation·ConnectivityGraphVersion이 시작 때와 다르면
 	 * Invalid로 끝내고 서로 다른 snapshot의 node를 섞지 않는다.
 	 */
 	LOOTNPOP_API ELNPNavSearchStatus StepSearch(
-		const FLNPNavSnapshot& Nav, FLNPNavSearchScratch& Scratch, FLNPNavSearch& Search, int32 ExpansionBudget);
+		const FLNPNavSnapshot& Nav, FLNPNavSearchScratch& Scratch, FLNPNavSearch& Search, int32 ExpansionBudget,
+		const FLNPNavOverlay* Overlay = nullptr);
 
 	/** Found 결과의 시작→목표 전역 node 열. */
 	LOOTNPOP_API bool ExtractNodePath(
@@ -89,5 +91,6 @@ namespace LNPNavPathfinding
 	 * Nav 직선 보행 검사로 node 열을 waypoint 열로 줄인다. 같은 slot·Layer 구간 안에서만 건너뛰고,
 	 * seam link·portal 전이의 양쪽 node는 항상 남긴다. 첫·마지막 node는 유지한다.
 	 */
-	LOOTNPOP_API void SimplifyPath(const FLNPNavSnapshot& Nav, TConstArrayView<int32> Nodes, TArray<int32>& OutWaypoints);
+	LOOTNPOP_API void SimplifyPath(const FLNPNavSnapshot& Nav, TConstArrayView<int32> Nodes, TArray<int32>& OutWaypoints,
+		const FLNPNavOverlay* Overlay = nullptr);
 }

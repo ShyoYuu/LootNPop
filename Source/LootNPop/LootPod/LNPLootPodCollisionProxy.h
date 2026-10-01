@@ -9,6 +9,12 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "LNPLootPodCollisionProxy.generated.h"
 
+namespace LNPLootPodCollisionProxy
+{
+	/** collision proxy 구의 반지름(cm). Nav Pod overlay도 같은 값을 쓴다. */
+	constexpr float Radius = 128.0f;
+}
+
 class UInstancedStaticMeshComponent;
 class UStaticMesh;
 
