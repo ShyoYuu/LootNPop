@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 구현 단위 0 완료(2026-10-01), 다음은 구현 단위 1
+> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 구현 단위 0·1 완료(2026-10-01), 다음은 구현 단위 2
 > 마지막 갱신: 2026-10-01
 
 ## 현재 목표
@@ -63,16 +63,16 @@ Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증
 - `DA_OctantSurface_Meadow_00`·`DA_OctantSurface_Fixture_Crust`는 LVI 옆에 저장돼 있다. `Bake.OctantBakeDeterministic`가 저장본과 현재 source의 일치를 검사하므로 LVI나 베이크 설정을 바꾸면 `BakeOctant`로 다시 굽는다
 - 회귀 공간(D-056): 정적 사례는 `LVI_Octant_Fixture_Regression`(생성 `LNP.SurfaceNav.BuildRegressionFixture`, 배치 원본 `LNPRegressionFixture.h`)을 8 slot 합성으로 검사하고, 동적 3사례만 `L_SurfaceRegression`(30,000cm)에 있다. `DA_OctantSurface_Fixture_Regression`도 결정론 베이크 검사 대상이다
 - 동굴 키트 greybox(`/Game/Maps/CaveKit`, `LNP.SurfaceNav.BuildCaveKit`, 치수 원본 `LNPCaveKit.h`): 직육면체 공동 + 경사 통로, Floor/Shell 분리, 규약 검사 `Bake.CaveKitContract`. `Meadow_00` 동굴은 (위도 15°, 방위 60°)에 있고 `LNP.SurfaceNav.PlaceCaveKit`으로 배치했다(지각 메시 입구 절단 포함)
-- 자동화 `LootNPop.SurfaceNavigation` 75개(`Nav.GraphView`가 조밀 graph와 7a 조회 일치를, `Nav.RegressionPath`가 회귀 8-slot A*·스냅·접근점을, `Nav.ProductionPath`가 D-062 재선택과 Meadow A* 벤치마크를 검사. `Runtime.NavAssembly`가 8-slot Nav 조립·D-060 막힘·group·Stale을, `Nav.RegressionReachability`가 회귀 8-slot 도달성 oracle을, `Nav.ProductionSpawnProjection`이 Meadow Spawn 후보 투영을, `Nav.StepAndSlope`가 경사로·절벽 edge 규칙을 검사). `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 보고, `Runtime.MassSpawnPlanning`이 Spawn 할당 규약을 검사한다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`와 `Schema/DA_MinimalOctantSurfaceData`를 다시 저장하므로 커밋 전에 git으로 되돌린다
+- 자동화 `LootNPop.SurfaceNavigation` 77개(`Nav.PathScheduler`가 회귀 8-slot에서 scheduler 예산 분할 결정론·Stale·Cancelled·NoPath·우선순위·cache fingerprint를, `Nav.ProductionScheduler`가 Meadow 300요청 동시 투입의 직접 탐색 일치와 tick 시간을 검사. `Nav.GraphView`가 조밀 graph와 7a 조회 일치를, `Nav.RegressionPath`가 회귀 8-slot A*·스냅·접근점을, `Nav.ProductionPath`가 D-062 재선택과 Meadow A* 벤치마크를 검사. `Runtime.NavAssembly`가 8-slot Nav 조립·D-060 막힘·group·Stale을, `Nav.RegressionReachability`가 회귀 8-slot 도달성 oracle을, `Nav.ProductionSpawnProjection`이 Meadow Spawn 후보 투영을, `Nav.StepAndSlope`가 경사로·절벽 edge 규칙을 검사). `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 보고, `Runtime.MassSpawnPlanning`이 Spawn 할당 규약을 검사한다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`와 `Schema/DA_MinimalOctantSurfaceData`를 다시 저장하므로 커밋 전에 git으로 되돌린다
 - 헤드리스 `-ExecCmds`는 쉼표로 명령을 나누고, 에디터 바이너리에서는 `Quit`로 종료되지 않는다(`Automation RunTests`는 종료함)
 - 카메라 리그 `CR_ThirdPerson`에 `CollisionPush` 노드(`../TechDesign_CharacterMovement.md` §2.4)
 
 ## 바로 다음 작업
 
-Phase 7b(경로 실행) 계획 `phases/Phase07b_PathExecution.md`와 결정 D-061~063을 2026-10-01에 확정했고, 같은 날 구현 단위 0(조밀 graph·재개 가능 A*·직선 보행 검사·D-062/D-063 스냅)을 끝냈다. 다음은 구현 단위 1이다.
+Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구현 단위 0(조밀 graph·A*·스냅)과 구현 단위 1(`FLNPNavPathScheduler` 코어·`ULNPNavPathSubsystem`·경로 cache·`FLNPNavOverlay` revision view, 예산 4,000 확정)을 2026-10-01에 끝냈다. 다음은 구현 단위 2(Pod runtime blocker overlay, D-061)다.
 
-1. `ULNPNavPathSubsystem`: 요청 대기열·우선순위, scratch pool(초기 4개, 개당 6.21MiB), 프레임 확장 예산, 다중 프레임 재개와 generation·version·overlay revision 검증, 경로 pool과 cache를 만든다. 예산은 벤치마크(확장당 0.38us)에 따라 프레임 약 4,000 확장에서 시작한다(계획 초기값 8,000은 CPU 약 3ms).
-2. 예산 분할 결정론·lifecycle(`Stale`·`Cancelled`·`NoPath`) 자동화를 추가한다.
+1. `FLNPNavOverlay`에 조밀 전역 index 막힘 bitset을 더하고, Mass spawn Pod 배치 뒤 일괄 추가·Pod Popped 때 제거로 새 overlay를 게시한다(이음매 사본 동시 막힘). `ULNPNavPathSubsystem::Tick`이 지금 `nullptr`로 넘기는 overlay 자리에 연결한다.
+2. A*(`ForEachNeighbor` 경유)와 직선 보행 검사가 overlay 막힘 node를 열지 않게 하고, overlay 자동화(Pod 회피·제거 후 복귀·이음매 양쪽)와 `DrawNav` 표시를 추가한다.
 
 ## 범위 확장 결정(2026-10-01, 검토 세션)
 
@@ -114,6 +114,8 @@ Phase 7b(경로 실행) 계획 `phases/Phase07b_PathExecution.md`와 결정 D-06
 현재 확인된 블로커는 없다.
 
 ## 마지막 검증
+
+2026-10-01 Phase 7b 구현 단위 1: `LootNPopEditor Win64 Development` 전체 빌드(경고 0), Nav 12/12(`Saved/Logs/Phase07b_Unit1_NavTests.log`)와 전체 SurfaceNavigation 자동화 77/77(`Phase07b_Unit1_AllSurfaceNavTests.log`)가 통과했다. Meadow 300요청 동시 투입(예산 4,000·scratch 4)은 36 tick, 병렬 tick P50 1.09ms·P95 1.38ms, 직렬 P50 1.72ms·P95 2.00ms, 결과는 직접 탐색과 모두 같다. `-game` 스모크는 소비자가 없어 하지 않았다(구현 단위 3·5).
 
 2026-10-01 Phase 7b 구현 단위 0: `LootNPopEditor Win64 Development` 전체 빌드, 전체 SurfaceNavigation 자동화 75/75(`Saved/Logs/Phase07b_Unit0_AllSurfaceNavTests.log`, 신규 `Nav.GraphView`·`Nav.RegressionPath`·`Nav.ProductionPath`)가 통과했다. Meadow A* 300쌍(20~80m) 확장 P50 308·P95 1,439, 시간 P50 118us·P95 512us, 확장당 0.38us, 전부 Found. 조밀 graph resident 4.10MiB. `-game` 스모크와 cooked 측정은 하지 않았다(구현 단위 5 Gate).
 

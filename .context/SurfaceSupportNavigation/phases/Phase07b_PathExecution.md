@@ -1,6 +1,6 @@
 # Phase 7b — 경로 실행
 
-> 상태: 기준 계획(2026-10-01 작성·결정 확정) — 구현 단위 0 완료, 다음은 구현 단위 1
+> 상태: 기준 계획(2026-10-01 작성·결정 확정) — 구현 단위 0·1 완료, 다음은 구현 단위 2
 > 예상 범위: 3~4세션
 > 선행 조건: Phase 7a Nav 데이터 기반(완료, 2026-10-01)
 
@@ -79,24 +79,29 @@ A*는 `FLNPNavNodeRef`를 직접 해석하지 않고 게시 때 만든 조밀 in
 ### 3.4 Request lifecycle과 scheduler
 
 - 경로 요청은 서버 전용이다. 게스트는 경로를 계산하지 않고 복제된 위치와 행동 상태만 받는다.
-- `ULNPNavPathSubsystem`(world subsystem)이 요청 대기열, scratch pool, 경로 pool, cache를 소유한다.
+- `ULNPNavPathSubsystem`(world subsystem)이 요청 대기열, scratch pool, 경로 pool, cache를 소유한다. 실제 로직은 UObject가 없는 순수 코어 `FLNPNavPathScheduler`(`SurfaceNavigation/LNPNavPathScheduler.h`)에 두고, subsystem은 서버에서 매 프레임 게시된 snapshot으로 코어를 tick하고 CVar를 반영하는 얇은 창구다. 자동화는 코어를 회귀·production snapshot으로 직접 검사한다.
+- 호출은 모두 게임 스레드다. owner(`FMassEntityHandle`)마다 최신 요청 하나만 추적한다. 새 요청을 내면 이전 요청은 `Cancelled`가 되고, 소비자는 `GetResult(Owner, Serial)`로 자기 serial의 상태를 조회한다. 사라진 owner는 tick 첫 단계에서 정리한다.
 - 요청 상태: `Queued → Running → Succeeded | NoPath | Unreachable | NoNode | Stale | Cancelled`
   - `Running`은 여러 프레임에 걸칠 수 있다. 시작할 때의 `SnapshotGeneration`, `ConnectivityGraphVersion`, overlay revision을 보존한다.
   - 프레임을 넘겨 재개할 때 셋 중 하나라도 바뀌었으면 결과를 섞지 않고 `Stale`로 끝낸다. 요청자는 다음 프레임에 다시 요청한다.
   - 요청은 owner entity와 serial을 갖는다. owner가 사라졌거나 더 새 요청을 냈으면 결과를 버린다(`Cancelled`).
-- 예산(초기값, 구현 단위 1 측정으로 확정):
-  - 프레임 전체 확장 예산 `NavExpansionsPerFrame` 8,000
-  - 요청당 누적 확장 상한 `NavMaxExpansionsPerRequest` 30,000. 넘으면 `NoPath`로 끝낸다. 7a가 알려 둔 group 과대 추정(막힌 이음매가 유일한 다리였던 경우)의 최악 탐색을 여기서 끊는다.
-  - 동시 실행 요청 수는 scratch 수(`NavScratchCount`, 초기 4)로 제한한다. 각 scratch는 요청 하나를 맡아 worker에서 병렬로 돈다.
+- 예산(구현 단위 1 확정 초기값, 부하 조건 판정은 구현 단위 5):
+  - 프레임 전체 확장 예산 `LNP.SurfaceNav.NavExpansionsPerFrame` 4,000. 구현 단위 0 측정(확장당 0.38us)으로 계획 초안 8,000(약 3ms)을 절반으로 줄였다.
+  - 시작·목표 스냅(`ResolveEndpoints`, P95 약 8us)은 요청마다 확장 16개로 환산해 같은 예산에서 뺀다. cache hit·도달 불가처럼 탐색이 없는 요청이 몰려도 프레임 비용이 예산에 묶인다.
+  - 한 프레임 안에서 "대기열 시작 → 실행 중 요청을 남은 예산의 균등 몫으로 병렬 확장 → 끝난 요청 정리"를 예산이 남는 동안 반복한다. 끝난 scratch를 같은 프레임에 다시 쓰므로 짧은 요청은 프레임당 scratch 수보다 많이 끝난다. 대기열은 빈 scratch가 있을 때만 꺼낸다.
+  - 요청당 누적 확장 상한 `LNP.SurfaceNav.NavMaxExpansionsPerRequest` 30,000. 넘으면 `NoPath`로 끝낸다. 7a가 알려 둔 group 과대 추정(막힌 이음매가 유일한 다리였던 경우)의 최악 탐색을 여기서 끊는다.
+  - 동시 실행 요청 수는 scratch 수(`LNP.SurfaceNav.NavScratchCount`, 초기 4)로 제한한다. 각 scratch는 요청 하나를 맡아 worker에서 병렬로 돈다(`LNP.SurfaceNav.NavParallelSearch`). 결과는 병렬 여부·예산 분할과 무관하다.
+- 도달 불가(`Unreachable`·`NoNode`)여도 요청에 `ApproachRadius`가 있고 접근점이 있으면 접근점까지 A*를 돌려 경로를 붙인다(D-063). 상태는 도달 불가 그대로이며, 접근점 경로는 cache에 넣지 않는다.
 - scratch는 전역 node 수 크기의 g·parent·방문 stamp 배열이다(541,832 × 12B, 약 6.2MiB). stamp를 쓰므로 요청마다 배열을 비우지 않는다. 4개면 약 25MiB이며, 측정에서 문제가 되면 희소 해시 scratch와 비교한다.
 - 요청 우선순위: 새 추격 요청 > 경로 무효화에 따른 재계획 > 배회·재귀속·접근점 이동. 같은 우선순위는 먼저 온 순서다.
 
 ### 3.5 경로 결과·단순화·cache
 
 - A* 결과 node 열을 **Nav 직선 보행 검사**로 단순화해 waypoint 열을 만든다. 검사는 두 지면점 사이 대원호를 격자 간격의 절반으로 샘플링하고, 연속 샘플이 edge로 이어진 walkable node에 떨어지는지 본다. 같은 검사를 "직선 경로 우선"(`design/GroundNavigation.md`)에도 쓴다.
-- waypoint는 지면점 world 위치와 조밀 index를 가진다. 경로는 subsystem 경로 pool에 두고 개체는 handle과 현재 waypoint index만 가진다. 경로 하나를 여러 개체가 공유할 수 있다.
-- 경로는 통과한 Tile과 그 Tile의 overlay revision 목록을 함께 저장한다(`TraversedRevisionFingerprint`, `design/GroundNavigation.md`).
-- cache key: `(StartTile, GoalTile, AgentProfile, SnapshotGeneration, ConnectivityGraphVersion)`. hit이 되려면 저장된 Tile revision이 현재와 모두 같아야 한다. hit한 개체는 자기 위치에서 경로 첫 waypoint까지 직선 보행 검사를 통과해야 그 경로를 쓴다. 실패하면 개별 요청으로 돌아간다.
+- waypoint는 지면점 world 위치와 조밀 index를 가진다. 경로는 immutable `FLNPNavPath`이고 handle은 thread-safe 공유 포인터(`FLNPNavPathPtr`)다. 별도 index pool 대신 참조 수가 수명을 정한다. 개체는 handle과 현재 waypoint index만 가진다. 경로 하나를 여러 개체가 공유할 수 있다.
+- 경로는 통과한 Tile과 그 Tile의 overlay revision 목록을 함께 저장한다(`TraversedRevisionFingerprint`, `design/GroundNavigation.md`). Tile은 A* node가 아니라 단순화된 waypoint 구간의 직선 보행 cell에서 모은다. 개체가 실제로 걷는 곳이기 때문이다. Tile 주소는 `(RuntimeNavLayerId << 16) | TileId`다(`LNPNavGraph::GetTileKey`).
+- overlay revision view(`FLNPNavOverlay`: 전역 revision과 Tile별 revision, `SurfaceNavigation/LNPNavOverlay.h`)는 구현 단위 1에서 먼저 정의했다. overlay가 없으면 모든 revision이 0이다. 막힘 내용과 생산자는 구현 단위 2에서 더한다.
+- cache key: `(StartTile, GoalTile, SnapshotGeneration, ConnectivityGraphVersion)`. agent profile은 snapshot당 하나라 generation에 포함된다. hit이 되려면 저장된 Tile revision이 현재와 모두 같아야 한다. hit한 개체는 자기 시작 node에서 경로 첫 waypoint까지, 경로 마지막 waypoint에서 자기 목표 node까지 직선 보행 검사를 통과해야 그 경로를 쓴다. Tile이 16×16 cell(지각 약 32m)이라 목표 쪽 확인도 필요하다. 실패하면 개별 요청으로 돌아간다.
 - cache 용량과 수명(초기값): 항목 256개, LRU. 목표 Tile이 바뀌는 추격 수요에서 실제 hit율은 구현 단위 5에서 잰다. hit율이 낮으면 cache를 지우지 않고 Phase 10 비교 입력으로 기록한다.
 
 ### 3.6 Pod runtime blocker overlay
@@ -181,13 +186,30 @@ A*는 `FLNPNavNodeRef`를 직접 해석하지 않고 게시 때 만든 조밀 in
 
 ### 구현 단위 1 — request scheduler와 cache
 
-- [ ] `ULNPNavPathSubsystem`: 대기열, 우선순위, scratch pool, 프레임 예산, 다중 프레임 재개, 경로 pool
-- [ ] generation·version·overlay revision 검증과 `Stale`·`Cancelled`·`NoPath` 처리
-- [ ] 경로 cache와 hit 조건(§3.5)
-- [ ] 예산 분할 결정론, lifecycle 자동화
-- [ ] 구현 단위 0 측정으로 §3.4 예산 초기값 확정
+- [x] `ULNPNavPathSubsystem`: 대기열, 우선순위, scratch pool, 프레임 예산, 다중 프레임 재개, 경로 pool
+- [x] generation·version·overlay revision 검증과 `Stale`·`Cancelled`·`NoPath` 처리
+- [x] 경로 cache와 hit 조건(§3.5)
+- [x] 예산 분할 결정론, lifecycle 자동화
+- [x] 구현 단위 0 측정으로 §3.4 예산 초기값 확정
 
 완료 조건: 여러 요청이 예산 안에서 병렬·다중 프레임으로 끝나고 한 번에 실행한 결과와 같다.
+
+결과(2026-10-01):
+
+- `LNPNavPathScheduler`(순수 코어), `ULNPNavPathSubsystem`(서버 tick 창구·CVar 5개), `LNPNavOverlay.h`(revision view)를 추가했다. `LNPNavGraph`에 `GetTileKey`와 `CollectDirectWalkNodes`를 더하고, 직선 보행 검사 본체를 visitor 템플릿 하나로 묶어 두 함수가 같은 판정을 쓰게 했다.
+- 구조 결정(§3.4·§3.5에 반영): owner별 최신 요청 하나, 경로 handle은 공유 포인터, 스냅 비용의 예산 환산, 프레임 안 반복 라운드, 도달 불가 요청의 접근점 경로, cache hit의 목표 쪽 직선 검사, Tile fingerprint는 waypoint 구간 cell 기준
+- 자동화 2개 추가:
+  - `Nav.PathScheduler`(회귀 8-slot): 나무·동굴·트인 지각 세 요청을 한 tick 전량(예산 100만·scratch 4), 병렬 분할(예산 40·scratch 2, 45 tick), 직렬 분할(예산 7·scratch 1, 250 tick)로 처리해 모두 직접 A*+단순화와 같은 waypoint. 도달 불가 섬은 접근점 반경 없이 확장 0·경로 없음, 반경 3,000cm면 `Unreachable`에 접근점 끝 경로(미캐시). 실행 중 `ConnectivityGraphVersion`·overlay revision 변경 → `Stale`과 scratch 반납, 옛 handle → `Stale`. 재요청 → 옛 serial `Cancelled`, `Cancel` → 기록 삭제, owner 소멸 → 정리·`Cancelled` 계수, 상한 2 → `NoPath`. scratch 1개에서 나중 추격 요청이 먼저 온 배회보다 먼저 시작. 같은 Tile 쌍 두 번째 요청은 같은 경로를 확장 0으로 공유하고, 지나는 Tile revision이 바뀌면 재계산, 무관한 Tile revision은 hit 유지
+  - `Nav.ProductionScheduler`(Meadow): 주 group 20~80m 결정론적 무작위 300요청을 한 프레임에 넣고 기본 예산(4,000·scratch 4·cache 끔)으로 처리. 병렬·직렬 모두 300/300 성공하고 직접 탐색과 waypoint가 같다
+- Meadow scheduler 측정(에디터 Development, 300요청 동시 투입):
+
+| 모드 | tick 수 | tick P50 | tick P95 | tick 최대 | 요청 대기 tick P95 |
+|:---|---:|---:|---:|---:|---:|
+| 병렬 | 36 | 1.09ms | 1.38ms | 3.47ms | 1 |
+| 직렬 | 36 | 1.72ms | 2.00ms | 3.49ms | 1 |
+
+  프레임당 약 8.3요청을 끝낸다. 직렬 tick은 예산 확장 비용(4,000 × 0.38us ≈ 1.5ms)에 스냅·단순화·fingerprint가 약 15% 더해진 값이다. 최대값은 첫 tick의 scratch 4개(24.8MiB) 할당이다. 병렬은 게임 스레드 기준으로 1.6배 빠르며, 남은 요청 몇 개가 라운드 끝을 끄는 탓에 4배에 못 미친다.
+- 예산 초기값은 4,000으로 확정한다. 구현 단위 5의 "경로 CPU P95 1.5ms" Gate는 게임 스레드 tick 시간(병렬 대기 포함)으로 재고, worker 합산 CPU는 참고값으로 함께 기록한다(사용자 확정 2026-10-01, 프레임에 실제로 드러나는 비용이 게임 스레드 대기이기 때문이다). 병렬 모드 tick P95 1.38ms가 현재 이 기준 안이다.
 
 ### 구현 단위 2 — Pod runtime blocker overlay
 
@@ -225,7 +247,7 @@ A*는 `FLNPNavNodeRef`를 직접 해석하지 않고 게시 때 만든 조밀 in
 - [ ] 요청 로그 캡처를 Phase 10 benchmark 입력으로 저장
 - [ ] 전체 자동화, 에디터 전체 빌드, BuildCookRun, 패키지 1P와 리슨 2P 스모크
 
-완료 조건(초기 제안, 구현 단위 1 측정 뒤 조정): 700마리 추격 조건에서 프레임 P95가 16.67ms 안이고 경로 CPU P95가 1.5ms 안이다. Phase 6 cache-first 한계 800마리 대비 한계 감소를 기록한다.
+완료 조건(2026-10-01 사용자 확정): 700마리 추격 조건에서 프레임 P95가 16.67ms 안이고, 경로 CPU P95가 1.5ms 안이다. 경로 CPU는 `ULNPNavPathSubsystem` 게임 스레드 tick 시간(병렬 확장 대기 포함)이다. worker 합산 CPU는 참고값으로만 기록한다. Phase 6 cache-first 한계 800마리 대비 한계 감소를 기록한다.
 
 ## 5. 전체 완료 조건
 

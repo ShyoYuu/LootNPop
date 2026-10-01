@@ -252,4 +252,10 @@ namespace LNPNavGraph
 	 * 연속 샘플이 같은 node이거나 통과 가능한 grid edge로 이어진 이웃인지 본다. slot·Layer가 다르면 false다.
 	 */
 	LOOTNPOP_API bool IsDirectWalkable(const FLNPNavSnapshot& Nav, int32 From, int32 To);
+
+	/** IsDirectWalkable과 같은 검사이며, 통과한 cell의 전역 index를 From부터 순서대로(중복 없이) 모은다. 경로 Tile fingerprint에 쓴다. */
+	LOOTNPOP_API bool CollectDirectWalkNodes(const FLNPNavSnapshot& Nav, int32 From, int32 To, TArray<int32>& OutNodes);
+
+	/** node가 속한 Tile의 전역 key `(RuntimeNavLayerId << 16) | TileId`. overlay Tile revision의 주소다. 범위 밖이면 MAX_uint32. */
+	LOOTNPOP_API uint32 GetTileKey(const FLNPNavSnapshot& Nav, int32 GraphNode);
 }
