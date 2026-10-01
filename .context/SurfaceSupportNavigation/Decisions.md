@@ -42,7 +42,7 @@
 | D-032 | Support 캐시 도입 전에 exact 전용 부유섬 프로토타입으로 플레이 감각과 exact 한계치를 실측하고, 캐시 도입 뒤 같은 시나리오로 한계치 증가를 다시 측정한다. | 확정 | `Roadmap.md` |
 | D-033 | 대규모 추격 경로는 목표별 flow field와 계층형 A*를 모두 구현하고 같은 시나리오에서 실측 비교해 채택한다. | 대체됨(D-044) | `design/GroundNavigation.md` |
 | D-034 | 베이커 핵심 계산은 collision 삼각형을 입력으로 받는 순수 함수로 runtime 모듈에 둔다. source 수집·저장·검증 UI는 Editor 모듈이 담당한다. | 확정 | `design/SurfaceBaking.md` |
-| D-035 | 지하 공간은 반구·직육면체 같은 재사용 공동 모듈과 통로 조각의 키트로 만들고, 옥탄트에는 공동으로 들어가는 통로 1~2개만 뚫는다. 복층·수직 통로·분기는 지원하지 않는다. | 확정 | `design/TerrainContract.md` |
+| D-035 | 지하 공간은 반구·직육면체 같은 재사용 공동 모듈과 통로 조각의 키트로 만들고, 옥탄트에는 공동으로 들어가는 통로 1~2개만 뚫는다. 복층·수직 통로·분기는 지원하지 않는다. | 대체됨(D-071) | `design/TerrainContract.md` |
 | D-036 | `LNPWorldExact` 소비자 전환 전에 production 지형의 exact collision response를 먼저 마이그레이션한다. Surface 베이크용 Component Tag 전환은 Phase 4에 남길 수 있지만 exact response 마이그레이션은 Phase 3 Gate -1이다. | 확정 | `design/TerrainContract.md` |
 | D-037 | worker exact hit는 UObject를 역참조하지 않고 사전 게시된 hit identity registry로 의미를 해석한다. 키는 component 하나가 아니라 가능한 경우 shape/component identity, face index, ISM instance index를 포함하며 Surface Layer·DynamicSupport ID로 변환한다. | 확정 | `design/RuntimeCollision.md` |
 | D-038 | 원거리 grounded 개체는 risk·edge 결과를 거친 지지면으로 임의 통과하지 않는다. 안전한 Nav cell 내부에서만 coarse support를 쓰고, 불확실한 경계는 Nav edge로 차단하거나 실제 전환 프레임에 exact를 수행한다. | 확정 | `design/RuntimeCollision.md` |
@@ -78,6 +78,9 @@
 | D-068 | 배회 대역의 이동은 서버가 정한 구간(다음 지점·도착 시각·정지 시간)을 구간 시작 때 한 번 복제하고 서버·클라이언트가 같은 보간으로 위치를 계산한다. 구간 중에는 위치 갱신을 보내지 않는다. 클라이언트가 경로까지 생성하는 완전 결정론은 측정에서 대역폭 문제가 확인될 때만 도입한다. 벽 타기 NPC는 같은 표면 안의 짧은 구간과 긴 정지로 같은 방식을 쓴다. | 확정(Phase 13 구현) | `design/MovementIntegration.md` "구간 배회 복제" |
 | D-069 | 비행 진형(리더만 복제하고 멤버 위치를 추론)은 채택하지 않는다. 멤버별 락온·HP·넉백을 유지하려면 전투 규칙 전반에 예외가 생기며, 비용 절감은 D-067·D-068이 맡는다. D-054 총수는 Phase 13 뒤 재측정해 새 결정으로 대체한다. | 기각 | `../DiscardedApproaches.md` [Case 06] |
 | D-070 | 입체 지형 레벨 디자인 규칙: 계단의 충돌은 계단 전체를 덮는 경사로 형상 메시(`Support+Blocker+Static`)가 맡고 보이는 계단 칸은 `Decoration`이다. 문·통로 폭은 200cm 이상이다. 두 규칙 모두 콘텐츠 규칙이며 베이크 오류로 막지 않는다. | 확정 | `design/TerrainContract.md` §6-1 |
+| D-071 | 지하 공간은 Floor·Shell을 나눈 닫힌 메시로 만들되 모양·크기를 재사용 모듈로 제한하지 않는다. 대형 공동, 공동 안 복층 구조물(D-064), 분기, 입구 여러 개를 허용한다. 입구는 지상 NPC가 오가는 긴 경사로와 Nav로 잇지 않는 수직 통로(플레이어는 낙하·마커 그래플 앵커)이며 옥탄트마다 조합을 달리한다. 지하 공간은 옥탄트 경계·꼭짓점 근처에 두지 않고 옥탄트 중심 방향에 두며, 깊이는 베이커의 int16 캡 검사가 막는다. D-035를 대체한다. 복층·분기를 뺀 원래 사유(D-006, SurfaceCache 시절 범위 절단)는 다층 Atlas(D-057)와 접힌 sheet 분할(D-064)로 남아 있지 않다. | 확정(Phase 7c 검증) | `design/TerrainContract.md` §6 |
+| D-072 | 비지각 Layer 해상도는 source마다 정한다. 기본은 25cm(m=4)이고 Support 컴포넌트에 `LNP.Surface.CoarseSupport` 태그가 있으면 지각과 같은 100cm(m=1)로 굽는다. 지각을 연장한 넓고 완만한 공동 바닥용이며, 그 위 구조물은 기본 해상도를 쓴다. codec v2는 Layer마다 분할 수를 저장하므로 형식은 바뀌지 않는다. D-057의 정수배 규칙은 유지한다. | 확정(Phase 7c 구현) | `design/SurfaceBaking.md` "해상도 정책" |
+| D-073 | 비행 적을 편성한 Pod는 위쪽 여유(headroom)가 충분한 Pod 후보에만 둔다. 베이커가 Spawn 후보마다 위쪽 exact sweep으로 headroom을 기록하고, 런타임 할당이 비행 Config(`IdleAltitude` 상한 + clearance + 여유)에서 유도한 기준과 비교한다. 지하·지상을 구분하지 않는다. 비행 적이 천장 낮은 공간으로 추격하지 못하는 것은 허용한다. | 확정(Phase 7c 구현) | `design/MovementIntegration.md` "완전 비행 NPC" |
 
 ## 변경 규칙
 

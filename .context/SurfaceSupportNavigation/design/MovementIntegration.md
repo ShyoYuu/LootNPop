@@ -214,6 +214,7 @@ enum class ELNPNavigationDomain : uint8
 
 - **archetype**: PureEntity 전용(D-052). 같은 `ULNPEnemyTrait`에 `NavigationDomain = FreeFlight`면 `FLNPEnemyFlyingTag`가 붙고, 지상 이동·분리·격자는 이 태그를 거른다. 이동은 `ULNPEnemyFlightMovementProcessor`, 조향은 Mass 비의존 순수 함수 `LNPFlightSteering`(엘리트 Actor 재사용 대비)이다. 비행끼리 분리는 별도 격자의 3D 거리다.
 - **고도(D-053)**: 비교전은 Home 위 `IdleAltitude` 대역 3D 배회, 교전은 타겟 위 `EngageAltitude`·올려다보는 각 `EngageElevationDeg`의 교전 지점. 쏠 수 있는 동안은 자리를 지키고, 사거리·조준 각도를 벗어나거나 LoS가 막힐 때만 재배치한다.
+- **headroom(D-073)**: 비행 적을 편성한 Pod는 위쪽 여유가 `IdleAltitude` 상한 + clearance + 여유(현재 값으로 약 25~30m) 이상인 Spawn 후보에만 선다. 베이커가 후보마다 위쪽 exact sweep 거리를 기록하고 런타임 할당이 Config에서 유도한 기준과 비교하므로, 고도 Config를 바꿔도 재베이크가 필요 없다. 지하 대형 공동·큰 건물 안·섬 밑이 같은 규칙으로 처리된다. 천장 낮은 공간으로는 추격하지 않는다. LoS 게이트와 교착 복구 때문에 입구 밖에서 호버하거나 물러나며, 이를 의도한 동작으로 본다. 높은 공동 안에서 타겟이 천장 가까이 있어 교전 지점이 천장 속에 들어가는 경우는 Phase 7c 검증에서 보고, 어색하면 교전 고도를 위쪽 probe 1회로 clamp한다.
 - **교전 수 상한**: 비행 적은 원거리 슬롯 풀을 쓰므로 동시 교전 수는 플레이어당 원거리 슬롯(20)으로 묶이고 나머지는 Alert로 호버한다. 지상 원거리 적과 같은 풀을 나눈다.
 - **넉백**: 생산자(`ApplyEntityKnockback`)는 지상과 같고, 비행 소비는 중력 없이 반감기 감쇠·steering 추가 속도로 sweep. "`Velocity != 0`이면 공중"이라는 지상 규약은 비행 개체에 적용하지 않는다.
 - **사망**: 비행을 끊고 `StepAirborne` 낙하, 착지 여부는 `bDeathLanded`로 기억한다.

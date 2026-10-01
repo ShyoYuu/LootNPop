@@ -146,7 +146,7 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 
 **격자와 row span**(`LNPSupportAtlas::ComputeFootprint`·`Rasterize`)
 
-- 비지각 Layer 격자는 지각과 같은 octahedral 격자이고 분할 수가 `m·N`이다(D-057). m은 bake setting `LayerSubdivisionMultiplier`이고 옥탄트 안 모든 비지각 Layer가 같다. **기본 m=4(25cm, N_L=2,940)**. 구현 단위 3에서 m=2·4를 exact와 비교해 정했다. 오차는 둘 다 합격이었고, m=4가 섬·경사로의 NeedsExact를 절반으로 줄이는 대가로 `Meadow_00` payload가 2.09 → 2.63MB가 된다(`../phases/Phase04b_MultiLayerSupport.md` 구현 단위 3).
+- 비지각 Layer 격자는 지각과 같은 octahedral 격자이고 분할 수가 `m·N`이다(D-057). m은 source마다 정한다(D-072). 기본은 bake setting `LayerSubdivisionMultiplier` **m=4(25cm, N_L=2,940)**이고, `LNP.Surface.CoarseSupport` source는 m=1(지각과 같은 100cm)이다. Phase 7c 전까지는 옥탄트 안 모든 비지각 Layer가 같은 m이다. 구현 단위 3에서 m=2·4를 exact와 비교해 정했다. 오차는 둘 다 합격이었고, m=4가 섬·경사로의 NeedsExact를 절반으로 줄이는 대가로 `Meadow_00` payload가 2.09 → 2.63MB가 된다(`../phases/Phase04b_MultiLayerSupport.md` 구현 단위 3).
 - 배치는 `j` 범위 `[J0, J0+RowCount)`와 행별 `i` 구간 `[IStart, IStart+Count)`다. Layer 삼각형을 옥탄트 면에 중심 투영한 영역 안의 격자점을 모두 담는 최소 구간이다. 광선은 투영 영역 밖에서 삼각형을 맞힐 수 없으므로 구간 밖은 모두 coverage hole과 같다. 지각은 전체 배치(`J0=0`, 행 `j`는 `[0, N-j]`)라 인덱스가 지각 격자 인덱스와 같다.
 - 광선은 그 Layer 삼각형만으로 만든 트리에 쏜다. 앞면 교차가 둘 이상이면 베이크 오류다(지각 overhang, Layer의 접힌 sheet). Phase 7c부터 비지각 Layer의 접힌 sheet는 Layer를 만들기 전에 자동 분할하므로(아래 "접힌 sheet 자동 분할") 이 오류는 지각 overhang과 분할 결함의 안전망으로만 남는다.
 - 플래그 규칙은 지각과 같다. 구간 밖 이웃은 invalid로 보므로 Layer 경계 샘플은 `NeedsExact`다. 이음매 스냅은 지각에만 한다.
@@ -176,7 +176,7 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 건물·탑을 도입하면 나선 경사로, 한 메시 안에서 경사로로 이어진 여러 층처럼 **walkable 연결 성분 하나가 같은 방향에서 자기 위를 덮는** 콘텐츠가 흔해진다. 벽으로 끊긴 층 바닥들은 이미 서로 다른 sheet이므로 대상이 아니다. 콘텐츠 메시를 수동으로 쪼개면 반복 비용이 쌓이고, 분할 툴은 같은 판정 알고리즘에 에셋 생성·컴포넌트 교체·태그 부여가 더해진다. 그래서 베이커가 메모리 안의 삼각형 집합만 나눈다.
 
 - 위치: `LNPSupportLayers::BuildLayers`가 비지각 walkable sheet를 만든 직후, Layer로 확정하기 전이다. 지각(Layer 0)은 분할하지 않으며 overhang은 계속 오류다.
-- 접힘 판정: sheet 삼각형을 비지각 Layer 격자(`m·N`)에 중심 투영해 덮는 격자점마다 반지름을 기록한다. 같은 격자점을 `HitMergeDistance`보다 큰 반지름 차로 덮는 두 삼각형이 있으면 접힌 sheet다.
+- 접힘 판정: sheet 삼각형을 그 source의 Layer 격자(`m·N`)에 중심 투영해 덮는 격자점마다 반지름을 기록한다. 같은 격자점을 `HitMergeDistance`보다 큰 반지름 차로 덮는 두 삼각형이 있으면 접힌 sheet다.
 - 분할: 외부 face 번호가 가장 작은 삼각형을 시드로 모서리 인접 삼각형을 넓혀 가되, 현재 sub-sheet가 이미 다른 반지름으로 덮은 격자점을 덮는 삼각형은 받지 않고 다음 sub-sheet로 미룬다. 결과는 입력 순서만으로 정해진다(결정론, `Bake.OctantBakeDeterministic` 대상).
 - 식별: sub-sheet는 기존 `LocalLayerId` 규칙(source Key 오름차순 → 최소 external face 순)을 그대로 따른다. 한 컴포넌트가 여러 Layer가 되므로 face 표는 face 단위 배열이다.
 - 연결: 잘린 경계는 서로 다른 컴포넌트 Layer가 맞닿은 경계와 같게 다룬다. runtime Layer 전환은 지금의 경사로·섬 윗면 경계와 같은 exact 재획득 경로를 타고, Nav는 portal 탐색의 exact polyline sweep으로 잇는다. 잘린 선이 길면 D-065에 따라 portal을 여러 개 둔다.
@@ -187,7 +187,7 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 
 - Phase 4a: 지각 Atlas, 옥탄트 세 변의 샘플링 규약, 8 slot 이음매 일치 검증
 - Phase 4b: 부유섬·동굴 키트 sparse Atlas, 같은 방향 다층 선택, 공동 바닥 분리
-- Phase 7c: 건물·탑 같은 입체 지형을 위한 접힌 sheet 자동 분할(D-064)
+- Phase 7c: 건물·탑 같은 입체 지형을 위한 접힌 sheet 자동 분할(D-064), source별 Layer 해상도(D-072)
 
 두 단계 모두 Phase 3b의 greybox 옥탄트 LVI와 fixture LVI를 입력으로 사용한다(`../Roadmap.md` §4).
 
@@ -198,7 +198,8 @@ Phase 1 C-option fixture의 구형 `LNP.Terrain.*` Component Tag는 입력으로
 Support 해상도는 지형별로 다르게 둘 수 있다.
 
 - 기본 지각: 100cm(옥탄트 중심 간격, N=735). Phase 4a에서 200·100·50cm를 exact와 비교해 확정했다(`../phases/Phase04a_CrustAtlasAndSeams.md` §3.6)
-- 부유섬·경사로·계단·동굴 바닥(비지각 Layer): 25cm(m=4). Phase 4b 구현 단위 3에서 50cm와 비교해 확정했다. Layer마다 다른 해상도는 두지 않는다(D-057)
+- 부유섬·경사로·계단·구조물 바닥(비지각 Layer 기본): 25cm(m=4). Phase 4b 구현 단위 3에서 50cm와 비교해 확정했다
+- 지각을 연장한 넓고 완만한 공동 바닥(`LNP.Surface.CoarseSupport`): 100cm(m=1, D-072). 지름 200m 바닥이 25cm면 약 50만 샘플·3.5MB로 `Meadow_00` 옥탄트 전체 payload(2.63MB)보다 커지기 때문이다. 합격 기준은 지각과 같다. 가장자리 `NeedsExact` 띠는 약 200cm로 넓어진다
 - 가장자리에서 격자 약 2칸(m=4면 약 50cm) 안쪽은 보간되지 않고 exact로 간다. 그보다 좁은 칸(예: `Meadow_00` 섬 B 계단)은 사실상 exact 전용이며 이는 의도한 동작이다
 - 경계와 급격한 곡률 구간: risk 표시 후 exact 폴백
 
@@ -221,10 +222,10 @@ Support 해상도는 지형별로 다르게 둘 수 있다.
 
 ### 동굴 키트 베이크
 
-동굴은 중심에서 첫 hit만 수집하는 방식으로 만들 수 없다. 지각·공동 천장·공동 바닥이 같은 방향에 겹치기 때문이다. 키트 계약은 `TerrainContract.md` §6이 소유한다(D-035).
+동굴은 중심에서 첫 hit만 수집하는 방식으로 만들 수 없다. 지각·공동 천장·공동 바닥이 같은 방향에 겹치기 때문이다. 지하 공간 계약은 `TerrainContract.md` §6이 소유한다(D-071).
 
 - 공동 모듈과 통로 조각은 바닥을 별도 `Support` 컴포넌트로 가진다. 베이커는 컴포넌트 단위로 Layer를 나누므로 추가 추론이 필요 없다.
-- 모듈 종류가 적으므로 바닥 walkable 조건, 천장 높이, 통로 capsule clearance는 모듈 제작 시 한 번 검증한다. 옥탄트 베이크는 배치 transform과 지각 입구 연결만 검증한다.
+- 재사용 모듈은 바닥 walkable 조건, 천장 높이, 통로 capsule clearance를 모듈 제작 시 한 번 검증한다(`Bake.CaveKitContract`). 옥탄트 전용 자유 형태 공동은 옥탄트 베이크의 Layer 생성과 Nav capsule 검사가 같은 조건을 확인한다.
 
 공동·통로 한 Layer는 다음 규약을 만족해야 한다.
 
