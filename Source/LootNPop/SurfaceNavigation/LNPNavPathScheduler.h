@@ -151,11 +151,15 @@ public:
 	 */
 	void Tick(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, TFunctionRef<bool(FMassEntityHandle)> IsOwnerValid);
 
+	/** overlay가 바뀐 Tile을 지나던 완료 경로만 같은 serial로 재계획 대기열에 넣는다. */
+	int32 RequeueInvalidatedPaths(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay);
+
 	bool HasWork() const { return !Running.IsEmpty() || QueuedCount > 0; }
 	int32 GetRunningCount() const { return Running.Num(); }
 	int32 GetQueuedCount() const { return QueuedCount; }
 	int32 GetCacheCount() const { return Cache.Num(); }
 	const FLNPNavPathSchedulerStats& GetStats() const { return Stats; }
+	void VisitResults(TFunctionRef<void(FMassEntityHandle, const FLNPNavPathResult&)> Visitor) const;
 	uint64 GetScratchBytes() const;
 
 	/** 모든 요청·cache·통계를 버린다. scratch 메모리는 유지한다. */

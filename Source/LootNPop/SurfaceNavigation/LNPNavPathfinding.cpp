@@ -3,6 +3,7 @@
 #include "SurfaceNavigation/LNPNavPathfinding.h"
 
 #include "SurfaceNavigation/LNPNavRuntime.h"
+#include "SurfaceNavigation/LNPNavOverlay.h"
 
 #include "Algo/Reverse.h"
 
@@ -33,7 +34,7 @@ namespace
 
 ELNPNavSearchStatus LNPNavPathfinding::BeginSearch(
 	const FLNPNavSnapshot& Nav, const int32 Start, const int32 Goal, const FLNPNavSearchParams& Params,
-	FLNPNavSearchScratch& Scratch, FLNPNavSearch& OutSearch)
+	FLNPNavSearchScratch& Scratch, FLNPNavSearch& OutSearch, const FLNPNavOverlay* Overlay)
 {
 	OutSearch = FLNPNavSearch();
 	OutSearch.Params = Params;
@@ -44,7 +45,8 @@ ELNPNavSearchStatus LNPNavPathfinding::BeginSearch(
 	const FLNPNavGraph& Graph = Nav.Graph;
 	const int32 StartSlot = Graph.GetSlot(Start);
 	const int32 GoalSlot = Graph.GetSlot(Goal);
-	if (StartSlot == INDEX_NONE || GoalSlot == INDEX_NONE || Graph.BlockedNodes[Start] || Graph.BlockedNodes[Goal])
+	if (StartSlot == INDEX_NONE || GoalSlot == INDEX_NONE || Graph.BlockedNodes[Start] || Graph.BlockedNodes[Goal]
+		|| LNPNavOverlay::IsBlocked(Overlay, Start) || LNPNavOverlay::IsBlocked(Overlay, Goal))
 	{
 		OutSearch.Status = ELNPNavSearchStatus::Invalid;
 		return OutSearch.Status;
@@ -85,7 +87,8 @@ ELNPNavSearchStatus LNPNavPathfinding::BeginSearch(
 }
 
 ELNPNavSearchStatus LNPNavPathfinding::StepSearch(
-	const FLNPNavSnapshot& Nav, FLNPNavSearchScratch& Scratch, FLNPNavSearch& Search, const int32 ExpansionBudget)
+	const FLNPNavSnapshot& Nav, FLNPNavSearchScratch& Scratch, FLNPNavSearch& Search, const int32 ExpansionBudget,
+	const FLNPNavOverlay* Overlay)
 {
 	if (Search.Status != ELNPNavSearchStatus::Running)
 	{
@@ -145,7 +148,7 @@ ELNPNavSearchStatus LNPNavPathfinding::StepSearch(
 			const float H = Search.Params.bUseHeuristic
 				? static_cast<float>(FVector3d::Dist(ToPoint, Search.GoalPoint)) : 0.0f;
 			Scratch.Open.HeapPush({NewG + H, NewG, To}, FOpenOrder());
-		});
+		}, Overlay);
 	}
 	if (Scratch.Open.IsEmpty())
 	{
@@ -176,7 +179,8 @@ bool LNPNavPathfinding::ExtractNodePath(
 }
 
 void LNPNavPathfinding::SimplifyPath(
-	const FLNPNavSnapshot& Nav, const TConstArrayView<int32> Nodes, TArray<int32>& OutWaypoints)
+	const FLNPNavSnapshot& Nav, const TConstArrayView<int32> Nodes, TArray<int32>& OutWaypoints,
+	const FLNPNavOverlay* Overlay)
 {
 	OutWaypoints.Reset();
 	if (Nodes.IsEmpty())
@@ -194,7 +198,7 @@ void LNPNavPathfinding::SimplifyPath(
 		for (int32 Candidate = Anchor + 2; Candidate <= FMath::Min(Last, Anchor + SimplifyLookahead); ++Candidate)
 		{
 			if (!IsSameSegment(Graph, Nodes[Anchor], Nodes[Candidate])
-				|| !LNPNavGraph::IsDirectWalkable(Nav, Nodes[Anchor], Nodes[Candidate]))
+				|| !LNPNavGraph::IsDirectWalkable(Nav, Nodes[Anchor], Nodes[Candidate], Overlay))
 			{
 				break;
 			}

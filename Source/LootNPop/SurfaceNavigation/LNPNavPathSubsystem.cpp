@@ -3,6 +3,7 @@
 #include "SurfaceNavigation/LNPNavPathSubsystem.h"
 
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "LootNPop.h"
 
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
@@ -56,6 +57,55 @@ TStatId ULNPNavPathSubsystem::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(ULNPNavPathSubsystem, STATGROUP_Tickables);
 }
 
+void ULNPNavPathSubsystem::AddPodBlocker(const int32 PodID, const FVector& Location,
+	const FLNPSurfaceHandle& Surface)
+{
+	if (PodID > 0 && Surface.IsValid())
+	{
+		PodBlockers.Add(PodID, {PodID, FVector3d(Location), Surface});
+	}
+}
+
+void ULNPNavPathSubsystem::RemovePodBlocker(const int32 PodID)
+{
+	if (PodBlockers.Remove(PodID) > 0)
+	{
+		CommitPodBlockers();
+	}
+}
+
+void ULNPNavPathSubsystem::CommitPodBlockers()
+{
+	if (SurfaceData == nullptr)
+	{
+		return;
+	}
+	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> Snapshot = SurfaceData->TakeSnapshot();
+	if (!Snapshot.IsValid() || !Snapshot->Nav.Graph.IsValid())
+	{
+		return;
+	}
+	if (OverlayGeneration != Snapshot->Generation)
+	{
+		Overlay.Reset();
+		OverlayGeneration = Snapshot->Generation;
+	}
+	TArray<FLNPNavPodBlocker> Pods;
+	PodBlockers.GenerateValueArray(Pods);
+	FLNPNavOverlay Next;
+	if (LNPNavOverlay::BuildPodOverlay(*Snapshot, Pods, Overlay.Get(), Next))
+	{
+		Overlay = MakeShared<FLNPNavOverlay, ESPMode::ThreadSafe>(MoveTemp(Next));
+		const int32 Requeued = Scheduler.RequeueInvalidatedPaths(Snapshot->Nav, Overlay.Get());
+		UE_LOG(LogLootNPop, Log, TEXT("[NavOverlay] Published Pod blockers: pods=%d revision=%u blockedNodes=%d"),
+			Pods.Num(), Overlay->Revision, Overlay->BlockedNodes.CountSetBits());
+		if (Requeued > 0)
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[NavOverlay] Requeued %d invalidated paths."), Requeued);
+		}
+	}
+}
+
 void ULNPNavPathSubsystem::Tick(const float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -80,8 +130,12 @@ void ULNPNavPathSubsystem::Tick(const float DeltaTime)
 
 	const FMassEntityManager& EntityManager = EntitySubsystem->GetEntityManager();
 	const double StartSeconds = FPlatformTime::Seconds();
-	// Pod runtime overlay는 구현 단위 2에서 게시한다. 그 전에는 revision 0이다.
-	Scheduler.Tick(Snapshot->Nav, nullptr, [&EntityManager](const FMassEntityHandle Owner)
+	if (OverlayGeneration != Snapshot->Generation)
+	{
+		CommitPodBlockers();
+	}
+	const TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> CurrentOverlay = Overlay;
+	Scheduler.Tick(Snapshot->Nav, CurrentOverlay.Get(), [&EntityManager](const FMassEntityHandle Owner)
 	{
 		return EntityManager.IsEntityValid(Owner);
 	});

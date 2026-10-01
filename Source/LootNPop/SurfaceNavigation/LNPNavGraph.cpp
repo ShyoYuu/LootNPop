@@ -77,7 +77,8 @@ namespace
 	template <typename FAccept>
 	void ScanLayer(
 		const FLNPNavSnapshot& Nav, const int32 Slot, const int32 LayerOrdinal, const FVector3d& WorldPosition,
-		const double Radius, FAccept&& Accept, TArray<FLNPNavGraphCandidate>& OutCandidates)
+		const double Radius, FAccept&& Accept, TArray<FLNPNavGraphCandidate>& OutCandidates,
+		const FLNPNavOverlay* Overlay = nullptr)
 	{
 		const FLNPNavGraph& Graph = Nav.Graph;
 		const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[Slot];
@@ -112,7 +113,8 @@ namespace
 			for (int32 I = MinI; I <= FMath::Min(MaxI, N - J); ++I)
 			{
 				const int32 AssetNode = FindLayerNode(Layer, I, J);
-				if (AssetNode == INDEX_NONE || Graph.BlockedNodes[Base + AssetNode])
+				if (AssetNode == INDEX_NONE || Graph.BlockedNodes[Base + AssetNode]
+					|| LNPNavOverlay::IsBlocked(Overlay, Base + AssetNode))
 				{
 					continue;
 				}
@@ -448,7 +450,7 @@ double LNPNavGraph::ComputeEdgeCost(const FVector3d& From, const FVector3d& To, 
 
 void LNPNavGraph::CollectNodesNear(
 	const FLNPNavSnapshot& Nav, const int32 Slot, const uint16 LocalNavLayerId, const FVector3d& WorldPosition,
-	const double Radius, TArray<FLNPNavGraphCandidate>& OutCandidates)
+	const double Radius, TArray<FLNPNavGraphCandidate>& OutCandidates, const FLNPNavOverlay* Overlay)
 {
 	OutCandidates.Reset();
 	if (!Nav.Graph.IsValid() || Slot < 0 || Slot >= GraphSlotCount || !(Radius > 0.0))
@@ -459,12 +461,13 @@ void LNPNavGraph::CollectNodesNear(
 	if (Ordinal != INDEX_NONE)
 	{
 		ScanLayer(Nav, Slot, Ordinal, WorldPosition, Radius,
-			[](int32, const FLNPNavGraphNode&) { return true; }, OutCandidates);
+			[](int32, const FLNPNavGraphNode&) { return true; }, OutCandidates, Overlay);
 		SortCandidates(OutCandidates);
 	}
 }
 
-FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const FLNPNavEndpointQuery& Query)
+FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const FLNPNavEndpointQuery& Query,
+	const FLNPNavOverlay* Overlay)
 {
 	FLNPNavEndpoints Result;
 	if (!Nav.Graph.IsValid())
@@ -486,7 +489,7 @@ FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const
 
 	TArray<FLNPNavGraphCandidate> Starts;
 	CollectNodesNear(Nav, Query.StartSurface->OctantSlot, Query.StartSurface->LocalLayerId,
-		Query.StartPosition, Query.SnapRadius, Starts);
+		Query.StartPosition, Query.SnapRadius, Starts, Overlay);
 	if (Starts.IsEmpty())
 	{
 		return Result;
@@ -495,7 +498,7 @@ FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const
 	if (bGoalCurrent)
 	{
 		CollectNodesNear(Nav, Query.GoalSurface->OctantSlot, Query.GoalSurface->LocalLayerId,
-			Query.GoalPosition, Query.SnapRadius, Goals);
+			Query.GoalPosition, Query.SnapRadius, Goals, Overlay);
 	}
 
 	Result.StartNode = Starts[0].Node;
@@ -595,7 +598,7 @@ FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const
 					return GraphNode.GridDegree == 6 && !Nav.Graph.HasBlockedEdge[Node]
 						&& FirstStartByGroup.Contains(GetNodeGroup(Nav, Slot, GraphNode.LocalComponent));
 				},
-				Approaches);
+				Approaches, Overlay);
 		}
 	}
 	if (!Approaches.IsEmpty())
@@ -619,11 +622,13 @@ namespace
 	 * 두 node 사이 대원호는 (i, j) 공간의 선분이다.
 	 */
 	template <typename FOnNode>
-	bool WalkDirect(const FLNPNavSnapshot& Nav, const int32 From, const int32 To, FOnNode&& OnNode)
+	bool WalkDirect(const FLNPNavSnapshot& Nav, const int32 From, const int32 To, FOnNode&& OnNode,
+		const FLNPNavOverlay* Overlay)
 	{
 		const FLNPNavGraph& Graph = Nav.Graph;
 		const int32 Slot = Graph.GetSlot(From);
-		if (Slot == INDEX_NONE || Graph.GetSlot(To) != Slot || Graph.BlockedNodes[From] || Graph.BlockedNodes[To])
+		if (Slot == INDEX_NONE || Graph.GetSlot(To) != Slot || Graph.BlockedNodes[From] || Graph.BlockedNodes[To]
+			|| LNPNavOverlay::IsBlocked(Overlay, From) || LNPNavOverlay::IsBlocked(Overlay, To))
 		{
 			return false;
 		}
@@ -651,7 +656,8 @@ namespace
 			const double Alpha = static_cast<double>(Sample) / Samples;
 			const FIntPoint Cell = NearestLatticePoint(A.I + DI * Alpha, A.J + DJ * Alpha);
 			const int32 Current = FindLayerNode(Layer, Cell.X, Cell.Y);
-			if (Current == INDEX_NONE || Graph.BlockedNodes[Base + Current])
+			if (Current == INDEX_NONE || Graph.BlockedNodes[Base + Current]
+				|| LNPNavOverlay::IsBlocked(Overlay, Base + Current))
 			{
 				return false;
 			}
@@ -673,15 +679,17 @@ namespace
 	}
 }
 
-bool LNPNavGraph::IsDirectWalkable(const FLNPNavSnapshot& Nav, const int32 From, const int32 To)
+bool LNPNavGraph::IsDirectWalkable(const FLNPNavSnapshot& Nav, const int32 From, const int32 To,
+	const FLNPNavOverlay* Overlay)
 {
-	return WalkDirect(Nav, From, To, [](int32) {});
+	return WalkDirect(Nav, From, To, [](int32) {}, Overlay);
 }
 
-bool LNPNavGraph::CollectDirectWalkNodes(const FLNPNavSnapshot& Nav, const int32 From, const int32 To, TArray<int32>& OutNodes)
+bool LNPNavGraph::CollectDirectWalkNodes(const FLNPNavSnapshot& Nav, const int32 From, const int32 To,
+	TArray<int32>& OutNodes, const FLNPNavOverlay* Overlay)
 {
 	OutNodes.Reset();
-	return WalkDirect(Nav, From, To, [&OutNodes](const int32 Node) { OutNodes.Add(Node); });
+	return WalkDirect(Nav, From, To, [&OutNodes](const int32 Node) { OutNodes.Add(Node); }, Overlay);
 }
 
 uint32 LNPNavGraph::GetTileKey(const FLNPNavSnapshot& Nav, const int32 GraphNode)

@@ -8,6 +8,8 @@
 #include "Enemy/LNPEnemySurfaceMovement.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "SurfaceNavigation/LNPNavGraph.h"
+#include "LootPod/LNPLootPodMassTypes.h"
 #include "LootNPop.h"
 
 #include "MassStateTreeTypes.h"
@@ -20,6 +22,7 @@
 #include "MassStateTreeSubsystem.h"
 #include "MassStateTreeFragments.h"
 #include "MassActorSubsystem.h"
+#include "MassEntitySubsystem.h"
 
 // --- State Evaluator (상태 평가) ---
 
@@ -374,6 +377,7 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 	}
 
 	const double TimeSinceLastWander = CurrentTime - IdleData.LastWanderTime;
+	bool bWanderRejected = false;
 
 	if (IdleData.bNeedNewWanderTarget && WANDER_INTERVAL < TimeSinceLastWander)
 	{
@@ -417,11 +421,72 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 			constexpr float WanderLayerReach = 300.f;
 			const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> SurfaceSnapshot =
 				SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
-			if (!LNPEnemySurfaceMovement::ProjectWanderTarget(
-				SurfaceSnapshot.Get(), *WorldCollision, ExactParams, EntityLocation, QueryDir,
-				WanderLayerReach, Enemy.SurfaceHandle, MoveTarget.Center))
+			const UMassEntitySubsystem* MassEntities = Context.GetWorld()->GetSubsystem<UMassEntitySubsystem>();
+			const FMassEntityManager* Manager = MassEntities ? &MassEntities->GetEntityManager() : nullptr;
+			const FLNPLootPodFragment* Pod = Manager && Enemy.ParentLootPod.IsValid() && Manager->IsEntityActive(Enemy.ParentLootPod)
+				? Manager->GetFragmentDataPtr<FLNPLootPodFragment>(Enemy.ParentLootPod) : nullptr;
+			FVector FirstReachable = FVector::ZeroVector;
+			bool bHasReachable = false;
+			bool bFoundDirect = false;
+			// 첫 후보는 기존 난수열을 유지한다. 우회가 필요하면 추가 후보 세 개에서 직선 보행 가능한 곳을 우선한다.
+			for (int32 Attempt = 0; Attempt < 4; ++Attempt)
 			{
-				MoveTarget.Center = EntityLocation;
+				FVector CandidateDirection = QueryDir;
+				if (Attempt > 0)
+				{
+					const float CandidateAngle = FMath::FRandRange(0.0f, 2.0f * PI);
+					const float CandidateDistance = FMath::FRandRange(WanderMinDist, WanderMaxDist);
+					CandidateDirection = (PodOutDir * PodRadius
+						+ (Tangent1 * FMath::Cos(CandidateAngle) + Tangent2 * FMath::Sin(CandidateAngle)) * CandidateDistance).GetSafeNormal();
+				}
+				FVector Candidate;
+				if (!LNPEnemySurfaceMovement::ProjectWanderTarget(
+					SurfaceSnapshot.Get(), *WorldCollision, ExactParams, EntityLocation, CandidateDirection,
+					WanderLayerReach, Enemy.SurfaceHandle, Candidate))
+				{
+					continue;
+				}
+				bool bDirect = false;
+				if (SurfaceSnapshot.IsValid() && SurfaceSnapshot->Nav.Graph.IsValid() && Enemy.SurfaceHandle.IsValid())
+				{
+					FLNPNavEndpointQuery Query;
+					Query.StartPosition = EntityLocation;
+					Query.StartSurface = &Enemy.SurfaceHandle;
+					Query.GoalPosition = Candidate;
+					Query.GoalSurface = &Enemy.SurfaceHandle;
+					Query.ApproachRadius = 0.0;
+					const FLNPNavEndpoints Endpoints = LNPNavGraph::ResolveEndpoints(SurfaceSnapshot->Nav, Query);
+					if (Endpoints.Status != ELNPNavEndpointStatus::Reachable)
+					{
+						continue;
+					}
+					if (Pod && Pod->SurfaceHandle.IsValid())
+					{
+						Query.StartPosition = Enemy.ParentPodLocation;
+						Query.StartSurface = &Pod->SurfaceHandle;
+						if (LNPNavGraph::ResolveEndpoints(SurfaceSnapshot->Nav, Query).Status != ELNPNavEndpointStatus::Reachable)
+						{
+							continue;
+						}
+					}
+					bDirect = LNPNavGraph::IsDirectWalkable(SurfaceSnapshot->Nav, Endpoints.StartNode, Endpoints.GoalNode);
+				}
+				if (!bHasReachable)
+				{
+					FirstReachable = Candidate;
+					bHasReachable = true;
+				}
+				if (bDirect)
+				{
+					MoveTarget.Center = Candidate;
+					bFoundDirect = true;
+					break;
+				}
+			}
+			if (!bFoundDirect)
+			{
+				MoveTarget.Center = bHasReachable ? FirstReachable : EntityLocation;
+				bWanderRejected = !bHasReachable;
 			}
 		}
 		else
@@ -450,6 +515,11 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 			IdleData.bNeedNewWanderTarget = true;
 		}
 		//UE_LOG(LogLootNPop, Log, TEXT("IdleTask: Reached wander target at %s"), *MoveTarget.Center.ToString());
+	}
+	if (bWanderRejected)
+	{
+		IdleData.LastWanderTime = 0.0;
+		IdleData.bNeedNewWanderTarget = true;
 	}
 
 	// Idle 상태 동안 InstanceData(및 로직)를 유지하기 위해 항상 Running 반환

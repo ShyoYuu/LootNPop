@@ -58,6 +58,7 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 			: TConstArrayView<FLNPStatModifier>());
 
 	BuildContext.AddFragment<FLNPEnemyIdleFragment>();
+	BuildContext.AddFragment<FLNPEnemyPathFragment>();
 	BuildContext.AddFragment<FLNPEnemyTargetingFragment>();
 	BuildContext.AddFragment<FLNPEnemyTargetingCandidateFragment>();
 	BuildContext.AddFragment<FMassMoveTargetFragment>();

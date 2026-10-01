@@ -11,6 +11,7 @@
 #include "SurfaceNavigation/LNPMassSpawnPlan.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "SurfaceNavigation/LNPNavPathSubsystem.h"
 #include "GameMode/LNPGameState.h"
 #include "LootNPop.h"
 
@@ -607,6 +608,10 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 		ActiveConfig = nullptr;
 		UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: All entities spawned."));
 		bSpawningFinished = true;
+		if (ULNPNavPathSubsystem* NavPaths = World->GetSubsystem<ULNPNavPathSubsystem>())
+		{
+			NavPaths->CommitPodBlockers();
+		}
 		OnSpawningComplete.Broadcast();
 	}
 }
@@ -692,6 +697,10 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 		{
 			PodFragment->PodID = NextPodID++;
 			PodFragment->SurfaceHandle = Surface;
+			if (ULNPNavPathSubsystem* NavPaths = GetWorld()->GetSubsystem<ULNPNavPathSubsystem>())
+			{
+				NavPaths->AddPodBlocker(PodFragment->PodID, Transforms[i].GetLocation(), Surface);
+			}
 		}
 	}
 	

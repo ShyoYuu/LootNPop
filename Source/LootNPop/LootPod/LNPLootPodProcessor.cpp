@@ -8,6 +8,7 @@
 #include "LootNPop.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Config/LNPSettings.h"
+#include "SurfaceNavigation/LNPNavPathSubsystem.h"
 
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
@@ -69,6 +70,10 @@ struct FLNPPodStateTransitionCommand : public FMassBatchedCommand
 				// 실행된다. Pod Actor는 이미 파괴/풀 반납됐을 수 있으므로 Entry의 PodID·Location만 사용한다.
 				if (UWorld* World = EntityManager.GetWorld())
 				{
+					if (ULNPNavPathSubsystem* NavPaths = World->GetSubsystem<ULNPNavPathSubsystem>())
+					{
+						NavPaths->RemovePodBlocker(Entry.PodID);
+					}
 					ALNPLootDice::SpawnPodRewards(*World, Entry.PodID, Entry.Location);
 
 					// Confetti도 보상과 동일하게 위치 기반·Actor 독립으로 스폰한다. Pod Actor 기준 스폰은
