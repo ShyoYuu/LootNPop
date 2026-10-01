@@ -611,55 +611,87 @@ FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const
 	return Result;
 }
 
+namespace
+{
+	/**
+	 * 직선 보행 검사 본체. 통과한 cell의 전역 index를 순서대로 OnNode에 넘긴다(From 포함, 중복 없음).
+	 * 옥탄트 면으로의 중심 투영은 대원을 직선으로 보낸다. 격자 좌표 (i, j)는 그 면의 affine 좌표이므로
+	 * 두 node 사이 대원호는 (i, j) 공간의 선분이다.
+	 */
+	template <typename FOnNode>
+	bool WalkDirect(const FLNPNavSnapshot& Nav, const int32 From, const int32 To, FOnNode&& OnNode)
+	{
+		const FLNPNavGraph& Graph = Nav.Graph;
+		const int32 Slot = Graph.GetSlot(From);
+		if (Slot == INDEX_NONE || Graph.GetSlot(To) != Slot || Graph.BlockedNodes[From] || Graph.BlockedNodes[To])
+		{
+			return false;
+		}
+		const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[Slot];
+		const int32 Base = Graph.SlotNodeBase[Slot];
+		const FLNPNavGraphNode& A = Asset.Nodes[From - Base];
+		const FLNPNavGraphNode& B = Asset.Nodes[To - Base];
+		if (A.LayerOrdinal != B.LayerOrdinal)
+		{
+			return false;
+		}
+		OnNode(From);
+		if (From == To)
+		{
+			return true;
+		}
+		const FLNPNavGraphLayer& Layer = Asset.Layers[A.LayerOrdinal];
+		const int32 DI = static_cast<int32>(B.I) - A.I;
+		const int32 DJ = static_cast<int32>(B.J) - A.J;
+		const int32 HexDistance = FMath::Max3(FMath::Abs(DI), FMath::Abs(DJ), FMath::Abs(DI + DJ));
+		const int32 Samples = HexDistance * 4;
+		int32 Previous = From - Base;
+		for (int32 Sample = 1; Sample <= Samples; ++Sample)
+		{
+			const double Alpha = static_cast<double>(Sample) / Samples;
+			const FIntPoint Cell = NearestLatticePoint(A.I + DI * Alpha, A.J + DJ * Alpha);
+			const int32 Current = FindLayerNode(Layer, Cell.X, Cell.Y);
+			if (Current == INDEX_NONE || Graph.BlockedNodes[Base + Current])
+			{
+				return false;
+			}
+			if (Current == Previous)
+			{
+				continue;
+			}
+			// 연속 샘플은 격자 간격의 1/4 이내라 같은 cell이거나 6방향 이웃이다. 그 밖(세 cell 경계점)은 보수적으로 막힘이다.
+			const FLNPNavGraphNode& PreviousNode = Asset.Nodes[Previous];
+			const bool bNeighbor = Algo::Find(PreviousNode.Neighbors, Current) != nullptr;
+			if (!bNeighbor || (Graph.HasBlockedEdge[Base + Previous] && Graph.IsEdgeBlocked(Base + Previous, Base + Current)))
+			{
+				return false;
+			}
+			OnNode(Base + Current);
+			Previous = Current;
+		}
+		return Previous == To - Base;
+	}
+}
+
 bool LNPNavGraph::IsDirectWalkable(const FLNPNavSnapshot& Nav, const int32 From, const int32 To)
 {
-	const FLNPNavGraph& Graph = Nav.Graph;
-	const int32 Slot = Graph.GetSlot(From);
-	if (Slot == INDEX_NONE || Graph.GetSlot(To) != Slot || Graph.BlockedNodes[From] || Graph.BlockedNodes[To])
+	return WalkDirect(Nav, From, To, [](int32) {});
+}
+
+bool LNPNavGraph::CollectDirectWalkNodes(const FLNPNavSnapshot& Nav, const int32 From, const int32 To, TArray<int32>& OutNodes)
+{
+	OutNodes.Reset();
+	return WalkDirect(Nav, From, To, [&OutNodes](const int32 Node) { OutNodes.Add(Node); });
+}
+
+uint32 LNPNavGraph::GetTileKey(const FLNPNavSnapshot& Nav, const int32 GraphNode)
+{
+	const int32 Slot = Nav.Graph.GetSlot(GraphNode);
+	if (Slot == INDEX_NONE)
 	{
-		return false;
+		return MAX_uint32;
 	}
-	const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[Slot];
-	const int32 Base = Graph.SlotNodeBase[Slot];
-	const FLNPNavGraphNode& A = Asset.Nodes[From - Base];
-	const FLNPNavGraphNode& B = Asset.Nodes[To - Base];
-	if (A.LayerOrdinal != B.LayerOrdinal)
-	{
-		return false;
-	}
-	if (From == To)
-	{
-		return true;
-	}
-	// 옥탄트 면으로의 중심 투영은 대원을 직선으로 보낸다. 격자 좌표 (i, j)는 그 면의 affine 좌표이므로
-	// 두 node 사이 대원호는 (i, j) 공간의 선분이다.
-	const FLNPNavGraphLayer& Layer = Asset.Layers[A.LayerOrdinal];
-	const int32 DI = static_cast<int32>(B.I) - A.I;
-	const int32 DJ = static_cast<int32>(B.J) - A.J;
-	const int32 HexDistance = FMath::Max3(FMath::Abs(DI), FMath::Abs(DJ), FMath::Abs(DI + DJ));
-	const int32 Samples = HexDistance * 4;
-	int32 Previous = From - Base;
-	for (int32 Sample = 1; Sample <= Samples; ++Sample)
-	{
-		const double Alpha = static_cast<double>(Sample) / Samples;
-		const FIntPoint Cell = NearestLatticePoint(A.I + DI * Alpha, A.J + DJ * Alpha);
-		const int32 Current = FindLayerNode(Layer, Cell.X, Cell.Y);
-		if (Current == INDEX_NONE || Graph.BlockedNodes[Base + Current])
-		{
-			return false;
-		}
-		if (Current == Previous)
-		{
-			continue;
-		}
-		// 연속 샘플은 격자 간격의 1/4 이내라 같은 cell이거나 6방향 이웃이다. 그 밖(세 cell 경계점)은 보수적으로 막힘이다.
-		const FLNPNavGraphNode& PreviousNode = Asset.Nodes[Previous];
-		const bool bNeighbor = Algo::Find(PreviousNode.Neighbors, Current) != nullptr;
-		if (!bNeighbor || (Graph.HasBlockedEdge[Base + Previous] && Graph.IsEdgeBlocked(Base + Previous, Base + Current)))
-		{
-			return false;
-		}
-		Previous = Current;
-	}
-	return Previous == To - Base;
+	const FLNPNavGraphNode& Node = Nav.Graph.GetNode(Slot, GraphNode);
+	const uint32 RuntimeLayer = Nav.SlotLayerBase[Slot] + Nav.Graph.SlotGraphs[Slot]->Layers[Node.LayerOrdinal].LocalNavLayerId;
+	return (RuntimeLayer << 16) | Node.TileId;
 }

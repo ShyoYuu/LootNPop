@@ -133,3 +133,21 @@
   - D-062: 주 group 옆 고립 node 위 목표 40건 모두 주 group으로 재선택
 - 구현 단위 1 입력: 계획 초기 예산 8,000 확장/프레임은 CPU 약 3ms라 목표(경로 CPU P95 1.5ms)의 두 배다. 약 4,000에서 시작한다.
 - `-game` 스모크는 하지 않았다. 게시 경로는 자동화가 부르는 `ValidateAndBuildSnapshot`과 같지만, 실제 게시·게스트 확인은 구현 단위 5 Gate에서 한다.
+
+## 2026-10-01 — Phase 7b 구현 단위 1 완료
+
+- `LNPNavPathScheduler`(순수 코어)·`ULNPNavPathSubsystem`(서버 tick 창구)·`LNPNavOverlay.h`(revision view)를 추가했다. 규약은 `phases/Phase07b_PathExecution.md` §3.4·§3.5와 구현 단위 1 결과에 반영했다.
+- 설계 선택:
+  - 코어를 UObject 없이 두어 자동화가 회귀·production snapshot으로 직접 tick한다. subsystem은 snapshot·CVar·owner 유효성(`IsEntityValid`)만 넘긴다.
+  - overlay의 revision 부분만 먼저 정의했다. 다중 프레임 Stale 판정과 cache fingerprint 대조에 실제 revision 생산자 모양이 필요했고, 막힘 내용·생산자는 구현 단위 2의 몫으로 남겼다.
+  - fingerprint Tile은 A* node가 아니라 단순화된 waypoint 구간의 직선 보행 cell에서 모은다. 이를 위해 `IsDirectWalkable` 본체를 visitor 템플릿으로 묶고 `CollectDirectWalkNodes`를 더했다(판정 로직은 그대로).
+  - cache hit에 목표 쪽 직선 검사(마지막 waypoint → 요청자 목표 node)를 더했다. Tile이 지각 약 32m라 시작 쪽만 보면 경로 끝이 목표에서 멀 수 있다.
+  - 스냅 비용을 확장 16개로 환산해 예산에서 뺀다. cache hit·도달 불가 요청이 몰려도 프레임 비용이 예산 안이다.
+- 검증:
+  - `LootNPopEditor Win64 Development` 전체 빌드 성공(경고 0)
+  - Nav 12/12(`Saved/Logs/Phase07b_Unit1_NavTests.log`), 전체 SurfaceNavigation 77/77(`Phase07b_Unit1_AllSurfaceNavTests.log`)
+  - `Nav.PathScheduler`: 세 요청(나무·동굴·트인 지각)이 한 tick·병렬 분할(45 tick)·직렬 분할(250 tick)에서 모두 직접 탐색과 같은 waypoint, 병렬 분할 최대 동시 2. lifecycle·우선순위·cache 사례 전부 통과
+  - `Nav.ProductionScheduler`(Meadow 300요청 동시 투입, 예산 4,000·scratch 4·cache 끔): 36 tick, 병렬 tick P50 1.09·P95 1.38·최대 3.47ms, 직렬 P50 1.72·P95 2.00ms, 요청 대기 tick P95 1, 확장 합계 138,062, scratch 24.82MiB. 결과 300/300이 직접 탐색과 같다
+- 해석: 프레임당 약 8.3요청을 끝낸다. 직렬 tick은 예산 확장 비용(약 1.5ms)에 스냅·단순화·fingerprint가 약 15% 더해진 값이다. 병렬 이득이 1.6배에 그치는 이유는 라운드 끝의 긴 요청 몇 개다. 필요하면 구현 단위 5에서 라운드 몫 배분을 조정한다.
+- 예산 4,000 확정. 구현 단위 5의 경로 CPU Gate는 게임 스레드 tick 시간(병렬 대기 포함)으로 재고 worker 합산 CPU를 참고값으로 기록한다. 사용자가 이 기준을 확정했다. worker 합산은 지나치게 빡빡하고, 프레임에 실제로 드러나는 비용은 게임 스레드 대기라는 이유다.
+- `-game` 스모크는 하지 않았다. 아직 요청을 내는 소비자가 없다(구현 단위 3).

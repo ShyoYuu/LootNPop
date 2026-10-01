@@ -9,6 +9,8 @@
 #include "DataAsset/LNPOctantSurfaceData.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
+#include "SurfaceNavigation/LNPNavOverlay.h"
+#include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "SurfaceNavigation/LNPNavPathfinding.h"
 #include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPRegressionFixture.h"
@@ -270,7 +272,123 @@ namespace LNPNavPathfindingTest
 		Test.AddInfo(FString::Printf(TEXT("%s window scan: samples=%d equidistantTies=%d maxTieDelta=%.4fcm"),
 			Label, Compared, Ties, MaxTieDelta));
 	}
+
+	/** scheduler 요청 하나의 입력. */
+	struct FSchedulerCase
+	{
+		const TCHAR* Label = TEXT("");
+		FVector3d Start = FVector3d::ZeroVector;
+		FLNPSurfaceHandle StartHandle;
+		FVector3d Goal = FVector3d::ZeroVector;
+		FLNPSurfaceHandle GoalHandle;
+	};
+
+	FLNPNavPathRequest MakeRequest(const FSchedulerCase& Case, const int32 OwnerIndex,
+		const ELNPNavPathPriority Priority = ELNPNavPathPriority::Chase, const double ApproachRadius = 0.0)
+	{
+		FLNPNavPathRequest Request;
+		Request.Owner = FMassEntityHandle(OwnerIndex, 1);
+		Request.Priority = Priority;
+		Request.StartPosition = Case.Start;
+		Request.StartSurface = Case.StartHandle;
+		Request.GoalPosition = Case.Goal;
+		Request.GoalSurface = Case.GoalHandle;
+		Request.ApproachRadius = ApproachRadius;
+		return Request;
+	}
+
+	/** scheduler 없이 같은 요청을 한 번에 푼 waypoint node 열. 도달 불가면 비어 있다. */
+	TArray<int32> ReferenceWaypoints(const FLNPSurfaceDataSnapshot& Snapshot, const FSchedulerCase& Case, FLNPNavSearchScratch& Scratch)
+	{
+		TArray<int32> Waypoints;
+		const FLNPNavEndpoints Ends = Resolve(Snapshot, Case.Start, Case.StartHandle, Case.Goal, Case.GoalHandle);
+		if (Ends.Status == ELNPNavEndpointStatus::Reachable)
+		{
+			const FPathResult Path = FindPath(Snapshot.Nav, Ends.StartNode, Ends.GoalNode, Scratch, true, MAX_int32, 30000);
+			LNPNavPathfinding::SimplifyPath(Snapshot.Nav, Path.Nodes, Waypoints);
+		}
+		return Waypoints;
+	}
+
+	TArray<int32> WaypointNodes(const FLNPNavPathResult& Result)
+	{
+		TArray<int32> Nodes;
+		if (Result.Path.IsValid())
+		{
+			for (const FLNPNavPathWaypoint& Waypoint : Result.Path->Waypoints)
+			{
+				Nodes.Add(Waypoint.Node);
+			}
+		}
+		return Nodes;
+	}
+
+	/** 일이 남지 않을 때까지 tick한다. 반환값은 tick 수다. */
+	int32 DrainScheduler(FLNPNavPathScheduler& Scheduler, const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay,
+		TArray<double>* OutTickMicroseconds = nullptr, const int32 MaxTicks = 100000)
+	{
+		int32 Ticks = 0;
+		while (Scheduler.HasWork() && Ticks < MaxTicks)
+		{
+			const double StartSeconds = FPlatformTime::Seconds();
+			Scheduler.Tick(Nav, Overlay, [](FMassEntityHandle) { return true; });
+			if (OutTickMicroseconds)
+			{
+				OutTickMicroseconds->Add((FPlatformTime::Seconds() - StartSeconds) * 1.e6);
+			}
+			++Ticks;
+		}
+		return Ticks;
+	}
+
+	/** 주 group 지각 node에서 직선 20~80m 떨어진 결정론적 무작위 도달 가능 쌍. */
+	void CollectProductionPairs(const FLNPSurfaceDataSnapshot& Snapshot, const uint32 MainGroup, const int32 Count,
+		const int32 Seed, TArray<FSchedulerCase>& OutCases)
+	{
+		const FLNPNavSnapshot& Nav = Snapshot.Nav;
+		const FLNPNavGraph& Graph = Nav.Graph;
+		FRandomStream Random(Seed);
+		for (int32 Attempts = 0; OutCases.Num() < Count && Attempts < Count * 20; ++Attempts)
+		{
+			const int32 Start = Random.RandRange(0, Graph.GetNodeCount() - 1);
+			const int32 Slot = Graph.GetSlot(Start);
+			if (Graph.GetNode(Slot, Start).LayerOrdinal != 0 || Graph.BlockedNodes[Start] || LNPNavGraph::GetGroup(Nav, Start) != MainGroup)
+			{
+				continue;
+			}
+			const FVector3d StartPoint = Graph.GetWorldPoint(Slot, Start);
+			const FVector3d Up = -StartPoint.GetSafeNormal();
+			const FVector3d Tangent = FVector3d::CrossProduct(Up, FVector3d(Random.FRandRange(-1, 1), Random.FRandRange(-1, 1),
+				Random.FRandRange(-1, 1))).GetSafeNormal();
+			if (Tangent.IsNearlyZero())
+			{
+				continue;
+			}
+			const FVector3d Goal = (StartPoint + Tangent * Random.FRandRange(2000.0, 8000.0)).GetSafeNormal() * StartPoint.Length();
+			FSchedulerCase Case;
+			Case.Label = TEXT("Production");
+			Case.Start = StartPoint;
+			Case.StartHandle = {static_cast<uint16>(Slot), 0, Snapshot.Generation};
+			Case.Goal = Goal;
+			Case.GoalHandle = FindHandle(Snapshot, Goal + Up * FeetLift);
+			if (Case.GoalHandle.IsValid()
+				&& Resolve(Snapshot, Case.Start, Case.StartHandle, Case.Goal, Case.GoalHandle).Status == ELNPNavEndpointStatus::Reachable)
+			{
+				OutCases.Add(Case);
+			}
+		}
+	}
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavPathSchedulerTest,
+	"LootNPop.SurfaceNavigation.Nav.PathScheduler",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavProductionSchedulerTest,
+	"LootNPop.SurfaceNavigation.Nav.ProductionScheduler",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPNavGraphViewTest,
@@ -655,6 +773,331 @@ bool FLNPNavProductionPathTest::RunTest(const FString& Parameters)
 		Percentile(ResolveMicroseconds, 0.5), Percentile(ResolveMicroseconds, 0.95)));
 	AddInfo(FString::Printf(TEXT("Production Nav graph resident=%.2fMiB scratch=%.2fMiB snapshotBuild=%.1fms"),
 		Graph.GetAllocatedBytes() / (1024.0 * 1024.0), Scratch.GetAllocatedBytes() / (1024.0 * 1024.0), BuildMs));
+	return !HasAnyErrors();
+}
+
+bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavPathfindingTest;
+	namespace Fixture = LNPRegressionFixture;
+
+	FLNPSurfaceDataSnapshot Snapshot;
+	if (!BuildRegressionSnapshot(*this, Snapshot))
+	{
+		return false;
+	}
+	const FLNPNavSnapshot& Nav = Snapshot.Nav;
+	const double R = Fixture::CrustRadius;
+	const FQuat4d& Rotation = Snapshot.Slots[0].SlotRotation;
+	auto World = [&Rotation](const FVector& Local) { return Rotation.RotateVector(FVector3d(Local)); };
+	auto MakeCase = [&Snapshot](const TCHAR* Label, const FVector3d& Start, const FVector3d& Goal,
+		const FLNPSurfaceHandle* GoalHandle = nullptr)
+	{
+		FSchedulerCase Case;
+		Case.Label = Label;
+		Case.Start = Start;
+		Case.StartHandle = FindHandle(Snapshot, Start);
+		Case.Goal = Goal;
+		Case.GoalHandle = GoalHandle ? *GoalHandle : FindHandle(Snapshot, Goal);
+		return Case;
+	};
+
+	// 고정 입력: 나무 우회, 동굴 portal 2회, 트인 지각 직선, 끊긴 섬(도달 불가·접근점).
+	TArray<FSchedulerCase> Cases;
+	Cases.Add(MakeCase(TEXT("Tree"), World(Fixture::StaticProps().At(R - FeetLift, Fixture::TreeTangent - 600.0)),
+		World(Fixture::StaticProps().At(R - FeetLift, Fixture::TreeTangent + 500.0))));
+	const FLNPSpawnAuthoredAnchor* CaveAnchor = Snapshot.Slots[0].Spawn->AuthoredAnchors.FindByPredicate(
+		[R](const FLNPSpawnAuthoredAnchor& Anchor) { return Anchor.LocalTransform.GetLocation().Length() > R + 100.0; });
+	if (!TestNotNull(TEXT("Slot 0 has a cave anchor"), CaveAnchor))
+	{
+		return false;
+	}
+	const FLNPSurfaceHandle CaveHandle{0, CaveAnchor->LocalLayerId, Snapshot.Generation};
+	Cases.Add(MakeCase(TEXT("Cave"), World(Fixture::Cave().At(R - FeetLift, -1500.0)),
+		World(FVector(CaveAnchor->LocalTransform.GetLocation())), &CaveHandle));
+	Cases.Add(MakeCase(TEXT("OpenCrust"), World(Fixture::BasicCrust().At(R - FeetLift, -800.0)),
+		World(Fixture::BasicCrust().At(R - FeetLift, 800.0, 300.0))));
+	const FSchedulerCase Island = MakeCase(TEXT("Island"), World(Fixture::IslandOne().At(R - FeetLift, 1500.0)),
+		World(Fixture::IslandOne().At(Fixture::IslandOneTop - FeetLift)));
+	for (const FSchedulerCase& Case : Cases)
+	{
+		TestTrue(FString::Printf(TEXT("%s handles resolve"), Case.Label), Case.StartHandle.IsValid() && Case.GoalHandle.IsValid());
+	}
+
+	FLNPNavSearchScratch ReferenceScratch;
+	TArray<TArray<int32>> References;
+	for (const FSchedulerCase& Case : Cases)
+	{
+		References.Add(ReferenceWaypoints(Snapshot, Case, ReferenceScratch));
+		TestTrue(FString::Printf(TEXT("%s reference path exists"), Case.Label), References.Last().Num() >= 2);
+	}
+
+	// 1) 예산 분할 결정론: 한 tick 전량, 병렬 소예산 다중 tick, 직렬 초소예산이 모두 직접 탐색과 같은 waypoint를 낸다.
+	struct FBudgetMode
+	{
+		const TCHAR* Label;
+		int32 Budget;
+		int32 Scratches;
+		bool bParallel;
+	};
+	const FBudgetMode Modes[] =
+	{
+		{TEXT("single tick"), 1000000, 4, true},
+		{TEXT("parallel split"), 40, 2, true},
+		{TEXT("serial split"), 7, 1, false},
+	};
+	for (const FBudgetMode& Mode : Modes)
+	{
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.ExpansionsPerFrame = Mode.Budget;
+		Scheduler.Settings.ScratchCount = Mode.Scratches;
+		Scheduler.Settings.bParallel = Mode.bParallel;
+		Scheduler.Settings.CacheCapacity = 0;
+		TArray<uint32> Serials;
+		for (int32 Index = 0; Index < Cases.Num(); ++Index)
+		{
+			Serials.Add(Scheduler.Submit(MakeRequest(Cases[Index], Index + 1)));
+		}
+		const int32 Ticks = DrainScheduler(Scheduler, Nav, nullptr);
+		int32 MaxRunningTicks = 0;
+		for (int32 Index = 0; Index < Cases.Num(); ++Index)
+		{
+			FLNPNavPathResult Result;
+			TestEnum(*this, FString::Printf(TEXT("%s %s succeeds"), Mode.Label, Cases[Index].Label),
+				Scheduler.GetResult(FMassEntityHandle(Index + 1, 1), Serials[Index], Result), ELNPNavPathStatus::Succeeded);
+			TestTrue(FString::Printf(TEXT("%s %s waypoints equal the direct search"), Mode.Label, Cases[Index].Label),
+				WaypointNodes(Result) == References[Index]);
+			MaxRunningTicks = FMath::Max(MaxRunningTicks, Result.RunningTicks);
+		}
+		const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
+		AddInfo(FString::Printf(TEXT("Scheduler %s: ticks=%d maxRunningTicks=%d maxConcurrent=%d expansions=%llu"),
+			Mode.Label, Ticks, MaxRunningTicks, Stats.MaxConcurrentRunning, Stats.Expansions));
+		if (Mode.Budget < 1000)
+		{
+			TestTrue(FString::Printf(TEXT("%s spans several ticks"), Mode.Label), MaxRunningTicks > 1);
+			TestEqual(FString::Printf(TEXT("%s runs up to the scratch count concurrently"), Mode.Label),
+				Stats.MaxConcurrentRunning, Mode.Scratches);
+		}
+		else
+		{
+			TestEqual(TEXT("Single tick budget finishes everything in one tick"), Ticks, 1);
+		}
+	}
+
+	// 2) 도달 불가: 접근점 반경이 없으면 확장 없이 끝나고, 있으면 지각 내부 접근점까지 경로가 온다(D-063).
+	{
+		FLNPNavPathScheduler Scheduler;
+		const uint32 Plain = Scheduler.Submit(MakeRequest(Island, 1));
+		const uint32 WithApproach = Scheduler.Submit(MakeRequest(Island, 2, ELNPNavPathPriority::Chase, 3000.0));
+		DrainScheduler(Scheduler, Nav, nullptr);
+		FLNPNavPathResult Result;
+		TestEnum(*this, TEXT("Island without approach is Unreachable"),
+			Scheduler.GetResult(FMassEntityHandle(1, 1), Plain, Result), ELNPNavPathStatus::Unreachable);
+		TestTrue(TEXT("Island without approach has no path and no expansion"), !Result.Path.IsValid() && Result.Expansions == 0);
+		TestEnum(*this, TEXT("Island with approach stays Unreachable"),
+			Scheduler.GetResult(FMassEntityHandle(2, 1), WithApproach, Result), ELNPNavPathStatus::Unreachable);
+		FLNPNavEndpointQuery Query;
+		Query.StartPosition = Island.Start;
+		Query.StartSurface = &Island.StartHandle;
+		Query.GoalPosition = Island.Goal;
+		Query.GoalSurface = &Island.GoalHandle;
+		Query.ApproachRadius = 3000.0;
+		const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query);
+		TestTrue(TEXT("Island approach path ends at the approach node"),
+			Result.Path.IsValid() && Ends.ApproachNode != INDEX_NONE && Result.Path->Waypoints.Last().Node == Ends.ApproachNode);
+		TestEqual(TEXT("Approach paths are not cached"), Scheduler.GetCacheCount(), 0);
+	}
+
+	const FSchedulerCase& Tree = Cases[0];
+	const FMassEntityHandle OwnerA(1, 1);
+	const FMassEntityHandle OwnerB(2, 1);
+
+	// 3) Stale: 실행 중 ConnectivityGraphVersion이나 overlay revision이 바뀌면 결과를 섞지 않는다. 옛 handle도 Stale이다.
+	{
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.ExpansionsPerFrame = 20;
+		uint32 Serial = Scheduler.Submit(MakeRequest(Tree, 1));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		FLNPNavPathResult Result;
+		TestEnum(*this, TEXT("Small budget leaves the tree request running"),
+			Scheduler.GetResult(OwnerA, Serial, Result), ELNPNavPathStatus::Running);
+		FLNPNavSnapshot Changed = Nav;
+		++Changed.ConnectivityGraphVersion;
+		Scheduler.Tick(Changed, nullptr, [](FMassEntityHandle) { return true; });
+		TestEnum(*this, TEXT("ConnectivityGraphVersion change ends the request as Stale"),
+			Scheduler.GetResult(OwnerA, Serial, Result), ELNPNavPathStatus::Stale);
+		TestEqual(TEXT("Stale request releases its scratch"), Scheduler.GetRunningCount(), 0);
+
+		Serial = Scheduler.Submit(MakeRequest(Tree, 1));
+		FLNPNavOverlay Overlay;
+		Scheduler.Tick(Nav, &Overlay, [](FMassEntityHandle) { return true; });
+		Overlay.Revision = 1;
+		Scheduler.Tick(Nav, &Overlay, [](FMassEntityHandle) { return true; });
+		TestEnum(*this, TEXT("Overlay revision change ends the request as Stale"),
+			Scheduler.GetResult(OwnerA, Serial, Result), ELNPNavPathStatus::Stale);
+
+		FSchedulerCase OldHandle = Tree;
+		++OldHandle.StartHandle.Generation;
+		Serial = Scheduler.Submit(MakeRequest(OldHandle, 1));
+		DrainScheduler(Scheduler, Nav, nullptr);
+		TestEnum(*this, TEXT("Old snapshot handle is Stale"), Scheduler.GetResult(OwnerA, Serial, Result), ELNPNavPathStatus::Stale);
+	}
+
+	// 4) Cancelled: 재요청은 옛 serial을 버리고, 취소·owner 소멸은 기록과 scratch를 정리한다. 상한 초과는 NoPath다.
+	{
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.ExpansionsPerFrame = 20;
+		const uint32 First = Scheduler.Submit(MakeRequest(Tree, 1));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		const uint32 Second = Scheduler.Submit(MakeRequest(Tree, 1));
+		FLNPNavPathResult Result;
+		TestEnum(*this, TEXT("Resubmission cancels the older serial"),
+			Scheduler.GetResult(OwnerA, First, Result), ELNPNavPathStatus::Cancelled);
+		TestEqual(TEXT("Resubmission releases the running scratch"), Scheduler.GetRunningCount(), 0);
+		DrainScheduler(Scheduler, Nav, nullptr);
+		TestEnum(*this, TEXT("Newer serial completes"), Scheduler.GetResult(OwnerA, Second, Result), ELNPNavPathStatus::Succeeded);
+		TestTrue(TEXT("Newer serial equals the direct search"), WaypointNodes(Result) == References[0]);
+
+		// cache를 비워 다음 요청이 cache hit로 바로 끝나지 않게 한다.
+		Scheduler.Reset();
+		const uint32 Cancelled = Scheduler.Submit(MakeRequest(Tree, 1));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		TestEnum(*this, TEXT("Request is running before Cancel"),
+			Scheduler.GetResult(OwnerA, Cancelled, Result), ELNPNavPathStatus::Running);
+		Scheduler.Cancel(OwnerA);
+		TestEnum(*this, TEXT("Cancel drops the record"), Scheduler.GetResult(OwnerA, Cancelled, Result), ELNPNavPathStatus::None);
+		TestTrue(TEXT("Cancel leaves no work"), !Scheduler.HasWork());
+
+		const uint64 CancelledBefore = Scheduler.GetStats().Finished[static_cast<int32>(ELNPNavPathStatus::Cancelled)];
+		const uint32 Orphan = Scheduler.Submit(MakeRequest(Tree, 2));
+		Scheduler.Tick(Nav, nullptr, [OwnerB](const FMassEntityHandle Owner) { return Owner != OwnerB; });
+		TestEnum(*this, TEXT("Vanished owner's request is dropped"), Scheduler.GetResult(OwnerB, Orphan, Result), ELNPNavPathStatus::None);
+		TestEqual(TEXT("Vanished owner counts as Cancelled"),
+			Scheduler.GetStats().Finished[static_cast<int32>(ELNPNavPathStatus::Cancelled)], CancelledBefore + 1);
+
+		Scheduler.Settings.ExpansionsPerFrame = 4000;
+		Scheduler.Settings.MaxExpansionsPerRequest = 2;
+		const uint32 Capped = Scheduler.Submit(MakeRequest(Tree, 1));
+		DrainScheduler(Scheduler, Nav, nullptr);
+		TestEnum(*this, TEXT("Request over the expansion cap ends as NoPath"),
+			Scheduler.GetResult(OwnerA, Capped, Result), ELNPNavPathStatus::NoPath);
+	}
+
+	// 5) 우선순위: scratch 하나에서 나중에 온 추격 요청이 먼저 온 배회 요청보다 먼저 시작한다.
+	{
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.ExpansionsPerFrame = 20;
+		Scheduler.Settings.ScratchCount = 1;
+		const uint32 Wander = Scheduler.Submit(MakeRequest(Cases[1], 1, ELNPNavPathPriority::Background));
+		const uint32 Chase = Scheduler.Submit(MakeRequest(Tree, 2, ELNPNavPathPriority::Chase));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		FLNPNavPathResult Result;
+		TestEnum(*this, TEXT("Background request waits behind the chase request"),
+			Scheduler.GetResult(OwnerA, Wander, Result), ELNPNavPathStatus::Queued);
+		TestTrue(TEXT("Chase request started first"), Scheduler.GetResult(OwnerB, Chase, Result) != ELNPNavPathStatus::Queued);
+		DrainScheduler(Scheduler, Nav, nullptr);
+		TestEnum(*this, TEXT("Background request completes afterwards"),
+			Scheduler.GetResult(OwnerA, Wander, Result), ELNPNavPathStatus::Succeeded);
+	}
+
+	// 6) cache: 같은 Tile 쌍은 공유 경로를 확장 없이 받는다. 지나는 Tile의 revision이 바뀌면 다시 계산하고, 무관한 Tile은 영향이 없다.
+	{
+		FLNPNavPathScheduler Scheduler;
+		auto RunOne = [&](const int32 OwnerIndex, const FLNPNavOverlay* Overlay, FLNPNavPathResult& OutResult)
+		{
+			const uint32 Serial = Scheduler.Submit(MakeRequest(Tree, OwnerIndex));
+			DrainScheduler(Scheduler, Nav, Overlay);
+			return Scheduler.GetResult(FMassEntityHandle(OwnerIndex, 1), Serial, OutResult);
+		};
+		FLNPNavPathResult First;
+		FLNPNavPathResult Shared;
+		RunOne(1, nullptr, First);
+		RunOne(2, nullptr, Shared);
+		TestTrue(TEXT("First tree request is computed"), First.Path.IsValid() && !First.bFromCache && First.Expansions > 0);
+		TestTrue(TEXT("Second tree request shares the cached path without expansion"),
+			Shared.bFromCache && Shared.Path == First.Path && Shared.Expansions == 0);
+		if (!TestTrue(TEXT("Path fingerprint lists traversed tiles"),
+			First.Path.IsValid() && !First.Path->TraversedTiles.IsEmpty()
+			&& First.Path->TraversedTiles.Num() == First.Path->TileRevisions.Num()))
+		{
+			return false;
+		}
+
+		FLNPNavOverlay Touched;
+		Touched.Revision = 1;
+		Touched.TileRevisions.Add(First.Path->TraversedTiles[0], 1);
+		FLNPNavPathResult Recomputed;
+		RunOne(3, &Touched, Recomputed);
+		TestTrue(TEXT("Traversed tile revision change forces recomputation"),
+			!Recomputed.bFromCache && Recomputed.Expansions > 0 && Scheduler.GetStats().CacheRejects == 1);
+		TestFalse(TEXT("Old path is no longer current under the new overlay"), First.Path->IsCurrent(Nav, &Touched));
+
+		FLNPNavOverlay Unrelated = Touched;
+		Unrelated.Revision = 2;
+		Unrelated.TileRevisions.Add(MAX_uint32 - 1, 1);
+		FLNPNavPathResult Hit;
+		RunOne(4, &Unrelated, Hit);
+		TestTrue(TEXT("Unrelated tile revision keeps the cache hit"), Hit.bFromCache && Hit.Path == Recomputed.Path);
+	}
+	return !HasAnyErrors();
+}
+
+bool FLNPNavProductionSchedulerTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavPathfindingTest;
+
+	FLNPSurfaceDataSnapshot Snapshot;
+	double BuildMs = 0.0;
+	if (!BuildProductionSnapshot(*this, Snapshot, BuildMs))
+	{
+		return false;
+	}
+	const FLNPNavSnapshot& Nav = Snapshot.Nav;
+	TArray<FSchedulerCase> Cases;
+	CollectProductionPairs(Snapshot, FindLargestGroup(Nav), 300, 20261002, Cases);
+	TestTrue(FString::Printf(TEXT("Collected production pairs (%d)"), Cases.Num()), Cases.Num() >= 200);
+
+	FLNPNavSearchScratch ReferenceScratch;
+	TArray<TArray<int32>> References;
+	for (const FSchedulerCase& Case : Cases)
+	{
+		References.Add(ReferenceWaypoints(Snapshot, Case, ReferenceScratch));
+	}
+
+	// 모든 요청을 한 프레임에 넣고 기본 예산으로 처리한다. cache는 끄고 직접 탐색과의 일치와 프레임당 시간을 본다.
+	for (const bool bParallel : {true, false})
+	{
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.CacheCapacity = 0;
+		Scheduler.Settings.bParallel = bParallel;
+		TArray<uint32> Serials;
+		for (int32 Index = 0; Index < Cases.Num(); ++Index)
+		{
+			Serials.Add(Scheduler.Submit(MakeRequest(Cases[Index], Index + 1)));
+		}
+		TArray<double> TickMicroseconds;
+		const int32 Ticks = DrainScheduler(Scheduler, Nav, nullptr, &TickMicroseconds);
+		int32 Mismatches = 0;
+		int32 Succeeded = 0;
+		TArray<double> RunningTicks;
+		for (int32 Index = 0; Index < Cases.Num(); ++Index)
+		{
+			FLNPNavPathResult Result;
+			Succeeded += Scheduler.GetResult(FMassEntityHandle(Index + 1, 1), Serials[Index], Result) == ELNPNavPathStatus::Succeeded ? 1 : 0;
+			Mismatches += WaypointNodes(Result) != References[Index] ? 1 : 0;
+			RunningTicks.Add(Result.RunningTicks);
+		}
+		const TCHAR* Label = bParallel ? TEXT("parallel") : TEXT("serial");
+		TestEqual(FString::Printf(TEXT("Production %s scheduler results equal the direct search"), Label), Mismatches, 0);
+		TestEqual(FString::Printf(TEXT("Production %s scheduler requests all succeed"), Label), Succeeded, Cases.Num());
+		const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
+		AddInfo(FString::Printf(
+			TEXT("Production scheduler %s: requests=%d ticks=%d budget=%d scratches=%d expansions=%llu tick P50=%.1fus P95=%.1fus max=%.1fus requestTicks P50=%.0f P95=%.0f max=%.0f scratch=%.2fMiB"),
+			Label, Cases.Num(), Ticks, Scheduler.Settings.ExpansionsPerFrame, Scheduler.Settings.ScratchCount, Stats.Expansions,
+			Percentile(TickMicroseconds, 0.5), Percentile(TickMicroseconds, 0.95), Percentile(TickMicroseconds, 1.0),
+			Percentile(RunningTicks, 0.5), Percentile(RunningTicks, 0.95), Percentile(RunningTicks, 1.0),
+			Scheduler.GetScratchBytes() / (1024.0 * 1024.0)));
+	}
 	return !HasAnyErrors();
 }
 
