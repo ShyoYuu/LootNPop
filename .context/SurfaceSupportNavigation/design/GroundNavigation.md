@@ -75,6 +75,8 @@ Phase 7a 첫 codec은 16×16 Tile을 사용한다. 지각 목표 간격은 200cm
 
 정적 베이크 agent는 반지름 50cm·반높이 88cm이고 캡슐 축은 바닥 법선이 아니라 지역 중력 Up이다. 경사면에서는 floor normal과 Up의 dot으로 접촉 높이를 보정한다. Layer 간 portal은 800cm 범위의 coarse node 후보를 거리만으로 연결하지 않는다. 50cm 간격 exact Support trace가 만든 floor point·normal polyline이 연속·walkable이어야 하며, 캡슐이 그 polyline을 양방향 sweep할 수 있을 때만 portal을 저장한다. endpoint 직선 sweep은 구면 지각과 20° 동굴 경사 사이에서 실제 바닥을 관통하므로 사용하지 않는다(회귀 fixture Layer 0↔3 사례, 2026-09-30).
 
+7a 베이커는 local component 쌍마다 거리가 가장 짧은 portal 하나만 저장한다(`LNPNavBaking.cpp`의 `BestPortalByComponentPair`). 동굴 입구처럼 연결이 하나뿐인 콘텐츠에는 충분하지만, 입구가 여러 개인 건물이나 계단이 둘인 층에서는 A*가 한 연결로만 돌아간다. Phase 7c에서 쌍마다 최소 간격을 둔 여러 portal을 저장한다(D-065). `Traversal.Portals`는 이미 목록이므로 codec은 그대로이고 선택 정책과 재베이크만 바뀐다. 간격·상한 값과 portal 수 증가가 베이크 시간(후보마다 exact sweep)에 주는 영향은 Phase 7c에서 측정해 정한다.
+
 같은 Layer의 6방향 edge도 portal과 같은 exact Support polyline 검사와 sweep을 쓴다. step과 경사는 구분해 판정한다. 인접한 두 점의 지역 Up 방향 높이 차가 `max(step 한도, 수평 거리 × tan(walkable 최대 경사))` 안이어야 한다(오름은 step-up 45cm, 내림은 step-down 60cm, 경사는 walkable dot 0.71의 약 44.8°). node 끝점에는 사전 필터로, 50cm 간격 exact Support 점 사이에는 본 판정으로 적용한다. 끝점 높이 차만 step 한도와 비교하면 200cm 지각 격자에서 약 12.7°를 넘는 경사가 모두 끊긴다. Meadow에서 local component가 5,151개로 부서졌던 원인이다(2026-10-01, 수정 후 91개).
 
 도달성 조회는 게시된 snapshot 위에서만 한다. world 위치는 `FLNPSurfaceHandle`이 가리키는 같은 slot·Layer의 가장 가까운 walkable node로 제한 반경(기본 300cm) 안에서 투영한다. 다른 Layer나 slot으로 스냅하지 않고, D-060으로 막힌 이음매 node는 제외한다. node 위치·법선은 저장하지 않으므로 대응 Support Layer를 node 방향에서 보간해 복원한다. group 조회 결과는 `SnapshotGeneration`·`ConnectivityGraphVersion`을 함께 담고, 어느 하나라도 현재 snapshot과 다르면 도달성 판정은 `Stale`이다.

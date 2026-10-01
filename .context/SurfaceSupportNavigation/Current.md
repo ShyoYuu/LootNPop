@@ -74,6 +74,13 @@ Phase 7b(경로 실행) 계획 `phases/Phase07b_PathExecution.md`와 결정 D-06
 1. `ULNPNavPathSubsystem`: 요청 대기열·우선순위, scratch pool(초기 4개, 개당 6.21MiB), 프레임 확장 예산, 다중 프레임 재개와 generation·version·overlay revision 검증, 경로 pool과 cache를 만든다. 예산은 벤치마크(확장당 0.38us)에 따라 프레임 약 4,000 확장에서 시작한다(계획 초기값 8,000은 CPU 약 3ms).
 2. 예산 분할 결정론·lifecycle(`Stale`·`Cancelled`·`NoPath`) 자동화를 추가한다.
 
+## 범위 확장 결정(2026-10-01, 검토 세션)
+
+- 입체 지형(건물·탑·계단·벽, 그래플 동선), 벽 타기 NPC, 비행 NPC 대량화를 검토했다. 기존 Phase는 버리지 않는다.
+- 결정은 D-064~D-070이다: 접힌 sheet 자동 분할, 여러 portal, `SurfaceCrawl` 도메인, Pod 단위 활동 대역(경계는 복제 컬·Actor 스폰 거리에서 유도), 구간 배회 복제, 비행 진형 기각, 입체 지형 레벨 디자인 규칙(계단 경사로 충돌·문 폭 200cm 이상).
+- 새 단계는 Roadmap Phase 7c·13·14이며, 권장 순서는 7b → 7c → 13 → 14다. 7b 진행 순서는 바뀌지 않는다.
+- D-054(비행 총수 200)의 근거는 대역폭이 아니라 서버 CPU다. Phase 13 뒤 재측정해 대체한다.
+
 ## 이관된 후속 작업
 
 - production Terrain Contract Component Tag 마이그레이션은 `Meadow_00`만 끝났다(4a 입력). 다른 production 옥탄트를 pool에 넣을 때 같은 방식으로 한다.
