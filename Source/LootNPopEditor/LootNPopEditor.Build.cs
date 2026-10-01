@@ -20,6 +20,8 @@ public class LootNPopEditor : ModuleRules
 			"DynamicMesh",
 			"GeometryCore",
 			"InteractiveToolsFramework",
+			"MassCore",
+			"MassEntity",
 			"MeshConversion",
 			"MeshDescription",
 			"MeshModelingTools",

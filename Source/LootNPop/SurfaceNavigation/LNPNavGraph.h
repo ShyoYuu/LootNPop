@@ -239,10 +239,11 @@ namespace LNPNavGraph
 	/**
 	 * 한 slot·Layer에서 WorldPosition 3D 거리 Radius 안의 walkable node를 거리 오름차순(같으면 index 오름차순)으로 모은다.
 	 * 막힌 이음매 node는 제외한다. 조밀 view의 격자 좌표 창 조회라 Tile 선형 탐색을 하지 않는다.
+	 * bNearestOnly면 같은 거리·index 규칙의 최근접 하나만 보관해 단일 node 소비자의 정렬 비용을 없앤다.
 	 */
 	LOOTNPOP_API void CollectNodesNear(
 		const FLNPNavSnapshot& Nav, int32 Slot, uint16 LocalNavLayerId, const FVector3d& WorldPosition, double Radius,
-		TArray<FLNPNavGraphCandidate>& OutCandidates, const FLNPNavOverlay* Overlay = nullptr);
+		TArray<FLNPNavGraphCandidate>& OutCandidates, const FLNPNavOverlay* Overlay = nullptr, bool bNearestOnly = false);
 
 	/**
 	 * D-062 시작·목표 스냅과 D-063 접근점.

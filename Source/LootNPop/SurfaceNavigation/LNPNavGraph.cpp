@@ -78,7 +78,7 @@ namespace
 	void ScanLayer(
 		const FLNPNavSnapshot& Nav, const int32 Slot, const int32 LayerOrdinal, const FVector3d& WorldPosition,
 		const double Radius, FAccept&& Accept, TArray<FLNPNavGraphCandidate>& OutCandidates,
-		const FLNPNavOverlay* Overlay = nullptr)
+		const FLNPNavOverlay* Overlay = nullptr, const bool bNearestOnly = false)
 	{
 		const FLNPNavGraph& Graph = Nav.Graph;
 		const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[Slot];
@@ -110,22 +110,45 @@ namespace
 		const int32 Base = Graph.SlotNodeBase[Slot];
 		for (int32 J = MinJ; J <= MaxJ; ++J)
 		{
-			for (int32 I = MinI; I <= FMath::Min(MaxI, N - J); ++I)
+			const int32 RowMaxI = FMath::Min(MaxI, N - J);
+			const int32 TileRow = (J / LNPNavData::TileSide) * Layer.TilesPerRow;
+			const int32 CellRow = (J % LNPNavData::TileSide) * LNPNavData::TileSide;
+			// 희소 Layer의 빈 Tile은 셀 16개를 하나씩 주소 변환하지 않고 건너뛴다. (J, I) 방문 순서는 유지한다.
+			for (int32 TileX = MinI / LNPNavData::TileSide; TileX <= RowMaxI / LNPNavData::TileSide; ++TileX)
 			{
-				const int32 AssetNode = FindLayerNode(Layer, I, J);
-				if (AssetNode == INDEX_NONE || Graph.BlockedNodes[Base + AssetNode]
-					|| LNPNavOverlay::IsBlocked(Overlay, Base + AssetNode))
+				const int32 TileId = Layer.TileIdByXY[TileRow + TileX];
+				if (TileId == INDEX_NONE)
 				{
 					continue;
 				}
-				const FLNPNavGraphNode& Node = Asset.Nodes[AssetNode];
-				const double DistanceSquared = FVector3d::DistSquared(
-					Graph.SlotRotations[Slot].RotateVector(FVector3d(Node.LocalPoint)), WorldPosition);
-				if (DistanceSquared > RadiusSquared || !Accept(Base + AssetNode, Node))
+				const int32 TileBeginI = TileX * LNPNavData::TileSide;
+				const int32 CellBegin = TileId * LNPNavData::MaxCellsPerTile + CellRow;
+				for (int32 I = FMath::Max(MinI, TileBeginI); I <= FMath::Min(RowMaxI, TileBeginI + LNPNavData::TileSide - 1); ++I)
 				{
-					continue;
+					const int32 AssetNode = Layer.NodeByTileCell[CellBegin + I - TileBeginI];
+					if (AssetNode == INDEX_NONE || Graph.BlockedNodes[Base + AssetNode]
+						|| LNPNavOverlay::IsBlocked(Overlay, Base + AssetNode))
+					{
+						continue;
+					}
+					const FLNPNavGraphNode& Node = Asset.Nodes[AssetNode];
+					const double DistanceSquared = FVector3d::DistSquared(
+						Graph.SlotRotations[Slot].RotateVector(FVector3d(Node.LocalPoint)), WorldPosition);
+					if (DistanceSquared > RadiusSquared || !Accept(Base + AssetNode, Node))
+					{
+						continue;
+					}
+					const FLNPNavGraphCandidate Candidate{Base + AssetNode, GetNodeGroup(Nav, Slot, Node.LocalComponent), FMath::Sqrt(DistanceSquared)};
+					if (!bNearestOnly || OutCandidates.IsEmpty())
+					{
+						OutCandidates.Add(Candidate);
+					}
+					else if (Candidate.Distance < OutCandidates[0].Distance
+						|| (Candidate.Distance == OutCandidates[0].Distance && Candidate.Node < OutCandidates[0].Node))
+					{
+						OutCandidates[0] = Candidate;
+					}
 				}
-				OutCandidates.Add({Base + AssetNode, GetNodeGroup(Nav, Slot, Node.LocalComponent), FMath::Sqrt(DistanceSquared)});
 			}
 		}
 	}
@@ -450,7 +473,7 @@ double LNPNavGraph::ComputeEdgeCost(const FVector3d& From, const FVector3d& To, 
 
 void LNPNavGraph::CollectNodesNear(
 	const FLNPNavSnapshot& Nav, const int32 Slot, const uint16 LocalNavLayerId, const FVector3d& WorldPosition,
-	const double Radius, TArray<FLNPNavGraphCandidate>& OutCandidates, const FLNPNavOverlay* Overlay)
+	const double Radius, TArray<FLNPNavGraphCandidate>& OutCandidates, const FLNPNavOverlay* Overlay, const bool bNearestOnly)
 {
 	OutCandidates.Reset();
 	if (!Nav.Graph.IsValid() || Slot < 0 || Slot >= GraphSlotCount || !(Radius > 0.0))
@@ -461,8 +484,11 @@ void LNPNavGraph::CollectNodesNear(
 	if (Ordinal != INDEX_NONE)
 	{
 		ScanLayer(Nav, Slot, Ordinal, WorldPosition, Radius,
-			[](int32, const FLNPNavGraphNode&) { return true; }, OutCandidates, Overlay);
-		SortCandidates(OutCandidates);
+			[](int32, const FLNPNavGraphNode&) { return true; }, OutCandidates, Overlay, bNearestOnly);
+		if (!bNearestOnly)
+		{
+			SortCandidates(OutCandidates);
+		}
 	}
 }
 
@@ -598,12 +624,12 @@ FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const
 					return GraphNode.GridDegree == 6 && !Nav.Graph.HasBlockedEdge[Node]
 						&& FirstStartByGroup.Contains(GetNodeGroup(Nav, Slot, GraphNode.LocalComponent));
 				},
-				Approaches, Overlay);
+				Approaches, Overlay, true);
 		}
 	}
 	if (!Approaches.IsEmpty())
 	{
-		SortCandidates(Approaches);
+		// 접근점은 최솟값 하나만 필요하므로 전체 후보를 보관·정렬하지 않는다. 거리·node 동률 규칙은 그대로다.
 		const FLNPNavGraphCandidate& Approach = Approaches[0];
 		const FLNPNavGraphCandidate& Start = Starts[FirstStartByGroup.FindChecked(Approach.Group)];
 		Result.ApproachNode = Approach.Node;

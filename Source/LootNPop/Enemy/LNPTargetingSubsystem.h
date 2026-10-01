@@ -10,6 +10,8 @@
 #include "Enemy/LNPEnemyConfig.h"   // ELNPTargetSlotPool — 풀 판별의 단일 원본이 Config에 있다
 #include "LNPTargetingSubsystem.generated.h"
 
+struct FLNPNavSnapshot;
+
 /** 슬롯 경쟁 중인 Enemy의 정보 */
 struct FLNPPendingTargetEntry
 {
@@ -54,7 +56,12 @@ public:
 	bool IsSlotConfirmed(FMassEntityHandle EnemyHandle, FMassEntityHandle PlayerHandle) const;
 
 	/** 재균형 수행: 고점수 Enemy을 승격하고 저점수 Enemy을 강등한다 */
-	void RebalanceSlots();
+	void RebalanceSlots(FMassEntityManager& EntityManager, const FLNPNavSnapshot* Nav, double Now);
+	double GetLastRebalanceSeconds() const
+	{
+		FScopeLock Lock(&DataLock);
+		return LastRebalanceSeconds;
+	}
 
 	/** `PureEntity` + 근접. Actor를 스폰하지 않으므로 넉넉히 열어 둔다. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Targeting")
@@ -96,13 +103,14 @@ protected:
 
 	/** 병렬 Mass 처리 중 Thread-Safe를 위한 Lock */
 	mutable FCriticalSection DataLock;
+	double LastRebalanceSeconds = 0.0;
 };
 
 /**
  * Mass에 이 Subsystem의 Thread 모델을 알린다.
  *
  * 이 선언이 없으면 기본값(GameThreadOnly = true)이 적용되어 ULNPEnemyTargetingProcessor가
- * 게임 Thread로 승격된다. public 메서드 세 개가 모두 DataLock으로 보호되므로 워커 Thread 접근은 안전하다.
+ * 게임 Thread로 승격된다. 상태 접근 메서드가 모두 DataLock으로 보호되므로 워커 Thread 접근은 안전하다.
  *
  * ThreadSafeWrite는 일부러 false로 둔다 — 쓰기 자체는 Lock으로 안전하지만, true로 두면 Mass가 RW를 RO처럼
  * 취급해 이 Subsystem을 쓰는 Processor들을 병렬로 돌린다. RebalanceSlots()는 프레임당 한 번 도는 전역

@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "MassEntitySubsystem.h"
+#include "Misc/FileHelper.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace
@@ -38,6 +39,39 @@ namespace
 	FAutoConsoleVariableRef CVarNavParallelSearch(
 		TEXT("LNP.SurfaceNav.NavParallelSearch"), GNavParallelSearch,
 		TEXT("1 = expand running path requests on worker threads in parallel. Results do not depend on this."));
+}
+
+uint32 ULNPNavPathSubsystem::Submit(const FLNPNavPathRequest& Request)
+{
+	const uint32 Serial = Scheduler.Submit(Request);
+	if (bCaptureRequests)
+	{
+		const auto Snapshot = SurfaceData->TakeSnapshot();
+		RequestCapture += FString::Printf(TEXT("%.6f,%d,%d,%u,%d,%.6f,%.6f,%.6f,%u,%u,%llu,%.6f,%.6f,%.6f,%u,%u,%llu,%.3f,%.3f,%u,%u\n"),
+			GetWorld()->GetTimeSeconds() - RequestCaptureStart, Request.Owner.Index, Request.Owner.SerialNumber, Serial,
+			static_cast<int32>(Request.Priority), Request.StartPosition.X, Request.StartPosition.Y, Request.StartPosition.Z,
+			Request.StartSurface.OctantSlot, Request.StartSurface.LocalLayerId, Request.StartSurface.Generation,
+			Request.GoalPosition.X, Request.GoalPosition.Y, Request.GoalPosition.Z,
+			Request.GoalSurface.OctantSlot, Request.GoalSurface.LocalLayerId, Request.GoalSurface.Generation,
+			Request.SnapRadius, Request.ApproachRadius, Snapshot.IsValid() ? Snapshot->Nav.ConnectivityGraphVersion : 0,
+			Overlay.IsValid() ? Overlay->Revision : 0);
+	}
+	return Serial;
+}
+
+void ULNPNavPathSubsystem::BeginRequestCapture()
+{
+	RequestCaptureStart = GetWorld()->GetTimeSeconds();
+	RequestCapture = TEXT("time,owner,ownerSerial,requestSerial,priority,startX,startY,startZ,startSlot,startLayer,startGeneration,goalX,goalY,goalZ,goalSlot,goalLayer,goalGeneration,snapRadius,approachRadius,graphVersion,overlayRevision\n");
+	bCaptureRequests = true;
+}
+
+bool ULNPNavPathSubsystem::EndRequestCapture(const FString& Filename)
+{
+	bCaptureRequests = false;
+	const bool bSaved = FFileHelper::SaveStringToFile(RequestCapture, *Filename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	RequestCapture.Empty();
+	return bSaved;
 }
 
 bool ULNPNavPathSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

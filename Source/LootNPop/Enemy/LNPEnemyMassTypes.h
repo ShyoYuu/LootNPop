@@ -9,6 +9,7 @@
 #include "GameplayTagContainer.h"
 #include "DynamicTerrain/LNPPlacementTypes.h"
 #include "Enemy/LNPFlightSteering.h"
+#include "Enemy/LNPEnemyNavigation.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "LNPEnemyMassTypes.generated.h"
@@ -81,6 +82,11 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	/** 이 Enemy가 속한 LootPod */
 	UPROPERTY(Transient)
 	FMassEntityHandle ParentLootPod;
+
+	/** 다른 group 착지 뒤 활성 Pod를 찾지 못했다. ParentPodLocation은 제한 배회 중심이다. */
+	bool bOrphaned = false;
+	bool bNeedsHomeCheck = false;
+	double LastHomeCheckTime = -DBL_MAX;
 
 	/** 초기 스폰 지면. Phase 6의 Support query가 현재 Layer를 이어받는다. */
 	FLNPSurfaceHandle SurfaceHandle;
@@ -208,6 +214,8 @@ struct LOOTNPOP_API FLNPEnemyTargetingFragment : public FMassFragment
 	UPROPERTY(Transient)
 	float DistanceToTargetSq = 0.0f;
 
+	FLNPEnemySlotReachability SlotReachability;
+
 	void ResetTargeting()
 	{
 		TargetPlayer.Reset();
@@ -263,6 +271,8 @@ struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
 	double LastRequestTime = -DBL_MAX;
 	uint32 Replans = 0;
 	bool bHasSteeringPoint = false;
+	/** 슬롯 없는 Alert도 접근점 경로를 따라 이동할 수 있다. */
+	bool bApproachingUnreachable = false;
 };
 
 /** Mass가 archetype 이동 시 shared path handle을 정상 복사·파괴하도록 명시적으로 허용한다. */
@@ -281,6 +291,8 @@ struct LOOTNPOP_API FLNPPlayerNavFragment : public FMassFragment
 	FLNPSurfaceHandle Surface;
 	int32 Node = INDEX_NONE;
 	uint32 Group = MAX_uint32;
+	FLNPNavGroupRef GroundGroup;
+	FVector GroundPoint = FVector::ZeroVector;
 	bool bGrounded = false;
 };
 

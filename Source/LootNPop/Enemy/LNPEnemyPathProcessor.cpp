@@ -1,14 +1,18 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Enemy/LNPEnemyProcessors.h"
+#include "Misc/ScopeExit.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
+#include "LootPod/LNPLootPodMassTypes.h"
+#include "LootNPop.h"
 #include "Character/LNPCharacterBase.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPNavGraph.h"
 #include "SurfaceNavigation/LNPNavPathSubsystem.h"
+#include "SurfaceNavigation/LNPLoadBaseline.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 
 #include "MassActorSubsystem.h"
@@ -18,6 +22,8 @@
 #include "MassNavigationFragments.h"
 #include "MassEntitySubsystem.h"
 #include "MassCommandBuffer.h"
+#include "MassSignalSubsystem.h"
+#include "MassStateTreeTypes.h"
 #include "LNPMassUtils.h"
 
 namespace
@@ -41,7 +47,7 @@ namespace
 		}
 		TArray<FLNPNavGraphCandidate> Candidates;
 		LNPNavGraph::CollectNodesNear(Nav, Surface.OctantSlot, Surface.LocalLayerId,
-			Position, NavSnapRadius, Candidates, Overlay);
+			Position, NavSnapRadius, Candidates, Overlay, true);
 		return Candidates.IsEmpty() ? INDEX_NONE : Candidates[0].Node;
 	}
 
@@ -57,6 +63,7 @@ ULNPPlayerNavProcessor::ULNPPlayerNavProcessor()
 	: PlayerNavQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
+	bRequiresGameThreadExecution = true;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Behavior;
 	ExecutionOrder.ExecuteBefore.Add(ULNPEnemyPathProcessor::StaticClass()->GetFName());
 }
@@ -96,10 +103,15 @@ void ULNPPlayerNavProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Actors[Index].Get());
 			FHitResult FloorHit;
 			Value.bGrounded = Character && Character->GetMoverComponent()
+				&& !Character->GetMoverComponent()->IsAirborne()
 				&& Character->GetMoverComponent()->TryGetFloorCheckHitResult(FloorHit)
 				&& FloorHit.IsValidBlockingHit();
 			if (Value.bGrounded)
 			{
+				Value.Surface = FLNPSurfaceHandle();
+				Value.Node = INDEX_NONE;
+				Value.Group = MAX_uint32;
+				Value.GroundGroup = FLNPNavGroupRef();
 				FLNPSurfaceHandle Surface;
 				const FLNPExactHitIdentity Identity = ULNPHitIdentitySubsystem::ResolveHit(*IdentitySnapshot, FloorHit);
 				if (LNPEnemySurfaceMovement::MakeSurfaceHandle(Identity, Surface))
@@ -109,8 +121,10 @@ void ULNPPlayerNavProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 					if (Node != INDEX_NONE)
 					{
 						Value.Surface = Surface;
+						Value.GroundPoint = Feet;
 						Value.Node = Node;
 						Value.Group = LNPNavGraph::GetGroup(Snapshot->Nav, Node);
+						Value.GroundGroup = {Value.Group, Snapshot->Nav.ConnectivityGraphVersion, Snapshot->Generation};
 					}
 				}
 			}
@@ -127,9 +141,10 @@ void ULNPPlayerNavProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 }
 
 ULNPEnemyPathProcessor::ULNPEnemyPathProcessor()
-	: PathQuery(*this)
+	: PathQuery(*this), PodQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
+	bRequiresGameThreadExecution = true;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Behavior;
 	ExecutionOrder.ExecuteAfter.Add(ULNPEnemyTargetFollowProcessor::StaticClass()->GetFName());
 	ExecutionOrder.ExecuteAfter.Add(ULNPPlayerNavProcessor::StaticClass()->GetFName());
@@ -139,16 +154,21 @@ void ULNPEnemyPathProcessor::ConfigureQueries(const TSharedRef<FMassEntityManage
 {
 	PathQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	PathQuery.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadOnly);
-	PathQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+	PathQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
 	PathQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadOnly);
 	PathQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
-	PathQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadOnly);
+	PathQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite);
 	PathQuery.AddRequirement<FLNPEnemyPathFragment>(EMassFragmentAccess::ReadWrite);
 	PathQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	PathQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	PathQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None);
 	PathQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	PathQuery.RegisterWithProcessor(*this);
+	PodQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	PodQuery.AddRequirement<FLNPLootPodFragment>(EMassFragmentAccess::ReadWrite);
+	PodQuery.AddTagRequirement<FLNPLootPodTag>(EMassFragmentPresence::All);
+	PodQuery.RegisterWithProcessor(*this);
 }
 
 void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -167,16 +187,43 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 		return;
 	}
 	const FLNPNavSnapshot& Nav = Snapshot->Nav;
+	const double ConsumerBegin = FPlatformTime::Seconds();
+	ON_SCOPE_EXIT { Paths->SetLastConsumerSeconds(FPlatformTime::Seconds() - ConsumerBegin); };
 	const TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> Overlay = Paths->TakeOverlay();
 	const double Now = World->GetTimeSeconds();
+	TArray<FMassEntityHandle> HomesChanged;
+	TArray<FLNPEnemyHomePod> Pods;
+	PodQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const auto Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		const auto PodData = Ctx.GetMutableFragmentView<FLNPLootPodFragment>();
+		for (int32 Index = 0; Index < Ctx.GetNumEntities(); ++Index)
+		{
+			FLNPLootPodFragment& Pod = PodData[Index];
+			if (Pod.State == ELNPLootPodState::Popped)
+			{
+				continue;
+			}
+			const FVector3d Position = Transforms[Index].GetTransform().GetLocation();
+			if (!Pod.NavGroup.IsValid() || LNPNavQuery::TestReachability(Nav, Pod.NavGroup, Pod.NavGroup) == ELNPNavReachability::Stale)
+			{
+				Pod.NavNode = NearestNode(Nav, Pod.SurfaceHandle, Position, nullptr);
+				Pod.NavGroup = {LNPNavGraph::GetGroup(Nav, Pod.NavNode), Nav.ConnectivityGraphVersion, Nav.SnapshotGeneration};
+			}
+			if (Pod.NavGroup.IsValid())
+			{
+				Pods.Add({Ctx.GetEntity(Index), Position, Pod.SurfaceHandle, Pod.NavGroup});
+			}
+		}
+	});
 	PathQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		const auto Transforms = Ctx.GetFragmentView<FTransformFragment>();
 		const auto MoveTargets = Ctx.GetFragmentView<FMassMoveTargetFragment>();
-		const auto Enemies = Ctx.GetFragmentView<FLNPEnemyFragment>();
+		const auto Enemies = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
 		const auto Velocities = Ctx.GetFragmentView<FLNPEnemyVelocityFragment>();
 		const auto Targeting = Ctx.GetFragmentView<FLNPEnemyTargetingFragment>();
-		const auto Idle = Ctx.GetFragmentView<FLNPEnemyIdleFragment>();
+		const auto Idle = Ctx.GetMutableFragmentView<FLNPEnemyIdleFragment>();
 		const auto PathData = Ctx.GetMutableFragmentView<FLNPEnemyPathFragment>();
 		const FLNPEnemySharedFragment& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
 		if (Shared.Config == nullptr)
@@ -188,29 +235,98 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			const FMassEntityHandle Owner = Ctx.GetEntity(Index);
 			FLNPEnemyPathFragment& State = PathData[Index];
 			State.bHasSteeringPoint = false;
+			State.bApproachingUnreachable = false;
 			const FVector3d Center = Transforms[Index].GetTransform().GetLocation();
 			const FVector3d Start = FeetOf(Center, Shared.Config->CapsuleHalfHeight);
-			const FLNPEnemyFragment& Enemy = Enemies[Index];
+			FLNPEnemyFragment& Enemy = Enemies[Index];
 			if (!Velocities[Index].Velocity.IsNearlyZero() || !Enemy.SurfaceHandle.IsValid()
 				|| Enemy.DynamicSupportContact.IsValid())
 			{
+				Enemy.bNeedsHomeCheck |= Enemy.ParentLootPod.IsValid() || Enemy.bOrphaned;
 				Paths->Cancel(Owner);
 				State.Path.Reset();
 				State.RequestSerial = 0;
 				continue;
+			}
+			if (Enemy.bNeedsHomeCheck || (Enemy.bOrphaned && Now - Enemy.LastHomeCheckTime >= 1.0))
+			{
+				int32 HomeIndex;
+				const ELNPNavEndpointStatus HomeStatus = LNPEnemyNavigation::SelectHomePod(
+					Nav, Start, Enemy.SurfaceHandle, Enemy.ParentLootPod, Pods, HomeIndex);
+				if (HomeStatus != ELNPNavEndpointStatus::Stale)
+				{
+					const FMassEntityHandle OldParent = Enemy.ParentLootPod;
+					const bool bLanded = Enemy.bNeedsHomeCheck;
+					Enemy.bNeedsHomeCheck = false;
+					Enemy.LastHomeCheckTime = Now;
+					Enemy.bOrphaned = HomeIndex == INDEX_NONE;
+					Enemy.ParentLootPod = HomeIndex != INDEX_NONE ? Pods[HomeIndex].Entity : FMassEntityHandle();
+					if (HomeIndex != INDEX_NONE)
+					{
+						Enemy.ParentPodLocation = Pods[HomeIndex].Position;
+					}
+					else if (bLanded)
+					{
+						Enemy.ParentPodLocation = Start;
+					}
+					if (bLanded || OldParent != Enemy.ParentLootPod)
+					{
+						Paths->Cancel(Owner);
+						State.Path.Reset();
+						State.RequestSerial = 0;
+						Idle[Index].bNeedNewWanderTarget = true;
+						Idle[Index].bWanderTargetTimedOut = true;
+						HomesChanged.Add(Owner);
+					}
+					if (OldParent != Enemy.ParentLootPod)
+					{
+						UE_LOG(LogLootNPop, Log, TEXT("[SurfaceNavHome] enemy=%d oldPod=%d newPod=%d orphaned=%d"),
+							Owner.Index, OldParent.Index, Enemy.ParentLootPod.Index, Enemy.bOrphaned);
+					}
+				}
 			}
 
 			const FMassMoveTargetFragment& MoveTarget = MoveTargets[Index];
 			const FLNPEnemyTargetingFragment& Target = Targeting[Index];
-			const bool bChasing = Target.State == ELNPTargetingState::Confirmed && Target.TargetPlayer.IsValid();
-			if (!bChasing && (Target.State != ELNPTargetingState::None || Idle[Index].bNeedNewWanderTarget))
+			FVector3d SyntheticGoal = FVector3d::ZeroVector;
+			FLNPSurfaceHandle SyntheticSurface;
+			const ULNPLoadBaselineSubsystem* Baseline = LNPLoadBaseline::IsSyntheticChase()
+				? World->GetSubsystem<ULNPLoadBaselineSubsystem>() : nullptr;
+			const bool bSynthetic = Baseline && Baseline->GetSyntheticChaseGoal(Owner.Index, SyntheticGoal, SyntheticSurface);
+			const bool bTargetActive = Target.TargetPlayer.IsValid() && EntityManager.IsEntityActive(Target.TargetPlayer);
+			const bool bChasing = bSynthetic || (Target.State == ELNPTargetingState::Confirmed && bTargetActive);
+			bool bAlertApproach = false;
+			bool bUnreachableTarget = false;
+			if (!bSynthetic && Target.State != ELNPTargetingState::None && bTargetActive)
+			{
+				const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer);
+				if (PlayerNav && PlayerNav->Surface.IsValid())
+				{
+					FLNPNavEndpointQuery Query;
+					Query.StartPosition = Start;
+					Query.StartSurface = &Enemy.SurfaceHandle;
+					Query.GoalPosition = Target.TargetLocation;
+					Query.GoalSurface = &PlayerNav->Surface;
+					Query.ApproachRadius = 0.0;
+					const ELNPNavEndpointStatus Reachability = LNPNavGraph::ResolveEndpoints(Nav, Query).Status;
+					bUnreachableTarget = Reachability == ELNPNavEndpointStatus::Unreachable || Reachability == ELNPNavEndpointStatus::NoNode;
+					bAlertApproach = Target.State == ELNPTargetingState::Alert && bUnreachableTarget;
+				}
+			}
+			const bool bTargetPath = bChasing || bAlertApproach;
+			if (!bTargetPath && (Target.State != ELNPTargetingState::None || Idle[Index].bNeedNewWanderTarget))
 			{
 				Paths->Cancel(Owner);
 				State.Path.Reset();
 				State.RequestSerial = 0;
+				if (Target.State == ELNPTargetingState::None)
+				{
+					State.SteeringPoint = Center;
+					State.bHasSteeringPoint = true;
+				}
 				continue;
 			}
-			if (MoveTarget.DistanceToGoal <= FLNPEnemyMovementConfig::ArrivalTolerance)
+			if (!bSynthetic && !bAlertApproach && MoveTarget.DistanceToGoal <= FLNPEnemyMovementConfig::ArrivalTolerance)
 			{
 				Paths->Cancel(Owner);
 				State.Path.Reset();
@@ -218,7 +334,11 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				continue;
 			}
 			FLNPSurfaceHandle GoalSurface = Enemy.SurfaceHandle;
-			if (bChasing)
+			if (bSynthetic)
+			{
+				GoalSurface = SyntheticSurface;
+			}
+			else if (bTargetPath)
 			{
 				const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer);
 				if (PlayerNav == nullptr || !PlayerNav->Surface.IsValid())
@@ -227,7 +347,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				}
 				GoalSurface = PlayerNav->Surface;
 			}
-			const FVector3d Goal = FeetOf(MoveTarget.Center, Shared.Config->CapsuleHalfHeight);
+			const FVector3d Goal = bSynthetic ? SyntheticGoal : bUnreachableTarget ? FVector3d(Target.TargetLocation)
+				: FeetOf(MoveTarget.Center, Shared.Config->CapsuleHalfHeight);
 			const int32 StartNode = NearestNode(Nav, Enemy.SurfaceHandle, Start, Overlay.Get());
 			const int32 GoalNode = NearestNode(Nav, GoalSurface, Goal, Overlay.Get());
 			if (StartNode == INDEX_NONE)
@@ -237,8 +358,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				continue;
 			}
 			const uint32 GoalTile = GoalNode == INDEX_NONE ? MAX_uint32 : LNPNavGraph::GetTileKey(Nav, GoalNode);
-			const bool bGoalChanged = State.RequestedTarget != Target.TargetPlayer
-				|| State.GoalTile != GoalTile || FVector3d::Dist(State.RequestedGoal, Goal) > RepathGoalDrift;
+			const bool bGoalChanged = State.RequestedTarget != Target.TargetPlayer || State.GoalTile != GoalTile
+				|| (State.Status != ELNPNavPathStatus::Unreachable && FVector3d::Dist(State.RequestedGoal, Goal) > RepathGoalDrift);
 			const bool bPathInvalid = State.Path.IsValid() && !State.Path->IsCurrent(Nav, Overlay.Get());
 			const bool bNoPathOverlayChanged = !State.Path.IsValid() && State.RequestSerial != 0
 				&& State.RequestedOverlayRevision != (Overlay.IsValid() ? Overlay->Revision : 0);
@@ -256,6 +377,11 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				State.Path.Reset();
 				State.RequestSerial = 0;
 				State.Status = ELNPNavPathStatus::None;
+				if (bSynthetic)
+				{
+					State.SteeringPoint = Goal;
+					State.bHasSteeringPoint = true;
+				}
 				continue;
 			}
 			if (State.RequestSerial != 0 && !bGoalChanged && !bPathInvalid && !bNoPathOverlayChanged)
@@ -279,7 +405,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				Request.StartSurface = Enemy.SurfaceHandle;
 				Request.GoalPosition = Goal;
 				Request.GoalSurface = GoalSurface;
-				Request.ApproachRadius = bChasing ? 3000.0 : 0.0;
+				Request.ApproachRadius = bTargetPath ? 3000.0 : 0.0;
 				State.RequestSerial = Paths->Submit(Request);
 				State.RequestedGoal = Goal;
 				State.RequestedTarget = Target.TargetPlayer;
@@ -291,6 +417,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 			if (State.Path.IsValid())
 			{
+				State.bApproachingUnreachable = State.Status == ELNPNavPathStatus::Unreachable
+					|| State.Status == ELNPNavPathStatus::NoNode;
 				const TArray<FLNPNavPathWaypoint>& Waypoints = State.Path->Waypoints;
 				const int32 PreviousWaypoint = State.WaypointIndex;
 				while (Waypoints.IsValidIndex(State.WaypointIndex)
@@ -309,6 +437,12 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 					State.SteeringPoint = Waypoints[State.WaypointIndex].Location;
 					State.bHasSteeringPoint = true;
 				}
+				else if (State.bApproachingUnreachable && !Waypoints.IsEmpty())
+				{
+					// 접근점에 도착한 뒤 의미상 목표 방향으로 다시 걷지 않는다.
+					State.SteeringPoint = Waypoints.Last().Location;
+					State.bHasSteeringPoint = true;
+				}
 				Paths->RecordFollowerFrame(true, State.WaypointIndex - PreviousWaypoint);
 			}
 			else
@@ -320,4 +454,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 		}
 	});
+	if (!HomesChanged.IsEmpty())
+	{
+		Context.GetMutableSubsystemChecked<UMassSignalSubsystem>().SignalEntities(UE::Mass::Signals::StateTreeActivate, HomesChanged);
+	}
 }

@@ -3,6 +3,20 @@
 > 상태: 진행 중
 > 실행 계획: `../phases/Phase07a_NavDataFoundation.md`
 
+## 2026-10-01 — Phase 7b 구현 단위 4 검증 중
+
+- 근접 슬롯의 D-062 도달성 필터·1.5초 grace·점프 중 기존 슬롯 보존, Unreachable Alert의 자기 group 접근점 이동·정지, 정적 착지 후 활성 Pod 유지/최근접 재귀속과 Orphaned 재시도를 구현했다. 원거리·비행 슬롯 규칙은 유지한다.
+- 전체 빌드와 초기 SurfaceNavigation 자동화 79/79는 통과했다. 실제 Mass 슬롯 배정 회귀를 추가한 최종 실행(`Phase07b_Unit4_AllSurfaceNavTests_Final.log`)은 테스트용 stack EntityManager의 공유 소유권 assertion으로 중단됐다. 테스트를 `MakeShared`로 수정했으며 재컴파일·재검증은 남아 있다.
+- `Phase07b_Unit4_EditorGame.log`의 100마리 스모크는 frame·exact·lock PASS, UnknownHits/EnvelopeEscapes 0, 정상 종료했다. 경로 추종 159,108프레임·waypoint 전진 1,212회를 기록했다. 기존 Mass CharacterMovementComponent 추출 및 game 모드의 editor Python toolset 등록 오류가 있다.
+- 별도 자동화 프로세스가 MCP 8000 포트를 먼저 사용한 사이 사용자가 에디터를 열어 MCP 서버 바인딩에 실패했다. 사용자에게 `ModelContextProtocol.StopServer`와 `ModelContextProtocol.StartServer 8000`을 요청했다. 이후 별도 자동화는 `-ModelContextProtocolPort=8001` 등으로 포트를 분리한다.
+- 단위 4는 미완료이며 최종 자동화와 PIE 접근점 검증을 마친 뒤에만 다음 단위 진행 여부를 확인한다.
+- 후속: 사용자가 풀빌드하고 에디터를 재시작한 뒤 MCP 연결을 확인했다. `Nav.EnemyReachability` 1/1과 전체 SurfaceNavigation 79/79가 오류·경고 0으로 통과했다(`Saved/Logs/Phase07b_Unit4_AllSurfaceNavTests_MCP.log`, 170.84초). 끊긴 섬 양방향 접근·정지는 사용자 PIE 확인을 요청했다. 테스트가 재저장한 에셋 3개의 git 원복은 열린 에디터 상태에서 파일 교체 오류로 실패했으며, 정리가 남아 있다.
+- PIE 크래시 후속: `LNPEnemyPathProcessor.cpp:440`의 `Context.GetMutableSubsystemChecked<UMassSignalSubsystem>()`이 query에만 선언된 접근 권한을 사용할 수 없어 `Undeclared read/write access`와 `InstancePtr` assertion을 발생시켰다(`Phase07b_Unit4_PIECrash.log`). 요구사항을 `ProcessorRequirements`로 옮겨 전체 빌드를 통과했다. PIE 재검증은 남아 있다. 에디터 종료 후 테스트 에셋 3개의 원복은 성공했다. Autosaves 161개·50,385,604B를 `Saved/RecoveryBackups/Phase07b_Unit4_PIECrash_Autosaves`에 보존했다. 복구 JSON의 Packages는 비어 있고 최근 에셋 자동 저장은 9월 27일이라 이번 Unsaved 변경 복구를 보장할 수 없다.
+- 수정 후 PIE 재검증: 사용자가 에디터를 다시 연 뒤 MCP로 PIE를 시작하고 20초 이상 실행했다. 로딩을 통과했고 subsystem 접근 오류·ensure·assertion은 재발하지 않았으며 적 추격·공격 상태 전환이 기록됐다(`Phase07b_Unit4_PIELoadFixed.log`). PIE를 실행 상태로 두고 사용자에게 끊긴 섬 양방향 접근·정지를 요청했다.
+- 사용자 양방향 플레이 관찰: 지각↔섬 이동 시 NPC가 추격을 멈추고 Pod 배회로 복귀했다. 접근점 도착·정지를 확인한 결과로 간주하지 않는다. MCP로 두 근접 Config의 실제 값(추적 유지 2,500cm·Pod 세력권 5,000cm·Alert 인내 8초)을 확인했다. 거리 판정은 높이 차를 포함하고 기존 포기 규칙은 유지하므로, 테스트용 유지 8,000cm·세력권 10,000cm·인내 60초 임시 적용 후 원복하는 방법을 사용자에게 제안했다. 아직 설정은 변경하지 않았다.
+- 사용자 승인 후 두 근접 Config에 유지 8,000cm·세력권 10,000cm·인내 60초를 MCP로 임시 적용하고 재조회로 확인했다. 에셋은 저장하지 않았다. 원본은 `Saved/RecoveryBackups/Phase07b_Unit4_TargetingOriginals.json`에 보존했다.
+- 단위 4 완료: 사용자가 섬 위로 피할 때 지각 적이 섬 바로 아래에 모이고, 지각으로 피할 때 섬 적이 가장자리에 모이는 양방향 동작을 확인했다. 두 Config의 모든 targeting 값을 원본으로 복구하고 MCP 재조회로 유지 2,500cm·세력권 5,000cm·인내 8초를 확인했다. Content의 git 변경은 없다. 기존 거리·포기 규칙과 맵은 유지한다. 단위 5는 사용자 진행 확인 전까지 착수하지 않는다.
+
 ## 2026-10-01 — Phase 7b 구현 단위 3 완료
 
 - `FLNPEnemyPathFragment`와 서버 Behavior 단계의 `ULNPEnemyPathProcessor`를 TargetFollow 뒤·Movement 앞에 연결했다. `FMassMoveTargetFragment`는 의미상 목표를 유지하고, PureEntity·ActorPromoted 이동이 공통 waypoint 조향점을 소비한다. 공중·비행 개체는 경로를 따르지 않는다.
@@ -169,3 +183,99 @@
 - 해석: 프레임당 약 8.3요청을 끝낸다. 직렬 tick은 예산 확장 비용(약 1.5ms)에 스냅·단순화·fingerprint가 약 15% 더해진 값이다. 병렬 이득이 1.6배에 그치는 이유는 라운드 끝의 긴 요청 몇 개다. 필요하면 구현 단위 5에서 라운드 몫 배분을 조정한다.
 - 예산 4,000 확정. 구현 단위 5의 경로 CPU Gate는 게임 스레드 tick 시간(병렬 대기 포함)으로 재고 worker 합산 CPU를 참고값으로 기록한다. 사용자가 이 기준을 확정했다. worker 합산은 지나치게 빡빡하고, 프레임에 실제로 드러나는 비용은 게임 스레드 대기라는 이유다.
 - `-game` 스모크는 하지 않았다. 아직 요청을 내는 소비자가 없다(구현 단위 3).
+
+## 2026-10-01 — Phase 7b 단위 5 계측·기능 검증, 성능 Gate 미통과
+
+사용자가 단위 5 진행을 승인했고 전체 빌드 전에 에디터를 종료했다. 계측·캡처·기능 검증을 수행했지만 700마리 성능 완료 조건은 충족하지 못했다. Phase 7b는 미완료로 유지하고 후속 성능 개선 진행 확인을 기다린다.
+
+### 구현
+
+- `LNPLoadBaseline`에 `-LNPLoadBaselineChase`를 추가했다. 준비 단계에 링 중심에서 네 방향 25m 지점을 slot 4 지각 Nav node로 투영하고, 실제 지상 적이 공유하는 목표를 5초마다 반대편으로 바꾼다. 타겟팅·슬롯·공격·넉백·투사체 부하는 유지한다. 처음 캐시만 조회했을 때 네 방향 중 두 방향이 빈 구간이라 자연 추격으로 폴백했으므로, Nav 투영으로 네 목표를 보장하도록 고쳤다. 최종 CSV의 추격 목표 좌표가 정확히 네 종류임을 확인했다.
+- `LNPNavPathSubsystem`이 capture 구간에 제출된 요청을 메모리에 모으고 종료 후 CSV로 저장한다. 형식과 재생 입력 규약은 Phase 7b 문서의 단위 5가 소유한다. 제출 수와 CSV 행 수가 다섯 실행 모두 정확히 같다.
+- 프레임별 게임 스레드 scheduler 시간, 확장 작업 경과 시간 합, 확장 수, tick 뒤 남은 실행·대기 요청 수를 표본화한다. tick하지 않은 프레임은 이전 값 대신 0을 넣는다. 제출·종료 상태·cache hit/miss는 warm-up 끝 누계의 차분이다. `searchSumMs`는 OS 스레드 CPU 시간이 아니라 작업별 벽시계 경과 시간 합이며 참고값이다.
+- `Scripts/Profiling/RunNavChaseMatrix.ps1`은 자연 추격 700, 합성 추격 700·800을 기본으로 실행한다. 500·600 등의 하향 탐색은 시나리오 이름을 지정한다. 프로세스 종료 코드도 검사해 종료 크래시를 스모크 성공으로 오인하지 않는다.
+
+### 작은 최적화와 종료 크래시
+
+- `LNPNavGraph::ScanLayer`가 최근접 하나만 필요한 소비자에서는 최소 후보 하나를 유지한다. 접근점은 전체 후보 저장·정렬을 제거하고 기존 거리·node 동률 규칙으로 같은 점을 고른다. Enemy·Player 단일 node 투영도 같은 경로를 쓴다. `Nav.GraphView`에 회귀·production 후보의 전체 정렬 결과와 최근접 전용 결과의 node·거리 일치 검사를 추가했다. 기존 D-062 공통 group 재선택은 전체 후보를 계속 쓴다.
+- Pod 재귀속에서 먼 후보를 생략하는 변경을 잠시 넣었으나, baseline 적은 Pod에 귀속되지 않아 이번 Gate에 영향을 주지 않는 것으로 확인하고 제거했다.
+- 첫 합성 700 실행은 capture·보고 뒤 게스트가 종료될 때 호스트에서 `CurrentArchetype` assert가 났다. callstack은 `ULNPEnemyPathProcessor`의 `GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer)`였다. 단순 `IsValid()`는 파괴된 엔티티를 걸러내지 못하므로 `IsEntityActive()`로 타겟 생존을 먼저 확인하고, 사라진 타겟은 경로 취소 분기로 보낸다. 최종 리슨 2P 다섯 실행에서 assert·ensure·crash가 없다.
+- 작은 정렬 절감만으로 Gate는 해결되지 않았다. 초기 자연/합성 700은 각각 프레임 P95 21.03/21.70ms, 경로 tick P95 2.142/3.161ms였다. 최종 실행은 아래 표처럼 더 높았다. frame delta에 따른 넉백·플레이어 접지·요청 상태 구성이 달라지므로 이 차이를 최적화 효과나 회귀의 확정 수치로 해석하지 않는다. 초기 로그·CSV는 `*_BeforeOptimization_*`로 보존했다.
+
+### 최종 검증
+
+- 에디터 전체 빌드 성공: `Saved/Logs/Phase07b_Unit5_OptimizedBuild.log`.
+- 전체 자동화 79/79: `Phase07b_Unit5_OptimizedTests.log`. 재저장된 테스트 전용 에셋 세 개는 실행 전 Git 상태로 복구했다.
+- Win64 Development BuildCookRun 성공: `Phase07b_Unit5_OptimizedPackage.log`. 기존 Lyra Material Function 누락 등 콘텐츠 경고는 재현됐고 코드 컴파일 오류는 없다.
+- 최종 패키지 1P 100마리 합성 추격: `Phase07b_Unit5_FinalPackage1P.log`. 프레임 P50/P95 3.99/5.00ms, 경로 tick P95 0.024ms, 요청 1,186건, cache hit 55.66%, waypoint 진행 4,211회. 네 목표 생성·CSV 저장·probe·종료 정상.
+- 최종 리슨 2P 다섯 실행의 host/guest 10개 로그: assert·ensure·crash 0. host Layer jump·Unknown hit·Envelope escape 0, 패널 게시 순서 위반 0, 각 probe PASS.
+
+### Development 패키지 리슨 2P 측정
+
+공통 조건은 seed 1, 지상 적만, 투사체 500, `-nullrhi -nosound -corelimit=4`, cache-first·lateral sweep·parallel movement 기본 유지, warm-up 10초·capture 30초다. scheduler는 예산 4,000·scratch 4·cache 256·병렬을 유지했다. 로그와 CSV는 `Saved/Profiling/Phase07b/<scenario>_{Host.log,Guest.log,Requests.csv}`다.
+
+| 시나리오 | 프레임 P50 / P95(ms) | 경로 tick P50 / P95(ms) | 확장 작업 합 P95(ms) | 확장 P50 / P95 | 남은 running / queued P95 | 제출·CSV 행 수 | cache hit율 | 두 Gate |
+|:---|---:|---:|---:|---:|---:|---:|---:|:---|
+| N700_natural | 19.07 / 28.38 | 0.714 / 8.697 | 0.899 | 46 / 2,132 | 0 / 0 | 8,013 | 27.60% | 실패 |
+| N500_chase | 10.90 / 13.12 | 0.050 / 1.047 | 0.169 | 18 / 464 | 0 / 0 | 7,389 | 62.51% | 통과 |
+| N600_chase | 13.48 / 16.18 | 0.096 / 1.501 | 0.375 | 53 / 1,039 | 0 / 0 | 8,024 | 58.61% | 경로 경계 실패 |
+| N700_chase | 18.47 / 22.89 | 0.568 / 4.781 | 1.287 | 114 / 3,011 | 3 / 27 | 9,525 | 61.35% | 실패 |
+| N800_chase | 20.50 / 26.21 | 0.433 / 5.174 | 1.458 | 153 / 3,424 | 4 / 162 | 10,719 | 62.02% | 실패 |
+
+완료 기준은 프레임 P95 16.67ms 이하·경로 tick P95 1.5ms 이하다. 600의 1.501ms는 근접하더라도 이번 실행에서 실패로 기록하며 기준을 바꾸지 않는다. running·queued는 tick 뒤 남은 요청 수로, 같은 tick 안에서 시작·완료된 요청은 이 수에 남지 않는다.
+
+| 시나리오 | Succeeded | Unreachable | NoNode | NoPath | Stale | Cancelled |
+|:---|---:|---:|---:|---:|---:|---:|
+| N700_natural | 1,547 | 1,866 | 4,589 | 0 | 0 | 11 |
+| N500_chase | 5,572 | 1,798 | 0 | 0 | 0 | 19 |
+| N600_chase | 6,096 | 1,888 | 0 | 0 | 0 | 40 |
+| N700_chase | 7,262 | 2,286 | 0 | 0 | 0 | 64 |
+| N800_chase | 8,425 | 2,133 | 0 | 3 | 0 | 98 |
+
+warm-up에서 시작한 요청이 capture에서 끝날 수 있으므로 종료 합계와 capture 제출 수는 다를 수 있다. `Unreachable`도 접근점 경로를 포함할 수 있다. 합성 모드의 네 목표 자체는 유효한 Nav node이고, 섬의 별도 group은 기존 D-063 접근점 경로를 따른다.
+
+Phase 6 cache-first의 최대 확인 통과점은 800마리였다. 이번 합성 추격에서는 두 Gate 모두 통과한 최대 확인점이 500이고, 600은 경로 Gate 경계다. 프레임 기준만 보면 600 통과·700 실패다. 정확한 최대값은 추가 탐색·반복으로 확정하지 않았다. 합성 모드는 실제 슬롯을 받지 못한 적도 가상 목표로 이동시키므로 Phase 6의 자연 추격과 수요가 같지 않다. 자연 추격 700도 이번 실행에서 실패했으므로 수용량 감소 자체는 후속 과제다.
+
+### 다음 작업
+
+사용자에게 성능 개선을 계속할지 확인한다. 승인 후 스냅·접근점·cache·경로 단순화/종료 처리와 Enemy·슬롯 소비자의 시간을 먼저 분해한다. scheduler의 요청 시작 비용은 현재 고정 16 확장이지만 접근점 처리 비용까지 똑같이 환산하는 점이 재검토 대상이다. sparse Layer 접근점 스캔과 매 프레임 중복 조회도 후보이며, 측정 없이 원인으로 확정하지 않는다. 700마리 두 Gate 통과 전에는 Phase 7b 완료나 7c 전환을 하지 않는다.
+
+## 2026-10-01 — 성능 개선 단위 1: 단계별 계측·빈 Tile 건너뛰기
+
+사용자 승인 후 요청 시작(스냅·접근점·cache), 확장(병렬 대기 포함), 종료 처리, Enemy 경로 소비, 슬롯 재배분의 프레임별 P50/P95를 추가했다. 확장 작업별 시간 합은 계속 참고값으로만 둔다. 슬롯 시간의 쓰기·읽기는 기존 DataLock으로 보호한다.
+
+### 구현과 검증
+
+- `ScanLayer`는 같은 (J, I) 창에서 한 행의 TileId를 먼저 확인하고 빈 Tile의 셀 16개를 건너뛴다. 존재하는 Tile도 셀마다 주소 변환·Tile 조회를 반복하지 않는다. 창 범위·world 거리 계산·후보 동률 규칙·방문 순서·overlay 차단 검사는 유지했다.
+- 확장 예산 4,000·scratch 4·cache 256·요청 시작 비용 16은 그대로다. 이번 단위에서 예산이나 Gate를 바꾸지 않았다.
+- `Nav.GraphView`에 주소 조회를 사용하지 않는 전 node 필터 oracle을 추가했다. 기존 창의 좌표·거리 조건을 적용해 회귀 336입력·production 384입력에서 후보 집합을 비교한다. Tile 경계·삼각 격자 끝·희소 Layer·300/3,000cm 반경을 포함한다.
+- 전체 빌드 `Saved/Logs/Phase07b_Perf1_FinalBuild.log`, 전체 SurfaceNavigation 79/79 `Phase07b_Perf1_FinalAllTests.log`, BuildCookRun `Phase07b_Perf1_FinalPackage.log` 통과. 테스트가 다시 저장한 에셋 세 개는 실행 전 상태로 복구했다.
+- 수정 전 계측 패키지 1회와 수정 후 4회, 리슨 2P host/guest 모두 정상 종료했다. 각 실행의 네 probe는 양쪽 PASS(8개), assert·ensure·crash·Unknown hit·Envelope escape·Layer jump·순서 위반 0이다. CSV 행 수가 capture 제출 수와 모두 일치한다.
+
+### 패키지 측정
+
+기존 단위 5와 같은 seed 1·지상 적·투사체 500·리슨 2P·`-nullrhi -corelimit=4`·warm-up 10초·capture 30초다. 시간은 ms다. 로그/CSV 경로의 공통 접두사는 `Saved/Profiling/Phase07b`이며 아래 이름에 `_{Host.log,Guest.log,Requests.csv}`가 붙는다.
+
+| 실행 / 파일 접두사 | 프레임 P50 / P95 | 경로 tick P50 / P95 | 확장 P50 / P95 | 잔여 running / queued P95 | 제출·CSV | cache hit율 | Gate |
+|:---|---:|---:|---:|---:|---:|---:|:---|
+| 수정 전 700 추격 / N700_chase_Perf1_Before | 14.52 / 17.80 | 0.197 / 2.980 | 96 / 3,443 | 3 / 42 | 10,269 | 63.67% | 실패 |
+| 수정 후 700 자연 / N700_natural | 12.36 / 13.63 | 0.042 / 0.546 | 8 / 907 | 0 / 0 | 5,081 | 24.50% | 통과 |
+| 수정 후 700 추격 1 / N700_chase_Perf1_After1 | 13.08 / 14.97 | 0.090 / 0.640 | 53 / 1,392 | 0 / 0 | 9,346 | 62.47% | 통과 |
+| 수정 후 700 추격 2 / N700_chase | 17.11 / 19.61 | 0.188 / 1.891 | 118 / 3,410 | 3 / 7 | 9,730 | 60.83% | 실패 |
+| 수정 후 800 추격 / N800_chase | 18.38 / 21.17 | 0.209 / 1.794 | 128 / 2,883 | 3 / 38 | 10,524 | 61.32% | 실패 |
+
+| 실행 | 요청 시작 P50 / P95 | 확장 대기 P50 / P95 | 종료 P50 / P95 | Enemy 소비 P50 / P95 | 슬롯 P50 / P95 |
+|:---|---:|---:|---:|---:|---:|
+| 수정 전 700 추격 | 0.038 / 2.162 | 0.038 / 0.743 | 0.013 / 0.114 | 3.006 / 3.455 | 1.047 / 1.332 |
+| 수정 후 700 자연 | 0.012 / 0.242 | 0.006 / 0.300 | 0.006 / 0.042 | 1.924 / 2.121 | 0.155 / 0.292 |
+| 수정 후 700 추격 1 | 0.020 / 0.228 | 0.024 / 0.425 | 0.010 / 0.054 | 2.077 / 2.416 | 0.883 / 1.145 |
+| 수정 후 700 추격 2 | 0.104 / 0.528 | 0.052 / 0.828 | 0.019 / 0.148 | 2.725 / 3.193 | 0.924 / 1.197 |
+| 수정 후 800 추격 | 0.113 / 0.807 | 0.056 / 0.706 | 0.022 / 0.229 | 3.104 / 3.625 | 1.080 / 1.421 |
+
+단계별 P95를 더한 값은 전체 tick의 P95가 아니다. 실행별 실제 이동·요청 구성이 달라 확장 수도 크게 변했다. 요청 시작 비용은 줄었지만 700 추격의 반복 결과가 Gate를 넘으므로 안정적인 통과·새 최대 수용량으로 확정하지 않는다. 이전 단위 5의 700/800 결과는 `N700_chase_Unit5_*`, `N800_chase_Unit5_*`로 보존했다. Phase 7b는 미완료다.
+
+### 발견한 기존 정확성 문제와 다음 단위
+
+최초 독립 검사는 창 좌표 제한 없이 전체 node를 거리만으로 거른 결과와 비교했다. 회귀·production 각각 8개 입력(각 slot의 Layer 0 끝 node 근처 3,000cm)에서 기존 창 밖의 후보를 놓쳤다. 예를 들어 회귀 slot 0은 창 안 810개·반경 안 전체 924개, production slot 0은 763개·869개다. 진단은 `Saved/Logs/Phase07b_Perf1_WindowDiagnostic.log`에 남았다. 최적화 이전부터 쓰던 각도→(I, J) 창의 범위 문제이며 이번 변경은 범위를 유지했다. 최종 oracle은 이번 최적화의 보존 조건인 기존 창 안 후보 일치를 검증한다. 반경 내 전체 후보를 보장하는 검증과 수정은 아직 끝나지 않았다.
+
+이 구현 단위를 끝낸 뒤 사용자에게 다시 진행 여부를 확인한다. 다음 단위는 기존 검색 창의 경계 누락을 먼저 수정·회귀 검증하고, 동일 CSV 입력 비용 비교와 요청 시작·확장 대기·종료 예산 검토로 이어갈 수 있다. Gate 16.67ms·1.5ms는 유지한다. 승인 전에는 추가 구현이나 7c로 넘어가지 않는다.

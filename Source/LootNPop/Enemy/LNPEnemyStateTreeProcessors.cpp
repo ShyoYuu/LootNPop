@@ -460,6 +460,20 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 					{
 						continue;
 					}
+					if (Enemy.bOrphaned)
+					{
+						FLNPNavProjection CurrentNode;
+						FLNPNavNodeRef ToRef;
+						uint32 FromComponent, ToComponent;
+						if (!LNPNavQuery::ProjectToNode(*SurfaceSnapshot, EntityLocation, Enemy.SurfaceHandle, 300.0, CurrentNode)
+							|| !LNPNavGraph::ToNodeRef(SurfaceSnapshot->Nav, Endpoints.GoalNode, ToRef)
+							|| !LNPNavQuery::GetStaticComponent(*SurfaceSnapshot, CurrentNode.Node, FromComponent)
+							|| !LNPNavQuery::GetStaticComponent(*SurfaceSnapshot, ToRef, ToComponent)
+							|| FromComponent != ToComponent)
+						{
+							continue;
+						}
+					}
 					if (Pod && Pod->SurfaceHandle.IsValid())
 					{
 						Query.StartPosition = Enemy.ParentPodLocation;
