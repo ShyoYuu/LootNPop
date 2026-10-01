@@ -124,6 +124,12 @@ struct LOOTNPOP_API FLNPNavPathSchedulerStats
 	uint64 Ticks = 0;
 	int32 LastTickExpansions = 0;
 	int32 LastTickStarted = 0;
+	/** 확장 작업별 경과 시간 합계. 병렬 대기는 제외하며 참고용이다. */
+	double LastTickSearchSeconds = 0.0;
+	/** 게임 스레드 단계별 시간. 확장은 ParallelFor 대기를 포함한다. */
+	double LastTickStartSeconds = 0.0;
+	double LastTickStepSeconds = 0.0;
+	double LastTickFinishSeconds = 0.0;
 	int32 MaxConcurrentRunning = 0;
 };
 
@@ -189,6 +195,7 @@ private:
 		uint32 OverlayRevision = 0;
 		/** 이번 라운드 확장 전 누적 확장 수. */
 		int32 ExpansionsBefore = 0;
+		double StepSeconds = 0.0;
 		/** Succeeded 결과를 넣을 cache key의 Tile. */
 		uint32 StartTile = MAX_uint32;
 		uint32 GoalTile = MAX_uint32;

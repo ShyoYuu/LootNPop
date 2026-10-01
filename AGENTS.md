@@ -2,6 +2,10 @@
 
 프로젝트의 공통 협업 규칙과 상세 문서 인덱스는 [CLAUDE.md](CLAUDE.md)를 단일 기준으로 삼아 준수한다.
 
+## 수동 조작과 검증
+
+- 사용자가 직접 PIE로 플레이하거나 GUI를 조작하는 편이 더 빠르고 정확한 경우, 자동화·MCP·테스트 장치 구현에 시간을 쓰기 전에 필요한 수동 조작을 요청한다.
+
 ## Unreal Engine
 
 - 엔진 소스 경로: `C:\Program Files\Epic Games\UE_5.8\Engine`

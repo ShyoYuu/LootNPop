@@ -5,6 +5,11 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Config/LNPSettings.h"
+#include "Enemy/LNPEnemyNavigation.h"
+#include "Enemy/LNPEnemyMassTypes.h"
+#include "Enemy/LNPTargetingSubsystem.h"
+#include "Mass/EntityFragments.h"
+#include "MassEntityManager.h"
 #include "DataAsset/LNPOctantPoolData.h"
 #include "DataAsset/LNPOctantSurfaceData.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
@@ -249,6 +254,15 @@ namespace LNPNavPathfindingTest
 					LNPNavQuery::DefaultProjectionRadius, Projection);
 				LNPNavGraph::CollectNodesNear(Nav, Slot, Candidate.LocalLayerId, World,
 					LNPNavQuery::DefaultProjectionRadius, Candidates);
+				TArray<FLNPNavGraphCandidate> Nearest;
+				LNPNavGraph::CollectNodesNear(Nav, Slot, Candidate.LocalLayerId, World,
+					LNPNavQuery::DefaultProjectionRadius, Nearest, nullptr, true);
+				Test.TestEqual(TEXT("Nearest-only projection keeps one result"), Nearest.Num(), Candidates.IsEmpty() ? 0 : 1);
+				if (!Nearest.IsEmpty() && !Candidates.IsEmpty())
+				{
+					Test.TestEqual(TEXT("Nearest-only projection matches sorted node"), Nearest[0].Node, Candidates[0].Node);
+					Test.TestEqual(TEXT("Nearest-only projection matches sorted distance"), Nearest[0].Distance, Candidates[0].Distance);
+				}
 				++Compared;
 				if (bProjected != !Candidates.IsEmpty())
 				{
@@ -271,6 +285,59 @@ namespace LNPNavPathfindingTest
 			Mismatches, 0);
 		Test.AddInfo(FString::Printf(TEXT("%s window scan: samples=%d equidistantTies=%d maxTieDelta=%.4fcm"),
 			Label, Compared, Ties, MaxTieDelta));
+
+		// 기존 검색 창의 범위를 유지하면서 Tile 경계·삼각 격자 끝·희소 Layer의 모든 후보를 빠짐없이 방문한다.
+		// 주소 조회를 쓰지 않는 독립 oracle: 전 node를 훑고 기존 창의 좌표·거리 조건으로 걸러 비교한다.
+		int32 WindowMismatches = 0;
+		int32 WindowSamples = 0;
+		for (int32 Slot = 0; Slot < Graph.SlotGraphs.Num(); ++Slot)
+		{
+			const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[Slot];
+			for (const FLNPNavGraphLayer& Layer : Asset.Layers)
+			{
+				if (Layer.NodeBegin == Layer.NodeEnd)
+				{
+					continue;
+				}
+				for (const int32 Center : {Layer.NodeBegin, (Layer.NodeBegin + Layer.NodeEnd) / 2, Layer.NodeEnd - 1})
+				{
+					const FVector3d World = Graph.GetWorldPoint(Slot, Graph.SlotNodeBase[Slot] + Center) + FVector3d(97.0, -61.0, 43.0);
+					const FVector3d Local = Graph.SlotRotations[Slot].UnrotateVector(World);
+					const FVector3d Clamped(FMath::Max(0.0, Local.X), FMath::Max(0.0, Local.Y), FMath::Max(0.0, Local.Z));
+					const double Sum = Clamped.X + Clamped.Y + Clamped.Z;
+					const double CenterI = Clamped.X / Sum * Layer.Subdivisions;
+					const double CenterJ = Clamped.Y / Sum * Layer.Subdivisions;
+					for (const double Radius : {300.0, 3000.0})
+					{
+						const int32 Window = FMath::CeilToInt32(Radius / FMath::Max(1.0, FMath::Min(Layer.BaseRadius, World.Length())) * Layer.Subdivisions) + 1;
+						LNPNavGraph::CollectNodesNear(Nav, Slot, Layer.LocalNavLayerId, World, Radius, Candidates);
+						TArray<int32> Actual;
+						for (const FLNPNavGraphCandidate& Candidate : Candidates)
+						{
+							Actual.Add(Candidate.Node);
+						}
+						Actual.Sort();
+						TArray<int32> Expected;
+						for (int32 Node = Layer.NodeBegin; Node < Layer.NodeEnd; ++Node)
+						{
+							const int32 Global = Graph.SlotNodeBase[Slot] + Node;
+							const FLNPNavGraphNode& Cell = Asset.Nodes[Node];
+							if (Cell.I >= FMath::FloorToInt32(CenterI) - Window && Cell.I <= FMath::CeilToInt32(CenterI) + Window
+								&& Cell.J >= FMath::FloorToInt32(CenterJ) - Window && Cell.J <= FMath::CeilToInt32(CenterJ) + Window
+								&& !Graph.BlockedNodes[Global]
+								&& FVector3d::DistSquared(Graph.GetWorldPoint(Slot, Global), World) <= FMath::Square(Radius))
+							{
+								Expected.Add(Global);
+							}
+						}
+						WindowMismatches += Actual != Expected ? 1 : 0;
+						++WindowSamples;
+					}
+				}
+			}
+		}
+		Test.TestEqual(FString::Printf(TEXT("%s tiled window matches exhaustive node scan (%d samples)"), Label, WindowSamples),
+			WindowMismatches, 0);
 	}
 
 	/** scheduler 요청 하나의 입력. */
@@ -399,6 +466,176 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPNavRegressionPathTest,
 	"LootNPop.SurfaceNavigation.Nav.RegressionPath",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavEnemyReachabilityTest,
+	"LootNPop.SurfaceNavigation.Nav.EnemyReachability",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPNavEnemyReachabilityTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavPathfindingTest;
+	namespace Fixture = LNPRegressionFixture;
+	FLNPSurfaceDataSnapshot Snapshot;
+	if (!BuildRegressionSnapshot(*this, Snapshot))
+	{
+		return false;
+	}
+	const FLNPNavSnapshot& Nav = Snapshot.Nav;
+	const FQuat4d& Rotation = Snapshot.Slots[0].SlotRotation;
+	auto World = [&Rotation](const FVector& Local) { return Rotation.RotateVector(FVector3d(Local)); };
+	const FVector3d Island = World(Fixture::IslandOne().At(Fixture::IslandOneTop - FeetLift));
+	const FVector3d Crust = World(Fixture::IslandOne().At(Fixture::CrustRadius - FeetLift, 1500.0));
+	const FLNPSurfaceHandle IslandSurface = FindHandle(Snapshot, Island);
+	const FLNPSurfaceHandle CrustSurface = FindHandle(Snapshot, Crust);
+	if (!TestTrue(TEXT("Landing fixture resolves both surfaces"), IslandSurface.IsValid() && CrustSurface.IsValid()))
+	{
+		return false;
+	}
+	auto GroupAt = [&](const FVector3d& Feet, const FLNPSurfaceHandle& Surface)
+	{
+		TArray<FLNPNavGraphCandidate> Candidates;
+		LNPNavGraph::CollectNodesNear(Nav, Surface.OctantSlot, Surface.LocalLayerId, Feet, 300.0, Candidates);
+		return FLNPNavGroupRef{Candidates.IsEmpty() ? MAX_uint32 : Candidates[0].Group,
+			Nav.ConnectivityGraphVersion, Nav.SnapshotGeneration};
+	};
+	const FLNPNavGroupRef IslandGroup = GroupAt(Island, IslandSurface);
+	const FLNPNavGroupRef CrustGroup = GroupAt(Crust, CrustSurface);
+	const FMassEntityHandle Player(1, 1);
+	FLNPEnemySlotReachability State;
+	TestFalse(TEXT("Disconnected island player receives no new melee slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, true, false, 10.0, State));
+	TestTrue(TEXT("Existing melee slot survives first disconnected grounded frame"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, true, true, 10.0, State));
+	TestTrue(TEXT("Slot remains during grace"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, true, true, 11.49, State));
+	TestFalse(TEXT("Slot returns at 1.5 seconds"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, true, true, 11.5, State));
+	TestTrue(TEXT("Jump preserves occupied slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, IslandGroup, false, true, 12.0, State));
+	TestFalse(TEXT("Jump cannot grant a new slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Reachable, Player, IslandGroup, false, false, 12.0, State));
+	TestTrue(TEXT("Grounded reconnection immediately allows slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Reachable, Player, CrustGroup, true, false, 13.0, State));
+	FLNPNavGroupRef StaleGroup = CrustGroup;
+	++StaleGroup.ConnectivityGraphVersion;
+	TestTrue(TEXT("Stale connectivity defers existing slot release"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, StaleGroup, true, true, 20.0, State));
+	TestFalse(TEXT("Stale connectivity cannot grant slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Reachable, Player, StaleGroup, true, false, 20.0, State));
+
+	// 슬롯 subsystem을 실제 Mass 엔티티로 실행해 풀 예산과 grace 필터의 연결을 검증한다.
+	{
+		const TSharedRef<FMassEntityManager> ManagerOwner = MakeShared<FMassEntityManager>();
+		FMassEntityManager& Manager = ManagerOwner.Get();
+		FMassEntityManagerStorageInitParams InitParams{TInPlaceType<FMassEntityManager_InitParams_Concurrent>()};
+		Manager.Initialize(InitParams);
+		ULNPTargetingSubsystem* Slots = NewObject<ULNPTargetingSubsystem>();
+		TArray<FInstancedStruct> PlayerFragments;
+		PlayerFragments.Add(FInstancedStruct::Make<FTransformFragment>());
+		PlayerFragments.Add(FInstancedStruct::Make<FLNPPlayerNavFragment>());
+		const FMassEntityHandle PlayerEntity = Manager.CreateEntity(PlayerFragments);
+		FLNPPlayerNavFragment& PlayerData = Manager.GetFragmentDataChecked<FLNPPlayerNavFragment>(PlayerEntity);
+		PlayerData.Surface = IslandSurface;
+		PlayerData.GroundPoint = Island;
+		PlayerData.GroundGroup = IslandGroup;
+		PlayerData.bGrounded = true;
+		auto MakeEnemy = [&](const ELNPEnemyAttackType AttackType)
+		{
+			ULNPEnemyConfig* Config = NewObject<ULNPEnemyConfig>();
+			Config->AttackType = AttackType;
+			FLNPEnemySharedFragment Shared;
+			Shared.Config = Config;
+			FMassArchetypeSharedFragmentValues SharedValues;
+			SharedValues.Add(Manager.GetOrCreateConstSharedFragment(Shared));
+			SharedValues.Sort();
+			TArray<FInstancedStruct> Fragments;
+			Fragments.Add(FInstancedStruct::Make<FTransformFragment>());
+			Fragments.Add(FInstancedStruct::Make<FLNPEnemyFragment>());
+			Fragments.Add(FInstancedStruct::Make<FLNPEnemyTargetingFragment>());
+			const FMassEntityHandle Entity = Manager.CreateEntity(Fragments, SharedValues);
+			Manager.GetFragmentDataChecked<FLNPEnemyFragment>(Entity).SurfaceHandle = CrustSurface;
+			Manager.GetFragmentDataChecked<FTransformFragment>(Entity).SetTransform(
+				FTransform(FQuat::Identity, FVector(Crust - Crust.GetSafeNormal() * Config->CapsuleHalfHeight)));
+			Manager.GetFragmentDataChecked<FLNPEnemyTargetingFragment>(Entity).TargetPlayer = PlayerEntity;
+			return Entity;
+		};
+		const FMassEntityHandle Melee = MakeEnemy(ELNPEnemyAttackType::Melee);
+		const FMassEntityHandle Promoted = MakeEnemy(ELNPEnemyAttackType::Melee);
+		const FMassEntityHandle Ranged = MakeEnemy(ELNPEnemyAttackType::Ranged);
+		auto Rebalance = [&](const double Now)
+		{
+			Slots->RegisterEnemyInterest(Melee, PlayerEntity, 100.f, ELNPTargetSlotPool::Melee);
+			Slots->RegisterEnemyInterest(Promoted, PlayerEntity, 100.f, ELNPTargetSlotPool::Promoted);
+			Slots->RegisterEnemyInterest(Ranged, PlayerEntity, 100.f, ELNPTargetSlotPool::Ranged);
+			Slots->RebalanceSlots(Manager, &Nav, Now);
+		};
+		Rebalance(0.0);
+		TestFalse(TEXT("Actual melee pool rejects disconnected player"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		TestFalse(TEXT("Promoted melee also rejects disconnected player"), Slots->IsSlotConfirmed(Promoted, PlayerEntity));
+		TestTrue(TEXT("Ranged pool keeps its existing non-Nav eligibility"), Slots->IsSlotConfirmed(Ranged, PlayerEntity));
+		PlayerData.Surface = CrustSurface;
+		PlayerData.GroundPoint = Crust;
+		PlayerData.GroundGroup = CrustGroup;
+		Rebalance(1.0);
+		TestTrue(TEXT("Actual melee pool grants reconnected player"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		PlayerData.Surface = IslandSurface;
+		PlayerData.GroundPoint = Island;
+		PlayerData.GroundGroup = IslandGroup;
+		Rebalance(2.0);
+		TestTrue(TEXT("Actual existing melee slot starts grace"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		Rebalance(3.49);
+		TestTrue(TEXT("Actual existing melee slot survives grace"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		Rebalance(3.5);
+		TestFalse(TEXT("Actual melee slot is released after grace"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		TestFalse(TEXT("Actual promoted melee slot is released after grace"), Slots->IsSlotConfirmed(Promoted, PlayerEntity));
+		TestTrue(TEXT("Ranged slot is unchanged by ground group switch"), Slots->IsSlotConfirmed(Ranged, PlayerEntity));
+		Manager.Deinitialize();
+	}
+
+	TArray<FLNPEnemyHomePod> Pods;
+	Pods.Add({FMassEntityHandle(10, 1), Island, IslandSurface, IslandGroup});
+	Pods.Add({FMassEntityHandle(20, 1), Crust, CrustSurface, CrustGroup});
+	int32 Selected;
+	TestEnum(*this, TEXT("Knockback landing rehomes to reachable crust pod"),
+		LNPEnemyNavigation::SelectHomePod(Nav, Crust, CrustSurface, Pods[0].Entity, Pods, Selected), ELNPNavEndpointStatus::Reachable);
+	TestEqual(TEXT("New parent is crust pod"), Selected, 1);
+	TestEnum(*this, TEXT("Same-group landing keeps existing parent"),
+		LNPEnemyNavigation::SelectHomePod(Nav, Crust, CrustSurface, Pods[1].Entity, Pods, Selected), ELNPNavEndpointStatus::Reachable);
+	TestEqual(TEXT("Existing parent retained"), Selected, 1);
+	Pods.RemoveAt(1);
+	TestEnum(*this, TEXT("No active pod in landing group becomes orphaned"),
+		LNPEnemyNavigation::SelectHomePod(Nav, Crust, CrustSurface, Pods[0].Entity, Pods, Selected), ELNPNavEndpointStatus::Unreachable);
+	TestEqual(TEXT("Orphan has no selected parent"), Selected, INDEX_NONE);
+	FLNPSurfaceHandle StaleSurface = CrustSurface;
+	++StaleSurface.Generation;
+	TestEnum(*this, TEXT("Stale landing handle defers rehome"),
+		LNPEnemyNavigation::SelectHomePod(Nav, Crust, StaleSurface, Pods[0].Entity, Pods, Selected), ELNPNavEndpointStatus::Stale);
+
+	// 양방향 접근점 경로가 실제로 계산되고 마지막 node가 자기 group 내부에 남는다.
+	for (int32 Direction = 0; Direction < 2; ++Direction)
+	{
+		FSchedulerCase Case;
+		Case.Start = Direction == 0 ? Crust : Island;
+		Case.StartHandle = Direction == 0 ? CrustSurface : IslandSurface;
+		Case.Goal = Direction == 0 ? Island : Crust;
+		Case.GoalHandle = Direction == 0 ? IslandSurface : CrustSurface;
+		FLNPNavPathScheduler Scheduler;
+		const uint32 Serial = Scheduler.Submit(MakeRequest(Case, 1, ELNPNavPathPriority::Background, 3000.0));
+		DrainScheduler(Scheduler, Nav, nullptr);
+		FLNPNavPathResult Result;
+		TestEnum(*this, TEXT("Alert approach stays unreachable"), Scheduler.GetResult(Player, Serial, Result), ELNPNavPathStatus::Unreachable);
+		if (TestTrue(TEXT("Alert approach has a path"), Result.Path.IsValid() && !Result.Path->Waypoints.IsEmpty()))
+		{
+			const int32 Last = Result.Path->Waypoints.Last().Node;
+			TestEqual(TEXT("Approach stays in own group"), LNPNavGraph::GetGroup(Nav, Last),
+				Direction == 0 ? CrustGroup.Group : IslandGroup.Group);
+			TestEqual(TEXT("Approach stops inside six open grid edges"),
+				static_cast<int32>(Nav.Graph.GetNode(Nav.Graph.GetSlot(Last), Last).GridDegree), 6);
+		}
+	}
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPNavProductionPathTest,

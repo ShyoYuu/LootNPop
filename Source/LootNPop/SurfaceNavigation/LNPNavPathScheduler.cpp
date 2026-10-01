@@ -190,6 +190,10 @@ void FLNPNavPathScheduler::Tick(
 	++TickIndex;
 	++Stats.Ticks;
 	Stats.LastTickExpansions = 0;
+	Stats.LastTickSearchSeconds = 0.0;
+	Stats.LastTickStartSeconds = 0.0;
+	Stats.LastTickStepSeconds = 0.0;
+	Stats.LastTickFinishSeconds = 0.0;
 	Stats.LastTickStarted = 0;
 
 	// 1) 사라진 owner의 요청은 결과를 버린다.
@@ -233,6 +237,7 @@ void FLNPNavPathScheduler::Tick(
 	while (Budget > 0)
 	{
 		FQueueEntry Entry;
+		const double StartBegin = FPlatformTime::Seconds();
 		while (Budget > 0 && Running.Num() < FMath::Max(1, Settings.ScratchCount) && PopNextQueued(Entry))
 		{
 			--QueuedCount;
@@ -240,6 +245,7 @@ void FLNPNavPathScheduler::Tick(
 			++Stats.LastTickStarted;
 			StartRequest(Nav, Overlay, Records.FindChecked(Entry.Owner));
 		}
+		Stats.LastTickStartSeconds += FPlatformTime::Seconds() - StartBegin;
 		if (Running.IsEmpty() || Budget <= 0)
 		{
 			break;
@@ -254,8 +260,11 @@ void FLNPNavPathScheduler::Tick(
 		auto Step = [this, &Nav, Overlay, Share](const int32 Index)
 		{
 			FRunningSearch& Search = Running[Index];
+			const double StepStart = FPlatformTime::Seconds();
 			LNPNavPathfinding::StepSearch(Nav, Scratches[Search.ScratchIndex], Search.Search, Share, Overlay);
+			Search.StepSeconds = FPlatformTime::Seconds() - StepStart;
 		};
+		const double StepBegin = FPlatformTime::Seconds();
 		if (Settings.bParallel && Running.Num() > 1)
 		{
 			ParallelFor(Running.Num(), Step);
@@ -268,12 +277,15 @@ void FLNPNavPathScheduler::Tick(
 			}
 		}
 
+		Stats.LastTickStepSeconds += FPlatformTime::Seconds() - StepBegin;
+		const double FinishBegin = FPlatformTime::Seconds();
 		for (int32 Index = Running.Num() - 1; Index >= 0; --Index)
 		{
 			FRunningSearch& Search = Running[Index];
 			const int32 Used = Search.Search.Expansions - Search.ExpansionsBefore;
 			Budget -= Used;
 			Stats.LastTickExpansions += Used;
+			Stats.LastTickSearchSeconds += Search.StepSeconds;
 			Stats.Expansions += Used;
 			if (Search.Search.Status != ELNPNavSearchStatus::Running)
 			{
@@ -281,6 +293,7 @@ void FLNPNavPathScheduler::Tick(
 				ReleaseRunning(Index);
 			}
 		}
+		Stats.LastTickFinishSeconds += FPlatformTime::Seconds() - FinishBegin;
 	}
 
 	for (const FRunningSearch& Search : Running)

@@ -22,7 +22,10 @@ class LOOTNPOP_API ULNPNavPathSubsystem : public UTickableWorldSubsystem
 
 public:
 	/** owner의 이전 요청은 Cancelled가 된다. snapshot 게시 전이면 게시될 때까지 대기한다. */
-	uint32 Submit(const FLNPNavPathRequest& Request) { return Scheduler.Submit(Request); }
+	uint32 Submit(const FLNPNavPathRequest& Request);
+	/** 부하 측정 구간의 요청을 메모리에 모으고 종료 후 CSV로 저장한다. */
+	void BeginRequestCapture();
+	bool EndRequestCapture(const FString& Filename);
 	void Cancel(const FMassEntityHandle Owner) { Scheduler.Cancel(Owner); }
 	ELNPNavPathStatus GetResult(const FMassEntityHandle Owner, const uint32 Serial, FLNPNavPathResult& OutResult) const
 	{
@@ -37,6 +40,8 @@ public:
 	TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> TakeOverlay() const { return Overlay; }
 	/** 마지막 tick의 scheduler 게임 스레드 시간(병렬 확장 대기 포함). */
 	double GetLastTickSeconds() const { return LastTickSeconds; }
+	void SetLastConsumerSeconds(double Seconds) { LastConsumerSeconds = Seconds; }
+	double GetLastConsumerSeconds() const { return LastConsumerSeconds; }
 	void RecordFollowerFrame(const bool bFollowingPath, const int32 WaypointsAdvanced)
 	{
 		++FollowerFrames;
@@ -62,6 +67,10 @@ private:
 	TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> Overlay;
 	uint64 OverlayGeneration = 0;
 	double LastTickSeconds = 0.0;
+	double LastConsumerSeconds = 0.0;
+	bool bCaptureRequests = false;
+	double RequestCaptureStart = 0.0;
+	FString RequestCapture;
 	uint64 FollowerFrames = 0;
 	uint64 FollowingPathFrames = 0;
 	uint64 FollowerWaypointsAdvanced = 0;

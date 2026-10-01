@@ -3,6 +3,7 @@
 #include "SurfaceNavigation/LNPLoadBaseline.h"
 
 #include "Enemy/LNPEnemySurfaceMovement.h"
+#include "Enemy/LNPTargetingSubsystem.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyCharacter.h"
@@ -12,6 +13,8 @@
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "SurfaceNavigation/LNPNavPathSubsystem.h"
+#include "SurfaceNavigation/LNPNavGraph.h"
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemyFlightMovementProcessor.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
@@ -35,6 +38,7 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
 #include "ProfilingDebugging/MiscTrace.h"
 
 namespace
@@ -252,6 +256,26 @@ int32 LNPLoadBaseline::GetFlyerCount()
 		return FMath::Max(0, Value);
 	}();
 	return Count;
+}
+
+bool LNPLoadBaseline::IsSyntheticChase()
+{
+	static const bool bEnabled = FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineChase"));
+	return IsActive() && bEnabled;
+}
+
+bool ULNPLoadBaselineSubsystem::GetSyntheticChaseGoal(const int32 OwnerIndex, FVector3d& OutGoal,
+	FLNPSurfaceHandle& OutSurface) const
+{
+	if (!LNPLoadBaseline::IsSyntheticChase() || SyntheticGoals.Num() != 4 || Stage == EStage::Done)
+	{
+		return false;
+	}
+	// 준비 단계에서 투영한 네 목표를 공유한다. 5초마다 반대쪽으로 옮겨 재계획을 유발한다.
+	const int32 Epoch = FMath::FloorToInt(GetWorld()->GetTimeSeconds() / 5.0);
+	OutGoal = SyntheticGoals[(OwnerIndex % 4 + (Epoch % 2) * 2) % 4];
+	OutSurface = SyntheticGoalSurface;
+	return true;
 }
 
 bool LNPLoadBaseline::IsActive()
@@ -489,6 +513,36 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 			UE_LOG(LogLootNPop, Warning, TEXT("[LoadBaseline] Ring center probe found no crust."));
 		}
 		RingOuterRadius = GetRingOuterRadius(LNPLoadBaseline::GetEnemyCount());
+		if (LNPLoadBaseline::IsSyntheticChase() && World->GetNetMode() != NM_Client)
+		{
+			const auto Snapshot = World->GetSubsystem<ULNPSurfaceDataSubsystem>()->TakeSnapshot();
+			const auto Overlay = World->GetSubsystem<ULNPNavPathSubsystem>()->TakeOverlay();
+			const FVector3d Up = FVector3d(RingCenter).GetSafeNormal();
+			const FVector3d Right = FVector3d::CrossProduct(Up, FVector3d::UpVector).GetSafeNormal();
+			const FVector3d Forward = FVector3d::CrossProduct(Right, Up);
+			for (int32 GoalIndex = 0; GoalIndex < 4; ++GoalIndex)
+			{
+				const double Angle = GoalIndex * UE_DOUBLE_PI / 2.0;
+				const FVector3d Direction = (FVector3d(RingCenter) + 2500.0 * (Right * FMath::Cos(Angle) + Forward * FMath::Sin(Angle))).GetSafeNormal();
+				FVector3d Point = Direction * RingCenter.Size();
+				LNPSurfaceDataLoading::QueryLayerZero(*Snapshot, Direction, Point);
+				TArray<FLNPNavGraphCandidate> Candidates;
+				LNPNavGraph::CollectNodesNear(Snapshot->Nav, 4, 0, Point, 1500.0, Candidates, Overlay.Get());
+				if (!Candidates.IsEmpty())
+				{
+					SyntheticGoals.Add(Snapshot->Nav.Graph.GetWorldPoint(4, Candidates[0].Node));
+				}
+			}
+			SyntheticGoalSurface = {4, 0, Snapshot->Generation};
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Synthetic chase goals=%d (required=4)"), SyntheticGoals.Num());
+			if (SyntheticGoals.Num() != 4)
+			{
+				UE_LOG(LogLootNPop, Error, TEXT("[LoadBaseline] Cannot construct synthetic chase goals. Measurement aborted."));
+				Stage = EStage::Done;
+				FPlatformMisc::RequestExitWithStatus(false, 1, TEXT("LNPLoadBaselineChase invalid goals"));
+				return;
+			}
+		}
 		if (World->GetNetMode() != NM_Client)
 		{
 			ProjectileSourceConfig = LoadObject<ULNPEnemyConfig>(nullptr, ProjectileSourceConfigPath);
@@ -536,6 +590,13 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		LNPEnemySurfaceMovement::ResetGroundStats();
 		NextActorSampleTime = Now;
 		CaptureStartPopulation = Population;
+		if (World->GetNetMode() != NM_Client)
+		{
+			ULNPNavPathSubsystem* Paths = World->GetSubsystem<ULNPNavPathSubsystem>();
+			CaptureStartNavStats = Paths->GetScheduler().GetStats();
+			LastNavTick = CaptureStartNavStats.Ticks;
+			Paths->BeginRequestCapture();
+		}
 		if (World->GetNetMode() != NM_Client)
 		{
 			for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
@@ -900,6 +961,24 @@ void ULNPLoadBaselineSubsystem::TopUpProjectiles()
 void ULNPLoadBaselineSubsystem::SampleFrame()
 {
 	UWorld* World = GetWorld();
+	if (World->GetNetMode() != NM_Client)
+	{
+		const ULNPNavPathSubsystem* Paths = World->GetSubsystem<ULNPNavPathSubsystem>();
+		const auto& Scheduler = Paths->GetScheduler();
+		const auto& Stats = Scheduler.GetStats();
+		const bool bTicked = Stats.Ticks != LastNavTick;
+		FrameNavNs.Add(bTicked ? static_cast<uint64>(Paths->GetLastTickSeconds() * 1e9) : 0);
+		FrameNavSearchNs.Add(bTicked ? static_cast<uint64>(Stats.LastTickSearchSeconds * 1e9) : 0);
+		FrameNavStartNs.Add(bTicked ? static_cast<uint64>(Stats.LastTickStartSeconds * 1e9) : 0);
+		FrameNavStepNs.Add(bTicked ? static_cast<uint64>(Stats.LastTickStepSeconds * 1e9) : 0);
+		FrameNavFinishNs.Add(bTicked ? static_cast<uint64>(Stats.LastTickFinishSeconds * 1e9) : 0);
+		FrameNavConsumerNs.Add(static_cast<uint64>(Paths->GetLastConsumerSeconds() * 1e9));
+		FrameTargetSlotsNs.Add(static_cast<uint64>(World->GetSubsystem<ULNPTargetingSubsystem>()->GetLastRebalanceSeconds() * 1e9));
+		FrameNavExpansions.Add(bTicked ? Stats.LastTickExpansions : 0);
+		FrameNavConcurrent.Add(Scheduler.GetRunningCount());
+		FrameNavQueued.Add(Scheduler.GetQueuedCount());
+		LastNavTick = Stats.Ticks;
+	}
 	const ULNPMassWorldCollisionSubsystem* Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 
 	uint64 QueryCount, QueryNs, LockNs;
@@ -980,6 +1059,40 @@ void ULNPLoadBaselineSubsystem::Report()
 	const FPercentiles Exact = ComputePercentiles(FrameExactNs, 1e-6);
 	const FPercentiles Lock = ComputePercentiles(FrameLockNs, 1e-6);
 	const FPercentiles Queries = ComputePercentiles(FrameQueryCount, 1.0);
+	if (World->GetNetMode() != NM_Client)
+	{
+		ULNPNavPathSubsystem* Paths = World->GetSubsystem<ULNPNavPathSubsystem>();
+		const auto& Stats = Paths->GetScheduler().GetStats();
+		const FPercentiles Nav = ComputePercentiles(FrameNavNs, 1e-6);
+		const FPercentiles Search = ComputePercentiles(FrameNavSearchNs, 1e-6);
+		const FPercentiles Start = ComputePercentiles(FrameNavStartNs, 1e-6);
+		const FPercentiles Step = ComputePercentiles(FrameNavStepNs, 1e-6);
+		const FPercentiles Finish = ComputePercentiles(FrameNavFinishNs, 1e-6);
+		const FPercentiles Consumer = ComputePercentiles(FrameNavConsumerNs, 1e-6);
+		const FPercentiles Slots = ComputePercentiles(FrameTargetSlotsNs, 1e-6);
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Nav stagesMs P50/P95 start=%.3f/%.3f stepWait=%.3f/%.3f finish=%.3f/%.3f consumer=%.3f/%.3f slots=%.3f/%.3f"),
+			Start.P50, Start.P95, Step.P50, Step.P95, Finish.P50, Finish.P95, Consumer.P50, Consumer.P95, Slots.P50, Slots.P95);
+		const FPercentiles Expansions = ComputePercentiles(FrameNavExpansions, 1.0);
+		const FPercentiles Concurrent = ComputePercentiles(FrameNavConcurrent, 1.0);
+		const FPercentiles Queued = ComputePercentiles(FrameNavQueued, 1.0);
+		const uint64 Hits = Stats.CacheHits - CaptureStartNavStats.CacheHits;
+		const uint64 Misses = Stats.CacheMisses - CaptureStartNavStats.CacheMisses;
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Nav chase=%d tickMs P50=%.3f P95=%.3f Max=%.3f searchSumMs P50=%.3f P95=%.3f | expansions P50=%.0f P95=%.0f | running P95=%.0f queued P95=%.0f | submitted=%llu cacheHits=%llu cacheMisses=%llu hitRate=%.2f%%"),
+			LNPLoadBaseline::IsSyntheticChase(), Nav.P50, Nav.P95, Nav.Max, Search.P50, Search.P95,
+			Expansions.P50, Expansions.P95, Concurrent.P95, Queued.P95, Stats.Submitted - CaptureStartNavStats.Submitted,
+			Hits, Misses, Hits + Misses > 0 ? 100.0 * Hits / (Hits + Misses) : 0.0);
+		for (int32 Status = 0; Status < UE_ARRAY_COUNT(Stats.Finished); ++Status)
+		{
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Nav finished status=%d count=%llu"),
+				Status, Stats.Finished[Status] - CaptureStartNavStats.Finished[Status]);
+		}
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] NavGate frame=%s(P95<=16.67ms) path=%s(P95<=1.5ms) followerFrames=%llu waypoints=%llu"),
+			Frame.P95 <= 16.67 ? TEXT("PASS") : TEXT("FAIL"), Nav.P95 <= 1.5 ? TEXT("PASS") : TEXT("FAIL"),
+			Paths->GetFollowingPathFrames(), Paths->GetFollowerWaypointsAdvanced());
+		const FString Filename = FPaths::Combine(FPaths::ProjectLogDir(), FString::Printf(TEXT("NavRequests_N%d_Chase%d_Seed%d.csv"),
+			LNPLoadBaseline::GetEnemyCount(), LNPLoadBaseline::IsSyntheticChase(), LNPLoadBaseline::GetSeed()));
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Nav capture %s: %s"), Paths->EndRequestCapture(Filename) ? TEXT("saved") : TEXT("FAILED"), *Filename);
+	}
 
 	int32 FramesOverBudget = 0;
 	for (const uint64 Value : FrameMs100)

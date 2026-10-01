@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityQuery.h"
+#include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "LNPLoadBaseline.generated.h"
 
@@ -21,6 +22,7 @@ class ULNPMassWorldCollisionSubsystem;
  *     -LNPLoadBaselinePlayers=2   서버가 capture를 시작하기 전에 기다리는 플레이어 수(기본 2)
  *     -LNPLoadBaselineProjectiles=500  유지할 전체 발사체 수(기본 500). 요인 분리용 대조 실행에서만 바꾼다
  *     -LNPLoadBaselineQuit        보고 뒤 프로세스를 종료한다(무인 실행)
+ *     -LNPLoadBaselineChase       네 가상 지각 목표(링 중심에서 25m)를 5초마다 교체해 지상 적의 실제 경로 추종 부하를 만든다
  *
  * - 적: DA_MassSpawnConfig의 적 수를 0으로 두고(Pod는 유지), slot 4 큰 섬 가장자리 아래를 중심으로 한 링에 정확히 N마리를 둔다.
  *   링 일부가 섬 아래 지각을 지나고, 20마리 중 2마리(근접·원거리 1마리씩)는 섬 윗면에 둔다(Phase03b §3.6).
@@ -51,6 +53,8 @@ namespace LNPLoadBaseline
 	LOOTNPOP_API int32 GetFlyerCount();
 	/** 모든 스레드. 지상·비행 적 수의 합이 0이면 harness가 꺼져 있다. */
 	LOOTNPOP_API bool IsActive();
+	/** Phase 7b: 네 가상 목표를 향한 실제 경로 추종 부하. */
+	LOOTNPOP_API bool IsSyntheticChase();
 	LOOTNPOP_API int32 GetSeed();
 	int32 GetTargetProjectiles();
 
@@ -100,6 +104,7 @@ class LOOTNPOP_API ULNPLoadBaselineSubsystem : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 public:
+	bool GetSyntheticChaseGoal(int32 OwnerIndex, FVector3d& OutGoal, FLNPSurfaceHandle& OutSurface) const;
 	// UTickableWorldSubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Tick(float DeltaTime) override;
@@ -133,6 +138,8 @@ private:
 	FRandomStream ProjectileStream;
 	FRandomStream KnockbackStream;
 	FVector RingCenter = FVector::ZeroVector;
+	TArray<FVector3d> SyntheticGoals;
+	FLNPSurfaceHandle SyntheticGoalSurface;
 	float RingOuterRadius = 0.f;
 
 	enum class EStage : uint8 { Waiting, Warmup, Capture, Done };
@@ -160,6 +167,18 @@ private:
 	TArray<uint64> FrameExactNs;
 	TArray<uint64> FrameLockNs;
 	TArray<uint64> FrameQueryCount;
+	TArray<uint64> FrameNavNs;
+	TArray<uint64> FrameNavSearchNs;
+	TArray<uint64> FrameNavStartNs;
+	TArray<uint64> FrameNavStepNs;
+	TArray<uint64> FrameNavFinishNs;
+	TArray<uint64> FrameNavConsumerNs;
+	TArray<uint64> FrameTargetSlotsNs;
+	TArray<uint64> FrameNavExpansions;
+	TArray<uint64> FrameNavConcurrent;
+	TArray<uint64> FrameNavQueued;
+	FLNPNavPathSchedulerStats CaptureStartNavStats;
+	uint64 LastNavTick = 0;
 	TArray<int32> ProjectileSamples;
 	TArray<int32> PromotedActorSamples;
 	int32 InjectedProjectiles = 0;

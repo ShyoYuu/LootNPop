@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Enemy/LNPEnemyProcessors.h"
+#include "SurfaceNavigation/LNPLoadBaseline.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPTargetingSubsystem.h"
 #include "Enemy/LNPEnemyCharacter.h"
@@ -47,6 +48,7 @@ ULNPEnemyScoringProcessor::ULNPEnemyScoringProcessor()
 	ProcessingPhase = EMassProcessingPhase::PostPhysics;
 	// 모두 이동한 후 다음 프레임의 후보를 준비
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::UpdateWorldFromMass;
+	ExecutionOrder.ExecuteAfter.Add(ULNPEnemyActorSyncProcessor::StaticClass()->GetFName());
 }
 
 void ULNPEnemyScoringProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -61,6 +63,7 @@ void ULNPEnemyScoringProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 	ScoringQuery.RegisterWithProcessor(*this);
 
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	PlayerQuery.AddRequirement<FLNPPlayerNavFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	// 사망한 플레이어는 타겟 후보에서 제외한다 — 적 쪽 FLNPEnemyDyingTag 배제와 대칭.
 	PlayerQuery.AddTagRequirement<FLNPPlayerDeadTag>(EMassFragmentPresence::None);
@@ -73,6 +76,9 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	const ULNPSurfaceDataSubsystem* SurfaceData = GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
+	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> SurfaceSnapshot =
+		SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
 
 	// 1. 모든 Player 수집
 	struct FPlayerData { FMassEntityHandle Handle; FVector Location; };
@@ -235,7 +241,24 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					if (!bChaseEligible)
 						continue;
 
-					bAnyChaseEligible = true;
+					bool bReachable = true;
+					if (!SharedFragment.Config->IsFlying() && SharedFragment.Config->AttackType == ELNPEnemyAttackType::Melee)
+					{
+						const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Candidate.Handle);
+						bReachable = false;
+						if (SurfaceSnapshot.IsValid() && PlayerNav)
+						{
+							FLNPNavEndpointQuery Query;
+							Query.StartPosition = EnemyLoc + EnemyLoc.GetSafeNormal() * SharedFragment.Config->CapsuleHalfHeight;
+							Query.StartSurface = &EnemyData.SurfaceHandle;
+							Query.GoalPosition = PlayerNav->GroundPoint;
+							Query.GoalSurface = &PlayerNav->Surface;
+							Query.ApproachRadius = 0.0;
+							bReachable = LNPNavGraph::ResolveEndpoints(SurfaceSnapshot->Nav, Query).Status == ELNPNavEndpointStatus::Reachable;
+						}
+						bReachable |= PreviousState == ELNPTargetingState::Confirmed && Candidate.Handle == Targeting.TargetPlayer;
+					}
+					bAnyChaseEligible |= bReachable;
 
 					const float Score = 1000000.0f / (FMath::Sqrt(Candidate.DistSq) + 1.0f);
 
@@ -285,6 +308,7 @@ ULNPEnemyTargetingProcessor::ULNPEnemyTargetingProcessor()
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Behavior;
+	ExecutionOrder.ExecuteAfter.Add(ULNPPlayerNavProcessor::StaticClass()->GetFName());
 }
 
 void ULNPEnemyTargetingProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -292,6 +316,8 @@ void ULNPEnemyTargetingProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 	TargetingQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	TargetingQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadWrite);
 	TargetingQuery.AddRequirement<FLNPEnemyTargetingCandidateFragment>(EMassFragmentAccess::ReadOnly);
+	TargetingQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+	TargetingQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	TargetingQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	TargetingQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	TargetingQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
@@ -327,7 +353,11 @@ void ULNPEnemyTargetingProcessor::Execute(FMassEntityManager& EntityManager, FMa
 	});
 
 	// 2. 전역 재균형 수행
-	TargetingSubsystem.RebalanceSlots();
+	const ULNPSurfaceDataSubsystem* SurfaceData = GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
+	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> NavSnapshot =
+		SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
+	TargetingSubsystem.RebalanceSlots(EntityManager, NavSnapshot.IsValid() ? &NavSnapshot->Nav : nullptr,
+		GetWorld()->GetTimeSeconds());
 
 	TArray<FMassEntityHandle> EntitiesToSignal;
 
@@ -730,8 +760,8 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				break;
 
 			case ELNPTargetingState::Alert:
-				// Alert: Player 방향 전환, ST 태스크에 의해 밀리지 않으면 이동 안 함
-				EffectiveSpeed = 0.0f;
+				// 도달 불가 Alert만 접근점으로 걷는다. 도달 가능한 슬롯 대기 Alert는 그대로 선다.
+				EffectiveSpeed = Path.bApproachingUnreachable ? BaseMoveSpeed : 0.0f;
 				OrientationIntent = TargetDirOnPlane;
 				break;
 
@@ -743,9 +773,16 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				break;
 			}
 			}
+			if (Path.bApproachingUnreachable && Path.bHasSteeringPoint
+				&& FVector::VectorPlaneProject(Path.SteeringPoint - EntityLocation, UpDir).SizeSquared()
+					<= FMath::Square(100.0f))
+			{
+				EffectiveSpeed = 0.0f;
+			}
 
 			// 목적지 도달 시 StateTree 신호 (None/Confirmed 상태용)
-			const bool bArrived = DistSq < FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance);
+			const bool bArrived = !LNPLoadBaseline::IsSyntheticChase() && !Path.bApproachingUnreachable
+				&& DistSq < FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance);
 			if (EffectiveSpeed > 0.0f && bArrived)
 			{
 				ChunkEntitiesToSignal.Add(EnemyContext.GetEntity(i));
@@ -775,10 +812,19 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			}
 
 			// StateTree에서 명시적으로 속도를 설정한 경우 Override (예: SteeringTask)
-			// Alert 상태는 StateTree 속도와 관계없이 항상 정지
-			if (MoveTarget.DesiredSpeed.Get() > 0.0f && Targeting.State != ELNPTargetingState::Alert)
+			// Alert 접근점의 속도와 도착 정지는 이 프로세서가 정한다.
+			if (MoveTarget.DesiredSpeed.Get() > 0.0f && Targeting.State != ELNPTargetingState::Alert
+				&& !Path.bApproachingUnreachable)
 			{
 				EffectiveSpeed = MoveTarget.DesiredSpeed.Get();
+			}
+
+			// 부하 합성 모드는 타겟팅 상태를 바꾸지 않고 이동 의도를 가상 목표로 바꾼다. 공격 중 정지는 아래에서 유지한다.
+			if (LNPLoadBaseline::IsSyntheticChase() && Path.bHasSteeringPoint)
+			{
+				EffectiveSpeed = FVector::VectorPlaneProject(SteeringTarget - EntityLocation, UpDir).SizeSquared()
+					> FMath::Square(100.f) ? BaseMoveSpeed : 0.f;
+				OrientationIntent = TargetDirOnPlane;
 			}
 
 			// 그로기·다운 중에는 어떤 경로로도 움직이지 않는다. StateTree 속도 override 뒤에 두어야 다시 살아나지 않는다.
@@ -833,6 +879,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			{
 				if (!PhysVelocity.IsNearlyZero())
 				{
+					EnemyData.bNeedsHomeCheck |= EnemyData.ParentLootPod.IsValid() || EnemyData.bOrphaned;
 					IntegrateAirborne(EntityTransform, PhysVelocity, EnemyData.SurfaceHandle,
 						EnemyData.DynamicSupportContact, EntityLocation);
 				}
@@ -1231,6 +1278,10 @@ void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMa
 				FVector& Velocity = VelocityFrags[i].Velocity;
 				FHitResult FloorHit;
 				const bool bAirborne = EnemyChar->SyncToEntity(Enemy.Health, Velocity, &FloorHit);
+				if (bAirborne || !Enemy.SurfaceHandle.IsValid())
+				{
+					Enemy.bNeedsHomeCheck |= Enemy.ParentLootPod.IsValid() || Enemy.bOrphaned;
+				}
 				FLNPExactHitIdentity FloorIdentity;
 				const FLNPExactHitIdentity* FloorIdentityPtr = nullptr;
 				if (!bAirborne && FloorHit.IsValidBlockingHit())

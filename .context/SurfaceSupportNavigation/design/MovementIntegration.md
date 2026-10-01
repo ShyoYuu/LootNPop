@@ -44,7 +44,7 @@
 
 ### 넉백 후 Pod 재귀속
 
-재귀속은 도달성과 path cost가 필요하므로 Phase 7에서 구현한다. Phase 6의 Enemy는 착지 후 기존 Parent Pod를 유지한다.
+Phase 7b는 정적 지면 착지 뒤 `ResolveEndpoints`의 D-062 도달성으로 Parent Pod를 검사한다. PureEntity 공중 이동과 Actor Mover 인계가 재검사 플래그를 세우고, 공통 경로 프로세서가 착지 뒤 처리한다. DynamicSupport 접촉 중에는 판정을 미룬다.
 
 ```text
 Airborne
@@ -58,21 +58,23 @@ Airborne
    ↓
 도달 가능한 활성 Pod 후보 조회
    ↓
-가장 낮은 path cost의 Pod로 Parent 갱신
+도달 가능한 활성 Pod 중 가장 가까운 Pod로 Parent 갱신
 ```
 
-직선거리만으로 고르면 절벽 건너편 Pod를 선택할 수 있으므로 다음 순서를 사용한다.
+절벽 건너편 Pod를 거리만으로 고르지 않도록 다음 순서를 사용한다.
 
 1. 활성 Pod만 후보
-2. 같은 ReachabilityGroup의 후보만 유지
-3. 직선거리로 소수 후보 축소
-4. 실제 또는 근사 path cost로 최종 선택
+2. D-062의 공통 ReachabilityGroup 짝이 있는 후보만 유지
+3. 기존 Parent가 여전히 도달 가능한 활성 Pod이면 유지
+4. 나머지는 chord 거리 최소 후보로 선택(동률은 엔티티 index 순)
+
+7b 1차 구현의 후보 축소 거리와 최종 근사 비용은 모두 chord이므로, 가까운 4개를 별도 목록으로 만들지 않고 같은 최소 후보를 바로 고른다. 실제 A* 비용 비교는 구현 단위 4 측정에서 필요성이 확인될 때만 추가한다(`phases/Phase07b_PathExecution.md` §3.8).
 
 후보가 없으면 `Orphaned` 상태로 둔다.
 
 - 근처 플레이어가 있으면 현재 위치에서 전투
-- 비전투 시 현재 StaticNavComponent 안에서 제한 배회
-- 나중에 link가 열리거나 Pod가 생기면 재귀속
+- 비전투 시 착지점을 배회 중심으로 삼고 현재 StaticNavComponent 밖 후보를 거부한다
+- 1초 간격으로 활성 Pod를 다시 확인하므로 나중에 link가 열리거나 Pod가 생기면 재귀속한다
 - 장시간 고립되고 비가시 상태면 despawn/reinsert를 선택적으로 적용
 
 ### 배회
@@ -105,7 +107,7 @@ Airborne
 - 이미 슬롯을 가진 근접 적이 link 변화로 도달 불가가 되면 슬롯을 반납한다.
 - 원거리 슬롯은 LoS·사거리 기준을 유지한다.
 
-Phase 7에서 도달성과 함께 구현한다.
+Phase 7b는 신규 지상 근접 슬롯에 D-062의 공통 group 짝을 요구한다(승격 근접 포함). 기존 슬롯은 플레이어 접지 group이 바뀌어 도달 불가가 되면 1.5초 유예 뒤 반납한다. 점프 중에는 마지막 접지 정보를 유지하고 기존 슬롯만 보존하며, `Stale`도 신규 슬롯 없이 기존 판정을 미룬다. 원거리·비행 슬롯은 이 필터를 사용하지 않는다.
 
 #### 근접 NPC
 

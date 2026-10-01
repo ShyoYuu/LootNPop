@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 구현 단위 0~3 완료, 다음은 단위 4
+> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 단위 0~4 완료, 단위 5 계측·기능 검증·성능 개선 1 완료 / 700마리 반복 Gate 미통과
 > 마지막 갱신: 2026-10-01
 
 ## 현재 목표
@@ -69,10 +69,11 @@ Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증
 
 ## 바로 다음 작업
 
-Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구현 단위 0(조밀 graph·A*·스냅), 단위 1(`FLNPNavPathScheduler`·경로 cache·revision view), 단위 2(Pod blocker overlay·Pod 소멸 시 재계획), 단위 3(Enemy 경로 연결·플레이어 접지 Nav 정보·배회 group 필터·진단)을 2026-10-01에 끝냈다. 단위 3은 자동화 78/78·전체 빌드·`-game` 추종 계측을 통과했고, 사용자 PIE 수동 플레이로 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 이음매 경로 12개는 회귀 자동화에서 검증했다. 다음은 단위 4다.
+Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구현 단위 0(조밀 graph·A*·스냅), 단위 1(`FLNPNavPathScheduler`·경로 cache·revision view), 단위 2(Pod blocker overlay·Pod 소멸 시 재계획), 단위 3(Enemy 경로 연결·플레이어 접지 Nav 정보·배회 group 필터·진단)을 2026-10-01에 끝냈다. 단위 3은 자동화 78/78·전체 빌드·`-game` 추종 계측을 통과했고, 사용자 PIE 수동 플레이로 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 이음매 경로 12개는 회귀 자동화에서 검증했다. 단위 4(슬롯 도달성·접근점 이동·착지 Pod 재귀속)도 완료했다. 자동화 79/79·전체 빌드·크래시 수정 후 PIE 로딩과 사용자 양방향 접근점 플레이를 확인했다. 테스트용 거리·인내 설정은 원래 값으로 복구했다.
 
-1. 단위 3 최종 변경의 전체 빌드를 통과시키고, 나무·바위 우회, 동굴 공동, 이음매 횡단의 적 추격을 에디터 `-game`에서 개별 확인한다.
-2. 완료 조건을 충족하면 단위 3 체크리스트·로그를 마무리하고, 사용자에게 단위 4 진행 여부를 확인한다.
+1. 단위 5의 계측·기능 검증과 성능 개선 단위 1을 완료했다. scheduler의 요청 시작·확장 대기·종료 처리와 Enemy/슬롯 소비자 비용을 분해하고, 검색 창에서 빈 Tile을 셀마다 조회하는 비용을 줄였다. 기존 창 범위·거리·후보 선택·방문 순서·확장 예산은 유지했다. 전체 자동화 79/79(회귀·production 창 비교 720입력 포함), 전체 빌드·BuildCookRun·패키지 리슨 2P 측정 5회의 정상 종료·probe·CSV 일치를 통과했다.
+2. 700마리 합성 추격은 첫 실행에서 프레임 P95 14.97ms·경로 tick P95 0.640ms로 통과했지만, 반복 실행은 19.61ms·1.891ms로 실패했다. 자연 행동 700은 13.63ms·0.546ms로 통과, 합성 800은 21.17ms·1.794ms로 실패다. 실행별 경로 수요가 달라 안정적인 Gate 통과·최대 수용량으로 확정하지 않는다. Phase 7b는 미완료이며 Gate 16.67ms·1.5ms는 유지한다. 상세는 `history/Phase07_Log.md` 성능 개선 단위 1을 따른다.
+3. 다음 구현 단위 진행 여부를 사용자에게 확인한다. 다음 후보는 동일 CSV 입력으로 요청 비용을 비교하고 시작·확장 대기·종료 처리의 예산을 검토하는 것이다. 독립 검사에서 기존 검색 창이 옥탄트 꼭짓점 근처 3,000cm 반경의 일부 node를 놓치는 점도 발견했다. 이번 최적화는 기존 창을 유지했으므로 경계 누락은 별도 정확성 수정·전체 node oracle·Gate 재측정이 필요하다. 승인 전에는 다음 구현이나 7c로 넘어가지 않는다.
 
 ## 범위 확장 결정(2026-10-01, 검토 세션)
 
@@ -112,9 +113,11 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 
 ## 블로커
 
-현재 확인된 블로커는 없다.
+Phase 7b 단위 5 성능 Gate 미통과: 최종 700마리 합성 추격은 프레임 P95 22.89ms·경로 tick P95 4.781ms다. 작은 정렬 절감만으로 해결되지 않았으며 후속 성능 개선 진행 확인을 기다린다.
 
 ## 마지막 검증
+
+2026-10-01 Phase 7b 단위 5 계측·기능 검증: 전체 자동화 79/79(`Saved/Logs/Phase07b_Unit5_OptimizedTests.log`), 에디터 전체 빌드, Win64 Development BuildCookRun(`Phase07b_Unit5_OptimizedPackage.log`) 통과. 최종 패키지 1P 100마리(`Phase07b_Unit5_FinalPackage1P.log`)는 프레임 P95 5.00ms·경로 tick P95 0.024ms, 요청 1,186건·waypoint 진행 4,211회다. 최종 리슨 2P 자연 추격 700 및 합성 추격 500·600·700·800의 host/guest 10개 로그에서 assert·ensure·crash·Layer jump·Unknown hit·Envelope escape·패널 게시 순서 위반 0, probe PASS를 확인했다. CSV 행 수는 각 실행의 제출 요청 수와 같다. 합성 추격 700·800은 성능 실패, 500은 통과, 600은 경로 Gate 경계 실패다. Phase 7b 완료 조건은 남아 있다.
 
 2026-10-01 Phase 7b 구현 단위 3 완료: `LootNPopEditor Win64 Development` 전체 빌드, 전체 SurfaceNavigation 자동화 78/78(`Saved/Logs/Phase07b_Unit3_AllSurfaceNavTests.log`) 통과. `-game` 1P 100마리 스모크(`Phase07b_Unit3_EditorGame_WanderFinal.log`)에서 프레임·exact·lock PASS, 경로 추종 프레임 109,883회·waypoint 진행 1,099회, ensure·assert·crash 0. MCP 에디터 자동화로 `Nav.RegressionPath` 1/1을 재확인했고 이음매 12개 경로는 양쪽 슬롯을 지났다. 사용자 PIE 수동 플레이에서 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 동굴은 같은 슬롯의 Layer portal 두 개를 지나므로 슬롯 이음매와는 별개이며, 이음매 추격의 별도 수동 플레이는 수행하지 않았다.
 
