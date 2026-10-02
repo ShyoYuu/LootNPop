@@ -54,7 +54,7 @@
 | 5 | 런타임 로더와 SurfaceCache 교체 | 3~4세션 | 완료 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 전 CI·게시 단계 stale 검출, LVI 지정점 우선 Spawn stream |
 | 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 완료 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
 | 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 완료(2026-10-02, 7a·7b 및 700마리 반복 Gate 통과) | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
-| 7c | 입체 지형 베이크 대응 | 2~3세션 | 대기 | 접힌 sheet 자동 분할(D-064), component 쌍당 여러 portal(D-065), source별 Layer 해상도(D-072), 비행 headroom(D-073), 입체 지형·지하 대형 공동 회귀 사례와 계약 확정, cache 적중률·수용량 재측정 |
+| 7c | 입체 지형 베이크 대응 | 2~3세션 | 진행 중(2026-10-02, 단위 0·1 완료) | 접힌 sheet 자동 분할(D-064), component 쌍당 여러 portal(D-065), source별 Layer 해상도(D-072), 비행 headroom(D-073), 입체 지형·지하 대형 공동 회귀 사례와 계약 확정, cache 적중률·수용량 재측정 |
 | 8 | Conditional Patch와 파괴 Overlay | 2~3세션 | 대기 | 지역 길 열림·닫힘, revision 기반 재탐색, 상태 복제 |
 | 9 | 부유섬·동굴·입체 지형 Vertical Slice | 2~3세션 | 대기 | 건물·탑·계단·벽과 마커 앵커 동선, 입구 조합이 다른 지하 대형 공동을 갖춘 실제 품질 옥탄트와 멀티플레이에서 설계 검증 |
 | 10 | 대규모 추격 경로: flow field와 계층형 A* | 4~6세션 | 대기 | 두 방식 구현, 같은 시나리오에서 일반 A* 대비 실측 비교 후 채택 |

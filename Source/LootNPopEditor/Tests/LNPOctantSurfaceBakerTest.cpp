@@ -400,6 +400,68 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"LootNPop.SurfaceNavigation.Bake.SpawnAuthoringValidation",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPOctantBakeSourceResolutionTest,
+	"LootNPop.SurfaceNavigation.Bake.OctantSourceResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPOctantBakeSourceResolutionTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPOctantSurfaceBakerTest;
+	const FSoftObjectPath LevelPath(FixtureLevelPath);
+	TStrongObjectPtr<ULNPOctantSurfaceData> Fine(NewObject<ULNPOctantSurfaceData>(GetTransientPackage()));
+	TStrongObjectPtr<ULNPOctantSurfaceData> Mixed(NewObject<ULNPOctantSurfaceData>(GetTransientPackage()));
+	FLNPOctantBakeReport FineReport, MixedReport;
+	FString Error;
+	if (!FLNPOctantSurfaceBaker::Bake(LevelPath, FLNPOctantBakeOptions(), *Fine, FineReport, Error))
+	{
+		AddError(Error);
+		return false;
+	}
+	UStaticMeshComponent* Source = nullptr;
+	for (const FLNPOctantBakeLayerReport& Layer : FineReport.Layers)
+	{
+		UStaticMeshComponent* Candidate = FindObject<UStaticMeshComponent>(nullptr, *Layer.SourceName);
+		if (Candidate && Candidate->GetStaticMesh()->GetName() == TEXT("SM_FixtureSplitSheet"))
+		{
+			Source = Candidate;
+			break;
+		}
+	}
+	if (!TestNotNull(TEXT("Split sheet source loads"), Source))
+	{
+		return false;
+	}
+	const TArray<FName> OriginalTags = Source->ComponentTags;
+	ON_SCOPE_EXIT { Source->ComponentTags = OriginalTags; };
+	Source->ComponentTags.AddUnique(TEXT("LNP.Surface.CoarseSupport"));
+	if (!FLNPOctantSurfaceBaker::Bake(LevelPath, FLNPOctantBakeOptions(), *Mixed, MixedReport, Error))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestTrue(TEXT("Source resolution changes semantic hash"), Fine->Header.SourceSemanticHash != Mixed->Header.SourceSemanticHash);
+	FLNPSupportAtlas Atlas;
+	if (!LNPSupportAtlas::Decode(Mixed->SupportPayload, Atlas, Error))
+	{
+		AddError(Error);
+		return false;
+	}
+	int32 CoarseLayers = 0;
+	for (int32 LayerId = 1; LayerId < MixedReport.Layers.Num(); ++LayerId)
+	{
+		const FLNPOctantBakeLayerReport& Layer = MixedReport.Layers[LayerId];
+		const bool bCoarse = Layer.SourceName == Source->GetPathName();
+		CoarseLayers += bCoarse ? 1 : 0;
+		const int32 Expected = MixedReport.Subdivisions * (bCoarse ? 1 : FLNPOctantBakeOptions().LayerSubdivisionMultiplier);
+		TestEqual(TEXT("Baked layer follows its source tag"), Layer.Subdivisions, Expected);
+		TestEqual(TEXT("Saved codec carries source grid"), Atlas.Layers[LayerId].Layout.Subdivisions, Expected);
+	}
+	TestEqual(TEXT("Both sheets of the tagged source are coarse"), CoarseLayers, 2);
+	TestTrue(TEXT("Coarse source reduces payload"), Mixed->SupportPayload.Num() < Fine->SupportPayload.Num());
+	return !HasAnyErrors();
+}
+
 bool FLNPSpawnAuthoringValidationTest::RunTest(const FString& Parameters)
 {
 	using namespace LNPOctantSurfaceBakerTest;

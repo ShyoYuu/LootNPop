@@ -12,32 +12,6 @@
 
 namespace
 {
-/** TMeshAABBTree3가 요구하는 최소 mesh 인터페이스. 베이크 동안 mesh는 바뀌지 않는다. */
-struct FBakeMeshAdapter
-{
-	const FLNPBakeTriangleMesh* Mesh = nullptr;
-
-	bool IsTriangle(int32 Index) const { return Mesh->Triangles.IsValidIndex(Index); }
-	int32 MaxTriangleID() const { return Mesh->Triangles.Num(); }
-	int32 TriangleCount() const { return Mesh->Triangles.Num(); }
-	uint64 GetChangeStamp() const { return 1; }
-	FVector3d GetVertex(int32 Index) const { return Mesh->Vertices[Index]; }
-
-	UE::Geometry::FIndex3i GetTriangle(int32 Index) const
-	{
-		const FIntVector3& Triangle = Mesh->Triangles[Index];
-		return UE::Geometry::FIndex3i(Triangle.X, Triangle.Y, Triangle.Z);
-	}
-
-	void GetTriVertices(int32 Index, FVector3d& A, FVector3d& B, FVector3d& C) const
-	{
-		const FIntVector3& Triangle = Mesh->Triangles[Index];
-		A = Mesh->Vertices[Triangle.X];
-		B = Mesh->Vertices[Triangle.Y];
-		C = Mesh->Vertices[Triangle.Z];
-	}
-};
-
 /** 삼각 격자의 6-이웃 (di, dj). */
 constexpr int32 NeighborOffsets[6][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, -1}, {-1, 1}};
 
@@ -436,8 +410,8 @@ bool LNPSupportAtlas::Rasterize(
 		TriangleNormals[TriangleIndex] = Mesh.GetTriangleNormal(TriangleIndex);
 	}
 
-	const FBakeMeshAdapter Adapter{&Mesh};
-	const UE::Geometry::TMeshAABBTree3<FBakeMeshAdapter> Tree(&Adapter);
+	const FLNPBakeMeshAdapter Adapter{&Mesh};
+	const UE::Geometry::TMeshAABBTree3<FLNPBakeMeshAdapter> Tree(&Adapter);
 
 	OutRaster.Layout = Layout;
 	OutRaster.Samples.SetNum(Layout.Num());

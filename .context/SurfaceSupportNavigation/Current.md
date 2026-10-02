@@ -1,12 +1,12 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 7 완료(7a 2026-10-01, 7b 2026-10-02) — Phase 7c 착수 확인 대기
+> 현재 Phase: Phase 7c 진행 중 — 단위 0·1 완료, 단위 2 진행 확인 대기
 > 마지막 갱신: 2026-10-02
 
 ## 현재 목표
 
-Phase 7b의 마지막 성능 Gate를 2026-10-02에 통과했다. 목표 투영 공유 변경본 Development package에서 trace 없는 자연·합성 추격 700마리 리슨 2P를 각각 두 번 실행해 모두 프레임 P95 16.67ms·경로 tick P95 1.5ms 안에 들었다. 아래 단계별 기록은 인계 이력이며 현재 미완료 작업은 아니다. 다음 목표는 사용자 승인 후 Phase 7c 실행 계획을 구체화하는 것이다. 7c 구현은 아직 시작하지 않았다.
+Phase 7b의 마지막 성능 Gate를 2026-10-02에 통과했다. 목표 투영 공유 변경본 Development package에서 trace 없는 자연·합성 추격 700마리 리슨 2P를 각각 두 번 실행해 모두 프레임 P95 16.67ms·경로 tick P95 1.5ms 안에 들었다. 아래 단계별 기록은 인계 이력이며 현재 미완료 작업은 아니다. 사용자의 진행 요청으로 7c 단위 0·1을 완료했다. 실행 계획은 `phases/Phase07c_VolumetricTerrainBaking.md`다. 단위 1에서 source별 해상도·접힌 sheet 분할·face 표를 구현하고 schema 6 재베이크와 전체 자동화 82/82를 통과했다. 다음 목표는 단위 2(여러 portal·분할 경계 Nav 연속성)이며, 각 구현 단위 완료 뒤 사용자에게 계속 진행할지 확인한다.
 
 Phase 7은 2026-09-29에 7a Nav 데이터 기반부터 착수했다. 실행 계획은 `phases/Phase07a_NavDataFoundation.md`다. 구현 단위 0의 runtime 순수 자료구조·codec에 이어 구현 단위 1에서 coarse Grid, blocker dilation, 6방향 edge, local component, Layer portal, ordered seam endpoint와 editor payload 저장을 완료했고 `DataVersion=5`, `BakerSchemaVersion=4`를 활성화했다. 회귀 동굴은 exact Support polyline capsule sweep으로 지각↔통로와 공동↔통로 portal 두 개를 보존한다. 구현 단위 2(2026-10-01)에서 loader가 Nav/Traversal을 필수 decode하고, 순수 `LNPNavRuntime`이 8-slot runtime Layer ID·node ref·seam link·runtime StaticNavComponent를 조립해 Support와 같은 snapshot으로 게시한다. 이음매 줄 node·edge의 사본 간 clearance 차이는 D-060에 따라 막힘으로 합쳐 `BlockedSeamNodes`·`BlockedSeamEdges`에 기록한다(Meadow 392/16, 회귀 0/0). 구현 단위 3(2026-10-01)에서 ReachabilityGroup(초기 1:1)·`ConnectivityGraphVersion=1`, `LNPNavQuery`(handle 기준 node 투영·node 지면점·group·Stale 판정), `NavReport`·`DrawNav` 진단과 회귀 8-slot oracle을 추가했다. 스모크에서 단위 1 베이커의 edge step 결함(200cm 끝점 높이 차를 step 45cm와 비교해 약 12.7° 이상 경사를 끊음)을 찾아 step·경사 구분 규칙으로 고치고 `BakerSchemaVersion=5`로 재베이크했다. Meadow runtime component는 41,169→689다. 구현 단위 4(2026-10-01)에서 Development package 1P와 리슨 2P host/guest가 같은 Nav(component·group 689, version 1)를 게시하고 모든 probe를 통과해 **Phase 7a가 끝났다.** cooked load는 약 35ms, Nav resident 0.59MiB다. 7b 입력 통계는 아래 "7a → 7b 인계 통계"에 있다.
 
@@ -61,15 +61,17 @@ Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증
 - **exact 한계치: 단일 스레드 500마리(최악 조건 기준선), 병렬 약 700마리.** 접지 개체당 프레임 약 1.46 query·8us. Phase 4 캐시 적중률 목표와 Phase 6 재측정은 병렬 700 기준으로 읽는다
 - 비행 드론(PureEntity, D-052·053·054): 총수 200, Pod 타입 분리. 비행 비용은 Support 캐시의 절감 대상이 아니다
 - 부하 harness `-LNPLoadBaseline=N`·`-LNPLoadBaselineFlyers=F`, 측정 스크립트 `Scripts/Profiling/RunLoadBaselineMatrix.ps1`. 프레임 판정은 패키지 Development 호스트 `-nullrhi`
-- Support Atlas: runtime `LNPSupportAtlas`(격자·row span·rasterize·codec v2·`QueryLayer`·`QueryLayers`), 지각 전용 `LNPCrustAtlas`(이음매 스냅 rasterize·seam 규약), Editor `LNPOctantSurfaceBaker`·`LNP.SurfaceNav.BakeOctant <LevelPath>`. 지각 N=735(100cm), 비지각 Layer m=4(25cm, 확정). 현재 `DataVersion` 5는 Navigation/Traversal codec v1까지 포함하며 세 저장 asset은 `BakerSchemaVersion=5` 최신 hash로 재베이크됐다. `Meadow_00` Support payload 2.63MB, Nav/Traversal payload 약 535KiB/14KiB다. 지각 조회 NeedsExact 2.35%, 반지름 P99 1.06cm. 비지각 Layer 반지름 P99 0.12cm, 조회 NeedsExact 20.6%(큰 섬 1.9%, 섬 B 계단 칸은 거의 전부). `QueryLayers`는 footprint 가장자리 띠도 후보로 본다. face→Layer 표는 source key(`<Actor FName>.<Component FName>`)와 external `FaceIndex`로 찾는다(`design/RuntimeCollision.md`)
+- Support Atlas: runtime `LNPSupportAtlas`(격자·row span·rasterize·codec v2·`QueryLayer`·`QueryLayers`), 지각 전용 `LNPCrustAtlas`(이음매 스냅 rasterize·seam 규약), Editor `LNPOctantSurfaceBaker`·`LNP.SurfaceNav.BakeOctant <LevelPath>`. 지각 N=735(100cm), 비지각 Layer 기본 m=4(25cm), CoarseSupport source m=1(100cm). 현재 `DataVersion` 5는 Navigation/Traversal codec v1까지 포함하며 세 저장 asset은 `BakerSchemaVersion=6` 최신 hash로 재베이크됐다. `Meadow_00` Support payload 2.63MB, Nav/Traversal payload 약 535KiB/14KiB다. 지각 조회 NeedsExact 2.35%, 반지름 P99 1.06cm. 비지각 Layer 반지름 P99 0.12cm, 조회 NeedsExact 20.6%(큰 섬 1.9%, 섬 B 계단 칸은 거의 전부). `QueryLayers`는 footprint 가장자리 띠도 후보로 본다. face→Layer 표는 source key(`<Actor FName>.<Component FName>`)와 external `FaceIndex`로 찾는다(`design/RuntimeCollision.md`)
 - `DA_OctantSurface_Meadow_00`·`DA_OctantSurface_Fixture_Crust`는 LVI 옆에 저장돼 있다. `Bake.OctantBakeDeterministic`가 저장본과 현재 source의 일치를 검사하므로 LVI나 베이크 설정을 바꾸면 `BakeOctant`로 다시 굽는다
 - 회귀 공간(D-056): 정적 사례는 `LVI_Octant_Fixture_Regression`(생성 `LNP.SurfaceNav.BuildRegressionFixture`, 배치 원본 `LNPRegressionFixture.h`)을 8 slot 합성으로 검사하고, 동적 3사례만 `L_SurfaceRegression`(30,000cm)에 있다. `DA_OctantSurface_Fixture_Regression`도 결정론 베이크 검사 대상이다
 - 동굴 키트 greybox(`/Game/Maps/CaveKit`, `LNP.SurfaceNav.BuildCaveKit`, 치수 원본 `LNPCaveKit.h`): 직육면체 공동 + 경사 통로, Floor/Shell 분리, 규약 검사 `Bake.CaveKitContract`. `Meadow_00` 동굴은 (위도 15°, 방위 60°)에 있고 `LNP.SurfaceNav.PlaceCaveKit`으로 배치했다(지각 메시 입구 절단 포함)
-- 자동화 `LootNPop.SurfaceNavigation` 77개(`Nav.PathScheduler`가 회귀 8-slot에서 scheduler 예산 분할 결정론·Stale·Cancelled·NoPath·우선순위·cache fingerprint를, `Nav.ProductionScheduler`가 Meadow 300요청 동시 투입의 직접 탐색 일치와 tick 시간을 검사. `Nav.GraphView`가 조밀 graph와 7a 조회 일치를, `Nav.RegressionPath`가 회귀 8-slot A*·스냅·접근점을, `Nav.ProductionPath`가 D-062 재선택과 Meadow A* 벤치마크를 검사. `Runtime.NavAssembly`가 8-slot Nav 조립·D-060 막힘·group·Stale을, `Nav.RegressionReachability`가 회귀 8-slot 도달성 oracle을, `Nav.ProductionSpawnProjection`이 Meadow Spawn 후보 투영을, `Nav.StepAndSlope`가 경사로·절벽 edge 규칙을 검사). `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 보고, `Runtime.MassSpawnPlanning`이 Spawn 할당 규약을 검사한다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`와 `Schema/DA_MinimalOctantSurfaceData`를 다시 저장하므로 커밋 전에 git으로 되돌린다
+- 자동화 `LootNPop.SurfaceNavigation` 82개(`Nav.PathScheduler`가 회귀 8-slot에서 scheduler 예산 분할 결정론·Stale·Cancelled·NoPath·우선순위·cache fingerprint를, `Nav.ProductionScheduler`가 Meadow 300요청 동시 투입의 직접 탐색 일치와 tick 시간을 검사. `Nav.GraphView`가 조밀 graph와 7a 조회 일치를, `Nav.RegressionPath`가 회귀 8-slot A*·스냅·접근점을, `Nav.ProductionPath`가 D-062 재선택과 Meadow A* 벤치마크를 검사. `Runtime.NavAssembly`가 8-slot Nav 조립·D-060 막힘·group·Stale을, `Nav.RegressionReachability`가 회귀 8-slot 도달성 oracle을, `Nav.ProductionSpawnProjection`이 Meadow Spawn 후보 투영을, `Nav.StepAndSlope`가 경사로·절벽 edge 규칙을 검사). `WorldCollision.LayerIdentity`가 저장된 SurfaceData로 exact face→Layer와 `QueryLayers` 일치를 보고, `Runtime.MassSpawnPlanning`이 Spawn 할당 규약을 검사한다. 자동화가 `SurfaceNavigationTests/MeshTerrain`의 `SM_BOptionExtracted`·`SM_COptionSphereSculpt`와 `Schema/DA_MinimalOctantSurfaceData`를 다시 저장하므로 커밋 전에 git으로 되돌린다
 - 헤드리스 `-ExecCmds`는 쉼표로 명령을 나누고, 에디터 바이너리에서는 `Quit`로 종료되지 않는다(`Automation RunTests`는 종료함)
 - 카메라 리그 `CR_ThirdPerson`에 `CollisionPush` 노드(`../TechDesign_CharacterMovement.md` §2.4)
 
 ## 바로 다음 작업
+
+**현재 다음 행동:** 사용자에게 Phase 7c 단위 2 진행 확인을 받은 뒤 `phases/Phase07c_VolumetricTerrainBaking.md` §3을 따른다. `BestPortalByComponentPair`의 하나 선택 정책을 최소 간격 복수 portal로 바꾸고, 분할 경계·두 입구의 경로 연속성을 검증한다. MCP가 효율적이면 즉시 연결을 요청하고, 전체 빌드가 필요하면 즉시 에디터 저장·종료를 요청한다. 아래 7b 항목은 완료 인계 기록이다.
 
 Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구현 단위 0(조밀 graph·A*·스냅), 단위 1(`FLNPNavPathScheduler`·경로 cache·revision view), 단위 2(Pod blocker overlay·Pod 소멸 시 재계획), 단위 3(Enemy 경로 연결·플레이어 접지 Nav 정보·배회 group 필터·진단)을 2026-10-01에 끝냈다. 단위 3은 자동화 78/78·전체 빌드·`-game` 추종 계측을 통과했고, 사용자 PIE 수동 플레이로 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 이음매 경로 12개는 회귀 자동화에서 검증했다. 단위 4(슬롯 도달성·접근점 이동·착지 Pod 재귀속)도 완료했다. 자동화 79/79·전체 빌드·크래시 수정 후 PIE 로딩과 사용자 양방향 접근점 플레이를 확인했다. 테스트용 거리·인내 설정은 원래 값으로 복구했다.
 
@@ -82,7 +84,7 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 7. 전체 프레임 CPU·동시 수요 프로파일 단위를 완료했다(2026-10-02). 기존 패키지의 CPU trace에서 게임 스레드 작업 대기 평균 8.02ms, Enemy 경로 소비 평균/P95 1.78/2.12ms, scheduler 0.217/1.043ms를 확인했다. worker 투사체 판정 범위는 평균/P95 5.74/6.48ms다(포함 벽시계 시간이며 게임 스레드 비용과 합산하지 않는다). 투사체 0 비교 실행의 프레임 P95는 12.24ms, 기본 500발 trace 실행은 18.15ms였다. trace 부담·실행별 수요 차이 때문에 순수 절감량이나 Gate 증거로 쓰지 않는다. 목표 전환의 가장 큰 여섯 묶음(540~561건, 요청 35.64%)은 큐 대기 P95 190.6ms, 나머지는 27.5ms였다. 상세와 분석 한계는 `history/Phase07_Log.md` 프레임 CPU 프로파일 기록을 따른다.
 8. Enemy 경로 소비 내부 계측·목표 투영 공유 단위를 완료했다(2026-10-02). 목표 투영이 반복 조회되는 것을 trace로 확인하고 한 processor 실행의 고정 snapshot·overlay 안에서 동일 좌표·SurfaceHandle 결과만 공유한다. `-game` 700마리 합성 추격 최적화 두 번에서 목표 투영 재사용률은 99.40%, 소비 P95는 1.689/1.650ms였다. 전체 자동화 80/80·최종 전체 빌드·리슨 2P 네 실행 정상 종료와 probe/CSV 검증을 통과했다. 에디터·trace 실행이고 수요와 시스템 부하가 달라 순수 프레임 절감량이나 패키지 Gate 근거로 쓰지 않는다. 상세는 `history/Phase07_Log.md`의 Enemy 내부 계측 기록을 따른다.
 9. 변경본 Development package 반복 측정·Phase 7b 종료 단위를 완료했다(2026-10-02). 자연 추격 700마리 두 번은 프레임/경로 tick P95 13.19/0.490ms, 14.07/0.557ms, 합성 추격은 12.74/0.440ms, 12.79/0.421ms로 모두 두 Gate를 통과했다. 새 패키지의 최종 1P도 정상 종료·probe·Gate를 통과했다. 소스·예산·기본값·Gate·테스트 에셋을 바꾸지 않았다. 요청 지연과 비교 한계는 `history/Phase07_Log.md`의 변경본 패키지 반복 측정 기록을 따른다. 현재 패키지 800마리는 측정하지 않아 최대 수용량은 미확정이다.
-10. 다음 단위로 Phase 7c 실행 계획 구체화와 첫 구현 범위를 정리할지 사용자에게 확인한다. 승인 후 `Roadmap.md`의 Phase 7c와 D-064·065·070~073에 해당하는 기준 설계를 읽고, 접힌 sheet 분할·여러 portal·source별 해상도·비행 headroom·입체/지하 회귀 사례를 검증 가능한 단위로 나눈다. 승인 전에는 실행 계획 생성이나 7c 구현을 시작하지 않는다. 투사체 판정과 요청 지연의 제품 허용 상한은 별도 후속 후보다.
+10. Phase 7c 단위 0 실행 계획을 2026-10-02에 완료했다. D-064·065·070~073과 실제 코드를 대조하고, source별 해상도·접힌 sheet 분할 → 여러 portal → 비행 headroom → 입체/지하 회귀 콘텐츠 → cooked·2P·성능 Gate 순으로 나눴다. 코드·에셋 변경은 없다. 투사체 판정과 요청 지연의 제품 허용 상한은 별도 후속 후보다.
 
 ## 범위 확장 결정(2026-10-01, 검토 세션)
 
@@ -122,9 +124,13 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 
 ## 블로커
 
-Phase 7b 블로커는 해소됐다. 변경본 패키지의 자연·합성 추격 700마리 두 반복이 모두 프레임·경로 Gate를 통과했다. Phase 7c는 구현 블로커가 아니라 사용자 착수 확인 대기다.
+Phase 7b 블로커는 해소됐다. 변경본 패키지의 자연·합성 추격 700마리 두 반복이 모두 프레임·경로 Gate를 통과했다. Phase 7c 단위 0·1은 완료했고 단위 2 진행 확인 대기다. 현재 MCP 도구가 세션 카탈로그에 노출되지 않으므로 라이브 작업이 필요한 시점에 연결을 요청한다.
 
 ## 마지막 검증
+
+2026-10-02 Phase 7c 단위 1: 전체 빌드 성공(최초 49.97초, 통합 테스트 추가 후 최종 6.45초), SupportAtlas 5/5, 전체 SurfaceNavigation 82/82·실패/오류 0·exit 0(`Saved/Logs/Phase07c_Unit1_AllTestsAndRebake.log`). schema 6으로 세 SurfaceData를 재베이크했고 저장본 결정론·Layer identity·이음매·Nav·이동 회귀를 통과했다. 테스트 에셋 세 개는 실행 전 백업으로 복구하고 SHA256 일치를 확인했다. 패키지·PIE·2P 플레이는 단위 5 Gate에 남아 있다. 분할 경계 portal은 단위 2에서 검증한다. 상세는 `history/Phase07c_Log.md`다.
+
+2026-10-02 Phase 7c 단위 0: 기준 설계·코드 대조와 실행 계획을 완료했다. 문서 참조 경로 확인·`git diff --check` 통과. 코드·에셋 변경, 빌드·자동화·플레이 실행은 없다. 상세는 `history/Phase07c_Log.md`다.
 
 2026-10-02 변경본 패키지 반복 측정·7b 종료: Development BuildCookRun 104.69초·exit 0(`Phase07b_EnemyConsumer_Package.log`). trace 없는 자연·합성 추격 700마리 리슨 2P 네 실행과 최종 1P 100마리의 아홉 게임 프로세스 exit 0, probe 36개 PASS, assert·ensure·crash·게시 순서 위반·Unknown hit·Envelope escape·Layer jump 0이다. 네 요청/지연 CSV 6,404/9,485/7,310/9,295행의 중복·누락·시각 순서 오류 0, 캡처 종료 미완료 0이다. 최종 1P는 프레임 P95 4.52ms·경로 tick P95 0.007ms(`Phase07b_EnemyConsumer_Package1P_Final.log`)다. 전체 자동화는 소스 변경이 없어 직전 80/80 증거를 유지했다. 시작 시점 소스 6개·테스트 에셋 3개의 해시가 끝에도 일치했다. 자료는 `Saved/Profiling/Phase07b/N700_{natural,chase}_EnemyConsumer{1,2}_*`, 요약은 `EnemyConsumer_PackageSummary.json`이다. Phase 7b와 전체 Phase 7 완료.
 

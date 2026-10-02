@@ -3,6 +3,8 @@
 #include "SurfaceNavigation/LNPSupportLayers.h"
 
 #include "SurfaceNavigation/LNPSurfaceBakeGeometry.h"
+#include "Spatial/MeshAABBTree3.h"
+#include "SurfaceNavigation/LNPSupportAtlas.h"
 
 namespace
 {
@@ -83,10 +85,12 @@ bool IsWalkable(const FLNPBakeTriangleMesh& Mesh, int32 TriangleIndex, double Wa
 }
 
 /** walkable 삼각형의 연결 성분. 각 성분은 추출 순서 인덱스 오름차순이다. */
-TArray<TArray<int32>> FindWalkableSheets(const FLNPBakeTriangleMesh& Mesh, const FLNPSupportLayerSettings& Settings)
+TArray<TArray<int32>> FindWalkableSheets(const FLNPBakeTriangleMesh& Mesh, const FLNPSupportLayerSettings& Settings,
+	TArray<TArray<int32>>& Neighbors, TArray<int32>& Welded)
 {
-	const TArray<int32> Welded = WeldVertices(Mesh.Vertices, Settings.WeldDistance);
+	Welded = WeldVertices(Mesh.Vertices, Settings.WeldDistance);
 	const int32 TriangleCount = Mesh.Triangles.Num();
+	Neighbors.SetNum(TriangleCount);
 
 	TArray<bool> Walkable;
 	Walkable.SetNumUninitialized(TriangleCount);
@@ -116,6 +120,8 @@ TArray<TArray<int32>> FindWalkableSheets(const FLNPBakeTriangleMesh& Mesh, const
 			if (const int32* Other = FirstTriangleByEdge.Find(Key))
 			{
 				Union(Parent, *Other, TriangleIndex);
+				Neighbors[*Other].AddUnique(TriangleIndex);
+				Neighbors[TriangleIndex].AddUnique(*Other);
 			}
 			else
 			{
@@ -140,6 +146,124 @@ TArray<TArray<int32>> FindWalkableSheets(const FLNPBakeTriangleMesh& Mesh, const
 		}
 	}
 	return Sheets;
+}
+
+/** 같은 격자점에서 서로 다른 반지름을 덮는 면을 인접 확장으로 나눈다. */
+TArray<TArray<int32>> SplitFoldedSheet(const FLNPBakeTriangleMesh& Mesh, const TArray<int32>& Sheet,
+	const TArray<TArray<int32>>& Neighbors, int32 Subdivisions, double HitMergeDistance)
+{
+	FLNPSupportLayer InputLayer;
+	InputLayer.Triangles = Sheet;
+	const FLNPBakeTriangleMesh SheetMesh = LNPSupportLayers::MakeLayerMesh(Mesh, InputLayer);
+	const FLNPSupportLayout Layout = LNPSupportAtlas::ComputeFootprint(SheetMesh, Subdivisions);
+	const FLNPBakeMeshAdapter Adapter{&SheetMesh};
+	const UE::Geometry::TMeshAABBTree3<FLNPBakeMeshAdapter> Tree(&Adapter);
+	struct FSampleHit
+	{
+		int32 Sample;
+		double Radius;
+	};
+	TArray<TArray<FSampleHit>> TriangleHits;
+	TriangleHits.SetNum(Sheet.Num());
+	TArray<MeshIntersection::FHitIntersectionResult> Hits;
+	bool bFolded = false;
+	for (int32 Row = 0; Row < Layout.Rows.Num(); ++Row)
+	{
+		const int32 J = Layout.J0 + Row;
+		const FLNPSupportRowSpan& Span = Layout.Rows[Row];
+		for (int32 I = Span.IStart; I < Span.IStart + Span.Count; ++I)
+		{
+			const int32 Sample = Layout.RowOffsets[Row] + I - Span.IStart;
+			const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(Subdivisions, I, J);
+			Hits.Reset();
+			Tree.FindAllHitTriangles(UE::Geometry::FWatertightRay3d(FVector3d::ZeroVector, Direction), Hits);
+			double FirstRadius = -1.0;
+			for (const MeshIntersection::FHitIntersectionResult& Hit : Hits)
+			{
+				if (FVector3d::DotProduct(SheetMesh.GetTriangleNormal(Hit.TriangleId), Direction) >= 0.0)
+				{
+					continue;
+				}
+				TriangleHits[Hit.TriangleId].Add({Sample, Hit.Distance});
+				if (FirstRadius < 0.0)
+				{
+					FirstRadius = Hit.Distance;
+				}
+				bFolded |= FMath::Abs(Hit.Distance - FirstRadius) > HitMergeDistance;
+			}
+		}
+	}
+	if (!bFolded)
+	{
+		return {Sheet};
+	}
+
+	// source 삼각형 인덱스를 sheet 안의 인덱스로 바꾸며 external face 순을 명시한다.
+	TMap<int32, int32> LocalIndex;
+	TArray<int32> Order;
+	for (int32 Index = 0; Index < Sheet.Num(); ++Index)
+	{
+		LocalIndex.Add(Sheet[Index], Index);
+		Order.Add(Index);
+	}
+	Order.Sort([&](int32 A, int32 B) { return Mesh.ExternalFaceIndices[Sheet[A]] < Mesh.ExternalFaceIndices[Sheet[B]]; });
+	TArray<bool> Assigned;
+	Assigned.Init(false, Sheet.Num());
+	TArray<TArray<int32>> Result;
+	for (const int32 Seed : Order)
+	{
+		if (Assigned[Seed])
+		{
+			continue;
+		}
+		TArray<int32>& Part = Result.AddDefaulted_GetRef();
+		TArray<int32> Queue{Seed};
+		TSet<int32> Queued;
+		Queued.Add(Seed);
+		TMap<int32, FVector2d> RadiusRanges;
+		for (int32 Head = 0; Head < Queue.Num(); ++Head)
+		{
+			const int32 Index = Queue[Head];
+			bool bConflict = false;
+			for (const FSampleHit& Hit : TriangleHits[Index])
+			{
+				if (const FVector2d* Range = RadiusRanges.Find(Hit.Sample))
+				{
+					if (FMath::Max(Range->Y, Hit.Radius) - FMath::Min(Range->X, Hit.Radius) > HitMergeDistance)
+					{
+						bConflict = true;
+						break;
+					}
+				}
+			}
+			if (bConflict)
+			{
+				continue;
+			}
+			Assigned[Index] = true;
+			Part.Add(Sheet[Index]);
+			for (const FSampleHit& Hit : TriangleHits[Index])
+			{
+				FVector2d& Range = RadiusRanges.FindOrAdd(Hit.Sample, FVector2d(Hit.Radius, Hit.Radius));
+				Range.X = FMath::Min(Range.X, Hit.Radius);
+				Range.Y = FMath::Max(Range.Y, Hit.Radius);
+			}
+			TArray<int32> Next;
+			for (const int32 Neighbor : Neighbors[Sheet[Index]])
+			{
+				const int32 Other = LocalIndex.FindChecked(Neighbor);
+				if (!Assigned[Other] && !Queued.Contains(Other))
+				{
+					Next.Add(Other);
+					Queued.Add(Other);
+				}
+			}
+			Next.Sort([&](int32 A, int32 B) { return Mesh.ExternalFaceIndices[Sheet[A]] < Mesh.ExternalFaceIndices[Sheet[B]]; });
+			Queue.Append(Next);
+		}
+		Part.Sort();
+	}
+	return Result;
 }
 
 int32 GetMinExternalFace(const FLNPBakeTriangleMesh& Mesh, TConstArrayView<int32> Triangles)
@@ -186,6 +310,11 @@ uint16 FLNPSupportFaceMap::Resolve(int32 ExternalFace) const
 	return LayerByExternalFace.IsValidIndex(ExternalFace) ? LayerByExternalFace[ExternalFace] : LNPSupportLayers::NoLayer;
 }
 
+int32 FLNPSupportLayerSettings::GetSourceSubdivisions(const FLNPBakeSupportSource& Source) const
+{
+	return CrustSubdivisions * (Source.bCoarseSupport ? 1 : LayerSubdivisionMultiplier);
+}
+
 bool LNPSupportLayers::BuildLayers(
 	TConstArrayView<FLNPBakeSupportSource> Sources,
 	int32 CrustIndex,
@@ -194,6 +323,13 @@ bool LNPSupportLayers::BuildLayers(
 	FString& OutError)
 {
 	OutSet = FLNPSupportLayerSet();
+	if (Settings.CrustSubdivisions < 1 || Settings.LayerSubdivisionMultiplier < 1
+		|| static_cast<int64>(Settings.CrustSubdivisions) * Settings.LayerSubdivisionMultiplier > MAX_int32
+		|| !FMath::IsFinite(Settings.HitMergeDistance) || Settings.HitMergeDistance < 0.0)
+	{
+		OutError = TEXT("Invalid Support Layer grid or hit merge distance.");
+		return false;
+	}
 	if (!Sources.IsValidIndex(CrustIndex))
 	{
 		OutError = TEXT("Support Layers need an identified crust source.");
@@ -210,6 +346,7 @@ bool LNPSupportLayers::BuildLayers(
 	// 지각은 Layer 0 하나다. 절벽 같은 non-walkable face도 지각이다.
 	FLNPSupportLayer& Crust = OutSet.Layers.AddDefaulted_GetRef();
 	Crust.SourceIndex = CrustIndex;
+	Crust.Subdivisions = Settings.CrustSubdivisions;
 	Crust.Triangles.SetNumUninitialized(Sources[CrustIndex].Mesh.Triangles.Num());
 	for (int32 TriangleIndex = 0; TriangleIndex < Crust.Triangles.Num(); ++TriangleIndex)
 	{
@@ -241,7 +378,57 @@ bool LNPSupportLayers::BuildLayers(
 	for (const int32 SourceIndex : Order)
 	{
 		const FLNPBakeTriangleMesh& Mesh = Sources[SourceIndex].Mesh;
-		TArray<TArray<int32>> Sheets = FindWalkableSheets(Mesh, Settings);
+		TArray<TArray<int32>> Neighbors;
+		TArray<int32> Welded;
+		const TArray<TArray<int32>> OriginalSheets = FindWalkableSheets(Mesh, Settings, Neighbors, Welded);
+		OutSet.OriginalSheetCount += OriginalSheets.Num();
+		TArray<TArray<int32>> Sheets;
+		const int32 Subdivisions = Settings.GetSourceSubdivisions(Sources[SourceIndex]);
+		TArray<int32> PartByTriangle;
+		PartByTriangle.Init(INDEX_NONE, Mesh.Triangles.Num());
+		for (const TArray<int32>& Original : OriginalSheets)
+		{
+			TArray<TArray<int32>> Parts = SplitFoldedSheet(Mesh, Original, Neighbors, Subdivisions, Settings.HitMergeDistance);
+			OutSet.SplitSheetCount += Parts.Num() > 1 ? 1 : 0;
+			for (TArray<int32>& Part : Parts)
+			{
+				for (const int32 Triangle : Part)
+				{
+					PartByTriangle[Triangle] = Sheets.Num();
+				}
+				Sheets.Add(MoveTemp(Part));
+			}
+		}
+		TMap<uint64, int32> PartByEdge;
+		TSet<uint64> CutEdges;
+		for (int32 TriangleIndex = 0; TriangleIndex < Mesh.Triangles.Num(); ++TriangleIndex)
+		{
+			const int32 Part = PartByTriangle[TriangleIndex];
+			if (Part == INDEX_NONE)
+			{
+				continue;
+			}
+			const FIntVector3& Triangle = Mesh.Triangles[TriangleIndex];
+			for (int32 Edge = 0; Edge < 3; ++Edge)
+			{
+				const int32 A = Welded[Triangle[Edge]];
+				const int32 B = Welded[Triangle[(Edge + 1) % 3]];
+				const uint64 Key = (static_cast<uint64>(FMath::Min(A, B)) << 32) | static_cast<uint32>(FMath::Max(A, B));
+				if (const int32* Other = PartByEdge.Find(Key))
+				{
+					if (*Other != Part && !CutEdges.Contains(Key))
+					{
+						CutEdges.Add(Key);
+						++OutSet.CutEdgeCount;
+						OutSet.CutBoundaryLength += FVector3d::Distance(Mesh.Vertices[A], Mesh.Vertices[B]);
+					}
+				}
+				else
+				{
+					PartByEdge.Add(Key, Part);
+				}
+			}
+		}
 		TArray<int32> MinExternal;
 		for (const TArray<int32>& Sheet : Sheets)
 		{
@@ -258,6 +445,7 @@ bool LNPSupportLayers::BuildLayers(
 		{
 			FLNPSupportLayer& Layer = OutSet.Layers.AddDefaulted_GetRef();
 			Layer.SourceIndex = SourceIndex;
+			Layer.Subdivisions = Subdivisions;
 			Layer.Triangles = MoveTemp(Sheets[Sheet]);
 			Layer.MinExternalFace = MinExternal[Sheet];
 		}

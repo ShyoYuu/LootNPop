@@ -23,6 +23,7 @@ constexpr ANSICHAR SettingsDomain[] = "LNP.OctantBakeSettings.v1";
 constexpr ANSICHAR SourceContentDomain[] = "LNP.OctantSourceContent.v1";
 
 const FName SupportTag(TEXT("LNP.Surface.Support"));
+const FName CoarseSupportTag(TEXT("LNP.Surface.CoarseSupport"));
 const FName BlockerTag(TEXT("LNP.Surface.Blocker"));
 const FName StaticTag(TEXT("LNP.Surface.Static"));
 const FName DynamicTag(TEXT("LNP.Surface.Dynamic"));
@@ -130,6 +131,7 @@ bool HasTag(const UActorComponent& Component, FName Tag)
 bool IsTerrainContractTag(FName Tag)
 {
 	return Tag == SupportTag
+		|| Tag == CoarseSupportTag
 		|| Tag == BlockerTag
 		|| Tag == StaticTag
 		|| Tag == DynamicTag
@@ -620,6 +622,12 @@ bool FLNPOctantSourceCollector::CollectTerrainComponents(
 			}
 
 			const bool bHasSupport = HasTag(*PrimitiveComponent, SupportTag);
+			if (HasTag(*PrimitiveComponent, CoarseSupportTag) && !bHasSupport)
+			{
+				OutError = FString::Printf(TEXT("Component '%s' uses CoarseSupport without Support."),
+					*PrimitiveComponent->GetPathName());
+				return false;
+			}
 			const bool bHasBlocker = HasTag(*PrimitiveComponent, BlockerTag);
 			const bool bHasRole = bHasSupport || bHasBlocker;
 			const bool bIsDecoration = HasTag(*PrimitiveComponent, DecorationTag);

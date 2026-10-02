@@ -187,6 +187,12 @@ bool FLNPOctantSourceHashDeterminismTest::RunTest(const FString& Parameters)
 		FLNPOctantSourceCollector::BuildSourceSemanticHash(
 			TArray<FLNPTerrainSourceSemantic>{SemanticA, ChangedSemantic}, ChangedSemanticHash, Error));
 	TestTrue(TEXT("Collision profile changes semantic hash"), ChangedSemanticHash != SemanticHashA);
+	ChangedSemantic = SemanticA;
+	ChangedSemantic.TerrainTags.Add(TEXT("LNP.Surface.CoarseSupport"));
+	TestTrue(TEXT("CoarseSupport semantic hash succeeds"),
+		FLNPOctantSourceCollector::BuildSourceSemanticHash(
+			TArray<FLNPTerrainSourceSemantic>{ChangedSemantic, SemanticB}, ChangedSemanticHash, Error));
+	TestTrue(TEXT("CoarseSupport changes semantic hash"), ChangedSemanticHash != SemanticHashA);
 
 	const TArray<FLNPOctantBakeSetting> SettingsA = {
 		FLNPOctantBakeSetting::Real(TEXT("SupportSpacingCm"), 100.0),
@@ -456,6 +462,14 @@ bool FLNPOctantSourceContractValidationTest::RunTest(const FString& Parameters)
 		bool bExpectSuccess;
 	};
 	const TArray<FContractCase> Cases = {
+		{TEXT("Coarse Support terrain with matching profile"),
+			{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.CoarseSupport"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+			TEXT("LNPStaticTerrain"), true},
+		{TEXT("CoarseSupport without Support on a blocker"),
+			{TEXT("LNP.Surface.CoarseSupport"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
+			TEXT("LNPStaticBlocker"), false},
+		{TEXT("CoarseSupport without Support or collision"),
+			{TEXT("LNP.Surface.CoarseSupport")}, UCollisionProfile::NoCollision_ProfileName, false},
 		{TEXT("Static terrain with matching profile"),
 			{TEXT("LNP.Surface.Support"), TEXT("LNP.Surface.Blocker"), TEXT("LNP.Surface.Static")},
 			TEXT("LNPStaticTerrain"), true},

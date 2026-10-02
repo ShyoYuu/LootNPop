@@ -58,6 +58,7 @@ namespace LNPOctantSurfaceBaker
 			FLNPOctantBakeSetting::Real(TEXT("Layer.OverlapReportHeight"), Options.OverlapReportHeight),
 			FLNPOctantBakeSetting::Real(TEXT("Layer.WalkableMinDot"), Layers.WalkableMinDot),
 			FLNPOctantBakeSetting::Real(TEXT("Layer.WeldDistance"), Layers.WeldDistance),
+			FLNPOctantBakeSetting::Real(TEXT("Layer.HitMergeDistance"), Layers.HitMergeDistance),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.CrustSpacing"), Options.Nav.CrustSpacing),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.LayerSpacing"), Options.Nav.LayerSpacing),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.PortalSearchDistance"), Options.Nav.PortalSearchDistance),
@@ -747,6 +748,8 @@ FString FLNPOctantBakeReport::ToString() const
 		Nav.SeamEndpointCount, NavigationPayloadBytes, TraversalPayloadBytes,
 		SpawnAuthoredCount, SpawnCandidateCount, SpawnPayloadBytes,
 		CollectSeconds, ExtractSeconds, RasterSeconds, LayerRasterSeconds, EncodeSeconds);
+	Result += FString::Printf(TEXT("\n  Sheets=%d split=%d cutEdges=%d cutBoundary=%.2fcm"),
+		OriginalSheetCount, SplitSheetCount, CutEdgeCount, CutBoundaryLength);
 	if (Nav.SeamClearanceRejectCount > 0)
 	{
 		Result += FString::Printf(
@@ -783,7 +786,11 @@ bool FLNPOctantSurfaceBaker::Bake(
 	Codec.BaseRadius = Options.BaseRadius > 0.0 ? Options.BaseRadius : GetDefault<ULNPSettings>()->SphereRadius;
 	FLNPSupportRasterSettings Raster = Options.Raster;
 	Raster.Subdivisions = LNPSupportAtlas::ComputeSubdivisionsForSpacing(Codec.BaseRadius, Options.CrustSpacing);
-	const FLNPSupportLayerSettings LayerSettings;
+	FLNPSupportLayerSettings LayerSettings;
+	LayerSettings.CrustSubdivisions = Raster.Subdivisions;
+	LayerSettings.LayerSubdivisionMultiplier = Options.LayerSubdivisionMultiplier;
+	LayerSettings.HitMergeDistance = Raster.HitMergeDistance;
+	LayerSettings.WalkableMinDot = Raster.WalkableMinDot;
 	if (Options.LayerSubdivisionMultiplier < 1)
 	{
 		OutError = FString::Printf(TEXT("Invalid Layer subdivision multiplier %d."), Options.LayerSubdivisionMultiplier);
@@ -835,6 +842,10 @@ bool FLNPOctantSurfaceBaker::Bake(
 		return false;
 	}
 	OutReport.SupportLayerCount = LayerSet.Layers.Num();
+	OutReport.OriginalSheetCount = LayerSet.OriginalSheetCount;
+	OutReport.SplitSheetCount = LayerSet.SplitSheetCount;
+	OutReport.CutEdgeCount = LayerSet.CutEdgeCount;
+	OutReport.CutBoundaryLength = LayerSet.CutBoundaryLength;
 	OutReport.ExtractSeconds = FPlatformTime::Seconds() - StartSeconds;
 
 	TArray<FLNPSupportLayerRaster> Rasters;
@@ -850,7 +861,6 @@ bool FLNPOctantSurfaceBaker::Bake(
 	OutReport.RasterSeconds = FPlatformTime::Seconds() - StartSeconds;
 
 	StartSeconds = FPlatformTime::Seconds();
-	const int32 LayerSubdivisions = Raster.Subdivisions * Options.LayerSubdivisionMultiplier;
 	for (int32 LayerId = 1; LayerId < LayerSet.Layers.Num(); ++LayerId)
 	{
 		const double LayerStartSeconds = FPlatformTime::Seconds();
@@ -858,7 +868,7 @@ bool FLNPOctantSurfaceBaker::Bake(
 		const FLNPBakeSupportSource& Source = Sources[Layer.SourceIndex];
 		const FLNPBakeTriangleMesh LayerMesh = LNPSupportLayers::MakeLayerMesh(Source.Mesh, Layer);
 		if (!LNPSupportAtlas::Rasterize(
-			LayerMesh, Raster, LNPSupportAtlas::ComputeFootprint(LayerMesh, LayerSubdivisions), Rasters[LayerId], OutError))
+			LayerMesh, Raster, LNPSupportAtlas::ComputeFootprint(LayerMesh, Layer.Subdivisions), Rasters[LayerId], OutError))
 		{
 			OutError = FString::Printf(TEXT("Layer %d of '%s': %s"), LayerId, *Source.Name, *OutError);
 			return false;
