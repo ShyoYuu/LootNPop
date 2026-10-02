@@ -16,6 +16,7 @@ struct FLNPMassSpawnEnemyPlanInput
 {
 	int32 RequestedCount = 0;
 	int32 AssetIndex = INDEX_NONE;
+	float RequiredHeadroom = 0.0f;
 };
 
 struct FLNPMassSpawnSetPlanInput
@@ -24,6 +25,8 @@ struct FLNPMassSpawnSetPlanInput
 	int32 RequestedPods = 0;
 	int32 PodAssetIndex = INDEX_NONE;
 	TArray<FLNPMassSpawnEnemyPlanInput> Enemies;
+	/** 편성된 비행 적의 필요 headroom 최댓값. 비행 없는 세트는 0이다. */
+	float RequiredHeadroom = 0.0f;
 };
 
 struct FLNPMassSpawnPlannedEnemyGroup

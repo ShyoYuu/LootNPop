@@ -1,6 +1,6 @@
 # Phase 7c — 입체 지형 베이크 대응
 
-> 상태: 진행 중 — 단위 0·1 완료, 단위 2 진행 확인 대기
+> 상태: 진행 중 — 단위 0·1·2·3 완료, 단위 4 진행 확인 대기
 > 착수일: 2026-10-02
 > 선행 조건: Phase 7a·7b 완료(700마리 반복 성능 Gate 포함)
 
@@ -42,17 +42,17 @@
 
 ### 단위 2 — component 쌍당 여러 portal
 
-- [ ] exact Support polyline·양방향 capsule sweep 검증을 유지하면서 쌍당 하나인 선택 정책을 최소 간격을 둔 복수 portal로 바꾼다(D-065).
-- [ ] 간격 측정 위치·동률 순서·중복 억제를 설계에 명시한다. 입구 두 개를 보존하는 간격과 후보/검사 수·베이크 시간을 먼저 측정한다. 근거 없이 portal 상한으로 입구를 잘라내지 않는다.
-- [ ] 분할된 나선 경사로 경계, 긴 맞닿은 경계, 입구가 두 개인 Layer 쌍을 순수 회귀 입력으로 검사한다. 기존 Traversal codec을 유지하고 schema·재베이크를 반영한다.
+- [x] exact Support polyline·양방향 capsule sweep 검증을 유지하면서 쌍당 하나인 선택 정책을 최소 간격을 둔 복수 portal로 바꾼다(D-065).
+- [x] 간격 측정 위치·동률 순서·중복 억제를 설계에 명시한다. 입구 두 개를 보존하는 간격과 후보/검사 수·베이크 시간을 먼저 측정한다. 근거 없이 portal 상한으로 입구를 잘라내지 않는다.
+- [x] 분할된 나선 경사로 경계, 긴 맞닿은 경계, 입구가 두 개인 Layer 쌍을 순수 회귀 입력으로 검사한다. 기존 Traversal codec을 유지하고 schema·재베이크를 반영한다.
 - 검증: 두 연결이 모두 존재하고 시작·목표 위치에 따라 A*가 가까운 연결을 선택, 분할 경계 연속 Walk·불가능한 벽 관통 차단, portal·face 표 결정론, 기존 이음매·동굴·Pod overlay 회귀와 전체 자동화.
 
 ### 단위 3 — Spawn headroom과 비행 Pod 할당
 
-- [ ] authored anchor와 random Pod 후보 모두 bake-only exact 상향 sweep으로 여유 거리를 기록한다(D-073). sweep 형상·출발점·최대 측정 거리·무충돌 표현은 비행 Config와 복제 좌표 캡을 확인해 설계에 정한다.
-- [ ] Spawn codec과 DataVersion을 갱신하고 loader validation·snapshot 전파·전체 재베이크를 함께 처리한다. 형식 변경 전 에셋을 새 형식으로 조용히 해석하지 않는다.
-- [ ] 게임 스레드에서 비행 편성 Config의 `IdleAltitude` 상한·clearance·여유로 필요한 headroom을 계산해 순수 spawn plan에 넘긴다. 베이크는 고도 Config를 hash에 묶지 않는다.
-- [ ] authored-for-set → generic → random의 기존 우선순위와 총량·shortfall 규약을 유지하며 모든 배치 경로에 headroom 필터를 적용한다.
+- [x] authored anchor와 random Pod 후보 모두 bake-only exact 상향 sweep으로 여유 거리를 기록한다(D-073). sweep 형상·출발점·최대 측정 거리·무충돌 표현은 비행 Config와 복제 좌표 캡을 확인해 설계에 정한다.
+- [x] Spawn codec과 DataVersion을 갱신하고 loader validation·snapshot 전파·전체 재베이크를 함께 처리한다. 형식 변경 전 에셋을 새 형식으로 조용히 해석하지 않는다.
+- [x] 게임 스레드에서 비행 편성 Config의 `IdleAltitude` 상한·clearance·여유로 필요한 headroom을 계산해 순수 spawn plan에 넘긴다. 베이크는 고도 Config를 hash에 묶지 않는다.
+- [x] authored-for-set → generic → random의 기존 우선순위와 총량·shortfall 규약을 유지하며 모든 배치 경로에 headroom 필터를 적용한다.
 - 검증: 임계값 미만·같음·초과, 비행 없는 편성, 비행 혼합 편성, 수동 앵커와 random 필터, 후보 부족 shortfall, Config 변경 시 재베이크 없이 할당 변경, codec 잘못된 값·버전·결정론, 전체 빌드·자동화.
 
 ### 단위 4 — 입체·지하 공동 회귀 콘텐츠
@@ -74,4 +74,4 @@
 
 ## 4. 다음 단위의 착수 조건
 
-단위 1은 2026-10-02에 전체 빌드·전체 자동화 82/82·세 SurfaceData 재베이크를 통과했다. 단위 2는 사용자 진행 확인 뒤 착수한다. 분할 경계의 Nav 연속성과 여러 portal 선택을 검증하며, 라이브 작업이 효율적이면 즉시 MCP 연결을, 전체 빌드가 필요하면 즉시 에디터 저장·종료를 요청한다. 상세 증거는 `../history/Phase07c_Log.md`를 따른다.
+단위 3은 2026-10-02에 전체 빌드·전체 자동화 84/84·DataVersion 6·schema 8 세 SurfaceData 재베이크를 통과했다. 단위 4는 사용자 진행 확인 뒤 착수한다. 입체·지하 공동 회귀 콘텐츠를 추가하며, 라이브 제작·관찰에 MCP가 효율적이면 즉시 연결을, 전체 빌드가 필요하면 즉시 에디터 저장·종료를 요청한다. 사용자 PIE 플레이로 추격·낙하·높은 공동의 비행 교전을 확인한다. 상세 증거는 `../history/Phase07c_Log.md`를 따른다.

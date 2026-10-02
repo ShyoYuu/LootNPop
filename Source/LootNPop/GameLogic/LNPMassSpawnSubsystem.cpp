@@ -338,6 +338,17 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		{
 			const int32 Count = bBaseline ? 0 : FMath::RoundToInt32(Enemy.Count * EnemyDensity);
 			P.Enemies.Add({ Count, CapturedAssets.Num() });
+			// 가장 가까운 Config의 EnemyTrait가 실제 템플릿처럼 부모 선언을 덮어쓴다. UObject 조회는 게임 스레드에서 끝낸다.
+			const ULNPEnemyTrait* EnemyTrait = nullptr;
+			for (const UMassEntityConfigAsset* Asset = Enemy.EnemyEntityConfig; Asset && !EnemyTrait; Asset = Asset->GetConfig().GetParent())
+			{
+				EnemyTrait = Cast<ULNPEnemyTrait>(Asset->FindTrait(ULNPEnemyTrait::StaticClass()));
+			}
+			if (Count > 0 && EnemyTrait && EnemyTrait->EnemyConfig)
+			{
+				P.Enemies.Last().RequiredHeadroom = EnemyTrait->EnemyConfig->GetSpawnRequiredHeadroom();
+				P.RequiredHeadroom = FMath::Max(P.RequiredHeadroom, P.Enemies.Last().RequiredHeadroom);
+			}
 			CapturedAssets.Add(Enemy.EnemyEntityConfig);
 		}
 		SetParams.Add(MoveTemp(P));

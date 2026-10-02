@@ -132,7 +132,7 @@ class LOOTNPOPEDITOR_API FLNPOctantSurfaceBaker
 {
 public:
 	/** 베이커 schema 버전. 베이크 규칙이 바뀌면 올린다. BakeSettingsHash에 들어간다. */
-	static constexpr uint32 BakerSchemaVersion = 6;
+	static constexpr uint32 BakerSchemaVersion = 8;
 
 	/** OutData의 Header와 SupportPayload를 채운다. 같은 입력이면 같은 payload를 만든다. */
 	static bool Bake(

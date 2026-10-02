@@ -216,7 +216,11 @@ enum class ELNPNavigationDomain : uint8
 
 - **archetype**: PureEntity 전용(D-052). 같은 `ULNPEnemyTrait`에 `NavigationDomain = FreeFlight`면 `FLNPEnemyFlyingTag`가 붙고, 지상 이동·분리·격자는 이 태그를 거른다. 이동은 `ULNPEnemyFlightMovementProcessor`, 조향은 Mass 비의존 순수 함수 `LNPFlightSteering`(엘리트 Actor 재사용 대비)이다. 비행끼리 분리는 별도 격자의 3D 거리다.
 - **고도(D-053)**: 비교전은 Home 위 `IdleAltitude` 대역 3D 배회, 교전은 타겟 위 `EngageAltitude`·올려다보는 각 `EngageElevationDeg`의 교전 지점. 쏠 수 있는 동안은 자리를 지키고, 사거리·조준 각도를 벗어나거나 LoS가 막힐 때만 재배치한다.
-- **headroom(D-073)**: 비행 적을 편성한 Pod는 위쪽 여유가 `IdleAltitude` 상한 + clearance + 여유(현재 값으로 약 25~30m) 이상인 Spawn 후보에만 선다. 베이커가 후보마다 위쪽 exact sweep 거리를 기록하고 런타임 할당이 Config에서 유도한 기준과 비교하므로, 고도 Config를 바꿔도 재베이크가 필요 없다. 지하 대형 공동·큰 건물 안·섬 밑이 같은 규칙으로 처리된다. 천장 낮은 공간으로는 추격하지 않는다. LoS 게이트와 교착 복구 때문에 입구 밖에서 호버하거나 물러나며, 이를 의도한 동작으로 본다. 높은 공동 안에서 타겟이 천장 가까이 있어 교전 지점이 천장 속에 들어가는 경우는 Phase 7c 검증에서 보고, 어색하면 교전 고도를 위쪽 probe 1회로 clamp한다.
+- **headroom(D-073)**: Phase 7c 단위 3은 비행 편성 Pod와 주변 비행 적 시작점의 headroom을 필터링한다. `ULNPEnemyConfig::GetSpawnRequiredHeadroom`은 `max(IdleAltitudeMin, IdleAltitudeMax) + max(CapsuleRadius, CapsuleHalfHeight) + Flight.Clearance + 200cm`를 요구한다. 몸 구는 실제 `LiftFlyingSpawn`과 같은 규칙이고 기본값은 2,638cm다. 지상 Config는 0이다. 게임 스레드에서 EntityConfig의 가까운 EnemyTrait부터 부모 체인을 읽고 실제 생성 수가 양수인 편성의 최댓값을 세트 입력에 담는다. worker는 float 입력만 읽는다.
+
+  베이크는 Config와 무관하게 모든 authored anchor·random candidate에 `Headroom`을 기록한다. 반지름 50cm 구를 바닥점의 지역 Up(구 중심 방향)으로 `LNPWorldExact` sweep한다. 시작 중심 높이는 `50 / dot(Up, floorNormal) + 1cm`, 종료 중심 높이는 `min(32767 - 50, 바닥점 반지름 - 50 - 1)`이다. 바닥 관통·중심 통과와 복제 좌표 캡 초과를 피하며 시작 겹침·측정 공간 부족은 0이다. hit는 `시작 높이 + Hit.Distance + 50cm`, 무충돌은 `종료 높이 + 50cm`를 저장한다. 이는 구가 닿는 천장·옆벽의 보수적 수직 높이이며 반지름 50cm 기둥 바깥의 자유 공간을 보장하지 않는다. 실제 비행의 몸 구 sweep은 계속 장애물을 막는다. 값은 `[0,32767]`의 유한 float이고 무충돌을 infinity로 표시하지 않는다. 측정 반지름·상한은 bake settings hash에 포함하지만 비행 고도 Config·요구 여유는 포함하지 않는다.
+
+  authored-for-set → generic → random 우선순위와 총량·shortfall은 유지한다. `Headroom >= RequiredHeadroom`이면 선택하며 낮은 후보를 소비하지 않아 이후 지상 편성에 남는다. 비행 없는 세트는 기존 배치와 같다. 주변 적 시작점도 적 종류별 필요 headroom으로 검사하며 기존 slot·Layer·반경·간격 제한을 유지한다. Config 변경은 같은 snapshot 위의 할당만 바꾼다. 지하 공동·건물 안·섬 밑은 같은 규칙이다. 천장 낮은 공간의 추격은 기존 LoS·교착 복구로 입구 밖에서 호버하거나 물러나는 동작을 허용한다. 높은 공동의 천장 근처 교전 고도 clamp는 단위 4의 플레이 검증에서 필요할 때만 추가한다.
 - **교전 수 상한**: 비행 적은 원거리 슬롯 풀을 쓰므로 동시 교전 수는 플레이어당 원거리 슬롯(20)으로 묶이고 나머지는 Alert로 호버한다. 지상 원거리 적과 같은 풀을 나눈다.
 - **넉백**: 생산자(`ApplyEntityKnockback`)는 지상과 같고, 비행 소비는 중력 없이 반감기 감쇠·steering 추가 속도로 sweep. "`Velocity != 0`이면 공중"이라는 지상 규약은 비행 개체에 적용하지 않는다.
 - **사망**: 비행을 끊고 `StepAirborne` 낙하, 착지 여부는 `bDeathLanded`로 기억한다.

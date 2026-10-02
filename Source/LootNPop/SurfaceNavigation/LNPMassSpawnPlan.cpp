@@ -15,6 +15,7 @@ namespace
 		FName TargetSpawnSetId;
 		FTransform Transform = FTransform::Identity;
 		uint16 LocalLayerId = LNPSupportLayers::NoLayer;
+		float Headroom = 0.0f;
 		bool bUsed = false;
 	};
 
@@ -26,6 +27,7 @@ namespace
 		FVector Normal = FVector::ZeroVector;
 		uint16 LocalLayerId = LNPSupportLayers::NoLayer;
 		ELNPSpawnCandidateFlags Allowed = ELNPSpawnCandidateFlags::None;
+		float Headroom = 0.0f;
 		bool bUsed = false;
 	};
 
@@ -149,7 +151,8 @@ bool LNPMassSpawnPlanning::BuildPlan(
 	for (int32 SetIndex = 0; SetIndex < Sets.Num(); ++SetIndex)
 	{
 		const FLNPMassSpawnSetPlanInput& Set = Sets[SetIndex];
-		if (Set.SpawnSetId.IsNone() || KnownSetIds.Contains(Set.SpawnSetId) || Set.RequestedPods < 0)
+		if (Set.SpawnSetId.IsNone() || KnownSetIds.Contains(Set.SpawnSetId) || Set.RequestedPods < 0
+			|| !FMath::IsFinite(Set.RequiredHeadroom) || Set.RequiredHeadroom < 0.0f)
 		{
 			OutError = FString::Printf(TEXT("Mass spawn set %d has an empty/duplicate ID or negative request count."), SetIndex);
 			return false;
@@ -161,7 +164,7 @@ bool LNPMassSpawnPlanning::BuildPlan(
 		Stats.Requested = Set.RequestedPods;
 		for (const FLNPMassSpawnEnemyPlanInput& Enemy : Set.Enemies)
 		{
-			if (Enemy.RequestedCount < 0)
+			if (Enemy.RequestedCount < 0 || !FMath::IsFinite(Enemy.RequiredHeadroom) || Enemy.RequiredHeadroom < 0.0f)
 			{
 				OutError = FString::Printf(TEXT("Mass spawn set '%s' has a negative enemy request count."), *Set.SpawnSetId.ToString());
 				return false;
@@ -195,6 +198,7 @@ bool LNPMassSpawnPlanning::BuildPlan(
 			const FQuat WorldRotation = FQuat(Slot.SlotRotation) * ToDoubleQuat(Local.LocalTransform.GetRotation());
 			World.Transform = FTransform(WorldRotation, WorldLocation);
 			World.LocalLayerId = Local.LocalLayerId;
+			World.Headroom = Local.Headroom;
 		}
 		for (const FLNPSpawnRandomCandidate& Local : Slot.Spawn->RandomCandidates)
 		{
@@ -205,6 +209,7 @@ bool LNPMassSpawnPlanning::BuildPlan(
 			World.Normal = FVector(Slot.SlotRotation.RotateVector(FVector3d(ToDoubleVector(Local.LocalNormal)))).GetSafeNormal();
 			World.LocalLayerId = Local.LocalLayerId;
 			World.Allowed = Local.Allowed;
+			World.Headroom = Local.Headroom;
 		}
 	}
 
@@ -250,7 +255,8 @@ bool LNPMassSpawnPlanning::BuildPlan(
 
 		for (FWorldAuthoredAnchor& Anchor : Authored)
 		{
-			if (Remaining == 0 || Anchor.bUsed || Anchor.TargetSpawnSetId != Set.SpawnSetId)
+			if (Remaining == 0 || Anchor.bUsed || Anchor.TargetSpawnSetId != Set.SpawnSetId
+				|| Anchor.Headroom < Set.RequiredHeadroom)
 			{
 				continue;
 			}
@@ -260,7 +266,8 @@ bool LNPMassSpawnPlanning::BuildPlan(
 		}
 		for (FWorldAuthoredAnchor& Anchor : Authored)
 		{
-			if (Remaining == 0 || Anchor.bUsed || !Anchor.TargetSpawnSetId.IsNone())
+			if (Remaining == 0 || Anchor.bUsed || !Anchor.TargetSpawnSetId.IsNone()
+				|| Anchor.Headroom < Set.RequiredHeadroom)
 			{
 				continue;
 			}
@@ -275,6 +282,7 @@ bool LNPMassSpawnPlanning::BuildPlan(
 				break;
 			}
 			if (Candidate.bUsed || !EnumHasAnyFlags(Candidate.Allowed, ELNPSpawnCandidateFlags::Pod)
+				|| Candidate.Headroom < Set.RequiredHeadroom
 				|| !IsFarEnough(Candidate.Position, OccupiedPods, MinDistanceBetweenPods))
 			{
 				continue;
@@ -328,6 +336,7 @@ bool LNPMassSpawnPlanning::BuildPlan(
 					break;
 				}
 				if (Candidate.bUsed || !EnumHasAnyFlags(Candidate.Allowed, ELNPSpawnCandidateFlags::Enemy)
+					|| Candidate.Headroom < EnemyInput.RequiredHeadroom
 					|| Candidate.Slot != Pod.Surface.OctantSlot || Candidate.LocalLayerId != Pod.Surface.LocalLayerId
 					|| FVector::DistSquared(Candidate.Position, Pod.Transform.GetLocation()) > EnemyRadiusSquared
 					|| !IsFarEnough(Candidate.Position, OccupiedEnemies, MinEnemySpacing))

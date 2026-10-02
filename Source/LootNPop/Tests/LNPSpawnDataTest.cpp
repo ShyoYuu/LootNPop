@@ -5,6 +5,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Algo/Reverse.h"
+#include <limits>
 #include "SurfaceNavigation/LNPSpawnData.h"
 
 namespace
@@ -19,6 +20,7 @@ namespace
 		B.LocalLayerId = 2;
 		B.EdgeClearance = 400.0f;
 		B.CapsuleClearance = 350.0f;
+		B.Headroom = 2500.0f;
 
 		FLNPSpawnAuthoredAnchor& A = Data.AuthoredAnchors.AddDefaulted_GetRef();
 		A.SpawnPointId = FGuid(1, 0, 0, 0);
@@ -26,6 +28,7 @@ namespace
 		A.LocalLayerId = 0;
 		A.EdgeClearance = 800.0f;
 		A.CapsuleClearance = 800.0f;
+		A.Headroom = LNPSpawnData::MaxHeadroom;
 
 		FLNPSpawnRandomCandidate& Candidate = Data.RandomCandidates.AddDefaulted_GetRef();
 		Candidate.CandidateIndex = 7;
@@ -36,6 +39,7 @@ namespace
 		Candidate.SlopeDot = 1.0f;
 		Candidate.EdgeClearance = 500.0f;
 		Candidate.CapsuleClearance = 450.0f;
+		Candidate.Headroom = 1200.0f;
 		return Data;
 	}
 }
@@ -66,6 +70,9 @@ bool FLNPSpawnCodecTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Authored anchors are GUID sorted"), Decoded.AuthoredAnchors[0].SpawnPointId, FGuid(1, 0, 0, 0));
 		TestEqual(TEXT("Target SpawnSetId round trips"), Decoded.AuthoredAnchors[1].TargetSpawnSetId, FName(TEXT("Bench")));
 		TestEqual(TEXT("Layer round trips"), Decoded.RandomCandidates[0].LocalLayerId, static_cast<uint16>(3));
+		TestEqual(TEXT("Authored headroom round trips"), Decoded.AuthoredAnchors[1].Headroom, 2500.0f);
+		TestEqual(TEXT("Capped clear headroom round trips"), Decoded.AuthoredAnchors[0].Headroom, LNPSpawnData::MaxHeadroom);
+		TestEqual(TEXT("Random headroom round trips"), Decoded.RandomCandidates[0].Headroom, 1200.0f);
 		TestTrue(TEXT("Normal round trips"), Decoded.RandomCandidates[0].LocalNormal.Equals(FVector3f(0.0f, 0.0f, -1.0f), 0.001f));
 	}
 
@@ -76,6 +83,22 @@ bool FLNPSpawnCodecTest::RunTest(const FString& Parameters)
 	FLNPSpawnData Duplicate = Source;
 	Duplicate.AuthoredAnchors[1].SpawnPointId = Duplicate.AuthoredAnchors[0].SpawnPointId;
 	TestFalse(TEXT("Duplicate SpawnPointId is rejected"), LNPSpawnData::Encode(Duplicate, Second, Error));
+	TArray<uint8> OldVersion = First;
+	OldVersion[0] = 1;
+	TestFalse(TEXT("Spawn codec v1 is rejected"), LNPSpawnData::Decode(OldVersion, Decoded, Error));
+	for (const float Bad : {-1.0f, LNPSpawnData::MaxHeadroom + 1.0f,
+		std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
+	{
+		FLNPSpawnData Invalid = Source;
+		Invalid.AuthoredAnchors[0].Headroom = Bad;
+		TestFalse(TEXT("Invalid authored headroom is rejected"), LNPSpawnData::Encode(Invalid, Second, Error));
+		Invalid = Source;
+		Invalid.RandomCandidates[0].Headroom = Bad;
+		TestFalse(TEXT("Invalid candidate headroom is rejected"), LNPSpawnData::Encode(Invalid, Second, Error));
+		TArray<uint8> Corrupt = First;
+		FMemory::Memcpy(Corrupt.GetData() + Corrupt.Num() - sizeof(float), &Bad, sizeof(float));
+		TestFalse(TEXT("Invalid headroom payload is rejected"), LNPSpawnData::Decode(Corrupt, Decoded, Error));
+	}
 	return !HasAnyErrors();
 }
 

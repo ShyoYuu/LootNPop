@@ -326,7 +326,7 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 				{
 					TestEqual(TEXT("Regression fixture keeps seven Layer-local components"),
 						Navigation.LocalStaticComponentCount, static_cast<uint16>(7));
-					TestEqual(TEXT("Regression fixture connects room-corridor and corridor-crust"), Traversal.Portals.Num(), 2);
+					TestTrue(TEXT("Regression fixture preserves multiple cave portals"), Traversal.Portals.Num() > 2);
 					TSet<uint32> PortalLayerPairs;
 					for (const FLNPNavPortal& Portal : Traversal.Portals)
 					{
@@ -342,6 +342,7 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 							Portal.B.LocalNavLayerId, BCoord.X, BCoord.Y,
 							BCell ? BCell->LocalStaticComponentId : MAX_uint16));
 					}
+					TestEqual(TEXT("Regression portals connect only the two expected Layer pairs"), PortalLayerPairs.Num(), 2);
 					TestTrue(TEXT("Regression portal joins the cave room and corridor Layers"),
 						PortalLayerPairs.Contains((2u << 16) | 3u));
 					TestTrue(TEXT("Regression portal joins the corridor to the crust entrance"),
@@ -377,6 +378,15 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 				SpawnData.RandomCandidates.Num(), FirstReport.SpawnCandidateCount);
 			TestTrue(FString::Printf(TEXT("%s: has random spawn candidates"), LevelPath),
 				!SpawnData.RandomCandidates.IsEmpty());
+			float MinHeadroom = LNPSpawnData::MaxHeadroom, MaxHeadroom = 0.0f;
+			for (const FLNPSpawnRandomCandidate& Candidate : SpawnData.RandomCandidates)
+			{
+				MinHeadroom = FMath::Min(MinHeadroom, Candidate.Headroom);
+				MaxHeadroom = FMath::Max(MaxHeadroom, Candidate.Headroom);
+			}
+			TestTrue(TEXT("Open sky candidates retain measured clear height"), MaxHeadroom > 20000.0f);
+			AddInfo(FString::Printf(TEXT("Spawn headroom: %s authored=%d random=%d min=%.2f max=%.2fcm"),
+				LevelPath, SpawnData.AuthoredAnchors.Num(), SpawnData.RandomCandidates.Num(), MinHeadroom, MaxHeadroom));
 			if (FStringView(LevelPath) == FStringView(LNPRegressionFixture::LevelPath))
 			{
 				TestEqual(TEXT("Regression fixture has crust, island, and cave anchors"), SpawnData.AuthoredAnchors.Num(), 3);
@@ -384,6 +394,11 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 				for (const FLNPSpawnAuthoredAnchor& Anchor : SpawnData.AuthoredAnchors)
 				{
 					AuthoredLayers.Add(Anchor.LocalLayerId);
+					TestTrue(TEXT("Authored points carry measured headroom"), Anchor.Headroom > 0.0f);
+					if (Anchor.LocalLayerId == 2)
+					{
+						TestTrue(TEXT("Low cave anchor rejects a default flying group"), Anchor.Headroom < 2638.0f);
+					}
 				}
 				TestTrue(TEXT("Regression authored anchors include crust Layer 0"), AuthoredLayers.Contains(0));
 				TestTrue(TEXT("Regression authored anchors include non-crust Layers"), AuthoredLayers.Num() >= 2);

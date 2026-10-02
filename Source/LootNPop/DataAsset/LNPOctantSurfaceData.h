@@ -88,7 +88,7 @@ struct LOOTNPOP_API FLNPSurfaceBakeHeader
 	GENERATED_BODY()
 
 	/** 5: Navigation/Traversal codec v1. 4는 Spawn payload codec v1까지 저장했다. */
-	static constexpr uint32 CurrentDataVersion = 5;
+	static constexpr uint32 CurrentDataVersion = 6;
 
 	FLNPSurfaceBakeHeader();
 

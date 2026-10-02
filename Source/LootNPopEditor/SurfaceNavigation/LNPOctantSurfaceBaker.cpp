@@ -62,6 +62,7 @@ namespace LNPOctantSurfaceBaker
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.CrustSpacing"), Options.Nav.CrustSpacing),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.LayerSpacing"), Options.Nav.LayerSpacing),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.PortalSearchDistance"), Options.Nav.PortalSearchDistance),
+			FLNPOctantBakeSetting::Real(TEXT("Navigation.PortalMinSpacing"), Options.Nav.PortalMinSpacing),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.ClearanceClassStep"), Options.Nav.ClearanceClassStep),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentRadius"), Options.Nav.Agent.Radius),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentHalfHeight"), Options.Nav.Agent.HalfHeight),
@@ -69,6 +70,8 @@ namespace LNPOctantSurfaceBaker
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentMaxStepDown"), Options.Nav.Agent.MaxStepDown),
 			FLNPOctantBakeSetting::Real(TEXT("Navigation.AgentWalkableMinDot"), Options.Nav.Agent.WalkableMinDot),
 			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Spawn.CodecVersion"), LNPSpawnData::CodecVersion),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.HeadroomProbeRadius"), LNPSpawnData::HeadroomProbeRadius),
+			FLNPOctantBakeSetting::Real(TEXT("Spawn.MaxHeadroom"), LNPSpawnData::MaxHeadroom),
 			FLNPOctantBakeSetting::Real(TEXT("Spawn.CandidateSpacing"), Options.SpawnCandidateSpacing),
 			FLNPOctantBakeSetting::Real(TEXT("Spawn.AnchorProjectionTolerance"), Options.SpawnAnchorProjectionTolerance),
 			FLNPOctantBakeSetting::Real(TEXT("Spawn.MaxClearance"), Options.SpawnMaxClearance),
@@ -167,6 +170,23 @@ namespace LNPOctantSurfaceBaker
 			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPSpawnClearance), false);
 			return !World->OverlapBlockingTestByChannel(
 				Center, Rotation, LNPCollisionChannels::WorldExact, Shape, Params);
+		}
+
+		float MeasureHeadroom(const FVector& Feet, const FVector& Normal) const
+		{
+			const FVector Up = -Feet.GetSafeNormal();
+			const double Radius = LNPSpawnData::HeadroomProbeRadius;
+			const double FloorDot = FMath::Max(FVector::DotProduct(Up, Normal.GetSafeNormal()), 0.01);
+			const double StartHeight = Radius / FloorDot + 1.0;
+			const double EndHeight = FMath::Min(static_cast<double>(LNPSpawnData::MaxHeadroom) - Radius, Feet.Length() - Radius - 1.0);
+			if (EndHeight <= StartHeight) { return 0.0f; }
+			FHitResult Hit;
+			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPSpawnHeadroom), false);
+			const bool bHit = World->SweepSingleByChannel(Hit, Feet + Up * StartHeight, Feet + Up * EndHeight,
+				FQuat::Identity, LNPCollisionChannels::WorldExact, FCollisionShape::MakeSphere(Radius), Params);
+			if (bHit && Hit.bStartPenetrating) { return 0.0f; }
+			// 충돌한 구의 위쪽 높이를 저장한다. 경사진 천장·옆벽에서는 수직 천장 높이보다 보수적이다.
+			return static_cast<float>(bHit ? StartHeight + Hit.Distance + Radius : EndHeight + Radius);
 		}
 
 		bool HasGravityCapsuleClearance(
@@ -417,6 +437,7 @@ namespace LNPOctantSurfaceBaker
 					Candidate.EdgeClearance = Clearance;
 					Candidate.CapsuleClearance = static_cast<float>(EnumHasAnyFlags(Allowed, ELNPSpawnCandidateFlags::Pod)
 						? Options.SpawnPodCapsuleRadius : Options.SpawnEnemyCapsuleRadius);
+					Candidate.Headroom = ClearanceWorld.MeasureHeadroom(Position, Normal);
 				}
 			}
 		}
@@ -508,6 +529,7 @@ namespace LNPOctantSurfaceBaker
 			Anchor.LocalLayerId = static_cast<uint16>(BestLayer);
 			Anchor.EdgeClearance = Clearance;
 			Anchor.CapsuleClearance = static_cast<float>(Options.SpawnPodCapsuleRadius);
+			Anchor.Headroom = ClearanceWorld.MeasureHeadroom(FVector(Direction * BestQuery.Radius), SurfaceNormal);
 		}
 
 		for (int32 A = 0; A < OutSpawnData.AuthoredAnchors.Num(); ++A)
@@ -750,6 +772,7 @@ FString FLNPOctantBakeReport::ToString() const
 		CollectSeconds, ExtractSeconds, RasterSeconds, LayerRasterSeconds, EncodeSeconds);
 	Result += FString::Printf(TEXT("\n  Sheets=%d split=%d cutEdges=%d cutBoundary=%.2fcm"),
 		OriginalSheetCount, SplitSheetCount, CutEdgeCount, CutBoundaryLength);
+	Result += FString::Printf(TEXT("\n  Portal spacingRejected=%d bake=%.3fs"), Nav.PortalSpacingRejectCount, Nav.PortalBakeSeconds);
 	if (Nav.SeamClearanceRejectCount > 0)
 	{
 		Result += FString::Printf(

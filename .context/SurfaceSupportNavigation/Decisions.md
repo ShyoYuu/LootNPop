@@ -1,7 +1,7 @@
 # Surface Support·Navigation 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-10-01
+> 마지막 갱신: 2026-10-02
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다.
 
 ## 결정 목록
@@ -72,7 +72,7 @@
 | D-062 | 경로·도달성 스냅은 시작·목표 각각 가장 가까운 walkable node를 우선한다. 두 node의 ReachabilityGroup이 다를 때만 양쪽 스냅 반경 안에서 공통 group의 (시작, 목표) 짝을 스냅 거리 합 최소로 다시 고르고, 없으면 A* 없이 도달 불가다. component 크기 기준값은 두지 않으며 근접 슬롯 도달성과 Pod 재귀속도 같은 규칙을 쓴다. | 확정 | `phases/Phase07b_PathExecution.md` §3.3 |
 | D-063 | 도달 불가 대상의 지상 적은 슬롯을 받지 않지만 제자리 대신 접근점(자기 ReachabilityGroup의 6방향 내부 node 중 목표에 가장 가까운 node, 초기 반경 3,000cm)까지 경로로 이동한다. 근접은 Alert로 서고, 원거리는 사거리에 들거나 접근점에 닿을 때까지 이동한다. 상태 머신·슬롯·Alert 인내 규칙은 바꾸지 않는다. | 확정 | `design/MovementIntegration.md` "근접 NPC", `phases/Phase07b_PathExecution.md` §3.3·§3.8 |
 | D-064 | 한 Support source의 walkable 연결 성분이 같은 방향에서 자기 위를 덮으면(접힌 sheet) 베이커가 서로 겹치지 않는 sub-sheet로 자동 분할하고 각각을 Layer로 둔다. 콘텐츠 메시를 수동으로 쪼개거나 분할 툴을 만들지 않는다. 지각 overhang은 계속 베이크 오류다. | 확정(Phase 7c 단위 1 구현 완료) | `design/SurfaceBaking.md` "접힌 sheet 자동 분할" |
-| D-065 | 서로 다른 Layer component 쌍 사이 portal은 쌍마다 하나가 아니라 최소 간격을 둔 여러 개를 저장한다. 입구가 여럿인 건물·계단이 둘인 층에서 A*가 한 연결로만 우회하지 않게 한다. | 확정(Phase 7c 구현) | `design/GroundNavigation.md` |
+| D-065 | 서로 다른 Layer component 쌍 사이 portal은 쌍마다 하나가 아니라 최소 간격을 둔 여러 개를 저장한다. 입구가 여럿인 건물·계단이 둘인 층에서 A*가 한 연결로만 우회하지 않게 한다. | 확정(Phase 7c 단위 2 구현 완료) | `design/GroundNavigation.md` |
 | D-066 | 벽 타기 NPC는 `SurfaceCrawl` 이동 도메인이다. Support·Nav를 쓰지 않고 exact 표면(벽·천장·섬 밑면 포함)을 기어 다니며, 스스로 점프하지 않는다. 넉백 낙하로는 어디든 착지할 수 있다. 공격은 원거리 투사체만, 인지 시야각은 360°다. 재귀속은 Home 쪽으로 기어가다 일정 시간 가까워지지 않으면 직선거리로 가장 가까운 활성 Pod로 바꾼다. D-011은 `GroundSupport` 도메인에만 적용된다. | 확정(Phase 14 구현) | `design/MovementIntegration.md` "벽 타기 NPC" |
 | D-067 | Pod에 귀속된 PureEntity는 Pod 단위 활동 대역(휴면·배회·활성)을 가진다. 휴면은 복제 컬 거리 바깥에서 제자리에 멈추고 이동·분리·배회·인지 비용을 내지 않는다. 플레이어 접근·무리 피격·Pod 루팅이 Pod 무리 전체를 깨운다. Pod에 귀속되지 않은 NPC(향후 보스)는 항상 활성이며 서버가 시뮬레이션한다. 대역 경계는 상수가 아니라 기존 거리에서 유도한다. 휴면 경계는 적 복제 컬 거리에 여유를 더한 값(현재 약 130m), 활성 경계는 적 Actor 스폰 거리(현재 60m)다. | 확정(Phase 13 구현) | `design/MovementIntegration.md` "활동 대역" |
 | D-068 | 배회 대역의 이동은 서버가 정한 구간(다음 지점·도착 시각·정지 시간)을 구간 시작 때 한 번 복제하고 서버·클라이언트가 같은 보간으로 위치를 계산한다. 구간 중에는 위치 갱신을 보내지 않는다. 클라이언트가 경로까지 생성하는 완전 결정론은 측정에서 대역폭 문제가 확인될 때만 도입한다. 벽 타기 NPC는 같은 표면 안의 짧은 구간과 긴 정지로 같은 방식을 쓴다. | 확정(Phase 13 구현) | `design/MovementIntegration.md` "구간 배회 복제" |
@@ -80,7 +80,7 @@
 | D-070 | 입체 지형 레벨 디자인 규칙: 계단의 충돌은 계단 전체를 덮는 경사로 형상 메시(`Support+Blocker+Static`)가 맡고 보이는 계단 칸은 `Decoration`이다. 문·통로 폭은 200cm 이상이다. 두 규칙 모두 콘텐츠 규칙이며 베이크 오류로 막지 않는다. | 확정 | `design/TerrainContract.md` §6-1 |
 | D-071 | 지하 공간은 Floor·Shell을 나눈 닫힌 메시로 만들되 모양·크기를 재사용 모듈로 제한하지 않는다. 대형 공동, 공동 안 복층 구조물(D-064), 분기, 입구 여러 개를 허용한다. 입구는 지상 NPC가 오가는 긴 경사로와 Nav로 잇지 않는 수직 통로(플레이어는 낙하·마커 그래플 앵커)이며 옥탄트마다 조합을 달리한다. 지하 공간은 옥탄트 경계·꼭짓점 근처에 두지 않고 옥탄트 중심 방향에 두며, 깊이는 베이커의 int16 캡 검사가 막는다. D-035를 대체한다. 복층·분기를 뺀 원래 사유(D-006, SurfaceCache 시절 범위 절단)는 다층 Atlas(D-057)와 접힌 sheet 분할(D-064)로 남아 있지 않다. | 확정(Phase 7c 검증) | `design/TerrainContract.md` §6 |
 | D-072 | 비지각 Layer 해상도는 source마다 정한다. 기본은 25cm(m=4)이고 Support 컴포넌트에 `LNP.Surface.CoarseSupport` 태그가 있으면 지각과 같은 100cm(m=1)로 굽는다. 지각을 연장한 넓고 완만한 공동 바닥용이며, 그 위 구조물은 기본 해상도를 쓴다. codec v2는 Layer마다 분할 수를 저장하므로 형식은 바뀌지 않는다. D-057의 정수배 규칙은 유지한다. | 확정(Phase 7c 단위 1 구현 완료) | `design/SurfaceBaking.md` "해상도 정책" |
-| D-073 | 비행 적을 편성한 Pod는 위쪽 여유(headroom)가 충분한 Pod 후보에만 둔다. 베이커가 Spawn 후보마다 위쪽 exact sweep으로 headroom을 기록하고, 런타임 할당이 비행 Config(`IdleAltitude` 상한 + clearance + 여유)에서 유도한 기준과 비교한다. 지하·지상을 구분하지 않는다. 비행 적이 천장 낮은 공간으로 추격하지 못하는 것은 허용한다. | 확정(Phase 7c 구현) | `design/MovementIntegration.md` "완전 비행 NPC" |
+| D-073 | 비행 적을 편성한 Pod는 위쪽 여유(headroom)가 충분한 Pod 후보에만 둔다. 베이커가 Spawn 후보마다 위쪽 exact sweep으로 headroom을 기록하고, 런타임 할당이 비행 Config(`IdleAltitude` 상한 + clearance + 여유)에서 유도한 기준과 비교한다. 지하·지상을 구분하지 않는다. 비행 적이 천장 낮은 공간으로 추격하지 못하는 것은 허용한다. | 확정(Phase 7c 단위 3 구현 완료) | `design/MovementIntegration.md` "완전 비행 NPC" |
 
 ## 변경 규칙
 

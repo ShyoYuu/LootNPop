@@ -31,6 +31,7 @@ namespace
 		const FQuat4f Rotation = Anchor.LocalTransform.GetRotation();
 		if (!Anchor.SpawnPointId.IsValid() || !IsFinite(Anchor.LocalTransform.GetLocation()) || !IsFinite(Rotation)
 			|| !FMath::IsFinite(Anchor.EdgeClearance) || !FMath::IsFinite(Anchor.CapsuleClearance)
+			|| !FMath::IsFinite(Anchor.Headroom) || Anchor.Headroom < 0.0f || Anchor.Headroom > LNPSpawnData::MaxHeadroom
 			|| Anchor.LocalLayerId == MAX_uint16 || !Rotation.IsNormalized())
 		{
 			OutError = FString::Printf(TEXT("Invalid authored spawn anchor %s."), *Anchor.SpawnPointId.ToString(EGuidFormats::Short));
@@ -45,7 +46,8 @@ namespace
 		if (!IsFinite(Candidate.LocalPosition) || !IsFinite(Candidate.LocalNormal) || Candidate.LocalNormal.IsNearlyZero()
 			|| Candidate.LocalLayerId == MAX_uint16 || (Allowed & ~static_cast<uint8>(ELNPSpawnCandidateFlags::Pod | ELNPSpawnCandidateFlags::Enemy)) != 0
 			|| Allowed == 0 || !FMath::IsFinite(Candidate.SlopeDot) || !FMath::IsFinite(Candidate.EdgeClearance)
-			|| !FMath::IsFinite(Candidate.CapsuleClearance))
+			|| !FMath::IsFinite(Candidate.CapsuleClearance) || !FMath::IsFinite(Candidate.Headroom)
+			|| Candidate.Headroom < 0.0f || Candidate.Headroom > LNPSpawnData::MaxHeadroom)
 		{
 			OutError = FString::Printf(TEXT("Invalid random spawn candidate %u."), Candidate.CandidateIndex);
 			return false;
@@ -144,7 +146,7 @@ bool LNPSpawnData::Encode(const FLNPSpawnData& Data, TArray<uint8>& OutPayload, 
 		FQuat4f Rotation = Anchor.LocalTransform.GetRotation();
 		SerializeVector(Writer, Location);
 		SerializeQuat(Writer, Rotation);
-		Writer << Anchor.LocalLayerId << Reserved << Anchor.EdgeClearance << Anchor.CapsuleClearance;
+		Writer << Anchor.LocalLayerId << Reserved << Anchor.EdgeClearance << Anchor.CapsuleClearance << Anchor.Headroom;
 	}
 	for (FLNPSpawnRandomCandidate& Candidate : Canonical.RandomCandidates)
 	{
@@ -156,7 +158,7 @@ bool LNPSpawnData::Encode(const FLNPSpawnData& Data, TArray<uint8>& OutPayload, 
 		Writer << Candidate.CandidateIndex;
 		SerializeVector(Writer, Candidate.LocalPosition);
 		Writer << NormalX << NormalY << Candidate.LocalLayerId << Allowed << ByteReserved;
-		Writer << Candidate.SlopeDot << Candidate.EdgeClearance << Candidate.CapsuleClearance;
+		Writer << Candidate.SlopeDot << Candidate.EdgeClearance << Candidate.CapsuleClearance << Candidate.Headroom;
 	}
 	if (Writer.IsError())
 	{
@@ -199,7 +201,7 @@ bool LNPSpawnData::Decode(TConstArrayView<uint8> Payload, FLNPSpawnData& OutData
 		SerializeVector(Reader, Location);
 		SerializeQuat(Reader, Rotation);
 		uint16 RecordReserved = 0;
-		Reader << Anchor.LocalLayerId << RecordReserved << Anchor.EdgeClearance << Anchor.CapsuleClearance;
+		Reader << Anchor.LocalLayerId << RecordReserved << Anchor.EdgeClearance << Anchor.CapsuleClearance << Anchor.Headroom;
 		if (RecordReserved != 0)
 		{
 			Reader.SetError();
@@ -216,7 +218,7 @@ bool LNPSpawnData::Decode(TConstArrayView<uint8> Payload, FLNPSpawnData& OutData
 		Reader << Candidate.CandidateIndex;
 		SerializeVector(Reader, Candidate.LocalPosition);
 		Reader << NormalX << NormalY << Candidate.LocalLayerId << Allowed << RecordReserved;
-		Reader << Candidate.SlopeDot << Candidate.EdgeClearance << Candidate.CapsuleClearance;
+		Reader << Candidate.SlopeDot << Candidate.EdgeClearance << Candidate.CapsuleClearance << Candidate.Headroom;
 		Candidate.LocalNormal = LNPSupportAtlas::DecodeNormal(NormalX, NormalY);
 		Candidate.Allowed = static_cast<ELNPSpawnCandidateFlags>(Allowed);
 		if (RecordReserved != 0)
