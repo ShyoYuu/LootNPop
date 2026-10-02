@@ -194,12 +194,25 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	 * 바깥에는 폭발할 표면도 맞을 대상도 없으므로 호출자는 VFX·스플래시 없이 소멸만 시킨다.
 	 */
 	const float EnvelopeRadius = WorldCollision ? WorldCollision->GetWorldEnvelopeRadius() : 0.f;
-	auto HasEscapedWorld = [WorldCollision, EnvelopeRadius](const FVector& Pos, const FLNPWorldHit& WorldHit) -> bool
+	auto HasEscapedWorld = [WorldCollision, EnvelopeRadius, bIsServer](const FVector& Pos, const FLNPWorldHit& WorldHit,
+		const FLNPProjectileFragment& Projectile) -> bool
 	{
 		if (WorldHit.bBlockingHit || !LNPProjectileMotion::IsOutsideWorldEnvelope(EnvelopeRadius, Pos))
 			return false;
 
 		WorldCollision->NoteEnvelopeEscape();
+		// 드문 실패의 시작점·구간을 남긴다. 정상 프레임의 추가 계측은 없다.
+		if (WorldCollision->GetEnvelopeEscapeCount() <= 8)
+		{
+			FLNPWorldHit ReplayHit;
+			const bool bReplayHit = WorldCollision->RaycastWorld(Projectile.SpawnLocation, Pos,
+				FLNPWorldQueryParams(ELNPWorldQueryClass::DebugValidation), ReplayHit);
+			UE_LOG(LogLootNPop, Warning, TEXT("[ProjectileEnvelopeEscape] server=%d envelope=%.0f spawn=%s previous=%s current=%s velocity=%s lifetime=%.3f"),
+				bIsServer, EnvelopeRadius, *Projectile.SpawnLocation.ToString(), *Projectile.PreviousPos.ToString(),
+				*Pos.ToString(), *Projectile.Velocity.ToString(), Projectile.LifetimeRemaining);
+			UE_LOG(LogLootNPop, Warning, TEXT("[ProjectileEnvelopeReplay] hit=%d point=%s normal=%s slot=%d layer=%u"),
+				bReplayHit, *ReplayHit.ImpactPoint.ToString(), *ReplayHit.ImpactNormal.ToString(), ReplayHit.Identity.Slot, ReplayHit.Identity.LocalLayerId);
+		}
 		return true;
 	};
 
@@ -350,7 +363,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					break;  // 이 Projectile은 예측 판정 종료 — 서버 확정 결과가 최종
 				}
 
-				if (!bHit && HasEscapedWorld(CurrentPos, WorldHit))
+				if (!bHit && HasEscapedWorld(CurrentPos, WorldHit, Proj))
 				{
 					Ctx.Defer().AddTag<FLNPProjectileDeadTag>(Ctx.GetEntity(i));
 					continue;
@@ -851,7 +864,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				break;
 			}
 
-			if (!bHit && HasEscapedWorld(CurrentPos, WorldHit))
+			if (!bHit && HasEscapedWorld(CurrentPos, WorldHit, Proj))
 			{
 				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 				continue;

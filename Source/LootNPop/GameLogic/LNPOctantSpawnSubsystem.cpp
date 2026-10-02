@@ -5,6 +5,9 @@
 #include "Config/LNPSettings.h"
 #include "GameMode/LNPGameState.h"
 #include "LootNPop.h"
+#include "SurfaceNavigation/LNPLoadBaseline.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 #include "Kismet/KismetMathLibrary.h"
 #include "Engine/Level.h"
@@ -196,6 +199,15 @@ void ULNPOctantSpawnSubsystem::StartWorldGeneration()
 
 	TArray<FLNPOctantDefinition> EffectiveDefinitions;
 	PoolData->BuildEffectiveDefinitions(EffectiveDefinitions);
+	// 부하 실행에만 회귀 옥탄트를 사용한다. production pool 에셋은 수정하지 않는다.
+	if (LNPLoadBaseline::IsActive() && FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineVolumetric")))
+	{
+		FLNPOctantDefinition Fixture;
+		Fixture.LevelAsset = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Regression.LVI_Octant_Fixture_Regression")));
+		Fixture.SurfaceData = TSoftObjectPtr<ULNPOctantSurfaceData>(FSoftObjectPath(TEXT("/Game/Maps/SurfaceNavigation/Fixtures/DA_OctantSurface_Fixture_Regression.DA_OctantSurface_Fixture_Regression")));
+		Fixture.SeamSignature = TEXT("RegressionSeam");
+		EffectiveDefinitions = {Fixture};
+	}
 	if (PoolData->OctantDefinitions.IsEmpty() && !PoolData->OctantPool.IsEmpty())
 	{
 		UE_LOG(LogLootNPop, Warning,

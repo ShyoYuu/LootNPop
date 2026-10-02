@@ -19,7 +19,7 @@
 - Enemy 허용 여부
 - 동굴/부유섬 인구 예산
 
-Pod와 Enemy에 초기 `SurfaceHandle`을 부여한다(Phase 5). `NavNodeRef`와 StaticNavComponent는 Nav 데이터가 생기는 Phase 7에서 추가한다.
+Pod와 Enemy의 초기 `SurfaceHandle`은 Phase 5에서 부여한다. Phase 7a·7b부터 게시된 Nav snapshot에서 node·component/group을 조회하고, Pod의 node/group과 Enemy 경로·착지 후 재귀속을 유지한다.
 
 ### PCG
 
@@ -142,6 +142,14 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 비율, 동시 투사체 수 고정) 기준 캡처를 만든 뒤 확정한다.
 
 ---
+
+### 입체·지하 공동 비교
+
+`Scripts/Profiling/RunVolumetricBaseline.ps1`은 정적 회귀 fixture의 공동 바닥·복층·두 긴 경사로에 같은 seed의 Nav 후보를 200cm 간격으로 배치한다. `-LNPLoadBaselineVolumetric`은 부하 실행의 옥탄트 선택만 회귀 LVI·SurfaceData로 바꾸며 production pool 에셋은 바꾸지 않는다. 네 추격 목표는 각 목표의 실제 Layer handle을 유지한다. 투사체 500·넉백·낙하·scheduler와 요청/시간 CSV 계측은 기존 harness를 사용한다.
+
+동일 적 수·seed·추격 목표에서 `-Cache 0/1`로 exact-only/cache-first를 비교한다. 패키징에는 `-map=/Game/Maps/TestMap03+/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Regression`와 `-CookDir=<프로젝트>/Content/Maps/SurfaceNavigation/Fixtures`를 함께 지정한다. 문자열 soft path만으로 fixture cook을 보장하지 않는다. 공동 fixture에는 이동 패널이 없어 패널 probe는 명시적으로 SKIP하고, Meadow 실행에서 실제 패널을 검사한다. face/source/SurfaceData probe와 지형 이탈·Layer·게시 순서 검사는 양쪽에서 유지한다.
+
+지각 Meadow의 CPU 한계와 공동 fixture의 배치 상한은 별도로 보고한다. 고정 영역·200cm 간격에서 후보 소진으로 shortfall이 나면 해당 실행은 성능 표본이 아니다. 배치 상한에서도 프레임 Gate를 통과하면 CPU 한계는 하한만 확인된 것이다. 실측 값과 비교 표는 `../history/Phase07c_Log.md`가 소유한다.
 
 ## 마이그레이션 전략
 

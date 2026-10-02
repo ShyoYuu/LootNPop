@@ -3,6 +3,9 @@
 #include "HitDetection/LNPFireGeometry.h"
 #include "Character/LNPCharacterBase.h"
 #include "Item/LNPWeaponData.h"
+#include "HitDetection/LNPProjectileMotion.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "Engine/World.h"
 
 #include "Components/SkeletalMeshComponent.h"
 
@@ -15,7 +18,9 @@ FVector LNPFireGeometry::ResolveMuzzleLocation(const ALNPCharacterBase& Characte
 		? WeaponMesh->GetSocketLocation(MuzzleSocket)
 		: Character.GetActorLocation();
 
-	return BasePos + Character.GetActorTransform().TransformVector(WeaponDef.MuzzleOffset);
+	const FVector Muzzle = BasePos + Character.GetActorTransform().TransformVector(WeaponDef.MuzzleOffset);
+	return LNPProjectileMotion::ClipMuzzleToWorld(Character.GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>(),
+		Character.GetActorLocation(), Muzzle);
 }
 
 FVector LNPFireGeometry::ResolveAimDirection(const FVector& SpawnPos, const FVector& ViewDirection, const FVector* AimTargetPtr)

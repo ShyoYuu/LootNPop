@@ -16,6 +16,8 @@
 #include "Engine/Level.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "GameLogic/LNPOctantSpawnSubsystem.h"
+#include "HitDetection/LNPProjectileMotion.h"
 #include "Misc/ScopeExit.h"
 #include "StaticMeshCompiler.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
@@ -149,6 +151,33 @@ bool FLNPVolumetricFixtureTest::RunTest(const FString& Parameters)
 		const auto& Rotation = Snapshot.Slots[Slot].SlotRotation;
 		const auto& Atlas = *Snapshot.Slots[Slot].Support;
 		auto Point = [&](const FVector& P) { return Rotation.RotateVector(FVector3d(Transform().TransformPosition(P))); };
+		// 공동 2P에서 지형을 빠져나간 Ghost의 실제 구간을 모든 slot에서 회귀 검사한다.
+		const FQuat ReproRotation = ULNPOctantSpawnSubsystem::OctantRotations[4].Quaternion();
+		const FVector EscapeStart = Rotation.RotateVector(ReproRotation.UnrotateVector(FVector(-17858.007, 19901.777, -19939.118)));
+		const FVector EscapeEnd = Rotation.RotateVector(ReproRotation.UnrotateVector(FVector(-17000.360, 15953.050, -25550.740)));
+		FHitResult EscapeHit;
+		TestTrue(FString::Printf(TEXT("Slot %d cavern projectile escape reproduction hits exact terrain"), Slot),
+			World->LineTraceSingleByChannel(EscapeHit, EscapeStart, EscapeEnd, LNPCollisionChannels::WorldExact, Params));
+		const FVector WallStart = Rotation.RotateVector(ReproRotation.UnrotateVector(FVector(-20221.028, 19244.136, -18302.941)));
+		const FVector WallEnd = Rotation.RotateVector(ReproRotation.UnrotateVector(FVector(-11846.657, 24083.636, -21816.514)));
+		FCollisionQueryParams SimpleParams = Params;
+		SimpleParams.bTraceComplex = false;
+		TestTrue(FString::Printf(TEXT("Slot %d cavern wall projectile reproduction hits runtime exact terrain"), Slot),
+			World->LineTraceSingleByChannel(EscapeHit, WallStart, WallEnd, LNPCollisionChannels::WorldExact, SimpleParams));
+		// 실제 반복 이탈: 총구가 공동 벽 밖에서 시작하면 비행 선분만으로 벽을 잡을 수 없다.
+		const FVector RawMuzzle = Rotation.RotateVector(ReproRotation.UnrotateVector(FVector(-17698.360, 20840.067, -19097.790)));
+		const FVector MuzzleEnd = Rotation.RotateVector(ReproRotation.UnrotateVector(FVector(-14300.452, 24074.104, -20305.148)));
+		const FVector Body = RawMuzzle - Rotation.RotateVector(FVector3d(Transform().TransformVector(FVector(0.0, 200.0, 0.0))));
+		TestTrue(TEXT("Body to escaped muzzle crosses cavern wall"),
+			World->LineTraceSingleByChannel(EscapeHit, Body, RawMuzzle, LNPCollisionChannels::WorldExact, SimpleParams));
+		const FVector ProtectedMuzzle = LNPProjectileMotion::ClipMuzzleToWorld(World->GetSubsystem<ULNPMassWorldCollisionSubsystem>(), Body, RawMuzzle);
+		TestFalse(TEXT("Unprotected muzzle projectile misses terrain"),
+			World->LineTraceSingleByChannel(EscapeHit, RawMuzzle, MuzzleEnd, LNPCollisionChannels::WorldExact, SimpleParams));
+		const FVector ClearMuzzle = Body - Rotation.RotateVector(FVector3d(Transform().TransformVector(FVector(0.0, 50.0, 0.0))));
+		TestEqual(TEXT("Unblocked muzzle stays unchanged"),
+			LNPProjectileMotion::ClipMuzzleToWorld(World->GetSubsystem<ULNPMassWorldCollisionSubsystem>(), Body, ClearMuzzle), ClearMuzzle);
+		TestTrue(FString::Printf(TEXT("Slot %d protected muzzle projectile hits cavern wall"), Slot),
+			World->LineTraceSingleByChannel(EscapeHit, ProtectedMuzzle, MuzzleEnd, LNPCollisionChannels::WorldExact, SimpleParams));
 		// 실제 저장된 앵커의 150cm 전방 정지 지점에서 입구 외벽 밖까지 통과할 수 있어야 한다.
 		const FVector3d LowerAnchor = Rotation.RotateVector(FVector3d(ShaftAnchors[0]));
 		const FVector3d UpperAnchor = Rotation.RotateVector(FVector3d(ShaftAnchors[1]));
@@ -271,7 +300,11 @@ bool FLNPVolumetricFixtureTest::RunTest(const FString& Parameters)
 			FLNPNavSearchScratch Scratch;
 			FLNPNavSearch Search;
 			LNPNavPathfinding::BeginSearch(Snapshot.Nav, Nearest(A), Nearest(B), {}, Scratch, Search);
+			const double StartSeconds = FPlatformTime::Seconds();
 			while (Search.Status == ELNPNavSearchStatus::Running) { LNPNavPathfinding::StepSearch(Snapshot.Nav, Scratch, Search, 4000); }
+			AddInfo(FString::Printf(TEXT("Volumetric path slot=%d from=%s to=%s status=%d expansions=%d elapsedUs=%.1f cost=%.1f"),
+				Slot, *A.ToString(), *B.ToString(), static_cast<int32>(Search.Status), Search.Expansions,
+				(FPlatformTime::Seconds() - StartSeconds) * 1e6, Search.PathCost));
 			TestTrue(FString::Printf(TEXT("Slot %d expected Walk reachability=%d"), Slot, bReachable), bReachable
 				? Search.Status == ELNPNavSearchStatus::Found : Search.Status == ELNPNavSearchStatus::Unreachable);
 			if (bReachable && EntranceSign != 0.0 && Search.Status == ELNPNavSearchStatus::Found)

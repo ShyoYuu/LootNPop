@@ -116,7 +116,7 @@ FinishHit (공통 후처리 람다):
 
 ### 3.3 발사 (ULNPAbility_RangedAttack)
 
-- 스폰 위치: 무기 메시 `Muzzle` 소켓 (+ `MuzzleOffset`). 소켓이 없으면 ActorLocation 폴백.
+- 스폰 위치: 무기 메시 `Muzzle` 소켓 (+ `MuzzleOffset`). 소켓이 없으면 ActorLocation 폴백. 몸 중심→총구의 `LNPWorldExact` 첫 hit가 있으면 1cm 앞에 둔다(`LNPProjectileMotion::ClipMuzzleToWorld`). 벽 밖에서 탄이 생성되는 것을 막으며, Actor/순수 엔티티 서버·Ghost·궤도 가이드가 같은 보정을 쓴다. 막힘 없는 구간의 총구는 그대로 유지한다.
 - 발사 방향: **총구 → 조준점**으로 수렴시킨다. 조준점과 시선 방향은 소유 클라이언트가 **발사 순간** 스냅샷해
   발동 요청에 실은 값(`FLNPFireAimTargetData`)이고, **예측 클라이언트와 서버가 그 값 하나만 읽는다**
   (InputCmd가 아닌 이유 → [TechDesign_Networking.md](TechDesign_Networking.md) §4.8).

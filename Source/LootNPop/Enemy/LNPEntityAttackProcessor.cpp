@@ -6,6 +6,7 @@
 #include "Enemy/LNPEntityAttackShared.h"
 #include "Enemy/LNPEnemyLineOfSight.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "HitDetection/LNPProjectileMotion.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
@@ -180,7 +181,8 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					if (AttackConfig.bRequireLineOfSight && bIsRanged)
 					{
 						const LNPEntityAttack::FBasis GateBasis = LNPEntityAttack::MakeBasis(Transforms[i].GetTransform());
-						const FVector Muzzle = LNPEntityAttack::ComputeMuzzle(GateBasis, AttackConfig);
+						const FVector Muzzle = LNPProjectileMotion::ClipMuzzleToWorld(&WorldCollision, GateBasis.Center,
+							LNPEntityAttack::ComputeMuzzle(GateBasis, AttackConfig));
 						const FVector AimPoint = LNPEntityAttack::ComputeAimPoint(GateBasis, TargetingFrags[i].TargetLocation, AttackConfig);
 						if (!LNPEnemyLineOfSight::HasClearShot(WorldCollision, Muzzle, AimPoint))
 						{
@@ -221,7 +223,8 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 				// 원거리는 선딜이 끝나는 순간 1회 발사한다. ActiveTime은 근접 전용이다.
 				if (bIsRanged && WeaponDef)
 				{
-					const FVector Muzzle = LNPEntityAttack::ComputeMuzzle(Basis, AttackConfig);
+					const FVector Muzzle = LNPProjectileMotion::ClipMuzzleToWorld(&WorldCollision, Basis.Center,
+						LNPEntityAttack::ComputeMuzzle(Basis, AttackConfig));
 
 					// 조준선은 Actor 경로의 GetBaseAimRotation()과 같은 규약이다 —
 					// 수평은 몸이 향한 접평면 전방, 상하만 타겟에서 뽑아 가용 각도로 클램프한다.
@@ -436,6 +439,7 @@ void ULNPEntityGhostProjectileProcessor::ConfigureQueries(const TSharedRef<FMass
 	GhostQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	GhostQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	GhostQuery.RegisterWithProcessor(*this);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPEntityGhostProjectileProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -449,7 +453,8 @@ void ULNPEntityGhostProjectileProcessor::Execute(FMassEntityManager& EntityManag
 	if (GhostSub == nullptr)
 		return;
 
-	GhostQuery.ForEachEntityChunk(Context, [GhostSub](FMassExecutionContext& Ctx)
+	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
+	GhostQuery.ForEachEntityChunk(Context, [GhostSub, &WorldCollision](FMassExecutionContext& Ctx)
 	{
 		const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
 		if (Config == nullptr
@@ -496,7 +501,8 @@ void ULNPEntityGhostProjectileProcessor::Execute(FMassEntityManager& EntityManag
 				continue;
 
 			const LNPEntityAttack::FBasis Basis = LNPEntityAttack::MakeBasis(Transforms[i].GetTransform());
-			const FVector Muzzle = LNPEntityAttack::ComputeMuzzle(Basis, AttackConfig);
+			const FVector Muzzle = LNPProjectileMotion::ClipMuzzleToWorld(&WorldCollision, Basis.Center,
+				LNPEntityAttack::ComputeMuzzle(Basis, AttackConfig));
 
 			// 서버가 발사 순간에 확정해 실어 보낸 각도를 그대로 쓴다 — 양쪽이 같은 양자화 값을 본다.
 			const FVector FireDir = LNPEntityAttack::MakeTangentDirection(

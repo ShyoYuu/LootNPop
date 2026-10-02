@@ -109,3 +109,49 @@
 
 - 사용자가 수정된 두 그래플 앵커를 이용해 수직 통로에서 지상 탈출에 성공했음을 확인했다. 초기 NPC 묻힘 소실·상층 인식/공격 유지·나선/계단 경로 추격·공동 드론 교전/낮은 천장 피신·수직 통로 낙하/그래플 복귀와 최종 전체 자동화 85/85 증거를 합쳐 단위 4를 완료했다. 양 입구 경로와 수직 통로 NoPath는 자동화 증거이며, 양 입구 각각의 수동 추격을 추가 확인한 것으로 확대하지 않는다.
 - Current·Roadmap·Phase 실행 계획을 단위 4 완료로 갱신했다. 단위 5 cooked·멀티플레이·성능 Gate는 아직 미착수이며 사용자 진행 확인을 요청한다. Phase 7c 전체 완료로 처리하지 않는다. 현재 수직 통로 PIE는 유지한다.
+
+## 2026-10-02~03 — 단위 5 cooked·멀티플레이·성능 검증
+
+- 사용자가 PIE 정지·저장·에디터 종료를 확인했다. 기존 Meadow harness로는 공동 측정이 불가능해 단위 분할을 제안했으나, 사용자는 **단위 5 전체 완료 뒤 진행 확인**을 지시했다. 따라서 도구 확장·콘텐츠 결함 수정·패키지 Gate를 같은 단위에서 수행했다.
+- `-LNPLoadBaselineVolumetric`과 `Scripts/Profiling/RunVolumetricBaseline.ps1`을 추가했다. 메모리상의 옥탄트 정의만 회귀 fixture로 바꾸고, slot 4의 공동 바닥·복층·두 긴 경사로 Nav 후보를 seed 1·200cm 간격으로 배치한다. 네 목표의 실제 Layer handle을 유지한다. production pool은 수정하지 않았다. 정적 fixture에는 이동 패널이 없어 패널 probe는 SKIP하고 Meadow에서 실제 패널을 검증한다. 초기 공동 로그의 `panels=0 failures=0 -> FAIL`은 검사 미대상을 실패로 표기한 도구 문제이며 PASS로 바꾸어 해석하지 않는다.
+- 첫 공동 `-game` 2P에서 Ghost 지형 이탈이 발생했다. 실제 선분을 8-slot exact 회귀로 옮겨 모두 실패하는 것을 확인했고, 구면 바닥과 평면 입구 경사로의 몇 cm 높이 틈을 찾았다. EntranceShell에 바닥 경계 100cm 격자와 맞는 양면 Blocker를 추가해 총 72 triangle로 닫았다. Support·Nav 의미는 유지한다. `FixVolumetricEntranceShell` 뒤 회귀 SurfaceData를 재베이크하고 전체 85/85를 통과했다(`Phase07c_Unit5_EntranceFix_AllTests.log`). 해당 이탈 선분은 8-slot에서 모두 exact hit가 난다.
+- 틈 수정 뒤 초기 패키지 `Volumetric_N100_cache1`에서 호스트 이탈 1회가 추가 관찰됐다. 두 번째 실제 선분의 runtime 단순 query는 8-slot에서 이미 hit를 반환해 원인을 확정하지 못했다(`Phase07c_Unit5_WallRepro_Test.log`). 첫 8회 실패에서 시작·이전·현재 좌표와 전체 선분 재검사 결과를 남기는 진단을 유지한다. 정상 프레임에는 추가 query가 없다. 이후 `EnvelopeReplay`와 100·300·425·426마리 반복에서 이탈은 0이었다. 재현 소실을 두 번째 원인 해결로 확대하지 않는다.
+- 문자열 soft path는 fixture cook을 보장하지 않았다. 기본 cook과 `CookDir`만 지정한 패키지의 실패 startup은 `Volumetric_Uncooked_*`·`Volumetric_CookDirOnly_*`로 보존하고 성능 표본에서 제외했다. fixture 맵을 `-map`에 명시하고 메시·SurfaceData 폴더를 `-CookDir`에 함께 넣어 cook했다.
+- 패널 표기 수정 후 에디터 전체 빌드 성공(10.22초, 이후 총구 보정 빌드로 재검증), 전체 SurfaceNavigation 자동화 **85/85·실패/오류 0**(`Phase07c_Unit5_FinalAllTests.log`). 자동화가 재저장하는 Mesh Terrain 두 개와 minimal SurfaceData는 최초 백업으로 복구하고 SHA256 세 개 일치를 확인했다. 패널 검사 조건의 내부 함수 이름 오류는 최종 빌드 전에 수정했다.
+- 회귀 베이크 결과: DataVersion 6/schema 8, 17 Layers, Nav 73,302 cells·17 local components·66 portals, 후보 40,016/28,643/3,337, seam 1,107, Spawn authored 5/random 10,727. Support/Nav/Traversal/Spawn payload는 2,348,972/592,896/15,863/429,428 B다. collect/extract/raster/layers/encode는 0.07/0.04/0.10/0.01/0.01초, 명령 전체 약 5.63초로 portal·clearance 등 나머지 단계도 포함한다(`Phase07c_Unit5_EntranceFix_AllTests.log`).
+- 실제 8-slot 게시: Layer 136·component/group 41·source binding 88·seam 4,428, 막힌 seam node/edge 0/0. serialized 3.23MiB, decoded resident 8.82MiB, Nav resident 6.03MiB, publish 약 40ms/validateBuild 약 32ms. 지형 source 176개와 unclassified exact blocker 0을 확인했다.
+- 공동 m=1 바닥은 N=735다. exact 반지름 오차 P99 0.074cm/max 0.075cm, 법선 P99 0.169°/max 0.202°, NeedsExact 16.86%, ghost·missedFloor 0으로 기존 기준(반지름 P99≤2cm/max≤10cm, 법선 P99≤5°)을 통과했다. 전역 multiplier 2/4 반복에서도 source 태그로 같은 N=735를 사용한다(`Phase07c_Unit5_FinalAllTests.log`).
+- 최종 순수 A* slot 0 확장/시간: 양 긴 경사로 각각 566·183.8/178.3µs, 바닥→상층 2,355·852.3µs, 나선 1,076·401.2µs, 낮은 분기 199·75.0µs. 수직 통로는 확장 0·Unreachable이다. 이는 에디터 순수 query 표본이며 패키지 scheduler Gate와 구분한다.
+- 패널 표기 수정 전 동일 시뮬레이션 패키지의 Meadow 700마리 자연/합성 두 반복은 frame P95 14.35/13.92/13.42/13.56ms, path tick P95 최대 0.681ms로 모두 PASS였다. 요청은 8,289/9,412/5,861/9,497개, 완료 지연 P95 66.47/126.58/10.01/119.44ms다. 종료 시 pending 0, Cancelled는 8/36/0/17개로 분리했다.
+- 공동 100/300마리 exact→cache frame P95는 5.54→5.20/10.44→10.11ms다. 425마리는 12.88→12.42ms다. 426마리 두 반복은 exact 12.29/13.65ms, cache 12.74/12.25ms, cache hit 97.35/97.63%이며 모두 frame/path PASS였다. 요청 CSV의 누락·중복·시간 역전 0, pending 0이다. 표본 500마리는 후보 3,325개를 모두 소진해 426/500만 배치한 뒤 중단했다. **426은 고정 영역·seed·200cm 간격의 배치 상한이며, 두 모드의 CPU 한계는 ≥426만 확인했다.** Meadow 700/800마리와 직접 비교하거나 cache로 수용량이 늘었다고 결론내리지 않는다.
+- 기존 Mover 초기화/경로 예측·out-of-band 경고와 Mass의 CharacterMovementComponent 추출 오류가 스모크에 남는다. assert·ensure·crash·unknown identity·Layer jump·지형 이탈과 구분하며, 게임 로그 전체 오류 0으로 보고하지 않는다.
+
+### 총구 이탈 재현과 최종 보정(2026-10-03)
+
+- 패널 표기 수정본의 700마리 최종 첫 반복은 frame P95 19.47ms로 실패했다. 실행 중 다른 게임 프로세스를 확인했고 사용자가 종료를 확인했다. 해당 게임과 겹치거나 중간에 조건이 바뀐 `Unit5BaselineFinal*` 네 실행은 별도 증거로 보존한다. 원인이 전부 외부 부하였다고 단정하지 않고, 종료 후 조건의 자연/합성 두 반복을 다시 판정한다.
+- 종료 후 공동 426의 두 번째 exact/cache에서 호스트 이탈 **각 7회**가 재현됐다. 모든 이탈이 같은 발사점 `(-17698.360,20840.067,-19097.790)`에서 시작하고, 전체 선분 재검사도 miss였다. 공동 좌표로 보면 벽 밖 총구였다. 몸 중심 후보→총구는 벽 hit, 벽 밖 총구→비행 끝은 miss인 입력을 만들어 8-slot에서 발사 원점 보호 실패를 모두 재현했다(`Phase07c_Unit5_MuzzleRepro_Red.log`). 자동화 실패가 있어도 프로세스 exit 0인 경우가 있으므로 로그의 실패/오류 수까지 검사한다.
+- `LNPProjectileMotion::ClipMuzzleToWorld`은 몸 중심→총구의 첫 exact hit 1cm 앞에 발사점을 둔다. 구간이 막히지 않으면 원래 총구를 유지한다. Actor의 `ResolveMuzzleLocation`(실탄/멀티캐스트 Ghost/ADS 가이드)과 순수 엔티티 서버·클라이언트 Ghost/사격 LoS가 공통 함수를 사용한다. 질의는 `ProjectileMandatory`로 계측한다. 새 함수의 Editor 테스트 호출을 위해 모듈 export를 추가했으며, Ghost processor의 ReadOnly collision 접근을 선언했다.
+- 수정 전 8-slot 실패→수정 후 막힌/열린 총구 회귀를 포함한 전체 **85/85·실패/오류 0**, 전체 에디터 빌드 30.03초 성공, 테스트 에셋 세 개 SHA256 복구 일치. Win64 Development BuildCookRun은 127.33초·exit 0으로 완료했다(`Phase07c_Unit5_FinalBuild.log`, `Phase07c_Unit5_FinalAllTests.log`, `Phase07c_Unit5_FinalPackage.log`). 이전 패키지의 결과·해시는 `Saved/Profiling/Phase07c/PreMuzzleFix`에 보존했다. 최종 패키지 해시 원본은 `Unit5_PackageArtifact_Final.json`이다.
+
+
+### 최종 Gate 완료(2026-10-03)
+
+같은 총구 보정 패키지·seed 1·리슨 2P·trace 없음·`-nullrhi -corelimit=4`·투사체 500 조건의 판정 표다. 다른 게임·빌드와 겹치지 않았다. 모든 호스트/게스트 exit 0이다.
+
+| 시나리오/반복 | frame P95 ms | path tick P95 ms | 요청 수 | 완료 지연 P95 ms | Cancelled / pending |
+|:---|---:|---:|---:|---:|---:|
+| Meadow 700 자연 1 | 13.85 | 0.713 | 7,414 | 36.76 | 6 / 0 |
+| Meadow 700 합성 1 | 13.16 | 0.409 | 9,494 | 121.71 | 24 / 0 |
+| Meadow 700 자연 2 | 14.03 | 0.413 | 4,731 | 10.58 | 0 / 0 |
+| Meadow 700 합성 2 | 13.91 | 0.416 | 9,313 | 120.02 | 23 / 0 |
+| 공동 426 exact 1 | 13.02 | 0.029 | 1,621 | 8.29 | 0 / 0 |
+| 공동 426 cache 1 | 12.44 | 0.030 | 1,548 | 28.45 | 1 / 0 |
+| 공동 426 exact 2 | 12.60 | 0.029 | 1,610 | 30.93 | 0 / 0 |
+| 공동 426 cache 2 | 12.08 | 0.028 | 1,495 | 19.36 | 0 / 0 |
+
+- Meadow 700 자연/합성 각각 두 번은 **frame P95≤16.67ms·path tick P95≤1.5ms 모두 PASS**다. 로그는 `Saved/Profiling/Phase07c/N700_*_Unit5BaselineClean{1,2}_{Host,Guest}.log`이며 요청·시간 CSV도 같은 접두사다. 요청·시간 행 수 일치, owner/serial 중복·누락·시간 역전 0, 종료 pending 0을 확인했다. Cancelled는 실제 취소 상태로 별도 집계했다.
+- 공동 426의 동일 시나리오 exact/cache 두 반복도 PASS다. grounded cache hit 97.63/97.50%, exact CPU P95 **4.134→2.134 / 4.253→2.258ms**, lock P95 **0.092→0.066 / 0.089→0.064ms**, query/frame P50 **1,326→938 / 1,325→937**이다(lock probe on). scheduler 소비자 P95는 약 1.27~1.29ms, path cache hit는 92.24~95.32%다. 실제 프레임 경계의 수요가 달라 완료 지연을 단순 속도 개선으로 해석하지 않는다. **수용량은 현재 seed/탐욕 배치의 상한 426, CPU 한계는 양 모드 ≥426**으로 기록한다.
+- 수정 전 두 번째 exact/cache의 각 7회 이탈은 수정 후 두 반복 **모든 host/guest 0**이다. 같은 패키지 Meadow 반복·최종 공동 Editor 2P·패키지 1P도 Unknown hit·Envelope escape·Layer jump·assert·ensure·crash 0이다. Meadow의 MassPrePhysics 게시 순서 위반은 0이며 공동은 이동 패널 없음과 게시 후 스폰 순서를 확인했다. 초기 단발 이탈 선분 모두의 원인을 같은 총구 문제로 확정한 것은 아니다.
+- 최종 `Volumetric_EditorGame2P_Verified` host/guest는 동일 Layer 136·component/group 41·binding 88·seam 4,428을 게시했다. face/source/SurfaceData probe 3개씩 PASS, panel SKIP, 요청 382건의 CSV 무결성·pending 0·exit 0이다. Editor frame P95 24.40ms는 기능 스모크이며 패키지 성능 Gate가 아니다. 패키지 1P `Volumetric_Package1P_Verified.log`는 같은 snapshot·probe PASS, frame P95 4.13ms·frame/path PASS·exit 0이다. 패키지 load 39.64ms/validateBuild 31.90ms, serialized/decoded/Nav 3.23/8.82/6.03MiB다.
+- 최종 무결성 원본: `Unit5_RunSummary.json`, `Unit5_FinalGateChecks.json`, `Unit5_PackageArtifact_Final.json`. 실행 후 exe/pak/회귀 에셋 해시와 테스트 백업 해시 세 개가 일치한다. 초기 실패·외부 부하 표본은 완료 표본에서 제외하되 삭제하지 않았다.
+- 전체 빌드·85/85 자동화·Development cook/stage/pak/archive·1P/2P·700 두 반복·공동 비교와 문서 인계를 충족해 **단위 5와 Phase 7c를 완료**했다. 사용자 지시대로 여기서 다음 구현 단위 진행 여부를 확인한다. Phase 8·13에는 아직 착수하지 않는다.

@@ -59,6 +59,32 @@ namespace LNPVolumetricFixture
 				FPlane(Bottom, N), FPlane(Bottom + FVector(0.0, 0.0, PassageHeight), -N)};
 		}
 
+		FLNPFixtureMesh BuildEntranceShell()
+		{
+			FLNPFixtureMesh Mesh;
+			for (double Y : {-DoorY, DoorY})
+			{
+				const FVector A = RampPoint(0.0, Y - 300.0), B = RampPoint(RampLength, Y - 300.0);
+				const FVector C = RampPoint(RampLength, Y + 300.0), D = RampPoint(0.0, Y + 300.0);
+				Mesh.AddQuad(A + FVector(0.0, 0.0, PassageHeight), B + FVector(0.0, 0.0, PassageHeight),
+					C + FVector(0.0, 0.0, PassageHeight), D + FVector(0.0, 0.0, PassageHeight), -FVector::UpVector, true);
+				for (double Side : {-1.0, 1.0})
+				{
+					const FVector E = RampPoint(0.0, Y + Side * 300.0), F = RampPoint(RampLength, Y + Side * 300.0);
+					Mesh.AddQuad(E - FVector(0.0, 0.0, 30.0), F - FVector(0.0, 0.0, 30.0),
+						F + FVector(0.0, 0.0, PassageHeight), E + FVector(0.0, 0.0, PassageHeight), FVector::YAxisVector, true);
+				}
+				// 구면 바닥의 100cm 경계 격자와 평평한 경사로 사이의 높이 차를 정확히 닫는다.
+				for (int32 Segment = 0; Segment < 6; ++Segment)
+				{
+					const double Y0 = Y - 300.0 + Segment * 100.0, Y1 = Y0 + 100.0;
+					Mesh.AddQuad(FloorPoint(RoomHalf, Y0), FloorPoint(RoomHalf, Y1),
+						RampPoint(0.0, Y1), RampPoint(0.0, Y0), FVector::XAxisVector, true);
+				}
+			}
+			return Mesh;
+		}
+
 		void Cut(FLNPFixtureMesh& Mesh, TConstArrayView<FPlane> LocalPlanes, const FTransform& Placement)
 		{
 			TArray<FPlane> WorldPlanes;
@@ -86,6 +112,7 @@ namespace LNPVolumetricFixture
 			if (!CrustActor) { UE_LOG(LogLNPVolumetricFixture, Error, TEXT("[VolumetricFixture] Crust actor is missing")); return; }
 
 			FLNPFixtureMesh Ground, Shell, Entrances, EntranceShell, Structure, ShaftFloor, ShaftShell;
+			EntranceShell = BuildEntranceShell();
 			Floor(Ground, -RoomHalf, RoomHalf, -RoomHalf, RoomHalf);
 			Floor(Ground, -600.0, 600.0, -3600.0, -RoomHalf);
 			Roof(Shell, -RoomHalf, RoomHalf, -RoomHalf, RoomHalf, RoomHeight);
@@ -103,14 +130,6 @@ namespace LNPVolumetricFixture
 				const FVector A = RampPoint(0.0, Y - 300.0), B = RampPoint(RampLength, Y - 300.0);
 				const FVector C = RampPoint(RampLength, Y + 300.0), D = RampPoint(0.0, Y + 300.0);
 				Entrances.AddQuad(A, B, C, D, FVector::UpVector, false);
-				EntranceShell.AddQuad(A + FVector(0.0, 0.0, PassageHeight), B + FVector(0.0, 0.0, PassageHeight),
-					C + FVector(0.0, 0.0, PassageHeight), D + FVector(0.0, 0.0, PassageHeight), -FVector::UpVector, true);
-				for (double Side : {-1.0, 1.0})
-				{
-					const FVector E = RampPoint(0.0, Y + Side * 300.0), F = RampPoint(RampLength, Y + Side * 300.0);
-					EntranceShell.AddQuad(E - FVector(0.0, 0.0, 30.0), F - FVector(0.0, 0.0, 30.0),
-						F + FVector(0.0, 0.0, PassageHeight), E + FVector(0.0, 0.0, PassageHeight), FVector::YAxisVector, true);
-				}
 			}
 			// 낮은 분기 통로는 공동 바닥과 같은 source이며 천장만 낮아진다.
 			Wall(Shell, {-RoomHalf, -RoomHalf, -30.0}, {-600.0, -RoomHalf, -30.0}, RoomHeight);
@@ -251,6 +270,16 @@ namespace LNPVolumetricFixture
 			UE_LOG(LogLNPVolumetricFixture, Display, TEXT("[VolumetricFixture] %s | floorRadius=%.0f height=%.0f rampLength=%.0f rise=%.2f meshActorsAdded=67 markersAdded=2 spawnAnchorsAdded=2"),
 				bSaved ? TEXT("saved") : TEXT("FAILED"), FloorRadius, RoomHeight, RampLength, RampRise());
 		}
+
+		FAutoConsoleCommand FixEntranceShell(TEXT("LNP.SurfaceNav.FixVolumetricEntranceShell"),
+			TEXT("Rebuild only the volumetric entrance shell, closing its curved floor seam. Rebake the regression SurfaceData afterwards."),
+			FConsoleCommandDelegate::CreateLambda([]()
+			{
+				const FLNPFixtureMesh Mesh = BuildEntranceShell();
+				UStaticMesh* Asset = LNPFixtureMesh::WriteStaticMesh(LNPRegressionFixture::FixtureFolder,
+					TEXT("SM_FixtureVolumetric_EntranceShell"), Mesh);
+				UE_LOG(LogLNPVolumetricFixture, Display, TEXT("[VolumetricEntranceShell] saved=%d triangles=%d"), Asset != nullptr, Mesh.Triangles.Num());
+			}));
 
 		FAutoConsoleCommand Command(TEXT("LNP.SurfaceNav.ExtendRegressionFixture"),
 			TEXT("Add Phase 7c volumetric cases to the existing regression LVI; preserves base actors and anchors. Back up the LVI and crust mesh first. Refuses duplicate extension."),

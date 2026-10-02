@@ -1,6 +1,6 @@
 # Phase 7c — 입체 지형 베이크 대응
 
-> 상태: 진행 중 — 단위 0·1·2·3·4 완료, 단위 5 진행 확인 대기
+> 상태: 완료 — 단위 0~5 및 최종 Gate 통과(2026-10-03)
 > 착수일: 2026-10-02
 > 선행 조건: Phase 7a·7b 완료(700마리 반복 성능 Gate 포함)
 
@@ -66,13 +66,15 @@
 
 ### 단위 5 — cooked·멀티플레이·성능 Gate
 
-- [ ] 전체 빌드·전체 SurfaceNavigation 자동화·Development BuildCookRun을 통과한다. 자동화가 재저장하는 테스트 에셋 세 개는 실행 전 백업으로 복구하고 해시를 확인한다.
-- [ ] 패키지 1P와 `-game` 리슨 2P host/guest에서 같은 버전·Support/Nav snapshot·hit identity를 확인하고 probe·assert·ensure·crash·Layer jump·Unknown hit·게시 순서 위반을 검사한다.
-- [ ] 긴 경사로·복층 추격의 확장 수·scheduler tick·완료 지연과 portal 수·베이크 시간·payload·decoded resident를 기록한다. 공동 m=1의 exact 오차는 기존 지각 합격 기준과 비교한다.
-- [ ] 7b와 같은 trace 없는 Development package·`-nullrhi -corelimit=4`·투사체 500 조건에서 자연/합성 700마리 추격을 각각 두 번 측정한다. 프레임 P95 ≤16.67ms·경로 tick P95 ≤1.5ms를 유지하고 실패하면 7c를 완료하지 않는다.
-- [ ] 입체/지하 시나리오의 cache 적중률·exact CPU·락 대기·최대 수용량을 재측정한다. 기존 Meadow와 콘텐츠가 다르면 결과를 구분하고 동일 시나리오 exact-only/cache-first를 비교한다.
-- [ ] 완료 증거를 로그에 기록하고 Current·Roadmap·기준 설계의 예정 표기를 실제 구현 상태로 갱신한다.
+- [x] 전체 빌드·전체 SurfaceNavigation 자동화·Development BuildCookRun을 통과한다. 자동화가 재저장하는 테스트 에셋 세 개는 실행 전 백업으로 복구하고 해시를 확인한다.
+- [x] 패키지 1P와 `-game` 리슨 2P host/guest에서 같은 버전·Support/Nav snapshot·hit identity를 확인하고 probe·assert·ensure·crash·Layer jump·Unknown hit·게시 순서 위반을 검사한다.
+- [x] 긴 경사로·복층 추격의 확장 수·scheduler tick·완료 지연과 portal 수·베이크 시간·payload·decoded resident를 기록한다. 공동 m=1의 exact 오차는 기존 지각 합격 기준과 비교한다.
+- [x] 7b와 같은 trace 없는 Development package·`-nullrhi -corelimit=4`·투사체 500 조건에서 자연/합성 700마리 추격을 각각 두 번 측정한다. 프레임 P95 ≤16.67ms·경로 tick P95 ≤1.5ms를 유지하고 실패하면 7c를 완료하지 않는다.
+- [x] 입체/지하 시나리오의 cache 적중률·exact CPU·락 대기·최대 수용량을 재측정한다. 기존 Meadow와 콘텐츠가 다르면 결과를 구분하고 동일 시나리오 exact-only/cache-first를 비교한다.
+- [x] 완료 증거를 로그에 기록하고 Current·Roadmap·기준 설계의 예정 표기를 실제 구현 상태로 갱신한다.
 
-## 4. 다음 단위의 착수 조건
+## 4. 완료와 다음 단계
 
-단위 4는 2026-10-02에 입체·지하 공동 회귀 콘텐츠·전체 빌드·재베이크·전체 자동화 85/85를 통과했다. Editor/MCP 관찰과 사용자 PIE에서 초기 NPC 묻힘 소실·상층 인식/공격 유지·계단 및 나선 경로 추격을 확인했다. 공동 드론 인식·추격·공격과 낮은 천장 공간 피신도 확인했다. 상부 앵커를 외벽 위로 수정한 뒤 전체 자동화 85/85와 사용자 수직 통로 그래플 지상 복귀를 확인해 단위 4를 완료했다. 단위 5 진행 여부를 사용자에게 확인하며 승인 전에는 착수하지 않는다. 상세 증거는 `../history/Phase07c_Log.md`를 따른다.
+2026-10-03 단위 5를 완료했다. 전체 빌드·자동화 85/85·Development BuildCookRun·패키지 1P/리슨 2P·에디터 리슨 2P와 동일 snapshot/probe를 확인했다. 최종 Meadow 700 자연/합성 각각 두 반복은 frame P95 13.16~14.03ms, path tick P95 최대 0.713ms로 Gate를 통과했다. 공동 426 exact/cache 두 반복도 frame/path PASS·모든 host/guest 이탈 0이다. cache hit 97.50~97.63%, exact CPU P95 약 4.2→2.2ms다. 426은 고정 영역·seed·현재 배치의 상한이며 CPU 한계는 ≥426만 확인했다. 입구 틈과 벽 밖 총구 이탈을 회귀로 재현·수정하고 최종 반복에서 확인했다. 상세 수치·실패/제외 표본·한계는 `../history/Phase07c_Log.md`가 소유한다.
+
+사용자 지시대로 단위 5 전체 완료 뒤 다음 단계 진행 여부를 확인한다. Roadmap의 Phase 13 우선 순서와 Phase 8 동적 연결 착수 여부를 확인하기 전에는 새 단계에 착수하지 않는다.

@@ -94,6 +94,14 @@ bool LNPProjectileMotion::TraceWorld(const ULNPMassWorldCollisionSubsystem& Worl
 	return WorldCollision.RaycastWorld(From, To, FLNPWorldQueryParams(ELNPWorldQueryClass::ProjectileMandatory), OutHit);
 }
 
+FVector LNPProjectileMotion::ClipMuzzleToWorld(const ULNPMassWorldCollisionSubsystem* WorldCollision, const FVector& Origin, const FVector& Muzzle)
+{
+	FLNPWorldHit Hit;
+	if (WorldCollision && TraceWorld(*WorldCollision, Origin, Muzzle, Hit))
+		return Origin + (Muzzle - Origin).GetSafeNormal() * FMath::Max(0.0, static_cast<double>(Hit.Distance) - 1.0);
+	return Muzzle;
+}
+
 FVector LNPProjectileMotion::ClipSegmentToWorld(const ULNPMassWorldCollisionSubsystem* WorldCollision, const FVector& From, const FVector& To,
 	FLNPWorldHit& OutHit)
 {

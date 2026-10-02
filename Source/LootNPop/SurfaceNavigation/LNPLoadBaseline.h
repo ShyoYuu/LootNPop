@@ -23,6 +23,8 @@ class ULNPMassWorldCollisionSubsystem;
  *     -LNPLoadBaselineProjectiles=500  유지할 전체 발사체 수(기본 500). 요인 분리용 대조 실행에서만 바꾼다
  *     -LNPLoadBaselineQuit        보고 뒤 프로세스를 종료한다(무인 실행)
  *     -LNPLoadBaselineChase       네 가상 지각 목표(링 중심에서 25m)를 5초마다 교체해 지상 적의 실제 경로 추종 부하를 만든다
+ *     -LNPLoadBaselineVolumetric  회귀 옥탄트의 공동·복층·긴 경사로 Nav node에 배치하고 공동/상층 목표를 추격한다.
+ *                                서버·클라이언트 모두 지정한다. production pool은 바꾸지 않으며 비행 수는 0으로 둔다.
  *
  * - 적: DA_MassSpawnConfig의 적 수를 0으로 두고(Pod는 유지), slot 4 큰 섬 가장자리 아래를 중심으로 한 링에 정확히 N마리를 둔다.
  *   링 일부가 섬 아래 지각을 지나고, 20마리 중 2마리(근접·원거리 1마리씩)는 섬 윗면에 둔다(Phase03b §3.6).
@@ -139,7 +141,7 @@ private:
 	FRandomStream KnockbackStream;
 	FVector RingCenter = FVector::ZeroVector;
 	TArray<FVector3d> SyntheticGoals;
-	FLNPSurfaceHandle SyntheticGoalSurface;
+	TArray<FLNPSurfaceHandle> SyntheticGoalSurfaces;
 	float RingOuterRadius = 0.f;
 
 	enum class EStage : uint8 { Waiting, Warmup, Capture, Done };

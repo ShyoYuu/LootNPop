@@ -2,7 +2,7 @@
 
 > 상태: 기준 로드맵
 > 읽기 조건: Phase 전환, 전체 순서 변경, 작업 범위 재산정 시
-> 마지막 갱신: 2026-10-02
+> 마지막 갱신: 2026-10-03
 
 ## 1. 진행 원칙
 
@@ -54,7 +54,7 @@
 | 5 | 런타임 로더와 SurfaceCache 교체 | 3~4세션 | 완료 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 전 CI·게시 단계 stale 검출, LVI 지정점 우선 Spawn stream |
 | 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 완료 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
 | 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 완료(2026-10-02, 7a·7b 및 700마리 반복 Gate 통과) | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
-| 7c | 입체 지형 베이크 대응 | 2~3세션 | 진행 중(2026-10-02, 단위 0·1·2·3·4 완료, 단위 5 진행 확인 대기) | 접힌 sheet 자동 분할(D-064), component 쌍당 여러 portal(D-065), source별 Layer 해상도(D-072), 비행 headroom(D-073), 입체 지형·지하 대형 공동 회귀 사례와 계약 확정, cache 적중률·수용량 재측정 |
+| 7c | 입체 지형 베이크 대응 | 2~3세션 | 완료(2026-10-03, 단위 0~5·cooked/2P/700 반복 Gate 통과) | 접힌 sheet 자동 분할(D-064), component 쌍당 여러 portal(D-065), source별 Layer 해상도(D-072), 비행 headroom(D-073), 입체 지형·지하 대형 공동 회귀 사례와 계약 확정, cache 적중률·수용량 재측정 |
 | 8 | Conditional Patch와 파괴 Overlay | 2~3세션 | 대기 | 지역 길 열림·닫힘, revision 기반 재탐색, 상태 복제 |
 | 9 | 부유섬·동굴·입체 지형 Vertical Slice | 2~3세션 | 대기 | 건물·탑·계단·벽과 마커 앵커 동선, 입구 조합이 다른 지하 대형 공동을 갖춘 실제 품질 옥탄트와 멀티플레이에서 설계 검증 |
 | 10 | 대규모 추격 경로: flow field와 계층형 A* | 4~6세션 | 대기 | 두 방식 구현, 같은 시나리오에서 일반 A* 대비 실측 비교 후 채택 |
@@ -125,7 +125,7 @@ Phase 7은 한 번에 완료하려 하지 않고 두 개의 독립 게이트로 
 건물·탑·계단·벽을 늘리고 높이를 다양하게 한 그래플 입체기동 지형을 받기 위한 베이커·Nav 수정이다. Support·Nav 구조는 그대로 쓴다. 설계와 콘텐츠 규칙은 `design/SurfaceBaking.md` "접힌 sheet 자동 분할", `design/GroundNavigation.md` portal 절, `design/TerrainContract.md` §6-1이 소유한다.
 
 - 접힌 sheet 자동 분할(D-064): 나선 경사로·경사로로 이어진 여러 층을 한 메시로 만들어도 베이크한다. `SupportAtlasFoldedSheet` 자동화를 분할 성공 기준으로 바꾼다.
-- component 쌍당 여러 portal(D-065): 간격·상한을 정하고 베이크 시간 영향을 잰다.
+- component 쌍당 여러 portal(D-065): 간격·동률·중복 규약과 후보/베이크 비용을 확인했다. 근거 없는 개수 상한은 두지 않는다.
 - 입체 지형 회귀 사례: 여러 층 건물(입구 2개 이상), 나선 경사로 탑, 경사로 충돌 계단을 회귀 fixture에 더하고 §6-1 계약(계단 충돌·문 폭, D-070)을 검증한다.
 - 수용량 재측정: 좁은 실내 때문에 cache 적중률이 떨어지는 만큼 Phase 6 cache-first 한계(약 800)가 exact 전용 한계(약 700) 쪽으로 내려가는지 확인한다.
 - 앵커: 설계 동선은 마커 배치를 쓰고 시드 랜덤 수를 줄인다(코드 변경 최소).
@@ -133,6 +133,8 @@ Phase 7은 한 번에 완료하려 하지 않고 두 개의 독립 게이트로 
 - source별 Layer 해상도(D-072): `LNP.Surface.CoarseSupport` 태그와 Layer별 m을 넣고, 대형 공동 바닥의 payload와 지각 기준 오차를 잰다.
 - 비행 headroom(D-073): Spawn 후보에 위쪽 exact 거리를 더하고, 비행 편성 Pod 할당이 기준을 지키는지 본다. 높은 공동 안에서 비행 적의 배회·교전을 확인한다.
 - 실제 품질 입체 지형 콘텐츠 제작은 Phase 9 입력이다.
+
+2026-10-03 Phase 7c 단위 0~5를 완료했다. 전체 자동화 85/85, Development package 1P·리슨 2P와 에디터 2P, 최종 Meadow 700 자연/합성 각각 두 반복 Gate를 통과했다. 공동 426 exact/cache 두 반복은 모든 host/guest 이탈 0이며, cache hit 97.50~97.63%·exact CPU P95 약 4.2→2.2ms다. 426은 고정 시나리오의 배치 상한이고 CPU 한계는 ≥426만 확인했다. 상세 수치·제외 표본·한계는 `history/Phase07c_Log.md`를 따른다. 사용자 진행 확인 전에는 다음 단계에 착수하지 않는다.
 
 ### Phase 13 — PureEntity 활동 대역과 구간 배회 복제
 

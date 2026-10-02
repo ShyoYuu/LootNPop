@@ -194,7 +194,7 @@ Support 베이크는 collision channel 하나에 의존하지 않고 Terrain Con
 
 | 분류 | 생략 가능 | 용도 |
 |:---|:---:|:---|
-| ProjectileMandatory | 아니오 | 현재 이동 segment 충돌 |
+| ProjectileMandatory | 아니오 | 현재 이동 segment 충돌과 몸 중심→총구의 발사 원점 보정. 막힌 총구는 첫 hit 1cm 앞에 둔다(`LNPProjectileMotion::ClipMuzzleToWorld`) |
 | AirborneMandatory | 아니오 | 넉백·낙하 착지 |
 | GroundRiskFallback | 아니오 | edge·절벽·불연속·동적 overlay |
 | DynamicSupportContact | 아니오 | 움직이는 패널 위 접촉 |

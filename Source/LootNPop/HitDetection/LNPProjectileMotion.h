@@ -57,6 +57,9 @@ namespace LNPProjectileMotion
 	 */
 	bool TraceWorld(const ULNPMassWorldCollisionSubsystem& WorldCollision, const FVector& From, const FVector& To, FLNPWorldHit& OutHit);
 
+	/** 몸 중심→총구 구간에 지형이 있으면 첫 hit 1cm 앞에서 발사한다. 서버·Ghost·가이드 공용. */
+	LOOTNPOP_API FVector ClipMuzzleToWorld(const ULNPMassWorldCollisionSubsystem* WorldCollision, const FVector& Origin, const FVector& Muzzle);
+
 	/**
 	 * **world/entity earliest hit의 단일 정의** — 이번 프레임 선분의 월드 hit를 먼저 구하고 캐릭터 판정 선분의 끝을
 	 * 거기로 자른다. 잘린 선분 위의 캐릭터 hit는 월드 hit보다 항상 이르므로, 캐릭터 판정이 먼저 맞으면 그것이

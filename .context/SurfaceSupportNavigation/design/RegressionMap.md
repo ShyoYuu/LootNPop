@@ -94,6 +94,8 @@ fixture LVI 한 개를 8 slot 회전으로 테스트 월드에 복제하고 **�
 
 위층·계단·나선·연결판의 Support 단면 30cm 아래에는 반대 방향 밑면을 Shell Blocker로 둬 아래쪽 관통을 막는다. 공동 Spawn anchor는 지상 `Bench01`=(1700,-600,FloorZ), 비행 포함 `Bench01_2`=(-1400,-900,FloorZ)이며 기존 세 개와 합쳐 authored 다섯 개다. 두 특정 세트는 실제 주변 지상/비행 적 후보를 제공한다.
 
+구면 공동 바닥과 평면 입구 경사로가 만나는 높이 차는 `EntranceShell`의 양면 Blocker로 닫는다. 바닥의 100cm 경계 격자를 따라 두 입구에 여섯 조각씩 둔다. 보행 Support·Nav 연결은 기존 portal을 유지한다. `LNP.SurfaceNav.FixVolumetricEntranceShell`은 이 메시만 다시 만들며 이후 회귀 SurfaceData를 재베이크해야 한다. `Bake.VolumetricFixture`는 실제 2P에서 기록한 지형 이탈 선분 두 개의 exact hit도 8-slot에서 검사한다.
+
 `Bake.VolumetricFixture`는 저장본으로 8-slot snapshot과 exact physics world를 구성한다. coarse/fine 해상도, exact source·external face→Layer, 다층 조회·반지름 오차 2cm 미만, 양 입구·복층·나선·분기 A*, 수직 통로 도달 불가, 지각 hole, 위층 밑면 Pawn 충돌·나선 끝→발코니 캡슐 sweep·특정 세트의 실제 주변 적 배치·headroom과 순수 Spawn planner를 검사한다. 비행 할당 검사의 높은 빈 영역은 X=-2050~-1550·Y ±700, 낮은 영역은 X ±300·Y=-3400~-2800이다. 천장 높이와 Pod capsule·edge clearance를 모두 만족한 실제 후보만 소비한다.
 
 기존 `Nav.RegressionReachability`의 oracle은 지각·경사로 공동의 전역 group 하나, slot당 독립 섬 네 개와 수직 통로 공동 한 개로 **41 group**이다. 기존 exact fixture는 slot당 StaticMesh actor 96개(기존 29+추가 67), exact source 22개(기존 15+추가 7)를 검사한다. 두 Placement Marker는 StaticMesh actor 수에 포함하지 않는다. Layer ID는 source key·external face 순으로 계산하며 신규 층의 숫자 ID를 문서에 고정하지 않는다.

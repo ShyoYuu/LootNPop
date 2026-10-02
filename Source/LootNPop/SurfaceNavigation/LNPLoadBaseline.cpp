@@ -64,6 +64,43 @@ namespace
 	constexpr float IslandLayerRadius = 27000.f;
 	constexpr float CrustProbeStartRadius = 27700.f;
 	constexpr float CrustProbeEndRadius = 32000.f;
+
+	bool IsVolumetric()
+	{
+		static const bool bEnabled = FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineVolumetric"));
+		return LNPLoadBaseline::IsActive() && bEnabled;
+	}
+
+	/** 회귀 공동 좌표는 design/RegressionMap.md §4-1과 LNPVolumetricFixture를 따른다. */
+	FTransform VolumetricFrame()
+	{
+		const FVector Radial = FVector(1.0, 1.0, 1.0).GetSafeNormal();
+		const FVector Tangent = FVector(-1.0, 1.0, 0.0).GetSafeNormal();
+		const FTransform Local(FRotationMatrix::MakeFromZY(-Radial, Tangent).ToQuat(), Radial * 33500.0);
+		return Local * FTransform(ULNPOctantSpawnSubsystem::OctantRotations[IslandSlot]);
+	}
+
+	FVector VolumetricPoint(double X, double Y, double Height = 0.0)
+	{
+		return VolumetricFrame().TransformPosition(FVector(X, Y, 33500.0 - FMath::Sqrt(33500.0 * 33500.0 - X * X - Y * Y) + Height));
+	}
+
+	/** Layer를 임의 선택하지 않고 지정한 실제 바닥점 근처의 Nav node를 찾는다. */
+	int32 VolumetricNode(const FLNPSurfaceDataSnapshot& Snapshot, const FVector& Point, const FLNPNavOverlay* Overlay = nullptr)
+	{
+		int32 Best = INDEX_NONE;
+		double Distance = 250.0;
+		for (const auto& Layer : Snapshot.Nav.Graph.SlotGraphs[IslandSlot]->Layers)
+		{
+			TArray<FLNPNavGraphCandidate> Candidates;
+			LNPNavGraph::CollectNodesNear(Snapshot.Nav, IslandSlot, Layer.LocalNavLayerId, Point, 250.0, Candidates, Overlay);
+			if (!Candidates.IsEmpty() && Candidates[0].Distance < Distance)
+			{
+				Distance = Candidates[0].Distance; Best = Candidates[0].Node;
+			}
+		}
+		return Best;
+	}
 	constexpr float IslandProbeStartRadius = 25000.f;
 
 	/** 배치 probe 구 반지름(cm). 캡슐 반지름과 같다. */
@@ -273,8 +310,9 @@ bool ULNPLoadBaselineSubsystem::GetSyntheticChaseGoal(const int32 OwnerIndex, FV
 	}
 	// 준비 단계에서 투영한 네 목표를 공유한다. 5초마다 반대쪽으로 옮겨 재계획을 유발한다.
 	const int32 Epoch = FMath::FloorToInt(GetWorld()->GetTimeSeconds() / 5.0);
-	OutGoal = SyntheticGoals[(OwnerIndex % 4 + (Epoch % 2) * 2) % 4];
-	OutSurface = SyntheticGoalSurface;
+	const int32 GoalIndex = (OwnerIndex % 4 + (Epoch % 2) * 2) % 4;
+	OutGoal = SyntheticGoals[GoalIndex];
+	OutSurface = SyntheticGoalSurfaces[GoalIndex];
 	return true;
 }
 
@@ -357,12 +395,56 @@ namespace
 
 bool LNPLoadBaseline::FindRingCenter(const ULNPMassWorldCollisionSubsystem& Collision, FVector& OutCenter)
 {
+	if (IsVolumetric())
+	{
+		OutCenter = VolumetricPoint(0.0, 1800.0);
+		return true;
+	}
 	return FindCrustNear(Collision, GetRingCenterDirection(), OutCenter);
 }
 
 void LNPLoadBaseline::BuildEnemyRing(const ULNPMassWorldCollisionSubsystem& Collision, const float SphereRadius, const int32 Seed,
 	const int32 Count, TArray<FVector>& OutLocations, FVector& OutCenter)
 {
+	if (IsVolumetric())
+	{
+		OutLocations.Reset(Count);
+		if (Count == 0) { FindRingCenter(Collision, OutCenter); return; }
+		FindRingCenter(Collision, OutCenter);
+		const auto Snapshot = Collision.GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>()->TakeSnapshot();
+		TArray<FVector> Candidates;
+		const auto Frame = VolumetricFrame();
+		for (int32 N = Snapshot->Nav.Graph.SlotNodeBase[IslandSlot]; N < Snapshot->Nav.Graph.SlotNodeBase[IslandSlot + 1]; ++N)
+		{
+			const FVector Point(Snapshot->Nav.Graph.GetWorldPoint(IslandSlot, N));
+			const FVector Local = Frame.InverseTransformPosition(Point);
+			// 공동 바닥·복층·두 긴 경사로만 포함한다. 지각·별도 동굴·수직 통로는 제외한다.
+			const double Height = Local.Z - (33500.0 - FMath::Sqrt(33500.0 * 33500.0 - Local.X * Local.X - Local.Y * Local.Y));
+			const bool bRoom = FMath::Abs(Local.X) < 2100.0 && FMath::Abs(Local.Y) < 2100.0 && Height > -20.0 && Height < 1250.0;
+			const double RampBase = 33500.0 - FMath::Sqrt(33500.0 * 33500.0 - 2200.0 * 2200.0 - 1200.0 * 1200.0);
+			const double RampRise = 33500.0 - RampBase - FMath::Sqrt(30000.0 * 30000.0 - 10200.0 * 10200.0 - 1200.0 * 1200.0);
+			const double RampZ = RampBase + RampRise * (Local.X - 2200.0) / 8000.0;
+			const bool bRamp = Local.X > 2400.0 && Local.X < 9200.0 && FMath::Abs(FMath::Abs(Local.Y) - 1200.0) < 200.0
+				&& FMath::Abs(Local.Z - RampZ) < 20.0;
+			if (bRoom || bRamp) { Candidates.Add(Point); }
+		}
+		FRandomStream Rand(Seed);
+		for (int32 I = Candidates.Num() - 1; I > 0; --I) { Candidates.Swap(I, Rand.RandRange(0, I)); }
+		OutLocations.Reset(Count);
+		for (const FVector& Point : Candidates)
+		{
+			bool bTooClose = false;
+			for (const FVector& Other : OutLocations)
+			{
+				if (FVector::DistSquared(Point, Other) < FMath::Square(EnemyMinSpacing)) { bTooClose = true; break; }
+			}
+			if (!bTooClose) { OutLocations.Add(Point); }
+			if (OutLocations.Num() == Count) { break; }
+		}
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Volumetric placement candidates=%d placed=%d/%d"), Candidates.Num(), OutLocations.Num(), Count);
+		if (OutLocations.Num() != Count) { FPlatformMisc::RequestExitWithStatus(false, 1, TEXT("Volumetric placement shortfall")); }
+		return;
+	}
 	const FVector CenterDir = GetRingCenterDirection();
 	if (!FindRingCenter(Collision, OutCenter))
 	{
@@ -522,6 +604,21 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 			const FVector3d Forward = FVector3d::CrossProduct(Right, Up);
 			for (int32 GoalIndex = 0; GoalIndex < 4; ++GoalIndex)
 			{
+				if (IsVolumetric())
+				{
+					// 입구 경사로·공동·상층 사이를 교대로 추격한다.
+					const FVector Points[] = {VolumetricPoint(0.0, 1800.0), VolumetricPoint(1500.0, 0.0, 1200.0),
+						VolumetricPoint(1500.0, 1200.0), VolumetricPoint(1500.0, -1200.0)};
+					const int32 Node = VolumetricNode(*Snapshot, Points[GoalIndex], Overlay.Get());
+					if (Node != INDEX_NONE)
+					{
+						SyntheticGoals.Add(Snapshot->Nav.Graph.GetWorldPoint(IslandSlot, Node));
+						const auto& GraphNode = Snapshot->Nav.Graph.GetNode(IslandSlot, Node);
+						const uint16 LayerId = Snapshot->Nav.Graph.SlotGraphs[IslandSlot]->Layers[GraphNode.LayerOrdinal].LocalNavLayerId;
+						SyntheticGoalSurfaces.Add({IslandSlot, LayerId, Snapshot->Generation});
+					}
+					continue;
+				}
 				const double Angle = GoalIndex * UE_DOUBLE_PI / 2.0;
 				const FVector3d Direction = (FVector3d(RingCenter) + 2500.0 * (Right * FMath::Cos(Angle) + Forward * FMath::Sin(Angle))).GetSafeNormal();
 				FVector3d Point = Direction * RingCenter.Size();
@@ -531,9 +628,9 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 				if (!Candidates.IsEmpty())
 				{
 					SyntheticGoals.Add(Snapshot->Nav.Graph.GetWorldPoint(4, Candidates[0].Node));
+					SyntheticGoalSurfaces.Add({4, 0, Snapshot->Generation});
 				}
 			}
-			SyntheticGoalSurface = {4, 0, Snapshot->Generation};
 			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Synthetic chase goals=%d (required=4)"), SyntheticGoals.Num());
 			if (SyntheticGoals.Num() != 4)
 			{
@@ -683,7 +780,11 @@ void ULNPLoadBaselineSubsystem::RespawnPlayersAtRing()
 			OldPawn->Destroy();
 		}
 		FVector Foot = BaseFoot;
-		if (PlayerIndex > 0)
+		if (IsVolumetric())
+		{
+			Foot = VolumetricPoint(PlayerIndex * 300.0, 1800.0);
+		}
+		else if (PlayerIndex > 0)
 		{
 			const FVector SeatDir = MakeRingDirection(CenterDir, T1, T2, 0.f, PlayerSpacing * PlayerIndex, BaseFoot.Size());
 			FindFootNear(Collision, SeatDir, SeatStartRadius, SeatEndRadius, Foot);
@@ -908,7 +1009,11 @@ void ULNPLoadBaselineSubsystem::TopUpProjectiles()
 		const float Angle = ProjectileStream.FRandRange(0.f, 2.f * PI);
 		const float Distance = FMath::Sqrt(ProjectileStream.FRandRange(FMath::Square(RingInnerRadius), FMath::Square(RingOuterRadius)));
 		FVector3d FootPoint;
-		if (!LNPSurfaceDataLoading::QueryLayerZero(
+		if (IsVolumetric())
+		{
+			FootPoint = VolumetricPoint(ProjectileStream.FRandRange(-1800.0, 1800.0), ProjectileStream.FRandRange(-1800.0, 1800.0));
+		}
+		else if (!LNPSurfaceDataLoading::QueryLayerZero(
 			*SurfaceSnapshot, FVector3d(MakeRingDirection(CenterDir, T1, T2, Angle, Distance, SphereRadius)), FootPoint))
 			continue;
 		const FVector Foot(FootPoint);
@@ -1162,7 +1267,15 @@ void ULNPLoadBaselineSubsystem::Report()
 	Collision->Report();
 
 	// 부하 발사체는 패널을 겨냥하지 않으므로 Dynamic 분류는 패널을 직접 쏴서 확인한다. 통계 표본화가 끝난 뒤라 측정에 섞이지 않는다.
-	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbePanels"));
+	if (IsVolumetric())
+	{
+		// 정적 공동 fixture에는 이동 패널 마커가 없다. 패널 probe는 Meadow에서 검증한다.
+		UE_LOG(LogLootNPop, Display, TEXT("[ProbePanels] Static volumetric fixture has no dynamic panels -> SKIP"));
+	}
+	else
+	{
+		GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbePanels"));
+	}
 	// face→Layer 표(D-037)는 cooked trimesh의 external face 표에 기댄다. 패키지에서도 FaceIndex가 나오는지 확인한다.
 	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeFaceIndex"));
 	// Phase 5 registry가 베이크 face 표를 runtime component에 연결할 수 있도록 Level Instance에서도 source key가 유지되는지 확인한다.
