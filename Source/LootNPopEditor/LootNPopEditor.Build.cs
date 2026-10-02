@@ -22,6 +22,7 @@ public class LootNPopEditor : ModuleRules
 			"InteractiveToolsFramework",
 			"MassCore",
 			"MassEntity",
+			"MassSpawner",
 			"MeshConversion",
 			"MeshDescription",
 			"MeshModelingTools",

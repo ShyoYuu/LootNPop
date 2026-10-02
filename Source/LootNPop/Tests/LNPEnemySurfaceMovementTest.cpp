@@ -239,6 +239,12 @@ bool FLNPEnemyActorHandoffTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Static Mover floor replaces the slot"), Surface.OctantSlot, static_cast<uint16>(3));
 	TestEqual(TEXT("Static Mover floor replaces the Layer"), Surface.LocalLayerId, static_cast<uint16>(7));
 	TestFalse(TEXT("Static Mover floor clears dynamic contact"), Contact.IsValid());
+	FLNPExactHitIdentity UnresolvedFloor = StaticFloor;
+	UnresolvedFloor.LocalLayerId = LNPSupportLayers::NoLayer;
+	LNPEnemySurfaceMovement::UpdateActorHandoff(
+		false, FVector::ZeroVector, &UnresolvedFloor, Frame, FVector::ZeroVector, Velocity, Surface, Contact);
+	TestFalse(TEXT("Unresolved current floor does not retain the previous Layer"), Surface.IsValid());
+	TestFalse(TEXT("Unresolved current floor clears the previous dynamic contact"), Contact.IsValid());
 
 	FLNPExactHitIdentity DynamicFloor;
 	DynamicFloor.Lifetime = ELNPExactSourceLifetime::Dynamic;

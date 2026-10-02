@@ -2,6 +2,16 @@
 
 #include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPNavPathSubsystem.h"
+#include "SurfaceNavigation/LNPNavGraph.h"
+#include "SurfaceNavigation/LNPHitIdentityRegistry.h"
+#include "Character/LNPCharacterBase.h"
+#include "Movement/LNPCharacterMoverComponent.h"
+#include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPEnemyMassTypes.h"
+#include "MassCommonFragments.h"
+#include "MassEntitySubsystem.h"
+#include "MassExecutionContext.h"
+#include "MassEntityQuery.h"
 
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
@@ -13,6 +23,98 @@
 #if !UE_BUILD_SHIPPING
 namespace
 {
+	/** 누적 경로 통계와 별도로 플레이어 가까운 NPC의 인지·접지·경로 상태를 비교한다. */
+	void LogNearbyEnemies(UWorld& World, const FLNPSurfaceDataSnapshot& Snapshot, const FVector3d& Feet)
+	{
+		UMassEntitySubsystem* Mass = World.GetSubsystem<UMassEntitySubsystem>();
+		if (!Mass) { return; }
+		FMassEntityManager& Manager = Mass->GetMutableEntityManager();
+		FMassExecutionContext Context(Manager, 0.0f);
+		FLNPPlayerNavFragment PlayerNav;
+		FVector PlayerCenter = FVector(Feet);
+		double PlayerDistance = DBL_MAX;
+		FMassEntityQuery PlayerQuery(Manager.AsShared());
+		PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+		PlayerQuery.AddRequirement<FLNPPlayerNavFragment>(EMassFragmentAccess::ReadOnly);
+		PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+		{
+			const auto Transforms = Ctx.GetFragmentView<FTransformFragment>();
+			const auto Nav = Ctx.GetFragmentView<FLNPPlayerNavFragment>();
+			for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
+			{
+				const FVector Center = Transforms[I].GetTransform().GetLocation();
+				const double Distance = FVector3d::DistSquared(Center, Feet);
+				if (Distance < PlayerDistance) { PlayerDistance = Distance; PlayerNav = Nav[I]; PlayerCenter = Center; }
+			}
+		});
+		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] player grounded=%d slot=%u layer=%u node=%d group=%u feet=%s"),
+			PlayerNav.bGrounded, PlayerNav.Surface.OctantSlot, PlayerNav.Surface.LocalLayerId, PlayerNav.Node,
+			PlayerNav.Group, *PlayerNav.GroundPoint.ToString());
+		const APlayerController* Controller = World.GetFirstPlayerController();
+		const ALNPCharacterBase* Character = Controller ? Cast<ALNPCharacterBase>(Controller->GetPawn()) : nullptr;
+		FHitResult FloorHit;
+		if (Character && Character->GetMoverComponent()->TryGetFloorCheckHitResult(FloorHit))
+		{
+			const auto* Registry = World.GetSubsystem<ULNPHitIdentitySubsystem>();
+			const auto Identity = Registry ? Registry->ResolveHit(FloorHit) : FLNPExactHitIdentity();
+			UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] playerFloor component=%s face=%d blocking=%d slot=%u layer=%u"),
+				*GetNameSafe(FloorHit.GetComponent()), FloorHit.FaceIndex, FloorHit.IsValidBlockingHit(), Identity.Slot, Identity.LocalLayerId);
+		}
+		struct FNearby { double Distance; FString Line; };
+		TArray<FNearby> Nearby;
+		int32 Flyers = 0, NearbyFlyers = 0;
+		FMassEntityQuery Query(Manager.AsShared());
+		Query.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddRequirement<FLNPEnemyTargetingCandidateFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddRequirement<FLNPEnemyPathFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddConstSharedRequirement<FLNPEnemySharedFragment>();
+		Query.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+		Query.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+		Query.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+		{
+			const auto Transforms = Ctx.GetFragmentView<FTransformFragment>();
+			const auto Enemies = Ctx.GetFragmentView<FLNPEnemyFragment>();
+			const auto Velocities = Ctx.GetFragmentView<FLNPEnemyVelocityFragment>();
+			const auto Targets = Ctx.GetFragmentView<FLNPEnemyTargetingFragment>();
+			const auto Candidates = Ctx.GetFragmentView<FLNPEnemyTargetingCandidateFragment>();
+			const auto Paths = Ctx.GetFragmentView<FLNPEnemyPathFragment>();
+			const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
+			if (!Config) { return; }
+			for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
+			{
+				const FTransform& Transform = Transforms[I].GetTransform();
+				const FVector Center = Transform.GetLocation();
+				const double Distance = FVector::Dist(Center, PlayerCenter);
+				Flyers += Config->IsFlying() ? 1 : 0;
+				NearbyFlyers += Config->IsFlying() && Distance < 5000.0 ? 1 : 0;
+				if (Distance > 1800.0) { continue; }
+				FLNPNavEndpointQuery Ends;
+				Ends.StartPosition = Center + Center.GetSafeNormal() * Config->CapsuleHalfHeight;
+				Ends.StartSurface = &Enemies[I].SurfaceHandle;
+				Ends.GoalPosition = PlayerNav.GroundPoint;
+				Ends.GoalSurface = &PlayerNav.Surface;
+				Ends.ApproachRadius = 0.0;
+				const auto Status = LNPNavGraph::ResolveEndpoints(Snapshot.Nav, Ends).Status;
+				const double Angle = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(
+					FVector::DotProduct(Transform.GetUnitAxis(EAxis::X), (PlayerCenter - Center).GetSafeNormal()), -1.0, 1.0)));
+				const auto& Path = Paths[I];
+				Nearby.Add({Distance, FString::Printf(TEXT("[NavEnemy] entity=%d config=%s pos=%s distance=%.1f angle=%.1f awareness=%.0f vision=%.0f flying=%d candidates=%u state=%d target=%d slot=%u layer=%u surfaceValid=%d airborneSpeed=%.1f endpoint=%d pathStatus=%d waypoints=%d waypoint=%d steering=%d"),
+					Ctx.GetEntity(I).Index, *Config->GetName(), *Center.ToString(), Distance, Angle,
+					Config->TargetingConfig.AwarenessDistance, Config->TargetingConfig.VisionDistance, Config->IsFlying(),
+					Candidates[I].NumPotentialTargets, static_cast<int32>(Targets[I].State), Targets[I].TargetPlayer.Index,
+					Enemies[I].SurfaceHandle.OctantSlot, Enemies[I].SurfaceHandle.LocalLayerId, Enemies[I].SurfaceHandle.IsValid(),
+					Velocities[I].Velocity.Size(), static_cast<int32>(Status), static_cast<int32>(Path.Status),
+					Path.Path.IsValid() ? Path.Path->Waypoints.Num() : 0, Path.WaypointIndex, Path.bHasSteeringPoint)});
+			}
+		});
+		Nearby.Sort([](const FNearby& A, const FNearby& B) { return A.Distance < B.Distance; });
+		for (int32 I = 0; I < FMath::Min(10, Nearby.Num()); ++I) { UE_LOG(LogLootNPop, Display, TEXT("%s"), *Nearby[I].Line); }
+		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] aliveFlyers=%d within5000cm=%d"), Flyers, NearbyFlyers);
+	}
+
 	enum class ENavDrawMode : uint8
 	{
 		Component,
@@ -235,6 +337,7 @@ namespace
 			{
 				LogNodeLine(Tag, *Snapshot, Projection, Sizes);
 			}
+			if (GetLocalFeet(World, Feet)) { LogNearbyEnemies(*World, *Snapshot, Feet); }
 			if (const ULNPNavPathSubsystem* Paths = World->GetSubsystem<ULNPNavPathSubsystem>())
 			{
 				int32 StatusCounts[static_cast<int32>(ELNPNavPathStatus::Cancelled) + 1] = {};

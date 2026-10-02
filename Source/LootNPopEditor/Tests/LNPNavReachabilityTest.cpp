@@ -201,8 +201,8 @@ bool FLNPNavRegressionReachabilityTest::RunTest(const FString& Parameters)
 	}
 	const FLNPNavSnapshot& Nav = Snapshot.Nav;
 	TestEqual(TEXT("ConnectivityGraphVersion starts at 1"), Nav.ConnectivityGraphVersion, 1u);
-	// 지각·동굴 1개 + slot당 끊긴 섬 4개.
-	TestEqual(TEXT("Regression has one crust group and four island groups per slot"), Nav.ReachabilityGroupCount, 33u);
+	// 지각·경사로 공동 1개 + slot당 끊긴 섬 4개·수직 통로 공동 1개.
+	TestEqual(TEXT("Regression has one crust group and five isolated groups per slot"), Nav.ReachabilityGroupCount, 41u);
 
 	const double R = Fixture::CrustRadius;
 	FLNPNavGroupRef CrustGroup;
@@ -298,7 +298,7 @@ bool FLNPNavRegressionReachabilityTest::RunTest(const FString& Parameters)
 			TestTrue(FString::Printf(TEXT("Slot %d anchor at radius %.0f has the expected crust reachability"), Slot, AnchorRadius),
 				LNPNavQuery::TestReachability(Nav, CrustGroup, AnchorGroup) == Expected);
 		}
-		TestEqual(FString::Printf(TEXT("Slot %d has one cave anchor"), Slot), CaveAnchors, 1);
+		TestEqual(FString::Printf(TEXT("Slot %d has three cave anchors"), Slot), CaveAnchors, 3);
 	}
 	TestEqual(TEXT("All 32 islands have distinct groups"), IslandGroups.Num(), 32);
 	TestFalse(TEXT("No island shares the crust group"), IslandGroups.Contains(CrustGroup.Group));

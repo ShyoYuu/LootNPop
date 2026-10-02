@@ -11,6 +11,7 @@
 #include "Character/LNPCharacterBase.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPNavGraph.h"
 #include "SurfaceNavigation/LNPNavPathSubsystem.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
@@ -105,9 +106,10 @@ void ULNPPlayerNavProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 	UWorld* World = GetWorld();
 	const ULNPSurfaceDataSubsystem* SurfaceData = World ? World->GetSubsystem<ULNPSurfaceDataSubsystem>() : nullptr;
 	const ULNPHitIdentitySubsystem* HitIdentity = World ? World->GetSubsystem<ULNPHitIdentitySubsystem>() : nullptr;
+	const auto* Collision = World ? World->GetSubsystem<ULNPMassWorldCollisionSubsystem>() : nullptr;
 	const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> Snapshot =
 		SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
-	if (!Snapshot.IsValid() || !Snapshot->Nav.Graph.IsValid() || HitIdentity == nullptr)
+	if (!Snapshot.IsValid() || !Snapshot->Nav.Graph.IsValid() || HitIdentity == nullptr || Collision == nullptr)
 	{
 		return;
 	}
@@ -132,7 +134,7 @@ void ULNPPlayerNavProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				Value.Group = MAX_uint32;
 				Value.GroundGroup = FLNPNavGroupRef();
 				FLNPSurfaceHandle Surface;
-				const FLNPExactHitIdentity Identity = ULNPHitIdentitySubsystem::ResolveHit(*IdentitySnapshot, FloorHit);
+				const FLNPExactHitIdentity Identity = Collision->ResolveFloorHit(*IdentitySnapshot, FloorHit);
 				if (LNPEnemySurfaceMovement::MakeSurfaceHandle(Identity, Surface))
 				{
 					const FVector3d Feet = FloorHit.ImpactPoint;

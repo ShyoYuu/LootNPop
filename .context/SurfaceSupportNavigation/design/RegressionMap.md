@@ -21,7 +21,7 @@
 - 사례 틀: Radial은 중심에서 바깥쪽 단위 벡터, Tangent는 방위 증가 방향, Bitangent는 위도 증가 방향이다. 캐릭터 Up은 `-Radial`이다.
 - 구분용 geometry 대신 `Probe_<Case>` 이름의 `LNPDecoration` 구체를 debug 위치로 둔다.
 - `NavComponent` 이름은 Phase 7 전까지 테스트 oracle용 상징 이름이다. 직렬화 ID를 미리 고정하지 않는다.
-- 좌표 원본은 코드다. 정적 사례는 `LootNPopEditor/SurfaceNavigation/LNPRegressionFixture.h`, 동적 사례는 생성 스크립트다. 이 문서의 표는 요약이다.
+- 좌표 원본은 코드다. 기존 정적 사례는 `LootNPopEditor/SurfaceNavigation/LNPRegressionFixture.h`, Phase 7c 입체 사례는 `LNPVolumetricFixture.h`, 동적 사례는 생성 스크립트다. 이 문서의 표는 요약이다.
 
 ## 2. 공통 기대 결과
 
@@ -78,6 +78,28 @@ fixture LVI 한 개를 8 slot 회전으로 테스트 월드에 복제하고 **�
 | 입구 옆(벽 바깥 300cm)에서 바깥쪽 | 지각이 남아 있어 반지름 R |
 | 지각 위로 솟은 통로 벽을 바깥에서 | 벽(통로 로컬 y=200), Blocker만 |
 
+## 4-1. 입체·지하 공동 사례(Phase 7c)
+
+기존 정적 LVI에 `LNP.SurfaceNav.ExtendRegressionFixture`로 추가한다. 기존 actor·source key와 수동 Spawn anchor 세 개는 유지하고 공동용 특정 세트 anchor 두 개를 추가한다. 입체 사례 중심은 **(위도 35.2643896828°, 방위 45°), 바닥 반지름 33,500cm**다. 아래 좌표는 이 중심의 바닥 피벗 기준이며 +X는 위도 증가, +Y는 방위 증가, +Z는 Up이다. `FloorZ(x,y)=33500-sqrt(33500²-x²-y²)`로 바닥 곡률을 맞춘다.
+
+| 사례 | 고정 배치(cm) | 기대 결과 |
+|:---|:---|:---|
+| 높은 공동 | X·Y ±2200, 천장 Z=3200 | Floor는 `Support+Blocker+Static+CoarseSupport`(100cm), Shell은 `Blocker+Static`. 충분한 headroom 후보에는 비행 Pod 할당 가능 |
+| 두 입구·긴 경사로 | +X 벽의 Y=±1200, 폭 600·높이 400, X=2200~10200 | 두 입구 모두 지각까지 Walk 연결. 수평 8000·상승 약 5218.91cm. 입구 가까운 시작·목표는 해당 경사로 선택. 두 단면으로 지각 절단 |
+| 낮은 분기 | X ±600, Y=-3600~-2200, 끝 천장 높이 350 | 주 공동과 Walk 연결. 지상 편성 가능, 기본 비행 편성 필요 headroom 2638cm 미달 |
+| 복층·두 계단 | 상층 X=1100~1900·Y ±1800, 바닥 위 1200. 계단 X=-1900~1100·Y=±1500·폭 400 | 상층까지 두 연속 경사면으로 Walk 연결. 칸 30개씩은 Decoration이고 Support·exact·Pawn 충돌 없음 |
+| 나선 경사로 | 중심 (-700,0), 반지름 450~850, 1.3회전·104 segment·반경 100cm 네 띠, 상승 1200 | 하나의 Structure source 안 접힌 sheet가 여러 Layer로 분할. 끝에서 반경 방향으로 500cm 나와 Y≈903~1284의 연결판으로 발코니에 합류한다. 마지막 회전 위를 가로지르지 않으며 연결판은 길이 방향 24분할로 곡률을 맞춘다. 복층까지 portal로 Walk 연결, external face identity 유지 |
+| 수직 통로 전용 공동 | X ±700·Y=-5400±700, 같은 구면 바닥. 천장 Z=3200 | 다른 공동과 분리. 지각과도 Walk 연결 없음. slot당 독립 ReachabilityGroup 하나 |
+| 수직 입구 | X ±300·Y=-5400±300, Z=3200~4500 | 지각·천장 구멍에 유령 Support 없음. 플레이어 낙하 동선. 두 그래플 앵커 Placement Marker는 (0,-5400,3000)/(0,-5400,5100), 서버가 `BP_GrappleAnchor` 스폰. 두 번째 앵커는 외벽 위 600cm로, 150cm 전방 정지 뒤에도 캡슐이 외벽 밖으로 나갈 수 있다 |
+
+위층·계단·나선·연결판의 Support 단면 30cm 아래에는 반대 방향 밑면을 Shell Blocker로 둬 아래쪽 관통을 막는다. 공동 Spawn anchor는 지상 `Bench01`=(1700,-600,FloorZ), 비행 포함 `Bench01_2`=(-1400,-900,FloorZ)이며 기존 세 개와 합쳐 authored 다섯 개다. 두 특정 세트는 실제 주변 지상/비행 적 후보를 제공한다.
+
+`Bake.VolumetricFixture`는 저장본으로 8-slot snapshot과 exact physics world를 구성한다. coarse/fine 해상도, exact source·external face→Layer, 다층 조회·반지름 오차 2cm 미만, 양 입구·복층·나선·분기 A*, 수직 통로 도달 불가, 지각 hole, 위층 밑면 Pawn 충돌·나선 끝→발코니 캡슐 sweep·특정 세트의 실제 주변 적 배치·headroom과 순수 Spawn planner를 검사한다. 비행 할당 검사의 높은 빈 영역은 X=-2050~-1550·Y ±700, 낮은 영역은 X ±300·Y=-3400~-2800이다. 천장 높이와 Pod capsule·edge clearance를 모두 만족한 실제 후보만 소비한다.
+
+기존 `Nav.RegressionReachability`의 oracle은 지각·경사로 공동의 전역 group 하나, slot당 독립 섬 네 개와 수직 통로 공동 한 개로 **41 group**이다. 기존 exact fixture는 slot당 StaticMesh actor 96개(기존 29+추가 67), exact source 22개(기존 15+추가 7)를 검사한다. 두 Placement Marker는 StaticMesh actor 수에 포함하지 않는다. Layer ID는 source key·external face 순으로 계산하며 신규 층의 숫자 ID를 문서에 고정하지 않는다.
+
+사용자 PIE 확인은 양쪽 경사로 추격, 계단·나선의 Layer 경계 이동, 수직 통로 낙하·그래플 복귀와 높은 공동의 비행 교전이다. 자동화 통과와 별도로 결과를 Phase 로그에 남긴다.
+
 ## 5. 동적 사례와 oracle
 
 `L_SurfaceRegression`의 지면 판은 엔진 Cube(두께 100, 중심 R+50)라 안쪽 면이 R=30,000에 온다. 이 맵은 베이크 입력이 아니므로 box 단순 충돌을 그대로 쓴다.
@@ -102,6 +124,7 @@ fixture LVI 한 개를 8 slot 회전으로 테스트 월드에 복제하고 **�
 
 - **동굴 키트**: `LNP.SurfaceNav.BuildCaveKit`이 `/Game/Maps/CaveKit`의 키트 메시를 제자리 갱신한다.
 - **정적 fixture LVI**: `LNP.SurfaceNav.BuildRegressionFixture`. 키트 메시가 먼저 있어야 하고, 기존 LVI가 있으면 거부한다. 다시 만들려면 LVI를 지운 뒤 실행하고 `LNP.SurfaceNav.BakeOctant`로 SurfaceData를 다시 굽는다.
+- **입체 확장**: 기존 LVI·`SM_FixtureRegressionCrust_R30000`·SurfaceData를 먼저 백업한 뒤 `LNP.SurfaceNav.ExtendRegressionFixture`, `LNP.SurfaceNav.BakeOctant /Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Regression` 순으로 실행한다. 확장 actor가 이미 있으면 중복 추가를 거부한다. 재생성은 백업 LVI·지각 메시를 복구하고 같은 명령을 실행한다. 수동 anchor는 보존된다.
 - **동적 맵**: 스크립트는 기존 맵을 기본적으로 덮어쓰지 않고 검증만 한다. 의도적으로 재생성할 때만 환경 변수 `LNP_REBUILD_SURFACE_REGRESSION_MAP=1`을 지정한다. 헤드리스 실행은 `UnrealEditor-Cmd -ExecutePythonScript=<스크립트>`다.
 - actor label은 정적 LVI가 `RF_<순번>_`, 동적 맵이 `SSN_<순번>_`이다. Component Tag와 collision profile이 테스트 입력의 원본이며 label은 의미 판정에 쓰지 않는다.
 - 좌표를 옮기면 이 문서의 표, 좌표 원본(헤더·스크립트), 자동화 기대값을 같은 커밋에서 갱신한다.
@@ -121,8 +144,7 @@ Phase 3 네트워크 회귀에는 이동 중 패널 late join, server-time 보�
 
 ## 8. 의도적으로 지원하지 않는 형상
 
-- 복층·Y자·수직 동굴
-- 서로 교차하는 Support sheet
+- 서로 물리적으로 관통하는 Support sheet(방사 방향에서 겹치는 복층·접힌 sheet는 지원)
 - 움직이는 패널을 기다리고 탑승하는 계획 경로
 - 임의 파괴 잔해가 만드는 새 보행면
 - 측벽·밑면의 자동 보행면 승격

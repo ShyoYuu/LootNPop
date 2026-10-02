@@ -172,6 +172,11 @@ namespace LNPEnemySurfaceMovement
 		{
 			InOutSurface = FLNPSurfaceHandle();
 		}
+		else
+		{
+			InOutSurface = FLNPSurfaceHandle();
+			InOutDynamicContact.Reset();
+		}
 	}
 
 	bool TryResolveCachedGround(

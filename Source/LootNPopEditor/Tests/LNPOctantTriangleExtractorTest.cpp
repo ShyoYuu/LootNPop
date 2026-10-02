@@ -449,9 +449,22 @@ bool FLNPOctantSupportLayersTest::RunTest(const FString& Parameters)
 		}
 		else if (LevelPath == RegressionLevelPath)
 		{
-			TestEqual(TEXT("Regression fixture: crust + 4 island tops + 2 cave floors"), Set.Layers.Num(), Sources.Num());
+			TestEqual(TEXT("Regression includes two entrance sheets and the folded structure"), Set.Layers.Num(),
+				Sources.Num() + LayersOf(TEXT("SM_FixtureVolumetric_Structure")));
 			for (const FLNPBakeSupportSource& Source : Sources)
 			{
+				const UStaticMeshComponent* Component = FindObject<UStaticMeshComponent>(nullptr, *Source.Name);
+				const FString MeshName = Component->GetStaticMesh()->GetName();
+				if (MeshName == TEXT("SM_FixtureVolumetric_Structure"))
+				{
+					TestTrue(TEXT("Structure splits into multiple Layers"), LayerCountByKey.FindRef(Source.Key) > 1);
+					continue;
+				}
+				if (MeshName == TEXT("SM_FixtureVolumetric_Entrances"))
+				{
+					TestEqual(TEXT("Separated entrance ramps retain two sheets"), LayerCountByKey.FindRef(Source.Key), 2);
+					continue;
+				}
 				TestEqual(FString::Printf(TEXT("%s gives one Layer"), *Source.Key), LayerCountByKey.FindRef(Source.Key), 1);
 			}
 		}

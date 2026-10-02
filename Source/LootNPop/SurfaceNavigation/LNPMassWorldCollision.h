@@ -114,6 +114,9 @@ class LOOTNPOP_API ULNPMassWorldCollisionSubsystem : public UTickableWorldSubsys
 	GENERATED_BODY()
 
 public:
+	/** 게임 스레드. Mover floor hit의 face가 없으면 같은 component·instance의 접점만 exact로 재검사한다. */
+	FLNPExactHitIdentity ResolveFloorHit(const FLNPHitIdentitySnapshot& Snapshot, const FHitResult& FloorHit) const;
+
 	/** 모든 스레드. */
 	bool RaycastWorld(const FVector& Start, const FVector& End, const FLNPWorldQueryParams& Params, FLNPWorldHit& OutHit) const;
 	bool SweepSphereWorld(const FVector& Start, const FVector& End, float Radius, const FLNPWorldQueryParams& Params, FLNPWorldHit& OutHit) const;
@@ -167,7 +170,7 @@ protected:
 
 private:
 	bool RunQuery(const FVector& Start, const FVector& End, const FQuat& Rotation, const FCollisionShape& Shape,
-		const FLNPWorldQueryParams& Params, FLNPWorldHit& OutHit) const;
+		const FLNPWorldQueryParams& Params, FLNPWorldHit& OutHit, FHitResult* OutNativeHit = nullptr) const;
 
 	struct FDebugSegment
 	{

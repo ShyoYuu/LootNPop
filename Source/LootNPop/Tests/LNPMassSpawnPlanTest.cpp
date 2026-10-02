@@ -175,6 +175,19 @@ bool FLNPMassSpawnHeadroomTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Flying spawn uses the high-headroom enemy point"),
 			Plan.Pods[0].Enemies[0].Transforms[0].GetLocation().Equals(FVector(Flyer.LocalPosition)));
 	}
+	// Config에서 지상 적이 먼저 나와도 비행 후보를 선점하지 않아야 한다.
+	Set.Enemies = {{1, 5, 0.0f}, {1, 6, 2000.0f}};
+	for (int32 Seed = 0; Seed < 16; ++Seed)
+	{
+		TestTrue(TEXT("Ground-first mixed group builds"), LNPMassSpawnPlanning::BuildPlan(
+			Snapshot, MakeArrayView(&Set, 1), Seed, 500.0f, 500.0f, Plan, Error));
+		if (TestEqual(TEXT("Mixed group retains both enemies for every candidate order"), Plan.Pods[0].Enemies.Num(), 2))
+		{
+			TestEqual(TEXT("High-headroom enemy is allocated first"), Plan.Pods[0].Enemies[0].AssetIndex, 6);
+			TestTrue(TEXT("Flying enemy retains its only suitable point"),
+				Plan.Pods[0].Enemies[0].Transforms[0].GetLocation().Equals(FVector(Flyer.LocalPosition)));
+		}
+	}
 	ULNPEnemyConfig* Config = NewObject<ULNPEnemyConfig>();
 	TestEqual(TEXT("Ground config requires no headroom"), Config->GetSpawnRequiredHeadroom(), 0.0f);
 	Config->NavigationDomain = ELNPNavigationDomain::FreeFlight;

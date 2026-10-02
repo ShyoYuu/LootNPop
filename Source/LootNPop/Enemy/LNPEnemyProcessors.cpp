@@ -8,6 +8,8 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
+#include "Movement/LNPCharacterMoverComponent.h"
+#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
@@ -1179,6 +1181,7 @@ void ULNPEnemyActorInitializerProcessor::ConfigureQueries(const TSharedRef<FMass
 {
 	ActivationQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	ActivationQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
+	ActivationQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	ActivationQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
 	ActivationQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	ActivationQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
@@ -1198,6 +1201,7 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 	{
 		const FLNPEnemySharedFragment& SharedFragment = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
 		const TArrayView<FMassActorFragment> ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+		const auto Transforms = Ctx.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FLNPEnemyFragment> EnemyFrags = Ctx.GetFragmentView<FLNPEnemyFragment>();
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFrags = Ctx.GetFragmentView<FLNPEnemyTargetingFragment>();
 		const TArrayView<FLNPEnemyVelocityFragment> VelocityFrags = Ctx.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
@@ -1212,14 +1216,41 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 				float Health = EnemyFrags[i].Health;
 				ELNPTargetingState TState = TargetingFrags[i].State;
 				FVector Velocity = VelocityFrags[i].Velocity;
+				const FTransform ActivationTransform = Transforms[i].GetTransform();
+				const FLNPSurfaceHandle Surface = EnemyFrags[i].SurfaceHandle;
 				VelocityFrags[i].Velocity = FVector::ZeroVector;
 
-				Context.Defer().PushCommand<FMassDeferredAddCommand>([Entity, WeakActor, WeakConfig, Health, TState, Velocity](FMassEntityManager& InEntityManager)
+				Context.Defer().PushCommand<FMassDeferredAddCommand>([Entity, WeakActor, WeakConfig, Health, TState, Velocity, ActivationTransform, Surface](FMassEntityManager& InEntityManager)
 				{
 					if (ALNPEnemyCharacter* Enemy = Cast<ALNPEnemyCharacter>(WeakActor.Get()))
 					{
 						Enemy->InitializeOnce(WeakConfig.Get());
 						Enemy->SyncFromEntity(Health, TState, Velocity);
+						const ULNPEnemyConfig* Config = WeakConfig.Get();
+						// Mass의 raw Actor teleport만으로는 Mover의 시뮬레이션 자세가 함께 초기화되지 않는다.
+						// 정적 접지 승격은 같은 층의 캡슐 중심을 검증하고 Mover 효과로 반영한다.
+						if (Config && !Config->IsFlying() && Velocity.IsNearlyZero() && Surface.IsValid())
+						{
+							const auto* Data = Enemy->GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
+							const auto* Collision = Enemy->GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+							const auto Snapshot = Data ? Data->TakeSnapshot() : nullptr;
+							LNPEnemyExactMovement::FParams Params;
+							Params.GravityOrigin = Config->MovementConfig.GravityOrigin;
+							Params.CapsuleRadius = Config->CapsuleRadius; Params.CapsuleHalfHeight = Config->CapsuleHalfHeight;
+							const FVector Center = ActivationTransform.GetLocation();
+							FVector GroundedCenter;
+							if (Snapshot && Collision && Surface.Generation == Snapshot->Generation
+								&& LNPEnemySurfaceMovement::ProjectWanderTarget(Snapshot.Get(), *Collision, Params, Center,
+									(Center - Params.GravityOrigin).GetSafeNormal(), Params.CapsuleHalfHeight, Surface, GroundedCenter))
+							{
+								const FVector Up = (Params.GravityOrigin - GroundedCenter).GetSafeNormal();
+								auto Teleport = MakeShared<FTeleportEffect>();
+								Teleport->TargetLocation = GroundedCenter + Up * 2.0;
+								Teleport->bUseActorRotation = false;
+								Teleport->TargetRotation = ActivationTransform.Rotator();
+								Enemy->GetMoverComponent()->QueueInstantMovementEffect(Teleport);
+							}
+						}
 						InEntityManager.AddTagToEntity(Entity, FLNPEnemyActorInitializedTag::StaticStruct());
 					}
 				});
@@ -1250,6 +1281,7 @@ void ULNPEnemyActorSyncProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 
 	ProcessorRequirements.AddSubsystemRequirement<ULNPHitIdentitySubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPDynamicTerrainSubsystem>(EMassFragmentAccess::ReadOnly);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -1262,6 +1294,7 @@ void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMa
 		Context.GetSubsystemChecked<ULNPHitIdentitySubsystem>().GetSnapshot();
 	const TSharedRef<const FLNPDynamicSupportFrame, ESPMode::ThreadSafe> DynamicFrame =
 		Context.GetSubsystemChecked<ULNPDynamicTerrainSubsystem>().GetDynamicSupportFrame();
+	const auto& Collision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
 	TArray<FMassEntityHandle> ToCleanup;
 
 	SyncQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
@@ -1286,7 +1319,7 @@ void ULNPEnemyActorSyncProcessor::Execute(FMassEntityManager& EntityManager, FMa
 				const FLNPExactHitIdentity* FloorIdentityPtr = nullptr;
 				if (!bAirborne && FloorHit.IsValidBlockingHit())
 				{
-					FloorIdentity = ULNPHitIdentitySubsystem::ResolveHit(*IdentitySnapshot, FloorHit);
+					FloorIdentity = Collision.ResolveFloorHit(*IdentitySnapshot, FloorHit);
 					FloorIdentityPtr = &FloorIdentity;
 				}
 				LNPEnemySurfaceMovement::UpdateActorHandoff(

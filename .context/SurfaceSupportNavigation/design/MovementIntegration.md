@@ -16,6 +16,10 @@
 
 - 착지 이벤트: 순수 엔티티는 capsule sweep 결과, Actor는 Mover 착지 결과를 같은 이벤트로 발행한다.
 - `FSurfaceHandle`: Actor 경로는 Mover floor hit의 component/shape, face index, ISM instance index를 hit identity registry에서 역조회해 기록한다. component 단독 매핑은 사용하지 않는다. LOD 전환 규칙은 `Architecture.md` "실행 경로별 소유권"이 소유한다.
+
+Mover floor query는 face index를 요청하지 않는다. uniform source는 기존 component 표로 즉시 해석하고, 복수 Layer source의 face가 빠졌을 때만 기존 접점의 법선 방향 ±10cm를 `MassWorldCollision`의 `GroundRiskFallback` exact 광선으로 재검사한다. 같은 component·같은 instance에 맞은 face만 현재 snapshot으로 해석한다. 플레이어 Nav와 Actor NPC 인계가 이 경로를 공유한다. floor hit 자체가 아직 없는 Mover 활성화 첫 프레임에는 이전 정체성을 보존하지만, 유효한 현재 hit의 층을 끝내 해석하지 못하면 이전 정적 handle·동적 contact를 지운다. 공중 프레임은 기존 규칙대로 처리한다.
+
+정적 접지 상태의 Actor 활성화는 Mass의 기존 raw Actor transform 이동에 더해 Mover 시뮬레이션 자세도 초기화한다. 현재 generation의 명시적 Surface handle이 있고 공중 속도가 0인 지상 적만 기존 같은 Layer 투영 경로로 캡슐 중심을 검증한다. 탐색 범위는 캡슐 반높이이며 같은 층을 찾았을 때만 Up 방향 2cm 여유를 더한 위치와 Entity 회전을 `FTeleportEffect`로 전달한다. 비행·공중·동적 접촉의 속도 인계와 현재 층을 검증하지 못한 경우의 기존 활성화 흐름은 유지한다.
 - 경로 추종: A* 결과를 순수 엔티티는 waypoint로, Actor는 AI 이동 입력으로 받는다.
 
 ### grounded 이동
@@ -220,7 +224,7 @@ enum class ELNPNavigationDomain : uint8
 
   베이크는 Config와 무관하게 모든 authored anchor·random candidate에 `Headroom`을 기록한다. 반지름 50cm 구를 바닥점의 지역 Up(구 중심 방향)으로 `LNPWorldExact` sweep한다. 시작 중심 높이는 `50 / dot(Up, floorNormal) + 1cm`, 종료 중심 높이는 `min(32767 - 50, 바닥점 반지름 - 50 - 1)`이다. 바닥 관통·중심 통과와 복제 좌표 캡 초과를 피하며 시작 겹침·측정 공간 부족은 0이다. hit는 `시작 높이 + Hit.Distance + 50cm`, 무충돌은 `종료 높이 + 50cm`를 저장한다. 이는 구가 닿는 천장·옆벽의 보수적 수직 높이이며 반지름 50cm 기둥 바깥의 자유 공간을 보장하지 않는다. 실제 비행의 몸 구 sweep은 계속 장애물을 막는다. 값은 `[0,32767]`의 유한 float이고 무충돌을 infinity로 표시하지 않는다. 측정 반지름·상한은 bake settings hash에 포함하지만 비행 고도 Config·요구 여유는 포함하지 않는다.
 
-  authored-for-set → generic → random 우선순위와 총량·shortfall은 유지한다. `Headroom >= RequiredHeadroom`이면 선택하며 낮은 후보를 소비하지 않아 이후 지상 편성에 남는다. 비행 없는 세트는 기존 배치와 같다. 주변 적 시작점도 적 종류별 필요 headroom으로 검사하며 기존 slot·Layer·반경·간격 제한을 유지한다. Config 변경은 같은 snapshot 위의 할당만 바꾼다. 지하 공동·건물 안·섬 밑은 같은 규칙이다. 천장 낮은 공간의 추격은 기존 LoS·교착 복구로 입구 밖에서 호버하거나 물러나는 동작을 허용한다. 높은 공동의 천장 근처 교전 고도 clamp는 단위 4의 플레이 검증에서 필요할 때만 추가한다.
+  authored-for-set → generic → random 우선순위와 총량·shortfall은 유지한다. `Headroom >= RequiredHeadroom`이면 선택하며 낮은 후보를 소비하지 않아 이후 지상 편성에 남는다. 비행 없는 세트는 기존 배치와 같다. 주변 적은 필요 headroom 내림차순으로 배정해 지상 적이 비행 후보를 먼저 소비하지 않게 한다. 같은 필요값끼리는 Config 순서를 유지한다. 적 종류별 headroom과 기존 slot·Layer·반경·간격 제한은 계속 검사한다. Config 변경은 같은 snapshot 위의 할당만 바꾼다. 지하 공동·건물 안·섬 밑은 같은 규칙이다. 천장 낮은 공간의 추격은 기존 LoS·교착 복구로 입구 밖에서 호버하거나 물러나는 동작을 허용한다. 높은 공동의 천장 근처 교전 고도 clamp는 단위 4의 플레이 검증에서 필요할 때만 추가한다.
 - **교전 수 상한**: 비행 적은 원거리 슬롯 풀을 쓰므로 동시 교전 수는 플레이어당 원거리 슬롯(20)으로 묶이고 나머지는 Alert로 호버한다. 지상 원거리 적과 같은 풀을 나눈다.
 - **넉백**: 생산자(`ApplyEntityKnockback`)는 지상과 같고, 비행 소비는 중력 없이 반감기 감쇠·steering 추가 속도로 sweep. "`Velocity != 0`이면 공중"이라는 지상 규약은 비행 개체에 적용하지 않는다.
 - **사망**: 비행을 끊고 `StepAirborne` 낙하, 착지 여부는 `bDeathLanded`로 기억한다.

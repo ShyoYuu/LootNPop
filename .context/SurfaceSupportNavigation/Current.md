@@ -1,12 +1,16 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 7c 진행 중 — 단위 0·1·2·3 완료, 단위 4 진행 확인 대기
+> 현재 Phase: Phase 7c 진행 중 — 단위 0·1·2·3·4 완료, 단위 5 진행 확인 대기
 > 마지막 갱신: 2026-10-02
+
+단위 4 추가 PIE 결과: 공동 드론 표시, 상층 인식·공격 유지, 계단·나선 경사로를 스스로 찾아 추격하는 동작을 사용자가 확인했다. Actor 활성화 위치와 Mover 자세 보정 후 바닥에 묻힌 NPC가 한 기도 없다는 최종 피드백을 받았다. 공동 드론의 인식·추격·공격과 낮은 천장 공간으로 피하는 동작도 확인했다. 상부 앵커 수정 후 수직 통로에서 그래플을 이용한 지상 탈출도 확인해 단위 4를 완료했다.
 
 ## 현재 목표
 
-Phase 7b의 마지막 성능 Gate를 2026-10-02에 통과했다. 아래 단계별 기록은 완료 인계 이력이다. Phase 7c 단위 0·1·2·3을 완료했다. 실행 계획은 `phases/Phase07c_VolumetricTerrainBaking.md`다. source별 해상도·접힌 sheet 분할·복수 portal에 이어 Spawn headroom과 비행 편성 필터를 구현했다. DataVersion 6·schema 8 세 에셋 재베이크와 전체 자동화 84/84를 통과했다. 다음 목표는 단위 4(입체·지하 공동 회귀 콘텐츠)이며, 각 구현 단위 완료 뒤 사용자에게 계속 진행할지 확인한다.
+상층 floor 식별과 정적 접지 Actor 활성화 보정은 전체 자동화 85/85와 실제 PIE 검증을 통과했다. 사용자가 초기 묻힘 소실과 나선·계단 경로 추격을 확인했다. 공동 드론 교전도 사용자 확인을 통과했다. 수직 통로에서 두 앵커 상승은 확인했지만 상부 앵커가 외벽보다 낮아 지상 복귀가 막혔다. 상부 앵커를 Z=5100으로 이동·저장하고 생성 좌표·8-slot 상승/외벽 탈출 캡슐 회귀를 추가했다. 전체 빌드·8-slot 탈출 캡슐 검사·재베이크 후 전체 자동화 85/85를 통과했다. 사용자가 수정본 PIE에서 지상 탈출 성공을 확인해 단위 4를 완료했다. 다음은 단위 5의 cooked·멀티플레이·성능 Gate이며 사용자 진행 확인 전에는 착수하지 않는다. 관련 증거는 `history/Phase07c_Log.md` 마지막 항목이다.
+
+Phase 7b의 마지막 성능 Gate를 2026-10-02에 통과했다. 아래 단계별 기록은 완료 인계 이력이다. Phase 7c 단위 0·1·2·3·4를 완료했다. 실행 계획은 `phases/Phase07c_VolumetricTerrainBaking.md`다. source별 해상도·접힌 sheet 분할·복수 portal에 이어 Spawn headroom과 비행 편성 필터를 구현했다. DataVersion 6·schema 8 세 에셋 재베이크와 전체 자동화 84/84를 통과했다. 단위 4(입체·지하 공동 회귀 콘텐츠)는 전체 자동화 85/85와 사용자 PIE 검증을 통과했다. 각 구현 단위 완료 뒤 사용자에게 계속 진행할지 확인한다.
 
 Phase 7은 2026-09-29에 7a Nav 데이터 기반부터 착수했다. 실행 계획은 `phases/Phase07a_NavDataFoundation.md`다. 구현 단위 0의 runtime 순수 자료구조·codec에 이어 구현 단위 1에서 coarse Grid, blocker dilation, 6방향 edge, local component, Layer portal, ordered seam endpoint와 editor payload 저장을 완료했고 `DataVersion=5`, `BakerSchemaVersion=4`를 활성화했다. 회귀 동굴은 exact Support polyline capsule sweep으로 지각↔통로와 공동↔통로 portal 두 개를 보존한다. 구현 단위 2(2026-10-01)에서 loader가 Nav/Traversal을 필수 decode하고, 순수 `LNPNavRuntime`이 8-slot runtime Layer ID·node ref·seam link·runtime StaticNavComponent를 조립해 Support와 같은 snapshot으로 게시한다. 이음매 줄 node·edge의 사본 간 clearance 차이는 D-060에 따라 막힘으로 합쳐 `BlockedSeamNodes`·`BlockedSeamEdges`에 기록한다(Meadow 392/16, 회귀 0/0). 구현 단위 3(2026-10-01)에서 ReachabilityGroup(초기 1:1)·`ConnectivityGraphVersion=1`, `LNPNavQuery`(handle 기준 node 투영·node 지면점·group·Stale 판정), `NavReport`·`DrawNav` 진단과 회귀 8-slot oracle을 추가했다. 스모크에서 단위 1 베이커의 edge step 결함(200cm 끝점 높이 차를 step 45cm와 비교해 약 12.7° 이상 경사를 끊음)을 찾아 step·경사 구분 규칙으로 고치고 `BakerSchemaVersion=5`로 재베이크했다. Meadow runtime component는 41,169→689다. 구현 단위 4(2026-10-01)에서 Development package 1P와 리슨 2P host/guest가 같은 Nav(component·group 689, version 1)를 게시하고 모든 probe를 통과해 **Phase 7a가 끝났다.** cooked load는 약 35ms, Nav resident 0.59MiB다. 7b 입력 통계는 아래 "7a → 7b 인계 통계"에 있다.
 
@@ -71,7 +75,7 @@ Phase 6은 2026-09-28에 착수해 2026-09-29 구현 단위 0~5와 종료 검증
 
 ## 바로 다음 작업
 
-**현재 다음 행동:** 사용자에게 Phase 7c 단위 4 진행 확인을 받은 뒤 `phases/Phase07c_VolumetricTerrainBaking.md` §3을 따른다. 기존 fixture에 복층·나선·두 입구·높은 공동·낮은 천장·수직 통로 사례를 추가하고 고정 좌표·oracle을 `design/RegressionMap.md`에 기록한다. 라이브 제작·관찰에 MCP가 효율적이면 즉시 연결을 요청하고, 전체 빌드가 필요하면 즉시 에디터 저장·종료를 요청한다. 사용자 PIE로 추격·낙하·높은 공동의 비행 교전을 확인한다. 아래 7b 항목은 완료 인계 기록이다.
+**현재 다음 행동:** 단위 4를 완료했다. 사용자에게 단위 5(cooked·멀티플레이·성능 Gate) 진행 여부를 확인하고, 승인 뒤 착수한다. 현재 수정본 수직 통로 PIE는 유지한다.
 
 Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구현 단위 0(조밀 graph·A*·스냅), 단위 1(`FLNPNavPathScheduler`·경로 cache·revision view), 단위 2(Pod blocker overlay·Pod 소멸 시 재계획), 단위 3(Enemy 경로 연결·플레이어 접지 Nav 정보·배회 group 필터·진단)을 2026-10-01에 끝냈다. 단위 3은 자동화 78/78·전체 빌드·`-game` 추종 계측을 통과했고, 사용자 PIE 수동 플레이로 배경 프랍 우회와 동굴 안쪽 추격을 확인했다. 이음매 경로 12개는 회귀 자동화에서 검증했다. 단위 4(슬롯 도달성·접근점 이동·착지 Pod 재귀속)도 완료했다. 자동화 79/79·전체 빌드·크래시 수정 후 PIE 로딩과 사용자 양방향 접근점 플레이를 확인했다. 테스트용 거리·인내 설정은 원래 값으로 복구했다.
 
@@ -124,11 +128,11 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 
 ## 블로커
 
-Phase 7b 블로커는 해소됐다. 변경본 패키지의 자연·합성 추격 700마리 두 반복이 모두 프레임·경로 Gate를 통과했다. Phase 7c 단위 0·1·2·3은 완료했고 단위 4 진행 확인 대기다. 현재 MCP 도구가 세션 카탈로그에 노출되지 않으므로 라이브 작업이 필요한 시점에 연결을 요청한다.
+Phase 7b 블로커는 해소됐다. 변경본 패키지의 자연·합성 추격 700마리 두 반복이 모두 프레임·경로 Gate를 통과했다. Phase 7c 단위 0·1·2·3·4를 완료했다. 단위 5는 사용자 진행 확인 대기다. Unreal MCP의 native 도구와 HTTP discovery·dispatch로 실제 에디터 읽기·PIE 설정을 확인했다.
 
 ## 마지막 검증
 
-2026-10-02 Phase 7c 단위 3: 최종 전체 빌드 성공(6.30초), 전체 SurfaceNavigation 84/84·실패/오류/assert/ensure 0·exit 0(`Saved/Logs/Phase07c_Unit3_AllTestsAndRebake.log`). DataVersion 6·Spawn codec v2·schema 8 세 SurfaceData 재베이크와 headroom 임계값·혼합 편성·Config 변경·codec·저장본 결정론을 통과했다. 테스트 에셋 세 개는 실행 전 백업으로 복구하고 SHA256 일치를 확인했다. 높은 공동 등 새 콘텐츠·PIE는 단위 4, 패키지·2P·성능은 단위 5다. 상세는 `history/Phase07c_Log.md`다.
+2026-10-02 Phase 7c 단위 4 완료: 최종 전체 빌드 9.23초·집중 회귀 1/1·재베이크 후 전체 SurfaceNavigation 85/85·자동화 오류 0·exit 0(`Saved/Logs/Phase07c_Unit4_ShaftExitFix_RebakeAllTests.log`). 사용자 PIE에서 초기 NPC 묻힘 소실, 상층 인식·공격 유지, 나선·계단 경로 추격, 공동 드론 교전과 낮은 천장 피신, 수직 통로 그래플 지상 복귀를 확인했다. 양 입구 경로·수직 NoPath·8-slot 탈출 캡슐·저장본 결정론은 자동화로 검증했다. 테스트 에셋 세 개와 pool 디스크 원본 SHA256을 확인했다. 패키지·2P·성능은 단위 5에 남아 있다. 상세는 `history/Phase07c_Log.md`다.
 
 2026-10-02 Phase 7c 단위 2: 최종 전체 빌드 성공(6.93초), 집중 자동화 2/2와 전체 SurfaceNavigation 83/83·실패/오류 0·exit 0(`Saved/Logs/Phase07c_Unit2_AllTests_Final.log`). schema 7 세 SurfaceData 재베이크에서 Crust/Regression/Meadow portal은 0/8/24다. 두 입구 위치별 A* 선택·긴 경계 간격·나선 분할 경계 Walk·저장본 결정론·face identity·이음매·동굴·Pod overlay 회귀를 통과했다. 테스트 에셋 세 개는 실행 전 백업으로 복구하고 SHA256 일치를 확인했다. 패키지·PIE·2P·성능 Gate는 후속 단위에 남아 있다. 상세는 `history/Phase07c_Log.md`다.
 

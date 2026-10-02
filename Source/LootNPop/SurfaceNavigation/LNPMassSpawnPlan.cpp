@@ -324,7 +324,10 @@ bool LNPMassSpawnPlanning::BuildPlan(
 		const FLNPMassSpawnSetPlanInput& Set = Sets[Pod.SetInputIndex];
 		FLNPMassSpawnSetStats& Stats = OutPlan.SetStats[Pod.SetInputIndex];
 		TArray<FVector> OccupiedEnemies;
-		for (const FLNPMassSpawnEnemyPlanInput& EnemyInput : Set.Enemies)
+		// 높은 천장이 필요한 편성의 후보를 지상 적이 먼저 소비하지 않도록 한다.
+		TArray<FLNPMassSpawnEnemyPlanInput> EnemyInputs = Set.Enemies;
+		EnemyInputs.StableSort([](const auto& A, const auto& B) { return A.RequiredHeadroom > B.RequiredHeadroom; });
+		for (const FLNPMassSpawnEnemyPlanInput& EnemyInput : EnemyInputs)
 		{
 			Stats.EnemyRequested += EnemyInput.RequestedCount;
 			FLNPMassSpawnPlannedEnemyGroup Group;

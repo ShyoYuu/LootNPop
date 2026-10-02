@@ -75,6 +75,34 @@ TStatId ULNPMassWorldCollisionSubsystem::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(ULNPMassWorldCollisionSubsystem, STATGROUP_Tickables);
 }
 
+FLNPExactHitIdentity ULNPMassWorldCollisionSubsystem::ResolveFloorHit(
+	const FLNPHitIdentitySnapshot& Snapshot, const FHitResult& FloorHit) const
+{
+	check(IsInGameThread());
+	const auto Identity = ULNPHitIdentitySubsystem::ResolveHit(Snapshot, FloorHit);
+	if (!FloorHit.IsValidBlockingHit() || FloorHit.FaceIndex != INDEX_NONE
+		|| Identity.LocalLayerId != LNPSupportLayers::NoLayer)
+	{
+		return Identity;
+	}
+	const auto* Source = Snapshot.Sources.Find(FloorHit.Component);
+	if (!Source || !Source->HasSupportFaceMap() || Source->Support->Sources[Source->SupportSourceIndex].FaceMap.IsUniform())
+	{
+		return Identity;
+	}
+	// Mover의 기존 접점을 기준으로 짧게 검사한다. 다른 바닥·다른 instance로 층을 추정하지 않는다.
+	const FVector Normal = FloorHit.ImpactNormal.GetSafeNormal();
+	FLNPWorldHit Hit;
+	FHitResult FaceHit;
+	if (RunQuery(FloorHit.ImpactPoint + Normal * 10.0, FloorHit.ImpactPoint - Normal * 10.0,
+		FQuat::Identity, FCollisionShape(), FLNPWorldQueryParams(ELNPWorldQueryClass::GroundRiskFallback), Hit, &FaceHit)
+		&& !Hit.bStartPenetrating && FaceHit.Component == FloorHit.Component && FaceHit.Item == FloorHit.Item)
+	{
+		return ULNPHitIdentitySubsystem::ResolveHit(Snapshot, FaceHit);
+	}
+	return Identity;
+}
+
 bool ULNPMassWorldCollisionSubsystem::RaycastWorld(const FVector& Start, const FVector& End, const FLNPWorldQueryParams& Params,
 	FLNPWorldHit& OutHit) const
 {
@@ -117,7 +145,7 @@ bool ULNPMassWorldCollisionSubsystem::ProbeSupport(const FLNPSupportProbeQuery& 
 }
 
 bool ULNPMassWorldCollisionSubsystem::RunQuery(const FVector& Start, const FVector& End, const FQuat& Rotation,
-	const FCollisionShape& Shape, const FLNPWorldQueryParams& Params, FLNPWorldHit& OutHit) const
+	const FCollisionShape& Shape, const FLNPWorldQueryParams& Params, FLNPWorldHit& OutHit, FHitResult* OutNativeHit) const
 {
 	OutHit = FLNPWorldHit();
 
@@ -154,6 +182,7 @@ bool ULNPMassWorldCollisionSubsystem::RunQuery(const FVector& Start, const FVect
 	const bool bHit = Shape.IsLine()
 		? World->LineTraceSingleByChannel(Hit, Start, End, LNPCollisionChannels::WorldExact, QueryParams)
 		: World->SweepSingleByChannel(Hit, Start, End, Rotation, LNPCollisionChannels::WorldExact, Shape, QueryParams);
+	if (OutNativeHit) { *OutNativeHit = Hit; }
 
 	if (bHit)
 	{

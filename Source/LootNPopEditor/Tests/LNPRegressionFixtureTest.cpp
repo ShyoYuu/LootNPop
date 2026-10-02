@@ -63,8 +63,8 @@ namespace LNPRegressionFixtureTest
 	using namespace LNPRegressionFixture;
 
 	/** fixture LVI의 fixture actor 수와 그중 exact source(Decoration 제외) 수. */
-	constexpr int32 ExpectedActorsPerSlot = 29;
-	constexpr int32 ExpectedExactSourcesPerSlot = 15;
+	constexpr int32 ExpectedActorsPerSlot = 96;
+	constexpr int32 ExpectedExactSourcesPerSlot = 22;
 
 	/** 완전 구면 지각을 평면 삼각형으로 근사한 반지름 오차(0.4cm 이하)를 덮는다. */
 	constexpr double Tolerance = 1.0;
