@@ -2,7 +2,7 @@
 
 > 상태: 기준 로드맵
 > 읽기 조건: Phase 전환, 전체 순서 변경, 작업 범위 재산정 시
-> 마지막 갱신: 2026-10-01
+> 마지막 갱신: 2026-10-02
 
 ## 1. 진행 원칙
 
@@ -53,7 +53,7 @@
 | 4b | 부유섬·동굴 키트 다층 베이크 | 2~3세션 | 완료 | 같은 방향 다층 Support와 공동 모듈 floor 분리 |
 | 5 | 런타임 로더와 SurfaceCache 교체 | 3~4세션 | 완료 | 정상 실행에서 전체 runtime trace 제거, 클라이언트 로드, cook 전 CI·게시 단계 stale 검출, LVI 지정점 우선 Spawn stream |
 | 6 | Enemy 접지·공중·넉백 전환 | 3~4세션 | 완료 | PureEntity·Actor 경로의 낙하·착지·LOD 전환·패널 탑승, legacy 제거, 3b 시나리오 재측정 |
-| 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 진행 중(7a 완료, 7b 계측·기능 검증·성능 개선 1 완료 / 700마리 반복 Gate 미통과) | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
+| 7 | Coarse Tiled Nav Grid, 일반 A*, 도달성 | 3~5세션 | 완료(2026-10-02, 7a·7b 및 700마리 반복 Gate 통과) | 프랍·절벽 우회, 연결된 섬·동굴 추격, Pod 재귀속, 슬롯 도달성 |
 | 7c | 입체 지형 베이크 대응 | 2~3세션 | 대기 | 접힌 sheet 자동 분할(D-064), component 쌍당 여러 portal(D-065), source별 Layer 해상도(D-072), 비행 headroom(D-073), 입체 지형·지하 대형 공동 회귀 사례와 계약 확정, cache 적중률·수용량 재측정 |
 | 8 | Conditional Patch와 파괴 Overlay | 2~3세션 | 대기 | 지역 길 열림·닫힘, revision 기반 재탐색, 상태 복제 |
 | 9 | 부유섬·동굴·입체 지형 Vertical Slice | 2~3세션 | 대기 | 건물·탑·계단·벽과 마커 앵커 동선, 입구 조합이 다른 지하 대형 공동을 갖춘 실제 품질 옥탄트와 멀티플레이에서 설계 검증 |
@@ -118,7 +118,7 @@ Phase 7은 한 번에 완료하려 하지 않고 두 개의 독립 게이트로 
 
 7a의 cooked load와 8-slot 연결성 검증이 끝나기 전에 7b의 scheduler/cache 형식을 고정하지 않는다.
 7a 실행 계획과 고정 입력은 `phases/Phase07a_NavDataFoundation.md`, 7b는 `phases/Phase07b_PathExecution.md`를 따른다.
-2026-09-30 구현 단위 1까지 완료했다. `DataVersion=5` Navigation/Traversal stream, local component, 동굴 Layer portal과 ordered seam endpoint를 세 SurfaceData에 결정론적으로 저장했다. 다음은 runtime load와 8-slot 조립이다.
+2026-10-02 Phase 7a·7b를 완료했다. 변경본 Development package의 trace 없는 자연·합성 추격 700마리 리슨 2P를 각각 두 번 실행해 프레임 P95 16.67ms·경로 tick P95 1.5ms Gate를 모두 통과했고, 1P 스모크·probe·요청 CSV 무결성을 확인했다. 상세는 `history/Phase07_Log.md`의 변경본 패키지 반복 측정 기록을 따른다. 현재 패키지의 800마리는 미측정이며 최대 수용량은 확정하지 않는다. 다음은 Phase 7c 실행 계획 구체화이며 사용자 진행 확인 전에는 착수하지 않는다.
 
 ### Phase 7c — 입체 지형 베이크 대응
 

@@ -98,16 +98,28 @@ struct LOOTNPOP_API FLNPNavPathResult
 
 struct LOOTNPOP_API FLNPNavPathSchedulerSettings
 {
-	/** 프레임 전체 확장 예산. 구현 단위 0 측정(확장당 0.38us)으로 경로 CPU 약 1.5ms에 맞춘 값이다. */
+	/** 시작 비용과 실제 확장 수 차감의 프레임 상한. 시간 상한은 아니다. 기본값은 확장당 0.38us 측정 기준이다. */
 	int32 ExpansionsPerFrame = 4000;
 	int32 MaxExpansionsPerRequest = 30000;
 	/** 동시 실행 요청 수. scratch 하나가 전역 node 수 × 12B(Meadow 6.21MiB)다. */
 	int32 ScratchCount = 4;
 	int32 CacheCapacity = 256;
-	/** 시작·목표 스냅(ResolveEndpoints, P95 약 8us)을 확장 수로 환산해 예산에서 뺀다. */
+	/** 시작·목표 스냅(ResolveEndpoints, P95 약 8us)의 환산 비용. 잔여 예산이 이 값보다 작으면 새 요청은 대기한다. */
 	int32 ResolveCostInExpansions = 16;
 	/** 실행 중 요청들을 worker에서 병렬로 확장한다. 결과는 병렬 여부·예산 분할과 무관하다. */
 	bool bParallel = true;
+};
+
+/** 캡처 안에서 제출된 요청의 벽시계 지연. 시작·종료 전에는 해당 시각이 -1이다. */
+struct LOOTNPOP_API FLNPNavRequestTiming
+{
+	FMassEntityHandle Owner;
+	uint32 Serial = 0;
+	ELNPNavPathPriority Priority = ELNPNavPathPriority::Background;
+	ELNPNavPathStatus Status = ELNPNavPathStatus::Queued;
+	double SubmittedSeconds = -1.0;
+	double StartedSeconds = -1.0;
+	double FinishedSeconds = -1.0;
 };
 
 /** 누적 통계. NavReport·부하 측정이 프레임 차분으로 읽는다. */
@@ -166,6 +178,9 @@ public:
 	int32 GetCacheCount() const { return Cache.Num(); }
 	const FLNPNavPathSchedulerStats& GetStats() const { return Stats; }
 	void VisitResults(TFunctionRef<void(FMassEntityHandle, const FLNPNavPathResult&)> Visitor) const;
+	/** 기존 요청은 제외하고 이후 제출·재계획된 요청만 기록한다. 종료 시 미완료 요청도 상태 그대로 돌려준다. */
+	void BeginTimingCapture();
+	void EndTimingCapture(TArray<FLNPNavRequestTiming>& OutTimings);
 	uint64 GetScratchBytes() const;
 
 	/** 모든 요청·cache·통계를 버린다. scratch 메모리는 유지한다. */
@@ -176,6 +191,7 @@ private:
 	{
 		FLNPNavPathRequest Request;
 		FLNPNavPathResult Result;
+		FLNPNavRequestTiming Timing;
 	};
 
 	struct FQueueEntry
@@ -234,6 +250,7 @@ private:
 		int32 StartNode, int32 GoalNode);
 	void AddToCache(const FCacheKey& Key, const FLNPNavPathPtr& Path);
 	void ReleaseRunning(int32 RunningIndex);
+	void BeginRecordTiming(FRecord& Record);
 
 	TMap<FMassEntityHandle, FRecord> Records;
 	TDeque<FQueueEntry> Queues[static_cast<int32>(ELNPNavPathPriority::Count)];
@@ -246,4 +263,7 @@ private:
 	FLNPNavPathSchedulerStats Stats;
 	uint32 NextSerial = 1;
 	uint64 TickIndex = 0;
+	bool bCaptureTimings = false;
+	double TimingCaptureStart = 0.0;
+	TArray<FLNPNavRequestTiming> CapturedTimings;
 };

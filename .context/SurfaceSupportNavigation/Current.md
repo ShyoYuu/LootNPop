@@ -1,10 +1,12 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 7 — 7a 완료(2026-10-01), 7b 단위 0~4 완료, 단위 5 계측·기능 검증·성능 개선 1·검색 창 정확성 수정·동일 CSV 비용 비교와 예산 검토 완료 / 700마리 반복 Gate 미통과
+> 현재 Phase: Phase 7 완료(7a 2026-10-01, 7b 2026-10-02) — Phase 7c 착수 확인 대기
 > 마지막 갱신: 2026-10-02
 
 ## 현재 목표
+
+Phase 7b의 마지막 성능 Gate를 2026-10-02에 통과했다. 목표 투영 공유 변경본 Development package에서 trace 없는 자연·합성 추격 700마리 리슨 2P를 각각 두 번 실행해 모두 프레임 P95 16.67ms·경로 tick P95 1.5ms 안에 들었다. 아래 단계별 기록은 인계 이력이며 현재 미완료 작업은 아니다. 다음 목표는 사용자 승인 후 Phase 7c 실행 계획을 구체화하는 것이다. 7c 구현은 아직 시작하지 않았다.
 
 Phase 7은 2026-09-29에 7a Nav 데이터 기반부터 착수했다. 실행 계획은 `phases/Phase07a_NavDataFoundation.md`다. 구현 단위 0의 runtime 순수 자료구조·codec에 이어 구현 단위 1에서 coarse Grid, blocker dilation, 6방향 edge, local component, Layer portal, ordered seam endpoint와 editor payload 저장을 완료했고 `DataVersion=5`, `BakerSchemaVersion=4`를 활성화했다. 회귀 동굴은 exact Support polyline capsule sweep으로 지각↔통로와 공동↔통로 portal 두 개를 보존한다. 구현 단위 2(2026-10-01)에서 loader가 Nav/Traversal을 필수 decode하고, 순수 `LNPNavRuntime`이 8-slot runtime Layer ID·node ref·seam link·runtime StaticNavComponent를 조립해 Support와 같은 snapshot으로 게시한다. 이음매 줄 node·edge의 사본 간 clearance 차이는 D-060에 따라 막힘으로 합쳐 `BlockedSeamNodes`·`BlockedSeamEdges`에 기록한다(Meadow 392/16, 회귀 0/0). 구현 단위 3(2026-10-01)에서 ReachabilityGroup(초기 1:1)·`ConnectivityGraphVersion=1`, `LNPNavQuery`(handle 기준 node 투영·node 지면점·group·Stale 판정), `NavReport`·`DrawNav` 진단과 회귀 8-slot oracle을 추가했다. 스모크에서 단위 1 베이커의 edge step 결함(200cm 끝점 높이 차를 step 45cm와 비교해 약 12.7° 이상 경사를 끊음)을 찾아 step·경사 구분 규칙으로 고치고 `BakerSchemaVersion=5`로 재베이크했다. Meadow runtime component는 41,169→689다. 구현 단위 4(2026-10-01)에서 Development package 1P와 리슨 2P host/guest가 같은 Nav(component·group 689, version 1)를 게시하고 모든 probe를 통과해 **Phase 7a가 끝났다.** cooked load는 약 35ms, Nav resident 0.59MiB다. 7b 입력 통계는 아래 "7a → 7b 인계 통계"에 있다.
 
@@ -75,7 +77,12 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 2. 700마리 합성 추격은 첫 실행에서 프레임 P95 14.97ms·경로 tick P95 0.640ms로 통과했지만, 반복 실행은 19.61ms·1.891ms로 실패했다. 자연 행동 700은 13.63ms·0.546ms로 통과, 합성 800은 21.17ms·1.794ms로 실패다. 실행별 경로 수요가 달라 안정적인 Gate 통과·최대 수용량으로 확정하지 않는다. Phase 7b는 미완료이며 Gate 16.67ms·1.5ms는 유지한다. 상세는 `history/Phase07_Log.md` 성능 개선 단위 1을 따른다.
 3. 검색 창 정확성 수정 단위에서 꼭짓점 근처 3,000cm 반경 누락을 해결했다. 반경 구를 포함하는 로컬 좌표 상자의 격자 투영 범위를 조밀 검색과 `ProjectToNode`에 공통 적용했다. 수정 전 회귀·production 각각 8입력 실패를 재현했고, 수정 후 창 제한 없는 전 node 거리 oracle 720입력과 전체 자동화 79/79가 통과했다. 상세 재측정은 `history/Phase07_Log.md` 검색 창 정확성 수정 기록을 따른다.
 4. 동일 CSV 비용 비교·scheduler 예산 검토 단위를 완료했다(2026-10-02). `Nav.RequestCostReplay`로 저장된 700마리 CSV 8,610/9,298건을 같은 시각 묶음별로 재생했다. 캐시 없는 네 설정의 상태·waypoint·확장·cost가 모두 같다. 기본 병렬 tick P95는 1.285/1.302ms, 예산 2,000은 0.732/0.831ms지만 완료 tick 수가 약 10% 늘었다. 시작 비용 64는 1.032/1.164ms이고, 직렬은 1.681/1.834ms다. 실제 차감량이 예산을 최대 15(시작 비용 64는 63) 넘는 경우를 확인했다. 시작·종료·병렬 대기를 포함한 시간 상한은 현재 없다. 기본값은 유지했다. Pod overlay·원래 owner 취소·실제 프레임 경계를 복원하지 않는 통제 비교이며 플레이 성능 Gate를 대체하지 않는다. 실행법·전체 표·한계는 `history/Phase07_Log.md`의 동일 CSV 비용 비교 기록을 따른다.
-5. 다음 구현 단위 진행 여부를 사용자에게 확인한다. 권장 후보는 예산 차감 초과를 먼저 막고, 시작·확장·종료를 포함한 시간 예산의 필요성을 실제 패키지 요청 지연과 함께 검증하는 것이다. 승인 전에는 다음 구현이나 7c로 넘어가지 않는다.
+5. scheduler 예산 차감 초과 수정 단위를 완료했다(2026-10-02). 시작 비용이 모자라면 큐를 유지하고, 병렬 확장 배정 총량을 잔여 예산 안으로 제한한다. 프레임 예산이 시작 비용보다 작으면 새 요청은 설정을 올릴 때까지 대기하며 예산은 누적하지 않는다. 기본값·시간 예산·Gate는 유지했다. 전체 자동화와 동일 CSV 회귀 결과는 아래 마지막 검증 및 `history/Phase07_Log.md`를 따른다.
+6. 수정본 Development package의 700마리 리슨 2P 합성 추격 두 번과 요청 지연 검증을 완료했다(2026-10-02). 프레임 P95 16.91/17.93ms는 실패, 경로 tick P95 1.129/0.903ms는 통과다. 전체 요청 지연 P95 156.8/159.4ms의 대부분이 큐 대기 155.7/159.0ms이며, 시작 뒤 종료 P95는 0.422/0.408ms다. 같은 프레임의 요청 묶음이 최대 572/576건이었다. 캡처 종료 미완료 0, 취소 30/46건을 별도로 집계했다. 기본값과 Gate를 유지하고 시간 예산은 추가하지 않았다.
+7. 전체 프레임 CPU·동시 수요 프로파일 단위를 완료했다(2026-10-02). 기존 패키지의 CPU trace에서 게임 스레드 작업 대기 평균 8.02ms, Enemy 경로 소비 평균/P95 1.78/2.12ms, scheduler 0.217/1.043ms를 확인했다. worker 투사체 판정 범위는 평균/P95 5.74/6.48ms다(포함 벽시계 시간이며 게임 스레드 비용과 합산하지 않는다). 투사체 0 비교 실행의 프레임 P95는 12.24ms, 기본 500발 trace 실행은 18.15ms였다. trace 부담·실행별 수요 차이 때문에 순수 절감량이나 Gate 증거로 쓰지 않는다. 목표 전환의 가장 큰 여섯 묶음(540~561건, 요청 35.64%)은 큐 대기 P95 190.6ms, 나머지는 27.5ms였다. 상세와 분석 한계는 `history/Phase07_Log.md` 프레임 CPU 프로파일 기록을 따른다.
+8. Enemy 경로 소비 내부 계측·목표 투영 공유 단위를 완료했다(2026-10-02). 목표 투영이 반복 조회되는 것을 trace로 확인하고 한 processor 실행의 고정 snapshot·overlay 안에서 동일 좌표·SurfaceHandle 결과만 공유한다. `-game` 700마리 합성 추격 최적화 두 번에서 목표 투영 재사용률은 99.40%, 소비 P95는 1.689/1.650ms였다. 전체 자동화 80/80·최종 전체 빌드·리슨 2P 네 실행 정상 종료와 probe/CSV 검증을 통과했다. 에디터·trace 실행이고 수요와 시스템 부하가 달라 순수 프레임 절감량이나 패키지 Gate 근거로 쓰지 않는다. 상세는 `history/Phase07_Log.md`의 Enemy 내부 계측 기록을 따른다.
+9. 변경본 Development package 반복 측정·Phase 7b 종료 단위를 완료했다(2026-10-02). 자연 추격 700마리 두 번은 프레임/경로 tick P95 13.19/0.490ms, 14.07/0.557ms, 합성 추격은 12.74/0.440ms, 12.79/0.421ms로 모두 두 Gate를 통과했다. 새 패키지의 최종 1P도 정상 종료·probe·Gate를 통과했다. 소스·예산·기본값·Gate·테스트 에셋을 바꾸지 않았다. 요청 지연과 비교 한계는 `history/Phase07_Log.md`의 변경본 패키지 반복 측정 기록을 따른다. 현재 패키지 800마리는 측정하지 않아 최대 수용량은 미확정이다.
+10. 다음 단위로 Phase 7c 실행 계획 구체화와 첫 구현 범위를 정리할지 사용자에게 확인한다. 승인 후 `Roadmap.md`의 Phase 7c와 D-064·065·070~073에 해당하는 기준 설계를 읽고, 접힌 sheet 분할·여러 portal·source별 해상도·비행 headroom·입체/지하 회귀 사례를 검증 가능한 단위로 나눈다. 승인 전에는 실행 계획 생성이나 7c 구현을 시작하지 않는다. 투사체 판정과 요청 지연의 제품 허용 상한은 별도 후속 후보다.
 
 ## 범위 확장 결정(2026-10-01, 검토 세션)
 
@@ -115,9 +122,17 @@ Phase 7b 계획은 `phases/Phase07b_PathExecution.md`(결정 D-061~063)다. 구�
 
 ## 블로커
 
-Phase 7b 단위 5 성능 Gate 미통과: 검색 창 정확성 수정 후 700마리 합성 추격 두 번은 프레임 P95 18.60/17.19ms로 실패, 경로 tick P95 1.042/1.287ms로 통과다. 두 Gate의 동시 통과는 아직 없으며 후속 성능 개선 진행 확인을 기다린다.
+Phase 7b 블로커는 해소됐다. 변경본 패키지의 자연·합성 추격 700마리 두 반복이 모두 프레임·경로 Gate를 통과했다. Phase 7c는 구현 블로커가 아니라 사용자 착수 확인 대기다.
 
 ## 마지막 검증
+
+2026-10-02 변경본 패키지 반복 측정·7b 종료: Development BuildCookRun 104.69초·exit 0(`Phase07b_EnemyConsumer_Package.log`). trace 없는 자연·합성 추격 700마리 리슨 2P 네 실행과 최종 1P 100마리의 아홉 게임 프로세스 exit 0, probe 36개 PASS, assert·ensure·crash·게시 순서 위반·Unknown hit·Envelope escape·Layer jump 0이다. 네 요청/지연 CSV 6,404/9,485/7,310/9,295행의 중복·누락·시각 순서 오류 0, 캡처 종료 미완료 0이다. 최종 1P는 프레임 P95 4.52ms·경로 tick P95 0.007ms(`Phase07b_EnemyConsumer_Package1P_Final.log`)다. 전체 자동화는 소스 변경이 없어 직전 80/80 증거를 유지했다. 시작 시점 소스 6개·테스트 에셋 3개의 해시가 끝에도 일치했다. 자료는 `Saved/Profiling/Phase07b/N700_{natural,chase}_EnemyConsumer{1,2}_*`, 요약은 `EnemyConsumer_PackageSummary.json`이다. Phase 7b와 전체 Phase 7 완료.
+
+2026-10-02 Enemy 내부 계측·목표 투영 공유: 최종 `LootNPopEditor Win64 Development` 전체 빌드(9.46초), 전체 자동화 80/80·실패/오류 0(`Phase07b_EnemyConsumer_AllTests.log`) 통과. 테스트 에셋 세 개는 실행 전 백업으로 복구하고 해시 일치를 확인했다. `-game` 리슨 2P 기준 두 번·최적화 두 번의 여덟 프로세스 exit 0, probe 32개 PASS, assert·ensure·crash·Unknown hit·Envelope escape·Layer jump 0, 요청/지연 CSV 9,533/9,182/9,131/9,308행의 키·시각 검증을 통과했다. 최적화 두 번의 목표 투영은 862,814/1,009,228회 중 실제 조회 5,188/6,096회(99.40% 재사용)다. 자료는 `Saved/Profiling/Phase07b/N700_chase_Enemy{Baseline,Optimized}{1,2}_*`, 요약은 `EnemyConsumer_Summary.json`이다. 패키지는 다시 만들지 않았고 Phase 7b는 미완료다.
+
+2026-10-02 패키지 반복 측정·요청 지연 검증: 캡처 중에만 scheduler 제출·시작·종료 벽시계를 기록하고 취소·미완료를 구분했다. 에디터 전체 빌드(56.02초), 전체 자동화 80/80·오류 0(`Phase07b_BudgetFix_Latency_AllTests.log`), Development BuildCookRun(160.71초, `Phase07b_BudgetFix_Package.log`) 통과. 패키지 리슨 2P 두 실행의 호스트·게스트 네 프로세스 exit 0, probe 16개 PASS, assert·ensure·crash·Unknown hit·Envelope escape·Layer jump 0이다. `N700_chase_BudgetFix{1,2}_{Host.log,Guest.log,Requests.csv,RequestTimings.csv}`는 `Saved/Profiling/Phase07b`에 있다. 요청·지연 CSV 9,383/8,775행의 키 누락·시각 순서 오류 0이며 요약은 `BudgetFix_PackageSummary.json`이다. 테스트 에셋은 실행 전 내용으로 복구했다. 프레임 Gate 미통과이므로 Phase 7b는 미완료다.
+
+2026-10-02 scheduler 예산 차감 초과 수정: 수정 전 `Nav.PathScheduler`에서 시작 비용 16·예산 15의 시작과 잔여 확장 예산 1·running 4의 확장 4를 재현했다(`Phase07b_BudgetFix_Repro.log`). 수정 후 전체 빌드(52.12초), 전체 자동화 80/80·오류 0(`Phase07b_BudgetFix_AllTests.log`, CSV 항목은 인자 없이 건너뜀), 별도 `Nav.RequestCostReplay` 두 번 PASS·exit 0(`Phase07b_BudgetFix_Replay{1,2}.log`)다. CSV 8,610/9,298건의 다섯 설정 모두 최대 차감이 예산 4,000/2,000 이하이며 캐시 없는 네 설정의 상태·waypoint·확장·cost 불일치 0이다. 직렬·병렬에서 예산 0·15·16·17, 잔여 예산 1, 즉시 종료 큐 보존을 검증했다. 테스트 에셋 세 개는 실행 전 내용으로 복구했고 `git diff --check` 통과다. tick 비용 CSV는 `Saved/Profiling/Phase07b/BudgetFix{1,2}_RequestCosts.csv`다. BuildCookRun·패키지 플레이 재측정은 이번 단위에 포함하지 않았다.
 
 2026-10-02 동일 CSV 비용 비교·예산 검토: 전체 빌드(19.81초), 전체 SurfaceNavigation 자동화 80/80(신규 CSV 항목은 인자 없이 건너뜀, 기존 79개 통과), 별도 `Nav.RequestCostReplay` CSV 두 번 PASS·exit 0. 8,610/9,298건의 캐시 없는 네 설정은 상태·waypoint·확장·cost가 일치했다. 로그는 `Saved/Logs/Phase07b_RequestCostReplay{1,2,_AllTests}.log`, tick 비용 CSV는 `Saved/Profiling/Phase07b/WindowFix{1,2}_RequestCosts.csv`다. 테스트 에셋 세 개는 실행 전 내용으로 복구했고 `git diff --check`가 통과했다. runtime 변경·패키지 재측정은 없으며 700마리 Gate 미통과 상태를 유지한다.
 

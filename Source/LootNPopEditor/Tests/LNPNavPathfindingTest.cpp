@@ -385,7 +385,7 @@ namespace LNPNavPathfindingTest
 	}
 
 	/** 일이 남지 않을 때까지 tick한다. 반환값은 tick 수다. */
-	int32 DrainScheduler(FLNPNavPathScheduler& Scheduler, const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay,
+	int32 DrainScheduler(FAutomationTestBase& Test, FLNPNavPathScheduler& Scheduler, const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay,
 		TArray<double>* OutTickMicroseconds = nullptr, const int32 MaxTicks = 100000)
 	{
 		int32 Ticks = 0;
@@ -393,6 +393,12 @@ namespace LNPNavPathfindingTest
 		{
 			const double StartSeconds = FPlatformTime::Seconds();
 			Scheduler.Tick(Nav, Overlay, [](FMassEntityHandle) { return true; });
+			const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
+			if (!Test.TestTrue(TEXT("Scheduler tick charge stays within the frame budget"),
+				Stats.LastTickStarted * Scheduler.Settings.ResolveCostInExpansions + Stats.LastTickExpansions <= Scheduler.Settings.ExpansionsPerFrame))
+			{
+				break;
+			}
 			if (OutTickMicroseconds)
 			{
 				OutTickMicroseconds->Add((FPlatformTime::Seconds() - StartSeconds) * 1.e6);
@@ -621,7 +627,7 @@ bool FLNPNavEnemyReachabilityTest::RunTest(const FString& Parameters)
 		Case.GoalHandle = Direction == 0 ? IslandSurface : CrustSurface;
 		FLNPNavPathScheduler Scheduler;
 		const uint32 Serial = Scheduler.Submit(MakeRequest(Case, 1, ELNPNavPathPriority::Background, 3000.0));
-		DrainScheduler(Scheduler, Nav, nullptr);
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
 		FLNPNavPathResult Result;
 		TestEnum(*this, TEXT("Alert approach stays unreachable"), Scheduler.GetResult(Player, Serial, Result), ELNPNavPathStatus::Unreachable);
 		if (TestTrue(TEXT("Alert approach has a path"), Result.Path.IsValid() && !Result.Path->Waypoints.IsEmpty()))
@@ -1085,8 +1091,9 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 	{
 		{TEXT("single tick"), 1000000, 4, true},
 		{TEXT("parallel split"), 40, 2, true},
-		{TEXT("serial split"), 7, 1, false},
+		{TEXT("serial split"), 17, 1, false},
 	};
+	TArray<FLNPNavPathResult> FullBudgetResults;
 	for (const FBudgetMode& Mode : Modes)
 	{
 		FLNPNavPathScheduler Scheduler;
@@ -1099,7 +1106,7 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		{
 			Serials.Add(Scheduler.Submit(MakeRequest(Cases[Index], Index + 1)));
 		}
-		const int32 Ticks = DrainScheduler(Scheduler, Nav, nullptr);
+		const int32 Ticks = DrainScheduler(*this, Scheduler, Nav, nullptr);
 		int32 MaxRunningTicks = 0;
 		for (int32 Index = 0; Index < Cases.Num(); ++Index)
 		{
@@ -1108,6 +1115,16 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 				Scheduler.GetResult(FMassEntityHandle(Index + 1, 1), Serials[Index], Result), ELNPNavPathStatus::Succeeded);
 			TestTrue(FString::Printf(TEXT("%s %s waypoints equal the direct search"), Mode.Label, Cases[Index].Label),
 				WaypointNodes(Result) == References[Index]);
+			if (Mode.Budget == 1000000)
+			{
+				FullBudgetResults.Add(Result);
+			}
+			else
+			{
+				TestEqual(TEXT("Budget splitting preserves the expansion count"), Result.Expansions, FullBudgetResults[Index].Expansions);
+				TestTrue(TEXT("Budget splitting preserves the path cost"), Result.Path.IsValid() && FullBudgetResults[Index].Path.IsValid()
+					&& FMath::IsNearlyEqual(Result.Path->Cost, FullBudgetResults[Index].Path->Cost, 1.e-6));
+			}
 			MaxRunningTicks = FMath::Max(MaxRunningTicks, Result.RunningTicks);
 		}
 		const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
@@ -1125,12 +1142,82 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		}
 	}
 
+	// 시작 비용 미만·정확히 같은 예산·시작 뒤 남은 소예산을 직렬과 병렬에서 검사한다.
+	for (const bool bParallel : {false, true})
+	{
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.CacheCapacity = 0;
+		Scheduler.Settings.bParallel = bParallel;
+		Scheduler.Settings.ExpansionsPerFrame = 15;
+		const uint32 Serial = Scheduler.Submit(MakeRequest(Cases[0], 1));
+		for (int32 Tick = 0; Tick < 2; ++Tick)
+		{
+			Scheduler.Settings.ExpansionsPerFrame = Tick == 0 ? 0 : 15;
+			Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+			FLNPNavPathResult Result;
+			TestEnum(*this, TEXT("Budget below resolve cost leaves the request queued"),
+				Scheduler.GetResult(FMassEntityHandle(1, 1), Serial, Result), ELNPNavPathStatus::Queued);
+			TestEqual(TEXT("Insufficient resolve budget starts no request"), Scheduler.GetStats().LastTickStarted, 0);
+			TestEqual(TEXT("Insufficient resolve budget expands no node"), Scheduler.GetStats().LastTickExpansions, 0);
+			TestEqual(TEXT("Deferred request stays in the queue"), Scheduler.GetQueuedCount(), 1);
+		}
+		Scheduler.Settings.ExpansionsPerFrame = 16;
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		TestEqual(TEXT("Exact resolve budget starts one request"), Scheduler.GetStats().LastTickStarted, 1);
+		TestEqual(TEXT("Exact resolve budget leaves no expansion budget"), Scheduler.GetStats().LastTickExpansions, 0);
+		Scheduler.Settings.ExpansionsPerFrame = 17;
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
+		FLNPNavPathResult Result;
+		TestEnum(*this, TEXT("Deferred request completes once the budget permits"),
+			Scheduler.GetResult(FMassEntityHandle(1, 1), Serial, Result), ELNPNavPathStatus::Succeeded);
+		TestTrue(TEXT("Deferred request preserves its reference waypoints"), WaypointNodes(Result) == References[0]);
+
+		// 네 요청을 시작하고 1개만 남은 확장 예산을 모두에게 1개씩 주면 초과한다.
+		Scheduler.Reset();
+		Scheduler.Settings.ExpansionsPerFrame = 65;
+		TArray<uint32> Serials;
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			Serials.Add(Scheduler.Submit(MakeRequest(Cases[0], Index + 1)));
+		}
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		TestEqual(TEXT("Four requests consume 64 resolve units"), Scheduler.GetStats().LastTickStarted, 4);
+		TestEqual(TEXT("One remaining budget unit expands only one node"), Scheduler.GetStats().LastTickExpansions, 1);
+		TestEqual(TEXT("All four requests remain running"), Scheduler.GetRunningCount(), 4);
+		Scheduler.Settings.ExpansionsPerFrame = 1;
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		TestEqual(TEXT("Budget below the running count still expands only one node"), Scheduler.GetStats().LastTickExpansions, 1);
+		Scheduler.Settings.ExpansionsPerFrame = 65;
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
+		for (int32 Index = 0; Index < Serials.Num(); ++Index)
+		{
+			TestEnum(*this, TEXT("Each split request eventually succeeds"),
+				Scheduler.GetResult(FMassEntityHandle(Index + 1, 1), Serials[Index], Result), ELNPNavPathStatus::Succeeded);
+			TestTrue(TEXT("Each split request preserves its reference waypoints"), WaypointNodes(Result) == References[0]);
+		}
+
+		// 즉시 종료도 시작 비용을 낸다. 잔여 15에서는 다음 요청을 꺼내지 않는다.
+		Scheduler.Reset();
+		Scheduler.Settings.ExpansionsPerFrame = 31;
+		const uint32 First = Scheduler.Submit(MakeRequest(Island, 1));
+		const uint32 Second = Scheduler.Submit(MakeRequest(Island, 2));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		TestEnum(*this, TEXT("First immediate result completes"),
+			Scheduler.GetResult(FMassEntityHandle(1, 1), First, Result), ELNPNavPathStatus::Unreachable);
+		TestEnum(*this, TEXT("Remainder below resolve cost preserves the next queued request"),
+			Scheduler.GetResult(FMassEntityHandle(2, 1), Second, Result), ELNPNavPathStatus::Queued);
+		TestEqual(TEXT("Immediate results cannot overdraw the resolve budget"), Scheduler.GetStats().LastTickStarted, 1);
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
+		TestEnum(*this, TEXT("Preserved queued request completes next tick"),
+			Scheduler.GetResult(FMassEntityHandle(2, 1), Second, Result), ELNPNavPathStatus::Unreachable);
+	}
+
 	// 2) 도달 불가: 접근점 반경이 없으면 확장 없이 끝나고, 있으면 지각 내부 접근점까지 경로가 온다(D-063).
 	{
 		FLNPNavPathScheduler Scheduler;
 		const uint32 Plain = Scheduler.Submit(MakeRequest(Island, 1));
 		const uint32 WithApproach = Scheduler.Submit(MakeRequest(Island, 2, ELNPNavPathPriority::Chase, 3000.0));
-		DrainScheduler(Scheduler, Nav, nullptr);
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
 		FLNPNavPathResult Result;
 		TestEnum(*this, TEXT("Island without approach is Unreachable"),
 			Scheduler.GetResult(FMassEntityHandle(1, 1), Plain, Result), ELNPNavPathStatus::Unreachable);
@@ -1152,6 +1239,43 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 	const FSchedulerCase& Tree = Cases[0];
 	const FMassEntityHandle OwnerA(1, 1);
 	const FMassEntityHandle OwnerB(2, 1);
+
+	// 지연 캡처는 기존 요청을 제외하고 완료·취소·미완료를 구분한다. 타이밍 값은 벽시계 순서만 검사한다.
+	{
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.CacheCapacity = 0;
+		Scheduler.Submit(MakeRequest(Tree, 9));
+		Scheduler.BeginTimingCapture();
+		Scheduler.Submit(MakeRequest(Tree, 1));
+		Scheduler.Submit(MakeRequest(Tree, 1));
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
+		Scheduler.Submit(MakeRequest(Tree, 2));
+		Scheduler.Submit(MakeRequest(Tree, 3));
+		Scheduler.Submit(MakeRequest(Tree, 4));
+		Scheduler.Settings.ExpansionsPerFrame = 16;
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle Owner) { return Owner.Index != 4; });
+		TArray<FLNPNavRequestTiming> Timings;
+		Scheduler.EndTimingCapture(Timings);
+		TestEqual(TEXT("Capture excludes warm-up and includes completed, cancelled and pending requests"), Timings.Num(), 5);
+		int32 Completed = 0, Cancelled = 0, Queued = 0, Running = 0;
+		for (const FLNPNavRequestTiming& Timing : Timings)
+		{
+			TestTrue(TEXT("Captured timing belongs to a request submitted inside the window"), Timing.Owner.Index != 9 && Timing.SubmittedSeconds >= 0.0);
+			Completed += Timing.Status == ELNPNavPathStatus::Succeeded;
+			Cancelled += Timing.Status == ELNPNavPathStatus::Cancelled;
+			Queued += Timing.Status == ELNPNavPathStatus::Queued;
+			Running += Timing.Status == ELNPNavPathStatus::Running;
+			TestTrue(TEXT("Start time is absent or follows submission"), Timing.StartedSeconds < 0.0 || Timing.StartedSeconds >= Timing.SubmittedSeconds);
+			TestTrue(TEXT("Finish time is absent or follows submission and start"), Timing.FinishedSeconds < 0.0
+				|| Timing.FinishedSeconds >= FMath::Max(Timing.SubmittedSeconds, Timing.StartedSeconds));
+			TestEqual(TEXT("Pending request has no invented finish time"), Timing.FinishedSeconds < 0.0,
+				Timing.Status == ELNPNavPathStatus::Queued || Timing.Status == ELNPNavPathStatus::Running);
+		}
+		TestEqual(TEXT("Timing capture includes one completed request"), Completed, 1);
+		TestEqual(TEXT("Timing capture includes supersession and vanished-owner cancellations"), Cancelled, 2);
+		TestEqual(TEXT("Timing capture preserves one queued request"), Queued, 1);
+		TestEqual(TEXT("Timing capture preserves one running request"), Running, 1);
+	}
 
 	// 3) Stale: 실행 중 ConnectivityGraphVersion이나 overlay revision이 바뀌면 결과를 섞지 않는다. 옛 handle도 Stale이다.
 	{
@@ -1180,7 +1304,7 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		FSchedulerCase OldHandle = Tree;
 		++OldHandle.StartHandle.Generation;
 		Serial = Scheduler.Submit(MakeRequest(OldHandle, 1));
-		DrainScheduler(Scheduler, Nav, nullptr);
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
 		TestEnum(*this, TEXT("Old snapshot handle is Stale"), Scheduler.GetResult(OwnerA, Serial, Result), ELNPNavPathStatus::Stale);
 	}
 
@@ -1195,7 +1319,7 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		TestEnum(*this, TEXT("Resubmission cancels the older serial"),
 			Scheduler.GetResult(OwnerA, First, Result), ELNPNavPathStatus::Cancelled);
 		TestEqual(TEXT("Resubmission releases the running scratch"), Scheduler.GetRunningCount(), 0);
-		DrainScheduler(Scheduler, Nav, nullptr);
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
 		TestEnum(*this, TEXT("Newer serial completes"), Scheduler.GetResult(OwnerA, Second, Result), ELNPNavPathStatus::Succeeded);
 		TestTrue(TEXT("Newer serial equals the direct search"), WaypointNodes(Result) == References[0]);
 
@@ -1219,7 +1343,7 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		Scheduler.Settings.ExpansionsPerFrame = 4000;
 		Scheduler.Settings.MaxExpansionsPerRequest = 2;
 		const uint32 Capped = Scheduler.Submit(MakeRequest(Tree, 1));
-		DrainScheduler(Scheduler, Nav, nullptr);
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
 		TestEnum(*this, TEXT("Request over the expansion cap ends as NoPath"),
 			Scheduler.GetResult(OwnerA, Capped, Result), ELNPNavPathStatus::NoPath);
 	}
@@ -1236,7 +1360,7 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		TestEnum(*this, TEXT("Background request waits behind the chase request"),
 			Scheduler.GetResult(OwnerA, Wander, Result), ELNPNavPathStatus::Queued);
 		TestTrue(TEXT("Chase request started first"), Scheduler.GetResult(OwnerB, Chase, Result) != ELNPNavPathStatus::Queued);
-		DrainScheduler(Scheduler, Nav, nullptr);
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
 		TestEnum(*this, TEXT("Background request completes afterwards"),
 			Scheduler.GetResult(OwnerA, Wander, Result), ELNPNavPathStatus::Succeeded);
 	}
@@ -1247,7 +1371,7 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		auto RunOne = [&](const int32 OwnerIndex, const FLNPNavOverlay* Overlay, FLNPNavPathResult& OutResult)
 		{
 			const uint32 Serial = Scheduler.Submit(MakeRequest(Tree, OwnerIndex));
-			DrainScheduler(Scheduler, Nav, Overlay);
+			DrainScheduler(*this, Scheduler, Nav, Overlay);
 			return Scheduler.GetResult(FMassEntityHandle(OwnerIndex, 1), Serial, OutResult);
 		};
 		FLNPNavPathResult First;
@@ -1317,7 +1441,7 @@ bool FLNPNavProductionSchedulerTest::RunTest(const FString& Parameters)
 			Serials.Add(Scheduler.Submit(MakeRequest(Cases[Index], Index + 1)));
 		}
 		TArray<double> TickMicroseconds;
-		const int32 Ticks = DrainScheduler(Scheduler, Nav, nullptr, &TickMicroseconds);
+		const int32 Ticks = DrainScheduler(*this, Scheduler, Nav, nullptr, &TickMicroseconds);
 		int32 Mismatches = 0;
 		int32 Succeeded = 0;
 		TArray<double> RunningTicks;
@@ -1475,6 +1599,7 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			First = End;
 		}
 		TestEqual(TEXT("Uncached variants preserve statuses, waypoints, expansions and costs"), Mismatches, 0);
+		TestTrue(TEXT("Every replay tick charge stays within the frame budget"), MaxCharged <= Scheduler.Settings.ExpansionsPerFrame);
 		const auto& Stats = Scheduler.GetStats();
 		AddInfo(FString::Printf(TEXT("Replay %s: batches=%d ticks=%d requests=%llu expansions=%llu hits=%llu mismatches=%d maxCharged=%d budget=%d; tick P50/P95/max=%.1f/%.1f/%.1fus startP95=%.1f stepP95=%.1f finishP95=%.1f queuedP95=%.0f; total tick/start/step/finish=%.1f/%.1f/%.1f/%.1fms"),
 			Labels[Variant], Batch, TickUs.Num(), Stats.Submitted, Stats.Expansions, Stats.CacheHits, Mismatches, MaxCharged,
@@ -1572,14 +1697,14 @@ bool FLNPNavPodOverlayTest::RunTest(const FString& Parameters)
 	Case.GoalHandle = Handle;
 	FLNPNavPathScheduler Scheduler;
 	const uint32 Serial = Scheduler.Submit(MakeRequest(Case, 1));
-	DrainScheduler(Scheduler, Nav, &Blocked);
+	DrainScheduler(*this, Scheduler, Nav, &Blocked);
 	FLNPNavPathResult Result;
 	TestEnum(*this, TEXT("Blocked route is planned"),
 		Scheduler.GetResult(FMassEntityHandle(1, 1), Serial, Result), ELNPNavPathStatus::Succeeded);
 	TestEqual(TEXT("Pod removal queues the affected path"), Scheduler.RequeueInvalidatedPaths(Nav, &Cleared), 1);
 	TestEnum(*this, TEXT("Same serial waits for replanning"),
 		Scheduler.GetResult(FMassEntityHandle(1, 1), Serial, Result), ELNPNavPathStatus::Queued);
-	DrainScheduler(Scheduler, Nav, &Cleared);
+	DrainScheduler(*this, Scheduler, Nav, &Cleared);
 	TestEnum(*this, TEXT("Popped Pod route is replanned"),
 		Scheduler.GetResult(FMassEntityHandle(1, 1), Serial, Result), ELNPNavPathStatus::Succeeded);
 	TestEqual(TEXT("Unchanged overlay queues nothing"), Scheduler.RequeueInvalidatedPaths(Nav, &Cleared), 0);

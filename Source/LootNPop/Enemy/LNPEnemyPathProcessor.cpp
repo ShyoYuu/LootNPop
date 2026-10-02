@@ -2,6 +2,7 @@
 
 #include "Enemy/LNPEnemyProcessors.h"
 #include "Misc/ScopeExit.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
@@ -33,6 +34,23 @@ namespace
 	constexpr double MinRepathSeconds = 0.5;
 	constexpr double NavSnapRadius = 300.0;
 
+	struct FGoalProjectionKey
+	{
+		FVector3d Position;
+		FLNPSurfaceHandle Surface;
+
+		bool operator==(const FGoalProjectionKey&) const = default;
+
+		friend uint32 GetTypeHash(const FGoalProjectionKey& Key)
+		{
+			// FVector의 바이트 해시도 좌표 비교처럼 +0과 -0을 같은 키로 취급한다.
+			const FVector3d Position(Key.Position.X == 0.0 ? 0.0 : Key.Position.X,
+				Key.Position.Y == 0.0 ? 0.0 : Key.Position.Y, Key.Position.Z == 0.0 ? 0.0 : Key.Position.Z);
+			return HashCombineFast(GetTypeHash(Position), HashCombineFast(GetTypeHash(Key.Surface.Generation),
+				HashCombineFast(GetTypeHash(Key.Surface.OctantSlot), GetTypeHash(Key.Surface.LocalLayerId))));
+		}
+	};
+
 	FVector3d FeetOf(const FVector3d& Center, const double HalfHeight)
 	{
 		return Center + Center.GetSafeNormal() * HalfHeight;
@@ -41,6 +59,7 @@ namespace
 	int32 NearestNode(const FLNPNavSnapshot& Nav, const FLNPSurfaceHandle& Surface,
 		const FVector3d& Position, const FLNPNavOverlay* Overlay)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_NearestNode);
 		if (!Surface.IsValid() || Surface.Generation != Nav.SnapshotGeneration)
 		{
 			return INDEX_NONE;
@@ -190,11 +209,14 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 	const double ConsumerBegin = FPlatformTime::Seconds();
 	ON_SCOPE_EXIT { Paths->SetLastConsumerSeconds(FPlatformTime::Seconds() - ConsumerBegin); };
 	const TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> Overlay = Paths->TakeOverlay();
+	// 한 실행의 고정 snapshot·overlay 안에서만 동일한 목표 투영을 공유한다. NoNode 결과도 다음 실행에는 다시 조회한다.
+	TMap<FGoalProjectionKey, int32> GoalProjections;
 	const double Now = World->GetTimeSeconds();
 	TArray<FMassEntityHandle> HomesChanged;
 	TArray<FLNPEnemyHomePod> Pods;
 	PodQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_Pods);
 		const auto Transforms = Ctx.GetFragmentView<FTransformFragment>();
 		const auto PodData = Ctx.GetMutableFragmentView<FLNPLootPodFragment>();
 		for (int32 Index = 0; Index < Ctx.GetNumEntities(); ++Index)
@@ -250,6 +272,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 			if (Enemy.bNeedsHomeCheck || (Enemy.bOrphaned && Now - Enemy.LastHomeCheckTime >= 1.0))
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_HomeCheck);
 				int32 HomeIndex;
 				const ELNPNavEndpointStatus HomeStatus = LNPEnemyNavigation::SelectHomePod(
 					Nav, Start, Enemy.SurfaceHandle, Enemy.ParentLootPod, Pods, HomeIndex);
@@ -299,6 +322,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			bool bUnreachableTarget = false;
 			if (!bSynthetic && Target.State != ELNPTargetingState::None && bTargetActive)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_TargetReachability);
 				const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer);
 				if (PlayerNav && PlayerNav->Surface.IsValid())
 				{
@@ -349,8 +373,27 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 			const FVector3d Goal = bSynthetic ? SyntheticGoal : bUnreachableTarget ? FVector3d(Target.TargetLocation)
 				: FeetOf(MoveTarget.Center, Shared.Config->CapsuleHalfHeight);
-			const int32 StartNode = NearestNode(Nav, Enemy.SurfaceHandle, Start, Overlay.Get());
-			const int32 GoalNode = NearestNode(Nav, GoalSurface, Goal, Overlay.Get());
+			int32 StartNode;
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_StartProjection);
+				StartNode = NearestNode(Nav, Enemy.SurfaceHandle, Start, Overlay.Get());
+			}
+			int32 GoalNode;
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_GoalProjection);
+				const FGoalProjectionKey Key{Goal, GoalSurface};
+				if (const int32* Cached = GoalProjections.Find(Key))
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_GoalProjectionHit);
+					GoalNode = *Cached;
+				}
+				else
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_GoalProjectionMiss);
+					GoalNode = NearestNode(Nav, GoalSurface, Goal, Overlay.Get());
+					GoalProjections.Add(Key, GoalNode);
+				}
+			}
 			if (StartNode == INDEX_NONE)
 			{
 				State.SteeringPoint = Center;
@@ -367,7 +410,12 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			{
 				State.Path.Reset();
 			}
-			if (GoalNode != INDEX_NONE && LNPNavGraph::IsDirectWalkable(Nav, StartNode, GoalNode, Overlay.Get()))
+			bool bDirectGoal;
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_DirectGoal);
+				bDirectGoal = GoalNode != INDEX_NONE && LNPNavGraph::IsDirectWalkable(Nav, StartNode, GoalNode, Overlay.Get());
+			}
+			if (bDirectGoal)
 			{
 				Paths->RecordFollowerFrame(false, 0);
 				if (State.RequestSerial != 0)
@@ -386,6 +434,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 			if (State.RequestSerial != 0 && !bGoalChanged && !bPathInvalid && !bNoPathOverlayChanged)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_Result);
 				FLNPNavPathResult Result;
 				State.Status = Paths->GetResult(Owner, State.RequestSerial, Result);
 				if (IsFinished(State.Status) && Result.Path.IsValid() && State.Path != Result.Path)
@@ -398,6 +447,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				|| State.Status == ELNPNavPathStatus::Stale)
 				&& Now - State.LastRequestTime >= MinRepathSeconds)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_Submit);
 				FLNPNavPathRequest Request;
 				Request.Owner = Owner;
 				Request.Priority = bChasing ? ELNPNavPathPriority::Chase : ELNPNavPathPriority::Background;
@@ -417,6 +467,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 			if (State.Path.IsValid())
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_FollowWaypoints);
 				State.bApproachingUnreachable = State.Status == ELNPNavPathStatus::Unreachable
 					|| State.Status == ELNPNavPathStatus::NoNode;
 				const TArray<FLNPNavPathWaypoint>& Waypoints = State.Path->Waypoints;

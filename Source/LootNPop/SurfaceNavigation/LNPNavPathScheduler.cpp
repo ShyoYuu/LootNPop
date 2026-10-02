@@ -38,6 +38,7 @@ uint32 FLNPNavPathScheduler::Submit(const FLNPNavPathRequest& Request)
 	Record.Request = Request;
 	Record.Result.Serial = NextSerial++;
 	Record.Result.Status = ELNPNavPathStatus::Queued;
+	BeginRecordTiming(Record);
 	Queues[static_cast<int32>(Request.Priority)].PushLast({Request.Owner, Record.Result.Serial});
 	++QueuedCount;
 	++Stats.Submitted;
@@ -54,7 +55,7 @@ void FLNPNavPathScheduler::Cancel(const FMassEntityHandle Owner)
 	if (Record->Result.Status == ELNPNavPathStatus::Queued)
 	{
 		--QueuedCount;
-		++Stats.Finished[static_cast<int32>(ELNPNavPathStatus::Cancelled)];
+		Finish(*Record, ELNPNavPathStatus::Cancelled);
 	}
 	else if (Record->Result.Status == ELNPNavPathStatus::Running)
 	{
@@ -63,7 +64,7 @@ void FLNPNavPathScheduler::Cancel(const FMassEntityHandle Owner)
 		{
 			ReleaseRunning(RunningIndex);
 		}
-		++Stats.Finished[static_cast<int32>(ELNPNavPathStatus::Cancelled)];
+		Finish(*Record, ELNPNavPathStatus::Cancelled);
 	}
 	// 큐에 남은 옛 항목은 serial 불일치로 건너뛴다.
 	Records.Remove(Owner);
@@ -85,6 +86,7 @@ int32 FLNPNavPathScheduler::RequeueInvalidatedPaths(const FLNPNavSnapshot& Nav, 
 		Record.Result.bFromCache = false;
 		Record.Result.Expansions = 0;
 		Record.Request.Priority = ELNPNavPathPriority::Replan;
+		BeginRecordTiming(Record);
 		Queues[static_cast<int32>(ELNPNavPathPriority::Replan)].PushLast({Pair.Key, Record.Result.Serial});
 		++QueuedCount;
 		++Requeued;
@@ -133,6 +135,47 @@ void FLNPNavPathScheduler::Reset()
 	ScratchInUse.Init(false, Scratches.Num());
 	Cache.Reset();
 	Stats = FLNPNavPathSchedulerStats();
+	bCaptureTimings = false;
+	CapturedTimings.Reset();
+}
+
+void FLNPNavPathScheduler::BeginTimingCapture()
+{
+	bCaptureTimings = true;
+	TimingCaptureStart = FPlatformTime::Seconds();
+	CapturedTimings.Reset();
+	for (auto& Pair : Records)
+	{
+		Pair.Value.Timing = FLNPNavRequestTiming();
+	}
+}
+
+void FLNPNavPathScheduler::BeginRecordTiming(FRecord& Record)
+{
+	Record.Timing = FLNPNavRequestTiming();
+	if (bCaptureTimings)
+	{
+		Record.Timing.Owner = Record.Request.Owner;
+		Record.Timing.Serial = Record.Result.Serial;
+		Record.Timing.Priority = Record.Request.Priority;
+		Record.Timing.SubmittedSeconds = FPlatformTime::Seconds() - TimingCaptureStart;
+	}
+}
+
+void FLNPNavPathScheduler::EndTimingCapture(TArray<FLNPNavRequestTiming>& OutTimings)
+{
+	bCaptureTimings = false;
+	for (auto& Pair : Records)
+	{
+		FRecord& Record = Pair.Value;
+		if (Record.Timing.SubmittedSeconds >= 0.0
+			&& (Record.Result.Status == ELNPNavPathStatus::Queued || Record.Result.Status == ELNPNavPathStatus::Running))
+		{
+			Record.Timing.Status = Record.Result.Status;
+			CapturedTimings.Add(Record.Timing);
+		}
+	}
+	OutTimings = MoveTemp(CapturedTimings);
 }
 
 bool FLNPNavPathScheduler::PopNextQueued(FQueueEntry& OutEntry)
@@ -182,6 +225,12 @@ void FLNPNavPathScheduler::Finish(FRecord& Record, const ELNPNavPathStatus Statu
 {
 	Record.Result.Status = Status;
 	++Stats.Finished[static_cast<int32>(Status)];
+	if (bCaptureTimings && Record.Timing.SubmittedSeconds >= 0.0)
+	{
+		Record.Timing.Status = Status;
+		Record.Timing.FinishedSeconds = FPlatformTime::Seconds() - TimingCaptureStart;
+		CapturedTimings.Add(Record.Timing);
+	}
 }
 
 void FLNPNavPathScheduler::Tick(
@@ -213,7 +262,7 @@ void FLNPNavPathScheduler::Tick(
 			{
 				ReleaseRunning(RunningIndex);
 			}
-			++Stats.Finished[static_cast<int32>(ELNPNavPathStatus::Cancelled)];
+			Finish(It.Value(), ELNPNavPathStatus::Cancelled);
 		}
 		It.RemoveCurrent();
 	}
@@ -232,13 +281,13 @@ void FLNPNavPathScheduler::Tick(
 		}
 	}
 
-	// 3) 예산이 남는 동안 시작 → 병렬 확장 → 종료 처리를 반복한다. 매 라운드는 요청을 끝내거나 요청마다 1개 이상 확장한다.
+	// 3) 예산 안에서 시작 → 병렬 확장 → 종료 처리를 반복한다. 시작 비용이 모자라면 요청은 큐에 둔다.
 	int32 Budget = Settings.ExpansionsPerFrame;
 	while (Budget > 0)
 	{
 		FQueueEntry Entry;
 		const double StartBegin = FPlatformTime::Seconds();
-		while (Budget > 0 && Running.Num() < FMath::Max(1, Settings.ScratchCount) && PopNextQueued(Entry))
+		while (Budget >= Settings.ResolveCostInExpansions && Running.Num() < FMath::Max(1, Settings.ScratchCount) && PopNextQueued(Entry))
 		{
 			--QueuedCount;
 			Budget -= Settings.ResolveCostInExpansions;
@@ -252,10 +301,13 @@ void FLNPNavPathScheduler::Tick(
 		}
 		Stats.MaxConcurrentRunning = FMath::Max(Stats.MaxConcurrentRunning, Running.Num());
 
-		const int32 Share = FMath::Max(1, Budget / Running.Num());
+		// 잔여 예산보다 요청이 많으면 앞의 요청만 확장한다. 배정 총량은 잔여 예산을 넘지 않는다.
+		const int32 StepCount = FMath::Min(Budget, Running.Num());
+		const int32 Share = Budget / StepCount;
 		for (FRunningSearch& Search : Running)
 		{
 			Search.ExpansionsBefore = Search.Search.Expansions;
+			Search.StepSeconds = 0.0;
 		}
 		auto Step = [this, &Nav, Overlay, Share](const int32 Index)
 		{
@@ -265,13 +317,13 @@ void FLNPNavPathScheduler::Tick(
 			Search.StepSeconds = FPlatformTime::Seconds() - StepStart;
 		};
 		const double StepBegin = FPlatformTime::Seconds();
-		if (Settings.bParallel && Running.Num() > 1)
+		if (Settings.bParallel && StepCount > 1)
 		{
-			ParallelFor(Running.Num(), Step);
+			ParallelFor(StepCount, Step);
 		}
 		else
 		{
-			for (int32 Index = 0; Index < Running.Num(); ++Index)
+			for (int32 Index = 0; Index < StepCount; ++Index)
 			{
 				Step(Index);
 			}
@@ -304,6 +356,10 @@ void FLNPNavPathScheduler::Tick(
 
 void FLNPNavPathScheduler::StartRequest(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, FRecord& Record)
 {
+	if (bCaptureTimings && Record.Timing.SubmittedSeconds >= 0.0)
+	{
+		Record.Timing.StartedSeconds = FPlatformTime::Seconds() - TimingCaptureStart;
+	}
 	const FLNPNavPathRequest& Request = Record.Request;
 	FLNPNavEndpointQuery Query;
 	Query.StartPosition = Request.StartPosition;
