@@ -366,3 +366,244 @@ CSV 인자가 없는 전체 자동화에서는 안내를 남기고 비교를 건
 - CSV 자동화 두 번 모두 `Result={Success}`·exit 0. 캐시 없는 설정 비교 17,908요청 × 3변형의 상태·경로·확장·cost 불일치 0.
 - 전체 SurfaceNavigation 자동화 80/80·exit 0(`Saved/Logs/Phase07b_RequestCostReplay_AllTests.log`). 기존 79개가 통과했고 신규 비교 항목은 CSV 인자가 없어 안내 후 건너뛰었다(실제 CSV 검증은 위 두 별도 실행). 테스트가 저장한 세 에셋은 실행 전 백업 내용으로 복구해 에셋 diff가 없다. `git diff --check` 통과.
 - runtime 코드는 이번 단위에서 바꾸지 않았으며 cook/package·리슨 2P는 재실행하지 않았다. 앞선 패키지 Gate 실패 상태를 유지한다.
+
+## 2026-10-02 — scheduler 예산 차감 초과 수정·회귀 검증 단위
+
+사용자가 승인한 이번 단위는 예산 차감 초과 수정과 회귀 검증이다. 기본 예산 4,000·시작 비용 16·scratch 4·cache 256·병렬 설정과 성능 Gate는 유지했다. 시간 예산이나 Phase 7c 구현은 추가하지 않았다.
+
+### 재현과 수정
+
+- 회귀 테스트를 먼저 추가하고 기존 runtime으로 전체 빌드·`Nav.PathScheduler`를 실행했다. `Saved/Logs/Phase07b_BudgetFix_Repro.log`의 `Result={Fail}`에서 시작 비용 16·예산 15인데 요청을 시작하는 문제, 네 요청의 시작 비용 64 뒤 잔여 예산 1로 4개를 확장하는 문제, running 4·예산 1에서 4개를 확장하는 문제를 재현했다. 이 명령의 `TestExit`는 실패여도 프로세스 exit 0을 반환하므로 로그의 테스트 결과와 오류를 검사했다.
+- `FLNPNavPathScheduler::Tick`에서 잔여 예산이 시작 비용 이상일 때만 큐를 꺼낸다. cache hit·도달 불가 등 즉시 종료에도 같은 규칙을 적용한다.
+- 확장할 요청 수는 `min(잔여 예산, running 수)`이고 앞의 요청부터 선택한다. 몫은 `잔여 예산 / 선택 수`이므로 총 배정이 예산을 넘지 않는다. 조기 종료·나눗셈 나머지로 남은 예산은 다음 라운드에서 재사용한다.
+- 배정되지 않은 요청의 `StepSeconds`를 0으로 초기화해 이전 라운드 worker 시간이 중복 합산되지 않게 했다.
+- 프레임 예산이 시작 비용보다 작으면 새 요청은 예산 설정이 올라갈 때까지 큐에 남는다. 프레임 사이 예산 누적은 하지 않는다. 기존 초소예산 결정론 모드 7은 시작 비용 16을 감당할 수 없으므로 17로 바꾸고 0·15는 별도의 대기·복구 회귀로 검사한다. 실행 중 요청은 시작 비용을 다시 내지 않으므로 예산 1로도 이어갈 수 있다.
+- 상세 차감 규약은 `design/GroundNavigation.md`와 Phase 7b §3.4에 반영했다. 차감 상한은 게임 스레드 경과 시간 상한이 아니다.
+
+### 회귀 검증
+
+- 수정본 `LootNPopEditor Win64 Development` 전체 빌드 통과(52.12초, 컴파일 진단 오류·경고 0).
+- 전체 SurfaceNavigation 자동화 80/80·오류 0·exit 0: `Saved/Logs/Phase07b_BudgetFix_AllTests.log`. CSV 항목은 인자가 없어 건너뛰었고 아래 별도 실행으로 검증했다.
+- `Nav.PathScheduler`는 직렬·병렬에서 예산 0·15의 큐 보존, 16의 시작만 수행, 17의 완료와 reference 경로 일치, running 수보다 작은 잔여 예산, 즉시 종료 뒤의 큐 보존과 다음 tick 완료를 검사했다. 예산 분할 세 모드의 확장 합계는 모두 1,737이며 상태·waypoint·확장 수·cost가 일치한다.
+- 공통 `DrainScheduler`가 매 tick의 `시작 수 × 시작 비용 + 실제 확장 수 ≤ 프레임 예산`을 검사한다. 기존 cache·Stale·취소·우선순위·Pod overlay·접근점·production scheduler 회귀에도 적용된다.
+- 동일 입력 `N700_chase_WindowFix{1,2}_Requests.csv` 8,610/9,298건의 `Nav.RequestCostReplay` 두 번 모두 `Result={Success}`·자동화 오류 0·exit 0이다. 로그는 `Saved/Logs/Phase07b_BudgetFix_Replay{1,2}.log`, tick CSV는 `Saved/Profiling/Phase07b/BudgetFix{1,2}_RequestCosts.csv`다. 실행 인자는 앞선 재생 명령과 같고 출력 파일명만 교체했다.
+
+| 설정 | CSV 1 / 2 완료 tick 수 | 최대 차감 CSV 1 / 2 | 예산 | tick P95 CSV 1 / 2(ms) |
+|:---|---:|---:|---:|---:|
+| 기본 | 1,900 / 2,025 | 4,000 / 4,000 | 4,000 | 1.121 / 1.063 |
+| 예산 2,000 | 2,087 / 2,231 | 2,000 / 2,000 | 2,000 | 0.627 / 0.649 |
+| 시작 비용 64 | 1,945 / 2,069 | 4,000 / 4,000 | 4,000 | 0.896 / 0.912 |
+| 직렬 | 1,900 / 2,025 | 4,000 / 4,000 | 4,000 | 1.473 / 1.450 |
+| cache 256 | 1,806 / 1,942 | 4,000 / 4,000 | 4,000 | 0.693 / 0.986 |
+
+다섯 설정 모두 예산 초과 0이다. 캐시 없는 네 설정은 상태·waypoint·확장 수·cost 불일치 0이며 확장 합계는 CSV별 1,150,364/1,243,024다. cache 256은 공유 경로 때문에 동일 결과 비교 대상에서 제외하고 상한만 검사했다. 위 시간은 설정별 단일 통제 실행이므로 앞선 실행보다 성능이 개선됐다고 확정하지 않는다. Pod overlay·원래 owner 취소·실제 프레임 경계가 없는 재생이며 패키지 Gate를 대체하지 않는다.
+
+테스트가 저장한 세 에셋은 실행 전 백업으로 복구해 에셋 diff가 없다. `git diff --check` 통과. BuildCookRun·패키지 플레이는 이번 단위에 포함하지 않았으며 700마리 반복 Gate 미통과·Phase 7b 미완료 상태를 유지한다.
+
+이번 구현 단위는 완료했다. 다음 후보는 수정본 Development package의 700마리 리슨 2P 합성 추격 반복 측정과 요청 대기 지연·단계별 비용 확인이다. 시간 예산 도입 여부는 그 결과로 판단한다. 사용자에게 진행 여부를 확인하기 전에는 다음 단위나 Phase 7c로 넘어가지 않는다.
+
+## 2026-10-02 — 예산 수정본 패키지 반복 측정·요청 지연 검증 단위
+
+사용자가 승인한 다음 단위로 700마리 리슨 2P 합성 추격을 두 번 실행했다. 기존 예산 4,000·시작 비용 16·scratch 4·cache 256·병렬, seed 1·투사체 500·warm-up 10초·capture 30초·`-nullrhi -nosound -corelimit=4`를 유지했다. 에디터 프로세스는 없었으며 패키지 빌드와 실행을 순차 진행했다.
+
+### 필요한 계측과 검증
+
+- 기존 계측에는 요청별 큐 대기 시각이 없었다. `FLNPNavPathScheduler::BeginTimingCapture/EndTimingCapture`로 캡처 안에서 제출·재계획된 요청만 `FPlatformTime` 기준 제출·시작·종료 시각을 기록한다. 기존 요청은 제외하고 정상 완료·취소·종료 시 Queued/Running을 구분한다. 미완료 시각은 -1이며 정상 완료 분포에 섞지 않는다. 캡처 밖에서는 시각 조회·결과 배열 기록을 하지 않는다.
+- `ULNPNavPathSubsystem::EndRequestCapture`는 기존 요청 CSV와 별도 `_Timings.csv`를 저장한다. 출력 스키마는 `owner,ownerSerial,requestSerial,priority,status,submittedSeconds,startedSeconds,finishedSeconds`다. runtime 동작·요청 우선순위·예산은 바꾸지 않았다.
+- `Nav.PathScheduler`에 warm-up 제외, 같은 owner의 새 요청에 의한 취소, owner 소멸 취소, 정상 완료, 캡처 종료 시 큐·실행 상태와 시각 순서 검사를 추가했다.
+- 에디터 전체 빌드 통과(56.02초), 전체 SurfaceNavigation 80/80·자동화 오류 0·exit 0(`Saved/Logs/Phase07b_BudgetFix_Latency_AllTests.log`). CSV 재생 항목은 인자가 없어 건너뛰었다. 테스트가 저장한 세 에셋은 실행 전 내용으로 복구했다.
+- Win64 Development BuildCookRun의 build·cook·stage·pak·archive 통과(160.71초, exit 0, `Saved/Logs/Phase07b_BudgetFix_Package.log`).
+- 재현 실행기는 `Saved/Tests/Phase07b_BudgetFix_RunPackage.ps1`, 분석기는 `Saved/Tests/Phase07b_BudgetFix_Analyze.ps1`다. 기존 `RunNavChaseMatrix.ps1`과 같은 인자를 사용하며 고유 실행 접두사로 이전 로그를 보존한다. 백분위는 기존 harness와 같은 nearest-rank(`ceil(p*N)-1`)다.
+
+### 패키지 결과
+
+아래 파일은 `Saved/Profiling/Phase07b`에 있고 접두사 `N700_chase_BudgetFix{1,2}` 뒤에 `_{Host.log,Guest.log,Requests.csv,RequestTimings.csv}`가 붙는다. 요약 원본은 `BudgetFix_PackageSummary.json`이다.
+
+| 실행 | 프레임 P50 / P95(ms) | 경로 tick P50 / P95(ms) | 확장 P50 / P95 | running / queued P95 | 제출·요청 CSV·지연 CSV | cache hit율 | Gate |
+|:---|---:|---:|---:|---:|---:|---:|:---|
+| 1 | 14.69 / 16.91 | 0.121 / 1.129 | 81 / 2,052 | 0 / 0 | 9,383 | 61.24% | 프레임 실패·경로 통과 |
+| 2 | 15.28 / 17.93 | 0.109 / 0.903 | 76 / 1,676 | 0 / 0 | 8,775 | 62.48% | 프레임 실패·경로 통과 |
+
+| 실행 | 시작 P50 / P95(ms) | 확장 대기 P50 / P95(ms) | 종료 P50 / P95(ms) | Enemy 소비 P50 / P95(ms) | 슬롯 P50 / P95(ms) |
+|:---|---:|---:|---:|---:|---:|
+| 1 | 0.029 / 0.210 | 0.038 / 0.643 | 0.015 / 0.088 | 1.798 / 2.153 | 0.611 / 0.830 |
+| 2 | 0.023 / 0.201 | 0.037 / 0.611 | 0.014 / 0.084 | 1.802 / 2.138 | 0.735 / 0.978 |
+
+경로 tick 최대는 2.497/2.264ms다. 판정 기준은 기존 프레임 P95 16.67ms·경로 tick P95 1.5ms를 유지한다. 단계별 P95 합은 전체 tick P95가 아니며, 앞선 패키지와 실제 요청 수요가 달라 성능 개선량으로 단정하지 않는다. 이번 측정에는 캡처용 시각 조회와 메모리 기록 비용도 들어간다.
+
+### 요청 지연
+
+큐 지연은 시작-제출, 실행 지연은 종료-시작, 전체 지연은 종료-제출의 벽시계다. 정상 종료 상태는 Succeeded·Unreachable·NoNode·NoPath·Stale이며 취소는 별도 집계다. 이번 실행의 정상 종료는 Succeeded 6,997/6,559건·Unreachable 2,356/2,170건이고 다른 정상 종료 상태는 0이다. 큐 분포는 시작한 요청 전부(9,354/8,729건), 실행·전체 분포는 정상 종료 요청(9,353/8,729건)을 분모로 쓴다.
+
+| 실행 | 큐 P50 / P95 / 최대(ms) | 실행 P50 / P95 / 최대(ms) | 전체 P50 / P95 / 최대(ms) | 취소 | 종료 미완료 |
+|:---|---:|---:|---:|---:|---:|
+| 1 | 10.566 / 155.659 / 225.394 | 0.039 / 0.422 / 36.489 | 10.665 / 156.801 / 242.187 | 30 | 0 |
+| 2 | 10.964 / 158.990 / 222.849 | 0.035 / 0.408 / 36.611 | 11.055 / 159.390 / 223.210 | 46 | 0 |
+
+취소까지의 지연 P95는 119.223/127.057ms, 최대 133.878/148.129ms다. 요청 키 누락·시각 순서 오류 0이며 제출 수·요청 CSV·지연 CSV 행 수가 일치한다. 모든 시작 요청의 우선순위는 Chase다. 100ms 넘게 기다린 시작 요청은 1,114/1,222건이다. 같은 시각 제출 묶음의 최대 크기는 572/576건이며 큰 묶음은 약 5초 간격 목표 전환에 모였다. 이 동시 수요가 큐 지연의 주요 후보지만 정확한 기여량은 별도 프로파일이 필요하다. 프레임 표본의 queued P95=0은 대부분 프레임에 큐가 비어 있다는 뜻이므로 요청을 분모로 한 대기 P95와 모순되지 않는다. 요청 지연의 제품 허용 상한은 아직 정하지 않았다.
+
+### 기능 확인과 다음 단위
+
+호스트·게스트 네 프로세스 모두 exit 0, 네 probe가 각 로그마다 PASS(총 16개), assert·ensure·crash·Unknown hit·Envelope escape·Layer jump 0이다. MassPrePhysics 게시 순서 위반도 호스트 65,760/71,544회 검사에서 0이며 게스트 로그에서도 위반 0을 확인했다. 기존 Mover 초기화·Mass CharacterMovementComponent 추출 로그는 이번 변경 범위에서 다루지 않았다. `git diff --check` 통과다.
+
+반복 두 번 모두 경로 tick Gate는 통과하지만 프레임 Gate는 실패하므로 Phase 7b는 미완료다. 요청 지연은 실행보다 큐 대기가 지배한다. 시간 상한 도입이나 예산 감소는 이 대기를 늘릴 수 있으며 현재 프레임 실패를 해결할 근거가 충분하지 않아 기본값을 유지한다. 권장 다음 단위는 전체 프레임 CPU 비용(이동·Enemy 소비·슬롯·복제 등)과 목표 전환 때 동시 요청 수요를 프로파일하는 것이다. 이번 단위는 완료했으며 사용자에게 다음 단위 진행 여부를 확인한다. 승인 전에는 추가 구현이나 Phase 7c로 넘어가지 않는다.
+
+## 2026-10-02 — 프레임 CPU·동시 수요 프로파일 단위
+
+사용자가 앞 단위 뒤 진행을 승인했다. 기존 패키지의 processor CPU 범위와 `LNPLoadBaselineCapture` region으로 전체 프레임을 분해하고, 목표 전환 때 제출된 요청의 지연을 따로 집계했다. runtime 소스·예산·Gate·맵을 바꾸지 않았다. 기존 패키지와 UnrealInsights CLI가 충분해 MCP 연결·에디터 실행·추가 빌드·자동화 없이 이 계측 단위를 수행했다.
+
+### 실행과 재현 자료
+
+- 패키지: `Saved/SurfaceNavigationPhase3Package/Windows/LootNPop.exe`, 직전 요청 지연 계측 단위의 Development 산출물
+- 기본 부하: 지상 적 700·투사체 500·seed 1·합성 추격·리슨 2P·`-nullrhi -corelimit=4`, 기존 Support cache·lateral sweep·parallel movement 설정 유지
+- 호스트에만 `-trace=cpu,frame,bookmark,region,task -tracefile=<절대 경로>` 추가. 투사체 비용을 분리하는 비교 실행은 양쪽에 `-LNPLoadBaselineProjectiles=0` 추가
+- 실행 스크립트: `Saved/Tests/Phase07b_Profile_Run.ps1`, `Phase07b_Profile_NoProjectile.ps1`. 네 프로세스 모두 exit 0
+- 로그·요청·지연·trace: `Saved/Profiling/Phase07b/N700_chase_Profile1_*`, `N700_chase_ProfileNoProjectile1_*`. trace는 프로세스 정상 종료 뒤 각각 307,789,196 / 366,495,207 B로 완성됐다
+- export 명령 파일: `Saved/Tests/Phase07b_Profile1_Export.rsp`, `Phase07b_Profile1_Workers.rsp`, `Phase07b_ProfileNoProjectile1_Export.rsp`. UnrealInsights에 `-OpenTraceFile=<trace> -AutoQuit -NoUI -ExecOnAnalysisCompleteCmd=@=<rsp> -ABSLOG=<log> -unattended`로 전달했다. export 로그는 `Saved/Logs/Phase07b_Profile1_InsightsExport.log`, `Phase07b_Profile1_WorkerExport.log`, `Phase07b_ProfileNoProjectile1_InsightsExport.log`
+- 분석: `Saved/Tests/Phase07b_Profile_Analyze.py <Profile1|ProfileNoProjectile1> <실행 접두사>`와 `Phase07b_Profile_Integrity.ps1`. 결과는 `Saved/Profiling/Phase07b/Profile1_Analysis.json`, `ProfileNoProjectile1_Analysis.json`, 두 `*_FrameCosts.csv`, `Profile_PackageSummary.json`
+
+### 프레임 비용
+
+아래는 부하 harness 출력이다. trace 실행의 수치이므로 정규 Gate 재검증을 대체하지 않는다. 투사체 0은 부하 조건도 다르다.
+
+| 실행 | 프레임 P50 / P95 / 최대(ms) | 경로 tick P50 / P95 / 최대(ms) | Enemy 소비 P95(ms) | 슬롯 소비 P95(ms) | 제출 수 |
+|:---|---:|---:|---:|---:|---:|
+| Profile1, 투사체 500 | 15.92 / 18.15 / 21.15 | 0.131 / 1.043 / 2.277 | 2.117 | 0.820 | 9,254 |
+| ProfileNoProjectile1, 투사체 0 | 10.35 / 12.24 / 15.75 | 0.057 / 0.381 / 2.087 | 2.103 | 0.977 | 8,756 |
+
+`LNPLoadBaselineCapture` 안에 완전히 들어오는 게임 스레드 root 프레임만 골라 1,866 / 2,858개를 분석했다. 경계를 걸치는 첫·마지막 프레임은 제외했다. 자식 범위를 뺀 exclusive 시간을 의미별로 분배하되 인식되지 않은 자식은 부모 분류를 따른다. TaskWait는 scheduler 내부 대기를 포함한다. 각 프레임의 분류 합계와 root 시간의 오차는 0이며 depth 누락·음수 exclusive 0이다. trace root 프레임 P95는 18.183 / 12.269ms로 harness와 표본 경계가 조금 다르다.
+
+| 게임 스레드 분류 | 500발 평균 / P95(ms) | 0발 평균 / P95(ms) |
+|:---|---:|---:|
+| 작업 대기 (`WaitForTasks`) | 8.023 / 8.907 | 4.030 / 4.686 |
+| Enemy 경로 소비 | 1.775 / 2.119 | 1.759 / 2.105 |
+| 궤적 예측 | 0.946 / 1.239 | 0.518 / 0.876 |
+| NetworkPrediction | 0.670 / 0.966 | 0.249 / 0.607 |
+| Mass 복제 | 0.512 / 0.610 | 0.496 / 0.622 |
+| Iris 복제 | 0.392 / 0.488 | 0.325 / 0.423 |
+| scheduler(TaskWait로 분류한 범위 제외) | 0.217 / 1.043 | 0.132 / 0.379 |
+| 스켈레탈 애니메이션 | 0.363 / 0.474 | 0.225 / 0.338 |
+| 기타 Mass | 0.669 / 0.798 | 0.645 / 0.781 |
+| 기타 | 2.508 / 4.100 | 2.113 / 2.632 |
+| 전체 root 프레임 | 16.077 / 18.183 | 10.493 / 12.269 |
+
+평균은 합산 가능하지만 각 항목의 P95는 서로 다른 프레임이므로 합산하지 않는다. 500발에서 작업 대기가 root 프레임 평균의 약 49.9%다. worker `LNPProjectileHitDetectionProcessor` 범위는 프레임당 포함 벽시계 합 평균 5.743ms·P95 6.475ms이며, 같은 방식의 EnemyMovement는 1.323/1.561ms, Targeting 0.670/0.898ms, Scoring 0.660/0.884ms, Separation 0.583/0.834ms다. 이 worker 값은 자식·병렬 범위 및 게임 스레드 대기와 겹치므로 프레임 비용 표에 더하지 않는다. OS 스레드 CPU 시간이나 critical path의 순수 기여량도 아니다.
+
+투사체 제거 뒤 작업 대기와 전체 프레임이 크게 줄어 투사체 판정은 우선 조사할 worker 후보다. 다만 trace 부담과 실행별 이동·요청 수요, 프레임 수, 복제·예측 비용까지 달라 프레임 P95 차이 5.91ms를 투사체의 순수 비용으로 단정하지 않는다. Enemy 소비는 두 실행 모두 P95 약 2.1ms로 남는다. 슬롯 소비도 여전히 0.8~1.0ms지만 processor 하나로 분리되지 않아 harness 값을 사용한다.
+
+### 목표 전환과 큐 지연
+
+500발 실행의 가장 큰 여섯 제출 묶음은 캡처 시각 1.351 / 6.357 / 11.366 / 16.364 / 21.354 / 26.356초에 540 / 549 / 561 / 555 / 551 / 542건이었다. 5초 목표 전환 간격과 일치하고 총 3,298건(전체의 35.64%)이다. CSV의 동일 제출 시각으로 묶고 owner·ownerSerial·requestSerial로 지연 CSV를 연결했다.
+
+| 500발 요청 분류 | 전체 / 취소 / 미완료 | 큐 P50 / P95 / 최대(ms) | 시작→종료 P95(ms) | 제출→종료 P95(ms) |
+|:---|---:|---:|---:|---:|
+| 큰 여섯 묶음 | 3,298 / 19 / 0 | 78.179 / 190.585 / 223.469 | 15.479 | 191.238 |
+| 나머지 묶음 | 5,956 / 14 / 0 | 10.061 / 27.549 / 209.072 | 0.302 | 28.002 |
+| 전체 | 9,254 / 33 / 0 | 10.749 / 165.274 / 223.469 | 0.421 | 165.841 |
+
+큰 묶음에 긴 지연이 집중된다. 나머지 요청도 같은 큐에 들어가므로 일부는 앞선 burst의 영향을 받고, 위 차이가 burst의 순수 인과 효과는 아니다. 시작→종료에는 다중 프레임 실행과 다음 tick 대기가 포함되며 CPU 실행 시간과 다르다. 큐 통계는 시작된 요청, 전체 지연은 정상 종료 상태를 분모로 하고 취소는 제외했다.
+
+0발 실행은 요청 8,756·취소 26·캡처 끝 미완료 111건(queued 107·running 4)이다. 미완료의 종료를 추정하지 않았다. 큐 P95 104.965ms·정상 종료 지연 P95 105.178ms, 큰 여섯 묶음의 큐 P95 121.499ms는 캡처 경계에서 남은 요청을 포함해 비교에 주의한다. 종료 상태 차분에는 warm-up 요청이 들어갈 수 있어 지연 CSV의 정상 종료·취소 수와 harness 종료 계수가 꼭 같지는 않다.
+
+### 검증·한계·다음 단위
+
+두 실행의 요청 CSV와 지연 CSV는 각각 9,254 / 8,756행으로 일치하며 키 중복·누락·시각 순서 오류 0이다. probe는 각 로그 4개씩 총 16개 PASS, 게임 assert·ensure·crash·Unknown hit·Envelope escape·Layer jump 0이다. MassPrePhysics 순서 검사 호스트 62,048 / 77,960회, 게스트 104,537 / 109,844회에서 위반 0이다. 기존 Mover 초기화·Mass CharacterMovementComponent 추출 로그는 변경 범위 밖이다.
+
+UnrealInsights 분석기에는 memory channel을 캡처하지 않은 상태의 `[MemAlloc] TagTracker` 오류와 종료 transport 잔여 경고가 있었다. 메모리 결과는 사용하지 않았다. 분석기가 닫히고 모든 export 파일이 완성된 뒤 CPU 계층·프레임 합계·독립 harness 수치를 검증했다. trace 종료보다 약 20초 앞의 측정 region을 사용했지만 이 확인이 모든 trace channel의 무결성을 보장하는 것은 아니다. timing event export의 timer 필터에도 frame track 행이 나와 worker 집계에서는 processor 이름을 다시 필터했다. `git diff --check` 통과다.
+
+이번 계측 단위는 완료, Phase 7b는 미완료다. 기본 500발·trace 없는 반복 Gate 실패 기록을 유지하며 투사체 제거 실행으로 완료 판정을 바꾸지 않는다. 권장 다음 단위는 Enemy 경로 소비 내부 범위를 추가해 매 프레임 시작·목표 node 투영과 직선 보행 검사의 비용을 확인하고 규약을 유지할 수 있는 중복 조회를 줄이는 것이다. 현재 processor 범위만으로 특정 내부 함수가 주원인이라고 확정하지 않는다. 투사체 판정은 별도 최적화 후보이며 scheduler 예산 축소·시간 상한 도입의 근거로 쓰지 않는다. 사용자에게 다음 단위 진행 여부를 확인하고, 승인 전에는 구현이나 Phase 7c로 넘어가지 않는다.
+
+## 2026-10-02 — Enemy 내부 계측·목표 투영 공유 단위
+
+사용자가 내부 계측과 측정에 근거한 중복 조회 최적화를 승인했다. 기존 미커밋 scheduler·요청 지연 계측·테스트·문서 변경을 보존했다. runtime 변경은 `LNPEnemyPathProcessor.cpp` 한 파일에 한정한다. MCP 도구가 제공되지 않아 연결을 요청했으나, 사용자가 에디터를 닫은 상태였고 전체 빌드와 `-game` 실행 파일로 검증할 수 있어 MCP 없이 진행했다. 사용자가 첫 측정 중 에디터를 열었다가 요청에 따라 닫았으므로 첫 기준 trace는 참고값으로만 남기고 닫힌 상태에서 기준을 다시 수집했다.
+
+### 계측과 최소 최적화
+
+- `LNPEnemyPath_` trace 범위: `Pods`, `HomeCheck`, `TargetReachability`, `StartProjection`, `GoalProjection`, `NearestNode`, `DirectGoal`, `Result`, `Submit`, `FollowWaypoints`. 최적화 후 목표 투영의 `GoalProjectionHit`·`GoalProjectionMiss`도 구분한다.
+- 기준 두 번째 실행의 목표 투영은 753,726회·총 0.559477초다. 시작 투영은 0.918833초, 직선 목표 검사는 0.236275초다. 합성 추격 네 목표를 적마다 다시 투영하는 비용이 확인돼 이 중복만 줄였다.
+- 한 processor 실행의 고정 Nav snapshot·Pod overlay 안에서 목표 좌표와 `SurfaceHandle` 전체(slot·Layer·generation)가 같은 투영 결과를 공유한다. 기존 300cm 반경과 `NearestNode` 선택·동률 규칙을 그대로 쓰고 `INDEX_NONE`도 공유한다. 표는 실행 종료 때 소멸해 다음 프레임·overlay·generation에서는 다시 조회한다.
+- 좌표 비교가 같으면 해시도 같도록 +0/-0을 해시 전에 정규화한다. 시작 투영·D-062 도달성 재선택·직선 보행·waypoint 진행·요청/취소·예산·Gate는 바꾸지 않았다. 직선 검사는 이번에는 계측만 했다.
+
+### 실행·자료
+
+- `LootNPopEditor Win64 Development` 전체 빌드: 계측본 128.51초, 공유 적용본 9.07초, +0/-0 해시 동등 처리를 포함한 최종본 9.46초, 모두 `Succeeded`.
+- 전체 자동화 `LootNPop.SurfaceNavigation` 80/80, 실패·오류 0, exit 0. 로그: `Saved/Logs/Phase07b_EnemyConsumer_AllTests.log`. `Nav.RequestCostReplay` CSV 항목은 기존처럼 인자 없이 건너뛴다. 테스트 에셋 세 개는 실행 전 `Saved/Tests/Phase07b_Enemy_AssetBackup`으로 백업하고 실행 뒤 복구·SHA256 일치를 확인했다.
+- 실행: 에디터 바이너리 `-game` 리슨 2P·700마리·투사체 500발·seed 1·합성 추격·`-nullrhi -corelimit=4`, 기존 cache/lateral/parallel 설정. 호스트에만 `-trace=cpu,frame,bookmark,region,task`를 추가했다. 측정 중 빌드·자동화·Insights 분석기를 겹쳐 실행하지 않았다. 첫 최적화 trace는 공유 적용본, 두 번째는 최종 소스다.
+- 실행 스크립트: `Saved/Tests/Phase07b_Enemy{Baseline,Baseline2,Optimized,Optimized2}_Run.ps1`. 로그·trace·요청·지연 CSV: `Saved/Profiling/Phase07b/N700_chase_Enemy{Baseline,Optimized}{1,2}_*`.
+- UnrealInsights `-NoUI -AutoQuit -ExecOnAnalysisCompleteCmd=@=<rsp>` export: `Saved/Tests/Phase07b_Enemy{Baseline,Optimized}{1,2}_Export.rsp`. export 로그: `Saved/Logs/Phase07b_Enemy{Baseline,Optimized}{1,2}_InsightsExport.log`.
+- 분석: `Saved/Tests/Phase07b_Enemy_Analyze.py <EnemyBaseline2|EnemyOptimized1|EnemyOptimized2> <실행 접두사>`. 프레임별 내부 범위 시간은 `Saved/Profiling/Phase07b/Enemy*_FrameCosts.csv`, 요약은 `Enemy*_Analysis.json`이다. 요청·지연·로그 검증은 `Phase07b_Enemy_Integrity.ps1`, 결과는 `EnemyConsumer_Summary.json`이다.
+
+### 측정 결과
+
+프레임 비용은 캡처 region 안에 완전히 들어오는 게임 스레드 root 프레임에서 내부 범위를 합산한 벽시계 시간이다. 표의 각 셀은 평균/P95(ms)다. 첫 기준 실행은 측정 중 에디터가 열려 이 비교에서 제외했다.
+
+| 내부 범위 | 기준 2 (1,136프레임) | 최적화 1 (1,296프레임) | 최종 최적화 2 (1,523프레임) |
+|:---|---:|---:|---:|
+| 시작 투영 | 0.808 / 1.015 | 0.643 / 0.748 | 0.618 / 0.713 |
+| 목표 투영 | 0.492 / 0.638 | 0.068 / 0.081 | 0.069 / 0.083 |
+| 직선 목표 검사 | 0.208 / 0.260 | 0.168 / 0.206 | 0.166 / 0.203 |
+| waypoint 추종 | 0.203 / 0.264 | 0.170 / 0.220 | 0.174 / 0.220 |
+| Enemy 소비 전체 | 2.187 / 2.774 | 1.427 / 1.691 | 1.393 / 1.652 |
+
+내부 범위에는 자식 시간이 포함되므로 `NearestNode`를 시작/목표 투영에 다시 더하지 않는다. hit·miss도 목표 투영에 포함된다. 각 P95는 서로 다른 프레임이어서 합산하지 않는다. 합성 추격에서는 `TargetReachability` 분기를 건너뛰므로 그 비용이나 자연 추격 성능을 측정한 것으로 해석하지 않는다.
+
+| 실행 | 목표 투영 호출 / 실제 조회 | hit율 | 목표 투영 총시간(s) | harness 소비 P95(ms) | 프레임 / 경로 tick P95(ms) |
+|:---|---:|---:|---:|---:|---:|
+| 기준 1 (에디터 열림) | 857,029 / 857,029 | 0% | 0.545896 | 2.641 | 29.12 / 1.440 |
+| 기준 2 | 753,726 / 753,726 | 0% | 0.559477 | 2.770 | 33.71 / 1.666 |
+| 최적화 1 | 862,814 / 5,188 | 99.40% | 0.088174 | 1.689 | 33.03 / 1.360 |
+| 최종 최적화 2 | 1,009,228 / 6,096 | 99.40% | 0.105245 | 1.650 | 24.15 / 1.227 |
+
+캐시 miss는 최적화 두 번 모두 export 범위의 processor 실행 수 × 공유 목표 4개와 정확히 같다(1,297×4 / 1,524×4). 프레임 경계에 걸친 root를 제외한 위 비용 표의 프레임 수와 export 통계의 실행 수는 1개씩 다르다. 목표 투영 범위 시간/호출은 기준 2 약 0.742us, 최적화 약 0.102/0.104us다. 반복 조회 제거와 목표 범위 비용 감소는 확인했지만 시작 투영 등 바꾸지 않은 범위도 빨라졌고 프레임·요청 수요·시스템 부하가 달라 소비 전체 및 프레임 차이를 이 변경의 순수 절감량으로 단정하지 않는다.
+
+### 검증·한계·다음 단위
+
+기준 두 번·최적화 두 번의 여덟 프로세스가 모두 exit 0, probe 32개 PASS다. 게임 assert·ensure·crash·Unknown hit·Envelope escape·Layer jump 0이다. 요청/지연 CSV는 9,533 / 9,182 / 9,131 / 9,308행으로 일치하며 키 누락·시각 순서 오류 0, 캡처 종료 미완료 0이다. 취소는 45 / 56 / 66 / 54건으로 정상 완료 지연 분포에서 제외했다. CPU export의 depth 누락·음수 exclusive·프레임 분할 합계 오차는 모두 0이다. Insights의 memory channel 미캡처 관련 분석기 로그는 기존과 같아 메모리 결과는 사용하지 않았고 분석기 정상 종료·CSV 완성을 확인한 뒤 분석했다.
+
+이번 단위는 완료, Phase 7b는 미완료다. BuildCookRun·새 패키지 성능 Gate·자연 추격 비교는 이번 단위에 포함하지 않았으며 기존 패키지 Gate 실패 기록을 유지한다. 한 실행의 고정 인자만 재사용하므로 프레임 간 캐시 무효화 상태를 추가하지 않았다. 목표가 적마다 다른 자연 추격에서는 hit율과 표 조회/할당 부담이 달라질 수 있다. 다음 권장 단위는 변경본 Development package를 만들어 자연 추격과 합성 추격 700마리를 trace 없이 반복 측정하는 것이다. 사용자에게 다음 단위 진행 여부를 확인하며 승인 전에는 추가 최적화나 Phase 7c로 넘어가지 않는다.
+
+## 2026-10-02 — 변경본 패키지 반복 측정·Phase 7b 종료
+
+사용자가 새 Development package의 자연·합성 추격 반복 측정을 승인했다. 직전 목표 투영 공유 최종 소스를 그대로 사용했고 이번 단위에 runtime·기본값·예산·Gate·맵·에셋 변경은 없다. 에디터가 닫힌 상태에서 전체 BuildCookRun을 권한 확장 실행했다. 소스 변경이 없으므로 직전 최종 에디터 빌드·전체 SurfaceNavigation 자동화 80/80을 다시 실행하지 않았다.
+
+### 패키지·실행 조건·재현 자료
+
+- `RunUAT.bat BuildCookRun -project=<LootNPop.uproject> -noP4 -platform=Win64 -clientconfig=Development -build -cook -stage -pak -archive -archivedirectory=<Saved/SurfaceNavigationPhase3Package> -unattended -utf8output`: build·cook·stage·pak·archive 성공, 104.69초·exit 0. 로그는 `Saved/Logs/Phase07b_EnemyConsumer_Package.log`다. 기존 Lyra Mannequin의 누락 Material Function과 default material 경고는 재현됐다.
+- 실제 게임 바이너리: `Saved/SurfaceNavigationPhase3Package/Windows/LootNPop/Binaries/Win64/LootNPop.exe`, SHA256 `B63B05B948E985062093F3F6C69F8747F5DB75D34AC3CDBEEA7E3C51858C7171`. 빌드 시각과 해시는 `Saved/Profiling/Phase07b/EnemyConsumer_PackageArtifact.json`에 저장했다.
+- 동일 패키지·seed 1·지상 적 700·비행 0·투사체 500·리슨 2P·`-nullrhi -nosound -corelimit=4`. cache/lateral/parallel 설정은 모두 1이다. 호스트만 합성 조건에 `-LNPLoadBaselineChase`를 더했다. CPU trace를 쓰지 않았고 에디터·빌드·분석 작업을 측정과 겹치지 않았다.
+- 순서: 자연 1 → 합성 1 → 자연 2 → 합성 2. 스크립트는 `Saved/Tests/Phase07b_EnemyConsumer_RunPackage.ps1`이다. 매 실행의 호스트·게스트가 정상 종료한 뒤 다음을 시작한다.
+- 로그·요청·지연 CSV: `Saved/Profiling/Phase07b/N700_{natural,chase}_EnemyConsumer{1,2}_{Host.log,Guest.log,Requests.csv,RequestTimings.csv}`. 분석은 `Saved/Tests/Phase07b_EnemyConsumer_AnalyzePackage.ps1`, 결과는 `EnemyConsumer_PackageSummary.json`이다. 분석 스크립트의 초기 PowerShell 줄바꿈 구문 오류를 수정하고 성공 재실행했다. 게임 실행이나 결과 파일에는 영향이 없다.
+
+### 반복 Gate 결과
+
+경로 tick은 기존 규약대로 게임 스레드 scheduler tick의 병렬 대기를 포함한 벽시계 시간이며, tick 없는 프레임은 0이다. 표는 모두 호스트의 캡처 30초 표본이다.
+
+| 실행 | 프레임 P50 / P95 / 최대(ms) | 경로 tick P50 / P95 / 최대(ms) | Enemy 소비 P50 / P95(ms) | 요청 수 | 두 Gate |
+|:---|---:|---:|---:|---:|:---|
+| 자연 1 | 11.85 / 13.19 / 17.63 | 0.061 / 0.490 / 5.507 | 1.310 / 1.545 | 6,404 | PASS |
+| 합성 1 | 11.33 / 12.74 / 15.54 | 0.081 / 0.440 / 1.910 | 1.076 / 1.236 | 9,485 | PASS |
+| 자연 2 | 11.88 / 14.07 / 17.47 | 0.056 / 0.557 / 4.364 | 1.322 / 1.633 | 7,310 | PASS |
+| 합성 2 | 11.21 / 12.79 / 15.61 | 0.075 / 0.421 / 1.779 | 1.075 / 1.271 | 9,295 | PASS |
+
+Gate 16.67ms·1.5ms는 P95 기준이며 최대값 기준이 아니다. 자연 조건의 일부 프레임·경로 tick 최대값 초과는 표에 보존한다. 네 실행 모두 P95 두 Gate를 통과했고 합성 반복도 일관되게 통과했다. 자연 추격에서 목표가 공유되지 않는 경우를 포함해 소비 비용과 전체 프레임이 예산 안에 들었지만, trace가 없어 목표 투영 cache hit율·조회/할당의 개별 비용은 여기서 분리하지 않았다. 로그의 `cacheHits`는 scheduler 경로 결과 cache다.
+
+### 요청 지연·종료 상태
+
+| 실행 | 큐 P95(ms) | 시작→종료 P95(ms) | 제출→종료 P95(ms) | 취소 | 캡처 종료 미완료 |
+|:---|---:|---:|---:|---:|---:|
+| 자연 1 | 23.94 | 0.351 | 24.13 | 2 | 0 |
+| 합성 1 | 124.97 | 0.351 | 127.42 | 25 | 0 |
+| 자연 2 | 22.92 | 0.249 | 23.16 | 1 | 0 |
+| 합성 2 | 123.13 | 0.322 | 124.62 | 29 | 0 |
+
+지연은 기존 규약처럼 취소·미완료를 정상 완료 분포에서 제외한다. 합성 목표 전환의 큐 대기는 여전히 실행 시간보다 크며 시간 예산·제품 지연 상한을 새로 정하지 않았다. 자연 조건의 완료 상태 분포는 Succeeded/Unreachable/NoNode/Cancelled 각각 2,047/1,365/2,990/2, 2,004/1,206/4,099/1이다. 합성은 7,129/2,331/0/25, 6,950/2,316/0/29다. 자연·합성의 수요와 상태 분포가 달라 서로의 성능 차이를 목표 공유의 순수 효과로 해석하지 않는다.
+
+### 검증과 종료 판정
+
+- 리슨 2P 네 실행의 여덟 프로세스 exit 0, probe 32개 PASS. 요청·지연 CSV는 6,404 / 9,485 / 7,310 / 9,295행으로 제출 수와 일치한다. 요청/지연 키 중복·누락·시각 순서 오류 0이며 캡처 종료 미완료 0이다. assert·ensure·crash·Unknown hit·Envelope escape·Layer jump·MassPrePhysics 게시 순서 위반 0을 확인했다.
+- 같은 패키지의 최종 1P 100마리 스모크: 실제 게임 바이너리를 직접 실행해 exit 0, probe 4개 PASS, 프레임 P95 4.52ms·경로 tick P95 0.007ms·Enemy 소비 P95 0.275ms, assert·ensure·crash 0. 로그는 `Saved/Logs/Phase07b_EnemyConsumer_Package1P_Final.log`다. 앞선 런처 기반 1P 예비 실행도 로그는 PASS였지만 관찰 객체에서 자식 종료 코드를 얻지 못해 종료 코드 검증용으로 한 번 다시 실행했다.
+- 시작 시점의 소스 6개·테스트 에셋 3개와 종료 시점 SHA256이 모두 일치한다(`Saved/Tests/Phase07b_PackageRepeat_InitialHashes.json`). 초기 미커밋 diff도 `Phase07b_PackageRepeat_Initial.diff`로 보존했다. 전체 자동화 80/80·기능 회귀·수동 플레이의 직전 증거를 유지한다.
+- 과거 패키지 실패 대비 프레임·scheduler 비용 감소 전체를 목표 투영 공유의 순수 효과로 단정하지 않는다. 실행별 요청 수요·프레임 경계·시스템 부하가 다르고 예전 실행을 이번 패키지와 동시에 통제 비교하지 않았다. 완료 근거는 이번 동일 패키지·고정 부하의 반복 두 Gate 통과다.
+- Phase 6의 약 800마리 한계와 비교하면 이번 확정 검증점은 700마리다. 과거 7b의 800 실패는 이전 소스 측정이며, 현재 패키지의 800마리나 최대 수용량은 측정하지 않아 현재 한계가 700 또는 800이라고 확정하지 않는다.
+
+이번 반복 측정 단위와 Phase 7b 구현 단위 5를 완료한다. 앞선 7a·7b 기능/자동화·패키지 검증과 이번 Gate·1P/2P 증거로 전체 Phase 7도 완료다. Phase 체크리스트·Roadmap·Current를 갱신한다. 다음은 사용자 승인 후 Phase 7c 실행 계획과 첫 구현 단위를 구체화하는 것이다. 이 세션에는 Phase 7c 구현이나 추가 수용량 탐색을 시작하지 않고 사용자에게 진행 여부를 확인한다.

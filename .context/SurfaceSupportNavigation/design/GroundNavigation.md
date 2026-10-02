@@ -96,6 +96,8 @@ class FLNPNavGraphView
 
 ### 경로 공유
 
+Enemy 경로 소비의 목표 node 투영은 processor 한 번의 실행 안에서만 공유한다. 동일한 목표 월드 좌표와 `SurfaceHandle` 전체(slot·Layer·generation)가 key이며 스냅 반경은 기존 300cm다. 실행 시작에 잡은 immutable Nav snapshot과 Pod overlay를 모든 조회에 사용하고, `NoNode`도 같은 실행에서는 재사용한다. 실행이 끝나면 표를 버려 다음 프레임·generation·overlay 변경에는 다시 조회한다. 시작 투영·D-062 도달성 재선택·직선 보행 검사와 요청 정책은 그대로다. 내부 trace 범위와 측정 근거는 `../history/Phase07_Log.md`의 Enemy 내부 계측 기록을 따른다.
+
 다수 Enemy가 같은 플레이어나 Pod를 향하므로 다음 key의 path cache를 우선 검토한다.
 
 ```text
@@ -108,8 +110,10 @@ class FLNPNavGraphView
 ### 실행 위치
 
 - A*는 Mass worker에서 요청별 scratch를 사용해 실행한다. snapshot과 overlay는 읽기 전용이다.
-- 프레임당 확장 node 예산을 두고, 초과한 요청은 다음 프레임으로 이어간다.
+- 프레임 예산은 `시작 요청 수 × ResolveCostInExpansions + 실제 확장 수`의 엄격한 상한이다. 시작 비용을 감당할 수 없으면 요청을 큐에서 꺼내지 않는다. 프레임 전체 예산이 시작 비용보다 작으면 새 요청은 설정을 올릴 때까지 대기하며, 예산을 다음 프레임으로 누적하지 않는다.
+- 병렬 확장은 잔여 예산과 실행 중 요청 수 중 작은 수만큼 앞의 요청을 선택하고 균등 몫을 배정한다. 몫의 나머지와 조기 종료로 쓰지 않은 예산은 다음 라운드에서 재사용한다. 배정되지 않은 요청은 다음 라운드·프레임으로 이어간다. 이 차감 상한은 종료 처리·병렬 대기를 포함한 시간 상한을 보장하지 않는다.
 - 동일 요청 비용의 통제 비교는 `Nav.RequestCostReplay` 자동화를 쓴다. CSV의 같은 시각 요청 묶음을 모두 완료한 뒤 다음 묶음을 넣고 독립 owner를 사용한다. Pod overlay·원래 owner 취소·실제 프레임 경계·warm-up cache는 복원하지 않으므로 실제 부하 Gate는 별도로 검사한다. 실행법·예산 검토 근거는 `../history/Phase07_Log.md`의 2026-10-02 기록을 따른다.
+- 실제 요청 지연은 `BeginRequestCapture` 구간에 제출·재계획된 요청만 scheduler에서 기록한다. 별도 `NavRequests_*_Timings.csv`는 owner·serial·우선순위·최종 상태와 캡처 시작 기준 `FPlatformTime` 제출·시작·종료 시각(초)을 담는다. 시작·종료 전 시각은 -1이며, warm-up 요청은 제외하고 종료 시 남은 Queued·Running은 미완료로 보존한다. 큐 지연은 시작-제출, 실행 지연은 종료-시작, 전체 지연은 종료-제출이다. 취소와 미완료는 정상 완료 분포에서 분리하고 함께 보고한다. 캡처 외에는 시각 조회와 결과 배열 기록을 하지 않는다.
 - 결과 경로는 순수 엔티티(적의 90% 이상)에게는 waypoint fragment로, Actor 승격 엘리트에게는 기존 AI 이동 입력(`SetAIMoveInput`) 경로로 전달한다.
 - 다음 프레임으로 넘기는 request는 시작 당시 `SnapshotGeneration`, `ConnectivityGraphVersion`과 이미 읽은 tile revision을 보존한다. 어느 하나라도 바뀌면 영향 범위를 확인해 재시작하거나 실패시키며 서로 다른 snapshot의 node를 한 결과에 섞지 않는다.
 

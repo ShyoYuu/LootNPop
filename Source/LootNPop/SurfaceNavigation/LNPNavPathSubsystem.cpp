@@ -9,6 +9,7 @@
 #include "HAL/IConsoleManager.h"
 #include "MassEntitySubsystem.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace
@@ -61,9 +62,11 @@ uint32 ULNPNavPathSubsystem::Submit(const FLNPNavPathRequest& Request)
 
 void ULNPNavPathSubsystem::BeginRequestCapture()
 {
+	TimingCaptureWallStart = FPlatformTime::Seconds();
 	RequestCaptureStart = GetWorld()->GetTimeSeconds();
 	RequestCapture = TEXT("time,owner,ownerSerial,requestSerial,priority,startX,startY,startZ,startSlot,startLayer,startGeneration,goalX,goalY,goalZ,goalSlot,goalLayer,goalGeneration,snapRadius,approachRadius,graphVersion,overlayRevision\n");
 	bCaptureRequests = true;
+	Scheduler.BeginTimingCapture();
 }
 
 bool ULNPNavPathSubsystem::EndRequestCapture(const FString& Filename)
@@ -71,7 +74,20 @@ bool ULNPNavPathSubsystem::EndRequestCapture(const FString& Filename)
 	bCaptureRequests = false;
 	const bool bSaved = FFileHelper::SaveStringToFile(RequestCapture, *Filename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	RequestCapture.Empty();
-	return bSaved;
+	TArray<FLNPNavRequestTiming> Timings;
+	Scheduler.EndTimingCapture(Timings);
+	FString TimingCsv = TEXT("owner,ownerSerial,requestSerial,priority,status,submittedSeconds,startedSeconds,finishedSeconds\n");
+	for (const FLNPNavRequestTiming& Timing : Timings)
+	{
+		TimingCsv += FString::Printf(TEXT("%d,%d,%u,%d,%d,%.9f,%.9f,%.9f\n"), Timing.Owner.Index,
+			Timing.Owner.SerialNumber, Timing.Serial, static_cast<int32>(Timing.Priority), static_cast<int32>(Timing.Status),
+			Timing.SubmittedSeconds, Timing.StartedSeconds, Timing.FinishedSeconds);
+	}
+	const FString TimingFilename = FPaths::ChangeExtension(Filename, TEXT("")) + TEXT("_Timings.csv");
+	const bool bTimingsSaved = FFileHelper::SaveStringToFile(TimingCsv, *TimingFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	UE_LOG(LogLootNPop, Display, TEXT("[NavTiming] capture %s: rows=%d durationSeconds=%.3f file=%s"),
+		bTimingsSaved ? TEXT("saved") : TEXT("FAILED"), Timings.Num(), FPlatformTime::Seconds() - TimingCaptureWallStart, *TimingFilename);
+	return bSaved && bTimingsSaved;
 }
 
 bool ULNPNavPathSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

@@ -70,6 +70,7 @@ private:
 	double LastConsumerSeconds = 0.0;
 	bool bCaptureRequests = false;
 	double RequestCaptureStart = 0.0;
+	double TimingCaptureWallStart = 0.0;
 	FString RequestCapture;
 	uint64 FollowerFrames = 0;
 	uint64 FollowingPathFrames = 0;
