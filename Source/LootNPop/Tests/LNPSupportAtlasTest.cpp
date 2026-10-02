@@ -4,6 +4,8 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Algo/Reverse.h"
+
 #include "SurfaceNavigation/LNPCrustAtlas.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "SurfaceNavigation/LNPSupportLayers.h"
@@ -125,7 +127,10 @@ namespace LNPSupportAtlasTest
 		FString& OutError)
 	{
 		OutRasters.Reset();
-		if (!LNPSupportLayers::BuildLayers(Sources, 0, FLNPSupportLayerSettings(), OutSet, OutError))
+		FLNPSupportLayerSettings LayerSettings;
+		LayerSettings.CrustSubdivisions = CrustSubdivisions;
+		LayerSettings.LayerSubdivisionMultiplier = LayerMultiplier;
+		if (!LNPSupportLayers::BuildLayers(Sources, 0, LayerSettings, OutSet, OutError))
 		{
 			return false;
 		}
@@ -139,7 +144,7 @@ namespace LNPSupportAtlasTest
 		{
 			const FLNPSupportLayer& Layer = OutSet.Layers[LayerId];
 			const FLNPBakeTriangleMesh LayerMesh = LNPSupportLayers::MakeLayerMesh(Sources[Layer.SourceIndex].Mesh, Layer);
-			const int32 N = CrustSubdivisions * LayerMultiplier;
+			const int32 N = Layer.Subdivisions;
 			if (!LNPSupportAtlas::Rasterize(
 				LayerMesh, MakeSettings(N), LNPSupportAtlas::ComputeFootprint(LayerMesh, N), OutRasters[LayerId], OutError))
 			{
@@ -382,24 +387,77 @@ bool FLNPSupportAtlasFoldedSheetTest::RunTest(const FString& Parameters)
 
 	FLNPSupportLayerSet Set;
 	FString Error;
-	if (!TestTrue(TEXT("Spiral Layer split succeeds"), LNPSupportLayers::BuildLayers(Sources, 0, FLNPSupportLayerSettings(), Set, Error)))
+	FLNPSupportLayerSettings Settings;
+	Settings.CrustSubdivisions = CrustSubdivisions;
+	Settings.LayerSubdivisionMultiplier = LayerMultiplier;
+	if (!TestTrue(TEXT("Spiral Layer split succeeds"), LNPSupportLayers::BuildLayers(Sources, 0, Settings, Set, Error)))
 	{
 		AddError(Error);
 		return false;
 	}
-	TestEqual(TEXT("Spiral ramp is a single walkable Layer"), Set.Layers.Num(), 2);
-	if (Set.Layers.Num() != 2)
+	TestTrue(TEXT("Spiral ramp splits into multiple Layers"), Set.Layers.Num() > 2);
+	TestEqual(TEXT("One folded original sheet"), Set.SplitSheetCount, 1);
+	TestTrue(TEXT("Split has shared cut edges"), Set.CutEdgeCount > 0 && Set.CutBoundaryLength > 0.0);
+	TSet<int32> SeenFaces;
+	TArray<FLNPSupportLayerRaster> Rasters;
+	Rasters.SetNum(Set.Layers.Num());
+	if (!LNPCrustAtlas::Rasterize(Sources[0].Mesh, MakeSettings(CrustSubdivisions), Rasters[0], Error))
 	{
+		AddError(Error);
 		return false;
 	}
-
-	const int32 N = CrustSubdivisions * LayerMultiplier;
-	const FLNPBakeTriangleMesh LayerMesh = LNPSupportLayers::MakeLayerMesh(Spiral.Mesh, Set.Layers[1]);
-	FLNPSupportLayerRaster Raster;
-	TestFalse(TEXT("Folded sheet is a bake error"),
-		LNPSupportAtlas::Rasterize(LayerMesh, MakeSettings(N), LNPSupportAtlas::ComputeFootprint(LayerMesh, N), Raster, Error));
-	TestTrue(TEXT("Error names the folded sheet"), Error.Contains(TEXT("folded")));
-	TestEqual(TEXT("Failed bake returns no samples"), Raster.Samples.Num(), 0);
+	Rasters[0].SourceIndex = 0;
+	for (int32 LayerId = 1; LayerId < Set.Layers.Num(); ++LayerId)
+	{
+		const FLNPSupportLayer& Layer = Set.Layers[LayerId];
+		const FLNPBakeTriangleMesh PartMesh = LNPSupportLayers::MakeLayerMesh(Spiral.Mesh, Layer);
+		const int32 N = Layer.Subdivisions;
+		if (!TestTrue(TEXT("Each sub-sheet has one floor per direction"), LNPSupportAtlas::Rasterize(
+			PartMesh, MakeSettings(N), LNPSupportAtlas::ComputeFootprint(PartMesh, N), Rasters[LayerId], Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		Rasters[LayerId].SourceIndex = 1;
+		for (const int32 Face : PartMesh.ExternalFaceIndices)
+		{
+			TestFalse(TEXT("Face is assigned once"), SeenFaces.Contains(Face));
+			SeenFaces.Add(Face);
+			TestEqual(TEXT("External face resolves to sub-sheet"), Set.FaceMaps[1].Resolve(Face), static_cast<uint16>(LayerId));
+		}
+	}
+	TestEqual(TEXT("All spiral faces survive"), SeenFaces.Num(), Spiral.Mesh.Triangles.Num());
+	TArray<uint8> Payload;
+	FLNPSupportAtlas Atlas;
+	TestTrue(TEXT("Split Atlas encodes"), LNPSupportAtlas::Encode(Rasters, MakeAtlasSources(Sources, Set), MakeCodec(), Payload, Error));
+	TestTrue(TEXT("Split Atlas decodes"), LNPSupportAtlas::Decode(Payload, Atlas, Error));
+	int32 MultiLayerDirections = 0;
+	for (int32 Segment = 0; Segment < SegmentsPerTurn / 4; ++Segment)
+	{
+		const FVector3d DirectionAtOverlap = Point(Segment, 500.0).GetSafeNormal();
+		int32 Candidates = 0;
+		for (int32 LayerId = 1; LayerId < Atlas.Layers.Num(); ++LayerId)
+		{
+			FLNPSupportLayerQuery Query;
+			LNPSupportAtlas::QueryLayer(Atlas.Layers[LayerId], DirectionAtOverlap, Query);
+			Candidates += Query.IsCandidate() ? 1 : 0;
+		}
+		MultiLayerDirections += Candidates >= 2 ? 1 : 0;
+	}
+	TestTrue(TEXT("Overlapping directions retain both floors"), MultiLayerDirections > 0);
+	FLNPSupportLayerSet Again;
+	TestTrue(TEXT("Repeated split succeeds"), LNPSupportLayers::BuildLayers(Sources, 0, Settings, Again, Error));
+	TestTrue(TEXT("Repeated face assignments match"), Set.FaceMaps[1].LayerByExternalFace == Again.FaceMaps[1].LayerByExternalFace);
+	// 추출 배열 순서가 달라도 external face 기준으로 같은 sub-sheet를 골라야 한다.
+	Algo::Reverse(Spiral.Mesh.Triangles);
+	Algo::Reverse(Spiral.Mesh.ExternalFaceIndices);
+	TestTrue(TEXT("Reordered split succeeds"), LNPSupportLayers::BuildLayers(Sources, 0, Settings, Again, Error));
+	TestTrue(TEXT("Reordered face assignments match"), Set.FaceMaps[1].LayerByExternalFace == Again.FaceMaps[1].LayerByExternalFace);
+	// raw folded mesh는 여전히 오류다. 분할 안전망을 완화하지 않는다.
+	FLNPSupportLayerRaster RawRaster;
+	const int32 N = Settings.GetSourceSubdivisions(Spiral);
+	TestFalse(TEXT("Raw folded mesh is rejected"), LNPSupportAtlas::Rasterize(Spiral.Mesh, MakeSettings(N),
+		LNPSupportAtlas::ComputeFootprint(Spiral.Mesh, N), RawRaster, Error));
 	return !HasAnyErrors();
 }
 
@@ -407,6 +465,47 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPSupportAtlasCodecTest,
 	"LootNPop.SurfaceNavigation.Bake.SupportAtlasCodec",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSupportAtlasSourceResolutionTest,
+	"LootNPop.SurfaceNavigation.Bake.SupportAtlasSourceResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPSupportAtlasSourceResolutionTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPSupportAtlasTest;
+	TArray<FLNPBakeSupportSource> Sources = MakeScene();
+	Sources[1].bCoarseSupport = true;
+	FLNPSupportLayerSet Set;
+	TArray<FLNPSupportLayerRaster> Rasters;
+	FString Error;
+	if (!RasterizeScene(Sources, Set, Rasters, Error))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("Coarse source uses crust grid"), Set.Layers[LowLayer].Subdivisions, CrustSubdivisions);
+	TestEqual(TEXT("Other source keeps fine grid"), Set.Layers[MidLayer].Subdivisions, CrustSubdivisions * LayerMultiplier);
+	TArray<uint8> Payload;
+	FLNPSupportAtlas Atlas;
+	if (!LNPSupportAtlas::Encode(Rasters, MakeAtlasSources(Sources, Set), MakeCodec(), Payload, Error)
+		|| !LNPSupportAtlas::Decode(Payload, Atlas, Error))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("Codec preserves coarse grid"), Atlas.Layers[LowLayer].Layout.Subdivisions, CrustSubdivisions);
+	TestEqual(TEXT("Codec preserves fine grid"), Atlas.Layers[MidLayer].Layout.Subdivisions, CrustSubdivisions * LayerMultiplier);
+	FLNPSupportLayerHit Hit;
+	TestEqual(TEXT("Coarse floor remains queryable"), LNPSupportAtlas::QueryLayers(Atlas, Direction(StackLat, StackAz),
+		Radius - 1000.0, 45.0, 60.0, LowLayer, Hit), ELNPSupportQueryResult::Supported);
+	TestEqual(TEXT("Query selects coarse floor"), Hit.Layer, LowLayer);
+	TestTrue(TEXT("Coarse floor height matches geometry"), FMath::Abs(Hit.Radius - (Radius - 1000.0)) < 10.0);
+	FLNPSupportLayerSet Rejected;
+	TestFalse(TEXT("Missing grid is rejected"), LNPSupportLayers::BuildLayers(Sources, 0,
+		FLNPSupportLayerSettings(), Rejected, Error));
+	return !HasAnyErrors();
+}
 
 bool FLNPSupportAtlasCodecTest::RunTest(const FString& Parameters)
 {

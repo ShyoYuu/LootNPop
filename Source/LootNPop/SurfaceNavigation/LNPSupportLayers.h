@@ -14,6 +14,13 @@ struct FLNPSupportLayerSettings
 
 	/** 연결성 판정 전에 이 거리(cm) 안의 정점을 같은 점으로 합친다. 지각 광선 교차 합침 거리와 같다. */
 	double WeldDistance = 0.1;
+
+	/** 분할 판정과 실제 raster가 공유하는 지각 N·비지각 기본 배수(D-064·072). */
+	int32 CrustSubdivisions = 0;
+	int32 LayerSubdivisionMultiplier = 4;
+	double HitMergeDistance = 0.1;
+
+	LOOTNPOP_API int32 GetSourceSubdivisions(const FLNPBakeSupportSource& Source) const;
 };
 
 /** Support Layer 하나. 배열 위치가 LocalLayerId다. */
@@ -27,6 +34,7 @@ struct FLNPSupportLayer
 
 	/** 삼각형들의 최소 external face 번호. 같은 source 안의 Layer 순서를 정한다. */
 	int32 MinExternalFace = INDEX_NONE;
+	int32 Subdivisions = 0;
 };
 
 /**
@@ -48,6 +56,12 @@ struct FLNPSupportLayerSet
 	TArray<FLNPSupportLayer> Layers;
 	/** 입력 source 순서. */
 	TArray<FLNPSupportFaceMap> FaceMaps;
+	/** 분할 전 비지각 연결 성분 수와 실제 분할된 성분 수. */
+	int32 OriginalSheetCount = 0;
+	int32 SplitSheetCount = 0;
+	int32 CutEdgeCount = 0;
+	/** 같은 원래 sheet의 서로 다른 sub-sheet가 공유하는 용접 모서리를 한 번씩 합한 길이(cm). */
+	double CutBoundaryLength = 0.0;
 };
 
 /**
@@ -60,7 +74,7 @@ namespace LNPSupportLayers
 	constexpr uint16 NoLayer = 0xFFFF;
 
 	/**
-	 * 지각은 Layer 0 하나다(non-walkable 포함). 나머지 source는 walkable 삼각형의 연결 성분마다 Layer 하나다.
+	 * 지각은 Layer 0 하나다(non-walkable 포함). 나머지 source는 walkable 연결 성분을 격자 광선 기준으로 겹침 없이 분할한다.
 	 * walkable은 앞면 법선과 삼각형 중심의 지역 Up(-normalize(centroid))의 dot이 기준 이상인 삼각형이다.
 	 * 연결은 위치로 용접한 정점 기준 모서리 공유다. Layer ID는 지각 뒤에 source Key 오름차순,
 	 * 같은 source 안에서는 MinExternalFace 오름차순이다. 모든 source는 ExternalFaceIndices를 가져야 한다.

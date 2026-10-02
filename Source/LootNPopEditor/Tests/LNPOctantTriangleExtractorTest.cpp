@@ -23,6 +23,7 @@
 #include "SurfaceNavigation/LNPOctantSourceCollector.h"
 #include "SurfaceNavigation/LNPOctantTriangleExtractor.h"
 #include "SurfaceNavigation/LNPSupportLayers.h"
+#include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "UObject/StrongObjectPtr.h"
 
 namespace LNPOctantTriangleExtractorTest
@@ -400,9 +401,11 @@ bool FLNPOctantSupportLayersTest::RunTest(const FString& Parameters)
 		int32 CrustIndex = INDEX_NONE;
 		FLNPSupportLayerSet Set;
 		FString Error;
+		FLNPSupportLayerSettings LayerSettings;
+		LayerSettings.CrustSubdivisions = LNPSupportAtlas::ComputeSubdivisionsForSpacing(30000.0, 100.0);
 		if (!FLNPOctantTriangleExtractor::ExtractSupportSources(*SourceWorld, Sources, Error)
 			|| !LNPSurfaceBake::IdentifyCrust(Sources, CrustIndex, Error)
-			|| !LNPSupportLayers::BuildLayers(Sources, CrustIndex, FLNPSupportLayerSettings(), Set, Error))
+			|| !LNPSupportLayers::BuildLayers(Sources, CrustIndex, LayerSettings, Set, Error))
 		{
 			AddError(FString::Printf(TEXT("%s: %s"), LevelPath, *Error));
 			continue;

@@ -90,6 +90,10 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeReport
 	FString CrustName;
 	int32 SupportSourceCount = 0;
 	int32 SupportLayerCount = 0;
+	int32 OriginalSheetCount = 0;
+	int32 SplitSheetCount = 0;
+	int32 CutEdgeCount = 0;
+	double CutBoundaryLength = 0.0;
 	int32 CrustTriangleCount = 0;
 	int32 Subdivisions = 0;
 	int32 SampleCount = 0;
@@ -128,7 +132,7 @@ class LOOTNPOPEDITOR_API FLNPOctantSurfaceBaker
 {
 public:
 	/** 베이커 schema 버전. 베이크 규칙이 바뀌면 올린다. BakeSettingsHash에 들어간다. */
-	static constexpr uint32 BakerSchemaVersion = 5;
+	static constexpr uint32 BakerSchemaVersion = 6;
 
 	/** OutData의 Header와 SupportPayload를 채운다. 같은 입력이면 같은 payload를 만든다. */
 	static bool Bake(

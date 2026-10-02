@@ -103,7 +103,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FLNPSupportLayersSplitTest::RunTest(const FString& Parameters)
 {
 	using namespace LNPSupportLayersTest;
-	const FLNPSupportLayerSettings Settings;
+	FLNPSupportLayerSettings Settings;
+	Settings.CrustSubdivisions = 200;
 
 	// 한 컴포넌트의 떨어진 판 2장(분리 sheet). 뒤쪽 판의 external 번호를 작게 줘서 순서가 external을 따르는지 본다.
 	FLNPBakeSupportSource Split = MakeSource(TEXT("B.Split"));

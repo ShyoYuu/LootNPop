@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "IndexTypes.h"
 
 /**
  * 베이커 입력 삼각형 메시. 좌표는 옥탄트 로컬(source level) 공간이다.
@@ -23,6 +24,29 @@ struct LOOTNPOP_API FLNPBakeTriangleMesh
 	FVector3d GetTriangleNormal(int32 TriangleIndex) const;
 };
 
+/** Layer 분할·raster가 같은 watertight 광선 규칙을 쓰는 읽기 전용 tree 입력이다. */
+struct FLNPBakeMeshAdapter
+{
+	const FLNPBakeTriangleMesh* Mesh = nullptr;
+	bool IsTriangle(int32 Index) const { return Mesh->Triangles.IsValidIndex(Index); }
+	int32 MaxTriangleID() const { return Mesh->Triangles.Num(); }
+	int32 TriangleCount() const { return Mesh->Triangles.Num(); }
+	uint64 GetChangeStamp() const { return 1; }
+	FVector3d GetVertex(int32 Index) const { return Mesh->Vertices[Index]; }
+	UE::Geometry::FIndex3i GetTriangle(int32 Index) const
+	{
+		const FIntVector3& Triangle = Mesh->Triangles[Index];
+		return UE::Geometry::FIndex3i(Triangle.X, Triangle.Y, Triangle.Z);
+	}
+	void GetTriVertices(int32 Index, FVector3d& A, FVector3d& B, FVector3d& C) const
+	{
+		const FIntVector3& Triangle = Mesh->Triangles[Index];
+		A = Mesh->Vertices[Triangle.X];
+		B = Mesh->Vertices[Triangle.Y];
+		C = Mesh->Vertices[Triangle.Z];
+	}
+};
+
 /**
  * Support 역할 source 하나의 삼각형. Name은 오류 보고용 component 경로다.
  * Key는 `<Actor FName>.<Component FName>`이다. slot Level Instance의 component는 outer 경로가 달라서
@@ -33,6 +57,8 @@ struct LOOTNPOP_API FLNPBakeSupportSource
 	FString Name;
 	FString Key;
 	FLNPBakeTriangleMesh Mesh;
+	/** 넓은 공동 바닥은 지각과 같은 격자로 굽는다(D-072). */
+	bool bCoarseSupport = false;
 };
 
 /**

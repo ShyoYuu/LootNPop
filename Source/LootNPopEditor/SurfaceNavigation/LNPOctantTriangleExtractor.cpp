@@ -14,6 +14,7 @@
 namespace
 {
 const FName SupportTag(TEXT("LNP.Surface.Support"));
+const FName CoarseSupportTag(TEXT("LNP.Surface.CoarseSupport"));
 
 template <typename IndexType>
 void AppendTriangles(
@@ -187,6 +188,7 @@ bool FLNPOctantTriangleExtractor::ExtractSupportSources(
 			FLNPBakeSupportSource& Source = OutSources.AddDefaulted_GetRef();
 			Source.Name = Component->GetPathName();
 			Source.Key = FString::Printf(TEXT("%s.%s"), *Actor->GetFName().ToString(), *Component->GetFName().ToString());
+			Source.bCoarseSupport = Component->ComponentTags.Contains(CoarseSupportTag);
 			if (!ExtractComponent(*Component, Source.Mesh, OutError))
 			{
 				OutSources.Reset();
