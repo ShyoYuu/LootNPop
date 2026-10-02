@@ -10,6 +10,9 @@
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "SurfaceNavigation/LNPSupportLayers.h"
 #include "SurfaceNavigation/LNPSurfaceBakeGeometry.h"
+#include "SurfaceNavigation/LNPNavBaking.h"
+#include "SurfaceNavigation/LNPNavRuntime.h"
+#include "SurfaceNavigation/LNPNavPathfinding.h"
 
 namespace LNPSupportAtlasTest
 {
@@ -388,8 +391,9 @@ bool FLNPSupportAtlasFoldedSheetTest::RunTest(const FString& Parameters)
 	FLNPSupportLayerSet Set;
 	FString Error;
 	FLNPSupportLayerSettings Settings;
-	Settings.CrustSubdivisions = CrustSubdivisions;
-	Settings.LayerSubdivisionMultiplier = LayerMultiplier;
+	// Nav 연속성은 production과 같은 25cm Support에서 확인한다. 얇은 나선에 184cm 격자를 쓰면 경계가 사라진다.
+	Settings.CrustSubdivisions = 735;
+	Settings.LayerSubdivisionMultiplier = 4;
 	if (!TestTrue(TEXT("Spiral Layer split succeeds"), LNPSupportLayers::BuildLayers(Sources, 0, Settings, Set, Error)))
 	{
 		AddError(Error);
@@ -401,7 +405,7 @@ bool FLNPSupportAtlasFoldedSheetTest::RunTest(const FString& Parameters)
 	TSet<int32> SeenFaces;
 	TArray<FLNPSupportLayerRaster> Rasters;
 	Rasters.SetNum(Set.Layers.Num());
-	if (!LNPCrustAtlas::Rasterize(Sources[0].Mesh, MakeSettings(CrustSubdivisions), Rasters[0], Error))
+	if (!LNPCrustAtlas::Rasterize(Sources[0].Mesh, MakeSettings(Settings.CrustSubdivisions), Rasters[0], Error))
 	{
 		AddError(Error);
 		return false;
@@ -445,6 +449,87 @@ bool FLNPSupportAtlasFoldedSheetTest::RunTest(const FString& Parameters)
 		MultiLayerDirections += Candidates >= 2 ? 1 : 0;
 	}
 	TestTrue(TEXT("Overlapping directions retain both floors"), MultiLayerDirections > 0);
+	// 순수 삼각형 oracle: 실제 나선 면에 50cm 간격으로 지지점이 존재해야 하며, 층 사이 빈 공간을 건너뛰지 않는다.
+	auto SupportPath = [&](uint16, const FVector3d& From, const FVector3f&, uint16, const FVector3d& To, const FVector3f&)
+	{
+		const int32 Steps = FMath::Max(2, FMath::CeilToInt(FVector3d::Distance(From, To) / 50.0));
+		FVector3d Previous = From;
+		for (int32 Step = 1; Step < Steps; ++Step)
+		{
+			const FVector3d P = FMath::Lerp(From, To, static_cast<double>(Step) / Steps);
+			const FVector3d D = P.GetSafeNormal();
+			double Best = TNumericLimits<double>::Max();
+			FVector3d Hit = FVector3d::ZeroVector;
+			for (int32 Face = 0; Face < Spiral.Mesh.Triangles.Num(); ++Face)
+			{
+				const auto& T = Spiral.Mesh.Triangles[Face];
+				const FVector3d A = Spiral.Mesh.Vertices[T.X], B = Spiral.Mesh.Vertices[T.Y], C = Spiral.Mesh.Vertices[T.Z];
+				const FVector3d Normal = Spiral.Mesh.GetTriangleNormal(Face);
+				const double Dot = FVector3d::DotProduct(Normal, D);
+				if (Dot >= -0.71) { continue; }
+				const double R = FVector3d::DotProduct(Normal, A) / Dot;
+				if (R < P.Length() - 45.0 || R > P.Length() + 60.0) { continue; }
+				const FVector3d Q = D * R;
+				if (FVector3d::DotProduct(FVector3d::CrossProduct(B - A, Q - A), Normal) < -0.01
+					|| FVector3d::DotProduct(FVector3d::CrossProduct(C - B, Q - B), Normal) < -0.01
+					|| FVector3d::DotProduct(FVector3d::CrossProduct(A - C, Q - C), Normal) < -0.01) { continue; }
+				if (R < Best) { Best = R; Hit = Q; }
+			}
+			if (Best == TNumericLimits<double>::Max()) { return false; }
+			const FVector3d Delta = Hit - Previous;
+			const double Rise = FVector3d::DotProduct(Delta, -Previous.GetSafeNormal());
+			const double SlopeRise = FMath::Sqrt(FMath::Max(0.0, Delta.SizeSquared() - Rise * Rise));
+			if (Rise > FMath::Max(45.0, SlopeRise) || Rise < -FMath::Max(60.0, SlopeRise)) { return false; }
+			Previous = Hit;
+		}
+		return true;
+	};
+	FLNPNavData Navigation;
+	FLNPNavTraversalData Traversal;
+	FLNPNavBakeReport NavReport;
+	if (!TestTrue(TEXT("Split spiral Nav bakes"), LNPNavBaking::Build(Atlas, {},
+		[](uint16, const FVector3d&, const FVector3f&) { return true; }, SupportPath,
+		Navigation, Traversal, NavReport, Error))) { AddError(Error); return false; }
+	TestTrue(TEXT("Split boundaries retain Walk portals"), !Traversal.Portals.IsEmpty());
+	FLNPNavSlotInput Input;
+	Input.Support = MakeShared<FLNPSupportAtlas, ESPMode::ThreadSafe>(Atlas);
+	Input.Navigation = MakeShared<FLNPNavData, ESPMode::ThreadSafe>(Navigation);
+	Input.Traversal = MakeShared<FLNPNavTraversalData, ESPMode::ThreadSafe>(Traversal);
+	TArray<FLNPNavSlotInput> Slots;
+	Slots.Init(Input, 8);
+	const TArray<FRotator> Rotations = {FRotator(0,0,0), FRotator(0,90,0), FRotator(0,180,0), FRotator(0,270,0),
+		FRotator(180,0,0), FRotator(180,90,0), FRotator(180,180,0), FRotator(180,270,0)};
+	FLNPNavSnapshot Nav;
+	if (!TestTrue(TEXT("Split spiral graph assembles"), LNPNavRuntime::BuildSnapshot(Slots, Rotations, 1, Nav, Error)))
+	{ AddError(Error); return false; }
+	auto NearestSpiralNode = [&](const FVector3d& P)
+	{
+		int32 BestNode = INDEX_NONE;
+		double BestDistance = TNumericLimits<double>::Max();
+		for (int32 Node = 0; Node < Nav.Graph.SlotNodeBase[1]; ++Node)
+		{
+			if (Nav.Graph.GetNode(0, Node).LayerOrdinal == 0) { continue; }
+			const double Distance = FVector3d::DistSquared(P, Nav.Graph.GetWorldPoint(0, Node));
+			if (Distance < BestDistance) { BestDistance = Distance; BestNode = Node; }
+		}
+		return BestNode;
+	};
+	FLNPNavSearchScratch Scratch;
+	FLNPNavSearch Search;
+	LNPNavPathfinding::BeginSearch(Nav, NearestSpiralNode(Point(1, 500.0)), NearestSpiralNode(Point(60, 500.0)), {}, Scratch, Search);
+	while (Search.Status == ELNPNavSearchStatus::Running) { LNPNavPathfinding::StepSearch(Nav, Scratch, Search, 4000); }
+	TestTrue(TEXT("A* walks across the split spiral boundary"), Search.Status == ELNPNavSearchStatus::Found);
+	TArray<int32> Path;
+	LNPNavPathfinding::ExtractNodePath(Scratch, Search, Path);
+	int32 LayerCrossings = 0;
+	for (int32 Index = 1; Index < Path.Num(); ++Index)
+	{
+		LayerCrossings += Nav.Graph.GetNode(0, Path[Index - 1]).LayerOrdinal != Nav.Graph.GetNode(0, Path[Index]).LayerOrdinal ? 1 : 0;
+	}
+	TestTrue(TEXT("Spiral path uses a split-boundary portal"), LayerCrossings > 0);
+	AddInfo(FString::Printf(TEXT("Spiral Nav: layers=%d portals=%d candidates=%d/%d/%d pathNodes=%d crossings=%d portalBake=%.3fms"),
+		Atlas.Layers.Num(), NavReport.PortalCount, NavReport.PortalDistanceCandidateCount, NavReport.PortalStepCandidateCount,
+		NavReport.PortalClearanceCandidateCount, Path.Num(), LayerCrossings, NavReport.PortalBakeSeconds * 1000.0));
 	FLNPSupportLayerSet Again;
 	TestTrue(TEXT("Repeated split succeeds"), LNPSupportLayers::BuildLayers(Sources, 0, Settings, Again, Error));
 	TestTrue(TEXT("Repeated face assignments match"), Set.FaceMaps[1].LayerByExternalFace == Again.FaceMaps[1].LayerByExternalFace);

@@ -75,7 +75,9 @@ Phase 7a 첫 codec은 16×16 Tile을 사용한다. 지각 목표 간격은 200cm
 
 정적 베이크 agent는 반지름 50cm·반높이 88cm이고 캡슐 축은 바닥 법선이 아니라 지역 중력 Up이다. 경사면에서는 floor normal과 Up의 dot으로 접촉 높이를 보정한다. Layer 간 portal은 800cm 범위의 coarse node 후보를 거리만으로 연결하지 않는다. 50cm 간격 exact Support trace가 만든 floor point·normal polyline이 연속·walkable이어야 하며, 캡슐이 그 polyline을 양방향 sweep할 수 있을 때만 portal을 저장한다. endpoint 직선 sweep은 구면 지각과 20° 동굴 경사 사이에서 실제 바닥을 관통하므로 사용하지 않는다(회귀 fixture Layer 0↔3 사례, 2026-09-30).
 
-7a 베이커는 local component 쌍마다 거리가 가장 짧은 portal 하나만 저장한다(`LNPNavBaking.cpp`의 `BestPortalByComponentPair`). 동굴 입구처럼 연결이 하나뿐인 콘텐츠에는 충분하지만, 입구가 여러 개인 건물이나 계단이 둘인 층에서는 A*가 한 연결로만 돌아간다. Phase 7c에서 쌍마다 최소 간격을 둔 여러 portal을 저장한다(D-065). `Traversal.Portals`는 이미 목록이므로 codec은 그대로이고 선택 정책과 재베이크만 바뀐다. 간격·상한 값과 portal 수 증가가 베이크 시간(후보마다 exact sweep)에 주는 영향은 Phase 7c에서 측정해 정한다.
+Phase 7c 베이커는 local component 쌍마다 최소 간격을 둔 여러 portal을 저장한다(D-065). 기존 거리·step 사전 필터와 exact Support polyline·양방향 capsule sweep을 모든 후보에 적용한 뒤 통과 후보를 endpoint 거리 제곱 오름차순으로 정렬한다. 동률이면 canonical A, B의 `(LocalNavLayerId, TileId, LocalCellIndex)` 순이다. 그 순서로 선택하며, 같은 component 쌍에서 이미 선택한 연결 중점 `(A 지면점 + B 지면점)/2`과의 3D chord 거리가 `PortalMinSpacing` 미만인 후보만 억제한다. 정확히 같은 간격이면 보존한다. 최종 목록은 canonical endpoint 순으로 정렬하므로 map 순회 순서에 의존하지 않는다. 쌍당 개수 상한은 없다.
+
+기본 간격은 200cm(비지각 Nav 목표 간격 두 칸)다. 순수 두 입구 입력에서 양쪽 portal과 위치별 A* 선택을 보존하고, 긴 맞닿은 경계의 통과 후보 139개에서 portal 7개를 남긴다. 입력마다 달라지는 입구 보존·분할 경계 연속성은 회귀로 확인한다. `PortalSpacingRejectCount`와 `PortalBakeSeconds`는 중복 억제 수와 portal 후보 탐색·정밀 검사·선택 전체 시간을 보고한다. 기존 정밀 검사 횟수는 줄이지 않는다. 선택 의미 변경은 BakerSchemaVersion 7과 settings hash·재베이크로 반영했고 `Traversal.Portals` codec v1은 유지한다. 현재 전체 DataVersion·schema는 Spawn headroom을 포함하는 `DataModel.md`를 따른다. 실제 콘텐츠의 수치와 검증 결과는 `../history/Phase07c_Log.md` 단위 2가 소유한다.
 
 같은 Layer의 6방향 edge도 portal과 같은 exact Support polyline 검사와 sweep을 쓴다. step과 경사는 구분해 판정한다. 인접한 두 점의 지역 Up 방향 높이 차가 `max(step 한도, 수평 거리 × tan(walkable 최대 경사))` 안이어야 한다(오름은 step-up 45cm, 내림은 step-down 60cm, 경사는 walkable dot 0.71의 약 44.8°). node 끝점에는 사전 필터로, 50cm 간격 exact Support 점 사이에는 본 판정으로 적용한다. 끝점 높이 차만 step 한도와 비교하면 200cm 지각 격자에서 약 12.7°를 넘는 경사가 모두 끊긴다. Meadow에서 local component가 5,151개로 부서졌던 원인이다(2026-10-01, 수정 후 91개).
 

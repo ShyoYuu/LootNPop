@@ -28,6 +28,7 @@ namespace
 	{
 		FLNPLocalNavNodeRef A;
 		FLNPLocalNavNodeRef B;
+		FVector3d Midpoint = FVector3d::ZeroVector;
 		double DistanceSquared = TNumericLimits<double>::Max();
 		uint8 MinClearanceClass = 0;
 	};
@@ -153,7 +154,8 @@ bool LNPNavBaking::Build(
 
 	if (Support.Layers.IsEmpty() || Support.Layers.Num() >= MAX_uint16
 		|| !(Settings.CrustSpacing > 0.0) || !(Settings.LayerSpacing > 0.0)
-		|| !(Settings.PortalSearchDistance > 0.0) || !(Settings.ClearanceClassStep > 0.0)
+		|| !(Settings.PortalSearchDistance > 0.0) || !(Settings.PortalMinSpacing > 0.0)
+		|| !(Settings.ClearanceClassStep > 0.0)
 		|| !(Settings.Agent.Radius > 0.0f) || Settings.Agent.HalfHeight < Settings.Agent.Radius
 		|| Settings.Agent.MaxStepUp < 0.0f || Settings.Agent.MaxStepDown < 0.0f
 		|| Settings.Agent.WalkableMinDot < 0.0f || Settings.Agent.WalkableMinDot > 1.0f)
@@ -318,7 +320,8 @@ bool LNPNavBaking::Build(
 	}
 
 	TMap<FIntVector, TArray<FSpatialNode>> Spatial;
-	TMap<uint32, FPortalCandidate> BestPortalByComponentPair;
+	const double PortalStart = FPlatformTime::Seconds();
+	TMap<uint32, TArray<FPortalCandidate>> PortalsByComponentPair;
 	const double PortalDistanceSquared = FMath::Square(Settings.PortalSearchDistance);
 	for (int32 LayerIndex = 0; LayerIndex < BakedLayers.Num(); ++LayerIndex)
 	{
@@ -377,18 +380,12 @@ bool LNPNavBaking::Build(
 							{
 								Swap(NodeRef, OtherNodeRef);
 							}
-							FPortalCandidate& Best = BestPortalByComponentPair.FindOrAdd(PairKey);
-							const bool bBetter = DistanceSquared < Best.DistanceSquared
-								|| (DistanceSquared == Best.DistanceSquared
-									&& (BakeNodeLess(OtherNodeRef, Best.A)
-										|| (!BakeNodeLess(Best.A, OtherNodeRef) && BakeNodeLess(NodeRef, Best.B))));
-							if (bBetter)
-							{
-								Best.A = OtherNodeRef;
-								Best.B = NodeRef;
-								Best.DistanceSquared = DistanceSquared;
-								Best.MinClearanceClass = FMath::Min(Node.ClearanceClass, Other.ClearanceClass);
-							}
+							FPortalCandidate& Candidate = PortalsByComponentPair.FindOrAdd(PairKey).AddDefaulted_GetRef();
+							Candidate.A = OtherNodeRef;
+							Candidate.B = NodeRef;
+							Candidate.Midpoint = (Node.Position + Other.Position) * 0.5;
+							Candidate.DistanceSquared = DistanceSquared;
+							Candidate.MinClearanceClass = FMath::Min(Node.ClearanceClass, Other.ClearanceClass);
 						}
 					}
 				}
@@ -400,16 +397,34 @@ bool LNPNavBaking::Build(
 				.Add({LayerIndex, NodeIndex});
 		}
 	}
-	for (const TPair<uint32, FPortalCandidate>& Entry : BestPortalByComponentPair)
+	for (TPair<uint32, TArray<FPortalCandidate>>& Entry : PortalsByComponentPair)
 	{
-		const FPortalCandidate& Candidate = Entry.Value;
-		FLNPNavPortal& Portal = OutTraversal.Portals.AddDefaulted_GetRef();
-		Portal.A = Candidate.A;
-		Portal.B = Candidate.B;
-		Portal.MinClearanceClass = Candidate.MinClearanceClass;
-		Portal.Flags = ELNPNavPortalFlags::Bidirectional;
+		Entry.Value.Sort([](const FPortalCandidate& A, const FPortalCandidate& B)
+		{
+			return A.DistanceSquared != B.DistanceSquared ? A.DistanceSquared < B.DistanceSquared
+				: BakeNodeLess(A.A, B.A) || (!BakeNodeLess(B.A, A.A) && BakeNodeLess(A.B, B.B));
+		});
+		TArray<FVector3d> SelectedMidpoints;
+		for (const FPortalCandidate& Candidate : Entry.Value)
+		{
+			if (SelectedMidpoints.ContainsByPredicate([&](const FVector3d& Selected)
+			{
+				return FVector3d::DistSquared(Selected, Candidate.Midpoint) < FMath::Square(Settings.PortalMinSpacing);
+			}))
+			{
+				++OutReport.PortalSpacingRejectCount;
+				continue;
+			}
+			SelectedMidpoints.Add(Candidate.Midpoint);
+			FLNPNavPortal& Portal = OutTraversal.Portals.AddDefaulted_GetRef();
+			Portal.A = Candidate.A;
+			Portal.B = Candidate.B;
+			Portal.MinClearanceClass = Candidate.MinClearanceClass;
+			Portal.Flags = ELNPNavPortalFlags::Bidirectional;
+		}
 	}
 	OutTraversal.Portals.Sort(BakePortalLess);
+	OutReport.PortalBakeSeconds = FPlatformTime::Seconds() - PortalStart;
 
 	const FBakeLayer& Crust = BakedLayers[0];
 	for (int32 Edge = 0; Edge < 3; ++Edge)

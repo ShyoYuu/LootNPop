@@ -5,6 +5,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "SurfaceNavigation/LNPNavBaking.h"
+#include "SurfaceNavigation/LNPNavRuntime.h"
+#include "SurfaceNavigation/LNPNavPathfinding.h"
 
 namespace LNPNavBakingTest
 {
@@ -151,6 +153,126 @@ bool FLNPNavBakingTest::RunTest(const FString& Parameters)
 		LNPNavData::EncodeTraversal(TraversalAgain, NavigationAgain, TraversalPayloadAgain, Error));
 	TestTrue(TEXT("Navigation baking is byte deterministic"), NavigationPayloadAgain == NavigationPayload);
 	TestTrue(TEXT("Traversal baking is byte deterministic"), TraversalPayloadAgain == TraversalPayload);
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavMultiplePortalsTest,
+	"LootNPop.SurfaceNavigation.Nav.MultiplePortals",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPNavMultiplePortalsTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavBakingTest;
+	FLNPSupportAtlas Support;
+	Support.Layers.Add(MakeFullLayer(80, 1000.0));
+	Support.Layers.Add(MakeFullLayer(80, 1000.0));
+	FLNPNavBakeSettings Settings;
+	Settings.CrustSpacing = Settings.LayerSpacing = 100.0;
+	Settings.PortalSearchDistance = 180.0;
+	const int32 N = LNPSupportAtlas::ComputeSubdivisionsForSpacing(1000.0, 100.0);
+	const int32 Wall = N / 3;
+	const int32 Doors[] = {3, N - Wall - 4};
+	auto NodeClearance = [&](uint16 Layer, const FVector3d& P, const FVector3f&)
+	{
+		const FIntPoint C = PositionToCoord(P, N);
+		return Layer == 0 ? C.X <= Wall : C.X > Wall;
+	};
+	// 같은 component 쌍을 가르는 벽: 두 입구의 폭만 허용한다. 긴 경계 검사는 벽을 제거한 동일 입력이다.
+	auto DoorClearance = [&](uint16 A, const FVector3d& PA, const FVector3f&, uint16 B, const FVector3d& PB, const FVector3f&)
+	{
+		if (A == B) { return true; }
+		const FIntPoint CA = PositionToCoord(PA, N), CB = PositionToCoord(PB, N);
+		return FMath::Abs(CA.X - CB.X) == 1 && CA.Y == CB.Y && (CA.Y == Doors[0] || CA.Y == Doors[1]);
+	};
+	FLNPNavData Navigation;
+	FLNPNavTraversalData Traversal;
+	FLNPNavBakeReport Report;
+	FString Error;
+	if (!TestTrue(TEXT("Two-door bake succeeds"), LNPNavBaking::Build(Support, Settings, NodeClearance,
+		DoorClearance, Navigation, Traversal, Report, Error))) { AddError(Error); return false; }
+	TestEqual(TEXT("Both doors survive for the same component pair"), Traversal.Portals.Num(), 2);
+	for (const FLNPNavPortal& Portal : Traversal.Portals)
+	{
+		FIntPoint A, B;
+		LNPNavData::ResolveLocalNode(Navigation, Portal.A, &A);
+		LNPNavData::ResolveLocalNode(Navigation, Portal.B, &B);
+		TestTrue(TEXT("No portal crosses the solid wall"), A.Y == B.Y && (A.Y == Doors[0] || A.Y == Doors[1]));
+	}
+	FLNPNavSlotInput Input;
+	Input.Support = MakeShared<FLNPSupportAtlas, ESPMode::ThreadSafe>(Support);
+	Input.Navigation = MakeShared<FLNPNavData, ESPMode::ThreadSafe>(Navigation);
+	Input.Traversal = MakeShared<FLNPNavTraversalData, ESPMode::ThreadSafe>(Traversal);
+	TArray<FLNPNavSlotInput> Slots;
+	Slots.Init(Input, 8);
+	const TArray<FRotator> Rotations = {FRotator(0,0,0), FRotator(0,90,0), FRotator(0,180,0), FRotator(0,270,0),
+		FRotator(180,0,0), FRotator(180,90,0), FRotator(180,180,0), FRotator(180,270,0)};
+	FLNPNavSnapshot Snapshot;
+	if (!TestTrue(TEXT("Two-door runtime graph assembles"), LNPNavRuntime::BuildSnapshot(Slots, Rotations, 1, Snapshot, Error)))
+	{ AddError(Error); return false; }
+	for (const int32 Door : Doors)
+	{
+		auto GraphNode = [&](uint16 Layer, int32 I) -> int32
+		{
+			FLNPLocalNavNodeRef Local;
+			FLNPNavNodeRef Runtime;
+			if (!LNPNavData::MakeLocalNodeRef(Navigation, Layer, I, Door, Local)
+				|| !LNPNavRuntime::MakeRuntimeNodeRef(Snapshot, 0, Local, Runtime)) { return INDEX_NONE; }
+			return LNPNavGraph::ToGraphNode(Snapshot, Runtime);
+		};
+		FLNPNavSearchScratch Scratch;
+		FLNPNavSearch Search;
+		LNPNavPathfinding::BeginSearch(Snapshot, GraphNode(0, Wall - 2), GraphNode(1, Wall + 3), {}, Scratch, Search);
+		while (Search.Status == ELNPNavSearchStatus::Running) { LNPNavPathfinding::StepSearch(Snapshot, Scratch, Search, 4000); }
+		TestTrue(TEXT("A* finds a path near each door"), Search.Status == ELNPNavSearchStatus::Found);
+		TArray<int32> Path;
+		LNPNavPathfinding::ExtractNodePath(Scratch, Search, Path);
+		int32 Crossings = 0;
+		for (int32 Index = 1; Index < Path.Num(); ++Index)
+		{
+			const auto& A = Snapshot.Graph.GetNode(Snapshot.Graph.GetSlot(Path[Index - 1]), Path[Index - 1]);
+			const auto& B = Snapshot.Graph.GetNode(Snapshot.Graph.GetSlot(Path[Index]), Path[Index]);
+			if (A.LayerOrdinal != B.LayerOrdinal)
+			{
+				++Crossings;
+				TestTrue(TEXT("A* selects the nearby door"), A.J == Door && B.J == Door);
+			}
+		}
+		TestEqual(TEXT("A* crosses layers once"), Crossings, 1);
+	}
+	TArray<uint8> First, Again;
+	TestTrue(TEXT("Two-door codec encodes"), LNPNavData::EncodeTraversal(Traversal, Navigation, First, Error));
+	FLNPNavData RepeatNav;
+	FLNPNavTraversalData RepeatTraversal;
+	FLNPNavBakeReport RepeatReport;
+	TestTrue(TEXT("Two-door repeat succeeds"), LNPNavBaking::Build(Support, Settings, NodeClearance,
+		DoorClearance, RepeatNav, RepeatTraversal, RepeatReport, Error));
+	TestTrue(TEXT("Repeated codec encodes"), LNPNavData::EncodeTraversal(RepeatTraversal, RepeatNav, Again, Error));
+	TestTrue(TEXT("Portal selection is byte deterministic"), First == Again);
+	TestTrue(TEXT("Long open boundary bakes"), LNPNavBaking::Build(Support, Settings, NodeClearance,
+		[](uint16, const FVector3d&, const FVector3f&, uint16, const FVector3d&, const FVector3f&) { return true; },
+		Navigation, Traversal, Report, Error));
+	TestTrue(TEXT("Long boundary retains distributed portals"), Traversal.Portals.Num() > 2);
+	TestTrue(TEXT("Nearby duplicates are suppressed"), Report.PortalSpacingRejectCount > 0);
+	TArray<FVector3d> Midpoints;
+	for (const FLNPNavPortal& Portal : Traversal.Portals)
+	{
+		auto Point = [&](const FLNPLocalNavNodeRef& Node)
+		{
+			FIntPoint C;
+			LNPNavData::ResolveLocalNode(Navigation, Node, &C);
+			return LNPSupportAtlas::GetSampleDirection(N, C.X, C.Y) * 1000.0;
+		};
+		const FVector3d Midpoint = (Point(Portal.A) + Point(Portal.B)) * 0.5;
+		for (const FVector3d& Previous : Midpoints)
+		{
+			TestTrue(TEXT("Selected midpoints obey minimum spacing"), FVector3d::Distance(Previous, Midpoint) >= Settings.PortalMinSpacing - 0.01);
+		}
+		Midpoints.Add(Midpoint);
+	}
+	AddInfo(FString::Printf(TEXT("Long boundary: portals=%d candidates=%d/%d/%d suppressed=%d portalBake=%.3fms"),
+		Report.PortalCount, Report.PortalDistanceCandidateCount, Report.PortalStepCandidateCount,
+		Report.PortalClearanceCandidateCount, Report.PortalSpacingRejectCount, Report.PortalBakeSeconds * 1000.0));
 	return !HasAnyErrors();
 }
 

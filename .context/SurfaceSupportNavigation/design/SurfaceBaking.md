@@ -182,7 +182,7 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 - 연결: 잘린 경계는 서로 다른 컴포넌트 Layer가 맞닿은 경계와 같게 다룬다. runtime Layer 전환은 지금의 경사로·섬 윗면 경계와 같은 exact 재획득 경로를 타고, Nav는 portal 탐색의 exact polyline sweep으로 잇는다. 잘린 선이 길면 D-065에 따라 portal을 여러 개 둔다. 분할 경계의 경로 연속성은 단위 2에서 검증한다.
 - 대가: 잘린 경계 양쪽 격자 약 2칸 띠가 `NeedsExact`가 된다. 베이크 보고서의 `Sheets`는 분할 전 비지각 연결 성분 수, `split`은 실제로 둘 이상으로 나뉜 원래 sheet 수다. `cutEdges`와 `cutBoundary`는 서로 다른 sub-sheet가 공유하는 용접 모서리를 source별로 중복 없이 한 번씩 센 개수·길이(cm)다.
 - 검증: `SupportAtlasFoldedSheet`(1.3바퀴 나선 경사로)는 분할 성공, sub-sheet마다 방향당 앞면 교차 1개, face 누락·중복 없음, 다층 후보 보존, 반복·추출 순서 역전의 face 배정 일치를 검사한다. raw folded mesh와 지각 overhang 오류는 계속 유지한다. 여러 portal·경계 Walk 경로는 단위 2에서 검사한다.
-- 버전: 규칙 변경으로 `BakerSchemaVersion=6`을 사용한다. Support codec v2·`DataVersion=5`는 유지한다.
+- 버전: 분할·source별 해상도 규칙은 schema 6에서 도입했고 schema 7에 복수 portal을 추가했다(`GroundNavigation.md`). 현재 `BakerSchemaVersion=8`·`DataVersion=6`은 Spawn headroom까지 포함한다(`DataModel.md`). Support codec v2는 유지한다.
 
 ### 단계 분할
 

@@ -13,6 +13,8 @@ struct LOOTNPOP_API FLNPNavBakeSettings
 	double LayerSpacing = 100.0;
 	/** 서로 다른 Layer의 coarse grid 경계가 최대 두 지각 cell 떨어져도 연속 sweep으로 검증할 탐색 거리. */
 	double PortalSearchDistance = 800.0;
+	/** 같은 component 쌍의 portal 중점 사이 최소 3D 거리(cm). 비지각 Nav 두 칸을 기본으로 둔다. */
+	double PortalMinSpacing = 200.0;
 	double ClearanceClassStep = 25.0;
 	FLNPNavAgentProfile Agent;
 };
@@ -27,6 +29,8 @@ struct LOOTNPOP_API FLNPNavBakeReport
 	int32 PortalDistanceCandidateCount = 0;
 	int32 PortalStepCandidateCount = 0;
 	int32 PortalClearanceCandidateCount = 0;
+	int32 PortalSpacingRejectCount = 0;
+	double PortalBakeSeconds = 0.0;
 	int32 SeamEndpointCount = 0;
 	/**
 	 * walkable 지각 seam 좌표 중 capsule clearance로 탈락한 node 수. 이웃 slot 사본과 비대칭이 되어

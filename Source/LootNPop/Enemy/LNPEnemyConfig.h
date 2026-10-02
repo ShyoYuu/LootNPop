@@ -697,6 +697,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))
 	float CapsuleRadius = 35.f;
 
+	/** 비행 스폰의 몸 구·충돌 여유·배회 상한에 고정 여유 200cm를 더한다. 지상은 headroom 필터를 쓰지 않는다. */
+	float GetSpawnRequiredHeadroom() const
+	{
+		return IsFlying() ? FMath::Max(FlightConfig.IdleAltitudeMin, FlightConfig.IdleAltitudeMax)
+			+ FMath::Max(CapsuleRadius, CapsuleHalfHeight) + FlightConfig.Clearance + 200.0f : 0.0f;
+	}
+
 	/**
 	 * 이 적이 경쟁할 슬롯 풀. **파생값이므로 데이터로 따로 두지 않는다** —
 	 * `CombatMode`와 `AttackType`이 이미 원본이고, 셋을 따로 편집하게 하면 어긋날 자리가 생긴다.
