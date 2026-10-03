@@ -11,6 +11,7 @@
 #include "Enemy/LNPFlightSteering.h"
 #include "Enemy/LNPEnemyNavigation.h"
 #include "Enemy/LNPEnemyActivity.h"
+#include "Enemy/LNPEnemyWander.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "LNPEnemyMassTypes.generated.h"
@@ -236,6 +237,10 @@ USTRUCT()
 struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 {
 	GENERATED_BODY()
+
+	FLNPEnemyWanderSegment WanderSegment;
+	/** 이번 PrePhysics에 구간 프로세서가 이동을 소유했다. 매 실행 시작에 초기화한다. */
+	bool bWanderHandled = false;
 
 	UPROPERTY(Transient)
 	double LastWanderTime = 0.0;

@@ -12,6 +12,7 @@
 #include "MassCommonTypes.h"
 #include "MassLODTypes.h"          // EMassLOD — 복제 LOD 티어를 판정 쪽에 노출한다
 #include "Enemy/LNPEnemyMassTypes.h"   // ELNPEnemyAction — 페이로드의 비트 레이아웃이 여기서 닫히도록
+#include "Replication/LNPWanderReplication.h"
 #include "LNPMassReplication.generated.h"
 
 struct FMassReplicationParameters;
@@ -235,6 +236,8 @@ struct LOOTNPOP_API FLNPReplicatedAgent : public FReplicatedAgentBase
 
 	const FLNPReplicatedPositionYawData& GetReplicatedPositionYawData() const { return PositionYaw; }
 	FLNPReplicatedPositionYawData& GetReplicatedPositionYawDataMutable() { return PositionYaw; }
+	const FLNPReplicatedWanderData& GetWander() const { return Wander; }
+	void SetWander(const FLNPReplicatedWanderData& Value) { Wander = Value; }
 
 	/**
 	 * 행동 3비트 + 전이 카운터 5비트. 인코딩이 이 구조체 안에서 닫혀야 서버 인코드와 클라 디코드가 갈리지 않는다.
@@ -288,6 +291,9 @@ private:
 
 	UPROPERTY(Transient)
 	FLNPReplicatedPositionYawData PositionYaw;
+	/** 구간 중 불변인 형제 필드. HP·행동 갱신이 구간 위치를 다시 보내지 않게 한다. */
+	UPROPERTY(Transient)
+	FLNPReplicatedWanderData Wander;
 
 	/**
 	 * ⚠️ **`PositionYaw`의 형제 멤버로 둔다 — 그 안에 중첩하지 않는다.**
@@ -382,6 +388,7 @@ USTRUCT()
 struct LOOTNPOP_API FLNPReplicatedMovementFragment : public FMassFragment
 {
 	GENERATED_BODY()
+	FLNPReplicatedWanderData Wander;
 
 	/** 마지막으로 수신한 스냅샷 (보간의 도착점). */
 	FVector TargetPosition = FVector::ZeroVector;
@@ -411,6 +418,7 @@ public:
 	typedef TClientBubbleHandlerBase<FLNPMassFastArrayItem> Super;
 
 protected:
+	friend class FLNPWanderClientTest;
 #if UE_REPLICATION_COMPILE_CLIENT_CODE
 	virtual void PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize) override;
 	virtual void PostReplicatedChange(const TArrayView<int32> ChangedIndices, int32 FinalSize) override;
@@ -428,6 +436,7 @@ protected:
 	 * 보간 Fragment가 없는 아키타입(Player·LootPod)은 즉시 반영으로 폴백한다.
 	 */
 	static void PushSmoothingTarget(const FMassEntityView& EntityView, const FLNPReplicatedPositionYawData& PositionYaw);
+	static void ApplyMovementData(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent);
 
 	/**
 	 * 수신한 행동 상태를 **서버와 같은 프래그먼트**에 쓴다 — 소비 프로세서가 넷 모드를 몰라도 되게 하는 지점이다.

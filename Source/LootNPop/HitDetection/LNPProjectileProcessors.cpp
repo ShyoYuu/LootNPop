@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 LootNPop. All rights reserved.
+// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "HitDetection/LNPProjectileProcessors.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
@@ -10,6 +10,7 @@
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPProjectileImpactContext.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyCharacter.h"
@@ -595,6 +596,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	};
 
 	// ── Pass 3: 선분 vs 캡슐 충돌 판정 (Lag Compensation 포함) ─────────────────
+	const auto* RewindSurfaces = World->GetSubsystem<ULNPSurfaceDataSubsystem>();
+	const auto RewindSurface = RewindSurfaces ? RewindSurfaces->TakeSnapshot() : nullptr;
 	// 되감기 **핑 항**의 상한. 보간 지연 항은 여기에 묶지 않는다 (LNPPositionHistoryFragment.h).
 	constexpr float MaxPingRewindSeconds = LNPHitDetection::MaxPingRewindSeconds;
 
@@ -631,7 +634,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				// 스폰 직후 첫 기록(50ms) 전 대상이 여기 걸린다.
 				if (TotalRewind <= 0.f || !History || History->Count == 0)
 					return CapsuleCenter;
-				return CapsuleCenter + (History->GetInterpolatedLocation(Now - TotalRewind) - RawLoc);
+				return CapsuleCenter + (History->GetInterpolatedLocation(Now - TotalRewind, RewindSurface.Get()) - RawLoc);
 			};
 
 			// 플레이어는 보간을 타지 않는다 — 위치가 Mass 버블이 아니라 Actor 복제로 오고,
@@ -653,7 +656,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					// 총량에 상한을 걸지 않는다 — 합의 최댓값은 0.2(핑 상한) + 0.3(Low 주기) = 0.5초로
 					// 구조적으로 묶여 있고, 히스토리 버퍼가 정확히 그만큼 덮는다(static_assert).
 					const float DistSqFromViewer = static_cast<float>(FVector::DistSquared(Enemy.RawLocation, Proj.InstigatorViewLocation));
-					TotalRewind = RewindSeconds + LNPHitDetection::GetInterpolationLagSeconds(DistSqFromViewer);
+					TotalRewind = RewindSeconds + (Enemy.History && Enemy.History->IsWanderingAt(Now - RewindSeconds) ? 0.f : LNPHitDetection::GetInterpolationLagSeconds(DistSqFromViewer));
 				}
 				return RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, TotalRewind);
 			};
@@ -696,7 +699,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					&& Enemy.Config && Enemy.Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
 				{
 					const float DistSq = static_cast<float>(FVector::DistSquared(Enemy.RawLocation, Proj.InstigatorViewLocation));
-					const float RewindWith = RewindSeconds + LNPHitDetection::GetInterpolationLagSeconds(DistSq, /*bIgnoreCVar*/ true);
+					const float RewindWith = RewindSeconds + (Enemy.History && Enemy.History->IsWanderingAt(Now - RewindSeconds)
+						? 0.f : LNPHitDetection::GetInterpolationLagSeconds(DistSq, /*bIgnoreCVar*/ true));
 
 					const FVector CenterWith    = RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, RewindWith);
 					const FVector CenterWithout = RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, RewindSeconds);

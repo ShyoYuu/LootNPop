@@ -679,6 +679,8 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
 			FTransform& EntityTransform = Transforms[i].GetMutableTransform();
+			if (IdleFragments[i].bWanderHandled)
+				continue;
 			FVector EntityLocation = EntityTransform.GetLocation();
 			const FMassMoveTargetFragment& MoveTarget = MoveTargets[i];
 			const FLNPEnemyTargetingFragment& Targeting = TargetingFragments[i];

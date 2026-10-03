@@ -1,6 +1,9 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Replication/LNPMassReplication.h"
+#include "Enemy/LNPEnemyConfig.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "GameFramework/GameStateBase.h"
 #include "Replication/LNPMassReplicator.h"
 #include "Config/LNPSettings.h"
 #include "MassEntityManager.h"
@@ -91,6 +94,22 @@ void FLNPMassClientBubbleHandler::PushSmoothingTarget(const FMassEntityView& Ent
 	Movement->TimeSinceUpdate = 0.f;
 }
 
+void FLNPMassClientBubbleHandler::ApplyMovementData(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent)
+{
+	auto* Movement = EntityView.GetFragmentDataPtr<FLNPReplicatedMovementFragment>();
+	if (Movement && Agent.GetWander().IsEnabled())
+	{
+		Movement->Wander = Agent.GetWander();
+		return;
+	}
+	if (Movement && Movement->Wander.IsEnabled())
+	{
+		Movement->Wander = FLNPReplicatedWanderData();
+		Movement->TimeSinceUpdate = MinSmoothingDuration;
+	}
+	PushSmoothingTarget(EntityView, Agent.GetReplicatedPositionYawData());
+}
+
 void FLNPMassClientBubbleHandler::ApplyReplicatedAction(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent, const bool bIsInitialSpawn)
 {
 	// Optional 취급 — 적이 아닌 아키타입(Player·LootPod)에는 이 프래그먼트가 없다.
@@ -157,6 +176,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 			Movement->SourceRotation = Movement->TargetRotation = Spawned.GetRotation();
 			Movement->TimeSinceUpdate = 0.f;
 			Movement->BlendDuration = 0.f;
+			Movement->Wander = ReplicatedEntity.GetWander();
 		}
 
 		// 스폰 시점 행동도 반영한다. 이미 싸우고 있는 적이 버블에 들어오면 그 상태로 보여야 한다.
@@ -168,7 +188,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 
 	auto SetModifiedEntityData = [](const FMassEntityView& EntityView, const FLNPReplicatedAgent& Item)
 	{
-		PushSmoothingTarget(EntityView, Item.GetReplicatedPositionYawData());
+		ApplyMovementData(EntityView, Item);
 		ApplyReplicatedAction(EntityView, Item, /*bIsInitialSpawn*/ false);
 		ApplyReplicatedHealth(EntityView, Item);
 	};
@@ -184,7 +204,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedChange(const TArrayView<int32> C
 	// (Player·LootPod은 스폰 이후 갱신이 없으므로 자연히 이 경로에 들어오지 않는다).
 	auto SetModifiedEntityData = [](const FMassEntityView& EntityView, const FLNPReplicatedAgent& Item)
 	{
-		PushSmoothingTarget(EntityView, Item.GetReplicatedPositionYawData());
+		ApplyMovementData(EntityView, Item);
 		ApplyReplicatedAction(EntityView, Item, /*bIsInitialSpawn*/ false);
 		ApplyReplicatedHealth(EntityView, Item);
 	};
@@ -224,6 +244,7 @@ ULNPMassSmoothingProcessor::ULNPMassSmoothingProcessor()
 {
 	// 수신 자체가 없는 서버·Standalone에는 이 Fragment가 아키타입에 들어가지도 않는다.
 	ExecutionFlags = (int32)EProcessorExecutionFlags::Client;
+	bRequiresGameThreadExecution = true;
 	bAutoRegisterWithProcessingPhases = true;
 	ProcessingPhase = EMassProcessingPhase::PrePhysics;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::SyncWorldToMass;
@@ -237,18 +258,26 @@ void ULNPMassSmoothingProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 {
 	SmoothingQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	SmoothingQuery.AddRequirement<FLNPReplicatedMovementFragment>(EMassFragmentAccess::ReadWrite);
+	SmoothingQuery.AddRequirement<FLNPEnemyActionFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
+	SmoothingQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::Optional);
 	SmoothingQuery.AddRequirement<FMassRepresentationFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	SmoothingQuery.RegisterWithProcessor(*this);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceDataSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPMassSmoothingProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	const UWorld* World = EntityManager.GetWorld();
+	const double ServerNow = World->GetGameState() ? World->GetGameState()->GetServerWorldTimeSeconds() : World->GetTimeSeconds();
+	const auto Snapshot = Context.GetSubsystemChecked<ULNPSurfaceDataSubsystem>().TakeSnapshot();
 
-	SmoothingQuery.ForEachEntityChunk(Context, [DeltaTime](FMassExecutionContext& Ctx)
+	SmoothingQuery.ForEachEntityChunk(Context, [DeltaTime, ServerNow, &Snapshot](FMassExecutionContext& Ctx)
 	{
 		const TArrayView<FTransformFragment> Transforms = Ctx.GetMutableFragmentView<FTransformFragment>();
 		const TArrayView<FLNPReplicatedMovementFragment> Movements = Ctx.GetMutableFragmentView<FLNPReplicatedMovementFragment>();
+		const auto Actions = Ctx.GetMutableFragmentView<FLNPEnemyActionFragment>();
+		const auto* Shared = Ctx.GetConstSharedFragmentPtr<FLNPEnemySharedFragment>();
 		// Optional — 시각화 트레잇이 없는 아키타입은 빈 뷰다(그 경우 Actor로 그려질 일도 없다).
 		const TConstArrayView<FMassRepresentationFragment> Representations = Ctx.GetFragmentView<FMassRepresentationFragment>();
 
@@ -275,6 +304,20 @@ void ULNPMassSmoothingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				}
 			}
 
+			if (Movement.Wander.IsEnabled())
+			{
+				LNPEnemyExactMovement::FParams Params;
+				if (Shared && Shared->Config)
+				{
+					Params.GravityOrigin = Shared->Config->MovementConfig.GravityOrigin;
+					Params.CapsuleHalfHeight = Shared->Config->CapsuleHalfHeight;
+				}
+				FTransform& Transform = Transforms[i].GetMutableTransform();
+				if (Movement.Wander.Evaluate(ServerNow, Snapshot.Get(), Params, Transform) && Actions.IsValidIndex(i)
+					&& (Actions[i].Action == ELNPEnemyAction::Idle || Actions[i].Action == ELNPEnemyAction::Move))
+					Actions[i].Action = Movement.Wander.IsMoving(ServerNow) ? ELNPEnemyAction::Move : ELNPEnemyAction::Idle;
+				continue;
+			}
 			const float Alpha = (Movement.BlendDuration > 0.f)
 				? FMath::Clamp(Movement.TimeSinceUpdate / Movement.BlendDuration, 0.f, 1.f)
 				: 1.f;

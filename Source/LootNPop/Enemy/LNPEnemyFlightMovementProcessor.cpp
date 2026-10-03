@@ -167,6 +167,8 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			FTransform& EntityTransform = Transforms[i].GetMutableTransform();
+			if (IdleFragments[i].bWanderHandled)
+				continue;
 			const FVector Location = EntityTransform.GetLocation();
 			const FVector UpDir = (GravityOrigin - Location).GetSafeNormal();
 

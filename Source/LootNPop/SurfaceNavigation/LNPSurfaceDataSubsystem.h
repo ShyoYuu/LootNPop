@@ -171,6 +171,7 @@ private:
 	friend class ULNPNavPathSubsystem;
 	friend class FLNPConditionalPatchPublicationTest;
 	friend class FLNPStatefulTerrainTest;
+	friend class FLNPEnemyWanderRuntimeTest;
 	bool PublishPendingPatches();
 	void OnAssetsLoaded();
 	void Fail(FString Error);

@@ -264,6 +264,13 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			const FVector3d Center = Transforms[Index].GetTransform().GetLocation();
 			const FVector3d Start = FeetOf(Center, Shared.Config->CapsuleHalfHeight);
 			FLNPEnemyFragment& Enemy = Enemies[Index];
+			if (Enemy.ActivityBand == ELNPEnemyActivityBand::Wander && !Enemy.bNeedsHomeCheck)
+			{
+				Paths->Cancel(Owner);
+				State.Path.Reset();
+				State.RequestSerial = 0;
+				continue;
+			}
 			if (!Velocities[Index].Velocity.IsNearlyZero() || !Enemy.SurfaceHandle.IsValid()
 				|| Enemy.DynamicSupportContact.IsValid())
 			{

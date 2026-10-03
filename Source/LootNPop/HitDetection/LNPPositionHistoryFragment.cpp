@@ -3,6 +3,7 @@
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "Replication/LNPMassReplication.h"   // 복제 LOD 거리 경계·갱신 주기 — 보간 지연의 출처
 #include "HAL/IConsoleManager.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 
 namespace
 {
@@ -49,7 +50,18 @@ const TCHAR* LNPHitDetection::GetReplicationLODName(const float DistSqFromViewer
 	}
 }
 
-FVector FLNPPositionHistoryFragment::GetInterpolatedLocation(double QueryTime) const
+bool FLNPPositionHistoryFragment::IsWanderingAt(const double QueryTime) const
+{
+	for (int32 I = Count - 1; I >= 0; --I)
+	{
+		const auto& Sample = Samples[(NextWriteIdx - Count + I + MaxSamples * 2) % MaxSamples];
+		if (Sample.Timestamp <= QueryTime)
+			return Sample.Wander.IsEnabled();
+	}
+	return false;
+}
+
+FVector FLNPPositionHistoryFragment::GetInterpolatedLocation(double QueryTime, const FLNPSurfaceDataSnapshot* Snapshot) const
 {
 	if (Count == 0)
 		return FVector::ZeroVector;
@@ -72,6 +84,16 @@ FVector FLNPPositionHistoryFragment::GetInterpolatedLocation(double QueryTime) c
 		const FLNPPositionHistorySample& B = SampleAt(i + 1);
 		if (A.Timestamp <= QueryTime && QueryTime <= B.Timestamp)
 		{
+			if (A.Wander.IsEnabled() && A.Wander == B.Wander
+				&& (A.Wander.IsFlying() || (Snapshot && Snapshot->Generation == A.SurfaceGeneration)))
+			{
+				LNPEnemyExactMovement::FParams Params;
+				Params.CapsuleHalfHeight = A.CapsuleHalfHeight;
+				Params.GravityOrigin = A.GravityOrigin;
+				FTransform Pose;
+				if (A.Wander.Evaluate(QueryTime, Snapshot, Params, Pose))
+					return Pose.GetLocation();
+			}
 			const double Span  = B.Timestamp - A.Timestamp;
 			const float  Alpha = Span > KINDA_SMALL_NUMBER ? (float)((QueryTime - A.Timestamp) / Span) : 0.f;
 			return FMath::Lerp(A.Location, B.Location, Alpha);

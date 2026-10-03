@@ -272,6 +272,7 @@ ULNPEnemySeparationProcessor::ULNPEnemySeparationProcessor()
 
 void ULNPEnemySeparationProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
+	SeparationQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
 	SeparationQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	SeparationQuery.AddRequirement<FLNPEnemySeparationFragment>(EMassFragmentAccess::ReadWrite);
 	SeparationQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadOnly);   // 넉백 중이면 비킨다
@@ -306,11 +307,14 @@ void ULNPEnemySeparationProcessor::Execute(FMassEntityManager& EntityManager, FM
 		const TArrayView<FLNPEnemySeparationFragment>     Separations = Ctx.GetMutableFragmentView<FLNPEnemySeparationFragment>();
 		const TConstArrayView<FLNPEnemyVelocityFragment>  Velocities  = Ctx.GetFragmentView<FLNPEnemyVelocityFragment>();
 		const TConstArrayView<FMassActorFragment>         ActorFrags  = Ctx.GetFragmentView<FMassActorFragment>();
+		const auto Enemies = Ctx.GetFragmentView<FLNPEnemyFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			// 생산자가 매 프레임 값을 확정한다 — 밀지 않기로 한 개체에도 0을 명시적으로 쓴다.
 			Separations[i].Push = FVector::ZeroVector;
+			if (Enemies[i].ActivityBand == ELNPEnemyActivityBand::Wander)
+				continue;
 
 			if (Radius <= 0.f || Strength <= 0.f)
 				continue;

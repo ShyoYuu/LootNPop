@@ -3,7 +3,16 @@
 #pragma once
 
 #include "MassReplicationProcessor.h"
+#include "Replication/LNPMassReplication.h"
 #include "LNPMassReplicator.generated.h"
+
+namespace LNP::Replication
+{
+	/** 실제 버블 갱신 판정. true일 때 호출자가 MarkItemDirty한다. */
+	LOOTNPOP_API bool UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTransform& Transform,
+		const FLNPEnemyFragment& Enemy, const FLNPEnemyActionFragment* Action,
+		const FLNPReplicatedWanderData& Wander, double Time, float UpdateInterval);
+}
 
 /**
  * 서버 Replicator의 공통 베이스 — 복제 처리 로직은 전부 여기에 있고, 타입마다 이 클래스를

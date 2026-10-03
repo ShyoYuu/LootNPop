@@ -171,8 +171,20 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		{
 			FLNPEnemyFragment& Enemy = Enemies[I];
 			const FActivityPod* Pod = Pods.Find(Enemy.ParentLootPod);
+			const ELNPEnemyActivityBand PreviousBand = Enemy.ActivityBand;
 			Enemy.ActivityBand = Pod && Config && Config->CombatMode == ELNPEnemyCombatMode::PureEntity
 				? Pod->Fragment->ActivityBand : ELNPEnemyActivityBand::Active;
+			if (PreviousBand != Enemy.ActivityBand)
+			{
+				Idle[I].WanderSegment = FLNPEnemyWanderSegment();
+				Idle[I].bWanderHandled = false;
+				Idle[I].bNeedNewWanderTarget = true;
+				Idle[I].LastWanderTime = 0.0;
+				Moves[I].Center = Transforms[I].GetTransform().GetLocation();
+				Moves[I].DesiredSpeed = FMassInt16Real(0.f);
+				if (Enemy.ActivityBand == ELNPEnemyActivityBand::Active && !bWasDormant)
+					Woken.Add(Ctx.GetEntity(I));
+			}
 			const bool bDormant = Enemy.ActivityBand == ELNPEnemyActivityBand::Dormant;
 			if (bDormant == bWasDormant)
 				continue;

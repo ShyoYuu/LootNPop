@@ -86,3 +86,78 @@
 ### 남은 범위와 해석 제한
 
 구간 배회·구간 복제·위치 Dirty 억제는 단위 3~4다. 최종 cook/패키지/리슨 2P/late join/수동 플레이·귀속 부하와 총수/대역폭 Gate는 단위 5다. 현재 관리 비용은 매 프레임 O(N) 두 순회이고 지형 게시 깨움은 전역이다. 이번 단위로 CPU 절감량이나 총수 상한을 확정하지 않는다. 원래 무귀속 부하 harness는 항상 활성 대조군이며 Pod 최적화 검증으로 대체하지 않는다.
+
+## 2026-10-04 — 단위 3: 서버 구간 배회
+
+사용자의 이어서 진행 요청을 단위 3 착수 승인으로 받아 진행했다. 에디터 프로세스가 없는 것을 확인한 뒤 `LootNPopEditor Win64 Development -WaitMutex -NoHotReloadFromIDE` 전체 빌드를 실행했다. 이번 범위의 소스/API·자동화 검증은 파일과 빌드 도구로 처리했으며 live-editor MCP 작업은 없었다. 구현 단위 종료 후 다음 단위 진행 확인을 받는다.
+
+### 구현과 설계
+
+- 새 `ULNPEnemyWanderProcessor`가 서버 PrePhysics에서 공격/경로 소비 뒤, 기존 지상/비행 이동 전에 실행된다. `FLNPEnemyIdleFragment::WanderSegment`의 시작·도착·정지 종료 서버 시각을 보간한다. 기존 속도의 30%, 도착 뒤 3초 정지다. 다른 이동의 중복 소비를 막고 Wander의 일반 StateTree 배회 목표·지상 분리·일반 경로 요청을 제외했다. 인지·질의·위치 복제는 유지한다.
+- 멤버별 부채꼴 후보를 최대 네 번 추첨한다. 지상은 현재 Layer의 HighConfidence Support, overlay 포함 Nav 직선 보행, 실제 보간 곡선의 Support/캡슐 sweep으로 구간을 확인한다. A* 우회를 만들지 않고 불가 후보는 정지 후 재추첨한다. 비행은 body를 감싸는 sphere+clearance로 전체 구간을 sweep한다.
+- 같은 Pod의 현재 위치와 예약된 남은 선분의 교차를 보수적으로 거부한다. 이미 겹친 출발점은 그룹 깨움·활성 이동을 요청해 기존 분리로 복귀한다. 다른 Pod 사이 예약 조율은 없다. 밀집/복잡 지형에서 정지가 늘 수 있으며 플레이 감각과 총수/CPU는 최종 Gate에서 확인한다.
+- generation·경유 Tile revision, 활동 대역·피격·교전·넉백·경직·사망·Actor·Home 재확인·동적 기반 변화가 구간을 취소한다. 현재 위치를 유지하고 기존 목표를 다시 요청한다. 최대 16개 Tile fingerprint를 고정 배열로 저장하고 넘는 후보를 거부한다.
+- 정적 구간 보간에는 exact query가 없다. 동적 지지면이 있는 slot은 미래 패널 자세를 시작 sweep만으로 보장할 수 없어 실제 이동 구간의 exact sweep을 유지한다. persistent 동적 지지면은 모든 slot을 위험으로 처리한다. 해당 영향 범위를 slot보다 좁히는 최적화는 없다. 막히면 이동 전에 취소한다.
+- 유효 설계는 `design/MovementIntegration.md`의 서버 구간 배회 절에 반영했다. 구간 페이로드·클라이언트 소비·위치 Dirty 억제는 단위 4이며 아직 구현하지 않았다.
+
+### 빌드 중 수정
+
+첫 빌드에서 Idle fragment 내부 `TArray`가 Mass의 trivially-copyable 규약을 위반했다. 동적 목록을 고정 Tile 배열로 수정했다. 후속 빌드의 동적 요소 ID 필드명 `OctantSlot` 오류를 실제 `Slot`로 고쳤다. 실패 빌드를 합격으로 보고하지 않는다. 전체 소스 컴파일 후 수정분 6 action 빌드는 9.00초 성공, 최종 테스트 추가 뒤 4 action 빌드는 8.41초 성공이다. 최종 빌드 로그는 `Saved/Tests/Phase13_Unit3_Build.log`다.
+
+### 자동화 검증
+
+- 최초 구간 검증은 `Saved/Tests/Phase13_Unit3_Wander/index.json`·`Saved/Logs/Phase13_Unit3_Wander.log`에 두 테스트 성공·exit 0이다. 이후 교전·넉백·Home·Groggy·겹친 출발점 검증을 같은 Runtime 테스트에 추가했다.
+- 최종 `Saved/Tests/Phase13_Unit3_Regression/index.json`·`Saved/Logs/Phase13_Unit3_Regression.log`에는 보고서 36 Success·실패/테스트 경고/오류 0·exit 0이다. `RequestCostReplay`는 CSV가 없어 Success 표기지만 SKIP다. 실검증은 **35개 성공·1개 SKIP**이며 36/36 실검증으로 보고하지 않는다.
+- 실검증 구성은 Activity 4·Wander 2·EnemyMovement 5·ExactMovement 4·FlightSteering 2·LoS 1·Nav 15·Conditional Runtime/Publication 2다. assert/ensure/치명 오류는 0이다.
+- Wander.Runtime은 저장된 회귀 SurfaceData의 8-slot snapshot과 실제 Mass 쿼리를 사용한다. 지상/비행의 움직이는 구간 생성·도착, 정적 보간 60프레임의 ground/flight exact 증가 0, 같은 Layer 유지, 피격/활성/교전/넉백/Groggy/Home 취소·현재 위치 유지, 새 snapshot 취소, 겹친 출발점의 활성 복귀를 확인했다. 실제 등록된 Chaos blocker로 후보 전체를 막아 정지·이동 없음·Unknown hit 0도 확인했다. 테스트 world의 Nav는 저장 fixture이며 그 전체 지형 Actor를 로드한 게임 플레이 검증은 아니다.
+- Wander.TimeAndRevision은 시작 전 clamp·중간 서버 시각·정지·0길이 구간, 경유 Tile만의 revision 무효화와 generation 변경을 확인했다. 동적 slot 안전 sweep의 실제 움직이는 패널 교차 연출은 이번 자동화가 직접 검증하지 않았으며 최종 기능 Gate에 남긴다.
+
+### 일반 스폰 스모크와 한계
+
+`UnrealEditor-Cmd LootNPop.uproject TestMap03 -game -nullrhi -nosound -unattended -corelimit=4 -seconds=60` 실행은 `Saved/Logs/Phase13_Unit3_ProductionSmoke.log`에서 All entities spawned·60초 정상 종료 exit 0·assert/ensure/스케줄 순환 0이다. 기존 PythonTestRunner startup 오류, Mover 초기화 경고, CharacterMovementComponent 추출 오류, 일부 스폰 후보 부족 로그는 남아 있다. 후보 부족 로그는 단위 2 원본에도 있다. 이 스모크를 게임 전체 오류 0이나 모든 요청 적의 스폰 성공으로 보고하지 않는다.
+
+이번 실행은 headless 단일 게임의 production 스폰/스케줄 확인이다. 실제 대역별 수·시각적 겹침·움직이는 패널 교차·경로 파괴 플레이, 패키지 리슨 2P·late join·성능/대역폭 Gate를 대체하지 않는다. 활동/예약 관리의 매 프레임 순회·멤버 정렬, 보수적 후보 거부, 구간 생성 때 집중되는 sweep 비용은 최종 측정 대상이다. 총수 상한과 CPU 개선 수치는 변경하지 않았다.
+
+요약은 `Saved/Tests/Phase13_Unit3_Summary.json`. Content·Config 에셋 변경 없이 `git diff --check`를 확인했다. 에디터와 검증 게임은 종료된 상태다. 단위 3 완료 후 **단위 4 구간 복제와 클라이언트 소비** 진행 확인을 기다린다.
+
+## 단위 4 — 구간 복제와 클라이언트 소비(2026-10-04)
+
+사용자가 구현 단위 4까지 진행을 승인했다. 구현·자동화 검증을 마쳤으며 실제 리슨 2P 확인은 대기 중이다. 에디터를 열고 Unreal MCP를 연결하겠다는 사용자 응답을 받았다. 단위 5에는 착수하지 않았다.
+
+### 구현과 복제 규약
+
+- `FLNPReplicatedWanderData`를 PositionYaw의 형제로 추가했다. 시작/목표는 int16 XYZ 1cm, 시작 시각은 uint32 1ms wrap, 이동/정지는 uint16 1ms, flags에 활성/비행/slot, uint16 Layer와 int16 고정 로컬 Yaw를 둔다. 시작 시각 약 49.7일 wrap의 가장 가까운 epoch를 사용하며 반주기 미만 수신 지연을 전제한다. 좌표·시간 길이 한도를 넘는 후보는 활성 이동으로 복귀한다.
+- 서버는 생성한 구간에 양자화 값을 되써 클라이언트와 같은 위치 함수를 소비한다. 구간의 고정 Yaw를 저장해 현재 구면 자세 변화가 매 프레임 구간 변경으로 해석되지 않게 했다. 필드 폭 합계 25바이트는 Iris change mask·FastArray·패킷 포함 실측 대역폭이 아니다. 일반 정수 descriptor를 사용하며 native NetSerialize는 추가하지 않았다.
+- 서버 복제 갱신 helper를 기존 조건에서 분리해 실제 운영 Dirty 판단을 테스트한다. 같은 구간의 PositionYaw는 유지하고 구간 시작/변경/취소·일회성 공격·피격은 주기 게이트를 우회한다. HP·Idle/Move의 기존 게이트는 유지한다. bubble 추가 시 현재 자세와 구간을 함께 시드한다.
+- 클라이언트 수신은 구간 중 HP/행동 패킷으로 오래된 PositionYaw를 보간 목표에 다시 넣지 않는다. GameState의 서버 동기화 시각으로 위치와 Idle/Move 위상을 평가하며 일회성 행동은 덮지 않는다. 지상은 현재 게시 snapshot generation과 패킷 slot/Layer로 조회하고 snapshot 미준비·안전 조회 실패 때 자세를 유지한다. 구간 취소는 현재 클라이언트 자세에서 기존 최소 50ms 보간으로 활성 이동에 복귀한다.
+- 위치 이력은 이동 뒤 기존 50ms·11개 링버퍼에 구간/게시 generation/접지 높이/중력 원점을 기록한다. 같은 구간·안전한 snapshot에서는 요청 시각의 구간 위치로 되감고 전환/지형 게시 경계는 기존 기록 위치 보간을 쓴다. 투사체·근접 판정과 보정 A/B 계측에서 배회 구간에는 LOD 보간 지연을 추가하지 않는다. 핑 상한·기존 근접 보정 기본 적용 여부는 유지한다.
+
+### 빌드와 자동화
+
+- `LootNPopEditor Win64 Development -WaitMutex -NoHotReloadFromIDE` 전체 빌드 성공(78.45초), 동일 시각 비교 테스트 보강 빌드 성공(8.71초), A/B 계측 규칙을 맞춘 최종 빌드 성공(9.29초)이다. 최종 로그는 `Saved/Tests/Phase13_Unit4_FinalBuild.log`다.
+- 최초 `WanderReplication` 자동화 4/4 성공. 보강 후 선별 실행 `Saved/Tests/Phase13_Unit4_Regression/index.json`·`Saved/Logs/Phase13_Unit4_Regression.log`는 40 Success·실패 0·exit 0이다. `RequestCostReplay`는 입력 CSV 미지정으로 실제 실행되지 않으므로 **실검증 39개 성공·1개 SKIP**다. 보고서 테스트 Warning/Error 0이며 시작 시 기존 scalability/MCP/layout 경고는 별도다.
+- Codec은 시작/중간/도착/정지/late join 시각, wrap 경계·여러 epoch, 재인코딩 안정성, 범위 초과 거부, 지상 snapshot 미준비 자세 보존을 확인한다. Dirty는 실제 복제 helper에서 구간 시작 즉시 전달·120프레임 위치 Dirty 0·HP/공격/피격 전달·취소 즉시 전달을 확인한다.
+- Client는 실제 수신 helper와 SmoothingProcessor를 실행해 중간 bubble 시각 위치·HP 패킷 이후 후퇴 없음·Idle/Move 위상·활성 복귀의 수신 순간 무스냅과 50ms 기존 보간을 확인한다. Rewind는 구간 시각 평가·활성 기록의 지연 규칙 전환·전환 구간 기존 위치 보간을 확인한다.
+- 기존 Wander.Runtime에 실제 서버 processor와 복제 위치 함수를 60개 동일 시각에서 지상/비행 모두 비교하는 oracle을 추가했다. 클라이언트 snapshot generation을 다르게 둬도 같은 slot/Layer의 위치가 일치한다. 기존 정적 exact 증가 0 검증도 통과했다. 정지 좌표 반올림의 1cm 미만 오차는 허용한다.
+
+### 남은 실제 검증과 한계
+
+자동화 Client는 네트워크를 통과한 실제 PostReplicatedAdd/Change 호출이 아니라 그 수신 helper와 실제 smoothing processor를 소비한다. 실제 Iris 전송·리슨 2P 화면·bubble 재진입·피격 활성 복귀·움직이는 패널 교차의 플레이 확인을 완료한 것으로 보고하지 않는다. 구현 후 전체 production 스케줄의 실제 게임 확인도 남아 있다. 수동 PIE가 더 빠르므로 검증 장치를 추가하기 전에 에디터/MCP 연결을 요청했다. 패키지/cook/stale·대역폭/CPU·trace 없는 총수 Gate는 단위 5다.
+
+Content·Config 변경 없이 문서와 소스만 변경했다. 구간 이력을 추가해 고정 링버퍼의 개체당 메모리는 증가하며 전체 경로를 무제한 저장하지 않는다. 실제 확인 후 단위 4 완료 체크와 단위 5 진행 확인을 갱신한다. 요약은 `Saved/Tests/Phase13_Unit4_Summary.json`이다.
+
+### 실제 리슨 2P PIE 착수(2026-10-04)
+
+사용자가 에디터를 열고 MCP를 연결했다. 읽기 도구로 TestMap03·PIE 미실행·리슨 서버/단일 프로세스/플레이어 1명 설정을 확인하고 플레이어 수만 2명으로 임시 변경했다. MCP StartPIE의 floating mode·8초 준비 뒤 Server 0/Client 1 창, Iris 두 시스템·게스트 Join succeeded·일반 Pod 스폰 완료를 확인했다. 게스트 화면의 실제 지형·플레이어·적 렌더링도 확인했다. 시작 로그 기준 assert/ensure/fatal·스케줄 순환 0이며 기존 Mover/CharacterMovementComponent 로그와 PIE 중 모듈 로드의 Iris 경고는 남아 있다.
+
+사용자에게 양쪽 플레이어의 Pod 거리 70~110m 배회·이동/정지 애니메이션, 게스트 원거리 이탈/재진입, 원거리 피격 후 그룹 깨움을 요청했다. 직접 플레이 결과는 아직 대기 중이므로 단위 4 완료 체크는 유지하지 않았다. 플레이어 수 설정은 이미 1명으로 복원했으며 실행 중인 두 PIE 창은 사용자의 확인을 위해 유지했다. 에셋/Config 변경은 없다.
+
+### 사용자 리슨 2P 확인과 단위 4 완료(2026-10-04)
+
+사용자는 호스트·게스트를 같은 Pod에서 멀리 떨어뜨리고 관찰하여 적들이 이동/정지를 반복하며 배회하는 데 어색함이 없음을 확인했다. 게스트가 가까이 접근했다 다시 멀어지는 관찰에서도 이상을 느끼지 못했다. 인식 거리 밖 저격은 적이 공격자 쪽을 바라보다 잠시 뒤 배회하는 기존 동작을 유지했다. 관찰 목적은 위치의 후퇴/튐·전환의 끊김·피격 뒤 배회 복귀 회귀였으며, 눈에 띄는 새로운 행동을 요구한 테스트가 아니었다.
+
+이 사용자 관찰을 내부 그룹 활동 대역·bubble 제거/재추가·구간 Dirty 사유를 직접 계측한 증거로 확대하지 않는다. 지상/비행 종류별 화면 확인·실제 late join도 구분하지 않았으므로 해당 항목은 단위 5의 최종 기능 Gate에 남긴다. 단위 4는 구간 정본·실제 수신 helper·위치/애니 위상·되감기 자동화와 production 리슨 2P 연결/플레이 관찰을 합쳐 완료한다. 실제 대역폭 감소량·총수 상한 변경은 아직 주장하지 않는다.
+
+검증 PIE를 MCP로 종료하고 IsPIERunning=false를 확인했다. 에디터/MCP는 유지하며 플레이어 수 설정은 원래 1명으로 복원됐다. 세션 로그는 `Saved/Logs/Phase13_Unit4_Listen2P_PIE.log`, 검사 요약은 `Saved/Tests/Phase13_Unit4_Listen2P_PIE_Checks.json`이다. Iris 게스트 접속 1회·일반 스폰 완료 1회, assert/ensure/fatal·스케줄 순환 0, 양쪽 DynamicTerrain MassPrePhysicsOrder 검사 각각 208529/208544회·위반 0이다. 기존 Mover/CharacterMovementComponent 로그와 Iris 경고가 있으므로 로그 전체 오류/경고 0으로 보고하지 않는다.
+
+Current·MovementIntegration·Phase 13 체크리스트와 `Saved/Tests/Phase13_Unit4_Summary.json`을 갱신했다. Content·Config 변경 없음·git diff --check 정상이다. **단위 4 완료, 단위 5 최종 기능·성능 Gate 진행 확인 대기**다.

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MassEntityTypes.h"
+#include "Replication/LNPWanderReplication.h"
 #include "LNPPositionHistoryFragment.generated.h"
 
 /** Lag Compensation용 위치 스냅샷 1개. */
@@ -14,6 +15,10 @@ struct FLNPPositionHistorySample
 
 	double  Timestamp = 0.0;   // World->GetTimeSeconds() 기준
 	FVector Location  = FVector::ZeroVector;
+	FLNPReplicatedWanderData Wander;
+	uint64 SurfaceGeneration = 0;
+	float CapsuleHalfHeight = 0.f;
+	FVector GravityOrigin = FVector::ZeroVector;
 };
 
 /**
@@ -49,7 +54,9 @@ struct LOOTNPOP_API FLNPPositionHistoryFragment : public FMassFragment
 	 * (`과거 위치 - 현재 위치`)에 그대로 넣으면 판정 캡슐이 반지름만큼 아래로 튄다.
 	 * 스폰 직후 첫 기록(50ms) 전의 대상이 정확히 이 창에 걸린다.
 	 */
-	FVector GetInterpolatedLocation(double QueryTime) const;
+	FVector GetInterpolatedLocation(double QueryTime, const FLNPSurfaceDataSnapshot* Snapshot = nullptr) const;
+	/** 서버 시각 보간에는 복제 LOD 한 주기의 표시 지연을 더하지 않는다. 전환 전 기록도 조회한다. */
+	bool IsWanderingAt(double QueryTime) const;
 };
 
 namespace LNPHitDetection
