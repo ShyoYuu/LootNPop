@@ -1,6 +1,6 @@
 # Phase 8 — Conditional Patch와 파괴 Overlay
 
-> 상태: 진행 중
+> 상태: 완료(2026-10-03)
 > 착수: 2026-10-03
 > 순서: Phase 8 완료 뒤 Phase 13. 구현 단위마다 사용자 진행 확인을 받는다.
 
@@ -24,4 +24,4 @@
 - [x] 단위 2: Patch authoring·베이크·codec(DataVersion 7, 전체 빌드·3개 재베이크·실검증 86개 성공/비용 재생 1개 SKIP; `../history/Phase08_Log.md`)
 - [x] 단위 3: 런타임 활성화와 경로 무효화(전체 빌드·최종 실검증 88개 성공/비용 재생 1개 SKIP; `../history/Phase08_Log.md`)
 - [x] 단위 4: 상태형 요소와 파괴(전체 빌드·실검증 89종 성공, fixture 수정 후 선별 재검증 포함/비용 재생 1개 SKIP; `../history/Phase08_Log.md`)
-- [ ] 단위 5: 회귀 콘텐츠와 최종 Gate
+- [x] 단위 5: 회귀 콘텐츠와 최종 Gate(저장 fixture·실제 경로 요청기, PIE 운반/낙하, 리슨 2P/late join, 최종 cook·패키지 1P·700 네 반복 통과; `../history/Phase08_Log.md`)

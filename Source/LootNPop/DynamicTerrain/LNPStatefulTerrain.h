@@ -50,6 +50,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Terrain") bool BreakTerrain();
 	ELNPTerrainState GetTerrainState() const { return State.Value; }
 	uint32 GetStateRevision() const { return State.Revision; }
+	const FLNPPlacementId& GetPlacementId() const { return Config.Id; }
 	bool GetDynamicSupport(FLNPDynamicSupportSnapshot& OutSupport) const;
 	uint64 GetLastTickFrame() const { return LastTickFrame; }
 	static FTransform EvaluatePose(const FLNPStatefulTerrainConfig& Config,

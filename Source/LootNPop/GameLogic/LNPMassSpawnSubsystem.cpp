@@ -660,6 +660,9 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(*World);
 
+	const ULNPSurfaceDataSubsystem* SurfaceData = World->GetSubsystem<ULNPSurfaceDataSubsystem>();
+	const auto Snapshot = SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
+
 	int32 NumToProcess = FMath::Min(Entities.Num(), Transforms.Num());
 	for (int32 i = 0; i < NumToProcess; ++i)
 	{
@@ -699,6 +702,15 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 				EnemyFragment->ParentLootPod = ParentLootPod;
 				EnemyFragment->ParentPodLocation = ParentPodLocation;
 				EnemyFragment->SurfaceHandle = Surface;
+			}
+		}
+
+		// 스폰 배치의 Home은 이미 정해졌다. 초기값 0을 길 변경으로 해석해 다시 귀속하지 않는다.
+		if (Snapshot.IsValid())
+		{
+			if (FLNPEnemyPathFragment* Path = EntityManager.GetFragmentDataPtr<FLNPEnemyPathFragment>(Entity))
+			{
+				Path->HomeConnectivityGraphVersion = Snapshot->Nav.ConnectivityGraphVersion;
 			}
 		}
 

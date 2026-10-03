@@ -9,6 +9,49 @@
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "Net/UnrealNetwork.h"
+#include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
+#include "LootNPop.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogLNPStatefulTerrain, Log, All);
+
+namespace
+{
+	// 패키지·리슨 2P에서도 같은 서버 API와 상태를 수동으로 확인한다.
+	FAutoConsoleCommandWithWorldAndArgs StatefulTerrainCommand(
+		TEXT("LNP.SurfaceNav.StatefulTerrain"),
+		TEXT("Inspect or change stateful terrain: <status|transition|break> [slot=0] [MarkerGuid]. Changes are server-only."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (!World || Args.IsEmpty()) { return; }
+			const int32 Slot = Args.Num() > 1 ? FCString::Atoi(*Args[1]) : 0;
+			FGuid Marker;
+			if (Args.Num() > 2 && !FGuid::Parse(Args[2], Marker)) { return; }
+			if (Args[0] != TEXT("status") && Args[0] != TEXT("transition") && Args[0] != TEXT("break")) { return; }
+			const auto* Surfaces = World->GetSubsystem<ULNPSurfaceDataSubsystem>();
+			const auto Snapshot = Surfaces ? Surfaces->TakeSnapshot() : nullptr;
+			for (TActorIterator<ALNPStatefulTerrain> It(World); It; ++It)
+			{
+				ALNPStatefulTerrain& Terrain = **It;
+				const FLNPPlacementId& Id = Terrain.GetPlacementId();
+				if (Id.Slot != Slot || (Marker.IsValid() && Id.MarkerId != Marker)) { continue; }
+				bool bChanged = false;
+				if (Args[0] == TEXT("transition")) { bChanged = Terrain.StartTransition(); }
+				else if (Args[0] == TEXT("break")) { bChanged = Terrain.BreakTerrain(); }
+				TInlineComponentArray<UStaticMeshComponent*> Components(&Terrain);
+				int32 CollisionCount = 0;
+				for (const UStaticMeshComponent* Component : Components)
+				{
+					CollisionCount += Component->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
+				}
+				UE_LOG(LogLootNPop, Display,
+					TEXT("[StatefulTerrain] world=%s net=%d id=%s action=%s changed=%d state=%d revision=%u collision=%d patch=%d position=%s"),
+					*World->GetName(), static_cast<int32>(World->GetNetMode()), *Id.ToString(), *Args[0], bChanged,
+					static_cast<int32>(Terrain.GetTerrainState()), Terrain.GetStateRevision(), CollisionCount,
+					Snapshot.IsValid() && Snapshot->ActivePatches.Contains(Id), *Terrain.GetActorLocation().ToString());
+			}
+		}));
+}
 
 ALNPStatefulTerrain::ALNPStatefulTerrain()
 {
@@ -179,6 +222,11 @@ void ALNPStatefulTerrain::Apply(double Time)
 		}
 		AppliedRevision = State.Revision;
 		BoundGeneration = Generation;
+		UE_LOG(LogLNPStatefulTerrain, Verbose,
+			TEXT("Applied world=%s net=%d id=%s state=%d revision=%u collision=%d serverTime=%.3f stateAge=%.3f frame=%llu"),
+			*GetWorld()->GetName(), static_cast<int32>(GetNetMode()), *Config.Id.ToString(),
+			static_cast<int32>(State.Value), State.Revision, State.Value != ELNPTerrainState::Destroyed,
+			Time, Time - State.StartServerTime, GFrameCounter);
 	}
 	for (UStaticMeshComponent* Mesh : Meshes)
 	{

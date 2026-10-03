@@ -1,5 +1,68 @@
 # Phase 8 작업 기록
 
+## 2026-10-03 — 단위 5 착수: 영구 동적 콘텐츠와 전체 자동화
+
+사용자가 단위 5 착수를 승인했다. `GenerateConditionalPatchRegression.py`로 별도 마커 옥탄트와 일반 게임 맵을 만들었다. 기존 정적 fixture의 Layer/ID oracle과 production pool은 보존한다. 새 맵 이름에만 별도 SurfaceData 쌍을 선택하고 `LNP.SurfaceNav.StatefulTerrain` 명령으로 실제 서버 `StartTransition`/`BreakTerrain` API와 상태를 확인한다.
+
+초기 실행은 일반 에셋 API로 UWorld를 복제한 직후 `LoadLevel`을 호출해 standalone 복제 World가 GC에 남았다. `EditorServer.cpp:2544`의 `World Memory Leaks: 2 leaks objects and packages`로 에디터가 종료됐으며 로그는 `Saved/Logs/Phase08_Unit5_PreTemplateFix_Crash.log`에 보존했다. 기존 에셋 저장은 실행 전에 완료했고 디스크의 기존 콘텐츠 변경은 없었다. 엔진 `LevelEditorSubsystem.cpp`를 확인해 `NewLevelFromTemplate`으로 교체했다. 수정 후 실제 에디터에서 두 레벨 생성·저장·회귀 맵 재로드·PIE와 베이크가 모두 성공했다. 단순 코드 수정만으로 크래시 해결을 보고하지 않고 재실행까지 확인했다.
+
+새 정적 payload는 Support source 13개·Layer 19개·Nav cell 73,528개·portal 66개다. 다리·바닥·blocker patch와 움직이는 패널 마커를 추가했고 기존 훅 마커를 합쳐 8-slot에서 48개 요소가 스폰됐다(0 skipped). 런타임 최초 게시의 prepared Layer 168·StaticComponent 73·ReachabilityGroup 57·binding 104·seam 4,428이다. 아직 상태 patch 활성화 전의 최초 게시 계수이며 최종 도달성 계수로 해석하지 않는다. serialized 3.30MiB·decoded resident 10.00MiB·Nav resident 7.15MiB다.
+
+PIE의 slot 0에서 Standing(state 0, revision 1, patch 0)→Transitioning(1/2/0)→Bridge(2/3/1)를 확인했다. Intact 바닥·blocker는 patch 1이고, 세 요소 파괴 후 collision 0·patch 0을 확인했다. 전이 요청 직후에는 이전 collision/patch가 보이며 다음 요소 틱·Mass 경계 뒤 `status`로 검사했다. `MassPrePhysicsOrder checks=211616 violations=0`이다. 이 첫 스모크는 Standing 회전 70°였으며, 실제 운반 가능한 보행 기울기를 위해 30°·8초로 수정하고 새 SurfaceData를 재베이크했다. 최종 자세의 사용자 운반 확인은 남아 있다.
+
+전체 `LootNPopEditor Win64 Development` 빌드는 성공했다(62.94초, `Saved/Logs/Phase08_Unit5_Build.log`). MCP 전체 자동화는 90개 Success·실패 0, 164.15초다. 비용 재생 1개는 입력 CSV 미지정이므로 실검증은 89종이다. report에는 B-option 기존 추출 에셋 경고와 RHI reserved resource 가상 크기 예산 경고가 각 1개다. 증거는 `Saved/Tests/Phase08_Unit5_Final/McpResults.json`·`Saved/Logs/Phase08_Unit5_AutomationAndPIE.log`다. 처음 복구는 에디터 파일 잠금으로 실패했고, 사용자 종료 뒤 실행 전 백업으로 테스트 에셋 3개를 복구해 SHA256 일치를 확인했다(`TestAssetRestore.json`). unsaved BP_Octant_COption은 저장하지 않고 종료하도록 안내했다.
+
+Development BuildCookRun은 exit 0으로 완료했다(122.97초, `Saved/Logs/Phase08_Unit5_BuildCookRun.log`, 출력 `Saved/SurfaceNavigationPhase8Package`). 추가한 `ConditionalPatch.RegressionFixture` 자동화는 저장된 source hash와 Support/Nav/Traversal/Patch/Spawn stream의 새 베이크 일치, 8-slot 다리·바닥의 활성화/파괴에 따른 endpoint 연결과 지지면을 통과했다(`Saved/Tests/Phase08_Unit5_Fixture`, `Saved/Logs/Phase08_Unit5_FixtureTest.log`).
+
+사용자가 무거운 작업 종료를 확인한 뒤 새 패키지의 Meadow 700 자연/추격 각각 두 반복을 수행했다. 자연 frame P95 23.83/17.85ms는 FAIL, 추격 15.66/13.40ms는 PASS였다. path Gate는 네 번 모두 PASS, host/guest의 face/source/SurfaceData probe와 Unknown/Envelope/Layer/순서 검사는 통과했고 exit 0이다. 실패 표본은 `Saved/Profiling/Phase08/PreHomeVersionFix`에 보존했다. 당시 해시가 일치하는 Phase 7c 패키지로 같은 환경의 자연 이동 두 번을 비교해 14.00/14.65ms PASS를 확인했다(`Phase07cControl`).
+
+Phase 8의 `HomeConnectivityGraphVersion=0` 초기값이 실제 길 변경으로 판단돼 부하 harness의 Pod 없는 NPC 약 700마리를 기존 production Pod로 재귀속시키는 차이를 찾았다. `SetupSpawnedEntities`에서 스폰 시 현재 연결성 버전을 기록한다. 실제 길 변경·착지·고아 재검사는 기존 조건을 유지한다. 첫 수정은 입력 Surface와 snapshot generation의 일치를 요구했다. 전체 빌드(29.80초, `Phase08_Unit5_HomeVersionBuild.log`)·관련 자동화 8개(`Phase08_Unit5_HomeVersionTests.log`)·새 BuildCookRun(80.18초, `Phase08_Unit5_HomeVersionBuildCookRun.log`)은 성공했지만, exact 배치가 빈 SurfaceHandle을 전달해 초기 재귀속을 여전히 재현했다. 자연 첫 반복 P95 17.12ms·추격 첫 반복 18.53ms FAIL이며 해결로 보고하지 않았다. 남은 실행은 이번 측정의 exe/로그 경로가 일치하는 게임 두 프로세스만 종료했다. 표본은 `SurfaceGuardAttempt`에 보존했으며 중단 표본은 Gate 결과가 아니다.
+
+generation 조건을 제거한 최종 수정은 snapshot이 준비된 스폰에서 현재 버전을 기록한다. Editor 빌드 성공(8.89초, `Phase08_Unit5_HomeVersionFinalBuild.log`), 최종 패키지와 반복 측정은 아직 남아 있다. 사용자 수동 운반 확인을 위해 새 게임 맵의 PlayerStart 네 곳을 Standing 다리 위 ±300/±100cm로 배치하고 저장했다. 생성 스크립트에도 같은 시작 위치를 반영했다. 에디터와 MCP를 복구한 뒤 PIE를 켰고 사용자에게 다리 위 정상 Standing 여부를 질문했다. 수동 확인 뒤 에디터를 종료하고 최종 패키지에 이 두 변경을 함께 반영한다.
+
+사용자가 Standing 다리 위 정상 접지를 확인했다. 드론 공격으로 떨어진 뒤 PIE를 재시작해 즉시 8초 전이를 실행했고, 사용자가 "발이 다리에 붙어서 함께 이동"을 확인했다. 같은 다리만 파괴한 뒤 "다리가 사라지고 정상적으로 떨어짐"도 확인했다. 파괴 후 서버 status는 state 4/revision 4/collision 0/patch 0이며 바닥·blocker는 Intact를 유지한다. 최종 PIE 종료 시 `MassPrePhysicsOrder checks=168032 violations=0`이다. 증거는 `Saved/Logs/Phase08_Unit5_ManualCarryAndBreak.log`와 사용자 확인이다. PIE를 정지하고 최종 빌드·측정을 위해 에디터 종료를 요청했다.
+
+현재 단위 5는 진행 중이다. 최종 패키지 700 반복 Gate·동적 맵 패키지 1P·`-game` 리슨 2P·late join과 바닥 patch 낙하·NPC 길 전환·replicated base 참조는 아직 완료하지 않았다.
+
+사용자 에디터 종료 확인 뒤 최종 스폰 버전 수정과 PlayerStart 배치를 포함한 Development BuildCookRun을 완료했다(exit 0, 72.97초, `Saved/Logs/Phase08_Unit5_FinalBuildCookRun.log`). 최종 700 네 번 측정은 에디터가 닫힌 상태에서 실행 중이다.
+
+최종 스폰 수정 패키지의 700마리 반복 Gate는 네 번 모두 frame/path PASS다. 자연 frame P95 13.65/14.09ms·path tick P95 0.580/0.582ms, 추격 frame P95 13.39/13.55ms·path tick P95 0.515/0.525ms다. 요청 수 7801/6324/9370/9077와 timing CSV 행 수가 일치하고 owner/serial 중복·누락·시간 역전은 모두 0이다. 초기 일괄 Home 재귀속 로그가 사라졌고 자연 소비자 P95는 첫 반복 1.675ms로 복구됐다. host/guest의 probe·Unknown/Envelope/Layer·순서 검사는 통과했다. 결과는 `Saved/Profiling/Phase08/Unit5_Final700Summary.json`, 해당 접두사의 host/guest 로그·CSV·Exit.json, 바이너리·새 SurfaceData 해시는 `Unit5_Final700Artifacts.json`이다.
+
+동적 맵 패키지 1P는 `-LNPLoadBaseline=1 -LNPLoadBaselinePlayers=1`로 초기 로드와 probe를 검사했다. 48개 마커 스폰·face/source/SurfaceData/panel 네 probe PASS, binding 104/104·NavComponent 73·NavGroup 49·connectivityVersion 2·seam 4428을 확인했다. Unknown/Envelope/Layer 0, 순서 검사 717888회·위반 0이다(`Conditional_Package1P.log`). 이 실행은 다리 위 운반이나 성능 기준선 측정이 아니다. 게임 로그의 정상 종료는 확인했지만 GUI exe 직접 실행은 프로세스 exit code를 별도로 수집하지 않았다.
+
+`-game` 리슨 호스트에서 시작 위치가 원래 지각에 남아 있는 것을 발견했다. PIE에서 바꾼 PlayerStart는 기존 WP 외부 Actor였고 `SaveCurrentLevel`만으로 해당 패키지가 저장되지 않았다. 생성 스크립트에서 Actor `modify()`와 네 `get_package()`의 명시적 `save_packages`를 추가했다. headless 실행 exit 0과 외부 패키지 네 개 저장 로그를 확인했다(`Phase08_Unit5_SavePlayerStarts.log`). 새 `-game` 프로세스에서 다리 좌표로 스폰됨을 다시 확인했다. 변경은 새 게임 맵의 PlayerStart 네 외부 Actor에만 한정한다. TestMap03·700 측정 바이너리는 유지하며 콘텐츠 cook을 갱신한다(`Phase08_Unit5_PlayerStartRecook.log`).
+
+현재 `-game` 리슨 2P host/guest는 새 다리 위치에서 연결됐고 사용자에게 게스트 회전 운반을 요청했다. 드론 공격의 영향을 없애려고 기존 `-LNPEnemyDensity=0` 옵션을 썼다. 프로세스 목록은 `Conditional_EditorGame2P_Processes.json`, 로그는 `Conditional_EditorGame2P_{Host,Guest}_Final.log`다. 첫 잘못된 시작 위치 실행은 `Conditional_EditorGame2P_Host.log`에 보존했다. 실제 late join·바닥 patch 낙하·NPC 길 전환은 아직 완료하지 않았다.
+
+콘텐츠 재cook은 exit 0(45.15초)으로 성공했다. 측정한 최종 게임 바이너리와 Conditional SurfaceData의 SHA256은 재cook 후에도 일치한다(`Saved/Profiling/Phase08/Unit5_RecookArtifactCheck.json`). 사용자가 실제 리슨 2P에서 "호스트와 게스트 모두 다리를 따라 움직임"을 확인했다. Bridge 상태 확정 뒤 기존 게스트를 종료하고 새 프로세스로 재접속했다. 사용자 확인은 내려가는 장면 관찰이 아니라 재접속 후 안정된 다리 위 정상 보행이다. 게스트 status는 Bridge state 2/revision 3/collision 2이며 클라이언트 break는 모든 대상 changed 0으로 거부됐다(`Conditional_EditorGame2P_LateJoin.log`). movement-base 참조를 직접 출력한 검증으로 보고하지 않는다. 현재 호스트의 Bridge 파괴와 양쪽 낙하 전파 확인을 요청했다.
+
+호스트에서 Bridge 파괴 후 게스트 status는 Destroyed state 4/revision 4/collision 0으로 동기화됐다. 그러나 사용자가 호스트도 약간 늦게 떨어지고, 게스트는 다리가 먼저 사라진 뒤 Falling 모션으로 몇 초 떠 있다가 낙하했다고 보고했다. 해당 구간에 게스트 Mover의 simulation/component 위치 불일치 경고가 반복된다. 파괴 전파는 확인됐지만 낙하 지연은 미해결이며 2P 최종 합격으로 처리하지 않는다. 상태 적용 시각의 Verbose 진단 로그와 저장 fixture의 실제 NPC 경로 요청기 검사를 추가 중이다. 전체 빌드를 위해 두 게임 창 종료를 요청했다.
+
+엔진 `AsyncWalkingMode.cpp`의 정지 분기는 floor 재검사가 TODO 주석으로 비활성화돼 있다. 충돌을 제거한 이동 기반을 정지 상태에서 계속 사용하는 문제가 있어 `ULNPAsyncWalkingMode`에서 Query collision이 없어진 기반을 해제하고 바닥/base blackboard를 무효화한 뒤 같은 틱의 시간을 낙하 모드에 넘긴다. 이 변경이 게스트의 더 긴 지연도 해결하는지는 아직 실네트워크 재검증 전이다. 상태 적용 시각을 `LogLNPStatefulTerrain Verbose`로 기록한다. 전체 Editor 빌드 성공(33.04초, `Phase08_Unit5_DestroyedBaseBuild.log`), 관련 자동화 7/7 성공·오류/경고 0·exit 0이다(`Saved/Tests/Phase08_Unit5_DestroyedBase`, `Phase08_Unit5_DestroyedBaseTests.log`). 새 `DestroyedMovementBase`는 입력 없는 기반 해제·월드 위치/속도 유지·같은 틱 낙하 전환을 검증한다. `RegressionFixture`에는 실제 NPC 경로 요청기를 통한 다리/바닥 상태별 여섯 경로 성공/도달 불가 검사를 추가했고 모두 통과했다. 실제 Mass NPC가 길을 걷는 모습을 관찰한 검증으로 보고하지 않는다. 수정된 새 호스트를 실행했으며 재접속 후 파괴 지연 재검증이 남아 있다. 이 런타임 수정은 기존 패키지·700 측정 바이너리에 아직 반영하지 않았다.
+
+수정본 실제 리슨 2P에서 사용자가 "금방 다리가 없어지면서 호스트와 게스트가 거의 동시에 떨어짐"을 확인했다. 호스트 충돌 제거 로그는 11:23:22.039 UTC, 게스트는 11:23:22.649 UTC로 약 0.61초 차이며 양쪽 Destroyed state 4/revision 4/collision 0이다(`Conditional_EditorGame2P_{Host,Guest}_DestroyedBase.log`). 서버 시각 추정은 클라이언트 보정 오차가 있어 wall-clock 로그 차로 비교했다. 수신 지연 0으로 보고하지 않으며 기존 수 초 공중 정지의 소실은 사용자 관찰로 확인했다. 남은 바닥 patch 낙하를 에디터 MCP에서 준비하려고 게임 창 종료·에디터 연결을 요청했다. 단위 5는 아직 완료하지 않았다.
+
+바닥 patch 중심에서 transient PIE 시작 transform을 지정해 실제 캐릭터 접지를 검사했다. 에디터 세션의 적 밀도를 0으로 설정했고 사용자가 정상 접지와 바닥 파괴 직후 입력 없이 낙하를 확인했다. 서버 status는 바닥 Destroyed state 4/revision 2/collision 0/patch 0이며 다리 Standing·blocker Intact는 유지된다. MassPrePhysicsOrder checks=124256/violations=0이다(`Saved/Logs/Phase08_Unit5_ManualFloorBreak.log`). PIE를 정지하고 적 밀도를 1로 복원했다. 수정본 게임 빌드·cook 및 700 재측정을 위해 에디터 종료를 요청했다. 이전 합격 측정은 `Saved/Profiling/Phase08/PreDestroyedBaseFix`에 보존한다.
+
+최종 낙하 수정본 Development BuildCookRun은 exit 0(104.95초)으로 성공했다(`Phase08_Unit5_DestroyedBaseBuildCookRun.log`). cook 오류 0·경고 13은 이전 최종 cook에도 있던 항목이다. 새 패키지 동적 맵 1P는 프로세스 exit 0과 face/source/SurfaceData/panel 네 probe PASS, binding 104/104·NavGroup 49·Unknown/Envelope/Layer 0·순서 검사 716704회/위반 0을 확인했다(`Conditional_Package1P_DestroyedBase.log`, `Conditional_Package1P_DestroyedBase_Exit.json`). 새 바이너리·SurfaceData 해시는 `Unit5_Final700Artifacts.json`에 기록했고 700 자연/추격 각각 두 반복을 실행 중이다. 이전 합격 기록은 `PreDestroyedBaseFix`에 보존했다.
+
+### 단위 5 최종 Gate와 인계
+
+낙하 수정본 패키지의 최종 700 Gate는 다음과 같다. 에디터와 무거운 작업을 종료했다는 사용자 확인 후 실행했다. 기준은 frame P95 ≤16.67ms·path tick P95 ≤1.5ms다.
+
+| 실행 | frame P95(ms) | path P95(ms) | 요청/timing 행 수 | 결과 |
+|:---|---:|---:|---:|:---|
+| 자연 반복 1 | 14.00 | 0.600 | 6163/6163 | PASS |
+| 추격 반복 1 | 13.48 | 1.009 | 10125/10125 | PASS |
+| 자연 반복 2 | 12.90 | 0.346 | 3177/3177 | PASS |
+| 추격 반복 2 | 13.74 | 0.479 | 9505/9505 | PASS |
+
+네 번의 host/guest probe·Unknown/Envelope/Layer·순서 검사는 모두 통과했고 프로세스 exit 0이다. owner/ownerSerial/requestSerial 키 중복·양쪽 CSV의 키 누락·시간 역전은 모두 0이다. 원본은 `Saved/Profiling/Phase08/N700_Chase{0,1}_Repeat{1,2}` 로그·CSV·Exit.json, 요약은 `Unit5_Final700Summary.json`, 정확한 바이너리/SurfaceData 해시는 `Unit5_Final700Artifacts.json`이다. runner 로그는 `Saved/Logs/Phase08_Unit5_DestroyedBase700Runner.log`다. 낙하 수정 전 수치는 `PreDestroyedBaseFix`에 보존했다. Exact CPU의 참고 기준 FAIL은 frame/path Gate와 구분하며 모든 참고 지표가 통과했다고 보고하지 않는다.
+
+전체 자동화 실검증 89종 이후 추가한 저장 fixture와 파괴 기반 낙하 회귀 두 종을 포함해 실검증 91종이 통과했다. 비용 재생 한 종은 CSV 미지정 SKIP이다. 최신 관련 자동화는 7/7 성공이며 단일 전체 실행 92/92 성공으로 보고하지 않는다. NPC 길 전환은 저장 fixture의 실제 경로 요청기·8-slot Support/Nav oracle과 기존 Runtime 재계획/Home 회귀로 확인했다. 실제 NPC가 다리를 걷는 모습의 수동 관찰은 하지 않았다. 복제 movement-base 참조를 직접 출력하지 않았고 사용자 확인한 실제 2P 운반으로 동작을 검증했다.
+
+최종 cook·패키지 1P, 실제 리슨 2P 운반/파괴, Bridge 이후 late join과 클라이언트 권위 거부, 바닥 patch 착지/낙하, fresh bake/stale·경로 요청기, 700 반복 Gate를 완료했다. 테스트 에셋 복구는 SHA256으로 확인했고 최종 작업에 해당 에셋 변경은 없다. PIE 적 밀도는 1로 복원했으며 에디터와 검증 게임은 종료됐다. diff 형식 검사도 통과했다. `Current.md`·Phase 8 체크리스트·`Roadmap.md`를 완료 상태로 인계한다. 여기서 멈추고 Phase 13 착수 확인을 받는다.
+
 ## 2026-10-03 — 단위 1: Nav 점유 합성 기반
 
 사용자가 Phase 8 완료 후 Phase 13으로 진행하는 순서를 승인했다. 구현 단위마다 완료·검증 후 진행 확인을 받는다. 실행 계획은 `../phases/Phase08_ConditionalPatchAndOverlay.md`다.

@@ -124,6 +124,18 @@ fixture LVI 한 개를 8 slot 회전으로 테스트 월드에 복제하고 **�
 
 ## 6. 제작과 재생성
 
+### Phase 8 동적 통합 회귀
+
+기존 `L_SurfaceRegression`은 초기 exact 형상 oracle로 보존한다. 실제 Conditional Patch 통합은 일반 게임 맵 `/Game/Maps/SurfaceNavigation/L_ConditionalPatchRegression`에서 별도 마커 옥탄트 `Fixtures/LVI_Octant_Fixture_Conditional`과 `DA_OctantSurface_Fixture_Conditional`을 8 slot로 로드한다. 이 맵 이름에만 적용하는 로드 분기이므로 production pool을 바꾸지 않는다. LVI에는 정적 형상과 마커만 있고 실제 동적 Actor는 서버가 스폰한다.
+
+배치 원본은 `Scripts/GenerateConditionalPatchRegression.py`다. 기존 정적 fixture를 레벨 template API로 복사하고 두 endpoint 섬을 추가한다. IslandOne의 방위 접선 650~1650cm를 `CP_Bridge`가 잇고 endpoint 중심은 2150cm다. IslandTwo의 바깥 섬 접선 700~1750cm를 `CP_Floor`가 잇고 endpoint 중심은 2250cm다. 각 보행면은 기존 fixture의 BoxTop/BoxBody 형상을 공유한다. BasicCrust의 300cm box `CP_Blocker`는 Support 없이 Nav 점유만 만든다. IslandEdge 위 `CP_MovingPanel`은 계획용 Nav 연결 없이 운반을 확인한다.
+
+다리는 로컬 Standing 이동 `(0,-500,500)`·X축 회전 30°에서 8초 동안 안정 자세로 이동한다. 전이 중 patch는 꺼지고 안정 상태에서 켜진다. 바닥과 blocker는 Intact에서 시작하며 파괴 뒤 사라진다. 원래 정적 fixture의 기대 ID·Layer 수는 바꾸지 않는다.
+
+게임 맵의 PlayerStart 네 곳은 Standing 다리의 보행면 위 120cm와 로컬 X ±300/±100cm에 있다. 시작 직후 다리에 접지해 회전 운반을 확인한다. 테스트 맵의 기존 지각 시작점을 찾아 이동할 필요가 없다.
+
+콘솔 명령 `LNP.SurfaceNav.StatefulTerrain <status|transition|break> [slot=0] [MarkerGuid]`로 실제 서버 API를 호출하고 state/revision/collision/patch를 기록한다. GUID를 생략하면 해당 slot의 상태형 요소 모두가 대상이다. 상태 변경은 다음 요소 틱과 Mass 경계에서 적용되므로 변경 명령 직후 출력 대신 다음 틱 이후 `status`로 결과를 확인한다. 클라이언트에서 변경 요청은 거부된다. 별도 맵의 cook에는 해당 일반 맵과 마커 fixture LVI, fixture 폴더의 명시적 cook 포함이 필요하다.
+
 - **동굴 키트**: `LNP.SurfaceNav.BuildCaveKit`이 `/Game/Maps/CaveKit`의 키트 메시를 제자리 갱신한다.
 - **정적 fixture LVI**: `LNP.SurfaceNav.BuildRegressionFixture`. 키트 메시가 먼저 있어야 하고, 기존 LVI가 있으면 거부한다. 다시 만들려면 LVI를 지운 뒤 실행하고 `LNP.SurfaceNav.BakeOctant`로 SurfaceData를 다시 굽는다.
 - **입체 확장**: 기존 LVI·`SM_FixtureRegressionCrust_R30000`·SurfaceData를 먼저 백업한 뒤 `LNP.SurfaceNav.ExtendRegressionFixture`, `LNP.SurfaceNav.BakeOctant /Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Regression` 순으로 실행한다. 확장 actor가 이미 있으면 중복 추가를 거부한다. 재생성은 백업 LVI·지각 메시를 복구하고 같은 명령을 실행한다. 수동 anchor는 보존된다.
