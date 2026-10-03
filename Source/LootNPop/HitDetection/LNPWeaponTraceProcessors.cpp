@@ -676,6 +676,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 					// Actor 승격 여부와 무관하게 같은 눈금으로 쌓는다.
 					LNPPoise::Accumulate(Enemy.Poise, Frag.PoiseDamage, NowForRewind);
+					Enemy.Fragment->bActivityWakeRequested = true;
 
 					// 피격 반응 — 배회 중이면 이 방향으로 돌아선다(ULNPEnemyMovementProcessor의 None 분기).
 					// Actor·Entity 두 경로 **모두**에서 같은 값을 기록해야 LOD에 따라 반응이 갈리지 않는다.

@@ -336,6 +336,9 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 {
 	const FLNPEnemySharedFragment& SharedConfig = Context.GetExternalData(SharedConfigHandle);
 	const FLNPEnemyFragment& Enemy = Context.GetExternalData(EnemyHandle);
+	// 휴면 중 남아 있던 StateTree 신호도 새 배회·Support/경로 질의를 만들지 않는다.
+	if (Enemy.ActivityBand == ELNPEnemyActivityBand::Dormant)
+		return EStateTreeRunStatus::Running;
 	FLNPEnemyIdleFragment& IdleData = Context.GetExternalData(IdleFragmentHandle);
 	const FTransformFragment& Transform = Context.GetExternalData(TransformHandle);
 	const FLNPEnemyTargetingFragment& Targeting = Context.GetExternalData(TargetingHandle);

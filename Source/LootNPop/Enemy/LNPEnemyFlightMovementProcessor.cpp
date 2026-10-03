@@ -73,6 +73,7 @@ void ULNPEnemyFlightMovementProcessor::ConfigureQueries(const TSharedRef<FMassEn
 	FlightQuery.AddRequirement<FLNPEnemyFlightFragment>(EMassFragmentAccess::ReadWrite);     // 교전 위치 유지·조향 기억
 	FlightQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	FlightQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	FlightQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
 	FlightQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::All);
 	// ⚠️ 지상과 같이 FLNPEnemyDyingTag를 None으로 걸지 않는다 — 시체의 낙하를 이 프로세서가 적분한다.
 	FlightQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);

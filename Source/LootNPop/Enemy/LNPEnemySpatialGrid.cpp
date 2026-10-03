@@ -278,6 +278,7 @@ void ULNPEnemySeparationProcessor::ConfigureQueries(const TSharedRef<FMassEntity
 	SeparationQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);          // Actor면 캡슐이 이미 막는다
 	SeparationQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	SeparationQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	SeparationQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
 	SeparationQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	SeparationQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None); // 접평면 분리는 지상 도메인 규약이다
 	SeparationQuery.RegisterWithProcessor(*this);

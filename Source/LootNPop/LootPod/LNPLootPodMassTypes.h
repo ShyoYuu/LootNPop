@@ -7,6 +7,7 @@
 #include "MassEntityTraitBase.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "SurfaceNavigation/LNPNavQuery.h"
+#include "Enemy/LNPEnemyActivity.h"
 #include "LNPLootPodMassTypes.generated.h"
 
 // 1. LootPod 상태 정의
@@ -65,6 +66,10 @@ struct LOOTNPOP_API FLNPLootPodFragment : public FMassFragment
 	FLNPSurfaceHandle SurfaceHandle;
 	int32 NavNode = INDEX_NONE;
 	FLNPNavGroupRef NavGroup;
+
+	/** 서버 전용. 같은 Pod 무리의 활동 대역과 이벤트 깨움 유지 시각. */
+	ELNPEnemyActivityBand ActivityBand = ELNPEnemyActivityBand::Active;
+	double ActivityWakeUntil = 0.0;
 };
 
 /** 3. Player 루팅 속도 Fragment — 최초 상호작용 시 부착되어 상주한다. 없는 플레이어는 기본 속도 1.0으로 기여한다. */

@@ -104,6 +104,27 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 		// Enemy Config Fragment (Enemy 설정)
 		FLNPEnemySharedFragment EnemySharedFragment;
 		EnemySharedFragment.Config = EnemyConfig;
+		EnemySharedFragment.ActivityCullDistance = ReplicationCullDistance;
+		// 실제 템플릿과 같은 자식 우선 규칙으로 시각화 거리 설정을 읽는다.
+		for (const UMassEntityConfigAsset* Asset = GetTypedOuter<UMassEntityConfigAsset>(); Asset; Asset = Asset->GetConfig().GetParent())
+		{
+			const UMassVisualizationTrait* Visualization = nullptr;
+			for (const UMassEntityTraitBase* Trait : Asset->GetConfig().GetTraits())
+			{
+				if ((Visualization = Cast<UMassVisualizationTrait>(Trait)))
+					break;
+			}
+			if (Visualization)
+			{
+				EnemySharedFragment.ActivityActiveDistance = FMath::Max(
+					Visualization->LODParams.BaseLODDistance[EMassLOD::Low],
+					Visualization->LODParams.VisibleLODDistance[EMassLOD::Low]);
+				EnemySharedFragment.ActivityVisibilityDistance = FMath::Max(
+					Visualization->LODParams.BaseLODDistance[EMassLOD::Off],
+					Visualization->LODParams.VisibleLODDistance[EMassLOD::Off]);
+				break;
+			}
+		}
 		FConstSharedStruct EnemySharedStruct = EntityManager.GetOrCreateConstSharedFragment(EnemySharedFragment);
 		BuildContext.AddConstSharedFragment(EnemySharedStruct);
 	}

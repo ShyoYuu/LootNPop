@@ -10,6 +10,7 @@
 #include "DynamicTerrain/LNPPlacementTypes.h"
 #include "Enemy/LNPFlightSteering.h"
 #include "Enemy/LNPEnemyNavigation.h"
+#include "Enemy/LNPEnemyActivity.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "LNPEnemyMassTypes.generated.h"
@@ -82,6 +83,11 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	/** 이 Enemy가 속한 LootPod */
 	UPROPERTY(Transient)
 	FMassEntityHandle ParentLootPod;
+
+	/** 서버에서만 판정한다. 무귀속·ActorPromoted는 항상 Active다. */
+	ELNPEnemyActivityBand ActivityBand = ELNPEnemyActivityBand::Active;
+	/** 피격 생산자가 설정하고 PostPhysics 활동 대역 프로세서가 무리 전체 깨움으로 소비한다. */
+	bool bActivityWakeRequested = false;
 
 	/** 다른 group 착지 뒤 활성 Pod를 찾지 못했다. ParentPodLocation은 제한 배회 중심이다. */
 	bool bOrphaned = false;
@@ -622,6 +628,9 @@ USTRUCT() struct LOOTNPOP_API FLNPEnemyActorInitializedTag : public FMassTag { G
 /** Destroy 대기 상태 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyDyingTag : public FMassTag { GENERATED_BODY() };
 
+/** 이동·분리·인지 쿼리에서 제외한다. 피격·적 탐색·공간 격자는 계속 포함한다. */
+USTRUCT() struct LOOTNPOP_API FLNPEnemyDormantTag : public FMassTag { GENERATED_BODY() };
+
 /**
  * 비행 적의 이동 상태(서버 전용, 복제하지 않는다). `ELNPNavigationDomain::FreeFlight` 적에게만 붙는다.
  * 소비자는 ULNPEnemyFlightMovementProcessor 하나다.
@@ -667,6 +676,17 @@ struct LOOTNPOP_API FLNPEnemySharedFragment : public FMassConstSharedFragment
 
 	UPROPERTY(EditAnywhere, Category = "LNP|Config")
 	TObjectPtr<ULNPEnemyConfig> Config;
+
+	/** EntityConfig의 시각화 Low LOD 경계(Actor 표현 종료 거리)에서 주입한다. */
+	UPROPERTY()
+	float ActivityActiveDistance = 0.f;
+
+	UPROPERTY()
+	float ActivityCullDistance = 0.f;
+
+	/** 호스트/Standalone은 버블 컬 없이 그린다. 실제 시각화 Off 거리도 휴면 안전 검사에 포함한다. */
+	UPROPERTY()
+	float ActivityVisibilityDistance = 0.f;
 };
 
 class UMassReplicationTrait;

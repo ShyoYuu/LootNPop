@@ -1,14 +1,20 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 8 완료 — Phase 13 착수 확인 대기
-> 마지막 갱신: 2026-10-03
+> 현재 Phase: Phase 13 진행 중 — 단위 1~2 완료, 단위 3 진행 확인 대기
+> 마지막 갱신: 2026-10-04
 
 ## 현재 목표와 다음 행동
 
-사용자가 승인한 순서는 **Phase 8 → Phase 13**이다. Phase 8 단위 1~5와 최종 Gate를 완료했다. 구현 단위마다 완료·검증 뒤 진행 확인을 받는 규칙에 따라 여기서 멈추고 Phase 13 착수 여부를 확인한다. 아직 Phase 13 구현이나 실행 문서 작성에 착수하지 않았다.
+사용자가 2026-10-03 Phase 13 착수와 단위 2 진행을 승인했다. 실행 계획은 `phases/Phase13_ActivityBandsAndWanderReplication.md`다. 단위 1에서 기존 Phase 8 Development 패키지로 지상 700·비행 100/300 리슨 2P의 변경 전 processor CPU와 exact 비용을 측정했다. 세 host/guest·세 Insights export exit 0, probe 24/24 PASS, Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. trace 실행 프레임 P95는 19.60/5.58/9.54ms이며 정규 Gate나 최대 총수로 사용하지 않는다.
 
-승인되면 `Roadmap.md`와 활동 대역·구간 배회 복제 관련 D-067~D-069, `design/MovementIntegration.md`를 읽고 현재 Mass 배회·복제 소비자를 확인해 Phase 13 실행 계획과 첫 구현 단위를 구체화한다. 에디터 상태만으로 방법을 선택하지 않는다. MCP가 효율적이면 즉시 연결을 요청하고, 전체 빌드가 필요하면 즉시 에디터 저장·종료를 요청한다.
+단위 1의 원본·분석·한계는 `history/Phase13_Log.md`와 `Saved/Profiling/Phase13/Before/Summary.json`이 소유한다. 병렬 이동 processor inclusive에는 대기가 포함되고 전체 exact에는 투사체도 포함되므로 이를 빼서 개체당 순수 CPU를 계산하지 않았다. 기존 harness 스폰은 ParentLootPod를 설정하지 않으므로 후속 대역 검증에 실제 Pod 귀속 시나리오가 필요하다.
+
+단위 2에서 Pod 귀속 PureEntity 활동 대역·그룹 깨움·휴면 제외를 구현했다. 거리 판정 4Hz, 깨움 유지 10초, 피격·넉백·루팅·교전·Support/물리/사망 안전 조건을 적용한다. 무귀속·무효/Popped Pod·ActorPromoted는 항상 활성이다. 현재 에셋은 활성 경계 60m·복제 컬 120m·시각화 Off 240m이므로 각 멤버가 가시거리+5%(252m) 밖에 있을 때만 휴면을 허용한다. 에셋 가시거리는 유지했다. Wander는 아직 기존 서버 배회이며 관리 자체는 매 프레임 두 개체 순회다.
+
+단위 2 전체/증분 빌드 성공, 활동 자동화 4/4·관련 기존 회귀 실검증 29개 성공(비용 재생 1개 SKIP), 일반 스폰 TestMap03 `-game` 60초 exit 0을 확인했다. 마지막 활동 자동화 오류/assert/ensure 0, 실제 게임 assert/ensure/스케줄 순환 0이다. 기존 Mover/CharacterMovementComponent 로그는 남아 있다. 단일 전체 자동화 34/34 통과나 성능 개선/총수 상한 변경으로 보고하지 않는다. 증거·초기 실패 수정·제한은 `history/Phase13_Log.md`가 소유한다.
+
+다음은 단위 3 **서버 구간 배회**다. 사용자 진행 확인 전에는 착수하지 않는다. 지상 Support/Nav·비행 sweep 구간 검증, 서버 시간 보간, 지형 변경·피격/전투 시 취소를 연결한다. MCP가 효율적이면 즉시 연결을 요청하고 전체 빌드가 필요하면 즉시 에디터 저장·종료를 요청한다. 에디터와 검증 게임은 종료된 상태다.
 
 ## Phase 8 완료 결과
 
@@ -35,4 +41,4 @@
 - cook에는 두 회귀 게임 맵과 fixture LVI·fixture 폴더를 명시적으로 포함한다. soft path만으로 cook을 보장하지 않는다.
 - 전체 자동화가 재저장하는 테스트 에셋은 실행 전 백업·실행 후 복구와 SHA256 검사가 필요하다. 단위 5 복구 증거는 `Saved/Tests/Phase08_Unit5_Final/TestAssetRestore.json`이다.
 - 기존 Mover 초기화/out-of-band 경고와 Mass CharacterMovementComponent 추출 오류는 남아 있다. assert/ensure/crash/identity 오류와 구분하며 게임 로그 전체 오류 0으로 보고하지 않는다.
-- 필수 문서는 `README.md`, 이 파일, `Decisions.md`다. 완료 계획은 `phases/Phase08_ConditionalPatchAndOverlay.md`, 다음 단계 개요는 `Roadmap.md`다. Phase 7c 완료 이력은 `history/Phase07c_Log.md`를 따른다.
+- 필수 문서는 `README.md`, 이 파일, `Decisions.md`다. 현재 계획은 `phases/Phase13_ActivityBandsAndWanderReplication.md`, 전체 단계 개요는 `Roadmap.md`다. Phase 8·7c 완료 이력은 해당 history 로그를 따른다.

@@ -61,6 +61,7 @@ void ULNPEnemyScoringProcessor::ConfigureQueries(const TSharedRef<FMassEntityMan
 	ScoringQuery.AddRequirement<FLNPEnemyTargetingCandidateFragment>(EMassFragmentAccess::ReadWrite);
 	ScoringQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	ScoringQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	ScoringQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
 	ScoringQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	ScoringQuery.RegisterWithProcessor(*this);
 
@@ -321,6 +322,7 @@ void ULNPEnemyTargetingProcessor::ConfigureQueries(const TSharedRef<FMassEntityM
 	TargetingQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
 	TargetingQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	TargetingQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	TargetingQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
 	TargetingQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	TargetingQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	TargetingQuery.RegisterWithProcessor(*this);
@@ -452,6 +454,7 @@ void ULNPEnemyTargetFollowProcessor::ConfigureQueries(const TSharedRef<FMassEnti
 	FollowQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 	FollowQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	FollowQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	FollowQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
 	FollowQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	FollowQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	FollowQuery.RegisterWithProcessor(*this);
@@ -546,6 +549,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional); // 경직 중 정지
 	MovementQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	MovementQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	MovementQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
 	MovementQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None); // 비행 도메인은 ULNPEnemyFlightMovementProcessor
 	// ⚠️ **FLNPEnemyDyingTag를 None으로 걸지 않는다.** 죽는 순간 쿼리에서 빠지면
 	//    사망 팝(ULNPHealthProcessor가 세운 속도)을 **아무도 적분하지 못한다.**
