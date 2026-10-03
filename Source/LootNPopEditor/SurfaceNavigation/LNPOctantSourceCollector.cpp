@@ -552,6 +552,16 @@ bool FLNPOctantSourceCollector::BuildPlacementMarkerSemantic(const ALNPPlacement
 	if (!FMath::IsFinite(Curves.Position.LoopKeyOffset)) { OutError = TEXT("Invalid Placement path loop offset."); return false; }
 	Writer.WriteDouble(Curves.Position.LoopKeyOffset);
 	Writer.WriteByte(static_cast<uint8>(Marker.PatchCondition));
+	if (Marker.PatchCondition == ELNPConditionalPatchCondition::Bridge && !Marker.PatchSources.IsEmpty())
+	{
+		if (!FMath::IsFinite(Marker.TransitionSeconds) || Marker.TransitionSeconds <= 0.f
+			|| !Marker.StandingTransform.GetScale3D().Equals(FVector::OneVector)
+			|| !WriteTransform(Marker.StandingTransform))
+		{
+			OutError = TEXT("Invalid Standing transform or transition duration."); return false;
+		}
+		Writer.WriteDouble(Marker.TransitionSeconds);
+	}
 	Writer.WriteUInt32(Marker.PatchSources.Num());
 	for (const FLNPConditionalPatchSource& Source : Marker.PatchSources)
 	{

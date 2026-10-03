@@ -267,6 +267,8 @@ struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
 	int32 WaypointIndex = 0;
 	uint32 GoalTile = MAX_uint32;
 	uint32 RequestedOverlayRevision = 0;
+	/** 연결성 변경 뒤 Home 도달성을 한 번 다시 확인한다. */
+	uint32 HomeConnectivityGraphVersion = 0;
 	ELNPNavPathStatus Status = ELNPNavPathStatus::None;
 	double LastRequestTime = -DBL_MAX;
 	uint32 Replans = 0;

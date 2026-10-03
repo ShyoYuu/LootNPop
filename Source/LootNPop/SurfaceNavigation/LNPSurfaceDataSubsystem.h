@@ -39,6 +39,8 @@ struct FLNPSurfaceDataSlotSnapshot
 	TSharedPtr<const FLNPNavData, ESPMode::ThreadSafe> Navigation;
 	TSharedPtr<const FLNPNavTraversalData, ESPMode::ThreadSafe> Traversal;
 	TSharedPtr<const FLNPConditionalPatchData, ESPMode::ThreadSafe> ConditionalPatches;
+	/** 로드 때 주소를 고정한 전체 Layer 중 현재 조회할 수 있는 Layer. 빈 mask는 정적 전용이다. */
+	TBitArray<> ActiveSupportLayers;
 };
 
 /** One fully validated 8-slot Support/Spawn/Nav generation. Nav is assembled before publication, never published partially. */
@@ -47,6 +49,8 @@ struct FLNPSurfaceDataSnapshot
 	uint64 Generation = 0;
 	TArray<FLNPSurfaceDataSlotSnapshot> Slots;
 	FLNPNavSnapshot Nav;
+	TArray<FLNPPlacementId> ActivePatches;
+	TMap<uint32, uint32> PatchTileRevisions;
 };
 
 enum class ELNPSurfaceQueryStatus : uint8
@@ -151,6 +155,8 @@ public:
 
 	/** Returns null before successful publication. The returned generation is immutable. */
 	TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> TakeSnapshot() const;
+	/** 서버 상태를 큐에 모은다. 실제 교체는 Nav subsystem의 Mass phase 경계에서 수행한다. */
+	bool SetPatchActive(const FLNPPlacementId& Id, bool bActive);
 
 	/** 다층 Support query. 게시 전에는 NotReady를 반환한다. */
 	ELNPSurfaceQueryStatus QuerySupport(const FLNPSurfaceQuery& Query, FLNPSurfaceQueryResult& OutResult) const;
@@ -162,6 +168,10 @@ public:
 	FLNPOnSurfaceDataFailed OnSurfaceDataFailed;
 
 private:
+	friend class ULNPNavPathSubsystem;
+	friend class FLNPConditionalPatchPublicationTest;
+	friend class FLNPStatefulTerrainTest;
+	bool PublishPendingPatches();
 	void OnAssetsLoaded();
 	void Fail(FString Error);
 
@@ -173,6 +183,9 @@ private:
 
 	TSharedPtr<FStreamableHandle> LoadHandle;
 	TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> PublishedSnapshot;
+	TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> BaseSnapshot;
+	TArray<FLNPPlacementId> PendingActivePatches;
+	bool bPatchesDirty = false;
 	std::atomic<bool> bSnapshotReady = false;
 
 	/** Strong UObject references backing PublishedSnapshot's decoded POD views. */

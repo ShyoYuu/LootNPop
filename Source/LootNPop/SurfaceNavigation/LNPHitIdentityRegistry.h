@@ -84,6 +84,9 @@ struct FLNPExactSourceEntry
 	/** Phase 5 SurfaceData 게시 때 runtime source key로 연결한 immutable Atlas source. */
 	TSharedPtr<const FLNPSupportAtlas, ESPMode::ThreadSafe> Support;
 	int32 SupportSourceIndex = INDEX_NONE;
+	/** 마커 안정 상태의 source ordinal별 face map. */
+	TSharedPtr<const FLNPSupportFaceMap, ESPMode::ThreadSafe> PatchFaceMap;
+	uint64 PatchGeneration = 0;
 
 	bool HasSupportFaceMap() const
 	{
@@ -129,7 +132,8 @@ struct FLNPHitIdentitySnapshot
  * - 런타임 source: 소유자가 BeginPlay·EndPlay에서 직접 등록·해제한다(서버 스폰 장치, 이후 동적 지형).
  * LootPod proxy는 ULNPLootPodCollisionProxySubsystem의 Generation 변화를 보고 표를 다시 복사한다.
  *
- * 변경은 dirty로만 표시하고, Tick에서 새 snapshot을 만들어 교체한다. Tickable 오브젝트는 TG_PostPhysics 완료 대기 뒤,
+ * 변경은 dirty로만 표시한다. 상태형 요소는 Actor 틱 뒤 DynamicSupport 게시 틱에서 Mass PrePhysics 시작 전에
+ * 새 snapshot을 교체한다. 그 밖의 변경은 Tick에서 게시한다. Tickable 오브젝트는 TG_PostPhysics 완료 대기 뒤,
  * TG_PostUpdateWork 전에 실행된다(LevelTick.cpp). Mass phase는 PrePhysics~PostPhysics와 LastDemotable(FrameEnd)에
  * 있으므로 이 교체 시점에는 Mass 프로세서가 돌고 있지 않다. worker는 GetSnapshot으로 받은 불변 snapshot을 락 없이 읽는다.
  */
@@ -146,6 +150,10 @@ public:
 	 */
 	void RegisterRuntimeSource(UPrimitiveComponent* Component, const FLNPPlacementId& Placement = FLNPPlacementId(), float MaxRadiusOverride = 0.f);
 	void UnregisterRuntimeSource(UPrimitiveComponent* Component);
+	void BindRuntimePatchFaceMap(UPrimitiveComponent* Component,
+		TSharedPtr<const FLNPSupportFaceMap, ESPMode::ThreadSafe> FaceMap, uint64 Generation);
+	/** 요소 틱 뒤, Mass worker 시작 전의 DynamicSupport 게시 경계에서만 호출한다. */
+	void PublishRuntimeChanges();
 
 	/**
 	 * 게임 스레드 전용. 검증 완료된 runtime component→face map을 slot source에 설치하고 즉시 게시한다.

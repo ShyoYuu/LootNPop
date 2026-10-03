@@ -9,6 +9,7 @@
 #include "LNPDynamicTerrainSubsystem.generated.h"
 
 class ALNPMovingPanel;
+class ALNPStatefulTerrain;
 class APawn;
 class ULNPDynamicTerrainSubsystem;
 
@@ -82,6 +83,8 @@ public:
 
 	void RegisterPanel(ALNPMovingPanel* Panel);
 	void UnregisterPanel(ALNPMovingPanel* Panel);
+	void RegisterStateful(ALNPStatefulTerrain* Terrain);
+	void UnregisterStateful(ALNPStatefulTerrain* Terrain);
 
 	/** 모든 스레드. 최신 게시 snapshot. */
 	TSharedRef<const FLNPDynamicSupportFrame, ESPMode::ThreadSafe> GetDynamicSupportFrame() const { return Frame; }
@@ -127,6 +130,7 @@ private:
 	TMap<TWeakObjectPtr<APawn>, FRiderTrack> RiderTracks;
 
 	TArray<TWeakObjectPtr<ALNPMovingPanel>> Panels;
+	TArray<TWeakObjectPtr<ALNPStatefulTerrain>> StatefulElements;
 	TSharedRef<const FLNPDynamicSupportFrame, ESPMode::ThreadSafe> Frame = MakeShared<FLNPDynamicSupportFrame, ESPMode::ThreadSafe>();
 	FLNPDynamicSupportPublishTickFunction PublishTick;
 	FDelegateHandle PreActorTickHandle;

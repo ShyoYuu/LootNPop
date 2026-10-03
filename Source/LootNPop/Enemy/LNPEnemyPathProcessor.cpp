@@ -272,7 +272,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				State.RequestSerial = 0;
 				continue;
 			}
-			if (Enemy.bNeedsHomeCheck || (Enemy.bOrphaned && Now - Enemy.LastHomeCheckTime >= 1.0))
+			if (Enemy.bNeedsHomeCheck || State.HomeConnectivityGraphVersion != Nav.ConnectivityGraphVersion
+				|| (Enemy.bOrphaned && Now - Enemy.LastHomeCheckTime >= 1.0))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_HomeCheck);
 				int32 HomeIndex;
@@ -284,6 +285,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 					const bool bLanded = Enemy.bNeedsHomeCheck;
 					Enemy.bNeedsHomeCheck = false;
 					Enemy.LastHomeCheckTime = Now;
+					State.HomeConnectivityGraphVersion = Nav.ConnectivityGraphVersion;
 					Enemy.bOrphaned = HomeIndex == INDEX_NONE;
 					Enemy.ParentLootPod = HomeIndex != INDEX_NONE ? Pods[HomeIndex].Entity : FMassEntityHandle();
 					if (HomeIndex != INDEX_NONE)

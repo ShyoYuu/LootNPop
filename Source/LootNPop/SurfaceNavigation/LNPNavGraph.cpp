@@ -127,7 +127,7 @@ namespace
 					{
 						continue;
 					}
-					const FLNPNavGraphCandidate Candidate{Base + AssetNode, GetNodeGroup(Nav, Slot, Node.LocalComponent), FMath::Sqrt(DistanceSquared)};
+					const FLNPNavGraphCandidate Candidate{Base + AssetNode, LNPNavGraph::GetGroup(Nav, Base + AssetNode), FMath::Sqrt(DistanceSquared)};
 					if (!bNearestOnly || OutCandidates.IsEmpty())
 					{
 						OutCandidates.Add(Candidate);
@@ -439,6 +439,10 @@ bool LNPNavGraph::ToNodeRef(const FLNPNavSnapshot& Nav, const int32 GraphNode, F
 
 uint32 LNPNavGraph::GetGroup(const FLNPNavSnapshot& Nav, const int32 GraphNode)
 {
+	if (!Nav.ReachabilityGroupByNode.IsEmpty())
+	{
+		return Nav.ReachabilityGroupByNode.IsValidIndex(GraphNode) ? Nav.ReachabilityGroupByNode[GraphNode] : MAX_uint32;
+	}
 	const int32 Slot = Nav.Graph.GetSlot(GraphNode);
 	return Slot == INDEX_NONE ? MAX_uint32 : GetNodeGroup(Nav, Slot, Nav.Graph.GetNode(Slot, GraphNode).LocalComponent);
 }
@@ -597,7 +601,7 @@ FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const
 		const FLNPNavAssetGraph& Asset = *Nav.Graph.SlotGraphs[Slot];
 		for (int32 Ordinal = 0; Ordinal < Asset.Layers.Num(); ++Ordinal)
 		{
-			const bool bHasStartGroup = Asset.Layers[Ordinal].LocalComponents.ContainsByPredicate(
+			const bool bHasStartGroup = !Nav.ReachabilityGroupByNode.IsEmpty() || Asset.Layers[Ordinal].LocalComponents.ContainsByPredicate(
 				[&Nav, Slot, &FirstStartByGroup](const uint16 Component)
 				{
 					return FirstStartByGroup.Contains(GetNodeGroup(Nav, Slot, Component));
@@ -611,7 +615,7 @@ FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const
 				{
 					// 가장자리 바로 위를 피하려고 6방향 edge가 모두 열린 내부 node만 받는다.
 					return GraphNode.GridDegree == 6 && !Nav.Graph.HasBlockedEdge[Node]
-						&& FirstStartByGroup.Contains(GetNodeGroup(Nav, Slot, GraphNode.LocalComponent));
+						&& FirstStartByGroup.Contains(LNPNavGraph::GetGroup(Nav, Node));
 				},
 				Approaches, Overlay, true);
 		}

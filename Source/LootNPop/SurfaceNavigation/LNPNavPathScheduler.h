@@ -55,6 +55,8 @@ struct LOOTNPOP_API FLNPNavPath
 {
 	uint64 SnapshotGeneration = 0;
 	uint32 ConnectivityGraphVersion = 0;
+	/** 도달 불가 목표의 접근점 경로는 새 연결이 열리면 목표까지 다시 탐색한다. */
+	bool bApproach = false;
 	TArray<FLNPNavPathWaypoint> Waypoints;
 	/**
 	 * TraversedRevisionFingerprint. waypoint 구간이 실제로 지나는 cell의 Tile key 오름차순과, 계산 당시 그 Tile의 overlay revision이다.
@@ -64,7 +66,7 @@ struct LOOTNPOP_API FLNPNavPath
 	TArray<uint32> TileRevisions;
 	double Cost = 0.0;
 
-	/** generation·version이 같고 지나는 Tile의 overlay revision이 모두 그대로인가. */
+	/** generation이 같고 지나는 Tile의 overlay revision이 모두 그대로인가. 실행 중 탐색은 version도 검사한다. */
 	bool IsCurrent(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay) const;
 };
 
@@ -169,7 +171,7 @@ public:
 	 */
 	void Tick(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, TFunctionRef<bool(FMassEntityHandle)> IsOwnerValid);
 
-	/** overlay가 바뀐 Tile을 지나던 완료 경로만 같은 serial로 재계획 대기열에 넣는다. */
+	/** 바뀐 Tile의 완료 경로와 연결성 변경 뒤의 접근점·도달 불가 결과를 같은 serial로 재계획한다. */
 	int32 RequeueInvalidatedPaths(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay);
 
 	bool HasWork() const { return !Running.IsEmpty() || QueuedCount > 0; }
@@ -191,6 +193,7 @@ private:
 	{
 		FLNPNavPathRequest Request;
 		FLNPNavPathResult Result;
+		uint32 EvaluatedConnectivityGraphVersion = 0;
 		FLNPNavRequestTiming Timing;
 	};
 
@@ -245,7 +248,7 @@ private:
 	/** 끝난 탐색을 결과로 바꾸고 scratch를 반납한다. */
 	void FinishSearch(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, FRunningSearch& Running);
 	void Finish(FRecord& Record, ELNPNavPathStatus Status);
-	FLNPNavPathPtr BuildPath(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, TConstArrayView<int32> Nodes, double Cost) const;
+	FLNPNavPathPtr BuildPath(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, TConstArrayView<int32> Nodes, double Cost, bool bApproach = false) const;
 	FLNPNavPathPtr FindCachedPath(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, const FCacheKey& Key,
 		int32 StartNode, int32 GoalNode);
 	void AddToCache(const FCacheKey& Key, const FLNPNavPathPtr& Path);

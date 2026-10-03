@@ -267,5 +267,6 @@ namespace LNPSupportAtlas
 		double MaxStepUp,
 		double MaxDrop,
 		uint16 PreferredLayer,
-		FLNPSupportLayerHit& OutHit);
+		FLNPSupportLayerHit& OutHit,
+		const TBitArray<>* ActiveLayers = nullptr);
 }

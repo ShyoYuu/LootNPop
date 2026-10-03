@@ -132,7 +132,7 @@ struct LOOTNPOP_API FLNPNavGraph
 	template <typename FVisitor>
 	void ForEachNeighbor(const int32 Slot, const int32 From, FVisitor&& Visitor, const FLNPNavOverlay* Overlay = nullptr) const
 	{
-		if (LNPNavOverlay::IsBlocked(Overlay, From))
+		if (BlockedNodes[From] || LNPNavOverlay::IsBlocked(Overlay, From))
 		{
 			return;
 		}
@@ -156,7 +156,8 @@ struct LOOTNPOP_API FLNPNavGraph
 			int32 Index = Algo::LowerBoundBy(ExtraLinks, From, &FLNPNavGraphLink::From);
 			for (; Index < ExtraLinks.Num() && ExtraLinks[Index].From == From; ++Index)
 			{
-				if (!BlockedNodes[ExtraLinks[Index].To] && !LNPNavOverlay::IsBlocked(Overlay, ExtraLinks[Index].To))
+				if (!BlockedNodes[ExtraLinks[Index].To] && !LNPNavOverlay::IsBlocked(Overlay, ExtraLinks[Index].To)
+					&& !(bCheckEdges && IsEdgeBlocked(From, ExtraLinks[Index].To)))
 				{
 					Visitor(ExtraLinks[Index].To);
 				}

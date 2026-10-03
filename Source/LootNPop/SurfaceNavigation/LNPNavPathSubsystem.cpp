@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "MassEntitySubsystem.h"
+#include "MassSimulationSubsystem.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
@@ -107,12 +108,42 @@ TStatId ULNPNavPathSubsystem::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(ULNPNavPathSubsystem, STATGROUP_Tickables);
 }
 
+void ULNPNavPathSubsystem::OnWorldBeginPlay(UWorld& InWorld)
+{
+	Super::OnWorldBeginPlay(InWorld);
+	if (auto* Simulation = InWorld.GetSubsystem<UMassSimulationSubsystem>())
+	{
+		PhaseStartHandle = Simulation->GetOnProcessingPhaseStarted(EMassProcessingPhase::PrePhysics)
+			.AddUObject(this, &ULNPNavPathSubsystem::OnMassPhaseStart);
+	}
+}
+
+void ULNPNavPathSubsystem::Deinitialize()
+{
+	if (auto* Simulation = GetWorld()->GetSubsystem<UMassSimulationSubsystem>())
+	{
+		Simulation->GetOnProcessingPhaseStarted(EMassProcessingPhase::PrePhysics).Remove(PhaseStartHandle);
+	}
+	Scheduler.Reset();
+	Overlay.Reset();
+	Super::Deinitialize();
+}
+
+void ULNPNavPathSubsystem::OnMassPhaseStart(float DeltaSeconds)
+{
+	check(IsInGameThread());
+	if (GetWorld()->GetNetMode() == NM_Client || !SurfaceData) { return; }
+	bOverlayDirty |= SurfaceData->PublishPendingPatches();
+	if (bOverlayDirty) { PublishOverlay(); }
+}
+
 void ULNPNavPathSubsystem::AddPodBlocker(const int32 PodID, const FVector& Location,
 	const FLNPSurfaceHandle& Surface)
 {
 	if (PodID > 0 && Surface.IsValid())
 	{
 		PodBlockers.Add(PodID, {PodID, FVector3d(Location), Surface});
+		bOverlayDirty = true;
 	}
 }
 
@@ -126,6 +157,11 @@ void ULNPNavPathSubsystem::RemovePodBlocker(const int32 PodID)
 
 void ULNPNavPathSubsystem::CommitPodBlockers()
 {
+	bOverlayDirty = true;
+}
+
+void ULNPNavPathSubsystem::PublishOverlay()
+{
 	if (SurfaceData == nullptr)
 	{
 		return;
@@ -135,6 +171,7 @@ void ULNPNavPathSubsystem::CommitPodBlockers()
 	{
 		return;
 	}
+	bOverlayDirty = false;
 	if (OverlayGeneration != Snapshot->Generation)
 	{
 		Overlay.Reset();
@@ -147,7 +184,7 @@ void ULNPNavPathSubsystem::CommitPodBlockers()
 	{
 		Overlay = MakeShared<FLNPNavOverlay, ESPMode::ThreadSafe>(MoveTemp(Next));
 		const int32 Requeued = Scheduler.RequeueInvalidatedPaths(Snapshot->Nav, Overlay.Get());
-		UE_LOG(LogLootNPop, Log, TEXT("[NavOverlay] Published Pod blockers: pods=%d revision=%u blockedNodes=%d"),
+		UE_LOG(LogLootNPop, Log, TEXT("[NavOverlay] Published blockers: pods=%d revision=%u blockedNodes=%d"),
 			Pods.Num(), Overlay->Revision, Overlay->BlockedNodes.CountSetBits());
 		if (Requeued > 0)
 		{

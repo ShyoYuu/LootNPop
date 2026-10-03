@@ -7,7 +7,7 @@
 
 namespace
 {
-	void SerializeNode(FArchive& Ar, FLNPLocalNavNodeRef& Node)
+	void SerializePatchNode(FArchive& Ar, FLNPLocalNavNodeRef& Node)
 	{
 		Ar << Node.LocalNavLayerId << Node.TileId << Node.LocalCellIndex;
 	}
@@ -50,7 +50,7 @@ namespace
 			|| (A.A == B.A && LNPConditionalPatch::NodeLess(A.B, B.B));
 	}
 
-	bool SameAgent(const FLNPNavAgentProfile& A, const FLNPNavAgentProfile& B)
+	bool SamePatchAgent(const FLNPNavAgentProfile& A, const FLNPNavAgentProfile& B)
 	{
 		return A.Radius == B.Radius && A.HalfHeight == B.HalfHeight && A.MaxStepUp == B.MaxStepUp
 			&& A.MaxStepDown == B.MaxStepDown && A.WalkableMinDot == B.WalkableMinDot;
@@ -169,7 +169,7 @@ bool LNPConditionalPatch::Validate(const FLNPConditionalPatchData& Data,
 			|| static_cast<uint8>(Patch.Condition) > static_cast<uint8>(ELNPConditionalPatchCondition::Bridge)
 			|| Patch.FirstSupportLayer != NextLayer || NextLayer + Patch.SupportLayers.Num() >= MAX_uint16
 			|| Patch.Navigation.Layers.Num() != Patch.SupportLayers.Num()
-			|| !SameAgent(Patch.Navigation.Agent, BaseNavigation.Agent)
+			|| !SamePatchAgent(Patch.Navigation.Agent, BaseNavigation.Agent)
 			|| !LNPNavData::ValidateNavigation(Patch.Navigation, OutError))
 		{
 			return Fail(TEXT("Invalid Conditional Patch marker, Layer IDs or Navigation."));
@@ -289,12 +289,12 @@ bool LNPConditionalPatch::Encode(const FLNPConditionalPatchData& Data,
 		TArray<uint8> NavPayload;
 		if (!LNPNavData::EncodeNavigation(Patch.Navigation, NavPayload, OutError)) { OutPayload.Reset(); return false; }
 		SerializeArray(Writer, NavPayload, 1, [](FArchive& A, uint8& Byte) { A << Byte; });
-		SerializeArray(Writer, Patch.BlockedNodes, 6, SerializeNode);
+		SerializeArray(Writer, Patch.BlockedNodes, 6, SerializePatchNode);
 		for (TArray<FLNPConditionalPatchEdge>* Edges : {&Patch.BlockedEdges, &Patch.WalkEdges})
 		{
 			SerializeArray(Writer, *Edges, 12, [](FArchive& A, FLNPConditionalPatchEdge& Edge)
 			{
-				SerializeNode(A, Edge.A); SerializeNode(A, Edge.B);
+				SerializePatchNode(A, Edge.A); SerializePatchNode(A, Edge.B);
 			});
 		}
 	}
@@ -331,12 +331,12 @@ bool LNPConditionalPatch::Decode(TConstArrayView<uint8> Payload,
 		SerializeArray(Reader, NavPayload, 1, [](FArchive& A, uint8& Byte) { A << Byte; });
 		if (Reader.IsError()) { return Fail(TEXT("Truncated Conditional Patch Support or Navigation.")); }
 		if (!LNPNavData::DecodeNavigation(NavPayload, Patch.Navigation, OutError)) { OutData = FLNPConditionalPatchData(); return false; }
-		SerializeArray(Reader, Patch.BlockedNodes, 6, SerializeNode);
+		SerializeArray(Reader, Patch.BlockedNodes, 6, SerializePatchNode);
 		for (TArray<FLNPConditionalPatchEdge>* Edges : {&Patch.BlockedEdges, &Patch.WalkEdges})
 		{
 			SerializeArray(Reader, *Edges, 12, [](FArchive& A, FLNPConditionalPatchEdge& Edge)
 			{
-				SerializeNode(A, Edge.A); SerializeNode(A, Edge.B);
+				SerializePatchNode(A, Edge.A); SerializePatchNode(A, Edge.B);
 			});
 		}
 		if (Reader.IsError()) { return Fail(TEXT("Truncated Conditional Patch node or edge records.")); }

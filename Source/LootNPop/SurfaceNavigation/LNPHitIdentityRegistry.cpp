@@ -161,6 +161,24 @@ void ULNPHitIdentitySubsystem::UnregisterRuntimeSource(UPrimitiveComponent* Comp
 	}
 }
 
+void ULNPHitIdentitySubsystem::BindRuntimePatchFaceMap(UPrimitiveComponent* Component,
+	TSharedPtr<const FLNPSupportFaceMap, ESPMode::ThreadSafe> FaceMap, uint64 Generation)
+{
+	check(IsInGameThread());
+	if (FLNPExactSourceEntry* Entry = RuntimeSources.Find(Component))
+	{
+		Entry->PatchFaceMap = MoveTemp(FaceMap);
+		Entry->PatchGeneration = Generation;
+		bDirty = true;
+	}
+}
+
+void ULNPHitIdentitySubsystem::PublishRuntimeChanges()
+{
+	check(IsInGameThread());
+	if (bDirty) { bDirty = false; Publish(); }
+}
+
 bool ULNPHitIdentitySubsystem::PublishSurfaceBindings(
 	const uint64 SurfaceDataGeneration,
 	const TConstArrayView<FLNPSurfaceSourceBinding> Bindings,
@@ -396,6 +414,11 @@ FLNPExactHitIdentity ULNPHitIdentitySubsystem::ResolveHit(const FLNPHitIdentityS
 	if (Entry->HasSupportFaceMap())
 	{
 		Identity.LocalLayerId = Entry->Support->Sources[Entry->SupportSourceIndex].FaceMap.Resolve(Hit.FaceIndex);
+	}
+	else if (Entry->PatchFaceMap.IsValid())
+	{
+		Identity.LocalLayerId = Entry->PatchFaceMap->Resolve(Hit.FaceIndex);
+		Identity.SurfaceDataGeneration = Entry->PatchGeneration;
 	}
 	return Identity;
 }

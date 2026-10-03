@@ -213,10 +213,36 @@ overlay는 매치 중에 계속 바뀐다. worker가 읽는 동안 shared pointe
 
 ### Phase 8 단위 2 구현
 
-마커의 `PatchSources`는 Mesh·마커 로컬 안정 transform·Support 참여 여부를 가진다. 모든 source는 해당 상태에서 blocker이고 Support 참여 source만 sparse 보행면을 만든다. `PatchCondition`은 Intact 또는 Bridge다. 한 마커는 하나의 안정 상태 patch를 소유하며 상태형 Actor가 같은 authoring 형상을 소비하는 연결은 단위 4다.
+마커의 `PatchSources`는 Mesh·마커 로컬 안정 transform·Support 참여 여부를 가진다. 모든 source는 해당 상태에서 blocker이고 Support 참여 source만 sparse 보행면을 만든다. `PatchCondition`은 Intact 또는 Bridge다. 한 마커는 하나의 안정 상태 patch를 소유하며 `ALNPStatefulTerrain`이 같은 authoring 형상을 소비한다(단위 4).
 
 베이커는 정적 Atlas와 동일한 옥탄트 좌표계에서 형상을 굽는다. 추가 Layer ID는 정적 Layer 뒤 GUID A/B/C/D 오름차순으로 붙는다. patch stream에는 중복 지각 없이 sparse Support, source ordinal별 exact face map, 추가 Nav, 정적 node 차단, 정적 edge 차단, patch와 연결된 양방향 Walk edge를 저장한다. Nav component ID는 patch 안에서 0부터 저장한다. base cell·tile·edge의 canonical bytes가 달라지면 베이크를 거부한다.
 
 source 경계가 옥탄트 seam에 닿거나 int16 위치 상한을 넘으면 거부한다. 정적 보행면과 캡슐 높이 안에서 내부가 겹치면 오류다. 경계 접합은 exact Support 경로와 중력 캡슐 polyline clearance로 Walk edge를 검증하며, Bridge에 유효 연결이 없으면 거부한다. blocker-only patch는 보행면을 추가하지 않는다.
 
-로더는 stream hash·size·count·codec·GUID 순서·Layer 범위·sparse row·face map·node/edge endpoint를 검사하고 같은 asset의 decoded patch를 slot 사이에 공유한다. resident memory 계수에도 포함한다. 이 단계는 비활성 데이터를 로드하는 데까지이며, Support 조회·Nav 활성 view·상태 전이·revision 게시 연결은 단위 3에서 수행한다.
+로더는 stream hash·size·count·codec·GUID 순서·Layer 범위·sparse row·face map·node/edge endpoint를 검사하고 같은 asset의 decoded patch를 slot 사이에 공유한다. resident memory 계수에도 포함한다. 단위 2는 비활성 데이터 로드까지이며 활성 view는 아래 단위 3이 소유한다.
+
+### Phase 8 단위 3: 활성 view와 게시
+
+`LNPConditionalPatchRuntime::Prepare`는 로드 때 정적 payload 뒤에 모든 patch Layer·component를 붙인 공유 view와 조밀 graph를 만든다. 아직 비활성인 patch node도 주소를 예약해 `(slot, Layer, Tile, cell, generation)`과 조밀 node index가 상태 전환으로 바뀌지 않는다. patch가 없는 asset은 기존 정적 로드 경로를 그대로 쓴다. source 표와 정적 face map은 보존한다.
+
+`BuildActiveSnapshot`은 비활성 기준 snapshot과 활성 `(slot, MarkerId)` 집합으로 새 snapshot을 합성한다. 활성 Support mask, 추가 node, 명시적 양방향 Walk edge와 base node/edge 차단을 함께 바꾼다. 여러 blocker는 전체 활성 집합의 합으로 합성한다. 실제 node/edge 상태가 같으면 연결성 version을 유지하고, 실제 차단·edge 또는 Support 활성 상태가 달라진 Tile만 revision을 올린다. 동일 상태·중복 입력은 게시·revision을 반복하지 않는다.
+
+patch 점유·edge 차단은 기존 정적 component 내부를 갈라놓을 수도 있다. 따라서 현재 ReachabilityGroup은 Pod 점유를 제외한 활성 보행 graph의 연결 성분을 다시 계산하고 `ReachabilityGroupByNode`에 저장한다. `StaticNavComponent` 식별자는 유지하며, 하나가 여러 group으로 갈라진 경우 component→group 요약은 `MAX_uint32`다. 도달성·접근점·Pod 선택은 node의 현재 group을 사용한다. 실제 Nav topology 변경 때만 `ConnectivityGraphVersion`을 올린다.
+
+서버 `ULNPSurfaceDataSubsystem::SetPatchActive`는 상태 요청을 모을 뿐 shared ref를 교체하지 않는다. `ULNPNavPathSubsystem`의 Mass PrePhysics 시작 delegate가 worker dispatch 전에 Support·Nav snapshot과 Pod/patch Tile revision overlay를 순서대로 게시한다. Pod 차단 제거도 같은 경계까지 기다린다. 이전 reader는 보유한 immutable snapshot을 계속 읽는다. Actor 상태·exact identity·collision의 연결은 아래 단위 4 구현을 따른다.
+
+완성된 성공 경로는 generation과 통과 Tile revision을 검사해 무관한 지역의 link 전환을 견딘다. 실행 중 A*는 connectivity version과 overlay revision 변경 시 Stale이다. 접근점 경로와 도달 불가 결과는 연결성 변경 시 다시 계획해 새 길을 놓치지 않는다. 지상 NPC는 connectivity version 변경 뒤 Home 도달성을 한 번 재확인한다.
+
+### Phase 8 단위 4: 상태형 Actor와 파괴
+
+마커의 `ElementClass`를 `ALNPStatefulTerrain`으로 설정한다. `PatchSources`의 mesh·source transform으로 서버와 클라이언트가 같은 이름의 Movable component를 만든다. component는 net-addressable이고 물리 시뮬레이션을 쓰지 않는다. 마커 월드 transform·형상·조건·StandingTransform·TransitionSeconds와 상태/revision/시작 server world time을 복제하며 ReplicatedMovement는 사용하지 않는다.
+
+Bridge 조건은 Standing에서 시작한다. StandingTransform은 안정 형상 전체에 적용하는 마커 로컬 자세이며 scale은 1이다. 서버 `StartTransition()` 요청 뒤 Translation은 선형, Rotation은 최단 quaternion slerp로 identity까지 보간한다. 서버 Actor 틱에서 시간이 끝나면 Bridge 상태를 확정한다. 전이 중 collision과 우연한 DynamicSupport 접촉은 유지하지만 patch·계획적 traversal은 비활성이다. GameState 수신 전 클라이언트는 복제 시작 시각 자세를 유지한다.
+
+Intact 조건은 온전한 형상과 활성 patch로 시작한다. 서버 `BreakTerrain()`은 모든 상태에서 Destroyed로 전환하며 다음 Actor 틱에서 collision·표현·exact 등록·patch를 제거한다. 동일 전이/파괴 요청은 상태 revision을 반복 증가시키지 않는다. 파편이나 새 보행면은 만들지 않는다.
+
+상태 API는 복제 상태만 바꾸고 실제 형상·registry·patch 요청은 TG_PrePhysics Actor 틱에서 적용한다. `요소 틱 → DynamicSupport/dirty exact registry 게시 → Mass PrePhysics 시작에서 Support/Nav/경로 overlay 게시 → worker` 순서다. 기존 PostPhysics registry 게시도 유지한다. 각속도와 접촉점 선속도를 물리 body·DynamicSupport에 넣어 회전 기둥 이탈 관성을 반영한다.
+
+안정 상태에서는 마커 source ordinal의 베이크 face map과 SurfaceData generation을 runtime exact entry에 연결한다. 따라서 patch 착지의 LocalLayerId는 베이크 Layer와 같고, NPC는 안정 상태를 DynamicSupport 대신 SurfaceHandle로 소비한다. 전이 상태는 face map 없이 `(slot, MarkerId)` 동적 접촉으로 소비한다. blocker-only source는 Support 역할을 갖지 않는다. collision envelope는 전이 구간 전체를 포함하는 보수적 반지름이다.
+
+Standing 자세·전이 시간은 Bridge patch가 있는 마커의 canonical semantic hash에 포함한다. stream 형식·베이크 geometry 알고리즘은 그대로이고 DataVersion 7/schema 9를 유지한다. 이 입력이 바뀐 Bridge 마커는 stale이며 다시 굽는다. patch가 없는 현재 production 마커의 semantic bytes는 바뀌지 않는다. 실제 replicated component base 참조·네트워크 late join·PIE 틱 순서·패키지 검증은 단위 5 Gate에서 확인한다.

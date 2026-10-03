@@ -2,6 +2,8 @@
 
 #include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
 #include "DynamicTerrain/LNPMovingPanel.h"
+#include "DynamicTerrain/LNPStatefulTerrain.h"
+#include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "DynamicTerrain/LNPPlacementMarker.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "LootNPop.h"
@@ -162,6 +164,7 @@ void ULNPDynamicTerrainSubsystem::Deinitialize()
 	}
 	FWorldDelegates::OnWorldPreActorTick.Remove(PreActorTickHandle);
 	Panels.Reset();
+	StatefulElements.Reset();
 	Frame = MakeShared<FLNPDynamicSupportFrame, ESPMode::ThreadSafe>();
 
 	Super::Deinitialize();
@@ -272,8 +275,30 @@ FTickFunction* ULNPDynamicTerrainSubsystem::GetMassPrePhysicsTick() const
 	return MassSimulation ? &MassSimulation->GetMutablePhaseManager().GetProcessingPhaseTickFunction(EMassProcessingPhase::PrePhysics) : nullptr;
 }
 
+void ULNPDynamicTerrainSubsystem::RegisterStateful(ALNPStatefulTerrain* Terrain)
+{
+	check(IsInGameThread());
+	StatefulElements.AddUnique(Terrain);
+	PublishTick.AddPrerequisite(Terrain, Terrain->PrimaryActorTick);
+}
+
+void ULNPDynamicTerrainSubsystem::UnregisterStateful(ALNPStatefulTerrain* Terrain)
+{
+	check(IsInGameThread());
+	StatefulElements.Remove(Terrain);
+	PublishTick.RemovePrerequisite(Terrain, Terrain->PrimaryActorTick);
+}
+
 void ULNPDynamicTerrainSubsystem::OnMassPrePhysicsStart(float DeltaSeconds)
 {
+	for (const auto& Weak : StatefulElements)
+	{
+		if (const ALNPStatefulTerrain* Terrain = Weak.Get(); Terrain && Terrain->GetLastTickFrame() != 0)
+		{
+			++PhaseOrderChecks;
+			if (Terrain->GetLastTickFrame() != GFrameCounter) { ++PhaseOrderViolations; }
+		}
+	}
 	// 게임 스레드(FMassProcessingPhase::ExecuteTick 선두). 활성 패널은 매 프레임 틱하므로
 	// 이번 프레임 틱이 아직이면 PrePhysics exact query가 옛 자세를 본다. 등록 직후 첫 틱 전인 패널은 제외한다.
 	for (const TWeakObjectPtr<ALNPMovingPanel>& WeakPanel : Panels)
@@ -305,8 +330,8 @@ void FLNPDynamicSupportPublishTickFunction::ExecuteTick(float DeltaTime, ELevelT
 
 void ULNPDynamicTerrainSubsystem::Publish()
 {
-	if (Panels.IsEmpty())
-		return;
+	if (auto* Identity = GetWorld()->GetSubsystem<ULNPHitIdentitySubsystem>()) { Identity->PublishRuntimeChanges(); }
+	if (Panels.IsEmpty() && StatefulElements.IsEmpty() && Frame->Supports.IsEmpty()) { return; }
 
 	TSharedRef<FLNPDynamicSupportFrame, ESPMode::ThreadSafe> NewFrame = MakeShared<FLNPDynamicSupportFrame, ESPMode::ThreadSafe>();
 	NewFrame->FrameNumber = GFrameCounter;
@@ -329,6 +354,13 @@ void ULNPDynamicTerrainSubsystem::Publish()
 		Support.bWalkable = true; // LNPDynamicTerrain = Support+Blocker
 	}
 
+	for (int32 Index = StatefulElements.Num() - 1; Index >= 0; --Index)
+	{
+		const ALNPStatefulTerrain* Terrain = StatefulElements[Index].Get();
+		if (!Terrain) { StatefulElements.RemoveAtSwap(Index); continue; }
+		FLNPDynamicSupportSnapshot Support;
+		if (Terrain->GetDynamicSupport(Support)) { NewFrame->Supports.Add(Support); }
+	}
 	Frame = NewFrame;
 }
 

@@ -405,8 +405,7 @@ namespace
 				case ENavDrawMode::Tile:
 					return MakeIdColor(HashCombineFast(static_cast<uint32>(Node.RuntimeNavLayerId), TileId));
 				case ENavDrawMode::Group:
-					return MakeIdColor(Nav.ReachabilityGroupByStaticComponent.IsValidIndex(Component)
-						? Nav.ReachabilityGroupByStaticComponent[Component] : MAX_uint32);
+					return MakeIdColor(LNPNavGraph::GetGroup(Nav, LNPNavGraph::ToGraphNode(Nav, Node)));
 				default:
 					return MakeIdColor(Component);
 				}

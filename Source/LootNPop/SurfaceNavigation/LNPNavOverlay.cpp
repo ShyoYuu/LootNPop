@@ -83,6 +83,12 @@ bool LNPNavOverlay::BuildOverlay(const FLNPSurfaceDataSnapshot& Snapshot,
 		}
 	}
 	TSet<uint32> ChangedTiles;
+	for (const auto& Entry : Snapshot.PatchTileRevisions)
+	{
+		const uint32* Seen = Previous ? Previous->PatchTileRevisions.Find(Entry.Key) : nullptr;
+		if (!Seen || *Seen != Entry.Value) { ChangedTiles.Add(Entry.Key); }
+	}
+	OutOverlay.PatchTileRevisions = Snapshot.PatchTileRevisions;
 	const bool bSameSize = Previous && Previous->BlockedNodes.Num() == OutOverlay.BlockedNodes.Num();
 	for (int32 Node = 0; Node < Graph.GetNodeCount(); ++Node)
 	{

@@ -17,7 +17,9 @@ void FLNPNavPathScheduler::VisitResults(TFunctionRef<void(FMassEntityHandle, con
 
 bool FLNPNavPath::IsCurrent(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay) const
 {
-	if (SnapshotGeneration != Nav.SnapshotGeneration || ConnectivityGraphVersion != Nav.ConnectivityGraphVersion)
+	// 완성된 경로는 실제 통과 Tile만 검사한다. 다른 지역 link 전환 때문에 다시 탐색하지 않는다.
+	if (SnapshotGeneration != Nav.SnapshotGeneration
+		|| (bApproach && ConnectivityGraphVersion != Nav.ConnectivityGraphVersion))
 	{
 		return false;
 	}
@@ -76,8 +78,12 @@ int32 FLNPNavPathScheduler::RequeueInvalidatedPaths(const FLNPNavSnapshot& Nav, 
 	for (auto& Pair : Records)
 	{
 		FRecord& Record = Pair.Value;
-		if (!Record.Result.Path.IsValid() || Record.Result.Status == ELNPNavPathStatus::Queued
-			|| Record.Result.Status == ELNPNavPathStatus::Running || Record.Result.Path->IsCurrent(Nav, Overlay))
+		const bool bNegativeChanged = !Record.Result.Path.IsValid()
+			&& (Record.Result.Status == ELNPNavPathStatus::Unreachable || Record.Result.Status == ELNPNavPathStatus::NoNode
+				|| Record.Result.Status == ELNPNavPathStatus::NoPath)
+			&& Record.EvaluatedConnectivityGraphVersion != Nav.ConnectivityGraphVersion;
+		if (Record.Result.Status == ELNPNavPathStatus::Queued || Record.Result.Status == ELNPNavPathStatus::Running
+			|| (!bNegativeChanged && (!Record.Result.Path.IsValid() || Record.Result.Path->IsCurrent(Nav, Overlay))))
 		{
 			continue;
 		}
@@ -356,6 +362,7 @@ void FLNPNavPathScheduler::Tick(
 
 void FLNPNavPathScheduler::StartRequest(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, FRecord& Record)
 {
+	Record.EvaluatedConnectivityGraphVersion = Nav.ConnectivityGraphVersion;
 	if (bCaptureTimings && Record.Timing.SubmittedSeconds >= 0.0)
 	{
 		Record.Timing.StartedSeconds = FPlatformTime::Seconds() - TimingCaptureStart;
@@ -437,7 +444,7 @@ void FLNPNavPathScheduler::FinishSearch(const FLNPNavSnapshot& Nav, const FLNPNa
 		TArray<int32> Nodes;
 		if (LNPNavPathfinding::ExtractNodePath(Scratches[Search.ScratchIndex], Search.Search, Nodes))
 		{
-			Record.Result.Path = BuildPath(Nav, Overlay, Nodes, Search.Search.PathCost);
+			Record.Result.Path = BuildPath(Nav, Overlay, Nodes, Search.Search.PathCost, bApproach);
 			if (!bApproach)
 			{
 				AddToCache({Search.StartTile, Search.GoalTile, Nav.SnapshotGeneration, Nav.ConnectivityGraphVersion},
@@ -467,11 +474,12 @@ void FLNPNavPathScheduler::FinishSearch(const FLNPNavSnapshot& Nav, const FLNPNa
 }
 
 FLNPNavPathPtr FLNPNavPathScheduler::BuildPath(
-	const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, const TConstArrayView<int32> Nodes, const double Cost) const
+	const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, const TConstArrayView<int32> Nodes, const double Cost, const bool bApproach) const
 {
 	TSharedRef<FLNPNavPath, ESPMode::ThreadSafe> Path = MakeShared<FLNPNavPath, ESPMode::ThreadSafe>();
 	Path->SnapshotGeneration = Nav.SnapshotGeneration;
 	Path->ConnectivityGraphVersion = Nav.ConnectivityGraphVersion;
+	Path->bApproach = bApproach;
 	Path->Cost = Cost;
 	TArray<int32> Waypoints;
 	LNPNavPathfinding::SimplifyPath(Nav, Nodes, Waypoints, Overlay);

@@ -109,6 +109,8 @@ Enemy 경로 소비의 목표 node 투영은 processor 한 번의 실행 안에�
 
 `TraversedRevisionFingerprint`는 계산된 경로가 실제 통과한 tile/edge revision을 결과와 함께 저장한 값이다. cache lookup에서는 동일 경로 후보의 저장된 revision 목록을 현재 snapshot과 비교한다. 탐색 전에는 알 수 없는 `RelevantRevisionSet`을 key 입력으로 요구하지 않는다. Phase 7은 개별 A* + 결과 cache로 시작한다. 플레이어나 Pod를 goal로 하는 flow field와 계층형 A*는 Phase 10에서 비교 가능한 최소 기능 프로토타입으로 평가한다(D-044).
 
+Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revision으로 유효성을 검사한다. 무관한 지역의 connectivity version 변경만으로 실행 경로를 버리지 않는다. cache key와 실행 중 A*는 계속 connectivity version을 사용한다. 접근점 경로·도달 불가 결과는 새 연결로 원래 목표에 갈 수 있게 됐을 가능성이 있어 version 변경 시 재계획한다. patch의 명시적 edge 전환은 양 끝 Tile revision에 반영한다. 현재 group은 patch가 기존 정적 component를 갈라놓을 수 있으므로 node별 활성 연결성 표를 우선한다(`DynamicTerrain.md` 단위 3).
+
 ### 실행 위치
 
 - A*는 Mass worker에서 요청별 scratch를 사용해 실행한다. snapshot과 overlay는 읽기 전용이다.

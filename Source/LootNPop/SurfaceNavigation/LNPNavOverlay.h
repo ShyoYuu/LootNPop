@@ -34,6 +34,8 @@ struct LOOTNPOP_API FLNPNavOverlay
 	uint32 Revision = 0;
 	/** `LNPNavGraph::GetTileKey` → revision. 한 번도 바뀌지 않은 Tile은 없고 0으로 본다. */
 	TMap<uint32, uint32> TileRevisions;
+	/** Support·edge 변경 revision을 이미 합성한 값. 같은 snapshot 재적용은 증가하지 않는다. */
+	TMap<uint32, uint32> PatchTileRevisions;
 	/** 조밀 전역 node index 기준 차단 mask. */
 	TBitArray<> BlockedNodes;
 
@@ -52,11 +54,12 @@ struct LOOTNPOP_API FLNPNavOverlay
 namespace LNPNavOverlay
 {
 	/** 활성 Pod와 마커 점유를 합성한다. 겹친 source 하나가 사라져도 다른 source의 점유는 유지한다. */
-	// true는 차단 상태 변경이다. false는 동일 상태 또는 잘못된 마커 주소이며, 잘못된 주소는 OutOverlay를 수정하지 않는다.
+	// true는 차단 상태 또는 patch Tile revision 변경이다. false는 동일 상태 또는 잘못된 마커 주소다.
+	// 잘못된 주소는 OutOverlay를 수정하지 않는다.
 	LOOTNPOP_API bool BuildOverlay(const FLNPSurfaceDataSnapshot& Snapshot,
 		TConstArrayView<FLNPNavPodBlocker> Pods, TConstArrayView<FLNPNavMarkerBlocker> Markers,
 		const FLNPNavOverlay* Previous, FLNPNavOverlay& OutOverlay);
-	/** Pod 차단 mask를 다시 만들고 차단 상태가 바뀐 Tile의 revision만 올린다. */
+	/** Pod 차단 mask와 patch 지역 revision을 합성하고 바뀐 Tile의 revision만 올린다. */
 	LOOTNPOP_API bool BuildPodOverlay(const FLNPSurfaceDataSnapshot& Snapshot,
 		TConstArrayView<FLNPNavPodBlocker> Pods, const FLNPNavOverlay* Previous, FLNPNavOverlay& OutOverlay);
 	/** overlay가 아직 없으면 revision 0이다. */

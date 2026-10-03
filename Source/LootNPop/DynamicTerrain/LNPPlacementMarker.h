@@ -55,6 +55,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Conditional Patch")
 	ELNPConditionalPatchCondition PatchCondition = ELNPConditionalPatchCondition::Intact;
 
+	/** Bridge source의 안정 자세에 대해 적용하는 마커 로컬 Standing 자세. scale은 1이어야 한다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Conditional Patch")
+	FTransform StandingTransform = FTransform::Identity;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Conditional Patch", meta = (ClampMin = "0.01"))
+	float TransitionSeconds = 2.f;
+
 	virtual void PostActorCreated() override;
 #if WITH_EDITOR
 	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;

@@ -8,6 +8,7 @@
 #include "SurfaceNavigation/LNPCrustAtlas.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPSpawnData.h"
+#include "SurfaceNavigation/LNPConditionalPatchRuntime.h"
 
 #include "Components/PrimitiveComponent.h"
 #include "Engine/AssetManager.h"
@@ -531,6 +532,7 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 	{
 		return false;
 	}
+	if (!LNPConditionalPatchRuntime::Prepare(OutSnapshot, OutError)) { return false; }
 	bBuilt = true;
 	return true;
 }
@@ -575,7 +577,7 @@ ELNPSurfaceQueryStatus LNPSurfaceDataLoading::QuerySupport(
 		Query.MaxStepUp,
 		Query.MaxDrop,
 		PreferredLayer,
-		Hit);
+		Hit, SlotSnapshot.ActiveSupportLayers.IsEmpty() ? nullptr : &SlotSnapshot.ActiveSupportLayers);
 	if (Result == ELNPSupportQueryResult::NeedsExact)
 	{
 		OutResult.Status = ELNPSurfaceQueryStatus::NeedsExact;
@@ -802,6 +804,7 @@ void ULNPSurfaceDataSubsystem::OnAssetsLoaded()
 	const uint64 DecodedResidentBytes = GetDecodedResidentBytes(Snapshot);
 	const uint64 NavResidentBytes = GetNavResidentBytes(Snapshot);
 	PublishedSnapshot = MakeShared<FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe>(MoveTemp(Snapshot));
+	BaseSnapshot = PublishedSnapshot;
 	++NextGeneration;
 	bSnapshotReady.store(true, std::memory_order_release);
 	LoadState = ELNPSurfaceDataLoadState::Ready;
@@ -870,10 +873,45 @@ ELNPSurfaceQueryStatus ULNPSurfaceDataSubsystem::QuerySupport(
 		: (OutResult = FLNPSurfaceQueryResult()).Status;
 }
 
+bool ULNPSurfaceDataSubsystem::SetPatchActive(const FLNPPlacementId& Id, const bool bActive)
+{
+	check(IsInGameThread());
+	if (GetWorld()->GetNetMode() == NM_Client || !BaseSnapshot.IsValid()
+		|| !BaseSnapshot->Slots.IsValidIndex(Id.Slot) || !Id.IsValid()) { return false; }
+	const auto& Patches = BaseSnapshot->Slots[Id.Slot].ConditionalPatches;
+	if (!Patches.IsValid() || !Patches->Patches.ContainsByPredicate(
+		[&](const FLNPConditionalPatch& Patch) { return Patch.MarkerId == Id.MarkerId; })) { return false; }
+	if (PendingActivePatches.Contains(Id) == bActive) { return true; }
+	if (bActive) { PendingActivePatches.AddUnique(Id); }
+	else { PendingActivePatches.Remove(Id); }
+	bPatchesDirty = true;
+	return true;
+}
+
+bool ULNPSurfaceDataSubsystem::PublishPendingPatches()
+{
+	check(IsInGameThread());
+	if (!bPatchesDirty || !BaseSnapshot.IsValid()) { return false; }
+	bPatchesDirty = false;
+	FLNPSurfaceDataSnapshot Next;
+	FString Error;
+	if (!LNPConditionalPatchRuntime::BuildActiveSnapshot(*BaseSnapshot, PendingActivePatches, *PublishedSnapshot, Next, Error))
+	{
+		UE_LOG(LogLootNPop, Error, TEXT("[ConditionalPatch] Activation failed: %s"), *Error);
+		return false;
+	}
+	if (Next.ActivePatches == PublishedSnapshot->ActivePatches) { return false; }
+	PublishedSnapshot = MakeShared<FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe>(MoveTemp(Next));
+	return true;
+}
+
 void ULNPSurfaceDataSubsystem::Deinitialize()
 {
 	bSnapshotReady.store(false, std::memory_order_release);
 	PublishedSnapshot.Reset();
+	BaseSnapshot.Reset();
+	PendingActivePatches.Reset();
+	bPatchesDirty = false;
 	LoadedAssets.Reset();
 	if (LoadHandle.IsValid())
 	{

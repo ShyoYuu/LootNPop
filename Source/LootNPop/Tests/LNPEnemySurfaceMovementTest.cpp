@@ -192,6 +192,19 @@ bool FLNPEnemyDynamicSupportContactTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Carried orientation follows panel rotation delta"),
 		EnemyTransform.GetRotation().GetForwardVector().Equals(ExpectedForward, 0.001f));
 	TestTrue(TEXT("Departure velocity tracks the latest panel frame"), Contact.LastLinearVelocity.Equals(Support.LinearVelocity));
+	Support.AngularVelocity = FVector(0.f, 0.f, 2.f);
+	LNPEnemySurfaceMovement::ApplyDynamicSupportDelta(Frame, Contact, EnemyTransform);
+	TestTrue(TEXT("Rotating support adds contact point velocity"), Contact.LastLinearVelocity.Equals(
+		Support.LinearVelocity + FVector::CrossProduct(Support.AngularVelocity, EnemyTransform.GetLocation() - Support.CurrentTransform.GetLocation())));
+	Support.AngularVelocity = FVector::ZeroVector;
+	LNPEnemySurfaceMovement::ApplyDynamicSupportDelta(Frame, Contact, EnemyTransform);
+	Identity.LocalLayerId = 2;
+	Identity.SurfaceDataGeneration = 17;
+	TestFalse(TEXT("Stable patch identity uses the surface handle instead of dynamic contact"),
+		LNPEnemySurfaceMovement::MakeDynamicSupportContact(Identity, Frame, InitialCenter, Contact));
+	Identity.LocalLayerId = LNPSupportLayers::NoLayer;
+	Identity.SurfaceDataGeneration = 0;
+	LNPEnemySurfaceMovement::MakeDynamicSupportContact(Identity, Frame, EnemyTransform.GetLocation(), Contact);
 
 	Frame.Supports.Reset();
 	TestFalse(TEXT("Missing panel rejects contact carry"),

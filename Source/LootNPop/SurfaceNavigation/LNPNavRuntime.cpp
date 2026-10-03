@@ -430,5 +430,6 @@ uint64 LNPNavRuntime::GetAllocatedBytes(const FLNPNavSnapshot& Snapshot)
 		+ Snapshot.BlockedSeamEdges.GetAllocatedSize()
 		+ Snapshot.BlockedSeamNodeKeys.GetAllocatedSize()
 		+ Snapshot.ReachabilityGroupByStaticComponent.GetAllocatedSize()
+		+ Snapshot.ReachabilityGroupByNode.GetAllocatedSize()
 		+ Snapshot.Graph.GetAllocatedBytes();
 }

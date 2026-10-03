@@ -895,7 +895,8 @@ ELNPSupportQueryResult LNPSupportAtlas::QueryLayers(
 	double MaxStepUp,
 	double MaxDrop,
 	uint16 PreferredLayer,
-	FLNPSupportLayerHit& OutHit)
+	FLNPSupportLayerHit& OutHit,
+	const TBitArray<>* ActiveLayers)
 {
 	OutHit = FLNPSupportLayerHit();
 	FIntPoint Corners[3];
@@ -911,6 +912,7 @@ ELNPSupportQueryResult LNPSupportAtlas::QueryLayers(
 	bool bPreferredFound = false;
 	for (int32 LayerId = 0; LayerId < Atlas.Layers.Num(); ++LayerId)
 	{
+		if (ActiveLayers && (!ActiveLayers->IsValidIndex(LayerId) || !(*ActiveLayers)[LayerId])) { continue; }
 		FLNPSupportLayerQuery Query;
 		QueryLayer(Atlas.Layers[LayerId], LocalDirection, Query);
 		if (!Query.IsCandidate())

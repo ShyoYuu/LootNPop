@@ -90,6 +90,7 @@ namespace LNPEnemySurfaceMovement
 	{
 		OutContact.Reset();
 		if (Identity.Lifetime != ELNPExactSourceLifetime::Dynamic
+			|| (Identity.LocalLayerId != LNPSupportLayers::NoLayer && Identity.SurfaceDataGeneration != 0)
 			|| (Identity.Roles & ELNPExactSourceRole::Support) == 0
 			|| !Identity.MarkerId.IsValid())
 		{
@@ -107,7 +108,8 @@ namespace LNPEnemySurfaceMovement
 
 		OutContact.SupportId = Id;
 		OutContact.LocalCapsuleCenter = Support->CurrentTransform.InverseTransformPositionNoScale(CapsuleCenter);
-		OutContact.LastLinearVelocity = Support->LinearVelocity;
+		OutContact.LastLinearVelocity = Support->LinearVelocity + FVector::CrossProduct(Support->AngularVelocity,
+			CapsuleCenter - Support->CurrentTransform.GetLocation());
 		return true;
 	}
 
@@ -130,7 +132,8 @@ namespace LNPEnemySurfaceMovement
 		InOutTransform.SetLocation(Support->CurrentTransform.TransformPositionNoScale(InOutContact.LocalCapsuleCenter));
 		const FQuat RotationDelta = Support->CurrentTransform.GetRotation() * Support->PreviousTransform.GetRotation().Inverse();
 		InOutTransform.SetRotation((RotationDelta * InOutTransform.GetRotation()).GetNormalized());
-		InOutContact.LastLinearVelocity = Support->LinearVelocity;
+		InOutContact.LastLinearVelocity = Support->LinearVelocity + FVector::CrossProduct(Support->AngularVelocity,
+			InOutTransform.GetLocation() - Support->CurrentTransform.GetLocation());
 		return true;
 	}
 

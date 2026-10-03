@@ -55,12 +55,14 @@ struct LOOTNPOP_API FLNPNavSnapshot
 	/** BlockedSeamNodes의 `LNPNavRuntime::MakeNodeKey` 오름차순. 조회용이다. */
 	TArray<uint64> BlockedSeamNodeKeys;
 	/**
-	 * runtime StaticNavComponent → ReachabilityGroup. active Traversal Link까지 union한 결과다.
-	 * 7a에는 동적 link가 없으므로 1:1이다. link 상태가 실제로 바뀔 때만 ConnectivityGraphVersion이 증가한다.
+	 * runtime StaticNavComponent → ReachabilityGroup. patch 점유로 갈라진 component는 MAX_uint32다.
+	 * 현재 node의 도달성은 ReachabilityGroupByNode가 있으면 그 표를 사용한다.
 	 */
 	TArray<uint32> ReachabilityGroupByStaticComponent;
 	uint32 ReachabilityGroupCount = 0;
 	uint32 ConnectivityGraphVersion = 0;
+	/** patch 점유·edge 삭제로 정적 component가 갈라질 수 있어 node별 현재 group을 저장한다. */
+	TArray<uint32> ReachabilityGroupByNode;
 	/** 게시 전 검증에서 측정한 seam 양쪽 지면 반지름·법선 차이. */
 	double MaxSeamRadiusDelta = 0.0;
 	double MinSeamNormalDot = 1.0;

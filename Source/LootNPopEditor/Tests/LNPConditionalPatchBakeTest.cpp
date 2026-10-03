@@ -13,6 +13,8 @@
 #include "Engine/World.h"
 #include "Misc/ScopeExit.h"
 #include "SurfaceNavigation/LNPConditionalPatch.h"
+#include "SurfaceNavigation/LNPConditionalPatchRuntime.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "SurfaceNavigation/LNPOctantSourceCollector.h"
 #include "SurfaceNavigation/LNPOctantSurfaceBaker.h"
 #include "SurfaceNavigation/LNPRegressionFixture.h"
@@ -59,6 +61,17 @@ bool FLNPConditionalPatchBakeTest::RunTest(const FString& Parameters)
 	};
 	Marker->PatchCondition = ELNPConditionalPatchCondition::Bridge;
 	CheckChanged(TEXT("Condition changes freshness"));
+	TArray<uint8> BridgeSemantic;
+	FLNPOctantSourceCollector::BuildPlacementMarkerSemantic(*Marker, BridgeSemantic, Error);
+	Marker->StandingTransform.SetTranslation(FVector(10.0, 0.0, 0.0));
+	TestTrue(TEXT("Standing pose changes freshness"), FLNPOctantSourceCollector::BuildPlacementMarkerSemantic(*Marker, Changed, Error) && Changed != BridgeSemantic);
+	Marker->StandingTransform = FTransform::Identity;
+	Marker->TransitionSeconds += 1.f;
+	TestTrue(TEXT("Transition duration changes freshness"), FLNPOctantSourceCollector::BuildPlacementMarkerSemantic(*Marker, Changed, Error) && Changed != BridgeSemantic);
+	Marker->TransitionSeconds -= 1.f;
+	Marker->StandingTransform.SetScale3D(FVector(2.0));
+	TestFalse(TEXT("Standing scale is rejected"), FLNPOctantSourceCollector::BuildPlacementMarkerSemantic(*Marker, Changed, Error));
+	Marker->StandingTransform = FTransform::Identity;
 	Marker->PatchCondition = ELNPConditionalPatchCondition::Intact;
 	Marker->PatchSources[0].Transform.AddToTranslation(FVector(1.0, 0.0, 0.0));
 	CheckChanged(TEXT("Stable pose changes freshness"));
@@ -115,6 +128,35 @@ bool FLNPConditionalPatchBakeTest::RunTest(const FString& Parameters)
 		|| !LNPConditionalPatch::Decode(Again->ConditionalPatchPayload, Base, Nav, Patches, Error)) { AddError(Error); return false; }
 	TestTrue(TEXT("Boundary joins export exact Walk edges to static island"),
 		Patches.Patches.Num() == 1 && !Patches.Patches[0].WalkEdges.IsEmpty());
+	TArray<FLNPOctantDefinition> Definitions;
+	Definitions.SetNum(8);
+	for (auto& Definition : Definitions)
+	{
+		Definition.LevelAsset = TSoftObjectPtr<UWorld>(Level);
+		Definition.SurfaceData = TSoftObjectPtr<ULNPOctantSurfaceData>(Again.Get());
+		Definition.SeamSignature = TEXT("RegressionSeam");
+	}
+	TArray<ULNPOctantSurfaceData*> Loaded;
+	Loaded.Init(Again.Get(), 8);
+	FLNPSurfaceDataSnapshot RuntimeBase, ActiveView;
+	if (!LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, Loaded, 23, RuntimeBase, Error)) { AddError(Error); return false; }
+	TestTrue(TEXT("Prepared patch Support and Nav are shared by identical asset slots"),
+		RuntimeBase.Slots[0].Support == RuntimeBase.Slots[7].Support && RuntimeBase.Slots[0].Navigation == RuntimeBase.Slots[7].Navigation);
+	const FLNPPlacementId ActiveMarker{0, Marker->MarkerId};
+	if (!LNPConditionalPatchRuntime::BuildActiveSnapshot(RuntimeBase, MakeArrayView(&ActiveMarker, 1), RuntimeBase, ActiveView, Error)) { AddError(Error); return false; }
+	TestTrue(TEXT("Baked Bridge activates only its slot"), ActiveView.Slots[0].ActiveSupportLayers[Patches.Patches[0].FirstSupportLayer]
+		&& !ActiveView.Slots[1].ActiveSupportLayers[Patches.Patches[0].FirstSupportLayer]);
+	for (const auto& Edge : Patches.Patches[0].WalkEdges)
+	{
+		FLNPNavNodeRef A, B;
+		LNPNavRuntime::MakeRuntimeNodeRef(ActiveView.Nav, 0, Edge.A, A);
+		LNPNavRuntime::MakeRuntimeNodeRef(ActiveView.Nav, 0, Edge.B, B);
+		const int32 GraphA = LNPNavGraph::ToGraphNode(ActiveView.Nav, A), GraphB = LNPNavGraph::ToGraphNode(ActiveView.Nav, B);
+		TestTrue(TEXT("Baked Walk endpoints retain valid runtime addresses"), GraphA != INDEX_NONE && GraphB != INDEX_NONE);
+		bool bFound = false;
+		ActiveView.Nav.Graph.ForEachNeighbor(0, GraphA, [&](int32 To) { bFound |= To == GraphB; });
+		TestTrue(TEXT("Baked exact Walk edge is present in the active view"), bFound);
+	}
 	Marker->PatchCondition = ELNPConditionalPatchCondition::Intact;
 	Marker->SetActorTransform(FTransform(Frame.UpRotation(), Frame.At(28150.0)));
 	Marker->PatchSources.Reset();

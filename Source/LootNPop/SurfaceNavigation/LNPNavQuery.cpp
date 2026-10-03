@@ -51,6 +51,8 @@ namespace
 
 	const FLNPSupportAtlasLayer* FindSupportLayer(const FLNPSurfaceDataSlotSnapshot& Slot, const FLNPNavLayer& Layer)
 	{
+		if (!Slot.ActiveSupportLayers.IsEmpty()
+			&& (!Slot.ActiveSupportLayers.IsValidIndex(Layer.LocalSupportLayerId) || !Slot.ActiveSupportLayers[Layer.LocalSupportLayerId])) { return nullptr; }
 		return Slot.Support.IsValid() && Slot.Support->Layers.IsValidIndex(Layer.LocalSupportLayerId)
 			? &Slot.Support->Layers[Layer.LocalSupportLayerId]
 			: nullptr;
@@ -139,7 +141,8 @@ bool LNPNavQuery::ProjectToNode(
 			FLNPNavNodeRef Node;
 			if (!LNPNavData::MakeLocalNodeRef(*SlotSnapshot.Navigation, Layer->LocalNavLayerId, I, J, LocalNode)
 				|| !LNPNavRuntime::MakeRuntimeNodeRef(Snapshot.Nav, Slot, LocalNode, Node)
-				|| LNPNavRuntime::IsBlockedSeamNode(Snapshot.Nav, Node))
+				|| LNPNavRuntime::IsBlockedSeamNode(Snapshot.Nav, Node)
+				|| Snapshot.Nav.Graph.BlockedNodes[LNPNavGraph::ToGraphNode(Snapshot.Nav, Node)])
 			{
 				continue;
 			}
@@ -191,7 +194,8 @@ bool LNPNavQuery::GetStaticComponent(
 	const FLNPNavLayer* Layer = nullptr;
 	FIntPoint Coord;
 	const FLNPNavCell* Cell = ResolveNode(Snapshot, Node, Slot, Layer, Coord);
-	if (Cell == nullptr || LNPNavRuntime::IsBlockedSeamNode(Snapshot.Nav, Node))
+	if (Cell == nullptr || LNPNavRuntime::IsBlockedSeamNode(Snapshot.Nav, Node)
+		|| Snapshot.Nav.Graph.BlockedNodes[LNPNavGraph::ToGraphNode(Snapshot.Nav, Node)])
 	{
 		return false;
 	}
@@ -209,7 +213,8 @@ bool LNPNavQuery::GetReachabilityGroup(
 	{
 		return false;
 	}
-	OutGroup.Group = Snapshot.Nav.ReachabilityGroupByStaticComponent[Component];
+	OutGroup.Group = LNPNavGraph::GetGroup(Snapshot.Nav, LNPNavGraph::ToGraphNode(Snapshot.Nav, Node));
+	if (OutGroup.Group == MAX_uint32) { return false; }
 	OutGroup.ConnectivityGraphVersion = Snapshot.Nav.ConnectivityGraphVersion;
 	OutGroup.SnapshotGeneration = Snapshot.Nav.SnapshotGeneration;
 	return true;
