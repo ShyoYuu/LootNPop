@@ -255,6 +255,8 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 			First->Header.Traversal.ContentHash == Second->Header.Traversal.ContentHash);
 		TestTrue(FString::Printf(TEXT("%s: Spawn payload is identical across bakes"), LevelPath),
 			First->SpawnPayload == Second->SpawnPayload);
+		TestTrue(FString::Printf(TEXT("%s: Conditional Patch stream is identical across bakes"), LevelPath),
+			First->ConditionalPatchPayload == Second->ConditionalPatchPayload);
 		TestTrue(FString::Printf(TEXT("%s: Spawn payload hash is identical across bakes"), LevelPath),
 			First->Header.Spawn.ContentHash == Second->Header.Spawn.ContentHash);
 		TestTrue(FString::Printf(TEXT("%s: source hash is identical across bakes"), LevelPath),
@@ -297,6 +299,10 @@ bool FLNPOctantBakeDeterministicTest::RunTest(const FString& Parameters)
 			TestTrue(FString::Printf(TEXT("%s: saved Spawn payload is current"), *SavedPackage),
 				Saved->Header.Spawn.ContentHash == First->Header.Spawn.ContentHash
 				&& Saved->SpawnPayload == First->SpawnPayload);
+			TestTrue(FString::Printf(TEXT("%s: saved Conditional Patch stream is current"), *SavedPackage),
+				Saved->Header.ConditionalPatch.ContentHash == First->Header.ConditionalPatch.ContentHash
+				&& Saved->ConditionalPatchPayload == First->ConditionalPatchPayload
+				&& Saved->Header.ConditionalPatch.ElementCount == First->Header.ConditionalPatch.ElementCount);
 		}
 
 		FLNPSupportAtlas Atlas;

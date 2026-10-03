@@ -67,6 +67,13 @@ namespace
 		Data.Header.Traversal.UncompressedSize = Data.TraversalPayload.Num();
 		Data.Header.Traversal.ContentHash = FLNPContentHash(
 			FIoHash::HashBuffer(Data.TraversalPayload.GetData(), Data.TraversalPayload.Num()));
+		if (!LNPConditionalPatch::Encode(FLNPConditionalPatchData(), Atlas, Navigation, Data.ConditionalPatchPayload, OutError))
+		{
+			return false;
+		}
+		Data.Header.ConditionalPatch.UncompressedSize = Data.ConditionalPatchPayload.Num();
+		Data.Header.ConditionalPatch.ContentHash = FLNPContentHash(
+			FIoHash::HashBuffer(Data.ConditionalPatchPayload.GetData(), Data.ConditionalPatchPayload.Num()));
 		return true;
 	}
 
@@ -300,6 +307,16 @@ bool FLNPSurfaceDataLoaderValidationTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Payload corruption reports hash mismatch"), Error.Contains(TEXT("hash mismatch")));
 	ValidData->SupportPayload.Last() ^= 0x1;
 
+	ValidData->ConditionalPatchPayload.Last() ^= 0x1;
+	TestFalse(TEXT("Conditional Patch corruption is rejected before decode"),
+		LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, LoadedData, 20, Snapshot, Error));
+	TestTrue(TEXT("Patch corruption reports the stream"), Error.Contains(TEXT("ConditionalPatch")) && Error.Contains(TEXT("hash mismatch")));
+	ValidData->ConditionalPatchPayload.Last() ^= 0x1;
+	ValidData->Header.ConditionalPatch.ElementCount = 1;
+	TestFalse(TEXT("Conditional Patch descriptor count mismatch is rejected"),
+		LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, LoadedData, 20, Snapshot, Error));
+	ValidData->Header.ConditionalPatch.ElementCount = 0;
+
 	ULNPOctantSurfaceData* ChangedSeamData = MakeSurfaceData(30001.0);
 	TestNotNull(TEXT("Mismatched seam payload encodes"), ChangedSeamData);
 	if (ChangedSeamData != nullptr)
@@ -338,6 +355,8 @@ bool FLNPSurfaceDataNavAssemblyTest::RunTest(const FString& Parameters)
 		Snapshot.Slots[0].Navigation.IsValid() && Snapshot.Slots[0].Navigation == Snapshot.Slots[7].Navigation);
 	TestTrue(TEXT("Decoded Traversal is shared by slots using one asset"),
 		Snapshot.Slots[0].Traversal.IsValid() && Snapshot.Slots[0].Traversal == Snapshot.Slots[7].Traversal);
+	TestTrue(TEXT("Decoded Conditional Patch is shared by slots using one asset"),
+		Snapshot.Slots[0].ConditionalPatches.IsValid() && Snapshot.Slots[0].ConditionalPatches == Snapshot.Slots[7].ConditionalPatches);
 	for (int32 Slot = 0; Slot <= 8; ++Slot)
 	{
 		TestEqual(FString::Printf(TEXT("Slot %d runtime Nav Layer base"), Slot),

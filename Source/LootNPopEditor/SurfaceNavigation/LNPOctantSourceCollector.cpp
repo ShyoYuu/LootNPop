@@ -14,6 +14,10 @@
 #include "Modules/ModuleManager.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
 #include "SurfaceNavigation/LNPMassSpawnPoint.h"
+#include "DynamicTerrain/LNPPlacementMarker.h"
+#include "DynamicTerrain/LNPPlacementTypes.h"
+#include "Components/SplineComponent.h"
+#include "SurfaceNavigation/LNPConditionalPatch.h"
 
 namespace
 {
@@ -458,6 +462,7 @@ bool FLNPOctantSourceCollector::CollectFromWorld(
 			OutCollection.TerrainSemantics,
 			OutError)
 		|| !CollectSpawnPoints(SourceWorld, OutCollection.SpawnPointSemantics, OutError)
+		|| !CollectPlacementMarkers(SourceWorld, AssetRegistry, OutCollection.Manifest, OutCollection.MarkerSemanticRows, OutError)
 		|| !CanonicalizeManifest(OutCollection.Manifest, OutError)
 		|| !BuildSourceSemanticHash(
 			OutCollection.TerrainSemantics,
@@ -468,18 +473,137 @@ bool FLNPOctantSourceCollector::CollectFromWorld(
 			BakerSchemaVersion,
 			BakeSettings,
 			OutCollection.BakeSettingsHash,
-			OutError)
-		|| !BuildSourceContentHash(
-			OutCollection.Manifest,
-			OutCollection.SourceSemanticHash,
-			OutCollection.BakeSettingsHash,
-			OutCollection.SourceContentHash,
 			OutError))
 	{
 		OutCollection = FLNPOctantSourceCollection();
 		return false;
 	}
+	FCanonicalBytes MarkerWriter;
+	constexpr ANSICHAR MarkerDomain[] = "LNP.PlacementSemantic.v1";
+	WriteDomain(MarkerWriter, MarkerDomain, UE_ARRAY_COUNT(MarkerDomain) - 1);
+	MarkerWriter.WriteHash(OutCollection.SourceSemanticHash);
+	MarkerWriter.WriteUInt32(OutCollection.MarkerSemanticRows.Num());
+	for (const TArray<uint8>& Row : OutCollection.MarkerSemanticRows) { MarkerWriter.WriteRaw(Row); }
+	OutCollection.SourceSemanticHash = MarkerWriter.Finalize();
+	if (!BuildSourceContentHash(OutCollection.Manifest, OutCollection.SourceSemanticHash,
+		OutCollection.BakeSettingsHash, OutCollection.SourceContentHash, OutError))
+	{
+		OutCollection = FLNPOctantSourceCollection();
+		return false;
+	}
 
+	return true;
+}
+
+bool FLNPOctantSourceCollector::BuildPlacementMarkerSemantic(const ALNPPlacementMarker& Marker,
+	TArray<uint8>& OutRow, FString& OutError)
+{
+	OutRow.Reset();
+	if (!Marker.MarkerId.IsValid() || !Marker.ElementClass
+		|| !Marker.ElementClass->ImplementsInterface(ULNPPlacedElement::StaticClass()) || !Marker.Path
+		|| !FMath::IsFinite(Marker.PathSpeed) || !(Marker.PathSpeed > 0.0f)
+		|| !FMath::IsFinite(Marker.PathEndHoldSeconds) || Marker.PathEndHoldSeconds < 0.0f
+		|| Marker.PatchSources.Num() >= MAX_uint16
+		|| static_cast<uint8>(Marker.PatchCondition) > static_cast<uint8>(ELNPConditionalPatchCondition::Bridge))
+	{
+		OutError = FString::Printf(TEXT("Invalid Placement Marker authoring: %s."), *Marker.GetPathName());
+		return false;
+	}
+	FCanonicalBytes Writer;
+	Writer.WriteUInt32(Marker.MarkerId.A); Writer.WriteUInt32(Marker.MarkerId.B);
+	Writer.WriteUInt32(Marker.MarkerId.C); Writer.WriteUInt32(Marker.MarkerId.D);
+	Writer.WriteString(Marker.ElementClass->GetPathName());
+	auto WriteTransform = [&](const FTransform& Transform)
+	{
+		FLNPTerrainSourceSemantic Semantic;
+		Semantic.Transform = Transform;
+		Semantic.StaticMeshPackageName = TEXT("PlacementTransform");
+		TArray<uint8> Bytes;
+		if (!BuildSemanticBytes(Semantic, Bytes, OutError)) { return false; }
+		const FVector Scale = Transform.GetScale3D();
+		if (FMath::Abs(Scale.X) <= UE_SMALL_NUMBER || FMath::Abs(Scale.Y) <= UE_SMALL_NUMBER || FMath::Abs(Scale.Z) <= UE_SMALL_NUMBER)
+		{
+			OutError = TEXT("Placement transform has zero scale.");
+			return false;
+		}
+		Writer.WriteRaw(Bytes);
+		return true;
+	};
+	if (!WriteTransform(Marker.GetActorTransform())) { return false; }
+	Writer.WriteDouble(Marker.PathSpeed); Writer.WriteDouble(Marker.PathEndHoldSeconds);
+	Writer.WriteByte(Marker.Path->IsClosedLoop() ? 1 : 0);
+	const FSplineCurves& Curves = Marker.Path->GetSplineCurves();
+	Writer.WriteUInt32(Curves.Position.Points.Num());
+	for (const FInterpCurvePoint<FVector>& Point : Curves.Position.Points)
+	{
+		if (!FMath::IsFinite(Point.InVal) || Point.OutVal.ContainsNaN()
+			|| Point.ArriveTangent.ContainsNaN() || Point.LeaveTangent.ContainsNaN())
+		{
+			OutError = TEXT("Placement path contains non-finite values.");
+			return false;
+		}
+		Writer.WriteDouble(Point.InVal); Writer.WriteByte(Point.InterpMode);
+		for (const FVector& Value : {Point.OutVal, Point.ArriveTangent, Point.LeaveTangent})
+		{
+			Writer.WriteDouble(Value.X); Writer.WriteDouble(Value.Y); Writer.WriteDouble(Value.Z);
+		}
+	}
+	Writer.WriteByte(Curves.Position.bIsLooped ? 1 : 0);
+	if (!FMath::IsFinite(Curves.Position.LoopKeyOffset)) { OutError = TEXT("Invalid Placement path loop offset."); return false; }
+	Writer.WriteDouble(Curves.Position.LoopKeyOffset);
+	Writer.WriteByte(static_cast<uint8>(Marker.PatchCondition));
+	Writer.WriteUInt32(Marker.PatchSources.Num());
+	for (const FLNPConditionalPatchSource& Source : Marker.PatchSources)
+	{
+		if (!Source.Mesh) { OutError = TEXT("Conditional Patch source has no mesh."); return false; }
+		Writer.WriteString(Source.Mesh->GetPathName()); Writer.WriteByte(Source.bSupport ? 1 : 0);
+		if (!WriteTransform(Source.Transform)) { return false; }
+	}
+	OutRow = MoveTemp(Writer.Bytes);
+	return true;
+}
+
+bool FLNPOctantSourceCollector::CollectPlacementMarkers(const UWorld& SourceWorld,
+	IAssetRegistry& AssetRegistry, TArray<FLNPOctantSourcePackage>& InOutManifest,
+	TArray<TArray<uint8>>& OutRows, FString& OutError)
+{
+	OutRows.Reset();
+	TArray<const ALNPPlacementMarker*> Markers;
+	for (const AActor* Actor : SourceWorld.PersistentLevel->Actors)
+	{
+		if (const ALNPPlacementMarker* Marker = Cast<ALNPPlacementMarker>(Actor); IsValid(Marker) && !Marker->HasAnyFlags(RF_Transient))
+		{
+			Markers.Add(Marker);
+		}
+	}
+	Markers.Sort([](const ALNPPlacementMarker& A, const ALNPPlacementMarker& B)
+	{
+		return LNPConditionalPatch::MarkerLess(A.MarkerId, B.MarkerId);
+	});
+	for (int32 Index = 0; Index < Markers.Num(); ++Index)
+	{
+		const ALNPPlacementMarker& Marker = *Markers[Index];
+		if (Index > 0 && Marker.MarkerId == Markers[Index - 1]->MarkerId)
+		{
+			OutError = TEXT("Duplicate Placement MarkerId in source Level.");
+			return false;
+		}
+		if (!BuildPlacementMarkerSemantic(Marker, OutRows.AddDefaulted_GetRef(), OutError)) { return false; }
+		for (const FLNPConditionalPatchSource& Source : Marker.PatchSources)
+		{
+			FLNPOctantSourcePackage Entry;
+			if (!TryMakePackageEntry(Source.Mesh->GetOutermost()->GetFName(), ELNPOctantSourcePackageKind::TerrainMesh,
+				AssetRegistry, Entry, OutError)) { return false; }
+			InOutManifest.Add(Entry);
+		}
+		const FName ClassPackage = Marker.ElementClass->GetOutermost()->GetFName();
+		if (!ClassPackage.ToString().StartsWith(TEXT("/Script/")))
+		{
+			FLNPOctantSourcePackage Entry;
+			if (!TryMakePackageEntry(ClassPackage, ELNPOctantSourcePackageKind::PlacementClass, AssetRegistry, Entry, OutError)) { return false; }
+			InOutManifest.Add(Entry);
+		}
+	}
 	return true;
 }
 

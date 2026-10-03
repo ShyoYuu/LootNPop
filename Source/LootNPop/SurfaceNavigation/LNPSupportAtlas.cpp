@@ -533,6 +533,20 @@ bool LNPSupportAtlas::Rasterize(
 	return true;
 }
 
+bool LNPSupportAtlas::QuantizeSparseLayer(const FLNPSupportLayerRaster& Raster,
+	const FLNPSupportCodecSettings& Settings, FLNPSupportAtlasLayer& OutLayer, FString& OutError)
+{
+	if (!(Settings.BaseRadius > 0.0) || !FMath::IsFinite(Settings.BaseRadius)
+		|| !(Settings.RadiusStep > 0.0) || !FMath::IsFinite(Settings.RadiusStep)
+		|| Raster.Layout.Subdivisions < 1 || Raster.Samples.Num() != Raster.Layout.Num())
+	{
+		OutError = TEXT("Invalid sparse Support quantization input.");
+		return false;
+	}
+	return QuantizeLayer(Raster, ComputeLayerBaseRadius(Raster, Settings.RadiusStep, Settings.BaseRadius),
+		Settings.RadiusStep, 0, OutLayer, OutError);
+}
+
 bool LNPSupportAtlas::Encode(
 	TConstArrayView<FLNPSupportLayerRaster> Layers,
 	TConstArrayView<FLNPSupportAtlasSource> Sources,

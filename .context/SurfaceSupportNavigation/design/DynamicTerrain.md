@@ -139,7 +139,7 @@ Bridge
 
 - 베이커는 배치된 마커의 patch source mesh를 해당 상태 transform(기둥은 안정 transform, 파괴 바닥은 파괴 전 상태)에 놓고 base Atlas·Nav Tile 좌표계에 투영한다. 런타임에 임의의 로컬 Nav Grid를 회전·병합하지 않는다(D-041).
 - patch는 base sample/cell에 대한 support·occupancy 활성화 bitset, 추가 node가 꼭 필요할 때의 명시적 overlay node, 그리고 base node와의 명시적 Walk edge를 가진다.
-- patch는 `MarkerId`를 키로 옥탄트 SurfaceData에 저장된다. stream 추가 방식은 Phase 8에서 `DataVersion`을 올려 확정한다.
+- patch는 `MarkerId`를 키로 옥탄트 SurfaceData의 `ConditionalPatchPayload`에 저장된다(Phase 8 단위 2, codec v1·DataVersion 7).
 - 런타임 overlay는 `(slot, MarkerId)`의 patch를 켜고 끄며 영향 tile의 revision을 증가시킨다.
 - 여러 patch가 같은 cell에 겹치면 blocker occupancy는 reference count/활성 source 집합으로 합성하고 하나가 꺼져도 다른 blocker를 지우지 않는다. Support 추가는 stable patch surface ID로 구분하며 서로 다른 sheet를 반지름만으로 병합하지 않는다.
 - patch 경계 edge, capsule clearance, base surface와의 높이·법선 오차를 베이크 차단 조건으로 검증한다.
@@ -165,7 +165,7 @@ Bridge
 - 파괴 바닥처럼 **처음부터 있는** 보행면도 patch다. 정적 payload에는 `Destructible` source가 없으므로(`TerrainContract.md`) 온전한 상태의 Support를 patch로 굽고 파괴 시 끈다.
 - 런타임 활성화 조건은 상태 값만 본다(Bridge 도달, 파괴 전). 요소 Actor의 실제 transform과 베이크 transform의 비교는 debug 진단으로만 둔다. 결정론적 움직임(D-027)이라 안정 transform은 authoring 값과 같다.
 - patch footprint와 영향 범위는 옥탄트 경계를 넘지 않는다(D-030). 같은 방향에서 정적 Layer와 patch Layer가 캡슐 높이 안쪽으로 겹치면 Layer 해석이 모호하므로 베이크 오류로 막는다.
-- stale 입력: MarkerId, 마커 transform, 요소 클래스, 경로·상태 파라미터, patch source mesh와 상태별 transform을 canonical hash에 넣는다(D-041, `DataModel.md`). stream 형식과 `DataVersion` 상승은 Phase 8에서 확정한다.
+- stale 입력: MarkerId, 마커 transform, 요소 클래스, 경로·상태 파라미터, patch source mesh와 상태별 transform을 canonical hash에 넣는다(D-041, `DataModel.md`). 현재 DataVersion 7·BakerSchemaVersion 9다.
 
 ## 6. 파괴
 
@@ -203,4 +203,20 @@ Bridge
 
 overlay는 매치 중에 계속 바뀐다. worker가 읽는 동안 shared pointer를 다시 대입하면 경쟁 조건이므로, 새 overlay snapshot은 Mass phase 경계의 게임 스레드 지점에서만 교체한다. 이전 snapshot은 참조가 모두 풀린 뒤 해제된다.
 
+### Nav 점유 합성 기반(Phase 8 단위 1)
+
+`LNPNavOverlay::BuildOverlay`는 현재 활성 Pod 목록과 `FLNPNavMarkerBlocker` 목록을 입력으로 받아 차단 mask를 새로 합성한다. 마커 점유는 `(slot, MarkerId)`와 snapshot generation을 포함한 `FLNPNavNodeRef` 목록이다. 서로 다른 source의 점유를 OR하므로, 겹친 blocker 하나를 제거해도 남은 source의 점유는 유지한다. 같은 mask의 재적용은 revision을 올리지 않고, 실제 차단 상태가 바뀐 Tile만 revision을 올린다. 기존 Pod 전용 함수는 이 합성 함수를 마커 목록 없이 호출한다.
+
+잘못된 MarkerId·slot·다른 slot의 node·stale node ref는 전체 입력을 거부하며 출력 overlay를 수정하지 않는다. 이전 overlay는 같은 snapshot generation에서만 넘겨야 한다. 이 함수는 순수 데이터 기반이며, 마커 Actor 상태 수집·patch stream·Mass phase 경계 게시·Support와 Walk Link 활성화는 후속 단위에서 연결한다.
+
 ---
+
+### Phase 8 단위 2 구현
+
+마커의 `PatchSources`는 Mesh·마커 로컬 안정 transform·Support 참여 여부를 가진다. 모든 source는 해당 상태에서 blocker이고 Support 참여 source만 sparse 보행면을 만든다. `PatchCondition`은 Intact 또는 Bridge다. 한 마커는 하나의 안정 상태 patch를 소유하며 상태형 Actor가 같은 authoring 형상을 소비하는 연결은 단위 4다.
+
+베이커는 정적 Atlas와 동일한 옥탄트 좌표계에서 형상을 굽는다. 추가 Layer ID는 정적 Layer 뒤 GUID A/B/C/D 오름차순으로 붙는다. patch stream에는 중복 지각 없이 sparse Support, source ordinal별 exact face map, 추가 Nav, 정적 node 차단, 정적 edge 차단, patch와 연결된 양방향 Walk edge를 저장한다. Nav component ID는 patch 안에서 0부터 저장한다. base cell·tile·edge의 canonical bytes가 달라지면 베이크를 거부한다.
+
+source 경계가 옥탄트 seam에 닿거나 int16 위치 상한을 넘으면 거부한다. 정적 보행면과 캡슐 높이 안에서 내부가 겹치면 오류다. 경계 접합은 exact Support 경로와 중력 캡슐 polyline clearance로 Walk edge를 검증하며, Bridge에 유효 연결이 없으면 거부한다. blocker-only patch는 보행면을 추가하지 않는다.
+
+로더는 stream hash·size·count·codec·GUID 순서·Layer 범위·sparse row·face map·node/edge endpoint를 검사하고 같은 asset의 decoded patch를 slot 사이에 공유한다. resident memory 계수에도 포함한다. 이 단계는 비활성 데이터를 로드하는 데까지이며, Support 조회·Nav 활성 view·상태 전이·revision 게시 연결은 단위 3에서 수행한다.

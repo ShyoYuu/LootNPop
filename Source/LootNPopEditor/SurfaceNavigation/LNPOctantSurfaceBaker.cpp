@@ -16,6 +16,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/PackageName.h"
@@ -32,6 +33,8 @@
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 #include "UObject/StrongObjectPtr.h"
+#include "DynamicTerrain/LNPPlacementMarker.h"
+#include "SurfaceNavigation/LNPConditionalPatch.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogLNPSurfaceBake, Log, All);
 
@@ -47,6 +50,7 @@ namespace LNPOctantSurfaceBaker
 			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Support.CodecVersion"), LNPSupportAtlas::CodecVersion),
 			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Navigation.CodecVersion"), LNPNavData::NavigationCodecVersion),
 			FLNPOctantBakeSetting::UnsignedInteger(TEXT("Traversal.CodecVersion"), LNPNavData::TraversalCodecVersion),
+			FLNPOctantBakeSetting::UnsignedInteger(TEXT("ConditionalPatch.CodecVersion"), LNPConditionalPatch::CodecVersion),
 			FLNPOctantBakeSetting::SignedInteger(TEXT("Crust.Subdivisions"), Raster.Subdivisions),
 			FLNPOctantBakeSetting::Real(TEXT("Crust.WalkableMinDot"), Raster.WalkableMinDot),
 			FLNPOctantBakeSetting::Real(TEXT("Crust.MaxNeighborNormalAngleDeg"), Raster.MaxNeighborNormalAngleDeg),
@@ -155,6 +159,18 @@ namespace LNPOctantSurfaceBaker
 			Probe->SetCollisionProfileName(Source.GetCollisionProfileName());
 			Probe->RegisterComponentWithWorld(World.Get());
 			++ProbeCount;
+		}
+
+		UStaticMeshComponent* AddPatchProbe(const FLNPConditionalPatchSource& Source, const FTransform& MarkerTransform)
+		{
+			FStaticMeshCompilingManager::Get().FinishCompilation({Source.Mesh});
+			UStaticMeshComponent* Probe = NewObject<UStaticMeshComponent>(World.Get());
+			Probe->SetStaticMesh(Source.Mesh);
+			Probe->SetWorldTransform(Source.Transform * MarkerTransform);
+			Probe->SetCollisionProfileName(Source.bSupport ? TEXT("LNPStaticTerrain") : TEXT("LNPStaticBlocker"));
+			Probe->RegisterComponentWithWorld(World.Get());
+			++ProbeCount;
+			return Probe;
 		}
 
 		bool HasCapsuleClearance(
@@ -304,6 +320,228 @@ namespace LNPOctantSurfaceBaker
 			return true;
 		}
 	};
+
+	FIntPoint NavCoord(const FVector3d& Position, const int32 N)
+	{
+		const double Sum = Position.X + Position.Y + Position.Z;
+		return FIntPoint(FMath::RoundToInt32(Position.X / Sum * N), FMath::RoundToInt32(Position.Y / Sum * N));
+	}
+
+	bool BakeConditionalPatches(const UWorld& SourceWorld, const FLNPBakeSupportSource& Crust,
+		const FLNPSupportAtlas& BaseSupport, const FLNPNavData& BaseNav, const FLNPNavTraversalData& BaseTraversal,
+		const FSpawnClearanceWorld& BaseWorld, const FLNPSupportLayerSettings& LayerSettings,
+		const FLNPSupportRasterSettings& RasterSettings, const FLNPSupportCodecSettings& Codec,
+		const FLNPOctantBakeOptions& Options, FLNPConditionalPatchData& OutData, FString& OutError)
+	{
+		OutData = FLNPConditionalPatchData();
+		TArray<const ALNPPlacementMarker*> Markers;
+		for (const AActor* Actor : SourceWorld.PersistentLevel->Actors)
+		{
+			if (const ALNPPlacementMarker* Marker = Cast<ALNPPlacementMarker>(Actor);
+				IsValid(Marker) && !Marker->HasAnyFlags(RF_Transient) && !Marker->PatchSources.IsEmpty())
+			{
+				Markers.Add(Marker);
+			}
+		}
+		Markers.Sort([](const ALNPPlacementMarker& A, const ALNPPlacementMarker& B)
+		{
+			return LNPConditionalPatch::MarkerLess(A.MarkerId, B.MarkerId);
+		});
+		int32 NextLayer = BaseSupport.Layers.Num();
+		for (const ALNPPlacementMarker* Marker : Markers)
+		{
+			FLNPConditionalPatch& Patch = OutData.Patches.AddDefaulted_GetRef();
+			Patch.MarkerId = Marker->MarkerId;
+			Patch.Condition = Marker->PatchCondition;
+			Patch.FirstSupportLayer = NextLayer;
+			Patch.Navigation.Agent = BaseNav.Agent;
+			FSpawnClearanceWorld ActiveWorld(SourceWorld);
+			TArray<FLNPBakeSupportSource> Sources{Crust};
+			TArray<int32> SourceOrdinals{INDEX_NONE};
+			FBox Bounds(ForceInit);
+			for (int32 SourceIndex = 0; SourceIndex < Marker->PatchSources.Num(); ++SourceIndex)
+			{
+				const FLNPConditionalPatchSource& Source = Marker->PatchSources[SourceIndex];
+				UStaticMeshComponent* Probe = ActiveWorld.AddPatchProbe(Source, Marker->GetActorTransform());
+				const FBox SourceBounds = Source.Mesh->GetBoundingBox().TransformBy(Probe->GetComponentTransform());
+				if (SourceBounds.Min.GetMin() <= LNPSurfaceBake::SeamPlaneTolerance
+					|| SourceBounds.Max.GetMax() > LNPSurfaceBake::ReplicatedPositionCap)
+				{
+					OutError = FString::Printf(TEXT("Conditional Patch %s source %d touches an octant seam or exceeds position bounds."),
+						*Marker->MarkerId.ToString(), SourceIndex);
+					return false;
+				}
+				Bounds += SourceBounds;
+				if (!Source.bSupport) { continue; }
+				FLNPBakeSupportSource& BakeSource = Sources.AddDefaulted_GetRef();
+				BakeSource.Name = Marker->GetPathName();
+				BakeSource.Key = FString::Printf(TEXT("~Patch.%05d"), SourceIndex);
+				if (!FLNPOctantTriangleExtractor::ExtractComponent(*Probe, BakeSource.Mesh, OutError)
+					|| !LNPSurfaceBake::ValidateSupportSource(BakeSource, OutError)) { return false; }
+				SourceOrdinals.Add(SourceIndex);
+			}
+			FLNPSupportLayerSet LayerSet;
+			if (!LNPSupportLayers::BuildLayers(Sources, 0, LayerSettings, LayerSet, OutError)) { return false; }
+			if (NextLayer + LayerSet.Layers.Num() - 1 >= MAX_uint16)
+			{
+				OutError = TEXT("Conditional Patch Layers exceed the uint16 ID range.");
+				return false;
+			}
+			for (int32 LayerIndex = 1; LayerIndex < LayerSet.Layers.Num(); ++LayerIndex)
+			{
+				const FLNPSupportLayer& Layer = LayerSet.Layers[LayerIndex];
+				const FLNPBakeTriangleMesh Mesh = LNPSupportLayers::MakeLayerMesh(Sources[Layer.SourceIndex].Mesh, Layer);
+				FLNPSupportLayerRaster Raster;
+				if (!LNPSupportAtlas::Rasterize(Mesh, RasterSettings,
+					LNPSupportAtlas::ComputeFootprint(Mesh, Layer.Subdivisions), Raster, OutError)) { return false; }
+				Raster.SourceIndex = SourceOrdinals[Layer.SourceIndex];
+				FLNPSupportAtlasLayer& Quantized = Patch.SupportLayers.AddDefaulted_GetRef();
+				if (!LNPSupportAtlas::QuantizeSparseLayer(Raster, Codec, Quantized, OutError)) { return false; }
+				// 내부끼리 캡슐 높이 안에서 겹치는 sheet는 금지한다. 경계 접합은 명시적 Walk edge로 검증한다.
+				for (int32 Row = 0; Row < Raster.Layout.Rows.Num(); ++Row)
+				{
+					const int32 J = Raster.Layout.J0 + Row;
+					const FLNPSupportRowSpan& Span = Raster.Layout.Rows[Row];
+					for (int32 I = Span.IStart; I < Span.IStart + Span.Count; ++I)
+					{
+						const FLNPSupportSample& Sample = Raster.Samples[Raster.Layout.Find(I, J)];
+						if (!EnumHasAllFlags(Sample.Flags, ELNPSupportSampleFlags::Valid | ELNPSupportSampleFlags::Walkable)
+							|| EnumHasAnyFlags(Sample.Flags, ELNPSupportSampleFlags::NeedsExact)) { continue; }
+						const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(Raster.Layout.Subdivisions, I, J);
+						for (const FLNPSupportAtlasLayer& BaseLayer : BaseSupport.Layers)
+						{
+							FLNPSupportLayerQuery Query;
+							if (LNPSupportAtlas::QueryLayer(BaseLayer, Direction, Query)
+								&& FMath::Abs(Query.Radius - Sample.Radius) < 2.0 * BaseNav.Agent.HalfHeight)
+							{
+								OutError = TEXT("Conditional Patch interior overlaps a static Support sheet within capsule height.");
+								return false;
+							}
+						}
+					}
+				}
+			}
+			for (int32 SourceIndex = 1; SourceIndex < Sources.Num(); ++SourceIndex)
+			{
+				FLNPConditionalPatchFaceMap& Map = Patch.FaceMaps.AddDefaulted_GetRef();
+				Map.SourceIndex = SourceOrdinals[SourceIndex];
+				Map.FaceMap = LayerSet.FaceMaps[SourceIndex];
+				auto RemapLayer = [&](uint16& Id) { if (Id != LNPSupportLayers::NoLayer) { Id += NextLayer - 1; } };
+				if (Map.FaceMap.IsUniform()) { RemapLayer(Map.FaceMap.UniformLayer); }
+				else { for (uint16& Id : Map.FaceMap.LayerByExternalFace) { RemapLayer(Id); } }
+			}
+			FLNPSupportAtlas CombinedSupport = BaseSupport;
+			CombinedSupport.Layers.Append(Patch.SupportLayers);
+			FLNPNavData CombinedNav;
+			FLNPNavTraversalData CombinedTraversal;
+			FLNPNavBakeReport Report;
+			auto ResolveBase = [&](uint16 LayerId, const FVector3d& Position, FLNPLocalNavNodeRef& Ref)
+			{
+				const FLNPNavLayer* Layer = LNPNavData::FindLayer(BaseNav, LayerId);
+				if (!Layer) { return false; }
+				const FIntPoint Coord = NavCoord(Position, Layer->Subdivisions);
+				return LNPNavData::MakeLocalNodeRef(BaseNav, LayerId, Coord.X, Coord.Y, Ref);
+			};
+			auto HasActiveEdge = [&](const FVector3d& From, const FVector3f& FromNormal,
+				const FVector3d& To, const FVector3f& ToNormal)
+			{
+				TArray<FVector> Feet, Normals;
+				return ActiveWorld.HasWalkableSupportPath(FVector(From), FVector(FromNormal), FVector(To), FVector(ToNormal),
+					BaseNav.Agent.MaxStepUp, BaseNav.Agent.MaxStepDown, BaseNav.Agent.WalkableMinDot, Feet, Normals)
+					&& ActiveWorld.HasCapsulePolylineClearance(Feet, Normals, BaseNav.Agent.Radius, BaseNav.Agent.HalfHeight);
+			};
+			if (!LNPNavBaking::Build(CombinedSupport, Options.Nav,
+				[&](uint16 LayerId, const FVector3d& Position, const FVector3f& Normal)
+				{
+					if (LayerId < BaseSupport.Layers.Num()) { FLNPLocalNavNodeRef Ref; return ResolveBase(LayerId, Position, Ref); }
+					return ActiveWorld.HasGravityCapsuleClearance(FVector(Position), FVector(-Position.GetSafeNormal()),
+						FVector(Normal), BaseNav.Agent.Radius, BaseNav.Agent.HalfHeight);
+				},
+				[&](uint16 FromLayer, const FVector3d& From, const FVector3f& FromNormal,
+					uint16 ToLayer, const FVector3d& To, const FVector3f& ToNormal)
+				{
+					if (FromLayer < BaseSupport.Layers.Num() && ToLayer < BaseSupport.Layers.Num())
+					{
+						if (FromLayer != ToLayer) { return false; }
+						FLNPLocalNavNodeRef A, B;
+						FIntPoint CoordA, CoordB;
+						if (!ResolveBase(FromLayer, From, A) || !ResolveBase(ToLayer, To, B)) { return false; }
+						const FLNPNavCell* Cell = LNPNavData::ResolveLocalNode(BaseNav, A, &CoordA);
+						LNPNavData::ResolveLocalNode(BaseNav, B, &CoordB);
+						for (uint8 D = 0; D < 6; ++D)
+						{
+							FIntPoint Neighbor;
+							if ((Cell->EdgeMask & (1u << D)) != 0 && LNPNavData::TryGetNeighborCoord(
+								BaseNav.Layers[FromLayer].Subdivisions, CoordA.X, CoordA.Y, static_cast<ELNPNavNeighbor>(D), Neighbor)
+								&& Neighbor == CoordB) { return true; }
+						}
+						return false;
+					}
+					return HasActiveEdge(From, FromNormal, To, ToNormal);
+				}, CombinedNav, CombinedTraversal, Report, OutError)
+				|| !LNPConditionalPatch::ExtractNavigationDelta(BaseNav, CombinedNav, CombinedTraversal, Patch, OutError)) { return false; }
+			// base 경로 자체는 바꾸지 않고 patch 형상이 차단하는 점·선분을 기록한다.
+			const FBox Influence = Bounds.ExpandBy(2.0 * BaseNav.Agent.HalfHeight + Options.Nav.PortalSearchDistance);
+			auto GetFeet = [&](const FLNPLocalNavNodeRef& Ref, FVector& Feet, FVector& Normal)
+			{
+				FIntPoint Coord;
+				const FLNPNavLayer* Layer = LNPNavData::FindLayer(BaseNav, Ref.LocalNavLayerId);
+				if (!Layer || !LNPNavData::ResolveLocalNode(BaseNav, Ref, &Coord)) { return false; }
+				const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(Layer->Subdivisions, Coord.X, Coord.Y);
+				FLNPSupportLayerQuery Query;
+				if (!LNPSupportAtlas::QueryLayer(BaseSupport.Layers[Layer->LocalSupportLayerId], Direction, Query)) { return false; }
+				Feet = FVector(Direction * Query.Radius); Normal = FVector(Query.Normal);
+				return true;
+			};
+			auto RecordBlockedEdge = [&](const FLNPLocalNavNodeRef& A, const FLNPLocalNavNodeRef& B)
+			{
+				FVector From, FromNormal, To, ToNormal;
+				if (!GetFeet(A, From, FromNormal) || !GetFeet(B, To, ToNormal)
+					|| !Influence.IsInsideOrOn((From + To) * 0.5)) { return; }
+				TArray<FVector> Feet, Normals;
+				if (BaseWorld.HasWalkableSupportPath(From, FromNormal, To, ToNormal,
+					BaseNav.Agent.MaxStepUp, BaseNav.Agent.MaxStepDown, BaseNav.Agent.WalkableMinDot, Feet, Normals)
+					&& !ActiveWorld.HasCapsulePolylineClearance(Feet, Normals, BaseNav.Agent.Radius, BaseNav.Agent.HalfHeight))
+				{
+					Patch.BlockedEdges.Add({A, B});
+				}
+			};
+			for (const FLNPNavLayer& Layer : BaseNav.Layers)
+			{
+				for (const FLNPNavTile& Tile : Layer.Tiles)
+				{
+					for (const FLNPNavCell& Cell : Tile.Cells)
+					{
+						const FLNPLocalNavNodeRef Ref{Layer.LocalNavLayerId, Tile.TileId, Cell.LocalCellIndex};
+						FVector Feet, Normal;
+						if (!GetFeet(Ref, Feet, Normal) || !Influence.IsInsideOrOn(Feet)) { continue; }
+						if (!ActiveWorld.HasGravityCapsuleClearance(Feet, -Feet.GetSafeNormal(), Normal,
+							BaseNav.Agent.Radius, BaseNav.Agent.HalfHeight)) { Patch.BlockedNodes.Add(Ref); }
+						const FIntPoint Coord = LNPNavData::DecodeTileAddress(Tile.TileX, Tile.TileY, Cell.LocalCellIndex);
+						for (uint8 D = 0; D < 6; D += 2)
+						{
+							FIntPoint Neighbor; FLNPLocalNavNodeRef Other;
+							if ((Cell.EdgeMask & (1u << D)) != 0 && LNPNavData::TryGetNeighborCoord(Layer.Subdivisions,
+								Coord.X, Coord.Y, static_cast<ELNPNavNeighbor>(D), Neighbor)
+								&& LNPNavData::MakeLocalNodeRef(BaseNav, Layer.LocalNavLayerId, Neighbor.X, Neighbor.Y, Other))
+							{
+								RecordBlockedEdge(Ref, Other);
+							}
+						}
+					}
+				}
+			}
+			for (const FLNPNavPortal& Portal : BaseTraversal.Portals) { RecordBlockedEdge(Portal.A, Portal.B); }
+			LNPConditionalPatch::Canonicalize(Patch);
+			if (Patch.Condition == ELNPConditionalPatchCondition::Bridge && Patch.WalkEdges.IsEmpty())
+			{
+				OutError = TEXT("Bridge Conditional Patch has no validated Walk connection.");
+				return false;
+			}
+			NextLayer += Patch.SupportLayers.Num();
+		}
+		return LNPConditionalPatch::Validate(OutData, BaseSupport, BaseNav, OutError);
+	}
 
 	bool IsSpawnSafeSample(const FLNPSupportLayerRaster& Raster, int32 I, int32 J)
 	{
@@ -773,6 +1011,7 @@ FString FLNPOctantBakeReport::ToString() const
 	Result += FString::Printf(TEXT("\n  Sheets=%d split=%d cutEdges=%d cutBoundary=%.2fcm"),
 		OriginalSheetCount, SplitSheetCount, CutEdgeCount, CutBoundaryLength);
 	Result += FString::Printf(TEXT("\n  Portal spacingRejected=%d bake=%.3fs"), Nav.PortalSpacingRejectCount, Nav.PortalBakeSeconds);
+	Result += FString::Printf(TEXT("\n  Conditional patches=%d payload=%lld bytes"), ConditionalPatchCount, ConditionalPatchPayloadBytes);
 	if (Nav.SeamClearanceRejectCount > 0)
 	{
 		Result += FString::Printf(
@@ -964,6 +1203,16 @@ bool FLNPOctantSurfaceBaker::Bake(
 	}
 	OutReport.NavigationPayloadBytes = NavigationPayload.Num();
 	OutReport.TraversalPayloadBytes = TraversalPayload.Num();
+	FLNPConditionalPatchData PatchData;
+	TArray<uint8> PatchPayload;
+	if (!BakeConditionalPatches(*SourceWorld, Crust, Decoded, Navigation, Traversal, ClearanceWorld,
+		LayerSettings, Raster, Codec, Options, PatchData, OutError)
+		|| !LNPConditionalPatch::Encode(PatchData, Decoded, Navigation, PatchPayload, OutError))
+	{
+		return false;
+	}
+	OutReport.ConditionalPatchCount = PatchData.Patches.Num();
+	OutReport.ConditionalPatchPayloadBytes = PatchPayload.Num();
 
 	FLNPSpawnData SpawnData;
 	if (!BuildSpawnData(*SourceWorld, ClearanceWorld, Rasters, Decoded, Options, SpawnData, OutError))
@@ -1024,12 +1273,16 @@ bool FLNPOctantSurfaceBaker::Bake(
 	Header.Spawn.ElementCount = static_cast<uint32>(SpawnData.AuthoredAnchors.Num() + SpawnData.RandomCandidates.Num());
 	Header.Spawn.UncompressedSize = static_cast<uint64>(SpawnPayload.Num());
 	Header.Spawn.ContentHash = FLNPContentHash(FIoHash::HashBuffer(SpawnPayload.GetData(), SpawnPayload.Num()));
+	Header.ConditionalPatch.ElementCount = PatchData.Patches.Num();
+	Header.ConditionalPatch.UncompressedSize = PatchPayload.Num();
+	Header.ConditionalPatch.ContentHash = FLNPContentHash(FIoHash::HashBuffer(PatchPayload.GetData(), PatchPayload.Num()));
 
 	OutData.Header = MoveTemp(Header);
 	OutData.SupportPayload = MoveTemp(Payload);
 	OutData.NavigationPayload = MoveTemp(NavigationPayload);
 	OutData.TraversalPayload = MoveTemp(TraversalPayload);
 	OutData.SpawnPayload = MoveTemp(SpawnPayload);
+	OutData.ConditionalPatchPayload = MoveTemp(PatchPayload);
 	return true;
 }
 
@@ -1069,6 +1322,7 @@ bool FLNPOctantSurfaceBaker::BakeAndSave(
 	SurfaceData->SupportPayload = Baked->SupportPayload;
 	SurfaceData->NavigationPayload = Baked->NavigationPayload;
 	SurfaceData->TraversalPayload = Baked->TraversalPayload;
+	SurfaceData->ConditionalPatchPayload = Baked->ConditionalPatchPayload;
 	SurfaceData->SpawnPayload = Baked->SpawnPayload;
 	Package->MarkPackageDirty();
 

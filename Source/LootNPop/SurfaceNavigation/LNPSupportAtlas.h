@@ -182,6 +182,9 @@ struct FLNPSupportLayerHit
  */
 namespace LNPSupportAtlas
 {
+	/** 지각을 복제하지 않고 patch의 sparse Layer 하나를 기존 Support 양자화 규약으로 만든다. */
+	LOOTNPOP_API bool QuantizeSparseLayer(const FLNPSupportLayerRaster& Raster,
+		const FLNPSupportCodecSettings& Settings, FLNPSupportAtlasLayer& OutLayer, FString& OutError);
 	LOOTNPOP_API int32 GetSampleCount(int32 Subdivisions);
 
 	/** 옥탄트 삼각형 전체를 채운 배치에서 j 행 우선, 행 안에서 i 증가 순서의 인덱스. */

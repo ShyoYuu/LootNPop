@@ -7,6 +7,7 @@
 
 class IAssetRegistry;
 class UWorld;
+class ALNPPlacementMarker;
 
 /** BakeSettingsHash에 넣을 값의 canonical type. */
 enum class ELNPOctantBakeSettingType : uint8
@@ -66,6 +67,7 @@ struct LOOTNPOPEDITOR_API FLNPOctantSourceCollection
 	TArray<FLNPOctantSourcePackage> Manifest;
 	TArray<FLNPTerrainSourceSemantic> TerrainSemantics;
 	TArray<FLNPSpawnPointSemantic> SpawnPointSemantics;
+	TArray<TArray<uint8>> MarkerSemanticRows;
 	FLNPContentHash SourceSemanticHash;
 	FLNPContentHash BakeSettingsHash;
 	FLNPContentHash SourceContentHash;
@@ -78,6 +80,9 @@ struct LOOTNPOPEDITOR_API FLNPOctantSourceCollection
 class LOOTNPOPEDITOR_API FLNPOctantSourceCollector
 {
 public:
+	static bool CollectPlacementMarkers(const UWorld& SourceWorld, IAssetRegistry& AssetRegistry,
+		TArray<FLNPOctantSourcePackage>& InOutManifest, TArray<TArray<uint8>>& OutRows, FString& OutError);
+	static bool BuildPlacementMarkerSemantic(const ALNPPlacementMarker& Marker, TArray<uint8>& OutRow, FString& OutError);
 	static bool CollectFromLevel(
 		const FSoftObjectPath& SourceLevel,
 		uint32 BakerSchemaVersion,

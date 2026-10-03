@@ -66,10 +66,11 @@ manifest package는 long package name, kind 순으로 정렬하고 중복을 제
 - source LVI package
 - LVI가 직접 참조하는 external actor·external object package
 - Terrain Contract 역할 component가 참조하는 Static Mesh package
+- Placement Marker의 PatchSources Static Mesh package와 Blueprint 요소 클래스 package(`PlacementClass` kind). native `/Script` 클래스는 package saved hash에서 제외하고 베이커 schema 변경으로 관리한다.
 
 Component Tag, component transform, collision profile은 package manifest에 억지로 넣지 않고 canonical byte stream의 `SourceSemanticHash`로 저장한다. baker schema version과 품질 설정은 `BakeSettingsHash`로 저장한다. `SourceContentHash`는 정렬된 package manifest와 두 hash를 합친 최종 stale 검출 값이다.
 
-Phase 2 수집기는 Asset Registry의 source LVI **직접 package dependency**만 조회하고, `ULevel::GetExternalObjectsPaths()`가 반환한 해당 LVI 소유 경로 아래의 `__ExternalActors__`·`__ExternalObjects__` package만 허용한다. 재귀 dependency를 순회하지 않는다. 현재 3-kind schema의 `ExternalActor` 값은 두 종류의 UE external package를 함께 나타낸다.
+Phase 2 수집기는 Asset Registry의 source LVI **직접 package dependency**만 조회하고, `ULevel::GetExternalObjectsPaths()`가 반환한 해당 LVI 소유 경로 아래의 `__ExternalActors__`·`__ExternalObjects__` package만 허용한다. 재귀 dependency를 순회하지 않는다. 초기 3-kind schema의 `ExternalActor` 값은 두 종류의 UE external package를 함께 나타낸다.
 
 현재 schema는 correctness를 우선해 LVI가 직접 참조하는 owned external package를 역할과 무관하게 모두 manifest에 넣는다. 따라서 decoration external actor의 저장 변경도 stale을 만들 수 있다. "decoration 제외"는 decoration component가 참조하는 mesh/material 하위 dependency를 추가하지 않는다는 뜻이지 그 actor package 자체를 제외한다는 뜻이 아니다. 실제 제작에서 false stale이 빈번하다는 측정이 있을 때만 contributor actor package 필터를 도입한다.
 
@@ -97,12 +98,13 @@ class ULNPOctantSurfaceData : public UPrimaryDataAsset
     TArray<uint8> NavigationPayload;
     TArray<uint8> TraversalPayload;
     TArray<uint8> SpawnPayload;
+    TArray<uint8> ConditionalPatchPayload;
 };
 ```
 
-header는 `DataVersion`, source hash·manifest와 각 stream의 element count, uncompressed size, content hash만 가진다. `DataVersion`의 C++ 기본값은 0이고 베이커가 `CurrentDataVersion`을 명시적으로 쓴다. 기본값이 현재 버전이면 tagged property 직렬화가 기본값과 같은 값을 저장하지 않아, 버전을 올린 뒤 옛 에셋을 로드해도 새 버전으로 보인다(2026-09-27, `DataVersion` 2 도입 때 발견). 현재 payload가 일반 `UPROPERTY TArray<uint8>`인 동안에는 asset 로드 시 네 payload도 함께 역직렬화된다. "payload를 읽지 않고 판정"은 codec decode 없이 header만 검사한다는 뜻이며 선택적 I/O를 뜻하지 않는다. 실제 선택 로딩은 측정상 필요할 때 `FByteBulkData` 또는 stream별 asset으로 전환한다.
+header는 `DataVersion`, source hash·manifest와 각 stream의 element count, uncompressed size, content hash만 가진다. `DataVersion`의 C++ 기본값은 0이고 베이커가 `CurrentDataVersion`을 명시적으로 쓴다. 기본값이 현재 버전이면 tagged property 직렬화가 기본값과 같은 값을 저장하지 않아, 버전을 올린 뒤 옛 에셋을 로드해도 새 버전으로 보인다(2026-09-27, `DataVersion` 2 도입 때 발견). 현재 payload가 일반 `UPROPERTY TArray<uint8>`인 동안에는 asset 로드 시 다섯 payload도 함께 역직렬화된다. "payload를 읽지 않고 판정"은 codec decode 없이 header만 검사한다는 뜻이며 선택적 I/O를 뜻하지 않는다. 실제 선택 로딩은 측정상 필요할 때 `FByteBulkData` 또는 stream별 asset으로 전환한다.
 
-Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4a에서 지각 codec v1(`DataVersion` 2)로 시작해 Phase 4b에서 다층 codec v2(`DataVersion` 3)로 바꿨다(`SurfaceBaking.md` "다층 Atlas 규약"). Phase 5는 LVI authored anchor와 절차 후보를 담는 Spawn codec v1을 추가하면서 `DataVersion`을 4로 올렸다(D-059, `../phases/Phase05_RuntimeLoader.md`). Phase 7a 구현 단위 1은 16×16 Tile·6방향 edge·local component를 담는 Navigation codec v1과 정적 portal·ordered seam endpoint를 담는 Traversal codec v1을 추가해 `DataVersion`을 5로 올렸다. Phase 7c 단위 3은 Spawn codec v2에서 authored·random record 끝에 유한 float `Headroom` 4바이트를 추가하고 현재 `DataVersion=6`·`BakerSchemaVersion=8`을 사용한다. 기존 v1·DataVersion 5는 decode·runtime 게시에서 거부하며 재베이크한다. Headroom 측정·할당 규약은 `MovementIntegration.md`가 소유한다. `Header.Navigation.ElementCount`는 walkable cell 수, `Header.Traversal.ElementCount`는 portal과 seam endpoint 수의 합이다. Conditional Patch stream은 Phase 8에서 다시 `DataVersion`을 올려 추가한다. 이때 MarkerId·transform·Actor class·상태/경로 파라미터·patch source mesh와 안정 transform을 source semantic/settings hash에 포함하고 모든 production SurfaceData를 재베이크한다(D-041).
+Phase 2에서는 codec을 고정하지 않고 네 stream을 byte array로 직렬화한다. Support Atlas는 Phase 4a에서 지각 codec v1(`DataVersion` 2)로 시작해 Phase 4b에서 다층 codec v2(`DataVersion` 3)로 바꿨다(`SurfaceBaking.md` "다층 Atlas 규약"). Phase 5는 LVI authored anchor와 절차 후보를 담는 Spawn codec v1을 추가하면서 `DataVersion`을 4로 올렸다(D-059, `../phases/Phase05_RuntimeLoader.md`). Phase 7a 구현 단위 1은 16×16 Tile·6방향 edge·local component를 담는 Navigation codec v1과 정적 portal·ordered seam endpoint를 담는 Traversal codec v1을 추가해 `DataVersion`을 5로 올렸다. Phase 7c 단위 3은 Spawn codec v2에서 authored·random record 끝에 유한 float `Headroom` 4바이트를 추가하고 당시 `DataVersion=6`·`BakerSchemaVersion=8`을 사용했다. 기존 v1·DataVersion 5는 decode·runtime 게시에서 거부하며 재베이크한다. Headroom 측정·할당 규약은 `MovementIntegration.md`가 소유한다. `Header.Navigation.ElementCount`는 walkable cell 수, `Header.Traversal.ElementCount`는 portal과 seam endpoint 수의 합이다. Phase 8 단위 2는 `ConditionalPatchPayload` codec v1을 추가해 현재 `DataVersion=7`·`BakerSchemaVersion=9`를 사용한다. MarkerId·마커 transform·Actor class·경로 파라미터·상태 조건·patch source mesh와 안정 transform·Support 참여를 GUID 순 canonical semantic row로 포함한다. 마커가 없어도 versioned 빈 stream(4바이트)을 저장하며 기존 SurfaceData는 모두 재베이크한다(D-041).
 
 규모 추정: 월드 반지름이 250m라 구 전체 면적은 약 0.785km²다. 지각 Nav를 2m 셀로 잡으면 구 전체 약 19.6만 셀, 지각 Support를 100cm로 잡으면 약 78.5만 샘플이다. 다만 이 수치는 sparse index, coverage, Atlas metadata, decoded buffer, 다층 섬·동굴, overlay와 allocator overhead를 제외한 하한 추정이다. Phase 4·5에서 cooked asset 크기와 peak/resident memory를 측정하기 전에는 "10MB 안쪽"을 합격 가정으로 사용하지 않는다. BulkData 선택 로딩이나 client Nav stream 제외는 측정상 이득이 확인될 때만 도입한다.
 

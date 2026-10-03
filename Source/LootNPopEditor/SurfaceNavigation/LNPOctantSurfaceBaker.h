@@ -111,6 +111,8 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeReport
 	FLNPNavBakeReport Nav;
 	int64 NavigationPayloadBytes = 0;
 	int64 TraversalPayloadBytes = 0;
+	int32 ConditionalPatchCount = 0;
+	int64 ConditionalPatchPayloadBytes = 0;
 	double CollectSeconds = 0.0;
 	double ExtractSeconds = 0.0;
 	double RasterSeconds = 0.0;
@@ -132,7 +134,7 @@ class LOOTNPOPEDITOR_API FLNPOctantSurfaceBaker
 {
 public:
 	/** 베이커 schema 버전. 베이크 규칙이 바뀌면 올린다. BakeSettingsHash에 들어간다. */
-	static constexpr uint32 BakerSchemaVersion = 8;
+	static constexpr uint32 BakerSchemaVersion = 9;
 
 	/** OutData의 Header와 SupportPayload를 채운다. 같은 입력이면 같은 payload를 만든다. */
 	static bool Bake(

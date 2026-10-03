@@ -9,6 +9,7 @@
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "SurfaceNavigation/LNPSpawnData.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
+#include "SurfaceNavigation/LNPConditionalPatch.h"
 #include "Subsystems/WorldSubsystem.h"
 #include <atomic>
 #include "LNPSurfaceDataSubsystem.generated.h"
@@ -37,6 +38,7 @@ struct FLNPSurfaceDataSlotSnapshot
 	TSharedPtr<const FLNPSpawnData, ESPMode::ThreadSafe> Spawn;
 	TSharedPtr<const FLNPNavData, ESPMode::ThreadSafe> Navigation;
 	TSharedPtr<const FLNPNavTraversalData, ESPMode::ThreadSafe> Traversal;
+	TSharedPtr<const FLNPConditionalPatchData, ESPMode::ThreadSafe> ConditionalPatches;
 };
 
 /** One fully validated 8-slot Support/Spawn/Nav generation. Nav is assembled before publication, never published partially. */

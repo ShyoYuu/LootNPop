@@ -76,6 +76,7 @@ namespace
 		uint64 Bytes = sizeof(FLNPSurfaceDataSnapshot) + Snapshot.Slots.GetAllocatedSize();
 		TSet<const FLNPSupportAtlas*> CountedSupport;
 		TSet<const FLNPSpawnData*> CountedSpawn;
+		TSet<const FLNPConditionalPatchData*> CountedPatches;
 		for (const FLNPSurfaceDataSlotSnapshot& Slot : Snapshot.Slots)
 		{
 			if (const FLNPSupportAtlas* Support = Slot.Support.Get(); Support != nullptr && !CountedSupport.Contains(Support))
@@ -87,6 +88,26 @@ namespace
 			{
 				CountedSpawn.Add(Spawn);
 				Bytes += GetSpawnAllocatedBytes(*Spawn);
+			}
+			if (const FLNPConditionalPatchData* Data = Slot.ConditionalPatches.Get(); Data != nullptr && !CountedPatches.Contains(Data))
+			{
+				CountedPatches.Add(Data);
+				Bytes += sizeof(FLNPConditionalPatchData) + Data->Patches.GetAllocatedSize();
+				for (const FLNPConditionalPatch& Patch : Data->Patches)
+				{
+					Bytes += Patch.SupportLayers.GetAllocatedSize() + Patch.FaceMaps.GetAllocatedSize()
+						+ Patch.BlockedNodes.GetAllocatedSize() + Patch.BlockedEdges.GetAllocatedSize()
+						+ Patch.WalkEdges.GetAllocatedSize() + LNPNavRuntime::GetAllocatedBytes(Patch.Navigation);
+					for (const FLNPSupportAtlasLayer& Layer : Patch.SupportLayers)
+					{
+						Bytes += Layer.Layout.Rows.GetAllocatedSize() + Layer.Layout.RowOffsets.GetAllocatedSize()
+							+ Layer.RadiusQ.GetAllocatedSize() + Layer.NormalQ.GetAllocatedSize() + Layer.Flags.GetAllocatedSize();
+					}
+					for (const FLNPConditionalPatchFaceMap& Map : Patch.FaceMaps)
+					{
+						Bytes += Map.FaceMap.LayerByExternalFace.GetAllocatedSize();
+					}
+				}
 			}
 		}
 		return Bytes + GetNavResidentBytes(Snapshot);
@@ -102,6 +123,7 @@ namespace
 				Bytes += Asset->SupportPayload.GetAllocatedSize();
 				Bytes += Asset->NavigationPayload.GetAllocatedSize();
 				Bytes += Asset->TraversalPayload.GetAllocatedSize();
+				Bytes += Asset->ConditionalPatchPayload.GetAllocatedSize();
 				Bytes += Asset->SpawnPayload.GetAllocatedSize();
 			}
 		}
@@ -356,6 +378,7 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPSpawnData, ESPMode::ThreadSafe>> DecodedSpawnByAsset;
 	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPNavData, ESPMode::ThreadSafe>> DecodedNavigationByAsset;
 	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPNavTraversalData, ESPMode::ThreadSafe>> DecodedTraversalByAsset;
+	TMap<const ULNPOctantSurfaceData*, TSharedPtr<const FLNPConditionalPatchData, ESPMode::ThreadSafe>> DecodedPatchesByAsset;
 	TArray<FLNPNavSlotInput> NavInputs;
 	NavInputs.Reserve(SlotCount);
 	OutSnapshot.Generation = Generation;
@@ -386,7 +409,8 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 			|| !ValidatePayload(TEXT("Support"), SurfaceData->Header.Support, SurfaceData->SupportPayload, true, OutError)
 			|| !ValidatePayload(TEXT("Navigation"), SurfaceData->Header.Navigation, SurfaceData->NavigationPayload, true, OutError)
 			|| !ValidatePayload(TEXT("Traversal"), SurfaceData->Header.Traversal, SurfaceData->TraversalPayload, true, OutError)
-			|| !ValidatePayload(TEXT("Spawn"), SurfaceData->Header.Spawn, SurfaceData->SpawnPayload, true, OutError))
+			|| !ValidatePayload(TEXT("Spawn"), SurfaceData->Header.Spawn, SurfaceData->SpawnPayload, true, OutError)
+			|| !ValidatePayload(TEXT("ConditionalPatch"), SurfaceData->Header.ConditionalPatch, SurfaceData->ConditionalPatchPayload, true, OutError))
 		{
 			OutError = FString::Printf(TEXT("Slot %d: %s"), Slot, *OutError);
 			return false;
@@ -474,6 +498,19 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 			DecodedTraversalByAsset.Add(SurfaceData, Traversal);
 		}
 
+		TSharedPtr<const FLNPConditionalPatchData, ESPMode::ThreadSafe> Patches = DecodedPatchesByAsset.FindRef(SurfaceData);
+		if (!Patches.IsValid())
+		{
+			TSharedPtr<FLNPConditionalPatchData, ESPMode::ThreadSafe> DecodedPatches = MakeShared<FLNPConditionalPatchData, ESPMode::ThreadSafe>();
+			if (!LNPConditionalPatch::Decode(SurfaceData->ConditionalPatchPayload, *Atlas, *Navigation, *DecodedPatches, OutError)
+				|| DecodedPatches->Patches.Num() != SurfaceData->Header.ConditionalPatch.ElementCount)
+			{
+				OutError = FString::Printf(TEXT("Slot %d Conditional Patch decode/count failed: %s"), Slot, *OutError);
+				return false;
+			}
+			Patches = MoveTemp(DecodedPatches);
+			DecodedPatchesByAsset.Add(SurfaceData, Patches);
+		}
 		Atlases.Add(Atlas);
 		NavInputs.Add({Atlas, Navigation, Traversal});
 		FLNPSurfaceDataSlotSnapshot& SlotSnapshot = OutSnapshot.Slots.AddDefaulted_GetRef();
@@ -485,6 +522,7 @@ bool LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
 		SlotSnapshot.Spawn = Spawn;
 		SlotSnapshot.Navigation = Navigation;
 		SlotSnapshot.Traversal = Traversal;
+		SlotSnapshot.ConditionalPatches = MoveTemp(Patches);
 	}
 
 	if (!ValidateSeams(Atlases, OutError)

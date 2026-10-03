@@ -53,6 +53,10 @@ bool FLNPOctantSurfaceDataSerializationTest::RunTest(const FString& Parameters)
 	Source->NavigationPayload = {0x50, 0x60};
 	Source->TraversalPayload = {0x70};
 	Source->SpawnPayload = {0x80, 0x90, 0xa0};
+	Source->ConditionalPatchPayload = {0xb0, 0xc0};
+	Source->Header.ConditionalPatch.ElementCount = 1;
+	Source->Header.ConditionalPatch.UncompressedSize = 2;
+	Source->Header.ConditionalPatch.ContentHash = FLNPContentHash(PayloadHash);
 	Source->Header.Support.ElementCount = 2;
 	Source->Header.Support.UncompressedSize = Source->SupportPayload.Num();
 	Source->Header.Support.ContentHash = FLNPContentHash(PayloadHash);
@@ -84,6 +88,10 @@ bool FLNPOctantSurfaceDataSerializationTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Round trip preserves Navigation payload"), RoundTripped->NavigationPayload == Source->NavigationPayload);
 	TestTrue(TEXT("Round trip preserves Traversal payload"), RoundTripped->TraversalPayload == Source->TraversalPayload);
 	TestTrue(TEXT("Round trip preserves Spawn payload"), RoundTripped->SpawnPayload == Source->SpawnPayload);
+	TestTrue(TEXT("Round trip preserves Conditional Patch payload"), RoundTripped->ConditionalPatchPayload == Source->ConditionalPatchPayload);
+	TestEqual(TEXT("Round trip preserves Conditional Patch count"), RoundTripped->Header.ConditionalPatch.ElementCount, 1u);
+	TestEqual(TEXT("Round trip preserves Conditional Patch size"), RoundTripped->Header.ConditionalPatch.UncompressedSize, 2ull);
+	TestTrue(TEXT("Round trip preserves Conditional Patch hash"), RoundTripped->Header.ConditionalPatch.ContentHash == Source->Header.ConditionalPatch.ContentHash);
 	TestEqual(TEXT("Round trip preserves Support element count"),
 		RoundTripped->Header.Support.ElementCount, Source->Header.Support.ElementCount);
 	TestTrue(TEXT("Round trip preserves Support payload hash"),

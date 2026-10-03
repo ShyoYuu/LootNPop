@@ -9,11 +9,34 @@
 bool LNPNavOverlay::BuildPodOverlay(const FLNPSurfaceDataSnapshot& Snapshot,
 	const TConstArrayView<FLNPNavPodBlocker> Pods, const FLNPNavOverlay* Previous, FLNPNavOverlay& OutOverlay)
 {
+	return BuildOverlay(Snapshot, Pods, {}, Previous, OutOverlay);
+}
+
+bool LNPNavOverlay::BuildOverlay(const FLNPSurfaceDataSnapshot& Snapshot,
+	const TConstArrayView<FLNPNavPodBlocker> Pods, const TConstArrayView<FLNPNavMarkerBlocker> Markers,
+	const FLNPNavOverlay* Previous, FLNPNavOverlay& OutOverlay)
+{
 	const FLNPNavSnapshot& Nav = Snapshot.Nav;
 	const FLNPNavGraph& Graph = Nav.Graph;
 	if (!Graph.IsValid())
 	{
 		return false;
+	}
+	// 잘못된 patch 주소를 일부만 적용하지 않는다. 유효한 전체 입력을 확인한 뒤 결과를 만든다.
+	for (const FLNPNavMarkerBlocker& Marker : Markers)
+	{
+		if (!Marker.Id.IsValid() || !Snapshot.Slots.IsValidIndex(Marker.Id.Slot))
+		{
+			return false;
+		}
+		for (const FLNPNavNodeRef& Ref : Marker.Nodes)
+		{
+			const int32 Node = LNPNavGraph::ToGraphNode(Nav, Ref);
+			if (Node == INDEX_NONE || Graph.GetSlot(Node) != Marker.Id.Slot)
+			{
+				return false;
+			}
+		}
 	}
 	OutOverlay = Previous ? *Previous : FLNPNavOverlay();
 	OutOverlay.BlockedNodes.Init(false, Graph.GetNodeCount());
@@ -39,6 +62,13 @@ bool LNPNavOverlay::BuildPodOverlay(const FLNPSurfaceDataSnapshot& Snapshot,
 			{
 				OutOverlay.BlockedNodes[Candidate.Node] = true;
 			}
+		}
+	}
+	for (const FLNPNavMarkerBlocker& Marker : Markers)
+	{
+		for (const FLNPNavNodeRef& Ref : Marker.Nodes)
+		{
+			OutOverlay.BlockedNodes[LNPNavGraph::ToGraphNode(Nav, Ref)] = true;
 		}
 	}
 	// 이음매 node의 두 slot 사본은 같은 월드 위치다. 어느 쪽이든 막히면 양쪽을 막는다.

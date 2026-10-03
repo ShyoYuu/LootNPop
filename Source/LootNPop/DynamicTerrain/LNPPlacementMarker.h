@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "DynamicTerrain/LNPConditionalPatchTypes.h"
 #include "LNPPlacementMarker.generated.h"
 
 class USplineComponent;
@@ -46,6 +47,13 @@ public:
 	/** 열린 경로 양 끝에서 멈추는 시간(초). 닫힌 루프에서는 쓰지 않는다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Moving Panel", meta = (ClampMin = "0.0"))
 	float PathEndHoldSeconds = 1.f;
+
+	/** 배열이 비어 있으면 Conditional Patch를 갖지 않는 요소다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Conditional Patch")
+	TArray<FLNPConditionalPatchSource> PatchSources;
+
+	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Conditional Patch")
+	ELNPConditionalPatchCondition PatchCondition = ELNPConditionalPatchCondition::Intact;
 
 	virtual void PostActorCreated() override;
 #if WITH_EDITOR

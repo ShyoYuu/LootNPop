@@ -1690,6 +1690,59 @@ bool FLNPNavPodOverlayTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Popped Pod clears the center"), !Cleared.IsBlocked(Center));
 	TestEqual(TEXT("Popped Pod advances the tile revision"), Cleared.GetTileRevision(Tile), 2u);
 	TestTrue(TEXT("Direct walk returns after Pod removal"), LNPNavGraph::IsDirectWalkable(Nav, Start, Goal, &Cleared));
+
+	FLNPNavNodeRef CenterRef;
+	if (!TestTrue(TEXT("Marker occupancy uses a stable node ref"), LNPNavGraph::ToNodeRef(Nav, Center, CenterRef)))
+	{
+		return false;
+	}
+	FLNPNavMarkerBlocker MarkerA;
+	MarkerA.Id.Slot = 0;
+	MarkerA.Id.MarkerId = FGuid(1, 2, 3, 4);
+	MarkerA.Nodes = {CenterRef};
+	FLNPNavMarkerBlocker MarkerB = MarkerA;
+	MarkerB.Id.MarkerId = FGuid(5, 6, 7, 8);
+	const TArray<FLNPNavMarkerBlocker> BothMarkers{MarkerA, MarkerB};
+	FLNPNavOverlay Both;
+	TestTrue(TEXT("Two overlapping markers block the center"),
+		LNPNavOverlay::BuildOverlay(Snapshot, {}, BothMarkers, nullptr, Both) && Both.IsBlocked(Center));
+	FLNPNavOverlay One;
+	TestFalse(TEXT("Removing one overlapping marker does not change occupancy"),
+		LNPNavOverlay::BuildOverlay(Snapshot, {}, MakeArrayView(&MarkerB, 1), &Both, One));
+	TestTrue(TEXT("Remaining marker keeps the center blocked"), One.IsBlocked(Center));
+	TestEqual(TEXT("Overlapping removal preserves tile revision"), One.GetTileRevision(Tile), Both.GetTileRevision(Tile));
+	TestEqual(TEXT("Overlapping removal preserves request revision"), One.Revision, Both.Revision);
+	FLNPNavOverlay Repeated;
+	TestFalse(TEXT("Repeated marker state is idempotent"),
+		LNPNavOverlay::BuildOverlay(Snapshot, {}, MakeArrayView(&MarkerB, 1), &One, Repeated));
+	FLNPNavOverlay Removed;
+	TestTrue(TEXT("Removing the final marker changes occupancy"),
+		LNPNavOverlay::BuildOverlay(Snapshot, {}, {}, &One, Removed));
+	TestFalse(TEXT("Final marker removal clears center"), Removed.IsBlocked(Center));
+	TestEqual(TEXT("Final marker removal advances touched tile once"), Removed.GetTileRevision(Tile), 2u);
+	const FLNPNavPodBlocker CenterPod{1, Graph.GetWorldPoint(0, Center), Handle};
+	FLNPNavOverlay Mixed;
+	LNPNavOverlay::BuildOverlay(Snapshot, MakeArrayView(&CenterPod, 1), MakeArrayView(&MarkerA, 1), nullptr, Mixed);
+	FLNPNavOverlay MarkerOnly;
+	LNPNavOverlay::BuildOverlay(Snapshot, {}, MakeArrayView(&MarkerA, 1), &Mixed, MarkerOnly);
+	TestTrue(TEXT("Pod removal preserves overlapping marker occupancy"), MarkerOnly.IsBlocked(Center));
+	FLNPNavOverlay PodOnly;
+	LNPNavOverlay::BuildOverlay(Snapshot, MakeArrayView(&CenterPod, 1), {}, &Mixed, PodOnly);
+	TestTrue(TEXT("Marker removal preserves overlapping Pod occupancy"), PodOnly.IsBlocked(Center));
+	FLNPNavMarkerBlocker WrongSlot = MarkerA;
+	WrongSlot.Id.Slot = 1;
+	FLNPNavOverlay Rejected;
+	TestFalse(TEXT("A marker cannot address a different slot"),
+		LNPNavOverlay::BuildOverlay(Snapshot, {}, MakeArrayView(&WrongSlot, 1), nullptr, Rejected));
+	TestEqual(TEXT("Rejected input leaves output untouched"), Rejected.BlockedNodes.Num(), 0);
+	FLNPNavMarkerBlocker Stale = MarkerA;
+	++Stale.Nodes[0].SnapshotGeneration;
+	TestFalse(TEXT("Stale patch node refs are rejected"),
+		LNPNavOverlay::BuildOverlay(Snapshot, {}, MakeArrayView(&Stale, 1), nullptr, Rejected));
+	const int32 OtherSlotNode = Graph.SlotNodeBase[1];
+	TestFalse(TEXT("Another slot remains open"), Both.IsBlocked(OtherSlotNode));
+	TestEqual(TEXT("Unrelated slot tile revision remains zero"),
+		Both.GetTileRevision(LNPNavGraph::GetTileKey(Nav, OtherSlotNode)), 0u);
 	FSchedulerCase Case;
 	Case.Start = Graph.GetWorldPoint(0, Start);
 	Case.StartHandle = Handle;

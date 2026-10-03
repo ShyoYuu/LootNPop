@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Containers/BitArray.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
+#include "SurfaceNavigation/LNPNavData.h"
+#include "DynamicTerrain/LNPPlacementTypes.h"
 
 struct FLNPSurfaceDataSnapshot;
 
@@ -14,6 +16,13 @@ struct LOOTNPOP_API FLNPNavPodBlocker
 	int32 PodID = 0;
 	FVector3d Location = FVector3d::ZeroVector;
 	FLNPSurfaceHandle Surface;
+};
+
+/** 활성 마커 하나의 Nav 점유. 외부 주소는 generation이 포함된 node ref로만 받는다. */
+struct LOOTNPOP_API FLNPNavMarkerBlocker
+{
+	FLNPPlacementId Id;
+	TArray<FLNPNavNodeRef> Nodes;
 };
 
 /**
@@ -42,6 +51,11 @@ struct LOOTNPOP_API FLNPNavOverlay
 
 namespace LNPNavOverlay
 {
+	/** 활성 Pod와 마커 점유를 합성한다. 겹친 source 하나가 사라져도 다른 source의 점유는 유지한다. */
+	// true는 차단 상태 변경이다. false는 동일 상태 또는 잘못된 마커 주소이며, 잘못된 주소는 OutOverlay를 수정하지 않는다.
+	LOOTNPOP_API bool BuildOverlay(const FLNPSurfaceDataSnapshot& Snapshot,
+		TConstArrayView<FLNPNavPodBlocker> Pods, TConstArrayView<FLNPNavMarkerBlocker> Markers,
+		const FLNPNavOverlay* Previous, FLNPNavOverlay& OutOverlay);
 	/** Pod 차단 mask를 다시 만들고 차단 상태가 바뀐 Tile의 revision만 올린다. */
 	LOOTNPOP_API bool BuildPodOverlay(const FLNPSurfaceDataSnapshot& Snapshot,
 		TConstArrayView<FLNPNavPodBlocker> Pods, const FLNPNavOverlay* Previous, FLNPNavOverlay& OutOverlay);

@@ -41,7 +41,8 @@ enum class ELNPOctantSourcePackageKind : uint8
 	SourceLevel,
 	/** 현재 3-kind schema에서 UE의 external actor와 external object package를 함께 나타낸다. */
 	ExternalActor,
-	TerrainMesh
+	TerrainMesh,
+	PlacementClass
 };
 
 /** 정렬된 source manifest의 package 단위 항목. */
@@ -87,8 +88,8 @@ struct LOOTNPOP_API FLNPSurfaceBakeHeader
 {
 	GENERATED_BODY()
 
-	/** 5: Navigation/Traversal codec v1. 4는 Spawn payload codec v1까지 저장했다. */
-	static constexpr uint32 CurrentDataVersion = 6;
+	/** 7: Conditional Patch codec v1. 6은 Spawn codec v2의 Headroom을 추가했다. */
+	static constexpr uint32 CurrentDataVersion = 7;
 
 	FLNPSurfaceBakeHeader();
 
@@ -125,11 +126,14 @@ struct LOOTNPOP_API FLNPSurfaceBakeHeader
 
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	FLNPSurfacePayloadDescriptor Spawn;
+
+	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
+	FLNPSurfacePayloadDescriptor ConditionalPatch;
 };
 
 /**
  * 옥탄트별 에디터 베이크 결과.
- * Header와 네 payload stream을 의도적으로 분리해 향후 각 stream을 BulkData로 전환할 수 있게 한다.
+ * Header와 다섯 payload stream을 분리해 향후 각 stream을 BulkData로 전환할 수 있게 한다.
  */
 UCLASS(BlueprintType)
 class LOOTNPOP_API ULNPOctantSurfaceData : public UPrimaryDataAsset
@@ -155,4 +159,8 @@ public:
 	/** authored anchor와 random candidate·clearance stream(`LNPSpawnData` codec v1). */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
 	TArray<uint8> SpawnPayload;
+
+	/** MarkerId별 sparse Support·추가 Nav·base 점유·명시적 edge(codec v1). */
+	UPROPERTY(VisibleAnywhere, Category = "LNP|Surface Navigation")
+	TArray<uint8> ConditionalPatchPayload;
 };
