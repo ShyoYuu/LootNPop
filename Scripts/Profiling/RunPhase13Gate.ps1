@@ -5,7 +5,11 @@ param(
     [switch]$Trace,
     [string]$PackageDirectory = 'Saved/SurfaceNavigationPhase13Package',
     [string]$OutputDirectory = '',
-    [int]$FirstRepeat = 1
+    [int]$FirstRepeat = 1,
+    [int]$ProjectileProfileStride = 0,
+    [ValidateSet(0, 1)][int]$ProjectileSphereBroadPhase = 1,
+    [ValidateSet(0, 1)][int]$ProjectileSpatialGrid = 1,
+    [switch]$ValidateProjectileSpatialGrid
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -14,6 +18,7 @@ $taskOutput = Join-Path $taskRoot 'Saved/Profiling/Phase13/After'
 if ($Trace) { $taskOutput = Join-Path $taskRoot 'Saved/Profiling/Phase13/AfterTrace' }
 if ($OutputDirectory) { $taskOutput = Join-Path $taskRoot $OutputDirectory }
 if ($Repeats -lt 1 -or $FirstRepeat -lt 1) { throw 'Repeat counts must be positive.' }
+if ($ProjectileProfileStride -lt 0) { throw 'Projectile profile stride must be nonnegative.' }
 if (-not (Test-Path -LiteralPath $taskExe)) { throw "Package missing: $taskExe" }
 New-Item -ItemType Directory -Force -Path $taskOutput | Out-Null
 if (Get-Process -Name UnrealEditor,UnrealEditor-Cmd,LootNPop,UnrealInsights -ErrorAction SilentlyContinue) {
@@ -44,6 +49,14 @@ foreach ($taskCase in $Cases) {
         $taskCommon = '-nullrhi -nosound -corelimit=4 -unattended -FixedSeed -LNPLoadBaselineSeed=1 -LNPLoadBaselinePlayers=2 -LNPLoadBaselineQuit'
         $taskCommon += " $($taskArguments[$taskCase])"
         $taskCommon += ' -dpcvars=LNP.SurfaceNav.EnemySupportCache=1,LNP.SurfaceNav.EnemyExactLateralSweep=1,LNP.SurfaceNav.EnemyParallelMovement=1'
+        $taskCommon += ",LNP.Projectile.ProfileStride=$ProjectileProfileStride"
+        if ($PSBoundParameters.ContainsKey('ProjectileSphereBroadPhase')) {
+            $taskCommon += ",LNP.Projectile.SphereBroadPhase=$ProjectileSphereBroadPhase"
+        }
+        if ($PSBoundParameters.ContainsKey('ProjectileSpatialGrid')) {
+            $taskCommon += ",LNP.Projectile.SpatialGrid=$ProjectileSpatialGrid"
+        }
+        if ($ValidateProjectileSpatialGrid) { $taskCommon += ',LNP.Projectile.ValidateSpatialGrid=1' }
         Write-Output "$taskName started"
         $taskTraceArguments = ''
         $taskTracePath = Join-Path $taskOutput "${taskName}_Host.utrace"
@@ -66,7 +79,7 @@ foreach ($taskCase in $Cases) {
             }
             foreach ($taskLog in @($taskHostLog, $taskGuestLog)) {
                 $taskText = Get-Content -Raw -Encoding UTF8 -LiteralPath $taskLog
-                if ($taskText -match 'Assertion failed|Ensure condition failed|Fatal error|Unhandled Exception|UnknownHits=[1-9]|EnvelopeEscapes=[1-9]|LayerJumps=[1-9]|violations=[1-9]' -or
+                if ($taskText -match 'Assertion failed|Ensure condition failed|Fatal error|Unhandled Exception|UnknownHits=[1-9]|EnvelopeEscapes=[1-9]|LayerJumps=[1-9]|violations=[1-9]|ProjectileGridMismatch' -or
                     ([regex]::Matches($taskText, '\[(ProbeFaceIndex|ProbeSourceKeys|ProbeSurfaceData)\].*-> PASS')).Count -ne 3 -or
                     $taskText -notmatch '\[LoadBaseline\] FrameMs') { throw "$taskName functional checks failed: $taskLog" }
             }

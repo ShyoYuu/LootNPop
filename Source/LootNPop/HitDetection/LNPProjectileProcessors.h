@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "MassProcessor.h"
 #include "MassEntityQuery.h"
+#include "HitDetection/LNPProjectileHitProfile.h"
+#include "Enemy/LNPEnemySpatialGridData.h"
 #include "LNPProjectileProcessors.generated.h"
 
 /**
@@ -44,6 +46,9 @@ private:
 	FMassEntityQuery ProjectileQuery;
 	FMassEntityQuery EnemyQuery;
 	FMassEntityQuery PlayerQuery;
+	FLNPProjectileHitProfile HitProfile;
+	FLNPEnemySpatialGrid HitGrid;
+	TArray<int32> HitCandidates;
 };
 
 /**

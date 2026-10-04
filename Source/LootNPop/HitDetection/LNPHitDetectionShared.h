@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 LootNPop. All rights reserved.
+// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #pragma once
 
@@ -20,6 +20,7 @@
 #include "Enemy/LNPEnemyConfig.h"        // FLNPEntityAttackConfig::ParriedRecoveryTime
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
+#include "Enemy/LNPEnemySpatialGridData.h"
 #include "LootNPop.h"
 
 namespace LNPHitDetection
@@ -62,34 +63,123 @@ namespace LNPHitDetection
 		return EntityLocation;
 	}
 
+	/** 여러 타겟에서 공유하는 투사체 선분의 불변 계산값. */
+	struct FPreparedSegment
+	{
+		FPreparedSegment(const FVector& A, const FVector& B)
+			: Start(A), End(B), Delta(B - A), LengthSq(Delta.SizeSquared()), InvLengthSq(LengthSq > 0.0 ? 1.0 / LengthSq : 0.0)
+		{
+		}
+		FVector Start;
+		FVector End;
+		FVector Delta;
+		double LengthSq;
+		double InvLengthSq;
+	};
+
+	/** 원격 보간 지연도 없고 현재 위치로 판정하는 탄만 현재 그리드를 사용한다. */
+	inline bool CanUseCurrentCapsuleGrid(bool bRemote, float RewindSeconds)
+	{
+		return !bRemote && RewindSeconds == 0.f;
+	}
+
+	/** 월드에 잘린 선분 전체와 모든 캡슐 크기를 감싼 조회 구. false는 전수 검사다. */
+	inline bool GatherProjectileCapsuleCandidates(const FLNPEnemySpatialGrid& Grid, const FPreparedSegment& Segment,
+		double MaxCapsuleExtent, float HitRadius, TArray<int32>& OutIndices)
+	{
+		return Grid.GatherSphereCandidates((Segment.Start + Segment.End) * 0.5,
+			FMath::Sqrt(Segment.LengthSq) * 0.5 + MaxCapsuleExtent + HitRadius + UE_KINDA_SMALL_NUMBER, OutIndices);
+	}
+
+	/** 캡슐을 감싼 구와 선분의 1차 검사. 작은 여유는 접선의 반올림 누락만 막고 정밀 판정을 대체하지 않는다. */
+	inline bool SegmentMayHitCapsule(const FPreparedSegment& Segment, const FVector& Center,
+		float CapsuleHalfHeight, float CapsuleRadius, float HitRadius)
+	{
+		const double T = FMath::Clamp(FVector::DotProduct(Center - Segment.Start, Segment.Delta) * Segment.InvLengthSq, 0.0, 1.0);
+		const double BoundingRadius = FMath::Max(double(CapsuleHalfHeight), double(CapsuleRadius)) + HitRadius + UE_KINDA_SMALL_NUMBER;
+		return FVector::DistSquared(Center, Segment.Start + Segment.Delta * T) <= FMath::Square(BoundingRadius);
+	}
+
 	/**
-	 * 선분(A→B)이 Center/UpDir/HalfHeight/CombinedRadius의 캡슐과 교차하면 true.
+	 * 선분이 캡슐을 HitRadius만큼 팽창한 형상과 교차하면 true. UpDir는 단위 벡터다.
 	 * Center는 캡슐 중심(바닥이 아닌 실린더 중앙) — ResolveEnemyCapsuleCenter가 돌려주는 값이다.
 	 *
-	 * OutHitPoint는 선분 위에서 캡슐 중심에 가장 가까운 점이다. 표면 진입점이 아니라 **몸통 깊이**를
+	 * OutHitPoint는 선분 위에서 캡슐 축 선분에 가장 가까운 점이다. 표면 진입점이 아니라 **몸통 깊이**를
 	 * 가리키므로, 조준점을 여기로 수렴시키면 탄이 몸통 한가운데를 지난다.
 	 *
 	 * ⚠️ 원거리 판정과 조준 질의가 같은 함수를 쓴다. 복제하지 말 것 —
 	 *    ResolveEnemyCapsuleCenter 주석의 사유가 그대로 적용된다.
 	 */
 	inline bool SegmentHitsCapsule(
-		FVector A, FVector B,
+		const FPreparedSegment& Query,
 		FVector Center, FVector UpDir,
-		float   CapsuleHalfHeight, float CombinedRadius,
+		float   CapsuleHalfHeight, float CapsuleRadius, float HitRadius,
 		FVector& OutHitPoint)
 	{
-		const FVector Closest      = FMath::ClosestPointOnSegment(Center, A, B);
-		const FVector Delta        = Closest - Center;
-		const float   Axial        = FVector::DotProduct(Delta, UpDir);
-		const FVector RadialVec    = Delta - UpDir * Axial;
-		const float   RadialDistSq = RadialVec.SizeSquared();
+		// HalfHeight는 반구까지 포함한다. 팽창해도 원래 캡슐 축 선분은 변하지 않는다.
+		const double AxisHalfLength = FMath::Max(0.0, double(CapsuleHalfHeight) - CapsuleRadius);
+		const FVector AxisStart = Center - UpDir * AxisHalfLength;
+		const FVector Axis = UpDir * (2.0 * AxisHalfLength);
+		const FVector& Segment = Query.Delta;
+		const FVector Offset = Query.Start - AxisStart;
+		const double SegmentLengthSq = Query.LengthSq;
+		const double AxisLengthSq = Axis.SizeSquared();
+		double S = 0.0;
+		double T = 0.0;
 
-		if (FMath::Abs(Axial) <= CapsuleHalfHeight && RadialDistSq <= FMath::Square(CombinedRadius))
+		// SegmentDistToSegmentSafe와 같은 제한 구간 최소화. 정규화·제곱근 없이 점 선분도 처리한다.
+		if (SegmentLengthSq == 0.0)
+		{
+			if (AxisLengthSq > 0.0)
+				T = FMath::Clamp(FVector::DotProduct(Axis, Offset) / AxisLengthSq, 0.0, 1.0);
+		}
+		else
+		{
+			const double SegmentOffset = FVector::DotProduct(Segment, Offset);
+			if (AxisLengthSq == 0.0)
+			{
+				S = FMath::Clamp(-SegmentOffset / SegmentLengthSq, 0.0, 1.0);
+			}
+			else
+			{
+				const double SegmentAxis = FVector::DotProduct(Segment, Axis);
+				const double AxisOffset = FVector::DotProduct(Axis, Offset);
+				// 외적 형태는 거의 평행할 때 길이 제곱의 곱을 빼며 생기는 상쇄를 피한다.
+				const FVector Cross = FVector::CrossProduct(Segment, Axis);
+				const double Denominator = Cross.SizeSquared();
+				if (Denominator > 0.0)
+					S = FMath::Clamp(FVector::DotProduct(FVector::CrossProduct(Axis, Offset), Cross)
+						/ Denominator, 0.0, 1.0);
+				T = (SegmentAxis * S + AxisOffset) / AxisLengthSq;
+				if (T < 0.0)
+				{
+					T = 0.0;
+					S = FMath::Clamp(-SegmentOffset / SegmentLengthSq, 0.0, 1.0);
+				}
+				else if (T > 1.0)
+				{
+					T = 1.0;
+					S = FMath::Clamp((SegmentAxis - SegmentOffset) / SegmentLengthSq, 0.0, 1.0);
+				}
+			}
+		}
+
+		const FVector Closest = Query.Start + Segment * S;
+		const double CombinedRadius = double(CapsuleRadius) + HitRadius;
+		if (FVector::DistSquared(Closest, AxisStart + Axis * T) <= FMath::Square(CombinedRadius))
 		{
 			OutHitPoint = Closest;
 			return true;
 		}
 		return false;
+	}
+
+	/** 단발 질의도 같은 정밀 판정을 사용한다. */
+	inline bool SegmentHitsCapsule(FVector A, FVector B, FVector Center, FVector UpDir,
+		float CapsuleHalfHeight, float CapsuleRadius, float HitRadius, FVector& OutHitPoint)
+	{
+		return SegmentHitsCapsule(FPreparedSegment(A, B), Center, UpDir,
+			CapsuleHalfHeight, CapsuleRadius, HitRadius, OutHitPoint);
 	}
 
 	/**

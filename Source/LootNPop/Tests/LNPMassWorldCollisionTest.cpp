@@ -411,18 +411,18 @@ bool FLNPProjectileEarliestHitTest::RunTest(const FString& Parameters)
 	// 1. 벽보다 앞의 적은 잘린 선분 위에 있어 캐릭터 hit가 earliest hit다.
 	FVector HitPoint;
 	TestTrue(TEXT("Enemy in front of the wall is hit"),
-		LNPHitDetection::SegmentHitsCapsule(From, SegmentEnd, FrontEnemy, Up, HalfHeight, Radius, HitPoint));
+		LNPHitDetection::SegmentHitsCapsule(From, SegmentEnd, FrontEnemy, Up, HalfHeight, Radius, 0.f, HitPoint));
 
 	// 2. 벽 뒤의 적은 잘린 선분 밖이라 맞지 않고 월드 hit가 earliest hit다.
 	TestFalse(TEXT("Enemy behind the wall is not hit"),
-		LNPHitDetection::SegmentHitsCapsule(From, SegmentEnd, BehindEnemy, Up, HalfHeight, Radius, HitPoint));
+		LNPHitDetection::SegmentHitsCapsule(From, SegmentEnd, BehindEnemy, Up, HalfHeight, Radius, 0.f, HitPoint));
 
 	// 3. 대조군: 월드 판정이 없으면 선분이 잘리지 않아 벽 뒤 적도 맞는다 — 2의 miss는 벽 때문이다.
 	FLNPWorldHit NoWorldHit;
 	const FVector Unclipped = LNPProjectileMotion::ClipSegmentToWorld(nullptr, From, To, NoWorldHit);
 	TestTrue(TEXT("Without world collision the segment is not clipped"), Unclipped.Equals(To));
 	TestTrue(TEXT("Without world collision the enemy behind is hit"),
-		LNPHitDetection::SegmentHitsCapsule(From, Unclipped, BehindEnemy, Up, HalfHeight, Radius, HitPoint));
+		LNPHitDetection::SegmentHitsCapsule(From, Unclipped, BehindEnemy, Up, HalfHeight, Radius, 0.f, HitPoint));
 
 	// 4. 월드 hit가 없는 선분은 그대로 To에서 끝난다.
 	FLNPWorldHit MissHit;

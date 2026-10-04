@@ -87,7 +87,7 @@ Pass 3에서 공격자 팀에 따라 분기하되, **Player 타겟에 대한 2�
 
 ```
 Enemy 판정 (Player 발사체만 피해; 그 외 발사체는 닿으면 파괴만)
-   └─ SegmentHitsCapsule(Prev, Curr, 되감긴 캡슐 중심, Up, HalfH, CapsuleR + HitRadius)
+   └─ SegmentHitsCapsule(Prev, Curr, 되감긴 캡슐 중심, Up, HalfH, CapsuleR, HitRadius)
 
 Player 판정 (2단계)
    1단계: bIsParrying && 창 미만료 && Dot >= ParryAngleCos && (CapsuleR + ParryRadius) 교차
@@ -106,6 +106,33 @@ FinishHit (공통 후처리 람다):
 
 트레일 해제는 판정이 하지 않는다 — DeadTag를 본 DestructionProcessor가 건다 (§6.5)
 ```
+
+`SegmentHitsCapsule`은 투사체 선분과 캡슐 축 선분의 최소 거리 제곱을 `(CapsuleR + HitRadius)²`와 비교한다.
+`HalfH`는 반구를 포함한 전체 반높이이며 축 선분은 `Center ± Up * max(HalfH - CapsuleR, 0)`이다.
+추가 반경은 양 끝 반구도 팽창시키며 축 선분 길이를 바꾸지 않는다. 패링도 같은 함수에 `ParryRadius`를 넘긴다.
+점 선분·구형 캡슐·평행 선분은 정규화나 제곱근 없이 처리한다. 반환점은 투사체 선분 위에서 축 선분에 가장
+가까운 점이며 표면 진입점이 아니다. 중심 최근접점 하나를 원기둥과 비교하던 기존 구현은 Phase 12에서 교체했다.
+
+투사체 processor는 월드 clip 뒤 `FPreparedSegment`로 선분 방향·길이 제곱·역수를 한 번 계산해 후보가 공유한다.
+정밀 검사 전 `max(HalfH, CapsuleR) + HitRadius` 구로 먼 후보를 보수적으로 제외한다. 이 구는 현재 위치가
+아니라 정밀 판정과 같은 되감긴 중심을 사용한다. `LNP.Projectile.SphereBroadPhase`는 기본 1이며 0은 같은
+바이너리에서 sphere/재사용을 끈 성능 대조 경로다. 상세 계측의 `sphereTests/sphereRejected`와 `Capsule.calls`는
+정밀 검사 감소를 확인한다.
+
+서버 적 직격은 `LNP.Projectile.SpatialGrid`(기본 1)로 판정 시점의 별도 축소 행 격자를 사용한다. 기존 이동용
+그리드와 저장/재구축 코어를 공유하되 서버 수집 캡슐 전체와 수집 인덱스로 필요할 때 프레임 1회 구축한다.
+원격 발사가 아니고 ping 되감기가 0인 탄만 월드에 잘린 선분을 감싼 구로 후보를 좁힌다. 정확한 구면 cap
+경계·극·wrap·원점 항상 포함을 처리하고 넓은 조회는 전수 경로다. 후보를 수집 순서로 정렬해 첫 피격과 같은
+팀 차단 동작을 보존한다. 원격/양수 되감기·플레이어/패링·클라이언트·스플래시는 기존 경로다.
+`LNP.Projectile.ValidateSpatialGrid=1`은 모든 grid query를 전수 정밀 hit와 대조하는 비싼 검증 옵션(기본 0)이다.
+`ProjectileGridProfile`은 샘플 후보/fallback과 전체 검증 query/hit/누락 수, GridBuild 전체·GridQuery 샘플 시간을 기록한다.
+
+상세 비용 진단은 `LNP.Projectile.ProfileStride`로 켠다(기본 0: 꺼짐, 64: 투사체 64개마다 하나를 순환 샘플링).
+서버·클라이언트 수집과 투사체 처리에는 큰 범위 trace를, 선택된 투사체의 후보·제외·되감기·캡슐 판정에는
+누적 시간과 횟수를 기록한다. 개별 타겟의 trace 이벤트는 만들지 않는다. 상세 시간은 시계 호출 비용을 포함하고
+범위가 중첩돼 있으므로 합산하거나 실제 CPU 점유율로 환산하지 않는다. 성능 판정은 상세 진단을 끈 반복으로 한다.
+새 자식 trace 도입 뒤 processor exclusive 시간은 이전 계측 구조와 직접 비교하지 않는다.
+측정 편성과 결과·해석 한계는 `SurfaceSupportNavigation/history/Phase12_Log.md`가 소유한다.
 
 **월드 충돌:** 프레임마다 `PreviousPos → CurrentPos` 선분을 `LNPWorldExact`로 line trace하고(`LNPProjectileMotion::TraceWorld`),
 캐릭터 판정 선분을 월드 착탄점에서 자른다 — 프랍·섬 측벽 뒤의 적은 맞지 않는다. Ghost와 ADS 가이드(`PredictArc`)도 같은 함수를 쓴다.

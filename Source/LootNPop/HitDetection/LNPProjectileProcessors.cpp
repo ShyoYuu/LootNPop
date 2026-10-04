@@ -30,12 +30,48 @@
 #include "MassActorSubsystem.h"
 #include "MassCommandBuffer.h"
 #include "AbilitySystemComponent.h"
+#include "HAL/IConsoleManager.h"
+#include "Misc/ScopeExit.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #if WITH_EDITOR
 #include "MassDebugDrawHelpers.h"
 #endif
 
 namespace
 {
+	TAutoConsoleVariable<int32> CVarProjectileProfileStride(TEXT("LNP.Projectile.ProfileStride"), 0,
+		TEXT("Detailed hit detection profiling: 0=off, N=sample every Nth projectile. Diagnostic only."));
+	TAutoConsoleVariable<int32> CVarProjectileSphereBroadPhase(TEXT("LNP.Projectile.SphereBroadPhase"), 1,
+		TEXT("Conservative sphere rejection and prepared segment reuse before exact capsule tests. 0: reference, 1: enabled."));
+	TAutoConsoleVariable<int32> CVarProjectileSpatialGrid(TEXT("LNP.Projectile.SpatialGrid"), 1,
+		TEXT("Server current-position enemy capsule candidates. Rewound/remote projectiles use full scan. 0: off, 1: on."));
+	TAutoConsoleVariable<int32> CVarValidateProjectileSpatialGrid(TEXT("LNP.Projectile.ValidateSpatialGrid"), 0,
+		TEXT("Diagnostic full-scan hit coverage validation of each successful grid query. Expensive; default off."));
+
+	void ReportProjectileProfile(FLNPProjectileHitProfile& Profile, double Now, bool bIsServer)
+	{
+		if (Profile.Stride <= 0 || Now - Profile.WindowStart < 1.0)
+			return;
+		UE_LOG(LogLootNPop, Display, TEXT("[ProjectileProfile] server=%d start=%.6f end=%.6f stride=%d frames=%llu projectiles=%llu samples=%llu candidates=%llu self=%llu teamExcluded=%llu enemyTeamPairs=%llu remote=%llu rewindApplied=%llu sphereTests=%llu sphereRejected=%llu clockNs=%.3f"),
+			bIsServer, Profile.WindowStart, Now, Profile.Stride, Profile.Frames, Profile.Projectiles, Profile.Samples,
+			Profile.Candidates, Profile.SelfExcluded, Profile.TeamExcluded, Profile.EnemyTeamPairs,
+			Profile.RemoteSamples, Profile.RewindApplied, Profile.SphereTests, Profile.SphereRejected,
+			FPlatformTime::ToSeconds64(Profile.ClockCycles) * 1.e9 / Profile.Frames);
+		const TCHAR* Names[] = { TEXT("CollectEnemies"), TEXT("CollectPlayers"), TEXT("World"), TEXT("Targets"),
+			TEXT("Filter"), TEXT("Rewind"), TEXT("History"), TEXT("Capsule"), TEXT("GridBuild"), TEXT("GridQuery") };
+		UE_LOG(LogLootNPop, Display, TEXT("[ProjectileGridProfile] server=%d end=%.6f queries=%llu fallbacks=%llu candidates=%llu fullCandidates=%llu validationQueries=%llu validationHits=%llu validationErrors=%llu"),
+			bIsServer, Now, Profile.GridQueries, Profile.GridFallbacks, Profile.GridCandidates, Profile.GridFullCandidates,
+			Profile.GridValidationQueries, Profile.GridValidationHits, Profile.GridValidationErrors);
+		for (int32 Stage = 0; Stage < FLNPProjectileHitProfile::StageCount; ++Stage)
+			UE_LOG(LogLootNPop, Display, TEXT("[ProjectileProfileStage] server=%d end=%.6f stage=%s calls=%llu ms=%.6f"),
+				bIsServer, Now, Names[Stage], Profile.Calls[Stage], FPlatformTime::ToSeconds64(Profile.Cycles[Stage]) * 1000.0);
+		const uint64 Ordinal = Profile.Ordinal;
+		const int32 Stride = Profile.Stride;
+		Profile = {};
+		Profile.Ordinal = Ordinal;
+		Profile.Stride = Stride;
+		Profile.WindowStart = Now;
+	}
 
 	/** 지면 착탄 VFX를 표면에서 띄우는 거리 (cm). 카메라를 향한 스프라이트가 지형에 반쯤 잘리는 것만 막으면 되므로 작게 둔다. */
 	constexpr float ImpactVfxSurfaceLift = 15.f;
@@ -183,12 +219,53 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 {
 	UWorld* World = EntityManager.GetWorld();
 	const bool bIsServer = World && World->GetNetMode() < NM_Client;
+	const double ProfileNow = World ? World->GetTimeSeconds() : 0.0;
+	const int32 ProfileStride = FMath::Max(0, CVarProjectileProfileStride.GetValueOnAnyThread());
+	if (HitProfile.Stride != ProfileStride)
+	{
+		HitProfile = {};
+		HitProfile.Stride = ProfileStride;
+		HitProfile.WindowStart = ProfileNow;
+	}
+	HitProfile.bSample = false;
+	if (ProfileStride > 0)
+	{
+		++HitProfile.Frames;
+		const uint64 ClockStart = FPlatformTime::Cycles64();
+		HitProfile.ClockCycles += FPlatformTime::Cycles64() - ClockStart;
+	}
+	ON_SCOPE_EXIT { ReportProjectileProfile(HitProfile, ProfileNow, bIsServer); };
+
+	// 이 래퍼는 판정 결과를 그대로 반환한다. 진단 시 선택된 투사체만 시계를 읽는다.
+	const bool bSphereBroadPhase = CVarProjectileSphereBroadPhase.GetValueOnAnyThread() != 0;
+	auto SegmentHitsCapsule = [&](const LNPHitDetection::FPreparedSegment& Segment, FVector Center, FVector Up,
+		float HalfHeight, float Radius, float ExtraRadius, FVector& HitPoint)
+	{
+		if (bSphereBroadPhase)
+		{
+			if (HitProfile.bSample) ++HitProfile.SphereTests;
+			if (!LNPHitDetection::SegmentMayHitCapsule(Segment, Center, HalfHeight, Radius, ExtraRadius))
+			{
+				if (HitProfile.bSample) ++HitProfile.SphereRejected;
+				return false;
+			}
+		}
+		FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::Capsule, HitProfile.bSample);
+		return bSphereBroadPhase
+			? LNPHitDetection::SegmentHitsCapsule(Segment, Center, Up, HalfHeight, Radius, ExtraRadius, HitPoint)
+			: LNPHitDetection::SegmentHitsCapsule(Segment.Start, Segment.End, Center, Up, HalfHeight, Radius, ExtraRadius, HitPoint);
+	};
 
 	ULNPProjectileVisualSubsystem& VisualSub = Context.GetMutableSubsystemChecked<ULNPProjectileVisualSubsystem>();
 
 	// 지형 착탄은 PreviousPos→CurrentPos 선분의 LNPWorldExact hit다. 서버와 Ghost가 같은 LNPProjectileMotion::ClipSegmentToWorld로 earliest hit를 가른다.
 	// 서브시스템이 없는 월드 타입(Game·PIE 외)에서는 월드 충돌 없이 수명 만료만 남는다.
 	const ULNPMassWorldCollisionSubsystem* WorldCollision = Context.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	auto ClipSegmentToWorld = [&](FVector A, FVector B, FLNPWorldHit& Hit)
+	{
+		FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::World, ProfileStride > 0);
+		return LNPProjectileMotion::ClipSegmentToWorld(WorldCollision, A, B, Hit);
+	};
 
 	/**
 	 * 최외곽 반지름 안전망(RuntimeCollision.md) — 월드 판정이 빗나가 envelope 밖으로 나간 탄인가.
@@ -273,6 +350,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 		EnemyQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(LNPProjectile_ClientCollectEnemies);
+			FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::CollectEnemies, ProfileStride > 0);
 			const FLNPEnemySharedFragment& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
 			if (!Shared.Config)
 				return;
@@ -295,6 +374,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 		PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(LNPProjectile_ClientCollectPlayers);
+			FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::CollectPlayers, ProfileStride > 0);
 			const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
 			TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 
@@ -319,6 +400,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 		ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(LNPProjectile_ClientProjectiles);
 			const FLNPProjectileSharedFragment&                 Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
 			const TConstArrayView<FTransformFragment>           Transforms  = Ctx.GetFragmentView<FTransformFragment>();
 			TArrayView<FLNPProjectileFragment>                  Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
@@ -329,29 +411,53 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				// 관전용도 로컬에서 즉시 소멸·VFX를 재생해야 "캐릭터를 관통한 뒤 뒤늦게 터지는" 잔상이 없다.
 				// 서버 확정 큐가 도착하면 DestroyGhostFromLocalImpact가 기록한 키로 VFX 중복 재생을 걸러낸다.
 				FLNPProjectileFragment& Proj = Projectiles[i];
+				if (ProfileStride > 0)
+				{
+					++HitProfile.Projectiles;
+					HitProfile.bSample = HitProfile.Ordinal++ % ProfileStride == 0;
+					HitProfile.Samples += HitProfile.bSample;
+				}
 
 				const FVector CurrentPos = Transforms[i].GetTransform().GetLocation();
 				FLNPWorldHit  WorldHit;
-				const FVector SegmentEnd = LNPProjectileMotion::ClipSegmentToWorld(WorldCollision, Proj.PreviousPos, CurrentPos, WorldHit);
+				const FVector SegmentEnd = ClipSegmentToWorld(Proj.PreviousPos, CurrentPos, WorldHit);
+				const LNPHitDetection::FPreparedSegment Segment(Proj.PreviousPos, SegmentEnd);
 				AActor* InstigatorActor = (ActorSub && Proj.Instigator.IsSet() && EntityManager.IsEntityActive(Proj.Instigator)) ? ActorSub->GetActorFromHandle(Proj.Instigator) : nullptr;
 
 				bool bHit = false;
 				for (const FClientCapsuleTarget& Target : ClientTargets)
 				{
+					FLNPProjectileHitProfileScope TargetScope(HitProfile, FLNPProjectileHitProfile::Targets, HitProfile.bSample);
+					if (HitProfile.bSample) ++HitProfile.Candidates;
+					{
+					FLNPProjectileHitProfileScope FilterScope(HitProfile, FLNPProjectileHitProfile::Filter, HitProfile.bSample);
 					// 발사자 자신 제외 — 로컬 예측 Ghost는 Instigator 핸들로, 관전용 Ghost는 PlayerID로 걸러낸다.
 					if (Target.Actor && InstigatorActor && Target.Actor == InstigatorActor)
+					{
+						if (HitProfile.bSample) ++HitProfile.SelfExcluded;
 						continue;
+					}
 					if (!Target.bIsEnemy && Target.PlayerID != INDEX_NONE && Target.PlayerID == Proj.InstigatorPlayerID)
+					{
+						if (HitProfile.bSample) ++HitProfile.SelfExcluded;
 						continue;
+					}
 
 					if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player && !Target.bIsEnemy && !bFriendlyFireClient)
+					{
+						if (HitProfile.bSample) ++HitProfile.TeamExcluded;
 						continue;
+					}
 					if (Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy && Target.bIsEnemy)
+					{
+						if (HitProfile.bSample) ++HitProfile.TeamExcluded;
 						continue;
+					}
+					}
 
 					FVector HitPoint;
-					if (!LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, SegmentEnd, Target.Location, Target.UpDir,
-						Target.CapsuleHalfHeight, Target.CapsuleRadius + Shared.HitRadius, HitPoint))
+					if (!SegmentHitsCapsule(Segment, Target.Location, Target.UpDir,
+						Target.CapsuleHalfHeight, Target.CapsuleRadius, Shared.HitRadius, HitPoint))
 						continue;
 
 					// 원거리는 공격자 HitStop을 재생하지 않는다 (근접 전용 — 물리적 충돌감이 없어 어색함).
@@ -401,15 +507,22 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		FVector*           Velocity;      // Actor 없는 적의 넉백이 쓰는 물리 속도
 	};
 	TArray<FCollectedEnemy> Enemies;
+	double MaxCapsuleExtent = 0.0;
+	bool bGridBuilt = false;
+	const bool bSpatialGrid = CVarProjectileSpatialGrid.GetValueOnAnyThread() != 0;
+	const bool bValidateGrid = CVarValidateProjectileSpatialGrid.GetValueOnAnyThread() != 0;
 
 	EnemyQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(LNPProjectile_ServerCollectEnemies);
+		FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::CollectEnemies, ProfileStride > 0);
 		const FLNPEnemySharedFragment& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
 		if (nullptr == Shared.Config)
 			return;
 
 		const float HalfH  = Shared.Config->CapsuleHalfHeight;
 		const float Radius = Shared.Config->CapsuleRadius;
+		MaxCapsuleExtent = FMath::Max(MaxCapsuleExtent, double(FMath::Max(HalfH, Radius)));
 
 		const TConstArrayView<FTransformFragment>          Transforms = Ctx.GetFragmentView<FTransformFragment>();
 		TArrayView<FLNPEnemyFragment>                       EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
@@ -446,6 +559,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(LNPProjectile_ServerCollectPlayers);
+		FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::CollectPlayers, ProfileStride > 0);
 		const TConstArrayView<FTransformFragment>          Transforms = Ctx.GetFragmentView<FTransformFragment>();
 		TArrayView<FMassActorFragment>                     ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 		const TConstArrayView<FLNPParryStateFragment>      ParryFrags = Ctx.GetFragmentView<FLNPParryStateFragment>();
@@ -603,6 +718,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 	ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(LNPProjectile_ServerProjectiles);
 		const FLNPProjectileSharedFragment&                 Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
 		const TConstArrayView<FTransformFragment>           Transforms  = Ctx.GetFragmentView<FTransformFragment>();
 		TArrayView<FLNPProjectileFragment>                  Projectiles = Ctx.GetMutableFragmentView<FLNPProjectileFragment>();
@@ -613,10 +729,18 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			FLNPProjectileFragment& Proj       = Projectiles[i];
+			if (ProfileStride > 0)
+			{
+				++HitProfile.Projectiles;
+				HitProfile.bSample = HitProfile.Ordinal++ % ProfileStride == 0;
+				HitProfile.Samples += HitProfile.bSample;
+				HitProfile.RemoteSamples += HitProfile.bSample && Proj.bInstigatorIsRemoteClient;
+			}
 			const FVector           CurrentPos = Transforms[i].GetTransform().GetLocation();
 			const FMassEntityHandle ProjEnt    = Ctx.GetEntity(i);
 			FLNPWorldHit            WorldHit;
-			const FVector           SegmentEnd = LNPProjectileMotion::ClipSegmentToWorld(WorldCollision, Proj.PreviousPos, CurrentPos, WorldHit);
+			const FVector           SegmentEnd = ClipSegmentToWorld(Proj.PreviousPos, CurrentPos, WorldHit);
+			const LNPHitDetection::FPreparedSegment Segment(Proj.PreviousPos, SegmentEnd);
 
 			// 공격자(발사자) RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (TechDesign_HitDetection.md §5).
 			// 발사(또는 패링 반사) 시점에 1회 캐싱된 값을 재사용 — "공격자가 조준해서 쏜 순간의 지연"만 보정하고
@@ -624,6 +748,52 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			// 대상의 과거 잔상을 쫓아가 맞는 문제와, 매 프레임 Actor→PlayerState→Ping 조회 비용을 함께 제거.
 			// 대상별 가산항(순수 엔티티의 보간 지연)은 아래 RewoundEnemyCenter가 더한다.
 			const float RewindSeconds = FMath::Clamp(Proj.CachedRewindSeconds, 0.f, MaxPingRewindSeconds);
+			bool bUseGridCandidates = false;
+			if (bSpatialGrid)
+			{
+				if (LNPHitDetection::CanUseCurrentCapsuleGrid(Proj.bInstigatorIsRemoteClient, RewindSeconds))
+				{
+					if (!bGridBuilt)
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(LNPProjectile_ServerGridBuild);
+						FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::GridBuild, ProfileStride > 0);
+						HitGrid.BeginRebuild(Enemies.Num());
+						for (const FCollectedEnemy& Enemy : Enemies)
+							HitGrid.AddEntity(Enemy.Handle, Enemy.CapsuleCenter);
+						HitGrid.FinishRebuild();
+						bGridBuilt = true;
+					}
+					FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::GridQuery, HitProfile.bSample);
+					bUseGridCandidates = LNPHitDetection::GatherProjectileCapsuleCandidates(HitGrid, Segment, MaxCapsuleExtent, HitRadius, HitCandidates);
+				}
+				if (HitProfile.bSample)
+				{
+					++HitProfile.GridQueries;
+					HitProfile.GridFallbacks += !bUseGridCandidates;
+					HitProfile.GridFullCandidates += Enemies.Num();
+					HitProfile.GridCandidates += bUseGridCandidates ? HitCandidates.Num() : Enemies.Num();
+				}
+				if (bUseGridCandidates && bValidateGrid)
+				{
+					++HitProfile.GridValidationQueries;
+					for (int32 EnemyIndex = 0; EnemyIndex < Enemies.Num(); ++EnemyIndex)
+					{
+						const FCollectedEnemy& Enemy = Enemies[EnemyIndex];
+						FVector ReferencePoint;
+						if (Enemy.Handle != Proj.Instigator
+							&& LNPHitDetection::SegmentMayHitCapsule(Segment, Enemy.CapsuleCenter, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitRadius)
+							&& LNPHitDetection::SegmentHitsCapsule(Segment, Enemy.CapsuleCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitRadius, ReferencePoint))
+						{
+							++HitProfile.GridValidationHits;
+							if (!HitCandidates.Contains(EnemyIndex))
+							{
+								++HitProfile.GridValidationErrors;
+								UE_LOG(LogLootNPop, Error, TEXT("[ProjectileGridMismatch] omitted=%d"), EnemyIndex);
+							}
+						}
+					}
+				}
+			}
 
 			// 되감긴 캡슐 중심 = 현재 캡슐 중심 + (과거 원점 - 현재 원점). 되감기량이 0이면 원본 그대로 반환.
 			auto RewoundCenterAt = [&](const FVector& CapsuleCenter, const FVector& RawLoc,
@@ -634,6 +804,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				// 스폰 직후 첫 기록(50ms) 전 대상이 여기 걸린다.
 				if (TotalRewind <= 0.f || !History || History->Count == 0)
 					return CapsuleCenter;
+				FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::History, HitProfile.bSample);
+				if (HitProfile.bSample) ++HitProfile.RewindApplied;
 				return CapsuleCenter + (History->GetInterpolatedLocation(Now - TotalRewind, RewindSurface.Get()) - RawLoc);
 			};
 
@@ -641,6 +813,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			// 시뮬레이티드 프록시는 Mover ForwardPredict로 현재까지 전방 예측된다. 표시 지연은 RTT/2뿐.
 			auto RewoundCenter = [&](const FVector& CapsuleCenter, const FVector& RawLoc, const FLNPPositionHistoryFragment* History) -> FVector
 			{
+				FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::Rewind, HitProfile.bSample);
 				return RewoundCenterAt(CapsuleCenter, RawLoc, History, RewindSeconds);
 			};
 
@@ -650,6 +823,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			// LOD 대역이 1,000/5,000cm로 성겨 비행 중 공격자 이동이 대역을 뒤집는 일은 드물다.
 			auto RewoundEnemyCenter = [&](const FCollectedEnemy& Enemy) -> FVector
 			{
+				FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::Rewind, HitProfile.bSample);
 				float TotalRewind = RewindSeconds;
 				if (Proj.bInstigatorIsRemoteClient && Enemy.Config && Enemy.Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
 				{
@@ -685,10 +859,24 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			};
 
 			// Enemy 판정 — Player 발사체만 Enemy에게 피해를 줌 (비 Player 발사체는 캡슐에 닿아도 파괴만 됨)
-			for (FCollectedEnemy& Enemy : Enemies)
+			const int32 CandidateCount = bUseGridCandidates ? HitCandidates.Num() : Enemies.Num();
+			for (int32 CandidateIndex = 0; CandidateIndex < CandidateCount; ++CandidateIndex)
 			{
+				FCollectedEnemy& Enemy = Enemies[bUseGridCandidates ? HitCandidates[CandidateIndex] : CandidateIndex];
+				FLNPProjectileHitProfileScope TargetScope(HitProfile, FLNPProjectileHitProfile::Targets, HitProfile.bSample);
+				if (HitProfile.bSample)
+				{
+					++HitProfile.Candidates;
+					HitProfile.EnemyTeamPairs += Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy;
+				}
+				{
+				FLNPProjectileHitProfileScope FilterScope(HitProfile, FLNPProjectileHitProfile::Filter, HitProfile.bSample);
 				if (Enemy.Handle == Proj.Instigator)
+				{
+					if (HitProfile.bSample) ++HitProfile.SelfExcluded;
 					continue;
+				}
+				}
 
 #if !UE_BUILD_SHIPPING
 				// ── 계측 ─────────────────────────────────────────────────
@@ -706,10 +894,10 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					const FVector CenterWithout = RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, RewindSeconds);
 
 					FVector Ignored;
-					const bool bWith = LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, SegmentEnd,
-						CenterWith, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius, Ignored);
-					const bool bWithout = LNPHitDetection::SegmentHitsCapsule(Proj.PreviousPos, SegmentEnd,
-						CenterWithout, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius, Ignored);
+					const bool bWith = SegmentHitsCapsule(Segment,
+						CenterWith, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitRadius, Ignored);
+					const bool bWithout = SegmentHitsCapsule(Segment,
+						CenterWithout, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitRadius, Ignored);
 
 					if (bWith || bWithout)
 					{
@@ -724,10 +912,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 #endif
 
 				FVector HitPoint;
-				if (!LNPHitDetection::SegmentHitsCapsule(
-					Proj.PreviousPos, SegmentEnd,
+				if (!SegmentHitsCapsule(Segment,
 					RewoundEnemyCenter(Enemy), Enemy.UpDir,
-					Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius + HitRadius,
+					Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitRadius,
 					HitPoint))
 					continue;
 
@@ -775,22 +962,32 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			// Player 판정 (패링/가드/피격 분기)
 			for (FCollectedPlayer& Player : Players)
 			{
+				FLNPProjectileHitProfileScope TargetScope(HitProfile, FLNPProjectileHitProfile::Targets, HitProfile.bSample);
+				if (HitProfile.bSample) ++HitProfile.Candidates;
+				const FLNPParryStateFragment& PS = Player.ParryState;
+				float Dot;
+				bool bShouldProcess;
+				FVector IncomingDir;
+				{
+				FLNPProjectileHitProfileScope FilterScope(HitProfile, FLNPProjectileHitProfile::Filter, HitProfile.bSample);
 				if (Player.Handle == Proj.Instigator)
+				{
+					if (HitProfile.bSample) ++HitProfile.SelfExcluded;
 					continue;
+				}
 
-				const FLNPParryStateFragment& PS          = Player.ParryState;
-				const FVector                 IncomingDir = (Proj.PreviousPos - CurrentPos).GetSafeNormal();
-				const float                   Dot         = FVector::DotProduct(Player.ForwardVector, IncomingDir);
-				const bool bShouldProcess = Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy || bFriendlyFire;
+				IncomingDir = (Proj.PreviousPos - CurrentPos).GetSafeNormal();
+				Dot = FVector::DotProduct(Player.ForwardVector, IncomingDir);
+				bShouldProcess = Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy || bFriendlyFire;
+				}
 
 				// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경)
 				if (bShouldProcess && PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || Now <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos)
 				{
 					FVector HitPoint;
-					if (LNPHitDetection::SegmentHitsCapsule(
-						Proj.PreviousPos, SegmentEnd,
+					if (SegmentHitsCapsule(Segment,
 						RewoundCenter(Player.Location, Player.RawLocation, Player.History), Player.UpDir,
-						Player.CapsuleHalfHeight, Player.CapsuleRadius + ParryRadius,
+						Player.CapsuleHalfHeight, Player.CapsuleRadius, ParryRadius,
 						HitPoint))
 					{
 						// 투사체 반사: 속도 반전 + 진영 전환 + 식별자 재발급 (TechDesign_ParrySystem.md 5장 — 소멸+재스폰 방송).
@@ -844,10 +1041,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				// 2단계: 피격 체크 (HitRadius — 정상 반경)
 				FVector HitPoint;
-				if (!LNPHitDetection::SegmentHitsCapsule(
-					Proj.PreviousPos, SegmentEnd,
+				if (!SegmentHitsCapsule(Segment,
 					RewoundCenter(Player.Location, Player.RawLocation, Player.History), Player.UpDir,
-					Player.CapsuleHalfHeight, Player.CapsuleRadius + HitRadius,
+					Player.CapsuleHalfHeight, Player.CapsuleRadius, HitRadius,
 					HitPoint))
 					continue;
 

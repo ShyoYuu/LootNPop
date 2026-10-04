@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Enemy/LNPEnemySpatialGridData.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "MassEntityTypes.h"
 #include "MassProcessor.h"
@@ -43,13 +44,13 @@ public:
 	// ── 빌더 (ULNPEnemySpatialGridProcessor 전용) ────────────────────────────
 
 	/** 이번 프레임 등록을 시작한다. 이전 내용은 버려지고 조회는 FinishRebuild까지 결과가 없다. */
-	void BeginRebuild(int32 ExpectedCount);
+	void BeginRebuild(int32 ExpectedCount) { Grid.BeginRebuild(ExpectedCount); }
 
 	/** 개체 하나를 등록한다. 셀은 위치의 **방향 성분**으로만 정해진다(고도는 버린다). */
-	void AddEntity(FMassEntityHandle Handle, const FVector& Position);
+	void AddEntity(FMassEntityHandle Handle, const FVector& Position) { Grid.AddEntity(Handle, Position); }
 
 	/** 카운팅 정렬을 마쳐 조회 가능 상태로 만든다. */
-	void FinishRebuild();
+	void FinishRebuild() { Grid.FinishRebuild(); }
 
 	// ── 소비처 ───────────────────────────────────────────────────────────────
 
@@ -60,38 +61,10 @@ public:
 	 * Center 자신도 등록돼 있으면 함께 나오므로, 호출자가 핸들로 걸러야 한다.
 	 */
 	void ForEachNeighbor(const FVector& Center, float Radius,
-		TFunctionRef<void(FMassEntityHandle, const FVector&)> Visitor) const;
+		TFunctionRef<void(FMassEntityHandle, const FVector&)> Visitor) const { Grid.ForEachNeighbor(Center, Radius, Visitor); }
 
 private:
-	/** 해상도가 바뀌었거나 아직 없으면 행 오프셋 테이블을 다시 만든다. */
-	void EnsureLayout();
-
-	/** 방향 → 위도 행. 극에서 클램프된다. */
-	int32 RowFromDirection(const FVector& Dir) const;
-
-	/** 행 안에서의 경도 칸. 0/360도 경계에서 wrap된다. */
-	int32 ColFromLongitude(int32 Row, float LonDegrees) const;
-
-	int32 LatRes = 0;
-
-	/** 행 r의 경도 칸 수. 길이 = LatRes. */
-	TArray<int32> LonCounts;
-
-	/** 행 r의 첫 셀 인덱스. 길이 = LatRes + 1이고 마지막 원소가 전체 셀 수다. */
-	TArray<int32> RowOffsets;
-
-	/** 셀별 개체 수 → 접두합을 거쳐 셀별 시작 인덱스가 된다. 길이 = 셀 수 + 1. */
-	TArray<int32> CellStarts;
-
-	/** 등록 순서 그대로의 페이로드. 셀 정렬 결과는 Ordered가 가리키는 인덱스로 참조한다. */
-	TArray<FVector>           Positions;
-	TArray<FMassEntityHandle> Handles;
-	TArray<int32>             CellOf;
-
-	/** 셀 순으로 정렬된 페이로드 인덱스. */
-	TArray<int32> Ordered;
-
-	bool bBuilt = false;
+	FLNPEnemySpatialGrid Grid;
 };
 
 /**

@@ -94,7 +94,7 @@ void ULNPTargetQueryProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				{
 					FVector HitPoint;
 					if (!LNPHitDetection::SegmentHitsCapsule(P.Origin, P.Origin + P.Direction * P.MaxDistance,
-						Center, EnemyUpDir, HalfHeight, Radius, HitPoint))
+						Center, EnemyUpDir, HalfHeight, Radius, 0.f, HitPoint))
 					{
 						continue;
 					}

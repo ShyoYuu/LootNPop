@@ -33,7 +33,7 @@ namespace
 // ULNPEnemySpatialGridSubsystem
 // ============================================================
 
-void ULNPEnemySpatialGridSubsystem::EnsureLayout()
+void FLNPEnemySpatialGrid::EnsureLayout()
 {
 	const int32 DesiredLatRes = FMath::Max(8, GetDefault<ULNPSettings>()->EnemyGridLatResolution);
 	if (LatRes == DesiredLatRes && RowOffsets.Num() == LatRes + 1)
@@ -60,20 +60,20 @@ void ULNPEnemySpatialGridSubsystem::EnsureLayout()
 	CellStarts.SetNumUninitialized(Running + 1);
 }
 
-int32 ULNPEnemySpatialGridSubsystem::RowFromDirection(const FVector& Dir) const
+int32 FLNPEnemySpatialGrid::RowFromDirection(const FVector& Dir) const
 {
 	const float LatDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Dir.Z, -1.f, 1.f)));
 	return FMath::Clamp(FMath::FloorToInt((LatDeg + 90.f) / 180.f * LatRes), 0, LatRes - 1);
 }
 
-int32 ULNPEnemySpatialGridSubsystem::ColFromLongitude(const int32 Row, const float LonDegrees) const
+int32 FLNPEnemySpatialGrid::ColFromLongitude(const int32 Row, const float LonDegrees) const
 {
 	const int32 N   = LonCounts[Row];
 	const int32 Raw = FMath::FloorToInt(LonDegrees / 360.f * N);
 	return ((Raw % N) + N) % N;
 }
 
-void ULNPEnemySpatialGridSubsystem::BeginRebuild(const int32 ExpectedCount)
+void FLNPEnemySpatialGrid::BeginRebuild(const int32 ExpectedCount)
 {
 	EnsureLayout();
 
@@ -83,29 +83,34 @@ void ULNPEnemySpatialGridSubsystem::BeginRebuild(const int32 ExpectedCount)
 	Handles.Reset(ExpectedCount);
 	CellOf.Reset(ExpectedCount);
 	Ordered.Reset(ExpectedCount);
+	Unindexed.Reset();
 
 	// 셀 카운터를 0으로 되돌린다. 접두합 단계에서 시작 인덱스로 덮어쓰이므로 매 프레임 필요하다.
 	// 셀 수가 2만 규모라 memset 비용은 마이크로초 단위다.
 	FMemory::Memzero(CellStarts.GetData(), CellStarts.Num() * sizeof(int32));
 }
 
-void ULNPEnemySpatialGridSubsystem::AddEntity(const FMassEntityHandle Handle, const FVector& Position)
+void FLNPEnemySpatialGrid::AddEntity(const FMassEntityHandle Handle, const FVector& Position)
 {
 	const FVector Dir = Position.GetSafeNormal();
+	const int32 Index = Positions.Add(Position);
+	Handles.Add(Handle);
 	if (Dir.IsNearlyZero())
-		return;   // 월드 중심에 정확히 놓인 개체는 방향이 없다 — 색인할 셀도 없다.
+	{
+		CellOf.Add(INDEX_NONE);
+		Unindexed.Add(Index);
+		return;
+	}
 
 	const int32 Row  = RowFromDirection(Dir);
 	const int32 Cell = RowOffsets[Row] + ColFromLongitude(Row, LongitudeDegrees(Dir));
 
-	Positions.Add(Position);
-	Handles.Add(Handle);
 	CellOf.Add(Cell);
 
 	++CellStarts[Cell];
 }
 
-void ULNPEnemySpatialGridSubsystem::FinishRebuild()
+void FLNPEnemySpatialGrid::FinishRebuild()
 {
 	const int32 NumCells = CellStarts.Num() - 1;
 	if (NumCells <= 0)
@@ -126,12 +131,57 @@ void ULNPEnemySpatialGridSubsystem::FinishRebuild()
 	TArray<int32> Cursor = CellStarts;
 	Ordered.SetNumUninitialized(Running);
 	for (int32 i = 0; i < CellOf.Num(); ++i)
-		Ordered[Cursor[CellOf[i]]++] = i;
+		if (CellOf[i] != INDEX_NONE)
+			Ordered[Cursor[CellOf[i]]++] = i;
 
 	bBuilt = true;
 }
 
-void ULNPEnemySpatialGridSubsystem::ForEachNeighbor(const FVector& Center, const float Radius,
+bool FLNPEnemySpatialGrid::GatherSphereCandidates(const FVector& Center, const double Radius, TArray<int32>& OutIndices) const
+{
+	OutIndices.Reset();
+	const double Distance = Center.Size();
+	if (!bBuilt || Distance <= Radius || Distance <= UE_KINDA_SMALL_NUMBER)
+		return false;
+	// 등록 측의 float 각도 반올림도 덮는다. 여유는 후보에만 적용한다.
+	const double MarginDeg = 1.e-4;
+	const double Alpha = FMath::Asin(Radius / Distance) + FMath::DegreesToRadians(MarginDeg);
+	const double Latitude = FMath::Asin(FMath::Clamp(Center.Z / Distance, -1.0, 1.0));
+	const double LatDeg = FMath::RadiansToDegrees(Latitude);
+	const double AlphaDeg = FMath::RadiansToDegrees(Alpha);
+	const double Longitude = FMath::RadiansToDegrees(FMath::Atan2(Center.Y, Center.X));
+	const double LonHalf = FMath::Abs(Latitude) + Alpha >= UE_PI / 2.0 ? 180.0
+		: FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(FMath::Sin(Alpha) / FMath::Cos(Latitude), 0.0, 1.0))) + MarginDeg;
+	const int32 FirstRow = FMath::Clamp(FMath::FloorToInt((LatDeg - AlphaDeg + 90.0) / 180.0 * LatRes), 0, LatRes - 1);
+	const int32 LastRow = FMath::Clamp(FMath::FloorToInt((LatDeg + AlphaDeg + 90.0) / 180.0 * LatRes), 0, LatRes - 1);
+	int32 CellsToVisit = 0;
+	for (int32 Row = FirstRow; Row <= LastRow; ++Row)
+	{
+		const int32 N = LonCounts[Row];
+		CellsToVisit += FMath::Min(N, FMath::FloorToInt((Longitude + LonHalf) / 360.0 * N)
+			- FMath::FloorToInt((Longitude - LonHalf) / 360.0 * N) + 1);
+		if (CellsToVisit >= Positions.Num())
+			return false;
+	}
+	OutIndices.Append(Unindexed);
+	for (int32 Row = FirstRow; Row <= LastRow; ++Row)
+	{
+		const int32 N = LonCounts[Row];
+		const int32 First = FMath::FloorToInt((Longitude - LonHalf) / 360.0 * N);
+		const int32 Count = FMath::Min(N, FMath::FloorToInt((Longitude + LonHalf) / 360.0 * N) - First + 1);
+		for (int32 Offset = 0; Offset < Count; ++Offset)
+		{
+			const int32 Cell = RowOffsets[Row] + ((First + Offset) % N + N) % N;
+			for (int32 Entry = CellStarts[Cell]; Entry < CellStarts[Cell + 1]; ++Entry)
+				OutIndices.Add(Ordered[Entry]);
+		}
+	}
+	// 셀/페이로드를 한 번씩만 방문하므로 중복 없이 기존 수집 순서를 복원한다.
+	OutIndices.Sort();
+	return true;
+}
+
+void FLNPEnemySpatialGrid::ForEachNeighbor(const FVector& Center, const float Radius,
 	TFunctionRef<void(FMassEntityHandle, const FVector&)> Visitor) const
 {
 	if (!bBuilt || Radius <= 0.f)
