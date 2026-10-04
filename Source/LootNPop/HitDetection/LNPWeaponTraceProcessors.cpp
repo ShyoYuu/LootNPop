@@ -18,11 +18,9 @@
 #include "LootNPop.h"
 
 #include "Components/CapsuleComponent.h"
-#include "GameFramework/PlayerState.h"
 #include "MassExecutionContext.h"
 #include "MassEntityManager.h"
 #include "MassCommonFragments.h"
-#include "MassActorSubsystem.h"
 #include "MassCommandBuffer.h"
 #include "AbilitySystemComponent.h"
 #if WITH_EDITOR
@@ -454,7 +452,6 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 	const float PoiseGuardMultiplier = GetDefault<ULNPSettings>()->PoiseGuardMultiplier;
 
 	// ── Pass 3: Swept Volume 피격 판정 (Lag Compensation 포함) ─────────────────
-	UMassActorSubsystem* ActorSubForRewind = World->GetSubsystem<UMassActorSubsystem>();
 	const auto* RewindSurfaces = World->GetSubsystem<ULNPSurfaceDataSubsystem>();
 	const auto RewindSurface = RewindSurfaces ? RewindSurfaces->TakeSnapshot() : nullptr;
 	// 되감기 **핑 항**의 상한. 보간 지연 항은 여기에 묶지 않는다 (LNPPositionHistoryFragment.h).
@@ -470,22 +467,9 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			FLNPWeaponTraceFragment& Frag = Attackers[i];
 
 			// 공격자 RTT/2만큼 과거 시점의 피격 대상 위치로 판정한다 (TechDesign_HitDetection.md §5).
-			// 공격자가 Player가 아니면(Enemy AI) PlayerController가 없어 RewindSeconds=0 → 보정 없음.
-			float RewindSeconds = 0.f;
-			// 공격자가 자기 화면을 복제로 받아 보는가 — 보간 지연 보정의 게이트.
-			// 서버에서 IsLocallyControlled()가 참인 폰은 리슨 호스트 본인뿐이고, 그 화면은 복제를 거치지 않는다.
-			bool bAttackerIsRemoteClient = false;
-			if (ActorSubForRewind && Frag.InstigatorEntity.IsSet() && EntityManager.IsEntityActive(Frag.InstigatorEntity))
-			{
-				if (const ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(ActorSubForRewind->GetActorFromHandle(Frag.InstigatorEntity)))
-				{
-					if (const APlayerState* AttackerPS = AttackerChar->GetPlayerState<APlayerState>())
-					{
-						RewindSeconds = FMath::Clamp(AttackerPS->GetPingInMilliseconds() * 0.0005f, 0.f, MaxPingRewindSeconds);
-						bAttackerIsRemoteClient = !AttackerChar->IsLocallyControlled();
-					}
-				}
-			}
+			// 스윙 시작 때 게임 스레드에서 저장한 입력만 읽는다. AI는 기본값 0/false다.
+			const float RewindSeconds = FMath::Clamp(Frag.CachedRewindSeconds, 0.f, MaxPingRewindSeconds);
+			const bool bAttackerIsRemoteClient = Frag.bInstigatorIsRemoteClient;
 
 			// 되감긴 캡슐 중심 = 현재 캡슐 중심 + (과거 원점 - 현재 원점). 되감기량이 0이면 원본 그대로 반환.
 			auto RewoundCenterAt = [&](const FVector& CapsuleCenter, const FVector& RawLoc,

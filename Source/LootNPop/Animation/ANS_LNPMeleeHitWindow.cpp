@@ -6,6 +6,7 @@
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Abilities/LNPAbility_BasicAttack.h"
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
+#include "HitDetection/LNPPositionHistoryFragment.h"
 #include "LNPGameplayTags.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "LootNPop.h"
@@ -17,6 +18,7 @@
 #include "MassCommands.h"
 #include "AbilitySystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/PlayerState.h"
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 내부 헬퍼
@@ -71,6 +73,16 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 	// 서버·클라이언트 각자 독립적으로 엔티티를 생성한다 (HasAuthority 분기 없음).
 	// 로컬 컨트롤 공격자에서만 클라이언트 예측 HitStop을 수행하도록 표시한다.
 	MeleeData.bIsLocalInstigator = Character->IsLocallyControlled();
+	// 워커 판정에서 PlayerState·컨트롤러를 조회하지 않도록 서버 입력을 스윙 시작 때 저장한다.
+	if (Character->HasAuthority())
+	{
+		if (const APlayerState* AttackerPS = Character->GetPlayerState<APlayerState>())
+		{
+			MeleeData.CachedRewindSeconds = FMath::Clamp(AttackerPS->GetPingInMilliseconds() * 0.0005f,
+				0.f, LNPHitDetection::MaxPingRewindSeconds);
+			MeleeData.bInstigatorIsRemoteClient = !MeleeData.bIsLocalInstigator;
+		}
+	}
 
 	// 넉백 강도와 패링 반경을 태그별 독립 조회로 읽는다.
 	// 각 태그가 비어있으면 기본 태그(TAG_Ability_HitEffect_*)로 자동 선택한다.

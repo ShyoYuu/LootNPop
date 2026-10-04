@@ -287,6 +287,8 @@ Phase 3에서 모든 투사체가 매 프레임 다음을 수행하도록 전환
 
 Support 조회가 Chaos query보다 저렴한 것은 맞지만 SupportData는 벽·천장·동적 blocker를 모두 표현하지 않는다. 따라서 horizon은 exact query를 완전히 대체하는 판정으로 사용하지 않는다.
 
+Phase 12 단위 4의 채택 기본 경로 검토에서는 horizon/별도 월드 hit 캐시를 도입하지 않고 공통 exact segment를 유지한다. 최신 패키지의 월드 query 비용과 trace 없는 700/800 자연·추격 반복이 기존 frame/path 기준을 통과했으며, 추가 캐시의 이득은 입증하지 않았다. 상세 측정과 범위 제한은 `../history/Phase12_Log.md` 단위 4를 따른다. 아래는 후속 실측이 필요해질 때 검토할 후보이며 채택한 구현이 아니다.
+
 프로파일링 후 선택적 최적화(Phase 12):
 
 1. 탄도 궤적을 저해상도로 Support에 샘플링

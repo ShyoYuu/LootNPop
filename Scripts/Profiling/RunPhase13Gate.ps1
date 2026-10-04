@@ -58,9 +58,9 @@ foreach ($taskCase in $Cases) {
         if ($PSBoundParameters.ContainsKey('ProjectileSpatialGrid')) {
             $taskCommon += ",LNP.Projectile.SpatialGrid=$ProjectileSpatialGrid"
         }
-        if ($ValidateProjectileSpatialGrid) { $taskCommon += ',LNP.Projectile.ValidateSpatialGrid=1' }
+        $taskCommon += ",LNP.Projectile.ValidateSpatialGrid=$([int][bool]$ValidateProjectileSpatialGrid)"
         if ($PSBoundParameters.ContainsKey('ProjectileRewindCache')) { $taskCommon += ",LNP.Projectile.RewindCache=$ProjectileRewindCache" }
-        if ($ValidateProjectileRewindCache) { $taskCommon += ',LNP.Projectile.ValidateRewindCache=1' }
+        $taskCommon += ",LNP.Projectile.ValidateRewindCache=$([int][bool]$ValidateProjectileRewindCache)"
         Write-Output "$taskName started"
         $taskTraceArguments = ''
         $taskTracePath = Join-Path $taskOutput "${taskName}_Host.utrace"

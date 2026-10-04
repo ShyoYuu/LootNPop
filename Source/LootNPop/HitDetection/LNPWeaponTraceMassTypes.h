@@ -56,6 +56,10 @@ struct LOOTNPOP_API FLNPWeaponTraceFragment : public FMassFragment
 	 *  true인 머신에서만 클라이언트 예측 HitStop 판정을 수행한다. 서버·리모트 클라에서는 false. */
 	bool bIsLocalInstigator = false;
 
+	/** 서버 되감기 입력 — NotifyBegin의 게임 스레드에서 스윙별로 캐싱한다. */
+	float CachedRewindSeconds = 0.f;
+	bool bInstigatorIsRemoteClient = false;
+
 	/** 클라이언트 예측 판정 1회 발동 플래그. 스윙당 코스메틱 피드백은 한 번만 재생한다. */
 	bool bLocalFeedbackFired = false;
 

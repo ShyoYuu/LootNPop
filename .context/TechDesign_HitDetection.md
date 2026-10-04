@@ -255,8 +255,9 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 50ms 간격으로 기록하고 `GetInterpolatedLocation(과거 시각)`으로 보간 조회한다.
 
 - **상한은 핑 항에만 200ms**(`LNPHitDetection::MaxPingRewindSeconds`). 보간 지연 항은 상한 밖이며, 합의 최댓값은 0.5초다.
-- 근접은 판정 프레임마다 공격자 Ping을 조회하고, 원거리는 **발사 시점에 1회 캐싱**(`CachedRewindSeconds`)해
-  비행 내내 재사용한다(→ §7.3). 패링 반사 시에는 방어자 RTT/2로 갱신.
+- 근접은 게임 스레드의 `NotifyBegin`에서 공격자 RTT/2·원격 여부를 스윙 Fragment에 1회 캐싱하고,
+  워커 판정에서는 캐시만 읽는다. 원거리는 **발사 시점에 1회 캐싱**(`CachedRewindSeconds`)해 비행 내내
+  재사용한다(→ §7.3). 패링 반사 시에는 방어자 RTT/2로 갱신.
 - **대상이 순수 엔티티 적이면 `RTT/2`에 클라이언트 보간 지연을 더한다** — 그 값은 대상의 복제 LOD 갱신 주기다
   (High 0.1 / Medium 0.2 / Low 0.3초). 대상별로 다르므로 되감기 람다 안에서 더한다(`RewoundEnemyCenter`).
   플레이어 대상은 `RTT/2`뿐이다 — 위치가 Mass 버블이 아니라 Actor 복제로 오고 Mover `ForwardPredict`가

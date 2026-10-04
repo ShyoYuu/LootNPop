@@ -220,3 +220,69 @@ Off의 Trace.Stop은 UTC 16:39:52.648, On의 시작/정지는 16:40:29.802/16:45
 마지막 에디터 확인 값은 ProfileStride 0·ValidateRewindCache 0·RewindCache 1이며 PIE/trace는 종료했다. RewindCache 0 복구를 사용자에게 요청했으나 완료 응답은 없다. 새 세션에서 실제 연결 상태와 CVar 값을 확인한다. 새 측정은 sphere/grid On·rewind cache Off인 채택 기본 경로를 명시한다.
 
 이번 커밋 범위는 단위 3c 히스토리 재사용·전체 조회/검증 계수·자동화 회귀, 패키지 실행기 옵션과 실제 원격 사격/CPU 분석기, 관련 설계·측정·인계 문서다. 로컬 패키지/대용량 trace/측정 산출물은 포함하지 않는다. 문서 정리 이후 실행 코드는 변경하지 않으며 앞서 통과한 빌드/cook·자동화 10개·리슨 2P·실제 사격 대조 결과를 보존한다.
+
+## 단위 4 — 최신 기본 경로 월드 query 검토·최종 패키지 반복 검증 (2026-10-05)
+
+사용자가 새 세션에서 Phase 12 재개를 요청했다. README/Current/Decisions·실행서·RuntimeCollision/ValidationAndMigration과 실제 코드/실행기를 확인했다. 세션 시작 Git 작업 트리는 깨끗했다. MCP read-only 호출로 연결·PIE 정지, ProfileStride/ValidateSpatialGrid/ValidateRewindCache/RewindCache=0·SphereBroadPhase/SpatialGrid=1을 확인해 이전 세션의 RewindCache 복구 미확인 항목을 해소했다. 사용자 저장·에디터 종료 응답 뒤 성능 측정을 시작했다.
+
+### 범위와 실행물
+
+- 런타임 C++·에셋은 변경하지 않았다. 단위 3c 최종 빌드/cook 패키지 `Saved/SurfaceNavigationPhase12RewindPackage` exe SHA256 `517B885C2D8939FCD142E1786880F8587538AE83D3C8A4286ED40786AE618F3C` 일치를 확인하고 그대로 실행했다. 이번 단위에서 다시 빌드/cook했다고 보고하지 않는다.
+- `RunPhase13Gate.ps1`은 두 projectile validation CVar를 Off일 때도 `=0`으로 명시한다. 최종 실행기는 ProfileStride=0·SphereBroadPhase=1·SpatialGrid=1·RewindCache=0을 명시하며 검증은 Off다. stride64 상세 계측만 별도 진단 그룹이다.
+- 재현 실행기 `Saved/Profiling/Phase12/Final/Run.ps1`은 자연/추격 각각 700→800→800→700 Gate 8회, 같은 네 조건 ProfileStride 0 trace 4회, N700/N800Chase stride64 상세 계측 trace 2회다. 기존 Grid 패키지 실행기를 최신본으로 간주하지 않았다. 같은 seed가 동일 행동 상태를 보장하지는 않는다.
+- `AnalyzePhase12Final.ps1`은 기존 GroundPopulation/Gate 분석기를 재사용해 실제 총수·활동 표본·같은 패키지·Nav 요청/timing 원본의 행/키/순서를 검증하고, host/guest의 기본 CVar·계측 Off·상세 계측 10개 stage 완결성/호출 수·샘플 비율을 확인한다. parser 검사와 실제 14회 산출물 분석 exit 0이다.
+- 원본/요약은 `Saved/Profiling/Phase12/Final/{Gate,Trace,Sampled}`, 상위 `Summary.json`·`ProjectileSummary.json`과 `EvidenceSHA256.json`에 보존했다. SHA256 목록은 각 그룹의 로그·trace·CSV·응답/exit 파일을 포함한다. 로컬 대용량 산출물은 Git에 넣지 않는다.
+
+### trace 없는 최종 기본 성능
+
+| 조건 | frame P95 두 반복(ms) | frame/path |
+|:---|:---|:---|
+| 자연 700 | 15.10 / 13.63 | 두 PASS / 두 PASS |
+| 자연 800 | 15.51 / 13.89 | 두 PASS / 두 PASS |
+| 추격 700 | 12.95 / 13.24 | 두 PASS / 두 PASS |
+| 추격 800 | 13.66 / 14.51 | 두 PASS / 두 PASS |
+
+Gate 8회와 진단 6회는 host/guest 28개 exit 0·probe 112/112 PASS다. 실제 지상 700/800 전량·비행 0·무귀속 전량 Active·30 활동 표본, 동일 exe SHA256과 Nav CSV를 검증했다. assert/ensure/fatal/Unhandled Exception·UnknownHits/EnvelopeEscapes/LayerJumps/violations·ProjectileGridMismatch/RewindCacheMismatch는 0이다. 기존 Mover 초기화/out-of-band·CMC 추출 오류와 headless 입력 fault는 남아 있으며 새 불변 위반이나 이번 변경의 오류로 분류하지 않는다. trace/stride64의 프레임은 위 Gate 반복에 섞지 않는다.
+
+### 현재 월드 query 비용과 판단
+
+ProfileStride 0인 네 trace의 서버 processor inclusive 호출당 값은 자연 700/800 1.5366/1.6084ms, 추격 700/800 1.7048/1.8254ms다. 병렬 부모/하위 범위와 다른 소비자의 exact 비용은 중복 합산하지 않는다. 이전 단위 2의 월드 wrapper 수치를 현재 병목 근거로 사용하지 않았다.
+
+`ProjectileMandatory`는 약 502.6~502.7 query/프레임, Report의 반올림 평균 1.52~1.56us이며 약 0.764~0.784ms/프레임의 query 비용이다. 해당 클래스의 lock probe 합은 약 0.031~0.032ms/프레임이다. 기존 `LNPLoadBaseline`은 코드로 LockProbe=1을 강제해 query 직전에 추가 읽기 락을 잡는다. 이번 분석도 실제 Report의 LockProbe=1을 확인했다. 기존 기준선과 같은 harness 조건이며 이 결과를 진단 Off인 일반 플레이 비용으로 확대하지 않는다.
+
+stride64 N700/N800Chase는 각각 완결된 28개 창·2,399/2,082프레임·1,204,008/1,047,259 투사체 프레임·18,812/16,363표본이다. World wrapper는 전체 투사체를 계측하며 호출 평균 1.752/1.761us·약 0.879/0.886ms/프레임이다. 시계/scope 비용을 포함하고 Targets/Filter/Rewind/Capsule 등은 중첩·샘플 확장 추정이므로 합산하거나 순수 CPU로 단정하지 않는다. RemoteSamples/RewindApplied는 양쪽 0이다. 합성 현재 위치 부하이며 실제 원격 gameplay/되감기 검증은 별도다.
+
+최신 기본 경로의 모든 trace 없는 frame/path Gate가 통과했고 월드 query 추가 최적화의 순이득은 입증하지 않았다. 이번 단위에서는 horizon/별도 hit 캐시를 추가하지 않고 서버·Ghost·탄도 가이드의 공통 exact segment·첫 월드 hit·차폐 경로를 유지한다. RewindCache 기본 활성화 보류도 유지한다. 이 판단은 모든 미래 편성의 병목 부재나 Phase 13의 비행/혼합/총수 합격을 의미하지 않는다.
+
+### 관련 자동화와 남은 사용자 검증
+
+같은 빌드의 UnrealEditor-Cmd로 자동화 12개 succeeded/failed 0/notRun 0/succeededWithWarnings 0·프로세스 exit 0이다. 기존 단위 3c 10개(SegmentCapsule 3·SpatialGrid 2·RewindCache 1·DormantConsumers·WanderReplication.Rewind·ProjectileArc·EarliestHit)에 WorldCollision.Api/DynamicMarkerHit를 추가했다. 에셋을 저장하는 테스트는 포함하지 않았다. 실행기/결과는 `Saved/Tests/Phase12_Unit4`, 로그는 `Saved/Logs/Phase12_Unit4.log`다.
+
+패키지 측정과 자동화 종료 뒤 사용자에게 에디터 재실행·TestMap03 리슨 2P 실제 플레이를 요청했다. ProfileStride 64·RewindCache 0의 별도 진단에서 호스트/게스트 Actor/PureEntity 조준·피격, 게스트 이동/배회 적 사격 약 60초, 벽 뒤 직격 차폐(스플래시 구분), 투사체 패링/반사 지속 비행·피격·양쪽 Ghost 정리를 확인한다. 사용자 응답과 해당 로그/MCP 확인은 아직 없다. 자동화/합성 부하만으로 실제 패링·조준 gameplay를 확인했다고 하지 않는다.
+
+단위 4와 Phase 12는 사용자 통합 검증까지 완료 처리하지 않는다. 검증 후 ProfileStride 0 복구·완료 인계 문서를 정리하고 다음 작업 진행을 확인한다. Phase 13은 별도 보류이며 D-054 총수/비행 200을 유지한다.
+
+### 사용자 통합 플레이 확인·단위 4 및 Phase 12 완료 (2026-10-05)
+
+사용자가 실제 호스트·게스트 양쪽에서 기본 조준·피격·월드 차폐·패링 넉백·패링 반사를 테스트했고 어색하거나 이상한 점을 발견하지 못했다고 확인했다. 화면의 통합 플레이 결과는 이 사용자 확인 범위로 기록한다. 모든 무기·모든 Ghost 수명주기·모든 지연/LOD 조합을 전수 확인했다고 확대하지 않는다.
+
+MCP로 PIE 종료와 ProfileStride 64·sphere/grid 1·RewindCache/두 validation 0을 확인했다. `AnalyzePhase12RemoteShots.ps1 -OutputDirectory Saved/Profiling/Phase12/Final/Gameplay` 분석 exit 0이며 고정된 Editor.log/Summary.json을 보존했다. 원본 사본 SHA256은 `E657F316FC895F97F9E87241EBBCF22B0788290180259E81917633BA4174C255`다.
+
+- 마지막 리슨 세션의 서버 창 461개·466.081832초·21,233프레임, 투사체 프레임 276,715개·stride64 표본 4,324개다. 창 시간 합이며 연속 사격 시간이나 고유 발사 수가 아니다.
+- 원격 투사체 프레임 표본 398개, 원격 양수 창 161개·162.729801초다. 서버 히스토리 조회/rewindApplied 499,238회를 확보했다. 원격 양수 창에도 호스트/NPC 사격이 포함되므로 모든 비용을 원격 발사당 비용으로 정규화하지 않는다.
+- sphere 510,361회·제외 510,291회·정밀 캡슐 70회다. stage 완결성·호출 불변식 통과, JoinedClient/PIEStopped true·RuntimeErrors 0이다. RewindCache Off여서 cache requests/hits/validation 계수는 모두 0이다. 이번 실행은 캐시나 그리드의 전수 대조가 아니며 앞선 단위의 대조 근거를 보존한다.
+- 고정 로그 전체에 투사체 패링 성공 49회·근접 패링 성공 6회·PureEntity HP 기록 629개·GE HP 기록 321개가 있다. 이는 로그 이벤트 수이며 고유 투사체/적 수나 클라이언트별 피해 확정 건수로 해석하지 않는다. 실제 패링 이벤트와 피격 경로가 실행됐다는 보조 근거다.
+
+기능 진단 종료 뒤 MCP Slate의 콘솔 입력으로 `LNP.Projectile.ProfileStride 0`을 실행하고 SearchCVars 실제 값 0을 확인했다. RewindCache와 두 validation은 0·sphere/grid는 1을 유지한다. 임시 Slate observer 두 개는 제거했다. 진단 원격 사격의 에디터 프레임/계측 CPU를 최종 패키지 Gate와 혼합하지 않는다.
+
+단위 4와 Phase 12 완료 조건을 충족했다. 채택한 정확한 캡슐·sphere·서버 현재 위치 공간 필터는 유지하고, RewindCache 기본 활성화 및 월드 horizon/별도 hit 캐시는 채택하지 않는다. 최종 코드/패키지·자동화 12개·14회 리슨 2P·trace 없는 700/800 교차 Gate·실제 사용자 통합 플레이/원격 로그와 한계를 Current/Phase12/Roadmap 및 Phase13 실행서에 인계했다. 문서와 분석 실행기만 수정했고 런타임 바이너리/에셋은 단위 3c 최종 빌드/cook 그대로다.
+
+Phase 13의 최종 성능·활동 대역 총수·production/항상 활성·비행 관통/혼합 부하와 D-054 검토는 남아 있다. Phase 13은 자동 완료하거나 재개하지 않고 다음 구현 단위 진행 확인을 받는다. 재개 첫 단위는 최신 기본 패키지의 Pod 귀속 production 대조이며 완료한 무귀속 지상 반복은 새 변경/실패 없이 반복하지 않는다.
+
+### 완료 뒤 근접 되감기 입력의 워커 조회 제거 (2026-10-05)
+
+사용자가 근접 판정 워커 안의 PlayerState 핑·IsLocallyControlled 조회를 원거리 발사 시점 캐시와 유사하게 고친 뒤 이번 세션 변경을 커밋하도록 요청했다. 소스 세 파일만 수정했다. `FLNPWeaponTraceFragment`에 CachedRewindSeconds/bInstigatorIsRemoteClient를 추가하고 게임 스레드 NotifyBegin의 서버 PlayerState가 있을 때 RTT/2(상한 200ms)와 원격 여부를 저장한다. 워커는 캐시만 읽으며 공격자 Mass→Actor→PlayerState 역조회와 그 때문에 필요한 include를 제거했다. PureEntity 적은 기본값 0/false를 사용한다. 근접 보간 지연 가산 Off·클라이언트 로컬 예측·판정 형상/순서 규칙은 유지한다. 핑은 판정 프레임마다 갱신하지 않고 스윙 시작 값으로 고정하는 요청한 동작 변경이다.
+
+최초 전체 빌드는 MaxPingRewindSeconds 정의 헤더 누락으로 실패했다. include를 LNPPositionHistoryFragment.h로 바로잡은 뒤 `LootNPopEditor Win64 Development -WaitMutex -NoHotReloadFromIDE` 빌드 성공·exit 0이다. 빌드 로그는 `Saved/Logs/MeleeThreadCache_Build.log`에 보존했다. 관련 기존 자동화 12개 succeeded/failed 0/notRun 0/warnings 0·프로세스 exit 0이며 결과는 `Saved/Tests/MeleeThreadCache`, 로그는 `Saved/Logs/MeleeThreadCache.log`다. 근접 processor 소스에 GetPlayerState/GetPingInMilliseconds/IsLocallyControlled/ActorSubForRewind가 남지 않은 것과 diff 공백 검사를 확인했다. 이 자동화는 기존 판정/되감기 회귀이며 실제 NotifyBegin→원격 근접 공격의 새 플레이 증거로 확대하지 않는다.
+
+이 후속 수정으로 game 패키지를 다시 빌드/cook하거나 실제 PIE 플레이를 다시 수행하지 않았다. 위 Phase 12 완료 패키지·성능·사용자 통합 플레이 근거는 후속 수정 전 코드다. Phase 13 재개 시 이 수정을 포함한 새 game 패키지를 빌드/cook하고 SHA256·실제 측정 편성/설정을 다시 기록해야 한다. 사용자의 작은 수정/커밋 요청 범위를 넘어 Phase 13 구현이나 추가 성능 측정을 시작하지 않는다.
