@@ -19,7 +19,7 @@ namespace LNP::Replication
 	/** 실제 버블 갱신 판정. true일 때 호출자가 MarkItemDirty한다. */
 	LOOTNPOP_API bool UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTransform& Transform,
 		const FLNPEnemyFragment& Enemy, const FLNPEnemyActionFragment* Action,
-		const FLNPReplicatedWanderData& Wander, double Time, float UpdateInterval);
+		const FLNPReplicatedWanderData& Segment, double Time, float UpdateInterval, bool bReplicateWander = true);
 }
 
 /**

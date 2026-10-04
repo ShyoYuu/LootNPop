@@ -1,14 +1,26 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 13 진행 중 — 단위 5 후속 묶음 2 완료, 다음 진행 확인 대기
+> 현재 Phase: Phase 13 진행 중 — 단위 5 후속 묶음 5 구현·검증 진행, 마지막 패키징 권한 요청 거절로 검증 미완료
 > 마지막 갱신: 2026-10-04
 
 ## 현재 목표와 다음 행동
 
-**후속 묶음 2 완료**다. 사용자 에디터/무거운 작업 종료 확인 후 같은 Phase 13 패키지의 자연 700 리슨 2P를 trace 없이 두 번 실행했다. 프레임 P95 14.70/14.95ms·경로 tick P95 0.753/0.611ms로 둘 다 frame/path Gate PASS다. 네 host/guest exit 0·probe 16/16 PASS·assert/ensure/fatal·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. Nav 요청/timing은 7,433/8,249행으로 제출 수·키 일치·중복/누락/시간 역전 검사를 통과했다. 원본과 `Summary.json`·`Validation.json`은 `Saved/Profiling/Phase13/NaturalRecheck`다. 실제 late join·지상/비행 화면·동일 게스트 NetID 48개(비행 6개 포함)의 제거/재추가도 통과했다. 에디터/게임/Insights는 종료 상태다. 이번 묶음에 gameplay·Content·Config 변경이나 새 빌드/cook은 없다. 아래 중간 진행 기록은 완료 전 경과다.
+**후속 묶음 5 미완료**다. 관찰 자리 선택·production 스폰 반경 입력·같은 서버 구간 이동의 PositionYaw 복제 대조·실제 종류별 활동 수·컬 거리 안 배회 표본을 구현했다. 전체 에디터 빌드 성공(60.92초), 관련 자동화 13/13·경고/오류 0, 반경 1,500cm 1P에서 Pod 120개·적 1,320개 전부 배치했다. 최초 패키지 리슨 실행은 게스트 Iris reliable 큐 ensure와 관찰 폰 이탈로 실패했다. 관찰 폰 Mover 정지 모드·게스트 60fps·폰 이탈 검사 수정 패키지의 교차 네 실행은 frame/path PASS·host/guest 8개 exit 0·probe 32/32·Nav CSV 검사 통과·assert/ensure/fatal/불변 위반 0이다. 실제 지상 720·비행 600·귀속 1,320개가 유지됐다. 그러나 컬 안 배회 평균은 지상 0.47~1.93·비행 0.87~1.50으로 부족했고 연결 수신량 차이 0.15%를 개선 근거로 사용하지 않는다. 근거는 `Saved/Profiling/Phase13/WanderComparisonFixed`다.
 
-**다음 묶음은 production 성능과 충분한 배회 대역의 대역폭/총수 Gate 검증**이다. 이전 production 실패와 대역폭 미입증을 유지하며 Phase 13 완료·D-054·총수 상향을 선언하지 않는다. 사용자 진행 확인 전 다음 묶음에 착수하지 않는다.
+마지막으로 production 관찰자만 NPC 인지 후보에서 제외하고 활동 거리 판정에는 계속 참여하도록 소스를 보완했다. **이 마지막 변경의 추가 BuildCookRun 권한 요청이 거절되어 빌드/cook/실행을 하지 못했다.** 마지막 소스가 현재 패키지에 들어 있다고 보고하지 않는다. 에디터/게임은 종료 상태다. 다음은 사용자가 추가 패키징을 허용할 때 `Saved/SurfaceNavigationPhase13ObserverIsolatedPackage`를 빌드/cook하고 `Saved/Profiling/Phase13/WanderComparisonIsolated/RunComparison.ps1`·`AnalyzeComparison.ps1`로 교차 실행·검사하는 것이다. 양쪽 종류의 컬 안 배회/구간 평균 12개 이상·28개 이상 표본을 검증하고, 같은 관찰 위치·스폰 수·실제 복제 대조 모드를 확인해야 한다. 이 조건은 배회 전용 합성 대조이며 production 전투 성능 Gate나 최대 총수를 대체하지 않는다. 현재 구현 단위와 Phase 13·대역폭/총수 Gate는 완료 처리하지 않는다.
+
+아래는 앞선 묶음의 기록이다. 위 미완료 상태가 우선한다.
+
+**후속 묶음 4 완료**다. 사용자가 `DA_MassSpawnConfig`는 임시값이며 테스트용으로 크게 변경해도 된다고 승인했다. Unreal MCP 재연결 후 에셋을 저장·변경·읽기 검증했다. Pod 120개 유지, 비행 편성 Pod 46→100개·비행 요청 200→600개, 지상 요청 1,680→720개다. 각 Pod는 지상 PureEntity 근접 4·원거리 2, 비행 편성은 6기다. ActorPromoted 항목은 Count 0으로 제외했다. SpawnSetId·배치 거리/반경은 유지했다. TestMap03 일반 PIE에서 Pod 120개·적 1,306/1,320개 배치 완료와 사용자 지상/비행 배회 자연스러움을 확인했다. 적 배치 부족 14개 때문에 정확한 총수 성능 표본은 아니다. 지상/비행 실제 개별 수·대역별 수는 아직 미계측이다. assert/ensure/fatal·Mass 순서 위반 0, 기존 Mover/CMC 로그와 후보 부족 오류는 남아 있다. 증거는 `Saved/Tests/Phase13_WanderComposition`, 상세는 Phase 13 로그다. PIE는 종료했고 에디터/MCP는 유지한다.
+
+**다음은 관찰 거리·배회 표본·위치 갱신 대조 조건을 계측하는 구현**이다. 새 에셋의 배치 부족과 지상/비행 실제 수를 확인하고 정량 표본을 확보한다. 기존 패키지는 이전 에셋을 담고 있으므로 새 편성 측정에는 재cook이 필요하다. 전체 빌드/cook이 필요한 시점에 즉시 에디터 저장·종료를 요청한다. 새 편성은 개발용 테스트 조건이며 D-054·성능 검증된 총수 상한 변경이 아니다. production 실패·대역폭/총수 Gate·Phase 13 완료는 여전히 미해결이다. 사용자 진행 확인 전 다음 구현에 착수하지 않는다.
+
+아래는 앞선 묶음의 결과와 경과다. 과거 시점의 대기/미실행 표시는 위 현재 상태보다 우선하지 않는다.
+
+**후속 묶음 3 완료**다. 사용자가 에디터/무거운 작업 종료와 같은 전원/성능 조건을 확인한 뒤 같은 패키지의 production 두 번→항상 활성 두 번을 trace 없이 실행했다. production 1,801개 프레임 P95 24.80/18.23ms, 항상 활성 24.18/24.13ms로 모두 프레임 FAIL·경로 PASS다. host/guest 8개 exit 0·probe 32/32 PASS·assert/ensure/fatal·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. Nav 요청/timing 1,377/1,381/4,213/4,462행의 수·키·순서 검사를 통과했다. 원본·Summary/Validation은 `Saved/Profiling/Phase13/ProductionRecheck`다. 지상 배회 표본 0~24·비행 0~3/0이며 연결 전체 수신량 감소는 미입증이다. 교차 순서나 동일 행동 상태의 대조로 해석하지 않는다. 분석기에 입력 폴더 선택만 추가했고 gameplay·Content·Config 변경과 새 빌드/cook은 없다. 에디터/게임/Insights는 종료 상태다. 앞선 자연 700 두 반복과 실제 late join·화면·동일 게스트 bubble 재추가 합격은 유지한다. 상세 이력은 `history/Phase13_Log.md`를 따른다.
+
+**다음 묶음은 충분한 지상/비행 배회를 복제 컬 안에서 관찰하는 부하 시나리오와 위치 갱신 대조 조건 구현**이다. 플레이어·Pod 거리와 실제 배회/구간 소비 수를 기록해 대역폭 측정 가능성을 먼저 검증한다. production 프레임 실패의 비용 분해·필요한 수정과 총수 Gate도 남아 있다. 기존 패키지 반복만으로 이를 해결했다고 보고하지 않는다. 사용자 진행 확인 전 다음 묶음에 착수하지 않는다. MCP가 효율적이면 즉시 연결 요청, 전체 빌드가 필요하면 즉시 에디터 저장·종료 요청을 한다. Phase 13 완료·D-054·총수 상향은 미완료/유지다. 아래는 이전 묶음의 경과다.
 
 사용자는 호스트·게스트 양쪽의 지상 배회·접지도 자연스럽다고 확인했다. 지상/비행 화면·실제 late join·동일 개체 bubble 제거/재추가 검증을 통과했다. PIE를 종료했고 `PIESession.log`·`PIEAudit.json`을 보존했다. 세션 assert/ensure/fatal·스케줄 순환 0이며 기존 Mover/CMC 로그는 남아 있다. 에디터 종료와 동일 측정 조건 확인 후 자연 700 trace 없는 두 반복을 진행한다. 아직 후속 묶음 2 완료나 다음 단위 착수 승인을 요청하는 단계는 아니다.
 

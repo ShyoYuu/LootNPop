@@ -371,7 +371,12 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	}
 
 	const float MinDist          = InConfig->MinDistanceBetweenPods;
-	const float EnemyRadius      = InConfig->EnemySpawnRadiusAroundPod;
+	float EnemyRadius = InConfig->EnemySpawnRadiusAroundPod;
+	if (LNPLoadBaseline::IsProduction())
+	{
+		FParse::Value(FCommandLine::Get(), TEXT("LNPLoadBaselineSpawnRadius="), EnemyRadius);
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ProductionSpawnRadius=%.0fcm"), EnemyRadius);
+	}
 	const ALNPGameState* GameState = GetWorld()->GetGameState<ALNPGameState>();
 	const int32 WorldSeed = bBaseline
 		? LNPLoadBaseline::GetSeed()

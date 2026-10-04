@@ -24,6 +24,9 @@ class ULNPMassWorldCollisionSubsystem;
  *     -LNPLoadBaselineQuit        보고 뒤 프로세스를 종료한다(무인 실행)
  *     -LNPLoadBaselineProduction  일반 Pod 귀속 스폰을 측정한다. 적 수는 에셋과 EnemyDensity로 정하며 링·강제 리스폰·합성 넉백을 사용하지 않는다.
  *     -LNPLoadBaselineAlwaysActive  Production 측정의 대조군으로 모든 Pod 무리를 항상 활성으로 유지한다.
+ *     -LNPLoadBaselineObserveWander  Production에서 지상·비행 관찰 자리로 리스폰한다. 관찰자는 이동하지 않고 인지 후보에서 제외되며 활동 거리 판정에는 참여한다.
+ *     -LNPLoadBaselineWanderPoseControl  같은 서버 구간 이동을 유지하고 구간 대신 PositionYaw를 복제한다(Production 전용).
+ *     -LNPLoadBaselineSpawnRadius=1500  Production의 Pod 주변 스폰 반경만 덮어쓴다(cm). 에셋은 변경하지 않는다.
  *     -LNPLoadBaselineChase       네 가상 지각 목표(링 중심에서 25m)를 5초마다 교체해 지상 적의 실제 경로 추종 부하를 만든다
  *     -LNPLoadBaselineVolumetric  회귀 옥탄트의 공동·복층·긴 경사로 Nav node에 배치하고 공동/상층 목표를 추격한다.
  *                                서버·클라이언트 모두 지정한다. production pool은 바꾸지 않으며 비행 수는 0으로 둔다.
@@ -58,6 +61,8 @@ namespace LNPLoadBaseline
 	/** 모든 스레드. 지상·비행 적 수의 합이 0이면 harness가 꺼져 있다. */
 	LOOTNPOP_API bool IsActive();
 	LOOTNPOP_API bool IsProduction();
+	LOOTNPOP_API bool IsWanderObservation();
+	LOOTNPOP_API bool IsWanderPoseControl();
 	/** Phase 7b: 네 가상 목표를 향한 실제 경로 추종 부하. */
 	LOOTNPOP_API bool IsSyntheticChase();
 	LOOTNPOP_API int32 GetSeed();
@@ -122,6 +127,7 @@ protected:
 private:
 	bool IsReadyToMeasure() const;
 	void RespawnPlayersAtRing();
+	bool SelectWanderObserver();
 	void TopUpProjectiles();
 
 	/** 서버. 합성 넉백을 주고 적 이동 이벤트·분포를 센다. bCount가 false면 상태만 갱신한다(warm-up). */

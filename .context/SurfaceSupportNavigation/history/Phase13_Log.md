@@ -272,3 +272,86 @@ TestMap03 floating PIE의 기존 리슨 서버/단일 프로세스/플레이어 
 실제 EnemyEntities는 두 실행 모두 700이다. host/guest 네 exit 0·probe 16/16 PASS·assert/ensure/fatal·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. Nav 제출 수·요청/timing 키 일치·중복·누락·시간 역전 검사를 통과했다. 기존 Mover/CMC 로그는 남아 있다. guest 연결 전체 수신량은 78,800.2/93,957.7B/s이나 무귀속 링 시나리오이며 Wander Dirty 0이므로 구간 배회 대역폭 개선 근거로 사용하지 않는다.
 
 실제 late join·양쪽 지상/비행 화면·동일 게스트/개체 bubble 재진입과 자연 700 재검증을 끝내 **후속 묶음 2 완료**로 기록한다. 앞선 성능 실패는 삭제하지 않는다. 이번 묶음에 gameplay·Content·Config 변경이나 새 빌드/cook은 없고 에디터/게임/Insights는 종료 상태다. Phase 13 전체·단위 5·D-054·총수 상향은 미완료/유지다. **다음은 production 성능과 충분한 배회 대역의 대역폭/총수 Gate 검증**이며 사용자 진행 확인 전 착수하지 않는다.
+
+## 2026-10-04 — 단위 5 후속 묶음 3: production 재측정과 분석 입력 보완
+
+사용자의 이어서 진행 요청으로 착수했다. 에디터·게임·Insights와 다른 무거운 작업 종료 및 이전과 같은 전원/성능 조건을 사용자에게 확인받았다. 이번 묶음은 기존 패키지의 production 성능 재검증·활동/복제 분석으로 한정하고, 다음 부하 시나리오 구현 전에 진행 확인을 받는다. 기존 패키지로 가능한 검증이므로 MCP 연결·새 빌드/cook은 필요하지 않았다.
+
+### 구현·실행과 기능 검사
+
+- `AnalyzePhase13Gate.ps1`에 `InputDirectory`만 추가했다. 기본 `After` 입력은 유지하고 이번 결과는 별도 폴더에서 분석한다. 구문 검사·실제 분석·검사 exit 0, `git diff --check` 정상이다.
+- 같은 Phase 13 패키지 SHA256 `AF435B31F283DC2D7D59B208053A7281565C7974E51D45A57EA9E48F4D2667E7`, seed 1·투사체 목표 500·리슨 2P·nullrhi·corelimit 4·10초 준비/30초 측정·trace 없음이다.
+- 실행 순서는 **production 반복 1→production 반복 2→항상 활성 반복 1→항상 활성 반복 2**다. 최초 사용자 업데이트에서 교차 순서라고 잘못 설명했으나 실제 실행기 순서를 확인해 진행 중 정정했다. 교차 대조로 보고하지 않는다.
+- 네 리슨 2P의 host/guest 8개 exit 0·probe **32/32 PASS**, assert/ensure/fatal·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. 기존 Mover/CMC 로그는 남아 있어 전체 오류 0으로 보고하지 않는다.
+- Nav 요청/timing은 실행 순서대로 **1,377/1,381/4,213/4,462행**이다. 각 실행의 제출 수·행 수·키 일치·중복/누락·시간 역전 검사를 통과했다.
+- 원본 로그·exit·Nav CSV·`Summary.json`·`Validation.json`·재사용한 임시 `Validate.ps1`은 `Saved/Profiling/Phase13/ProductionRecheck`에 보존했다. 임시 검사는 기존 NaturalRecheck 검사에서 예상 완료 실행 수만 4개로 변경했다.
+
+### 결과와 제한
+
+| 실행 | frame P95(ms) | exact P95(ms) | 게스트 연결 B/s | frame/path Gate |
+|:---|---:|---:|---:|:---|
+| production 1 | 24.80 | 2.898 | 23,847.8 | FAIL/PASS |
+| production 2 | 18.23 | 2.219 | 22,043.5 | FAIL/PASS |
+| 항상 활성 1 | 24.18 | 4.954 | 19,110.3 | FAIL/PASS |
+| 항상 활성 2 | 24.13 | 4.959 | 19,943.9 | FAIL/PASS |
+
+실제 개체는 모두 지상 1,601·비행 200·귀속 1,801이다. production 지상 휴면은 1,133/1,122·비행 휴면은 176/173으로 capture 내 일정하다. 지상 배회는 두 반복 모두 0~24개(평균 16.8/13.2), 비행 배회는 0~3개(평균 1.2)/0개다. 항상 활성은 지상 1,601·비행 200 모두 Active·휴면/배회/구간 0이다. 첫 production의 마지막 표본만 보고 비행 배회 0이라고 업데이트했으나 전체 표본 집계 후 정정했다.
+
+production 구간 Dirty는 134/239이며 Pose Dirty는 7,319/8,081이다. 항상 활성 Pose Dirty 7,322/7,133·구간 Dirty 0이다. 사유는 중복될 수 있고 클라이언트별 합계다. 연결 전체 수신량은 production 쪽이 낮지 않으며 충분한 배회 대역도 확보되지 않았다. NPC 전용 wire 비용이나 배회 절감률을 입증하지 못했다.
+
+production 반복 간 frame P95 차이는 6.57ms이고 첫 반복은 항상 활성보다도 높다. same seed가 동일 프레임 수·Actor 승격·행동 분포를 보장하지 않으므로 이 대조로 고정 절감률이나 새 병목을 확정하지 않는다. 휴면 적용과 exact 비용 감소는 관찰했지만 **production 프레임 Gate 실패가 재확인**됐다. 앞선 자연/추격 700 합격과 production 실패는 각각 유지한다. 이번에는 CPU trace를 재측정하지 않아 원인 귀속이나 gameplay 수정을 추가하지 않았다.
+
+### 인계
+
+**후속 묶음 3 완료, 다음 진행 확인 대기**다. 다음 묶음은 충분한 지상/비행 배회를 복제 컬 안에서 관찰하는 부하 시나리오와 위치 갱신 대조 조건 구현이다. 플레이어·Pod 거리와 실제 배회·구간 소비 수를 기록해 먼저 대역폭 측정 가능한 조건을 확인한다. production 실패 비용 분해·필요한 수정과 총수 Gate도 남아 있다. 단위 5 전체·Phase 13 완료와 D-054 변경은 하지 않는다. gameplay·Content·Config 변경이나 새 빌드/cook은 없고 에디터/게임/Insights 프로세스 없음 확인 후 종료했다.
+
+## 2026-10-04 — 단위 5 후속 묶음 4: 배회 검증용 테스트 편성
+
+사용자가 계속 진행을 승인하고 `DA_MassSpawnConfig`는 기획 확정값이 아닌 임시값이며 테스트 필요에 따라 크게 변경해도 된다고 명시했다. 에셋 구조/일반 스폰 확인은 MCP가 효율적이므로 즉시 에디터/MCP 연결을 요청했다. 사용자 에디터 실행·Codex 재시작 후 읽기 호출로 연결과 PIE 미실행을 확인했다. 등록 Agent Skill에 이번 편성 변경에 해당하는 항목은 없었다.
+
+### 변경
+
+- Pod 총수 120개 유지. `Bench01/Bench01_2/Bench01_3/Bench01_4` 세트 수 74/20/16/10→20/40/30/30이다. 안정 SpawnSetId와 Pod EntityConfig는 유지한다.
+- 세트별 지상 PureEntity 근접 10→4·원거리 2 유지, ActorPromoted 근접 2→0이다. ActorPromoted 항목은 Count 0으로 남겼다.
+- 비행 편성 Pod 46→100개, 비행 3/5/6→모두 6기다. 지상 요청 1,680→720·비행 요청 200→600, 전체 요청 1,880→1,320개다. 이전 실제 1,801개와 요청 수를 혼합하지 않는다.
+- 배치 간격 2,000cm·적 스폰 반경 1,000cm·프레임별 최대 스폰 50은 유지한다. 비행 headroom·접지·활동 경계 규칙을 바꾸지 않았다. 테스트 편성이며 D-054나 합격 총수 상한 변경이 아니다.
+- 최초 도구 호출은 배열 축소와 원소 값 변경을 같이 요청해 ArrayRemove 모호성으로 실패했다. PodSetCount만 부분 적용된 것을 읽기로 확인했고, 배열 크기를 유지하며 ActorPromoted Count를 0으로 바꿔 최종 상태를 적용했다. 저장/최종 읽기 일치·is_dirty=false를 확인했다. 초기 orchestration의 `structuredClone` 미지원 오류는 변경 호출 전에 발생했고 JSON 복사로 수정했다.
+
+### 일반 PIE 확인과 제한
+
+TestMap03 floating PIE 기존 설정(플레이어 1명)으로 스폰을 확인했다. 세트별 Pod 요청/배치 20/20·40/40·30/30·30/30, 적 요청/배치 **120/120·480/471·360/360·360/355**다. 총 Pod 120개·적 **1,306/1,320개**이고 후보 부족 14개가 있다. `All entities spawned`는 만들어진 큐 소비 완료이지 요청 수 전부 성공이라는 뜻이 아니다. 로그가 종류별 수를 기록하지 않아 실제 지상 720·비행 600으로 보고하지 않는다. 초기화 합계 1,426개는 Pod 120개를 포함한다.
+
+사용자는 비행 드론이 있는 Pod에서 약 80~100m 관찰 요청 뒤 **드론이 늘었고 지상·비행 양쪽 배회도 자연스럽다**고 확인했다. 이번은 단일 PIE 화면 확인이며 신규 편성의 리슨 2P/게스트·패키지 성능·정량 배회 수/대역폭 검증은 아니다. 후보 부족이 있으므로 정확한 총수 성능 표본으로 사용하지 않는다.
+
+PIE를 MCP로 종료하고 IsPIERunning=false를 확인했다. 세션 assert/ensure/fatal·Mass 순서 위반 0이다. 후보 부족 오류와 기존 Mover/CMC 로그는 남아 있어 전체 오류 0으로 보고하지 않는다. 에셋 SHA256은 `298D2CDF76C6648FDCC4BDDE7E2AD8DCED4AF1EA296AC0A09559893BE7448F6F`다. 변경 전/후 JSON·`SpawnSession.txt`·`PIESession.log`·세트별 `SpawnAudit.json`은 `Saved/Tests/Phase13_WanderComposition`에 보존했다.
+
+**편성 변경 구현 단위(후속 묶음 4) 완료, 다음 진행 확인 대기**다. 다음은 배치 부족/실제 종류별 수와 관찰 거리·충분한 배회 표본·위치 갱신 대조 조건의 계측 구현이다. 이번 C++/Config 변경·새 빌드/cook은 없으며 이전 패키지는 이전 에셋을 담고 있다. 새 편성 패키지 검증 전에 재cook한다. 에디터/MCP는 유지한다. production 실패와 Phase 13·단위 5 전체·대역폭/총수 Gate는 미완료다.
+
+## 2026-10-04 — 단위 5 후속 묶음 5: 배회 관찰·위치 갱신 대조 계측 (검증 미완료)
+
+사용자의 진행 승인, 에디터 저장·종료 및 같은 전원/성능 조건 확인 후 착수했다. production 전용 스폰 반경 1,500cm override, 지상/비행 배회 관찰 위치 선택, 복제 컬 거리 안의 배회/구간 수 계측, 같은 서버 배회를 PositionYaw로 보내는 대조 조건을 추가했다. 에셋의 반경 1,000cm는 유지한다. 컬 계측은 가장 가까운 플레이어 거리 기준이며 실제 bubble membership이 아니다.
+
+### 검증된 구현과 시행착오
+
+- Editor 전체 빌드 성공, Activity/Wander/MassSpawn 자동화 **13개 성공**이다. PositionYaw 대조 테스트는 구간 전송 억제·위치/HP 전달·서버 입력 구간 보존을 확인한다. 이 테스트 결과는 뒤에 추가한 관찰자 고정/인지 제외 변경의 검증으로 확대하지 않는다.
+- 1P smoke에서 Pod 120·적 요청/배치 **1,320/1,320**, 실제 지상 720·비행 600을 확인했다. production override로 이전 편성의 후보 부족을 해소했다.
+- 최초 패키지 2P 측정은 무제한 FPS 게스트의 reliable RPC queue ensure와 관찰자 위치 이탈로 무효다. 이를 성공 표본으로 사용하지 않는다. 관찰자를 기존 Mover EnterDeadMode로 고정하고 이 두 측정 case에만 게스트 60FPS 제한, 관찰 위치/인원 검사를 추가했다.
+- 수정 패키지는 build/cook 성공 후 **구간 1→PositionYaw 1→PositionYaw 2→구간 2** 순서로 실행했다. host/guest 8개 exit 0, probe **32/32 PASS**, assert/ensure/fatal·활동/지원 불변식 위반 0이다. 매 표본 지상 720·비행 600·귀속 1,320, 네 스폰 세트 전부 요청 수를 채웠고 같은 패키지·관찰 위치를 확인했다.
+- Nav CSV는 실행 순서대로 206/205/220/165행이며 제출 수·키·중복/누락·시간 역전 검사를 통과했다. `git diff --check` 정상이다.
+
+| 실행 | frame P95(ms) | exact P95(ms) | 게스트 연결 B/s | 컬 안 지상/비행 배회 평균 |
+|:---|---:|---:|---:|:---|
+| 구간 1 | 12.44 | 1.57 | 16,843.7 | 0.47/1.07 |
+| PositionYaw 1 | 12.59 | 1.57 | 16,990.3 | 1.93/0.87 |
+| PositionYaw 2 | 12.34 | 1.56 | 16,846.7 | 1.93/1.50 |
+| 구간 2 | 12.40 | 1.55 | 16,943.8 | 1.13/1.43 |
+
+네 실행 frame/path Gate는 PASS다. 구간/PositionYaw 연결 전체 평균은 16,893.75/16,918.5 B/s로 차이는 약 0.15%지만 컬 안 배회 표본이 부족하므로 **배회 대역폭 절감 입증으로 사용하지 않는다**. NPC 전용 wire 비용·production 전투 성능·최대 총수 Gate도 입증하지 않았다.
+
+### 마지막 변경과 인계
+
+근처 인지/활동 유지 때문에 컬 안 배회가 충분하지 않은 조건을 보완하려고 `IsWanderObservation()`을 추가하고 관찰자만 Enemy Scoring의 인지 후보에서 제외했다. 활동 대역 거리 질의는 유지하고 정상 gameplay에서는 적용하지 않는다. 이는 격리된 배회 복제 대조 조건이며 일반 production 전투 조건이 아니다.
+
+이 마지막 변경을 담는 `SurfaceNavigationPhase13ObserverIsolatedPackage`의 BuildCookRun 권한 요청이 **사용자 거절로 실행 전에 중단**됐다. 재시도하지 않았다. 따라서 마지막 인지 제외 소스는 **컴파일·cook·자동화·리슨 측정 미검증**, 후속 묶음 5는 미완료다. 사용자가 최종 build/cook 실행을 허용하면 새 패키지로 ABBA를 재측정하고 28개 이상 표본 및 지상/비행 각각 평균 12개 이상의 컬 안 배회를 먼저 확인한다. 에디터·게임·Insights 프로세스는 종료 상태다.
+
+빌드/자동화/smoke 증거는 `Saved/Tests/Phase13_WanderComposition` 및 `Saved/Tests/Phase13_ObserverRegression`, 최초 실패는 `Saved/Profiling/Phase13/WanderComparison`, 검증된 네 대조는 `Saved/Profiling/Phase13/WanderComparisonFixed`에 보존했다. `WanderComparisonIsolated`에는 다음 실행/분석 스크립트만 준비돼 있다. Current·Phase13·ValidationAndMigration에 같은 미검증 경계를 기록했다. 이전 production 프레임 Gate 실패·D-054·Phase13 전체 미완료 상태는 유지한다.

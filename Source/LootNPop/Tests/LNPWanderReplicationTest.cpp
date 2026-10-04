@@ -162,6 +162,31 @@ bool FLNPWanderClientTest::RunTest(const FString& Parameters)
 	return !HasAnyErrors();
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPWanderPoseControlTest, "LootNPop.SurfaceNavigation.WanderReplication.PoseControl",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLNPWanderPoseControlTest::RunTest(const FString& Parameters)
+{
+	FLNPMassFastArrayItem SegmentItem, PoseItem;
+	FLNPEnemyFragment Enemy;
+	const auto Data = FlightData();
+	FTransform Transform(TestSegment().Start);
+	LNP::Replication::UpdateEnemyAgent(SegmentItem, Transform, Enemy, nullptr, Data, 20.0, 0.3f);
+	LNP::Replication::UpdateEnemyAgent(PoseItem, Transform, Enemy, nullptr, Data, 20.0, 0.3f, false);
+	Transform.SetLocation(TestSegment().Evaluate(21.0));
+	TestFalse(TEXT("Segment suppresses moving pose"), LNP::Replication::UpdateEnemyAgent(
+		SegmentItem, Transform, Enemy, nullptr, Data, 21.0, 0.3f));
+	TestTrue(TEXT("Control sends same server position"), LNP::Replication::UpdateEnemyAgent(
+		PoseItem, Transform, Enemy, nullptr, Data, 21.0, 0.3f, false));
+	TestFalse(TEXT("Control does not publish segment"), PoseItem.Agent.GetWander().IsEnabled());
+	TestTrue(TEXT("Control pose matches server"), PoseItem.Agent.GetReplicatedPositionYawData().GetPosition().Equals(Transform.GetLocation(), 1.0));
+	TestTrue(TEXT("Input segment stays enabled"), Data.IsEnabled());
+	Enemy.Health = 50;
+	TestTrue(TEXT("Control still sends health"), LNP::Replication::UpdateEnemyAgent(
+		PoseItem, Transform, Enemy, nullptr, Data, 22.0, 0.3f, false));
+	TestEqual(TEXT("Health agrees between modes"), PoseItem.Agent.GetHealthPct(), FLNPReplicatedAgent::EncodeHealthPct(50, Enemy.MaxHealth));
+	return !HasAnyErrors();
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPWanderRewindTest, "LootNPop.SurfaceNavigation.WanderReplication.Rewind",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLNPWanderRewindTest::RunTest(const FString& Parameters)

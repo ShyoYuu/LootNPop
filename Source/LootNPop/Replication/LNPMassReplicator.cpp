@@ -24,8 +24,10 @@ LNP::Replication::FEnemyReplicationStats LNP::Replication::GetEnemyReplicationSt
 
 bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTransform& Transform,
 	const FLNPEnemyFragment& Enemy, const FLNPEnemyActionFragment* Action,
-	const FLNPReplicatedWanderData& Wander, const double Time, const float UpdateInterval)
+	const FLNPReplicatedWanderData& Segment, const double Time, const float UpdateInterval, const bool bReplicateWander)
 {
+	const FLNPReplicatedWanderData Empty;
+	const FLNPReplicatedWanderData& Wander = bReplicateWander ? Segment : Empty;
 	const uint8 NewAction = Action ? FLNPReplicatedAgent::EncodeActionAndSeq(Action->Action, Action->Seq) : Item.Agent.GetActionAndSeq();
 	const int8 NewPitch = Action ? Action->AimPitch : Item.Agent.GetAimPitch();
 	const uint8 NewHitStop = Action ? Action->HitStopSeq : Item.Agent.GetHitStopSeq();
@@ -146,7 +148,8 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 				EnemyFragments[EntityIdx].Health, EnemyFragments[EntityIdx].MaxHealth));
 		}
 
-		if (EnemyFragments.IsValidIndex(EntityIdx) && IdleFragments.IsValidIndex(EntityIdx) && IdleFragments[EntityIdx].bWanderHandled)
+		if (!LNPLoadBaseline::IsWanderPoseControl() && EnemyFragments.IsValidIndex(EntityIdx)
+			&& IdleFragments.IsValidIndex(EntityIdx) && IdleFragments[EntityIdx].bWanderHandled)
 			InReplicatedAgent.SetWander(FLNPReplicatedWanderData::Encode(IdleFragments[EntityIdx].WanderSegment,
 				InContext.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>(), EnemyFragments[EntityIdx].SurfaceHandle,
 				IdleFragments[EntityIdx].WanderSegment.LocalYaw));
@@ -172,7 +175,8 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 				InContext.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>(), EnemyFragments[EntityIdx].SurfaceHandle,
 				IdleFragments[EntityIdx].WanderSegment.LocalYaw) : FLNPReplicatedWanderData();
 		if (LNP::Replication::UpdateEnemyAgent(Item, TransformFragments[EntityIdx].GetTransform(), EnemyFragments[EntityIdx],
-			ActionFragments.IsValidIndex(EntityIdx) ? &ActionFragments[EntityIdx] : nullptr, Wander, Time, RepParams->UpdateInterval[LOD]))
+			ActionFragments.IsValidIndex(EntityIdx) ? &ActionFragments[EntityIdx] : nullptr, Wander, Time, RepParams->UpdateInterval[LOD],
+			!LNPLoadBaseline::IsWanderPoseControl()))
 			Bubble.MarkItemDirty(Item);
 	};
 

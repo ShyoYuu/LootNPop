@@ -8,6 +8,8 @@
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "Character/LNPPlayerCharacter.h"
+#include "Movement/LNPCharacterMoverComponent.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEntityAttackShared.h"
 #include "GameLogic/LNPMassSpawnSubsystem.h"
@@ -330,6 +332,20 @@ bool LNPLoadBaseline::IsProduction()
 	return bEnabled;
 }
 
+bool LNPLoadBaseline::IsWanderPoseControl()
+{
+	static const bool bEnabled = IsProduction()
+		&& FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineWanderPoseControl"));
+	return bEnabled;
+}
+
+bool LNPLoadBaseline::IsWanderObservation()
+{
+	static const bool bEnabled = IsProduction()
+		&& FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineObserveWander"));
+	return bEnabled;
+}
+
 int32 LNPLoadBaseline::GetSeed()
 {
 	static const int32 Seed = []()
@@ -589,6 +605,13 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 
 	UWorld* World = GetWorld();
 	const double Now = World->GetRealTimeSeconds();
+	if (LNPLoadBaseline::IsWanderObservation())
+	{
+		// 서버/클라이언트 모두 같은 정지 모드로 관찰한다. HP·타겟 가능성·배회 규칙은 유지한다.
+		for (TActorIterator<ALNPPlayerCharacter> It(World); It; ++It)
+			if (auto* Mover = It->GetMoverComponent())
+				Mover->EnterDeadMode();
+	}
 
 	if (Stage == EStage::Waiting)
 	{
@@ -655,6 +678,17 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		}
 		if (bRingCenterFound && World->GetNetMode() != NM_Client && !LNPLoadBaseline::IsProduction())
 		{
+			RespawnPlayersAtRing();
+		}
+		if (World->GetNetMode() != NM_Client && LNPLoadBaseline::IsProduction()
+			&& FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineObserveWander")))
+		{
+			if (!bRingCenterFound || !SelectWanderObserver())
+			{
+				Stage = EStage::Done;
+				FPlatformMisc::RequestExitWithStatus(false, 1, TEXT("No ground/flight wander observer"));
+				return;
+			}
 			RespawnPlayersAtRing();
 		}
 
@@ -748,6 +782,60 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 	}
 }
 
+bool ULNPLoadBaselineSubsystem::SelectWanderObserver()
+{
+	// 지각의 고정 후보 중 활성 경계 밖·복제 컬 안의 양쪽 종류를 가장 많이 관찰할 자리를 고른다.
+	// 실제 배회 여부는 capture 표본으로 따로 확인한다. 거리만으로 교전 상태를 추론하지 않는다.
+	struct FObserverEnemy { FVector Position, Home; float Active, Cull; bool bFlying; };
+	TArray<FObserverEnemy> Enemies;
+	auto& Manager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+	FMassEntityQuery Query(Manager.AsShared());
+	Query.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	Query.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+	Query.AddConstSharedRequirement<FLNPEnemySharedFragment>();
+	FMassExecutionContext Context(Manager, 0.f);
+	Query.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const auto Positions = Ctx.GetFragmentView<FTransformFragment>();
+		const auto Fragments = Ctx.GetFragmentView<FLNPEnemyFragment>();
+		const auto& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
+		for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
+			if (Manager.IsEntityValid(Fragments[I].ParentLootPod))
+				Enemies.Add({ Positions[I].GetTransform().GetLocation(), Fragments[I].ParentPodLocation,
+					Shared.ActivityActiveDistance, Shared.ActivityCullDistance, Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() });
+	});
+	const auto& Collision = *GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	const FVector Direction = RingCenter.GetSafeNormal();
+	FVector T1, T2;
+	MakeTangentBasis(Direction, T1, T2);
+	int32 BestBalanced = 0, BestTotal = 0, BestCounts[2] = {};
+	FVector BestFoot = RingCenter;
+	for (int32 Index = 0; Index < 32; ++Index)
+	{
+		FVector Foot;
+		const FVector Candidate = MakeRingDirection(Direction, T1, T2, Index * UE_PI / 16.f,
+			Index < 16 ? 8000.f : 16000.f, RingCenter.Size());
+		if (!FindCrustNear(Collision, Candidate, Foot))
+			continue;
+		int32 Counts[2] = {};
+		for (const auto& Enemy : Enemies)
+			if (FVector::Dist(Foot, Enemy.Home) > Enemy.Active * 1.1f + 1500.f
+				&& FVector::Dist(Foot, Enemy.Position) < Enemy.Cull - 500.f)
+				++Counts[Enemy.bFlying ? 1 : 0];
+		const int32 Balanced = FMath::Min(Counts[0], Counts[1]);
+		const int32 Total = Counts[0] + Counts[1];
+		if (Balanced > BestBalanced || (Balanced == BestBalanced && Total > BestTotal))
+		{
+			BestBalanced = Balanced; BestTotal = Total; BestFoot = Foot;
+			BestCounts[0] = Counts[0]; BestCounts[1] = Counts[1];
+		}
+	}
+	RingCenter = BestFoot;
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] WanderObserver NoPerception=1 Foot=%s CandidatesGround=%d CandidatesFlight=%d PoseControl=%d"),
+		*BestFoot.ToString(), BestCounts[0], BestCounts[1], LNPLoadBaseline::IsWanderPoseControl() ? 1 : 0);
+	return BestBalanced > 0;
+}
+
 void ULNPLoadBaselineSubsystem::RespawnPlayersAtRing()
 {
 	UWorld* World = GetWorld();
@@ -805,6 +893,10 @@ void ULNPLoadBaselineSubsystem::RespawnPlayersAtRing()
 		}
 		const FVector Up = -Foot.GetSafeNormal();
 		GameMode->RestartPlayerAtTransform(PC, FTransform(UKismetMathLibrary::MakeRotFromZ(Up), Foot + Up * DropHeight));
+		if (LNPLoadBaseline::IsWanderObservation())
+			if (auto* Character = Cast<ALNPPlayerCharacter>(PC->GetPawn()))
+				if (auto* Mover = Character->GetMoverComponent())
+					Mover->EnterDeadMode();
 		if (PC->GetPawn() == nullptr)
 		{
 			UE_LOG(LogLootNPop, Error, TEXT("[LoadBaseline] Failed to respawn %s at %s"), *GetNameSafe(PC), *Foot.ToString());
@@ -1162,27 +1254,60 @@ void ULNPLoadBaselineSubsystem::SampleActivity()
 		ActivityQuery = FMassEntityQuery(EntityManager.AsShared());
 		ActivityQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
 		ActivityQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadOnly);
+		ActivityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+		ActivityQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 		ActivityQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	}
 	int32 Counts[2][3] = {};
 	int32 Bound = 0;
 	int32 Segments[2] = {};
+	int32 Observed[2][2] = {};
+	TArray<FVector> Players;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		if (const APawn* Pawn = It->Get() ? It->Get()->GetPawn() : nullptr)
+			Players.Add(Pawn->GetActorLocation());
+	if (FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineObserveWander")))
+	{
+		double MaxDistance = 0.0;
+		for (const FVector& Player : Players)
+			MaxDistance = FMath::Max(MaxDistance, FVector::Dist(Player, RingCenter));
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ObserverMaxDistance=%.1fcm Players=%d"), MaxDistance, Players.Num());
+		if (MaxDistance > 1000.0 || Players.Num() != ParseExpectedPlayers())
+		{
+			Stage = EStage::Done;
+			FPlatformMisc::RequestExitWithStatus(false, 1, TEXT("Wander observer moved or lost pawn"));
+			return;
+		}
+	}
 	FMassExecutionContext ExecContext(EntityManager, 0.f);
 	ActivityQuery.ForEachEntityChunk(ExecContext, [&](FMassExecutionContext& Ctx)
 	{
 		const int32 Domain = Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() ? 1 : 0;
 		const auto Idle = Ctx.GetFragmentView<FLNPEnemyIdleFragment>();
 		const auto Enemies = Ctx.GetFragmentView<FLNPEnemyFragment>();
+		const auto Positions = Ctx.GetFragmentView<FTransformFragment>();
+		const auto& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
 		for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
 		{
 			++Counts[Domain][static_cast<int32>(Enemies[I].ActivityBand)];
 			Bound += EntityManager.IsEntityValid(Enemies[I].ParentLootPod) ? 1 : 0;
 			Segments[Domain] += Idle[I].bWanderHandled ? 1 : 0;
+			bool bWithinCull = false;
+			for (const FVector& Player : Players)
+				bWithinCull |= FVector::DistSquared(Player, Positions[I].GetTransform().GetLocation())
+					< FMath::Square(static_cast<double>(Shared.ActivityCullDistance));
+			if (bWithinCull)
+			{
+				Observed[Domain][0] += Enemies[I].ActivityBand == ELNPEnemyActivityBand::Wander ? 1 : 0;
+				Observed[Domain][1] += Idle[I].bWanderHandled ? 1 : 0;
+			}
 		}
 	});
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Activity T=%.3f GroundDormant=%d GroundWander=%d GroundActive=%d FlightDormant=%d FlightWander=%d FlightActive=%d Bound=%d GroundSegments=%d FlightSegments=%d"),
 		GetWorld()->GetTimeSeconds(), Counts[0][0], Counts[0][1], Counts[0][2], Counts[1][0], Counts[1][1], Counts[1][2],
 		Bound, Segments[0], Segments[1]);
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] CullWander Ground=%d Flight=%d GroundSegments=%d FlightSegments=%d (nearest player distance; not bubble membership)"),
+		Observed[0][0], Observed[1][0], Observed[0][1], Observed[1][1]);
 }
 
 void ULNPLoadBaselineSubsystem::Report()

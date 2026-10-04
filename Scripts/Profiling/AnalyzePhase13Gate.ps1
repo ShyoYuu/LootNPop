@@ -1,7 +1,8 @@
 # trace 없는 Gate 로그와 실제 활동 표본·연결 수신량을 요약한다.
+param([string]$InputDirectory = 'Saved/Profiling/Phase13/After')
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$taskOutput = Join-Path $taskRoot 'Saved/Profiling/Phase13/After'
+$taskOutput = Join-Path $taskRoot $InputDirectory
 $taskCulture = [Globalization.CultureInfo]::InvariantCulture
 $taskRows = foreach ($taskMetaFile in Get-ChildItem -LiteralPath $taskOutput -Filter '*_Exit.json') {
     $taskMeta = Get-Content -Raw -Encoding UTF8 -LiteralPath $taskMetaFile.FullName | ConvertFrom-Json
@@ -27,6 +28,12 @@ $taskRows = foreach ($taskMetaFile in Get-ChildItem -LiteralPath $taskOutput -Fi
         GuestReceivedBytes=[uint64]$taskNet.Groups[1].Value; GuestCaptureSeconds=[double]::Parse($taskNet.Groups[2].Value,$taskCulture)
         GuestBytesPerSecond=[double]::Parse($taskNet.Groups[3].Value,$taskCulture)
         Replication=[regex]::Match($taskHost, '\[LoadBaseline\] Replication[^\r\n]*').Value
+        WanderObserver=[regex]::Match($taskHost, '\[LoadBaseline\] WanderObserver[^\r\n]*').Value
+        SpawnRows=@([regex]::Matches($taskHost, 'LNPMassSpawnSubsystem: set=[^\r\n]*enemy_requested=\d+ enemy_placed=\d+\.') | ForEach-Object Value)
+        CullWanderSamples=@(foreach ($taskMatch in [regex]::Matches($taskHost, '\[LoadBaseline\] CullWander Ground=(\d+) Flight=(\d+) GroundSegments=(\d+) FlightSegments=(\d+)')) {
+            [pscustomobject]@{Ground=[int]$taskMatch.Groups[1].Value; Flight=[int]$taskMatch.Groups[2].Value;
+                GroundSegments=[int]$taskMatch.Groups[3].Value; FlightSegments=[int]$taskMatch.Groups[4].Value}
+        })
         ActivitySamples=@($taskSamples)
     }
 }

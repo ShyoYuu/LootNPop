@@ -165,6 +165,12 @@ CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 
 
 production과 대조군의 실제 개체 수·거리·행동 분포를 함께 비교한다. 원거리 대부분이 휴면이고 배회 표본이 적은 실행은 휴면 효과의 근거이며 구간 배회 대역폭 효과의 근거로 확대하지 않는다. 구체적인 측정 결과와 Gate 판정은 `../history/Phase13_Log.md`가 소유한다.
 
+`AnalyzePhase13Gate.ps1 -InputDirectory <측정 폴더>`로 후속 Gate를 기존 `After`와 분리해 분석한다. 기본 입력 경로는 유지한다. 반복 실행 순서는 실제 실행기 순서로 기록하고, 같은 seed라도 동일 행동 상태나 교차 순서를 보장했다고 해석하지 않는다.
+
+배회 전용 대조는 production 스폰에 `-LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500`을 적용한다. 거리 기반으로 지상·비행 관찰 자리를 골라 기존 리스폰 경로로 옮긴다. 관찰 폰은 Mover 정지 모드에 두고, 게스트는 실행기의 `t.MaxFPS 60`으로 headless 입력 큐 과다를 막는다. capture 1Hz에서 폰 수와 지점 거리(10m 이내)를 확인한다. 관찰자는 NPC 인지 후보에서만 제외하고 활동 대역 거리 판정에는 참여한다. **인지 제외의 마지막 소스 변경은 패키징 권한 요청 거절로 아직 미검증**이다. 이 합성 시나리오의 프레임 값을 자연 교전 production Gate로 확대하지 않는다.
+
+`-LNPLoadBaselineWanderPoseControl`은 같은 서버 구간 이동을 유지하고 bubble add/change에서 구간 대신 기존 PositionYaw를 복제한다. 일반 플레이·서버 구간 경로 생성은 바꾸지 않는다. 자동화 PoseControl은 구간 입력 유지·대조 위치 갱신·HP 전달을 확인한다. `WanderObserve`/`WanderPoseControl` 실행을 두 반복씩 순서를 뒤집어 비교한다. `CullWander`는 플레이어 거리 기반 표본이며 실제 게스트 bubble 수가 아니다. 전체 지상/비행·귀속 수, 실제 요청/배치 수, 컬 안 배회/구간 소비 표본, 복제 사유와 연결 전체 수신량을 같이 보존한다. 충분한 배회 표본 없이 연결 수신량 차이를 구간 복제 효과로 해석하지 않는다.
+
 ## 마이그레이션 전략
 
 ### 소비자 전환 완료

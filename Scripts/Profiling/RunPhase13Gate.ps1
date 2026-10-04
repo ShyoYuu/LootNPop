@@ -25,6 +25,8 @@ $taskArguments = @{
     N700 = '-LNPLoadBaseline=700'
     N700Chase = '-LNPLoadBaseline=700 -LNPLoadBaselineChase'
     F200 = '-LNPLoadBaselineFlyers=200'
+    WanderObserve = '-LNPLoadBaselineProduction -LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500'
+    WanderPoseControl = '-LNPLoadBaselineProduction -LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500 -LNPLoadBaselineWanderPoseControl'
 }
 foreach ($taskCase in $Cases) {
     if (-not $taskArguments.ContainsKey($taskCase)) { throw "Unknown case: $taskCase" }
@@ -47,7 +49,9 @@ foreach ($taskCase in $Cases) {
         try {
             Start-Sleep -Seconds 5
             if ($taskHost.HasExited) { throw "$taskName host exited before guest startup" }
-            $taskGuest = Start-Process -FilePath $taskExe -ArgumentList "127.0.0.1 $taskCommon -abslog=$taskGuestLog" -WindowStyle Hidden -PassThru
+            # 관찰 대조의 게스트만 60fps로 제한해 이동 예측 reliable 입력 큐의 headless 폭주를 피한다.
+            $taskGuestLimit = if ($taskCase -in @('WanderObserve', 'WanderPoseControl')) { ' -ExecCmds="t.MaxFPS 60"' } else { '' }
+            $taskGuest = Start-Process -FilePath $taskExe -ArgumentList "127.0.0.1 $taskCommon $taskGuestLimit -abslog=$taskGuestLog" -WindowStyle Hidden -PassThru
             $taskDeadline = (Get-Date).AddMinutes(8)
             while ((Get-Date) -lt $taskDeadline -and (-not $taskHost.HasExited -or -not $taskGuest.HasExited)) {
                 Start-Sleep -Seconds 2
