@@ -16,6 +16,8 @@
 #include "MassNavigationFragments.h"
 #include "MassExecutionContext.h"
 #include "LNPMassUtils.h"
+#include "SurfaceNavigation/LNPLoadBaseline.h"
+#include "LootNPop.h"
 
 ULNPEnemyWanderProcessor::ULNPEnemyWanderProcessor() : EnemyQuery(*this)
 {
@@ -134,6 +136,8 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				}
 				if (bWander)
 				{
+					if (LNPLoadBaseline::IsActivityDiagnostics())
+						UE_LOG(LogLootNPop, Display, TEXT("[WanderDiagnostic] Entity=%d Pod=%d Reason=UnsafeOrRevision Safe=%d"), Ctx.GetEntity(I).Index, Enemy.ParentLootPod.Index, bSafe);
 					Enemy.bActivityWakeRequested = true;
 					Enemy.ActivityBand = ELNPEnemyActivityBand::Active;
 				}
@@ -149,6 +153,8 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 							< FMath::Square(R.Radius + FMath::Max(Params.CapsuleRadius, Params.CapsuleHalfHeight));
 				if (bInitiallyOverlapping)
 				{
+					if (LNPLoadBaseline::IsActivityDiagnostics())
+						UE_LOG(LogLootNPop, Display, TEXT("[WanderDiagnostic] Entity=%d Pod=%d Reason=Overlap Flight=%d"), Ctx.GetEntity(I).Index, Enemy.ParentLootPod.Index, Config->IsFlying());
 					Segment = FLNPEnemyWanderSegment();
 					Data.bWanderHandled = false;
 					Enemy.bActivityWakeRequested = true;
@@ -266,6 +272,8 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 					LNP::Replication::EncodeSphereLocalYaw(Transform));
 				if (!Quantized.IsEnabled())
 				{
+					if (LNPLoadBaseline::IsActivityDiagnostics())
+						UE_LOG(LogLootNPop, Display, TEXT("[WanderDiagnostic] Entity=%d Pod=%d Reason=Codec"), Ctx.GetEntity(I).Index, Enemy.ParentLootPod.Index);
 					Segment = FLNPEnemyWanderSegment();
 					Data.bWanderHandled = false;
 					Enemy.bActivityWakeRequested = true;
@@ -277,6 +285,8 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 			FVector Next = Segment.Evaluate(Now);
 			if (!Config->IsFlying() && !LNPEnemySurfaceMovement::TryResolveCachedGround(*Snapshot, Params, Next, Enemy.SurfaceHandle, Next))
 			{
+				if (LNPLoadBaseline::IsActivityDiagnostics())
+					UE_LOG(LogLootNPop, Display, TEXT("[WanderDiagnostic] Entity=%d Pod=%d Reason=Support"), Ctx.GetEntity(I).Index, Enemy.ParentLootPod.Index);
 				Segment = FLNPEnemyWanderSegment();
 				Data.bWanderHandled = false;
 				Enemy.bActivityWakeRequested = true;
@@ -306,6 +316,8 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 						Params.CapsuleRadius, Params.CapsuleHalfHeight, FLNPWorldQueryParams(ELNPWorldQueryClass::DynamicSupportContact), Hit);
 				if (bBlocked)
 				{
+					if (LNPLoadBaseline::IsActivityDiagnostics())
+						UE_LOG(LogLootNPop, Display, TEXT("[WanderDiagnostic] Entity=%d Pod=%d Reason=DynamicBlock"), Ctx.GetEntity(I).Index, Enemy.ParentLootPod.Index);
 					Segment = FLNPEnemyWanderSegment();
 					Data.bWanderHandled = false;
 					Enemy.bActivityWakeRequested = true;

@@ -23,5 +23,7 @@ private:
 	FMassEntityQuery PodQuery;
 	FMassEntityQuery PlayerQuery;
 	double NextDistanceTime = 0.0;
+	double NextDiagnosticTime = 0.0;
+	TMap<FMassEntityHandle, uint32> DiagnosticWakeReasons;
 	TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> LastSurfaceSnapshot;
 };

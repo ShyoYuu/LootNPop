@@ -354,4 +354,64 @@ PIE를 MCP로 종료하고 IsPIERunning=false를 확인했다. 세션 assert/ens
 
 이 마지막 변경을 담는 `SurfaceNavigationPhase13ObserverIsolatedPackage`의 BuildCookRun 권한 요청이 **사용자 거절로 실행 전에 중단**됐다. 재시도하지 않았다. 따라서 마지막 인지 제외 소스는 **컴파일·cook·자동화·리슨 측정 미검증**, 후속 묶음 5는 미완료다. 사용자가 최종 build/cook 실행을 허용하면 새 패키지로 ABBA를 재측정하고 28개 이상 표본 및 지상/비행 각각 평균 12개 이상의 컬 안 배회를 먼저 확인한다. 에디터·게임·Insights 프로세스는 종료 상태다.
 
+## 2026-10-04 — 후속 묶음 5 재개: 관찰자 인지 제외 패키지·교차 검증 종료, 표본 Gate 미충족
+
+사용자가 Phase 13 이어서 진행과 구현 단위별 진행 확인을 요청했다. 에디터·게임·Insights 종료를 확인하고 마지막 인지 제외 소스를 새 패키지로 빌드/cook했다. 사용자가 권한 확장 실행을 승인했고 같은 전원/성능 조건·무거운 작업 없음도 확인했다. gameplay·Content·Config 추가 수정 없이 기존 수정의 검증과 문서 인계를 수행했다.
+
+- `Saved/SurfaceNavigationPhase13ObserverIsolatedPackage`: BuildCookRun exit 0·144.66초, 게임/에디터 빌드 성공·83.18초, cook 오류 0·기존 경고 13개. 로그는 `Saved/Logs/Phase13_ObserverIsolated_BuildCookRun.log`다. 앞선 권한 거절 기록은 과거 경과이며 이번 패키지에는 마지막 소스가 포함됐다.
+- Activity/Wander/WanderReplication/MassSpawn 자동화 13/13 Success·테스트 경고/오류 0·프로세스 exit 0. 보고서는 `Saved/Tests/Phase13_ObserverIsolated/index.json`, 로그는 `Saved/Logs/Phase13_ObserverIsolated_Tests.log`다. 저장 에셋을 재베이크하는 테스트는 이번에 실행하지 않았다.
+- trace 없이 구간 1→PositionYaw 1→PositionYaw 2→구간 2 순서로 리슨 2P 네 번을 실행했다. host/guest 8개 exit 0·probe 32/32 PASS·assert/ensure/fatal 0·Unknown/Envelope/LayerJump 및 Mass 순서 위반 0이다. 기존 Mover/CMC 로그는 남아 있어 게임 로그 전체 오류 0을 뜻하지 않는다.
+- 매 실행 지상 720·비행 600·귀속 1,320개, 네 spawn set 전량 배치와 30개 활동/컬 표본을 확인했다. 같은 패키지 SHA256·관찰 Foot `X=-20540.406 Y=18339.610 Z=-14258.678`, `NoPerception=1`과 실제 PoseControl 모드를 확인했다. PositionYaw 대조의 구간 Dirty는 0이다.
+- Nav 요청/timing 행은 실행 순서대로 221/169/138/195개다. 각각 행 수 일치·키 중복/누락·시간 역전 0이다.
+
+| 실행 순서 | frame P95(ms) | 게스트 연결 전체 B/s | 컬 안 지상 배회/구간 평균 | 컬 안 비행 배회/구간 평균 | Pose/Wander Dirty |
+|:---|---:|---:|---:|---:|:---|
+| 구간 1 | 16.73 | 16,134.9 | 2.57 | 0.90 | 3,668 / 213 |
+| PositionYaw 1 | 16.38 | 16,132.5 | 2.90 | 1.30 | 3,762 / 0 |
+| PositionYaw 2 | 15.37 | 16,291.2 | 5.73 | 4.73 | 3,438 / 0 |
+| 구간 2 | 14.48 | 16,575.9 | 2.00 | 1.50 | 3,844 / 224 |
+
+첫 실행만 frame FAIL(기준 P95 ≤16.67ms), 나머지 frame PASS·모든 path PASS다. 표본 수 28개 기준은 충족했지만 양쪽 종류의 컬 안 배회/구간 평균 각각 12개 기준은 모두 미충족이다. 관찰자 인지 제외만으로 충분한 배회 표본을 확보하지 못했다. 구간/PositionYaw 연결 전체 평균은 16,355.4/16,211.85 B/s이며 구간 쪽 약 0.89% 증가다. 배회 분포도 실행마다 달라 이 차이를 구간 복제의 개선/회귀 효과로 해석하지 않는다. NPC 전용 wire 비용과 production 전투 성능·최대 총수 Gate도 입증하지 않았다.
+
+원본·실행/분석 콘솔·`Summary.json`·`Validation.json`·`Comparison.json`은 `Saved/Profiling/Phase13/WanderComparisonIsolated`다. 분석기는 정상 종료했으며 `BothDomainsSampledAll=false`를 남겼다. 이 false는 합격으로 덮지 않는다.
+
+**이번 재패키징·교차 검증 묶음 종료, 다음 진행 확인 대기**다. 후속 묶음 5의 표본 Gate와 단위 5 전체·Phase 13·D-054 상향은 미완료/유지다. 다음 구현 후보는 컬 안 NPC의 활성 유지/깨움 사유·실제 활동 거리 입력 계측과 원인에 맞는 관찰 조건 보정이다. 기존 CMC 추출 오류만으로 Mass 위치 불일치를 원인으로 확정하지 않았다. 에디터·게임·Insights 종료 상태를 확인했으며 사용자 확인 전 추가 구현에 착수하지 않는다.
+
+## 2026-10-04 — 단위 5 후속 묶음 6 완료: 깨움 사유 진단·관찰 조건 보정·충분한 배회 대조
+
+사용자가 다음 단위 진행을 승인했다. 활동 판정의 실제 입력과 컬 안 Pod의 활성 사유를 조사하고, 스폰 수·전투 규칙·활동/배회 안전 판정을 유지한 채 관찰 조건을 보정했다.
+
+### 구현과 원인 확인
+
+- `-LNPLoadBaselineActivityDiagnostics`는 ObserveWander에서만 동작한다. 활동 프로세서의 플레이어 Mass/Actor 위치, 컬 안 멤버가 있는 Pod의 양쪽 거리·활성/컬 경계·대역·강제 활성·깨움 유지시간을 1Hz로 출력한다. 사유 비트는 프레임마다 누적해 순간 이벤트도 보존하고 표본 출력 후 비운다. 배회 프로세서는 실제 깨움 요청의 UnsafeOrRevision/Overlap/Codec/Support/DynamicBlock 사유를 남긴다. 정상 플레이와 성능 대조에는 계측을 켜지 않는다.
+- 첫 순간 표본은 `Force=0/Reasons=0`인데 깨움 유지시간이 반복되어 이벤트를 놓쳤다. 누적 진단으로 원인을 확인했다. 기존 관찰 위치의 플레이어 Mass/Actor 차이는 39표본 모두 0cm이며, 컬 표본에 등장한 Pod들의 실행 전체 배회 취소 이벤트는 DynamicBlock 55·Overlap 9개다. 전체 Pod에서는 83/17개다. 이는 warm-up도 포함한 진단 실행 이벤트이며 프레임별 전환 횟수나 capture 전용 통계가 아니다.
+- `DynamicBlock`은 동적 위험 구간의 안전 sweep 차단이며 hit 자체가 동적 geometry였다는 뜻은 아니다. 같은 Pod의 멤버 겹침도 구간을 취소한다. 이 요청으로 10초 Pod 전체 깨움이 반복되어 가까운 배회 후보가 실제로는 Active에 머물렀다. 기존 CMC 추출 오류를 원인으로 확정하지 않는다.
+- 관찰 자리 선택은 먼저 각 멤버의 시작 자세 exact capsule/sphere sweep과 같은 Pod 멤버 간 기존 보수적 구 겹침 검사를 수행한다. 막히거나 겹친 Pod를 후보 수에서 제외하고 기존 지각 32후보에 안전한 Pod 주변 고정 8방향을 더했다. Pod handle 순서로 후보를 생성해 TMap 순회 순서에 의존하지 않는다. startup probe는 capture 초기화 전이며 정상 이동·구간 안전 검사는 유지했다. 시작 자세 통과만으로 이후 배회 안전을 보장하지 않는다.
+- 원인·보정 진단은 `Saved/Logs/Phase13_ActivityDiagnosticsAccumulated_Game.log`·`Phase13_ObserverEligibility_Game.log`, 구조화 근거는 `Saved/Tests/Phase13_ActivityDiagnosis.json`이다. 보정 1P 진단은 120 Pod 중 UnsafePods 44·후보 640개에서 자리를 골랐고, 30개 capture 표본의 컬 안 배회 평균은 지상 25.0·비행 26.43개다. 프로세스 exit 0·assert/ensure/fatal/불변 위반 0이다. 진단 계측을 켠 `-game` 프레임 P95 18.61ms는 성능 합격 표본으로 사용하지 않는다.
+
+### 빌드·회귀·패키지
+
+- 진단/누적 진단/관찰 보정 Editor 전체 빌드 성공: 46.65/46.23/12.28초. 로그는 `Saved/Logs/Phase13_ActivityDiagnostics_Build.log`·`Phase13_ActivityDiagnosticsAccumulated_Build.log`·`Phase13_ObserverEligibility_Build.log`다.
+- 최종 Activity/Wander/WanderReplication/MassSpawn 자동화 **13/13 Success·테스트 경고/오류 0·exit 0**. 보고서는 `Saved/Tests/Phase13_ObserverEligibility/index.json`이다. 앞선 초기 진단 테스트를 합산해 단일 26종 검증으로 보고하지 않는다. 저장 에셋을 재베이크하는 자동화는 실행하지 않았다.
+- `Saved/SurfaceNavigationPhase13ObserverEligiblePackage` BuildCookRun exit 0·115.27초, 게임/에디터 빌드 성공·55.00초, cook 오류 0·기존 경고 13개. 로그는 `Saved/Logs/Phase13_ObserverEligible_BuildCookRun.log`다. Content·Config 변경은 없고 기존 테스트 편성을 포함해 cook했다.
+
+### 진단 없는 교차 리슨 2P 대조
+
+앞서 확인한 같은 전원/성능 조건에서 구간 1→PositionYaw 1→PositionYaw 2→구간 2를 실행했다. 진단 인자/로그는 0이고 trace도 없다. 네 실행에서 같은 패키지 SHA256·관찰 Foot `X=-1773.873 Y=-7138.794 Z=-29048.523`·`NoPerception=1`과 실제 PoseControl 모드를 확인했다. 120 Pod 중 UnsafePods 41·고정 후보 664개, 선택 당시 양쪽 후보 42개다. 매 실행 지상 720·비행 600·귀속 1,320개, 네 spawn set 전량 배치와 30개 활동/컬 표본을 확인했다.
+
+| 실행 순서 | frame P95(ms) | 게스트 연결 전체 B/s | 컬 안 지상 배회/구간 평균 | 컬 안 비행 배회/구간 평균 | Pose/Wander Dirty |
+|:---|---:|---:|---:|---:|:---|
+| 구간 1 | 12.65 | 17,475.0 | 43.37 | 41.83 | 2,798 / 569 |
+| PositionYaw 1 | 12.73 | 18,980.9 | 41.27 | 40.87 | 6,151 / 0 |
+| PositionYaw 2 | 14.08 | 18,572.4 | 40.80 | 40.70 | 6,159 / 0 |
+| 구간 2 | 14.03 | 17,339.4 | 44.37 | 42.13 | 2,511 / 559 |
+
+- **양쪽 종류의 컬 안 배회/구간 평균 각각 12개 이상·표본 28개 이상 기준 PASS**다. 최소 표본 개체 수는 양쪽 모두 36개다. 기존 묶음 5의 표본 부족을 이번 관찰 조건으로 해소했다.
+- frame/path 네 실행 모두 PASS·host/guest 8개 exit 0·probe **32/32 PASS**·assert/ensure/fatal 및 Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. Nav 요청/timing은 실행 순서대로 159/169/219/199행이며 행 수·키·순서 검사 통과다. 기존 Mover/CMC 로그는 남아 있어 게임 로그 전체 오류 0을 뜻하지 않는다.
+- 연결 전체 평균 수신량은 구간 **17,407.2 B/s**, PositionYaw **18,776.65 B/s**로 구간 쪽 **7.29% 낮다**. 두 쌍 각각 구간 쪽 수신량이 낮으며 위치 Dirty도 줄었다. 실제 행동·배회 분포는 실행마다 다르므로 동일 개체의 동일 경로를 replay한 실험이나 NPC 전용 wire 절감률로 해석하지 않는다. 인지 제외·관찰 폰 정지의 합성 대조 조건에서 확인한 연결 전체 차이다.
+
+실행 원본·콘솔·Nav CSV·`Summary.json`·`Validation.json`·`Comparison.json`은 `Saved/Profiling/Phase13/WanderComparisonEligible`다. 분석기 정상 종료, SamePackage/SameObserverFoot/BothDomainsSampledAll=true이며 NPCOnlyWireBytesVerified/MaximumPopulationGateVerified=false다.
+
+**후속 묶음 6 완료, 다음 진행 확인 대기**다. 일반 production 전투 성능·지상/비행 총수 Gate와 D-054 재검토는 남아 있어 단위 5 전체·Phase 13은 미완료다. 다음 후보는 현재 편성의 인지·전투를 포함한 일반 production 프레임 재측정과 실패 시 비용 분해·수정이다. 이전 1,801개 production 실패를 격리된 1,320개 배회 대조로 해결했다고 보고하지 않는다. 에디터·게임·Insights 종료 상태를 확인했고 사용자 진행 확인 전 다음 구현에 착수하지 않는다.
+
 빌드/자동화/smoke 증거는 `Saved/Tests/Phase13_WanderComposition` 및 `Saved/Tests/Phase13_ObserverRegression`, 최초 실패는 `Saved/Profiling/Phase13/WanderComparison`, 검증된 네 대조는 `Saved/Profiling/Phase13/WanderComparisonFixed`에 보존했다. `WanderComparisonIsolated`에는 다음 실행/분석 스크립트만 준비돼 있다. Current·Phase13·ValidationAndMigration에 같은 미검증 경계를 기록했다. 이전 production 프레임 Gate 실패·D-054·Phase13 전체 미완료 상태는 유지한다.

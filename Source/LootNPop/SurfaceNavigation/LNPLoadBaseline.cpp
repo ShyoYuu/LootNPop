@@ -346,6 +346,13 @@ bool LNPLoadBaseline::IsWanderObservation()
 	return bEnabled;
 }
 
+bool LNPLoadBaseline::IsActivityDiagnostics()
+{
+	static const bool bEnabled = IsWanderObservation()
+		&& FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineActivityDiagnostics"));
+	return bEnabled;
+}
+
 int32 LNPLoadBaseline::GetSeed()
 {
 	static const int32 Seed = []()
@@ -784,9 +791,9 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 
 bool ULNPLoadBaselineSubsystem::SelectWanderObserver()
 {
-	// 지각의 고정 후보 중 활성 경계 밖·복제 컬 안의 양쪽 종류를 가장 많이 관찰할 자리를 고른다.
+	// 시작 자세가 안전한 Pod만 세어 활성 경계 밖·복제 컬 안의 양쪽 종류를 관찰한다.
 	// 실제 배회 여부는 capture 표본으로 따로 확인한다. 거리만으로 교전 상태를 추론하지 않는다.
-	struct FObserverEnemy { FVector Position, Home; float Active, Cull; bool bFlying; };
+	struct FObserverEnemy { FVector Position, Home; float Active, Cull, Radius, HalfHeight, Clearance; bool bFlying; FMassEntityHandle Pod; };
 	TArray<FObserverEnemy> Enemies;
 	auto& Manager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
 	FMassEntityQuery Query(Manager.AsShared());
@@ -800,26 +807,64 @@ bool ULNPLoadBaselineSubsystem::SelectWanderObserver()
 		const auto Fragments = Ctx.GetFragmentView<FLNPEnemyFragment>();
 		const auto& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
 		for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
-			if (Manager.IsEntityValid(Fragments[I].ParentLootPod))
+			if (Shared.Config && Manager.IsEntityValid(Fragments[I].ParentLootPod))
 				Enemies.Add({ Positions[I].GetTransform().GetLocation(), Fragments[I].ParentPodLocation,
-					Shared.ActivityActiveDistance, Shared.ActivityCullDistance, Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() });
+					Shared.ActivityActiveDistance, Shared.ActivityCullDistance, Shared.Config->CapsuleRadius,
+					Shared.Config->CapsuleHalfHeight, Shared.Config->FlightConfig.Clearance,
+					Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>(), Fragments[I].ParentLootPod });
 	});
 	const auto& Collision = *GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	TSet<FMassEntityHandle> UnsafePods;
+	TMap<FMassEntityHandle, FVector> Homes;
+	const FLNPWorldQueryParams ProbeParams(ELNPWorldQueryClass::DebugValidation);
+	for (int32 I = 0; I < Enemies.Num(); ++I)
+	{
+		const auto& Enemy = Enemies[I];
+		Homes.FindOrAdd(Enemy.Pod) = Enemy.Home;
+		const FVector Up = -Enemy.Position.GetSafeNormal();
+		FLNPWorldHit Hit;
+		const bool bBlocked = Enemy.bFlying
+			? Collision.SweepSphereWorld(Enemy.Position, Enemy.Position + Up,
+				FMath::Max(Enemy.Radius, Enemy.HalfHeight) + Enemy.Clearance, ProbeParams, Hit)
+			: Collision.SweepCapsuleWorld(Enemy.Position + Up * 2.f, Enemy.Position + Up * 3.f,
+				FQuat::FindBetweenNormals(FVector::UpVector, Up), Enemy.Radius, Enemy.HalfHeight, ProbeParams, Hit);
+		if (bBlocked)
+			UnsafePods.Add(Enemy.Pod);
+		for (int32 J = 0; J < I; ++J)
+			if (Enemies[J].Pod == Enemy.Pod && FVector::DistSquared(Enemy.Position, Enemies[J].Position)
+				< FMath::Square(FMath::Max(Enemy.Radius, Enemy.HalfHeight) + FMath::Max(Enemies[J].Radius, Enemies[J].HalfHeight)))
+				UnsafePods.Add(Enemy.Pod);
+	}
 	const FVector Direction = RingCenter.GetSafeNormal();
 	FVector T1, T2;
 	MakeTangentBasis(Direction, T1, T2);
+	TArray<FVector> Candidates;
+	for (int32 Index = 0; Index < 32; ++Index)
+		Candidates.Add(MakeRingDirection(Direction, T1, T2, Index * UE_PI / 16.f,
+			Index < 16 ? 8000.f : 16000.f, RingCenter.Size()));
+	// 안전한 Pod 주변의 고정 8방향까지 넓힌다. 선택 순서가 TMap 순회 순서에 의존하지 않게 한다.
+	TArray<FMassEntityHandle> PodOrder;
+	Homes.GetKeys(PodOrder);
+	PodOrder.Sort([](const FMassEntityHandle& A, const FMassEntityHandle& B) { return A.Index < B.Index; });
+	for (const auto Pod : PodOrder)
+		if (!UnsafePods.Contains(Pod))
+		{
+			const FVector Home = Homes.FindChecked(Pod);
+			FVector HomeT1, HomeT2;
+			MakeTangentBasis(Home.GetSafeNormal(), HomeT1, HomeT2);
+			for (int32 Index = 0; Index < 8; ++Index)
+				Candidates.Add(MakeRingDirection(Home.GetSafeNormal(), HomeT1, HomeT2, Index * UE_PI / 4.f, 10000.f, Home.Size()));
+		}
 	int32 BestBalanced = 0, BestTotal = 0, BestCounts[2] = {};
 	FVector BestFoot = RingCenter;
-	for (int32 Index = 0; Index < 32; ++Index)
+	for (const FVector& Candidate : Candidates)
 	{
 		FVector Foot;
-		const FVector Candidate = MakeRingDirection(Direction, T1, T2, Index * UE_PI / 16.f,
-			Index < 16 ? 8000.f : 16000.f, RingCenter.Size());
 		if (!FindCrustNear(Collision, Candidate, Foot))
 			continue;
 		int32 Counts[2] = {};
 		for (const auto& Enemy : Enemies)
-			if (FVector::Dist(Foot, Enemy.Home) > Enemy.Active * 1.1f + 1500.f
+			if (!UnsafePods.Contains(Enemy.Pod) && FVector::Dist(Foot, Enemy.Home) > Enemy.Active * 1.1f + 1500.f
 				&& FVector::Dist(Foot, Enemy.Position) < Enemy.Cull - 500.f)
 				++Counts[Enemy.bFlying ? 1 : 0];
 		const int32 Balanced = FMath::Min(Counts[0], Counts[1]);
@@ -831,6 +876,7 @@ bool ULNPLoadBaselineSubsystem::SelectWanderObserver()
 		}
 	}
 	RingCenter = BestFoot;
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ObserverEligibility Pods=%d UnsafePods=%d Candidates=%d"), Homes.Num(), UnsafePods.Num(), Candidates.Num());
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] WanderObserver NoPerception=1 Foot=%s CandidatesGround=%d CandidatesFlight=%d PoseControl=%d"),
 		*BestFoot.ToString(), BestCounts[0], BestCounts[1], LNPLoadBaseline::IsWanderPoseControl() ? 1 : 0);
 	return BestBalanced > 0;

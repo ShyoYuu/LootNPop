@@ -167,7 +167,9 @@ production과 대조군의 실제 개체 수·거리·행동 분포를 함께 �
 
 `AnalyzePhase13Gate.ps1 -InputDirectory <측정 폴더>`로 후속 Gate를 기존 `After`와 분리해 분석한다. 기본 입력 경로는 유지한다. 반복 실행 순서는 실제 실행기 순서로 기록하고, 같은 seed라도 동일 행동 상태나 교차 순서를 보장했다고 해석하지 않는다.
 
-배회 전용 대조는 production 스폰에 `-LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500`을 적용한다. 거리 기반으로 지상·비행 관찰 자리를 골라 기존 리스폰 경로로 옮긴다. 관찰 폰은 Mover 정지 모드에 두고, 게스트는 실행기의 `t.MaxFPS 60`으로 headless 입력 큐 과다를 막는다. capture 1Hz에서 폰 수와 지점 거리(10m 이내)를 확인한다. 관찰자는 NPC 인지 후보에서만 제외하고 활동 대역 거리 판정에는 참여한다. **인지 제외의 마지막 소스 변경은 패키징 권한 요청 거절로 아직 미검증**이다. 이 합성 시나리오의 프레임 값을 자연 교전 production Gate로 확대하지 않는다.
+배회 전용 대조는 production 스폰에 `-LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500`을 적용한다. 관찰 자리 선택 전에 멤버의 시작 자세 exact capsule/sphere 검사와 같은 Pod 멤버 간 보수적 구 겹침 검사를 수행한다. 하나라도 막히거나 겹친 Pod는 관찰 후보 수에 포함하지 않는다. 기존 지각 32후보와 안전한 Pod 주변의 고정 8방향에서 활성 경계 밖·컬 안의 양쪽 종류가 많은 자리를 골라 기존 리스폰 경로로 옮긴다. 이 startup probe는 capture 통계 초기화 전 실행하며 배회 중 안전 검사와 스폰 편성은 유지한다. 시작 자세 통과가 구간 전체 안전을 보장하지 않으므로 실제 capture 표본 Gate도 확인한다. 관찰 폰은 Mover 정지 모드에 두고, 게스트는 실행기의 `t.MaxFPS 60`으로 headless 입력 큐 과다를 막는다. capture 1Hz에서 폰 수와 지점 거리(10m 이내)를 확인한다. 관찰자는 NPC 인지 후보에서만 제외하고 활동 대역 거리 판정에는 참여한다. 인지 제외는 재패키징·관련 자동화·리슨 2P로 검증했다. 이 합성 시나리오의 프레임 값을 자연 교전 production Gate로 확대하지 않는다.
+
+`-LNPLoadBaselineActivityDiagnostics`는 ObserveWander에서만 켜는 원인 조사용 계측이다. 실제 활동 판정 입력인 플레이어 Mass 위치와 Actor 위치, 컬 안 멤버가 있는 Pod의 거리·경계·대역·현재 강제 활성·깨움 유지시간을 1Hz로 기록한다. 멤버의 깨움/사망/타겟/속도/공격/피격·Poise/Home/동적 기반/Actor/설정/Support 사유 비트는 표본 사이 프레임에서 누적하고 출력 후 비운다. 사유는 중복 가능하며 전환 횟수나 wire 비용이 아니다. 배회 프로세서는 실제 깨움 요청 시 구간 취소 사유도 남긴다. `DynamicBlock`은 동적 위험 구간의 안전 sweep이 막혔다는 뜻이며 hit 자체가 동적 geometry였다는 뜻은 아니다. 진단 로그를 켠 실행은 성능 합격 표본으로 사용하지 않는다.
 
 `-LNPLoadBaselineWanderPoseControl`은 같은 서버 구간 이동을 유지하고 bubble add/change에서 구간 대신 기존 PositionYaw를 복제한다. 일반 플레이·서버 구간 경로 생성은 바꾸지 않는다. 자동화 PoseControl은 구간 입력 유지·대조 위치 갱신·HP 전달을 확인한다. `WanderObserve`/`WanderPoseControl` 실행을 두 반복씩 순서를 뒤집어 비교한다. `CullWander`는 플레이어 거리 기반 표본이며 실제 게스트 bubble 수가 아니다. 전체 지상/비행·귀속 수, 실제 요청/배치 수, 컬 안 배회/구간 소비 표본, 복제 사유와 연결 전체 수신량을 같이 보존한다. 충분한 배회 표본 없이 연결 수신량 차이를 구간 복제 효과로 해석하지 않는다.
 

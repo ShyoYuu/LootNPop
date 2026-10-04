@@ -1,16 +1,18 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성
-> 현재 Phase: Phase 13 진행 중 — 단위 5 후속 묶음 5 구현·검증 진행, 마지막 패키징 권한 요청 거절로 검증 미완료
+> 현재 Phase: Phase 13 진행 중 — 단위 5 후속 묶음 6 완료, 배회 표본·연결 대역폭 대조 통과
 > 마지막 갱신: 2026-10-04
 
 ## 현재 목표와 다음 행동
 
-**후속 묶음 5 미완료**다. 관찰 자리 선택·production 스폰 반경 입력·같은 서버 구간 이동의 PositionYaw 복제 대조·실제 종류별 활동 수·컬 거리 안 배회 표본을 구현했다. 전체 에디터 빌드 성공(60.92초), 관련 자동화 13/13·경고/오류 0, 반경 1,500cm 1P에서 Pod 120개·적 1,320개 전부 배치했다. 최초 패키지 리슨 실행은 게스트 Iris reliable 큐 ensure와 관찰 폰 이탈로 실패했다. 관찰 폰 Mover 정지 모드·게스트 60fps·폰 이탈 검사 수정 패키지의 교차 네 실행은 frame/path PASS·host/guest 8개 exit 0·probe 32/32·Nav CSV 검사 통과·assert/ensure/fatal/불변 위반 0이다. 실제 지상 720·비행 600·귀속 1,320개가 유지됐다. 그러나 컬 안 배회 평균은 지상 0.47~1.93·비행 0.87~1.50으로 부족했고 연결 수신량 차이 0.15%를 개선 근거로 사용하지 않는다. 근거는 `Saved/Profiling/Phase13/WanderComparisonFixed`다.
+**후속 묶음 6 완료**다. 사용자 승인으로 활동 입력·깨움 사유 진단과 관찰 자리 보정을 구현했다. 플레이어 Mass/Actor 위치 차이는 진단 표본 0cm이며, 안전 sweep 차단·멤버 겹침으로 배회가 취소되어 Pod 전체의 10초 깨움이 반복된 것을 확인했다. 관찰 후보에서 시작 자세가 막히거나 멤버가 겹친 Pod를 제외하고 안전한 Pod 주변 고정 8방향까지 후보를 넓혔다. 스폰 편성과 기존 활동/배회 안전 조건은 유지했다. 원인 로그·구조화 결과는 `Saved/Tests/Phase13_ActivityDiagnosis.json`과 `Saved/Logs/Phase13_ActivityDiagnosticsAccumulated_Game.log`다.
 
-마지막으로 production 관찰자만 NPC 인지 후보에서 제외하고 활동 거리 판정에는 계속 참여하도록 소스를 보완했다. **이 마지막 변경의 추가 BuildCookRun 권한 요청이 거절되어 빌드/cook/실행을 하지 못했다.** 마지막 소스가 현재 패키지에 들어 있다고 보고하지 않는다. 에디터/게임은 종료 상태다. 다음은 사용자가 추가 패키징을 허용할 때 `Saved/SurfaceNavigationPhase13ObserverIsolatedPackage`를 빌드/cook하고 `Saved/Profiling/Phase13/WanderComparisonIsolated/RunComparison.ps1`·`AnalyzeComparison.ps1`로 교차 실행·검사하는 것이다. 양쪽 종류의 컬 안 배회/구간 평균 12개 이상·28개 이상 표본을 검증하고, 같은 관찰 위치·스폰 수·실제 복제 대조 모드를 확인해야 한다. 이 조건은 배회 전용 합성 대조이며 production 전투 성능 Gate나 최대 총수를 대체하지 않는다. 현재 구현 단위와 Phase 13·대역폭/총수 Gate는 완료 처리하지 않는다.
+최종 관련 자동화 13/13·테스트 경고/오류 0, 보정 1P 진단 exit 0·30표본·컬 안 배회 평균 지상 25.0/비행 26.43개다. `Saved/SurfaceNavigationPhase13ObserverEligiblePackage` BuildCookRun exit 0·115.27초·cook 오류 0/기존 경고 13개다. 진단을 끈 구간 1→PositionYaw 1→PositionYaw 2→구간 2 네 리슨 실행은 host/guest 8개 exit 0·probe 32/32 PASS·Nav CSV 정합성 통과·assert/ensure/fatal/불변 위반 0이다. 모든 실행에서 지상 720·비행 600·귀속 1,320개·30표본·같은 패키지/관찰 위치/실제 대조 모드를 확인했다. 컬 안 배회/구간 평균은 지상 40.80~44.37·비행 40.70~42.13개로 각각 12개 기준을 통과했다. frame P95는 순서대로 12.65/12.73/14.08/14.03ms·frame/path 모두 PASS다. 연결 전체 평균은 구간 17,407.2·PositionYaw 18,776.65 B/s로 구간 쪽 **7.29% 낮음**을 확인했다. 실제 행동 분포는 동일하지 않으며 이 합성 대조의 연결 전체 결과를 NPC 전용 wire 절감률·일반 전투 성능·새 총수 상한으로 확대하지 않는다. 원본·Summary/Validation/Comparison은 `Saved/Profiling/Phase13/WanderComparisonEligible`다.
 
-아래는 앞선 묶음의 기록이다. 위 미완료 상태가 우선한다.
+**다음 구현 후보는 현재 편성의 일반 production(인지·전투 포함) 프레임 Gate 재측정과 실패 시 비용 분해·수정**이다. 이전 1,801개 production 실패를 이번 격리된 1,320개 배회 대조로 해소했다고 처리하지 않는다. 별도 지상/비행 총수 Gate·D-054 재검토도 남아 있으며 단위 5 전체·Phase 13은 미완료다. 사용자 진행 확인 전 다음 구현에 착수하지 않는다. 이번 Content·Config 변경은 없고 에디터·게임·Insights는 종료 상태다.
+
+아래는 앞선 묶음의 기록이다. 현재 상태는 위 결과가 우선한다.
 
 **후속 묶음 4 완료**다. 사용자가 `DA_MassSpawnConfig`는 임시값이며 테스트용으로 크게 변경해도 된다고 승인했다. Unreal MCP 재연결 후 에셋을 저장·변경·읽기 검증했다. Pod 120개 유지, 비행 편성 Pod 46→100개·비행 요청 200→600개, 지상 요청 1,680→720개다. 각 Pod는 지상 PureEntity 근접 4·원거리 2, 비행 편성은 6기다. ActorPromoted 항목은 Count 0으로 제외했다. SpawnSetId·배치 거리/반경은 유지했다. TestMap03 일반 PIE에서 Pod 120개·적 1,306/1,320개 배치 완료와 사용자 지상/비행 배회 자연스러움을 확인했다. 적 배치 부족 14개 때문에 정확한 총수 성능 표본은 아니다. 지상/비행 실제 개별 수·대역별 수는 아직 미계측이다. assert/ensure/fatal·Mass 순서 위반 0, 기존 Mover/CMC 로그와 후보 부족 오류는 남아 있다. 증거는 `Saved/Tests/Phase13_WanderComposition`, 상세는 Phase 13 로그다. PIE는 종료했고 에디터/MCP는 유지한다.
 

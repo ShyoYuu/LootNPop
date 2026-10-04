@@ -18,6 +18,8 @@
 #include "MassSignalSubsystem.h"
 #include "MassStateTreeTypes.h"
 #include "LNPMassUtils.h"
+#include "LootNPop.h"
+#include "GameFramework/Actor.h"
 
 ULNPEnemyActivityProcessor::ULNPEnemyActivityProcessor()
 	: EnemyQuery(*this), PodQuery(*this), PlayerQuery(*this)
@@ -53,6 +55,7 @@ void ULNPEnemyActivityProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	PodQuery.RegisterWithProcessor(*this);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	PlayerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	PlayerQuery.RegisterWithProcessor(*this);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPSurfaceDataSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPNavPathSubsystem>(EMassFragmentAccess::ReadWrite);
@@ -70,6 +73,14 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	const bool bDistanceDue = Now >= NextDistanceTime;
 	if (bDistanceDue)
 		NextDistanceTime = Now + LNPEnemyActivity::DistanceInterval;
+	const bool bDiagnostics = LNPLoadBaseline::IsActivityDiagnostics();
+	const bool bDiagnosticSample = bDiagnostics && bDistanceDue && Now >= NextDiagnosticTime;
+	if (bDiagnosticSample)
+	{
+		if (NextDiagnosticTime == 0.0)
+			UE_LOG(LogLootNPop, Display, TEXT("[ActivityDiagnostic] Reason bits: 0=Wake 1=Dead 2=Target 3=Velocity 4=Attack 5=HitPoise 6=Home 7=Dynamic 8=Actor 9=Settings 10=Support"));
+		NextDiagnosticTime = Now + 1.0;
+	}
 	const auto Snapshot = Context.GetSubsystemChecked<ULNPSurfaceDataSubsystem>().TakeSnapshot();
 	ULNPNavPathSubsystem& NavPaths = Context.GetMutableSubsystemChecked<ULNPNavPathSubsystem>();
 	UMassSignalSubsystem& Signals = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
@@ -77,12 +88,27 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	const bool bTerrainChanged = LastSurfaceSnapshot.IsValid() && LastSurfaceSnapshot != Snapshot;
 	LastSurfaceSnapshot = Snapshot;
 	TArray<FVector> Players;
+	TArray<FVector> DiagnosticActorPlayers;
 	if (bDistanceDue)
 	{
-		PlayerQuery.ForEachEntityChunk(Context, [&Players](FMassExecutionContext& Ctx)
+		PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 		{
-			for (const auto& Transform : Ctx.GetFragmentView<FTransformFragment>())
-				Players.Add(Transform.GetTransform().GetLocation());
+			const auto Transforms = Ctx.GetFragmentView<FTransformFragment>();
+			const auto Actors = Ctx.GetFragmentView<FMassActorFragment>();
+			for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
+			{
+				const FVector Position = Transforms[I].GetTransform().GetLocation();
+				Players.Add(Position);
+				if (bDiagnosticSample)
+				{
+					const AActor* Actor = Actors.IsValidIndex(I) ? Actors[I].Get() : nullptr;
+					if (Actor)
+						DiagnosticActorPlayers.Add(Actor->GetActorLocation());
+					UE_LOG(LogLootNPop, Display, TEXT("[ActivityDiagnostic] Player=%d Actor=%s Mass=%s ActorPosition=%s Delta=%.1f"),
+						Ctx.GetEntity(I).Index, *GetNameSafe(Actor), *Position.ToString(),
+						Actor ? *Actor->GetActorLocation().ToString() : TEXT("None"), Actor ? FVector::Dist(Position, Actor->GetActorLocation()) : -1.0);
+				}
+			}
 		});
 	}
 	auto NearestPlayerSq = [&Players](const FVector& Position)
@@ -100,6 +126,7 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		float CullDistance = 0.f;
 		bool bForceActive = false;
 		bool bCanSleep = true;
+		int32 DiagnosticCull[2] = {};
 	};
 	TMap<FMassEntityHandle, FActivityPod> Pods;
 	PodQuery.ForEachEntityChunk(Context, [&Pods, bTerrainChanged](FMassExecutionContext& Ctx)
@@ -131,6 +158,28 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			FLNPEnemyFragment& Enemy = Enemies[I];
 			if (FActivityPod* Pod = Pods.Find(Enemy.ParentLootPod))
 			{
+				if (bDiagnostics)
+				{
+					// 1Hz 표본 사이의 순간 깨움도 누적한다. 비트의 대응은 진단 로그 범례에 남긴다.
+					DiagnosticWakeReasons.FindOrAdd(Enemy.ParentLootPod) |= uint32(Enemy.bActivityWakeRequested) << 0
+						| uint32(Enemy.Health <= 0.f) << 1 | uint32(Targets[I].State != ELNPTargetingState::None) << 2
+						| uint32(!Velocities[I].Velocity.IsNearlyZero()) << 3
+						| uint32(Attacks[I].Phase != ELNPEntityAttackPhase::None || Attacks[I].bAttackRequested) << 4
+						| uint32(Enemy.HitReactTimer > 0.f || Enemy.FlinchTimeRemaining > 0.f || Poise[I].Current > 0.f) << 5
+						| uint32(Enemy.bNeedsHomeCheck) << 6 | uint32(Enemy.DynamicSupportContact.IsValid()) << 7
+						| uint32(Actors[I].Get() != nullptr) << 8
+						| uint32(Shared.ActivityActiveDistance <= 0.f || Shared.ActivityCullDistance < Shared.ActivityActiveDistance) << 9
+						| uint32(Shared.Config && !Shared.Config->IsFlying() && !Enemy.SurfaceHandle.IsValid()) << 10;
+				}
+				if (bDiagnosticSample)
+				{
+					for (const FVector& Player : DiagnosticActorPlayers)
+						if (FVector::DistSquared(Player, Transforms[I].GetTransform().GetLocation()) < FMath::Square(Shared.ActivityCullDistance))
+						{
+							++Pod->DiagnosticCull[Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() ? 1 : 0];
+							break;
+						}
+				}
 				Pod->bForceActive |= Enemy.bActivityWakeRequested || Enemy.Health <= 0.f
 					|| Targets[I].State != ELNPTargetingState::None || !Velocities[I].Velocity.IsNearlyZero()
 					|| Attacks[I].Phase != ELNPEntityAttackPhase::None || Attacks[I].bAttackRequested
@@ -161,7 +210,20 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			Pod.Fragment->ActivityBand = LNPEnemyActivity::SelectBand(Pod.Fragment->ActivityBand,
 				NearestPlayerSq(Pod.Position), Pod.ActiveDistance, Pod.CullDistance,
 				Now < Pod.Fragment->ActivityWakeUntil, Pod.bCanSleep);
+		if (bDiagnosticSample && Pod.DiagnosticCull[0] + Pod.DiagnosticCull[1] > 0)
+		{
+			double ActorDistanceSq = DBL_MAX;
+			for (const FVector& Player : DiagnosticActorPlayers)
+				ActorDistanceSq = FMath::Min(ActorDistanceSq, FVector::DistSquared(Pod.Position, Player));
+			UE_LOG(LogLootNPop, Display, TEXT("[ActivityDiagnostic] Pod=%d Band=%d MassDistance=%.1f ActorDistance=%.1f Active=%.1f Cull=%.1f Ground=%d Flight=%d Force=%d Hold=%.1f Reasons=%u Looting=%d TerrainChanged=%d"),
+				Pair.Key.Index, int32(Pod.Fragment->ActivityBand), FMath::Sqrt(NearestPlayerSq(Pod.Position)), FMath::Sqrt(ActorDistanceSq),
+				Pod.ActiveDistance, Pod.CullDistance, Pod.DiagnosticCull[0], Pod.DiagnosticCull[1], Pod.bForceActive,
+				FMath::Max(0.0, Pod.Fragment->ActivityWakeUntil - Now), DiagnosticWakeReasons.FindRef(Pair.Key),
+				Pod.Fragment->State == ELNPLootPodState::Looting, bTerrainChanged);
+		}
 	}
+	if (bDiagnosticSample)
+		DiagnosticWakeReasons.Reset();
 	TArray<FMassEntityHandle> Woken;
 	EnemyQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
