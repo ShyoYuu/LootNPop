@@ -24,7 +24,11 @@ $taskArguments = @{
     AlwaysActive = '-LNPLoadBaselineProduction -LNPLoadBaselineAlwaysActive'
     N700 = '-LNPLoadBaseline=700'
     N700Chase = '-LNPLoadBaseline=700 -LNPLoadBaselineChase'
+    N800 = '-LNPLoadBaseline=800'
+    N800Chase = '-LNPLoadBaseline=800 -LNPLoadBaselineChase'
     F200 = '-LNPLoadBaselineFlyers=200'
+    F300 = '-LNPLoadBaselineFlyers=300'
+    ProductionWideSpawn = '-LNPLoadBaselineProduction -LNPLoadBaselineSpawnRadius=1500'
     WanderObserve = '-LNPLoadBaselineProduction -LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500'
     WanderPoseControl = '-LNPLoadBaselineProduction -LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500 -LNPLoadBaselineWanderPoseControl'
 }

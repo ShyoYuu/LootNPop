@@ -153,6 +153,10 @@ CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 
 
 ### Phase 13 활동 대역 측정
 
+2026-10-04 사용자 결정으로 Phase 13 핵심 구현·기능 검증 결과를 보존하고 최종 성능·총수 Gate는 Phase 12 뒤 재개한다. 투사체 최적화는 Phase 12에서 수행한다. 이동·Nav 격리 측정은 보조 진단이며 기존 전체 프레임 Gate를 대체하지 않는다. 병렬 실행·대기가 포함된 투사체 CPU를 프레임 P95에서 빼서 합격을 계산하지 않는다. Phase 12 최종 패키지에서 통합 부하와 남은 경로·비행/혼합·총수 검증을 다시 수행한 뒤 완료와 D-054 변경을 판단한다.
+
+`AnalyzePhase13GroundPopulation.ps1`은 같은 패키지의 자연·추격 700/800 각각 두 trace 없는 Gate와 한 trace를 검증한다. 조건별 700→800→800→700 순서와 trace 원본은 `Saved/Profiling/Phase13/GroundPopulationAttribution/Run.ps1`에 보존한다. 실제 총수·무귀속 Active·30표본·실제 chase/trace 모드·probe·Nav 요청/timing 키/순서·같은 패키지를 확인한다. 동일 이름 timer ID는 count·inclusive·exclusive를 먼저 합치고 호출당/프레임당/초당 분모를 구분한다. exact 클래스별 query 시간은 Report의 반올림된 평균에서 얻은 근사값이며 processor 하위 범위와 더하지 않는다. 병렬 부모 inclusive와 `stepWait`는 대기를 포함한다. trace P95로 trace 없는 Gate를 대체하거나 총수 증가 효과를 고정 비율로 해석하지 않는다.
+
 2026-10-04 후속 묶음 2의 자연 700 trace 없는 두 반복은 frame/path Gate PASS(프레임 P95 14.70/14.95ms, 경로 tick P95 0.753/0.611ms)다. `Saved/Profiling/Phase13/NaturalRecheck`의 host/guest·Nav CSV·Summary/Validation을 보존했다. 실제 late join·양쪽 지상/비행 화면·같은 게스트 NetID 48개의 bubble 제거/새 ReplicationID 재추가는 `Saved/Tests/Phase13_Unit5_Network`로 확인했다. production 성능과 충분한 배회 대역의 대역폭/총수 Gate는 여전히 미완료다.
 
 `RunPhase13Gate.ps1`의 `PackageDirectory`·`OutputDirectory`·`FirstRepeat`로 이전/현재 패키지의 실행 순서를 뒤집은 대조를 구성할 수 있다. 기존 로그 덮어쓰기 거부는 유지한다. Nav 요청과 timing CSV는 패키지의 공용 저장 경로에서 다음 실행 전에 실행별 출력 폴더로 복사한다. `AnalyzePhase13GroundAttribution.ps1`은 trace 없는 Gate와 trace 비용을 분리하고 보존된 CSV의 제출 수·요청/timing 키 일치·중복·시간 역전을 확인한다. 원본 CSV가 없는 실행의 행 수는 null로 남기며 확인했다고 보고하지 않는다. 병렬 부모 inclusive에는 대기가 포함되고, trace에서 승격 Actor 수 등 workload가 다르면 청크/메모리 증가만으로 비용을 귀속하지 않는다.
@@ -166,6 +170,10 @@ CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 
 production과 대조군의 실제 개체 수·거리·행동 분포를 함께 비교한다. 원거리 대부분이 휴면이고 배회 표본이 적은 실행은 휴면 효과의 근거이며 구간 배회 대역폭 효과의 근거로 확대하지 않는다. 구체적인 측정 결과와 Gate 판정은 `../history/Phase13_Log.md`가 소유한다.
 
 `AnalyzePhase13Gate.ps1 -InputDirectory <측정 폴더>`로 후속 Gate를 기존 `After`와 분리해 분석한다. 기본 입력 경로는 유지한다. 반복 실행 순서는 실제 실행기 순서로 기록하고, 같은 seed라도 동일 행동 상태나 교차 순서를 보장했다고 해석하지 않는다.
+
+Phase 13 총수 비교는 무귀속 링 부하와 Pod 귀속 월드 편성을 구분한다. `N800`·`N800Chase`·`F300`은 기존 Phase 6/3c 경계의 무귀속 항상 활성 비교점이며 활동 대역으로 절약되는 총수의 직접 증거가 아니다. 분석기의 `RingPopulationEligible`은 Active 로그의 요청 수, 링 실제 배치 수, 최종 엔티티 수와 28개 이상 활동 표본의 무귀속·전량 Active 일치를 확인한다. 부족·누락·활동 대역 강등이 있는 링 실행은 총수 합격 표본에서 제외한다. `RingFrameGatePassed`는 이 조건과 기존 16.6ms 기준을 함께 적용한다. 경로/기능/CSV 검사는 별도로 확인하며, runtime `NavGate`의 16.67ms 표기와 혼동하지 않는다.
+
+`ProductionWideSpawn`은 인지·일반 플레이어 시작 위치를 유지하고 Pod 주변 스폰 반경만 1,500cm로 넓히는 배치 부족 대조다. ObserveWander·인지 제외·진단을 켜지 않는다. 이 대조의 전량 배치나 프레임 결과를 기본 반경 800cm의 production 결과로 적용하지 않으며, runtime 안전 검사와 에셋은 변경하지 않는다. 구체적인 경계 측정·배치 부족 결과는 `../history/Phase13_Log.md`가 소유한다.
 
 배회 전용 대조는 production 스폰에 `-LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500`을 적용한다. 관찰 자리 선택 전에 멤버의 시작 자세 exact capsule/sphere 검사와 같은 Pod 멤버 간 보수적 구 겹침 검사를 수행한다. 하나라도 막히거나 겹친 Pod는 관찰 후보 수에 포함하지 않는다. 기존 지각 32후보와 안전한 Pod 주변의 고정 8방향에서 활성 경계 밖·컬 안의 양쪽 종류가 많은 자리를 골라 기존 리스폰 경로로 옮긴다. 이 startup probe는 capture 통계 초기화 전 실행하며 배회 중 안전 검사와 스폰 편성은 유지한다. 시작 자세 통과가 구간 전체 안전을 보장하지 않으므로 실제 capture 표본 Gate도 확인한다. 관찰 폰은 Mover 정지 모드에 두고, 게스트는 실행기의 `t.MaxFPS 60`으로 headless 입력 큐 과다를 막는다. capture 1Hz에서 폰 수와 지점 거리(10m 이내)를 확인한다. 관찰자는 NPC 인지 후보에서만 제외하고 활동 대역 거리 판정에는 참여한다. 인지 제외는 재패키징·관련 자동화·리슨 2P로 검증했다. 이 합성 시나리오의 프레임 값을 자연 교전 production Gate로 확대하지 않는다.
 

@@ -415,3 +415,126 @@ PIE를 MCP로 종료하고 IsPIERunning=false를 확인했다. 세션 assert/ens
 **후속 묶음 6 완료, 다음 진행 확인 대기**다. 일반 production 전투 성능·지상/비행 총수 Gate와 D-054 재검토는 남아 있어 단위 5 전체·Phase 13은 미완료다. 다음 후보는 현재 편성의 인지·전투를 포함한 일반 production 프레임 재측정과 실패 시 비용 분해·수정이다. 이전 1,801개 production 실패를 격리된 1,320개 배회 대조로 해결했다고 보고하지 않는다. 에디터·게임·Insights 종료 상태를 확인했고 사용자 진행 확인 전 다음 구현에 착수하지 않는다.
 
 빌드/자동화/smoke 증거는 `Saved/Tests/Phase13_WanderComposition` 및 `Saved/Tests/Phase13_ObserverRegression`, 최초 실패는 `Saved/Profiling/Phase13/WanderComparison`, 검증된 네 대조는 `Saved/Profiling/Phase13/WanderComparisonFixed`에 보존했다. `WanderComparisonIsolated`에는 다음 실행/분석 스크립트만 준비돼 있다. Current·Phase13·ValidationAndMigration에 같은 미검증 경계를 기록했다. 이전 production 프레임 Gate 실패·D-054·Phase13 전체 미완료 상태는 유지한다.
+
+## 2026-10-04 — 단위 5 후속 묶음 7 완료: 현재 편성의 일반 production 재측정
+
+사용자가 Phase 13 이어서 진행과 에디터·게임·Insights/무거운 작업 종료·동일 전원/성능 조건을 확인했다. 기존 `Saved/SurfaceNavigationPhase13ObserverEligiblePackage`를 그대로 사용했다. gameplay·Content·Config 변경이나 새 빌드/cook은 없다.
+
+### 실행 조건과 결과
+
+기존 `RunPhase13Gate.ps1`로 production 1→항상 활성 1→항상 활성 2→production 2를 실행했다. 리슨 2P·nullrhi·corelimit 4·seed 1·10초 준비/30초 capture·투사체 목표 500이다. trace·ObserveWander·인지 제외·SpawnRadius 덮어쓰기·PoseControl·활동 진단은 모두 껐다. 실제 공격·피격 이벤트와 비행 Confirmed 상태를 확인했다. 이벤트 수는 warm-up 포함 실행 전체 로그이므로 capture 전용 공격률로 사용하지 않는다.
+
+| 실행 순서 | frame P95(ms) | exact P95(ms) | frame/path | 게스트 연결 전체 B/s | Nav 요청/timing 행 |
+|:---|---:|---:|:---|---:|---:|
+| production 1 | 12.58 | 1.429 | PASS/PASS | 16,303.7 | 253 |
+| 항상 활성 1 | 16.41 | 3.668 | PASS/PASS | 16,685.1 | 1,997 |
+| 항상 활성 2 | 16.76 | 3.704 | FAIL/PASS | 16,700.7 | 2,260 |
+| production 2 | 12.80 | 1.448 | PASS/PASS | 17,201.1 | 265 |
+
+- 네 실행 모두 120 Pod·적 요청 1,320개 중 실제 **지상 709·비행 600·귀속 1,309개**다. 네 set의 적 배치는 120/473/356/360이며 두 set에서 지상 7/4개 부족이다. capture 30표본 모두 실제 수가 일정했다. 요청 지상 720의 성능 합격 표본으로 쓰지 않는다. 이전 배회 관찰 대조는 반경 1,500cm 덮어쓰기를 사용했으므로 그 전량 배치를 일반 스폰에 적용하지 않는다.
+- production 1의 지상 Dormant/Wander/Active 평균 583.0/67.2/58.8, 비행 498.0/55.2/46.8이다. production 2는 지상 586.6/66.0/56.4, 비행 501.6/54.0/44.4다. 항상 활성은 두 실행 모두 지상 709·비행 600 Active, 휴면/배회/구간 0이다. 원거리 대부분이 휴면인 일반 편성이며 대규모 동시 교전·동일 행동 replay 검증이 아니다.
+- host/guest **8개 exit 0**, probe **32/32 PASS**, assert/ensure/fatal 0·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. 네 Nav CSV의 제출 행 수·요청/timing 키·중복·누락·순서 검사를 통과했다. 같은 패키지 SHA256과 모드·진단/관찰 옵션 부재도 확인했다.
+- 기존 Mover/CMC 및 NetworkPrediction 입력 starvation/회복 로그가 남아 있다. 호스트의 SystemFault 메시지는 실행 순서대로 203/405/282/222개다. 프로세스/기능 probe 합격을 네트워크 입력 오류가 전혀 없는 플레이로 해석하지 않는다. 입력 fault 메시지 수는 실제 packet loss나 누락 입력 개수와 같지 않다.
+- 연결 전체 수신량은 production 두 평균 16,752.4 B/s·항상 활성 16,692.9 B/s로 감소가 없다. 이 실험은 충분한 컬 안 배회나 동일 행동 분포의 대역폭 대조가 아니므로 앞선 배회 전용 7.29% 결과를 대체하지 않는다.
+
+### 증거와 인계
+
+`Saved/Profiling/Phase13/ProductionCurrent`에 host/guest·Exit/SHA256·Nav CSV·Summary/Validation/Audit과 재현 `Run.ps1`·`Validate.ps1`·`Audit.ps1`을 보존했다. 검사 스크립트의 일반 문자열 `FAIL` 검색이 `failures=0`까지 잡는 문제를 `-> FAIL`로 좁혀 수정한 뒤 Audit을 통과했다. 게임 검증 실패가 아니다. 요청/실제 수·활동 분포·인지/전투·입력 fault·최대 총수 미검증을 구조화했다. 이번에 소스 변경을 하지 않았으므로 기존 자동화를 반복하지 않았다.
+
+**후속 묶음 7 완료, 다음 진행 확인 대기**다. 현재 실제 1,309개 production frame/path는 두 번 통과해 gameplay 성능 수정은 추가하지 않았다. 항상 활성 둘째 frame FAIL은 유지한다. 이전 1,801개 실패·요청 1,320개 전량 배치·최대 총수 Gate·D-054 대체 여부·단위 5 전체·Phase 13은 해결/완료로 처리하지 않는다. 다음 후보는 기존 Phase 6/3c 조건과 Pod 귀속 편성을 구분한 지상/비행 총수 Gate 조건 구체화·검증과 일반 스폰 11개 부족 확인이다. 에디터·게임·Insights 종료 상태이며 사용자 진행 확인 전 다음 묶음에 착수하지 않는다.
+
+## 2026-10-04 — 단위 5 후속 묶음 8 완료: 총수 비교 판정과 배치 반경 대조
+
+사용자가 계속 진행을 승인했다. 앞선 에디터·무거운 작업 종료와 같은 전원/성능 조건에서 기존 ObserverEligible 패키지를 사용했다. 이번 변경은 PowerShell 실행/분석기와 문서뿐이며 C++·Content·Config 변경·새 빌드/cook은 없다.
+
+### 구현과 배치 부족 조사
+
+- `RunPhase13Gate.ps1`에 `N800`·`N800Chase`·`F300`·`ProductionWideSpawn`을 추가했다. 마지막 조건은 일반 인지·시작 위치를 유지하고 스폰 반경만 1,500cm로 덮어쓴다. ObserveWander·인지 제외·진단·PoseControl은 없다.
+- `AnalyzePhase13Gate.ps1`은 Active 로그 요청 수, 링 실제 배치, 최종 엔티티 총수와 28개 이상 활동 표본을 확인한다. 무귀속 전량 Active가 아니면 `RingPopulationEligible=false`다. `RingFrameGatePassed`는 이 조건과 Phase 3b/6의 기존 16.6ms 기준을 함께 쓴다. 경로·기능·CSV 검사는 별개이며 runtime NavGate 표기 16.67ms로 기준을 느슨하게 바꾸지 않는다. PowerShell 파서와 실로그에서 링 여섯 실행 true·production 대조 false를 확인했다. 이전 자연 700 로그에서도 요청/배치/최종 700 일치를 확인한 구조화 기록은 `Prior700PopulationCheck.json`이다.
+- `LNPMassSpawnPlan.cpp`의 후보 배정은 전역 사용 여부·Enemy 허용 flag·headroom·같은 slot/Layer·Pod 반경·200cm 간격 조건을 만족하는 베이크 후보를 순서대로 소비한다. `MaxRetryCount`를 더 돌리는 구조가 아니다. 부족 원인은 이 필터를 통과하는 미사용 후보가 요청 수보다 적다는 것이며, 어느 필터가 각 후보를 기각했는지 계측하지 않았다.
+- 반경 800cm의 앞선 일반 실행은 지상 709·비행 600이었다. 이번 반경 1,500cm 대조는 같은 seed/패키지·120 Pod에서 네 set 120/480/360/360, **지상 720·비행 600 전량 배치**다. 반경 안 후보 가용성이 11개 부족에 영향을 준다는 근거이며 모든 Pod의 후보 부족을 무조건 반경으로 해결할 수 있다는 뜻은 아니다. runtime 안전 검사·베이크/스폰 규칙·기본 에셋 반경을 바꾸지 않았다.
+
+### trace 없는 비교점
+
+실행 순서는 일반 반경 대조 1회→지상 800 자연 두 번→지상 800 추격 두 번→비행 300 두 번이다. Development 리슨 2P·seed 1·nullrhi·corelimit 4·10초 준비/30초 capture·투사체 목표 500·cache/lateral/parallel On이다. 링은 Pod에 귀속되지 않아 활동 대역 최적화의 직접 효과가 없는 기존 활성 비용 비교점이다.
+
+| 실행 | 실제 적 수 | frame P95(ms) | Nav tick P95(ms) | exact P95(ms) | frame/path | Nav CSV 행 |
+|:---|---:|---:|---:|---:|:---|---:|
+| 일반 반경 1,500cm | 1,320 | 17.27 | 0.018 | 1.928 | FAIL/PASS | 238 |
+| 지상 800 자연 1 | 800 | 20.83 | 0.870 | 4.744 | FAIL/PASS | 5,762 |
+| 지상 800 자연 2 | 800 | 21.25 | 0.944 | 4.751 | FAIL/PASS | 7,721 |
+| 지상 800 추격 1 | 800 | 21.30 | 1.461 | 3.943 | FAIL/PASS | 10,029 |
+| 지상 800 추격 2 | 800 | 19.91 | 1.579 | 3.956 | FAIL/FAIL | 11,025 |
+| 비행 300 1 | 300 | 8.85 | 0.000 | 2.035 | PASS/PASS | 0 |
+| 비행 300 2 | 300 | 8.78 | 0.000 | 2.365 | PASS/PASS | 0 |
+
+- 일곱 실행 host/guest **14개 exit 0**, probe **56/56 PASS**, assert/ensure/fatal 0·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. 30표본씩, 같은 패키지 SHA256, 실제 옵션·전량 스폰·무귀속 Active·Nav 요청/timing 행/키/중복/누락/순서를 확인했다. 비행의 Nav 0행은 지상 Nav를 소비하지 않는 조건이지 실제 지상 경로 품질 합격 증거가 아니다.
+- 비행 300의 상태 평균은 None/Alert/Confirmed 24.8/235.2/40.0과 23.9/236.3/39.8이다. frame/path는 통과했으나 exact 진단 2ms는 두 번 초과했다. correctness-mandatory query를 생략하는 수정은 하지 않았다. 관통 검사는 `check=0`이므로 이 실행에서 관통 0을 검증했다고 보고하지 않는다.
+- 일반 반경 대조는 1회 frame 실패이므로 반경을 production 기본값으로 반영하거나 앞선 1,309개 일반 production 합격과 동일 workload로 비교하지 않는다. 전량 배치·배치 분포가 달라 CPU 증가를 누락 11개에만 귀속하지 않는다. 지상 800 실패도 과거 Phase 6의 800 합격과 단순 비교해 특정 코드 회귀를 확정하지 않는다.
+- 기존 Mover/CMC 및 headless NetworkPrediction 입력 회복 로그는 남아 있다. 호스트 SystemFault 메시지는 일반 반경 대조 32개·링 각 실행 7개다. 게임 로그 전체 오류 0이나 입력 fault 없는 실제 플레이로 보고하지 않는다.
+
+원본·Exit/SHA256·Nav CSV·Summary/Validation/Audit과 재현 `Run.ps1`·`Validate.ps1`·`Audit.ps1`은 `Saved/Profiling/Phase13/PopulationGate`다. 분석기·검증기 exit 0이다. 에디터·게임·Insights는 종료 상태다.
+
+**후속 묶음 8 완료, 다음 진행 확인 대기**다. 최대 총수를 확정하거나 D-054를 대체하지 않았다. 단위 5 전체·Phase 13은 미완료다. 다음 후보는 같은 패키지의 700 대조와 지상 800 자연/추격 trace CPU 분해로 비용을 확인하고 필요한 수정을 하는 묶음이다. 일반 반경 확장 1회 실패 재현·비용 분해, 비행 관통/혼합·Pod 귀속 활동 대역 총수 검증도 남아 있다. 사용자 확인 전 다음 구현에 착수하지 않는다.
+
+## 2026-10-04 — 단위 5 후속 묶음 9 완료: 지상 700/800 비용 분해·분석기 구현
+
+사용자가 지상 700 대조와 800 자연/추격의 비용 분해·필요한 수정 및 구현 단위별 진행 확인을 요청했다. 같은 전원/성능 설정·다른 무거운 작업 종료를 확인받았다. 첫 구현 단위는 동일 패키지 대조·비용 분석기와 수정 범위 확정이다. 기존 패키지의 재현 가능한 harness·CPU 범위가 충분하므로 이 단위에는 에디터/MCP·새 빌드가 필요하지 않았다. 에디터 실행 상태를 방법 선택의 우선순위로 쓰지 않았다.
+
+### 구현과 검증
+
+- `Scripts/Profiling/AnalyzePhase13GroundPopulation.ps1`을 추가했다. Gate 8회·Trace 4회와 각 case의 완결성, 실제 요청/배치/최종 700/800·30표본·무귀속 전량 Active·chase/trace 모드·진단/관찰 제외·동일 패키지·probe·불변 조건을 검증한다. Nav CSV의 제출 수/요청/timing 행 수, 고유 owner/serial key, 시간 순서·누락을 검사한다.
+- Insights의 동일 이름 timer ID는 count/inclusive/exclusive를 먼저 합친 뒤 호출당·frame당·초당 시간을 분리한다. 모든 timer 원본 요약과 LNP/Mass 비교를 보존한다. `WorldCollision.Report`의 클래스별 호출 수·평균에서 얻는 query CPU는 평균의 0.01us 반올림 오차가 있는 근사치다. Ground cache 적중률·Nav 세부 stage·Actor 승격·투사체 수를 함께 보존한다. 부모/하위 범위·병렬 부모 대기·exact 전체 소비자 범위를 중복 합산하지 않는다.
+- PowerShell 파서·완성된 12회 실로그/CSV/export 분석 exit 0. 새 분석기만 추가했고 앞선 수정 파일과 증거를 유지했다. gameplay·Content·Config 변경·새 빌드/cook은 없다.
+- 패키지 SHA256 `94830BD84A5F917126BB4C350F2C7C03A5B22BCBD8B0475C4F9B58EA303C02EC`. 리슨 2P·seed 1·nullrhi·corelimit 4·10초 준비/30초 capture·투사체 목표 500·cache/lateral/parallel On·기존 lock probe On이다. trace 없는 순서는 자연 700→800→800→700, 추격도 동일이며 trace는 자연 700→800→추격 800→700이다.
+
+### trace 없는 결과
+
+| 실행 | frame P95(ms) | Nav tick P95(ms) | exact P95(ms) | frame/path | Nav CSV 행 |
+|:---|---:|---:|---:|:---|---:|
+| 자연 700 1 | 18.60 | 0.876 | 4.213 | FAIL/PASS | 6,340 |
+| 자연 800 1 | 20.71 | 1.284 | 4.698 | FAIL/PASS | 9,350 |
+| 자연 800 2 | 20.50 | 0.642 | 4.552 | FAIL/PASS | 3,990 |
+| 자연 700 2 | 18.70 | 0.556 | 4.034 | FAIL/PASS | 3,392 |
+| 추격 700 1 | 18.18 | 0.971 | 3.596 | FAIL/PASS | 9,406 |
+| 추격 800 1 | 21.69 | 1.462 | 3.989 | FAIL/PASS | 10,760 |
+| 추격 800 2 | 20.62 | 1.765 | 3.976 | FAIL/FAIL | 11,211 |
+| 추격 700 2 | 17.81 | 1.106 | 3.603 | FAIL/PASS | 9,710 |
+
+이전 700 합격은 삭제하지 않지만 이번 동일 패키지의 700도 frame FAIL이다. 800 실패를 새 100개의 단독 회귀나 이전 패키지 대비 특정 변경 탓으로 단정하지 않는다. 추격 800 둘째의 running/queued P95는 4/185이고 stage P95는 start 0.379·stepWait 1.113·finish 0.160·consumer 1.957·slots 1.021ms다. 각 stage의 P95는 서로 다른 프레임일 수 있어 합하지 않는다. 경로 scheduler 대기와 소비자 비용은 별도 문제로 남긴다.
+
+### trace CPU 분해
+
+네 capture는 30.000963/30.004918/30.006523/30.013502초이며 export 정상 종료다. trace frame P95는 자연 700/800 18.52/20.91ms·추격 700/800 20.08/20.92ms로 정규 Gate 표본에 포함하지 않는다.
+
+| 범위, 호출당 ms | 자연 700→800 | 추격 700→800 |
+|:---|:---|:---|
+| 투사체 판정 inclusive / exclusive | 6.172 / 5.207 → 7.078 / 6.091 | 6.032 / 5.063 → 6.760 / 5.791 |
+| 경로 소비 inclusive | 1.842 → 2.358 | 1.647 → 1.883 |
+| 병렬 이동 부모 inclusive(대기 포함) | 1.193 → 1.372 | 1.273 → 1.411 |
+| 분리 | 0.308 → 0.386 | 0.576 → 0.718 |
+| 인지 scoring / targeting | 0.165 / 0.182 → 0.249 / 0.273 | 0.710 / 0.761 → 0.831 / 0.878 |
+| 복제 inclusive | 0.550 → 0.617 | 0.557 → 0.618 |
+| 활동 + 구간 배회 | 0.048 + 0.042 → 0.052 + 0.047 | 0.050 + 0.040 → 0.055 + 0.042 |
+| 위치 이력 기록 | 0.025 → 0.031 | 0.027 → 0.030 |
+
+- 투사체 판정은 가장 큰 프로젝트 processor 범위이며 하위 범위를 제외한 frame당 증가도 자연 약 0.885ms·추격 0.728ms로 가장 크다. `LNPProjectileProcessors.cpp` 서버 경로는 투사체마다 적 배열 전체를 훑어 팀/발사자 제외 뒤 되감긴 캡슐 판정을 수행한다. 그러나 현재 scope는 대상 수집·되감기·캡슐 판정을 따로 나누지 않으므로 내부 한 연산만 원인으로 확정하지 않는다.
+- GroundRiskFallback 근사 query CPU는 자연 2.636→3.128ms/frame(832→1,016 queries/frame), 추격 2.284→2.556ms/frame(643→741 queries/frame)이다. 투사체 exact는 네 조건 약 502~503 queries/frame·0.87~0.89ms/frame이고 공중 query 약 0.13~0.17ms/frame이다. 지면 캐시 적중률 98.22~98.98%라도 수평 sweep은 남는다. correctness query를 없애는 변경은 하지 않았다. 클래스 query 시간은 내부 timer와 일부 동기화 시간을 포함하며 합산 exact CPU가 병렬 이동의 wall time은 아니다.
+- 경로 `NearestNode` exclusive는 자연 0.992→1.201ms/frame·추격 0.810→0.920ms/frame으로 경로 소비의 큰 하위 범위다. 신규 활동/배회는 합계 약 0.09~0.10ms라 이를 실패 원인으로 확대하지 않는다.
+- trace 평균 승격 Actor는 자연 3.2/1.1·추격 6.6/4.8로 다르다. `AnimSourceMesh` exclusive frame당은 0.800/0.512·1.260/1.006ms이며 VisualMesh·Motion Matching 비용도 존재한다. 모든 평균 CPU 범위를 더해 프레임 P95나 개체당 순수 CPU·고정 총수 증가율로 해석하지 않는다.
+
+### 기능과 인계
+
+12회 host/guest **24개 exit 0**, probe **96/96 PASS**, assert/ensure/fatal·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. 30표본·전량 Active·Nav CSV·같은 패키지·네 export region을 확인했다. 기존 Mover/CMC와 headless NetworkPrediction fault는 남아 있다. 호스트 SystemFault 메시지는 자연 700 둘째 46개·나머지 11회 각각 7개여서 fault 없는 플레이나 로그 전체 오류 0으로 보고하지 않는다.
+
+원본은 `Saved/Profiling/Phase13/GroundPopulationAttribution/{Gate,Trace}`, 재현은 `Run.ps1`, 정합성·모드 검증과 비용 분해는 최상위 `Summary.json`·새 분석기가 소유한다. **비용 분해·분석기 구현 단위 완료, 다음 gameplay 수정 단위 진행 확인 대기**다. 다음 후보는 되감긴 위치·기존 명중 순서·월드 earliest hit를 보존하는 투사체 캡슐 판정의 보수적 후보 제외와 후보/세부 CPU 계측, 동등성 회귀·빌드/cook·700/800 재측정이다. 경로 scheduler/consumer 실패는 별도로 남아 있으며 이번 분석만으로 해결됐다고 보고하지 않는다. 단위 5 전체·Phase 13·총수 상향·D-054는 미완료/유지다. 에디터·게임·Insights 종료 상태를 확인했고 사용자 진행 확인 전 다음 구현에 착수하지 않는다.
+
+## 2026-10-04 — 사용자 결정: Phase 13 최종 Gate 보류·Phase 12 선행 인계
+
+사용자는 투사체 최적화를 Phase 12에서 집중적으로 진행하기로 했다. 앞선 후속 묶음 9의 후보 제외 최적화 제안은 Phase 13의 다음 구현으로 착수하지 않는다. 특정 최적화 방법을 채택한 결정도 아니며 Phase 12에서 내부 비용을 분해하고 정확성·실측 이득을 확인해 선택한다.
+
+Phase 13은 **핵심 구현·기능 검증 완료, 최종 성능 Gate 보류**다. 단위 1~4, 자동화·빌드/cook·패키지·리슨 2P·late join·동일 게스트 bubble 재진입·지상/비행 화면과 배회 대역폭 대조의 검증 결과를 유지한다. 단위 5 전체와 Phase 13 최종 완료 체크는 열어 둔다.
+
+새 세션에서 Phase 12를 먼저 진행하고, 완료 뒤 별도 새 세션에서 Phase 13 통합 성능·총수 Gate를 마무리한다. 이동·Nav 격리 측정은 보조 진단이며 기존 전체 프레임 Gate를 대체하지 않는다. 투사체 CPU를 프레임 P95에서 빼서 합격을 계산하지 않는다. 경로 800 실패·Pod 귀속 통합 부하/총수·비행 관통/혼합 검증은 그대로 남아 있어 Phase 12 완료만으로 Phase 13을 자동 완료하지 않는다. D-054와 총수 상한은 재검증까지 유지한다.
+
+`Current.md`는 이 순서와 새 세션의 진입점·보존 결과·미해결 검증을 중심으로 다시 정리했다. `Roadmap.md`의 오래된 Phase 13 진행 표기를 현재 보류 상태로 갱신하고 Phase 12 선행과 최신 비용 원본을 연결했다. Phase 13 실행서·검증 설계에도 Gate 유지와 재개 조건을 반영했다. 이번 결정 반영에는 gameplay·에셋·설정 변경이나 새 측정/빌드가 없으며, 문서·기존 측정 스크립트를 확인한 뒤 사용자 요청 형식으로 커밋한다.
