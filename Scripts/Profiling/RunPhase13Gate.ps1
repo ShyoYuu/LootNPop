@@ -9,7 +9,9 @@ param(
     [int]$ProjectileProfileStride = 0,
     [ValidateSet(0, 1)][int]$ProjectileSphereBroadPhase = 1,
     [ValidateSet(0, 1)][int]$ProjectileSpatialGrid = 1,
-    [switch]$ValidateProjectileSpatialGrid
+    [switch]$ValidateProjectileSpatialGrid,
+    [ValidateSet(0, 1)][int]$ProjectileRewindCache = 0,
+    [switch]$ValidateProjectileRewindCache
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -57,6 +59,8 @@ foreach ($taskCase in $Cases) {
             $taskCommon += ",LNP.Projectile.SpatialGrid=$ProjectileSpatialGrid"
         }
         if ($ValidateProjectileSpatialGrid) { $taskCommon += ',LNP.Projectile.ValidateSpatialGrid=1' }
+        if ($PSBoundParameters.ContainsKey('ProjectileRewindCache')) { $taskCommon += ",LNP.Projectile.RewindCache=$ProjectileRewindCache" }
+        if ($ValidateProjectileRewindCache) { $taskCommon += ',LNP.Projectile.ValidateRewindCache=1' }
         Write-Output "$taskName started"
         $taskTraceArguments = ''
         $taskTracePath = Join-Path $taskOutput "${taskName}_Host.utrace"
@@ -79,7 +83,7 @@ foreach ($taskCase in $Cases) {
             }
             foreach ($taskLog in @($taskHostLog, $taskGuestLog)) {
                 $taskText = Get-Content -Raw -Encoding UTF8 -LiteralPath $taskLog
-                if ($taskText -match 'Assertion failed|Ensure condition failed|Fatal error|Unhandled Exception|UnknownHits=[1-9]|EnvelopeEscapes=[1-9]|LayerJumps=[1-9]|violations=[1-9]|ProjectileGridMismatch' -or
+                if ($taskText -match 'Assertion failed|Ensure condition failed|Fatal error|Unhandled Exception|UnknownHits=[1-9]|EnvelopeEscapes=[1-9]|LayerJumps=[1-9]|violations=[1-9]|ProjectileGridMismatch|ProjectileRewindCacheMismatch' -or
                     ([regex]::Matches($taskText, '\[(ProbeFaceIndex|ProbeSourceKeys|ProbeSurfaceData)\].*-> PASS')).Count -ne 3 -or
                     $taskText -notmatch '\[LoadBaseline\] FrameMs') { throw "$taskName functional checks failed: $taskLog" }
             }

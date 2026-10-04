@@ -10,6 +10,7 @@
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPProjectileImpactContext.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
+#include "HitDetection/LNPProjectileHistoryCache.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
@@ -47,6 +48,10 @@ namespace
 		TEXT("Server current-position enemy capsule candidates. Rewound/remote projectiles use full scan. 0: off, 1: on."));
 	TAutoConsoleVariable<int32> CVarValidateProjectileSpatialGrid(TEXT("LNP.Projectile.ValidateSpatialGrid"), 0,
 		TEXT("Diagnostic full-scan hit coverage validation of each successful grid query. Expensive; default off."));
+	TAutoConsoleVariable<int32> CVarProjectileRewindCache(TEXT("LNP.Projectile.RewindCache"), 0,
+		TEXT("Reuse each enemy's last history location at an exactly equal query time within one processor execution. 0: reference, 1: enabled."));
+	TAutoConsoleVariable<int32> CVarValidateProjectileRewindCache(TEXT("LNP.Projectile.ValidateRewindCache"), 0,
+		TEXT("Compare every reused history location with a fresh query. Diagnostic only; default off."));
 
 	void ReportProjectileProfile(FLNPProjectileHitProfile& Profile, double Now, bool bIsServer)
 	{
@@ -62,6 +67,9 @@ namespace
 		UE_LOG(LogLootNPop, Display, TEXT("[ProjectileGridProfile] server=%d end=%.6f queries=%llu fallbacks=%llu candidates=%llu fullCandidates=%llu validationQueries=%llu validationHits=%llu validationErrors=%llu"),
 			bIsServer, Now, Profile.GridQueries, Profile.GridFallbacks, Profile.GridCandidates, Profile.GridFullCandidates,
 			Profile.GridValidationQueries, Profile.GridValidationHits, Profile.GridValidationErrors);
+		UE_LOG(LogLootNPop, Display, TEXT("[ProjectileRewindCacheProfile] server=%d end=%.6f requests=%llu hits=%llu validationQueries=%llu validationErrors=%llu"),
+			bIsServer, Now, Profile.HistoryCacheRequests, Profile.HistoryCacheHits,
+			Profile.HistoryCacheValidationQueries, Profile.HistoryCacheValidationErrors);
 		for (int32 Stage = 0; Stage < FLNPProjectileHitProfile::StageCount; ++Stage)
 			UE_LOG(LogLootNPop, Display, TEXT("[ProjectileProfileStage] server=%d end=%.6f stage=%s calls=%llu ms=%.6f"),
 				bIsServer, Now, Names[Stage], Profile.Calls[Stage], FPlatformTime::ToSeconds64(Profile.Cycles[Stage]) * 1000.0);
@@ -505,12 +513,15 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 		const ULNPEnemyConfig* Config;    // 청크 공용 Config (피격 반응 시간 조회용)
 		FVector*           Velocity;      // Actor 없는 적의 넉백이 쓰는 물리 속도
+		FLNPProjectileHistoryCache HistoryCache;
 	};
 	TArray<FCollectedEnemy> Enemies;
 	double MaxCapsuleExtent = 0.0;
 	bool bGridBuilt = false;
 	const bool bSpatialGrid = CVarProjectileSpatialGrid.GetValueOnAnyThread() != 0;
 	const bool bValidateGrid = CVarValidateProjectileSpatialGrid.GetValueOnAnyThread() != 0;
+	const bool bRewindCache = CVarProjectileRewindCache.GetValueOnAnyThread() != 0;
+	const bool bValidateRewindCache = CVarValidateProjectileRewindCache.GetValueOnAnyThread() != 0;
 
 	EnemyQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
@@ -713,6 +724,12 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	// ── Pass 3: 선분 vs 캡슐 충돌 판정 (Lag Compensation 포함) ─────────────────
 	const auto* RewindSurfaces = World->GetSubsystem<ULNPSurfaceDataSubsystem>();
 	const auto RewindSurface = RewindSurfaces ? RewindSurfaces->TakeSnapshot() : nullptr;
+	const auto ReadHistoryLocation = [&](const FLNPPositionHistoryFragment& History, double QueryTime)
+	{
+		FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::History, HitProfile.bSample);
+		if (HitProfile.bSample) ++HitProfile.RewindApplied;
+		return History.GetInterpolatedLocation(QueryTime, RewindSurface.Get());
+	};
 	// 되감기 **핑 항**의 상한. 보간 지연 항은 여기에 묶지 않는다 (LNPPositionHistoryFragment.h).
 	constexpr float MaxPingRewindSeconds = LNPHitDetection::MaxPingRewindSeconds;
 
@@ -804,9 +821,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				// 스폰 직후 첫 기록(50ms) 전 대상이 여기 걸린다.
 				if (TotalRewind <= 0.f || !History || History->Count == 0)
 					return CapsuleCenter;
-				FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::History, HitProfile.bSample);
-				if (HitProfile.bSample) ++HitProfile.RewindApplied;
-				return CapsuleCenter + (History->GetInterpolatedLocation(Now - TotalRewind, RewindSurface.Get()) - RawLoc);
+				return CapsuleCenter + (ReadHistoryLocation(*History, Now - TotalRewind) - RawLoc);
 			};
 
 			// 플레이어는 보간을 타지 않는다 — 위치가 Mass 버블이 아니라 Actor 복제로 오고,
@@ -821,7 +836,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			// 거리 기준점은 발사(반사) 시점의 공격자 위치다 — 복제 LOD는 뷰어(= 공격자) 기준으로 정해지고,
 			// 명중 시점에 공격자 엔티티를 조회하면 워커 스레드에서 임의 엔티티 접근이 된다.
 			// LOD 대역이 1,000/5,000cm로 성겨 비행 중 공격자 이동이 대역을 뒤집는 일은 드물다.
-			auto RewoundEnemyCenter = [&](const FCollectedEnemy& Enemy) -> FVector
+			auto RewoundEnemyCenter = [&](FCollectedEnemy& Enemy) -> FVector
 			{
 				FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::Rewind, HitProfile.bSample);
 				float TotalRewind = RewindSeconds;
@@ -832,7 +847,30 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					const float DistSqFromViewer = static_cast<float>(FVector::DistSquared(Enemy.RawLocation, Proj.InstigatorViewLocation));
 					TotalRewind = RewindSeconds + (Enemy.History && Enemy.History->IsWanderingAt(Now - RewindSeconds) ? 0.f : LNPHitDetection::GetInterpolationLagSeconds(DistSqFromViewer));
 				}
-				return RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, TotalRewind);
+				if (!bRewindCache || TotalRewind <= 0.f || !Enemy.History || Enemy.History->Count == 0)
+					return RewoundCenterAt(Enemy.CapsuleCenter, Enemy.RawLocation, Enemy.History, TotalRewind);
+				const double QueryTime = Now - TotalRewind;
+				FVector HistoryLocation;
+				if (ProfileStride > 0) ++HitProfile.HistoryCacheRequests;
+				if (Enemy.HistoryCache.Find(QueryTime, HistoryLocation))
+				{
+					if (ProfileStride > 0) ++HitProfile.HistoryCacheHits;
+					if (bValidateRewindCache)
+					{
+						++HitProfile.HistoryCacheValidationQueries;
+						if (HistoryLocation != Enemy.History->GetInterpolatedLocation(QueryTime, RewindSurface.Get()))
+						{
+							++HitProfile.HistoryCacheValidationErrors;
+							UE_LOG(LogLootNPop, Error, TEXT("[ProjectileRewindCacheMismatch] time=%.17g"), QueryTime);
+						}
+					}
+				}
+				else
+				{
+					HistoryLocation = ReadHistoryLocation(*Enemy.History, QueryTime);
+					Enemy.HistoryCache.Store(QueryTime, HistoryLocation);
+				}
+				return Enemy.CapsuleCenter + (HistoryLocation - Enemy.RawLocation);
 			};
 
 			// 피격 시 공통 후처리: 임팩트 VFX(GameplayCue) · Dead 태그 · 스플래시 (트레일 해제는 DestructionProcessor 몫)

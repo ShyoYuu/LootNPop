@@ -127,6 +127,16 @@ FinishHit (공통 후처리 람다):
 `LNP.Projectile.ValidateSpatialGrid=1`은 모든 grid query를 전수 정밀 hit와 대조하는 비싼 검증 옵션(기본 0)이다.
 `ProjectileGridProfile`은 샘플 후보/fallback과 전체 검증 query/hit/누락 수, GridBuild 전체·GridQuery 샘플 시간을 기록한다.
 
+서버 적 되감기의 실험 옵션 `LNP.Projectile.RewindCache`는 기본 0이다. Phase 12 단위 3c는 재사용 정확성과
+수동 사격 CPU 대조를 확보했지만 통제된 원격 부하의 순수 이득이 미확정이어서 기본 활성화를 보류했다.
+수집된 적마다 마지막 `QueryTime`과 역사 위치 한 쌍만 저장한다. 같은 processor 실행의 정확히 같은 시각만
+재사용하고 다른 시각은 다시 계산한다. 캐시는 매 실행의 수집 배열과 함께 생성되어 프레임·월드·Surface
+snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 보간 지연·배회 여부를 먼저 기존대로 계산하며,
+현재 위치로 과거 후보를 제외하지 않는다. 플레이어와 보간 보정 비교 계측은 기존 직접 조회 경로다.
+`LNP.Projectile.ValidateRewindCache=1`은 재사용 결과를 새 히스토리 조회와 정확히 대조한다(기본 0).
+`ProjectileRewindCacheProfile`의 requests/hits는 상세 계측이 켜진 동안 전체 조회를 센다. validationQueries/errors는
+검증이 켜진 동안 전체 재사용을 센다. 기존 `History.calls`와 `rewindApplied`는 실제 표본 히스토리 계산 횟수다.
+
 상세 비용 진단은 `LNP.Projectile.ProfileStride`로 켠다(기본 0: 꺼짐, 64: 투사체 64개마다 하나를 순환 샘플링).
 서버·클라이언트 수집과 투사체 처리에는 큰 범위 trace를, 선택된 투사체의 후보·제외·되감기·캡슐 판정에는
 누적 시간과 횟수를 기록한다. 개별 타겟의 trace 이벤트는 만들지 않는다. 상세 시간은 시계 호출 비용을 포함하고

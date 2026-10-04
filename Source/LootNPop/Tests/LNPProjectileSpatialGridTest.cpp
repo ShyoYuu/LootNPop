@@ -5,6 +5,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "HitDetection/LNPHitDetectionShared.h"
+#include "HitDetection/LNPProjectileHistoryCache.h"
+#include "HitDetection/LNPPositionHistoryFragment.h"
 #include "Math/RandomStream.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPSpatialGridCoverageTest,
@@ -125,6 +127,69 @@ bool FLNPProjectileGridCapsuleTest::RunTest(const FString& Parameters)
 	const LNPHitDetection::FPreparedSegment PointSegment(FVector(30000, 0, 0), FVector(30000, 0, 0));
 	TestTrue(TEXT("Point segment keeps target"), LNPHitDetection::GatherProjectileCapsuleCandidates(Grid, PointSegment, MaxExtent, 5, Candidates) && Candidates.Contains(2));
 	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPProjectileHistoryReuseTest,
+	"LNP.HitDetection.RewindCache.HistoryAndCapsuleEquivalence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPProjectileHistoryReuseTest::RunTest(const FString& Parameters)
+{
+	FLNPPositionHistoryFragment Histories[2];
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		auto& History = Histories[Index];
+		History.Count = History.NextWriteIdx = 2;
+		History.Samples[0] = { 20.0, FVector(30000, Index * 120, 0) };
+		History.Samples[1] = { 20.5, FVector(30000, Index * 120 + 200, 0) };
+	}
+	// 같은 시각이라도 적별 캐시가 섞이지 않는지 선형 이력과 배회 곡선으로 검사한다.
+	FLNPEnemyWanderSegment Wander;
+	Wander.bValid = true;
+	Wander.Start = Histories[1].Samples[0].Location;
+	Wander.Goal = Histories[1].Samples[1].Location;
+	Wander.StartTime = 20.0;
+	Wander.ArrivalTime = 21.0;
+	Wander.StopUntil = 22.0;
+	Histories[1].Samples[0].Wander = Histories[1].Samples[1].Wander = FLNPReplicatedWanderData::Encode(Wander, true, {}, 0);
+	FLNPProjectileHistoryCache Caches[2];
+	FVector Location;
+	TestFalse(TEXT("New execution has no cached zero-time entry"), Caches[0].Find(0.0, Location));
+	int32 Reads = 0, Hits = 0;
+	for (double QueryTime : { 19.9, 19.9, 20.0, 20.0, 20.25, 20.25, 20.2500000001, 20.6, 20.6, 20.25 })
+	{
+		int32 FirstReference = INDEX_NONE, FirstCached = INDEX_NONE;
+		FVector ReferencePoint = FVector::ZeroVector, CachedPoint = FVector::ZeroVector;
+		const LNPHitDetection::FPreparedSegment Segment(FVector(30000, -100, 5), FVector(30000, 400, 5));
+		for (int32 Index = 0; Index < 2; ++Index)
+		{
+			const FVector Reference = Histories[Index].GetInterpolatedLocation(QueryTime);
+			if (Caches[Index].Find(QueryTime, Location)) ++Hits;
+			else { Location = Histories[Index].GetInterpolatedLocation(QueryTime); Caches[Index].Store(QueryTime, Location); ++Reads; }
+			if (!TestTrue(TEXT("Cached history equals fresh linear or wander evaluation exactly"), Location == Reference)) return false;
+			// 캡슐 중심 오프셋을 역사 위치와 별도로 적용하고 반사/패링의 서로 다른 판정 반경을 대조한다.
+			const FVector Offset(0, 0, 42);
+			FVector ReferenceHit, CachedHit;
+			const float Radius = Index == 0 ? 5.f : 60.f;
+			const bool bReference = LNPHitDetection::SegmentHitsCapsule(Segment, Reference + Offset, FVector::UpVector, 96, 42, Radius, ReferenceHit);
+			const bool bCached = LNPHitDetection::SegmentHitsCapsule(Segment, Location + Offset, FVector::UpVector, 96, 42, Radius, CachedHit);
+			if (!TestEqual(TEXT("Reused history preserves capsule verdict"), bCached, bReference)) return false;
+			if (bReference && !TestTrue(TEXT("Reused history preserves output point exactly"), CachedHit == ReferenceHit)) return false;
+			if (bReference && FirstReference == INDEX_NONE) { FirstReference = Index; ReferencePoint = ReferenceHit; }
+			if (bCached && FirstCached == INDEX_NONE) { FirstCached = Index; CachedPoint = CachedHit; }
+		}
+		TestEqual(TEXT("First target order is unchanged"), FirstCached, FirstReference);
+		TestTrue(TEXT("First target hit point is unchanged"), CachedPoint == ReferencePoint);
+	}
+	TestEqual(TEXT("Only exact consecutive times reuse each enemy"), Hits, 8);
+	TestEqual(TEXT("Distinct and revisited times recompute"), Reads, 12);
+	Histories[0].Samples[0].Location.X += 500;
+	Histories[0].Samples[1].Location.X += 500;
+	FLNPProjectileHistoryCache NextExecution;
+	TestFalse(TEXT("History changes never inherit a previous execution's cache"), NextExecution.Find(20.25, Location));
+	NextExecution.Store(20.25, Histories[0].GetInterpolatedLocation(20.25));
+	TestTrue(TEXT("Next execution uses new history"), NextExecution.Find(20.25, Location) && Location.X == 30500);
+	return !HasAnyErrors();
 }
 
 #endif

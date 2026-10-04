@@ -1,24 +1,34 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: Phase 12 단위 3b 완료·다음 단위 진행 확인 대기 / Phase 13 최종 성능 Gate 보류
-> 마지막 갱신: 2026-10-04
+> 현재 Phase: Phase 12 단위 3c 실험·검증 완료(기본 활성화 보류)·단위 4 새 세션 재개 대기 / Phase 13 최종 성능 Gate 보류
+> 마지막 갱신: 2026-10-05
 
-## 현재 결정과 다음 행동
+## 현재 결정
 
-사용자는 **Phase 13을 핵심 구현·기능 검증 완료, 최종 성능 Gate 보류** 상태로 두고 **Phase 12 투사체 최적화를 먼저 진행**하기로 결정했다. Phase 12 완료 뒤 별도 새 세션에서 Phase 13을 마무리한다. 2026-10-04 Phase 12에 착수했으며, 첫 단위는 `SegmentHitsCapsule` 정확성 수정이다. 실행서는 `phases/Phase12_ProjectileOptimization.md`를 따른다. 구현 단위마다 검증 후 사용자에게 계속 진행할지 확인한다.
+Phase 12 투사체 최적화를 먼저 완료하고, Phase 13은 핵심 구현·기능 검증 완료 및 최종 성능 Gate 보류 상태를 유지한다. 이번 세션은 문서 반영과 커밋으로 종료하며 **단위 4는 새 세션에서 시작한다**. 구현 단위마다 검증 후 사용자에게 계속 진행할지 확인한다.
 
-투사체 후보 제외·피격 판정·월드 query 최적화는 Phase 12에서 집중적으로 검토한다. 앞선 후보 제외 최적화 제안은 Phase 13의 다음 구현 지시로 쓰지 않는다. 특정 방법은 아직 채택하지 않았으며 내부 비용을 분해한 뒤 정확성과 실측 이득을 기준으로 선택한다.
+단위 1~3b의 정확한 캡슐 판정·sphere 선행 검사·서버 현재 위치 공간 필터는 채택 상태다. 원격 발사/되감기는 전수 후보 경로를 유지한다. 같은 팀 차단·기존 후보 순서·월드 차폐·viewer별 보간/배회 규칙을 보존한다. 구현과 측정 이력은 `history/Phase12_Log.md`, 실행 계획은 `phases/Phase12_ProjectileOptimization.md`가 소유한다.
 
-Phase 13의 기존 완료 조건은 유지한다. 이동·Nav 격리 측정은 보조 진단이며 전체 프레임 Gate를 대체하지 않는다. 투사체 CPU를 프레임 P95에서 빼서 합격을 계산하지 않는다. 경로 800 실패와 비행 관통·혼합/활동 대역 총수 검증도 남아 있으므로 Phase 12 완료만으로 Phase 13을 자동 완료하지 않는다. 재검증 전 D-054의 비행 200과 총수 상한은 유지한다.
+단위 3c는 적별로 같은 processor 실행 안에서 정확히 같은 QueryTime의 히스토리 위치를 재사용하는 실험이다. 구현·검증은 완료했지만 **RewindCache 기본값 0을 유지한다**. 실제 사격 Off/On은 수동 발사량·NPC 편성/상태가 달라 순수 캐시 CPU 이득을 확정하지 못했다. 기본 활성화에는 통제된 되감기 부하 대조가 필요하다.
 
-## Phase 12 현재 단위와 다음 행동
+## 최신 검증과 재현 위치
 
-1. 단위 1 정확성 수정과 단위 2 내부 계측·수정본 기준선을 완료했다. 게임·에디터 빌드/cook, 관련 자동화 4개 PASS, 패키지 리슨 14회 host/guest 28개 exit 0·probe 112/112 PASS·분석 exit 0이다. 상세 계측은 `LNP.Projectile.ProfileStride=0`이 기본이며 trace 없는 기준선에서는 끈다. 실행·분석기는 `Scripts/Profiling/RunPhase12Baseline.ps1`, `AnalyzePhase12Baseline.ps1`, 원본과 요약은 `Saved/Profiling/Phase12/Baseline`, 상세는 `history/Phase12_Log.md`다.
-2. 수정본의 trace 없는 frame P95는 자연 700 26.24/28.65ms·800 28.84/29.09ms, 추격 700 25.66/26.22ms·800 28.94/29.63ms이며 전부 frame FAIL이다. 후보는 투사체당 약 700/800개, 월드 wrapper는 약 0.82~1.18ms/frame, 수집은 약 0.03~0.05ms/frame이다. 큰 투사체 청크 exclusive 비용과 전수 후보 검사를 우선 줄일 근거를 확보했다. 샘플 시간은 중첩·시계 비용을 포함하므로 실제 점유율로 합산하지 않는다. 새 자식 trace 때문에 processor exclusive를 이전 구조와 직접 비교하지 않는다.
-3. 원격 발사 샘플·실제 히스토리 되감기는 모두 0이다. 실제 원격 사격의 되감기 최적화 이득은 미확정이다. 후보의 약 99.7%가 적 팀 쌍이지만 서버는 같은 팀 캡슐에도 투사체가 차단되므로 팀 쌍을 단순 제외하지 않는다. 사용자 진행 승인으로 **되감긴 캡슐 위치 기준의 보수적인 sphere 1차 검사·선분 공통 계산 재사용**을 단위 3a로 구현했고 빌드/cook·관련 자동화 5개를 통과했다. 동일 패키지 Off/On 교차 대조에서 자연 700 frame P95 20.45/21.82→14.14/14.45ms, 추격 800 22.15/23.24→16.97/15.77ms로 평균 32.4%/27.9% 감소했다. 투사체 processor trace inclusive는 각각 11.037→4.626ms, 11.578→5.172ms이며 sphere가 샘플 정밀 검사의 약 99.997%를 제외했다. 빌드/cook·자동화 5개·패키지 14회 host/guest 28개 exit 0·probe 112/112·분석 PASS. 원본은 `Saved/Profiling/Phase12/Sphere`, 실행/분석은 `RunPhase12Sphere.ps1`/`AnalyzePhase12Sphere.ps1`이다. 기존 `LNPEnemySpatialGrid`의 재구축/연속 저장 활용을 검토했으며, 다음 3b는 판정 시점·Dying 포함·클라이언트·되감기·보수적 구면 범위와 기존 순서를 보존하는 공간 필터다. 사용자가 서버 전용·현재 위치 판정 적용안을 승인했다. 공유 격자 코어·판정용 별도 인스턴스·보수적 구면 조회·원점 포함·넓은/원격/되감기 전수 경로·후보 순서 복원을 구현했고 빌드/cook을 통과했다. 단위 3b는 자동화 8개·패키지 15회 host/guest 30개 exit 0·probe 120/120·분석 PASS로 완료했다. 그리드 Off/On 투사체 inclusive는 자연 700 6.360→1.542ms, 추격 800 7.300→1.795ms이며 후보 평균은 700→15.3/800→27.4다. 검증 1,139,222회·정밀 hit 후보 2,613쌍의 누락 0. trace 없는 On은 자연 700 frame P95 12.93/12.17ms, 추격 800 14.54/14.13ms로 네 반복 frame/path PASS지만 Off 분산과 추격 800 SampledOn path FAIL은 남는다. 원본/요약은 `Saved/Profiling/Phase12/Grid`, 실행/분석은 `RunPhase12Grid.ps1`/`AnalyzePhase12Grid.ps1`이다. 원격 되감기는 전수 경로이며 실제 사격 계측/판단·통합 회귀는 후속에 남는다. 다음 구현 전 사용자 진행 확인 대기다. 기존 판정·순서·월드 차폐·되감기를 유지하고 호출 수·누락 회귀와 같은 조건의 교차 반복으로 검증한다. 공간 분할과 되감기 순서/재사용은 후속 단위에서 검토한다.
+- 최종 게임·에디터 빌드/cook/package와 관련 자동화 10개 PASS. 패키지는 `Saved/SurfaceNavigationPhase12RewindPackage`, 자동화 결과는 `Saved/Tests/Phase12_Unit3c`다.
+- 캐시 On 패키지 리슨 2P N700 스모크: host/guest exit 0·probe 8/8, frame P95 10.34ms·frame/path PASS. 실제 원격 사격이 없는 편성이므로 캐시 이득이나 전체 Phase 완료 근거로 쓰지 않는다. 결과는 `Saved/Profiling/Phase12/Rewind/Smoke`다.
+- 실제 게스트 사격: 전체 요청 51,943,699회·재사용 29,238,995회(56.29%)를 새 조회와 전수 대조했고 오류 0이다. 결과는 `Rewind/Validation`, 분석기는 `Scripts/Profiling/AnalyzePhase12RemoteShots.ps1`다.
+- 상세 계측/검증을 끈 Off/On 180초 서버 processor 평균 CPU 0.548→0.363ms·P95 1.268→0.784ms는 관측값이다. 동일 부하 대조나 패키지 성능 Gate로 확대하지 않는다. 원본/요약은 `Rewind/Cost`, 분석기는 `Scripts/Profiling/AnalyzePhase12RewindCost.py`다.
 
-방법은 에디터 실행 상태로 우선순위를 정하지 않는다. MCP가 더 효율적이면 즉시 연결 요청하고 전체 빌드가 필요하면 즉시 에디터 저장·종료를 요청한다. 단위 3b 측정은 끝났으며 에디터·게임·Insights는 종료 상태다.
+위 `Rewind/*` 경로는 `Saved/Profiling/Phase12` 아래이며 로컬 측정 산출물은 Git에 넣지 않는다. 빌드 로그·패키지/로그/trace SHA256·한계는 `history/Phase12_Log.md`를 따른다.
+
+## 새 세션의 다음 행동
+
+1. `README.md`, 이 문서, `Decisions.md`를 읽고 Phase 12 실행서와 필요에 따라 `design/RuntimeCollision.md`, `design/ValidationAndMigration.md`를 확인한다. 코드·패키지와 문서 상태를 대조한다. 마지막 확인 당시 에디터/MCP는 연결되어 있고 PIE/trace는 종료했다. 상세 계측/validation은 0, 실험용 RewindCache는 1이었다. **사용자에게 RewindCache 0 복구를 요청했으나 완료 확인은 받지 않았다.** 새 세션에서 연결/실행 상태와 실제 CVar 값을 확인하고 측정 설정을 명시한다.
+2. **단위 4: 채택한 기본 경로의 월드 query 비용 검토·통합 회귀와 최종 패키지 성능 검증**을 진행한다. 최신 기본 경로에서 비용을 확인하고 근거가 있을 때만 추가 최적화를 검토한다. 피격·되감기·반사/패링·월드 차폐·조준점과 리슨 2P 회귀, 같은 패키지의 trace 없는 지상 700/800 자연·추격 교차 반복을 확인한다. `RunPhase13Gate.ps1`에는 ProfileStride 0·SphereBroadPhase 1·SpatialGrid 1·RewindCache 0을 명시하고 모든 검증 CVar를 끈다. 기존 `RunPhase12Grid.ps1`의 패키지 경로는 이전 단위 기준이므로 그대로 최신 패키지 실행기로 간주하지 않는다. 단위 2의 월드 wrapper 비용은 최적화 전 수치이며 현재 병목의 근거로 재사용하지 않는다.
+
+방법은 에디터 실행 상태로 우선순위를 정하지 않는다. MCP가 더 효율적이면 즉시 연결을 요청하고 전체 빌드가 필요하면 즉시 에디터 저장·종료를 요청한다. 사용자 직접 PIE/GUI 검증이 빠르고 정확하면 수동 조작을 먼저 요청한다.
+
+Phase 13의 전체 프레임·경로·총수 Gate는 별도로 남는다. 투사체 CPU를 프레임 P95에서 빼서 합격을 계산하지 않는다. Phase 12 완료만으로 Phase 13을 자동 완료하지 않으며 재검증 전 D-054의 비행 200과 총수 상한을 유지한다.
 
 ## Phase 13 보존한 완료 결과
 

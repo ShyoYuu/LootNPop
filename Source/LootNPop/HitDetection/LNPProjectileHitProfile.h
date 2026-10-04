@@ -20,6 +20,10 @@ struct FLNPProjectileHitProfile
 	uint64 EnemyTeamPairs = 0;
 	uint64 RemoteSamples = 0;
 	uint64 RewindApplied = 0;
+	uint64 HistoryCacheRequests = 0;
+	uint64 HistoryCacheHits = 0;
+	uint64 HistoryCacheValidationQueries = 0;
+	uint64 HistoryCacheValidationErrors = 0;
 	uint64 SphereTests = 0;
 	uint64 SphereRejected = 0;
 	uint64 GridQueries = 0;
