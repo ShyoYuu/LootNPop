@@ -8,6 +8,9 @@
 #include "GAS/LNPPoiseTypes.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "SurfaceNavigation/LNPNavPathSubsystem.h"
+#include "SurfaceNavigation/LNPLoadBaseline.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "MassActorSubsystem.h"
 #include "MassCommonFragments.h"
 #include "MassExecutionContext.h"
@@ -61,6 +64,9 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 	const double Now = EntityManager.GetWorld()->GetTimeSeconds();
+	// 같은 production 스폰의 항상 활성 대조군. 일반 플레이에는 적용하지 않는다.
+	static const bool bAlwaysActive = LNPLoadBaseline::IsProduction()
+		&& FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineAlwaysActive"));
 	const bool bDistanceDue = Now >= NextDistanceTime;
 	if (bDistanceDue)
 		NextDistanceTime = Now + LNPEnemyActivity::DistanceInterval;
@@ -105,7 +111,7 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			if (Fragments[I].State != ELNPLootPodState::Popped)
 			{
 				FActivityPod& Pod = Pods.Add(Ctx.GetEntity(I), { &Fragments[I], Transforms[I].GetTransform().GetLocation() });
-				Pod.bForceActive = bTerrainChanged || Fragments[I].State == ELNPLootPodState::Looting;
+				Pod.bForceActive = bAlwaysActive || bTerrainChanged || Fragments[I].State == ELNPLootPodState::Looting;
 			}
 		}
 	});

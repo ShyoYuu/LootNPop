@@ -32,6 +32,8 @@
 
 `Phase 3c 완전 비행 NPC 기반`은 Phase 3 exact query에서 갈라지는 병렬 분기이며 Phase 4a의 선행 조건이 아니다(D-042). `Phase 12 투사체 최적화`는 핵심 지상 경로가 안정된 뒤 독립적으로 진행할 수 있다. 기존 `Phase 11 비행 NPC`는 `Phase 3c`로 앞당겼고, 11번은 결번으로 둔다.
 
+Phase 12 착수 검토 시 Phase 13의 2026-10-04 지상 700·투사체 500 교차 trace를 참고한다. `LNPProjectileHitDetectionProcessor`가 가장 큰 단일 processor였고 호출당 inclusive는 이전 4.467ms·현재 4.521ms였다. 월드 query 외의 타겟 탐색·피격 판정도 포함하므로 이를 Chaos 비용이나 horizon으로 줄일 수 있는 비용 전체로 해석하지 않는다. 먼저 내부 비용을 분해한 뒤 후보와 실측 이득을 판단한다. 원본 수치·조건·해석 한계는 `history/Phase13_Log.md`의 "단위 5 후속 묶음 1"과 `Saved/Profiling/Phase13/GroundAttribution/Summary.json`이 소유한다. 이 기록은 Phase 12 착수나 최적화 방식 채택을 뜻하지 않는다.
+
 2026-10-01 범위 확장 검토(건물·탑 입체 지형, 벽 타기 NPC, 비행 NPC 대량화)로 세 단계를 더했다. 기존 Phase는 버리지 않는다.
 
 - `Phase 7c`는 7b 뒤, 8 앞의 본선이다. Phase 9의 입체 지형 콘텐츠가 이 단계에 의존한다.

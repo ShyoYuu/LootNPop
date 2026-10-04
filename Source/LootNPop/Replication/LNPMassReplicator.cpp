@@ -5,6 +5,22 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "MassExecutionContext.h"
 #include "MassReplicationFragments.h"
+#include "SurfaceNavigation/LNPLoadBaseline.h"
+
+namespace
+{
+	LNP::Replication::FEnemyReplicationStats EnemyReplicationStats;
+}
+
+void LNP::Replication::ResetEnemyReplicationStats()
+{
+	EnemyReplicationStats = {};
+}
+
+LNP::Replication::FEnemyReplicationStats LNP::Replication::GetEnemyReplicationStats()
+{
+	return EnemyReplicationStats;
+}
 
 bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTransform& Transform,
 	const FLNPEnemyFragment& Enemy, const FLNPEnemyActionFragment* Action,
@@ -53,6 +69,15 @@ bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTran
 	if (bHealthChanged)
 		Item.Agent.SetHealthPct(NewHealth);
 	Item.LastDirtyTime = Time;
+	if (LNPLoadBaseline::IsActive())
+	{
+		++EnemyReplicationStats.Dirty;
+		EnemyReplicationStats.Pose += bPoseChanged;
+		EnemyReplicationStats.Action += bActionChanged;
+		EnemyReplicationStats.Hit += bHitChanged;
+		EnemyReplicationStats.Health += bHealthChanged;
+		EnemyReplicationStats.Wander += bWanderChanged;
+	}
 	return true;
 }
 
@@ -125,6 +150,8 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 			InReplicatedAgent.SetWander(FLNPReplicatedWanderData::Encode(IdleFragments[EntityIdx].WanderSegment,
 				InContext.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>(), EnemyFragments[EntityIdx].SurfaceHandle,
 				IdleFragments[EntityIdx].WanderSegment.LocalYaw));
+		if (LNPLoadBaseline::IsActive() && !EnemyFragments.IsEmpty())
+			++EnemyReplicationStats.Adds;
 		return BubbleInfo.GetAgentSerializer().Bubble.AddAgent(InContext.GetEntity(EntityIdx), InReplicatedAgent);
 	};
 
@@ -149,13 +176,15 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 			Bubble.MarkItemDirty(Item);
 	};
 
-	auto RemoveEntityCallback = [&RepSharedFrag](FMassExecutionContext& InContext, const FMassReplicatedAgentHandle Handle, const FMassClientHandle ClientHandle)
+	auto RemoveEntityCallback = [&RepSharedFrag, &EnemyFragments](FMassExecutionContext& InContext, const FMassReplicatedAgentHandle Handle, const FMassClientHandle ClientHandle)
 	{
 		ALNPMassClientBubbleInfo& BubbleInfo = RepSharedFrag->GetTypedClientBubbleInfoChecked<ALNPMassClientBubbleInfo>(ClientHandle);
 
 		// 핸들 발급자(버블 핸들러)가 하나뿐이므로, 파괴 루프(CalculateClientReplication의 AgentsData
 		// 순회)가 넘겨주는 핸들은 항상 이 핸들러가 발급한 것 — RemoveAgentChecked가 안전하다.
 		// 리플리케이터가 여럿인 것과는 무관하다(제약은 발급자 수다). 근거: LNPMassReplication.h 주석.
+		if (LNPLoadBaseline::IsActive() && !EnemyFragments.IsEmpty())
+			++EnemyReplicationStats.Removes;
 		BubbleInfo.GetAgentSerializer().Bubble.RemoveAgentChecked(Handle);
 	};
 

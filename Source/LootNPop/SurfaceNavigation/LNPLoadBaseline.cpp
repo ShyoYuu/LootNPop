@@ -25,6 +25,9 @@
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/NetDriver.h"
+#include "Engine/NetConnection.h"
+#include "Replication/LNPMassReplicator.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
@@ -318,7 +321,13 @@ bool ULNPLoadBaselineSubsystem::GetSyntheticChaseGoal(const int32 OwnerIndex, FV
 
 bool LNPLoadBaseline::IsActive()
 {
-	return GetEnemyCount() + GetFlyerCount() > 0;
+	return IsProduction() || GetEnemyCount() + GetFlyerCount() > 0;
+}
+
+bool LNPLoadBaseline::IsProduction()
+{
+	static const bool bEnabled = FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineProduction"));
+	return bEnabled;
 }
 
 int32 LNPLoadBaseline::GetSeed()
@@ -644,7 +653,7 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		{
 			ProjectileSourceConfig = LoadObject<ULNPEnemyConfig>(nullptr, ProjectileSourceConfigPath);
 		}
-		if (bRingCenterFound && World->GetNetMode() != NM_Client)
+		if (bRingCenterFound && World->GetNetMode() != NM_Client && !LNPLoadBaseline::IsProduction())
 		{
 			RespawnPlayersAtRing();
 		}
@@ -665,7 +674,8 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 	if (World->GetNetMode() != NM_Client)
 	{
 		TopUpProjectiles();
-		DriveEnemies(DeltaTime, Stage == EStage::Capture);
+		if (!LNPLoadBaseline::IsProduction())
+			DriveEnemies(DeltaTime, Stage == EStage::Capture);
 		if (Stage == EStage::Capture)
 		{
 			CheckFlyerPenetration();
@@ -686,6 +696,10 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		LNPEnemyFlightStats::Reset();
 		LNPEnemySurfaceMovement::ResetGroundStats();
 		NextActorSampleTime = Now;
+		if (World->GetNetMode() != NM_Client)
+			LNP::Replication::ResetEnemyReplicationStats();
+		if (const UNetDriver* Driver = World->GetNetDriver(); Driver && Driver->ServerConnection)
+			CaptureStartReceivedBytes = static_cast<uint32>(Driver->ServerConnection->InTotalBytes);
 		CaptureStartPopulation = Population;
 		if (World->GetNetMode() != NM_Client)
 		{
@@ -1113,6 +1127,7 @@ void ULNPLoadBaselineSubsystem::SampleFrame()
 	if (Now >= NextActorSampleTime)
 	{
 		NextActorSampleTime = Now + 1.0;
+		SampleActivity();
 		int32 Promoted = 0;
 		for (TActorIterator<ALNPEnemyCharacter> It(World); It; ++It)
 		{
@@ -1137,9 +1152,55 @@ void ULNPLoadBaselineSubsystem::SampleFrame()
 	}
 }
 
+void ULNPLoadBaselineSubsystem::SampleActivity()
+{
+	if (GetWorld()->GetNetMode() == NM_Client)
+		return;
+	FMassEntityManager& EntityManager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+	if (!ActivityQuery.IsInitialized())
+	{
+		ActivityQuery = FMassEntityQuery(EntityManager.AsShared());
+		ActivityQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+		ActivityQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadOnly);
+		ActivityQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	}
+	int32 Counts[2][3] = {};
+	int32 Bound = 0;
+	int32 Segments[2] = {};
+	FMassExecutionContext ExecContext(EntityManager, 0.f);
+	ActivityQuery.ForEachEntityChunk(ExecContext, [&](FMassExecutionContext& Ctx)
+	{
+		const int32 Domain = Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() ? 1 : 0;
+		const auto Idle = Ctx.GetFragmentView<FLNPEnemyIdleFragment>();
+		const auto Enemies = Ctx.GetFragmentView<FLNPEnemyFragment>();
+		for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
+		{
+			++Counts[Domain][static_cast<int32>(Enemies[I].ActivityBand)];
+			Bound += EntityManager.IsEntityValid(Enemies[I].ParentLootPod) ? 1 : 0;
+			Segments[Domain] += Idle[I].bWanderHandled ? 1 : 0;
+		}
+	});
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Activity T=%.3f GroundDormant=%d GroundWander=%d GroundActive=%d FlightDormant=%d FlightWander=%d FlightActive=%d Bound=%d GroundSegments=%d FlightSegments=%d"),
+		GetWorld()->GetTimeSeconds(), Counts[0][0], Counts[0][1], Counts[0][2], Counts[1][0], Counts[1][1], Counts[1][2],
+		Bound, Segments[0], Segments[1]);
+}
+
 void ULNPLoadBaselineSubsystem::Report()
 {
 	UWorld* World = GetWorld();
+	if (World->GetNetMode() != NM_Client)
+	{
+		const auto Stats = LNP::Replication::GetEnemyReplicationStats();
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Replication Dirty=%llu Pose=%llu Action=%llu Hit=%llu Health=%llu Wander=%llu Adds=%llu Removes=%llu (per client; overlapping reasons)"),
+			Stats.Dirty, Stats.Pose, Stats.Action, Stats.Hit, Stats.Health, Stats.Wander, Stats.Adds, Stats.Removes);
+	}
+	if (const UNetDriver* Driver = World->GetNetDriver(); Driver && Driver->ServerConnection)
+	{
+		const uint32 ReceivedBytes = static_cast<uint32>(Driver->ServerConnection->InTotalBytes) - CaptureStartReceivedBytes;
+		const double Seconds = World->GetRealTimeSeconds() - StageStartTime;
+		UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] GuestNetwork ReceivedBytes=%u Seconds=%.3f BytesPerSecond=%.1f (whole connection)"),
+			ReceivedBytes, Seconds, ReceivedBytes / Seconds);
+	}
 	const ULNPMassWorldCollisionSubsystem* Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 
 	FMassEntityManager& EntityManager = World->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();

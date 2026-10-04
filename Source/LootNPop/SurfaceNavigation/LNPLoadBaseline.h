@@ -22,6 +22,8 @@ class ULNPMassWorldCollisionSubsystem;
  *     -LNPLoadBaselinePlayers=2   서버가 capture를 시작하기 전에 기다리는 플레이어 수(기본 2)
  *     -LNPLoadBaselineProjectiles=500  유지할 전체 발사체 수(기본 500). 요인 분리용 대조 실행에서만 바꾼다
  *     -LNPLoadBaselineQuit        보고 뒤 프로세스를 종료한다(무인 실행)
+ *     -LNPLoadBaselineProduction  일반 Pod 귀속 스폰을 측정한다. 적 수는 에셋과 EnemyDensity로 정하며 링·강제 리스폰·합성 넉백을 사용하지 않는다.
+ *     -LNPLoadBaselineAlwaysActive  Production 측정의 대조군으로 모든 Pod 무리를 항상 활성으로 유지한다.
  *     -LNPLoadBaselineChase       네 가상 지각 목표(링 중심에서 25m)를 5초마다 교체해 지상 적의 실제 경로 추종 부하를 만든다
  *     -LNPLoadBaselineVolumetric  회귀 옥탄트의 공동·복층·긴 경사로 Nav node에 배치하고 공동/상층 목표를 추격한다.
  *                                서버·클라이언트 모두 지정한다. production pool은 바꾸지 않으며 비행 수는 0으로 둔다.
@@ -55,6 +57,7 @@ namespace LNPLoadBaseline
 	LOOTNPOP_API int32 GetFlyerCount();
 	/** 모든 스레드. 지상·비행 적 수의 합이 0이면 harness가 꺼져 있다. */
 	LOOTNPOP_API bool IsActive();
+	LOOTNPOP_API bool IsProduction();
 	/** Phase 7b: 네 가상 목표를 향한 실제 경로 추종 부하. */
 	LOOTNPOP_API bool IsSyntheticChase();
 	LOOTNPOP_API int32 GetSeed();
@@ -126,6 +129,7 @@ private:
 	/** 서버. 관통 검출 CVar가 켜져 있으면 살아 있는 비행 적 캡슐이 exact 지형과 겹치는지 본다. */
 	void CheckFlyerPenetration();
 	void SampleFrame();
+	void SampleActivity();
 	void Report();
 
 	/** 서버. 주입 발사체의 무기 상수와 발사 위치 범위. */
@@ -137,6 +141,8 @@ private:
 	FMassEntityQuery EnemyQuery;
 	/** 살아 있는 비행 적. */
 	FMassEntityQuery FlyerQuery;
+	FMassEntityQuery ActivityQuery;
+	uint32 CaptureStartReceivedBytes = 0;
 	FRandomStream ProjectileStream;
 	FRandomStream KnockbackStream;
 	FVector RingCenter = FVector::ZeroVector;

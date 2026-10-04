@@ -151,6 +151,20 @@ CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 
 
 지각 Meadow의 CPU 한계와 공동 fixture의 배치 상한은 별도로 보고한다. 고정 영역·200cm 간격에서 후보 소진으로 shortfall이 나면 해당 실행은 성능 표본이 아니다. 배치 상한에서도 프레임 Gate를 통과하면 CPU 한계는 하한만 확인된 것이다. 실측 값과 비교 표는 `../history/Phase07c_Log.md`가 소유한다.
 
+### Phase 13 활동 대역 측정
+
+2026-10-04 후속 묶음 2의 자연 700 trace 없는 두 반복은 frame/path Gate PASS(프레임 P95 14.70/14.95ms, 경로 tick P95 0.753/0.611ms)다. `Saved/Profiling/Phase13/NaturalRecheck`의 host/guest·Nav CSV·Summary/Validation을 보존했다. 실제 late join·양쪽 지상/비행 화면·같은 게스트 NetID 48개의 bubble 제거/새 ReplicationID 재추가는 `Saved/Tests/Phase13_Unit5_Network`로 확인했다. production 성능과 충분한 배회 대역의 대역폭/총수 Gate는 여전히 미완료다.
+
+`RunPhase13Gate.ps1`의 `PackageDirectory`·`OutputDirectory`·`FirstRepeat`로 이전/현재 패키지의 실행 순서를 뒤집은 대조를 구성할 수 있다. 기존 로그 덮어쓰기 거부는 유지한다. Nav 요청과 timing CSV는 패키지의 공용 저장 경로에서 다음 실행 전에 실행별 출력 폴더로 복사한다. `AnalyzePhase13GroundAttribution.ps1`은 trace 없는 Gate와 trace 비용을 분리하고 보존된 CSV의 제출 수·요청/timing 키 일치·중복·시간 역전을 확인한다. 원본 CSV가 없는 실행의 행 수는 null로 남기며 확인했다고 보고하지 않는다. 병렬 부모 inclusive에는 대기가 포함되고, trace에서 승격 Actor 수 등 workload가 다르면 청크/메모리 증가만으로 비용을 귀속하지 않는다.
+
+`-LNPLoadBaselineProduction`은 일반 Pod 귀속 스폰을 유지하고 링 스폰·강제 리스폰·합성 넉백을 제외한다. 실제 총수는 에셋과 `LNP.Spawn.EnemyDensity`에 따른 스폰 결과를 기록한다. `-LNPLoadBaselineAlwaysActive`를 함께 지정하면 같은 production 스폰의 모든 Pod 무리를 항상 활성으로 유지하는 대조군이다. 일반 게임에는 적용하지 않는다.
+
+`Scripts/Profiling/RunPhase13Gate.ps1`은 새 Phase 13 Development 패키지로 production·항상 활성 대조군과 기존 지상/비행 링 부하를 실행한다. `-FixedSeed`는 엔진 난수 초기화를 고정하고 `-LNPLoadBaselineSeed=1`은 Pod/링 배치 seed를 고정한다. trace 없는 실행은 `After`, `-Trace`를 지정한 CPU 분해 실행은 `AfterTrace`에 따로 보존한다. 에디터·게임·Insights와 다른 무거운 작업을 종료하고 같은 전원/성능 조건에서 측정한다.
+
+서버는 1Hz로 살아 있는 지상·비행 적의 활동 대역, 유효 Pod 귀속 수, 구간 소비 수를 기록한다. 이 표본으로 짧은 전환의 발생 횟수나 개체별 bubble 재진입을 확정하지 않는다. 서버 복제 통계는 클라이언트별 Dirty·PositionYaw/행동/피격/HP/구간 사유와 bubble 추가/제거 횟수이며 사유는 중복될 수 있다. 게스트 수신량은 capture 시작/종료의 `UNetConnection::InTotalBytes` 차분으로, NPC 외 Actor·이벤트·패킷 비용도 포함한 연결 전체 바이트다. 필드 폭 합계나 Dirty 수를 wire 바이트로 변환하지 않는다.
+
+production과 대조군의 실제 개체 수·거리·행동 분포를 함께 비교한다. 원거리 대부분이 휴면이고 배회 표본이 적은 실행은 휴면 효과의 근거이며 구간 배회 대역폭 효과의 근거로 확대하지 않는다. 구체적인 측정 결과와 Gate 판정은 `../history/Phase13_Log.md`가 소유한다.
+
 ## 마이그레이션 전략
 
 ### 소비자 전환 완료

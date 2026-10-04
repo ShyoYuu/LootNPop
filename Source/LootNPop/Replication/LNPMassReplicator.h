@@ -8,6 +8,14 @@
 
 namespace LNP::Replication
 {
+	/** 부하 harness 전용. 사유는 중복될 수 있으며 wire 바이트 수가 아니다. */
+	struct FEnemyReplicationStats
+	{
+		uint64 Dirty = 0, Pose = 0, Action = 0, Hit = 0, Health = 0, Wander = 0;
+		uint64 Adds = 0, Removes = 0;
+	};
+	LOOTNPOP_API void ResetEnemyReplicationStats();
+	LOOTNPOP_API FEnemyReplicationStats GetEnemyReplicationStats();
 	/** 실제 버블 갱신 판정. true일 때 호출자가 MarkItemDirty한다. */
 	LOOTNPOP_API bool UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTransform& Transform,
 		const FLNPEnemyFragment& Enemy, const FLNPEnemyActionFragment* Action,

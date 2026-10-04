@@ -161,3 +161,114 @@ Content·Config 변경 없이 문서와 소스만 변경했다. 구간 이력을
 검증 PIE를 MCP로 종료하고 IsPIERunning=false를 확인했다. 에디터/MCP는 유지하며 플레이어 수 설정은 원래 1명으로 복원됐다. 세션 로그는 `Saved/Logs/Phase13_Unit4_Listen2P_PIE.log`, 검사 요약은 `Saved/Tests/Phase13_Unit4_Listen2P_PIE_Checks.json`이다. Iris 게스트 접속 1회·일반 스폰 완료 1회, assert/ensure/fatal·스케줄 순환 0, 양쪽 DynamicTerrain MassPrePhysicsOrder 검사 각각 208529/208544회·위반 0이다. 기존 Mover/CharacterMovementComponent 로그와 Iris 경고가 있으므로 로그 전체 오류/경고 0으로 보고하지 않는다.
 
 Current·MovementIntegration·Phase 13 체크리스트와 `Saved/Tests/Phase13_Unit4_Summary.json`을 갱신했다. Content·Config 변경 없음·git diff --check 정상이다. **단위 4 완료, 단위 5 최종 기능·성능 Gate 진행 확인 대기**다.
+
+## 2026-10-04 — 단위 5: 귀속 계측 구현과 첫 최종 Gate
+
+사용자의 이어서 진행 요청으로 단위 5에 착수했다. Unreal MCP 읽기 호출로 연결·PIE 미실행을 확인했고 등록된 Agent Skill에는 이번 검증에 적용할 항목이 없었다. 기존 링 harness는 ParentLootPod를 설정하지 않으므로 귀속 계측을 보완하기로 했다. 전체 빌드/패키징을 위해 에디터 저장·종료를 요청했고 사용자가 종료를 확인했다. 이번 세션의 구현 묶음은 계측·대조 실행기이며, Gate 실패에 대한 추가 수정 전에 사용자 진행 확인을 받는다.
+
+### 구현
+
+- `-LNPLoadBaselineProduction`: 일반 Pod 편성·귀속 스폰을 유지하고 링 스폰·강제 리스폰·합성 넉백을 제외한다. 총수는 실제 에셋과 EnemyDensity에 따르며 링의 요청 N/F로 대체하지 않는다.
+- `-LNPLoadBaselineAlwaysActive`: production 측정에서만 모든 Pod 무리를 항상 활성으로 유지한다. 일반 플레이의 활동 규칙은 유지한다.
+- 서버 1Hz 활동 표본은 살아 있는 지상/비행의 Dormant/Wander/Active·귀속·구간 소비 수다. 모든 전환을 세는 계측이 아니다. 서버 복제 통계는 클라이언트별 Dirty 및 중복 가능한 PositionYaw/행동/피격/HP/구간 사유와 bubble 추가/제거 횟수다. 개체별 동일 게스트 재진입의 증거가 아니다.
+- 게스트 수신량은 capture 동안 `UNetConnection::InTotalBytes`의 uint32 차분이다. Actor·이벤트·패킷을 포함한 연결 전체 수신량이며 NPC 전용 wire 페이로드와 구분한다. 복제 processor가 게임 스레드를 요구하는 엔진 소스를 확인했고 서버 계측은 같은 스레드에서 갱신한다.
+- `RunPhase13Gate.ps1`은 trace 없는 실행과 `-Trace`의 CPU 분해 실행을 `After`/`AfterTrace`에 분리하고 기존 원본 덮어쓰기를 거부한다. `-FixedSeed`와 Pod/링 seed 1을 함께 사용한다. `AnalyzePhase13Gate.ps1`은 실제 로그와 활동 표본을 JSON으로 요약한다.
+
+### 빌드·자동화·기능
+
+- 첫 에디터 전체 빌드 성공 72.27초(`Saved/Tests/Phase13_Unit5_Build.log`). 대조 조건 추가 후 BuildCookRun의 에디터·게임 빌드 성공 97.27초, 전체 BuildCookRun exit 0·198.52초(`Saved/Logs/Phase13_Unit5_BuildCookRun.log`). 새 패키지는 `Saved/SurfaceNavigationPhase13Package`, cook은 오류 0·기존 경고 13이다.
+- `Phase13_Unit5_Regression` 보고서: 40 Success 중 실검증 **39개 성공·비용 재생 1개 SKIP**. `Nav.PodOverlay`에 외부 HTTP 확인 타임아웃 경고 1개가 들어갔다. 초기 대화의 경고 0 집계를 정정했다. 오류/실패/assert/ensure 0·exit 0이다.
+- 별도 `Phase13_Unit5_Freshness`의 OctantBakeDeterministic·ConditionalPatch.Bake·RegressionFixture **3개 성공**, 오류/실패/assert/ensure 0·exit 0이다. RegressionFixture에도 같은 외부 HTTP 타임아웃 경고 1개가 있다. 실검증 종류 합계 42이며 단일 전체 실행 43/43로 보고하지 않는다. freshness는 기존 규약의 별도 자동화이며 plain cook에 자동 validator가 있다고 보고하지 않는다. 이번에는 cook 후 저장된 source/payload 일치를 검증했고 콘텐츠 변경은 없었다.
+- 일반 귀속 에디터 `-game` 1P는 1,801개 귀속 적과 휴면/지상 구간 소비를 기록하고 정상 종료했다(`Phase13_Unit5_ProductionSmoke.log`, exit 0). 기능 스모크이며 정식 성능 Gate가 아니다.
+- 패키지 1P 최초 실행은 GUI 실행 파일을 PowerShell에서 직접 실행하여 셸만 먼저 반환했다. 정상 종료 로그는 있지만 종료 코드 수집을 대신하지 않았다. 별도 `Start-Process -PassThru -Wait` 실행 `Phase13_Unit5_Package1P_Verified.log`에서 실제 exit 0·네 probe PASS·assert/ensure/Unknown/이탈/층 도약/순서 위반 0을 확인했다. `Saved/Tests/Phase13_Unit5_Package1P_Exit.json`이 종료 코드 증거다.
+- 신규 패키지 17회와 이전 패키지 대조 1회, 합계 리슨 2P 18회의 host/guest exit 0이다. 로그 36개에서 probe **144/144 PASS**, assert/ensure/fatal·Unknown·Envelope·LayerJump·Mass 순서 위반 0이다(`Saved/Tests/Phase13_Unit5_PackageChecks.json`). 이는 headless 기능 검증이며 화면·late join 검증이 아니다. 기존 Mover/CharacterMovementComponent 로그는 남아 있으므로 전체 게임 로그 오류 0으로 보고하지 않는다.
+
+### trace 없는 측정
+
+리슨 2P·nullrhi·corelimit 4·투사체 500·10초 준비/30초 측정이다. 사용자는 다른 무거운 작업 없음과 같은 전원/성능 조건을 확인했다. 모든 원본은 보존했다.
+
+| 실행 | 프레임 P95 ms | exact P95 ms | 게스트 연결 B/s | 판정 |
+|:---|:---|:---|:---|:---|
+| production 1,801개 귀속, 두 반복 | 24.71 / 24.25 | 2.838 / 2.910 | 21,003.5 / 16,542.8 | 프레임 FAIL·경로 PASS |
+| 같은 스폰 항상 활성, 두 반복 | 32.35 / 31.95 | 6.133 / 6.141 | 16,505.6 / 15,676.8 | 프레임 FAIL·경로 PASS |
+| 지상 700 자연, 초기 두 반복 | 18.21 / 18.27 | 4.105 / 4.066 | 77,001.6 / 78,829.7 | 프레임 FAIL·경로 PASS |
+| 지상 700 추격, 초기 두 반복 | 17.92 / 17.43 | 3.637 / 3.646 | 78,671.6 / 80,059.8 | 프레임 FAIL·경로 PASS |
+| 비행 200, 두 반복 | 5.57 / 4.95 | 1.125 / 1.207 | 26,951.4 / 27,421.9 | 프레임·경로 PASS |
+| 지상 700 자연, 재검증 두 반복 | 19.84 / 18.60 | 3.679 / 4.139 | 80,170.9 / 76,020.0 | 프레임 FAIL·경로 PASS |
+| 지상 700 추격, 재검증 두 반복 | 20.81 / 18.72 | 3.860 / 3.712 | 70,403.7 / 78,695.2 | 프레임 FAIL·마지막 경로 FAIL |
+| 이전 Phase 8 패키지, 지상 700 추격 대조 1회 | 16.39 | 3.570 | 미계측 | 프레임·경로 PASS |
+
+소수 셋째 자리 exact 원본은 해당 로그/JSON을 따른다. `After/Summary.json`·`Recheck/Summary.json`, `Control/N700Chase_Repeat1_*`가 원본이다. 비행 200 통과를 새 비행 최대 총수로 해석하거나 기존 exact P95 2ms 기준을 지상 Nav Gate에 혼합하지 않는다.
+
+production의 실제 수는 지상 1,601·비행 200·귀속 1,801이다. 첫 반복의 휴면은 지상 1,133·비행 176, 두 번째는 지상 1,122·비행 173이다. 지상 배회/구간은 일부 12개 표본이고 비행 배회는 0이다. 대조군은 모두 Active·구간 0을 확인했다. 활동 대역 적용으로 이 workload의 프레임 P95는 대략 24% 낮아졌으나 합격은 아니다. 대부분 원거리 개체가 복제 컬 밖이라 연결 전체 대역폭 감소는 입증하지 못했다. 배회 대역폭 Gate에는 별도 관찰 거리 시나리오가 필요하다.
+
+### CPU 분해와 미해결 사항
+
+`AfterTrace`의 지상 700 추격·production·항상 활성 세 실행과 세 Insights export는 정상 종료했고 각 capture는 29~31초다. `AfterTrace/Summary.json`이 timer 원본 요약이다. 지상 700 추격의 활동 관리/구간 관리 호출당 inclusive는 약 0.037/0.034ms이며 위치 이력은 약 0.021ms다. 이 trace 실행 프레임 P95는 14.71ms로 trace 없는 실패 실행보다 낮았다. trace 합격으로 정식 Gate 실패를 덮지 않으며 실행 간 변동·추가 비용을 계속 조사한다.
+
+production/항상 활성의 경로 processor 호출당 inclusive는 약 1.25/4.36ms, StateTree 0.57/1.67ms, 비행 이동 0.08/0.22ms다. 복제 0.73/0.71ms·활동 관리 0.11/0.11ms이며 구간 관리는 0.39/0.22ms다. 병렬 부모 inclusive의 대기를 순수 CPU로 합산하거나 전체 exact를 NPC 이동에서 빼서 개체당 CPU를 계산하지 않는다.
+
+최대 청크 개체 수는 이전 패키지 86, 새 패키지 51로 줄었고 700 추격의 청크는 대조 13·신규 초기 16·신규 trace 17이다. 구간/위치 이력의 개체당 메모리 증가가 원인 후보지만 프레임 차이의 귀속을 확정하지 않았다. 근거 없이 로직을 최적화하거나 총수 상한을 바꾸지 않았다.
+
+**계측 구현 묶음 완료, 단위 5 전체·Phase 13 미완료**다. 다음은 지상 700 Gate 초과의 대조/비용 분해·필요한 수정이며 진행 확인을 기다린다. 실제 late join·동일 게스트/개체의 bubble 재진입, 지상·비행 각각의 배회 화면, 충분한 배회 대역의 대역폭 및 총수 재검증도 남아 있다. D-054·Roadmap 완료 상태는 바꾸지 않았다. 검증 에디터/게임은 종료했고 Content·Config 변경은 없다.
+
+## 2026-10-04 — 단위 5 후속 묶음 1: 지상 700 교차 대조와 비용 귀속
+
+사용자의 이어서 진행 요청으로 착수했다. 사용자는 다른 무거운 작업 없음·이전과 같은 전원/성능 조건에서 측정 가능함을 확인했다. 기존 패키지와 Insights로 원인 후보를 구분할 수 있어 MCP 연결이나 새 빌드는 필요하지 않았다. gameplay·Content·Config는 이번 묶음에서 수정하지 않았다.
+
+### 구현과 검증
+
+- `RunPhase13Gate.ps1`에 패키지/출력 폴더/반복 시작 번호 입력을 추가했다. 기본 실행 조건과 기존 증거 덮어쓰기 거부를 유지한다. 같은 패키지의 다음 실행이 덮어쓰던 Nav 요청/timing CSV를 실행별로 보존한다.
+- `AnalyzePhase13GroundAttribution.ps1`을 추가했다. trace 없는 Gate와 trace 비용을 분리하고, 보존된 Nav CSV의 제출 수·요청/timing 키 일치·중복·누락·시간 역전을 검사한다. 병렬 부모 inclusive를 순수 CPU로 합산하지 않는다.
+- PowerShell 구문 검사와 실제 실행/분석 exit 0이다. 최초 임시 실행기의 프로젝트 경로 깊이가 한 단계 틀려 실행 전 실패했으며 수정 후 측정했다. 게임이 시작된 실패 실행은 없다.
+- 임시 실행 순서는 이전→현재→현재→이전(trace 없음), 이전→현재(trace)다. 이전 패키지 SHA256 `141337AEB87785413DABFD93AB8DC97A53ACE74360BEB8DDD39BDF222C0A2997`, 현재 `AF435B31F283DC2D7D59B208053A7281565C7974E51D45A57EA9E48F4D2667E7`로 이전 계측과 같다.
+- 여섯 리슨 2P host/guest 모두 exit 0, 로그 12개에서 probe **48/48 PASS**, assert/ensure/fatal·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. 기존 Mover/CharacterMovementComponent 로그는 남아 있다. 두 Insights export 정상 종료·capture 30.007220/30.004111초다.
+
+### 결과
+
+같은 지상 700 추격·seed 1·투사체 500·2P·nullrhi·corelimit 4·10초 준비/30초 측정이다.
+
+| 실행 | frame P95(ms) | frame/path Gate | 청크 수 | 승격 Actor 평균 |
+|:---|---:|:---|---:|---:|
+| 이전 trace 없음 1 | 12.50 | PASS/PASS | 12 | 2.2 |
+| 현재 trace 없음 1 | 14.10 | PASS/PASS | 16 | 5.2 |
+| 현재 trace 없음 2 | 14.13 | PASS/PASS | 17 | 1.3 |
+| 이전 trace 없음 2 | 14.40 | PASS/PASS | 13 | 1.4 |
+| 이전 trace | 13.68 | 귀속 자료, 정규 반복에서 제외 | 13 | 1.8 |
+| 현재 trace | 15.70 | 귀속 자료, 정규 반복에서 제외 | 17 | 9.3 |
+
+trace 호출당 inclusive(ms)의 이전→현재는 투사체 충돌 4.467→4.521, 경로 소비 1.332→1.331, 병렬 이동 1.071→1.042, 타게팅 0.603→0.600, 복제 0.414→0.464, 위치 이력 0.013→0.022다. 신규 활동 관리 0.039·배회 관리 0.033ms다. 큰 이동/경로/인지 비용 증가는 확인되지 않았다. Actor 승격 수가 다르고 스케줄 대기가 포함되므로 이 차이를 개체당 순수 CPU나 청크 증가 효과로 해석하지 않는다. 같은 조건/seed도 프레임 수와 상태 전환까지 같다는 뜻은 아니다.
+
+앞선 지상 추격 실패는 이번 교차 실행에서 재현되지 않았다. 이전 두 실행 사이 P95도 1.90ms 차이가 난다. gameplay 수정을 해야 할 특정 병목을 확정하지 못했으므로 근거 없는 메모리/청크 최적화를 추가하지 않았다. 이번 합격으로 앞선 실패를 삭제하거나 지상 자연/production Gate·Phase 13 전체를 완료 처리하지 않는다.
+
+### 증거와 한계·다음 행동
+
+- 원본은 `Saved/Profiling/Phase13/GroundAttribution/{Control,Current,ControlTrace,CurrentTrace}`의 host/guest 로그·exit·CSV·trace·Insights export다. 요약 `Summary.json`, 기능 검사 `Validation.json`, 임시 교차 실행기 `Saved/Profiling/Phase13/RunGroundAttribution.ps1`이다.
+- Nav CSV 보존 보완 전에 시작된 **현재 trace 없는 반복 1**의 원본 CSV는 다음 실행에서 덮어써져 미보존이다. 뒤늦은 복사본이 반복 2의 제출 수 10,291임을 확인해 반복 1 증거에서 제거했다. 반복 1은 로그/exit/frame/path 요약만 사용하고 CSV 행 수를 null로 남겼다. 다른 다섯 실행의 요청/timing은 각각 9,569/9,767/10,291/9,738/9,248행이며 제출 수·키 일치·중복/누락/역전 검사를 통과했다.
+- 자동화 테스트·cook/stale·새 빌드는 이 묶음에서 재실행하지 않았다. 기존 검증은 앞선 단위 5 기록을 따른다. D-054·총수·Roadmap 상태는 유지한다.
+- **후속 대조/분석 구현 묶음 완료, 사용자 진행 확인 대기**다. 다음 묶음은 자연 700의 trace 없는 재검증과 실제 late join·동일 게스트 bubble 재진입·지상/비행 배회 화면이다. production·충분한 배회 대역의 대역폭/총수 Gate도 남아 있다. 게임/Insights 종료와 에디터 프로세스 없음 확인 후 종료했다.
+
+## 2026-10-04 — 단위 5 후속 묶음 2 진행 기록: 실제 late join·화면 관찰
+
+사용자의 다음 단위 승인으로 착수했다. 투사체 충돌 processor의 앞선 대조 수치와 해석 한계는 Phase 12 검토 참고용으로 `Roadmap.md`에 연결했으며 Phase 12 구현을 시작하지 않았다. 자연 700 실행은 에디터 실행을 감지해 게임 시작 전에 중단됐다. 사용자 요청에 따라 작업을 멈춘 뒤 Codex 재시작과 Unreal MCP 연결 복구 후 이어갔다.
+
+TestMap03 floating PIE의 기존 리슨 서버/단일 프로세스/플레이어 1명 설정에서 서버를 시작하고 약 50초 뒤 내장 `Add Client`로 게스트를 추가했다. Iris 서버/클라이언트와 `Join succeeded`를 확인했다. 설정·에셋·gameplay 변경은 없다. 읽기 전용 `obj dump`로 두 world의 bubble 배열과 NetID를 확인했고 원본을 `Saved/Tests/Phase13_Unit5_Network`에 보존했다. 초기 snapshot은 같은 개체의 제거/재추가를 증명하는 자료가 아니다.
+
+사용자는 **호스트·게스트 두 화면 모두 비행 드론 배회가 자연스럽고 이동–정지–이동 중 어색함·튐·후퇴가 없다**고 확인했다. 비행 화면 관찰은 통과다. 지상 화면·동일 게스트/NetID bubble 제거·재진입은 아직 미확인이며, 게스트만 관찰 Pod에서 약 260m 이상 이탈하고 복귀 전 멈추도록 요청했다. 자연 700 두 반복과 나머지 Gate도 남아 있으므로 이 묶음·단위 5·Phase 13을 완료 처리하지 않는다.
+
+이후 사용자가 호스트는 유지하고 게스트만 NPC가 보이지 않을 만큼 이탈한 뒤, snapshot 확인 후 호스트 곁으로 복귀했다. 같은 `/Game/Maps/UEDPIE_1_TestMap03.TestMap03:PersistentLevel.LNPMassClientBubbleInfo_0`의 이탈 전/원거리/복귀 배열은 172/151/172개다. 기존 NetID 48개가 원거리 snapshot에서 제거됐고 복귀 snapshot에서 모두 재등장했으며 **48개 모두 ReplicationID가 변경**됐다. 템플릿별 재추가는 `0B9205...` 30·`39335F...` 6·`C28EF5...` 6·비행 config `DA9AB58F4275CA98C46515989CE22DE7` 6개다. 사용자도 이동하며 NPC가 등장하는 동안 튐이 없었다고 확인했다. 실제 동일 게스트/개체 bubble 제거·재추가 검증은 통과다. 원본은 `ClientBeforeExit.txt`(04:54:33 UTC), `ClientFar.txt`(05:03:29 UTC), `ClientReturned.txt`(05:05:34 UTC), 항목별 비교는 `BubbleReentrySummary.json`이다. 호스트 원거리 시점 bubble에는 해당 48개가 없어 그 snapshot만으로 서버 유지 여부를 증명하지 않았으며, 복귀 후 같은 NetID와 새 ReplicationID로 재추가를 판정했다. 지상 배회·접지 사용자 관찰은 아직 대기 중이다.
+
+사용자는 이어서 **양쪽 모두 지상 배회·접지가 자연스럽다**고 확인했다. 지상/비행 화면·실제 late join·동일 개체 bubble 재진입 검증을 통과했다. PIE를 종료하고 세션 로그를 `PIESession.log`로 보존했다. `PIEAudit.json`의 assert/ensure/fatal·스케줄 순환은 각각 0이며 기존 Mover/CMC 로그는 남아 있다. 자연 700 측정을 위해 에디터 종료와 동일 전원/성능·부하 조건 확인을 요청한다. 자연 측정·후속 묶음 2는 아직 미완료다.
+
+### 후속 묶음 2 완료 — 자연 700 재검증
+
+사용자가 에디터 포함 무거운 작업 종료를 확인한 뒤 자연 700 리슨 2P를 trace 없이 두 반복 실행했다. 패키지 SHA256은 `AF435B31F283DC2D7D59B208053A7281565C7974E51D45A57EA9E48F4D2667E7`로 앞선 측정과 같다. seed 1·투사체 500·nullrhi·corelimit 4·10초 준비/30초 측정 조건을 유지했다. 실행기·임시 분석/검사 exit 0이며 원본·exit·실행별 Nav CSV·Summary/Validation은 `Saved/Profiling/Phase13/NaturalRecheck`에 보존했다.
+
+| 반복 | 프레임 P95(ms) | 경로 tick P95(ms) | frame/path Gate | Nav 요청/timing 행 |
+|:---|---:|---:|:---|---:|
+| 1 | 14.70 | 0.753 | PASS/PASS | 7,433/7,433 |
+| 2 | 14.95 | 0.611 | PASS/PASS | 8,249/8,249 |
+
+실제 EnemyEntities는 두 실행 모두 700이다. host/guest 네 exit 0·probe 16/16 PASS·assert/ensure/fatal·Unknown/Envelope/LayerJump·Mass 순서 위반 0이다. Nav 제출 수·요청/timing 키 일치·중복·누락·시간 역전 검사를 통과했다. 기존 Mover/CMC 로그는 남아 있다. guest 연결 전체 수신량은 78,800.2/93,957.7B/s이나 무귀속 링 시나리오이며 Wander Dirty 0이므로 구간 배회 대역폭 개선 근거로 사용하지 않는다.
+
+실제 late join·양쪽 지상/비행 화면·동일 게스트/개체 bubble 재진입과 자연 700 재검증을 끝내 **후속 묶음 2 완료**로 기록한다. 앞선 성능 실패는 삭제하지 않는다. 이번 묶음에 gameplay·Content·Config 변경이나 새 빌드/cook은 없고 에디터/게임/Insights는 종료 상태다. Phase 13 전체·단위 5·D-054·총수 상향은 미완료/유지다. **다음은 production 성능과 충분한 배회 대역의 대역폭/총수 Gate 검증**이며 사용자 진행 확인 전 착수하지 않는다.
