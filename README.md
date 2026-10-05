@@ -18,7 +18,10 @@
 > 일부 마켓플레이스 컨텐츠를 본 프로젝트 저장소에서 제외하고 있습니다.
 >
 > - 제외된 컨텐츠 목록
->   - **Close Combat: Swordsman** 에서 애니메이션 시퀀스 일부
+>   - **Close Combat: Swordsman** 에서 Animation Sequence Assets 일부
+>   - **Game Animation Sample** 에서 UEFN Mannequin Assets, Animation Sequence Assets 일부
+>   - **Lyra Starter Game** 에서 Manny and Quinn Mannequin Assets, Weapon Assets, Animation Sequence Assets 일부
+>   - **Mover Sample** 에서 Manny and Quinn Mannequin Assets, Animation Sequence Assets 일부
 >
 > 해당 컨텐츠 없이 프로젝트를 열 경우 Missing Reference 경고가 발생하며  
 > 일부분 정상 동작하지 않거나 실행이 불가능할 수 있습니다.

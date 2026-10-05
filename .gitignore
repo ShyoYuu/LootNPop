@@ -31,8 +31,16 @@ Content/Localization/**/*.manifest
 Content/Localization/**/*.locmeta
 Content/Localization/**/*.locres
 
-# 재배포 불가 라이센스 에셋
-Content/Characters/Lyra_Mannequin/Animations/Sword/
+# 재배포 불가 라이센스 에셋 — Lyra·GASP·Mover 샘플, Close Combat: Swordsman 베이스.
+# 마네킹 폴더 중 직접 만든 MotionMatchingData만 추적한다. 무기는 직접 만든 LongSword만 추적한다.
+Content/Characters/GASP_Mannequin/*
+!Content/Characters/GASP_Mannequin/MotionMatchingData/
+Content/Characters/Lyra_Mannequin/*
+!Content/Characters/Lyra_Mannequin/MotionMatchingData/
+Content/Characters/MoverSample_Mannequin/
+Content/Weapons/*
+!Content/Weapons/LongSword/
+Art/Meshes/SKM_Shotgun_UEFN.fbx
 # Niagara Examples Pack — Epic 공식 샘플. 재배포 제한 + 용량(약 1.2GB)으로 추적하지 않는다.
 Content/NiagaraExamples/
 
