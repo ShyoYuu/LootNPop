@@ -699,6 +699,12 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 			{
 				const ULNPEnemyConfig& Config = *EnemyShared->Config;
 				const FVector GroundPoint = SpawnTransform.GetLocation();
+				// 배치 계획은 지면 법선으로 회전을 만든다(Pod와 공유). 적의 몸 방향 Up(회전 Z)은 구 중심 방향이어야
+				// 한다 — 경사에서 스폰된 적이 첫 이동 전·휴면 중 경사만큼 기운 채 남으면 판정 캡슐·공격 기저가
+				// 게스트(복제 회전은 구 중심 방향으로 복원)와 어긋난다. 전방은 보존한다.
+				SpawnTransform.SetRotation(FRotationMatrix::MakeFromZX(
+					(Config.MovementConfig.GravityOrigin - GroundPoint).GetSafeNormal(),
+					SpawnTransform.GetRotation().GetForwardVector()).ToQuat());
 				if (Config.IsFlying())
 				{
 					FVector FlightLocation;

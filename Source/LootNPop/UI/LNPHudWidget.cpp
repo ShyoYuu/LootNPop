@@ -207,8 +207,8 @@ void ULNPHudWidget::UpdateEnemyHpBars(const float DeltaTime, const APlayerContro
 		if (i >= HpBarMaxCount && !Existing)
 			continue;
 
-		// 구 내벽이라 머리 방향은 위치에서 곧바로 나온다.
-		const FVector HeadLocation = Entry.Location + (-Entry.Location).GetSafeNormal() * HpBarHeightOffset;
+		// 머리 방향은 엔티티 회전 Z다 — 벽 타기 적은 위치에서 유도할 수 없다.
+		const FVector HeadLocation = Entry.Location + Entry.Up * HpBarHeightOffset;
 
 		FVector2f LocalPos;
 		if (!LNPScreenProjection::ProjectToWidgetLocal(PC, HeadLocation, CameraLocation, CameraForward, ViewportScale, LocalPos))

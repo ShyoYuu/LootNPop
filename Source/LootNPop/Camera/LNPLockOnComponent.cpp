@@ -91,8 +91,8 @@ void ULNPLockOnComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	{
 		if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 		{
-			// 구 내벽이라 대상의 Up은 위치에서 곧바로 나온다 — Actor가 없어도 성립한다.
-			const FVector TargetUp  = (-LockOnTargetLocation).GetSafeNormal();
+			// 대상의 Up은 질의 결과의 몸 방향(엔티티 회전 Z)이다 — Actor가 없어도 성립한다.
+			const FVector TargetUp  = Result.Up;
 			const FVector TargetPos = LockOnTargetLocation + TargetUp * TargetAimHeightOffset;
 			const FVector ToTarget  = (TargetPos - OwnerPawn->GetActorLocation()).GetSafeNormal();
 			if (!ToTarget.IsNearlyZero())

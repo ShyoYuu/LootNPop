@@ -6,6 +6,7 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "Item/LNPWeaponData.h"
+#include "LNPMassUtils.h"
 
 /**
  * 순수 엔티티 원거리 공격의 **기하와 식별자를 서버·클라이언트가 공유하는 자리.**
@@ -18,7 +19,7 @@ namespace LNPEntityAttack
 {
 	/**
 	 * 구면 규약의 로컬 기저. 기준점은 **캡슐 중심**이고(발밑이 아니다),
-	 * 구 내벽이므로 머리 방향(Up)은 구 중심을 향한다 — Mass 판정 경로 전체가 쓰는 관행과 같다.
+	 * 머리 방향(Up)은 엔티티 회전의 Z축이다 — 지상·비행 적은 구 중심 방향, 벽 타기 적은 표면 법선이다.
 	 */
 	struct FBasis
 	{
@@ -32,7 +33,7 @@ namespace LNPEntityAttack
 	{
 		FBasis Basis;
 		Basis.Center = Transform.GetLocation();
-		Basis.Up     = (-Basis.Center).GetSafeNormal();
+		Basis.Up     = LNPMass::GetEntityUp(Transform);
 
 		// 전방은 접평면에 투영해야 한다 — 구면에서 액터 전방은 표면과 미세하게 어긋나 있다.
 		const FVector RawForward = Transform.GetUnitAxis(EAxis::X);

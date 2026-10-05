@@ -1610,8 +1610,8 @@ void ULNPEnemyActionDebugDrawProcessor::Execute(FMassEntityManager& EntityManage
 
 			const FLNPEnemyActionFragment& ActionFrag = Actions[i];
 
-			// 구 내벽이라 머리 방향은 구 중심을 향한다 (Mass 판정 경로 전체가 쓰는 규약).
-			const FVector Up = (-Center).GetSafeNormal();
+			// 머리 방향은 엔티티 회전 Z다 (Mass 판정 경로 전체가 쓰는 규약).
+			const FVector Up = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 			LineBatcher.DrawSolidBox(Center + Up * ActionMarkerHeightOffset,
 				FVector(ActionMarkerExtent), ActionMarkerColor(ActionFrag.Action));
 

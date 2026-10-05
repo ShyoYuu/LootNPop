@@ -16,6 +16,7 @@
 #include "GAS/LNPDamageFormula.h"
 #include "Config/LNPSettings.h"
 #include "LootNPop.h"
+#include "LNPMassUtils.h"
 
 #include "Components/CapsuleComponent.h"
 #include "MassExecutionContext.h"
@@ -278,7 +279,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
 				const FVector Loc   = Transforms[i].GetTransform().GetLocation();
-				const FVector UpDir = (-Loc).GetSafeNormal();
+				const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 				AActor*       Actor = ActorFrags[i].GetMutable();
 				const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor);
 				ClientTargets.Add({ Actor, Center, UpDir, HalfH, Radius, true });
@@ -368,7 +369,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 	struct FCollectedEnemy
 	{
 		FVector            CapsuleCenter;    // 판정 캡슐 중심 (LNPHitDetection::ResolveEnemyCapsuleCenter)
-		FVector            UpDir;            // (-Location).GetSafeNormal() — 구형 세계 UP
+		FVector            UpDir;            // LNPMass::GetEntityUp — 엔티티 회전 Z (몸 방향)
 		float              CapsuleHalfHeight;
 		float              CapsuleRadius;
 		FLNPEnemyFragment* Fragment;
@@ -401,7 +402,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
-			const FVector UpDir = (-Loc).GetSafeNormal();
+			const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 			AActor*       Actor = ActorFrags[i].GetMutable();
 			const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor);
 			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config, &VelFrags[i].Velocity });

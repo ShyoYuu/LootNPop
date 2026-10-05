@@ -96,6 +96,9 @@ struct FLNPTargetQueryResult
 	/** Ray: 광선 위에서 캡슐 중심에 가장 가까운 점(**몸통 깊이**). Cone: 대상의 위치. */
 	FVector Location = FVector::ZeroVector;
 
+	/** 대상의 몸 방향 Up(엔티티 회전 Z). 벽 타기 적은 위치에서 유도할 수 없어 함께 싣는다. */
+	FVector Up = FVector::UpVector;
+
 	/** Ray: Origin에서 Direction 축을 따라 잰 거리. Cone: 접평면 거리. */
 	float Distance = 0.f;
 

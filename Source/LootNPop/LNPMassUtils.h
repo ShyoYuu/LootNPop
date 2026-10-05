@@ -20,4 +20,16 @@ namespace LNPMass
 		const UWorld* World = EntityManager.GetWorld();
 		return World && World->GetNetMode() == NM_Client;
 	}
+
+	/**
+	 * 적 엔티티의 몸 방향 Up — 엔티티 회전의 Z축이다.
+	 *
+	 * 지상·비행 적은 회전 Z가 구 중심 방향이므로 위치에서 유도한 값과 같다. 벽 타기 적(SurfaceCrawl)은
+	 * 붙어 있는 표면 법선이 Up이라 위치로 유도할 수 없다. 판정 캡슐·공격 기저·마커처럼 **몸 방향**이
+	 * 필요한 곳은 이 함수를 쓰고, 지상·비행 이동 내부의 중력·지면 투영은 구 중심 방향을 그대로 쓴다.
+	 */
+	inline FVector GetEntityUp(const FTransform& Transform)
+	{
+		return Transform.GetRotation().GetAxisZ();
+	}
 }

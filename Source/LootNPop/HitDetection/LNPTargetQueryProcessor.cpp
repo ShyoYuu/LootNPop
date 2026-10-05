@@ -5,6 +5,7 @@
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "LNPMassUtils.h"
 
 #include "MassEntityManager.h"
 #include "MassExecutionContext.h"
@@ -78,8 +79,8 @@ void ULNPTargetQueryProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 
 			const FVector Location = Transforms[i].GetTransform().GetLocation();
 
-			// 구 내벽이라 Up은 월드 중심의 반대 방향이다 (원거리 판정과 같은 규약).
-			const FVector EnemyUpDir = (-Location).GetSafeNormal();
+			// 몸 방향 Up은 엔티티 회전 Z다 (원거리 판정과 같은 규약).
+			const FVector EnemyUpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 			const FVector Center     = LNPHitDetection::ResolveEnemyCapsuleCenter(Location, EnemyUpDir, HalfHeight, nullptr);
 
 			for (int32 q = 0; q < Params.Num(); ++q)
@@ -142,6 +143,7 @@ void ULNPTargetQueryProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				BestScores[q]       = Score;
 				Results[q].Entity   = Ctx.GetEntity(i);
 				Results[q].Location = ResultLocation;
+				Results[q].Up       = EnemyUpDir;
 				Results[q].Distance = Distance;
 				Results[q].bHit     = true;
 			}

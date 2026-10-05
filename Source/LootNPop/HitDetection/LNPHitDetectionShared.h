@@ -22,6 +22,7 @@
 #include "LNPGameplayTags.h"
 #include "Enemy/LNPEnemySpatialGridData.h"
 #include "LootNPop.h"
+#include "LNPMassUtils.h"
 
 namespace LNPHitDetection
 {
@@ -308,9 +309,9 @@ struct FLNPMeleeParryCommand : public FMassBatchedCommand
 
 				if (AttackerVelocity && AttackerTransform)
 				{
-					// 구 내벽이라 Up은 월드 중심 방향이다 (판정·이동이 공유하는 규약).
+					// 몸 방향 Up은 엔티티 회전 Z다 (판정이 공유하는 규약).
 					const FVector AttackerLoc = AttackerTransform->GetTransform().GetLocation();
-					const FVector UpDir       = (-AttackerLoc).GetSafeNormal();
+					const FVector UpDir       = LNPMass::GetEntityUp(AttackerTransform->GetTransform());
 					// 헬퍼가 "피격자 → 공격자" 방향을 받아 부호를 뒤집으므로, 밀어낼 방향의 반대를 넘긴다.
 					const FVector TowardVictim = (Victim->GetActorLocation() - AttackerLoc).GetSafeNormal();
 					LNPHitDetection::ApplyEntityKnockback(AttackerVelocity->Velocity, TowardVictim, UpDir, ParryKnockbackStrength);
