@@ -6,11 +6,13 @@
 #include "Enemy/LNPEnemyCharacter.h"
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
+#include "Enemy/LNPSurfaceCrawl.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "SurfaceNavigation/LNPNavGraph.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "LootNPop.h"
+#include "LNPMassUtils.h"
 
 #include "MassStateTreeTypes.h"
 #include "MassCommonFragments.h"
@@ -363,8 +365,12 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 
 	// 비행 개체는 고도 차이도 날아서 좁힐 수 있는 거리라 **3D 거리**로 잰다 — ULNPEnemyFlightMovementProcessor의 도착 신호와 같은 규약이다.
 	const bool bFlying = SharedConfig.Config && SharedConfig.Config->IsFlying();
-	const auto GoalDistSq = [&](const FVector& Goal)
+	// 벽보행 개체는 지금 붙은 표면 기준 도착 거리로 잰다 — 회전 Z가 곧 표면 법선이다(ULNPEnemyCrawlMovementProcessor의 도착 신호와 같은 규약).
+	const bool bCrawling = SharedConfig.Config && SharedConfig.Config->IsCrawling();
+	const auto GoalDistSq = [&](const FVector& Goal) -> double
 	{
+		if (bCrawling)
+			return LNPSurfaceCrawl::GoalDistanceSq(EntityLocation, LNPMass::GetEntityUp(Transform.GetTransform()), Goal, SharedConfig.Config->CapsuleRadius);
 		return bFlying
 			? FVector::DistSquared(Goal, EntityLocation)
 			: FVector::VectorPlaneProject(Goal - EntityLocation, UpDir).SizeSquared();
@@ -412,6 +418,24 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 			const FLNPEnemyFlightConfig& Flight = SharedConfig.Config->FlightConfig;
 			const float Altitude = FMath::FRandRange(Flight.IdleAltitudeMin, FMath::Max(Flight.IdleAltitudeMin, Flight.IdleAltitudeMax));
 			MoveTarget.Center = Enemy.ParentPodLocation + TangentOffset - PodOutDir * Altitude;
+		}
+		else if (bCrawling)
+		{
+			// 벽보행 개체는 Support·Nav를 쓰지 않는다(D-066). Home(Pod 지면점) 주변 방향을 exact로 지면에 투영한 점이고,
+			// 벽·천장에 있으면 이 점을 향해 표면을 따라 기어 내려온다. 투영이 실패하면 Pod 접평면의 점을 그대로 쓰며,
+			// 지형 안·너머에 떨어진 점은 배회 타임아웃이 다시 뽑는다.
+			MoveTarget.Center = Enemy.ParentPodLocation + TangentOffset - PodOutDir * CapsuleHalfHeight;
+			if (WorldCollision)
+			{
+				LNPEnemyExactMovement::FParams ExactParams;
+				ExactParams.GravityOrigin = GravityOrigin;
+				ExactParams.CapsuleRadius = SharedConfig.Config->CapsuleRadius;
+				ExactParams.CapsuleHalfHeight = CapsuleHalfHeight;
+				constexpr float CrawlWanderReach = 300.f;
+				FVector Projected;
+				if (LNPEnemyExactMovement::ProjectToSameLayer(*WorldCollision, ExactParams, Enemy.ParentPodLocation, QueryDir, CrawlWanderReach, Projected))
+					MoveTarget.Center = Projected;
+			}
 		}
 		else if (WorldCollision && SharedConfig.Config)
 		{

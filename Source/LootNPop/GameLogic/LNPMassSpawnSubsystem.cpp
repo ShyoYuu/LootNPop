@@ -737,7 +737,10 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 			{
 				EnemyFragment->ParentLootPod = ParentLootPod;
 				EnemyFragment->ParentPodLocation = ParentPodLocation;
-				EnemyFragment->SurfaceHandle = Surface;
+				// 벽보행 개체는 Support 지면에 매이지 않는다(D-066). 스폰 지점의 Layer를 들고 있으면 벽으로 옮긴 뒤에도 지상 개체로 오인된다.
+				const FLNPEnemySharedFragment* EnemyShared = EntityManager.GetConstSharedFragmentDataPtr<FLNPEnemySharedFragment>(Entity);
+				const bool bCrawling = EnemyShared && EnemyShared->Config && EnemyShared->Config->IsCrawling();
+				EnemyFragment->SurfaceHandle = bCrawling ? FLNPSurfaceHandle() : Surface;
 			}
 		}
 

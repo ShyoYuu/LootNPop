@@ -155,7 +155,7 @@ Phase 7은 한 번에 완료하려 하지 않고 두 개의 독립 게이트로 
 
 ### Phase 14 — 벽 타기 NPC
 
-거미형(다족 보행 드론) PureEntity다. 설계는 `design/MovementIntegration.md` "벽 타기 NPC"(D-066)를 따른다. Support·Nav·베이커와 무관하므로 Phase 3c처럼 병렬로 진행할 수 있다.
+로봇청소기형 PureEntity다(2026-10-05 거미형에서 변경). 설계는 `design/MovementIntegration.md` "벽 타기 NPC"(D-066)를 따른다. Support·Nav·베이커와 무관하므로 Phase 3c처럼 병렬로 진행할 수 있다.
 
 - 적 코드의 "Up = 구 중심 방향" 가정을 "Up = 엔티티 회전 Z축"으로 통일하는 리팩터를 먼저 한다. 지상·비행 회귀가 없어야 한다.
 - wall-walker 이동, 표면 법선 복제, 3D 분리, 원거리 공격·LoS 게이트, 360° 인지, 재귀속, 구간 배회(같은 표면 안 짧은 구간·긴 정지).

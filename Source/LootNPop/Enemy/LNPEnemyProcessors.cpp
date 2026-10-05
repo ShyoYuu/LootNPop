@@ -554,6 +554,7 @@ void ULNPEnemyMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityMa
 	MovementQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	MovementQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
 	MovementQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None); // 비행 도메인은 ULNPEnemyFlightMovementProcessor
+	MovementQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::None);  // 벽보행 도메인은 ULNPEnemyCrawlMovementProcessor
 	// ⚠️ **FLNPEnemyDyingTag를 None으로 걸지 않는다.** 죽는 순간 쿼리에서 빠지면
 	//    사망 팝(ULNPHealthProcessor가 세운 속도)을 **아무도 적분하지 못한다.**
 	//    시체의 AI 이동은 Execute 안에서 태그로 따로 차단한다.

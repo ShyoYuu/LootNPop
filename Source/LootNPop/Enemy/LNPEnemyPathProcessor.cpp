@@ -184,6 +184,7 @@ void ULNPEnemyPathProcessor::ConfigureQueries(const TSharedRef<FMassEntityManage
 	PathQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	PathQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
 	PathQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None);
+	PathQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::None);
 	PathQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	PathQuery.RegisterWithProcessor(*this);

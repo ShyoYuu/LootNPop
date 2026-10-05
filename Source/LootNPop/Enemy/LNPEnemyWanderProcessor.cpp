@@ -34,6 +34,8 @@ ULNPEnemyWanderProcessor::ULNPEnemyWanderProcessor() : EnemyQuery(*this)
 void ULNPEnemyWanderProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	// 벽보행 구간 배회(같은 표면 안의 짧은 구간)는 Phase 14 단위 4다. 그 전까지 벽보행 개체는 이 프로세서를 거치지 않는다.
+	EnemyQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::None);
 	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite);

@@ -671,6 +671,31 @@ struct LOOTNPOP_API FLNPEnemyFlightFragment : public FMassFragment
  */
 USTRUCT() struct LOOTNPOP_API FLNPEnemyFlyingTag : public FMassTag { GENERATED_BODY() };
 
+/**
+ * 벽보행 적의 이동 상태(서버 전용, 복제하지 않는다). `ELNPNavigationDomain::SurfaceCrawl` 적에게만 붙는다.
+ * 소비자는 ULNPEnemyCrawlMovementProcessor 하나다. 붙어 있는지·공중인지는 지상과 같이 FLNPEnemyVelocityFragment가 0인지로 가른다.
+ */
+USTRUCT()
+struct LOOTNPOP_API FLNPEnemyCrawlFragment : public FMassFragment
+{
+	GENERATED_BODY()
+
+	/**
+	 * 지금 붙어 있는 표면의 법선(단위 벡터, 표면 바깥 = 몸의 Up). 0이면 아직 모른다 — 구 중심 방향으로 시작해 첫 probe가 정한다.
+	 * 엔티티 회전 Z는 매 프레임 이 값과 같다.
+	 */
+	FVector SurfaceNormal = FVector::ZeroVector;
+
+	/** 죽은 뒤 떨어져 지면에 닿았는가. 닿기 전까지는 속도가 0이어도 떨어진다. */
+	bool bDeathLanded = false;
+};
+
+/**
+ * `ELNPNavigationDomain::SurfaceCrawl` 적 Tag. Trait가 스폰 템플릿에 붙이고 떼지 않는다.
+ * 지상 이동·경로·분리·격자·배회 구간 프로세서는 이 Tag를 None으로 거르고, ULNPEnemyCrawlMovementProcessor가 All로 받는다.
+ */
+USTRUCT() struct LOOTNPOP_API FLNPEnemyCrawlTag : public FMassTag { GENERATED_BODY() };
+
 class ULNPEnemyConfig;
 
 /** Enemy 그룹의 Shared config 데이터 */

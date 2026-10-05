@@ -62,6 +62,9 @@ enum class ELNPNavigationDomain : uint8
 
 	/** 처음부터 3D로 난다 — ULNPEnemyFlightMovementProcessor. 현재 PureEntity 전용이다(D-052). */
 	FreeFlight,
+
+	/** exact 표면(벽·천장·섬 밑면 포함)을 기어 다닌다 — ULNPEnemyCrawlMovementProcessor. PureEntity·원거리 전용이다(D-066). */
+	SurfaceCrawl,
 };
 
 /**
@@ -680,7 +683,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	FLNPEnemyMovementConfig MovementConfig;
 
-	/** 이동 도메인. `FreeFlight`면 Trait가 FLNPEnemyFlyingTag를 붙이고 비행 이동 프로세서가 맡는다. */
+	/**
+	 * 이동 도메인. `FreeFlight`면 Trait가 FLNPEnemyFlyingTag를, `SurfaceCrawl`이면 FLNPEnemyCrawlTag를 붙이고 각 도메인의 이동 프로세서가 맡는다.
+	 * `SurfaceCrawl`의 이동 몸체는 반지름 CapsuleRadius인 구라 CapsuleHalfHeight = CapsuleRadius로 둔다.
+	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	ELNPNavigationDomain NavigationDomain = ELNPNavigationDomain::GroundSupport;
 
@@ -689,6 +695,7 @@ public:
 	FLNPEnemyFlightConfig FlightConfig;
 
 	bool IsFlying() const { return NavigationDomain == ELNPNavigationDomain::FreeFlight; }
+	bool IsCrawling() const { return NavigationDomain == ELNPNavigationDomain::SurfaceCrawl; }
 
 	/** 피격 감지 Processor가 사용하는 충돌 Capsule 크기. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))

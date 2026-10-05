@@ -1,12 +1,12 @@
 # Phase 14 — 벽 타기 NPC(`SurfaceCrawl`)
 
-> 상태: 진행 중 — 단위 1 완료, 단위 2 착수 확인 대기
+> 상태: 진행 중 — 단위 1 완료, 단위 2 완료
 > 착수: 2026-10-05
 > 순서: 단위 1 → 2 → 3 → 4 → 5 → 6. 구현 단위 완료·검증 뒤 사용자 진행 확인을 받는다.
 
 ## 목표와 범위
 
-D-066과 `design/MovementIntegration.md` "벽 타기 NPC"를 PureEntity 거미형 드론으로 구현한다. Support·Nav·베이커는 바꾸지 않는다. 지상·비행 동작과 전투 규칙에 회귀가 없어야 한다. 마지막 단위에서 D-074가 넘긴 지상/비행/벽보행 최종 편성을 통합 측정으로 정한다.
+D-066과 `design/MovementIntegration.md` "벽 타기 NPC"를 PureEntity 로봇청소기형 적으로 구현한다. Support·Nav·베이커는 바꾸지 않는다. 지상·비행 동작과 전투 규칙에 회귀가 없어야 한다. 마지막 단위에서 D-074가 넘긴 지상/비행/벽보행 최종 편성을 통합 측정으로 정한다.
 
 범위 밖: 자발 점프·근접 공격·덮치기, ActorPromoted 벽보행 엘리트, 벽보행 전용 길찾기(Flight Corridor 류), 플레이어 Up 규약 변경.
 
@@ -59,6 +59,25 @@ D-066과 `design/MovementIntegration.md` "벽 타기 NPC"를 PureEntity 거미�
   - 측정 결과: 스폰 계획이 적 회전을 지면 법선으로 만들어, 경사에서 스폰된 휴면·정지 적이 최대 29° 기울어 있었다. `SetupSpawnedEntities`에서 적 회전 Z를 구 중심 방향으로 맞췄다. 수정 뒤 모든 상태의 편차는 0.3° 미만이다.
 - 되감기: 위치 이력은 위치만 기록하므로 되감은 캡슐도 현재 회전 Z를 쓴다. 지상·비행은 0.5초 사이 Up 변화가 무시할 만하지만 벽보행은 표면을 갈아타면 축이 바뀌므로 단위 3에서 이력에 Up을 기록한다.
 - 판정 캡슐 축이 바뀌는 소비처는 서버·게스트 양쪽을 같은 헬퍼로 바꿔 투사체 validation 불일치를 만들지 않는다.
+
+## 단위 2 세분
+
+착수 조사(2026-10-05): 도메인 분기는 `FLNPEnemyFlyingTag` 하나다. 지상 이동·경로·지상 격자·분리 프로세서가 이 태그를 None으로 거르고, Config 수준 분기(`IsFlying()`)는 IdleTask 배회 목표, 배회 구간 프로세서, 활동 대역, 스폰 들어 올리기, 근접 도달성 슬롯 검사, 복제·위치 이력의 배회 인코딩에 있다. `StepAirborne`은 Up을 구 중심 방향으로 계산하고 walkable+Support hit에만 착지하므로 벽보행 낙하에 그대로 쓸 수 있다. 격자는 분리력 외 소비처가 없다.
+
+규칙:
+
+- 이동 몸체는 반지름 `CapsuleRadius`의 구다. 벽보행 Config는 `CapsuleHalfHeight = CapsuleRadius`이고 다르면 Trait 검증이 경고한다.
+- 붙을 수 있는 표면은 hit identity가 Known이고 역할에 Support나 Blocker가 있는 면이다. Unknown에는 붙지 않는다(D-037).
+- 벽보행 개체는 `SurfaceHandle`을 쓰지 않는다. 스폰 때 비운다. 그래서 단위 4 전까지 벽보행 개체가 든 Pod는 활동 대역에서 항상 활성이다. 단위 2 검증은 `DA_MassSpawnConfig` 편성 전체를 벽보행으로 바꿔 수행한다(사용자 결정, 편성은 테스트 환경마다 바꿔도 된다).
+- 회전 Z는 매 프레임 현재 표면 법선과 정확히 같다. 전방만 회전 속도로 보간한다. 판정 캡슐·공격 기저가 모서리에서 늦게 따라오지 않게 한다.
+- 단위 2 범위 밖: 게스트 회전·법선 복제(단위 3, 그 전까지 게스트는 구 중심 Up으로 보인다), 3D 분리·360° 인지·활동 대역·구간 배회(단위 4), 움직이는 패널 운반.
+
+| 하위 단위 | 내용 | 검증 |
+|:---|:---|:---|
+| 2a 도메인 배선 | `ELNPNavigationDomain::SurfaceCrawl`, `FLNPEnemyCrawlTag`·`FLNPEnemyCrawlFragment`(법선·사망 착지), Trait 부착·검증, 지상 이동·경로·지상 격자·분리·배회 구간에서 제외, 스폰 시 `SurfaceHandle` 비우기, IdleTask 배회 목표(Home 지면점 주변, 현재 법선 접평면 거리 도착) | 빌드, 기존 관련 자동화 회귀 없음 |
+| 2b 순수 이동 함수 | Mass 비의존 `LNPSurfaceCrawl::Step`: 접평면 구 sweep, 오목 모서리 hit 법선 채택, `-법선` 구 probe(볼록 모서리는 구 접촉 법선으로 감싸 돈다), probe 실패 시 뒤쪽 감싸기 sweep, 그래도 없으면 표면 상실. 신규 query 분류 `SurfaceCrawl` | 자동화: 평지·바닥→벽·벽→지붕·천장·절벽 낙하 후 재부착·Unknown 미부착, 관통 0, 프레임당 query 수 |
+| 2c 이동 프로세서 | `ULNPEnemyCrawlMovementProcessor`(서버 전용): 배회·Alert·교전(원거리 정지 거리), 피격 반응·배회 타임아웃·경직·공격 중 정지, 넉백·표면 상실 시 `StepAirborne`과 착지 재부착, 사망 낙하 | 빌드·자동화, 벽보행 Config·EntityConfig 에셋, 편성 전체를 벽보행으로 바꾼 PIE 화면 확인 |
+| 2d 수직 지형 검증 월드 | 벽·탑·돌출부·섬 밑면이 많은 검증 지형. 새 옥탄트 `LVI_Octant_Fixture_Crawl`(`LNP.SurfaceNav.BuildCrawlFixture`, 그래플 앵커 포함)로 정했다 | 오목·볼록 모서리·천장 이동, 추격 중 벽 오르기를 사용자 PIE로 확인 |
 
 ## 진행 체크리스트
 

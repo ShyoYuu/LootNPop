@@ -138,6 +138,11 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 		BuildContext.AddTag<FLNPEnemyFlyingTag>();
 		BuildContext.AddFragment<FLNPEnemyFlightFragment>();
 	}
+	else if (EnemyConfig && EnemyConfig->IsCrawling())
+	{
+		BuildContext.AddTag<FLNPEnemyCrawlTag>();
+		BuildContext.AddFragment<FLNPEnemyCrawlFragment>();
+	}
 
 	// 4. 필수 Mass 시스템 Fragment
 	BuildContext.AddFragment<FMassActorFragment>();
@@ -175,6 +180,25 @@ bool ULNPEnemyTrait::ValidateTemplate(const FMassEntityTemplateBuildContext& Bui
 			TEXT("Enemy config '%s' uses FreeFlight navigation but is not PureEntity. ")
 			TEXT("Flight movement only exists for actorless entities, so a promoted actor would fall under ground movement."),
 			*EnemyConfig->GetName());
+	}
+
+	// 벽보행 이동도 Actor 없는 경로만 있고, 공격은 원거리만 있다(D-066). 이동 몸체는 반지름 CapsuleRadius인 구다.
+	if (EnemyConfig->IsCrawling())
+	{
+		if (EnemyConfig->CombatMode != ELNPEnemyCombatMode::PureEntity || EnemyConfig->AttackType != ELNPEnemyAttackType::Ranged)
+		{
+			UE_LOG(LogLootNPop, Warning,
+				TEXT("Enemy config '%s' uses SurfaceCrawl navigation but is not a PureEntity ranged enemy. ")
+				TEXT("Crawl movement only exists for actorless entities and crawlers only attack with projectiles."),
+				*EnemyConfig->GetName());
+		}
+		if (!FMath::IsNearlyEqual(EnemyConfig->CapsuleHalfHeight, EnemyConfig->CapsuleRadius))
+		{
+			UE_LOG(LogLootNPop, Warning,
+				TEXT("Enemy config '%s' uses SurfaceCrawl navigation with CapsuleHalfHeight %.1f != CapsuleRadius %.1f. ")
+				TEXT("Crawl movement sweeps a sphere of CapsuleRadius, so the hit capsule would not match the moving body."),
+				*EnemyConfig->GetName(), EnemyConfig->CapsuleHalfHeight, EnemyConfig->CapsuleRadius);
+		}
 	}
 
 	// 표현 매핑은 이웃 트레이트(MassCrowdVisualizationTrait)가 갖고 있다. BuildContext의 템플릿 데이터는

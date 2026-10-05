@@ -40,3 +40,72 @@
 - 재측정 세션에서 비행 스폰 안전 거부 2건이 나왔다. 월드 seed가 18625→21749로 바뀌어 배치가 달라졌고, `TryLiftFlyingSpawn`은 위치만 읽으므로 회전 수정과 무관한 기존 안전 거부다.
 - 측정 뒤 `LNP.Enemy.UpDeviationCheck 0`으로 되돌리고 PIE를 종료했다.
 - 사용자가 에디터를 종료한 뒤 Build.bat 전체 빌드에 성공했다. 같은 관련 자동화 30개를 다시 돌려 30/30 PASS, 종료 코드 0이었다(스폰 경로를 지나는 `FlightSteering.SpawnPenetration` 포함). 단위 1을 완료한다.
+
+## 2026-10-05 — 단위 2 착수: 세분과 2a·2b·2c 코드
+
+사용자가 단위 2 진행을 지시했다. 착수 조사와 세분은 실행 문서 "단위 2 세분"이 소유한다.
+
+### 사용자 결정
+
+- 이동 충돌 몸체는 구다(비행 드론과 같은 방식). 벽보행 Config는 `CapsuleHalfHeight = CapsuleRadius`로 둔다.
+- 외형 컨셉을 거미형에서 **로봇청소기형**으로 바꾼다. 다리 애니메이션을 구하기 어렵기 때문이다. 크기는 비행 드론과 비슷하게 한다. 모델링은 단위 5다.
+- `DA_MassSpawnConfig`는 임시 테스트 편성이다. 벽보행 검증 때는 편성 전체를 벽보행으로 바꾼다. 성능 기준선은 지상·벽보행·비행 각각의 상한만 가늠한다.
+- 벽보행을 검증할 수직 지형이 많은 월드가 필요하다(하위 단위 2d).
+
+### 구현
+
+- 2a 도메인 배선: `ELNPNavigationDomain::SurfaceCrawl`·`IsCrawling()`, `FLNPEnemyCrawlTag`·`FLNPEnemyCrawlFragment`(표면 법선·사망 착지). Trait가 태그·fragment를 붙이고, PureEntity·원거리가 아니거나 반높이 ≠ 반지름이면 경고한다. 지상 이동·경로·지상 격자·분리·배회 구간·Up 편차 진단 쿼리에서 제외했다. 스폰은 지상과 같은 지면점 + 반높이이며 `SurfaceHandle`을 비운다. IdleTask 배회 목표는 Home 주변 방향을 `ProjectToSameLayer`로 exact 투영한 점(실패하면 Pod 접평면 점)이다.
+- 2b 순수 함수 `LNPSurfaceCrawl`(`Step`·`Attach`·`SteerDirection`·`GoalDistanceSq`·`IsCrawlable`)과 query 분류 `SurfaceCrawl`(필수 분류, FlightSteering 다음). 규약은 `design/MovementIntegration.md` "벽 타기 NPC"에 반영했다.
+- 2c `ULNPEnemyCrawlMovementProcessor`(서버 전용, Movement 그룹, 공격 프로세서 뒤): 배회·Alert·교전(원거리 정지 거리), 피격 반응·배회 타임아웃·경직·공격 중 정지, 넉백·표면 상실 시 `StepAirborne` 후 착지 자리 재부착, 사망 낙하. 스폰 직후 법선을 모르면 발밑을 한 번 probe한다.
+
+### 시행착오
+
+- 첫 내려가기 자동화가 실패했다. 도착 판정을 현재 표면의 접평면 거리로만 재서, 뒷벽에 붙은 개체가 바닥 목표와 같은 높이(벽 수직 거리 359cm)에서 도착으로 오판했다. IdleTask에 넣은 규칙도 같은 결함이었다. 법선 방향 거리 중 반지름 초과분을 더하는 `GoalDistanceSq`로 바꿨다.
+- 이어서 같은 시나리오가 벽 아래 구석에서 멈췄다. 목표 방향이 벽면에 거의 수직이라 접평면 투영이 0이었다. 목표가 표면 앞쪽으로 멀면 내리막 성분을 더하는 `SteerDirection`으로 해결했다.
+
+### 검증
+
+- Build.bat 전체 빌드 성공.
+- 신규 자동화 `LootNPop.SurfaceNavigation.SurfaceCrawl` 3/3 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit2_Crawl3.log`): 평지 이동 높이·법선 유지와 이동 프레임당 query 2회(60프레임 120회), 정지 query 0회, 천장 이동, 허공 Lost, 바닥 → 앞벽(오목) → 지붕(볼록) 오르기와 지붕 → 뒷벽(볼록) → 바닥(오목) 내려가기, 천장에서 넉백 낙하 후 바닥 재부착 1회, Unknown 벽 미부착, 모든 시나리오 관통 0.
+- 단위 1의 관련 자동화 30개를 같은 실행에서 다시 돌려 모두 PASS했다(`Saved/Logs/Phase14_Unit2_Tests2.log`, 그 실행의 유일한 실패는 수정 전 내려가기 테스트).
+- 자동화 뒤 `git status`에 에셋 변경이 없다.
+- 남은 일: 벽보행 EnemyConfig·EntityConfig 에셋, 편성 전체를 벽보행으로 바꾼 PIE 확인(2c), 수직 지형 검증 월드(2d).
+
+## 2026-10-06 — 단위 2c: 벽보행 에셋과 PIE 확인
+
+### 에셋(MCP)
+
+- `/Game/Enemy/DA_Enemy_PureEntity_Crawler01`: 비행 드론 Config 복제. 반지름·반높이 80, PureEntity·원거리, `NavigationDomain = SurfaceCrawl`. 외형은 단위 5 전까지 드론 메시다.
+- `/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01`: EntityConfig 복제(새 GUID), Trait의 EnemyConfig를 Crawler01로 바꿨다.
+- `/Game/SpawnData/DA_MassSpawnConfig`: 4개 세트(Pod 20·40·30·30) 모두 Crawler01 3기, 나머지 항목 0 — 벽보행 360기. 바꾸기 전 편성은 로컬 `Saved/Phase14_Unit2/DA_MassSpawnConfig_before.txt`에 남겼다(Bench01 근접 4·원거리 2, 나머지 세트 근접 4·원거리 2·비행 6, Pod 주변 반경 1,000).
+- 사용자 요청으로 벽보행 공격 거리를 2500 → **100(1m)**으로 줄였다. TestMap03의 벽이 낮아 사거리 25m로는 벽 아래에서 사격만 하고 따라 오르지 않았다. 정지 거리(70cm)가 몸 반지름(80cm)보다 작아 플레이어와 겹칠 수 있다 — 벽보행 3D 분리는 단위 4다.
+
+### PIE 확인(TestMap03, 리슨 2P 호스트 화면)
+
+- 배치: 4개 세트 모두 부족분 0(enemy_placed 60·120·90·90). Trait 검증 경고 없음. 오류는 기존 CMC 추출 경고뿐이다.
+- 사용자 확인: 경사 지형에서 몸이 지면 경사를 따라 기운다. 벽면에 붙은 채 벽을 따라 추격한다. 넉백으로 날려도 착지 뒤 지면에 다시 붙는다. 총구 방향과 몸 방향이 맞는다.
+- 관찰된 이상: 배회 중 가끔 옆으로(수직 각도로) 누운 채 멈춘 개체가 있다. 플레이어를 인식해 움직이기 시작하면 바로 지면에 붙는다. 정지 중에는 표면 query를 하지 않으므로 멈추기 직전에 잡힌 법선이 남는 것으로 본다. 유력한 추정은 몸(반지름 80)보다 낮은 턱 옆면에 붙은 채 배회 도착 판정에 걸린 경우다 — 확인하지 못했다. 다음 PIE에서 누운 개체 옆에 낮은 턱이 있는지 본다.
+
+## 2026-10-06 — 단위 2d: 벽보행 검증 옥탄트
+
+사용자 결정: 회귀 fixture를 확장하지 않고 벽보행 전용 검증 옥탄트를 새로 만든다. 수직 추격을 쉽게 시험하도록 그래플 앵커를 곳곳에 많이 둔다(사용자 요청).
+
+### 구현
+
+- 에디터 명령 `LNP.SurfaceNav.BuildCrawlFixture`(`LootNPopEditor/SurfaceNavigation/LNPCrawlFixture.cpp`) → `/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Crawl`, 지각 `SM_FixtureCrawlCrust_R30000`(완전 구면 N=256). 상자는 회귀 fixture의 `SM_FixtureBoxTop`(Support)·`SM_FixtureBoxBody`(Blocker)를 재사용한다. oracle이 없는 PIE 확인용이다.
+- 옥탄트 중앙(위도 35.26°, 방위 45°) 기준: 절벽(50×8m, 높이 12m)과 광장 쪽 옆면 8m 높이의 돌출부(밑면 = 천장), 탑(10×10m, 높이 30m), 네 기둥 위 판(24m, 천장 8m), 턱 줄(10·30·50·70·100·150·250cm), 가는 기둥 2개(폭 2·3m, 높이 15m).
+- 그래플 앵커 마커 12개(높이 12~36m, 15~20m 간격 — 사거리 4~25m), 편성 세트당 Pod anchor 2개(8개).
+- `LNP.SurfaceNav.BakeOctant`로 `DA_OctantSurface_Fixture_Crawl`을 구웠다: Support source 18개·Layer 18개, NeedsExact 0, spawn authored 8·후보 10,624.
+
+### 시행착오
+
+- 첫 굽기가 Pod anchor 간격 검사(최소 20m)에 걸렸다(18.4m). 빌더 좌표를 고치고, 새 콘솔 명령 등록 때문에 에디터를 재시작하지 않도록 만든 LVI의 anchor 4개만 MCP로 옮겼다. 계산식은 옮기지 않은 anchor 2개의 저장 transform과 일치함을 확인했다.
+
+### PIE 확인
+
+- 방법: TestMap03의 `OctantPoolData` 정의를 메모리에서만 이 LVI·SurfaceData로 바꾸고, 광장 위에서 PIE를 시작한 뒤 바로 Meadow 원본으로 되돌렸다. 디스크 pool SHA256은 원본과 같다(`Saved/Phase14_Unit2/OctantPool_sha256.txt`).
+- 8 slot 모두 이 옥탄트. 4개 세트 모두 authored 16 사용, 부족분 0, 벽보행 360기 배치. 마커 요소 96개(12 × 8) 생성.
+- 사용자 확인: 그래플로 절벽 위에 오르면 벽면에 붙어 벽 위까지 추격한다. 판 위로 오르면 기둥을 타고 판 밑면(천장)까지는 따라온다.
+- 길찾기 없는 조향의 한계(사용자가 정상으로 판정): 절벽 돌출부 밑면에서는 목표가 위쪽 너머라 천장 접평면 방향이 다시 벽 쪽을 가리켜 벽 ↔ 천장을 오가며 떤다. 판 밑면에서 판 옆면을 돌아 윗면으로 오지 못한다. 막힘 우회가 필요해지면 그때 계획한다.
+- 누운 개체: 검증 옥탄트의 턱 줄 주변에서 사용자가 관찰했을 때 옆으로 선 개체가 없었다. TestMap03에서 본 현상의 원인은 확정하지 못했다. 다시 보이면 그 자리 지형과 함께 조사한다.
+- 단위 2를 완료한다.

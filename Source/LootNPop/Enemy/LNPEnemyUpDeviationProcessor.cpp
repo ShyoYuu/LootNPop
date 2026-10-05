@@ -52,6 +52,8 @@ void ULNPEnemyUpDeviationProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	EnemyQuery.AddRequirement<FMassNetworkIDFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	// 벽보행 개체의 회전 Z는 표면 법선이라 구 중심 방향과 다른 것이 정상이다.
+	EnemyQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::None);
 	EnemyQuery.RegisterWithProcessor(*this);
 }
 

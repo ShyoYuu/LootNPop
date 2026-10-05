@@ -34,6 +34,7 @@ namespace
 		TEXT("GroundRiskFallback"),
 		TEXT("DynamicSupportContact"),
 		TEXT("FlightSteering"),
+		TEXT("SurfaceCrawl"),
 		TEXT("EnemyLineOfSight"),
 		TEXT("PeriodicGroundValidation"),
 		TEXT("DebugValidation"),
