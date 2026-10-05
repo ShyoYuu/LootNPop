@@ -14,7 +14,7 @@
 
 | 타입 | 파일 | 역할 |
 |:---|:---|:---|
-| `FLNPGameplayTagStack` / `FLNPGameplayTagStackContainer` | `LNPGameplayTagStack.*` | Lyra 포팅. `Tag→int32` 스택 FastArray(델타 복제 + 조회용 TMap). 스탯 저장 |
+| `FLNPGameplayTagStack` / `FLNPGameplayTagStackContainer` | `LNPGameplayTagStack.*` | `Tag→int32` 카운트 FastArray(델타 복제). 아이템당 태그가 몇 개뿐이라 캐시 없이 선형 탐색 — 복제 콜백으로 맞출 파생 상태가 없다. 스탯 저장 |
 | `ULNPInventoryItemInstance` | `LNPInventoryItemInstance.*` | 아이템 런타임 인스턴스. 복제: `Definition`·`ItemId`·`StatTags`·`bEquipped`·`ChangeCounter`·`RemainingDuration` |
 | `FLNPInventoryEntry` / `FLNPInventoryList` | `LNPInventoryList.*` | 인스턴스 참조 FastArray. 복제 콜백에서 소유 컴포넌트 `OnInventoryChanged` 브로드캐스트 |
 | `ULNPInventoryComponent` | `LNPInventoryComponent.*` | PlayerState 소유. `BagList`(가방)·`ActiveBuffList`(활성 버프) + 서버 전용 `TMap<FGuid, FLNPBuffRuntime>` |
