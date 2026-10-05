@@ -101,6 +101,7 @@ public:
 	bool HasFinishedSpawning() const { return bSpawningFinished; }
 
 protected:
+	friend class FLNPFlyingSpawnPenetrationTest;
 
 	/**
 	 * 스폰된 Entity를 Transform과 선택적 메타데이터 (Leash 등)로 초기화한다.
@@ -109,8 +110,8 @@ protected:
 		FMassEntityHandle ParentLootPod = FMassEntityHandle(), const FVector& ParentPodLocation = FVector::ZeroVector,
 		const FLNPSurfaceHandle& Surface = FLNPSurfaceHandle());
 
-	/** 비행 적의 지면 스폰점을 배회 고도 하한까지 띄운 위치. 위에 섬이 있으면 그 밑면 아래에 선다. */
-	FVector LiftFlyingSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint) const;
+	/** 비행 스폰 시작 겹침을 해소하고 고도/천장 여유를 확보한다. 안전한 여유 구를 둘 수 없으면 실패한다. */
+	bool TryLiftFlyingSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint, FVector& OutLocation) const;
 
 private:
 	/**

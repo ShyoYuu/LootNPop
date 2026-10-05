@@ -220,15 +220,16 @@ enum class ELNPNavigationDomain : uint8
 
 - **archetype**: PureEntity 전용(D-052). 같은 `ULNPEnemyTrait`에 `NavigationDomain = FreeFlight`면 `FLNPEnemyFlyingTag`가 붙고, 지상 이동·분리·격자는 이 태그를 거른다. 이동은 `ULNPEnemyFlightMovementProcessor`, 조향은 Mass 비의존 순수 함수 `LNPFlightSteering`(엘리트 Actor 재사용 대비)이다. 비행끼리 분리는 별도 격자의 3D 거리다.
 - **고도(D-053)**: 비교전은 Home 위 `IdleAltitude` 대역 3D 배회, 교전은 타겟 위 `EngageAltitude`·올려다보는 각 `EngageElevationDeg`의 교전 지점. 쏠 수 있는 동안은 자리를 지키고, 사거리·조준 각도를 벗어나거나 LoS가 막힐 때만 재배치한다.
-- **headroom(D-073)**: Phase 7c 단위 3은 비행 편성 Pod와 주변 비행 적 시작점의 headroom을 필터링한다. `ULNPEnemyConfig::GetSpawnRequiredHeadroom`은 `max(IdleAltitudeMin, IdleAltitudeMax) + max(CapsuleRadius, CapsuleHalfHeight) + Flight.Clearance + 200cm`를 요구한다. 몸 구는 실제 `LiftFlyingSpawn`과 같은 규칙이고 기본값은 2,638cm다. 지상 Config는 0이다. 게임 스레드에서 EntityConfig의 가까운 EnemyTrait부터 부모 체인을 읽고 실제 생성 수가 양수인 편성의 최댓값을 세트 입력에 담는다. worker는 float 입력만 읽는다.
+- **headroom(D-073)**: Phase 7c 단위 3은 비행 편성 Pod와 주변 비행 적 시작점의 headroom을 필터링한다. `ULNPEnemyConfig::GetSpawnRequiredHeadroom`은 `max(IdleAltitudeMin, IdleAltitudeMax) + max(CapsuleRadius, CapsuleHalfHeight) + Flight.Clearance + 200cm`를 요구한다. 몸 구는 실제 `TryLiftFlyingSpawn`과 같은 규칙이고 기본값은 2,638cm다. 지상 Config는 0이다. 게임 스레드에서 EntityConfig의 가까운 EnemyTrait부터 부모 체인을 읽고 실제 생성 수가 양수인 편성의 최댓값을 세트 입력에 담는다. worker는 float 입력만 읽는다.
 
   베이크는 Config와 무관하게 모든 authored anchor·random candidate에 `Headroom`을 기록한다. 반지름 50cm 구를 바닥점의 지역 Up(구 중심 방향)으로 `LNPWorldExact` sweep한다. 시작 중심 높이는 `50 / dot(Up, floorNormal) + 1cm`, 종료 중심 높이는 `min(32767 - 50, 바닥점 반지름 - 50 - 1)`이다. 바닥 관통·중심 통과와 복제 좌표 캡 초과를 피하며 시작 겹침·측정 공간 부족은 0이다. hit는 `시작 높이 + Hit.Distance + 50cm`, 무충돌은 `종료 높이 + 50cm`를 저장한다. 이는 구가 닿는 천장·옆벽의 보수적 수직 높이이며 반지름 50cm 기둥 바깥의 자유 공간을 보장하지 않는다. 실제 비행의 몸 구 sweep은 계속 장애물을 막는다. 값은 `[0,32767]`의 유한 float이고 무충돌을 infinity로 표시하지 않는다. 측정 반지름·상한은 bake settings hash에 포함하지만 비행 고도 Config·요구 여유는 포함하지 않는다.
 
   authored-for-set → generic → random 우선순위와 총량·shortfall은 유지한다. `Headroom >= RequiredHeadroom`이면 선택하며 낮은 후보를 소비하지 않아 이후 지상 편성에 남는다. 비행 없는 세트는 기존 배치와 같다. 주변 적은 필요 headroom 내림차순으로 배정해 지상 적이 비행 후보를 먼저 소비하지 않게 한다. 같은 필요값끼리는 Config 순서를 유지한다. 적 종류별 headroom과 기존 slot·Layer·반경·간격 제한은 계속 검사한다. Config 변경은 같은 snapshot 위의 할당만 바꾼다. 지하 공동·건물 안·섬 밑은 같은 규칙이다. 천장 낮은 공간의 추격은 기존 LoS·교착 복구로 입구 밖에서 호버하거나 물러나는 동작을 허용한다. 높은 공동의 천장 근처 교전 고도 clamp는 단위 4의 플레이 검증에서 필요할 때만 추가한다.
+- **런타임 비행 스폰**: headroom은 후보 필터이며 실제 몸·옆벽 여유를 보장하지 않는다. `TryLiftFlyingSpawn`은 `max(CapsuleRadius, CapsuleHalfHeight) + Clearance` 구로 시작점부터 배회 고도 하한까지 검사한다. 시작 겹침은 hit 법선으로 깊이+0.5cm만큼 최대 4회 해소하고 다시 검사한다. 천장/벽 hit 앞에서는 0.5cm를 남긴다. 안전한 여유 구를 확보할 수 없으면 해당 엔티티를 제거하고 거부 로그를 남기며 겹친 시작점을 반환하지 않는다. 후보 계획의 배치 수와 실제 런타임 엔티티 수는 별도로 검증한다. 휴면 이동 생략 규칙을 유지하므로 스폰 시 안전성에 이동 processor의 사후 복구를 기대하지 않는다.
 - **교전 수 상한**: 비행 적은 원거리 슬롯 풀을 쓰므로 동시 교전 수는 플레이어당 원거리 슬롯(20)으로 묶이고 나머지는 Alert로 호버한다. 지상 원거리 적과 같은 풀을 나눈다.
 - **넉백**: 생산자(`ApplyEntityKnockback`)는 지상과 같고, 비행 소비는 중력 없이 반감기 감쇠·steering 추가 속도로 sweep. "`Velocity != 0`이면 공중"이라는 지상 규약은 비행 개체에 적용하지 않는다.
 - **사망**: 비행을 끊고 `StepAirborne` 낙하, 착지 여부는 `bDeathLanded`로 기억한다.
-- **예산(D-054)**: 비행 적 총수 200. 서버 프레임은 비행 100마리당 약 1.0~1.5ms이고 그중 exact는 0.1~0.3ms라 대부분 엔티티당 공통 비용이다. 이동 프로세서에 시뮬레이션 LOD가 없어 동시 교전 수가 아니라 총수로 예산을 잡는다. 이 근거는 서버 CPU이며 대역폭이 아니다. 활동 대역(D-067)과 구간 배회 복제(D-068)를 넣은 뒤 총수를 재측정한다.
+- **예산(D-074, D-054 대체)**: Pod 귀속 PureEntity 비행 적의 임시 월드 편성 목표는 600이다. 활동 대역(D-067)·구간 배회 복제(D-068)를 전제로 한다. 현재 편성은 120 Pod 중 100 Pod에 비행 6기씩이며 지상 요청은 PureEntity 720개다. 월드 총수와 동시 활성/사격 수를 구분하고, 이 편성을 무귀속 전량 활성 혼합의 합격 상한으로 쓰지 않는다. 지상/비행/벽보행의 최종 총수·비율·활성 예산은 Phase 14 뒤 통합 측정으로 결정한다. 단독 900~1,200은 확대 후보이며 최대 총수는 미확정이다. 과거 비행 100기당 1.0~1.5ms는 활동 대역 도입 전 측정이라 현재 총수에 선형 적용하지 않는다. 실제 근거와 실패 조건은 `../history/Phase13_Log.md`가 소유한다.
 - **진형 기각(D-069)**: 리더만 복제하고 멤버 위치를 추론하는 진형은 채택하지 않는다. 멤버마다 락온·HP 바·넉백·경직·패링이 그대로 적용돼야 하는데, 맞는 순간 멤버가 결정론적 자리를 벗어나 전투 규칙 전반에 예외가 생긴다. 대역폭 비용은 "복제 엔티티 수"가 아니라 "위치가 바뀐 갱신 횟수"이므로(`LNPMassReplicator`는 바뀐 항목만 Dirty), 엔티티를 복제에서 빼지 않고 갱신을 줄이는 D-067·D-068로 같은 이득을 얻는다. 상세는 `../../DiscardedApproaches.md` [Case 06].
 
 ### Flight Corridor 도입 조건
@@ -246,9 +247,9 @@ enum class ELNPNavigationDomain : uint8
 
 ## 활동 대역(D-067, Phase 13 단위 2)
 
-> 상태: Pod 대역·휴면 제외·깨움·서버 구간 배회·구간 복제 구현 및 단위 4 검증 완료. 최종 기능·성능 Gate 대기. 검증 근거는 `../history/Phase13_Log.md`를 따른다.
+> 상태: Phase 13 단위 1~5 완료. 최종 기능·성능 검증과 사용자 리슨 2P 확인을 통과했다. 임시 월드 편성은 D-074, 검증 근거와 한계는 `../history/Phase13_Log.md`를 따른다.
 
-도입 전 지상·비행 이동은 거리와 무관하게 모든 적을 매 프레임 처리했다. 활동 대역으로 휴면 개체의 이동·인지·분리·경로·배회 처리를 제외한다. 총수 상한 변경은 최종 패키지 재측정 뒤 결정하며 D-054와 기존 지상 예산은 유지한다.
+도입 전 지상·비행 이동은 거리와 무관하게 모든 적을 매 프레임 처리했다. 활동 대역으로 휴면 개체의 이동·인지·분리·경로·배회 처리를 제외한다. Phase 13 재측정과 사용자 승인으로 비행 임시 월드 편성은 D-074를 따른다. 기존 지상 단독 검증과 월드 혼합 편성은 별개이며 최대 총수·벽보행을 포함한 최종 배분은 Phase 14 뒤 측정한다.
 
 **판정 단위는 Pod다.** 서버의 `ULNPEnemyActivityProcessor`가 PostPhysics에서 무리 상태를 확정하고 다음 PrePhysics 전에 휴면 태그를 반영한다. Pod와 가장 가까운 플레이어의 거리를 4Hz로 판정한다. 즉시 깨움과 강등 안전성은 매 프레임 읽으며 현재 구현은 개체 전체를 두 번 순회한다. 거리 판정이 저빈도라는 이유만으로 전체 관리 비용도 Pod 수에 비례한다고 보고하지 않는다.
 

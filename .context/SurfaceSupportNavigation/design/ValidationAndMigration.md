@@ -153,6 +153,8 @@ CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 
 
 ### Phase 13 활동 대역 측정
 
+2026-10-05 최신 패키지 검증·사용자 리슨 2P 확인과 D-074 임시 편성 결정으로 Phase 13을 완료했다. Pod 귀속 비행 600의 월드 편성 검증과 무귀속 전량 활성 총수 비교는 구분한다. 최대 총수·지상/비행/벽보행 최종 비율은 Phase 14 뒤 같은 활동/교전/viewer 조건으로 측정하며, 실패한 혼합 프레임·exact 진단 초과·배치 부족을 합격 처리하지 않는다. 최신 마무리 증거는 `Saved/Profiling/Phase13/Closure`, 상세 결과와 아래 완료 전 측정 경과는 `../history/Phase13_Log.md`를 따른다.
+
 2026-10-04 사용자 결정으로 Phase 13 핵심 구현·기능 검증 결과를 보존하고 최종 성능·총수 Gate는 Phase 12 뒤 재개한다. 투사체 최적화는 Phase 12에서 수행한다. 이동·Nav 격리 측정은 보조 진단이며 기존 전체 프레임 Gate를 대체하지 않는다. 병렬 실행·대기가 포함된 투사체 CPU를 프레임 P95에서 빼서 합격을 계산하지 않는다. Phase 12 최종 패키지에서 통합 부하와 남은 경로·비행/혼합·총수 검증을 다시 수행한 뒤 완료와 D-054 변경을 판단한다.
 
 `AnalyzePhase13GroundPopulation.ps1`은 같은 패키지의 자연·추격 700/800 각각 두 trace 없는 Gate와 한 trace를 검증한다. 조건별 700→800→800→700 순서와 trace 원본은 `Saved/Profiling/Phase13/GroundPopulationAttribution/Run.ps1`에 보존한다. 실제 총수·무귀속 Active·30표본·실제 chase/trace 모드·probe·Nav 요청/timing 키/순서·같은 패키지를 확인한다. 동일 이름 timer ID는 count·inclusive·exclusive를 먼저 합치고 호출당/프레임당/초당 분모를 구분한다. exact 클래스별 query 시간은 Report의 반올림된 평균에서 얻은 근사값이며 processor 하위 범위와 더하지 않는다. 병렬 부모 inclusive와 `stepWait`는 대기를 포함한다. trace P95로 trace 없는 Gate를 대체하거나 총수 증가 효과를 고정 비율로 해석하지 않는다.

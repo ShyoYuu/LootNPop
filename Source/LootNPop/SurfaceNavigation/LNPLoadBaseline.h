@@ -173,6 +173,8 @@ private:
 	int32 PenetrationFrames = 0;
 	int32 PenetrationEntityFrames = 0;
 	int32 PenetrationCheckedFrames = 0;
+	/** 관통 진단을 켠 실행에서 최초 실패 개체 최대 16개의 상세 로그만 남긴다. */
+	TSet<FMassEntityHandle> LoggedPenetratingFlyers;
 
 	/** 서버. 비행 적 행동 상태(ELNPTargetingState: None·Alert·Confirmed)별 1초 표본 합과 표본 수. */
 	int64 FlyerStateSums[3] = {};

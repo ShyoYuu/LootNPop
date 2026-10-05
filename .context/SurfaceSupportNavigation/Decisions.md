@@ -61,7 +61,7 @@
 | D-051 | 섬과 지각을 잇는 경사로는 별도 메시와 지각 일체형 언덕 두 방법을 모두 허용하고 옥탄트마다 고른다. | 확정 | `design/TerrainContract.md` §5 |
 | D-052 | 완전 비행 NPC 1차는 PureEntity 원거리 사격형이다. 같은 `ULNPEnemyTrait`에 `NavigationDomain`과 비행 태그를 더하고, 이동만 별도 비행 이동 프로세서가 맡는다. 발사 전 LoS를 검사한다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.1·§3.2 |
 | D-053 | 비행 NPC 고도는 교전 중 타겟 상대 대역, 비교전 중 Home 기준 대역이다. | 확정 | `phases/Phase03c_FlyingNpcFoundation.md` §3.4 |
-| D-054 | 비행 적 총수는 200이다. Pod 편성 타입을 나눠 비행 적이 없는 Pod와 3~6기를 편성한 Pod를 둔다. 비행 100마리당 서버 프레임 약 1.5ms로 본다. 이 총수는 활동 대역이 없는 조건의 값이며 Phase 13 뒤 재측정한다(D-069). | 확정 | `history/Phase03c_Log.md` 2026-09-27 |
+| D-054 | 비행 적 총수는 200이다. Pod 편성 타입을 나눠 비행 적이 없는 Pod와 3~6기를 편성한 Pod를 둔다. 비행 100마리당 서버 프레임 약 1.5ms로 본다. 이 총수는 활동 대역이 없는 조건의 값이며 Phase 13 뒤 재측정한다(D-069). | 대체됨(D-074) | `history/Phase03c_Log.md` 2026-09-27 |
 | D-055 | 옥탄트의 지각 Layer는 세 이음매 변 모두에 닿는 유일한 `Support+Static` 컴포넌트로 식별한다. 새 태그를 두지 않으며, 해당 컴포넌트가 0개나 2개 이상이면 베이크 오류다. | 확정 | `phases/Phase04a_CrustAtlasAndSeams.md` §3.2 |
 | D-056 | 공통 기능 검증의 정적 사례는 fixture LVI `LVI_Octant_Fixture_Regression`을 8 slot 회전으로 합성해 검사하고, LVI에 둘 수 없는 동적 사례만 `L_SurfaceRegression` 일반 레벨에 둔다. 두 곳의 fixture와 oracle을 모든 후속 Phase가 재사용한다. | 확정 | `design/RegressionMap.md` §1 |
 | D-057 | 섬·동굴 sparse Atlas는 지각과 같은 octahedral 격자 계열(분할 수 = 지각 N의 정수배)을 쓰고, Layer마다 행별 i 구간(row span)만 저장한다. | 확정 | `phases/Phase04b_MultiLayerSupport.md` §3.2 |
@@ -81,6 +81,8 @@
 | D-071 | 지하 공간은 Floor·Shell을 나눈 닫힌 메시로 만들되 모양·크기를 재사용 모듈로 제한하지 않는다. 대형 공동, 공동 안 복층 구조물(D-064), 분기, 입구 여러 개를 허용한다. 입구는 지상 NPC가 오가는 긴 경사로와 Nav로 잇지 않는 수직 통로(플레이어는 낙하·마커 그래플 앵커)이며 옥탄트마다 조합을 달리한다. 지하 공간은 옥탄트 경계·꼭짓점 근처에 두지 않고 옥탄트 중심 방향에 두며, 깊이는 베이커의 int16 캡 검사가 막는다. D-035를 대체한다. 복층·분기를 뺀 원래 사유(D-006, SurfaceCache 시절 범위 절단)는 다층 Atlas(D-057)와 접힌 sheet 분할(D-064)로 남아 있지 않다. | 확정(Phase 7c 검증) | `design/TerrainContract.md` §6 |
 | D-072 | 비지각 Layer 해상도는 source마다 정한다. 기본은 25cm(m=4)이고 Support 컴포넌트에 `LNP.Surface.CoarseSupport` 태그가 있으면 지각과 같은 100cm(m=1)로 굽는다. 지각을 연장한 넓고 완만한 공동 바닥용이며, 그 위 구조물은 기본 해상도를 쓴다. codec v2는 Layer마다 분할 수를 저장하므로 형식은 바뀌지 않는다. D-057의 정수배 규칙은 유지한다. | 확정(Phase 7c 단위 1 구현 완료) | `design/SurfaceBaking.md` "해상도 정책" |
 | D-073 | 비행 적을 편성한 Pod는 위쪽 여유(headroom)가 충분한 Pod 후보에만 둔다. 베이커가 Spawn 후보마다 위쪽 exact sweep으로 headroom을 기록하고, 런타임 할당이 비행 Config(`IdleAltitude` 상한 + clearance + 여유)에서 유도한 기준과 비교한다. 지하·지상을 구분하지 않는다. 비행 적이 천장 낮은 공간으로 추격하지 못하는 것은 허용한다. | 확정(Phase 7c 단위 3 구현 완료) | `design/MovementIntegration.md` "완전 비행 NPC" |
+
+| D-074 | Pod 귀속 PureEntity 비행 적의 임시 월드 편성 목표는 600이다. 활동 대역·구간 배회 복제(D-067·D-068)를 전제로 하며 동시 활성·동시 사격 상한이나 최대 총수 보장은 아니다. 지상/비행/벽보행의 최종 총수·비율과 동시 활성 예산은 Phase 14 구현 뒤 같은 활동·교전·viewer 조건의 통합 측정으로 결정한다. 비행 900~1,200은 확대 후보로만 남긴다. D-054를 대체한다. | 확정(Phase 13 완료, 임시 편성) | `history/Phase13_Log.md` 2026-10-05 마무리, `design/MovementIntegration.md` "예산" |
 
 ## 변경 규칙
 

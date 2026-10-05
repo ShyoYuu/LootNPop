@@ -452,7 +452,7 @@ PIE를 MCP로 종료하고 IsPIERunning=false를 확인했다. 세션 assert/ens
 - `RunPhase13Gate.ps1`에 `N800`·`N800Chase`·`F300`·`ProductionWideSpawn`을 추가했다. 마지막 조건은 일반 인지·시작 위치를 유지하고 스폰 반경만 1,500cm로 덮어쓴다. ObserveWander·인지 제외·진단·PoseControl은 없다.
 - `AnalyzePhase13Gate.ps1`은 Active 로그 요청 수, 링 실제 배치, 최종 엔티티 총수와 28개 이상 활동 표본을 확인한다. 무귀속 전량 Active가 아니면 `RingPopulationEligible=false`다. `RingFrameGatePassed`는 이 조건과 Phase 3b/6의 기존 16.6ms 기준을 함께 쓴다. 경로·기능·CSV 검사는 별개이며 runtime NavGate 표기 16.67ms로 기준을 느슨하게 바꾸지 않는다. PowerShell 파서와 실로그에서 링 여섯 실행 true·production 대조 false를 확인했다. 이전 자연 700 로그에서도 요청/배치/최종 700 일치를 확인한 구조화 기록은 `Prior700PopulationCheck.json`이다.
 - `LNPMassSpawnPlan.cpp`의 후보 배정은 전역 사용 여부·Enemy 허용 flag·headroom·같은 slot/Layer·Pod 반경·200cm 간격 조건을 만족하는 베이크 후보를 순서대로 소비한다. `MaxRetryCount`를 더 돌리는 구조가 아니다. 부족 원인은 이 필터를 통과하는 미사용 후보가 요청 수보다 적다는 것이며, 어느 필터가 각 후보를 기각했는지 계측하지 않았다.
-- 반경 800cm의 앞선 일반 실행은 지상 709·비행 600이었다. 이번 반경 1,500cm 대조는 같은 seed/패키지·120 Pod에서 네 set 120/480/360/360, **지상 720·비행 600 전량 배치**다. 반경 안 후보 가용성이 11개 부족에 영향을 준다는 근거이며 모든 Pod의 후보 부족을 무조건 반경으로 해결할 수 있다는 뜻은 아니다. runtime 안전 검사·베이크/스폰 규칙·기본 에셋 반경을 바꾸지 않았다.
+- 반경 1,000cm의 앞선 일반 실행은 지상 709·비행 600이었다. 이번 반경 1,500cm 대조는 같은 seed/패키지·120 Pod에서 네 set 120/480/360/360, **지상 720·비행 600 전량 배치**다. 반경 안 후보 가용성이 11개 부족에 영향을 준다는 근거이며 모든 Pod의 후보 부족을 무조건 반경으로 해결할 수 있다는 뜻은 아니다. runtime 안전 검사·베이크/스폰 규칙·기본 에셋 반경을 바꾸지 않았다.
 
 ### trace 없는 비교점
 
@@ -538,3 +538,211 @@ Phase 13은 **핵심 구현·기능 검증 완료, 최종 성능 Gate 보류**�
 새 세션에서 Phase 12를 먼저 진행하고, 완료 뒤 별도 새 세션에서 Phase 13 통합 성능·총수 Gate를 마무리한다. 이동·Nav 격리 측정은 보조 진단이며 기존 전체 프레임 Gate를 대체하지 않는다. 투사체 CPU를 프레임 P95에서 빼서 합격을 계산하지 않는다. 경로 800 실패·Pod 귀속 통합 부하/총수·비행 관통/혼합 검증은 그대로 남아 있어 Phase 12 완료만으로 Phase 13을 자동 완료하지 않는다. D-054와 총수 상한은 재검증까지 유지한다.
 
 `Current.md`는 이 순서와 새 세션의 진입점·보존 결과·미해결 검증을 중심으로 다시 정리했다. `Roadmap.md`의 오래된 Phase 13 진행 표기를 현재 보류 상태로 갱신하고 Phase 12 선행과 최신 비용 원본을 연결했다. Phase 13 실행서·검증 설계에도 Gate 유지와 재개 조건을 반영했다. 이번 결정 반영에는 gameplay·에셋·설정 변경이나 새 측정/빌드가 없으며, 문서·기존 측정 스크립트를 확인한 뒤 사용자 요청 형식으로 커밋한다.
+
+## 2026-10-05 — Phase 12 뒤 재개 첫 후속 단위: 최신 production·항상 활성·반경 확장 교차 대조
+
+### 범위와 변경
+
+사용자가 별도 세션에서 Phase 13 재개를 요청했다. 단위마다 완료·검증 뒤 계속 진행할지 확인하는 규칙을 유지한다. 필수 README/Current/Decisions·Phase 13 실행서·활동/배회 설계와 기존 실행기/검증기를 확인했다. 작업 시작 시 Git은 깨끗했고 에디터는 종료 상태였다. 코드 기준 커밋은 `e1a3f4803ce7752d409047578f5a17578a16513b`다.
+
+Phase 12 완료 뒤의 근접 NotifyBegin RTT/2·원격 여부 캐싱 수정이 이전 game 패키지에 없으므로 새 패키지를 만들었다. 런타임 소스·Content·Config는 수정하지 않았다. 기존 `RunPhase13Gate.ps1`에 `AlwaysActiveWideSpawn` 조건 한 줄을 추가해 반경 1,500cm 전량 배치의 항상 활성 대조를 가능하게 했다. 재현·검증·audit 실행기는 아래 로컬 산출물 폴더에 보존하며 Git에는 넣지 않는다. 완료한 지상 700/800 자연·추격 반복은 다시 실행하지 않았다.
+
+### 빌드·cook·자동화
+
+권한 확장으로 RunUAT BuildCookRun의 Win64 Development build/cook/stage/pak/archive를 실행했다. 기존과 같은 TestMap03·ConditionalPatchRegression·두 fixture LVI를 map에 명시하고 Fixtures CookDir를 포함했다. LootNPop/LootNPopEditor 빌드와 cook 1,003개 패키지·archive 성공·AutomationTool exit 0(총 187초)다. 로그는 `Saved/Logs/Phase13_Resume_BuildCookRun.log`이며 SurfaceData stale 차단 오류 없이 cook이 완료됐다.
+
+기존 Phase 12 최종 cook에도 있던 M_Mannequin/MI_Manny_02_Blue의 SM5/SM6 재질 compile 실패·default material 경고와 scalability 우선순위 경고는 남아 있다. 경고 없는 cook이나 새 시각 검증으로 보고하지 않는다. 이번 headless 성능 단위에서 이 재질을 수정하지 않았다.
+
+새 패키지는 `Saved/SurfaceNavigationPhase13ResumePackage`다. exe SHA256은 `E4D979CD63A7F6CD64DD67645464904803A11390CCE40F83473F31C653A7B115`이며 pak/utoc/ucas·편성 에셋·실행기 식별자는 `Package.json`에 보존했다.
+
+같은 빌드의 UnrealEditor-Cmd에서 기존 판정 회귀 12개에 활동 경계/깨움/안전 3개·서버 배회 2개·구간 복제 4개를 더해 **21 succeeded·failed/notRun/succeededWithWarnings 0·프로세스 exit 0**이다. 에셋을 저장하는 자동화는 포함하지 않았다. 결과/실행기는 `Saved/Tests/Phase13_Resume`, 로그는 `Saved/Logs/Phase13_Resume.log`다. 기존 회귀 통과이며 새 실제 원격 근접 플레이 검증으로 확대하지 않는다.
+
+### 동일 패키지 교차 측정
+
+trace 없는 리슨 2P·nullrhi·nosound·corelimit 4·seed 1·투사체 목표 500·10초 준비/30초 capture다. 기본 반경과 확장 반경 각각 일반→항상 활성→항상 활성→일반 순서로 실행했다. ObserveWander/인지 제외/활동 진단/PoseControl은 Off이며 sphere/grid=1·RewindCache/두 validation/ProfileStride=0이다. 반경 덮어쓰기는 확장 조건에만 사용했다. 일반 production 인지·공격·피격을 실행했으며 이벤트 수는 warm-up까지 포함해 capture 공격률로 해석하지 않는다.
+
+| 반경·조건 | 실제 지상/비행 | frame P95 두 반복(ms) | exact 진단 P95(ms) | frame/path |
+|:---|:---|:---|:---|:---|
+| 기본 1,000cm·일반 | 709/600 | 6.15 / 5.33 | 1.49 / 1.42 | 모두 PASS |
+| 기본 1,000cm·항상 활성 | 709/600 | 9.30 / 9.34 | 3.62 / 3.60 | 모두 PASS |
+| 확장 1,500cm·일반 | 720/600 | 5.33 / 5.62 | 1.40 / 1.47 | 모두 PASS |
+| 확장 1,500cm·항상 활성 | 720/600 | 9.36 / 9.36 | 3.73 / 3.67 | 모두 PASS |
+
+모든 조건은 16.6ms 프레임 기준과 path P95 1.5ms를 통과했다. path tick P95는 일반 네 실행 0.000ms(로그 반올림), 항상 활성 0.068/0.071/0.070/0.072ms다. 기본 반경 요청 1,320개 중 지상 11개 배치 부족은 그대로다. 확장 반경 네 실행은 요청·실제 전량 1,320개로 검증했다. 반경 에셋을 바꾸지 않고 CLI 대조로만 사용했다.
+
+일반 조건의 30개 표본 평균 휴면/배회/활성은 다음과 같다. 항상 활성의 30개 표본은 모두 실제 전량 Active·배회/휴면 0이었다. 모든 표본의 Bound는 실제 총수와 일치했다.
+
+| 일반 조건·반복 | 지상 휴면/배회/활성 평균 | 비행 휴면/배회/활성 평균 |
+|:---|:---|:---|
+| 기본 1 | 586.6 / 70.8 / 51.6 | 501.6 / 58.8 / 39.6 |
+| 기본 2 | 585.0 / 70.8 / 53.2 | 500.0 / 58.8 / 41.2 |
+| 확장 1 | 594.0 / 64.6 / 61.4 | 498.0 / 52.6 / 49.4 |
+| 확장 2 | 594.0 / 68.4 / 57.6 | 498.0 / 56.4 / 45.6 |
+
+연결 전체 평균 수신량은 일반 17,438.6~17,993.0B/s·항상 활성 18,870.5~19,222.9B/s다. PositionYaw 대조가 아니므로 구간 복제 전용 절감률이나 NPC 전용 wire 비용으로 보고하지 않는다. 신규 trace CPU 분해도 수행하지 않아 frame 차이를 활동 processor 단독 CPU로 귀속하지 않는다.
+
+### 원본 검증과 해석 한계
+
+8회 host/guest 16개 exit 0·같은 exe SHA256·probe 64/64 PASS·실행별 30표본·모드·편성·CSV 행 수/고유 키/시각 순서/요청-timing 짝 검증 통과다. Nav 요청 행은 기본 일반 225/250·기본 항상 활성 2,157/2,284·확장 일반 232/295·확장 항상 활성 2,337/2,726이다. assert/ensure/fatal·UnknownHits/EnvelopeEscapes 등 검사 대상 불변 위반은 0이다. 기존 Mover/CMC 및 headless 입력 회복 fault는 남아 있으며 호스트 SystemFault 메시지는 실행별 7~277개다. 로그 전체 오류 0이나 실제 입력 네트워크 검증으로 확대하지 않는다.
+
+항상 활성 exact 진단 P95 3.60~3.73ms는 기존 2ms 진단 예산을 초과한다. 전체 frame/path PASS와 별도로 남기며 비행 600 활동 편성이 비행 관통 Gate나 D-054 변경 근거를 충족했다고 해석하지 않는다. 이전 1,801개 편성 실패 해결·최대 총수·실제 렌더링/사용자 플레이·모든 적 동시 교전 검증도 아니다. 이전 패키지보다 낮은 frame 수치를 근접 캐싱 후속 수정의 인과 효과로 단정하지 않는다.
+
+원본·Console·실행/검증/audit·Summary/Validation/Audit·Package/SHA256 목록은 `Saved/Profiling/Phase13/ProductionResume`다. 분석기·검증기·audit exit 0, SamePackage=true·MaximumPopulationGateVerified/FlightPenetrationGateVerified=false다. 종료 시 에디터·게임·Insights 프로세스 없음·Content/Config 변경 없음을 확인했다. MCP나 사용자 GUI 검증은 이번 단위에서 수행하지 않았다.
+
+**재개 첫 후속 단위 완료, 다음 비행 300 관통·혼합 부하 단위 진행 확인 대기**다. 새 변경이 없으면 이번 패키지를 재사용하고 완료한 지상/production 반복은 재실행하지 않는다. 단위 5 전체·Phase 13 완료·총수 상향·D-054는 미완료/유지다. Current/Phase13/Roadmap에 이 범위와 다음 행동을 반영했다.
+
+## 2026-10-05 — 비행·혼합 후속 단위: 성능 PASS·production 관통 FAIL
+
+### 실행 범위와 자동화
+
+사용자가 첫 후속 단위 뒤 계속 진행을 승인했다. 기존 Phase 3c 측정 규약과 실제 `CheckFlyerPenetration`을 확인했다. 관통 검사는 capture 동안 살아 있는 비행 적의 실제 캡슐을 Up 1cm sweep해 시작 겹침을 세며 `DebugValidation` query를 추가한다. 검사 On은 성능 Gate에 쓰지 않는다. 혼합 비교점은 최신 지상 800과 비행 300을 함께 실행하는 무귀속 항상 활성 부하로 정했고 실제 Pod 귀속 편성의 관통도 별도로 확인했다.
+
+`Saved/SurfaceNavigationPhase13ResumePackage`의 exe SHA256 `E4D979CD63A7F6CD64DD67645464904803A11390CCE40F83473F31C653A7B115`를 재확인해 같은 패키지를 재사용했다. 런타임·Content·Config 변경이나 새 build/cook은 없다. 기존 `RunPhase13Gate.ps1`에 `N800F300` 조건과 `FlightPenetrationCheck` 스위치를 추가했다. 기본 Off를 명시하고 진단 때만 On이다. 이전 단위의 항상 활성 확장 조건은 유지한다.
+
+기존 `FlightSteering.LookaheadStop/DetourAndStuck`와 `EnemyLineOfSight.Gate` 자동화 **3 succeeded·failed/notRun/succeededWithWarnings 0·프로세스 exit 0**이다. 결과/실행기는 `Saved/Tests/Phase13_FlightMixedResume`, 로그는 `Saved/Logs/Phase13_FlightMixedResume.log`다. 이전 21개는 새 코드 변경이 없으므로 반복하지 않았다.
+
+### trace 없는 성능 대조
+
+리슨 2P·nullrhi·corelimit 4·seed 1·10초 준비/30초 capture·투사체 목표 500·기본 sphere/grid=1·RewindCache/두 validation/ProfileStride=0이다. 비행 300→혼합 1→혼합 2→비행 300 반복 2 순서로 실행했다. 관통/trace/격리 관찰/인지 제외/활동 진단/PoseControl은 Off다. 실제 링 배치·최종 엔티티 수·30개 활동 표본은 요청 전량·Bound 0·전량 Active와 일치했다. 비행 단독 플레이어는 섬 위, 혼합은 지각 링 중심이라는 기존 harness 규약을 확인했다.
+
+| 조건·반복 | 실제 지상/비행 | frame P95(ms) | exact 진단 P95(ms) | path tick P95(ms) | frame/path |
+|:---|:---|:---|:---|:---|:---|
+| 비행 1 | 0/300 | 5.62 | 2.288 | 0.000 | PASS/PASS |
+| 비행 2 | 0/300 | 4.38 | 1.820 | 0.000 | PASS/PASS |
+| 혼합 1 | 800/300 | 13.92 | 5.039 | 0.393 | PASS/PASS |
+| 혼합 2 | 800/300 | 11.67 | 4.291 | 0.311 | PASS/PASS |
+
+frame 16.6ms/path 1.5ms 기준으로 네 실행 모두 통과했다. 혼합 첫 반복은 최대 59.91ms·16.6ms 초과 15프레임(0.5%)의 일시 지연이 있었다. 비행 첫 반복과 혼합 두 반복의 exact는 2ms 진단 예산 초과이며 전체 frame/path와 별도로 남긴다. Lock P95는 네 조건 0.074/0.058/0.143/0.122ms로 0.2ms 기준 통과다. 기존 harness의 LockProbe=1 비용을 포함한다.
+
+비행 단독의 실제 투사체 평균은 자연 발사 때문에 695/676개(최소 495/495), 혼합 505/511개(최소 488/490)다. 목표 500이 정확히 일정한 개체 수인 실험으로 해석하지 않는다. 비행 상태 평균 None/Alert/Confirmed는 단독 23.5/236.5/40.0과 23.6/245.4/31.0, 혼합 24.7/272.6/2.7과 152.8/136.3/11.0이다. 동일 seed라도 행동 부하가 같지 않으며 모든 비행 개체 동시 교전이나 순수 비행 CPU 증가분으로 보고하지 않는다.
+
+비행 steering query/개체·프레임은 단독 0.291/0.293·혼합 0.317/0.754다. 단독 첫 실행 blocked 22,824·stuck 10·recovery 46, 혼합 첫 실행 blocked 15,652·stuck 22·recovery 70으로 실제 회피·교착 복구가 실행됐다. 연결 전체 수신량은 단독 37,302.3/32,427.5B/s·혼합 115,371.8/120,797.3B/s다. NPC 전용 wire 비용/배회 구간 절감률이 아니다.
+
+### 별도 관통 진단과 실패
+
+같은 패키지·기본 조건에서 비행 300, 지상 800+비행 300, production 반경 1,500cm 지상 720+비행 600을 각 한 번 검사 On으로 실행했다. frame/exact는 추가 검사 비용이 포함되므로 성능 PASS/FAIL 계산에서 제외했다. 검사 프레임은 전체 capture 틱 수다. wall-clock frame 표본은 첫 틱의 시각만 저장한 뒤 간격을 세므로 검사 틱보다 정확히 한 개 적어야 하며 세 실행 모두 이를 확인했다.
+
+| 진단 조건 | 실제 지상/비행 | 검사 틱 | 관통 틱 | 관통 개체·틱 합계 | 판정 |
+|:---|:---|:---|:---|:---|:---|
+| 비행 단독 | 0/300 | 5,369 | 0 | 0 | PASS |
+| 무귀속 혼합 | 800/300 | 2,103 | 0 | 0 | PASS |
+| Pod 귀속 production·확장 반경 | 720/600 | 3,882 | 3,882 | 15,528 | **FAIL** |
+
+production에는 매 검사 틱 평균 4개 관통이 있다. 현재 집계만으로 고유 개체 수·동일한 4개·활동 대역·위치·충돌 source는 알 수 없다. 살아 있는 비행 개체를 전수 검사하므로 휴면/배회도 제외되지 않는다. 이 실패를 검사 Off 결과의 `penetratingFrames=0`으로 대체하거나 frame 합격으로 덮지 않는다. 단독/혼합에서 관통 0이어도 production 관통 Gate는 미통과다.
+
+정적 코드 확인으로 `LiftFlyingSpawn`은 비행 고도까지 sphere sweep의 `bStartPenetrating` hit일 때 Start를 그대로 반환하며, 휴면 비행 개체는 이동 processor 쿼리에서 제외됨을 확인했다. 배회 후보는 이미 구간 sphere sweep을 수행한다. **초기 겹침이 휴면 중 남는 경로는 원인 후보일 뿐**, 이번 실패의 개체·hit 진단이 없으므로 원인 확정이나 수정은 하지 않았다. 다음 단위는 최초 관통 개체 ID·위치·대역·Pod·hit identity/깊이를 제한된 로그로 확보하고 초기 배치/배회/활성 이동을 구분한 뒤 최소 수정·재현 자동화·필요한 패키지 재검증이다.
+
+### 원본 검증과 단위 종료
+
+7회 host/guest 14개 exit 0·probe 56/56 PASS·같은 패키지·각 30표본·모드·실제 총수·CSV 행/키/순서/요청-timing 짝 검증을 통과했다. 성능 비행 두 실행의 경로 요청 CSV는 0행, 혼합 3,490/3,724행, 진단 비행 0·혼합 7,933·production 268행이다. assert/ensure/fatal·UnknownHits/EnvelopeEscapes/LayerJumps와 검사한 게시 순서 위반은 0이다. 관통 실패는 별도이며 기존 Mover/CMC와 headless 입력 fault는 남는다(호스트 SystemFault 각 실행 7개). 실제 GUI/사용자 플레이 검증은 이번 단위에 없다.
+
+원본·실행기·Gate/Penetration Summary/Validation·Audit/AuditExit·hash 목록은 `Saved/Profiling/Phase13/FlightMixedResume`에 보존했다. 분석기/CSV 검증기 exit 0, 관통 audit은 production 실패를 구조화한 뒤 **exit 1**이다. SamePackage/PenetrationCoverageVerified/RingPenetrationPassed=true·ProductionPenetrationPassed/MaximumPopulationGateVerified=false다. 종료 시 에디터·게임·Insights 없음·Content/Config 변경 없음을 확인했다.
+
+**비행·혼합 검증 단위는 종료했으나 production 관통은 FAIL이며 다음 진단·수정 단위의 사용자 진행 확인을 기다린다.** 단위 5 전체·Phase 13·D-054/총수 상향은 미완료/유지다. 이번 단위의 통과/실패·원인 미확정·다음 행동을 Current/Phase13/Roadmap에 반영했다.
+
+## 2026-10-05 — production 관통 수정 단위: 초기 스폰 시작 겹침 해소
+
+### 원인 확정
+
+사용자가 관통 개체 진단·원인 확정·최소 수정의 진행을 승인했다. 기존 패키지의 집계 로그만으로 원인을 확정하지 않고, `CheckFlyerPenetration`에 최초 실패 개체 최대 16개의 ID·Band·Pod·위치·깊이·법선·slot/face/instance/hit 엔티티 로그를 추가했다. 진단 패키지에만 스폰 시작 겹침 로그도 넣어 처음 반환한 위치를 연결했다. 런타임 행동은 진단 단계에서 바꾸지 않았다.
+
+`SurfaceNavigationPhase13PenetrationDiagnosticPackage` build/cook/archive exit 0(AutomationTool 224초)·같은 seed/확장 반경/리슨 2P 재현을 수행했다. 시작 여유 구 겹침은 56개였고, capture 캡슐 관통은 네 Dormant 개체가 3,910틱 내내 유지됐다(15,640 개체·틱). 여유 구 반지름은 몸보다 Clearance만큼 크므로 시작 여유 구 56개를 모두 몸 관통으로 해석하지 않는다.
+
+| 실패 엔티티 | 부모 Pod | slot/ISM instance | 캡슐 침투 깊이(cm) |
+|:---|:---|:---|:---|
+| 522:1 | 521:1 | 6/479 | 6.457527 |
+| 1134:1 | 1132:1 | 7/131 | 18.514851 |
+| 1187:1 | 1184:1 | 4/539 | 22.432606 |
+| 1202:1 | 1197:1 | 5/162 | 5.624191 |
+
+네 개체 모두 초기 `LiftFlyingSpawn`이 반환한 Start와 첫 capture 위치 문자열·slot·instance가 정확히 일치했다. hit는 Static/Blocker ISM이며 Pod proxy라는 추정은 하지 않는다. 기존 함수는 sphere sweep이 `bStartPenetrating`이면 Start를 그대로 반환했다. 휴면 비행은 이동 쿼리에서 제외되므로 조향의 겹침 복구가 실행되지 않아 초기 관통이 남았다. 원인은 초기 스폰 안전성 결함이며 휴면 자체를 해제할 필요는 없다. `Diagnostic/Cause.json`에 연결과 위치·hit 정보를 구조화했다.
+
+### 최소 수정과 자동화
+
+`ULNPMassSpawnSubsystem::TryLiftFlyingSpawn`으로 스폰 결과 성공 여부를 반환한다. 기존과 같은 몸+clearance sphere로 Start→배회 고도 하한을 검사하되, 시작 겹침이면 hit 법선으로 깊이+0.5cm만큼 최대 4회 해소하고 다시 검사한다. 시작이 안전하고 진행 중 막히면 hit 앞 0.5cm 위치를 반환한다. 열린 공간의 기존 고도는 유지한다. 한정된 복구로 안전한 여유 구를 확보할 수 없으면 해당 새 엔티티를 제거·거부 로그를 남긴다. Initialized 수는 거부 개체를 제외하며 후보 계획과 실제 엔티티 수를 별도로 확인한다. 추가 RNG·재배치 seed·활동 대역·Nav·배회/복제 규칙·에셋/Config 변경은 없다.
+
+스폰 단계의 임시 진단 로그는 수정에서 제거했다. 관통 On에서만 최초 실패 최대 16개 로그를 남기는 harness 진단은 유지한다. 일반 실행에 전수 신규 exact 검사를 추가하지 않는다. 게임 스레드의 초기 스폰 sweep만 필요한 복구를 더 수행한다. 영구 런타임 규약은 `design/MovementIntegration.md`에 반영했다.
+
+`FlightSteering.SpawnPenetration` 자동화는 실제 Chaos Cube collision·registry를 사용한다. 기존 Start의 몸 캡슐이 벽과 겹치는 재현 조건을 먼저 확인한 뒤 스폰 위치의 몸+clearance가 안전해지는지 검사한다. 천장 앞 여유 정지·여유 구가 들어갈 수 없는 틈의 거부·열린 공간의 원래 고도도 검증한다. 테스트는 기존 비행 fixture를 재사용하며 friend 접근으로 실제 스폰 함수를 호출한다.
+
+에디터 전체 빌드 exit 0(31.74초)·신규 재현을 포함한 판정/월드 충돌/활동/배회/복제/비행/LoS 자동화 **25 succeeded·failed/notRun/succeededWithWarnings 0·프로세스 exit 0**이다. 에셋을 저장하는 테스트는 없다. 로그는 `Saved/Logs/Phase13_PenetrationFix_EditorBuild.log`·`Phase13_PenetrationFix.log`, 결과/실행기는 `Saved/Tests/Phase13_PenetrationFix`다. 이전 실패가 단순 카운터 오검출이 아닌 실제 캡슐 시작 겹침임을 재현 geometry로 확인했다.
+
+### 최종 패키지와 재검증
+
+최종 `Saved/SurfaceNavigationPhase13PenetrationFixedPackage` build/cook/stage/pak/archive exit 0(AutomationTool 100초)다. 기존과 같은 TestMap03·ConditionalPatchRegression·두 fixture LVI와 Fixtures CookDir를 명시했다. cook/stale 차단 오류 없이 성공했으며 기존 마네킹 재질 fallback·scalability 경고는 남는다. 로그는 `Saved/Logs/Phase13_PenetrationFix_BuildCookRun.log`, exe SHA256은 `D9A5D1C8CBD4938166484FC0C6C9B47E245656FBC010A477A1E198E437291723`다.
+
+같은 수정 패키지·리슨 2P·nullrhi·corelimit 4·seed 1·10초 준비/30초 capture·투사체 목표 500·sphere/grid=1·RewindCache/두 validation/ProfileStride=0에서 관통 On과 성능 Off를 분리했다. 실행 순서는 On 기본→On 확장 1→On 확장 2→Off 기본→Off 확장 1→Off 확장 2다. 격리 관찰·인지 제외·활동 진단·PoseControl·trace는 Off다.
+
+| 관통 On 진단 | 실제 지상/비행 | 검사 틱 | 관통 틱/개체·틱 | 비행 스폰 거부 |
+|:---|:---|:---|:---|:---|
+| 기본 1,000cm | 709/600 | 3,967 | 0/0 | 0 |
+| 확장 1,500cm 1 | 720/600 | 4,023 | 0/0 | 0 |
+| 확장 1,500cm 2 | 720/600 | 3,798 | 0/0 | 0 |
+
+총 **11,788 capture 검사 틱에서 관통 0**, 비행 전량 600개 유지·거부 0이다. 관통 검사 쿼리는 휴면/배회를 제외하지 않는다. 각 실행의 30표본에서 실제 지상/비행 총수·Bound 일치를 확인했다. 여유 구 보정으로 개체를 줄여 관통을 숨긴 결과가 아니다. 검사 틱은 wall-clock frame 간격 수+1과 일치해 전체 커버리지를 확인했다. On 진단의 frame/exact는 추가 query 비용이 있어 성능 Gate에서 제외한다.
+
+| 관통 Off 성능 | frame P95(ms) | exact 진단 P95(ms) | path tick P95(ms) | frame/path |
+|:---|:---|:---|:---|:---|
+| 기본 1,000cm | 6.61 | 1.743 | 0.012 | PASS/PASS |
+| 확장 1,500cm 1 | 6.63 | 1.756 | 0.000 | PASS/PASS |
+| 확장 1,500cm 2 | 6.93 | 1.752 | 0.000 | PASS/PASS |
+
+세 성능 실행은 16.6ms frame·1.5ms path·2ms exact 진단 기준을 통과했다. 기본 반경의 기존 지상 11개 배치 부족은 남아 있으며 이 수정은 그 문제를 고치지 않는다. 스폰 위치 보정으로 이후 상태/부하가 달라질 수 있으므로 이전 패키지 대비 순수 CPU 절감률이나 기존 비행/무귀속 혼합·항상 활성 exact 초과 해결로 확대하지 않는다. 신규 trace 비용 분해는 수행하지 않았다.
+
+6회 host/guest 12개 exit 0·probe 48/48 PASS·같은 패키지·모드/30표본·실제 총수·CSV 행/키/시간 순서/요청-timing 짝 검증 통과다. Off CSV 요청은 기본 333·확장 256/247행, On 기본 244·확장 238/246행이다. assert/ensure/fatal·Unknown/이탈/층 도약·검사한 게시 순서 위반은 0이다. 기존 headless 입력 fault와 Mover/CMC 경고는 남으며 새 실제 GUI/원격 플레이 검증은 수행하지 않았다.
+
+원본/실행/검증/분석·Cause·Source.patch·진단/수정 패키지 식별자·hash 목록은 `Saved/Profiling/Phase13/PenetrationFix`다. `After/{Gate,Penetration}/Summary.json/Validation.json`와 `After/Audit.json` 분석/검증/audit exit 0·SamePackage/ProductionPenetrationPassed=true·MaximumPopulationGateVerified=false다. 종료 시 에디터·게임·Insights 없음·Content/Config 변경 없음·diff 공백 검사 통과다. 과거 관통 FAIL과 미수정 패키지는 별도 원본으로 보존한다.
+
+**관통 원인 진단·최소 수정·재검증 단위 완료, 다음 총수/D-054 검토·필요한 최종 회귀 단위의 진행 확인 대기**다. 단위 5 전체·Phase 13·총수 상향은 미완료이며 D-054를 유지한다. 최신 패키지와 수정 전 증거의 범위를 구분해 Current/Phase13/Roadmap에 인계했다.
+
+### 2026-10-05 재개 후속 단위 — 비행 증량 가능 범위와 Phase 14 통합 편성 검토
+
+사용자가 비행 적을 가능한 많이 늘리고, Phase 14 벽보행 총수와 함께 정하는 편이 나은지 검토해 달라고 요청했다. 월드 총수와 전량 활성 부하를 구분해 최신 관통 수정 패키지를 재사용했다. 실행기에 `F600/F900/F1200/N800F600/N800F900`만 추가했으며 런타임·Content/Config 변경·새 빌드 없음이다. 같은 exe SHA256 `D9A5D1C8CBD4938166484FC0C6C9B47E245656FBC010A477A1E198E437291723`, 리슨 2P·seed 1·corelimit 4·nullrhi·trace Off·10초 준비/30초 capture·투사체 목표 500·관통 Off 성능 조건이다.
+
+| 요청 편성(지상/비행) | 실제 편성 | frame P95(ms) | exact 진단 P95(ms) | 판정 |
+|:---|:---|:---|:---|:---|
+| 0/600 | 0/599 | 5.16 | 2.179 | frame/path PASS, 총수 부족 |
+| 0/900 | 0/900 | 5.85 | 2.524 | frame/path PASS |
+| 0/1,200 첫 반복 | 0/1,200 | 9.01 | 5.793 | frame/path PASS |
+| 800/600 | 800/599 | 16.16 | 5.542 | frame/path PASS, 총수 부족 |
+| 800/900 첫 반복(Repeat2) | 800/900 | 17.33 | 6.470 | frame FAIL/path PASS |
+| 0/1,200 둘째 반복 | 0/1,200 | 9.01 | 6.212 | frame/path PASS |
+| 800/900 둘째 반복(Repeat3) | 800/900 | 14.07 | 6.346 | frame/path PASS, 복제 부하 변화 |
+
+600 요청 두 실행은 같은 초기 위치의 안전 스폰을 각각 1개 거부했다. 모든 30표본에서 실제 비행 599개가 유지돼 600 총수 합격으로 쓰지 않는다. 이미 검증한 Pod 귀속 production 비행 600의 전량 스폰·관통 0 결과와 별개다. 900/1,200 요청은 전량 무귀속 Active·스폰 거부 0을 확인했다.
+
+혼합 900 둘째 반복은 게스트 bubble 제거 1,700건, pose Dirty 171,509→35,680건·연결 수신량 83,892.5→26,844.5bytes/s 감소가 함께 관측됐다. 기존 headless NetworkPrediction fault 메시지도 host 7→244건으로 증가했다. 프레임 감소의 단일 원인이나 bubble 제거 원인을 확정하지 않으며, 같은 복제 부하에서 안정적으로 혼합 Gate를 통과한 증거로 쓰지 않는다. 첫 반복의 프레임 FAIL은 보존한다. 모든 Off 실행의 exact 진단은 2ms를 넘는다. 전체 프레임 PASS와 별도인 이 예산 초과를 숨기거나 투사체 비용을 빼서 합격 처리하지 않는다.
+
+비행 단독은 Confirmed 평균 40개, 혼합은 2.7~5.1개다. 원거리 교전 슬롯은 플레이어당 20개여서 개체 수에 비례해 전량 사격하는 부하가 아니다. 자연 발사로 단독 투사체 평균 591/629/740/733개, 혼합 501/502/501개다. 합성 목표 500은 실제 상한이 아니다. 상태·스폰 범위·복제 부하가 달라 단순 비례 외삽으로 최대 수를 계산하지 않는다. 렌더링·화면·실제 원격 사격은 이번 nullrhi 측정 범위 밖이다.
+
+별도 관통 On 진단은 비행 1,200의 2,695틱·지상 800/비행 900의 2,051틱, 총 **4,746 검사 틱에서 관통 0**이다. 매 capture 틱 검사 커버리지·전량 Active·거부 0을 확인했다. 혼합 진단에서도 bubble 제거 1,700건·입력 fault host 163건을 기록했다. On 프레임과 exact 비용은 추가 capsule sweep이 있으므로 성능 Gate에서 제외한다.
+
+9회 리슨 2P·host/guest 18개 exit 0·probe 72/72 PASS·각 30표본·같은 패키지·CSV 행/키/시간 순서/요청-timing 짝 검증 통과·assert/ensure/fatal/Unknown/이탈/층 도약 위반 0이다. 실행 명령에서 같은 `N800F900_Repeat2`를 두 번 지정한 한 차례는 원본 보존 검사로 중단됐으며, 앞의 두 실행은 보존하고 마지막만 `Repeat3`으로 별도 실행했다. 게임 실패·로그 덮어쓰기는 없다. 재현 `Run.ps1`에는 수정한 실행 순서를 기록했다.
+
+**권고: 월드 비행 600을 임시 목표로 Phase 13 최종 검증을 진행하고, 최종 지상/비행/벽보행 배분은 Phase 14 구현 뒤 함께 결정한다.** 기존 Pod 귀속 600의 성공과 이번 단독 900/1,200의 CPU 여유를 근거로 한 후보이며 600의 동시 활성 혼합 상한 보장은 아니다. 900~1,200은 다음 확대 후보로 보존한다. 벽보행은 exact 약 2회/프레임이라는 설계 추정만 있고 실측이 없어 비행과 1:1 교환비나 최종 벽보행 수를 정하지 않는다. Phase 14 뒤 같은 총수/활동 분포·교전/투사체·viewer 조건에서 비행/벽보행 비율을 바꿔 서버 frame/path/exact·관통·게스트 대역폭·실제 화면을 측정한다. 총수와 동시 활성 수를 함께 기록한다.
+
+원본·재현/검증/분석·Package/SHA256은 `Saved/Profiling/Phase13/FlightPopulationReview`다. `Gate/Penetration`의 Summary/Validation·`Audit.json`은 SamePackage=true·MaximumPopulationGateVerified=false·D054Changed=false다. 실행기 PowerShell 구문·diff 공백 검사를 통과했다. 종료 시 에디터·게임·Insights 없음·새 GUI 플레이 없음이다. **증량 검토 단위 완료, 비행 600 임시 목표·최종 회귀의 사용자 진행 확인 대기**다. D-054·단위 5 전체·Phase 13 완료는 유지/미완료다.
+
+### 2026-10-05 최종 마무리 — 사용자 양쪽 플레이 확인·D-074 채택·Phase 13 완료
+
+사용자가 비행 600 임시 목표로 Phase 13 마무리를 승인했다. 새로운 런타임/에셋 변경 없이 최신 관통 수정 패키지와 기존 기능·성능 증거를 대조했다. 최신 소스 5개·편성 에셋·자동화 보고서·빌드 로그·cook 산출물의 기록한 입력 해시 16개가 모두 일치했고 exe SHA256 `D9A5D1C8CBD4938166484FC0C6C9B47E245656FBC010A477A1E198E437291723`도 일치했다. 관련 자동화 25/25·최종 전체 빌드/cook/archive 결과를 그대로 인계받으며, 변경/실패와 무관한 전체 빌드나 지상 반복을 다시 실행하지 않았다.
+
+MCP를 연결한 에디터에서 TestMap03·리슨 서버 2P·한 프로세스·네트워크 에뮬레이션 Off·density 1·현재 편성을 읽어 확인하고 PIE를 시작했다. `DA_MassSpawnConfig`는 120 Pod 중 100 Pod에 비행 6기씩, 지상 PureEntity 요청 720개·Actor 승격형 요청 0개다. 기본 적 스폰 반경은 **1,000cm**다. 기존 ProductionCurrent/ProductionResume와 최신 수정 패키지의 원본 `ProductionSpawnRadius=1000cm`를 확인해 본문/Current에 잘못 적었던 800cm 표기를 정정했다. 반경이나 원본 수량·성능을 변경한 것은 아니다.
+
+사용자는 호스트·게스트 양쪽에서 배회·관통·접근·피격·게스트가 NPC가 사라질 만큼 멀어졌다가 재접근·패링 등을 플레이했고 이상 없음을 확인했다. 플레이 로그를 보존해 해당 PIE 구간에서 assert/ensure/fatal·투사체 validation 불일치·비행 스폰 거부 모두 0을 확인했다. 기존 Mover 경고 6,244건·CharacterMovementComponent 언급 7건은 보존한다. 이 메시지 빈도를 신규 성능 수치나 새 게임플레이 결함으로 해석하지 않는다. 패링 로그 16줄도 보존하지만 성공 횟수로 집계하지 않는다.
+
+이번 PIE의 초기 계획 배치는 요청 1,320개 중 1,317개다(세트별 120/480/359/358). 종류별 실제 엔티티 수는 새로 계측하지 않았으며, 비행 600 전량의 정량 근거는 패키지 활동 표본이다. 기존 seed 1 기본 반경의 지상 11개 부족도 남아 있다. 후보 계획·요청 수·실제 초기화 수를 혼동하지 않는다. 현재 GUI 플레이를 nullrhi 프레임 Gate나 새 NetID 재진입 계측으로 확대하지 않는다.
+
+완료 판단은 다음 근거를 종합한다.
+
+- 활동 경계·Pod 깨움·강등 안전·서버 구간 배회·클라이언트 구간 소비/되감기의 자동화와 핵심 단위 1~4 기능 검증
+- 기존 실제 late join·같은 게스트 NetID 48개(비행 6개)의 bubble 제거/새 ReplicationID 재추가·화면 이상 없음, 충분한 지상/비행 배회 표본의 구간 복제 연결 전체 평균 수신량 7.29% 감소
+- Phase 12 지상 700/800 자연·추격 교차 frame/path PASS·양쪽 기본 플레이 검증의 인계
+- 최신 Pod 귀속 비행 600의 기본/확장 성능 P95 6.61/6.63/6.93ms·frame/path PASS·exact 진단 1.743~1.756ms·총 11,788 검사 틱 관통 0·비행 전량 유지·스폰 거부 0
+- 비행 증량·혼합 검토 및 별도 4,746틱 관통 0, 최신 수정본의 사용자 양쪽 실제 플레이·로그 검사·PIE 종료·기본 설정 확인
+
+**D-074로 D-054를 대체해 Pod 귀속 PureEntity 비행 600개를 임시 월드 편성 목표로 채택하고 단위 1~5·Phase 13을 완료한다.** 사용자의 임시 목표·마무리 승인에 따른 편성 결정이며 최대 총수 Gate를 통과했다고 변경하지 않는다. 비행 900~1,200은 확대 후보, 전량 활성 혼합 800+900의 frame 실패/복제 부하 변화·exact 2ms 진단 초과·링 600 요청의 실제 599는 그대로 보존한다. 모든 개체 동시 활성/사격이나 GPU 렌더링까지 보장하는 값이 아니다. 최대 총수·지상/비행/벽보행 최종 배분·동시 활성 예산은 Phase 14 뒤 같은 활동·교전·viewer 조건의 통합 측정으로 결정한다. 벽보행 exact 약 2회/프레임은 아직 설계 추정이다.
+
+마지막 MCP 확인에서 PIE는 이미 종료돼 있었다. ProfileStride·두 projectile validation·RewindCache·FlightPenetrationCheck·WorldCollision.LockProbe=0, sphere/grid·support cache·exact lateral sweep·parallel movement·density=1을 확인했다. 에디터/MCP 연결은 유지하며 새 전체 빌드·Live Coding·에셋 저장·커밋을 수행하지 않았다. 현재 판정·원본/전체 및 구간 PIE 로그·사용자 확인·CVar·패키지 식별자·해시는 `Saved/Profiling/Phase13/Closure`에 보존한다.
+
+**Phase 13 마무리 단위 완료, 다음 Phase 14 착수 진행 확인 대기**다. Current를 다음 단계 기준으로 줄이고 Phase13 체크리스트·Roadmap·MovementIntegration·Decisions에 완료와 인계 범위를 반영했다. Phase 14 실행 문서/구현은 승인 뒤 착수하며 아직 시작하지 않았다.

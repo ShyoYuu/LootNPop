@@ -11,7 +11,8 @@ param(
     [ValidateSet(0, 1)][int]$ProjectileSpatialGrid = 1,
     [switch]$ValidateProjectileSpatialGrid,
     [ValidateSet(0, 1)][int]$ProjectileRewindCache = 0,
-    [switch]$ValidateProjectileRewindCache
+    [switch]$ValidateProjectileRewindCache,
+    [switch]$FlightPenetrationCheck
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -35,7 +36,14 @@ $taskArguments = @{
     N800Chase = '-LNPLoadBaseline=800 -LNPLoadBaselineChase'
     F200 = '-LNPLoadBaselineFlyers=200'
     F300 = '-LNPLoadBaselineFlyers=300'
+    F600 = '-LNPLoadBaselineFlyers=600'
+    F900 = '-LNPLoadBaselineFlyers=900'
+    F1200 = '-LNPLoadBaselineFlyers=1200'
+    N800F300 = '-LNPLoadBaseline=800 -LNPLoadBaselineFlyers=300'
+    N800F600 = '-LNPLoadBaseline=800 -LNPLoadBaselineFlyers=600'
+    N800F900 = '-LNPLoadBaseline=800 -LNPLoadBaselineFlyers=900'
     ProductionWideSpawn = '-LNPLoadBaselineProduction -LNPLoadBaselineSpawnRadius=1500'
+    AlwaysActiveWideSpawn = '-LNPLoadBaselineProduction -LNPLoadBaselineAlwaysActive -LNPLoadBaselineSpawnRadius=1500'
     WanderObserve = '-LNPLoadBaselineProduction -LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500'
     WanderPoseControl = '-LNPLoadBaselineProduction -LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500 -LNPLoadBaselineWanderPoseControl'
 }
@@ -61,6 +69,7 @@ foreach ($taskCase in $Cases) {
         $taskCommon += ",LNP.Projectile.ValidateSpatialGrid=$([int][bool]$ValidateProjectileSpatialGrid)"
         if ($PSBoundParameters.ContainsKey('ProjectileRewindCache')) { $taskCommon += ",LNP.Projectile.RewindCache=$ProjectileRewindCache" }
         $taskCommon += ",LNP.Projectile.ValidateRewindCache=$([int][bool]$ValidateProjectileRewindCache)"
+        $taskCommon += ",LNP.SurfaceNav.LoadBaseline.FlightPenetrationCheck=$([int][bool]$FlightPenetrationCheck)"
         Write-Output "$taskName started"
         $taskTraceArguments = ''
         $taskTracePath = Join-Path $taskOutput "${taskName}_Host.utrace"

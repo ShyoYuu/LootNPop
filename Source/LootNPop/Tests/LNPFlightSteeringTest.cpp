@@ -11,6 +11,8 @@
 #include "GameFramework/Actor.h"
 #include "Enemy/LNPFlightSteering.h"
 #include "Enemy/LNPEnemyLineOfSight.h"
+#include "Enemy/LNPEnemyConfig.h"
+#include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 
@@ -27,6 +29,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPFlightSteeringDetourTest,
 	"LootNPop.SurfaceNavigation.FlightSteering.DetourAndStuck",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPFlyingSpawnPenetrationTest,
+	"LootNPop.SurfaceNavigation.FlightSteering.SpawnPenetration",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace
@@ -260,6 +267,65 @@ bool FLNPEnemyLineOfSightGateTest::RunTest(const FString& Parameters)
 		LNPEnemyLineOfSight::HasClearShot(*Fixture.Collision, FVector(0, 3000, 200), FVector(0, 3000, 800)));
 	TestEqual(TEXT("Each gate check is one EnemyLineOfSight query"),
 		Fixture.Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight) - Before, static_cast<uint64>(3));
+	return true;
+}
+
+bool FLNPFlyingSpawnPenetrationTest::RunTest(const FString& Parameters)
+{
+	ULNPEnemyConfig* Config = NewObject<ULNPEnemyConfig>();
+	Config->MovementConfig.GravityOrigin = FVector(0, 0, 2000);
+	Config->CapsuleRadius = 80.f;
+	Config->CapsuleHalfHeight = 80.f;
+	Config->FlightConfig.Clearance = 50.f;
+	Config->FlightConfig.IdleAltitudeMin = 500.f;
+	const FVector Ground(0, 0, 1000);
+	const auto IsClear = [&](const FFlightWorld& Fixture, const FVector& Position)
+	{
+		FLNPWorldHit Hit;
+		return !Fixture.Collision->SweepSphereWorld(Position, Position + FVector::UpVector, 130.f,
+			FLNPWorldQueryParams(ELNPWorldQueryClass::DebugValidation), Hit) || !Hit.bStartPenetrating;
+	};
+
+	{
+		FFlightWorld Fixture(TEXT("FlyingSpawnWallWorld"));
+		Fixture.Slab(FVector(0, 0, 950), FVector(20, 20, 1), TEXT("LNPStaticBlocker"));
+		Fixture.Slab(FVector(100, 0, 1200), FVector(1, 20, 10), TEXT("LNPStaticBlocker"));
+		Fixture.Publish();
+		// 기존 스폰은 이 겹친 시작점을 그대로 반환해 휴면 개체가 벽 안에 남았다.
+		FLNPWorldHit InitialHit;
+		TestTrue(TEXT("Initial body overlaps the wall"), Fixture.Collision->SweepCapsuleWorld(Ground + FVector(0, 0, 131),
+			Ground + FVector(0, 0, 132), FQuat::Identity, 80.f, 80.f,
+			FLNPWorldQueryParams(ELNPWorldQueryClass::DebugValidation), InitialHit) && InitialHit.bStartPenetrating);
+		FVector Position;
+		TestTrue(TEXT("Resolves the initial overlap before spawn"), Fixture.World->GetSubsystem<ULNPMassSpawnSubsystem>()->TryLiftFlyingSpawn(*Config, Ground, Position));
+		TestTrue(TEXT("Spawn retains full body and clearance outside the wall"), IsClear(Fixture, Position));
+		TestTrue(TEXT("Spawn moved to the free side of the wall"), Position.X < -80.f);
+	}
+	{
+		FFlightWorld Fixture(TEXT("FlyingSpawnCeilingWorld"));
+		Fixture.Slab(FVector(0, 0, 950), FVector(20, 20, 1), TEXT("LNPStaticBlocker"));
+		Fixture.Slab(FVector(0, 0, 1450), FVector(20, 20, 1), TEXT("LNPStaticBlocker"));
+		Fixture.Publish();
+		FVector Position;
+		TestTrue(TEXT("Stops below the ceiling"), Fixture.World->GetSubsystem<ULNPMassSpawnSubsystem>()->TryLiftFlyingSpawn(*Config, Ground, Position));
+		TestTrue(TEXT("Spawn below the ceiling has full clearance"), IsClear(Fixture, Position));
+		TestTrue(TEXT("Ceiling limits the requested altitude"), Position.Z < 1270.f);
+	}
+	{
+		FFlightWorld Fixture(TEXT("FlyingSpawnNoRoomWorld"));
+		Fixture.Slab(FVector(0, 0, 950), FVector(20, 20, 1), TEXT("LNPStaticBlocker"));
+		Fixture.Slab(FVector(0, 0, 1250), FVector(20, 20, 1), TEXT("LNPStaticBlocker"));
+		Fixture.Publish();
+		FVector Position;
+		TestFalse(TEXT("Rejects a gap too small for body and clearance"), Fixture.World->GetSubsystem<ULNPMassSpawnSubsystem>()->TryLiftFlyingSpawn(*Config, Ground, Position));
+	}
+	{
+		FFlightWorld Fixture(TEXT("FlyingSpawnOpenWorld"));
+		Fixture.Publish();
+		FVector Position;
+		TestTrue(TEXT("Open spawn succeeds"), Fixture.World->GetSubsystem<ULNPMassSpawnSubsystem>()->TryLiftFlyingSpawn(*Config, Ground, Position));
+		TestTrue(TEXT("Open spawn keeps the requested altitude"), Position.Equals(FVector(0, 0, 1500), 0.01));
+	}
 	return true;
 }
 

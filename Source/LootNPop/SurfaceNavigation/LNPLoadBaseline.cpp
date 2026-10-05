@@ -1076,6 +1076,7 @@ void ULNPLoadBaselineSubsystem::CheckFlyerPenetration()
 		FlyerQuery = FMassEntityQuery(EntityManager.AsShared());
 		FlyerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 		FlyerQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+		FlyerQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
 		FlyerQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 		FlyerQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::All);
 		// 시체는 착지 뒤 지면에 닿아 있는 것이 정상이다.
@@ -1105,6 +1106,16 @@ void ULNPLoadBaselineSubsystem::CheckFlyerPenetration()
 				Config->CapsuleRadius, Config->CapsuleHalfHeight, QueryParams, Hit) && Hit.bStartPenetrating)
 			{
 				++Penetrating;
+				const FMassEntityHandle Entity = Ctx.GetEntity(i);
+				if (LoggedPenetratingFlyers.Num() < 16 && !LoggedPenetratingFlyers.Contains(Entity))
+				{
+					LoggedPenetratingFlyers.Add(Entity);
+					const FLNPEnemyFragment& Enemy = Ctx.GetFragmentView<FLNPEnemyFragment>()[i];
+					UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] FlyerPenetration Entity=%d:%d Band=%d Pod=%d:%d Position=%s Depth=%.6f Normal=%s Slot=%d Lifetime=%d Roles=%u Face=%d Instance=%d HitEntity=%d:%d"),
+						Entity.Index, Entity.SerialNumber, static_cast<int32>(Enemy.ActivityBand), Enemy.ParentLootPod.Index, Enemy.ParentLootPod.SerialNumber,
+						*Location.ToString(), Hit.PenetrationDepth, *Hit.ImpactNormal.ToString(), Hit.Identity.Slot, static_cast<int32>(Hit.Identity.Lifetime),
+						Hit.Identity.Roles, Hit.Identity.FaceIndex, Hit.Identity.InstanceIndex, Hit.Identity.Entity.Index, Hit.Identity.Entity.SerialNumber);
+				}
 			}
 		}
 	});

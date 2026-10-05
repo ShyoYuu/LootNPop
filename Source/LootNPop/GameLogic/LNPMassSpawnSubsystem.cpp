@@ -633,25 +633,40 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 	}
 }
 
-FVector ULNPMassSpawnSubsystem::LiftFlyingSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint) const
+bool ULNPMassSpawnSubsystem::TryLiftFlyingSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint, FVector& OutLocation) const
 {
 	// 스폰 배치는 지상 적과 같은 지면점을 준다. 비행 개체는 배회 고도 하한까지 Up으로 띄운다(Phase03c §3.7).
-	// 위에 섬이 있으면 섬 밑면 아래에 여유를 남기고 선다 — 재시도 없이 한 번의 sweep으로 정해져 결정론적이다.
+	// 위에 섬이 있으면 그 밑면 아래에 여유를 남긴다. 시작 겹침 복구 횟수는 고정해 결정론적이다.
 	const FLNPEnemyFlightConfig& Flight = Config.FlightConfig;
 	const float BodyRadius = FMath::Max(Config.CapsuleRadius, Config.CapsuleHalfHeight);
 	const float SweepRadius = BodyRadius + Flight.Clearance;
 	const FVector Up = (Config.MovementConfig.GravityOrigin - GroundPoint).GetSafeNormal();
-	const FVector Start = GroundPoint + Up * (SweepRadius + 1.f);
+	FVector Start = GroundPoint + Up * (SweepRadius + 1.f);
 	const FVector End = GroundPoint + Up * FMath::Max(Flight.IdleAltitudeMin, SweepRadius + 1.f);
 
 	const ULNPMassWorldCollisionSubsystem* WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
-	FLNPWorldHit Hit;
-	if (WorldCollision == nullptr
-		|| !WorldCollision->SweepSphereWorld(Start, End, SweepRadius, FLNPWorldQueryParams(ELNPWorldQueryClass::FlightSteering), Hit))
+	if (WorldCollision == nullptr)
+		return false;
+	// 여유 구의 시작 겹침은 첫 이동 전에 해소한다. 휴면 개체는 이동 processor가 복구해 주지 않는다.
+	constexpr float SpawnSkin = 0.5f;
+	for (int32 Attempt = 0; Attempt <= 4; ++Attempt)
 	{
-		return End;
+		FLNPWorldHit Hit;
+		if (!WorldCollision->SweepSphereWorld(Start, End, SweepRadius, FLNPWorldQueryParams(ELNPWorldQueryClass::FlightSteering), Hit))
+		{
+			OutLocation = End;
+			return true;
+		}
+		if (!Hit.bStartPenetrating)
+		{
+			OutLocation = Start + (End - Start).GetSafeNormal() * FMath::Max(Hit.Distance - SpawnSkin, 0.f);
+			return true;
+		}
+		if (Attempt == 4)
+			return false;
+		Start += Hit.ImpactNormal * (Hit.PenetrationDepth + SpawnSkin);
 	}
-	return Hit.bStartPenetrating ? Start : Hit.Location;
+	return false;
 }
 
 void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
@@ -670,6 +685,7 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 	const auto Snapshot = SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
 
 	int32 NumToProcess = FMath::Min(Entities.Num(), Transforms.Num());
+	int32 Rejected = 0;
 	for (int32 i = 0; i < NumToProcess; ++i)
 	{
 		const FMassEntityHandle Entity = Entities[i];
@@ -685,7 +701,15 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 				const FVector GroundPoint = SpawnTransform.GetLocation();
 				if (Config.IsFlying())
 				{
-					SpawnTransform.SetLocation(LiftFlyingSpawn(Config, GroundPoint));
+					FVector FlightLocation;
+					if (!TryLiftFlyingSpawn(Config, GroundPoint, FlightLocation))
+					{
+						UE_LOG(LogLootNPop, Warning, TEXT("LNPMassSpawnSubsystem: Rejected flying spawn with unresolved overlap at %s."), *GroundPoint.ToString());
+						EntityManager.DestroyEntity(Entity);
+						++Rejected;
+						continue;
+					}
+					SpawnTransform.SetLocation(FlightLocation);
 				}
 				else
 				{
@@ -733,5 +757,5 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 		}
 	}
 	
-	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: Initialized %d spawned entities."), NumToProcess);
+	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: Initialized %d spawned entities."), NumToProcess - Rejected);
 }
