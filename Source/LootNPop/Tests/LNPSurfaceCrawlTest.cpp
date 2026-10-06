@@ -34,6 +34,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"LootNPop.SurfaceNavigation.SurfaceCrawl.Detour",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSurfaceCrawlHomeApproachTest,
+	"LootNPop.SurfaceNavigation.SurfaceCrawl.HomeApproach",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 namespace
 {
 	using namespace LNPSurfaceCrawl;
@@ -381,6 +386,51 @@ bool FLNPSurfaceCrawlDetourTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Flat chase arrives"), Crawler.CrawlTo(Fixture, FVector(1000, 2000, FloorZ), 600));
 		TestEqual(TEXT("Flat chase never detours"), Crawler.DetourStarts, 0);
 	}
+	return true;
+}
+
+bool FLNPSurfaceCrawlHomeApproachTest::RunTest(const FString& Parameters)
+{
+	FHomeApproachParams Params;
+	Params.FarDistance = 2580.f;
+	Params.ProgressMargin = 80.f;
+	Params.Timeout = 10.f;
+	constexpr float Dt = 1.f / 60.f;
+
+	// Home까지 몇 초 동안 계측해 처음으로 재귀속이 요청된 시각(없으면 -1).
+	const auto Run = [&](const TFunctionRef<float(float)> DistanceAt, const float Seconds)
+	{
+		FHomeApproachState State;
+		for (int32 Frame = 0; Frame * Dt < Seconds; ++Frame)
+		{
+			if (UpdateHomeApproach(State, Params, DistanceAt(Frame * Dt), Dt))
+				return Frame * Dt;
+		}
+		return -1.f;
+	};
+
+	// 배회 속도(180cm/s)로 다가오면 30초 동안 재귀속하지 않는다.
+	TestEqual(TEXT("Approaching home never rehomes"), Run([](float T) { return 8000.f - 180.f * T; }, 30.f), -1.f);
+	// 배회 거리 안에서는 멈춰 있어도 재지 않는다.
+	TestEqual(TEXT("Inside wander range never rehomes"), Run([](float) { return 2000.f; }, 30.f), -1.f);
+	// 다른 섬 밑에 걸려 멈추면 10초 뒤 재귀속한다.
+	const float StallTime = Run([](float) { return 4000.f; }, 30.f);
+	TestTrue(FString::Printf(TEXT("Stalled far from home rehomes after timeout (%.2fs)"), StallTime),
+		StallTime >= Params.Timeout - Dt && StallTime <= Params.Timeout + 2.f * Dt);
+	// 몸 반지름보다 작은 떨림은 진전이 아니다.
+	const float JitterTime = Run([](float T) { return 4000.f - 50.f * FMath::Abs(FMath::Sin(T * 3.f)); }, 30.f);
+	TestTrue(FString::Printf(TEXT("Jitter below margin still rehomes (%.2fs)"), JitterTime),
+		JitterTime >= Params.Timeout - Dt && JitterTime <= Params.Timeout + 0.5f);
+	// 5초 다가간 뒤 막히면 마지막 진전부터 10초 뒤다.
+	const float LateTime = Run([](float T) { return 5000.f - 180.f * FMath::Min(T, 5.f); }, 30.f);
+	TestTrue(FString::Printf(TEXT("Stall after progress rehomes from last progress (%.2fs)"), LateTime),
+		LateTime >= 5.f + Params.Timeout - 1.f && LateTime <= 5.f + Params.Timeout + 0.5f);
+
+	// 후보 선택: 직선거리 최소, 같은 거리면 앞 인덱스, 후보 없음.
+	const TArray<FVector> Pods = { FVector(1000, 0, 0), FVector(0, 300, 0), FVector(0, -300, 0) };
+	TestEqual(TEXT("Nearest pod by straight distance"), SelectNearestPod(FVector::ZeroVector, Pods), 1);
+	TestEqual(TEXT("Nearest pod near the far one"), SelectNearestPod(FVector(900, 0, 0), Pods), 0);
+	TestEqual(TEXT("No pod candidates"), SelectNearestPod(FVector::ZeroVector, TArray<FVector>()), static_cast<int32>(INDEX_NONE));
 	return true;
 }
 

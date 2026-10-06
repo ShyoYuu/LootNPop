@@ -164,3 +164,16 @@
 - 새 UCLASS라 사용자가 에디터를 종료한 뒤 Build.bat 전체 빌드 성공. 관련 자동화 36/36 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit4abc_Tests.log`): 단위 3과 같은 묶음.
 - 검증 옥탄트 1P PIE(같은 메모리 pool 교체 방식, 디스크 pool 미저장 — 2P는 게스트가 어그로를 가져가 사용자가 1로 줄였다): 개체끼리 겹치지 않고, 천장·벽에서도 사선이 트이면 즉시 공격하며, 사선이 막히면 공격하지 않고 접근하려고 이리저리 움직이는 것을 사용자가 확인했다. 8m보다 가까이서 쏘는 듯한 체감은 뒤쪽 개체가 사거리에 들어오려고 앞쪽 개체를 밀어내서 생겼고, 개체 수를 줄이자 사거리가 맞았다(사용자 확인).
 - 관찰: 판 밑으로 유도한 개체가 판 위의 플레이어를 정확히 따라간다. 추적 중 타겟 유지가 거리만 보고 실제 위치를 싣기 때문이며 현재 설계상 정상이다. 적 NPC 전반의 시야 상실 후 추적 제한(마지막 목격 위치·유예 시간·부정확한 소리 감지)은 사용자 결정으로 `../../Idea_Backlog.md`에 후보로 올렸다.
+
+## 2026-10-06 — 단위 4d: 재귀속
+
+### 구현
+
+- 순수 함수 `LNPSurfaceCrawl::UpdateHomeApproach`·`ResetHomeApproach`·`SelectNearestPod`와 `FHomeApproachState`(`FLNPEnemyCrawlFragment::HomeApproach`). 규칙은 `design/MovementIntegration.md` "벽 타기 NPC" 재귀속 항목이 소유한다.
+- 벽보행 이동 프로세서가 터지지 않은 Pod 위치를 모으고(`PodQuery`), 비교전 프레임마다 계측한다. 재귀속하면 배회 목표를 다시 요청하고 `[SurfaceCrawlHome] enemy oldPod newPod orphaned oldDist newDist` 로그를 남긴다(거리 필드는 첫 PIE 뒤 Live Coding으로 추가).
+
+### 검증
+
+- `FLNPEnemyCrawlFragment` 레이아웃 변경이라 에디터 종료 뒤 Build.bat 전체 빌드 성공. 관련 자동화 37/37 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit4d_Tests.log`): 신규 `SurfaceCrawl.HomeApproach`(다가오면 30초 무재귀속, 배회 거리 안 무계측, 정체 10초 뒤 재귀속, 반지름 미만 떨림은 진전 아님, 진전 뒤 정체는 마지막 진전부터 10초, 최근접·후보 없음)와 기존 36개.
+- 검증 옥탄트 1P PIE 두 번: 첫 번째에서 넉백·도주 뒤 재귀속 1건(`enemy=178 oldPod=177 newPod=457 orphaned=0`, 거리 로그 추가 전), 두 번째 약 3분에서는 0건. 검증 옥탄트에는 분리된 섬이 없고 넉백(500)으로 멀리 날지 않아, 대부분 기어서 Home 쪽으로 돌아가 재귀속 조건이 성립하지 않은 것으로 본다.
+- 사용자 결정: 자동화와 PIE 1건으로 4d를 완료한다. 정확한 재현은 섬 위에서 플레이어·NPC를 스폰하고, 섬 밑면에 모인 NPC를 런처로 흩어 다른 지형에 떨어뜨리는 방식이 필요하다. 4f까지 마친 뒤 섬 스폰이 포함된 테스트 레벨을 준비해 4d~4f를 한 번에 확인한다.

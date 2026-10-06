@@ -128,6 +128,48 @@ namespace LNPSurfaceCrawl
 		State.DetourTime = 0.f;
 	}
 
+	bool UpdateHomeApproach(FHomeApproachState& State, const FHomeApproachParams& Params, const float DistanceToHome, const float DeltaTime)
+	{
+		if (DistanceToHome <= Params.FarDistance)
+		{
+			ResetHomeApproach(State);
+			return false;
+		}
+		if (State.BestDistance <= 0.f || DistanceToHome < State.BestDistance - Params.ProgressMargin)
+		{
+			State.BestDistance = DistanceToHome;
+			State.StallTime = 0.f;
+			return false;
+		}
+		State.StallTime += DeltaTime;
+		if (State.StallTime < Params.Timeout)
+			return false;
+		ResetHomeApproach(State);
+		return true;
+	}
+
+	void ResetHomeApproach(FHomeApproachState& State)
+	{
+		State.BestDistance = 0.f;
+		State.StallTime = 0.f;
+	}
+
+	int32 SelectNearestPod(const FVector& From, const TConstArrayView<FVector> PodPositions)
+	{
+		int32 Best = INDEX_NONE;
+		double BestDistSq = DBL_MAX;
+		for (int32 Index = 0; Index < PodPositions.Num(); ++Index)
+		{
+			const double DistSq = FVector::DistSquared(From, PodPositions[Index]);
+			if (DistSq < BestDistSq)
+			{
+				BestDistSq = DistSq;
+				Best = Index;
+			}
+		}
+		return Best;
+	}
+
 	bool IsCrawlable(const FLNPExactHitIdentity& Identity)
 	{
 		return Identity.IsKnown() && (Identity.Roles & (ELNPExactSourceRole::Support | ELNPExactSourceRole::Blocker)) != 0;

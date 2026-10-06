@@ -8,6 +8,8 @@
 #include "Enemy/LNPSurfaceCrawl.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "GAS/LNPPoiseTypes.h"
+#include "LootPod/LNPLootPodMassTypes.h"
+#include "LootNPop.h"
 #include "LNPMassUtils.h"
 
 #include "MassCommonFragments.h"
@@ -20,6 +22,7 @@
 
 ULNPEnemyCrawlMovementProcessor::ULNPEnemyCrawlMovementProcessor()
 	: CrawlQuery(*this)
+	, PodQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Movement;
@@ -48,6 +51,11 @@ void ULNPEnemyCrawlMovementProcessor::ConfigureQueries(const TSharedRef<FMassEnt
 	CrawlQuery.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	CrawlQuery.RegisterWithProcessor(*this);
 
+	PodQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	PodQuery.AddRequirement<FLNPLootPodFragment>(EMassFragmentAccess::ReadOnly);
+	PodQuery.AddTagRequirement<FLNPLootPodTag>(EMassFragmentPresence::All);
+	PodQuery.RegisterWithProcessor(*this);
+
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPCrawlSpatialGridSubsystem>(EMassFragmentAccess::ReadOnly);
@@ -65,6 +73,24 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
 	const ULNPCrawlSpatialGridSubsystem& CrawlGrid = Context.GetSubsystemChecked<ULNPCrawlSpatialGridSubsystem>();
+
+	// 재귀속 후보: 터지지 않은 Pod 전부(D-066 — Nav 도달성은 보지 않는다). 지상 경로 프로세서와 같은 "활성" 기준이다.
+	TArray<FMassEntityHandle> PodEntities;
+	TArray<FVector> PodPositions;
+	PodQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FTransformFragment> PodTransforms = Ctx.GetFragmentView<FTransformFragment>();
+		const TConstArrayView<FLNPLootPodFragment> Pods = Ctx.GetFragmentView<FLNPLootPodFragment>();
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			if (Pods[i].State == ELNPLootPodState::Popped)
+				continue;
+			PodEntities.Add(Ctx.GetEntity(i));
+			PodPositions.Add(PodTransforms[i].GetTransform().GetLocation());
+		}
+	});
+	const UWorld* World = EntityManager.GetWorld();
+	const double Now = World ? World->GetTimeSeconds() : 0.0;
 
 	// 청크 사이의 공유 쓰기는 신호 목록 하나뿐이다 — 지상 이동 프로세서와 같은 방식으로 모은다.
 	TArray<FMassEntityHandle> EntitiesToSignal;
@@ -105,6 +131,9 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 		CrawlParams.BodyRadius = Config->CapsuleRadius;
 		LNPSurfaceCrawl::FDetourParams DetourParams;
 		DetourParams.StallRadius = Config->CapsuleRadius;
+		LNPSurfaceCrawl::FHomeApproachParams HomeParams;
+		HomeParams.FarDistance = MoveConfig.WanderMaxDistance + Config->CapsuleRadius;
+		HomeParams.ProgressMargin = Config->CapsuleRadius;
 
 		// 낙하는 지상 공중 분기와 같은 함수를 쓴다. 몸이 구라 반높이도 반지름이다(캡슐 = 구).
 		LNPEnemyExactMovement::FParams FallParams;
@@ -248,6 +277,40 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			else
 			{
 				IdleData.TimeSinceWanderIssued = 0.0f;
+			}
+
+			// 재귀속(단위 4d, D-066): 비교전 중 Home 쪽으로 기어가다 가까워지지 않으면 직선거리로 가장 가까운 활성 Pod로 바꾼다.
+			// 배회 목표가 Home 주변이라 따로 귀환 목표를 만들지 않는다. 후보가 없으면 그 자리를 배회 중심으로 두고(Orphaned)
+			// 1초마다 다시 본다. 공중 프레임은 위에서 continue하므로 계측이 이어진다.
+			if (Targeting.State == ELNPTargetingState::None)
+			{
+				const bool bRehome = EnemyData.bOrphaned
+					? (Now - EnemyData.LastHomeCheckTime >= 1.0 && !PodPositions.IsEmpty())
+					: LNPSurfaceCrawl::UpdateHomeApproach(CrawlData.HomeApproach, HomeParams,
+						FVector::Dist(Location, EnemyData.ParentPodLocation), DeltaTime);
+				if (bRehome)
+				{
+					const FMassEntityHandle OldParent = EnemyData.ParentLootPod;
+					const float OldDistance = FVector::Dist(Location, EnemyData.ParentPodLocation);
+					const int32 PodIndex = LNPSurfaceCrawl::SelectNearestPod(Location, PodPositions);
+					EnemyData.LastHomeCheckTime = Now;
+					EnemyData.bOrphaned = PodIndex == INDEX_NONE;
+					EnemyData.ParentLootPod = PodIndex != INDEX_NONE ? PodEntities[PodIndex] : FMassEntityHandle();
+					EnemyData.ParentPodLocation = PodIndex != INDEX_NONE ? PodPositions[PodIndex] : Location;
+					if (OldParent != EnemyData.ParentLootPod)
+					{
+						IdleData.bNeedNewWanderTarget = true;
+						IdleData.bWanderTargetTimedOut = true;
+						ChunkEntitiesToSignal.Add(Ctx.GetEntity(i));
+						UE_LOG(LogLootNPop, Log, TEXT("[SurfaceCrawlHome] enemy=%d oldPod=%d newPod=%d orphaned=%d oldDist=%.0f newDist=%.0f"),
+							Ctx.GetEntity(i).Index, OldParent.Index, EnemyData.ParentLootPod.Index, EnemyData.bOrphaned,
+							OldDistance, FVector::Dist(Location, EnemyData.ParentPodLocation));
+					}
+				}
+			}
+			else
+			{
+				LNPSurfaceCrawl::ResetHomeApproach(CrawlData.HomeApproach);
 			}
 
 			// 그로기·다운 중에는 제자리. 다운은 게이지를 0으로 되돌리므로 면역 잔여로 함께 본다.

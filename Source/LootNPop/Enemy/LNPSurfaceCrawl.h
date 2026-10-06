@@ -107,6 +107,38 @@ namespace LNPSurfaceCrawl
 	/** 목표로 기어가지 않는 프레임(정지·공격·배회·공중)에 막힘 계측과 우회를 비운다. Side는 유지한다. */
 	LOOTNPOP_API void ResetDetour(FDetourState& State);
 
+	/** Home 접근 계측(Phase 14 단위 4d). 개체마다 하나(FLNPEnemyCrawlFragment)이며 UpdateHomeApproach·ResetHomeApproach만 바꾼다. */
+	struct FHomeApproachState
+	{
+		/** 계측을 시작한 뒤 Home까지 가장 가까웠던 직선거리(cm). 0이면 아직 재지 않았다. */
+		float BestDistance = 0.f;
+		/** BestDistance가 마지막으로 줄어든 뒤 지난 시간(초). */
+		float StallTime = 0.f;
+	};
+
+	struct FHomeApproachParams
+	{
+		/** Home까지 직선거리가 이보다 멀 때만 잰다. 배회 목표가 나올 수 있는 거리(배회 최대 거리 + 몸 반지름)를 쓴다. */
+		float FarDistance = 2500.f;
+		/** 이만큼(cm) 이상 가까워져야 진전으로 본다. 몸 반지름을 쓴다 — 제자리 떨림을 진전으로 세지 않는다. */
+		float ProgressMargin = 80.f;
+		/** 진전 없이 이 시간(초)이 지나면 재귀속한다. */
+		float Timeout = 10.f;
+	};
+
+	/**
+	 * 비교전 중 표면에 붙어 있는 프레임마다 부른다. Home 쪽으로 기어가다 Timeout 동안 가까워지지 않으면 true를 반환하고
+	 * 상태를 비운다 — 호출자가 직선거리로 가장 가까운 활성 Pod로 재귀속한다(D-066). Nav 도달성은 쓰지 않는다.
+	 * FarDistance 안에 들어오면 계측을 비우고 false다. query는 쓰지 않는다.
+	 */
+	LOOTNPOP_API bool UpdateHomeApproach(FHomeApproachState& State, const FHomeApproachParams& Params, float DistanceToHome, float DeltaTime);
+
+	/** 교전·공중 등 계측하지 않는 프레임에 비운다. 재귀속 뒤에도 비운다. */
+	LOOTNPOP_API void ResetHomeApproach(FHomeApproachState& State);
+
+	/** 직선거리로 가장 가까운 후보의 인덱스. 같은 거리면 앞 인덱스다. 후보가 없으면 INDEX_NONE. */
+	LOOTNPOP_API int32 SelectNearestPod(const FVector& From, TConstArrayView<FVector> PodPositions);
+
 	/** 붙을 수 있는 표면인가. */
 	LOOTNPOP_API bool IsCrawlable(const FLNPExactHitIdentity& Identity);
 

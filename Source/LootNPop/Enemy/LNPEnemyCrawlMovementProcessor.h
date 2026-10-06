@@ -16,6 +16,7 @@
  *   지상과 같은 StepAirborne으로 구 중심 중력 낙하하고, 착지하면 그 자리 표면에 다시 붙는다. 스스로 점프하지 않는다.
  * - 엔티티 회전 Z는 매 프레임 표면 법선과 같다. 전방만 회전 속도로 보간한다.
  * - 피격 반응 시계·배회 타임아웃·도착 신호는 지상과 같은 규약이다(TechDesign_EnemyNPC.md §5.1).
+ * - 재귀속: 비교전 중 Home 쪽으로 가까워지지 않으면 직선거리로 가장 가까운 활성 Pod로 바꾼다(D-066, Nav 도달성 없음).
  * - 벽보행끼리의 분리는 ULNPCrawlSpatialGridSubsystem의 3D 이웃으로 재고 접평면에 눕혀 이동 속도에 더한다.
  */
 UCLASS()
@@ -31,4 +32,7 @@ protected:
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
 	FMassEntityQuery CrawlQuery;
+
+	/** 재귀속 후보(터지지 않은 Pod)의 위치. */
+	FMassEntityQuery PodQuery;
 };
