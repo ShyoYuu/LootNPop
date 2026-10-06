@@ -188,6 +188,9 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			if (bChunkIsDying)
 			{
 				// 붙어 있던 표면을 놓고 착지할 때까지 떨어진다. 사망 팝이 0이어도 중력이 적분되므로 천장에 남지 않는다.
+				// 착지 때 속도가 0이 되므로, 착지 뒤 속도가 생겼다면 시체가 넉백을 받은 것이다 — 다시 떨어진다.
+				if (CrawlData.bDeathLanded && !PhysVelocity.IsNearlyZero())
+					CrawlData.bDeathLanded = false;
 				if (!CrawlData.bDeathLanded)
 				{
 					FVector NewLocation;

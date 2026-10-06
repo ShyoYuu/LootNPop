@@ -196,7 +196,7 @@ bool ULNPEnemyTrait::ValidateTemplate(const FMassEntityTemplateBuildContext& Bui
 		{
 			UE_LOG(LogLootNPop, Warning,
 				TEXT("Enemy config '%s' uses SurfaceCrawl navigation with CapsuleHalfHeight %.1f != CapsuleRadius %.1f. ")
-				TEXT("Crawl movement sweeps a sphere of CapsuleRadius, so the hit capsule would not match the moving body."),
+				TEXT("Crawl movement sweeps a sphere of CapsuleRadius; set HitCenterUpOffset/HitCapsule* to shape the hit capsule instead."),
 				*EnemyConfig->GetName(), EnemyConfig->CapsuleHalfHeight, EnemyConfig->CapsuleRadius);
 		}
 		// 벽·천장에서는 몸 전방이 플레이어 쪽과 무관하다 — 인지 시야각은 360°다(D-066).

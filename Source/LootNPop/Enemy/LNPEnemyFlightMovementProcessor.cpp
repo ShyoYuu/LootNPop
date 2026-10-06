@@ -181,6 +181,9 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 			if (bChunkIsDying)
 			{
 				// 비행을 끊고 착지할 때까지 떨어진다. 사망 팝이 0이어도 중력이 적분되므로 공중에 멈추지 않는다.
+				// 착지 때 속도가 0이 되므로, 착지 뒤 속도가 생겼다면 시체가 넉백을 받은 것이다 — 다시 떨어진다.
+				if (FlightData.bDeathLanded && !ExternalVelocity.IsNearlyZero())
+					FlightData.bDeathLanded = false;
 				if (!FlightData.bDeathLanded)
 				{
 					FVector NewLocation;

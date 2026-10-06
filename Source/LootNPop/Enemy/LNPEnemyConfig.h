@@ -704,6 +704,32 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))
 	float CapsuleRadius = 35.f;
 
+	/**
+	 * 피격 판정 캡슐 중심을 엔티티 위치(이동 몸체 중심)에서 몸 Up 방향으로 옮기는 값(cm).
+	 * 보이는 몸이 이동 몸체 중심과 어긋난 적에 쓴다 — 벽보행 로봇청소기는 몸이 이동 구의 아래쪽 절반에 있다.
+	 * 근접·원거리·적 탐색 질의(락온·조준)·HP 바가 모두 `LNPHitDetection::ResolveEnemyCapsuleCenter`로 이 값을 읽는다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Collision")
+	float HitCenterUpOffset = 0.f;
+
+	/** 피격 판정 캡슐 반지름(cm). 0이면 이동 캡슐(`CapsuleRadius`)과 같다. 보이는 몸보다 이동 몸체가 큰 적(드론)에 쓴다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "0"))
+	float HitCapsuleRadius = 0.f;
+
+	/** 피격 판정 캡슐 반높이(cm). 0이면 이동 캡슐(`CapsuleHalfHeight`)과 같다. 반지름보다 작으면 구로 판정한다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "0"))
+	float HitCapsuleHalfHeight = 0.f;
+
+	float GetHitCapsuleRadius() const { return HitCapsuleRadius > 0.f ? HitCapsuleRadius : CapsuleRadius; }
+	float GetHitCapsuleHalfHeight() const { return HitCapsuleHalfHeight > 0.f ? HitCapsuleHalfHeight : CapsuleHalfHeight; }
+
+	/**
+	 * HP 바 기준점을 판정 캡슐 중심에서 몸 Up 방향으로 옮기는 값(cm). HUD의 머리 위 높이(`HpBarHeightOffset`)에 더해진다.
+	 * 머리 위 높이가 사람 크기 기준이라 키가 낮은 적(벽보행 로봇청소기)에 쓴다. 표시 전용이다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|UI")
+	float HpBarUpOffset = 0.f;
+
 	/** 비행 스폰의 몸 구·충돌 여유·배회 상한에 고정 여유 200cm를 더한다. 지상은 headroom 필터를 쓰지 않는다. */
 	float GetSpawnRequiredHeadroom() const
 	{

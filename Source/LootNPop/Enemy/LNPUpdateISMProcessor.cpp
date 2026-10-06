@@ -48,8 +48,10 @@ void ULNPUpdateISMProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 		const TConstArrayView<FMassRepresentationLODFragment> RepresentationLODList = Context.GetFragmentView<FMassRepresentationLODFragment>();
 		const TConstArrayView<FLNPEnemyActionFragment> ActionList = Context.GetFragmentView<FLNPEnemyActionFragment>();
 
-		// 커스텀 데이터는 ISM 단위로 전부 붙이거나 전부 빼야 한다. 비행 적의 ISM(드론 메시)에는 비행 적만 들어간다.
-		const bool bSensorGlowData = Context.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() && ActionList.Num() > 0;
+		// 커스텀 데이터는 ISM 단위로 전부 붙이거나 전부 빼야 한다. 비행 적의 ISM(드론 메시)에는 비행 적만,
+		// 벽보행 적의 ISM(로봇청소기 메시)에는 벽보행 적만 들어간다.
+		const bool bSensorGlowData = (Context.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() || Context.DoesArchetypeHaveTag<FLNPEnemyCrawlTag>())
+			&& ActionList.Num() > 0;
 
 		for (FMassExecutionContext::FEntityIterator EntityIt = Context.CreateEntityIterator(); EntityIt; ++EntityIt)
 		{

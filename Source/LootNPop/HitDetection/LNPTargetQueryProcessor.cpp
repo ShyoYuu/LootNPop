@@ -60,8 +60,9 @@ void ULNPTargetQueryProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 		if (nullptr == Shared.Config)
 			return;
 
-		const float HalfHeight = Shared.Config->CapsuleHalfHeight;
-		const float Radius     = Shared.Config->CapsuleRadius;
+		const float HalfHeight = Shared.Config->GetHitCapsuleHalfHeight();
+		const float Radius     = Shared.Config->GetHitCapsuleRadius();
+		const float HitOffset  = Shared.Config->HitCenterUpOffset;
 
 		const TConstArrayView<FTransformFragment>        Transforms  = Ctx.GetFragmentView<FTransformFragment>();
 		const TConstArrayView<FLNPEnemyFragment>        EnemyFrags  = Ctx.GetFragmentView<FLNPEnemyFragment>();
@@ -81,7 +82,7 @@ void ULNPTargetQueryProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 
 			// 몸 방향 Up은 엔티티 회전 Z다 (원거리 판정과 같은 규약).
 			const FVector EnemyUpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
-			const FVector Center     = LNPHitDetection::ResolveEnemyCapsuleCenter(Location, EnemyUpDir, HalfHeight, nullptr);
+			const FVector Center     = LNPHitDetection::ResolveEnemyCapsuleCenter(Location, EnemyUpDir, HitOffset, nullptr);
 
 			for (int32 q = 0; q < Params.Num(); ++q)
 			{

@@ -270,8 +270,9 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			if (!Shared.Config)
 				return;
 
-			const float HalfH  = Shared.Config->CapsuleHalfHeight;
-			const float Radius = Shared.Config->CapsuleRadius;
+			const float HalfH  = Shared.Config->GetHitCapsuleHalfHeight();
+			const float Radius = Shared.Config->GetHitCapsuleRadius();
+			const float HitOffset = Shared.Config->HitCenterUpOffset;
 
 			const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
 			TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
@@ -281,7 +282,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 				const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 				AActor*       Actor = ActorFrags[i].GetMutable();
-				const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor);
+				const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HitOffset, Actor);
 				ClientTargets.Add({ Actor, Center, UpDir, HalfH, Radius, true });
 			}
 		});
@@ -389,8 +390,9 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		if (!Shared.Config)
 			return;
 
-		const float HalfH  = Shared.Config->CapsuleHalfHeight;
-		const float Radius = Shared.Config->CapsuleRadius;
+		const float HalfH  = Shared.Config->GetHitCapsuleHalfHeight();
+		const float Radius = Shared.Config->GetHitCapsuleRadius();
+		const float HitOffset = Shared.Config->HitCenterUpOffset;
 
 		const TConstArrayView<FTransformFragment>           Transforms = Ctx.GetFragmentView<FTransformFragment>();
 		TArrayView<FLNPEnemyFragment>                       EnemyFrags = Ctx.GetMutableFragmentView<FLNPEnemyFragment>();
@@ -404,7 +406,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 			const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 			AActor*       Actor = ActorFrags[i].GetMutable();
-			const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HalfH, Actor);
+			const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HitOffset, Actor);
 			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config, &VelFrags[i].Velocity });
 		}
 	});

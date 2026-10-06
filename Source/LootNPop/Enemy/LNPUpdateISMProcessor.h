@@ -17,6 +17,7 @@
  * 커스텀 데이터를 붙이는 개체:
  * - 비행 적(`FLNPEnemyFlyingTag`): [0] 센서 발광(살아 있으면 1, 행동 상태 `Dying`이면 0). 게스트는 복제된 행동 상태를 쓰므로
  *   네트워크 비용이 없다. 머티리얼 `M_EnemyDroneEye`가 `PerInstanceCustomData[0]`을 발광에 곱한다.
+ * - 벽보행 적(`FLNPEnemyCrawlTag`): 비행 적과 같다. 로봇청소기 메시가 같은 머티리얼을 쓴다.
  *
  * 그 밖의 개체는 엔진 프로세서와 똑같이 transform만 쌓는다.
  */

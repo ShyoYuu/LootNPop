@@ -57,11 +57,14 @@ namespace LNPHitDetection
 	 *
 	 * ⚠️ 근접·원거리·디버그 드로우가 모두 이 함수 하나만 쓴다. 같은 분기를 다시 복제하지 말 것 —
 	 *    복제돼 있던 시절 원거리 판정 두 곳이 서로 반대 방향으로 틀어져 있었다.
+	 *
+	 * `HitCenterUpOffset`(`ULNPEnemyConfig::HitCenterUpOffset`)은 보이는 몸이 이동 몸체 중심과 어긋난 적의 판정 중심을
+	 * 몸 Up으로 옮긴다(벽보행 로봇청소기). 되감기는 위치 차이만 더하므로 오프셋이 그대로 유지된다.
 	 */
-	inline FVector ResolveEnemyCapsuleCenter(const FVector& EntityLocation, const FVector& /*UpDir*/,
-		float /*CapsuleHalfHeight*/, const AActor* /*EnemyActor*/)
+	inline FVector ResolveEnemyCapsuleCenter(const FVector& EntityLocation, const FVector& UpDir,
+		float HitCenterUpOffset, const AActor* /*EnemyActor*/)
 	{
-		return EntityLocation;
+		return EntityLocation + UpDir * HitCenterUpOffset;
 	}
 
 	/** 여러 타겟에서 공유하는 투사체 선분의 불변 계산값. */

@@ -39,7 +39,7 @@ struct FLNPEnemyMarkerEntry
 {
 	FMassEntityHandle Entity;
 
-	/** 캡슐 중심. 머리 위 오프셋은 표시 측이 더한다. */
+	/** HP 바 기준점: 캡슐 중심 + Up × `ULNPEnemyConfig::HpBarUpOffset`. 머리 위 오프셋은 표시 측이 더한다. */
 	FVector Location = FVector::ZeroVector;
 
 	/** 몸 방향 Up(엔티티 회전 Z). 머리 위 오프셋의 방향이다. */
