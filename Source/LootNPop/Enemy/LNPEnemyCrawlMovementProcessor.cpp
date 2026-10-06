@@ -61,6 +61,16 @@ void ULNPEnemyCrawlMovementProcessor::ConfigureQueries(const TSharedRef<FMassEnt
 	ProcessorRequirements.AddSubsystemRequirement<ULNPCrawlSpatialGridSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
+namespace
+{
+	void ClearFailedPods(FLNPEnemyCrawlFragment& CrawlData)
+	{
+		for (FMassEntityHandle& Failed : CrawlData.FailedPods)
+			Failed = FMassEntityHandle();
+		CrawlData.NextFailedPod = 0;
+	}
+}
+
 void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
 	if (LNPMass::IsClientWorld(EntityManager))
@@ -197,6 +207,9 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				if (LNPEnemyExactMovement::StepAirborne(WorldCollision, FallParams, Location, PhysVelocity, DeltaTime, NewLocation))
 				{
 					NewLocation = AttachHere(NewLocation);
+					// 착지는 Home 판정이 끝날 때까지 Pod를 활성으로 붙잡는다(지상과 같은 플래그 — 활동 대역이 강제 활성하고
+					// 구간 배회가 건너뛴다). 그러지 않으면 도망친 플레이어 때문에 Pod가 배회·휴면으로 내려가 재귀속 계측이 멈춘다.
+					EnemyData.bNeedsHomeCheck |= EnemyData.ParentLootPod.IsValid();
 				}
 				else
 				{
@@ -287,16 +300,33 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			// 1초마다 다시 본다. 공중 프레임은 위에서 continue하므로 계측이 이어진다.
 			if (Targeting.State == ELNPTargetingState::None)
 			{
+				const float HomeDistance = FVector::Dist(Location, EnemyData.ParentPodLocation);
+				// Home 배회 거리 안으로 돌아왔으면 착지 판정은 끝났다. 실제 Pod에 도착했으면 실패 기억도 비운다
+				// (Orphaned의 Home은 제자리라 늘 안이므로 비우지 않는다 — 비우면 1초마다 같은 섬 Pod를 다시 고른다).
+				if (HomeDistance <= HomeParams.FarDistance || EnemyData.bOrphaned)
+					EnemyData.bNeedsHomeCheck = false;
+				if (HomeDistance <= HomeParams.FarDistance && !EnemyData.bOrphaned)
+					ClearFailedPods(CrawlData);
 				const bool bRehome = EnemyData.bOrphaned
 					? (Now - EnemyData.LastHomeCheckTime >= 1.0 && !PodPositions.IsEmpty())
-					: LNPSurfaceCrawl::UpdateHomeApproach(CrawlData.HomeApproach, HomeParams,
-						FVector::Dist(Location, EnemyData.ParentPodLocation), DeltaTime);
+					: LNPSurfaceCrawl::UpdateHomeApproach(CrawlData.HomeApproach, HomeParams, HomeDistance, DeltaTime);
 				if (bRehome)
 				{
 					const FMassEntityHandle OldParent = EnemyData.ParentLootPod;
 					const float OldDistance = FVector::Dist(Location, EnemyData.ParentPodLocation);
-					const int32 PodIndex = LNPSurfaceCrawl::SelectNearestPod(Location, PodPositions);
+					if (OldParent.IsSet())
+					{
+						CrawlData.FailedPods[CrawlData.NextFailedPod] = OldParent;
+						CrawlData.NextFailedPod = (CrawlData.NextFailedPod + 1) % FLNPEnemyCrawlFragment::MaxFailedPods;
+					}
+					TArray<bool, TInlineAllocator<128>> Excluded;
+					Excluded.SetNumZeroed(PodEntities.Num());
+					for (int32 PodIdx = 0; PodIdx < PodEntities.Num(); ++PodIdx)
+						for (const FMassEntityHandle& Failed : CrawlData.FailedPods)
+							Excluded[PodIdx] |= Failed == PodEntities[PodIdx];
+					const int32 PodIndex = LNPSurfaceCrawl::SelectNearestPod(Location, PodPositions, Excluded);
 					EnemyData.LastHomeCheckTime = Now;
+					EnemyData.bNeedsHomeCheck = false;
 					EnemyData.bOrphaned = PodIndex == INDEX_NONE;
 					EnemyData.ParentLootPod = PodIndex != INDEX_NONE ? PodEntities[PodIndex] : FMassEntityHandle();
 					EnemyData.ParentPodLocation = PodIndex != INDEX_NONE ? PodPositions[PodIndex] : Location;
@@ -314,6 +344,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			else
 			{
 				LNPSurfaceCrawl::ResetHomeApproach(CrawlData.HomeApproach);
+				ClearFailedPods(CrawlData);
 			}
 
 			// 그로기·다운 중에는 제자리. 다운은 게이지를 0으로 되돌리므로 면역 잔여로 함께 본다.

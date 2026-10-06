@@ -136,8 +136,11 @@ namespace LNPSurfaceCrawl
 	/** 교전·공중 등 계측하지 않는 프레임에 비운다. 재귀속 뒤에도 비운다. */
 	LOOTNPOP_API void ResetHomeApproach(FHomeApproachState& State);
 
-	/** 직선거리로 가장 가까운 후보의 인덱스. 같은 거리면 앞 인덱스다. 후보가 없으면 INDEX_NONE. */
-	LOOTNPOP_API int32 SelectNearestPod(const FVector& From, TConstArrayView<FVector> PodPositions);
+	/**
+	 * 직선거리로 가장 가까운 후보의 인덱스. 같은 거리면 앞 인덱스다. 후보가 없으면 INDEX_NONE.
+	 * Excluded[i]가 true인 후보는 건너뛴다(이미 다가가지 못한 Pod). 비어 있으면 모두 후보다.
+	 */
+	LOOTNPOP_API int32 SelectNearestPod(const FVector& From, TConstArrayView<FVector> PodPositions, TConstArrayView<bool> Excluded = {});
 
 	/** 붙을 수 있는 표면인가. */
 	LOOTNPOP_API bool IsCrawlable(const FLNPExactHitIdentity& Identity);

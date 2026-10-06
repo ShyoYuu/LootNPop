@@ -698,6 +698,14 @@ struct LOOTNPOP_API FLNPEnemyCrawlFragment : public FMassFragment
 
 	/** 비교전 중 Home 접근 계측(LNPSurfaceCrawl::UpdateHomeApproach). 서버 이동 프로세서만 쓴다. */
 	LNPSurfaceCrawl::FHomeApproachState HomeApproach;
+
+	/**
+	 * 다가가지 못해 재귀속으로 떠난 Pod(최근 MaxFailedPods개, 순환 기록). 재귀속 후보에서 뺀다 — 섬 밑 지각에서는 도달할 수 없는
+	 * 섬 위 Pod가 직선거리로 더 가까워 그 사이를 오가기 때문이다. Pod Home 배회 거리 안에 도착하거나 교전하면 비운다.
+	 */
+	static constexpr int32 MaxFailedPods = 8;
+	FMassEntityHandle FailedPods[MaxFailedPods];
+	uint8 NextFailedPod = 0;
 };
 
 /**

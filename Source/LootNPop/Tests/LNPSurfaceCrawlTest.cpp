@@ -436,6 +436,10 @@ bool FLNPSurfaceCrawlHomeApproachTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Nearest pod by straight distance"), SelectNearestPod(FVector::ZeroVector, Pods), 1);
 	TestEqual(TEXT("Nearest pod near the far one"), SelectNearestPod(FVector(900, 0, 0), Pods), 0);
 	TestEqual(TEXT("No pod candidates"), SelectNearestPod(FVector::ZeroVector, TArray<FVector>()), static_cast<int32>(INDEX_NONE));
+	// 이미 다가가지 못한 Pod는 더 가까워도 건너뛴다. 모두 빠지면 후보가 없다.
+	TestEqual(TEXT("Failed pods are skipped"), SelectNearestPod(FVector::ZeroVector, Pods, TArray<bool>{ false, true, false }), 2);
+	TestEqual(TEXT("All pods failed leaves no candidate"),
+		SelectNearestPod(FVector::ZeroVector, Pods, TArray<bool>{ true, true, true }), static_cast<int32>(INDEX_NONE));
 	return true;
 }
 

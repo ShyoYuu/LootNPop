@@ -154,12 +154,14 @@ namespace LNPSurfaceCrawl
 		State.StallTime = 0.f;
 	}
 
-	int32 SelectNearestPod(const FVector& From, const TConstArrayView<FVector> PodPositions)
+	int32 SelectNearestPod(const FVector& From, const TConstArrayView<FVector> PodPositions, const TConstArrayView<bool> Excluded)
 	{
 		int32 Best = INDEX_NONE;
 		double BestDistSq = DBL_MAX;
 		for (int32 Index = 0; Index < PodPositions.Num(); ++Index)
 		{
+			if (Excluded.IsValidIndex(Index) && Excluded[Index])
+				continue;
 			const double DistSq = FVector::DistSquared(From, PodPositions[Index]);
 			if (DistSq < BestDistSq)
 			{

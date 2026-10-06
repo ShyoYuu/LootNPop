@@ -193,3 +193,24 @@
 - 이동 프래그먼트 레이아웃 변경이라 에디터 종료 뒤 Build.bat 전체 빌드 성공. 관련 자동화 39/39 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit4ef_Tests.log`): 신규 `SurfaceCrawl.WanderSegment`(평지·벽면 수락, 벽 진입·절벽 밖·벽 → 바닥 거부, 평지 query 6회)·`WanderReplication.Crawl`(Flags 1|32·Layer 0, 지상 비트 미혼합, 재인코딩 무변경, snapshot 없는 평가, 벽 법선 Up·구간 전방, 제자리 Yaw 복원, 되감기)와 기존 37개.
 - PIE는 사용자 결정대로 섬 스폰 테스트 레벨에서 4d와 함께 확인한다.
 - 남은 일: 부하 harness(`LNPLoadBaseline`) 활동 통계가 벽보행을 지상으로 센다 — 단위 6 측정 때 나눈다.
+
+## 2026-10-06 — 단위 4 통합 확인: 섬 검증 옥탄트, 착지 Home 판정, 실패 Pod 기억
+
+### 섬 검증 옥탄트
+
+- `LNP.SurfaceNav.BuildIslandFixture`(`LootNPopEditor/SurfaceNavigation/LNPIslandFixture.cpp`) → `LVI_Octant_Fixture_Island`·`DA_OctantSurface_Fixture_Island`·`SM_FixtureIslandCrust_R30000`. 완전 구면 지각, 부유섬 60m × 60m(밑면 40m, 윗면 43m), 지각에서 섬 가장자리로 오르는 30° 경사로(수평 74.5m, 폭 6m), 탑(지각 Pod 곁, 25m), Pod anchor 8곳(섬 위 4, 섬 중심에서 70~90m 지각 4), 탑 앵커 1, 스프링 런처 2. 베이크 Layer 4(지각·섬·탑·경사로), authored anchor 8 모두 투영.
+- PIE 시작 transform: 위치 14722.4×3(섬 윗면 위 2m), 회전 pitch 0·yaw 135·roll 125.2644. pool 교체는 같은 메모리 방식.
+- 시행착오: 처음 둔 3단 그래플 사다리는 앵커가 거의 머리 위라(사거리 50m, 조준 반각 8°) 오르기 어려웠다. 사용자 지적대로 섬 밑으로는 그냥 떨어지면 되므로(낙하 피해 없음) 사다리를 빼고 경사로로 바꿨다.
+
+### 발견과 수정
+
+- 첫 섬 PIE에서 재귀속 0건: 도망치면 섬 위 Pod가 배회·휴면 대역으로 내려가 벽보행 이동 프로세서(재귀속 계측)가 개체를 건너뛰었다. 지상처럼 착지 때 `bNeedsHomeCheck`를 세워(활동 대역 강제 활성, 구간 배회 건너뜀) Home 배회 거리 안 도착·재귀속·Orphaned 때 내리게 했다.
+- 두 번째 섬 PIE에서 재귀속 12건, 그러나 섬 밑 지각에서는 섬 위 Pod(직선 약 43m)가 지각 Pod(70~90m)보다 가까워 도달할 수 없는 섬 Pod 사이를 오갔다(`29→321→29`, `177→321→177→53`). 사용자 결정으로 개체마다 재귀속으로 떠난 Pod 최근 8개를 기억해 후보에서 뺀다(`FLNPEnemyCrawlFragment::FailedPods`). 실제 Pod Home 배회 거리 안 도착·교전 때 비운다.
+
+### 검증
+
+- Build.bat 전체 빌드, 관련 자동화 39/39 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit4_FailedPods_Tests.log`, `HomeApproach`에 실패 Pod 제외 케이스 추가).
+- 세 번째 섬 1P PIE: 재귀속 8건, 모두 oldDist 42~48m에서 10초 정체 뒤, 같은 Pod로 되돌아간 경우 없음(예: `enemy=308 305→409→197`). 최종 Pod가 지각 Pod인지·도착했는지는 로그로 확정하지 못했지만 이후 추가 재귀속은 없었다. 탑 주변 지각 Pod 개체의 배회(짧은 이동·긴 정지)를 사용자가 확인했다.
+- 리슨 2P PIE(같은 섬 옥탄트): 게스트 화면에서 탑 주변 개체의 배회, 배회 중 벽면 이동, 배회 → 교전 진입이 자연스러움을 사용자가 확인했다. PIE 클라이언트 수는 1로 되돌렸다.
+- 섬 위에서 떨어진 개체를 관찰하기 어려웠던 이유: 섬 밑 개체와 섬 위 플레이어 거리가 43~50m라 경계 유지 거리(60m) 안이고 추적 유지는 LoS를 보지 않는다(`../../Idea_Backlog.md` "시야 상실 후 추적 정보 제한"). 배회 확인은 교전한 적 없는 지각 Pod 개체로 했다.
+- 단위 4를 완료한다.
