@@ -24,7 +24,7 @@ LNP::Replication::FEnemyReplicationStats LNP::Replication::GetEnemyReplicationSt
 
 bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTransform& Transform,
 	const FLNPEnemyFragment& Enemy, const FLNPEnemyActionFragment* Action,
-	const FLNPReplicatedWanderData& Segment, const double Time, const float UpdateInterval, const bool bReplicateWander)
+	const FLNPReplicatedWanderData& Segment, const double Time, const float UpdateInterval, const bool bReplicateWander, const bool bCrawl)
 {
 	const FLNPReplicatedWanderData Empty;
 	const FLNPReplicatedWanderData& Wander = bReplicateWander ? Segment : Empty;
@@ -45,13 +45,21 @@ bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTran
 	{
 		auto& Pose = Item.Agent.GetReplicatedPositionYawDataMutable();
 		const FVector Position = Transform.GetLocation();
-		const float Yaw = EncodeSphereLocalYaw(Transform);
+		// 벽보행 적만 몸 Up을 싣는다. 법선이 바뀌면 Yaw의 기저도 바뀌므로 Yaw를 허용 오차와 무관하게 다시 쓴다.
+		const uint16 Normal = bCrawl ? EncodeOctNormal(Transform.GetRotation().GetAxisZ()) : 0;
+		const bool bNormalChanged = Normal != Item.Agent.GetSurfaceNormal();
+		const float Yaw = EncodeReplicatedLocalYaw(Transform, Normal);
 		if (!Position.Equals(Pose.GetPosition(), UE::Mass::Replication::PositionReplicateTolerance))
 		{
 			Pose.SetPosition(Position);
 			bPoseChanged = true;
 		}
-		if (FMath::Abs(FMath::FindDeltaAngleRadians(Yaw, Pose.GetYaw())) > UE::Mass::Replication::YawReplicateTolerance)
+		if (bNormalChanged)
+		{
+			Item.Agent.SetSurfaceNormal(Normal);
+			bPoseChanged = true;
+		}
+		if (bNormalChanged || FMath::Abs(FMath::FindDeltaAngleRadians(Yaw, Pose.GetYaw())) > UE::Mass::Replication::YawReplicateTolerance)
 		{
 			Pose.SetYaw(Yaw);
 			bPoseChanged = true;
@@ -129,7 +137,10 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 		const FTransform& Transform = TransformFragments[EntityIdx].GetTransform();
 		FLNPReplicatedPositionYawData& PositionYaw = InReplicatedAgent.GetReplicatedPositionYawDataMutable();
 		PositionYaw.SetPosition(Transform.GetLocation());
-		PositionYaw.SetYaw(LNP::Replication::EncodeSphereLocalYaw(Transform));
+		const uint16 Normal = InContext.DoesArchetypeHaveTag<FLNPEnemyCrawlTag>()
+			? LNP::Replication::EncodeOctNormal(Transform.GetRotation().GetAxisZ()) : 0;
+		InReplicatedAgent.SetSurfaceNormal(Normal);
+		PositionYaw.SetYaw(LNP::Replication::EncodeReplicatedLocalYaw(Transform, Normal));
 
 		// 행동도 여기서 시드한다. 빼먹으면 버블에 새로 들어온 적이 실제 상태와 무관하게 Idle(0)로
 		// 시작하고, 다음 전이가 올 때까지 게스트에서 굳어 보인다.
@@ -176,7 +187,7 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 				IdleFragments[EntityIdx].WanderSegment.LocalYaw) : FLNPReplicatedWanderData();
 		if (LNP::Replication::UpdateEnemyAgent(Item, TransformFragments[EntityIdx].GetTransform(), EnemyFragments[EntityIdx],
 			ActionFragments.IsValidIndex(EntityIdx) ? &ActionFragments[EntityIdx] : nullptr, Wander, Time, RepParams->UpdateInterval[LOD],
-			!LNPLoadBaseline::IsWanderPoseControl()))
+			!LNPLoadBaseline::IsWanderPoseControl(), InContext.DoesArchetypeHaveTag<FLNPEnemyCrawlTag>()))
 			Bubble.MarkItemDirty(Item);
 	};
 

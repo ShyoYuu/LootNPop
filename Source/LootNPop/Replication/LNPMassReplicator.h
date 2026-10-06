@@ -16,10 +16,10 @@ namespace LNP::Replication
 	};
 	LOOTNPOP_API void ResetEnemyReplicationStats();
 	LOOTNPOP_API FEnemyReplicationStats GetEnemyReplicationStats();
-	/** 실제 버블 갱신 판정. true일 때 호출자가 MarkItemDirty한다. */
+	/** 실제 버블 갱신 판정. true일 때 호출자가 MarkItemDirty한다. bCrawl이면 몸 Up(회전 Z)을 법선 필드로 싣는다. */
 	LOOTNPOP_API bool UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTransform& Transform,
 		const FLNPEnemyFragment& Enemy, const FLNPEnemyActionFragment* Action,
-		const FLNPReplicatedWanderData& Segment, double Time, float UpdateInterval, bool bReplicateWander = true);
+		const FLNPReplicatedWanderData& Segment, double Time, float UpdateInterval, bool bReplicateWander = true, bool bCrawl = false);
 }
 
 /**

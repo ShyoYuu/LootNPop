@@ -48,6 +48,70 @@ namespace LNP::Replication
 	}
 
 	/**
+	 * 단위 벡터 → octahedral 16bit(성분당 8bit, 각 성분 1~255). **0은 "법선 없음"으로 예약한다** —
+	 * 지상·비행 적과 Player·LootPod은 0을 유지해 기존 구 접평면 기저를 쓴다.
+	 * 해상도는 최악 약 1.4°다. 벽보행 판정 캡슐은 구(HalfHeight = Radius)라 축 오차가 판정에 들어가지 않는다.
+	 */
+	inline uint16 EncodeOctNormal(const FVector& Normal)
+	{
+		const FVector N = Normal.GetSafeNormal();
+		const double L1 = FMath::Abs(N.X) + FMath::Abs(N.Y) + FMath::Abs(N.Z);
+		if (L1 <= UE_SMALL_NUMBER)
+			return 0;
+		double U = N.X / L1, V = N.Y / L1;
+		if (N.Z < 0.0)
+		{
+			const double FoldU = (1.0 - FMath::Abs(V)) * (U >= 0.0 ? 1.0 : -1.0);
+			V = (1.0 - FMath::Abs(U)) * (V >= 0.0 ? 1.0 : -1.0);
+			U = FoldU;
+		}
+		const uint16 BU = static_cast<uint16>(FMath::RoundToInt32(U * 127.0) + 128);
+		const uint16 BV = static_cast<uint16>(FMath::RoundToInt32(V * 127.0) + 128);
+		return static_cast<uint16>((BU << 8) | BV);
+	}
+
+	/** EncodeOctNormal의 역. 0이면 ZeroVector를 돌려준다. */
+	inline FVector DecodeOctNormal(const uint16 Encoded)
+	{
+		if (Encoded == 0)
+			return FVector::ZeroVector;
+		double U = (static_cast<int32>(Encoded >> 8) - 128) / 127.0;
+		double V = (static_cast<int32>(Encoded & 0xFF) - 128) / 127.0;
+		const double Z = 1.0 - FMath::Abs(U) - FMath::Abs(V);
+		if (Z < 0.0)
+		{
+			const double FoldU = (1.0 - FMath::Abs(V)) * (U >= 0.0 ? 1.0 : -1.0);
+			V = (1.0 - FMath::Abs(U)) * (V >= 0.0 ? 1.0 : -1.0);
+			U = FoldU;
+		}
+		return FVector(U, V, Z).GetSafeNormal();
+	}
+
+	/**
+	 * 복제 자세의 기저 — 법선이 있으면(벽보행) 그 법선을 Z로, 없으면 구 접평면 기저다.
+	 * 서버 인코드와 클라 디코드가 **같은 양자화 법선**으로 기저를 만들므로 `MakeFromZ`의 극점 전환이 양쪽에서 같다.
+	 */
+	inline FQuat MakeReplicatedBasis(const FVector& Position, const uint16 SurfaceNormal)
+	{
+		return SurfaceNormal != 0
+			? FRotationMatrix::MakeFromZ(DecodeOctNormal(SurfaceNormal)).ToQuat()
+			: MakeSphereTangentBasis(Position);
+	}
+
+	/** 서버: 월드 자세 → 복제 기저 기준 로컬 Yaw (라디안). */
+	inline float EncodeReplicatedLocalYaw(const FTransform& Transform, const uint16 SurfaceNormal)
+	{
+		const FQuat LocalRotation = MakeReplicatedBasis(Transform.GetLocation(), SurfaceNormal).Inverse() * Transform.GetRotation();
+		return static_cast<float>(FMath::DegreesToRadians(LocalRotation.Rotator().Yaw));
+	}
+
+	/** 클라이언트: 복제된 위치 + 법선 + 로컬 Yaw → 월드 자세. */
+	inline FQuat DecodeReplicatedRotation(const FVector& Position, const uint16 SurfaceNormal, const float LocalYaw)
+	{
+		return MakeReplicatedBasis(Position, SurfaceNormal) * FQuat(FVector::UpVector, LocalYaw);
+	}
+
+	/**
 	 * 복제 LOD 거리 경계(cm) — `ConfigureParams`가 `Params.LODDistance`에 싣는 값의 단일 진실.
 	 * 판정 쪽(`LNPHitDetection::GetInterpolationLagSeconds`)이 "이 대상이 클라이언트에서 몇 초
 	 * 간격으로 갱신되는가"를 되묻기 때문에 헤더로 올렸다 — 두 곳이 다른 값을 쓰면 조용히 어긋난다.
@@ -239,6 +303,16 @@ struct LOOTNPOP_API FLNPReplicatedAgent : public FReplicatedAgentBase
 	const FLNPReplicatedWanderData& GetWander() const { return Wander; }
 	void SetWander(const FLNPReplicatedWanderData& Value) { Wander = Value; }
 
+	/** 벽보행 적의 몸 Up(octahedral, `LNP::Replication::EncodeOctNormal`). 0이면 구 접평면 기저다. */
+	void SetSurfaceNormal(const uint16 InSurfaceNormal) { SurfaceNormal = InSurfaceNormal; }
+	uint16 GetSurfaceNormal() const { return SurfaceNormal; }
+
+	/** 복제 위치·법선·로컬 Yaw로 월드 자세를 복원한다. 서버 인코드와 같은 기저를 쓴다. */
+	FQuat DecodeRotation() const
+	{
+		return LNP::Replication::DecodeReplicatedRotation(PositionYaw.GetPosition(), SurfaceNormal, PositionYaw.GetYaw());
+	}
+
 	/**
 	 * 행동 3비트 + 전이 카운터 5비트. 인코딩이 이 구조체 안에서 닫혀야 서버 인코드와 클라 디코드가 갈리지 않는다.
 	 *
@@ -294,6 +368,16 @@ private:
 	/** 구간 중 불변인 형제 필드. HP·행동 갱신이 구간 위치를 다시 보내지 않게 한다. */
 	UPROPERTY(Transient)
 	FLNPReplicatedWanderData Wander;
+
+	/**
+	 * 벽보행 적의 몸 Up(= 엔티티 회전 Z)을 octahedral 16bit로 싣는다. `PositionYaw.Yaw`는 이 법선 기저의 로컬 Yaw다.
+	 * 지상·비행 적은 항상 0이라 델타 압축이 1비트로 접고(`ActionAndSeq`와 같은 이유로 형제 멤버다),
+	 * 벽보행 적도 표면을 갈아탈 때만 바뀐다.
+	 *
+	 * 이 필드가 없으면 게스트가 벽·천장의 벽보행 적을 구 중심 Up으로 복원해 벽에 수직으로 서 있는 것처럼 그린다.
+	 */
+	UPROPERTY(Transient)
+	uint16 SurfaceNormal = 0;
 
 	/**
 	 * ⚠️ **`PositionYaw`의 형제 멤버로 둔다 — 그 안에 중첩하지 않는다.**
@@ -428,14 +512,14 @@ protected:
 	// 이 경로가 안 도는 것처럼 보였던 2026-08-20 버그의 원인은 여기가 아니라 서버 쪽이었다
 	// (파괴 옵저버 누락 → ULNPMassSpawnSubsystem::RestoreServerOnlyMassObservers 참조).
 
-	/** 복제 페이로드(위치 + 접평면 로컬 Yaw)를 Transform Fragment에 즉시 반영한다. 스케일은 보존한다. */
-	static void ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FLNPReplicatedPositionYawData& PositionYaw);
+	/** 복제 페이로드(위치 + 법선 + 로컬 Yaw)를 Transform Fragment에 즉시 반영한다. 스케일은 보존한다. */
+	static void ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FLNPReplicatedAgent& Agent);
 
 	/**
 	 * 수신 페이로드를 보간 목표로 적재한다 (Transform은 건드리지 않는다 — 프로세서가 매 프레임 채운다).
 	 * 보간 Fragment가 없는 아키타입(Player·LootPod)은 즉시 반영으로 폴백한다.
 	 */
-	static void PushSmoothingTarget(const FMassEntityView& EntityView, const FLNPReplicatedPositionYawData& PositionYaw);
+	static void PushSmoothingTarget(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent);
 	static void ApplyMovementData(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent);
 
 	/**

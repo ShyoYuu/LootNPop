@@ -130,3 +130,19 @@
 - Build.bat 전체 빌드 성공. 관련 자동화 34/34 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit2e_Tests.log`): SurfaceCrawl 4종과 단위 1의 30개.
 - 검증 옥탄트 PIE(같은 메모리 pool 교체 방식, 디스크 pool 해시 원본 일치): 이전에는 돌출부·판을 한 마리도 넘어오지 못했지만, 이번에는 전부는 아니어도 일부가 우회해 넘어오는 것을 사용자가 확인했다.
 - 단위 2를 완료한다.
+
+## 2026-10-06 — 단위 3: 법선 복제
+
+### 구현
+
+- `FLNPReplicatedAgent::SurfaceNormal`(uint16 형제 필드, octahedral 8+8bit, 0 = 법선 없음 예약). 벽보행(`FLNPEnemyCrawlTag`) 개체만 회전 Z를 싣고, Yaw는 양자화 법선의 `MakeFromZ` 기저로 인코딩한다(`LNP::Replication::EncodeReplicatedLocalYaw`·`DecodeReplicatedRotation`). 지상·비행·Player·LootPod은 0을 유지해 기존 구 접평면 디코드와 같다.
+- 클라이언트 `ApplyReplicatedTransform`·`PushSmoothingTarget`이 agent 전체를 받아 `DecodeRotation()`으로 복원한다. 기존 Slerp가 법선 변화를 보간한다.
+- `UpdateEnemyAgent`에 `bCrawl` 인자: 법선 코드 변경은 자세 변경이며 Yaw를 다시 쓴다. 주기 게이트는 유지한다.
+- 위치 이력 기록 프로세서가 벽보행 이동 프로세서 뒤에 돈다.
+- 계획 변경: 위치 이력의 Up 기록은 하지 않았다. 벽보행 판정 캡슐이 구(HalfHeight = Radius)라 `SegmentHitsCapsule`의 축 길이가 0이고 Up이 판정에 들어가지 않는다.
+
+### 검증
+
+- Build.bat 전체 빌드 성공. 관련 자동화 36/36 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit3_Tests.log`): 신규 `SurfaceCrawl.Replication.NormalCodec`(구면 격자 최대 오차 0.902°, 0 코드 미사용, 벽·지면·천장·극점 자세 Up·전방 복원 1.5° 미만, 지상은 기존 구 디코드와 동일)·`PoseDirty`(지상 정지 Dirty 없음·법선 0 유지, 같은 벽 회전은 법선 코드 유지, 표면 전환은 주기 게이트 뒤 갱신)와 기존 34개.
+- 리슨 2P PIE(검증 옥탄트, 같은 메모리 pool 교체 방식, 디스크 pool 해시 원본 일치, 벽보행 360기 부족분 0): 게스트 화면에서 벽면·판 밑면 이동과 모서리 통과 중 개체가 표면에 자연스럽게 붙어 있고 호스트와 자세가 일치함을 사용자가 확인했다. PIE 클라이언트 수는 확인 뒤 1로 되돌렸다.
+- 단위 3을 완료한다.

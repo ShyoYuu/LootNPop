@@ -125,7 +125,7 @@ bool FLNPWanderClientTest::RunTest(const FString& Parameters)
 	Agent.SetWander(FlightData());
 	Agent.SetHealthPct(MAX_uint8);
 	// PostReplicatedAdd가 쓰는 초기 자세와 구간, PostReplicatedChange가 쓰는 실제 수신 helper를 소비한다.
-	FLNPMassClientBubbleHandler::ApplyReplicatedTransform(View.GetFragmentData<FTransformFragment>(), Agent.GetReplicatedPositionYawData());
+	FLNPMassClientBubbleHandler::ApplyReplicatedTransform(View.GetFragmentData<FTransformFragment>(), Agent);
 	FLNPMassClientBubbleHandler::ApplyMovementData(View, Agent);
 	FLNPMassClientBubbleHandler::ApplyReplicatedAction(View, Agent, true);
 	auto* Processor = NewObject<ULNPMassSmoothingProcessor>(World);

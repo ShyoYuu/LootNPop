@@ -16,6 +16,7 @@ ULNPPositionHistoryRecordProcessor::ULNPPositionHistoryRecordProcessor()
 	ProcessingPhase = EMassProcessingPhase::PrePhysics;
 	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEnemyMovementProcessor"));
 	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEnemyFlightMovementProcessor"));
+	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEnemyCrawlMovementProcessor"));
 }
 
 void ULNPPositionHistoryRecordProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)

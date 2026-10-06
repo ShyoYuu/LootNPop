@@ -66,14 +66,14 @@ namespace
 	constexpr float MaxSmoothingDuration = 0.5f;
 }
 
-void FLNPMassClientBubbleHandler::ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FLNPReplicatedPositionYawData& PositionYaw)
+void FLNPMassClientBubbleHandler::ApplyReplicatedTransform(FTransformFragment& TransformFragment, const FLNPReplicatedAgent& Agent)
 {
 	FTransform& Transform = TransformFragment.GetMutableTransform();
-	Transform.SetLocation(PositionYaw.GetPosition());
-	Transform.SetRotation(LNP::Replication::DecodeSphereRotation(PositionYaw.GetPosition(), PositionYaw.GetYaw()));
+	Transform.SetLocation(Agent.GetReplicatedPositionYawData().GetPosition());
+	Transform.SetRotation(Agent.DecodeRotation());
 }
 
-void FLNPMassClientBubbleHandler::PushSmoothingTarget(const FMassEntityView& EntityView, const FLNPReplicatedPositionYawData& PositionYaw)
+void FLNPMassClientBubbleHandler::PushSmoothingTarget(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent)
 {
 	FTransformFragment& TransformFragment = EntityView.GetFragmentData<FTransformFragment>();
 	FLNPReplicatedMovementFragment* Movement = EntityView.GetFragmentDataPtr<FLNPReplicatedMovementFragment>();
@@ -81,15 +81,15 @@ void FLNPMassClientBubbleHandler::PushSmoothingTarget(const FMassEntityView& Ent
 	{
 		// 보간 대상이 아닌 아키타입(Player·LootPod) — 애초에 갱신을 싣지 않으므로 여기 오지 않지만,
 		// 페이로드 구성이 바뀌어도 위치가 유실되지 않도록 즉시 반영으로 폴백한다.
-		ApplyReplicatedTransform(TransformFragment, PositionYaw);
+		ApplyReplicatedTransform(TransformFragment, Agent);
 		return;
 	}
 
 	const FTransform& Current = TransformFragment.GetTransform();
 	Movement->SourcePosition = Current.GetLocation();
 	Movement->SourceRotation = Current.GetRotation();
-	Movement->TargetPosition = PositionYaw.GetPosition();
-	Movement->TargetRotation = LNP::Replication::DecodeSphereRotation(PositionYaw.GetPosition(), PositionYaw.GetYaw());
+	Movement->TargetPosition = Agent.GetReplicatedPositionYawData().GetPosition();
+	Movement->TargetRotation = Agent.DecodeRotation();
 	Movement->BlendDuration = FMath::Clamp(Movement->TimeSinceUpdate, MinSmoothingDuration, MaxSmoothingDuration);
 	Movement->TimeSinceUpdate = 0.f;
 }
@@ -107,7 +107,7 @@ void FLNPMassClientBubbleHandler::ApplyMovementData(const FMassEntityView& Entit
 		Movement->Wander = FLNPReplicatedWanderData();
 		Movement->TimeSinceUpdate = MinSmoothingDuration;
 	}
-	PushSmoothingTarget(EntityView, Agent.GetReplicatedPositionYawData());
+	PushSmoothingTarget(EntityView, Agent);
 }
 
 void FLNPMassClientBubbleHandler::ApplyReplicatedAction(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent, const bool bIsInitialSpawn)
@@ -165,7 +165,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 	{
 		// 스폰 시점 위치/자세 반영 — 퍼펫 링크 타입은 이 Transform으로 Actor 위치가 초기화된다.
 		FTransformFragment& TransformFragment = SpawnTransformList[EntityIdx];
-		ApplyReplicatedTransform(TransformFragment, ReplicatedEntity.GetReplicatedPositionYawData());
+		ApplyReplicatedTransform(TransformFragment, ReplicatedEntity);
 
 		// 첫 프레임은 보간 없이 스폰 위치에 고정한다 (BlendDuration = 0 → Alpha = 1).
 		// 여기서 초기화하지 않으면 목표가 원점이라 스폰 직후 월드 중심으로 끌려간다.
