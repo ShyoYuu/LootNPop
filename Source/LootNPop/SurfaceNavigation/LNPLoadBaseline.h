@@ -18,6 +18,7 @@ class ULNPMassWorldCollisionSubsystem;
  * 켜는 방법은 실행 인자 하나다. 스폰은 월드 개시 직후 한 번뿐이라 콘솔로는 늦다(LNP.Spawn.EnemyDensity와 같은 이유).
  *     -LNPLoadBaseline=300        지상 적 수. 비행 수와 함께 0이거나 없으면 harness 전체가 no-op이다
  *     -LNPLoadBaselineFlyers=100  비행 적 수(기본 0, Phase03c §3.8)
+ *     -LNPLoadBaselineCrawlers=100  벽보행 적 수(기본 0, SurfaceSupportNavigation Phase 14 단위 6)
  *     -LNPLoadBaselineSeed=1      적 배치 seed(기본 1). Pod 배치 seed도 이 값으로 고정된다
  *     -LNPLoadBaselinePlayers=2   서버가 capture를 시작하기 전에 기다리는 플레이어 수(기본 2)
  *     -LNPLoadBaselineProjectiles=500  유지할 전체 발사체 수(기본 500). 요인 분리용 대조 실행에서만 바꾼다
@@ -38,10 +39,12 @@ class ULNPMassWorldCollisionSubsystem;
  *   10마리 중 1마리가 ActorPromoted, 나머지는 PureEntity 근접·원거리 반반이다. 세력권 중심은 링 중심이다.
  * - 비행 적: 같은 방식의 두 번째 링(다른 seed)의 지면점에서 스폰 규약대로 배회 고도 하한까지 띄운다. Home은 링 중심(섬 가장자리 아래 지각)이라
  *   배회·교전 경로가 섬 밑면·측벽 사이를 지난다. 합성 넉백·분포·이동 이벤트는 지상 개념이라 비행 적을 세지 않는다.
+ * - 벽보행 적: 세 번째 링(다른 seed)의 지면점에 지상 적처럼 둔다(10%는 섬 윗면). 지상 분포·이동 이벤트에서 빼고,
+ *   합성 넉백은 같은 빈도·세기로 주되 방향은 표면 법선 기준이다. 표면 방향 분포(바닥·벽·천장·공중)와 이동 누계를 따로 남긴다.
  * - 플레이어: 준비가 끝나면 서버가 모든 플레이어를 링 중심에 다시 스폰한다(Mover 텔레포트는 게스트에 전달되지 않는다). 적이 추격·공격하고 Actor로 승격되는 부하를 유지하고,
  *   섬 위 적이 가장자리 아래 플레이어를 쫓다가 떨어지게 한다. 지상 적이 0이고 비행 적만 있으면 링 중심 쪽 큰 섬 가장자리에서 500cm 안쪽
  *   윗면에 스폰한다 — Home의 시야·세력권 안이라 비행 적이 교전하고, 섬 밑에서 가장자리를 돌아 올라가야 쏠 수 있다(Phase03c §3.8).
- *   혼합 실행은 지상 기준선과 비교하려고 링 중심을 유지한다.
+ *   혼합 실행과 벽보행이 있는 실행은 링 중심을 유지한다.
  * - 투사체: 서버가 실제 원거리 적 DA의 무기 값으로 발사체를 채워 전체 수를 500발로 유지한다. PureEntity 원거리 적이 쏜
  *   발사체도 전체 수에 들어간다. 주입분은 Multicast를 하지 않아 게스트 Ghost 비용은 자연 발사분만 포함한다.
  * - 합성 넉백: 서버가 접지한 PureEntity 적마다 평균 10초에 한 번 고정 세기 넉백을 준다. 섬 위 적은 섬 중심 반대쪽으로 민다.
@@ -59,7 +62,9 @@ namespace LNPLoadBaseline
 	LOOTNPOP_API int32 GetEnemyCount();
 	/** 모든 스레드. 실행 인자의 비행 적 수. */
 	LOOTNPOP_API int32 GetFlyerCount();
-	/** 모든 스레드. 지상·비행 적 수의 합이 0이면 harness가 꺼져 있다. */
+	/** 모든 스레드. 실행 인자의 벽보행 적 수. */
+	LOOTNPOP_API int32 GetCrawlerCount();
+	/** 모든 스레드. 지상·비행·벽보행 적 수의 합이 0이면(Production 제외) harness가 꺼져 있다. */
 	LOOTNPOP_API bool IsActive();
 	LOOTNPOP_API bool IsProduction();
 	LOOTNPOP_API bool IsWanderObservation();
@@ -94,8 +99,13 @@ namespace LNPLoadBaseline
 	/** 게임 스레드. 비행 적 Mass entity config. 없으면 nullptr. */
 	UMassEntityConfigAsset* LoadFlyerEntityConfig();
 
+	/** 게임 스레드. 벽보행 적 Mass entity config. 없으면 nullptr. */
+	UMassEntityConfigAsset* LoadCrawlerEntityConfig();
+
 	/** 비행 적 링 배치 seed = 적 seed + 이 값. 지상 링과 자리가 겹치지 않게 한다. */
 	inline constexpr int32 FlyerSeedOffset = 7919;
+	/** 벽보행 적 링 배치 seed = 적 seed + 이 값. */
+	inline constexpr int32 CrawlerSeedOffset = 15485;
 
 	/** 모든 스레드. 링 중심(큰 섬 가장자리 아래 지각)의 발밑 위치. exact probe가 지각을 못 찾으면 false. */
 	bool FindRingCenter(const ULNPMassWorldCollisionSubsystem& Collision, FVector& OutCenter);
@@ -134,7 +144,10 @@ private:
 
 	/** 서버. 합성 넉백을 주고 적 이동 이벤트·분포를 센다. bCount가 false면 상태만 갱신한다(warm-up). */
 	void DriveEnemies(float DeltaTime, bool bCount);
-	/** 서버. 관통 검출 CVar가 켜져 있으면 살아 있는 비행 적 캡슐이 exact 지형과 겹치는지 본다. */
+	void InitCrawlerQuery();
+	/** 서버. 벽보행 적에 합성 넉백을 주고 표면 방향 분포를 센다. bCount가 false면 분포만 갱신한다(warm-up). */
+	void DriveCrawlers(float DeltaTime, bool bCount);
+	/** 서버. 관통 검출 CVar가 켜져 있으면 살아 있는 비행·벽보행 적 캡슐이 exact 지형과 겹치는지 본다. */
 	void CheckFlyerPenetration();
 	void SampleFrame();
 	void SampleActivity();
@@ -149,6 +162,8 @@ private:
 	FMassEntityQuery EnemyQuery;
 	/** 살아 있는 비행 적. */
 	FMassEntityQuery FlyerQuery;
+	/** 살아 있는 벽보행 적. */
+	FMassEntityQuery CrawlerQuery;
 	FMassEntityQuery ActivityQuery;
 	uint32 CaptureStartReceivedBytes = 0;
 	FRandomStream ProjectileStream;
@@ -173,12 +188,33 @@ private:
 	int32 PenetrationFrames = 0;
 	int32 PenetrationEntityFrames = 0;
 	int32 PenetrationCheckedFrames = 0;
-	/** 관통 진단을 켠 실행에서 최초 실패 개체 최대 16개의 상세 로그만 남긴다. */
+	/** 서버. 벽보행 적의 같은 관통 검출 결과. */
+	int32 CrawlerPenetrationFrames = 0;
+	int32 CrawlerPenetrationEntityFrames = 0;
+	/** 서버. 깊이가 허용치 이하인 벽보행 시작 겹침(옆 프랍 접촉) 개체·틱 합계. 관통으로 세지 않는다. */
+	int32 CrawlerContactEntityFrames = 0;
+	/** 관통 진단을 켠 실행에서 최초 실패 개체 최대 16개의 상세 로그만 남긴다(비행·벽보행 합산). */
 	TSet<FMassEntityHandle> LoggedPenetratingFlyers;
 
 	/** 서버. 비행 적 행동 상태(ELNPTargetingState: None·Alert·Confirmed)별 1초 표본 합과 표본 수. */
 	int64 FlyerStateSums[3] = {};
 	int32 FlyerStateSampleCount = 0;
+	/** 서버. 벽보행 적의 같은 상태 표본. */
+	int64 CrawlerStateSums[3] = {};
+	int32 CrawlerStateSampleCount = 0;
+
+	/** 서버. 벽보행 적의 표면 방향 분포(마지막 DriveCrawlers 호출 기준). 법선과 구 중심 Up의 내적으로 가른다. */
+	struct FCrawlerPopulation
+	{
+		int32 Floor = 0;
+		int32 Wall = 0;
+		int32 Ceiling = 0;
+		int32 Airborne = 0;
+	};
+	FCrawlerPopulation CrawlerPopulation;
+	FCrawlerPopulation CaptureStartCrawlerPopulation;
+	/** 서버. capture 구간 벽보행 합성 넉백 수. */
+	int32 CrawlerKnockbacks = 0;
 
 	/** capture 표본(프레임당). 프레임 시간은 0.01ms 단위, exact·락은 ns, 나머지는 개수. */
 	TArray<uint64> FrameMs100;

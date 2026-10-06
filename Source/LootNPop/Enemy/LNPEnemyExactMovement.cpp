@@ -204,7 +204,7 @@ namespace LNPEnemyExactMovement
 
 	bool StepAirborne(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Location, FVector& InOutVelocity, const float DeltaTime, FVector& OutLocation,
-		FLNPExactHitIdentity* OutSurfaceIdentity)
+		FLNPExactHitIdentity* OutSurfaceIdentity, FVector* OutLandingNormal)
 	{
 		if (OutSurfaceIdentity != nullptr)
 		{
@@ -255,9 +255,15 @@ namespace LNPEnemyExactMovement
 		const FVector HitUp = UpAt(Params, Hit.Location);
 		const bool bWalkable = FVector::DotProduct(Hit.ImpactNormal, HitUp) >= Params.WalkableMinDot;
 		const bool bSupport = Hit.Identity.IsKnown() && (Hit.Identity.Roles & ELNPExactSourceRole::Support) != 0;
-		if (bWalkable && bSupport)
+		const bool bSolid = Hit.Identity.IsKnown()
+			&& (Hit.Identity.Roles & (ELNPExactSourceRole::Support | ELNPExactSourceRole::Blocker)) != 0;
+		if (Params.bLandOnAnyKnownSolid ? bSolid : (bWalkable && bSupport))
 		{
 			InOutVelocity = FVector::ZeroVector;
+			if (OutLandingNormal != nullptr)
+			{
+				*OutLandingNormal = Hit.ImpactNormal;
+			}
 			if (OutSurfaceIdentity != nullptr)
 			{
 				*OutSurfaceIdentity = Hit.Identity;

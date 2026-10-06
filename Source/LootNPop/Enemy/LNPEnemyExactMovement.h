@@ -41,6 +41,12 @@ namespace LNPEnemyExactMovement
 
 		/** false면 수평 sweep을 생략하고 목표로 바로 옮긴다(측정 요인 분리용). */
 		bool bLateralSweep = true;
+
+		/**
+		 * StepAirborne 전용. true면 walkable·Support 여부를 보지 않고 Known이며 Support나 Blocker 역할이 있는 hit에 착지한다.
+		 * 벽보행(D-066 — 넉백 낙하로 어디든 착지)이 쓴다. 지상 적은 false다.
+		 */
+		bool bLandOnAnyKnownSolid = false;
 	};
 
 	enum class EGroundResult : uint8
@@ -78,13 +84,14 @@ namespace LNPEnemyExactMovement
 
 	/**
 	 * 공중 상태 한 프레임. 중력을 적분하고 이전→제안 위치 capsule sweep의 earliest hit를 쓴다.
-	 * walkable Support hit면 착지해 InOutVelocity를 0으로 만들고 true를 돌려준다.
+	 * walkable Support hit면(bLandOnAnyKnownSolid면 Known Support·Blocker hit면) 착지해 InOutVelocity를 0으로 만들고 true를 돌려준다.
+	 * OutLandingNormal은 착지한 hit의 면 법선이다(착지하지 않으면 바꾸지 않는다).
 	 * 그 밖의 hit(측벽·밑면·Blocker·Unknown)는 속도의 법선 성분을 지우고 미끄러진다. 속도는 0이 되지 않는다.
 	 * query: capsule sweep 1회(시작부터 겹쳐 있으면 겹침을 풀고 1회 추가).
 	 */
 	LOOTNPOP_API bool StepAirborne(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Location, FVector& InOutVelocity, float DeltaTime, FVector& OutLocation,
-		FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
+		FLNPExactHitIdentity* OutSurfaceIdentity = nullptr, FVector* OutLandingNormal = nullptr);
 
 	/**
 	 * 배회 목표 재투영. Direction 방향, 기준 위치와 같은 반지름의 점에서 위아래 Reach만큼 지지면을 찾는다.

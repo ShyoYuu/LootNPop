@@ -352,6 +352,7 @@ void ULNPDynamicTerrainSubsystem::Publish()
 		Support.CurrentTransform = Panel->GetActorTransform();
 		Support.LinearVelocity = Panel->GetLinearVelocity();
 		Support.bWalkable = true; // LNPDynamicTerrain = Support+Blocker
+		Support.ActorId = Panel->GetUniqueID();
 	}
 
 	for (int32 Index = StatefulElements.Num() - 1; Index >= 0; --Index)
@@ -359,7 +360,7 @@ void ULNPDynamicTerrainSubsystem::Publish()
 		const ALNPStatefulTerrain* Terrain = StatefulElements[Index].Get();
 		if (!Terrain) { StatefulElements.RemoveAtSwap(Index); continue; }
 		FLNPDynamicSupportSnapshot Support;
-		if (Terrain->GetDynamicSupport(Support)) { NewFrame->Supports.Add(Support); }
+		if (Terrain->GetDynamicSupport(Support)) { Support.ActorId = Terrain->GetUniqueID(); NewFrame->Supports.Add(Support); }
 	}
 	Frame = NewFrame;
 }

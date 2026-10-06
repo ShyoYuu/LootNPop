@@ -6,6 +6,8 @@
 
 class ULNPMassWorldCollisionSubsystem;
 struct FLNPExactHitIdentity;
+struct FLNPDynamicSupportFrame;
+struct FLNPEnemyDynamicSupportContact;
 
 /**
  * 벽보행 개체의 wall-walker 한 프레임(D-066, SurfaceSupportNavigation Phase 14 단위 2).
@@ -38,10 +40,18 @@ namespace LNPSurfaceCrawl
 	{
 		/** 표면에 붙어 있다(이동했거나 제자리). */
 		Attached,
-		/** 앞이 Unknown이거나 지지 hit가 Unknown이라 움직이지 않았다. 표면은 그대로다. */
+		/**
+		 * 앞이 Unknown이거나 지지 hit가 Unknown이라 움직이지 않았다. 표면은 그대로다.
+		 * 낮은 틈에서 이동 결과가 법선 쪽 면에 겹쳐도 전진하지 않고 Blocked다 — 이때만 겹침 해소로 위치가 조금 바뀔 수 있다.
+		 */
 		Blocked,
 		/** 이동 끝에 붙을 표면이 없다. 호출자가 공중으로 넘긴다. */
 		Lost,
+		/**
+		 * 겹침을 풀 수 없고 겹친 면 중에 움직이는 지형(Dynamic 수명주기, 패널)이 있다 — 패널과 다른 면 사이에 끼었다.
+		 * 위치는 그대로다. 호출자가 압사 처리한다(체력 0, 사망 경로). Phase 14 단위 6e, 사용자 결정 2026-10-06.
+		 */
+		Crushed,
 	};
 
 	/**
@@ -153,17 +163,53 @@ namespace LNPSurfaceCrawl
 	 * - 속도가 0이면 query 없이 제자리다.
 	 * query: 정지 0회, 이동 2회(접평면 sweep + probe). 오목 모서리 +1(내려앉기), 감싸기 +1, 띄운 시작점이 천장에 겹치면 +1.
 	 * OutNormal은 Attached일 때만 바뀐다. 그 밖에는 입력 Normal 그대로다.
+	 * OutSurfaceIdentity: 이번 이동으로 새로 붙은 면의 hit identity. 붙을 면을 새로 찾지 않은 프레임(정지·겹침 해소·막힘·상실)에는
+	 * 바꾸지 않는다 — 호출자가 Unknown으로 초기화해 두면 "새 면 없음"으로 읽는다. 동적 지지면 운반 접촉에 쓴다.
+	 * 시작 겹침을 풀지 못하면(Depenetrate 실패) 제자리에 둔다. 마지막으로 민 자리는 다른 면 안일 수 있다.
 	 */
 	LOOTNPOP_API EStepResult Step(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Location, const FVector& Normal, const FVector& Velocity, float DeltaTime,
-		FVector& OutLocation, FVector& OutNormal);
+		FVector& OutLocation, FVector& OutNormal, FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
 
 	/**
 	 * 제자리에서 표면을 찾아 붙는다(스폰·착지 직후처럼 법선을 모를 때). SearchDirection 쪽으로 StepDown + Reach만큼 probe한다.
 	 * 찾으면 위치·법선을 붙은 자리로 바꾸고 true. query 1회.
 	 */
 	LOOTNPOP_API bool Attach(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
-		const FVector& Location, const FVector& SearchDirection, float Reach, FVector& OutLocation, FVector& OutNormal);
+		const FVector& Location, const FVector& SearchDirection, float Reach, FVector& OutLocation, FVector& OutNormal,
+		FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
+
+	/**
+	 * 움직이는 지지면(패널, D-013) 위의 벽보행 개체를 이번 프레임 패널 자세로 옮긴다. 지상 적과 같은 로컬 접촉
+	 * (LNPEnemySurfaceMovement::ApplyDynamicSupportDelta)을 쓰고, 패널이 돈 만큼 표면 법선도 같이 돌린다.
+	 * 패널이 snapshot에서 사라지거나 비보행이 되면 false — 호출자가 접촉을 비우고 마지막 패널 속도로 공중에 넘긴다.
+	 * query 없음.
+	 */
+	LOOTNPOP_API bool CarryOnDynamicSupport(const FLNPDynamicSupportFrame& DynamicFrame, FLNPEnemyDynamicSupportContact& InOutContact,
+		FTransform& InOutTransform, FVector& InOutNormal);
+
+	/**
+	 * 몸 구가 지형과 겹쳐 있으면 밀어낸다. 한 면에서 밀어낸 자리가 다른 면(프랍 사이 주머니·구석)에 들어갈 수 있으므로
+	 * 밀어낸 뒤 다시 검사하며 최대 8회 반복한다(Phase 14 단위 6b 실측). 직전에 민 방향과 마주 보는 면에 걸리면 두 방향의
+	 * 이등분(주머니 출구 쪽)으로 민다. 민 자리의 겹침이 줄지 않으면 법선이 뒤집혀 보고된 것으로 보고 반대로 민다
+	 * (Chaos trimesh 뒷면 법선, 단위 6e 실측). 겹치지 않으면 OutLocation = Location.
+	 * 끝내 빠져나오면 true. query: 겹치지 않으면 1회, 반복마다 1~2회.
+	 * ProbeDirection: 겹침 검사 sweep 방향. Chaos trimesh는 멀어지는 방향의 얕은 시작 겹침을 보고하지 않으므로(단위 6e 실측)
+	 * 의심되는 면 쪽을 넘긴다.
+	 * SupportNormal: 붙어 있는 면의 법선(0이면 제한 없음). 이 면 안쪽(법선 반대쪽)으로 미는 해소는 실패로 본다 — 위에서 덮치는 패널을
+	 * 피해 지지면 쪽으로 밀면 매 틱 조금씩 파고들다 면을 넘는 순간 법선이 뒤집혀 반대편으로 "빠져나온다"(단위 6e 자동화 실측).
+	 */
+	LOOTNPOP_API bool Depenetrate(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Location, FVector& OutLocation, const FVector& ProbeDirection = FVector::UpVector,
+		bool* bOutTouchedDynamic = nullptr, const FVector& SupportNormal = FVector::ZeroVector);
+
+	/**
+	 * 정지한 개체의 제자리 겹침 해소. Step은 이동량이 없으면 query를 하지 않으므로, 움직이는 지형이 정지 개체를 덮칠 수 있는
+	 * 곳(호출자가 패널 근처로 거른다)에서만 부른다. 겹치지 않으면 Attached(제자리), 풀면 Attached(새 위치), 풀 수 없으면
+	 * Dynamic 겹침이 있을 때 Crushed, 아니면 Blocked(제자리). query: 겹치지 않으면 1회.
+	 */
+	LOOTNPOP_API EStepResult ResolveStationaryOverlap(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Location, const FVector& Normal, FVector& OutLocation);
 
 	/**
 	 * 구간 배회(D-068, Phase 14 단위 4e) 한 구간을 생성할 때 한 번 검증한다. 구간은 Start에서 Goal까지 법선이 고정된 평면 위의 직선이고,

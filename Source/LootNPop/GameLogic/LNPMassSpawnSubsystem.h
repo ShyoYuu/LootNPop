@@ -113,6 +113,9 @@ protected:
 	/** 비행 스폰 시작 겹침을 해소하고 고도/천장 여유를 확보한다. 안전한 여유 구를 둘 수 없으면 실패한다. */
 	bool TryLiftFlyingSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint, FVector& OutLocation) const;
 
+	/** 벽보행 스폰의 시작 겹침을 해소하고 발밑 표면에 붙인다. 겹침을 풀 수 없으면 실패한다. OutNormal은 붙은 면 법선(못 붙으면 Up). */
+	bool TrySettleCrawlSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint, FVector& OutLocation, FVector& OutNormal) const;
+
 private:
 	/**
 	 * 월드 초기화 시점의 넷 모드 오판(-game 리슨 서버는 그때 NM_Standalone)으로 걸러진

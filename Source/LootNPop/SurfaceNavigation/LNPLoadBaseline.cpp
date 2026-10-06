@@ -19,6 +19,7 @@
 #include "SurfaceNavigation/LNPNavGraph.h"
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemyFlightMovementProcessor.h"
+#include "Enemy/LNPEnemyCrawlMovementProcessor.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
@@ -30,6 +31,10 @@
 #include "Engine/NetDriver.h"
 #include "Engine/NetConnection.h"
 #include "Replication/LNPMassReplicator.h"
+#include "LNPMassUtils.h"
+#include "SurfaceNavigation/LNPCollisionChannels.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/OverlapResult.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
@@ -195,6 +200,7 @@ namespace
 	static_assert(UE_ARRAY_COUNT(EnemyEntityConfigPaths) == static_cast<int32>(LNPLoadBaseline::EEnemyKind::Count));
 
 	const TCHAR* FlyerEntityConfigPath = TEXT("/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01");
+	const TCHAR* CrawlerEntityConfigPath = TEXT("/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01");
 
 	int32 GFlightPenetrationCheck = 0;
 	FAutoConsoleVariableRef CVarFlightPenetrationCheck(
@@ -300,6 +306,17 @@ int32 LNPLoadBaseline::GetFlyerCount()
 	return Count;
 }
 
+int32 LNPLoadBaseline::GetCrawlerCount()
+{
+	static const int32 Count = []()
+	{
+		int32 Value = 0;
+		FParse::Value(FCommandLine::Get(), TEXT("LNPLoadBaselineCrawlers="), Value);
+		return FMath::Max(0, Value);
+	}();
+	return Count;
+}
+
 bool LNPLoadBaseline::IsSyntheticChase()
 {
 	static const bool bEnabled = FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineChase"));
@@ -323,7 +340,7 @@ bool ULNPLoadBaselineSubsystem::GetSyntheticChaseGoal(const int32 OwnerIndex, FV
 
 bool LNPLoadBaseline::IsActive()
 {
-	return IsProduction() || GetEnemyCount() + GetFlyerCount() > 0;
+	return IsProduction() || GetEnemyCount() + GetFlyerCount() + GetCrawlerCount() > 0;
 }
 
 bool LNPLoadBaseline::IsProduction()
@@ -394,6 +411,11 @@ UMassEntityConfigAsset* LNPLoadBaseline::LoadFlyerEntityConfig()
 	return LoadObject<UMassEntityConfigAsset>(nullptr, FlyerEntityConfigPath);
 }
 
+UMassEntityConfigAsset* LNPLoadBaseline::LoadCrawlerEntityConfig()
+{
+	return LoadObject<UMassEntityConfigAsset>(nullptr, CrawlerEntityConfigPath);
+}
+
 namespace
 {
 	/** Direction 주변 [StartRadius, EndRadius] 층의 발밑 위치. 바위 같은 Blocker 전용 프랍이 있을 수 있어 나선으로 찍어 첫 지지면을 쓴다(결정론적). */
@@ -421,7 +443,7 @@ namespace
 	/** 비행 적만 있는 실행은 플레이어를 큰 섬 윗면에 둔다(LNPLoadBaseline.h). */
 	bool ArePlayersOnIsland()
 	{
-		return LNPLoadBaseline::GetEnemyCount() == 0 && LNPLoadBaseline::GetFlyerCount() > 0;
+		return LNPLoadBaseline::GetEnemyCount() == 0 && LNPLoadBaseline::GetCrawlerCount() == 0 && LNPLoadBaseline::GetFlyerCount() > 0;
 	}
 }
 
@@ -569,9 +591,9 @@ void ULNPLoadBaselineSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	ProjectileStream.Initialize(LNPLoadBaseline::GetSeed());
 	KnockbackStream.Initialize(LNPLoadBaseline::GetSeed() + 1);
 
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Active: enemies=%d flyers=%d seed=%d expectedPlayers=%d projectiles=%d world=%s"),
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Active: enemies=%d flyers=%d seed=%d expectedPlayers=%d projectiles=%d world=%s crawlers=%d"),
 		LNPLoadBaseline::GetEnemyCount(), LNPLoadBaseline::GetFlyerCount(), LNPLoadBaseline::GetSeed(), ParseExpectedPlayers(),
-		LNPLoadBaseline::GetTargetProjectiles(), *GetWorld()->GetName());
+		LNPLoadBaseline::GetTargetProjectiles(), *GetWorld()->GetName(), LNPLoadBaseline::GetCrawlerCount());
 }
 
 bool ULNPLoadBaselineSubsystem::IsReadyToMeasure() const
@@ -716,7 +738,10 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 	{
 		TopUpProjectiles();
 		if (!LNPLoadBaseline::IsProduction())
+		{
 			DriveEnemies(DeltaTime, Stage == EStage::Capture);
+			DriveCrawlers(DeltaTime, Stage == EStage::Capture);
+		}
 		if (Stage == EStage::Capture)
 		{
 			CheckFlyerPenetration();
@@ -735,6 +760,7 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		StartUnknownHits = Collision->GetUnknownHitCount();
 		StartEnvelopeEscapes = Collision->GetEnvelopeEscapeCount();
 		LNPEnemyFlightStats::Reset();
+		LNPSurfaceCrawlStats::Reset();
 		LNPEnemySurfaceMovement::ResetGroundStats();
 		NextActorSampleTime = Now;
 		if (World->GetNetMode() != NM_Client)
@@ -742,6 +768,7 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 		if (const UNetDriver* Driver = World->GetNetDriver(); Driver && Driver->ServerConnection)
 			CaptureStartReceivedBytes = static_cast<uint32>(Driver->ServerConnection->InTotalBytes);
 		CaptureStartPopulation = Population;
+		CaptureStartCrawlerPopulation = CrawlerPopulation;
 		if (World->GetNetMode() != NM_Client)
 		{
 			ULNPNavPathSubsystem* Paths = World->GetSubsystem<ULNPNavPathSubsystem>();
@@ -965,6 +992,8 @@ void ULNPLoadBaselineSubsystem::DriveEnemies(const float DeltaTime, const bool b
 		EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 		// 비행 적의 Velocity는 공중 상태가 아니라 넉백 잔여다. 분포·이동 이벤트·합성 넉백은 지상 개념이다.
 		EnemyQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None);
+		// 벽보행 적은 Up이 표면 법선이라 지상 분포·층 판정이 맞지 않는다. DriveCrawlers가 따로 다룬다.
+		EnemyQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::None);
 	}
 
 	// 적마다 독립적인 포아송 과정: 이번 프레임에 넉백을 받을 확률.
@@ -1068,6 +1097,69 @@ void ULNPLoadBaselineSubsystem::DriveEnemies(const float DeltaTime, const bool b
 	});
 }
 
+void ULNPLoadBaselineSubsystem::InitCrawlerQuery()
+{
+	if (CrawlerQuery.IsInitialized())
+		return;
+	FMassEntityManager& EntityManager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+	CrawlerQuery = FMassEntityQuery(EntityManager.AsShared());
+	CrawlerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	CrawlerQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);
+	CrawlerQuery.AddRequirement<FLNPEnemyCrawlFragment>(EMassFragmentAccess::ReadOnly);
+	CrawlerQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+	CrawlerQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+	CrawlerQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
+	CrawlerQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::All);
+	CrawlerQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+}
+
+void ULNPLoadBaselineSubsystem::DriveCrawlers(const float DeltaTime, const bool bCount)
+{
+	InitCrawlerQuery();
+	FMassEntityManager& EntityManager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+
+	// 지상 적과 같은 포아송 빈도·세기. 붙은 표면의 접평면 임의 방향으로 밀고 Up 성분은 표면 법선이다.
+	const float KnockbackChance = 1.f - FMath::Exp(-DeltaTime / LNPLoadBaseline::KnockbackMeanIntervalSeconds);
+	// 벽 판정: 법선과 구 중심 Up의 내적이 ±이 값 안이면 벽이다(약 45°).
+	constexpr float WallDot = 0.7071f;
+	CrawlerPopulation = FCrawlerPopulation();
+
+	FMassExecutionContext ExecContext(EntityManager, DeltaTime);
+	CrawlerQuery.ForEachEntityChunk(ExecContext, [&](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		const TArrayView<FLNPEnemyVelocityFragment> Velocities = Ctx.GetMutableFragmentView<FLNPEnemyVelocityFragment>();
+		const TConstArrayView<FLNPEnemyCrawlFragment> Crawls = Ctx.GetFragmentView<FLNPEnemyCrawlFragment>();
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		{
+			FVector& Velocity = Velocities[i].Velocity;
+			const FVector Normal = Crawls[i].SurfaceNormal;
+			if (!Velocity.IsNearlyZero() || Normal.IsNearlyZero())
+			{
+				++CrawlerPopulation.Airborne;
+				continue;
+			}
+			const float UpDot = FVector::DotProduct(Normal, -Transforms[i].GetTransform().GetLocation().GetSafeNormal());
+			if (UpDot >= WallDot)
+				++CrawlerPopulation.Floor;
+			else if (UpDot <= -WallDot)
+				++CrawlerPopulation.Ceiling;
+			else
+				++CrawlerPopulation.Wall;
+
+			if (KnockbackStream.FRand() >= KnockbackChance)
+				continue;
+			FVector T1, T2;
+			MakeTangentBasis(Normal, T1, T2);
+			const float Angle = KnockbackStream.FRandRange(0.f, 2.f * PI);
+			const FVector PushDir = T1 * FMath::Cos(Angle) + T2 * FMath::Sin(Angle);
+			LNPHitDetection::ApplyEntityKnockback(Velocity, -PushDir, Normal, LNPLoadBaseline::KnockbackStrength);
+			if (bCount)
+				++CrawlerKnockbacks;
+		}
+	});
+}
+
 void ULNPLoadBaselineSubsystem::CheckFlyerPenetration()
 {
 	FMassEntityManager& EntityManager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
@@ -1082,50 +1174,89 @@ void ULNPLoadBaselineSubsystem::CheckFlyerPenetration()
 		// 시체는 착지 뒤 지면에 닿아 있는 것이 정상이다.
 		FlyerQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	}
+	InitCrawlerQuery();
 	if (GFlightPenetrationCheck == 0)
 		return;
 
 	const ULNPMassWorldCollisionSubsystem& Collision = *GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 	const FLNPWorldQueryParams QueryParams(ELNPWorldQueryClass::DebugValidation);
-	int32 Penetrating = 0;
 
-	FMassExecutionContext ExecContext(EntityManager, 0.f);
-	FlyerQuery.ForEachEntityChunk(ExecContext, [&](FMassExecutionContext& Ctx)
+	// bCrawler: 벽보행 몸은 구이고 표면에서 SurfaceGap만큼 떠 있다. 표면 법선(회전 Z) 쪽으로 sweep해 붙은 면을 시작 겹침으로 세지 않는다.
+	// 벽보행은 기어가며 옆 프랍에 몸을 비비므로 깊이 0에 가까운 시작 겹침(접촉)이 정상적으로 생긴다(Phase 14 단위 6a 실측 1e-5cm 이하).
+	// 깊이가 이 값을 넘을 때만 관통으로 세고 접촉은 OutContacts로 따로 센다. 비행은 공중에 떠 있어 접촉이 없으므로 모든 시작 겹침이 관통이다.
+	constexpr float CrawlerPenetrationToleranceCm = 0.1f;
+	const auto CountPenetrating = [&](FMassEntityQuery& Query, const bool bCrawler, int32& OutContacts)
 	{
-		const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
-		if (Config == nullptr)
-			return;
-		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
-		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+		int32 Penetrating = 0;
+		FMassExecutionContext ExecContext(EntityManager, 0.f);
+		Query.ForEachEntityChunk(ExecContext, [&](FMassExecutionContext& Ctx)
 		{
-			// 몸 캡슐(피격 판정의 단일 정의)을 Up 방향으로 1cm만 sweep해 시작 겹침을 본다. 겹침 query의 대용이다.
-			const FVector Location = Transforms[i].GetTransform().GetLocation();
-			const FVector Up = (Config->MovementConfig.GravityOrigin - Location).GetSafeNormal();
-			FLNPWorldHit Hit;
-			if (Collision.SweepCapsuleWorld(Location, Location + Up, FQuat::FindBetweenNormals(FVector::UpVector, Up),
-				Config->CapsuleRadius, Config->CapsuleHalfHeight, QueryParams, Hit) && Hit.bStartPenetrating)
+			const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
+			if (Config == nullptr)
+				return;
+			const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
-				++Penetrating;
-				const FMassEntityHandle Entity = Ctx.GetEntity(i);
-				if (LoggedPenetratingFlyers.Num() < 16 && !LoggedPenetratingFlyers.Contains(Entity))
+				// 몸 캡슐(피격 판정의 단일 정의)을 Up 방향으로 1cm만 sweep해 시작 겹침을 본다. 겹침 query의 대용이다.
+				const FVector Location = Transforms[i].GetTransform().GetLocation();
+				const FVector Up = bCrawler ? LNPMass::GetEntityUp(Transforms[i].GetTransform())
+					: (Config->MovementConfig.GravityOrigin - Location).GetSafeNormal();
+				FLNPWorldHit Hit;
+				if (Collision.SweepCapsuleWorld(Location, Location + Up, FQuat::FindBetweenNormals(FVector::UpVector, Up),
+					Config->CapsuleRadius, Config->CapsuleHalfHeight, QueryParams, Hit) && Hit.bStartPenetrating)
 				{
-					LoggedPenetratingFlyers.Add(Entity);
-					const FLNPEnemyFragment& Enemy = Ctx.GetFragmentView<FLNPEnemyFragment>()[i];
-					UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] FlyerPenetration Entity=%d:%d Band=%d Pod=%d:%d Position=%s Depth=%.6f Normal=%s Slot=%d Lifetime=%d Roles=%u Face=%d Instance=%d HitEntity=%d:%d"),
-						Entity.Index, Entity.SerialNumber, static_cast<int32>(Enemy.ActivityBand), Enemy.ParentLootPod.Index, Enemy.ParentLootPod.SerialNumber,
-						*Location.ToString(), Hit.PenetrationDepth, *Hit.ImpactNormal.ToString(), Hit.Identity.Slot, static_cast<int32>(Hit.Identity.Lifetime),
-						Hit.Identity.Roles, Hit.Identity.FaceIndex, Hit.Identity.InstanceIndex, Hit.Identity.Entity.Index, Hit.Identity.Entity.SerialNumber);
+					if (bCrawler && Hit.PenetrationDepth <= CrawlerPenetrationToleranceCm)
+					{
+						++OutContacts;
+						continue;
+					}
+					++Penetrating;
+					const FMassEntityHandle Entity = Ctx.GetEntity(i);
+					const bool bLogEntity = LoggedPenetratingFlyers.Num() < 16 && !LoggedPenetratingFlyers.Contains(Entity);
+					if (bLogEntity)
+					{
+						LoggedPenetratingFlyers.Add(Entity);
+						const FLNPEnemyFragment& Enemy = Ctx.GetFragmentView<FLNPEnemyFragment>()[i];
+						UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] %s Entity=%d:%d Band=%d Pod=%d:%d Position=%s Depth=%.6f Normal=%s Slot=%d Lifetime=%d Roles=%u Face=%d Instance=%d HitEntity=%d:%d"),
+							bCrawler ? TEXT("CrawlerPenetration") : TEXT("FlyerPenetration"),
+							Entity.Index, Entity.SerialNumber, static_cast<int32>(Enemy.ActivityBand), Enemy.ParentLootPod.Index, Enemy.ParentLootPod.SerialNumber,
+							*Location.ToString(), Hit.PenetrationDepth, *Hit.ImpactNormal.ToString(), Hit.Identity.Slot, static_cast<int32>(Hit.Identity.Lifetime),
+							Hit.Identity.Roles, Hit.Identity.FaceIndex, Hit.Identity.InstanceIndex, Hit.Identity.Entity.Index, Hit.Identity.Entity.SerialNumber);
+					}
+					// 벽보행 원인 분류: 공중(넉백·낙하 착지 직후)인지, 겹친 면이 붙은 면인지 옆 면인지.
+					if (bCrawler && bLogEntity)
+					{
+						const FVector SurfaceNormal = Ctx.GetFragmentView<FLNPEnemyCrawlFragment>()[i].SurfaceNormal;
+						UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] CrawlerPenetrationState Entity=%d:%d Speed=%.1f SurfaceNormal=%s HitDotSurface=%.3f"),
+							Entity.Index, Entity.SerialNumber, Ctx.GetFragmentView<FLNPEnemyVelocityFragment>()[i].Velocity.Size(),
+							*SurfaceNormal.ToString(), FVector::DotProduct(Hit.ImpactNormal, SurfaceNormal));
+						// 겹친 source의 메시를 게임 스레드 overlap으로 찾는다(진단 전용 — 최초 16개만).
+						TArray<FOverlapResult> Overlaps;
+						GetWorld()->OverlapMultiByChannel(Overlaps, Location, FQuat::Identity, LNPCollisionChannels::WorldExact,
+							FCollisionShape::MakeSphere(Config->CapsuleRadius));
+						for (const FOverlapResult& Overlap : Overlaps)
+						{
+							const UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(Overlap.GetComponent());
+							UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] CrawlerPenetrationSource Entity=%d:%d Component=%s Mesh=%s Item=%d Profile=%s"),
+								Entity.Index, Entity.SerialNumber, *GetNameSafe(Overlap.GetComponent()),
+								Mesh ? *GetNameSafe(Mesh->GetStaticMesh()) : TEXT("-"), Overlap.ItemIndex,
+								Overlap.GetComponent() ? *Overlap.GetComponent()->GetCollisionProfileName().ToString() : TEXT("-"));
+						}
+					}
 				}
 			}
-		}
-	});
+		});
+		return Penetrating;
+	};
 
 	++PenetrationCheckedFrames;
+	int32 Contacts = 0;
+	const int32 Penetrating = CountPenetrating(FlyerQuery, false, Contacts);
 	PenetrationEntityFrames += Penetrating;
-	if (Penetrating > 0)
-	{
-		++PenetrationFrames;
-	}
+	PenetrationFrames += Penetrating > 0 ? 1 : 0;
+	const int32 CrawlerPenetrating = CountPenetrating(CrawlerQuery, true, CrawlerContactEntityFrames);
+	CrawlerPenetrationEntityFrames += CrawlerPenetrating;
+	CrawlerPenetrationFrames += CrawlerPenetrating > 0 ? 1 : 0;
 }
 
 void ULNPLoadBaselineSubsystem::TopUpProjectiles()
@@ -1298,6 +1429,19 @@ void ULNPLoadBaselineSubsystem::SampleFrame()
 			});
 			++FlyerStateSampleCount;
 		}
+		if (CrawlerQuery.IsInitialized() && World->GetNetMode() != NM_Client)
+		{
+			FMassEntityManager& EntityManager = World->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+			FMassExecutionContext ExecContext(EntityManager, 0.f);
+			CrawlerQuery.ForEachEntityChunk(ExecContext, [this](FMassExecutionContext& Ctx)
+			{
+				for (const FLNPEnemyTargetingFragment& Targeting : Ctx.GetFragmentView<FLNPEnemyTargetingFragment>())
+				{
+					++CrawlerStateSums[static_cast<int32>(Targeting.State)];
+				}
+			});
+			++CrawlerStateSampleCount;
+		}
 	}
 }
 
@@ -1315,10 +1459,11 @@ void ULNPLoadBaselineSubsystem::SampleActivity()
 		ActivityQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 		ActivityQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	}
-	int32 Counts[2][3] = {};
+	// 도메인 0 지상, 1 비행, 2 벽보행.
+	int32 Counts[3][3] = {};
 	int32 Bound = 0;
-	int32 Segments[2] = {};
-	int32 Observed[2][2] = {};
+	int32 Segments[3] = {};
+	int32 Observed[3][2] = {};
 	TArray<FVector> Players;
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 		if (const APawn* Pawn = It->Get() ? It->Get()->GetPawn() : nullptr)
@@ -1339,7 +1484,7 @@ void ULNPLoadBaselineSubsystem::SampleActivity()
 	FMassExecutionContext ExecContext(EntityManager, 0.f);
 	ActivityQuery.ForEachEntityChunk(ExecContext, [&](FMassExecutionContext& Ctx)
 	{
-		const int32 Domain = Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() ? 1 : 0;
+		const int32 Domain = Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() ? 1 : Ctx.DoesArchetypeHaveTag<FLNPEnemyCrawlTag>() ? 2 : 0;
 		const auto Idle = Ctx.GetFragmentView<FLNPEnemyIdleFragment>();
 		const auto Enemies = Ctx.GetFragmentView<FLNPEnemyFragment>();
 		const auto Positions = Ctx.GetFragmentView<FTransformFragment>();
@@ -1360,11 +1505,12 @@ void ULNPLoadBaselineSubsystem::SampleActivity()
 			}
 		}
 	});
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Activity T=%.3f GroundDormant=%d GroundWander=%d GroundActive=%d FlightDormant=%d FlightWander=%d FlightActive=%d Bound=%d GroundSegments=%d FlightSegments=%d"),
+	// 벽보행 필드는 기존 분석기 정규식이 깨지지 않게 줄 끝에 붙인다.
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Activity T=%.3f GroundDormant=%d GroundWander=%d GroundActive=%d FlightDormant=%d FlightWander=%d FlightActive=%d Bound=%d GroundSegments=%d FlightSegments=%d CrawlDormant=%d CrawlWander=%d CrawlActive=%d CrawlSegments=%d"),
 		GetWorld()->GetTimeSeconds(), Counts[0][0], Counts[0][1], Counts[0][2], Counts[1][0], Counts[1][1], Counts[1][2],
-		Bound, Segments[0], Segments[1]);
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] CullWander Ground=%d Flight=%d GroundSegments=%d FlightSegments=%d (nearest player distance; not bubble membership)"),
-		Observed[0][0], Observed[1][0], Observed[0][1], Observed[1][1]);
+		Bound, Segments[0], Segments[1], Counts[2][0], Counts[2][1], Counts[2][2], Segments[2]);
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] CullWander Ground=%d Flight=%d GroundSegments=%d FlightSegments=%d (nearest player distance; not bubble membership) Crawl=%d CrawlSegments=%d"),
+		Observed[0][0], Observed[1][0], Observed[0][1], Observed[1][1], Observed[2][0], Observed[2][1]);
 }
 
 void ULNPLoadBaselineSubsystem::Report()
@@ -1455,8 +1601,9 @@ void ULNPLoadBaselineSubsystem::Report()
 	const bool bExactPass = Exact.P95 <= LNPLoadBaseline::ExactP95BudgetMs;
 	const bool bLockPass = Lock.P95 <= LNPLoadBaseline::LockP95BudgetMs;
 
-	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d flyers=%d projectiles=%d seed=%d LateralSweep=%d ParallelMovement=%d CPU=%s ====="),
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] ===== %s NetMode=%d enemies=%d flyers=%d crawlers=%d projectiles=%d seed=%d LateralSweep=%d ParallelMovement=%d CPU=%s ====="),
 		*World->GetName(), static_cast<int32>(World->GetNetMode()), LNPLoadBaseline::GetEnemyCount(), LNPLoadBaseline::GetFlyerCount(),
+		LNPLoadBaseline::GetCrawlerCount(),
 		LNPLoadBaseline::GetTargetProjectiles(), LNPLoadBaseline::GetSeed(),
 		LNPEnemyExactMovement::IsLateralSweepEnabled() ? 1 : 0,
 		LNPEnemyExactMovement::IsParallelMovementEnabled() ? 1 : 0,
@@ -1498,6 +1645,28 @@ void ULNPLoadBaselineSubsystem::Report()
 				FlyerStateSums[0] / StateSamples, FlyerStateSums[1] / StateSamples, FlyerStateSums[2] / StateSamples, FlyerStateSampleCount);
 			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Flyers penetration check=%d checkedFrames=%d penetratingFrames=%d penetratingEntityFrames=%d"),
 				GFlightPenetrationCheck, PenetrationCheckedFrames, PenetrationFrames, PenetrationEntityFrames);
+		}
+
+		// 벽보행 적(Phase 14 단위 6). 개체당 프레임 query는 비행과 같이 capture 표본 프레임 수로 나눈다.
+		const int32 Crawlers = CrawlerQuery.IsInitialized() ? CrawlerQuery.GetNumMatchingEntities() : 0;
+		if (Crawlers > 0)
+		{
+			const LNPSurfaceCrawlStats::FCounts Crawl = LNPSurfaceCrawlStats::Get();
+			const double CrawlerFrames = static_cast<double>(Crawlers) * FMath::Max(1, FrameQueryCount.Num());
+			const uint64 CrawlQueries = Collision->GetQueryCount(ELNPWorldQueryClass::SurfaceCrawl);
+			const uint64 LineOfSightQueries = Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Crawlers alive=%d | Knockbacks=%d DetourEntries=%llu SurfaceLost=%llu Landings=%llu Rehomes=%llu Crushes=%llu"),
+				Crawlers, CrawlerKnockbacks, Crawl.DetourEntries, Crawl.SurfaceLost, Crawl.Landings, Crawl.Rehomes, Crawl.Crushes);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Crawlers queries per crawler-frame SurfaceCrawl=%.3f EnemyLineOfSight=%.4f (LoS total=%llu, shared with flyers)"),
+				CrawlQueries / CrawlerFrames, LineOfSightQueries / CrawlerFrames, LineOfSightQueries);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Crawlers surface start Floor=%d Wall=%d Ceiling=%d Airborne=%d | end Floor=%d Wall=%d Ceiling=%d Airborne=%d"),
+				CaptureStartCrawlerPopulation.Floor, CaptureStartCrawlerPopulation.Wall, CaptureStartCrawlerPopulation.Ceiling, CaptureStartCrawlerPopulation.Airborne,
+				CrawlerPopulation.Floor, CrawlerPopulation.Wall, CrawlerPopulation.Ceiling, CrawlerPopulation.Airborne);
+			const double StateSamples = FMath::Max(1, CrawlerStateSampleCount);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Crawlers state avg None=%.1f Alert=%.1f Confirmed=%.1f (samples=%d, 1s)"),
+				CrawlerStateSums[0] / StateSamples, CrawlerStateSums[1] / StateSamples, CrawlerStateSums[2] / StateSamples, CrawlerStateSampleCount);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Crawlers penetration check=%d checkedFrames=%d penetratingFrames=%d penetratingEntityFrames=%d contactEntityFrames=%d"),
+				GFlightPenetrationCheck, PenetrationCheckedFrames, CrawlerPenetrationFrames, CrawlerPenetrationEntityFrames, CrawlerContactEntityFrames);
 		}
 	}
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] UnknownHits=%llu EnvelopeEscapes=%llu"),

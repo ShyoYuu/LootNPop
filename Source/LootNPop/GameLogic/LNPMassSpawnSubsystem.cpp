@@ -5,6 +5,7 @@
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPSurfaceCrawl.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "Replication/LNPMassReplication.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
@@ -289,12 +290,13 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 	// 개발용 적 밀도 배수 (기본 1 = no-op). 근거는 CVarSpawnEnemyDensity 주석 참조.
 	const float EnemyDensity = GetEnemySpawnDensity();
 
-	// 부하 harness(-LNPLoadBaseline=N, -LNPLoadBaselineFlyers=F)는 에셋의 적을 0으로 두고 링에 정확히 N·F마리를 둔다.
+	// 부하 harness(-LNPLoadBaseline=N, -LNPLoadBaselineFlyers=F, -LNPLoadBaselineCrawlers=C)는 에셋의 적을 0으로 두고 링에 정확히 N·F·C마리를 둔다.
 	// Pod는 에셋대로 두되 배치 seed를 고정한다. 상세는 LNPLoadBaseline.h.
 	const bool bBaseline = LNPLoadBaseline::IsActive();
 	const bool bRingBaseline = bBaseline && !LNPLoadBaseline::IsProduction();
 	const int32 BaselineEnemies = bRingBaseline ? LNPLoadBaseline::GetEnemyCount() : 0;
 	const int32 BaselineFlyers = bRingBaseline ? LNPLoadBaseline::GetFlyerCount() : 0;
+	const int32 BaselineCrawlers = bRingBaseline ? LNPLoadBaseline::GetCrawlerCount() : 0;
 	int32 BaselineAssetIndices[static_cast<int32>(LNPLoadBaseline::EEnemyKind::Count)];
 	for (int32 Kind = 0; Kind < UE_ARRAY_COUNT(BaselineAssetIndices); ++Kind)
 	{
@@ -323,6 +325,19 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		else
 		{
 			UE_LOG(LogLootNPop, Error, TEXT("LNPMassSpawnSubsystem: load baseline flyer config failed to load."));
+		}
+	}
+	int32 BaselineCrawlerAssetIndex = INDEX_NONE;
+	if (BaselineCrawlers > 0)
+	{
+		if (UMassEntityConfigAsset* CrawlerConfig = LNPLoadBaseline::LoadCrawlerEntityConfig())
+		{
+			BaselineCrawlerAssetIndex = CapturedAssets.Num();
+			CapturedAssets.Add(CrawlerConfig);
+		}
+		else
+		{
+			UE_LOG(LogLootNPop, Error, TEXT("LNPMassSpawnSubsystem: load baseline crawler config failed to load."));
 		}
 	}
 
@@ -400,6 +415,8 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		 BaselineFlyers,
 		 BaselineAssetIndices,
 		 BaselineFlyerAssetIndex,
+		 BaselineCrawlers,
+		 BaselineCrawlerAssetIndex,
 		 WorldCollision]() mutable
 		{
 			TArray<FLNPAsyncSpawnEntry> Results;
@@ -456,6 +473,30 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 					}
 
 					UE_LOG(LogLootNPop, Display, TEXT("LNPMassSpawnSubsystem: load baseline placed %d/%d flyers."), FlyerFeet.Num(), BaselineFlyers);
+				}
+
+				// 벽보행 적은 세 번째 링의 지면점에 지상 적처럼 둔다. 반높이 들어 올리기와 표면 부착은 스폰·이동 규약이 맡는다.
+				if (BaselineCrawlers > 0 && BaselineCrawlerAssetIndex != INDEX_NONE)
+				{
+					TArray<FVector> CrawlerFeet;
+					FVector CrawlerRingCenter;
+					LNPLoadBaseline::BuildEnemyRing(*WorldCollision, SR, LNPLoadBaseline::GetSeed() + LNPLoadBaseline::CrawlerSeedOffset,
+						BaselineCrawlers, CrawlerFeet, CrawlerRingCenter);
+
+					FLNPAsyncSpawnEntry CrawlerEntry;
+					for (const FVector& Foot : CrawlerFeet)
+					{
+						CrawlerEntry.Transforms.Add(FTransform(UKismetMathLibrary::MakeRotFromZ(-Foot.GetSafeNormal()), Foot));
+					}
+					if (!CrawlerEntry.Transforms.IsEmpty())
+					{
+						CrawlerEntry.RequestType = ELNPSpawnRequestType::Enemy;
+						CrawlerEntry.AssetIndex = BaselineCrawlerAssetIndex;
+						CrawlerEntry.SpawnLink = RingLink;
+						Results.Add(MoveTemp(CrawlerEntry));
+					}
+
+					UE_LOG(LogLootNPop, Display, TEXT("LNPMassSpawnSubsystem: load baseline placed %d/%d crawlers."), CrawlerFeet.Num(), BaselineCrawlers);
 				}
 			}
 
@@ -669,6 +710,30 @@ bool ULNPMassSpawnSubsystem::TryLiftFlyingSpawn(const ULNPEnemyConfig& Config, c
 	return false;
 }
 
+bool ULNPMassSpawnSubsystem::TrySettleCrawlSpawn(const ULNPEnemyConfig& Config, const FVector& GroundPoint, FVector& OutLocation, FVector& OutNormal) const
+{
+	// 배치 후보는 지상 적(작은 캡슐) 기준이라 벽보행 몸 구(반지름 80)가 옆 프랍·지형 굴곡과 겹칠 수 있다(Phase 14 단위 6d 실측 최대 17cm).
+	// 휴면·정지 개체는 이동 query를 하지 않아 겹침이 그대로 남으므로 스폰 때 풀고 발밑 표면에 붙인다.
+	const ULNPMassWorldCollisionSubsystem* WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	if (WorldCollision == nullptr)
+		return false;
+	LNPSurfaceCrawl::FParams Params;
+	Params.BodyRadius = Config.CapsuleRadius;
+	const FVector Up = (Config.MovementConfig.GravityOrigin - GroundPoint).GetSafeNormal();
+	FVector Free;
+	if (!LNPSurfaceCrawl::Depenetrate(*WorldCollision, Params, GroundPoint + Up * Config.CapsuleRadius, Free))
+		return false;
+	OutNormal = Up;
+	OutLocation = Free;
+	FVector Attached, AttachedNormal;
+	if (LNPSurfaceCrawl::Attach(*WorldCollision, Params, Free, -Up, Config.CapsuleRadius, Attached, AttachedNormal))
+	{
+		OutLocation = Attached;
+		OutNormal = AttachedNormal;
+	}
+	return true;
+}
+
 void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 	TConstArrayView<FMassEntityHandle> Entities,
 	TConstArrayView<FTransform> Transforms,
@@ -716,6 +781,23 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 						continue;
 					}
 					SpawnTransform.SetLocation(FlightLocation);
+				}
+				else if (Config.IsCrawling())
+				{
+					FVector CrawlLocation, CrawlNormal;
+					if (!TrySettleCrawlSpawn(Config, GroundPoint, CrawlLocation, CrawlNormal))
+					{
+						UE_LOG(LogLootNPop, Warning, TEXT("LNPMassSpawnSubsystem: Rejected crawler spawn with unresolved overlap at %s."), *GroundPoint.ToString());
+						EntityManager.DestroyEntity(Entity);
+						++Rejected;
+						continue;
+					}
+					SpawnTransform.SetLocation(CrawlLocation);
+					SpawnTransform.SetRotation(FRotationMatrix::MakeFromZX(CrawlNormal, SpawnTransform.GetRotation().GetForwardVector()).ToQuat());
+					if (FLNPEnemyCrawlFragment* Crawl = EntityManager.GetFragmentDataPtr<FLNPEnemyCrawlFragment>(Entity))
+					{
+						Crawl->SurfaceNormal = CrawlNormal;
+					}
 				}
 				else
 				{

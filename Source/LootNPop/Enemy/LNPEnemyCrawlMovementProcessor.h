@@ -6,6 +6,27 @@
 #include "MassProcessor.h"
 #include "LNPEnemyCrawlMovementProcessor.generated.h"
 
+/** 벽보행 이동 측정 누계(부하 harness, Phase 14 단위 6). 모든 스레드에서 읽고 비울 수 있다. */
+namespace LNPSurfaceCrawlStats
+{
+	struct FCounts
+	{
+		/** 단순 우회(단위 2e)를 시작한 횟수. */
+		uint64 DetourEntries = 0;
+		/** 기어가다 붙을 표면을 잃고 공중으로 넘어간 횟수. */
+		uint64 SurfaceLost = 0;
+		/** 공중(넉백·표면 상실)에서 착지한 횟수. 시체 착지는 세지 않는다. */
+		uint64 Landings = 0;
+		/** 재귀속으로 부모 Pod가 바뀐 횟수. */
+		uint64 Rehomes = 0;
+		/** 움직이는 지형에 끼어 압사한 횟수. */
+		uint64 Crushes = 0;
+	};
+
+	LOOTNPOP_API FCounts Get();
+	LOOTNPOP_API void Reset();
+}
+
 /**
  * `ELNPNavigationDomain::SurfaceCrawl` 적(FLNPEnemyCrawlTag)의 이동 — 지상 ULNPEnemyMovementProcessor의 벽보행판이다(D-066).
  *
@@ -18,6 +39,7 @@
  * - 피격 반응 시계·배회 타임아웃·도착 신호는 지상과 같은 규약이다(TechDesign_EnemyNPC.md §5.1).
  * - 재귀속: 비교전 중 Home 쪽으로 가까워지지 않으면 직선거리로 가장 가까운 활성 Pod로 바꾼다(D-066, Nav 도달성 없음).
  * - 벽보행끼리의 분리는 ULNPCrawlSpatialGridSubsystem의 3D 이웃으로 재고 접평면에 눕혀 이동 속도에 더한다.
+ * - 움직이는 패널에 붙으면 함께 운반되고(D-013), 패널과 다른 면 사이에 끼어 겹침을 풀 수 없으면 압사한다(체력 0).
  */
 UCLASS()
 class LOOTNPOP_API ULNPEnemyCrawlMovementProcessor : public UMassProcessor

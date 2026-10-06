@@ -2,6 +2,9 @@
 
 #include "Enemy/LNPSurfaceCrawl.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
+#include "Enemy/LNPEnemyMassTypes.h"
+#include "Enemy/LNPEnemySurfaceMovement.h"
 
 namespace LNPSurfaceCrawl
 {
@@ -27,11 +30,54 @@ namespace LNPSurfaceCrawl
 			return Normal.IsNearlyZero() ? Hit.ImpactNormal : Normal;
 		}
 
-		/** hit 자리에 틈을 남기고 붙는다. */
-		void SettleOn(const FLNPWorldHit& Hit, const FParams& Params, FVector& OutLocation, FVector& OutNormal)
+		/**
+		 * hit 자리에 틈을 남기고 붙는다. SweepStart는 그 hit를 낸 sweep의 시작점이다.
+		 * 틈은 법선 방향이 아니라 sweep이 지나온 길로 물러나 만든다 — 지나온 길은 비어 있음이 확인됐으므로, 프랍 사이 구석·주머니에서도
+		 * 옆 면에 파고들지 않는다(법선으로 띄우면 옆 면 쪽으로 최대 SurfaceGap × 두 면 법선 내적만큼 들어간다, Phase 14 단위 6b 실측).
+		 * 법선 거리로 SurfaceGap만큼 물러나되 비스듬한 hit에서 접선으로 멀리 미끄러지지 않게 4배까지만, 지나온 거리까지만 물러난다.
+		 */
+		void SettleOn(const FLNPWorldHit& Hit, const FVector& SweepStart, const FParams& Params, FVector& OutLocation, FVector& OutNormal,
+			FLNPExactHitIdentity* OutIdentity = nullptr)
 		{
+			if (OutIdentity != nullptr)
+				*OutIdentity = Hit.Identity;
 			OutNormal = ContactNormal(Hit);
-			OutLocation = Hit.Location + OutNormal * Params.SurfaceGap;
+			const FVector Back = SweepStart - Hit.Location;
+			const double Traveled = Back.Size();
+			if (Traveled <= UE_KINDA_SMALL_NUMBER)
+			{
+				OutLocation = Hit.Location;
+				return;
+			}
+			const FVector BackDir = Back / Traveled;
+			const double Approach = FVector::DotProduct(BackDir, OutNormal);
+			const double MaxBack = Params.SurfaceGap * 4.0;
+			const double Distance = Approach > Params.SurfaceGap / MaxBack ? Params.SurfaceGap / Approach : MaxBack;
+			OutLocation = Hit.Location + BackDir * FMath::Min(Distance, Traveled);
+		}
+	}
+
+	namespace
+	{
+		/**
+		 * Step·정지 해소의 겹침 해소. 먼저 지지면 보호(붙은 면 안쪽 금지)로 풀고, 실패했는데 Dynamic 겹침이 없으면 보호 없이 한 번 더 푼다 —
+		 * 덮치는 것이 없으면 정적 면 법선으로 미는 것이 맞고, 붙어 있던 패널이 지나간 뒤 남은 오래된 법선이 지면에서 빠져나오는 방향을
+		 * 막는 경우가 있다(단위 6e 패키지 실측). 둘 다 실패하면 제자리이고, Dynamic 겹침이 있었으면 압사다.
+		 * 반환: 풀었으면 true. bOutCrushed는 실패 + Dynamic 겹침.
+		 */
+		bool ResolveOverlap(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params, const FVector& From,
+			const FVector& Up, FVector& OutLocation, bool& bOutCrushed)
+		{
+			bOutCrushed = false;
+			bool bTouchedDynamic = false;
+			if (Depenetrate(Collision, Params, From, OutLocation, Up, &bTouchedDynamic, Up))
+				return true;
+			if (bTouchedDynamic)
+			{
+				bOutCrushed = true;
+				return false;
+			}
+			return Depenetrate(Collision, Params, From, OutLocation, Up, &bTouchedDynamic);
 		}
 	}
 
@@ -179,7 +225,7 @@ namespace LNPSurfaceCrawl
 
 	EStepResult Step(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Location, const FVector& Normal, const FVector& Velocity, const float DeltaTime,
-		FVector& OutLocation, FVector& OutNormal)
+		FVector& OutLocation, FVector& OutNormal, FLNPExactHitIdentity* OutSurfaceIdentity)
 	{
 		OutLocation = Location;
 		OutNormal = Normal;
@@ -193,17 +239,50 @@ namespace LNPSurfaceCrawl
 		FVector Lift = Up * Params.StepUp;
 		FLNPWorldHit Hit;
 		bool bHit = Sweep(Collision, Params, Location + Lift, Location + Lift + Move, Hit);
+		bool bLowClearance = false;
 		if (bHit && Hit.bStartPenetrating)
 		{
 			Lift = FVector::ZeroVector;
+			bLowClearance = true;
 			bHit = Sweep(Collision, Params, Location, Location + Move, Hit);
 			if (bHit && Hit.bStartPenetrating)
 			{
 				// 이미 지형 안에 있다(스폰·넉백 착지 직후 등). 겹침만 풀고 이번 프레임은 전진하지 않는다.
-				OutLocation = Location + Hit.ImpactNormal * (Hit.PenetrationDepth + DepenetrationSkin);
+				// 풀지 못하면 제자리 — 마지막으로 민 자리는 다른 면(패널과 지면 사이면 지면) 안일 수 있다(Phase 14 PIE).
+				bool bCrushed = false;
+				if (!ResolveOverlap(Collision, Params, Location, Up, OutLocation, bCrushed))
+				{
+					OutLocation = Location;
+					if (bCrushed)
+						return EStepResult::Crushed;
+				}
 				return EStepResult::Attached;
 			}
 		}
+
+		// 낮은 틈(법선 쪽에 띄울 자리가 없음)에서는 이후 sweep이 모두 그 면에서 멀어지거나 나란히 움직인다. Chaos trimesh는
+		// 이때 얕은 시작 겹침을 보고하지 않아, 좁아지는 쐐기(섬 밑면과 지각 사이 등)로 기어가면 매 틱 그 면 안으로 들어간다
+		// (단위 6e 패키지 실측 2~4cm, 틱당 3.6cm). 이 프레임에만 결과 자리를 법선 쪽으로 검사하고, 겹치면 전진하지 않는다.
+		const auto Finish = [&](const EStepResult Result)
+		{
+			FLNPWorldHit Check;
+			if (!bLowClearance || Result != EStepResult::Attached
+				|| !Sweep(Collision, Params, OutLocation, OutLocation + Up * 0.1f, Check) || !Check.bStartPenetrating)
+			{
+				return Result;
+			}
+			OutNormal = Normal;
+			if (OutSurfaceIdentity != nullptr)
+				*OutSurfaceIdentity = FLNPExactHitIdentity();
+			bool bCrushed = false;
+			if (!ResolveOverlap(Collision, Params, Location, Up, OutLocation, bCrushed))
+			{
+				OutLocation = Location;
+				if (bCrushed)
+					return EStepResult::Crushed;
+			}
+			return EStepResult::Blocked;
+		};
 
 		if (bHit)
 		{
@@ -214,7 +293,7 @@ namespace LNPSurfaceCrawl
 			// 오목 모서리: 앞을 막은 면으로 갈아탄다. 띄운 높이만큼 원래 표면 쪽으로 내려앉아 두 면이 만나는 구석에 선다.
 			FVector Corner;
 			FVector WallNormal;
-			SettleOn(Hit, Params, Corner, WallNormal);
+			SettleOn(Hit, Location + Lift, Params, Corner, WallNormal, OutSurfaceIdentity);
 			if (!Lift.IsZero())
 			{
 				FLNPWorldHit Down;
@@ -225,12 +304,14 @@ namespace LNPSurfaceCrawl
 				}
 				else if (!Down.bStartPenetrating)
 				{
-					Corner = Down.Location + ContactNormal(Down) * Params.SurfaceGap;
+					const FVector DownStart = Corner;
+					FVector DownNormal;
+					SettleOn(Down, DownStart, Params, Corner, DownNormal);
 				}
 			}
 			OutLocation = Corner;
 			OutNormal = WallNormal;
-			return EStepResult::Attached;
+			return Finish(EStepResult::Attached);
 		}
 
 		// 2. 이동한 자리에서 -법선 probe. 평면·완만한 굴곡·볼록 모서리(구가 모서리를 축으로 굴러 돈다)를 모두 이 hit가 맡는다.
@@ -241,24 +322,37 @@ namespace LNPSurfaceCrawl
 		{
 			if (Hit.bStartPenetrating)
 			{
-				OutLocation = Moved + Lift + Hit.ImpactNormal * (Hit.PenetrationDepth + DepenetrationSkin);
+				bool bCrushed = false;
+				if (!ResolveOverlap(Collision, Params, Moved + Lift, Up, OutLocation, bCrushed))
+				{
+					OutLocation = Location;
+					if (bCrushed)
+						return EStepResult::Crushed;
+				}
 				return EStepResult::Attached;
 			}
 			if (!IsCrawlable(Hit.Identity))
 				return EStepResult::Blocked;
-			SettleOn(Hit, Params, OutLocation, OutNormal);
-			return EStepResult::Attached;
+			SettleOn(Hit, Moved + Lift, Params, OutLocation, OutNormal, OutSurfaceIdentity);
+			return Finish(EStepResult::Attached);
 		}
 
 		// 3. 한 프레임에 모서리를 지나쳤다. probe 끝(빈 공간으로 확인된 자리)에서 원래 표면 아래·이동 반대쪽으로 감싸 sweep한다.
 		const FVector WrapEnd = ProbeEnd - Up * Params.BodyRadius - Move.GetSafeNormal() * (Move.Size() + Params.BodyRadius);
 		bHit = Sweep(Collision, Params, ProbeEnd, WrapEnd, Hit);
-		if (bHit && !Hit.bStartPenetrating)
+		// 감싸기 시작점이 이미 지형 안이면 표면을 잃은 게 아니라 구석에 몰린 것이다. 공중으로 넘기면 겹친 채 떨어지며
+		// 지면을 뚫는다(단위 6e 자동화 — 내려오는 패널 아래에서 기어가던 개체). 제자리에 서고 다음 프레임 겹침 해소에 맡긴다.
+		if (bHit && Hit.bStartPenetrating)
+		{
+			OutLocation = Location;
+			return EStepResult::Blocked;
+		}
+		if (bHit)
 		{
 			if (!IsCrawlable(Hit.Identity))
 				return EStepResult::Blocked;
-			SettleOn(Hit, Params, OutLocation, OutNormal);
-			return EStepResult::Attached;
+			SettleOn(Hit, ProbeEnd, Params, OutLocation, OutNormal, OutSurfaceIdentity);
+			return Finish(EStepResult::Attached);
 		}
 
 		OutLocation = Moved;
@@ -266,7 +360,8 @@ namespace LNPSurfaceCrawl
 	}
 
 	bool Attach(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
-		const FVector& Location, const FVector& SearchDirection, const float Reach, FVector& OutLocation, FVector& OutNormal)
+		const FVector& Location, const FVector& SearchDirection, const float Reach, FVector& OutLocation, FVector& OutNormal,
+		FLNPExactHitIdentity* OutSurfaceIdentity)
 	{
 		const FVector Direction = SearchDirection.GetSafeNormal();
 		FLNPWorldHit Hit;
@@ -276,8 +371,107 @@ namespace LNPSurfaceCrawl
 		{
 			return false;
 		}
-		SettleOn(Hit, Params, OutLocation, OutNormal);
+		SettleOn(Hit, Location, Params, OutLocation, OutNormal, OutSurfaceIdentity);
 		return true;
+	}
+
+	bool CarryOnDynamicSupport(const FLNPDynamicSupportFrame& DynamicFrame, FLNPEnemyDynamicSupportContact& InOutContact,
+		FTransform& InOutTransform, FVector& InOutNormal)
+	{
+		const FQuat Before = InOutTransform.GetRotation();
+		if (!LNPEnemySurfaceMovement::ApplyDynamicSupportDelta(DynamicFrame, InOutContact, InOutTransform))
+			return false;
+		InOutNormal = (InOutTransform.GetRotation() * Before.Inverse()).RotateVector(InOutNormal).GetSafeNormal();
+		return true;
+	}
+
+	bool Depenetrate(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Location, FVector& OutLocation, const FVector& ProbeDirection, bool* bOutTouchedDynamic,
+		const FVector& SupportNormal)
+	{
+		if (bOutTouchedDynamic != nullptr)
+			*bOutTouchedDynamic = false;
+		constexpr int32 MaxIterations = 8;
+		// 짧은 sweep의 시작 겹침으로 제자리 겹침을 본다. 방향은 의심되는 면 쪽이어야 한다 — Chaos trimesh는 면에서 멀어지는 sweep의
+		// 얕은 겹침을 보고하지 않거나 뒷면 법선을 낸다. 밀어낸 자리는 민 방향으로 검사한다: 내려오는 패널에서 벗어나려고 민 자리가
+		// 지면 안이면 그 지면은 민 방향에 있다(Phase 14 단위 6e — 위쪽 검사로는 못 보고 매 틱 패널 속도만큼 지면에 밀어 넣었다).
+		const auto Overlap = [&](const FVector& At, const FVector& Direction, FLNPWorldHit& OutHit)
+		{
+			const bool bOverlaps = Sweep(Collision, Params, At, At + Direction.GetSafeNormal() * 0.1f, OutHit) && OutHit.bStartPenetrating;
+			if (bOverlaps && bOutTouchedDynamic != nullptr && OutHit.Identity.Lifetime == ELNPExactSourceLifetime::Dynamic)
+				*bOutTouchedDynamic = true;
+			return bOverlaps;
+		};
+
+		// 같은 면에 다시 걸렸는지. 깊이 비교는 같은 면일 때만 뜻이 있다 — 다른 면(주머니의 맞은편)이면 정상 진행이다.
+		const auto SameSurface = [](const FLNPWorldHit& A, const FLNPWorldHit& B)
+		{
+			return A.Identity.Lifetime == B.Identity.Lifetime && A.Identity.Roles == B.Identity.Roles
+				&& A.Identity.FaceIndex == B.Identity.FaceIndex && A.Identity.InstanceIndex == B.Identity.InstanceIndex
+				&& A.Identity.Slot == B.Identity.Slot && FMath::Abs(FVector::DotProduct(A.ImpactNormal, B.ImpactNormal)) > 0.99;
+		};
+
+		OutLocation = Location;
+		FLNPWorldHit Hit;
+		if (!Overlap(OutLocation, ProbeDirection, Hit))
+			return true;
+		FVector LastPush = FVector::ZeroVector;
+		for (int32 Iteration = 0; Iteration < MaxIterations; ++Iteration)
+		{
+			const FVector Normal = Hit.ImpactNormal;
+			const double Depth = Hit.PenetrationDepth + DepenetrationSkin;
+			// 직전에 민 방향과 마주 보는 면에 걸리면(주머니) 두 방향의 이등분으로 민다 — 주머니 출구 쪽이다.
+			// 면 법선으로만 밀면 마주 보는 두 면 사이를 오가며 빠져나오지 못한다(자동화 실측).
+			FVector Push = Normal;
+			if (FVector::DotProduct(LastPush, Normal) < 0.0)
+			{
+				const FVector Bisector = (LastPush + Normal).GetSafeNormal();
+				if (!Bisector.IsNearlyZero())
+					Push = Bisector;
+			}
+			// 지지면 안쪽으로는 밀지 않는다(위 SupportNormal 설명).
+			if (!SupportNormal.IsZero() && FVector::DotProduct(Push, SupportNormal) < -0.1)
+				return false;
+			const FVector Offset = Push * (Depth / FMath::Max(FVector::DotProduct(Push, Normal), 0.1));
+
+			// 민 자리의 겹침이 줄지 않으면 법선이 뒤집혀 보고된 것으로 본다. Chaos trimesh는 검사 sweep이 면에서 멀어지는 방향일 때
+			// 뒷면 법선을 낸다 — 그대로 밀면 매 틱 지면을 뚫고 들어간다(Phase 14 단위 6e 패키지 실측 틱당 5.4cm). 반대로 밀어 보고,
+			// 어느 쪽도 나아지지 않으면 실패다(호출자는 제자리에 둔다).
+			FVector Candidate = OutLocation + Offset;
+			FLNPWorldHit CandidateHit;
+			bool bCandidateOverlaps = Overlap(Candidate, Push, CandidateHit);
+			if (bCandidateOverlaps && SameSurface(CandidateHit, Hit) && CandidateHit.PenetrationDepth >= Hit.PenetrationDepth)
+			{
+				const FVector Flipped = OutLocation - Offset;
+				FLNPWorldHit FlippedHit;
+				const bool bFlippedOverlaps = Overlap(Flipped, -Push, FlippedHit);
+				if (bFlippedOverlaps && SameSurface(FlippedHit, Hit) && FlippedHit.PenetrationDepth >= Hit.PenetrationDepth)
+					return false;
+				if (!SupportNormal.IsZero() && FVector::DotProduct(-Push, SupportNormal) < -0.1)
+					return false;
+				Candidate = Flipped;
+				CandidateHit = FlippedHit;
+				bCandidateOverlaps = bFlippedOverlaps;
+				Push = -Push;
+			}
+			OutLocation = Candidate;
+			LastPush = Push;
+			if (!bCandidateOverlaps)
+				return true;
+			Hit = CandidateHit;
+		}
+		return false;
+	}
+
+	EStepResult ResolveStationaryOverlap(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Location, const FVector& Normal, FVector& OutLocation)
+	{
+		// 덮치는 쪽은 붙은 면의 반대편(법선 쪽)이다. 그쪽으로 검사해야 Chaos가 겹침을 보고한다.
+		bool bCrushed = false;
+		if (ResolveOverlap(Collision, Params, Location, Normal, OutLocation, bCrushed))
+			return EStepResult::Attached;
+		OutLocation = Location;
+		return bCrushed ? EStepResult::Crushed : EStepResult::Blocked;
 	}
 
 	bool ValidateWanderSegment(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,

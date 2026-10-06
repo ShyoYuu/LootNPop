@@ -40,6 +40,8 @@ struct FLNPDynamicSupportSnapshot
 	FVector LinearVelocity = FVector::ZeroVector;
 	FVector AngularVelocity = FVector::ZeroVector;
 	bool bWalkable = false;
+	/** 요소 Actor의 UniqueID. 운반 중 충돌 검사에서 그 지지면 자신을 제외할 때 쓴다(FLNPWorldQueryParams::IgnoredActorIds). */
+	uint32 ActorId = 0;
 };
 
 /** 한 프레임에 게시하는 불변 동적 지지면 목록. */

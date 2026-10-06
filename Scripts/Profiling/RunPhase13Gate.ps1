@@ -12,7 +12,9 @@ param(
     [switch]$ValidateProjectileSpatialGrid,
     [ValidateSet(0, 1)][int]$ProjectileRewindCache = 0,
     [switch]$ValidateProjectileRewindCache,
-    [switch]$FlightPenetrationCheck
+    [switch]$FlightPenetrationCheck,
+    # Phase 14 단위 6c: Production 편성의 적 수 배수(-LNPEnemyDensity). 비우면 에셋 그대로다.
+    [string]$EnemyDensity = ''
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -42,6 +44,11 @@ $taskArguments = @{
     N800F300 = '-LNPLoadBaseline=800 -LNPLoadBaselineFlyers=300'
     N800F600 = '-LNPLoadBaseline=800 -LNPLoadBaselineFlyers=600'
     N800F900 = '-LNPLoadBaseline=800 -LNPLoadBaselineFlyers=900'
+    # Phase 14 단위 6b 벽보행 매트릭스. 관통 검사 스위치(FlightPenetrationCheck)는 벽보행에도 적용된다.
+    C100 = '-LNPLoadBaselineCrawlers=100'
+    C300 = '-LNPLoadBaselineCrawlers=300'
+    C500 = '-LNPLoadBaselineCrawlers=500'
+    N500C100 = '-LNPLoadBaseline=500 -LNPLoadBaselineCrawlers=100'
     ProductionWideSpawn = '-LNPLoadBaselineProduction -LNPLoadBaselineSpawnRadius=1500'
     AlwaysActiveWideSpawn = '-LNPLoadBaselineProduction -LNPLoadBaselineAlwaysActive -LNPLoadBaselineSpawnRadius=1500'
     WanderObserve = '-LNPLoadBaselineProduction -LNPLoadBaselineObserveWander -LNPLoadBaselineSpawnRadius=1500'
@@ -58,6 +65,7 @@ foreach ($taskCase in $Cases) {
         }
         $taskCommon = '-nullrhi -nosound -corelimit=4 -unattended -FixedSeed -LNPLoadBaselineSeed=1 -LNPLoadBaselinePlayers=2 -LNPLoadBaselineQuit'
         $taskCommon += " $($taskArguments[$taskCase])"
+        if ($EnemyDensity) { $taskCommon += " -LNPEnemyDensity=$EnemyDensity" }
         $taskCommon += ' -dpcvars=LNP.SurfaceNav.EnemySupportCache=1,LNP.SurfaceNav.EnemyExactLateralSweep=1,LNP.SurfaceNav.EnemyParallelMovement=1'
         $taskCommon += ",LNP.Projectile.ProfileStride=$ProjectileProfileStride"
         if ($PSBoundParameters.ContainsKey('ProjectileSphereBroadPhase')) {

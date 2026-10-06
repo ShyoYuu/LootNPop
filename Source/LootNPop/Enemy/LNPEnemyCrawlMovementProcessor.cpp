@@ -4,6 +4,8 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemySurfaceMovement.h"
+#include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
 #include "Enemy/LNPEnemySpatialGrid.h"
 #include "Enemy/LNPSurfaceCrawl.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
@@ -19,6 +21,38 @@
 #include "MassStateTreeTypes.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/ScopeLock.h"
+
+namespace
+{
+	std::atomic<uint64> GStatDetourEntries{0};
+	std::atomic<uint64> GStatSurfaceLost{0};
+	std::atomic<uint64> GStatLandings{0};
+	std::atomic<uint64> GStatRehomes{0};
+	std::atomic<uint64> GStatCrushes{0};
+
+	/** 정지 개체도 제자리 겹침을 검사하는 패널 중심 반경(cm). 패널 크기와 운반 경로를 덮을 만큼 넉넉히 둔다. */
+	constexpr double StationaryCrushCheckRadius = 1500.0;
+}
+
+LNPSurfaceCrawlStats::FCounts LNPSurfaceCrawlStats::Get()
+{
+	FCounts Counts;
+	Counts.DetourEntries = GStatDetourEntries.load(std::memory_order_relaxed);
+	Counts.SurfaceLost = GStatSurfaceLost.load(std::memory_order_relaxed);
+	Counts.Landings = GStatLandings.load(std::memory_order_relaxed);
+	Counts.Rehomes = GStatRehomes.load(std::memory_order_relaxed);
+	Counts.Crushes = GStatCrushes.load(std::memory_order_relaxed);
+	return Counts;
+}
+
+void LNPSurfaceCrawlStats::Reset()
+{
+	GStatDetourEntries.store(0, std::memory_order_relaxed);
+	GStatSurfaceLost.store(0, std::memory_order_relaxed);
+	GStatLandings.store(0, std::memory_order_relaxed);
+	GStatRehomes.store(0, std::memory_order_relaxed);
+	GStatCrushes.store(0, std::memory_order_relaxed);
+}
 
 ULNPEnemyCrawlMovementProcessor::ULNPEnemyCrawlMovementProcessor()
 	: CrawlQuery(*this)
@@ -59,6 +93,8 @@ void ULNPEnemyCrawlMovementProcessor::ConfigureQueries(const TSharedRef<FMassEnt
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPCrawlSpatialGridSubsystem>(EMassFragmentAccess::ReadOnly);
+	// 움직이는 패널 운반(D-013). 패널 자세는 이 페이즈보다 먼저 게시된다(D-050).
+	ProcessorRequirements.AddSubsystemRequirement<ULNPDynamicTerrainSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 namespace
@@ -83,6 +119,8 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
 	const ULNPCrawlSpatialGridSubsystem& CrawlGrid = Context.GetSubsystemChecked<ULNPCrawlSpatialGridSubsystem>();
+	const TSharedRef<const FLNPDynamicSupportFrame, ESPMode::ThreadSafe> DynamicFrame =
+		Context.GetSubsystemChecked<ULNPDynamicTerrainSubsystem>().GetDynamicSupportFrame();
 
 	// 재귀속 후보: 터지지 않은 Pod 전부(D-066 — Nav 도달성은 보지 않는다). 지상 경로 프로세서와 같은 "활성" 기준이다.
 	TArray<FMassEntityHandle> PodEntities;
@@ -118,6 +156,17 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			}
 		};
 
+		// 측정 누계는 청크 끝에 한 번만 더한다.
+		LNPSurfaceCrawlStats::FCounts ChunkStats;
+		ON_SCOPE_EXIT
+		{
+			GStatDetourEntries.fetch_add(ChunkStats.DetourEntries, std::memory_order_relaxed);
+			GStatSurfaceLost.fetch_add(ChunkStats.SurfaceLost, std::memory_order_relaxed);
+			GStatLandings.fetch_add(ChunkStats.Landings, std::memory_order_relaxed);
+			GStatRehomes.fetch_add(ChunkStats.Rehomes, std::memory_order_relaxed);
+			GStatCrushes.fetch_add(ChunkStats.Crushes, std::memory_order_relaxed);
+		};
+
 		const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
 		if (Config == nullptr)
 			return;
@@ -151,6 +200,9 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 		FallParams.GravityStrength = MoveConfig.GravityStrength;
 		FallParams.CapsuleRadius = Config->CapsuleRadius;
 		FallParams.CapsuleHalfHeight = Config->CapsuleRadius;
+		// D-066: 넉백 낙하는 걸을 수 없는 Blocker 면에도 착지해 붙는다. 그러지 않으면 프랍 둘 사이 골에 끼어 바닥에 닿지 못하고
+		// 두 경사면 사이에서 겹침 풀기를 오가며 공중에 남는다(Phase 14 단위 6b 실측).
+		FallParams.bLandOnAnyKnownSolid = true;
 
 		// 착지·스폰 직후 붙을 표면을 찾는 거리. 스폰은 지면점에서 반높이만큼 올린 자리다.
 		const float AttachReach = Config->CapsuleRadius;
@@ -172,17 +224,32 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			FLNPEnemyFragment& EnemyData = EnemyFragments[i];
 			const bool bHitReacting = EnemyData.TickReactionTimers(DeltaTime);
 
-			// 착지하면 그 자리 표면에 다시 붙는다. 못 찾으면 구 중심 방향을 법선으로 두고 다음 이동의 probe가 정한다.
-			auto AttachHere = [&](const FVector& At)
+			// 착지하면 그 자리 표면에 다시 붙는다. Up은 붙을 면의 바깥 방향(착지 면 법선, 스폰은 구 중심 방향)이다.
+			// 못 찾으면 Up을 법선으로 두고 다음 이동의 probe가 정한다. 붙은 면이 움직이는 패널이면 운반 접촉을 만든다.
+			auto AttachHere = [&](const FVector& At, const FVector& Up)
 			{
 				FVector Attached, AttachedNormal;
-				if (LNPSurfaceCrawl::Attach(WorldCollision, CrawlParams, At, -(GravityOrigin - At).GetSafeNormal(), AttachReach, Attached, AttachedNormal))
+				FLNPExactHitIdentity Identity;
+				if (LNPSurfaceCrawl::Attach(WorldCollision, CrawlParams, At, -Up, AttachReach, Attached, AttachedNormal, &Identity))
 				{
 					CrawlData.SurfaceNormal = AttachedNormal;
+					LNPEnemySurfaceMovement::MakeDynamicSupportContact(Identity, *DynamicFrame, Attached, EnemyData.DynamicSupportContact);
 					return Attached;
 				}
-				CrawlData.SurfaceNormal = (GravityOrigin - At).GetSafeNormal();
-				return At;
+				// 착지 hit 자리가 볼록 hull 안쪽으로 조금 들어가 probe가 시작 겹침으로 실패할 수 있다(단위 6b 실측 0.13cm).
+				// 겹침을 풀고 한 번 더 붙는다. 정지한 개체는 query를 하지 않아 겹침이 그대로 남기 때문이다.
+				// 풀지 못하면 제자리 — 마지막으로 민 자리는 다른 면 안일 수 있다.
+				FVector Free;
+				if (!LNPSurfaceCrawl::Depenetrate(WorldCollision, CrawlParams, At, Free, Up, nullptr, Up))
+					Free = At;
+				if (!Free.Equals(At) && LNPSurfaceCrawl::Attach(WorldCollision, CrawlParams, Free, -Up, AttachReach, Attached, AttachedNormal, &Identity))
+				{
+					CrawlData.SurfaceNormal = AttachedNormal;
+					LNPEnemySurfaceMovement::MakeDynamicSupportContact(Identity, *DynamicFrame, Attached, EnemyData.DynamicSupportContact);
+					return Attached;
+				}
+				CrawlData.SurfaceNormal = Up;
+				return Free;
 			};
 
 			if (bChunkIsDying)
@@ -202,14 +269,53 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				continue;
 			}
 
+			// 움직이는 패널 위(밑면·옆면 포함)에 붙어 있으면 먼저 이번 프레임 패널 자세로 옮긴다(D-013, 지상과 같은 로컬 접촉).
+			// 패널이 snapshot에서 사라지거나 비보행이 되면 마지막 패널 속도를 실어 공중으로 넘긴다.
+			if (PhysVelocity.IsNearlyZero() && EnemyData.DynamicSupportContact.IsValid())
+			{
+				const FLNPDynamicSupportSnapshot* Panel = DynamicFrame->Find(EnemyData.DynamicSupportContact.SupportId);
+				const uint32 PanelActorId = Panel ? Panel->ActorId : 0;
+				if (LNPSurfaceCrawl::CarryOnDynamicSupport(*DynamicFrame, EnemyData.DynamicSupportContact, EntityTransform, CrawlData.SurfaceNormal))
+				{
+					// 운반 경로를 패널을 뺀 지형으로 검사한다. 밑면·옆면에 붙은 개체는 패널이 지면·벽 쪽으로 가면 그 안으로
+					// 끌려 들어간다(윗면만 타는 지상 적에는 없는 경우, 단위 6e 패키지 실측 2~4cm). 막히면 그 앞에 서고 운반을 끊는다 —
+					// 패널이 계속 밀고 오면 겹침 해소가 맡는다(풀지 못하면 제자리, 압사는 백로그).
+					FLNPWorldQueryParams CarryQuery(ELNPWorldQueryClass::SurfaceCrawl);
+					if (PanelActorId != 0)
+						CarryQuery.IgnoredActorIds.Add(PanelActorId);
+					FLNPWorldHit CarryHit;
+					const FVector Carried = EntityTransform.GetLocation();
+					if (!Carried.Equals(Location, 0.01)
+						&& WorldCollision.SweepSphereWorld(Location, Carried, CrawlParams.BodyRadius, CarryQuery, CarryHit))
+					{
+						EnemyData.DynamicSupportContact.Reset();
+						const FVector Back = (Location - Carried).GetSafeNormal();
+						EntityTransform.SetLocation(CarryHit.bStartPenetrating ? Location
+							: CarryHit.Location + Back * FMath::Min(CrawlParams.SurfaceGap, CarryHit.Distance));
+					}
+					Location = EntityTransform.GetLocation();
+				}
+				else
+				{
+					PhysVelocity = EnemyData.DynamicSupportContact.LastLinearVelocity;
+					EnemyData.DynamicSupportContact.Reset();
+					if (PhysVelocity.IsNearlyZero())
+						PhysVelocity = -GravityUp * MoveConfig.GravityStrength * DeltaTime;
+				}
+			}
+
 			// 넉백·표면 상실: 지상과 같은 공중 분기. 스스로 점프하지 않으므로 이 속도의 생산자는 외부(넉백)와 표면 상실뿐이다.
 			if (!PhysVelocity.IsNearlyZero())
 			{
 				LNPSurfaceCrawl::ResetDetour(CrawlData.Detour);
+				EnemyData.DynamicSupportContact.Reset();
 				FVector NewLocation;
-				if (LNPEnemyExactMovement::StepAirborne(WorldCollision, FallParams, Location, PhysVelocity, DeltaTime, NewLocation))
+				FVector LandingNormal = (GravityOrigin - Location).GetSafeNormal();
+				if (LNPEnemyExactMovement::StepAirborne(WorldCollision, FallParams, Location, PhysVelocity, DeltaTime, NewLocation,
+					nullptr, &LandingNormal))
 				{
-					NewLocation = AttachHere(NewLocation);
+					++ChunkStats.Landings;
+					NewLocation = AttachHere(NewLocation, LandingNormal);
 					// 착지는 Home 판정이 끝날 때까지 Pod를 활성으로 붙잡는다(지상과 같은 플래그 — 활동 대역이 강제 활성하고
 					// 구간 배회가 건너뛴다). 그러지 않으면 도망친 플레이어 때문에 Pod가 배회·휴면으로 내려가 재귀속 계측이 멈춘다.
 					EnemyData.bNeedsHomeCheck |= EnemyData.ParentLootPod.IsValid();
@@ -226,7 +332,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			// 스폰 직후에는 법선을 모른다. 발밑 표면을 한 번 찾는다.
 			if (CrawlData.SurfaceNormal.IsNearlyZero())
 			{
-				Location = AttachHere(Location);
+				Location = AttachHere(Location, (GravityOrigin - Location).GetSafeNormal());
 				EntityTransform.SetLocation(Location);
 			}
 			const FVector Normal = CrawlData.SurfaceNormal;
@@ -335,6 +441,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 					EnemyData.ParentPodLocation = PodIndex != INDEX_NONE ? PodPositions[PodIndex] : Location;
 					if (OldParent != EnemyData.ParentLootPod)
 					{
+						++ChunkStats.Rehomes;
 						IdleData.bNeedNewWanderTarget = true;
 						IdleData.bWanderTargetTimedOut = true;
 						ChunkEntitiesToSignal.Add(Ctx.GetEntity(i));
@@ -370,8 +477,10 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			FVector MoveDir = LNPSurfaceCrawl::SteerDirection(Location, Normal, Goal, GravityUp, CrawlParams.BodyRadius);
 			if (Targeting.State == ELNPTargetingState::Confirmed && Speed > 0.f)
 			{
+				const bool bWasDetouring = CrawlData.Detour.DetourTime > 0.f;
 				MoveDir = LNPSurfaceCrawl::UpdateDetour(CrawlData.Detour, DetourParams, Location, Normal, MoveDir, Goal - Location,
 					GravityUp, EntityTransform.GetRotation().GetRightVector(), (Ctx.GetEntity(i).Index & 1) ? 1 : -1, DeltaTime);
+				ChunkStats.DetourEntries += !bWasDetouring && CrawlData.Detour.DetourTime > 0.f ? 1 : 0;
 			}
 			else
 			{
@@ -405,9 +514,36 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			FVector NewLocation = Location;
 			FVector NewNormal = Normal;
 			const FVector Velocity = MoveDir * Speed + SeparationPush;
-			if (LNPSurfaceCrawl::Step(WorldCollision, CrawlParams, Location, Normal, Velocity, DeltaTime, NewLocation, NewNormal)
-				== LNPSurfaceCrawl::EStepResult::Lost)
+			FLNPExactHitIdentity SurfaceIdentity;
+			// 정지 개체는 Step이 query를 하지 않는다. 패널 근처에서만 내려오는 패널에 깔렸는지 제자리 겹침을 본다.
+			bool bNearPanel = false;
+			if (Velocity.IsNearlyZero() && !EnemyData.DynamicSupportContact.IsValid())
 			{
+				for (const FLNPDynamicSupportSnapshot& Support : DynamicFrame->Supports)
+				{
+					bNearPanel |= FVector::DistSquared(Support.CurrentTransform.GetLocation(), Location) < FMath::Square(StationaryCrushCheckRadius);
+				}
+			}
+			const LNPSurfaceCrawl::EStepResult StepResult = bNearPanel
+				? LNPSurfaceCrawl::ResolveStationaryOverlap(WorldCollision, CrawlParams, Location, Normal, NewLocation)
+				: LNPSurfaceCrawl::Step(WorldCollision, CrawlParams, Location, Normal, Velocity, DeltaTime, NewLocation, NewNormal, &SurfaceIdentity);
+			// 압사(사용자 결정 2026-10-06): 움직이는 지형과 다른 면 사이에 끼어 겹침을 풀 수 없다. 체력을 0으로 만들어 기존 사망 경로
+			// (ULNPHealthProcessor → Dying 태그·사망 낙하·복제)를 탄다. 지상·비행 압사는 Idea_Backlog 후보다.
+			if (StepResult == LNPSurfaceCrawl::EStepResult::Crushed)
+			{
+				++ChunkStats.Crushes;
+				EnemyData.Health = 0.f;
+				UE_LOG(LogLootNPop, Log, TEXT("[SurfaceCrawlCrush] enemy=%d at %s"), Ctx.GetEntity(i).Index, *Location.ToString());
+			}
+			// 새로 붙은 면이 있으면 운반 접촉을 그 면으로 바꾼다(정적 면이면 비운다). 새 면이 없는 프레임(정지·막힘)은 유지한다.
+			if (StepResult != LNPSurfaceCrawl::EStepResult::Lost && SurfaceIdentity.IsKnown())
+			{
+				LNPEnemySurfaceMovement::MakeDynamicSupportContact(SurfaceIdentity, *DynamicFrame, NewLocation, EnemyData.DynamicSupportContact);
+			}
+			if (StepResult == LNPSurfaceCrawl::EStepResult::Lost)
+			{
+				++ChunkStats.SurfaceLost;
+				EnemyData.DynamicSupportContact.Reset();
 				// 붙을 표면이 없다. 기어가던 속도를 실은 채 구 중심 중력으로 떨어진다. 속도 0은 붙음을 뜻하므로 중력 한 스텝을 더한다.
 				PhysVelocity = FVector::VectorPlaneProject(Velocity, Normal) - GravityUp * MoveConfig.GravityStrength * DeltaTime;
 				NewNormal = (GravityOrigin - NewLocation).GetSafeNormal();
