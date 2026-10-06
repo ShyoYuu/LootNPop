@@ -100,6 +100,7 @@ void FLNPMassClientBubbleHandler::ApplyMovementData(const FMassEntityView& Entit
 	if (Movement && Agent.GetWander().IsEnabled())
 	{
 		Movement->Wander = Agent.GetWander();
+		Movement->WanderNormal = Agent.GetSurfaceNormal();
 		return;
 	}
 	if (Movement && Movement->Wander.IsEnabled())
@@ -177,6 +178,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 			Movement->TimeSinceUpdate = 0.f;
 			Movement->BlendDuration = 0.f;
 			Movement->Wander = ReplicatedEntity.GetWander();
+			Movement->WanderNormal = ReplicatedEntity.GetSurfaceNormal();
 		}
 
 		// 스폰 시점 행동도 반영한다. 이미 싸우고 있는 적이 버블에 들어오면 그 상태로 보여야 한다.
@@ -313,7 +315,7 @@ void ULNPMassSmoothingProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					Params.CapsuleHalfHeight = Shared->Config->CapsuleHalfHeight;
 				}
 				FTransform& Transform = Transforms[i].GetMutableTransform();
-				if (Movement.Wander.Evaluate(ServerNow, Snapshot.Get(), Params, Transform) && Actions.IsValidIndex(i)
+				if (Movement.Wander.Evaluate(ServerNow, Snapshot.Get(), Params, Transform, Movement.WanderNormal) && Actions.IsValidIndex(i)
 					&& (Actions[i].Action == ELNPEnemyAction::Idle || Actions[i].Action == ELNPEnemyAction::Move))
 					Actions[i].Action = Movement.Wander.IsMoving(ServerNow) ? ELNPEnemyAction::Move : ELNPEnemyAction::Idle;
 				continue;

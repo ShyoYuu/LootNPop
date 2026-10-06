@@ -16,9 +16,9 @@ FLNPReplicatedWanderData FLNPReplicatedWanderData::Encode(const FLNPEnemyWanderS
 		|| !FMath::IsFinite(Travel) || !FMath::IsFinite(Hold) || Travel < 0.0 || Hold < 0.0
 		|| Travel > MAX_uint16 || Hold > MAX_uint16
 		|| Segment.Start.GetAbsMax() > MAX_int16 || Segment.Goal.GetAbsMax() > MAX_int16
-		|| (!bFlying && (!Surface.IsValid() || Surface.OctantSlot < 0 || Surface.OctantSlot >= 8)))
+		|| (!bFlying && !Segment.bCrawl && (!Surface.IsValid() || Surface.OctantSlot < 0 || Surface.OctantSlot >= 8)))
 		return Data;
-	Data.Flags = 1 | (bFlying ? 2 : static_cast<uint8>(Surface.OctantSlot << 2));
+	Data.Flags = 1 | (bFlying ? 2 : Segment.bCrawl ? 32 : static_cast<uint8>(Surface.OctantSlot << 2));
 	Data.StartX = FMath::RoundToInt32(Segment.Start.X);
 	Data.StartY = FMath::RoundToInt32(Segment.Start.Y);
 	Data.StartZ = FMath::RoundToInt32(Segment.Start.Z);
@@ -28,7 +28,7 @@ FLNPReplicatedWanderData FLNPReplicatedWanderData::Encode(const FLNPEnemyWanderS
 	Data.StartMs = static_cast<uint32>(static_cast<uint64>(FMath::RoundToInt64(Segment.StartTime * 1000.0)) & MAX_uint32);
 	Data.TravelMs = FMath::RoundToInt32(Travel);
 	Data.HoldMs = FMath::RoundToInt32(Hold);
-	Data.Layer = bFlying ? 0 : Surface.LocalLayerId;
+	Data.Layer = bFlying || Segment.bCrawl ? 0 : Surface.LocalLayerId;
 	Data.Yaw = static_cast<int16>(FMath::Clamp(FMath::RoundToInt32(FMath::UnwindRadians(LocalYaw) * MAX_int16 / UE_PI), -MAX_int16, MAX_int16));
 	return Data;
 }
@@ -50,6 +50,7 @@ void FLNPReplicatedWanderData::ApplyTo(FLNPEnemyWanderSegment& Segment, const do
 	Segment.StopUntil = Segment.ArrivalTime + HoldMs / 1000.0;
 	Segment.LocalYaw = static_cast<float>(Yaw) * UE_PI / MAX_int16;
 	Segment.bValid = IsEnabled();
+	Segment.bCrawl = IsCrawling();
 }
 
 bool FLNPReplicatedWanderData::IsMoving(const double ServerNow) const
@@ -59,14 +60,14 @@ bool FLNPReplicatedWanderData::IsMoving(const double ServerNow) const
 }
 
 bool FLNPReplicatedWanderData::Evaluate(const double ServerNow, const FLNPSurfaceDataSnapshot* Snapshot,
-	const LNPEnemyExactMovement::FParams& Params, FTransform& OutTransform) const
+	const LNPEnemyExactMovement::FParams& Params, FTransform& OutTransform, const uint16 SurfaceNormal) const
 {
 	if (!IsEnabled())
 		return false;
 	FLNPEnemyWanderSegment Segment;
 	ApplyTo(Segment, ServerNow);
 	FVector Position = Segment.Evaluate(ServerNow);
-	if (!IsFlying())
+	if (!IsFlying() && !IsCrawling())
 	{
 		if (!Snapshot)
 			return false;
@@ -74,10 +75,12 @@ bool FLNPReplicatedWanderData::Evaluate(const double ServerNow, const FLNPSurfac
 		if (!LNPEnemySurfaceMovement::TryResolveCachedGround(*Snapshot, Params, Position, Surface, Position))
 			return false;
 	}
-	const FVector Up = (Params.GravityOrigin - Position).GetSafeNormal();
+	// 벽보행은 구간 내내 붙은 면의 법선이 Up이다. 법선이 없으면(0) 구 중심 방향으로 둔다.
+	const uint16 Normal = IsCrawling() ? SurfaceNormal : 0;
+	const FVector Up = Normal != 0 ? LNP::Replication::DecodeOctNormal(Normal) : (Params.GravityOrigin - Position).GetSafeNormal();
 	FVector Forward = FVector::VectorPlaneProject(Segment.Goal - Segment.Start, Up).GetSafeNormal();
 	const FQuat Rotation = Forward.IsNearlyZero()
-		? LNP::Replication::DecodeSphereRotation(Position, static_cast<float>(Yaw) * UE_PI / MAX_int16)
+		? LNP::Replication::DecodeReplicatedRotation(Position, Normal, static_cast<float>(Yaw) * UE_PI / MAX_int16)
 		: FRotationMatrix::MakeFromXZ(Forward, Up).ToQuat();
 	OutTransform.SetLocation(Position);
 	OutTransform.SetRotation(Rotation);

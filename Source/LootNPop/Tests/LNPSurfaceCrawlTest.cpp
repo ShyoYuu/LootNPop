@@ -39,6 +39,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"LootNPop.SurfaceNavigation.SurfaceCrawl.HomeApproach",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSurfaceCrawlWanderSegmentTest,
+	"LootNPop.SurfaceNavigation.SurfaceCrawl.WanderSegment",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 namespace
 {
 	using namespace LNPSurfaceCrawl;
@@ -431,6 +436,44 @@ bool FLNPSurfaceCrawlHomeApproachTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Nearest pod by straight distance"), SelectNearestPod(FVector::ZeroVector, Pods), 1);
 	TestEqual(TEXT("Nearest pod near the far one"), SelectNearestPod(FVector(900, 0, 0), Pods), 0);
 	TestEqual(TEXT("No pod candidates"), SelectNearestPod(FVector::ZeroVector, TArray<FVector>()), static_cast<int32>(INDEX_NONE));
+	return true;
+}
+
+bool FLNPSurfaceCrawlWanderSegmentTest::RunTest(const FString& Parameters)
+{
+	FCrawlWorld Fixture(TEXT("LNPSurfaceCrawlWanderSegmentTest"));
+	if (!TestNotNull(TEXT("World collision subsystem exists"), Fixture.Collision))
+		return false;
+
+	// 바닥 top z=10(x -2000~2000). 벽 x 290~310, 높이 600.
+	Fixture.Box(FVector(0, 0, 0), FVector(40, 40, 0.2), TEXT("LNPStaticTerrain"));
+	Fixture.Box(FVector(300, 0, 300), FVector(0.2, 40, 6), TEXT("LNPStaticTerrain"));
+	Fixture.Publish();
+	const double FloorZ = 10.0 + TestRadius + Fixture.Params.SurfaceGap;
+	const double WallX = 290.0 - TestRadius - Fixture.Params.SurfaceGap;
+
+	// 1. 평지 직선: 수락. query는 sweep 1 + 반지름 간격 probe(180 / 40 → 5)다.
+	const uint64 Before = Fixture.Collision->GetQueryCount(ELNPWorldQueryClass::SurfaceCrawl);
+	TestTrue(TEXT("Flat segment is accepted"),
+		ValidateWanderSegment(*Fixture.Collision, Fixture.Params, FVector(0, 0, FloorZ), FVector::UpVector, FVector(180, 0, FloorZ)));
+	TestEqual(TEXT("Flat segment uses sweep plus probes"),
+		Fixture.Collision->GetQueryCount(ELNPWorldQueryClass::SurfaceCrawl) - Before, static_cast<uint64>(6));
+
+	// 2. 벽으로 들어가는 직선: 같은 높이 sweep이 벽에 막혀 거부(오목 모서리를 건너는 구간).
+	TestFalse(TEXT("Segment into a wall is rejected"),
+		ValidateWanderSegment(*Fixture.Collision, Fixture.Params, FVector(200, 0, FloorZ), FVector::UpVector, FVector(380, -100, FloorZ)));
+
+	// 3. 절벽 밖으로 나가는 직선: 끝의 probe가 같은 면을 찾지 못해 거부.
+	TestFalse(TEXT("Segment off a cliff edge is rejected"),
+		ValidateWanderSegment(*Fixture.Collision, Fixture.Params, FVector(1900, -1000, FloorZ), FVector::UpVector, FVector(2080, -1000, FloorZ)));
+
+	// 4. 벽면 위 직선: 법선 -X 평면 안이면 중력과 무관하게 수락.
+	TestTrue(TEXT("Segment on a wall face is accepted"),
+		ValidateWanderSegment(*Fixture.Collision, Fixture.Params, FVector(WallX, 0, 300), -FVector::ForwardVector, FVector(WallX, 150, 380)));
+
+	// 5. 벽면에서 바닥으로 내려가는 직선: 볼록·오목 모서리를 건너므로 거부.
+	TestFalse(TEXT("Segment from wall down to the floor is rejected"),
+		ValidateWanderSegment(*Fixture.Collision, Fixture.Params, FVector(WallX, 0, 120), -FVector::ForwardVector, FVector(WallX, 0, 20)));
 	return true;
 }
 

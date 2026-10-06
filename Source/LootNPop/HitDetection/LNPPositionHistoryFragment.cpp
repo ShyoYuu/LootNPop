@@ -85,7 +85,7 @@ FVector FLNPPositionHistoryFragment::GetInterpolatedLocation(double QueryTime, c
 		if (A.Timestamp <= QueryTime && QueryTime <= B.Timestamp)
 		{
 			if (A.Wander.IsEnabled() && A.Wander == B.Wander
-				&& (A.Wander.IsFlying() || (Snapshot && Snapshot->Generation == A.SurfaceGeneration)))
+				&& (A.Wander.IsFlying() || A.Wander.IsCrawling() || (Snapshot && Snapshot->Generation == A.SurfaceGeneration)))
 			{
 				LNPEnemyExactMovement::FParams Params;
 				Params.CapsuleHalfHeight = A.CapsuleHalfHeight;

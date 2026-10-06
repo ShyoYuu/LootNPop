@@ -169,7 +169,7 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 						| uint32(Enemy.bNeedsHomeCheck) << 6 | uint32(Enemy.DynamicSupportContact.IsValid()) << 7
 						| uint32(Actors[I].Get() != nullptr) << 8
 						| uint32(Shared.ActivityActiveDistance <= 0.f || Shared.ActivityCullDistance < Shared.ActivityActiveDistance) << 9
-						| uint32(Shared.Config && !Shared.Config->IsFlying() && !Enemy.SurfaceHandle.IsValid()) << 10;
+						| uint32(Shared.Config && !Shared.Config->IsFlying() && !Shared.Config->IsCrawling() && !Enemy.SurfaceHandle.IsValid()) << 10;
 				}
 				if (bDiagnosticSample)
 				{
@@ -191,7 +191,7 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					Pod->CullDistance = FMath::Max(Pod->CullDistance, Shared.ActivityCullDistance);
 					Pod->bForceActive |= Shared.ActivityActiveDistance <= 0.f
 						|| Shared.ActivityCullDistance < Shared.ActivityActiveDistance
-						|| (!Shared.Config->IsFlying() && !Enemy.SurfaceHandle.IsValid());
+						|| (!Shared.Config->IsFlying() && !Shared.Config->IsCrawling() && !Enemy.SurfaceHandle.IsValid());
 					if (bDistanceDue)
 						Pod->bCanSleep &= NearestPlayerSq(Transforms[I].GetTransform().GetLocation())
 							> FMath::Square(static_cast<double>(FMath::Max(

@@ -161,4 +161,15 @@ namespace LNPSurfaceCrawl
 	 */
 	LOOTNPOP_API bool Attach(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Location, const FVector& SearchDirection, float Reach, FVector& OutLocation, FVector& OutNormal);
+
+	/**
+	 * 구간 배회(D-068, Phase 14 단위 4e) 한 구간을 생성할 때 한 번 검증한다. 구간은 Start에서 Goal까지 법선이 고정된 평면 위의 직선이고,
+	 * 서버·클라이언트 모두 보간 중 query 없이 이 직선을 그대로 쓴다. 그래서 직선 전체가 같은 표면(법선 동일) 위에 떠 있어야 한다.
+	 * - 같은 높이 구 sweep: 턱·벽·천장에 닿으면 거부한다.
+	 * - 몸 반지름 간격의 하향 probe(마지막은 Goal): 붙을 표면(IsCrawlable)이 있고, 그 자리의 법선이 Normal과
+	 *   MinNormalDot 이상이며, 붙을 자리와 직선 위 점의 차이가 MaxGapError 이하여야 한다. 모서리·절벽·홈을 건너는 구간을 거른다.
+	 * query: 1 + ceil(길이 / 몸 반지름)회. 실패하면 첫 실패에서 멈춘다.
+	 */
+	LOOTNPOP_API bool ValidateWanderSegment(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Start, const FVector& Normal, const FVector& Goal, float MaxGapError = 2.f, float MinNormalDot = 0.99f);
 }

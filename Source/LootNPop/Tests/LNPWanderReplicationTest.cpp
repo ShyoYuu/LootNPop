@@ -204,4 +204,52 @@ bool FLNPWanderRewindTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Transition interval falls back to recorded positions"), History.GetInterpolatedLocation(22.025).Equals(FVector(999, 999, 999)));
 	return !HasAnyErrors();
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPWanderCrawlTest, "LootNPop.SurfaceNavigation.WanderReplication.Crawl",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLNPWanderCrawlTest::RunTest(const FString& Parameters)
+{
+	// 벽 위 구간: 법선 +X 평면의 직선. 지상 slot·Layer 없이 인코딩되고, 지상 비트와 섞이지 않는다.
+	const FVector WallNormal = FVector(1, 0, 0);
+	const uint16 NormalCode = LNP::Replication::EncodeOctNormal(WallNormal);
+	FLNPEnemyWanderSegment Segment = TestSegment();
+	Segment.Goal = FVector(1000, 150, 2120);
+	Segment.bCrawl = true;
+	const auto Data = FLNPReplicatedWanderData::Encode(Segment, false, {}, 0.4f);
+	TestTrue(TEXT("Crawl encoding enabled without a surface identity"), Data.IsEnabled() && Data.IsCrawling() && !Data.IsFlying());
+	TestEqual(TEXT("Crawl uses no slot or layer"), static_cast<int32>(Data.Flags), 1 | 32);
+	TestEqual(TEXT("Crawl layer is zero"), Data.Layer, uint16(0));
+	TestFalse(TEXT("Ground encoding has no crawl bit"), FLNPReplicatedWanderData::Encode(TestSegment(), false, {0, 2, 1}, 0).IsCrawling());
+	FLNPEnemyWanderSegment Decoded;
+	Data.ApplyTo(Decoded, 22.0);
+	TestTrue(TEXT("Decoded segment keeps crawl"), Decoded.bCrawl);
+	TestTrue(TEXT("Canonical crawl segment re-encodes without dirty changes"), Data == FLNPReplicatedWanderData::Encode(Decoded, false, {}, Decoded.LocalYaw));
+
+	// 평가: snapshot 없이 직선을 그대로 쓰고, Up은 받은 법선, 전방은 구간 방향이다.
+	FTransform Pose;
+	TestTrue(TEXT("Crawl evaluates without a surface snapshot"), Data.Evaluate(22.0, nullptr, {}, Pose, NormalCode));
+	TestTrue(TEXT("Crawl position follows the straight segment"), Pose.GetLocation().Equals(Segment.Evaluate(22.0), 0.6));
+	TestTrue(TEXT("Crawl up is the replicated wall normal"), Pose.GetRotation().GetAxisZ().Equals(WallNormal, 0.03));
+	TestTrue(TEXT("Crawl forward follows the segment on the wall"),
+		Pose.GetRotation().GetAxisX().Equals((Segment.Goal - Segment.Start).GetSafeNormal(), 0.03));
+
+	// 제자리 구간은 법선 기저의 로컬 Yaw로 자세를 복원한다 — 서버 인코드와 같은 기저다.
+	FLNPEnemyWanderSegment Hold = Segment;
+	Hold.Goal = Hold.Start;
+	const FQuat ServerRotation = FRotationMatrix::MakeFromZX(WallNormal, FVector(0, 0.6, 0.8)).ToQuat();
+	const float LocalYaw = LNP::Replication::EncodeReplicatedLocalYaw(FTransform(ServerRotation, Hold.Start), NormalCode);
+	const auto HoldData = FLNPReplicatedWanderData::Encode(Hold, false, {}, LocalYaw);
+	TestTrue(TEXT("Hold segment evaluates"), HoldData.Evaluate(30.0, nullptr, {}, Pose, NormalCode));
+	TestTrue(TEXT("Hold segment restores server rotation"), Pose.GetRotation().GetAxisX().Equals(ServerRotation.GetAxisX(), 0.03)
+		&& Pose.GetRotation().GetAxisZ().Equals(WallNormal, 0.03));
+
+	// 되감기: 벽보행 구간은 지상 snapshot generation과 무관하게 구간 함수로 평가한다.
+	FLNPPositionHistoryFragment History;
+	History.Count = 2;
+	History.NextWriteIdx = 2;
+	History.Samples[0] = {22.0, FVector(999, 999, 999)};
+	History.Samples[1] = {22.05, FVector(999, 999, 999)};
+	History.Samples[0].Wander = History.Samples[1].Wander = Data;
+	TestTrue(TEXT("Crawl rewind uses segment function"), History.GetInterpolatedLocation(22.025).Equals(Segment.Evaluate(22.025), 0.6));
+	return !HasAnyErrors();
+}
 #endif

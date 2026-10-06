@@ -6,7 +6,7 @@
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "SurfaceNavigation/LNPNavOverlay.h"
 
-/** 서버 구간 배회. 캡슐 중심을 저장하고 지상 보간점은 현재 Layer에 투영한다. */
+/** 서버 구간 배회. 캡슐 중심을 저장하고 지상 보간점은 현재 Layer에 투영한다. 비행·벽보행은 직선을 그대로 쓴다. */
 struct FLNPEnemyWanderSegment
 {
 	FVector Start = FVector::ZeroVector;
@@ -20,6 +20,8 @@ struct FLNPEnemyWanderSegment
 	FTile Tiles[16];
 	uint8 TileCount = 0;
 	bool bValid = false;
+	/** 벽보행 구간: 법선이 고정된 평면 위의 직선이다(생성 때 LNPSurfaceCrawl::ValidateWanderSegment로 검증). Up은 엔티티 회전 Z다. */
+	bool bCrawl = false;
 
 	FVector Evaluate(double Now) const
 	{

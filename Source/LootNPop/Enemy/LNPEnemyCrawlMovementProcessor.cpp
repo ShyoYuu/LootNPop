@@ -149,6 +149,9 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
+			// 배회 대역의 구간 배회(ULNPEnemyWanderProcessor)가 이번 프레임 위치·회전을 정했다.
+			if (IdleFragments[i].bWanderHandled)
+				continue;
 			FTransform& EntityTransform = Transforms[i].GetMutableTransform();
 			FVector Location = EntityTransform.GetLocation();
 			const FVector GravityUp = (GravityOrigin - Location).GetSafeNormal();

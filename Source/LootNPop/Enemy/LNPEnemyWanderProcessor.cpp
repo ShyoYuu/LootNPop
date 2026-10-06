@@ -4,6 +4,7 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
+#include "Enemy/LNPSurfaceCrawl.h"
 #include "Replication/LNPWanderReplication.h"
 #include "Replication/LNPMassReplication.h"
 #include "GAS/LNPPoiseTypes.h"
@@ -29,13 +30,12 @@ ULNPEnemyWanderProcessor::ULNPEnemyWanderProcessor() : EnemyQuery(*this)
 	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEnemyPathProcessor"));
 	ExecutionOrder.ExecuteBefore.Add(TEXT("LNPEnemyMovementProcessor"));
 	ExecutionOrder.ExecuteBefore.Add(TEXT("LNPEnemyFlightMovementProcessor"));
+	ExecutionOrder.ExecuteBefore.Add(TEXT("LNPEnemyCrawlMovementProcessor"));
 }
 
 void ULNPEnemyWanderProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
 {
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
-	// 벽보행 구간 배회(같은 표면 안의 짧은 구간)는 Phase 14 단위 4다. 그 전까지 벽보행 개체는 이 프로세서를 거치지 않는다.
-	EnemyQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::None);
 	EnemyQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FLNPEnemyIdleFragment>(EMassFragmentAccess::ReadWrite);
@@ -111,6 +111,12 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 		Params.GravityOrigin = Config->MovementConfig.GravityOrigin;
 		Params.CapsuleRadius = Config->CapsuleRadius;
 		Params.CapsuleHalfHeight = Config->CapsuleHalfHeight;
+		// 벽보행 구간(Phase 14 단위 4e)은 지금 붙은 표면 안의 짧은 직선이다 — 이동 약 1초, 정지 9초.
+		const bool bCrawl = Config->IsCrawling();
+		LNPSurfaceCrawl::FParams CrawlParams;
+		CrawlParams.BodyRadius = Config->CapsuleRadius;
+		constexpr double CrawlTravelSeconds = 1.0;
+		const double HoldSeconds = bCrawl ? 9.0 : 3.0;
 		for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
 		{
 			auto& Enemy = Enemies[I];
@@ -170,6 +176,9 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				Segment.StopUntil = Now + 3.0;
 				Segment.Generation = Snapshot->Generation;
 				Segment.bValid = true;
+				Segment.bCrawl = bCrawl;
+				// 벽보행 Up은 엔티티 회전 Z(= 붙은 면의 법선)다. 구간 동안 회전 Z를 바꾸지 않는다.
+				const FVector CrawlNormal = LNPMass::GetEntityUp(Transform);
 				const auto& Group = Members.FindChecked(Enemy.ParentLootPod);
 				const double Sector = 2.0 * PI / Group.Num();
 				const double SectorStart = Sector * Group.IndexOfByKey(Ctx.GetEntity(I));
@@ -189,6 +198,17 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 						FLNPWorldHit Hit;
 						if (Collision.SweepSphereWorld(Position, Goal, FMath::Max(Params.CapsuleRadius, Params.CapsuleHalfHeight) + Config->FlightConfig.Clearance,
 							FLNPWorldQueryParams(ELNPWorldQueryClass::FlightSteering), Hit))
+							continue;
+					}
+					else if (bCrawl)
+					{
+						// 부채꼴 배회점 쪽을 접평면에 눕혀 짧게 걷는다. 매 구간 배회점 쪽으로 가므로 Home 주변을 벗어나지 않는다.
+						const FVector Toward = FVector::VectorPlaneProject(Goal - Position, CrawlNormal);
+						if (Toward.IsNearlyZero())
+							continue;
+						const double MaxLength = 0.3 * Config->MovementConfig.MoveSpeed * CrawlTravelSeconds * FMath::FRandRange(0.5f, 1.f);
+						Goal = Position + Toward.GetClampedToMaxSize(MaxLength);
+						if (!LNPSurfaceCrawl::ValidateWanderSegment(Collision, CrawlParams, Position, CrawlNormal, Goal))
 							continue;
 					}
 					else
@@ -264,14 +284,15 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 					Segment.Goal = Goal;
 					const float Speed = 0.3f * (Config->IsFlying() ? Config->FlightConfig.FlightSpeed : Config->MovementConfig.MoveSpeed);
 					Segment.ArrivalTime = Now + FVector::Distance(Position, Goal) / FMath::Max(Speed, 1.f);
-					Segment.StopUntil = Segment.ArrivalTime + 3.0;
+					Segment.StopUntil = Segment.ArrivalTime + HoldSeconds;
 					break;
 				}
 				for (auto& R : Reservations.FindChecked(Enemy.ParentLootPod))
 					if (R.Entity == Ctx.GetEntity(I))
 						R.Goal = Segment.Goal;
-				const auto Quantized = FLNPReplicatedWanderData::Encode(Segment, Config->IsFlying(), Enemy.SurfaceHandle,
-					LNP::Replication::EncodeSphereLocalYaw(Transform));
+				const auto Quantized = FLNPReplicatedWanderData::Encode(Segment, Config->IsFlying(), Enemy.SurfaceHandle, bCrawl
+					? LNP::Replication::EncodeReplicatedLocalYaw(Transform, LNP::Replication::EncodeOctNormal(CrawlNormal))
+					: LNP::Replication::EncodeSphereLocalYaw(Transform));
 				if (!Quantized.IsEnabled())
 				{
 					if (LNPLoadBaseline::IsActivityDiagnostics())
@@ -285,7 +306,7 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				Quantized.ApplyTo(Segment, Now);
 			}
 			FVector Next = Segment.Evaluate(Now);
-			if (!Config->IsFlying() && !LNPEnemySurfaceMovement::TryResolveCachedGround(*Snapshot, Params, Next, Enemy.SurfaceHandle, Next))
+			if (!Config->IsFlying() && !bCrawl && !LNPEnemySurfaceMovement::TryResolveCachedGround(*Snapshot, Params, Next, Enemy.SurfaceHandle, Next))
 			{
 				if (LNPLoadBaseline::IsActivityDiagnostics())
 					UE_LOG(LogLootNPop, Display, TEXT("[WanderDiagnostic] Entity=%d Pod=%d Reason=Support"), Ctx.GetEntity(I).Index, Enemy.ParentLootPod.Index);
@@ -314,6 +335,8 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				const bool bBlocked = Config->IsFlying()
 					? Collision.SweepSphereWorld(Position, Next, FMath::Max(Params.CapsuleRadius, Params.CapsuleHalfHeight) + Config->FlightConfig.Clearance,
 						FLNPWorldQueryParams(ELNPWorldQueryClass::FlightSteering), Hit)
+					: bCrawl
+					? Collision.SweepSphereWorld(Position, Next, Params.CapsuleRadius, FLNPWorldQueryParams(ELNPWorldQueryClass::SurfaceCrawl), Hit)
 					: Collision.SweepCapsuleWorld(Position + Up * 2.f, Next + Up * 2.f, FQuat::FindBetweenNormals(FVector::UpVector, Up),
 						Params.CapsuleRadius, Params.CapsuleHalfHeight, FLNPWorldQueryParams(ELNPWorldQueryClass::DynamicSupportContact), Hit);
 				if (bBlocked)
@@ -329,12 +352,12 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				}
 			}
 			Transform.SetLocation(Next);
-			const FVector Up = (Params.GravityOrigin - Next).GetSafeNormal();
+			const FVector Up = bCrawl ? LNPMass::GetEntityUp(Transform) : (Params.GravityOrigin - Next).GetSafeNormal();
 			FVector Forward = FVector::VectorPlaneProject(Segment.Goal - Segment.Start, Up).GetSafeNormal();
 			if (Forward.IsNearlyZero())
 				Forward = FVector::VectorPlaneProject(Transform.GetRotation().GetForwardVector(), Up).GetSafeNormal();
 			Transform.SetRotation(Segment.Start.Equals(Segment.Goal)
-				? LNP::Replication::DecodeSphereRotation(Next, Segment.LocalYaw)
+				? LNP::Replication::DecodeReplicatedRotation(Next, bCrawl ? LNP::Replication::EncodeOctNormal(Up) : 0, Segment.LocalYaw)
 				: FRotationMatrix::MakeFromXZ(Forward, Up).ToQuat());
 			Moves[I].Center = Segment.Goal;
 			Moves[I].DistanceToGoal = FVector::Distance(Next, Segment.Goal);

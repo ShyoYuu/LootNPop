@@ -473,6 +473,8 @@ struct LOOTNPOP_API FLNPReplicatedMovementFragment : public FMassFragment
 {
 	GENERATED_BODY()
 	FLNPReplicatedWanderData Wander;
+	/** 구간과 함께 받은 표면 법선(`FLNPReplicatedAgent::SurfaceNormal`). 벽보행 구간의 고정 Up이다. 지상·비행은 0이다. */
+	uint16 WanderNormal = 0;
 
 	/** 마지막으로 수신한 스냅샷 (보간의 도착점). */
 	FVector TargetPosition = FVector::ZeroVector;

@@ -277,4 +277,25 @@ namespace LNPSurfaceCrawl
 		SettleOn(Hit, Params, OutLocation, OutNormal);
 		return true;
 	}
+
+	bool ValidateWanderSegment(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Start, const FVector& Normal, const FVector& Goal, const float MaxGapError, const float MinNormalDot)
+	{
+		FLNPWorldHit Hit;
+		if (Sweep(Collision, Params, Start, Goal, Hit))
+			return false;
+		const int32 Steps = FMath::Max(1, FMath::CeilToInt(FVector::Distance(Start, Goal) / FMath::Max(Params.BodyRadius, 1.f)));
+		for (int32 Index = 1; Index <= Steps; ++Index)
+		{
+			const FVector Sample = FMath::Lerp(Start, Goal, static_cast<double>(Index) / Steps);
+			FVector Attached, AttachedNormal;
+			if (!Attach(Collision, Params, Sample, -Normal, MaxGapError, Attached, AttachedNormal)
+				|| FVector::DotProduct(AttachedNormal, Normal) < MinNormalDot
+				|| FVector::DistSquared(Attached, Sample) > FMath::Square(MaxGapError))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
 }

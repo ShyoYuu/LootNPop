@@ -177,3 +177,19 @@
 - `FLNPEnemyCrawlFragment` 레이아웃 변경이라 에디터 종료 뒤 Build.bat 전체 빌드 성공. 관련 자동화 37/37 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit4d_Tests.log`): 신규 `SurfaceCrawl.HomeApproach`(다가오면 30초 무재귀속, 배회 거리 안 무계측, 정체 10초 뒤 재귀속, 반지름 미만 떨림은 진전 아님, 진전 뒤 정체는 마지막 진전부터 10초, 최근접·후보 없음)와 기존 36개.
 - 검증 옥탄트 1P PIE 두 번: 첫 번째에서 넉백·도주 뒤 재귀속 1건(`enemy=178 oldPod=177 newPod=457 orphaned=0`, 거리 로그 추가 전), 두 번째 약 3분에서는 0건. 검증 옥탄트에는 분리된 섬이 없고 넉백(500)으로 멀리 날지 않아, 대부분 기어서 Home 쪽으로 돌아가 재귀속 조건이 성립하지 않은 것으로 본다.
 - 사용자 결정: 자동화와 PIE 1건으로 4d를 완료한다. 정확한 재현은 섬 위에서 플레이어·NPC를 스폰하고, 섬 밑면에 모인 NPC를 런처로 흩어 다른 지형에 떨어뜨리는 방식이 필요하다. 4f까지 마친 뒤 섬 스폰이 포함된 테스트 레벨을 준비해 4d~4f를 한 번에 확인한다.
+
+## 2026-10-06 — 단위 4e·4f: 휴면·벽보행 구간 배회와 복제
+
+배회 구간은 생성 때 복제 인코딩까지 하므로 서버(4e)만 넣으면 게스트 표시가 깨진다. 둘을 함께 구현했다.
+
+### 구현
+
+- 활동 대역: 벽보행 Pod를 강제 활성 조건(`!IsFlying() && !SurfaceHandle.IsValid()`)에서 뺐다. 휴면 개체는 벽보행 이동 쿼리에서 빠져 붙은 자리에 멈춘다.
+- 서버 구간 배회: `ULNPEnemyWanderProcessor`가 벽보행도 처리한다. 지금 붙은 면(엔티티 회전 Z)의 접평면에서 기존 부채꼴 배회점 쪽으로 최대 `0.3 × MoveSpeed × 1초`(현재 180cm, 0.5~1배 무작위) 직선, 정지 9초. 생성 검증 `LNPSurfaceCrawl::ValidateWanderSegment`(같은 높이 구 sweep 1 + 몸 반지름 간격 하향 probe, 법선 내적 ≥ 0.99·붙을 자리 오차 ≤ 2cm). 보간 중 query 없음, 동적 지지면 slot은 기존처럼 프레임 sweep(벽보행은 구 sweep). 벽보행 이동 프로세서는 `bWanderHandled` 개체를 건너뛴다.
+- 복제: `FLNPEnemyWanderSegment::bCrawl`, `FLNPReplicatedWanderData` Flags bit 5(slot·Layer 미사용). 서버 Yaw는 법선 기저(`EncodeReplicatedLocalYaw`)로 인코딩한다. 구간 시작 Dirty가 자세(위치·법선·Yaw)를 함께 쓰므로 클라이언트는 그때의 `SurfaceNormal`을 `FLNPReplicatedMovementFragment::WanderNormal`에 두고 구간 Up으로 쓴다. 클라이언트·되감기 평가는 비행처럼 Support 투영과 snapshot generation 조건 없이 직선을 쓴다. 페이로드 크기 변화 없음.
+
+### 검증
+
+- 이동 프래그먼트 레이아웃 변경이라 에디터 종료 뒤 Build.bat 전체 빌드 성공. 관련 자동화 39/39 PASS, 종료 코드 0(`Saved/Logs/Phase14_Unit4ef_Tests.log`): 신규 `SurfaceCrawl.WanderSegment`(평지·벽면 수락, 벽 진입·절벽 밖·벽 → 바닥 거부, 평지 query 6회)·`WanderReplication.Crawl`(Flags 1|32·Layer 0, 지상 비트 미혼합, 재인코딩 무변경, snapshot 없는 평가, 벽 법선 Up·구간 전방, 제자리 Yaw 복원, 되감기)와 기존 37개.
+- PIE는 사용자 결정대로 섬 스폰 테스트 레벨에서 4d와 함께 확인한다.
+- 남은 일: 부하 harness(`LNPLoadBaseline`) 활동 통계가 벽보행을 지상으로 센다 — 단위 6 측정 때 나눈다.
