@@ -98,6 +98,8 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 
 		LNPSurfaceCrawl::FParams CrawlParams;
 		CrawlParams.BodyRadius = Config->CapsuleRadius;
+		LNPSurfaceCrawl::FDetourParams DetourParams;
+		DetourParams.StallRadius = Config->CapsuleRadius;
 
 		// 낙하는 지상 공중 분기와 같은 함수를 쓴다. 몸이 구라 반높이도 반지름이다(캡슐 = 구).
 		LNPEnemyExactMovement::FParams FallParams;
@@ -153,6 +155,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			// 넉백·표면 상실: 지상과 같은 공중 분기. 스스로 점프하지 않으므로 이 속도의 생산자는 외부(넉백)와 표면 상실뿐이다.
 			if (!PhysVelocity.IsNearlyZero())
 			{
+				LNPSurfaceCrawl::ResetDetour(CrawlData.Detour);
 				FVector NewLocation;
 				if (LNPEnemyExactMovement::StepAirborne(WorldCollision, FallParams, Location, PhysVelocity, DeltaTime, NewLocation))
 				{
@@ -255,9 +258,21 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 					FacingDir = FVector::ZeroVector;
 			}
 
+			// 교전 추격 중에만 막힘을 재고 단순 우회를 시도한다(단위 2e). 배회는 배회 타임아웃이 목표를 다시 뽑는다.
+			FVector MoveDir = LNPSurfaceCrawl::SteerDirection(Location, Normal, Goal, GravityUp, CrawlParams.BodyRadius);
+			if (Targeting.State == ELNPTargetingState::Confirmed && Speed > 0.f)
+			{
+				MoveDir = LNPSurfaceCrawl::UpdateDetour(CrawlData.Detour, DetourParams, Location, Normal, MoveDir, Goal - Location,
+					GravityUp, EntityTransform.GetRotation().GetRightVector(), (Ctx.GetEntity(i).Index & 1) ? 1 : -1, DeltaTime);
+			}
+			else
+			{
+				LNPSurfaceCrawl::ResetDetour(CrawlData.Detour);
+			}
+
 			FVector NewLocation = Location;
 			FVector NewNormal = Normal;
-			const FVector Velocity = LNPSurfaceCrawl::SteerDirection(Location, Normal, Goal, GravityUp, CrawlParams.BodyRadius) * Speed;
+			const FVector Velocity = MoveDir * Speed;
 			if (LNPSurfaceCrawl::Step(WorldCollision, CrawlParams, Location, Normal, Velocity, DeltaTime, NewLocation, NewNormal)
 				== LNPSurfaceCrawl::EStepResult::Lost)
 			{

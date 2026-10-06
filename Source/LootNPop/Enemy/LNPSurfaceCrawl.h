@@ -59,6 +59,54 @@ namespace LNPSurfaceCrawl
 	LOOTNPOP_API FVector SteerDirection(const FVector& Location, const FVector& Normal, const FVector& Goal,
 		const FVector& GravityUp, float BodyRadius);
 
+	/** 막힘 우회 상태. 개체마다 하나(FLNPEnemyCrawlFragment)이며 UpdateDetour·ResetDetour만 바꾼다. */
+	struct FDetourState
+	{
+		/** 막힘 판정 기준점. 여기서 StallRadius 밖으로 벗어나면 진전으로 보고 다시 잡는다. 0이면 아직 없다. */
+		FVector StallAnchor = FVector::ZeroVector;
+		/** 기준점 근처에 머문 시간(초). */
+		float StallTime = 0.f;
+		/** 남은 우회 시간(초). 0보다 크면 우회 중이다. */
+		float DetourTime = 0.f;
+		/** 우회 기준 면의 법선(시작 위치를 떠날 때 붙어 있던 면)과 시작 위치. 시작 위치에서 StallRadius 밖으로 나간 뒤 다른 면으로 넘어가면 우회를 끝낸다. */
+		FVector DetourNormal = FVector::ZeroVector;
+		FVector DetourOrigin = FVector::ZeroVector;
+		/** 옆 방향 부호(+1/-1). 0이면 아직 정하지 않았다. 우회 중 다시 막히면 뒤집는다. */
+		int8 Side = 0;
+	};
+
+	struct FDetourParams
+	{
+		/** 이 반경(cm) 안에 StallTimeout 동안 머물면 막힘이다. 몸 반지름을 쓴다. */
+		float StallRadius = 40.f;
+		float StallTimeout = 1.f;
+		/** 한 번 우회하는 최대 시간(초). */
+		float Duration = 2.f;
+		/**
+		 * 기준 면 법선과의 내적이 이보다 작으면 다른 면에 올라선 것으로 보고 일반 조향으로 돌아간다.
+		 * 모서리를 감싸 도는 도중(법선이 반쯤 돈 상태)에 끝나면 일반 조향이 다시 원래 면으로 끌어내린다 — 거의 직각까지 기다린다.
+		 */
+		float NewSurfaceDot = 0.1f;
+	};
+
+	/**
+	 * 길찾기 없는 단순 우회(Phase 14 단위 2e). 목표로 기어가는 중에만 매 프레임 부르고, 그 밖에는 ResetDetour를 부른다.
+	 * - 막힘: 위치가 StallRadius 안에 StallTimeout 동안 머물면(벽 ↔ 천장 떨림, 투영 0 정지, Unknown 막힘) 우회를 시작한다.
+	 *   목표 거리가 아니라 자기 이동량으로 재므로 달아나는 플레이어를 쫓는 평지 추격에는 끼어들지 않는다.
+	 * - 방향: 벽·바닥에서는 목표 방향에 수직인 옆(Side), 천장(법선이 중력 아래쪽)에서는 목표 반대쪽에 옆을 섞은 방향이다.
+	 *   천장 여부는 기준 면으로 정한다 — 가장자리를 감싸 도는 동안 같은 방식을 유지해야 옆면까지 넘어간다.
+	 *   천장 위에 있는 목표는 판 가장자리를 돌아야 닿는다 — 가장자리에서 옆면으로 감싸 돌면 일반 조향이 윗면으로 올린다.
+	 * - 끝: 시간이 다 되거나, 시작 위치를 벗어난 뒤 다른 면으로 넘어가면 일반 조향으로 돌아간다. 시작 위치 근처의 면 전환은
+	 *   무시한다 — 막힘이 벽 ↔ 천장 떨림이면 시작 직후 법선이 매 프레임 바뀌어 우회가 한 프레임 만에 끝난다(자동화 실측).
+	 *   우회 중 다시 막히면 Side를 뒤집고 다시 시작한다.
+	 * query는 쓰지 않는다. 반환값은 SteerDirection 대신 쓸 단위 방향이다(목표와 겹쳐 있으면 0).
+	 */
+	LOOTNPOP_API FVector UpdateDetour(FDetourState& State, const FDetourParams& Params, const FVector& Location, const FVector& Normal,
+		const FVector& SteerDir, const FVector& ToGoal, const FVector& GravityUp, const FVector& FallbackSide, int8 InitialSide, float DeltaTime);
+
+	/** 목표로 기어가지 않는 프레임(정지·공격·배회·공중)에 막힘 계측과 우회를 비운다. Side는 유지한다. */
+	LOOTNPOP_API void ResetDetour(FDetourState& State);
+
 	/** 붙을 수 있는 표면인가. */
 	LOOTNPOP_API bool IsCrawlable(const FLNPExactHitIdentity& Identity);
 

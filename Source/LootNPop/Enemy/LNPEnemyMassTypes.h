@@ -12,6 +12,7 @@
 #include "Enemy/LNPEnemyNavigation.h"
 #include "Enemy/LNPEnemyActivity.h"
 #include "Enemy/LNPEnemyWander.h"
+#include "Enemy/LNPSurfaceCrawl.h"
 #include "SurfaceNavigation/LNPSurfaceTypes.h"
 #include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "LNPEnemyMassTypes.generated.h"
@@ -663,6 +664,9 @@ struct LOOTNPOP_API FLNPEnemyFlightFragment : public FMassFragment
 
 	/** 죽은 뒤 떨어져 지면에 닿았는가. 닿기 전까지는 속도가 0이어도 떨어진다. */
 	bool bDeathLanded = false;
+
+	/** 추격 중 막힘 계측과 단순 우회 상태(LNPSurfaceCrawl::UpdateDetour). 서버 이동 프로세서만 쓴다. */
+	LNPSurfaceCrawl::FDetourState Detour;
 };
 
 /**
@@ -688,6 +692,9 @@ struct LOOTNPOP_API FLNPEnemyCrawlFragment : public FMassFragment
 
 	/** 죽은 뒤 떨어져 지면에 닿았는가. 닿기 전까지는 속도가 0이어도 떨어진다. */
 	bool bDeathLanded = false;
+
+	/** 추격 중 막힘 계측과 단순 우회 상태(LNPSurfaceCrawl::UpdateDetour). 서버 이동 프로세서만 쓴다. */
+	LNPSurfaceCrawl::FDetourState Detour;
 };
 
 /**

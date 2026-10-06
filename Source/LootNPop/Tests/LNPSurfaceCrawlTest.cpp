@@ -29,6 +29,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	"LootNPop.SurfaceNavigation.SurfaceCrawl.FallAndUnknown",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSurfaceCrawlDetourTest,
+	"LootNPop.SurfaceNavigation.SurfaceCrawl.Detour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 namespace
 {
 	using namespace LNPSurfaceCrawl;
@@ -107,9 +112,16 @@ namespace
 		int32 Landings = 0;
 		double MinNormalZ = 1.0;
 
+		/** bDetour면 이동 프로세서의 교전 추격처럼 막힘 우회(UpdateDetour)를 쓴다. */
+		bool bDetour = false;
+		FDetourState Detour;
+		int32 DetourStarts = 0;
+
 		/** 목표에 도착 판정 거리(GoalDistanceSq) Tolerance 안으로 들어오면 true. */
 		bool CrawlTo(const FCrawlWorld& Fixture, const FVector& Goal, const int32 MaxFrames, const float Tolerance = 30.f)
 		{
+			FDetourParams DetourParams;
+			DetourParams.StallRadius = TestRadius;
 			for (int32 Frame = 0; Frame < MaxFrames; ++Frame)
 			{
 				if (GoalDistanceSq(Location, Normal, Goal, TestRadius) < FMath::Square(Tolerance) && PhysVelocity.IsZero())
@@ -117,7 +129,15 @@ namespace
 					return true;
 				}
 				const FVector GravityUp = (Fixture.FallParams.GravityOrigin - Location).GetSafeNormal();
-				Tick(Fixture, SteerDirection(Location, Normal, Goal, GravityUp, TestRadius) * TestSpeed);
+				FVector MoveDir = SteerDirection(Location, Normal, Goal, GravityUp, TestRadius);
+				if (bDetour && PhysVelocity.IsZero())
+				{
+					const float Before = Detour.DetourTime;
+					MoveDir = UpdateDetour(Detour, DetourParams, Location, Normal, MoveDir, Goal - Location, GravityUp,
+						FVector::RightVector, 1, TestDeltaTime);
+					DetourStarts += Detour.DetourTime > Before ? 1 : 0;
+				}
+				Tick(Fixture, MoveDir * TestSpeed);
 			}
 			return false;
 		}
@@ -299,6 +319,67 @@ bool FLNPSurfaceCrawlFallTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Crawler stops in front of the unknown wall"), Crawler.Location.X < 290.0 - TestRadius + 1.0);
 		TestTrue(TEXT("Crawler does not climb the unknown wall"), Crawler.Normal.Equals(FVector::UpVector, 1e-3));
 		TestEqual(TEXT("Unknown wall never penetrated"), Crawler.Penetrations, 0);
+	}
+	return true;
+}
+
+bool FLNPSurfaceCrawlDetourTest::RunTest(const FString& Parameters)
+{
+	FCrawlWorld Fixture(TEXT("LNPSurfaceCrawlDetourTest"));
+	if (!TestNotNull(TEXT("World collision subsystem exists"), Fixture.Collision))
+		return false;
+
+	// 바닥 top z=10.
+	// 돌출부: 벽 x∈[500,700], y∈[-1000,1000], z∈[0,800]. 벽 앞면에 붙은 판 x∈[200,500], y∈[-300,300], z∈[400,440](밑면 = 천장).
+	// 테이블: 기둥 x,y∈[-2050,-1950]×[-50,50], z∈[0,400] 위에 판 x∈[-2300,-1700], y∈[-300,300], z∈[400,440].
+	Fixture.Box(FVector(0, 0, 0), FVector(80, 80, 0.2), TEXT("LNPStaticTerrain"));
+	Fixture.Box(FVector(600, 0, 400), FVector(2, 20, 8), TEXT("LNPStaticBlocker"));
+	Fixture.Box(FVector(350, 0, 420), FVector(3, 6, 0.4), TEXT("LNPStaticBlocker"));
+	Fixture.Box(FVector(-2000, 0, 200), FVector(1, 1, 4), TEXT("LNPStaticBlocker"));
+	Fixture.Box(FVector(-2000, 0, 420), FVector(6, 6, 0.4), TEXT("LNPStaticBlocker"));
+	Fixture.Publish();
+	const float Gap = Fixture.Params.SurfaceGap;
+	const double FloorZ = 10.0 + TestRadius + Gap;
+
+	// 1. 돌출부: 조향만으로는 벽 ↔ 돌출부 밑면을 오가며 벽 꼭대기에 닿지 못한다. 우회하면 닿는다.
+	const FVector WallTop(600, 0, 800.0 + TestRadius + Gap);
+	{
+		FCrawler Plain;
+		Plain.Location = FVector(0, 0, FloorZ);
+		TestFalse(TEXT("Plain steering stays trapped under the ledge"), Plain.CrawlTo(Fixture, WallTop, 900));
+
+		FCrawler Crawler;
+		Crawler.bDetour = true;
+		Crawler.Location = FVector(0, 0, FloorZ);
+		TestTrue(TEXT("Detour climbs past the ledge to the wall top"), Crawler.CrawlTo(Fixture, WallTop, 3600));
+		TestTrue(TEXT("Ledge escape needed a detour"), Crawler.DetourStarts > 0);
+		TestEqual(TEXT("Ledge detour never penetrates"), Crawler.Penetrations, 0);
+		AddInfo(FString::Printf(TEXT("Ledge detours=%d lost=%d"), Crawler.DetourStarts, Crawler.Lost));
+	}
+
+	// 2. 테이블: 기둥을 타고 판 밑면에 붙은 뒤, 판 가장자리를 돌아 윗면 목표에 닿는다.
+	const FVector TableTop(-2000, 0, 440.0 + TestRadius + Gap);
+	{
+		FCrawler Plain;
+		Plain.Location = FVector(-2800, 0, FloorZ);
+		TestFalse(TEXT("Plain steering stays trapped under the table"), Plain.CrawlTo(Fixture, TableTop, 900));
+
+		FCrawler Crawler;
+		Crawler.bDetour = true;
+		Crawler.Location = FVector(-2800, 0, FloorZ);
+		TestTrue(TEXT("Detour reaches the table top"), Crawler.CrawlTo(Fixture, TableTop, 3600));
+		TestTrue(TEXT("Table escape needed a detour"), Crawler.DetourStarts > 0);
+		TestEqual(TEXT("Table detour never penetrates"), Crawler.Penetrations, 0);
+		AddInfo(FString::Printf(TEXT("Table detours=%d lost=%d"), Crawler.DetourStarts, Crawler.Lost));
+	}
+
+	// 3. 평지 직진 추격에는 우회가 끼어들지 않는다.
+	{
+		FCrawler Crawler;
+		Crawler.bDetour = true;
+		Crawler.Location = FVector(-1000, 2000, FloorZ);
+		TestTrue(TEXT("Flat chase arrives"), Crawler.CrawlTo(Fixture, FVector(1000, 2000, FloorZ), 600));
+		TestEqual(TEXT("Flat chase never detours"), Crawler.DetourStarts, 0);
 	}
 	return true;
 }

@@ -56,6 +56,78 @@ namespace LNPSurfaceCrawl
 		return Direction.GetSafeNormal();
 	}
 
+	FVector UpdateDetour(FDetourState& State, const FDetourParams& Params, const FVector& Location, const FVector& Normal,
+		const FVector& SteerDir, const FVector& ToGoal, const FVector& GravityUp, const FVector& FallbackSide, const int8 InitialSide,
+		const float DeltaTime)
+	{
+		if (State.Side == 0)
+		{
+			State.Side = InitialSide >= 0 ? 1 : -1;
+		}
+
+		// 막힘 계측은 우회 중에도 돈다 — 우회 방향이 또 막히면 반대로 시도한다.
+		if (State.StallAnchor.IsZero() || FVector::DistSquared(Location, State.StallAnchor) > FMath::Square(Params.StallRadius))
+		{
+			State.StallAnchor = Location;
+			State.StallTime = 0.f;
+		}
+		else
+		{
+			State.StallTime += DeltaTime;
+		}
+		if (State.StallTime >= Params.StallTimeout)
+		{
+			if (State.DetourTime > 0.f)
+			{
+				State.Side = -State.Side;
+			}
+			State.StallAnchor = Location;
+			State.StallTime = 0.f;
+			State.DetourTime = Params.Duration;
+			State.DetourNormal = Normal;
+			State.DetourOrigin = Location;
+		}
+
+		if (State.DetourTime <= 0.f)
+			return SteerDir;
+
+		State.DetourTime -= DeltaTime;
+		// 시작 위치 근처(떨리는 모서리)에서는 기준 면을 계속 갱신한다. 기준 면은 그 자리를 떠날 때 붙어 있던 면이다.
+		if (FVector::DistSquared(Location, State.DetourOrigin) <= FMath::Square(Params.StallRadius))
+		{
+			State.DetourNormal = Normal;
+		}
+		else if (FVector::DotProduct(Normal, State.DetourNormal) < Params.NewSurfaceDot)
+		{
+			// 다른 면에 올라섰다. 새 면에서는 일반 조향이 목표 쪽으로 데려간다.
+			State.DetourTime = 0.f;
+			return SteerDir;
+		}
+
+		// 목표 방향이 접평면에서 0이면(목표가 바로 위·아래) 목표 원방향과 몸의 옆으로 차례로 대신한다.
+		FVector Toward = SteerDir;
+		if (Toward.IsNearlyZero())
+		{
+			Toward = FVector::VectorPlaneProject(ToGoal, Normal).GetSafeNormal();
+		}
+		FVector Lateral = FVector::CrossProduct(Normal, Toward).GetSafeNormal();
+		if (Lateral.IsNearlyZero())
+		{
+			Lateral = FVector::VectorPlaneProject(FallbackSide, Normal).GetSafeNormal();
+		}
+		Lateral *= State.Side;
+
+		const bool bCeiling = FVector::DotProduct(State.DetourNormal, GravityUp) < -0.5;
+		return bCeiling ? (Lateral * 0.5 - Toward).GetSafeNormal() : Lateral;
+	}
+
+	void ResetDetour(FDetourState& State)
+	{
+		State.StallAnchor = FVector::ZeroVector;
+		State.StallTime = 0.f;
+		State.DetourTime = 0.f;
+	}
+
 	bool IsCrawlable(const FLNPExactHitIdentity& Identity)
 	{
 		return Identity.IsKnown() && (Identity.Roles & (ELNPExactSourceRole::Support | ELNPExactSourceRole::Blocker)) != 0;
