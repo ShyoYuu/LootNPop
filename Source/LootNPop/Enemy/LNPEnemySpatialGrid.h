@@ -108,6 +108,29 @@ struct TMassExternalSubsystemTraits<ULNPFlyingSpatialGridSubsystem> final
 };
 
 /**
+ * 벽보행 적(`FLNPEnemyCrawlTag`) 전용 격자 — 비행 격자와 같은 구현, 인스턴스만 따로다(SurfaceSupportNavigation Phase14 단위 4c).
+ *
+ * 지상 격자에 섞지 않는 이유는 비행과 같다(지상 분리는 접평면 거리만 잰다). 비행 격자와도 섞지 않는다 —
+ * 서로 다른 분리 반경·세기를 쓰고, 벽에 붙은 개체가 지나가는 드론에 밀려 벽을 떠나지 않게 한다.
+ * 소비처는 ULNPEnemyCrawlMovementProcessor의 3D 분리 하나다.
+ */
+UCLASS()
+class LOOTNPOP_API ULNPCrawlSpatialGridSubsystem : public ULNPEnemySpatialGridSubsystem
+{
+	GENERATED_BODY()
+};
+
+template<>
+struct TMassExternalSubsystemTraits<ULNPCrawlSpatialGridSubsystem> final
+{
+	enum
+	{
+		GameThreadOnly  = false,
+		ThreadSafeWrite = false,
+	};
+};
+
+/**
  * 매 프레임 격자를 다시 짓는다. **서버 전용** — 유일한 소비처인 분리력이 서버 이동 시뮬레이션의 일부다.
  *
  * ⚠️ 순서는 그룹이 아니라 **이름으로** 건다. 그룹 간 순서는 엔진의 고정 목록이 아니라 프로세서들이
@@ -130,6 +153,9 @@ private:
 
 	/** 비행 적 — ULNPFlyingSpatialGridSubsystem에 따로 짓는다. */
 	FMassEntityQuery FlyingQuery;
+
+	/** 벽보행 적 — ULNPCrawlSpatialGridSubsystem에 따로 짓는다. */
+	FMassEntityQuery CrawlQuery;
 };
 
 /**

@@ -4,6 +4,7 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemySpatialGrid.h"
 #include "Enemy/LNPSurfaceCrawl.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "GAS/LNPPoiseTypes.h"
@@ -24,6 +25,8 @@ ULNPEnemyCrawlMovementProcessor::ULNPEnemyCrawlMovementProcessor()
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Movement;
 	// 지상 이동 프로세서와 같은 이유 — 같은 프레임의 공격 위상을 읽어야 정지가 한 박자 늦지 않는다.
 	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEntityAttackProcessor"));
+	// 3D 분리가 이번 프레임에 지은 벽보행 격자를 읽는다.
+	ExecutionOrder.ExecuteAfter.Add(TEXT("LNPEnemySpatialGridProcessor"));
 }
 
 void ULNPEnemyCrawlMovementProcessor::ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager)
@@ -47,6 +50,7 @@ void ULNPEnemyCrawlMovementProcessor::ConfigureQueries(const TSharedRef<FMassEnt
 
 	ProcessorRequirements.AddSubsystemRequirement<UMassSignalSubsystem>(EMassFragmentAccess::ReadWrite);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPCrawlSpatialGridSubsystem>(EMassFragmentAccess::ReadOnly);
 }
 
 void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -60,6 +64,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 
 	UMassSignalSubsystem& SignalSubsystem = Context.GetMutableSubsystemChecked<UMassSignalSubsystem>();
 	const ULNPMassWorldCollisionSubsystem& WorldCollision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
+	const ULNPCrawlSpatialGridSubsystem& CrawlGrid = Context.GetSubsystemChecked<ULNPCrawlSpatialGridSubsystem>();
 
 	// 청크 사이의 공유 쓰기는 신호 목록 하나뿐이다 — 지상 이동 프로세서와 같은 방식으로 모은다.
 	TArray<FMassEntityHandle> EntitiesToSignal;
@@ -205,9 +210,12 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			case ELNPTargetingState::Confirmed:
 				if (Targeting.TargetPlayer.IsValid())
 				{
-					// 원거리 전용이다(D-066). 사거리 안 정지 거리까지 다가가 선다. LoS 재배치는 단위 4다.
+					// 원거리 전용이다(D-066). 사거리 안 정지 거리까지 다가가 선다.
+					// 사거리 안이어도 사선이 막혔으면(섬 밑면·벽 뒤) 서지 않고 타겟 쪽으로 계속 기어간다 — 표면을 따라 돌면
+					// 대개 사선이 트인다. 계속 막히면 아래 단순 우회가 끼어든다. 플래그는 소비하지 않는다:
+					// 공격 프로세서가 0.25초마다 다시 보고 트이면 0으로 되돌린다.
 					FacingDir = Targeting.TargetLocation - Location;
-					if (FMath::Sqrt(Targeting.DistanceToTargetSq) > StopDistance)
+					if (FMath::Sqrt(Targeting.DistanceToTargetSq) > StopDistance || AttackFragments[i].bLineOfSightBlocked)
 					{
 						Goal = Targeting.TargetLocation;
 						Speed = MoveConfig.MoveSpeed;
@@ -270,9 +278,33 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				LNPSurfaceCrawl::ResetDetour(CrawlData.Detour);
 			}
 
+			// 벽보행끼리의 3D 분리. 거리는 3D로 재고(다른 면의 개체도 몸이 겹칠 수 있다) 미는 방향은 지금 표면의
+			// 접평면에 눕힌다 — 법선 성분은 표면을 떠나게 할 뿐이다. 이웃이 없으면 0이라 정지 개체의 query 0회가 유지된다.
+			FVector SeparationPush = FVector::ZeroVector;
+			if (MoveConfig.SeparationRadius > 0.f && MoveConfig.SeparationStrength > 0.f)
+			{
+				const FMassEntityHandle Self = Ctx.GetEntity(i);
+				const float Radius = MoveConfig.SeparationRadius;
+				CrawlGrid.ForEachNeighbor(Location, Radius, [&](const FMassEntityHandle Neighbor, const FVector& NeighborPos)
+				{
+					if (Neighbor == Self)
+						return;
+					const FVector Delta = FVector::VectorPlaneProject(Location - NeighborPos, Normal);
+					const float Dist = (Location - NeighborPos).Size();
+					if (Dist >= Radius)
+						return;
+					// 접평면에서 겹친 쌍(같은 자리 또는 바로 위아래 면)은 핸들 순서로 좌우를 갈라 서로 반대로 흩어지게 한다.
+					const float PlaneDist = Delta.Size();
+					const FVector Right = EntityTransform.GetRotation().GetRightVector();
+					const FVector PushDir = PlaneDist > 1.f ? Delta / PlaneDist : (Self.Index < Neighbor.Index ? Right : -Right);
+					SeparationPush += PushDir * (1.f - Dist / Radius);
+				});
+				SeparationPush = FVector::VectorPlaneProject(SeparationPush.GetClampedToMaxSize(1.f), Normal) * MoveConfig.SeparationStrength;
+			}
+
 			FVector NewLocation = Location;
 			FVector NewNormal = Normal;
-			const FVector Velocity = MoveDir * Speed;
+			const FVector Velocity = MoveDir * Speed + SeparationPush;
 			if (LNPSurfaceCrawl::Step(WorldCollision, CrawlParams, Location, Normal, Velocity, DeltaTime, NewLocation, NewNormal)
 				== LNPSurfaceCrawl::EStepResult::Lost)
 			{

@@ -247,6 +247,7 @@ void FLNPEnemySpatialGrid::ForEachNeighbor(const FVector& Center, const float Ra
 ULNPEnemySpatialGridProcessor::ULNPEnemySpatialGridProcessor()
 	: EnemyQuery(*this)
 	, FlyingQuery(*this)
+	, CrawlQuery(*this)
 {
 	bAutoRegisterWithProcessingPhases = true;
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::Movement;
@@ -263,7 +264,7 @@ void ULNPEnemySpatialGridProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 	// 비행 개체는 지상 격자에 넣지 않는다. 지상 분리가 거리를 접평면으로만 재므로,
 	// 넣으면 머리 위 수천 cm의 비행 개체가 지상 적을 밀어낸다. 비행 개체는 비행 전용 격자에 따로 짓는다.
 	EnemyQuery.AddTagRequirement<FLNPEnemyFlyingTag>(EMassFragmentPresence::None);
-	// 벽보행 개체도 같은 이유로 넣지 않는다. 벽보행끼리의 3D 분리는 Phase 14 단위 4다.
+	// 벽보행 개체도 같은 이유로 넣지 않는다. 벽보행 전용 격자에 따로 짓는다.
 	EnemyQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::None);
 	EnemyQuery.RegisterWithProcessor(*this);
 
@@ -273,8 +274,15 @@ void ULNPEnemySpatialGridProcessor::ConfigureQueries(const TSharedRef<FMassEntit
 	FlyingQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
 	FlyingQuery.RegisterWithProcessor(*this);
 
+	CrawlQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	CrawlQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	CrawlQuery.AddTagRequirement<FLNPEnemyCrawlTag>(EMassFragmentPresence::All);
+	CrawlQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
+	CrawlQuery.RegisterWithProcessor(*this);
+
 	ProcessorRequirements.AddSubsystemRequirement<ULNPEnemySpatialGridSubsystem>(EMassFragmentAccess::ReadWrite);
 	ProcessorRequirements.AddSubsystemRequirement<ULNPFlyingSpatialGridSubsystem>(EMassFragmentAccess::ReadWrite);
+	ProcessorRequirements.AddSubsystemRequirement<ULNPCrawlSpatialGridSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
 void ULNPEnemySpatialGridProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -306,6 +314,16 @@ void ULNPEnemySpatialGridProcessor::Execute(FMassEntityManager& EntityManager, F
 			FlyingGrid.AddEntity(Ctx.GetEntity(i), Transforms[i].GetTransform().GetLocation());
 	});
 	FlyingGrid.FinishRebuild();
+
+	ULNPCrawlSpatialGridSubsystem& CrawlGrid = Context.GetMutableSubsystemChecked<ULNPCrawlSpatialGridSubsystem>();
+	CrawlGrid.BeginRebuild(64);
+	CrawlQuery.ForEachEntityChunk(Context, [&CrawlGrid](FMassExecutionContext& Ctx)
+	{
+		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
+			CrawlGrid.AddEntity(Ctx.GetEntity(i), Transforms[i].GetTransform().GetLocation());
+	});
+	CrawlGrid.FinishRebuild();
 }
 
 // ============================================================

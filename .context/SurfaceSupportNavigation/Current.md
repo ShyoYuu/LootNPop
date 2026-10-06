@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: Phase 14 진행 중 — 단위 1·2·3 완료, 다음은 단위 4
+> 현재 Phase: Phase 14 진행 중 — 단위 1·2·3 완료, 단위 4는 4a~4c 완료·다음은 4d
 > 마지막 갱신: 2026-10-06
 
 ## 현재 결정
@@ -14,13 +14,15 @@ Phase 13은 완료됐다(D-074: Pod 귀속 PureEntity 비행 600 임시 월드 �
 
 단위 3은 완료됐다(법선 복제). `FLNPReplicatedAgent::SurfaceNormal`(octahedral 16bit 형제 필드, 0 = 구 접평면 기저)에 벽보행 개체의 회전 Z를 싣고 Yaw를 양자화 법선 기저로 인코딩한다. 자동화 36/36, 리슨 2P 게스트에서 벽·판 밑면·모서리 자세가 호스트와 일치함을 사용자가 확인했다. 벽보행 판정 캡슐이 구라 위치 이력에 Up을 기록하지 않았다(`design/MovementIntegration.md` "되감기").
 
+단위 4는 실행 문서 "단위 4 세분"(4a~4f)을 따른다. 4a 인지·조준(벽보행 Config `VisionAngle` 360·`AimPitch` ±89·사거리 800), 4b LoS 반응(사선이 막히면 사거리 안에서도 계속 접근), 4c 3D 분리(`ULNPCrawlSpatialGridSubsystem`, 분리 반경 220)를 마쳤다. 자동화 36/36, 1P PIE에서 겹침 없음·사선 트이면 즉시 사격·막히면 접근을 사용자가 확인했다. 적 NPC 전반의 시야 상실 후 추적 제한은 `../Idea_Backlog.md` 후보로 올렸다(사용자 결정).
+
 현재 `DA_MassSpawnConfig`는 4개 세트 모두 벽보행 3기씩(벽보행 360기, 나머지 0)이다. 이전 편성은 `history/Phase14_Log.md` 2026-10-06 항목에 있다.
 
 ## 바로 다음 행동
 
-1. 단위 4(전투·인지·활동 대역)를 실행 문서에 따라 착수한다(새 세션 권장). 착수 때 하위 단위로 나눠 실행 문서에 적는다: 원거리 투사체·LoS 게이트 재사용, 360° 인지, 원거리 슬롯 풀, 3D 분리 격자, 재귀속(Home 접근 시한 초과 → 직선거리 최근접 활성 Pod), 넉백 낙하 착지, 활동 대역과 같은 표면 안 구간 배회(짧은 이동·긴 정지, 클라이언트는 법선 고정 평면 보간).
-2. 벽보행 PIE: TestMap03의 `OctantPoolData` 정의를 MCP `ObjectTools.set_properties`로 메모리에서만 `LVI_Octant_Fixture_Crawl`·`DA_OctantSurface_Fixture_Crawl`로 바꾸고, 광장 위 시작 transform(위치 17176.17×3, 회전 pitch 0·yaw 135·roll 125.2644)으로 `StartPIE`한 뒤 즉시 Meadow 정의로 되돌린다. 리슨 2P는 `LevelEditorPlaySettings.PlayNumberOfClients`를 2로 올리고 끝나면 1로 되돌린다. 콘솔 명령은 MCP SlateInspector로 Output Log 입력창에 입력한다.
-3. 알려진 한계: 길찾기 없이 단순 우회만 한다(2e, 사용자 수용). 벽보행 개체가 든 Pod는 활동 대역에서 항상 활성이다(Support handle 없음, 단위 4). TestMap03에서 본 옆으로 누운 개체는 검증 옥탄트에서 재현되지 않아 원인 미확정이다.
+1. 4d 재귀속: 비교전에서 Home까지 직선거리가 배회 최대 거리를 넘으면 접근을 재고, 10초 동안 최근 최소 거리가 줄지 않으면 직선거리 최근접 활성 Pod로 바꾼다. 순수 함수 자동화와 넉백 PIE로 확인한다. 이어서 4e(휴면·서버 구간 배회), 4f(배회 복제).
+2. 벽보행 PIE: TestMap03의 `OctantPoolData` 정의를 MCP `ObjectTools.set_properties`로 메모리에서만 `LVI_Octant_Fixture_Crawl`·`DA_OctantSurface_Fixture_Crawl`로 바꾸고, 광장 위 시작 transform(위치 17176.17×3, 회전 pitch 0·yaw 135·roll 125.2644)으로 `StartPIE`한 뒤 즉시 Meadow 정의로 되돌린다. 리슨 2P는 `LevelEditorPlaySettings.PlayNumberOfClients`를 2로 올리고 끝나면 1로 되돌린다(사용자가 현재 1로 둔다 — 게스트가 어그로를 가져가 1P 확인이 편하다). 에디터 종료 때 `OctantPoolData`는 저장하지 않는다. 콘솔 명령은 MCP SlateInspector로 Output Log 입력창에 입력한다.
+3. 알려진 한계: 길찾기 없이 단순 우회만 한다(2e, 사용자 수용). 벽보행 개체가 든 Pod는 활동 대역에서 항상 활성이다(Support handle 없음, 4e). 개체가 많으면 뒤쪽 개체의 분리력이 앞쪽을 사거리보다 가까이 밀어낸다(사용자 관찰, 수용). TestMap03에서 본 옆으로 누운 개체는 검증 옥탄트에서 재현되지 않아 원인 미확정이다.
 
 ## 인계받은 근거와 원본
 

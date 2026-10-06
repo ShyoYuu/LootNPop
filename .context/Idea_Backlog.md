@@ -19,6 +19,17 @@
     - 기믹 오브젝트의 런타임 태그(`State.Danger`)를 감지하여 MassEntity가 해당 구역의 SO 쿼리를 배제함.
 - **핵심 기술:** Smart Object Runtime Tags, Mass Processor Query Filtering.
 
+### 시야 상실 후 추적 정보 제한 (2026-10-06 — 구상)
+- **문제:** 적 NPC 전반(지상·비행·벽보행)은 이미 추적 중인 타겟을 거리(`AlertRetentionDistance`)만으로 유지하고, `TargetLocation`에 플레이어의 실제 위치를 매 프레임 싣는다. 시야 검사는 처음 발견할 때만 한다. 그래서 판·벽·섬 밑면 너머의 플레이어를 정확히 따라다닌다. LoS는 공격 게이트(`bRequireLineOfSight`)에서만 "쏠지 말지"를 정한다.
+  - Phase 14 단위 4 PIE에서 확인: 테이블 판 밑에 붙은 벽보행 개체가 판 위를 돌아다니는 플레이어를 정확히 따라간다. 지금은 오히려 판 가장자리로 기어 나오게 하는 효과도 있다.
+- **아이디어(다른 게임의 일반 해법, 셋을 조합):**
+  1. **마지막 목격 위치(Last Known Position):** 시야를 잃으면 `TargetLocation`을 시야가 마지막으로 트였던 위치에 고정한다. 그 지점에 도착해도 시야가 없으면 기존 Alert 인내 타이머로 포기한다(The Last of Us·Splinter Cell·UE AIPerception 구조).
+  2. **짧은 유예 시간:** 시야를 잃은 뒤에도 잠시(예: 1~2초) 실제 위치를 안다. 엄격하게 공정하면 AI가 멍청해 보이므로 1번과 함께 쓴다(Halo 계열).
+  3. **소리 감지는 부정확하게:** 발소리·사격음 등 소리 자극으로 알아챈 위치에는 오차 반경을 둔다. 대략 그쪽으로 오지만 정확히 따라오지는 못한다.
+- **비용 방향:** 원거리 공격 게이트가 이미 0.25초마다 exact LoS를 본다. 시야 판정을 그 결과에서 얻거나 교전 중 개체(원거리 슬롯 플레이어당 20)만 저빈도로 검사하면 추가 raycast가 묶인다. 근접·지상 적처럼 공격 게이트에서 LoS를 보지 않는 적은 별도 저빈도 검사가 필요하다.
+- **보류 사유:** 대량 PureEntity 떼(적 구성 90% 이상) 장르에서는 일반 몬스터가 위치를 다 아는 쪽도 흔하다(Deep Rock Galactic·Left 4 Dead·Vermintide). 인지 코드는 모든 이동 도메인이 공유하므로 플레이에서 거슬릴 때 정식 계획으로 올린다.
+- **관련:** `ULNPEnemyScoringProcessor`(인지 게이트), `ULNPEntityAttackProcessor`(LoS 게이트), [GameDesign_EnemyNPC.md](GameDesign_EnemyNPC.md).
+
 ---
 
 ## [물리 및 환경 연출 관련]

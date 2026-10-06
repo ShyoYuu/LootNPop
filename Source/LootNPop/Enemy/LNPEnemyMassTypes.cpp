@@ -199,6 +199,14 @@ bool ULNPEnemyTrait::ValidateTemplate(const FMassEntityTemplateBuildContext& Bui
 				TEXT("Crawl movement sweeps a sphere of CapsuleRadius, so the hit capsule would not match the moving body."),
 				*EnemyConfig->GetName(), EnemyConfig->CapsuleHalfHeight, EnemyConfig->CapsuleRadius);
 		}
+		// 벽·천장에서는 몸 전방이 플레이어 쪽과 무관하다 — 인지 시야각은 360°다(D-066).
+		if (EnemyConfig->TargetingConfig.VisionAngle < 360.f)
+		{
+			UE_LOG(LogLootNPop, Warning,
+				TEXT("Enemy config '%s' uses SurfaceCrawl navigation with VisionAngle %.1f < 360. ")
+				TEXT("A crawler's forward is unrelated to where players are while on walls or ceilings."),
+				*EnemyConfig->GetName(), EnemyConfig->TargetingConfig.VisionAngle);
+		}
 	}
 
 	// 표현 매핑은 이웃 트레이트(MassCrowdVisualizationTrait)가 갖고 있다. BuildContext의 템플릿 데이터는
