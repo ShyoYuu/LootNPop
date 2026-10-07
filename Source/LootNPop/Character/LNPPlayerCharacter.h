@@ -7,6 +7,7 @@
 #include "LNPPlayerCharacter.generated.h"
 
 class UGameplayCameraComponent;
+class UPointLightComponent;
 class ULNPItemDefinitionBase;
 class ULNPInventoryComponent;
 class ULNPInventoryItemInstance;
@@ -178,6 +179,13 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ULNPControlRotationComponent> ControlRotationComponent;
+
+	/**
+	 * 머리 위 약한 랜턴. 천장 아래(심연·공동·건물 안)에서 가까운 지형을 읽게 하는 보조광이다. 그림자는 끈다.
+	 * 지형 쪽 주 조명은 옥탄트 LVI가 배치한 등불이 맡는다.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Light", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UPointLightComponent> LanternLight;
 
 	/** 서버 권위 사망 처리(드랍·타이머)의 1회 가드. 클라이언트에서는 방송 수신 표시로도 쓴다. */
 	bool bIsDead = false;

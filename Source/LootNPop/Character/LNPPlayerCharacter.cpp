@@ -27,6 +27,7 @@
 #include "LootNPop.h"
 
 #include "AbilitySystemComponent.h"
+#include "Components/PointLightComponent.h"
 #include "GameFramework/GameplayCameraComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
@@ -55,6 +56,16 @@ ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitial
 	ControlRotationComponent = CreateDefaultSubobject<ULNPControlRotationComponent>(TEXT("ControlRotationComponent"));
 
 	TrajectoryGuideComponent = CreateDefaultSubobject<ULNPTrajectoryGuideComponent>(TEXT("TrajectoryGuideComponent"));
+
+	// 랜턴: 반경 15m, 5m에서 약 120lux(노출 EV 6.2 기준 지면이 중간 회색으로 읽히는 밝기의 일부). 따뜻한 흰색.
+	LanternLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("LanternLight"));
+	LanternLight->SetupAttachment(GetRootComponent());
+	LanternLight->SetRelativeLocation(FVector(0.0, 0.0, 150.0));
+	LanternLight->SetIntensityUnits(ELightUnits::Candelas);
+	LanternLight->SetIntensity(3000.f);
+	LanternLight->SetAttenuationRadius(1500.f);
+	LanternLight->SetLightColor(FLinearColor(1.f, 0.85f, 0.7f));
+	LanternLight->SetCastShadows(false);
 
 	// bSyncInputsForSimProxy는 보간 프록시 전용 우회책이라 제거했다 (엔진에도 임시 옵션이라 명시돼 있다).
 	// SimulatedProxyNetworkLOD=ForwardPredict에서는 시뮬레이티드 프록시도 실제로 시뮬레이션되므로

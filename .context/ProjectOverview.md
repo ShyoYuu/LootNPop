@@ -123,7 +123,7 @@
 | [폐기된 시도들](DiscardedApproaches.md) | 시도 후 제외된 기술적 접근과 사유 |
 | [추가 스펙 아이디어](Idea_Backlog.md) | 정규 스펙으로 채택되기 전 아이디어 후보 모음 |
 | [WorldGeneration 기술 설계](TechDesign_WorldGeneration.md) | Octant 8분할 전략, PCG 지형 생성, 결정론적 런타임 스폰 흐름, 이음매 규약(단면 지각·삭제 후 투영·프랍 접지) |
-| [Octant Level Instance 제작 가이드](Guide_OctantLevelInstance.md) | Octant Level Instance 에셋 신규 제작 절차 |
+| [Octant Level Instance 제작 가이드](Guide_OctantLevelInstance.md) | Octant Level Instance 제작 절차 — 코드 정의 빌더·이음매 보존 지각·베이크·풀 등록, 플레이어 치수표와 레이아웃 규칙 검사, 검토 이동 도구 |
 | [커스텀 Slate 위젯 제작 가이드](Guide_CustomSlateWidget.md) | 베이스 선택, TSlateAttribute, 스타일 분리, UMG 래퍼 |
 | [초기화 시퀀스 기술 설계](TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | [표면 캐시 기술 설계](TechDesign_SurfaceCache.md) | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유, 수직 단차 표현 한계 |

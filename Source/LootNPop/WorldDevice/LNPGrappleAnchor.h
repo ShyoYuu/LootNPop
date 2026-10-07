@@ -42,8 +42,18 @@ public:
 	/** 캐릭터가 도달할 지점 (월드). 액터 원점을 그대로 쓴다 — 배치가 이 점을 지면 위로 띄운다. */
 	FVector GetGrapplePoint() const { return GetActorLocation(); }
 
-	/** 그래플 가능 최대 거리 (cm). 설정 에셋이 없으면 0 — 모든 판정이 자동으로 실패한다. */
+	/**
+	 * 그래플 가능 최대 거리 (cm). 마커가 앵커별 거리를 주면 그 값, 아니면 설정 에셋 값이다.
+	 * 설정 에셋이 없으면 0 — 모든 판정이 자동으로 실패한다.
+	 */
 	float GetMaxGrappleDistance() const;
+
+	/**
+	 * 앵커별 최대 거리 (cm). 0이면 설정 에셋의 MaxGrappleDistance를 쓴다. 마커 배치 앵커만 채운다(시드 배치는 0).
+	 * 서버 재검증·Mover 시뮬·클라 프롬프트가 모두 같은 값을 봐야 하므로 스폰 번치에 실어 복제한다.
+	 */
+	UPROPERTY(VisibleAnywhere, Replicated, Category = "LNP|Anchor")
+	float MaxGrappleDistanceOverride = 0.f;
 
 	/** 월드에서 ID로 앵커를 찾는다. 인터랙터블 레지스트리를 순회하므로 서버·클라 어디서나 같은 결과를 준다. */
 	static ALNPGrappleAnchor* FindByID(const UWorld* World, int32 InAnchorID);

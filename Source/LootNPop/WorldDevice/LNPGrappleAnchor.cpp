@@ -2,6 +2,7 @@
 
 #include "WorldDevice/LNPGrappleAnchor.h"
 #include "DataAsset/LNPWorldDeviceConfig.h"
+#include "DynamicTerrain/LNPPlacementMarker.h"
 #include "GameLogic/LNPWorldDeviceSpawnSubsystem.h"
 #include "Interaction/LNPInteractableRegistrySubsystem.h"
 #include "Interaction/LNPInteractionPromptWidget.h"
@@ -41,6 +42,7 @@ void ALNPGrappleAnchor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ALNPGrappleAnchor, AnchorID);
+	DOREPLIFETIME(ALNPGrappleAnchor, MaxGrappleDistanceOverride);
 }
 
 void ALNPGrappleAnchor::InitializeFromMarker(const ALNPPlacementMarker& Marker, const FLNPPlacementId& Id)
@@ -49,6 +51,7 @@ void ALNPGrappleAnchor::InitializeFromMarker(const ALNPPlacementMarker& Marker, 
 	{
 		AnchorID = DeviceSub->AllocateAnchorID();
 	}
+	MaxGrappleDistanceOverride = Marker.GrappleMaxDistance;
 }
 
 void ALNPGrappleAnchor::BeginPlay()
@@ -99,7 +102,11 @@ ALNPGrappleAnchor* ALNPGrappleAnchor::FindByID(const UWorld* World, int32 InAnch
 float ALNPGrappleAnchor::GetMaxGrappleDistance() const
 {
 	const ULNPWorldDeviceConfig* Config = ULNPWorldDeviceConfig::Get(this);
-	return Config ? Config->MaxGrappleDistance : 0.f;
+	if (Config == nullptr)
+	{
+		return 0.f;
+	}
+	return MaxGrappleDistanceOverride > 0.f ? MaxGrappleDistanceOverride : Config->MaxGrappleDistance;
 }
 
 bool ALNPGrappleAnchor::CanInteract_Implementation(const APawn* Interactor) const
@@ -113,7 +120,7 @@ bool ALNPGrappleAnchor::CanInteract_Implementation(const APawn* Interactor) cons
 	// **거리만 본다.** 서버 재검증이 이 함수를 쓰므로 카메라처럼 소유 클라만 아는 값을 넣으면
 	// 정당한 입력이 기각된다. 조준은 WantsInteractionPrompt(로컬)와 Mover 시뮬(권위)이 나눠 맡는다.
 	const float DistSq = FVector::DistSquared(GetGrapplePoint(), Interactor->GetActorLocation());
-	return DistSq <= FMath::Square(Config->MaxGrappleDistance)
+	return DistSq <= FMath::Square(GetMaxGrappleDistance())
 		&& DistSq >= FMath::Square(Config->MinGrappleDistance);
 }
 

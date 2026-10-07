@@ -19,6 +19,13 @@
 그쪽은 대시와 마찬가지로 `ULNPCharacterMoverComponent`의 UPROPERTY다(시뮬레이션 틱이 매번 읽는 값이라
 에셋 로드를 끼우지 않는다).
 
+**예외 — 앵커별 최대 거리(2026-10-07).** 레벨 디자인이 지형에 맞춰 앵커마다 거리를 정할 수 있어야 한다.
+지형을 25m 간격에 맞추지 않기 위해서다. Placement Marker의 `GrappleMaxDistance`(0이면 설정 에셋 값)를
+`ALNPGrappleAnchor::InitializeFromMarker`가 `MaxGrappleDistanceOverride`로 옮긴다. 이 값은 `Replicated`이고 deferred 스폰의
+FinishSpawning 전에 채워져 초기 스폰 번치에 실린다. 그래서 위의 "클라이언트는 CDO 값을 본다" 문제가 생기지 않는다.
+서버 재검증(`CanInteract`)·Mover 시뮬·프롬프트·광역 컷은 모두 `GetMaxGrappleDistance()` 하나를 거친다.
+시드 랜덤 앵커는 0으로 남아 설정 에셋 값을 쓴다. 최소 거리(`MinGrappleDistance`)는 앵커별로 두지 않는다.
+
 ---
 
 ## 1. 왜 경로가 다른가

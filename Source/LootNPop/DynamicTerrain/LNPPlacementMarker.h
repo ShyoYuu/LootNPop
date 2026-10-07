@@ -48,6 +48,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Moving Panel", meta = (ClampMin = "0.0"))
 	float PathEndHoldSeconds = 1.f;
 
+	/** 그래플 앵커의 최대 거리(cm). 0이면 설정 에셋 값을 쓴다. 지형에 맞춰 앵커마다 정한다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Grapple Anchor", meta = (ClampMin = "0.0"))
+	float GrappleMaxDistance = 0.f;
+
 	/** 배열이 비어 있으면 Conditional Patch를 갖지 않는 요소다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Conditional Patch")
 	TArray<FLNPConditionalPatchSource> PatchSources;
