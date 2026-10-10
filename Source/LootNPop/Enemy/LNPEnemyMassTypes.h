@@ -693,6 +693,12 @@ struct LOOTNPOP_API FLNPEnemyCrawlFragment : public FMassFragment
 	/** 죽은 뒤 떨어져 지면에 닿았는가. 닿기 전까지는 속도가 0이어도 떨어진다. */
 	bool bDeathLanded = false;
 
+	/**
+	 * 사거리 안에서 공격을 시작한 자리를 지키는 중이다(비행 FLNPEnemyFlightFragment::bHoldingFirePosition과 같은 뜻).
+	 * 정지 거리 밖이어도 더 다가가지 않는다 — 윗면 가장자리를 넘어 벽으로 내려가면 사선을 잃는다. 사거리를 벗어나거나 사선이 막히면 내린다.
+	 */
+	bool bHoldingFirePosition = false;
+
 	/** 추격 중 막힘 계측과 단순 우회 상태(LNPSurfaceCrawl::UpdateDetour). 서버 이동 프로세서만 쓴다. */
 	LNPSurfaceCrawl::FDetourState Detour;
 

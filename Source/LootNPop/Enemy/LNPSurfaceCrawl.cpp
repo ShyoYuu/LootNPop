@@ -90,14 +90,14 @@ namespace LNPSurfaceCrawl
 	}
 
 	FVector SteerDirection(const FVector& Location, const FVector& Normal, const FVector& Goal,
-		const FVector& GravityUp, const float BodyRadius)
+		const FVector& GravityUp, const float ReachDistance, const bool bSeekLineOfSight)
 	{
 		const FVector ToGoal = Goal - Location;
 		const double Along = FVector::DotProduct(ToGoal, Normal);
 		FVector Direction = FVector::VectorPlaneProject(ToGoal, Normal);
-		if (Along > BodyRadius)
+		if (Along > ReachDistance)
 		{
-			Direction += FVector::VectorPlaneProject(-GravityUp, Normal) * Along;
+			Direction += FVector::VectorPlaneProject(bSeekLineOfSight ? GravityUp : -GravityUp, Normal) * Along;
 		}
 		return Direction.GetSafeNormal();
 	}

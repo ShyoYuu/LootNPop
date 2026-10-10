@@ -5,6 +5,7 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemySpatialGrid.h"
+#include "Enemy/LNPEntityAttackShared.h"
 #include "Enemy/LNPFlightSteering.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "GAS/LNPPoiseTypes.h"
@@ -146,7 +147,6 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 		// 타겟이 교전 지점을 올려다보는 각도가 EngageElevationDeg가 되는 수평 거리.
 		const float EngageStandoff = EngageAltitude / FMath::Tan(FMath::DegreesToRadians(FlightConfig.EngageElevationDeg));
 		const float AttackRangeSq = FMath::Square(MoveConfig.AttackRange);
-		const float AimTargetUpOffset = Config->EntityAttackConfig.AimTargetUpOffset;
 		// 넉백 감쇠 계수(프레임당). 반감기 기준 지수 감쇠다.
 		const float KnockbackDecay = FMath::Exp(-UE_LN2 * DeltaTime / FlightConfig.KnockbackHalfLife);
 
@@ -242,7 +242,7 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 					// 지금 자리에서 쏠 수 있는가: 사거리 안이고, 조준점이 조준 가용 각도 안이다.
 					// 발사 방향은 "몸 전방 + 타겟에서 뽑은 Pitch"라, 타겟이 거의 바로 아래면 총구(전방 오프셋)보다 뒤에 있어
 					// 탄이 앞으로 빗나간다. AimPitchMinDeg가 그 한계이자 발사 클램프·피격 인지 게이트의 공용 원본이다.
-					const FVector AimPoint = Targeting.TargetLocation + (GravityOrigin - Targeting.TargetLocation).GetSafeNormal() * AimTargetUpOffset;
+					const FVector AimPoint = LNPEntityAttack::ComputeAimPoint(GravityOrigin, Targeting.TargetLocation, Config->EntityAttackConfig);
 					const FVector ToAim = AimPoint - Location;
 					const float AimUp = FVector::DotProduct(ToAim, UpDir);
 					const float AimPitchDeg = FMath::RadiansToDegrees(FMath::Atan2(AimUp, (ToAim - UpDir * AimUp).Size()));

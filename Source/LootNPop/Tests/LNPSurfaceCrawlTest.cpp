@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemyLineOfSight.h"
 #include "Enemy/LNPSurfaceCrawl.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
@@ -35,6 +36,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPSurfaceCrawlDetourTest,
 	"LootNPop.SurfaceNavigation.SurfaceCrawl.Detour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSurfaceCrawlCliffLineOfSightTest,
+	"LootNPop.SurfaceNavigation.SurfaceCrawl.CliffLineOfSight",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -177,6 +183,37 @@ namespace
 			}
 			return false;
 		}
+
+		/**
+		 * 이동 프로세서의 사거리 안 LoS 반응처럼 움직인다 — 사선이 막혔으면 타겟 쪽으로 기어가고(교전 추격처럼 우회 포함),
+		 * 공격 게이트처럼 0.25초마다 몸 중심 → 조준점 사선을 다시 본다. 트이면 서서 true.
+		 * ReachDistance는 SteerDirection에 그대로 넘긴다(교전 추격은 정지 거리).
+		 */
+		bool SeekLineOfSight(const FCrawlWorld& Fixture, const FVector& AimPoint, const bool bSeekLineOfSight, const int32 MaxFrames,
+			const float ReachDistance = CrawlTestRadius)
+		{
+			constexpr int32 RetryFrames = 15;
+			FDetourParams DetourParams;
+			DetourParams.StallRadius = CrawlTestRadius;
+			for (int32 Frame = 0; Frame < MaxFrames; ++Frame)
+			{
+				if (Frame % RetryFrames == 0 && PhysVelocity.IsZero() && LNPEnemyLineOfSight::HasClearShot(*Fixture.Collision, Location, AimPoint))
+				{
+					return true;
+				}
+				const FVector GravityUp = (Fixture.FallParams.GravityOrigin - Location).GetSafeNormal();
+				FVector MoveDir = SteerDirection(Location, Normal, AimPoint, GravityUp, ReachDistance, bSeekLineOfSight);
+				if (PhysVelocity.IsZero())
+				{
+					MoveDir = UpdateDetour(Detour, DetourParams, Location, Normal, MoveDir, AimPoint - Location, GravityUp,
+						FVector::RightVector, 1, CrawlTestDeltaTime);
+				}
+				Tick(Fixture, MoveDir * CrawlTestSpeed);
+				MinZ = FMath::Min(MinZ, Location.Z);
+			}
+			return false;
+		}
+		double MinZ = TNumericLimits<double>::Max();
 
 		void Tick(const FCrawlWorld& Fixture, const FVector& Velocity)
 		{
@@ -430,6 +467,63 @@ bool FLNPSurfaceCrawlDetourTest::RunTest(const FString& Parameters)
 		Crawler.Location = FVector(-1000, 2000, FloorZ);
 		TestTrue(TEXT("Flat chase arrives"), Crawler.CrawlTo(Fixture, FVector(1000, 2000, FloorZ), 600));
 		TestEqual(TEXT("Flat chase never detours"), Crawler.DetourStarts, 0);
+	}
+	return true;
+}
+
+bool FLNPSurfaceCrawlCliffLineOfSightTest::RunTest(const FString& Parameters)
+{
+	FCrawlWorld Fixture(TEXT("LNPSurfaceCrawlCliffLineOfSightTest"));
+	if (!TestNotNull(TEXT("World collision subsystem exists"), Fixture.Collision))
+		return false;
+
+	// 같은 높이의 절벽 둘이 좁은 틈(x∈[-100,100])을 두고 마주 본다. A: x∈[-1100,-100], B: x∈[100,1100], 둘 다 z∈[0,1000].
+	// 벽보행 개체는 윗면 가장자리를 넘어 A의 틈 쪽 벽(법선 +X) 윗부분에 붙어 있고, 타겟은 B 윗면에 서 있다.
+	// 거기서는 B 가장자리가 사선을 막는다. 윗면으로 올라오기만 하면 트인다(PIE 2026-10-10).
+	Fixture.Box(FVector(0, 0, 0), FVector(40, 40, 0.2), TEXT("LNPStaticTerrain"));
+	Fixture.Box(FVector(-600, 0, 500), FVector(10, 20, 10), TEXT("LNPStaticBlocker"));
+	Fixture.Box(FVector(600, 0, 500), FVector(10, 20, 10), TEXT("LNPStaticBlocker"));
+	Fixture.Publish();
+	const FVector WallStart(-100.0 + CrawlTestRadius + Fixture.Params.SurfaceGap, 0, 700);
+	const FVector AimPoint(500, 0, 1090);
+	if (!TestFalse(TEXT("Line of sight is blocked from the wall start"), LNPEnemyLineOfSight::HasClearShot(*Fixture.Collision, WallStart, AimPoint)))
+		return false;
+
+	// 1. 도달용 조향(내리막)은 사선을 찾는 개체를 틈 아래로 끌어내린다 — 결함 재현.
+	{
+		FCrawler Plain;
+		Plain.Location = WallStart;
+		Plain.Normal = FVector::ForwardVector;
+		// 내리막(법선 거리 560)과 수선 발 쪽 오르막이 상쇄되는 평형점 z ≈ 1090 − 560 = 530까지 내려가 거기서 맴돈다 — 사선은 끝내 트이지 않는다.
+		TestFalse(TEXT("Reach steering never finds a clear shot"), Plain.SeekLineOfSight(Fixture, AimPoint, /*bSeekLineOfSight=*/false, 120));
+		TestTrue(TEXT("Reach steering descends into the gap"), Plain.MinZ < WallStart.Z - 100.0);
+		AddInfo(FString::Printf(TEXT("Reach steering lowest Z %.0f"), Plain.MinZ));
+	}
+
+	// 2. 사선 탐색 조향(오르막)은 벽을 올라 윗면 가장자리에서 사선을 얻는다.
+	{
+		FCrawler Crawler;
+		Crawler.Location = WallStart;
+		Crawler.Normal = FVector::ForwardVector;
+		TestTrue(TEXT("Line-of-sight steering finds a clear shot"), Crawler.SeekLineOfSight(Fixture, AimPoint, /*bSeekLineOfSight=*/true, 180));
+		TestTrue(TEXT("Line-of-sight steering never descends"), Crawler.MinZ >= WallStart.Z - 5.0);
+		TestTrue(TEXT("Clear shot is taken from cliff A"), Crawler.Location.X < -100.0 + CrawlTestRadius + 5.0);
+		TestEqual(TEXT("Line-of-sight steering never penetrates"), Crawler.Penetrations, 0);
+		AddInfo(FString::Printf(TEXT("Clear shot at %s normal %s"), *Crawler.Location.ToString(), *Crawler.Normal.ToString()));
+	}
+
+	// 3. 교전 추격 조향은 이 면에서 사거리 안에 들 수 있으면 내리막을 더하지 않는다. 벽 법선 거리(~560)가 사거리(800) 안이라
+	//    타겟의 수선 발(윗면 위)로 올라가 사선을 얻는다. 내리막을 더하면 수선 발보다 법선 거리만큼 아래에 모여 사거리 밖에서 맴돈다(PIE 로그).
+	{
+		constexpr float AttackRange = 800.f;
+		FCrawler Chaser;
+		Chaser.Location = WallStart;
+		Chaser.Normal = FVector::ForwardVector;
+		TestTrue(TEXT("Chase steering within attack range finds a clear shot"),
+			Chaser.SeekLineOfSight(Fixture, AimPoint, /*bSeekLineOfSight=*/false, 180, AttackRange));
+		TestTrue(TEXT("Chase steering within attack range never descends"), Chaser.MinZ >= WallStart.Z - 5.0);
+		TestTrue(TEXT("Chase steering stays within attack range"), FVector::Dist(Chaser.Location, AimPoint) <= AttackRange);
+		TestEqual(TEXT("Chase steering never penetrates"), Chaser.Penetrations, 0);
 	}
 	return true;
 }

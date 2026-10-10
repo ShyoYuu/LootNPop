@@ -4,7 +4,6 @@
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEntityAttackShared.h"
-#include "Enemy/LNPEnemyLineOfSight.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "HitDetection/LNPProjectileMotion.h"
 #include "GAS/LNPPoiseTypes.h"
@@ -180,11 +179,8 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					// 요청은 Task가 매 프레임 다시 세우므로, 막히면 잠시 뒤에 다시 본다 — 매 프레임 raycast하지 않는다.
 					if (AttackConfig.bRequireLineOfSight && bIsRanged)
 					{
-						const LNPEntityAttack::FBasis GateBasis = LNPEntityAttack::MakeBasis(Transforms[i].GetTransform());
-						const FVector Muzzle = LNPProjectileMotion::ClipMuzzleToWorld(&WorldCollision, GateBasis.Center,
-							LNPEntityAttack::ComputeMuzzle(GateBasis, AttackConfig));
-						const FVector AimPoint = LNPEntityAttack::ComputeAimPoint(GateBasis, TargetingFrags[i].TargetLocation, AttackConfig);
-						if (!LNPEnemyLineOfSight::HasClearShot(WorldCollision, Muzzle, AimPoint))
+						if (!LNPEntityAttack::HasClearShotFrom(WorldCollision, Transforms[i].GetTransform(), MoveConfig.GravityOrigin,
+							TargetingFrags[i].TargetLocation, AttackConfig))
 						{
 							constexpr float LineOfSightRetryInterval = 0.25f;
 							Attack.bLineOfSightBlocked = 1;
@@ -231,7 +227,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					// 클램프 값이 조준 자세·발사 방향·피격 인지 게이트의 공용 원본이므로 여기서도 그 값을 읽는다.
 					// 타겟 Transform은 좌표 규약상 **캡슐 중심**이다(플레이어·적 모두). 다만 캡슐 중심은
 					// 골반 높이라, 가슴께를 겨누려면 Config의 상하 보정을 얹는다.
-					const FVector AimPoint   = LNPEntityAttack::ComputeAimPoint(Basis, TargetingFrags[i].TargetLocation, AttackConfig);
+					const FVector AimPoint   = LNPEntityAttack::ComputeAimPoint(MoveConfig.GravityOrigin, TargetingFrags[i].TargetLocation, AttackConfig);
 					const FVector ToTarget   = AimPoint - Muzzle;
 					const float   VerticalUp = FVector::DotProduct(ToTarget, Basis.Up);
 					const float   Horizontal = (ToTarget - Basis.Up * VerticalUp).Size();

@@ -63,11 +63,17 @@ namespace LNPSurfaceCrawl
 
 	/**
 	 * 목표로 기어갈 방향(Normal 접평면의 단위 벡터, 목표가 겹쳐 있으면 0). 길찾기 없이 목표 방향을 접평면에 투영한다.
-	 * 목표가 표면 앞쪽(법선 방향)으로 반지름보다 멀면, 그 거리만큼 내리막(구 중심 중력 아래의 접평면 성분)을 더한다 —
+	 * 목표가 표면 앞쪽(법선 방향)으로 ReachDistance보다 멀면, 그 거리만큼 내리막(구 중심 중력 아래의 접평면 성분)을 더한다 —
 	 * 벽에 붙은 개체가 앞 바닥의 목표와 같은 높이에 오면 투영이 0이 되어 벽 구석에 멈추는 것을 막고, 벽을 타고 내려가게 한다.
+	 * ReachDistance는 "이 면 위에서 목표에 그만큼 다가가면 충분하다"는 거리다. 목표에 닿아야 하는 배회는 몸 반지름,
+	 * 원거리 교전 추격은 사거리를 준다 — 이 면에서 사거리 안에 들 수 있는데 내리막을 더하면 목표의 수선 발보다
+	 * 법선 거리만큼 아래의 한 점(접평면 오르막과 내리막이 상쇄되는 자리, 목표까지 √2배)에 모여 사거리 밖에서 맴돈다
+	 * (PIE 로그 2026-10-10: 법선 거리 752, 높이 차 약 750, 거리 약 1060).
+	 * bSeekLineOfSight(사거리 안에서 사선이 막힘)면 내리막 대신 오르막을 더한다. 내리막은 목표에 **닿으려는** 규칙이라
+	 * 건너편 절벽 위의 타겟을 보려는 개체를 틈 아래로 끌어내린다. 면 앞쪽의 타겟은 그 면의 위쪽 가장자리에서 트인다.
 	 */
 	LOOTNPOP_API FVector SteerDirection(const FVector& Location, const FVector& Normal, const FVector& Goal,
-		const FVector& GravityUp, float BodyRadius);
+		const FVector& GravityUp, float ReachDistance, bool bSeekLineOfSight = false);
 
 	/** 막힘 우회 상태. 개체마다 하나(FLNPEnemyCrawlFragment)이며 UpdateDetour·ResetDetour만 바꾼다. */
 	struct FDetourState

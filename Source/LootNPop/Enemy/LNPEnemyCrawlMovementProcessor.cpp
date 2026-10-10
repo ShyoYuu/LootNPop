@@ -5,7 +5,9 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
+#include "Enemy/LNPEntityAttackShared.h"
 #include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
+#include "HAL/IConsoleManager.h"
 #include "Enemy/LNPEnemySpatialGrid.h"
 #include "Enemy/LNPSurfaceCrawl.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
@@ -32,6 +34,14 @@ namespace
 
 	/** 정지 개체도 제자리 겹침을 검사하는 패널 중심 반경(cm). 패널 크기와 운반 경로를 덮을 만큼 넉넉히 둔다. */
 	constexpr double StationaryCrushCheckRadius = 1500.0;
+
+	int32 GCrawlEngageLog = 0;
+	FAutoConsoleVariableRef CVarCrawlEngageLog(
+		TEXT("LNP.SurfaceNav.CrawlEngageLog"), GCrawlEngageLog,
+		TEXT("Server-only diagnostic. 1 = log every engaged wall crawler's chase state twice a second ([CrawlEngage])."));
+
+	/** 교전 진단 로그를 찍을 프레임인가(0.5초 간격). 게임 스레드의 Execute에서 한 번 정한다. */
+	double GCrawlEngageLogLastTime = -1.0;
 }
 
 LNPSurfaceCrawlStats::FCounts LNPSurfaceCrawlStats::Get()
@@ -139,6 +149,9 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 	});
 	const UWorld* World = EntityManager.GetWorld();
 	const double Now = World ? World->GetTimeSeconds() : 0.0;
+	const bool bEngageLogFrame = GCrawlEngageLog != 0 && (Now - GCrawlEngageLogLastTime >= 0.5 || Now < GCrawlEngageLogLastTime);
+	if (bEngageLogFrame)
+		GCrawlEngageLogLastTime = Now;
 
 	// 청크 사이의 공유 쓰기는 신호 목록 하나뿐이다 — 지상 이동 프로세서와 같은 방식으로 모은다.
 	TArray<FMassEntityHandle> EntitiesToSignal;
@@ -311,6 +324,11 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				EnemyData.DynamicSupportContact.Reset();
 				FVector NewLocation;
 				FVector LandingNormal = (GravityOrigin - Location).GetSafeNormal();
+				if (bEngageLogFrame && TargetingFragments[i].State == ELNPTargetingState::Confirmed)
+				{
+					UE_LOG(LogLootNPop, Log, TEXT("[CrawlEngage] enemy=%d airborne speed=%.0f dist=%.0f"), Ctx.GetEntity(i).Index,
+						PhysVelocity.Size(), FMath::Sqrt(TargetingFragments[i].DistanceToTargetSq));
+				}
 				if (LNPEnemyExactMovement::StepAirborne(WorldCollision, FallParams, Location, PhysVelocity, DeltaTime, NewLocation,
 					nullptr, &LandingNormal))
 				{
@@ -341,6 +359,9 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			FVector Goal = Location;
 			float Speed = 0.f;
 			FVector FacingDir = FVector::ZeroVector;   // 월드 방향. 접평면 성분만 몸의 전방이 된다.
+			bool bSeekLineOfSight = false;
+			const bool bWasHoldingFirePosition = CrawlData.bHoldingFirePosition;
+			CrawlData.bHoldingFirePosition = false;
 
 			switch (Targeting.State)
 			{
@@ -366,10 +387,27 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				{
 					// 원거리 전용이다(D-066). 사거리 안 정지 거리까지 다가가 선다.
 					// 사거리 안이어도 사선이 막혔으면(섬 밑면·벽 뒤) 서지 않고 타겟 쪽으로 계속 기어간다 — 표면을 따라 돌면
-					// 대개 사선이 트인다. 계속 막히면 아래 단순 우회가 끼어든다. 플래그는 소비하지 않는다:
+					// 대개 사선이 트인다. 이때 조향은 내리막 대신 오르막을 더한다(SteerDirection) — 건너편 절벽 위 타겟은
+					// 틈 아래가 아니라 이쪽 윗면 가장자리에서 보인다. 계속 막히면 아래 단순 우회가 끼어든다. 플래그는 소비하지 않는다:
 					// 공격 프로세서가 0.25초마다 다시 보고 트이면 0으로 되돌린다.
 					FacingDir = Targeting.TargetLocation - Location;
-					if (FMath::Sqrt(Targeting.DistanceToTargetSq) > StopDistance || AttackFragments[i].bLineOfSightBlocked)
+					const float Distance = FMath::Sqrt(Targeting.DistanceToTargetSq);
+					const bool bInRange = Distance <= MoveConfig.AttackRange;
+					bSeekLineOfSight = bInRange && AttackFragments[i].bLineOfSightBlocked;
+					// 사선 탐색 중에는 매 프레임 직접 보고 처음 트인 자리에서 선다. 게이트의 0.25초 재검사만 기다리면 그 사이 윗면
+					// 가장자리를 넘었다 되돌아오며 한 점(타겟의 수선 발)으로 모인다(PIE 2026-10-10). 플래그는 게이트가 다음 검사에서 내린다.
+					const bool bFoundFirePosition = bSeekLineOfSight && LNPEntityAttack::HasClearShotFrom(WorldCollision,
+						EntityTransform, GravityOrigin, Targeting.TargetLocation, Config->EntityAttackConfig);
+					bSeekLineOfSight &= !bFoundFirePosition;
+					// 사거리 안에서 공격을 시작했으면 그 자리를 지킨다. 정지 거리까지 마저 다가가면 윗면 가장자리를 넘어 벽으로 내려가
+					// 사선을 잃는다(같은 높이 절벽 사이 PIE 2026-10-10).
+					CrawlData.bHoldingFirePosition = bInRange && !bSeekLineOfSight
+						&& (bWasHoldingFirePosition || bFoundFirePosition || AttackFragments[i].Phase != ELNPEntityAttackPhase::None);
+					// StateTree는 신호로만 틱한다. 정지 거리 안은 TargetFollow가 신호하지만, 그 밖의 사거리 안에서도 공격 Task가
+					// 돌아야 요청·LoS 재검사가 이어진다 — 없으면 사거리 안 윗면에서 쏘지 않고 가장자리를 넘는다.
+					if (bInRange && Distance > StopDistance)
+						ChunkEntitiesToSignal.Add(Ctx.GetEntity(i));
+					if ((Distance > StopDistance && !CrawlData.bHoldingFirePosition) || bSeekLineOfSight)
 					{
 						Goal = Targeting.TargetLocation;
 						Speed = MoveConfig.MoveSpeed;
@@ -474,7 +512,13 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			}
 
 			// 교전 추격 중에만 막힘을 재고 단순 우회를 시도한다(단위 2e). 배회는 배회 타임아웃이 목표를 다시 뽑는다.
-			FVector MoveDir = LNPSurfaceCrawl::SteerDirection(Location, Normal, Goal, GravityUp, CrawlParams.BodyRadius);
+			// 교전 추격은 이 면에서 사거리 안에 들 수 있으면 내리막을 더하지 않는다(SteerDirection의 ReachDistance).
+			// 문턱은 정지 거리가 아니라 사거리다 — 면까지 법선 거리가 둘 사이(752, PIE 로그)면 정지 거리 문턱은 내리막을 남겨
+			// 사거리 밖 평형점에 모인다. 사거리 안에 들면 공격이 시작되고 자리 지키기가 멈춰 세운다.
+			// 사선 탐색의 오르막은 면 앞쪽 타겟 전부에 적용한다.
+			const bool bChaseApproach = Targeting.State == ELNPTargetingState::Confirmed && !bSeekLineOfSight;
+			FVector MoveDir = LNPSurfaceCrawl::SteerDirection(Location, Normal, Goal, GravityUp,
+				bChaseApproach ? FMath::Max(CrawlParams.BodyRadius, MoveConfig.AttackRange) : CrawlParams.BodyRadius, bSeekLineOfSight);
 			if (Targeting.State == ELNPTargetingState::Confirmed && Speed > 0.f)
 			{
 				const bool bWasDetouring = CrawlData.Detour.DetourTime > 0.f;
@@ -514,6 +558,18 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			FVector NewLocation = Location;
 			FVector NewNormal = Normal;
 			const FVector Velocity = MoveDir * Speed + SeparationPush;
+			if (bEngageLogFrame && Targeting.State == ELNPTargetingState::Confirmed)
+			{
+				// 법선 거리(along)·타겟 높이(height)·면 기울기(normalUp)가 조향을 정한다. 위치는 원점 기준 반지름(r)으로 본다.
+				const FVector ToTarget = Targeting.TargetLocation - Location;
+				UE_LOG(LogLootNPop, Log, TEXT("[CrawlEngage] enemy=%d dist=%.0f range=%.0f stop=%.0f along=%.0f height=%.0f normalUp=%.2f blocked=%d phase=%d cd=%.2f hold=%d seek=%d speed=%.0f sep=%.0f moveUp=%.2f detour=%d r=%.0f signal=%d"),
+					Ctx.GetEntity(i).Index, FMath::Sqrt(Targeting.DistanceToTargetSq), MoveConfig.AttackRange, StopDistance,
+					FVector::DotProduct(ToTarget, Normal), FVector::DotProduct(ToTarget, GravityUp), FVector::DotProduct(Normal, GravityUp),
+					static_cast<int32>(AttackFragments[i].bLineOfSightBlocked), static_cast<int32>(AttackFragments[i].Phase), AttackFragments[i].CooldownRemaining,
+					static_cast<int32>(CrawlData.bHoldingFirePosition), static_cast<int32>(bSeekLineOfSight), Speed, SeparationPush.Size(), FVector::DotProduct(MoveDir, GravityUp),
+					static_cast<int32>(CrawlData.Detour.DetourTime > 0.f), FVector::Dist(Location, GravityOrigin),
+					static_cast<int32>(ChunkEntitiesToSignal.Contains(Ctx.GetEntity(i))));
+			}
 			FLNPExactHitIdentity SurfaceIdentity;
 			// 정지 개체는 Step이 query를 하지 않는다. 패널 근처에서만 내려오는 패널에 깔렸는지 제자리 겹침을 본다.
 			bool bNearPanel = false;

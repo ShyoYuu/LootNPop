@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPEnemyLineOfSight.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
+#include "HitDetection/LNPProjectileMotion.h"
 #include "Item/LNPWeaponData.h"
 #include "LNPMassUtils.h"
 
@@ -68,10 +70,24 @@ namespace LNPEntityAttack
 	/**
 	 * 조준점 — 타겟 캡슐 중심에 상하 보정을 얹는다. 캡슐 중심은 골반 높이라 가슴께를 겨누려면 보정이 필요하다.
 	 * 발사와 LoS 게이트가 같은 점을 봐야 "보인다고 판정했는데 탄은 막히는" 어긋남이 없다.
+	 * 보정 축은 공격자 몸의 Up이 아니라 **타겟 자리의 중력 Up**이다. 타겟은 늘 플레이어라 서 있는 방향이 중력 Up이다 —
+	 * 공격자 Up을 쓰면 벽에 붙은 벽보행 적은 보정이 수평으로, 천장의 적은 아래로 들어간다.
 	 */
-	inline FVector ComputeAimPoint(const FBasis& Basis, const FVector& TargetLocation, const FLNPEntityAttackConfig& AttackConfig)
+	inline FVector ComputeAimPoint(const FVector& GravityOrigin, const FVector& TargetLocation, const FLNPEntityAttackConfig& AttackConfig)
 	{
-		return TargetLocation + Basis.Up * AttackConfig.AimTargetUpOffset;
+		return TargetLocation + (GravityOrigin - TargetLocation).GetSafeNormal() * AttackConfig.AimTargetUpOffset;
+	}
+
+	/**
+	 * 지금 자세에서 총구 → 조준점 사선이 트였는가. 공격 프로세서의 LoS 게이트와 벽보행 이동의 사선 탐색이 같은 판정을 쓴다 —
+	 * 둘이 갈리면 이동은 "보인다"며 멈췄는데 게이트는 막혔다고 다시 내보내는 진동이 생긴다.
+	 */
+	inline bool HasClearShotFrom(const ULNPMassWorldCollisionSubsystem& WorldCollision, const FTransform& Transform,
+		const FVector& GravityOrigin, const FVector& TargetLocation, const FLNPEntityAttackConfig& AttackConfig)
+	{
+		const FBasis Basis = MakeBasis(Transform);
+		const FVector Muzzle = LNPProjectileMotion::ClipMuzzleToWorld(&WorldCollision, Basis.Center, ComputeMuzzle(Basis, AttackConfig));
+		return LNPEnemyLineOfSight::HasClearShot(WorldCollision, Muzzle, ComputeAimPoint(GravityOrigin, TargetLocation, AttackConfig));
 	}
 
 	/**
