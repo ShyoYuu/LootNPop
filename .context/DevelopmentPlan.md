@@ -152,7 +152,8 @@
 - [ ] **화염방사기 — 지속 분사·충전형 탄창·화상 DoT** (2026-10-11 ~, 단계 진행 중)
     - 발동 1회 = 분사 틱 1회(라이플 연사 구조 재사용). 탄창 대신 분사 중 소모·미분사 시 회복하는 충전 게이지.
     - [x] U1 무기·충전 게이지 (2026-10-11) — 설계 명세: [TechDesign_Ability.md](TechDesign_Ability.md) §5.6
-    - [ ] U2 원뿔 판정 / U3 적 화상 DoT / U4 분사·화상 VFX / U5 프렌들리 파이어 플레이어 피격
+    - [x] U2 원뿔 판정 (2026-10-11) — 서버 전용 1프레임 판정 엔티티, 벽 자르기·사선 검사, 틱 피격 반응 억제. 설계 명세: [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5
+    - [ ] U3 적 화상 DoT / U4 분사·화상 VFX / U5 프렌들리 파이어 플레이어 피격
 - [x] **적 탐색 질의 시스템** (`ULNPTargetQuerySubsystem`, `ULNPTargetQueryProcessor`, 2026-09-06 ~ 09-09)
     - 물리 경유 탐색 3곳(조준점·근접 보정·락온)이 **순수 엔티티를 통째로 빠뜨리던** 것을 Mass 상시 질의로 교체.
       요청/응답이 아니라 매 프레임 갱신되는 질의라 소비자는 결과만 읽는다.
@@ -202,6 +203,7 @@
 
 - [x] **MassEntity 기반 적 NPC 스폰** (`ULNPMassSpawnSubsystem`)
     - 데이터 에셋(`DA_MassSpawnConfig`) 기반 배치. 스폰 완료 시 `OnSpawningComplete` 델리게이트 발행.
+    - 검증용 편성은 기본 편성을 고치지 않고 `LNP.Spawn.ConfigOverride <경로>`(PIE 시작 전 에디터 콘솔) 또는 `-LNPSpawnConfig=<경로>`(`-game`, 호스트·게스트 모두)로 바꾼다. 소규모 혼합 편성: `DA_MassSpawnConfig_ActorMix`(Actor 승격 근접 포함, 종류별 1~2기). 2026-10-11
 - [x] **적 이동 프로세서** (`ULNPEnemyMovementProcessor`)
     - 구형 표면을 따른 이동. `ULNPSurfaceCacheSubsystem`에서 표면 노멀 조회 (스레드 안전).
 - [x] **슬롯 기반 타겟팅 서브시스템** (`ULNPTargetingSubsystem`)

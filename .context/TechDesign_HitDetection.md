@@ -8,6 +8,7 @@
 |:---|:---|:---|
 | 원거리 (Projectile) | 선분(전 프레임 위치 → 현 위치) vs 캡슐 | `ULNPProjectileHitDetectionProcessor` |
 | 근거리 (Melee) | Swept Quad(칼날 궤적) vs 캡슐 축 선분 | `ULNPWeaponTraceHitDetectionProcessor` |
+| 화염 원뿔 (Flame) | 절두체(총구→축) vs 캡슐 축 선분 + 사선 트레이스, 서버 전용 | `ULNPFlameConeHitDetectionProcessor` (§3.5) |
 
 ```
 [서버 판정 경로 — 권위]
@@ -29,6 +30,7 @@
 |:---|:---|
 | `LNPProjectileMassTypes.h` · `LNPProjectileProcessors.*` | 발사체 Fragment 3종 + DeadTag / 4단 프로세서 + 에디터 DebugDraw (§3.1) |
 | `LNPWeaponTraceMassTypes.h` · `LNPWeaponTraceProcessors.*` | 칼날 4점·반경·TTL·AlreadyHit Fragment / 판정 + Lifetime + DebugDraw |
+| `LNPFlameConeMassTypes.h` · `LNPFlameConeProcessors.*` | 분사 틱 1회의 원뿔 판정 요청(1프레임 수명) / 서버 판정·파괴 (§3.5) |
 | `LNPHitDetectionShared.h` | 후처리 BatchedCommand 5종 + 공용 헬퍼(`GetCapsuleSize`·`ResolveEnemyCapsuleCenter`·`SegmentHitsCapsule`·`ApplyEntityKnockback`) |
 | `LNPGuardParryTypes.h` | `FLNPParryStateFragment` (가드/패링 상태 Mass 미러) |
 | **단일 정의 헤더** `LNPFireGeometry.h` · `LNPProjectileMotion.h` · `LNPSpreadPattern.h` | 총구·조준 방향 / 적분·지면 판정·예상 궤적 / 산탄 배치. 실탄과 예측이 같은 식을 보게 하는 장치다 (§7.6) |
@@ -233,6 +235,31 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 대신 모듈 입력을 `User.<이름>`으로 **링크**하면 파라미터가 자동 생성된다 — `NS_TrajectoryGuide`의
 `User.Points`(Position 배열 DI)가 그렇게 만들어졌다.
 
+### 3.5 화염 원뿔 (Flame — 절두체) ⭐ 2026-10-11
+
+화염방사기는 **발동 1회 = 분사 틱 1회**다(0.1초, → [TechDesign_Ability.md](TechDesign_Ability.md) §5.6).
+`ULNPAbility_FlameAttack`이 틱마다 **서버에서만** `FLNPFlameConeFragment` 엔티티 하나를 만들고,
+`ULNPFlameConeHitDetectionProcessor`(StartPhysics, `Server | Standalone`)가 다음 실행에서 판정한 뒤 **같은 실행에서 파괴한다** —
+파괴 지점은 그 한 곳뿐이고 TTL 프로세서는 없다. 클라이언트 예측 경로도 없다(연출은 U4 VFX가 맡는다).
+
+| 단계 | 처리 |
+|:---|:---|
+| 원점·축 (발동 시점, 게임 스레드) | 총구 = `LNPFireGeometry::ResolveMuzzleLocation`, 축 = 발동 RPC의 조준 스냅샷으로 `ResolveAimDirection` — 원거리 발사와 같은 단일 정의(§7.7) |
+| 사거리 자르기 | 축 방향 `LNPProjectileMotion::ClipSegmentToWorld` 1회 → `Range`. 반경 기울기는 잘리기 전 `ConeRange`로 잰다 — 벽 앞에서 쏴도 원뿔이 뚱뚱해지지 않는다 |
+| 형상 판정 (워커) | 캡슐 축 선분에서 원뿔 축에 가장 가까운 점 P. `t = (P-O)·A ∈ [-r, Range+r]`, 측면 거리 ≤ `lerp(Near, Far, t/ConeRange) + r` |
+| 사선 | 총구 → P `TraceWorld`가 막히면 제외 — 축 트레이스는 정면 벽만 자르므로 축 옆 기둥 뒤 대상은 이것으로 거른다 |
+| 되감기 | 근접과 같은 RTT/2만(보간 지연 가산 없음, §5). 발동 시점에 `CachedRewindSeconds`로 캐싱 |
+| 피격 | Actor 적 → `FLNPApplyDamageGECommand`(넉백 0, **`bSuppressHitReact`**), 순수 엔티티 → HP 직접 차감 + `ApplyDefense`. 경직은 소량 누적, 배회 중 주시(`HitReactTimer`)는 걸고 **플린치는 걸지 않는다** |
+
+- **틱 피해는 피격 반응을 억제한다.** 0.1초마다 HitReact 몽타주·플린치가 다시 걸리면 대상이 움찔 상태에서 빠져나오지 못한다.
+  넉백도 0이다(어빌리티 기본값). 임팩트 큐도 내지 않는다 — 틱마다 근접 임팩트·HitStop이 터지는 것은 의도가 아니다.
+- **공간 격자를 쓰지 않는다.** 원격 공격자는 되감기 때문에 현재 위치 격자를 쓸 수 없고(`CanUseCurrentCapsuleGrid`, 투사체도 같은 이유로 전수 검사 폴백),
+  원뿔은 프레임당 플레이어 수만큼만 생기므로 근접처럼 전수 검사 + 경계 구 1차 필터로 둔다.
+- **사거리 1600cm는 비행형 때문이다.** 비행형은 교전 고도 750cm(500~1000 가운데)에서 앙각 30°로 머물러 직선거리가 약 1500cm다.
+  600cm였을 때 비행형을 아예 공격할 수 없었다(2026-10-11 PIE). 끝 반경은 600cm/200cm 기울기를 유지한 480cm.
+- 플레이어 대상(아군 사격)은 아직 없다 — U5에서 근접 `JudgePlayerTarget`을 공용 함수로 추출해 공유한다(§7.5).
+- 디버그: `LNP.Flame.DebugDraw 1` — 서버 월드에 원뿔을 그린다(끝 단면이 빨강이면 벽에 잘림). 게스트 화면에는 보이지 않는다.
+
 ---
 
 ## 4. 클라이언트 예측 판정 (코스메틱)
@@ -281,7 +308,7 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 
 | 커맨드 | 처리 |
 |:---|:---|
-| `FLNPApplyDamageGECommand` | SetByCaller 피해 GE 적용 + HitReact GameplayCue + 넉백 |
+| `FLNPApplyDamageGECommand` | SetByCaller 피해 GE 적용 + HitReact GameplayCue(`bSuppressHitReact`면 생략 — 화염 틱) + 넉백 |
 | `FLNPImpactCueCommand` | 임팩트 GameplayCue(근접·원거리 공용) + (근접) 공격자 HitStop |
 | `FLNPMeleeParryCommand` | 방어자 Parry.Success 이벤트/큐 + 공격자 Stagger 이벤트 + 공격자 넉백(Actor는 `ApplyKnockback`, 엔티티는 속도 프래그먼트) |
 | `FLNPProjectileParryCommand` | 방어자 이벤트/큐 + 반사 Ghost 소멸·재스폰 방송 |

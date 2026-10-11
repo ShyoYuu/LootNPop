@@ -14,14 +14,38 @@
  * 입력을 떼면 발동이 멈추는 것으로 분사가 끝난다. 수명이 홀드 전체인 어빌리티를 두지 않는 이유다.
  *
  * 틱마다 분사 상태 GE(ULNPGameplayEffect_FlameFiring)를 갱신해 충전형 탄창 회복을 막는다.
+ *
+ * 피해 판정은 서버만 한다 — 틱마다 원뿔 판정 엔티티(FLNPFlameConeFragment)를 하나 만들고
+ * ULNPFlameConeHitDetectionProcessor가 다음 StartPhysics에서 판정·파괴한다.
+ * 형상 값은 산탄 퍼짐(Spread)처럼 무기 데이터가 아니라 어빌리티가 소유한다.
  */
 UCLASS()
 class LOOTNPOP_API ULNPAbility_FlameAttack : public ULNPAbility_BasicAttack
 {
 	GENERATED_BODY()
+public:
+	ULNPAbility_FlameAttack();
+
 protected:
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 		const FGameplayAbilityActorInfo* ActorInfo,
 		const FGameplayAbilityActivationInfo ActivationInfo,
 		const FGameplayEventData* TriggerEventData) override;
+
+	/** 원뿔 사거리 (cm). 축 방향 월드 트레이스가 이보다 짧게 자를 수 있다.
+	 *  비행형 교전 지점(고도 750 / sin 30° ≈ 1500cm)까지 닿게 잡았다 — 600이면 비행형을 아예 공격할 수 없었다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame", meta = (ClampMin = "0"))
+	float ConeRange = 1600.f;
+
+	/** 총구 단면 반경 (cm). */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame", meta = (ClampMin = "0"))
+	float NearRadius = 30.f;
+
+	/** 사거리 끝 단면 반경 (cm). 600cm에서 200cm였던 기울기를 유지한 값이다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame", meta = (ClampMin = "0"))
+	float FarRadius = 480.f;
+
+private:
+	/** 서버 전용 — 이번 틱의 원뿔 판정 엔티티를 만든다. */
+	void SpawnConeJudge(const FGameplayAbilityActivationInfo& ActivationInfo, const FGameplayEventData* TriggerEventData) const;
 };

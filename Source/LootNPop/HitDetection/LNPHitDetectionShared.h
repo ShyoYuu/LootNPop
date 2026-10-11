@@ -659,13 +659,14 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 		FVector                      HitFromDirection;
 		FVector                      ImpactPoint;       // 무기·투사체가 실제로 닿은 지점 (월드)
 		float                        KnockbackStrength;
+		bool                         bSuppressHitReact; // 틱 피해(화염 원뿔)처럼 짧은 간격으로 들어오는 피해는 몽타주를 끊임없이 다시 걸지 않는다
 	};
 
 	FLNPApplyDamageGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, const FVector& InImpactPoint, float InKnockbackStrength = 0.f)
+	void Add(AActor* InVictim, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, const FVector& InImpactPoint, float InKnockbackStrength = 0.f, bool bInSuppressHitReact = false)
 	{
-		Entries.Add({ InVictim, InEffectClass, InDamage, InHitFromDir, InImpactPoint, InKnockbackStrength });
+		Entries.Add({ InVictim, InEffectClass, InDamage, InHitFromDir, InImpactPoint, InKnockbackStrength, bInSuppressHitReact });
 		bHasWork = true;
 	}
 
@@ -693,10 +694,13 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 				UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
 
 			// 피격자 HitReact 몽타주는 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).
-			FGameplayCueParameters CueParams;
-			CueParams.Location = Entry.ImpactPoint;
-			CueParams.Normal   = Entry.HitFromDirection;
-			ASC->ExecuteGameplayCue(TAG_GameplayCue_Character_HitReact, CueParams);
+			if (!Entry.bSuppressHitReact)
+			{
+				FGameplayCueParameters CueParams;
+				CueParams.Location = Entry.ImpactPoint;
+				CueParams.Normal   = Entry.HitFromDirection;
+				ASC->ExecuteGameplayCue(TAG_GameplayCue_Character_HitReact, CueParams);
+			}
 
 			if (ALNPCharacterBase* VictimChar = Cast<ALNPCharacterBase>(Victim))
 			{

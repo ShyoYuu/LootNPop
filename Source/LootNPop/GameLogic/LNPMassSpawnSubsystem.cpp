@@ -74,6 +74,38 @@ namespace
 		}
 		return FMath::Max(0.f, CVarSpawnEnemyDensity.GetValueOnGameThread());
 	}
+
+	/**
+	 * 스폰 편성 덮어쓰기 — 검증마다 편성이 달라도 프로젝트 기본 편성(LNPSettings::MassSpawnConfig)을 고치지 않는다.
+	 * 기본값(빈 문자열)이면 no-op이다.
+	 *
+	 * PIE는 에디터 콘솔에서 PIE 시작 전에 설정하면 서버·게스트가 같은 프로세스라 함께 읽는다.
+	 * `-game` 프로세스는 밀도 배수와 같은 이유로 커맨드라인(`-LNPSpawnConfig=`)을 쓰고, 템플릿 warm-up이 같은 편성을
+	 * 읽어야 하므로 **호스트·게스트 모두에** 준다.
+	 */
+	TAutoConsoleVariable<FString> CVarSpawnConfigOverride(
+		TEXT("LNP.Spawn.ConfigOverride"),
+		TEXT(""),
+		TEXT("Object path of a ULNPMassSpawnConfig used instead of the project default, at world start.\n")
+		TEXT("Empty uses LNPSettings::MassSpawnConfig. Set before PIE starts, or pass '-LNPSpawnConfig=<path>'\n")
+		TEXT("on every process command line (host and guests)."),
+		ECVF_Cheat);
+
+	/** 덮어쓰기(커맨드라인 → CVar) 우선, 없으면 프로젝트 기본 편성. 덮어쓰기 경로를 못 읽으면 기본으로 폴백하지 않고 null — 조용히 다른 편성으로 돌지 않게 한다. */
+	ULNPMassSpawnConfig* LoadSpawnConfig(const ULNPSettings& Settings)
+	{
+		FString OverridePath;
+		if (!FParse::Value(FCommandLine::Get(), TEXT("LNPSpawnConfig="), OverridePath))
+			OverridePath = CVarSpawnConfigOverride.GetValueOnGameThread();
+
+		if (OverridePath.IsEmpty())
+			return Settings.MassSpawnConfig.LoadSynchronous();
+
+		ULNPMassSpawnConfig* Override = TSoftObjectPtr<ULNPMassSpawnConfig>(FSoftObjectPath(OverridePath)).LoadSynchronous();
+		UE_CLOG(!Override, LogLootNPop, Error, TEXT("LNPMassSpawnSubsystem: spawn config override '%s' failed to load."), *OverridePath);
+		UE_CLOG(Override, LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: using spawn config override '%s'."), *OverridePath);
+		return Override;
+	}
 }
 
 void ULNPMassSpawnSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -113,7 +145,7 @@ void ULNPMassSpawnSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 	if (const ULNPSettings* Settings = GetDefault<ULNPSettings>())
 	{
-		if (const ULNPMassSpawnConfig* Config = Settings->MassSpawnConfig.LoadSynchronous())
+		if (const ULNPMassSpawnConfig* Config = LoadSpawnConfig(*Settings))
 		{
 			for (const FLNPLootPodSpawnEntry& PodEntry : Config->LootPodSpawnSets)
 			{
@@ -227,7 +259,7 @@ void ULNPMassSpawnSubsystem::BeginSpawning()
 
 	if (const ULNPSettings* Settings = GetDefault<ULNPSettings>())
 	{
-		if (ULNPMassSpawnConfig* Config = Settings->MassSpawnConfig.LoadSynchronous())
+		if (ULNPMassSpawnConfig* Config = LoadSpawnConfig(*Settings))
 		{
 			EnqueueSpawnProject(Config, Settings->SphereRadius);
 		}

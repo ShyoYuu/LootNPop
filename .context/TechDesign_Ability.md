@@ -406,7 +406,7 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 
 ### 5.6 충전형 탄창 — 화염방사기 (2026-10-11, 구현 중)
 
-기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정·화상 DoT·VFX는 후속 단계다.
+기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5, 화상 DoT·VFX는 후속 단계다.
 
 #### 틱 = 발동 1회
 
@@ -430,6 +430,20 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 - **기초값 클램프가 필요하다.** 주기 GE는 기초값을 계속 더하는데 `PreAttributeChange`는 현재값만 자른다. 기초값이 상한 위로 쌓이면 이후 발사 차감이 초과분부터 깎아 HUD 숫자가 멈춘 것처럼 보인다 → `PreAttributeBaseChange`에서도 자른다.
 - 회복은 서버 기초값 변경 → 어트리뷰트 복제로 소유 클라에 간다. 소유 클라의 발사 차감은 기존처럼 예측이다.
 - 회복량은 주기당 정수(20 × 0.1 = 2)로 맞춰 두었다. HUD 캐시가 반올림 정수라 소수 회복량이면 표시가 `CheckCost`(≥ 1)와 반 칸 어긋날 수 있다.
+
+#### 틱 판정 (2026-10-11)
+
+틱마다 **서버에서만** 원뿔 판정 엔티티를 하나 만든다(`SpawnConeJudge`). 형상 값은 산탄 퍼짐처럼 무기 데이터가 아니라 **어빌리티가 소유**한다.
+
+| 값 (`ULNPAbility_FlameAttack`) | 기본값 | 비고 |
+|:---|:---|:---|
+| `ConeRange` / `NearRadius` / `FarRadius` | 1600 / 30 / 480 cm | 비행형 교전 거리(~1500cm)까지 닿게 잡았다 |
+| `BaseDamageCoefficient` | 0.6 | 틱당 계수(임시값). 라이플은 발당 1.0 |
+| `PoiseDamage` / `KnockbackStrength` | 3 / 0 | 틱 피해라 넉백 없음·경직 소량 |
+
+- 기본값은 C++ 생성자·초기화자에 두고 GA BP(`GA_FlameAttack_Flamethrower`)는 덮어쓰지 않는다 — 값의 원본이 한 곳이다.
+  ⚠️ 그래서 이 값을 바꾸면 Live Coding으로는 CDO가 갱신되지 않는다. 에디터를 재시작해야 반영된다.
+- 판정 형상·되감기·피격 반응 억제는 HitDetection 문서 §3.5.
 
 ---
 
