@@ -424,7 +424,7 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 | `ULNPGameplayEffect_FlameFiring` | HasDuration(= `MagazineRegenDelay`), 스택 1·적용 시 지속 갱신, 태그 `LNP.State.FlameFiring`. 어빌리티가 틱마다 서버에서 다시 건다 |
 | `ULNPGameplayEffect_MagazineRegen` | Infinite, Period 0.1, `MagazineAmmo` `AddBase` SetByCaller(`LNP.GE.Data.MagazineRegen` = 초당 회복 × 주기). `OngoingTagRequirements.IgnoreTags = State.FlameFiring` — 분사 중엔 억제 |
 | `ULNPEquipmentComponent::ApplyMagazineAttributes` | 장착·교체·해제마다 회복 GE를 걷어내고 충전형이면 새 무기 기준으로 다시 건다(서버) |
-| `ULNPInputHandlerComponent::bAttackLockedUntilRelease` | 충전형이 바닥나 발동이 실패하면 잠그고, 공격 입력을 떼면 푼다. 버퍼 재시도도 하지 않는다. ⚠️ 해제는 `Completed`(`OnAttackReleased`)가 아니라 **Triggered가 끊긴 프레임**으로 판정한다(`TickComponent`, `LastAttackTriggeredFrame`) — `IA_Attack`의 `Completed`는 누르고 있는 동안에도 매 프레임 Triggered와 함께 들어온다(2026-10-11 실측, 잠금이 같은 프레임에 풀려 0↔1 반복 분사) |
+| `ULNPInputHandlerComponent::bAttackLockedUntilRelease` | 충전형이 바닥나 발동이 실패하면 잠그고, 공격 입력을 떼면(`OnAttackReleased`) 푼다. 버퍼 재시도도 하지 않는다 |
 
 - **분사 상태 GE는 서버에서만, 예측 키 없이 건다.** 스택 갱신형 GE의 예측 적용은 엔진 기본값(`AbilitySystem.AllowPredictiveStackingGEs=false`)이 막고, 이 태그를 읽는 회복도 서버에서만 돈다. 예측 키를 실어 서버에서 걸면 소유 클라가 복제본을 "자기가 예측한 것"으로 보고 큐 이벤트를 건너뛴다.
 - **기초값 클램프가 필요하다.** 주기 GE는 기초값을 계속 더하는데 `PreAttributeChange`는 현재값만 자른다. 기초값이 상한 위로 쌓이면 이후 발사 차감이 초과분부터 깎아 HUD 숫자가 멈춘 것처럼 보인다 → `PreAttributeBaseChange`에서도 자른다.

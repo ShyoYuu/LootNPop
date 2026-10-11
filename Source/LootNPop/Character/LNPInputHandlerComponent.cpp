@@ -214,12 +214,6 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		BufferedGrappleAnchorID = INDEX_NONE;
 	}
 
-	// 충전형 탄창 바닥 잠금은 Triggered가 끊긴 프레임에 푼다. Completed(OnAttackReleased)는 누르고 있는
-	// 동안에도 매 프레임 Triggered와 함께 들어와(2026-10-11 실측) "뗐다"의 신호로 쓸 수 없다.
-	// 입력 처리와 컴포넌트 틱의 선후가 프레임마다 같다는 보장이 없어 한 프레임 여유를 둔다.
-	if (bAttackLockedUntilRelease && GFrameCounter - LastAttackTriggeredFrame > 1)
-		bAttackLockedUntilRelease = false;
-
 	if (bIsAttackBuffered)
 	{
 		ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
@@ -725,7 +719,6 @@ void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value
 
 	bIsAttackJustPressed = !bIsAttackPressed;
 	bIsAttackPressed = true;
-	LastAttackTriggeredFrame = GFrameCounter;
 
 	if (bAttackLockedUntilRelease)
 		return;
@@ -759,6 +752,7 @@ void ULNPInputHandlerComponent::OnAttackReleased(const FInputActionValue& Value)
 {
 	bIsAttackPressed = false;
 	bIsAttackJustPressed = false;
+	bAttackLockedUntilRelease = false;
 }
 
 bool ULNPInputHandlerComponent::IsRegeneratingMagazineDepleted() const
@@ -1019,8 +1013,6 @@ void ULNPInputHandlerComponent::TickDebugAutoAction(float DeltaTime)
 	if (!Owner || !Owner->IsLocallyControlled())
 		return;
 
-	OnAttackReleased(FInputActionValue());
-
 	const int32 Mode = Owner->HasAuthority()
 		? CVarDebugAuthorityAutoAction.GetValueOnGameThread()
 		: CVarDebugClientAutoAction.GetValueOnGameThread();
@@ -1042,6 +1034,10 @@ void ULNPInputHandlerComponent::TickDebugAutoAction(float DeltaTime)
 
 	if (Mode == 1) // 자동 공격 — 기존 입력 경로(TryActivateAttack) 그대로 재사용
 	{
+		// 매번 "뗐다가 누름"으로 만들어야 근접(FreeAim 아님)도 bIsAttackJustPressed로 발동한다.
+		// ⚠️ 이 분기 안에서만 뗀다 — 모드 판정 앞에서 매 틱 떼면 실제 홀드가 매 프레임 "방금 누름"이 되어
+		// 근접이 누르고만 있어도 연타되고(콤보 창이 자동으로 이어짐), 충전형 탄창의 바닥 잠금이 풀린다.
+		OnAttackReleased(FInputActionValue());
 		OnAttackTriggered(FInputActionValue());
 		DebugAutoActionTimer = 0.6f;
 	}
