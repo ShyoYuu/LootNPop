@@ -9,6 +9,7 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "MassEntityConfigAsset.h"
+#include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "SurfaceNavigation/LNPMassSpawnPlan.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPBastionEncounterTest,
@@ -39,6 +40,7 @@ bool FLNPBastionEncounterTest::RunTest(const FString& Parameters)
 		auto Spawn = MakeShared<FLNPSpawnData, ESPMode::ThreadSafe>();
 		if (Slot == 0 && !LNPSpawnData::Decode(Data->SpawnPayload, *Spawn, Error)) { AddError(Error); return false; }
 		Snapshot.Slots[Slot].Spawn = Spawn;
+		Snapshot.Slots[Slot].SlotRotation = FQuat4d(ULNPOctantSpawnSubsystem::OctantRotations[Slot].Quaternion());
 	}
 	TArray<FLNPMassSpawnSetPlanInput> Sets;
 	int32 AssetIndex = 0;
@@ -61,36 +63,40 @@ bool FLNPBastionEncounterTest::RunTest(const FString& Parameters)
 		}
 	}
 	TestEqual(TEXT("Bastion has twelve authored encounters"), Snapshot.Slots[0].Spawn->AuthoredAnchors.Num(), 12);
-	// 여러 seed에서 랜덤 Pod와 후보 선점까지 포함한 실제 편성을 검사한다.
-	for (int32 Seed = 0; Seed < 16; ++Seed)
+	// 각 실제 slot 회전에서 여러 seed의 랜덤 Pod와 후보 선점까지 포함한 편성을 검사한다.
+	for (int32 ActiveSlot = 0; ActiveSlot < 8; ++ActiveSlot)
 	{
-		FLNPMassSpawnPlan Plan;
-		if (!LNPMassSpawnPlanning::BuildPlan(Snapshot, Sets, Seed, Config->MinDistanceBetweenPods,
-			Config->EnemySpawnRadiusAroundPod, Plan, Error)) { AddError(Error); return false; }
-		int32 Encounters = 0;
-		for (const auto& Pod : Plan.Pods)
+		if (ActiveSlot > 0) Swap(Snapshot.Slots[ActiveSlot - 1].Spawn, Snapshot.Slots[ActiveSlot].Spawn);
+		for (int32 Seed = 0; Seed < 16; ++Seed)
 		{
-			if (Pod.AuthoredEnemies.IsEmpty()) continue;
-			++Encounters;
-			int32 Requested = 0, Placed = 0;
-			for (const auto& Enemy : Pod.AuthoredEnemies) Requested += Enemy.RequestedCount;
-			for (const auto& Group : Pod.Enemies)
+			FLNPMassSpawnPlan Plan;
+			if (!LNPMassSpawnPlanning::BuildPlan(Snapshot, Sets, Seed, Config->MinDistanceBetweenPods,
+				Config->EnemySpawnRadiusAroundPod, Plan, Error)) { AddError(Error); return false; }
+			int32 Encounters = 0;
+			for (const auto& Pod : Plan.Pods)
 			{
-				Placed += Group.Transforms.Num();
-				for (const FTransform& Transform : Group.Transforms)
+				if (Pod.AuthoredEnemies.IsEmpty()) continue;
+				++Encounters;
+				int32 Requested = 0, Placed = 0;
+				for (const auto& Enemy : Pod.AuthoredEnemies) Requested += Enemy.RequestedCount;
+				for (const auto& Group : Pod.Enemies)
 				{
-					TestTrue(TEXT("Encounter leaves four meters around Pod"), FVector::Distance(Transform.GetLocation(), Pod.Transform.GetLocation()) >= 400.0);
-					TestTrue(TEXT("Spawn stays inside its authored approach region"), Pod.AuthoredEnemies.ContainsByPredicate([&](const auto& Enemy)
+					Placed += Group.Transforms.Num();
+					for (const FTransform& Transform : Group.Transforms)
 					{
-						return Enemy.AssetIndex == Group.AssetIndex && FVector::Distance(Transform.GetLocation(),
-							Pod.Transform.TransformPosition(FVector(Enemy.Offset.X, Enemy.Offset.Y, 0.0))) <= Enemy.FormationRadius;
-					}));
+						TestTrue(TEXT("Encounter leaves four meters around Pod"), FVector::Distance(Transform.GetLocation(), Pod.Transform.GetLocation()) >= 400.0);
+						TestTrue(TEXT("Spawn stays inside its authored approach region"), Pod.AuthoredEnemies.ContainsByPredicate([&](const auto& Enemy)
+						{
+							return Enemy.AssetIndex == Group.AssetIndex && FVector::Distance(Transform.GetLocation(),
+								Pod.Transform.TransformPosition(FVector(Enemy.Offset.X, Enemy.Offset.Y, 0.0))) <= Enemy.FormationRadius;
+						}));
+					}
 				}
+				if (Seed == 0) AddInfo(FString::Printf(TEXT("Bastion Pod=%s requested=%d placed=%d"), *Pod.Transform.GetLocation().ToString(), Requested, Placed));
+				TestEqual(FString::Printf(TEXT("Seed %d encounter %s retains its complete composition"), Seed, *Pod.Transform.GetLocation().ToString()), Placed, Requested);
 			}
-			if (Seed == 0) AddInfo(FString::Printf(TEXT("Bastion Pod=%s requested=%d placed=%d"), *Pod.Transform.GetLocation().ToString(), Requested, Placed));
-			TestEqual(FString::Printf(TEXT("Seed %d encounter %s retains its complete composition"), Seed, *Pod.Transform.GetLocation().ToString()), Placed, Requested);
+			TestEqual(TEXT("Every authored Pod uses its encounter, including the cave"), Encounters, 12);
 		}
-		TestEqual(TEXT("Every authored Pod uses its encounter, including the cave"), Encounters, 12);
 	}
 	return !HasAnyErrors();
 }

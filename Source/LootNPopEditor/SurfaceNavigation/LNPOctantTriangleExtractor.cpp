@@ -13,8 +13,8 @@
 
 namespace
 {
-const FName SupportTag(TEXT("LNP.Surface.Support"));
-const FName CoarseSupportTag(TEXT("LNP.Surface.CoarseSupport"));
+const FName ExtractorSupportTag(TEXT("LNP.Surface.Support"));
+const FName ExtractorCoarseSupportTag(TEXT("LNP.Surface.CoarseSupport"));
 
 template <typename IndexType>
 void AppendTriangles(
@@ -173,7 +173,7 @@ bool FLNPOctantTriangleExtractor::ExtractSupportSources(
 		Actor->GetComponents(Components);
 		for (const UStaticMeshComponent* Component : Components)
 		{
-			if (!IsValid(Component) || !Component->ComponentTags.Contains(SupportTag))
+			if (!IsValid(Component) || !Component->ComponentTags.Contains(ExtractorSupportTag))
 			{
 				continue;
 			}
@@ -188,7 +188,7 @@ bool FLNPOctantTriangleExtractor::ExtractSupportSources(
 			FLNPBakeSupportSource& Source = OutSources.AddDefaulted_GetRef();
 			Source.Name = Component->GetPathName();
 			Source.Key = FString::Printf(TEXT("%s.%s"), *Actor->GetFName().ToString(), *Component->GetFName().ToString());
-			Source.bCoarseSupport = Component->ComponentTags.Contains(CoarseSupportTag);
+			Source.bCoarseSupport = Component->ComponentTags.Contains(ExtractorCoarseSupportTag);
 			if (!ExtractComponent(*Component, Source.Mesh, OutError))
 			{
 				OutSources.Reset();

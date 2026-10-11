@@ -69,6 +69,7 @@
 - 그 바깥 `SeamBand` 기본 40m에서 smoothstep으로 내부 목표 지형으로 연결한다. **Bastion/Hollow 현재 spec은 20m**이므로 항상 해당 spec을 읽는다.
 - 내부 fBm 높이와 Pad로 지각을 정리한다. 지각의 방사형 높이 변화만으로 overhang·굴을 만들 수 없다.
 - 지각 절단과 봉합은 의도한 입구와 내부 경계만 다룬다. 이음매 보존 띠에 닿는 경계를 임의로 봉합하지 않는다.
+- Meadow 원본은 동굴 입구가 이미 절단된 콘텐츠 메시다. 다른 옥탄트로 지각만 복제할 때는 원본 전용 입구 경계를 복구한 뒤 새 옥탄트의 의도된 입구를 절단한다. 지각 전체의 내부 열린 경계를 새 구조물 외피와 별도로 검사한다. Bastion에서는 이 단계가 빠져 Meadow 입구가 외우주 추락 구멍으로 남았다.
 
 세 변의 seam signature를 Meadow 및 이웃 definition과 비교하고 PIE 게시 로그에서 `maxSeamRadiusDelta=0.000cm`를 확인한다. 문서에 복사된 특정 hash만 신뢰하지 않는다. 옛 `BP_OctantGenerator`의 시드만 바꿔 새 지각을 만들면 Meadow와 이음매가 달라질 수 있다.
 
