@@ -4,12 +4,14 @@
 #include "Config/LNPSettings.h"
 #include "DataAsset/LNPWorldDeviceConfig.h"
 #include "DynamicTerrain/LNPDynamicTerrainSubsystem.h"
+#include "DynamicTerrain/LNPPlacementMarker.h"
 #include "GameMode/LNPGameState.h"
 #include "WorldDevice/LNPGrappleAnchor.h"
 #include "WorldDevice/LNPSpringLauncher.h"
 #include "LootNPop.h"
 
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Kismet/KismetMathLibrary.h"
 
 namespace
@@ -58,6 +60,11 @@ void ULNPWorldDeviceSpawnSubsystem::SpawnDevices()
 	TArray<FVector> Occupied;
 	int32 NumAnchors = 0;
 	int32 NumLaunchers = 0;
+	TSet<const ULevel*> AuthoredAnchorLevels;
+	for (TActorIterator<ALNPPlacementMarker> It(World); It; ++It)
+	{
+		if (It->ActorHasTag(TEXT("LNP.Grapple.AuthoredOnly"))) AuthoredAnchorLevels.Add(It->GetLevel());
+	}
 
 	// 앵커를 먼저 배치한다 — 최소 거리 기각이 선착순이라 순서가 결과를 바꾸는데, 순서를 고정해야
 	// 같은 시드가 같은 월드를 만든다.
@@ -65,7 +72,7 @@ void ULNPWorldDeviceSpawnSubsystem::SpawnDevices()
 	{
 		FVector SurfacePoint;
 		float Yaw = 0.f;
-		if (!TryFindPlacement(Rand, /*bIsAnchor=*/true, Occupied, SurfacePoint, Yaw, Stats))
+		if (!TryFindPlacement(Rand, /*bIsAnchor=*/true, Occupied, AuthoredAnchorLevels, SurfacePoint, Yaw, Stats))
 		{
 			continue;
 		}
@@ -91,7 +98,7 @@ void ULNPWorldDeviceSpawnSubsystem::SpawnDevices()
 	{
 		FVector SurfacePoint;
 		float Yaw = 0.f;
-		if (!TryFindPlacement(Rand, /*bIsAnchor=*/false, Occupied, SurfacePoint, Yaw, Stats))
+		if (!TryFindPlacement(Rand, /*bIsAnchor=*/false, Occupied, AuthoredAnchorLevels, SurfacePoint, Yaw, Stats))
 		{
 			continue;
 		}
@@ -108,14 +115,15 @@ void ULNPWorldDeviceSpawnSubsystem::SpawnDevices()
 
 	// 기각 사유별 계수를 반드시 남긴다 — 전부 0이면 검사가 무력한 것이고, 대부분 기각이면 임계가 과한 것이다.
 	UE_LOG(LogLootNPop, Log,
-		TEXT("[WorldDevice] Placed anchors=%d/%d launchers=%d/%d in %.1fms (seed %d) | rejected: noHit=%d slope=%d ledge=%d clearance=%d tooClose=%d playerStart=%d"),
+		TEXT("[WorldDevice] Placed anchors=%d/%d launchers=%d/%d in %.1fms (seed %d) | rejected: noHit=%d slope=%d ledge=%d clearance=%d tooClose=%d playerStart=%d authoredRegion=%d"),
 		NumAnchors, Config->GrappleAnchorCount, NumLaunchers, Config->SpringLauncherCount,
 		(FPlatformTime::Seconds() - StartTime) * 1000.0, Seed,
-		Stats.NoHit, Stats.Slope, Stats.Ledge, Stats.Clearance, Stats.TooClose, Stats.PlayerStartCone);
+		Stats.NoHit, Stats.Slope, Stats.Ledge, Stats.Clearance, Stats.TooClose, Stats.PlayerStartCone, Stats.AuthoredRegion);
 }
 
 bool ULNPWorldDeviceSpawnSubsystem::TryFindPlacement(FRandomStream& Rand, bool bIsAnchor,
-	const TArray<FVector>& Occupied, FVector& OutLocation, float& OutYaw, FLNPDevicePlacementStats& Stats) const
+	const TArray<FVector>& Occupied, const TSet<const ULevel*>& AuthoredAnchorLevels,
+	FVector& OutLocation, float& OutYaw, FLNPDevicePlacementStats& Stats) const
 {
 	const UWorld* World = GetWorld();
 	const ULNPWorldDeviceConfig* Config = ULNPWorldDeviceConfig::Get(this);
@@ -148,6 +156,12 @@ bool ULNPWorldDeviceSpawnSubsystem::TryFindPlacement(FRandomStream& Rand, bool b
 		}
 
 		const FVector Location = Hit.ImpactPoint;
+		// 수동 훅만 쓰도록 지정한 LVI에는 시드 훅을 겹쳐 놓지 않는다. 런처 배치는 유지한다.
+		if (bIsAnchor && Hit.GetActor() && AuthoredAnchorLevels.Contains(Hit.GetActor()->GetLevel()))
+		{
+			++Stats.AuthoredRegion;
+			continue;
+		}
 		const FVector Up = -Location.GetSafeNormal();   // 구 내벽 — Up은 구 중심을 향한다
 
 		// ① 경사. 표면 캐시로는 판정할 수 없다(법선을 저장하지 않는다) — 여기서 트레이스를 쏘는 이유다.

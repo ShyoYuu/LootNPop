@@ -47,4 +47,7 @@ Content/NiagaraExamples/
 # 로컬 이슈 트래커 — 작업용 임시 기록. 항구적 결론은 .context/ 문서에 반영하고 여기는 추적하지 않는다.
 .issues/
 
+# 옥탄트 중간본·구버전·반입 시험 에셋 — 최종본과 분리한 로컬 작업 보관소.
+/Content/Maps/_WorkInProgress/
+
 

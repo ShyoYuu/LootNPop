@@ -81,7 +81,7 @@ Hollow는 연결된 내부 외피가 한 성분이었다. **Bastion의 독립 �
 - 최종 구면에서 경로 전체 폭·양 가장자리·굽이·문/천장·접합을 검사한다. 큰 삼각형은 현 오차와 예상/실제 법선 오차를 함께 본다. 필요한 공유 변만 추가 분할한다.
 - 닫힌 원본을 Floor/Coarse/Shell로 나눠 면 수 합계·공유 경계·모든 면의 winding 보존을 검사한다. Support 역할 출력 정점의 UE 각 축 int16 표현 범위도 확인한다.
 - FBX·manifest·편집 원본을 버전별 저장한다. 스크립트 재생성 원본은 `Scripts/Blender/`, 수작업 유일 원본은 `Art/Octants/Bastion_00/`에 보존하고 Saved만 원본으로 두지 않는다.
-- staging 예: `/Game/Maps/OctantWorkflow/BastionLowPolyV001`. triangle/bounds·단면 충돌 방향·LOD0/별도 complex 유무·complex-as-simple·역할 profile을 실제 반입 에셋에서 재조회한다. production은 통과한 명시 버전만 선택하고 이전 버전의 중복 배치를 막는다.
+- staging 예: `/Game/Maps/_WorkInProgress/OctantWorkflow/BastionLowPolyV001`(Git 제외). triangle/bounds·단면 충돌 방향·LOD0/별도 complex 유무·complex-as-simple·역할 profile을 실제 반입 에셋에서 재조회한다. production은 통과한 명시 버전만 선택하고 이전 버전의 중복 배치를 막는다.
 
 `GenerateSliceOctant.py`의 현재 `MESAS["Bastion_00"]`는 비어 있다. 이 파일만 실행하면 Bastion 전체가 만들어지는 것이 아니다. Hollow의 `BuildHollowLowPoly.py`는 좌표/투영/분할/역할 출력의 참고 구현이며, Hollow 경로·경계·cutter를 Bastion에 그대로 실행하지 않는다.
 

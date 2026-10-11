@@ -77,7 +77,8 @@ TG_StartPhysics~      그 밖의 Mass worker exact query(투사체 등)
 ### 구현 규약(Phase 3, `ALNPMovingPanel`)
 
 - 경로는 마커 루트 스플라인의 위치 곡선(`FInterpCurveVector`, 마커 로컬)을 그대로 초기 복제하고 마커 월드 transform을 원점으로 쓴다. 스폰 번치의 Actor 위치는 복제 시점 위치라 원점으로 쓰지 않는다.
-- 양쪽이 같은 곡선에서 등속 거리 표를 만든다. 열린 경로는 양 끝에서 정지하며 왕복하고, 닫힌 루프는 순환한다. 회전하지 않고 마커 회전을 유지한다. 마커 scale은 무시하고 경고한다.
+- 양쪽이 같은 곡선에서 등속 거리 표를 만든다. 열린 경로는 양 끝에서 정지하며 왕복한다. 출발 자세의 Z축을 출발 위치의 구체 중심 방향에 맞추고, 도착 중력 방향까지 최소 회전한 두 quaternion을 거리 비율로 Slerp한다. 닫힌 루프는 순환하며 기존 마커 회전을 유지한다. 마커 scale은 무시하고 경고한다.
+- 왕복 각속도는 두 자세의 회전축/각도와 경로 거리·속도로 계산한다. 돌아올 때 부호를 뒤집고 정차 시0이다. 물리 body와 DynamicSupport에 게시하며 이탈/진단의 접촉점 속도는 `LinearVelocity + AngularVelocity cross ContactOffset`을 사용한다. 경로와 시작 시각 외에 매 프레임 회전 복제를 추가하지 않는다.
 - world collision envelope에는 등록 시점 자세 대신 경로 swept 반지름(원점에서 가장 먼 경로 샘플 + 최대 샘플 간격 + 메시 bounding sphere)을 넣는다.
 - hit identity에는 `(slot, MarkerId)`가 실린다.
 - `bAlwaysRelevant`다. 멀리 있는 패널에도 클라이언트 Ghost 투사체·탄도 가이드가 맞아야 하기 때문이다.

@@ -351,6 +351,7 @@ void ULNPDynamicTerrainSubsystem::Publish()
 		Support.PreviousTransform = Panel->GetPreviousTransform();
 		Support.CurrentTransform = Panel->GetActorTransform();
 		Support.LinearVelocity = Panel->GetLinearVelocity();
+		Support.AngularVelocity = Panel->GetAngularVelocity();
 		Support.bWalkable = true; // LNPDynamicTerrain = Support+Blocker
 		Support.ActorId = Panel->GetUniqueID();
 	}
@@ -406,7 +407,8 @@ void ULNPDynamicTerrainSubsystem::TrackDepartures(const double ServerTime)
 				Track.OnBaseSince = ServerTime;
 			}
 			Track.Panel = BasePanel;
-			Track.PanelVelocity = BasePanel->GetLinearVelocity();
+			Track.PanelVelocity = BasePanel->GetLinearVelocity() + FVector::CrossProduct(
+				BasePanel->GetAngularVelocity(), It->GetActorLocation() - BasePanel->GetActorLocation());
 			Track.DepartedTime = -1.0;
 			Track.bFollowUpLogged = true;
 

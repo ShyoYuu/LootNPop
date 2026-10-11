@@ -37,6 +37,7 @@
 |:---|:---|
 | 전체 단계 조정·Phase 전환 | `Roadmap.md` |
 | 현재 Phase 구현 | `Current.md`가 가리키는 `phases/PhaseNN_*.md` |
+| 옥탄트 공간 설계·제작·전체 단순화 | [설계 가이드](../Guide_OctantLevelDesign.md)·[제작 가이드](../Guide_OctantLevelInstance.md), 다음 적용은 [Bastion 단순화 인계](phases/Phase09_BastionLowPolyRebuild.md) |
 | 전체 데이터 흐름·런타임 초기화 | `design/Architecture.md` |
 | 지형 의미 태그·collision profile | `design/TerrainContract.md` |
 | 공통 회귀 맵·고정 좌표·기대 결과 | `design/RegressionMap.md` |

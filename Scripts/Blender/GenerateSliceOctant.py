@@ -128,6 +128,7 @@ def build_mesa(spec):
 def split_and_link(bm, base_name, collection):
     """면 법선 · 그 지점 Up(구 중심 방향) 내적으로 Floor/Shell을 나눈다. Blender 좌표에서 구 중심은 원점이다."""
     bm.normal_update()
+    bm.faces.index_update()
     floor_faces = set()
     for face in bm.faces:
         c = face.calc_center_median()
@@ -156,16 +157,22 @@ def split_and_link(bm, base_name, collection):
 
 
 def generate(octant, export_dir):
-    for obj in list(bpy.data.objects):
-        bpy.data.objects.remove(obj, do_unlink=True)
-    # 남은 메시 데이터가 있으면 새 이름에 .001이 붙어 FBX·UE 에셋 이름이 바뀐다.
-    for mesh in list(bpy.data.meshes):
-        bpy.data.meshes.remove(mesh)
-    collection = bpy.context.scene.collection
+    specs = MESAS.get(octant)
+    if not specs:
+        raise ValueError(f"No mesh specifications for {octant}; scene unchanged")
+    # 사용자 장면이나 이전 수작업을 지우지 않는다. 재실행은 별도 버전/장면에서 한다.
+    collection_name = f"OctantExport_{octant}"
+    if collection_name in bpy.data.collections:
+        raise ValueError(f"Collection already exists: {collection_name}")
+    expected_names = [f"SM_{octant}_{spec[0]}_{role}" for spec in specs for role in ("Floor", "Shell")]
+    if any(name in bpy.data.objects or name in bpy.data.meshes for name in expected_names):
+        raise ValueError("Export names already exist; use a new blend file or versioned names")
+    collection = bpy.data.collections.new(collection_name)
+    bpy.context.scene.collection.children.link(collection)
     os.makedirs(export_dir, exist_ok=True)
 
     report = {}
-    for spec in MESAS.get(octant, []):
+    for spec in specs:
         name, bm = build_mesa(spec)
         for obj in split_and_link(bm, f"{octant}_{name}", collection):
             bpy.ops.object.select_all(action="DESELECT")

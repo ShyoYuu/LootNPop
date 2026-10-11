@@ -126,9 +126,7 @@ void ALNPMovingPanel::TryActivate()
 	bActive = true;
 	BuildArcTable();
 
-	SetActorRotation(Path.OriginRotation, ETeleportType::TeleportPhysics);
-
-	// 원점에서 가장 먼 경로 점 + 메시 collision의 Actor 원점 기준 반지름. 회전하지 않으므로 이 합이 상한이다.
+	// 원점에서 가장 먼 경로 점 + 메시 collision의 Actor 원점 기준 반지름. 구의 반지름은 회전해도 같다.
 	// 샘플 사이 곡선은 현보다 최대 한 스텝만큼만 벗어날 수 있어 가장 긴 스텝을 여유로 더한다.
 	double MaxPathRadius = 0.0;
 	double MaxStep = 0.0;
@@ -210,6 +208,12 @@ void ALNPMovingPanel::BuildArcTable()
 		ArcKeys.Add(Key);
 	}
 	PathLength = Distance;
+	FQuat RotationDelta = Path.EvaluateRotation(1.0) * Path.EvaluateRotation(0.0).Inverse();
+	if (RotationDelta.W < 0.0) RotationDelta = RotationDelta * -1.0;
+	FVector Axis;
+	double Angle;
+	RotationDelta.ToAxisAndAngle(Axis, Angle);
+	TravelAngularVelocity = Axis * (Angle * Path.Speed / PathLength);
 }
 
 float ALNPMovingPanel::DistanceToKey(const double Distance) const
@@ -273,18 +277,21 @@ void ALNPMovingPanel::UpdatePose(const double ServerTime)
 
 	const float Key = DistanceToKey(Distance);
 	const FVector Location = Path.OriginLocation + Path.OriginRotation.RotateVector(Path.Curve.Eval(Key));
+	const FQuat Rotation = Path.EvaluateRotation(Distance / PathLength);
 
 	PreviousTransform = GetActorTransform();
 
 	// 쿼리가 보는 게임 스레드 자세와 실제 자세를 일치시키려고 kinematic target이 아니라 teleport로 옮긴다(DynamicTerrain.md §2).
-	SetActorLocation(Location, /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorLocationAndRotation(Location, Rotation, /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
 
 	// Mover는 base를 떠날 때(걸어 나가기·점프) 물리 body 속도를 관성으로 더한다(GetMovementBaseVelocityAtPoint).
 	// teleport로 옮긴 kinematic body의 물리 속도는 0이므로 직접 넣는다. ComponentVelocity는 GetMovementBaseVelocity용이다.
 	const FVector LocalTangent = Path.Curve.EvalDerivative(Key).GetSafeNormal();
 	CurrentVelocity = Path.OriginRotation.RotateVector(LocalTangent) * (Path.Speed * Direction);
+	CurrentAngularVelocity = TravelAngularVelocity * Direction;
 	PanelMesh->ComponentVelocity = CurrentVelocity;
 	PanelMesh->SetPhysicsLinearVelocity(CurrentVelocity);
+	PanelMesh->SetPhysicsAngularVelocityInRadians(CurrentAngularVelocity);
 
 	// server time은 매 프레임 조금씩만 전진해야 한다. 큰 점프는 자세 snap으로 나타나므로 진단을 남긴다.
 	if (LastServerTime >= 0.0)

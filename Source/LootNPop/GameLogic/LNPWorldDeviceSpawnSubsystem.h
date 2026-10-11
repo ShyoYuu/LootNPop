@@ -6,6 +6,8 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "LNPWorldDeviceSpawnSubsystem.generated.h"
 
+class ULevel;
+
 /** 배치 기각 사유 — 임계값이 무력한지 과한지를 로그 한 줄로 판단하기 위한 계수. */
 struct FLNPDevicePlacementStats
 {
@@ -15,6 +17,7 @@ struct FLNPDevicePlacementStats
 	int32 Clearance = 0;
 	int32 TooClose = 0;
 	int32 PlayerStartCone = 0;
+	int32 AuthoredRegion = 0;
 };
 
 /**
@@ -54,7 +57,7 @@ private:
 	 *                      수평 성분이 있는 발사 방향이 무작위 나침반 방향을 가리키게 되므로 시드에서 뽑는다.
 	 */
 	bool TryFindPlacement(FRandomStream& Rand, bool bIsAnchor, const TArray<FVector>& Occupied,
-		FVector& OutLocation, float& OutYaw, FLNPDevicePlacementStats& Stats) const;
+		const TSet<const ULevel*>& AuthoredAnchorLevels, FVector& OutLocation, float& OutYaw, FLNPDevicePlacementStats& Stats) const;
 
 	/** 지면에서 위로 Height만큼 띄운 지점이 Radius 반경 안에서 비어 있는가. */
 	bool HasClearance(const FVector& Point, float Radius) const;

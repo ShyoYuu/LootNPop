@@ -47,6 +47,19 @@ struct FLNPPanelPath
 	double StartServerTime = 0.0;
 
 	bool IsValid() const { return Curve.Points.Num() >= 2 && Speed > 0.f && Revision > 0; }
+
+	/** 양 끝의 중력 수평 자세를 경로 거리 비율로 보간한다. 원점 회전의 방위는 보존한다. */
+	FQuat EvaluateRotation(double Alpha) const
+	{
+		// 닫힌 순환 경로는 종점 수평 보간의 대상이 아니다. 기존 고정 자세를 유지한다.
+		if (Curve.bIsLooped) return OriginRotation;
+		const FVector Start = OriginLocation + OriginRotation.RotateVector(Curve.Eval(Curve.Points[0].InVal));
+		const FVector End = OriginLocation + OriginRotation.RotateVector(Curve.Eval(Curve.Points.Last().InVal));
+		const FVector StartUp = -Start.GetSafeNormal(), EndUp = -End.GetSafeNormal();
+		const FQuat StartRotation = FQuat::FindBetweenNormals(OriginRotation.GetAxisZ(), StartUp) * OriginRotation;
+		const FQuat EndRotation = FQuat::FindBetweenNormals(StartUp, EndUp) * StartRotation;
+		return FQuat::Slerp(StartRotation, EndRotation, Alpha).GetNormalized();
+	}
 };
 
 /**
@@ -56,7 +69,7 @@ struct FLNPPanelPath
  *   Mover는 NPP 시뮬레이션(OnWorldPreActorTick) 뒤, base의 Actor 틱을 prerequisite로 건 base 추종 틱에서
  *   이동량을 옮긴다(UMoverComponent::UpdateBasedMovementScheduling). 패널을 시뮬레이션 전에 옮기거나
  *   Actor 틱 없이 옮기면 이동량 일부를 놓친다(2026-09-24 측정: 절반만 추종).
- * - 회전하지 않고 마커 회전을 유지한 채 평행 이동만 한다.
+ * - 양 끝의 중력 수평 자세 사이를 경로 거리 비율로 회전하며 왕복한다.
  * - Mover는 루트 메시를 movement base로 직렬화하므로 NetGUID가 필요하다 — 복제 Actor인 이유다.
  */
 UCLASS()
@@ -76,6 +89,7 @@ public:
 	const FLNPPlacementId& GetPlacementId() const { return PlacementId; }
 	const FTransform& GetPreviousTransform() const { return PreviousTransform; }
 	FVector GetLinearVelocity() const;
+	FVector GetAngularVelocity() const { return CurrentAngularVelocity; }
 	UStaticMeshComponent* GetPanelMesh() const { return PanelMesh; }
 
 	/** 마지막으로 Actor 틱이 돈 GFrameCounter. 한 번도 안 돌았으면 0. Mass 페이즈 순서 검증용(D-050). */
@@ -122,6 +136,8 @@ private:
 	float SweptMaxRadius = 0.f;
 	FTransform PreviousTransform = FTransform::Identity;
 	FVector CurrentVelocity = FVector::ZeroVector;
+	FVector TravelAngularVelocity = FVector::ZeroVector;
+	FVector CurrentAngularVelocity = FVector::ZeroVector;
 	double LastServerTime = -1.0;
 	uint64 LastTickFrame = 0;
 	bool bActive = false;
