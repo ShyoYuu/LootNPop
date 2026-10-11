@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "SurfaceNavigation/LNPSpawnEncounter.h"
 #include "LNPMassSpawnPoint.generated.h"
 
 class USceneComponent;
@@ -27,6 +28,10 @@ public:
 	/** 특정 Pod 세트를 지정한다. None이면 어느 세트나 쓸 수 있는 일반 앵커다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Spawn")
 	FName TargetSpawnSetId;
+
+	/** 비어 있으면 전역 편성을 사용한다. 지정하면 이 Pod의 편성과 접근 위치만 덮어쓴다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Encounter")
+	TArray<FLNPSpawnEnemyFormation> EnemyFormations;
 
 	/** 위치는 Pod 발밑 접점, 로컬 +X는 표면에 투영할 authored yaw다. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Spawn")

@@ -37,6 +37,16 @@ namespace
 			OutError = FString::Printf(TEXT("Invalid authored spawn anchor %s."), *Anchor.SpawnPointId.ToString(EGuidFormats::Short));
 			return false;
 		}
+		for (const FLNPSpawnEnemyFormation& Formation : Anchor.EnemyFormations)
+		{
+			if (Formation.EnemyConfigPath.IsNone() || Formation.Count <= 0
+				|| !FMath::IsFinite(Formation.Offset.X) || !FMath::IsFinite(Formation.Offset.Y)
+				|| !FMath::IsFinite(Formation.Radius) || Formation.Radius <= 0.0f)
+			{
+				OutError = TEXT("Invalid authored enemy formation.");
+				return false;
+			}
+		}
 		return true;
 	}
 
@@ -147,6 +157,13 @@ bool LNPSpawnData::Encode(const FLNPSpawnData& Data, TArray<uint8>& OutPayload, 
 		SerializeVector(Writer, Location);
 		SerializeQuat(Writer, Rotation);
 		Writer << Anchor.LocalLayerId << Reserved << Anchor.EdgeClearance << Anchor.CapsuleClearance << Anchor.Headroom;
+		uint32 FormationCount = Anchor.EnemyFormations.Num();
+		Writer << FormationCount;
+		for (FLNPSpawnEnemyFormation& Formation : Anchor.EnemyFormations)
+		{
+			SerializeName(Writer, Formation.EnemyConfigPath);
+			Writer << Formation.Count << Formation.Offset.X << Formation.Offset.Y << Formation.Radius;
+		}
 	}
 	for (FLNPSpawnRandomCandidate& Candidate : Canonical.RandomCandidates)
 	{
@@ -185,7 +202,7 @@ bool LNPSpawnData::Decode(TConstArrayView<uint8> Payload, FLNPSpawnData& OutData
 	uint32 AuthoredCount = 0;
 	uint32 RandomCount = 0;
 	Reader << Version << Reserved << AuthoredCount << RandomCount;
-	if (Version != CodecVersion || Reserved != 0 || AuthoredCount > MaxRecordCount || RandomCount > MaxRecordCount)
+	if ((Version != 2 && Version != CodecVersion) || Reserved != 0 || AuthoredCount > MaxRecordCount || RandomCount > MaxRecordCount)
 	{
 		OutError = FString::Printf(TEXT("Invalid Spawn payload header (version=%u authored=%u random=%u)."),
 			Version, AuthoredCount, RandomCount);
@@ -207,6 +224,23 @@ bool LNPSpawnData::Decode(TConstArrayView<uint8> Payload, FLNPSpawnData& OutData
 			Reader.SetError();
 		}
 		Anchor.LocalTransform = FTransform3f(Rotation, Location);
+		if (Version >= 3)
+		{
+			uint32 FormationCount = 0;
+			Reader << FormationCount;
+			if (FormationCount > 1024 || Reader.IsError())
+			{
+				OutData = FLNPSpawnData();
+				OutError = TEXT("Invalid authored formation count.");
+				return false;
+			}
+			Anchor.EnemyFormations.SetNum(FormationCount);
+			for (FLNPSpawnEnemyFormation& Formation : Anchor.EnemyFormations)
+			{
+				SerializeName(Reader, Formation.EnemyConfigPath);
+				Reader << Formation.Count << Formation.Offset.X << Formation.Offset.Y << Formation.Radius;
+			}
+		}
 	}
 	OutData.RandomCandidates.SetNum(RandomCount);
 	for (FLNPSpawnRandomCandidate& Candidate : OutData.RandomCandidates)

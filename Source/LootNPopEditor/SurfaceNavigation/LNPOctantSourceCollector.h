@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "DataAsset/LNPOctantSurfaceData.h"
+#include "SurfaceNavigation/LNPSpawnEncounter.h"
 
 class IAssetRegistry;
 class UWorld;
@@ -59,6 +60,7 @@ struct LOOTNPOPEDITOR_API FLNPSpawnPointSemantic
 	FGuid SpawnPointId;
 	FName TargetSpawnSetId;
 	FTransform Transform = FTransform::Identity;
+	TArray<FLNPSpawnEnemyFormation> EnemyFormations;
 };
 
 /** Source manifest와 세 freshness hash를 한 번에 생성한 결과. */

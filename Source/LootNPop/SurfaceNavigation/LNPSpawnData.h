@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "SurfaceNavigation/LNPSpawnEncounter.h"
 
 enum class ELNPSpawnCandidateFlags : uint8
 {
@@ -23,6 +24,7 @@ struct LOOTNPOP_API FLNPSpawnAuthoredAnchor
 	float CapsuleClearance = 0.0f;
 	/** 지역 Up 방향의 보수적 천장 높이(cm). 무충돌도 측정 상한의 유한값이다. */
 	float Headroom = 0.0f;
+	TArray<FLNPSpawnEnemyFormation> EnemyFormations;
 };
 
 /** Support Layer에서 결정론적으로 만든 절차 배치 후보. */
@@ -47,7 +49,7 @@ struct LOOTNPOP_API FLNPSpawnData
 
 namespace LNPSpawnData
 {
-	constexpr uint16 CodecVersion = 2;
+	constexpr uint16 CodecVersion = 3;
 	constexpr float MaxHeadroom = 32767.0f;
 	constexpr float HeadroomProbeRadius = 50.0f;
 

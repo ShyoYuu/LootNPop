@@ -19,6 +19,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "MassEntityConfigAsset.h"
 #include "Misc/PackageName.h"
 #include "StaticMeshCompiler.h"
 #include "SurfaceNavigation/LNPCollisionChannels.h"
@@ -617,6 +618,7 @@ namespace LNPOctantSurfaceBaker
 			return false;
 		}
 		TSet<FName> ValidSpawnSetIds;
+		TSet<FName> ValidEnemyConfigs;
 		for (const FLNPLootPodSpawnEntry& Entry : SpawnConfig->LootPodSpawnSets)
 		{
 			if (Entry.SpawnSetId.IsNone() || ValidSpawnSetIds.Contains(Entry.SpawnSetId))
@@ -625,6 +627,10 @@ namespace LNPOctantSurfaceBaker
 				return false;
 			}
 			ValidSpawnSetIds.Add(Entry.SpawnSetId);
+			for (const FLNPEnemySpawnEntry& Enemy : Entry.AssociatedEnemies)
+			{
+				if (Enemy.EnemyEntityConfig) ValidEnemyConfigs.Add(FName(*Enemy.EnemyEntityConfig->GetPathName()));
+			}
 		}
 		for (int32 LayerId = 0; LayerId < Rasters.Num(); ++LayerId)
 		{
@@ -763,6 +769,16 @@ namespace LNPOctantSurfaceBaker
 			FLNPSpawnAuthoredAnchor& Anchor = OutSpawnData.AuthoredAnchors.AddDefaulted_GetRef();
 			Anchor.SpawnPointId = SpawnPoint->SpawnPointId;
 			Anchor.TargetSpawnSetId = SpawnPoint->TargetSpawnSetId;
+			Anchor.EnemyFormations = SpawnPoint->EnemyFormations;
+			for (const FLNPSpawnEnemyFormation& Formation : Anchor.EnemyFormations)
+			{
+				if (!ValidEnemyConfigs.Contains(Formation.EnemyConfigPath))
+				{
+					OutError = FString::Printf(TEXT("Mass spawn point '%s' references unconfigured enemy '%s'."),
+						*SpawnPoint->GetPathName(), *Formation.EnemyConfigPath.ToString());
+					return false;
+				}
+			}
 			Anchor.LocalTransform = FTransform3f(FQuat4f(Rotation), FVector3f(Direction * BestQuery.Radius));
 			Anchor.LocalLayerId = static_cast<uint16>(BestLayer);
 			Anchor.EdgeClearance = Clearance;

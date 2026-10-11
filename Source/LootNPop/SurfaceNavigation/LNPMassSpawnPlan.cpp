@@ -16,6 +16,7 @@ namespace
 		FTransform Transform = FTransform::Identity;
 		uint16 LocalLayerId = LNPSupportLayers::NoLayer;
 		float Headroom = 0.0f;
+		TArray<FLNPMassSpawnEnemyPlanInput> EnemyFormations;
 		bool bUsed = false;
 	};
 
@@ -100,6 +101,7 @@ namespace
 		Pod.Transform = Anchor.Transform;
 		Pod.Surface = MakeSurfaceHandle(Snapshot, Anchor.Slot, Anchor.LocalLayerId);
 		Pod.PlacementSource = Source;
+		Pod.AuthoredEnemies = Anchor.EnemyFormations;
 		OccupiedPods.Add(Anchor.Transform.GetLocation());
 	}
 
@@ -152,7 +154,8 @@ bool LNPMassSpawnPlanning::BuildPlan(
 	{
 		const FLNPMassSpawnSetPlanInput& Set = Sets[SetIndex];
 		if (Set.SpawnSetId.IsNone() || KnownSetIds.Contains(Set.SpawnSetId) || Set.RequestedPods < 0
-			|| !FMath::IsFinite(Set.RequiredHeadroom) || Set.RequiredHeadroom < 0.0f)
+			|| !FMath::IsFinite(Set.RequiredHeadroom) || Set.RequiredHeadroom < 0.0f
+			|| !FMath::IsFinite(Set.AuthoredEnemyCountScale) || Set.AuthoredEnemyCountScale < 0.0f)
 		{
 			OutError = FString::Printf(TEXT("Mass spawn set %d has an empty/duplicate ID or negative request count."), SetIndex);
 			return false;
@@ -199,6 +202,25 @@ bool LNPMassSpawnPlanning::BuildPlan(
 			World.Transform = FTransform(WorldRotation, WorldLocation);
 			World.LocalLayerId = Local.LocalLayerId;
 			World.Headroom = Local.Headroom;
+			for (const FLNPSpawnEnemyFormation& Formation : Local.EnemyFormations)
+			{
+				const FLNPMassSpawnEnemyPlanInput* Match = nullptr;
+				float CountScale = 1.0f;
+				for (const FLNPMassSpawnSetPlanInput& Set : Sets)
+				{
+					Match = Set.Enemies.FindByPredicate([&](const auto& Enemy) { return Enemy.ConfigPath == Formation.EnemyConfigPath; });
+					if (Match) { CountScale = Set.AuthoredEnemyCountScale; break; }
+				}
+				if (!Match)
+				{
+					OutError = FString::Printf(TEXT("Authored formation references unconfigured enemy '%s'."), *Formation.EnemyConfigPath.ToString());
+					return false;
+				}
+				FLNPMassSpawnEnemyPlanInput& Enemy = World.EnemyFormations.Add_GetRef(*Match);
+				Enemy.RequestedCount = FMath::RoundToInt32(Formation.Count * CountScale);
+				Enemy.Offset = Formation.Offset;
+				Enemy.FormationRadius = Formation.Radius;
+			}
 		}
 		for (const FLNPSpawnRandomCandidate& Local : Slot.Spawn->RandomCandidates)
 		{
@@ -256,7 +278,7 @@ bool LNPMassSpawnPlanning::BuildPlan(
 		for (FWorldAuthoredAnchor& Anchor : Authored)
 		{
 			if (Remaining == 0 || Anchor.bUsed || Anchor.TargetSpawnSetId != Set.SpawnSetId
-				|| Anchor.Headroom < Set.RequiredHeadroom)
+				|| (Anchor.EnemyFormations.IsEmpty() && Anchor.Headroom < Set.RequiredHeadroom))
 			{
 				continue;
 			}
@@ -267,7 +289,7 @@ bool LNPMassSpawnPlanning::BuildPlan(
 		for (FWorldAuthoredAnchor& Anchor : Authored)
 		{
 			if (Remaining == 0 || Anchor.bUsed || !Anchor.TargetSpawnSetId.IsNone()
-				|| Anchor.Headroom < Set.RequiredHeadroom)
+				|| (Anchor.EnemyFormations.IsEmpty() && Anchor.Headroom < Set.RequiredHeadroom))
 			{
 				continue;
 			}
@@ -318,6 +340,8 @@ bool LNPMassSpawnPlanning::BuildPlan(
 		}
 	}
 
+	// 전역 랜덤 Pod가 수동 전투의 출현 후보를 먼저 소비하지 않도록 한다.
+	OutPlan.Pods.StableSort([](const auto& A, const auto& B) { return !A.AuthoredEnemies.IsEmpty() && B.AuthoredEnemies.IsEmpty(); });
 	const double EnemyRadiusSquared = FMath::Square(static_cast<double>(EnemySpawnRadiusAroundPod));
 	for (FLNPMassSpawnPlannedPod& Pod : OutPlan.Pods)
 	{
@@ -325,13 +349,14 @@ bool LNPMassSpawnPlanning::BuildPlan(
 		FLNPMassSpawnSetStats& Stats = OutPlan.SetStats[Pod.SetInputIndex];
 		TArray<FVector> OccupiedEnemies;
 		// 높은 천장이 필요한 편성의 후보를 지상 적이 먼저 소비하지 않도록 한다.
-		TArray<FLNPMassSpawnEnemyPlanInput> EnemyInputs = Set.Enemies;
+		TArray<FLNPMassSpawnEnemyPlanInput> EnemyInputs = Pod.AuthoredEnemies.IsEmpty() ? Set.Enemies : Pod.AuthoredEnemies;
 		EnemyInputs.StableSort([](const auto& A, const auto& B) { return A.RequiredHeadroom > B.RequiredHeadroom; });
 		for (const FLNPMassSpawnEnemyPlanInput& EnemyInput : EnemyInputs)
 		{
 			Stats.EnemyRequested += EnemyInput.RequestedCount;
 			FLNPMassSpawnPlannedEnemyGroup Group;
 			Group.AssetIndex = EnemyInput.AssetIndex;
+			const FVector FormationCenter = Pod.Transform.TransformPosition(FVector(EnemyInput.Offset.X, EnemyInput.Offset.Y, 0.0));
 			for (FWorldRandomCandidate& Candidate : RandomCandidates)
 			{
 				if (Group.Transforms.Num() >= EnemyInput.RequestedCount)
@@ -341,7 +366,10 @@ bool LNPMassSpawnPlanning::BuildPlan(
 				if (Candidate.bUsed || !EnumHasAnyFlags(Candidate.Allowed, ELNPSpawnCandidateFlags::Enemy)
 					|| Candidate.Headroom < EnemyInput.RequiredHeadroom
 					|| Candidate.Slot != Pod.Surface.OctantSlot || Candidate.LocalLayerId != Pod.Surface.LocalLayerId
-					|| FVector::DistSquared(Candidate.Position, Pod.Transform.GetLocation()) > EnemyRadiusSquared
+					|| (EnemyInput.FormationRadius > 0.0f
+						? FVector::DistSquared(Candidate.Position, FormationCenter) > FMath::Square(EnemyInput.FormationRadius)
+							|| FVector::DistSquared(Candidate.Position, Pod.Transform.GetLocation()) < FMath::Square(400.0)
+						: FVector::DistSquared(Candidate.Position, Pod.Transform.GetLocation()) > EnemyRadiusSquared)
 					|| !IsFarEnough(Candidate.Position, OccupiedEnemies, MinEnemySpacing))
 				{
 					continue;

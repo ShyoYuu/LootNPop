@@ -303,6 +303,18 @@ bool BuildSpawnPointSemanticBytes(
 	Writer.WriteDouble(Rotation.Y);
 	Writer.WriteDouble(Rotation.Z);
 	Writer.WriteDouble(Rotation.W);
+	if (!Semantic.EnemyFormations.IsEmpty())
+	{
+		Writer.WriteUInt32(Semantic.EnemyFormations.Num());
+		for (const FLNPSpawnEnemyFormation& Formation : Semantic.EnemyFormations)
+		{
+			Writer.WriteName(Formation.EnemyConfigPath);
+			Writer.WriteInt64(Formation.Count);
+			Writer.WriteDouble(Formation.Offset.X);
+			Writer.WriteDouble(Formation.Offset.Y);
+			Writer.WriteDouble(Formation.Radius);
+		}
+	}
 	OutBytes = MoveTemp(Writer.Bytes);
 	return true;
 }
@@ -648,7 +660,7 @@ bool FLNPOctantSourceCollector::CollectSpawnPoints(
 			return false;
 		}
 		SeenIds.Add(SpawnPoint->SpawnPointId);
-		OutSemantics.Add({SpawnPoint->SpawnPointId, SpawnPoint->TargetSpawnSetId, SpawnPoint->GetActorTransform()});
+		OutSemantics.Add({SpawnPoint->SpawnPointId, SpawnPoint->TargetSpawnSetId, SpawnPoint->GetActorTransform(), SpawnPoint->EnemyFormations});
 	}
 	return true;
 }

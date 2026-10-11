@@ -77,6 +77,25 @@ bool FLNPSpawnCodecTest::RunTest(const FString& Parameters)
 	}
 
 	TArray<uint8> Trailing = First;
+	FLNPSpawnData Encounter = Source;
+	FLNPSpawnEnemyFormation Formation;
+	Formation.EnemyConfigPath = TEXT("/Game/Enemy/Test.Test");
+	Formation.Count = 6;
+	Formation.Offset = FVector2D(-900.0, 1100.0);
+	Formation.Radius = 750.0f;
+	Encounter.AuthoredAnchors[0].EnemyFormations.Add(Formation);
+	TestTrue(TEXT("Encounter payload encodes"), LNPSpawnData::Encode(Encounter, Second, Error));
+	if (TestTrue(TEXT("Encounter payload decodes"), LNPSpawnData::Decode(Second, Decoded, Error))
+		&& TestEqual(TEXT("Formation count round trips"), Decoded.AuthoredAnchors[1].EnemyFormations.Num(), 1))
+	{
+		const auto& Actual = Decoded.AuthoredAnchors[1].EnemyFormations[0];
+		TestEqual(TEXT("Formation config path round trips"), Actual.EnemyConfigPath, Formation.EnemyConfigPath);
+		TestEqual(TEXT("Formation enemy count round trips"), Actual.Count, Formation.Count);
+		TestTrue(TEXT("Formation offset round trips"), Actual.Offset.Equals(Formation.Offset));
+		TestEqual(TEXT("Formation radius round trips"), Actual.Radius, Formation.Radius);
+	}
+	Encounter.AuthoredAnchors[0].EnemyFormations[0].Radius = -1.0f;
+	TestFalse(TEXT("Invalid encounter radius is rejected"), LNPSpawnData::Encode(Encounter, Second, Error));
 	Trailing.Add(0xff);
 	TestFalse(TEXT("Trailing bytes are rejected"), LNPSpawnData::Decode(Trailing, Decoded, Error));
 

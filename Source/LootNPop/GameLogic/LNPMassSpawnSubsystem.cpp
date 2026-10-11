@@ -347,6 +347,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		FLNPMassSpawnSetPlanInput P;
 		P.SpawnSetId = PodSet.SpawnSetId;
 		P.RequestedPods = PodSet.PodSetCount;
+		P.AuthoredEnemyCountScale = bRingBaseline ? 0.0f : EnemyDensity;
 		P.PodAssetIndex = CapturedAssets.Num();
 		CapturedAssets.Add(PodSet.LootPodEntityConfig);
 
@@ -354,6 +355,7 @@ void ULNPMassSpawnSubsystem::EnqueueSpawnProject(ULNPMassSpawnConfig* InConfig, 
 		{
 			const int32 Count = bRingBaseline ? 0 : FMath::RoundToInt32(Enemy.Count * EnemyDensity);
 			P.Enemies.Add({ Count, CapturedAssets.Num() });
+			P.Enemies.Last().ConfigPath = Enemy.EnemyEntityConfig ? FName(*Enemy.EnemyEntityConfig->GetPathName()) : NAME_None;
 			// 가장 가까운 Config의 EnemyTrait가 실제 템플릿처럼 부모 선언을 덮어쓴다. UObject 조회는 게임 스레드에서 끝낸다.
 			const ULNPEnemyTrait* EnemyTrait = nullptr;
 			for (const UMassEntityConfigAsset* Asset = Enemy.EnemyEntityConfig; Asset && !EnemyTrait; Asset = Asset->GetConfig().GetParent())

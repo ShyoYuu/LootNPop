@@ -28,6 +28,7 @@
 #include "Components/PointLightComponent.h"
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "CompGeom/PolygonTriangulation.h"
 #include "Config/LNPSettings.h"
 #include "DynamicTerrain/LNPMovingPanel.h"
 #include "DynamicTerrain/LNPPlacementMarker.h"
@@ -169,6 +170,18 @@ namespace LNPSliceOctant
 			double TopH = 0.0;
 			double Thickness = 300.0;
 			bool bCoarse = false;
+			double Relief = 0.0;
+		};
+
+		/** 긴 절벽 암반. Outline은 반시계 둘레 순서의 단순 다각형(옥탄트 로컬 XY)이며 윗면은 구면이다. */
+		struct FCliff
+		{
+			FString Id;
+			TArray<FVector2D> Outline;
+			double BottomH;
+			double TopH;
+			/** 인접 길 사이 암반을 같은 높이로 접속하는 윗면. 없으면 일정한 TopH다. */
+			TFunction<double(FVector2D)> SurfaceH;
 		};
 
 		/** 공중 직선 다리·경사로. From·To는 (X, Y, H) 윗면 중심선 양 끝(호 길이), Width는 실제 cm다. */
@@ -178,6 +191,20 @@ namespace LNPSliceOctant
 			FVector From;
 			FVector To;
 			double Width = 1000.0;
+			bool bGrounded = false;
+			/** 서쪽 절벽 뒤편까지 채우는 암반 윗면. 0이면 독립 다리다. */
+			double AttachedBackY = 0.0;
+		};
+
+		/** 암반을 실제로 잘라 만드는 경사 통로 또는 막힌 전투 굴. 양옆·천장은 1m 두께다. */
+		struct FPassage
+		{
+			FBridgeRamp Ramp;
+			double Height = 900.0;
+			bool bClosedEnd = false;
+			bool bClosedStart = false;
+			/** 굴 입구의 암반 경계. 새 벽·천장은 이 경계 안에만 남긴다. */
+			TArray<FVector2D> MouthEdge;
 		};
 
 		/** 계단식 성벽의 동심 띠 하나. 반지름 R0~R1(호 길이)의 기둥이 지면에서 높이 H까지 꽉 차 있다. */
@@ -229,6 +256,8 @@ namespace LNPSliceOctant
 			double X = 0.0;
 			double Y = 0.0;
 			double CoreRadius = 1000.0;
+			/** 기둥과 경사로 사이 실제 틈. 회전당 상승 높이는 기존 기준을 유지한다. */
+			double SpiralGap = 0.0;
 			double SpiralWidth = 900.0;
 			double BottomH = 0.0;
 			double TopH = 0.0;
@@ -259,6 +288,24 @@ namespace LNPSliceOctant
 			TArray<FVector> Pillars;
 		};
 
+		/** 수직 통로 입구. 반지름은 로컬 XY, TopH는 해당 지각/메사 윗면 높이다. */
+		struct FCaveMouth
+		{
+			double X;
+			double Y;
+			double RadiusArc;
+			double TopH;
+			FString SurfacePartId;
+		};
+
+		/** 자유 형태 공동과 수직 통로. 메사 입구는 해당 암반의 윗면·몸체도 같은 둘레로 자른다. */
+		struct FCavern
+		{
+			FCliff FloorSlab;
+			double CeilingH;
+			TArray<FCaveMouth> Mouths;
+		};
+
 		/** 그래플 앵커 마커. MaxDistance가 0이면 설정 에셋 거리를 쓴다. */
 		struct FAnchor
 		{
@@ -266,6 +313,7 @@ namespace LNPSliceOctant
 			double Y;
 			double H;
 			double MaxDistance;
+			const TCHAR* Id = nullptr;
 		};
 
 		/** Pod 세트 앵커. */
@@ -274,6 +322,7 @@ namespace LNPSliceOctant
 			double X;
 			double Y;
 			double H;
+			TArray<FLNPSpawnEnemyFormation> EnemyFormations;
 		};
 
 		/** 움직이는 패널. From·To는 패널 중심 (X, Y, H)다. 마커는 경로 중간점에 그 지점 Up으로 선다. */
@@ -329,10 +378,13 @@ namespace LNPSliceOctant
 			TArray<FPad> Pads;
 			TArray<FBuilding> Buildings;
 			TArray<FIsland> Islands;
+			TArray<FCliff> Cliffs;
 			TArray<FBridgeRamp> Bridges;
+			TArray<FPassage> Passages;
 			TArray<FTieredRing> Rings;
 			TArray<FSpire> Spires;
 			TArray<FAbyss> Abysses;
+			TArray<FCavern> Caverns;
 			TArray<FBlock> Blocks;
 			TArray<FAnchor> Anchors;
 			TArray<FSpawn> Spawns;
@@ -404,8 +456,15 @@ namespace LNPSliceOctant
 		/** 건물 로컬 (LX, LY)(실제 cm)의 옥탄트 (X, Y, H). */
 		FVector BuildingPoint(const FBuilding& Building, double LX, double LY, double H)
 		{
-			const double Yaw = FMath::DegreesToRadians(Building.Yaw), K = Scale(Building.BaseH);
-			return {Building.X + (LX * FMath::Cos(Yaw) - LY * FMath::Sin(Yaw)) * K, Building.Y + (LX * FMath::Sin(Yaw) + LY * FMath::Cos(Yaw)) * K, H};
+			// BuildBuilding과 같은 구면 바닥·배치 프레임으로 월드 점을 만든 뒤 제작 좌표로 되돌린다.
+			// 바닥 높이의 Scale만 적용하면 높은 지붕에서 위치가 어긋나 다리가 외벽에 걸린다.
+			const double Radius = CrustRadius - Building.BaseH;
+			const double Z = Radius - FMath::Sqrt(Radius * Radius - LX * LX - LY * LY) + H - Building.BaseH;
+			const FQuat Facing = Rotation(Building.X, Building.Y) * FQuat(FVector::UpVector, FMath::DegreesToRadians(Building.Yaw));
+			const FVector World = Point(Building.X, Building.Y, Building.BaseH) + Facing.RotateVector(FVector(LX, LY, Z));
+			const double Depth = FVector::DotProduct(World, Center().Radial);
+			return {FVector::DotProduct(World, Center().Bitangent) * CrustRadius / Depth,
+				FVector::DotProduct(World, Center().Tangent) * CrustRadius / Depth, CrustRadius - World.Length()};
 		}
 
 		/** 성벽 경사로의 반지름 구간(R0, R1). */
@@ -474,7 +533,7 @@ namespace LNPSliceOctant
 		 * - 심연: 기둥을 둘러싼 반지름 32m 구멍이 지하 100m 공동으로 떨어진다. 기둥 나선이 공동 바닥에서 시작한다(긴 경사로 입구).
 		 *   심연 자체가 수직 통로 입구다.
 		 * - 성채: 심연을 두른 4단 계단식 성채(20/40/60/80m), 단마다 경사로. 바깥 2단 외성벽(20/40m)과 문 4개.
-		 * - 안뜰: 거인 스케일 폐허 건물 8채와 탑 4개, 지붕끼리·성벽과 다리로 얽힌다.
+		 * - 안뜰: 거인 스케일 폐허 건물 6채. 북·남 전투 광장을 비우고 지붕·성벽의 우회 경로를 잇는다.
 		 * - 공중: 외성벽 위에서 접시 높이까지 나선형으로 오르며 바깥으로 퍼지는 공중섬 12개(그중 둘에 폐허)와 다리.
 		 */
 		FOctantSpec Bastion()
@@ -507,6 +566,7 @@ namespace LNPSliceOctant
 			FSpire Spire;
 			Spire.Id = TEXT("P01");
 			Spire.CoreRadius = 1000.0;
+			Spire.SpiralGap = 200.0;
 			Spire.SpiralWidth = 900.0;
 			Spire.BottomH = -10000.0;
 			Spire.TopH = 18000.0;
@@ -518,7 +578,7 @@ namespace LNPSliceOctant
 			Spec.Spires.Add(Spire);
 			const double SpiralTurnRise = UE_TWO_PI * (Spire.CoreRadius + Spire.SpiralWidth * 0.5) * FMath::Tan(FMath::DegreesToRadians(Spire.SlopeDeg));
 			auto SpiralDeg = [&](double H) { return Spire.ThetaAtZero + 360.0 * H / SpiralTurnRise; };
-			const double SpiralOuter = Spire.CoreRadius + Spire.SpiralWidth;
+			const double SpiralOuter = Spire.CoreRadius + Spire.SpiralGap + Spire.SpiralWidth;
 
 			// 성채: 안쪽이 가장 높은 4단. 문 4개(폭 14m, 높이 18m)가 모든 단을 관통한다.
 			FTieredRing Citadel;
@@ -563,46 +623,74 @@ namespace LNPSliceOctant
 			}
 			Spec.Rings.Add(Outer);
 
-			// 안뜰 건물: 45° 간격으로 8채, 층고 12m. 건물 X축을 둘레 방향으로 돌려 문과 무너진 면이 안뜰 통로 쪽을 향한다.
+			// 안뜰 건물: 45° 간격의 여덟 자리 중 두 곳을 비운 6채, 층고 12m. 문과 무너진 면이 안뜰 통로 쪽을 향한다.
 			// 면 0(-X)·1(+X)은 시계·반시계 방향 이웃, 면 2(-Y)는 외성벽, 면 3(+Y)은 성채 쪽이다. 1층 경사로는 외성벽 쪽 벽을 따른다.
 			struct FPlan { double Deg; int32 Stories; TArray<int32> Collapsed; };
 			const FPlan Plans[] = {
-				{22.5, 2, {0}}, {67.5, 3, {1}}, {112.5, 3, {0, 3}}, {157.5, 2, {}},
-				{202.5, 3, {1}}, {247.5, 2, {0, 2}}, {292.5, 3, {1}}, {337.5, 2, {0}},
+				{22.5, 0, {}}, {67.5, 3, {1, 3}}, {112.5, 3, {0, 3}}, {157.5, 2, {0, 3}},
+				{202.5, 0, {}}, {247.5, 2, {0, 2}}, {292.5, 3, {1, 3}}, {337.5, 2, {0, 3}},
 			};
 			TArray<int32> BigIndex;
+			int32 BuildingId = 0;
 			for (const FPlan& Plan : Plans)
 			{
-				FBuilding Building = GiantBuilding(FString::Printf(TEXT("B%02d"), BigIndex.Num() + 1), 9700.0, Plan.Deg, 2600.0, 2200.0, Plan.Stories, Plan.Collapsed);
+				++BuildingId;
+				// 북·남 안뜰의 건물과 머리 위 교량을 비워 비행 전투와 정상 조망을 확보한다. 나머지 건물 ID는 유지한다.
+				if (Plan.Stories == 0)
+				{
+					continue;
+				}
+				FBuilding Building = GiantBuilding(FString::Printf(TEXT("B%02d"), BuildingId), 9700.0, Plan.Deg, 2600.0, 2200.0, Plan.Stories, Plan.Collapsed);
 				Building.Yaw = Plan.Deg + 90.0;
 				Building.StoryHeight = 1200.0;
 				BigIndex.Add(Spec.Buildings.Add(MoveTemp(Building)));
 			}
 
-			// 다리: 이웃 건물 지붕끼리 한 바퀴, 건물마다 외성벽 안쪽 20m 단과 성채 바깥 20m 단으로.
+			// 다리: 인접 건물의 지붕과 성벽을 잇되 큰 전투 광장 위는 개방한다.
 			auto RoofEdge = [&Spec](int32 Index, int32 Side)
 			{
 				const FBuilding& B = Spec.Buildings[Index];
-				const double HX = B.SizeX * 0.5 - 500.0, HY = B.SizeY * 0.5 - 500.0;
+				const double HX = B.SizeX * 0.5 + 200.0, HY = B.SizeY * 0.5 + 200.0;
 				const double LX = Side == 0 ? -HX : Side == 1 ? HX : -300.0;
 				const double LY = Side == 2 ? -HY : Side == 3 ? HY : -300.0;
-				return BuildingPoint(B, LX, LY, RoofH(B) - 1.0);
+				return BuildingPoint(B, LX, LY, B.BaseH + RoofH(B) - 1.0);
+			};
+			// 경사진 본 다리는 외벽 밖에서 시작한다. 지붕 안쪽과 벽 위는 지붕 높이의 짧은 발판으로 연결한다.
+			for (const int32 Index : BigIndex)
+			{
+				const FBuilding& B = Spec.Buildings[Index];
+				for (int32 Side = 0; Side < 4; ++Side)
+				{
+					const double HX = B.SizeX * 0.5 - 500.0, HY = B.SizeY * 0.5 - 500.0;
+					const double LX = Side == 0 ? -HX : Side == 1 ? HX : -300.0;
+					const double LY = Side == 2 ? -HY : Side == 3 ? HY : -300.0;
+					AddBridge(Spec, BuildingPoint(B, LX, LY, B.BaseH + RoofH(B) - 1.0), RoofEdge(Index, Side), 1200.0);
+				}
 			};
 			for (int32 I = 0; I < BigIndex.Num(); ++I)
 			{
-				AddBridge(Spec, RoofEdge(BigIndex[I], 1), RoofEdge(BigIndex[(I + 1) % BigIndex.Num()], 0), 1200.0);
+				const FBuilding& Building = Spec.Buildings[BigIndex[I]];
+				const FBuilding& Next = Spec.Buildings[BigIndex[(I + 1) % BigIndex.Num()]];
+				const double Deg = FMath::RadiansToDegrees(FMath::Atan2(Building.Y, Building.X));
+				const double NextDeg = FMath::RadiansToDegrees(FMath::Atan2(Next.Y, Next.X));
+				// 큰 전투 광장을 다시 교량으로 덮지 않는다. 끊긴 지붕 경로는 성벽 연결로 우회한다.
+				if (FMath::Fmod(NextDeg - Deg + 720.0, 360.0) < 60.0)
+				{
+					AddBridge(Spec, RoofEdge(BigIndex[I], 1), RoofEdge(BigIndex[(I + 1) % BigIndex.Num()], 0), 1200.0);
+				}
 				// 3층 지붕(36m)은 40m 단으로, 2층 지붕(24m)은 20m 단으로 잇는다(다리 경사를 완만하게). 성채 40m 단은 경사로(호 54~60m)
 				// 바깥 4m 띠에 내린다.
 				const bool bTall = RoofH(Spec.Buildings[BigIndex[I]]) > 3000.0;
-				AddBridge(Spec, RoofEdge(BigIndex[I], 2), PolarH(bTall ? 13700.0 : 12200.0, Plans[I].Deg, bTall ? 3999.0 : 1999.0));
-				AddBridge(Spec, RoofEdge(BigIndex[I], 3), PolarH(bTall ? 6200.0 : 7300.0, Plans[I].Deg, bTall ? 3999.0 : 1999.0));
+				AddBridge(Spec, RoofEdge(BigIndex[I], 2), PolarH(bTall ? 13700.0 : 12200.0, Deg, bTall ? 3999.0 : 1999.0));
+				AddBridge(Spec, RoofEdge(BigIndex[I], 3), PolarH(bTall ? 6200.0 : 7300.0, Deg, bTall ? 3999.0 : 1999.0));
 			}
 
 			// 메인 무대 접시 위 엄폐 석주 6개.
 			for (int32 I = 0; I < 6; ++I)
 			{
 				const FVector2D P = Polar(3000.0 * Scale(Spire.TopH), 15.0 + I * 60.0);
-				Spec.Blocks.Add({P.X, P.Y, Spire.TopH, 250.0, 900.0});
+				// 접시 실루엣은 유지하고 낮은 엄폐와 높은 엄폐를 번갈아 배치해 보스 조망과 횡이동을 연다.
+				Spec.Blocks.Add({P.X, P.Y, Spire.TopH, 250.0, I % 2 == 0 ? 350.0 : 600.0});
 			}
 
 			// 공중섬 나선: 외성벽 40m 단 옆에서 시작해 접시 높이 180m까지 오른다. 위로 갈수록 바깥으로 퍼져 접시 밑 나팔을 피하고,
@@ -617,11 +705,66 @@ namespace LNPSliceOctant
 				const FVector2D P = Polar(FMath::Lerp(9200.0, 12800.0, FMath::Square(I / 11.0)), Deg);
 				Island.X = P.X;
 				Island.Y = P.Y;
-				Island.Radius = (I == 3 || I == 7) ? 1400.0 : 1000.0;
+				Island.Radius = (I == 3 || I == 7) ? 1400.0 : (I == 0 || I == 5 || I == 9) ? 1800.0 : 1000.0;
 				Island.Thickness = 500.0;
 				Sky.Add(Island);
 			}
 			Spec.Islands.Append(Sky);
+			// 성채 40m 단의 Pod는 넓어진 첫 공중섬으로 옮기고, 성채에서 직접 진입하게 한다.
+			AddBridge(Spec, PolarH(6200.0, 20.0, 3999.0),
+				PolarH(9200.0 - (Sky[0].Radius - 100.0) * Scale(Sky[0].TopH), 20.0, 3999.0), 1200.0);
+
+			// 좁은 성벽 대신 사수·넉백 회복 공간을 갖춘 전투 발판 세 곳. 성벽과 겹치지 않고 짧은 다리로 잇는다.
+			TArray<FIsland> PodTerraces;
+			for (int32 I = 0; I < 3; ++I)
+			{
+				FIsland Terrace;
+				Terrace.Id = FString::Printf(TEXT("T%02d"), I + 1);
+				Terrace.TopH = I < 2 ? 4000.0 : 2000.0;
+				Terrace.Radius = 1600.0;
+				Terrace.Thickness = 500.0;
+				const double Deg = I == 0 ? 15.0 : I == 1 ? 195.0 : 202.5;
+				const double R = I < 2 ? 17700.0 : 9600.0;
+				const FVector2D P = Polar(R, Deg);
+				Terrace.X = P.X;
+				Terrace.Y = P.Y;
+				PodTerraces.Add(Terrace);
+				Spec.Islands.Add(Terrace);
+				AddBridge(Spec, PolarH(I < 2 ? 13900.0 : 7300.0, Deg, Terrace.TopH - 1.0),
+					PolarH(R - (Terrace.Radius - 100.0) * Scale(Terrace.TopH), Deg, Terrace.TopH - 1.0), 1200.0);
+			}
+
+			// 공동 양쪽에서 지상으로 복귀하는 착지점. 엇갈린 위치와 높은 앵커로 다음 발판 밑면을 비켜 간다.
+			for (int32 Side = 0; Side < 2; ++Side)
+			{
+				for (int32 Step = 0; Step < 3; ++Step)
+				{
+					FIsland Landing;
+					Landing.Id = FString::Printf(TEXT("C%02d"), Side * 3 + Step + 1);
+					const FVector2D P = Polar(2600.0, 90.0 + Side * 180.0 + (Step % 2 == 0 ? -25.0 : 25.0));
+					Landing.X = P.X;
+					Landing.Y = P.Y;
+					Landing.TopH = -8500.0 + Step * 3000.0;
+					Landing.Radius = 500.0;
+					Landing.Thickness = 200.0;
+					Spec.Islands.Add(Landing);
+				}
+			}
+
+			// 남문에서 정상으로 빠르게 오르는 별도 훅 경로. 접시보다 낮은 발판으로 랜드마크 위계를 유지한다.
+			for (int32 I = 0; I < 4; ++I)
+			{
+				FIsland Landing;
+				Landing.Id = FString::Printf(TEXT("V%02d"), I + 1);
+				// 다음 발판의 밑면이 직선 훅을 막지 않도록 양쪽으로 엇갈린다. 마지막 앵커는 접시 바닥 위에서 진입한다.
+				const FVector2D P = Polar(I == 0 ? 11400.0 : 12500.0, I % 2 == 0 ? 166.0 : 194.0);
+				Landing.X = P.X;
+				Landing.Y = P.Y;
+				Landing.TopH = I == 3 ? 17200.0 : 4000.0 + I * 4000.0;
+				Landing.Radius = 800.0;
+				Landing.Thickness = 500.0;
+				Spec.Islands.Add(Landing);
+			}
 			// 첫 섬은 외성벽 40m 단에서 들어간다. 섬끼리 차례로 잇고, 마지막 섬에서 접시로 건넌다.
 			{
 				const FVector2D Dir = FVector2D(Sky[0].X, Sky[0].Y).GetSafeNormal();
@@ -666,7 +809,7 @@ namespace LNPSliceOctant
 				Spec.Panels.Add({PolarH(4400.0 + 250.0 * Scale(8000.0), Deg, 7985.0), PolarH(Far, Deg, Target.TopH - 15.0), 400.0, 2.0});
 			}
 
-			// 앵커: 모든 건물·다리·섬에 하나씩. 그 밖에 접시 둘레, 접시 가운데, 심연 오름길, 성채 단.
+			// 앵커: 건물·다리·섬과 접시·심연·성채 단. 폐허와 고속 상승 발판은 별도 목적지 높이를 사용한다.
 			for (const FBuilding& B : Spec.Buildings)
 			{
 				const FVector P = BuildingPoint(B, 0.0, 0.0, B.BaseH + RoofH(B) + 700.0);
@@ -679,22 +822,57 @@ namespace LNPSliceOctant
 			}
 			for (const FIsland& I : Spec.Islands)
 			{
+				// 폐허 안에 중복 앵커를 만들지 않는다. 폐허 지붕 앵커가 외부 이동을 맡는다.
+				if (I.Id == TEXT("I04") || I.Id == TEXT("I08"))
+				{
+					continue;
+				}
+				if (I.Id.StartsWith(TEXT("C")))
+				{
+					Spec.Anchors.Add({I.X, I.Y, I.TopH + 1500.0, 5500.0});
+					continue;
+				}
+				if (I.Id.StartsWith(TEXT("V")))
+				{
+					// 첫·마지막 구간은 발판 아래에서 진입하므로 앵커를 더 높여 밑면을 비켜 간다.
+					const bool bEnd = I.Id == TEXT("V01") || I.Id == TEXT("V04");
+					Spec.Anchors.Add({I.X, I.Y, I.TopH + (bEnd ? 1800.0 : 1000.0), I.Id == TEXT("V04") ? 7000.0 : 6500.0});
+					continue;
+				}
 				if (I.InnerRadius <= 0.0)
 				{
 					const FVector2D Off = FVector2D(I.X, I.Y).GetSafeNormal() * (I.Radius * 0.6) * Scale(I.TopH);
 					Spec.Anchors.Add({I.X - Off.X, I.Y - Off.Y, I.TopH + 800.0, 0.0});
+					// 넓은 전투섬과 Pod 발판에서 반대 방향으로도 이동할 수 있는 두 번째 앵커.
+					if (I.Radius >= 1600.0)
+					{
+						Spec.Anchors.Add({I.X + Off.X, I.Y + Off.Y, I.TopH + 800.0, 0.0});
+					}
 				}
 			}
 			for (int32 I = 0; I < 6; ++I)
 			{
-				const FVector2D P = Polar((Spire.DishRadius + 600.0) * Scale(Spire.TopH), I * 60.0);
-				Spec.Anchors.Add({P.X, P.Y, Spire.TopH + 600.0, 4000.0});
+				const FVector2D P = Polar((Spire.DishRadius - 1000.0) * Scale(Spire.TopH), I * 60.0);
+				Spec.Anchors.Add({P.X, P.Y, Spire.TopH + 600.0, 0.0});
 			}
 			Spec.Anchors.Add({0.0, 0.0, Spire.TopH + 800.0, 0.0});
 			for (const double H : {-8000.0, -4500.0, -1000.0})
 			{
 				const FVector2D P = Polar(2600.0, 180.0);
 				Spec.Anchors.Add({P.X, P.Y, H, 4000.0});
+			}
+			// 출구는 성채의 지상 문 안에 둔다. 낮은 앵커는 심연 가장자리 턱에 가려진다.
+			for (const double Deg : {90.0, 180.0, 270.0})
+			{
+				const FVector2D P = Polar(3500.0, Deg);
+				Spec.Anchors.Add({P.X, P.Y, 1600.0, 5500.0});
+			}
+			// 북쪽 안뜰에서 성채 20m 단을 거쳐 첫 공중섬으로 진입하는 훅 연결.
+			{
+				const FVector2D P = Polar(7000.0, 0.0);
+				Spec.Anchors.Add({P.X, P.Y, 2800.0, 5000.0});
+				const FVector2D Off = FVector2D(Sky[0].X, Sky[0].Y).GetSafeNormal() * Sky[0].Radius * 0.6 * Scale(Sky[0].TopH);
+				Spec.Anchors.Add({Sky[0].X - Off.X, Sky[0].Y - Off.Y, Sky[0].TopH + 2200.0, 5500.0});
 			}
 			for (int32 Q = 0; Q < 4; ++Q)
 			{
@@ -705,14 +883,25 @@ namespace LNPSliceOctant
 				}
 			}
 
-			// Pod: 문 앞 안뜰, 외성벽 40m 단, 성채 20·40m 단(60m 이상 단은 Pod 안전 반경 250cm보다 좁다), 공동, 공중섬 둘. 접시는 보스 자리로 비운다.
+			// 지상 Pod에서 낮은 공중 회피 후 바닥으로 복귀할 수 있는 두 방향 앵커.
+			for (const double Deg : {0.0, 90.0, 180.0, 270.0})
+			{
+				for (const double Offset : {-12.0, 12.0})
+				{
+					const FVector2D P = Polar(9700.0, Deg + Offset);
+					Spec.Anchors.Add({P.X, P.Y, 700.0, 0.0});
+				}
+			}
+
+			// Pod: 문 앞 안뜰, 외성벽 전투 발판, 첫 공중섬, 성채 외곽 발판, 공동, 공중 전투섬 둘. 접시는 보스 자리로 비운다.
 			for (const double Deg : {0.0, 90.0, 180.0, 270.0})
 			{
 				const FVector2D P = Polar(9700.0, Deg);
 				Spec.Spawns.Add({P.X, P.Y, 0.0});
 			}
-			for (const FVector& S : {PolarH(13700.0, 15.0, 4000.0), PolarH(13700.0, 195.0, 4000.0), PolarH(5900.0, 75.0, 4000.0),
-				PolarH(7000.0, 255.0, 2000.0), PolarH(2600.0, 45.0, -10000.0), PolarH(2600.0, 225.0, -10000.0)})
+			for (const FVector& S : {FVector(PodTerraces[0].X, PodTerraces[0].Y, PodTerraces[0].TopH),
+				FVector(PodTerraces[1].X, PodTerraces[1].Y, PodTerraces[1].TopH), FVector(Sky[0].X, Sky[0].Y, Sky[0].TopH),
+				FVector(PodTerraces[2].X, PodTerraces[2].Y, PodTerraces[2].TopH), PolarH(2600.0, 45.0, -10000.0), PolarH(2600.0, 225.0, -10000.0)})
 			{
 				Spec.Spawns.Add({S.X, S.Y, S.Z});
 			}
@@ -720,6 +909,34 @@ namespace LNPSliceOctant
 			{
 				Spec.Spawns.Add({Sky[I].X, Sky[I].Y, Sky[I].TopH});
 			}
+
+			// 지정 Pod만 고유 편성을 사용한다. 위치는 Pod 회전의 로컬 X/Y이며 실제 안전 후보를 고른다.
+			const FName Crawler(TEXT("/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01"));
+			const FName Flyer(TEXT("/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01"));
+			auto Formation = [](FName Config, int32 Count, double X, double Y, float Radius)
+			{
+				FLNPSpawnEnemyFormation Result;
+				Result.EnemyConfigPath = Config;
+				Result.Count = Count;
+				Result.Offset = FVector2D(X, Y);
+				Result.Radius = Radius;
+				return Result;
+			};
+			// 안뜰: 북/남은 열린 광장, 동/서는 건물 사이 양쪽 협공이다.
+			Spec.Spawns[0].EnemyFormations = {Formation(Flyer, 5, -900, 600, 900), Formation(Crawler, 6, 500, -2700, 1000)};
+			Spec.Spawns[1].EnemyFormations = {Formation(Flyer, 4, 0, -1000, 900), Formation(Crawler, 4, -2700, -400, 1000), Formation(Crawler, 4, 2700, -400, 1000)};
+			Spec.Spawns[2].EnemyFormations = {Formation(Flyer, 8, 900, -600, 1100), Formation(Crawler, 4, 500, 2700, 1000)};
+			Spec.Spawns[3].EnemyFormations = {Formation(Flyer, 4, 0, 1000, 900), Formation(Crawler, 5, -2700, 400, 1000), Formation(Crawler, 5, 2700, 400, 1000)};
+			// 발판: 외곽 두 곳은 비행 위주, 성채·첫 섬은 혼합, 높은 두 섬은 공중 집중이다.
+			Spec.Spawns[4].EnemyFormations = {Formation(Flyer, 6, 650, 0, 750), Formation(Crawler, 3, -700, 0, 650)};
+			Spec.Spawns[5].EnemyFormations = {Formation(Flyer, 8, -650, 0, 750), Formation(Crawler, 2, 700, 0, 650)};
+			Spec.Spawns[6].EnemyFormations = {Formation(Flyer, 4, 600, 400, 800), Formation(Crawler, 4, -650, -350, 750)};
+			Spec.Spawns[7].EnemyFormations = {Formation(Flyer, 3, -650, 0, 750), Formation(Crawler, 6, 650, 0, 800)};
+			// 공동은 천장 때문에 비행 편성을 강제하지 않는다. 반대쪽 접근을 읽고 기둥 사이로 이동한다.
+			Spec.Spawns[8].EnemyFormations = {Formation(Crawler, 5, -850, 0, 850), Formation(Crawler, 5, 0, -850, 850)};
+			Spec.Spawns[9].EnemyFormations = {Formation(Crawler, 6, 1100, 0, 1100), Formation(Crawler, 6, 0, 1100, 1100)};
+			Spec.Spawns[10].EnemyFormations = {Formation(Flyer, 8, 0, 600, 1100)};
+			Spec.Spawns[11].EnemyFormations = {Formation(Flyer, 10, 0, -500, 1100)};
 
 			// 등불: 천장 아래만 밝힌다. 노출 EV 6.2에서 지면 중심광이 약 160lux이므로 10m에서 수십~수백 lux가 되게 둔다.
 			// 심연 벽 고리 3단, 공동 천장 둘레와 기둥 밑동, 접시 나팔 안, 성채·외성벽 문 터널, 건물 층마다 천장 밑.
@@ -800,20 +1017,142 @@ namespace LNPSliceOctant
 					{TEXT("OuterLanding"), LandingAt.X, LandingAt.Y, OuterGround.H1},
 					{TEXT("SkyRuinLow"), Sky[3].X, Sky[3].Y, Sky[3].TopH},
 					{TEXT("SkyRuinHigh"), Sky[7].X, Sky[7].Y, Sky[7].TopH},
+					{TEXT("PodTerraceNorth"), PodTerraces[0].X, PodTerraces[0].Y, PodTerraces[0].TopH},
+					{TEXT("PodTerraceSouth"), PodTerraces[1].X, PodTerraces[1].Y, PodTerraces[1].TopH},
+					{TEXT("PodTerraceCitadel"), PodTerraces[2].X, PodTerraces[2].Y, PodTerraces[2].TopH},
+					{TEXT("FastAscentBase"), Spec.Islands[Spec.Islands.Num() - 4].X, Spec.Islands[Spec.Islands.Num() - 4].Y, 4000.0},
+					{TEXT("FastAscentTop"), Spec.Islands.Last().X, Spec.Islands.Last().Y, 17200.0},
 				};
 			}
 			return Spec;
 		}
 
-		/** B `Hollow_00` 협곡·부유섬. 단위 3에서 채운다. 지금은 지각만 있다. */
+		double IslandFloorH(const FIsland& Island, const FVector2D& XY)
+		{
+			const FVector2D P = (XY - FVector2D(Island.X, Island.Y)) / Scale(Island.TopH);
+			return Island.TopH + Island.Relief * (0.55 * FMath::Sin(P.X / 2200.0) + 0.45 * FMath::Sin(P.Y / 1900.0));
+		}
+
+		/** 전체 내부 외피는 Blender 소유, 코드에는 부유섬과 장치·편성만 남긴다. */
+		const TCHAR* const HollowGeometryPrefix = TEXT("SM_Hollow_00_LowPolyV017_");
+
 		FOctantSpec Hollow()
 		{
 			FOctantSpec Spec;
 			Spec.Name = TEXT("Hollow_00");
 			Spec.GuidTag = 0x09C00000;
 			Spec.Seed = 9002;
-			Spec.Amplitude = 1400.0;
+			Spec.Amplitude = 0.0;
 			Spec.Wavelength = 7000.0;
+			Spec.SeamBand = 2000.0;
+			Spec.Islands = {
+				{TEXT("Ascent"), -5500.0, 0.0, 1200.0, 0.0, 14500.0, 600.0},
+				{TEXT("Arena"), 11000.0, 0.0, 4000.0, 0.0, 18000.0, 800.0},
+				{TEXT("CaveLift"), 3150.0, 9800.0, 150.0, 0.0, -5500.0, 200.0},
+				{TEXT("Shuttle"), -9000.0, -14500.0, 1800.0, 0.0, 6000.0, 600.0},
+			};
+			Spec.Panels = {
+				{{-8700.0, -7350.0, 6015.0}, {-9000.0, -12000.0, 6015.0}, 600.0, 3.0},
+				{{3000.0, -1300.0, 2015.0}, {3000.0, 1300.0, 2015.0}, 400.0, 3.0},
+			};
+			Spec.Anchors = {
+				// 잔도 안쪽 착지 여유와 훅 종료 후 관성 낙하를 함께 확보한다.
+				// 서쪽: Low→굴 입구→Mid→High→정상, Mid→Panel 분기. 정상 훅은 Shuttle 복귀도 겸한다.
+				{-4500.0, -3000.0, -3000.0, 7000.0, TEXT("WestLow")},
+				{-3400.0, -2800.0, 1000.0, 7000.0, TEXT("WestPocketLip")},
+				{-2500.0, -2850.0, 3800.0, 8500.0, TEXT("WestMid")},
+				{-3500.0, -2700.0, 5500.0, 5500.0, TEXT("WestHigh")},
+				{-5000.0, -4700.0, 11000.0, 11000.0, TEXT("WestTop")},
+				{2800.0, -2800.0, 3800.0, 6000.0, TEXT("WestPanel")},
+				// 동쪽: Low→Panel→Mid→High→정상. 겹치는 윗 잔도 바깥에서 다음 잔도 가장자리로 연결한다.
+				{5500.0, 2800.0, -2800.0, 7500.0, TEXT("EastLow")},
+				{3750.0, 2500.0, 7000.0, 12500.0, TEXT("EastPanel")},
+				{0.0, 2850.0, 6200.0, 7000.0, TEXT("EastMid")},
+				{4050.0, 2950.0, 8400.0, 7000.0, TEXT("EastHigh")},
+				{3250.0, 5000.0, 15500.0, 9000.0, TEXT("EastTop")},
+				{0.0, 0.0, -4500.0, 9000.0, TEXT("BasinExit")},
+				// 긴 정상의 추가 도착부와 외곽 추락 후 가까운 경사로 복귀. 인접한 동쪽 보고 두 곳은 하나로 묶는다.
+				{4650.0, -4700.0, 11000.0, 10000.0, TEXT("WestTopNorth")},
+				{-8500.0, 5000.0, 12000.0, 8000.0, TEXT("EastTopSouth")},
+				{-5000.0, 6800.0, 10000.0, 11000.0, TEXT("EastOuterRecovery")},
+				{3500.0, -8250.0, 16000.0, 17000.0, TEXT("WestOuterRecovery")},
+				{-8500.0, -11000.0, 12000.0, 13000.0, TEXT("MountainWestRecovery")},
+				{4500.0, -11000.0, 8500.0, 10000.0, TEXT("MountainEastRecovery")},
+				// 협곡 밖의 부유섬·뒤편 잔도·북쪽 출구에 필요한 훅만 유지한다.
+				{-5500.0, -2000.0, 17800.0, 14000.0, TEXT("Ascent")},
+				{3000.0, 0.0, 20500.0, 9000.0, TEXT("Arena")},
+				{-8000.0, -14000.0, 8500.0, 10000.0, TEXT("ShuttleIsland")},
+				{6000.0, -6700.0, 3200.0, 4000.0, TEXT("BackPocketLip")},
+				{2500.0, 9800.0, -3500.0, 10000.0, TEXT("NorthShaftLower")},
+				{2500.0, 9800.0, 2200.0, 9500.0, TEXT("NorthShaftUpper")},
+				{4000.0, 11000.0, 4500.0, 6500.0, TEXT("Rim")},
+			};
+			FLNPSpawnEnemyFormation Flyer;
+			Flyer.EnemyConfigPath = TEXT("/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01");
+			Flyer.Count = 4;
+			Flyer.Offset = FVector2D(-700.0, 700.0);
+			Flyer.Radius = 800.0f;
+			FLNPSpawnEnemyFormation Crawler;
+			Crawler.EnemyConfigPath = TEXT("/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01");
+			Crawler.Count = 6;
+			Crawler.Offset = FVector2D(700.0, -700.0);
+			Crawler.Radius = 900.0f;
+			for (const FVector& P : {FVector(-2500.0, -5400.0, 6000.0), FVector(2500.0, 5400.0, 10000.0),
+				FVector(-2500.0, 1000.0, -12000.0), FVector(3000.0, 9600.0, -12000.0),
+				FVector(-9000.0, -14500.0, 6000.0), FVector(-2500.0, -5000.0, -2500.0),
+				FVector(4000.0, 5000.0, 2000.0), FVector(6000.0, -5300.0, 1500.0)})
+			{
+				FSpawn Pod{P.X, P.Y, P.Z};
+				Pod.EnemyFormations = {Flyer, Crawler};
+				Spec.Spawns.Add(Pod);
+			}
+			Spec.Lamps = {{0.0, 0.0, -9700.0, 1800.0, 4500.0}, {-4500.0, 4500.0, -9700.0, 1800.0, 4500.0},
+				{2500.0, 9800.0, -9700.0, 1800.0, 4500.0}, {2500.0, 9800.0, -3500.0, 600.0, 3000.0},
+				{-13500.0, 3500.0, -8400.0, 1000.0, 3000.0}, {-13500.0, -8500.0, -3400.0, 1000.0, 3000.0}};
+			Spec.Blocks = {{11000.0, -7000.0, 18000.0, 300.0, 1800.0},
+				{11000.0, 7000.0, 18000.0, 300.0, 2400.0}};
+			Spec.ReviewPoints = {
+				{TEXT("HollowEntry"), -9000.0, -13500.0, 0.0},
+				{TEXT("HollowPodWest"), -2500.0, -5400.0, 6000.0},
+				{TEXT("HollowLandingEast"), 2500.0, 5400.0, 10000.0},
+				{TEXT("HollowBasin"), -2500.0, 0.0, -7500.0},
+				{TEXT("HollowTopWestNorth"), 4662.0, -3884.0, 6000.0},
+				{TEXT("HollowTopEastSouth"), -8206.0, 4184.0, 10000.0},
+				{TEXT("HollowRecoveryEast01"), -4645.0, 7295.0, 0.0},
+				{TEXT("HollowRecoveryEast02"), -5052.0, 7156.0, 0.0},
+				{TEXT("HollowRecoveryWest"), 3116.0, -7429.0, 0.0},
+				{TEXT("HollowRecoveryMountainWest"), -8088.0, -9789.0, 0.0},
+				{TEXT("HollowRecoveryMountainEast"), 4134.0, -12205.0, 0.0},
+				{TEXT("HollowRecoveryEastLaunch"), -4900.0, 7400.0, 0.0},
+				{TEXT("HollowRecoveryWestLaunch"), 2750.0, -7429.0, 0.0},
+				{TEXT("HollowRecoveryMountainWestLaunch"), -7750.0, -9789.0, 0.0},
+				{TEXT("HollowRecoveryMountainEastLaunch"), 3800.0, -12205.0, 0.0},
+				{TEXT("HollowCliffLow"), -3500.0, -2900.0, -5000.0},
+				{TEXT("HollowCliffPanel"), 3000.0, -2800.0, 2000.0},
+				{TEXT("HollowPocketWest"), -2500.0, -5000.0, -2500.0},
+				{TEXT("HollowPocketEast"), 4000.0, 5000.0, 2000.0},
+				{TEXT("HollowPocketBack"), 6000.0, -5300.0, 1500.0},
+				{TEXT("HollowAscent"), -5500.0, 0.0, 14500.0},
+				{TEXT("HollowArenaEntry"), 3000.0, 0.0, 18000.0},
+				{TEXT("HollowArena"), 11000.0, 0.0, 18000.0},
+				{TEXT("HollowCaveBasinEntry"), 0.0, -1400.0, -7500.0},
+				{TEXT("HollowCaveMesaEntry"), 1800.0, 9800.0, 0.0},
+				{TEXT("HollowCavern"), -2500.0, 1000.0, -12000.0},
+				{TEXT("HollowCaveWest"), -4500.0, 4500.0, -12000.0},
+				{TEXT("HollowCaveNorth"), 3000.0, 9600.0, -12000.0},
+				{TEXT("HollowCaveLift"), 3150.0, 9800.0, -5500.0},
+				{TEXT("HollowCaveShaft"), 0.0, 0.0, -12000.0},
+				{TEXT("HollowRimIsland"), 4000.0, 11000.0, 2000.0},
+				{TEXT("HollowOuterEast"), -13500.0, 13500.0, 0.0},
+				{TEXT("HollowNotch"), -6000.0, 6000.0, 4500.0},
+				{TEXT("HollowShuttleDock"), -8700.0, -6600.0, 6000.0},
+				{TEXT("HollowShuttleIsland"), -9000.0, -14500.0, 6000.0},
+				{TEXT("HollowSecretMouth"), -12500.0, -12500.0, 0.0},
+				{TEXT("HollowSecretBend"), -13500.0, 3500.0, -9500.0},
+				{TEXT("HollowSecretBend02"), -13500.0, -8500.0, -4500.0},
+				{TEXT("HollowMountainTurn01"), 5000.0, -11500.0, 2000.0},
+				{TEXT("HollowMountainTurn02"), -9000.0, -9500.0, 4000.0},
+			};
 			return Spec;
 		}
 
@@ -913,6 +1252,66 @@ namespace LNPSliceOctant
 			double MaxRadius = 0.0;
 			double MaxShift = 0.0;
 		};
+
+		/** 복제 지각의 내부 열린 경계를 닫는다. 이음매 외곽은 보존하고 Hollow의 입구는 이후 별도로 자른다. */
+		int32 SealInteriorCrustBoundaries(FLNPFixtureMesh& Mesh, double SeamKeep)
+		{
+			TMap<FVector, int32> Welded;
+			TArray<int32> Vertices;
+			for (int32 I = 0; I < Mesh.Positions.Num(); ++I)
+				Vertices.Add(Welded.FindOrAdd(Mesh.Positions[I], I));
+			TMap<FIntPoint, int32> EdgeCounts;
+			for (const FIntVector& Triangle : Mesh.Triangles)
+			{
+				const int32 V[] = {Vertices[Triangle.X], Vertices[Triangle.Y], Vertices[Triangle.Z]};
+				for (int32 I = 0; I < 3; ++I)
+					++EdgeCounts.FindOrAdd({FMath::Min(V[I], V[(I + 1) % 3]), FMath::Max(V[I], V[(I + 1) % 3])});
+			}
+			TMap<int32, TArray<int32>> Adjacent;
+			for (const auto& Edge : EdgeCounts)
+			{
+				if (Edge.Value != 1) continue;
+				Adjacent.FindOrAdd(Edge.Key.X).Add(Edge.Key.Y);
+				Adjacent.FindOrAdd(Edge.Key.Y).Add(Edge.Key.X);
+			}
+			TSet<int32> Visited;
+			int32 Sealed = 0;
+			for (const auto& Start : Adjacent)
+			{
+				if (Visited.Contains(Start.Key)) continue;
+				TArray<int32> Loop;
+				int32 Current = Start.Key, Previous = INDEX_NONE;
+				bool bClosed = false, bInterior = true;
+				while (!Visited.Contains(Current))
+				{
+					Visited.Add(Current);
+					Loop.Add(Current);
+					const FVector& P = Mesh.Positions[Current];
+					bInterior &= FMath::Min3(P.X, P.Y, P.Z) > SeamKeep;
+					const TArray<int32>& Neighbors = Adjacent[Current];
+					if (Neighbors.Num() != 2) break;
+					const int32 Next = Neighbors[0] == Previous ? Neighbors[1] : Neighbors[0];
+					Previous = Current;
+					Current = Next;
+					if (Current == Start.Key) { bClosed = true; break; }
+				}
+				if (!bClosed || !bInterior || Loop.Num() < 3) continue;
+				TArray<FVector2D> Outline;
+				for (int32 V : Loop)
+				{
+					const FVector& P = Mesh.Positions[V];
+					const double D = FVector::DotProduct(P, Center().Radial);
+					Outline.Add({CrustRadius * FVector::DotProduct(P, Center().Bitangent) / D,
+						CrustRadius * FVector::DotProduct(P, Center().Tangent) / D});
+				}
+				TArray<UE::Geometry::FIndex3i> Triangles;
+				PolygonTriangulation::TriangulateSimplePolygon(Outline, Triangles, false);
+				for (const auto& Tri : Triangles)
+					Mesh.AddTriangle(Loop[Tri.A], Loop[Tri.B], Loop[Tri.C], -Mesh.Positions[Loop[Tri.A]].GetSafeNormal());
+				++Sealed;
+			}
+			return Sealed;
+		}
 
 		/** Meadow 지각 정점을 목표 지형으로 옮긴다. 이음매 밴드 안쪽 정점은 좌표를 그대로 둔다. */
 		FCrustReport DeriveCrust(FLNPFixtureMesh& Crust, const FOctantSpec& Spec)
@@ -1312,12 +1711,131 @@ namespace LNPSliceOctant
 			const double Bottom = Island.TopH - Island.Thickness;
 			const int32 Sides = FMath::Clamp(FMath::CeilToInt(Island.Radius / 150.0), 24, 96);
 			const int32 Rings = FMath::Max(2, FMath::CeilToInt((Island.Radius - Island.InnerRadius) / 400.0));
+			if (Island.Relief > 0.0)
+			{
+				const int32 ReliefSides = 64, ReliefRings = FMath::CeilToInt(Island.Radius / 200.0);
+				auto Top = [&](double R, int32 S)
+				{
+					const FVector2D XY = FVector2D(Island.X, Island.Y) + Polar(R, 360.0 * S / ReliefSides);
+					return FVector(XY, IslandFloorH(Island, XY));
+				};
+				for (int32 R = 0; R < ReliefRings; ++R)
+				{
+					const double R0 = Outer * R / ReliefRings, R1 = Outer * (R + 1) / ReliefRings;
+					for (int32 S = 0; S < ReliefSides; ++S)
+					{
+						if (R == 0)
+							Out.Floor.AddTriangle(Out.Floor.AddVertex(Point(Island.X, Island.Y, Island.TopH)),
+								Out.Floor.AddVertex(Point(Top(R1, S))), Out.Floor.AddVertex(Point(Top(R1, S + 1))), -Radial(Island.X, Island.Y));
+						else Quad(Out.Floor, Top(R0, S), Top(R0, S + 1), Top(R1, S + 1), Top(R1, S), EFacing::Up);
+					}
+				}
+				// 얇은 밑동은 안쪽으로 좁혀 아래에서도 정상 전장의 윤곽이 보이게 한다.
+				Annulus(Out.Shell, Island.X, Island.Y, 0.0, Outer * 0.85, Bottom, EFacing::Down, ReliefSides, ReliefRings);
+				for (int32 S = 0; S < ReliefSides; ++S)
+				{
+					const FVector2D A = FVector2D(Island.X, Island.Y) + Polar(Outer * 0.85, 360.0 * S / ReliefSides);
+					const FVector2D B = FVector2D(Island.X, Island.Y) + Polar(Outer * 0.85, 360.0 * (S + 1) / ReliefSides);
+					Out.Shell.AddQuad(Point(A.X, A.Y, Bottom), Point(B.X, B.Y, Bottom), Point(Top(Outer, S + 1)), Point(Top(Outer, S)),
+						LocalDirection(FVector((A + B) * 0.5, Bottom), (A + B) * 0.5 - FVector2D(Island.X, Island.Y)), false);
+				}
+				return Out;
+			}
 			Annulus(Out.Floor, Island.X, Island.Y, Inner, Outer, Island.TopH, EFacing::Up, Sides, Rings);
 			Annulus(Out.Shell, Island.X, Island.Y, Inner, Outer, Bottom, EFacing::Down, Sides, Rings);
 			Cylinder(Out.Shell, Island.X, Island.Y, Outer, Bottom, Island.TopH, Sides, +1);
 			if (Inner > 0.0)
 			{
 				Cylinder(Out.Shell, Island.X, Island.Y, Inner, Bottom, Island.TopH, Sides, -1);
+			}
+			return Out;
+		}
+
+		/** Hollow 부유섬은 같은 격자 경계를 공유하는 닫힌 사각 판으로 만든다. */
+		FPart BuildHollowIsland(const FIsland& Island)
+		{
+			FPart Out;
+			Out.Id = Island.Id;
+			const double Half = Island.Radius * Scale(Island.TopH);
+			const int32 N = FMath::Max(1, FMath::CeilToInt(2.0 * Half / 800.0));
+			auto At = [&](int32 X, int32 Y, bool bTop)
+			{
+				return Point(Island.X - Half + 2.0 * Half * X / N, Island.Y - Half + 2.0 * Half * Y / N,
+					Island.TopH - (bTop ? 0.0 : Island.Thickness));
+			};
+			for (int32 Y = 0; Y < N; ++Y)
+			for (int32 X = 0; X < N; ++X)
+			{
+				Out.Floor.AddQuad(At(X,Y,true), At(X+1,Y,true), At(X+1,Y+1,true), At(X,Y+1,true), -Radial(Island.X, Island.Y), false);
+				Out.Shell.AddQuad(At(X,Y,false), At(X+1,Y,false), At(X+1,Y+1,false), At(X,Y+1,false), Radial(Island.X, Island.Y), false);
+			}
+			for (int32 Side = 0; Side < 4; ++Side)
+			for (int32 I = 0; I < N; ++I)
+			{
+				const int32 AX = Side == 0 ? I : Side == 1 ? N : Side == 2 ? N-I : 0;
+				const int32 AY = Side == 0 ? 0 : Side == 1 ? I : Side == 2 ? N : N-I;
+				const int32 BX = Side == 0 ? I+1 : Side == 1 ? N : Side == 2 ? N-I-1 : 0;
+				const int32 BY = Side == 0 ? 0 : Side == 1 ? I+1 : Side == 2 ? N : N-I-1;
+				const FVector A = At(AX,AY,true), B = At(BX,BY,true);
+				const FVector Along = B-A, Up = -((A+B)*0.5).GetSafeNormal();
+				Out.Shell.AddQuad(At(AX,AY,false), At(BX,BY,false), B, A, FVector::CrossProduct(Along, Up), false);
+			}
+			return Out;
+		}
+
+		/** 오목한 협곡 윤곽도 삼각분할한다. 긴 변을 이등분해 구면 윗면·밑면과 절벽 경계의 곡률을 맞춘다. */
+		FPart BuildCliff(const FCliff& Cliff)
+		{
+			FPart Out;
+			Out.Id = Cliff.Id;
+			TArray<UE::Geometry::FIndex3i> Triangles;
+			PolygonTriangulation::TriangulateSimplePolygon(Cliff.Outline, Triangles, false);
+			TFunction<void(FVector2D, FVector2D, FVector2D, double, FLNPFixtureMesh&)> AddSurface;
+			AddSurface = [&](FVector2D A, FVector2D B, FVector2D C, double H, FLNPFixtureMesh& Mesh)
+			{
+				const bool bTop = &Mesh == &Out.Floor;
+				auto Height = [&](FVector2D P) { return bTop && Cliff.SurfaceH ? Cliff.SurfaceH(P) : H; };
+				// 공유 변은 같은 중점을 재귀적으로 사용한다. 경계의 분할 폭은 절벽면과 같은 3m 이하이다.
+				const double AB = (B - A).SquaredLength(), BC = (C - B).SquaredLength(), CA = (A - C).SquaredLength();
+				if (FMath::Max3(AB, BC, CA) > FMath::Square(Cliff.SurfaceH ? 100.0 : 300.0))
+				{
+					if (BC >= AB && BC >= CA) { const FVector2D OldA = A; A = B; B = C; C = OldA; }
+					else if (CA >= AB) { const FVector2D OldA = A; A = C; C = B; B = OldA; }
+					const FVector2D Mid = (A + B) * 0.5;
+					AddSurface(A, Mid, C, H, Mesh);
+					AddSurface(Mid, B, C, H, Mesh);
+					return;
+				}
+				const FVector2D CenterXY = (A + B + C) / 3.0;
+				Mesh.AddTriangle(Mesh.AddVertex(Point(A.X, A.Y, Height(A))), Mesh.AddVertex(Point(B.X, B.Y, Height(B))),
+					Mesh.AddVertex(Point(C.X, C.Y, Height(C))), -Radial(CenterXY.X, CenterXY.Y) * (bTop ? 1.0 : -1.0));
+			};
+			for (const UE::Geometry::FIndex3i& Triangle : Triangles)
+			{
+				AddSurface(Cliff.Outline[Triangle[0]], Cliff.Outline[Triangle[1]], Cliff.Outline[Triangle[2]], Cliff.TopH, Out.Floor);
+				AddSurface(Cliff.Outline[Triangle[0]], Cliff.Outline[Triangle[1]], Cliff.Outline[Triangle[2]], Cliff.BottomH, Out.Shell);
+			}
+			const int32 Rows = FMath::CeilToInt((Cliff.TopH - Cliff.BottomH) / 2000.0);
+			for (int32 Edge = 0; Edge < Cliff.Outline.Num(); ++Edge)
+			{
+				const FVector2D A = Cliff.Outline[Edge], B = Cliff.Outline[(Edge + 1) % Cliff.Outline.Num()];
+				const FVector2D Along = B - A, Outward(Along.Y, -Along.X);
+				int32 Segments = 1;
+				while (Along.Length() / Segments > (Cliff.SurfaceH ? 100.0 : 300.0)) Segments *= 2;
+				for (int32 Segment = 0; Segment < Segments; ++Segment)
+				{
+					const FVector2D C = FMath::Lerp(A, B, double(Segment) / Segments);
+					const FVector2D D = FMath::Lerp(A, B, double(Segment + 1) / Segments);
+					for (int32 Row = 0; Row < Rows; ++Row)
+					{
+						const double TopC = Cliff.SurfaceH ? Cliff.SurfaceH(C) : Cliff.TopH;
+						const double TopD = Cliff.SurfaceH ? Cliff.SurfaceH(D) : Cliff.TopH;
+						const double C0 = FMath::Lerp(Cliff.BottomH, TopC, double(Row) / Rows), C1 = FMath::Lerp(Cliff.BottomH, TopC, double(Row + 1) / Rows);
+						const double D0 = FMath::Lerp(Cliff.BottomH, TopD, double(Row) / Rows), D1 = FMath::Lerp(Cliff.BottomH, TopD, double(Row + 1) / Rows);
+						Out.Shell.AddQuad(Point(C.X, C.Y, C0), Point(D.X, D.Y, D0), Point(D.X, D.Y, D1), Point(C.X, C.Y, C1),
+							LocalDirection(FVector((C + D) * 0.5, (C0 + C1 + D0 + D1) * 0.25), Outward), false);
+					}
+				}
 			}
 			return Out;
 		}
@@ -1339,13 +1857,231 @@ namespace LNPSliceOctant
 					return FVector(P.X + Offset.X, P.Y + Offset.Y, P.Z - Down);
 				};
 			};
-			for (int32 Band = 0; Band < 2; ++Band)
+			// 넓은 굴 바닥도 2m 이하로 분할해 구면을 성긴 평면으로 근사하는 높이 오차를 줄인다.
+			const int32 Bands = FMath::Max(2, FMath::CeilToInt(Bridge.Width / 200.0));
+			for (int32 Band = 0; Band < Bands; ++Band)
 			{
-				Strip(Out.Floor, Line(Band - 1.0, 0.0), Line(double(Band), 0.0), Segments, EFacing::Up);
+				Strip(Out.Floor, Line(-1.0 + 2.0 * Band / Bands, 0.0), Line(-1.0 + 2.0 * (Band + 1) / Bands, 0.0), Segments, EFacing::Up);
+			}
+			if (Bridge.bGrounded)
+			{
+				const bool bAttached = Bridge.AttachedBackY != 0.0;
+				const double InnerSign = Side.Y > 0.0 ? 1.0 : -1.0;
+				auto Back = [&](double Down)
+				{
+					return [&, Down](double T)
+					{
+						const FVector P = FMath::Lerp(Bridge.From, Bridge.To, T);
+						return FVector(P.X, Bridge.AttachedBackY, Down == 0.0 ? P.Z : -2000.0);
+					};
+				};
+				// 절벽과 경사로 사이도 같은 암반으로 채운다. 높은 왕복 구간의 밑동은 낮은 바깥길 뒤에 놓인다.
+				const int32 FillBands = FMath::CeilToInt(FMath::Max(FMath::Abs(Bridge.From.Y - Bridge.AttachedBackY),
+					FMath::Abs(Bridge.To.Y - Bridge.AttachedBackY)) / 200.0);
+				if (bAttached)
+				{
+					for (int32 Band = 0; Band < FillBands; ++Band)
+					{
+						auto Fill = [&](int32 I) { return [&, I](double T) { return FMath::Lerp(Line(InnerSign, 0.0)(T), Back(0.0)(T), double(I) / FillBands); }; };
+						Strip(Out.Floor, Fill(Band), Fill(Band + 1), Segments, EFacing::Up);
+					}
+				}
+				// 지각 아래까지 채우고 밑동을 넓힌 암반 둑이다. 공중 다리의 얇은 밑면과 구별한다.
+				auto Base = [&](double Lateral)
+				{
+					return [&, Lateral](double T)
+					{
+						const FVector P = FMath::Lerp(Bridge.From, Bridge.To, T);
+						const FVector2D Offset = Side * (Lateral * Bridge.Width * 0.9 * Scale(P.Z));
+						return FVector(P.X + Offset.X, P.Y + Offset.Y, -2000.0);
+					};
+				};
+				// 동쪽 교체 경계를 지나는 길은 밑면도 끝막음과 같은 폭 분할을 공유한다.
+				if (Bridge.Id == TEXT("RimApproach") || Bridge.Id == TEXT("RimLanding") || Bridge.Id == TEXT("RimCliffExit"))
+				{
+					for (int32 Band = 0; Band < Bands; ++Band)
+						Strip(Out.Shell, Base(-1.0 + 2.0 * Band / Bands), Base(-1.0 + 2.0 * (Band + 1) / Bands), Segments, EFacing::Down);
+				}
+				else Strip(Out.Shell, Base(-1.0), Base(1.0), Segments, EFacing::Down);
+				if (!bAttached || InnerSign > 0.0) Strip(Out.Shell, Base(-1.0), Line(-1.0, 0.0), Segments, EFacing::Both);
+				if (!bAttached || InnerSign < 0.0) Strip(Out.Shell, Base(1.0), Line(1.0, 0.0), Segments, EFacing::Both);
+				if (bAttached)
+				{
+					Strip(Out.Shell, Base(InnerSign), Back(1.0), Segments, EFacing::Down);
+					Strip(Out.Shell, Back(1.0), Back(0.0), Segments, EFacing::Both);
+				}
+				// 끝막음도 바닥과 같은 폭 분할을 쓴다. 넓은 단일 평면은 구면 바닥 위로 솟아 접합을 막는다.
+				for (double T : {0.0, 1.0})
+				{
+					for (int32 Band = 0; Band < Bands; ++Band)
+					{
+						const double L = -1.0 + 2.0 * Band / Bands, R = -1.0 + 2.0 * (Band + 1) / Bands;
+						Quad(Out.Shell, Base(L)(T), Base(R)(T), Line(R, 0.0)(T), Line(L, 0.0)(T), EFacing::Both);
+					}
+					if (bAttached)
+					{
+						for (int32 Band = 0; Band < FillBands; ++Band)
+						{
+							const double L = double(Band) / FillBands, R = double(Band + 1) / FillBands;
+							Quad(Out.Shell, FMath::Lerp(Base(InnerSign)(T), Back(1.0)(T), L),
+								FMath::Lerp(Base(InnerSign)(T), Back(1.0)(T), R),
+								FMath::Lerp(Line(InnerSign, 0.0)(T), Back(0.0)(T), R),
+								FMath::Lerp(Line(InnerSign, 0.0)(T), Back(0.0)(T), L), EFacing::Both);
+						}
+					}
+				}
+				return Out;
 			}
 			Strip(Out.Shell, Line(-1.0, BridgeThickness), Line(1.0, BridgeThickness), Segments, EFacing::Down);
 			Strip(Out.Shell, Line(-1.0, BridgeThickness), Line(-1.0, 0.0), Segments, EFacing::Both);
 			Strip(Out.Shell, Line(1.0, BridgeThickness), Line(1.0, 0.0), Segments, EFacing::Both);
+			return Out;
+		}
+
+		/** 같은 높이의 통로 문을 맞추는 방사형 평면. 천장·바닥 높이를 절단 범위에 넣지 않는다. */
+		TArray<FPlane> PassageFootprint(const FBridgeRamp& Ramp, double Inset)
+		{
+			const FVector2D Along = FVector2D(Ramp.To - Ramp.From).GetSafeNormal(), Side(-Along.Y, Along.X);
+			const double Half = Ramp.Width * 0.5 - Inset;
+			TArray<FVector> Corners;
+			for (const auto& E : {TPair<FVector, double>(Ramp.From, -Half), {Ramp.To, -Half}, {Ramp.To, Half}, {Ramp.From, Half}})
+			{
+				const FVector2D Offset = Side * E.Value * Scale(E.Key.Z);
+				Corners.Add(Point(E.Key.X + Offset.X, E.Key.Y + Offset.Y, 0.0));
+			}
+			TArray<FPlane> Planes;
+			const FVector Center = Point((Ramp.From + Ramp.To) * 0.5);
+			for (int32 I = 0; I < 4; ++I)
+			{
+				FPlane Plane(FVector::ZeroVector, Corners[I], Corners[(I + 1) % 4]);
+				if (Plane.PlaneDot(Center) > 0.0) Plane = FPlane(-Plane.X, -Plane.Y, -Plane.Z, -Plane.W);
+				Planes.Add(Plane);
+			}
+			return Planes;
+		}
+
+		/** 통로 내부를 짧은 볼록 체적으로 잘라 기존 지각·공동·암반을 열고 닫힌 벽을 덧댄다. */
+		FPart BuildPassage(const FPassage& Passage, TConstArrayView<FPassage> AllPassages, FLNPFixtureMesh& Crust, TArray<FPart>& Existing, int32& OutCut,
+			TArray<TPair<FString, TArray<FPlane>>>& PassageCuts)
+		{
+			const FBridgeRamp& Ramp = Passage.Ramp;
+			FPart Out = BuildBridge(Ramp);
+			FLNPFixtureMesh JunctionRoof;
+			const bool bJunction = Ramp.Id.StartsWith(TEXT("SecretJunction"));
+			const FVector2D Along = FVector2D(Ramp.To - Ramp.From).GetSafeNormal();
+			const FVector2D Side(-Along.Y, Along.X);
+			const int32 Steps = FMath::Max(1, FMath::CeilToInt(FVector2D(Ramp.To - Ramp.From).Length() / 200.0));
+			auto Corners = [&](const FVector& A, const FVector& B, double Left, double Right, double Bottom, double Top)
+			{
+				TArray<FVector> P;
+				for (double H : {Bottom, Top})
+				{
+					for (const auto& E : {TPair<FVector, double>(A, Left), {A, Right}, {B, Right}, {B, Left}})
+					{
+						const FVector2D Offset = Side * E.Value * Scale(E.Key.Z);
+						P.Add(Point(E.Key.X + Offset.X, E.Key.Y + Offset.Y, E.Key.Z + H));
+					}
+				}
+				return P;
+			};
+			const int32 Faces[6][4] = {{0, 1, 2, 3}, {4, 5, 6, 7}, {0, 1, 5, 4}, {1, 2, 6, 5}, {2, 3, 7, 6}, {3, 0, 4, 7}};
+			auto CenterOf = [](const TArray<FVector>& P)
+			{
+				FVector Center = FVector::ZeroVector;
+				for (const FVector& V : P) Center += V;
+				return Center / P.Num();
+			};
+			auto Solid = [&](const TArray<FVector>& P, bool bRoof = false)
+			{
+				FLNPFixtureMesh& Mesh = bJunction && bRoof ? JunctionRoof : Out.Shell;
+				const FVector Center = CenterOf(P);
+				for (const auto& Face : Faces)
+				{
+					const FVector Normal = (P[Face[0]] + P[Face[1]] + P[Face[2]] + P[Face[3]]) * 0.25 - Center;
+					Mesh.AddQuad(P[Face[0]], P[Face[1]], P[Face[2]], P[Face[3]], Normal, false);
+				}
+			};
+			for (int32 Step = 0; Step < Steps; ++Step)
+			{
+				const FVector A = FMath::Lerp(Ramp.From, Ramp.To, double(Step) / Steps);
+				const FVector B = FMath::Lerp(Ramp.From, Ramp.To, double(Step + 1) / Steps);
+				// 분할 경계를 조금 겹쳐 곡률 때문에 기존 암반이 얇게 남지 않게 한다.
+				const FVector Extension(Along * 10.0, 0.0);
+				const TArray<FVector> P = Corners(A - Extension, B + Extension, -Ramp.Width * 0.5 - 10.0,
+					Ramp.Width * 0.5 + 10.0, -10.0, Passage.Height + 10.0);
+				const FVector Center = CenterOf(P);
+				TArray<FPlane> Planes;
+				for (const auto& Face : Faces)
+				{
+					FPlane Plane(P[Face[0]], P[Face[1]], P[Face[2]]);
+					if (Plane.PlaneDot(Center) > 0.0) Plane = FPlane(-Plane.X, -Plane.Y, -Plane.Z, -Plane.W);
+					Planes.Add(Plane);
+				}
+				// 다른 통로의 천장·바닥을 함께 지우면 절단면을 마감하지 않은 추락 틈이 생긴다.
+				// 접합 절단은 내부 공간만 열고 같은 높이의 천장과 바닥 두께는 보존한다.
+				const TArray<FVector> JoinCorners = Corners(A - Extension, B + Extension, -Ramp.Width * 0.5 - 10.0,
+					Ramp.Width * 0.5 + 10.0, -BridgeThickness - 10.0, Passage.Height - 1.0);
+				const FVector JoinCenter = CenterOf(JoinCorners);
+				TArray<FPlane> JoinPlanes;
+				for (const auto& Face : Faces)
+				{
+					FPlane Plane(JoinCorners[Face[0]], JoinCorners[Face[1]], JoinCorners[Face[2]]);
+					if (Plane.PlaneDot(JoinCenter) > 0.0) Plane = FPlane(-Plane.X, -Plane.Y, -Plane.Z, -Plane.W);
+					JoinPlanes.Add(Plane);
+				}
+				PassageCuts.Emplace(Ramp.Id, JoinPlanes);
+				OutCut += Crust.RemoveInsideConvex(Planes);
+				for (FPart& Part : Existing)
+				{
+					const bool bSameSecret = Ramp.Id.StartsWith(TEXT("Secret")) && Part.Id.StartsWith(TEXT("Secret"))
+						&& Part.Id != TEXT("SecretMountainEntry");
+					// 같은 뒷길의 층계참·경사 바닥은 보존하고 맞닿는 벽만 연다.
+					if (!bSameSecret && Part.Id != Ramp.Id + TEXT("Lip"))
+						Part.Floor.RemoveInsideConvex(Planes);
+					if (!bSameSecret)
+						Part.Shell.RemoveInsideConvex(Planes);
+				}
+				Solid(Corners(A, B, -Ramp.Width * 0.5 - WallThickness, -Ramp.Width * 0.5, -BridgeThickness, Passage.Height + WallThickness));
+				Solid(Corners(A, B, Ramp.Width * 0.5, Ramp.Width * 0.5 + WallThickness, -BridgeThickness, Passage.Height + WallThickness));
+				Solid(Corners(A, B, -Ramp.Width * 0.5, Ramp.Width * 0.5, Passage.Height, Passage.Height + WallThickness), true);
+			}
+			if (Passage.bClosedEnd)
+			{
+				const FVector Extension(Along * WallThickness, 0.0);
+				Solid(Corners(Ramp.To, Ramp.To + Extension, -Ramp.Width * 0.5 - WallThickness,
+					Ramp.Width * 0.5 + WallThickness, -BridgeThickness, Passage.Height + WallThickness));
+			}
+			if (Passage.bClosedStart)
+			{
+				const FVector Extension(Along * WallThickness, 0.0);
+				Solid(Corners(Ramp.From - Extension, Ramp.From, -Ramp.Width * 0.5 - WallThickness,
+					Ramp.Width * 0.5 + WallThickness, -BridgeThickness, Passage.Height + WallThickness));
+			}
+			// 회전 공간의 벽에 문만 열고 통로 외피는 방 안에서 끝낸다. 경사와 층계참은 공유 단면으로 맞닿는다.
+			// 큰 절단 체적을 서로 적용하면 인접 구간의 벽·천장을 깎아 외부로 열린 틈이 생긴다.
+			for (const FPassage& Other : AllPassages)
+			{
+				if (!(bJunction && Other.Ramp.Id.StartsWith(TEXT("SecretLanding"))) &&
+					!(Ramp.Id.StartsWith(TEXT("SecretLanding")) && Other.Ramp.Id.StartsWith(TEXT("SecretJunction")))) continue;
+				const FBridgeRamp& Room = bJunction ? Ramp : Other.Ramp;
+				const FBridgeRamp& Hall = bJunction ? Other.Ramp : Ramp;
+				const FVector Center = (Room.From + Room.To) * 0.5;
+				if (FVector::Distance(Hall.From, Center) > 1.0 && FVector::Distance(Hall.To, Center) > 1.0) continue;
+				Out.Shell.RemoveInsideConvex(PassageFootprint(bJunction ? Hall : Room, 2.0));
+			}
+			const int32 RoofBase = Out.Shell.Positions.Num();
+			Out.Shell.Positions.Append(JunctionRoof.Positions);
+			for (const FIntVector& Tri : JunctionRoof.Triangles)
+				Out.Shell.Triangles.Add(Tri + FIntVector(RoofBase));
+			for (int32 Edge = 0; Edge + 1 < Passage.MouthEdge.Num(); ++Edge)
+			{
+				const FVector2D A = Passage.MouthEdge[Edge], B = Passage.MouthEdge[Edge + 1];
+				FPlane Outside(FVector::ZeroVector, Point(A.X, A.Y, 0.0), Point(B.X, B.Y, 0.0));
+				if (Outside.PlaneDot(Point(Ramp.To)) < 0.0) Outside = FPlane(-Outside.X, -Outside.Y, -Outside.Z, -Outside.W);
+				const TArray<FPlane> Clip = {Outside};
+				Out.Floor.RemoveInsideConvex(Clip);
+				Out.Shell.RemoveInsideConvex(Clip);
+			}
 			return Out;
 		}
 
@@ -1545,7 +2281,7 @@ namespace LNPSliceOctant
 				Dish.bCoarse = true;
 				const double EndDeg = Spire.ThetaAtZero + 360.0 * Spire.TopH / TurnRise;
 				const double SlotSpan = 360.0 * 600.0 / TurnRise;
-				const double SpiralOuterR = Spire.CoreRadius + Spire.SpiralWidth;
+				const double SpiralOuterR = Spire.CoreRadius + Spire.SpiralGap + Spire.SpiralWidth;
 				constexpr int32 DishSides = 72;
 				const int32 DishRings = FMath::CeilToInt(Spire.DishRadius / 200.0);
 				for (int32 Ring = 0; Ring < DishRings; ++Ring)
@@ -1596,7 +2332,8 @@ namespace LNPSliceOctant
 			TArray<double> Cuts = {Spire.BottomH};
 			Cuts.Append(Spire.SplitH);
 			Cuts.Add(Spire.TopH);
-			const double Outer = Spire.CoreRadius + Spire.SpiralWidth;
+			const double Inner = Spire.CoreRadius + Spire.SpiralGap;
+			const double Outer = Inner + Spire.SpiralWidth;
 			for (int32 C = 0; C + 1 < Cuts.Num(); ++C)
 			{
 				FPart Part;
@@ -1613,11 +2350,15 @@ namespace LNPSliceOctant
 				};
 				for (int32 Band = 0; Band < 3; ++Band)
 				{
-					const double R0 = FMath::Lerp(Spire.CoreRadius, Outer, Band / 3.0), R1 = FMath::Lerp(Spire.CoreRadius, Outer, (Band + 1) / 3.0);
+					const double R0 = FMath::Lerp(Inner, Outer, Band / 3.0), R1 = FMath::Lerp(Inner, Outer, (Band + 1) / 3.0);
 					Strip(Part.Floor, Edge(R0, 0.0), Edge(R1, 0.0), Segments, EFacing::Up);
 					Strip(Part.Shell, Edge(R0, BridgeThickness), Edge(R1, BridgeThickness), Segments, EFacing::Down);
 				}
 				Strip(Part.Shell, Edge(Outer, BridgeThickness), Edge(Outer, 0.0), Segments, EFacing::Both);
+				if (Spire.SpiralGap > 0.0)
+				{
+					Strip(Part.Shell, Edge(Inner, 0.0), Edge(Inner, BridgeThickness), Segments, EFacing::Both);
+				}
 				Parts.Add(MoveTemp(Part));
 			}
 			return Parts;
@@ -1632,6 +2373,64 @@ namespace LNPSliceOctant
 				Normal = -Normal;
 			}
 			return FPlane(Normal, 0.0);
+		}
+
+		/** 같은 방사형 둘레 평면으로 지각·메사·천장 입구를 자른다. */
+		TArray<FPlane> CaveMouthPlanes(const FCaveMouth& Mouth)
+		{
+			TArray<FPlane> Planes;
+			const FVector Inside = RadialUnnormalized(Mouth.X, Mouth.Y);
+			for (int32 Side = 0; Side < 48; ++Side)
+			{
+				const FVector2D A = FVector2D(Mouth.X, Mouth.Y) + Polar(Mouth.RadiusArc, 360.0 * Side / 48.0);
+				const FVector2D B = FVector2D(Mouth.X, Mouth.Y) + Polar(Mouth.RadiusArc, 360.0 * (Side + 1) / 48.0);
+				Planes.Add(CenterPlane(RadialUnnormalized(A.X, A.Y), RadialUnnormalized(B.X, B.Y), Inside));
+			}
+			return Planes;
+		}
+
+		/** 구면 바닥·두께 있는 천장·외벽을 만들고, 두 수직 입구로 공동과 지표를 잇는다. */
+		FPart BuildCavern(const FCavern& Cavern, FLNPFixtureMesh& Crust, int32& OutCut)
+		{
+			FPart Out = BuildCliff(Cavern.FloorSlab);
+			Out.bCoarse = true;
+			FCliff Roof = Cavern.FloorSlab;
+			Roof.BottomH = Cavern.CeilingH;
+			Roof.TopH = Cavern.CeilingH + WallThickness;
+			FPart Ceiling = BuildCliff(Roof);
+			for (const FCaveMouth& Mouth : Cavern.Mouths)
+			{
+				const TArray<FPlane> Planes = CaveMouthPlanes(Mouth);
+				OutCut += Crust.RemoveInsideConvex(Planes);
+				Ceiling.Floor.RemoveInsideConvex(Planes);
+				Ceiling.Shell.RemoveInsideConvex(Planes);
+				// 입구 턱은 표면보다 1cm 아래에 닫아 50cm짜리 돌출 테두리를 만들지 않는다.
+				Cylinder(Out.Shell, Mouth.X, Mouth.Y, Mouth.RadiusArc, Cavern.CeilingH - 1.0, Mouth.TopH - 1.0, 48, -1, true);
+			}
+			auto AppendShell = [&](const FLNPFixtureMesh& Mesh)
+			{
+				const int32 Base = Out.Shell.Positions.Num();
+				Out.Shell.Positions.Append(Mesh.Positions);
+				for (const FIntVector& Triangle : Mesh.Triangles)
+				{
+					Out.Shell.Triangles.Emplace(Triangle.X + Base, Triangle.Y + Base, Triangle.Z + Base);
+				}
+			};
+			AppendShell(Ceiling.Floor);
+			AppendShell(Ceiling.Shell);
+			const TArray<FVector2D>& Outline = Cavern.FloorSlab.Outline;
+			for (int32 Edge = 0; Edge < Outline.Num(); ++Edge)
+			{
+				const FVector2D A = Outline[Edge], B = Outline[(Edge + 1) % Outline.Num()];
+				int32 Segments = 1;
+				while (FVector2D::Distance(A, B) / Segments > 300.0) Segments *= 2;
+				for (int32 Segment = 0; Segment < Segments; ++Segment)
+				{
+					Wall(Out.Shell, FMath::Lerp(A, B, double(Segment) / Segments), FMath::Lerp(A, B, double(Segment + 1) / Segments),
+						Cavern.FloorSlab.BottomH, Roof.TopH, -1);
+				}
+			}
+			return Out;
 		}
 
 		/**
@@ -1688,7 +2487,7 @@ namespace LNPSliceOctant
 		}
 
 		/** /Game/Maps/<Name>/Authored의 StaticMesh를 접미사 규약으로 원점에 배치한다. 규약 밖 이름은 오류로 보고만 한다. */
-		int32 PlaceAuthoredMeshes(UWorld& World, const FString& Folder, int32& OutErrors)
+		int32 PlaceAuthoredMeshes(UWorld& World, const FString& Folder, int32& OutErrors, const TCHAR* Prefix = nullptr)
 		{
 			IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
 			Registry.ScanPathsSynchronous({Folder}, true);
@@ -1699,6 +2498,7 @@ namespace LNPSliceOctant
 			int32 Placed = 0;
 			for (const FAssetData& Asset : Assets)
 			{
+				if (Prefix && !Asset.AssetName.ToString().StartsWith(Prefix)) continue;
 				UStaticMesh* Mesh = Cast<UStaticMesh>(Asset.GetAsset());
 				if (!Mesh)
 				{
@@ -1802,7 +2602,9 @@ namespace LNPSliceOctant
 			}
 
 			// 다리 기울기와 다리 끝.
-			for (const FBridgeRamp& Bridge : Spec.Bridges)
+			TArray<FBridgeRamp> Walkways = Spec.Bridges;
+			for (const FPassage& Passage : Spec.Passages) Walkways.Add(Passage.Ramp);
+			for (const FBridgeRamp& Bridge : Walkways)
 			{
 				const double Horizontal = FVector2D::Distance(FVector2D(Bridge.From), FVector2D(Bridge.To)) / Scale((Bridge.From.Z + Bridge.To.Z) * 0.5);
 				const double Slope = FMath::RadiansToDegrees(FMath::Atan2(FMath::Abs(Bridge.To.Z - Bridge.From.Z), Horizontal));
@@ -1885,6 +2687,20 @@ namespace LNPSliceOctant
 						const FVector2D At = Other.bAnnulus ? Circle.Center : (Circle.Center + Other.Center) * 0.5;
 						Warn(TEXT("Clearance"), FString::Printf(TEXT("%s and %s are %.0fcm apart vertically (min %.0f)"), *VA.Id, *VB.Id, Gap,
 							DesignRules::MinHeadroom), FVector(At, FMath::Min(VA.Top, VB.Top)));
+					}
+				}
+			}
+
+			// 절벽의 외곽은 이음매 전이 띠 밖에 둔다. 밑면은 협곡 최저 바닥보다 낮아 지각과 틈이 없다.
+			for (const FCliff& Cliff : Spec.Cliffs)
+			{
+				for (const FVector2D& Vertex : Cliff.Outline)
+				{
+					const FVector World = Point(Vertex.X, Vertex.Y, 0.0);
+					if (FMath::Min3(World.X, World.Y, World.Z) < Spec.SeamMargin + Spec.SeamBand)
+					{
+						Warn(TEXT("SeamBand"), FString::Printf(TEXT("%s cliff footprint enters the seam transition band"), *Cliff.Id), FVector(Vertex, 0.0));
+						break;
 					}
 				}
 			}
@@ -1981,14 +2797,19 @@ namespace LNPSliceOctant
 				++Report.ReviewPoints;
 			}
 			UClass* AnchorClass = LoadClass<AActor>(nullptr, TEXT("/Game/WorldDevice/BP_GrappleAnchor.BP_GrappleAnchor_C"));
+			UClass* PanelClass = FCString::Strcmp(Spec.Name, TEXT("Hollow_00")) == 0
+				? LoadClass<ALNPMovingPanel>(nullptr, TEXT("/Game/Maps/Hollow_00/BP_HollowMovingPanel.BP_HollowMovingPanel_C"))
+				: ALNPMovingPanel::StaticClass();
 			for (int32 Index = 0; Index < Spec.Anchors.Num(); ++Index)
 			{
 				const FAnchor& Anchor = Spec.Anchors[Index];
 				ALNPPlacementMarker* Marker = World.SpawnActor<ALNPPlacementMarker>(Point(Anchor.X, Anchor.Y, Anchor.H), Rotation(Anchor.X, Anchor.Y).Rotator());
-				Marker->SetActorLabel(FString::Printf(TEXT("Anchor_%03d"), Index));
+				Marker->SetActorLabel(Anchor.Id ? FString::Printf(TEXT("Anchor_%s"), Anchor.Id) : FString::Printf(TEXT("Anchor_%03d"), Index));
 				Marker->MarkerId = FGuid(Spec.GuidTag, 1, 0, Index + 1);
 				Marker->ElementClass = AnchorClass;
 				Marker->GrappleMaxDistance = Anchor.MaxDistance;
+				if (FCString::Strcmp(Spec.Name, TEXT("Hollow_00")) == 0)
+					Marker->Tags.Add(TEXT("LNP.Grapple.AuthoredOnly"));
 				++Report.Anchors;
 			}
 			for (int32 Index = 0; Index < Spec.Panels.Num(); ++Index)
@@ -1999,7 +2820,7 @@ namespace LNPSliceOctant
 				ALNPPlacementMarker* Marker = World.SpawnActor<ALNPPlacementMarker>(MarkerTransform.GetLocation(), MarkerTransform.Rotator());
 				Marker->SetActorLabel(FString::Printf(TEXT("Panel_%02d"), Index));
 				Marker->MarkerId = FGuid(Spec.GuidTag, 2, 0, Index + 1);
-				Marker->ElementClass = ALNPMovingPanel::StaticClass();
+				Marker->ElementClass = PanelClass;
 				Marker->PathSpeed = Panel.Speed;
 				Marker->PathEndHoldSeconds = Panel.HoldSeconds;
 				Marker->Path->ClearSplinePoints(false);
@@ -2016,6 +2837,7 @@ namespace LNPSliceOctant
 				ALNPMassSpawnPoint* SpawnPoint = World.SpawnActor<ALNPMassSpawnPoint>(Point(Spawn.X, Spawn.Y, Spawn.H), Rotation(Spawn.X, Spawn.Y).Rotator());
 				SpawnPoint->SetActorLabel(FString::Printf(TEXT("Spawn_%02d"), Index));
 				SpawnPoint->SpawnPointId = FGuid(Spec.GuidTag, 3, 0, Index + 1);
+				SpawnPoint->EnemyFormations = Spawn.EnemyFormations;
 				++Report.Spawns;
 			}
 			for (int32 Index = 0; Index < Spec.Blocks.Num(); ++Index)
@@ -2085,6 +2907,25 @@ namespace LNPSliceOctant
 
 			const FString Folder = FString::Printf(TEXT("/Game/Maps/%s"), Spec->Name);
 			const FString LevelPackageName = FString::Printf(TEXT("%s/LVI_Octant_%s"), *Folder, Spec->Name);
+			if (OctantName == TEXT("Hollow_00"))
+			{
+				if (!LoadClass<ALNPMovingPanel>(nullptr, TEXT("/Game/Maps/Hollow_00/BP_HollowMovingPanel.BP_HollowMovingPanel_C")))
+				{
+					UE_LOG(LogLNPSliceOctant, Error, TEXT("[SliceOctant] Hollow moving panel class is missing; no assets changed"));
+					return;
+				}
+				for (const TCHAR* Role : {TEXT("Coarse0_Coarse"), TEXT("Coarse1_Coarse"), TEXT("Coarse2_Coarse"),
+					TEXT("Floor0_Floor"), TEXT("Floor1_Floor"), TEXT("Floor2_Floor"), TEXT("Floor3_Floor"), TEXT("Shell")})
+				{
+					const FString Path = Folder + TEXT("/Authored/") + HollowGeometryPrefix + Role;
+					UStaticMesh* Authored = LoadObject<UStaticMesh>(nullptr, *Path);
+					if (!Authored || !Authored->GetBodySetup() || Authored->GetBodySetup()->CollisionTraceFlag != CTF_UseComplexAsSimple)
+					{
+						UE_LOG(LogLNPSliceOctant, Error, TEXT("[SliceOctant] Whole-terrain replacement requires complex-as-simple %s; no assets changed"), *Path);
+						return;
+					}
+				}
+			}
 			UStaticMesh* Source = LoadObject<UStaticMesh>(nullptr, SeamSourceMesh);
 			UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 			FLNPFixtureMesh Crust;
@@ -2095,6 +2936,9 @@ namespace LNPSliceOctant
 				return;
 			}
 			FCrustReport CrustReport = DeriveCrust(Crust, *Spec);
+			if (FCString::Strcmp(Spec->Name, TEXT("Hollow_00")) == 0)
+				UE_LOG(LogLNPSliceOctant, Display, TEXT("[SliceOctant] Sealed %d inherited interior crust boundaries"),
+					SealInteriorCrustBoundaries(Crust, Spec->SeamMargin + Spec->SeamBand));
 			GZeroThicknessWalls = 0;
 
 			// 지각을 자르는 구조물을 먼저 만든다.
@@ -2102,6 +2946,10 @@ namespace LNPSliceOctant
 			for (const FAbyss& Abyss : Spec->Abysses)
 			{
 				Parts.Add(BuildAbyss(Abyss, Crust, CrustReport.Cut));
+			}
+			for (const FCavern& Cavern : Spec->Caverns)
+			{
+				Parts.Add(BuildCavern(Cavern, Crust, CrustReport.Cut));
 			}
 			for (const FSpire& Spire : Spec->Spires)
 			{
@@ -2117,13 +2965,60 @@ namespace LNPSliceOctant
 			}
 			for (const FIsland& Island : Spec->Islands)
 			{
-				Parts.Add(BuildIsland(Island));
+				Parts.Add(OctantName == TEXT("Hollow_00") ? BuildHollowIsland(Island) : BuildIsland(Island));
+			}
+			for (const FCliff& Cliff : Spec->Cliffs)
+			{
+				FPart Part = BuildCliff(Cliff);
+				for (const FCavern& Cavern : Spec->Caverns)
+				{
+					for (const FCaveMouth& Mouth : Cavern.Mouths)
+					{
+						if (Cliff.Id == Mouth.SurfacePartId)
+						{
+							const TArray<FPlane> Planes = CaveMouthPlanes(Mouth);
+							Part.Floor.RemoveInsideConvex(Planes);
+							Part.Shell.RemoveInsideConvex(Planes);
+						}
+					}
+				}
+				Parts.Add(MoveTemp(Part));
 			}
 			for (const FBridgeRamp& Bridge : Spec->Bridges)
 			{
 				Parts.Add(BuildBridge(Bridge));
 			}
+			// 통로끼리 만나는 지점의 벽도 잘라 열린 접합을 만든다. 바닥은 같은 높이로 맞춘다.
+			TArray<TPair<FString, TArray<FPlane>>> PassageCuts;
+			const int32 FirstPassage = Parts.Num();
+			for (const FPassage& Passage : Spec->Passages)
+			{
+				FPart Part = BuildPassage(Passage, Spec->Passages, Crust, Parts, CrustReport.Cut, PassageCuts);
+				Parts.Add(MoveTemp(Part));
+			}
+			// 뒤에 생성한 통로의 새 측벽도 앞 구간을 가릴 수 있어 교차부를 양방향으로 연다.
+			for (int32 Index = FirstPassage; Index < Parts.Num(); ++Index)
+			{
+				for (const auto& Cut : PassageCuts)
+				{
+					if (Parts[Index].Id != Cut.Key && !(Parts[Index].Id.StartsWith(TEXT("Secret")) && Cut.Key.StartsWith(TEXT("Secret"))))
+						Parts[Index].Shell.RemoveInsideConvex(Cut.Value);
+				}
+			}
 
+			if (OctantName == TEXT("Hollow_00"))
+			{
+				// 모든 램프를 감싸는 Blender 소유 영역 바깥의 2% 띠는 지각 아래로 매입된다.
+				const FVector2D Boundary[] = {{-15500.0,-15500.0}, {6000.0,-15500.0}, {15500.0,-8500.0},
+					{15500.0,8500.0}, {6000.0,15500.0}, {-15500.0,15500.0}};
+				TArray<FPlane> Region;
+				for (int32 I = 0; I < UE_ARRAY_COUNT(Boundary); ++I)
+				{
+					const FVector2D A = Boundary[I]*0.98, B = Boundary[(I+1)%UE_ARRAY_COUNT(Boundary)]*0.98;
+					Region.Add(CenterPlane(RadialUnnormalized(A.X,A.Y), RadialUnnormalized(B.X,B.Y), Center().Radial));
+				}
+				CrustReport.Cut += Crust.RemoveInsideConvex(Region);
+			}
 			UStaticMesh* CrustMesh = LNPFixtureMesh::WriteStaticMesh(Folder, FString::Printf(TEXT("SM_Octant_%s_R30000"), Spec->Name), Crust);
 			if (!CrustMesh)
 			{
@@ -2160,7 +3055,20 @@ namespace LNPSliceOctant
 			PlaceMarkers(*World, *Spec, *Cube, Markers);
 
 			int32 AuthoredErrors = 0;
-			const int32 Authored = PlaceAuthoredMeshes(*World, Folder + TEXT("/Authored"), AuthoredErrors);
+			const int32 Authored = PlaceAuthoredMeshes(*World, Folder + TEXT("/Authored"), AuthoredErrors,
+				OctantName == TEXT("Hollow_00") ? HollowGeometryPrefix : nullptr);
+			// Hollow의 단순 사암 층무늬는 재생성 후에도 유지한다. 조명 구슬·마커의 머티리얼은 건드리지 않는다.
+			if (OctantName == TEXT("Hollow_00"))
+			{
+				if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Maps/Hollow_00/M_Hollow_Strata.M_Hollow_Strata")))
+				{
+					for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+					{
+						UStaticMeshComponent* Component = It->GetStaticMeshComponent();
+						if (Component->ComponentHasTag(StaticTag)) Component->SetMaterial(0, Material);
+					}
+				}
+			}
 
 			const bool bSaved = bExisting
 				? LNPFixtureMesh::SavePackage(*World->GetOutermost(), *World, FPackageName::GetMapPackageExtension())
@@ -2174,11 +3082,11 @@ namespace LNPSliceOctant
 			}
 			UE_LOG(LogLNPSliceOctant, Display,
 				TEXT("[SliceOctant] %s %s | crust tris=%d degenerateDropped=%d moved=%d kept=%d radius=[%.0f, %.0f] maxShift=%.0f cut=%d | ")
-				TEXT("parts=%d partActors=%d partTris=%d buildings=%d bridges=%d islands=%d anchors=%d panels=%d spawns=%d blocks=%d lamps=%d reviewPoints=%d ")
+				TEXT("parts=%d partActors=%d partTris=%d buildings=%d bridges=%d islands=%d cliffs=%d anchors=%d panels=%d spawns=%d blocks=%d lamps=%d reviewPoints=%d ")
 				TEXT("authored=%d authoredErrors=%d | lint=%d"),
 				*LevelPackageName, bSaved ? TEXT("saved") : TEXT("FAILED to save"), Crust.Triangles.Num(), Degenerate, CrustReport.Moved, CrustReport.Kept,
 				CrustReport.MinRadius, CrustReport.MaxRadius, CrustReport.MaxShift, CrustReport.Cut,
-				Parts.Num(), PartActors, PartTriangles, Spec->Buildings.Num(), Spec->Bridges.Num(), Spec->Islands.Num(),
+				Parts.Num(), PartActors, PartTriangles, Spec->Buildings.Num(), Spec->Bridges.Num(), Spec->Islands.Num(), Spec->Cliffs.Num(),
 				Markers.Anchors, Markers.Panels, Markers.Spawns, Markers.Blocks, Markers.Lamps, Markers.ReviewPoints, Authored, AuthoredErrors, Lint);
 		}
 

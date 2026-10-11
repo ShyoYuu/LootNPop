@@ -17,6 +17,9 @@ struct FLNPMassSpawnEnemyPlanInput
 	int32 RequestedCount = 0;
 	int32 AssetIndex = INDEX_NONE;
 	float RequiredHeadroom = 0.0f;
+	FName ConfigPath;
+	FVector2D Offset = FVector2D::ZeroVector;
+	float FormationRadius = 0.0f;
 };
 
 struct FLNPMassSpawnSetPlanInput
@@ -27,6 +30,7 @@ struct FLNPMassSpawnSetPlanInput
 	TArray<FLNPMassSpawnEnemyPlanInput> Enemies;
 	/** 편성된 비행 적의 필요 headroom 최댓값. 비행 없는 세트는 0이다. */
 	float RequiredHeadroom = 0.0f;
+	float AuthoredEnemyCountScale = 1.0f;
 };
 
 struct FLNPMassSpawnPlannedEnemyGroup
@@ -43,6 +47,7 @@ struct FLNPMassSpawnPlannedPod
 	FLNPSurfaceHandle Surface;
 	ELNPPodPlacementSource PlacementSource = ELNPPodPlacementSource::RandomCandidate;
 	TArray<FLNPMassSpawnPlannedEnemyGroup> Enemies;
+	TArray<FLNPMassSpawnEnemyPlanInput> AuthoredEnemies;
 };
 
 struct FLNPMassSpawnSetStats
