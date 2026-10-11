@@ -25,6 +25,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_State_Guarding,    "LNP.State.Guarding")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_ParryWindow, "LNP.State.ParryWindow")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_Staggered,   "LNP.State.Staggered")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_Reloading,   "LNP.State.Reloading")
+UE_DEFINE_GAMEPLAY_TAG(TAG_State_FlameFiring, "LNP.State.FlameFiring")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_Block_AttackInput, "LNP.Block.AttackInput")
 UE_DEFINE_GAMEPLAY_TAG(TAG_State_ComboWindow, "LNP.State.ComboWindow")

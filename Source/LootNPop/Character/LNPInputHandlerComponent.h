@@ -299,6 +299,17 @@ private:
 	bool bIsAttackBuffered = false;
 	float AttackBufferTime = -1.0f;
 
+	/** 충전형 탄창이 바닥나 발동이 실패했다 — 공격 입력을 뗄 때까지 발동을 시도하지 않는다.
+	 *  회복은 누르고 있어도 진행되므로, 잠그지 않으면 한 칸 찰 때마다 분사가 끊겼다 켜진다.
+	 *  해제는 TickComponent가 LastAttackTriggeredFrame으로 판정한다. */
+	bool bAttackLockedUntilRelease = false;
+
+	/** 공격 입력 Triggered가 마지막으로 들어온 프레임 (GFrameCounter). */
+	uint64 LastAttackTriggeredFrame = 0;
+
+	/** 장착 무기가 충전형 탄창이고 1발 미만으로 바닥났는가. */
+	bool IsRegeneratingMagazineDepleted() const;
+
 	/** RequestGrapple 참조. 대시와 달리 창이 열린 동안 **누른 순간의** 앵커 ID를 그대로 유지한다. */
 	bool bIsGrappleBuffered = false;
 	int32 BufferedGrappleAnchorID = INDEX_NONE;

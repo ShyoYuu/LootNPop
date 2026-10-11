@@ -32,6 +32,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_Guarding)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_ParryWindow)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_Staggered)   // 경직 중 — 이동·공격 입력을 막고 재경직을 차단한다 (GA_Stagger가 소유)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_Reloading)   // 재장전 중 — 기본 공격 발동을 막는다 (GA_Reload가 소유)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_State_FlameFiring) // 화염 분사 중 — 충전형 탄창 회복을 막는다 (ULNPGameplayEffect_FlameFiring이 부여)
 
 // 공격 입력 제어 태그
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Block_AttackInput)

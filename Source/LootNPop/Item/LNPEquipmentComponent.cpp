@@ -10,6 +10,7 @@
 #include "GAS/Abilities/LNPGameplayAbility.h"
 #include "GAS/LNPStatModifier.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
+#include "GAS/Effects/LNPGameplayEffect_MagazineRegen.h"
 #include "Player/LNPPlayerState.h"
 #include "Config/LNPSettings.h"
 #include "LootNPop.h"
@@ -242,6 +243,25 @@ void ULNPEquipmentComponent::ApplyMagazineAttributes()
 	// 크기를 먼저 — MagazineAmmo 현재값 클램프가 MagazineSize를 상한으로 본다.
 	ASC->SetNumericAttributeBase(ULNPBaseAttributeSet::GetMagazineSizeAttribute(), Size);
 	ASC->SetNumericAttributeBase(ULNPBaseAttributeSet::GetMagazineAmmoAttribute(), FMath::Clamp(Size - Spent, 0, Size));
+
+	// 충전형 탄창 회복 — 무기마다 회복량이 다르므로 교체 때마다 걷어내고 새 무기 기준으로 다시 건다.
+	if (MagazineRegenHandle.IsValid())
+	{
+		ASC->RemoveActiveGameplayEffect(MagazineRegenHandle);
+		MagazineRegenHandle.Invalidate();
+	}
+
+	const ULNPWeaponData* WeaponDef = WeaponSlot.IsValid() ? WeaponSlot.Definition.Get() : nullptr;
+	if (Size > 0 && WeaponDef && WeaponDef->bRegeneratingMagazine && WeaponDef->MagazineRegenPerSecond > 0.f)
+	{
+		FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(ULNPGameplayEffect_MagazineRegen::StaticClass(), 1.0f, ASC->MakeEffectContext());
+		if (Spec.IsValid())
+		{
+			Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_MagazineRegen,
+				WeaponDef->MagazineRegenPerSecond * ULNPGameplayEffect_MagazineRegen::RegenPeriod);
+			MagazineRegenHandle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+		}
+	}
 }
 
 void ULNPEquipmentComponent::OnRep_WeaponSlot()

@@ -19,7 +19,8 @@ namespace
 		// CanActivateAbility는 CDO에서도 불리므로 CurrentActorInfo가 아니라 인수에서 읽는다.
 		const ALNPCharacterBase* Ch = ActorInfo ? Cast<ALNPCharacterBase>(ActorInfo->AvatarActor.Get()) : nullptr;
 		const ULNPWeaponData* WeaponDef = Ch ? Ch->GetActiveWeaponDef() : nullptr;
-		return (WeaponDef && WeaponDef->MagazineSize > 0) ? WeaponDef : nullptr;
+		// 충전형 탄창(화염방사기)은 재장전하지 않는다 — 쏘지 않는 동안 스스로 차오른다.
+		return (WeaponDef && WeaponDef->UsesReload()) ? WeaponDef : nullptr;
 	}
 }
 

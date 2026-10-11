@@ -23,6 +23,7 @@
 #include "AbilitySystemInterface.h"
 #include "AbilitySystemComponent.h"
 #include "LNPGameplayTags.h"
+#include "GAS/Attributes/LNPBaseAttributeSet.h"
 
 #include "MassAgentComponent.h"
 #include "MassEntitySubsystem.h"
@@ -212,6 +213,12 @@ void ULNPInputHandlerComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		bIsGrappleBuffered = false;
 		BufferedGrappleAnchorID = INDEX_NONE;
 	}
+
+	// 충전형 탄창 바닥 잠금은 Triggered가 끊긴 프레임에 푼다. Completed(OnAttackReleased)는 누르고 있는
+	// 동안에도 매 프레임 Triggered와 함께 들어와(2026-10-11 실측) "뗐다"의 신호로 쓸 수 없다.
+	// 입력 처리와 컴포넌트 틱의 선후가 프레임마다 같다는 보장이 없어 한 프레임 여유를 둔다.
+	if (bAttackLockedUntilRelease && GFrameCounter - LastAttackTriggeredFrame > 1)
+		bAttackLockedUntilRelease = false;
 
 	if (bIsAttackBuffered)
 	{
@@ -718,6 +725,10 @@ void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value
 
 	bIsAttackJustPressed = !bIsAttackPressed;
 	bIsAttackPressed = true;
+	LastAttackTriggeredFrame = GFrameCounter;
+
+	if (bAttackLockedUntilRelease)
+		return;
 
 	const bool bIsFreeAim = IsFreeAimMode();
 	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
@@ -731,6 +742,13 @@ void ULNPInputHandlerComponent::OnAttackTriggered(const FInputActionValue& Value
 		// 탭 입력 시 쿨다운이 0.05f 이내에 끝나는 경우를 위해 버퍼 적용.
 		if (!Character->TryActivateAttack())
 		{
+			// 충전형 탄창이 바닥났으면 버퍼 대신 잠근다 — 다시 쏘려면 입력을 뗐다 눌러야 한다.
+			if (IsRegeneratingMagazineDepleted())
+			{
+				bAttackLockedUntilRelease = true;
+				return;
+			}
+
 			bIsAttackBuffered = true;
 			AttackBufferTime = GetWorld()->GetTimeSeconds();
 		}
@@ -741,6 +759,16 @@ void ULNPInputHandlerComponent::OnAttackReleased(const FInputActionValue& Value)
 {
 	bIsAttackPressed = false;
 	bIsAttackJustPressed = false;
+}
+
+bool ULNPInputHandlerComponent::IsRegeneratingMagazineDepleted() const
+{
+	const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner());
+	const ULNPWeaponData* WeaponDef = Character ? Character->GetActiveWeaponDef() : nullptr;
+	if (!WeaponDef || !WeaponDef->bRegeneratingMagazine || WeaponDef->MagazineSize <= 0 || !ASC)
+		return false;
+
+	return ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMagazineAmmoAttribute()) < 1.f;
 }
 
 void ULNPInputHandlerComponent::OnReloadStarted(const FInputActionValue& Value)
@@ -952,6 +980,7 @@ void ULNPInputHandlerComponent::OnActiveSkillStarted(const FInputActionValue& Va
 	// SlotIndex 1 = TestWeaponList[1] (예: Rifle)
 	// SlotIndex 2 = TestWeaponList[2] (예: Launcher)
 	// SlotIndex 3 = TestWeaponList[3] (예: LongSword)
+	// SlotIndex 4 = TestWeaponList[4] (예: Flamethrower)
 	// 슬롯이 TestWeaponList 범위 밖이면 맨손으로 전환
 	if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwner()))
 	{

@@ -91,6 +91,28 @@ public:
 		return ReloadTime / FMath::Max(0.01f, AttackSpeed);
 	}
 
+	/**
+	 * 충전형 탄창 — 재장전 대신 쏘지 않는 동안 스스로 차오른다 (화염방사기).
+	 * 바닥나면 공격 입력을 뗐다가 다시 눌러야 이어서 쏠 수 있다 (ULNPInputHandlerComponent).
+	 * 재장전 어빌리티와 빈 탄창 자동 재장전은 이 무기를 건너뛴다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (EditCondition = "MagazineSize > 0"))
+	bool bRegeneratingMagazine = false;
+
+	/** 충전형 탄창의 초당 회복량. ULNPGameplayEffect_MagazineRegen이 주기마다 나눠 더한다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0", EditCondition = "bRegeneratingMagazine"))
+	float MagazineRegenPerSecond = 20.f;
+
+	/** 마지막 발사 후 회복이 시작되기까지의 지연 (초). 연사 간격보다 길어야 쏘는 도중에 차오르지 않는다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon", meta = (ClampMin = "0.05", EditCondition = "bRegeneratingMagazine"))
+	float MagazineRegenDelay = 0.3f;
+
+	/** 탄창이 있고 재장전으로 채우는 무기인가. 충전형은 제외된다. */
+	bool UsesReload() const
+	{
+		return MagazineSize > 0 && !bRegeneratingMagazine;
+	}
+
 	/** 최대 콤보 연결 횟수. 콤보 인덱스는 이 값을 초과하면 처음(Attack_1)으로 순환한다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon|Combo", meta = (ClampMin = "1"))
 	int32 MaxComboCount = 5;

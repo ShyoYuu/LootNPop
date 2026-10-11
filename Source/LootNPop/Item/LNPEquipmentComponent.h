@@ -138,6 +138,9 @@ private:
 	 */
 	void ApplyMagazineAttributes();
 
+	/** 충전형 탄창 회복 GE 핸들. ApplyMagazineAttributes가 무기 교체마다 걷어내고 필요하면 다시 건다. */
+	FActiveGameplayEffectHandle MagazineRegenHandle;
+
 	/** 슬롯 변경 후처리 — 서버의 직접 적용과 클라이언트의 OnRep이 공유하는 유일한 경로. */
 	void OnWeaponSlotApplied();
 

@@ -25,6 +25,7 @@ UGameplayAbility
         │     │   ComputeDamage / ApplyCooldown·CheckCooldown(무기별) / CheckCost·ApplyCost(탄창)
         │     │   KnockbackStrength·PoiseDamage·ParryRadius 프로퍼티
         │     ├── ULNPAbility_RangedAttack        ← Mass 발사체 스폰 후 즉시 종료
+        │     ├── ULNPAbility_FlameAttack         ← 화염방사기. 발동 1회 = 분사 틱 1회, 즉시 종료 (§5.6)
         │     │     └── ULNPAbility_RangedSpreadAttack   ← 육각 링 산탄 (기본 19발)
         │     └── ULNPAbility_MeleeAttack         ← Chooser 몽타주 + 콤보 섹션 + 타겟 보정, 몽타주 종료까지 유지
         ├── ULNPAbility_Reload         ← 탄창 재장전 (폰 DefaultAbilities, §5.5)
@@ -47,7 +48,7 @@ UGameplayAbility
 | AttackSpeed / MoveSpeed / LootSpeed | 1 / 1 / 1 | 배율 — ≥ 0.01 클램프 |
 | DefensePower | **10** | `LNPDamage::ApplyDefense`. ≥ 0 클램프 |
 | PoiseResistance | **150** | 경직력 감쇠(§2.5). ≥ 0 클램프. 적은 `ULNPEnemyConfig::PoiseResistance`(기본 20)가 정한다 |
-| MagazineAmmo / MagazineSize | 0 / 0 | **스탯이 아니라 상태** — 장착 무기 탄창 잔량·크기(§5.5). 메타 테이블·스탯 탭·버프 비대상. `MagazineAmmo`는 `[0, MagazineSize]` 클램프 |
+| MagazineAmmo / MagazineSize | 0 / 0 | **스탯이 아니라 상태** — 장착 무기 탄창 잔량·크기(§5.5). 메타 테이블·스탯 탭·버프 비대상. `MagazineAmmo`는 현재값·**기초값 모두** `[0, MagazineSize]` 클램프(기초값은 충전형 회복용, §5.6) |
 | IncomingDamage | 0 | **Meta** — 복제 안 함. `PostGameplayEffectExecute`에서 방어력 적용 후 Health에 반영하고 즉시 0 |
 
 감쇠식은 `GAS/LNPDamageFormula.h`에 둘: `LNPDamage::ApplyDefense`, `LNPPoise::ApplyResistance` — 둘 다 `× 100 / (100 + X)`.
@@ -294,7 +295,7 @@ AttackAction 입력 (ULNPInputHandlerComponent) — 실패 시 0.05초 버퍼로
       ├─ Block.AttackInput → false
       └─ 평상시 → ResetCombo(인덱스가 바뀔 때만 서버 동기화, 발동 RPC보다 앞) → TryActivateAttack_Impl()
           └─ ALNPPlayerCharacter::TryActivateAttack_Impl
-               ├─ 탄창 무기 + MagazineAmmo < 1 → TryReload() 후 false (자동 재장전)
+               ├─ 탄창 무기 + MagazineAmmo < 1 → TryReload() 후 false (자동 재장전, 충전형은 재장전 없이 false)
                ├─ 핸들: 서버는 WeaponSlot.GrantedAbilities[0], 클라는 복제 스펙을 클래스로 탐색
                └─ 입력 스냅샷 캡처 → ASC->TriggerAbilityFromGameplayEvent(Handle, GameplayEvent.Attack.Activate, Payload)
                     FreeAim: FLNPFireAimTargetData(조준점·시선) / 그 외: FLNPMeleeAssistTargetData(보정 대상·락온·이동 입력)
@@ -402,6 +403,33 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 - `LNP.Item.AmmoSpent` 태그 스택. **남은 수가 아니라 쓴 수다** — 태그 스택은 0이면 엔트리가 사라져 "기록 없음"과 "0발"을 못 가르지만, 소모량은 부재 = 0 = 가득이라 신품이 저절로 가득 찬다.
 - 저장: `ClearWeaponSlot`(교체·해제·사망 드랍 공통). 복원: `ApplyMagazineAttributes`(크기를 먼저 쓴다 — 잔량 클램프 상한).
 - 드랍 왕복: `ALNPLootDice::AmmoSpent`(**비복제** — 서버 픽업만 읽는다) → `AddItemInstance(Def, Level, AmmoSpent)`. 레벨과 같은 이유로 **자동 장착보다 먼저** 기록한다.
+
+### 5.6 충전형 탄창 — 화염방사기 (2026-10-11, 구현 중)
+
+기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정·화상 DoT·VFX는 후속 단계다.
+
+#### 틱 = 발동 1회
+
+홀드 중 입력 핸들러는 이미 매 프레임 발동을 시도하고 쿨다운 GE가 간격을 정한다(라이플 연사). `FireCooldown = 0.1`이면 **발동 1회가 곧 분사 틱 1회**다. 수명이 홀드 전체인 어빌리티를 두지 않은 이유:
+
+- 틱마다 조준 스냅샷이 발동 요청에 실린다 — 홀드 중 조준을 InputCmd로 따로 보낼 필요가 없다(공격 입력 규약, [TechDesign_Networking.md](TechDesign_Networking.md)).
+- 게이지 소모가 기존 `AmmoCost`(예측 적용)로 끝난다. 입력을 떼면 발동이 멈추는 것이 곧 분사 종료다.
+
+#### 구성
+
+| 요소 | 내용 |
+|:---|:---|
+| `ULNPWeaponData::bRegeneratingMagazine` | 충전형 표시. `UsesReload()`가 이 무기를 재장전 대상에서 뺀다(재장전 어빌리티·자동 재장전) |
+| `MagazineRegenPerSecond` / `MagazineRegenDelay` | 초당 회복량(20) / 마지막 발사 후 회복 지연(0.3초) |
+| `ULNPGameplayEffect_FlameFiring` | HasDuration(= `MagazineRegenDelay`), 스택 1·적용 시 지속 갱신, 태그 `LNP.State.FlameFiring`. 어빌리티가 틱마다 서버에서 다시 건다 |
+| `ULNPGameplayEffect_MagazineRegen` | Infinite, Period 0.1, `MagazineAmmo` `AddBase` SetByCaller(`LNP.GE.Data.MagazineRegen` = 초당 회복 × 주기). `OngoingTagRequirements.IgnoreTags = State.FlameFiring` — 분사 중엔 억제 |
+| `ULNPEquipmentComponent::ApplyMagazineAttributes` | 장착·교체·해제마다 회복 GE를 걷어내고 충전형이면 새 무기 기준으로 다시 건다(서버) |
+| `ULNPInputHandlerComponent::bAttackLockedUntilRelease` | 충전형이 바닥나 발동이 실패하면 잠그고, 공격 입력을 떼면 푼다. 버퍼 재시도도 하지 않는다. ⚠️ 해제는 `Completed`(`OnAttackReleased`)가 아니라 **Triggered가 끊긴 프레임**으로 판정한다(`TickComponent`, `LastAttackTriggeredFrame`) — `IA_Attack`의 `Completed`는 누르고 있는 동안에도 매 프레임 Triggered와 함께 들어온다(2026-10-11 실측, 잠금이 같은 프레임에 풀려 0↔1 반복 분사) |
+
+- **분사 상태 GE는 서버에서만, 예측 키 없이 건다.** 스택 갱신형 GE의 예측 적용은 엔진 기본값(`AbilitySystem.AllowPredictiveStackingGEs=false`)이 막고, 이 태그를 읽는 회복도 서버에서만 돈다. 예측 키를 실어 서버에서 걸면 소유 클라가 복제본을 "자기가 예측한 것"으로 보고 큐 이벤트를 건너뛴다.
+- **기초값 클램프가 필요하다.** 주기 GE는 기초값을 계속 더하는데 `PreAttributeChange`는 현재값만 자른다. 기초값이 상한 위로 쌓이면 이후 발사 차감이 초과분부터 깎아 HUD 숫자가 멈춘 것처럼 보인다 → `PreAttributeBaseChange`에서도 자른다.
+- 회복은 서버 기초값 변경 → 어트리뷰트 복제로 소유 클라에 간다. 소유 클라의 발사 차감은 기존처럼 예측이다.
+- 회복량은 주기당 정수(20 × 0.1 = 2)로 맞춰 두었다. HUD 캐시가 반올림 정수라 소수 회복량이면 표시가 `CheckCost`(≥ 1)와 반 칸 어긋날 수 있다.
 
 ---
 

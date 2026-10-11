@@ -67,6 +67,16 @@ void ULNPBaseAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribut
 		NewValue = FMath::Clamp(NewValue, 0.0f, FMath::Max(0.0f, GetMagazineSize()));
 }
 
+void ULNPBaseAttributeSet::PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const
+{
+	Super::PreAttributeBaseChange(Attribute, NewValue);
+
+	// 충전형 탄창 회복(주기 GE)은 기초값을 계속 더한다. 현재값 클램프(PreAttributeChange)만으로는
+	// 기초값이 상한 위로 쌓여, 이후 발사 차감이 그 초과분부터 깎아 먹어 표시값이 멈춘다.
+	if (Attribute == GetMagazineAmmoAttribute())
+		NewValue = FMath::Clamp(NewValue, 0.0f, FMath::Max(0.0f, GetMagazineSize()));
+}
+
 void ULNPBaseAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue)
 {
 	Super::PostAttributeChange(Attribute, OldValue, NewValue);

@@ -634,10 +634,12 @@ bool ALNPPlayerCharacter::TryActivateAttack_Impl()
 		return false;
 
 	// 빈 탄창으로 쏘려 하면 자동 재장전한다. 발사 자체는 실패로 돌려 입력 버퍼 경로를 그대로 탄다.
+	// 충전형 탄창은 재장전 대신 실패만 돌려준다 — 입력 핸들러가 입력을 뗄 때까지 잠근다.
 	if (WeaponSlot.Definition->MagazineSize > 0
 		&& ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetMagazineAmmoAttribute()) < 1.f)
 	{
-		TryReload();
+		if (WeaponSlot.Definition->UsesReload())
+			TryReload();
 		return false;
 	}
 
