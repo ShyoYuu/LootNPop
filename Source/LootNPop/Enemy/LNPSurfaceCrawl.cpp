@@ -79,6 +79,130 @@ namespace LNPSurfaceCrawl
 			}
 			return Depenetrate(Collision, Params, From, OutLocation, Up, &bTouchedDynamic);
 		}
+
+		/** SteerDirection의 정규화 전 조향. 크기로 평형점(오르막과 내리막이 상쇄)을 알아본다. */
+		FVector SteerRaw(const FVector& Location, const FVector& Normal, const FVector& Goal, const FVector& GravityUp,
+			const float ReachDistance, const bool bSeekLineOfSight)
+		{
+			const FVector ToGoal = Goal - Location;
+			const double Along = FVector::DotProduct(ToGoal, Normal);
+			FVector Direction = FVector::VectorPlaneProject(ToGoal, Normal);
+			if (Along > ReachDistance)
+			{
+				Direction += FVector::VectorPlaneProject(bSeekLineOfSight ? GravityUp : -GravityUp, Normal) * Along;
+			}
+			return Direction;
+		}
+
+		/** 경사선 성분이 이보다 작으면 바닥·천장으로 본다(경사선이 퇴화). */
+		constexpr double MinSlopeSize = 0.3;
+
+		uint8 BranchBit(const EChaseBranch Branch, const int8 Side)
+		{
+			switch (Branch)
+			{
+			case EChaseBranch::Lateral: return Side > 0 ? 1 : 2;
+			case EChaseBranch::Down: return 4;
+			case EChaseBranch::Up: return 8;
+			default: return 0;
+			}
+		}
+
+		/** 지금 면에서 갈래 방향. 옆 갈래는 State.Side·BranchDir를 갱신한다. 방향을 정할 수 없으면 0. */
+		FVector BranchDirection(FChaseDetourState& State, const FVector& Normal, const FVector& GravityUp)
+		{
+			const FVector Slope = FVector::VectorPlaneProject(GravityUp, Normal);
+			const bool bWall = Slope.Size() >= MinSlopeSize;
+			FVector Direction = FVector::ZeroVector;
+			if (State.Branch == EChaseBranch::Lateral)
+			{
+				if (bWall)
+				{
+					// 등고선. 면이 바뀌어도 회전 방향을 잇는다 — 볼록 모서리에서는 법선이 연속으로 돌아 내적이 양수로 이어지고,
+					// 오목 모서리에서는 내적이 0 근처라 부호를 그대로 둔다(Cross(Normal, Up) 방향 규약이 같은 회전을 준다).
+					const FVector Contour = FVector::CrossProduct(Normal, GravityUp).GetSafeNormal();
+					const double Continuity = FVector::DotProduct(Contour, State.BranchDir);
+					if (FMath::Abs(Continuity) > 0.1)
+						State.Side = Continuity > 0.0 ? 1 : -1;
+					Direction = Contour * State.Side;
+				}
+				else
+				{
+					Direction = FVector::VectorPlaneProject(State.BranchDir, Normal).GetSafeNormal();
+				}
+			}
+			else if (State.Branch == EChaseBranch::Down || State.Branch == EChaseBranch::Up)
+			{
+				Direction = bWall ? (State.Branch == EChaseBranch::Up ? Slope : -Slope).GetSafeNormal()
+					: FVector::VectorPlaneProject(State.BranchDir, Normal).GetSafeNormal();
+			}
+			if (!Direction.IsNearlyZero())
+				State.BranchDir = Direction;
+			return Direction;
+		}
+
+		/**
+		 * 지금 자리에서 다음 갈래를 고른다. 순서는 치우친 쪽 옆 → 아래 → 반대쪽 옆 → 위(바닥·천장은 옆 둘). 이미 끝난 갈래와,
+		 * 일반 추격 방향이 뚜렷할 때 그와 같은 갈래는 뺀다. 고르면 true.
+		 */
+		bool SelectBranch(FChaseDetourState& State, const FChaseDetourParams& Params, const FVector& Location, const FVector& Normal,
+			const FVector& Goal, const FVector& GravityUp, const float ReachDistance, const int8 FallbackSide)
+		{
+			const FVector ToTargetPlane = FVector::VectorPlaneProject(Goal - Location, Normal);
+			const FVector Slope = FVector::VectorPlaneProject(GravityUp, Normal);
+			const bool bWall = Slope.Size() >= MinSlopeSize;
+			FVector Axis = bWall ? FVector::CrossProduct(Normal, GravityUp) : FVector::CrossProduct(Normal, ToTargetPlane);
+			if (Axis.IsNearlyZero())
+				Axis = FVector::CrossProduct(Normal, FMath::Abs(Normal.Z) < 0.9 ? FVector::UpVector : FVector::ForwardVector);
+			Axis = Axis.GetSafeNormal();
+			const bool bFirstSelection = State.AttemptSide == 0;
+			if (bFirstSelection)
+			{
+				const double Bias = FVector::DotProduct(ToTargetPlane.GetSafeNormal(), Axis);
+				State.AttemptSide = FMath::Abs(Bias) >= Params.BiasDot ? (Bias > 0.0 ? 1 : -1) : (FallbackSide >= 0 ? 1 : -1);
+			}
+			const int8 FirstSide = State.AttemptSide;
+
+			struct FCandidate { EChaseBranch Branch; int8 Side; FVector Direction; };
+			TArray<FCandidate, TInlineAllocator<4>> Candidates;
+			Candidates.Add({ EChaseBranch::Lateral, FirstSide, Axis * FirstSide });
+			if (bWall)
+				Candidates.Add({ EChaseBranch::Down, 0, -Slope.GetSafeNormal() });
+			Candidates.Add({ EChaseBranch::Lateral, static_cast<int8>(-FirstSide), Axis * -FirstSide });
+			if (bWall)
+				Candidates.Add({ EChaseBranch::Up, 0, Slope.GetSafeNormal() });
+
+			// 일반 추격이 갇힌 자리에서 이미 시도한 갈래는 시도 내내 뺀다. 갇힌 자리에서 한 번만 잰다 — 갈래를 따라 멀리 간 뒤에는
+			// 일반 추격 방향이 달라져 뜻이 없다. 평형점에서는 정규화 전 조향이 거의 0이라 그 방향을 기준으로 쓰지 않는다.
+			if (bFirstSelection)
+			{
+				const FVector Raw = SteerRaw(Location, Normal, Goal, GravityUp, ReachDistance, false);
+				if (Raw.Size() > 0.5 * ToTargetPlane.Size())
+				{
+					const FVector ChaseDir = Raw.GetSafeNormal();
+					for (const FCandidate& Candidate : Candidates)
+					{
+						if (FVector::DotProduct(Candidate.Direction, ChaseDir) > Params.ExcludeDot)
+							State.TriedMask |= BranchBit(Candidate.Branch, Candidate.Side);
+					}
+				}
+			}
+
+			for (const FCandidate& Candidate : Candidates)
+			{
+				if ((State.TriedMask & BranchBit(Candidate.Branch, Candidate.Side)) != 0)
+					continue;
+				State.Branch = Candidate.Branch;
+				State.Side = Candidate.Side != 0 ? Candidate.Side : State.Side;
+				State.BranchDir = Candidate.Direction;
+				State.BranchNormal = Normal;
+				State.BranchOrigin = Location;
+				State.LastLocation = Location;
+				State.BranchTravel = 0.f;
+				return true;
+			}
+			return false;
+		}
 	}
 
 	float GoalDistanceSq(const FVector& Location, const FVector& Normal, const FVector& Goal, const float BodyRadius)
@@ -92,14 +216,7 @@ namespace LNPSurfaceCrawl
 	FVector SteerDirection(const FVector& Location, const FVector& Normal, const FVector& Goal,
 		const FVector& GravityUp, const float ReachDistance, const bool bSeekLineOfSight)
 	{
-		const FVector ToGoal = Goal - Location;
-		const double Along = FVector::DotProduct(ToGoal, Normal);
-		FVector Direction = FVector::VectorPlaneProject(ToGoal, Normal);
-		if (Along > ReachDistance)
-		{
-			Direction += FVector::VectorPlaneProject(bSeekLineOfSight ? GravityUp : -GravityUp, Normal) * Along;
-		}
-		return Direction.GetSafeNormal();
+		return SteerRaw(Location, Normal, Goal, GravityUp, ReachDistance, bSeekLineOfSight).GetSafeNormal();
 	}
 
 	FVector UpdateDetour(FDetourState& State, const FDetourParams& Params, const FVector& Location, const FVector& Normal,
@@ -172,6 +289,140 @@ namespace LNPSurfaceCrawl
 		State.StallAnchor = FVector::ZeroVector;
 		State.StallTime = 0.f;
 		State.DetourTime = 0.f;
+	}
+
+	bool UpdateChaseProgress(FChaseProgressState& State, const FChaseProgressParams& Params, const float DistanceToTarget,
+		const FVector& TargetLocation, const float DeltaTime)
+	{
+		if (State.BestDistance <= 0.f
+			|| FVector::DistSquared(TargetLocation, State.TargetAnchor) > FMath::Square(Params.RetargetDistance)
+			|| DistanceToTarget < State.BestDistance - Params.ProgressMargin)
+		{
+			State.BestDistance = DistanceToTarget;
+			State.StallTime = 0.f;
+			State.TargetAnchor = TargetLocation;
+			return false;
+		}
+		State.StallTime += DeltaTime;
+		if (State.StallTime < Params.StallWindow)
+			return false;
+		ResetChaseProgress(State);
+		return true;
+	}
+
+	void ResetChaseProgress(FChaseProgressState& State)
+	{
+		State.BestDistance = 0.f;
+		State.StallTime = 0.f;
+		State.TargetAnchor = FVector::ZeroVector;
+	}
+
+	FVector UpdateChaseDetour(FChaseDetourState& State, const FChaseDetourParams& Params, const FVector& Location,
+		const FVector& Normal, const FVector& Goal, const FVector& GravityUp, const float ReachDistance, const int8 FallbackSide,
+		const float DeltaTime, EChaseDetourMode& OutMode)
+	{
+		const double RetargetSq = FMath::Square(Params.Progress.RetargetDistance);
+		// 대기: 내리막 없는 조향으로 지금 면에서 타겟의 수선 발 쪽(대개 윗면 가장자리)에 가서 선다.
+		const auto Wait = [&]()
+		{
+			OutMode = EChaseDetourMode::Wait;
+			const FVector Hold = FVector::VectorPlaneProject(Goal - Location, Normal);
+			return Hold.SizeSquared() <= FMath::Square(Params.BodyRadius) ? FVector::ZeroVector : Hold.GetSafeNormal();
+		};
+		const auto GiveUp = [&]()
+		{
+			ResetChaseDetour(State);
+			State.bWaiting = true;
+			State.WaitTargetAnchor = Goal;
+			return Wait();
+		};
+
+		if (State.bWaiting)
+		{
+			State.WaitTime += DeltaTime;
+			if (State.WaitTime < Params.GiveUpCooldown && FVector::DistSquared(Goal, State.WaitTargetAnchor) <= RetargetSq)
+				return Wait();
+			ResetChaseDetour(State);
+		}
+
+		const float Distance = FVector::Dist(Location, Goal);
+		if (State.bAttempt)
+		{
+			// 갇힌 거리보다 확실히 가까워졌으면 성공이다. 타겟이 크게 움직였으면 처음부터 다시 판단한다.
+			if (Distance < State.StuckDistance - Params.Progress.ProgressMargin
+				|| FVector::DistSquared(Goal, State.AttemptTargetAnchor) > RetargetSq)
+			{
+				ResetChaseDetour(State);
+			}
+			else
+			{
+				State.AttemptTime += DeltaTime;
+				if (State.AttemptTime >= Params.TotalBudget)
+					return GiveUp();
+			}
+		}
+
+		if (State.Branch != EChaseBranch::None)
+		{
+			State.BranchTravel += FVector::Dist(Location, State.LastLocation);
+			State.LastLocation = Location;
+			const bool bLeftOrigin = FVector::DistSquared(Location, State.BranchOrigin) > FMath::Square(Params.BodyRadius);
+			if (State.Branch != EChaseBranch::Lateral && bLeftOrigin && FVector::DotProduct(Normal, State.BranchNormal) < Params.NewSurfaceDot)
+			{
+				// 위·아래가 다른 면에 닿았다. 새 면에서는 일반 추격이 타겟 쪽으로 데려간다. 같은 갈래는 이번 시도에서 다시 쓰지 않는다.
+				State.TriedMask |= BranchBit(State.Branch, State.Side);
+				State.Branch = EChaseBranch::None;
+				ResetChaseProgress(State.Progress);
+			}
+			else if (State.BranchTravel >= Params.BranchBudget)
+			{
+				// 예산 안에 끝 조건을 못 채웠다. 갇힌 자리로 돌아가지 않고 지금 자리에서 다음 갈래를 시작한다.
+				State.TriedMask |= BranchBit(State.Branch, State.Side);
+				State.Branch = EChaseBranch::None;
+				if (!SelectBranch(State, Params, Location, Normal, Goal, GravityUp, ReachDistance, FallbackSide))
+					return GiveUp();
+			}
+		}
+		else if (UpdateChaseProgress(State.Progress, Params.Progress, Distance, Goal, DeltaTime))
+		{
+			if (!State.bAttempt)
+			{
+				State.bAttempt = true;
+				State.AttemptTime = 0.f;
+				State.StuckDistance = Distance;
+				State.AttemptTargetAnchor = Goal;
+				State.TriedMask = 0;
+			}
+			if (!SelectBranch(State, Params, Location, Normal, Goal, GravityUp, ReachDistance, FallbackSide))
+				return GiveUp();
+		}
+
+		if (State.Branch != EChaseBranch::None)
+		{
+			const FVector Direction = BranchDirection(State, Normal, GravityUp);
+			if (!Direction.IsNearlyZero())
+			{
+				OutMode = EChaseDetourMode::Branch;
+				return Direction;
+			}
+			// 방향을 정할 수 없는 면(바닥·천장에서 진행 방향이 법선과 나란함)이다. 실패로 기억하고 일반 추격으로 돌아간다.
+			State.TriedMask |= BranchBit(State.Branch, State.Side);
+			State.Branch = EChaseBranch::None;
+			ResetChaseProgress(State.Progress);
+		}
+		OutMode = EChaseDetourMode::Chase;
+		return SteerDirection(Location, Normal, Goal, GravityUp, ReachDistance);
+	}
+
+	void InterruptChaseDetour(FChaseDetourState& State)
+	{
+		State.Branch = EChaseBranch::None;
+		ResetChaseProgress(State.Progress);
+	}
+
+	void ResetChaseDetour(FChaseDetourState& State)
+	{
+		State = FChaseDetourState();
 	}
 
 	bool UpdateHomeApproach(FHomeApproachState& State, const FHomeApproachParams& Params, const float DistanceToHome, const float DeltaTime)

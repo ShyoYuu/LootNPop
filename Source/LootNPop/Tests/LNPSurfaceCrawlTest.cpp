@@ -49,6 +49,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSurfaceCrawlChaseProgressTest,
+	"LootNPop.SurfaceNavigation.SurfaceCrawl.ChaseProgress",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSurfaceCrawlChaseDetourTest,
+	"LootNPop.SurfaceNavigation.SurfaceCrawl.ChaseDetour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPSurfaceCrawlCreviceTest,
 	"LootNPop.SurfaceNavigation.SurfaceCrawl.CreviceContact",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -214,6 +224,80 @@ namespace
 			return false;
 		}
 		double MinZ = TNumericLimits<double>::Max();
+
+		/** 교전 추격 우회(UpdateChaseDetour) 상태와 관측값. */
+		FChaseDetourState ChaseDetour;
+		/** 시작한 갈래(옆 갈래는 부호, 위·아래는 0). */
+		TArray<TPair<EChaseBranch, int8>> BranchLog;
+		int32 GiveUps = 0;
+		int32 WaitEnds = 0;
+		double WaitMaxZ = TNumericLimits<double>::Lowest();
+
+		/**
+		 * 이동 프로세서의 사거리 밖 교전 추격처럼 움직인다(사거리 800·이동 속도 600 — Crawler01 값). 진행 기반 우회가 일반 추격일 때만,
+		 * 그리고 내리막이 켜지지 않았을 때만 위치 기준 우회를 덧붙인다. 사거리 안에 들면 true.
+		 */
+		bool ChaseTo(const FCrawlWorld& Fixture, const FVector& Target, const int8 FallbackSide, const float Seconds,
+			const float AttackRange = 800.f)
+		{
+			constexpr float ChaseSpeed = 600.f;
+			FChaseDetourParams Params;
+			Params.BodyRadius = CrawlTestRadius;
+			FDetourParams DetourParams;
+			DetourParams.StallRadius = CrawlTestRadius;
+			bool bWasWaiting = false;
+			FVector LastOrigin(TNumericLimits<double>::Max());
+			for (int32 Frame = 0; Frame * CrawlTestDeltaTime < Seconds; ++Frame)
+			{
+				FVector MoveDir = FVector::ZeroVector;
+				if (PhysVelocity.IsZero())
+				{
+					if (FVector::Dist(Location, Target) <= AttackRange)
+						return true;
+					const FVector GravityUp = (Fixture.FallParams.GravityOrigin - Location).GetSafeNormal();
+					EChaseDetourMode Mode;
+					MoveDir = UpdateChaseDetour(ChaseDetour, Params, Location, Normal, Target, GravityUp, AttackRange, FallbackSide,
+						CrawlTestDeltaTime, Mode);
+					if (Mode == EChaseDetourMode::Chase && FVector::DotProduct(Target - Location, Normal) <= AttackRange)
+					{
+						MoveDir = UpdateDetour(Detour, DetourParams, Location, Normal, MoveDir, Target - Location, GravityUp,
+							FVector::RightVector, FallbackSide, CrawlTestDeltaTime);
+					}
+					else
+					{
+						ResetDetour(Detour);
+					}
+					if (Mode == EChaseDetourMode::Branch && !ChaseDetour.BranchOrigin.Equals(LastOrigin))
+					{
+						LastOrigin = ChaseDetour.BranchOrigin;
+						BranchLog.Add({ ChaseDetour.Branch, ChaseDetour.Branch == EChaseBranch::Lateral ? ChaseDetour.Side : static_cast<int8>(0) });
+					}
+					const bool bWaiting = Mode == EChaseDetourMode::Wait;
+					GiveUps += bWaiting && !bWasWaiting ? 1 : 0;
+					WaitEnds += !bWaiting && bWasWaiting ? 1 : 0;
+					bWasWaiting = bWaiting;
+					if (bWaiting)
+						WaitMaxZ = FMath::Max(WaitMaxZ, Location.Z);
+				}
+				else
+				{
+					InterruptChaseDetour(ChaseDetour);
+				}
+				Tick(Fixture, MoveDir * ChaseSpeed);
+			}
+			return false;
+		}
+
+		FString DescribeBranches() const
+		{
+			FString Out;
+			for (const TPair<EChaseBranch, int8>& Entry : BranchLog)
+			{
+				Out += Entry.Key == EChaseBranch::Lateral ? (Entry.Value > 0 ? TEXT("L+ ") : TEXT("L- "))
+					: Entry.Key == EChaseBranch::Down ? TEXT("D ") : TEXT("U ");
+			}
+			return Out;
+		}
 
 		void Tick(const FCrawlWorld& Fixture, const FVector& Velocity)
 		{
@@ -574,6 +658,207 @@ bool FLNPSurfaceCrawlHomeApproachTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Failed pods are skipped"), SelectNearestPod(FVector::ZeroVector, Pods, TArray<bool>{ false, true, false }), 2);
 	TestEqual(TEXT("All pods failed leaves no candidate"),
 		SelectNearestPod(FVector::ZeroVector, Pods, TArray<bool>{ true, true, true }), static_cast<int32>(INDEX_NONE));
+	return true;
+}
+
+bool FLNPSurfaceCrawlChaseProgressTest::RunTest(const FString& Parameters)
+{
+	// 사거리 800(현재 Crawler01, Phase 14b는 이 짧은 사거리를 보수적 기준으로 검증한다)·이동 속도 600 기준이다.
+	FChaseProgressParams Params;
+	Params.ProgressMargin = 150.f;
+	Params.StallWindow = 3.f;
+	Params.RetargetDistance = 1000.f;
+	constexpr float Dt = 1.f / 60.f;
+
+	// 타겟까지 거리와 타겟 위치를 몇 초 동안 계측해 처음으로 갇힘이 난 시각(없으면 -1).
+	const auto Run = [&](const TFunctionRef<float(float)> DistanceAt, const TFunctionRef<FVector(float)> TargetAt, const float Seconds)
+	{
+		FChaseProgressState State;
+		for (int32 Frame = 0; Frame * Dt < Seconds; ++Frame)
+		{
+			if (UpdateChaseProgress(State, Params, DistanceAt(Frame * Dt), TargetAt(Frame * Dt), Dt))
+				return Frame * Dt;
+		}
+		return -1.f;
+	};
+	const auto Fixed = [](float) { return FVector(0, 0, 0); };
+	const auto InWindow = [&](const float Time, const float Expected)
+	{
+		return Time >= Expected - Dt && Time <= Expected + 2.f * Dt;
+	};
+
+	// 이동 속도로 다가가는 추격은 사거리(800)에 들 때까지 갇히지 않는다(호출자는 사거리 안에서 계측하지 않는다).
+	TestEqual(TEXT("Approaching chase never stalls"), Run([](float T) { return 3000.f - 600.f * T; }, Fixed, 3.6f), -1.f);
+	// 평형점 맴돌기: 타겟까지 √2 × 높이 차(약 1270, PIE 2026-10-10)에서 진폭 100으로 진동하면 StallWindow 뒤 갇힘이다.
+	const float CircleTime = Run([](float T) { return 1270.f + 100.f * FMath::Sin(T * 2.f); }, Fixed, 10.f);
+	TestTrue(FString::Printf(TEXT("Equilibrium circling stalls after window (%.2fs)"), CircleTime), InWindow(CircleTime, Params.StallWindow));
+	// 2초 다가간 뒤 멈추면 마지막 진전부터 StallWindow 뒤다.
+	const float LateTime = Run([](float T) { return 3000.f - 600.f * FMath::Min(T, 2.f); }, Fixed, 10.f);
+	TestTrue(FString::Printf(TEXT("Stall after progress counts from last progress (%.2fs)"), LateTime),
+		LateTime >= 2.f + Params.StallWindow - 0.3f && LateTime <= 2.f + Params.StallWindow + 2.f * Dt);
+	// 이동 속도로 달아나는 타겟은 거리가 줄지 않아도 RetargetDistance마다 다시 재므로 갇히지 않는다.
+	TestEqual(TEXT("Fleeing target never stalls"),
+		Run([](float) { return 1500.f; }, [](float T) { return FVector(600.f * T, 0, 0); }, 20.f), -1.f);
+	// 갇히기 직전 타겟이 크게 움직이면 기록을 버리고 그 순간부터 다시 잰다.
+	const float JumpTime = Run([](float) { return 1270.f; }, [](float T) { return T < 2.5f ? FVector::ZeroVector : FVector(1500, 0, 0); }, 10.f);
+	TestTrue(FString::Printf(TEXT("Target jump restarts measurement (%.2fs)"), JumpTime), InWindow(JumpTime, 2.5f + Params.StallWindow));
+
+	// 갇힘을 보고하면 계측을 새로 시작한다 — 계속 맴돌면 다음 창 끝에 다시 보고한다.
+	{
+		FChaseProgressState State;
+		int32 Reports = 0;
+		for (int32 Frame = 0; Frame * Dt < 2.f * Params.StallWindow + 0.5f; ++Frame)
+		{
+			Reports += UpdateChaseProgress(State, Params, 1270.f, FVector::ZeroVector, Dt) ? 1 : 0;
+		}
+		TestEqual(TEXT("Stall reports once per window"), Reports, 2);
+		ResetChaseProgress(State);
+		TestEqual(TEXT("Reset clears best distance"), State.BestDistance, 0.f);
+	}
+	return true;
+}
+
+bool FLNPSurfaceCrawlChaseDetourTest::RunTest(const FString& Parameters)
+{
+	// Phase 14b 단위 2. 사거리 800·이동 속도 600(Crawler01)이다 — 짧은 사거리가 사거리 밖 추격 구간이 길어 더 엄격하다(사용자 결정 2026-10-12).
+	constexpr float Dt = CrawlTestDeltaTime;
+	using FLog = TArray<TPair<EChaseBranch, int8>>;
+
+	// 1. 순수 갈래 순서(query 없음). 일반 추격 중에는 제자리(막힘)이고 갈래 방향으로만 움직이는 가상 개체로 고른 갈래를 본다.
+	{
+		const auto RunSynthetic = [&](const FVector& Normal, const FVector& Target, FLog& OutLog, int32& OutGiveUps)
+		{
+			FChaseDetourParams Params;
+			FChaseDetourState State;
+			FVector Location = FVector::ZeroVector;
+			FVector LastOrigin(TNumericLimits<double>::Max());
+			bool bWasWaiting = false;
+			for (int32 Frame = 0; Frame * Dt < 25.f; ++Frame)
+			{
+				EChaseDetourMode Mode;
+				const FVector Dir = UpdateChaseDetour(State, Params, Location, Normal, Target, FVector::UpVector, 800.f, 1, Dt, Mode);
+				if (Mode == EChaseDetourMode::Branch)
+				{
+					if (!State.BranchOrigin.Equals(LastOrigin))
+					{
+						LastOrigin = State.BranchOrigin;
+						OutLog.Add({ State.Branch, State.Branch == EChaseBranch::Lateral ? State.Side : static_cast<int8>(0) });
+					}
+					Location += Dir * 600.f * Dt;
+				}
+				OutGiveUps += Mode == EChaseDetourMode::Wait && !bWasWaiting ? 1 : 0;
+				bWasWaiting = Mode == EChaseDetourMode::Wait;
+			}
+		};
+		const auto Describe = [](const FLog& Log)
+		{
+			FString Out;
+			for (const TPair<EChaseBranch, int8>& Entry : Log)
+				Out += FString::Printf(TEXT("%d/%d "), static_cast<int32>(Entry.Key), Entry.Value);
+			return Out;
+		};
+		// 바닥: 옆 둘만 후보다. 둘 다 예산을 쓰면 포기한다.
+		{
+			FLog Log;
+			int32 GiveUps = 0;
+			RunSynthetic(FVector::UpVector, FVector(5000, 0, 2000), Log, GiveUps);
+			TestTrue(FString::Printf(TEXT("Floor tries exactly the two laterals (%s)"), *Describe(Log)), Log == FLog{ { EChaseBranch::Lateral, 1 }, { EChaseBranch::Lateral, -1 } });
+			TestEqual(TEXT("Floor gives up after both laterals"), GiveUps, 1);
+		}
+		// 벽 평형점(오르막과 내리막이 상쇄): 아무것도 빼지 않고 옆 → 아래 → 반대쪽 옆 순서다. 셋째가 예산(6.67초 × 3)을 다 쓸 때 전체 예산
+		// 20초도 끝난다 — 프레임 경계에 따라 위가 한 프레임 시작될 수 있어 앞 셋만 본다.
+		{
+			FLog Log;
+			int32 GiveUps = 0;
+			RunSynthetic(FVector::ForwardVector, FVector(1000, 0, 1000), Log, GiveUps);
+			TestTrue(FString::Printf(TEXT("Wall equilibrium order is lateral, down, other lateral (%s)"), *Describe(Log)),
+				Log.Num() >= 3 && FLog(Log.GetData(), 3) == FLog{ { EChaseBranch::Lateral, 1 }, { EChaseBranch::Down, 0 }, { EChaseBranch::Lateral, -1 } });
+			TestEqual(TEXT("Wall equilibrium gives up on the total budget"), GiveUps, 1);
+		}
+		// 벽, 일반 추격이 뚜렷하게 아래(타겟이 멀리 앞): 아래는 일반 추격이 이미 시도한 것이므로 뺀다.
+		{
+			FLog Log;
+			int32 GiveUps = 0;
+			RunSynthetic(FVector::ForwardVector, FVector(3000, 0, 500), Log, GiveUps);
+			TestTrue(FString::Printf(TEXT("Wall chase heading down skips the down branch (%s)"), *Describe(Log)),
+				Log == FLog{ { EChaseBranch::Lateral, 1 }, { EChaseBranch::Lateral, -1 }, { EChaseBranch::Up, 0 } });
+		}
+	}
+
+	// 2. 탑뷰 ㄷ자 절벽(바닥 top z=10). A x∈[-1500,-500]·B x∈[500,1500](y∈[-5000,1000], z∈[0,1500])가 폭 1000의 틈을 두고
+	//    마주 보고, C(y∈[1000,2000])가 +Y 쪽을 닫는다. 타겟은 B 윗면 가장자리. A의 틈 쪽 벽에서는 법선 거리 약 1060이 사거리를 넘어
+	//    내리막이 켜지고, 개체는 z≈530의 평형점(타겟까지 약 1500)에 멈춘다 — 2026-10-10 PIE와 같은 모양이다.
+	//    A 벽의 옆 + 부호는 Cross(+X, Up) = -Y(열린 쪽)다.
+	{
+		FCrawlWorld Fixture(TEXT("LNPSurfaceCrawlChaseDetourTest"));
+		if (!TestNotNull(TEXT("World collision subsystem exists"), Fixture.Collision))
+			return false;
+		Fixture.Box(FVector(0, 0, 0), FVector(200, 200, 0.2), TEXT("LNPStaticTerrain"));
+		Fixture.Box(FVector(-1000, -2000, 750), FVector(10, 60, 15), TEXT("LNPStaticBlocker"));
+		Fixture.Box(FVector(1000, -2000, 750), FVector(10, 60, 15), TEXT("LNPStaticBlocker"));
+		Fixture.Box(FVector(0, 1500, 750), FVector(30, 10, 15), TEXT("LNPStaticBlocker"));
+		Fixture.Publish();
+		const FVector Target(600, 0, 1590);
+		const FVector WallStart(-500.0 + CrawlTestRadius + Fixture.Params.SurfaceGap, 0, 1200);
+
+		// (a) 닫힌 쪽 옆(+Y)부터: 등고선이 C를 돌아 B 벽에서 갇힌 거리보다 가까워지면 이탈하고, B를 올라 사거리에 든다.
+		{
+			FCrawler Crawler;
+			Crawler.Location = WallStart;
+			Crawler.Normal = FVector::ForwardVector;
+			const bool bInRange = Crawler.ChaseTo(Fixture, Target, -1, 30.f);
+			TestTrue(TEXT("Closed-side contour reaches attack range"), bInRange);
+			TestTrue(FString::Printf(TEXT("Closed-side contour succeeds on its first branch (%s)"), *Crawler.DescribeBranches()),
+				Crawler.BranchLog.Num() == 1 && Crawler.BranchLog[0].Key == EChaseBranch::Lateral);
+			TestEqual(TEXT("Closed-side contour never penetrates"), Crawler.Penetrations, 0);
+			AddInfo(FString::Printf(TEXT("(a) branches=%s end=%s lost=%d"), *Crawler.DescribeBranches(), *Crawler.Location.ToString(), Crawler.Lost));
+		}
+
+		// (b) 열린 쪽 옆(-Y)부터: 예산(40m) 뒤 실패로 기억하고 그 자리에서 아래로 내려가, 바닥을 건너 B를 올라 사거리에 든다.
+		{
+			FCrawler Crawler;
+			Crawler.Location = WallStart;
+			Crawler.Normal = FVector::ForwardVector;
+			const bool bInRange = Crawler.ChaseTo(Fixture, Target, 1, 30.f);
+			TestTrue(TEXT("Open-side contour falls back and reaches attack range"), bInRange);
+			TestTrue(FString::Printf(TEXT("Open-side contour then down (%s)"), *Crawler.DescribeBranches()),
+				Crawler.BranchLog.Num() >= 2 && Crawler.BranchLog[0].Key == EChaseBranch::Lateral && Crawler.BranchLog[1].Key == EChaseBranch::Down);
+			TestEqual(TEXT("Open-side fallback never gives up"), Crawler.GiveUps, 0);
+			TestEqual(TEXT("Open-side fallback never penetrates"), Crawler.Penetrations, 0);
+			AddInfo(FString::Printf(TEXT("(b) branches=%s end=%s lost=%d"), *Crawler.DescribeBranches(), *Crawler.Location.ToString(), Crawler.Lost));
+		}
+
+		// (e) 트인 바닥의 직진 추격에는 우회가 끼어들지 않는다.
+		{
+			FCrawler Crawler;
+			Crawler.Location = FVector(-3000, -8000, 10.0 + CrawlTestRadius + Fixture.Params.SurfaceGap);
+			TestTrue(TEXT("Flat chase reaches attack range"), Crawler.ChaseTo(Fixture, FVector(3000, -8000, 100), 1, 15.f));
+			TestEqual(TEXT("Flat chase never branches"), Crawler.BranchLog.Num(), 0);
+		}
+	}
+
+	// 3. 바닥이 예산 밖인 깊은 틈(바닥 없음, 절벽 z∈[-6500,1500]). 옆·아래·반대쪽 옆이 모두 예산 안에 끝나지 않아 포기하고,
+	//    내리막 없는 조향으로 A 윗면 가장자리까지 올라가 기다린다. 사거리에는 들지 못한다.
+	{
+		FCrawlWorld Fixture(TEXT("LNPSurfaceCrawlChaseDetourDeepTest"));
+		if (!TestNotNull(TEXT("World collision subsystem exists"), Fixture.Collision))
+			return false;
+		Fixture.Box(FVector(-1000, 0, -2500), FVector(10, 100, 80), TEXT("LNPStaticBlocker"));
+		Fixture.Box(FVector(1000, 0, -2500), FVector(10, 100, 80), TEXT("LNPStaticBlocker"));
+		Fixture.Publish();
+
+		FCrawler Crawler;
+		Crawler.Location = FVector(-500.0 + CrawlTestRadius + Fixture.Params.SurfaceGap, 0, 1200);
+		Crawler.Normal = FVector::ForwardVector;
+		const bool bInRange = Crawler.ChaseTo(Fixture, FVector(600, 0, 1590), 1, 33.f);
+		TestFalse(TEXT("Deep gap is not reachable"), bInRange);
+		TestEqual(TEXT("Deep gap gives up once"), Crawler.GiveUps, 1);
+		TestTrue(FString::Printf(TEXT("Deep gap tries lateral then down (%s)"), *Crawler.DescribeBranches()),
+			Crawler.BranchLog.Num() >= 2 && Crawler.BranchLog[0].Key == EChaseBranch::Lateral && Crawler.BranchLog[1].Key == EChaseBranch::Down);
+		TestTrue(FString::Printf(TEXT("Waiting crawler climbs to the cliff edge (max z %.0f)"), Crawler.WaitMaxZ), Crawler.WaitMaxZ >= 1450.0);
+		TestEqual(TEXT("Deep gap never penetrates"), Crawler.Penetrations, 0);
+		AddInfo(FString::Printf(TEXT("(d) branches=%s end=%s lost=%d"), *Crawler.DescribeBranches(), *Crawler.Location.ToString(), Crawler.Lost));
+	}
 	return true;
 }
 

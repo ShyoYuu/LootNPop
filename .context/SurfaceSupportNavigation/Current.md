@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: 없음 — Phase 9 Vertical Slice 완료(2026-10-12). 다음 Phase는 사용자 확인 뒤 착수
+> 현재 Phase: 14b 벽보행 추격 우회([계획](phases/Phase14b_CrawlChaseDetour.md)) — 단위 1·2 완료, 단위 3 대기
 > 마지막 갱신: 2026-10-12
 
 ## 현재 결정
@@ -26,8 +26,10 @@
 
 ## 바로 다음 행동
 
-- **다음 Phase를 사용자와 정한다.** 본선은 Phase 10(대규모 추격 경로: flow field와 계층형 A* 비교, `Roadmap.md` §4)이다. 병렬 분기 Phase 14b(벽보행 사거리 밖 추격 우회, [계획](phases/Phase14b_CrawlChaseDetour.md))는 교전 거리를 늘린 플레이 테스트 뒤 범위를 다시 판단한다. 사거리가 늘면 14b가 푸는 평형점 맴돌기 사례가 줄어든다.
-- 선택한 Phase의 실행 문서는 착수 직전에 만들거나 구체화한다(README §8).
+- **Phase 14b 착수(2026-10-12, 사용자 결정).** 교전 거리는 이후 늘리지만 14b 검증은 현재 사거리 800을 보수적 기준으로 한다(짧은 사거리가 사거리 밖 추격 구간이 길어 더 엄격하다). 근거는 [계획](phases/Phase14b_CrawlChaseDetour.md) "검증 기준 사거리".
+- 단위 1(진행 계측)·단위 2(고정 방향 우회 `UpdateChaseDetour`, 자동화 `SurfaceCrawl.ChaseDetour`) 완료, 미커밋. 위치 기준 우회는 국소 장애물용으로 남겼다(계획 문서 "단위 2 구현 결과").
+- 사용자 진행 확인 뒤 **단위 3**: `ULNPEnemyCrawlMovementProcessor`에 연결한다. `FLNPEnemyCrawlFragment`에 `FChaseDetourState`를 추가하고, 공중이면 Interrupt, 사거리 안·비교전·사선 탐색이면 Reset을 부른다. 위치 기준 우회는 Chase 모드이면서 내리막이 꺼졌을 때만 덧붙인다. `CrawlEngageLog`에 모드·갈래·Side·StuckDistance·예산 잔여를 더한다. 레이아웃 변경이라 Build.bat 풀 빌드다. 그 뒤 2026-10-10 절벽과 ㄷ자 지형에서 사용자 PIE를 한다.
+- 본선 Phase 10(대규모 추격 경로)은 14b 뒤.
 
 ## 인계 근거
 

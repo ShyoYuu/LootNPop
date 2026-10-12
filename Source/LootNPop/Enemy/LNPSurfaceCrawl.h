@@ -123,6 +123,140 @@ namespace LNPSurfaceCrawl
 	/** 목표로 기어가지 않는 프레임(정지·공격·배회·공중)에 막힘 계측과 우회를 비운다. Side는 유지한다. */
 	LOOTNPOP_API void ResetDetour(FDetourState& State);
 
+	/** 교전 추격 진행 계측(Phase 14b 단위 1). 개체마다 하나이며 UpdateChaseProgress·ResetChaseProgress만 바꾼다. */
+	struct FChaseProgressState
+	{
+		/** 계측을 시작한 뒤 타겟까지 가장 가까웠던 직선거리(cm). 0이면 아직 재지 않았다. */
+		float BestDistance = 0.f;
+		/** BestDistance가 마지막으로 줄어든 뒤 지난 시간(초). */
+		float StallTime = 0.f;
+		/** 계측을 시작한 때의 타겟 위치. 타겟이 여기서 RetargetDistance 넘게 움직이면 다시 잰다. */
+		FVector TargetAnchor = FVector::ZeroVector;
+	};
+
+	struct FChaseProgressParams
+	{
+		/** 이만큼(cm) 이상 가까워져야 진전으로 본다. 몸 반지름 × 2를 쓴다 — 평형점 주변의 분리력·우회 흔들림을 진전으로 세지 않는다. */
+		float ProgressMargin = 150.f;
+		/** 진전 없이 이 시간(초)이 지나면 갇힘이다. */
+		float StallWindow = 3.f;
+		/** 타겟이 계측 시작 자리에서 이만큼(cm) 넘게 움직이면 기록을 버리고 다시 잰다 — 달아나는 타겟 추격은 갇힘이 아니다. */
+		float RetargetDistance = 1000.f;
+	};
+
+	/**
+	 * 교전 추격(사거리 밖, 사선 탐색·자리 지키기 아님) 중 표면에 붙어 있는 프레임마다 부른다. 위치가 아니라 타겟까지 직선거리의
+	 * 최솟값이 줄고 있는지로 잰다 — 평형점 맴돌기는 계속 조금씩 움직여 위치 기준 막힘(UpdateDetour)이 잘 서지 않는다(PIE 2026-10-10).
+	 * StallWindow 동안 BestDistance − ProgressMargin보다 가까워지지 않으면 true를 반환하고 계측을 새로 시작한다.
+	 * 갇힌 순간의 거리는 호출자가 이 프레임의 DistanceToTarget으로 남긴다. query는 쓰지 않는다.
+	 */
+	LOOTNPOP_API bool UpdateChaseProgress(FChaseProgressState& State, const FChaseProgressParams& Params, float DistanceToTarget,
+		const FVector& TargetLocation, float DeltaTime);
+
+	/** 계측하지 않는 프레임(사거리 안·비교전)에 비운다. */
+	LOOTNPOP_API void ResetChaseProgress(FChaseProgressState& State);
+
+	/** 고정 방향 우회의 갈래(Phase 14b 단위 2). 벽은 넷, 바닥·천장은 좌우 둘이다. */
+	enum class EChaseBranch : uint8
+	{
+		None,
+		/** 등고선(벽) 또는 타겟 방향에 수직인 옆(바닥·천장). 부호는 FChaseDetourState::Side. */
+		Lateral,
+		/** 경사선 아래. 다른 면(대개 바닥)에 닿으면 끝난다. */
+		Down,
+		/** 경사선 위. 다른 면(대개 윗면)에 올라서면 끝난다. */
+		Up,
+	};
+
+	enum class EChaseDetourMode : uint8
+	{
+		/** 일반 추격. 반환 방향은 SteerDirection과 같고, 호출자는 이때만 국소 장애물 우회(UpdateDetour)를 덧붙인다. */
+		Chase,
+		/** 갈래를 따라가는 중. */
+		Branch,
+		/** 포기 후 대기. 반환 방향은 내리막 없는 조향(가장자리로 올라가 선다)이며 도착하면 0이다. */
+		Wait,
+	};
+
+	/** 진행 기반 고정 방향 우회 상태. 개체마다 하나이며 UpdateChaseDetour·InterruptChaseDetour·ResetChaseDetour만 바꾼다. */
+	struct FChaseDetourState
+	{
+		/** 일반 추격 구간의 진행 계측. 갈래를 따라가는 동안은 재지 않는다. */
+		FChaseProgressState Progress;
+
+		/** 갇힘으로 시작한 시도가 진행 중인가. 성공(StuckDistance − ProgressMargin보다 가까워짐)·포기·타겟 큰 이동으로 끝난다. */
+		bool bAttempt = false;
+		/** 시도 시작 뒤 지난 시간(초). 갈래와 그 사이 일반 추격을 모두 센다. */
+		float AttemptTime = 0.f;
+		/** 처음 갇힌 순간 타겟까지 직선거리(cm). 등고선 갈래의 이탈 조건(Bug2의 leave)과 시도 성공 판정이 쓴다. */
+		float StuckDistance = 0.f;
+		FVector AttemptTargetAnchor = FVector::ZeroVector;
+		/** 이번 시도에서 끝난 갈래(비트: 옆+ 1, 옆− 2, 아래 4, 위 8). 다시 시도하지 않는다. */
+		uint8 TriedMask = 0;
+		/** 시도의 첫 옆 부호. 갈래 순서를 시도 시작 때 고정한다 — 첫 옆이 실패한 자리에서 다시 재면 반대쪽이 치우친 쪽이 되어 아래가 밀린다. */
+		int8 AttemptSide = 0;
+
+		EChaseBranch Branch = EChaseBranch::None;
+		/** 옆 갈래 부호(+1/−1). 벽에서는 Cross(Normal, GravityUp) 기준이며, 면이 바뀌어도 회전 방향이 유지된다. */
+		int8 Side = 0;
+		/** 마지막으로 쓴 갈래 방향(월드). 바닥·천장의 옆 갈래는 이 방향을 지금 면에 투영해 직진한다. */
+		FVector BranchDir = FVector::ZeroVector;
+		/** 갈래를 시작한 면의 법선과 위치. 위·아래 갈래는 시작 위치를 벗어난 뒤 다른 면으로 넘어가면 끝난다. */
+		FVector BranchNormal = FVector::ZeroVector;
+		FVector BranchOrigin = FVector::ZeroVector;
+		FVector LastLocation = FVector::ZeroVector;
+		/** 이번 갈래에서 이동한 거리(cm). */
+		float BranchTravel = 0.f;
+
+		/** 포기 후 대기 중인가. 타겟이 크게 움직이거나 GiveUpCooldown이 지나면 실패 기억을 비우고 다시 추격한다. */
+		bool bWaiting = false;
+		float WaitTime = 0.f;
+		FVector WaitTargetAnchor = FVector::ZeroVector;
+	};
+
+	struct FChaseDetourParams
+	{
+		FChaseProgressParams Progress;
+		/** 한 갈래의 이동 거리 예산(cm). */
+		float BranchBudget = 4000.f;
+		/** 시도 전체의 시간 예산(초). 넘으면 포기한다. 갈래별 시간 예산을 두면 네 갈래 포기까지 30초가 넘는다. */
+		float TotalBudget = 20.f;
+		/** 대기 뒤 다시 추격하기까지의 시간(초). */
+		float GiveUpCooldown = 10.f;
+		/** 위·아래 갈래가 시작 면 법선과의 내적이 이보다 작은 면에 오르면 끝난다(UpdateDetour와 같은 규칙). */
+		float NewSurfaceDot = 0.1f;
+		/** 몸 반지름(cm). 갈래 시작 위치 이탈 판정과 대기 도착 판정에 쓴다. */
+		float BodyRadius = 40.f;
+		/** 일반 추격 방향과 내적이 이보다 큰 갈래는 일반 추격이 이미 시도한 것이므로 뺀다. */
+		float ExcludeDot = 0.7f;
+		/** 타겟 방향과 옆 축의 내적이 이보다 작으면 치우침이 없는 것으로 보고 첫 옆 갈래를 엔티티 홀짝으로 정한다. */
+		float BiasDot = 0.2f;
+	};
+
+	/**
+	 * 진행 기반 고정 방향 우회(Phase 14b 단위 2, Bug 알고리즘의 표면판). 교전 추격(사거리 밖, 사선 탐색·자리 지키기 아님) 중
+	 * 표면에 붙어 있는 프레임마다 부른다. 반환값은 이번 프레임 이동 방향(단위 벡터 또는 0)이다.
+	 * - 일반 추격(SteerDirection, ReachDistance 그대로)을 하며 UpdateChaseProgress로 잰다. 갇히면 시도를 시작하고 갈래를 고른다.
+	 * - 갈래 순서: 타겟이 치우친 쪽 옆 → 아래 → 반대쪽 옆 → 위. 바닥·천장은 옆 둘만이다. 갇힌 자리에서 일반 추격 방향이 뚜렷하면 그와 같은 갈래는 시도 내내 뺀다
+	 *   (평형점에서는 오르막·내리막이 상쇄되어 방향이 뚜렷하지 않으므로 빼지 않는다).
+	 * - 갈래는 섞지 않고 한 방향으로 민다. 옆은 StuckDistance − ProgressMargin보다 가까워질 때까지, 위·아래는 다른 면으로 넘어갈 때까지다.
+	 *   한 갈래가 BranchBudget을 다 쓰면 실패로 기억하고 지금 자리에서 다음 갈래를 시작한다. 위·아래가 끝나면 일반 추격으로 돌아가 다시 잰다.
+	 * - 시도가 TotalBudget을 넘거나 후보가 없으면 포기하고 대기한다(Wait).
+	 * - 국소 장애물(돌출부 밑·판 밑면) 떨림은 위치 기준 우회(UpdateDetour)가 맡는다. 호출자는 OutMode가 Chase이고 타겟이 면 앞쪽으로
+	 *   ReachDistance 안일 때(내리막이 켜지지 않음)만 그것을 덧붙인다. 내리막이 켜진 구간의 막힘은 평형점이며, 2초 옆걸음은 평형선 위를
+	 *   오가게 할 뿐 아니라 갇힌 순간의 자리를 흔들어 갈래 순서를 우연에 맡긴다.
+	 * query는 쓰지 않는다. FallbackSide는 치우침이 없을 때 첫 옆 부호(엔티티 인덱스 홀짝 — 무리 절반씩 나뉜다).
+	 */
+	LOOTNPOP_API FVector UpdateChaseDetour(FChaseDetourState& State, const FChaseDetourParams& Params, const FVector& Location,
+		const FVector& Normal, const FVector& Goal, const FVector& GravityUp, float ReachDistance, int8 FallbackSide, float DeltaTime,
+		EChaseDetourMode& OutMode);
+
+	/** 넉백·표면 상실(공중) 프레임에 부른다. 지금 갈래를 끝내고(실패로 기억하지 않는다) 진행 계측을 비운다. 시도와 대기는 유지한다. */
+	LOOTNPOP_API void InterruptChaseDetour(FChaseDetourState& State);
+
+	/** 사거리 안·비교전 등 교전 추격이 아닌 프레임에 모두 비운다. */
+	LOOTNPOP_API void ResetChaseDetour(FChaseDetourState& State);
+
 	/** Home 접근 계측(Phase 14 단위 4d). 개체마다 하나(FLNPEnemyCrawlFragment)이며 UpdateHomeApproach·ResetHomeApproach만 바꾼다. */
 	struct FHomeApproachState
 	{
