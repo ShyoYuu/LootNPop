@@ -45,6 +45,26 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame", meta = (ClampMin = "0"))
 	float FarRadius = 480.f;
 
+	/** 적중 1회(틱)당 화상 1중첩이 걸릴 확률. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame|Burn", meta = (ClampMin = "0", ClampMax = "1"))
+	float BurnChance = 0.2f;
+
+	/** 화상 중첩 상한. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame|Burn", meta = (ClampMin = "0", ClampMax = "255"))
+	int32 MaxBurnStacks = 5;
+
+	/** 화상 지속시간 (초). 모든 중첩이 공유하며 걸릴 때마다 처음으로 돌아간다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame|Burn", meta = (ClampMin = "0"))
+	float BurnDuration = 3.f;
+
+	/** 화상 틱 간격 (초). */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame|Burn", meta = (ClampMin = "0.05"))
+	float BurnTickInterval = 0.5f;
+
+	/** 화상 1중첩·1틱의 피해 계수. BaseDamageCoefficient와 같은 축(AttackPower × 계수 × 무기 레벨 배율)이다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Flame|Burn", meta = (ClampMin = "0"))
+	float BurnDamageCoefficient = 0.3f;
+
 private:
 	/** 서버 전용 — 이번 틱의 원뿔 판정 엔티티를 만든다. */
 	void SpawnConeJudge(const FGameplayAbilityActivationInfo& ActivationInfo, const FGameplayEventData* TriggerEventData) const;

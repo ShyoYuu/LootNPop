@@ -350,6 +350,9 @@ struct LOOTNPOP_API FLNPReplicatedAgent : public FReplicatedAgentBase
 	void SetHealthPct(const uint8 InHealthPct) { HealthPct = InHealthPct; }
 	uint8 GetHealthPct() const { return HealthPct; }
 
+	void SetBurnStacks(const uint8 InBurnStacks) { BurnStacks = InBurnStacks; }
+	uint8 GetBurnStacks() const { return BurnStacks; }
+
 	ELNPEnemyAction GetAction() const { return static_cast<ELNPEnemyAction>(ActionAndSeq & ActionMask); }
 
 	/** 하위 5비트만 살아 넘어오므로 비교는 반드시 "같은가"로만 한다 — 대소 비교는 wrap에서 뒤집힌다. */
@@ -424,6 +427,18 @@ private:
 	 */
 	UPROPERTY(Transient)
 	uint8 HealthPct = MAX_uint8;
+
+	/**
+	 * 화상 중첩 수 (`FLNPBurnFragment::Stacks`). **걸리고 풀릴 때만 바뀌므로** 나머지 갱신에서는 델타 압축이
+	 * 1비트로 접는다 (`ActionAndSeq`와 같은 이유로 PositionYaw의 형제 멤버다).
+	 *
+	 * 이 필드가 없으면 게스트는 적이 불타는지 알 길이 없다 — 화상은 서버 전용 프래그먼트가 원본이고
+	 * 적 ASC에 GE로 걸지 않으므로(풀 반납 시 소실) 어트리뷰트·태그 복제도 타지 않는다.
+	 * 남은 시간·틱 피해는 싣지 않는다 — 게스트가 쓰는 것은 표현(중첩 수 비례 강도)뿐이다.
+	 * HP와 같은 주기 게이트를 따른다(우회 자격 없음).
+	 */
+	UPROPERTY(Transient)
+	uint8 BurnStacks = 0;
 };
 
 /** Fast Array 복제 항목. FLNPReplicatedAgent 멤버가 바뀌면 반드시 Dirty 표시할 것. */
@@ -539,6 +554,9 @@ protected:
 	 *    표시는 비율만 쓰므로 무해하다. 이 값을 데미지 판정에 쓰면 안 된다.
 	 */
 	static void ApplyReplicatedHealth(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent);
+
+	/** 수신한 화상 중첩 수를 서버와 같은 프래그먼트(FLNPBurnFragment::Stacks)에 되쓴다. 나머지 필드는 게스트에서 쓰지 않는다. */
+	static void ApplyReplicatedBurn(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent);
 
 	/** 스폰 쿼리 순회 동안만 유효한 Transform Fragment 뷰 (엔진 핸들러의 TransformList 대체). */
 	TArrayView<FTransformFragment> SpawnTransformList;

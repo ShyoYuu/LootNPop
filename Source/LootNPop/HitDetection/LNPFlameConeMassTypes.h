@@ -33,6 +33,13 @@ struct LOOTNPOP_API FLNPFlameConeFragment : public FMassFragment
 	float Damage      = 0.f;
 	float PoiseDamage = 0.f;
 
+	/** 화상 파라미터 — 어빌리티 소유값을 그대로 싣는다 (FLNPBurnFragment·LNPBurn::TryApply). */
+	float BurnChance         = 0.f;
+	uint8 MaxBurnStacks      = 0;
+	float BurnDuration       = 0.f;
+	float BurnTickInterval   = 0.f;
+	float BurnDamagePerStack = 0.f;
+
 	UPROPERTY()
 	UClass* DamageEffectClass = nullptr;   // TObjectPtr는 프래그먼트의 trivially copyable 요건을 깬다
 

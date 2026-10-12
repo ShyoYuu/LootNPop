@@ -3,6 +3,7 @@
 #include "Replication/LNPMassReplicator.h"
 #include "Replication/LNPMassReplication.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "GAS/LNPBurnTypes.h"
 #include "MassExecutionContext.h"
 #include "MassReplicationFragments.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
@@ -24,7 +25,8 @@ LNP::Replication::FEnemyReplicationStats LNP::Replication::GetEnemyReplicationSt
 
 bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTransform& Transform,
 	const FLNPEnemyFragment& Enemy, const FLNPEnemyActionFragment* Action,
-	const FLNPReplicatedWanderData& Segment, const double Time, const float UpdateInterval, const bool bReplicateWander, const bool bCrawl)
+	const FLNPReplicatedWanderData& Segment, const double Time, const float UpdateInterval, const bool bReplicateWander, const bool bCrawl,
+	const uint8 BurnStacks)
 {
 	const FLNPReplicatedWanderData Empty;
 	const FLNPReplicatedWanderData& Wander = bReplicateWander ? Segment : Empty;
@@ -35,6 +37,7 @@ bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTran
 	const bool bActionChanged = NewAction != Item.Agent.GetActionAndSeq() || NewPitch != Item.Agent.GetAimPitch();
 	const bool bHitChanged = NewHitStop != Item.Agent.GetHitStopSeq();
 	const bool bHealthChanged = NewHealth != Item.Agent.GetHealthPct();
+	const bool bBurnChanged = BurnStacks != Item.Agent.GetBurnStacks();
 	const bool bWanderChanged = Wander != Item.Agent.GetWander();
 	// 구간 시작·취소와 일회성 공격/피격은 즉시 보낸다. HP·Idle/Move는 기존 주기 게이트를 유지한다.
 	const bool bBypass = bWanderChanged || (Action && ((bActionChanged && FLNPEnemyActionFragment::IsOneShot(Action->Action)) || bHitChanged));
@@ -65,7 +68,7 @@ bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTran
 			bPoseChanged = true;
 		}
 	}
-	if (!bPoseChanged && !bActionChanged && !bHitChanged && !bHealthChanged && !bWanderChanged)
+	if (!bPoseChanged && !bActionChanged && !bHitChanged && !bHealthChanged && !bBurnChanged && !bWanderChanged)
 		return false;
 	if (bWanderChanged)
 		Item.Agent.SetWander(Wander);
@@ -78,6 +81,8 @@ bool LNP::Replication::UpdateEnemyAgent(FLNPMassFastArrayItem& Item, const FTran
 		Item.Agent.SetHitStopSeq(NewHitStop);
 	if (bHealthChanged)
 		Item.Agent.SetHealthPct(NewHealth);
+	if (bBurnChanged)
+		Item.Agent.SetBurnStacks(BurnStacks);
 	Item.LastDirtyTime = Time;
 	if (LNPLoadBaseline::IsActive())
 	{
@@ -104,6 +109,7 @@ void ULNPMassReplicator::AddRequirements(FMassEntityQuery& EntityQuery)
 	// ⚠️ **반드시 Optional이다.** 이 함수는 세 리플리케이터가 공유하므로 하드 요구로 넣으면
 	// 이 프래그먼트가 없는 Player·LootPod 청크가 복제 쿼리에서 통째로 빠진다.
 	EntityQuery.AddRequirement<FLNPEnemyActionFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);
+	EntityQuery.AddRequirement<FLNPBurnFragment>(EMassFragmentAccess::ReadOnly, EMassFragmentPresence::Optional);   // 같은 이유로 Optional
 }
 
 void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context, FMassReplicationContext& ReplicationContext)
@@ -115,21 +121,23 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 	TConstArrayView<FLNPEnemyFragment> EnemyFragments;
 	TConstArrayView<FLNPEnemyActionFragment> ActionFragments;
 	TConstArrayView<FLNPEnemyIdleFragment> IdleFragments;
+	TConstArrayView<FLNPBurnFragment> BurnFragments;
 
-	auto CacheViewsCallback = [&RepSharedFrag, &RepParams, &TransformFragments, &EnemyFragments, &ActionFragments, &IdleFragments](FMassExecutionContext& InContext)
+	auto CacheViewsCallback = [&RepSharedFrag, &RepParams, &TransformFragments, &EnemyFragments, &ActionFragments, &IdleFragments, &BurnFragments](FMassExecutionContext& InContext)
 	{
 		TransformFragments = InContext.GetFragmentView<FTransformFragment>();
 		// Optional Fragment — Enemy가 아닌 청크는 빈 뷰가 반환된다 (청크 단위 타입 판별에 사용).
 		EnemyFragments = InContext.GetFragmentView<FLNPEnemyFragment>();
 		ActionFragments = InContext.GetFragmentView<FLNPEnemyActionFragment>();
 		IdleFragments = InContext.GetFragmentView<FLNPEnemyIdleFragment>();
+		BurnFragments = InContext.GetFragmentView<FLNPBurnFragment>();
 		RepSharedFrag = &InContext.GetMutableSharedFragment<FMassReplicationSharedFragment>();
 		check(RepSharedFrag);
 		// UMassReplicationProcessor가 쿼리에 이미 걸어둔 Const Shared 요구사항이라 항상 존재한다.
 		RepParams = &InContext.GetConstSharedFragment<FMassReplicationParameters>();
 	};
 
-	auto AddEntityCallback = [&RepSharedFrag, &TransformFragments, &EnemyFragments, &ActionFragments, &IdleFragments](FMassExecutionContext& InContext, const int32 EntityIdx, FLNPReplicatedAgent& InReplicatedAgent, const FMassClientHandle ClientHandle) -> FMassReplicatedAgentHandle
+	auto AddEntityCallback = [&RepSharedFrag, &TransformFragments, &EnemyFragments, &ActionFragments, &IdleFragments, &BurnFragments](FMassExecutionContext& InContext, const int32 EntityIdx, FLNPReplicatedAgent& InReplicatedAgent, const FMassClientHandle ClientHandle) -> FMassReplicatedAgentHandle
 	{
 		ALNPMassClientBubbleInfo& BubbleInfo = RepSharedFrag->GetTypedClientBubbleInfoChecked<ALNPMassClientBubbleInfo>(ClientHandle);
 
@@ -159,6 +167,10 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 				EnemyFragments[EntityIdx].Health, EnemyFragments[EntityIdx].MaxHealth));
 		}
 
+		// 화상도 시드한다. 빼먹으면 이미 불타는 적이 버블에 들어올 때 다음 중첩 변화까지 안 타는 것으로 보인다.
+		if (BurnFragments.IsValidIndex(EntityIdx))
+			InReplicatedAgent.SetBurnStacks(BurnFragments[EntityIdx].Stacks);
+
 		if (!LNPLoadBaseline::IsWanderPoseControl() && EnemyFragments.IsValidIndex(EntityIdx)
 			&& IdleFragments.IsValidIndex(EntityIdx) && IdleFragments[EntityIdx].bWanderHandled)
 			InReplicatedAgent.SetWander(FLNPReplicatedWanderData::Encode(IdleFragments[EntityIdx].WanderSegment,
@@ -169,7 +181,7 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 		return BubbleInfo.GetAgentSerializer().Bubble.AddAgent(InContext.GetEntity(EntityIdx), InReplicatedAgent);
 	};
 
-	auto ModifyEntityCallback = [&RepSharedFrag, &RepParams, &TransformFragments, &EnemyFragments, &ActionFragments, &IdleFragments](FMassExecutionContext& InContext, const int32 EntityIdx, const EMassLOD::Type LOD, const double Time, const FMassReplicatedAgentHandle Handle, const FMassClientHandle ClientHandle)
+	auto ModifyEntityCallback = [&RepSharedFrag, &RepParams, &TransformFragments, &EnemyFragments, &ActionFragments, &IdleFragments, &BurnFragments](FMassExecutionContext& InContext, const int32 EntityIdx, const EMassLOD::Type LOD, const double Time, const FMassReplicatedAgentHandle Handle, const FMassClientHandle ClientHandle)
 	{
 		// Enemy만 매 갱신 위치/자세를 반영한다 — 서버 AI가 매 틱 이동시키기 때문.
 		// Player·LootPod은 스폰 이후 갱신 없음(지속 위치는 Actor 복제 채널 담당) — no-op으로 bubble 갱신 트래픽 없음.
@@ -187,7 +199,8 @@ void ULNPMassReplicator::ProcessClientReplication(FMassExecutionContext& Context
 				IdleFragments[EntityIdx].WanderSegment.LocalYaw) : FLNPReplicatedWanderData();
 		if (LNP::Replication::UpdateEnemyAgent(Item, TransformFragments[EntityIdx].GetTransform(), EnemyFragments[EntityIdx],
 			ActionFragments.IsValidIndex(EntityIdx) ? &ActionFragments[EntityIdx] : nullptr, Wander, Time, RepParams->UpdateInterval[LOD],
-			!LNPLoadBaseline::IsWanderPoseControl(), InContext.DoesArchetypeHaveTag<FLNPEnemyCrawlTag>()))
+			!LNPLoadBaseline::IsWanderPoseControl(), InContext.DoesArchetypeHaveTag<FLNPEnemyCrawlTag>(),
+			BurnFragments.IsValidIndex(EntityIdx) ? BurnFragments[EntityIdx].Stacks : 0))
 			Bubble.MarkItemDirty(Item);
 	};
 

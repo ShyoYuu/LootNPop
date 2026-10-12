@@ -9,6 +9,7 @@
 #include "Replication/LNPMassReplicator.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "GAS/LNPPoiseTypes.h"
+#include "GAS/LNPBurnTypes.h"
 #include "LootNPop.h"
 
 #include "MassEntityTemplateRegistry.h"
@@ -95,6 +96,10 @@ void ULNPEnemyTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext
 		PoiseFragment.StaggerThreshold = EnemyConfig->PoiseStaggerThreshold;
 		PoiseFragment.DownThreshold    = FMath::Max(EnemyConfig->PoiseDownThreshold, EnemyConfig->PoiseStaggerThreshold + 1.f);
 	}
+
+	// 화상 DoT. 서버는 ULNPBurnProcessor가 정산하고 게스트는 버블로 받은 중첩 수를 여기에 쓴다 —
+	// 행동 상태 채널과 같은 이유로 양쪽 아키타입이 같아야 하므로 무조건 붙인다.
+	BuildContext.AddFragment<FLNPBurnFragment>();
 
 	// 2. Shared Config Fragment
 	if (EnemyConfig != nullptr)

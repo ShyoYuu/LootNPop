@@ -250,6 +250,7 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 | 사선 | 총구 → P `TraceWorld`가 막히면 제외 — 축 트레이스는 정면 벽만 자르므로 축 옆 기둥 뒤 대상은 이것으로 거른다 |
 | 되감기 | 근접과 같은 RTT/2만(보간 지연 가산 없음, §5). 발동 시점에 `CachedRewindSeconds`로 캐싱 |
 | 피격 | Actor 적 → `FLNPApplyDamageGECommand`(넉백 0, **`bSuppressHitReact`**), 순수 엔티티 → HP 직접 차감 + `ApplyDefense`. 경직은 소량 누적, 배회 중 주시(`HitReactTimer`)는 걸고 **플린치는 걸지 않는다** |
+| 화상 | Actor·순수 엔티티 구분 없이 `LNPBurn::TryApply`로 `FLNPBurnFragment`에 중첩을 건다. 정산은 `ULNPBurnProcessor`(→ [TechDesign_Ability.md](TechDesign_Ability.md) §5.6) |
 
 - **틱 피해는 피격 반응을 억제한다.** 0.1초마다 HitReact 몽타주·플린치가 다시 걸리면 대상이 움찔 상태에서 빠져나오지 못한다.
   넉백도 0이다(어빌리티 기본값). 임팩트 큐도 내지 않는다 — 틱마다 근접 임팩트·HitStop이 터지는 것은 의도가 아니다.

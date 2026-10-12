@@ -406,6 +406,7 @@ uint8 ActionAndSeq;   // 상태 3비트 + 전이 카운터 5비트
 int8  AimPitch;       // 발사 순간의 상하 조준각 (∓90도를 int8 전 범위에, 약 0.7도) — §5.4
 uint8 HealthPct;      // HP 비율 0~255 — 나중에 들어왔다 (§5.5)
 uint8 HitStopSeq;     // 공격이 플레이어에게 닿을 때마다 +1 — 나중에 들어왔다 (§4.8)
+uint8 BurnStacks;     // 화상 중첩 수 — 나중에 들어왔다 (TechDesign_Ability.md §5.6)
 ```
 
 ⚠️ **HitStop에 `Seq`를 재활용하지 않는다.** 애니 프로세서가 시퀀스 *변형*을 `Seq`에서 유도하므로(§6.4),

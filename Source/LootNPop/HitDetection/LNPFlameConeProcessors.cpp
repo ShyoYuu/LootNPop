@@ -6,6 +6,7 @@
 #include "HitDetection/LNPProjectileMotion.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "GAS/LNPPoiseTypes.h"
+#include "GAS/LNPBurnTypes.h"
 #include "GAS/LNPDamageFormula.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
@@ -40,6 +41,7 @@ void ULNPFlameConeHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMass
 	EnemyQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadWrite);
 	EnemyQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
 	EnemyQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
+	EnemyQuery.AddRequirement<FLNPBurnFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
 	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -102,6 +104,7 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 		TArrayView<FMassActorFragment>                      ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
 		const TConstArrayView<FLNPPositionHistoryFragment>  Histories  = Ctx.GetFragmentView<FLNPPositionHistoryFragment>();
 		TArrayView<FLNPPoiseFragment>                       PoiseFrags = Ctx.GetMutableFragmentView<FLNPPoiseFragment>();
+		TArrayView<FLNPBurnFragment>                        BurnFrags  = Ctx.GetMutableFragmentView<FLNPBurnFragment>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
@@ -171,6 +174,18 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 					Enemy.Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(C.Damage, Enemy.Defense));
 					UE_LOG(LogLootNPop, Log, TEXT("[FlameCone][Entity] HP: %.1f -> %.1f (damage=%.1f t=%.0f)"),
 						HpBefore, Enemy.Health, C.Damage, T);
+				}
+
+				// 화상은 Actor·순수 엔티티 구분 없이 프래그먼트에 건다 — 정산은 ULNPBurnProcessor.
+				FLNPBurnFragment* Burn = BurnFrags.IsValidIndex(i) ? &BurnFrags[i] : nullptr;
+				const uint8 StacksBefore = Burn ? Burn->Stacks : 0;
+				if (LNPBurn::TryApply(Burn, C.BurnChance, C.MaxBurnStacks, C.BurnDuration, C.BurnTickInterval,
+						C.BurnDamagePerStack, C.DamageEffectClass)
+					&& LNPBurn::IsLogEnabled())
+				{
+					UE_LOG(LogLootNPop, Log, TEXT("[Burn] entity=%d %s stacks=%d->%d remaining=%.2f perStack=%.1f"),
+						Ctx.GetEntity(i).Index, StacksBefore == 0 ? TEXT("apply") : TEXT("refresh"),
+						StacksBefore, Burn->Stacks, Burn->TimeRemaining, Burn->DamagePerStack);
 				}
 			}
 		}

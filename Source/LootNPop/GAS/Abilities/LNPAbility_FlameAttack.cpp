@@ -104,6 +104,12 @@ void ULNPAbility_FlameAttack::SpawnConeJudge(const FGameplayAbilityActivationInf
 	Cone.FarRadius         = FarRadius;
 	Cone.Damage            = ComputeDamage();
 	Cone.PoiseDamage       = PoiseDamage;
+	Cone.BurnChance         = BurnChance;
+	Cone.MaxBurnStacks      = static_cast<uint8>(FMath::Clamp(MaxBurnStacks, 0, MAX_uint8));
+	Cone.BurnDuration       = BurnDuration;
+	Cone.BurnTickInterval   = BurnTickInterval;
+	// 화상 계수는 원뿔 계수와 같은 축(AttackPower × 계수 × 무기 레벨 배율)이다 — 원뿔 피해에서 계수만 갈아 끼운다.
+	Cone.BurnDamagePerStack = BaseDamageCoefficient > 0.f ? Cone.Damage * (BurnDamageCoefficient / BaseDamageCoefficient) : 0.f;
 	Cone.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
 	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())
 		Cone.InstigatorEntity = AgentComp->GetEntityHandle();

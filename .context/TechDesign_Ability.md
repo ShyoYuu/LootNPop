@@ -406,7 +406,7 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 
 ### 5.6 충전형 탄창 — 화염방사기 (2026-10-11, 구현 중)
 
-기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5, 화상 DoT·VFX는 후속 단계다.
+기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5. 적 화상 DoT는 아래 절, VFX·플레이어 화상은 후속 단계다.
 
 #### 틱 = 발동 1회
 
@@ -441,9 +441,37 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 | `BaseDamageCoefficient` | 0.6 | 틱당 계수(임시값). 라이플은 발당 1.0 |
 | `PoiseDamage` / `KnockbackStrength` | 3 / 0 | 틱 피해라 넉백 없음·경직 소량 |
 
-- 기본값은 C++ 생성자·초기화자에 두고 GA BP(`GA_FlameAttack_Flamethrower`)는 덮어쓰지 않는다 — 값의 원본이 한 곳이다.
+- 기본값은 C++ 생성자·초기화자에 둔다.
   ⚠️ 그래서 이 값을 바꾸면 Live Coding으로는 CDO가 갱신되지 않는다. 에디터를 재시작해야 반영된다.
+- ⚠️ **지금 GA BP(`GA_FlameAttack_Flamethrower`)가 테스트 값으로 덮어쓰고 있다**(2026-10-12): `BaseDamageCoefficient` 0.1, `BurnDamageCoefficient` 0.1, `BurnChance` 0.5.
+  C++ 값(0.6 / 0.3 / 0.2)으로는 적이 1초 안에 죽어 화상이 쌓일 틈이 없었다. 정식 값이 아니며, 확정하면 C++에 옮기고 BP 오버라이드를 지운다.
 - 판정 형상·되감기·피격 반응 억제는 HitDetection 문서 §3.5.
+
+#### 화상 DoT — 적 (2026-10-12)
+
+원뿔에 맞은 적에게 확률로 화상 중첩을 건다. **적 화상의 원본은 `FLNPBurnFragment` 하나다** — 적 ASC에 주기 GE를 걸지 않는다.
+Actor는 LOD에 따라 풀로 반납·재사용되므로 ASC에 건 GE는 강등 순간 사라지거나 다음 개체로 새어 나가고, 순수 엔티티에는 ASC 자체가 없다.
+
+| 값 (`ULNPAbility_FlameAttack`) | 기본값 | 비고 |
+|:---|:---|:---|
+| `BurnChance` | 0.2 | 적중(틱) 1회당 1중첩 확률 |
+| `MaxBurnStacks` | 5 | 중첩 상한 |
+| `BurnDuration` / `BurnTickInterval` | 3 / 0.5초 | 지속시간은 전 중첩 공유 |
+| `BurnDamageCoefficient` | 0.3 | 1중첩·1틱 계수(임시값). `BaseDamageCoefficient`와 같은 축 — 원뿔 피해에서 계수만 갈아 끼운다 |
+
+| 요소 | 내용 |
+|:---|:---|
+| `FLNPBurnFragment` (`GAS/LNPBurnTypes.h`) | `Stacks`·`TimeRemaining`·`TickAccum`·`TickInterval`·`DamagePerStack`·`DamageEffectClass`. `ULNPEnemyTrait::BuildTemplate`가 Poise 옆에 **무조건** 붙인다(게스트도 같은 아키타입이어야 복제값을 받을 자리가 있다) |
+| `LNPBurn::TryApply` | 원뿔 프로세서의 적 피격 블록에서 호출. 확률 통과 시 `Stacks = min(+1, Max)`, `TimeRemaining = Duration`. **처음 걸릴 때만** 틱 위상을 0으로 둔다 |
+| `ULNPBurnProcessor` (`GAS/`) | PostPhysics, `Server \| Standalone`. 틱 피해 `Stacks × DamagePerStack` — Actor 적은 `FLNPApplyDamageGECommand`(넉백 0·`bSuppressHitReact`), 순수 엔티티는 HP 직접 차감 + `ApplyDefense`. 틱을 먼저 정산하고 만료를 본다(3초면 6틱) |
+| 복제 | `FLNPReplicatedAgent::BurnStacks`(uint8) → 게스트 `FLNPBurnFragment::Stacks`. 나머지 필드는 게스트에서 쓰지 않는다 |
+
+- **갱신이 틱 위상을 건드리지 않는 이유**: 계속 지지는 동안 적중마다 위상을 0으로 돌리면 0.5초 틱이 한 번도 터지지 않는다.
+- **덮어쓰기 규칙**: `DamagePerStack`·간격·GE 클래스는 마지막으로 성공한 적용값을 쓴다. 가해자는 기록하지 않는다 — 데미지 GE 커맨드도 가해자 귀속이 없다.
+- **해제 경로는 `Stacks = 0` 하나다.** 만료와 사망 모두 같다. 그래서 Burn 쿼리는 `FLNPEnemyDyingTag`를 거르지 않고, 사망 청크에서 중첩을 지운다 —
+  그 0이 복제돼 게스트 표현(U4)도 같은 신호 하나로 꺼진다.
+- 디버그: `LNP.Burn.Log 1` — 서버의 적용·갱신·틱·만료·사망 정지, 게스트의 수신값 변화(`[Burn][Guest]`).
+- 플레이어 화상(주기 GE)은 프렌들리 파이어 단계(U5)에서 붙인다.
 
 ---
 

@@ -206,7 +206,7 @@ NPC뿐이다 — 이 비대칭이 이 보정을 싸게 만든다.
 
 | 타입 | 페이로드 | 갱신 |
 |:---|:---|:---|
-| Enemy | PositionYaw + `ActionAndSeq`(행동 3비트 + 전이 카운터 5비트) + `AimPitch`(int8) + `HealthPct`(uint8) | 지속 (서버 AI가 매 Tick 이동) |
+| Enemy | PositionYaw + `ActionAndSeq`(행동 3비트 + 전이 카운터 5비트) + `AimPitch`(int8) + `HealthPct`(uint8) + `BurnStacks`(uint8) | 지속 (서버 AI가 매 Tick 이동) |
 | 플레이어 폰 | 존재 + 스폰 시점 PositionYaw 1회 | **없음** — 위치는 Mover가 이미 고빈도·예측·보간 복제 중이라 bubble에 실으면 같은 데이터의 저품질 사본만 회선에 추가됨 |
 | LootPod | 존재 + 스폰 시점 PositionYaw 1회 | 없음 (정적) — 상태·게이지는 Actor 복제 담당 |
 
@@ -214,7 +214,7 @@ NPC뿐이다 — 이 비대칭이 이 보정을 싸게 만든다.
 
 Enemy의 뒤 세 필드는 Actor 없는 순수 엔티티 적의 표현·HP 바 채널이다 — 인코딩과 실측은 [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md) §5.2·§10.2, HP 바 소비처는 [TechDesign_HUD.md](TechDesign_HUD.md) §11.3.
 
-⚠️ **갱신 주기 게이트를 우회할 자격은 일회성 연출(`IsOneShot`) 전이에만 준다.** `HealthPct`에는 주지 않는다 — HP 바가 한 주기(Low 0.3초) 늦는 것은 눈에 띄지 않는 반면, 여기까지 넓히면 **피격이 곧 갱신**이 되어 갱신 수가 통제 없이 는다. Idle↔Move 같은 루프 전이도 같은 이유로 제외한다(배회 개체가 초당 여러 번 전이를 만든다).
+⚠️ **갱신 주기 게이트를 우회할 자격은 일회성 연출(`IsOneShot`) 전이에만 준다.** `HealthPct`·`BurnStacks`에는 주지 않는다 — HP 바가 한 주기(Low 0.3초) 늦는 것은 눈에 띄지 않는 반면, 여기까지 넓히면 **피격이 곧 갱신**이 되어 갱신 수가 통제 없이 는다. Idle↔Move 같은 루프 전이도 같은 이유로 제외한다(배회 개체가 초당 여러 번 전이를 만든다).
 
 **수신 측 보간 —** 클라이언트는 수신값을 Transform에 바로 쓰지 않고 `FLNPReplicatedMovementFragment`에 적재하고 `ULNPMassSmoothingProcessor`가 매 프레임 보간값을 쓴다(그대로 반영하면 초당 3~10칸씩 순간이동으로 보인다). 출발점을 "직전 수신값"이 아니라 **"지금 화면에 그려진 값"** 으로 잡아 패킷이 늦거나 중간값이 걸러져도 끊기지 않는다. 보간 시간은 실측 수신 간격을 쓰되 0.05~0.5초로 자른다.
 ⚠️ 이 프래그먼트는 `NM_Client`일 때만 아키타입에 들어간다. 템플릿 ID는 Config GUID에서만 나오므로 서버와 구성이 달라도 복제 스폰은 영향받지 않는다.

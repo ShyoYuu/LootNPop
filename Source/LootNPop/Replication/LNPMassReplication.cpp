@@ -5,6 +5,8 @@
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "GameFramework/GameStateBase.h"
 #include "Replication/LNPMassReplicator.h"
+#include "GAS/LNPBurnTypes.h"
+#include "LootNPop.h"
 #include "Config/LNPSettings.h"
 #include "MassEntityManager.h"
 #include "MassExecutionContext.h"
@@ -147,6 +149,18 @@ void FLNPMassClientBubbleHandler::ApplyReplicatedHealth(const FMassEntityView& E
 	}
 }
 
+void FLNPMassClientBubbleHandler::ApplyReplicatedBurn(const FMassEntityView& EntityView, const FLNPReplicatedAgent& Agent)
+{
+	// Optional 취급 — 적이 아닌 아키타입(Player·LootPod)에는 이 프래그먼트가 없다.
+	if (FLNPBurnFragment* Burn = EntityView.GetFragmentDataPtr<FLNPBurnFragment>())
+	{
+		if (Burn->Stacks != Agent.GetBurnStacks() && LNPBurn::IsLogEnabled())
+			UE_LOG(LogLootNPop, Log, TEXT("[Burn][Guest] entity=%d replicated stacks=%d->%d"),
+				EntityView.GetEntity().Index, Burn->Stacks, Agent.GetBurnStacks());
+		Burn->Stacks = Agent.GetBurnStacks();
+	}
+}
+
 void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> AddedIndices, int32 FinalSize)
 {
 	// 스폰 쿼리에는 공통 Fragment(Transform)만 요구한다. 타입 전용 Fragment를 하드 요구사항으로
@@ -186,6 +200,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 
 		// HP도 마찬가지다 — 시드하지 않으면 이미 다친 적이 만피로 나타나 HP 바가 뜨지 않는다.
 		ApplyReplicatedHealth(EntityView, ReplicatedEntity);
+		ApplyReplicatedBurn(EntityView, ReplicatedEntity);
 	};
 
 	auto SetModifiedEntityData = [](const FMassEntityView& EntityView, const FLNPReplicatedAgent& Item)
@@ -193,6 +208,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 		ApplyMovementData(EntityView, Item);
 		ApplyReplicatedAction(EntityView, Item, /*bIsInitialSpawn*/ false);
 		ApplyReplicatedHealth(EntityView, Item);
+		ApplyReplicatedBurn(EntityView, Item);
 	};
 
 	PostReplicatedAddHelper(AddedIndices, AddRequirementsForSpawnQuery, CacheFragmentViewsForSpawnQuery, SetSpawnedEntityData, SetModifiedEntityData);
@@ -209,6 +225,7 @@ void FLNPMassClientBubbleHandler::PostReplicatedChange(const TArrayView<int32> C
 		ApplyMovementData(EntityView, Item);
 		ApplyReplicatedAction(EntityView, Item, /*bIsInitialSpawn*/ false);
 		ApplyReplicatedHealth(EntityView, Item);
+		ApplyReplicatedBurn(EntityView, Item);
 	};
 
 	PostReplicatedChangeHelper(ChangedIndices, SetModifiedEntityData);

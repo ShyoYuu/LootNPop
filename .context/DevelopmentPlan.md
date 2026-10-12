@@ -153,7 +153,8 @@
     - 발동 1회 = 분사 틱 1회(라이플 연사 구조 재사용). 탄창 대신 분사 중 소모·미분사 시 회복하는 충전 게이지.
     - [x] U1 무기·충전 게이지 (2026-10-11) — 설계 명세: [TechDesign_Ability.md](TechDesign_Ability.md) §5.6
     - [x] U2 원뿔 판정 (2026-10-11) — 서버 전용 1프레임 판정 엔티티, 벽 자르기·사선 검사, 틱 피격 반응 억제. 설계 명세: [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5
-    - [ ] U3 적 화상 DoT / U4 분사·화상 VFX / U5 프렌들리 파이어 플레이어 피격
+    - [x] U3 적 화상 DoT (2026-10-12) — Mass 프래그먼트 단일 원본, 서버 정산 프로세서, `BurnStacks` 1바이트 복제. 설계 명세: [TechDesign_Ability.md](TechDesign_Ability.md) §5.6
+    - [ ] U4 분사·화상 VFX / U5 프렌들리 파이어 플레이어 피격
 - [x] **적 탐색 질의 시스템** (`ULNPTargetQuerySubsystem`, `ULNPTargetQueryProcessor`, 2026-09-06 ~ 09-09)
     - 물리 경유 탐색 3곳(조준점·근접 보정·락온)이 **순수 엔티티를 통째로 빠뜨리던** 것을 Mass 상시 질의로 교체.
       요청/응답이 아니라 매 프레임 갱신되는 질의라 소비자는 결과만 읽는다.

@@ -37,6 +37,7 @@
 | `FMassRepresentationAnimationFragment` | ISKM 애니 데이터의 자리. ⚠️ **엔진 트레이트가 붙여 주지 않는다** — 없으면 소비 프로세서 쿼리가 아무것도 매칭하지 않아 경고 없이 안 움직인다 |
 | `FLNPEnemyHealthDisplayFragment` | HP 바 표시 후보 선별용 장부. 서버·클라 각자 로컬로 채워 복제하지 않는다 (→ [TechDesign_HUD.md](TechDesign_HUD.md) §11) |
 | `FLNPPoiseFragment` | 경직도. 적은 지속 버프를 안 받으므로 Trait이 Config 값으로 1회 시드하면 끝 (→ [TechDesign_Poise.md](TechDesign_Poise.md)) |
+| `FLNPBurnFragment` | 화상 DoT 원본. 서버는 `ULNPBurnProcessor`(`GAS/`)가 정산, 게스트는 복제 `BurnStacks`만 받는다 (→ [TechDesign_Ability.md](TechDesign_Ability.md) §5.6) |
 | `FLNPPositionHistoryFragment` | Lag Compensation용 위치 히스토리 (서버 기록) |
 | `FLNPReplicatedMovementFragment` | **클라이언트 전용** — 복제 수신 사이를 메우는 보간 상태. `NM_Client`일 때만 아키타입에 들어간다 |
 | Tags | `FLNPEnemyTag` / `FLNPPlayerTag`(쿼리 분류), `FLNPEnemyActorInitializedTag`(초기화 마커), `FLNPEnemyDyingTag`(소멸 대기), `FLNPPlayerDeadTag`(사망 플레이어 — 타게팅 제외) |
