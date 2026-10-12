@@ -212,6 +212,11 @@ namespace LNPSurfaceCrawl
 		bool bWaiting = false;
 		float WaitTime = 0.f;
 		FVector WaitTargetAnchor = FVector::ZeroVector;
+		/**
+		 * 포기한 시도의 첫 옆 반대쪽(0이면 없음). 타겟이 그대로인 채 대기가 끝나 다시 시도하면 첫 옆으로 쓴다 — 실패한 첫 옆이 열린 쪽이면
+		 * 닫힌 쪽 옆은 열린 쪽 끝에서 출발해 예산을 되돌아오는 데 쓰고 실패한다. 재시도마다 같은 순서를 되풀이하지 않게 한다(PIE 2026-10-12).
+		 */
+		int8 RetrySide = 0;
 	};
 
 	struct FChaseDetourParams
@@ -219,6 +224,12 @@ namespace LNPSurfaceCrawl
 		FChaseProgressParams Progress;
 		/** 한 갈래의 이동 거리 예산(cm). */
 		float BranchBudget = 4000.f;
+		/**
+		 * 갈래 중 타겟까지 직선거리가 이보다 멀어지면 그 갈래를 실패로 기억하고 다음 갈래로 넘어간다(cm, 0이면 제한 없음).
+		 * 타겟 추적 유지 거리보다 작게 준다 — 깊은 틈의 아래 갈래가 타겟을 놓치면 비교전 프레임이 시도 기억을 지워
+		 * 같은 갈래 순서를 끝없이 되풀이한다(PIE 2026-10-12: 거리 약 6,000에서 놓침, 홀수 개체 3기가 옆 → 아래를 반복).
+		 */
+		float MaxTargetDistance = 0.f;
 		/** 시도 전체의 시간 예산(초). 넘으면 포기한다. 갈래별 시간 예산을 두면 네 갈래 포기까지 30초가 넘는다. */
 		float TotalBudget = 20.f;
 		/** 대기 뒤 다시 추격하기까지의 시간(초). */

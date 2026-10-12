@@ -203,6 +203,11 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 		CrawlParams.BodyRadius = Config->CapsuleRadius;
 		LNPSurfaceCrawl::FDetourParams DetourParams;
 		DetourParams.StallRadius = Config->CapsuleRadius;
+		LNPSurfaceCrawl::FChaseDetourParams ChaseDetourParams;
+		ChaseDetourParams.BodyRadius = Config->CapsuleRadius;
+		ChaseDetourParams.Progress.ProgressMargin = Config->CapsuleRadius * 2.f;
+		// 갈래가 타겟을 놓치기 전에 끝낸다. 놓치면 비교전 프레임이 시도 기억을 지운다.
+		ChaseDetourParams.MaxTargetDistance = Config->TargetingConfig.AlertRetentionDistance * 0.9f;
 		LNPSurfaceCrawl::FHomeApproachParams HomeParams;
 		HomeParams.FarDistance = MoveConfig.WanderMaxDistance + Config->CapsuleRadius;
 		HomeParams.ProgressMargin = Config->CapsuleRadius;
@@ -321,6 +326,8 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			if (!PhysVelocity.IsNearlyZero())
 			{
 				LNPSurfaceCrawl::ResetDetour(CrawlData.Detour);
+				// 넉백 중 갈래는 끝내고 착지 뒤 다시 잰다. 시도·대기 기억은 유지한다(Phase 14b 설계 5).
+				LNPSurfaceCrawl::InterruptChaseDetour(CrawlData.ChaseDetour);
 				EnemyData.DynamicSupportContact.Reset();
 				FVector NewLocation;
 				FVector LandingNormal = (GravityOrigin - Location).GetSafeNormal();
@@ -360,6 +367,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			float Speed = 0.f;
 			FVector FacingDir = FVector::ZeroVector;   // 월드 방향. 접평면 성분만 몸의 전방이 된다.
 			bool bSeekLineOfSight = false;
+			bool bInRange = false;
 			const bool bWasHoldingFirePosition = CrawlData.bHoldingFirePosition;
 			CrawlData.bHoldingFirePosition = false;
 
@@ -392,7 +400,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 					// 공격 프로세서가 0.25초마다 다시 보고 트이면 0으로 되돌린다.
 					FacingDir = Targeting.TargetLocation - Location;
 					const float Distance = FMath::Sqrt(Targeting.DistanceToTargetSq);
-					const bool bInRange = Distance <= MoveConfig.AttackRange;
+					bInRange = Distance <= MoveConfig.AttackRange;
 					bSeekLineOfSight = bInRange && AttackFragments[i].bLineOfSightBlocked;
 					// 사선 탐색 중에는 매 프레임 직접 보고 처음 트인 자리에서 선다. 게이트의 0.25초 재검사만 기다리면 그 사이 윗면
 					// 가장자리를 넘었다 되돌아오며 한 점(타겟의 수선 발)으로 모인다(PIE 2026-10-10). 플래그는 게이트가 다음 검사에서 내린다.
@@ -517,13 +525,31 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			// 사거리 밖 평형점에 모인다. 사거리 안에 들면 공격이 시작되고 자리 지키기가 멈춰 세운다.
 			// 사선 탐색의 오르막은 면 앞쪽 타겟 전부에 적용한다.
 			const bool bChaseApproach = Targeting.State == ELNPTargetingState::Confirmed && !bSeekLineOfSight;
-			FVector MoveDir = LNPSurfaceCrawl::SteerDirection(Location, Normal, Goal, GravityUp,
-				bChaseApproach ? FMath::Max(CrawlParams.BodyRadius, MoveConfig.AttackRange) : CrawlParams.BodyRadius, bSeekLineOfSight);
-			if (Targeting.State == ELNPTargetingState::Confirmed && Speed > 0.f)
+			const float ReachDistance = bChaseApproach ? FMath::Max(CrawlParams.BodyRadius, MoveConfig.AttackRange) : CrawlParams.BodyRadius;
+			const int8 FallbackSide = (Ctx.GetEntity(i).Index & 1) ? 1 : -1;
+			FVector MoveDir = LNPSurfaceCrawl::SteerDirection(Location, Normal, Goal, GravityUp, ReachDistance, bSeekLineOfSight);
+			// 사거리 밖 교전 추격은 진행 기반 고정 방향 우회(Phase 14b)가 조향을 정한다. 위치 기준 우회(국소 장애물)는 그것이 일반 추격을
+			// 돌려주고 타겟이 면 앞쪽으로 ReachDistance 안일 때(내리막 꺼짐)만 덧붙인다 — 내리막이 켜진 구간의 막힘은 평형점이다.
+			// 그로기·공격 잔여 등으로 이번 프레임 멈췄으면 계측을 잠시 세운다(시도·대기 기억 유지).
+			const bool bOutOfRangeChase = bChaseApproach && !bInRange;
+			LNPSurfaceCrawl::EChaseDetourMode ChaseMode = LNPSurfaceCrawl::EChaseDetourMode::Chase;
+			bool bLocalDetour = Targeting.State == ELNPTargetingState::Confirmed && Speed > 0.f;
+			if (bOutOfRangeChase && Speed > 0.f)
+			{
+				MoveDir = LNPSurfaceCrawl::UpdateChaseDetour(CrawlData.ChaseDetour, ChaseDetourParams, Location, Normal, Goal, GravityUp,
+					ReachDistance, FallbackSide, DeltaTime, ChaseMode);
+				bLocalDetour = ChaseMode == LNPSurfaceCrawl::EChaseDetourMode::Chase
+					&& FVector::DotProduct(Goal - Location, Normal) <= ReachDistance;
+			}
+			else if (!bOutOfRangeChase)
+			{
+				LNPSurfaceCrawl::ResetChaseDetour(CrawlData.ChaseDetour);
+			}
+			if (bLocalDetour)
 			{
 				const bool bWasDetouring = CrawlData.Detour.DetourTime > 0.f;
 				MoveDir = LNPSurfaceCrawl::UpdateDetour(CrawlData.Detour, DetourParams, Location, Normal, MoveDir, Goal - Location,
-					GravityUp, EntityTransform.GetRotation().GetRightVector(), (Ctx.GetEntity(i).Index & 1) ? 1 : -1, DeltaTime);
+					GravityUp, EntityTransform.GetRotation().GetRightVector(), FallbackSide, DeltaTime);
 				ChunkStats.DetourEntries += !bWasDetouring && CrawlData.Detour.DetourTime > 0.f ? 1 : 0;
 			}
 			else
@@ -569,6 +595,14 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 					static_cast<int32>(CrawlData.bHoldingFirePosition), static_cast<int32>(bSeekLineOfSight), Speed, SeparationPush.Size(), FVector::DotProduct(MoveDir, GravityUp),
 					static_cast<int32>(CrawlData.Detour.DetourTime > 0.f), FVector::Dist(Location, GravityOrigin),
 					static_cast<int32>(ChunkEntitiesToSignal.Contains(Ctx.GetEntity(i))));
+				// 진행 기반 우회(Phase 14b): 모드(0 추격·1 갈래·2 대기)·갈래(1 옆·2 아래·3 위)·옆 부호·진행 최솟값·갇힌 거리·남은 예산.
+				const LNPSurfaceCrawl::FChaseDetourState& Chase = CrawlData.ChaseDetour;
+				UE_LOG(LogLootNPop, Log, TEXT("[CrawlEngage] enemy=%d chase=%d mode=%d branch=%d side=%d best=%.0f stall=%.1f attempt=%d stuck=%.0f tried=%d attemptLeft=%.1f branchLeft=%.0f wait=%.1f"),
+					Ctx.GetEntity(i).Index, static_cast<int32>(bOutOfRangeChase), static_cast<int32>(ChaseMode), static_cast<int32>(Chase.Branch),
+					Chase.Side, Chase.Progress.BestDistance, Chase.Progress.StallTime, static_cast<int32>(Chase.bAttempt), Chase.StuckDistance,
+					Chase.TriedMask, Chase.bAttempt ? ChaseDetourParams.TotalBudget - Chase.AttemptTime : 0.f,
+					Chase.Branch != LNPSurfaceCrawl::EChaseBranch::None ? ChaseDetourParams.BranchBudget - Chase.BranchTravel : 0.f,
+					Chase.bWaiting ? Chase.WaitTime : 0.f);
 			}
 			FLNPExactHitIdentity SurfaceIdentity;
 			// 정지 개체는 Step이 query를 하지 않는다. 패널 근처에서만 내려오는 패널에 깔렸는지 제자리 겹침을 본다.

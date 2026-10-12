@@ -159,7 +159,9 @@ namespace LNPSurfaceCrawl
 			if (bFirstSelection)
 			{
 				const double Bias = FVector::DotProduct(ToTargetPlane.GetSafeNormal(), Axis);
-				State.AttemptSide = FMath::Abs(Bias) >= Params.BiasDot ? (Bias > 0.0 ? 1 : -1) : (FallbackSide >= 0 ? 1 : -1);
+				State.AttemptSide = State.RetrySide != 0 ? State.RetrySide
+					: FMath::Abs(Bias) >= Params.BiasDot ? (Bias > 0.0 ? 1 : -1) : (FallbackSide >= 0 ? 1 : -1);
+				State.RetrySide = 0;
 			}
 			const int8 FirstSide = State.AttemptSide;
 
@@ -331,7 +333,9 @@ namespace LNPSurfaceCrawl
 		};
 		const auto GiveUp = [&]()
 		{
+			const int8 RetrySide = static_cast<int8>(-State.AttemptSide);
 			ResetChaseDetour(State);
+			State.RetrySide = RetrySide;
 			State.bWaiting = true;
 			State.WaitTargetAnchor = Goal;
 			return Wait();
@@ -340,9 +344,13 @@ namespace LNPSurfaceCrawl
 		if (State.bWaiting)
 		{
 			State.WaitTime += DeltaTime;
-			if (State.WaitTime < Params.GiveUpCooldown && FVector::DistSquared(Goal, State.WaitTargetAnchor) <= RetargetSq)
+			const bool bTargetStayed = FVector::DistSquared(Goal, State.WaitTargetAnchor) <= RetargetSq;
+			if (State.WaitTime < Params.GiveUpCooldown && bTargetStayed)
 				return Wait();
+			// 타겟이 그대로면 지난 시도의 첫 옆 반대쪽부터 다시 시도한다. 타겟이 움직였으면 처음부터 판단한다.
+			const int8 RetrySide = bTargetStayed ? State.RetrySide : static_cast<int8>(0);
 			ResetChaseDetour(State);
+			State.RetrySide = RetrySide;
 		}
 
 		const float Distance = FVector::Dist(Location, Goal);
@@ -374,9 +382,10 @@ namespace LNPSurfaceCrawl
 				State.Branch = EChaseBranch::None;
 				ResetChaseProgress(State.Progress);
 			}
-			else if (State.BranchTravel >= Params.BranchBudget)
+			else if (State.BranchTravel >= Params.BranchBudget
+				|| (Params.MaxTargetDistance > 0.f && Distance > Params.MaxTargetDistance))
 			{
-				// 예산 안에 끝 조건을 못 채웠다. 갇힌 자리로 돌아가지 않고 지금 자리에서 다음 갈래를 시작한다.
+				// 예산 안에 끝 조건을 못 채웠거나 타겟을 놓칠 만큼 멀어졌다. 갇힌 자리로 돌아가지 않고 지금 자리에서 다음 갈래를 시작한다.
 				State.TriedMask |= BranchBit(State.Branch, State.Side);
 				State.Branch = EChaseBranch::None;
 				if (!SelectBranch(State, Params, Location, Normal, Goal, GravityUp, ReachDistance, FallbackSide))

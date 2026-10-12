@@ -1,10 +1,12 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: 14b 벽보행 추격 우회([계획](phases/Phase14b_CrawlChaseDetour.md)) — 단위 1·2 완료, 단위 3 대기
+> 현재 Phase: 10 대규모 추격 경로 비교 — 착수 대기(사용자 진행 확인 필요). 직전 Phase 14b 완료
 > 마지막 갱신: 2026-10-12
 
 ## 현재 결정
+
+**Phase 14b 완료(2026-10-12).** 벽보행의 사거리 밖 추격에 진행 기반 고정 방향 우회를 넣었다. ㄷ자 절벽 PIE에서 이전 0기였던 우회가 전원 성공했다. 설계는 `design/MovementIntegration.md` "벽 타기 NPC"의 진행 기반 우회 항목, 경위는 `history/Phase14b_Log.md`가 소유한다. 사거리를 늘린 뒤에는 ㄷ자 지형 회귀만 확인한다.
 
 **Phase 9 완료(2026-10-12).** 실규모 블록아웃 옥탄트 `Bastion_00`·`Hollow_00`과 `Meadow_00`의 3종 혼합 풀이 다음을 통과했다.
 
@@ -26,13 +28,11 @@
 
 ## 바로 다음 행동
 
-- **Phase 14b 착수(2026-10-12, 사용자 결정).** 교전 거리는 이후 늘리지만 14b 검증은 현재 사거리 800을 보수적 기준으로 한다(짧은 사거리가 사거리 밖 추격 구간이 길어 더 엄격하다). 근거는 [계획](phases/Phase14b_CrawlChaseDetour.md) "검증 기준 사거리".
-- 단위 1(진행 계측)·단위 2(고정 방향 우회 `UpdateChaseDetour`, 자동화 `SurfaceCrawl.ChaseDetour`) 완료, 미커밋. 위치 기준 우회는 국소 장애물용으로 남겼다(계획 문서 "단위 2 구현 결과").
-- 사용자 진행 확인 뒤 **단위 3**: `ULNPEnemyCrawlMovementProcessor`에 연결한다. `FLNPEnemyCrawlFragment`에 `FChaseDetourState`를 추가하고, 공중이면 Interrupt, 사거리 안·비교전·사선 탐색이면 Reset을 부른다. 위치 기준 우회는 Chase 모드이면서 내리막이 꺼졌을 때만 덧붙인다. `CrawlEngageLog`에 모드·갈래·Side·StuckDistance·예산 잔여를 더한다. 레이아웃 변경이라 Build.bat 풀 빌드다. 그 뒤 2026-10-10 절벽과 ㄷ자 지형에서 사용자 PIE를 한다.
-- 본선 Phase 10(대규모 추격 경로)은 14b 뒤.
+- **Phase 10 착수 여부를 사용자에게 확인한다.** 범위는 `Roadmap.md` §Phase 10이다: 같은 benchmark harness(Phase 7 일반 A* 캡처 재생)에서 목표별 flow field와 계층형 A*의 최소 기능 프로토타입을 비교하고, 채택 기준을 통과한 방식만 production에 통합한다(D-044). 실행 문서 `phases/Phase10_*.md`는 착수 직전에 만든다.
+- 착수하면 먼저 `design/GroundNavigation.md`와 Phase 7 benchmark 캡처의 현재 상태를 확인한다.
 
 ## 인계 근거
 
-- 최신 패키지: `Saved/SurfaceNavigationPhase9V011BPackage`(현재 소스, exe `732B90BD…56AA3`). 교전 거리 5,000 측정용 임시 패키지는 `Saved/SurfaceNavigationPhase9V011CPackage`다.
+- 최신 패키지: `Saved/SurfaceNavigationPhase9V011BPackage`(Phase 14b 이전 소스, exe `732B90BD…56AA3`). 교전 거리 5,000 측정용 임시 패키지는 `Saved/SurfaceNavigationPhase9V011CPackage`다.
 - 측정 원본: `Saved/Profiling/Phase09/GateV011`(V010 패키지)·`GateV011B`(최종)·`GateV011C`(교전 거리 상한)·`GateV011Fix`(기각한 휴면 운반 수정).
 - 로컬 측정 산출물은 Git에 넣지 않는다.

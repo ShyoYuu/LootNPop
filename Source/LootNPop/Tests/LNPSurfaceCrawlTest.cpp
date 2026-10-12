@@ -726,14 +726,18 @@ bool FLNPSurfaceCrawlChaseDetourTest::RunTest(const FString& Parameters)
 
 	// 1. 순수 갈래 순서(query 없음). 일반 추격 중에는 제자리(막힘)이고 갈래 방향으로만 움직이는 가상 개체로 고른 갈래를 본다.
 	{
-		const auto RunSynthetic = [&](const FVector& Normal, const FVector& Target, FLog& OutLog, int32& OutGiveUps)
+		double MaxBranchDistance = 0.0;
+		const auto RunSynthetic = [&](const FVector& Normal, const FVector& Target, FLog& OutLog, int32& OutGiveUps,
+			const float MaxTargetDistance = 0.f, const float Seconds = 25.f)
 		{
 			FChaseDetourParams Params;
+			Params.MaxTargetDistance = MaxTargetDistance;
+			MaxBranchDistance = 0.0;
 			FChaseDetourState State;
 			FVector Location = FVector::ZeroVector;
 			FVector LastOrigin(TNumericLimits<double>::Max());
 			bool bWasWaiting = false;
-			for (int32 Frame = 0; Frame * Dt < 25.f; ++Frame)
+			for (int32 Frame = 0; Frame * Dt < Seconds; ++Frame)
 			{
 				EChaseDetourMode Mode;
 				const FVector Dir = UpdateChaseDetour(State, Params, Location, Normal, Target, FVector::UpVector, 800.f, 1, Dt, Mode);
@@ -745,6 +749,7 @@ bool FLNPSurfaceCrawlChaseDetourTest::RunTest(const FString& Parameters)
 						OutLog.Add({ State.Branch, State.Branch == EChaseBranch::Lateral ? State.Side : static_cast<int8>(0) });
 					}
 					Location += Dir * 600.f * Dt;
+					MaxBranchDistance = FMath::Max(MaxBranchDistance, FVector::Dist(Location, Target));
 				}
 				OutGiveUps += Mode == EChaseDetourMode::Wait && !bWasWaiting ? 1 : 0;
 				bWasWaiting = Mode == EChaseDetourMode::Wait;
@@ -765,6 +770,15 @@ bool FLNPSurfaceCrawlChaseDetourTest::RunTest(const FString& Parameters)
 			TestTrue(FString::Printf(TEXT("Floor tries exactly the two laterals (%s)"), *Describe(Log)), Log == FLog{ { EChaseBranch::Lateral, 1 }, { EChaseBranch::Lateral, -1 } });
 			TestEqual(TEXT("Floor gives up after both laterals"), GiveUps, 1);
 		}
+		// 바닥, 타겟이 그대로인 채 대기(10초)가 끝나면 지난 시도의 첫 옆 반대쪽부터 다시 시도한다(PIE 2026-10-12 — 같은 순서를 되풀이했다).
+		// 첫 시도 약 16.3초에 포기, 재시도는 약 29.3초에 옆−, 약 36초에 옆+다.
+		{
+			FLog Log;
+			int32 GiveUps = 0;
+			RunSynthetic(FVector::UpVector, FVector(5000, 0, 2000), Log, GiveUps, 0.f, 40.f);
+			TestTrue(FString::Printf(TEXT("Retry after waiting starts from the other lateral (%s)"), *Describe(Log)),
+				Log == FLog{ { EChaseBranch::Lateral, 1 }, { EChaseBranch::Lateral, -1 }, { EChaseBranch::Lateral, -1 }, { EChaseBranch::Lateral, 1 } });
+		}
 		// 벽 평형점(오르막과 내리막이 상쇄): 아무것도 빼지 않고 옆 → 아래 → 반대쪽 옆 순서다. 셋째가 예산(6.67초 × 3)을 다 쓸 때 전체 예산
 		// 20초도 끝난다 — 프레임 경계에 따라 위가 한 프레임 시작될 수 있어 앞 셋만 본다.
 		{
@@ -774,6 +788,17 @@ bool FLNPSurfaceCrawlChaseDetourTest::RunTest(const FString& Parameters)
 			TestTrue(FString::Printf(TEXT("Wall equilibrium order is lateral, down, other lateral (%s)"), *Describe(Log)),
 				Log.Num() >= 3 && FLog(Log.GetData(), 3) == FLog{ { EChaseBranch::Lateral, 1 }, { EChaseBranch::Down, 0 }, { EChaseBranch::Lateral, -1 } });
 			TestEqual(TEXT("Wall equilibrium gives up on the total budget"), GiveUps, 1);
+		}
+		// 같은 평형점에 타겟 거리 상한 2500: 갈래가 타겟을 놓칠 만큼 멀어지기 전에 실패로 넘어가고 순서는 그대로다(PIE 2026-10-12 — 깊은 틈의
+		// 아래 갈래가 타겟을 놓쳐 시도 기억이 지워졌다). 상한을 넘는 것은 넘은 프레임의 한 걸음뿐이다.
+		{
+			FLog Log;
+			int32 GiveUps = 0;
+			RunSynthetic(FVector::ForwardVector, FVector(1000, 0, 1000), Log, GiveUps, 2500.f);
+			TestTrue(FString::Printf(TEXT("Distance cap keeps the branch order (%s)"), *Describe(Log)),
+				Log.Num() >= 3 && FLog(Log.GetData(), 3) == FLog{ { EChaseBranch::Lateral, 1 }, { EChaseBranch::Down, 0 }, { EChaseBranch::Lateral, -1 } });
+			TestTrue(FString::Printf(TEXT("Branches stay within the distance cap (max %.0f)"), MaxBranchDistance),
+				MaxBranchDistance <= 2500.0 + 600.0 * Dt + 1.0);
 		}
 		// 벽, 일반 추격이 뚜렷하게 아래(타겟이 멀리 앞): 아래는 일반 추격이 이미 시도한 것이므로 뺀다.
 		{

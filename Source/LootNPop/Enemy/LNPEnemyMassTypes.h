@@ -702,6 +702,9 @@ struct LOOTNPOP_API FLNPEnemyCrawlFragment : public FMassFragment
 	/** 추격 중 막힘 계측과 단순 우회 상태(LNPSurfaceCrawl::UpdateDetour). 서버 이동 프로세서만 쓴다. */
 	LNPSurfaceCrawl::FDetourState Detour;
 
+	/** 사거리 밖 교전 추격의 진행 계측과 고정 방향 우회(LNPSurfaceCrawl::UpdateChaseDetour, Phase 14b). 서버 이동 프로세서만 쓴다. */
+	LNPSurfaceCrawl::FChaseDetourState ChaseDetour;
+
 	/** 비교전 중 Home 접근 계측(LNPSurfaceCrawl::UpdateHomeApproach). 서버 이동 프로세서만 쓴다. */
 	LNPSurfaceCrawl::FHomeApproachState HomeApproach;
 
