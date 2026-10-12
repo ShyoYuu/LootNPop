@@ -35,6 +35,7 @@
 #include "MoverDataModelTypes.h"
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
+#include "GAS/Effects/LNPGameplayEffect_Burn.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "Enemy/LNPEnemyMassTypes.h"
@@ -398,7 +399,11 @@ void ALNPPlayerCharacter::HandleDeathOnServer()
 	if (PS)
 	{
 		if (UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent())
+		{
 			ASC->CancelAllAbilities();
+			// 같은 이유로 화상도 시체에서 계속 타지 않게 끊는다 — 적 화상이 사망 시 정지하는 것과 같다.
+			ASC->RemoveActiveGameplayEffectBySourceEffect(ULNPGameplayEffect_Burn::StaticClass(), nullptr);
+		}
 	}
 
 	// 연출보다 먼저 드랍한다 — 무기 해제가 WeaponSlot 복제로 흘러 각 클라이언트의 WeaponMesh를 알아서 감춘다.

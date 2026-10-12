@@ -85,6 +85,7 @@ ReleaseGuardState()       ← 해제는 전부 이 하나를 거친다
 **공격자는 Actor든 순수 엔티티든 같다.** 순수 엔티티 적의 가상 칼날·투사체도 `FLNPEntityAttackConfig::ParryRadius`(기본 40)를 실어 보내므로 같은 판정을 탄다.
 
 **근접 판정의 단일화:** Player 타겟 2단계 판정은 `JudgePlayerTarget` 람다 하나로 구현되어, Enemy→Player와 근접 PvP(아군 사격)가 항상 같은 로직을 탄다 (§7.3의 버그 재발 방지).
+그 순서(패링 → 가드 → 피격)는 공용 함수 `LNPGuardParry::Judge`가 정하고, 화염 원뿔의 아군 사격 분기도 같은 함수를 쓴다(2026-10-13). 화염은 패링 불가라 패링 반경 조건을 항상 false로 넘긴다.
 
 ### 각도 판정
 

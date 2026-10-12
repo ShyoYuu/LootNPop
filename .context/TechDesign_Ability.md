@@ -404,9 +404,9 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 - 저장: `ClearWeaponSlot`(교체·해제·사망 드랍 공통). 복원: `ApplyMagazineAttributes`(크기를 먼저 쓴다 — 잔량 클램프 상한).
 - 드랍 왕복: `ALNPLootDice::AmmoSpent`(**비복제** — 서버 픽업만 읽는다) → `AddItemInstance(Def, Level, AmmoSpent)`. 레벨과 같은 이유로 **자동 장착보다 먼저** 기록한다.
 
-### 5.6 충전형 탄창 — 화염방사기 (2026-10-11, 구현 중)
+### 5.6 충전형 탄창 — 화염방사기 (2026-10-11 ~ 10-13)
 
-기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5. 적 화상 DoT와 VFX는 아래 절, 플레이어 화상은 후속 단계(U5)다.
+기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5. 적 화상 DoT·플레이어 화상(아군 사격)·VFX는 아래 절.
 
 #### 틱 = 발동 1회
 
@@ -443,8 +443,10 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 
 - 기본값은 C++ 생성자·초기화자에 둔다.
   ⚠️ 그래서 이 값을 바꾸면 Live Coding으로는 CDO가 갱신되지 않는다. 에디터를 재시작해야 반영된다.
-- ⚠️ **지금 GA BP(`GA_FlameAttack_Flamethrower`)가 테스트 값으로 덮어쓰고 있다**(2026-10-12): `BaseDamageCoefficient` 0.1, `BurnDamageCoefficient` 0.1, `BurnChance` 0.5.
-  C++ 값(0.6 / 0.3 / 0.2)으로는 적이 1초 안에 죽어 화상이 쌓일 틈이 없었다. 정식 값이 아니며, 확정하면 C++에 옮기고 BP 오버라이드를 지운다.
+- ⚠️ **지금 GA BP(`GA_FlameAttack_Flamethrower`)가 테스트 값으로 덮어쓰고 있다**: `BaseDamageCoefficient` 1.0, `BurnDamageCoefficient` 1.0, `BurnChance` 0.5.
+  2026-10-12에는 0.1 / 0.1 / 0.5였다 — C++ 값(0.6 / 0.3 / 0.2)으로는 적이 1초 안에 죽어 화상이 쌓일 틈이 없었다.
+  2026-10-13(U5)에 두 계수를 함께 1.0으로 올렸다 — 플레이어는 방어력이 원시 피해를 약 9%로 깎아 0.1에서는 화상 틱(5중첩 실피해 0.9)이 체감되지 않았다.
+  두 계수가 같으면 5중첩 화상의 초당 피해 = 원뿔 직접 피해의 초당 피해(1:1)다. 정식 값이 아니며, 확정하면 C++에 옮기고 BP 오버라이드를 지운다.
 - 판정 형상·되감기·피격 반응 억제는 HitDetection 문서 §3.5.
 
 #### 화상 DoT — 적 (2026-10-12)
@@ -471,7 +473,31 @@ Actor는 LOD에 따라 풀로 반납·재사용되므로 ASC에 건 GE는 강등
 - **해제 경로는 `Stacks = 0` 하나다.** 만료와 사망 모두 같다. 그래서 Burn 쿼리는 `FLNPEnemyDyingTag`를 거르지 않고, 사망 청크에서 중첩을 지운다 —
   그 0이 복제돼 게스트 표현(U4)도 같은 신호 하나로 꺼진다.
 - 디버그: `LNP.Burn.Log 1` — 서버의 적용·갱신·틱·만료·사망 정지, 게스트의 수신값 변화(`[Burn][Guest]`).
-- 플레이어 화상(주기 GE)은 프렌들리 파이어 단계(U5)에서 붙인다.
+
+#### 화상 DoT — 플레이어 (아군 사격, 2026-10-13)
+
+`bFriendlyFire`가 켜졌을 때만 원뿔 프로세서가 플레이어를 판정한다(HitDetection §3.5). 플레이어는 ASC가 PlayerState에 있어 LOD 반납 문제가 없으므로 **주기 GE가 원본**이다.
+
+| 요소 | 내용 |
+|:---|:---|
+| `ULNPGameplayEffect_Burn` | HasDuration·Period, `IncomingDamage` Additive SetByCaller(`LNP.GE.Data.Damage` = 중첩당 피해). AggregateByTarget, 상한 `MaxStacks`(5), 적용 시 지속 갱신, `ClearEntireStack`, 큐 `GameplayCue.LNP.Status.Burn` |
+| `FLNPApplyPlayerBurnGECommand` (원뿔 프로세서 cpp) | 게임 스레드에서 피격자 ASC에 적용. 스펙에 어빌리티의 `BurnDuration`·`BurnTickInterval`을 싣는다(중첩 상한은 스펙에 실을 수 없어 CDO 값) |
+| `GCN_LNP_Status_Burn` | 엔진 `AGameplayCueNotify_Looping` BP. `NS_BurnLoop`을 대상 메시에 붙인다(`AttachToTarget` + `KeepWorld`). User `BurnStacks`는 기본값 1 그대로 — 관전자에게는 활성 GE 목록이 복제되지 않아(Mixed) 중첩 수를 알 수 없다 |
+
+- **중첩 비례는 엔진이 한다.** 주기 실행은 Additive 모디파이어에 중첩 수를 곱한다(`bFactorInStackCount` 기본 true, `GameplayEffectTypes.cpp` `ComputeStackedModifierMagnitude`).
+- ⚠️ **`StackPeriodResetPolicy = NeverReset`.** 기본값(적용마다 주기 리셋)이면 0.1초마다 갱신되는 동안 0.5초 틱이 한 번도 터지지 않는다 — 적 화상의 "갱신은 위상을 건드리지 않는다"와 같은 규칙이다.
+  `bExecutePeriodicEffectOnApplication = false`로 첫 틱도 적처럼 한 주기 뒤다.
+- ⚠️ **`bSuppressStackingCues = true`.** 기본값이면 중첩이 갱신될 때마다(상한에서 지속만 갱신될 때도) 비신뢰 멀티캐스트로 OnActive·WhileActive가 다시 나간다(`AbilitySystemComponent.cpp` 스택 분기).
+  Looping GCN은 WhileActive마다 Niagara 컴포넌트를 하나씩 더 만들어 덧쌓았고, 화면마다 수명이 달라 보였다. 큐는 걸림/풀림 두 번이면 된다.
+- ⚠️ **GCN의 `bAutoDestroyOnRemove`는 끈다** — 분사 큐(U4)와 같은 함정의 두 번째 사례다. 주기 GE는 틱마다 `Executed` 큐 이벤트를 낸다.
+  관전자는 그것을 RPC로 받는데 그 파라미터의 `bGameplayEffectActive`가 false라, 엔진이 GCN 액터를 Executed 직후 파괴한다(`GameplayCueSet.cpp`).
+  게스트 화면에서만 호스트의 화상 이펙트가 첫 틱(0.5초)에 사라졌다. 끄면 Removed 때 Looping 베이스가 이펙트만 멈추고 액터는 대상에 남아 다음 화상에 재사용된다
+  (`AbilitySystem.GameplayCueNotifyMultipleRemoveEvents` 기본 true라 재사용 후 Removed도 다시 처리된다). 대상이 파괴되면 같이 회수된다.
+- ⚠️ 부착 규칙은 `KeepWorld`여야 한다. 엔진은 월드 좌표를 계산한 뒤 그 값을 그대로 상대 오프셋으로 넘기므로(`GameplayCueNotifyTypes.cpp` `SpawnSystemAttached`), `KeepRelative`면 구 내벽 월드에서 이펙트가 약 25,000cm 떨어진 곳에 생긴다.
+- **사망 처리 두 겹.** ASC가 PlayerState 소유라 폰이 죽어도 GE가 남는다 → `HandleDeathOnServer`가 화상 GE를 지운다(적 화상이 사망 시 멈추는 것과 같다).
+  시체 재점화는 두 곳에서 막는다: 원뿔의 플레이어 쿼리가 `FLNPPlayerDeadTag`를 거르고, 그 태그는 지연 커맨드라 **같은 배치에서 원뿔 피해가 방금 죽인 대상**은 적용 커맨드가 `IsDead()`로 한 번 더 거른다.
+- 디버그: `LNP.Burn.Log 1` — `[Burn][Player] apply`(적용 후 중첩 수), `[Burn][Player] tick`(`PostGameplayEffectExecute`에서 중첩·원시 피해·HP).
+- 검증(2026-10-13, 2P PIE): 5중첩 상한·3초 만료·중첩 비례 틱, 가드 중 직접 피해 0건·화상만 적용, 양방향·양 화면 화상 VFX 동시 시작·종료, 시체 재점화 0건, FF off 시 피해·화상 없음.
 
 #### VFX — 분사 큐와 적 화상 표현 (2026-10-12)
 
@@ -509,7 +535,7 @@ Actor는 LOD에 따라 풀로 반납·재사용되므로 ASC에 건 GE는 강등
 - 엔티티 핸들 키 Niagara 맵(투사체 트레일 패턴)을 프로세서가 소유. 위치는 판정과 같은 몸통 중심(`ResolveEnemyCapsuleCenter`), 로컬 +Z를 엔티티 Up에 맞춘다.
   중첩 수는 User `BurnStacks`로 넘겨 `NS_BurnLoop`의 스폰율을 비례시킨다(불꽃 중첩당 14/초, 연기 5/초).
 - **해제는 스윕 한 곳**: 매 프레임 "중첩 > 0"으로 보인 항목만 표시하고, 표시되지 않은 항목은 전부 회수한다. 만료·사망(둘 다 Stacks 0 복제)·엔티티 파괴(버블 이탈·사망 팝)가 모두 여기로 모이고, 표현 LOD는 핸들이 같아 무관하다.
-- 에셋은 `ULNPSettings::EnemyBurnVFX`(C++ 기본값 `/Game/Effects/Combat/NS_BurnLoop`). `NS_BurnLoop`은 U5 플레이어 화상 큐가 재사용한다.
+- 에셋은 `ULNPSettings::EnemyBurnVFX`(C++ 기본값 `/Game/Effects/Combat/NS_BurnLoop`). `NS_BurnLoop`은 플레이어 화상 큐(`GCN_LNP_Status_Burn`)가 재사용한다.
 - 진단: `LNP.Burn.Log 1`의 `[BurnVFX] Alloc/Release ... Active=N`. 2P 검증에서 Alloc 32 / Release 32, 양쪽 월드 모두 Active=0으로 끝났다.
 
 ---

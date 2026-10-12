@@ -51,3 +51,6 @@ Content/NiagaraExamples/
 /Content/Maps/_WorkInProgress/
 
 
+
+# 로컬 빌드 후 에디터 실행 배치 — 엔진 경로가 개인 환경 의존.
+/BuildAndLaunchEditor.bat

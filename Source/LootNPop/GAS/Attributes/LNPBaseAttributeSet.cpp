@@ -4,6 +4,9 @@
 
 #include "GameplayEffectExtension.h"
 #include "GAS/LNPDamageFormula.h"
+#include "GAS/LNPBurnTypes.h"
+#include "GAS/Effects/LNPGameplayEffect_Burn.h"
+#include "LootNPop.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
 #include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
@@ -101,7 +104,15 @@ void ULNPBaseAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCal
 			return;
 
 		const float FinalDamage = LNPDamage::ApplyDefense(RawDamage, GetDefensePower());
-		SetHealth(FMath::Clamp(GetHealth() - FinalDamage, 0.f, GetMaxHealth()));
+		const float HpBefore = GetHealth();
+		SetHealth(FMath::Clamp(HpBefore - FinalDamage, 0.f, GetMaxHealth()));
+
+		// 플레이어 화상 주기 틱 — 다른 피해는 FLNPApplyDamageGECommand가 이미 로그를 남긴다.
+		if (LNPBurn::IsLogEnabled() && Data.EffectSpec.Def && Data.EffectSpec.Def->IsA<ULNPGameplayEffect_Burn>())
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[Burn][Player] tick stacks=%d raw=%.1f HP: %.1f -> %.1f"),
+				Data.EffectSpec.GetStackCount(), RawDamage, HpBefore, GetHealth());
+		}
 	}
 	else if (Data.EvaluatedData.Attribute == GetHealthAttribute())
 	{

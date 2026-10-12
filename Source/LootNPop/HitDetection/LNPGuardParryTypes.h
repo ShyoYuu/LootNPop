@@ -31,3 +31,41 @@ struct LOOTNPOP_API FLNPParryStateFragment : public FMassFragment
 	 */
 	double ParryWindowExpiryTime = -1.0;
 };
+
+/** 플레이어 피격 대상 판정 결과. */
+enum class ELNPPlayerDefenseResult : uint8
+{
+	None,     // 닿지 않았다
+	Parried,
+	Guarded,
+	Hit,
+};
+
+namespace LNPGuardParry
+{
+	/**
+	 * 플레이어 대상의 **패링 → 가드 → 피격** 순서를 정하는 단일 정의 (TechDesign_HitDetection.md §7.5).
+	 * 근접 PvP·Enemy→Player와 화염 원뿔(아군 사격)이 이 함수 하나를 공유한다 — 분기를 복제했던 시절
+	 * PvP 쪽에만 패링 체크가 빠진 버그가 있었다.
+	 *
+	 * 기하 판정(칼날 거리, 원뿔 형상)은 호출자 몫이다. 여기서는 그 결과만 받는다.
+	 * @param FacingDot     피격자 정면 · (피격자 → 공격자) 방향
+	 * @param bInParryRange 패링 반경 안인가 — 패링할 수 없는 공격(화염 틱)은 false를 넘긴다
+	 * @param bInHitRange   피격 반경 안인가
+	 */
+	inline ELNPPlayerDefenseResult Judge(const FLNPParryStateFragment& PS, const float FacingDot, const double Now,
+		const bool bInParryRange, const bool bInHitRange)
+	{
+		if (bInParryRange && PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || Now <= PS.ParryWindowExpiryTime)
+			&& FacingDot >= PS.ParryAngleCos)
+			return ELNPPlayerDefenseResult::Parried;
+
+		if (!bInHitRange)
+			return ELNPPlayerDefenseResult::None;
+
+		if (PS.bIsGuarding && FacingDot >= PS.GuardAngleCos)
+			return ELNPPlayerDefenseResult::Guarded;
+
+		return ELNPPlayerDefenseResult::Hit;
+	}
+}

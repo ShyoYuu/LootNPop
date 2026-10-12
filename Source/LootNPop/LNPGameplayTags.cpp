@@ -40,6 +40,7 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Melee_AttackerHitStop,"GameplayCue.LNP.Me
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Character_Stagger,    "GameplayCue.LNP.Character.Stagger")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Weapon_Reload,        "GameplayCue.LNP.Weapon.Reload")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Weapon_Flame,         "GameplayCue.LNP.Weapon.Flame")
+UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayCue_Status_Burn,         "GameplayCue.LNP.Status.Burn")
 
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Parry_Success, "LNP.GameplayEvent.Parry.Success")
 UE_DEFINE_GAMEPLAY_TAG(TAG_GameplayEvent_Stagger_Light, "LNP.GameplayEvent.Stagger.Light")

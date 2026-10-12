@@ -320,8 +320,7 @@ void ULNPInputHandlerComponent::SetupPlayerInputComponent(UInputComponent* Playe
 		EIC->BindAction(ADSAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnADSReleased);
 		EIC->BindAction(LockOnAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnLockOnStarted);
 		EIC->BindAction(LockOnAction, ETriggerEvent::Completed, this, &ULNPInputHandlerComponent::OnLockOnReleased);
-		if (ReloadAction)
-			EIC->BindAction(ReloadAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnReloadStarted);
+		EIC->BindAction(ReloadAction, ETriggerEvent::Started, this, &ULNPInputHandlerComponent::OnReloadStarted);
 
 		for (int32 i = 0; i < ActiveSkillActions.Num(); ++i)
 		{

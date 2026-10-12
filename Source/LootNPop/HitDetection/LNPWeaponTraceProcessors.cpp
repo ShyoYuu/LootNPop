@@ -577,25 +577,25 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					Ctx.Defer().PushCommand<FLNPEntityHitStopCommand>(Frag.InstigatorEntity);
 				};
 
-				// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경, 서버 만료 시각으로 RTT 보정)
-				if (PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || NowForRewind <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos
-					&& DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius))
-				{
-					MarkHit(Frag, Player.Handle);
-					if (Player.Actor)
-						Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, Frag.InstigatorEntity, ImpactPointOf(), AttackerDir);
-					return;
-				}
+				// 패링 반경(ParryRadius)이 피격 반경보다 크다 — 패링은 살짝 더 관대하다 (§7.4).
+				const ELNPPlayerDefenseResult Result = LNPGuardParry::Judge(PS, Dot, NowForRewind,
+					DistSq <= FMath::Square(SwordParryRadius + Player.CapsuleRadius),
+					DistSq <= FMath::Square(SwordRadius + Player.CapsuleRadius));
 
-				// 2단계: 피격 체크 (HitRadius — 정상 반경)
-				if (DistSq > FMath::Square(SwordRadius + Player.CapsuleRadius))
+				if (Result == ELNPPlayerDefenseResult::None)
 					return;
 
 				MarkHit(Frag, Player.Handle);
 				if (!Player.Actor)
 					return;
 
-				if (PS.bIsGuarding && Dot >= PS.GuardAngleCos)
+				if (Result == ELNPPlayerDefenseResult::Parried)
+				{
+					Ctx.Defer().PushCommand<FLNPMeleeParryCommand>(Player.Actor, Frag.InstigatorEntity, ImpactPointOf(), AttackerDir);
+					return;
+				}
+
+				if (Result == ELNPPlayerDefenseResult::Guarded)
 				{
 					// 막아내도 경직은 쌓인다 — 임계를 넘으면 가드가 풀리며 경직에 걸린다 (가드 브레이크).
 					LNPPoise::Accumulate(Player.Poise, Frag.PoiseDamage, NowForRewind, PoiseGuardMultiplier);

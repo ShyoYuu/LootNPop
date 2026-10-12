@@ -258,7 +258,12 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
   원뿔은 프레임당 플레이어 수만큼만 생기므로 근접처럼 전수 검사 + 경계 구 1차 필터로 둔다.
 - **사거리 1600cm는 비행형 때문이다.** 비행형은 교전 고도 750cm(500~1000 가운데)에서 앙각 30°로 머물러 직선거리가 약 1500cm다.
   600cm였을 때 비행형을 아예 공격할 수 없었다(2026-10-11 PIE). 끝 반경은 600cm/200cm 기울기를 유지한 480cm.
-- 플레이어 대상(아군 사격)은 아직 없다 — U5에서 근접 `JudgePlayerTarget`을 공용 함수로 추출해 공유한다(§7.5).
+- **플레이어 대상은 아군 사격(`bFriendlyFire`)이 켜졌을 때만** 판정한다(2026-10-13). 꺼져 있으면 플레이어 쿼리 자체를 돌리지 않는다 — 적은 화염방사기를 쓰지 않으므로 이 분기는 플레이어→플레이어뿐이다.
+  - 형상·사선·되감기는 적 분기와 같은 헬퍼(`FlameConeHitsCapsule`·`FlameConeRewoundCenter`)를 쓴다. 플레이어는 엔티티 위치가 곧 캡슐 중심이고 RTT/2만 되감는다(근접과 같은 규약).
+  - 패링 → 가드 → 피격 순서는 근접과 같은 단일 함수 `LNPGuardParry::Judge`가 정한다(§7.5). 화염은 **패링 불가**라 `bInParryRange = false`를 넘긴다 — 패링 입력 중이라도 정면이면 가드로 떨어진다.
+  - 가드: 직접 피해만 막고 경직은 `PoiseGuardMultiplier`로 쌓는다. **가드 큐는 내지 않는다**(초당 10회). 피격: `FLNPApplyDamageGECommand`(넉백 0·`bSuppressHitReact`), 임팩트 큐 없음 — 적 분기와 같다.
+  - **화상은 가드 여부와 무관하게** 확률 판정해 `FLNPApplyPlayerBurnGECommand`로 주기 GE를 건다(→ [TechDesign_Ability.md](TechDesign_Ability.md) §5.6 플레이어 화상).
+  - 시체 제외: 플레이어 쿼리가 `FLNPPlayerDeadTag`를 거른다(리스폰 지연 동안 시체가 남는다).
 - 디버그: `LNP.Flame.DebugDraw 1` — 서버 월드에 원뿔을 그린다(끝 단면이 빨강이면 벽에 잘림). 게스트 화면에는 보이지 않는다.
 - 분사 VFX(`NS_FlameStream`)는 이 원뿔에 손으로 맞춘 것이고 벽에서 잘리지 않는다 — 판정과 연출의 연결은 [TechDesign_Ability.md](TechDesign_Ability.md) §5.6 VFX 절.
 
@@ -467,6 +472,12 @@ flush 시점에 실행되게 했다. §6의 후처리 커맨드와 같은 패턴
 "Enemy→Player"와 "Player→Player(아군 사격)" 분기가 복제된 코드였을 때 PvP 쪽에만 패링·가드 체크가 누락되어
 근접 PvP에서 패링이 무시됐다(Networking Phase 3에서 발견). 단일 람다(`JudgePlayerTarget`)로 통합해 재발을
 구조적으로 차단했다 — §7.6이 같은 교훈의 두 번째 사례다.
+
+2026-10-13 화염 원뿔(§3.5)이 두 번째 플레이어 판정 경로가 되면서, 람다 안의 **순서 결정**만 공용 함수
+`LNPGuardParry::Judge`(`LNPGuardParryTypes.h`)로 뽑았다. 입력은 패링 상태·정면 내적·시각과 호출자가 잰 기하 결과 둘
+(`bInParryRange`, `bInHitRange`)이고 결과는 `None / Parried / Guarded / Hit`이다.
+기하(칼날 거리, 원뿔 형상)와 결과 처리(패링 커맨드·경직·큐)는 각 프로세서에 남는다 — 무기마다 다른 것은 거기뿐이고, 갈라지면 안 되는 것은 순서다.
+패링할 수 없는 공격은 `bInParryRange = false`를 넘긴다. 투사체 경로는 반사 처리가 판정 중간에 끼어 있어 아직 이 함수를 쓰지 않는다.
 
 ### 7.6 판정 캡슐 중심 규약 — 단일 헬퍼로 강제
 
