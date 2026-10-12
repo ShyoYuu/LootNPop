@@ -1,91 +1,36 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: Phase 9 Vertical Slice — V009 패키지1P·V010 패키지 리슨2P/late join 기능 검사 통과. 성능·메모리 Gate(exact P95 초과 포함)와 NPC LoS 재검증은 미완료
+> 현재 Phase: 없음 — Phase 9 Vertical Slice 완료(2026-10-12). 다음 Phase는 사용자 확인 뒤 착수
 > 마지막 갱신: 2026-10-12
 
 ## 현재 결정
 
-**2026-10-12 V010 완료 — 패키지 리슨2P·late join 통과.** 패널 자세 계산을 `EvaluatePose`로 분리하고 `ProbePanelPoses`(고정 server time 자세)·`ProbeWorldDevices`(장치 위치·폰 위치)를 추가해 host/guest 로그를 대조했다. Normal(+5초)·LateJoin(+60초) 모두 exit0, snapshot(bindings269·Nav589·seam4281) 일치, 패널11 자세 차0·live 오차0, guest 장치의 host 대응·폰 250m 내 완전성, probe5종 양측 PASS, 적2434/2434다. 장치는 net cull 300m라 개수 일치를 요구하지 않는다. 전체127검사 실패0. host exact P95 3.42/4.09ms는 성능 단위에 남는다. 상세 [V010](phases/Phase09_NetworkV010.md).
+**Phase 9 완료(2026-10-12).** 실규모 블록아웃 옥탄트 `Bastion_00`·`Hollow_00`과 `Meadow_00`의 3종 혼합 풀이 다음을 통과했다.
 
-**2026-10-12 V009 완료 — 패키지1P 기능 검사 통과.** `ProbeSourceKeys`는 slot마다 게시된 저장 source 표와 대조하도록 고쳤다(혼합 풀). 정식 편성 105마리 부족은 새 `Runtime.ProductionSpawnComposition`이 Editor에서 그대로 재현했고, 반경 안 같은 Layer 적 후보가 편성27보다 적은 좁은 Layer에 랜덤 Pod를 둔 것이 원인이었다. 할당을 수동 앵커→수동 Pod 적→편성 전량 배치 가능한 랜덤 Pod 순으로 바꿔 패키지 배치2235/2235·33배치77,629/77,629·Pod 부족0이다. 전체127검사 통과(경고 포함4·실패0/513.5초), 입력 에셋 해시 유지·테스트 생성 에셋3개 HEAD 복구, 게이트 통과 BuildCookRun exit0/104.6초. 동일 패키지1P exit0/42.7초에서 적2235/2235·Pod120/120, SourceKeys/패널/FaceIndex/SurfaceData PASS, UnknownHits/EnvelopeEscapes/LayerJumps0이다. **exact P95 4.536ms>2ms는 성능 단위에 남고 2P·late join은 미실행이다.** 상세 [V009](phases/Phase09_SpawnCompositionV009.md).
+- 베이크·전체 회귀(127검사 실패0)
+- 게이트 통과 cook
+- 패키지 1P, 리슨 2P/late join
+- 성능·관통·메모리 Gate
 
-**2026-10-12 V008 완료 — Nav 정밀도 수정, 패키지1P 잔여 실패 확인.** 같은 저장본·방향의 새 회귀가 Editor 성공/Game 실패를 재현했다. `ComputeCell`만 MSVC precise로 고정해 전역 `/fp:fast`와 NeedsExact 안전 규칙을 유지했고, Development 게임에서 production 전체 404,414개 Nav 노드 조회가 성공했다. 전체126검사 통과(경고 없는122·경고 포함4·실패0/492.086초), production 최신성266.359초/오류0·HTTP경고1로 재베이크가 불필요했다. 에셋/설정 해시 유지·테스트 생성 에셋3개 실행 전 바이트 복구. 새 Development 패키징 exit0/64.649초·1229packages, 실제1P가 generation1/8slot/358bindings를 게시하고 face·SurfaceData·패널 probe PASS·UnknownHits/EnvelopeEscapes/LayerJumps0·자동종료 exit0/43.575초다. 그러나 기존 SourceKeys probe는 모든 slot이 같아야 한다는 가정으로 FAIL, 정식 적2235요청/2130배치(105부족), exact P95 4.604ms도 harness 2ms 기준 FAIL이다. **Nav 초기화 수정만 완료이며 1P전체·성능Gate 통과가 아니다.** 상세·다음 단위는 [V008](phases/Phase09_NavPrecisionV008.md)을 따른다.
+완료 근거 표와 수용한 한계는 [Phase 9 실행 문서](phases/Phase09_VerticalSlice.md) §5, 경위는 `history/Phase09_Log.md`가 소유한다.
 
-**2026-10-12 V007 검증 — cook 통과, 패키지 1P 실패.** production 세 source의 최신성·두 차례 베이크 결정론이268.343초/오류·경고0으로 통과했다. 별도 프로세스 반지름+1cm 음성 검사에서 저장 hash·Support 불일치6개를 검출했고, 프로세스exit0이어도 JSON 실패를 확인해 UAT 호출을 차단했다. 정식 설정 Development BuildCookRun은exit0/136.925초·1229packages cook 성공, production3LVI/3SurfaceData와 정식SpawnConfig 포함을 확인했다. 그러나 실제 패키지1P에서 `Nav slot 1 graph: Nav Layer 1 node (326,270) has no Support`로 snapshot 게시가 중단됐다. 소유 테스트 프로세스를 종료했으며2P·late join·성능·메모리는 진행하지 않았다. Editor `/fp:precise`와Game `/fp:fast`의 격자 경계 판정 차이가 유력한 후보이나 원인 미확정이다. 코드·에셋·기본 설정은 변경하지 않았다. 상세·근거·다음 수정은 [V007](phases/Phase09_CookPackageV007.md)을 따른다. plain BuildCookRun 자체에 validator를 추가한 것은 아니다.
-
-**2026-10-12 V006 완료 — 정식 편성 기준 고유125검사 통과.** 기본 설정은 `DA_MassSpawnConfig`, 테스트 편성은 내용 보존 후 `DA_MassSpawnConfig_TestOnePerSpecies`로 이름 변경했다. Crust/Regression/Conditional fixture3개를 재베이크하고 실제 공동 비행 수량 검사는 정식 config 요청값을 읽도록 수정했다. 전체 빌드 성공36.60초/컴파일 오류0. 새 에디터의 전체125검사124통과/Conditional 저장본1실패(454.154초) 후 해당 에셋 재베이크·영향 범위7개 전부 통과(32.866초), 두 배치의 최신 결과로 고유125검사 전부 통과다. production 두 차례 베이크 최신성/결정론248.666초·32seed runtime5.010초·VolumetricFixture 모두 오류·경고0이다. 전체 배치에는 기존 RHI/HTTP/BOption 경고가 있으며 단일 실행125통과·전체 경고0으로 기록하지 않는다. 테스트 생성 에셋3개 HEAD 복구·TestMap03 복귀·dirty content/map0·diff check 완료. [V006](phases/Phase09_OfficialSpawnConfigV006.md)에 근거를 기록했다. fixture 설정 분리는 하지 않았다.
-
-**V005 풀 통합 구현·당시 테스트 편성 검증 완료.**32seed의 배치32·definition×slot24·방향 조합9·seam 왕복2304경로·높이차0cm, 세 source 두 차례 베이크의 결정론·저장본 최신성, 고정3seed 실제 PIE 게시/Support8/8/source binding·generation 일치를 통과했다. Live Coding 이후 Support 수집0 문제는 전체 빌드·새 에디터에서 사라졌고 정확한 원인은 미확정이다. 당시 테스트 편성의 고유125검사119통과/6실패는 [V005](phases/Phase09_PoolIntegrationV005.md)의 역사 기록으로 보존한다. 최신 정식 편성 판정은 V006을 따른다. 전체 Phase9 Gate는 미완료다.
-
-**2026-10-12 광원1차 실측·감축 후보 평가 완료.** [V004](phases/Phase09_BastionLightingV004.md)에서 TestMap03 PIE의 기존/소등 및 기존→73개 후보→기존 반복을 비교했다. 외성벽 문에서 직접광 패스는 약0.09ms 줄었지만 GPUTime 개선은 확인하지 못했고 상부 벽 조명이 약해져 후보를 미채택했다. 승인 광원81개 유지, 코드·LVI·SurfaceData 변경 없음. PIE 광원243개 세기/반경 복원 불일치0·LVI 복구본 SHA256 일치를 확인했다. 고정 해상도 패키지 성능 Gate와 구분한다. 이후 풀 통합/여러 seed 검증은 위 V005에서 진행했다.
-
-**2026-10-12 Bastion 제작·장치 개편·나선 끼임 수정 완료.** V002 사용자 PIE에서 전체적으로 문제없고 훅마다 용도·사거리가 명확하며 여러 각도에서 접근하고 관성으로 아래 지형에 떨어지지 않았다고 확인했다. 별도로 보고한 slot7/local(4406,2527,H17323)의 나선–나팔 벽 끼임은 [V003](phases/Phase09_BastionSpiralGapV003.md)에서 명목 틈100→200cm로 나팔 안쪽 경계만1m 물려 해결했다. 기존 저장본 Chaos 낙하41/41실패→수정 저장본41/41통과, Live Coding patch_12·재베이크·자동7검사 성공(6.928초/오류·경고0), Nav 왕복1408경로·Pod96투영도 통과했다. **사용자가 나선 경사로 양측을 직접 시험해 양쪽 모두 끼임 없이 잘 떨어짐을 확인했다.** 승인 V001 외피·V002 패널/훅과 최종 V003을 현재 기준으로 확정한다. 광원 성능 실측·감축과 Phase 전체의 NPC LoS·교전·풀 조합·패키지/부하 Gate는 후속 범위다.
-
-**2026-10-11 장치 개편 결과:** [V002](phases/Phase09_BastionDevicesV002.md)에서 패널 면적9배(12×12m)·외성벽↔북쪽 Pod 발판 경로, 훅135→46(65.9% 감소)·시설별 목적지·종료 관성 착지를 구성했다. 장치 전용 갱신·저장본 충돌·재베이크·정식7개 자동 검사 성공(6.817초/오류·경고0). 훅 관성1748회·패널 sweep774회·Nav 왕복1408경로·Pod96투영과 Hollow/production 회귀를 통과했다. 당시 훅46·패널1·광원81·Pod12, 승인 지형199파일 해시 불일치0이었다. Live Coding patch_10 성공. 2026-10-12 사용자 장치 PIE는 위 문단대로 통과했으며 V003 국소 형상 수정 후 재생성 파일 해시는 이때의 결과와 구분한다.
-
-Phase 9를 착수했다. 실행 문서는 `phases/Phase09_VerticalSlice.md`, 경위는 `history/Phase09_Log.md`가 소유한다.
-
-- 품질 기준: 실규모 프로토타입·단순 머티리얼 블록아웃. 2026-10-10 최신 지시로Hollow 전체를 단순한 닫힌 폴리곤 조립으로 재제작한다. 기존 상세 쉐입·치수·세부 동선은 크게 바꿔도 된다. 정교한 외형은 정식 아트 단계로 미룬다.
-- 새 옥탄트 2개(가칭 A `Bastion_00` 입체 요새형, B `Hollow_00` 협곡·부유섬형). 초기 공동 입구는 A 긴 경사로+수직 통로, B 수직 통로만이었다. 2026-10-08 사용자 추가 요청으로 B에도 숨은 외곽 경사로 입구를 추가한다. 이전 B의 지상/지하 GroundSupport NoPath 기대값은 새 뒷길 Reach 검증으로 대체한다. `Meadow_00`은 풀에 남긴다.
-- 메시 생성·배치는 제작 에이전트가 맡고(Blender MCP·에디터 명령), 사용자는 PIE로 동선을 검토한다.
-- 2026-10-10 사용자 지시: Hollow 완성보다 여러 옥탄트에 재사용할 설계·제작 프로세스와 두 가이드의 완성도를 우선한다. 재제작 구역과 Blender 활용 범위는 에이전트가 판단한다. 이어진 암반/경사/굴 외피는 Blender, 지각/이음매와 Pod/앵커/장치는 코드로 관리한다. 독립 반입 시험 V001은 통과했으며 production 교체·캡슐·베이크·PIE 검증은 별도 단계다.
-- 지형을 그래플 거리에 맞추지 않는다(2026-10-07 사용자 지시). 먼 앵커는 마커별 `GrappleMaxDistance`로 거리를 준다.
-- 월드 반지름 300m는 고정하며 확대를 후보로 삼지 않는다(2026-10-08 사용자 명시). Hollow는 협곡의 깊이·높이차·연속 절벽으로 규모감을 만든다.
-- 사용자 확인/추가 방향(2026-10-08): 절벽 확대본의 규모감과 바닥→양쪽 절벽 훅 이동은 좋다. 협곡을 구부려 길이를 늘리고 바닥을 조금 더 깊게 하며, 주변에도 작은 메사·침식 구덩이를 흩어 그랜드캐니언 같은 인상을 만든다.
-- 굽어진 협곡·주변 지형은 사용자가 채택했다. 꼭대기 앵커의 몸체 가림을 수정하고 동쪽 절벽→중간 부유섬→아레나로 접근 경로를 연결했다. 협곡 외형은 보존한다.
-- 사용자가 중간 부유섬을 거쳐 꼭대기 섬까지 올라가는 데 성공했다(2026-10-08). 이 상승 연결을 현재 기준으로 보존한다. 하강 복귀·중도 해제·전투/NPC 합류까지 확인한 것으로 확대 해석하지 않는다.
-- 사용자가 지하에 떨어져 전투하고 탈출하는 흐름을 문제없이 진행했다(2026-10-08). 공동과 탈출 동선은 현재 기준으로 보존한다. 두 입구 각각의 왕복·지상/지하 NPC 분리·개별 편성 수량까지 확인한 것으로 확대 해석하지 않는다.
-- 사용자가 이동 패널 왕복·훅 복귀와 북쪽 메사 경사로의 걸림 없는 부드러운 보행을 확인했다(2026-10-08). 패널 접안·경사로/층계참 연결은 현재 기준으로 보존한다. 새 섬의 Pod 전투·NPC 합류까지 확인한 것으로 확대 해석하지 않는다.
-- 최종 NPC 검토(2026-10-08): HollowPodWest의 벽보행형을 절벽 아래로 유인한 뒤 윗면으로 텔레포트했을 때 적이 벽을 올라와 공격했다. 수직 통로 탈출 후 비행형은 지상까지 추격하고 그 외 적은 추격하지 못했다. Shuttle/서쪽 절벽 사이에서는 벽보행형이 대상을 인식하지만 벽·승강장 모서리를 헤매며 공격하지 못했다. 사용자는 벽보행 LoS를 다른 세션에서 수정하기로 했다. 채택한 Hollow 지형은 유지하며 교전 성공으로 기록하지 않는다.
-- 후속 확장 요청(2026-10-08): 외곽→협곡 진입과 절벽 자체 전장을 보강한다. 절벽 중간/바깥 잔도·Pod 전투 굴·외곽의 좁고 긴 암릉·양쪽 절벽 사이 다리/패널/연속 훅·한쪽 절벽 U자 윤곽·공동의 숨은 외곽 경사로 입구를 추가한다. 보스 공간은 기존 +180m Arena이며 가장자리 거대 암주로 실루엣을 보강한다. 300m 반지름 유지, 벽보행 LoS 수정은 별도 세션 소유다.
-- 최신 피드백(2026-10-08): 외곽·잔도·다리·뒷길의 방향은 채택했으나 외곽 경사로를 지면까지 채운 암반으로 바꾼다. 서쪽 산은 좌우 왕복 경사로로 정상까지 걷는다. 전투 굴은 박스 외형을 제거하고 절벽 내부를 파며, U자는 탑뷰가 아니라 측면 높이차를 뜻한다. 뒷길 두 굽이의 추락 틈을 막고 정상섬 두께·암주 크기를 줄여 완만한 지면 굴곡을 만든다. 첫 잔도까지 훅 이동은 성공했으나 다음 앵커를 못 찾았으므로 앵커 가시성·착지부를 정리한다.
-- 스케일 기준(2026-10-07): 지면 위 200m·아래 100m, 거인 스케일 구조물(계단 칸만 플레이어 스케일), 폐허 위주, 옥탄트마다 메인 무대 하나(보스 자리). 다른 옥탄트에서 +240/−150, +180/−130도 시험한다.
-- 검토 중 적은 에디터 세션 CVar `LNP.Spawn.EnemyDensity 0`으로 끈다(에셋 무변경).
-- 레이아웃은 플레이어 치수표와 규칙(`LNPSliceOctant.cpp`의 `PlayerMetrics`·`DesignRules`, 표는 `../Guide_OctantLevelInstance.md` §8)으로 검사한다. 생성 로그 `lint=0`을 유지하되 외피·실제 통행 완료로 해석하지 않는다.
-- 직전 Phase 14 결과(D-075~077, 편성 D-076)는 그대로 유효하다. 알려진 벽보행 한계는 `history/Phase14_Log.md`를 따른다.
-
-- 추가 플레이 피드백(2026-10-08): 협곡 바닥→절벽 정상의 연속 훅과 전투 굴 외형은 사용자 확인 완료. 왕복 암반은 독립 언덕이 아니라 절벽에 완전히 붙어야 한다. 정상 경사 접합 추락과 비밀 입구 돌출, 두 굽이의 외피 균열 7곳이 보고됐으며 모두 슬롯 5로 역산됐다. 기존 중앙 바닥/331개 광선 통과를 외피 완전 폐쇄로 해석하지 않는다. 절벽까지 채우는 왕복 암반·정상 수평 도착부, 회전 공간의 문 개구부/천장 보존, 입구에 들어오는 외곽 경사 바닥 절단 수정 중이다.
-- 최신 사용자 검토: 절벽 부착 왕복 길과 비밀 통로를 처음부터 끝까지 균열/통행 지장 없이 통과했다. 왕복 길 폭을 전체 2m 줄인다(12→10m, 굽이 폭 20→18m). 반대편 외벽 접합 균열 2곳·Rim 반원 형상·메사에서 끊긴 하단 진입이 추가 보고됐다. 네 좌표는 slot 7이며, 높은 외곽 경사로가 낮은 Rim 섬을 관통한 배치를 정리한다.
-- 후속 검토: 10m 왕복 폭은 사용자가 채택했다. 정상 접합 턱 1곳·패널 이동 공간 침범 1곳, Rim 주변에서 떨어진 뒤 자력 복귀가 불가능한 틈 4곳이 보고됐다(모두 slot 5). Nav/중심 바닥 광선 통과만으로 옆의 깊은 암반 틈을 안전하다고 판단하지 않는다.
-- 최신 외피 피드백: 뒤편 Pod 공간 한쪽 면의 대규모 구멍/추락 후 갇힘, 림 아래 지각에서 우주로 빠지는 구멍, 접근 경사 사이의 날카로운 골짜기에서 Falling 지속, 외곽 접안부의 좁은 ㄱ자 홈을 보고했다. 좌표는 첫/셋째~다섯째가 slot 6, 둘째가 slot 4다. 기존 보행 구간 검사로 Pod 외피와 지각 구멍까지 검증한 것으로 확대 해석하지 않는다.
+- 성능 기준선은 이제 [V011](phases/Phase09_PerfMemoryV011.md)이다. 혼합 풀 리슨 2P의 frame P95는 7.65~9.28ms다. 메모리는 decodedResident 60.11MiB, navResident 28.49MiB다. 측정은 `Scripts/Profiling/RunPhase13Gate.ps1 -Cases Production`(헤드리스·seed1)으로 하고 이전 Meadow 기준선은 Phase14 Final7이다.
+- harness의 `exact ≤2ms` FAIL은 Phase 3 목표값이며 Gate가 아니다(Meadow 기준선도 FAIL).
+- 관통 Gate는 활성 개체로 판정한다. 휴면 벽보행이 접안 패널에 덮이는 겹침은 수용한다(D-078). harness가 `dormantPenetratingEntityFrames`로 따로 보고한다.
+- 벽보행 교전 거리(`DA_Enemy_PureEntity_Crawler01` `AttackRange`, 현재 800)는 사용자가 플레이 테스트로 정한다. 상한 5,000(=인지 거리)에서 성능 Gate를 통과했으므로 그 안의 값은 재측정하지 않는다.
+- `Meadow_00`은 풀에 유지하고 재제작은 옥탄트 양산 단계에서 한다(사용자 결정).
+- `OctantPoolData`의 세 definition은 전체 slot을 허용하고 풀 선택은 slot 순서 greedy다. definition별 slot mask를 다르게 주려면 D-043 제약 할당이 먼저다.
+- 옥탄트 제작 규칙(반지름 300m 고정, 마커별 그래플 거리, 치수표·lint, 검토 중 `LNP.Spawn.EnemyDensity 0`)은 [설계 가이드](../Guide_OctantLevelDesign.md)·[제작 가이드](../Guide_OctantLevelInstance.md)를 따른다.
+- 진단 CVar 기본값(ProfileStride/projectile validation/RewindCache/FlightPenetrationCheck/WorldCollision.LockProbe=0, sphere/grid/support cache/exact lateral sweep/parallel movement/density=1)은 바꾸지 않았다.
 
 ## 바로 다음 행동
 
-- **사용자 진행 확인 뒤 단위5 성능·메모리 Gate를 진행한다.** 고정 해상도 패키지에서 D-076 편성의 새 옥탄트 seed 성능을 Meadow 기준(Phase14 Final7)과 비교하고(frame P95 ≤16.67ms·경로 tick P95 ≤1.5ms·관통 검사4회 이상), headless에서 반복된 exact P95 초과(1P 4.5ms·2P host 3.4~4.1ms)의 원인을 구분한다. 메모리 기준선(payload·decoded resident·Nav node/portal·exact 삼각형·cache 적중률)도 기록한다. 측정 실행은 사용자 확인 후 묶어서 요청한다.
-- BastionV003·HollowV020 제작/사용자 PIE는 완료다. 같은 동선 검토를 다시 요청하지 않는다. 벽보행 LoS는 별도 세션 결과를 확인한 뒤 NPC 교전을 재검증한다. 패키지/멀티플레이/부하 Gate는 여전히 남아 있다.
+- **다음 Phase를 사용자와 정한다.** 본선은 Phase 10(대규모 추격 경로: flow field와 계층형 A* 비교, `Roadmap.md` §4)이다. 병렬 분기 Phase 14b(벽보행 사거리 밖 추격 우회, [계획](phases/Phase14b_CrawlChaseDetour.md))는 교전 거리를 늘린 플레이 테스트 뒤 범위를 다시 판단한다. 사거리가 늘면 14b가 푸는 평형점 맴돌기 사례가 줄어든다.
+- 선택한 Phase의 실행 문서는 착수 직전에 만들거나 구체화한다(README §8).
 
-### 완료 전 진행 기록 — 위 최신 결과보다 후순위
+## 인계 근거
 
-- **사용자 외피 PIE 검토 통과(2026-10-11).** 사용자가 이전 지각 구멍이 사라졌음을 확인했고, 맵을 구석구석 탐색한 뒤 추가 틈·구멍을 발견하지 못했다고 보고했다. 후속 답변에서 검토 범위를 외피의 틈·구멍 위주로 명확히 했다. 보고된 외우주 추락 구멍은 해소됐고, 공동/나선/정상·공중섬/훅·패널 왕복·Pod 전투는 사용자 PIE 대기다. 남은 묶음은 [V001](phases/Phase09_BastionLowPolyV001.md)의 마지막 PIE 표를 따른다.
-- **지각 복구 후 재베이크·자동7개 통과(20:28 KST).** 20:25 생성에서 내부 경계1개 복구, 지각227636tris(+51)·구조물56100tris 유지·lint0·저장 성공. 원본/지각/저장 Chaos3검사가1.937초·오류/경고0으로 통과했고 보고 구멍 주변475점 누락142→0이다. 재베이크 후 `BastionCrustIntegrity`를 포함한 정식7개 검사가6.513초·오류/경고0으로 통과했다. 새 Nav151161cells·왕복1408경로·Pod96투영, Hollow/production 회귀도 통과했다. 근거는 `crust-generated-tests.json`, `crust-baked-tests.json`, `crust-baked-header.json`이다. **보고 구멍 주변 사용자 PIE 재검토와 기존 전체 PIE 묶음이 남았다.**
-- **2026-10-11 사용자 PIE 실패 원인: 지각 구멍.** slot0 Bastion local(-7587,7978,H98)는 구멍 직전 정지 위치다. 원본 Meadow의 의도된 동굴 입구 절단(경계53정점, local bounds X[-8104.196,-7150.371]/Y[7484.467,8015.649])을 동굴 키트 없이 복제한 것이 원인이다. 변형 전후·저장본 경계가 같고 보고점의 최근접 경계 정점은19.3cm다. 기존97그룹 외피 검사는 지각을 제외해 놓쳤다. Bastion에 절단 전 원본 경계 복구를 적용하고 경계 제약 Delaunay로51면을 복원했다(내부 경계0·이음매 정점 보존·복구 면 방향/경사). 별도 땜빵 메시 없이 생성 원본을 수정했으며 사용자 PIE 통과 전에는 전체 완료로 기록하지 않는다.
-
-**2026-10-11 이번 실행:** Bastion 전체 단순화 [V001](phases/Phase09_BastionLowPolyV001.md)의 재베이크·정식6자동 검사가 모두 통과했다(오류/경고0, 6.325초). 원본97그룹 외피/경사/비인접 자기 교차, 실제 Chaos 바닥14658점/양방향 캡슐28716회, 훅135접근/132착지/1056여유점/1161관성낙하·패널450회, 8slot/Nav1408양방향 경로·Pod96투영·8slot×16seed 편성 검사 완료다. 북쪽 Nav 단절은 지각 위1.1cm 돌출한 공동 윗마감을 묻어 해결했고 같은 Nav 캡슐 회귀 검사를 남겼다. 구조물136940→56100(59.03% 감소), 지각 포함364525→283685(22.18% 감소). Nav payload는 유지 수준이며 Traversal/Spawn은 증가했다. 패널/Pod 위치 동일, 훅34위치 조정·개별 사거리 보존. 미사용11메시는 복구본·참조0 확인 후 정리했다. 사용자 요청의 Hollow 롤백 완료, Hollow/Meadow35파일 해시 불일치0 및 Hollow 회귀 성공. **대표6구역의 와이어프레임 시각 검토를 마치고 TestMap03으로 복귀했다. 재개한 새 에디터에서도 정식6검사 성공(오류/경고0, 6.510초). 마지막 사용자 PIE 결과가 남았으며 전체 완료로 기록하지 않는다.** 아래의 “재제작 미착수”는 이전 인계 시점 기록이다.
-
-**2026-10-11 새 세션 우선 작업: Bastion_00에도 Hollow 방식의 전체 폴리곤 단순화를 적용한다.** 사용자는 Hollow 결과에 만족해 새 세션용 문서 갱신을 요청했다. [Bastion 전체 단순화 인계](phases/Phase09_BastionLowPolyRebuild.md)를 실행 시작점으로 사용한다. 두 공통 가이드에 큰 닫힌 몸체·소유권/내부 면 정리·구면 분할/법선·역할 분리·착지/복귀 검증의 재사용 기준을 반영했다. **이번 세션은 문서만 갱신했으며 Bastion 에셋/코드 재제작은 미착수다.** 다음 세션은 현재 spec·수동 마커·관련 에셋을 확인/백업하고 Bastion 비용 기준선과 구역별 교체 목록을 만든 뒤 제작한다. 베이크·자동 검사 후 마지막 사용자 PIE를 묶는다. 승인 Hollow는 보존하고 Phase 9의 NPC 교전·풀 조합·패키지/부하 잔여 Gate는 유지한다.
-
-**2026-10-11 최신:** V019 사용자 PIE에서 호스트·게스트 패널 왕복·중력 회전은 채택됐다. [V020](phases/Phase09_HollowDevicesV020.md)은 잔도 착지와 정상2/외곽 복귀4역할을 조정해 전체25훅으로 만들었다. 첫 실제 Chaos에서 WestMid5방향 실패를 발견해(-2500,−2850,H3800)으로 낮추고 안쪽으로 옮겼다. 임시 후보 적용을 제거한 patch_5로 재생성 lint0·베이크 완료, **실제 저장 조립 정식2검사 모두 성공(3.393초/오류0/경고0). 25접근/22착지/643관성낙하/1044패널 sweep 통과. 사용자도 마지막 변경 구간 PIE를 “검토 완료, 문제 없음”으로 확인했다. Hollow 전체 단순화 재제작·장치·훅 조정은 완료다.** 승인 V017 외피8개 SHA256와 패널 BP 일치. 일부 벽 밀착 보고점은2~4m 물러난 Launch에서 당기며, 서쪽 Pocket→Mid는 약8m 왼쪽, Mid→High는 약4m 오른쪽에서 밑면을 피한다. 원본 근사547사례는 경로 제외 차이로 실패를 놓쳤으므로 최종 증거로 쓰지 않는다.
-
-**완료한 Hollow 요청의 배경(2026-10-10): 전체 단순화 재제작.** [실행 기준과 완료 결과](phases/Phase09_HollowLowPolyRebuild.md)를 보존한다. 후보 구역뿐 아니라 전체 지형을 간결한 닫힌 판/직육면체/쐐기/누운 삼각기둥으로 다시 구성했다. 큰 형상·폭·위치·동선 변경을 허용하고 국소 보정 메시를 줄였다. 과도한 함정 수정은 탈출 훅 앵커로 해결할 수 있다. 반지름300m·이음매 계약은 유지한다.
-
-1. 전체 후보의 새 구성·좌표·단면·연결·복구 위치는 [V017 제작 상태](phases/Phase09_HollowLowPolyV017.md)를 따른다. 내부 지형은 Blender 닫힌 외피, 지각·4개 판형 부유섬·Pod8/장치는 코드 소유다. 옛 세부 부품과 국소 교체 함수는 새 Hollow 구조로 대체했다.
-2. V010 베이크는 성공했지만 자동 검사270건이 실패했다. V016에서 소유 경계·탈출구·Support 띠·Pod 천장·투영 삼각분할을 수정한 뒤 정식2개 검사를 모두 통과했다. 통로 바닥6455점/Chaos 캡슐12730회·접합 바닥2592점·탈출구·Nav 왕복·Pod 편성4+6 통과다. 이후 확장한 장치 검사에서 앵커6개의 가림/거리와 북쪽 중간 판 매몰을 발견해 V017로 수정했다.
-3. V017 생성 lint0/베이크 성공. `HollowContent`(Chaos·장치 포함)/`ProductionSurfaceDataDefinitions` 성공2/오류0/경고0/3.606초. 앵커26개 접근/거리, 패널 탑승264회도 통과했다. 전체 지형165086 tris로 기준453640 대비63.61% 감소, Support101→12/Layers133→24, 포털 베이크152.292→9.994초. Support payload는15107739→15156232 bytes로 유지 수준이다. 비용 표와 검사 범위는 V017 문서에 있다.
-4. **V017 전체 사용자 PIE 검토: 외피 확정.** 사용자는 틈/한쪽 면/깨진 형상을 발견하지 못했고 CaveLift 지하/지상 복귀·Basin↔절벽 정상·Shuttle 패널 왕복을 확인했다. [V018](phases/Phase09_HollowDevicesV018.md)은 생성/베이크·정식2개 검사 성공(오류/경고0)이지만 후속 PIE에서 **훅의 정돈/잔도 착지는 실패**, 패널12×12m 크기만 채택했다. 최신 [V019](phases/Phase09_HollowDevicesV019.md)는 수동 훅26→19/협곡12역할로 정리하고 전역 시드 훅 혼입을 막는다. 착지용16개에 방사 낙하 광선·캡슐·발 디딜 여유를 추가했다. Shuttle 섬은 유지하고 마주 보는 서쪽 절벽까지32.37m 패널로 연결하며 양 끝 중력 수평 보간/각속도를 구현한다. 승인 내부 V017 외피는 유지한다. 원본 사전 검사·Live Coding(런타임patch_2/에디터patch_13)·8slot 패널 회전 단위 검사가 성공했다(오류/경고0). 생성 lint0/베이크와 정식2개 검사 성공(3.621초/오류0/경고0). 훅19접근/16착지·낙하 캡슐/64여유점과 회전 패널1044회/접안4끝, 기존 외피/Nav/Pod 검사를 통과했다. 승인 내부8개 SHA256 일치. 후속 사용자 PIE에서 패널은 호스트·게스트 모두 채택됐다. 당시 시드 훅 제외 로그 authoredRegion146과 훅 정돈 개선을 확인했지만 잔도 관성 착지는 미완료였다. 후속 V020의 베이크·자동 검사·사용자 변경 구간 PIE까지 통과해 해소했다. NPC LoS 수정은 별도 세션이다.
-
-## 직전 국소 재제작 기록 — 새 실행 기준보다 후순위
-
-2026-10-10 재개: V014는 이전 갇힘 위치와BackPocket 입구 양 가장자리의 사용자 통행 검토를 통과했다. 이후 발견한 남쪽 교체 경계의 세로 틈은 **BackPocketV015**에서 기존 C++ 삼각형 절단선에 맞춰 보정했다. 독립 수식 비교 최대0.014cm·형상·UE 반입·Live Coding·생성·베이크·정식 검사2개를 통과했고, 사용자는 slot1/local(4800,−9954,H−500) 재검토 후 “틈이 없어졌어”라고 확인했다. [V015 인계](phases/Phase09_BackPocketV015.md)에 근거와 한계를 기록했다. 네 경계 전체의 폐쇄·자동 캡슐 검사를 완료한 것으로 확대하지 않는다. 동쪽Dock/Rim의 Blender 크래시는 원본 세분화/검사 누락 수정과 순차Boolean으로 복구했고, 재시작 후 MCP 연결도 확인했다. EastRimV004를 반입·생성·베이크한 정식 검사에서는Ridge04→안부 왕복2건이 실패했다. 실제Nav 좌표로 경사 윗끝의 하단 구 침투를 재현해 **EastRimV005**에서 높이 변화를 완만하게 수정했다. V005도 새 베이크의 같은 경로가 실패했다. 윗끝은 열렸지만 시작부 곡률에서 끊겼다. 상승 길이를25m로 늘린 **EastRimV006**은 내부 보행 폭 전체565개 진단 침투0·형상·단면·UE 반입·Live Coding·생성·베이크와 정식 검사2개를 통과했다. 현재 조립/SurfaceData는서쪽V015+동쪽V006이다. EnemyDensity0 PIE의Hollow slot2/5/6과8 validated slots/625 source bindings 게시를 확인하고 사용자에게 동쪽 왕복·하부 복귀/외형 검토를 요청했다. [동쪽 최신 인계](phases/Phase09_EastRimV006.md)를 따른다.
-
-1. [공통 설계 가이드](../Guide_OctantLevelDesign.md)와 [제작 가이드](../Guide_OctantLevelInstance.md)의 단계별 통과 기준을 따른다. 독립 시험과 production 구역 결과를 구분한다. V013은 데이터 통과·사용자 통행 실패 상태다.
-2. 동쪽V006 데이터 검사는2 passed/0 failed지만 **사용자 PIE는 실패**했다. slot2/local(−10444,9248,H−428)에서 작은 바닥 구멍과 이어진 벽 통과 후 Falling 지속/탈출 불가를 보고했다. 넓은 밑동 윤곽으로 지각을 제거한 코드를 실제 경사 부피 절단으로 수정했다. 최종 외피와2,712곳 비교에서 절단 경계는 최소3.626cm 몸체 안쪽이며 바깥0/광선 판정 불일치0, Live Coding patch_5 Success다. Blender V006 에셋은 유지한다. **수정 후 생성→실제 조립 확인→베이크→정식 검사→해당 접합 PIE 재검토가 남는다.** 수정 전V006은Support101/Layers133/portals2744/포털203.433초/부가 지형222111 tris/좁은 Atlas 경고9건이다. 동쪽 통과 후 외곽 구덩이 복귀→Shuttle 패널 우회를 진행한다. 서쪽V012~V014와동쪽V004~V005는Authored 하위Archive에 보존한다. PIE 재시작마다Hollow slot을 다시 확인한다.
-3. 이전 Pod 5개/수직 통로만 있는 버전의 `Bake.HollowContent` 통과 결과는 history에 보존한다. 확장본은 Pod 8개·16 seed 전량 편성, 공동 두 Pod Reach·공동/서쪽 진입 양방향 Reach·Shuttle 정적 NoPath를 검사한다. 데이터 검증 후 외곽 진입→절벽 중간 전장→윗면 연속 훅, 굴 전투/복귀, 다리/패널 횡단, 뒷길 양방향 보행, 보스 랜드마크 식별성을 사용자 PIE로 검토한다. 현재 확장본은 미완료다. D-017은 별도 LoS 수정 후 재검증이며, 풀 통합·부하 측정은 후속 단위다.
-
-## 인계받은 근거와 원본
-
-- 성능 기준: Phase 14 최종 패키지 `Saved/SurfaceNavigationPhase14Final7Package`(Meadow, D-076, frame P95 10.71/10.67ms), 원본 `Saved/Profiling/Phase14/Final7`.
-- 진단 CVar 기본값(ProfileStride/projectile validation/RewindCache/FlightPenetrationCheck/WorldCollision.LockProbe=0, sphere/grid/support cache/exact lateral sweep/parallel movement/density=1)은 바꾸지 않았다.
-- `OctantPoolData`에 Meadow·Bastion_00·Hollow_00 세 definition이 있다(전체 slot 허용). 풀 선택은 아직 slot 순서 greedy다. 새 definition에 slot mask 제한을 두면 D-043 제약 할당이 먼저다.
-
-규약은 `design/TerrainContract.md` §5·§6·§6-1·§7, 단계 순서는 `Roadmap.md`가 소유한다. 로컬 측정 산출물은 Git에 넣지 않는다.
+- 최신 패키지: `Saved/SurfaceNavigationPhase9V011BPackage`(현재 소스, exe `732B90BD…56AA3`). 교전 거리 5,000 측정용 임시 패키지는 `Saved/SurfaceNavigationPhase9V011CPackage`다.
+- 측정 원본: `Saved/Profiling/Phase09/GateV011`(V010 패키지)·`GateV011B`(최종)·`GateV011C`(교전 거리 상한)·`GateV011Fix`(기각한 휴면 운반 수정).
+- 로컬 측정 산출물은 Git에 넣지 않는다.

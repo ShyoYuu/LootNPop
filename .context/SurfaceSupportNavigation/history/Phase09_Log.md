@@ -507,3 +507,27 @@
 - unity 묶음 변경으로 드러난 `LNPSurfaceCrawlTest.cpp`의 `FParams` 모호성을 한정자로 고쳤다. 전체127검사 실패0(경고 포함5/489.6초), DynamicTerrain 검사 통과, 입력 에셋 해시 유지·테스트 생성 에셋 복구.
 - 첫 Normal 대조는 장치 개수 207 vs 50으로 FAIL이었다. 장치 net cull distance 300m에 의한 relevancy로 확인하고 규칙을 host 대응·guest 폰 250m 내 완전성으로 바꿨다(Attempt1 보존). 폰 위치 로그를 더해 재패키징했다.
 - Normal·LateJoin(+60초) 모두 통과: snapshot 일치, 패널11 자세 차0, 장치 미대응0·근처 누락0, probe5종 양측 PASS, 적2434/2434. host exact P95 3.42/4.09ms FAIL은 성능 단위에 남긴다. 상세 [V010](../phases/Phase09_NetworkV010.md).
+
+### 2026-10-12 — 성능·관통·메모리 Gate V011
+
+- Final7과 같은 `RunPhase13Gate.ps1 -Cases Production`으로 V010 패키지를 측정했다. 성능2회 frame P95 9.17/7.76ms·경로 PASS, AlwaysActive2회 19.88/20.20ms(참고). exact >2ms FAIL은 기준선 Final7도 같은 FAIL(4.13/4.30ms)이라 Phase3 목표값으로 분류했다.
+- 관통4회에서 벽보행 약340틱이 나와 사용자에게 보고했다. 사용자는 Meadow가 원인인지 물었고, 옥탄트별 실패가 아님을 설명한 뒤 Meadow를 풀에 유지하기로 했다(재제작은 양산 단계).
+- 첫 진단(패널에 붙은 휴면 개체의 운반 누락)으로 지상·벽보행 휴면 운반 query를 넣었다. 빌드·전체127검사 실패0·재패키징 후에도 같은 개체(939)·위치·깊이20.77cm로 관통해 진단이 틀렸음을 확인하고 되돌렸다. 운반 접촉이 있으면 이미 강제 활성이다.
+- 정정 원인: Hollow slot2 Shuttle 패널 접안 벽에 붙은 휴면 벽보행을 패널이 덮는다(HitDotSurface 1.000, 운반 접촉 없음). 휴면은 정지 겹침 검사를 하지 않는다. 사용자 결정으로 수용(D-078).
+- harness에 `dormantPenetratingEntityFrames`를 추가했다. 에디터 빌드·전체127검사 통과(경고 포함4/491.2초)·입력 해시 유지·테스트 에셋 복구·BuildCookRun exit0/118.3초. V011B 관통4회 휴면290/338/343/339·활성3/5/3/2틱(≤0.174cm)·비행0, 성능2회 7.65/9.13ms PASS.
+- 메모리 기준선(옥탄트별 payload·Nav·삼각형, 런타임 resident)을 기록했다. 상세 [V011](../phases/Phase09_PerfMemoryV011.md).
+
+### 2026-10-12 — 벽보행 LoS 수정 반영 문서 동기화
+
+- 사용자 확인으로 Phase9 문서의 "별도 세션 LoS 수정 대기"가 오래된 상태임을 정리했다. 수정은 `0ab5e4f`(2026-10-10)이며 설계·Roadmap·Phase14b 계획 문서는 그 커밋이 갱신했다. Current·Phase9 실행 문서·V011의 대기 문구를 완료와 남은 재검증으로 바꿨다.
+- 수정 뒤 Hollow를 V017~V020으로 재제작했으므로 D-017 Shuttle/서쪽 절벽 양방향 교전은 현재 지형에서 다시 확인한다. 사거리 밖 추격 우회는 Phase 14b 범위다.
+- 사용자 확인(2026-10-12): Hollow 재제작으로 Shuttle 섬↔서쪽 절벽 거리가 멀어져 이 교전 사례는 더 이상 시험할 수 없다. 대신 LoS 수정 당시 유사 상황을 재현한 다른 지형에서 벽보행 교전을 사용자 PIE로 모두 확인했고 동작 문제는 없었다. 세부 튜닝은 남았으며 벽보행 교전 시작 거리(AttackRange)를 늘리는 것이 좋겠다는 의견이다. 수치를 바꾸면 성능 측정 2회로 재확인한다(V011 측정 중 교전 벽보행은 평균 약 24기).
+- 교전 거리 상한 측정(V011C): 사용자 요청으로 벽보행 `AttackRange`를 인지 거리와 같은 5,000으로 임시 변경(MCP)해 전체 cook한 패키지로 성능2회를 측정했다. frame P95 9.11/9.28ms·경로 PASS·exact P95 3.28/3.15ms, 투사체 평균 약405(800일 때 280). 에셋은 800으로 되돌려 원본 SHA256 일치. 상세 [V011](../phases/Phase09_PerfMemoryV011.md) §2.
+
+## 2026-10-12 — Phase 9 완료
+
+- 완료 조건: 실규모 블록아웃 옥탄트 2개(Bastion_00·Hollow_00)를 제작·베이크하고, 3종 혼합 풀에서 회귀·cook·패키지1P·리슨2P/late join·성능·관통·메모리 Gate를 통과했다. 근거 표는 [Phase 9 실행 문서](../phases/Phase09_VerticalSlice.md) §5다.
+- 테스트 증거: 전체127검사 실패0(경고 포함4, 491.2초, `Saved/SliceOctant/GateV011B`), 게이트 통과 BuildCookRun exit0, 리슨2P Normal·LateJoin 양측 exit0·대조 통과(V010), 성능4회 frame P95 7.65~9.28ms·경로 PASS, 관통4회 활성2~5틱·비행0(V011), 교전 거리 5,000 성능2회 통과(V011C).
+- D-017: 벽보행 LoS 수정 `0ab5e4f` 당시 유사 지형 사용자 PIE로 확인. Shuttle 사례는 재제작으로 시험 불가.
+- 결정: D-078(휴면 접안 겹침 수용). 사용자: Meadow 유지·재제작은 양산 단계, 벽보행 교전 거리는 플레이 테스트로 결정.
+- 다음 Phase는 사용자 확인 뒤 착수한다(본선 10, 분기 14b).

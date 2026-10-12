@@ -1211,6 +1211,8 @@ void ULNPLoadBaselineSubsystem::CheckFlyerPenetration()
 						continue;
 					}
 					++Penetrating;
+					if (bCrawler && Ctx.GetFragmentView<FLNPEnemyFragment>()[i].ActivityBand == ELNPEnemyActivityBand::Dormant)
+						++CrawlerDormantPenetrationEntityFrames;
 					const FMassEntityHandle Entity = Ctx.GetEntity(i);
 					const bool bLogEntity = LoggedPenetratingFlyers.Num() < 16 && !LoggedPenetratingFlyers.Contains(Entity);
 					if (bLogEntity)
@@ -1665,8 +1667,9 @@ void ULNPLoadBaselineSubsystem::Report()
 			const double StateSamples = FMath::Max(1, CrawlerStateSampleCount);
 			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Crawlers state avg None=%.1f Alert=%.1f Confirmed=%.1f (samples=%d, 1s)"),
 				CrawlerStateSums[0] / StateSamples, CrawlerStateSums[1] / StateSamples, CrawlerStateSums[2] / StateSamples, CrawlerStateSampleCount);
-			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Crawlers penetration check=%d checkedFrames=%d penetratingFrames=%d penetratingEntityFrames=%d contactEntityFrames=%d"),
-				GFlightPenetrationCheck, PenetrationCheckedFrames, CrawlerPenetrationFrames, CrawlerPenetrationEntityFrames, CrawlerContactEntityFrames);
+			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Crawlers penetration check=%d checkedFrames=%d penetratingFrames=%d penetratingEntityFrames=%d contactEntityFrames=%d dormantPenetratingEntityFrames=%d"),
+				GFlightPenetrationCheck, PenetrationCheckedFrames, CrawlerPenetrationFrames, CrawlerPenetrationEntityFrames, CrawlerContactEntityFrames,
+				CrawlerDormantPenetrationEntityFrames);
 		}
 	}
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] UnknownHits=%llu EnvelopeEscapes=%llu"),

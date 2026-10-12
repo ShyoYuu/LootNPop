@@ -193,6 +193,8 @@ private:
 	int32 CrawlerPenetrationEntityFrames = 0;
 	/** 서버. 깊이가 허용치 이하인 벽보행 시작 겹침(옆 프랍 접촉) 개체·틱 합계. 관통으로 세지 않는다. */
 	int32 CrawlerContactEntityFrames = 0;
+	/** 서버. CrawlerPenetrationEntityFrames 중 휴면 개체 몫. 휴면은 겹침 검사를 하지 않아 접안 패널에 덮일 수 있다(수용한 한계). */
+	int32 CrawlerDormantPenetrationEntityFrames = 0;
 	/** 관통 진단을 켠 실행에서 최초 실패 개체 최대 16개의 상세 로그만 남긴다(비행·벽보행 합산). */
 	TSet<FMassEntityHandle> LoggedPenetratingFlyers;
 
