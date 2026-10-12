@@ -363,7 +363,7 @@ bool FLNPVolumetricFixtureTest::RunTest(const FString& Parameters)
 	if (TestNotNull(TEXT("Production mixed spawn config loads"), Config))
 	{
 		TArray<FLNPMassSpawnSetPlanInput> Sets;
-		int32 AssetIndex = 0, CaveFlyerIndex = INDEX_NONE;
+		int32 AssetIndex = 0, CaveFlyerIndex = INDEX_NONE, CaveFlyerRequestedCount = 0;
 		for (const auto& Entry : Config->LootPodSpawnSets)
 		{
 			auto& Set = Sets.AddDefaulted_GetRef();
@@ -378,10 +378,11 @@ bool FLNPVolumetricFixtureTest::RunTest(const FString& Parameters)
 				const float Required = Trait && Trait->EnemyConfig && Enemy.Count > 0 ? Trait->EnemyConfig->GetSpawnRequiredHeadroom() : 0.0f;
 				Set.Enemies.Add({Enemy.Count, AssetIndex, Required});
 				Set.RequiredHeadroom = FMath::Max(Set.RequiredHeadroom, Required);
-				if (Set.SpawnSetId == TEXT("Bench01_2") && Required > 0.0f) { CaveFlyerIndex = AssetIndex; }
+				if (Set.SpawnSetId == TEXT("Bench01_2") && Required > 0.0f) { CaveFlyerIndex = AssetIndex; CaveFlyerRequestedCount = Enemy.Count; }
 				++AssetIndex;
 			}
 		}
+		TestTrue(TEXT("Production cave set requests flying enemies"), CaveFlyerRequestedCount > 0);
 		FLNPMassSpawnPlan Mixed;
 		if (LNPMassSpawnPlanning::BuildPlan(Snapshot, Sets, 123, Config->MinDistanceBetweenPods,
 			Config->EnemySpawnRadiusAroundPod, Mixed, Error))
@@ -393,7 +394,7 @@ bool FLNPVolumetricFixtureTest::RunTest(const FString& Parameters)
 				++CaveFlyerPods;
 				int32 Flyers = 0;
 				for (const auto& Enemy : Pod.Enemies) { if (Enemy.AssetIndex == CaveFlyerIndex) { Flyers += Enemy.Transforms.Num(); } }
-				TestEqual(TEXT("Actual mixed cave set retains all three flying enemies"), Flyers, 3);
+				TestEqual(TEXT("Actual mixed cave set retains all configured flying enemies"), Flyers, CaveFlyerRequestedCount);
 			}
 			TestEqual(TEXT("Each slot gets its mixed flying cave Pod"), CaveFlyerPods, 8);
 		}

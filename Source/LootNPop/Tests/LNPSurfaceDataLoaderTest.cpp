@@ -10,6 +10,7 @@
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPNavBaking.h"
+#include "SurfaceNavigation/LNPNavPathfinding.h"
 #include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "SurfaceNavigation/LNPSpawnData.h"
@@ -623,41 +624,125 @@ bool FLNPProductionSurfaceDataDefinitionsTest::RunTest(const FString& Parameters
 			EffectiveDefinitions[Index].SurfaceData.IsNull());
 	}
 
-	TArray<FLNPOctantDefinition> SelectedDefinitions;
-	FString Error;
-	if (!TestTrue(TEXT("Production definitions select all eight slots"),
-		ULNPOctantSpawnSubsystem::SelectOctantDefinitions(
-			EffectiveDefinitions, 135792468, SelectedDefinitions, nullptr, &Error)))
+	TArray<int32> Seeds = {0, -1, MIN_int32, MAX_int32, 135792468};
+	FRandomStream SeedStream(9042026);
+	while (Seeds.Num() < 32) { Seeds.AddUnique(SeedStream.GetCurrentSeed()); SeedStream.GetUnsignedInt(); }
+	TSet<FString> Arrangements;
+	TSet<int32> DefinitionSlots;
+	TSet<int32> DefinitionPairs;
+	int32 PathCount = 0;
+	double MaxRadiusDelta = 0.0;
+	for (int32 SeedIndex = 0; SeedIndex < Seeds.Num(); ++SeedIndex)
 	{
-		AddError(Error);
-		return false;
+		const FString Context = FString::Printf(TEXT("Seed %d"), Seeds[SeedIndex]);
+		TArray<FLNPOctantDefinition> SelectedDefinitions, RepeatedDefinitions;
+		TArray<int32> Indices, RepeatedIndices;
+		FString Error;
+		if (!ULNPOctantSpawnSubsystem::SelectOctantDefinitions(EffectiveDefinitions, Seeds[SeedIndex], SelectedDefinitions, &Indices, &Error)
+			|| !ULNPOctantSpawnSubsystem::SelectOctantDefinitions(EffectiveDefinitions, Seeds[SeedIndex], RepeatedDefinitions, &RepeatedIndices, &Error))
+		{
+			AddError(Context + TEXT(": ") + Error);
+			return false;
+		}
+		TestTrue(Context + TEXT(": same pool and seed preserve selection"), Indices == RepeatedIndices);
+		TestEqual(Context + TEXT(": all slots selected"), SelectedDefinitions.Num(), 8);
+		TArray<ULNPOctantSurfaceData*> LoadedData;
+		FString Arrangement;
+		for (int32 Slot = 0; Slot < SelectedDefinitions.Num(); ++Slot)
+		{
+			const FLNPOctantDefinition& Definition = SelectedDefinitions[Slot];
+			TestTrue(Context + TEXT(": selected definition allows slot"), Definition.AllowsSlot(Slot));
+			TestEqual(Context + TEXT(": repeat preserves Level"), Definition.LevelAsset.ToSoftObjectPath(), RepeatedDefinitions[Slot].LevelAsset.ToSoftObjectPath());
+			TestEqual(Context + TEXT(": repeat preserves SurfaceData"), Definition.SurfaceData.ToSoftObjectPath(), RepeatedDefinitions[Slot].SurfaceData.ToSoftObjectPath());
+			LoadedData.Add(Definition.SurfaceData.LoadSynchronous());
+			DefinitionSlots.Add(Indices[Slot] * 8 + Slot);
+			Arrangement += FString::Printf(TEXT("%d,"), Indices[Slot]);
+		}
+		Arrangements.Add(Arrangement);
+		FLNPSurfaceDataSnapshot Snapshot;
+		const uint64 Generation = SeedIndex + 1;
+		if (!LNPSurfaceDataLoading::ValidateAndBuildSnapshot(SelectedDefinitions, LoadedData, Generation, Snapshot, Error))
+		{
+			AddError(Context + TEXT(": ") + Error);
+			return false;
+		}
+		TestTrue(Context + TEXT(": Nav shares Surface generation"), Snapshot.Nav.SnapshotGeneration == Generation
+			&& Snapshot.Nav.RuntimeStaticComponentCount > 0);
+		MaxRadiusDelta = FMath::Max(MaxRadiusDelta, Snapshot.Nav.MaxSeamRadiusDelta);
+		TMap<int32, TArray<const FLNPNavSeamLink*>> Seams;
+		for (const FLNPNavSeamLink& Link : Snapshot.Nav.SeamLinks)
+		{
+			const int32 SlotA = Snapshot.Nav.Graph.GetSlot(LNPNavGraph::ToGraphNode(Snapshot.Nav, Link.A));
+			const int32 SlotB = Snapshot.Nav.Graph.GetSlot(LNPNavGraph::ToGraphNode(Snapshot.Nav, Link.B));
+			if (SlotA == INDEX_NONE || SlotB == INDEX_NONE) { AddError(Context + TEXT(": invalid seam endpoint")); return false; }
+			Seams.FindOrAdd(SlotA * 8 + SlotB).Add(&Link);
+			DefinitionPairs.Add(Indices[SlotA] * EffectiveDefinitions.Num() + Indices[SlotB]);
+		}
+		TestEqual(Context + TEXT(": all world seams have links"), Seams.Num(), 12);
+		if (!Snapshot.Nav.SeamLinks.IsEmpty())
+		{
+			FLNPNavNodeRef Stale = Snapshot.Nav.SeamLinks[0].A;
+			++Stale.SnapshotGeneration;
+			TestEqual(Context + TEXT(": stale generation rejects node lookup"), LNPNavGraph::ToGraphNode(Snapshot.Nav, Stale), INDEX_NONE);
+		}
+		FLNPNavSearchScratch Scratch;
+		for (const auto& Seam : Seams)
+		{
+			// 꼭짓점을 피한 1/4·1/2·3/4 지점에서 양쪽 내부 node를 잇는다.
+			for (int32 Sample = 1; Sample <= 3; ++Sample)
+			{
+				const FLNPNavSeamLink& Link = *Seam.Value[FMath::Min(Seam.Value.Num() - 1, Seam.Value.Num() * Sample / 4)];
+				const auto InteriorNode = [&Snapshot](const FLNPNavNodeRef& Ref)
+				{
+					const int32 Boundary = LNPNavGraph::ToGraphNode(Snapshot.Nav, Ref);
+					int32 Interior = INDEX_NONE;
+					if (Boundary != INDEX_NONE)
+					{
+						const int32 Slot = Snapshot.Nav.Graph.GetSlot(Boundary);
+						Snapshot.Nav.Graph.ForEachNeighbor(Slot, Boundary, [&](const int32 To)
+						{
+							if (Snapshot.Nav.Graph.GetSlot(To) != Slot) { return; }
+							const FLNPNavGraphNode& Node = Snapshot.Nav.Graph.GetNode(Slot, To);
+							const int32 N = Snapshot.Nav.Graph.SlotGraphs[Slot]->Layers[Node.LayerOrdinal].Subdivisions;
+							if (Node.I > 0 && Node.J > 0 && Node.I + Node.J < N) { Interior = To; }
+						});
+					}
+					return Interior;
+				};
+				const int32 A = InteriorNode(Link.A), B = InteriorNode(Link.B);
+				for (int32 Direction = 0; Direction < 2; ++Direction)
+				{
+					FLNPNavSearch Search;
+					LNPNavPathfinding::BeginSearch(Snapshot.Nav, Direction == 0 ? A : B, Direction == 0 ? B : A,
+						FLNPNavSearchParams(), Scratch, Search);
+					while (Search.Status == ELNPNavSearchStatus::Running)
+					{
+						LNPNavPathfinding::StepSearch(Snapshot.Nav, Scratch, Search, 1000);
+					}
+					TestTrue(FString::Printf(TEXT("%s seam %d sample %d direction %d crosses between interior nodes"),
+						*Context, Seam.Key, Sample, Direction), Search.Status == ELNPNavSearchStatus::Found);
+					if (Search.Status != ELNPNavSearchStatus::Found)
+					{
+						AddInfo(FString::Printf(TEXT("Failed seam path: A=%d B=%d status=%d"), A, B, static_cast<int32>(Search.Status)));
+					}
+					++PathCount;
+				}
+			}
+		}
 	}
-
-	TArray<ULNPOctantSurfaceData*> LoadedData;
-	LoadedData.Reserve(SelectedDefinitions.Num());
-	for (const FLNPOctantDefinition& Definition : SelectedDefinitions)
+	for (int32 Definition = 0; Definition < EffectiveDefinitions.Num(); ++Definition)
 	{
-		LoadedData.Add(Definition.SurfaceData.LoadSynchronous());
+		for (int32 Slot = 0; Slot < 8; ++Slot)
+		{
+			if (EffectiveDefinitions[Definition].AllowsSlot(Slot))
+			{
+				TestTrue(FString::Printf(TEXT("Definition %d covers allowed slot %d"), Definition, Slot), DefinitionSlots.Contains(Definition * 8 + Slot));
+			}
+		}
 	}
-	FLNPSurfaceDataSnapshot Snapshot;
-	if (!TestTrue(TEXT("Production SurfaceData builds a compatible 8-slot snapshot"),
-		LNPSurfaceDataLoading::ValidateAndBuildSnapshot(
-			SelectedDefinitions, LoadedData, 1, Snapshot, Error)))
-	{
-		AddError(Error);
-	}
-	else
-	{
-		TestTrue(TEXT("Production Nav view is published with the Surface generation"),
-			Snapshot.Nav.SnapshotGeneration == 1 && Snapshot.Nav.RuntimeStaticComponentCount > 0
-			&& !Snapshot.Nav.SeamLinks.IsEmpty());
-		AddInfo(FString::Printf(
-			TEXT("Production Nav: runtimeLayers=%u localComponents=%u runtimeComponents=%u seamLinks=%d blockedSeamNodes=%d blockedSeamEdges=%d maxSeamRadiusDelta=%.3f minSeamNormalDot=%.5f"),
-			Snapshot.Nav.SlotLayerBase.Last(), Snapshot.Nav.SlotComponentBase.Last(),
-			Snapshot.Nav.RuntimeStaticComponentCount, Snapshot.Nav.SeamLinks.Num(),
-			Snapshot.Nav.BlockedSeamNodes.Num(), Snapshot.Nav.BlockedSeamEdges.Num(),
-			Snapshot.Nav.MaxSeamRadiusDelta, Snapshot.Nav.MinSeamNormalDot));
-	}
+	TestTrue(TEXT("Different seeds exercise different arrangements"), Arrangements.Num() > 1);
+	AddInfo(FString::Printf(TEXT("Production pool: seeds=%d arrangements=%d definitionSlots=%d orderedDefinitionPairs=%d bidirectionalPaths=%d maxSeamRadiusDelta=%.3f"),
+		Seeds.Num(), Arrangements.Num(), DefinitionSlots.Num(), DefinitionPairs.Num(), PathCount, MaxRadiusDelta));
 
 	return !HasAnyErrors();
 }

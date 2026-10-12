@@ -87,6 +87,7 @@ Mass Spawn stream은 LVI에 수동 배치한 Pod 세트 앵커와 베이커가 �
 
 - 수동 앵커와 절차 후보 모두 같은 정적 Support geometry에서 검증하지만, runtime 선택을 위해 Support 샘플을 다시 훑거나 scene trace를 하지 않는다.
 - LVI의 point 수는 spawn 총량이 아니다. `DA_MassSpawnConfig`가 정한 총량 안에서 수동 앵커가 먼저 소비되고 부족분만 절차 후보가 채운다.
+- runtime 할당 순서: 수동 앵커 선택 → 수동 앵커 Pod의 적 배치 → 랜덤 Pod. 랜덤 Pod는 같은 slot·Layer의 Enemy 후보로 세트 편성 전량을 배치할 수 있는 후보에만 두고 그 자리에서 적 후보를 확정한다. 좁은 Layer에 Pod만 놓이고 적이 모자라는 배치를 막는다([V009](../phases/Phase09_SpawnCompositionV009.md)).
 - marker transform과 ID·세트 지정, 후보 생성 설정은 stale hash 입력이다.
 - codec과 할당 규약의 원본은 `../phases/Phase05_RuntimeLoader.md` §3.3~§3.5다.
 
@@ -146,6 +147,7 @@ Layer 분리·face 표·조회 규칙의 결정 경위는 `../phases/Phase04b_Mu
 
 **격자와 row span**(`LNPSupportAtlas::ComputeFootprint`·`Rasterize`)
 
+- 방향→격자 삼각형 주소는 베이크와 Development 게임에서 같은 연산 정밀도를 사용한다. Win64의 `ComputeCell`만 `float_control(precise)`로 고정하며 게임 전역 `/fp:fast`는 유지한다. 경계에서 다른 삼각형을 고르면 저장 Nav 노드의 Support 조회가 실패할 수 있다([Phase9 V008](../phases/Phase09_NavPrecisionV008.md)). 세 꼭짓점 중 Invalid/NeedsExact가 있으면 가중치0이어도 보간을 거부하는 안전 규칙은 유지한다.
 - 비지각 Layer 격자는 지각과 같은 octahedral 격자이고 분할 수가 `m·N`이다(D-057). m은 source마다 정한다(D-072). 기본은 bake setting `LayerSubdivisionMultiplier` **m=4(25cm, N_L=2,940)**이고, `LNP.Surface.CoarseSupport` source는 m=1(지각과 같은 100cm)이다. Phase 7c 단위 1부터 태그를 source semantic hash에 포함하고, 같은 source의 모든 sub-sheet에 같은 N을 사용한다. Support 없는 CoarseSupport는 베이크 오류다. Phase 4b 구현 단위 3에서 m=2·4를 exact와 비교해 기본 m=4를 정했다. 오차는 둘 다 합격이었고, m=4가 섬·경사로의 NeedsExact를 절반으로 줄이는 대가로 `Meadow_00` payload가 2.09 → 2.63MB가 된다(`../phases/Phase04b_MultiLayerSupport.md` 구현 단위 3).
 - 배치는 `j` 범위 `[J0, J0+RowCount)`와 행별 `i` 구간 `[IStart, IStart+Count)`다. Layer 삼각형을 옥탄트 면에 중심 투영한 영역 안의 격자점을 모두 담는 최소 구간이다. 광선은 투영 영역 밖에서 삼각형을 맞힐 수 없으므로 구간 밖은 모두 coverage hole과 같다. 지각은 전체 배치(`J0=0`, 행 `j`는 `[0, N-j]`)라 인덱스가 지각 격자 인덱스와 같다.
 - 광선은 그 Layer 삼각형만으로 만든 트리에 쏜다. 앞면 교차가 둘 이상이면 베이크 오류다(지각 overhang, Layer의 접힌 sheet). Phase 7c부터 비지각 Layer의 접힌 sheet는 Layer를 만들기 전에 자동 분할하므로(아래 "접힌 sheet 자동 분할") 이 오류는 지각 overhang과 분할 결함의 안전망으로만 남는다.

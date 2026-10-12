@@ -6,6 +6,8 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Config/LNPSettings.h"
+#include "DataAsset/LNPOctantPoolData.h"
 #include "DataAsset/LNPOctantSurfaceData.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
@@ -889,6 +891,51 @@ bool FLNPCrustSeamMatchTest::RunTest(const FString& Parameters)
 		// 단일 대칭 프로필(D-030)이면 세 변의 hash가 같다. 짝 관계만으로는 x=0·y=0 일치와 z=0 회문이면 충분하므로 더 강한 조건이다.
 		TestTrue(FString::Printf(TEXT("%s: seam hashes are identical across edges"), LevelPath),
 			Atlas.SeamHashes[0] == Atlas.SeamHashes[1] && Atlas.SeamHashes[1] == Atlas.SeamHashes[2]);
+	}
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPProductionPoolBakeTest,
+	"LootNPop.SurfaceNavigation.Bake.ProductionPoolCurrentAndDeterministic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPProductionPoolBakeTest::RunTest(const FString& Parameters)
+{
+	const ULNPOctantPoolData* Pool = GetDefault<ULNPSettings>()->OctantPool.LoadSynchronous();
+	if (!TestNotNull(TEXT("Production pool loads"), Pool)) { return false; }
+	TArray<FLNPOctantDefinition> Definitions;
+	Pool->BuildEffectiveDefinitions(Definitions);
+	TestFalse(TEXT("Production pool is populated"), Definitions.IsEmpty());
+	for (const FLNPOctantDefinition& Definition : Definitions)
+	{
+		const ULNPOctantSurfaceData* Saved = Definition.SurfaceData.LoadSynchronous();
+		if (!TestNotNull(TEXT("Production SurfaceData loads"), Saved)) { continue; }
+		TStrongObjectPtr<ULNPOctantSurfaceData> First(NewObject<ULNPOctantSurfaceData>());
+		TStrongObjectPtr<ULNPOctantSurfaceData> Second(NewObject<ULNPOctantSurfaceData>());
+		FLNPOctantBakeReport Report;
+		FString Error;
+		if (!FLNPOctantSurfaceBaker::Bake(Definition.LevelAsset.ToSoftObjectPath(), FLNPOctantBakeOptions(), *First, Report, Error)
+			|| !FLNPOctantSurfaceBaker::Bake(Definition.LevelAsset.ToSoftObjectPath(), FLNPOctantBakeOptions(), *Second, Report, Error))
+		{
+			AddError(Error);
+			continue;
+		}
+		const FString Context = Definition.LevelAsset.ToString();
+		TestTrue(Context + TEXT(": two bakes preserve source hash"), First->Header.SourceContentHash == Second->Header.SourceContentHash);
+		TestTrue(Context + TEXT(": saved source hash is current; rebake stale SurfaceData"), Saved->Header.SourceContentHash == First->Header.SourceContentHash);
+		// source hash와 모든 stream을 검사해 지형 외 marker·편성 변경도 CI에서 놓치지 않는다.
+		const TArray<uint8> ULNPOctantSurfaceData::* Payloads[] = {
+			&ULNPOctantSurfaceData::SupportPayload, &ULNPOctantSurfaceData::NavigationPayload,
+			&ULNPOctantSurfaceData::TraversalPayload, &ULNPOctantSurfaceData::SpawnPayload,
+			&ULNPOctantSurfaceData::ConditionalPatchPayload};
+		const TCHAR* Names[] = {TEXT("Support"), TEXT("Navigation"), TEXT("Traversal"), TEXT("Spawn"), TEXT("ConditionalPatch")};
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(Payloads); ++Index)
+		{
+			TestTrue(Context + TEXT(": deterministic ") + Names[Index], First.Get()->*Payloads[Index] == Second.Get()->*Payloads[Index]);
+			TestTrue(Context + TEXT(": saved current ") + Names[Index], Saved->*Payloads[Index] == First.Get()->*Payloads[Index]);
+		}
+		AddInfo(Context + TEXT(": checked saved freshness and two full bakes"));
 	}
 	return !HasAnyErrors();
 }

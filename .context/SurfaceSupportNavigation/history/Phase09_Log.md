@@ -1,5 +1,35 @@
 # Phase 9 로그 — 부유섬·동굴·입체 지형 Vertical Slice
 
+## 2026-10-12 V008 — Development 격자 정밀도 수정·재패키징, 1P 잔여 실패 분리
+
+- V007 Bastion Nav `(326,270)`을 같은 저장 payload/17자리 방향으로 재현했다. Editor 성공/Game 실패, Hollow Layer5 `(326,287)`도 Game에서 실패했다. Support `(244.5,202.5)` 경계의 위쪽 삼각형에만 NeedsExact가 있어 FP 재배치가 보간 가능 여부를 바꿨다.
+- `ComputeCell`만 MSVC precise로 고정하고 전역 `/fp:fast`·세 꼭짓점 안전 규칙·에셋/schema를 유지했다. 새 `Runtime.SupportPrecision`의 Development 게임 회귀가 전체404,414Nav 노드와 인접NeedsExact 거부에 성공했다. 최초 테스트 flags 선언 오류 정정 후 빌드 성공, 최종Game30.23초·Editor26.06초다.
+- 새 프로세스 전체126검사 통과(122성공+4경고 포함 성공·실패/미실행/진행 중0),492.086초. production 최신성/결정론266.359초·오류0·HTTP경고1, 저장5stream/sourcehash 일치로 재베이크하지 않았다. 경고4개는HTTP3/BOption1이며 엔진 시작 경고도 보존했다. 테스트 생성 에셋3개는 실행 전 실제 바이트로 복구했고 production3에셋/설정 SHA256 유지다.
+- JSON 선행 게이트 뒤 Win64 Development BuildCookRun 성공exit0/64.649초·1229packages. 출력 `Saved/SurfaceNavigationPhase9V008Package`, 실제exe SHA256 `51B4E8DCD1E48EC88421B32AF0DF229A5B051335CD483AE34AABDDDEEA1797D5`. production3LVI/3SurfaceData·정식SpawnConfig cook 포함, 기존Lyra ShaderMap 경고 유지다.
+- 동일 실제패키지1P가Nav graph를 생성하고generation1/8slot/358bindings를 게시했다. 패널11개/face2000방향/SurfaceData8/8 PASS, UnknownHits/EnvelopeEscapes/LayerJumps0·assert/ensure/crash표식0·자동종료exit0/43.575초다. 관통진단0이므로 관통Gate를 통과한 것으로 기록하지 않는다.
+- **1P전체는 미통과다.** 기존 SourceKeys probe는 모든 slot의 source가 같아야 한다는 가정으로 혼합 풀에서 FAIL(중복0). 적2235요청/2130배치(105부족), exact P95 4.604ms>2ms FAIL도 확인했다. 기존CMC추출오류1/ShaderMap오류6 재현. 새 실패를 숨기거나 source검사를PASS로 치환하지 않았다.
+- [V008](../phases/Phase09_NavPrecisionV008.md)·Current·단위5·격자/검증설계를 갱신했다. 근거는 `Saved/SliceOctant/NavPrecisionV008`에 실패/수정후 보고서·빌드/cook/1P로그·CSV·복구해시를 보존했다. 다음은 사용자 확인 뒤 SourceKeys 혼합풀 대조와105마리 부족 수정 단위다. 이후2P/late join은 다시 진행 확인한다. 별도NPC LoS와성능/메모리Gate 소유권 유지.
+
+## 2026-10-12 V007 — cook 최신성 차단·Development 패키징 통과, 패키지 1P 실패
+
+- Editor 전체 빌드 최신 상태 성공1.66초. production3source 최신성·저장5stream/두 차례 베이크 결정론 성공268.343초/테스트 오류·경고0. V006 고유125검사를 전체 회귀 근거로 유지했다.
+- 별도 프로세스의 반지름만30000→30001cm로 바꿔 `OctantBakeDeterministic` 음성 검사를 실행했다. Crust/Regression fixture·Meadow의 저장 source hash/Support 불일치6개, 실패1/27.675초. 프로세스exit0이어도 JSON 실패를 판정해 로컬 실행기가UAT 호출을 차단했다. DefaultGame.ini SHA256 유지, 저장 에셋 무변경. plain BuildCookRun에 validator를 추가하지 않았다.
+- 정식 설정 Win64 Development BuildCookRun 성공exit0/136.925초(UAT내부135.50초), Editor/Game 빌드63.57초·1229packages cook·stage/pak/archive 완료. production3LVI/3SurfaceData·정식SpawnConfig cook 포함 확인. 출력 `Saved/SurfaceNavigationPhase9V007Package`, 실제exe SHA256 `F6DDAB4C294AA8D6F608F1F9116DF5618796406B781A52AF14A7F95E9B05F743`. 기존 Lyra 누락 Material Function·ShaderMap 경고 재현.
+- 패키지1P가 Meadow2/Bastion3/Hollow3의8slot을 로드하고716source/미분류blocker0을 등록했지만 `Nav slot 1 graph: Nav Layer 1 node (326,270) has no Support`로 snapshot 게시 실패. face/source/SurfaceData probe까지 도달하지 못했다. 초기화 대기 중인 소유 프로세스PID7768만 종료했으며exit−1은 이 종료 결과다. assert/ensure/crash 표식은 종료 전 로그에 없지만1P를 통과로 기록하지 않는다.2P·late join·성능·메모리는 미실행.
+- 컴파일 응답 파일의Editor `/fp:precise`·Game `/fp:fast` 차이를 확인했다. `BuildAssetGraph`의 정규화 방향→`QueryLayer`/`ComputeCell`의격자floor·삼각형 선택 경계에서 판정이 달라지는 것이 유력한 후보이나, 실제 해당 노드의 양쪽 좌표/flags 비교 전이므로 원인 미확정이다. 코드·에셋·기본 설정 수정은 하지 않았다.
+- [V007](../phases/Phase09_CookPackageV007.md)·Current·단위5 체크를 갱신했다. 로컬 근거는 `Saved/SliceOctant/CookPackageV007`. 검증 결과를 보고하고 별도 Nav 경계 수정 단위 진행을 사용자에게 확인한다. 기존 NPC LoS 세션 소유권과 나머지 Phase9 Gate를 유지한다.
+
+## 2026-10-12 V006 — 정식 Spawn 편성 정정·fixture 회귀 정리 완료
+
+- 사용자 에디터 종료 후 전체 빌드 성공36.60초/컴파일 오류0. 수정한 VolumetricFixture 컴파일·링크 완료, `SpawnConfigV006/full-build.log` 보존. 재연결 후 최종 검증을 마쳤다.
+- 사용자 확인으로 ActorMix는 종류별 한 마리 테스트 편성, 정식 편성은 `DA_MassSpawnConfig`임을 정정했다. 사용자 복원 설정을 디스크·에디터에서 확인했고 override는 비어 있다.
+- 기존 실패6개 재검사3통과/3실패126.378초. `Bench01_2` 미등록은 해소됐으며 남은 실패는 fixture2개의 저장 source/Spawn stale과 실제 비행9/테스트 기대3이다.
+- 테스트 에셋을 `DA_MassSpawnConfig_TestOnePerSpecies`로 이름 변경·저장했다. 기존 참조0·옛 경로/redirector 없음·모든 편성 속성 보존을 확인했다. 정식 편성은 수정하지 않았다.
+- Crust/Regression fixture2개를 복구본 보존 후 재베이크·저장했다. VolumetricFixture의 실제 공동 Pod 기대 수량은 정식 config 요청값을 읽도록 수정했고, 양수 편성과8slot authored Pod 검사를 유지했다. Meadow는 최초 정식 검사에서도 최신성 통과여서 추가 변경하지 않았다.
+- 새 에디터 전체125검사124통과/1실패454.154초. 실패한 ConditionalPatch.RegressionFixture는 별도 Conditional 에셋의 저장본을 검사하므로 최초 대상 누락을 확인하고 이 에셋도 복구본 보존 후 재베이크했다. 영향 범위 ConditionalPatch7검사 전부 통과32.866초. 두 배치의 최신 결과를 합친 고유125검사 통과이며 단일125통과 실행은 아니다. 실행 MCP300초 timeout 후에도 자동화는 계속됐고 완료 결과를 GetTestResults로 확보했다.
+- production 최신성/결정론248.666초·runtime32seed5.010초·VolumetricFixture0.353초 모두 오류·경고0. 전체 배치의 RHI 가상 리소스/HTTP/BOption 경고는 보존한다. 결과는 `full-results-before-conditional.json`·`conditional-results.json`·`combined-results.json`이다.
+- 자동화 테스트 에셋3개 unload→HEAD 바이트 복구→SHA256 확인. dirty COption BP reload·임시 월드 GC·TestMap03 복귀 후 dirty content/map0, diff check 통과. 테스트 편성 속성 재확인·정식 설정/빈 override 유지. 별도로 변경된 `.gitignore`와 기존 InputHandler 변경은 보존했다. [V006](../phases/Phase09_OfficialSpawnConfigV006.md)·Current·단위4 체크리스트를 갱신했다. 이번 단위를 완료하고 사용자에게 다음 cook·패키지 단위 진행 여부를 확인한다.
+
 ## 2026-10-06 단위 0 — 실행 계획과 기준선
 
 - 사용자 결정: 품질 기준은 실규모 레벨 디자인 블록아웃, 새 옥탄트 2개(지하 공동 입구 조합을 서로 다르게), 메시 생성·배치는 Claude, 사용자는 PIE로 검토한다.
@@ -444,3 +474,29 @@
 - 사용자는 Hollow 전체 폴리곤 단순화에 높은 만족도를 밝히고 Bastion에도 같은 방식을 적용할 수 있도록 새 세션용 문서 갱신을 요청했다. 이번 세션은 문서만 수정했고 Bastion 코드/메시/LVI/SurfaceData는 변경하지 않았다.
 - `phases/Phase09_BastionLowPolyRebuild.md`를 작성했다. 큰 닫힌 몸체·내부 면 제거·구역 소유권·구면 분할/법선·Floor/Coarse/Shell 분리와 Hollow 비용/실패 사례를 정리했다. Bastion의 정상/나선·성벽/성채·빈 안뜰/지붕·공동/섬·Pod/훅의 보존 기준, 기준선/복구부터 마지막 PIE까지의 실행/통과 조건을 명시했다. 기존 BastionEncounters는 편성 검사이며 형상/착지 검사를 대신하지 않는다고 기록했다.
 - 두 공통 가이드에 재사용 기준과 다음 적용 링크를 반영하고, 남아 있던 Hollow 미완료/다음 국소 재제작 안내를 완료 이력으로 바로잡았다. Current·README 라우팅·Phase9 단위2의 후속 체크·Bastion 채택 기록과 Hollow 완료 문서를 연결했다. 다음 세션 첫 작업은 Bastion 현 원본/수동 마커/에셋 확인·백업과 자기 비용 기준선/구역 교체 목록 확정이다. 승인 Hollow 보존, 베이크/자동 검사 선행·마지막 PIE 묶음, NPC/풀 조합/패키지/부하 Gate 구분은 유지한다.
+
+### 2026-10-12 — Bastion 광원1차 비용 실측·감축 후보 평가 V004
+
+- 최신 Current에서 BastionV001~V003·HollowV020의 제작/장치/사용자 PIE 완료를 확인하고 광원 평가 한 단위를 진행했다. 사용자 요청대로 MCP 연결을 요청했으며 연결 후 TestMap03에서 작업했다. 기존 DefaultGame.ini·ActorMix 편성 에셋·LNPInputHandlerComponent.cpp의 사용자 변경은 건드리지 않았다.
+- Bastion81개×3slot=243개 포인트 광원을 확인하고 기존/전체 소등/기존 반복을 공동·성채 북문·고층 건물에서 측정했다. 실제 플레이어를 기존 검토 명령으로 리스폰하고 안정화·스크린샷 처리를 CSV6초 구간과 분리했다. GPUTime 중앙값의 소등 차이는 공동·성채 북문 약0.4~0.6ms, 고층 건물 약0.12~0.13ms다. 임시 ViewTarget을 따르지 않은 최초 카메라 시험은 폐기하고 같은 CSV를 유효한 플레이어 이동 시험으로 덮어썼다.
+- 성채/외성벽 문8곳을 모두3→1개로 합치는65개안은 성채 문 바닥 계산상 최대38% 저하로 제외했다. 외성벽 문4곳만 합치는73개안은 반경4917.5cm·unitless 세기0.274311647배로 바닥 조도 비율0.9449~1.0288을 맞춰 PIE에서 비교했다. 외성벽 문 `GPU/Lights`는0.6575/0.6604→0.5694ms로 줄었지만 GPUTime은6.5214/6.3887→6.5300ms였고 상부 벽 조명이 약해졌다. 다른3시점도 전체 GPU 이득이 작거나 기존 반복 편차와 겹쳐 후보를 미채택했다. 모든 수치·방법·한계는 `phases/Phase09_BastionLightingV004.md`가 소유한다.
+- 실제 PIE viewport1039×543·RTX4060 Laptop·WindowsEditor 조건이며 스크린샷만1280×720이다. 약60fps 프레임 제한 때문에 frame Gate로 쓰지 않으며 최종 해상도 패키지·멀티플레이·전원 활성 측정을 대체하지 않는다. 광원 소등은 플레이어 랜턴·발광 구슬·환경광을 끄지 않았다. 세기0 후보는 Actor/구슬 제거의 CPU 비용을 측정하지 않았다.
+- 최종 광원243개 개수/세기/반경 복원 불일치0, LVI 복구본 SHA256 일치. GPU CSV 진단 비활성화·PIE 종료·TestMap03 유지. 코드·에셋 변경이 없어 빌드/재베이크/형상 회귀·동일 사용자 PIE 재검토는 생략했다. 승인 광원81개 유지, 추가 감축 필요성은 단위5 패키지 GPU 측정에서 재판단한다. 복구·원본CSV21개·캡처·요약·복원 증거는 `Saved/SliceOctant/Bastion_00/LightsV004`와 `Saved/Profiling/CSV/LightsV004_*.csv`에 둔다.
+- Current·Phase9 실행 문서의 오래된 Bastion 미착수 안내/체크를 실제V003 완료 상태로 정리했다. 다음은 사용자 진행 확인 뒤 단위4 풀 통합/여러 seed의8-slot 조합·이음매·게시·결정론·stale 차단 검증이다. 별도 세션 소유인 벽보행 LoS 수정과 NPC 교전, 단위5 패키지/부하 Gate는 유지한다.
+
+### 2026-10-12 — 풀 검증 구현·production 검증 V005
+
+- 사용자 진행 승인 뒤 production 풀의 Meadow·Bastion·Hollow와 전체 slot 허용을 확인했다. 기존 slot 순서 greedy 선택은 유지했다. `Runtime.ProductionSurfaceDataDefinitions`를1→32seed로 확대해0/−1/int32양끝을 포함한 선택 재현·허용 slot·Surface/Nav generation·12seam·이전 generation node 거부를 검사한다. 각 seam의1/4·1/2·3/4에서 양쪽 실제 내부 node 사이 양방향 A*를 실행한다. 불필요했던 내부 node의6방향 열린 edge 조건을 제거한 최종 검사에서32배치·definition×slot24·방향 조합9·2304경로·최대 높이차0cm를 통과했다.
+- `Bake.ProductionPoolCurrentAndDeterministic`를 추가해 세 source를 각각 두 번 구워 source hash와5payload stream의 결정론·저장본 최신성을 검사했다. 기준선124검사에서는118통과/6실패와 Meadow stale source/Spawn 오류가 나왔다. 사용자 ActorMix 설정은 유지하고 Meadow SurfaceData만 재베이크했다. Regression/Conditional fixture의 미등록Bench01_2·비행형 기대3/현재9·Crust fixture 저장본 최신성 문제는 별도로 남겼다.
+- Live Coding에서는 source의 실제 Support11/100/12개가 있는데 extractor 수집0 오류가 나왔다. 진단 삽입 위치 오류로 컴파일도1회 실패해 수정했다. 사용자 요청대로 에디터 종료를 즉시 요청했고 종료 후 `LootNPopEditor Win64 Development -WaitMutex -NoHotReloadFromIDE` 전체 빌드가89.67초/오류0으로 성공했다. 임시 진단은 제거했다. 새 에디터에서는 수집0 오류가 사라졌으며 정확한 원인은 미확정이다.
+- 새 빌드 production2검사 성공293.984초/오류·경고0. 세 source 두 차례 베이크·저장본의 source hash/5stream 일치,32seed runtime 검사 성공5.854초다. 같은 빌드의 기존124회귀 재실행은118통과/같은6실패195.108초이며 Meadow stale 오류는 해소됐다. 두 배치의 고유125검사는119통과/6실패로 전체 Gate는 미통과다. 결과는 `production-results.json`·`regression-results.json`·`combined-results.json`이다.
+- TestMap03 PIE 고정seed−1/135792468/2147483647 모두 phaseComplete·8LVI·Support8/8·seam4281·Surface/Nav/registrySurface generation1 일치로 PASS. bindings269/269·357/357·357/357, Nav component/group589/589·709/709·709/709이다. 기존 listen host 한 world의 게시 검사이며 guest/late join/패키지2P Gate를 대신하지 않는다. 실제 slot 배열과 로그는 `Saved/SliceOctant/PoolV005`에 보존했다.
+- PIE 종료·TestMap03 유지·원래CDOseed0/EnemyDensity1 복원 확인. 자동화가 저장한 테스트3에셋은 unload 후 HEAD 바이트로 복구했고 dirty가 된 테스트BP/CDO 전파 GameStateBP도 디스크에서 다시 읽었다. 최종 dirty content/map0, 사용자 기존 DefaultGame.ini·ActorMix·InputHandler 변경은 보존했다. Current·Phase9 실행 문서·V005 결과를 갱신했다. 풀 검증 구현 단위를 마치고 사용자 확인 뒤 fixture6실패 정리를 다음 단위로 제안한다. Phase9 전체·패키지/부하 Gate는 미완료다.
+
+### 2026-10-12 — 혼합 풀 SourceKeys·정식 편성 배치 부족 수정 V009
+
+- 사용자 진행 지시로 V008 잔여 2건을 다뤘다. `ProbeSourceKeys`를 slot별 게시 snapshot의 저장 source 표와 대조하도록 바꿨다(혼합 풀에서 slot 간 key 동일 가정 제거).
+- 새 `Runtime.ProductionSpawnComposition`이 패키지 배치(WorldSeed1)에서 2130/2235를 Editor로 재현했다. 원인은 반경 안 같은 Layer Enemy 후보가 편성27보다 적은 좁은 Layer에 랜덤 Pod를 둔 것과 일부 후보 경합이다.
+- `BuildPlan`을 수동 앵커 선택→수동 Pod 적 배치→편성 전량 배치 가능한 랜덤 Pod 순으로 바꿨다. 수정 후 패키지 배치2235/2235, 33배치77,629/77,629, Pod 부족0.
+- 전체127검사 통과(경고 포함4·실패0/513.5초). 입력 에셋7개 해시 유지, 테스트 생성 에셋3개 HEAD 복구. 게이트 통과 BuildCookRun exit0/104.6초·1229packages.
+- 동일 패키지1P exit0/42.7초: 적2235/2235·Pod120/120, SourceKeys 358/358·패널·FaceIndex·SurfaceData PASS, UnknownHits/EnvelopeEscapes/LayerJumps0. exact P95 4.536ms FAIL은 성능 단위에 남긴다. 상세 [V009](../phases/Phase09_SpawnCompositionV009.md).

@@ -38,6 +38,10 @@ bool IsInOctant(int32 Subdivisions, int32 I, int32 J)
  * 방향을 담은 격자 삼각형 세 꼭짓점과 barycentric 가중치. 이음매 위 방향은 회전 오차로 성분이 아주 작은 음수일 수 있다.
  * 그보다 크게 벗어나면 이 옥탄트가 아니므로 false다.
  */
+// /fp:fast의 나눗셈 재배치는 삼각형 경계에서 베이크와 다른 셀을 고른다. 주소 계산만 베이크와 같은 정밀도로 고정한다.
+#if defined(_MSC_VER)
+#pragma float_control(precise, on, push)
+#endif
 bool ComputeCell(int32 N, const FVector3d& LocalDirection, FIntPoint (&OutCorners)[3], double (&OutWeights)[3])
 {
 	if (N < 1 || LocalDirection.GetMin() < -UE_KINDA_SMALL_NUMBER * LocalDirection.GetAbsMax())
@@ -94,6 +98,9 @@ bool ComputeCell(int32 N, const FVector3d& LocalDirection, FIntPoint (&OutCorner
 	}
 	return true;
 }
+#if defined(_MSC_VER)
+#pragma float_control(pop)
+#endif
 
 bool QuantizeLayer(
 	const FLNPSupportLayerRaster& Raster,

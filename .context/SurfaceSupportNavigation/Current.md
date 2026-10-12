@@ -1,10 +1,22 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: Phase 9 Vertical Slice — Bastion_00 전체 단순화·패널/훅 개편·나선 끼임 수정 완료(재베이크·자동7검사·사용자 PIE 통과). 광원 감축은 후속. Hollow_00 전체 단순화·장치·V020 훅 조정 완료(베이크·자동 검사·사용자 PIE 통과). NPC LoS·풀 통합·부하 측정은 별도 후속 범위
+> 현재 Phase: Phase 9 Vertical Slice — V009 혼합 풀 SourceKeys·정식 편성 배치 수정, 전체127회귀·재패키징·패키지1P 기능 검사 통과. exact P95 초과는 성능 단위. 리슨2P·late join·NPC LoS·성능·메모리 Gate는 미완료
 > 마지막 갱신: 2026-10-12
 
 ## 현재 결정
+
+**2026-10-12 V009 완료 — 패키지1P 기능 검사 통과.** `ProbeSourceKeys`는 slot마다 게시된 저장 source 표와 대조하도록 고쳤다(혼합 풀). 정식 편성 105마리 부족은 새 `Runtime.ProductionSpawnComposition`이 Editor에서 그대로 재현했고, 반경 안 같은 Layer 적 후보가 편성27보다 적은 좁은 Layer에 랜덤 Pod를 둔 것이 원인이었다. 할당을 수동 앵커→수동 Pod 적→편성 전량 배치 가능한 랜덤 Pod 순으로 바꿔 패키지 배치2235/2235·33배치77,629/77,629·Pod 부족0이다. 전체127검사 통과(경고 포함4·실패0/513.5초), 입력 에셋 해시 유지·테스트 생성 에셋3개 HEAD 복구, 게이트 통과 BuildCookRun exit0/104.6초. 동일 패키지1P exit0/42.7초에서 적2235/2235·Pod120/120, SourceKeys/패널/FaceIndex/SurfaceData PASS, UnknownHits/EnvelopeEscapes/LayerJumps0이다. **exact P95 4.536ms>2ms는 성능 단위에 남고 2P·late join은 미실행이다.** 상세 [V009](phases/Phase09_SpawnCompositionV009.md).
+
+**2026-10-12 V008 완료 — Nav 정밀도 수정, 패키지1P 잔여 실패 확인.** 같은 저장본·방향의 새 회귀가 Editor 성공/Game 실패를 재현했다. `ComputeCell`만 MSVC precise로 고정해 전역 `/fp:fast`와 NeedsExact 안전 규칙을 유지했고, Development 게임에서 production 전체 404,414개 Nav 노드 조회가 성공했다. 전체126검사 통과(경고 없는122·경고 포함4·실패0/492.086초), production 최신성266.359초/오류0·HTTP경고1로 재베이크가 불필요했다. 에셋/설정 해시 유지·테스트 생성 에셋3개 실행 전 바이트 복구. 새 Development 패키징 exit0/64.649초·1229packages, 실제1P가 generation1/8slot/358bindings를 게시하고 face·SurfaceData·패널 probe PASS·UnknownHits/EnvelopeEscapes/LayerJumps0·자동종료 exit0/43.575초다. 그러나 기존 SourceKeys probe는 모든 slot이 같아야 한다는 가정으로 FAIL, 정식 적2235요청/2130배치(105부족), exact P95 4.604ms도 harness 2ms 기준 FAIL이다. **Nav 초기화 수정만 완료이며 1P전체·성능Gate 통과가 아니다.** 상세·다음 단위는 [V008](phases/Phase09_NavPrecisionV008.md)을 따른다.
+
+**2026-10-12 V007 검증 — cook 통과, 패키지 1P 실패.** production 세 source의 최신성·두 차례 베이크 결정론이268.343초/오류·경고0으로 통과했다. 별도 프로세스 반지름+1cm 음성 검사에서 저장 hash·Support 불일치6개를 검출했고, 프로세스exit0이어도 JSON 실패를 확인해 UAT 호출을 차단했다. 정식 설정 Development BuildCookRun은exit0/136.925초·1229packages cook 성공, production3LVI/3SurfaceData와 정식SpawnConfig 포함을 확인했다. 그러나 실제 패키지1P에서 `Nav slot 1 graph: Nav Layer 1 node (326,270) has no Support`로 snapshot 게시가 중단됐다. 소유 테스트 프로세스를 종료했으며2P·late join·성능·메모리는 진행하지 않았다. Editor `/fp:precise`와Game `/fp:fast`의 격자 경계 판정 차이가 유력한 후보이나 원인 미확정이다. 코드·에셋·기본 설정은 변경하지 않았다. 상세·근거·다음 수정은 [V007](phases/Phase09_CookPackageV007.md)을 따른다. plain BuildCookRun 자체에 validator를 추가한 것은 아니다.
+
+**2026-10-12 V006 완료 — 정식 편성 기준 고유125검사 통과.** 기본 설정은 `DA_MassSpawnConfig`, 테스트 편성은 내용 보존 후 `DA_MassSpawnConfig_TestOnePerSpecies`로 이름 변경했다. Crust/Regression/Conditional fixture3개를 재베이크하고 실제 공동 비행 수량 검사는 정식 config 요청값을 읽도록 수정했다. 전체 빌드 성공36.60초/컴파일 오류0. 새 에디터의 전체125검사124통과/Conditional 저장본1실패(454.154초) 후 해당 에셋 재베이크·영향 범위7개 전부 통과(32.866초), 두 배치의 최신 결과로 고유125검사 전부 통과다. production 두 차례 베이크 최신성/결정론248.666초·32seed runtime5.010초·VolumetricFixture 모두 오류·경고0이다. 전체 배치에는 기존 RHI/HTTP/BOption 경고가 있으며 단일 실행125통과·전체 경고0으로 기록하지 않는다. 테스트 생성 에셋3개 HEAD 복구·TestMap03 복귀·dirty content/map0·diff check 완료. [V006](phases/Phase09_OfficialSpawnConfigV006.md)에 근거를 기록했다. fixture 설정 분리는 하지 않았다.
+
+**V005 풀 통합 구현·당시 테스트 편성 검증 완료.**32seed의 배치32·definition×slot24·방향 조합9·seam 왕복2304경로·높이차0cm, 세 source 두 차례 베이크의 결정론·저장본 최신성, 고정3seed 실제 PIE 게시/Support8/8/source binding·generation 일치를 통과했다. Live Coding 이후 Support 수집0 문제는 전체 빌드·새 에디터에서 사라졌고 정확한 원인은 미확정이다. 당시 테스트 편성의 고유125검사119통과/6실패는 [V005](phases/Phase09_PoolIntegrationV005.md)의 역사 기록으로 보존한다. 최신 정식 편성 판정은 V006을 따른다. 전체 Phase9 Gate는 미완료다.
+
+**2026-10-12 광원1차 실측·감축 후보 평가 완료.** [V004](phases/Phase09_BastionLightingV004.md)에서 TestMap03 PIE의 기존/소등 및 기존→73개 후보→기존 반복을 비교했다. 외성벽 문에서 직접광 패스는 약0.09ms 줄었지만 GPUTime 개선은 확인하지 못했고 상부 벽 조명이 약해져 후보를 미채택했다. 승인 광원81개 유지, 코드·LVI·SurfaceData 변경 없음. PIE 광원243개 세기/반경 복원 불일치0·LVI 복구본 SHA256 일치를 확인했다. 고정 해상도 패키지 성능 Gate와 구분한다. 이후 풀 통합/여러 seed 검증은 위 V005에서 진행했다.
 
 **2026-10-12 Bastion 제작·장치 개편·나선 끼임 수정 완료.** V002 사용자 PIE에서 전체적으로 문제없고 훅마다 용도·사거리가 명확하며 여러 각도에서 접근하고 관성으로 아래 지형에 떨어지지 않았다고 확인했다. 별도로 보고한 slot7/local(4406,2527,H17323)의 나선–나팔 벽 끼임은 [V003](phases/Phase09_BastionSpiralGapV003.md)에서 명목 틈100→200cm로 나팔 안쪽 경계만1m 물려 해결했다. 기존 저장본 Chaos 낙하41/41실패→수정 저장본41/41통과, Live Coding patch_12·재베이크·자동7검사 성공(6.928초/오류·경고0), Nav 왕복1408경로·Pod96투영도 통과했다. **사용자가 나선 경사로 양측을 직접 시험해 양쪽 모두 끼임 없이 잘 떨어짐을 확인했다.** 승인 V001 외피·V002 패널/훅과 최종 V003을 현재 기준으로 확정한다. 광원 성능 실측·감축과 Phase 전체의 NPC LoS·교전·풀 조합·패키지/부하 Gate는 후속 범위다.
 
@@ -38,7 +50,8 @@ Phase 9를 착수했다. 실행 문서는 `phases/Phase09_VerticalSlice.md`, 경
 
 ## 바로 다음 행동
 
-- **이번 Bastion 제작·장치 개편·끼임 수정은 완료다.** V003 사용자 양측 낙하 검토까지 통과했으므로 같은 검토를 다시 요청하지 않는다. 후속 광원 실측·감축, NPC LoS·교전·풀 조합·패키지/부하는 별도 범위로 진행한다.
+- **사용자 진행 확인 뒤 패키지 리슨2P host/guest·late join을 검증한다.** V009 패키지(`Saved/SurfaceNavigationPhase9V009Package`)로 host/guest의 동일 snapshot·generation·bindings, 패널 등 동적 요소 상태, late join 복원, assert·ensure·Unknown hit을 확인한다. exact 시간 초과와 추가 관통 진단은 성능 단위에 보존한다. 광원은81개를 유지한다.
+- BastionV003·HollowV020 제작/사용자 PIE는 완료다. 같은 동선 검토를 다시 요청하지 않는다. 벽보행 LoS는 별도 세션 결과를 확인한 뒤 NPC 교전을 재검증한다. 패키지/멀티플레이/부하 Gate는 여전히 남아 있다.
 
 ### 완료 전 진행 기록 — 위 최신 결과보다 후순위
 

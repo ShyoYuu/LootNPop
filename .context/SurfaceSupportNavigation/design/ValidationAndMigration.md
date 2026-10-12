@@ -106,6 +106,10 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 
 모든 Phase 완료 조건에 `-game` 리슨 서버 2P 스모크를 포함한다(D-031). PIE는 월드 서브시스템 초기화 시점의 net mode를 재현하지 못하므로 대체할 수 없다.
 
+격자 주소 계산을 변경하면 `Runtime.SupportPrecision`을 Editor와 Development 게임 양쪽에서 실행한다. 이 검사는 production 세 저장본의 전체 Nav graph와 Bastion 삼각형 경계·인접 NeedsExact 거부를 검사한다. Editor `/fp:precise` 통과만으로 Game `/fp:fast`의 동일 결과를 보장하지 않는다([Phase9 V008](../phases/Phase09_NavPrecisionV008.md)).
+
+옥탄트 Spawn 후보·편성·할당 규칙을 바꾸면 `Runtime.ProductionSpawnComposition`을 실행한다. 실제 풀 선택과 정식 `DA_MassSpawnConfig`로 패키지 배치·32 seed의 Pod 부족0과 적 전량 배치를 요구하며, 부족 Pod를 slot·Layer·적 종류·후보 수로 분류해 남긴다([Phase9 V009](../phases/Phase09_SpawnCompositionV009.md)).
+
 ### 성능 측정
 
 현재 기준:

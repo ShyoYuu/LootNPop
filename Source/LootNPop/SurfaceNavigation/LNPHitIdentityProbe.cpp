@@ -4,6 +4,7 @@
 #include "SurfaceNavigation/LNPCollisionChannels.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
+#include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "DynamicTerrain/LNPMovingPanel.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "LootPod/LNPLootPodCollisionProxy.h"
@@ -267,13 +268,14 @@ namespace
 
 	/**
 	 * LNP.SurfaceNav.ProbeSourceKeys
-	 * runtime slot Level Instance의 Support component key를 모아 slot 사이에서 같은 이름이 유지되는지 검사한다.
+	 * runtime slot Level Instance의 Support component key를 모아 그 slot에 게시된 SurfaceData의 저장 source 표와 대조한다.
+	 * slot마다 definition이 다를 수 있으므로(혼합 풀) slot 사이가 아니라 slot과 자기 저장본을 비교한다.
 	 * 베이크 key와 같은 `<Actor FName>.<Component FName>` 형식을 출력하므로 에디터 베이크 결과와 직접 대조할 수 있다.
 	 */
 	FAutoConsoleCommandWithWorld GLNPProbeSourceKeys(
 		TEXT("LNP.SurfaceNav.ProbeSourceKeys"),
 		TEXT("List <Actor FName>.<Component FName> keys for Support components in runtime octant slots and verify "
-			"that every key occurs once per loaded slot. Logs PASS/FAIL per world."),
+			"that each slot matches the saved source table of its published SurfaceData exactly. Logs PASS/FAIL per world."),
 		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
 		{
 			const ULNPOctantSpawnSubsystem* OctantSubsystem = World
@@ -284,18 +286,30 @@ namespace
 				UE_LOG(LogLootNPop, Warning, TEXT("[ProbeSourceKeys] World generation is not complete."));
 				return;
 			}
+			const ULNPSurfaceDataSubsystem* SurfaceData = World->GetSubsystem<ULNPSurfaceDataSubsystem>();
+			const TSharedPtr<const FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe> Snapshot = SurfaceData
+				? SurfaceData->TakeSnapshot()
+				: nullptr;
+			if (!Snapshot.IsValid() || Snapshot->Slots.Num() != 8)
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[ProbeSourceKeys] SurfaceData snapshot is not published."));
+				return;
+			}
 
 			const FName SupportTag(TEXT("LNP.Surface.Support"));
-			TMap<FString, int32> Occurrences;
 			int32 LoadedSlotCount = 0;
+			int32 RuntimeSourceCount = 0;
+			int32 SavedSourceCount = 0;
 			int32 DuplicateCount = 0;
-			int32 ReferenceSourceCount = INDEX_NONE;
-			bool bSameCountPerSlot = true;
+			int32 MissingCount = 0;
+			int32 UnexpectedCount = 0;
+			TSet<FString> UniqueKeys;
 
 			for (int32 SlotIndex = 0; SlotIndex < 8; ++SlotIndex)
 			{
 				const ULevel* Level = OctantSubsystem->GetSlotLevel(SlotIndex);
-				if (Level == nullptr)
+				const FLNPSupportAtlas* Atlas = Snapshot->Slots[SlotIndex].Support.Get();
+				if (Level == nullptr || Atlas == nullptr)
 				{
 					continue;
 				}
@@ -324,44 +338,45 @@ namespace
 							++DuplicateCount;
 						}
 						SlotKeys.Add(Key);
-						++Occurrences.FindOrAdd(Key);
+						UniqueKeys.Add(Key);
 					}
 				}
 
-				if (ReferenceSourceCount == INDEX_NONE)
+				TSet<FString> SavedKeys;
+				for (const FLNPSupportAtlasSource& Source : Atlas->Sources)
 				{
-					ReferenceSourceCount = SlotKeys.Num();
+					SavedKeys.Add(Source.Key);
+					if (!SlotKeys.Contains(Source.Key))
+					{
+						++MissingCount;
+						UE_LOG(LogLootNPop, Warning, TEXT("[ProbeSourceKeys] Slot=%d missing saved source %s"), SlotIndex, *Source.Key);
+					}
 				}
-				else if (ReferenceSourceCount != SlotKeys.Num())
+				for (const FString& Key : SlotKeys)
 				{
-					bSameCountPerSlot = false;
+					if (!SavedKeys.Contains(Key))
+					{
+						++UnexpectedCount;
+						UE_LOG(LogLootNPop, Warning, TEXT("[ProbeSourceKeys] Slot=%d unexpected runtime source %s"), SlotIndex, *Key);
+					}
 				}
+				RuntimeSourceCount += SlotKeys.Num();
+				SavedSourceCount += Atlas->Sources.Num();
 
-				UE_LOG(LogLootNPop, Display, TEXT("[ProbeSourceKeys] Slot=%d Sources=%d Level=%s"),
-					SlotIndex, SlotKeys.Num(), *FPackageName::GetShortName(Level->GetOutermost()->GetName()));
-			}
-
-			TArray<FString> SortedKeys;
-			Occurrences.GenerateKeyArray(SortedKeys);
-			SortedKeys.Sort();
-			int32 InconsistentKeyCount = 0;
-			for (const FString& Key : SortedKeys)
-			{
-				const int32 Count = Occurrences.FindChecked(Key);
-				InconsistentKeyCount += Count == LoadedSlotCount ? 0 : 1;
-				UE_LOG(LogLootNPop, Display, TEXT("[ProbeSourceKeys] Key=%s Slots=%d/%d"),
-					*Key, Count, LoadedSlotCount);
+				UE_LOG(LogLootNPop, Display, TEXT("[ProbeSourceKeys] Slot=%d Sources=%d Saved=%d Level=%s"),
+					SlotIndex, SlotKeys.Num(), Atlas->Sources.Num(), *FPackageName::GetShortName(Level->GetOutermost()->GetName()));
 			}
 
 			const bool bPass = LoadedSlotCount == 8
-				&& ReferenceSourceCount > 0
-				&& bSameCountPerSlot
+				&& SavedSourceCount > 0
+				&& RuntimeSourceCount == SavedSourceCount
 				&& DuplicateCount == 0
-				&& InconsistentKeyCount == 0;
+				&& MissingCount == 0
+				&& UnexpectedCount == 0;
 			UE_LOG(LogLootNPop, Display,
-				TEXT("[ProbeSourceKeys] %s NetMode=%d loadedSlots=%d uniqueKeys=%d sourcesPerSlot=%d duplicates=%d inconsistentKeys=%d -> %s"),
-				*World->GetName(), static_cast<int32>(World->GetNetMode()), LoadedSlotCount, SortedKeys.Num(),
-				ReferenceSourceCount, DuplicateCount, InconsistentKeyCount, bPass ? TEXT("PASS") : TEXT("FAIL"));
+				TEXT("[ProbeSourceKeys] %s NetMode=%d loadedSlots=%d uniqueKeys=%d runtimeSources=%d savedSources=%d duplicates=%d missing=%d unexpected=%d -> %s"),
+				*World->GetName(), static_cast<int32>(World->GetNetMode()), LoadedSlotCount, UniqueKeys.Num(),
+				RuntimeSourceCount, SavedSourceCount, DuplicateCount, MissingCount, UnexpectedCount, bPass ? TEXT("PASS") : TEXT("FAIL"));
 		}));
 }
 

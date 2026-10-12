@@ -268,12 +268,87 @@ bool LNPMassSpawnPlanning::BuildPlan(
 	Shuffle(Authored, Random);
 	Shuffle(RandomCandidates, Random);
 
+	// 적 후보는 같은 slot·Layer에서만 고르므로 섞인 순서를 유지한 채 (slot, Layer)별로 묶는다.
+	TMap<uint32, TArray<int32>> CandidatesBySurface;
+	for (int32 Index = 0; Index < RandomCandidates.Num(); ++Index)
+	{
+		CandidatesBySurface.FindOrAdd(static_cast<uint32>(RandomCandidates[Index].Slot) << 16 | RandomCandidates[Index].LocalLayerId).Add(Index);
+	}
+
+	const double EnemyRadiusSquared = FMath::Square(static_cast<double>(EnemySpawnRadiusAroundPod));
+	// Pod 하나의 편성을 후보에 배치한다. bRequireComplete이면 전량을 놓을 수 없을 때 아무것도 확정하지 않고 false를 돌려준다.
+	const auto PlaceEnemies = [&](FLNPMassSpawnPlannedPod& Pod, const bool bRequireComplete)
+	{
+		const FLNPMassSpawnSetPlanInput& Set = Sets[Pod.SetInputIndex];
+		static const TArray<int32> NoCandidates;
+		const TArray<int32>* FoundCandidates = CandidatesBySurface.Find(static_cast<uint32>(Pod.Surface.OctantSlot) << 16 | Pod.Surface.LocalLayerId);
+		const TArray<int32>& SurfaceCandidates = FoundCandidates ? *FoundCandidates : NoCandidates;
+		TArray<FVector> OccupiedEnemies;
+		TArray<int32> Claimed;
+		TArray<FLNPMassSpawnPlannedEnemyGroup> Groups;
+		int32 Requested = 0;
+		// 높은 천장이 필요한 편성의 후보를 지상 적이 먼저 소비하지 않도록 한다.
+		TArray<FLNPMassSpawnEnemyPlanInput> EnemyInputs = Pod.AuthoredEnemies.IsEmpty() ? Set.Enemies : Pod.AuthoredEnemies;
+		EnemyInputs.StableSort([](const auto& A, const auto& B) { return A.RequiredHeadroom > B.RequiredHeadroom; });
+		for (const FLNPMassSpawnEnemyPlanInput& EnemyInput : EnemyInputs)
+		{
+			Requested += EnemyInput.RequestedCount;
+			FLNPMassSpawnPlannedEnemyGroup& Group = Groups.AddDefaulted_GetRef();
+			Group.AssetIndex = EnemyInput.AssetIndex;
+			const FVector FormationCenter = Pod.Transform.TransformPosition(FVector(EnemyInput.Offset.X, EnemyInput.Offset.Y, 0.0));
+			for (const int32 CandidateIndex : SurfaceCandidates)
+			{
+				if (Group.Transforms.Num() >= EnemyInput.RequestedCount)
+				{
+					break;
+				}
+				const FWorldRandomCandidate& Candidate = RandomCandidates[CandidateIndex];
+				if (Candidate.bUsed || Claimed.Contains(CandidateIndex) || !EnumHasAnyFlags(Candidate.Allowed, ELNPSpawnCandidateFlags::Enemy)
+					|| Candidate.Headroom < EnemyInput.RequiredHeadroom
+					|| (EnemyInput.FormationRadius > 0.0f
+						? FVector::DistSquared(Candidate.Position, FormationCenter) > FMath::Square(EnemyInput.FormationRadius)
+							|| FVector::DistSquared(Candidate.Position, Pod.Transform.GetLocation()) < FMath::Square(400.0)
+						: FVector::DistSquared(Candidate.Position, Pod.Transform.GetLocation()) > EnemyRadiusSquared)
+					|| !IsFarEnough(Candidate.Position, OccupiedEnemies, MinEnemySpacing))
+				{
+					continue;
+				}
+				Claimed.Add(CandidateIndex);
+				Group.Transforms.Add(FTransform(FRotationMatrix::MakeFromZ(Candidate.Normal).ToQuat(), Candidate.Position));
+				OccupiedEnemies.Add(Candidate.Position);
+			}
+		}
+		if (bRequireComplete && Claimed.Num() < Requested)
+		{
+			return false;
+		}
+		FLNPMassSpawnSetStats& Stats = OutPlan.SetStats[Pod.SetInputIndex];
+		Stats.EnemyRequested += Requested;
+		Stats.EnemyPlaced += Claimed.Num();
+		for (const int32 CandidateIndex : Claimed)
+		{
+			RandomCandidates[CandidateIndex].bUsed = true;
+		}
+		for (FLNPMassSpawnPlannedEnemyGroup& Group : Groups)
+		{
+			if (!Group.Transforms.IsEmpty())
+			{
+				Pod.Enemies.Add(MoveTemp(Group));
+			}
+		}
+		return true;
+	};
+
+	// 수동 앵커 선택은 랜덤 후보와 무관하므로 먼저 끝낸다. 그 편성을 랜덤 Pod보다 먼저 배치해 수동 전투의 출현 후보를 보존한다.
 	TArray<FVector> OccupiedPods;
+	TArray<int32> RemainingBySet;
+	RemainingBySet.SetNum(Sets.Num());
 	for (const int32 SetInputIndex : SetOrder)
 	{
 		const FLNPMassSpawnSetPlanInput& Set = Sets[SetInputIndex];
 		FLNPMassSpawnSetStats& Stats = OutPlan.SetStats[SetInputIndex];
-		int32 Remaining = Set.RequestedPods;
+		int32& Remaining = RemainingBySet[SetInputIndex];
+		Remaining = Set.RequestedPods;
 
 		for (FWorldAuthoredAnchor& Anchor : Authored)
 		{
@@ -297,6 +372,21 @@ bool LNPMassSpawnPlanning::BuildPlan(
 			++Stats.Generic;
 			--Remaining;
 		}
+	}
+
+	// 전역 랜덤 Pod가 수동 전투의 출현 후보를 먼저 소비하지 않도록 한다.
+	OutPlan.Pods.StableSort([](const auto& A, const auto& B) { return !A.AuthoredEnemies.IsEmpty() && B.AuthoredEnemies.IsEmpty(); });
+	for (FLNPMassSpawnPlannedPod& Pod : OutPlan.Pods)
+	{
+		PlaceEnemies(Pod, /*bRequireComplete=*/false);
+	}
+
+	// 랜덤 Pod는 편성 전량을 실제로 배치할 수 있는 후보에만 두고, 그 자리에서 적 후보를 확정한다.
+	for (const int32 SetInputIndex : SetOrder)
+	{
+		const FLNPMassSpawnSetPlanInput& Set = Sets[SetInputIndex];
+		FLNPMassSpawnSetStats& Stats = OutPlan.SetStats[SetInputIndex];
+		int32& Remaining = RemainingBySet[SetInputIndex];
 		for (FWorldRandomCandidate& Candidate : RandomCandidates)
 		{
 			if (Remaining == 0)
@@ -310,6 +400,13 @@ bool LNPMassSpawnPlanning::BuildPlan(
 				continue;
 			}
 			AddRandomPod(Snapshot, Set, SetInputIndex, Candidate, OutPlan, OccupiedPods);
+			if (!PlaceEnemies(OutPlan.Pods.Last(), /*bRequireComplete=*/true))
+			{
+				Candidate.bUsed = false;
+				OccupiedPods.Pop();
+				OutPlan.Pods.Pop();
+				continue;
+			}
 			++Stats.Random;
 			--Remaining;
 		}
@@ -340,50 +437,5 @@ bool LNPMassSpawnPlanning::BuildPlan(
 		}
 	}
 
-	// 전역 랜덤 Pod가 수동 전투의 출현 후보를 먼저 소비하지 않도록 한다.
-	OutPlan.Pods.StableSort([](const auto& A, const auto& B) { return !A.AuthoredEnemies.IsEmpty() && B.AuthoredEnemies.IsEmpty(); });
-	const double EnemyRadiusSquared = FMath::Square(static_cast<double>(EnemySpawnRadiusAroundPod));
-	for (FLNPMassSpawnPlannedPod& Pod : OutPlan.Pods)
-	{
-		const FLNPMassSpawnSetPlanInput& Set = Sets[Pod.SetInputIndex];
-		FLNPMassSpawnSetStats& Stats = OutPlan.SetStats[Pod.SetInputIndex];
-		TArray<FVector> OccupiedEnemies;
-		// 높은 천장이 필요한 편성의 후보를 지상 적이 먼저 소비하지 않도록 한다.
-		TArray<FLNPMassSpawnEnemyPlanInput> EnemyInputs = Pod.AuthoredEnemies.IsEmpty() ? Set.Enemies : Pod.AuthoredEnemies;
-		EnemyInputs.StableSort([](const auto& A, const auto& B) { return A.RequiredHeadroom > B.RequiredHeadroom; });
-		for (const FLNPMassSpawnEnemyPlanInput& EnemyInput : EnemyInputs)
-		{
-			Stats.EnemyRequested += EnemyInput.RequestedCount;
-			FLNPMassSpawnPlannedEnemyGroup Group;
-			Group.AssetIndex = EnemyInput.AssetIndex;
-			const FVector FormationCenter = Pod.Transform.TransformPosition(FVector(EnemyInput.Offset.X, EnemyInput.Offset.Y, 0.0));
-			for (FWorldRandomCandidate& Candidate : RandomCandidates)
-			{
-				if (Group.Transforms.Num() >= EnemyInput.RequestedCount)
-				{
-					break;
-				}
-				if (Candidate.bUsed || !EnumHasAnyFlags(Candidate.Allowed, ELNPSpawnCandidateFlags::Enemy)
-					|| Candidate.Headroom < EnemyInput.RequiredHeadroom
-					|| Candidate.Slot != Pod.Surface.OctantSlot || Candidate.LocalLayerId != Pod.Surface.LocalLayerId
-					|| (EnemyInput.FormationRadius > 0.0f
-						? FVector::DistSquared(Candidate.Position, FormationCenter) > FMath::Square(EnemyInput.FormationRadius)
-							|| FVector::DistSquared(Candidate.Position, Pod.Transform.GetLocation()) < FMath::Square(400.0)
-						: FVector::DistSquared(Candidate.Position, Pod.Transform.GetLocation()) > EnemyRadiusSquared)
-					|| !IsFarEnough(Candidate.Position, OccupiedEnemies, MinEnemySpacing))
-				{
-					continue;
-				}
-				Candidate.bUsed = true;
-				Group.Transforms.Add(FTransform(FRotationMatrix::MakeFromZ(Candidate.Normal).ToQuat(), Candidate.Position));
-				OccupiedEnemies.Add(Candidate.Position);
-			}
-			Stats.EnemyPlaced += Group.Transforms.Num();
-			if (!Group.Transforms.IsEmpty())
-			{
-				Pod.Enemies.Add(MoveTemp(Group));
-			}
-		}
-	}
 	return true;
 }

@@ -203,7 +203,7 @@
 
 - [x] **MassEntity 기반 적 NPC 스폰** (`ULNPMassSpawnSubsystem`)
     - 데이터 에셋(`DA_MassSpawnConfig`) 기반 배치. 스폰 완료 시 `OnSpawningComplete` 델리게이트 발행.
-    - 검증용 편성은 기본 편성을 고치지 않고 `LNP.Spawn.ConfigOverride <경로>`(PIE 시작 전 에디터 콘솔) 또는 `-LNPSpawnConfig=<경로>`(`-game`, 호스트·게스트 모두)로 바꾼다. 소규모 혼합 편성: `DA_MassSpawnConfig_ActorMix`(Actor 승격 근접 포함, 종류별 1~2기). 2026-10-11
+- 검증용 편성은 기본 편성을 고치지 않고 `LNP.Spawn.ConfigOverride <경로>`(PIE 시작 전 에디터 콘솔) 또는 `-LNPSpawnConfig=<경로>`(`-game`, 호스트·게스트 모두)로 바꾼다. 종류별 한 마리 테스트 편성: `DA_MassSpawnConfig_TestOnePerSpecies`(기존 ActorMix). 정식 기본 편성은 `DA_MassSpawnConfig`다. 2026-10-12
 - [x] **적 이동 프로세서** (`ULNPEnemyMovementProcessor`)
     - 구형 표면을 따른 이동. `ULNPSurfaceCacheSubsystem`에서 표면 노멀 조회 (스레드 안전).
 - [x] **슬롯 기반 타겟팅 서브시스템** (`ULNPTargetingSubsystem`)
