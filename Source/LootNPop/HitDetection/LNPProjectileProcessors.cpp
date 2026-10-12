@@ -210,6 +210,7 @@ void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMas
 	EnemyQuery.AddRequirement<FLNPEnemyVelocityFragment>(EMassFragmentAccess::ReadWrite);   // Actor 없는 적의 넉백
 	EnemyQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>(EMassFragmentPresence::All);
 	EnemyQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
+	EnemyQuery.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);   // 쓰러지는 시체는 탄을 막지 않는다 (서버 전용 태그)
 	EnemyQuery.RegisterWithProcessor(*this);
 
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
@@ -218,6 +219,7 @@ void ULNPProjectileHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMas
 	PlayerQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
+	PlayerQuery.AddTagRequirement<FLNPPlayerDeadTag>(EMassFragmentPresence::None);   // 시체는 탄을 막지 않는다 (서버 전용 태그)
 	PlayerQuery.RegisterWithProcessor(*this);
 
 	ProcessorRequirements.AddSubsystemRequirement<ULNPMassWorldCollisionSubsystem>(EMassFragmentAccess::ReadOnly);
@@ -371,9 +373,14 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 			const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
 			TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+			const TConstArrayView<FLNPEnemyFragment>  EnemyFrags = Ctx.GetFragmentView<FLNPEnemyFragment>();
 
 			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
+				// FLNPEnemyDyingTag는 서버에만 붙는다 — 클라는 복제된 HP 비율로 서버와 맞춘다 (적 탐색 질의와 같은 기준).
+				if (EnemyFrags[i].Health <= 0.f)
+					continue;
+
 				const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 				const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 				AActor*       Actor = ActorFrags[i].GetMutable();
@@ -393,7 +400,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			{
 				AActor* PlayerActor = ActorFrags[i].GetMutable();
 				const ALNPPlayerCharacter* PlayerPawn = Cast<ALNPPlayerCharacter>(PlayerActor);
-				if (!PlayerPawn)
+				// FLNPPlayerDeadTag는 서버에만 붙는다 — 클라는 Multicast_OnDeath가 켜는 IsDead()로 서버와 맞춘다.
+				if (!PlayerPawn || PlayerPawn->IsDead())
 					continue;
 
 				float HalfH, Radius;
@@ -709,17 +717,28 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (!SP.Actor) continue;
 				const float DistSq = FVector::DistSquared(SP.Location, HitPoint);
 				if (DistSq > ExpRadSq) continue;
+
+				// 적 쪽과 같은 규약 — "피격자 → 공격자(폭심)". 부호 뒤집기는 소비처가 한다.
+				const FVector SplashDir   = (HitPoint - SP.Location).GetSafeNormal();
+				const FVector SplashPoint = SP.Location + SplashDir * SP.CapsuleRadius;
+
+				// 폭발은 패링할 수 없다(bInParryRange=false). 가드 방향은 탄이 날아온 쪽이 아니라 폭심 쪽이다.
+				if (LNPGuardParry::Judge(SP.ParryState, FVector::DotProduct(SP.ForwardVector, SplashDir), Now,
+					/*bInParryRange*/ false, /*bInHitRange*/ true) == ELNPPlayerDefenseResult::Guarded)
+				{
+					// 막아내도 경직은 쌓인다 (가드 브레이크). 피해·넉백은 막는다.
+					LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now, PoiseGuardMultiplier);
+					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(SP.Actor, SplashPoint, SplashDir);
+					continue;
+				}
 				LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now);
 
 				float SplashDamage, SplashKnockback;
 				SplashFalloff(DistSq, SplashDamage, SplashKnockback);
 
-				// 적 쪽과 같은 규약 — "피격자 → 공격자(폭심)". 부호 뒤집기는 소비처가 한다.
 				Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
 					SP.Actor, Shared.DamageEffectClass,
-					SplashDamage, (HitPoint - SP.Location).GetSafeNormal(),
-					SP.Location + (HitPoint - SP.Location).GetSafeNormal() * SP.CapsuleRadius,
-					SplashKnockback);
+					SplashDamage, SplashDir, SplashPoint, SplashKnockback);
 			}
 		}
 	};
@@ -1000,15 +1019,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			if (bHit)
 				continue;
 
-			// Player 판정 (패링/가드/피격 분기)
+			// Player 판정 — 패링 → 가드 → 피격 순서는 LNPGuardParry::Judge 하나가 정한다 (§7.5).
 			for (FCollectedPlayer& Player : Players)
 			{
 				FLNPProjectileHitProfileScope TargetScope(HitProfile, FLNPProjectileHitProfile::Targets, HitProfile.bSample);
 				if (HitProfile.bSample) ++HitProfile.Candidates;
-				const FLNPParryStateFragment& PS = Player.ParryState;
-				float Dot;
-				bool bShouldProcess;
-				FVector IncomingDir;
 				{
 				FLNPProjectileHitProfileScope FilterScope(HitProfile, FLNPProjectileHitProfile::Filter, HitProfile.bSample);
 				if (Player.Handle == Proj.Instigator)
@@ -1016,87 +1031,90 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					if (HitProfile.bSample) ++HitProfile.SelfExcluded;
 					continue;
 				}
-
-				IncomingDir = (Proj.PreviousPos - CurrentPos).GetSafeNormal();
-				Dot = FVector::DotProduct(Player.ForwardVector, IncomingDir);
-				bShouldProcess = Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy || bFriendlyFire;
-				}
-
-				// 1단계: 패링 체크 (ParryRadius — 피격보다 큰 반경)
-				if (bShouldProcess && PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || Now <= PS.ParryWindowExpiryTime) && Dot >= PS.ParryAngleCos)
+				// 아군 사격이 꺼져 있으면 아군은 탄을 막지도 않고 통과시킨다 — 클라 예측 판정과 같은 규칙.
+				if (Proj.InstigatorTeam != ELNPInstigatorTeam::Enemy && !bFriendlyFire)
 				{
-					FVector HitPoint;
-					if (SegmentHitsCapsule(Segment,
-						RewoundCenter(Player.Location, Player.RawLocation, Player.History), Player.UpDir,
-						Player.CapsuleHalfHeight, Player.CapsuleRadius, ParryRadius,
-						HitPoint))
-					{
-						// 투사체 반사: 속도 반전 + 진영 전환 + 식별자 재발급 (TechDesign_ParrySystem.md 5장 — 소멸+재스폰 방송).
-						// 이후 임팩트 큐·Ghost 대조는 전부 새 식별자 기준이 된다.
-						const int32 OldInstigatorPlayerID = Proj.InstigatorPlayerID;
-						const int32 OldKeyOrSalvo         = Proj.PredictionKeyID;
-						const uint8 OldSpawnIndex         = Proj.SpawnIndex;
-
-						// 반사 주체(방어자)를 새 공격자로 귀속 — Lag Compensation 기준도 방어자 RTT/2로 갱신.
-						int32 DefenderPlayerID       = INDEX_NONE;
-						float DefenderHalfRTT        = 0.f;
-						bool  bDefenderIsRemoteClient = false;
-						if (const APawn* DefenderPawn = Cast<APawn>(Player.Actor))
-						{
-							if (const APlayerState* DefenderPS = DefenderPawn->GetPlayerState())
-							{
-								DefenderPlayerID = DefenderPS->GetPlayerId();
-								DefenderHalfRTT  = FMath::Clamp(DefenderPS->GetPingInMilliseconds() * 0.0005f, 0.f, MaxPingRewindSeconds);
-								bDefenderIsRemoteClient = !DefenderPawn->IsLocallyControlled();
-							}
-						}
-
-						Proj.Velocity            = -Proj.Velocity;
-						Proj.InstigatorTeam      = ELNPInstigatorTeam::Player;
-						Proj.Instigator          = Player.Handle;
-						Proj.InstigatorPlayerID  = DefenderPlayerID;
-						Proj.PredictionKeyID     = ULNPGhostProjectileSubsystem::IssueServerSalvoID();
-						Proj.SpawnIndex          = 0;
-						Proj.CachedRewindSeconds = DefenderHalfRTT;
-						Proj.bInstigatorIsRemoteClient = bDefenderIsRemoteClient;
-						Proj.InstigatorViewLocation    = Player.Location; // 반사 주체가 새 뷰어다
-
-						FLNPProjectileParryCommand::FEntry ParryEntry;
-						ParryEntry.Victim                = Player.Actor;
-						ParryEntry.SharedData            = Shared;
-						ParryEntry.SpawnPos              = CurrentPos;
-						ParryEntry.NewVelocity           = Proj.Velocity;
-						ParryEntry.LifetimeRemaining     = Proj.LifetimeRemaining;
-						ParryEntry.NewTeam               = Proj.InstigatorTeam;
-						ParryEntry.OldInstigatorPlayerID = OldInstigatorPlayerID;
-						ParryEntry.OldKeyOrSalvo         = OldKeyOrSalvo;
-						ParryEntry.OldSpawnIndex         = OldSpawnIndex;
-						ParryEntry.NewInstigatorPlayerID = DefenderPlayerID;
-						ParryEntry.NewKeyOrSalvo         = Proj.PredictionKeyID;
-						ParryEntry.ImpactPoint           = HitPoint;
-						ParryEntry.ImpactNormal          = IncomingDir;
-						Ctx.Defer().PushCommand<FLNPProjectileParryCommand>(ParryEntry);
-						break;  // 반사된 투사체는 파괴하지 않고 계속 비행 (FinishHit 호출 없음)
-					}
+					if (HitProfile.bSample) ++HitProfile.TeamExcluded;
+					continue;
+				}
 				}
 
-				// 2단계: 피격 체크 (HitRadius — 정상 반경)
-				FVector HitPoint;
-				if (!SegmentHitsCapsule(Segment,
-					RewoundCenter(Player.Location, Player.RawLocation, Player.History), Player.UpDir,
-					Player.CapsuleHalfHeight, Player.CapsuleRadius, HitRadius,
-					HitPoint))
+				const FLNPParryStateFragment& PS           = Player.ParryState;
+				const FVector                 IncomingDir  = (Proj.PreviousPos - CurrentPos).GetSafeNormal();
+				const FVector                 JudgedCenter = RewoundCenter(Player.Location, Player.RawLocation, Player.History);
+
+				// 패링 반경(ParryRadius)이 피격 반경보다 크다 — 패링 창이 닫혀 있으면 넓은 판정은 건너뛴다.
+				FVector ParryPoint = FVector::ZeroVector, HitPoint;
+				const bool bInParryRange = PS.bIsParrying && SegmentHitsCapsule(Segment, JudgedCenter, Player.UpDir,
+					Player.CapsuleHalfHeight, Player.CapsuleRadius, ParryRadius, ParryPoint);
+				const bool bInHitRange = SegmentHitsCapsule(Segment, JudgedCenter, Player.UpDir,
+					Player.CapsuleHalfHeight, Player.CapsuleRadius, HitRadius, HitPoint);
+
+				const ELNPPlayerDefenseResult Result = LNPGuardParry::Judge(PS,
+					FVector::DotProduct(Player.ForwardVector, IncomingDir), Now, bInParryRange, bInHitRange);
+				if (Result == ELNPPlayerDefenseResult::None)
 					continue;
 
-				if (bShouldProcess)
+				if (Result == ELNPPlayerDefenseResult::Parried)
 				{
-					// 막아내도 경직은 쌓인다 (가드 브레이크). 피격은 전량.
-					const bool bBlocked = PS.bIsGuarding && Dot >= PS.GuardAngleCos;
-					LNPPoise::Accumulate(Player.Poise, Shared.PoiseDamage, Now, bBlocked ? PoiseGuardMultiplier : 1.f);
+					// 투사체 반사: 속도 반전 + 진영 전환 + 식별자 재발급 (TechDesign_ParrySystem.md 5장 — 소멸+재스폰 방송).
+					// 이후 임팩트 큐·Ghost 대조는 전부 새 식별자 기준이 된다.
+					const int32 OldInstigatorPlayerID = Proj.InstigatorPlayerID;
+					const int32 OldKeyOrSalvo         = Proj.PredictionKeyID;
+					const uint8 OldSpawnIndex         = Proj.SpawnIndex;
 
-					if (bBlocked)
-						Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor, HitPoint, IncomingDir);
-					else if (Shared.DamageEffectClass)
+					// 반사 주체(방어자)를 새 공격자로 귀속 — Lag Compensation 기준도 방어자 RTT/2로 갱신.
+					int32 DefenderPlayerID       = INDEX_NONE;
+					float DefenderHalfRTT        = 0.f;
+					bool  bDefenderIsRemoteClient = false;
+					if (const APawn* DefenderPawn = Cast<APawn>(Player.Actor))
+					{
+						if (const APlayerState* DefenderPS = DefenderPawn->GetPlayerState())
+						{
+							DefenderPlayerID = DefenderPS->GetPlayerId();
+							DefenderHalfRTT  = FMath::Clamp(DefenderPS->GetPingInMilliseconds() * 0.0005f, 0.f, MaxPingRewindSeconds);
+							bDefenderIsRemoteClient = !DefenderPawn->IsLocallyControlled();
+						}
+					}
+
+					Proj.Velocity            = -Proj.Velocity;
+					Proj.InstigatorTeam      = ELNPInstigatorTeam::Player;
+					Proj.Instigator          = Player.Handle;
+					Proj.InstigatorPlayerID  = DefenderPlayerID;
+					Proj.PredictionKeyID     = ULNPGhostProjectileSubsystem::IssueServerSalvoID();
+					Proj.SpawnIndex          = 0;
+					Proj.CachedRewindSeconds = DefenderHalfRTT;
+					Proj.bInstigatorIsRemoteClient = bDefenderIsRemoteClient;
+					Proj.InstigatorViewLocation    = Player.Location; // 반사 주체가 새 뷰어다
+
+					FLNPProjectileParryCommand::FEntry ParryEntry;
+					ParryEntry.Victim                = Player.Actor;
+					ParryEntry.SharedData            = Shared;
+					ParryEntry.SpawnPos              = CurrentPos;
+					ParryEntry.NewVelocity           = Proj.Velocity;
+					ParryEntry.LifetimeRemaining     = Proj.LifetimeRemaining;
+					ParryEntry.NewTeam               = Proj.InstigatorTeam;
+					ParryEntry.OldInstigatorPlayerID = OldInstigatorPlayerID;
+					ParryEntry.OldKeyOrSalvo         = OldKeyOrSalvo;
+					ParryEntry.OldSpawnIndex         = OldSpawnIndex;
+					ParryEntry.NewInstigatorPlayerID = DefenderPlayerID;
+					ParryEntry.NewKeyOrSalvo         = Proj.PredictionKeyID;
+					ParryEntry.ImpactPoint           = ParryPoint;
+					ParryEntry.ImpactNormal          = IncomingDir;
+					Ctx.Defer().PushCommand<FLNPProjectileParryCommand>(ParryEntry);
+					break;  // 반사된 투사체는 파괴하지 않고 계속 비행 (FinishHit 호출 없음)
+				}
+
+				if (Result == ELNPPlayerDefenseResult::Guarded)
+				{
+					// 막아내도 경직은 쌓인다 (가드 브레이크).
+					LNPPoise::Accumulate(Player.Poise, Shared.PoiseDamage, Now, PoiseGuardMultiplier);
+					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor, HitPoint, IncomingDir);
+				}
+				else
+				{
+					LNPPoise::Accumulate(Player.Poise, Shared.PoiseDamage, Now);
+					if (Shared.DamageEffectClass)
 					{
 						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
 						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);

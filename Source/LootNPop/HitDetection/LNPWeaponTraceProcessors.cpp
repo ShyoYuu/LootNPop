@@ -238,6 +238,7 @@ void ULNPWeaponTraceHitDetectionProcessor::ConfigureQueries(const TSharedRef<FMa
 	PlayerQuery.AddRequirement<FLNPPositionHistoryFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddRequirement<FLNPPoiseFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::Optional);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
+	PlayerQuery.AddTagRequirement<FLNPPlayerDeadTag>(EMassFragmentPresence::None);   // 시체는 베이지 않는다 (서버 전용 태그)
 	PlayerQuery.RegisterWithProcessor(*this);
 
 }
@@ -295,6 +296,9 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
 				AActor* Actor = ActorFrags[i].GetMutable();
+				// FLNPPlayerDeadTag는 서버에만 붙는다 — 클라는 Multicast_OnDeath가 켜는 IsDead()로 서버와 맞춘다.
+				if (const ALNPPlayerCharacter* PlayerPawn = Cast<ALNPPlayerCharacter>(Actor); PlayerPawn && PlayerPawn->IsDead())
+					continue;
 				float HalfH, Radius;
 				LNPHitDetection::GetCapsuleSize(Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr, HalfH, Radius);
 				const FVector Loc = Transforms[i].GetTransform().GetLocation();

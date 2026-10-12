@@ -91,11 +91,13 @@ Pass 3에서 공격자 팀에 따라 분기하되, **Player 타겟에 대한 2�
 Enemy 판정 (Player 발사체만 피해; 그 외 발사체는 닿으면 파괴만)
    └─ SegmentHitsCapsule(Prev, Curr, 되감긴 캡슐 중심, Up, HalfH, CapsuleR, HitRadius)
 
-Player 판정 (2단계)
-   1단계: bIsParrying && 창 미만료 && Dot >= ParryAngleCos && (CapsuleR + ParryRadius) 교차
-          → 반사 처리 (Fragment 직접 변경 + 식별자 재발급, §TechDesign_ParrySystem)
-   2단계: (CapsuleR + HitRadius) 교차
-          → 가드(Dot >= GuardAngleCos): GuardBlockCommand / 아니면: ApplyDamageGECommand
+Player 판정 (시체·자기 자신·FF off 아군은 후보에서 제외)
+   기하: bInParryRange = bIsParrying && (CapsuleR + ParryRadius) 교차
+         bInHitRange   = (CapsuleR + HitRadius) 교차
+   순서: LNPGuardParry::Judge(PS, Dot, Now, bInParryRange, bInHitRange)   (§7.5)
+          Parried → 반사 처리 (Fragment 직접 변경 + 식별자 재발급, §TechDesign_ParrySystem)
+          Guarded → 경직 × PoiseGuardMultiplier + GuardBlockCommand
+          Hit     → 경직 + ApplyDamageGECommand
 
 FinishHit (공통 후처리 람다):
    GameplayCue.LNP.Projectile.Impact 실행 (Ghost 대조 토큰을 FLNPProjectileImpactContext로)
@@ -152,6 +154,19 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 [SurfaceSupportNavigation/design/RuntimeCollision.md](SurfaceSupportNavigation/design/RuntimeCollision.md) "투사체 월드 충돌".
 
 **스플래시:** `ExplosionRadius > 0`이면 직격 대상을 제외한 반경 내 대상에 거리 감쇠된 GE + `SplashKnockbackStrength` 넉백 (→ §6.3).
+
+**플레이어 대상 규칙 (2026-10-13 정리):**
+- **스플래시는 패링할 수 없고 가드로는 막힌다.** 플레이어 분기도 `LNPGuardParry::Judge`에 `bInParryRange = false`를 넘긴다.
+  가드 방향은 탄이 날아온 쪽이 아니라 **폭심 쪽**(피격자 → 폭심)이다 — 뒤에서 터지면 정면 가드로 못 막는다.
+  막으면 피해·넉백은 없고 경직만 `PoiseGuardMultiplier`로 쌓이며, 직격처럼 `FLNPGuardBlockCommand` 큐를 낸다(폭발은 1회성이라 화염 틱과 달리 소음이 되지 않는다).
+- **아군 사격이 꺼져 있으면 아군은 탄을 막지도 않는다.** 예전 서버는 소속과 무관하게 캡슐에 닿으면 탄을 터뜨리고 피해만 생략했는데,
+  클라 예측(§4)은 아군을 후보에서 빼고 있어 게스트 화면에서 Ghost는 아군을 통과하고 서버 확정 착탄은 아군 몸에서 나는 불일치가 있었다.
+  서버도 후보에서 빼서 맞췄다 — FF off에서 아군은 엄폐물이 되지 않는다.
+- **시체는 판정 대상이 아니다.** 플레이어는 서버 쿼리가 `FLNPPlayerDeadTag`를 거르고(화염 원뿔·근접과 같음), 그 태그가 서버에만 붙으므로 클라 예측 수집은
+  `Multicast_OnDeath`가 켜는 `IsDead()`로 거른다. 근접 판정도 같은 두 곳을 거른다.
+  적은 서버 쿼리가 `FLNPEnemyDyingTag`를 거르고(근접·화염은 이미 거르고 있었고 투사체만 빠져 있어 쓰러지는 시체가 탄을 막았다),
+  클라 예측 수집은 복제된 HP 비율이 0인 적을 거른다(적 탐색 질의와 같은 기준 — 그 태그도 서버 전용이다).
+- 범위 밖으로 남긴 불일치: 서버는 적 탄이 다른 적 캡슐에 닿으면 파괴하지만, 클라 예측은 적 진영 대상을 거른다.
 
 ### 3.3 발사 (ULNPAbility_RangedAttack)
 
@@ -477,7 +492,11 @@ flush 시점에 실행되게 했다. §6의 후처리 커맨드와 같은 패턴
 `LNPGuardParry::Judge`(`LNPGuardParryTypes.h`)로 뽑았다. 입력은 패링 상태·정면 내적·시각과 호출자가 잰 기하 결과 둘
 (`bInParryRange`, `bInHitRange`)이고 결과는 `None / Parried / Guarded / Hit`이다.
 기하(칼날 거리, 원뿔 형상)와 결과 처리(패링 커맨드·경직·큐)는 각 프로세서에 남는다 — 무기마다 다른 것은 거기뿐이고, 갈라지면 안 되는 것은 순서다.
-패링할 수 없는 공격은 `bInParryRange = false`를 넘긴다. 투사체 경로는 반사 처리가 판정 중간에 끼어 있어 아직 이 함수를 쓰지 않는다.
+패링할 수 없는 공격은 `bInParryRange = false`를 넘긴다(화염 틱, 투사체 스플래시).
+
+2026-10-13 투사체 직격·스플래시도 이 함수로 옮겨 **플레이어 판정 경로 네 곳(근접·화염·투사체 직격·스플래시)이 순서를 하나로 공유**한다.
+직격이 늦게 합류한 이유는 반사 처리가 판정 중간에 끼어 있어서였는데, 기하 두 개(패링 반경·피격 반경)를 먼저 재고
+결과가 `Parried`일 때 반사 블록을 실행하는 형태로 풀렸다. 패링 반경 판정은 패링 창이 열려 있을 때만 계산해 비용은 그대로다.
 
 ### 7.6 판정 캡슐 중심 규약 — 단일 헬퍼로 강제
 
