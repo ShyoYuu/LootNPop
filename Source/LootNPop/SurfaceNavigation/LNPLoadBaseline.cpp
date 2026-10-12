@@ -1687,6 +1687,9 @@ void ULNPLoadBaselineSubsystem::Report()
 	else
 	{
 		GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbePanels"));
+		// host와 guest(late join 포함)의 패널 결정론 자세·장치 배치를 프로세스 밖에서 대조할 수 있게 남긴다.
+		GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbePanelPoses"));
+		GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeWorldDevices"));
 	}
 	// face→Layer 표(D-037)는 cooked trimesh의 external face 표에 기댄다. 패키지에서도 FaceIndex가 나오는지 확인한다.
 	GEngine->Exec(World, TEXT("LNP.SurfaceNav.ProbeFaceIndex"));

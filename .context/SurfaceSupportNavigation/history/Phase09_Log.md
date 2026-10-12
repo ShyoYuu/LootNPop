@@ -500,3 +500,10 @@
 - `BuildPlan`을 수동 앵커 선택→수동 Pod 적 배치→편성 전량 배치 가능한 랜덤 Pod 순으로 바꿨다. 수정 후 패키지 배치2235/2235, 33배치77,629/77,629, Pod 부족0.
 - 전체127검사 통과(경고 포함4·실패0/513.5초). 입력 에셋7개 해시 유지, 테스트 생성 에셋3개 HEAD 복구. 게이트 통과 BuildCookRun exit0/104.6초·1229packages.
 - 동일 패키지1P exit0/42.7초: 적2235/2235·Pod120/120, SourceKeys 358/358·패널·FaceIndex·SurfaceData PASS, UnknownHits/EnvelopeEscapes/LayerJumps0. exact P95 4.536ms FAIL은 성능 단위에 남긴다. 상세 [V009](../phases/Phase09_SpawnCompositionV009.md).
+
+### 2026-10-12 — 패키지 리슨2P·late join V010
+
+- V009 커밋(ca60758) 뒤 착수. 패널 자세 계산을 `EvaluatePose`로 분리하고 `ProbePanelPoses`·`ProbeWorldDevices`를 추가해 host/guest 로그를 스크립트로 대조했다.
+- unity 묶음 변경으로 드러난 `LNPSurfaceCrawlTest.cpp`의 `FParams` 모호성을 한정자로 고쳤다. 전체127검사 실패0(경고 포함5/489.6초), DynamicTerrain 검사 통과, 입력 에셋 해시 유지·테스트 생성 에셋 복구.
+- 첫 Normal 대조는 장치 개수 207 vs 50으로 FAIL이었다. 장치 net cull distance 300m에 의한 relevancy로 확인하고 규칙을 host 대응·guest 폰 250m 내 완전성으로 바꿨다(Attempt1 보존). 폰 위치 로그를 더해 재패키징했다.
+- Normal·LateJoin(+60초) 모두 통과: snapshot 일치, 패널11 자세 차0, 장치 미대응0·근처 누락0, probe5종 양측 PASS, 적2434/2434. host exact P95 3.42/4.09ms FAIL은 성능 단위에 남긴다. 상세 [V010](../phases/Phase09_NetworkV010.md).

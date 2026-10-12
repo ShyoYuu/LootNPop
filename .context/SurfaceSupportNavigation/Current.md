@@ -1,10 +1,12 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: Phase 9 Vertical Slice — V009 혼합 풀 SourceKeys·정식 편성 배치 수정, 전체127회귀·재패키징·패키지1P 기능 검사 통과. exact P95 초과는 성능 단위. 리슨2P·late join·NPC LoS·성능·메모리 Gate는 미완료
+> 현재 Phase: Phase 9 Vertical Slice — V009 패키지1P·V010 패키지 리슨2P/late join 기능 검사 통과. 성능·메모리 Gate(exact P95 초과 포함)와 NPC LoS 재검증은 미완료
 > 마지막 갱신: 2026-10-12
 
 ## 현재 결정
+
+**2026-10-12 V010 완료 — 패키지 리슨2P·late join 통과.** 패널 자세 계산을 `EvaluatePose`로 분리하고 `ProbePanelPoses`(고정 server time 자세)·`ProbeWorldDevices`(장치 위치·폰 위치)를 추가해 host/guest 로그를 대조했다. Normal(+5초)·LateJoin(+60초) 모두 exit0, snapshot(bindings269·Nav589·seam4281) 일치, 패널11 자세 차0·live 오차0, guest 장치의 host 대응·폰 250m 내 완전성, probe5종 양측 PASS, 적2434/2434다. 장치는 net cull 300m라 개수 일치를 요구하지 않는다. 전체127검사 실패0. host exact P95 3.42/4.09ms는 성능 단위에 남는다. 상세 [V010](phases/Phase09_NetworkV010.md).
 
 **2026-10-12 V009 완료 — 패키지1P 기능 검사 통과.** `ProbeSourceKeys`는 slot마다 게시된 저장 source 표와 대조하도록 고쳤다(혼합 풀). 정식 편성 105마리 부족은 새 `Runtime.ProductionSpawnComposition`이 Editor에서 그대로 재현했고, 반경 안 같은 Layer 적 후보가 편성27보다 적은 좁은 Layer에 랜덤 Pod를 둔 것이 원인이었다. 할당을 수동 앵커→수동 Pod 적→편성 전량 배치 가능한 랜덤 Pod 순으로 바꿔 패키지 배치2235/2235·33배치77,629/77,629·Pod 부족0이다. 전체127검사 통과(경고 포함4·실패0/513.5초), 입력 에셋 해시 유지·테스트 생성 에셋3개 HEAD 복구, 게이트 통과 BuildCookRun exit0/104.6초. 동일 패키지1P exit0/42.7초에서 적2235/2235·Pod120/120, SourceKeys/패널/FaceIndex/SurfaceData PASS, UnknownHits/EnvelopeEscapes/LayerJumps0이다. **exact P95 4.536ms>2ms는 성능 단위에 남고 2P·late join은 미실행이다.** 상세 [V009](phases/Phase09_SpawnCompositionV009.md).
 
@@ -50,7 +52,7 @@ Phase 9를 착수했다. 실행 문서는 `phases/Phase09_VerticalSlice.md`, 경
 
 ## 바로 다음 행동
 
-- **사용자 진행 확인 뒤 패키지 리슨2P host/guest·late join을 검증한다.** V009 패키지(`Saved/SurfaceNavigationPhase9V009Package`)로 host/guest의 동일 snapshot·generation·bindings, 패널 등 동적 요소 상태, late join 복원, assert·ensure·Unknown hit을 확인한다. exact 시간 초과와 추가 관통 진단은 성능 단위에 보존한다. 광원은81개를 유지한다.
+- **사용자 진행 확인 뒤 단위5 성능·메모리 Gate를 진행한다.** 고정 해상도 패키지에서 D-076 편성의 새 옥탄트 seed 성능을 Meadow 기준(Phase14 Final7)과 비교하고(frame P95 ≤16.67ms·경로 tick P95 ≤1.5ms·관통 검사4회 이상), headless에서 반복된 exact P95 초과(1P 4.5ms·2P host 3.4~4.1ms)의 원인을 구분한다. 메모리 기준선(payload·decoded resident·Nav node/portal·exact 삼각형·cache 적중률)도 기록한다. 측정 실행은 사용자 확인 후 묶어서 요청한다.
 - BastionV003·HollowV020 제작/사용자 PIE는 완료다. 같은 동선 검토를 다시 요청하지 않는다. 벽보행 LoS는 별도 세션 결과를 확인한 뒤 NPC 교전을 재검증한다. 패키지/멀티플레이/부하 Gate는 여전히 남아 있다.
 
 ### 완료 전 진행 기록 — 위 최신 결과보다 후순위

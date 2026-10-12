@@ -108,6 +108,8 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 
 격자 주소 계산을 변경하면 `Runtime.SupportPrecision`을 Editor와 Development 게임 양쪽에서 실행한다. 이 검사는 production 세 저장본의 전체 Nav graph와 Bastion 삼각형 경계·인접 NeedsExact 거부를 검사한다. Editor `/fp:precise` 통과만으로 Game `/fp:fast`의 동일 결과를 보장하지 않는다([Phase9 V008](../phases/Phase09_NavPrecisionV008.md)).
 
+패키지 리슨2P·late join은 host/guest 각각의 probe PASS만으로 판정하지 않는다. `ProbePanelPoses`의 고정 server time 자세와 `ProbeWorldDevices`의 장치 위치를 두 로그에서 대조한다. 장치는 net cull distance 안에서만 복제되므로 개수 일치가 아니라 guest 장치의 host 대응과 guest 폰 주변 완전성으로 본다([Phase9 V010](../phases/Phase09_NetworkV010.md)).
+
 옥탄트 Spawn 후보·편성·할당 규칙을 바꾸면 `Runtime.ProductionSpawnComposition`을 실행한다. 실제 풀 선택과 정식 `DA_MassSpawnConfig`로 패키지 배치·32 seed의 Pod 부족0과 적 전량 배치를 요구하며, 부족 Pod를 slot·Layer·적 종류·후보 수로 분류해 남긴다([Phase9 V009](../phases/Phase09_SpawnCompositionV009.md)).
 
 ### 성능 측정

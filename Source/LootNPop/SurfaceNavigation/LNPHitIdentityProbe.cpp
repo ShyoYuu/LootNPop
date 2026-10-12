@@ -6,6 +6,9 @@
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "DynamicTerrain/LNPMovingPanel.h"
+#include "DynamicTerrain/LNPStatefulTerrain.h"
+#include "WorldDevice/LNPGrappleAnchor.h"
+#include "WorldDevice/LNPSpringLauncher.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "LootPod/LNPLootPodCollisionProxy.h"
 #include "LootPod/LNPLootPodMassTypes.h"
@@ -201,6 +204,108 @@ namespace
 			UE_LOG(LogLootNPop, Display, TEXT("[ProbePanels] %s NetMode=%d panels=%d failures=%d -> %s"),
 				*World->GetName(), static_cast<int32>(World->GetNetMode()), PanelCount, Failures,
 				(PanelCount > 0 && Failures == 0) ? TEXT("PASS") : TEXT("FAIL"));
+		}));
+
+	/**
+	 * LNP.SurfaceNav.ProbePanelPoses
+	 * 움직이는 패널마다 고정 server time들의 계산 자세와, 마지막 갱신 시각 기준 현재 Actor 자세 오차를 남긴다.
+	 * 패널 자세는 복제 경로·시작 시각·server time의 결정론 함수(D-027)이므로 host와 guest(late join 포함)의 고정 시각 자세가 같아야 한다.
+	 * 프로세스 간 대조는 로그를 비교하는 외부 스크립트가 한다.
+	 */
+	FAutoConsoleCommandWithWorld GLNPProbePanelPoses(
+		TEXT("LNP.SurfaceNav.ProbePanelPoses"),
+		TEXT("Log every moving panel's evaluated pose at fixed server times and the live pose error, for host/guest comparison."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			if (World == nullptr)
+			{
+				return;
+			}
+			static constexpr double ReferenceTimes[] = { 60.0, 97.3, 150.1 };
+			TArray<const ALNPMovingPanel*> Panels;
+			for (TActorIterator<ALNPMovingPanel> It(World); It; ++It)
+			{
+				Panels.Add(*It);
+			}
+			Panels.Sort([](const ALNPMovingPanel& A, const ALNPMovingPanel& B)
+			{
+				return A.GetPlacementId().ToString() < B.GetPlacementId().ToString();
+			});
+
+			int32 ActiveCount = 0;
+			double MaxLiveErrorCm = 0.0;
+			double MaxLiveErrorDeg = 0.0;
+			for (const ALNPMovingPanel* Panel : Panels)
+			{
+				const bool bActive = Panel->IsPathActive();
+				ActiveCount += bActive ? 1 : 0;
+				FString Poses;
+				if (bActive)
+				{
+					for (const double Time : ReferenceTimes)
+					{
+						const FTransform Pose = Panel->EvaluatePose(Time);
+						const FVector Location = Pose.GetLocation();
+						const FQuat Rotation = Pose.GetRotation();
+						Poses += FString::Printf(TEXT(" T%.1f=%.2f,%.2f,%.2f|%.5f,%.5f,%.5f,%.5f"), Time,
+							Location.X, Location.Y, Location.Z, Rotation.X, Rotation.Y, Rotation.Z, Rotation.W);
+					}
+					const FTransform Expected = Panel->EvaluatePose(Panel->GetLastServerTime());
+					MaxLiveErrorCm = FMath::Max(MaxLiveErrorCm, FVector::Distance(Expected.GetLocation(), Panel->GetActorLocation()));
+					MaxLiveErrorDeg = FMath::Max(MaxLiveErrorDeg,
+						FMath::RadiansToDegrees(Expected.GetRotation().AngularDistance(Panel->GetActorQuat())));
+				}
+				UE_LOG(LogLootNPop, Display, TEXT("[ProbePanelPoses] Panel=%s Rev=%u Active=%d%s"),
+					*Panel->GetPlacementId().ToString(), Panel->GetPathRevision(), bActive ? 1 : 0, *Poses);
+			}
+
+			const bool bPass = Panels.Num() > 0 && ActiveCount == Panels.Num() && MaxLiveErrorCm <= 0.1 && MaxLiveErrorDeg <= 0.01;
+			UE_LOG(LogLootNPop, Display, TEXT("[ProbePanelPoses] %s NetMode=%d panels=%d active=%d maxLiveErrorCm=%.4f maxLiveErrorDeg=%.5f -> %s"),
+				*World->GetName(), static_cast<int32>(World->GetNetMode()), Panels.Num(), ActiveCount,
+				MaxLiveErrorCm, MaxLiveErrorDeg, bPass ? TEXT("PASS") : TEXT("FAIL"));
+		}));
+
+	/**
+	 * LNP.SurfaceNav.ProbeWorldDevices
+	 * 서버가 스폰한 정적 장치(훅 앵커·스프링 런처)와 상태형 지형의 위치·상태를 정렬해 남긴다. host/guest 로그 대조용이다.
+	 */
+	FAutoConsoleCommandWithWorld GLNPProbeWorldDevices(
+		TEXT("LNP.SurfaceNav.ProbeWorldDevices"),
+		TEXT("Log grapple anchors, spring launchers and stateful terrain (location/state) sorted, for host/guest comparison."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			if (World == nullptr)
+			{
+				return;
+			}
+			TArray<FString> Lines;
+			int32 Anchors = 0, Launchers = 0, Stateful = 0;
+			const auto AddLine = [&Lines](const TCHAR* Kind, const AActor& Actor, const FString& Extra)
+			{
+				const FVector Location = Actor.GetActorLocation();
+				Lines.Add(FString::Printf(TEXT("%s Loc=%.1f,%.1f,%.1f%s"), Kind, Location.X, Location.Y, Location.Z, *Extra));
+			};
+			for (TActorIterator<ALNPGrappleAnchor> It(World); It; ++It) { ++Anchors; AddLine(TEXT("Anchor"), **It, FString()); }
+			for (TActorIterator<ALNPSpringLauncher> It(World); It; ++It) { ++Launchers; AddLine(TEXT("Launcher"), **It, FString()); }
+			for (TActorIterator<ALNPStatefulTerrain> It(World); It; ++It)
+			{
+				++Stateful;
+				AddLine(TEXT("Stateful"), **It, FString::Printf(TEXT(" Id=%s State=%d Rev=%u"),
+					*It->GetPlacementId().ToString(), static_cast<int32>(It->GetTerrainState()), It->GetStateRevision()));
+			}
+			Lines.Sort();
+			for (const FString& Line : Lines)
+			{
+				UE_LOG(LogLootNPop, Display, TEXT("[ProbeWorldDevices] %s"), *Line);
+			}
+			// 장치는 net cull distance 안에서만 guest에 복제된다. 대조 스크립트가 거리 기준 완전성을 볼 수 있게 로컬 폰 위치를 남긴다.
+			const APlayerController* PlayerController = World->GetFirstPlayerController();
+			const APawn* Pawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+			const FVector PawnLocation = Pawn ? Pawn->GetActorLocation() : FVector::ZeroVector;
+			UE_LOG(LogLootNPop, Display, TEXT("[ProbeWorldDevices] LocalPawn=%d Loc=%.1f,%.1f,%.1f"),
+				Pawn ? 1 : 0, PawnLocation.X, PawnLocation.Y, PawnLocation.Z);
+			UE_LOG(LogLootNPop, Display, TEXT("[ProbeWorldDevices] %s NetMode=%d anchors=%d launchers=%d stateful=%d"),
+				*World->GetName(), static_cast<int32>(World->GetNetMode()), Anchors, Launchers, Stateful);
 		}));
 
 	/**

@@ -86,6 +86,12 @@ public:
 	/** server world time의 자세로 옮긴다. 게임 스레드, worker exact query 구간(StartPhysics~) 밖에서만 호출한다. */
 	void UpdatePose(double ServerTime);
 
+	/** 복제된 경로로 주어진 server time의 자세를 계산한다. Actor를 옮기지 않는다. 활성화 전에는 의미가 없다. */
+	FTransform EvaluatePose(double ServerTime) const;
+	bool IsPathActive() const { return bActive; }
+	uint16 GetPathRevision() const { return Path.Revision; }
+	double GetLastServerTime() const { return LastServerTime; }
+
 	const FLNPPlacementId& GetPlacementId() const { return PlacementId; }
 	const FTransform& GetPreviousTransform() const { return PreviousTransform; }
 	FVector GetLinearVelocity() const;

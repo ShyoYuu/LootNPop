@@ -77,7 +77,7 @@ namespace
 		UWorld* World = nullptr;
 		ULNPHitIdentitySubsystem* HitIdentity = nullptr;
 		ULNPMassWorldCollisionSubsystem* Collision = nullptr;
-		FParams Params;
+		LNPSurfaceCrawl::FParams Params;
 		LNPEnemyExactMovement::FParams FallParams;
 
 		explicit FCrawlWorld(const TCHAR* Name)

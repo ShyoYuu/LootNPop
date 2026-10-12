@@ -1,8 +1,8 @@
 # Phase 9 — 부유섬·동굴·입체 지형 Vertical Slice
 
-> 상태: 진행 중 — BastionV001~V003·HollowV017~V020 지형/장치/사용자 PIE와 단위4 V006 회귀 완료. 광원81개 유지. 단위5 V008 Nav 정밀도 수정, V009 혼합풀 SourceKeys·정식 편성 배치 수정·127회귀·재패키징·패키지1P 기능 검사 통과. NPC LoS·2P/late join·부하·메모리 Gate는 미완료다.
+> 상태: 진행 중 — BastionV001~V003·HollowV017~V020 지형/장치/사용자 PIE와 단위4 V006 회귀 완료. 광원81개 유지. 단위5 V008 Nav 정밀도 수정, V009 혼합풀 SourceKeys·정식 편성 배치 수정·패키지1P, V010 패키지 리슨2P·late join 기능 대조 통과. NPC LoS·부하·메모리 Gate는 미완료다.
 
-> 다음 구현 단위: 사용자 진행 확인 뒤 패키지 리슨2P host/guest·late join을 검증한다. 벽보행 LoS 수정은 별도 세션 소유를 유지한다.
+> 다음 구현 단위: 사용자 진행 확인 뒤 성능·메모리 Gate(고정 해상도 패키지, exact P95 초과 원인 포함)를 진행한다. 벽보행 LoS 수정은 별도 세션 소유를 유지한다.
 > 착수일: 2026-10-06
 > 선행 조건: Phase 7c·8·12·13·14 완료
 
@@ -297,14 +297,14 @@ TestMap03 PIE: Hollow slot 2·5·7, 8-slot snapshot 게시·이음매 차이 0cm
 
 - [x] 전체 빌드·자동화·Development BuildCookRun: 최신 [V008](Phase09_NavPrecisionV008.md)에서Game30.23초·Editor26.06초 전체 빌드, 전체126검사 통과(경고 포함4·실패0/492.086초), production 최신성266.359초·오류0·HTTP경고1. Development BuildCookRun exit0/64.649초·1229packages cook 완료. 기존 Lyra 머티리얼 경고는 남는다.
 - [x] cook 전 freshness 선행 차단: 정식 production 최신성 검사 통과, 반지름+1cm 음성 검사에서 실제 저장 hash/Support 불일치와 JSON 실패를 확인해 UAT 호출 차단. plain BuildCookRun 자체의 validator 추가는 아니다.
-- [ ] 패키지 1P와 `-game` 리슨 2P host/guest의 동일 snapshot·동적 요소 상태·late join을 확인하고 assert·ensure·crash·관통·Unknown hit을 검사한다.
+- [x] 패키지 1P와 `-game` 리슨 2P host/guest의 동일 snapshot·동적 요소 상태·late join을 확인하고 assert·ensure·crash·관통·Unknown hit을 검사한다.
   - [x] V008에서 V007의Nav 경계 오류를 수정했다. 실제패키지generation1/8slot/358bindings 게시,face/SurfaceData/패널probe PASS·UnknownHits/EnvelopeEscapes/LayerJumps0·자동종료exit0이다.
   - [x] 1P전체: [V009](Phase09_SpawnCompositionV009.md)에서 SourceKeys probe를 definition별 저장 source 대조로 고치고, 랜덤 Pod를 편성 전량 배치 가능한 후보에만 두도록 수정했다. 재패키징 1P에서 적2235/2235·Pod120/120, SourceKeys/패널/FaceIndex/SurfaceData probe PASS, UnknownHits/EnvelopeEscapes/LayerJumps0. exact P95 4.536ms>2ms는 성능 단위에 남긴다.
-  - [ ] 리슨2P host/guest·late join 미실행. 추가 관통 진단 미실행.
+  - [x] 리슨2P·late join: [V010](Phase09_NetworkV010.md)에서 Normal(+5초)·LateJoin(+60초) 모두 host/guest exit0, snapshot(bindings269·Nav589·seam4281) 일치, 패널11 고정 시각 자세 차0·live 오차0, guest 장치 host 대응·250m 내 완전성, probe5종 양측 PASS, 적2434/2434. 상태형 지형은 production 0개라 대조 대상이 없다. 추가 관통 진단은 성능 단위에 남긴다.
 - [ ] D-076 편성으로 새 옥탄트가 들어간 seed에서 성능을 측정하고 Meadow 기준과 비교한다. Gate는 frame P95 ≤16.67ms·경로 tick P95 ≤1.5ms이며 관통 검사는 4회 이상이다.
 - [ ] 메모리 기준선: 옥탄트별 SurfaceData payload·decoded resident·Nav node/portal 수·exact 삼각형 수, 실내·공동 cache 적중률을 기록한다.
 - [ ] 완료 증거를 로그에 남기고 Current·Roadmap·기준 설계를 갱신한다.
 
 ## 5. 완료와 다음 단계
 
-Phase9 전체는 미완료다. 제작 파이프라인·BastionV001~V003·HollowV017~V020 지형/장치/훅과 사용자 검토, 광원V004 평가(81개 유지), V005 풀 통합과 V006 정식 편성 회귀는 완료했다. V008은Nav 정밀도 수정·전체126회귀·cook/Development 패키징·실제snapshot 게시를 통과했다. V009에서 SourceKeys 혼합풀 probe와 정식 편성 배치 부족을 고쳐 전체127회귀·재패키징·패키지1P 기능 검사를 통과했다. 단위3의D-017 NPC 교전 재검증, 단위5의멀티플레이·성능·메모리Gate도 남는다. 별도 세션의LoS 수정 결과는 확인·반영 후 현재Hollow에서 재검증한다. 다음 단위와Phase10 착수는 각각 사용자 확인 뒤 진행한다.
+Phase9 전체는 미완료다. 제작 파이프라인·BastionV001~V003·HollowV017~V020 지형/장치/훅과 사용자 검토, 광원V004 평가(81개 유지), V005 풀 통합과 V006 정식 편성 회귀는 완료했다. V008은Nav 정밀도 수정·전체126회귀·cook/Development 패키징·실제snapshot 게시를 통과했다. V009에서 SourceKeys 혼합풀 probe와 정식 편성 배치 부족을 고쳐 패키지1P 기능 검사를, V010에서 패키지 리슨2P·late join 대조를 통과했다. 단위3의D-017 NPC 교전 재검증, 단위5의멀티플레이·성능·메모리Gate도 남는다. 별도 세션의LoS 수정 결과는 확인·반영 후 현재Hollow에서 재검증한다. 다음 단위와Phase10 착수는 각각 사용자 확인 뒤 진행한다.

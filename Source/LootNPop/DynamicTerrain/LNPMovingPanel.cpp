@@ -276,13 +276,12 @@ void ALNPMovingPanel::UpdatePose(const double ServerTime)
 	EvaluateDistance(ServerTime, Distance, Direction);
 
 	const float Key = DistanceToKey(Distance);
-	const FVector Location = Path.OriginLocation + Path.OriginRotation.RotateVector(Path.Curve.Eval(Key));
-	const FQuat Rotation = Path.EvaluateRotation(Distance / PathLength);
+	const FTransform Pose = EvaluatePose(ServerTime);
 
 	PreviousTransform = GetActorTransform();
 
 	// 쿼리가 보는 게임 스레드 자세와 실제 자세를 일치시키려고 kinematic target이 아니라 teleport로 옮긴다(DynamicTerrain.md §2).
-	SetActorLocationAndRotation(Location, Rotation, /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorLocationAndRotation(Pose.GetLocation(), Pose.GetRotation(), /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
 
 	// Mover는 base를 떠날 때(걸어 나가기·점프) 물리 body 속도를 관성으로 더한다(GetMovementBaseVelocityAtPoint).
 	// teleport로 옮긴 kinematic body의 물리 속도는 0이므로 직접 넣는다. ComponentVelocity는 GetMovementBaseVelocity용이다.
@@ -308,6 +307,15 @@ void ALNPMovingPanel::UpdatePose(const double ServerTime)
 		}
 	}
 	LastServerTime = ServerTime;
+}
+
+FTransform ALNPMovingPanel::EvaluatePose(const double ServerTime) const
+{
+	double Distance = 0.0;
+	float Direction = 0.f;
+	EvaluateDistance(ServerTime, Distance, Direction);
+	const FVector Location = Path.OriginLocation + Path.OriginRotation.RotateVector(Path.Curve.Eval(DistanceToKey(Distance)));
+	return FTransform(Path.EvaluateRotation(Distance / PathLength), Location);
 }
 
 FVector ALNPMovingPanel::GetLinearVelocity() const
