@@ -406,7 +406,7 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 
 ### 5.6 충전형 탄창 — 화염방사기 (2026-10-11, 구현 중)
 
-기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5. 적 화상 DoT는 아래 절, VFX·플레이어 화상은 후속 단계다.
+기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5. 적 화상 DoT와 VFX는 아래 절, 플레이어 화상은 후속 단계(U5)다.
 
 #### 틱 = 발동 1회
 
@@ -472,6 +472,45 @@ Actor는 LOD에 따라 풀로 반납·재사용되므로 ASC에 건 GE는 강등
   그 0이 복제돼 게스트 표현(U4)도 같은 신호 하나로 꺼진다.
 - 디버그: `LNP.Burn.Log 1` — 서버의 적용·갱신·틱·만료·사망 정지, 게스트의 수신값 변화(`[Burn][Guest]`).
 - 플레이어 화상(주기 GE)은 프렌들리 파이어 단계(U5)에서 붙인다.
+
+#### VFX — 분사 큐와 적 화상 표현 (2026-10-12)
+
+**분사 (`GameplayCue.LNP.Weapon.Flame` → `GCN_LNP_Weapon_Flame`, C++ `ALNPGameplayCueNotify_FlameStream`)**
+
+| 경로 | 누가 보나 | 이벤트 |
+|:---|:---|:---|
+| GE 큐 — `ULNPGameplayEffect_FlameFiring`의 GameplayCue | 호스트 자신·모든 관전자 | WhileActive(홀드 내내 1회) / Removed(마지막 틱 + `MagazineRegenDelay`) |
+| 로컬 펄스 — 어빌리티가 `ASC->InvokeGameplayCueEvent(Executed)` | **게스트 소유자 화면만** | 틱마다. 큐 액터가 펄스가 끊긴 뒤 `RawMagnitude`(= RegenDelay)만큼 유지 |
+
+- **로컬 펄스가 필요한 이유**: FlameFiring은 스택 GE라 예측 적용이 막혀 서버 전용이다(U1). 그 큐는 게스트 소유자에게 RTT만큼 늦게 켜지고 늦게 꺼진다.
+  펄스는 복제되지 않는 로컬 호출이라 대역폭 비용이 없다. `NetEmulation.PktLag 150`에서도 소유자 화면 지연 없음 확인.
+- **한 머신은 한 경로만 쓴다.** 대상이 "로컬 컨트롤 + 비권위"면 GE 이벤트(OnActive/WhileActive/Removed)를 무시하고 Executed만 받는다 — 중복 재생·조기 소거를 따질 일이 없다.
+- ⚠️ **`bAutoDestroyOnRemove`는 끈다.** 엔진은 그 플래그가 켜진 큐 액터를 활성 GE 없는 Executed 직후 바로 파괴한다(`GameplayCueSet.cpp`) → 펄스 경로가 성립하지 않는다.
+  그래서 두 경로가 각자 `GameplayCueFinishedCallback()`으로 끝낸다. 게스트 소유자에게 늦게 온 GE Removed는 새 빈 인스턴스를 만들 수 있으므로(GameplayCueSet은 Removed에도 인스턴스를 만든다) 펄스가 유지 중이 아니면 거기서 회수한다.
+- Niagara는 무기 메시 `Muzzle` 소켓에 붙고(소켓 +X = 총열) 방향은 소켓을 따른다 — 애니메이션이 이미 복제된 조준을 반영한다. `GetBaseAimRotation`은 원격에서 월드 피치 기준이라 구면에서 틀어진다.
+- 정지는 `Deactivate()` + `SetAutoDestroy(true)` — 뿜은 불길은 수명대로 사라지고 큐 액터는 즉시 회수된다.
+
+**`NS_FlameStream` 구성** (전 이미터 `bLocalSpace=true` — 월드 스페이스 컬링 함정. 사거리·퍼짐은 어빌리티 값(1600cm / 끝 반경 480cm)에 손으로 맞췄다)
+
+| 이미터 | 역할 |
+|:---|:---|
+| Flame | 가산 불길. 끝단 크기 11배·원뿔 19°로 판정 원뿔을 거의 채운다. CurlNoise 난류 |
+| Smoke | `M_LNP_Smoke` 반투명 연기 |
+| Embers | 속도 정렬 불씨 스트릭(`M_LNP_Spark`). 불길보다 빠르고 넓다 |
+| Lights | 불길과 같이 날아가는 파티클 광원(반경 450) |
+
+- **자기 분사가 작아 보이는 문제**: 카메라가 분사축 바로 뒤라 축 방향 길이가 원근으로 압축된다 — 같은 에셋이 관전자에게는 시원하게 뻗어 보인다.
+  끝단 스프라이트를 키우고, 불씨·광원으로 "어디까지 닿는지"(지면·적이 비춰짐)를 보태 완화했다. 충돌 스플래시·피격 불꽃은 필요해지면 다음 수단.
+- VFX는 벽에서 잘리지 않는다 — 판정만 `ClipSegmentToWorld`로 잘린다.
+
+**적 화상 (`ULNPBurnVisualizationProcessor`, `GAS/`)**
+
+- PostPhysics, `ExecuteAfter ULNPBurnProcessor`, 게임 스레드, 실행 플래그 All. 서버·Standalone은 원본, 게스트는 복제값을 **같은 `FLNPBurnFragment::Stacks`**에서 읽어 넷 모드 분기가 없다.
+- 엔티티 핸들 키 Niagara 맵(투사체 트레일 패턴)을 프로세서가 소유. 위치는 판정과 같은 몸통 중심(`ResolveEnemyCapsuleCenter`), 로컬 +Z를 엔티티 Up에 맞춘다.
+  중첩 수는 User `BurnStacks`로 넘겨 `NS_BurnLoop`의 스폰율을 비례시킨다(불꽃 중첩당 14/초, 연기 5/초).
+- **해제는 스윕 한 곳**: 매 프레임 "중첩 > 0"으로 보인 항목만 표시하고, 표시되지 않은 항목은 전부 회수한다. 만료·사망(둘 다 Stacks 0 복제)·엔티티 파괴(버블 이탈·사망 팝)가 모두 여기로 모이고, 표현 LOD는 핸들이 같아 무관하다.
+- 에셋은 `ULNPSettings::EnemyBurnVFX`(C++ 기본값 `/Game/Effects/Combat/NS_BurnLoop`). `NS_BurnLoop`은 U5 플레이어 화상 큐가 재사용한다.
+- 진단: `LNP.Burn.Log 1`의 `[BurnVFX] Alloc/Release ... Active=N`. 2P 검증에서 Alloc 32 / Release 32, 양쪽 월드 모두 Active=0으로 끝났다.
 
 ---
 

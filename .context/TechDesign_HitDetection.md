@@ -260,6 +260,7 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
   600cm였을 때 비행형을 아예 공격할 수 없었다(2026-10-11 PIE). 끝 반경은 600cm/200cm 기울기를 유지한 480cm.
 - 플레이어 대상(아군 사격)은 아직 없다 — U5에서 근접 `JudgePlayerTarget`을 공용 함수로 추출해 공유한다(§7.5).
 - 디버그: `LNP.Flame.DebugDraw 1` — 서버 월드에 원뿔을 그린다(끝 단면이 빨강이면 벽에 잘림). 게스트 화면에는 보이지 않는다.
+- 분사 VFX(`NS_FlameStream`)는 이 원뿔에 손으로 맞춘 것이고 벽에서 잘리지 않는다 — 판정과 연출의 연결은 [TechDesign_Ability.md](TechDesign_Ability.md) §5.6 VFX 절.
 
 ---
 

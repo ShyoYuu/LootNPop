@@ -112,6 +112,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Combat|VFX")
 	FLinearColor EnemyProjectileTintColor = FLinearColor(1.50f, 0.14f, 0.05f, 1.0f);
 
+	/**
+	 * 적 화상 루프 VFX. ULNPBurnVisualizationProcessor가 화상 중첩이 있는 적 몸통에 붙인다.
+	 * User 파라미터 `BurnStacks`(float)로 중첩 수를 받는다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|VFX")
+	TSoftObjectPtr<UNiagaraSystem> EnemyBurnVFX = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/Effects/Combat/NS_BurnLoop.NS_BurnLoop")));
+
 	/** 플레이어 사망 후 랙돌을 유지하다가 리스폰하기까지의 시간 (초). */
 	UPROPERTY(Config, EditAnywhere, Category = "Combat", meta = (ClampMin = "0.0", Units = "s"))
 	float PlayerRespawnDelay = 10.0f;

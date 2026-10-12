@@ -10,6 +10,7 @@
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "Character/LNPCharacterBase.h"
 #include "Item/LNPWeaponData.h"
+#include "LNPGameplayTags.h"
 #include "AbilitySystemComponent.h"
 
 #include "MassEntitySubsystem.h"
@@ -62,6 +63,15 @@ void ULNPAbility_FlameAttack::ActivateAbility(const FGameplayAbilitySpecHandle H
 		}
 
 		SpawnConeJudge(ActivationInfo, TriggerEventData);
+	}
+	else if (WeaponDef && IsLocallyControlled())
+	{
+		// 게스트 소유자 화면의 분사 VFX. 위 GE의 큐는 복제를 기다려 RTT만큼 늦게 켜지고 늦게 꺼지므로,
+		// 이 머신에서만 Executed 펄스를 쏘고 큐 액터가 펄스가 끊긴 뒤 RegenDelay(= GE 지속시간)만큼 유지한다.
+		// 복제되지 않는 로컬 호출이라 대역폭 비용은 없다.
+		FGameplayCueParameters CueParams;
+		CueParams.RawMagnitude = WeaponDef->MagazineRegenDelay;
+		ActorInfo->AbilitySystemComponent->InvokeGameplayCueEvent(TAG_GameplayCue_Weapon_Flame, EGameplayCueEvent::Executed, CueParams);
 	}
 
 	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
