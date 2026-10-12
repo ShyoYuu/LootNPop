@@ -4,6 +4,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -64,7 +65,9 @@ namespace LNPNavPathfindingTest
 		return true;
 	}
 
-	bool BuildProductionSnapshot(FAutomationTestBase& Test, FLNPSurfaceDataSnapshot& OutSnapshot, double& OutBuildMs)
+	/** Seed는 옥탄트 배치 seed다. 요청 캡처 재생은 캡처 sidecar의 seed를 넘긴다. */
+	bool BuildProductionSnapshot(FAutomationTestBase& Test, FLNPSurfaceDataSnapshot& OutSnapshot, double& OutBuildMs,
+		const int32 Seed = 135792468)
 	{
 		const ULNPSettings* Settings = GetDefault<ULNPSettings>();
 		ULNPOctantPoolData* Pool = Settings ? Settings->OctantPool.LoadSynchronous() : nullptr;
@@ -76,7 +79,7 @@ namespace LNPNavPathfindingTest
 		Pool->BuildEffectiveDefinitions(EffectiveDefinitions);
 		TArray<FLNPOctantDefinition> SelectedDefinitions;
 		FString Error;
-		if (!ULNPOctantSpawnSubsystem::SelectOctantDefinitions(EffectiveDefinitions, 135792468, SelectedDefinitions, nullptr, &Error))
+		if (!ULNPOctantSpawnSubsystem::SelectOctantDefinitions(EffectiveDefinitions, Seed, SelectedDefinitions, nullptr, &Error))
 		{
 			Test.AddError(Error);
 			return false;
@@ -1491,11 +1494,41 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	FLNPSurfaceDataSnapshot Snapshot;
-	double BuildMs = 0.0;
-	if (!BuildProductionSnapshot(*this, Snapshot, BuildMs))
+	// 캡처와 같은 옥탄트 배치에서만 재생한다. CSV의 generation·version 검사는 다른 배치의 지형을 구별하지 못한다.
+	TArray<FString> MetaLines;
+	const FString MetaPath = FPaths::ChangeExtension(InputPath, TEXT("")) + TEXT("_Meta.txt");
+	if (!TestTrue(FString::Printf(TEXT("Capture layout sidecar loads: %s"), *MetaPath), FFileHelper::LoadFileToStringArray(MetaLines, *MetaPath)))
 	{
 		return false;
+	}
+	TMap<FString, FString> Meta;
+	for (const FString& Line : MetaLines)
+	{
+		FString Key, Value;
+		if (Line.Split(TEXT("="), &Key, &Value))
+		{
+			Meta.Add(Key, Value);
+		}
+	}
+	int32 Seed = 0;
+	if (!TestTrue(TEXT("Sidecar has an octant seed"), Meta.Contains(TEXT("octantGenSeed")) && LexTryParseString(Seed, *Meta[TEXT("octantGenSeed")])))
+	{
+		return false;
+	}
+	FLNPSurfaceDataSnapshot Snapshot;
+	double BuildMs = 0.0;
+	if (!BuildProductionSnapshot(*this, Snapshot, BuildMs, Seed))
+	{
+		return false;
+	}
+	for (int32 Slot = 0; Slot < Snapshot.Slots.Num(); ++Slot)
+	{
+		const FString* Captured = Meta.Find(FString::Printf(TEXT("slot%d"), Slot));
+		if (!TestTrue(FString::Printf(TEXT("Slot %d SurfaceData matches the capture"), Slot),
+			Captured != nullptr && *Captured == Snapshot.Slots[Slot].SurfaceDataAsset.ToString()))
+		{
+			return false;
+		}
 	}
 	TArray<FLNPNavPathRequest> Requests;
 	TArray<double> Times;
@@ -1534,7 +1567,7 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		Request.ApproachRadius = Values[18];
 		Times.Add(Values[0]);
 	}
-	AddInfo(FString::Printf(TEXT("Request cost replay: rows=%d input=%s; timestamp batches drained independently, unique owners, no Pod overlay, empty initial cache; not a gameplay Gate."), Requests.Num(), *InputPath));
+	AddInfo(FString::Printf(TEXT("Request cost replay: rows=%d input=%s seed=%d; timestamp batches drained independently, unique owners, no Pod overlay, empty initial cache; not a gameplay Gate."), Requests.Num(), *InputPath, Seed));
 
 	struct FReference
 	{
@@ -1545,6 +1578,8 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 	};
 	TArray<FReference> References;
 	FString Output = TEXT("variant,batch,tick,started,expansions,queued,running,tickUs,startUs,stepUs,finishUs,workerSumUs\n");
+	// 요청 단위 결과. row는 입력 CSV의 데이터 행 번호(1부터), doneTick은 묶음 제출 뒤 끝난 tick(1부터)이다.
+	FString RequestOutput = TEXT("variant,row,batch,batchSize,status,doneTick,expansions,runningTicks,fromCache,cost\n");
 	for (int32 Variant = 0; Variant < 5; ++Variant)
 	{
 		FLNPNavPathScheduler Scheduler;
@@ -1562,6 +1597,9 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			while (End < Requests.Num() && Times[End] == Times[First]) { ++End; }
 			TArray<uint32> Serials;
 			for (int32 Index = First; Index < End; ++Index) { Serials.Add(Scheduler.Submit(Requests[Index])); }
+			// 묶음 제출 뒤 몇 번째 tick에 끝났는지(1부터). 재생의 큐 지연 대용이며 시간 측정 구간 밖에서 확인한다.
+			TArray<int32> DoneTicks;
+			DoneTicks.Init(0, End - First);
 			int32 Tick = 0;
 			while (Scheduler.HasWork() && Tick < 10000)
 			{
@@ -1579,6 +1617,15 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				Output += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f\n"), Labels[Variant], Batch, Tick++,
 					Stats.LastTickStarted, Stats.LastTickExpansions, Scheduler.GetQueuedCount(), Scheduler.GetRunningCount(),
 					Elapsed, Start, Step, Finish, Stats.LastTickSearchSeconds * 1.e6);
+				for (int32 Index = First; Index < End; ++Index)
+				{
+					if (DoneTicks[Index - First] == 0)
+					{
+						FLNPNavPathResult Pending;
+						const ELNPNavPathStatus Status = Scheduler.GetResult(Requests[Index].Owner, Serials[Index - First], Pending);
+						DoneTicks[Index - First] = Status == ELNPNavPathStatus::Queued || Status == ELNPNavPathStatus::Running ? 0 : Tick;
+					}
+				}
 			}
 			if (!TestTrue(TEXT("Replay batch drains"), !Scheduler.HasWork())) { return false; }
 			for (int32 Index = First; Index < End; ++Index)
@@ -1586,6 +1633,9 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				FLNPNavPathResult Result;
 				Scheduler.GetResult(Requests[Index].Owner, Serials[Index - First], Result);
 				const double Cost = Result.Path.IsValid() ? Result.Path->Cost : 0.0;
+				RequestOutput += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%d,%d,%.3f\n"), Labels[Variant], Index + 1, Batch, End - First,
+					static_cast<int32>(Result.Status), DoneTicks[Index - First], Result.Expansions, Result.RunningTicks,
+					Result.bFromCache ? 1 : 0, Cost);
 				if (Variant == 0) { References.Add({Result.Status, WaypointNodes(Result), Result.Expansions, Cost}); }
 				else if (Variant != 4)
 				{
@@ -1608,6 +1658,8 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			TotalTick / 1000, TotalStart / 1000, TotalStep / 1000, TotalFinish / 1000));
 	}
 	TestTrue(TEXT("Replay tick costs saved"), FFileHelper::SaveStringToFile(Output, *OutputPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
+	TestTrue(TEXT("Replay request results saved"), FFileHelper::SaveStringToFile(RequestOutput,
+		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_Requests.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
 	return !HasAnyErrors();
 }
 

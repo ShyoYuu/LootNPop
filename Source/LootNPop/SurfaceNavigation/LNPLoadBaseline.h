@@ -30,6 +30,7 @@ class ULNPMassWorldCollisionSubsystem;
  *     -LNPLoadBaselineWanderPoseControl  같은 서버 구간 이동을 유지하고 구간 대신 PositionYaw를 복제한다(Production 전용).
  *     -LNPLoadBaselineSpawnRadius=1500  Production의 Pod 주변 스폰 반경만 덮어쓴다(cm). 에셋은 변경하지 않는다.
  *     -LNPLoadBaselineChase       네 가상 지각 목표(링 중심에서 25m)를 5초마다 교체해 지상 적의 실제 경로 추종 부하를 만든다
+ *     -LNPLoadBaselineIslandSlot=5  링·섬 기준 slot(기본 4). 혼합 풀에서는 그 seed 배치의 Meadow slot을 지정한다(Phase 10)
  *     -LNPLoadBaselineVolumetric  회귀 옥탄트의 공동·복층·긴 경사로 Nav node에 배치하고 공동/상층 목표를 추격한다.
  *                                서버·클라이언트 모두 지정한다. production pool은 바꾸지 않으며 비행 수는 0으로 둔다.
  *

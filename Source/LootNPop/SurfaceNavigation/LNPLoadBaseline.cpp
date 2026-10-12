@@ -59,8 +59,18 @@ namespace
 	/**
 	 * Meadow_00 큰 섬(Phase03b §3.1, Phase03b_Log 구현 단위 1). slot 로컬 방향 (1,1,1)이고 윗면은 월드 구와 동심이다.
 	 * slot 4(pitch 180)는 -Z 반구라 PlayerStart 극에 가장 가까운 네 slot 중 하나다. 옥탄트를 고치면 이 값도 고친다.
+	 * 혼합 풀에서는 옥탄트 배치에 따라 slot 4가 Meadow가 아닐 수 있어 `-LNPLoadBaselineIslandSlot=`로 Meadow slot을 고른다(Phase 10).
 	 */
-	constexpr int32 IslandSlot = 4;
+	int32 GetIslandSlot()
+	{
+		static const int32 Slot = []()
+		{
+			int32 Value = 4;
+			FParse::Value(FCommandLine::Get(), TEXT("LNPLoadBaselineIslandSlot="), Value);
+			return FMath::Clamp(Value, 0, 7);
+		}();
+		return Slot;
+	}
 	constexpr float IslandTopRadius = 25800.f;
 	constexpr float IslandRadius = 3000.f;
 
@@ -87,7 +97,7 @@ namespace
 		const FVector Radial = FVector(1.0, 1.0, 1.0).GetSafeNormal();
 		const FVector Tangent = FVector(-1.0, 1.0, 0.0).GetSafeNormal();
 		const FTransform Local(FRotationMatrix::MakeFromZY(-Radial, Tangent).ToQuat(), Radial * 33500.0);
-		return Local * FTransform(ULNPOctantSpawnSubsystem::OctantRotations[IslandSlot]);
+		return Local * FTransform(ULNPOctantSpawnSubsystem::OctantRotations[GetIslandSlot()]);
 	}
 
 	FVector VolumetricPoint(double X, double Y, double Height = 0.0)
@@ -100,10 +110,10 @@ namespace
 	{
 		int32 Best = INDEX_NONE;
 		double Distance = 250.0;
-		for (const auto& Layer : Snapshot.Nav.Graph.SlotGraphs[IslandSlot]->Layers)
+		for (const auto& Layer : Snapshot.Nav.Graph.SlotGraphs[GetIslandSlot()]->Layers)
 		{
 			TArray<FLNPNavGraphCandidate> Candidates;
-			LNPNavGraph::CollectNodesNear(Snapshot.Nav, IslandSlot, Layer.LocalNavLayerId, Point, 250.0, Candidates, Overlay);
+			LNPNavGraph::CollectNodesNear(Snapshot.Nav, GetIslandSlot(), Layer.LocalNavLayerId, Point, 250.0, Candidates, Overlay);
 			if (!Candidates.IsEmpty() && Candidates[0].Distance < Distance)
 			{
 				Distance = Candidates[0].Distance; Best = Candidates[0].Node;
@@ -128,7 +138,7 @@ namespace
 
 	FVector GetIslandDirection()
 	{
-		return ULNPOctantSpawnSubsystem::OctantRotations[IslandSlot].RotateVector(FVector(1.0, 1.0, 1.0).GetSafeNormal());
+		return ULNPOctantSpawnSubsystem::OctantRotations[GetIslandSlot()].RotateVector(FVector(1.0, 1.0, 1.0).GetSafeNormal());
 	}
 
 	/** 링 중심 방향. 섬 중심에서 PlayerStart 극(-Z) 쪽으로 섬 반지름만큼 옮긴 섬 가장자리 아래다. */
@@ -468,9 +478,9 @@ void LNPLoadBaseline::BuildEnemyRing(const ULNPMassWorldCollisionSubsystem& Coll
 		const auto Snapshot = Collision.GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>()->TakeSnapshot();
 		TArray<FVector> Candidates;
 		const auto Frame = VolumetricFrame();
-		for (int32 N = Snapshot->Nav.Graph.SlotNodeBase[IslandSlot]; N < Snapshot->Nav.Graph.SlotNodeBase[IslandSlot + 1]; ++N)
+		for (int32 N = Snapshot->Nav.Graph.SlotNodeBase[GetIslandSlot()]; N < Snapshot->Nav.Graph.SlotNodeBase[GetIslandSlot() + 1]; ++N)
 		{
-			const FVector Point(Snapshot->Nav.Graph.GetWorldPoint(IslandSlot, N));
+			const FVector Point(Snapshot->Nav.Graph.GetWorldPoint(GetIslandSlot(), N));
 			const FVector Local = Frame.InverseTransformPosition(Point);
 			// 공동 바닥·복층·두 긴 경사로만 포함한다. 지각·별도 동굴·수직 통로는 제외한다.
 			const double Height = Local.Z - (33500.0 - FMath::Sqrt(33500.0 * 33500.0 - Local.X * Local.X - Local.Y * Local.Y));
@@ -673,23 +683,52 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 					const int32 Node = VolumetricNode(*Snapshot, Points[GoalIndex], Overlay.Get());
 					if (Node != INDEX_NONE)
 					{
-						SyntheticGoals.Add(Snapshot->Nav.Graph.GetWorldPoint(IslandSlot, Node));
-						const auto& GraphNode = Snapshot->Nav.Graph.GetNode(IslandSlot, Node);
-						const uint16 LayerId = Snapshot->Nav.Graph.SlotGraphs[IslandSlot]->Layers[GraphNode.LayerOrdinal].LocalNavLayerId;
-						SyntheticGoalSurfaces.Add({IslandSlot, LayerId, Snapshot->Generation});
+						SyntheticGoals.Add(Snapshot->Nav.Graph.GetWorldPoint(GetIslandSlot(), Node));
+						const auto& GraphNode = Snapshot->Nav.Graph.GetNode(GetIslandSlot(), Node);
+						const uint16 LayerId = Snapshot->Nav.Graph.SlotGraphs[GetIslandSlot()]->Layers[GraphNode.LayerOrdinal].LocalNavLayerId;
+						SyntheticGoalSurfaces.Add({static_cast<uint16>(GetIslandSlot()), LayerId, Snapshot->Generation});
 					}
 					continue;
 				}
-				const double Angle = GoalIndex * UE_DOUBLE_PI / 2.0;
-				const FVector3d Direction = (FVector3d(RingCenter) + 2500.0 * (Right * FMath::Cos(Angle) + Forward * FMath::Sin(Angle))).GetSafeNormal();
-				FVector3d Point = Direction * RingCenter.Size();
-				LNPSurfaceDataLoading::QueryLayerZero(*Snapshot, Direction, Point);
-				TArray<FLNPNavGraphCandidate> Candidates;
-				LNPNavGraph::CollectNodesNear(Snapshot->Nav, 4, 0, Point, 1500.0, Candidates, Overlay.Get());
-				if (!Candidates.IsEmpty())
+				// 목표는 링 slot의 지각(Layer 0)에 둔다. 링 중심은 섬 가장자리 아래라 Support 조회가 위 섬 때문에 HighConfidence가 아닐 수 있다.
+				// 지형에 따라 2,500cm 지점에 node가 없을 수 있어 같은 방향의 반경을 바꿔 가며 찾고,
+				// 링 중심과 같은 ReachabilityGroup의 node만 받아 추격이 도달 불가로 끝나지 않게 한다.
+				auto FindGoalNode = [this, &Snapshot, &Overlay](const FVector3d& Direction, FLNPSurfaceHandle& OutSurface) -> int32
 				{
-					SyntheticGoals.Add(Snapshot->Nav.Graph.GetWorldPoint(4, Candidates[0].Node));
-					SyntheticGoalSurfaces.Add({4, 0, Snapshot->Generation});
+					FVector3d Point = Direction * RingCenter.Size();
+					LNPSurfaceDataLoading::QueryLayerZero(*Snapshot, Direction, Point);
+					OutSurface = {static_cast<uint16>(GetIslandSlot()), 0, Snapshot->Generation};
+					TArray<FLNPNavGraphCandidate> Candidates;
+					LNPNavGraph::CollectNodesNear(Snapshot->Nav, GetIslandSlot(), 0, Point, 1500.0, Candidates, Overlay.Get(), true);
+					return Candidates.IsEmpty() ? INDEX_NONE : Candidates[0].Node;
+				};
+				FLNPSurfaceHandle CenterSurface;
+				const int32 CenterNode = FindGoalNode(FVector3d(RingCenter).GetSafeNormal(), CenterSurface);
+				const uint32 CenterGroup = CenterNode == INDEX_NONE ? MAX_uint32 : LNPNavGraph::GetGroup(Snapshot->Nav, CenterNode);
+				if (GoalIndex == 0)
+				{
+					UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Synthetic chase ring slot=%d centerNode=%d centerGroup=%u"),
+						GetIslandSlot(), CenterNode, CenterGroup);
+				}
+				const double Angle = GoalIndex * UE_DOUBLE_PI / 2.0;
+				// 같은 group을 먼저 찾고, 없으면 group과 무관하게 받는다(Phase 7 Meadow 조건과 같다).
+				for (int32 Pass = 0; Pass < 2 && SyntheticGoals.Num() == GoalIndex; ++Pass)
+				{
+					for (const double Radius : {2500.0, 2000.0, 3000.0, 1500.0, 3500.0, 1000.0, 4000.0})
+					{
+						const FVector3d Direction = (FVector3d(RingCenter) + Radius * (Right * FMath::Cos(Angle) + Forward * FMath::Sin(Angle))).GetSafeNormal();
+						FLNPSurfaceHandle GoalSurface;
+						const int32 Node = FindGoalNode(Direction, GoalSurface);
+						const uint32 Group = Node == INDEX_NONE ? MAX_uint32 : LNPNavGraph::GetGroup(Snapshot->Nav, Node);
+						if (Node != INDEX_NONE && (Pass == 1 || CenterGroup == MAX_uint32 || Group == CenterGroup))
+						{
+							SyntheticGoals.Add(Snapshot->Nav.Graph.GetWorldPoint(GoalSurface.OctantSlot, Node));
+							SyntheticGoalSurfaces.Add(GoalSurface);
+							UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Synthetic chase goal %d radius=%.0f slot=%d layer=%d group=%u"),
+								GoalIndex, Radius, GoalSurface.OctantSlot, GoalSurface.LocalLayerId, Group);
+							break;
+						}
+					}
 				}
 			}
 			UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] Synthetic chase goals=%d (required=4)"), SyntheticGoals.Num());

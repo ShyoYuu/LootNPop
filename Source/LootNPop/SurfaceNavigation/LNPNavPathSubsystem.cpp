@@ -3,6 +3,7 @@
 #include "SurfaceNavigation/LNPNavPathSubsystem.h"
 
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "GameMode/LNPGameState.h"
 #include "LootNPop.h"
 
 #include "Engine/World.h"
@@ -88,7 +89,22 @@ bool ULNPNavPathSubsystem::EndRequestCapture(const FString& Filename)
 	const bool bTimingsSaved = FFileHelper::SaveStringToFile(TimingCsv, *TimingFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	UE_LOG(LogLootNPop, Display, TEXT("[NavTiming] capture %s: rows=%d durationSeconds=%.3f file=%s"),
 		bTimingsSaved ? TEXT("saved") : TEXT("FAILED"), Timings.Num(), FPlatformTime::Seconds() - TimingCaptureWallStart, *TimingFilename);
-	return bSaved && bTimingsSaved;
+	// 재생기가 같은 옥탄트 배치로 snapshot을 다시 만들 수 있도록 seed와 slot별 SurfaceData를 남긴다(Phase 10 단위 0).
+	// CSV의 generation·version만으로는 다른 배치의 지형을 구별하지 못한다.
+	FString Meta;
+	const ALNPGameState* GameState = GetWorld()->GetGameState<ALNPGameState>();
+	Meta += FString::Printf(TEXT("octantGenSeed=%d\n"), GameState ? GameState->OctantGenSeed : 0);
+	if (const auto Snapshot = SurfaceData->TakeSnapshot())
+	{
+		Meta += FString::Printf(TEXT("generation=%llu\ngraphVersion=%u\n"), Snapshot->Generation, Snapshot->Nav.ConnectivityGraphVersion);
+		for (int32 Slot = 0; Slot < Snapshot->Slots.Num(); ++Slot)
+		{
+			Meta += FString::Printf(TEXT("slot%d=%s\n"), Slot, *Snapshot->Slots[Slot].SurfaceDataAsset.ToString());
+		}
+	}
+	const FString MetaFilename = FPaths::ChangeExtension(Filename, TEXT("")) + TEXT("_Meta.txt");
+	const bool bMetaSaved = FFileHelper::SaveStringToFile(Meta, *MetaFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	return bSaved && bTimingsSaved && bMetaSaved;
 }
 
 bool ULNPNavPathSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

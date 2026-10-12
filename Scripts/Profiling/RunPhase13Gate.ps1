@@ -14,7 +14,9 @@ param(
     [switch]$ValidateProjectileRewindCache,
     [switch]$FlightPenetrationCheck,
     # Phase 14 단위 6c: Production 편성의 적 수 배수(-LNPEnemyDensity). 비우면 에셋 그대로다.
-    [string]$EnemyDensity = ''
+    [string]$EnemyDensity = '',
+    # Phase 10: 링·합성 목표를 둘 Meadow slot(-LNPLoadBaselineIslandSlot). 비우면 harness 기본(4)이다.
+    [string]$IslandSlot = ''
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -36,6 +38,8 @@ $taskArguments = @{
     N700Chase = '-LNPLoadBaseline=700 -LNPLoadBaselineChase'
     N800 = '-LNPLoadBaseline=800'
     N800Chase = '-LNPLoadBaseline=800 -LNPLoadBaselineChase'
+    # Phase 10 단위 0 S3: D-076 동시 활성 상한 근처의 전원 활성 합성 추격.
+    N2000Chase = '-LNPLoadBaseline=2000 -LNPLoadBaselineChase'
     F200 = '-LNPLoadBaselineFlyers=200'
     F300 = '-LNPLoadBaselineFlyers=300'
     F600 = '-LNPLoadBaselineFlyers=600'
@@ -66,6 +70,7 @@ foreach ($taskCase in $Cases) {
         $taskCommon = '-nullrhi -nosound -corelimit=4 -unattended -FixedSeed -LNPLoadBaselineSeed=1 -LNPLoadBaselinePlayers=2 -LNPLoadBaselineQuit'
         $taskCommon += " $($taskArguments[$taskCase])"
         if ($EnemyDensity) { $taskCommon += " -LNPEnemyDensity=$EnemyDensity" }
+        if ($IslandSlot) { $taskCommon += " -LNPLoadBaselineIslandSlot=$IslandSlot" }
         $taskCommon += ' -dpcvars=LNP.SurfaceNav.EnemySupportCache=1,LNP.SurfaceNav.EnemyExactLateralSweep=1,LNP.SurfaceNav.EnemyParallelMovement=1'
         $taskCommon += ",LNP.Projectile.ProfileStride=$ProjectileProfileStride"
         if ($PSBoundParameters.ContainsKey('ProjectileSphereBroadPhase')) {
@@ -112,6 +117,8 @@ foreach ($taskCase in $Cases) {
                 $taskPackageLogs = Join-Path (Join-Path $taskRoot $PackageDirectory) 'Windows/LootNPop/Saved/Logs'
                 Copy-Item -LiteralPath (Join-Path $taskPackageLogs $taskNavName) -Destination (Join-Path $taskOutput "${taskName}_NavRequests.csv")
                 Copy-Item -LiteralPath (Join-Path $taskPackageLogs ($taskNavName -replace '\.csv$', '_Timings.csv')) -Destination (Join-Path $taskOutput "${taskName}_NavTimings.csv")
+                # Phase 10 재생기는 이 sidecar의 seed·slot 배치로 snapshot을 다시 만든다.
+                Copy-Item -LiteralPath (Join-Path $taskPackageLogs ($taskNavName -replace '\.csv$', '_Meta.txt')) -Destination (Join-Path $taskOutput "${taskName}_NavRequests_Meta.txt")
             }
             [pscustomobject]@{Run=$taskName; HostExit=$taskHost.ExitCode; GuestExit=$taskGuest.ExitCode; PackageSHA256=(Get-FileHash -Algorithm SHA256 -LiteralPath $taskExe).Hash} |
                 ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath (Join-Path $taskOutput "${taskName}_Exit.json")
