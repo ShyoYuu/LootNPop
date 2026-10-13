@@ -10,6 +10,9 @@
 - `<케이스>_RequestCosts_FlowFields.csv`가 있으면 flow field 변형 요약(field 수·확정 수·최대 메모리)을 따로 낸다.
 - 계층형(단위 4): `source` 3은 계층형 응답(cache hit 포함), 2는 A* 폴백이다. 열 "field·폴백"은 field 응답 또는 계층형 응답/폴백 수다.
   `<케이스>_RequestCosts_Hierarchy.csv`가 있으면 계층 요약(사전 계산·메모리·link·고수준·저수준 확장·폴백)을 따로 낸다.
+- overlay 토글(단위 5, 기준 5): `*Overlay` 변형은 burst마다 합성 Pod를 켜고 끈다. doneTick은 재계획까지 끝난 tick이다.
+  `<케이스>_RequestCosts_Overlay.csv`가 있으면 재계산 범위(바뀐 Tile·재빌드 field·dirty Cluster·재계획)와
+  같은 실행의 토글 없는 짝(이름에서 Overlay를 뺀 변형) 대비 tick 합·확장 합·burst P95 변화를 따로 낸다.
 """
 
 import csv
@@ -97,6 +100,30 @@ def compare(replay_dir, case):
                 f"| {int(r['cacheHits']):,} | {int(r['goalLinks']):,}·{int(r['linkSettled']):,} | {int(r['highLevelExpansions']):,} "
                 f"| {int(r['corridorExpansions']):,} | {r['fallbackHighLevel']}/{r['fallbackCorridor']}/{r['fallbackEndpoint']} "
                 f"| {int(r['refineFallbacks']):,} |")
+    overlay_path = replay_dir / f"{case}_RequestCosts_Overlay.csv"
+    overlay_rows = read_csv(overlay_path) if overlay_path.exists() else []
+    if overlay_rows:
+        lines += ["", "| 변형 | 토글 | 바뀐 Tile | 막힌 node 최대 | A* 재계획(완료/Stale) | field·계층 응답 재계획 | field 재빌드/생존(버린 확정) "
+                  "| 재빌드 확정 | dirty Cluster(abstract) / 재계산 확정 | 재계산 ms 합/최대 | 목표 link 폐기 | query 재시작(버린 단위) "
+                  "| tick 합 Δ | 확장 합 Δ | burst P95 짝→토글 |",
+                  "|:---|---:|---:|---:|:---|---:|:---|---:|:---|:---|---:|:---|:---|:---|:---|"]
+        for r in overlay_rows:
+            variant = r["variant"]
+            twin = variant.removesuffix("Overlay")
+            summary = {}
+            for name in (twin, variant):
+                rows = requests.get(name, {})
+                burst = [int(x["doneTick"]) for x in rows.values() if int(x["batchSize"]) >= BURST_SIZE]
+                summary[name] = (sum(ticks[name]) / 1000, sum(int(x["expansions"]) for x in rows.values()), pct(burst, .95) if burst else "—")
+            (twin_ms, twin_exp, twin_p95), (ms, exp, p95) = summary[twin], summary[variant]
+            lines.append(
+                f"| {variant} | {r['toggles']} | {r['changedTiles']} | {r['maxBlockedNodes']} | {r['requeued']}/{r['staleRestarts']} "
+                f"| {r['replans']} | {r['fieldsRebuilt']}/{r['fieldsLive']}({int(r['fieldSettledDiscarded']):,}) "
+                f"| {int(r['fieldRebuildSettled']):,} | {r['dirtyClusters']}({r['dirtyAbstract']}) / {int(r['updateSettled']):,} "
+                f"| {float(r['updateMs']):.2f}/{float(r['maxUpdateMs']):.2f} | {r['goalLinksDropped']} "
+                f"| {r['queriesRestarted']}({int(r['restartUnits']):,}) "
+                f"| {ms - twin_ms:+.1f}ms({(ms / twin_ms - 1) * 100 if twin_ms else 0:+.1f}%) "
+                f"| {exp - twin_exp:+,}({(exp / twin_exp - 1) * 100 if twin_exp else 0:+.1f}%) | {twin_p95}→{p95} |")
     return "\n".join(lines)
 
 

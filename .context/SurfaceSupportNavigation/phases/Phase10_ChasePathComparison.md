@@ -1,6 +1,6 @@
 # Phase 10 — 대규모 추격 경로 비교와 목표 전환 큐 대기 개선
 
-> 상태: 진행 중(단위 0·1·2·3·4 완료 2026-10-13, 다음 단위 5)
+> 상태: 완료(2026-10-13, 단위 0~5. flow field·계층형 미채택 D-080, 단위 6 없음)
 > 착수: 2026-10-13
 > 선행: Phase 9 완료(V011 성능 기준선), Phase 7 일반 A*·요청 재생 harness
 > 순서: 단위 0 → 1 → 2 → 3 → 4 → 5 → (6). 단위마다 검증한 뒤 사용자 진행 확인을 받는다.
@@ -95,11 +95,13 @@ D-044에 따라 같은 benchmark harness에서 목표별 flow field와 계층형
 - [x] 검증: 에디터 빌드, `LootNPop.SurfaceNavigation` 131/131(신규 `Nav.Hierarchy`), S1~S3 재생 Success·불일치 0.
 - 예비 판정(improved 대비): 기준 1 미충족(tick 합 S2 −18%·S3 −27%), 기준 2 미충족(burst P95 S2 8→8·S3 43→33), 기준 3 미충족(보행 비율 P95 1.09~1.10, corridor 정제는 1.015~1.027이지만 CPU +9~13%), 기준 4 충족(7.47MiB, 여유 작음), 기준 5 충족(Pod당 dirty 1~3 Cluster, 확정 2.4k~6.9k). 수치는 `history/Phase10_Log.md` 2026-10-13 단위 4.
 
-### 단위 5 — 비교와 채택 판정
+### 단위 5 — 비교와 채택 판정 — 완료 2026-10-13
 
-- 재생기에 변형(기준 A*+cache256, 개선 A*, flow field, 계층형)을 추가해 S1~S3로 실행한다. overlay 토글 재생으로 동적 재계산 범위를 잰다.
-- 결과는 `history/Phase10_Log.md`와 `design/GroundNavigation.md`에 기록하고, `Decisions.md`에 새 결정을 한 줄 추가한다.
+- [x] 기준 1~4 비교표: 단위 4 재생과 같은 명령으로 2회 더 실행해 3회를 비교했다. 확장·burst·비율은 결정론으로 같고 시간만 tick 합 ±4% 흔들린다. 흔들림이 판정에 걸리는 곳은 계층형 S3 기준 1(−26~−32%) 하나다.
+- [x] 기준 5: 재생 변형 `improvedOverlay`·`flowfieldOverlay`·`hierarchyOverlay`. burst마다 목표 근처 60m 안 합성 Pod 8~10개를 켜고 끄며(6회), 세 방식에 overlay를 넘긴다(A* `RequeueInvalidatedPaths`, 영향 field 재빌드, 계층 `UpdateOverlay`). 요약 `_Overlay.csv`.
+- [x] 검증: 에디터 빌드, `LootNPop.SurfaceNavigation` 131/131, S1~S3 재생 Success·불일치 0.
+- 판정(사용자 결정): **flow field·계층형 모두 미채택(D-080).** flow field는 기준 1·3·4 충족, 2(S2 8→9·S3 −47%)·5(영향 field 통째 재빌드) 미충족. 계층형은 4·5 충족, 1·2·3 미충족. 수치는 `history/Phase10_Log.md` 2026-10-13 단위 5.
 
-### 단위 6 — 채택된 방식만 production 통합(해당 시)
+### 단위 6 — 채택된 방식만 production 통합(해당 없음)
 
-패키지 Gate(`RunPhase13Gate.ps1 -Cases Production`)와 리슨 2P·late join 스모크로 검증한다. 미채택이면 Phase 10은 비교 자료와 단위 2 개선으로 종료한다.
+미채택이므로 Phase 10은 비교 자료와 단위 2 개선(D-079)으로 종료한다. 프로토타입·자동화·재생기는 남겨 두고, 재검토 조건은 D-080과 로그 단위 5가 소유한다.

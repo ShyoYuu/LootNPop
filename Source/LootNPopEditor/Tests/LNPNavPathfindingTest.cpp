@@ -498,21 +498,22 @@ namespace LNPNavPathfindingTest
 	}
 
 	/** scheduler의 경로 조립과 같은 일(단순화·통과 Tile fingerprint)로 field 경로를 만든다. 재생 tick 시간을 A* 결과와 같은 기준으로 잰다. */
-	FLNPNavPathPtr BuildFieldPath(const FLNPNavSnapshot& Nav, const TConstArrayView<int32> Nodes, const double Cost)
+	FLNPNavPathPtr BuildFieldPath(const FLNPNavSnapshot& Nav, const TConstArrayView<int32> Nodes, const double Cost,
+		const FLNPNavOverlay* Overlay = nullptr)
 	{
 		TSharedRef<FLNPNavPath, ESPMode::ThreadSafe> Path = MakeShared<FLNPNavPath, ESPMode::ThreadSafe>();
 		Path->SnapshotGeneration = Nav.SnapshotGeneration;
 		Path->ConnectivityGraphVersion = Nav.ConnectivityGraphVersion;
 		Path->Cost = Cost;
 		TArray<int32> Waypoints;
-		LNPNavPathfinding::SimplifyPath(Nav, Nodes, Waypoints);
+		LNPNavPathfinding::SimplifyPath(Nav, Nodes, Waypoints, Overlay);
 		TArray<uint32> Tiles;
 		TArray<int32> SegmentNodes;
 		for (int32 Index = 0; Index < Waypoints.Num(); ++Index)
 		{
 			Path->Waypoints.Add({Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Waypoints[Index]), Waypoints[Index]), Waypoints[Index]});
 			Tiles.Add(LNPNavGraph::GetTileKey(Nav, Waypoints[Index]));
-			if (Index > 0 && LNPNavGraph::CollectDirectWalkNodes(Nav, Waypoints[Index - 1], Waypoints[Index], SegmentNodes))
+			if (Index > 0 && LNPNavGraph::CollectDirectWalkNodes(Nav, Waypoints[Index - 1], Waypoints[Index], SegmentNodes, Overlay))
 			{
 				for (const int32 Node : SegmentNodes)
 				{
@@ -526,11 +527,38 @@ namespace LNPNavPathfindingTest
 			if (Index == 0 || Tiles[Index] != Tiles[Index - 1])
 			{
 				Path->TraversedTiles.Add(Tiles[Index]);
-				Path->TileRevisions.Add(0);
+				Path->TileRevisions.Add(LNPNavOverlay::GetTileRevision(Overlay, Tiles[Index]));
 			}
 		}
 		return Path;
 	}
+
+	/**
+	 * overlay 토글 재생(Phase 10 단위 5, 기준 5)의 재계산 범위와 비용. 토글마다 누적한다.
+	 * A*는 완료 경로 재계획(RequeueInvalidatedPaths)과 실행 중 Stale 재제출, flow field는 바뀐 Tile에 블록이 있는 field의 재빌드,
+	 * 계층형은 dirty Cluster 재계산·목표 link 폐기·실행 중 query 재시작이다. field·계층형 응답 경로도 통과 Tile이 바뀌면 재계획한다.
+	 */
+	struct FOverlayToggleTotals
+	{
+		int32 Toggles = 0;
+		int32 ChangedTiles = 0;
+		int32 MaxBlockedNodes = 0;
+		int32 Requeued = 0;
+		int32 StaleRestarts = 0;
+		int32 Replans = 0;
+		int32 FieldsLive = 0;
+		int32 FieldsRebuilt = 0;
+		int64 FieldSettledDiscarded = 0;
+		int64 FieldRebuildSettled = 0;
+		int32 DirtyClusters = 0;
+		int32 DirtyAbstract = 0;
+		int64 UpdateSettled = 0;
+		double UpdateMs = 0.0;
+		double MaxUpdateMs = 0.0;
+		int32 GoalLinksDropped = 0;
+		int32 QueriesRestarted = 0;
+		int64 RestartUnits = 0;
+	};
 
 	/**
 	 * Nav.RequestCostReplay의 flow field 변형(Phase 10 단위 3). processor에 연결하지 않고 재생에서만 쓴다.
@@ -577,6 +605,8 @@ namespace LNPNavPathfindingTest
 			int64 AnswerNodes = 0;
 			uint64 PeakBytes = 0;
 			int32 PeakBlocks = 0;
+			/** overlay 토글로 다시 짓는 field가 확정한 node 수(Settled에 포함). */
+			int64 RebuildSettled = 0;
 		};
 
 		FTotals Totals;
@@ -656,6 +686,68 @@ namespace LNPNavPathfindingTest
 			return OutResult.Status;
 		}
 
+		/**
+		 * overlay 토글(단위 5). 바뀐 Tile에 블록이 있는 field만 새 overlay로 처음부터 다시 짓는다. 블록은 확정 node와 그 이웃의 Tile에 생기므로,
+		 * 블록이 없는 field는 차단·해제 어느 쪽에도 값이 바뀌지 않아 revision만 올린다. 통과 Tile이 바뀐 field 응답은 다시 스냅해 재계획한다.
+		 */
+		void ApplyOverlay(const FLNPNavOverlay& NewOverlay, const TSet<uint32>& ChangedTiles, const int32 First, const int32 End,
+			FOverlayToggleTotals& Out)
+		{
+			Overlay = &NewOverlay;
+			for (const TUniquePtr<FField>& Field : Fields)
+			{
+				++Out.FieldsLive;
+				bool bAffected = false;
+				for (const uint32 Tile : ChangedTiles)
+				{
+					bAffected |= Field->Field.BlockByTile.Contains(Tile);
+				}
+				if (!bAffected)
+				{
+					Field->Field.OverlayRevision = NewOverlay.Revision;
+					continue;
+				}
+				++Out.FieldsRebuilt;
+				Out.FieldSettledDiscarded += Field->Field.Settled;
+				Field->bRebuilt = true;
+				if (LNPNavFlowField::BeginBuild(Nav, Field->Field.Goal, Params, Field->Field, Overlay) == ELNPNavFlowFieldStatus::Invalid)
+				{
+					for (const int32 Index : Field->Waiters)
+					{
+						++Totals.FallbackEndpoint;
+						SubmitToScheduler(Index, SourceFallback);
+					}
+					Field->Waiters.Reset();
+				}
+			}
+			for (int32 Index = First; Index < End; ++Index)
+			{
+				FState& State = States[Index];
+				if (State.Source == SourceField && State.Result.Path.IsValid() && !State.Result.Path->IsCurrent(Nav, Overlay))
+				{
+					++Out.Replans;
+					const int32 Charge = State.FieldCharge;
+					State = FState();
+					State.FieldCharge = Charge;
+					Pending.Add(Index);
+				}
+			}
+		}
+
+		/** scheduler 몫(폴백·Chase가 아닌 요청)이 overlay 변경으로 Stale이면 다시 제출한다. */
+		bool ResubmitStale(const int32 Index)
+		{
+			FState& State = States[Index];
+			FLNPNavPathResult Result;
+			if (State.Source == SourceField || State.Serial == 0
+				|| Scheduler.GetResult(Requests[Index].Owner, State.Serial, Result) != ELNPNavPathStatus::Stale)
+			{
+				return false;
+			}
+			State.Serial = Scheduler.Submit(Requests[Index]);
+			return true;
+		}
+
 		void Tick(FTickStats& Out)
 		{
 			Out = FTickStats();
@@ -702,7 +794,7 @@ namespace LNPNavPathfindingTest
 				auto Step = [this, &Building, &StepSeconds, Share](const int32 Index)
 				{
 					const double StepStart = FPlatformTime::Seconds();
-					LNPNavFlowField::StepBuild(Nav, Building[Index]->Field, Share);
+					LNPNavFlowField::StepBuild(Nav, Building[Index]->Field, Share, Overlay);
 					StepSeconds[Index] = FPlatformTime::Seconds() - StepStart;
 				};
 				Begin = FPlatformTime::Seconds();
@@ -726,6 +818,7 @@ namespace LNPNavPathfindingTest
 					Out.Expansions += Used;
 					Out.WorkerUs += StepSeconds[Index] * 1.e6;
 					Totals.Settled += Used;
+					Totals.RebuildSettled += Field.bRebuilt ? Used : 0;
 					Totals.MaxFieldSettled = FMath::Max(Totals.MaxFieldSettled, Field.Field.Settled);
 					// 이번 라운드를 진행시킨 대기자(가장 가까운 요청)에게 확정 수를 단다. 요청별 expansions 합이 총작업이 되게 한다.
 					States[Field.Waiters[0]].FieldCharge += Used;
@@ -736,7 +829,7 @@ namespace LNPNavPathfindingTest
 			Scheduler.Settings.ExpansionsPerFrame = Budget;
 			if (Scheduler.HasWork())
 			{
-				Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+				Scheduler.Tick(Nav, Overlay, [](FMassEntityHandle) { return true; });
 				const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
 				Out.Started += Stats.LastTickStarted;
 				Out.Expansions += Stats.LastTickExpansions;
@@ -778,6 +871,8 @@ namespace LNPNavPathfindingTest
 			FLNPNavFlowField Field;
 			/** 확정을 기다리는 요청. 스냅한 순서(가까운 순)다. */
 			TArray<int32> Waiters;
+			/** overlay 토글로 다시 짓는 field다. */
+			bool bRebuilt = false;
 		};
 
 		bool HasBuildingWaiters() const
@@ -809,7 +904,7 @@ namespace LNPNavPathfindingTest
 			Query.GoalSurface = &Request.GoalSurface;
 			Query.SnapRadius = Request.SnapRadius;
 			Query.ApproachRadius = Request.ApproachRadius;
-			const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query);
+			const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query, Overlay);
 			FState& State = States[Index];
 			State.ResolveTick = TickIndex;
 			// 경로 cost는 시작·목표 node 직선 거리 이상이다. 그 거리가 반경보다 크면 field에 들 수 없으므로 기다리지 않고 바로 폴백한다.
@@ -825,7 +920,7 @@ namespace LNPNavPathfindingTest
 			if (Ends.Status == ELNPNavEndpointStatus::Reachable && FieldIndex == nullptr)
 			{
 				TUniquePtr<FField> NewField = MakeUnique<FField>();
-				if (LNPNavFlowField::BeginBuild(Nav, Ends.GoalNode, Params, NewField->Field) != ELNPNavFlowFieldStatus::Invalid)
+				if (LNPNavFlowField::BeginBuild(Nav, Ends.GoalNode, Params, NewField->Field, Overlay) != ELNPNavFlowFieldStatus::Invalid)
 				{
 					++Totals.Fields;
 					FieldIndex = &FieldByGoal.Add(Ends.GoalNode, Fields.Add(MoveTemp(NewField)));
@@ -865,7 +960,7 @@ namespace LNPNavPathfindingTest
 							++Totals.FieldHits;
 							float Distance = 0.0f;
 							LNPNavFlowField::GetSettledDistance(Nav, Field->Field, State.StartNode, Distance);
-							State.Result.Path = BuildFieldPath(Nav, Nodes, Distance);
+							State.Result.Path = BuildFieldPath(Nav, Nodes, Distance, Overlay);
 							State.Result.Status = ELNPNavPathStatus::Succeeded;
 							State.Result.bFromCache = true;
 							State.Result.RunningTicks = static_cast<int32>(TickIndex - State.ResolveTick);
@@ -905,6 +1000,8 @@ namespace LNPNavPathfindingTest
 		int32 NextPending = 0;
 		TArray<TUniquePtr<FField>> Fields;
 		TMap<int32, int32> FieldByGoal;
+		/** overlay 토글 변형만 쓴다. 소유는 재생 루프다. */
+		const FLNPNavOverlay* Overlay = nullptr;
 	};
 
 	/**
@@ -958,7 +1055,7 @@ namespace LNPNavPathfindingTest
 		FTotals Totals;
 
 		FHierarchyReplay(const FLNPNavSnapshot& InNav, const TConstArrayView<FLNPNavPathRequest> InRequests, FLNPNavPathScheduler& InScheduler,
-			const FLNPNavHierarchy& InHierarchy, const FLNPNavHierarchyQueryParams& InParams, const bool bInExactStart, const bool bInKeep,
+			FLNPNavHierarchy& InHierarchy, const FLNPNavHierarchyQueryParams& InParams, const bool bInExactStart, const bool bInKeep,
 			const int32 InFrameBudget, const int32 InResolveCost, const bool bInParallel, const int32 InSlots, const int32 InCacheCapacity,
 			const int32 InJoinWaypoints, const double InLeadRatio)
 			: Nav(InNav), Requests(InRequests), Scheduler(InScheduler), Hierarchy(InHierarchy), Params(InParams), bExactStart(bInExactStart),
@@ -1024,6 +1121,68 @@ namespace LNPNavPathfindingTest
 			return OutResult.Status;
 		}
 
+		/**
+		 * overlay 토글(단위 5). 계층은 바뀐 Tile의 Cluster만 다시 계산한다(UpdateOverlay, 한 번에 수행하며 시간은 따로 보고).
+		 * 그 Cluster의 목표 link를 버리고, query는 시작 때 overlay revision에 묶여 있으므로 실행 중 query는 새 link로 다시 시작한다.
+		 * 통과 Tile이 바뀐 계층형 응답(cache hit 포함)은 다시 스냅해 재계획한다.
+		 */
+		void ApplyOverlay(const FLNPNavOverlay& NewOverlay, const TSet<uint32>& ChangedTiles, const int32 First, const int32 End,
+			FOverlayToggleTotals& Out)
+		{
+			Overlay = &NewOverlay;
+			const FLNPNavHierarchyUpdateStats Update = LNPNavHierarchy::UpdateOverlay(Nav, Hierarchy, Overlay);
+			Out.DirtyClusters += Update.DirtyClusters;
+			Out.DirtyAbstract += Update.DirtyAbstractNodes;
+			Out.UpdateSettled += Update.Settled;
+			Out.UpdateMs += Update.Seconds * 1000.0;
+			Out.MaxUpdateMs = FMath::Max(Out.MaxUpdateMs, Update.Seconds * 1000.0);
+			for (auto It = GoalLinks.CreateIterator(); It; ++It)
+			{
+				const int32 Cluster = LNPNavHierarchy::GetCluster(Nav, Hierarchy, It.Key());
+				if (Cluster == INDEX_NONE || ChangedTiles.Contains(Hierarchy.Clusters[Cluster].TileKey))
+				{
+					++Out.GoalLinksDropped;
+					It.RemoveCurrent();
+				}
+			}
+			for (FRunning& Query : Running)
+			{
+				if (Query.bSearching)
+				{
+					++Out.QueriesRestarted;
+					Out.RestartUnits += Query.Search.Units;
+					Query.bSearching = false;
+					Query.Search = FLNPNavHierarchySearch();
+				}
+			}
+			for (int32 Index = First; Index < End; ++Index)
+			{
+				FState& State = States[Index];
+				if (State.Source == SourceHierarchy && State.Result.Path.IsValid() && !State.Result.Path->IsCurrent(Nav, Overlay))
+				{
+					++Out.Replans;
+					const int32 Charge = State.Charge;
+					State = FState();
+					State.Charge = Charge;
+					Pending.Add(Index);
+				}
+			}
+		}
+
+		/** scheduler 몫(폴백·Chase가 아닌 요청)이 overlay 변경으로 Stale이면 다시 제출한다. */
+		bool ResubmitStale(const int32 Index)
+		{
+			FState& State = States[Index];
+			FLNPNavPathResult Result;
+			if (State.Source == SourceHierarchy || State.Serial == 0
+				|| Scheduler.GetResult(Requests[Index].Owner, State.Serial, Result) != ELNPNavPathStatus::Stale)
+			{
+				return false;
+			}
+			State.Serial = Scheduler.Submit(Requests[Index]);
+			return true;
+		}
+
 		void Tick(FFlowFieldReplay::FTickStats& Out)
 		{
 			Out = FFlowFieldReplay::FTickStats();
@@ -1061,7 +1220,7 @@ namespace LNPNavPathfindingTest
 					FRunning& Query = Running[Searching[Index]];
 					const double StepStart = FPlatformTime::Seconds();
 					Query.UnitsBefore = Query.Search.Units;
-					LNPNavHierarchy::StepQuery(Nav, Hierarchy, Scratches[Query.ScratchIndex], Query.Search, Share);
+					LNPNavHierarchy::StepQuery(Nav, Hierarchy, Scratches[Query.ScratchIndex], Query.Search, Share, Overlay);
 					Query.StepSeconds = FPlatformTime::Seconds() - StepStart;
 				};
 				Begin = FPlatformTime::Seconds();
@@ -1106,7 +1265,7 @@ namespace LNPNavPathfindingTest
 			Scheduler.Settings.ExpansionsPerFrame = Budget;
 			if (Scheduler.HasWork())
 			{
-				Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+				Scheduler.Tick(Nav, Overlay, [](FMassEntityHandle) { return true; });
 				const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
 				Out.Started += Stats.LastTickStarted;
 				Out.Expansions += Stats.LastTickExpansions;
@@ -1174,7 +1333,7 @@ namespace LNPNavPathfindingTest
 			Query.GoalSurface = &Request.GoalSurface;
 			Query.SnapRadius = Request.SnapRadius;
 			Query.ApproachRadius = Request.ApproachRadius;
-			const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query);
+			const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query, Overlay);
 			States[Index].ResolveTick = TickIndex;
 			if (Ends.Status != ELNPNavEndpointStatus::Reachable)
 			{
@@ -1224,7 +1383,7 @@ namespace LNPNavPathfindingTest
 						return;
 					}
 					FLNPNavHierarchyLink NewLink;
-					const int32 Settled = LNPNavHierarchy::BuildLink(Nav, Hierarchy, Query.GoalNode, ELNPNavHierarchyLinkSide::Goal, true, NewLink);
+					const int32 Settled = LNPNavHierarchy::BuildLink(Nav, Hierarchy, Query.GoalNode, ELNPNavHierarchyLinkSide::Goal, true, NewLink, Overlay);
 					Charge(Query, Settled, Budget, Out);
 					++Totals.GoalLinks;
 					GoalLink = &GoalLinks.Add(Query.GoalNode, MoveTemp(NewLink));
@@ -1236,10 +1395,10 @@ namespace LNPNavPathfindingTest
 				}
 				FLNPNavHierarchyLink StartLink;
 				Charge(Query, LNPNavHierarchy::BuildLink(Nav, Hierarchy, Query.StartNode, ELNPNavHierarchyLinkSide::Start, bExactStart, StartLink,
-					nullptr, Query.GoalNode), Budget, Out);
+					Overlay, Query.GoalNode), Budget, Out);
 				++Totals.Queries;
 				Query.bSearching = true;
-				if (LNPNavHierarchy::BeginQuery(Nav, Hierarchy, StartLink, *GoalLink, Params, Scratches[Query.ScratchIndex], Query.Search)
+				if (LNPNavHierarchy::BeginQuery(Nav, Hierarchy, StartLink, *GoalLink, Params, Scratches[Query.ScratchIndex], Query.Search, Overlay)
 					!= ELNPNavSearchStatus::Running)
 				{
 					FinishQuery(RunningIndex--);
@@ -1265,7 +1424,7 @@ namespace LNPNavPathfindingTest
 			}
 			const TArray<FLNPNavPathWaypoint>& Waypoints = Entry->Path->Waypoints;
 			int32 FirstWaypoint = INDEX_NONE;
-			if (LNPNavGraph::IsDirectWalkable(Nav, Waypoints.Last().Node, GoalNode))
+			if (Entry->Path->IsCurrent(Nav, Overlay) && LNPNavGraph::IsDirectWalkable(Nav, Waypoints.Last().Node, GoalNode, Overlay))
 			{
 				const FVector3d StartPoint = Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(StartNode), StartNode);
 				double Remaining = 0.0;
@@ -1278,7 +1437,7 @@ namespace LNPNavPathfindingTest
 				{
 					Remaining -= Index > 0 ? FVector3d::Dist(Waypoints[Index - 1].Location, Waypoints[Index].Location) : 0.0;
 					if ((LeadRatio <= 0.0 || FVector3d::Dist(StartPoint, Waypoints[Index].Location) <= LeadRatio * Remaining)
-						&& LNPNavGraph::IsDirectWalkable(Nav, StartNode, Waypoints[Index].Node))
+						&& LNPNavGraph::IsDirectWalkable(Nav, StartNode, Waypoints[Index].Node, Overlay))
 					{
 						FirstWaypoint = Index;
 					}
@@ -1334,7 +1493,7 @@ namespace LNPNavPathfindingTest
 				&& LNPNavHierarchy::ExtractNodePath(Scratches[Query.ScratchIndex], Query.Search, Nodes))
 			{
 				++Totals.Answers;
-				State.Result.Path = BuildFieldPath(Nav, Nodes, Query.Search.PathCost);
+				State.Result.Path = BuildFieldPath(Nav, Nodes, Query.Search.PathCost, Overlay);
 				State.Result.Status = ELNPNavPathStatus::Succeeded;
 				State.Result.RunningTicks = static_cast<int32>(TickIndex - State.ResolveTick);
 				AddToCache(Query.CacheKey, State.Result.Path);
@@ -1356,7 +1515,7 @@ namespace LNPNavPathfindingTest
 		const FLNPNavSnapshot& Nav;
 		TConstArrayView<FLNPNavPathRequest> Requests;
 		FLNPNavPathScheduler& Scheduler;
-		const FLNPNavHierarchy& Hierarchy;
+		FLNPNavHierarchy& Hierarchy;
 		FLNPNavHierarchyQueryParams Params;
 		bool bExactStart = false;
 		bool bKeep = false;
@@ -1380,6 +1539,8 @@ namespace LNPNavPathfindingTest
 		int32 JoinWaypoints = 4;
 		double LeadRatio = 0.1;
 		TMap<uint64, FCacheEntry> Cache;
+		/** overlay 토글 변형만 쓴다. 소유는 재생 루프다. */
+		const FLNPNavOverlay* Overlay = nullptr;
 	};
 }
 
@@ -2708,7 +2869,7 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		Request.ApproachRadius = Values[18];
 		Times.Add(Values[0]);
 	}
-	AddInfo(FString::Printf(TEXT("Request cost replay: rows=%d input=%s seed=%d; timestamp batches drained independently, unique owners, no Pod overlay, empty initial cache; not a gameplay Gate."), Requests.Num(), *InputPath, Seed));
+	AddInfo(FString::Printf(TEXT("Request cost replay: rows=%d input=%s seed=%d; timestamp batches drained independently, unique owners, no Pod overlay (except the *Overlay toggle variants), empty initial cache; not a gameplay Gate."), Requests.Num(), *InputPath, Seed));
 
 	struct FReference
 	{
@@ -2751,6 +2912,12 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		bool bHierarchyKeep = false;
 		/** true면 corridor 정제, 기본은 segment 정제(HPA*)다. */
 		bool bHierarchyCorridor = false;
+		/**
+		 * true면 overlay 토글 변형이다(Phase 10 단위 5, 기준 5). burst마다 OverlayToggleTick 뒤에 합성 Pod 묶음을 켜고 끈다.
+		 * burst가 없는 입력(S1)에서는 토글이 없으므로 OverlayTwin과 요청별로 같아야 한다.
+		 */
+		bool bOverlayToggle = false;
+		int32 OverlayTwin = INDEX_NONE;
 	};
 	const FVariant Variants[] =
 	{
@@ -2799,9 +2966,18 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			.bHierarchyExactStart = true},
 		{.Label = TEXT("hierarchyKeep"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8,
 			.bHierarchyKeep = true},
+		// 단위 5 overlay 토글: 세 비교 대상(improved·flowfield·hierarchy)과 같은 설정에 burst마다 합성 Pod를 켜고 끈다.
+		{.Label = TEXT("improvedOverlay"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1,
+			.bOverlayToggle = true, .OverlayTwin = 11},
+		{.Label = TEXT("flowfieldOverlay"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .FieldCost = 12000.0,
+			.bOverlayToggle = true, .OverlayTwin = 19},
+		{.Label = TEXT("hierarchyOverlay"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8,
+			.bOverlayToggle = true, .OverlayTwin = 23},
 	};
 	constexpr int32 ImprovedVariant = 11;
 	static_assert(UE_ARRAY_COUNT(Variants) > 23, "hierarchySerial compares to variant 23");
+	check(FCString::Strcmp(Variants[11].Label, TEXT("improved")) == 0 && FCString::Strcmp(Variants[19].Label, TEXT("flowfield")) == 0
+		&& FCString::Strcmp(Variants[23].Label, TEXT("hierarchy")) == 0);
 	// 계층은 span 길이마다 한 번 짓고 변형끼리 공유한다. 사전 계산 비용·메모리는 재생 tick 밖에서 따로 잰다.
 	TMap<int32, TUniquePtr<FLNPNavHierarchy>> Hierarchies;
 	FString HierarchyOutput = TEXT("variant,span,ring,exactStart,keep,corridor,cacheHits,cacheJoins,cacheRejects,refineFallbacks,segmentSearches,clusters,crossingEdges,spans,portals,abstractNodes,interEdges,intraEntries,buildSettled,buildMs,hierarchyBytes,queries,answers,fallbackHighLevel,fallbackCorridor,fallbackInvalid,fallbackEndpoint,resolves,goalLinks,linkSettled,highLevelExpansions,corridorExpansions,corridorClusters,peakLinkBytes,highScratchBytes,corridorScratchBytes\n");
@@ -2810,6 +2986,14 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 	{
 		return Request.Priority == ELNPNavPathPriority::Chase;
 	});
+	bool bHasBurst = false;
+	for (int32 First = 0; First < Requests.Num();)
+	{
+		int32 End = First + 1;
+		while (End < Requests.Num() && Times[End] == Times[First]) { ++End; }
+		bHasBurst |= End - First >= BurstSize;
+		First = End;
+	}
 	TArray<FReference> References;
 	TArray<TArray<FReference>> VariantResults;
 	VariantResults.SetNum(UE_ARRAY_COUNT(Variants));
@@ -2831,6 +3015,52 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		Query.ApproachRadius = Request.ApproachRadius;
 		Endpoints.Add(LNPNavGraph::ResolveEndpoints(Snapshot.Nav, Query));
 	}
+	// 기준 5 overlay 토글의 합성 Pod(단위 5). 캡처 창에는 overlay 변경이 없으므로, Chase 목표 node마다 같은 Support Layer의
+	// 반경 60m 안 walkable node 중 목표에서 10m 넘게 떨어진 것을 결정론 seed로 OverlayPodsPerGoal개 고른다. Pod는 목표를 막지 않는다.
+	constexpr int32 OverlayToggleTick = 2;
+	constexpr int32 OverlayPodsPerGoal = 2;
+	TArray<FLNPNavPodBlocker> OverlayPods;
+	if (bHasBurst)
+	{
+		FRandomStream Random(20261013);
+		TArray<int32> GoalNodes;
+		TArray<FLNPNavGraphCandidate> Candidates, Nearby;
+		for (int32 Index = 0; Index < Requests.Num(); ++Index)
+		{
+			const int32 Goal = Endpoints[Index].GoalNode;
+			if (Requests[Index].Priority != ELNPNavPathPriority::Chase || Goal == INDEX_NONE || GoalNodes.Contains(Goal))
+			{
+				continue;
+			}
+			GoalNodes.Add(Goal);
+			const int32 Slot = Snapshot.Nav.Graph.GetSlot(Goal);
+			const FVector3d GoalPoint = Snapshot.Nav.Graph.GetWorldPoint(Slot, Goal);
+			Candidates.Reset();
+			for (const FLNPNavLayer& Layer : Snapshot.Slots[Slot].Navigation->Layers)
+			{
+				if (Layer.LocalSupportLayerId == Requests[Index].GoalSurface.LocalLayerId)
+				{
+					LNPNavGraph::CollectNodesNear(Snapshot.Nav, Slot, Layer.LocalNavLayerId, GoalPoint, 6000.0, Nearby);
+					Candidates.Append(Nearby.FilterByPredicate([](const FLNPNavGraphCandidate& Candidate) { return Candidate.Distance > 1000.0; }));
+				}
+			}
+			for (int32 Pod = 0; Pod < OverlayPodsPerGoal && !Candidates.IsEmpty(); ++Pod)
+			{
+				const int32 Pick = Random.RandRange(0, Candidates.Num() - 1);
+				OverlayPods.Add({OverlayPods.Num() + 1, Snapshot.Nav.Graph.GetWorldPoint(Slot, Candidates[Pick].Node), Requests[Index].GoalSurface});
+				Candidates.RemoveAtSwap(Pick);
+			}
+		}
+		FLNPNavOverlay Probe;
+		TestTrue(TEXT("Overlay toggle Pods publish an overlay"), LNPNavOverlay::BuildPodOverlay(Snapshot, OverlayPods, nullptr, Probe));
+		for (const int32 Goal : GoalNodes)
+		{
+			TestFalse(TEXT("Overlay toggle Pods leave the Chase goals open"), Probe.IsBlocked(Goal));
+		}
+		AddInfo(FString::Printf(TEXT("Overlay toggle: goals=%d pods=%d blockedNodes=%d tiles=%d toggleTick=%d"), GoalNodes.Num(), OverlayPods.Num(),
+			Probe.BlockedNodes.CountSetBits(), Probe.TileRevisions.Num(), OverlayToggleTick));
+	}
+	FString OverlayOutput = TEXT("variant,toggles,changedTiles,maxBlockedNodes,requeued,staleRestarts,replans,fieldsLive,fieldsRebuilt,fieldSettledDiscarded,fieldRebuildSettled,dirtyClusters,dirtyAbstract,updateSettled,updateMs,maxUpdateMs,goalLinksDropped,queriesRestarted,restartUnits,toggleMs\n");
 	auto FollowWalk = [&Snapshot, &Requests, &Endpoints](const int32 Index, const FLNPNavPathResult& Result)
 	{
 		const TArray<FLNPNavPathWaypoint>& Waypoints = Result.Path->Waypoints;
@@ -2875,7 +3105,9 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		Scheduler.Settings.CacheJoinMaxLeadRatio = Config.LeadRatio;
 		TUniquePtr<FFlowFieldReplay> FieldReplay;
 		TUniquePtr<FHierarchyReplay> HierarchyReplay;
-		const FLNPNavHierarchy* Hierarchy = nullptr;
+		FLNPNavHierarchy* Hierarchy = nullptr;
+		// overlay 토글은 계층 행렬을 고치므로 변형끼리 공유하는 계층의 사본을 쓴다.
+		TUniquePtr<FLNPNavHierarchy> OverlayHierarchy;
 		if (Config.HierarchySpan > 0)
 		{
 			TUniquePtr<FLNPNavHierarchy>& Built = Hierarchies.FindOrAdd(Config.HierarchySpan);
@@ -2891,6 +3123,11 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				}
 			}
 			Hierarchy = Built.Get();
+			if (Config.bOverlayToggle)
+			{
+				OverlayHierarchy = MakeUnique<FLNPNavHierarchy>(*Built);
+				Hierarchy = OverlayHierarchy.Get();
+			}
 			FLNPNavHierarchyQueryParams QueryParams;
 			QueryParams.HighLevelExpansionCost = ReplayHighLevelExpansionCost;
 			QueryParams.CorridorRing = Config.HierarchyRing;
@@ -2909,7 +3146,13 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		// flow field·계층형은 Chase를 다르게 푼다. Chase가 없는 입력에서만 같은 cache 설정의 A* 변형(improved 또는 base)과 같아야 한다.
 		const bool bAlternative = Config.FieldCost > 0.0 || Config.HierarchySpan > 0;
 		const int32 CompareTo = Config.CompareTo != INDEX_NONE ? Config.CompareTo
+			: Config.bOverlayToggle && !bHasBurst ? Config.OverlayTwin
 			: bAlternative && !bHasChase && Config.Cache > 0 ? ImprovedVariant : INDEX_NONE;
+		// overlay 토글 상태. overlay는 변형 안에서 이어지고(revision 누적), 드라이버는 현재 overlay를 가리킨다.
+		TUniquePtr<FLNPNavOverlay> CurrentOverlay;
+		bool bPodsOn = false;
+		FOverlayToggleTotals OverlayTotals;
+		double ToggleMs = 0.0;
 		const TCHAR* const Label = Config.Label;
 		TArray<double> TickUs, StartUs, StepUs, FinishUs, QueueSamples;
 		double TotalStart = 0, TotalStep = 0, TotalFinish = 0, TotalTick = 0;
@@ -2946,8 +3189,49 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			TArray<int32> DoneTicks;
 			DoneTicks.Init(0, End - First);
 			int32 Tick = 0;
-			while (HasWork() && Tick < 10000)
+			// 토글: Pod 묶음을 켜고(끄고) 바뀐 Tile을 모은 뒤 세 방식에 넘긴다. 완료 경로 재계획은 scheduler·드라이버가 다시 낸다.
+			bool bTogglePending = Config.bOverlayToggle && End - First >= BurstSize && !OverlayPods.IsEmpty();
+			auto ApplyToggle = [&]()
 			{
+				const double ToggleBegin = FPlatformTime::Seconds();
+				bPodsOn = !bPodsOn;
+				TUniquePtr<FLNPNavOverlay> Next = MakeUnique<FLNPNavOverlay>();
+				LNPNavOverlay::BuildPodOverlay(Snapshot, bPodsOn ? TConstArrayView<FLNPNavPodBlocker>(OverlayPods) : TConstArrayView<FLNPNavPodBlocker>(),
+					CurrentOverlay.Get(), *Next);
+				TSet<uint32> ChangedTiles;
+				for (const TPair<uint32, uint32>& Pair : Next->TileRevisions)
+				{
+					if (LNPNavOverlay::GetTileRevision(CurrentOverlay.Get(), Pair.Key) != Pair.Value)
+					{
+						ChangedTiles.Add(Pair.Key);
+					}
+				}
+				++OverlayTotals.Toggles;
+				OverlayTotals.ChangedTiles += ChangedTiles.Num();
+				OverlayTotals.MaxBlockedNodes = FMath::Max(OverlayTotals.MaxBlockedNodes, Next->BlockedNodes.CountSetBits());
+				OverlayTotals.Requeued += Scheduler.RequeueInvalidatedPaths(Snapshot.Nav, Next.Get());
+				if (FieldReplay)
+				{
+					FieldReplay->ApplyOverlay(*Next, ChangedTiles, First, End, OverlayTotals);
+				}
+				else if (HierarchyReplay)
+				{
+					HierarchyReplay->ApplyOverlay(*Next, ChangedTiles, First, End, OverlayTotals);
+				}
+				CurrentOverlay = MoveTemp(Next);
+				ToggleMs += (FPlatformTime::Seconds() - ToggleBegin) * 1000.0;
+			};
+			while ((HasWork() || bTogglePending) && Tick < 10000)
+			{
+				if (bTogglePending && (Tick >= OverlayToggleTick || !HasWork()))
+				{
+					bTogglePending = false;
+					ApplyToggle();
+					if (!HasWork())
+					{
+						break;
+					}
+				}
 				FFlowFieldReplay::FTickStats TickStats;
 				const double Begin = FPlatformTime::Seconds();
 				if (FieldReplay)
@@ -2960,7 +3244,7 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				}
 				else
 				{
-					Scheduler.Tick(Snapshot.Nav, nullptr, [](FMassEntityHandle) { return true; });
+					Scheduler.Tick(Snapshot.Nav, CurrentOverlay.Get(), [](FMassEntityHandle) { return true; });
 				}
 				const double Elapsed = (FPlatformTime::Seconds() - Begin) * 1.e6;
 				if (!FieldReplay && !HierarchyReplay)
@@ -2985,6 +3269,30 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 					Elapsed, TickStats.StartUs, TickStats.StepUs, TickStats.FinishUs, TickStats.WorkerUs);
 				for (int32 Index = First; Index < End; ++Index)
 				{
+					if (Config.bOverlayToggle)
+					{
+						// 토글 변형의 doneTick은 재계획까지 끝난 마지막 완료 tick이다. overlay 변경으로 Stale이 된 실행 중 A*는 다시 제출한다.
+						FLNPNavPathResult Pending;
+						int32 Source = 0;
+						const ELNPNavPathStatus Status = GetResult(Index, Pending, Source);
+						if (Status == ELNPNavPathStatus::Stale)
+						{
+							++OverlayTotals.StaleRestarts;
+							if (FieldReplay) { FieldReplay->ResubmitStale(Index); }
+							else if (HierarchyReplay) { HierarchyReplay->ResubmitStale(Index); }
+							else { Serials[Index - First] = Scheduler.Submit(Requests[Index]); }
+							DoneTicks[Index - First] = 0;
+						}
+						else if (Status == ELNPNavPathStatus::Queued || Status == ELNPNavPathStatus::Running)
+						{
+							DoneTicks[Index - First] = 0;
+						}
+						else if (DoneTicks[Index - First] == 0)
+						{
+							DoneTicks[Index - First] = Tick;
+						}
+						continue;
+					}
 					if (DoneTicks[Index - First] == 0)
 					{
 						FLNPNavPathResult Pending;
@@ -3048,6 +3356,19 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				Totals.FallbackOutside, Totals.FallbackEndpoint, Totals.Resolves, Totals.AnswerNodes, Totals.PeakBytes / (1024.0 * 1024.0),
 				Totals.PeakBlocks, Scheduler.GetScratchBytes() / (1024.0 * 1024.0)));
 		}
+		if (Config.bOverlayToggle)
+		{
+			OverlayTotals.FieldRebuildSettled = FieldReplay ? FieldReplay->Totals.RebuildSettled : 0;
+			const FOverlayToggleTotals& O = OverlayTotals;
+			OverlayOutput += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%d,%d,%lld,%lld,%d,%d,%lld,%.3f,%.3f,%d,%d,%lld,%.3f\n"), Label, O.Toggles,
+				O.ChangedTiles, O.MaxBlockedNodes, O.Requeued, O.StaleRestarts, O.Replans, O.FieldsLive, O.FieldsRebuilt, O.FieldSettledDiscarded,
+				O.FieldRebuildSettled, O.DirtyClusters, O.DirtyAbstract, O.UpdateSettled, O.UpdateMs, O.MaxUpdateMs, O.GoalLinksDropped,
+				O.QueriesRestarted, O.RestartUnits, ToggleMs);
+			AddInfo(FString::Printf(TEXT("Replay %s overlay: toggles=%d changedTiles=%d maxBlocked=%d requeued=%d staleRestarts=%d replans=%d fields live/rebuilt=%d/%d discarded=%lld rebuildSettled=%lld dirtyClusters=%d dirtyAbstract=%d updateSettled=%lld updateMs=%.2f (max %.2f) goalLinksDropped=%d queriesRestarted=%d restartUnits=%lld toggleMs=%.2f"),
+				Label, O.Toggles, O.ChangedTiles, O.MaxBlockedNodes, O.Requeued, O.StaleRestarts, O.Replans, O.FieldsLive, O.FieldsRebuilt,
+				O.FieldSettledDiscarded, O.FieldRebuildSettled, O.DirtyClusters, O.DirtyAbstract, O.UpdateSettled, O.UpdateMs, O.MaxUpdateMs,
+				O.GoalLinksDropped, O.QueriesRestarted, O.RestartUnits, ToggleMs));
+		}
 		if (HierarchyReplay)
 		{
 			const FHierarchyReplay::FTotals& Totals = HierarchyReplay->Totals;
@@ -3077,6 +3398,8 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_FlowFields.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
 	TestTrue(TEXT("Replay hierarchy summary saved"), FFileHelper::SaveStringToFile(HierarchyOutput,
 		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_Hierarchy.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
+	TestTrue(TEXT("Replay overlay toggle summary saved"), FFileHelper::SaveStringToFile(OverlayOutput,
+		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_Overlay.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
 	return !HasAnyErrors();
 }
 

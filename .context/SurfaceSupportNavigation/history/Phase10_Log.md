@@ -442,3 +442,74 @@ S1의 355건은 모두 Background라 계층형이 쓰이지 않는다. 모든 �
 - 재생 S1~S3 `Result={Success}`, 모든 변형의 결정론 대조 불일치 0, 예산 차감 상한 통과. 원본은 `Saved/Profiling/Phase10/Unit4/Replay/*`, 로그는 `Saved/Logs/Phase10_Unit4_Replay_*.log`다.
 - 첫 재생(corridor 정제만, cache 없음)은 S2 tick 합 469ms였다. segment 정제·cache 변형은 그 결과를 보고 같은 단위 안에서 더했다.
 - runtime(processor·scheduler)은 바꾸지 않았으므로 패키지 Gate는 돌리지 않았다.
+
+## 2026-10-13 — 단위 5(비교와 채택 판정)
+
+### 변경(runtime 동작 없음, 재생기·비교 스크립트만)
+
+- `Nav.RequestCostReplay` overlay 토글 변형 3개: `improvedOverlay`·`flowfieldOverlay`·`hierarchyOverlay`. 각각 `improved`·`flowfield`·`hierarchy`와 설정이 같고, burst(묶음 ≥400)마다 제출 뒤 2 tick이 지나면 합성 Pod 묶음을 켜고 끈다(burst 6개 = 켜기 3·끄기 3). overlay는 변형 안에서 이어지며 이전 overlay를 넘겨 revision을 누적한다.
+  - **합성 Pod.** 캡처 창에는 overlay 변경이 없어서(단위 1) 위치를 합성한다. Chase 목표 node마다 같은 Support Layer의 반경 60m 안 walkable node 중 목표에서 10m 넘게 떨어진 것을 seed 20261013으로 2개 고른다. S2는 목표 node 5개·Pod 10개, S3는 4개·8개다. Pod 반경(128cm + agent 반경)은 Nav 격자 200cm보다 작아 Pod마다 node 1개를 막고, 한 번에 바뀌는 Tile은 7~8개다. Pod는 목표를 막지 않는다(재생이 검사).
+  - **A\*.** scheduler `Tick`에 overlay를 넘기고, 토글 때 `RequeueInvalidatedPaths`로 통과 Tile이 바뀐 완료 경로를 같은 serial로 재계획한다. revision이 바뀌어 Stale로 끝난 실행 중 탐색은 재생 루프가 다시 제출한다(production에서는 경로 processor가 다시 요청).
+  - **flow field.** 바뀐 Tile key가 `BlockByTile`에 있는 field만 새 overlay로 처음부터 다시 짓고, 나머지는 revision만 올린다. 블록은 확정 node와 그 이웃(막힌 이웃 포함)의 Tile에 생기므로, 블록이 없는 field는 차단·해제 어느 쪽에도 값이 바뀌지 않는다. 통과 Tile이 바뀐 field 응답은 다시 스냅해 재계획한다.
+  - **계층형.** `UpdateOverlay`가 바뀐 Tile의 Cluster만 다시 계산한다(한 번에 수행, 시간 별도 보고). 그 Cluster의 목표 link를 버리고, 실행 중 query는 시작 때 revision에 묶여 있어 새 link로 다시 시작한다. 통과 Tile이 바뀐 응답(cache hit 포함)은 재계획한다. cache 조회는 scheduler처럼 경로 revision을 대조한다. 계층은 변형끼리 공유하므로 토글 변형은 사본을 쓴다.
+  - 토글 변형의 `doneTick`은 재계획까지 끝난 마지막 완료 tick이다. 요약은 `<출력>_Overlay.csv`이고, `ComparePhase10Replay.py`가 재계산 범위와 같은 실행의 짝 대비 변화를 표로 낸다. burst가 없는 S1에서는 토글이 없으므로 짝과 요청별로 같아야 한다(불일치 0).
+- `BuildFieldPath`(재생기 경로 조립)가 overlay를 받아 통과 Tile revision을 기록한다. 토글이 없는 변형은 전과 같다(세 실행 모두 확장·burst·비율이 단위 4와 일치).
+
+### 기준 1~4 비교와 흔들림(Unit1 캡처 3종, 같은 명령 3회 실행)
+
+실행 R1은 단위 4 재생(`Saved/Profiling/Phase10/Unit4/Replay`), R2는 같은 바이너리 재실행(`Unit5/Repeat2`), R3은 단위 5 바이너리(`Unit5/Replay`)다. 확장 합·burst 완료 tick·보행 비율은 결정론이라 세 실행이 같고, 흔들리는 것은 시간(tick 합·tick P95)뿐이다. 비율은 같은 실행의 improved 대비다.
+
+| 지표 | improved S2 / S3 | flowfield S2 / S3 | hierarchy S2 / S3 |
+|:---|:---|:---|:---|
+| tick 합(ms) R1·R2·R3 | 229.5·214.6·231.9 / 816.3·825.4·812.6 | 144.6·140.2·142.3 / 488.6·473.0·487.2 | 188.7·187.0·193.3 / 593.6·560.5·601.9 |
+| tick 합 improved 대비 | — | −37·−35·−39% / −40·−43·−40% | −18·−13·−17% / −27·−32·−26% |
+| tick P95(us) R1·R2·R3 | 285·255·277 / 999·1,002·997 | 74·71·76 / 957·939·960 | 179·175·186 / 947·915·935 |
+| 확장 합(+ field 확정·link 확정) | 582,172 / 2,617,091 | 217,816(−63%) / 962,761(−63%) | 439,069(−25%) / 1,601,151(−39%) |
+| burst 완료 tick P50/P95/최대 | 4/8/14 / 10/43/93 | 5/9/13 / 9/23/65 | 4/8/11 / 9/33/51 |
+| 보행 길이 비율 P95 | 1.013 / 1.024 | 1.000 / 1.000 | 1.100 / 1.091 |
+| 추가 메모리 | — | field 최대 0.39MiB | 7.47MiB(계층 4.47 + 고수준 scratch 3.00) |
+
+- 시간 흔들림은 tick 합 ±4%(S2 improved 214.6~231.9ms), improved 대비 비율로 ±3%p 안이다. 판정이 흔들림에 걸리는 곳은 계층형 S3 기준 1 하나다(−26~−32%, 세 실행 중 하나만 −30%를 넘음). S2는 세 실행 모두 −13~−18%다.
+- corridor 정제(`hierarchyCorridor`)는 R1·R2·R3에서 tick 합 S2 +13·+18·+9%, S3 +9·+8·+14%이고 burst P95 S2 10·S3 61로 기준선보다 늦다(보행 비율 1.015·1.027).
+
+### 기준 5(overlay 토글 재생)
+
+| 입력 / 변형 | 바뀐 Tile(토글 6회 합) | 재계산 범위 | 재계산 비용 | 짝 대비 tick 합 / 확장 합 | burst P95 짝 → 토글 |
+|:---|---:|:---|:---|:---|:---|
+| S2 improvedOverlay | 48 | 통과 Tile이 바뀐 완료 경로 846 + 실행 중 Stale 23 재계획 | 재계획 A*(Replan 대기열) | +8.8% / +10.5% | 8 → 15 |
+| S2 flowfieldOverlay | 48 | **살아 있는 field 24개 모두 재빌드**, field 응답 재계획 539 | 재빌드 확정 95,361(토글당 약 1.6만, field당 약 4천) | +11.3% / +21.7% | 9 → 11 |
+| S2 hierarchyOverlay | 48 | dirty Cluster 48(= 바뀐 Tile), 목표 link 폐기 6, query 재시작 18, 응답 재계획 878 | 재계산 확정 124,815(토글당 약 2.1만, 빌드 1,053만의 0.2%), `UpdateOverlay` 합 25.8ms·토글당 최대 4.36ms | +13.7% / +12.3% | 8 → 12 |
+| S3 improvedOverlay | 42 | 완료 경로 578 + Stale 17 재계획 | 재계획 A* | +3.7% / +7.2% | 43 → 55 |
+| S3 flowfieldOverlay | 42 | **field 24개 모두 재빌드**, 응답 재계획 443 | 재빌드 확정 95,817 | +9.5% / +23.7% | 23 → 27 |
+| S3 hierarchyOverlay | 42 | dirty Cluster 42, 목표 link 폐기 6, query 재시작 17, 응답 재계획 553 | 재계산 확정 112,119, `UpdateOverlay` 합 25.3ms·최대 5.03ms | +0.1% / +7.4% | 33 → 39 |
+
+- **A\*는 공유 구조가 없어** 재계산이 통과 Tile이 바뀐 경로로만 한정된다. 대신 Pod가 목표 근처라 경로 다수가 지나며, 재계획이 Replan 대기열 뒤로 가서 burst 꼬리가 가장 크게 늘었다(S2 8→15).
+- **flow field는 field 단위로만 국소적이다.** 영향 판정(바뀐 Tile ∈ `BlockByTile`)은 정확하지만, Pod가 목표 60m 안이고 field 반경이 120m라 매 토글에 살아 있는 field가 모두 영향을 받았다. 재빌드는 field 전체를 처음부터 다시 편다. 단위 3 설계 메모의 하위 트리·증분 갱신은 구현하지 않았다.
+- **계층형은 바뀐 Tile의 Cluster만 다시 계산한다**(dirty = 바뀐 Tile 수, 다른 Cluster 불변). 다만 `UpdateOverlay`가 한 번에 돌아 토글당 4.4~5.0ms다(경로 tick Gate 1.5ms 초과). 통합하려면 프레임 분할이 필요하다. Portal 대표 node가 막히면 그 Portal이 닫혀 S2 보행 비율 최대가 1.43→3.22로 늘었다(P95는 1.10→1.09).
+- 토글이 있을 때 improved 대비 burst P95는 flowfield S2 15→11·S3 55→27(−51%), hierarchy S2 15→12·S3 55→39다. 기준 2는 토글 없는 재생으로 판정하므로 참고 수치다.
+- overlay 생성(`BuildPodOverlay`, 전역 node 순회)은 세 방식 공통 비용이며 토글당 약 2.4ms다(토글 변형 `toggleMs`에 포함, 방식 비교에서는 뺀다).
+- 원본: `Saved/Profiling/Phase10/Unit5/Replay/*`(`_Overlay.csv` 포함), 비교표 `Saved/Profiling/Phase10/Unit5/Compare.md`, 흔들림 실행 `Unit5/Repeat2`·`Compare_Repeat2.md`, 로그 `Saved/Logs/Phase10_Unit5_{Replay,Repeat2}_*.log`.
+
+### 채택 판정(2026-10-13 사용자 결정: 미채택)
+
+| 기준 | improved(기준선) | flowfield | hierarchy |
+|:---|:---|:---|:---|
+| 1. 경로 CPU 총합 −30%, tick P95 악화 없음 | — | **충족**(S2 −35~−39%, S3 −40~−43%) | **미충족**(S2 −13~−18%, S3 −26~−32%) |
+| 2. burst 완료 tick P95 −50% | — | **미충족**(S2 8→9, S3 43→23 = −47%) | **미충족**(S2 8→8, S3 43→33 = −23%) |
+| 3. 경로 cost 비율 P95 ≤ 1.05 | 충족(1.013/1.024) | **충족**(1.000) | **미충족**(1.100/1.091, corridor는 1.015/1.027이나 CPU +8~18%) |
+| 4. 추가 메모리 ≤ 8MiB | 충족(0) | **충족**(0.39MiB) | **충족**(7.47MiB, 여유 작음) |
+| 5. overlay 변경 시 국소 재계산 | 충족(경로 단위) | **미충족**(영향 field를 통째로 재빌드, 토글마다 살아 있는 field 전부) | **충족**(dirty = 바뀐 Tile, 단 한 번에 4.4~5.0ms) |
+
+- **두 방식 모두 미채택이다.** Phase 10은 비교 자료와 단위 2 개선(D-079 improved)으로 끝나며 단위 6은 없다. 지상 NPC 경로는 improved A*(현재 runtime 기본값)로 확정한다(D-080).
+- 근거: 기준 5개를 모두 통과한 방식이 없다. production에서 경로 비용은 병목이 아니다(V011 경로 tick P95 0.014~0.021ms, 큐 대기 P95 6.4ms). flowfield 통합에는 증분 갱신과 S2 요청당 고정비 해결이 더 필요하다.
+- 사용자 확인 중 나온 재검토 조건(측정하지 않음). 길찾기 최적화가 필요해지면 flowfield를 첫 후보로 아래부터 잰다.
+  - **먼 추격자가 없는 경우.** 반경 밖 폴백은 사라지지만, 반경은 경로 cost라 우회가 큰 적은 남는다. 도달 불가 폴백(S2 309·S3 781)과 요청당 고정비(스냅·경로 조립)도 남는다. field 응답만의 burst P95는 S2 8(improved 8과 같음)·S3 16(−63%)이다.
+  - **움직이는 목표.** 재생 입력은 고정 목표 4점이라 실제 추격의 목표 이동 비용과 목표 양자화를 평가하지 못했다. 목표 전환마다 A*는 추격자 전원이 재탐색하지만 flowfield는 목표당 field 하나(반경 12,000 기준 5천~2만 확정, 4~6 tick)만 다시 짓는다.
+- 남겨 두는 것: `LNPNavFlowField`·`LNPNavHierarchy` 프로토타입, `Nav.FlowField`·`Nav.Hierarchy` 자동화, `Nav.RequestCostReplay` 변형(overlay 토글 포함), `ComparePhase10Replay.py`. 모두 processor에 연결되지 않는다.
+- 재검토 때 재생 명령(케이스당 약 1분, 입력은 `Saved/Profiling/Phase10/Unit1/{Production,N700Chase,N2000Chase}_Repeat1_NavRequests.csv`와 옆의 `_Meta.txt`): `UnrealEditor-Cmd.exe LootNPop.uproject -unattended -nullrhi -nosound -corelimit=4 -ExecCmds="Automation RunTests LootNPop.SurfaceNavigation.Nav.RequestCostReplay" -TestExit="Automation Test Queue Empty" -LNPNavReplayCsv=<입력 CSV> -LNPNavReplayOutput=<폴더>/<케이스>_RequestCosts.csv`, 비교표는 `python Scripts/Profiling/ComparePhase10Replay.py <폴더>`. 캡처가 다시 필요하면 `RunPhase13Gate.ps1 -Cases @('N700Chase','N2000Chase') -Repeats 1 -IslandSlot 5 -PackageDirectory Saved/SurfaceNavigationPhase10Package -OutputDirectory <폴더>`.
+
+### 검증
+
+- `LootNPopEditor` 빌드 성공. 전체 `LootNPop.SurfaceNavigation` 자동화 131/131 Success(`Saved/Logs/Phase10_Unit5_AllTests.log`). 테스트가 덮어쓴 에셋 세 개는 `Saved/Tests/Phase10_Unit5_TestAssetBackup`에 보관하고 git으로 되돌렸다(Content diff 없음).
+- 재생 S1~S3 `Result={Success}`(R2·R3), 모든 변형의 결정론 대조 불일치 0. S1의 토글 변형 세 개는 짝과 요청별로 같다.
+- runtime(processor·scheduler)은 바꾸지 않았으므로 패키지 Gate는 돌리지 않았다.

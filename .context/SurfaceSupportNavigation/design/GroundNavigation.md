@@ -128,6 +128,7 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 동일 요청 비용의 통제 비교는 `Nav.RequestCostReplay` 자동화를 쓴다. CSV의 같은 시각 요청 묶음을 모두 완료한 뒤 다음 묶음을 넣고 독립 owner를 사용한다. Pod overlay·원래 owner 취소·실제 프레임 경계·warm-up cache는 복원하지 않으므로 실제 부하 Gate는 별도로 검사한다. 실행법·예산 검토 근거는 `../history/Phase07_Log.md`의 2026-10-02 기록을 따른다.
   - 요청 결과 `_Requests.csv`의 `walk`는 경로 추종을 흉내 낸 보행 길이다. 합류 waypoint에서 시작해, 도착한 node에서 목표가 곧게 보이면 목표로, 아니면 곧게 보이는 가장 먼 연속 waypoint로 간다. 경로 cost 비율은 같은 행의 base(cache 없는 A*) 대비 walk 비다. 변형별 비교표는 `Scripts/Profiling/ComparePhase10Replay.py <재생 폴더>`가 만든다.
   - 마지막 열 `source`는 결과 출처다(0 scheduler, 1 flow field, 2 flow field·계층형 변형의 A* 폴백, 3 계층형 응답). flow field 변형은 `<출력>_FlowFields.csv`에 field 수·확정 합·폴백·최대 메모리를, 계층형 변형은 `<출력>_Hierarchy.csv`에 사전 계산·메모리·cache·link·고수준/저수준 확장·폴백을 따로 남긴다(Phase 10 단위 3·4).
+  - `*Overlay` 변형(`improvedOverlay`·`flowfieldOverlay`·`hierarchyOverlay`)만 Pod overlay를 쓴다. burst마다 제출 2 tick 뒤 Chase 목표 근처 합성 Pod 묶음을 켜고 끄며, 세 방식이 각자의 무효화로 반응한다(A* 재계획·Stale 재제출, 영향 field 재빌드, 계층 dirty Cluster 재계산). 이 변형의 `doneTick`은 재계획까지 끝난 tick이고, 재계산 범위는 `<출력>_Overlay.csv`에 남는다(Phase 10 단위 5).
 - 실제 요청 지연은 `BeginRequestCapture` 구간에 제출·재계획된 요청만 scheduler에서 기록한다. 별도 `NavRequests_*_Timings.csv`는 owner·serial·우선순위·최종 상태와 캡처 시작 기준 `FPlatformTime` 제출·시작·종료 시각(초)을 담는다. 시작·종료 전 시각은 -1이며, warm-up 요청은 제외하고 종료 시 남은 Queued·Running은 미완료로 보존한다. 큐 지연은 시작-제출, 실행 지연은 종료-시작, 전체 지연은 종료-제출이다. 취소와 미완료는 정상 완료 분포에서 분리하고 함께 보고한다. 캡처 외에는 시각 조회와 결과 배열 기록을 하지 않는다.
 - 같은 캡처는 큐 대기 원인 분석용 진단 파일 셋을 함께 남긴다(Phase 10 단위 1). 요청 CSV 스키마는 재생기가 엄격히 검사하므로 바꾸지 않는다.
   - `_Ticks.csv`: scheduler tick마다 시작 전 대기·실행 수, 시작 수(즉시 종료·cache hit 포함), 확장 수, 시작 비용 차감, 종료 수, 최대 실행 수, 끝난 뒤 대기·실행 수, 대기열이 남았을 때의 정지 사유(`1` 예산, `2` scratch)와 scratch에 막힌 순간의 잔여 예산. 시각 기준은 `_Timings.csv`와 같다.
@@ -154,6 +155,15 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 동적 변경 재계산 범위
 - cache hit rate
 
+### Phase 10 판정(D-080)
+
+flow field와 계층형 A* 모두 채택하지 않았다. 지상 NPC 경로는 D-079 개선 A*(위 "경로 공유"·"실행 위치")로 확정한다. 수치·판정표·재검토 조건은 `../history/Phase10_Log.md` 2026-10-13 단위 5가 소유한다.
+
+- flow field는 CPU(−35~−43%)·경로 품질(최적)·메모리(0.39MiB)는 기준을 넘었다. 그러나 몰림 꼬리(burst P95 S2 8→9·S3 −47%)가 −50%에 못 미쳤고, overlay가 바뀌면 영향 field를 통째로 다시 지었다.
+- 계층형은 국소 갱신(dirty = 바뀐 Tile)·메모리는 넘었다. 그러나 CPU(−13~−32%)·몰림 꼬리(S3 −23%)·경로 길이(비율 P95 1.09~1.10)가 미달이다.
+- production 경로 비용은 병목이 아니다. 이득은 전원 활성 합성 추격에서만 드러난다.
+- 두 프로토타입(아래 규약)과 재생기는 processor에 연결하지 않은 채 남긴다. 길찾기 최적화가 필요해지면 flow field를 첫 후보로, 먼 추격자 없는 조건과 움직이는 목표(목표 양자화 포함)에서 다시 잰다.
+
 ## 목표별 flow field
 
 - 목표는 플레이어와 Pod다. field key는 goal node, agent/cost profile, snapshot generation, connectivity version을 포함한다.
@@ -163,16 +173,16 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 추격자는 자기 셀에서 거리가 줄어드는 이웃 방향만 읽으므로 개체당 비용이 상수다.
 - 배회, 재귀속, 목표가 드문 이동은 계속 일반 A*를 사용한다.
 
-### 프로토타입 규약(Phase 10 단위 3, 미채택)
+### 프로토타입 규약(Phase 10 단위 3, 미채택 D-080)
 
-`LNPNavFlowField`는 processor에 연결하지 않은 순수 함수이며 `Nav.RequestCostReplay`의 `flowfield` 변형과 `Nav.FlowField` 자동화만 쓴다. 채택 판정은 단위 5가 한다. 수치는 `../history/Phase10_Log.md` 2026-10-13 단위 3이 소유한다.
+`LNPNavFlowField`는 processor에 연결하지 않은 순수 함수이며 `Nav.RequestCostReplay`의 `flowfield*` 변형과 `Nav.FlowField` 자동화만 쓴다. 수치는 `../history/Phase10_Log.md` 2026-10-13 단위 3이 소유한다.
 
 - **역방향 전파 전제.** goal에서 정방향 이웃 목록(`ForEachNeighbor`)을 역방향 edge로 쓰며 편다. 비용은 개체가 걷는 방향(이웃 → 확정 node)으로 재므로, 전제는 모든 edge의 역방향 존재뿐이다. grid `EdgeMask`·seam link·D-060 막힌 edge·portal(베이커는 늘 `Bidirectional`)이 모두 양방향이며 `Nav.FlowField`가 회귀 fixture와 production 두 배치에서 검사한다. 단방향 portal이 생기면 역방향 link 표가 필요하다.
 - **예산 단위.** 확정(갱신) node 하나를 A* 확장 하나와 같은 단위로 센다(실측 0.40us vs 0.45us). 확정 순서는 (거리, node index)라 예산 분할과 무관하게 같은 field가 된다.
 - **저장.** overlay Tile key(`LNPNavGraph::GetTileKey`)별 블록에 cell마다 거리·목표 쪽 다음 node·확정 bit를 둔다(Tile당 2,080B). 전역 node 수 배열을 쓰지 않으며, 반경 12,000 field는 재생 목표에서 최대 0.39MiB다.
 - **반경.** 경로 cost 반경 밖 node는 확정하지 않는다. 반경 밖 시작과 시작·목표 직선 거리가 반경보다 큰 요청은 일반 A*로 폴백한다. 반경이 크면 폴백이 줄지만, 먼 대기자 때문에 field를 끝까지 지어야 해서 묶음 전체가 늦어진다(재생 기준 12,000이 균형점).
 - **조회.** 확정된 node에서 다음 node를 따라 goal까지 node 열을 만들고 `SimplifyPath`로 줄인다. 짓는 중에도 확정된 node는 최종값이라 바로 답한다. field 응답 경로는 최적 경로다.
-- **무효화.** snapshot generation·connectivity version·overlay revision이 짓기 시작 때와 다르면 Invalid다. 다 지은 field의 overlay 국소 갱신(차단 node의 다음 node 하위 트리만 다시 펴기, 해제 node에서 증분 전파)은 설계 메모만 있고 구현하지 않았다.
+- **무효화.** snapshot generation·connectivity version·overlay revision이 짓기 시작 때와 다르면 Invalid다. 다 지은 field의 overlay 국소 갱신(차단 node의 다음 node 하위 트리만 다시 펴기, 해제 node에서 증분 전파)은 설계 메모만 있고 구현하지 않았다. 재생 토글에서는 바뀐 Tile에 블록이 있는 field만 처음부터 다시 지었다. 블록은 확정 node와 그 이웃(막힌 이웃 포함)의 Tile에 생기므로 이 영향 판정은 정확하지만, 목표 근처 Pod는 살아 있는 field를 모두 건드렸다(단위 5).
 
 ## 계층형 탐색
 
@@ -186,9 +196,9 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 
 Cluster 크기와 Portal 압축 규칙은 1차 A* 프로파일을 보고 정한다.
 
-### 프로토타입 규약(Phase 10 단위 4, 미채택)
+### 프로토타입 규약(Phase 10 단위 4, 미채택 D-080)
 
-`LNPNavHierarchy`는 processor에 연결하지 않은 순수 함수이며 `Nav.RequestCostReplay`의 `hierarchy*` 변형과 `Nav.Hierarchy` 자동화만 쓴다. 채택 판정은 단위 5가 한다. 수치는 `../history/Phase10_Log.md` 2026-10-13 단위 4가 소유한다.
+`LNPNavHierarchy`는 processor에 연결하지 않은 순수 함수이며 `Nav.RequestCostReplay`의 `hierarchy*` 변형과 `Nav.Hierarchy` 자동화만 쓴다. 수치는 `../history/Phase10_Log.md` 2026-10-13 단위 4가 소유한다.
 
 - **Cluster = Tile.** slot·Layer별 16×16 Tile 하나가 Cluster이고 index는 runtime Layer 첫 Cluster + `TileId`다. key가 overlay Tile key와 같아서 overlay revision이 곧 dirty 표시다.
 - **Portal 압축.** Cluster 경계를 넘는 edge를 종류(grid·seam link·Layer portal)와 무관하게 Cluster 쌍별로 모은다. 양 끝이 각각 같거나 grid 이웃인 edge끼리 span으로 묶고, `MaxSpanLength`(기본 8, 낮은 Cluster 쪽 경계 node 수)마다 잘라 가운데 edge를 Portal로 둔다. Portal 양 끝 node가 abstract node다. 4는 계층만 8.09MiB라 기준 4를 넘고, 16은 결과가 같으면서 3.31MiB다.
@@ -199,7 +209,7 @@ Cluster 크기와 Portal 압축 규칙은 1차 A* 프로파일을 보고 정한�
   - segment(HPA*)는 Portal 사이 Cluster 안 A*만 해 확장이 크게 준다. 대신 Portal 대표 node를 반드시 지나서 보행 비율 P95가 1.09~1.10이다.
 - **cache 앞단.** 계층형은 A* 탐색 자체를 바꾸므로 production 형태는 scheduler cache(D-079) 뒤에 계층형 탐색을 두는 것이다. cache 없는 계층형은 improved보다 비싸다.
 - **예산 단위.** link 확정 + 고수준 확장 × 2 + 저수준 확장이다. 고수준 확장은 Cluster abstract node 수(평균 8.7)만큼 이웃을 보며, 실측 시간은 저수준 확장의 최대 약 1.4배다.
-- **동적 변경.** `UpdateOverlay`는 revision이 바뀐 Tile의 Cluster 행렬만 overlay 차단으로 다시 계산한다(Pod 하나 = dirty 1~3 Cluster, 확정 2.4k~6.9k). Portal 위치는 고정이라 Pod가 대표 node를 덮으면 그 Portal만 닫힌다. 재계산은 한 번에 끝나므로, 통합하려면 프레임 분할이나 재계산 중 Cluster의 저수준 폴백이 필요하다.
+- **동적 변경.** `UpdateOverlay`는 revision이 바뀐 Tile의 Cluster 행렬만 overlay 차단으로 다시 계산한다(Pod 하나 = dirty 1~3 Cluster, 확정 2.4k~6.9k). Portal 위치는 고정이라 Pod가 대표 node를 덮으면 그 Portal만 닫힌다. 재계산은 한 번에 끝나므로, 통합하려면 프레임 분할이나 재계산 중 Cluster의 저수준 폴백이 필요하다. 재생 토글(Pod 8~10개)에서 토글당 4.4~5.0ms였다(단위 5).
 
 ### 계층형 query
 
