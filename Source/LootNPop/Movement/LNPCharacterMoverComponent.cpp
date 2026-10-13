@@ -187,10 +187,16 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 		return;
 
 	// 물리 대시 방향: 이동 입력이 있으면 컨트롤 회전 기준 입력 방향, 없으면 후방 회피
+	// ⚠️ ControlRotation에는 카메라 피치가 들어 있어 중력 평면으로 투영해야 한다. 대시 무브는 수직 성분을
+	// 버리므로(아래 MixMode) 투영하지 않으면 수평 속도가 cos(피치)로 줄어 시선 각도에 따라 대시 거리가 달라진다.
 	const bool bHasMoveInput = !MoveInputIntent.IsNearlyZero();
-	const FVector DashDirection = bHasMoveInput
-		? ControlRotation.RotateVector(MoveInputIntent).GetSafeNormal()
-		: -Pawn->GetActorForwardVector();
+	FVector DashDirection = -Pawn->GetActorForwardVector();
+	if (bHasMoveInput)
+	{
+		const FVector Planar = FVector::VectorPlaneProject(ControlRotation.RotateVector(MoveInputIntent), GetUpDirection()).GetSafeNormal();
+		// 수직에 가깝게 내려다보며 전/후 입력을 넣으면 투영이 0이 된다 — 캐릭터 전방으로 대체한다.
+		DashDirection = Planar.IsNearlyZero() ? Pawn->GetActorForwardVector() : Planar;
+	}
 
 	// 몽타주 방향 태그: Strafe 모드(FreeAim 무기 또는 락온 중)는 캐릭터가 시선 방향을 유지하므로 4방향 몽타주가
 	// 필요하고, 일반 모드는 캐릭터가 이동 방향을 바라보므로 앞/뒤 2방향이면 된다. 태그는 ChooserTable 평가에 쓰인다.
@@ -227,7 +233,11 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 	TSharedPtr<FLayeredMove_LinearVelocity> DashMove = MakeShared<FLayeredMove_LinearVelocity>();
 	DashMove->Velocity = DashDirection * DashImpulseMagnitude;
 	DashMove->DurationMs = DashDurationMs;
-	DashMove->MixMode = EMoveMixMode::OverrideVelocity;
+	// 수평만 덮어쓰고 수직(점프 임펄스·중력)은 이동 모드에 맡긴다 — 대시 중 점프(대시 점프)가 성립하는 조건.
+	// OverrideVelocity는 수직까지 덮어써 점프 직후 위쪽 속도를 매 틱 지웠다. 엔진도 공중 모드에서 루트 모션 무브를
+	// 같은 모드로 전환한다(MovementModeStateMachine, Mover_SkipVerticalAnimRootMotion).
+	// ⚠️ 이 MixMode에서 FinishVelocityMode를 SetVelocity로 바꾸면 엔진 GatherResidualVelocitySettings가 check(0)에 걸린다.
+	DashMove->MixMode = EMoveMixMode::OverrideAllExceptVerticalVelocity;
 	DashMove->FinishVelocitySettings.FinishVelocityMode = ELayeredMoveFinishVelocityMode::MaintainLastRootMotionVelocity;
 	QueueLayeredMove(DashMove);
 

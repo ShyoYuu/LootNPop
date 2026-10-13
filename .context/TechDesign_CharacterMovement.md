@@ -301,11 +301,25 @@ CommonSettings->MaxSpeed = BaseSpeed × max(0.01, MoveSpeed)
 
 | 무브 | 역할 |
 |:---|:---|
-| `FLayeredMove_LinearVelocity` | 물리 이동. `OverrideVelocity`로 즉각 추진, 종료 시 `MaintainLastRootMotionVelocity`로 걷기 전환 |
+| `FLayeredMove_LinearVelocity` | 물리 이동. `OverrideAllExceptVerticalVelocity`로 수평만 즉각 추진, 종료 시 `MaintainLastRootMotionVelocity`로 걷기 전환 |
 | `FLayeredMove_AnimRootMotion` | 몽타주 동기화. 루트 모션 추출은 쓰지 않아 대시 거리·속도를 코드로 제어 |
 
 - `StartingMontagePosition`은 **0 고정**. 재생 중인 인스턴스에서 되읽으면 몽타주가 돌지 않는 서버·리시뮬레이션과 값이 갈린다.
 - 몽타주 평가(`EvaluateMontage`) 실패는 **물리 대시를 취소하지 않는다**. Chooser 결과가 머신마다 갈리면 그것만으로 시뮬레이션이 분기한다.
+
+**수직은 이동 모드에 맡긴다 — 대시 점프의 성립 조건 (2026-10-13).** 처음에는 `OverrideVelocity`였다. 이 모드는
+수직까지 덮어써 대시 중 점프하면 `FJumpImpulseEffect`의 상승 속도가 매 틱 지워졌고, 남은 대시 동안 수평으로 떠 가다
+곧바로 착지했다(점프가 "안 되는" 것처럼 보였다). `OverrideAllExceptVerticalVelocity`는 믹서가 이동 모드의 수직 성분
+(점프 임펄스·중력)을 남긴다(`UMovementMixer::MixProposedMoves`). 엔진도 공중 모드에서 루트 모션 무브를 같은 모드로
+바꾼다(`MovementModeStateMachine`, `Mover_SkipVerticalAnimRootMotion`).
+
+- **대시 방향은 중력 평면에 투영한다.** `ControlRotation`에는 카메라 피치가 들어 있어, 투영하지 않으면 버려지는
+  수직 성분만큼 수평 속도가 cos(피치)로 줄어 시선 각도에 따라 대시 거리가 달라진다. 투영이 0이면(수직 시선) 캐릭터 전방.
+- 점프 쪽은 손대지 않았다. 엔진 `CanActorJump()`가 `IsOnGround()`만 보고 대시는 지상 모드에서 진행된다. 대시가
+  `Super::OnMoverPreSimulationTick`(점프 처리)보다 먼저 실행되므로 **같은 프레임 동시 입력도** 대시 점프가 된다.
+- MixMode는 uint8로 직렬화돼 InputCmd·넷코드 변경이 없다.
+- ⚠️ 이 MixMode에서 `FinishVelocityMode`를 `SetVelocity`로 바꾸면 엔진 `GatherResidualVelocitySettings`가 `check(0)`에 걸린다.
+- 부수 효과: 절벽 끝 대시는 남은 대시 동안 수평으로 떠 가지 않고 중력을 받는다. 대시 중 넉백은 수직 성분이 남는다.
 
 ### 5.2 방향성 대시 — Chooser 연동
 
@@ -323,7 +337,8 @@ CommonSettings->MaxSpeed = BaseSpeed × max(0.01, MoveSpeed)
 
 ### 5.3 제한 조건
 
-- 공중 발동 불가 (`IsOnGround()`).
+- 공중 발동 불가 (`IsOnGround()`). **비대칭이다** — 대시 중 점프는 허용(§5.1, 후방 회피 대시 포함), 점프 중 대시는 금지.
+  공중 대시를 열면 그래플과 역할이 겹치고 레벨의 도달 거리 설계가 무너진다.
 - 쿨다운 중 불가 — `FLNPDashCooldownModifier` 존재로 판정 (§5.4).
 - ADS 중 불가 — 단 이미 나간 대시는 중단하지 않는다 (§2.6).
 
@@ -407,7 +422,12 @@ Ground 모드에서 넉백을 주면 매 틱 클램프 + 지면 스냅으로 "�
 
 - **`CanGuard()` 상시 true:** 이동 쪽 가드 조건은 없다. 가드 브레이크(경직)는 입력 쪽 `Client_ForceReleaseGuard` → `ReleaseGuardState()`로 푼다([TechDesign_Poise.md](TechDesign_Poise.md)).
 - **넉백 미예측:** 정합성은 맞지만 피격자 화면에서 RTT만큼 늦다(§6). 예측하려면 SyncState 트리거로 옮겨야 한다.
-- **공중 대시 미지원:** 의도된 제한.
+- **공중 대시 미지원:** 의도된 제한. 대시 점프는 지원한다(§5.1).
+- **대시 점프 도달 거리 미실측:** 평지 근사 추정은 약 13~15m(질주 점프 약 8.4m). 그래플·런처 전용으로 의도한
+  8~15m 틈이 넘어갈 수 있어 레벨 점검이 필요하다. 별도 수치로 조절하려면 점프 순간 대시 무브를 취소하고 수평 속도를
+  따로 정하는 방식(태그 무브 + `CancelFeaturesWithTag`)이 필요하다.
+- **대시 몽타주의 공중 잔류:** 대시 점프 시 FullBody 몽타주가 공중에서 최대 0.2초 남는다. 어색하면 공중 진입 시
+  블렌드 아웃(로컬, `bIsResimulating` 게이팅).
 - **대시 몽타주 표시:** `AM_MM_Dash_*` 4종은 Chooser에 배선돼 있고 슬롯도 맞췄다(`ABP_Lyra`에 `FullBody` 슬롯 추가,
   2026-09-16 — 그 전에는 슬롯이 없어 대시 포즈가 아예 보이지 않았다). 이동 자체는 슬롯과 무관하다(LayeredMove).
 
