@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: 10 대규모 추격 경로 비교 — 진행 중(단위 0·1·2 완료, 다음 단위 3 flow field). 직전 Phase 9·14b 완료(2026-10-12)
+> 현재 Phase: 10 대규모 추격 경로 비교 — 진행 중(단위 0·1·2·3 완료, 다음 단위 4 계층형 A*). 직전 Phase 9·14b 완료(2026-10-12)
 > 마지막 갱신: 2026-10-13
 
 ## 현재 결정
@@ -38,19 +38,29 @@
 
 ## 바로 다음 행동
 
-- **단위 0·1·2 완료**(2026-10-13). 수치·판정은 `history/Phase10_Log.md` 2026-10-13이 소유한다.
-  - 큐 대기 몰림은 5초 목표 전환이고 원인은 예산 처리량 한계다. 남은 묶음 비용의 주성분은 같은 목표의 반복 탐색(H5)이다.
-  - 단위 2로 A* 기준선이 바뀌었다(D-079). cache는 앞쪽 4 waypoint에 합류하되 합류 거리 a ≤ 0.1 × 이후 경로 길이 s일 때만 공유하고, Chase는 같은 tick 안에서 가까운 순서다. 몰림 시 예산 적응은 하지 않는다.
-  - 기존 cache는 경로 cost 비율 P95가 1.17~1.65로 채택 기준 3을 이미 넘고 있었다. 가드 뒤 1.000~1.024다.
-- **단위 3(목표별 flow field 프로토타입)**: 실행 문서 단위 3 절을 따른다. `LNPNavFlowField.{h,cpp}`는 순수 함수이며 processor에 연결하지 않는다.
-  1. 먼저 portal·seam link의 역방향 대칭성을 검증한다(goal에서 역으로 거리장을 펴므로 edge 비용이 양방향 같아야 한다).
-  2. goal node 반경 한정 Dijkstra를 여러 프레임에 나눠 짓는다. 조회는 거리 내리막 node 열 → `SimplifyPath`. 반경 밖은 A* 폴백이며 그 비용도 센다.
-  3. `Nav.RequestCostReplay`에 `flowfield` 변형을 추가해 **improved**와 같은 입력에서 비교한다. 확장 수 대신 Dijkstra 갱신 node 수를 같은 예산 단위로 차감하고, field 메모리를 따로 보고한다. 요청 결과는 기존 `_Requests.csv` 열(`walk` 포함)을 그대로 채워 `ComparePhase10Replay.py`가 같은 표를 내게 한다.
+- **단위 0·1·2·3 완료**(2026-10-13). 수치·판정은 `history/Phase10_Log.md` 2026-10-13이 소유한다.
+  - 큐 대기 몰림은 5초 목표 전환이고 원인은 예산 처리량 한계다(단위 1). A* 기준선은 D-079 `improved`다(단위 2).
+  - 단위 3 flow field(`LNPNavFlowField`, 반경 12,000, burst마다 field 버림): improved 대비 tick 합 S2·S3 −38%, burst 완료 tick P95 S2 8→9·S3 43→23(−47%), 보행 비율 P95 1.000, field 최대 0.39MiB. 기준 2만 미충족이다. burst 꼬리는 반경 밖 A* 폴백이고, S2는 요청당 고정비(스냅 + 응답 경로 조립)가 improved보다 크다.
+  - Nav edge는 역방향 대칭이다(역방향 없음·비용 불일치 0). 목표에서 역으로 펴는 탐색은 정방향 이웃 목록을 그대로 쓸 수 있다.
+- **단위 4(계층형 A* 프로토타입)**: 실행 문서 단위 4 절을 따른다. `LNPNavHierarchy.{h,cpp}`는 순수 함수이며 processor에 연결하지 않는다.
+  1. Cluster = Layer별 16×16 Tile(기존 `TileId`). 경계 span을 Portal로 압축하고, Cluster 내부 Portal 간 비용을 사전 계산한다. seam link·Layer portal은 고수준 edge다.
+  2. query는 고수준 A* → corridor 안 저수준 A*다. 고수준 탐색·corridor 탐색 모두 확장 수를 같은 예산 단위로 센다. 사전 계산 비용·메모리는 따로 보고한다(기준 4: 추가 ≤ 8MiB).
+  3. Pod overlay가 바뀌면 해당 Cluster만 dirty로 다시 계산한다(기준 5). 단위 5 overlay 토글 재생을 위해 dirty Cluster 수·재계산 비용을 셀 수 있게 둔다.
+  4. `Nav.RequestCostReplay`에 `hierarchy` 변형을 추가한다. 단위 3의 `FFlowFieldReplay`처럼 테스트 코드 드라이버로 붙이고, 요청 결과는 같은 `_Requests.csv` 열(`walk`, `source` 포함)을 채운다. 결정론 직렬 대조 변형도 둔다.
   - 입력: `Saved/Profiling/Phase10/Unit1/{Production,N700Chase,N2000Chase}_Repeat1_NavRequests.csv`(옆에 `_Meta.txt` 필수). 단위 2 캡처(`Unit2/Capture`)가 아니라 이 입력을 계속 쓴다.
-  - 재생: `UnrealEditor-Cmd.exe LootNPop.uproject -unattended -nullrhi -nosound -corelimit=4 -ExecCmds="Automation RunTests LootNPop.SurfaceNavigation.Nav.RequestCostReplay" -TestExit="Automation Test Queue Empty" -LNPNavReplayCsv=<입력 CSV> -LNPNavReplayOutput=<폴더>\<케이스>_RequestCosts.csv`. 케이스당 약 25~35초.
-  - 비교표: `python Scripts/Profiling/ComparePhase10Replay.py <재생 폴더>`. burst = 묶음 ≥400 요청의 doneTick, 비율 = 같은 행 base 대비 `walk`(경로 추종 모사 보행 길이).
-  - improved 기준값: burst 완료 tick P50/P95/최대 S2 4/8/14·S3 10/43/93, 확장 합 S1 9,746·S2 582,172·S3 2,617,091, 보행 길이 비율 P95 S1 1.000·S2 1.013·S3 1.024, 재생 tick P95 S2 약 270us·S3 약 890us(편차 큼).
-  - 채택 기준 1·2(경로 CPU 총합 −30%·burst 완료 tick P95 −50%)의 분모는 위 improved 값이다. 기준 3(cost 비율 P95 ≤ 1.05)은 flow field도 같은 `walk` 지표로 잰다.
+  - 재생: `UnrealEditor-Cmd.exe LootNPop.uproject -unattended -nullrhi -nosound -corelimit=4 -ExecCmds="Automation RunTests LootNPop.SurfaceNavigation.Nav.RequestCostReplay" -TestExit="Automation Test Queue Empty" -LNPNavReplayCsv=<입력 CSV> -LNPNavReplayOutput=<폴더>/<케이스>_RequestCosts.csv`. 변형 23개에서 케이스당 약 20~40초다. bash에서는 경로를 슬래시로 쓴다(역슬래시 바로 뒤의 `$변수`는 확장되지 않는다).
+  - 비교표: `python Scripts/Profiling/ComparePhase10Replay.py <재생 폴더>`. burst = 묶음 ≥400 요청의 doneTick, 비율 = 같은 행 base 대비 `walk`, tick 합 = 경로 CPU 총합 근사. `_FlowFields.csv`가 있으면 field 요약 표도 낸다.
+  - 기준값(Unit1 입력 재생, `Saved/Profiling/Phase10/Unit3/Compare.md`):
+
+| 지표 | improved S1 / S2 / S3 | flowfield S2 / S3 |
+|:---|:---|:---|
+| burst 완료 tick P50/P95/최대 | — / 4/8/14 / 10/43/93 | 5/9/13 / 9/23/65 |
+| tick 합(ms) | 11.9 / 213.9 / 755.7 | 132.6 / 466.4 |
+| tick P95(us) | 89 / 259 / 895 | 69 / 893 |
+| 확장 합(flowfield는 + field 확정) | 9,746 / 582,172 / 2,617,091 | 217,816 / 962,761 |
+| 보행 길이 비율 P95 | 1.000 / 1.013 / 1.024 | 1.000 / 1.000 |
+
+  - 채택 기준 1·2의 분모는 improved다. tick 합·tick P95는 실행마다 수 % 흔들리므로 같은 실행 안의 improved와 비교한다. S1은 Chase가 없어 경로 방식 차이가 Background 처리에만 나타난다.
 - 캡처가 다시 필요하면: `RunPhase13Gate.ps1 -Cases @('N700Chase','N2000Chase') -Repeats 1 -IslandSlot 5 -PackageDirectory Saved/SurfaceNavigationPhase10Package -OutputDirectory <폴더>`. 합성 추격은 반드시 `-IslandSlot 5`다. S2·S3 frame P95는 같은 runtime에서도 실행마다 ±2ms(S2 8.3~10.5) 흔들린다. 단위 1 분석은 `Scripts/Profiling/AnalyzePhase10QueueWait.py <캡처> <재생> <출력.json>`.
 
 ## 인계 근거

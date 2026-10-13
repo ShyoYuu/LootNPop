@@ -1,6 +1,6 @@
 # Phase 10 — 대규모 추격 경로 비교와 목표 전환 큐 대기 개선
 
-> 상태: 진행 중(단위 0·1·2 완료 2026-10-13, 다음 단위 3)
+> 상태: 진행 중(단위 0·1·2·3 완료 2026-10-13, 다음 단위 4)
 > 착수: 2026-10-13
 > 선행: Phase 9 완료(V011 성능 기준선), Phase 7 일반 A*·요청 재생 harness
 > 순서: 단위 0 → 1 → 2 → 3 → 4 → 5 → (6). 단위마다 검증한 뒤 사용자 진행 확인을 받는다.
@@ -69,13 +69,18 @@ D-044에 따라 같은 benchmark harness에서 목표별 flow field와 계층형
 - 단위 3 이후의 비교 기준선은 `improved`(= 현재 runtime 기본값)다.
 - 보류 유지: 재요청 시차 분산, 목표 이동 시 경로 재사용. 같은 목표 공유는 단위 3.
 
-### 단위 3 — 목표별 flow field 프로토타입
+### 단위 3 — 목표별 flow field 프로토타입 — 완료 2026-10-13
 
 `LNPNavFlowField.{h,cpp}`는 순수 함수이며 processor에 연결하지 않는다.
 
-- goal node에서 반경 한정 Dijkstra를 여러 프레임에 나눠 짓는다. portal·seam link의 역방향 대칭성을 먼저 검증한다.
-- 조회는 거리 내리막으로 node 열을 만든 뒤 `SimplifyPath`로 단순화한다.
-- 반경 밖은 A* 폴백으로 처리하고 그 비용도 포함한다.
+- [x] portal·seam link 역방향 대칭성: 회귀 fixture·production 두 배치에서 역방향 없는 edge 0, 두 방향 비용 불일치 0. 비용은 보행 방향(이웃 → 확정 node)으로 재므로 전제는 edge 양방향 존재뿐이고, `Nav.FlowField`가 계속 검사한다.
+- [x] goal node에서 반경(경로 cost) 한정 Dijkstra를 여러 프레임에 나눠 짓는다. 예산 단위는 확정 node 수(확정당 0.40us, A* 확장당 0.45us). 저장은 overlay Tile key별 블록(거리·다음 node·확정 bit)이다.
+- [x] 조회는 확정 node에서 다음 node 열을 따라간 뒤 `SimplifyPath`로 단순화한다. 짓는 중에도 확정된 node는 답한다.
+- [x] 반경 밖·스냅 실패는 improved A*로 폴백하고, 그 비용(재스냅 포함)도 같은 프레임 예산에서 뺀다.
+- [x] 재생 변형 `flowfield`(반경 12,000, burst마다 field 버림)와 스윕(반경 6,000~24,000, `Keep`, `FreeAnswer`), `flowfieldSerial` 결정론 대조. 요청 결과 `source` 열, `_FlowFields.csv` 요약, 비교표 확장.
+- [x] 검증: 에디터 빌드, `LootNPop.SurfaceNavigation` 130/130, S1~S3 재생 Success·불일치 0.
+- 예비 판정(improved 대비): 기준 1 충족(tick 합 S2·S3 −38%, tick P95 악화 없음), 기준 2 미충족(burst P95 S2 8→9, S3 43→23 = −47%), 기준 3 충족(보행 비율 P95 1.000), 기준 4 충족(field 최대 0.39MiB). 기준 5는 설계 메모만 남겼다. 수치는 `history/Phase10_Log.md` 2026-10-13 단위 3.
+- 목표 양자화는 입력 목표가 고정점 4개라 평가할 수 없어 구현하지 않았다.
 
 ### 단위 4 — 계층형 A* 프로토타입
 

@@ -127,6 +127,7 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 병렬 확장은 잔여 예산과 실행 중 요청 수 중 작은 수만큼 앞의 요청을 선택하고 균등 몫을 배정한다. 몫의 나머지와 조기 종료로 쓰지 않은 예산은 다음 라운드에서 재사용한다. 배정되지 않은 요청은 다음 라운드·프레임으로 이어간다. 이 차감 상한은 종료 처리·병렬 대기를 포함한 시간 상한을 보장하지 않는다.
 - 동일 요청 비용의 통제 비교는 `Nav.RequestCostReplay` 자동화를 쓴다. CSV의 같은 시각 요청 묶음을 모두 완료한 뒤 다음 묶음을 넣고 독립 owner를 사용한다. Pod overlay·원래 owner 취소·실제 프레임 경계·warm-up cache는 복원하지 않으므로 실제 부하 Gate는 별도로 검사한다. 실행법·예산 검토 근거는 `../history/Phase07_Log.md`의 2026-10-02 기록을 따른다.
   - 요청 결과 `_Requests.csv`의 `walk`는 경로 추종을 흉내 낸 보행 길이다. 합류 waypoint에서 시작해, 도착한 node에서 목표가 곧게 보이면 목표로, 아니면 곧게 보이는 가장 먼 연속 waypoint로 간다. 경로 cost 비율은 같은 행의 base(cache 없는 A*) 대비 walk 비다. 변형별 비교표는 `Scripts/Profiling/ComparePhase10Replay.py <재생 폴더>`가 만든다.
+  - 마지막 열 `source`는 결과 출처다(0 scheduler, 1 flow field, 2 flow field 변형의 A* 폴백). flow field 변형은 `<출력>_FlowFields.csv`에 field 수·확정 합·폴백·최대 메모리를 따로 남긴다(Phase 10 단위 3).
 - 실제 요청 지연은 `BeginRequestCapture` 구간에 제출·재계획된 요청만 scheduler에서 기록한다. 별도 `NavRequests_*_Timings.csv`는 owner·serial·우선순위·최종 상태와 캡처 시작 기준 `FPlatformTime` 제출·시작·종료 시각(초)을 담는다. 시작·종료 전 시각은 -1이며, warm-up 요청은 제외하고 종료 시 남은 Queued·Running은 미완료로 보존한다. 큐 지연은 시작-제출, 실행 지연은 종료-시작, 전체 지연은 종료-제출이다. 취소와 미완료는 정상 완료 분포에서 분리하고 함께 보고한다. 캡처 외에는 시각 조회와 결과 배열 기록을 하지 않는다.
 - 같은 캡처는 큐 대기 원인 분석용 진단 파일 셋을 함께 남긴다(Phase 10 단위 1). 요청 CSV 스키마는 재생기가 엄격히 검사하므로 바꾸지 않는다.
   - `_Ticks.csv`: scheduler tick마다 시작 전 대기·실행 수, 시작 수(즉시 종료·cache hit 포함), 확장 수, 시작 비용 차감, 종료 수, 최대 실행 수, 끝난 뒤 대기·실행 수, 대기열이 남았을 때의 정지 사유(`1` 예산, `2` scratch)와 scratch에 막힌 순간의 잔여 예산. 시각 기준은 `_Timings.csv`와 같다.
@@ -161,6 +162,17 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - ReachabilityGroup이 다른 개체는 field를 조회하지 않는다.
 - 추격자는 자기 셀에서 거리가 줄어드는 이웃 방향만 읽으므로 개체당 비용이 상수다.
 - 배회, 재귀속, 목표가 드문 이동은 계속 일반 A*를 사용한다.
+
+### 프로토타입 규약(Phase 10 단위 3, 미채택)
+
+`LNPNavFlowField`는 processor에 연결하지 않은 순수 함수이며 `Nav.RequestCostReplay`의 `flowfield` 변형과 `Nav.FlowField` 자동화만 쓴다. 채택 판정은 단위 5가 한다. 수치는 `../history/Phase10_Log.md` 2026-10-13 단위 3이 소유한다.
+
+- **역방향 전파 전제.** goal에서 정방향 이웃 목록(`ForEachNeighbor`)을 역방향 edge로 쓰며 편다. 비용은 개체가 걷는 방향(이웃 → 확정 node)으로 재므로, 전제는 모든 edge의 역방향 존재뿐이다. grid `EdgeMask`·seam link·D-060 막힌 edge·portal(베이커는 늘 `Bidirectional`)이 모두 양방향이며 `Nav.FlowField`가 회귀 fixture와 production 두 배치에서 검사한다. 단방향 portal이 생기면 역방향 link 표가 필요하다.
+- **예산 단위.** 확정(갱신) node 하나를 A* 확장 하나와 같은 단위로 센다(실측 0.40us vs 0.45us). 확정 순서는 (거리, node index)라 예산 분할과 무관하게 같은 field가 된다.
+- **저장.** overlay Tile key(`LNPNavGraph::GetTileKey`)별 블록에 cell마다 거리·목표 쪽 다음 node·확정 bit를 둔다(Tile당 2,080B). 전역 node 수 배열을 쓰지 않으며, 반경 12,000 field는 재생 목표에서 최대 0.39MiB다.
+- **반경.** 경로 cost 반경 밖 node는 확정하지 않는다. 반경 밖 시작과 시작·목표 직선 거리가 반경보다 큰 요청은 일반 A*로 폴백한다. 반경이 크면 폴백이 줄지만, 먼 대기자 때문에 field를 끝까지 지어야 해서 묶음 전체가 늦어진다(재생 기준 12,000이 균형점).
+- **조회.** 확정된 node에서 다음 node를 따라 goal까지 node 열을 만들고 `SimplifyPath`로 줄인다. 짓는 중에도 확정된 node는 최종값이라 바로 답한다. field 응답 경로는 최적 경로다.
+- **무효화.** snapshot generation·connectivity version·overlay revision이 짓기 시작 때와 다르면 Invalid다. 다 지은 field의 overlay 국소 갱신(차단 node의 다음 node 하위 트리만 다시 펴기, 해제 node에서 증분 전파)은 설계 메모만 있고 구현하지 않았다.
 
 ## 계층형 탐색
 

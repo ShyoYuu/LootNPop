@@ -5,6 +5,9 @@
 
 - burst: 묶음 크기 400 이상인 요청의 doneTick(묶음 제출 뒤 끝난 tick, 1부터) P50/P95/최대.
 - 보행 길이 비율: 같은 행의 base 대비 walk(시작 위치 → 합류 waypoint부터 꺾은선 → 목표 위치). 두 변형 모두 Succeeded인 행만 센다.
+- tick 합: 재생 tick 벽시계 시간 합(ms). 경로 CPU 총합의 근사다.
+- field·폴백(단위 3): 요청 결과 `source` 열이 1(flow field 응답)·2(A* 폴백)인 수. flow field 변형의 확장 합에는 field 확정 node 수가 들어 있다.
+- `<케이스>_RequestCosts_FlowFields.csv`가 있으면 flow field 변형 요약(field 수·확정 수·최대 메모리)을 따로 낸다.
 """
 
 import csv
@@ -41,9 +44,9 @@ def compare(replay_dir, case):
         requests[row["variant"]][int(row["row"])] = row
     base = requests["base"]
     lines = [f"### {case}", "",
-             "| 변형 | tick 수 | tick P50/P95/최대(us) | 확장 합 | cache hit | 앞쪽 합류 | burst 완료 tick P50/P95/최대 "
-             "| 보행 길이 비율 P50/P95/최대(전체) | 비율 P95(hit) |",
-             "|:---|---:|:---|---:|---:|---:|:---|:---|---:|"]
+             "| 변형 | tick 수 | tick P50/P95/최대(us) | tick 합(ms) | 확장 합 | cache hit | 앞쪽 합류 | field·폴백 "
+             "| burst 완료 tick P50/P95/최대 | 보행 길이 비율 P50/P95/최대(전체) | 비율 P95(hit) |",
+             "|:---|---:|:---|---:|---:|---:|---:|:---|:---|:---|---:|"]
     for variant in order:
         rows = requests[variant]
         burst = [int(r["doneTick"]) for r in rows.values() if int(r["batchSize"]) >= BURST_SIZE]
@@ -59,12 +62,25 @@ def compare(replay_dir, case):
         tick = ticks[variant]
         hits = sum(r["fromCache"] == "1" for r in rows.values())
         joins = sum(r["fromCache"] == "1" and int(r["firstWaypoint"]) > 0 for r in rows.values())
+        fields = sum(r.get("source") == "1" for r in rows.values())
+        fallbacks = sum(r.get("source") == "2" for r in rows.values())
+        field_text = f"{fields:,}/{fallbacks:,}" if fields or fallbacks else "—"
         burst_text = f"{pct(burst, .5)}/{pct(burst, .95)}/{max(burst)}" if burst else "—"
         lines.append(
-            f"| {variant} | {len(tick)} | {pct(tick, .5):.1f}/{pct(tick, .95):.1f}/{max(tick):.0f} "
-            f"| {sum(int(r['expansions']) for r in rows.values()):,} | {hits:,} | {joins:,} | {burst_text} "
+            f"| {variant} | {len(tick)} | {pct(tick, .5):.1f}/{pct(tick, .95):.1f}/{max(tick):.0f} | {sum(tick) / 1000:,.1f} "
+            f"| {sum(int(r['expansions']) for r in rows.values()):,} | {hits:,} | {joins:,} | {field_text} | {burst_text} "
             f"| {pct(ratios, .5):.3f}/{pct(ratios, .95):.3f}/{max(ratios):.3f} "
             f"| {pct(hit_ratios, .95):.3f} |")
+    field_path = replay_dir / f"{case}_RequestCosts_FlowFields.csv"
+    if field_path.exists():
+        lines += ["", "| 변형 | field 수 | 확정 합 | field당 최대 확정 | field 응답 | 폴백(반경 밖/스냅) | 스냅 | 응답 경로 node "
+                  "| field 최대 메모리(MiB) | A* scratch(MiB) |",
+                  "|:---|---:|---:|---:|---:|:---|---:|---:|---:|---:|"]
+        for r in read_csv(field_path):
+            lines.append(
+                f"| {r['variant']} | {int(r['fields']):,} | {int(r['settled']):,} | {int(r['maxFieldSettled']):,} "
+                f"| {int(r['fieldHits']):,} | {int(r['fallbackOutside']):,}/{int(r['fallbackEndpoint']):,} | {int(r['resolves']):,} "
+                f"| {int(r['answerNodes']):,} | {int(r['peakFieldBytes']) / 1048576:.2f} | {int(r['schedulerScratchBytes']) / 1048576:.2f} |")
     return "\n".join(lines)
 
 

@@ -17,7 +17,9 @@
 #include "DataAsset/LNPOctantPoolData.h"
 #include "DataAsset/LNPOctantSurfaceData.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
+#include "Async/ParallelFor.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
+#include "SurfaceNavigation/LNPNavFlowField.h"
 #include "SurfaceNavigation/LNPNavOverlay.h"
 #include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "SurfaceNavigation/LNPNavPathfinding.h"
@@ -448,6 +450,461 @@ namespace LNPNavPathfindingTest
 			}
 		}
 	}
+
+	/** 정방향 이웃 edge마다 역방향 edge가 있는지, 두 방향 비용이 같은지 센다. 목표에서 역으로 펴는 flow field의 전제다(Phase 10 단위 3). */
+	struct FLinkSymmetry
+	{
+		int64 GridEdges = 0;
+		int64 ExtraEdges = 0;
+		int32 MissingGrid = 0;
+		int32 MissingExtra = 0;
+		int32 CostMismatches = 0;
+	};
+
+	FLinkSymmetry CheckLinkSymmetry(const FLNPNavSnapshot& Nav)
+	{
+		const FLNPNavGraph& Graph = Nav.Graph;
+		const double WalkableMinDot = Graph.SlotGraphs[0]->Agent.WalkableMinDot;
+		FLinkSymmetry Result;
+		for (int32 Slot = 0; Slot < Graph.SlotGraphs.Num(); ++Slot)
+		{
+			for (int32 Node = Graph.SlotNodeBase[Slot]; Node < Graph.SlotNodeBase[Slot + 1]; ++Node)
+			{
+				const FVector3d Point = Graph.GetWorldPoint(Slot, Node);
+				const FLNPNavGraphNode& GraphNode = Graph.GetNode(Slot, Node);
+				Graph.ForEachNeighbor(Slot, Node, [&](const int32 To)
+				{
+					const int32 ToSlot = Graph.GetSlot(To);
+					bool bGrid = false;
+					for (const int32 LocalNeighbor : GraphNode.Neighbors)
+					{
+						bGrid |= ToSlot == Slot && LocalNeighbor == To - Graph.SlotNodeBase[Slot];
+					}
+					(bGrid ? Result.GridEdges : Result.ExtraEdges) += 1;
+					bool bReverse = false;
+					Graph.ForEachNeighbor(ToSlot, To, [&bReverse, Node](const int32 Back) { bReverse |= Back == Node; });
+					if (!bReverse)
+					{
+						++(bGrid ? Result.MissingGrid : Result.MissingExtra);
+					}
+					const FVector3d ToPoint = Graph.GetWorldPoint(ToSlot, To);
+					Result.CostMismatches += LNPNavGraph::ComputeEdgeCost(Point, ToPoint, WalkableMinDot)
+						!= LNPNavGraph::ComputeEdgeCost(ToPoint, Point, WalkableMinDot) ? 1 : 0;
+				});
+			}
+		}
+		return Result;
+	}
+
+	/** scheduler의 경로 조립과 같은 일(단순화·통과 Tile fingerprint)로 field 경로를 만든다. 재생 tick 시간을 A* 결과와 같은 기준으로 잰다. */
+	FLNPNavPathPtr BuildFieldPath(const FLNPNavSnapshot& Nav, const TConstArrayView<int32> Nodes, const double Cost)
+	{
+		TSharedRef<FLNPNavPath, ESPMode::ThreadSafe> Path = MakeShared<FLNPNavPath, ESPMode::ThreadSafe>();
+		Path->SnapshotGeneration = Nav.SnapshotGeneration;
+		Path->ConnectivityGraphVersion = Nav.ConnectivityGraphVersion;
+		Path->Cost = Cost;
+		TArray<int32> Waypoints;
+		LNPNavPathfinding::SimplifyPath(Nav, Nodes, Waypoints);
+		TArray<uint32> Tiles;
+		TArray<int32> SegmentNodes;
+		for (int32 Index = 0; Index < Waypoints.Num(); ++Index)
+		{
+			Path->Waypoints.Add({Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Waypoints[Index]), Waypoints[Index]), Waypoints[Index]});
+			Tiles.Add(LNPNavGraph::GetTileKey(Nav, Waypoints[Index]));
+			if (Index > 0 && LNPNavGraph::CollectDirectWalkNodes(Nav, Waypoints[Index - 1], Waypoints[Index], SegmentNodes))
+			{
+				for (const int32 Node : SegmentNodes)
+				{
+					Tiles.Add(LNPNavGraph::GetTileKey(Nav, Node));
+				}
+			}
+		}
+		Tiles.Sort();
+		for (int32 Index = 0; Index < Tiles.Num(); ++Index)
+		{
+			if (Index == 0 || Tiles[Index] != Tiles[Index - 1])
+			{
+				Path->TraversedTiles.Add(Tiles[Index]);
+				Path->TileRevisions.Add(0);
+			}
+		}
+		return Path;
+	}
+
+	/**
+	 * Nav.RequestCostReplay의 flow field 변형(Phase 10 단위 3). processor에 연결하지 않고 재생에서만 쓴다.
+	 * - Chase 요청은 묶음 안에서 직선 거리 오름차순(개선 A*의 Chase 순서)으로 스냅하고 목표 node의 field에 대기시킨다. field가 없으면 만든다.
+	 *   시작 node가 확정되면 다음 node 열을 따라 답한다. field가 다 지어졌는데 확정되지 않았으면(반경 밖) A* 폴백이다.
+	 *   시작·목표 node 직선 거리가 반경보다 크면 field에 들 수 없으므로 스냅 직후 바로 폴백한다.
+	 * - field는 대기자가 있을 때만 이어 짓는다. 이미 확정된 범위의 요청은 짓지 않고 답한다.
+	 * - Chase가 아닌 요청, 스냅이 Reachable이 아닌 요청, 폴백은 같은 tick의 남은 예산으로 개선 A* scheduler가 처리한다.
+	 *   scheduler가 다시 스냅하므로 시작 비용을 한 번 더 낸다.
+	 * - 프레임 예산 차감: 스냅 × 시작 비용 + field 확정 node 수 + 답한 경로 node 수 + A* 차감. 짓는 field가 있으면 스냅은 예산의 절반까지만 쓴다.
+	 *   답한 경로의 조립(단순화·fingerprint)은 한 tick에 수백 건이 몰릴 수 있어 경로 node당 1을 뺀다. 재생 실측은 node당 약 0.14us라
+	 *   확장 단가(약 0.4us)보다 비싸게 센 보수적 회계다. A*처럼 조립을 세지 않는 쪽은 FreeAnswer 변형이 보여 준다.
+	 * - field 수명: bKeep가 아니면 burst(묶음 ≥400, 목표 전환)에서 모두 버린다. 실제 플레이의 목표 전환은 플레이어가 움직여 목표 node가 바뀐 것이다.
+	 */
+	class FFlowFieldReplay
+	{
+	public:
+		static constexpr int32 SourceScheduler = 0;
+		static constexpr int32 SourceField = 1;
+		static constexpr int32 SourceFallback = 2;
+
+		struct FTickStats
+		{
+			int32 Started = 0;
+			int32 Expansions = 0;
+			int32 Charged = 0;
+			int32 Queued = 0;
+			int32 Running = 0;
+			double StartUs = 0.0;
+			double StepUs = 0.0;
+			double FinishUs = 0.0;
+			double WorkerUs = 0.0;
+		};
+
+		struct FTotals
+		{
+			int32 Fields = 0;
+			int64 Settled = 0;
+			int32 MaxFieldSettled = 0;
+			int32 FieldHits = 0;
+			int32 FallbackOutside = 0;
+			int32 FallbackEndpoint = 0;
+			int32 Resolves = 0;
+			int64 AnswerNodes = 0;
+			uint64 PeakBytes = 0;
+			int32 PeakBlocks = 0;
+		};
+
+		FTotals Totals;
+
+		FFlowFieldReplay(const FLNPNavSnapshot& InNav, const TConstArrayView<FLNPNavPathRequest> InRequests, FLNPNavPathScheduler& InScheduler,
+			const FLNPNavFlowFieldParams& InParams, const bool bInKeep, const int32 InFrameBudget, const int32 InResolveCost, const bool bInParallel,
+			const bool bInChargeAnswers)
+			: Nav(InNav), Requests(InRequests), Scheduler(InScheduler), Params(InParams), bKeep(bInKeep), FrameBudget(InFrameBudget),
+			ResolveCost(InResolveCost), bParallel(bInParallel), bChargeAnswers(bInChargeAnswers)
+		{
+			States.SetNum(Requests.Num());
+		}
+
+		void SubmitBatch(const int32 First, const int32 End, const bool bBurst)
+		{
+			if (bBurst && !bKeep)
+			{
+				Fields.Reset();
+				FieldByGoal.Reset();
+			}
+			Pending.Reset();
+			NextPending = 0;
+			for (int32 Index = First; Index < End; ++Index)
+			{
+				States[Index] = FState();
+				if (Requests[Index].Priority == ELNPNavPathPriority::Chase)
+				{
+					Pending.Add(Index);
+				}
+				else
+				{
+					SubmitToScheduler(Index, SourceScheduler);
+				}
+			}
+			Pending.StableSort([this](const int32 A, const int32 B)
+			{
+				return FVector3d::DistSquared(Requests[A].StartPosition, Requests[A].GoalPosition)
+					< FVector3d::DistSquared(Requests[B].StartPosition, Requests[B].GoalPosition);
+			});
+		}
+
+		bool HasWork() const
+		{
+			if (NextPending < Pending.Num() || Scheduler.HasWork())
+			{
+				return true;
+			}
+			for (const TUniquePtr<FField>& Field : Fields)
+			{
+				if (!Field->Waiters.IsEmpty())
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/** OutSource: 0 Chase가 아닌 요청(A*), 1 field, 2 field 밖·스냅 실패 폴백(A*). Expansions에는 이 요청이 진행시킨 field 확정 수가 더해진다. */
+		ELNPNavPathStatus GetResult(const int32 Index, FLNPNavPathResult& OutResult, int32& OutSource) const
+		{
+			const FState& State = States[Index];
+			OutSource = State.Source;
+			if (State.Source == SourceField)
+			{
+				OutResult = State.Result;
+			}
+			else if (State.Serial != 0)
+			{
+				Scheduler.GetResult(Requests[Index].Owner, State.Serial, OutResult);
+			}
+			else
+			{
+				OutResult = FLNPNavPathResult();
+				OutResult.Status = ELNPNavPathStatus::Queued;
+			}
+			OutResult.Expansions += State.FieldCharge;
+			return OutResult.Status;
+		}
+
+		void Tick(FTickStats& Out)
+		{
+			Out = FTickStats();
+			++TickIndex;
+			int32 Budget = FrameBudget;
+			int32 ResolveSpent = 0;
+			TArray<FField*> Building;
+			while (true)
+			{
+				double Begin = FPlatformTime::Seconds();
+				while (Budget >= ResolveCost && NextPending < Pending.Num() && !(HasBuildingWaiters() && ResolveSpent >= FrameBudget / 2))
+				{
+					Budget -= ResolveCost;
+					ResolveSpent += ResolveCost;
+					++Out.Started;
+					Route(Pending[NextPending++]);
+				}
+				Out.StartUs += (FPlatformTime::Seconds() - Begin) * 1.e6;
+				Begin = FPlatformTime::Seconds();
+				const bool bAnswered = AnswerWaiters(Budget);
+				Out.FinishUs += (FPlatformTime::Seconds() - Begin) * 1.e6;
+				Building.Reset();
+				for (const TUniquePtr<FField>& Field : Fields)
+				{
+					if (!Field->Waiters.IsEmpty() && Field->Field.Status == ELNPNavFlowFieldStatus::Building)
+					{
+						Building.Add(Field.Get());
+					}
+				}
+				if (!bAnswered || Budget <= 0 || Building.IsEmpty())
+				{
+					break;
+				}
+				// scheduler와 같은 분배: 잔여 예산보다 field가 많으면 앞의 field만, 몫은 균등. 남은 몫은 다음 라운드에 다시 쓴다.
+				const int32 StepCount = FMath::Min(Budget, Building.Num());
+				const int32 Share = Budget / StepCount;
+				TArray<int32> SettledBefore;
+				TArray<double> StepSeconds;
+				StepSeconds.Init(0.0, StepCount);
+				for (int32 Index = 0; Index < StepCount; ++Index)
+				{
+					SettledBefore.Add(Building[Index]->Field.Settled);
+				}
+				auto Step = [this, &Building, &StepSeconds, Share](const int32 Index)
+				{
+					const double StepStart = FPlatformTime::Seconds();
+					LNPNavFlowField::StepBuild(Nav, Building[Index]->Field, Share);
+					StepSeconds[Index] = FPlatformTime::Seconds() - StepStart;
+				};
+				Begin = FPlatformTime::Seconds();
+				if (bParallel && StepCount > 1)
+				{
+					ParallelFor(StepCount, Step);
+				}
+				else
+				{
+					for (int32 Index = 0; Index < StepCount; ++Index)
+					{
+						Step(Index);
+					}
+				}
+				Out.StepUs += (FPlatformTime::Seconds() - Begin) * 1.e6;
+				for (int32 Index = 0; Index < StepCount; ++Index)
+				{
+					FField& Field = *Building[Index];
+					const int32 Used = Field.Field.Settled - SettledBefore[Index];
+					Budget -= Used;
+					Out.Expansions += Used;
+					Out.WorkerUs += StepSeconds[Index] * 1.e6;
+					Totals.Settled += Used;
+					Totals.MaxFieldSettled = FMath::Max(Totals.MaxFieldSettled, Field.Field.Settled);
+					// 이번 라운드를 진행시킨 대기자(가장 가까운 요청)에게 확정 수를 단다. 요청별 expansions 합이 총작업이 되게 한다.
+					States[Field.Waiters[0]].FieldCharge += Used;
+				}
+			}
+			Out.Charged = FrameBudget - Budget;
+
+			Scheduler.Settings.ExpansionsPerFrame = Budget;
+			if (Scheduler.HasWork())
+			{
+				Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+				const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
+				Out.Started += Stats.LastTickStarted;
+				Out.Expansions += Stats.LastTickExpansions;
+				Out.Charged += Stats.LastTickStarted * ResolveCost + Stats.LastTickExpansions;
+				Out.StartUs += Stats.LastTickStartSeconds * 1.e6;
+				Out.StepUs += Stats.LastTickStepSeconds * 1.e6;
+				Out.FinishUs += Stats.LastTickFinishSeconds * 1.e6;
+				Out.WorkerUs += Stats.LastTickSearchSeconds * 1.e6;
+			}
+
+			Out.Queued = Pending.Num() - NextPending + Scheduler.GetQueuedCount();
+			Out.Running = Scheduler.GetRunningCount();
+			uint64 Bytes = Fields.GetAllocatedSize() + FieldByGoal.GetAllocatedSize();
+			int32 Blocks = 0;
+			for (const TUniquePtr<FField>& Field : Fields)
+			{
+				Out.Queued += Field->Waiters.Num();
+				Out.Running += !Field->Waiters.IsEmpty() && Field->Field.Status == ELNPNavFlowFieldStatus::Building ? 1 : 0;
+				Bytes += sizeof(FField) + Field->Field.GetAllocatedBytes() + Field->Waiters.GetAllocatedSize();
+				Blocks += Field->Field.Blocks.Num();
+			}
+			Totals.PeakBytes = FMath::Max(Totals.PeakBytes, Bytes);
+			Totals.PeakBlocks = FMath::Max(Totals.PeakBlocks, Blocks);
+		}
+
+	private:
+		struct FState
+		{
+			int32 Source = INDEX_NONE;
+			uint32 Serial = 0;
+			int32 StartNode = INDEX_NONE;
+			uint64 ResolveTick = 0;
+			int32 FieldCharge = 0;
+			FLNPNavPathResult Result;
+		};
+
+		struct FField
+		{
+			FLNPNavFlowField Field;
+			/** 확정을 기다리는 요청. 스냅한 순서(가까운 순)다. */
+			TArray<int32> Waiters;
+		};
+
+		bool HasBuildingWaiters() const
+		{
+			for (const TUniquePtr<FField>& Field : Fields)
+			{
+				if (!Field->Waiters.IsEmpty() && Field->Field.Status == ELNPNavFlowFieldStatus::Building)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		void SubmitToScheduler(const int32 Index, const int32 Source)
+		{
+			States[Index].Source = Source;
+			States[Index].Serial = Scheduler.Submit(Requests[Index]);
+		}
+
+		void Route(const int32 Index)
+		{
+			++Totals.Resolves;
+			const FLNPNavPathRequest& Request = Requests[Index];
+			FLNPNavEndpointQuery Query;
+			Query.StartPosition = Request.StartPosition;
+			Query.StartSurface = &Request.StartSurface;
+			Query.GoalPosition = Request.GoalPosition;
+			Query.GoalSurface = &Request.GoalSurface;
+			Query.SnapRadius = Request.SnapRadius;
+			Query.ApproachRadius = Request.ApproachRadius;
+			const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query);
+			FState& State = States[Index];
+			State.ResolveTick = TickIndex;
+			// 경로 cost는 시작·목표 node 직선 거리 이상이다. 그 거리가 반경보다 크면 field에 들 수 없으므로 기다리지 않고 바로 폴백한다.
+			if (Ends.Status == ELNPNavEndpointStatus::Reachable && FVector3d::Dist(
+				Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Ends.StartNode), Ends.StartNode),
+				Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Ends.GoalNode), Ends.GoalNode)) > Params.MaxCost)
+			{
+				++Totals.FallbackOutside;
+				SubmitToScheduler(Index, SourceFallback);
+				return;
+			}
+			const int32* FieldIndex = Ends.Status == ELNPNavEndpointStatus::Reachable ? FieldByGoal.Find(Ends.GoalNode) : nullptr;
+			if (Ends.Status == ELNPNavEndpointStatus::Reachable && FieldIndex == nullptr)
+			{
+				TUniquePtr<FField> NewField = MakeUnique<FField>();
+				if (LNPNavFlowField::BeginBuild(Nav, Ends.GoalNode, Params, NewField->Field) != ELNPNavFlowFieldStatus::Invalid)
+				{
+					++Totals.Fields;
+					FieldIndex = &FieldByGoal.Add(Ends.GoalNode, Fields.Add(MoveTemp(NewField)));
+				}
+			}
+			if (FieldIndex == nullptr)
+			{
+				++Totals.FallbackEndpoint;
+				SubmitToScheduler(Index, SourceFallback);
+				return;
+			}
+			State.Source = SourceField;
+			State.StartNode = Ends.StartNode;
+			State.Result.Status = ELNPNavPathStatus::Queued;
+			Fields[*FieldIndex]->Waiters.Add(Index);
+		}
+
+		/** 확정된 대기자에게 답하고, 다 지은 field 밖의 대기자는 A*로 넘긴다. 예산이 모자라 멈췄으면 false다. */
+		bool AnswerWaiters(int32& Budget)
+		{
+			TArray<int32> Nodes;
+			for (const TUniquePtr<FField>& Field : Fields)
+			{
+				int32 Kept = 0;
+				bool bStopped = false;
+				for (int32 Waiter = 0; Waiter < Field->Waiters.Num(); ++Waiter)
+				{
+					const int32 Index = Field->Waiters[Waiter];
+					FState& State = States[Index];
+					if (!bStopped && LNPNavFlowField::ExtractNodePath(Nav, Field->Field, State.StartNode, Nodes))
+					{
+						const int32 Charge = bChargeAnswers ? Nodes.Num() : 0;
+						if (Charge <= Budget)
+						{
+							Budget -= Charge;
+							Totals.AnswerNodes += Nodes.Num();
+							++Totals.FieldHits;
+							float Distance = 0.0f;
+							LNPNavFlowField::GetSettledDistance(Nav, Field->Field, State.StartNode, Distance);
+							State.Result.Path = BuildFieldPath(Nav, Nodes, Distance);
+							State.Result.Status = ELNPNavPathStatus::Succeeded;
+							State.Result.bFromCache = true;
+							State.Result.RunningTicks = static_cast<int32>(TickIndex - State.ResolveTick);
+							continue;
+						}
+						bStopped = true;
+					}
+					else if (!bStopped && Field->Field.Status != ELNPNavFlowFieldStatus::Building)
+					{
+						++Totals.FallbackOutside;
+						SubmitToScheduler(Index, SourceFallback);
+						continue;
+					}
+					Field->Waiters[Kept++] = Index;
+				}
+				Field->Waiters.SetNum(Kept, EAllowShrinking::No);
+				if (bStopped)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		const FLNPNavSnapshot& Nav;
+		TConstArrayView<FLNPNavPathRequest> Requests;
+		FLNPNavPathScheduler& Scheduler;
+		FLNPNavFlowFieldParams Params;
+		bool bKeep = false;
+		int32 FrameBudget = 4000;
+		int32 ResolveCost = 16;
+		bool bParallel = true;
+		bool bChargeAnswers = true;
+		uint64 TickIndex = 0;
+		TArray<FState> States;
+		TArray<int32> Pending;
+		int32 NextPending = 0;
+		TArray<TUniquePtr<FField>> Fields;
+		TMap<int32, int32> FieldByGoal;
+	};
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -463,6 +920,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPNavRequestCostReplayTest,
 	"LootNPop.SurfaceNavigation.Nav.RequestCostReplay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavFlowFieldTest,
+	"LootNPop.SurfaceNavigation.Nav.FlowField",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -1790,6 +2252,14 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		int32 JoinWaypoints = 1;
 		bool bNearestFirst = false;
 		double LeadRatio = 0.0;
+		/** 0보다 크면 flow field 변형이다(Phase 10 단위 3). Chase를 반경(경로 cost) 이 값의 field로 풀고 나머지는 위 설정의 A*로 푼다. */
+		double FieldCost = 0.0;
+		/** false면 burst(목표 전환)마다 field를 버린다. true는 목표가 멈춰 있는 경우의 재사용 상한이다. */
+		bool bFieldKeep = false;
+		/** true면 field 응답 경로 node 수를 프레임 예산에서 빼지 않는다. */
+		bool bFieldFreeAnswer = false;
+		/** 요청별 결과가 같아야 하는 변형 index. */
+		int32 CompareTo = INDEX_NONE;
 	};
 	const FVariant Variants[] =
 	{
@@ -1805,13 +2275,31 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		{TEXT("join4Lead0.2"), 256, 4000, 16, true, 4, false, 0.2},
 		{TEXT("nearest"), 256, 4000, 16, true, 1, true},
 		{TEXT("improved"), 256, 4000, 16, true, 4, true, 0.1},
-		{TEXT("improvedSerial"), 256, 4000, 16, false, 4, true, 0.1},
+		{TEXT("improvedSerial"), 256, 4000, 16, false, 4, true, 0.1, 0.0, false, false, 11},
 		{TEXT("improvedBudget8000"), 256, 8000, 16, true, 4, true, 0.1},
+		// 단위 3 flow field: 반경 스윕, 채택 설정(flowfield)과 그 직렬 결정론 대조, 목표가 멈춰 있을 때의 재사용 상한(Keep),
+		// 응답 경로 node를 예산에서 빼지 않는 민감도(FreeAnswer, A*의 경로 조립과 같은 회계).
+		// Chase가 없는 입력(S1)에서는 field가 쓰이지 않으므로 improved와 요청별로 같아야 한다.
+		{TEXT("flowfieldR6000"), 256, 4000, 16, true, 4, true, 0.1, 6000.0},
+		{TEXT("flowfieldR9000"), 256, 4000, 16, true, 4, true, 0.1, 9000.0},
+		{TEXT("flowfieldR15000"), 256, 4000, 16, true, 4, true, 0.1, 15000.0},
+		{TEXT("flowfieldR18000"), 256, 4000, 16, true, 4, true, 0.1, 18000.0},
+		{TEXT("flowfieldR24000"), 256, 4000, 16, true, 4, true, 0.1, 24000.0},
+		{TEXT("flowfield"), 256, 4000, 16, true, 4, true, 0.1, 12000.0},
+		{TEXT("flowfieldSerial"), 256, 4000, 16, false, 4, true, 0.1, 12000.0, false, false, 19},
+		{TEXT("flowfieldKeep"), 256, 4000, 16, true, 4, true, 0.1, 12000.0, true},
+		{TEXT("flowfieldFreeAnswer"), 256, 4000, 16, true, 4, true, 0.1, 12000.0, false, true},
 	};
 	constexpr int32 ImprovedVariant = 11;
-	constexpr int32 ImprovedSerialVariant = 12;
+	constexpr int32 BurstSize = 400;
+	const bool bHasChase = Requests.ContainsByPredicate([](const FLNPNavPathRequest& Request)
+	{
+		return Request.Priority == ELNPNavPathPriority::Chase;
+	});
 	TArray<FReference> References;
-	TArray<FReference> ImprovedResults;
+	TArray<TArray<FReference>> VariantResults;
+	VariantResults.SetNum(UE_ARRAY_COUNT(Variants));
+	FString FieldOutput = TEXT("variant,fields,settled,maxFieldSettled,fieldHits,fallbackOutside,fallbackEndpoint,resolves,answerNodes,peakFieldBytes,peakBlocks,schedulerScratchBytes\n");
 	FString Output = TEXT("variant,batch,tick,started,expansions,queued,running,tickUs,startUs,stepUs,finishUs,workerSumUs\n");
 	// 요청 단위 결과. row는 입력 CSV의 데이터 행 번호(1부터), doneTick은 묶음 제출 뒤 끝난 tick(1부터)이다.
 	// walk는 경로 추종(LNPEnemyPathProcessor)을 흉내 낸 보행 길이(cm)다. 경로 cost 비율은 이것을 base와 비교한다.
@@ -1858,7 +2346,8 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		}
 		return Walk;
 	};
-	FString RequestOutput = TEXT("variant,row,batch,batchSize,status,doneTick,expansions,runningTicks,fromCache,cost,firstWaypoint,walk\n");
+	// source(단위 3): 0 scheduler, 1 flow field, 2 flow field 변형의 A* 폴백(field 밖·스냅이 Reachable 아님).
+	FString RequestOutput = TEXT("variant,row,batch,batchSize,status,doneTick,expansions,runningTicks,fromCache,cost,firstWaypoint,walk,source\n");
 	for (int32 Variant = 0; Variant < UE_ARRAY_COUNT(Variants); ++Variant)
 	{
 		const FVariant& Config = Variants[Variant];
@@ -1870,6 +2359,16 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		Scheduler.Settings.CacheJoinWaypoints = Config.JoinWaypoints;
 		Scheduler.Settings.bChaseNearestFirst = Config.bNearestFirst;
 		Scheduler.Settings.CacheJoinMaxLeadRatio = Config.LeadRatio;
+		TUniquePtr<FFlowFieldReplay> FieldReplay;
+		if (Config.FieldCost > 0.0)
+		{
+			FLNPNavFlowFieldParams FieldParams;
+			FieldParams.MaxCost = Config.FieldCost;
+			FieldReplay = MakeUnique<FFlowFieldReplay>(Snapshot.Nav, Requests, Scheduler, FieldParams, Config.bFieldKeep,
+				Config.Budget, Config.Resolve, Config.bParallel, !Config.bFieldFreeAnswer);
+		}
+		const int32 CompareTo = Config.CompareTo != INDEX_NONE ? Config.CompareTo
+			: Config.FieldCost > 0.0 && !bHasChase ? ImprovedVariant : INDEX_NONE;
 		const TCHAR* const Label = Config.Label;
 		TArray<double> TickUs, StartUs, StepUs, FinishUs, QueueSamples;
 		double TotalStart = 0, TotalStep = 0, TotalFinish = 0, TotalTick = 0;
@@ -1879,47 +2378,79 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			int32 End = First + 1;
 			while (End < Requests.Num() && Times[End] == Times[First]) { ++End; }
 			TArray<uint32> Serials;
-			for (int32 Index = First; Index < End; ++Index) { Serials.Add(Scheduler.Submit(Requests[Index])); }
+			if (FieldReplay)
+			{
+				FieldReplay->SubmitBatch(First, End, End - First >= BurstSize);
+			}
+			else
+			{
+				for (int32 Index = First; Index < End; ++Index) { Serials.Add(Scheduler.Submit(Requests[Index])); }
+			}
+			auto GetResult = [&](const int32 Index, FLNPNavPathResult& OutResult, int32& OutSource)
+			{
+				OutSource = FFlowFieldReplay::SourceScheduler;
+				return FieldReplay ? FieldReplay->GetResult(Index, OutResult, OutSource)
+					: Scheduler.GetResult(Requests[Index].Owner, Serials[Index - First], OutResult);
+			};
 			// 묶음 제출 뒤 몇 번째 tick에 끝났는지(1부터). 재생의 큐 지연 대용이며 시간 측정 구간 밖에서 확인한다.
 			TArray<int32> DoneTicks;
 			DoneTicks.Init(0, End - First);
 			int32 Tick = 0;
-			while (Scheduler.HasWork() && Tick < 10000)
+			while ((FieldReplay ? FieldReplay->HasWork() : Scheduler.HasWork()) && Tick < 10000)
 			{
+				FFlowFieldReplay::FTickStats TickStats;
 				const double Begin = FPlatformTime::Seconds();
-				Scheduler.Tick(Snapshot.Nav, nullptr, [](FMassEntityHandle) { return true; });
+				if (FieldReplay)
+				{
+					FieldReplay->Tick(TickStats);
+				}
+				else
+				{
+					Scheduler.Tick(Snapshot.Nav, nullptr, [](FMassEntityHandle) { return true; });
+				}
 				const double Elapsed = (FPlatformTime::Seconds() - Begin) * 1.e6;
-				const auto& Stats = Scheduler.GetStats();
-				const double Start = Stats.LastTickStartSeconds * 1.e6;
-				const double Step = Stats.LastTickStepSeconds * 1.e6;
-				const double Finish = Stats.LastTickFinishSeconds * 1.e6;
-				TickUs.Add(Elapsed); StartUs.Add(Start); StepUs.Add(Step); FinishUs.Add(Finish);
-				QueueSamples.Add(Scheduler.GetQueuedCount());
-				TotalTick += Elapsed; TotalStart += Start; TotalStep += Step; TotalFinish += Finish;
-				MaxCharged = FMath::Max(MaxCharged, Stats.LastTickExpansions + Stats.LastTickStarted * Scheduler.Settings.ResolveCostInExpansions);
+				if (!FieldReplay)
+				{
+					const auto& Stats = Scheduler.GetStats();
+					TickStats.Started = Stats.LastTickStarted;
+					TickStats.Expansions = Stats.LastTickExpansions;
+					TickStats.Charged = Stats.LastTickExpansions + Stats.LastTickStarted * Config.Resolve;
+					TickStats.Queued = Scheduler.GetQueuedCount();
+					TickStats.Running = Scheduler.GetRunningCount();
+					TickStats.StartUs = Stats.LastTickStartSeconds * 1.e6;
+					TickStats.StepUs = Stats.LastTickStepSeconds * 1.e6;
+					TickStats.FinishUs = Stats.LastTickFinishSeconds * 1.e6;
+					TickStats.WorkerUs = Stats.LastTickSearchSeconds * 1.e6;
+				}
+				TickUs.Add(Elapsed); StartUs.Add(TickStats.StartUs); StepUs.Add(TickStats.StepUs); FinishUs.Add(TickStats.FinishUs);
+				QueueSamples.Add(TickStats.Queued);
+				TotalTick += Elapsed; TotalStart += TickStats.StartUs; TotalStep += TickStats.StepUs; TotalFinish += TickStats.FinishUs;
+				MaxCharged = FMath::Max(MaxCharged, TickStats.Charged);
 				Output += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f\n"), Label, Batch, Tick++,
-					Stats.LastTickStarted, Stats.LastTickExpansions, Scheduler.GetQueuedCount(), Scheduler.GetRunningCount(),
-					Elapsed, Start, Step, Finish, Stats.LastTickSearchSeconds * 1.e6);
+					TickStats.Started, TickStats.Expansions, TickStats.Queued, TickStats.Running,
+					Elapsed, TickStats.StartUs, TickStats.StepUs, TickStats.FinishUs, TickStats.WorkerUs);
 				for (int32 Index = First; Index < End; ++Index)
 				{
 					if (DoneTicks[Index - First] == 0)
 					{
 						FLNPNavPathResult Pending;
-						const ELNPNavPathStatus Status = Scheduler.GetResult(Requests[Index].Owner, Serials[Index - First], Pending);
+						int32 Source = 0;
+						const ELNPNavPathStatus Status = GetResult(Index, Pending, Source);
 						DoneTicks[Index - First] = Status == ELNPNavPathStatus::Queued || Status == ELNPNavPathStatus::Running ? 0 : Tick;
 					}
 				}
 			}
-			if (!TestTrue(TEXT("Replay batch drains"), !Scheduler.HasWork())) { return false; }
+			if (!TestTrue(TEXT("Replay batch drains"), !(FieldReplay ? FieldReplay->HasWork() : Scheduler.HasWork()))) { return false; }
 			for (int32 Index = First; Index < End; ++Index)
 			{
 				FLNPNavPathResult Result;
-				Scheduler.GetResult(Requests[Index].Owner, Serials[Index - First], Result);
+				int32 Source = 0;
+				GetResult(Index, Result, Source);
 				const double Cost = Result.Path.IsValid() ? Result.Path->Cost : 0.0;
 				const double Walk = Result.Path.IsValid() ? FollowWalk(Index, Result) : 0.0;
-				RequestOutput += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%d,%d,%.3f,%d,%.1f\n"), Label, Index + 1, Batch, End - First,
+				RequestOutput += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%d,%d,%.3f,%d,%.1f,%d\n"), Label, Index + 1, Batch, End - First,
 					static_cast<int32>(Result.Status), DoneTicks[Index - First], Result.Expansions, Result.RunningTicks,
-					Result.bFromCache ? 1 : 0, Cost, Result.FirstWaypoint, Walk);
+					Result.bFromCache ? 1 : 0, Cost, Result.FirstWaypoint, Walk, Source);
 				const FReference Current{Result.Status, WaypointNodes(Result), Result.Expansions, Cost, Result.FirstWaypoint,
 					DoneTicks[Index - First], Result.bFromCache};
 				if (Variant == 0) { References.Add(Current); }
@@ -1929,33 +2460,252 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 					Mismatches += Result.Status != Reference.Status || WaypointNodes(Result) != Reference.Waypoints
 						|| Result.Expansions != Reference.Expansions || !FMath::IsNearlyEqual(Cost, Reference.Cost, 1.e-6) ? 1 : 0;
 				}
-				if (Variant == ImprovedVariant) { ImprovedResults.Add(Current); }
-				else if (Variant == ImprovedSerialVariant)
+				if (CompareTo != INDEX_NONE)
 				{
-					// 직렬 확장도 병렬과 같은 순서로 끝나므로 cache 합류까지 요청별 결과가 같아야 한다.
-					const FReference& Reference = ImprovedResults[Index];
+					// 직렬 확장도 병렬과 같은 순서로 끝나므로 cache 합류·field 응답까지 요청별 결과가 같아야 한다.
+					const FReference& Reference = VariantResults[CompareTo][Index];
 					Mismatches += Current.Status != Reference.Status || Current.Waypoints != Reference.Waypoints
 						|| Current.Expansions != Reference.Expansions || Current.Cost != Reference.Cost
 						|| Current.FirstWaypoint != Reference.FirstWaypoint || Current.DoneTick != Reference.DoneTick
 						|| Current.bFromCache != Reference.bFromCache ? 1 : 0;
 				}
+				VariantResults[Variant].Add(Current);
 				// 완료된 owner가 누적되어 관리 비용을 왜곡하지 않도록 제거한다. cache는 유지한다.
 				Scheduler.Cancel(Requests[Index].Owner);
 			}
 			First = End;
 		}
 		TestEqual(FString::Printf(TEXT("%s matches its determinism reference"), Label), Mismatches, 0);
-		TestTrue(TEXT("Every replay tick charge stays within the frame budget"), MaxCharged <= Scheduler.Settings.ExpansionsPerFrame);
+		TestTrue(TEXT("Every replay tick charge stays within the frame budget"), MaxCharged <= Config.Budget);
 		const auto& Stats = Scheduler.GetStats();
 		AddInfo(FString::Printf(TEXT("Replay %s: batches=%d ticks=%d requests=%llu expansions=%llu hits=%llu rejects=%llu mismatches=%d maxCharged=%d budget=%d; tick P50/P95/max=%.1f/%.1f/%.1fus startP95=%.1f stepP95=%.1f finishP95=%.1f queuedP95=%.0f; total tick/start/step/finish=%.1f/%.1f/%.1f/%.1fms"),
 			Label, Batch, TickUs.Num(), Stats.Submitted, Stats.Expansions, Stats.CacheHits, Stats.CacheRejects, Mismatches, MaxCharged,
-			Scheduler.Settings.ExpansionsPerFrame, Percentile(TickUs, .5), Percentile(TickUs, .95), Percentile(TickUs, 1),
+			Config.Budget, Percentile(TickUs, .5), Percentile(TickUs, .95), Percentile(TickUs, 1),
 			Percentile(StartUs, .95), Percentile(StepUs, .95), Percentile(FinishUs, .95), Percentile(QueueSamples, .95),
 			TotalTick / 1000, TotalStart / 1000, TotalStep / 1000, TotalFinish / 1000));
+		if (FieldReplay)
+		{
+			const FFlowFieldReplay::FTotals& Totals = FieldReplay->Totals;
+			FieldOutput += FString::Printf(TEXT("%s,%d,%lld,%d,%d,%d,%d,%d,%lld,%llu,%d,%llu\n"), Label, Totals.Fields, Totals.Settled,
+				Totals.MaxFieldSettled, Totals.FieldHits, Totals.FallbackOutside, Totals.FallbackEndpoint, Totals.Resolves, Totals.AnswerNodes,
+				Totals.PeakBytes, Totals.PeakBlocks, Scheduler.GetScratchBytes());
+			AddInfo(FString::Printf(TEXT("Replay %s field: radius=%.0f keep=%d fields=%d settled=%lld maxPerField=%d hits=%d fallbackOutside=%d fallbackEndpoint=%d resolves=%d answerNodes=%lld peakFieldMiB=%.3f peakBlocks=%d scratchMiB=%.2f"),
+				Label, Config.FieldCost, Config.bFieldKeep ? 1 : 0, Totals.Fields, Totals.Settled, Totals.MaxFieldSettled, Totals.FieldHits,
+				Totals.FallbackOutside, Totals.FallbackEndpoint, Totals.Resolves, Totals.AnswerNodes, Totals.PeakBytes / (1024.0 * 1024.0),
+				Totals.PeakBlocks, Scheduler.GetScratchBytes() / (1024.0 * 1024.0)));
+		}
 	}
 	TestTrue(TEXT("Replay tick costs saved"), FFileHelper::SaveStringToFile(Output, *OutputPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
 	TestTrue(TEXT("Replay request results saved"), FFileHelper::SaveStringToFile(RequestOutput,
 		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_Requests.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
+	TestTrue(TEXT("Replay flow field summary saved"), FFileHelper::SaveStringToFile(FieldOutput,
+		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_FlowFields.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
+	return !HasAnyErrors();
+}
+
+bool FLNPNavFlowFieldTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavPathfindingTest;
+
+	// 1) 역방향 대칭성: goal에서 역으로 펴려면 모든 정방향 edge의 역방향이 있어야 한다. 비용은 보행 방향으로 재지만 같은지도 본다.
+	auto CheckSymmetry = [this](const TCHAR* Label, const FLNPNavSnapshot& Nav)
+	{
+		const FLinkSymmetry Symmetry = CheckLinkSymmetry(Nav);
+		TestEqual(FString::Printf(TEXT("%s grid edges have reverse edges"), Label), Symmetry.MissingGrid, 0);
+		TestEqual(FString::Printf(TEXT("%s seam link and portal edges have reverse edges"), Label), Symmetry.MissingExtra, 0);
+		TestEqual(FString::Printf(TEXT("%s edge cost does not depend on direction"), Label), Symmetry.CostMismatches, 0);
+		TestTrue(FString::Printf(TEXT("%s has seam link or portal edges"), Label), Symmetry.ExtraEdges > 0);
+		AddInfo(FString::Printf(TEXT("%s link symmetry: gridEdges=%lld extraEdges=%lld seamLinks=%d missingGrid=%d missingExtra=%d costMismatches=%d"),
+			Label, Symmetry.GridEdges, Symmetry.ExtraEdges, Nav.SeamLinks.Num(), Symmetry.MissingGrid, Symmetry.MissingExtra,
+			Symmetry.CostMismatches));
+	};
+	{
+		FLNPSurfaceDataSnapshot Regression;
+		if (!BuildRegressionSnapshot(*this, Regression))
+		{
+			return false;
+		}
+		CheckSymmetry(TEXT("Regression"), Regression.Nav);
+	}
+	double BuildMs = 0.0;
+	{
+		FLNPSurfaceDataSnapshot Default;
+		if (!BuildProductionSnapshot(*this, Default, BuildMs))
+		{
+			return false;
+		}
+		CheckSymmetry(TEXT("Production seed 135792468"), Default.Nav);
+	}
+	// Phase 10 재생 입력의 배치(sidecar seed 1768).
+	FLNPSurfaceDataSnapshot Snapshot;
+	if (!BuildProductionSnapshot(*this, Snapshot, BuildMs, 1768))
+	{
+		return false;
+	}
+	const FLNPNavSnapshot& Nav = Snapshot.Nav;
+	const FLNPNavGraph& Graph = Nav.Graph;
+	CheckSymmetry(TEXT("Production seed 1768"), Nav);
+
+	TArray<FSchedulerCase> Cases;
+	CollectProductionPairs(Snapshot, FindLargestGroup(Nav), 40, 20261013, Cases);
+	if (!TestTrue(FString::Printf(TEXT("Collected production pairs (%d)"), Cases.Num()), Cases.Num() >= 30))
+	{
+		return false;
+	}
+	TArray<FLNPNavEndpoints> Ends;
+	for (const FSchedulerCase& Case : Cases)
+	{
+		Ends.Add(Resolve(Snapshot, Case.Start, Case.StartHandle, Case.Goal, Case.GoalHandle));
+	}
+	auto BuildField = [&Nav](const int32 Goal, const double MaxCost, const int32 Budget, FLNPNavFlowField& OutField,
+		const FLNPNavOverlay* Overlay = nullptr)
+	{
+		FLNPNavFlowFieldParams Params;
+		Params.MaxCost = MaxCost;
+		int32 Steps = 0;
+		LNPNavFlowField::BeginBuild(Nav, Goal, Params, OutField, Overlay);
+		while (LNPNavFlowField::StepBuild(Nav, OutField, Budget, Overlay) == ELNPNavFlowFieldStatus::Building)
+		{
+			++Steps;
+		}
+		return Steps;
+	};
+
+	// 2) field 거리는 A* 최적 cost와 같고, 다음 node 열은 이웃 edge로 이어진 그 cost의 경로다. 반경 밖은 field에 없고 A* 폴백이 푼다.
+	FLNPNavSearchScratch Scratch;
+	TArray<int32> Nodes;
+	for (const double Radius : {12000.0, 1500.0})
+	{
+		int32 Settled = 0, Outside = 0, CostMismatches = 0, PathFailures = 0, FallbackFailures = 0;
+		int64 FieldNodes = 0, SearchExpansions = 0;
+		double FieldSeconds = 0.0, SearchSeconds = 0.0;
+		uint64 MaxBytes = 0;
+		for (int32 Index = 0; Index < Cases.Num(); ++Index)
+		{
+			FLNPNavFlowField Field;
+			double Begin = FPlatformTime::Seconds();
+			BuildField(Ends[Index].GoalNode, Radius, MAX_int32, Field);
+			FieldSeconds += FPlatformTime::Seconds() - Begin;
+			FieldNodes += Field.Settled;
+			MaxBytes = FMath::Max(MaxBytes, Field.GetAllocatedBytes());
+			TestEnum(*this, TEXT("Field completes"), Field.Status, ELNPNavFlowFieldStatus::Complete);
+			Begin = FPlatformTime::Seconds();
+			const FPathResult Search = FindPath(Nav, Ends[Index].StartNode, Ends[Index].GoalNode, Scratch);
+			SearchSeconds += FPlatformTime::Seconds() - Begin;
+			SearchExpansions += Search.Expansions;
+			float Distance = 0.0f;
+			const double Tolerance = FMath::Max(1.0, Search.Cost * 1.e-4);
+			if (!LNPNavFlowField::GetSettledDistance(Nav, Field, Ends[Index].StartNode, Distance))
+			{
+				// 반경 안의 node는 모두 확정되므로, 확정되지 않은 시작은 최적 cost가 반경 밖이어야 한다.
+				++Outside;
+				FallbackFailures += Search.Status != ELNPNavSearchStatus::Found || Search.Cost <= Radius - Tolerance ? 1 : 0;
+				continue;
+			}
+			++Settled;
+			CostMismatches += Search.Status != ELNPNavSearchStatus::Found || !FMath::IsNearlyEqual(Distance, Search.Cost, Tolerance)
+				|| Distance > Radius ? 1 : 0;
+			bool bValid = LNPNavFlowField::ExtractNodePath(Nav, Field, Ends[Index].StartNode, Nodes)
+				&& Nodes[0] == Ends[Index].StartNode && Nodes.Last() == Ends[Index].GoalNode;
+			double Walked = 0.0;
+			for (int32 Step = 1; bValid && Step < Nodes.Num(); ++Step)
+			{
+				const int32 FromSlot = Graph.GetSlot(Nodes[Step - 1]);
+				bool bAdjacent = false;
+				Graph.ForEachNeighbor(FromSlot, Nodes[Step - 1], [&bAdjacent, &Nodes, Step](const int32 To) { bAdjacent |= To == Nodes[Step]; });
+				bValid = bAdjacent;
+				Walked += LNPNavGraph::ComputeEdgeCost(Graph.GetWorldPoint(FromSlot, Nodes[Step - 1]),
+					Graph.GetWorldPoint(Graph.GetSlot(Nodes[Step]), Nodes[Step]), Graph.SlotGraphs[0]->Agent.WalkableMinDot);
+			}
+			PathFailures += bValid && FMath::IsNearlyEqual(Walked, Distance, Tolerance) ? 0 : 1;
+		}
+		TestEqual(FString::Printf(TEXT("Radius %.0f field distance equals the A* optimum"), Radius), CostMismatches, 0);
+		TestEqual(FString::Printf(TEXT("Radius %.0f field path is a connected path of that cost"), Radius), PathFailures, 0);
+		TestEqual(FString::Printf(TEXT("Radius %.0f starts outside the field fall back to A*"), Radius), FallbackFailures, 0);
+		// 쌍은 직선 20~80m라 120m 반경에는 대부분 들고 15m 반경에는 하나도 들지 않는다.
+		TestTrue(FString::Printf(TEXT("Radius %.0f settled starts (%d)"), Radius, Settled), Radius > 10000.0 ? Settled > Cases.Num() / 2 : Settled == 0);
+		AddInfo(FString::Printf(TEXT("Flow field radius %.0f: cases=%d settled=%d outside=%d fieldNodes/field=%lld %.3fus/settled maxFieldKiB=%.1f; A* expansions/request=%lld %.3fus/expansion"),
+			Radius, Cases.Num(), Settled, Outside, FieldNodes / Cases.Num(), FieldNodes > 0 ? FieldSeconds * 1.e6 / FieldNodes : 0.0,
+			MaxBytes / 1024.0, SearchExpansions / Cases.Num(), SearchExpansions > 0 ? SearchSeconds * 1.e6 / SearchExpansions : 0.0));
+	}
+
+	// 3) 여러 프레임 분할: 예산과 무관하게 같은 field가 되고, 짓는 중 확정된 node의 경로는 완성된 field의 경로와 같다.
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const int32 Goal = Ends[Index].GoalNode;
+		FLNPNavFlowField Reference;
+		BuildField(Goal, 12000.0, MAX_int32, Reference);
+		TArray<int32> ReferencePath;
+		if (!TestTrue(TEXT("Reference field reaches the pair start"), LNPNavFlowField::ExtractNodePath(Nav, Reference, Ends[Index].StartNode, ReferencePath)))
+		{
+			continue;
+		}
+		for (const int32 Budget : {1, 7, 333, 4000})
+		{
+			FLNPNavFlowField Field;
+			const int32 Steps = BuildField(Goal, 12000.0, Budget, Field);
+			bool bSame = Field.Settled == Reference.Settled && Field.Blocks.Num() == Reference.Blocks.Num()
+				&& FMemory::Memcmp(Field.Blocks.GetData(), Reference.Blocks.GetData(), Field.Blocks.Num() * sizeof(FLNPNavFlowFieldBlock)) == 0;
+			for (const TPair<uint32, int32>& Pair : Reference.BlockByTile)
+			{
+				const int32* Found = Field.BlockByTile.Find(Pair.Key);
+				bSame = bSame && Found != nullptr && *Found == Pair.Value;
+			}
+			TestTrue(FString::Printf(TEXT("Field built with budget %d in %d steps equals the single-step field"), Budget, Steps), bSame);
+		}
+		// 경로 가운데 node가 확정될 때까지만 짓는다. 시작 쪽 절반은 아직 field 밖이다.
+		FLNPNavFlowField Partial;
+		FLNPNavFlowFieldParams Params;
+		Params.MaxCost = 12000.0;
+		LNPNavFlowField::BeginBuild(Nav, Goal, Params, Partial);
+		float MiddleDistance = 0.0f;
+		while (!LNPNavFlowField::GetSettledDistance(Nav, Partial, ReferencePath[ReferencePath.Num() / 2], MiddleDistance)
+			&& LNPNavFlowField::StepBuild(Nav, Partial, 1) == ELNPNavFlowFieldStatus::Building)
+		{
+		}
+		TestEnum(*this, TEXT("Partially built field is still building"), Partial.Status, ELNPNavFlowFieldStatus::Building);
+		int32 Checked = 0, Mismatches = 0;
+		for (int32 Step = 0; Step < ReferencePath.Num(); ++Step)
+		{
+			if (LNPNavFlowField::ExtractNodePath(Nav, Partial, ReferencePath[Step], Nodes))
+			{
+				++Checked;
+				Mismatches += Nodes != TArray<int32>(ReferencePath.GetData() + Step, ReferencePath.Num() - Step) ? 1 : 0;
+			}
+		}
+		TestTrue(TEXT("Partial field answers the settled part of the path"), Checked > 0 && Checked < ReferencePath.Num());
+		TestEqual(TEXT("Partial field paths equal the complete field paths"), Mismatches, 0);
+	}
+
+	// 4) overlay: 막힌 node는 확정하지 않고 경로가 비켜 가며, 짓는 중 overlay가 바뀌면 Invalid다.
+	{
+		const int32 Goal = Ends[0].GoalNode;
+		FLNPNavFlowField Reference;
+		BuildField(Goal, 12000.0, MAX_int32, Reference);
+		TArray<int32> ReferencePath;
+		if (!TestTrue(TEXT("Overlay case start is in the field"), LNPNavFlowField::ExtractNodePath(Nav, Reference, Ends[0].StartNode, ReferencePath)))
+		{
+			return false;
+		}
+		FLNPNavOverlay Overlay;
+		Overlay.Revision = 1;
+		Overlay.BlockedNodes.Init(false, Graph.GetNodeCount());
+		const int32 Blocked = ReferencePath[ReferencePath.Num() / 2];
+		Overlay.BlockedNodes[Blocked] = true;
+		FLNPNavFlowField Field;
+		BuildField(Goal, 12000.0, 4000, Field, &Overlay);
+		float Distance = 0.0f;
+		TestFalse(TEXT("Overlay-blocked node is not in the field"), LNPNavFlowField::GetSettledDistance(Nav, Field, Blocked, Distance));
+		TestTrue(TEXT("Field with a blocked node still reaches the start"), LNPNavFlowField::ExtractNodePath(Nav, Field, Ends[0].StartNode, Nodes)
+			&& !Nodes.Contains(Blocked));
+		Overlay.BlockedNodes[Blocked] = false;
+		Overlay.BlockedNodes[Goal] = true;
+		TestEnum(*this, TEXT("Blocked goal is invalid"), LNPNavFlowField::BeginBuild(Nav, Goal, FLNPNavFlowFieldParams(), Field, &Overlay),
+			ELNPNavFlowFieldStatus::Invalid);
+		LNPNavFlowField::BeginBuild(Nav, Goal, FLNPNavFlowFieldParams(), Field);
+		TestEnum(*this, TEXT("Overlay revision change invalidates a building field"), LNPNavFlowField::StepBuild(Nav, Field, 100, &Overlay),
+			ELNPNavFlowFieldStatus::Invalid);
+	}
 	return !HasAnyErrors();
 }
 
