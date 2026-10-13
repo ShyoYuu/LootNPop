@@ -11,6 +11,8 @@
 #include "LNPMoveSpeedModifier.h"
 #include "LNPCharacterMoverComponent.generated.h"
 
+class ULNPPawnGravityComponent;
+
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsSprinting);
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsGuarding);
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsADS);
@@ -118,6 +120,11 @@ protected:
 	 * 한 화면 프레임에 고정 틱이 두 스텝 돌면 두 번째 스텝의 `IsOnGround()`·`HasGameplayTag()`·
 	 * `FindMovementModifierByType()`이 첫 스텝의 결과를 못 봐, 대시가 쿨다운을 못 보고 두 번 실행됐다.
 	 * 스텝 수는 머신마다 달라 서버·게스트 판정이 갈리고 보정이 났다(2026-10-13 2인 PIE 진단).
+	 *
+	 * 중력·Up 방향 Override도 같은 이유로 여기서 스텝 시작 위치 기준으로 다시 적용한다. ULNPPawnGravityComponent의
+	 * TickComponent는 화면 프레임마다 액터 위치(=마지막 FinalizeFrame)로 계산해, 두 번째 서브스텝은 한 틱 늦고
+	 * 리시뮬레이션 중에는 롤백 전 최신 위치에 멈춰 있었다. 그 미세한 방향 차가 굴곡 지형의 착지·이륙 틱을
+	 * 서버·게스트에서 한 틱씩 갈라 보정이 났다(2026-10-13).
 	 */
 	virtual void OnPreSimulate(const FMoverTimeStep& TimeStep, const FMoverTickStartData& StartingData) override;
 
@@ -190,6 +197,10 @@ protected:
 	float MinGlideHeight = 300.0f;
 
 private:
+	/** OnPreSimulate가 스텝마다 중력을 맞출 때 쓰는 Owner의 중력 Component Cache. */
+	UPROPERTY(Transient)
+	TObjectPtr<ULNPPawnGravityComponent> CachedGravityComponent;
+
 	/** OnMoverPreSimulationTick이 InputCmd에서 옮겨 담는다. 리시뮬레이션 프레임마다 그 프레임의 값으로 갱신된다. */
 	float AIDesiredSpeedFromInput = 0.f;
 

@@ -44,30 +44,12 @@ void ULNPPawnGravityComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	if (OwnerPawn == nullptr)
 		return;
 
-	FVector PawnUpDir = FVector::UpVector;
-	FVector PawnDownDir = FVector::DownVector;
+	FVector PawnUpDir;
+	FVector PawnDownDir;
 
 	// 현재 모드에 따라 목표 표면 법선과 중력 방향 계산
-	switch (GravityType)
-	{
-	case ELNPGravityType::Fixed:
-		PawnDownDir = FixedGravityDirection.GetSafeNormal();
-		PawnUpDir = -PawnDownDir;
-		break;
-
-	case ELNPGravityType::RadialInward:
-		PawnDownDir = (GravityOrigin - OwnerPawn->GetActorLocation()).GetSafeNormal();
-		PawnUpDir = -PawnDownDir;
-		break;
-
-	case ELNPGravityType::RadialOutward:
-		PawnDownDir = (OwnerPawn->GetActorLocation() - GravityOrigin).GetSafeNormal();
-		PawnUpDir = -PawnDownDir;
-		break;
-
-	default:
+	if (!ComputeDirectionsAt(OwnerPawn->GetActorLocation(), PawnUpDir, PawnDownDir))
 		return;
-	}
 
 	// 1. 모드 전환 감지
 	if (LastGravityType != GravityType)
@@ -100,6 +82,40 @@ void ULNPPawnGravityComponent::SetGravity(const ELNPGravityType NewType, const F
 	{
 		GravityOrigin = NewDirectionOrOrigin;
 	}
+}
+
+void ULNPPawnGravityComponent::ApplyGravityAt(const FVector& Location)
+{
+	FVector PawnUpDir;
+	FVector PawnDownDir;
+	if (ComputeDirectionsAt(Location, PawnUpDir, PawnDownDir))
+	{
+		UpdatePawnOrientation(PawnUpDir, PawnDownDir);
+	}
+}
+
+bool ULNPPawnGravityComponent::ComputeDirectionsAt(const FVector& Location, FVector& OutUpDir, FVector& OutDownDir) const
+{
+	switch (GravityType)
+	{
+	case ELNPGravityType::Fixed:
+		OutDownDir = FixedGravityDirection.GetSafeNormal();
+		break;
+
+	case ELNPGravityType::RadialInward:
+		OutDownDir = (GravityOrigin - Location).GetSafeNormal();
+		break;
+
+	case ELNPGravityType::RadialOutward:
+		OutDownDir = (Location - GravityOrigin).GetSafeNormal();
+		break;
+
+	default:
+		return false;
+	}
+
+	OutUpDir = -OutDownDir;
+	return true;
 }
 
 FVector ULNPPawnGravityComponent::GetUpDirection() const

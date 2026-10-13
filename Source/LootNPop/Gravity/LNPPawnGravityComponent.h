@@ -41,6 +41,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	void SetGravity(const ELNPGravityType NewType, const FVector& NewDirectionOrOrigin);
 
+	/**
+	 * 주어진 위치 기준으로 Mover의 중력·Up 방향 Override를 적용한다.
+	 * ULNPCharacterMoverComponent::OnPreSimulate가 스텝 시작 위치로 매 스텝 부른다 —
+	 * TickComponent의 액터 위치는 화면 프레임마다 한 번만 따라와 서브스텝·리시뮬레이션에서 낡았다.
+	 */
+	void ApplyGravityAt(const FVector& Location);
+
 	/** 현재 중력 타입과 Owner 위치에 기반하여 계산된 Up 방향을 반환한다 */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	FVector GetUpDirection() const;
@@ -76,6 +83,9 @@ private:
 
 	/** 물리 방향 변경 감지를 위한 Up 방향 Cache */
 	FVector LastUpDir = FVector::UpVector;
+
+	/** 현재 중력 모드로 Location에서의 Up·중력 방향을 계산한다. 모드가 None이면 false. */
+	bool ComputeDirectionsAt(const FVector& Location, FVector& OutUpDir, FVector& OutDownDir) const;
 
 	/** 새 방향에 따라 물리 중력과 Capsule 방향을 업데이트한다 */
 	void UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir);

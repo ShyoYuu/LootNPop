@@ -11,6 +11,7 @@
 #include "Movement/LNPLayeredMove_LinearVelocity.h"
 #include "Movement/LNPInstantMovementEffects.h"
 #include "WorldDevice/LNPGrappleAnchor.h"
+#include "Gravity/LNPPawnGravityComponent.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LNPGameplayTags.h"
@@ -408,6 +409,17 @@ void ULNPCharacterMoverComponent::OnPreSimulate(const FMoverTimeStep& TimeStep, 
 	// CanDash·CanSprint 등 시뮬레이션 안의 판정이 이 스텝의 시작 상태를 보게 한다 (헤더 주석 참조).
 	// 기본 백엔드(NetworkPrediction)는 게임 스레드에서 스텝을 돌리므로 캐시를 여기서 써도 경합이 없다.
 	UpdateCachedFrameState(&StartingData.SyncState, &StartingData.AuxState);
+
+	// 중력·Up 방향도 이 스텝의 시작 위치로 맞춘다 (헤더 주석 참조).
+	if (CachedGravityComponent == nullptr)
+	{
+		CachedGravityComponent = GetOwner()->FindComponentByClass<ULNPPawnGravityComponent>();
+	}
+	const FMoverDefaultSyncState* StartSyncState = StartingData.SyncState.SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
+	if (CachedGravityComponent && StartSyncState)
+	{
+		CachedGravityComponent->ApplyGravityAt(StartSyncState->GetLocation_WorldSpace());
+	}
 
 	Super::OnPreSimulate(TimeStep, StartingData);
 }
