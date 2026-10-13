@@ -15,6 +15,23 @@ void FLNPNavPathScheduler::VisitResults(TFunctionRef<void(FMassEntityHandle, con
 
 #include "Async/ParallelFor.h"
 
+namespace
+{
+	/** Chase heap 순서: 앞 tick 제출분이 먼저, 같은 tick 안은 직선 거리 오름차순, 같으면 serial 순(결정론). */
+	constexpr auto PathSchedulerChaseHeapLess = [](const auto& A, const auto& B)
+	{
+		if (A.SubmitTick != B.SubmitTick)
+		{
+			return A.SubmitTick < B.SubmitTick;
+		}
+		if (A.DistanceSquared != B.DistanceSquared)
+		{
+			return A.DistanceSquared < B.DistanceSquared;
+		}
+		return A.Serial < B.Serial;
+	};
+}
+
 bool FLNPNavPath::IsCurrent(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay) const
 {
 	// 완성된 경로는 실제 통과 Tile만 검사한다. 다른 지역 link 전환 때문에 다시 탐색하지 않는다.
@@ -41,7 +58,16 @@ uint32 FLNPNavPathScheduler::Submit(const FLNPNavPathRequest& Request)
 	Record.Result.Serial = NextSerial++;
 	Record.Result.Status = ELNPNavPathStatus::Queued;
 	BeginRecordTiming(Record);
-	Queues[static_cast<int32>(Request.Priority)].PushLast({Request.Owner, Record.Result.Serial});
+	const FQueueEntry Entry{Request.Owner, Record.Result.Serial, TickIndex,
+		FVector3d::DistSquared(Request.StartPosition, Request.GoalPosition)};
+	if (Request.Priority == ELNPNavPathPriority::Chase && Settings.bChaseNearestFirst)
+	{
+		ChaseHeap.HeapPush(Entry, PathSchedulerChaseHeapLess);
+	}
+	else
+	{
+		Queues[static_cast<int32>(Request.Priority)].PushLast(Entry);
+	}
 	++QueuedCount;
 	++Stats.Submitted;
 	return Record.Result.Serial;
@@ -90,6 +116,7 @@ int32 FLNPNavPathScheduler::RequeueInvalidatedPaths(const FLNPNavSnapshot& Nav, 
 		Record.Result.Path.Reset();
 		Record.Result.Status = ELNPNavPathStatus::Queued;
 		Record.Result.bFromCache = false;
+		Record.Result.FirstWaypoint = 0;
 		Record.Result.Expansions = 0;
 		Record.Request.Priority = ELNPNavPathPriority::Replan;
 		BeginRecordTiming(Record);
@@ -136,6 +163,7 @@ void FLNPNavPathScheduler::Reset()
 	{
 		Queue.Reset();
 	}
+	ChaseHeap.Reset();
 	QueuedCount = 0;
 	Running.Reset();
 	ScratchInUse.Init(false, Scratches.Num());
@@ -193,6 +221,16 @@ void FLNPNavPathScheduler::EndTimingCapture(TArray<FLNPNavRequestTiming>& OutTim
 
 bool FLNPNavPathScheduler::PopNextQueued(FQueueEntry& OutEntry)
 {
+	// Chase heap이 Chase deque보다 앞이다. 둘 중 하나만 쓰이므로 우선순위 순서는 그대로다.
+	while (!ChaseHeap.IsEmpty())
+	{
+		ChaseHeap.HeapPop(OutEntry, PathSchedulerChaseHeapLess, EAllowShrinking::No);
+		const FRecord* Record = Records.Find(OutEntry.Owner);
+		if (Record != nullptr && Record->Result.Serial == OutEntry.Serial && Record->Result.Status == ELNPNavPathStatus::Queued)
+		{
+			return true;
+		}
+	}
 	for (TDeque<FQueueEntry>& Queue : Queues)
 	{
 		while (Queue.TryPopFirst(OutEntry))
@@ -427,7 +465,8 @@ void FLNPNavPathScheduler::StartRequest(const FLNPNavSnapshot& Nav, const FLNPNa
 	case ELNPNavEndpointStatus::Reachable:
 		Key = {LNPNavGraph::GetTileKey(Nav, Endpoints.StartNode), LNPNavGraph::GetTileKey(Nav, Endpoints.GoalNode),
 			Nav.SnapshotGeneration, Nav.ConnectivityGraphVersion};
-		if (FLNPNavPathPtr Cached = FindCachedPath(Nav, Overlay, Key, Endpoints.StartNode, Endpoints.GoalNode))
+		if (FLNPNavPathPtr Cached = FindCachedPath(Nav, Overlay, Key, Endpoints.StartNode, Endpoints.GoalNode,
+			Record.Result.FirstWaypoint))
 		{
 			Record.Result.Path = MoveTemp(Cached);
 			Record.Result.bFromCache = true;
@@ -555,8 +594,8 @@ FLNPNavPathPtr FLNPNavPathScheduler::BuildPath(
 	return Path;
 }
 
-FLNPNavPathPtr FLNPNavPathScheduler::FindCachedPath(
-	const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, const FCacheKey& Key, const int32 StartNode, const int32 GoalNode)
+FLNPNavPathPtr FLNPNavPathScheduler::FindCachedPath(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay,
+	const FCacheKey& Key, const int32 StartNode, const int32 GoalNode, int32& OutFirstWaypoint)
 {
 	FCacheEntry* Entry = Cache.Find(Key);
 	if (Entry == nullptr)
@@ -565,15 +604,38 @@ FLNPNavPathPtr FLNPNavPathScheduler::FindCachedPath(
 		return nullptr;
 	}
 	const FLNPNavPath& Path = *Entry->Path;
-	// 요청자는 자기 시작 node에서 첫 waypoint로, 마지막 waypoint에서 자기 목표 node로 곧게 걸을 수 있어야 경로를 나눠 쓴다.
-	if (!Path.IsCurrent(Nav, Overlay)
-		|| !LNPNavGraph::IsDirectWalkable(Nav, StartNode, Path.Waypoints[0].Node, Overlay)
-		|| !LNPNavGraph::IsDirectWalkable(Nav, Path.Waypoints.Last().Node, GoalNode, Overlay))
+	// 요청자는 자기 시작 node에서 앞쪽 waypoint 하나로, 마지막 waypoint에서 자기 목표 node로 곧게 걸을 수 있어야 경로를 나눠 쓴다.
+	// 합류점은 앞에서부터 처음 통과한 waypoint다. 그 뒤의 지름길은 경로 추종이 직선 검사로 찾는다.
+	// 시작점이 공유 경로에서 남은 길이에 비해 멀면(a/s > r) 돌아가는 길이 될 수 있어 합류하지 않는다.
+	int32 FirstWaypoint = INDEX_NONE;
+	if (Path.IsCurrent(Nav, Overlay) && LNPNavGraph::IsDirectWalkable(Nav, Path.Waypoints.Last().Node, GoalNode, Overlay))
+	{
+		const TArray<FLNPNavPathWaypoint>& Waypoints = Path.Waypoints;
+		const FVector3d StartPoint = Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(StartNode), StartNode);
+		double Remaining = 0.0;
+		for (int32 Index = 1; Index < Waypoints.Num(); ++Index)
+		{
+			Remaining += FVector3d::Dist(Waypoints[Index - 1].Location, Waypoints[Index].Location);
+		}
+		const int32 JoinCount = FMath::Min(FMath::Max(1, Settings.CacheJoinWaypoints), Waypoints.Num());
+		for (int32 Index = 0; Index < JoinCount && FirstWaypoint == INDEX_NONE; ++Index)
+		{
+			Remaining -= Index > 0 ? FVector3d::Dist(Waypoints[Index - 1].Location, Waypoints[Index].Location) : 0.0;
+			if ((Settings.CacheJoinMaxLeadRatio <= 0.0
+					|| FVector3d::Dist(StartPoint, Waypoints[Index].Location) <= Settings.CacheJoinMaxLeadRatio * Remaining)
+				&& LNPNavGraph::IsDirectWalkable(Nav, StartNode, Waypoints[Index].Node, Overlay))
+			{
+				FirstWaypoint = Index;
+			}
+		}
+	}
+	if (FirstWaypoint == INDEX_NONE)
 	{
 		++Stats.CacheRejects;
 		++Stats.CacheMisses;
 		return nullptr;
 	}
+	OutFirstWaypoint = FirstWaypoint;
 	Entry->LastUsedTick = TickIndex;
 	++Stats.CacheHits;
 	return Entry->Path;

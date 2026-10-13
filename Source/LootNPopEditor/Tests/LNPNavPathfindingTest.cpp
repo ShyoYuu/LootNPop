@@ -1453,6 +1453,158 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		RunOne(4, &Unrelated, Hit);
 		TestTrue(TEXT("Unrelated tile revision keeps the cache hit"), Hit.bFromCache && Hit.Path == Recomputed.Path);
 	}
+
+	// 7) cache 합류(Phase 10 단위 2): 첫 waypoint로는 곧게 못 가도 앞쪽 waypoint로 갈 수 있으면 공유 경로에 합류한다.
+	// 고정 입력의 시작 Tile은 트여 있으므로 시작 Tile 안에 Pod를 세워 가림막을 만든다. 두 요청 모두 같은 overlay에서 푼다.
+	{
+		const FLNPNavGraph& Graph = Nav.Graph;
+		bool bFound = false;
+		int32 Tries = 0;
+		for (int32 CaseIndex = 0; CaseIndex < Cases.Num() && !bFound; ++CaseIndex)
+		{
+			const FSchedulerCase& Case = Cases[CaseIndex];
+			const FLNPNavEndpoints CaseEnds = Resolve(Snapshot, Case.Start, Case.StartHandle, Case.Goal, Case.GoalHandle);
+			const uint32 StartTile = LNPNavGraph::GetTileKey(Nav, CaseEnds.StartNode);
+			const FVector3d StartPoint = Graph.GetWorldPoint(Graph.GetSlot(CaseEnds.StartNode), CaseEnds.StartNode);
+			TArray<int32> TileNodes;
+			for (int32 Node = 0; Node < Graph.GetNodeCount(); ++Node)
+			{
+				if (!Graph.BlockedNodes[Node] && LNPNavGraph::GetTileKey(Nav, Node) == StartTile)
+				{
+					TileNodes.Add(Node);
+				}
+			}
+			for (const int32 PodNode : TileNodes)
+			{
+				const FVector3d PodPoint = Graph.GetWorldPoint(Graph.GetSlot(PodNode), PodNode);
+				const double PodDistance = FVector3d::Dist(PodPoint, StartPoint);
+				if (bFound || PodDistance < 400.0 || PodDistance > 1000.0 || Tries >= 64)
+				{
+					continue;
+				}
+				++Tries;
+				const FLNPNavPodBlocker Pod{1, PodPoint, Case.StartHandle};
+				FLNPNavOverlay Overlay;
+				if (!LNPNavOverlay::BuildPodOverlay(Snapshot, MakeArrayView(&Pod, 1), nullptr, Overlay))
+				{
+					continue;
+				}
+				FLNPNavPathScheduler Probe;
+				const uint32 ProbeSerial = Probe.Submit(MakeRequest(Case, 1));
+				DrainScheduler(*this, Probe, Nav, &Overlay);
+				FLNPNavPathResult Shared;
+				if (Probe.GetResult(FMassEntityHandle(1, 1), ProbeSerial, Shared) != ELNPNavPathStatus::Succeeded)
+				{
+					continue;
+				}
+				const TArray<FLNPNavPathWaypoint>& Waypoints = Shared.Path->Waypoints;
+				const int32 JoinLimit = FMath::Min(4, Waypoints.Num());
+				for (const int32 Node : TileNodes)
+				{
+					if (Overlay.IsBlocked(Node) || LNPNavGraph::IsDirectWalkable(Nav, Node, Waypoints[0].Node, &Overlay))
+					{
+						continue;
+					}
+					int32 JoinIndex = 1;
+					while (JoinIndex < JoinLimit && !LNPNavGraph::IsDirectWalkable(Nav, Node, Waypoints[JoinIndex].Node, &Overlay))
+					{
+						++JoinIndex;
+					}
+					FSchedulerCase Joiner = Case;
+					Joiner.Start = Graph.GetWorldPoint(Graph.GetSlot(Node), Node);
+					FLNPNavEndpointQuery Query;
+					Query.StartPosition = Joiner.Start;
+					Query.StartSurface = &Joiner.StartHandle;
+					Query.GoalPosition = Joiner.Goal;
+					Query.GoalSurface = &Joiner.GoalHandle;
+					const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query, &Overlay);
+					if (JoinIndex >= JoinLimit || Ends.Status != ELNPNavEndpointStatus::Reachable || Ends.StartNode != Node
+						|| Ends.GoalNode != Waypoints.Last().Node)
+					{
+						continue;
+					}
+					bFound = true;
+					AddInfo(FString::Printf(TEXT("Cache join case: %s with a Pod %.0fcm from the start joins at waypoint %d of %d"),
+						Case.Label, PodDistance, JoinIndex, Waypoints.Num()));
+					// 합류 거리 비 상한은 따로 본다. 아주 작은 상한은 시작점이 떨어진 합류를 막는다.
+					struct FJoinMode
+					{
+						int32 JoinWaypoints;
+						double LeadRatio;
+					};
+					for (const FJoinMode Mode : {FJoinMode{4, 0.0}, FJoinMode{1, 0.0}, FJoinMode{4, 1.e-3}})
+					{
+						const int32 JoinWaypoints = Mode.JoinWaypoints;
+						FLNPNavPathScheduler Scheduler;
+						Scheduler.Settings.CacheJoinWaypoints = JoinWaypoints;
+						Scheduler.Settings.CacheJoinMaxLeadRatio = Mode.LeadRatio;
+						const uint32 FirstSerial = Scheduler.Submit(MakeRequest(Case, 1));
+						DrainScheduler(*this, Scheduler, Nav, &Overlay);
+						const uint32 JoinSerial = Scheduler.Submit(MakeRequest(Joiner, 2));
+						DrainScheduler(*this, Scheduler, Nav, &Overlay);
+						FLNPNavPathResult First;
+						FLNPNavPathResult Joined;
+						Scheduler.GetResult(FMassEntityHandle(1, 1), FirstSerial, First);
+						Scheduler.GetResult(FMassEntityHandle(2, 1), JoinSerial, Joined);
+						if (Mode.LeadRatio > 0.0)
+						{
+							TestTrue(TEXT("Lead ratio limit rejects a distant joiner"),
+								!Joined.bFromCache && Joined.Expansions > 0 && Scheduler.GetStats().CacheRejects == 1);
+						}
+						else if (JoinWaypoints > 1)
+						{
+							TestTrue(FString::Printf(TEXT("Joiner shares the cached path from waypoint %d"), JoinIndex),
+								Joined.bFromCache && Joined.Path == First.Path && Joined.FirstWaypoint == JoinIndex && Joined.Expansions == 0);
+						}
+						else
+						{
+							TestTrue(TEXT("First-waypoint-only cache rejects the joiner"),
+								!Joined.bFromCache && Joined.FirstWaypoint == 0 && Joined.Expansions > 0 && Scheduler.GetStats().CacheRejects == 1);
+						}
+					}
+					break;
+				}
+			}
+		}
+		TestTrue(FString::Printf(TEXT("A Pod in a fixed start tile hides the first waypoint from a node that sees a later one (%d Pod tries)"), Tries),
+			bFound);
+	}
+
+	// 8) Chase 거리 순서: 같은 tick 제출분은 가까운 요청이 먼저 시작하고, 앞 tick에 온 요청은 거리와 무관하게 먼저다.
+	{
+		const FSchedulerCase& Far = Cases[2];
+		TestTrue(TEXT("OpenCrust request is longer than the tree request"),
+			FVector3d::Dist(Far.Start, Far.Goal) > FVector3d::Dist(Tree.Start, Tree.Goal));
+		for (const bool bNearestFirst : {true, false})
+		{
+			FLNPNavPathScheduler Scheduler;
+			Scheduler.Settings.CacheCapacity = 0;
+			Scheduler.Settings.ScratchCount = 1;
+			Scheduler.Settings.ExpansionsPerFrame = 20;
+			Scheduler.Settings.bChaseNearestFirst = bNearestFirst;
+			const uint32 FarSerial = Scheduler.Submit(MakeRequest(Far, 1));
+			const uint32 NearSerial = Scheduler.Submit(MakeRequest(Tree, 2));
+			Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+			FLNPNavPathResult Result;
+			const bool bFarQueued = Scheduler.GetResult(FMassEntityHandle(1, 1), FarSerial, Result) == ELNPNavPathStatus::Queued;
+			const bool bNearQueued = Scheduler.GetResult(FMassEntityHandle(2, 1), NearSerial, Result) == ELNPNavPathStatus::Queued;
+			TestTrue(bNearestFirst ? TEXT("Nearer same-tick chase request starts first")
+				: TEXT("FIFO order starts the earlier chase request first"), bNearestFirst ? bFarQueued && !bNearQueued : !bFarQueued && bNearQueued);
+		}
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.CacheCapacity = 0;
+		Scheduler.Settings.ScratchCount = 1;
+		Scheduler.Settings.ExpansionsPerFrame = 8;
+		const uint32 FarSerial = Scheduler.Submit(MakeRequest(Far, 1));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		const uint32 NearSerial = Scheduler.Submit(MakeRequest(Tree, 2));
+		Scheduler.Settings.ExpansionsPerFrame = 20;
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		FLNPNavPathResult Result;
+		TestTrue(TEXT("Earlier-tick chase request starts before a nearer later one"),
+			Scheduler.GetResult(FMassEntityHandle(1, 1), FarSerial, Result) != ELNPNavPathStatus::Queued
+			&& Scheduler.GetResult(FMassEntityHandle(2, 1), NearSerial, Result) == ELNPNavPathStatus::Queued);
+	}
 	return !HasAnyErrors();
 }
 
@@ -1621,19 +1773,104 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		TArray<int32> Waypoints;
 		int32 Expansions;
 		double Cost;
+		int32 FirstWaypoint;
+		int32 DoneTick;
+		bool bFromCache;
 	};
+	// 앞 넷은 cache 없는 결정론 대조, cache256은 단위 1까지의 기준선(첫 waypoint 합류·먼저 온 순서)이다.
+	// 단위 2 변형: join4(앞쪽 waypoint 합류), lead r(합류 거리 비 a/s 상한), nearest(Chase 거리 순서), improved(합류 4·r 0.1·거리 순서),
+	// improvedSerial(improved의 직렬 결정론 대조), improvedBudget8000(몰림 시 예산 적응의 상한 효과).
+	struct FVariant
+	{
+		const TCHAR* Label;
+		int32 Cache = 0;
+		int32 Budget = 4000;
+		int32 Resolve = 16;
+		bool bParallel = true;
+		int32 JoinWaypoints = 1;
+		bool bNearestFirst = false;
+		double LeadRatio = 0.0;
+	};
+	const FVariant Variants[] =
+	{
+		{TEXT("base")},
+		{TEXT("budget2000"), 0, 2000},
+		{TEXT("resolve64"), 0, 4000, 64},
+		{TEXT("serial"), 0, 4000, 16, false},
+		{TEXT("cache256"), 256},
+		{TEXT("join4"), 256, 4000, 16, true, 4},
+		{TEXT("cache256Lead0.1"), 256, 4000, 16, true, 1, false, 0.1},
+		{TEXT("join4Lead0.05"), 256, 4000, 16, true, 4, false, 0.05},
+		{TEXT("join4Lead0.1"), 256, 4000, 16, true, 4, false, 0.1},
+		{TEXT("join4Lead0.2"), 256, 4000, 16, true, 4, false, 0.2},
+		{TEXT("nearest"), 256, 4000, 16, true, 1, true},
+		{TEXT("improved"), 256, 4000, 16, true, 4, true, 0.1},
+		{TEXT("improvedSerial"), 256, 4000, 16, false, 4, true, 0.1},
+		{TEXT("improvedBudget8000"), 256, 8000, 16, true, 4, true, 0.1},
+	};
+	constexpr int32 ImprovedVariant = 11;
+	constexpr int32 ImprovedSerialVariant = 12;
 	TArray<FReference> References;
+	TArray<FReference> ImprovedResults;
 	FString Output = TEXT("variant,batch,tick,started,expansions,queued,running,tickUs,startUs,stepUs,finishUs,workerSumUs\n");
 	// 요청 단위 결과. row는 입력 CSV의 데이터 행 번호(1부터), doneTick은 묶음 제출 뒤 끝난 tick(1부터)이다.
-	FString RequestOutput = TEXT("variant,row,batch,batchSize,status,doneTick,expansions,runningTicks,fromCache,cost\n");
-	for (int32 Variant = 0; Variant < 5; ++Variant)
+	// walk는 경로 추종(LNPEnemyPathProcessor)을 흉내 낸 보행 길이(cm)다. 경로 cost 비율은 이것을 base와 비교한다.
+	// 합류 waypoint에서 시작해, 도착한 node에서 목표가 곧게 보이면 목표로 가고, 아니면 곧게 보이는 가장 먼 연속 waypoint로 간다.
+	// 걷는 도중의 지름길은 세지 않으므로 실제 추종보다 조금 길다. 시작·목표 node는 overlay 없는 스냅이다.
+	TArray<FLNPNavEndpoints> Endpoints;
+	for (const FLNPNavPathRequest& Request : Requests)
 	{
+		FLNPNavEndpointQuery Query;
+		Query.StartPosition = Request.StartPosition;
+		Query.StartSurface = &Request.StartSurface;
+		Query.GoalPosition = Request.GoalPosition;
+		Query.GoalSurface = &Request.GoalSurface;
+		Query.SnapRadius = Request.SnapRadius;
+		Query.ApproachRadius = Request.ApproachRadius;
+		Endpoints.Add(LNPNavGraph::ResolveEndpoints(Snapshot.Nav, Query));
+	}
+	auto FollowWalk = [&Snapshot, &Requests, &Endpoints](const int32 Index, const FLNPNavPathResult& Result)
+	{
+		const TArray<FLNPNavPathWaypoint>& Waypoints = Result.Path->Waypoints;
+		const bool bToGoal = Result.Status == ELNPNavPathStatus::Succeeded && Endpoints[Index].GoalNode != INDEX_NONE;
+		FVector3d Position = Requests[Index].StartPosition;
+		int32 Node = Endpoints[Index].StartNode;
+		double Walk = 0.0;
+		for (int32 Waypoint = Result.FirstWaypoint; Node != INDEX_NONE;)
+		{
+			if (bToGoal && LNPNavGraph::IsDirectWalkable(Snapshot.Nav, Node, Endpoints[Index].GoalNode))
+			{
+				Walk += FVector3d::Dist(Position, Requests[Index].GoalPosition);
+				break;
+			}
+			if (!Waypoints.IsValidIndex(Waypoint))
+			{
+				break;
+			}
+			while (Waypoints.IsValidIndex(Waypoint + 1) && LNPNavGraph::IsDirectWalkable(Snapshot.Nav, Node, Waypoints[Waypoint + 1].Node))
+			{
+				++Waypoint;
+			}
+			Walk += FVector3d::Dist(Position, Waypoints[Waypoint].Location);
+			Position = Waypoints[Waypoint].Location;
+			Node = Waypoints[Waypoint].Node;
+			++Waypoint;
+		}
+		return Walk;
+	};
+	FString RequestOutput = TEXT("variant,row,batch,batchSize,status,doneTick,expansions,runningTicks,fromCache,cost,firstWaypoint,walk\n");
+	for (int32 Variant = 0; Variant < UE_ARRAY_COUNT(Variants); ++Variant)
+	{
+		const FVariant& Config = Variants[Variant];
 		FLNPNavPathScheduler Scheduler;
-		Scheduler.Settings.CacheCapacity = Variant == 4 ? 256 : 0;
-		Scheduler.Settings.ExpansionsPerFrame = Variant == 1 ? 2000 : 4000;
-		Scheduler.Settings.ResolveCostInExpansions = Variant == 2 ? 64 : 16;
-		Scheduler.Settings.bParallel = Variant != 3;
-		const TCHAR* Labels[] = {TEXT("base"), TEXT("budget2000"), TEXT("resolve64"), TEXT("serial"), TEXT("cache256")};
+		Scheduler.Settings.CacheCapacity = Config.Cache;
+		Scheduler.Settings.ExpansionsPerFrame = Config.Budget;
+		Scheduler.Settings.ResolveCostInExpansions = Config.Resolve;
+		Scheduler.Settings.bParallel = Config.bParallel;
+		Scheduler.Settings.CacheJoinWaypoints = Config.JoinWaypoints;
+		Scheduler.Settings.bChaseNearestFirst = Config.bNearestFirst;
+		Scheduler.Settings.CacheJoinMaxLeadRatio = Config.LeadRatio;
+		const TCHAR* const Label = Config.Label;
 		TArray<double> TickUs, StartUs, StepUs, FinishUs, QueueSamples;
 		double TotalStart = 0, TotalStep = 0, TotalFinish = 0, TotalTick = 0;
 		int32 Batch = 0, Mismatches = 0, MaxCharged = 0;
@@ -1660,7 +1897,7 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				QueueSamples.Add(Scheduler.GetQueuedCount());
 				TotalTick += Elapsed; TotalStart += Start; TotalStep += Step; TotalFinish += Finish;
 				MaxCharged = FMath::Max(MaxCharged, Stats.LastTickExpansions + Stats.LastTickStarted * Scheduler.Settings.ResolveCostInExpansions);
-				Output += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f\n"), Labels[Variant], Batch, Tick++,
+				Output += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f\n"), Label, Batch, Tick++,
 					Stats.LastTickStarted, Stats.LastTickExpansions, Scheduler.GetQueuedCount(), Scheduler.GetRunningCount(),
 					Elapsed, Start, Step, Finish, Stats.LastTickSearchSeconds * 1.e6);
 				for (int32 Index = First; Index < End; ++Index)
@@ -1679,26 +1916,39 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				FLNPNavPathResult Result;
 				Scheduler.GetResult(Requests[Index].Owner, Serials[Index - First], Result);
 				const double Cost = Result.Path.IsValid() ? Result.Path->Cost : 0.0;
-				RequestOutput += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%d,%d,%.3f\n"), Labels[Variant], Index + 1, Batch, End - First,
+				const double Walk = Result.Path.IsValid() ? FollowWalk(Index, Result) : 0.0;
+				RequestOutput += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%d,%d,%.3f,%d,%.1f\n"), Label, Index + 1, Batch, End - First,
 					static_cast<int32>(Result.Status), DoneTicks[Index - First], Result.Expansions, Result.RunningTicks,
-					Result.bFromCache ? 1 : 0, Cost);
-				if (Variant == 0) { References.Add({Result.Status, WaypointNodes(Result), Result.Expansions, Cost}); }
-				else if (Variant != 4)
+					Result.bFromCache ? 1 : 0, Cost, Result.FirstWaypoint, Walk);
+				const FReference Current{Result.Status, WaypointNodes(Result), Result.Expansions, Cost, Result.FirstWaypoint,
+					DoneTicks[Index - First], Result.bFromCache};
+				if (Variant == 0) { References.Add(Current); }
+				else if (Config.Cache == 0)
 				{
 					const FReference& Reference = References[Index];
 					Mismatches += Result.Status != Reference.Status || WaypointNodes(Result) != Reference.Waypoints
 						|| Result.Expansions != Reference.Expansions || !FMath::IsNearlyEqual(Cost, Reference.Cost, 1.e-6) ? 1 : 0;
+				}
+				if (Variant == ImprovedVariant) { ImprovedResults.Add(Current); }
+				else if (Variant == ImprovedSerialVariant)
+				{
+					// 직렬 확장도 병렬과 같은 순서로 끝나므로 cache 합류까지 요청별 결과가 같아야 한다.
+					const FReference& Reference = ImprovedResults[Index];
+					Mismatches += Current.Status != Reference.Status || Current.Waypoints != Reference.Waypoints
+						|| Current.Expansions != Reference.Expansions || Current.Cost != Reference.Cost
+						|| Current.FirstWaypoint != Reference.FirstWaypoint || Current.DoneTick != Reference.DoneTick
+						|| Current.bFromCache != Reference.bFromCache ? 1 : 0;
 				}
 				// 완료된 owner가 누적되어 관리 비용을 왜곡하지 않도록 제거한다. cache는 유지한다.
 				Scheduler.Cancel(Requests[Index].Owner);
 			}
 			First = End;
 		}
-		TestEqual(TEXT("Uncached variants preserve statuses, waypoints, expansions and costs"), Mismatches, 0);
+		TestEqual(FString::Printf(TEXT("%s matches its determinism reference"), Label), Mismatches, 0);
 		TestTrue(TEXT("Every replay tick charge stays within the frame budget"), MaxCharged <= Scheduler.Settings.ExpansionsPerFrame);
 		const auto& Stats = Scheduler.GetStats();
-		AddInfo(FString::Printf(TEXT("Replay %s: batches=%d ticks=%d requests=%llu expansions=%llu hits=%llu mismatches=%d maxCharged=%d budget=%d; tick P50/P95/max=%.1f/%.1f/%.1fus startP95=%.1f stepP95=%.1f finishP95=%.1f queuedP95=%.0f; total tick/start/step/finish=%.1f/%.1f/%.1f/%.1fms"),
-			Labels[Variant], Batch, TickUs.Num(), Stats.Submitted, Stats.Expansions, Stats.CacheHits, Mismatches, MaxCharged,
+		AddInfo(FString::Printf(TEXT("Replay %s: batches=%d ticks=%d requests=%llu expansions=%llu hits=%llu rejects=%llu mismatches=%d maxCharged=%d budget=%d; tick P50/P95/max=%.1f/%.1f/%.1fus startP95=%.1f stepP95=%.1f finishP95=%.1f queuedP95=%.0f; total tick/start/step/finish=%.1f/%.1f/%.1f/%.1fms"),
+			Label, Batch, TickUs.Num(), Stats.Submitted, Stats.Expansions, Stats.CacheHits, Stats.CacheRejects, Mismatches, MaxCharged,
 			Scheduler.Settings.ExpansionsPerFrame, Percentile(TickUs, .5), Percentile(TickUs, .95), Percentile(TickUs, 1),
 			Percentile(StartUs, .95), Percentile(StepUs, .95), Percentile(FinishUs, .95), Percentile(QueueSamples, .95),
 			TotalTick / 1000, TotalStart / 1000, TotalStep / 1000, TotalFinish / 1000));

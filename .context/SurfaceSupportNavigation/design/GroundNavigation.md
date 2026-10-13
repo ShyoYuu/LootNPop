@@ -109,14 +109,24 @@ Enemy 경로 소비의 목표 node 투영은 processor 한 번의 실행 안에�
 
 `TraversedRevisionFingerprint`는 계산된 경로가 실제 통과한 tile/edge revision을 결과와 함께 저장한 값이다. cache lookup에서는 동일 경로 후보의 저장된 revision 목록을 현재 snapshot과 비교한다. 탐색 전에는 알 수 없는 `RelevantRevisionSet`을 key 입력으로 요구하지 않는다. Phase 7은 개별 A* + 결과 cache로 시작한다. 플레이어나 Pod를 goal로 하는 flow field와 계층형 A*는 Phase 10에서 비교 가능한 최소 기능 프로토타입으로 평가한다(D-044).
 
+실제 cache key는 `(StartTile, GoalTile, SnapshotGeneration, ConnectivityGraphVersion)`이다. 같은 key의 경로는 시작점이 다른 개체가 나눠 쓰므로, 공유가 경로를 얼마나 길게 만드는지를 합류 규칙으로 제한한다(Phase 10 단위 2, D-079).
+
+- 요청자의 마지막 waypoint → 자기 목표 node가 직선 보행 가능해야 한다.
+- 합류점은 공유 경로의 앞쪽 `CacheJoinWaypoints`(4)개 waypoint 중, 시작 node에서 직선 보행 가능하고 합류 거리 비 조건을 만족하는 첫 waypoint다. 결과의 `FirstWaypoint`에 실어 보내고 경로 추종은 그 index부터 시작한다.
+- 합류 거리 비 조건: 합류점까지 직선 거리 a, 합류점 이후 공유 경로 꺾은선 길이 s에 대해 a ≤ r·s(`CacheJoinMaxLeadRatio` r = 0.1). 합류점은 원래 요청의 최단 경로 위에 있으므로 최적 길이 ≥ s − a이고 합류 경로는 a + s다. 따라서 요청별 길이 비율은 (1 + r)/(1 − r) ≈ 1.22 이하이며, 재생 3종의 P95는 1.024 이하다.
+- 조건이 없던 단위 1까지의 cache는 Tile 안 시작점 차이로 보행 길이 비율 P95가 1.17~1.65였다. 수치는 `../history/Phase10_Log.md` 2026-10-13 단위 2가 소유한다.
+
 Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revision으로 유효성을 검사한다. 무관한 지역의 connectivity version 변경만으로 실행 경로를 버리지 않는다. cache key와 실행 중 A*는 계속 connectivity version을 사용한다. 접근점 경로·도달 불가 결과는 새 연결로 원래 목표에 갈 수 있게 됐을 가능성이 있어 version 변경 시 재계획한다. patch의 명시적 edge 전환은 양 끝 Tile revision에 반영한다. 현재 group은 patch가 기존 정적 component를 갈라놓을 수 있으므로 node별 활성 연결성 표를 우선한다(`DynamicTerrain.md` 단위 3).
 
 ### 실행 위치
 
 - A*는 Mass worker에서 요청별 scratch를 사용해 실행한다. snapshot과 overlay는 읽기 전용이다.
 - 프레임 예산은 `시작 요청 수 × ResolveCostInExpansions + 실제 확장 수`의 엄격한 상한이다. 시작 비용을 감당할 수 없으면 요청을 큐에서 꺼내지 않는다. 프레임 전체 예산이 시작 비용보다 작으면 새 요청은 설정을 올릴 때까지 대기하며, 예산을 다음 프레임으로 누적하지 않는다.
+- 대기열은 Chase → Replan → Background 순이다. Chase는 같은 scheduler tick 사이에 제출된 요청끼리 시작·목표 직선 거리 오름차순(같으면 serial 순)으로 시작하고, 앞 tick에 제출된 요청은 거리와 무관하게 먼저다. 굶주림 없이 목표 전환 몰림에서 가까운 개체가 먼저 움직인다(Phase 10 단위 2). 나머지 우선순위는 먼저 온 순서다.
+- 몰림 시 예산 적응은 하지 않는다. 처리량 한계에서는 예산 배수만큼 완료 tick이 줄지만 경로 tick도 같은 비율로 늘어, S3 규모에서 경로 tick Gate(1.5ms)를 넘는다(Phase 10 단위 2).
 - 병렬 확장은 잔여 예산과 실행 중 요청 수 중 작은 수만큼 앞의 요청을 선택하고 균등 몫을 배정한다. 몫의 나머지와 조기 종료로 쓰지 않은 예산은 다음 라운드에서 재사용한다. 배정되지 않은 요청은 다음 라운드·프레임으로 이어간다. 이 차감 상한은 종료 처리·병렬 대기를 포함한 시간 상한을 보장하지 않는다.
 - 동일 요청 비용의 통제 비교는 `Nav.RequestCostReplay` 자동화를 쓴다. CSV의 같은 시각 요청 묶음을 모두 완료한 뒤 다음 묶음을 넣고 독립 owner를 사용한다. Pod overlay·원래 owner 취소·실제 프레임 경계·warm-up cache는 복원하지 않으므로 실제 부하 Gate는 별도로 검사한다. 실행법·예산 검토 근거는 `../history/Phase07_Log.md`의 2026-10-02 기록을 따른다.
+  - 요청 결과 `_Requests.csv`의 `walk`는 경로 추종을 흉내 낸 보행 길이다. 합류 waypoint에서 시작해, 도착한 node에서 목표가 곧게 보이면 목표로, 아니면 곧게 보이는 가장 먼 연속 waypoint로 간다. 경로 cost 비율은 같은 행의 base(cache 없는 A*) 대비 walk 비다. 변형별 비교표는 `Scripts/Profiling/ComparePhase10Replay.py <재생 폴더>`가 만든다.
 - 실제 요청 지연은 `BeginRequestCapture` 구간에 제출·재계획된 요청만 scheduler에서 기록한다. 별도 `NavRequests_*_Timings.csv`는 owner·serial·우선순위·최종 상태와 캡처 시작 기준 `FPlatformTime` 제출·시작·종료 시각(초)을 담는다. 시작·종료 전 시각은 -1이며, warm-up 요청은 제외하고 종료 시 남은 Queued·Running은 미완료로 보존한다. 큐 지연은 시작-제출, 실행 지연은 종료-시작, 전체 지연은 종료-제출이다. 취소와 미완료는 정상 완료 분포에서 분리하고 함께 보고한다. 캡처 외에는 시각 조회와 결과 배열 기록을 하지 않는다.
 - 같은 캡처는 큐 대기 원인 분석용 진단 파일 셋을 함께 남긴다(Phase 10 단위 1). 요청 CSV 스키마는 재생기가 엄격히 검사하므로 바꾸지 않는다.
   - `_Ticks.csv`: scheduler tick마다 시작 전 대기·실행 수, 시작 수(즉시 종료·cache hit 포함), 확장 수, 시작 비용 차감, 종료 수, 최대 실행 수, 끝난 뒤 대기·실행 수, 대기열이 남았을 때의 정지 사유(`1` 예산, `2` scratch)와 scratch에 막힌 순간의 잔여 예산. 시각 기준은 `_Timings.csv`와 같다.

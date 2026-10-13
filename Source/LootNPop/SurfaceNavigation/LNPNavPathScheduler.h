@@ -11,7 +11,10 @@
 struct FLNPNavOverlay;
 struct FLNPNavSnapshot;
 
-/** 같은 우선순위는 먼저 온 순서다(`phases/Phase07b_PathExecution.md` §3.4). */
+/**
+ * 같은 우선순위는 먼저 온 순서다(`phases/Phase07b_PathExecution.md` §3.4).
+ * Chase만 같은 tick에 제출된 요청끼리 시작·목표 직선 거리가 짧은 순서다(Phase 10 단위 2). 앞 tick의 요청은 늘 먼저다.
+ */
 enum class ELNPNavPathPriority : uint8
 {
 	/** 새 추격 요청. */
@@ -96,6 +99,8 @@ struct LOOTNPOP_API FLNPNavPathResult
 	/** 요청이 실행을 시작한 뒤 끝날 때까지 걸친 tick 수. */
 	int32 RunningTicks = 0;
 	bool bFromCache = false;
+	/** 공유 경로에서 이 요청이 합류하는 waypoint. 시작 node에서 이 waypoint로 곧게 걸을 수 있다. cache hit가 아니면 0이다. */
+	int32 FirstWaypoint = 0;
 };
 
 struct LOOTNPOP_API FLNPNavPathSchedulerSettings
@@ -106,6 +111,18 @@ struct LOOTNPOP_API FLNPNavPathSchedulerSettings
 	/** 동시 실행 요청 수. scratch 하나가 전역 node 수 × 12B(Meadow 6.21MiB)다. */
 	int32 ScratchCount = 4;
 	int32 CacheCapacity = 256;
+	/**
+	 * cache 합류 후보로 보는 공유 경로의 앞쪽 waypoint 수. 시작 node에서 직선 보행 가능한 첫 waypoint에 합류한다.
+	 * 1이면 첫 waypoint만 본다(Phase 10 단위 1까지의 동작).
+	 */
+	int32 CacheJoinWaypoints = 4;
+	/**
+	 * 합류 waypoint까지의 직선 거리 a와 그 waypoint 이후 공유 경로 길이 s의 비 a/s 상한 r. 0 이하이면 검사하지 않는다(단위 1까지의 동작).
+	 * 합류점이 최단 경로 위에 있으므로 최적 길이 ≥ s - a이고 합류 경로는 a + s다. 요청별 길이 비율은 (1 + r) / (1 - r) 이하다.
+	 */
+	double CacheJoinMaxLeadRatio = 0.1;
+	/** Chase 요청을 같은 tick 제출분 안에서 직선 거리 오름차순으로 시작한다. 끄면 먼저 온 순서다. */
+	bool bChaseNearestFirst = true;
 	/** 시작·목표 스냅(ResolveEndpoints, P95 약 8us)의 환산 비용. 잔여 예산이 이 값보다 작으면 새 요청은 대기한다. */
 	int32 ResolveCostInExpansions = 16;
 	/** 실행 중 요청들을 worker에서 병렬로 확장한다. 결과는 병렬 여부·예산 분할과 무관하다. */
@@ -241,6 +258,9 @@ private:
 	{
 		FMassEntityHandle Owner;
 		uint32 Serial = 0;
+		/** Chase 거리 순서용. 제출 시점의 TickIndex와 시작·목표 직선 거리 제곱. */
+		uint64 SubmitTick = 0;
+		double DistanceSquared = 0.0;
 	};
 
 	struct FRunningSearch
@@ -289,14 +309,17 @@ private:
 	void FinishSearch(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, FRunningSearch& Running);
 	void Finish(FRecord& Record, ELNPNavPathStatus Status);
 	FLNPNavPathPtr BuildPath(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, TConstArrayView<int32> Nodes, double Cost, bool bApproach = false) const;
+	/** 합류할 수 있으면 공유 경로와 합류 waypoint(OutFirstWaypoint)를 돌려준다. */
 	FLNPNavPathPtr FindCachedPath(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, const FCacheKey& Key,
-		int32 StartNode, int32 GoalNode);
+		int32 StartNode, int32 GoalNode, int32& OutFirstWaypoint);
 	void AddToCache(const FCacheKey& Key, const FLNPNavPathPtr& Path);
 	void ReleaseRunning(int32 RunningIndex);
 	void BeginRecordTiming(FRecord& Record);
 
 	TMap<FMassEntityHandle, FRecord> Records;
 	TDeque<FQueueEntry> Queues[static_cast<int32>(ELNPNavPathPriority::Count)];
+	/** bChaseNearestFirst일 때의 Chase 대기열. (SubmitTick, DistanceSquared, Serial) 최소 heap이다. */
+	TArray<FQueueEntry> ChaseHeap;
 	/** 대기 중인 최신 요청 수. 큐에는 교체·취소된 옛 항목이 남을 수 있어 따로 센다. */
 	int32 QueuedCount = 0;
 	TArray<FRunningSearch> Running;

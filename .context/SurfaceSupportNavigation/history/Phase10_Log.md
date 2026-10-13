@@ -141,3 +141,71 @@
 
 - `LootNPopEditor` 빌드 성공. 전체 `LootNPop.SurfaceNavigation` 자동화 129/129 Success(`Saved/Logs/Phase10_Unit1_AllTests.log`). 테스트가 덮어쓴 에셋 세 개는 `Saved/Tests/Phase10_Unit1_TestAssetBackup`에서 복구했다(Content diff 없음).
 - BuildCookRun 성공(`Saved/Logs/Phase10_Unit1_Package.log`). 세 캡처 모두 호스트·게스트 exit 0이고, Gate 스크립트의 기능 검사를 통과했다. 재생 3종 Success.
+
+## 2026-10-13 — 단위 2(A* 기준선 개선)
+
+### 변경
+
+- **cache 앞쪽 합류**(`FLNPNavPathScheduler::FindCachedPath`): 공유 경로의 앞쪽 `CacheJoinWaypoints`(4)개 waypoint 중 시작 node에서 직선 보행 가능한 첫 waypoint에 합류한다. 결과 `FLNPNavPathResult::FirstWaypoint`로 넘기고 `LNPEnemyPathProcessor`가 그 index부터 따른다. key는 그대로다.
+- **합류 거리 비 가드**(`CacheJoinMaxLeadRatio` r = 0.1): 합류점까지 직선 거리 a ≤ r × 합류점 이후 공유 경로 꺾은선 길이 s. 합류점은 원래 요청의 최단 경로 위에 있으므로 최적 길이 ≥ s − a, 합류 경로는 a + s다. 요청별 길이 비율이 (1+r)/(1−r) ≈ 1.22 이하로 묶인다. 첫 waypoint 합류에도 적용한다(D-079).
+- **Chase 거리 순서**(`bChaseNearestFirst`): Chase 대기열을 (제출 tick, 시작·목표 직선 거리 제곱, serial) 최소 heap으로 바꿨다. 앞 tick 요청이 늘 먼저라 굶주림이 없다. Replan·Background는 먼저 온 순서 그대로다.
+- **재생기**: 변형을 표(`FVariant`)로 바꾸고 단위 2 변형을 추가했다. 요청 결과에 `firstWaypoint`·`walk` 열을 붙였다(뒤에 추가해 단위 1 분석 스크립트와 호환). `improvedSerial`이 `improved`와 요청별(상태·waypoint·합류점·확장·cost·doneTick·cache 여부)로 같아야 한다.
+- **보행 길이 지표 `walk`**: 처음에는 "시작 → 합류 waypoint부터 꺾은선 → 목표"로 쟀으나, 합류점으로 되돌아가는 길이를 그대로 세어 기존 cache256도 S1 비율 P95가 3.4로 나왔다. 경로 추종의 지름길을 흉내 내도록 바꿨다. 도착한 node에서 목표가 곧게 보이면 목표로, 아니면 곧게 보이는 가장 먼 연속 waypoint로 간다(걷는 도중의 지름길은 세지 않는다).
+- 비교표 스크립트 `Scripts/Profiling/ComparePhase10Replay.py <재생 폴더>`(표준 라이브러리만). burst는 묶음 ≥400 요청의 doneTick, 비율은 같은 행 base 대비 walk(둘 다 Succeeded인 행).
+- 회귀(`Nav.PathScheduler`): 7) 고정 입력의 시작 Tile은 모두 트여 있어(첫 waypoint가 안 보이는 node 0개) 시작 Tile에 Pod를 세워 가림막을 만든다. Tree에서 Pod 921cm, waypoint 2/3 합류를 확인하고, 첫 waypoint만 보는 설정과 아주 작은 r은 거부함을 확인한다. 8) 같은 tick의 가까운 Chase가 먼저 시작하고, 끄면 먼저 온 순서, 앞 tick 요청은 거리와 무관하게 먼저다.
+
+### 재생 비교(`Saved/Profiling/Phase10/Unit1` 캡처 3종, sidecar seed 1768)
+
+| 입력 / 변형 | 확장 합 | cache hit(앞쪽 합류) | burst 완료 tick P50/P95/최대 | 보행 길이 비율 P50/P95/최대 | 비율 P95(hit) |
+|:---|---:|:---|:---|:---|---:|
+| S1 cache256(기준) | 5,933 | 243(0) | — | 1.000/1.652/4.536 | 1.663 |
+| S1 join4 | 5,834 | 249(6) | — | 1.000/1.657/16.391 | 1.668 |
+| S1 **improved** | 9,746 | 166(1) | — | 1.000/1.000/1.000 | 1.000 |
+| S2 base(cache 없음) | 1,321,183 | 0 | 13/27/31 | 1 | — |
+| S2 cache256(기준) | 561,898 | 4,641(0) | 6/12/15 | 1.000/1.169/3.720 | 1.289 |
+| S2 join4 | 260,835 | 6,551(3,061) | 3/6/11 | 1.000/1.423/6.193 | 1.483 |
+| S2 cache256Lead0.1 | 846,444 | 2,319(0) | 8/16/20 | 1.000/1.002/1.274 | 1.057 |
+| S2 join4Lead0.05 / 0.1 / 0.2 | 925,773 / 649,095 / 404,794 | 1,901 / 3,505 / 5,035 | 9/17/20 · 6/11/15 · 4/8/13 | P95 1.000 / 1.021 / 1.090 | 1.016 / 1.061 / 1.137 |
+| S2 nearest | 453,113 | 5,203(0) | 3/7/12 | 1.000/1.175/3.720 | 1.296 |
+| S2 **improved** | 582,172 | 3,898(873) | **4/8/14** | 1.000/**1.013**/1.335 | 1.042 |
+| S2 improvedBudget8000 | 575,468 | 3,915(876) | 2/4/7 | 1.000/1.014/1.335 | 1.042 |
+| S3 base(cache 없음) | 5,142,520 | 0 | 42/126/183 | 1 | — |
+| S3 cache256(기준) | 2,379,220 | 12,136(0) | 19/63/92 | 1.000/1.227/4.537 | 1.376 |
+| S3 join4 | 1,281,875 | 17,463(8,328) | 10/48/69 | 1.000/1.600/7.267 | 1.709 |
+| S3 cache256Lead0.1 | 3,408,368 | 5,992(0) | 26/88/126 | 1.000/1.005/1.324 | 1.077 |
+| S3 join4Lead0.05 / 0.1 / 0.2 | 3,701,114 / 2,824,485 / 1,961,698 | 5,046 / 8,405 / 12,128 | 27/95/136 · 19/77/109 · 13/59/85 | P95 1.000 / 1.031 / 1.130 | 1.029 / 1.093 / 1.204 |
+| S3 nearest | 2,157,744 | 13,265(0) | 8/34/79 | 1.000/1.208/7.570 | 1.305 |
+| S3 **improved** | 2,617,091 | 9,565(1,887) | **10/43/93** | 1.000/**1.024**/1.334 | 1.065 |
+| S3 improvedBudget8000 | 2,635,190 | 9,515(1,877) | 5/22/46 | 1.000/1.024/1.334 | 1.066 |
+
+- improved = 앞쪽 4 waypoint 합류 + r 0.1 + Chase 거리 순서(현재 runtime 기본값). 세 입력 모두 `Result={Success}`, 모든 변형의 결정론 대조 불일치 0, 예산 차감 상한 통과.
+- **기존 cache는 기준 3(경로 cost 비율 P95 ≤ 1.05)을 이미 넘고 있었다.** cache256의 보행 길이 비율 P95가 S1 1.65·S2 1.17·S3 1.23이다. 같은 (StartTile, GoalTile)이라도 32m Tile 안 시작점 차이로 공유 경로가 크게 돌아간다(S1 짧은 배회 경로에서 최대 4.5배). 가드 없는 앞쪽 합류는 이것을 키운다(P95 1.42~1.66, 최대 16배: 목표 3m 앞 개체가 46m 돌아가는 공유 경로의 waypoint 1에 합류).
+- r 선택: 0.05는 비율이 거의 1이지만 cache 이득을 대부분 잃는다(S3 확장이 cache256보다 +56%). 0.2는 S2·S3 P95가 1.09·1.13으로 기준 3을 넘는다. **0.1**이 세 입력 모두 전체 P95 ≤ 1.031을 지키는 가장 느슨한 값이다. hit만 보면 S3 P95가 1.065로 1.05를 조금 넘는다.
+- 개선 효과(cache256 대비 improved): burst 완료 tick P95 S2 12→8(−33%)·S3 63→43(−32%), P50 S3 19→10. 확장 합은 가드 때문에 S2 +4%·S3 +10%·S1 +64%(S1은 절대량 9.7k로 작다). 효과의 대부분은 거리 순서다. 앞쪽 합류는 가드가 버리는 hit를 일부 되찾는다(같은 r에서 첫 waypoint만 보는 cache256Lead0.1 대비 join4Lead0.1의 S3 확장 −17%, burst P95 88→77).
+- 거리 순서는 단위 1 모형(P50 약 절반, P95 12~22% 감소)보다 크게 듣는다(cache256 → nearest: S3 P95 63→34). 가까운 요청이 먼저 끝나 같은 Tile 쌍 cache를 채우므로 hit도 늘기 때문이다(12,136→13,265).
+- **몰림 시 예산 적응은 구현하지 않는다.** 예산 8000 상한 변형은 burst P95를 S2 8→4·S3 43→22로 반으로 줄이지만, 재생 tick P95가 S3 887→1,452us(+64%)로 늘었다. 실제 S3 경로 tick P95(아래 1.387ms)에 같은 배수를 걸면 Gate 1.5ms를 넘는다. S2만 여지가 있으나, 몰림 판정 임계와 tick 시간 상한을 새로 정해야 하는 데 비해 단위 3(같은 목표 공유)이 같은 총작업을 직접 줄인다.
+- 원본: `Saved/Profiling/Phase10/Unit2/Replay/*_RequestCosts{,_Requests}.csv`, 로그 `Saved/Logs/Phase10_Unit2_Replay_*.log`.
+
+### 패키지 Gate와 리슨 2P(새 패키지, seed 1, 30초)
+
+| 시나리오 | frame P50/P95(ms) | 경로 tick P95(ms) | 요청 | 큐 대기 P50/P95/최대(ms) | 종료 상태 |
+|:---|:---|---:|---:|:---|:---|
+| S1 Production 1 | 7.06/7.64 | 0.000 | 242 | — | Gate PASS |
+| S1 Production 2 | 7.20/8.58 | 0.014 | 276 | — | Gate PASS |
+| S2 N700Chase(slot 5) | 9.58/10.50 | 0.254 | 7,764 | 6.7/66.9/98.1 | Succeeded 7,430·Unreachable 319·Cancelled 15 |
+| S3 N2000Chase(slot 5) | 19.34/22.51(FAIL) | 1.387 | 21,246 | 70.8/961.5/1,858.4 | Succeeded 20,267·Unreachable 810·Cancelled 858 |
+
+- **Production은 V011 기준선(frame P95 7.65~9.28ms) 안이고 경로 tick Gate를 통과한다.** 네 실행 모두 호스트·게스트 exit 0, probe 3종 PASS, UnknownHits·EnvelopeEscapes 0, assert·ensure 0이다(리슨 2P 스모크). `exact ≤2ms` FAIL은 Gate가 아니다.
+- S2·S3 frame은 단위 1보다 높지만 단위 0 캡처와 같은 수준이다(S2 10.43·S3 21.40). 이번 변경과 무관한 단계도 같이 올랐다(consumer P50 S2 1.00→1.19·S3 3.01→3.76, slots S2 0.48→0.65). 단위 0→1에서도 같은 runtime으로 S2 frame P95가 10.43→8.28로 바뀐 기계 편차다.
+- 실제 큐 대기: S2 P95 82→67ms(단위 0 93ms). S3는 742→962ms로 줄지 않았다. S3는 대기열이 비지 않는 포화 상태(queued P95 839)라, 앞 tick 우선 규칙 아래 거리 순서의 이득이 작고 가드로 늘어난 확장(tick 확장 P50 549→1,367)이 상쇄한다. 프레임 수로 환산하면 약 48→50프레임이다. S3는 D-076 경계를 넘는 몰림 재현용이며 Gate가 아니다.
+- 원본: `Saved/Profiling/Phase10/Unit2/{Gate,Capture}/*`, 패키지 로그 `Saved/Logs/Phase10_Unit2_Package.log`.
+
+### 검증
+
+- `LootNPopEditor` 빌드 성공. 전체 `LootNPop.SurfaceNavigation` 자동화 129/129 Success(`Saved/Logs/Phase10_Unit2_AllTests.log`). 테스트가 덮어쓴 에셋 세 개는 `Saved/Tests/Phase10_Unit2_TestAssetBackup`에서 복구했다(Content diff 없음).
+- BuildCookRun 성공. 위 Gate·캡처.
+
+### 판정과 단위 3으로 넘기는 것
+
+- 단위 3 이후의 A* 비교 기준선은 **improved**다(`Nav.RequestCostReplay`의 `improved` 변형 = runtime 기본값). 기준값(Unit1 캡처 재생): burst 완료 tick P95 S2 8·S3 43, 확장 합 S1 9,746·S2 582,172·S3 2,617,091, 보행 길이 비율 P95 S1 1.000·S2 1.013·S3 1.024.
+- 남은 묶음 비용은 같은 목표의 반복 탐색(H5)이다. 가드가 Tile 쌍 공유를 줄인 만큼 flow field의 상대 이득은 단위 1 추정보다 커질 수 있다.

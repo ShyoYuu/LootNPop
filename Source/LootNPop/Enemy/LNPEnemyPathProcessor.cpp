@@ -453,7 +453,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				if (IsFinished(State.Status) && Result.Path.IsValid() && State.Path != Result.Path)
 				{
 					State.Path = Result.Path;
-					State.WaypointIndex = 0;
+					// cache 경로는 앞쪽 waypoint에서 합류한다. 그 앞 waypoint로는 곧게 걸을 수 없을 수 있다.
+					State.WaypointIndex = Result.FirstWaypoint;
 				}
 			}
 			if (!State.Path.IsValid() && (State.RequestSerial == 0 || bGoalChanged || bPathInvalid || bNoPathOverlayChanged
