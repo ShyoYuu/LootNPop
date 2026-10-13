@@ -1,0 +1,6 @@
+{
+  "LevelAsset": "/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00.LVI_Octant_Acropolis_00",
+  "SurfaceData": "/Game/Maps/Acropolis_00/DA_OctantSurface_Acropolis_00.DA_OctantSurface_Acropolis_00",
+  "AllowedSlotRotations": 255,
+  "SeamSignature": "DysonSphere_R300m_V1"
+}

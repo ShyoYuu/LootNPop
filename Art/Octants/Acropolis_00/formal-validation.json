@@ -1,0 +1,36 @@
+[
+  {
+    "Succeeded": 2,
+    "Failed": 0,
+    "Name": "MixedTests",
+    "Tests": [
+      {
+        "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.ProductionSpawnComposition",
+        "state": "Success",
+        "errors": 0,
+        "warnings": 0
+      },
+      {
+        "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.ProductionSurfaceDataDefinitions",
+        "state": "Success",
+        "errors": 0,
+        "warnings": 0
+      }
+    ],
+    "Warnings": 0
+  },
+  {
+    "Succeeded": 1,
+    "Failed": 0,
+    "Name": "CurrentBakeTests",
+    "Tests": [
+      {
+        "fullTestPath": "LootNPop.SurfaceNavigation.Bake.ProductionPoolCurrentAndDeterministic",
+        "state": "Success",
+        "errors": 0,
+        "warnings": 0
+      }
+    ],
+    "Warnings": 0
+  }
+]

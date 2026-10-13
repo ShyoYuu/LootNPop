@@ -1,0 +1,31 @@
+{
+  "level_asset": "/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00",
+  "surface_data": "/Game/Maps/Acropolis_00/DA_OctantSurface_Acropolis_00",
+  "allowed_slot_rotations": 255,
+  "seam_signature": "DysonSphere_R300m_V1",
+  "streams": {
+    "support": {
+      "elements": 2344601,
+      "bytes": 16551612
+    },
+    "navigation": {
+      "elements": 136706,
+      "bytes": 1109684
+    },
+    "traversal": {
+      "elements": 2432,
+      "bytes": 43147
+    },
+    "spawn": {
+      "elements": 12043,
+      "bytes": 482656
+    },
+    "conditional_patch": {
+      "elements": 0,
+      "bytes": 4
+    }
+  },
+  "production_pool_sha256": "4d90cdc640cee34d8898866bda805ceb7e9d37a6b3397e2a82734a891d6364c2",
+  "mixed_validation_pool": "/Game/Maps/_WorkInProgress/Acropolis_00/Validation/DA_AcropolisMixedValidationPool",
+  "only_validation_pool": "/Game/Maps/_WorkInProgress/Acropolis_00/Validation/DA_AcropolisOnlyValidationPool"
+}

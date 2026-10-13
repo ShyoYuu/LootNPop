@@ -1,0 +1,81 @@
+{
+  "saved_marker_poses": 62,
+  "max_marker_position_error_cm": 0.0,
+  "max_marker_up_dot_error": 3.552713678800501e-15,
+  "native_pod_floor_rays": 297,
+  "max_pod_floor_error_cm": 0.24560546875,
+  "native_hook_visibility_rays": 93,
+  "native_pocket_floor_rays": 330,
+  "native_pocket_ceilings": 5,
+  "native_min_pocket_headroom_cm": 3200.07421875,
+  "baked_cave_anchors": [
+    {
+      "id": "Pocket_01",
+      "guid": "18DEDF114A3DB1CE3BA6FDB4B8A34527",
+      "location": [
+        10662.158203125,
+        17129.541015625,
+        31133.69921875
+      ],
+      "headroom": 3200.07373046875,
+      "layer": 12
+    },
+    {
+      "id": "Pocket_02",
+      "guid": "243C69A64F46CE449D7E459CA05A9436",
+      "location": [
+        11081.5908203125,
+        30753.958984375,
+        17544.123046875
+      ],
+      "headroom": 3199.99951171875,
+      "layer": 14
+    },
+    {
+      "id": "Pocket_03",
+      "guid": "667779014CAC432CD7524E930EF00E65",
+      "location": [
+        19954.744140625,
+        29738.7578125,
+        9686.302734375
+      ],
+      "headroom": 3200.07861328125,
+      "layer": 16
+    },
+    {
+      "id": "Pocket_04",
+      "guid": "DB795B4346401E9C7A19B3BFDEA813A2",
+      "location": [
+        31323.90234375,
+        13118.8974609375,
+        14936.7890625
+      ],
+      "headroom": 3199.94482421875,
+      "layer": 18
+    },
+    {
+      "id": "Pocket_05",
+      "guid": "5CDC9C6149DC37C83184749C6353EF5D",
+      "location": [
+        26467.494140625,
+        8262.490234375,
+        24649.603515625
+      ],
+      "headroom": 3199.947265625,
+      "layer": 20
+    }
+  ],
+  "preserved_anchor_states": 28,
+  "preserved_marker_ids": 61,
+  "new_pit_recovery_anchors": 1,
+  "native_pit_body_corridor_sweeps": 45,
+  "native_gap_closure_rays": 201,
+  "native_exit_floor_rays": 2286,
+  "exit_review_points": 9,
+  "max_exit_floor_error_cm": 0.0053863525390625,
+  "baked_seam_samples_matched": 2208,
+  "production_pool_definitions": 4,
+  "production_pool_contains_acropolis": true,
+  "pool_registration_performed": false,
+  "pie_performed": false
+}

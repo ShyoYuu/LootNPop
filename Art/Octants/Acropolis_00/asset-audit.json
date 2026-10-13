@@ -1,0 +1,674 @@
+{
+  "production_asset_count": 68,
+  "production_packages": [
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_AirCover_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_BossDais_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_BossDais_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_01_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_01_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_02_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_02_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_03_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_03_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_04_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_04_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_05_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_05_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_06_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_06_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_07_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_07_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_08_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_08_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_01_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_01_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_02_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_02_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_03_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_03_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_04_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_04_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_05_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_05_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_06_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_06_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_07_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_07_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_08_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_08_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_09_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_09_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_10_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_10_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_11_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_11_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_12_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_12_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_01_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_01_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_02_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_02_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_03_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_03_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_04_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_04_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_05_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_05_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Ruins_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_02_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_02_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_03_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_03_Shell",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_04_Floor",
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_04_Shell",
+    "/Game/Maps/Acropolis_00/DA_OctantSurface_Acropolis_00",
+    "/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00",
+    "/Game/Maps/Acropolis_00/M_Acropolis_AirRock",
+    "/Game/Maps/Acropolis_00/M_Acropolis_Ground",
+    "/Game/Maps/Acropolis_00/M_Acropolis_Stone",
+    "/Game/Maps/Acropolis_00/SM_Octant_Acropolis_00_R30000"
+  ],
+  "unreferenced_production_packages": [],
+  "work_in_progress_references": [],
+  "redirectors": [],
+  "dependencies": {
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_AirCover_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_BossDais_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_BossDais_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_01_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_01_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_02_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_02_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_03_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_03_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_04_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_04_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_05_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_05_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_06_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_06_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_07_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_07_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_08_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_08_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_01_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_01_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_02_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_02_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_03_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_03_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_04_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_04_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_05_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_05_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_06_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_06_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_07_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_07_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_08_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_08_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_09_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_09_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_10_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_10_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_11_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_11_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_12_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_12_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_01_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_01_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_02_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_02_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_03_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_03_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_04_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_04_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_05_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_05_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Ruins_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_02_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_02_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_03_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_03_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_04_Floor": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_04_Shell": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/DA_OctantSurface_Acropolis_00": [
+      "/Script/LootNPop"
+    ],
+    "/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_AirCover_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_BossDais_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_BossDais_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_01_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_01_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_02_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_02_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_03_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_03_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_04_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_04_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_05_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_05_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_06_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_06_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_07_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_07_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_08_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_08_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_01_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_01_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_02_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_02_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_03_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_03_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_04_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_04_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_05_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_05_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_06_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_06_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_07_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_07_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_08_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_08_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_09_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_09_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_10_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_10_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_11_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_11_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_12_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_12_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_01_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_01_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_02_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_02_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_03_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_03_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_04_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_04_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_05_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_05_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Ruins_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_02_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_02_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_03_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_03_Shell",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_04_Floor",
+      "/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_04_Shell",
+      "/Game/Maps/Acropolis_00/M_Acropolis_AirRock",
+      "/Game/Maps/Acropolis_00/M_Acropolis_Ground",
+      "/Game/Maps/Acropolis_00/M_Acropolis_Stone",
+      "/Game/Maps/Acropolis_00/SM_Octant_Acropolis_00_R30000",
+      "/Game/WorldDevice/BP_GrappleAnchor",
+      "/Script/LootNPop",
+      "/Script/NavigationSystem"
+    ],
+    "/Game/Maps/Acropolis_00/M_Acropolis_AirRock": [],
+    "/Game/Maps/Acropolis_00/M_Acropolis_Ground": [],
+    "/Game/Maps/Acropolis_00/M_Acropolis_Stone": [],
+    "/Game/Maps/Acropolis_00/SM_Octant_Acropolis_00_R30000": [
+      "/Engine/EngineMaterials/WorldGridMaterial",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeImport",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem"
+    ]
+  },
+  "pool_before_count": 3,
+  "pool_after_count": 4,
+  "pool_added_definitions": [
+    "(LevelAsset=\"/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00.LVI_Octant_Acropolis_00\",SurfaceData=\"/Game/Maps/Acropolis_00/DA_OctantSurface_Acropolis_00.DA_OctantSurface_Acropolis_00\",AllowedSlotRotations=255,SeamSignature=\"DysonSphere_R300m_V1\")"
+  ],
+  "pool_removed_definitions": [],
+  "pool_only_acropolis_change": true,
+  "final_asset_sha256": {
+    "Content/Maps/Acropolis_00/DA_OctantSurface_Acropolis_00.uasset": "cb563fb384b433b2d2c46367e31e461453e19bb767f4e168d2bf7f675d7a405b",
+    "Content/Maps/Acropolis_00/LVI_Octant_Acropolis_00.umap": "2709fd22e06eea5d7c11c9954582c92379be93c148ee36648e60282d89054d59",
+    "Content/Maps/Acropolis_00/M_Acropolis_AirRock.uasset": "538d5ad1ef93910381cbaf38c663c1c8851b62a6beb856f3c26ef72b961049bf",
+    "Content/Maps/Acropolis_00/M_Acropolis_Ground.uasset": "e9a0caf3cc6ffc4dbad55000b9174a4e57727c6b1c6610b2a6520d2085c9669b",
+    "Content/Maps/Acropolis_00/M_Acropolis_Stone.uasset": "978d448ce509c6ed1183627d8dfe9394b173893142732380b5c178546058bc49",
+    "Content/Maps/Acropolis_00/SM_Octant_Acropolis_00_R30000.uasset": "cd169d43b0b601f33a3afd9c112a7ef2556900549e91a9af148738c9d4f73e2a",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_AirCover_Shell.uasset": "b55765f90f81240ef2dc9993f35ab84da9e74bd0637dd495849ca5a293af5d55",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_BossDais_Floor.uasset": "dfc59aeccdd13877ab1cf8749de40bd756e1298e84e70328c85512bc015c80c4",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_BossDais_Shell.uasset": "996c675b98e0ad48a3bc0aed6ecf3a45077482de578fd5505fe5e63bf59c4b96",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_01_Floor.uasset": "60582b5357d80e730cfcc76d92cee7ae8d1f47746502aeff372bf7e820904cb7",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_01_Shell.uasset": "3cbe5b16ab296d1d6f4f5e5b3d747ff9754d5fa2a1f3ba636d62dabe25d56129",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_02_Floor.uasset": "220bd0711d31bf4bfe3b3aea2fa91869e57344240eaf5289b79f16ff9f21da00",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_02_Shell.uasset": "861085feb3df591c09e044542485ea0e327ea92e2a9a4127c836dd257e2ebd96",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_03_Floor.uasset": "ea81f73ec742483c73f89fcef4b414d6abafb735827998ec9db9e0a2c85ae0e6",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_03_Shell.uasset": "2303083651b77a6541b8c4e378990236c2333c0d5d2590a3f8a2e91cbb24ae49",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_04_Floor.uasset": "cd3e8374387712b0fcb1afdad99a41718ad85ab510d185d03b2c73d381e6659a",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_04_Shell.uasset": "3dfb166876b21744f385ea21fc3abc1b62e626406c69aaff49f6128bd30aa258",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_05_Floor.uasset": "becb9cda3d88a63b00c18378910a777f2f521815f61df7ec4148f3177964b99f",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_05_Shell.uasset": "af1f655018331b2d974eeb5e63f12417e1b247ff22d55fcf854ee6f439392ffa",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_06_Floor.uasset": "5b9e45604fe6bcc2e62cfcfa1edbaf0158606304545ec81fbd012fc58ee354e5",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_06_Shell.uasset": "9bd9074b7ba537609df77ddaa0e1e69ed6ec0a28c6cb7e7093753de27294f271",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_07_Floor.uasset": "9e8f10f64d301dd6c751a50ac6c0f55feb13d6342c4a8a44211f9a3623c680b3",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_07_Shell.uasset": "54121c720cba6f97b115b6f898aa8d91aa651ec6b6c479b245f7fdf51038e30e",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_08_Floor.uasset": "1c7e42daf9cade9dd33471d76cda9d1681e34681ad73b227049306b535168a9a",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Middle_08_Shell.uasset": "79e089a17ea14cbf381af2303941606140b11be75ca959917529e0991048a422",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_01_Floor.uasset": "33781aa99dc3182dadddaf0e258c577bceff0ce683aad25232eb61f82df6ccbc",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_01_Shell.uasset": "e472bb5bc5014bde27f6cc7eab90e7c76b93791a448b514d6042dc843c8fb197",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_02_Floor.uasset": "eb63462965061c3fb453599fc30572ea8e79cd07aa1afcdb75ed47f4b95c6368",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_02_Shell.uasset": "74850bf6a803552ca7a93022207bcaeee4802a23d06baf444bc12a27e2dac0c7",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_03_Floor.uasset": "80a35f8ad9d99f6ee5ee98306dab22667e26b996b84257872033f0c97e23c4a7",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_03_Shell.uasset": "183ef75380684fa136cc25fb7256682d31a4f7a5d8194e448933a0a8bb97c129",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_04_Floor.uasset": "85b83f2c3cbf647bb79c2f8475bce2b4e3c074f36839e774a6e8b1c3c3f48965",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_04_Shell.uasset": "689bbb0ffe9a13ce9c5dad8b927d39a964bba51a8478c394bd8ed1ba5ec98215",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_05_Floor.uasset": "155ebd07702adcbde04fb8028b538aaeaa62b892df110d78a0f667e8909f9bf0",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_05_Shell.uasset": "7402347b63be325d5605d65634b4efc966c80055d90d4e99ef23b7842120f971",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_06_Floor.uasset": "21f0b2e408a3cb56dbf05eb55ae6f18d1ac52225695de05f9b732b5b61441260",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_06_Shell.uasset": "e1fee82628686ed2cb6a042ac785ea342f5332de44c37f4e66725ed9672a0f2d",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_07_Floor.uasset": "15b73b8d685b189438ba8bd6f5ec4e5bb442f25d5c3d40cd2797279284352e4c",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_07_Shell.uasset": "635a8255078fdf75f17da363b87aa66f78e3a0545c09d8951a6872cfd3bc2ae7",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_08_Floor.uasset": "ed00db38cde61a2623e0fbe4a07e4f1198b854caedbc106e2afc60c96e1124f5",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_08_Shell.uasset": "e9762a121494bffb80135cf49cd377a09f25d268cbf8231170da455e1000d7f1",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_09_Floor.uasset": "0e78565b944cbd64b4ef6d59f54b0c76bb60b40d5e073669c1c539dfd91c5537",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_09_Shell.uasset": "018c0f331f220761eefa3a4e4d61b99aec55066ce858a67e189708c093da1aa1",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_10_Floor.uasset": "4db3cc01fbd42cbc7c8cecacac4fe2c77813aa8df1277a608c633cbe30139cd3",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_10_Shell.uasset": "fc362a84369e47a0d8cad49e6e7fc1663bec0f99408d3944eff8c6e1b49ce164",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_11_Floor.uasset": "1ea1472d1eabcfe9d004eba6ba20c145c6dad3a30d22dfca5f7cd5c356efe1b7",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_11_Shell.uasset": "152df8c6a7cece4c93c20183fda029267e93be375f19187f010db3759b91e864",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_12_Floor.uasset": "0b7426d92fd82e80bd4fb7cdd711d0cd524c48cae55a92589dd25094ad96bb9f",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Outer_12_Shell.uasset": "7a9014b2a0e10bdb633ba55a02b442af474ad8482d26e90cdb3b7f44c3bfb58c",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_01_Floor.uasset": "b7c97251c9762ac48ee53834d28df24dca2ff89d804a60c0d466f7215a8bb84b",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_01_Shell.uasset": "cf364e4d4617343d89fabb6d302baa7ba62db8a9c6ec7930cfd68e3e582e969f",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_02_Floor.uasset": "d748a8f5381c914140964d21e82964ce2664d270c76898bead6fdf97a017defc",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_02_Shell.uasset": "7595639f2882956e3716a5315f3ab933f6bd220c7668863c1a20bb2540201c22",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_03_Floor.uasset": "b1488ee1b9ec2cdac063eb9e6a3f530cead5bb8ca145cd2d676cd4c54ab90509",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_03_Shell.uasset": "6b616e194bdb28a0ccf4d66383514fcc74f81f871f2ad43aa03b2e883f17189f",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_04_Floor.uasset": "99aa27c372abf913be1ca3fb6cf58fa07ec89f87ea74535f65a50514b29325f7",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_04_Shell.uasset": "c20e5abfe77e4840c0c2bfdc792b7b2784e406dd5aa009e78b47ccef068e408f",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_05_Floor.uasset": "378671a97a7e68e9da8aa6ce09114dc7432cd7fda372a773fbd4d29a18f27e90",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Pocket_05_Shell.uasset": "be3231b9b5543a803344c4c71dba59674bfaaddcfc1fe7c4ba43cb32bac37713",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Ruins_Shell.uasset": "16c64effbf2b5b34c6ea2a3acca49a28ea6e8ea6d2d7461a2e1197a2391dcefe",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Floor.uasset": "54ffbaa469eb171a093d20853749ae68bf574e759f66d82e8c2880415193fa1a",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Shell.uasset": "277cf52ea4a342ca1ba8793d0a9ce279b0ac0f2cba274d37a854bb3c592d48a0",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_02_Floor.uasset": "8b3b17dee18574555e0a896142c0d1996f302419e7ebd4766de486eeae23be6a",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_02_Shell.uasset": "0983d5b4b54d23562af36fe4b7102ca04cb9e3d1580012a03ef5cb9b357b1c8a",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_03_Floor.uasset": "6f2dd20d12f3da06ba2032355b500dbc29ba636334d4aec3cb044e5244d93318",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_03_Shell.uasset": "a0425d03cc443fd2dac0774d854f41dfd79b83e0d21bee60c3d32588df818f64",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_04_Floor.uasset": "be25f104ba1f41cc668223da2752df2528aa41dc59d2a352a2a817cebf7d1d3f",
+    "Content/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_04_Shell.uasset": "620a054531f2da9dbfe7cfe012f137ae0824c84e6a6acff10b62c53d7af93140"
+  }
+}

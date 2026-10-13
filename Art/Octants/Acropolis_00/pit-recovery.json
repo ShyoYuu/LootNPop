@@ -1,0 +1,12 @@
+{
+  "revision": "V016",
+  "geometry_revision": "V015",
+  "reported_local": [-13056, -24388, -2107],
+  "anchor": {
+    "id": "PitRecovery_01",
+    "local": [-13000, -22000, 4000],
+    "max_distance": 7000
+  },
+  "review_id": "AcropolisPitRecovery",
+  "review_local": [-13056, -24388, -2007]
+}
