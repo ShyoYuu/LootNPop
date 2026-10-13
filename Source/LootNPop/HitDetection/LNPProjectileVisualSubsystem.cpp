@@ -12,16 +12,16 @@
 
 const FName ULNPProjectileVisualSubsystem::TintColorParameterName(TEXT("TintColor"));
 
-FLinearColor ULNPProjectileVisualSubsystem::GetTeamTintColor(ELNPInstigatorTeam Team)
+FLinearColor ULNPProjectileVisualSubsystem::GetTintColor(bool bFriendly)
 {
 	const ULNPSettings* Settings = GetDefault<ULNPSettings>();
-	return (Team == ELNPInstigatorTeam::Player)
+	return bFriendly
 		? Settings->PlayerProjectileTintColor
 		: Settings->EnemyProjectileTintColor;
 }
 
 void ULNPProjectileVisualSubsystem::AllocateTrails(FMassEntityHandle Entity, const ULNPVFXData* VFXData, FVector Pos,
-	ELNPInstigatorTeam Team)
+	bool bFriendly)
 {
 	if (nullptr == VFXData || VFXData->TrailEffects.IsEmpty())
 		return;
@@ -29,7 +29,7 @@ void ULNPProjectileVisualSubsystem::AllocateTrails(FMassEntityHandle Entity, con
 	TArray<TObjectPtr<UNiagaraComponent>>& Components = ActiveTrails.FindOrAdd(Entity);
 	Components.Reserve(VFXData->TrailEffects.Num());
 
-	const FLinearColor TintColor = GetTeamTintColor(Team);
+	const FLinearColor TintColor = GetTintColor(bFriendly);
 
 	UWorld* World = GetWorld();
 	for (UNiagaraSystem* NS : VFXData->TrailEffects)
@@ -49,13 +49,13 @@ void ULNPProjectileVisualSubsystem::AllocateTrails(FMassEntityHandle Entity, con
 	}
 }
 
-void ULNPProjectileVisualSubsystem::SetTrailTeam(FMassEntityHandle Entity, ELNPInstigatorTeam Team)
+void ULNPProjectileVisualSubsystem::SetTrailTint(FMassEntityHandle Entity, bool bFriendly)
 {
 	TArray<TObjectPtr<UNiagaraComponent>>* Components = ActiveTrails.Find(Entity);
 	if (nullptr == Components)
 		return;
 
-	const FLinearColor TintColor = GetTeamTintColor(Team);
+	const FLinearColor TintColor = GetTintColor(bFriendly);
 	for (UNiagaraComponent* Comp : *Components)
 	{
 		if (Comp != nullptr)

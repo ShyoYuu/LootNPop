@@ -261,7 +261,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			FVector UpDir;
 			float   CapsuleHalfHeight;
 			float   CapsuleRadius;
-			bool    bIsEnemy;
+			uint8   Team;   // 판정 팀 (Player/LNPTeam.h) — 적은 NPCTeam, 플레이어는 복제된 PlayerState 값
 		};
 		TArray<FClientCapsuleTarget> ClientTargets;
 
@@ -284,7 +284,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 				AActor*       Actor = ActorFrags[i].GetMutable();
 				const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HitOffset, Actor);
-				ClientTargets.Add({ Actor, Center, UpDir, HalfH, Radius, true });
+				ClientTargets.Add({ Actor, Center, UpDir, HalfH, Radius, LNPTeam::NPCTeam });
 			}
 		});
 
@@ -302,14 +302,14 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				float HalfH, Radius;
 				LNPHitDetection::GetCapsuleSize(Actor ? Actor->FindComponentByClass<UCapsuleComponent>() : nullptr, HalfH, Radius);
 				const FVector Loc = Transforms[i].GetTransform().GetLocation();
-				ClientTargets.Add({ Actor, Loc, (-Loc).GetSafeNormal(), HalfH, Radius, false });
+				// 이 쿼리는 플레이어 태그 엔티티뿐이다 — Actor가 아직 없으면 NPC가 아니라 기본 플레이어 팀으로 본다.
+				ClientTargets.Add({ Actor, Loc, (-Loc).GetSafeNormal(), HalfH, Radius,
+					Actor ? LNPTeam::GetTeam(Actor) : LNPTeam::DefaultPlayerTeam });
 			}
 		});
 
 		if (ClientTargets.IsEmpty())
 			return;
-
-		const bool bFriendlyFireClient = GetDefault<ULNPSettings>()->bFriendlyFire;
 
 		AttackerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 		{
@@ -336,9 +336,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					if (Target.Actor == AttackerChar)
 						continue;
 
-					if (Frag.InstigatorTeam == ELNPInstigatorTeam::Player && !Target.bIsEnemy && !bFriendlyFireClient)
-						continue;
-					if (Frag.InstigatorTeam == ELNPInstigatorTeam::Enemy && Target.bIsEnemy)
+					if (!LNPTeam::CanHit(Frag.InstigatorTeam, Target.Team))
 						continue;
 
 					FVector CapsuleBot, CapsuleTop;
@@ -429,6 +427,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		FVector                RawLocation;    // Lag Compensation 되감기 기준 원점
 		const FLNPPositionHistoryFragment* History;
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
+		uint8              Team;          // 판정 팀 (Player/LNPTeam.h)
 	};
 	TArray<FCollectedPlayer> Players;
 
@@ -448,14 +447,14 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const FTransform& T   = Transforms[i].GetTransform();
 			const FVector     Loc = T.GetLocation();
 			const FVector     Up  = (-Loc).GetSafeNormal();
-			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i], Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr });
+			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i], Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr,
+				Actor ? LNPTeam::GetTeam(Actor) : LNPTeam::DefaultPlayerTeam });
 		}
 	});
 
 	if (Enemies.IsEmpty() && Players.IsEmpty())
 		return;
 
-	const bool bFriendlyFire = GetDefault<ULNPSettings>()->bFriendlyFire;
 	const float PoiseGuardMultiplier = GetDefault<ULNPSettings>()->PoiseGuardMultiplier;
 
 	// ── Pass 3: Swept Volume 피격 판정 (Lag Compensation 포함) ─────────────────
@@ -556,6 +555,9 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			{
 				if (Player.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Player.Handle))
 					return;
+				// 플레이어마다 팀이 달라서 루프 바깥이 아니라 대상마다 묻는다 (적 대상은 언제나 NPCTeam이라 바깥 1회).
+				if (!LNPTeam::CanHit(Frag.InstigatorTeam, Player.Team))
+					return;
 
 				const FLNPParryStateFragment& PS          = Player.ParryState;
 				const FVector                 AttackerDir = (AttackerLoc - Player.CapsuleCenter).GetSafeNormal();
@@ -620,9 +622,9 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, EffectClass, Frag.Damage, AttackerDir, PlayerImpactPoint, Frag.KnockbackStrength);
 			};
 
-			if (Frag.InstigatorTeam == ELNPInstigatorTeam::Player)
+			// 대상 후보는 팀 규칙 하나가 고른다 (LNPTeam::CanHit).
+			if (LNPTeam::CanHit(Frag.InstigatorTeam, LNPTeam::NPCTeam))
 			{
-				// Player 공격 → Enemy 타겟
 				for (FCollectedEnemy& Enemy : Enemies)
 				{
 					if (Enemy.Handle == Frag.InstigatorEntity || IsAlreadyHit(Frag, Enemy.Handle))
@@ -708,20 +710,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 							LNPHitDetection::ApplyEntityKnockback(*Enemy.Velocity, HitFromDir, Enemy.UpDir, Frag.KnockbackStrength);
 					}
 				}
+			}
 
-				// Player 공격 → Player 타겟 (아군 사격이 켜진 경우만)
-				if (bFriendlyFire)
-				{
-					for (FCollectedPlayer& Player : Players)
-						JudgePlayerTarget(Player);
-				}
-			}
-			else
-			{
-				// Enemy 공격 → Player 타겟
-				for (FCollectedPlayer& Player : Players)
-					JudgePlayerTarget(Player);
-			}
+			for (FCollectedPlayer& Player : Players)
+				JudgePlayerTarget(Player);
 		}
 	});
 }

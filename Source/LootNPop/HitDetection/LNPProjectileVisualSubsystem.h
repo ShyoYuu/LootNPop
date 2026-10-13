@@ -27,17 +27,18 @@ class LOOTNPOP_API ULNPProjectileVisualSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 public:
-	/** Entity에 트레일 Niagara Component를 스폰하고 진영 색을 주입한다. 게임 Thread 전용. */
-	void AllocateTrails(FMassEntityHandle Entity, const ULNPVFXData* VFXData, FVector Pos, ELNPInstigatorTeam Team);
+	/** Entity에 트레일 Niagara Component를 스폰하고 아군/적 색을 주입한다. 게임 Thread 전용.
+	 *  bFriendly = 보는 사람과 같은 팀의 탄인가 (LNPTeam::GetLocalViewerTeam). */
+	void AllocateTrails(FMassEntityHandle Entity, const ULNPVFXData* VFXData, FVector Pos, bool bFriendly);
 
 	/** Entity의 모든 트레일 Component를 Pos로 이동한다. 게임 Thread 전용. */
 	void UpdateTrails(FMassEntityHandle Entity, FVector Pos);
 
-	/** Entity 트레일의 진영 색을 다시 주입한다 (패링으로 소유권이 넘어갔을 때). 게임 Thread 전용. */
-	void SetTrailTeam(FMassEntityHandle Entity, ELNPInstigatorTeam Team);
+	/** Entity 트레일의 아군/적 색을 다시 주입한다 (패링으로 탄의 팀이 바뀌었거나 보는 사람이 팀을 바꿨을 때). 게임 Thread 전용. */
+	void SetTrailTint(FMassEntityHandle Entity, bool bFriendly);
 
-	/** 진영에 대응하는 트레일 색 (LNPSettings). */
-	static FLinearColor GetTeamTintColor(ELNPInstigatorTeam Team);
+	/** 보는 사람 기준 아군/적에 대응하는 트레일 색 (LNPSettings). */
+	static FLinearColor GetTintColor(bool bFriendly);
 
 	/** Thread-Safe: 다음 FlushTrailReleases 시 Entity 트레일을 Destroy 큐에 추가한다. */
 	void EnqueueTrailRelease(FMassEntityHandle Entity);

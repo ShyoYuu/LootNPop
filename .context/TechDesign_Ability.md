@@ -254,9 +254,9 @@ ActivateAbility → Commit(쿨다운·탄약) → SpawnProjectile() → PlayMont
 
 ⚠️ 펠릿마다 Mass 엔티티·트레일 VFX·넉백·경직력이 **각각** 발생한다. `KnockbackStrength`를 단발 무기와 같게 두면 근접 전탄 명중 시 발수만큼 배가된다(`GA_RangedAttack_Shotgun` 10, Rifle 50).
 
-**트레일 진영 색 (2026-08-22):** 트레일 Niagara 시스템이 `TintColor`(LinearColor) User 파라미터를 노출하면 `ULNPProjectileVisualSubsystem`이 진영 색(`LNPSettings`의 `Player/EnemyProjectileTintColor`)을 주입한다. 파라미터가 없는 시스템에서는 조용히 무시된다. 현재 `NS_BulletGlow`(Shotgun·적 NPC Pistol 공용)만 대응.
+**트레일 진영 색 (2026-08-22):** 트레일 Niagara 시스템이 `TintColor`(LinearColor) User 파라미터를 노출하면 `ULNPProjectileVisualSubsystem`이 아군/적 색(`LNPSettings`의 `Player/EnemyProjectileTintColor`)을 주입한다. 2026-10-13부터 색은 **보는 사람 기준**이다 — 내 팀의 탄이 아군색, NPC·다른 팀 플레이어의 탄이 적색(HitDetection §3.2 팀 규칙). 파라미터가 없는 시스템에서는 조용히 무시된다. 현재 `NS_BulletGlow`(Shotgun·적 NPC Pistol 공용)만 대응.
 
-- **패링 시 색 전환**이 공짜로 따라온다 — 프로세서가 `InstigatorTeam`을 반전시키면 `FLNPProjectileVisualFragment::AppliedTeam`과 어긋난 프레임에만 `SetTrailTeam()`으로 재주입한다(매 프레임 주입은 샷건 19발에서 헛비용).
+- **패링·팀 전환 시 색 전환**이 공짜로 따라온다 — 패링이 `InstigatorTeam`을 방어자 팀으로 바꾸거나 보는 사람이 팀을 바꿔 "내 팀 탄인가"가 `FLNPProjectileVisualFragment::bAppliedFriendly`와 어긋난 프레임에만 `SetTrailTint()`로 재주입한다(매 프레임 주입은 샷건 19발에서 헛비용).
 - ⚠️ **`ScaleColor`(Particle Update)의 `Color Value To Scale`을 `User.TintColor`에 링크해야 한다.** `InitializeParticle.Color`(Spawn)에만 링크하면 스폰 시점 색으로 고정돼 패링해도 안 바뀐다.
 - ⚠️ 트레일 파티클은 `Lifetime = 9999`(C++이 컴포넌트를 파괴)라 `NormalizedAge ≈ 0`이다. 나이 기반 커브는 무효 — `Particles.Age` 절대값으로 구동할 것.
 
@@ -406,7 +406,7 @@ DefaultSlot → Save cached pose 'PreUpperBody'
 
 ### 5.6 충전형 탄창 — 화염방사기 (2026-10-11 ~ 10-13)
 
-기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5. 적 화상 DoT·플레이어 화상(아군 사격)·VFX는 아래 절.
+기획은 [GameDesign_Ability.md](GameDesign_Ability.md) "화염방사기 — 충전형 탄창". 원뿔 판정은 [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.5. 적 화상 DoT·플레이어 화상(다른 팀 플레이어)·VFX는 아래 절.
 
 #### 틱 = 발동 1회
 
@@ -474,9 +474,9 @@ Actor는 LOD에 따라 풀로 반납·재사용되므로 ASC에 건 GE는 강등
   그 0이 복제돼 게스트 표현(U4)도 같은 신호 하나로 꺼진다.
 - 디버그: `LNP.Burn.Log 1` — 서버의 적용·갱신·틱·만료·사망 정지, 게스트의 수신값 변화(`[Burn][Guest]`).
 
-#### 화상 DoT — 플레이어 (아군 사격, 2026-10-13)
+#### 화상 DoT — 플레이어 (다른 팀 플레이어, 2026-10-13)
 
-`bFriendlyFire`가 켜졌을 때만 원뿔 프로세서가 플레이어를 판정한다(HitDetection §3.5). 플레이어는 ASC가 PlayerState에 있어 LOD 반납 문제가 없으므로 **주기 GE가 원본**이다.
+원뿔 공격자와 **다른 팀인 플레이어만** 원뿔 프로세서가 판정한다(HitDetection §3.5 — 예전에는 `bFriendlyFire`가 켜졌을 때만이었다). 플레이어는 ASC가 PlayerState에 있어 LOD 반납 문제가 없으므로 **주기 GE가 원본**이다.
 
 | 요소 | 내용 |
 |:---|:---|

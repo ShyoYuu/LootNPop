@@ -384,7 +384,7 @@ void ALNPCharacterBase::ApplyKnockback(const FVector HitFromDirection, const flo
 }
 
 void ALNPCharacterBase::Multicast_SpawnGhostProjectiles_Implementation(FLNPProjectileSharedFragment SharedData, FVector SpawnPos,
-	const TArray<FVector>& Velocities, float ProjectileLifetime, ELNPInstigatorTeam InstigatorTeam,
+	const TArray<FVector>& Velocities, float ProjectileLifetime, uint8 InstigatorTeam,
 	int32 KeyOrSalvo, int32 InstigatorPlayerID, float UpstreamDelaySeconds)
 {
 	UWorld* World = GetWorld();
@@ -405,7 +405,7 @@ void ALNPCharacterBase::Multicast_SpawnGhostProjectiles_Implementation(FLNPProje
 }
 
 void ALNPCharacterBase::Multicast_RespawnReflectedGhost_Implementation(FLNPProjectileSharedFragment SharedData, FVector SpawnPos,
-	FVector NewVelocity, float LifetimeRemaining, ELNPInstigatorTeam NewTeam,
+	FVector NewVelocity, float LifetimeRemaining, uint8 NewTeam,
 	int32 OldInstigatorPlayerID, int32 OldKeyOrSalvo, uint8 OldSpawnIndex,
 	int32 NewInstigatorPlayerID, int32 NewKeyOrSalvo)
 {

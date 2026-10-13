@@ -198,6 +198,13 @@
     - GameplayCue 에셋 연결 완료(`GCN_LNP_Guard_Block`·`GCN_LNP_Parry_Success`, VFX 지정됨).
     - **잔여: Guided 반사** — 유도 투사체 타입 자체가 미구현이라 현재 반사는 전부 Linear다. 방어자 HitStop도 미구현.
     - 설계 명세: [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)
+- [ ] **팀 규칙 단일화 · 런타임 플레이어 팀** (2026-10-13, 구현·컴파일 완료 — 2인 검증 대기)
+    - 피격 판정 전부(투사체·폭발·근접·화염, 서버·예측, 조준점 깊이)가 `LNPTeam::CanHit` 하나로 후보를 고른다. 막힘과 피해가 갈리지 않는다.
+    - 서버만 갖던 "적 탄은 다른 적 몸에 막힌다" 예외 제거 — 게스트 Ghost 관통·거짓 착탄 VFX 해소, 서버 적 후보 루프의 99.7%가 사라진다.
+    - `bFriendlyFire` 삭제 → `ALNPPlayerState::TeamId`(복제, 기본 전원 한 팀) + `LNP.Team.Set`. 공격의 팀은 만들어질 때 고정.
+    - 폭발이 발사자를 거르지 않던 결함(아군 사격 시 자기 유탄에 피격) 수정. 탄 색은 보는 사람 기준 아군/적.
+    - 잔여: 락온·근접 보정·LootPod 협동은 아직 팀 무관 → [Idea_Backlog.md](Idea_Backlog.md) "팀이 다른 플레이어를 적으로 다루기".
+    - 설계 명세: [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.2 팀 규칙
 
 ---
 

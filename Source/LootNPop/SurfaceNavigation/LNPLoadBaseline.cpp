@@ -1367,7 +1367,7 @@ void ULNPLoadBaselineSubsystem::TopUpProjectiles()
 		ProjFrag.SpawnLocation       = Muzzle;
 		ProjFrag.Velocity            = Direction * WeaponDef.ProjectileSpeed;
 		ProjFrag.LifetimeRemaining   = WeaponDef.ProjectileLifetime;
-		ProjFrag.InstigatorTeam      = ELNPInstigatorTeam::Enemy;
+		ProjFrag.InstigatorTeam      = LNPTeam::NPCTeam;
 		ProjFrag.bIsLocalInstigator  = false;
 		ProjFrag.InstigatorPlayerID  = INDEX_NONE;
 		ProjFrag.PredictionKeyID     = ULNPGhostProjectileSubsystem::IssueServerSalvoID();

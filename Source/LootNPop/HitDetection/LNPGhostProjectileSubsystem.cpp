@@ -134,7 +134,7 @@ void ULNPGhostProjectileSubsystem::SweepExpiredGhosts()
 }
 
 void ULNPGhostProjectileSubsystem::SpawnSpectatorGhosts(const FLNPProjectileSharedFragment& SharedData, FVector SpawnPos,
-	TConstArrayView<FVector> Velocities, float LifetimeSeconds, ELNPInstigatorTeam InstigatorTeam,
+	TConstArrayView<FVector> Velocities, float LifetimeSeconds, uint8 InstigatorTeam,
 	int32 InstigatorPlayerID, int32 KeyOrSalvo, float UpstreamDelaySeconds)
 {
 	UWorld* World = GetWorld();

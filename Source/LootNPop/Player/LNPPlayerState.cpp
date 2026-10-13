@@ -5,8 +5,14 @@
 #include "Item/LNPEquipmentComponent.h"
 #include "Item/LNPInventoryComponent.h"
 
+#include "LootNPop.h"
+
 #include "AbilitySystemComponent.h"
 #include "Engine/DataTable.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
+#include "Net/UnrealNetwork.h"
 
 ALNPPlayerState::ALNPPlayerState()
 {
@@ -47,4 +53,79 @@ void ALNPPlayerState::PostInitializeComponents()
 UAbilitySystemComponent* ALNPPlayerState::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent;
+}
+
+void ALNPPlayerState::SetTeamId(uint8 NewTeamId)
+{
+	if (!HasAuthority())
+		return;
+
+	TeamId = NewTeamId;
+}
+
+void ALNPPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ALNPPlayerState, TeamId);
+}
+
+namespace
+{
+	/** 팀 전환 검증용. 인수 없이 부르면 현재 배정을 출력한다.
+	 *  Usage: LNP.Team.Set [PlayerIndex TeamId]
+	 *   - 권위(호스트/서버) 콘솔에서만 바꾼다. PlayerIndex는 LNP.Debug.KillPlayer와 같은 컨트롤러 순서다.
+	 *   - TeamId 0은 NPC 전용이라 거부한다. 모두 같은 값이면 서로 안 맞고, 다르면 서로 맞는다. */
+	FAutoConsoleCommandWithWorldAndArgs GLNPTeamSet(
+		TEXT("LNP.Team.Set"),
+		TEXT("Server-only: assign a player's team (1-255; 0 is reserved for NPCs). Players on different teams can hit each other. No args: list teams. Args: [PlayerIndex TeamId]"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (World == nullptr)
+				return;
+
+			TArray<ALNPPlayerState*> PlayerStates;
+			for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+			{
+				const APlayerController* PC = It->Get();
+				PlayerStates.Add(PC ? PC->GetPlayerState<ALNPPlayerState>() : nullptr);
+			}
+
+			if (Args.Num() < 2)
+			{
+				for (int32 i = 0; i < PlayerStates.Num(); ++i)
+				{
+					if (PlayerStates[i])
+						UE_LOG(LogLootNPop, Display, TEXT("[LNP.Team.Set] Player %d (%s): team %d"),
+							i, *PlayerStates[i]->GetPlayerName(), PlayerStates[i]->GetTeamId());
+				}
+				return;
+			}
+
+			const int32 PlayerIndex = FCString::Atoi(*Args[0]);
+			const int32 NewTeam     = FCString::Atoi(*Args[1]);
+			if (!PlayerStates.IsValidIndex(PlayerIndex) || PlayerStates[PlayerIndex] == nullptr)
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Team.Set] PlayerIndex %d out of range (0..%d)."),
+					PlayerIndex, PlayerStates.Num() - 1);
+				return;
+			}
+			if (NewTeam <= LNPTeam::NPCTeam || NewTeam > MAX_uint8)
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Team.Set] TeamId %d invalid (1-255; 0 is reserved for NPCs)."), NewTeam);
+				return;
+			}
+
+			ALNPPlayerState* PS = PlayerStates[PlayerIndex];
+			if (!PS->HasAuthority())
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Team.Set] Must run on authority (listen host / server)."));
+				return;
+			}
+
+			const uint8 OldTeam = PS->GetTeamId();
+			PS->SetTeamId(static_cast<uint8>(NewTeam));
+			UE_LOG(LogLootNPop, Display, TEXT("[LNP.Team.Set] Player %d (%s): team %d -> %d"),
+				PlayerIndex, *PS->GetPlayerName(), OldTeam, NewTeam);
+		}));
 }

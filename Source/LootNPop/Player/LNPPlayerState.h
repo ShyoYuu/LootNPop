@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerState.h"
 #include "AbilitySystemInterface.h"
+#include "Player/LNPTeam.h"
 #include "LNPPlayerState.generated.h"
 
 class UAbilitySystemComponent;
@@ -30,7 +31,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Inventory")
 	ULNPInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 
+	/** 피격 판정 팀 (Player/LNPTeam.h). */
+	uint8 GetTeamId() const { return TeamId; }
+
+	/** 서버 전용. 이미 날아가는 탄·진행 중인 스윙은 발사 시점 팀을 그대로 쓴다 — 바꾼 뒤의 공격부터 적용된다. */
+	void SetTeamId(uint8 NewTeamId);
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 private:
+	/** 0(LNPTeam::NPCTeam)은 NPC 전용이라 플레이어는 1 이상이다. 서버만 바꾸고 복제로 퍼진다. */
+	UPROPERTY(Replicated)
+	uint8 TeamId = LNPTeam::DefaultPlayerTeam;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
 

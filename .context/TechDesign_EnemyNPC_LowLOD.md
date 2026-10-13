@@ -168,7 +168,7 @@ ULNPEntityAttackProcessor  (매 프레임, 서버 전용, Behavior 그룹 이후
 - 첫 프레임 `Prev == Curr` 축퇴는 판정 프로세서가 이미 선분-선분 폴백으로 처리한다.
 - 스윙 엔티티는 `NotifyBegin` 대신 **Active 진입 시 생성**, Active 종료 시 파괴.
   `TimeToLive` 안전장치는 그대로 살린다 — 프로세서가 종료를 놓쳤을 때의 그물이 된다.
-- 채워야 하는 필드: `InstigatorEntity`(적 엔티티), `InstigatorTeam = Enemy`,
+- 채워야 하는 필드: `InstigatorEntity`(적 엔티티), `InstigatorTeam = LNPTeam::NPCTeam`,
   `InstigatorActor = nullptr`, `bIsLocalInstigator = false`.
 - 기울임은 **고정 Right축 회전이 아니라** 접평면 성분을 Up으로 들어 올려 만든다(위 식).
   고정 축으로 돌리면 Yaw가 ±90°에 가까울 때 축과 방향이 겹쳐 회전이 사라진다.

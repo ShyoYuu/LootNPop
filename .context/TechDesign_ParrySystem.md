@@ -84,12 +84,12 @@ ReleaseGuardState()       ← 해제는 전부 이 하나를 거친다
 
 **투사체 스플래시는 패링 불가·가드 가능이다(2026-10-13).** 폭심 쪽(피격자 → 폭심)이 가드 각도 안이면 피해·넉백을 막고 경직만 ×`PoiseGuardMultiplier`로 쌓으며 `FLNPGuardBlockCommand`를 낸다. 뒤에서 터진 폭발은 정면 가드로 막지 못한다.
 
-**후보 제외:** 시체(`FLNPPlayerDeadTag`)와 아군 사격이 꺼졌을 때의 아군은 판정 후보가 아니다 — FF off에서 아군 몸은 탄을 막지 않는다 (→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.2).
+**후보 제외:** 시체(`FLNPPlayerDeadTag`)와 같은 팀 플레이어는 판정 후보가 아니다 — 같은 팀의 몸은 탄을 막지 않는다 (→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.2).
 
 **공격자는 Actor든 순수 엔티티든 같다.** 순수 엔티티 적의 가상 칼날·투사체도 `FLNPEntityAttackConfig::ParryRadius`(기본 40)를 실어 보내므로 같은 판정을 탄다.
 
-**근접 판정의 단일화:** Player 타겟 2단계 판정은 `JudgePlayerTarget` 람다 하나로 구현되어, Enemy→Player와 근접 PvP(아군 사격)가 항상 같은 로직을 탄다 (§7.3의 버그 재발 방지).
-그 순서(패링 → 가드 → 피격)는 공용 함수 `LNPGuardParry::Judge`가 정하고, 화염 원뿔의 아군 사격 분기와 투사체 직격·스플래시도 같은 함수를 쓴다(2026-10-13) — 플레이어 판정 경로 네 곳이 순서 하나를 공유한다. 화염과 스플래시는 패링 불가라 패링 반경 조건을 항상 false로 넘긴다.
+**근접 판정의 단일화:** Player 타겟 2단계 판정은 `JudgePlayerTarget` 람다 하나로 구현되어, Enemy→Player와 근접 PvP(다른 팀 플레이어)가 항상 같은 로직을 탄다 (§7.3의 버그 재발 방지).
+그 순서(패링 → 가드 → 피격)는 공용 함수 `LNPGuardParry::Judge`가 정하고, 화염 원뿔의 플레이어 대상 분기와 투사체 직격·스플래시도 같은 함수를 쓴다(2026-10-13) — 플레이어 판정 경로 네 곳이 순서 하나를 공유한다. 화염과 스플래시는 패링 불가라 패링 반경 조건을 항상 false로 넘긴다.
 
 ### 각도 판정
 
@@ -125,7 +125,7 @@ ReleaseGuardState()       ← 해제는 전부 이 하나를 거친다
 | 항목 | 변경 전 | 변경 후 |
 |:---|:---|:---|
 | `Velocity` | 원래 방향 | `-Velocity` (180° 반사) |
-| `InstigatorTeam` | Enemy | Player (반사체는 Enemy 피격 경로를 탄다) |
+| `InstigatorTeam` | 공격자 팀 (NPC면 `NPCTeam`) | **반사 시점의 방어자 팀** — 이후 방어자와 다른 팀(NPC·다른 팀 플레이어)을 맞힌다 |
 | `Instigator` | 공격자 핸들 | 방어자 핸들 (자기 피격 방지) |
 | `InstigatorPlayerID` / `PredictionKeyID` / `SpawnIndex` | 공격자 식별자 | **방어자 ID + 서버 SalvoID 재발급 + 인덱스 0** — 이후 Ghost 대조·임팩트 큐가 새 식별자 기준 |
 | `CachedRewindSeconds` / `bInstigatorIsRemoteClient` | 공격자 기준 | 방어자 기준 (Lag Compensation 기준 교체) |

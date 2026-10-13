@@ -278,7 +278,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 						ProjFrag.Velocity           = Dir * WeaponDef->ProjectileSpeed;
 						ProjFrag.LifetimeRemaining  = WeaponDef->ProjectileLifetime;
 						ProjFrag.Instigator         = Ctx.GetEntity(i);
-						ProjFrag.InstigatorTeam     = ELNPInstigatorTeam::Enemy;
+						ProjFrag.InstigatorTeam     = LNPTeam::NPCTeam;
 						ProjFrag.bIsLocalInstigator = false;             // 엔티티 NPC는 예측 대상이 아니다
 						ProjFrag.InstigatorPlayerID = INDEX_NONE;
 						// 예측 키가 없는 발사는 서버 발급 SalvoID로 전역 고유성을 확보한다 (패링 반사 경로와 동일).
@@ -323,7 +323,7 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					Blade.DamageEffectClass = WeaponDef ? WeaponDef->ProjectileDamageEffect.Get() : nullptr;
 					Blade.InstigatorEntity  = Ctx.GetEntity(i);
 					Blade.InstigatorActor   = nullptr;
-					Blade.InstigatorTeam    = ELNPInstigatorTeam::Enemy;
+					Blade.InstigatorTeam    = LNPTeam::NPCTeam;
 					Blade.bIsLocalInstigator = false;
 					// 첫 프레임은 Prev == Curr다. 판정 프로세서가 선분-선분으로 폴백한다.
 					Blade.SwordRootPrev = Blade.SwordRootCurr = Seed.Root;
@@ -516,7 +516,7 @@ void ULNPEntityGhostProjectileProcessor::Execute(FMassEntityManager& EntityManag
 			// 서버가 실제 발사체에 넣은 것과 **같은 함수로 유도한** 키다. 이 값이 어긋나면
 			// 서버 임팩트 큐가 이 Ghost를 못 찾아 관통해 날아간다.
 			GhostSub->SpawnSpectatorGhosts(SharedData, Muzzle, Velocities, WeaponDef.ProjectileLifetime,
-				ELNPInstigatorTeam::Enemy, INDEX_NONE,
+				LNPTeam::NPCTeam, INDEX_NONE,
 				LNPEntityAttack::MakeGhostSalvoKey(NetIDs[i].NetID.GetValue(), PendingSeq),
 				/*UpstreamDelaySeconds*/ 0.f);
 		}

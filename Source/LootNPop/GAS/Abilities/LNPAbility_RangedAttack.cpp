@@ -8,7 +8,7 @@
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"   // MaxPingRewindSeconds — 되감기 핑 항 상한
 #include "Character/LNPCharacterBase.h"
-#include "Enemy/LNPEnemyCharacter.h"
+#include "Player/LNPTeam.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
@@ -96,9 +96,9 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())
 		InstigatorHandle = AgentComp->GetEntityHandle();
 
-	const ELNPInstigatorTeam Team = Cast<ALNPEnemyCharacter>(Character)
-		? ELNPInstigatorTeam::Enemy
-		: ELNPInstigatorTeam::Player;
+	// 발사 시점의 팀을 탄에 싣는다 — 이후 공격자가 팀을 바꿔도 이 탄은 그대로다.
+	// 예측 클라이언트도 복제된 자기 팀으로 같은 값을 만든다(팀 전환 직후의 복제 지연 동안만 어긋날 수 있다).
+	const uint8 Team = LNPTeam::GetTeam(Character);
 
 	// --- 네트워크 예측 식별자 (Ghost Projectile 재조정용, TechDesign_Networking.md §3.2) ---
 	const bool  bIsLocalInstigator = Character->IsLocallyControlled();

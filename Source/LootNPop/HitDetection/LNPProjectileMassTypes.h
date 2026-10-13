@@ -6,6 +6,7 @@
 #include "MassEntityTypes.h"
 #include "Mass/EntityHandle.h"
 #include "GameplayEffect.h"
+#include "Player/LNPTeam.h"
 #include "LNPProjectileMassTypes.generated.h"
 
 class ULNPVFXData;
@@ -18,12 +19,6 @@ enum class ELNPProjectileType : uint8
 	Lobbed UMETA(DisplayName = "Lobbed"),
 };
 
-UENUM(BlueprintType)
-enum class ELNPInstigatorTeam : uint8
-{
-	Enemy,
-	Player,
-};
 
 /**
  * 같은 무기에서 스폰된 모든 Projectile가 공유하는 무기 타입 상수.
@@ -88,7 +83,8 @@ struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
 	UPROPERTY()
 	FMassEntityHandle Instigator;
 
-	ELNPInstigatorTeam InstigatorTeam = ELNPInstigatorTeam::Enemy;
+	/** 발사(또는 패링 반사) 시점의 공격자 팀 (Player/LNPTeam.h). 이후 공격자가 팀을 바꿔도 이 탄은 그대로다. */
+	uint8 InstigatorTeam = LNPTeam::NPCTeam;
 
 	/** 이 엔티티를 생성한 머신에서 공격자가 로컬 컨트롤 대상인지 여부 (IsLocallyControlled()).
 	 *  true인 머신에서만 클라이언트 예측 HitDetection(HitStop + Ghost 소멸)을 수행한다. */
@@ -140,9 +136,9 @@ struct LOOTNPOP_API FLNPProjectileVisualFragment : public FMassFragment
 
 	bool bInitialized = false;
 
-	/** 트레일에 실제로 반영된 진영. FLNPProjectileFragment::InstigatorTeam과 어긋나면
-	 *  패링으로 소유권이 넘어갔다는 뜻이므로 트레일 색을 다시 주입한다. */
-	ELNPInstigatorTeam AppliedTeam = ELNPInstigatorTeam::Enemy;
+	/** 트레일에 실제로 반영된 색 — 보는 사람과 같은 팀인가. 패링으로 탄의 팀이 바뀌거나
+	 *  보는 사람이 팀을 바꿔 이 값이 어긋나면 트레일 색을 다시 주입한다. */
+	bool bAppliedFriendly = false;
 };
 
 /** 판정 프로세서가 StartPhysics에서 붙이고, PostPhysics의 ULNPProjectileDestructionProcessor가 보고 파괴하는 Tag. */

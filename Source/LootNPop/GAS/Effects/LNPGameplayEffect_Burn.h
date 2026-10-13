@@ -7,7 +7,7 @@
 #include "LNPGameplayEffect_Burn.generated.h"
 
 /**
- * 플레이어 화상 DoT — 아군 사격(bFriendlyFire)으로 화염 원뿔에 맞은 플레이어에게만 건다.
+ * 플레이어 화상 DoT — 다른 팀 플레이어의 화염 원뿔에 맞은 플레이어에게만 건다 (Player/LNPTeam.h).
  * 적 화상은 이 GE가 아니라 FLNPBurnFragment가 원본이다 (적 ASC GE는 풀 반납 때 소실·누수).
  *
  * 규칙은 적 화상과 같다 (GameDesign_Ability.md 화상 절)

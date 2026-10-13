@@ -24,5 +24,5 @@ protected:
 private:
 	FMassEntityQuery ConeQuery;
 	FMassEntityQuery EnemyQuery;
-	FMassEntityQuery PlayerQuery;   // 아군 사격(bFriendlyFire) 대상
+	FMassEntityQuery PlayerQuery;   // 공격자와 다른 팀인 플레이어 대상 (Player/LNPTeam.h)
 };

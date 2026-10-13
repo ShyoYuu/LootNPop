@@ -46,6 +46,9 @@ struct LOOTNPOP_API FLNPFlameConeFragment : public FMassFragment
 	UPROPERTY()
 	FMassEntityHandle InstigatorEntity;
 
+	/** 그 틱의 공격자 팀 (Player/LNPTeam.h). 플레이어 대상 판정을 연다. */
+	uint8 InstigatorTeam = 0;
+
 	/** 서버 되감기 입력 — 발동 시점 게임 스레드에서 저장한다 (근접 FLNPWeaponTraceFragment와 같은 규약). */
 	float CachedRewindSeconds = 0.f;
 };

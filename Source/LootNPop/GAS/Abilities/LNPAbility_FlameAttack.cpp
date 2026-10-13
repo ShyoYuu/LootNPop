@@ -10,6 +10,7 @@
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "Character/LNPCharacterBase.h"
 #include "Item/LNPWeaponData.h"
+#include "Player/LNPTeam.h"
 #include "LNPGameplayTags.h"
 #include "AbilitySystemComponent.h"
 
@@ -121,6 +122,7 @@ void ULNPAbility_FlameAttack::SpawnConeJudge(const FGameplayAbilityActivationInf
 	// 화상 계수는 원뿔 계수와 같은 축(AttackPower × 계수 × 무기 레벨 배율)이다 — 원뿔 피해에서 계수만 갈아 끼운다.
 	Cone.BurnDamagePerStack = BaseDamageCoefficient > 0.f ? Cone.Damage * (BurnDamageCoefficient / BaseDamageCoefficient) : 0.f;
 	Cone.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
+	Cone.InstigatorTeam    = LNPTeam::GetTeam(Character);
 	if (const UMassAgentComponent* AgentComp = Character->FindComponentByClass<UMassAgentComponent>())
 		Cone.InstigatorEntity = AgentComp->GetEntityHandle();
 	if (const APlayerState* AttackerPS = Character->GetPlayerState<APlayerState>())

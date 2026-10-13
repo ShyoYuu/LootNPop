@@ -94,12 +94,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Inventory", meta = (ClampMin = "2"))
 	int32 WeaponMergeMaterialCount = 3;
 
-	/** true이면 Player Projectile이 다른 Player에게 피해를 줄 수 있다. */
-	UPROPERTY(Config, EditAnywhere, Category = "Combat")
-	bool bFriendlyFire = false;
-
 	/**
-	 * Player 진영 Projectile 트레일 색. Niagara User 파라미터 `TintColor`로 주입된다.
+	 * **보는 사람과 같은 팀**인 Projectile 트레일 색. Niagara User 파라미터 `TintColor`로 주입된다.
+	 * 색은 보는 사람 기준이다 — 다른 팀 플레이어의 탄은 NPC 탄과 같은 EnemyProjectileTintColor로 보인다(Player/LNPTeam.h).
+	 * (이름은 ini 키 호환을 위해 그대로 둔다.)
 	 *
 	 * ⚠️ M_LNP_ProjectileGlow는 Unlit이라 이 값이 곧 Emissive다 — 세 채널이 모두 1을 넘으면
 	 *    톤매핑에서 흰색으로 포화돼 진영 구분이 사라진다. 색조를 담당하는 채널 하나만
@@ -108,7 +106,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Combat|VFX")
 	FLinearColor PlayerProjectileTintColor = FLinearColor(0.06f, 0.35f, 1.50f, 1.0f);
 
-	/** Enemy 진영 Projectile 트레일 색. 주의사항은 PlayerProjectileTintColor와 동일. */
+	/** **보는 사람과 다른 팀**인 Projectile 트레일 색. 주의사항은 PlayerProjectileTintColor와 동일. */
 	UPROPERTY(Config, EditAnywhere, Category = "Combat|VFX")
 	FLinearColor EnemyProjectileTintColor = FLinearColor(1.50f, 0.14f, 0.05f, 1.0f);
 

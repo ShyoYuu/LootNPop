@@ -72,7 +72,7 @@ public:
 	 * 속도 방향으로 외삽(클램프 200ms)해 서버 실제 위치와의 시작 괴리를 줄인다.
 	 */
 	void SpawnSpectatorGhosts(const FLNPProjectileSharedFragment& SharedData, FVector SpawnPos,
-		TConstArrayView<FVector> Velocities, float LifetimeSeconds, ELNPInstigatorTeam InstigatorTeam,
+		TConstArrayView<FVector> Velocities, float LifetimeSeconds, uint8 InstigatorTeam,
 		int32 InstigatorPlayerID, int32 KeyOrSalvo, float UpstreamDelaySeconds);
 
 private:

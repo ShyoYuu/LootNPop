@@ -6,6 +6,7 @@
 #include "HitDetection/LNPProjectileMotion.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "Player/LNPTeam.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "GAS/LNPBurnTypes.h"
 #include "GAS/LNPDamageFormula.h"
@@ -246,7 +247,7 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 			for (const FCone& Cone : Cones)
 			{
 				const FLNPFlameConeFragment& C = Cone.Data;
-				if (Ctx.GetEntity(i) == C.InstigatorEntity)
+				if (Ctx.GetEntity(i) == C.InstigatorEntity || !LNPTeam::CanHit(C.InstigatorTeam, LNPTeam::NPCTeam))
 					continue;
 
 				const FVector JudgedCenter = FlameConeRewoundCenter(C, Center, RawLoc, History, Now, RewindSurface.Get());
@@ -294,10 +295,8 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 		}
 	});
 
-	// ── 아군 사격: 플레이어 대상 ──────────────────────────────────────────────
-	// 꺼져 있으면 플레이어 쿼리 자체를 돌리지 않는다. 적은 화염방사기를 쓰지 않으므로 이 분기는 플레이어→플레이어뿐이다.
-	if (!GetDefault<ULNPSettings>()->bFriendlyFire)
-		return;
+	// ── 플레이어 대상 — 공격자와 다른 팀인 플레이어만 ────────────────────────────
+	// 적은 화염방사기를 쓰지 않으므로 이 분기는 사실상 다른 팀 플레이어 → 플레이어다. 플레이어 수가 적어 쿼리는 늘 돈다.
 
 	const float PoiseGuardMultiplier = GetDefault<ULNPSettings>()->PoiseGuardMultiplier;
 
@@ -324,11 +323,12 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 			const FVector      UpDir  = (-Center).GetSafeNormal();
 			const FVector      Fwd    = Xf.GetRotation().GetForwardVector();
 			FLNPPoiseFragment* Poise  = PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr;
+			const uint8        Team   = LNPTeam::GetTeam(Actor);
 
 			for (const FCone& Cone : Cones)
 			{
 				const FLNPFlameConeFragment& C = Cone.Data;
-				if (Ctx.GetEntity(i) == C.InstigatorEntity)
+				if (Ctx.GetEntity(i) == C.InstigatorEntity || !LNPTeam::CanHit(C.InstigatorTeam, Team))
 					continue;
 
 				const FVector JudgedCenter = FlameConeRewoundCenter(C, Center, Center, Histories[i], Now, RewindSurface.Get());

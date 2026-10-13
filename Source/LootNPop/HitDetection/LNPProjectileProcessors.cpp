@@ -355,7 +355,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			float   CapsuleHalfHeight;
 			float   CapsuleRadius;
 			bool    bIsEnemy;
-			int32   PlayerID;         // Player 타겟의 PlayerId — 관전용 Ghost가 발사자 본인 캡슐에 자폭하지 않도록 제외용
+			uint8   Team;             // 판정 팀 (Player/LNPTeam.h) — 적은 NPCTeam, 플레이어는 복제된 PlayerState 값
+			int32   PlayerID;        // Player 타겟의 PlayerId — 관전용 Ghost가 발사자 본인 캡슐에 자폭하지 않도록 제외용
 		};
 		TArray<FClientCapsuleTarget> ClientTargets;
 
@@ -385,7 +386,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 				AActor*       Actor = ActorFrags[i].GetMutable();
 				ClientTargets.Add({ Actor, LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HitOffset, Actor),
-					UpDir, HalfH, Radius, true, INDEX_NONE });
+					UpDir, HalfH, Radius, true, LNPTeam::NPCTeam, INDEX_NONE });
 			}
 		});
 
@@ -409,11 +410,10 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				const APlayerState* TargetPS = PlayerPawn->GetPlayerState<APlayerState>();
 				const FVector Loc = Transforms[i].GetTransform().GetLocation();
 				ClientTargets.Add({ PlayerActor, Loc, (-Loc).GetSafeNormal(), HalfH, Radius, false,
-					TargetPS ? TargetPS->GetPlayerId() : INDEX_NONE });
+					LNPTeam::GetTeam(PlayerPawn), TargetPS ? TargetPS->GetPlayerId() : INDEX_NONE });
 			}
 		});
 
-		const bool bFriendlyFireClient = GetDefault<ULNPSettings>()->bFriendlyFire;
 		UMassActorSubsystem* ActorSub  = World->GetSubsystem<UMassActorSubsystem>();
 
 		ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
@@ -461,12 +461,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						continue;
 					}
 
-					if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player && !Target.bIsEnemy && !bFriendlyFireClient)
-					{
-						if (HitProfile.bSample) ++HitProfile.TeamExcluded;
-						continue;
-					}
-					if (Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy && Target.bIsEnemy)
+					if (!LNPTeam::CanHit(Proj.InstigatorTeam, Target.Team))
 					{
 						if (HitProfile.bSample) ++HitProfile.TeamExcluded;
 						continue;
@@ -576,6 +571,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		FVector                RawLocation;    // Lag Compensation 되감기 기준 원점
 		const FLNPPositionHistoryFragment* History;
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
+		uint8              Team;          // 판정 팀 (Player/LNPTeam.h)
 	};
 	TArray<FCollectedPlayer> Players;
 
@@ -611,12 +607,12 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				ParryFrags[i],
 				Loc,
 				&Histories[i],
-				PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr
+				PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr,
+				LNPTeam::GetTeam(PlayerPawn)
 			});
 		}
 	});
 
-	const bool bFriendlyFire = GetDefault<ULNPSettings>()->bFriendlyFire;
 	const float PoiseGuardMultiplier = GetDefault<ULNPSettings>()->PoiseGuardMultiplier;
 
 	// ExcludeEnemy/ExcludePlayer = 직접 피격 대상 (중복 피해 방지)
@@ -625,8 +621,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		const FLNPProjectileFragment&       Proj,
 		FVector                             HitPoint,
 		const FCollectedEnemy*              ExcludeEnemy,
-		const FCollectedPlayer*             ExcludePlayer,
-		bool                                bFF)
+		const FCollectedPlayer*             ExcludePlayer)
 	{
 		if (Shared.ExplosionRadius <= 0.f || !Shared.DamageEffectClass)
 			return;
@@ -665,7 +660,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			OutKnockback = Shared.SplashKnockbackStrength * (1.f - T * T);
 		};
 
-		if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
+		if (LNPTeam::CanHit(Proj.InstigatorTeam, LNPTeam::NPCTeam))
 		{
 			for (FCollectedEnemy& SE : Enemies)
 			{
@@ -709,37 +704,38 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			}
 		}
 
-		if (Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy || bFF)
+		for (FCollectedPlayer& SP : Players)
 		{
-			for (FCollectedPlayer& SP : Players)
+			if (&SP == ExcludePlayer) continue;
+			// ⚠️ 예전에는 폭발에 발사자 제외가 없어 아군 사격을 켜면 자기 유탄에 자기가 맞았다.
+			//    팀 술어만으로는 부족하다 — 쏜 뒤 팀을 바꾸면 탄은 옛 팀이라 자기가 "다른 팀"이 된다.
+			if (SP.Handle == Proj.Instigator) continue;
+			if (!LNPTeam::CanHit(Proj.InstigatorTeam, SP.Team)) continue;
+			if (!SP.Actor) continue;
+			const float DistSq = FVector::DistSquared(SP.Location, HitPoint);
+			if (DistSq > ExpRadSq) continue;
+
+			// 적 쪽과 같은 규약 — "피격자 → 공격자(폭심)". 부호 뒤집기는 소비처가 한다.
+			const FVector SplashDir   = (HitPoint - SP.Location).GetSafeNormal();
+			const FVector SplashPoint = SP.Location + SplashDir * SP.CapsuleRadius;
+
+			// 폭발은 패링할 수 없다(bInParryRange=false). 가드 방향은 탄이 날아온 쪽이 아니라 폭심 쪽이다.
+			if (LNPGuardParry::Judge(SP.ParryState, FVector::DotProduct(SP.ForwardVector, SplashDir), Now,
+				/*bInParryRange*/ false, /*bInHitRange*/ true) == ELNPPlayerDefenseResult::Guarded)
 			{
-				if (&SP == ExcludePlayer) continue;
-				if (!SP.Actor) continue;
-				const float DistSq = FVector::DistSquared(SP.Location, HitPoint);
-				if (DistSq > ExpRadSq) continue;
-
-				// 적 쪽과 같은 규약 — "피격자 → 공격자(폭심)". 부호 뒤집기는 소비처가 한다.
-				const FVector SplashDir   = (HitPoint - SP.Location).GetSafeNormal();
-				const FVector SplashPoint = SP.Location + SplashDir * SP.CapsuleRadius;
-
-				// 폭발은 패링할 수 없다(bInParryRange=false). 가드 방향은 탄이 날아온 쪽이 아니라 폭심 쪽이다.
-				if (LNPGuardParry::Judge(SP.ParryState, FVector::DotProduct(SP.ForwardVector, SplashDir), Now,
-					/*bInParryRange*/ false, /*bInHitRange*/ true) == ELNPPlayerDefenseResult::Guarded)
-				{
-					// 막아내도 경직은 쌓인다 (가드 브레이크). 피해·넉백은 막는다.
-					LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now, PoiseGuardMultiplier);
-					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(SP.Actor, SplashPoint, SplashDir);
-					continue;
-				}
-				LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now);
-
-				float SplashDamage, SplashKnockback;
-				SplashFalloff(DistSq, SplashDamage, SplashKnockback);
-
-				Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
-					SP.Actor, Shared.DamageEffectClass,
-					SplashDamage, SplashDir, SplashPoint, SplashKnockback);
+				// 막아내도 경직은 쌓인다 (가드 브레이크). 피해·넉백은 막는다.
+				LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now, PoiseGuardMultiplier);
+				Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(SP.Actor, SplashPoint, SplashDir);
+				continue;
 			}
+			LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now);
+
+			float SplashDamage, SplashKnockback;
+			SplashFalloff(DistSq, SplashDamage, SplashKnockback);
+
+			Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
+				SP.Actor, Shared.DamageEffectClass,
+				SplashDamage, SplashDir, SplashPoint, SplashKnockback);
 		}
 	};
 
@@ -787,8 +783,12 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			// 대상의 과거 잔상을 쫓아가 맞는 문제와, 매 프레임 Actor→PlayerState→Ping 조회 비용을 함께 제거.
 			// 대상별 가산항(순수 엔티티의 보간 지연)은 아래 RewoundEnemyCenter가 더한다.
 			const float RewindSeconds = FMath::Clamp(Proj.CachedRewindSeconds, 0.f, MaxPingRewindSeconds);
+
+			// 적 탄은 적 몸에 닿지 않는다 — 격자 질의와 적 후보 루프를 통째로 건너뛴다.
+			// Phase 12 측정에서 서버 후보의 99.7%가 이 쌍이었다(SurfaceSupportNavigation/history/Phase12_Log.md).
+			const bool bCanHitEnemies = LNPTeam::CanHit(Proj.InstigatorTeam, LNPTeam::NPCTeam);
 			bool bUseGridCandidates = false;
-			if (bSpatialGrid)
+			if (bSpatialGrid && bCanHitEnemies)
 			{
 				if (LNPHitDetection::CanUseCurrentCapsuleGrid(Proj.bInstigatorIsRemoteClient, RewindSeconds))
 				{
@@ -914,12 +914,12 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					Proj.PredictionKeyID, Proj.SpawnIndex, Proj.InstigatorPlayerID);
 
 				Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
-				ApplySplash(Ctx, Shared, Proj, HitPoint, ExclEnemy, ExclPlayer, bFriendlyFire);
+				ApplySplash(Ctx, Shared, Proj, HitPoint, ExclEnemy, ExclPlayer);
 				bHit = true;
 			};
 
-			// Enemy 판정 — Player 발사체만 Enemy에게 피해를 줌 (비 Player 발사체는 캡슐에 닿아도 파괴만 됨)
-			const int32 CandidateCount = bUseGridCandidates ? HitCandidates.Num() : Enemies.Num();
+			// Enemy 판정 — 닿을 수 있는 탄(LNPTeam::CanHit)만 후보를 돈다. 닿으면 언제나 피해까지 준다.
+			const int32 CandidateCount = !bCanHitEnemies ? 0 : (bUseGridCandidates ? HitCandidates.Num() : Enemies.Num());
 			for (int32 CandidateIndex = 0; CandidateIndex < CandidateCount; ++CandidateIndex)
 			{
 				FCollectedEnemy& Enemy = Enemies[bUseGridCandidates ? HitCandidates[CandidateIndex] : CandidateIndex];
@@ -927,7 +927,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				if (HitProfile.bSample)
 				{
 					++HitProfile.Candidates;
-					HitProfile.EnemyTeamPairs += Proj.InstigatorTeam == ELNPInstigatorTeam::Enemy;
+					HitProfile.EnemyTeamPairs += Proj.InstigatorTeam == LNPTeam::NPCTeam;
 				}
 				{
 				FLNPProjectileHitProfileScope FilterScope(HitProfile, FLNPProjectileHitProfile::Filter, HitProfile.bSample);
@@ -978,38 +978,35 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					HitPoint))
 					continue;
 
-				if (Proj.InstigatorTeam == ELNPInstigatorTeam::Player)
+				const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal(); // 피격자 → 공격자
+
+				// Actor 승격 여부와 무관하게 같은 눈금으로 쌓는다.
+				LNPPoise::Accumulate(Enemy.Poise, Shared.PoiseDamage, Now);
+				Enemy.Fragment->bActivityWakeRequested = true;
+
+				// 피격 반응 — 배회 중이면 이 방향으로 돌아선다(ULNPEnemyMovementProcessor의 None 분기).
+				// Actor·Entity 두 경로 **모두**에서 같은 값을 기록해야 LOD에 따라 반응이 갈리지 않는다.
+				if (Enemy.Config)
 				{
-					const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal(); // 피격자 → 공격자
+					Enemy.Fragment->HitReactTimer     = Enemy.Config->TargetingConfig.HitReactLookTime;
+					Enemy.Fragment->HitReactDirection = HitFromDir;
+					// 플린치는 갱신만 한다 — 이미 움찔하는 중이면 전이를 새로 만들지 않는다.
+					Enemy.Fragment->FlinchTimeRemaining = Enemy.Config->PureEntityFlinchTime;
+				}
 
-					// Actor 승격 여부와 무관하게 같은 눈금으로 쌓는다.
-					LNPPoise::Accumulate(Enemy.Poise, Shared.PoiseDamage, Now);
-					Enemy.Fragment->bActivityWakeRequested = true;
+				if (Enemy.Actor && Shared.DamageEffectClass)
+				{
+					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
+				}
+				else
+				{
+					const float HpBefore = Enemy.Fragment->Health;
+					Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(Shared.Damage, Enemy.Fragment->Defense));
+					UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Shared.Damage);
 
-					// 피격 반응 — 배회 중이면 이 방향으로 돌아선다(ULNPEnemyMovementProcessor의 None 분기).
-					// Actor·Entity 두 경로 **모두**에서 같은 값을 기록해야 LOD에 따라 반응이 갈리지 않는다.
-					if (Enemy.Config)
-					{
-						Enemy.Fragment->HitReactTimer     = Enemy.Config->TargetingConfig.HitReactLookTime;
-						Enemy.Fragment->HitReactDirection = HitFromDir;
-						// 플린치는 갱신만 한다 — 이미 움찔하는 중이면 전이를 새로 만들지 않는다.
-						Enemy.Fragment->FlinchTimeRemaining = Enemy.Config->PureEntityFlinchTime;
-					}
-
-					if (Enemy.Actor && Shared.DamageEffectClass)
-					{
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
-					}
-					else
-					{
-						const float HpBefore = Enemy.Fragment->Health;
-						Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(Shared.Damage, Enemy.Fragment->Defense));
-						UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Shared.Damage);
-
-						// Actor 넉백(Mover)의 엔티티판. 이동 프로세서의 공중 분기가 이 속도를 적분한다.
-						if (Enemy.Velocity)
-							LNPHitDetection::ApplyEntityKnockback(*Enemy.Velocity, HitFromDir, Enemy.UpDir, Shared.KnockbackStrength);
-					}
+					// Actor 넉백(Mover)의 엔티티판. 이동 프로세서의 공중 분기가 이 속도를 적분한다.
+					if (Enemy.Velocity)
+						LNPHitDetection::ApplyEntityKnockback(*Enemy.Velocity, HitFromDir, Enemy.UpDir, Shared.KnockbackStrength);
 				}
 
 				FinishHit(HitPoint, (HitPoint - Enemy.CapsuleCenter).GetSafeNormal(), &Enemy, nullptr);
@@ -1031,8 +1028,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					if (HitProfile.bSample) ++HitProfile.SelfExcluded;
 					continue;
 				}
-				// 아군 사격이 꺼져 있으면 아군은 탄을 막지도 않고 통과시킨다 — 클라 예측 판정과 같은 규칙.
-				if (Proj.InstigatorTeam != ELNPInstigatorTeam::Enemy && !bFriendlyFire)
+				// 같은 팀은 탄을 막지도 않고 통과시킨다 — 클라 예측 판정과 같은 규칙.
+				if (!LNPTeam::CanHit(Proj.InstigatorTeam, Player.Team))
 				{
 					if (HitProfile.bSample) ++HitProfile.TeamExcluded;
 					continue;
@@ -1078,7 +1075,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					}
 
 					Proj.Velocity            = -Proj.Velocity;
-					Proj.InstigatorTeam      = ELNPInstigatorTeam::Player;
+					Proj.InstigatorTeam      = Player.Team;   // 반사 시점의 방어자 팀
 					Proj.Instigator          = Player.Handle;
 					Proj.InstigatorPlayerID  = DefenderPlayerID;
 					Proj.PredictionKeyID     = ULNPGhostProjectileSubsystem::IssueServerSalvoID();
@@ -1143,7 +1140,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			Ctx.Defer().AddTag<FLNPProjectileDeadTag>(ProjEnt);
 
 			// 제외 대상 없음 — 직격이 없었으니 반경 안의 모두가 스플래시를 받는다.
-			ApplySplash(Ctx, Shared, Proj, Center, nullptr, nullptr, bFriendlyFire);
+			ApplySplash(Ctx, Shared, Proj, Center, nullptr, nullptr);
 		}
 	});
 }
@@ -1181,6 +1178,9 @@ void ULNPProjectileVisualizationProcessor::Execute(FMassEntityManager& EntityMan
 	VisualSub.FlushTrailReleases();
 	VisualSub.FlushPendingImpacts();
 
+	// 색은 보는 사람 기준이다 — 내 팀의 탄은 아군색, 그 밖(NPC·다른 팀 플레이어)은 적색.
+	const uint8 ViewerTeam = LNPTeam::GetLocalViewerTeam(EntityManager.GetWorld());
+
 	ProjectileQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		const FLNPProjectileSharedFragment&           Shared      = Ctx.GetConstSharedFragment<FLNPProjectileSharedFragment>();
@@ -1194,25 +1194,25 @@ void ULNPProjectileVisualizationProcessor::Execute(FMassEntityManager& EntityMan
 			FLNPProjectileVisualFragment& Visual     = Visuals[i];
 			const FMassEntityHandle       Entity     = Ctx.GetEntity(i);
 
-			const ELNPInstigatorTeam Team = Projectiles[i].InstigatorTeam;
+			const bool bFriendly = Projectiles[i].InstigatorTeam == ViewerTeam;
 
 			if (false == Visual.bInitialized)
 			{
 				VisualSub.SpawnSpawnEffects(Shared.VFXData, Projectiles[i].SpawnLocation);
-				VisualSub.AllocateTrails(Entity, Shared.VFXData, Projectiles[i].SpawnLocation, Team);
-				Visual.AppliedTeam  = Team;
-				Visual.bInitialized = true;
+				VisualSub.AllocateTrails(Entity, Shared.VFXData, Projectiles[i].SpawnLocation, bFriendly);
+				Visual.bAppliedFriendly = bFriendly;
+				Visual.bInitialized     = true;
 			}
 			else
 			{
 				VisualSub.UpdateTrails(Entity, CurrentPos);
 
-				// 패링으로 소유권이 넘어간 프레임에만 색을 다시 주입한다 — 매 프레임 Niagara 파라미터를
-				// 건드리면 발사체가 많을 때(샷건 19발) 헛비용이 된다.
-				if (Visual.AppliedTeam != Team)
+				// 패링으로 탄의 팀이 바뀌었거나 내가 팀을 바꾼 프레임에만 색을 다시 주입한다 — 매 프레임
+				// Niagara 파라미터를 건드리면 발사체가 많을 때(샷건 19발) 헛비용이 된다.
+				if (Visual.bAppliedFriendly != bFriendly)
 				{
-					VisualSub.SetTrailTeam(Entity, Team);
-					Visual.AppliedTeam = Team;
+					VisualSub.SetTrailTint(Entity, bFriendly);
+					Visual.bAppliedFriendly = bFriendly;
 				}
 			}
 		}
@@ -1353,7 +1353,7 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 				continue;
 
 			const FVector VelDir     = Projectiles[i].Velocity.GetSafeNormal();
-			const bool    bPlayer    = Projectiles[i].InstigatorTeam == ELNPInstigatorTeam::Player;
+			const bool    bPlayer    = Projectiles[i].InstigatorTeam != LNPTeam::NPCTeam;
 			const FColor  Color      = bPlayer ? FColor::Cyan   : FColor::Red;
 			const FColor  ParryColor = bPlayer ? FColor::Silver : FColor::Orange;
 

@@ -50,7 +50,8 @@ struct LOOTNPOP_API FLNPWeaponTraceFragment : public FMassFragment
 	UPROPERTY()
 	TWeakObjectPtr<ALNPCharacterBase> InstigatorActor;
 
-	ELNPInstigatorTeam InstigatorTeam = ELNPInstigatorTeam::Player;
+	/** 스윙 시작 시점의 공격자 팀 (Player/LNPTeam.h). 스윙 도중 팀을 바꿔도 이 스윙은 그대로다. */
+	uint8 InstigatorTeam = LNPTeam::NPCTeam;
 
 	/** 이 엔티티를 생성한 머신에서 공격자가 로컬 컨트롤 대상인지 여부 (IsLocallyControlled()).
 	 *  true인 머신에서만 클라이언트 예측 HitStop 판정을 수행한다. 서버·리모트 클라에서는 false. */

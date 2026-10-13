@@ -31,6 +31,7 @@
 #include "MassEntitySubsystem.h"
 #include "HitDetection/LNPGuardParryTypes.h"
 #include "HitDetection/LNPHitDetectionShared.h"
+#include "Player/LNPTeam.h"
 #include "Camera/LNPLockOnComponent.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyCharacter.h"
@@ -383,32 +384,33 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 		? FVector::DotProduct(Hit.ImpactPoint - CamPos, AimForward)
 		: AimTraceDistance;
 
-	// 플레이어 캡슐도 Visibility를 무시한다. 아군 사격이 켜졌을 때만 실제 피격 판정과 같은
-	// 캡슐 검사로 깊이를 구한다. 자신과 시체는 제외하고, NPC·지형과 거리를 비교한다.
-	if (GetDefault<ULNPSettings>()->bFriendlyFire)
+	// 플레이어 캡슐도 Visibility를 무시한다. 나와 다른 팀인 플레이어만 실제 피격 판정과 같은
+	// 캡슐 검사로 깊이를 구한다(같은 팀은 탄이 통과하므로 조준점을 가로막지 않는다).
+	// 자신과 시체는 제외하고, NPC·지형과 거리를 비교한다.
+	const uint8 MyTeam = LNPTeam::GetTeam(Pawn);
+	if (const AGameStateBase* GameState = World->GetGameState())
 	{
-		if (const AGameStateBase* GameState = World->GetGameState())
+		for (const APlayerState* PlayerState : GameState->PlayerArray)
 		{
-			for (const APlayerState* PlayerState : GameState->PlayerArray)
+			const ALNPPlayerCharacter* PlayerPawn = PlayerState ? PlayerState->GetPawn<ALNPPlayerCharacter>() : nullptr;
+			if (!PlayerPawn || PlayerPawn == Pawn || PlayerPawn->IsDead())
+				continue;
+			if (!LNPTeam::CanHit(MyTeam, LNPTeam::GetTeam(PlayerPawn)))
+				continue;
+
+			float HalfHeight, Radius;
+			LNPHitDetection::GetCapsuleSize(PlayerPawn->GetCapsule(), HalfHeight, Radius);
+			const FVector Center = PlayerPawn->GetActorLocation();
+			FVector HitPoint;
+			if (!LNPHitDetection::SegmentHitsCapsule(CamPos, CamPos + AimForward * NearestDistance,
+				Center, (-Center).GetSafeNormal(), HalfHeight, Radius, 0.f, HitPoint))
+				continue;
+
+			const float Distance = FVector::DotProduct(HitPoint - CamPos, AimForward);
+			if (Distance < NearestDistance)
 			{
-				const ALNPPlayerCharacter* PlayerPawn = PlayerState ? PlayerState->GetPawn<ALNPPlayerCharacter>() : nullptr;
-				if (!PlayerPawn || PlayerPawn == Pawn || PlayerPawn->IsDead())
-					continue;
-
-				float HalfHeight, Radius;
-				LNPHitDetection::GetCapsuleSize(PlayerPawn->GetCapsule(), HalfHeight, Radius);
-				const FVector Center = PlayerPawn->GetActorLocation();
-				FVector HitPoint;
-				if (!LNPHitDetection::SegmentHitsCapsule(CamPos, CamPos + AimForward * NearestDistance,
-					Center, (-Center).GetSafeNormal(), HalfHeight, Radius, 0.f, HitPoint))
-					continue;
-
-				const float Distance = FVector::DotProduct(HitPoint - CamPos, AimForward);
-				if (Distance < NearestDistance)
-				{
-					NearestDistance = Distance;
-					OutAimPoint = HitPoint;
-				}
+				NearestDistance = Distance;
+				OutAimPoint = HitPoint;
 			}
 		}
 	}

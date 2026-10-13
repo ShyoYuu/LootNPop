@@ -62,6 +62,29 @@
     - GAS 어빌리티를 통해 엔티티에 충격 전달 시, 충격을 받은 엔티티가 인접 엔티티에 다시 힘을 전달.
 - **핵심 기술:** GAS, MassEntity Neighbor Query.
 
+### 런타임 플레이어 팀 — `bFriendlyFire` 대체 — **2026-10-13 정규 스펙으로 승격**
+- 플레이어 팀 ID(`ALNPPlayerState::TeamId`, 기본 전원 한 팀)와 `LNP.Team.Set`으로 구현했다. `bFriendlyFire`는 지웠다.
+  피격 판정 전부가 `LNPTeam::CanHit`(`공격자 팀 != 대상 팀`)으로 후보를 고르고, 공격의 팀은 만들어질 때 고정된다.
+- 상세: [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.2 팀 규칙. 남은 범위는 바로 아래 항목.
+
+### 팀이 다른 플레이어를 적으로 다루기 (2026-10-13 — 사용자 결정, 다른 세션에서 진행 예정)
+- **문제:** 런타임 팀(위 항목)은 **피격 판정만** 따른다. 팀이 다르다는 것은 적이 된다는 뜻인데, 아래 시스템은 여전히
+  "플레이어는 모두 아군, 적은 NPC뿐"을 전제로 한다. 팀을 나누면 서로 맞기는 하지만 조준·보상·표시가 그 사실을 모른다.
+- **고칠 것 (사용자 지정 범위):**
+  1. **락온 대상** — 지금은 적 NPC만 고른다. 다른 팀 플레이어도 후보가 되어야 한다. `Camera/LNPLockOnComponent.cpp`.
+  2. **근접 조준 보정(Motion Warping 타겟 보정)** — 지금은 적 NPC 쪽으로만 몸을 돌린다. 다른 팀 플레이어도 보정 대상이 되어야 한다.
+     `GAS/Abilities/LNPAbility_MeleeAttack.cpp`, `Character/LNPInputHandlerComponent.cpp`(보정 입력 스냅샷), 설계는 [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md).
+  - 1·2는 **같은 출처**에서 대상을 받는다 — `HitDetection/LNPTargetQuerySubsystem.h`의 상시 원뿔·추적 질의가 적 엔티티만 색인한다
+    ([TechDesign_TargetQuery.md](TechDesign_TargetQuery.md)). 질의에 다른 팀 플레이어 후보를 더하는 것이 출발점이고, 결과가
+    엔티티 핸들이라 플레이어 엔티티도 같은 형태로 실을 수 있는지가 첫 확인 사항이다.
+  3. **LootPod 협동 루팅** — 존 안 플레이어의 루팅 속도를 팀 구분 없이 합산한다. 다른 팀끼리는 협동이 아니어야 한다
+     (합산 제외, 또는 서로 방해 — 기획 결정 필요). `LootPod/LNPLootPodProcessor.cpp`, 기획은 [GameDesign_LootPod.md](GameDesign_LootPod.md).
+  - 함께 볼 것: 적 HP 바·락온 마커(`Enemy/LNPEnemyMarkerProcessor.cpp`, `UI/LNPHudWidget.cpp`)는 NPC 전용이다. 다른 팀 플레이어에게도 띄울지 정한다.
+- **쓸 수 있는 것:** 팀 조회는 `Player/LNPTeam.h`의 `LNPTeam::GetTeam(Actor)`(플레이어 폰 → PlayerState 값, 그 밖 → `NPCTeam`)와
+  `GetLocalViewerTeam(World)`, 적대 판정은 `LNPTeam::CanHit`. 팀 값은 복제되므로 클라이언트 표시·예측에서도 읽을 수 있다.
+  검증은 2인 PIE에서 `LNP.Team.Set 1 2`로 나눈 뒤 하면 된다.
+- **관련:** [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.2 팀 규칙.
+
 ---
 
 ## [UI/HUD 관련]

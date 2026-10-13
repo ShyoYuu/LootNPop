@@ -8,7 +8,7 @@
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "LNPGameplayTags.h"
-#include "Enemy/LNPEnemyCharacter.h"
+#include "Player/LNPTeam.h"
 #include "LootNPop.h"
 
 #include "MassEntitySubsystem.h"
@@ -68,7 +68,7 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 	MeleeData.SwordRootPrev     = MeleeData.SwordRootCurr = RootPos;
 	MeleeData.HitRadius         = 0.f < HitRadiusOverride ? HitRadiusOverride : WeaponDef->HitRadius;
 	MeleeData.DamageEffectClass = WeaponDef->ProjectileDamageEffect;
-	MeleeData.InstigatorTeam    = Cast<ALNPEnemyCharacter>(Character) ? ELNPInstigatorTeam::Enemy : ELNPInstigatorTeam::Player;
+	MeleeData.InstigatorTeam    = LNPTeam::GetTeam(Character);   // 스윙 시작 시점 팀 — 스윙 도중 바꿔도 그대로
 	MeleeData.TimeToLive        = TotalDuration + 0.2f;
 	// 서버·클라이언트 각자 독립적으로 엔티티를 생성한다 (HasAuthority 분기 없음).
 	// 로컬 컨트롤 공격자에서만 클라이언트 예측 HitStop을 수행하도록 표시한다.
