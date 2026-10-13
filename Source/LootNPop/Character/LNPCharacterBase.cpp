@@ -87,6 +87,11 @@ bool ALNPCharacterBase::IsLobbedADSActive() const
 	return WeaponDef && (WeaponDef->GetEffectiveProjectileGravity() > 0.f);
 }
 
+bool ALNPCharacterBase::IsGlidingActive() const
+{
+	return MoverComponent && MoverComponent->IsGliding();
+}
+
 UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 {
 	if (const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())
@@ -123,6 +128,11 @@ bool ALNPCharacterBase::TryActivateAttack()
 	// 그로기 진입 시점에 콤보 창 태그가 한 프레임이라도 남아 있으면 차단을 통째로 건너뛴다.
 	// (NPC의 FLNPEnemyAttackTask는 매 프레임 이 함수를 두드리므로 그 한 프레임을 정확히 집어낸다.)
 	if (ASC->HasMatchingGameplayTag(TAG_State_Staggered))
+		return false;
+
+	// 활공 중에는 총기 지향 사격만 나간다 — 근접 무기는 가드만 가능하고 공격은 막는다.
+	// 경직과 같은 이유로 콤보 창 분기보다 앞이어야 한다.
+	if (IsGlidingActive() && !ASC->HasMatchingGameplayTag(TAG_AimMode_FreeAim))
 		return false;
 
 	if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))

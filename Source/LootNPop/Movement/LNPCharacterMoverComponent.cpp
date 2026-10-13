@@ -4,6 +4,7 @@
 #include "Movement/LNPCharacterMovementSettings.h"
 #include "Movement/LNPAsyncWalkingMode.h"
 #include "Movement/LNPDeadMode.h"
+#include "Movement/LNPGlideMode.h"
 #include "Movement/LNPModifierInputs.h"
 #include "Movement/LNPDashCooldownModifier.h"
 #include "Movement/LNPGrappleFlightModifier.h"
@@ -22,6 +23,7 @@
 #include "DefaultMovementSet/LayeredMoves/LaunchMove.h"
 #include "DefaultMovementSet/LayeredMoves/AnimRootMotionLayeredMove.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "AbilitySystemComponent.h"
@@ -33,11 +35,13 @@
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsADS,      "LNP.Mover.IsADS",       "Character is aiming down sights");
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsGliding,  "LNP.Mover.IsGliding",   "Character is gliding with the hang glider");
 
 // UCommonLegacyMovementSettings 못 가져왔을 때 fallback용
 const FName DefaultWalkingMode = TEXT("LNPAsyncWalking");
 const FName DefaultFallingMode = TEXT("AsyncFalling");
 const FName LNPDeadModeName    = TEXT("LNPDead");
+const FName LNPGlideModeName   = TEXT("LNPGlide");
 
 ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 {
@@ -49,6 +53,8 @@ ULNPCharacterMoverComponent::ULNPCharacterMoverComponent()
 	MovementModes.Add(DefaultFallingMode, CreateDefaultSubobject<UAsyncFallingMode>(TEXT("AsyncFallingMode")));
 	// 사망 정지 모드 — 엔진 UNullMovementMode는 원점 텔레포트 버그가 있어 쓸 수 없다 (ULNPDeadMode 주석 참조).
 	MovementModes.Add(LNPDeadModeName, CreateDefaultSubobject<ULNPDeadMode>(TEXT("LNPDeadMode")));
+	// 행글라이더 활공 — 공중 점프 입력으로 전개·접기 (OnMoverPreSimulationTick)
+	MovementModes.Add(LNPGlideModeName, CreateDefaultSubobject<ULNPGlideMode>(TEXT("LNPGlideMode")));
 
 	StartingMovementMode = DefaultFallingMode;
 }
@@ -82,7 +88,8 @@ bool ULNPCharacterMoverComponent::CanADS() const
 {
 	// Guard가 틱에서 먼저 처리되므로 Guard > ADS 단방향 우선순위다.
 	// CanGuard()에 반대 조건(!IsADS())을 넣으면 둘 다 켜졌을 때 서로를 취소하다 재시작해 진동한다.
-	return !IsGuarding();
+	// 활공 중에는 지향 사격만 허용한다 — 활공에 들어가면 취소 분기가 ADS를 푼다.
+	return !IsGuarding() && !IsGliding();
 }
 
 bool ULNPCharacterMoverComponent::CanDash() const
@@ -95,6 +102,42 @@ bool ULNPCharacterMoverComponent::CanDash() const
 bool ULNPCharacterMoverComponent::IsGrappleFlying() const
 {
 	return FindMovementModifierByType<FLNPGrappleFlightModifier>() != nullptr;
+}
+
+bool ULNPCharacterMoverComponent::IsGliding() const
+{
+	return HasGameplayTag(LNP_Mover_IsGliding, true);
+}
+
+bool ULNPCharacterMoverComponent::CanGlide() const
+{
+	// 활공 모드도 낙하 태그를 물려받으므로 IsFalling()만으로는 활공 중을 거를 수 없다.
+	// 그래플 비행 중엔 열지 않는다 — 비행이 끝나면 낙하로 돌아오고 그때 다시 펼 수 있다.
+	return IsFalling() && !IsGliding() && !IsGrappleFlying() && !IsInDeadMode() && HasGlideClearance();
+}
+
+bool ULNPCharacterMoverComponent::HasGlideClearance() const
+{
+	const UPrimitiveComponent* UpdatedPrimitive = GetUpdatedComponent<UPrimitiveComponent>();
+	const FMoverDefaultSyncState* StartState = GetSyncState().SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
+	if (UpdatedPrimitive == nullptr || StartState == nullptr)
+	{
+		return false;
+	}
+
+	// 원점은 컴포넌트가 아니라 스텝 시작 상태다 (ExecuteGrapple과 같은 이유 — 서브스텝·재시뮬에서 컴포넌트는 낡았다).
+	// 지형만 본다. 폰 채널을 넣으면 적 캡슐 위를 지날 때 판정이 적 복제 위치에 따라 머신마다 갈린다.
+	const FVector Start = StartState->GetLocation_WorldSpace();
+	const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(UpdatedPrimitive);
+	const float HalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : UpdatedPrimitive->Bounds.BoxExtent.GetAbsMax();
+	const FVector End = Start - GetUpDirection() * (HalfHeight + MinGlideHeight);
+
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(LNPGlideClearance), /*bTraceComplex=*/false, GetOwner());
+
+	return !GetWorld()->LineTraceTestByObjectType(Start, End, ObjectParams, QueryParams);
 }
 
 void ULNPCharacterMoverComponent::ExecuteGrapple(const FMoverTimeStep& TimeStep, int32 AnchorID, const FRotator& ControlRotation)
@@ -497,6 +540,26 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 			CharacterInputs ? CharacterInputs->ControlRotation : FRotator::ZeroRotator);
 	}
 
+	// 행글라이더 — 공중에서 점프를 다시 누르면 펼치고, 활공 중에 누르면 접는다.
+	// 의도는 엔진 점프와 같은 bIsJumpJustPressed(InputCmd)라 새 입력 필드가 없고, 활공 여부는 모드 이름(SyncState)이다.
+	// 엔진 점프(Super)는 접지(CanActorJump)를 요구해 공중 입력을 버리므로 여기서 가로채도 겹치지 않는다.
+	// 접기는 일반 낙하로 돌아갈 뿐이고, 착지·넉백·그래플·사망은 각자 모드를 바꿔 따로 처리할 것이 없다.
+	{
+		const FCharacterDefaultInputs* CharacterInputs = InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
+		if (CharacterInputs && CharacterInputs->bIsJumpJustPressed)
+		{
+			if (IsGliding())
+			{
+				const UCommonLegacyMovementSettings* CommonSettings = FindSharedSettings<UCommonLegacyMovementSettings>();
+				QueueNextMode(CommonSettings ? CommonSettings->AirMovementModeName : DefaultFallingMode);
+			}
+			else if (CanGlide())
+			{
+				QueueNextMode(LNPGlideModeName);
+			}
+		}
+	}
+
 	// 기본 기능(점프, 앉기) 처리를 위해 Super 호출
 	Super::OnMoverPreSimulationTick(TimeStep, InputCmd);
 }
@@ -614,7 +677,9 @@ namespace
 							const UCommonLegacyMovementSettings* Common = Mover->FindSharedSettings<UCommonLegacyMovementSettings>();
 
 							const TCHAR* StateName = TEXT("Walk");
-							if (Mover->HasGameplayTag(LNP_Mover_IsSprinting, /*bExactMatch=*/true))
+							if (Mover->IsGliding())
+								StateName = TEXT("Glide");
+							else if (Mover->HasGameplayTag(LNP_Mover_IsSprinting, /*bExactMatch=*/true))
 								StateName = TEXT("Sprint");
 							else if (Mover->HasGameplayTag(LNP_Mover_IsGuarding, /*bExactMatch=*/true))
 								StateName = TEXT("Guard");

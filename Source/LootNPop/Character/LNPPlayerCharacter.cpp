@@ -28,6 +28,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "GameFramework/GameplayCameraComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
@@ -67,6 +68,16 @@ ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitial
 	LanternLight->SetAttenuationRadius(1500.f);
 	LanternLight->SetLightColor(FLinearColor(1.f, 0.85f, 0.7f));
 	LanternLight->SetCastShadows(false);
+
+	// 행글라이더 — 활공 중에만 보인다 (Tick). 판정과 무관한 연출이라 콜리전이 없다.
+	// 메시를 마네킹 메시 공간(발 원점, 전방 +Y)에 맞춰 모델링했으므로 본이 아니라 VisualMesh 원점에 항등 트랜스폼으로 붙인다.
+	// 낙하 포즈가 거의 직립이라 등뼈를 따라가지 않아도 어긋나지 않는다.
+	GliderMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GliderMesh"));
+	GliderMesh->SetupAttachment(VisualMesh);
+	GliderMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GliderMesh->SetGenerateOverlapEvents(false);
+	GliderMesh->SetCastShadow(false);
+	GliderMesh->SetVisibility(false);
 
 	// bSyncInputsForSimProxy는 보간 프록시 전용 우회책이라 제거했다 (엔진에도 임시 옵션이라 명시돼 있다).
 	// SimulatedProxyNetworkLOD=ForwardPredict에서는 시뮬레이티드 프록시도 실제로 시뮬레이션되므로
@@ -539,6 +550,11 @@ void ALNPPlayerCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickDeathCameraFollow(DeltaSeconds);
+
+	// 활공 모드는 SyncState로 복제되므로 각 머신이 폴링만 하면 원격 폰의 행글라이더도 맞게 보인다.
+	const bool bGliding = IsGlidingActive();
+	if (GliderMesh && GliderMesh->IsVisible() != bGliding)
+		GliderMesh->SetVisibility(bGliding);
 
 	// 엔티티 핸들·프래그먼트가 준비되는 시점은 PossessedBy보다 늦을 수 있다. 성립하면 이후로는 bool 검사 한 번뿐이다.
 	if (HasAuthority() && !bPoiseResistanceMirrored)

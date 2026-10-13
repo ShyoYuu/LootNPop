@@ -739,7 +739,8 @@ bool ULNPInputHandlerComponent::IsFreeAimMode() const
 
 bool ULNPInputHandlerComponent::IsADSActive() const
 {
-	return bIsADSPressed && IsFreeAimMode();
+	// 활공 중에는 지향 사격만 — 착지하면 키를 누른 채라면 저절로 ADS로 돌아온다(파생값이라 해제 배선이 없다).
+	return bIsADSPressed && IsFreeAimMode() && !(MoverComponent && MoverComponent->IsGliding());
 }
 
 bool ULNPInputHandlerComponent::IsGuardActive() const

@@ -76,6 +76,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Camera")
 	bool IsLobbedADSActive() const;
 
+	/**
+	 * 행글라이더 활공 중인가. 카메라 리그 디렉터(CDE_ThirdPerson)가 활공 리그를 고르고, 행글라이더 메시 표시가 읽는다.
+	 * Mover 모드(SyncState)에서 파생하므로 원격 폰에서도 맞다. 활공 중엔 ADS가 꺼지므로 ADS 리그와 겹치지 않는다.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LNP|Camera")
+	bool IsGlidingActive() const;
+
 	// IAbilitySystemInterface 구현
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 

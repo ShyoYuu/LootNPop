@@ -8,6 +8,7 @@
 
 class UGameplayCameraComponent;
 class UPointLightComponent;
+class UStaticMeshComponent;
 class ULNPItemDefinitionBase;
 class ULNPInventoryComponent;
 class ULNPInventoryItemInstance;
@@ -186,6 +187,14 @@ private:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Light", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UPointLightComponent> LanternLight;
+
+	/**
+	 * 등에 붙는 행글라이더. 펼치고 접는 연출 없이 활공 중에만 보인다.
+	 * 각 머신이 Mover 모드를 폴링해 켜고 끈다(Tick) — 모드가 이미 복제되므로 표시 상태는 복제하지 않는다.
+	 * 메시는 BP에서 정한다(SM_HangGlider — 마네킹 메시 공간으로 모델링, 상대 트랜스폼 항등).
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Glide", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> GliderMesh;
 
 	/** 서버 권위 사망 처리(드랍·타이머)의 1회 가드. 클라이언트에서는 방송 수신 표시로도 쓴다. */
 	bool bIsDead = false;

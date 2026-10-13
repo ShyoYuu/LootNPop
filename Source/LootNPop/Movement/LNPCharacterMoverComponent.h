@@ -14,6 +14,7 @@
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsSprinting);
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsGuarding);
 LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsADS);
+LOOTNPOP_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(LNP_Mover_IsGliding);
 
 /**
  * LootNPop 캐릭터용 커스텀 Mover Component.
@@ -53,7 +54,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool IsADS() const;
 
-	/** 캐릭터가 현재 ADS 가능한지 확인한다 (가드 중이 아님) */
+	/** 캐릭터가 현재 ADS 가능한지 확인한다 (가드·활공 중이 아님) */
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool CanADS() const;
 
@@ -74,6 +75,16 @@ public:
 
 	/** 그래플이 실제로 실행된 순간 발송된다. 리시뮬레이션 중에는 발송되지 않는다 (OnDashExecuted와 같은 규약). */
 	FSimpleMulticastDelegate OnGrappleExecuted;
+
+	/** 행글라이더 활공 모드(ULNPGlideMode)인지. 모드 이름이 SyncState에 실리므로 원격 폰에서도 그대로 맞다. */
+	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
+	bool IsGliding() const;
+
+	/**
+	 * 지금 행글라이더를 펼 수 있는지 — 낙하 중, 그래플 비행·사망 아님, 발밑 MinGlideHeight 안에 지면 없음.
+	 * 시뮬레이션 틱 안에서만 의미가 있다 (OnPreSimulate가 맞춘 이번 스텝의 시작 상태를 본다).
+	 */
+	bool CanGlide() const;
 
 	/**
 	 * 엔진 Jump()와 같고 이펙트만 FLNPJumpImpulseEffect로 바꾼다. 엔진 이펙트는 낡은 컴포넌트 위치를 써서
@@ -133,6 +144,9 @@ protected:
 	 */
 	void ExecuteGrapple(const FMoverTimeStep& TimeStep, int32 AnchorID, const FRotator& ControlRotation);
 
+	/** 스텝 시작 위치에서 중력 아래로 MinGlideHeight 안에 지형(WorldStatic·WorldDynamic)이 없으면 true. */
+	bool HasGlideClearance() const;
+
 	/** 커스텀 시뮬레이션 로직이 항상 등록되도록 Override한다. */
 	virtual void OnHandlerSettingChanged() override;
 
@@ -167,6 +181,13 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Grapple")
 	float GrappleServerAimHalfAngle = 30.0f;
+
+	/**
+	 * 행글라이더를 펴는 데 필요한 발밑 여유 높이 (cm, 캡슐 바닥 기준). 일반 점프 정점보다 높아야
+	 * 평지 점프로는 펼 수 없다 — 정점 = JumpUpwardsSpeed² / (2 × 중력).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Glide", meta = (ClampMin = "0", ForceUnits = "cm"))
+	float MinGlideHeight = 300.0f;
 
 private:
 	/** OnMoverPreSimulationTick이 InputCmd에서 옮겨 담는다. 리시뮬레이션 프레임마다 그 프레임의 값으로 갱신된다. */

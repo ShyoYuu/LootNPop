@@ -24,7 +24,7 @@ UE 5.8 **Mover 2.0** 기반. 구형 중력(위치마다 Up이 다른 Dyson Spher
 |:---|:---|
 | `ALNPCharacterBase` | 컴포넌트 조합, AI 이동 의도 위임(`SetAIMoveInput`·`SetAIOrientationIntent`·`SetAIDesiredSpeed`), 랙돌(§9) |
 | `ULNPInputHandlerComponent` | 입력 수집·버퍼링, InputCmd 생산 |
-| `ULNPCharacterMoverComponent` | 이동 시뮬레이션, Sprint/Guard/ADS/MoveSpeed Modifier 관리, 대시·넉백·Launch·사망 정지 |
+| `ULNPCharacterMoverComponent` | 이동 시뮬레이션, Sprint/Guard/ADS/MoveSpeed Modifier 관리, 대시·넉백·Launch·사망 정지, 행글라이더 전개·접기(§10) |
 | `ULNPPawnGravityComponent` | 구형 중력 방향 결정, Mover Override |
 | `ULNPControlRotationComponent` | 컨트롤 회전 전담 — 곡률 보정, 시선 입력(ADS 감도 포함), 락온 보정 소비 |
 | `ULNPLockOnComponent` | 락온 대상 유지, 소프트 보정 델타·하드 클램프 방향을 ControlRotation에 적립 |
@@ -151,7 +151,7 @@ ModifierInputs.bWantsToGuard = IsGuardActive();   // 원시 bIsGuardPressed를 �
 ```cpp
 bool CanSprint() const { return IsOnGround() && !IsGuarding() && !IsADS(); }
 bool CanDash()   const { return IsOnGround() && !IsADS() && FindMovementModifierByType<FLNPDashCooldownModifier>() == nullptr; }
-bool CanADS()    const { return !IsGuarding(); }
+bool CanADS()    const { return !IsGuarding() && !IsGliding(); }   // 활공 중엔 지향 사격만 (§10)
 ```
 
 - **역방향은 넣지 않는다.** `CanGuard()`에 `!IsADS()`를 넣으면 둘이 서로 취소·재시작하며 진동한다. Guard가 틱에서 먼저 처리되므로 **Guard > ADS 단방향**.
@@ -338,7 +338,7 @@ CommonSettings->MaxSpeed = BaseSpeed × max(0.01, MoveSpeed)
 ### 5.3 제한 조건
 
 - 공중 발동 불가 (`IsOnGround()`). **비대칭이다** — 대시 중 점프는 허용(§5.1, 후방 회피 대시 포함), 점프 중 대시는 금지.
-  공중 대시를 열면 그래플과 역할이 겹치고 레벨의 도달 거리 설계가 무너진다.
+  공중 대시를 열면 그래플과 역할이 겹치고 레벨의 도달 거리 설계가 무너진다. 활공(§10) 중에도 같은 이유로 막힌다.
 - 쿨다운 중 불가 — `FLNPDashCooldownModifier` 존재로 판정 (§5.4).
 - ADS 중 불가 — 단 이미 나간 대시는 중단하지 않는다 (§2.6).
 
@@ -473,6 +473,7 @@ Ground 모드에서 넉백을 주면 매 틱 클램프 + 지면 스냅으로 "�
   따로 정하는 방식(태그 무브 + `CancelFeaturesWithTag`)이 필요하다.
 - **대시 몽타주의 공중 잔류:** 대시 점프 시 FullBody 몽타주가 공중에서 최대 0.2초 남는다. 어색하면 공중 진입 시
   블렌드 아웃(로컬, `bIsResimulating` 게이팅).
+- **활공 한계:** §10.6 참조.
 - **대시 몽타주 표시:** `AM_MM_Dash_*` 4종은 Chooser에 배선돼 있고 슬롯도 맞췄다(`ABP_Lyra`에 `FullBody` 슬롯 추가,
   2026-09-16 — 그 전에는 슬롯이 없어 대시 포즈가 아예 보이지 않았다). 이동 자체는 슬롯과 무관하다(LayeredMove).
 
@@ -580,3 +581,113 @@ LNP.Debug.KillPlayer [PlayerIndex]
 - **리스폰마다 `DefaultWeapon` 사본이 늘어난다.** 사망 시 가방을 비우므로 `EnsureDefaultWeapon()`이 매번 새 인스턴스를 만든다. 의도적 방치 — 밸런스 문제가 되면 대응.
 - **relevancy 늦은 클라이언트.** `Multicast_OnDeath`는 호출 시점에 relevancy가 없던 클라이언트에 닿지 않아, 그 사이 진입한 관전자는 서 있는 캐릭터를 본다. 필요하면 `bIsDead`를 `ReplicatedUsing`으로 승격한다.
 - **데디케이티드 서버는 적 랙돌을 만들지 않는다** (`Multicast_TriggerRagdoll` 구현부 조기 반환). 서버 시체 위치에 의존하는 로직이 없어야 한다. 플레이어 `Multicast_OnDeath`에는 이 조기 반환이 없다.
+
+---
+
+## 10. 행글라이더 활공 (2026-10-13)
+
+공중에서 점프를 다시 누르면 등에 행글라이더가 나타나고, 천천히 일정 속도로 내려가면서 질주 수준 속도로 수평 이동한다.
+활공 중에 점프를 다시 누르면 접혀 일반 낙하로 돌아간다. 펼치고 접는 연출은 없고 메시가 바로 나타나고 사라진다.
+자세는 따로 만들지 않았다 — 기존 낙하 포즈 그대로이고, 상반신은 평소처럼 무기 레이어가 덮는다.
+
+```
+[공중 점프 입력] FCharacterDefaultInputs::bIsJumpJustPressed (InputCmd, 엔진 점프와 같은 필드)
+    │  OnMoverPreSimulationTick — Super(엔진 점프) 앞
+    ├ IsGliding()  → QueueNextMode(AirMovementModeName)   접기
+    └ CanGlide()   → QueueNextMode("LNPGlide")            펼치기
+[이동] ULNPGlideMode : UAsyncFallingMode — GenerateMove만 교체, 착지·충돌은 부모 그대로
+[표현] 각 머신이 IsGliding()을 폴링 — GliderMesh 표시(ALNPPlayerCharacter::Tick), CR_Glide 리그(CDE_ThirdPerson)
+```
+
+### 10.1 활공은 별도 이동 모드다 — 낙하 모드를 상속한다
+
+**모드 이름이 SyncState에 실리므로 활공 상태의 예측·복제·롤백에 추가 상태가 0이다.** 새 InputCmd 필드도,
+복제 프로퍼티도, Modifier도 없다. 원격 폰의 행글라이더 표시도 모드에서 파생하면 저절로 맞는다.
+
+| 판단 | 근거 |
+|:---|:---|
+| **`UAsyncFallingMode`를 상속**하고 `GenerateMove`만 교체 | `SimulationTick`(충돌 슬라이드·`ProcessLanded`)을 그대로 쓴다. 착지하면 엔진이 지상 모드로 전환하므로 **접는 코드 없이 접힌다** |
+| 낙하 태그(`Mover_IsFalling`)를 물려받는다 | ABP 모션 매칭이 낙하 포즈를 그대로 고르고, `CanDash()`·`CanSprint()`(접지 요구)가 저절로 막힌다 |
+| 엔진 `UAsyncFlyingMode`를 쓰지 않는다 | 착지 전이가 없고 상하 입력을 받는다 — "천천히 떨어지는 공중 이동"과 맞지 않는다 |
+| 조회는 모드 태그 `LNP.Mover.IsGliding` | `IsADS()`와 같은 `HasGameplayTag` 패턴. **`IsFalling()`만으로는 활공 중을 거를 수 없다**(태그를 물려받으므로) |
+
+`GenerateMove`가 부모와 다른 점은 둘이다.
+
+- **수평:** 입력을 `AirControlPercentage`로 줄이지 않고 `GlideSpeed`(1200 = 질주)·`GlideAcceleration`·`GlideDeceleration`을 쓴다.
+  `CommonSettings->MaxSpeed`를 읽지 않으므로 `FLNPMoveSpeedModifier`(버프)·가드 속도의 영향을 받지 않는다.
+- **수직:** 중력 Up 기준 목표 `-GlideDescentSpeed`(300cm/s)로 수렴한다. 목표보다 위(상승·느린 하강)면 **중력으로**,
+  아래(빠른 하강)면 `GlideCatchDeceleration`으로 다가간다. 런처로 솟구치다 펼치면 평소처럼 오르다 꺾이고,
+  **목표보다 위로 올리는 경로가 없어** 접었다 펼치기를 반복해도 고도를 벌 수 없다.
+
+수치는 전부 모드 서브오브젝트의 UPROPERTY다(BP Mover 컴포넌트 → Movement Modes → `LNPGlide`).
+
+### 10.2 토글은 엔진 점프 입력을 그대로 쓴다
+
+`bIsJumpJustPressed`는 이미 InputCmd에 실리고, `OnProduceInput`이 한 번 내보낸 뒤 지우므로 **한 스텝에만 true**다 —
+토글이 두 번 튀지 않는다. 엔진 점프(`Super::OnMoverPreSimulationTick`)는 `CanActorJump()`이 접지를 요구해 공중 입력을
+버리므로, `Super` 앞에서 가로채도 겹치지 않는다. 지상 점프 프레임은 아직 접지 상태라 `CanGlide()`가 거부한다.
+
+`QueueNextMode`는 상태 머신이 이번 스텝 시작에 소비한다(`OnPreSimulationTick` 브로드캐스트가 모드 틱보다 앞).
+같은 InputCmd로 재시뮬하면 같은 결과가 나온다.
+
+### 10.3 고도 판정 — 일반 점프로는 펼 수 없다
+
+`CanGlide()` = `IsFalling() && !IsGliding() && !IsGrappleFlying() && !IsInDeadMode() && HasGlideClearance()`
+
+`HasGlideClearance()`는 **스텝 시작 SyncState 위치**에서 `-GetUpDirection()`으로 `캡슐 반높이 + MinGlideHeight`만큼
+라인 트레이스해 아무것도 없으면 true다.
+
+- **원점은 컴포넌트가 아니라 스텝 시작 상태다** — §7.7·§7.8과 같은 이유(서브스텝·재시뮬에서 컴포넌트는 낡았다).
+- **오브젝트 타입은 WorldStatic·WorldDynamic만.** 폰 채널을 넣으면 적 캡슐 위를 지날 때 판정이 적의 복제 위치에 따라 머신마다 갈린다.
+- `MinGlideHeight` 기본 300cm. 점프 정점은 `JumpUpwardsSpeed² / (2 × 중력)` = 750² / 4000 ≈ **141cm**라 평지 점프로는
+  도달하지 못한다(대시 점프도 수직 속도가 같다). 절벽에서 뛰어내리거나 런처로 날아오르면 펼 수 있다.
+- 그래플 비행 중에는 열지 않는다. 비행이 끝나 낙하로 돌아오면 다시 펼 수 있다.
+
+### 10.4 다른 이동과의 관계 — 추가 코드 0줄
+
+| 사건 | 결과 | 경로 |
+|:---|:---|:---|
+| 착지 | 접힘 | 부모 `ProcessLanded`가 지상 모드로 전환 |
+| 피격 넉백 | 접힘(기획 결정) | `FLNPApplyVelocityEffect::ForceMovementMode = Air` |
+| 그래플 | 접힘 | Launch 무브의 `ForceMovementMode = Air` |
+| 사망 | 접힘 | `EnterDeadMode()`가 모드 교체 |
+| 런처 사출 후 점프 | 펼침 | 사출이 낙하 모드로 보내므로 고도만 맞으면 된다 |
+
+### 10.5 전투 — 총기는 지향 사격만, 근접은 가드만
+
+| 행동 | 활공 중 | 구현 |
+|:---|:---|:---|
+| 총기 지향 사격 | 가능 | 손대지 않음 |
+| ADS | **불가** | 로컬 `ULNPInputHandlerComponent::IsADSActive()`에 `!IsGliding()`, 시뮬 `CanADS()`에 `!IsGliding()` |
+| 근접 가드 | 가능 | 손대지 않음. 활공 속도는 가드 속도의 영향을 받지 않는다 |
+| 근접 공격 | **불가** | `ALNPCharacterBase::TryActivateAttack()` 선두(경직 검사 옆)에서 FreeAim이 아니면 거부 |
+
+- ADS 차단은 §2.6의 두 계층(카메라는 로컬 파생값, 이동 모디파이어는 시뮬레이션 `CanX()`)을 그대로 따른다.
+  `IsADSActive()`가 순수 파생값이라 **착지 후 키를 누르고 있으면 ADS가 저절로 재개**되고, 활공에 들어가면
+  `CanADS()`의 취소 분기가 ADS 모디파이어를 푼다. 카메라·감도·궤도 가이드·`bWantsToADS`가 모두 이 함수를 거친다.
+- 근접 공격 차단은 콤보 창 분기보다 **앞**이어야 한다 — 경직 검사와 같은 이유(콤보 창 분기는 차단 태그를 보지 않는다).
+  공격 발동 요청이 소유 클라이언트에서 출발하므로 로컬 게이트로 충분하다.
+
+### 10.6 표현 — 메시와 카메라 리그
+
+- **메시:** `ALNPPlayerCharacter::GliderMesh`(`UStaticMeshComponent`, 콜리전·그림자 없음)가 `VisualMesh` **원점**에
+  항등 트랜스폼으로 붙는다. `SM_HangGlider`(`/Game/Characters/Glider`, 소스 `Art/Meshes/SM_HangGlider.fbx/.blend`)는
+  **마네킹 메시 공간(발 원점, 전방 UE +Y)**에 맞춰 모델링했다 — 날개폭 약 180cm, 세일 높이 186~202cm, 등 스트럿.
+  본에 붙이지 않은 이유는 상대 트랜스폼을 본 바인드 포즈로 역산할 필요가 없어서고, 낙하 포즈가 거의 직립이라
+  등뼈를 따라가지 않아도 어긋나지 않는다. 표시는 `Tick`이 `IsGlidingActive()`를 폴링해 바뀔 때만 갱신한다.
+- **카메라:** `CDE_ThirdPerson`이 `IsGlidingActive()` → `CR_Glide`, `IsADSActive()` → `CR_ADS`, 그 외 → `CR_Medium_FreeCam`
+  순으로 고른다. 활공 중엔 ADS가 꺼지므로 두 리그가 겹치지 않는다.
+  `CR_Glide`는 `CR_ADS`의 복제본으로 `CR_ThirdPerson` 래퍼의 오버라이드만 바꿨다 — 피벗(`BoomArmOffset`)을 190cm로 올려
+  세일 너머로 내려다보고, 붐(`CameraOffset` −320)을 늘리고, FOV 85. 전환 블렌드는 ADS와 같다(0.15/0.22초).
+  `LNPLobbedADSPitch` 노드가 함께 복제됐지만 `IsLobbedADSActive()`가 ADS를 요구해 활공 중엔 동작하지 않는다.
+
+**검증 (2026-10-14, 1인·2인 PIE):** 평지 점프로는 펼쳐지지 않고 높은 곳에서만 펼쳐진다. `ShowSpeed`가 활공 중 `state Glide`,
+수평 속도는 질주와 비슷하다. 총기 지향 사격·근접 가드는 동작하고 ADS는 진입하지 않는다. 행글라이더와 `CR_Glide`가
+시야를 과하게 가리지 않는다. 2인 PIE 게스트가 `np.PrintReconciles 1`로 접었다 펴며 이동하는 동안 보정 캡슐 0건.
+
+### 10.7 한계
+
+- **MoveSpeed 버프 미반영.** 활공 속도는 고정 `GlideSpeed`다. 필요하면 `GenerateMove`에서 어트리뷰트 배율을 곱한다.
+- **고도 판정은 중심선 한 줄이다.** 캡슐 가장자리 아래의 턱은 보지 않는다 — 펼치자마자 착지할 뿐 문제는 없다.
+- **모션 매칭이 고른 공중 포즈를 그대로 쓴다.** 느린 일정 하강에서 어색한 프레임이 골라지면 활공용 포즈 DB나 체이서 행이 필요하다.
+- **넉백 미예측(§8)과 같은 이유로**, 활공 중 피격 시 해제는 피격자 화면에서 RTT만큼 늦다.
