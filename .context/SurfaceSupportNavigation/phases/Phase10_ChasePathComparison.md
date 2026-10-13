@@ -1,6 +1,6 @@
 # Phase 10 — 대규모 추격 경로 비교와 목표 전환 큐 대기 개선
 
-> 상태: 진행 중(단위 0·1·2·3 완료 2026-10-13, 다음 단위 4)
+> 상태: 진행 중(단위 0·1·2·3·4 완료 2026-10-13, 다음 단위 5)
 > 착수: 2026-10-13
 > 선행: Phase 9 완료(V011 성능 기준선), Phase 7 일반 A*·요청 재생 harness
 > 순서: 단위 0 → 1 → 2 → 3 → 4 → 5 → (6). 단위마다 검증한 뒤 사용자 진행 확인을 받는다.
@@ -82,14 +82,18 @@ D-044에 따라 같은 benchmark harness에서 목표별 flow field와 계층형
 - 예비 판정(improved 대비): 기준 1 충족(tick 합 S2·S3 −38%, tick P95 악화 없음), 기준 2 미충족(burst P95 S2 8→9, S3 43→23 = −47%), 기준 3 충족(보행 비율 P95 1.000), 기준 4 충족(field 최대 0.39MiB). 기준 5는 설계 메모만 남겼다. 수치는 `history/Phase10_Log.md` 2026-10-13 단위 3.
 - 목표 양자화는 입력 목표가 고정점 4개라 평가할 수 없어 구현하지 않았다.
 
-### 단위 4 — 계층형 A* 프로토타입
+### 단위 4 — 계층형 A* 프로토타입 — 완료 2026-10-13
 
-`LNPNavHierarchy.{h,cpp}`로 만든다.
+`LNPNavHierarchy.{h,cpp}`는 순수 함수이며 processor에 연결하지 않는다.
 
-- Cluster는 Layer별 16×16 Tile이다. 경계 span을 Portal로 압축하고, 내부 Portal 간 비용을 사전 계산한다.
-- seam link·Layer portal은 고수준 edge로 둔다.
-- query는 고수준 A* → corridor 안 저수준 A* 순서다.
-- Pod overlay가 바뀌면 해당 Cluster만 dirty로 다시 계산한다.
+- [x] Cluster = slot·Layer별 16×16 Tile(overlay Tile key와 1:1). Cluster 경계 edge를 쌍별 연속 span으로 묶고 `MaxSpanLength`(8)마다 가운데 edge를 Portal로 둔다. 같은 Cluster abstract node 사이 비용은 Cluster 안 Dijkstra로 K×K 행렬에 미리 계산한다.
+- [x] seam link·Layer portal은 grid 경계와 같은 span 규칙의 고수준 edge다.
+- [x] query: 시작 link(chord, `exact` 선택) + 목표 link(exact) → 고수준 A* → 정제. 정제는 계획의 corridor A*와 HPA* 표준 segment(Portal 사이 Cluster 안 A*, 실패 시 corridor 복구) 둘이다. segment는 corridor가 base A*만큼 확장해 이득이 없어 계획 밖으로 더했다.
+- [x] 예산 단위 = link 확정 + 고수준 확장 × 2(실측 최대 약 1.4배 올림) + 저수준 확장. 사전 계산(seed 1768: 확정 10.5M, 0.4~0.9s)과 메모리(4.47MiB)는 따로 보고한다.
+- [x] Pod overlay가 바뀐 Tile의 Cluster만 다시 계산한다(`UpdateOverlay`, dirty 수·확정 수 보고). Portal 위치는 고정이다.
+- [x] 재생 변형 `hierarchy`(segment·span 8·improved와 같은 cache)와 `hierarchySerial` 결정론 대조. cache 없음·corridor(고리 1·0)·span 4/16·exact 시작·`Keep`을 스윕했다. 요청 결과 `source` 3, `_Hierarchy.csv` 요약, 비교표 확장.
+- [x] 검증: 에디터 빌드, `LootNPop.SurfaceNavigation` 131/131(신규 `Nav.Hierarchy`), S1~S3 재생 Success·불일치 0.
+- 예비 판정(improved 대비): 기준 1 미충족(tick 합 S2 −18%·S3 −27%), 기준 2 미충족(burst P95 S2 8→8·S3 43→33), 기준 3 미충족(보행 비율 P95 1.09~1.10, corridor 정제는 1.015~1.027이지만 CPU +9~13%), 기준 4 충족(7.47MiB, 여유 작음), 기준 5 충족(Pod당 dirty 1~3 Cluster, 확정 2.4k~6.9k). 수치는 `history/Phase10_Log.md` 2026-10-13 단위 4.
 
 ### 단위 5 — 비교와 채택 판정
 

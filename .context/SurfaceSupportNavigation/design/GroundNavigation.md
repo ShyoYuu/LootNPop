@@ -127,7 +127,7 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 병렬 확장은 잔여 예산과 실행 중 요청 수 중 작은 수만큼 앞의 요청을 선택하고 균등 몫을 배정한다. 몫의 나머지와 조기 종료로 쓰지 않은 예산은 다음 라운드에서 재사용한다. 배정되지 않은 요청은 다음 라운드·프레임으로 이어간다. 이 차감 상한은 종료 처리·병렬 대기를 포함한 시간 상한을 보장하지 않는다.
 - 동일 요청 비용의 통제 비교는 `Nav.RequestCostReplay` 자동화를 쓴다. CSV의 같은 시각 요청 묶음을 모두 완료한 뒤 다음 묶음을 넣고 독립 owner를 사용한다. Pod overlay·원래 owner 취소·실제 프레임 경계·warm-up cache는 복원하지 않으므로 실제 부하 Gate는 별도로 검사한다. 실행법·예산 검토 근거는 `../history/Phase07_Log.md`의 2026-10-02 기록을 따른다.
   - 요청 결과 `_Requests.csv`의 `walk`는 경로 추종을 흉내 낸 보행 길이다. 합류 waypoint에서 시작해, 도착한 node에서 목표가 곧게 보이면 목표로, 아니면 곧게 보이는 가장 먼 연속 waypoint로 간다. 경로 cost 비율은 같은 행의 base(cache 없는 A*) 대비 walk 비다. 변형별 비교표는 `Scripts/Profiling/ComparePhase10Replay.py <재생 폴더>`가 만든다.
-  - 마지막 열 `source`는 결과 출처다(0 scheduler, 1 flow field, 2 flow field 변형의 A* 폴백). flow field 변형은 `<출력>_FlowFields.csv`에 field 수·확정 합·폴백·최대 메모리를 따로 남긴다(Phase 10 단위 3).
+  - 마지막 열 `source`는 결과 출처다(0 scheduler, 1 flow field, 2 flow field·계층형 변형의 A* 폴백, 3 계층형 응답). flow field 변형은 `<출력>_FlowFields.csv`에 field 수·확정 합·폴백·최대 메모리를, 계층형 변형은 `<출력>_Hierarchy.csv`에 사전 계산·메모리·cache·link·고수준/저수준 확장·폴백을 따로 남긴다(Phase 10 단위 3·4).
 - 실제 요청 지연은 `BeginRequestCapture` 구간에 제출·재계획된 요청만 scheduler에서 기록한다. 별도 `NavRequests_*_Timings.csv`는 owner·serial·우선순위·최종 상태와 캡처 시작 기준 `FPlatformTime` 제출·시작·종료 시각(초)을 담는다. 시작·종료 전 시각은 -1이며, warm-up 요청은 제외하고 종료 시 남은 Queued·Running은 미완료로 보존한다. 큐 지연은 시작-제출, 실행 지연은 종료-시작, 전체 지연은 종료-제출이다. 취소와 미완료는 정상 완료 분포에서 분리하고 함께 보고한다. 캡처 외에는 시각 조회와 결과 배열 기록을 하지 않는다.
 - 같은 캡처는 큐 대기 원인 분석용 진단 파일 셋을 함께 남긴다(Phase 10 단위 1). 요청 CSV 스키마는 재생기가 엄격히 검사하므로 바꾸지 않는다.
   - `_Ticks.csv`: scheduler tick마다 시작 전 대기·실행 수, 시작 수(즉시 종료·cache hit 포함), 확장 수, 시작 비용 차감, 종료 수, 최대 실행 수, 끝난 뒤 대기·실행 수, 대기열이 남았을 때의 정지 사유(`1` 예산, `2` scratch)와 scratch에 막힌 순간의 잔여 예산. 시각 기준은 `_Timings.csv`와 같다.
@@ -185,6 +185,21 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 동굴 입구·다리·seam은 고수준 edge로 등록
 
 Cluster 크기와 Portal 압축 규칙은 1차 A* 프로파일을 보고 정한다.
+
+### 프로토타입 규약(Phase 10 단위 4, 미채택)
+
+`LNPNavHierarchy`는 processor에 연결하지 않은 순수 함수이며 `Nav.RequestCostReplay`의 `hierarchy*` 변형과 `Nav.Hierarchy` 자동화만 쓴다. 채택 판정은 단위 5가 한다. 수치는 `../history/Phase10_Log.md` 2026-10-13 단위 4가 소유한다.
+
+- **Cluster = Tile.** slot·Layer별 16×16 Tile 하나가 Cluster이고 index는 runtime Layer 첫 Cluster + `TileId`다. key가 overlay Tile key와 같아서 overlay revision이 곧 dirty 표시다.
+- **Portal 압축.** Cluster 경계를 넘는 edge를 종류(grid·seam link·Layer portal)와 무관하게 Cluster 쌍별로 모은다. 양 끝이 각각 같거나 grid 이웃인 edge끼리 span으로 묶고, `MaxSpanLength`(기본 8, 낮은 Cluster 쪽 경계 node 수)마다 잘라 가운데 edge를 Portal로 둔다. Portal 양 끝 node가 abstract node다. 4는 계층만 8.09MiB라 기준 4를 넘고, 16은 결과가 같으면서 3.31MiB다.
+- **사전 계산.** 같은 Cluster abstract node 사이 비용은 Cluster 안으로 제한한 Dijkstra(cell index 256 지역 배열)로 K×K 행렬에 둔다. Cluster 밖으로 돌아야 닿는 쌍은 무한대이고, 그 경로는 고수준 그래프가 Portal로 찾는다.
+- **link.** 목표 link는 목표에서 역으로 편 Cluster 안 Dijkstra이며 같은 목표끼리 공유한다. 시작 link는 chord 하한(같은 group abstract node까지 3D 거리)이다. exact 시작 link는 요청마다 Cluster 하나 분량을 더 쓰지만 고수준 경로 선택을 거의 바꾸지 않는다.
+- **정제.** 고수준 A*(chord 휴리스틱) 뒤 두 방식이 있다.
+  - corridor(고수준 경로 Cluster + Portal 이웃 안 A* 하나)는 최적이지만 확장이 일반 A*와 같다. 짧고 트인 추격 경로에서 A* 확장은 원래 그 Cluster들 안의 동률 확산이기 때문이다.
+  - segment(HPA*)는 Portal 사이 Cluster 안 A*만 해 확장이 크게 준다. 대신 Portal 대표 node를 반드시 지나서 보행 비율 P95가 1.09~1.10이다.
+- **cache 앞단.** 계층형은 A* 탐색 자체를 바꾸므로 production 형태는 scheduler cache(D-079) 뒤에 계층형 탐색을 두는 것이다. cache 없는 계층형은 improved보다 비싸다.
+- **예산 단위.** link 확정 + 고수준 확장 × 2 + 저수준 확장이다. 고수준 확장은 Cluster abstract node 수(평균 8.7)만큼 이웃을 보며, 실측 시간은 저수준 확장의 최대 약 1.4배다.
+- **동적 변경.** `UpdateOverlay`는 revision이 바뀐 Tile의 Cluster 행렬만 overlay 차단으로 다시 계산한다(Pod 하나 = dirty 1~3 Cluster, 확정 2.4k~6.9k). Portal 위치는 고정이라 Pod가 대표 node를 덮으면 그 Portal만 닫힌다. 재계산은 한 번에 끝나므로, 통합하려면 프레임 분할이나 재계산 중 Cluster의 저수준 폴백이 필요하다.
 
 ### 계층형 query
 

@@ -8,6 +8,8 @@
 - tick 합: 재생 tick 벽시계 시간 합(ms). 경로 CPU 총합의 근사다.
 - field·폴백(단위 3): 요청 결과 `source` 열이 1(flow field 응답)·2(A* 폴백)인 수. flow field 변형의 확장 합에는 field 확정 node 수가 들어 있다.
 - `<케이스>_RequestCosts_FlowFields.csv`가 있으면 flow field 변형 요약(field 수·확정 수·최대 메모리)을 따로 낸다.
+- 계층형(단위 4): `source` 3은 계층형 응답(cache hit 포함), 2는 A* 폴백이다. 열 "field·폴백"은 field 응답 또는 계층형 응답/폴백 수다.
+  `<케이스>_RequestCosts_Hierarchy.csv`가 있으면 계층 요약(사전 계산·메모리·link·고수준·저수준 확장·폴백)을 따로 낸다.
 """
 
 import csv
@@ -62,7 +64,7 @@ def compare(replay_dir, case):
         tick = ticks[variant]
         hits = sum(r["fromCache"] == "1" for r in rows.values())
         joins = sum(r["fromCache"] == "1" and int(r["firstWaypoint"]) > 0 for r in rows.values())
-        fields = sum(r.get("source") == "1" for r in rows.values())
+        fields = sum(r.get("source") in ("1", "3") for r in rows.values())
         fallbacks = sum(r.get("source") == "2" for r in rows.values())
         field_text = f"{fields:,}/{fallbacks:,}" if fields or fallbacks else "—"
         burst_text = f"{pct(burst, .5)}/{pct(burst, .95)}/{max(burst)}" if burst else "—"
@@ -81,6 +83,20 @@ def compare(replay_dir, case):
                 f"| {r['variant']} | {int(r['fields']):,} | {int(r['settled']):,} | {int(r['maxFieldSettled']):,} "
                 f"| {int(r['fieldHits']):,} | {int(r['fallbackOutside']):,}/{int(r['fallbackEndpoint']):,} | {int(r['resolves']):,} "
                 f"| {int(r['answerNodes']):,} | {int(r['peakFieldBytes']) / 1048576:.2f} | {int(r['schedulerScratchBytes']) / 1048576:.2f} |")
+    hierarchy_path = replay_dir / f"{case}_RequestCosts_Hierarchy.csv"
+    if hierarchy_path.exists():
+        lines += ["", "| 변형 | span·고리·정제 | 사전 계산(확정 / ms) | 계층 메모리(MiB) | 고수준 scratch(MiB) | query | cache hit | 목표 link·확정 "
+                  "| 고수준 확장 | 저수준 확장 | 폴백(고수준/저수준/스냅) | segment 복구 |",
+                  "|:---|:---|:---|---:|---:|---:|---:|:---|---:|---:|:---|---:|"]
+        for r in read_csv(hierarchy_path):
+            refine = "corridor" if r["corridor"] == "1" else "segment"
+            extra = (" exact" if r["exactStart"] == "1" else "") + (" keep" if r["keep"] == "1" else "")
+            lines.append(
+                f"| {r['variant']} | {r['span']}·{r['ring']}·{refine}{extra} | {int(r['buildSettled']):,} / {float(r['buildMs']):.0f} "
+                f"| {int(r['hierarchyBytes']) / 1048576:.2f} | {int(r['highScratchBytes']) / 1048576:.2f} | {int(r['queries']):,} "
+                f"| {int(r['cacheHits']):,} | {int(r['goalLinks']):,}·{int(r['linkSettled']):,} | {int(r['highLevelExpansions']):,} "
+                f"| {int(r['corridorExpansions']):,} | {r['fallbackHighLevel']}/{r['fallbackCorridor']}/{r['fallbackEndpoint']} "
+                f"| {int(r['refineFallbacks']):,} |")
     return "\n".join(lines)
 
 

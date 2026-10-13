@@ -321,3 +321,124 @@ field는 goal에서 정방향 이웃 목록(`ForEachNeighbor`)을 역방향 edge
 - `LootNPopEditor` 빌드 성공. 전체 `LootNPop.SurfaceNavigation` 자동화 130/130 Success(`Saved/Logs/Phase10_Unit3_AllTests.log`, 신규 `Nav.FlowField` 포함). 테스트가 덮어쓴 에셋 세 개는 `Saved/Tests/Phase10_Unit3_TestAssetBackup`에 보관하고 git으로 되돌렸다(Content diff 없음).
 - 재생 S1~S3 `Result={Success}`, 모든 변형의 결정론 대조 불일치 0, 예산 차감 상한 통과.
 - runtime(processor·scheduler)은 바꾸지 않았으므로 패키지 Gate는 돌리지 않았다.
+
+## 2026-10-13 — 단위 4(계층형 A* 프로토타입)
+
+### 변경(runtime 동작 없음)
+
+- `LNPNavHierarchy.{h,cpp}`(순수 함수, processor·scheduler 미연결)
+  - **Cluster**: slot·Layer별 16×16 Tile 하나다. index는 runtime Layer 첫 Cluster + `TileId`이고, key가 overlay Tile key(`GetTileKey`)와 같다. seed 1768 배치는 7,226개(Portal이 있는 것 7,168)다.
+  - **Portal**: Cluster 경계를 넘는 edge(grid·seam link·Layer portal 모두)를 (낮은 Cluster, 높은 Cluster) 쌍별로 모은다. 양 끝이 각각 같거나 grid 이웃인 edge끼리 span으로 묶는다. span을 `MaxSpanLength`(낮은 Cluster 쪽 경계 node 수, 기본 8)마다 자르고, 조각마다 가운데 edge 하나를 Portal로 둔다. seam link·Layer portal도 같은 규칙의 고수준 edge다. 이음매 seam link는 grid 경계처럼 span으로 압축되고, 200cm 간격 Layer portal은 각자 Portal이 된다.
+  - **사전 계산**: Portal 양 끝 node가 abstract node다. 같은 Cluster abstract node 사이 비용은 Cluster 안으로 제한한 Dijkstra로 K×K 행렬에 둔다. 지역 Dijkstra는 cell index(256) 지역 배열이라 전역 scratch를 쓰지 않는다. Cluster마다 독립이므로 병렬 빌드가 직렬 빌드와 바이트 단위로 같다.
+  - **link**: 시작 link는 기본 chord(같은 group abstract node까지 3D 거리, 하한)이고 `exact`는 Cluster 안 Dijkstra다. 목표 link는 exact이며 목표에서 역으로 편다.
+  - **query**: 고수준 A*(chord 휴리스틱, 가상 goal)를 먼저 하고 정제 둘 중 하나로 node 열을 만든다.
+    - `Segment`(HPA* 표준, 기본): abstract node를 차례로 잇는다. 같은 Cluster 구간은 그 Cluster 안 A*, Portal 구간은 edge 하나다. 구간 A*가 실패하면 같은 고수준 경로의 corridor로 다시 푼다.
+    - `Corridor`: 고수준 경로 Cluster(+ Portal 이웃 고리 `CorridorRing`) 안 저수준 A* 하나다.
+  - **예산 단위**: link 확정 수 + 고수준 확장 × 가중치 + 저수준 확장. 예산이 가중치보다 작게 들어오면 credit으로 모아 다음 확장에 쓴다. 확장 순서와 단위 합은 예산 분할과 무관하다.
+  - **overlay**: `UpdateOverlay`는 overlay Tile revision 표를 순회한다. revision이 행렬 계산 때와 다른 Cluster만 overlay 차단을 반영해 다시 계산한다. Portal 위치는 고정이며, 대표 node가 막힌 Portal은 닫힌다. 결과는 같은 overlay로 새로 빌드한 계층과 같다. dirty Cluster 수·abstract node 수·확정 수·시간을 돌려준다. query는 계층 overlay revision이 현재 overlay와 같을 때만 시작한다.
+- `Nav.RequestCostReplay` 계층형 변형(`FHierarchyReplay`, 테스트 코드)
+  - Chase는 묶음 안 직선 거리 오름차순으로 스냅하고, scheduler와 같은 4개 slot에서 동시에 푼다. 구간 확장은 scheduler처럼 균등 몫으로 병렬 진행한다.
+  - cache는 scheduler와 같은 규칙(Tile 쌍 key, 앞쪽 4 waypoint 합류, r 0.1, LRU 256)이다. 스냅 직후에 보고, hit는 slot을 쓰지 않는다. 계층형은 A* 탐색을 바꾸는 방식이라 production에서는 scheduler cache 뒤에 놓이기 때문이다. scheduler cache와는 따로 둔다(Chase가 아닌 요청·폴백 경로와는 나눠 쓰지 않음).
+  - 목표 link는 같은 목표끼리 공유하고 burst마다 버린다(`Keep`은 재사용 상한). link는 게임 스레드에서 직렬로 만들고, 잔여 예산이 그 Cluster node 수 이상일 때만 만든다(엄격한 차감 상한 유지).
+  - 프레임 예산 = 스냅 × 16 + link 확정 + query 단위 + A* 차감이다. 응답 경로 조립은 scheduler A*처럼 세지 않는다.
+  - 고수준 실패·저수준 실패·스냅이 Reachable이 아님·Chase 아님은 같은 tick의 남은 예산으로 improved scheduler가 푼다.
+  - `source` 3이 계층형 응답(cache hit 포함), 2가 폴백이다. 변형별 요약 `<출력>_Hierarchy.csv`(사전 계산·메모리·cache·link·고수준/저수준 확장·폴백·segment 복구)를 쓰고, `ComparePhase10Replay.py`가 요약 표를 낸다.
+  - 결정론: `hierarchySerial`이 `hierarchy`와 요청별로 같아야 한다. Chase가 없는 입력(S1)에서는 cache를 쓰는 계층형 변형이 improved와, cache 없는 변형이 base와 같아야 한다.
+- 고수준 확장 가중치 2: `Nav.Hierarchy` 실측 확장당 시간이 고수준 0.35~0.68us, 저수준·A* 0.43~0.62us다. 반복 측정 최대 비 약 1.4를 올림했다. 고수준 확장은 Cluster abstract node 수(평균 8.7)만큼 이웃을 본다.
+- `Nav.Hierarchy` 자동화(신규)
+  - 구조(abstract node Cluster, Portal edge 역방향·비용 대칭, 실제 graph edge, 내부 비용 대칭)
+  - 경로 품질 5개 모드(segment·segment exact·corridor 고리 1/0·corridor exact): 연결성·보고 cost 일치, A* 최적보다 짧지 않음, 실패 ≤5%, waypoint 길이 비율 P95 ≤ 1.05(segment·corridor 기본)
+  - 결정론(직렬 빌드 = 병렬 빌드, 예산 1·2·7·333·4,000 분할 = 단번, 가중치 2·3 분할 단위 일치·예산 상한)
+  - dirty 국소성(Portal node 위 Pod, 바뀐 Tile 수 = dirty 수, 재계산 < 빌드 1%, 갱신 = overlay 새 빌드, 다른 Cluster 불변, 우회 경로, 뒤처진 계층 Invalid, 해제 시 원래 행렬 복원), 무작위 Pod 40개 통계
+  - 메모리 ≤ 8MiB
+
+### 단위 측정(`Nav.Hierarchy`, `Saved/Logs/Phase10_Unit4_Hierarchy.log`)
+
+| snapshot / span | Cluster | 경계 edge | span | Portal | abstract node(K 평균/최대) | 계층 메모리 | 사전 계산 확정 / 시간 |
+|:---|---:|---:|---:|---:|:---|---:|:---|
+| 회귀 fixture / 8 | 3,120 | 142,244 | 8,292 | 12,864 | 24,656(7.9/14) | 1.51MiB | 5.4M / 0.22s |
+| seed 1768 / 4 | 7,226 | 256,095 | 27,697 | 50,065 | 92,606(12.9/58) | **8.09MiB** | 16.7M / 0.55s |
+| seed 1768 / **8** | 7,226 | 256,095 | 27,697 | 34,906 | 62,652(8.7/54) | 4.47MiB | 10.5M / 0.41~0.94s |
+| seed 1768 / 16 | 7,226 | 256,095 | 27,697 | 27,697 | 48,383(6.7/52) | 3.31MiB | 7.4M / 0.33s |
+
+seed 1768 쌍 100개(지각 20~80m 40개 + 전 Layer 무작위 10~120m 60개, A* Found 92개) 기준이다.
+
+| 정제 | 실패 | cost 비율 P50/P95/최대 | waypoint 길이 비율 P95/최대 | 요청당 단위(link·고수준·저수준) | 지나는 Cluster |
+|:---|---:|:---|:---|:---|---:|
+| A* | — | 1 | 1 | 4,240 | — |
+| **segment(chord)** | 0(복구 2) | 1.021/1.107/1.128 | 1.029/1.061 | **600**(216·116·267) | 7.4 |
+| segment(exact) | 0 | 1.023/1.107/1.128 | 1.029/1.059 | 805(437·115·252) | 7.2 |
+| corridor 고리 1 | 0 | 1.000/1.000/1.001 | 1.000/1.023 | 1,877(216·116·1,544) | 23.4 |
+| corridor 고리 0 | 1 | 1.000/1.030/1.048 | 1.025/1.038 | 1,209(216·116·876) | 7.1 |
+
+- **corridor 제한은 확장을 거의 줄이지 못한다.** A*의 확장 대부분은 이미 고수준 경로 Cluster 근처의 동률 확산이다. 고리 1 corridor는 23 Cluster를 열어 A*의 44%다(쌍이 긴 우회를 포함해 A* 평균이 큼). 재생 쌍(짧고 트인 경로)에서는 base A*와 같다(아래).
+- **segment 정제가 확장을 줄인다.** Portal 사이 짧은 Cluster 안 A*는 거의 경로 길이만큼만 확장한다. 대신 Portal 대표 node를 반드시 지나서 node cost는 P95 1.107이다. 단순화한 waypoint 꺾은선은 P95 1.029까지 펴진다.
+- exact 시작 link는 고수준 경로 선택을 거의 바꾸지 않으면서 Cluster 하나 분량(요청당 약 220 확정)을 더 쓴다.
+
+### 파라미터 스윕·비교(Unit1 캡처 3종, sidecar seed 1768, `Saved/Profiling/Phase10/Unit4/Compare.md`)
+
+S1의 355건은 모두 Background라 계층형이 쓰이지 않는다. 모든 계층형 변형이 improved(cache 없는 변형은 base)와 요청별로 같다(불일치 0). 아래는 S2·S3이며, 기준은 같은 실행의 improved와 flowfield다.
+
+| 입력 / 변형 | tick 합(ms) | tick P95(us) | 확장 합 | 계층 응답(cache hit) / 폴백 | burst 완료 tick P50/P95/최대 | 보행 비율 P95/최대 | segment 복구 |
+|:---|---:|---:|---:|:---|:---|:---|---:|
+| S2 improved | 229.5 | 285 | 582,172 | — | 4/8/14 | 1.013/1.335 | — |
+| S2 flowfield | 144.6 | 74 | 217,816 | 7,478 / 416 | 5/9/13 | 1.000/1.107 | — |
+| S2 **hierarchy**(segment·span 8·cache) | **188.7** | 179 | 439,069 | 7,582(3,872) / 312 | 4/**8**/11 | **1.100**/1.432 | 409 |
+| S2 hierarchyNoCache | 343.4 | 756 | 1,001,167 | 7,582(0) / 312 | 9/22/24 | 1.084/1.432 | 1,046 |
+| S2 hierarchyCorridor | 259.6 | 352 | 673,905 | 7,582(3,905) / 312 | 4/10/16 | 1.015/1.335 | — |
+| S2 hierarchyCorridorRing0 | 242.8 | 263 | 607,459 | 7,551(3,886) / 343 | 4/10/14 | 1.016/1.432 | — |
+| S2 hierarchyCorridorNoCache | 480.9 | 794 | 1,542,059 | 7,582(0) / 312 | 10/34/36 | 1.000/1.134 | — |
+| S2 hierarchySpan4 / Span16 | 194.9 / 190.1 | 189 / 176 | 444,867 / 436,645 | 같음 | 4/8/11 · 4/8/11 | 1.100 / 1.100 | 407 / 408 |
+| S2 hierarchyExactStart | 286.0 | 269 | 974,974 | 7,585(3,972) / 309 | 6/12/16 | 1.062/1.335 | 0 |
+| S2 hierarchyKeep | 191.3 | 180 | 433,965 | 7,582(3,871) / 312 | 4/8/11 | 1.099/1.432 | 408 |
+| S3 improved | 816.3 | 999 | 2,617,091 | — | 10/43/93 | 1.024/1.334 | — |
+| S3 flowfield | 488.6 | 957 | 962,761 | 19,672 / 1,856 | 9/23/65 | 1.000/1.243 | — |
+| S3 **hierarchy** | **593.6** | 947 | 1,601,151 | 20,741(9,651) / 787 | 9/**33**/51 | **1.091**/1.499 | 914 |
+| S3 hierarchyNoCache | 994.6 | 1,043 | 3,385,428 | 20,741(0) / 787 | 23/74/107 | 1.075/1.499 | 2,442 |
+| S3 hierarchyCorridor | 888.7 | 966 | 2,985,520 | 20,741(9,542) / 787 | 11/61/105 | 1.027/1.334 | — |
+| S3 hierarchyCorridorRing0 | 735.5 | 880 | 2,461,427 | 20,463(9,464) / 1,065 | 11/47/81 | 1.029/1.499 | — |
+| S3 hierarchyCorridorNoCache | 1,486.7 | 992 | 5,869,079 | 20,741(0) / 787 | 30/130/203 | 1.000/1.134 | — |
+| S3 hierarchySpan4 / Span16 | 565.1 / 563.6 | 889 / 900 | 1,671,054 / 1,592,443 | 같음 | 9/35/53 · 9/33/50 | 1.099 / 1.091 | 928 / 909 |
+| S3 hierarchyExactStart | 880.3 | 864 | 3,364,084 | 20,747(9,673) / 781 | 18/51/70 | 1.063/1.435 | 0 |
+| S3 hierarchyKeep | 548.2 | 872 | 1,603,196 | 20,741(9,628) / 787 | 9/33/50 | 1.090/1.499 | 926 |
+
+- 계층형 query 수·확장: `hierarchy`의 S2 query 3,713건은 고수준 50,912·저수준 329,561 확장이다(query당 약 14·89). S3 11,096건은 214,119·1,163,072(query당 19·105)다. 목표 link는 burst마다 목표 4개를 다시 만들어 S2 29개·5,167 확정, S3 28개·5,166 확정으로 작다.
+- **cache가 계층형 이득의 전제다.** cache 없는 segment(`hierarchyNoCache`)는 improved보다 S2 +50%·S3 +22% 비싸다. 같은 Tile 쌍 공유를 계층형이 대신하지 못하므로, production 통합 형태는 "scheduler cache + 계층형 탐색"이다.
+- **corridor 정제는 기준선보다 비싸다.** cache와 함께 써도 S2 +13%·S3 +9%(고리 0은 +6%·−10%)다. 재생 경로는 50~85m, 2~4 Tile의 짧고 트인 경로라 corridor 안 A*가 일반 A*와 같은 양을 확장한다.
+- **segment 정제는 CPU와 burst를 줄이지만 경로가 길어진다.** S2 tick 합 −18%·S3 −27%, burst P95 S2 8→8·S3 43→33(−23%)이다. 보행 비율 P95는 1.09~1.10이다. 단위 테스트의 waypoint 꺾은선(P95 1.029)보다 크다. 재생의 `walk`는 경로 추종처럼 도착 node에서 보이는 가장 먼 연속 waypoint로 가는데, Portal 대표 node 우회가 Cluster 경계마다 쌓이는 짧은 경로에서 비율이 커진다. 비율 최대 1.43~1.50은 cache 합류가 아니라 segment 응답에서 나온다(cache 없는 변형도 같음).
+- segment 구간 A*가 Cluster 안에서 실패해 corridor로 복구한 query는 S2 11%·S3 8%다. chord 시작 link가 시작 Cluster 안에서 못 가는 Portal을 고른 경우이며, exact 시작 link는 복구가 0이지만 link 비용 때문에 전체가 더 비싸다.
+- span은 결과를 거의 바꾸지 않는다(tick 합 S2 +1~3%·S3 −5%). span 4는 계층만 8.09MiB라 기준 4를 넘는다. span 16은 3.31MiB로 가장 가볍고 S3 tick 합이 가장 낮다.
+- 목표 link 재사용(`Keep`)은 이득이 거의 없다(link 확정이 확장 합의 0.3~1.2%).
+
+### 채택 기준 예비 판정(improved 대비, `hierarchy` = segment·span 8·cache)
+
+판정은 단위 5가 소유한다. 아래는 같은 재생 실행의 예비 수치다. flowfield 열은 같은 실행의 재측정이다(단위 3 수치와 수 % 차이).
+
+| 기준 | hierarchy S2 / S3 | hierarchyCorridor S2 / S3 | flowfield S2 / S3 | hierarchy 예비 판정 |
+|:---|:---|:---|:---|:---|
+| 1. 경로 CPU 총합 −30%, tick P95 악화 없음 | −18% / −27%, P95 285→179 / 999→947 | +13% / +9% | −37% / −40% | **미충족**(감소 부족) |
+| 2. burst 완료 tick P95 −50% | 8→8(0%) / 43→33(−23%) | 8→10 / 43→61 | 8→9 / 43→23 | **미충족** |
+| 3. 경로 cost 비율 P95 ≤ 1.05 | 1.100 / 1.091 | 1.015 / 1.027 | 1.000 / 1.000 | **미충족**(segment), corridor는 충족 |
+| 4. 추가 메모리 ≤ 8MiB | 계층 4.47 + 고수준 scratch 4개 3.00 + 목표 link <0.01 = 7.47MiB | 같음 | 0.39MiB | **충족**(여유 작음, span 4는 계층만 8.09로 미충족). corridor·구간 A* scratch는 A* scratch(48.6MiB)를 공유한다고 본다 |
+| 5. overlay 변경 시 국소 재계산 | 아래 | 같음 | 설계 메모 | **충족**(단위 테스트), 재생 토글 측정은 단위 5 |
+
+- 두 정제 방식이 기준 1·3을 서로 맞바꾼다. segment는 CPU를 줄이지만 경로가 길고, corridor는 경로가 최적이지만 CPU가 늘어난다. 같은 재생에서 flowfield는 기준 1·3·4를 충족하고 기준 2(S3 −47%)만 미충족이다.
+
+### 기준 5(overlay 국소 재계산)
+
+| 경우 | 바뀐 Tile | dirty Cluster | 재계산 확정 | 시간 |
+|:---|---:|---:|---:|---:|
+| Portal node 위 Pod 생성 / 해제 | 2 | 2 / 2 | 3,308 / 3,685 | 0.89ms |
+| 무작위 지각 Pod 40개 P50/P95/최대 | — | 1/2/3 | 2,427/5,657/6,924 | 0.57/1.11/1.93ms |
+| 전체 빌드(참고) | — | 7,226 | 10,530,534 | 459ms |
+
+- Pod 하나는 덮은 Tile 1~3개만 dirty로 만든다. 재계산은 빌드의 0.02~0.07%이고, 다른 Cluster 행렬은 바이트 단위로 그대로다. 갱신 결과는 같은 overlay로 새로 빌드한 계층과 같고, 해제하면 정적 행렬로 돌아온다.
+- 재계산 비용은 dirty Cluster의 abstract node 수 × Cluster 크기다. 예산 단위로 Pod 하나가 0.6~1.7 프레임 분량이다. 프로토타입은 한 번에 다시 계산한다. 통합하려면 여러 프레임으로 나누거나, 재계산 중인 Cluster를 지나는 query를 저수준 A*로 폴백해야 한다.
+- 한계: Portal 위치를 고정하므로 Pod가 Portal 대표 node를 덮으면 그 Portal이 닫힌다. 같은 경계의 다른 Portal이나 우회로 돌아가고, 남은 span 통로는 corridor 정제에서만 쓰인다. 대표 node 재선택은 이웃 Cluster까지 dirty로 넓혀야 해서 하지 않았다.
+
+### 검증
+
+- `LootNPopEditor` 빌드 성공. 전체 `LootNPop.SurfaceNavigation` 자동화 131/131 Success(`Saved/Logs/Phase10_Unit4_AllTests.log`, 신규 `Nav.Hierarchy` 포함). 테스트가 덮어쓴 에셋 세 개는 `Saved/Tests/Phase10_Unit4_TestAssetBackup`에 보관하고 git으로 되돌렸다(Content diff 없음).
+- 재생 S1~S3 `Result={Success}`, 모든 변형의 결정론 대조 불일치 0, 예산 차감 상한 통과. 원본은 `Saved/Profiling/Phase10/Unit4/Replay/*`, 로그는 `Saved/Logs/Phase10_Unit4_Replay_*.log`다.
+- 첫 재생(corridor 정제만, cache 없음)은 S2 tick 합 469ms였다. segment 정제·cache 변형은 그 결과를 보고 같은 단위 안에서 더했다.
+- runtime(processor·scheduler)은 바꾸지 않았으므로 패키지 Gate는 돌리지 않았다.

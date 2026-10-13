@@ -20,6 +20,7 @@
 #include "Async/ParallelFor.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
 #include "SurfaceNavigation/LNPNavFlowField.h"
+#include "SurfaceNavigation/LNPNavHierarchy.h"
 #include "SurfaceNavigation/LNPNavOverlay.h"
 #include "SurfaceNavigation/LNPNavPathScheduler.h"
 #include "SurfaceNavigation/LNPNavPathfinding.h"
@@ -905,6 +906,481 @@ namespace LNPNavPathfindingTest
 		TArray<TUniquePtr<FField>> Fields;
 		TMap<int32, int32> FieldByGoal;
 	};
+
+	/**
+	 * Nav.RequestCostReplay의 계층형 A* 변형(Phase 10 단위 4). processor에 연결하지 않고 재생에서만 쓴다.
+	 * - Chase 요청은 묶음 안에서 직선 거리 오름차순(개선 A*의 Chase 순서)으로 스냅하고, scheduler와 같은 수(Slots)만큼 동시에 푼다.
+	 * - 요청 하나: 목표 link(같은 목표끼리 공유, 없으면 이 요청이 만든다) → 시작 link(기본 chord, exact면 Cluster 안 Dijkstra)
+	 *   → 고수준 A* → corridor 저수준 A*. link는 게임 스레드에서 직렬로 만들고, 잔여 예산이 그 Cluster의 node 수 이상일 때만 만든다.
+	 * - 프레임 예산 차감: 스냅 × 시작 비용 + link 확정 수 + query 단위(고수준 확장 × 가중치 + corridor 확장) + A* 차감.
+	 *   응답 경로 조립(단순화·fingerprint)은 scheduler A*처럼 세지 않는다. 응답 하나가 탐색 하나를 거치므로 한 tick에 몰리지 않는다.
+	 * - 고수준·corridor 실패, 스냅이 Reachable이 아닌 요청, Chase가 아닌 요청은 같은 tick의 남은 예산으로 개선 A* scheduler가 푼다.
+	 * - 목표 link 수명: bKeep가 아니면 burst(묶음 ≥400, 목표 전환)마다 버린다.
+	 * - cache: CacheCapacity > 0이면 scheduler와 같은 규칙(Tile 쌍 key, 앞쪽 JoinWaypoints개 합류, 합류 거리 비 LeadRatio, LRU)을 스냅 직후에 본다.
+	 *   계층형은 A* 탐색을 바꾸는 방식이므로 production에서는 scheduler cache 뒤에 놓인다. hit는 slot을 쓰지 않고 바로 답한다.
+	 *   scheduler cache와 따로 두므로 Chase가 아닌 요청·폴백의 경로와는 나눠 쓰지 않는다.
+	 */
+	/**
+	 * 재생의 고수준 확장 하나의 예산 단위. `Nav.Hierarchy` 실측 확장당 시간(고수준 0.37~0.59us, corridor·A* 0.41~0.47us)의
+	 * 최대 비 1.43을 올림했다. 고수준 확장은 Cluster abstract node 수(평균 8.7)만큼 이웃을 본다.
+	 */
+	constexpr int32 ReplayHighLevelExpansionCost = 2;
+
+	class FHierarchyReplay
+	{
+	public:
+		static constexpr int32 SourceHierarchy = 3;
+
+		struct FTotals
+		{
+			int32 CacheHits = 0;
+			int32 CacheJoins = 0;
+			int32 CacheRejects = 0;
+			int32 RefineFallbacks = 0;
+			int64 SegmentSearches = 0;
+			int32 Queries = 0;
+			int32 Answers = 0;
+			int32 FallbackHighLevel = 0;
+			int32 FallbackCorridor = 0;
+			int32 FallbackInvalid = 0;
+			int32 FallbackEndpoint = 0;
+			int32 Resolves = 0;
+			int32 GoalLinks = 0;
+			int64 LinkSettled = 0;
+			int64 HighLevelExpansions = 0;
+			int64 CorridorExpansions = 0;
+			int64 CorridorClusters = 0;
+			uint64 PeakLinkBytes = 0;
+			uint64 HighScratchBytes = 0;
+			uint64 CorridorScratchBytes = 0;
+		};
+
+		FTotals Totals;
+
+		FHierarchyReplay(const FLNPNavSnapshot& InNav, const TConstArrayView<FLNPNavPathRequest> InRequests, FLNPNavPathScheduler& InScheduler,
+			const FLNPNavHierarchy& InHierarchy, const FLNPNavHierarchyQueryParams& InParams, const bool bInExactStart, const bool bInKeep,
+			const int32 InFrameBudget, const int32 InResolveCost, const bool bInParallel, const int32 InSlots, const int32 InCacheCapacity,
+			const int32 InJoinWaypoints, const double InLeadRatio)
+			: Nav(InNav), Requests(InRequests), Scheduler(InScheduler), Hierarchy(InHierarchy), Params(InParams), bExactStart(bInExactStart),
+			bKeep(bInKeep), FrameBudget(InFrameBudget), ResolveCost(InResolveCost), bParallel(bInParallel), CacheCapacity(InCacheCapacity),
+			JoinWaypoints(InJoinWaypoints), LeadRatio(InLeadRatio)
+		{
+			States.SetNum(Requests.Num());
+			Scratches.SetNum(FMath::Max(1, InSlots));
+			ScratchInUse.Init(false, Scratches.Num());
+		}
+
+		void SubmitBatch(const int32 First, const int32 End, const bool bBurst)
+		{
+			if (bBurst && !bKeep)
+			{
+				GoalLinks.Reset();
+			}
+			Pending.Reset();
+			NextPending = 0;
+			for (int32 Index = First; Index < End; ++Index)
+			{
+				States[Index] = FState();
+				if (Requests[Index].Priority == ELNPNavPathPriority::Chase)
+				{
+					Pending.Add(Index);
+				}
+				else
+				{
+					SubmitToScheduler(Index, FFlowFieldReplay::SourceScheduler);
+				}
+			}
+			Pending.StableSort([this](const int32 A, const int32 B)
+			{
+				return FVector3d::DistSquared(Requests[A].StartPosition, Requests[A].GoalPosition)
+					< FVector3d::DistSquared(Requests[B].StartPosition, Requests[B].GoalPosition);
+			});
+		}
+
+		bool HasWork() const
+		{
+			return NextPending < Pending.Num() || !Running.IsEmpty() || Scheduler.HasWork();
+		}
+
+		/** OutSource: 0 Chase가 아닌 요청(A*), 2 고수준·corridor 실패·스냅 실패 폴백(A*), 3 계층형 응답. Expansions에는 이 요청의 link·query 단위가 더해진다. */
+		ELNPNavPathStatus GetResult(const int32 Index, FLNPNavPathResult& OutResult, int32& OutSource) const
+		{
+			const FState& State = States[Index];
+			OutSource = State.Source;
+			if (State.Source == SourceHierarchy)
+			{
+				OutResult = State.Result;
+			}
+			else if (State.Serial != 0)
+			{
+				Scheduler.GetResult(Requests[Index].Owner, State.Serial, OutResult);
+			}
+			else
+			{
+				OutResult = FLNPNavPathResult();
+				OutResult.Status = ELNPNavPathStatus::Queued;
+			}
+			OutResult.Expansions += State.Charge;
+			return OutResult.Status;
+		}
+
+		void Tick(FFlowFieldReplay::FTickStats& Out)
+		{
+			Out = FFlowFieldReplay::FTickStats();
+			++TickIndex;
+			int32 Budget = FrameBudget;
+			TArray<int32> Searching;
+			while (true)
+			{
+				double Begin = FPlatformTime::Seconds();
+				while (Budget >= ResolveCost && Running.Num() < Scratches.Num() && NextPending < Pending.Num())
+				{
+					Budget -= ResolveCost;
+					++Out.Started;
+					Route(Pending[NextPending++]);
+				}
+				BuildLinks(Budget, Out);
+				Out.StartUs += (FPlatformTime::Seconds() - Begin) * 1.e6;
+				Searching.Reset();
+				for (int32 Index = 0; Index < Running.Num(); ++Index)
+				{
+					if (Running[Index].bSearching)
+					{
+						Searching.Add(Index);
+					}
+				}
+				if (Searching.IsEmpty() || Budget <= 0)
+				{
+					break;
+				}
+				// scheduler와 같은 분배: 잔여 예산보다 요청이 많으면 앞의 요청만, 몫은 균등. 남은 몫은 다음 라운드에 다시 쓴다.
+				const int32 StepCount = FMath::Min(Budget, Searching.Num());
+				const int32 Share = Budget / StepCount;
+				auto Step = [this, &Searching, Share](const int32 Index)
+				{
+					FRunning& Query = Running[Searching[Index]];
+					const double StepStart = FPlatformTime::Seconds();
+					Query.UnitsBefore = Query.Search.Units;
+					LNPNavHierarchy::StepQuery(Nav, Hierarchy, Scratches[Query.ScratchIndex], Query.Search, Share);
+					Query.StepSeconds = FPlatformTime::Seconds() - StepStart;
+				};
+				Begin = FPlatformTime::Seconds();
+				if (bParallel && StepCount > 1)
+				{
+					ParallelFor(StepCount, Step);
+				}
+				else
+				{
+					for (int32 Index = 0; Index < StepCount; ++Index)
+					{
+						Step(Index);
+					}
+				}
+				Out.StepUs += (FPlatformTime::Seconds() - Begin) * 1.e6;
+				Begin = FPlatformTime::Seconds();
+				int32 Used = 0;
+				bool bFinished = false;
+				for (int32 Index = StepCount - 1; Index >= 0; --Index)
+				{
+					FRunning& Query = Running[Searching[Index]];
+					const int32 Delta = Query.Search.Units - Query.UnitsBefore;
+					Used += Delta;
+					Out.WorkerUs += Query.StepSeconds * 1.e6;
+					States[Query.Index].Charge += Delta;
+					if (Query.Search.Status != ELNPNavSearchStatus::Running)
+					{
+						FinishQuery(Searching[Index]);
+						bFinished = true;
+					}
+				}
+				Budget -= Used;
+				Out.Expansions += Used;
+				Out.FinishUs += (FPlatformTime::Seconds() - Begin) * 1.e6;
+				if (Used == 0 && !bFinished)
+				{
+					break;
+				}
+			}
+			Out.Charged = FrameBudget - Budget;
+
+			Scheduler.Settings.ExpansionsPerFrame = Budget;
+			if (Scheduler.HasWork())
+			{
+				Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+				const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
+				Out.Started += Stats.LastTickStarted;
+				Out.Expansions += Stats.LastTickExpansions;
+				Out.Charged += Stats.LastTickStarted * ResolveCost + Stats.LastTickExpansions;
+				Out.StartUs += Stats.LastTickStartSeconds * 1.e6;
+				Out.StepUs += Stats.LastTickStepSeconds * 1.e6;
+				Out.FinishUs += Stats.LastTickFinishSeconds * 1.e6;
+				Out.WorkerUs += Stats.LastTickSearchSeconds * 1.e6;
+			}
+			Out.Queued = Pending.Num() - NextPending + Scheduler.GetQueuedCount();
+			Out.Running = Running.Num() + Scheduler.GetRunningCount();
+			uint64 LinkBytes = GoalLinks.GetAllocatedSize();
+			for (const TPair<int32, FLNPNavHierarchyLink>& Pair : GoalLinks)
+			{
+				LinkBytes += Pair.Value.Costs.GetAllocatedSize();
+			}
+			Totals.PeakLinkBytes = FMath::Max(Totals.PeakLinkBytes, LinkBytes);
+			uint64 HighBytes = 0, CorridorBytes = 0;
+			for (const FLNPNavHierarchyScratch& Scratch : Scratches)
+			{
+				HighBytes += Scratch.GetHighLevelBytes();
+				CorridorBytes += Scratch.Low.GetAllocatedBytes();
+			}
+			Totals.HighScratchBytes = FMath::Max(Totals.HighScratchBytes, HighBytes);
+			Totals.CorridorScratchBytes = FMath::Max(Totals.CorridorScratchBytes, CorridorBytes);
+		}
+
+	private:
+		struct FState
+		{
+			int32 Source = INDEX_NONE;
+			uint32 Serial = 0;
+			uint64 ResolveTick = 0;
+			int32 Charge = 0;
+			FLNPNavPathResult Result;
+		};
+
+		struct FRunning
+		{
+			int32 Index = INDEX_NONE;
+			int32 ScratchIndex = INDEX_NONE;
+			int32 StartNode = INDEX_NONE;
+			int32 GoalNode = INDEX_NONE;
+			uint64 CacheKey = 0;
+			bool bSearching = false;
+			int32 UnitsBefore = 0;
+			double StepSeconds = 0.0;
+			FLNPNavHierarchySearch Search;
+		};
+
+		void SubmitToScheduler(const int32 Index, const int32 Source)
+		{
+			States[Index].Source = Source;
+			States[Index].Serial = Scheduler.Submit(Requests[Index]);
+		}
+
+		void Route(const int32 Index)
+		{
+			++Totals.Resolves;
+			const FLNPNavPathRequest& Request = Requests[Index];
+			FLNPNavEndpointQuery Query;
+			Query.StartPosition = Request.StartPosition;
+			Query.StartSurface = &Request.StartSurface;
+			Query.GoalPosition = Request.GoalPosition;
+			Query.GoalSurface = &Request.GoalSurface;
+			Query.SnapRadius = Request.SnapRadius;
+			Query.ApproachRadius = Request.ApproachRadius;
+			const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query);
+			States[Index].ResolveTick = TickIndex;
+			if (Ends.Status != ELNPNavEndpointStatus::Reachable)
+			{
+				++Totals.FallbackEndpoint;
+				SubmitToScheduler(Index, FFlowFieldReplay::SourceFallback);
+				return;
+			}
+			const uint64 CacheKey = (static_cast<uint64>(LNPNavGraph::GetTileKey(Nav, Ends.StartNode)) << 32) | LNPNavGraph::GetTileKey(Nav, Ends.GoalNode);
+			if (FLNPNavPathPtr Cached = FindCachedPath(CacheKey, Ends.StartNode, Ends.GoalNode, States[Index].Result.FirstWaypoint))
+			{
+				++Totals.CacheHits;
+				Totals.CacheJoins += States[Index].Result.FirstWaypoint > 0 ? 1 : 0;
+				States[Index].Source = SourceHierarchy;
+				States[Index].Result.Path = MoveTemp(Cached);
+				States[Index].Result.Status = ELNPNavPathStatus::Succeeded;
+				States[Index].Result.bFromCache = true;
+				return;
+			}
+			const int32 ScratchIndex = ScratchInUse.Find(false);
+			ScratchInUse[ScratchIndex] = true;
+			FRunning& NewQuery = Running.AddDefaulted_GetRef();
+			NewQuery.Index = Index;
+			NewQuery.ScratchIndex = ScratchIndex;
+			NewQuery.StartNode = Ends.StartNode;
+			NewQuery.GoalNode = Ends.GoalNode;
+			NewQuery.CacheKey = CacheKey;
+			States[Index].Source = SourceHierarchy;
+			States[Index].Result.Status = ELNPNavPathStatus::Queued;
+		}
+
+		/** 시작 순서대로 link를 만들고 query를 시작한다. 잔여 예산이 link Cluster의 node 수보다 작으면 다음 라운드·tick으로 미룬다. */
+		void BuildLinks(int32& Budget, FFlowFieldReplay::FTickStats& Out)
+		{
+			for (int32 RunningIndex = 0; RunningIndex < Running.Num(); ++RunningIndex)
+			{
+				FRunning& Query = Running[RunningIndex];
+				if (Query.bSearching)
+				{
+					continue;
+				}
+				const FLNPNavHierarchyLink* GoalLink = GoalLinks.Find(Query.GoalNode);
+				if (GoalLink == nullptr)
+				{
+					const int32 GoalCluster = LNPNavHierarchy::GetCluster(Nav, Hierarchy, Query.GoalNode);
+					if (GoalCluster == INDEX_NONE || Budget < Hierarchy.Clusters[GoalCluster].NodeCount)
+					{
+						return;
+					}
+					FLNPNavHierarchyLink NewLink;
+					const int32 Settled = LNPNavHierarchy::BuildLink(Nav, Hierarchy, Query.GoalNode, ELNPNavHierarchyLinkSide::Goal, true, NewLink);
+					Charge(Query, Settled, Budget, Out);
+					++Totals.GoalLinks;
+					GoalLink = &GoalLinks.Add(Query.GoalNode, MoveTemp(NewLink));
+				}
+				const int32 StartCluster = LNPNavHierarchy::GetCluster(Nav, Hierarchy, Query.StartNode);
+				if (bExactStart && (StartCluster == INDEX_NONE || Budget < Hierarchy.Clusters[StartCluster].NodeCount))
+				{
+					return;
+				}
+				FLNPNavHierarchyLink StartLink;
+				Charge(Query, LNPNavHierarchy::BuildLink(Nav, Hierarchy, Query.StartNode, ELNPNavHierarchyLinkSide::Start, bExactStart, StartLink,
+					nullptr, Query.GoalNode), Budget, Out);
+				++Totals.Queries;
+				Query.bSearching = true;
+				if (LNPNavHierarchy::BeginQuery(Nav, Hierarchy, StartLink, *GoalLink, Params, Scratches[Query.ScratchIndex], Query.Search)
+					!= ELNPNavSearchStatus::Running)
+				{
+					FinishQuery(RunningIndex--);
+				}
+			}
+		}
+
+		void Charge(const FRunning& Query, const int32 Settled, int32& Budget, FFlowFieldReplay::FTickStats& Out)
+		{
+			Budget -= Settled;
+			Out.Expansions += Settled;
+			States[Query.Index].Charge += Settled;
+			Totals.LinkSettled += Settled;
+		}
+
+		/** FLNPNavPathScheduler::FindCachedPath와 같은 합류 규칙이다(D-079). */
+		FLNPNavPathPtr FindCachedPath(const uint64 Key, const int32 StartNode, const int32 GoalNode, int32& OutFirstWaypoint)
+		{
+			FCacheEntry* Entry = Cache.Find(Key);
+			if (Entry == nullptr)
+			{
+				return nullptr;
+			}
+			const TArray<FLNPNavPathWaypoint>& Waypoints = Entry->Path->Waypoints;
+			int32 FirstWaypoint = INDEX_NONE;
+			if (LNPNavGraph::IsDirectWalkable(Nav, Waypoints.Last().Node, GoalNode))
+			{
+				const FVector3d StartPoint = Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(StartNode), StartNode);
+				double Remaining = 0.0;
+				for (int32 Index = 1; Index < Waypoints.Num(); ++Index)
+				{
+					Remaining += FVector3d::Dist(Waypoints[Index - 1].Location, Waypoints[Index].Location);
+				}
+				const int32 JoinCount = FMath::Min(FMath::Max(1, JoinWaypoints), Waypoints.Num());
+				for (int32 Index = 0; Index < JoinCount && FirstWaypoint == INDEX_NONE; ++Index)
+				{
+					Remaining -= Index > 0 ? FVector3d::Dist(Waypoints[Index - 1].Location, Waypoints[Index].Location) : 0.0;
+					if ((LeadRatio <= 0.0 || FVector3d::Dist(StartPoint, Waypoints[Index].Location) <= LeadRatio * Remaining)
+						&& LNPNavGraph::IsDirectWalkable(Nav, StartNode, Waypoints[Index].Node))
+					{
+						FirstWaypoint = Index;
+					}
+				}
+			}
+			if (FirstWaypoint == INDEX_NONE)
+			{
+				++Totals.CacheRejects;
+				return nullptr;
+			}
+			OutFirstWaypoint = FirstWaypoint;
+			Entry->LastUsedTick = TickIndex;
+			return Entry->Path;
+		}
+
+		void AddToCache(const uint64 Key, const FLNPNavPathPtr& Path)
+		{
+			if (CacheCapacity <= 0)
+			{
+				return;
+			}
+			if (!Cache.Contains(Key))
+			{
+				while (Cache.Num() >= CacheCapacity)
+				{
+					uint64 Oldest = 0;
+					uint64 OldestTick = MAX_uint64;
+					for (const TPair<uint64, FCacheEntry>& Pair : Cache)
+					{
+						if (Pair.Value.LastUsedTick < OldestTick)
+						{
+							Oldest = Pair.Key;
+							OldestTick = Pair.Value.LastUsedTick;
+						}
+					}
+					Cache.Remove(Oldest);
+				}
+			}
+			Cache.Add(Key, {Path, TickIndex});
+		}
+
+		void FinishQuery(const int32 RunningIndex)
+		{
+			FRunning& Query = Running[RunningIndex];
+			FState& State = States[Query.Index];
+			Totals.HighLevelExpansions += Query.Search.HighLevelExpansions;
+			Totals.CorridorExpansions += Query.Search.CorridorExpansions;
+			Totals.CorridorClusters += Query.Search.CorridorClusters;
+			Totals.SegmentSearches += Query.Search.SegmentSearches;
+			Totals.RefineFallbacks += Query.Search.bRefineFallback ? 1 : 0;
+			TArray<int32> Nodes;
+			if (Query.Search.Status == ELNPNavSearchStatus::Found
+				&& LNPNavHierarchy::ExtractNodePath(Scratches[Query.ScratchIndex], Query.Search, Nodes))
+			{
+				++Totals.Answers;
+				State.Result.Path = BuildFieldPath(Nav, Nodes, Query.Search.PathCost);
+				State.Result.Status = ELNPNavPathStatus::Succeeded;
+				State.Result.RunningTicks = static_cast<int32>(TickIndex - State.ResolveTick);
+				AddToCache(Query.CacheKey, State.Result.Path);
+			}
+			else
+			{
+				switch (Query.Search.Failure)
+				{
+				case ELNPNavHierarchyFailure::HighLevel: ++Totals.FallbackHighLevel; break;
+				case ELNPNavHierarchyFailure::Corridor: ++Totals.FallbackCorridor; break;
+				default: ++Totals.FallbackInvalid; break;
+				}
+				SubmitToScheduler(Query.Index, FFlowFieldReplay::SourceFallback);
+			}
+			ScratchInUse[Query.ScratchIndex] = false;
+			Running.RemoveAt(RunningIndex);
+		}
+
+		const FLNPNavSnapshot& Nav;
+		TConstArrayView<FLNPNavPathRequest> Requests;
+		FLNPNavPathScheduler& Scheduler;
+		const FLNPNavHierarchy& Hierarchy;
+		FLNPNavHierarchyQueryParams Params;
+		bool bExactStart = false;
+		bool bKeep = false;
+		int32 FrameBudget = 4000;
+		int32 ResolveCost = 16;
+		bool bParallel = true;
+		uint64 TickIndex = 0;
+		TArray<FState> States;
+		TArray<int32> Pending;
+		int32 NextPending = 0;
+		TArray<FRunning> Running;
+		TArray<FLNPNavHierarchyScratch> Scratches;
+		TBitArray<> ScratchInUse;
+		TMap<int32, FLNPNavHierarchyLink> GoalLinks;
+		struct FCacheEntry
+		{
+			FLNPNavPathPtr Path;
+			uint64 LastUsedTick = 0;
+		};
+		int32 CacheCapacity = 0;
+		int32 JoinWaypoints = 4;
+		double LeadRatio = 0.1;
+		TMap<uint64, FCacheEntry> Cache;
+	};
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -925,6 +1401,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPNavFlowFieldTest,
 	"LootNPop.SurfaceNavigation.Nav.FlowField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavHierarchyTest,
+	"LootNPop.SurfaceNavigation.Nav.Hierarchy",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -2260,6 +2741,16 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		bool bFieldFreeAnswer = false;
 		/** 요청별 결과가 같아야 하는 변형 index. */
 		int32 CompareTo = INDEX_NONE;
+		/** 0보다 크면 계층형 A* 변형이며 Portal span 압축 길이다(Phase 10 단위 4). Chase를 계층형으로 풀고 나머지는 위 설정의 A*로 푼다. */
+		int32 HierarchySpan = 0;
+		/** corridor에 더하는 이웃 Cluster 고리 수. */
+		int32 HierarchyRing = 1;
+		/** true면 시작 link를 Cluster 안 Dijkstra로 정확히 잰다. 기본은 chord 하한이다. */
+		bool bHierarchyExactStart = false;
+		/** false면 burst(목표 전환)마다 목표 link를 버린다. */
+		bool bHierarchyKeep = false;
+		/** true면 corridor 정제, 기본은 segment 정제(HPA*)다. */
+		bool bHierarchyCorridor = false;
 	};
 	const FVariant Variants[] =
 	{
@@ -2289,8 +2780,31 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		{TEXT("flowfieldSerial"), 256, 4000, 16, false, 4, true, 0.1, 12000.0, false, false, 19},
 		{TEXT("flowfieldKeep"), 256, 4000, 16, true, 4, true, 0.1, 12000.0, true},
 		{TEXT("flowfieldFreeAnswer"), 256, 4000, 16, true, 4, true, 0.1, 12000.0, false, true},
+		// 단위 4 계층형 A*: 채택 후보 설정(span 8·segment 정제·chord 시작 link·burst마다 목표 link 버림·improved와 같은 cache)과
+		// 그 직렬 결정론 대조, cache 없음, corridor 정제(고리 1·0, cache 유무), span 압축 길이, 정확한 시작 link, 목표 link 재사용 상한(Keep).
+		// Chase가 없는 입력(S1)에서는 계층형이 쓰이지 않으므로 improved와 요청별로 같아야 한다.
+		{.Label = TEXT("hierarchy"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8},
+		{.Label = TEXT("hierarchySerial"), .Cache = 256, .bParallel = false, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1,
+			.CompareTo = 23, .HierarchySpan = 8},
+		{.Label = TEXT("hierarchyNoCache"), .Cache = 0, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8},
+		{.Label = TEXT("hierarchyCorridor"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8,
+			.bHierarchyCorridor = true},
+		{.Label = TEXT("hierarchyCorridorRing0"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8,
+			.HierarchyRing = 0, .bHierarchyCorridor = true},
+		{.Label = TEXT("hierarchyCorridorNoCache"), .Cache = 0, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8,
+			.bHierarchyCorridor = true},
+		{.Label = TEXT("hierarchySpan4"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 4},
+		{.Label = TEXT("hierarchySpan16"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 16},
+		{.Label = TEXT("hierarchyExactStart"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8,
+			.bHierarchyExactStart = true},
+		{.Label = TEXT("hierarchyKeep"), .Cache = 256, .JoinWaypoints = 4, .bNearestFirst = true, .LeadRatio = 0.1, .HierarchySpan = 8,
+			.bHierarchyKeep = true},
 	};
 	constexpr int32 ImprovedVariant = 11;
+	static_assert(UE_ARRAY_COUNT(Variants) > 23, "hierarchySerial compares to variant 23");
+	// 계층은 span 길이마다 한 번 짓고 변형끼리 공유한다. 사전 계산 비용·메모리는 재생 tick 밖에서 따로 잰다.
+	TMap<int32, TUniquePtr<FLNPNavHierarchy>> Hierarchies;
+	FString HierarchyOutput = TEXT("variant,span,ring,exactStart,keep,corridor,cacheHits,cacheJoins,cacheRejects,refineFallbacks,segmentSearches,clusters,crossingEdges,spans,portals,abstractNodes,interEdges,intraEntries,buildSettled,buildMs,hierarchyBytes,queries,answers,fallbackHighLevel,fallbackCorridor,fallbackInvalid,fallbackEndpoint,resolves,goalLinks,linkSettled,highLevelExpansions,corridorExpansions,corridorClusters,peakLinkBytes,highScratchBytes,corridorScratchBytes\n");
 	constexpr int32 BurstSize = 400;
 	const bool bHasChase = Requests.ContainsByPredicate([](const FLNPNavPathRequest& Request)
 	{
@@ -2346,7 +2860,7 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		}
 		return Walk;
 	};
-	// source(단위 3): 0 scheduler, 1 flow field, 2 flow field 변형의 A* 폴백(field 밖·스냅이 Reachable 아님).
+	// source(단위 3·4): 0 scheduler, 1 flow field, 2 flow field·계층형 변형의 A* 폴백(field 밖·고수준·corridor 실패·스냅이 Reachable 아님), 3 계층형.
 	FString RequestOutput = TEXT("variant,row,batch,batchSize,status,doneTick,expansions,runningTicks,fromCache,cost,firstWaypoint,walk,source\n");
 	for (int32 Variant = 0; Variant < UE_ARRAY_COUNT(Variants); ++Variant)
 	{
@@ -2360,6 +2874,31 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 		Scheduler.Settings.bChaseNearestFirst = Config.bNearestFirst;
 		Scheduler.Settings.CacheJoinMaxLeadRatio = Config.LeadRatio;
 		TUniquePtr<FFlowFieldReplay> FieldReplay;
+		TUniquePtr<FHierarchyReplay> HierarchyReplay;
+		const FLNPNavHierarchy* Hierarchy = nullptr;
+		if (Config.HierarchySpan > 0)
+		{
+			TUniquePtr<FLNPNavHierarchy>& Built = Hierarchies.FindOrAdd(Config.HierarchySpan);
+			if (!Built)
+			{
+				Built = MakeUnique<FLNPNavHierarchy>();
+				FLNPNavHierarchyParams HierarchyParams;
+				HierarchyParams.MaxSpanLength = Config.HierarchySpan;
+				if (!TestTrue(FString::Printf(TEXT("Hierarchy span %d builds"), Config.HierarchySpan),
+					LNPNavHierarchy::Build(Snapshot.Nav, HierarchyParams, *Built)))
+				{
+					return false;
+				}
+			}
+			Hierarchy = Built.Get();
+			FLNPNavHierarchyQueryParams QueryParams;
+			QueryParams.HighLevelExpansionCost = ReplayHighLevelExpansionCost;
+			QueryParams.CorridorRing = Config.HierarchyRing;
+			QueryParams.Refine = Config.bHierarchyCorridor ? ELNPNavHierarchyRefine::Corridor : ELNPNavHierarchyRefine::Segment;
+			HierarchyReplay = MakeUnique<FHierarchyReplay>(Snapshot.Nav, Requests, Scheduler, *Hierarchy, QueryParams, Config.bHierarchyExactStart,
+				Config.bHierarchyKeep, Config.Budget, Config.Resolve, Config.bParallel, Scheduler.Settings.ScratchCount, Config.Cache,
+				Config.JoinWaypoints, Config.LeadRatio);
+		}
 		if (Config.FieldCost > 0.0)
 		{
 			FLNPNavFlowFieldParams FieldParams;
@@ -2367,8 +2906,10 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			FieldReplay = MakeUnique<FFlowFieldReplay>(Snapshot.Nav, Requests, Scheduler, FieldParams, Config.bFieldKeep,
 				Config.Budget, Config.Resolve, Config.bParallel, !Config.bFieldFreeAnswer);
 		}
+		// flow field·계층형은 Chase를 다르게 푼다. Chase가 없는 입력에서만 같은 cache 설정의 A* 변형(improved 또는 base)과 같아야 한다.
+		const bool bAlternative = Config.FieldCost > 0.0 || Config.HierarchySpan > 0;
 		const int32 CompareTo = Config.CompareTo != INDEX_NONE ? Config.CompareTo
-			: Config.FieldCost > 0.0 && !bHasChase ? ImprovedVariant : INDEX_NONE;
+			: bAlternative && !bHasChase && Config.Cache > 0 ? ImprovedVariant : INDEX_NONE;
 		const TCHAR* const Label = Config.Label;
 		TArray<double> TickUs, StartUs, StepUs, FinishUs, QueueSamples;
 		double TotalStart = 0, TotalStep = 0, TotalFinish = 0, TotalTick = 0;
@@ -2382,6 +2923,10 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			{
 				FieldReplay->SubmitBatch(First, End, End - First >= BurstSize);
 			}
+			else if (HierarchyReplay)
+			{
+				HierarchyReplay->SubmitBatch(First, End, End - First >= BurstSize);
+			}
 			else
 			{
 				for (int32 Index = First; Index < End; ++Index) { Serials.Add(Scheduler.Submit(Requests[Index])); }
@@ -2390,13 +2935,18 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 			{
 				OutSource = FFlowFieldReplay::SourceScheduler;
 				return FieldReplay ? FieldReplay->GetResult(Index, OutResult, OutSource)
+					: HierarchyReplay ? HierarchyReplay->GetResult(Index, OutResult, OutSource)
 					: Scheduler.GetResult(Requests[Index].Owner, Serials[Index - First], OutResult);
+			};
+			auto HasWork = [&]()
+			{
+				return FieldReplay ? FieldReplay->HasWork() : HierarchyReplay ? HierarchyReplay->HasWork() : Scheduler.HasWork();
 			};
 			// 묶음 제출 뒤 몇 번째 tick에 끝났는지(1부터). 재생의 큐 지연 대용이며 시간 측정 구간 밖에서 확인한다.
 			TArray<int32> DoneTicks;
 			DoneTicks.Init(0, End - First);
 			int32 Tick = 0;
-			while ((FieldReplay ? FieldReplay->HasWork() : Scheduler.HasWork()) && Tick < 10000)
+			while (HasWork() && Tick < 10000)
 			{
 				FFlowFieldReplay::FTickStats TickStats;
 				const double Begin = FPlatformTime::Seconds();
@@ -2404,12 +2954,16 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				{
 					FieldReplay->Tick(TickStats);
 				}
+				else if (HierarchyReplay)
+				{
+					HierarchyReplay->Tick(TickStats);
+				}
 				else
 				{
 					Scheduler.Tick(Snapshot.Nav, nullptr, [](FMassEntityHandle) { return true; });
 				}
 				const double Elapsed = (FPlatformTime::Seconds() - Begin) * 1.e6;
-				if (!FieldReplay)
+				if (!FieldReplay && !HierarchyReplay)
 				{
 					const auto& Stats = Scheduler.GetStats();
 					TickStats.Started = Stats.LastTickStarted;
@@ -2440,7 +2994,7 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 					}
 				}
 			}
-			if (!TestTrue(TEXT("Replay batch drains"), !(FieldReplay ? FieldReplay->HasWork() : Scheduler.HasWork()))) { return false; }
+			if (!TestTrue(TEXT("Replay batch drains"), !HasWork())) { return false; }
 			for (int32 Index = First; Index < End; ++Index)
 			{
 				FLNPNavPathResult Result;
@@ -2454,7 +3008,7 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				const FReference Current{Result.Status, WaypointNodes(Result), Result.Expansions, Cost, Result.FirstWaypoint,
 					DoneTicks[Index - First], Result.bFromCache};
 				if (Variant == 0) { References.Add(Current); }
-				else if (Config.Cache == 0)
+				else if (Config.Cache == 0 && (!bAlternative || !bHasChase))
 				{
 					const FReference& Reference = References[Index];
 					Mismatches += Result.Status != Reference.Status || WaypointNodes(Result) != Reference.Waypoints
@@ -2494,12 +3048,35 @@ bool FLNPNavRequestCostReplayTest::RunTest(const FString& Parameters)
 				Totals.FallbackOutside, Totals.FallbackEndpoint, Totals.Resolves, Totals.AnswerNodes, Totals.PeakBytes / (1024.0 * 1024.0),
 				Totals.PeakBlocks, Scheduler.GetScratchBytes() / (1024.0 * 1024.0)));
 		}
+		if (HierarchyReplay)
+		{
+			const FHierarchyReplay::FTotals& Totals = HierarchyReplay->Totals;
+			const FLNPNavHierarchyBuildStats& Build = Hierarchy->BuildStats;
+			HierarchyOutput += FString::Printf(TEXT("%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%lld,%d,%d,%d,%d,%d,%d,%d,%lld,%.1f,%llu,%d,%d,%d,%d,%d,%d,%d,%d,%lld,%lld,%lld,%lld,%llu,%llu,%llu\n"),
+				Label, Config.HierarchySpan, Config.HierarchyRing, Config.bHierarchyExactStart ? 1 : 0, Config.bHierarchyKeep ? 1 : 0,
+				Config.bHierarchyCorridor ? 1 : 0, Totals.CacheHits, Totals.CacheJoins, Totals.CacheRejects, Totals.RefineFallbacks, Totals.SegmentSearches,
+				Build.Clusters, Build.CrossingEdges, Build.Spans, Build.Portals, Hierarchy->Abstract.Num(), Hierarchy->InterEdges.Num(),
+				Hierarchy->IntraCosts.Num(), Build.Settled, Build.Seconds * 1000.0, Hierarchy->GetAllocatedBytes(), Totals.Queries, Totals.Answers,
+				Totals.FallbackHighLevel, Totals.FallbackCorridor, Totals.FallbackInvalid, Totals.FallbackEndpoint, Totals.Resolves, Totals.GoalLinks,
+				Totals.LinkSettled, Totals.HighLevelExpansions, Totals.CorridorExpansions, Totals.CorridorClusters, Totals.PeakLinkBytes,
+				Totals.HighScratchBytes, Totals.CorridorScratchBytes);
+			AddInfo(FString::Printf(TEXT("Replay %s hierarchy: span=%d ring=%d exactStart=%d keep=%d corridor=%d cacheHits=%d joins=%d rejects=%d refineFallbacks=%d segmentSearches=%lld clusters=%d portals=%d abstract=%d buildMs=%.0f buildSettled=%lld hierarchyMiB=%.2f queries=%d answers=%d fallbackHigh/Corridor/Invalid/Endpoint=%d/%d/%d/%d goalLinks=%d linkSettled=%lld high=%lld corridor=%lld corridorClustersAvg=%.1f highScratchMiB=%.2f"),
+				Label, Config.HierarchySpan, Config.HierarchyRing, Config.bHierarchyExactStart ? 1 : 0, Config.bHierarchyKeep ? 1 : 0,
+				Config.bHierarchyCorridor ? 1 : 0, Totals.CacheHits, Totals.CacheJoins, Totals.CacheRejects, Totals.RefineFallbacks, Totals.SegmentSearches,
+				Build.Clusters, Build.Portals, Hierarchy->Abstract.Num(), Build.Seconds * 1000.0, Build.Settled,
+				Hierarchy->GetAllocatedBytes() / (1024.0 * 1024.0), Totals.Queries, Totals.Answers, Totals.FallbackHighLevel, Totals.FallbackCorridor,
+				Totals.FallbackInvalid, Totals.FallbackEndpoint, Totals.GoalLinks, Totals.LinkSettled, Totals.HighLevelExpansions,
+				Totals.CorridorExpansions, Totals.Queries > 0 ? static_cast<double>(Totals.CorridorClusters) / Totals.Queries : 0.0,
+				Totals.HighScratchBytes / (1024.0 * 1024.0)));
+		}
 	}
 	TestTrue(TEXT("Replay tick costs saved"), FFileHelper::SaveStringToFile(Output, *OutputPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
 	TestTrue(TEXT("Replay request results saved"), FFileHelper::SaveStringToFile(RequestOutput,
 		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_Requests.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
 	TestTrue(TEXT("Replay flow field summary saved"), FFileHelper::SaveStringToFile(FieldOutput,
 		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_FlowFields.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
+	TestTrue(TEXT("Replay hierarchy summary saved"), FFileHelper::SaveStringToFile(HierarchyOutput,
+		*(FPaths::ChangeExtension(OutputPath, TEXT("")) + TEXT("_Hierarchy.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
 	return !HasAnyErrors();
 }
 
@@ -2705,6 +3282,454 @@ bool FLNPNavFlowFieldTest::RunTest(const FString& Parameters)
 		LNPNavFlowField::BeginBuild(Nav, Goal, FLNPNavFlowFieldParams(), Field);
 		TestEnum(*this, TEXT("Overlay revision change invalidates a building field"), LNPNavFlowField::StepBuild(Nav, Field, 100, &Overlay),
 			ELNPNavFlowFieldStatus::Invalid);
+	}
+	return !HasAnyErrors();
+}
+
+bool FLNPNavHierarchyTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavPathfindingTest;
+
+	// 쿼리 하나를 끝까지 돌린다. link 확정 수와 query 단위를 따로 돌려준다.
+	struct FHierarchyRun
+	{
+		ELNPNavSearchStatus Status = ELNPNavSearchStatus::Invalid;
+		ELNPNavHierarchyFailure Failure = ELNPNavHierarchyFailure::None;
+		TArray<int32> Nodes;
+		double Cost = 0.0;
+		int32 LinkSettled = 0;
+		int32 Units = 0;
+		int32 HighLevel = 0;
+		int32 Corridor = 0;
+		int32 CorridorClusters = 0;
+		bool bRefineFallback = false;
+		double HighSeconds = 0.0;
+		double CorridorSeconds = 0.0;
+	};
+	auto RunQuery = [](const FLNPNavSnapshot& Nav, const FLNPNavHierarchy& Hierarchy, const int32 Start, const int32 Goal, const bool bExactStart,
+		const int32 Ring, const int32 Budget, FLNPNavHierarchyScratch& Scratch, const FLNPNavOverlay* Overlay = nullptr,
+		const ELNPNavHierarchyRefine Refine = ELNPNavHierarchyRefine::Segment)
+	{
+		FHierarchyRun Run;
+		FLNPNavHierarchyLink StartLink, GoalLink;
+		Run.LinkSettled += LNPNavHierarchy::BuildLink(Nav, Hierarchy, Goal, ELNPNavHierarchyLinkSide::Goal, true, GoalLink, Overlay);
+		Run.LinkSettled += LNPNavHierarchy::BuildLink(Nav, Hierarchy, Start, ELNPNavHierarchyLinkSide::Start, bExactStart, StartLink, Overlay, Goal);
+		FLNPNavHierarchyQueryParams Params;
+		Params.CorridorRing = Ring;
+		Params.Refine = Refine;
+		FLNPNavHierarchySearch Search;
+		Run.Status = LNPNavHierarchy::BeginQuery(Nav, Hierarchy, StartLink, GoalLink, Params, Scratch, Search, Overlay);
+		while (Run.Status == ELNPNavSearchStatus::Running)
+		{
+			// 예산 무제한이면 고수준 단계는 확장 하나씩 돌려 단계별 시간을 나눈다. 결과는 예산 분할과 무관하다.
+			const bool bHigh = Search.Phase == ELNPNavHierarchyPhase::HighLevel;
+			const double Begin = FPlatformTime::Seconds();
+			Run.Status = LNPNavHierarchy::StepQuery(Nav, Hierarchy, Scratch, Search, bHigh && Budget == MAX_int32 ? 1 : Budget, Overlay);
+			(bHigh ? Run.HighSeconds : Run.CorridorSeconds) += FPlatformTime::Seconds() - Begin;
+		}
+		Run.Failure = Search.Failure;
+		Run.Cost = Search.PathCost;
+		Run.Units = Search.Units;
+		Run.HighLevel = Search.HighLevelExpansions;
+		Run.Corridor = Search.CorridorExpansions;
+		Run.CorridorClusters = Search.CorridorClusters;
+		Run.bRefineFallback = Search.bRefineFallback;
+		LNPNavHierarchy::ExtractNodePath(Scratch, Search, Run.Nodes);
+		return Run;
+	};
+	// 경로가 이웃 edge로 이어지고 cost 합이 PathCost와 같은지.
+	auto IsConnectedPath = [](const FLNPNavSnapshot& Nav, const TArray<int32>& Nodes, const double Cost, const FLNPNavOverlay* Overlay = nullptr)
+	{
+		const FLNPNavGraph& Graph = Nav.Graph;
+		double Walked = 0.0;
+		for (int32 Step = 1; Step < Nodes.Num(); ++Step)
+		{
+			const int32 FromSlot = Graph.GetSlot(Nodes[Step - 1]);
+			bool bAdjacent = false;
+			Graph.ForEachNeighbor(FromSlot, Nodes[Step - 1], [&bAdjacent, &Nodes, Step](const int32 To) { bAdjacent |= To == Nodes[Step]; }, Overlay);
+			if (!bAdjacent)
+			{
+				return false;
+			}
+			Walked += LNPNavGraph::ComputeEdgeCost(Graph.GetWorldPoint(FromSlot, Nodes[Step - 1]),
+				Graph.GetWorldPoint(Graph.GetSlot(Nodes[Step]), Nodes[Step]), Graph.SlotGraphs[0]->Agent.WalkableMinDot);
+		}
+		return !Nodes.IsEmpty() && FMath::IsNearlyEqual(Walked, Cost, FMath::Max(1.0, Cost * 1.e-4));
+	};
+	// 같은 group의 결정론적 무작위 node 쌍(직선 MinDistance~MaxDistance). Layer·slot을 가리지 않아 seam link·Layer portal을 지난다.
+	auto CollectNodePairs = [](const FLNPNavSnapshot& Nav, const int32 Count, const int32 Seed, const double MinDistance, const double MaxDistance)
+	{
+		const FLNPNavGraph& Graph = Nav.Graph;
+		FRandomStream Random(Seed);
+		TArray<TPair<int32, int32>> Pairs;
+		for (int32 Attempt = 0; Pairs.Num() < Count && Attempt < Count * 2000; ++Attempt)
+		{
+			const int32 Start = Random.RandRange(0, Graph.GetNodeCount() - 1);
+			const int32 Goal = Random.RandRange(0, Graph.GetNodeCount() - 1);
+			if (Graph.BlockedNodes[Start] || Graph.BlockedNodes[Goal] || LNPNavGraph::GetGroup(Nav, Start) != LNPNavGraph::GetGroup(Nav, Goal))
+			{
+				continue;
+			}
+			const double Distance = FVector3d::Dist(Graph.GetWorldPoint(Graph.GetSlot(Start), Start), Graph.GetWorldPoint(Graph.GetSlot(Goal), Goal));
+			if (Distance >= MinDistance && Distance <= MaxDistance)
+			{
+				Pairs.Add({Start, Goal});
+			}
+		}
+		return Pairs;
+	};
+	// 1) 구조: abstract node의 Cluster, Portal edge의 역방향·비용 대칭과 실제 이웃 관계, 내부 비용 대칭과 전역 최적 이상.
+	auto CheckStructure = [this](const TCHAR* Label, const FLNPNavSnapshot& Nav, const FLNPNavHierarchy& Hierarchy)
+	{
+		const FLNPNavGraph& Graph = Nav.Graph;
+		int32 ClusterMismatches = 0, InterAsymmetric = 0, InterNotNeighbor = 0, IntraAsymmetric = 0, MaxK = 0;
+		int64 SumK = 0, ClustersWithAbstract = 0;
+		for (int32 Abstract = 0; Abstract < Hierarchy.Abstract.Num(); ++Abstract)
+		{
+			ClusterMismatches += LNPNavHierarchy::GetCluster(Nav, Hierarchy, Hierarchy.Abstract[Abstract]) != Hierarchy.AbstractCluster[Abstract] ? 1 : 0;
+			for (int32 Edge = Hierarchy.InterBegin[Abstract]; Edge < Hierarchy.InterBegin[Abstract + 1]; ++Edge)
+			{
+				const FLNPNavHierarchyEdge& Inter = Hierarchy.InterEdges[Edge];
+				bool bReverse = false;
+				for (int32 Back = Hierarchy.InterBegin[Inter.To]; Back < Hierarchy.InterBegin[Inter.To + 1]; ++Back)
+				{
+					bReverse |= Hierarchy.InterEdges[Back].To == Abstract && Hierarchy.InterEdges[Back].Cost == Inter.Cost;
+				}
+				InterAsymmetric += bReverse ? 0 : 1;
+				bool bNeighbor = Hierarchy.AbstractCluster[Inter.To] != Hierarchy.AbstractCluster[Abstract];
+				bool bEdge = false;
+				const int32 From = Hierarchy.Abstract[Abstract];
+				Graph.ForEachNeighbor(Graph.GetSlot(From), From, [&bEdge, &Hierarchy, &Inter](const int32 To) { bEdge |= To == Hierarchy.Abstract[Inter.To]; });
+				InterNotNeighbor += bNeighbor && bEdge ? 0 : 1;
+			}
+		}
+		for (const FLNPNavHierarchyCluster& Cluster : Hierarchy.Clusters)
+		{
+			const int32 K = Cluster.AbstractCount;
+			MaxK = FMath::Max(MaxK, K);
+			SumK += K;
+			ClustersWithAbstract += K > 0 ? 1 : 0;
+			for (int32 I = 0; I < K; ++I)
+			{
+				for (int32 J = I + 1; J < K; ++J)
+				{
+					const float A = Hierarchy.IntraCosts[Cluster.CostBegin + I * K + J];
+					const float B = Hierarchy.IntraCosts[Cluster.CostBegin + J * K + I];
+					IntraAsymmetric += (A == MAX_flt) != (B == MAX_flt) || (A < MAX_flt && !FMath::IsNearlyEqual(A, B, FMath::Max(0.01f, A * 1.e-5f))) ? 1 : 0;
+				}
+			}
+		}
+		TestEqual(FString::Printf(TEXT("%s abstract nodes belong to their cluster"), Label), ClusterMismatches, 0);
+		TestEqual(FString::Printf(TEXT("%s portal edges have equal-cost reverse edges"), Label), InterAsymmetric, 0);
+		TestEqual(FString::Printf(TEXT("%s portal edges are graph edges between clusters"), Label), InterNotNeighbor, 0);
+		TestEqual(FString::Printf(TEXT("%s intra-cluster costs are symmetric"), Label), IntraAsymmetric, 0);
+		const FLNPNavHierarchyBuildStats& Stats = Hierarchy.BuildStats;
+		AddInfo(FString::Printf(TEXT("%s hierarchy: span=%d nodes=%d clusters=%d (with portals %lld) crossingEdges=%d spans=%d portals=%d abstract=%d K avg/max=%.1f/%d interEdges=%d intraEntries=%d bytes=%.2fMiB buildSettled=%lld buildMs=%.0f"),
+			Label, Hierarchy.Params.MaxSpanLength, Graph.GetNodeCount(), Stats.Clusters, ClustersWithAbstract, Stats.CrossingEdges, Stats.Spans,
+			Stats.Portals, Hierarchy.Abstract.Num(), ClustersWithAbstract > 0 ? static_cast<double>(SumK) / ClustersWithAbstract : 0.0, MaxK,
+			Hierarchy.InterEdges.Num(), Hierarchy.IntraCosts.Num(), Hierarchy.GetAllocatedBytes() / (1024.0 * 1024.0), Stats.Settled, Stats.Seconds * 1000.0));
+	};
+	// 2) 경로 품질: A* 최적 cost 대비 비율, 연결성, 실패(폴백) 수. 실패는 재생에서 A* 폴백으로 처리한다.
+	auto CheckPaths = [&](const TCHAR* Label, const FLNPNavSnapshot& Nav, const FLNPNavHierarchy& Hierarchy, const TArray<TPair<int32, int32>>& Pairs,
+		const double MaxP95Ratio)
+	{
+		FLNPNavSearchScratch AStarScratch;
+		FLNPNavHierarchyScratch Scratch;
+		TArray<FPathResult> Optimal;
+		double AStarSeconds = 0.0;
+		int64 AStarExpansions = 0;
+		for (const TPair<int32, int32>& Pair : Pairs)
+		{
+			const double Begin = FPlatformTime::Seconds();
+			Optimal.Add(FindPath(Nav, Pair.Key, Pair.Value, AStarScratch, true, MAX_int32, 30000));
+			AStarSeconds += FPlatformTime::Seconds() - Begin;
+			AStarExpansions += Optimal.Last().Expansions;
+		}
+		for (int32 Mode = 0; Mode < 5; ++Mode)
+		{
+			// 0 segment(기본), 1 segment·exact 시작, 2 corridor 고리 1, 3 corridor 고리 0, 4 corridor·exact 시작
+			const ELNPNavHierarchyRefine Refine = Mode <= 1 ? ELNPNavHierarchyRefine::Segment : ELNPNavHierarchyRefine::Corridor;
+			const bool bExactStart = Mode == 1 || Mode == 4;
+			const int32 Ring = Mode == 3 ? 0 : 1;
+			const TCHAR* const RefineLabel = Mode <= 1 ? TEXT("segment") : TEXT("corridor");
+			{
+				TArray<double> Ratios, WalkRatios;
+				int32 Failures = 0, Broken = 0, Mismatch = 0, RefineFallbacks = 0;
+				int64 Units = 0, Links = 0, HighLevel = 0, Corridor = 0, Clusters = 0;
+				double HighSeconds = 0.0, CorridorSeconds = 0.0;
+				for (int32 Index = 0; Index < Pairs.Num(); ++Index)
+				{
+					if (Optimal[Index].Status != ELNPNavSearchStatus::Found)
+					{
+						continue;
+					}
+					const FHierarchyRun Run = RunQuery(Nav, Hierarchy, Pairs[Index].Key, Pairs[Index].Value, bExactStart, Ring, MAX_int32, Scratch,
+						nullptr, Refine);
+					RefineFallbacks += Run.bRefineFallback ? 1 : 0;
+					Units += Run.Units;
+					Links += Run.LinkSettled;
+					HighLevel += Run.HighLevel;
+					Corridor += Run.Corridor;
+					Clusters += Run.CorridorClusters;
+					HighSeconds += Run.HighSeconds;
+					CorridorSeconds += Run.CorridorSeconds;
+					if (Run.Status != ELNPNavSearchStatus::Found)
+					{
+						++Failures;
+						continue;
+					}
+					Broken += IsConnectedPath(Nav, Run.Nodes, Run.Cost) ? 0 : 1;
+					const double Ratio = Optimal[Index].Cost > 0.0 ? Run.Cost / Optimal[Index].Cost : 1.0;
+					Mismatch += Ratio < 1.0 - 1.e-4 ? 1 : 0;
+					Ratios.Add(Ratio);
+					// 경로 추종이 보는 길이: 단순화한 waypoint 꺾은선. Portal 대표 node를 지나는 segment 정제의 우회는 대부분 여기서 펴진다.
+					TArray<int32> Simplified, Reference;
+					LNPNavPathfinding::SimplifyPath(Nav, Run.Nodes, Simplified);
+					LNPNavPathfinding::SimplifyPath(Nav, Optimal[Index].Nodes, Reference);
+					auto PolylineLength = [&Graph = Nav.Graph](const TArray<int32>& Nodes)
+					{
+						double Length = 0.0;
+						for (int32 Step = 1; Step < Nodes.Num(); ++Step)
+						{
+							Length += FVector3d::Dist(Graph.GetWorldPoint(Graph.GetSlot(Nodes[Step - 1]), Nodes[Step - 1]),
+								Graph.GetWorldPoint(Graph.GetSlot(Nodes[Step]), Nodes[Step]));
+						}
+						return Length;
+					};
+					const double ReferenceLength = PolylineLength(Reference);
+					WalkRatios.Add(ReferenceLength > 0.0 ? PolylineLength(Simplified) / ReferenceLength : 1.0);
+				}
+				const double P95 = Percentile(Ratios, .95);
+				const double WalkP95 = Percentile(WalkRatios, .95);
+				TestEqual(FString::Printf(TEXT("%s %s exact=%d ring=%d hierarchy paths are connected and cost what they report"), Label, RefineLabel, bExactStart, Ring), Broken, 0);
+				TestEqual(FString::Printf(TEXT("%s %s exact=%d ring=%d hierarchy paths are never shorter than the A* optimum"), Label, RefineLabel, bExactStart, Ring), Mismatch, 0);
+				TestTrue(FString::Printf(TEXT("%s %s exact=%d ring=%d hierarchy fails at most 5%% of pairs (%d of %d)"), Label, RefineLabel, bExactStart, Ring,
+					Failures, Ratios.Num() + Failures), Failures * 20 <= Ratios.Num() + Failures);
+				if (Mode == 0 || Mode == 2)
+				{
+					TestTrue(FString::Printf(TEXT("%s %s waypoint length ratio P95 %.4f <= %.2f"), Label, RefineLabel, WalkP95, MaxP95Ratio), WalkP95 <= MaxP95Ratio);
+				}
+				const int32 Queries = FMath::Max(1, Ratios.Num() + Failures);
+				AddInfo(FString::Printf(TEXT("%s %s exact=%d ring=%d: pairs=%d found=%d failed=%d refineFallbacks=%d cost ratio P50/P95/max=%.4f/%.4f/%.4f waypoint length ratio P50/P95/max=%.4f/%.4f/%.4f units/query=%lld (links %lld, high %lld, low %lld) clusters=%.1f; A* expansions/query=%lld; high %.3fus/expansion, low %.3fus/expansion, A* %.3fus/expansion"),
+					Label, RefineLabel, bExactStart, Ring, Pairs.Num(), Ratios.Num(), Failures, RefineFallbacks, Percentile(Ratios, .5), P95, Percentile(Ratios, 1.0),
+					Percentile(WalkRatios, .5), WalkP95, Percentile(WalkRatios, 1.0),
+					(Units + Links) / Queries, Links / Queries, HighLevel / Queries, Corridor / Queries, static_cast<double>(Clusters) / Queries,
+					AStarExpansions / FMath::Max(1, Pairs.Num()), HighLevel > 0 ? HighSeconds * 1.e6 / HighLevel : 0.0,
+					Corridor > 0 ? CorridorSeconds * 1.e6 / Corridor : 0.0, AStarExpansions > 0 ? AStarSeconds * 1.e6 / AStarExpansions : 0.0));
+			}
+		}
+	};
+
+	{
+		FLNPSurfaceDataSnapshot Regression;
+		if (!BuildRegressionSnapshot(*this, Regression))
+		{
+			return false;
+		}
+		FLNPNavHierarchy Hierarchy;
+		if (!TestTrue(TEXT("Regression hierarchy builds"), LNPNavHierarchy::Build(Regression.Nav, FLNPNavHierarchyParams(), Hierarchy)))
+		{
+			return false;
+		}
+		CheckStructure(TEXT("Regression"), Regression.Nav, Hierarchy);
+		const TArray<TPair<int32, int32>> Pairs = CollectNodePairs(Regression.Nav, 60, 20261013, 1000.0, 12000.0);
+		TestTrue(FString::Printf(TEXT("Collected regression pairs (%d)"), Pairs.Num()), Pairs.Num() >= 40);
+		CheckPaths(TEXT("Regression"), Regression.Nav, Hierarchy, Pairs, 1.05);
+	}
+
+	double BuildMs = 0.0;
+	FLNPSurfaceDataSnapshot Snapshot;
+	if (!BuildProductionSnapshot(*this, Snapshot, BuildMs, 1768))
+	{
+		return false;
+	}
+	const FLNPNavSnapshot& Nav = Snapshot.Nav;
+	const FLNPNavGraph& Graph = Nav.Graph;
+	FLNPNavHierarchy Hierarchy;
+	if (!TestTrue(TEXT("Production hierarchy builds"), LNPNavHierarchy::Build(Nav, FLNPNavHierarchyParams(), Hierarchy)))
+	{
+		return false;
+	}
+	CheckStructure(TEXT("Production seed 1768"), Nav, Hierarchy);
+	// 기준 4 예비 확인: 사전 계산 계층은 추가 메모리 8MiB 안이어야 한다.
+	TestTrue(FString::Printf(TEXT("Production hierarchy fits the 8 MiB budget (%.2f MiB)"), Hierarchy.GetAllocatedBytes() / (1024.0 * 1024.0)),
+		Hierarchy.GetAllocatedBytes() <= 8ull * 1024 * 1024);
+	for (const int32 Span : {4, 16})
+	{
+		FLNPNavHierarchyParams Params;
+		Params.MaxSpanLength = Span;
+		FLNPNavHierarchy Swept;
+		LNPNavHierarchy::Build(Nav, Params, Swept);
+		CheckStructure(*FString::Printf(TEXT("Production seed 1768 span %d"), Span), Nav, Swept);
+	}
+	TArray<TPair<int32, int32>> Pairs;
+	{
+		TArray<FSchedulerCase> Cases;
+		CollectProductionPairs(Snapshot, FindLargestGroup(Nav), 40, 20261013, Cases);
+		for (const FSchedulerCase& Case : Cases)
+		{
+			const FLNPNavEndpoints Ends = Resolve(Snapshot, Case.Start, Case.StartHandle, Case.Goal, Case.GoalHandle);
+			Pairs.Add({Ends.StartNode, Ends.GoalNode});
+		}
+		Pairs.Append(CollectNodePairs(Nav, 60, 20261014, 1000.0, 12000.0));
+	}
+	TestTrue(FString::Printf(TEXT("Collected production pairs (%d)"), Pairs.Num()), Pairs.Num() >= 80);
+	CheckPaths(TEXT("Production seed 1768"), Nav, Hierarchy, Pairs, 1.05);
+
+	// 3) 결정론: 직렬 빌드가 병렬 빌드와 같고, 예산을 나눠도 같은 경로·단위다.
+	{
+		FLNPNavHierarchyParams Serial;
+		Serial.bParallel = false;
+		FLNPNavHierarchy SerialHierarchy;
+		LNPNavHierarchy::Build(Nav, Serial, SerialHierarchy);
+		TestTrue(TEXT("Serial build equals the parallel build"), SerialHierarchy.Abstract == Hierarchy.Abstract
+			&& SerialHierarchy.InterBegin == Hierarchy.InterBegin && SerialHierarchy.IntraCosts.Num() == Hierarchy.IntraCosts.Num()
+			&& FMemory::Memcmp(SerialHierarchy.IntraCosts.GetData(), Hierarchy.IntraCosts.GetData(), Hierarchy.IntraCosts.Num() * sizeof(float)) == 0
+			&& SerialHierarchy.InterEdges.Num() == Hierarchy.InterEdges.Num()
+			&& FMemory::Memcmp(SerialHierarchy.InterEdges.GetData(), Hierarchy.InterEdges.GetData(), Hierarchy.InterEdges.Num() * sizeof(FLNPNavHierarchyEdge)) == 0);
+		FLNPNavHierarchyScratch Scratch;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			const FHierarchyRun Reference = RunQuery(Nav, Hierarchy, Pairs[Index].Key, Pairs[Index].Value, false, 1, MAX_int32, Scratch);
+			for (const int32 Budget : {1, 2, 7, 333, 4000})
+			{
+				const FHierarchyRun Split = RunQuery(Nav, Hierarchy, Pairs[Index].Key, Pairs[Index].Value, false, 1, Budget, Scratch);
+				TestTrue(FString::Printf(TEXT("Pair %d query split by budget %d equals the single-step query"), Index, Budget),
+					Split.Status == Reference.Status && Split.Nodes == Reference.Nodes && Split.Units == Reference.Units
+					&& Split.HighLevel == Reference.HighLevel && Split.Corridor == Reference.Corridor && Split.Cost == Reference.Cost);
+			}
+		}
+		// 고수준 확장 가중치: 단위 하나가 저수준 확장 하나와 같은 시간이 되도록 가중치를 준 단위가 예산을 나눠도 같다.
+		FLNPNavHierarchyLink StartLink, GoalLink;
+		LNPNavHierarchy::BuildLink(Nav, Hierarchy, Pairs[0].Value, ELNPNavHierarchyLinkSide::Goal, true, GoalLink);
+		LNPNavHierarchy::BuildLink(Nav, Hierarchy, Pairs[0].Key, ELNPNavHierarchyLinkSide::Start, false, StartLink);
+		int32 ReferenceUnits = INDEX_NONE;
+		for (const int32 Budget : {1, 2, 3, 5, 4000})
+		{
+			FLNPNavHierarchyQueryParams Params;
+			Params.HighLevelExpansionCost = 3;
+			FLNPNavHierarchySearch Search;
+			LNPNavHierarchy::BeginQuery(Nav, Hierarchy, StartLink, GoalLink, Params, Scratch, Search);
+			int32 MaxStepUnits = 0;
+			while (Search.Status == ELNPNavSearchStatus::Running)
+			{
+				const int32 Before = Search.Units;
+				LNPNavHierarchy::StepQuery(Nav, Hierarchy, Scratch, Search, Budget);
+				MaxStepUnits = FMath::Max(MaxStepUnits, Search.Units - Before);
+			}
+			TestTrue(FString::Printf(TEXT("Weighted high-level step with budget %d charges within the budget"), Budget), MaxStepUnits <= Budget);
+			TestEqual(TEXT("Weighted units are 3 x high-level + corridor expansions"), Search.Units, Search.HighLevelExpansions * 3 + Search.CorridorExpansions);
+			ReferenceUnits = ReferenceUnits == INDEX_NONE ? Search.Units : ReferenceUnits;
+			TestEqual(FString::Printf(TEXT("Weighted units do not depend on budget %d"), Budget), Search.Units, ReferenceUnits);
+		}
+	}
+
+	// 4) dirty 국소성: Pod overlay가 바꾼 Tile의 Cluster만 다시 계산하고, 결과는 같은 overlay로 새로 지은 계층과 같다. 풀면 원래대로 돌아온다.
+	{
+		const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[0];
+		const FLNPNavLayer* SurfaceLayer = LNPNavData::FindLayer(*Snapshot.Slots[0].Navigation, Asset.Layers[0].LocalNavLayerId);
+		if (!TestTrue(TEXT("First Nav layer has a Support layer"), SurfaceLayer != nullptr))
+		{
+			return false;
+		}
+		const FLNPSurfaceHandle Handle{0, SurfaceLayer->LocalSupportLayerId, Snapshot.Generation};
+		// 고수준 경로가 지나는 abstract node 위에 Pod를 세워 Portal을 닫는 최악 경우를 포함한다.
+		FLNPNavHierarchyScratch Scratch;
+		const TSet<int32> AbstractNodes(Hierarchy.Abstract);
+		int32 PodNode = INDEX_NONE;
+		int32 PairIndex = INDEX_NONE;
+		for (int32 Index = 0; Index < Pairs.Num() && PodNode == INDEX_NONE; ++Index)
+		{
+			const FHierarchyRun Run = RunQuery(Nav, Hierarchy, Pairs[Index].Key, Pairs[Index].Value, false, 1, MAX_int32, Scratch);
+			if (Run.Status != ELNPNavSearchStatus::Found || Graph.GetSlot(Pairs[Index].Key) != 0 || Run.Nodes.Num() < 12)
+			{
+				continue;
+			}
+			for (int32 Step = 4; Step + 4 < Run.Nodes.Num(); ++Step)
+			{
+				const int32 Node = Run.Nodes[Step];
+				if (Graph.GetSlot(Node) == 0 && Graph.GetNode(0, Node).LayerOrdinal == 0
+					&& AbstractNodes.Contains(Node))
+				{
+					PodNode = Node;
+					PairIndex = Index;
+					break;
+				}
+			}
+		}
+		if (!TestTrue(TEXT("Found a slot 0 crust path through a portal node"), PodNode != INDEX_NONE))
+		{
+			return false;
+		}
+		const FLNPNavPodBlocker Pod{1, Graph.GetWorldPoint(0, PodNode), Handle};
+		FLNPNavOverlay Blocked;
+		if (!TestTrue(TEXT("Pod publishes an overlay"), LNPNavOverlay::BuildPodOverlay(Snapshot, MakeArrayView(&Pod, 1), nullptr, Blocked)))
+		{
+			return false;
+		}
+		FLNPNavHierarchy Updated = Hierarchy;
+		const FLNPNavHierarchyUpdateStats Stats = LNPNavHierarchy::UpdateOverlay(Nav, Updated, &Blocked);
+		TestEqual(TEXT("Dirty clusters equal the tiles whose overlay revision changed"), Stats.DirtyClusters, Blocked.TileRevisions.Num());
+		TestTrue(TEXT("Dirty recompute is local (under 1% of the full build)"), Stats.Settled * 100 < Hierarchy.BuildStats.Settled);
+		FLNPNavHierarchy Fresh;
+		LNPNavHierarchy::Build(Nav, FLNPNavHierarchyParams(), Fresh, &Blocked);
+		TestTrue(TEXT("Dirty update equals a full build with the same overlay"), Fresh.IntraCosts.Num() == Updated.IntraCosts.Num()
+			&& FMemory::Memcmp(Fresh.IntraCosts.GetData(), Updated.IntraCosts.GetData(), Fresh.IntraCosts.Num() * sizeof(float)) == 0
+			&& Fresh.Abstract == Updated.Abstract && Fresh.OverlayRevision == Updated.OverlayRevision);
+		int32 ChangedClean = 0;
+		for (int32 ClusterIndex = 0; ClusterIndex < Hierarchy.Clusters.Num(); ++ClusterIndex)
+		{
+			const FLNPNavHierarchyCluster& Cluster = Hierarchy.Clusters[ClusterIndex];
+			if (Blocked.TileRevisions.Contains(Cluster.TileKey))
+			{
+				continue;
+			}
+			const int32 Count = Cluster.AbstractCount * Cluster.AbstractCount;
+			ChangedClean += FMemory::Memcmp(Hierarchy.IntraCosts.GetData() + Cluster.CostBegin, Updated.IntraCosts.GetData() + Cluster.CostBegin,
+				Count * sizeof(float)) != 0 ? 1 : 0;
+		}
+		TestEqual(TEXT("Clusters outside the changed tiles keep their costs"), ChangedClean, 0);
+		const FHierarchyRun Detour = RunQuery(Nav, Updated, Pairs[PairIndex].Key, Pairs[PairIndex].Value, false, 1, MAX_int32, Scratch, &Blocked);
+		TestEnum(*this, TEXT("Hierarchy query routes around the Pod"), Detour.Status, ELNPNavSearchStatus::Found);
+		TestTrue(TEXT("Detour avoids blocked nodes"), !Detour.Nodes.ContainsByPredicate([&Blocked](const int32 Node) { return Blocked.IsBlocked(Node); })
+			&& IsConnectedPath(Nav, Detour.Nodes, Detour.Cost, &Blocked));
+		const FHierarchyRun Stale = RunQuery(Nav, Hierarchy, Pairs[PairIndex].Key, Pairs[PairIndex].Value, false, 1, MAX_int32, Scratch, &Blocked);
+		TestEnum(*this, TEXT("A hierarchy behind the overlay revision is invalid"), Stale.Status, ELNPNavSearchStatus::Invalid);
+		FLNPNavOverlay Cleared;
+		LNPNavOverlay::BuildPodOverlay(Snapshot, {}, &Blocked, Cleared);
+		const FLNPNavHierarchyUpdateStats Restore = LNPNavHierarchy::UpdateOverlay(Nav, Updated, &Cleared);
+		TestEqual(TEXT("Pod removal recomputes the same clusters"), Restore.DirtyClusters, Stats.DirtyClusters);
+		TestTrue(TEXT("Pod removal restores the static costs"), FMemory::Memcmp(Hierarchy.IntraCosts.GetData(), Updated.IntraCosts.GetData(),
+			Hierarchy.IntraCosts.Num() * sizeof(float)) == 0);
+		AddInfo(FString::Printf(TEXT("Pod on portal node %d: tiles changed=%d dirtyClusters=%d dirtyAbstract=%d settled=%lld (%.3f%% of build %lld) %.1fus; removal dirty=%d settled=%lld"),
+			PodNode, Blocked.TileRevisions.Num(), Stats.DirtyClusters, Stats.DirtyAbstractNodes, Stats.Settled,
+			100.0 * Stats.Settled / FMath::Max<int64>(1, Hierarchy.BuildStats.Settled), Hierarchy.BuildStats.Settled, Stats.Seconds * 1.e6,
+			Restore.DirtyClusters, Restore.Settled));
+
+		// 기준 5 예비 수치: 무작위 지각 위치 Pod 하나씩의 dirty Cluster 수와 재계산 확정 수.
+		FRandomStream Random(20261015);
+		TArray<double> DirtyCounts, SettledCounts, Micros;
+		for (int32 Attempt = 0; Attempt < 2000 && DirtyCounts.Num() < 40; ++Attempt)
+		{
+			const int32 Local = Random.RandRange(Asset.Layers[0].NodeBegin, Asset.Layers[0].NodeEnd - 1);
+			const FLNPNavPodBlocker RandomPod{2, Graph.GetWorldPoint(0, Graph.SlotNodeBase[0] + Local), Handle};
+			FLNPNavOverlay RandomOverlay;
+			if (!LNPNavOverlay::BuildPodOverlay(Snapshot, MakeArrayView(&RandomPod, 1), nullptr, RandomOverlay))
+			{
+				continue;
+			}
+			FLNPNavHierarchy Copy = Hierarchy;
+			const FLNPNavHierarchyUpdateStats RandomStats = LNPNavHierarchy::UpdateOverlay(Nav, Copy, &RandomOverlay);
+			DirtyCounts.Add(RandomStats.DirtyClusters);
+			SettledCounts.Add(static_cast<double>(RandomStats.Settled));
+			Micros.Add(RandomStats.Seconds * 1.e6);
+		}
+		TestTrue(TEXT("Random Pods were placed"), DirtyCounts.Num() >= 20);
+		TestTrue(TEXT("A single Pod dirties at most four clusters"), Percentile(DirtyCounts, 1.0) <= 4.0);
+		AddInfo(FString::Printf(TEXT("Random crust Pods=%d: dirtyClusters P50/P95/max=%.0f/%.0f/%.0f settled P50/P95/max=%.0f/%.0f/%.0f recompute P50/P95/max=%.1f/%.1f/%.1fus; full build settled=%lld %.0fms"),
+			DirtyCounts.Num(), Percentile(DirtyCounts, .5), Percentile(DirtyCounts, .95), Percentile(DirtyCounts, 1.0),
+			Percentile(SettledCounts, .5), Percentile(SettledCounts, .95), Percentile(SettledCounts, 1.0),
+			Percentile(Micros, .5), Percentile(Micros, .95), Percentile(Micros, 1.0), Hierarchy.BuildStats.Settled, Hierarchy.BuildStats.Seconds * 1000.0));
 	}
 	return !HasAnyErrors();
 }
