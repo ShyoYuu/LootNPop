@@ -607,7 +607,7 @@ LNP.Debug.KillPlayer [PlayerIndex]
 
 공중에서 점프를 다시 누르면 등에 행글라이더가 나타나고, 천천히 일정 속도로 내려가면서 질주 수준 속도로 수평 이동한다.
 활공 중에 점프를 다시 누르면 접혀 일반 낙하로 돌아간다. 펼치고 접는 연출은 없고 메시가 바로 나타나고 사라진다.
-자세는 따로 만들지 않았다 — 기존 낙하 포즈 그대로이고, 상반신은 평소처럼 무기 레이어가 덮는다.
+자세는 따로 만들지 않았다 — 공중 공용 Fall_Loop 고정 포즈(TechDesign_CombatAnimation.md §5.5)이고, 상반신은 평소처럼 무기 레이어가 덮는다.
 
 ```
 [공중 점프 입력] FCharacterDefaultInputs::bIsJumpJustPressed (InputCmd, 엔진 점프와 같은 필드)
@@ -626,7 +626,7 @@ LNP.Debug.KillPlayer [PlayerIndex]
 | 판단 | 근거 |
 |:---|:---|
 | **`UAsyncFallingMode`를 상속**하고 `GenerateMove`만 교체 | `SimulationTick`(충돌 슬라이드·`ProcessLanded`)을 그대로 쓴다. 착지하면 엔진이 지상 모드로 전환하므로 **접는 코드 없이 접힌다** |
-| 낙하 태그(`Mover_IsFalling`)를 물려받는다 | ABP 모션 매칭이 낙하 포즈를 그대로 고르고, `CanDash()`·`CanSprint()`(접지 요구)가 저절로 막힌다 |
+| 낙하 태그(`Mover_IsFalling`)를 물려받는다 | ABP가 공중 포즈를 그대로 쓰고, `CanDash()`·`CanSprint()`(접지 요구)가 저절로 막힌다 |
 | 엔진 `UAsyncFlyingMode`를 쓰지 않는다 | 착지 전이가 없고 상하 입력을 받는다 — "천천히 떨어지는 공중 이동"과 맞지 않는다 |
 | 조회는 모드 태그 `LNP.Mover.IsGliding` | `IsADS()`와 같은 `HasGameplayTag` 패턴. **`IsFalling()`만으로는 활공 중을 거를 수 없다**(태그를 물려받으므로) |
 
@@ -708,5 +708,5 @@ LNP.Debug.KillPlayer [PlayerIndex]
 
 - **MoveSpeed 버프 미반영.** 활공 속도는 고정 `GlideSpeed`다. 필요하면 `GenerateMove`에서 어트리뷰트 배율을 곱한다.
 - **고도 판정은 중심선 한 줄이다.** 캡슐 가장자리 아래의 턱은 보지 않는다 — 펼치자마자 착지할 뿐 문제는 없다.
-- **모션 매칭이 고른 공중 포즈를 그대로 쓴다.** 느린 일정 하강에서 어색한 프레임이 골라지면 활공용 포즈 DB나 체이서 행이 필요하다.
+- **활공 전용 자세가 없다.** 공중 공용 Fall_Loop를 쓴다(모션 매칭은 공중에서 다리가 떨려 우회 — TechDesign_CombatAnimation.md §5.5). 행글라이더를 잡은 자세가 필요하면 그 Bool 분기 앞에 활공 분기를 하나 더 둔다.
 - **넉백 미예측(§8)과 같은 이유로**, 활공 중 피격 시 해제는 피격자 화면에서 RTT만큼 늦다.

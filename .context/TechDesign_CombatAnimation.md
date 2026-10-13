@@ -11,6 +11,8 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 [ABP_Lyra — 메인 AnimBP (AnimInstance = ULNPAnimInstance)]
    Motion Matching (PSD 전신 포즈) + Pose History Collector
        │
+   Blend Poses by Bool (bIsOnGround) — 공중이면 Fall_Loop 고정 재생 (§5.5)
+       │
    Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponStyleOverlay)
        │   └─ ABP_Sub_Unarmed / Pistol / Rifle / Shotgun / LongSword 런타임 교체
        │
@@ -157,6 +159,27 @@ AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstanc
 ### 5.4 이동 입력 차단
 
 `OnProduceInput()`은 ASC에 `LNP.Block.MovementInput`이 있으면 **이동 벡터만 0으로** 만든다. `OrientationIntent`·`ControlRotation`은 유지되어 회전·조준은 계속 동작한다.
+
+### 5.5 공중 포즈 고정 — 모션매칭 우회
+
+공중(`bIsOnGround == false`)에서는 모션매칭 출력 대신 `MM_Unarmed_Jump_Fall_Loop`를 Sequence Player로 루프 재생한다. 모션매칭 노드 바로 뒤의 Blend Poses by Bool(블렌드 0.25s)이 고르므로 무기 오버레이·슬롯·포즈 히스토리는 그대로 얹힌다 — 활공·그래플 중 사격·가드 자세도 유지된다.
+
+**왜 모션매칭에 맡기지 않는가.** 공중에서 Chooser(`CHT_PSD_Lyra`)는 `PSD_Jump_Lyra`(Start·Start_Loop·Apex·Fall_Loop·Fall_Land)를 고르는데, 공용 스키마 `PSS_CoreLocomotion_Lyra`로는 이 DB 안의 애니메이션들이 서로 구분되지 않는다.
+
+| 원인 | 결과 |
+|:---|:---|
+| 궤적 채널(가중치 7)의 샘플 플래그가 전부 `PositionXY`·`VelocityXY`·`FacingDirectionXY` — **수직 성분이 없다** | 상승·정점·하강·활공이 질의에서 똑같다. 착지 임박도 알 수 없어 Fall_Land가 공중에서 아무 때나 뽑힌다 |
+| 점프 애니메이션은 거의 제자리 동작 | 궤적 비용이 후보 전부에서 비슷하게 커서, 순위를 발 위치·속도(가중치 1)만이 가른다 |
+| 정규화 세트가 조깅 DB와 함께 정규화, `ContinuingPoseCostBias` -0.01 | 후보 간 비용 차가 노이즈 수준이라 유지 보너스로 못 버틴다 |
+| 전환마다 0.2s 블렌드 → 블렌드된 발 자세가 포즈 히스토리로 되먹임, `PoseReselectHistory` 0.3s | 어느 포즈와도 안 맞는 질의가 계속 만들어져 후보를 돌아가며 고른다 = **다리 떨림** |
+
+자유낙하는 체공이 짧아 묻혔지만, 활공(수평 1200cm/s로 궤적 질의가 DB에서 멀다)·그래플처럼 체공이 긴 기믹에서 두드러졌다. Rewind/`a.AnimNode.MotionMatching.DebugDrawInfo 1`로 Current Asset이 Fall_Loop·Apex·Fall_Land 사이를 쉴 새 없이 오가는 것을 확인했다(2026-10-14).
+
+**`bIsOnGround`를 쓰는 이유:** Chooser가 점프 DB로 넘어가는 조건과 같은 변수라, 모션매칭이 점프 DB를 쓸 모든 상황을 빠짐없이 대체한다. 기믹별 상태(`IsGliding`·`IsGrappleFlying`…)를 나열하지 않으므로 새 공중 기믹도 따로 처리할 필요가 없다.
+
+**감수한 대가:** 점프 도약(Jump_Start·Apex)이 사라져 점프 직후 바로 Fall_Loop로 블렌드된다. 보완이 필요하면 점프 시작을 몽타주로 재생한다. 하강 중에만 고정하는 안(수직 속도 < 0)도 검토했으나, 그래플·런처처럼 상승 구간이 긴 기믹에는 떨림이 남을 수 있고 앞으로 생길 공중 기믹마다 조건을 따져야 해서 공중 전체로 정했다.
+
+> 디버그 CVar: `a.AnimNode.MotionMatching.DebugDrawInfo 1`(+`DebugDrawInfoVerbose 1`) — 캐릭터 옆에 현재 에셋·비용·블렌드 스택. 공중에선 모션매칭 노드가 비활성이라 표시가 꺼지는 것이 정상이다.
 
 ---
 
