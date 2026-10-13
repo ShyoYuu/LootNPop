@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Character/LNPInputHandlerComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Character/LNPCharacterBase.h"
 #include "Character/LNPPlayerCharacter.h"
 #include "Item/LNPWeaponData.h"
@@ -9,6 +10,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerState.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoveLibrary/BasedMovementUtils.h"
@@ -28,11 +30,14 @@
 #include "MassAgentComponent.h"
 #include "MassEntitySubsystem.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "HitDetection/LNPHitDetectionShared.h"
 #include "Camera/LNPLockOnComponent.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyCharacter.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"   // 복제 LOD 대역·되감기 가산항 조회 (조준 거리 표시)
 #include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
+#include "TimerManager.h"
 
 #if !UE_BUILD_SHIPPING
 namespace
@@ -378,6 +383,36 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 		? FVector::DotProduct(Hit.ImpactPoint - CamPos, AimForward)
 		: AimTraceDistance;
 
+	// 플레이어 캡슐도 Visibility를 무시한다. 아군 사격이 켜졌을 때만 실제 피격 판정과 같은
+	// 캡슐 검사로 깊이를 구한다. 자신과 시체는 제외하고, NPC·지형과 거리를 비교한다.
+	if (GetDefault<ULNPSettings>()->bFriendlyFire)
+	{
+		if (const AGameStateBase* GameState = World->GetGameState())
+		{
+			for (const APlayerState* PlayerState : GameState->PlayerArray)
+			{
+				const ALNPPlayerCharacter* PlayerPawn = PlayerState ? PlayerState->GetPawn<ALNPPlayerCharacter>() : nullptr;
+				if (!PlayerPawn || PlayerPawn == Pawn || PlayerPawn->IsDead())
+					continue;
+
+				float HalfHeight, Radius;
+				LNPHitDetection::GetCapsuleSize(PlayerPawn->GetCapsule(), HalfHeight, Radius);
+				const FVector Center = PlayerPawn->GetActorLocation();
+				FVector HitPoint;
+				if (!LNPHitDetection::SegmentHitsCapsule(CamPos, CamPos + AimForward * NearestDistance,
+					Center, (-Center).GetSafeNormal(), HalfHeight, Radius, 0.f, HitPoint))
+					continue;
+
+				const float Distance = FVector::DotProduct(HitPoint - CamPos, AimForward);
+				if (Distance < NearestDistance)
+				{
+					NearestDistance = Distance;
+					OutAimPoint = HitPoint;
+				}
+			}
+		}
+	}
+
 	// 물리 트레이스는 적을 하나도 못 본다 — 승격 Actor의 캡슐은 Visibility를 무시하고,
 	// 순수 엔티티(CombatMode::PureEntity)는 콜리전 바디 자체가 없다. 그래서 조준점이 적을 통과해
 	// 배경 깊이에 찍히고, 총구-카메라 시차 보정이 잘못된 깊이로 수렴해 근거리에서 크게 빗나갔다.
@@ -387,7 +422,7 @@ bool ULNPInputHandlerComponent::ComputeCrosshairAimPoint(const APawn* Pawn, FVec
 		if (!AimQueryHandle.IsValid())
 			AimQueryHandle = QuerySub->RegisterQuery();
 
-		// 벽 너머는 어차피 가려져 채택될 수 없으므로 질의 구간을 물리 히트 깊이까지로 자른다.
+		// 앞에서 선택한 지점보다 먼 NPC는 채택하지 않으므로 질의 구간을 그 깊이까지로 자른다.
 		// 자르지 않으면 벽에 막힌 프레임에도 500m 전 구간을 훑는다.
 		QuerySub->SetRayQuery(AimQueryHandle, CamPos, AimForward, NearestDistance);
 
