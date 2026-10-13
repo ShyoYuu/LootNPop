@@ -14,6 +14,7 @@
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
+#include "MoverDataModelTypes.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "DefaultMovementSet/Modes/AsyncFallingMode.h"
 #include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
@@ -105,7 +106,16 @@ void ULNPCharacterMoverComponent::ExecuteGrapple(const FMoverTimeStep& TimeStep,
 		return;
 	}
 
-	const FVector SelfLoc = GetUpdatedComponent()->GetComponentLocation();
+	// 위치는 컴포넌트가 아니라 이 스텝의 시작 상태에서 읽는다 (OnPreSimulate가 캐시를 맞춰 둔다).
+	// 컴포넌트는 화면 프레임마다 한 번만 옮겨져 서브스텝 사이엔 한 틱 늦고, 재시뮬 중엔 롤백 지점에 멈춰 있다.
+	// 그 위치로 방향을 재면 서버와 클라의 비행 방향이 갈려 보정이 난다(롤백 직후 그래플에서 544cm 실측).
+	const FMoverDefaultSyncState* StartState = GetSyncState().SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
+	if (StartState == nullptr)
+	{
+		return;
+	}
+
+	const FVector SelfLoc = StartState->GetLocation_WorldSpace();
 	const FVector Delta = Anchor->GetGrapplePoint() - SelfLoc;
 	const float Dist = Delta.Size();
 	if (Dist <= KINDA_SMALL_NUMBER || Dist > Anchor->GetMaxGrappleDistance())

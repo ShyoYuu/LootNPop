@@ -109,6 +109,10 @@ StopShort(150cm)가 그보다 크면 관통이 구조적으로 불가능하다.
 ⚠️ 엔진 무브는 이 Clamp를 복제하지 않아 보정 후 재시뮬레이션이 Maintain으로 끝난다. 그래서 Pull(과 런처 정렬)은
 `FLNPLayeredMove_LinearVelocity`로 큐잉한다. 전문: [TechDesign_Networking.md](TechDesign_Networking.md) §4.11.
 
+⚠️ **방향의 원점은 컴포넌트 위치가 아니라 스텝 시작 상태(`GetSyncState()`)다.** 컴포넌트는 화면 프레임마다 한 번만
+옮겨져 서브스텝 사이엔 한 틱 늦고 재시뮬 중엔 롤백 지점에 멈춰 있다. 그 위치로 재면 서버·클라 dist가 평시 2~9cm,
+롤백 직후 그래플에선 544cm까지 갈려(2P PktLag 300 실측) 비행 중·후 보정이 났다.
+
 ### 재진입 방지는 쿨다운이 아니다
 
 `FLNPGrappleFlightModifier`의 `DurationMs`는 **비행 시간과 정확히 같다.** 도착하는 순간 사라지므로
