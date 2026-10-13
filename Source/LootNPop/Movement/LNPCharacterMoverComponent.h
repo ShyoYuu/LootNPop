@@ -94,6 +94,16 @@ public:
 	bool IsInDeadMode() const;
 
 protected:
+	/**
+	 * 시뮬레이션 스텝마다 OnPreSimulationTick 직전에 호출된다. 캐시된 상태를 이번 스텝의 시작 상태로 맞춘다.
+	 *
+	 * ⚠️ 엔진은 캐시(`MoverSyncStateDoubleBuffer`)를 화면 프레임마다(`FinalizeFrame`)와 롤백 시점에만 갱신한다.
+	 * 한 화면 프레임에 고정 틱이 두 스텝 돌면 두 번째 스텝의 `IsOnGround()`·`HasGameplayTag()`·
+	 * `FindMovementModifierByType()`이 첫 스텝의 결과를 못 봐, 대시가 쿨다운을 못 보고 두 번 실행됐다.
+	 * 스텝 수는 머신마다 달라 서버·게스트 판정이 갈리고 보정이 났다(2026-10-13 2인 PIE 진단).
+	 */
+	virtual void OnPreSimulate(const FMoverTimeStep& TimeStep, const FMoverTickStartData& StartingData) override;
+
 	/** simulation tick 직전 호출된다. 상태 기반 Modifier 변경을 적용하는 데 사용된다. */
 	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd) override;
 

@@ -334,6 +334,15 @@ bool ULNPCharacterMoverComponent::IsInDeadMode() const
 	return GetMovementModeName() == LNPDeadModeName;
 }
 
+void ULNPCharacterMoverComponent::OnPreSimulate(const FMoverTimeStep& TimeStep, const FMoverTickStartData& StartingData)
+{
+	// CanDash·CanSprint 등 시뮬레이션 안의 판정이 이 스텝의 시작 상태를 보게 한다 (헤더 주석 참조).
+	// 기본 백엔드(NetworkPrediction)는 게임 스레드에서 스텝을 돌리므로 캐시를 여기서 써도 경합이 없다.
+	UpdateCachedFrameState(&StartingData.SyncState, &StartingData.AuxState);
+
+	Super::OnPreSimulate(TimeStep, StartingData);
+}
+
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
 {
 	// MoveSpeed Modifier는 상시 활성 — 한 번만 큐잉하고 이후 매 틱 OnPreMovement가 MaxSpeed를 재계산한다.
