@@ -124,6 +124,43 @@ struct LOOTNPOP_API FLNPNavRequestTiming
 	double FinishedSeconds = -1.0;
 };
 
+/** 대기열이 남은 채 tick이 끝났을 때 새 요청 시작을 멈춘 사유. */
+enum class ELNPNavTickStopReason : uint8
+{
+	/** 대기열이 비었다. */
+	None,
+	/** 잔여 예산이 시작 비용보다 작았다. */
+	Budget,
+	/** 예산은 남았지만 scratch가 모두 실행 중이었다. 이후 잔여 예산은 실행 중 요청이 썼다. */
+	Scratch,
+};
+
+/** 캡처 안 scheduler tick 하나의 처리량 기록(Phase 10 단위 1). 시각은 tick 끝이며 FLNPNavRequestTiming과 같은 기준이다. */
+struct LOOTNPOP_API FLNPNavSchedulerTickRecord
+{
+	double Seconds = 0.0;
+	uint64 Tick = 0;
+	/** 사라진 owner·Stale 정리 뒤, 시작 전의 대기·실행 수. */
+	int32 QueuedBefore = 0;
+	int32 RunningBefore = 0;
+	int32 Started = 0;
+	/** 시작한 요청 중 scratch 없이 바로 끝난 수(cache hit·스냅 실패·Stale)와 그중 cache hit. */
+	int32 StartedImmediate = 0;
+	int32 CacheHits = 0;
+	int32 Expansions = 0;
+	/** 시작 비용 차감(Started × ResolveCostInExpansions). Expansions와 합한 값이 예산 차감이다. */
+	int32 ResolveCharge = 0;
+	/** 탐색이 끝나 scratch를 반납한 수. */
+	int32 Finished = 0;
+	int32 MaxRunning = 0;
+	int32 QueuedAfter = 0;
+	int32 RunningAfter = 0;
+	/** 대기열이 남았는데 scratch가 차서 시작을 멈춘 횟수와, 처음 멈췄을 때의 잔여 예산. */
+	int32 ScratchBlocks = 0;
+	int32 BudgetAtFirstScratchBlock = -1;
+	ELNPNavTickStopReason StopReason = ELNPNavTickStopReason::None;
+};
+
 /** 누적 통계. NavReport·부하 측정이 프레임 차분으로 읽는다. */
 struct LOOTNPOP_API FLNPNavPathSchedulerStats
 {
@@ -180,9 +217,12 @@ public:
 	int32 GetCacheCount() const { return Cache.Num(); }
 	const FLNPNavPathSchedulerStats& GetStats() const { return Stats; }
 	void VisitResults(TFunctionRef<void(FMassEntityHandle, const FLNPNavPathResult&)> Visitor) const;
-	/** 기존 요청은 제외하고 이후 제출·재계획된 요청만 기록한다. 종료 시 미완료 요청도 상태 그대로 돌려준다. */
+	/**
+	 * 기존 요청은 제외하고 이후 제출·재계획된 요청만 기록한다. 종료 시 미완료 요청도 상태 그대로 돌려준다.
+	 * 같은 구간의 tick 처리량 기록도 함께 모은다. 캡처 밖에서는 기록하지 않는다.
+	 */
 	void BeginTimingCapture();
-	void EndTimingCapture(TArray<FLNPNavRequestTiming>& OutTimings);
+	void EndTimingCapture(TArray<FLNPNavRequestTiming>& OutTimings, TArray<FLNPNavSchedulerTickRecord>* OutTicks = nullptr);
 	uint64 GetScratchBytes() const;
 
 	/** 모든 요청·cache·통계를 버린다. scratch 메모리는 유지한다. */
@@ -269,4 +309,5 @@ private:
 	bool bCaptureTimings = false;
 	double TimingCaptureStart = 0.0;
 	TArray<FLNPNavRequestTiming> CapturedTimings;
+	TArray<FLNPNavSchedulerTickRecord> CapturedTicks;
 };

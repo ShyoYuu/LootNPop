@@ -1280,6 +1280,52 @@ bool FLNPNavPathSchedulerTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Timing capture preserves one running request"), Running, 1);
 	}
 
+	// tick 처리량 기록: 대기열이 남은 tick의 정지 사유를 예산 부족과 scratch 부족으로 가르고, 캡처 밖 tick은 남기지 않는다.
+	{
+		TestTrue(TEXT("Tree search needs more expansions than the resolve cost"), FullBudgetResults[0].Expansions > 16);
+		FLNPNavPathScheduler Scheduler;
+		Scheduler.Settings.CacheCapacity = 0;
+		Scheduler.Settings.ExpansionsPerFrame = 20;
+		Scheduler.BeginTimingCapture();
+		Scheduler.Submit(MakeRequest(Tree, 1));
+		Scheduler.Submit(MakeRequest(Tree, 2));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		TArray<FLNPNavRequestTiming> Timings;
+		TArray<FLNPNavSchedulerTickRecord> Ticks;
+		Scheduler.EndTimingCapture(Timings, &Ticks);
+		if (TestEqual(TEXT("Budget-limited capture records one tick"), Ticks.Num(), 1))
+		{
+			const FLNPNavSchedulerTickRecord& Tick = Ticks[0];
+			TestTrue(TEXT("Budget-limited tick counts queue and charge"), Tick.QueuedBefore == 2 && Tick.RunningBefore == 0
+				&& Tick.Started == 1 && Tick.StartedImmediate == 0 && Tick.ResolveCharge == 16 && Tick.Expansions == 4
+				&& Tick.QueuedAfter == 1 && Tick.RunningAfter == 1 && Tick.MaxRunning == 1);
+			TestEnum(*this, TEXT("Resolve cost above the remaining budget stops starting"), Tick.StopReason, ELNPNavTickStopReason::Budget);
+			TestTrue(TEXT("Budget-limited tick has no scratch block"), Tick.ScratchBlocks == 0 && Tick.BudgetAtFirstScratchBlock == -1);
+		}
+
+		// 실행 중 요청이 유일한 scratch를 쥐고 있으면 예산이 남아도 시작하지 못한다.
+		Scheduler.Reset();
+		Scheduler.Settings.ScratchCount = 1;
+		Scheduler.Settings.ExpansionsPerFrame = 16;
+		Scheduler.Submit(MakeRequest(Tree, 1));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		Scheduler.BeginTimingCapture();
+		Scheduler.Submit(MakeRequest(Tree, 2));
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		Scheduler.EndTimingCapture(Timings, &Ticks);
+		if (TestEqual(TEXT("Capture excludes the warm-up tick"), Ticks.Num(), 1))
+		{
+			const FLNPNavSchedulerTickRecord& Tick = Ticks[0];
+			TestTrue(TEXT("Scratch-limited tick spends the budget on the running request"), Tick.QueuedBefore == 1
+				&& Tick.RunningBefore == 1 && Tick.Started == 0 && Tick.Expansions == 16 && Tick.QueuedAfter == 1 && Tick.Finished == 0);
+			TestEnum(*this, TEXT("Full scratch stops starting"), Tick.StopReason, ELNPNavTickStopReason::Scratch);
+			TestTrue(TEXT("Scratch block keeps the remaining budget"), Tick.ScratchBlocks == 1 && Tick.BudgetAtFirstScratchBlock == 16);
+		}
+		Scheduler.Tick(Nav, nullptr, [](FMassEntityHandle) { return true; });
+		Scheduler.EndTimingCapture(Timings, &Ticks);
+		TestEqual(TEXT("Ticks outside a capture are not recorded"), Ticks.Num(), 0);
+	}
+
 	// 3) Stale: 실행 중 ConnectivityGraphVersion이나 overlay revision이 바뀌면 결과를 섞지 않는다. 옛 handle도 Stale이다.
 	{
 		FLNPNavPathScheduler Scheduler;

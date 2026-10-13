@@ -143,6 +143,7 @@ void FLNPNavPathScheduler::Reset()
 	Stats = FLNPNavPathSchedulerStats();
 	bCaptureTimings = false;
 	CapturedTimings.Reset();
+	CapturedTicks.Reset();
 }
 
 void FLNPNavPathScheduler::BeginTimingCapture()
@@ -150,6 +151,7 @@ void FLNPNavPathScheduler::BeginTimingCapture()
 	bCaptureTimings = true;
 	TimingCaptureStart = FPlatformTime::Seconds();
 	CapturedTimings.Reset();
+	CapturedTicks.Reset();
 	for (auto& Pair : Records)
 	{
 		Pair.Value.Timing = FLNPNavRequestTiming();
@@ -168,7 +170,7 @@ void FLNPNavPathScheduler::BeginRecordTiming(FRecord& Record)
 	}
 }
 
-void FLNPNavPathScheduler::EndTimingCapture(TArray<FLNPNavRequestTiming>& OutTimings)
+void FLNPNavPathScheduler::EndTimingCapture(TArray<FLNPNavRequestTiming>& OutTimings, TArray<FLNPNavSchedulerTickRecord>* OutTicks)
 {
 	bCaptureTimings = false;
 	for (auto& Pair : Records)
@@ -182,6 +184,11 @@ void FLNPNavPathScheduler::EndTimingCapture(TArray<FLNPNavRequestTiming>& OutTim
 		}
 	}
 	OutTimings = MoveTemp(CapturedTimings);
+	if (OutTicks != nullptr)
+	{
+		*OutTicks = MoveTemp(CapturedTicks);
+	}
+	CapturedTicks.Reset();
 }
 
 bool FLNPNavPathScheduler::PopNextQueued(FQueueEntry& OutEntry)
@@ -287,6 +294,14 @@ void FLNPNavPathScheduler::Tick(
 		}
 	}
 
+	// 캡처 중 처리량 기록(Phase 10 단위 1). 캡처 밖에서는 정수 몇 개만 세고 기록하지 않는다.
+	FLNPNavSchedulerTickRecord TickRecord;
+	TickRecord.QueuedBefore = QueuedCount;
+	TickRecord.RunningBefore = Running.Num();
+	TickRecord.MaxRunning = Running.Num();
+	const uint64 CacheHitsBefore = Stats.CacheHits;
+	ELNPNavTickStopReason LastStop = ELNPNavTickStopReason::None;
+
 	// 3) 예산 안에서 시작 → 병렬 확장 → 종료 처리를 반복한다. 시작 비용이 모자라면 요청은 큐에 둔다.
 	int32 Budget = Settings.ExpansionsPerFrame;
 	while (Budget > 0)
@@ -298,9 +313,18 @@ void FLNPNavPathScheduler::Tick(
 			--QueuedCount;
 			Budget -= Settings.ResolveCostInExpansions;
 			++Stats.LastTickStarted;
-			StartRequest(Nav, Overlay, Records.FindChecked(Entry.Owner));
+			FRecord& Record = Records.FindChecked(Entry.Owner);
+			StartRequest(Nav, Overlay, Record);
+			TickRecord.StartedImmediate += Record.Result.Status != ELNPNavPathStatus::Running;
 		}
 		Stats.LastTickStartSeconds += FPlatformTime::Seconds() - StartBegin;
+		LastStop = QueuedCount == 0 ? ELNPNavTickStopReason::None
+			: Budget < Settings.ResolveCostInExpansions ? ELNPNavTickStopReason::Budget : ELNPNavTickStopReason::Scratch;
+		if (LastStop == ELNPNavTickStopReason::Scratch && TickRecord.ScratchBlocks++ == 0)
+		{
+			TickRecord.BudgetAtFirstScratchBlock = Budget;
+		}
+		TickRecord.MaxRunning = FMath::Max(TickRecord.MaxRunning, Running.Num());
 		if (Running.IsEmpty() || Budget <= 0)
 		{
 			break;
@@ -349,6 +373,7 @@ void FLNPNavPathScheduler::Tick(
 			{
 				FinishSearch(Nav, Overlay, Search);
 				ReleaseRunning(Index);
+				++TickRecord.Finished;
 			}
 		}
 		Stats.LastTickFinishSeconds += FPlatformTime::Seconds() - FinishBegin;
@@ -357,6 +382,20 @@ void FLNPNavPathScheduler::Tick(
 	for (const FRunningSearch& Search : Running)
 	{
 		++Records.FindChecked(Search.Owner).Result.RunningTicks;
+	}
+
+	if (bCaptureTimings)
+	{
+		TickRecord.Seconds = FPlatformTime::Seconds() - TimingCaptureStart;
+		TickRecord.Tick = TickIndex;
+		TickRecord.Started = Stats.LastTickStarted;
+		TickRecord.CacheHits = static_cast<int32>(Stats.CacheHits - CacheHitsBefore);
+		TickRecord.Expansions = Stats.LastTickExpansions;
+		TickRecord.ResolveCharge = Stats.LastTickStarted * Settings.ResolveCostInExpansions;
+		TickRecord.QueuedAfter = QueuedCount;
+		TickRecord.RunningAfter = Running.Num();
+		TickRecord.StopReason = QueuedCount > 0 ? LastStop : ELNPNavTickStopReason::None;
+		CapturedTicks.Add(TickRecord);
 	}
 }
 

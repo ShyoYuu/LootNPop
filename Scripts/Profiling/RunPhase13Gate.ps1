@@ -119,6 +119,10 @@ foreach ($taskCase in $Cases) {
                 Copy-Item -LiteralPath (Join-Path $taskPackageLogs ($taskNavName -replace '\.csv$', '_Timings.csv')) -Destination (Join-Path $taskOutput "${taskName}_NavTimings.csv")
                 # Phase 10 재생기는 이 sidecar의 seed·slot 배치로 snapshot을 다시 만든다.
                 Copy-Item -LiteralPath (Join-Path $taskPackageLogs ($taskNavName -replace '\.csv$', '_Meta.txt')) -Destination (Join-Path $taskOutput "${taskName}_NavRequests_Meta.txt")
+                # Phase 10 단위 1 큐 대기 원인 분석: scheduler tick 처리량, 요청 사유, 활동 대역 깨움.
+                foreach ($taskSuffix in @('Ticks', 'Reasons', 'Wakes')) {
+                    Copy-Item -LiteralPath (Join-Path $taskPackageLogs ($taskNavName -replace '\.csv$', "_$taskSuffix.csv")) -Destination (Join-Path $taskOutput "${taskName}_Nav$taskSuffix.csv")
+                }
             }
             [pscustomobject]@{Run=$taskName; HostExit=$taskHost.ExitCode; GuestExit=$taskGuest.ExitCode; PackageSHA256=(Get-FileHash -Algorithm SHA256 -LiteralPath $taskExe).Hash} |
                 ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath (Join-Path $taskOutput "${taskName}_Exit.json")

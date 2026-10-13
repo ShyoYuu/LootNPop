@@ -118,6 +118,10 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 병렬 확장은 잔여 예산과 실행 중 요청 수 중 작은 수만큼 앞의 요청을 선택하고 균등 몫을 배정한다. 몫의 나머지와 조기 종료로 쓰지 않은 예산은 다음 라운드에서 재사용한다. 배정되지 않은 요청은 다음 라운드·프레임으로 이어간다. 이 차감 상한은 종료 처리·병렬 대기를 포함한 시간 상한을 보장하지 않는다.
 - 동일 요청 비용의 통제 비교는 `Nav.RequestCostReplay` 자동화를 쓴다. CSV의 같은 시각 요청 묶음을 모두 완료한 뒤 다음 묶음을 넣고 독립 owner를 사용한다. Pod overlay·원래 owner 취소·실제 프레임 경계·warm-up cache는 복원하지 않으므로 실제 부하 Gate는 별도로 검사한다. 실행법·예산 검토 근거는 `../history/Phase07_Log.md`의 2026-10-02 기록을 따른다.
 - 실제 요청 지연은 `BeginRequestCapture` 구간에 제출·재계획된 요청만 scheduler에서 기록한다. 별도 `NavRequests_*_Timings.csv`는 owner·serial·우선순위·최종 상태와 캡처 시작 기준 `FPlatformTime` 제출·시작·종료 시각(초)을 담는다. 시작·종료 전 시각은 -1이며, warm-up 요청은 제외하고 종료 시 남은 Queued·Running은 미완료로 보존한다. 큐 지연은 시작-제출, 실행 지연은 종료-시작, 전체 지연은 종료-제출이다. 취소와 미완료는 정상 완료 분포에서 분리하고 함께 보고한다. 캡처 외에는 시각 조회와 결과 배열 기록을 하지 않는다.
+- 같은 캡처는 큐 대기 원인 분석용 진단 파일 셋을 함께 남긴다(Phase 10 단위 1). 요청 CSV 스키마는 재생기가 엄격히 검사하므로 바꾸지 않는다.
+  - `_Ticks.csv`: scheduler tick마다 시작 전 대기·실행 수, 시작 수(즉시 종료·cache hit 포함), 확장 수, 시작 비용 차감, 종료 수, 최대 실행 수, 끝난 뒤 대기·실행 수, 대기열이 남았을 때의 정지 사유(`1` 예산, `2` scratch)와 scratch에 막힌 순간의 잔여 예산. 시각 기준은 `_Timings.csv`와 같다.
+  - `_Reasons.csv`: `LNPEnemyPathProcessor`가 제출 시 계산한 사유 비트(`ELNPNavRequestReason`)와 processor 기준 시작 Tile·목표 node·목표 Tile. requestSerial로 요청 CSV와 잇는다.
+  - `_Wakes.csv`: 활동 대역이 더 활성 쪽으로 바뀐 개체와 월드 시각(요청 CSV와 같은 기준).
 - 결과 경로는 순수 엔티티(적의 90% 이상)에게는 waypoint fragment로, Actor 승격 엘리트에게는 기존 AI 이동 입력(`SetAIMoveInput`) 경로로 전달한다.
 - 다음 프레임으로 넘기는 request는 시작 당시 `SnapshotGeneration`, `ConnectivityGraphVersion`과 이미 읽은 tile revision을 보존한다. 어느 하나라도 바뀌면 영향 범위를 확인해 재시작하거나 실패시키며 서로 다른 snapshot의 node를 한 결과에 섞지 않는다.
 

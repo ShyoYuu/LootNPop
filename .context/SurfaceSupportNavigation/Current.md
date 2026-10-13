@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 Phase: 10 대규모 추격 경로 비교 — 진행 중(단위 0). 직전 Phase 9·14b 완료(2026-10-12)
+> 현재 Phase: 10 대규모 추격 경로 비교 — 진행 중(단위 0·1 완료, 다음 단위 2). 직전 Phase 9·14b 완료(2026-10-12)
 > 마지막 갱신: 2026-10-13
 
 ## 현재 결정
@@ -41,10 +41,15 @@
 - **단위 0 완료**(2026-10-13). 캡처 3종과 재생 기준값은 `history/Phase10_Log.md` 2026-10-13이 소유한다. 큐 대기 P95: Production 6.4ms, N700Chase 93ms, N2000Chase 986ms.
   - 캡처 명령: `RunPhase13Gate.ps1 -Cases @('N700Chase','N2000Chase') -Repeats 1 -IslandSlot 5 -PackageDirectory Saved/SurfaceNavigationPhase10Package -OutputDirectory <폴더>`. 합성 추격은 반드시 `-IslandSlot 5`로 실행한다.
   - 재생 명령: 로그의 `Nav.RequestCostReplay` 실행 인자를 따른다. 입력 CSV 옆에 `_Meta.txt`가 있어야 한다.
-- **단위 1(원인 분석, 계측만)**
-  1. scheduler tick 기록에 대기 수·시작 수·차감 예산·scratch 점유·시작을 막은 사유를 추가한다(캡처 중에만).
-  2. H1~H5를 정량화한다. `Saved/Profiling/Phase10/Capture`의 기존 캡처와 재생 `*_Requests.csv`를 먼저 활용한다.
-  3. 실제 플레이 몰림 원인(Tile 경계·drift 재요청, Pod 깨움, 타겟 교체, overlay 재계획)별로 발생 횟수를 센다.
+- **단위 1 완료**(2026-10-13). 판정과 근거 수치는 `history/Phase10_Log.md` 2026-10-13 단위 1이 소유한다.
+  - 큰 묶음은 모두 5초 목표 전환이며, 큐 대기는 예산 처리량 한계다(H1 지지). scratch 상한(H2)과 cache 적중 붕괴(H4)는 기각, FIFO 순서(H3)는 크기 제한 지지, 같은 목표 중복 탐색(H5)은 지지 → 단위 3으로 넘긴다.
+  - 묶음 cache 후 확장의 55~82%는 같은 (StartTile, GoalTile) 경로가 이미 있는데 합류 직선 보행 검사에 거부된 요청이다.
+  - 캡처는 `_Ticks`·`_Reasons`·`_Wakes` 진단 CSV를 함께 남긴다. 분석은 `Scripts/Profiling/AnalyzePhase10QueueWait.py <캡처> <재생> <출력.json>`.
+- **단위 2(A* 기준선 개선)**: 입력은 `Saved/Profiling/Phase10/Unit1` 캡처 3종과 그 재생이다.
+  1. cache 합류 검증 완화: 공유 경로의 첫 waypoint 대신 앞쪽 waypoint 중 직선 보행 가능한 첫 지점에 합류한다. key는 그대로 둔다. 결정론·cost 비율(≤1.05)을 함께 검증한다.
+  2. 거리 기반 Chase 우선순위: 모형 기준 S3 묶음 P50 약 절반, P95 12~22% 감소.
+  3. 몰림 시 예산 적응은 경로 tick P95 Gate(1.5ms) 안에서만 검토한다. 재요청 시차 분산과 목표 이동 시 경로 재사용은 보류한다.
+  4. 재생기에 개선 변형을 추가해 burst 완료 tick P95·확장 합·cost 비율을 기준(cache256)과 비교한다. runtime을 바꾸면 패키지 Gate와 리슨 2P 스모크로 확인한다.
 
 ## 인계 근거
 

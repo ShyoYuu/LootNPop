@@ -252,6 +252,9 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				Moves[I].DesiredSpeed = FMassInt16Real(0.f);
 				if (Enemy.ActivityBand == ELNPEnemyActivityBand::Active && !bWasDormant)
 					Woken.Add(Ctx.GetEntity(I));
+				// 경로 요청 몰림과 대조할 깨움 기록(캡처 중에만, Phase 10 단위 1).
+				if (Enemy.ActivityBand > PreviousBand)
+					NavPaths.RecordWake(Ctx.GetEntity(I), static_cast<uint8>(Enemy.ActivityBand), bWasDormant);
 			}
 			const bool bDormant = Enemy.ActivityBand == ELNPEnemyActivityBand::Dormant;
 			if (bDormant == bWasDormant)

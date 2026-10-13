@@ -67,8 +67,24 @@ void ULNPNavPathSubsystem::BeginRequestCapture()
 	TimingCaptureWallStart = FPlatformTime::Seconds();
 	RequestCaptureStart = GetWorld()->GetTimeSeconds();
 	RequestCapture = TEXT("time,owner,ownerSerial,requestSerial,priority,startX,startY,startZ,startSlot,startLayer,startGeneration,goalX,goalY,goalZ,goalSlot,goalLayer,goalGeneration,snapRadius,approachRadius,graphVersion,overlayRevision\n");
+	ReasonCapture = TEXT("requestSerial,owner,ownerSerial,reasons,startTile,goalNode,goalTile\n");
+	WakeCapture = TEXT("time,owner,ownerSerial,band,fromDormant\n");
 	bCaptureRequests = true;
 	Scheduler.BeginTimingCapture();
+}
+
+void ULNPNavPathSubsystem::AppendRequestReason(const FMassEntityHandle Owner, const uint32 Serial, const uint32 Reasons,
+	const uint32 StartTile, const int32 GoalNode, const uint32 GoalTile)
+{
+	ReasonCapture += FString::Printf(TEXT("%u,%d,%d,%u,%u,%d,%u\n"), Serial, Owner.Index, Owner.SerialNumber, Reasons,
+		StartTile, GoalNode, GoalTile);
+}
+
+void ULNPNavPathSubsystem::AppendWake(const FMassEntityHandle Owner, const uint8 Band, const bool bFromDormant)
+{
+	// 요청 CSV와 같은 월드 시각 기준이다.
+	WakeCapture += FString::Printf(TEXT("%.6f,%d,%d,%d,%d\n"), GetWorld()->GetTimeSeconds() - RequestCaptureStart,
+		Owner.Index, Owner.SerialNumber, Band, bFromDormant ? 1 : 0);
 }
 
 bool ULNPNavPathSubsystem::EndRequestCapture(const FString& Filename)
@@ -77,7 +93,8 @@ bool ULNPNavPathSubsystem::EndRequestCapture(const FString& Filename)
 	const bool bSaved = FFileHelper::SaveStringToFile(RequestCapture, *Filename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	RequestCapture.Empty();
 	TArray<FLNPNavRequestTiming> Timings;
-	Scheduler.EndTimingCapture(Timings);
+	TArray<FLNPNavSchedulerTickRecord> Ticks;
+	Scheduler.EndTimingCapture(Timings, &Ticks);
 	FString TimingCsv = TEXT("owner,ownerSerial,requestSerial,priority,status,submittedSeconds,startedSeconds,finishedSeconds\n");
 	for (const FLNPNavRequestTiming& Timing : Timings)
 	{
@@ -89,6 +106,23 @@ bool ULNPNavPathSubsystem::EndRequestCapture(const FString& Filename)
 	const bool bTimingsSaved = FFileHelper::SaveStringToFile(TimingCsv, *TimingFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	UE_LOG(LogLootNPop, Display, TEXT("[NavTiming] capture %s: rows=%d durationSeconds=%.3f file=%s"),
 		bTimingsSaved ? TEXT("saved") : TEXT("FAILED"), Timings.Num(), FPlatformTime::Seconds() - TimingCaptureWallStart, *TimingFilename);
+	// 목표 전환 큐 대기 원인 분석용 tick 처리량·요청 사유·깨움 기록(Phase 10 단위 1). 시각 기준은 Ticks가 Timings와, Wakes가 요청 CSV와 같다.
+	FString TickCsv = TEXT("seconds,tick,queuedBefore,runningBefore,started,startedImmediate,cacheHits,expansions,resolveCharge,finished,maxRunning,queuedAfter,runningAfter,scratchBlocks,budgetAtFirstScratchBlock,stopReason\n");
+	for (const FLNPNavSchedulerTickRecord& Tick : Ticks)
+	{
+		TickCsv += FString::Printf(TEXT("%.9f,%llu,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n"), Tick.Seconds, Tick.Tick,
+			Tick.QueuedBefore, Tick.RunningBefore, Tick.Started, Tick.StartedImmediate, Tick.CacheHits, Tick.Expansions,
+			Tick.ResolveCharge, Tick.Finished, Tick.MaxRunning, Tick.QueuedAfter, Tick.RunningAfter, Tick.ScratchBlocks,
+			Tick.BudgetAtFirstScratchBlock, static_cast<int32>(Tick.StopReason));
+	}
+	const FString BaseFilename = FPaths::ChangeExtension(Filename, TEXT(""));
+	const bool bTicksSaved = FFileHelper::SaveStringToFile(TickCsv, *(BaseFilename + TEXT("_Ticks.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	const bool bReasonsSaved = FFileHelper::SaveStringToFile(ReasonCapture, *(BaseFilename + TEXT("_Reasons.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	const bool bWakesSaved = FFileHelper::SaveStringToFile(WakeCapture, *(BaseFilename + TEXT("_Wakes.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	ReasonCapture.Empty();
+	WakeCapture.Empty();
+	UE_LOG(LogLootNPop, Display, TEXT("[NavTiming] diagnostics %s: ticks=%d file=%s_{Ticks,Reasons,Wakes}.csv"),
+		bTicksSaved && bReasonsSaved && bWakesSaved ? TEXT("saved") : TEXT("FAILED"), Ticks.Num(), *BaseFilename);
 	// 재생기가 같은 옥탄트 배치로 snapshot을 다시 만들 수 있도록 seed와 slot별 SurfaceData를 남긴다(Phase 10 단위 0).
 	// CSV의 generation·version만으로는 다른 배치의 지형을 구별하지 못한다.
 	FString Meta;
@@ -104,7 +138,7 @@ bool ULNPNavPathSubsystem::EndRequestCapture(const FString& Filename)
 	}
 	const FString MetaFilename = FPaths::ChangeExtension(Filename, TEXT("")) + TEXT("_Meta.txt");
 	const bool bMetaSaved = FFileHelper::SaveStringToFile(Meta, *MetaFilename, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-	return bSaved && bTimingsSaved && bMetaSaved;
+	return bSaved && bTimingsSaved && bMetaSaved && bTicksSaved && bReasonsSaved && bWakesSaved;
 }
 
 bool ULNPNavPathSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

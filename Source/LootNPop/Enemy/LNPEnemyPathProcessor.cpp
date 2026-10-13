@@ -461,6 +461,19 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				&& Now - State.LastRequestTime >= MinRepathSeconds)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_Submit);
+				// 진단 전용 사유 비트. 위 재요청 조건을 그대로 옮기며 동작에는 쓰지 않는다(Phase 10 단위 1).
+				// 직선 보행 분기만 Status를 None으로 되돌리므로, 버린 요청의 원인을 그것으로 가른다.
+				namespace ER = ELNPNavRequestReason;
+				const uint32 Reasons = (State.RequestSerial == 0
+						? (State.LastRequestTime == -DBL_MAX ? ER::NoPrior
+							: State.Status == ELNPNavPathStatus::None ? ER::AfterDirect : ER::AfterCancel) : 0u)
+					| (State.RequestedTarget != Target.TargetPlayer ? ER::TargetChanged : 0u)
+					| (State.GoalTile != GoalTile ? ER::GoalTileChanged : 0u)
+					| (State.Status != ELNPNavPathStatus::Unreachable && FVector3d::Dist(State.RequestedGoal, Goal) > RepathGoalDrift
+						? ER::GoalDrift : 0u)
+					| (bPathInvalid ? ER::PathInvalid : 0u)
+					| (bNoPathOverlayChanged ? ER::NoPathOverlayChanged : 0u)
+					| (State.Status == ELNPNavPathStatus::Stale ? ER::StaleResult : 0u);
 				FLNPNavPathRequest Request;
 				Request.Owner = Owner;
 				Request.Priority = bChasing ? ELNPNavPathPriority::Chase : ELNPNavPathPriority::Background;
@@ -470,6 +483,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				Request.GoalSurface = GoalSurface;
 				Request.ApproachRadius = bTargetPath ? 3000.0 : 0.0;
 				State.RequestSerial = Paths->Submit(Request);
+				Paths->RecordRequestReason(Owner, State.RequestSerial, Reasons, LNPNavGraph::GetTileKey(Nav, StartNode),
+					GoalNode, GoalTile);
 				State.RequestedGoal = Goal;
 				State.RequestedTarget = Target.TargetPlayer;
 				State.GoalTile = GoalTile;
