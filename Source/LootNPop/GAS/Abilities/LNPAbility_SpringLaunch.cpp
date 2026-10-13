@@ -7,6 +7,7 @@
 #include "Character/LNPInputHandlerComponent.h"
 #include "Interaction/LNPInteractable.h"
 #include "Movement/LNPCharacterMoverComponent.h"
+#include "Movement/LNPLayeredMove_LinearVelocity.h"
 #include "WorldDevice/LNPSpringLauncher.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
@@ -14,7 +15,6 @@
 #include "AbilitySystemComponent.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Animation/AnimMontage.h"
-#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 
 ULNPAbility_SpringLaunch::ULNPAbility_SpringLaunch()
 {
@@ -100,7 +100,8 @@ void ULNPAbility_SpringLaunch::ActivateAbility(const FGameplayAbilitySpecHandle 
 
 		if (!Delta.IsNearlyZero())
 		{
-			TSharedPtr<FLayeredMove_LinearVelocity> AlignMove = MakeShared<FLayeredMove_LinearVelocity>();
+			// LNP 타입인 이유: 엔진 타입은 아래 SetVelocity를 복제하지 않아 보정 후 재시뮬레이션에서 Maintain으로 끝난다.
+			TSharedPtr<FLNPLayeredMove_LinearVelocity> AlignMove = MakeShared<FLNPLayeredMove_LinearVelocity>();
 			AlignMove->Velocity = Delta / AlignMoveSeconds;
 			AlignMove->DurationMs = AlignMoveSeconds * 1000.f;
 			// 정렬은 "제안 위에 얹는 보정"이 아니라 "정해진 슬롯으로 데려가는 이동"이라 Override다.

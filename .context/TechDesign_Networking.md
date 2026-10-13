@@ -631,6 +631,27 @@ UPROPERTY 없는 필드 + NetSerialize로 만들었더니 **타입만 도착하�
 정렬의 잔여 0으로 덮였다. **지연 후 임펄스를 주는 구조에서는 선행 무브를 반드시 먼저 끝내고 간격을 둔다.**
 (`FLayeredMove_Launch`의 `DurationMs = 0`은 엔진 기본값이고 한 틱 적용이 정상이다 — 여기를 의심하면 헛짚는다.)
 
+### 4.11 레이어드 무브의 `FinishVelocitySettings`는 복제되지 않는다 (2026-10-13)
+
+**엔진 버그(UE 5.8).** `FLayeredMoveFinishVelocitySettings::NetSerialize`(`LayeredMove.cpp`) 첫 줄이
+`Ar.IsSaving() ? 0 : ...`이라 송신 측은 항상 "설정 없음" 비트만 쓴다. Mode·`ClampVelocity`·`SetVelocity`가
+네트워크를 전혀 타지 않고, 수신 측 무브는 기본값 `MaintainLastRootMotionVelocity`로 남는다.
+
+**왜 평소엔 안 보이나.** 예측이 맞으면 로컬 무브(올바른 설정)가 그대로 끝난다. 문제는 **보정**이다 —
+NPP 롤백이 수신 상태를 로컬 프레임에 복사하면서(`NetworkPredictionService_Rollback.inl`,
+`FLayeredMoveGroup::operator=` → `CopyScriptStruct`) 로컬의 Clamp·Set을 Maintain으로 덮어쓴다.
+`FMoverSyncState::ShouldReconcile`는 레이어드 무브를 비교하지 않으므로 불일치 자체는 보정을 부르지 않고,
+그 결과로 생긴 위치 차이가 다음 보정에서 서버 값으로 되돌려진다 — 증상은 **"지나쳤다가 툭 되돌아옴"**이다.
+ForwardPredict 프록시(§4.4)는 무브가 늘 네트워크에서 오므로 더 자주 겪을 수 있다.
+
+**해결.** `FLNPLayeredMove_LinearVelocity`가 부모 직렬화 뒤에 설정을 다시 싣는다.
+**Maintain이 아닌 `FinishVelocityMode`를 쓰는 레이어드 무브는 이 타입으로 큐잉한다** — 현재 그래플 Pull(Clamp)과
+런처 정렬(Set 0). 파생 타입은 `Clone`·`GetScriptStruct`를 반드시 덮어쓴다(롤백 복사의 Clone 경로에서 잘린다).
+신규 `ULayeredMoveLogic` 경로는 설정을 로컬 로직 객체에서 읽어 이 버그와 무관하다.
+
+**검증.** 게스트에서 `net.PktLag=300` + `Mover.LocalPlayer.ShowCorrections`, 그래플 도착 직후 `np.ForceReconcile 1`.
+관전 측은 게임플레이 디버거 Mover 카테고리 + `mover.debug.ShowCorrections 1`.
+
 ---
 
 ## 5. 검증

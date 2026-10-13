@@ -7,6 +7,7 @@
 #include "Movement/LNPModifierInputs.h"
 #include "Movement/LNPDashCooldownModifier.h"
 #include "Movement/LNPGrappleFlightModifier.h"
+#include "Movement/LNPLayeredMove_LinearVelocity.h"
 #include "WorldDevice/LNPGrappleAnchor.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
@@ -159,7 +160,8 @@ void ULNPCharacterMoverComponent::ExecuteGrapple(const FMoverTimeStep& TimeStep,
 
 	// ③ 비행 지속 — 매 틱 속도를 덮어써 구면 중력 누적을 무력화한다. Additive로 두면
 	//    20m 비행 동안 중력이 쌓여 앵커 한참 아래로 쏟아진다.
-	TSharedPtr<FLayeredMove_LinearVelocity> Pull = MakeShared<FLayeredMove_LinearVelocity>();
+	// LNP 타입인 이유: 엔진 타입은 아래 ClampVelocity를 복제하지 않아 보정 후 재시뮬레이션에서 Maintain으로 끝난다.
+	TSharedPtr<FLNPLayeredMove_LinearVelocity> Pull = MakeShared<FLNPLayeredMove_LinearVelocity>();
 	Pull->Velocity = Dir * GrappleSpeed;
 	Pull->DurationMs = DurationMs;
 	Pull->MixMode = EMoveMixMode::OverrideVelocity;

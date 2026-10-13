@@ -106,6 +106,8 @@ StopShort(150cm)가 그보다 크면 관통이 구조적으로 불가능하다.
 
 잔여 속도는 `ClampVelocity`로 깎는다. 대시의 `MaintainLastRootMotionVelocity`를 그대로 쓰면
 2500cm/s로 앵커를 지나쳐 날아간다 — 고무줄이 아니라 새총이 된다.
+⚠️ 엔진 무브는 이 Clamp를 복제하지 않아 보정 후 재시뮬레이션이 Maintain으로 끝난다. 그래서 Pull(과 런처 정렬)은
+`FLNPLayeredMove_LinearVelocity`로 큐잉한다. 전문: [TechDesign_Networking.md](TechDesign_Networking.md) §4.11.
 
 ### 재진입 방지는 쿨다운이 아니다
 
