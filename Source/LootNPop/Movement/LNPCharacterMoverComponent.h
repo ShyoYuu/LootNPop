@@ -75,6 +75,12 @@ public:
 	/** 그래플이 실제로 실행된 순간 발송된다. 리시뮬레이션 중에는 발송되지 않는다 (OnDashExecuted와 같은 규약). */
 	FSimpleMulticastDelegate OnGrappleExecuted;
 
+	/**
+	 * 엔진 Jump()와 같고 이펙트만 FLNPJumpImpulseEffect로 바꾼다. 엔진 이펙트는 낡은 컴포넌트 위치를 써서
+	 * 서브스텝·재시뮬에서 직전 틱 이동분을 잃는다(LNPInstantMovementEffects.h 주석).
+	 */
+	virtual bool Jump() override;
+
 	/** HitFromDirection 방향으로 Strength 크기의 넉백 임펄스를 가한다. */
 	void ApplyKnockback(const FVector HitFromDirection, const float Strength);
 

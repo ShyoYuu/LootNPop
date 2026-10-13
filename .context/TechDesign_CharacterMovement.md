@@ -433,10 +433,33 @@ Ground 모드에서 넉백을 주면 매 틱 클램프 + 지면 스냅으로 "�
   `UpdateCachedFrameState`로 캐시를 시작 상태에 맞춘 뒤 `Super`를 부른다. 질주·가드·ADS 판정도 같은 캐시를 읽으므로
   함께 결정적이 된다. 기본 백엔드(NetworkPrediction)는 게임 스레드에서 스텝을 돌려 경합이 없다.
 - **검증:** 같은 조건 대시 12회(일반·대시 점프 각 6) 전부 서버·게스트가 같은 프레임에 1회 실행.
-  잔여 보정 1건은 성격이 다르다 — 무브·Modifier·속도는 일치하고 위치만 약 1프레임 이동분(33cm) 어긋났다.
+  잔여 보정 1건은 성격이 다르다 — 무브·Modifier·속도는 일치하고 위치만 약 1프레임 이동분(33cm) 어긋났다(→ §7.8).
 
 **교훈:** `OnPreSimulationTick` 안의 `Can*()` 판정은 "이번 스텝의 상태"를 본다고 가정하기 쉽지만, 엔진 쿼리 함수는
 **마지막으로 확정된 화면 프레임**을 본다. 보정이 **가끔만** 나면 머신마다 다른 것(프레임당 서브스텝 수)을 의심하라.
+
+### 7.8 "속도는 맞는데 위치만 한 틱 어긋난다" — 낡은 컴포넌트 위치를 쓰는 엔진 점프 이펙트 (2026-10-13)
+
+- **증상:** §7.7 수정 뒤 남은 보정. 대시 점프 직후 공중에서 무브·Modifier·속도(약 2120cm/s)는 일치하고 위치만 약 32cm 갈렸다.
+  같은 틱에 `Simulation start location ... disagrees with actual component location` 경고(LogMover)가 찍혔다.
+- **원인:** 엔진 `FJumpImpulseEffect::ApplyMovementEffect`(BasicInstantMovementEffects.cpp)는 출력 **위치·회전을
+  `UpdatedComponent`에서** 읽고 속도만 시작 상태에서 계산한다. Async 모드는 시뮬레이션 중 컴포넌트를 옮기지 않으므로
+  컴포넌트는 `FinalizeFrame`(화면 프레임마다)과 롤백 때만 따라온다. 한 화면 프레임에 고정 틱이 두 번 돌면 두 번째 틱의
+  컴포넌트는 한 틱 늦고, 재시뮬 중엔 롤백 지점에 멈춰 있다. 점프가 그 틱에 걸리면 **직전 틱 이동분이 사라진다.**
+  로그 실측: 서버는 2371(대시)·2372(점프)를 한 화면 프레임에, 게스트는 따로 돌렸다. 서버 2372 결과 =
+  2371 시작점 + 한 틱 이동이었다. 보정 허용 오차가 축별 5cm라 걷기 점프도 걸릴 수 있고, 대시는 크게 보였을 뿐이다.
+  넉백에 쓰는 `FApplyVelocityEffect`도 같은 결함이 있다.
+- **경고 자체는 원인이 아니다:** `CheckForExternalChanges`는 `bAcceptExternalMovement`(기본 0)가 꺼져 있으면 경고만 한다.
+  Async 모드에서는 서브스텝마다 찍히는 정상 부산물이다. Fixed 틱 스무딩도 메시(시각 컴포넌트)만 옮긴다.
+- **해결:** `FLNPJumpImpulseEffect`·`FLNPApplyVelocityEffect`(`Movement/LNPInstantMovementEffects`) — 부모를 실행한 뒤
+  위치·회전만 서브스텝 시작 상태로 되돌린다. `ULNPCharacterMoverComponent::Jump()`를 오버라이드해 점프 이펙트를 바꾸고,
+  `ApplyKnockback`도 파생형을 쓴다. 엔진이 고쳐지면 부모 타입으로 되돌린다.
+- **검증:** 2인 PIE, `LNP.Spawn.EnemyDensity 0`·`t.MaxFPS 40`(프레임당 2틱을 자주 만든다), 대시 점프·질주 점프 다수 —
+  점프 직후 "속도 일치·위치만 한 틱" 보정 0건. 남은 보정 4건은 성격이 다르다: 점프 입력·레이어드 무브가 없는
+  착지 틱 불일치 3건(서버 Walking, 게스트 Falling)과 공중 수평 속도 차 1건(약 13cm/s). 원인은 미조사다.
+
+**교훈:** 시뮬레이션 안에서 `UpdatedComponent`·액터 위치를 읽는 코드는 엔진 것이라도 의심하라. Async 모드에서
+컴포넌트는 "마지막 화면 프레임"이고, 시뮬레이션의 현재 위치는 시작 sync state뿐이다(그래플 원점도 같은 이유, WorldDevice 문서).
 
 ---
 

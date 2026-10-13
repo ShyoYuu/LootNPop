@@ -8,6 +8,7 @@
 #include "Movement/LNPDashCooldownModifier.h"
 #include "Movement/LNPGrappleFlightModifier.h"
 #include "Movement/LNPLayeredMove_LinearVelocity.h"
+#include "Movement/LNPInstantMovementEffects.h"
 #include "WorldDevice/LNPGrappleAnchor.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
@@ -20,7 +21,6 @@
 #include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "DefaultMovementSet/LayeredMoves/LaunchMove.h"
 #include "DefaultMovementSet/LayeredMoves/AnimRootMotionLayeredMove.h"
-#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -286,12 +286,26 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 	}
 }
 
+bool ULNPCharacterMoverComponent::Jump()
+{
+	// 엔진 UCharacterMoverComponent::Jump()와 같다. 이펙트 타입만 위치를 스텝 시작 상태에서 쓰는 파생형으로 바꾼다.
+	if (const UCommonLegacyMovementSettings* CommonSettings = FindSharedSettings<UCommonLegacyMovementSettings>())
+	{
+		TSharedPtr<FLNPJumpImpulseEffect> JumpMove = MakeShared<FLNPJumpImpulseEffect>();
+		JumpMove->UpwardsSpeed = CommonSettings->JumpUpwardsSpeed;
+		QueueInstantMovementEffect(JumpMove);
+		return true;
+	}
+
+	return false;
+}
+
 void ULNPCharacterMoverComponent::ApplyKnockback(const FVector HitFromDirection, const float Strength)
 {
 	if (HitFromDirection.IsNearlyZero() || Strength <= 0.f)
 		return;
 
-	if (TSharedPtr<FApplyVelocityEffect> KnockbackEffect = MakeShared<FApplyVelocityEffect>())
+	if (TSharedPtr<FLNPApplyVelocityEffect> KnockbackEffect = MakeShared<FLNPApplyVelocityEffect>())
 	{
 		KnockbackEffect->VelocityToApply = HitFromDirection.GetSafeNormal() * Strength;
 		KnockbackEffect->bAdditiveVelocity = true;
