@@ -84,9 +84,16 @@ public:
 
 	/**
 	 * 지금 행글라이더를 펼 수 있는지 — 낙하 중, 그래플 비행·사망 아님, 발밑 MinGlideHeight 안에 지면 없음.
+	 * 윈드필드 안이면 고도 요구가 없고 지상에서도 펼 수 있다.
 	 * 시뮬레이션 틱 안에서만 의미가 있다 (OnPreSimulate가 맞춘 이번 스텝의 시작 상태를 본다).
 	 */
 	bool CanGlide() const;
+
+	/** 스텝 시작 위치가 켜진 윈드필드(ALNPWindField) 안인지. CanGlide와 같은 원점 규칙이다. */
+	bool IsInWindField() const;
+
+	/** 윈드필드 안에서는 지상 점프가 일반 점프 대신 행글라이더 전개가 된다 — 엔진 점프를 막는다. */
+	virtual bool CanActorJump() const override;
 
 	/**
 	 * 엔진 Jump()와 같고 이펙트만 FLNPJumpImpulseEffect로 바꾼다. 엔진 이펙트는 낡은 컴포넌트 위치를 써서

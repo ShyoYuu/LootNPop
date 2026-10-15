@@ -52,6 +52,18 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Grapple Anchor", meta = (ClampMin = "0.0"))
 	float GrappleMaxDistance = 0.f;
 
+	/** 윈드필드 반경 — 마커 지점에서의 지표 거리(cm). */
+	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Wind Field", meta = (ClampMin = "0.0"))
+	float WindFieldRadius = 1500.f;
+
+	/** 윈드필드 상승 목표 — 마커 지점에서 Up으로 이만큼 위(cm). */
+	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Wind Field", meta = (ClampMin = "0.0"))
+	float WindFieldRiseHeight = 2000.f;
+
+	/** 윈드필드가 켜진 채로 시작하는지. 이후 on/off는 서버가 ALNPWindField::SetWindFieldEnabled로 바꾼다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Wind Field")
+	bool bWindFieldStartEnabled = true;
+
 	/** 배열이 비어 있으면 Conditional Patch를 갖지 않는 요소다. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Placement|Conditional Patch")
 	TArray<FLNPConditionalPatchSource> PatchSources;

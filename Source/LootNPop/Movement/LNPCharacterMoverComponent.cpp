@@ -11,6 +11,7 @@
 #include "Movement/LNPLayeredMove_LinearVelocity.h"
 #include "Movement/LNPInstantMovementEffects.h"
 #include "WorldDevice/LNPGrappleAnchor.h"
+#include "WorldDevice/LNPWindFieldSubsystem.h"
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
@@ -114,7 +115,30 @@ bool ULNPCharacterMoverComponent::CanGlide() const
 {
 	// 활공 모드도 낙하 태그를 물려받으므로 IsFalling()만으로는 활공 중을 거를 수 없다.
 	// 그래플 비행 중엔 열지 않는다 — 비행이 끝나면 낙하로 돌아오고 그때 다시 펼 수 있다.
-	return IsFalling() && !IsGliding() && !IsGrappleFlying() && !IsInDeadMode() && HasGlideClearance();
+	if (IsGliding() || IsGrappleFlying() || IsInDeadMode())
+	{
+		return false;
+	}
+	// 윈드필드 안에서는 점프 입력 즉시 전개한다 — 고도 요구가 없고 지상에서도 편다(기류가 띄워 올린다).
+	if (IsInWindField())
+	{
+		return IsFalling() || IsOnGround();
+	}
+	return IsFalling() && HasGlideClearance();
+}
+
+bool ULNPCharacterMoverComponent::IsInWindField() const
+{
+	const FMoverDefaultSyncState* StartState = GetSyncState().SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
+	const ULNPWindFieldSubsystem* WindFields = UWorld::GetSubsystem<ULNPWindFieldSubsystem>(GetWorld());
+	float TargetCenterDistance;
+	return StartState && WindFields && WindFields->FindWindLift(StartState->GetLocation_WorldSpace(), TargetCenterDistance);
+}
+
+bool ULNPCharacterMoverComponent::CanActorJump() const
+{
+	// 같은 bIsJumpJustPressed를 OnMoverPreSimulationTick의 행글라이더 분기가 소비한다(Super보다 앞).
+	return Super::CanActorJump() && !IsInWindField();
 }
 
 bool ULNPCharacterMoverComponent::HasGlideClearance() const

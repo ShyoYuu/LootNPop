@@ -1,4 +1,4 @@
-# TechDesign — 월드 장치 (그래플 앵커 · 스프링 런처)
+# TechDesign — 월드 장치 (그래플 앵커 · 스프링 런처 · 윈드필드)
 
 월드에 흩어져 있는 이동 장치 2종의 구현 설계. 공통점은 **가변 상태가 없다**는 것이고,
 차이점은 **네트워크 경로가 정반대**라는 것이다.
@@ -333,3 +333,62 @@ Live Coding 성공. 검사는 **수정 전 자동 활성화 항목에서 실패 
 수명주기를 바꿀 때는 파티클 `Lifetime` 연결도 함께 읽는다. Core처럼
 `Emitter.CurrentLoopDuration`에 연결된 템플릿을 그대로 Self로 바꾸는 것은 피한다.
 반면 현재 Ping은 별도로 구성한 Self 루프이므로 Self 자체가 잘못된 설정인 것은 아니다.
+
+---
+
+## 10. 윈드필드 — 상승 기류 구역 (2026-10-15)
+
+행글라이더를 설정 높이까지 띄워 올리는 구역이다. 앵커·런처와 달리 **상호작용 대상이 아니고 가변 상태가 하나 있다**(on/off).
+이동 규칙(즉시 전개·상승·호버)은 [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §10.8에 있다. 여기서는 장치 쪽만 다룬다.
+
+| | 윈드필드 |
+|:---|:---|
+| 클래스 | `ALNPWindField` (+ `ULNPWindFieldSubsystem`) |
+| 구역 | **구면 원판** — 배치 지점 중심, 지표 거리 `Radius` 이내, 지표부터 목표 고도까지 |
+| 목표 고도 | 배치 지점에서 Up으로 `RiseHeight` → 행성 중심 거리로 환산(필드 전역이 같은 고도 셸) |
+| 네트워크 경로 | 없음 — Mover가 매 스텝 기하 판정으로 조회. on/off만 `ReplicatedUsing` |
+| 저작 | 직접 배치(`BP_WindField`) 또는 Placement Marker(`WindFieldRadius`·`WindFieldRiseHeight`·`bWindFieldStartEnabled`) |
+
+### 판정은 오버랩이 아니라 기하다
+
+`ULNPWindFieldSubsystem::FindWindLift(Location)`가 등록된 켜진 필드 중 Location을 포함하는 것을 찾아 목표 고도의 중심 거리를 돌려준다.
+
+- **물리 오버랩을 쓰지 않는다.** 오버랩 이벤트는 컴포넌트 갱신 시점에 묶여 서브스텝·재시뮬레이션에서 낡는다(TechDesign_CharacterMovement.md §7.7과 같은 이유).
+  각도·반지름 비교는 같은 SyncState에서 언제나 같은 답을 준다.
+- **원판 판정** = `Location`과 배치 지점의 중심각 × 배치 반지름 ≤ `Radius`. 넓이 상한이 없고 곡면을 그대로 따른다.
+- **고도 판정** = 목표 셸 위로 150cm까지는 안으로 본다. 호버 중 한 스텝 오버슛으로 필드를 벗어나 하강 로직과 번갈아 튀지 않게 하는 여유다.
+- 내벽/외벽 부호는 필드의 Up이 행성 중심 쪽인지로 정한다 — 하드코딩하지 않는다.
+- 필드가 겹치면 목표가 가장 높은 것을 쓴다.
+
+### 복제 — 항상 relevant
+
+`bAlwaysRelevant = true`. 넓이에 상한이 없어 원점 거리 기반 relevancy를 쓸 수 없다 — 끊기면 필드 안의 클라가 필드를 잃고 활공 예측이 서버와 갈린다.
+`Radius`·`RiseHeight`는 마커 스폰 값이 클라에 가도록 `Replicated`(초기 번치 1회), `bEnabled`만 런타임에 바뀐다.
+
+**토글은 서버 전용**(`SetWindFieldEnabled`, `BlueprintAuthorityOnly`). 토글 순간 서버와 클라가 RTT만큼 다른 상태로 시뮬레이션하므로
+필드 안에서 움직이던 클라에 **보정이 한 번 날 수 있다** — 수용했다. 피하려면 on/off를 서버 시각 기준 예약으로 바꿔야 한다.
+
+### VFX — `NS_WindField`
+
+`/Game/Effects/WorldDevice/NS_WindField`. 이미터 둘: **Streaks**(`M_LNP_Spark`, 속도 정렬 6×140cm 가산 스트릭, 900cm/s 상승)와
+**Motes**(`M_DepthFade_SpriteSimple`, 10cm 부유 입자, 600cm/s + Curl Noise). 둘 다 반경 `User.Radius` 원기둥 바닥에서 나와 로컬 +Z로 오르고,
+수명에 따라 알파 커브(0→1→1→0)로 사라진다.
+
+- **둘 다 로컬 스페이스다** — 월드 스페이스 이미터는 원점에서 24,000cm 떨어진 좌표에서 동적 바운드가 어긋나 통째로 컬링된다(기존 함정).
+  그래서 액터 로컬 +Z = Up이어야 하고, 액터는 Up 정렬로 배치한다.
+- User 파라미터는 코드가 넣는다(`ALNPWindField::RefreshEffect`): `User.Radius`, `User.Lifetime = RiseHeight / 900`(목표 고도에서 사라짐),
+  `User.SpawnRate = 면적(m²) × 0.15`(10~400 클램프 — 넓이 무제한이라 상한이 필요).
+- NiagaraExamples는 참조하지 않는다. 엔진 기본 모듈(`SpawnRate`·`ShapeLocation`·`AddVelocity`·`CurlNoiseForce`·`ScaleColor`)과 프로젝트 머티리얼로 구성했다.
+
+### 검증·디버그
+
+- `LNP.WindField.SpawnAtPlayer [Radius] [RiseHeight]` — 맵을 저장하지 않고 첫 플레이어 발밑에 필드를 띄운다(권위 콘솔).
+- `LNP.WindField.SetEnabled <0|1>` — 모든 필드 토글(권위 콘솔).
+
+**검증 (2026-10-15):** 1인·2인 PIE에서 전개·상승·호버·이동·토글이 모두 정상이었고, 게스트 보정 0건이었다. 세부 내용은 TechDesign_CharacterMovement.md §10.8에 있다.
+
+### 한계
+
+- **VFX 원판은 평면이다.** 반경이 크면 가장자리가 곡면에서 떠 보이고 스트릭이 그 지점의 Up과 각도가 생긴다(반경 50m에서 약 12°).
+  판정은 곡면을 따르므로 게임플레이는 맞고 그림만 어긋난다. 큰 필드가 필요하면 VFX를 여러 액터로 나눈다.
+- 상승 속도·가속은 필드별이 아니라 활공 모드 공통 값이다(TechDesign_CharacterMovement.md §10.8). 필드별로는 높이만 다르다.

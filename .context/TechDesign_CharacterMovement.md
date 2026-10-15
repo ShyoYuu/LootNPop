@@ -710,3 +710,33 @@ LNP.Debug.KillPlayer [PlayerIndex]
 - **고도 판정은 중심선 한 줄이다.** 캡슐 가장자리 아래의 턱은 보지 않는다 — 펼치자마자 착지할 뿐 문제는 없다.
 - **활공 전용 자세가 없다.** 공중 공용 Fall_Loop를 쓴다(모션 매칭은 공중에서 다리가 떨려 우회 — TechDesign_CombatAnimation.md §5.5). 행글라이더를 잡은 자세가 필요하면 그 Bool 분기 앞에 활공 분기를 하나 더 둔다.
 - **넉백 미예측(§8)과 같은 이유로**, 활공 중 피격 시 해제는 피격자 화면에서 RTT만큼 늦다.
+
+### 10.8 윈드필드 — 즉시 전개와 상승 (2026-10-15)
+
+윈드필드(`ALNPWindField`, [TechDesign_WorldDevice.md](TechDesign_WorldDevice.md) §10) 안에서는 점프 입력 즉시 행글라이더가 펼쳐지고,
+떨어지지 않고 필드의 목표 고도까지 올라가 머문다. 상승 중에도, 도달한 뒤에도 수평 이동은 평소 활공과 같다.
+
+**추가 예측 상태는 여전히 0이다.** 윈드필드는 모드가 아니라 `GenerateMove`·`CanGlide`가 **스텝 시작 SyncState 위치**로 묻는 월드 데이터다
+(`ULNPWindFieldSubsystem::FindWindLift` — 물리 오버랩이 아닌 기하 판정이라 재시뮬레이션에서 결정적이다).
+
+| 사건 | 필드 밖 | 필드 안 | 구현 |
+|:---|:---|:---|:---|
+| 지상 점프 | 일반 점프 | **점프 없이 즉시 전개** | `CanActorJump()` 오버라이드가 필드 안에서 false → 엔진 점프가 안 나가고 같은 `bIsJumpJustPressed`를 §10.2의 글라이드 분기가 소비 |
+| 공중 점프 | 고도 300cm 이상일 때만 전개 | 고도 무관 즉시 전개 | `CanGlide()`가 필드 안이면 `HasGlideClearance()`·`IsFalling()` 요구를 풀고 지상도 허용 |
+| 활공 중 점프 | 접힘 | 접힘(기존 규칙 유지) | 변경 없음 |
+| 활공 수직 | 하강 300cm/s 수렴 | 목표 고도까지 상승 후 호버 | `ULNPGlideMode::GenerateMove` 수직 분기 |
+| 필드가 꺼짐·벗어남 | — | 행글라이더 유지, 일반 활공으로 하강 | 다음 스텝 조회가 실패해 기존 분기로 자연 복귀 |
+
+**상승 곡선:** 목표 수직 속력 = `Clamp(남은 높이 / WindSettleTime, ±WindRiseSpeed)`, 현재 속도에서 `WindLiftAcceleration`으로 다가간다.
+멀리서는 `WindRiseSpeed`(800cm/s)로 오르고 가까워질수록 느려져 오버슛 없이 멈춘다. 목표보다 아래로 내려가 있으면 다시 올라온다.
+남은 높이는 `Dot(목표 셸 위 같은 반경선의 점 − 위치, Up)`이라 내벽/외벽 부호를 하드코딩하지 않는다. 수치는 활공 모드 서브오브젝트의
+`LNP|Glide|WindField` 카테고리 UPROPERTY다 — 필드별로는 높이만 다르다.
+
+**지상 이륙:** 낙하 모드는 이동 스윕이 바닥에 막힐 때만 착지하므로(`UAsyncFallingMode::ProcessLanded`) 첫 스텝부터 위로 움직이면 바로 재착지하지 않는다.
+
+**한계:** 필드 on/off는 서버 권위 복제 상태라 토글 순간 필드 안 클라에 보정이 한 번 날 수 있다(수용).
+
+**검증 (2026-10-15, 1인·2인 PIE, TestMap03 + `LNP.WindField.SpawnAtPlayer 1500 2000`):** 필드 안 지상 점프로 즉시 전개되고 20m 올라가 멈춘다.
+상승 중과 정지 후 모두 WASD로 이동된다. 접으면 자유 낙하하고 다시 펴면 상승한다. 활공 중 필드 밖으로 나가면 하강하고 다시 들어오면 상승한다.
+`SetEnabled 0/1`로 동작과 VFX가 꺼졌다 켜진다. 2인 PIE 게스트 `np.PrintReconciles 1`로 이륙·호버·이동을 반복하는 동안 보정 캡슐 0건.
+같은 세션의 `LogNetworkPrediction: ... input stream starvation`은 윈드필드 이전 2인 PIE 로그에도 있던 PIE 환경 경고다. 보정과는 겹치지 않았다.

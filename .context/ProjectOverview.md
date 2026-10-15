@@ -127,7 +127,7 @@
 | [커스텀 Slate 위젯 제작 가이드](Guide_CustomSlateWidget.md) | 베이스 선택, TSlateAttribute, 스타일 분리, UMG 래퍼 |
 | [초기화 시퀀스 기술 설계](TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | [표면 캐시 기술 설계](TechDesign_SurfaceCache.md) | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유, 수직 단차 표현 한계 |
-| [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템, 행글라이더 활공, 사망 랙돌·Mover 정지·리스폰 |
+| [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템, 행글라이더 활공·윈드필드 상승, 사망 랙돌·Mover 정지·리스폰 |
 | [전투 Animation 기술 설계](TechDesign_CombatAnimation.md) | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·왼손 Two Bone IK·Guard 자세 분기, 몽타주 ANS 구간 제어와 경직 차단 소유권 구분, 근접 공격 타겟 보정(Motion Warping) |
 | [Ability System 게임 기획](GameDesign_Ability.md) | 무기·스킬·버프 아이템 구조, GAS 슬롯 관리, 합/곱 이원 스텟 체계, 구현 현황 |
 | [Ability System 기술 설계](TechDesign_Ability.md) | ASC/AttributeSet 아키텍처, 합/곱 2채널 스탯 파이프라인, 발사체 Mass 프로세서 4종, 어빌리티 클래스 계층 |
@@ -137,7 +137,7 @@
 | [Enemy NPC 기술 설계](TechDesign_EnemyNPC.md) | Fragment/Tag 구조, Mass 프로세서 21종, Actor 연동 (High LOD), 넷 모드별 표현 소유권(게스트는 복제 Actor만), 겹침 분리력과 공간 격자 소비 |
 | [Enemy NPC StateTree 기술 설계](TechDesign_EnemyNPC_StateTree.md) | StateTree 상태 계층 (Combat/Alert/Idle), Evaluator 및 Task C++ 구성 |
 | [Enemy NPC Low LOD 전투 기술 설계](TechDesign_EnemyNPC_LowLOD.md) | CombatMode 옵션(Actor 승격/순수 엔티티), 가상 칼날 근접 판정, 행동 상태 1바이트 복제, ISM↔ISKM 인스턴싱 애니메이션과 무기 스킨드 메시, 적이 피격자인 방향(플린치·넉백·공격 잠금·사망 팝) |
-| [월드 장치 기술 설계](TechDesign_WorldDevice.md) | 그래플 앵커·스프링 런처 — 예측 경로 vs 발동 요청 경로, 판정 3분할(권한/조준/시뮬 권위), 앵커 ID를 싣는 이유, 레이어드 무브 2개 구성, 시드 결정론 배치와 절벽·단차 기각 |
+| [월드 장치 기술 설계](TechDesign_WorldDevice.md) | 그래플 앵커·스프링 런처·윈드필드 — 예측 경로 vs 발동 요청 경로, 판정 3분할(권한/조준/시뮬 권위), 앵커 ID를 싣는 이유, 레이어드 무브 2개 구성, 시드 결정론 배치와 절벽·단차 기각, 윈드필드 기하 판정·항상 relevant 복제 |
 | [LootPod System 게임 기획](GameDesign_LootPod.md) | 루팅 흐름, 존 사수(넉백) 취소 조건, 협동 루팅 속도, 보상 유형 |
 | [LootPod System 기술 설계](TechDesign_LootPod.md) | MassEntity 구성, Pod 레지스트리 상호작용 탐색, 게이지·보상 드랍·Low LOD 빛기둥 |
 | [LootDice System 게임 기획](GameDesign_LootDice.md) | 보상 아이템 주사위 굴림 컨셉, 아이콘 식별, 획득·사망 전량 드랍·인벤토리 드랍·소멸 기획 |

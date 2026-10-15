@@ -2,6 +2,7 @@
 
 #include "Movement/LNPGlideMode.h"
 #include "Movement/LNPCharacterMoverComponent.h"
+#include "WorldDevice/LNPWindFieldSubsystem.h"
 
 #include "MoverComponent.h"
 #include "MoverDataModelTypes.h"
@@ -91,10 +92,27 @@ void ULNPGlideMode::GenerateMove_Implementation(const FMoverSimContext& SimConte
 
 	OutProposedMove = UAirMovementUtils::ComputeControlledFreeMove(Params);
 
-	// 수직: 목표 하강 속력으로 수렴. 위쪽(또는 느린 하강)에서는 중력으로, 빠른 하강에서는 GlideCatchDeceleration으로.
-	const float TargetVerticalSpeed = -GlideDescentSpeed;
 	const float StartVerticalSpeed = StartVelocity.Dot(UpDirection);
 	float VerticalSpeed;
+
+	// 윈드필드 안: 목표 고도 셸까지 올라가 머문다. 남은 높이에 비례한 목표 속력으로 접근해 도달하면 수직 0이 되고,
+	// 밀려 내려가도 다시 올라온다. 수평은 위에서 계산한 그대로라 상승 중에도 이동할 수 있다.
+	// 위치는 스텝 시작 SyncState 기준 — 컴포넌트는 서브스텝·재시뮬에서 낡았다.
+	const FVector StartLocation = StartingSyncState->GetLocation_WorldSpace();
+	const ULNPWindFieldSubsystem* WindFields = UWorld::GetSubsystem<ULNPWindFieldSubsystem>(MoverComp->GetWorld());
+	float TargetCenterDistance;
+	if (WindFields && WindFields->FindWindLift(StartLocation, TargetCenterDistance))
+	{
+		const FVector TargetLocation = StartLocation.GetSafeNormal() * TargetCenterDistance;
+		const float Remaining = FVector::DotProduct(TargetLocation - StartLocation, UpDirection);
+		const float DesiredVerticalSpeed = FMath::Clamp(Remaining / FMath::Max(WindSettleTime, KINDA_SMALL_NUMBER), -WindRiseSpeed, WindRiseSpeed);
+		VerticalSpeed = FMath::FInterpConstantTo(StartVerticalSpeed, DesiredVerticalSpeed, DeltaSeconds, WindLiftAcceleration);
+		UMovementUtils::SetGravityVerticalComponent(OutProposedMove.LinearVelocity, VerticalSpeed, UpDirection);
+		return;
+	}
+
+	// 수직: 목표 하강 속력으로 수렴. 위쪽(또는 느린 하강)에서는 중력으로, 빠른 하강에서는 GlideCatchDeceleration으로.
+	const float TargetVerticalSpeed = -GlideDescentSpeed;
 	if (StartVerticalSpeed > TargetVerticalSpeed)
 	{
 		const float GravityMagnitude = MoverComp->GetGravityAcceleration().Size();
