@@ -150,5 +150,6 @@
 | [적 탐색 질의 기술 설계](TechDesign_TargetQuery.md) | 적 탐색 질의 시스템 — 상시 질의 구조, 순수 엔티티를 빠뜨리는 물리 경유 3곳, 등장방형 축소 행 공간 분할, 도입 단계 |
 | [멀티플레이 네트워킹 기술 설계](TechDesign_Networking.md) | Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 대역폭 예산 규약(상한=안전판·엔티티당 비용·조용한 소실), 공격 입력은 InputCmd가 아니라 발동 요청에, 엔진 소스 분석 이슈 8건 |
 | [네트워크 대역폭 가이드](Guide_NetBandwidth.md) | 비용 3축(버블·승격 Actor·절편), 페이로드 양자화 규약과 int16 월드 반지름 캡, 절제(ablation)와 사유별 계수 측정법·분모 규약, 반복된 실패 패턴 |
+| [멀티플레이 로비 작업 안내](MultiplayerLobby/README.md) | 여러 세션 이어 가기용 작업 폴더 진입점 — 메인 메뉴·IP 직접 접속·실패 복귀, 5인·중간 참가, 메뉴 UI 대기실, 세션 계층·LAN 방 목록, 온라인 백엔드(Steam/EOS) 단계 계획 |
 | [ParrySystem 게임 기획](GameDesign_ParrySystem.md) | 패링 성공 조건, 투사체 타입별 반사, 패링하는 쪽은 플레이어 전용·당하는 쪽은 LOD 무관, 플레이어 경험 의도 |
 | [ParrySystem 기술 설계](TechDesign_ParrySystem.md) | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 — 상태 미러링 패턴 |
