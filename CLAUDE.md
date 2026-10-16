@@ -19,6 +19,7 @@
 | .context/TechDesign_SurfaceCache.md | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유, 수직 단차 표현 한계 |
 | .context/TechDesign_CharacterMovement.md | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템, 행글라이더 활공·윈드필드 상승, 사망 랙돌·Mover 정지·리스폰 |
 | .context/TechDesign_CombatAnimation.md | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·왼손 Two Bone IK·Guard 자세 분기, 몽타주 ANS 구간 제어와 경직 차단 소유권 구분, 근접 공격 타겟 보정(Motion Warping) |
+| .context/AnimationOverhaul/README.md | 애니메이션 대규모 개선 작업 진입점(여러 세션 이어 가기용 폴더) — GASP Mover ABP 재구성, PhysicsControl 물리 히트리액트, 마커리스 모캡 근접 모션, UAF 판정 게이트, Locomotor 사족 드론(최후순위 트랙) 단계 계획 |
 | .context/GameDesign_Ability.md | 무기·스킬·버프 아이템 구조, GAS 슬롯 관리, 합/곱 이원 스텟 체계, 구현 현황 |
 | .context/TechDesign_Ability.md | ASC/AttributeSet 아키텍처, 합/곱 2채널 스탯 파이프라인, 발사체 Mass 프로세서 4종, 어빌리티 클래스 계층 |
 | .context/GameDesign_Poise.md | 경직 시스템 — 누적/자연회복 원칙, 그로기·다운 2단계, 딜 구간 비대칭, 가드 브레이크·패링 연계 |
