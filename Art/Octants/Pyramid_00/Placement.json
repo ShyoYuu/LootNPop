@@ -1,0 +1,2920 @@
+{
+  "pods": [
+    {
+      "id": "Hall_0_0",
+      "local": [
+        173.1695530955078,
+        5598.833771083596,
+        -5598.895543288192
+      ],
+      "storey": 0,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 19475,
+        "layer": 42,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 2726.944580078125
+      }
+    },
+    {
+      "id": "Hall_0_1",
+      "local": [
+        -5021.901525727739,
+        2599.4592454440285,
+        -5596.033118730687
+      ],
+      "storey": 0,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 19488,
+        "layer": 42,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 2716.872802734375
+      }
+    },
+    {
+      "id": "Hall_1_0",
+      "local": [
+        -2943.8735999672567,
+        -4599.0419760948225,
+        -4196.74913096043
+      ],
+      "storey": 1,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 20371,
+        "layer": 43,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 4132.0693359375
+      }
+    },
+    {
+      "id": "Hall_1_1",
+      "local": [
+        6753.591017271015,
+        -4199.125452395289,
+        -4198.27545129697
+      ],
+      "storey": 1,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 19784,
+        "layer": 43,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 2724.474853515625
+      }
+    },
+    {
+      "id": "Hall_2_0",
+      "local": [
+        8138.943061728061,
+        -6198.709073701126,
+        -2796.7227002622385
+      ],
+      "storey": 2,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 9735,
+        "layer": 27,
+        "edge_clearance_cm": 437.1985778808594,
+        "headroom_cm": 2721.151123046875
+      }
+    },
+    {
+      "id": "Hall_2_1",
+      "local": [
+        8831.620442865087,
+        5398.874934187685,
+        -2798.744913369497
+      ],
+      "storey": 2,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 11099,
+        "layer": 27,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 2723.0390625
+      }
+    },
+    {
+      "id": "Hall_3_0",
+      "local": [
+        11602.323498919064,
+        6998.5421739476205,
+        -1399.0075415615574
+      ],
+      "storey": 3,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 37754,
+        "layer": 182,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 2724.233642578125
+      }
+    },
+    {
+      "id": "Hall_3_1",
+      "local": [
+        -11255.985445811613,
+        -5798.792833341379,
+        -1398.8610532259736
+      ],
+      "storey": 3,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 35657,
+        "layer": 179,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 4121.06787109375
+      }
+    },
+    {
+      "id": "Hall_4_0",
+      "local": [
+        -12987.675182274681,
+        -1499.6881049479935,
+        1.7177570306084817
+      ],
+      "storey": 4,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 7774,
+        "layer": 1,
+        "edge_clearance_cm": 699.8141479492188,
+        "headroom_cm": 29997.283203125
+      }
+    },
+    {
+      "id": "Hall_4_1",
+      "local": [
+        432.9225190938046,
+        -12247.448713915888,
+        0.4447105940853362
+      ],
+      "storey": 4,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 5572,
+        "layer": 1,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 4122.85693359375
+      }
+    },
+    {
+      "id": "Hall_5_0",
+      "local": [
+        -9091.372900969896,
+        10622.787092742663,
+        1400.3472178321026
+      ],
+      "storey": 5,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 15893,
+        "layer": 31,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 28598.654296875
+      }
+    },
+    {
+      "id": "Hall_5_1",
+      "local": [
+        476.2147518114657,
+        11472.60980048102,
+        1401.6143342921605
+      ],
+      "storey": 5,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 15507,
+        "layer": 31,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 4125.20703125
+      }
+    },
+    {
+      "id": "Hall_6_0",
+      "local": [
+        -9394.41920059746,
+        3374.2972502748485,
+        2800.7778463563955
+      ],
+      "storey": 6,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 25959,
+        "layer": 84,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 4122.658203125
+      }
+    },
+    {
+      "id": "Hall_7_0",
+      "local": [
+        -8571.866251492118,
+        -8548.220151185764,
+        4202.689696083962
+      ],
+      "storey": 7,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 17751,
+        "layer": 39,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 25796.310546875
+      }
+    },
+    {
+      "id": "Hall_7_1",
+      "local": [
+        2121.3204365157812,
+        0.0,
+        4202.3216156461785
+      ],
+      "storey": 7,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 17982,
+        "layer": 39,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 12380.810546875
+      }
+    },
+    {
+      "id": "Hall_8_0",
+      "local": [
+        -6060.915495062646,
+        -10997.709068015049,
+        5601.2005839464
+      ],
+      "storey": 8,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 38245,
+        "layer": 184,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 24397.798828125
+      }
+    },
+    {
+      "id": "Hall_8_1",
+      "local": [
+        6926.760834691702,
+        4499.063026506477,
+        5600.912476726629
+      ],
+      "storey": 8,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 38896,
+        "layer": 184,
+        "edge_clearance_cm": 691.1635131835938,
+        "headroom_cm": 24398.087890625
+      }
+    },
+    {
+      "id": "Hall_9_0",
+      "local": [
+        -6212.438103395147,
+        -1837.1167542052497,
+        7000.301981426543
+      ],
+      "storey": 9,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 22472,
+        "layer": 63,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 3721.301025390625
+      }
+    },
+    {
+      "id": "Hall_9_1",
+      "local": [
+        4242.640687119286,
+        2099.561985320728,
+        7001.273829309248
+      ],
+      "storey": 9,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 22373,
+        "layer": 63,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 22997.7265625
+      }
+    },
+    {
+      "id": "Hall_10_0",
+      "local": [
+        -1385.3520541888274,
+        -5748.801878963452,
+        8401.916400891107
+      ],
+      "storey": 10,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 22945,
+        "layer": 71,
+        "edge_clearance_cm": 647.8075561523438,
+        "headroom_cm": 4512.58154296875
+      }
+    },
+    {
+      "id": "Hall_10_1",
+      "local": [
+        1103.9525131459086,
+        -3736.7217990659383,
+        8400.744784697217
+      ],
+      "storey": 10,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 22967,
+        "layer": 71,
+        "edge_clearance_cm": 467.8863830566406,
+        "headroom_cm": 4127.52099609375
+      }
+    },
+    {
+      "id": "Hall_11_0",
+      "local": [
+        -1212.183463780239,
+        4199.124621875927,
+        9801.02420667142
+      ],
+      "storey": 11,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 21643,
+        "layer": 52,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 2719.148193359375
+      }
+    },
+    {
+      "id": "Hall_12_0",
+      "local": [
+        -2597.534331879533,
+        1299.7294501009674,
+        11200.737706623375
+      ],
+      "storey": 12,
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 3,
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 1200
+        }
+      ],
+      "native_candidate": {
+        "index": 21268,
+        "layer": 48,
+        "edge_clearance_cm": 800.0,
+        "headroom_cm": 3652.559326171875
+      }
+    }
+  ],
+  "anchors": [
+    {
+      "id": "Hall_0_0",
+      "local": [
+        173.1695530955078,
+        5598.833771083596,
+        -4798.895543288192
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_0_1",
+      "local": [
+        -5021.901525727739,
+        2599.4592454440285,
+        -4796.033118730687
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_1_0",
+      "local": [
+        -2943.8735999672567,
+        -4599.0419760948225,
+        -3396.74913096043
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_1_1",
+      "local": [
+        6753.591017271015,
+        -4199.125452395289,
+        -3398.2754512969695
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_2_0",
+      "local": [
+        8138.943061728061,
+        -6198.709073701126,
+        -1996.7227002622385
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_2_1",
+      "local": [
+        8831.620442865087,
+        5398.874934187685,
+        -1998.7449133694972
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_3_0",
+      "local": [
+        11602.323498919064,
+        6998.5421739476205,
+        -599.0075415615574
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_3_1",
+      "local": [
+        -11255.985445811613,
+        -5798.792833341379,
+        -598.8610532259736
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_4_0",
+      "local": [
+        -12987.675182274681,
+        -1499.6881049479935,
+        801.7177570306085
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_4_1",
+      "local": [
+        432.9225190938046,
+        -12247.448713915888,
+        800.4447105940853
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_5_0",
+      "local": [
+        -9091.372900969896,
+        10622.787092742663,
+        2200.3472178321026
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_5_1",
+      "local": [
+        476.2147518114657,
+        11472.60980048102,
+        2201.6143342921605
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_6_0",
+      "local": [
+        -9394.41920059746,
+        3374.2972502748485,
+        3600.7778463563955
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_7_0",
+      "local": [
+        -8571.866251492118,
+        -8548.220151185764,
+        5002.689696083962
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_7_1",
+      "local": [
+        2121.3204365157812,
+        0.0,
+        5002.3216156461785
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_8_0",
+      "local": [
+        -6060.915495062646,
+        -10997.709068015049,
+        6401.2005839464
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_8_1",
+      "local": [
+        6926.760834691702,
+        4499.063026506477,
+        6400.912476726629
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_9_0",
+      "local": [
+        -6212.438103395147,
+        -1837.1167542052497,
+        7800.301981426543
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_9_1",
+      "local": [
+        4242.640687119286,
+        2099.561985320728,
+        7801.273829309248
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_10_0",
+      "local": [
+        -1385.3520541888274,
+        -5748.801878963452,
+        9201.916400891107
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_10_1",
+      "local": [
+        1103.9525131459086,
+        -3736.7217990659383,
+        9200.744784697217
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_11_0",
+      "local": [
+        -1212.183463780239,
+        4199.124621875927,
+        10601.02420667142
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "Hall_12_0",
+      "local": [
+        -2597.534331879533,
+        1299.7294501009674,
+        12000.737706623375
+      ],
+      "max_distance": 7000
+    },
+    {
+      "id": "VolumetricRupture_0_Storey5",
+      "storey": 5,
+      "local": [
+        2430.43505859375,
+        -4560.74072265625,
+        1900
+      ],
+      "landing": [
+        2430.43505859375,
+        -4560.74072265625,
+        1400
+      ],
+      "route_group": "VolumetricRupture_0",
+      "region_kind": "rupture",
+      "opening_center": [
+        9364.77734375,
+        -6055.5927734375
+      ],
+      "max_distance": 11000,
+      "approach": [
+        2552.523193359375,
+        -6804.33740234375,
+        200
+      ],
+      "rupture_id": "VolumetricRupture_0"
+    },
+    {
+      "id": "VolumetricRupture_0_Storey6",
+      "storey": 6,
+      "local": [
+        4003.3603515625,
+        -10768.447265625,
+        3300
+      ],
+      "landing": [
+        4003.3603515625,
+        -10768.447265625,
+        2800
+      ],
+      "route_group": "VolumetricRupture_0",
+      "region_kind": "rupture",
+      "opening_center": [
+        9186.763671875,
+        -6037.13916015625
+      ],
+      "max_distance": 11000,
+      "approach": [
+        2430.43505859375,
+        -4560.74072265625,
+        1600
+      ],
+      "rupture_id": "VolumetricRupture_0"
+    },
+    {
+      "id": "VolumetricRupture_0_Storey7",
+      "storey": 7,
+      "local": [
+        14849.4912109375,
+        -3409.56396484375,
+        4700
+      ],
+      "landing": [
+        14849.4912109375,
+        -3409.56396484375,
+        4200
+      ],
+      "route_group": "VolumetricRupture_0",
+      "region_kind": "rupture",
+      "opening_center": [
+        9007.3701171875,
+        -6339.65478515625
+      ],
+      "max_distance": 11500,
+      "approach": [
+        4003.3603515625,
+        -10768.447265625,
+        3000
+      ],
+      "rupture_id": "VolumetricRupture_0"
+    },
+    {
+      "id": "VolumetricRupture_0_Storey8",
+      "storey": 8,
+      "local": [
+        6060.11328125,
+        -3283.630615234375,
+        6100
+      ],
+      "landing": [
+        6060.11328125,
+        -3283.630615234375,
+        5600
+      ],
+      "route_group": "VolumetricRupture_0",
+      "region_kind": "rupture",
+      "opening_center": [
+        8450.5673828125,
+        -6718.1240234375
+      ],
+      "max_distance": 7500,
+      "approach": [
+        14849.4912109375,
+        -3409.56396484375,
+        4400
+      ],
+      "rupture_id": "VolumetricRupture_0"
+    },
+    {
+      "id": "VolumetricRupture_0_Storey9",
+      "storey": 9,
+      "local": [
+        4501.669921875,
+        -5919.474609375,
+        7500
+      ],
+      "landing": [
+        4501.669921875,
+        -5919.474609375,
+        7000
+      ],
+      "route_group": "VolumetricRupture_0",
+      "region_kind": "rupture",
+      "opening_center": [
+        9231.1455078125,
+        -6555.88134765625
+      ],
+      "max_distance": 9000,
+      "approach": [
+        6060.11328125,
+        -3283.630615234375,
+        5800
+      ],
+      "rupture_id": "VolumetricRupture_0"
+    },
+    {
+      "id": "VolumetricRupture_1_Storey5",
+      "storey": 5,
+      "local": [
+        -8524.7412109375,
+        10804.7568359375,
+        1900
+      ],
+      "landing": [
+        -8524.7412109375,
+        10804.7568359375,
+        1400
+      ],
+      "route_group": "VolumetricRupture_1",
+      "region_kind": "rupture",
+      "opening_center": [
+        -6820.5498046875,
+        10817.919921875
+      ],
+      "max_distance": 7500,
+      "approach": [
+        -6724.84423828125,
+        10452.89453125,
+        200
+      ],
+      "rupture_id": "VolumetricRupture_1"
+    },
+    {
+      "id": "VolumetricRupture_1_Storey6",
+      "storey": 6,
+      "local": [
+        -9968.85546875,
+        11868.939453125,
+        3300
+      ],
+      "landing": [
+        -9968.85546875,
+        11868.939453125,
+        2800
+      ],
+      "route_group": "VolumetricRupture_1",
+      "region_kind": "rupture",
+      "opening_center": [
+        -6884.6796875,
+        11159.7197265625
+      ],
+      "max_distance": 9000,
+      "approach": [
+        -8524.7412109375,
+        10804.7568359375,
+        1600
+      ],
+      "rupture_id": "VolumetricRupture_1"
+    },
+    {
+      "id": "VolumetricRupture_1_Storey7",
+      "storey": 7,
+      "local": [
+        -11147.0712890625,
+        12444.3720703125,
+        4700
+      ],
+      "landing": [
+        -11147.0712890625,
+        12444.3720703125,
+        4200
+      ],
+      "route_group": "VolumetricRupture_1",
+      "region_kind": "rupture",
+      "opening_center": [
+        -6555.416015625,
+        10202.90234375
+      ],
+      "max_distance": 9000,
+      "approach": [
+        -9726.8798828125,
+        11813.2958984375,
+        3000
+      ],
+      "rupture_id": "VolumetricRupture_1"
+    },
+    {
+      "id": "VolumetricRupture_1_Storey8",
+      "storey": 8,
+      "local": [
+        -1772.571533203125,
+        11449.81640625,
+        6100
+      ],
+      "landing": [
+        -1772.571533203125,
+        11449.81640625,
+        5600
+      ],
+      "route_group": "VolumetricRupture_1",
+      "region_kind": "rupture",
+      "opening_center": [
+        -6415.36328125,
+        9810.01953125
+      ],
+      "max_distance": 8000,
+      "approach": [
+        -11147.0712890625,
+        12444.3720703125,
+        4400
+      ],
+      "rupture_id": "VolumetricRupture_1"
+    },
+    {
+      "id": "VolumetricRupture_1_Storey9",
+      "storey": 9,
+      "local": [
+        -3450.7431640625,
+        4282.25634765625,
+        7500
+      ],
+      "landing": [
+        -3450.7431640625,
+        4282.25634765625,
+        7000
+      ],
+      "route_group": "VolumetricRupture_1",
+      "region_kind": "rupture",
+      "opening_center": [
+        -6786.69091796875,
+        9997.7177734375
+      ],
+      "max_distance": 9500,
+      "approach": [
+        -2024.829345703125,
+        11570.392578125,
+        5800
+      ],
+      "rupture_id": "VolumetricRupture_1"
+    },
+    {
+      "id": "VolumetricRupture_1_Storey10",
+      "storey": 10,
+      "local": [
+        -8035.68798828125,
+        8781.859375,
+        8900
+      ],
+      "landing": [
+        -8035.68798828125,
+        8781.859375,
+        8400
+      ],
+      "route_group": "VolumetricRupture_1",
+      "region_kind": "rupture",
+      "opening_center": [
+        -6786.9658203125,
+        9459.6015625
+      ],
+      "max_distance": 6500,
+      "approach": [
+        -3450.7431640625,
+        4282.25634765625,
+        7200
+      ],
+      "rupture_id": "VolumetricRupture_1"
+    },
+    {
+      "id": "VolumetricRupture_1_Storey11",
+      "storey": 11,
+      "local": [
+        -6095.7158203125,
+        9622.650390625,
+        10300
+      ],
+      "landing": [
+        -6095.7158203125,
+        9622.650390625,
+        9800
+      ],
+      "route_group": "VolumetricRupture_1",
+      "region_kind": "rupture",
+      "opening_center": [
+        -6650.47265625,
+        10010.42578125
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -8035.68798828125,
+        8781.859375,
+        8600
+      ],
+      "rupture_id": "VolumetricRupture_1"
+    },
+    {
+      "id": "VolumetricRupture_2_Storey8",
+      "storey": 8,
+      "local": [
+        -7900.79443359375,
+        -10626.3251953125,
+        6100
+      ],
+      "landing": [
+        -7900.79443359375,
+        -10626.3251953125,
+        5600
+      ],
+      "route_group": "VolumetricRupture_2",
+      "region_kind": "rupture",
+      "opening_center": [
+        -7743.0,
+        -9070.240234375
+      ],
+      "max_distance": 5500,
+      "approach": [
+        -8174.58544921875,
+        -9021.548828125,
+        4400
+      ],
+      "rupture_id": "VolumetricRupture_2"
+    },
+    {
+      "id": "VolumetricRupture_2_Storey9",
+      "storey": 9,
+      "local": [
+        -7814.60791015625,
+        -12422.982421875,
+        7500
+      ],
+      "landing": [
+        -7814.60791015625,
+        -12422.982421875,
+        7000
+      ],
+      "route_group": "VolumetricRupture_2",
+      "region_kind": "rupture",
+      "opening_center": [
+        -7373.30029296875,
+        -9171.2822265625
+      ],
+      "max_distance": 5500,
+      "approach": [
+        -7900.79443359375,
+        -10626.3251953125,
+        5800
+      ],
+      "rupture_id": "VolumetricRupture_2"
+    },
+    {
+      "id": "VolumetricRupture_2_Storey10",
+      "storey": 10,
+      "local": [
+        -2299.7177734375,
+        -10279.97265625,
+        8750
+      ],
+      "landing": [
+        -2299.7177734375,
+        -10279.97265625,
+        8400
+      ],
+      "route_group": "VolumetricRupture_2",
+      "region_kind": "rupture",
+      "opening_center": [
+        -7596.29345703125,
+        -8932.1357421875
+      ],
+      "max_distance": 5500,
+      "approach": [
+        -7814.60791015625,
+        -12422.982421875,
+        7200
+      ],
+      "rupture_id": "VolumetricRupture_2"
+    },
+    {
+      "id": "VolumetricRupture_2_Storey11",
+      "storey": 11,
+      "local": [
+        -7826.84716796875,
+        -5906.140625,
+        10300
+      ],
+      "landing": [
+        -7826.84716796875,
+        -5906.140625,
+        9800
+      ],
+      "route_group": "VolumetricRupture_2",
+      "region_kind": "rupture",
+      "opening_center": [
+        -7755.34130859375,
+        -8652.2763671875
+      ],
+      "max_distance": 6000,
+      "approach": [
+        -2299.7177734375,
+        -10279.97265625,
+        8600
+      ],
+      "rupture_id": "VolumetricRupture_2"
+    },
+    {
+      "id": "VolumetricRupture_2_Storey12",
+      "storey": 12,
+      "local": [
+        -6446.76025390625,
+        -8222.9541015625,
+        11700
+      ],
+      "landing": [
+        -6446.76025390625,
+        -8222.9541015625,
+        11200
+      ],
+      "route_group": "VolumetricRupture_2",
+      "region_kind": "rupture",
+      "opening_center": [
+        -7892.20556640625,
+        -8269.775390625
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -7826.84716796875,
+        -5906.140625,
+        10000
+      ],
+      "rupture_id": "VolumetricRupture_2"
+    },
+    {
+      "id": "VolumetricRupture_3_Storey10",
+      "storey": 10,
+      "local": [
+        3987.979736328125,
+        481.55889892578125,
+        9500
+      ],
+      "landing": [
+        3987.979736328125,
+        481.55889892578125,
+        8400
+      ],
+      "route_group": "VolumetricRupture_3",
+      "region_kind": "rupture",
+      "opening_center": [
+        4103.86572265625,
+        2506.44677734375
+      ],
+      "max_distance": 4000,
+      "approach": [
+        3521.514404296875,
+        2287.93212890625,
+        7200
+      ],
+      "rupture_id": "VolumetricRupture_3"
+    },
+    {
+      "id": "VolumetricRupture_3_Storey11",
+      "storey": 11,
+      "local": [
+        1040.13525390625,
+        4275.32958984375,
+        10300
+      ],
+      "landing": [
+        1040.13525390625,
+        4275.32958984375,
+        9800
+      ],
+      "route_group": "VolumetricRupture_3",
+      "region_kind": "rupture",
+      "opening_center": [
+        4141.7685546875,
+        2529.4521484375
+      ],
+      "max_distance": 5500,
+      "approach": [
+        3987.979736328125,
+        481.55889892578125,
+        8600
+      ],
+      "rupture_id": "VolumetricRupture_3"
+    },
+    {
+      "id": "VolumetricRupture_3_Storey12",
+      "storey": 12,
+      "local": [
+        5958.0205078125,
+        -1126.80810546875,
+        11700
+      ],
+      "landing": [
+        5958.0205078125,
+        -1126.80810546875,
+        11200
+      ],
+      "route_group": "VolumetricRupture_3",
+      "region_kind": "rupture",
+      "opening_center": [
+        4154.7890625,
+        2327.68994140625
+      ],
+      "max_distance": 5500,
+      "approach": [
+        1040.13525390625,
+        4275.32958984375,
+        10000
+      ],
+      "rupture_id": "VolumetricRupture_3"
+    },
+    {
+      "id": "VolumetricRupture_4_Storey1",
+      "storey": 1,
+      "local": [
+        -893.8941040039062,
+        -3529.19189453125,
+        -3700
+      ],
+      "landing": [
+        -893.8941040039062,
+        -3529.19189453125,
+        -4200
+      ],
+      "route_group": "VolumetricRupture_4",
+      "region_kind": "rupture",
+      "opening_center": [
+        -1325.69287109375,
+        -2945.71240234375
+      ],
+      "max_distance": 4500,
+      "approach": [
+        -1867.440673828125,
+        -1863.02001953125,
+        -5400
+      ],
+      "rupture_id": "VolumetricRupture_4"
+    },
+    {
+      "id": "VolumetricRupture_4_Storey2",
+      "storey": 2,
+      "local": [
+        1608.3668212890625,
+        -2242.734130859375,
+        -2300
+      ],
+      "landing": [
+        1608.3668212890625,
+        -2242.734130859375,
+        -2800
+      ],
+      "route_group": "VolumetricRupture_4",
+      "region_kind": "rupture",
+      "opening_center": [
+        -1559.57861328125,
+        -2897.561279296875
+      ],
+      "max_distance": 4500,
+      "approach": [
+        -893.8941040039062,
+        -3529.19189453125,
+        -4000
+      ],
+      "rupture_id": "VolumetricRupture_4"
+    },
+    {
+      "id": "VolumetricRupture_4_Storey3",
+      "storey": 3,
+      "local": [
+        1975.734619140625,
+        -3983.697265625,
+        -900
+      ],
+      "landing": [
+        1975.734619140625,
+        -3983.697265625,
+        -1400
+      ],
+      "route_group": "VolumetricRupture_4",
+      "region_kind": "rupture",
+      "opening_center": [
+        -1337.8382568359375,
+        -3126.899169921875
+      ],
+      "max_distance": 5000,
+      "approach": [
+        1608.3668212890625,
+        -2242.734130859375,
+        -2600
+      ],
+      "rupture_id": "VolumetricRupture_4"
+    },
+    {
+      "id": "VolumetricRupture_5_Storey5",
+      "storey": 5,
+      "local": [
+        17633.990234375,
+        -1047.176513671875,
+        1900
+      ],
+      "landing": [
+        17633.990234375,
+        -1047.176513671875,
+        1400
+      ],
+      "route_group": "VolumetricRupture_5",
+      "region_kind": "rupture",
+      "opening_center": [
+        15579.17578125,
+        3228.841552734375
+      ],
+      "max_distance": 5500,
+      "approach": [
+        12251.390625,
+        1336.671142578125,
+        200
+      ],
+      "rupture_id": "VolumetricRupture_5"
+    },
+    {
+      "id": "VolumetricRupture_6_Storey5",
+      "storey": 5,
+      "local": [
+        -10015.3291015625,
+        2272.729736328125,
+        1900
+      ],
+      "landing": [
+        -10015.3291015625,
+        2272.729736328125,
+        1400
+      ],
+      "route_group": "VolumetricRupture_6",
+      "region_kind": "rupture",
+      "opening_center": [
+        -13510.0625,
+        -946.567626953125
+      ],
+      "max_distance": 6500,
+      "approach": [
+        -14893.0390625,
+        -1837.0369873046875,
+        200
+      ],
+      "rupture_id": "VolumetricRupture_6"
+    },
+    {
+      "id": "VolumetricRupture_6_Storey6",
+      "storey": 6,
+      "local": [
+        -9945.8359375,
+        -1940.92138671875,
+        3300
+      ],
+      "landing": [
+        -9945.8359375,
+        -1940.92138671875,
+        2800
+      ],
+      "route_group": "VolumetricRupture_6",
+      "region_kind": "rupture",
+      "opening_center": [
+        -13638.9794921875,
+        -797.9904174804688
+      ],
+      "max_distance": 5000,
+      "approach": [
+        -10015.3291015625,
+        2272.729736328125,
+        1600
+      ],
+      "rupture_id": "VolumetricRupture_6"
+    },
+    {
+      "id": "VolumetricRupture_8_Storey1",
+      "storey": 1,
+      "local": [
+        -5435.0576171875,
+        5679.74462890625,
+        -3100
+      ],
+      "landing": [
+        -5435.0576171875,
+        5679.74462890625,
+        -4200
+      ],
+      "route_group": "VolumetricRupture_8",
+      "region_kind": "rupture",
+      "opening_center": [
+        -5194.5966796875,
+        6444.12890625
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -5552.98828125,
+        6564.3896484375,
+        -5400
+      ],
+      "rupture_id": "VolumetricRupture_8"
+    },
+    {
+      "id": "VolumetricRupture_8_Storey2",
+      "storey": 2,
+      "local": [
+        -4413.2099609375,
+        5083.8828125,
+        -2300
+      ],
+      "landing": [
+        -4413.2099609375,
+        5083.8828125,
+        -2800
+      ],
+      "route_group": "VolumetricRupture_8",
+      "region_kind": "rupture",
+      "opening_center": [
+        -5354.96875,
+        6369.71142578125
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -5407.845703125,
+        5766.24658203125,
+        -4000
+      ],
+      "rupture_id": "VolumetricRupture_8"
+    },
+    {
+      "id": "VolumetricRupture_8_Storey3",
+      "storey": 3,
+      "local": [
+        -4811.7744140625,
+        7437.94775390625,
+        -900
+      ],
+      "landing": [
+        -4811.7744140625,
+        7437.94775390625,
+        -1400
+      ],
+      "route_group": "VolumetricRupture_8",
+      "region_kind": "rupture",
+      "opening_center": [
+        -5522.55419921875,
+        6272.38916015625
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -4413.2099609375,
+        5083.8828125,
+        -2600
+      ],
+      "rupture_id": "VolumetricRupture_8"
+    },
+    {
+      "id": "VolumetricRupture_9_Storey1",
+      "storey": 1,
+      "local": [
+        9623.787109375,
+        157.3702850341797,
+        -3700
+      ],
+      "landing": [
+        9623.787109375,
+        157.3702850341797,
+        -4200
+      ],
+      "route_group": "VolumetricRupture_9",
+      "region_kind": "rupture",
+      "opening_center": [
+        8089.486328125,
+        1398.9659423828125
+      ],
+      "max_distance": 3500,
+      "approach": [
+        7715.1845703125,
+        1376.4605712890625,
+        -5400
+      ],
+      "rupture_id": "VolumetricRupture_9"
+    },
+    {
+      "id": "VolumetricRupture_9_Storey2",
+      "storey": 2,
+      "local": [
+        7351.259765625,
+        -548.1466064453125,
+        -2300
+      ],
+      "landing": [
+        7351.259765625,
+        -548.1466064453125,
+        -2800
+      ],
+      "route_group": "VolumetricRupture_9",
+      "region_kind": "rupture",
+      "opening_center": [
+        7904.88330078125,
+        1416.9537353515625
+      ],
+      "max_distance": 3500,
+      "approach": [
+        9623.787109375,
+        157.3702850341797,
+        -4000
+      ],
+      "rupture_id": "VolumetricRupture_9"
+    },
+    {
+      "id": "VolumetricRupture_10_Storey5",
+      "storey": 5,
+      "local": [
+        -3492.559326171875,
+        -13406.017578125,
+        1900
+      ],
+      "landing": [
+        -3492.559326171875,
+        -13406.017578125,
+        1400
+      ],
+      "route_group": "VolumetricRupture_10",
+      "region_kind": "rupture",
+      "opening_center": [
+        -4111.39794921875,
+        -12348.4443359375
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -3925.183837890625,
+        -11689.92578125,
+        200
+      ],
+      "rupture_id": "VolumetricRupture_10"
+    },
+    {
+      "id": "Hall_0_0_Storey1",
+      "storey": 1,
+      "local": [
+        -2315.608154296875,
+        4848.603515625,
+        -3700
+      ],
+      "landing": [
+        -2315.608154296875,
+        4848.603515625,
+        -4200
+      ],
+      "route_group": "Hall_0_0",
+      "region_kind": "hall",
+      "opening_center": [
+        255.640380859375,
+        5756.15869140625
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -305.81072998046875,
+        5663.69677734375,
+        -5400
+      ],
+      "hall_id": "Hall_0_0"
+    },
+    {
+      "id": "Hall_0_1_Storey1",
+      "storey": 1,
+      "local": [
+        -7187.22119140625,
+        1589.1614990234375,
+        -3700
+      ],
+      "landing": [
+        -7187.22119140625,
+        1589.1614990234375,
+        -4200
+      ],
+      "route_group": "Hall_0_1",
+      "region_kind": "hall",
+      "opening_center": [
+        -5112.79931640625,
+        2656.6884765625
+      ],
+      "max_distance": 4000,
+      "approach": [
+        -5112.7998046875,
+        2656.6884765625,
+        -5400
+      ],
+      "hall_id": "Hall_0_1"
+    },
+    {
+      "id": "Hall_1_0_Storey2",
+      "storey": 2,
+      "local": [
+        -9237.662109375,
+        2645.79931640625,
+        -2300
+      ],
+      "landing": [
+        -9237.662109375,
+        2645.79931640625,
+        -2800
+      ],
+      "route_group": "Hall_1_0",
+      "region_kind": "hall",
+      "opening_center": [
+        -7146.29931640625,
+        3713.326171875
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -7146.2998046875,
+        3713.326171875,
+        -4000
+      ],
+      "hall_id": "Hall_1_0"
+    },
+    {
+      "id": "Hall_1_1_Storey2",
+      "storey": 2,
+      "local": [
+        4438.173828125,
+        -5223.64404296875,
+        -2300
+      ],
+      "landing": [
+        4438.173828125,
+        -5223.64404296875,
+        -2800
+      ],
+      "route_group": "Hall_1_1",
+      "region_kind": "hall",
+      "opening_center": [
+        6788.98486328125,
+        -4332.21484375
+      ],
+      "max_distance": 3000,
+      "approach": [
+        5811.880859375,
+        -4873.37109375,
+        -4000
+      ],
+      "hall_id": "Hall_1_1"
+    },
+    {
+      "id": "Hall_2_0_Storey3",
+      "storey": 3,
+      "local": [
+        6354.35009765625,
+        -6465.4228515625,
+        -900
+      ],
+      "landing": [
+        6354.35009765625,
+        -6465.4228515625,
+        -1400
+      ],
+      "route_group": "Hall_2_0",
+      "region_kind": "hall",
+      "opening_center": [
+        8720.8076171875,
+        -5564.958984375
+      ],
+      "max_distance": 3000,
+      "approach": [
+        7589.5732421875,
+        -6265.0126953125,
+        -2600
+      ],
+      "hall_id": "Hall_2_0"
+    },
+    {
+      "id": "Hall_2_1_Storey3",
+      "storey": 3,
+      "local": [
+        6135.08203125,
+        4632.3271484375,
+        -900
+      ],
+      "landing": [
+        6135.08203125,
+        4632.3271484375,
+        -1400
+      ],
+      "route_group": "Hall_2_1",
+      "region_kind": "hall",
+      "opening_center": [
+        8720.80859375,
+        5564.95849609375
+      ],
+      "max_distance": 3500,
+      "approach": [
+        8159.357421875,
+        5472.49658203125,
+        -2600
+      ],
+      "hall_id": "Hall_2_1"
+    },
+    {
+      "id": "Hall_3_0_Storey4",
+      "storey": 4,
+      "local": [
+        8056.673828125,
+        5847.3466796875,
+        500
+      ],
+      "landing": [
+        8056.673828125,
+        5847.3466796875,
+        0
+      ],
+      "route_group": "Hall_3_0",
+      "region_kind": "hall",
+      "opening_center": [
+        10652.6337890625,
+        6797.70263671875
+      ],
+      "max_distance": 5000,
+      "approach": [
+        12274.8046875,
+        5838.1669921875,
+        -1200
+      ],
+      "hall_id": "Hall_3_0"
+    },
+    {
+      "id": "Hall_3_1_Storey4",
+      "storey": 4,
+      "local": [
+        -13351.51171875,
+        -6894.1279296875,
+        500
+      ],
+      "landing": [
+        -13351.51171875,
+        -6894.1279296875,
+        0
+      ],
+      "route_group": "Hall_3_1",
+      "region_kind": "hall",
+      "opening_center": [
+        -11213.30078125,
+        -5826.6015625
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -11947.8349609375,
+        -6018.68798828125,
+        -1200
+      ],
+      "hall_id": "Hall_3_1"
+    },
+    {
+      "id": "Hall_4_0_Storey5",
+      "storey": 5,
+      "local": [
+        -13251.068359375,
+        -6833.74755859375,
+        1900
+      ],
+      "landing": [
+        -13251.068359375,
+        -6833.74755859375,
+        1400
+      ],
+      "route_group": "Hall_4_0",
+      "region_kind": "hall",
+      "opening_center": [
+        -11097.0986328125,
+        -5766.220703125
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -11116.99609375,
+        -8515.7275390625,
+        200
+      ],
+      "hall_id": "Hall_4_0"
+    },
+    {
+      "id": "Hall_4_1_Storey5",
+      "storey": 5,
+      "local": [
+        97.18203735351562,
+        -15246.744140625,
+        1900
+      ],
+      "landing": [
+        97.18203735351562,
+        -15246.744140625,
+        1400
+      ],
+      "route_group": "Hall_4_1",
+      "region_kind": "hall",
+      "opening_center": [
+        554.85595703125,
+        -12493.48046875
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -1074.931884765625,
+        -13411.46484375,
+        200
+      ],
+      "hall_id": "Hall_4_1"
+    },
+    {
+      "id": "Hall_5_0_Storey6",
+      "storey": 6,
+      "local": [
+        52.66581726074219,
+        -14113.0029296875,
+        3300
+      ],
+      "landing": [
+        52.66581726074219,
+        -14113.0029296875,
+        2800
+      ],
+      "route_group": "Hall_5_0",
+      "region_kind": "hall",
+      "opening_center": [
+        504.0179748535156,
+        -11348.7900390625
+      ],
+      "max_distance": 4000,
+      "approach": [
+        -2238.829345703125,
+        -11673.3359375,
+        1600
+      ],
+      "hall_id": "Hall_5_0"
+    },
+    {
+      "id": "Hall_5_1_Storey6",
+      "storey": 6,
+      "local": [
+        -998.5353393554688,
+        9730.205078125,
+        3300
+      ],
+      "landing": [
+        -998.5353393554688,
+        9730.205078125,
+        2800
+      ],
+      "route_group": "Hall_5_1",
+      "region_kind": "hall",
+      "opening_center": [
+        504.01812744140625,
+        11348.7900390625
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -57.433074951171875,
+        11256.328125,
+        1600
+      ],
+      "hall_id": "Hall_5_1"
+    },
+    {
+      "id": "Hall_6_0_Storey7",
+      "storey": 7,
+      "local": [
+        -2167.640869140625,
+        9210.681640625,
+        4700
+      ],
+      "landing": [
+        -2167.640869140625,
+        9210.681640625,
+        4200
+      ],
+      "route_group": "Hall_6_0",
+      "region_kind": "hall",
+      "opening_center": [
+        453.1806335449219,
+        10204.099609375
+      ],
+      "max_distance": 5000,
+      "approach": [
+        2648.736572265625,
+        8913.5205078125,
+        3000
+      ],
+      "hall_id": "Hall_6_0"
+    },
+    {
+      "id": "Hall_6_1_Storey7",
+      "storey": 7,
+      "local": [
+        -11240.2158203125,
+        2962.5732421875,
+        4700
+      ],
+      "landing": [
+        -11240.2158203125,
+        2962.5732421875,
+        4200
+      ],
+      "route_group": "Hall_6_1",
+      "region_kind": "hall",
+      "opening_center": [
+        -9063.599609375,
+        4709.583984375
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -9325.5927734375,
+        4685.3203125,
+        3000
+      ],
+      "hall_id": "Hall_6_1"
+    },
+    {
+      "id": "Hall_7_0_Storey8",
+      "storey": 8,
+      "local": [
+        -8450.25390625,
+        1597.286376953125,
+        6100
+      ],
+      "landing": [
+        -8450.25390625,
+        1597.286376953125,
+        5600
+      ],
+      "route_group": "Hall_7_0",
+      "region_kind": "hall",
+      "opening_center": [
+        -8046.85009765625,
+        4181.26513671875
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -11045.0927734375,
+        3210.702392578125,
+        4400
+      ],
+      "hall_id": "Hall_7_0"
+    },
+    {
+      "id": "Hall_7_1_Storey8",
+      "storey": 8,
+      "local": [
+        4138.3564453125,
+        -5223.65771484375,
+        6100
+      ],
+      "landing": [
+        4138.3564453125,
+        -5223.65771484375,
+        5600
+      ],
+      "route_group": "Hall_7_1",
+      "region_kind": "hall",
+      "opening_center": [
+        7644.5078125,
+        -4878.14306640625
+      ],
+      "max_distance": 7500,
+      "approach": [
+        11383.552734375,
+        -645.5010986328125,
+        4400
+      ],
+      "hall_id": "Hall_7_1"
+    },
+    {
+      "id": "Hall_8_0_Storey9",
+      "storey": 9,
+      "local": [
+        4224.20068359375,
+        -5213.00537109375,
+        7500
+      ],
+      "landing": [
+        4224.20068359375,
+        -5213.00537109375,
+        7000
+      ],
+      "route_group": "Hall_8_0",
+      "region_kind": "hall",
+      "opening_center": [
+        6678.59423828125,
+        -4261.77197265625
+      ],
+      "max_distance": 4500,
+      "approach": [
+        7481.19921875,
+        -2131.924072265625,
+        5800
+      ],
+      "hall_id": "Hall_8_0"
+    },
+    {
+      "id": "Hall_8_1_Storey9",
+      "storey": 9,
+      "local": [
+        4042.163818359375,
+        3241.318603515625,
+        7500
+      ],
+      "landing": [
+        4042.163818359375,
+        3241.318603515625,
+        7000
+      ],
+      "route_group": "Hall_8_1",
+      "region_kind": "hall",
+      "opening_center": [
+        6678.5947265625,
+        4261.77197265625
+      ],
+      "max_distance": 3000,
+      "approach": [
+        6117.1435546875,
+        4169.31005859375,
+        5800
+      ],
+      "hall_id": "Hall_8_1"
+    },
+    {
+      "id": "Hall_9_0_Storey10",
+      "storey": 10,
+      "local": [
+        6520.4482421875,
+        1500.2730712890625,
+        8900
+      ],
+      "landing": [
+        6520.4482421875,
+        1500.2730712890625,
+        8400
+      ],
+      "route_group": "Hall_9_0",
+      "region_kind": "hall",
+      "opening_center": [
+        5712.6826171875,
+        3645.39990234375
+      ],
+      "max_distance": 4000,
+      "approach": [
+        3466.8779296875,
+        3275.5517578125,
+        7200
+      ],
+      "hall_id": "Hall_9_0"
+    },
+    {
+      "id": "Hall_9_1_Storey10",
+      "storey": 10,
+      "local": [
+        -3783.138671875,
+        -4897.6171875,
+        8900
+      ],
+      "landing": [
+        -3783.138671875,
+        -4897.6171875,
+        8400
+      ],
+      "route_group": "Hall_9_1",
+      "region_kind": "hall",
+      "opening_center": [
+        -6013.35009765625,
+        -3124.627685546875
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -5624.650390625,
+        -3282.528564453125,
+        7200
+      ],
+      "hall_id": "Hall_9_1"
+    },
+    {
+      "id": "Hall_10_0_Storey11",
+      "storey": 11,
+      "local": [
+        -4121.2275390625,
+        -5251.64501953125,
+        10300
+      ],
+      "landing": [
+        -4121.2275390625,
+        -5251.64501953125,
+        9800
+      ],
+      "route_group": "Hall_10_0",
+      "region_kind": "hall",
+      "opening_center": [
+        -4996.6005859375,
+        -2596.309326171875
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -5357.39990234375,
+        -3036.3095703125,
+        8600
+      ],
+      "hall_id": "Hall_10_0"
+    },
+    {
+      "id": "Hall_10_1_Storey11",
+      "storey": 11,
+      "local": [
+        -2252.321533203125,
+        -6604.14404296875,
+        10300
+      ],
+      "landing": [
+        -2252.321533203125,
+        -6604.14404296875,
+        9800
+      ],
+      "route_group": "Hall_10_1",
+      "region_kind": "hall",
+      "opening_center": [
+        249.83030700683594,
+        -5625.33740234375
+      ],
+      "max_distance": 3000,
+      "approach": [
+        -703.6312255859375,
+        -5660.837890625,
+        8600
+      ],
+      "hall_id": "Hall_10_1"
+    },
+    {
+      "id": "Hall_11_0_Storey12",
+      "storey": 12,
+      "local": [
+        -2329.63330078125,
+        -5474.73828125,
+        11700
+      ],
+      "landing": [
+        -2329.63330078125,
+        -5474.73828125,
+        11200
+      ],
+      "route_group": "Hall_11_0",
+      "region_kind": "hall",
+      "opening_center": [
+        198.99267578125,
+        -4480.64697265625
+      ],
+      "max_distance": 6000,
+      "approach": [
+        4997.3984375,
+        -2969.323486328125,
+        10000
+      ],
+      "hall_id": "Hall_11_0"
+    },
+    {
+      "id": "Hall_11_1_Storey12",
+      "storey": 12,
+      "local": [
+        -2480.400146484375,
+        3385.780029296875,
+        11700
+      ],
+      "landing": [
+        -2480.400146484375,
+        3385.780029296875,
+        11200
+      ],
+      "route_group": "Hall_11_1",
+      "region_kind": "hall",
+      "opening_center": [
+        198.9926300048828,
+        4480.646484375
+      ],
+      "max_distance": 3500,
+      "approach": [
+        147.44802856445312,
+        5882.6376953125,
+        10000
+      ],
+      "hall_id": "Hall_11_1"
+    },
+    {
+      "id": "Hall_12_0_Storey13",
+      "storey": 13,
+      "local": [
+        -620.2303466796875,
+        4689.44384765625,
+        13100
+      ],
+      "landing": [
+        -620.2303466796875,
+        4689.44384765625,
+        12600
+      ],
+      "route_group": "Hall_12_0",
+      "region_kind": "hall",
+      "opening_center": [
+        148.15509033203125,
+        3335.95556640625
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -2785.145751953125,
+        1922.9482421875,
+        11400
+      ],
+      "hall_id": "Hall_12_0"
+    },
+    {
+      "id": "Hall_12_1_Storey13",
+      "storey": 13,
+      "local": [
+        -3751.06298828125,
+        194.2181396484375,
+        13100
+      ],
+      "landing": [
+        -3751.06298828125,
+        194.2181396484375,
+        12600
+      ],
+      "route_group": "Hall_12_1",
+      "region_kind": "hall",
+      "opening_center": [
+        -2963.100341796875,
+        1539.6717529296875
+      ],
+      "max_distance": 3500,
+      "approach": [
+        -298.14501953125,
+        452.5613708496094,
+        11400
+      ],
+      "hall_id": "Hall_12_1"
+    }
+  ],
+  "panels": [
+    {
+      "id": "LowerLift",
+      "from": [
+        -1800,
+        0,
+        -5615
+      ],
+      "to": [
+        -1800,
+        0,
+        -15
+      ],
+      "outward": [
+        0,
+        1
+      ],
+      "speed": 600
+    },
+    {
+      "id": "UpperLift",
+      "from": [
+        0,
+        0,
+        -15
+      ],
+      "to": [
+        0,
+        0,
+        5585
+      ],
+      "outward": [
+        0,
+        1
+      ],
+      "speed": 600
+    },
+    {
+      "id": "CrownLift",
+      "from": [
+        1800,
+        0,
+        5585
+      ],
+      "to": [
+        1800,
+        0,
+        11185
+      ],
+      "outward": [
+        0,
+        1
+      ],
+      "speed": 600
+    },
+    {
+      "id": "FacadeFerry",
+      "from": [
+        -16800.0,
+        -9000,
+        2785
+      ],
+      "to": [
+        -16800.0,
+        9000,
+        2785
+      ],
+      "outward": [
+        1,
+        0
+      ],
+      "speed": 750,
+      "width_cm": 2400,
+      "external": true
+    },
+    {
+      "id": "SkyFerry",
+      "from": [
+        -11900.0,
+        -4200,
+        8385
+      ],
+      "to": [
+        -11900.0,
+        4200,
+        8385
+      ],
+      "outward": [
+        1,
+        0
+      ],
+      "speed": 750,
+      "width_cm": 2400,
+      "external": true
+    }
+  ],
+  "reviews": [
+    {
+      "id": "PyramidEntry",
+      "local": [
+        -12987.675182274681,
+        -1499.6881049479935,
+        201.71775703060848
+      ]
+    },
+    {
+      "id": "PyramidBoss",
+      "local": [
+        -6060.915495062646,
+        -10997.709068015049,
+        5801.2005839464
+      ]
+    },
+    {
+      "id": "PyramidCrypt",
+      "local": [
+        173.1695530955078,
+        5598.833771083596,
+        -5398.895543288192
+      ]
+    },
+    {
+      "id": "PyramidCrown",
+      "local": [
+        -2597.534331879533,
+        1299.7294501009674,
+        11400.737706623375
+      ]
+    }
+  ],
+  "ramps": [
+    {
+      "id": "Escalator_0",
+      "path": [
+        [
+          4522.0,
+          -665.522216796875,
+          -5600
+        ],
+        [
+          4522.0,
+          665.522216796875,
+          -4200
+        ]
+      ],
+      "width_cm": 487.9061886953306,
+      "designed_max_slope_deg": 42.99915634177902
+    },
+    {
+      "id": "Escalator_1",
+      "path": [
+        [
+          -2584.4423828125,
+          5879.4794921875,
+          -4200
+        ],
+        [
+          -3799.5576171875,
+          5177.9326171875,
+          -2800
+        ]
+      ],
+      "width_cm": 514.312664039923,
+      "designed_max_slope_deg": 42.99998284680102
+    },
+    {
+      "id": "Escalator_2",
+      "path": [
+        [
+          -4766.7587890625,
+          -6769.5712890625,
+          -2800
+        ],
+        [
+          -3479.240966796875,
+          -7512.919921875,
+          -1400
+        ]
+      ],
+      "width_cm": 544.9666659295038,
+      "designed_max_slope_deg": 42.99929117340718
+    },
+    {
+      "id": "Escalator_3",
+      "path": [
+        [
+          10108.0,
+          -791.6495361328125,
+          -1400
+        ],
+        [
+          10108.0,
+          791.6495361328125,
+          0
+        ]
+      ],
+      "width_cm": 580.3800750466121,
+      "designed_max_slope_deg": 42.99932502728237
+    },
+    {
+      "id": "Escalator_4",
+      "path": [
+        [
+          -4793.32861328125,
+          9979.3095703125,
+          0
+        ],
+        [
+          -6245.67138671875,
+          9140.7998046875,
+          1400
+        ]
+      ],
+      "width_cm": 614.741108254129,
+      "designed_max_slope_deg": 42.99981240841479
+    },
+    {
+      "id": "Escalator_5",
+      "path": [
+        [
+          -5810.17333984375,
+          -8317.2080078125,
+          1400
+        ],
+        [
+          -4297.82666015625,
+          -9190.3623046875,
+          2800
+        ]
+      ],
+      "width_cm": 640.1250840494746,
+      "designed_max_slope_deg": 42.99998226310711
+    },
+    {
+      "id": "Escalator_6",
+      "path": [
+        [
+          9177.0,
+          -912.20166015625,
+          2800
+        ],
+        [
+          9177.0,
+          912.20166015625,
+          4200
+        ]
+      ],
+      "width_cm": 668.7880230734564,
+      "designed_max_slope_deg": 42.99961220228415
+    },
+    {
+      "id": "Escalator_7",
+      "path": [
+        [
+          -3294.522216796875,
+          7619.5673828125,
+          4200
+        ],
+        [
+          -4951.47802734375,
+          6662.923828125,
+          5600
+        ]
+      ],
+      "width_cm": 701.309561892886,
+      "designed_max_slope_deg": 42.999154007034825
+    },
+    {
+      "id": "Escalator_8",
+      "path": [
+        [
+          -4529.79052734375,
+          -5831.3583984375,
+          5600
+        ],
+        [
+          -2785.209228515625,
+          -6838.5927734375,
+          7000
+        ]
+      ],
+      "width_cm": 738.4095457080824,
+      "designed_max_slope_deg": 42.9998655244365
+    },
+    {
+      "id": "Escalator_9",
+      "path": [
+        [
+          6384.0,
+          -1065.363525390625,
+          7000
+        ],
+        [
+          6384.0,
+          1065.363525390625,
+          8400
+        ]
+      ],
+      "width_cm": 780.9933054833932,
+      "designed_max_slope_deg": 42.99907812789656
+    },
+    {
+      "id": "Escalator_10",
+      "path": [
+        [
+          -1745.69921875,
+          5288.7021484375,
+          8400
+        ],
+        [
+          -3707.30078125,
+          4156.1708984375,
+          9800
+        ]
+      ],
+      "width_cm": 830.2157322009275,
+      "designed_max_slope_deg": 42.99989062323196
+    },
+    {
+      "id": "Escalator_11",
+      "path": [
+        [
+          -3309.67529296875,
+          -3310.7138671875,
+          9800
+        ],
+        [
+          -1212.3245849609375,
+          -4521.6201171875,
+          11200
+        ]
+      ],
+      "width_cm": 887.574024598116,
+      "designed_max_slope_deg": 42.9997744684274
+    }
+  ]
+}

@@ -15,6 +15,7 @@ Portfolio/
 *.slnx
 sample.png
 compile_commands.json
+__pycache__/
 launch_claude.ps1
 Standalone_AddClient.lnk
 Standalone_RunListenServer.lnk
