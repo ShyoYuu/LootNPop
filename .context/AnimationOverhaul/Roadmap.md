@@ -21,17 +21,18 @@
 ```
 [본 트랙]
 Phase 0 참조 환경과 기준 결정
-  ├─→ Phase 1A 물리 히트리액트 스파이크 ──┐
-  ├─→ Phase 1B 마커리스 모캡 스파이크 ──┼─→ Phase 4 모캡 근접 세트 (상시 병행)
-  └─→ Phase 2 GASP Mover ABP 재구성 ────┤
-                                         └─→ Phase 3 물리 히트리액트 본 구현 (1A + 2 필요)
+  ├─→ Phase 1A 물리 히트리액트 스파이크 ──────────────┐
+  ├─→ Phase 1B 마커리스 모캡 스파이크 ──────────────┼─→ Phase 4 모캡 근접 세트 (상시 병행)
+  └─→ Phase 1C GASP 소스 에셋 최신화 ─→ Phase 2 GASP Mover ABP 재구성 ─┤
+                                                     └─→ Phase 3 물리 히트리액트 본 구현 (1A + 2 필요)
 Phase 2 완료 ─→ Phase 5 UAF 판정 스파이크 ─→ (Go) Phase 6 UAF 마이그레이션
 
 [트랙 L — 최후순위, 독립 (AN-008)]
 L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 ```
 
-- Phase 1A·1B·2는 Phase 0 뒤에 서로 독립이라 **병렬 세션**으로 돌릴 수 있다. 같은 에셋(`ABP_Lyra`)을 건드리는 단위끼리는 동시에 돌리지 않는다.
+- Phase 1A·1B·1C는 Phase 0 뒤에 서로 독립이라 **병렬 세션**으로 돌릴 수 있다. 같은 에셋을 건드리는 단위끼리는 동시에 돌리지 않는다(1C는 `GASP_Mannequin` 폴더와 적 에셋 참조를, Phase 2는 `ABP_Lyra`를 바꾼다).
+- Phase 2는 1C가 끝난 뒤 최신 시퀀스로 시작한다. 낡은 시퀀스로 블록을 짠 뒤 교체하면 PSD·Chooser를 두 번 맞추게 된다.
 - Phase 3은 Phase 2가 끝나 최종 포즈 파이프라인이 정해진 뒤에 들어간다(물리 노드 위치가 거기에 달려 있다).
 - Phase 4는 1B를 통과하면 Phase 2·3과 병행한다. 근접 몽타주·ANS만 다루고 ABP는 건드리지 않는다.
 
@@ -42,6 +43,7 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 | 0 | 참조 환경과 기준 결정 | 0-1 MCP 읽기 범위 확인 · 0-2 GASP 블록 목록 · 0-3 스켈레톤·소스 에셋 규칙 결정 (1~2세션) | 착수 전 | `design/GASPReference.md` 생성, AN-011 결정, 마이그레이트 규칙 확정 (`phases/Phase00_ReferenceSetup.md`) |
 | 1A | 물리 히트리액트 스파이크 | 1세션 | 계획 | 테스트 폰의 `VisualMesh` 상체에 PhysicsControl 임펄스, 적도에서 처짐 없음, 2인 PIE 각 머신 로컬 재생, 캡슐·Mover 무영향 |
 | 1B | 마커리스 모캡 스파이크 | 1~2세션 | 계획 | 영상 1클립 → MetaHuman 바디 → 리타깃 → 루트모션·검 방향 정리 → 공격 몽타주로 PIE 1타 |
+| 1C | GASP 소스 에셋 최신화 | 1C-1 대조표·백업 · 1C-2 경로 정렬 · 1C-3 덮어쓰기 · 1C-4 회귀 (3~4세션) | 계획 | 옛 GASP 유래 411개를 5.8 최신본으로 교체, LootNPop 산출물 보존, 깨진 참조 0, ISKM·승격 적 회귀 없음 (`phases/Phase01C_GASPAssetRefresh.md`) |
 | 2 | GASP Mover ABP 재구성 | 블록당 1세션, 5~7세션 | 계획 | 아래 §4. 블록마다 적도·NPC·2인 확인, 무기 레이어·슬롯·ANS 회귀 없음 |
 | 3 | 물리 히트리액트 본 구현 | 2~3세션 | 계획 | 히트리액트 몽타주 대체, 방향·강도 반영, 플레이어·`ActorPromoted` 적, 2인 PIE |
 | 4 | 모캡 근접 세트 확충 | 무기 세트당 1~2세션 | 계획 | 루트모션 공격이 근접 보정 Motion Warping 경로를 탐, ANS 5종 배치, 칼날 판정 일치 |
@@ -65,6 +67,13 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 - 파이프라인: 영상 → MetaHuman 바디 애니 → IK 리타깃(AN-011 스켈레톤) → 루트모션 추출·발 접지 정리 → 검 방향 보정(무기는 추적되지 않는다) → 몽타주.
 - 영상 선택 기준: 고정 카메라, 전신 노출, 컷·히트스톱·VFX 가림 없는 구간.
 - 산출: 파이프라인 단계별 소요·실패 지점·수작업 비율을 `research/`에 기록해 Phase 4 산정 근거로 쓴다.
+
+### Phase 1C — GASP 소스 에셋 최신화
+
+- 옛 GASP에서 가져온 `Content/Characters/GASP_Mannequin/`(MotionMatchingData 제외)을 중복이어도 5.8 최신본으로 바꾼다(AN-012).
+- 방식은 폴더를 GASP 원본 경로(`/Game/Characters/UEFN_Mannequin/`)로 옮긴 뒤 파일을 덮어쓰는 것이다(AN-013 제안). 411쌍의 참조 교체를 피하고, 다음 GASP 업데이트도 덮어쓰기로 끝낸다.
+- 적이 이 스켈레톤·메시를 쓰므로 회귀 검증의 중심은 ISKM 순수 엔티티 적과 `BP_LNPEnemy`다.
+- 상세는 `phases/Phase01C_GASPAssetRefresh.md`.
 
 ### Phase 2 — GASP Mover ABP 재구성 (블록 순서는 Phase 0-2에서 확정)
 

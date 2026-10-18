@@ -19,6 +19,9 @@
 | AN-009 | GASP 에디터는 MCP `unreal-mcp-gasp`(포트 8001)로 LootNPop 에디터와 동시에 띄워 **읽기 전용**으로 참조한다. GASP 쪽에서는 저장·수정 툴을 쓰지 않는다. | 확정(2026-10-16, 사용자 결정) | `README.md` §4 |
 | AN-010 | 마커리스 모캡에 쓰는 다른 게임 영상은 프로토타입·레퍼런스로 한정하고, 최종 출시 에셋은 직접 촬영한 영상으로 같은 파이프라인을 돌린다(타사 모션 작업물 권리 문제). | 제안(사용자 확인 필요) | `research/UE58_AnimationFeatures.md` §4 |
 | AN-011 | 로코모션 기준 스켈레톤(현행 Lyra PSD 유지 vs GASP UEFN 스켈레톤 전환)은 Phase 0에서 사용자가 고른다. 정해지기 전에는 Phase 2에 착수하지 않는다. | 결정 대기 | `phases/Phase00_ReferenceSetup.md` 단위 0-3 |
+| AN-012 | 옛 GASP 버전에서 가져온 소스 에셋(`Content/Characters/GASP_Mannequin/`, MotionMatchingData 제외)은 **중복이어도 GASP 5.8 최신본으로 교체**한다. 최신 GASP에만 있는 에셋은 일괄 반입하지 않고 필요할 때 가져온다(AN-001). | 확정(2026-10-18, 사용자 결정) | `phases/Phase01C_GASPAssetRefresh.md` |
+| AN-013 | 최신화는 LootNPop 폴더를 GASP 원본 패키지 경로(`/Game/Characters/UEFN_Mannequin/`)로 옮긴 뒤 같은 경로의 파일을 덮어쓰는 방식으로 한다. 이후 GASP 업데이트도 같은 덮어쓰기로 처리한다. | 제안(1C-1에서 사용자 확인) | 같은 문서 "핵심 방식" |
+| AN-014 | GASP 폴더 안에 섞인 LootNPop 산출물(리타깃 적 애니 `Animations/Enemy/*` 등, 현재 git 제외)을 LootNPop 소유 폴더로 옮겨 git에 추적할지. | 결정 대기(1C-1) | 같은 문서 단위 1C-1 |
 
 ## 변경 규칙
 

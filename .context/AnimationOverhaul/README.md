@@ -10,6 +10,7 @@ UE 5.8 Game Animation Sample(이하 GASP)의 애니메이션 구성을 LootNPop�
 
 핵심 목표:
 
+- 옛 GASP 버전에서 가져온 소스 에셋을 GASP 5.8 최신본으로 교체한다(AN-012).
 - GASP Mover ABP 구성을 따라 플레이어와 `ActorPromoted` 적의 로코모션을 재구성한다.
 - GASP 5.8의 PhysicsControl(물리 애니메이션)로 가벼운 히트리액트 몽타주를 대체한다.
 - UE 5.8 마커리스 모션 캡처로 영상에서 근접 무기 모션을 뽑아 공격 세트를 늘린다.
@@ -34,6 +35,7 @@ UE 5.8 Game Animation Sample(이하 GASP)의 애니메이션 구성을 LootNPop�
 | 현재 단위 구현 | `Current.md`가 가리키는 `phases/PhaseNN_*.md` |
 | UE 5.8 기능 사실(UAF·PhysicsControl·Locomotor·마커리스·워핑 노드 Up 축) | `research/UE58_AnimationFeatures.md` |
 | GASP 블록별 구성 조사 결과 | `design/GASPReference.md` (Phase 0에서 생성) |
+| GASP 소스 에셋 최신화(경로 정렬·덮어쓰기·적 회귀) | `phases/Phase01C_GASPAssetRefresh.md`, `research/UE58_AnimationFeatures.md` §6 |
 | 현재 메인 ABP·무기 레이어·몽타주·ANS·근접 보정 | [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) |
 | 구형 중력·Mover·랙돌(§9) | [TechDesign_CharacterMovement.md](../TechDesign_CharacterMovement.md) |
 | 경직(그로기·다운)과 히트리액트의 경계 | [TechDesign_Poise.md](../TechDesign_Poise.md) |
