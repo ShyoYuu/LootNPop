@@ -1,7 +1,7 @@
 # 애니메이션 개선 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-10-16
+> 마지막 갱신: 2026-10-18
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다. ID 접두어 `AN-`은 다른 작업 폴더(`D-`·`L-`)와 구분하기 위한 것이다.
 
 ## 결정 목록
@@ -22,6 +22,7 @@
 | AN-012 | 옛 GASP 버전에서 가져온 소스 에셋(`Content/Characters/GASP_Mannequin/`, MotionMatchingData 제외)은 **중복이어도 GASP 5.8 최신본으로 교체**한다. 최신 GASP에만 있는 에셋은 일괄 반입하지 않고 필요할 때 가져온다(AN-001). | 확정(2026-10-18, 사용자 결정) | `phases/Phase01C_GASPAssetRefresh.md` |
 | AN-013 | 최신화는 LootNPop 폴더를 GASP 원본 패키지 경로(`/Game/Characters/UEFN_Mannequin/`)로 옮긴 뒤 같은 경로의 파일을 덮어쓰는 방식으로 한다. 이후 GASP 업데이트도 같은 덮어쓰기로 처리한다. | 제안(1C-1에서 사용자 확인) | 같은 문서 "핵심 방식" |
 | AN-014 | GASP 폴더 안에 섞인 LootNPop 산출물(리타깃 적 애니 `Animations/Enemy/*` 등, 현재 git 제외)을 LootNPop 소유 폴더로 옮겨 git에 추적할지. | 결정 대기(1C-1) | 같은 문서 단위 1C-1 |
+| AN-015 | 로코모션 선택 코어는 GASP의 **Motion Matching 노드 방식**(Chooser가 상태별 PSD 묶음을 고르고 MM 노드가 검색)으로 재구성한다. GASP Mover 기본값인 State Machine + Chooser + Blend Stack 방식은 만들지 않는다(검증 전 Experimental, 유지보수 부담, ABP 분기 누적 — AN-003). | 확정(2026-10-18, 사용자 결정) | `design/GASPReference.md` §2.5 |
 
 ## 변경 규칙
 

@@ -1,6 +1,6 @@
 # GASP 참조 조사
 
-> 상태: 초안(§1 완료 — 단위 0-1, §2는 단위 0-2에서 작성)
+> 상태: 초안(§1 단위 0-1, §2 단위 0-2 완료 — 블록별 수치는 Phase 2 착수 시 재확인)
 > 마지막 갱신: 2026-10-18
 > 소유 정보: GASP 5.8 에디터(`unreal-mcp-gasp`, 포트 8001)에서 무엇을 어떻게 읽는지, 그리고 블록별로 LootNPop에서 무엇을 만들지. 원본 덤프가 아니라 요약만 둔다(README §11).
 
@@ -36,7 +36,11 @@
 - **덤프 크기 주의.** `describe_toolset`의 `BlueprintTools`·`ControlRigTools`는 7만 자를 넘어 파일로 떨어진다(Python으로 이름·스키마만 뽑아 읽는다). `get_dependencies`는 Chooser 하나에 수백 줄이 나오므로 스크립트에서 개수·폴더만 요약한다.
 - **`ObjectTools.list_properties`가 보여 주는 것만 `get_properties`로 읽힌다.** 목록에 없는 내부 UPROPERTY(`PropertyBindings`·`ResultsStructs`·`DatabaseAnimationAssets`)는 이름을 넣어도 실패한다.
 - **쓰기 툴 금지 목록**(같은 툴셋 안에 섞여 있다): `write_graph_dsl`, `compile_blueprint`, `create*`/`add_*`/`remove_*`/`delete*`/`connect_pins`/`break_pins`/`set_*`(BlueprintTools·ControlRigTools·ObjectTools), `AssetTools.save_assets`/`delete`/`move`/`duplicate`/`write_file`/`update_metadata_tags`, SlateInspector의 `Click`/`Type`/`PressKey`/`Drag`/`FillForm`/`SelectOption`.
-- **GASP ABP가 dirty로 보인다.** 2026-10-18 조회 뒤 `AssetTools.is_dirty`가 `SandboxCharacter_Mover_ABP`만 `true`를 돌려줬다(CR·Chooser·PSS·PSD·PCA는 `false`). 조회 전 상태를 재지 않아 읽기 툴 때문인지, 원래 그랬는지 모른다. **GASP 에디터를 닫을 때는 저장하지 않는다.** 다음 세션은 첫 조회 전에 `is_dirty`를 먼저 재서 원인을 가린다.
+- **`read_graph_dsl`은 BP를 dirty로 만든다(0-2에서 확정).** 깨끗한 `SandboxCharacter_CMC_ABP`로 툴을 하나씩 돌리며 `is_dirty`를 쟀다. `list_graphs`·`find_nodes`·`get_node_infos`·`ObjectTools.list_properties`/`get_properties`, 내용이 빈 AnimGraph에 대한 `read_graph_dsl`은 `false`를 유지했고, **EventGraph(K2)에 `read_graph_dsl`을 건 직후 `true`**가 됐다. 0-1의 Mover ABP dirty도 같은 원인이다(같은 에디터 세션 로그에서 02:21 자동 저장 때는 깨끗했고, 02:31에 ABP 읽기 툴만 돈 뒤 02:31:54 자동 저장에 ABP가 들어갔다). Control Rig 읽기 툴은 dirty를 만들지 않았다. 규칙: K2 그래프는 DSL이 가장 압축적이라 계속 쓰되, **DSL을 쓴 BP는 dirty가 된다고 전제하고 GASP 에디터를 닫을 때 저장하지 않는다.** 자동 저장은 `Saved/Autosaves`에만 쓰므로 원본 `.uasset`은 바뀌지 않는다. 2026-10-18 현재 dirty: `SandboxCharacter_Mover_ABP`, `SandboxCharacter_CMC_ABP`(원인 확인용).
+- **`read_graph_dsl`은 데이터 흐름 순환이 있는 그래프에서 실패한다.** 변수를 `VInterpTo`/`RInterpTo`로 자기 갱신하는 그래프는 "Cycle detected in data-flow graph" 에러가 나고, 묶음 스크립트 전체가 죽는다. 먼저 `find_nodes(title="Interp")`로 걸러 그 그래프만 `get_node_infos`로 읽는다(Mover ABP: `Update_EssentialValues`, `OnUpdate_LocomotionTransition`).
+- **Blend Poses by Enum의 핀↔enum 항목 매핑은 안 읽힌다.** 핀 이름이 `BlendPose_0..N`으로만 나오고 `VisibleEnumEntries`는 `list_properties`에 없다 → 사용자 Ctrl+C.
+- **enum 내부 이름 매핑(0-1 추정 정정).** `E_MovementMode`: `NewEnumerator4`=OnGround, `5`=InAir, `6`=Sliding, `7`=Traversing, `9`=Ragdoll, `10`=Flying — Ragdoll 상태 머신 전이(`==9`), State Controller 전이(`==6` → "to Slide", `==10` → Debug Flying)로 확인했다. `E_MovementState`: `0`=Moving, `4`=Idle(전이 노티파이 이름으로 확인). `E_Stance` `0`=Stand·`1`=Crouch, `E_Gait` `0`=Walk·`1`=Run·`2`=Sprint는 Chooser 행 구성으로 추정.
+- **GASP 기본 CVar**(`Config/DefaultEngine.ini`): `DDCvar.LocomotionSetupMover`=1(상태 머신 경로, CMC는 0=모션매칭), `DDCvar.FootPlacementMode`=1("0 off, 1 foot placement node, 2 biped control rig").
 - **SlateInspector 스크린샷은 대안으로 쓰기 어렵다.** `Screenshot(ref="")`가 빈 이미지를 돌려줬다(GASP 창이 활성 창이 아닐 때로 추정). 에디터 UI 조작이 필요해 읽기 전용 원칙과도 부딪히므로 사용자 스크린샷을 우선한다.
 
 ### 1.3 검증 샘플 — AnimGraph 최상위 포즈 체인
@@ -59,4 +63,94 @@ Save Cached 'PreRagdoll' ← [Layer] AimOffset ← [Layer] AdditiveLeans ← [La
 
 ## 2. 블록 표
 
-단위 0-2에서 작성한다(`phases/Phase00_ReferenceSetup.md`).
+2026-10-18 단위 0-2. `SandboxCharacter_Mover_ABP`를 블록으로 나누고 "LootNPop에서 무엇을 어떻게 만들지"로 요약했다. 핀 바인딩·enum 매핑은 사용자가 Ctrl+C로 준 `AdditiveLeans`·`Procedural_Feet` 레이어와 AnimGraph 노드 2개의 텍스트로 채웠다.
+
+### 2.1 전체 구조
+
+```
+EventGraph (게임 스레드)   Update_CVarDrivenVariables → Update_PropertiesFromCharacter(BPI로 Pawn 구조체 1개 받음)
+ThreadSafeUpdate (워커)    Update_Logic = Trajectory → EssentialValues → States → AimOffset → AdditiveLean
+
+AnimGraph
+  [선택 코어] BlendPosesByInt(ActiveChildIndex ← 변수 LocomotionSetup) ─ 0: MotionMatching ⟨Chooser CHT_PoseSearchDatabases_Relaxed → PSD 71개⟩
+                                              └ 1: TwoWayBlend(α=1) ─ A: Inertialization ← StateMachine 'State Controller'(포즈 기여 없음, 상태 진입 함수만)
+                                                                    └ B: BlendStack ⟨상태 진입 시 Chooser CHT_MoverCharacterAnimations_PoseMatch⟩
+     (두 경로 모두 블렌드 스택 입력 그래프 안에서 Steering·Orientation/Stride Warping·ResetRoot 적용)
+  → [Layer] Procedural_PreLayering(슬라이드 경사 root 보정) → [Layer] AdditiveLeans → [Layer] AimOffset
+  → Save Cached 'PreRagdoll' → StateMachine 'Ragdoll' → Slot 'DefaultSlot' → DeadBlending
+  → OffsetRootBone → [Layer] Procedural_Feet(CR_Biped_FootPlacement | LegIK) → [Layer] Procedural_FullBody(상호작용 손 IK)
+  → PoseHistoryCollector → Output
+```
+
+### 2.2 블록 표
+
+| 블록 | GASP 구성(요약) | LootNPop에서 만들 것 | Up 축 | 소스 에셋 | `ABP_Lyra` 대응 |
+|:---|:---|:---|:---|:---|:---|
+| **B0 애니 변수 공급층** | `Update_*` BP 함수들. 입력은 BPI `Get_PropertiesForAnimation`이 주는 `S_CharacterPropertiesForAnimation`(24필드)과 `UMoverTrajectoryPredictor` 궤적 | `ULNPAnimInstance`(C++)에 §2.3 값을 추가. 상태 술어(`IsPivoting`·`ShouldTurnInPlace` 등)도 C++ bool로(AN-003) | ⚠️ `Speed2D`·`IsStarting`이 `VectorLengthXY`(월드 XY), Lean 축이 `RotationFromXVector(Velocity)`(월드 Z 기준) → 접평면 투영·캐릭터 로컬로 계산 | — | 기존 공급값(속도·`GroundSpeed`·`bIsOnGround`·AO·IK)을 확장 |
+| **B1 선택 코어(MM 경로)** | `MotionMatching`(블렌드 0.5s HermiteCubic, 블렌드 프로파일 `FastFeet_InstantRoot`, `poseReselectHistory` 0.3, 최대 블렌드 4) + `Update_MotionMatching`이 Chooser로 DB 목록을 골라 `SetDatabasesToSearch`(이동 모드·방향이 바뀌면 `InterruptOnDatabaseChange`). Chooser 8행 = 이동모드×자세×이동상태×보행 | `CHT_PSD_Lyra`(PSD 4개)를 상태별 DB 묶음 Chooser로 교체. 행 입력은 B0의 enum 값. DB 태그(`TurnInPlace` 등)를 PostSelection에서 받아 B2가 쓴다 | 트래젝토리 채널은 루트 기준 XY 플래그 — 루트가 중력 Up에 정렬돼 있으면 안전 | PSD 71개 → 시퀀스 461개(Walk 114·Run 114·Crouch 108·Jump 59·Sprint 21·Slide 20·Traversal 14·Idle 10), PSS 12개, `SK_UEFN_Mannequin` | 현 모션매칭 노드 + `CHT_PSD_Lyra` **대체** |
+| ~~B1′ 선택 코어(SM 경로)~~ **미채택(AN-015)** | GASP Mover **기본값**. `State Controller` 상태 10개(Idle Loop·Idle Transition·Idle Break·Locomotion Transition·Locomotion Loop·In Air Transition·In Air Loop·Slide Transition·Slide Loop·Debug Flying Loop)+Conduit, 전이 24개. 상태 진입 함수가 `SetBlendStackAnimFromChooser`로 Chooser(상태 이름 + 포즈 히스토리)를 평가해 `BlendStack`(0.2s QuadraticInOut, 미러 `MDT_UEFN_Mannequin`)에 넣는다. 재생 속도는 `Get_DynamicPlayRate`(곡선 `MoveData_Speed` 대비 `Speed2D`) | 만들지 않는다(§2.5) | — | 시퀀스 약 387개(Crouch 96·Walk 88·Run 86·Jump 54·Sprint 20·Idle 19·Traversal 12·Slide 9), PSS 6개(`PSS_SM_Mover_*` 5 + `PSS_SM_CMC_Idles`), 경사 BS 2개 | 대체(신규 상태 머신) |
+| **B2 블렌드 스택 절차 보정** | 블렌드 스택 입력 그래프마다: `Steering`×2(목표 방향 = 궤적 샘플, 시간은 곡선 `SteeringTargetTime`; 두 번째는 제자리 회전 — MM은 DB 태그 `TurnInPlace`, SM은 곡선 `Enable_TurnInPlaceSteering`) → `OrientationWarping`(공간 `RootBoneTransform`, 축 Z, α=곡선 `Enable_Warping`, 방향 = MM `LastNonZeroVelocity`) → (SM 경로에만) `StrideWarping`(α=`Enable_Warping`). MM 경로는 Stride Warping 없이 노드 재생 속도 범위(0.85~1.15)로 보폭 차를 흡수한다 → `ResetRoot` → CopyBone foot→ik_foot | 같은 체인을 MM 노드 블렌드 스택 그래프에 만든다. 입력은 B0(궤적·속도). Stride Warping은 미끄러짐이 보일 때만 추가 | `Steering`은 월드 목표 쿼터니언과 루트 트랜스폼을 비교한다 — 궤적 facing이 중력 Up 기준이어야 한다(2-2에서 적도 확인). `OrientationWarping` 안전(방향을 루트 로컬로 변환). ⚠️ **`StrideWarping`을 넣으면** 기본 `FloorNormalDirection`·`GravityDirection`이 `WorldSpaceVector` ±Z → `ComponentSpaceVector`로 바꾼다 | 시퀀스 곡선 6종: `Enable_Warping`·`SteeringTargetTime`·`Enable_TurnInPlaceSteering`·`MoveData_Speed`·`Max/MinDynamicPlayRate` | 없음(신규) |
+| **B3 Offset Root Bone** | 슬롯·DeadBlending 뒤. Graph 모드, 이동 Interpolate·회전 Accumulate, 반감기 0.2/0.1, `MaxTranslationError` 30. 모드 함수: `DefaultSlot` 몽타주 중 Release, OnGround 이동 중 Interpolate·정지 Release, InAir Release. 반감기는 Idle 0.1·Moving 0.3. 핀 바인딩: 모드·반감기 ← `Get_OffsetRoot*` 함수, `bClampToTranslationVelocity` ← `IsMoving`, `MaxTranslationError` ← CVar `DDCvar.OffsetRootBone.TranslationRadius`. `OnUpdate`가 `BasedMovementDelta`(움직이는 base 이동량)를 루트 오프셋에 더한다. EssentialValues의 `RootTransform` = 오프셋 루트(+90° yaw) | 노드 + 모드 함수. Release 조건을 LootNPop 슬롯 3종(`DefaultSlot`·`FullBody`·`UpperBody` 중 전신 슬롯)으로 넓힌다. base 이동량은 Mover base 규칙(자기 Actor 틱)과 맞춘다 | `UpVector`는 디버그에만 등장 — 안전 추정(2-2 확인) | — | 없음(신규) |
+| **B4 발 배치** (`Procedural_Feet`) | 이동 모드 Blend: Sliding·Traversing·InAir → `LegIK`(“BasicIK”, 애니의 ik_foot 위치로만 풂), Ragdoll → IK 없음, 그 밖(OnGround·Flying) → Bool(← CVar `a.AnimNode.FootPlacement.Enable`)이 참이면 `CR_Biped_FootPlacement`, 거짓이면 LegIK. `DDCvar.FootPlacementMode`는 Mover ABP에서 쓰지 않는다. CR 입력: `Ground Normal` ← 구조체 `GroundNormal`, `GroundMovementWorldDelta` ← `BasedMovementDelta`(Break 핀 이름으로 추정), `DoRaycast`=true, `Enable Foot Pinning`·`Enable Slope Warping`·`WorldZDamperEnabled`(셋 다 OnGround일 때만), `Has Teleported`, `ForceReset`(OnBecomeRelevant). **5.8 Mover ABP에는 `AnimNode_FootPlacement`가 없다** | `CR_Biped_FootPlacement` 구성을 따른 CR + 레이어(지상만 CR, 공중은 LegIK). 접지 입력은 B0 | CR 씬 쿼리·평면 보정은 리그(컴포넌트) 공간 Z — 메시가 중력에 정렬돼 있으면 안전. ⚠️ **`UpdateRootDamper`가 `To World` 뒤 월드 `.Z`에 스프링 감쇠** → `WorldZDamperEnabled` 끔 또는 중력 Up 축으로 수정 | CR 1개(구성 에셋, 그래프 42개), 본 `foot_*`·`ball_*`·`ik_foot_*`·`pelvis` | 없음(신규) |
+| **B5 경사·슬라이드** | 경사: CR 슬로프 워핑(B4) + Chooser가 고르는 `BS_Relaxed_*_Loop_F_Slopes`(블렌드 스택 태그 `BS_Slope`, 입력 `SlopeAngle` ±30°). `SlopeAngle`은 `GetSlopeDegreeAngles(캐릭터 Up)` + `SmoothedGroundNormal`(VInterpTo 5). 슬라이드: `Procedural_PreLayering`이 Sliding일 때 root를 `ModifyBone`(이동 월드 공간·회전 컴포넌트 공간 additive)으로 경사에 맞춘다 | 경사만: 경사 각도·지면 법선 공급(B0) + 경사 BS 행. 슬라이드는 LootNPop에 슬라이드 이동 모드가 없어 제외 | 경사 각도 계산은 캐릭터 Up을 쓴다 — 안전. `SlopeWarping` 노드는 쓰지 않는다(§1, `research` §5의 ⚠️ 회피) | 경사 BS 2개 + 원본 시퀀스 | 없음(신규) |
+| **B6 정지·회전 전환** | MM: Chooser가 Starts·Stops·Pivots·Spins·TurnInPlace·Turns·GaitTransitions·Lands DB를 함께 검색. SM: 상태·전이(Pivot·Turn In Place·"Broke" rotation·WrongWay·Started Circling…)와 Chooser 행 | B1 DB 묶음에 포함(MM). 술어(`ShouldTurnInPlace`: \|FutureFacingDelta\|≥50° & 속도<50, `ShouldSpinTransition`: ≥130° & ≥150, `IsPivoting`)는 C++ | B0와 같음 | B1 시퀀스에 포함 | 현 PSD에 없는 세트 **확장** |
+| **B7 공중** | MM: Jump·Lands_Light/Heavy DB, 블렌드 시간 `Get_MMBlendTime`(InAir 0.15/0.5, 착지 0.2). SM: In Air 상태 | **AN-007 유지**(Fall_Loop 고정). 착지(Lands_Light/Heavy)만 2-3에서 검토 | Jump 채널에 수직 성분 없음(TechDesign_CombatAnimation §5.5) | Jump 59개 중 착지 일부 | Fall_Loop 고정 경로 유지 |
+| **B8 Additive Leans** | 레이어: 이동 모드 Blend(Sliding만 통과, 공중 포함 나머지는 적용) → 이동 상태 Blend(Moving만 적용) → Bool(← `EnableAO`): AO가 켜져 있으면 몸통만, 꺼져 있으면 몸통+머리(`BS_Relaxed_Lean_Head`). 몸통 = `BS_Relaxed_Walk_Leans`↔`BS_Relaxed_Run_Leans` TwoWayBlend(α ← `Speed2D`를 200~320에서 0~1로 매핑). BS 입력 X·Y ← `LeanAmount`. Mesh Space Additive. `LeanAmount` = 가속을 속도 방향 기준으로 Unrotate한 측면 성분 / 속도별 정규화. 곡선 `Disable_AdditiveLeans`로 끔 | 레이어 + C++ `LeanAmount`(캐릭터 로컬 축). 머리 기울기 분기는 LootNPop 조준 상태(FreeAim·락온)로 바꾼다 | ⚠️ `RotationFromXVector(Velocity)`는 월드 Z 기준 회전 → C++에서 접평면 기저로 | BS 3개(Poses 폴더) | 없음(신규). 무기 서브 ABP 오버레이 뒤에 둘지는 2-5에서 |
+| B9 Aim Offset | 레이어: `BS_Neutral_AO_Stand_NoSmoothing` Mesh Space Additive, `EnableAO`(회전 모드 Strafe/Aim, 각도 한계 180/110) 아니면 Identity, DeadBlending, 곡선 `Disable_AO`. `AimingRotation`을 Critical Spring으로 평활 | **가져오지 않는다.** 무기별 AO(서브 ABP + C++ 로컬 좌표 `AimYaw`/`AimPitch`)를 유지. 평활(Critical Spring)만 필요하면 C++에 | GASP는 Rotator 델타(월드) — LootNPop 방식이 이미 구면 대응 | — | 무기 서브 ABP AO 유지 |
+| B10 포즈 히스토리·DeadBlending | `PoseHistoryCollector`를 **출력 직전**(절차 레이어 뒤)에: 포즈 2개, 수집 본(foot·thigh·spine…), 곡선 `Phase`, 궤적 이력 10·예측 8. `DefaultSlot` 뒤 `DeadBlending`(0.25s, Ragdoll 강도 곡선 필터) | 히스토리 위치·설정을 GASP식으로, 슬롯 뒤 DeadBlending 추가 | — | — | 기존 `PoseHistoryCollector`·슬롯 3종 **확장** |
+| B11 래그돌 연동 | `Ragdoll` 상태 머신(NoRagdoll ↔ In Ragdoll ↔ Blend Out Pose, 진입 MovementMode==Ragdoll). In Ragdoll 안의 중첩 상태 머신이 공중(`BS_Ragdoll_Flail`/`Reach`)·지면(부상 상태별 `M_ragdoll_poses_injured`·`BS_Ragdoll_OnGround/Rolling`) 포즈를 내고 `ModifyCurve`로 `Ragdoll_Strength_*` 곡선을 써서 PhysicsControl 강도를 준다. Blend Out은 `PoseSnapshot 'Ragdoll'` | **제외**(AN-005). Phase 3 참고: "애니 곡선으로 PhysicsControl 강도를 준다" 패턴 | — | Ragdoll 폴더 47개(Phase 3에서 필요한 것만) | 없음. 사망 랙돌은 `VisualMesh` 물리 |
+| B12 상호작용 손 IK | `Procedural_FullBody`: `CR_UEFN_Mannequin_FullBodyIK`, 입력은 Motion Matching Interaction 결과(`hand_l/r` 목표·α) | **제외**(상호작용 시스템 없음) | — | — | 없음 |
+
+범위 밖으로 확정: Traversal(장애물 넘기), Slide, Debug Flying, MMI. Crouch는 `MoverComponent->IsCrouching()`이 있으나 앉기 입력이 없어 보류(행만 비워 둔다).
+
+### 2.3 `ULNPAnimInstance`가 공급할 값 (AN-002)
+
+GASP는 Pawn이 BPI로 구조체를 넘기고 ABP가 가공한다. LootNPop은 Mover·캐릭터에서 C++가 직접 계산한다. 속도·가속은 캐릭터 Up에 수직인 접평면으로 투영한다.
+
+| 값 | GASP 출처 | LootNPop 공급원 | 쓰는 블록 |
+|:---|:---|:---|:---|
+| `Velocity`, `Speed2D`, `LastNonZeroVelocity` | 구조체 `Velocity` → `VectorLengthXY` | 기존 `Velocity`·`GroundSpeed`(투영), 0 아닐 때 보관 | B1·B2·B6 |
+| `Acceleration`·`AccelerationAmount`(/MaxAccel)·`HasAcceleration`, `VelocityAcceleration`(ΔV/dt)·`RelativeAcceleration`(로컬) | `InputAcceleration`·`CurrentMaxAcceleration` | Mover InputCmd 이동 의도 × 최대 가속, 속도 차분 | B0·B8 |
+| `MovementMode`(OnGround/InAir) | 구조체 `MovementMode` | `bIsOnGround` 기반 enum(슬라이드·트래버설 없음) | B1·B3·B4·B7 |
+| `MovementState`(Idle/Moving) | 궤적 0.9~1.0s 속도 ≠ 0(허용 10) | Mover 궤적 예측기 | B1·B3·B6 |
+| `Gait`(Walk/Run/Sprint), `Stance`, `RotationMode`, `MovementDirection` | 구조체 필드(Pawn 입력 상태) | `bIsSprinting`·입력 크기, `bIsCrouching`, `bShouldStrafe`·조준 모드, 로컬 이동 방향 4분면 | B1 Chooser 행 |
+| 각 상태의 `_LastFrame`·`_Recent`·`_Time` | `UpdateStateValues` | C++ 상태 이력(전이·블렌드 시간·DB 인터럽트) | B1·B6 |
+| 궤적 파생: `FutureFacingDelta`, `Trj_*Velocity`(과거·근미래·미래), `Trj_TurnAngle`, `Trj_IsCircling`·`CirclingTime`, `Trj_FutureFacing` | `PoseSearchGenerateTrajectory(Predictor)`(0.033s·15·0.1s·15) | 기존 `UMoverTrajectoryPredictor` 궤적에서 C++로 | B2·B6 |
+| `IsPivoting`·`ShouldTurnInPlace`·`ShouldSpinTransition`·`JustLanded_Light/Heavy`·`LandVelocity`·`JustTeleported` | ABP 함수 | C++ bool(AN-003). 착지는 Mover 착지, 텔레포트는 위치 점프 임계 | B4·B6·B7 |
+| `GroundNormal`(평활)·`SlopeAngle_X/Y`, `GroundLocation` | 구조체 + `GetSlopeDegreeAngles(캐릭터 Up)` | Mover 바닥 결과 | B4·B5 |
+| `BasedMovementDelta` | 구조체 | Mover 움직이는 base 이동량 | B3·B4 |
+| `LeanAmount` | 측면 가속 / 속도별 정규화 | 캐릭터 로컬 축으로 계산 | B8 |
+| AO | `AimingRotation` | 기존 `AimYaw`/`AimPitch` 유지 | (B9 미채택) |
+
+### 2.4 Up 축 점검 결과 요약
+
+| 위치 | 가정 | 조치 |
+|:---|:---|:---|
+| `Speed2D`·`IsStarting`의 `VectorLengthXY`, Lean의 `RotationFromXVector` | 월드 Z | C++ 접평면 투영(B0) |
+| `StrideWarping` `FloorNormalDirection`·`GravityDirection` | `WorldSpaceVector` ±Z(엔진 기본값) | `ComponentSpaceVector` (0,0,±1) |
+| `CR_Biped_FootPlacement` `UpdateRootDamper` | 월드 `.Z` 감쇠 | `WorldZDamperEnabled` 끔 또는 중력 Up 축으로 수정 |
+| `Steering` 목표 방향 | 궤적 facing(월드 쿼터니언) | 궤적 facing이 중력 Up 기준인지 적도에서 확인 |
+| `ModifyBone`(슬라이드) 이동 월드 공간 | 입력 벡터가 월드 | 슬라이드 제외라 해당 없음 |
+| `OrientationWarping`·`OffsetRootBone`·CR 씬 쿼리·`GetSlopeDegreeAngles` | 컴포넌트/캐릭터 Up | 안전(블록 단위에서 적도 확인) |
+
+### 2.5 선택 코어 경로 — MM 노드 방식 (AN-015)
+
+사용자 결정(2026-10-18): **Motion Matching 노드 방식(B1)**으로 간다. GASP Mover 기본값인 State Machine + Chooser + Blend Stack 방식(B1′)은 만들지 않는다.
+
+- 사용자 사유: SM 방식은 아직 검증되지 않았고(GASP에서도 "Experimental" 이름이 붙은 상태 머신·데이터 폴더), 나중에 직접 유지보수하기 어렵다.
+- 설계 근거: MM 방식은 선택이 Chooser→PSD로 끝나 ABP에 분기가 없다(AN-003). 현 `ABP_Lyra`가 MM이라 교체 범위가 좁고, PSD·Chooser는 UAF에서 재사용된다(Phase 5).
+- 시작·정지·피벗·제자리 회전은 MM의 Starts/Stops/Pivots/TurnInPlace DB와 Steering으로 얻는다(B6).
+
+### 2.6 Phase 2 착수 시 확인할 것
+
+- `CHT_PoseSearchDatabases_Relaxed` 8행 각각의 결과(어느 PSD 묶음인지)는 MCP로 안 읽힌다. 행 조건(이동 모드·자세·이동 상태·보행)과 PSD 이름으로 묶음을 짐작할 수 있으므로, 2-2에서 LootNPop Chooser를 만들 때 Chooser 에디터 스크린샷 1장으로 확인한다.
+- 행 조건: OnGround·Stand·Idle(보행 무관) / OnGround·Stand·Moving × Walk·Run·Sprint / OnGround·Crouch·Idle / OnGround·Crouch·Moving / Sliding / InAir.
+- 노드 수치(블렌드 시간·반감기 등)는 GASP 기본값이다. 블록 단위에서 PIE로 다시 맞춘다.
+
+### 2.7 0-3(AN-011) 판단 근거 메모
+
+- 필요한 소스 에셋은 전부 `SK_UEFN_Mannequin` 스켈레톤이다: MM 경로 시퀀스 461개(앉기·슬라이드·트래버설 빼면 약 319개)·PSD 71·PSS 12, SM 경로 시퀀스 약 387개(같은 제외 시 약 270개), 경사 BS 2·Lean BS 3, CR 2개(`CR_Biped_FootPlacement`, 손 IK는 제외).
+- 시퀀스 **곡선 6종**(B2)과 블렌드 프로파일 `FastFeet_InstantRoot`·미러 테이블 `MDT_UEFN_Mannequin`이 UEFN 스켈레톤에 붙어 있다. Lyra 유지 시 리타깃에서 곡선이 따라오는지 확인이 필요하다.
+- LootNPop `GASP_Mannequin/Animations`에는 옛 버전 일부만 있다(Walk 27·Run 49·Idle 33·Jump 62·Crouch 10 등). 어느 쪽을 고르든 Phase 1C 최신화 뒤 추가 반입이 필요하다.
+- 반대 방향: Lyra 쪽 `Characters/Lyra_Mannequin/Animations` 701개(무기 서브 ABP·몽타주 원천). 그중 실제로 쓰는 개수는 0-3에서 센다.
+- 본 이름: CR·워핑 노드가 쓰는 `ik_foot_root`·`ik_foot_l/r`·`pelvis`·`spine_01~05`는 두 스켈레톤에 모두 있는지 0-3에서 확인한다.
