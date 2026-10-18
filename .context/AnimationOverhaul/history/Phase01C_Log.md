@@ -193,4 +193,16 @@ C++·빌드는 없다. 사용자가 LootNPop 에디터를 껐다가 다시 켰�
 ### 시행착오·주의
 
 - 에셋 레지스트리 `get_dependencies`는 `Removed`로 끊은 패키지도 의존으로 보여 준다. "없는 의존"과 "로드 경고"는 다른 것이니, 경고는 로그로 판정한다.
-- 덮어쓴 소스 에셋은 에디터에서 저장하지 않는다. 저장하면 GASP 원본과 해시가 달라져 다음 업데이트 대조가 흐려진다.
+- 덮어쓴 소스 에셋은 에디터에서 함부로 저장하지 않는다. 저장하면 GASP 원본과 해시가 달라져 다음 업데이트 대조가 흐려진다(아래 후처리 2건은 예외 후보).
+- **1C-1 대조는 "LootNPop이 소스 에셋에 직접 넣은 수정"을 따로 분류하지 않았다.** 이름 맵 `names_removed` 열에 신호가 있었지만(`M_UEFN_Mannequin`의 `bUsedWithInstancedStaticMeshes`) 덮어쓰기 전에 걸러 내지 못했다. `bOptimizeForInstancing`은 기본값 false여도 이름이 남아서 이름 맵으로는 보이지 않는다. 다음 덮어쓰기 전에는 `TechDesign_EnemyNPC_LowLOD.md` §6.7 같은 "에셋 요건" 문서의 플래그를 값으로 대조한다.
+
+### 4. 사용자 PIE (같은 날, 1C-4 선행 확인)
+
+Actor(승격) 적은 정상이다. **ISKM 적은 무기 메시와 무기 애니가 정상이지만, 몸통은 T 포즈로 굳고 애니가 재생되지 않는다.** PIE 로그에서 원인을 확인했다.
+
+| 에셋 | 사라진 설정 | 로그 | 영향 |
+|:---|:---|:---|:---|
+| `SKM_UEFN_Mannequin` | 빌드 세팅 `bOptimizeForInstancing`(전 LOD) | `AnimSequenceTransformProvider: SkinnedAsset ... requires 'Optimize for Instancing'` 5회 | ISKM 몸통 프로바이더 실패 → 레퍼런스(T) 포즈 |
+| `M_UEFN_Mannequin` | `bUsedWithInstancedStaticMeshes` | `missing usage flag InstancedStaticMeshes! Default Material will be used` | 먼 ISM 적(`SM_UEFN_Mannequin`)이 기본 머티리얼로 그려진다 |
+
+무기는 덮어쓰지 않은 별도 메시(`SKM_*_UEFN`)라 영향이 없다. 1C-3의 "로드 경고 0"은 에디터 로드 기준이었고, 이 두 경고는 PIE에서 ISKM·ISM이 만들어질 때만 나온다. 사용자 결정에 따라 복구는 1C-4에서 한다(제안: 소스에 다시 적용 + 반입 후처리로 문서화, Phase 문서 1C-4 항목 1).

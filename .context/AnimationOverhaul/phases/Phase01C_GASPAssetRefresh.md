@@ -162,6 +162,8 @@
 ## 단위 1C-4 — 회귀 검증
 
 1. **ISKM 순수 엔티티 적:** `ASTP_Enemy_UEFN_*` 재베이크가 필요한지, ISKM 거리에서 몸통·무기 메시가 보이고 애니가 도는지 확인한다(바인드 포즈 함정, [TechDesign_EnemyNPC_LowLOD.md](../../TechDesign_EnemyNPC_LowLOD.md) §6.7).
+   - **1C-3 뒤 확인된 회귀(2026-10-18 사용자 PIE):** ISKM 적의 무기는 정상이지만, 몸통이 T 포즈로 굳고 애니가 재생되지 않는다. Actor 적은 정상이다. 원인은 LootNPop이 옛 GASP 소스에 직접 넣었던 설정 2건이 덮어쓰기로 사라진 것이다. ① `SKM_UEFN_Mannequin` 빌드 세팅 `bOptimizeForInstancing`(전 LOD) — PIE 로그 `AnimSequenceTransformProvider: ... requires 'Optimize for Instancing'` ② `M_UEFN_Mannequin`의 `bUsedWithInstancedStaticMeshes` — 로그 `missing usage flag InstancedStaticMeshes`, 먼 ISM 적이 기본 머티리얼로 그려진다. `bUsedWithInstancedSkinnedMesh`는 5.8 원본에도 있다. 이름 맵 차분상 사라진 LootNPop 수정은 이 2건뿐이다(나머지는 GASP 쪽 변경)
+   - **제안(사용자 확인 필요):** 두 설정을 소스에 다시 적용해 저장하고, "반입 후처리 2건"으로 이 문서와 `README.md` §4에 남겨 다음 GASP 업데이트 때도 반복한다. 그 뒤 PIE로 몸통 애니를 확인하고, `ASTP_Enemy_UEFN_*`·`SM_UEFN_Mannequin`을 다시 구워야 하는지(새 메시 정점 수 변화) 판단한다. 다른 안은 `Retargeted/`에 SKM·머티리얼 사본을 만들고 참조를 옮기는 것이다(소스 원본 유지, 추적 에셋 재저장 필요)
 2. **리타깃 적 애니(LootNPop 산출물):** 새 스켈레톤에서 그대로 맞는지, 다시 리타깃해야 하는지 확인한다.
 3. **`ActorPromoted` 적:** `BP_LNPEnemy` 승격 후 로코모션·공격·랙돌. 새 `SKM_UEFN_Mannequin`의 포스트프로세스 ABP(머리 1.15배·허벅지 1.12배 스케일, 1C-1 §4)를 받아들일지, 컴포넌트 `bDisablePostProcessBlueprint`로 끌지 정한다(소스 메시는 수정하지 않는다).
 4. **PSD:** `Characters/MotionMatchingData/PSD_*_UEFN` 재빌드, 경고 확인.
