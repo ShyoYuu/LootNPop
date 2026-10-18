@@ -152,6 +152,13 @@
 
 완료 조건: 깨진 참조 0, 로드 경고 0(또는 원인과 대응 기록).
 
+### 1C-3 결과 (2026-10-18, 상세 `history/Phase01C_Log.md`)
+
+- `Config/DefaultEngine.ini` `[CoreRedirects]`에 `PackageRedirects ... Removed=true` 16줄(BP 노티파이 13 + GASP PSD 3)을 넣었다. `redirect_targets.txt`의 `1C3` 행과 일치한다.
+- 369개(A 332 + B 35 + C 2)를 GASP에서 복사했다. SHA-256 369/369가 GASP 원본과 일치한다(`post1C3_sha256.txt`). 덮어쓰기 전 332개는 `backup_pre1C3/`에 있다(1C-2 상태로 되돌릴 때 쓴다).
+- 재시작 로그와 369개 + PSD 6 MCP 로드: 새 경고·LoadErrors 0, 로드 실패 0, 더티 0. `PSD_{Idle,Jump,Walk,Run}_UEFN` BuildIndex 성공.
+- 의존성 조회(482개)에서 존재하지 않는 `/Game/` 의존은 Removed 16개 패키지와 기존 누락 `AN_PlayWeaponMontage`(Lyra, 무기 몽타주 3)뿐이다. 1C-2에서 남아 있던 이중 경로 소프트 참조 `GASP_Mannequin/GASP_Mannequin/...`은 덮어쓰기로 사라졌다(디스크 grep 0).
+
 ## 단위 1C-4 — 회귀 검증
 
 1. **ISKM 순수 엔티티 적:** `ASTP_Enemy_UEFN_*` 재베이크가 필요한지, ISKM 거리에서 몸통·무기 메시가 보이고 애니가 도는지 확인한다(바인드 포즈 함정, [TechDesign_EnemyNPC_LowLOD.md](../../TechDesign_EnemyNPC_LowLOD.md) §6.7).
@@ -167,5 +174,5 @@
 
 - [x] 1C-1: 대조표·반입/리다이렉트 목록·리다이렉트 실험·스켈레톤 차이·백업·산출물 이동 목록 (2026-10-18)
 - [x] 1C-2: 경로 정렬, `.gitignore`, 커밋 (2026-10-18, 사용자 PIE에서 ISKM·Actor 적 회귀 없음 확인)
-- [ ] 1C-3: 최신본 덮어쓰기, 깨진 참조 0
+- [x] 1C-3: 최신본 덮어쓰기, 깨진 참조 0 (2026-10-18, 369개 해시 일치, 로드 경고 0)
 - [ ] 1C-4: ISKM·리타깃 애니·승격 적·PSD·2인 PIE 회귀 통과

@@ -157,3 +157,40 @@ MCP로 TestMap03 단일 PIE(12초 웜업)를 돌렸다. 적 엔티티 스폰(`LN
 
 - 리다이렉터는 MCP `delete`로 지울 수 없다(위 §3). 앞으로 리다이렉터가 생기면 Content Browser의 Fix Up Redirectors를 쓰거나 에디터 밖에서 파일을 치운다. 단일 에셋 `move`는 리다이렉터를 남기지 않았다.
 - 폴더 이동은 모든 하위 에셋을 다시 저장한다. 저장 때 AssetValidator가 원래 있던 깨진 소프트 참조를 Error로 찍으니, 이동이 만든 오류로 착각하지 않는다.
+
+## 2026-10-18 — 단위 1C-3 최신본 덮어쓰기
+
+C++·빌드는 없다. 사용자가 LootNPop 에디터를 껐다가 다시 켰고, 그 사이 다른 갈래 세션은 모두 idle이었다. GASP 프로젝트 파일은 읽기만 했고 GASP MCP(8001)는 쓰지 않았다.
+
+### 0. 기준점
+
+1C-2 상태 적 PIE(ISKM·승격 `BP_LNPEnemy`)는 이미 9290416에 사용자 확인으로 기록돼 있어 다시 요청하지 않았다. 이후 회귀는 덮어쓰기 탓으로 본다.
+
+### 1. ini
+
+`Config/DefaultEngine.ini` `[CoreRedirects]` 기존 `ClassRedirects` 아래에 `PackageRedirects=(OldName="...",Removed=true)` 16줄을 넣었다. 대상은 BP 노티파이 13개(Foley 11, `EarlyTransition`, `MontageBlendOut`)와 GASP PSD 3개(`PSD_SM_CMC_Idles`·`_Transitions`, `PSD_Traversal`)다. `redirect_targets.txt`의 `1C3` 행과 diff로 일치를 확인했다. `PSD_SM_CMC_Loops`(P2)는 Phase 2 때 넣는다.
+
+### 2. 복사
+
+- 복사 전에 원본 369개가 GASP에 모두 있고, `.uexp`·`.ubulk` 동반 파일이 없다는 것을 확인했다. A 332개는 LootNPop에 있었고, B·C 37개는 없었다.
+- 에디터 종료를 확인한 뒤, 덮어쓸 A 332개(1C-2 이동 후 다시 저장된 상태)를 `Saved/AssetRefresh/2026-10-18/backup_pre1C3/`(364MB)에 보관했다. `backup/`는 1C-2 이동 전 경로 본이므로 이것과 구분한다.
+- `import_list_1C3.txt` 369개를 `cp`로 복사했다. SHA-256은 369/369가 GASP 원본과 일치한다(`post1C3_sha256.txt`). 리다이렉터 30개와 경로 외 동일 49개는 복사하지 않았다.
+- 이제 `UEFN_Mannequin/` 417개는 369개 중 367개(나머지 2개는 폴더 밖) + 경로 외 동일 49 + `M_Relaxed_Run_Loop_F_Troy`(5.8에 없음)로 이루어진다. 새 환경 확보용으로 49개 목록을 `identical_except_path_49.txt`에 남기고 `README.md` §4를 고쳤다.
+- `Content/Characters/Retargeted/`(15개)는 수정 시각이 바뀌지 않았다. `git status`에서 바뀐 것은 `Config/DefaultEngine.ini`뿐이다. 소스 에셋은 `.gitignore`가 모두 제외한다.
+
+### 3. 재시작 뒤 확인
+
+| 항목 | 결과 |
+|:---|:---|
+| 시작 로그 | Load Errors 창 없음(사용자 확인). Warning·Error는 기존 것뿐이다(Lyra `M_Mannequin` 머티리얼 컴파일 실패는 이전 로그 4개에도 있음) |
+| 369개 + `Characters/MotionMatchingData/` 6개 MCP `load_asset` | 실패 0. 로드 구간 로그에 Warning·Error·LoadErrors 0(LogAnimationCompression 620줄은 새 시퀀스 압축) |
+| 클래스 | AnimSequence 309(교체 275 + Traversal 34), AnimMontage 45, SkeletalMesh·Skeleton·PhysicsAsset·IKRig·PhysicalMaterial·포스트프로세스 ABP·커브 압축 설정·`AM_BakePhaseCurveFromFootstepNotifies` 각 1 등. 1C-1 대조표와 맞는다 |
+| PSD 재빌드 | `PSD_{Idle,Jump,Walk,Run}_UEFN` BeginCache → BuildIndex Succeeded → DDC 저장 |
+| 의존성 존재 확인 | 369개 + `MotionMatchingData`·`Retargeted`·`Retargeters`·`Enemy`·`Weapons` 113개, 총 482개의 `/Game/` 의존 1,410건. 없는 것은 Removed 16개 패키지(의도한 것, 로드 경고 없음)와 기존 누락 `Lyra_Mannequin/.../AN_PlayWeaponMontage`(무기 리로드 몽타주 3)뿐이다 |
+| 옛 경로 | 레지스트리의 `GASP_Mannequin` 잔상 0. 1C-2에서 6개 에셋에 남아 있던 이중 경로 소프트 참조는 덮어쓰기로 사라졌다(바이너리 grep 0) |
+| 더티 | 369개 모두 false |
+
+### 시행착오·주의
+
+- 에셋 레지스트리 `get_dependencies`는 `Removed`로 끊은 패키지도 의존으로 보여 준다. "없는 의존"과 "로드 경고"는 다른 것이니, 경고는 로그로 판정한다.
+- 덮어쓴 소스 에셋은 에디터에서 저장하지 않는다. 저장하면 GASP 원본과 해시가 달라져 다음 업데이트 대조가 흐려진다.
