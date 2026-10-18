@@ -132,6 +132,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "PhysicsControl",
+			"Enabled": true
+		},
+		{
 			"Name": "HairStrands",
 			"Enabled": true
 		},

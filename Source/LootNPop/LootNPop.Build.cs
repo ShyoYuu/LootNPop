@@ -53,6 +53,7 @@ public class LootNPop : ModuleRules
             "NetCore",
             "MassReplication",
             "MotionWarping",
+            "PhysicsControl",
             "LNPUI"
             ]);
 		PrivateDependencyModuleNames.AddRange([

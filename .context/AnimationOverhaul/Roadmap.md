@@ -41,7 +41,7 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 | Phase | 목표 | 세션 단위 | 상태 | 핵심 완료 조건 |
 |:---|:---|:---|:---|:---|
 | 0 | 참조 환경과 기준 결정 | 0-1 MCP 읽기 범위 확인 · 0-2 GASP 블록 목록 · 0-3 스켈레톤·소스 에셋 규칙 결정 (1~2세션) | 완료(2026-10-18) | `design/GASPReference.md` 생성, AN-011 UEFN 전환, 마이그레이트 규칙 AN-016·AN-017 확정 (`phases/Phase00_ReferenceSetup.md`) |
-| 1A | 물리 히트리액트 스파이크 | 1세션 | 계획 | 테스트 폰의 `VisualMesh` 상체에 PhysicsControl 임펄스, 적도에서 처짐 없음, 2인 PIE 각 머신 로컬 재생, 캡슐·Mover 무영향 |
+| 1A | 물리 히트리액트 스파이크 | 1세션 | 완료(2026-10-18, RBWC 노드 방식 — `research/PhysicsHitReactSpike.md`) | 테스트 폰의 `VisualMesh` 상체에 PhysicsControl 임펄스, 적도에서 처짐 없음, 2인 PIE 각 머신 로컬 재생, 캡슐·Mover 무영향 |
 | 1B | 마커리스 모캡 스파이크 | 1~2세션 | 계획 | 영상 1클립 → MetaHuman 바디 → UEFN 리타깃 → 루트모션·검 방향 정리 → 공격 몽타주로 PIE 1타 |
 | 1C | GASP 소스 에셋 최신화 | 1C-1 대조표·백업 · 1C-2 경로 정렬 · 1C-3 덮어쓰기 · 1C-4 회귀 (3~4세션) | 계획 | 옛 GASP 유래 411개를 5.8 최신본으로 교체, 원본 경로 정렬·`.gitignore`(AN-016), 노티파이 리다이렉트(AN-017), LootNPop 산출물 보존, 깨진 참조 0, ISKM·승격 적 회귀 없음 (`phases/Phase01C_GASPAssetRefresh.md`) |
 | 2 | 스켈레톤 전환 + GASP Mover ABP 재구성 | 2-0a·2-0b 전환 2세션 + 블록당 1세션 6세션 | 계획 | 아래 §4. 블록마다 적도·NPC·2인 확인, 무기 레이어·슬롯·ANS 회귀 없음 |
@@ -60,6 +60,7 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 - 구면 중력: 시뮬레이션되는 상체 바디의 Chaos 중력을 끄고, 필요하면 기존 `TickRagdollGravity` 패턴(중력 Up 방향 가속)을 재사용한다.
 - 다리·골반은 키네마틱, 상체는 부모 공간 모터로 애니 포즈에 복귀한다.
 - 확인: 사망 랙돌 진입·`ExitRagdoll`(표현 풀 재사용)과 충돌하지 않는다.
+- 결과(2026-10-18): RBWC 노드 방식을 택했다. 알파를 상시 켜면 이동만으로 상체가 출렁이므로 피격 구간에만 켠다. 방향성 보강과 적 반응 세기가 Phase 3 과제다. 상세는 `research/PhysicsHitReactSpike.md`.
 
 ### Phase 1B — 마커리스 모캡 스파이크
 

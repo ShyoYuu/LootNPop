@@ -25,7 +25,7 @@
 | 갈래 | 첫 행동 | 건드리는 에셋 |
 |:---|:---|:---|
 | 1C 소스 에셋 최신화 | 1C-1 완료(2026-10-18, [로그](history/Phase01C_Log.md)). **1C-2 착수 전 사용자 결정 3건:** ① 노티파이 처리 — `PackageRedirects Removed`만(C++ 없음) 또는 no-op C++ + `ClassRedirects` ② Traversal 몽타주 34개를 교체할지 뺄지 ③ 삭제 후보(`M_Pose_01`, `ABP_UEFN`+`CHT_PSD_UEFN`). 그 뒤 [1C-2](phases/Phase01C_GASPAssetRefresh.md): Enemy 14 + `SM_UEFN_Mannequin`을 `Retargeted/`로 이동 → 리다이렉터 30개 정리 → `GASP_Mannequin` → `UEFN_Mannequin` 이동 | 1C-2는 `GASP_Mannequin` 폴더와 참조자(`BP_LNPEnemy`·적 DA 3개·ASTP·ASL·`Retargeters/*`)·`.gitignore`. 1C-3은 에디터 종료 + `DefaultEngine.ini`(+ C++ 선택 시 빌드). 백업 `Saved/AssetRefresh/2026-10-18/backup/` |
-| 1A 물리 히트리액트 스파이크 | 착수 직전에 `phases/Phase01A_*.md`를 만든다. `research/UE58_AnimationFeatures.md` §2와 [TechDesign_CharacterMovement.md](../TechDesign_CharacterMovement.md) §9(랙돌)를 읽고 PhysicsControl 컴포넌트 방식과 RigidBodyWithControl 노드 방식 중 하나를 고른다. 대상은 `VisualMesh`이며 AN-011과 무관하다(플레이어 메시는 그대로) | 테스트 폰 또는 `BP_LNPPlayer`의 `VisualMesh`, PhysicsAsset. 노드 방식이면 `ABP_Retarget` |
+| 1A 물리 히트리액트 스파이크 | **완료(2026-10-18).** RBWC 노드 방식, 피격 구간에만 알파. 결과·Phase 3 인계는 [research/PhysicsHitReactSpike.md](research/PhysicsHitReactSpike.md) §6. 다음은 Phase 3(1A + 2 완료 후). 2-0b는 `ABP_Retarget`에 RBWC 자리를 남기고, UEFN 메시 적 포즈 복사를 Leader Pose가 아닌 ABP 노드로 한다(같은 문서 §1.5) | 스파이크 사본 `Content/Characters/PhysHitReactSpike/`(존치, 사유는 `phases/Phase01A_PhysicsHitReactSpike.md`). `ABP_Retarget` 원본은 손대지 않음 |
 | 1B 마커리스 모캡 스파이크 | 착수 직전에 `phases/Phase01B_*.md`를 만든다. 사용자가 Fab 마커리스 플러그인(약 5GB)을 설치하고 고정 카메라 영상 1클립을 고른다(AN-010). 리타깃 대상은 UEFN 스켈레톤. PIE 1타 확인 시점은 `Roadmap.md` Phase 1B 참고 | 새 시퀀스·몽타주(새 폴더). PIE 확인 시 `CHT_Montage` 행 하나 |
 
 **동시 실행 제약 — 같은 에셋을 건드리는 단위끼리는 동시에 돌리지 않는다.**
