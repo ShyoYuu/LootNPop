@@ -66,3 +66,9 @@ LootNPop 에디터(8000)만 썼다. GASP 에디터는 쓰지 않았다. 런타�
 - `AssetTools.move`가 옮긴 ABP 패키지를 즉시 저장했다(참조하던 사본 21개도 함께). 결과에는 영향이 없었지만, 이동은 저장을 동반할 수 있다.
 - 비교 스크립트 API 메모: `AnimNotifyEvent.duration`은 protected → `AnimationLibrary.get_anim_notify_event_duration`. 몽타주 `composite_sections`는 Python·`ObjectTools` 모두 못 읽는다 → `get_num_sections`·`get_section_name`만. 몽타주의 루트모션 플래그 프로퍼티는 없다. `get_animation_notify_event_names`는 블렌드 스페이스를 받지 않는다. 루트 이동은 `get_bone_pose_for_frame(anim, "root", frame, False)`로 쟀다.
 - 런타임 리타기터의 결함(루트 본 미지정·발가락 매핑)은 지금 `ActorPromoted` 적 `VisualMesh`에 그대로 있다. 2-0b에서 적은 포즈 복사로 바뀌어 빠진다. `RTG_GASP_to_MS`는 2-0b에서 플레이어 경로가 되므로 같은 확인이 필요하다.
+
+### 사용자 결정 (2-0a 보고 뒤, 같은 날)
+
+- 결정 A: 임시 로코모션 Chooser는 `CHT_PSD_Lyra`를 복제해 `Characters/MotionMatchingData/CHT_PSD_UEFN`을 새로 만든다(백업 복원 기각).
+- 결정 B: 몽타주 슬롯 그룹은 C++ 런타임 등록으로 맞춘다 → `Decisions.md` AN-020. 소스 스켈레톤 저장·슬롯 이름 변경 기각.
+- 두 결정 모두 2-0b에서 실행한다. 이 기록에서 에셋·C++ 변경은 없다.

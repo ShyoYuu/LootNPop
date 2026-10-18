@@ -1,7 +1,7 @@
 # 애니메이션 개선 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase 0·1A·1C 완료, Phase 2 단위 2-0a 완료 — 다음 2-0b(사용자 결정 2건 뒤). 1B는 대기
+> 현재 작업: Phase 0·1A·1C 완료, Phase 2 단위 2-0a 완료 — 다음 2-0b(결정 A·B 확정, 사용자 승인 후 착수). 1B는 대기
 > 마지막 갱신: 2026-10-18
 
 ## 현재 결정
@@ -16,13 +16,14 @@
 - **노티파이(AN-017):** GASP 노티파이·PSD 하드 참조는 `DefaultEngine.ini`의 `PackageRedirects ... Removed=true`로만 끊는다(C++ 없음)
 - **소스에 설정을 넣지 않는다(AN-018):** 소스는 저장하지 않는다. 필요한 설정은 `Retargeted/` 사본에 건다. ISKM 적은 `SKM_UEFN_Mannequin_Instanced`·`M_UEFN_Mannequin_Instanced`를 쓴다
 - **포스트프로세스 ABP 끔(AN-019):** `SKM_UEFN_Mannequin`을 쓰는 컴포넌트마다 `bDisablePostProcessBlueprint = true`. 지금은 `BP_LNPEnemy` `VisualMesh`, 2-0b에서 새 `AnimSourceMesh`에도 넣는다
+- **몽타주 슬롯 그룹(AN-020):** UEFN 스켈레톤에 없는 Lyra 슬롯 그룹(`AdditiveGroup` 등)은 C++ 런타임 등록으로 맞춘다. 스켈레톤 에셋은 저장하지 않는다. 실행은 2-0b
 - 마커리스 소스 영상: 타사 영상은 프로토타입·레퍼런스만(AN-010)
 
 ## 바로 다음 행동 (갈래별 첫 행동)
 
 | 갈래 | 첫 행동 | 건드리는 에셋 |
 |:---|:---|:---|
-| **2-0b 전환(다음 단위)** | 2-0a 완료(2026-10-18, [로그](history/Phase02_Log.md)). ① 착수 전 사용자 결정 2건(`phases/Phase02_GASPMoverABP.md` 2-0b 절): **A** 임시 로코모션 Chooser — `CHT_PSD_Lyra`를 복제해 `Characters/MotionMatchingData/CHT_PSD_UEFN`을 새로 만들기(권고) 또는 백업에서 되살리기, **B** 몽타주 슬롯 그룹 — UEFN 스켈레톤에 Lyra 슬롯 그룹이 없어 피격 몽타주가 공격을 끊게 된다. C++ 런타임 등록(권고)·소스 스켈레톤 저장·슬롯 이름 변경 중 선택. ② 결정 뒤 `AnimSourceMesh`·메인 ABP·`CHT_Montage`·GA 2개·`VS_*` 무기 레이어·`ABP_Retarget` 전환(`Roadmap.md` 2-0b 행). **GASP 에디터(8001)는 필요 없다.** LootNPop 에디터(8000)만 쓴다 | `BP_LNPPlayer`·`BP_LNPEnemy`·`ABP_Lyra`(또는 UEFN 메인 ABP)·`CHT_Montage`·GA 2개·`VS_*` 4개·`ABP_Retarget`, 새 임시 Chooser. 결정 B가 C++면 `ULNPAnimInstance` |
+| **2-0b 전환(다음 단위)** | 2-0a 완료(2026-10-18, [로그](history/Phase02_Log.md)). 결정 확정(2026-10-18, `phases/Phase02_GASPMoverABP.md` 2-0b 절): **A** `CHT_PSD_Lyra`를 복제해 `Characters/MotionMatchingData/CHT_PSD_UEFN`을 새로 만들고 PSD 행 4개를 `_UEFN`으로 바꾼다(Jog → Run). **B** Lyra 슬롯 → 그룹 표를 C++에서 `USkeleton`에 런타임 등록한다(AN-020, 에셋 저장 없음, 에디터 dirty 여부 확인). ① 임시 Chooser·슬롯 그룹 등록부터 만든다. ② 그다음 `AnimSourceMesh`·메인 ABP·`CHT_Montage`·GA 2개·`VS_*` 무기 레이어·`ABP_Retarget` 전환(`Roadmap.md` 2-0b 행). **GASP 에디터(8001)는 필요 없다.** LootNPop 에디터(8000)만 쓴다 | `BP_LNPPlayer`·`BP_LNPEnemy`·`ABP_Lyra`(또는 UEFN 메인 ABP)·`CHT_Montage`·GA 2개·`VS_*` 4개·`ABP_Retarget`, 새 임시 Chooser. 결정 B가 C++면 `ULNPAnimInstance` |
 | 1A 물리 히트리액트 스파이크 | **완료(2026-10-18).** 결과·Phase 3 인계는 [research/PhysicsHitReactSpike.md](research/PhysicsHitReactSpike.md) §6. 2-0b는 `ABP_Retarget`에 RBWC 자리를 남기고, UEFN 메시 적 포즈 복사를 Leader Pose가 아닌 ABP 노드로 한다(같은 문서 §1.5) | 스파이크 사본 `Content/Characters/PhysHitReactSpike/`(존치) |
 | 1B 마커리스 모캡 스파이크 | 착수 직전에 `phases/Phase01B_*.md`를 만든다. 사용자가 Fab 마커리스 플러그인(약 5GB)을 설치하고 고정 카메라 영상 1클립을 고른다(AN-010). 리타깃 대상은 UEFN 스켈레톤(93본) | 새 시퀀스·몽타주(새 폴더). PIE 확인 시 `CHT_Montage` 행 하나 |
 

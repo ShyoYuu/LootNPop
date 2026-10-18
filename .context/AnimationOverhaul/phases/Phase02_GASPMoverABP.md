@@ -1,6 +1,6 @@
 # Phase 2 — 스켈레톤 전환과 GASP Mover ABP 재구성
 
-> 상태: 진행 중(2-0a 완료 2026-10-18, 다음 2-0b — 착수 전 사용자 결정 2건)
+> 상태: 진행 중(2-0a 완료 2026-10-18, 다음 2-0b — 결정 A·B 확정)
 > 선행: Phase 1C 완료(GASP 5.8 소스, 93본 `SK_UEFN_Mannequin`), AN-011(UEFN 전환)·AN-015(MM 노드 방식)·AN-016(폴더·git)·AN-018(소스 저장 금지)
 > 순서: 2-0a → 2-0b → 2-1 → … → 2-6. 단위 하나가 세션 하나이고, 단위마다 커밋하고 사용자 확인을 받는다.
 > 단위 목록·블록 정의는 `Roadmap.md` §4 Phase 2와 `design/GASPReference.md` §2.2·§2.7이 소유한다. 이 문서는 착수한 단위의 실행 계획·결과·재생성 절차를 소유한다.
@@ -53,20 +53,20 @@
 
 리타기터를 처음부터 다시 만들 때(런타임 리타기터가 바뀐 경우)는 `Scripts/AnimRetarget/SetupOfflineRetargeter.py`를 먼저 실행하고 `RTG_Lyra_to_UEFN_Offline`만 저장한다. 서브 ABP를 다시 만들 때는 기존 `ABP_Sub_*_UEFN`을 지우고, 목록에 원본 `/Game/Characters/ABP_Sub_*` 5줄을 임시로 더해 1을 실행한 뒤 `Retargeted/Lyra/`에 생긴 ABP를 `/Game/Characters/`로 옮기고(`AssetTools.move`) 컴파일한다.
 
-## 단위 2-0b — 전환 (계획 초안, 착수 전 결정 2건)
+## 단위 2-0b — 전환 (계획 초안, 결정 A·B 확정 2026-10-18)
 
 `Roadmap.md` §4 2-0b 행이 범위를 소유한다. 2-0a에서 확인한 것 중 2-0b가 처리해야 할 것:
 
-### 결정 A — 임시 로코모션 Chooser (사용자 결정 대기)
+### 결정 A — 임시 로코모션 Chooser (확정: A1, 2026-10-18 사용자 결정)
 
 Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴다고 했다. 그런데 `CHT_PSD_UEFN`은 1C-2에서 사용자 결정으로 삭제됐고(옛 실험 `ABP_UEFN`과 함께), 남은 것은 `Characters/MotionMatchingData/PSD_{Idle,Jump,Run,Walk}_UEFN`·`PSN_`·`PSS_CoreLocomotion_UEFN`뿐이다.
 
 | 안 | 내용 | 평가 |
 |:---|:---|:---|
-| **A1 새로 만든다(권고)** | `Lyra_Mannequin/MotionMatchingData/CHT_PSD_Lyra`(지금 `ABP_Lyra`가 쓰는 Chooser, 컨텍스트가 LootNPop C++)를 `Characters/MotionMatchingData/CHT_PSD_UEFN`으로 복제하고 PSD 행 4개를 `_UEFN`으로 바꾼다(Jog → Run). 추적 구성 에셋 | 행 조건·컨텍스트가 지금 `ABP_Lyra`와 같아 전환 회귀 원인이 하나 줄어든다. 2-2에서 상태별 PSD 묶음 Chooser로 교체될 임시물이라 이 정도면 충분하다 |
+| **A1 새로 만든다(채택)** | `Lyra_Mannequin/MotionMatchingData/CHT_PSD_Lyra`(지금 `ABP_Lyra`가 쓰는 Chooser, 컨텍스트가 LootNPop C++)를 `Characters/MotionMatchingData/CHT_PSD_UEFN`으로 복제하고 PSD 행 4개를 `_UEFN`으로 바꾼다(Jog → Run). 추적 구성 에셋 | 행 조건·컨텍스트가 지금 `ABP_Lyra`와 같아 전환 회귀 원인이 하나 줄어든다. 2-2에서 상태별 PSD 묶음 Chooser로 교체될 임시물이라 이 정도면 충분하다 |
 | A2 백업에서 되살린다 | `Saved/AssetRefresh/2026-10-18/backup/GASP_Mannequin/MotionMatchingData/CHT_PSD_UEFN.uasset` | 백업의 내부 참조가 모두 끊겨 있다. 컨텍스트가 삭제된 `ABP_UEFN`이고 PSD 4개가 1C-2 이전 경로(`GASP_Mannequin/MotionMatchingData/`, 리다이렉터 정리됨)를 가리킨다. 되살려도 컨텍스트와 행 4개를 다시 이어야 해서 A1보다 손이 더 간다 |
 
-### 결정 B — 몽타주 슬롯 그룹 (사용자 결정 대기)
+### 결정 B — 몽타주 슬롯 그룹 (확정: B1, 2026-10-18 사용자 결정, AN-020)
 
 몽타주 그룹은 스켈레톤에 등록된 슬롯 그룹에서 정해진다. 두 스켈레톤이 다르다.
 
@@ -79,7 +79,7 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 
 | 안 | 내용 | 평가 |
 |:---|:---|:---|
-| **B1 런타임 등록(권고)** | C++(`ULNPAnimInstance` 초기화 등)에서 Lyra와 같은 슬롯 → 그룹 표를 `USkeleton`에 등록한다. 에셋은 저장하지 않는다 | AN-018과 맞고 GASP 덮어쓰기에도 살아남는다. 에디터에서 스켈레톤이 dirty로 표시되지 않는지 확인이 필요하다 |
+| **B1 런타임 등록(채택)** | C++(`ULNPAnimInstance` 초기화 등)에서 Lyra와 같은 슬롯 → 그룹 표를 `USkeleton`에 등록한다. 에셋은 저장하지 않는다 | AN-018과 맞고 GASP 덮어쓰기에도 살아남는다. 에디터에서 스켈레톤이 dirty로 표시되지 않는지 확인이 필요하다 |
 | B2 소스 스켈레톤에 등록·저장 | `SK_UEFN_Mannequin` 슬롯 그룹 편집 | AN-018 위반. GASP 갱신 때 사라진다 |
 | B3 몽타주 슬롯 이름 변경 | 사본 몽타주를 UEFN에 있는 슬롯으로 옮긴다 | 그룹 의미(가산 피격이 공격을 안 끊음)를 재현할 수 없다 |
 
