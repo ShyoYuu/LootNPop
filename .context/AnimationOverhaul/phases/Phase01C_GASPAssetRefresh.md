@@ -1,6 +1,6 @@
 # Phase 1C — GASP 소스 에셋 최신화
 
-> 상태: 초안(착수 직전에 단위별 세부를 다시 확인)
+> 상태: 완료(2026-10-18, 1C-1~1C-4)
 > 선행: Phase 0 완료(MCP 읽기 방법, 폴더·git 규칙 AN-016, 노티파이·모디파이어 처리 AN-017, 스켈레톤 기준 AN-011)
 > 후행: Phase 2(2-0a Lyra 세트 UEFN 리타깃부터)는 이 Phase가 끝난 뒤 최신 시퀀스·스켈레톤으로 시작한다
 > 순서: 단위 1C-1 → 1C-2 → 1C-3 → 1C-4. 단위마다 커밋하고 사용자 확인을 받는다.
@@ -118,8 +118,12 @@
 1. 1C-3 이후 기준 스켈레톤(`/Game/Characters/UEFN_Mannequin/Meshes/SK_UEFN_Mannequin`, 93본)이 들어와 있는지 확인한다.
 2. IK Retargeter 배치 리타깃으로 위 원본 14개를 `RTG_Lyra_to_GASP_noRootMotion`(대상 메시 `SKM_UEFN_Mannequin`)으로 리타깃하고, 접미어 `_UEFN`을 붙여 `Retargeted/Enemy/`에 저장한다. 이 리타기터는 Pelvis Motion `Scale Horizontal`=0이다. ISKM은 `root` 변위를 버리고 pelvis 변위는 남기므로 제자리 클립이 된다([TechDesign_EnemyNPC_LowLOD.md](../../TechDesign_EnemyNPC_LowLOD.md) §6.7). 지금 사본 중 이 리타기터로 만든 것이 확인된 것은 `MM_Rifle_Jog_Fwd_UEFN`뿐이다. 다른 클립의 좌우 골반 흔들림이 사라지는지 1C-4에서 본다.
 3. `MM_Shotgun_Fire_UEFN`은 리타깃 뒤 `AdditiveAnimType`을 `AAT_None`으로 바꾸고 썸네일에 전신 포즈가 나오는지 본다(같은 문서 §6.7).
-4. `SM_UEFN_Mannequin`은 `SKM_UEFN_Mannequin`에서 다시 만든다(스켈레탈 메시 에디터 Make Static Mesh, LOD0). 머티리얼은 `M_UEFN_Mannequin`.
-5. `ASTP_Enemy_UEFN_*`·`ASL_Enemy_UEFN_*`가 새 시퀀스를 가리키는지, ISKM에서 재생되는지 확인한다(1C-4 1번 항목과 같다).
+4. ISKM·ISM 전용 사본을 만든다(1C-4, 소스는 저장하지 않는다 — [TechDesign_EnemyNPC_LowLOD.md](../../TechDesign_EnemyNPC_LowLOD.md) §6.7).
+   - `UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin`을 `Retargeted/Meshes/SKM_UEFN_Mannequin_Instanced`로 복제하고, 전 LOD 빌드 세팅 `bOptimizeForInstancing`을 켠다.
+   - `UEFN_Mannequin/Materials/M_UEFN_Mannequin`을 `Retargeted/Materials/M_UEFN_Mannequin_Instanced`로 복제하고 `bUsedWithInstancedStaticMeshes`를 켠다.
+   - `SM_UEFN_Mannequin`은 `SKM_UEFN_Mannequin`에서 다시 만든다(스켈레탈 메시 에디터 Make Static Mesh, LOD0). 머티리얼 슬롯은 `M_UEFN_Mannequin_Instanced`로 한다.
+   - 추적 에셋(`ASTP_Enemy_UEFN_*_Body`, `DA_EnemyEntityConfig_PureEntity_*`)은 이미 사본 경로를 가리키므로 같은 이름으로 만들면 다시 저장할 필요가 없다.
+5. `ASTP_Enemy_UEFN_*`·`ASL_Enemy_UEFN_*`가 새 시퀀스를 가리키는지, ISKM에서 재생되는지 PIE로 확인한다. PIE 로그에 `requires 'Optimize for Instancing'`·`missing usage flag`가 없어야 한다.
 
 ## 단위 1C-2 — 경로 정렬 (에디터 작업, 커밋 단위)
 
@@ -163,7 +167,7 @@
 
 1. **ISKM 순수 엔티티 적:** `ASTP_Enemy_UEFN_*` 재베이크가 필요한지, ISKM 거리에서 몸통·무기 메시가 보이고 애니가 도는지 확인한다(바인드 포즈 함정, [TechDesign_EnemyNPC_LowLOD.md](../../TechDesign_EnemyNPC_LowLOD.md) §6.7).
    - **1C-3 뒤 확인된 회귀(2026-10-18 사용자 PIE):** ISKM 적의 무기는 정상이지만, 몸통이 T 포즈로 굳고 애니가 재생되지 않는다. Actor 적은 정상이다. 원인은 LootNPop이 옛 GASP 소스에 직접 넣었던 설정 2건이 덮어쓰기로 사라진 것이다. ① `SKM_UEFN_Mannequin` 빌드 세팅 `bOptimizeForInstancing`(전 LOD) — PIE 로그 `AnimSequenceTransformProvider: ... requires 'Optimize for Instancing'` ② `M_UEFN_Mannequin`의 `bUsedWithInstancedStaticMeshes` — 로그 `missing usage flag InstancedStaticMeshes`, 먼 ISM 적이 기본 머티리얼로 그려진다. `bUsedWithInstancedSkinnedMesh`는 5.8 원본에도 있다. 이름 맵 차분상 사라진 LootNPop 수정은 이 2건뿐이다(나머지는 GASP 쪽 변경)
-   - **제안(사용자 확인 필요):** 두 설정을 소스에 다시 적용해 저장하고, "반입 후처리 2건"으로 이 문서와 `README.md` §4에 남겨 다음 GASP 업데이트 때도 반복한다. 그 뒤 PIE로 몸통 애니를 확인하고, `ASTP_Enemy_UEFN_*`·`SM_UEFN_Mannequin`을 다시 구워야 하는지(새 메시 정점 수 변화) 판단한다. 다른 안은 `Retargeted/`에 SKM·머티리얼 사본을 만들고 참조를 옮기는 것이다(소스 원본 유지, 추적 에셋 재저장 필요)
+   - **복구(1C-4 결과):** 소스에 다시 적용하는 대신 `Retargeted/`에 SKM·머티리얼 사본을 만들고 참조를 옮겼다(AN-018). 이렇게 하면 소스 해시가 유지된다. 아래 "1C-4 결과"를 본다.
 2. **리타깃 적 애니(LootNPop 산출물):** 새 스켈레톤에서 그대로 맞는지, 다시 리타깃해야 하는지 확인한다.
 3. **`ActorPromoted` 적:** `BP_LNPEnemy` 승격 후 로코모션·공격·랙돌. 새 `SKM_UEFN_Mannequin`의 포스트프로세스 ABP(머리 1.15배·허벅지 1.12배 스케일, 1C-1 §4)를 받아들일지, 컴포넌트 `bDisablePostProcessBlueprint`로 끌지 정한다(소스 메시는 수정하지 않는다).
 4. **PSD:** `Characters/MotionMatchingData/PSD_*_UEFN` 재빌드, 경고 확인.
@@ -172,9 +176,20 @@
 
 완료 조건: 위 항목 통과, `Current.md`·`Roadmap.md` 갱신.
 
+### 1C-4 결과 (2026-10-18, 상세 `history/Phase01C_Log.md`)
+
+| 항목 | 결과 |
+|:---|:---|
+| 1 ISKM | `Retargeted/Meshes/SKM_UEFN_Mannequin_Instanced`(전 LOD `bOptimizeForInstancing`)·`Retargeted/Materials/M_UEFN_Mannequin_Instanced`(`bUsedWithInstancedStaticMeshes`)를 만들었다. `ASTP_Enemy_UEFN_*_Body`·PureEntity DA 2개의 ISKM 몸통, `SM_UEFN_Mannequin` 머티리얼을 사본으로 옮겼다. ASTP는 메시를 바꾸면서 다시 구워졌다. `SM_UEFN_Mannequin`은 옛 메시 기하 그대로 둔다(ISM 원거리, 바운드·비율 같음). PIE 로그 경고 0, 사용자 PIE에서 ISM·ISKM 몸통·무기·애니 정상 |
+| 2 리타깃 애니 14개 | 재리타깃 불필요. 바인드 포즈 동일, 새 본 5개는 끝에 추가. 14개 모두 `AAT_None`, 스켈레톤 `SK_UEFN_Mannequin` |
+| 3 승격 적 | 로코모션·공격·피격·랙돌 정상. 포스트프로세스 ABP는 `BP_LNPEnemy` `VisualMesh`에서 끈다(AN-019, 사용자 결정) |
+| 4 PSD | `PSD_{Idle,Jump,Walk,Run}_UEFN` BuildIndex Succeeded, 경고 없음 |
+| 5 PIE | 사용자 리슨 2인 PIE: 적도 부근, 호스트·게스트 화면에서 1~3 정상 |
+| 6 문서 | 공통 문서에 옛 `GASP_Mannequin` 경로 문자열은 원래 없었다(grep 0). `TechDesign_EnemyNPC_LowLOD.md` §6.3(93본)·§6.4(시퀀스 위치)·§6.7(사본 규약), `TechDesign_EnemyNPC.md` §6(메시 구성·포스트프로세스 끔)을 갱신했다 |
+
 ## 완료 조건 체크리스트
 
 - [x] 1C-1: 대조표·반입/리다이렉트 목록·리다이렉트 실험·스켈레톤 차이·백업·산출물 이동 목록 (2026-10-18)
 - [x] 1C-2: 경로 정렬, `.gitignore`, 커밋 (2026-10-18, 사용자 PIE에서 ISKM·Actor 적 회귀 없음 확인)
 - [x] 1C-3: 최신본 덮어쓰기, 깨진 참조 0 (2026-10-18, 369개 해시 일치, 로드 경고 0)
-- [ ] 1C-4: ISKM·리타깃 애니·승격 적·PSD·2인 PIE 회귀 통과
+- [x] 1C-4: ISKM·리타깃 애니·승격 적·PSD·2인 PIE 회귀 통과 (2026-10-18, ISKM은 `Retargeted/` 사본(AN-018), 포스트프로세스 ABP 끔(AN-019))

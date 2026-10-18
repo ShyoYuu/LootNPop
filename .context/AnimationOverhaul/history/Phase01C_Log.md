@@ -206,3 +206,52 @@ Actor(승격) 적은 정상이다. **ISKM 적은 무기 메시와 무기 애니�
 | `M_UEFN_Mannequin` | `bUsedWithInstancedStaticMeshes` | `missing usage flag InstancedStaticMeshes! Default Material will be used` | 먼 ISM 적(`SM_UEFN_Mannequin`)이 기본 머티리얼로 그려진다 |
 
 무기는 덮어쓰지 않은 별도 메시(`SKM_*_UEFN`)라 영향이 없다. 1C-3의 "로드 경고 0"은 에디터 로드 기준이었고, 이 두 경고는 PIE에서 ISKM·ISM이 만들어질 때만 나온다. 사용자 결정에 따라 복구는 1C-4에서 한다(제안: 소스에 다시 적용 + 반입 후처리로 문서화, Phase 문서 1C-4 항목 1).
+
+## 2026-10-18 — 단위 1C-4 회귀 검증
+
+LootNPop 에디터(8000)만 썼다. C++·빌드는 없다. GASP 소스(`UEFN_Mannequin/`)는 저장하지 않았다. `SKM_`·`M_`·`SK_UEFN_Mannequin`의 SHA-256은 여전히 `post1C3_sha256.txt`와 같다.
+
+### 1. ISKM 복구 — 소스 대신 `Retargeted/` 사본 (AN-018)
+
+1C-3 §4의 T 포즈 원인 2건을 소스가 아닌 사본에 다시 걸었다. 마스터 세션 제약("소스는 저장하지 않는다, 저장이 필요하면 LootNPop 구성 에셋이나 `Retargeted/`에서 해결한다")을 따른 것이다. 1C-3 때 제안한 "소스에 다시 적용 + 반입 후처리" 안은 쓰지 않았다.
+
+| 작업 | 대상 |
+|:---|:---|
+| 복제 + 전 LOD `bOptimizeForInstancing` | `UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin` → `Retargeted/Meshes/SKM_UEFN_Mannequin_Instanced`(LOD 3개 재빌드 각 0.4초) |
+| 복제 + `bUsedWithInstancedStaticMeshes` | `UEFN_Mannequin/Materials/M_UEFN_Mannequin` → `Retargeted/Materials/M_UEFN_Mannequin_Instanced`(`bUsedWithInstancedSkinnedMesh`는 원본에도 있음) |
+| `SkinnedAsset` → 사본 | `ASTP_Enemy_UEFN_Sword_Body`, `ASTP_Enemy_UEFN_Shotgun_Body`(추적) |
+| ISKM `Meshes[0].Asset` → 사본 | `DA_EnemyEntityConfig_PureEntity_Melee01`, `_Ranged01`(추적). 무기 `Meshes[1]`·ISM 항목은 그대로 |
+| 머티리얼 슬롯 → 사본 | `Retargeted/Meshes/SM_UEFN_Mannequin`(git 제외) |
+
+- **재베이크 판단:** ASTP는 메시 참조를 바꾸면 DDC에서 다시 구워져 따로 할 일이 없었다. 무기 ASTP는 무기 메시만 쓰므로 그대로 둔다. `SM_UEFN_Mannequin`(먼 ISM)은 옛 메시(LOD0 6,009정점)로 만든 기하 그대로 둔다. 바운드·비율이 같고 원거리라 차이가 보이지 않는다(사용자 PIE 확인). 다시 만드는 절차는 Phase 문서 재생성 4번에 있다.
+- MCP PIE(1인, 남극 스폰, 웜업 15초): `requires 'Optimize for Instancing'`·`missing usage flag` 0건. 남은 Warning·Error는 기존 노이즈(Mover 스폰 위치 불일치 2, 궤적 예측 1, `LogMass: ... CharacterMovementComponent ... failed` 1)뿐이다. 화면 캡처는 `SlateInspector.Screenshot{ref:"w1"}`로 됐지만, 플레이어 입력을 줄 수 없어 근처에 적이 오지 않았다. 육안 확인은 사용자 PIE로 했다.
+
+### 2. 리타깃 적 애니 14개
+
+다시 리타깃하지 않는다. 1C-1 §4에서 바인드 포즈가 같고 새 본 5개는 끝에 붙는다는 것을 확인했다. 14개 모두 스켈레톤이 `SK_UEFN_Mannequin`이고 `AdditiveAnimType = AAT_None`이다(`MM_Shotgun_Fire_UEFN` 전환 유지). 재생성하지 않았으므로 `RTG_Lyra_to_GASP_noRootMotion` 골반 흔들림 확인(Phase 문서 재생성 2번)은 해당 없다.
+
+### 3. 승격 적과 포스트프로세스 ABP (AN-019)
+
+- `BP_LNPEnemy`: `AnimSourceMesh` = `SKM_Manny` + `ABP_Lyra`, `VisualMesh` = `SKM_UEFN_Mannequin` + `ABP_Retarget`.
+- 사용자 결정: 포스트프로세스 ABP는 끈다. PIE에서 Actor 적과 ISKM 적의 비율 차이를 거의 느끼지 못했으니, 평가 비용이라도 없애는 편이 낫다는 이유다. 비교용 PIE B(끈 상태)는 하지 않았다.
+- `VisualMesh` CDO `bDisablePostProcessBlueprint = true` → `compile_blueprint` → 저장. 소스 메시의 `PostProcessAnimBlueprint` 참조는 그대로다. 그 뒤 MCP PIE에는 승격 Actor가 없어 런타임 인스턴스는 확인하지 못했다. 컴포넌트 플래그라 CDO 값이 그대로 인스턴스에 복사된다.
+- 2-0b에서 `AnimSourceMesh`도 `SKM_UEFN_Mannequin`이 되면 같은 플래그를 넣는다(Roadmap 2-0b 비고). 포즈 원본 쪽에 스케일이 남으면 포즈 복사 경로에서 두 번 적용될 수 있다.
+
+### 4. PSD
+
+`PSD_{Idle,Jump,Walk,Run}_UEFN`이 이 에디터 세션 로그에서 BeginCache → BuildIndex Succeeded → DDC 저장됐다. 경고는 없다. 지금 런타임에서 쓰는 곳은 없다(플레이어는 `PSD_*_Lyra`).
+
+### 5. 사용자 PIE (리슨 2인)
+
+포스트프로세스 ABP를 켠 상태로 확인했다. ISM·ISKM·Actor 적 모두 정상이다. 적도 부근, 호스트·게스트 화면 모두에서 애니가 돌고, 무기가 몸과 동기화되고, 피격 반응과 Actor 랙돌이 정상이다. 1C-2 기준점("표시, 이동·공격·사망이 이전과 같음")과 차이가 없다.
+
+### 6. 문서 경로
+
+- `grep GASP_Mannequin`: 공통 문서·코드·Config에는 원래 없었다(research §6 기록과 같음). 남은 곳은 `AnimationOverhaul/`의 이력·결정·배경 서술이라 그대로 둔다.
+- 내용을 고친 곳: `TechDesign_EnemyNPC_LowLOD.md` §6.3(스켈레톤 93본), §6.4(`Retargeted/Enemy/` 위치·재생성 절차 링크), §6.7(경고 4번, 사본 규약). `TechDesign_EnemyNPC.md` §6(메시 구성·포스트프로세스 끔), `README.md` §4(사본 2개), Phase 문서 재생성 4·5번.
+- 문서가 새로 생기지 않았으므로 인덱스 3곳은 고치지 않았다.
+
+### 시행착오·주의
+
+- 덮어쓰기 대조는 소스에 넣었던 LootNPop 설정을 놓쳤다(1C-3 §시행착오). 이제 그런 설정은 소스에 두지 않는다(AN-018). 다음 GASP 갱신에서 원본 메시가 바뀌면 사본 2개를 다시 만들고 PIE 로그로 확인한다.
+- `SceneTools.find_actors`는 `name`·`tag`·`collision_channels`가 모두 필수다(빈 값 허용).

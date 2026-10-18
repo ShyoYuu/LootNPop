@@ -387,6 +387,12 @@ Entity 모드, legacy(EnemyExactGround 0, 비교용 — Phase 6에서 제거):
 | `GetBaseAimRotation()` | 액터 전방에 복제된 로컬 Pitch를 얹은 조준선. Aim Offset과 발사 방향의 **공통 원본** |
 | `EnemyConfig` (복제, `OnRep_EnemyConfig`) | 적 무기 상태의 단일 원본. **복제해야 하는 이유:** Actor 스폰·`InitializeOnce`가 서버 전용인데 게스트의 Actor는 일반 Relevancy로 온다 — 없으면 게스트에서 무기 메시·애님 레이어가 안 붙고 `GetActiveWeaponDef()`도 null이 된다. OnRep은 **비주얼만** 갱신한다 |
 
+**메시 구성 (`BP_LNPEnemy`).** `AnimSourceMesh`(숨김) = Lyra `SKM_Manny` + `ABP_Lyra`, `VisualMesh` = GASP 소스 `/Game/Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin` + `ABP_Retarget`.
+ISKM·ISM 표현은 이 메시가 아니라 `Retargeted/` 사본을 쓴다(→ [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md) §6.7).
+- `VisualMesh`는 **`bDisablePostProcessBlueprint = true`** 다(2026-10-18, AnimationOverhaul AN-019). GASP 5.8 메시에 붙어 온
+  `ABP_UEFN_Mannequin_PostProcess`(머리 1.15배·허벅지 1.12배 고정 스케일)를 끈다. ISKM은 포스트프로세스 ABP를 평가하지 않으므로,
+  켜 두면 승격 순간 비율이 바뀌고 개체마다 매 프레임 평가 비용만 붙는다. 소스 메시는 고치지 않고 컴포넌트에서 끈다.
+
 ### HP 바 · 락온 표식
 
 **Actor에 위젯을 달지 않는다.** 순수 엔티티에는 `UWidgetComponent`를 붙일 수 없어 LOD마다 표현이

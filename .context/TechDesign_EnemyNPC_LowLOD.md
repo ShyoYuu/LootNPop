@@ -639,7 +639,8 @@ GPU 스키닝이 무기를 손 위치로 옮겨 준다 — 엔진의 모듈러 �
 - 세트를 나누는 대가는 ISKM 컴포넌트 수다 — 프로바이더가 Desc 해시에 들어가므로 몸통이 같은 메시여도
   세트마다 컴포넌트가 따로 생긴다.
 
-두 무기 모두 스켈레톤은 `SK_UEFN_Mannequin`(88본, 마네킹과 **본 배열이 인덱스까지 동일**),
+두 무기 모두 스켈레톤은 `SK_UEFN_Mannequin`(마네킹과 **본 배열이 인덱스까지 동일**. GASP 5.8 교체(2026-10-18)로 스켈레톤은
+93본이 됐지만 추가된 5본은 끝에 붙어 기존 88본의 인덱스와 바인드 포즈가 그대로다 — 무기 메시는 다시 굽지 않았다),
 웨이팅은 **`weapon_r` 100%**(소켓이 아니라 **본**), 빌드 세팅은 `bOptimizeForInstancing`,
 소스 FBX는 `Art/Meshes/SKM_*_UEFN.fbx`(에셋의 `AssetImportData`가 가리켜 에디터 Reimport가 동작한다).
 
@@ -737,6 +738,9 @@ GPU 스키닝이 무기를 손 위치로 옮겨 준다 — 엔진의 모듈러 �
 **애니 프로세서에 하드코딩하지 않고** `ULNPEnemyConfig::ActionSequences`(`TMap<ELNPEnemyAction, 인덱스 배열>`)가
 매핑을 갖는다 — 적 타입마다 시퀀스 수와 순서가 다르다. 루프 여부는 데이터로 두지 않고
 `FLNPEnemyActionFragment::IsOneShot()`에서 파생한다(§5.6과 같은 원본).
+
+아래 `*_UEFN` 시퀀스는 Lyra 클립을 리타깃한 산출물이라 `/Game/Characters/Retargeted/Enemy/`에 있고 git에서 제외된다.
+재생성 절차는 `AnimationOverhaul/phases/Phase01C_GASPAssetRefresh.md` "LootNPop 산출물 이동 목록과 재생성 절차"가 소유한다.
 
 검 세트 (2026-09-13) — 시퀀스는 **`ASL_Enemy_UEFN_Sword`에서 편집**하고 참조하는 ASTP 둘이 따라간다(§6.3):
 
@@ -884,13 +888,30 @@ Pivot   Forward 20 / Up 10          Blade  Inner 30 / Outer 140
 | 1 | `AssetCheck: Error … requires 'Optimize for Instancing'` | 스켈레탈 메시 **빌드 세팅**의 `bOptimizeForInstancing`을 **전 LOD**에 켤 것 |
 | 2 | `Material … missing usage flag InstancedSkinnedMesh!` (기본 머티리얼로 대체됨) | 머티리얼의 `bUsedWithInstancedSkinnedMesh` |
 | 3 | `NaNs found on Bounds for … InstancedSkinnedMeshComponent` | 1·2의 파생 — 프로바이더 빌드 실패로 애니 바운드가 무효. 고치면 재발 없음 |
+| 4 | `Material … missing usage flag InstancedStaticMeshes!` (먼 ISM 적이 기본 머티리얼) | ISM 메시(`SM_UEFN_Mannequin`) 머티리얼의 `bUsedWithInstancedStaticMeshes` |
+
+1·4번 경고는 에디터 로드에서는 나오지 않고 **PIE에서 ISKM·ISM이 만들어질 때만** 나온다. 에셋을 교체한 뒤에는 PIE 로그로 확인한다.
 
 Nanite는 **꺼진 상태로도 동작한다.** `FInstancedSkinnedMeshSceneProxyDesc::CreateMeshObject`가
 Nanite → Static → **GPUSkin** 순으로 떨어지고 `r.GPUSkin.UseSceneExtension`이 기본 `true`이기 때문이다.
-실제로 `SKM_UEFN_Mannequin`은 `NaniteSettings.bEnabled = false` 그대로 두고 GPUSkin 경로로 붙였다.
+실제로 ISKM 몸통 메시는 `NaniteSettings.bEnabled = false` 그대로 두고 GPUSkin 경로로 붙였다.
 
-> `bOptimizeForInstancing`은 본 맵을 통합하는 빌드 옵션이라 일반 스켈레탈 렌더링과 호환된다.
-> 이 메시의 참조자는 적(`BP_LNPEnemy` + 적 EntityConfig)뿐이라 **플레이어에는 영향이 없다.**
+#### 요건은 GASP 소스가 아니라 `Retargeted/` 사본에 건다 (2026-10-18)
+
+`SKM_UEFN_Mannequin`·`M_UEFN_Mannequin`은 GASP 소스 에셋이라 GASP를 갱신할 때마다 원본 파일로 덮어쓴다
+(AnimationOverhaul AN-013). 예전에는 1·4번 설정을 소스에 직접 넣었는데, GASP 5.8 덮어쓰기에서 두 설정이 사라져
+**ISKM 몸통이 T 포즈로 굳고**(무기는 별도 메시라 정상) 먼 ISM 적이 기본 머티리얼로 그려졌다.
+그래서 ISKM·ISM 전용 사본을 둔다. 소스는 저장하지 않는다(GASP 원본과의 해시 대조를 유지한다).
+
+| 사본 (`/Game/Characters/Retargeted/`, git 제외) | 원본 | 바꾼 설정 | 참조자 |
+|:---|:---|:---|:---|
+| `Meshes/SKM_UEFN_Mannequin_Instanced` | `SKM_UEFN_Mannequin` | 전 LOD `bOptimizeForInstancing` | `ASTP_Enemy_UEFN_{Sword,Shotgun}_Body`의 `SkinnedAsset`, `DA_EnemyEntityConfig_PureEntity_{Melee01,Ranged01}`의 ISKM `Meshes[0]` |
+| `Materials/M_UEFN_Mannequin_Instanced` | `M_UEFN_Mannequin` | `bUsedWithInstancedStaticMeshes` | `Meshes/SM_UEFN_Mannequin`의 머티리얼 슬롯 |
+
+- 승격 Actor(`BP_LNPEnemy`의 `VisualMesh`)는 원본 `SKM_UEFN_Mannequin`을 그대로 쓴다.
+- ⚠️ ISKM 몸통 메시와 ASTP의 `SkinnedAsset`은 **같은 메시**여야 한다. 한쪽만 바꾸면 프로바이더가 다른 메시로 구워진다.
+- 사본은 원본의 스켈레톤·PhysicsAsset·포스트프로세스 ABP 참조를 그대로 갖지만, ISKM은 포스트프로세스 ABP를 평가하지 않는다.
+- GASP를 다시 갱신해 원본 메시가 바뀌면 사본도 다시 만든다(같은 문서 재생성 절차 4번).
 
 #### 시퀀스 선정 기준 둘
 
