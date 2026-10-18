@@ -40,7 +40,7 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 
 | Phase | 목표 | 세션 단위 | 상태 | 핵심 완료 조건 |
 |:---|:---|:---|:---|:---|
-| 0 | 참조 환경과 기준 결정 | 0-1 MCP 읽기 범위 확인 · 0-2 GASP 블록 목록 · 0-3 스켈레톤·소스 에셋 규칙 결정 (1~2세션) | 착수 전 | `design/GASPReference.md` 생성, AN-011 결정, 마이그레이트 규칙 확정 (`phases/Phase00_ReferenceSetup.md`) |
+| 0 | 참조 환경과 기준 결정 | 0-1 MCP 읽기 범위 확인 · 0-2 GASP 블록 목록 · 0-3 스켈레톤·소스 에셋 규칙 결정 (1~2세션) | 진행 중(0-1 완료) | `design/GASPReference.md` 생성, AN-011 결정, 마이그레이트 규칙 확정 (`phases/Phase00_ReferenceSetup.md`) |
 | 1A | 물리 히트리액트 스파이크 | 1세션 | 계획 | 테스트 폰의 `VisualMesh` 상체에 PhysicsControl 임펄스, 적도에서 처짐 없음, 2인 PIE 각 머신 로컬 재생, 캡슐·Mover 무영향 |
 | 1B | 마커리스 모캡 스파이크 | 1~2세션 | 계획 | 영상 1클립 → MetaHuman 바디 → 리타깃 → 루트모션·검 방향 정리 → 공격 몽타주로 PIE 1타 |
 | 1C | GASP 소스 에셋 최신화 | 1C-1 대조표·백업 · 1C-2 경로 정렬 · 1C-3 덮어쓰기 · 1C-4 회귀 (3~4세션) | 계획 | 옛 GASP 유래 411개를 5.8 최신본으로 교체, LootNPop 산출물 보존, 깨진 참조 0, ISKM·승격 적 회귀 없음 (`phases/Phase01C_GASPAssetRefresh.md`) |
