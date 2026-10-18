@@ -16,7 +16,7 @@
 | .context/Guide_OctantLevelDesign.md | 옥탄트 공간 설계 — 평면/단면/연결표·랜드마크·Pod 전투장·훅·자연 진입/회복, 대표 구역 통과 기준과 다음 세션 인계 |
 | .context/Guide_CustomSlateWidget.md | 커스텀 Slate 위젯 제작 절차 — 베이스 선택, TSlateAttribute, 스타일 분리, UMG 래퍼 |
 | .context/TechDesign_InitSequence.md | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
-| .context/TechDesign_SurfaceCache.md | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유, 수직 단차 표현 한계 |
+| .context/TechDesign_SurfaceCache.md | [legacy] 과거 런타임 등장방형 그리드 베이크의 설계 근거 — 현재는 에디터 베이크 Support Atlas(`.context/SurfaceSupportNavigation/`)로 대체·제거됨. NavMesh 대체 이유, 수직 단차 표현 한계 |
 | .context/TechDesign_CharacterMovement.md | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템, 행글라이더 활공·윈드필드 상승, 사망 랙돌·Mover 정지·리스폰 |
 | .context/TechDesign_CombatAnimation.md | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·왼손 Two Bone IK·Guard 자세 분기, 몽타주 ANS 구간 제어와 경직 차단 소유권 구분, 근접 공격 타겟 보정(Motion Warping) |
 | .context/AnimationOverhaul/README.md | 애니메이션 대규모 개선 작업 진입점(여러 세션 이어 가기용 폴더) — GASP 소스 에셋 최신화, GASP Mover ABP 재구성, PhysicsControl 물리 히트리액트, 마커리스 모캡 근접 모션, UAF 판정 게이트, Locomotor 사족 드론(최후순위 트랙) 단계 계획 |

@@ -15,7 +15,7 @@
 | **Animation** | Motion Matching + Linked Anim Layers | `ULNPAnimInstance` |
 | **Camera** | Gameplay Camera | `ULNPGravityRollCorrectionCameraNode` |
 | **World** | PCG + Geometry Script + Level Instance | `BP_OctantGenerator`, `ULNPOctantThemeSamplerSettings`, `ULNPOctantSpawnSubsystem` |
-| **Surface Query** | SurfaceCacheSubsystem (커스텀) | `ULNPSurfaceCacheSubsystem` |
+| **Surface Query** | 에디터 베이크 Support Atlas + Chaos 정밀 query (커스텀) | `ULNPSurfaceDataSubsystem`, `ULNPMassWorldCollisionSubsystem`, `ULNPNavPathSubsystem` |
 | **Interaction** | MassEntity + 인터랙터블 레지스트리 | `ALNPLootPod`, `ALNPLootDice`, `ULNPInteractableRegistrySubsystem`, `ULNPInteractionComponent` |
 | **AI/Entity** | MassEntity + StateTree | `ULNPEnemyMovementProcessor`, `ULNPTargetingSubsystem` |
 | **Target Query** | MassEntity 상시 질의 | `ULNPTargetQuerySubsystem`, `ULNPTargetQueryProcessor` |
@@ -47,9 +47,13 @@
 - 조준점·근접 보정·락온은 원래 물리 트레이스로 대상을 찾았고, 콜리전이 없는 **순수 엔티티를 통째로 빠뜨렸다.**
 - `ULNPTargetQuerySubsystem`이 매 프레임 갱신되는 **상시 질의**(요청/응답이 아니다)로 이를 대체하고, 소비자는 결과만 읽는다. (→ [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md))
 
-### Surface Cache Baking
-- Enemy NPC와 Projectile이 모두 MassEntity이므로 Mass Worker Thread에서 지표면 쿼리가 가능해야 함.
-- `ULNPSurfaceCacheSubsystem`이 게임 시작 전 구형 내벽 전체를 등장방형 그리드로 사전 베이킹. 베이킹 완료 후 배열이 읽기 전용으로 확정되므로 Mass Worker Thread에서 Lock 없이 O(1) 안전 조회 가능.
+### Surface Support · 정밀 월드 충돌
+- Enemy NPC와 Projectile이 모두 MassEntity이므로 Mass Worker Thread에서 지면·벽 판정이 가능해야 함. 위치마다 Up이 달라 Z-Up 전제의 NavMesh는 쓸 수 없고, 부유섬·지하 공동·복층 구조물 때문에 같은 방사 방향에 보행면이 여러 장 겹친다.
+- **에디터 베이크:** 옥탄트별 `ULNPOctantSurfaceData`에 다층 Support Atlas(옥탄트 면 x+y+z=1 위 삼각 격자, 지각 Layer 0 + 부유섬·동굴 바닥 sparse Layer)·Nav Layer·Traversal Graph를 굽는다. 게임 로딩 중 머신마다 굽지 않는다.
+- **런타임 캐시:** `ULNPSurfaceDataSubsystem`이 선택된 8개 옥탄트 데이터에 slot transform만 적용해 불변 스냅샷으로 게시(release/acquire). Mass 워커는 락 없이 조회하고, 동적 지형 변경은 Mass 페이즈 경계에서 새 세대로 통째 교체해 generation으로 낡은 핸들을 무효화한다.
+- **정밀 query:** 캐시가 확신하지 못하는 곳(베이커가 표시한 가장자리·급경사), 벽·프랍 수평 이동, 투사체 선분, 공중 착지는 `ULNPMassWorldCollisionSubsystem`이 워커에서 동기 Chaos scene query(씬 읽기 락)로 판정한다. hit의 의미(지지면·Layer·동적 지형)는 `ULNPHitIdentitySubsystem`의 불변 registry에서 (component, FaceIndex, instance) 키로 찾고, 워커는 UObject를 역참조하지 않는다.
+- **지상 경로·동적 지형:** 별도 저해상도 Nav Grid와 A*(`ULNPNavPathSubsystem`). 움직이는 패널·상태형 다리·파괴는 Conditional Patch와 Runtime Overlay(revision)로 반영한다.
+- 과거의 런타임 등장방형 그리드 베이크(`ULNPSurfaceCacheSubsystem`)는 Phase 5·6에서 이 구조로 대체·제거됐다. (→ [SurfaceSupportNavigation/README.md](SurfaceSupportNavigation/README.md), 과거 설계 근거는 [TechDesign_SurfaceCache.md](TechDesign_SurfaceCache.md))
 
 ### Motion Matching + Linked Anim Layers
 - Motion Matching 기반 Locomotion에 무기별 Linked Anim Layer를 블렌딩. 서브 AnimBP 5종(Unarmed·Pistol·Rifle·Shotgun·LongSword)을 런타임 교체한다 — 유탄 발사기는 Shotgun 세트를 공유.
@@ -126,7 +130,7 @@
 | [Octant Level Instance 제작 가이드](Guide_OctantLevelInstance.md) | Octant Level Instance 제작 절차 — 코드 정의 빌더·이음매 보존 지각·베이크·풀 등록, 플레이어 치수표와 레이아웃 규칙 검사, 검토 이동 도구 |
 | [커스텀 Slate 위젯 제작 가이드](Guide_CustomSlateWidget.md) | 베이스 선택, TSlateAttribute, 스타일 분리, UMG 래퍼 |
 | [초기화 시퀀스 기술 설계](TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
-| [표면 캐시 기술 설계](TechDesign_SurfaceCache.md) | 등장방형 그리드 사전 베이킹, Mass 워커 스레드 O(1) 안전 조회, NavMesh 대체 이유, 수직 단차 표현 한계 |
+| [표면 캐시 기술 설계 (legacy)](TechDesign_SurfaceCache.md) | [legacy] 과거 런타임 등장방형 그리드 베이크의 설계 근거 — 현재는 에디터 베이크 Support Atlas([SurfaceSupportNavigation/](SurfaceSupportNavigation/README.md))로 대체·제거됨. NavMesh 대체 이유, 수직 단차 표현 한계 |
 | [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템, 행글라이더 활공·윈드필드 상승, 사망 랙돌·Mover 정지·리스폰 |
 | [전투 Animation 기술 설계](TechDesign_CombatAnimation.md) | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·왼손 Two Bone IK·Guard 자세 분기, 몽타주 ANS 구간 제어와 경직 차단 소유권 구분, 근접 공격 타겟 보정(Motion Warping) |
 | [애니메이션 개선 작업 안내](AnimationOverhaul/README.md) | 여러 세션 이어 가기용 작업 폴더 진입점 — GASP 소스 에셋 최신화, GASP Mover ABP 재구성, PhysicsControl 물리 히트리액트, 마커리스 모캡 근접 모션, UAF 판정 게이트, Locomotor 사족 드론(최후순위 트랙) 단계 계획 |
