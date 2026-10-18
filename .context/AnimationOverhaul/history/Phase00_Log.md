@@ -76,3 +76,32 @@ Ragdoll 상태 머신 전이는 B11이 범위 밖(AN-005)이라 요청하지 않
 - Chooser 스크린샷(요청 3)은 오지 않았다. 행 조건은 MCP로 읽혔고 결과 묶음은 PSD 이름으로 짐작되므로 2-2에서 Chooser를 만들 때 확인하기로 했다(`design/GASPReference.md` §2.6).
 - `design/GASPReference.md` §2 완성, `Decisions.md` AN-015 추가, `Roadmap.md` Phase 2를 6단위(2-1~2-6)로 확정, Phase 0 체크리스트 0-2 체크.
 - 검증: 문서 작업만 했다. GASP 에디터 쓰기 툴 미사용, C++·LootNPop 에셋 변경 없음.
+
+## 2026-10-18 — 단위 0-3 스켈레톤과 소스 에셋 규칙
+
+### 수행
+
+1. **Lyra 실사용 시퀀스 집계.** git 추적 `.uasset` 255개(Maps·외부 액터 제외)를 루트로 LootNPop MCP `get_dependencies`를 따라갔다. 라이선스 폴더(`Lyra_Mannequin`·`GASP_Mannequin`·`MoverSample_Mannequin`·`Weapons`, 추적 예외 폴더는 빼고) 안에서만 더 따라가고, 추적 에셋에 닿으면 그 에셋의 몫으로 넘겼다. 묶음 스크립트 1회로 580번 조회했다. 결과: `Lyra_Mannequin/Animations` 701개 중 121개 사용. `PSD_*_Lyra` 경로 30개, 서브 ABP 경로 37개, 몽타주 경로(`CHT_Montage`·`GA_Stagger_LongSword`·`GA_ParrySuccess_LongSword`) 55개, `ABP_Lyra` 직접 참조 1개(`MM_Unarmed_Jump_Fall_Loop`). 로코모션 PSD를 뺀 91개는 MM 59·AM 21·A 9·AO 2(접두어 기준). 원본 결과는 로컬 `Saved/AnimOverhaul03/reach.txt`(git 제외).
+2. **메시 구성.** `BP_LNPPlayer`·`BP_LNPEnemy` CDO 컴포넌트를 `ObjectTools.get_properties`로 읽었다. 두 BP 모두 `AnimSourceMesh` = `SKM_Manny` + `ABP_Lyra`(숨김)다. `VisualMesh`는 `ABP_Retarget`이 구동하며, 플레이어는 `SKM_Manny_Simple`, 적은 `SKM_UEFN_Mannequin`이다. `ABP_Retarget`은 `RTG_GASP_to_MS`·`RTG_Lyra_to_GASP`·`RTG_Lyra_to_MS`를 참조한다.
+3. **본 대조.** `SkeletalMeshTools.get_bone_names`로 Lyra 164·UEFN 88·MoverSample 161본을 비교했다. CR·IK·워핑이 쓰는 본은 셋 다 있다. 차이는 `design/GASPReference.md` §2.7.
+4. **GASP 5.8 외부 의존.** GASP MCP로 `CHT_PoseSearchDatabases_Mover`·`_Relaxed`에서 `UEFN_Mannequin` 안을 따라가며 경로 밖 의존을 셌다(읽기 툴만 사용). 시퀀스는 커브 압축 설정·Foley 노티파이 10종·EarlyTransition·`AM_BakePhaseCurveFromFootstepNotifies`에 의존한다. 각 의존 체인을 `get_dependencies`로 확인했다(Foley → `/Game/Audio/Foley/*`, EarlyTransition → `BPI_SandboxCharacter_ABP`·CMC ABP, AM·커브 압축 설정 → 엔진만). LootNPop 쪽 옛 GASP 시퀀스 414개와 Lyra 701개에는 폴더 밖 의존이 없다.
+5. 디스크: GASP 5.8에는 `RTG_UEFN_to_UE5_Mannequin`·`RTG_UEFN_to_Metahuman_*` 등 UEFN 원본 → 표시 메시 리타기터가 있다.
+
+### 사용자 결정
+
+- **AN-011 UEFN 전환.** 사용자 요지: UEFN 마네킹·UEFN 애니가 모든 로코모션의 기본이다. 공격·리로드·무기별 애님 레이어에는 Lyra 애니를 계속 쓸 수 있어야 한다. Lyra 시퀀스를 UEFN으로 리타깃해 쓰고, `AnimSourceMesh`는 UEFN, `VisualMesh`는 캐릭터별 메시 + 리타기터로 한다. "전부"는 실사용 91개와 이후 필요분으로 기록했다(AN-001 필요할 때 반입). 실행 단위 2-0a·2-0b를 `Roadmap.md` Phase 2에 추가했다.
+- **AN-016 폴더·git:** 원본 경로 유지안. 이 선택으로 AN-013(경로 정렬)을 확정, AN-014(리타깃 산출물은 이동하되 git 제외)를 해소로 표기했다.
+- **AN-017 노티파이:** 독립 반입 + 리다이렉트안. BP 생성 클래스 → 네이티브 클래스 `CoreRedirects`가 노티파이 인스턴스에서 경고 없이 풀리는지는 검증하지 않았다 → 1C-1 실험 항목.
+- **AN-010:** 제안대로 확정.
+
+### 결과
+
+- `Decisions.md` AN-010·011·013·014 갱신, AN-016·017 추가. `README.md` §4 소스 에셋 확보 절차, §5 메시 구성 갱신. `design/GASPReference.md` §2.7을 결정 근거로 교체. `phases/Phase01C_GASPAssetRefresh.md`에 "반입 목록과 경로 규칙" 절 추가, 1C-1~1C-3 단계 갱신. `Roadmap.md` Phase 0 완료, Phase 2에 2-0a·2-0b 추가. Phase 0 체크리스트 완료.
+- 검증: 문서 작업만 했다. GASP 쪽 쓰기 툴과 `read_graph_dsl`은 쓰지 않았다. LootNPop 쪽 쓰기는 `Saved/AnimOverhaul03/`에 조사 결과 텍스트를 쓴 것뿐이다(`AssetTools.write_file`). C++·에셋 변경은 없다.
+
+### 시행착오·주의
+
+- `PA_UEFN_Mannequin`·`IK_UEFN_Mannequin`이 존재하지 않는 경로 `/Game/Characters/GASP_Mannequin/GASP_Mannequin/Meshes/SKM_UEFN_Mannequin`(프리뷰 메시로 추정)을 참조한다. `get_dependencies`를 이 경로에 걸면 스크립트 전체가 죽는다 → 의존성 순회 전에 `AssetTools.exists`로 거른다. 1C 덮어쓰기 때 사라질 것으로 본다.
+- 0-1 기록과 같이, `get_dependencies`의 "Asset does not exist" 에러는 `try/except`로 감싸도 스크립트 전체를 끝냈다. 실패할 수 있는 호출은 사전 조건(`exists`)을 먼저 확인한다.
+- `ObjectTools.get_properties`의 인자 이름은 `instance`·`properties`다. BP 컴포넌트 기본값은 `<BP>.Default__<BP>_C:<컴포넌트>`로 읽힌다.
+- MM 경로 Chooser에서 따라간 GASP 애니는 759개로, 0-2의 461개보다 많다. 시퀀스가 다른 시퀀스·BS를 참조하는 것까지 셌기 때문으로 보인다. 리타깃량 비교에는 0-2 수치를 썼다.

@@ -1,38 +1,44 @@
 # 애니메이션 개선 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase 0 단위 0-3(스켈레톤과 소스 에셋 규칙, 사용자 결정 포함) — 착수 전
+> 현재 작업: Phase 0 완료 — Phase 1A·1B·1C 착수 대기(병렬 가능, 사용자 승인 후)
 > 마지막 갱신: 2026-10-18
 
 ## 현재 결정
 
-코드·LootNPop 에셋 변경은 아직 없다. 사용자 결정:
+코드·LootNPop 에셋 변경은 아직 없다. 확정 결정(상세 `Decisions.md`):
 
-- GASP는 구성을 보며 직접 다시 만들고, 소스 에셋만 마이그레이트·git 제외(AN-001)
-- Locomotor 사족 드론은 최후순위 별도 트랙(AN-008)
-- GASP 에디터는 MCP 포트 8001로 동시에 띄워 읽기 전용 참조(AN-009)
-- 옛 GASP 유래 소스 에셋은 중복이어도 5.8 최신본으로 교체 — Phase 1C(AN-012)
-- 로코모션 선택 코어는 **Motion Matching 노드 방식**, SM + Chooser + Blend Stack 방식은 만들지 않음(AN-015)
+- GASP는 구성을 보며 직접 다시 만들고 소스 에셋만 들여온다(AN-001). GASP 에디터는 8001 읽기 전용(AN-009)
+- 옛 GASP 유래 소스 에셋은 5.8 최신본으로 교체하고(AN-012), GASP 원본 경로로 옮긴 뒤 덮어쓴다(AN-013)
+- 로코모션 선택 코어는 MM 노드 방식(AN-015)
+- **스켈레톤은 UEFN 전환(AN-011).** `AnimSourceMesh` = `SKM_UEFN_Mannequin`, 로코모션은 GASP 클립 그대로, Lyra 무기·몽타주 애니(실사용 91개)는 UEFN으로 리타깃한 사본을 쓴다. `VisualMesh`는 캐릭터별 메시 + UEFN→그 메시 리타기터. 실행은 1C 뒤 2-0a·2-0b
+- **폴더·git(AN-016):** GASP 소스는 GASP 패키지 경로 그대로 두고 경로 단위로 git 제외. LootNPop 구성 에셋은 GASP 경로 밖. 리타깃 산출물은 `Content/Characters/Retargeted/`(git 제외). AN-014도 이것으로 해소됐다
+- **노티파이(AN-017):** 커브 압축 설정·`AM_*`는 반입, Foley·EarlyTransition은 반입하지 않고 `CoreRedirects` → no-op C++ 클래스
+- 마커리스 소스 영상: 타사 영상은 프로토타입·레퍼런스만(AN-010)
 
-결정 대기: 기준 스켈레톤(AN-011), 마커리스 소스 영상 정책(AN-010) — 0-3에서 묻는다. 최신화 방식(AN-013 제안)과 LootNPop 산출물 추적(AN-014)은 Phase 1C 단위 1C-1에서 묻는다.
+⚠️ `GASP_Mannequin/Animations/Enemy/*`(리타깃 적 애니 14개)는 git에 없다. 1C-2에서 `Retargeted/`로 옮기기 전까지 지우거나 덮어쓰지 않는다.
 
-⚠️ `GASP_Mannequin/Animations/Enemy/*`(LootNPop이 만든 리타깃 적 애니 14개)는 `.gitignore`에 걸려 저장소에 없다. Phase 1C 전에 로컬 파일을 지우거나 덮어쓰지 않는다(`research/UE58_AnimationFeatures.md` §6).
+⚠️ GASP 에디터의 `SandboxCharacter_Mover_ABP`·`SandboxCharacter_CMC_ABP`가 dirty다(`read_graph_dsl` 탓). 닫을 때 저장하지 않는다.
 
-⚠️ GASP 에디터에서 `SandboxCharacter_Mover_ABP`·`SandboxCharacter_CMC_ABP`가 dirty다. 원인은 `read_graph_dsl`이다(`design/GASPReference.md` §1.2). GASP 에디터를 닫을 때 저장하지 않는다.
+## 바로 다음 행동 (갈래별 첫 행동)
 
-## 0-2 결과 요약 (상세 `design/GASPReference.md` §2)
+| 갈래 | 첫 행동 | 건드리는 에셋 |
+|:---|:---|:---|
+| 1C 소스 에셋 최신화 | [1C-1](phases/Phase01C_GASPAssetRefresh.md): 411개 해시 비교 → 최신본·MM 경로 의존성 → 경로별 반입 목록·리다이렉트 대상 목록 → **리다이렉트 실험(시퀀스 1개)** → 스켈레톤·메시 차이 → `Saved/AssetRefresh/` 백업 → Enemy 14개 이동 목록·재생성 절차 | 1C-1은 읽기·백업만. 1C-2는 `GASP_Mannequin` 폴더와 참조자(`BP_LNPEnemy`·적 DA·ASTP·`Retargeters/*`)·`.gitignore`, 1C-3은 에디터 종료 + C++(no-op 노티파이)·`DefaultEngine.ini` |
+| 1A 물리 히트리액트 스파이크 | 착수 직전에 `phases/Phase01A_*.md`를 만든다. `research/UE58_AnimationFeatures.md` §2와 [TechDesign_CharacterMovement.md](../TechDesign_CharacterMovement.md) §9(랙돌)를 읽고 PhysicsControl 컴포넌트 방식과 RigidBodyWithControl 노드 방식 중 하나를 고른다. 대상은 `VisualMesh`이며 AN-011과 무관하다(플레이어 메시는 그대로) | 테스트 폰 또는 `BP_LNPPlayer`의 `VisualMesh`, PhysicsAsset. 노드 방식이면 `ABP_Retarget` |
+| 1B 마커리스 모캡 스파이크 | 착수 직전에 `phases/Phase01B_*.md`를 만든다. 사용자가 Fab 마커리스 플러그인(약 5GB)을 설치하고 고정 카메라 영상 1클립을 고른다(AN-010). 리타깃 대상은 UEFN 스켈레톤. PIE 1타 확인 시점은 `Roadmap.md` Phase 1B 참고 | 새 시퀀스·몽타주(새 폴더). PIE 확인 시 `CHT_Montage` 행 하나 |
 
-- 블록 B0~B12. Phase 2 = 2-1 변수 공급층(C++) → 2-2 MM 선택 코어(PSD Chooser) → 2-3 Offset Root·Steering·Orientation Warping → 2-4 전환 세트 → 2-5 발 배치·경사 → 2-6 Leans·적 검증(`Roadmap.md` §4).
-- 0-3 근거: 필요한 소스 에셋은 전부 `SK_UEFN_Mannequin` 스켈레톤이다. MM 경로 시퀀스 461개(앉기·슬라이드·트래버설 빼면 약 319개)·PSD 71·PSS 12, 경사 BS 2·Lean BS 3, CR `CR_Biped_FootPlacement`. 시퀀스 곡선 6종·블렌드 프로파일·미러 테이블이 UEFN 스켈레톤에 붙어 있다(§2.7).
+**동시 실행 제약 — 같은 에셋을 건드리는 단위끼리는 동시에 돌리지 않는다.**
 
-## 바로 다음 행동
-
-- **새 세션**에서 [Phase 0](phases/Phase00_ReferenceSetup.md) 단위 0-3을 시작한다. `design/GASPReference.md` §2.7을 근거로 AN-011 선택지(Lyra 유지 vs UEFN 전환)를 양쪽 리타깃 대상 개수와 함께 정리해 사용자에게 묻는다. Lyra 쪽은 무기 서브 ABP·몽타주가 실제로 쓰는 `Lyra_Mannequin/Animations` 개수를 세고, 두 스켈레톤에 `ik_foot_root`·`ik_foot_l/r`·`spine_01~05`가 있는지 확인한다.
-- 같은 단위에서 마이그레이트 규칙(노티파이·모디파이어 BP 처리, 소스 에셋 확보 절차)과 AN-010을 정한다.
+- 1C-2(폴더 이동) 동안 다른 갈래는 `BP_LNPEnemy`·적 DA·ASTP·`Retargeters/*`·`GASP_Mannequin` 하위를 편집하지 않는다. 이동이 참조자를 다시 저장한다.
+- 1C-3은 LootNPop 에디터를 끈다. 에디터(MCP 8000)는 갈래들이 함께 쓰므로 그동안 다른 갈래는 에디터 작업을 멈춘다. C++ 빌드도 겹치지 않게 한다.
+- 1A가 `ABP_Retarget`에 노드를 넣으면 2-0b와 같은 에셋이다. 1A 결과를 2-0b 전에 커밋하거나 테스트 사본에서 한다.
+- 1B가 `CHT_Montage`에 테스트 행을 넣으면 2-0b와 같은 에셋이다. 2-0b 착수 전에 정리한다.
+- Phase 2(2-0a부터)는 1C가 끝난 뒤 시작한다.
 
 ## 인계 근거
 
-- MCP 읽기 방법·함정: `design/GASPReference.md` §1
-- 0-1·0-2 수행 기록: `history/Phase00_Log.md`
+- 스켈레톤 결정 근거·전환 구조·GASP 외부 의존: `design/GASPReference.md` §2.7
+- 0-1~0-3 수행 기록: `history/Phase00_Log.md`
+- 소스 에셋 확보 절차: `README.md` §4
 - 엔진·GASP 사실 조사: `research/UE58_AnimationFeatures.md`
-- 사용자 T3D 자료(git 제외): `Saved/GASPRef/`

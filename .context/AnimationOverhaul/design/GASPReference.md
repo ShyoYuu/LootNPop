@@ -1,6 +1,6 @@
 # GASP 참조 조사
 
-> 상태: 초안(§1 단위 0-1, §2 단위 0-2 완료 — 블록별 수치는 Phase 2 착수 시 재확인)
+> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3 완료 — 블록별 수치는 Phase 2 착수 시 재확인)
 > 마지막 갱신: 2026-10-18
 > 소유 정보: GASP 5.8 에디터(`unreal-mcp-gasp`, 포트 8001)에서 무엇을 어떻게 읽는지, 그리고 블록별로 LootNPop에서 무엇을 만들지. 원본 덤프가 아니라 요약만 둔다(README §11).
 
@@ -147,10 +147,24 @@ GASP는 Pawn이 BPI로 구조체를 넘기고 ABP가 가공한다. LootNPop은 M
 - 행 조건: OnGround·Stand·Idle(보행 무관) / OnGround·Stand·Moving × Walk·Run·Sprint / OnGround·Crouch·Idle / OnGround·Crouch·Moving / Sliding / InAir.
 - 노드 수치(블렌드 시간·반감기 등)는 GASP 기본값이다. 블록 단위에서 PIE로 다시 맞춘다.
 
-### 2.7 0-3(AN-011) 판단 근거 메모
+### 2.7 스켈레톤 기준 — UEFN 전환 (AN-011, 0-3 확정)
 
-- 필요한 소스 에셋은 전부 `SK_UEFN_Mannequin` 스켈레톤이다: MM 경로 시퀀스 461개(앉기·슬라이드·트래버설 빼면 약 319개)·PSD 71·PSS 12, SM 경로 시퀀스 약 387개(같은 제외 시 약 270개), 경사 BS 2·Lean BS 3, CR 2개(`CR_Biped_FootPlacement`, 손 IK는 제외).
-- 시퀀스 **곡선 6종**(B2)과 블렌드 프로파일 `FastFeet_InstantRoot`·미러 테이블 `MDT_UEFN_Mannequin`이 UEFN 스켈레톤에 붙어 있다. Lyra 유지 시 리타깃에서 곡선이 따라오는지 확인이 필요하다.
-- LootNPop `GASP_Mannequin/Animations`에는 옛 버전 일부만 있다(Walk 27·Run 49·Idle 33·Jump 62·Crouch 10 등). 어느 쪽을 고르든 Phase 1C 최신화 뒤 추가 반입이 필요하다.
-- 반대 방향: Lyra 쪽 `Characters/Lyra_Mannequin/Animations` 701개(무기 서브 ABP·몽타주 원천). 그중 실제로 쓰는 개수는 0-3에서 센다.
-- 본 이름: CR·워핑 노드가 쓰는 `ik_foot_root`·`ik_foot_l/r`·`pelvis`·`spine_01~05`는 두 스켈레톤에 모두 있는지 0-3에서 확인한다.
+결정: 로코모션은 UEFN 스켈레톤과 GASP 5.8 클립을 그대로 쓰고, Lyra 애니(공격·리로드·무기 레이어·몽타주)는 UEFN으로 오프라인 리타깃해 계속 쓴다. 0-3 조사 결과(2026-10-18, 수행 기록은 `history/Phase00_Log.md`):
+
+| 근거 | 내용 |
+|:---|:---|
+| 현재 메시 구성 | 플레이어·적 모두 `AnimSourceMesh` = `SKM_Manny`(Lyra) + `ABP_Lyra`. `VisualMesh`는 `ABP_Retarget`으로 런타임 리타깃한다 — 플레이어 `SKM_Manny_Simple`(MoverSample, `RTG_Lyra_to_MS`), `ActorPromoted` 적 `SKM_UEFN_Mannequin`(`RTG_Lyra_to_GASP`). `ABP_Retarget`은 `RTG_GASP_to_MS`도 이미 참조한다 |
+| UEFN 전환 시 리타깃량 | 추적 에셋 255개에서 의존성을 따라가면 실제로 쓰는 `Lyra_Mannequin/Animations`는 701개 중 121개다. `PSD_*_Lyra` 로코모션 30개는 GASP로 대체되므로 **91개**(서브 ABP 경로 37 · 몽타주 경로 55, 그중 몽타주 21·AO 2). 여기에 서브 ABP 5개 재생성, `CHT_Montage`·GA 2개(`GA_Stagger_LongSword`·`GA_ParrySuccess_LongSword`) 참조 재지정 |
+| Lyra 유지 시 리타깃량 | MM 경로 시퀀스 461개(앉기·슬라이드·트래버설 빼면 약 319개)·경사 BS 2·Lean BS 3, 곡선 6종·블렌드 프로파일 `FastFeet_InstantRoot`·미러 테이블 `MDT_UEFN_Mannequin`을 Lyra에서 다시 맞춘다. GASP를 업데이트할 때마다 반복한다(AN-013 덮어쓰기 이점 상실) |
+| 본 이름 | `root`·`pelvis`·`spine_01~05`·`neck_01/02`·`head`·`ik_foot_root`·`ik_foot_l/r`·`ik_hand_root/gun/l/r`·`weapon_r`는 Lyra(164본)·UEFN(88본)·MoverSample(161본) 모두에 있다. UEFN은 Lyra의 부분집합 + `attach`. UEFN에 없는 것은 보정 본, `interaction`·`center_of_mass`, 가상 본 `VB IK_Hand_*` 3개(LootNPop 왼손 IK는 `lowerarm_l→hand_l`이라 쓰지 않는 것으로 보인다 — 2-0a에서 서브 ABP를 다시 만들 때 확인) |
+| GASP 자체 구성 | GASP 5.8도 UEFN 원본을 `RTG_UEFN_to_UE5_Mannequin` 등으로 다른 메시에 리타깃한다. LootNPop의 `AnimSourceMesh`/`VisualMesh` 분리와 같은 구조다 |
+
+전환 후 구조(2-0b):
+
+- `AnimSourceMesh` = `SKM_UEFN_Mannequin` + UEFN 스켈레톤 메인 ABP. 본이 164개에서 88개로 줄어 포즈 평가 비용이 낮다.
+- `VisualMesh`: 플레이어는 UEFN → MoverSample 리타기터(`RTG_GASP_to_MS` 계열), UEFN 메시 적은 같은 스켈레톤이라 런타임 리타깃 없이 포즈를 복사한다. 랙돌·물리 히트리액트가 `VisualMesh` 자신의 물리를 쓰므로 Leader Pose가 아니라 ABP 안 포즈 복사(Copy Pose From Mesh)를 우선 검토한다.
+- 새 캐릭터 메시는 UEFN → 그 메시 리타기터 하나만 만들면 된다.
+- 무기·몽타주 애니는 리타깃 사본(`Content/Characters/Retargeted/`, git 제외, AN-016)을 쓴다. 그 사이 로코모션은 1C에서 최신화되는 `PSD_*_UEFN` 4개(`CHT_PSD_UEFN`)를 쓰고, 2-2에서 GASP 상태별 PSD로 교체한다.
+- 기각: Lyra 시퀀스를 UEFN에서 "호환 스켈레톤"으로 직접 재생하는 방식. 리타깃 설정이 GASP 소스 에셋인 스켈레톤에 붙어 덮어쓰기 때 사라지고, IK 리타기터보다 비율 보정 품질이 낮다.
+
+GASP 5.8 시퀀스의 외부 의존(MM 경로 Chooser에서 따라간 결과, 처리 규칙 AN-017): `/Game/Misc/SandboxAnimCurveCompressionSettings`(681개 시퀀스), `BP_AnimNotify_FoleyEvent_*` 10종(→ `/Game/Audio/Foley/*`), `BP_NotifyState_EarlyTransition`(22개 시퀀스, → `BPI_SandboxCharacter_ABP`·`SandboxCharacter_CMC_ABP`), `AM_BakePhaseCurveFromFootstepNotifies`(5개 시퀀스, 엔진 의존만). 현재 LootNPop의 옛 GASP 시퀀스 414개에는 GASP 폴더 밖 의존이 없다.

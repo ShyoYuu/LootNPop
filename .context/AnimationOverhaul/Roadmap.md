@@ -31,8 +31,8 @@ Phase 2 완료 ─→ Phase 5 UAF 판정 스파이크 ─→ (Go) Phase 6 UAF �
 L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 ```
 
-- Phase 1A·1B·1C는 Phase 0 뒤에 서로 독립이라 **병렬 세션**으로 돌릴 수 있다. 같은 에셋을 건드리는 단위끼리는 동시에 돌리지 않는다(1C는 `GASP_Mannequin` 폴더와 적 에셋 참조를, Phase 2는 `ABP_Lyra`를 바꾼다).
-- Phase 2는 1C가 끝난 뒤 최신 시퀀스로 시작한다. 낡은 시퀀스로 블록을 짠 뒤 교체하면 PSD·Chooser를 두 번 맞추게 된다.
+- Phase 1A·1B·1C는 Phase 0 뒤에 서로 독립이라 **병렬 세션**으로 돌릴 수 있다. 같은 에셋을 건드리는 단위끼리는 동시에 돌리지 않는다(1C는 `GASP_Mannequin` 폴더와 그 참조자 — `BP_LNPEnemy`·적 DA·ASTP·`Retargeters/*` — 를, Phase 2는 `ABP_Lyra`·서브 ABP·`CHT_Montage`·`ABP_Retarget`을 바꾼다). LootNPop 에디터(MCP 8000)는 하나를 함께 쓰므로, 1C-3처럼 에디터를 꺼야 하는 단위 동안 다른 갈래는 에디터 작업을 멈춘다. 구체 목록은 `Current.md`.
+- Phase 2는 1C가 끝난 뒤 최신 시퀀스로 시작한다. 낡은 시퀀스로 블록을 짠 뒤 교체하면 PSD·Chooser를 두 번 맞추게 된다. 스켈레톤 전환(2-0a·2-0b, AN-011)도 1C가 확정한 UEFN 스켈레톤으로 리타깃해야 다시 만들 일이 없다.
 - Phase 3은 Phase 2가 끝나 최종 포즈 파이프라인이 정해진 뒤에 들어간다(물리 노드 위치가 거기에 달려 있다).
 - Phase 4는 1B를 통과하면 Phase 2·3과 병행한다. 근접 몽타주·ANS만 다루고 ABP는 건드리지 않는다.
 
@@ -40,11 +40,11 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 
 | Phase | 목표 | 세션 단위 | 상태 | 핵심 완료 조건 |
 |:---|:---|:---|:---|:---|
-| 0 | 참조 환경과 기준 결정 | 0-1 MCP 읽기 범위 확인 · 0-2 GASP 블록 목록 · 0-3 스켈레톤·소스 에셋 규칙 결정 (1~2세션) | 진행 중(0-1·0-2 완료) | `design/GASPReference.md` 생성, AN-011 결정, 마이그레이트 규칙 확정 (`phases/Phase00_ReferenceSetup.md`) |
+| 0 | 참조 환경과 기준 결정 | 0-1 MCP 읽기 범위 확인 · 0-2 GASP 블록 목록 · 0-3 스켈레톤·소스 에셋 규칙 결정 (1~2세션) | 완료(2026-10-18) | `design/GASPReference.md` 생성, AN-011 UEFN 전환, 마이그레이트 규칙 AN-016·AN-017 확정 (`phases/Phase00_ReferenceSetup.md`) |
 | 1A | 물리 히트리액트 스파이크 | 1세션 | 계획 | 테스트 폰의 `VisualMesh` 상체에 PhysicsControl 임펄스, 적도에서 처짐 없음, 2인 PIE 각 머신 로컬 재생, 캡슐·Mover 무영향 |
-| 1B | 마커리스 모캡 스파이크 | 1~2세션 | 계획 | 영상 1클립 → MetaHuman 바디 → 리타깃 → 루트모션·검 방향 정리 → 공격 몽타주로 PIE 1타 |
-| 1C | GASP 소스 에셋 최신화 | 1C-1 대조표·백업 · 1C-2 경로 정렬 · 1C-3 덮어쓰기 · 1C-4 회귀 (3~4세션) | 계획 | 옛 GASP 유래 411개를 5.8 최신본으로 교체, LootNPop 산출물 보존, 깨진 참조 0, ISKM·승격 적 회귀 없음 (`phases/Phase01C_GASPAssetRefresh.md`) |
-| 2 | GASP Mover ABP 재구성 | 블록당 1세션, 6세션 | 계획 | 아래 §4. 블록마다 적도·NPC·2인 확인, 무기 레이어·슬롯·ANS 회귀 없음 |
+| 1B | 마커리스 모캡 스파이크 | 1~2세션 | 계획 | 영상 1클립 → MetaHuman 바디 → UEFN 리타깃 → 루트모션·검 방향 정리 → 공격 몽타주로 PIE 1타 |
+| 1C | GASP 소스 에셋 최신화 | 1C-1 대조표·백업 · 1C-2 경로 정렬 · 1C-3 덮어쓰기 · 1C-4 회귀 (3~4세션) | 계획 | 옛 GASP 유래 411개를 5.8 최신본으로 교체, 원본 경로 정렬·`.gitignore`(AN-016), 노티파이 리다이렉트(AN-017), LootNPop 산출물 보존, 깨진 참조 0, ISKM·승격 적 회귀 없음 (`phases/Phase01C_GASPAssetRefresh.md`) |
+| 2 | 스켈레톤 전환 + GASP Mover ABP 재구성 | 2-0a·2-0b 전환 2세션 + 블록당 1세션 6세션 | 계획 | 아래 §4. 블록마다 적도·NPC·2인 확인, 무기 레이어·슬롯·ANS 회귀 없음 |
 | 3 | 물리 히트리액트 본 구현 | 2~3세션 | 계획 | 히트리액트 몽타주 대체, 방향·강도 반영, 플레이어·`ActorPromoted` 적, 2인 PIE |
 | 4 | 모캡 근접 세트 확충 | 무기 세트당 1~2세션 | 계획 | 루트모션 공격이 근접 보정 Motion Warping 경로를 탐, ANS 5종 배치, 칼날 판정 일치 |
 | 5 | UAF 판정 스파이크 | 1~2세션 | 계획 | 체크리스트(§4 Phase 5) 전 항목 판정, Go/No-Go 기록 |
@@ -64,25 +64,29 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 ### Phase 1B — 마커리스 모캡 스파이크
 
 - 준비: `MetaHuman Animator`·`Capture Manager`·Live Link Hub와 Fab의 마커리스 플러그인(약 5GB). Windows 전용, Experimental.
-- 파이프라인: 영상 → MetaHuman 바디 애니 → IK 리타깃(AN-011 스켈레톤) → 루트모션 추출·발 접지 정리 → 검 방향 보정(무기는 추적되지 않는다) → 몽타주.
+- 파이프라인: 영상 → MetaHuman 바디 애니 → IK 리타깃(UEFN 스켈레톤, AN-011) → 루트모션 추출·발 접지 정리 → 검 방향 보정(무기는 추적되지 않는다) → 몽타주.
+- 2-0b(스켈레톤 전환) 전에 1B를 하면 `AnimSourceMesh`가 아직 Lyra라 UEFN 몽타주를 바로 PIE에 올릴 수 없다. PIE 1타는 2-0b 뒤로 미루거나 임시로 Lyra 사본을 한 번 더 리타깃해 확인한다(1B 착수 시 정한다).
+- 소스 영상은 AN-010(확정)을 따른다: 다른 게임 영상은 프로토타입·레퍼런스만.
 - 영상 선택 기준: 고정 카메라, 전신 노출, 컷·히트스톱·VFX 가림 없는 구간.
 - 산출: 파이프라인 단계별 소요·실패 지점·수작업 비율을 `research/`에 기록해 Phase 4 산정 근거로 쓴다.
 
 ### Phase 1C — GASP 소스 에셋 최신화
 
 - 옛 GASP에서 가져온 `Content/Characters/GASP_Mannequin/`(MotionMatchingData 제외)을 중복이어도 5.8 최신본으로 바꾼다(AN-012).
-- 방식은 폴더를 GASP 원본 경로(`/Game/Characters/UEFN_Mannequin/`)로 옮긴 뒤 파일을 덮어쓰는 것이다(AN-013 제안). 411쌍의 참조 교체를 피하고, 다음 GASP 업데이트도 덮어쓰기로 끝낸다.
+- 방식은 폴더를 GASP 원본 경로(`/Game/Characters/UEFN_Mannequin/`)로 옮긴 뒤 파일을 덮어쓰는 것이다(AN-013 확정). 411쌍의 참조 교체를 피하고, 다음 GASP 업데이트도 덮어쓰기로 끝낸다. 폴더·git 규칙은 AN-016, 노티파이·모디파이어는 AN-017.
 - 적이 이 스켈레톤·메시를 쓰므로 회귀 검증의 중심은 ISKM 순수 엔티티 적과 `BP_LNPEnemy`다.
 - 상세는 `phases/Phase01C_GASPAssetRefresh.md`.
 
-### Phase 2 — GASP Mover ABP 재구성 (0-2 확정, 2026-10-18)
+### Phase 2 — 스켈레톤 전환과 GASP Mover ABP 재구성 (0-2 확정, 0-3에서 2-0a·2-0b 추가, 2026-10-18)
 
-MM 노드 방식(AN-015). 블록 정의는 `design/GASPReference.md` §2.2(B0~B12). 블록 하나가 세션 하나다. 앞 단위가 뒤 단위의 입력을 만든다(B0 → 선택 → 루트·워핑 → 전환 세트 → 발 → 기울기).
+MM 노드 방식(AN-015). 블록 정의는 `design/GASPReference.md` §2.2(B0~B12). 블록 하나가 세션 하나다. 앞 단위가 뒤 단위의 입력을 만든다(전환 → B0 → 선택 → 루트·워핑 → 전환 세트 → 발 → 기울기). 2-0a·2-0b는 AN-011(UEFN 전환)의 실행 단위다(구조는 `design/GASPReference.md` §2.7).
 
 | 단위 | 블록 | 내용 | 비고 |
 |:---|:---|:---|:---|
+| 2-0a | 리타깃 세트 | Lyra 실사용 91개(서브 ABP 경로 37·몽타주 경로 55, 몽타주 21·AO 2 포함)를 UEFN으로 오프라인 리타깃해 `Content/Characters/Retargeted/`(git 제외, AN-016)에 둔다. 서브 ABP 5개를 UEFN 스켈레톤으로 다시 만든다. 재생성 절차(리타기터·대상 목록)를 문서로 남긴다 | 런타임은 아직 그대로라 동작 변화가 없다. 몽타주의 ANS 5종·섹션·루트모션·노티파이가 사본에 남았는지 MCP로 대조. 가상 본 `VB IK_Hand_*` 사용 여부 확인 |
+| 2-0b | 전환 | `AnimSourceMesh` → `SKM_UEFN_Mannequin`, 메인 ABP를 UEFN 스켈레톤으로(임시 로코모션 `CHT_PSD_UEFN`·`PSD_*_UEFN`), `CHT_Montage`·GA 2개 참조를 사본으로, `ABP_Retarget` 경로 정리(플레이어 UEFN→MS, UEFN 메시 적은 포즈 복사) | 회귀 중심: 근접 콤보·ANS 판정·근접 보정 Motion Warping·재장전·가드/패링·랙돌·HitStop, 적도·`ActorPromoted` 적·2인 PIE. ISKM 적은 영향 없음 확인 |
 | 2-1 | B0 + B10 | `ULNPAnimInstance`에 `GASPReference.md` §2.3 공급값 추가(상태 enum·이력, 궤적 파생값, 가속, 지면 법선·경사, 상태 술어). 포즈 히스토리 위치를 출력 직전으로, 슬롯 뒤 DeadBlending | C++ 중심. 아직 애니 선택은 그대로라 화면 변화가 작다 — 값은 디버그 출력으로 검증 |
-| 2-2 | B1 | `CHT_PSD_Lyra`를 상태별 PSD 묶음 Chooser로 교체(우선 Idle·Walk·Run·Sprint 루프), DB 인터럽트 모드·블렌드 시간 함수 | Chooser 결과는 GASP 스크린샷 1장으로 확인(§2.6). AN-007 공중 고정 유지 |
+| 2-2 | B1 | 임시 `CHT_PSD_UEFN`을 상태별 PSD 묶음 Chooser로 교체(우선 Idle·Walk·Run·Sprint 루프), DB 인터럽트 모드·블렌드 시간 함수 | Chooser 결과는 GASP 스크린샷 1장으로 확인(§2.6). AN-007 공중 고정 유지 |
 | 2-3 | B3 + B2 | Offset Root Bone(모드·반감기 함수, 몽타주 슬롯 중 Release, 움직이는 base 이동량) + 블렌드 스택 그래프의 Steering·Orientation Warping | Steering 목표 방향의 Up 기준을 적도에서 확인. Stride Warping은 미끄러짐이 보일 때만 |
 | 2-4 | B6 (+B7 착지) | Starts·Stops·Pivots·Spins·TurnInPlace·Turns·GaitTransitions DB 추가, 제자리 회전 Steering(DB 태그), 착지 Lands_Light/Heavy 검토 | 곡선 6종이 실린 최신 시퀀스 필요(1C) |
 | 2-5 | B4 + B5 | `CR_Biped_FootPlacement` 구성 CR + `Procedural_Feet` 레이어, 경사 BS 행 | ⚠️ CR `UpdateRootDamper` 월드 Z 감쇠 수정. 접지 트레이스·적도 확인 |
