@@ -106,3 +106,54 @@ AN-011로 이 스켈레톤이 이후 모든 캐릭터의 기준이 된다. 1C-3 
 - UBT는 같은 엔진 실행 파일로 Live Coding 세션이 떠 있으면 다른 프로젝트 빌드도 거부한다. 다른 프로젝트 모듈만 빌드할 때는 `-NoHotReloadFromIDE`로 우회할 수 있다(LootNPop 바이너리는 건드리지 않는다).
 - GASP 원본 경로의 `Blueprints/AnimModifiers/` 폴더를 통째로 반입하면 Foley 노티파이를 끌고 온다. 필요한 것은 한 파일이다.
 - 랩 프로젝트는 2.6GB다(Intermediate·DDC 포함). 1C-3 검증에 재사용할 수 있게 남겨 두었다.
+
+## 2026-10-18 — 단위 1C-2 경로 정렬
+
+LootNPop 에디터(MCP 8000)에서 `AssetTools.move`·`delete`로 작업했다. GASP 에디터는 쓰지 않았다. 1A는 이미 커밋된 상태였고(ac88e27), 스파이크 에셋(`PhysHitReactSpike/`)은 이동의 참조자가 아니라서 다시 저장되지 않았다.
+
+### 사용자 결정 반영 (1C-2 착수 전)
+
+1. 노티파이는 `PackageRedirects Removed=true`만 쓴다(C++ 없음) → `Decisions.md` AN-017 수정. no-op C++ + `ClassRedirects`는 발소리가 필요할 때의 선택지로 남겼다.
+2. Traversal 몽타주 34개는 5.8로 교체 → Phase 문서 반입 목록에 Traversal 시퀀스 34개와 `PSD_Traversal`·`BP_NotifyState_MontageBlendOut` 리다이렉트를 확정으로 표기했다.
+3. 삭제 3건(아래 §3).
+4. 새 SKM 포스트프로세스 ABP는 1C-4에서 정한다(이 단위에서는 다루지 않음).
+
+### 1. 이동 전 스냅샷
+
+`GASP_Mannequin/` 436개의 참조자 전체를 `Saved/AssetRefresh/2026-10-18/1C2_before_refs.json`에 남겼다. 폴더 밖 참조자는 15개다: `BP_LNPEnemy`, 적 DA 3개, ASTP 4개, ASL 2개, `RTG_*` 3개, `SKM_LongSword_UEFN`, `SKM_Shotgun_UEFN`. Phase 문서에 없던 것은 무기 메시 2개(스켈레톤 `SK_UEFN_Mannequin` 참조)와 ASTP `*_Weapon` 2개다.
+
+### 2. 이동
+
+| 순서 | 대상 | 결과 |
+|:---|:---|:---|
+| 1 | Enemy 14 + `SM_UEFN_Mannequin` → `/Game/Characters/Retargeted/{Enemy,Meshes}/` | 15개 성공. 옛 경로에 리다이렉터가 남지 않았다(참조자 자동 수정·저장). 적 DA 3·ASTP 4·ASL 2가 다시 저장됐다 |
+| 2 | 폴더 `/Game/Characters/GASP_Mannequin` → `/Game/Characters/UEFN_Mannequin` | 388개 성공. `RTG_*` 3개, `BP_LNPEnemy`, `SKM_LongSword_UEFN`이 다시 저장됐다 |
+| 3 | `UEFN_Mannequin/MotionMatchingData/` 6개 → `/Game/Characters/MotionMatchingData/` | 성공. PSD 4·PSN·PSS 사이의 참조와 시퀀스 의존은 새 경로로 유지됐다 |
+
+MM 목적지 `Content/Characters/MotionMatchingData/`는 이 세션이 정했다. `Retargeters/`처럼 `Characters/` 바로 아래에 둔 LootNPop 소유 폴더이고, 에셋 이름에 이미 `_UEFN` 접미어가 있다. 지금은 `Lyra_Mannequin/MotionMatchingData/`(Lyra PSD)가 다른 위치에 있다.
+
+### 3. 삭제·리다이렉터 정리
+
+- 삭제 직전에 참조자를 다시 조회했다. `M_Pose_01`은 0이고, `ABP_UEFN` ↔ `CHT_PSD_UEFN`은 서로만 참조한다. 세 파일은 `backup/`에 있고 해시도 `backup_sha256.txt`와 일치한다. MCP `delete`로 지웠다.
+- **MCP `delete`는 리다이렉터에서 true를 반환하지만 파일을 지우지 못한다.** 에디터는 패키지를 "삭제됨"으로 표시해 레지스트리에서만 빼고, 디스크 파일은 남긴다. 폴더 이동 뒤 로그에 `RenameDirectory: Could not delete the original directory`가 찍히고, 30개가 "marked as deleted in editor, but has been modified on disk"로 레지스트리에 되살아났다. 30개 모두 참조자가 0이었다(조회 확인).
+- 그래서 디스크에 남은 옛 `Content/Characters/GASP_Mannequin/`(리다이렉터 30개만 있음)을 `Saved/AssetRefresh/2026-10-18/leftover_redirectors_1C2/`로 옮겼다(git 미추적·백업과 같은 파일). 지금 에디터 레지스트리에는 옛 경로 29개가 남아 있는 것으로 보이지만 파일이 없고 참조자도 없다. 다음 에디터 재시작(1C-3)에서 사라진다.
+
+### 4. 참조 무결성
+
+- `/Game/Characters`·`/Game/Enemy`·`/Game/Weapons` 1,497개의 `/Game/` 의존을 모두 `exists`로 확인했다. **이번 이동으로 생긴 누락은 0개다.** 남은 누락은 모두 기존 것이다: Lyra AnimModifier·커브 압축·노티파이·`ABP_ItemAnimLayersBase`, `Effects/Textures/General/squares`, `Characters/Mannequins/Meshes/SKM_Manny`·`SKM_Quinn`(MoverSample).
+- GASP 소스 6개(`IK_`·`PA_UEFN_Mannequin`, `ABP_UEFN_Mannequin_PostProcess`, `StrafeOffsetCurveContainer`, `M_interaction_bench_into_F_Rfoot`, `M_Neutral_Walk_Arc_F_Small_L`)에 경로가 이중인 깨진 소프트 참조 `/Game/Characters/GASP_Mannequin/GASP_Mannequin/Meshes/SKM_UEFN_Mannequin`이 있다. **백업 원본에도 있던 것**이다. 6개 모두 1C-3 교체 목록에 있다. `IK_UEFN_Mannequin` 저장 때 AssetValidator가 Error 한 줄을 냈다.
+- 디스크 바이너리 grep 결과, 옛 경로 문자열은 위 6개와 `SKM_UEFN_Mannequin` 임포트 메타데이터(머티리얼 원경로)에만 남았다. Config·Source에는 `GASP_Mannequin`이 없다.
+- 이동된 추적 참조자는 저장 뒤 dirty 상태가 아니다.
+
+### 5. `.gitignore`
+
+`Content/Characters/GASP_Mannequin/*`와 예외 줄을 지웠다. `Content/Characters/UEFN_Mannequin/`, `Content/Misc/SandboxAnimCurveCompressionSettings.uasset`, `Content/Blueprints/AnimModifiers/`, `Content/Characters/Retargeted/`를 넣었다. `git status`에서 추적 변화는 MM 7개 삭제(옛 경로), 새 경로 6개 추가, 추적 참조자 14개 수정이다(`SKM_Shotgun_UEFN`은 원래 제외). `UEFN_Mannequin/`·`Retargeted/`는 제외됐다.
+
+### 6. PIE
+
+MCP로 TestMap03 단일 PIE(12초 웜업)를 돌렸다. 적 엔티티 스폰(`LNPMassSpawnSubsystem: All entities spawned`)이 정상이고, 이동한 경로와 관련된 Error·Warning·LoadErrors는 없었다. 남은 것은 기존 노이즈인 Mover 스폰 낙하 경고와 `LogMass: Error: Trying to extract CharacterMovementComponent from BP_LNPPlayer_C_0 failed`뿐이다. 화면 캡처는 권한 문제로 못 했다. **적 표시·애니(ISKM·승격 `BP_LNPEnemy`)는 사용자가 PIE에서 눈으로 확인해야 한다.**
+
+### 시행착오·주의
+
+- 리다이렉터는 MCP `delete`로 지울 수 없다(위 §3). 앞으로 리다이렉터가 생기면 Content Browser의 Fix Up Redirectors를 쓰거나 에디터 밖에서 파일을 치운다. 단일 에셋 `move`는 리다이렉터를 남기지 않았다.
+- 폴더 이동은 모든 하위 에셋을 다시 저장한다. 저장 때 AssetValidator가 원래 있던 깨진 소프트 참조를 Error로 찍으니, 이동이 만든 오류로 착각하지 않는다.

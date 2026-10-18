@@ -34,8 +34,12 @@ Content/Localization/**/*.locres
 
 # 재배포 불가 라이센스 에셋 — Lyra·GASP·Mover 샘플, Close Combat: Swordsman 베이스.
 # 마네킹 폴더 중 직접 만든 MotionMatchingData만 추적한다. 무기는 직접 만든 LongSword만 추적한다.
-Content/Characters/GASP_Mannequin/*
-!Content/Characters/GASP_Mannequin/MotionMatchingData/
+# GASP 소스는 GASP 원본 패키지 경로 단위로 제외한다(덮어쓰기 갱신용). UEFN 구성 에셋은 Content/Characters/MotionMatchingData/에서 추적한다.
+Content/Characters/UEFN_Mannequin/
+Content/Misc/SandboxAnimCurveCompressionSettings.uasset
+Content/Blueprints/AnimModifiers/
+# 라이선스 원본(Lyra·GASP)을 리타깃한 산출물 — 원본 라이선스를 따라 제외한다.
+Content/Characters/Retargeted/
 Content/Characters/Lyra_Mannequin/*
 !Content/Characters/Lyra_Mannequin/MotionMatchingData/
 Content/Characters/MoverSample_Mannequin/
