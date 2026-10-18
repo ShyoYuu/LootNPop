@@ -24,7 +24,7 @@
 
 | 갈래 | 첫 행동 | 건드리는 에셋 |
 |:---|:---|:---|
-| 1C 소스 에셋 최신화 | [1C-1](phases/Phase01C_GASPAssetRefresh.md): 411개 해시 비교 → 최신본·MM 경로 의존성 → 경로별 반입 목록·리다이렉트 대상 목록 → **리다이렉트 실험(시퀀스 1개)** → 스켈레톤·메시 차이 → `Saved/AssetRefresh/` 백업 → Enemy 14개 이동 목록·재생성 절차 | 1C-1은 읽기·백업만. 1C-2는 `GASP_Mannequin` 폴더와 참조자(`BP_LNPEnemy`·적 DA·ASTP·`Retargeters/*`)·`.gitignore`, 1C-3은 에디터 종료 + C++(no-op 노티파이)·`DefaultEngine.ini` |
+| 1C 소스 에셋 최신화 | 1C-1 완료(2026-10-18, [로그](history/Phase01C_Log.md)). **1C-2 착수 전 사용자 결정 3건:** ① 노티파이 처리 — `PackageRedirects Removed`만(C++ 없음) 또는 no-op C++ + `ClassRedirects` ② Traversal 몽타주 34개를 교체할지 뺄지 ③ 삭제 후보(`M_Pose_01`, `ABP_UEFN`+`CHT_PSD_UEFN`). 그 뒤 [1C-2](phases/Phase01C_GASPAssetRefresh.md): Enemy 14 + `SM_UEFN_Mannequin`을 `Retargeted/`로 이동 → 리다이렉터 30개 정리 → `GASP_Mannequin` → `UEFN_Mannequin` 이동 | 1C-2는 `GASP_Mannequin` 폴더와 참조자(`BP_LNPEnemy`·적 DA 3개·ASTP·ASL·`Retargeters/*`)·`.gitignore`. 1C-3은 에디터 종료 + `DefaultEngine.ini`(+ C++ 선택 시 빌드). 백업 `Saved/AssetRefresh/2026-10-18/backup/` |
 | 1A 물리 히트리액트 스파이크 | 착수 직전에 `phases/Phase01A_*.md`를 만든다. `research/UE58_AnimationFeatures.md` §2와 [TechDesign_CharacterMovement.md](../TechDesign_CharacterMovement.md) §9(랙돌)를 읽고 PhysicsControl 컴포넌트 방식과 RigidBodyWithControl 노드 방식 중 하나를 고른다. 대상은 `VisualMesh`이며 AN-011과 무관하다(플레이어 메시는 그대로) | 테스트 폰 또는 `BP_LNPPlayer`의 `VisualMesh`, PhysicsAsset. 노드 방식이면 `ABP_Retarget` |
 | 1B 마커리스 모캡 스파이크 | 착수 직전에 `phases/Phase01B_*.md`를 만든다. 사용자가 Fab 마커리스 플러그인(약 5GB)을 설치하고 고정 카메라 영상 1클립을 고른다(AN-010). 리타깃 대상은 UEFN 스켈레톤. PIE 1타 확인 시점은 `Roadmap.md` Phase 1B 참고 | 새 시퀀스·몽타주(새 폴더). PIE 확인 시 `CHT_Montage` 행 하나 |
 

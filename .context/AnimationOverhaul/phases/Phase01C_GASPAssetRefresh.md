@@ -13,7 +13,7 @@
 
 | 구분 | 수 | 처리 |
 |:---|---:|:---|
-| 최신 GASP `Characters/UEFN_Mannequin/`과 상대 경로가 같은 에셋 | 411 | 최신본으로 교체 |
+| 최신 GASP `Characters/UEFN_Mannequin/`과 상대 경로가 같은 에셋 | 411 | 최신본으로 교체. 1C-1 결과 실제 덮어쓰기는 332개(양쪽 리다이렉터 30·경로 외 동일 49 제외) |
 | 최신 GASP에 없는 에셋 — `Animations/Enemy/*` 14개(LootNPop이 만든 리타깃 적 애니, 5.7MB), 그리고 출처를 판별해야 하는 4개(`Animations/ABP_UEFN`, `Poses/M_Pose_01`, `Run/M_Relaxed_Run_Loop_F_Troy`, `Meshes/SM_UEFN_Mannequin`: 옛 GASP에만 있던 것인지 LootNPop 산출물인지) | 18 | 보존(AN-014). 4개는 1C-1에서 출처 판별 |
 | 최신 GASP에만 있는 에셋 | 약 1,950 | 일괄 반입하지 않는다. Phase 2 블록이 요구할 때만 가져온다(AN-001) |
 | `MotionMatchingData/`(LootNPop 구성 에셋, git 추적) | 7 | 교체 대상 아님. 참조 유지 확인과 PSD 재빌드 |
@@ -29,7 +29,7 @@
 대신:
 
 1. LootNPop 에디터에서 폴더 `/Game/Characters/GASP_Mannequin/` → `/Game/Characters/UEFN_Mannequin/`으로 **이동**한다(MCP `AssetTools.move`). 참조자(적 BP·DA·ASTP·리타기터·PSD)가 새 경로로 갱신된다.
-2. 경로가 GASP와 같아졌으므로, 에디터를 끈 상태에서 411개 파일을 GASP 최신본으로 **덮어쓴다**. 내부 참조가 그대로 맞는다.
+2. 경로가 GASP와 같아졌으므로, 에디터를 끈 상태에서 교체 목록(1C-1 결과 332개)을 GASP 최신본으로 **덮어쓴다**. 내부 참조가 그대로 맞는다.
 3. 앞으로 GASP를 다시 업데이트할 때도 같은 덮어쓰기로 끝난다.
 
 대가: 추적되는 참조 에셋이 한 번 다시 저장되고, `.gitignore` 패턴과 문서 경로를 고쳐야 한다. 제외 대상인 GASP 폴더 이름이 GASP 원본과 같아진다.
@@ -37,11 +37,38 @@
 ## 반입 목록과 경로 규칙 (AN-016·AN-017)
 
 - 반입은 GASP 패키지 경로 그대로 한다. 대상은 `Characters/UEFN_Mannequin/`의 필요분, 시퀀스가 참조하는 `Misc/SandboxAnimCurveCompressionSettings`와 `Blueprints/AnimModifiers/AM_*`(엔진 의존만)이다. GASP 경로 안의 GASP 구성 에셋(PSD·PSS·Chooser·ABP)은 반입하지 않는다.
-- Foley 노티파이 10종(`BP_AnimNotify_FoleyEvent_*` → `/Game/Audio/Foley/*`)과 `BP_NotifyState_EarlyTransition`(→ `BPI_SandboxCharacter_ABP`·CMC ABP)은 반입하지 않는다. `Config/DefaultEngine.ini` `[CoreRedirects]`의 `ClassRedirects`로 LootNPop no-op 노티파이 C++ 클래스(`ULNPAnimNotify_GASPPlaceholder` 류, 노티파이·노티파이 스테이트 각 1개)에 연결한다. BP 생성 클래스 → 네이티브 클래스 리다이렉트가 시퀀스 노티파이 인스턴스에서 경고 없이 풀리는지 1C-1에서 시퀀스 1개로 먼저 실험한다. 실패하면 경고를 받아들이고 사유를 로그에 남긴다.
+- Foley 노티파이 11종(`BP_AnimNotify_FoleyEvent_*` → `/Game/Audio/Foley/*`), `BP_NotifyState_EarlyTransition`(→ `BPI_SandboxCharacter_ABP`·CMC ABP), `BP_NotifyState_MontageBlendOut`(Traversal 몽타주, → `BPI_SandboxCharacter_Pawn` 등)은 반입하지 않는다. `Config/DefaultEngine.ini` `[CoreRedirects]`로 처리한다. 1C-1 실험 결과(`history/Phase01C_Log.md` §3): **BP 패키지마다 `PackageRedirects=(OldName="<패키지>",Removed=true)`가 반드시 필요하다**(없으면 에디터 Load Errors "dependent package ... was not available"). 여기에 `ClassRedirects=(OldName="<패키지>.<클래스>_C",NewName="/Script/LootNPop.LNPAnimNotify_GASPPlaceholder",OverrideClassName="/Script/CoreUObject.Class")`를 더하면 노티파이 인스턴스가 no-op 네이티브 클래스로 살아남고, 빼면 클래스 없는 빈 이벤트가 된다. 두 방식 모두 경고 0이다. C++ 자리표시자를 둘지는 1C-2 착수 전 사용자 결정.
+- 시퀀스가 하드 참조하는 GASP 구성 에셋(`AnimNotifyState_PoseSearchBranchIn.Database` → `PSD_SM_CMC_*`, Traversal 몽타주 → `PSD_Traversal`)도 반입하지 않고 같은 `PackageRedirects ... Removed=true`로 끊는다(실험에서 `PSD_SM_CMC_Idles` 경고 0, 필드는 null).
 - 소스 파일은 수정하지 않는다(노티파이 제거·재저장 금지). 다음 GASP 업데이트도 같은 덮어쓰기로 끝나야 한다.
-- 이 절의 **경로별 반입 목록**이 `README.md` §4 "새로 클론한 환경에서 소스 에셋 확보"의 원본이다. 1C-1에서 표로 채운다.
+- 아래 **경로별 반입 목록**이 `README.md` §4 "새로 클론한 환경에서 소스 에셋 확보"의 원본이다.
 - LootNPop 구성 에셋은 GASP 경로 폴더 안에 두지 않는다. `GASP_Mannequin/MotionMatchingData/` 7개는 1C-2에서 LootNPop 소유 폴더로 옮긴다.
 - LootNPop이 만든 리타깃 산출물은 git에서 제외하고 `Content/Characters/Retargeted/`에 둔다. 재생성 절차(리타기터·대상 목록)를 만든 단위가 남긴다.
+
+### 경로별 반입 목록 (1C-1 확정, 2026-10-18)
+
+경로는 `Content/` 기준이고, GASP 5.8과 LootNPop에서 같은 상대 경로다. 파일 단위 목록은 `Saved/AssetRefresh/2026-10-18/import_list_1C3.txt`·`import_list_Phase2_MM.txt`(git 제외, 재생성은 로그 §1·§2 방법).
+
+| 경로 | 1C-3 | Phase 2(2-2) | 비고 |
+|:---|---:|---:|:---|
+| `Characters/UEFN_Mannequin/` 교체(1C-2 이동 뒤 덮어쓰기) | 332 | — | 데이터 변경 290 + 커브 압축 참조만 변경 42. 경로 외 동일 49는 생략 가능. **리다이렉터 30개는 복사 금지**(1C-2에서 정리) |
+| `Characters/UEFN_Mannequin/Animations/Traversal/**` 시퀀스(신규) | 34 | — | 교체되는 Traversal 몽타주 34개의 하드 의존. Traversal을 버리기로 하면 몽타주와 함께 뺀다(1C-2 착수 전 결정) |
+| `Characters/UEFN_Mannequin/Rigs/PM_UEFN_Mannequin`(신규) | 1 | — | 새 `PA_UEFN_Mannequin`이 참조 |
+| `Characters/UEFN_Mannequin/Animations/**` MM 경로 시퀀스(신규) | — | 392 중 필요분 | `CHT_PoseSearchDatabases_Relaxed` 경로. Walk 114·Crouch 108·Run 103·Jump 22·Sprint 21·Traversal 14·Slide 6·Idle 4. 추가 내부 의존 없음(스켈레톤만) |
+| `Misc/SandboxAnimCurveCompressionSettings` | 1 | (같은 파일) | 1C-3 대상 225개, Phase 2 대상 360개가 참조 |
+| `Blueprints/AnimModifiers/AM_BakePhaseCurveFromFootstepNotifies` | 1 | (같은 파일) | Phase 2 시퀀스 4개가 참조. **폴더 전체가 아니라 이 파일만** — 다른 `AM_FootSteps_*`는 Foley 노티파이를 참조한다 |
+| 반입 금지 → 리다이렉트 | — | — | 아래 표 |
+
+리다이렉트 대상(`Saved/AssetRefresh/2026-10-18/redirect_targets.txt`):
+
+| 종류 | 패키지(`/Game/...`) | 필요 시점 |
+|:---|:---|:---|
+| Foley 노티파이(`UAnimNotify`) 11종 | `Blueprints/AnimNotifies/BP_AnimNotify_FoleyEvent_` + `Walk_L`·`Walk_R`·`Run_L`·`Run_R`·`Handplant_L`·`Handplant_R`·`Jump`·`Land`·`Roll`·`Scuff_L`·`Scuff_R` | 1C-3(11종 모두). Phase 2 MM 시퀀스는 이 중 Walk·Run·Handplant·Jump만 쓴다 |
+| 노티파이 스테이트(`UAnimNotifyState`) | `Blueprints/AnimNotifies/BP_NotifyState_EarlyTransition` | 1C-3(시퀀스 1개), Phase 2(12개) |
+| 노티파이 스테이트(`UAnimNotifyState`) | `Blueprints/AnimNotifies/BP_NotifyState_MontageBlendOut` | 1C-3(Traversal 몽타주 34개) |
+| GASP PSD(패키지 Removed만) | `Characters/UEFN_Mannequin/Animations/ExperimentalStateMachineData/PSD_SM_CMC_Idles`·`PSD_SM_CMC_Transitions`, `Characters/UEFN_Mannequin/Animations/MotionMatchingData/Databases/PSD_Traversal` | 1C-3 |
+| GASP PSD(패키지 Removed만) | `.../ExperimentalStateMachineData/PSD_SM_CMC_Loops` | Phase 2 |
+
+⚠️ `Removed`로 끊은 GASP PSD 경로는 나중에 같은 경로로 반입해도 로드되지 않는다. GASP PSD는 AN-016에 따라 반입하지 않으므로 충돌은 없다.
 
 ## 단위 1C-1 — 대조표와 백업
 
@@ -53,6 +80,46 @@
 6. LootNPop 산출물(Enemy 14개 + 판별 결과)의 이동 대상을 확정한다. AN-014가 확정됐으므로 `Content/Characters/Retargeted/`로 옮기고 git에서는 계속 제외한다. 14개의 재생성 절차(`RTG_Lyra_to_GASP_noRootMotion`, 원본 Lyra 시퀀스 목록)를 남긴다.
 
 완료 조건: 교체·보존·신규 대조표, 경로별 반입 목록·리다이렉트 대상 목록, 리다이렉트 실험 결과, 스켈레톤·메시 차이 보고, 백업, 출처 판별, LootNPop 산출물 이동 목록·재생성 절차.
+
+### 1C-1 결과 요약 (2026-10-18, 상세 `history/Phase01C_Log.md`)
+
+산출물 위치 `Saved/AssetRefresh/2026-10-18/`(git 제외):
+
+| 파일 | 내용 |
+|:---|:---|
+| `table_replace.tsv` | 교체 대상 381개(리다이렉터 제외)의 클래스·차이 분류·필요 여부. 덮어쓰기 필요 332 |
+| `table_redirectors.tsv` | 양쪽 모두 리다이렉터인 30개 |
+| `keep_only_lootnpop.txt` | 보존 18개(LootNPop에만 있음) |
+| `new_only_gasp58.txt` | 최신 GASP에만 있는 1,952개(일괄 반입 안 함) |
+| `compare_common.tsv`·`compare_classified.tsv` | 411쌍 SHA-256과 본문·이름 맵 비교 원자료 |
+| `import_list_1C3.txt`·`import_list_Phase2_MM.txt`·`redirect_targets.txt` | 위 "경로별 반입 목록"의 파일 단위 목록 |
+| `retargeted_move_list.tsv` | `Retargeted/` 이동 15개와 원본 시퀀스 |
+| `backup/`·`backup_sha256.txt` | 교체 전 `GASP_Mannequin/` 전체 436개 백업과 해시 |
+| `redirect_experiment/` | 실험 설정·스크립트·요약 로그(랩 프로젝트 `Saved/AssetRefresh/RedirectLab/`) |
+
+- **대조:** 411쌍 해시가 전부 다르다(헤더에 엔진 버전·경로가 들어감). 본문 비교로 데이터 변경 290, 참조만 변경 42, 경로 외 동일 49, 양쪽 리다이렉터 30.
+- **스켈레톤:** 본 88 → 93(끝에 `props_root`·`prop_01`·`poi`·가상 본 2개 추가, 기존 인덱스 보존). **바인드 포즈 변화 없음**(쿼터니언 차 < 1e-6). 소켓 3개·커브 메타데이터 4개 추가. 메시는 다시 임포트돼 정점 수가 늘었고(LOD0 6,009 → 7,438), **포스트프로세스 ABP `ABP_UEFN_Mannequin_PostProcess`(머리 1.15배·허벅지 1.12배 스케일)가 새로 연결됐다.**
+- **출처 판별:** `ABP_UEFN`·`SM_UEFN_Mannequin`은 LootNPop 산출물, `M_Pose_01`·`M_Relaxed_Run_Loop_F_Troy`는 옛 GASP 원본. 삭제 후보는 `M_Pose_01`(참조 없음), 조건부로 `Troy`(2-2에서 `PSD_Run_UEFN` 교체 뒤)와 `ABP_UEFN`(`CHT_PSD_UEFN`을 버릴 때).
+
+### LootNPop 산출물 이동 목록과 재생성 절차 (1C-2·AN-016 ③)
+
+1C-2에서 `AssetTools.move`로 옮긴다. 목록 원본은 `retargeted_move_list.tsv`.
+
+| 옮길 것(`/Game/Characters/GASP_Mannequin/`) | 새 위치(`/Game/Characters/Retargeted/`) | 원본 |
+|:---|:---|:---|
+| `Animations/Enemy/A_SW_{Attack_01,Attack_02,Damage_Backward,Damage_Fast,Damage_Left,Damage_Right,Idle,RelaxWalk,Run}_UEFN` (9) | `Enemy/` 같은 이름 | `/Game/Characters/Lyra_Mannequin/Animations/Sword/A_SW_*`(이름에서 `_UEFN` 제거) |
+| `Animations/Enemy/MM_Death_Front_01_UEFN`, `MM_Shotgun_Fire_UEFN` | `Enemy/` | `Lyra_Mannequin/Animations/Actions/` |
+| `Animations/Enemy/MM_Rifle_Jog_Fwd_UEFN`, `MM_Rifle_Walk_Fwd_UEFN` | `Enemy/` | `Lyra_Mannequin/Animations/Locomotion/Rifle/` |
+| `Animations/Enemy/MM_Shotgun_Idle_ADS_UEFN` | `Enemy/` | `Lyra_Mannequin/Animations/Locomotion/Shotgun/` |
+| `Meshes/SM_UEFN_Mannequin` | `Meshes/` | `SKM_UEFN_Mannequin`에서 에디터로 만든 StaticMesh(임포트 정보 없음) |
+
+재생성(새로 클론한 환경 또는 스켈레톤 교체 뒤):
+
+1. 1C-3 이후 기준 스켈레톤(`/Game/Characters/UEFN_Mannequin/Meshes/SK_UEFN_Mannequin`, 93본)이 들어와 있는지 확인한다.
+2. IK Retargeter 배치 리타깃으로 위 원본 14개를 `RTG_Lyra_to_GASP_noRootMotion`(대상 메시 `SKM_UEFN_Mannequin`)으로 리타깃하고, 접미어 `_UEFN`을 붙여 `Retargeted/Enemy/`에 저장한다. 이 리타기터는 Pelvis Motion `Scale Horizontal`=0이다. ISKM은 `root` 변위를 버리고 pelvis 변위는 남기므로 제자리 클립이 된다([TechDesign_EnemyNPC_LowLOD.md](../../TechDesign_EnemyNPC_LowLOD.md) §6.7). 지금 사본 중 이 리타기터로 만든 것이 확인된 것은 `MM_Rifle_Jog_Fwd_UEFN`뿐이다. 다른 클립의 좌우 골반 흔들림이 사라지는지 1C-4에서 본다.
+3. `MM_Shotgun_Fire_UEFN`은 리타깃 뒤 `AdditiveAnimType`을 `AAT_None`으로 바꾸고 썸네일에 전신 포즈가 나오는지 본다(같은 문서 §6.7).
+4. `SM_UEFN_Mannequin`은 `SKM_UEFN_Mannequin`에서 다시 만든다(스켈레탈 메시 에디터 Make Static Mesh, LOD0). 머티리얼은 `M_UEFN_Mannequin`.
+5. `ASTP_Enemy_UEFN_*`·`ASL_Enemy_UEFN_*`가 새 시퀀스를 가리키는지, ISKM에서 재생되는지 확인한다(1C-4 1번 항목과 같다).
 
 ## 단위 1C-2 — 경로 정렬 (에디터 작업, 커밋 단위)
 
@@ -66,8 +133,8 @@
 
 ## 단위 1C-3 — 최신본 덮어쓰기
 
-1. no-op 노티파이 C++ 클래스와 `[CoreRedirects]`를 넣고 `Build.bat`로 빌드한다(1C-1 실험 결과대로).
-2. LootNPop 에디터를 끈다. 교체 목록의 파일과 1C-1 반입 목록(커브 압축 설정·`AM_*`)을 GASP에서 같은 경로로 복사한다. GASP 파일은 읽기만 한다(AN-009).
+1. `[CoreRedirects]`에 위 "리다이렉트 대상" 1C-3 행의 `PackageRedirects ... Removed=true`를 넣는다. C++ 자리표시자를 쓰기로 했으면 no-op 노티파이 C++ 클래스와 `ClassRedirects ... OverrideClassName`도 넣고 `Build.bat`로 빌드한다(1C-1 실험 결과대로).
+2. LootNPop 에디터를 끈다. `import_list_1C3.txt`의 파일(교체 332 + 신규 35 + 외부 2)을 GASP에서 같은 경로로 복사한다. 리다이렉터 30개는 복사하지 않는다. GASP 파일은 읽기만 한다(AN-009).
 3. 에디터를 다시 켜고 로드 경고·깨진 참조를 확인한다. Foley·EarlyTransition 누락 클래스 경고가 없어야 한다.
 4. MCP로 교체 에셋의 클래스·의존성을 다시 조회해 대조표와 맞는지 확인한다.
 
@@ -77,7 +144,7 @@
 
 1. **ISKM 순수 엔티티 적:** `ASTP_Enemy_UEFN_*` 재베이크가 필요한지, ISKM 거리에서 몸통·무기 메시가 보이고 애니가 도는지 확인한다(바인드 포즈 함정, [TechDesign_EnemyNPC_LowLOD.md](../../TechDesign_EnemyNPC_LowLOD.md) §6.7).
 2. **리타깃 적 애니(LootNPop 산출물):** 새 스켈레톤에서 그대로 맞는지, 다시 리타깃해야 하는지 확인한다.
-3. **`ActorPromoted` 적:** `BP_LNPEnemy` 승격 후 로코모션·공격·랙돌.
+3. **`ActorPromoted` 적:** `BP_LNPEnemy` 승격 후 로코모션·공격·랙돌. 새 `SKM_UEFN_Mannequin`의 포스트프로세스 ABP(머리 1.15배·허벅지 1.12배 스케일, 1C-1 §4)를 받아들일지, 컴포넌트 `bDisablePostProcessBlueprint`로 끌지 정한다(소스 메시는 수정하지 않는다).
 4. **PSD:** `MotionMatchingData/PSD_*_UEFN` 재빌드, 경고 확인.
 5. 적도 근처 PIE, 리슨 2인 PIE.
 6. 문서: 바뀐 경로를 관련 TechDesign 문서에 반영한다.
@@ -86,7 +153,7 @@
 
 ## 완료 조건 체크리스트
 
-- [ ] 1C-1: 대조표·반입/리다이렉트 목록·리다이렉트 실험·스켈레톤 차이·백업·산출물 이동 목록
+- [x] 1C-1: 대조표·반입/리다이렉트 목록·리다이렉트 실험·스켈레톤 차이·백업·산출물 이동 목록 (2026-10-18)
 - [ ] 1C-2: 경로 정렬, `.gitignore`, 커밋
 - [ ] 1C-3: 최신본 덮어쓰기, 깨진 참조 0
 - [ ] 1C-4: ISKM·리타깃 애니·승격 적·PSD·2인 PIE 회귀 통과

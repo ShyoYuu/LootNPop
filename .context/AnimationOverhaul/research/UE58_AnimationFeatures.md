@@ -56,7 +56,7 @@
 파일 시스템 상대 경로 대조와 LootNPop MCP `get_referencers`로 조사했다.
 
 - `Content/Characters/GASP_Mannequin/`(MotionMatchingData 제외) 429개 ↔ 최신 GASP `Content/Characters/UEFN_Mannequin/` 2,363개.
-  - 상대 경로가 같은 것 411개. 바이트 동일 여부는 아직 비교하지 않았다(1C-1).
+  - 상대 경로가 같은 것 411개. 1C-1(2026-10-18)에서 비교한 결과 해시는 전부 다르고, 본문 기준으로 데이터 변경 290·참조만 변경 42·경로 외 동일 49·양쪽 리다이렉터 30이다(`history/Phase01C_Log.md` §1).
   - LootNPop에만 있는 것 18개: `Animations/Enemy/*` 14개(5.7MB, LootNPop이 만든 리타깃 적 애니), `Animations/ABP_UEFN`, `Poses/M_Pose_01`, `Run/M_Relaxed_Run_Loop_F_Troy`, `Meshes/SM_UEFN_Mannequin`.
   - 폴더별(구/신): Animations 414/2,345, Materials 4/5, Meshes 4/3, Rigs 4/7, Textures 3/3.
 - git: `GASP_Mannequin/` 중 추적되는 것은 `MotionMatchingData/` 7개(CHT·PSD 4·PSN·PSS)뿐이다. **`Animations/Enemy/*`도 `.gitignore` 37행 `Content/Characters/GASP_Mannequin/*`에 걸려 추적되지 않는다** — LootNPop 산출물인데 저장소에 없다.
