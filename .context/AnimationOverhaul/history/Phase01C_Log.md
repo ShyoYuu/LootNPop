@@ -151,7 +151,7 @@ MM 목적지 `Content/Characters/MotionMatchingData/`는 이 세션이 정했다
 
 ### 6. PIE
 
-MCP로 TestMap03 단일 PIE(12초 웜업)를 돌렸다. 적 엔티티 스폰(`LNPMassSpawnSubsystem: All entities spawned`)이 정상이고, 이동한 경로와 관련된 Error·Warning·LoadErrors는 없었다. 남은 것은 기존 노이즈인 Mover 스폰 낙하 경고와 `LogMass: Error: Trying to extract CharacterMovementComponent from BP_LNPPlayer_C_0 failed`뿐이다. 화면 캡처는 권한 문제로 못 했다. **적 표시·애니(ISKM·승격 `BP_LNPEnemy`)는 사용자가 PIE에서 눈으로 확인해야 한다.**
+MCP로 TestMap03 단일 PIE(12초 웜업)를 돌렸다. 적 엔티티 스폰(`LNPMassSpawnSubsystem: All entities spawned`)이 정상이고, 이동한 경로와 관련된 Error·Warning·LoadErrors는 없었다. 남은 것은 기존 노이즈인 Mover 스폰 낙하 경고와 `LogMass: Error: Trying to extract CharacterMovementComponent from BP_LNPPlayer_C_0 failed`뿐이다. 화면 캡처는 권한 문제로 못 했다. **같은 날 사용자가 PIE로 ISKM 적과 Actor(승격) 적을 확인했다. 둘 다 정상으로 보이고, 이동·공격·사망이 이전과 같다.**
 
 ### 시행착오·주의
 
