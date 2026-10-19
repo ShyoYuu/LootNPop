@@ -105,6 +105,11 @@ bool ALNPCharacterBase::IsGlidingActive() const
 	return MoverComponent && MoverComponent->IsGliding();
 }
 
+const ULNPWeaponVisualSet* ALNPCharacterBase::GetAppliedVisualSet() const
+{
+	return CachedWeaponDef ? CachedWeaponDef->VisualSet.Get() : nullptr;
+}
+
 UAbilitySystemComponent* ALNPCharacterBase::GetAbilitySystemComponent() const
 {
 	if (const ALNPPlayerState* PS = GetPlayerState<ALNPPlayerState>())

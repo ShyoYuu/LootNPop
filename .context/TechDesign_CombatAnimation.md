@@ -8,13 +8,13 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 [ALNPCharacterBase::ApplyWeaponVisuals()]
        │  표현 세트·조준 모드 태그 전환 + LinkAnimClassLayers() + 무기 메시 어태치
        ▼
-[ABP_Lyra — 메인 AnimBP (AnimInstance = ULNPAnimInstance)]
+[ABP_Main_UEFN — 메인 AnimBP (AnimInstance = ULNPAnimInstance, 스켈레톤 SK_UEFN_Mannequin, §3.3)]
    Motion Matching (PSD 전신 포즈) + Pose History Collector
        │
    Blend Poses by Bool (bIsOnGround) — 공중이면 Fall_Loop 고정 재생 (§5.5)
        │
    Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponStyleOverlay)
-       │   └─ ABP_Sub_Unarmed / Pistol / Rifle / Shotgun / LongSword 런타임 교체
+       │   └─ ABP_Sub_{Unarmed,Pistol,Rifle,Shotgun,LongSword}_UEFN 런타임 교체
        │
    Slot 'DefaultSlot' (검술 공격·피격 몽타주)
        │
@@ -68,13 +68,15 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 
 | 에셋 | 종류 | 내부 처리 |
 |--------|------|------|
-| `ABP_Lyra` | Main AnimBP | Motion Matching + 레이어 합성 파이프라인 (§1) |
+| `ABP_Main_UEFN` | Main AnimBP | Motion Matching + 레이어 합성 파이프라인 (§1). 임시 로코모션 Chooser `CHT_PSD_UEFN` |
 | `ALI_WeaponStyles` | Anim Layer Interface | `ApplyWeaponStyleOverlay` 레이어 함수 계약 |
-| `ABP_Sub_Unarmed` | Sub AnimBP | 베이스 포즈 통과 |
-| `ABP_Sub_Pistol` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_MM_Pistol_Idle_ADS` |
-| `ABP_Sub_Rifle` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_MM_Rifle_Idle_ADS` |
-| `ABP_Sub_Shotgun` | Sub AnimBP | Rifle과 동일 구성. 아이들만 `MM_Shotgun_Idle_ADS`, AO는 Rifle 것을 공용 |
-| `ABP_Sub_LongSword` | Sub AnimBP | 롱소드 Stance + `bIsGuarding` Guard 자세 분기 + 왼손 Two Bone IK |
+| `ABP_Sub_Unarmed_UEFN` | Sub AnimBP | 베이스 포즈 통과 |
+| `ABP_Sub_Pistol_UEFN` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_MM_Pistol_Idle_ADS` |
+| `ABP_Sub_Rifle_UEFN` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_MM_Rifle_Idle_ADS` |
+| `ABP_Sub_Shotgun_UEFN` | Sub AnimBP | Rifle과 동일 구성. 아이들만 `MM_Shotgun_Idle_ADS`, AO는 Rifle 것을 공용 |
+| `ABP_Sub_LongSword_UEFN` | Sub AnimBP | 롱소드 Stance + `bIsGuarding` Guard 자세 분기 + 왼손 Two Bone IK |
+
+서브 ABP가 쓰는 Lyra 애니는 UEFN으로 오프라인 리타깃한 사본(`Content/Characters/Retargeted/Lyra/*_UEFN`, git 제외)이다. AO·몽타주 이름은 사본 이름에서 `_UEFN`을 뺀 원본 이름으로 적는다. 전환 전 Lyra 스켈레톤 구성(`ABP_Lyra`·`ABP_Sub_*`)은 되돌림용으로 남아 있고 런타임에서는 참조하지 않는다(2026-10-18 AnimationOverhaul 2-0b).
 
 **설계 원칙:** 어떤 본에 얼마나 블렌딩할지는 서브 ABP가 정한다. 메인 ABP는 무기를 모른다.
 
@@ -100,6 +102,22 @@ ApplyWeaponVisuals(WeaponData)   ← 서버·클라이언트 공용 단일 진�
 ⚠️ 그 태그는 무기를 식별하지 않는다. 규칙(쿨다운 등)의 키로 쓰면 세트를 공유하는 무기들이 함께 묶인다 — 규칙의 키는 무기 DataAsset 자신이다.
 ⚠️ `RefreshWeaponVisuals()`는 `InitAbilitySystem()` **뒤에** 불러야 한다. 후자가 표현 세트 태그를 Unarmed로 되돌린다.
 
+### 3.3 메시 구성 — 포즈 원본과 표시 메시
+
+```
+AnimSourceMesh (숨김) ── SKM_UEFN_Mannequin + ABP_Main_UEFN, bDisablePostProcessBlueprint = true
+   │   로코모션·무기 레이어·몽타주·ANS·왼손 IK가 모두 여기서 돈다 (플레이어·승격 적 공통)
+   ▼  (VisualMesh가 부모 메시의 포즈를 받는다)
+VisualMesh ──┬─ 플레이어: SKM_Manny_Simple(MoverSample) + ABP_Retarget (태그 RTG_GASP_to_MS → 리타기터 맵) → 왼손 IK
+             └─ 승격 적:  SKM_UEFN_Mannequin + ABP_VisualCopyPose (Copy Pose From Mesh, 같은 스켈레톤) → 왼손 IK
+   랙돌·물리 히트리액트의 대상. 무기 메시는 VisualMesh 소켓에 붙는다
+```
+
+- **적은 Leader Pose가 아니라 ABP 노드로 복사한다.** Leader Pose면 `VisualMesh`가 ABP를 돌리지 않아, 물리 히트리액트용 RigidBodyWithControl 노드를 둘 곳이 없다. Phase 3에서 두 표시 ABP(`ABP_Retarget`·`ABP_VisualCopyPose`)의 왼손 IK(§4.2) 뒤, 출력 앞에 RBWC를 넣는다(→ AnimationOverhaul `research/PhysicsHitReactSpike.md` §1.5·§6).
+- **`AnimSourceMesh`에도 포스트프로세스 ABP를 끈다**(AnimationOverhaul AN-019). GASP 5.8 메시에 붙어 온 `ABP_UEFN_Mannequin_PostProcess`의 머리·허벅지 고정 스케일이 포즈 원본에 들어가지 않게 한다.
+- **플레이어 리타기터 `RTG_GASP_to_MS`의 대상 IK 리그는 `IK_MS_FootGoal`이다.** MoverSample `IK_Mannequin`을 복제해 다리 체인 끝·목표를 `foot`으로 옮기고 다리 목표를 솔버에서 뗐다. 다리는 FK로 원본 회전을 그대로 받고, IK는 팔만 풀어 무기 그립(오른손 기준 왼손 위치)을 맞춘다. 원본 리그의 다리 목표(`ball`)를 그대로 풀면 달릴 때 다리가 프레임마다 100° 넘게 뒤집힌다. 대상 리타깃 포즈는 **정렬하지 않은 기본 포즈**다. `auto_align_all_bones`로 정렬하면 견착 위치 오차는 줄지만 위팔·아래팔 기준 자세가 13°·22° 돌아 총구가 27° 숙여진다(세 총 모두). 정렬하지 않으면 총구 방향은 Lyra와 같고, 총이 상체에 대해 약 9cm 뒤·4cm 위에 남는다 → 무기별 견착 보정(§4.2 아래)으로 맞춘다. 원본 UEFN 리그에 없는 대상 체인(트위스트·`ik_*`)은 매핑하지 않고, op 스택 맨 앞의 Copy Base Pose가 본 이름으로 로컬 포즈를 복사한다. 설정 스크립트 `Scripts/AnimRetarget/FixGASPtoMSRetargeter.py`(`verify` 인자로 튐·그립 측정).
+- **몽타주 슬롯 그룹은 C++가 맞춘다**(AnimationOverhaul AN-020). GASP `SK_UEFN_Mannequin`에는 `DefaultGroup{DefaultSlot}`·`Partials{UpperBody}`뿐이라, `ULNPAnimInstance::NativeInitializeAnimation`이 Lyra와 같은 표를 `USkeleton`에 런타임 등록한다: `DefaultGroup` ← `DefaultSlot`·`FullBody`·`FullBodyAdditivePreAim`·`UpperBody`·`UpperBodyAdditive`, `AdditiveGroup` ← `AdditiveHitReact`. 이게 없으면 ① 피격 몽타주가 공격과 같은 그룹이 되어 공격을 끊고 ② 재장전(`UpperBody` + `UpperBodyAdditive`)은 그룹이 갈려 `HasValidSlotSetup()`에 걸려 **재생되지 않는다**. `SetSlotGroupName`은 패키지를 dirty로 만들지 않는다. ⚠️ 에디터에서 `SK_UEFN_Mannequin`을 열어 저장하면 이 그룹이 소스 에셋에 들어간다 — 저장하지 말 것(AN-018).
+
 ---
 
 ## 4. 오버레이 상세
@@ -118,16 +136,16 @@ AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstanc
 | 원격 플레이어·시뮬레이티드 프록시 | Mover InputCmd의 `ControlRotation` (복제됨, → [TechDesign_Networking.md](TechDesign_Networking.md)) |
 | 적 NPC | 액터 전방 + 복제된 로컬 `AimPitchDeg` — 컨트롤러가 없어 `APawn` 기본값은 수평이다 (→ [TechDesign_EnemyNPC.md](TechDesign_EnemyNPC.md) §6) |
 
-적 NPC도 같은 `ABP_Lyra`·서브 ABP를 쓰고 AO 노드가 `AimPitch`/`AimYaw`에 바인딩돼 있으므로, 적 조준은 **애니메이션 에셋 수정 없이 `GetBaseAimRotation()` 하나로 끝난다.**
+적 NPC도 같은 메인 ABP(`ABP_Main_UEFN`)·서브 ABP를 쓰고 AO 노드가 `AimPitch`/`AimYaw`에 바인딩돼 있으므로, 적 조준은 **애니메이션 에셋 수정 없이 `GetBaseAimRotation()` 하나로 끝난다.**
 
 ### 4.2 왼손 Two Bone IK
 
 오른손은 무기 소켓 어태치로 정확하지만 왼손은 애니메이션 그대로라 그립에서 어긋난다.
 
-- 무기 메시에 `LeftHandGrip` 소켓 배치.
-- `ULNPAnimInstance`가 매 프레임 소켓 월드 위치(`LeftHandGripLocation`)와 존재 여부(`bHasLeftHandGrip`)를 갱신.
-- 서브 ABP의 Two Bone IK 노드(`lowerarm_l → hand_l`)가 왼손을 끌어당긴다. 소켓이 없으면 IK 비활성.
-- 현재 IK 노드는 **`ABP_Sub_LongSword`에만** 있다. Rifle·Shotgun 서브 ABP에는 없다(AnimInstance 변수는 준비돼 있어 노드만 추가하면 된다).
+- **그립 목표:** 무기 메시의 `LeftHandGrip` 소켓이 우선이다(롱소드). 소켓이 없는 Lyra 총기 메시(라이선스 원본이라 소켓을 추가하지 않는다)는 표현 세트의 `ULNPWeaponVisualSet::LeftHandGripOffset`(무기 메시 컴포넌트 공간, `bUseLeftHandGripOffset`)을 쓴다. 값은 전환 전 Lyra 경로의 조준 아이들(서브 ABP 기본 자세)에서 잰 `hand_l` 위치다(`Scripts/AnimRetarget/ComputeLeftHandGripOffsets.py`). 라이플 (6.5, 29.7, 7.0)·샷건 (7.3, 27.8, 6.9), 권총은 리타깃만으로 맞아 쓰지 않는다. Lyra 원본에서도 조준과 힙파이어의 무기 기준 왼손 위치가 2.5cm쯤 다르다.
+- `ULNPAnimInstance`가 매 프레임 그립 월드 위치(`LeftHandGripLocation`)·존재 여부(`bHasLeftHandGrip`)·알파(`LeftHandIKAlpha`)를 갱신한다. 알파는 소켓 그립이면 1이다. 오프셋 그립이면 `1 − max(DisableLHandIK 커브, DefaultSlot·FullBody·UpperBody 몽타주 가중치)`로, 재장전·대시·경직 동안 손이 그립을 떠날 수 있게 한다. 사격·피격은 가산 슬롯이라 IK를 유지한다. 커브·몽타주는 포즈 원본(`AnimSourceMesh`) 인스턴스에서 읽는다(표시 ABP도 이 클래스를 부모로 쓴다). `DisableLHandIK` 커브는 Lyra 라이플 재장전에만 있다.
+- **견착 보정(플레이어만):** `ULNPWeaponVisualSet::RightHandCorrection`(무기 공간 cm)만큼 `ABP_Retarget`의 오른팔 Two Bone IK가 손을 옮긴다(Effector = BoneSpace `hand_r` + `ULNPAnimInstance::RightHandIKOffset`, 관절 목표 = 현재 `lowerarm_r`, 손 회전 유지). 무기가 따라가고 왼손 그립 IK도 무기 기준이라 함께 따라간다. 값은 정렬하지 않은 런타임 리타깃 결과의 "오른손 `spine_05` 기준 위치"를 Lyra와 같게 만드는 이동량이다(`ComputeLeftHandGripOffsets.py`가 계산). 라이플 (0.5, 8.7, −3.8)·샷건 (0.1, 9.7, −3.9)·권총 (1.9, 6.7, −4.9) — Y가 총구 쪽, Z가 위. 알파 `RightHandIKAlpha`는 왼손 오프셋 그립과 같은 몽타주·커브 차단을 따른다. 승격 적(UEFN 표시 메시)은 오차가 달라 넣지 않았다. 순서: 리타깃 → 오른팔 IK → 왼손 IK → 출력.
+- **IK는 두 군데다.** ① 포즈 원본: `ABP_Sub_LongSword_UEFN`의 Two Bone IK(`bHasLeftHandGrip`) — 롱소드만. ② **표시 메시**: `ABP_Retarget`(플레이어)·`ABP_VisualCopyPose`(승격 적)의 포즈 노드 뒤 Two Bone IK(`hand_l` → `LeftHandGripLocation`, 알파 `LeftHandIKAlpha`). 무기가 `VisualMesh` 소켓에 붙어 있으므로 ②에서 맞춰야 리타깃(UEFN → MoverSample) 비율 차이와 무관하게 그립에 닿는다. Phase 3 RBWC는 ② 뒤에 둔다.
 
 ### 4.3 Guard 자세 분기
 

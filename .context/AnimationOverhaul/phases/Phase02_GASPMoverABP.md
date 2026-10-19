@@ -1,6 +1,6 @@
 # Phase 2 — 스켈레톤 전환과 GASP Mover ABP 재구성
 
-> 상태: 진행 중(2-0a 완료 2026-10-18, 다음 2-0b — 결정 A·B 확정)
+> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b 완료 2026-10-19, 다음 2-1)
 > 선행: Phase 1C 완료(GASP 5.8 소스, 93본 `SK_UEFN_Mannequin`), AN-011(UEFN 전환)·AN-015(MM 노드 방식)·AN-016(폴더·git)·AN-018(소스 저장 금지)
 > 순서: 2-0a → 2-0b → 2-1 → … → 2-6. 단위 하나가 세션 하나이고, 단위마다 커밋하고 사용자 확인을 받는다.
 > 단위 목록·블록 정의는 `Roadmap.md` §4 Phase 2와 `design/GASPReference.md` §2.2·§2.7이 소유한다. 이 문서는 착수한 단위의 실행 계획·결과·재생성 절차를 소유한다.
@@ -53,7 +53,7 @@
 
 리타기터를 처음부터 다시 만들 때(런타임 리타기터가 바뀐 경우)는 `Scripts/AnimRetarget/SetupOfflineRetargeter.py`를 먼저 실행하고 `RTG_Lyra_to_UEFN_Offline`만 저장한다. 서브 ABP를 다시 만들 때는 기존 `ABP_Sub_*_UEFN`을 지우고, 목록에 원본 `/Game/Characters/ABP_Sub_*` 5줄을 임시로 더해 1을 실행한 뒤 `Retargeted/Lyra/`에 생긴 ABP를 `/Game/Characters/`로 옮기고(`AssetTools.move`) 컴파일한다.
 
-## 단위 2-0b — 전환 (계획 초안, 결정 A·B 확정 2026-10-18)
+## 단위 2-0b — 전환 (결정 A·B 확정 2026-10-18, 결과는 아래 "2-0b 결과")
 
 `Roadmap.md` §4 2-0b 행이 범위를 소유한다. 2-0a에서 확인한 것 중 2-0b가 처리해야 할 것:
 
@@ -92,8 +92,30 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 - 이 단위의 엔진 문제 때문에, 같은 에디터 세션에서 배치를 돌린 뒤에는 원본을 저장하지 말고 재로드 결과(`source_refs_into_target_after_reload` 빈 목록)를 확인한다.
 - 필요한 에디터: LootNPop(8000)만. GASP 구성을 읽지 않는다.
 
+### 2-0b 결과 (2026-10-18~19, 상세 `history/Phase02_Log.md`)
+
+| 항목 | 결과 |
+|:---|:---|
+| 메인 ABP | **`ABP_Lyra`를 리타깃 복제**해 `/Game/Characters/ABP_Main_UEFN`(추적)을 만들었다. 새로 만들지 않은 근거: 2-0b는 "지금과 동등한 동작"이 목표라 그래프·변수·함수(`OnUpdate_MotionMatching`·`Initialize_MoverPredictor`)·슬롯 순서를 그대로 옮기는 편이 회귀 원인을 줄인다. 2-0a 서브 ABP 5개도 같은 방식으로 문제가 없었다. 이름에서 Lyra를 뺀 것은 2-1부터 GASP식으로 재구성될 본체이기 때문이다. `IKRetargetBatchOperation`에 ABP 하나만 넣고(`include_referenced_assets=False`) 남은 참조 3개(공중 루프 `MM_Unarmed_Jump_Fall_Loop_UEFN`, 링크 레이어 기본값 `ABP_Sub_Unarmed_UEFN` 2곳, Chooser `CHT_PSD_UEFN`)는 노드 프로퍼티로 바꿨다. 경고를 오류로 취급한 컴파일 통과. `ABP_Lyra`·`ABP_Sub_*`(Lyra)는 되돌림용으로 남겼다(런타임 미참조) |
+| 결정 A | `CHT_PSD_UEFN`: `CHT_PSD_Lyra` 복제 → PSD 4개를 `_UEFN`으로(Jog → Run). Chooser 결과 행은 MCP·Python으로 쓸 수 없어(`ResultsStructs`가 편집 플래그 없는 `UPROPERTY()`) **에디터 명령 `LNP.Editor.ReplaceAssetRefs`**(`LootNPopEditor`, 새 cpp)를 만들었다. 패키지 안 모든 오브젝트에 `FArchiveReplaceObjectRef`를 돌린다(UPackage를 검색 루트로 주면 아무것도 순회하지 않는다). 스크립트 `Scripts/AnimRetarget/SwitchChoosersToUEFN.py` |
+| 결정 B | `ULNPAnimInstance::NativeInitializeAnimation`이 Lyra 슬롯 → 그룹 표를 `USkeleton`에 등록(AN-020). 확인: 피격 `AdditiveGroup`, 재장전 두 슬롯 모두 `DefaultGroup`, `SK_UEFN_Mannequin` dirty 아님. 이게 없으면 재장전 몽타주는 경고에 그치지 않고 `HasValidSlotSetup()`에 걸려 재생되지 않는다. 재장전을 C++가 끊는 경로: 대시(`OnDashExecuted` → 어빌리티 취소)·무기 교체(`CancelAbilities`) → `PlayMontageAndWait`가 몽타주를 멈춘다 |
+| 몽타주·GA·레이어 | `CHT_Montage` 26개 → 사본. `GA_ParrySuccess_LongSword.ReactionMontage` → 사본. `GA_Stagger_LongSword`는 C++에서 지워진 `StaggerMontage` 프로퍼티의 저장값이 Lyra 몽타주를 끌고 와서, 다시 저장해 털어냈다(경직 몽타주는 Chooser가 정한다). `VS_*` 4개와 두 BP의 `UnarmedAnimLayerClass` → `ABP_Sub_*_UEFN` |
+| 메시 | 두 BP `AnimSourceMesh` = `SKM_UEFN_Mannequin` + `ABP_Main_UEFN`, `bDisablePostProcessBlueprint = true`. 플레이어 `VisualMesh` = 태그 `RTG_GASP_to_MS`, 적 `VisualMesh` = `ABP_VisualCopyPose`(Copy Pose From Mesh, Leader Pose 아님 — RBWC 자리). `ABP_Retarget` 리타기터 맵은 `RTG_GASP_to_MS` 하나만 남겼다. 두 Pawn 의존성 순회에서 Lyra 참조 0 |
+| `RTG_GASP_to_MS` | 플레이어 경로가 되면서 처음 런타임에 쓰였고 결함이 4가지 있었다. ① Root Motion op 본 이름 빈칸 → root·pelvis. ② 원본 UEFN 리그에 없는 대상 체인 23개가 엉뚱하게 자동 매핑(허벅지·종아리 트위스트 ← 손가락 중수골·쇄골 등) → 해제 + Copy Base Pose op. ③ Run IK Rig의 다리 목표 불일치(MS `ball`, UEFN `foot`)로 달릴 때 다리가 프레임마다 100~178° 뒤집힘(원본 20~30°) → MS 리그를 **`Retargeters/IK_MS_FootGoal`(추적)**로 복제해 다리 체인 끝·목표를 `foot`으로 옮기고 다리 목표를 솔버에서 뗐다(다리 FK, 팔만 IK). op는 대상 리그를 따로 들고 있어 `assign_ik_rig_to_all_ops`로 바꿔야 한다. ④ IK를 통째로 끄면 팔 IK도 사라져 무기 왼손이 그립에서 벗어났다(사용자 PIE) → ③으로 팔 IK 복구. ⑤ 총기 견착이 몸 쪽으로 약 9cm 당겨졌다(개머리판이 어깨 관통, 사용자 PIE). 리타깃 설정(IK 끄기·FK 체인 모드·원본/오프라인 포즈 정렬·Blend To Source)으로는 줄지 않았고, 대상 포즈 자동 정렬은 위치를 4cm로 줄이는 대신 총구를 27° 숙였다(권총에서 발견) → 정렬하지 않고 **무기별 견착 보정**(아래 "무기 왼손 IK·견착" 행)으로 맞췄다. 결과: 달리기 클립 2개의 다리·트위스트·팔 프레임 간 회전과 총구 방향이 원본과 같다. 스크립트 `Scripts/AnimRetarget/FixGASPtoMSRetargeter.py [verify]` |
+| 무기 왼손 IK·견착 | 리타깃만으로는 라이플·샷건 왼손이 1~2cm 어긋났다(엄지가 총을 파고듦, 사용자 PIE). 표시 메시 ABP 두 개(`ABP_Retarget`·`ABP_VisualCopyPose`)의 포즈 노드 뒤에 Two Bone IK(`hand_l` → 그립)를 넣었다. 그립 목표는 무기 소켓(롱소드)이 우선이고, 소켓이 없는 Lyra 총기는 새 `ULNPWeaponVisualSet::LeftHandGripOffset`(무기 공간, Lyra 조준 아이들에서 계산, `Scripts/AnimRetarget/ComputeLeftHandGripOffsets.py`) — `VS_Rifle`·`VS_Shotgun`. 새 `ULNPAnimInstance::LeftHandIKAlpha`가 총기 IK를 재장전·대시·경직 몽타주 가중치와 `DisableLHandIK` 커브만큼 끈다. 견착은 새 `ULNPWeaponVisualSet::RightHandCorrection`(무기 공간, 같은 스크립트가 Lyra 대비 상체-손 위치 차이로 계산: 라이플 (0.5, 8.7, −3.8)·샷건 (0.1, 9.7, −3.9)·권총 (1.9, 6.7, −4.9))을 `ABP_Retarget`의 오른팔 IK로 적용한다(플레이어만, 손 회전 유지). 사용자 PIE: 세 총 견착·총구·왼손 정상 |
+| PSD 정규화 | UEFN PSD 4개에 정규화 세트가 비어 있었다(`PSN_CoreLocomotion_UEFN`은 있고 4개를 담고 있다. 1C-2 경로 이동 때 끊긴 것으로 보인다). DB마다 자기 분산으로 정규화되어 `DoNotInterrupt`로 이어지는 달리기 포즈가 항상 이겨, 멈춰도 달리기가 계속 재생됐다 → 연결. Lyra PSD는 `PSN_CoreLocomotion_Lyra`를 쓴다 |
+| 리타깃 몽타주 사본 | ① 대시 4개 `BlendProfileOut`이 Lyra 스켈레톤의 `FastFeet`을 가리켜 UEFN에서 `SkeletonToCompactPose.IsValidIndex` ensure(사용자 PIE) → 같은 이름 UEFN `FastFeet`으로. 내용이 같은지는 MCP로 못 읽어 확인하지 못했다. ② 몽타주 22개 저장본에 원본 Lyra 시퀀스 의존성이 남아 있었다(메모리 참조는 사본, `PostEditChange`가 링크 정보를 다시 만들면 사라진다). 스크립트 `Scripts/AnimRetarget/FixRetargetedMontages.py`. 98개 모두 Lyra·`Weapons/` 의존 0 |
+| 회귀(사용자 리슨 2인 PIE, 적도 근처) | 통과: 롱소드 콤보·휘두를 때 이동/공격 차단·적 타격·근접 보정·가드 자세·가드/패링 성공 모션, 총기 조준 자세·사격·재장전, 4방향 대시, 사망 랙돌·리스폰, 피격 움찔이 공격을 끊지 않음, 달리기·정지 후 Idle 전환(수정 뒤). 자동 PIE 로그에 몽타주·슬롯·애니 경고 없음(Mover out-of-band·Mass `CharacterMovementComponent` 오류는 이전부터 있던 노이즈) |
+| 소스 보호 | `UEFN_Mannequin/`·Lyra 원본·MoverSample 저장 없음(dirty 0). `Retargeted/`는 git 제외 확인 |
+
+**알려진 차이 — 스트레이프 방향 클립(2-2에서 복구, 2026-10-19 사용자 결정).** 전환 전 Lyra DB는 걷기·조깅마다 Fwd/Bwd/Left/Right 클립이 있어 총기(FreeAim)·락온 이동이 방향별로 재생됐다. 지금 `PSD_Walk_UEFN`·`PSD_Run_UEFN`에는 정면·호·회전 클립뿐이라 어느 방향으로 움직여도 정면 달리기가 나온다. GASP 5.8 원본에는 방향별 루프(`M_Neutral_Run_Loop_{F,B,LL,LR,RL,RR,FL,FR,BL,BR}` 등, Walk도 같은 구성)가 있으나 LootNPop에는 일부만 반입됐고 Walk 루프는 없다. 2-2가 상태별 PSD 묶음 Chooser를 만들 때 스트레이프 DB와 함께 반입한다. 허리를 이동 방향으로 돌리는 처리(Orientation Warping)는 2-3(B2) 범위다.
+
+**범위 밖으로 기록 — ISKM 총기 적(2026-10-19 사용자 PIE).** 지상 원거리 샷건 NPC(ISKM)도 견착이 몸 쪽으로 당겨지고 왼손이 맞지 않는다. 2-0b가 건드리지 않은 `Retargeted/Enemy/` 구운 클립(정렬 안 된 `RTG_Lyra_to_GASP_noRootMotion`)의 문제이고, ISKM은 런타임 IK가 없어 클립을 다시 구워야 한다. 별도 세션에서 처리한다(해결 방향은 [TechDesign_EnemyNPC_LowLOD.md](../../TechDesign_EnemyNPC_LowLOD.md) "미해결 — ISKM 총기 적").
+
+**재생성 절차 추가(2-0a 절차 뒤).** 2-0a 1번(`RetargetLyraToUEFN.py`) 다음에 `py ".../Scripts/AnimRetarget/FixRetargetedMontages.py"`를 실행하고 `Saved/AnimRetarget/FixRetargetedMontages.json`에서 `cleared`·`source_no_copy`가 비었는지 본 뒤 `Retargeted/Lyra/`만 저장한다. 추적 에셋(`CHT_*`·`RTG_GASP_to_MS`·`IK_MS_FootGoal`)은 저장소에 있으므로 다시 만들 필요가 없다. 런타임 리타기터를 처음부터 다시 만들 때만 `FixGASPtoMSRetargeter.py`를 돌리고, 이어서 `ComputeLeftHandGripOffsets.py apply`로 무기 그립 오프셋·견착 보정을 다시 계산해 `VS_*`를 저장한다(리타깃 결과가 바뀌면 견착 보정값도 바뀐다).
+
 ## 완료 조건 체크리스트
 
 - [x] 2-0a: 실사용 목록 확정(98개, 0-3 대비 차이 설명), 리타깃 사본 98개 `Retargeted/Lyra/`, 몽타주 대조 결함 0, 서브 ABP 5개 경고 0 컴파일, 재생성 절차·스크립트, 2-0b 임시 로코모션 계획 수정 (2026-10-18)
-- [ ] 2-0b: 전환 — 결정 A·B 반영, 근접 콤보·ANS 판정·근접 보정·재장전·가드/패링·랙돌·HitStop, 적도·`ActorPromoted`·2인 PIE, ISKM 무영향
+- [x] 2-0b: 전환 — 결정 A·B 반영, 근접 콤보·ANS 판정·근접 보정·재장전·가드/패링·랙돌·HitStop, 적도·`ActorPromoted`·2인 PIE, ISKM 무영향(ISKM 에셋 미변경). 알려진 차이: 스트레이프 방향 클립 → 2-2 (2026-10-19)
 - [ ] 2-1 ~ 2-6: `Roadmap.md` §4

@@ -63,6 +63,28 @@ public:
 	FRotator WeaponMeshRelativeRotation = FRotator(0.0f, 90.0f, -4.0f);
 
 	/**
+	 * 무기 메시에 `LeftHandGrip` 소켓이 없을 때 왼손 IK 목표로 쓸 위치(무기 메시 컴포넌트 공간, cm).
+	 * 소켓이 있으면 소켓이 우선한다. Lyra 총기 메시는 라이선스 원본이라 소켓을 추가하지 않고 여기에 둔다.
+	 * 값은 전환 전 Lyra 경로의 조준 아이들에서 잰 왼손(`hand_l`) 위치다(Scripts/AnimRetarget/ComputeLeftHandGripOffsets.py).
+	 * 오프셋 그립은 몽타주(재장전·대시·경직) 동안 IK를 끈다 — `ULNPAnimInstance::LeftHandIKAlpha`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VisualSet|Mesh")
+	bool bUseLeftHandGripOffset = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VisualSet|Mesh", meta = (EditCondition = "bUseLeftHandGripOffset"))
+	FVector LeftHandGripOffset = FVector::ZeroVector;
+
+	/**
+	 * 견착 보정 — 플레이어 표시 메시(MoverSample)에서 총 전체를 이만큼 옮긴다(무기 메시 컴포넌트 공간, cm).
+	 * 오른팔 IK로 손을 옮기므로 무기와 왼손(그립 IK)이 함께 따라간다. 0이면 끈다.
+	 * UEFN을 거치는 두 번의 리타깃이 상체를 총에 대해 수 cm 뒤로 남겨(리타깃 설정만으로는 줄지 않는다,
+	 * AnimationOverhaul 2-0b) 개머리판이 어깨 위로 뜨는 것을 맞춘다. 몽타주 동안의 차단은 왼손 그립과 같다.
+	 * 승격 적(UEFN 표시 메시)은 오차가 달라 적용하지 않는다(`ABP_VisualCopyPose`에는 이 IK가 없다).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VisualSet|Mesh")
+	FVector RightHandCorrection = FVector::ZeroVector;
+
+	/**
 	 * 재장전 동안 무기 메시에 재생할 시퀀스 (`WeaponMesh`와 같은 스켈레톤). 비어 있으면 무기 메시는 움직이지 않는다.
 	 * 재생은 GameplayCue.LNP.Weapon.Reload가 하고 배속은 재장전 시간에 맞춘다 (ULNPGameplayCueNotify_Reload).
 	 */

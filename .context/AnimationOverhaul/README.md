@@ -59,25 +59,26 @@ UE 5.8 Game Animation Sample(이하 GASP)의 애니메이션 구성을 LootNPop�
 - 큰 ABP를 통째로 덤프하지 않는다. 블록 단위(블렌드 스택, Offset Root Bone, Foot Placement…)로 그래프를 좁혀 읽는다.
 - MCP로 읽을 수 있는 범위와 방법은 Phase 0 단위 0-1이 확정해 `design/GASPReference.md` §1에 남긴다.
 
-**새로 클론한 환경에서 소스 에셋 확보(AN-016).** 저장소에는 구성 에셋만 있고, 그것이 참조하는 GASP 소스 에셋과 리타깃 산출물은 없다. ① Fab에서 "Game Animation Sample Project"를 **UE 5.8 버전**으로 받아 `D:/UnrealProjects/GameAnimationSample`에 프로젝트를 만든다. ② LootNPop 에디터를 끈 상태에서 반입 목록의 경로를 GASP `Content/`에서 LootNPop `Content/`로 **같은 상대 경로 그대로** 복사한다. 반입 목록은 `phases/Phase01C_GASPAssetRefresh.md`가 소유한다(`Characters/UEFN_Mannequin/`의 필요분, `Misc/SandboxAnimCurveCompressionSettings`, `Blueprints/AnimModifiers/AM_BakePhaseCurveFromFootstepNotifies`). GASP 경로 안의 PSD·Chooser·ABP는 복사하지 않는다. UEFN 모션매칭 구성 에셋(PSD·PSN·PSS)은 GASP 경로 밖 `Content/Characters/MotionMatchingData/`에 있고 git에 추적된다. ③ `Content/Characters/Retargeted/`(Lyra → UEFN 리타깃 산출물, 적 리타깃 애니 `Enemy/`·`Meshes/SM_UEFN_Mannequin` 포함)는 각 산출 단위가 남긴 재생성 절차로 다시 만든다. 무기·몽타주용 `Lyra/` 98개는 2-0a 절차(`phases/Phase02_GASPMoverABP.md` "재생성 절차", 스크립트 `Scripts/AnimRetarget/`)로 만든다. ISKM 적이 쓰는 소스 사본 2개(`Meshes/SKM_UEFN_Mannequin_Instanced`, `Materials/M_UEFN_Mannequin_Instanced`)도 여기 있다. 인스턴싱 설정을 소스 대신 사본에 건다(1C-4). ④ 에디터를 켜고 깨진 참조와 로드 경고를 확인한다. Foley·EarlyTransition·MontageBlendOut 노티파이와 GASP PSD 하드 참조는 `PackageRedirects ... Removed=true`로 끊기므로 경고가 나오면 안 된다(AN-017, 1C-3부터). 경로는 1C-2(2026-10-18)부터 GASP 원본과 같은 `Content/Characters/UEFN_Mannequin/`이다. 1C-3(2026-10-18)부터 이 폴더 417개는 GASP 5.8 본이다. 새 환경에서는 `import_list_1C3.txt` 369개와 경로 외 동일 49개(`identical_except_path_49.txt`, 둘 다 `Saved/AssetRefresh/2026-10-18/`)를 GASP 5.8에서 복사한다. 5.8에 없는 `Animations/Run/M_Relaxed_Run_Loop_F_Troy` 하나(`PSD_Run_UEFN`이 참조)는 기존 작업 환경이나 백업에서 가져온다. Lyra·MoverSample·Close Combat: Swordsman·무기 같은 다른 제외 에셋은 이 절차의 범위 밖이다.
+**새로 클론한 환경에서 소스 에셋 확보(AN-016).** 저장소에는 구성 에셋만 있고, 그것이 참조하는 GASP 소스 에셋과 리타깃 산출물은 없다. ① Fab에서 "Game Animation Sample Project"를 **UE 5.8 버전**으로 받아 `D:/UnrealProjects/GameAnimationSample`에 프로젝트를 만든다. ② LootNPop 에디터를 끈 상태에서 반입 목록의 경로를 GASP `Content/`에서 LootNPop `Content/`로 **같은 상대 경로 그대로** 복사한다. 반입 목록은 `phases/Phase01C_GASPAssetRefresh.md`가 소유한다(`Characters/UEFN_Mannequin/`의 필요분, `Misc/SandboxAnimCurveCompressionSettings`, `Blueprints/AnimModifiers/AM_BakePhaseCurveFromFootstepNotifies`). GASP 경로 안의 PSD·Chooser·ABP는 복사하지 않는다. UEFN 모션매칭 구성 에셋(PSD·PSN·PSS)은 GASP 경로 밖 `Content/Characters/MotionMatchingData/`에 있고 git에 추적된다. ③ `Content/Characters/Retargeted/`(Lyra → UEFN 리타깃 산출물, 적 리타깃 애니 `Enemy/`·`Meshes/SM_UEFN_Mannequin` 포함)는 각 산출 단위가 남긴 재생성 절차로 다시 만든다. 무기·몽타주용 `Lyra/` 98개는 2-0a 절차(`phases/Phase02_GASPMoverABP.md` "재생성 절차", 스크립트 `Scripts/AnimRetarget/`)로 만들고, 이어서 2-0b의 `FixRetargetedMontages.py`(블렌드 프로필·원본 참조 정리)를 돌린다. ISKM 적이 쓰는 소스 사본 2개(`Meshes/SKM_UEFN_Mannequin_Instanced`, `Materials/M_UEFN_Mannequin_Instanced`)도 여기 있다. 인스턴싱 설정을 소스 대신 사본에 건다(1C-4). ④ 에디터를 켜고 깨진 참조와 로드 경고를 확인한다. Foley·EarlyTransition·MontageBlendOut 노티파이와 GASP PSD 하드 참조는 `PackageRedirects ... Removed=true`로 끊기므로 경고가 나오면 안 된다(AN-017, 1C-3부터). 경로는 1C-2(2026-10-18)부터 GASP 원본과 같은 `Content/Characters/UEFN_Mannequin/`이다. 1C-3(2026-10-18)부터 이 폴더 417개는 GASP 5.8 본이다. 새 환경에서는 `import_list_1C3.txt` 369개와 경로 외 동일 49개(`identical_except_path_49.txt`, 둘 다 `Saved/AssetRefresh/2026-10-18/`)를 GASP 5.8에서 복사한다. 5.8에 없는 `Animations/Run/M_Relaxed_Run_Loop_F_Troy` 하나(`PSD_Run_UEFN`이 참조)는 기존 작업 환경이나 백업에서 가져온다. Lyra·MoverSample·Close Combat: Swordsman·무기 같은 다른 제외 에셋은 이 절차의 범위 밖이다.
 
 ## 5. 아키텍처 한 장 요약
 
 ```
 [ALNPCharacterBase]
-  AnimSourceMesh ── ABP_Lyra (ULNPAnimInstance)      ← Phase 2가 GASP 구성으로 재구성
+  AnimSourceMesh ── ABP_Main_UEFN (ULNPAnimInstance) ← Phase 2가 GASP 구성으로 재구성
   │  (숨김)          ├ 로코모션 (모션매칭 → GASP식 MM 노드·워핑·발 배치)
   │                  ├ 공중 Fall_Loop 고정 (AN-007)
   │                  ├ Linked Anim Layer (무기별 서브 ABP)
   │                  └ Slot DefaultSlot / FullBody / UpperBody (몽타주·ANS)
-  │   현재: SKM_Manny(Lyra) → 2-0b부터: SKM_UEFN_Mannequin + UEFN 메인 ABP (AN-011)
+  │   SKM_UEFN_Mannequin (2-0b부터, AN-011). 슬롯 그룹은 C++ 런타임 등록 (AN-020)
   │
-  VisualMesh ───── ABP_Retarget로 AnimSourceMesh 포즈를 받아 그린다  ← 랙돌·물리 히트리액트의 대상 메시
-                     ├ 플레이어 SKM_Manny_Simple(MoverSample), 적 SKM_UEFN_Mannequin
+  VisualMesh ───── AnimSourceMesh 포즈를 받아 그린다  ← 랙돌·물리 히트리액트의 대상 메시
+                     ├ 플레이어 SKM_Manny_Simple(MoverSample) + ABP_Retarget(RTG_GASP_to_MS)
+                     ├ 적 SKM_UEFN_Mannequin + ABP_VisualCopyPose(포즈 복사)
                      └ (Phase 3) PhysicsControl 상체 임펄스 — 코스메틱, 비복제
 ```
 
-`ActorPromoted` 적은 같은 `ABP_Lyra`를 공유하므로 Phase 2 결과를 자동으로 받는다. 무기·몽타주용 Lyra 애니는 UEFN으로 리타깃한 사본(`Content/Characters/Retargeted/`, git 제외)을 쓴다(AN-011·AN-016).
+`ActorPromoted` 적은 같은 `ABP_Main_UEFN`을 공유하므로 Phase 2 결과를 자동으로 받는다. 무기·몽타주용 Lyra 애니는 UEFN으로 리타깃한 사본(`Content/Characters/Retargeted/`, git 제외)을 쓴다(AN-011·AN-016).
 
 ## 6. 핵심 용어
 

@@ -387,9 +387,9 @@ Entity 모드, legacy(EnemyExactGround 0, 비교용 — Phase 6에서 제거):
 | `GetBaseAimRotation()` | 액터 전방에 복제된 로컬 Pitch를 얹은 조준선. Aim Offset과 발사 방향의 **공통 원본** |
 | `EnemyConfig` (복제, `OnRep_EnemyConfig`) | 적 무기 상태의 단일 원본. **복제해야 하는 이유:** Actor 스폰·`InitializeOnce`가 서버 전용인데 게스트의 Actor는 일반 Relevancy로 온다 — 없으면 게스트에서 무기 메시·애님 레이어가 안 붙고 `GetActiveWeaponDef()`도 null이 된다. OnRep은 **비주얼만** 갱신한다 |
 
-**메시 구성 (`BP_LNPEnemy`).** `AnimSourceMesh`(숨김) = Lyra `SKM_Manny` + `ABP_Lyra`, `VisualMesh` = GASP 소스 `/Game/Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin` + `ABP_Retarget`.
+**메시 구성 (`BP_LNPEnemy`).** `AnimSourceMesh`(숨김) = GASP 소스 `/Game/Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin` + `ABP_Main_UEFN`(플레이어와 같은 메인 ABP), `VisualMesh` = 같은 `SKM_UEFN_Mannequin` + `ABP_VisualCopyPose`(Copy Pose From Mesh로 부모 포즈 복사, 2026-10-18 AnimationOverhaul 2-0b부터). 두 메시가 같은 스켈레톤이라 런타임 리타기터가 없다. 이전의 `ABP_Retarget` + `RTG_Lyra_to_GASP`(루트 본 미지정·발가락 오매핑 결함)는 빠졌다. Leader Pose가 아니라 ABP 노드로 복사하는 이유는 [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md) §3.3.
 ISKM·ISM 표현은 이 메시가 아니라 `Retargeted/` 사본을 쓴다(→ [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md) §6.7).
-- `VisualMesh`는 **`bDisablePostProcessBlueprint = true`** 다(2026-10-18, AnimationOverhaul AN-019). GASP 5.8 메시에 붙어 온
+- 두 컴포넌트 모두 **`bDisablePostProcessBlueprint = true`** 다(2026-10-18, AnimationOverhaul AN-019). GASP 5.8 메시에 붙어 온
   `ABP_UEFN_Mannequin_PostProcess`(머리 1.15배·허벅지 1.12배 고정 스케일)를 끈다. ISKM은 포스트프로세스 ABP를 평가하지 않으므로,
   켜 두면 승격 순간 비율이 바뀌고 개체마다 매 프레임 평가 비용만 붙는다. 소스 메시는 고치지 않고 컴포넌트에서 끈다.
 

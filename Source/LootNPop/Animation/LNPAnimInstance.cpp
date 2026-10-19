@@ -3,6 +3,7 @@
 #include "Animation/LNPAnimInstance.h"
 #include "Character/LNPCharacterBase.h"
 #include "Character/LNPPlayerCharacter.h"
+#include "Item/LNPWeaponVisualSet.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "LootNPop.h"
 
@@ -144,15 +145,53 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	AimPitch = FMath::ClampAngle(LocalAimRot.Pitch, -90.0f, 90.0f);
 	AimYaw   = FRotator::NormalizeAxis(LocalAimRot.Yaw);
 
-	// 7. 왼손 IK 타겟 위치 업데이트
+	// 7. 왼손 IK 타겟 위치 업데이트 — 소켓이 우선, 없으면 표현 세트의 그립 오프셋(Lyra 총기 메시에는 소켓이 없다)
 	static const FName LeftHandGripSocketName(TEXT("LeftHandGrip"));
+	const ULNPWeaponVisualSet* VisualSet = OwningMoverCharacter->GetAppliedVisualSet();
 	if (WeaponMeshComp && WeaponMeshComp->DoesSocketExist(LeftHandGripSocketName))
 	{
-		bHasLeftHandGrip    = true;
+		bHasLeftHandGrip     = true;
 		LeftHandGripLocation = WeaponMeshComp->GetSocketLocation(LeftHandGripSocketName);
+		LeftHandIKAlpha      = 1.0f;
+	}
+	else if (WeaponMeshComp && WeaponMeshComp->GetSkeletalMeshAsset() && VisualSet && VisualSet->bUseLeftHandGripOffset)
+	{
+		bHasLeftHandGrip     = true;
+		LeftHandGripLocation = WeaponMeshComp->GetComponentTransform().TransformPosition(VisualSet->LeftHandGripOffset);
+		LeftHandIKAlpha      = 1.0f - ComputeLeftHandOffDemand();
 	}
 	else
 	{
 		bHasLeftHandGrip = false;
+		LeftHandIKAlpha  = 0.0f;
 	}
+
+	// 8. 견착 보정 — 무기 공간 보정량을 무기 부착 본 공간으로 옮긴다. 손·무기가 강체로 붙어 있어 값이 프레임마다 같다.
+	RightHandIKOffset = FVector::ZeroVector;
+	RightHandIKAlpha  = 0.0f;
+	const USkeletalMeshComponent* WeaponParent = WeaponMeshComp ? Cast<USkeletalMeshComponent>(WeaponMeshComp->GetAttachParent()) : nullptr;
+	if (WeaponParent && WeaponMeshComp->GetSkeletalMeshAsset() && VisualSet && !VisualSet->RightHandCorrection.IsNearlyZero())
+	{
+		const FName HandBone = WeaponParent->GetSocketBoneName(WeaponMeshComp->GetAttachSocketName());
+		const FTransform HandWorld = WeaponParent->GetBoneTransform(WeaponParent->GetBoneIndex(HandBone));
+		const FVector CorrectionWorld = WeaponMeshComp->GetComponentTransform().TransformVectorNoScale(VisualSet->RightHandCorrection);
+		RightHandIKOffset = HandWorld.InverseTransformVectorNoScale(CorrectionWorld);
+		RightHandIKAlpha  = 1.0f - ComputeLeftHandOffDemand();
+	}
+}
+
+float ULNPAnimInstance::ComputeLeftHandOffDemand() const
+{
+	// 몽타주·커브는 포즈 원본(AnimSourceMesh) 인스턴스에서 읽는다. 표시 메시 ABP도 이 클래스를 부모로 쓰기 때문이다.
+	const UAnimInstance* SourceAnim = OwningMoverCharacter ? OwningMoverCharacter->GetAnimInstance() : nullptr;
+	if (SourceAnim == nullptr)
+		return 0.0f;
+
+	static const FName DisableLHandIKCurve(TEXT("DisableLHandIK"));
+	static const FName HandOffSlots[] = { TEXT("DefaultSlot"), TEXT("FullBody"), TEXT("UpperBody") };
+
+	float Demand = SourceAnim->GetCurveValue(DisableLHandIKCurve);
+	for (const FName& Slot : HandOffSlots)
+		Demand = FMath::Max(Demand, SourceAnim->GetSlotMontageGlobalWeight(Slot));
+	return FMath::Clamp(Demand, 0.0f, 1.0f);
 }

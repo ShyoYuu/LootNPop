@@ -35,7 +35,7 @@
 
 유지된다. 2-0b 뒤 `AnimSourceMesh`는 UEFN이 되고 `VisualMesh`는 UEFN → 캐릭터 메시 리타기터로 포즈를 받는다. 바뀌는 것은 리타깃 노드의 원본·리타기터뿐이고, RBWC는 여전히 그 뒤에서 `VisualMesh` 자신의 스켈레톤·PhysicsAsset으로 돈다.
 
-⚠️ **2-0b 제약:** UEFN 메시 적은 "같은 스켈레톤이라 포즈 복사"로 계획돼 있다. 이를 `SetLeaderPoseComponent`(Leader Pose)로 구현하면 `VisualMesh`가 ABP를 돌리지 않아 RBWC를 둘 곳이 없다. **ABP 안의 `Copy Pose From Mesh` 노드**로 복사해야 Phase 3에서 적에게도 같은 노드를 쓸 수 있다.
+⚠️ **2-0b 제약:** UEFN 메시 적은 "같은 스켈레톤이라 포즈 복사"로 계획돼 있다. 이를 `SetLeaderPoseComponent`(Leader Pose)로 구현하면 `VisualMesh`가 ABP를 돌리지 않아 RBWC를 둘 곳이 없다. **ABP 안의 `Copy Pose From Mesh` 노드**로 복사해야 Phase 3에서 적에게도 같은 노드를 쓸 수 있다. → 2-0b에서 `ABP_VisualCopyPose`(Copy Pose From Mesh → 출력)로 반영했다(2026-10-18). RBWC는 그 뒤에 이어지는 왼손 IK 다음, 출력 앞에 넣는다.
 
 ### 1.6 복제
 

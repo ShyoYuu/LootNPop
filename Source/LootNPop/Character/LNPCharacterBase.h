@@ -26,6 +26,7 @@ class ULNPPawnGravityComponent;
 class UMotionWarpingComponent;
 class ALNPLootPod;
 class ULNPWeaponData;
+class ULNPWeaponVisualSet;
 class UAbilitySystemComponent;
 
 
@@ -89,6 +90,9 @@ public:
 	UCapsuleComponent*      GetCapsule()      const { return CapsuleComponent; }
 	USkeletalMeshComponent* GetWeaponMesh()   const { return WeaponMesh;       }
 	UAnimInstance*          GetAnimInstance() const { return AnimSourceMesh ? AnimSourceMesh->GetAnimInstance() : nullptr; }
+
+	/** 현재 비주얼에 반영된 무기의 표현 세트. 맨손이면 null. */
+	const ULNPWeaponVisualSet* GetAppliedVisualSet() const;
 
 	/** 방향만 담는다 — 단위 벡터 또는 영벡터. 속도는 SetAIDesiredSpeed로 (사유: 입력 핸들러 주석). */
 	void SetAIMoveInput(FVector InMoveInput);

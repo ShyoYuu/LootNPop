@@ -1,7 +1,7 @@
 # 애니메이션 개선 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-10-18
+> 마지막 갱신: 2026-10-19
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다. ID 접두어 `AN-`은 다른 작업 폴더(`D-`·`L-`)와 구분하기 위한 것이다.
 
 ## 결정 목록
@@ -28,7 +28,7 @@
 
 | AN-018 | **소스 에셋에 LootNPop 설정을 넣지 않는다.** GASP 소스(`UEFN_Mannequin/`)는 덮어쓰기 갱신(AN-013)과 해시 대조를 위해 저장하지 않는다. 소스에 설정이 필요하면 `Content/Characters/Retargeted/`에 사본을 만들고 그 사본에 건다. 첫 적용: ISKM용 `SKM_UEFN_Mannequin_Instanced`(전 LOD `bOptimizeForInstancing`)와 ISM용 `M_UEFN_Mannequin_Instanced`(`bUsedWithInstancedStaticMeshes`). 1C-3 덮어쓰기에서 소스에 직접 넣었던 두 설정이 사라져 ISKM 몸통이 T 포즈가 됐다. 컴포넌트 단위 설정(예: AN-019)은 소스가 아니라 사용하는 쪽 컴포넌트에 둔다. | 확정(2026-10-18, 1C-4) | [TechDesign_EnemyNPC_LowLOD.md](../TechDesign_EnemyNPC_LowLOD.md) §6.7, `phases/Phase01C_GASPAssetRefresh.md` 재생성 절차 |
 | AN-019 | GASP 5.8 `SKM_UEFN_Mannequin`에 붙어 온 포스트프로세스 ABP `ABP_UEFN_Mannequin_PostProcess`(머리 1.15배·허벅지 1.12배 고정 스케일)는 **쓰지 않는다.** 이 메시를 쓰는 스켈레탈 메시 컴포넌트마다 `bDisablePostProcessBlueprint = true`로 끈다(소스 메시는 수정하지 않는다). 지금은 `BP_LNPEnemy`의 `VisualMesh`다. 2-0b에서 `AnimSourceMesh`도 이 메시로 바뀌면 같은 설정을 넣는다. 끄는 이유: 사용자 PIE에서 체감 차이가 거의 없었다. ISKM은 이 ABP를 평가하지 않아 켜 두면 승격 때 비율이 바뀐다. 끄면 인스턴스마다 붙는 평가 비용도 없어진다. | 확정(2026-10-18, 사용자 결정) | [TechDesign_EnemyNPC.md](../TechDesign_EnemyNPC.md) §6 |
-| AN-020 | **몽타주 슬롯 그룹은 C++ 런타임 등록으로 맞춘다.** GASP `SK_UEFN_Mannequin`에는 슬롯 그룹이 `DefaultGroup{DefaultSlot}`·`Partials{UpperBody}`뿐이라, 그대로 전환하면 Lyra에서 `AdditiveGroup`이던 피격 몽타주가 공격 몽타주를 끊고 재장전 몽타주는 그룹 불일치 경고가 난다. Lyra와 같은 슬롯 → 그룹 표를 C++(`ULNPAnimInstance` 초기화 등)에서 `USkeleton`에 등록하고 스켈레톤 에셋은 저장하지 않는다(AN-018). 소스 스켈레톤 저장·몽타주 슬롯 이름 변경은 기각. 실행은 2-0b | 확정(2026-10-18, 사용자 결정) | `phases/Phase02_GASPMoverABP.md` 2-0b 결정 B |
+| AN-020 | **몽타주 슬롯 그룹은 C++ 런타임 등록으로 맞춘다.** GASP `SK_UEFN_Mannequin`에는 슬롯 그룹이 `DefaultGroup{DefaultSlot}`·`Partials{UpperBody}`뿐이라, 그대로 전환하면 Lyra에서 `AdditiveGroup`이던 피격 몽타주가 공격 몽타주를 끊고 재장전 몽타주는 그룹 불일치 경고가 난다. Lyra와 같은 슬롯 → 그룹 표를 C++(`ULNPAnimInstance` 초기화 등)에서 `USkeleton`에 등록하고 스켈레톤 에셋은 저장하지 않는다(AN-018). 소스 스켈레톤 저장·몽타주 슬롯 이름 변경은 기각. 실행은 2-0b(`ULNPAnimInstance::NativeInitializeAnimation`, 2026-10-18 구현) | 확정(2026-10-18, 사용자 결정) | `phases/Phase02_GASPMoverABP.md` 2-0b 결정 B |
 
 ## 변경 규칙
 

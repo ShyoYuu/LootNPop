@@ -940,6 +940,17 @@ Nanite → Static → **GPUSkin** 순으로 떨어지고 `r.GPUSkin.UseSceneExte
   `Blend To Source Translation Weights`도 **효과가 없다**(기본 0인 값에만 곱해지는 가중치다).
 - 판별: 애니 에디터에서 pelvis가 **`root` 위를 따라다니며 위아래로만** 움직이면 제자리다. 프리뷰와 ISKM 결과가 같다.
 
+⚠️ **미해결 — ISKM 총기 적의 견착·왼손이 총에 맞지 않는다** (2026-10-19 사용자 PIE, 지상 원거리 샷건 NPC).
+개머리판이 오른쪽 어깨를 파고들고 왼손이 그립에서 벗어난다. 2-0b가 바꾼 것이 아니라 이 트랙에서 구운 클립의 문제다.
+ISKM은 런타임 IK가 없으므로 **클립 자체가 총에 맞게 구워져야 한다.** 원인으로 확인된 것(AnimationOverhaul 2-0b, 플레이어 경로에서 실측):
+- Lyra와 UEFN의 기준 자세(팔 각도)가 달라 리타깃 결과의 총이 상체에 대해 어긋난다. 플레이어 경로(UEFN → MoverSample)에서는
+  총이 약 9cm 뒤·4cm 위에 남았다. ⚠️ 리타깃 포즈를 `auto_align_all_bones`로 정렬하면 위치는 좋아지지만 손목이 함께 돌아 총구가
+  27° 숙여진다 — 플레이어는 정렬하지 않고 무기별 견착 보정(`ULNPWeaponVisualSet::RightHandCorrection`, 오른팔 IK)으로 맞췄다.
+- 왼손은 리타깃 비율 보정만으로는 그립에 맞지 않는다(라이플 1~2cm 이상). 플레이어·승격 적은 표시 ABP의 Two Bone IK가
+  `ULNPWeaponVisualSet::LeftHandGripOffset`(무기 공간, Lyra 원본에서 계산)으로 맞춘다. ISKM은 이 오프셋으로 왼손 IK를 **구울 때** 적용해야 한다.
+- 해결 방향(별도 세션): ① 오른팔 IK로 총 위치를 Lyra 기준으로 옮기고(플레이어와 같은 계산, 대상이 UEFN이라 값은 새로 잰다) ② 같은 그립 오프셋으로 왼손 IK를 적용한 결과를
+  시퀀스에 굽는다(Control Rig 베이크 또는 IK가 들어간 ABP 포즈를 시퀀스로 기록). 재생성 절차는 `Phase01C_GASPAssetRefresh.md`를 갱신한다.
+
 #### ASTP 편집 시 에디터가 죽는 조건
 
 ⚠️ **`Sequences` 배열에 `Sequence`가 비어 있는 항목을 한 순간이라도 두면 에디터가 죽는다.**

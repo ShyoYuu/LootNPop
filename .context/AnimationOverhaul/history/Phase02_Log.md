@@ -72,3 +72,77 @@ LootNPop 에디터(8000)만 썼다. GASP 에디터는 쓰지 않았다. 런타�
 - 결정 A: 임시 로코모션 Chooser는 `CHT_PSD_Lyra`를 복제해 `Characters/MotionMatchingData/CHT_PSD_UEFN`을 새로 만든다(백업 복원 기각).
 - 결정 B: 몽타주 슬롯 그룹은 C++ 런타임 등록으로 맞춘다 → `Decisions.md` AN-020. 소스 스켈레톤 저장·슬롯 이름 변경 기각.
 - 두 결정 모두 2-0b에서 실행한다. 이 기록에서 에셋·C++ 변경은 없다.
+
+## 2026-10-18~19 — 단위 2-0b 전환
+
+LootNPop 에디터(8000)만 썼다. 커밋 경계: 사전 작업 `69acbb3`(C++·새 구성 에셋, 런타임 미참조) → 전환·회귀 수정·문서.
+
+### 1. 사전 작업
+
+- 슬롯 그룹(AN-020): `ULNPAnimInstance::NativeInitializeAnimation`에서 Lyra 표를 `USkeleton::SetSlotGroupName`으로 등록. 엔진 확인: `SetSlotGroupName`·`AddSlotGroupName`은 `MarkPackageDirty`를 부르지 않는다. 몽타주 `PostLoad`는 슬롯을 `DefaultGroup`으로 `RegisterSlotNode`만 한다. 그룹 불일치 몽타주는 `Montage_Play`의 `HasValidSlotSetup()`에서 거부된다(경고 + 재생 안 함). 에디터 확인: 피격 `AdditiveGroup`, 재장전 `DefaultGroup`(두 트랙 같음), 대시·공격 `DefaultGroup`, `SK_UEFN_Mannequin` dirty 아님.
+- 재장전을 C++가 끊는 경로: `ULNPAbility_Reload::OnDashExecuted` → `CancelAbility`, `ULNPEquipmentComponent` 무기 교체 → `CancelAbilities(Reload)`. 둘 다 `PlayMontageAndWait`가 몽타주를 멈춘다. `Montage_Stop`을 직접 부르는 곳(이동 취소 ANS·랙돌·경직)은 그룹과 무관하게 전부 멈춘다.
+- Chooser 결과 행은 MCP·Python으로 쓸 수 없다(`UChooserTable::ResultsStructs` = 편집 플래그 없는 `UPROPERTY()`). `ConsolidateAssets`는 원본을 지운다. 그래서 에디터 명령 `LNP.Editor.ReplaceAssetRefs <대상> <원본>=<사본> ...`(`LootNPopEditor/Tools/LNPReplaceAssetRefsCommand.cpp`)를 만들었다. 첫 구현은 UPackage를 검색 루트로 넘겨 교체 0건이었다(패키지 직렬화에 참조가 없다) → 패키지 안 오브젝트마다 돌리도록 고쳤다(Live Coding). 새 cpp라 에디터 재시작·풀 빌드가 한 번 필요했다(사용자가 수행).
+- `CHT_PSD_UEFN` 4쌍 9참조, `CHT_Montage` 26쌍 53참조 교체. 저장 뒤 의존성: 각각 `PSD_*_UEFN` 4개, `Retargeted/Lyra/*_UEFN` 26개만.
+- `ABP_Main_UEFN`: `ABP_Lyra` 하나를 배치 리타깃(`RTG_Lyra_to_UEFN_Offline`, 참조 에셋 미포함) → 이동. 남은 참조 3개를 노드 프로퍼티로 교체, `warnings_as_errors` 컴파일 통과. 원본 `ABP_Lyra` dirty 아님. 이동 직후 프리뷰 인스턴스의 `Accessed None ... Predictor` 로그는 기존 노이즈.
+- `ABP_VisualCopyPose`: `ABP_Retarget`(템플릿, 부모 `ULNPAnimInstance`) 복제 → 리타깃 노드를 Copy Pose From Mesh(`bUseAttachedParent`·`bCopyCurves`)로 교체, 이벤트 그래프·리타기터 변수 제거.
+
+### 2. 전환
+
+- 두 BP `AnimSourceMesh`: `SKM_UEFN_Mannequin` + `ABP_Main_UEFN` + `bDisablePostProcessBlueprint`. `UnarmedAnimLayerClass` → `ABP_Sub_Unarmed_UEFN`. 플레이어 `VisualMesh` 태그 `RTG_Lyra_to_MS` → `RTG_GASP_to_MS`. 적 `VisualMesh` → `ABP_VisualCopyPose`, 태그 비움.
+- `GA_ParrySuccess_LongSword.ReactionMontage` → 사본. `GA_Stagger_LongSword`: 바이너리 이름 테이블에 `StaggerMontage`가 남아 있었다(C++에서 지운 프로퍼티, `ea15a25` 경직 통합 때). 컴파일·재저장으로 제거.
+- `VS_*` 4개 `AnimLayerClass` → `_UEFN`. `ABP_Retarget` 리타기터 맵을 `RTG_GASP_to_MS` 하나로 줄여 Lyra 메시·IK 리그 하드 로드를 끊었다.
+- 두 Pawn에서 의존성을 따라가 Lyra 참조 0(188개 방문). 자동 PIE(1회) 로그: 몽타주·슬롯·애니 경고 0.
+
+### 3. 사용자 PIE 1차 → 수정
+
+1. **ensure `SkeletonToCompactPose.IsValidIndex`**(`UBlendProfile::FillBoneScalesArray`, `FullBody` 슬롯). 대시 사본 4개의 `BlendProfileOut`이 Lyra `SK_Mannequin:FastFeet`. 2-0a 대조 스크립트가 블렌드 프로필을 보지 않았다. UEFN 스켈레톤에도 `FastFeet`(+`FastFeet_FastRoot` 등 GASP 변형)이 있어 이름으로 다시 이었다(`FixRetargetedMontages.py`).
+2. 같은 점검에서 몽타주 사본 22개의 저장본에 원본 Lyra 시퀀스 의존성이 남은 것을 찾았다. 세그먼트는 사본이고, 메모리 참조를 교체 명령으로 훑으면 0건이다. 그냥 다시 저장해도 남는다. 교체 명령의 `PostEditChange`를 거친 뒤 저장하면 사라진다(섹션·노티파이 링크 정보로 추정). 98개 모두 의존 0.
+
+### 4. 사용자 PIE 2차 → 수정
+
+- **달릴 때 다리가 한 프레임씩 불가능한 각도로 튐(플레이어).** `RTG_GASP_to_MS`를 GASP 달리기 클립 2개로 오프라인 배치 리타깃해 본별 프레임 간 로컬 회전 최대치를 쟀다(원본 20~32°).
+
+  | 구성 | 허벅지·종아리·발 | ball | 트위스트 |
+  |:---|:---|:---|:---|
+  | 디스크 원래 상태 | 100~178° | 150~179° | 0(고정) |
+  | 체인 매핑 정리 + Copy Base Pose + 다리 OneToOne | 100~178° | 같음 | 원본과 같음 |
+  | op 하나씩 끄기 | Run IK Rig만 끄면 원본과 같음 | 0(고정) | — |
+  | 다리 체인만 IK에서 빼고 팔 IK 유지 | 60~118°(Relaxed 루프) | — | — |
+  | 대상 리그 `IK_MS_FootGoal`(다리 끝·목표 foot, 다리 목표 솔버 분리) + IK 켬(채택) | **원본과 같음** | **원본과 같음** | 원본과 같음 |
+
+  원인 정리: 자동 매핑이 원본 리그에 없는 체인을 엉뚱하게 이었고(트위스트 ← 손가락 중수골·쇄골, FootIK ← Toe, HandIK ← Index), MS 리그 다리 목표는 `ball`인데 UEFN은 `foot`이라 IK가 다리를 뒤집었다. 전신 솔버라 다리 체인만 빼도 다리 목표가 남아 무릎이 뒤집혔다. op 설정의 `ik_rig_asset`은 `set_settings`로 바뀌지 않는다 — `assign_ik_rig_to_all_ops`를 써야 한다.
+- **멈춰도 달리기가 계속 재생되고 제자리 대시·점프 뒤에야 Idle로 돌아감(플레이어·적 공통).** UEFN PSD 4개의 `normalization_set`이 비어 있었다(Lyra PSD는 `PSN_CoreLocomotion_Lyra`). `PSN_CoreLocomotion_UEFN`을 연결했다. 나머지 DB 비용 설정(continuing·looping bias, PCA KD-tree, 이웃 200, 주성분 4)은 Lyra와 같다.
+
+### 5. 사용자 PIE 3차 → 수정
+
+- **무기 왼손 위치 이상**(총기는 오른쪽으로, 롱소드는 몸 쪽으로). 4절 중간 단계에서 IK op를 통째로 꺼 팔 IK도 꺼졌기 때문이다. 최종 구성(팔 IK)에서 조준 아이들의 "오른손 공간의 왼손 위치"를 쟀다: 전환 전 Lyra → MS 결과 라이플 (−31.0, 10.4, 1.3)·권총 (0.9, 7.0, −1.3) / 지금 UEFN 사본 → MS 결과 (−29.9, 9.8, 0.0)·(1.2, 7.1, −1.3), 차이 1.8cm·0.3cm. 2-0a UEFN 사본 자체는 Lyra 원본과 약 8cm 다르지만 팔 IK가 되돌린다.
+- **방향과 무관하게 정면 달리기만 재생.** 회귀다(Lyra DB는 Fwd/Bwd/Left/Right). 사용자 결정으로 2-2에서 복구하고 2-0b는 알려진 차이로 기록했다(`phases/Phase02_GASPMoverABP.md` 2-0b 결과).
+
+### 6. 사용자 PIE 4·5차 → 무기 왼손 IK·견착
+
+- **총기 왼손 1~2cm 잔차.** 리타깃 설정만으로 줄일 수 있는지 임시 사본으로 4가지를 쟀다(오른손 기준 왼손 위치, 전환 전 Lyra 대비): 지금 구성 라이플 1.8·권총 0.3cm / 런타임 Blend To Source 3.9·0.5 / 오프라인 Blend To Source 4.3·2.6 / 둘 다 5.0·1.8. 지금이 최선이라 표시 메시 IK로 갔다. `Weapon Goals` op는 `ik_hand_*`가 GASP 로코모션 값이라(서브 ABP가 spine_01 이하만 덮는다) 쓸 수 없다.
+- 총기 메시에는 `LeftHandGrip` 소켓이 없다(롱소드 `SK_LongSword` 스켈레톤에만). `DisableLHandIK` 커브는 Lyra 라이플 재장전 두 클립에만 있다 → 슬롯 몽타주 가중치를 함께 쓴다.
+- C++: `ULNPWeaponVisualSet`에 `bUseLeftHandGripOffset`·`LeftHandGripOffset`, `ALNPCharacterBase::GetAppliedVisualSet()`, `ULNPAnimInstance::LeftHandIKAlpha`·`ComputeLeftHandOffDemand()`. UPROPERTY 추가라 사용자가 에디터 재시작·풀 빌드.
+- 오프셋(무기 공간 cm, 조준 아이들): 라이플 (6.49, 29.70, 6.95)·샷건 (7.30, 27.81, 6.90). 힙파이어와 차이 2.5·2.7cm, 권총 3.2cm(권총은 넣지 않음). 서브 ABP 기본 자세가 조준 아이들이라 조준 값을 쓴다. 사용자 PIE: 왼손 깔끔하게 일치.
+- **견착이 몸 쪽으로 당겨짐(개머리판이 어깨 관통, 라이플·샷건).** 오른손의 `spine_05` 기준 위치(Lyra 대비): 2-0a UEFN 사본 2.5cm, 최종 MS 9.5cm → 런타임 홉에서 약 7cm가 생긴다. IK 끄기·팔/척추 FK OneToOne은 효과 없음(8.0~13.0cm). 두 리타기터 모두 리타깃 포즈가 정렬 안 된 `DefaultPose`였다.
+
+  | 변형 | 라이플 | 샷건 | 권총 |
+  |:---|:---|:---|:---|
+  | 지금 | 9.5 | 10.4 | 8.5 |
+  | 런타임 대상 포즈 자동 정렬(채택) | 4.2 | 4.3 | 1.2 |
+  | 런타임 원본 포즈 정렬 | 4.5 | 4.5 | 6.8 |
+  | 오프라인 1차 대상 정렬 + 런타임 정렬 | 3.6 | 3.8 | 4.5 |
+  | 오프라인 1차만 정렬 | 10.9 | 11.8 | 8.3 |
+
+  처음에는 런타임 대상 포즈만 정렬했다(98개 재생성 불필요). 사용자 PIE에서 개머리판이 어깨 위로 떠 머리를 파고들었다. 축별로 보니 총(오른손)은 컴포넌트 공간에서 Lyra와 1cm 이내였고, 상체가 뒤로 3~4cm 밀려 있었다. 척추 체인 모드(OneToOne·MatchChain)·팔 IK 끄기·Pelvis op 끄기는 모두 ≥4cm로 효과가 없었다 → 무기별 견착 보정(`RightHandCorrection`, 오른팔 IK)을 C++로 추가했다(재시작 1회). 수동 값 Z −3.5 → −7.0cm로 맞추던 중 사용자가 "권총이 고개를 숙였다"고 보고했다.
+- **총구 27° 하향.** 무기 +Y의 컴포넌트 공간 방향을 Lyra와 비교: 정렬 없음 0°, 자동 정렬 27.2°(세 총 모두, 위팔 13.2°·아래팔 21.8° 오프셋). 손 회전 오프셋만 0으로 되돌리는 시도는 회전값 설정이 틀려 무의미(70~87°). → **정렬을 되돌리고**(대상 포즈 `Default Pose`, `AutoAligned` 삭제) 견착 보정값을 정렬 없는 결과 기준으로 다시 계산했다(오른손의 `spine_05` 기준 위치를 Lyra와 같게 하는 이동량을 무기 공간으로): 라이플 (0.53, 8.70, −3.75)·샷건 (0.09, 9.68, −3.88)·권총 (1.90, 6.66, −4.90). 사용자 PIE: 세 총 견착·총구·왼손 정상.
+- **ISKM 총기 적**(지상 원거리 샷건)도 견착·왼손이 맞지 않는다는 보고 → 2-0b 이전부터 있던 구운 클립 문제라 별도 세션으로 기록만 했다.
+
+### 시행착오·주의
+
+- 리타깃 포즈 정렬 여부는 `IKRetargeterController.get_current_retarget_pose_name`과 `get_rotation_offset_for_retarget_pose_bone`(Quat 반환)으로 본다. ⚠️ 자동 정렬은 위치만 보고 판단하면 안 된다 — 손목 방향(총구)이 함께 바뀐다. 기본 포즈 이름은 `Default Pose`(공백 있음)라 `set_current_retarget_pose("DefaultPose")`는 조용히 실패한다.
+- `ComputeLeftHandGripOffsets.py`는 왼손 그립 오프셋과 견착 보정을 함께 계산한다. 런타임 리타기터(`RTG_GASP_to_MS`)나 사본을 다시 만들면 `apply`로 다시 돌린다.
+- PIE를 끈 직후 Cmd 입력창에 `Type`하면 `true`를 돌려줘도 실행되지 않을 수 있다(로그에 `Cmd: py` 줄이 없다). `Click` → `Ctrl+A` → `Type`으로 다시 넣는다.
+- `python3`는 이 PC에서 Windows 스토어 별칭이라 멈춘다. 엔진 번들 파이썬(`Engine/Binaries/ThirdParty/Python3/Win64/python.exe -I`)을 쓴다.
+- `IKRetargeterController`로 op를 바꿔도 리타기터가 dirty로 표시되지 않아 `save_assets`가 건너뛴다 → `EditorAssetLibrary.save_loaded_asset(a, only_if_is_dirty=False)`.
+- `ProgrammaticToolset` 스크립트는 툴 호출 중 에디터가 남긴 오류 로그(프리뷰 인스턴스 `Accessed None`, 없는 에셋)를 예외로 받아 중단된다. 값은 이미 들어가 있을 수 있으니 되읽어 확인한다.

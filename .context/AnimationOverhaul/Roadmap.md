@@ -44,7 +44,7 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 | 1A | 물리 히트리액트 스파이크 | 1세션 | 완료(2026-10-18, RBWC 노드 방식 — `research/PhysicsHitReactSpike.md`) | 테스트 폰의 `VisualMesh` 상체에 PhysicsControl 임펄스, 적도에서 처짐 없음, 2인 PIE 각 머신 로컬 재생, 캡슐·Mover 무영향 |
 | 1B | 마커리스 모캡 스파이크 | 1~2세션 | 계획 | 영상 1클립 → MetaHuman 바디 → UEFN 리타깃 → 루트모션·검 방향 정리 → 공격 몽타주로 PIE 1타 |
 | 1C | GASP 소스 에셋 최신화 | 1C-1 대조표·백업 · 1C-2 경로 정렬 · 1C-3 덮어쓰기 · 1C-4 회귀 (3~4세션) | 완료(2026-10-18, 4세션. ISKM 인스턴싱 설정은 `Retargeted/` 사본에(AN-018), 포스트프로세스 ABP 끔(AN-019)) | 옛 GASP 유래 411개를 5.8 최신본으로 교체, 원본 경로 정렬·`.gitignore`(AN-016), 노티파이 리다이렉트(AN-017), LootNPop 산출물 보존, 깨진 참조 0, ISKM·승격 적 회귀 없음 (`phases/Phase01C_GASPAssetRefresh.md`) |
-| 2 | 스켈레톤 전환 + GASP Mover ABP 재구성 | 2-0a·2-0b 전환 2세션 + 블록당 1세션 6세션 | 진행 중(2-0a 완료 2026-10-18, `phases/Phase02_GASPMoverABP.md`) | 아래 §4. 블록마다 적도·NPC·2인 확인, 무기 레이어·슬롯·ANS 회귀 없음 |
+| 2 | 스켈레톤 전환 + GASP Mover ABP 재구성 | 2-0a·2-0b 전환 2세션 + 블록당 1세션 6세션 | 진행 중(2-0a·2-0b 완료 2026-10-19, `phases/Phase02_GASPMoverABP.md`) | 아래 §4. 블록마다 적도·NPC·2인 확인, 무기 레이어·슬롯·ANS 회귀 없음 |
 | 3 | 물리 히트리액트 본 구현 | 2~3세션 | 계획 | 히트리액트 몽타주 대체, 방향·강도 반영, 플레이어·`ActorPromoted` 적, 2인 PIE |
 | 4 | 모캡 근접 세트 확충 | 무기 세트당 1~2세션 | 계획 | 루트모션 공격이 근접 보정 Motion Warping 경로를 탐, ANS 5종 배치, 칼날 판정 일치 |
 | 5 | UAF 판정 스파이크 | 1~2세션 | 계획 | 체크리스트(§4 Phase 5) 전 항목 판정, Go/No-Go 기록 |
@@ -85,9 +85,9 @@ MM 노드 방식(AN-015). 블록 정의는 `design/GASPReference.md` §2.2(B0~B1
 | 단위 | 블록 | 내용 | 비고 |
 |:---|:---|:---|:---|
 | 2-0a | 리타깃 세트 | **완료(2026-10-18).** Lyra 실사용 91개 + 0-3이 놓친 7개(`Weapons/` 캐릭터 몽타주 6, `Fall_Loop` 1) = 98개를 오프라인 리타기터 `RTG_Lyra_to_UEFN_Offline`(루트 본 지정·발가락 매핑 해제·Copy Base Pose)으로 `Content/Characters/Retargeted/Lyra/`(git 제외)에 만들었다. 서브 ABP 5개 `ABP_Sub_*_UEFN`. 재생성 스크립트 `Scripts/AnimRetarget/` | 런타임 변화 없음. 대조 98쌍 결함 0(ANS 5종·섹션·루트모션·노티파이·슬롯). 가상 본 미사용. 몽타주 그룹 14건 차이는 스켈레톤 슬롯 그룹 문제 → 2-0b 결정 B |
-| 2-0b | 전환 | `AnimSourceMesh` → `SKM_UEFN_Mannequin`, 메인 ABP를 UEFN 스켈레톤으로(임시 로코모션: `PSD_*_UEFN` 4개를 고르는 임시 Chooser — 옛 `CHT_PSD_UEFN`은 1C-2에서 삭제됨. `CHT_PSD_Lyra`를 복제해 새 `CHT_PSD_UEFN`, 결정 A 확정), 몽타주 슬롯 그룹 C++ 런타임 등록(결정 B 확정, AN-020), `CHT_Montage`·GA 2개 참조를 사본으로, `ABP_Retarget` 경로 정리(플레이어 UEFN→MS, UEFN 메시 적은 포즈 복사), 새 `AnimSourceMesh`에 `bDisablePostProcessBlueprint`(AN-019) | 회귀 중심: 근접 콤보·ANS 판정·근접 보정 Motion Warping·재장전·가드/패링·랙돌·HitStop, 적도·`ActorPromoted` 적·2인 PIE. ISKM 적은 영향 없음 확인 |
+| 2-0b | 전환 | **완료(2026-10-19).** `AnimSourceMesh` = `SKM_UEFN_Mannequin` + `ABP_Main_UEFN`(`ABP_Lyra` 리타깃 복제, `bDisablePostProcessBlueprint`), 임시 로코모션 `CHT_PSD_UEFN`(결정 A), 슬롯 그룹 C++ 런타임 등록(결정 B, AN-020), `CHT_Montage`·GA 2개·`VS_*`를 사본으로, 플레이어 `VisualMesh`는 `RTG_GASP_to_MS`(대상 리그 `IK_MS_FootGoal`: 다리 FK·팔 IK), 적 `VisualMesh`는 `ABP_VisualCopyPose`(포즈 복사, RBWC 자리). 표시 ABP 왼손 그립 IK·견착 보정(무기별 `VS_*` 값), Chooser 행 교체용 에디터 명령 `LNP.Editor.ReplaceAssetRefs` | 사용자 2인 PIE 통과(근접 콤보·ANS·근접 보정·재장전·가드/패링·대시·랙돌·피격, 적도). PIE에서 찾아 고친 것: 대시 블렌드 프로필, 리타기터 다리 IK·체인 매핑, UEFN PSD 정규화 세트 누락, 무기 왼손·견착·총구. **알려진 차이: 스트레이프 방향 클립 없음 → 2-2** |
 | 2-1 | B0 + B10 | `ULNPAnimInstance`에 `GASPReference.md` §2.3 공급값 추가(상태 enum·이력, 궤적 파생값, 가속, 지면 법선·경사, 상태 술어). 포즈 히스토리 위치를 출력 직전으로, 슬롯 뒤 DeadBlending | C++ 중심. 아직 애니 선택은 그대로라 화면 변화가 작다 — 값은 디버그 출력으로 검증 |
-| 2-2 | B1 | 2-0b의 임시 Chooser를 상태별 PSD 묶음 Chooser로 교체(우선 Idle·Walk·Run·Sprint 루프), DB 인터럽트 모드·블렌드 시간 함수 | Chooser 결과는 GASP 스크린샷 1장으로 확인(§2.6). AN-007 공중 고정 유지 |
+| 2-2 | B1 | 2-0b의 임시 Chooser를 상태별 PSD 묶음 Chooser로 교체(우선 Idle·Walk·Run·Sprint 루프). **스트레이프 방향 DB 복구(2-0b 알려진 차이)**: GASP 5.8 방향별 Walk·Run 루프 반입 → `bShouldStrafe` 행, DB 인터럽트 모드·블렌드 시간 함수 | Chooser 결과는 GASP 스크린샷 1장으로 확인(§2.6). AN-007 공중 고정 유지 |
 | 2-3 | B3 + B2 | Offset Root Bone(모드·반감기 함수, 몽타주 슬롯 중 Release, 움직이는 base 이동량) + 블렌드 스택 그래프의 Steering·Orientation Warping | Steering 목표 방향의 Up 기준을 적도에서 확인. Stride Warping은 미끄러짐이 보일 때만 |
 | 2-4 | B6 (+B7 착지) | Starts·Stops·Pivots·Spins·TurnInPlace·Turns·GaitTransitions DB 추가, 제자리 회전 Steering(DB 태그), 착지 Lands_Light/Heavy 검토 | 곡선 6종이 실린 최신 시퀀스 필요(1C) |
 | 2-5 | B4 + B5 | `CR_Biped_FootPlacement` 구성 CR + `Procedural_Feet` 레이어, 경사 BS 행 | ⚠️ CR `UpdateRootDamper` 월드 Z 감쇠 수정. 접지 트레이스·적도 확인 |

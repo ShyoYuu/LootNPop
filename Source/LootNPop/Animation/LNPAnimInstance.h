@@ -24,6 +24,9 @@ public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
 protected:
+	/** 오프셋 그립의 왼손이 그립을 떠나야 하는 정도(0~1). LeftHandIKAlpha 주석 참조. */
+	float ComputeLeftHandOffDemand() const;
+
 	/** Owner 캐릭터 참조 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Character")
 	TObjectPtr<ALNPCharacterBase> OwningMoverCharacter;
@@ -93,7 +96,29 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
 	FVector LeftHandGripLocation = FVector::ZeroVector;
 
-	/** LeftHandGrip 소켓 존재 여부. false면 왼손 IK 비활성. */
+	/** 왼손 그립 목표가 있는가(LeftHandGrip 소켓 또는 표현 세트의 그립 오프셋). false면 왼손 IK 비활성. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
 	bool bHasLeftHandGrip = false;
+
+	/**
+	 * 표시 메시(VisualMesh) ABP의 왼손 IK 알파(0~1).
+	 * 소켓 그립(롱소드)은 원본 쪽 서브 ABP IK와 같이 항상 1이다.
+	 * 오프셋 그립(총기)은 손이 그립을 떠날 수 있는 구간에 내린다 — `AnimSourceMesh`의
+	 * `DisableLHandIK` 커브(Lyra 라이플 재장전)와 DefaultSlot·FullBody·UpperBody 몽타주 가중치 중 큰 값만큼.
+	 * 사격(FullBodyAdditivePreAim)·피격(AdditiveHitReact)은 가산 슬롯이라 IK를 유지한다.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	float LeftHandIKAlpha = 0.0f;
+
+	/**
+	 * 견착 보정(`ULNPWeaponVisualSet::RightHandCorrection`)을 무기 부착 본(hand_r) 공간으로 옮긴 값(cm).
+	 * 플레이어 표시 ABP의 오른팔 Two Bone IK가 "현재 hand_r + 이 값"을 목표로 쓴다(Effector = BoneSpace hand_r).
+	 * 무기가 손에 강체로 붙어 있어 프레임마다 같은 값이다(이전 프레임 IK 결과가 되먹임되지 않는다).
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	FVector RightHandIKOffset = FVector::ZeroVector;
+
+	/** 오른팔 견착 보정 IK 알파(0~1). 보정이 있을 때만, 왼손 오프셋 그립과 같은 몽타주·커브 차단을 따른다. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	float RightHandIKAlpha = 0.0f;
 };
