@@ -8,11 +8,67 @@
 
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "KismetAnimationLibrary.h"
+#include "Animation/Skeleton.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+
+namespace
+{
+	/**
+	 * Lyra SK_Mannequin과 같은 몽타주 슬롯 → 그룹 표(AN-020).
+	 * GASP SK_UEFN_Mannequin에는 DefaultGroup{DefaultSlot}·Partials{UpperBody}뿐이라, 그대로 두면
+	 * 피격(AdditiveHitReact)이 공격과 같은 그룹이 되어 공격 몽타주를 끊고, 재장전(UpperBody + UpperBodyAdditive)은
+	 * 그룹이 갈려 HasValidSlotSetup()에 걸려 재생되지 않는다.
+	 */
+	struct FLNPSlotGroupEntry
+	{
+		const TCHAR* SlotName;
+		const TCHAR* GroupName;
+	};
+
+	constexpr FLNPSlotGroupEntry LNPLyraSlotGroups[] =
+	{
+		{ TEXT("DefaultSlot"),            TEXT("DefaultGroup") },
+		{ TEXT("FullBody"),               TEXT("DefaultGroup") },
+		{ TEXT("FullBodyAdditivePreAim"), TEXT("DefaultGroup") },
+		{ TEXT("UpperBody"),              TEXT("DefaultGroup") },
+		{ TEXT("UpperBodyAdditive"),      TEXT("DefaultGroup") },
+		{ TEXT("AdditiveHitReact"),       TEXT("AdditiveGroup") },
+	};
+
+	/**
+	 * 스켈레톤의 런타임 슬롯 그룹을 Lyra 표에 맞춘다. 이미 맞으면 아무것도 바꾸지 않는다(멱등).
+	 * USkeleton::SetSlotGroupName은 패키지를 dirty로 만들지 않는다. 스켈레톤 에셋은 저장하지 않는다(AN-018) —
+	 * 에디터에서 이 스켈레톤을 열어 저장하면 이 그룹이 디스크에 들어가므로 저장하지 말 것.
+	 */
+	void RegisterLyraSlotGroups(USkeleton* Skeleton)
+	{
+		if (Skeleton == nullptr)
+			return;
+
+		for (const FLNPSlotGroupEntry& Entry : LNPLyraSlotGroups)
+		{
+			const FName SlotName(Entry.SlotName);
+			const FName GroupName(Entry.GroupName);
+			if (Skeleton->ContainsSlotName(SlotName) && Skeleton->GetSlotGroupName(SlotName) == GroupName)
+				continue;
+
+			Skeleton->AddSlotGroupName(GroupName);
+			Skeleton->SetSlotGroupName(SlotName, GroupName);
+		}
+	}
+}
 
 void ULNPAnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
+
+	// 몽타주 그룹은 재생 시점에 스켈레톤에서 정해지므로 첫 Montage_Play 전에 맞춘다.
+	if (const USkeletalMeshComponent* SkelMesh = GetSkelMeshComponent())
+	{
+		if (USkeletalMesh* MeshAsset = SkelMesh->GetSkeletalMeshAsset())
+			RegisterLyraSlotGroups(MeshAsset->GetSkeleton());
+	}
 
 	// 성능 향상을 위한 참조 Cache
 	OwningMoverCharacter = Cast<ALNPCharacterBase>(TryGetPawnOwner());
