@@ -1,7 +1,7 @@
 # GASP 참조 조사
 
-> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3 완료 — 블록별 수치는 Phase 2 착수 시 재확인)
-> 마지막 갱신: 2026-10-18
+> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
+> 마지막 갱신: 2026-10-19
 > 소유 정보: GASP 5.8 에디터(`unreal-mcp-gasp`, 포트 8001)에서 무엇을 어떻게 읽는지, 그리고 블록별로 LootNPop에서 무엇을 만들지. 원본 덤프가 아니라 요약만 둔다(README §11).
 
 ## 1. 읽기 방법
@@ -168,3 +168,55 @@ GASP는 Pawn이 BPI로 구조체를 넘기고 ABP가 가공한다. LootNPop은 M
 - 기각: Lyra 시퀀스를 UEFN에서 "호환 스켈레톤"으로 직접 재생하는 방식. 리타깃 설정이 GASP 소스 에셋인 스켈레톤에 붙어 덮어쓰기 때 사라지고, IK 리타기터보다 비율 보정 품질이 낮다.
 
 GASP 5.8 시퀀스의 외부 의존(MM 경로 Chooser에서 따라간 결과, 처리 규칙 AN-017): `/Game/Misc/SandboxAnimCurveCompressionSettings`(681개 시퀀스), `BP_AnimNotify_FoleyEvent_*` 10종(→ `/Game/Audio/Foley/*`), `BP_NotifyState_EarlyTransition`(22개 시퀀스, → `BPI_SandboxCharacter_ABP`·`SandboxCharacter_CMC_ABP`), `AM_BakePhaseCurveFromFootstepNotifies`(5개 시퀀스, 엔진 의존만). 현재 LootNPop의 옛 GASP 시퀀스 414개에는 GASP 폴더 밖 의존이 없다.
+
+### 2.8 B0 계산식·임계값 (2-1 확인, 2026-10-19)
+
+GASP 8001에서 `SandboxCharacter_Mover_ABP`의 `Update_*`·술어 함수와 폰 `SandboxCharacter_Mover`의 방향 함수를 DSL과 노드 정보로 읽었다(두 BP 모두 dirty, 저장 안 함). 구현은 `ULNPAnimInstance::UpdateLocomotionValues`이고 상수 이름은 cpp 상단에 있다. "LootNPop" 열이 비어 있으면 GASP와 같다.
+
+| 값 | GASP 계산 | LootNPop |
+|:---|:---|:---|
+| 갱신 순서 | `Update_Logic` = Trajectory → EssentialValues → States → AimOffset → AdditiveLean. 게임 스레드에서 `Update_PropertiesFromCharacter`(BPI 구조체)를 받고, 로직은 스레드 세이프 갱신 | 궤적 생성 → 필수값 → 궤적 파생 → 상태 → Lean, 전부 `NativeUpdateAnimation`. 메인 인스턴스만 |
+| 궤적 생성 | `PoseSearchGenerateTrajectory(Predictor)` 이력 0.033s×15, 예측 0.1s×15. 예측기 `MoverTrajectoryPredictor`(샘플 60Hz) | C++가 소유(`Trajectory`). 이전에는 ABP EventGraph가 엔진 기본값(0.04×10, 0.2×8)으로 만들었다 |
+| `Speed2D`·`HasVelocity` | `VectorLengthXY(Velocity)`, > 5 | 접평면 속력(`GroundSpeed`) |
+| `LastNonZeroVelocity` | HasVelocity일 때 `Velocity` | 접평면 속도 |
+| `Acceleration`·`AccelerationAmount`·`HasAcceleration` | 입력 가속 / `CurrentMaxAcceleration`(SafeDivide), > 0 | Mover 이동 의도(접평면, 크기 ≤1) × `CommonLegacyMovementSettings.Acceleration` |
+| `VelocityAcceleration` | (V − V_lastFrame) / max(dt, 0.001) | 접평면 속도 차분. 텔레포트 프레임은 0 |
+| `RelativeAcceleration` | `Unrotate(VelocityAcceleration, RootTransform)` (오프셋 루트 +90° 또는 캐릭터 트랜스폼) | 캐릭터 로컬 |
+| `SmoothedGroundNormal`·`SlopeAngle_X/Y` | `VInterpTo(prev, GroundNormal, dt, 5)`, `GetSlopeDegreeAngles(루트 Right, 평활 법선, 캐릭터 Up)` → X=Roll, Y=Pitch. 바닥 없음 = (0,0,1) | 바닥은 Mover 마지막 바닥 결과(`TryGetFloorCheckHitResult`, 지상일 때만). 없음 = 캐릭터 Up. 평활 결과를 정규화 |
+| `BasedMovementDelta` | 폰이 `OnBasedMovementApplied` 마지막 값을 보관 | 애니 갱신 사이 누적, 매 갱신 뒤 비움 |
+| 상태 이력 `UpdateStateValues` | LastFrame ← Current, Current ← New, 바뀌면 Time = 0(LastStateTime ← Time) 아니면 Time += dt, Time ≥ 제한이면 Recent ← Current. 제한: MovementMode 0.2s, 나머지 0.1s | 같음. `LastStateTime`은 쓰는 곳이 없어 뺐다 |
+| `MovementState` | `IsMoving` = 궤적 0.9~1.0s 속도(외삽) ≠ 0, 성분별 허용 10 | 접평면 속력 > 10 |
+| `Gait` | 폰 입력(질주 키 → Sprint, 걷기 토글·아날로그 0.7 미만 → Walk, 나머지 Run). ABP에서 Sprint이고 `Trj_IsCircling`이면 Run | 질주 Modifier → Sprint, Mover 현재 `MaxSpeed` < 450 → Walk(걷기 입력이 없다. `CHT_PSD_UEFN` 경계와 같다), 나머지 Run. Circling 규칙 같음 |
+| `RotationMode` | 폰 입력(조준 → Aim, 스트레이프 → Strafe, 기본 OrientToMovement) | `bShouldStrafe`(= 이동 방향 회전 끔) 아니면 OrientToMovement, Mover ADS면 Aim, 아니면 Strafe |
+| `MovementDirection` | 폰 입력 단계에서 계산(InputCmd로 전달). OrientToMovement·Sprint·속도 0이면 F. 아니면 지상 속도 방향과 입력 facing의 Yaw 차를 임계로 가른다: 현재 F·B면 ±60/±120, 현재 좌·우면 ±40/±140(히스테리시스, `DDCvar.StrafeStyle` 0). 결과는 F·B·좌(음수 각)·우 넷뿐이다(enum에는 LL·LR·RL·RR이 있으나 판정이 하나씩만 돌려준다) | 같은 임계, 각도는 기존 `Direction`(캐릭터 회전 기준 로컬 계산). enum은 F·B·L·R |
+| 방향 강제 전환 | `Update_Trajectory`: \|FutureFacingDelta − 직전\| > 200이면 MovementDirection·Recent를 B로 → 상태 갱신에서 "방향 바뀜"이 되어 MM DB 인터럽트 | 같음 |
+| 궤적 속도 | Past −0.3~−0.2s, NearFuture 0.1~0.2s, Future 0.4~0.5s(외삽 없음), PreviousFuture = 직전 Future | 접평면 투영 |
+| `Trj_TurnAngle` | `Delta(RotFromX(FutureVelocity), RotFromX(Velocity)).Yaw` | Up 축 부호각(속도 둘 중 하나가 0이면 0) |
+| `Trj_FutureFacing` | 1.5s 샘플 facing | 같음 |
+| `FutureFacingDelta` | 0·0.25·0.75·1.5s 샘플 facing 누적: 첫 항은 오프셋 루트 대비, 나머지는 앞 샘플 대비 `Delta.Yaw` 합 | 첫 기준은 메시 facing(오프셋 루트 B3 전까지 같다). Up 축 부호각 |
+| 각속도·`Trj_IsCircling` | 각속도 Past −0.4~−0.3, Current 0~0.1의 **Z**. 둘 다 < −200 또는 둘 다 > 200, 그리고 \|TurnAngle\| > 50. `CirclingTime`은 그동안 누적 | Up 성분 |
+| `IsStarting` | IsMoving & \|FutureVelocity\|XY ≥ Speed2D + 100 | 접평면 |
+| `IsPivoting` | MovementState == Moving & (MM 조건) \|Trj_TurnAngle\| ≥ 75(회전 모드 3종 같음) & !Circling. SM 경로 조건은 별도 | MM 조건 |
+| `ShouldTurnInPlace`·`ShouldSpinTransition` | \|FutureFacingDelta\| ≥ 50 & Speed2D < 50 / ≥ 130 & ≥ 150 | 같음 |
+| `JustLanded_Light/Heavy` | MovementMode OnGround & LastFrame InAir, `Velocity_LastFrame.Z` > −500 / ≤ −500(`HeavyLandSpeedThreshold`) | 직전 속도의 Up 성분 |
+| `JustTeleported` | 직전·현재 캐릭터 위치 거리 > 50(`TeleportThreshold`) | **메시** 위치 이동 거리 > 50 + max(\|V\|, \|V_lastFrame\|)·dt. 메시로 재는 이유: 시뮬 프록시는 Actor가 네트워크 값으로 스냅하고 메시만 평활된다. 허용치는 런처·활공(1200cm/s)·고속 낙하 착지(직전 −3000cm/s → 0) 오탐 방지. 2-1 PIE에서 남은 발생: 리스폰·적 승격 스냅(정상), 게스트가 보는 호스트가 1000~2000cm/s일 때 약 80초에 15회(메시가 한 프레임에 실제로 크게 튀는 경우) — 2-5에서 발 배치 리셋에 쓸 때 시뮬 프록시 처리를 정한다 |
+| `LeanAmount` | 측면 가속 = `Unrotate(VelocityAcceleration, RotFromX(Velocity)).Y` / `MapRangeClamped(Speed2D, 200~320 → 500~800)`, −1~1. 방향별: F (L,0), B (−L,0), 좌 (0,L), 우 (0,−L) | 접평면, 속도 방향 Right = Up × 속도 |
+
+2-2에서 쓸 GASP 값(이번 단위에서 구현하지 않음):
+
+- `Get_MMInterruptMode`: MovementMode가 바뀌었거나, (MovementDirection이 바뀌었고 Moving)이면 `InterruptOnDatabaseChange`, 아니면 `DoNotInterrupt`.
+- `Get_MMBlendTime`: OnGround에서 직전 OnGround 0.5s, 직전 InAir 0.2s. InAir에서 Velocity.Z > 100이면 0.15s 아니면 0.5s.
+- `Get_MMNotifyRecencyTimeOut` 0.2s(보행 무관). `Update_MotionMatching`: Chooser `CHT_PoseSearchDatabases_Relaxed` → `SetDatabasesToSearch(결과, InterruptMode)`. PostSelection에서 선택 DB 태그를 읽는다.
+- `Get_DesiredFacing`(Steering 목표, B2): 블렌드 스택 현재 애니 곡선 `SteeringTargetTime`(0~1)을 0.1~1.5s로 매핑한 궤적 샘플 facing.
+
+B10 노드 설정(GASP):
+
+- `PoseHistoryCollector`: 포즈 2개, `samplingInterval` 0, 수집 본 `foot_r·foot_l·thigh_r·thigh_l·spine_05·pelvis·hand_l·hand_r`, 곡선 `Phase`, `rootBoneTranslationRecoveryRatio` 0·회전 1, `bGenerateTrajectory` false(궤적은 핀 바인딩), 이력 10·예측 8(생성 안 해서 무관). LootNPop PSS(`PSS_CoreLocomotion_UEFN`)는 발 2개와 궤적만 쓰므로 이 본 집합으로 충분하다.
+- `DeadBlending`(`DefaultSlot` 바로 뒤): 0.25s HermiteCubic, 블렌드 프로필 없음, 외삽 반감기 1(최소 0.05·최대 1), 최대 속도 이동 500·회전 360·스케일 4·곡선 100, 필터 곡선 `Ragdoll_Strength_*` 4개(LootNPop에는 없는 곡선이라 넣지 않는다).
+
+2-1 PIE(리슨 2인, 적도)에서 본 LootNPop 쪽 값의 성질 — 2-2·2-4에서 Chooser 행·술어를 쓸 때 참고:
+
+- 승격 적은 근접 거리에서 AI 이동 의도가 켜졌다 꺼졌다 해서 `MovementState`가 0.1~0.5초 간격으로 Idle↔Moving을 오간다(속도 100~190cm/s에서 Idle로 바뀜 — 궤적이 곧 멈춘다고 예측). GASP 계산 그대로의 결과다. Chooser가 이 값으로 DB 묶음을 바꾸면 DB가 자주 바뀔 수 있어 `_Recent` 사용을 검토한다. 적 `Gait`도 AI가 정한 최대 속력에 따라 Walk↔Run이 같이 바뀐다.
+- 800cm/s 질주 중 급반전은 대부분 `bShouldSpinTransition`(예측 facing 누적 146°)으로 잡히고 `bIsPivoting`은 드물다(1회, 286cm/s에서 −161°). LootNPop 이동은 고속에서 크게 호를 그려 0.5초 안의 속도 방향 변화가 75°에 못 미친다.
+- 스폰 직후 공중에서 `FutureFacingDelta`가 1초 안쪽으로 90°를 한 번 보인다(`TurnInPlace(facing 90)` 1회). 첫 궤적의 facing 기준이 메시 오프셋과 잠깐 어긋나는 것으로 보이며 공중이라 AN-007 고정 루프가 재생돼 영향이 없다.
+- 스트레이프 무기로 좌우를 연타하면 `MovementDirection`이 0.05~0.15초 간격으로 L↔R을 오간다(입력 그대로). `_Recent`는 0.1초 유지 뒤에만 바뀐다.

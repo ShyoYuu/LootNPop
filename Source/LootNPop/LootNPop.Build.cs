@@ -53,6 +53,7 @@ public class LootNPop : ModuleRules
             "NetCore",
             "MassReplication",
             "MotionWarping",
+            "PoseSearch",
             "PhysicsControl",
             "LNPUI"
             ]);

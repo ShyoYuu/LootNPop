@@ -146,3 +146,41 @@ LootNPop 에디터(8000)만 썼다. 커밋 경계: 사전 작업 `69acbb3`(C++·
 - `python3`는 이 PC에서 Windows 스토어 별칭이라 멈춘다. 엔진 번들 파이썬(`Engine/Binaries/ThirdParty/Python3/Win64/python.exe -I`)을 쓴다.
 - `IKRetargeterController`로 op를 바꿔도 리타기터가 dirty로 표시되지 않아 `save_assets`가 건너뛴다 → `EditorAssetLibrary.save_loaded_asset(a, only_if_is_dirty=False)`.
 - `ProgrammaticToolset` 스크립트는 툴 호출 중 에디터가 남긴 오류 로그(프리뷰 인스턴스 `Accessed None`, 없는 에셋)를 예외로 받아 중단된다. 값은 이미 들어가 있을 수 있으니 되읽어 확인한다.
+
+## 2026-10-19 — 단위 2-1 B0 애니 변수 공급층 + B10 Pose History·DeadBlending
+
+LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. 애니 선택(Chooser·PSD)은 바꾸지 않았다.
+
+### 1. GASP 계산식 확인
+
+- `SandboxCharacter_Mover_ABP`: `Update_Logic`·`Update_Trajectory`·`Update_States`·`IsMoving`·`IsStarting`·`IsPivoting`(MM 조건 합성 노드)·`ShouldTurnInPlace`·`ShouldSpinTransition`·`JustLanded_*`·`JustTeleported`·`Get_TrajectoryTurnAngle`·`Get_TotalFacingDelta`·`Update_AdditiveLean`·`Get_MMBlendTime`·`Get_MMInterruptMode`를 DSL로 읽었다. DSL이 Break 구조체 출력 핀을 숨기는 곳(`Update_EssentialValues` — 데이터 순환으로 DSL 실패, 각속도 Z, `Velocity_LastFrame_Z`, `UnrotateVector().Y`, `Delta().Yaw`)과 `UpdateStateValues` 매크로는 노드 정보로 읽었다. 임계값 기본값(`HeavyLandSpeedThreshold` −500, `TeleportThreshold` 50)과 enum 표시 이름은 CDO `list_properties`로 얻었다.
+- 폰 `SandboxCharacter_Mover`: `MovementDirection`은 ABP가 아니라 폰이 입력 단계에서 계산해 InputCmd로 넘긴다(`Get_MovementDirectionAndOffset`·`Thresholds`·`FromThresholds`). 판정은 F·B·좌·우 넷만 돌려준다.
+- 두 GASP BP는 DSL 읽기로 dirty가 됐다. 저장하지 않았다.
+- 결과 요약 `design/GASPReference.md` §2.8.
+
+### 2. 구현
+
+- `ULNPAnimInstance`(헤더 UPROPERTY 추가): enum 6종, 상태별 현재·`_LastFrame`·`_Recent`·`_Time`, `Trajectory`·`TrajectoryPredictor`, 가속 4종, `Velocity_LastFrame`·`LandVelocity`, 지면 5종, `BasedMovementDelta`, `LeanAmount`, 궤적 파생 12종, 술어 8개. `IsLocomotionSource()`(메인 인스턴스)일 때만 `UpdateLocomotionValues`가 돈다. 링크 레이어·표시 메시 ABP는 계산하지 않는다.
+- 각도는 Up 축 부호각(`SignedAngleAroundAxis`), 속도·가속은 접평면 투영. 보행은 질주 → Sprint, Mover `MaxSpeed` < 450 → Walk(걷기 입력이 없다).
+- `LootNPop.Build.cs`에 `PoseSearch` 추가.
+- `ABP_Main_UEFN`: BP 변수 4개·`Initialize_MoverPredictor`·EventGraph 노드 14개 삭제. 저장 시점(구 C++)에는 `Invalid field 'Trajectory' found in property path for Pose History` 경고가 났고, 새 C++로 재시작한 뒤 바인딩이 C++ `Trajectory`로 풀려 경고 없이 컴파일됐다. DeadBlending을 `Slot 'AdditiveHitReact'`와 `ApplyWeaponPostProcess` 레이어 사이에 넣었다. `PoseHistoryCollector`는 이미 출력 직전이라 설정만 바꿨다.
+- PSS `PSS_CoreLocomotion_UEFN`은 `foot_l/r`와 궤적만 쓴다 → GASP 수집 본 8개로 충분.
+
+### 3. 빌드
+
+- 헤더 변경이라 게임 타깃으로 먼저 컴파일을 확인했다(통과).
+- LootNPop 에디터를 끈 뒤에도 에디터 타깃 `Build.bat`이 `Unable to build while Live Coding is active`로 거부됐다. UBT는 실행 파일 경로(`UnrealEditor.exe`, 두 프로젝트 공유)로 Live Coding 뮤텍스를 찾아서, GASP 에디터의 `LiveCodingConsole`이 걸린다. `-NoHotReloadFromIDE`로 이 검사만 끄고 빌드했다(LootNPop DLL만 쓴다).
+
+### 4. 검증
+
+- 자동 PIE(단독, 정지): 메인 인스턴스 값 확인(지상·Idle·Strafe, 경사 −0.2°·−0.8°). 새 경고·`Accessed None` 없음. 에디터가 백그라운드면 PIE 뷰포트 렌더가 멈춰 캡처로는 화면 표시를 확인할 수 없었다.
+- 사용자 리슨 2인 PIE(적도, `LNP.Anim.DebugLocomotion 2`): 정지·출발·급반전·롱소드/라이플 다방향·낮은 점프·고공 낙하·승격 적 전투. `[AnimB0]` 585줄 — 호스트(서버 Authority·게스트 시점 SimulatedProxy), 게스트(Autonomous·서버 시점), 승격 적 2마리(서버)에서 모두 값이 나왔다. 사용자 체감 회귀 없음. 한 프레임 펄스(`LandH` 등)는 눈으로 보기 어려워 로그로 확인했다.
+- 발견: `bJustTeleported` 오탐 — 고속 낙하 착지 프레임(로컬), 게스트가 보는 호스트 74회(Actor 스냅). 메시 위치 + 허용치 `50 + max(|V|,|V_last|)·dt`로 바꿔 cpp만 Live Coding 반영. 재확인 PIE(질주·낙하·사망 리스폰): 착지 오탐 0, 시뮬 프록시 15회/80초(1000~2000cm/s), 리스폰·적 승격은 정상 발생.
+- 2-2 참고로 남긴 성질(§2.8 끝): 승격 적 `MovementState` 깜빡임, 고속 급반전은 Spin으로 잡힘, 스폰 직후 facing 90° 1회, 좌우 연타 시 방향 깜빡임.
+
+### 시행착오·주의
+
+- `read_graph_dsl`은 Break 구조체 핀을 `(ToolMenus|Get)`으로 뭉개 보여 준다. 수치 판단에 쓰는 핀은 노드 정보로 다시 읽어야 한다.
+- `ObjectTools.set_properties`의 인자는 `values`(JSON 문자열)다. 노드 구조체는 통째로 읽어 고친 뒤 다시 쓴다.
+- C++ `NativeUpdateAnimation`은 BP EventGraph보다 먼저 돈다. BP가 만드는 값을 C++가 같은 프레임에 쓰려면 소유권을 C++로 옮겨야 한다.
+- 레거시 `ABP_Lyra`(런타임 미참조)도 BP 변수 `Trajectory`를 가진다. 열면 부모 C++ 프로퍼티와 이름이 겹친다(이번 세션에서는 로드되지 않아 동작을 확인하지 못했다. 컴파일러가 BP 변수 이름을 바꾸는 경고가 날 것으로 보인다). 열었다면 저장하지 않는다.

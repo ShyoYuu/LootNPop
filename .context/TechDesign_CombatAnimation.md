@@ -9,21 +9,29 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
        │  표현 세트·조준 모드 태그 전환 + LinkAnimClassLayers() + 무기 메시 어태치
        ▼
 [ABP_Main_UEFN — 메인 AnimBP (AnimInstance = ULNPAnimInstance, 스켈레톤 SK_UEFN_Mannequin, §3.3)]
-   Motion Matching (PSD 전신 포즈) + Pose History Collector
+   Motion Matching (PSD 전신 포즈, 궤적 = ULNPAnimInstance::Trajectory)
        │
    Blend Poses by Bool (bIsOnGround) — 공중이면 Fall_Loop 고정 재생 (§5.5)
        │
    Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponStyleOverlay)
        │   └─ ABP_Sub_{Unarmed,Pistol,Rifle,Shotgun,LongSword}_UEFN 런타임 교체
        │
-   Slot 'DefaultSlot' (검술 공격·피격 몽타주)
+   Slot 'FullBodyAdditivePreAim' (사격) → Slot 'DefaultSlot' (검술 공격·피격) → Slot 'FullBody' (대시)
        │
-   Slot 'FullBody' (대시 — Lyra 몽타주가 쓰는 슬롯, 2026-09-16 추가)
+   Save Cached 'PreUpperBody' → Layered Blend per Bone ← Slot 'UpperBody' (재장전 — TechDesign_Ability.md §5.5)
        │
-   Slot 'UpperBody' (재장전 — TechDesign_Ability.md §5.5)
+   Slot 'AdditiveHitReact' (가산 피격)
+       │
+   Dead Blending (0.25s, 관성 블렌드 요청을 받는 자리 — 2026-10-19 AnimationOverhaul 2-1)
+       │
+   Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponPostProcess)
+       │
+   Pose History Collector (출력 직전 — 절차 보정까지 반영된 포즈를 기록)
        │
    Output Pose
 ```
+
+**애니 변수 공급층.** 상태 enum(이동 모드·이동 상태·보행·자세·회전 모드·이동 방향)과 그 이력, 궤적 파생값(`Trj_*`·`FutureFacingDelta`), 가속, 지면 법선·경사, 상태 술어(`bIsPivoting`·`bShouldTurnInPlace`·`bJustLanded_*` 등)는 `ULNPAnimInstance`가 메인 인스턴스에서만 C++로 계산한다(AnimationOverhaul AN-002·AN-003). 궤적 생성(Mover 예측기)도 C++가 소유하고, `PoseHistoryCollector`의 `TransformTrajectory` 핀이 C++ `Trajectory`에 이름으로 바인딩돼 있다. 계산식·GASP 출처는 AnimationOverhaul `design/GASPReference.md` §2.8, 확인용 CVar는 `LNP.Anim.DebugLocomotion`(1 화면 표시, 2 + 전이 로그).
 
 ### 무기별 이동·조작 방식
 
@@ -37,7 +45,7 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 
 | 클래스 | 역할 |
 |:---|:---|
-| `ULNPAnimInstance` | Mover 상태 → ABP 변수 공급 (속도·방향·Guard·Aim Offset·왼손 IK 타겟) |
+| `ULNPAnimInstance` | Mover 상태 → ABP 변수 공급 (속도·방향·Guard·Aim Offset·왼손 IK 타겟, 로코모션 궤적·상태·술어) |
 | `ALNPCharacterBase` | `ApplyWeaponVisuals()` 레이어 교체, `EvaluateMontage()`/`PlayMontage()` Chooser 평가, 콤보 상태 |
 | `ULNPMontageChooserContext` | Chooser Table(`CHT_Montage`) 평가 입력 (WeaponType / SituationType / Value 태그) |
 | `UANS_LNP*` 5종 | 몽타주 타임라인 구간별 제어 (§6.3) |
@@ -172,7 +180,7 @@ AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstanc
 
 ### 5.3 Motion Matching Strafe
 
-`UCharacterTrajectoryComponent`는 `ACharacter` 전용이라 쓰지 않는다. Mover 2.0의 `UMoverTrajectoryPredictor`가 `OrientationIntent` 기반으로 미래 경로를 예측해 PSD가 게걸음/뒷걸음 포즈를 고른다 — 별도 구현 없음.
+`UCharacterTrajectoryComponent`는 `ACharacter` 전용이라 쓰지 않는다. Mover 2.0의 `UMoverTrajectoryPredictor`가 `OrientationIntent` 기반으로 미래 경로를 예측해 PSD가 게걸음/뒷걸음 포즈를 고른다. 예측기 생성과 궤적 갱신(이력 0.033s×15, 예측 0.1s×15)은 `ULNPAnimInstance`가 한다(2026-10-19 전까지는 ABP EventGraph).
 
 ### 5.4 이동 입력 차단
 

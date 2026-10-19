@@ -1,6 +1,6 @@
 # Phase 2 — 스켈레톤 전환과 GASP Mover ABP 재구성
 
-> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b 완료 2026-10-19, 다음 2-1)
+> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1 완료 2026-10-19, 다음 2-2)
 > 선행: Phase 1C 완료(GASP 5.8 소스, 93본 `SK_UEFN_Mannequin`), AN-011(UEFN 전환)·AN-015(MM 노드 방식)·AN-016(폴더·git)·AN-018(소스 저장 금지)
 > 순서: 2-0a → 2-0b → 2-1 → … → 2-6. 단위 하나가 세션 하나이고, 단위마다 커밋하고 사용자 확인을 받는다.
 > 단위 목록·블록 정의는 `Roadmap.md` §4 Phase 2와 `design/GASPReference.md` §2.2·§2.7이 소유한다. 이 문서는 착수한 단위의 실행 계획·결과·재생성 절차를 소유한다.
@@ -114,8 +114,42 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 
 **재생성 절차 추가(2-0a 절차 뒤).** 2-0a 1번(`RetargetLyraToUEFN.py`) 다음에 `py ".../Scripts/AnimRetarget/FixRetargetedMontages.py"`를 실행하고 `Saved/AnimRetarget/FixRetargetedMontages.json`에서 `cleared`·`source_no_copy`가 비었는지 본 뒤 `Retargeted/Lyra/`만 저장한다. 추적 에셋(`CHT_*`·`RTG_GASP_to_MS`·`IK_MS_FootGoal`)은 저장소에 있으므로 다시 만들 필요가 없다. 런타임 리타기터를 처음부터 다시 만들 때만 `FixGASPtoMSRetargeter.py`를 돌리고, 이어서 `ComputeLeftHandGripOffsets.py apply`로 무기 그립 오프셋·견착 보정을 다시 계산해 `VS_*`를 저장한다(리타깃 결과가 바뀌면 견착 보정값도 바뀐다).
 
+## 단위 2-1 — B0 애니 변수 공급층 + B10 Pose History·DeadBlending
+
+`Roadmap.md` §4 2-1 행이 범위를 소유한다. 애니 선택(Chooser·PSD)은 바꾸지 않는다(2-2). 에디터는 LootNPop(8000)과 GASP(8001, 읽기 전용) 둘 다 쓴다.
+
+계획:
+
+1. GASP `SandboxCharacter_Mover_ABP`(+ 폰 `SandboxCharacter_Mover`)에서 `design/GASPReference.md` §2.3 값의 계산식·임계값을 읽는다. 결과 요약은 같은 문서 §2.8.
+2. `ULNPAnimInstance`에 공급값을 C++로 추가한다. 상태 enum 6종(이동 모드·이동 상태·보행·자세·회전 모드·이동 방향)과 이력(`_LastFrame`·`_Recent`·`_Time`), 궤적 파생값, 가속, 지면 법선·경사, `BasedMovementDelta`, 상태 술어 bool. 속도·가속은 캐릭터 Up 접평면에 투영하고, 각도는 Up 축 기준 부호각으로 잰다(§2.4).
+3. **궤적 소유권을 C++로 옮긴다.** 지금은 `ABP_Main_UEFN` EventGraph가 BP 변수 `Trajectory`를 만들고 `PoseHistoryCollector`의 핀 바인딩이 그 변수를 읽는다. C++ `NativeUpdateAnimation`은 BP EventGraph보다 먼저 돌아 BP 궤적을 그 프레임에 읽을 수 없다. 그래서 예측기 생성·궤적 갱신을 C++(`ULNPAnimInstance::Trajectory`)로 옮기고 BP 변수·함수를 지운다. 바인딩은 이름 경로(`Trajectory`)로 풀리므로 BP 변수를 지우면 같은 이름의 C++ 프로퍼티로 이어진다(엔진 `AnimGraphNodeBinding_Base`). 궤적 샘플링은 GASP 값(이력 0.033s×15, 예측 0.1s×15)으로 맞춘다.
+4. 메인 인스턴스에서만 계산한다. 서브 ABP(링크 레이어)·표시 메시 ABP도 같은 C++ 부모를 쓰므로 `AnimSourceMesh`의 메인 인스턴스가 아니면 새 계산을 건너뛴다.
+5. `ABP_Main_UEFN`: `PoseHistoryCollector`를 출력 직전에 두고 GASP 설정(포즈 2개, 수집 본 8개, 곡선 `Phase`)을 맞춘다. 마지막 슬롯 뒤, `ApplyWeaponPostProcess` 레이어 앞에 DeadBlending(0.25s HermiteCubic, GASP 값)을 넣는다. 무기 레이어·슬롯·AO·공중 고정·근접 보정 어댑터는 그대로 둔다.
+6. 디버그 출력 CVar `LNP.Anim.DebugLocomotion`(1 화면 표시, 2 + 전이 로그)으로 값을 검증한다.
+
+완료 조건:
+
+- 정지·출발·회전·피벗·착지에서 상태·술어가 기대대로 바뀐다(디버그 표시·전이 로그).
+- 적도 근처에서 접평면 투영 값(속도·가속·경사·회전각)이 정상이다.
+- `ActorPromoted` 적과 리슨 2인 게스트에서 같은 값이 나온다.
+- 근접 콤보·재장전·가드·랙돌·몽타주 슬롯 회귀가 없다.
+- 커밋 뒤 깨끗한 트리에서 `Build.bat` 재확인.
+
+### 2-1 결과 (2026-10-19, 상세 `history/Phase02_Log.md`)
+
+| 항목 | 결과 |
+|:---|:---|
+| GASP 확인 | `Update_*`·술어 함수와 폰의 방향 함수를 읽어 계산식·임계값을 `design/GASPReference.md` §2.8에 정리했다. GASP 두 BP는 DSL 읽기로 dirty, 저장 안 함 |
+| C++ 공급층 | `ULNPAnimInstance`: 상태 enum 6종(`ELNPMovementMode`·`ELNPMovementState`·`ELNPGait`·`ELNPStance`·`ELNPRotationMode`·`ELNPMovementDirection`)과 `_LastFrame`·`_Recent`·`_Time`, 궤적 파생값, 가속, 지면 법선·경사, `BasedMovementDelta`(Mover `OnBasedMovementApplied` 누적), `LeanAmount`, 술어 8개. 메인 인스턴스(`AnimSourceMesh`의 `GetAnimInstance() == this`)에서만 계산한다. 빌드 의존성에 `PoseSearch` 추가 |
+| 궤적 소유 | 예측기·궤적을 C++로 옮기고 `ABP_Main_UEFN`의 BP 변수 4개(`Trajectory`·`Predictor`·`PreviousDesiredControllerYaw`·`Mover`)·`Initialize_MoverPredictor`·EventGraph 노드를 지웠다. 이름 경로 바인딩이 C++ `Trajectory`로 이어졌다(에디터 재시작 뒤 경고를 오류로 취급한 컴파일 통과). 샘플링은 GASP 값 0.033s×15 / 0.1s×15 |
+| B10 | `PoseHistoryCollector`는 이미 출력 직전(`ApplyWeaponPostProcess` 뒤)이었다. 설정만 GASP 값으로(샘플 간격 0, 수집 본 8개, 곡선 `Phase`, 루트 이동 복구 비율 0). DeadBlending을 `AdditiveHitReact` 슬롯 뒤·`ApplyWeaponPostProcess` 앞에 넣었다(엔진 기본값 = GASP 값, 래그돌 필터 곡선만 뺐다) |
+| 디버그 | CVar `LNP.Anim.DebugLocomotion` 1 = 캐릭터 위 문자열·속도/예측 속도/지면 법선 선, 2 = + 상태 변화·술어 상승 에지 로그(`[AnimB0]`, 넷 모드·역할 포함) |
+| 검증(사용자 리슨 2인 PIE, 적도) | 호스트·게스트(자신·상대)·승격 적 2마리 모두 값이 나왔다. 로그 585줄에서 정지·출발(`Starting`)·착지 Light/Heavy(Heavy는 Up 속도 −690~−3914)·Spin·Pivot·TurnInPlace·방향 F·B·L·R·Strafe/Aim 확인. 회귀(근접 콤보·재장전·가드/패링·대시·피격·랙돌·리스폰) 없음 |
+| PIE에서 고친 것 | `bJustTeleported` 오탐: 고속 낙하 착지 프레임, 게스트가 보는 호스트의 Actor 스냅(74회). 메시 위치 + 속력 허용치로 바꿔 착지 오탐 0, 시뮬 프록시 15회/80초(1000cm/s 이상에서 메시가 실제로 튀는 경우)로 줄였다. 남은 것은 2-5에서 정한다 |
+
 ## 완료 조건 체크리스트
 
 - [x] 2-0a: 실사용 목록 확정(98개, 0-3 대비 차이 설명), 리타깃 사본 98개 `Retargeted/Lyra/`, 몽타주 대조 결함 0, 서브 ABP 5개 경고 0 컴파일, 재생성 절차·스크립트, 2-0b 임시 로코모션 계획 수정 (2026-10-18)
 - [x] 2-0b: 전환 — 결정 A·B 반영, 근접 콤보·ANS 판정·근접 보정·재장전·가드/패링·랙돌·HitStop, 적도·`ActorPromoted`·2인 PIE, ISKM 무영향(ISKM 에셋 미변경). 알려진 차이: 스트레이프 방향 클립 → 2-2 (2026-10-19)
-- [ ] 2-1 ~ 2-6: `Roadmap.md` §4
+- [x] 2-1: B0 공급값(상태·이력·궤적 파생값·가속·지면·술어) C++, 궤적 C++ 소유, Pose History GASP 설정, DeadBlending, 디버그 CVar, 2인·적도·승격 적 값 확인, 회귀 없음 (2026-10-19)
+- [ ] 2-2 ~ 2-6: `Roadmap.md` §4
