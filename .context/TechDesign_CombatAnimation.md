@@ -9,7 +9,8 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
        │  표현 세트·조준 모드 태그 전환 + LinkAnimClassLayers() + 무기 메시 어태치
        ▼
 [ABP_Main_UEFN — 메인 AnimBP (AnimInstance = ULNPAnimInstance, 스켈레톤 SK_UEFN_Mannequin, §3.3)]
-   Motion Matching (PSD 전신 포즈, 궤적 = ULNPAnimInstance::Trajectory)
+   Motion Matching (PSD 전신 포즈, 궤적 = ULNPAnimInstance::Trajectory,
+   │                DB 묶음 = CHT_PoseSearchDatabases_UEFN 멀티 결과 — ULNPAnimInstance::UpdateMotionMatchingNode)
        │
    Blend Poses by Bool (bIsOnGround) — 공중이면 Fall_Loop 고정 재생 (§5.5)
        │
@@ -76,7 +77,7 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 
 | 에셋 | 종류 | 내부 처리 |
 |--------|------|------|
-| `ABP_Main_UEFN` | Main AnimBP | Motion Matching + 레이어 합성 파이프라인 (§1). 임시 로코모션 Chooser `CHT_PSD_UEFN` |
+| `ABP_Main_UEFN` | Main AnimBP | Motion Matching + 레이어 합성 파이프라인 (§1). 로코모션 Chooser `CHT_PoseSearchDatabases_UEFN`(§5.3) |
 | `ALI_WeaponStyles` | Anim Layer Interface | `ApplyWeaponStyleOverlay` 레이어 함수 계약 |
 | `ABP_Sub_Unarmed_UEFN` | Sub AnimBP | 베이스 포즈 통과 |
 | `ABP_Sub_Pistol_UEFN` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_MM_Pistol_Idle_ADS` |
@@ -180,7 +181,21 @@ AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstanc
 
 ### 5.3 Motion Matching Strafe
 
-`UCharacterTrajectoryComponent`는 `ACharacter` 전용이라 쓰지 않는다. Mover 2.0의 `UMoverTrajectoryPredictor`가 `OrientationIntent` 기반으로 미래 경로를 예측해 PSD가 게걸음/뒷걸음 포즈를 고른다. 예측기 생성과 궤적 갱신(이력 0.033s×15, 예측 0.1s×15)은 `ULNPAnimInstance`가 한다(2026-10-19 전까지는 ABP EventGraph).
+`UCharacterTrajectoryComponent`는 `ACharacter` 전용이라 쓰지 않는다. Mover 2.0의 `UMoverTrajectoryPredictor`가 `OrientationIntent` 기반으로 미래 경로를 예측한다. 예측기 생성과 궤적 갱신(이력 0.033s×15, 예측 0.1s×15)은 `ULNPAnimInstance`가 한다(2026-10-19 전까지는 ABP EventGraph).
+
+**방향별 DB 선택(2026-10-19 AnimationOverhaul 2-2).** 스트레이프 방향은 PSD 하나 안에서 궤적으로 고르지 않고 Chooser가 DB를 나눠 고른다(GASP 5.8 구성). `ULNPAnimInstance`의 `MovementDirection`(F·B·좌·우, 히스테리시스 임계 — 이동 방향 회전·질주면 항상 F)이 행 입력이다.
+
+| Chooser 행(`CHT_PoseSearchDatabases_UEFN`, 멀티 결과) | DB |
+|:---|:---|
+| 지상·Idle | `PSD_Stand_Idles_UEFN` |
+| 지상·Moving·Walk/Run × F·B·좌·우 | `PSD_Stand_{Walk,Run}_{F,B,LL,RL}_Loops_UEFN` |
+| 지상·Moving·Sprint | `PSD_Stand_Sprint_Loops_UEFN` |
+| 공중 | `PSD_Jump_UEFN`(MM 노드는 공중에서 꺼져 있다, §5.5) |
+
+- 스키마는 GASP와 같은 `PSS_Relaxed_Loops_UEFN`(궤적 위치·속도 + `Phase` 곡선 + 골반 Heading)·`PSS_Relaxed_Idle_UEFN`, 정규화는 `PSN_Relaxed_UEFN` 하나다.
+- `OnUpdate_MotionMatching`은 `ULNPAnimInstance::UpdateMotionMatchingNode`만 호출한다. 이 함수가 Chooser를 멀티 결과로 평가해 `SetDatabasesToSearch`를 부르고, `GetMMInterruptMode`(이동 모드 변화·이동 중 방향 변화·출발 프레임이면 `InterruptOnDatabaseChange`)·`GetMMBlendTime`(지상 0.5s, 착지 0.2s)을 적용한다.
+- **출발 프레임 인터럽트는 LootNPop 추가다.** 진행 포즈는 자기 DB 스키마로 평가되는데 Idle 스키마는 궤적 가중치가 0이라, 끊지 않으면 움직이는 동안에도 Idle 포즈가 계속 이긴다(PIE에서 "앞으로 걷는데 Idle"). GASP는 이 구간을 Starts DB가 받는다.
+- 대각 입력은 가장 가까운 방향 DB가 고른다. 허리를 이동 방향으로 돌리는 Orientation Warping은 AnimationOverhaul 2-3.
 
 ### 5.4 이동 입력 차단
 
@@ -352,7 +367,7 @@ ANS는 몽타주 에셋에 배치된 **단일 오브젝트**를 그 몽타주를
 
 - `GroundSpeed`: `Size2D()`는 월드 XY 평면 전제 → 캐릭터 Up에 수직인 평면으로 `VectorPlaneProject`해 계산.
 - Aim Offset: §4.1의 로컬 좌표계 변환.
-- `CalculateDirection`은 캐릭터 회전 기준이라 그대로 유효.
+- 이동 방향 `Direction`: 엔진 `UKismetAnimationLibrary::CalculateDirection`은 캐릭터 회전 기준이지만 속도를 `GetSafeNormal2D`(월드 Z 제거)로 정규화해 **적도에서 틀린 방향을 낸다**. 캐릭터 Up 둘레 부호각(전방 → 속도)으로 직접 계산한다(2026-10-19 AnimationOverhaul 2-2, 방향별 DB 선택에서 드러남).
 
 ### 7.5 Motion Warping을 구면 월드·Mover·멀티플레이에 얹을 때의 함정 4건
 

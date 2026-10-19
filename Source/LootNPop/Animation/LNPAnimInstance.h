@@ -4,13 +4,17 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/AnimNodeReference.h"
 #include "Animation/TrajectoryTypes.h"
 #include "MoverTypes.h"
+#include "PoseSearch/PoseSearchLibrary.h"
 #include "LNPAnimInstance.generated.h"
 
 class ALNPCharacterBase;
+class UChooserTable;
 class ULNPCharacterMoverComponent;
 class UMoverTrajectoryPredictor;
+class UPoseSearchDatabase;
 class USkeletalMeshComponent;
 
 /*
@@ -96,6 +100,29 @@ protected:
 
 	UFUNCTION()
 	void HandleBasedMovementApplied(const FTransform& TransformDelta, const FMoverTimeStep& TimeStep);
+
+	// ---------------------------------------------------------------------------------------------
+	// 로코모션 선택 코어(B1, AN-015). DB 묶음은 Chooser가, 인터럽트·블렌드 판정은 C++가 정한다(AN-003).
+	// ---------------------------------------------------------------------------------------------
+
+	/**
+	 * Motion Matching 노드 갱신(ABP_Main_UEFN `OnUpdate_MotionMatching`이 호출만 한다, 워커 스레드).
+	 * LocomotionDatabaseChooser를 멀티 결과로 평가해 검색할 DB 목록을 바꾸고, 인터럽트 모드·블렌드 시간을 적용한다.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "LNP|MotionMatching", meta = (BlueprintThreadSafe))
+	void UpdateMotionMatchingNode(const FAnimNodeReference& Node);
+
+	/** GASP Get_MMInterruptMode: 이동 모드가 바뀌었거나, 움직이는 중 이동 방향이 바뀌면 DB가 바뀔 때 진행 포즈를 끊는다 */
+	UFUNCTION(BlueprintPure, Category = "LNP|MotionMatching", meta = (BlueprintThreadSafe))
+	EPoseSearchInterruptMode GetMMInterruptMode() const;
+
+	/** GASP Get_MMBlendTime: 지상 0.5s(착지 직후 0.2s), 공중 0.5s(상승 중 0.15s) */
+	UFUNCTION(BlueprintPure, Category = "LNP|MotionMatching", meta = (BlueprintThreadSafe))
+	float GetMMBlendTime() const;
+
+	/** 상태별 PSD 묶음 Chooser(멀티 결과, 컨텍스트 = 이 인스턴스). ABP 클래스 기본값에서 지정한다 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|MotionMatching")
+	TObjectPtr<UChooserTable> LocomotionDatabaseChooser;
 
 	/** Owner 캐릭터 참조 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Character")
@@ -411,5 +438,9 @@ private:
 	/** GASP: 예측 facing 누적각이 한 프레임에 200° 넘게 뛰면(±180 경계 넘김) 방향을 B로 한 번 바꿔 DB 인터럽트를 일으킨다 */
 	bool bForceMovementDirectionChange = false;
 	FTransform PendingBasedMovementDelta = FTransform::Identity;
+	/** 마지막 공급층 갱신의 캐릭터 Up. 워커 스레드(MM 노드 함수)에서 Actor를 읽지 않으려고 보관한다 */
+	FVector LocomotionUp = FVector::UpVector;
+	/** 디버그 로그용 — 직전에 MM 노드에 넘긴 DB 목록 */
+	TArray<const UPoseSearchDatabase*> LastSearchedDatabases;
 	ELNPMovementDirection ComputeMovementDirection(ELNPRotationMode NewRotationMode, ELNPGait NewGait) const;
 };

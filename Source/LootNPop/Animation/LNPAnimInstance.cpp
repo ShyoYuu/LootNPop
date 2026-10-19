@@ -10,8 +10,12 @@
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverPoseSearchTrajectoryPredictor.h"
+#include "Chooser.h"
+#include "ChooserFunctionLibrary.h"
+#include "PoseSearch/MotionMatchingAnimNodeLibrary.h"
+#include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchTrajectoryLibrary.h"
-#include "KismetAnimationLibrary.h"
+#include "StructUtils/InstancedStruct.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Animation/Skeleton.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -54,6 +58,13 @@ namespace
 	constexpr float MovementModeRecentTime        = 0.2f;
 	constexpr float StateRecentTime               = 0.1f;
 	constexpr float WalkGaitMaxSpeed              = 450.0f;  // LootNPop: 걷기 입력이 없어 현재 최대 속력으로 가른다. CHT_PSD_UEFN의 Walk/Run 경계와 같다
+
+	// MM 블렌드 시간(GASP Get_MMBlendTime)
+	constexpr float MMBlendTimeOnGround           = 0.5f;
+	constexpr float MMBlendTimeLanding            = 0.2f;
+	constexpr float MMBlendTimeInAirRising        = 0.15f;
+	constexpr float MMBlendTimeInAir              = 0.5f;
+	constexpr float MMRisingUpSpeed               = 100.0f;
 
 	// 이동 방향 히스테리시스(GASP Get_MovementDirectionThresholds, DDCvar.StrafeStyle 0). 현재 방향이 F·B면 ±60/±120, 좌·우면 ±40/±140
 	constexpr float DirFrontLimitFromFrontBack    = 60.0f;
@@ -214,8 +225,9 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bIsSprinting  = MoverComponent->IsSprinting();
 	bIsGuarding   = MoverComponent->IsGuarding();
 
-	// 4. 이동 방향 계산
-	Direction = UKismetAnimationLibrary::CalculateDirection(Velocity, OwningMoverCharacter->GetActorRotation());
+	// 4. 이동 방향 계산 — 캐릭터 Up 기준 부호각(+ 오른쪽).
+	// UKismetAnimationLibrary::CalculateDirection은 속도를 GetSafeNormal2D(월드 Z 제거)로 정규화해 적도에서 틀린 방향을 낸다.
+	Direction = SignedAngleAroundAxis(OwningMoverCharacter->GetActorForwardVector(), Velocity, CharacterUp);
 
 	// 5. 캐릭터가 스트레이핑해야 하는지 판단
 	// 이동 방향으로 회전하지 않으면 스트레이핑 중으로 간주 (예: 타겟을 보며 이동).
@@ -299,6 +311,7 @@ void ULNPAnimInstance::UpdateLocomotionValues(float DeltaSeconds)
 {
 	const FTransform ActorTransform = OwningMoverCharacter->GetActorTransform();
 	const FVector Up       = ActorTransform.GetUnitAxis(EAxis::Z);
+	LocomotionUp = Up;
 	// 텔레포트 판정은 메시 위치로 한다. 시뮬 프록시는 Actor가 네트워크 값으로 스냅하고 메시만 평활되므로 Actor로 재면 스냅마다 오탐한다
 	const FVector Location = GetSkelMeshComponent()->GetComponentLocation();
 	const float SafeDeltaSeconds = FMath::Max(DeltaSeconds, 0.001f);
@@ -534,6 +547,80 @@ void ULNPAnimInstance::UpdateStates(float DeltaSeconds)
 			*StaticEnum<ENetRole>()->GetNameStringByValue(OwningMoverCharacter->GetLocalRole()),
 			GroundSpeed, World ? World->GetTimeSeconds() : 0.0, *Changes);
 	}
+}
+
+void ULNPAnimInstance::UpdateMotionMatchingNode(const FAnimNodeReference& Node)
+{
+	EAnimNodeReferenceConversionResult ConversionResult;
+	const FMotionMatchingAnimNodeReference MotionMatchingNode = UMotionMatchingAnimNodeLibrary::ConvertToMotionMatchingNode(Node, ConversionResult);
+	if (ConversionResult != EAnimNodeReferenceConversionResult::Succeeded)
+		return;
+
+	TArray<UPoseSearchDatabase*> Databases;
+	if (LocomotionDatabaseChooser)
+	{
+		for (UObject* Result : UChooserFunctionLibrary::EvaluateChooserMulti(this, LocomotionDatabaseChooser, UPoseSearchDatabase::StaticClass()))
+		{
+			if (UPoseSearchDatabase* Database = Cast<UPoseSearchDatabase>(Result))
+				Databases.Add(Database);
+		}
+	}
+
+	const EPoseSearchInterruptMode InterruptMode = GetMMInterruptMode();
+	UMotionMatchingAnimNodeLibrary::SetDatabasesToSearch(MotionMatchingNode, Databases, InterruptMode);
+
+	// GASP는 노드의 Blend Time 핀을 Get_MMBlendTime에 바인딩한다. 여기서는 노드 블렌드 설정의 시간만 덮어쓴다(프로필·곡선은 노드 값 유지).
+	// FMotionMatchingBlueprintBlendSettings 생성자는 PoseSearch 모듈 밖으로 내보내지지 않아 리플렉션으로 인스턴스를 만든다.
+	static const UScriptStruct* BlendSettingsStruct = FindObject<UScriptStruct>(nullptr, TEXT("/Script/PoseSearch.MotionMatchingBlueprintBlendSettings"));
+	if (BlendSettingsStruct)
+	{
+		FInstancedStruct BlendSettingsMemory;
+		BlendSettingsMemory.InitializeAs(BlendSettingsStruct);
+		FMotionMatchingBlueprintBlendSettings& BlendSettings = *reinterpret_cast<FMotionMatchingBlueprintBlendSettings*>(BlendSettingsMemory.GetMutableMemory());
+		bool bBlendSettingsValid = false;
+		UMotionMatchingAnimNodeLibrary::GetMotionMatchingBlendSettings(MotionMatchingNode, BlendSettings, bBlendSettingsValid);
+		if (bBlendSettingsValid)
+		{
+			BlendSettings.BlendTime = GetMMBlendTime();
+			UMotionMatchingAnimNodeLibrary::OverrideMotionMatchingBlendSettings(MotionMatchingNode, BlendSettings);
+		}
+	}
+
+	// 디버그: 고른 DB 목록이 바뀔 때만 한 줄(워커 스레드라 GetValueOnAnyThread)
+	const TArray<const UPoseSearchDatabase*> SearchedDatabases(Databases);
+	if (SearchedDatabases != LastSearchedDatabases)
+	{
+		if (CVarDebugLocomotion.GetValueOnAnyThread() >= 2)
+		{
+			TArray<FString> Names;
+			for (const UPoseSearchDatabase* Database : SearchedDatabases)
+				Names.Add(GetNameSafe(Database));
+			UE_LOG(LogLootNPop, Log, TEXT("[AnimB1] %s DBs [%s] interrupt %s blend %.2f (%s %s %s %s)"),
+				*GetNameSafe(OwningMoverCharacter), *FString::Join(Names, TEXT(", ")),
+				*StaticEnum<EPoseSearchInterruptMode>()->GetNameStringByValue(static_cast<int64>(InterruptMode)), GetMMBlendTime(),
+				*EnumName(MovementMode), *EnumName(MovementState), *EnumName(Gait), *EnumName(MovementDirection));
+		}
+		LastSearchedDatabases = SearchedDatabases;
+	}
+}
+
+EPoseSearchInterruptMode ULNPAnimInstance::GetMMInterruptMode() const
+{
+	const bool bMovementModeChanged = MovementMode != MovementMode_LastFrame;
+	const bool bDirectionChangedWhileMoving = MovementDirection != MovementDirection_LastFrame && MovementState == ELNPMovementState::Moving;
+	// LootNPop 추가: 출발 프레임에도 끊는다. 진행 포즈는 자기 DB 스키마로 평가되는데 Idle 스키마는 궤적 가중치가 0이라
+	// 움직여도 Idle 포즈 비용이 오르지 않아 계속 이긴다. GASP는 이 구간을 Starts DB가 받는다 — 2-4에서 Starts가 들어오면 다시 본다.
+	const bool bStartedMoving = MovementState == ELNPMovementState::Moving && MovementState_LastFrame == ELNPMovementState::Idle;
+	return (bMovementModeChanged || bDirectionChangedWhileMoving || bStartedMoving)
+		? EPoseSearchInterruptMode::InterruptOnDatabaseChange
+		: EPoseSearchInterruptMode::DoNotInterrupt;
+}
+
+float ULNPAnimInstance::GetMMBlendTime() const
+{
+	if (MovementMode == ELNPMovementMode::OnGround)
+		return MovementMode_LastFrame == ELNPMovementMode::OnGround ? MMBlendTimeOnGround : MMBlendTimeLanding;
+	return FVector::DotProduct(Velocity, LocomotionUp) > MMRisingUpSpeed ? MMBlendTimeInAirRising : MMBlendTimeInAir;
 }
 
 void ULNPAnimInstance::DrawLocomotionDebug() const

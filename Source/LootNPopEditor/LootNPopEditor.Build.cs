@@ -16,10 +16,13 @@ public class LootNPopEditor : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange([
 			"AssetRegistry",
+			"AssetTools",
 			"Chaos",
+			"Chooser",
 			"DynamicMesh",
 			"GeometryCore",
 			"InteractiveToolsFramework",
+			"Json",
 			"MassCore",
 			"MassEntity",
 			"MassSpawner",
@@ -31,6 +34,7 @@ public class LootNPopEditor : ModuleRules
 			"ModelingComponentsEditorOnly",
 			"PhysicsCore",
 			"PCG",
+			"PoseSearch",
 			"PropertyEditor",
 			"Slate",
 			"SlateCore",

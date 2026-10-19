@@ -184,3 +184,45 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. 애니 �
 - `ObjectTools.set_properties`의 인자는 `values`(JSON 문자열)다. 노드 구조체는 통째로 읽어 고친 뒤 다시 쓴다.
 - C++ `NativeUpdateAnimation`은 BP EventGraph보다 먼저 돈다. BP가 만드는 값을 C++가 같은 프레임에 쓰려면 소유권을 C++로 옮겨야 한다.
 - 레거시 `ABP_Lyra`(런타임 미참조)도 BP 변수 `Trajectory`를 가진다. 열면 부모 C++ 프로퍼티와 이름이 겹친다(이번 세션에서는 로드되지 않아 동작을 확인하지 못했다. 컴파일러가 BP 변수 이름을 바꾸는 경고가 날 것으로 보인다). 열었다면 저장하지 않는다.
+
+## 2026-10-19 — 단위 2-2 B1 MM 선택 코어 + 스트레이프 복구
+
+LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에서는 읽기 툴과 Chooser 에디터 열기(`OpenEditorForAsset`, UI 텍스트 스냅샷)만 썼다. 저장 없음.
+
+### 1. GASP 확인
+
+- MCP: 루트 Chooser 컬럼 4개(이동 모드·자세·이동 상태·보행, 8행). UI 스냅샷으로 결과 셀이 "Stand Idles" 같은 중첩 테이블 이름임을 보고, `CHT_PoseSearchDatabases_Relaxed.Stand Walks` 경로로 중첩 테이블 컬럼까지 MCP로 읽었다. 결과 셀은 여전히 안 읽힌다.
+- PSD 10개·PSS 2개·PSN의 프로퍼티와 의존성(클립 목록)을 MCP로 읽었다. `E_MovementDirection` 표시 이름은 `.uasset` 문자열(F·B·LR·LL·RL·RR).
+- 결과 셀·PSD 항목 설정은 LootNPop 쪽 C++ 명령으로 덤프했다(아래 3). 그래서 Chooser 스크린샷을 요청하지 않았다.
+
+### 2. 반입·빌드
+
+- LootNPop 에디터를 끈 상태에서 시퀀스 26개를 복사(해시 일치, git 미추적 확인). `Idle/M_Relaxed_Stand_Idle_Loop`은 1C-3 본과 해시가 같아 그대로 뒀다.
+- 에디터 타깃 `Build.bat ... -NoHotReloadFromIDE`(GASP 에디터는 켠 채). 첫 빌드는 `FMotionMatchingBlueprintBlendSettings` 생성자 링크 오류(PoseSearch가 내보내지 않음) → `FInstancedStruct`로 리플렉션 생성. 같은 이유로 `FAssetChooser::StaticStruct()`도 못 써서 `FindObject<UScriptStruct>` + 프로퍼티 설정으로 채웠다.
+
+### 3. GASP 덤프·복제(`LNP.Editor.GASPRef`)
+
+- 스펙 `Saved/AnimOverhaul/GASPRef_2-2_spec.json`. GASP `Content/`를 `/GASPRef/`로 마운트하고, 불러오는 동안만 `/Game/Characters/UEFN_Mannequin/Animations/MotionMatchingData/`·`/Game/Blueprints/Data/`를 `/GASPRef/`로 패키지 리다이렉트(LootNPop에는 두 경로 모두 없다).
+- 덤프 `GASPRef_2-2.json`(101KB): Chooser 9개 오브젝트(루트 + 중첩 8), PSD 10개, PSS 2개. 결과 행을 문자열로 나누니 Walk 25·Run 26행(비활성 행은 `Asset=None`)으로 컬럼 행 수와 맞았다. 처음에 정규식으로 `Asset=None` 행을 빠뜨려 21행으로 셌다가 다시 셌다.
+- 복제 13개: PSS 2, PSN 1(DB 10개만 남김), PSD 10. 참조 재연결 로그 정상, `/GASPRef/` 잔여 0. 저장 뒤 `get_dependencies`로 GASP 경로 0 확인. GASP PSD를 불러올 때 반입 안 된 클립 때문에 `Database None entry N has no associated animation asset` 경고가 났다(무해).
+
+### 4. Chooser·ABP
+
+- `CHT_PSD_UEFN`을 `CHT_PoseSearchDatabases_UEFN`으로 복제 → `SetChooserResults`로 11행 → MCP로 컨텍스트(첫 원소만 남김)·컬럼 4개. 시행착오: ① `set_properties`는 배열 크기와 기존 원소를 한 번에 바꾸면 거부한다(`elements changed alongside the size change`). ② 기존 원소의 `_structType`은 바뀌지 않는다(Bool 컬럼에 enum 바인딩이 들어감) → 빈 배열을 먼저 쓰고 새로 넣었다. ③ 복제 원본의 폴백 결과 `PSD_Idle_UEFN`이 남아 `ReplaceAssetRefs`로 새 Idle DB로 바꿨다.
+- `ABP_Main_UEFN`: `OnUpdate_MotionMatching`을 `(LNP|MotionMatching|UpdateMotionMatchingNode self Node)`로(DSL에서 self 대상 C++ 함수는 `self`를 첫 인자로 준다). MM 노드 GASP 값, CDO `LocomotionDatabaseChooser`. 경고 없이 컴파일·저장.
+- 자동 PIE(단독): `[AnimB1] ... DBs [PSD_Stand_Idles_UEFN]`, 새 경고 없음.
+
+### 5. 사용자 PIE와 수정
+
+- 1차(리슨 2인, 적도): 적도에 가까울수록 앞으로 걸어도 옆걸음, 옆으로 가도 뒷걸음 클립. 앞으로 걷는데 Idle이 유지되는 경우(대시로 풀림). 정지 → Idle은 정상.
+  - 로그상 DB 선택 순서는 상태대로였다. 방향 판정 입력 `Direction`이 엔진 `UKismetAnimationLibrary::CalculateDirection`인데, 이 함수가 속도를 `GetSafeNormal2D`로 정규화한다(월드 Z 제거). 적도에서는 이동 속도가 대부분 월드 Z라 방향이 틀린다. 2-1까지는 이 값이 DB 선택에 쓰이지 않아 드러나지 않았다 → 캐릭터 Up 둘레 부호각으로 직접 계산.
+  - Idle 고착: `DoNotInterrupt`에서 진행 포즈는 자기 DB 스키마로 평가된다(엔진 `PopulateContinuingPoseSearches`). `PSS_Relaxed_Idle`은 궤적 가중치 0이라 움직여도 Idle 포즈 비용이 오르지 않는다. 멈출 때는 루프 스키마가 궤적을 봐서 정상이다(비대칭). → Idle→Moving 프레임에 `InterruptOnDatabaseChange`.
+  - 둘 다 cpp만이라 Live Coding으로 반영.
+- 2차(1·2인, 적도): 걷기·달리기·정지·8방향·ADS 이동·총기 상체·가드 이동·재장전·근접 콤보·승격 적 전투·가드·패링 모두 자연스럽다(사용자). 승격 적 `MovementState` 깜빡임에 따른 떨림은 보고되지 않아 Chooser는 현재 값(`_Recent` 아님)을 유지했다.
+- 사용자 질문: 스트레이프가 Lyra와 비슷해 보인다 → 로코모션 DB가 참조하는 시퀀스는 모두 GASP `UEFN_Mannequin/Animations`다. 무기 서브 ABP가 `spine_01` 위를 Lyra 리타깃 파지 포즈·AO로 덮어서 상체는 Lyra로 보인다.
+
+### 시행착오·주의
+
+- 엔진 BP 라이브러리 함수에도 월드 XY 전제가 숨어 있다(`CalculateDirection`). 구면 월드에서 각도·방향을 내는 엔진 함수는 구현을 확인하고 쓴다.
+- MCP `get_dependencies`는 디스크 레지스트리를 읽어 저장 전 새 에셋에는 `None`을 돌려준다.
+- 상태 표시줄 `Cmd` 입력창(SlateInspector `Type`, submit)으로 콘솔 명령을 실행하고 결과는 `Saved/Logs/LootNPop.log`에서 읽었다.

@@ -54,6 +54,7 @@
 | `Characters/UEFN_Mannequin/Animations/Traversal/**` 시퀀스(신규) | 34 | — | 교체되는 Traversal 몽타주 34개의 하드 의존. **사용자 결정(2026-10-18): Traversal 몽타주 34개는 5.8로 교체한다** — 신규 시퀀스 34개를 반입하고 `PSD_Traversal`·`BP_NotifyState_MontageBlendOut`은 아래 리다이렉트로 끊는다 |
 | `Characters/UEFN_Mannequin/Rigs/PM_UEFN_Mannequin`(신규) | 1 | — | 새 `PA_UEFN_Mannequin`이 참조 |
 | `Characters/UEFN_Mannequin/Animations/**` MM 경로 시퀀스(신규) | — | 392 중 필요분 | `CHT_PoseSearchDatabases_Relaxed` 경로. Walk 114·Crouch 108·Run 103·Jump 22·Sprint 21·Traversal 14·Slide 6·Idle 4. 추가 내부 의존 없음(스켈레톤만) |
+| ↳ 2-2 반입분(루프, 2026-10-19) | — | 26 | `Walk/`: `M_Relaxed_Walk_Loop_{F,B,LL,RL}`, `M_Relaxed_Walk_Switch_{LR_LL,RR_RL}_{Lfoot,Rfoot}`, `M_Relaxed_Transition_{Run,Sprint}_to_Walk_{Lfoot,Rfoot}` / `Run/`: `M_Relaxed_Run_Loop_{F,B,LL,RL}`, `M_Relaxed_Run_Switch_{LR_LL,RR_RL}_{Lfoot,Rfoot}` / `Sprint/`: `M_Relaxed_Sprint_Loop_F`, `M_Relaxed_Transition_{Run,Walk}_to_Sprint_{Lfoot,Rfoot}` / `Crouch/M_Relaxed_Transition_Crouch_to_Stand`. (`Idle/M_Relaxed_Stand_Idle_Loop`은 1C-3에 이미 있다.) 외부 의존은 Foley Walk/Run·`PSD_SM_CMC_Idles`·커브 압축 설정뿐 — 모두 기존 리다이렉트·반입분. 해시 `Saved/AssetRefresh/2026-10-19/import_list_2-2_sha256.txt` |
 | `Misc/SandboxAnimCurveCompressionSettings` | 1 | (같은 파일) | 1C-3 대상 225개, Phase 2 대상 360개가 참조 |
 | `Blueprints/AnimModifiers/AM_BakePhaseCurveFromFootstepNotifies` | 1 | (같은 파일) | Phase 2 시퀀스 4개가 참조. **폴더 전체가 아니라 이 파일만** — 다른 `AM_FootSteps_*`는 Foley 노티파이를 참조한다 |
 | 반입 금지 → 리다이렉트 | — | — | 아래 표 |

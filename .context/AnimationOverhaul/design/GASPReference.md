@@ -1,6 +1,6 @@
 # GASP 참조 조사
 
-> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
+> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1, §2.9 단위 2-2 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
 > 마지막 갱신: 2026-10-19
 > 소유 정보: GASP 5.8 에디터(`unreal-mcp-gasp`, 포트 8001)에서 무엇을 어떻게 읽는지, 그리고 블록별로 LootNPop에서 무엇을 만들지. 원본 덤프가 아니라 요약만 둔다(README §11).
 
@@ -18,9 +18,9 @@
 | ABP **상태 머신 토폴로지** | `find_nodes`·`get_node_infos`·`get_connected_subgraph` | 상태·전이 이름(`list_graphs` 경로에 들어 있다). 상태 노드·전이 노드의 프로퍼티(`ObjectTools`: 크로스페이드 시간·블렌드 모드·우선순위·전이 노티파이 이름 등). 전이 **규칙 그래프 내부**는 `find_nodes`+`get_node_infos`로 읽힌다 | 상태 머신 그래프에서 `find_nodes`가 **빈 목록**, 상태·전이 노드에 `get_node_infos`·`get_connected_subgraph`가 **에러**(`'AnimStateNode' object has no attribute 'get_node_title'`). 즉 **어느 상태에서 어느 상태로 가는 전이인지**가 안 나온다 | 전이 노티파이 이름("Transition: Idle to Locomotion")에서 일부 유추. 정확한 연결은 사용자가 상태 머신 그래프 스크린샷 1장 또는 Ctrl+C 텍스트 |
 | ABP 이벤트·함수 그래프 | `read_graph_dsl` | **K2 그래프(EventGraph·함수)는 DSL로 잘 읽힌다**(EventGraph 전체 671자). 흐름 제어·함수 호출 구조 | ① **AnimGraph·레이어·상태·전이 규칙 그래프는 빈 문자열** ② 사용자 정의 enum은 내부 이름(`NewEnumerator4`)으로 나온다 ③ Break 구조체의 어느 출력 핀을 썼는지 DSL에 안 나온다 ④ 접힌 그래프(Composite)는 DSL에서 생략될 수 있다 | ① 포즈 그래프는 `get_node_infos` 경로 ② enum 표시 이름은 GASP 디스크의 `.uasset` 문자열로 목록만 얻는다(매핑 순서는 추정), 확실히 하려면 사용자 확인 ③④ 해당 노드 `get_node_infos` |
 | `CR_Biped_FootPlacement` | `ControlRigTools.list_graphs`·`list_variables`·`list_nodes`·`list_pins`·`get_connected_pins`·`get_pin_value`, 노드 클래스는 `ObjectTools.get_class` | **전부 읽힌다.** 그래프 42개(포워드 솔브 + 함수 라이브러리 약 25개), 변수 48개(타입·기본값), 노드·핀 이름, 서브 핀 단위 연결(`RelativeTransform.Translation`), 미연결 핀 기본값. 계층(`get_all_bones` 등)도 툴이 있다 | 노드 클래스가 일반형 `RigVMUnitNode`로만 나온다(RigUnit 구조체 이름은 노드 이름으로 유추) | 노드 이름이 대부분 구조체 이름을 따른다. 애매하면 해당 노드 핀 구성으로 판별 |
-| Chooser `CHT_MoverCharacterAnimations_PoseMatch` | `ObjectTools.get_properties`(`columnsStructs`·`contextData`·`resultType`·`outputObjectType`), `AssetTools.get_dependencies` | 컨텍스트(ABP 클래스 ReadWrite, `S_CHT_MoverCharacterAnimations_OUT` Write, `PoseHistoryReference` Read), 컬럼 정의와 **행 조건 값**(1열 `StateName` 이름 컬럼, 10행 = 상태 이름 10개), 결과 타입(`AnimationAsset` 오브젝트). 의존성으로 참조 애니·PSS·enum 전체 목록(약 400개) | **행별 결과**(`ResultsStructs`)와 중첩 Chooser 내용을 못 읽는다. 하위 오브젝트 경로 추측도 실패. 즉 "어느 행이 어떤 애니·하위 테이블·PSS로 가는지"가 빠진다 | 사용자가 Chooser 에디터 스크린샷(행 단위, 중첩 테이블 펼침). 의존성 목록은 스크립트로 폴더별 개수만 요약해 범위 파악에 쓴다 |
+| Chooser `CHT_MoverCharacterAnimations_PoseMatch` | `ObjectTools.get_properties`(`columnsStructs`·`contextData`·`resultType`·`outputObjectType`), `AssetTools.get_dependencies` | 컨텍스트(ABP 클래스 ReadWrite, `S_CHT_MoverCharacterAnimations_OUT` Write, `PoseHistoryReference` Read), 컬럼 정의와 **행 조건 값**(1열 `StateName` 이름 컬럼, 10행 = 상태 이름 10개), 결과 타입(`AnimationAsset` 오브젝트). 의존성으로 참조 애니·PSS·enum 전체 목록(약 400개) | **행별 결과**(`ResultsStructs`)와 중첩 Chooser 내용을 못 읽는다. 하위 오브젝트 경로 추측도 실패. 즉 "어느 행이 어떤 애니·하위 테이블·PSS로 가는지"가 빠진다 | **2-2부터 LootNPop 에디터 명령 `LNP.Editor.GASPRef`(아래 §1.4)로 덤프한다.** 중첩 테이블은 `<Chooser>.<표시 이름>` 경로(예: `CHT_PoseSearchDatabases_Relaxed.Stand Walks`)로 MCP에서도 컬럼까지 읽힌다. 컬럼 행 수는 결과 행 수와 같다(비활성 행은 결과가 `Asset=None`) |
 | PSS `PSS_SM_Mover_*` | `ObjectTools.list_properties`·`get_properties`, 채널 하위 오브젝트 재귀 | **전부 읽힌다.** 샘플레이트, 스켈레톤(`SK_UEFN_Mannequin`), 전처리, 채널 트리(`Trajectory` 샘플 오프셋·플래그·가중치, `Group` 아래 `Position`·`Velocity`의 본·기준 본·가중치, `Curve`) | 트래젝토리 샘플 `flags`가 비트마스크 정수(예: 48, 176) | 엔진 헤더 `PoseSearchFeatureChannel_Trajectory.h`의 `EPoseSearchTrajectoryFlags`로 해석 |
-| PSD (`PSD_SM_CMC_*`로 확인 — `PSD_SM_Mover_*`는 이 폴더에 없음) | `ObjectTools.get_properties`, `AssetTools.get_dependencies` | 스키마 참조, 비용 바이어스, 검색 모드, KDTree·PCA 설정 | **데이터베이스 애니 목록**(`DatabaseAnimationAssets`)과 항목별 설정(미러·샘플 범위) | 의존성 목록으로 들어 있는 애니 집합만 얻는다. 항목별 설정이 필요하면 사용자 스크린샷 |
+| PSD (`PSD_SM_CMC_*`로 확인 — `PSD_SM_Mover_*`는 이 폴더에 없음) | `ObjectTools.get_properties`, `AssetTools.get_dependencies` | 스키마 참조, 비용 바이어스, 검색 모드, KDTree·PCA 설정 | **데이터베이스 애니 목록**(`DatabaseAnimationAssets`)과 항목별 설정(미러·샘플 범위) | 의존성 목록으로 들어 있는 애니 집합만 얻는다. 항목별 설정은 `LNP.Editor.GASPRef` 덤프(§1.4) |
 | PhysicsControl `PCA_SandboxCharacter` | `ObjectTools.list_properties`·`get_properties` | **전부 읽힌다**(약 12.7KB). 물리 에셋(`PA_UEFN_Mannequin`), 리밋 6개(시작 본·컨트롤 생성 옵션), 기본 월드/부모 공간 컨트롤 값, 추가 컨트롤·모디파이어·세트, 프로필 3개(`kinematic`·`physicalAnimation`·`ragdoll`)의 컨트롤 갱신 값 | — | — |
 
 **결론: AnimGraph 포즈 연결은 MCP로 읽힌다.** 0-2 블록 분해를 MCP만으로 시작할 수 있다. 사용자에게 받아야 하는 것은 세 가지로 좁혀진다.
@@ -60,6 +60,16 @@ Save Cached 'PreRagdoll' ← [Layer] AimOffset ← [Layer] AdditiveLeans ← [La
 
 - `State Controller`의 상태 그래프(예: `Idle Loop`)는 `StateResult` 하나뿐이고 포즈 입력이 없다. 상태는 `stateEntryFunction`(`OnStateEntry_IdleLoop` 등)으로 블렌드 스택을 구동하는 컨트롤러 역할로 보인다(0-2에서 확인).
 - `PSS_SM_Mover_*`를 참조하는 에셋은 Chooser `CHT_MoverCharacterAnimations_PoseMatch`뿐이다(`get_referencers`). Mover 상태 머신 경로는 PSD 없이 Chooser가 PSS로 포즈 매칭을 하는 구성으로 보인다(0-2에서 확인).
+
+### 1.4 C++로 GASP 구성 에셋 읽기 — `LNP.Editor.GASPRef` (2-2)
+
+`ResultsStructs`·`DatabaseAnimationAssets`는 편집 플래그 없는 `UPROPERTY()`라 MCP·Python으로 못 읽지만 C++에서는 접근할 수 있다. LootNPop 에디터 명령 `LNP.Editor.GASPRef <spec.json>`(`Source/LootNPopEditor/Tools/LNPGASPReferenceCommand.cpp`)이 GASP `Content/`를 마운트 포인트 `/GASPRef/`로 올려 GASP 패키지를 불러온다.
+
+- 불러오는 동안만 `redirectPrefixes`(예: `/Game/Characters/UEFN_Mannequin/Animations/MotionMatchingData/`, `/Game/Blueprints/Data/`)를 `/GASPRef/`로 패키지 리다이렉트해, LootNPop에 없는 GASP 구성 에셋 참조가 GASP 쪽으로 풀리게 한다. 시퀀스·스켈레톤은 LootNPop에 같은 경로로 반입돼 있어 리다이렉트하지 않는다(반입 안 된 시퀀스는 `None`으로 나오고 PoseSearch 경고가 난다 — 무해).
+- `dump`: 패키지 안 모든 오브젝트의 프로퍼티를 텍스트로 JSON에 쓴다. `clone`: GASP 에셋을 LootNPop 경로에 복제하고 복제본끼리 참조를 잇는다(정규화 세트는 `/Game` 밖 DB를 뺀다). `/GASPRef/` 참조가 남으면 경고한다. 저장하지 않는다.
+- 끝나면 리다이렉트·마운트를 내린다. 불러온 GASP 패키지는 에디터를 다시 켤 때까지 메모리에 남는다(dirty가 아니라 저장되지 않는다). GASP 에디터(8001)는 필요 없다 — 디스크의 GASP 파일만 읽는다.
+- 같은 파일의 `LNP.Editor.SetChooserResults <Chooser> [Asset ...]`이 Chooser 결과 행을 에셋 결과로 바꾸고 컴파일한다(컬럼은 MCP `set_properties`). MCP로 `columnsStructs`를 쓸 때 기존 원소의 구조체 타입은 바뀌지 않는다 → 빈 배열로 한 번 쓴 뒤 새 컬럼을 넣는다. 배열 크기와 기존 원소를 한 호출에서 같이 바꾸면 거부된다.
+- 사용 예: `Saved/AnimOverhaul/GASPRef_2-2_spec.json`(덤프 결과 `GASPRef_2-2.json`, git 제외).
 
 ## 2. 블록 표
 
@@ -143,7 +153,7 @@ GASP는 Pawn이 BPI로 구조체를 넘기고 ABP가 가공한다. LootNPop은 M
 
 ### 2.6 Phase 2 착수 시 확인할 것
 
-- `CHT_PoseSearchDatabases_Relaxed` 8행 각각의 결과(어느 PSD 묶음인지)는 MCP로 안 읽힌다. 행 조건(이동 모드·자세·이동 상태·보행)과 PSD 이름으로 묶음을 짐작할 수 있으므로, 2-2에서 LootNPop Chooser를 만들 때 Chooser 에디터 스크린샷 1장으로 확인한다.
+- `CHT_PoseSearchDatabases_Relaxed` 8행 각각의 결과 → 2-2에서 C++ 덤프로 확인했다(§1.4·§2.9). 스크린샷은 필요 없었다.
 - 행 조건: OnGround·Stand·Idle(보행 무관) / OnGround·Stand·Moving × Walk·Run·Sprint / OnGround·Crouch·Idle / OnGround·Crouch·Moving / Sliding / InAir.
 - 노드 수치(블렌드 시간·반감기 등)는 GASP 기본값이다. 블록 단위에서 PIE로 다시 맞춘다.
 
@@ -220,3 +230,27 @@ B10 노드 설정(GASP):
 - 800cm/s 질주 중 급반전은 대부분 `bShouldSpinTransition`(예측 facing 누적 146°)으로 잡히고 `bIsPivoting`은 드물다(1회, 286cm/s에서 −161°). LootNPop 이동은 고속에서 크게 호를 그려 0.5초 안의 속도 방향 변화가 75°에 못 미친다.
 - 스폰 직후 공중에서 `FutureFacingDelta`가 1초 안쪽으로 90°를 한 번 보인다(`TurnInPlace(facing 90)` 1회). 첫 궤적의 facing 기준이 메시 오프셋과 잠깐 어긋나는 것으로 보이며 공중이라 AN-007 고정 루프가 재생돼 영향이 없다.
 - 스트레이프 무기로 좌우를 연타하면 `MovementDirection`이 0.05~0.15초 간격으로 L↔R을 오간다(입력 그대로). `_Recent`는 0.1초 유지 뒤에만 바뀐다.
+
+### 2.9 MM 선택 코어 — GASP Chooser 결과와 LootNPop 구성 (2-2 확인, 2026-10-19)
+
+`CHT_PoseSearchDatabases_Relaxed`를 `LNP.Editor.GASPRef`로 덤프했다(§1.4). 루트 8행의 결과는 전부 **중첩 Chooser**이고, ABP는 멀티 결과로 평가해 나온 DB를 모두 검색한다.
+
+| 루트 행(이동 모드·자세·이동 상태·보행) | 중첩 테이블 | 결과(행 순서, 비활성 제외) |
+|:---|:---|:---|
+| OnGround·Stand·Idle | `Stand Idles`(8) | `Speed2D` 0~20 → `Stand_Idles` / 20~170 → `Walk_Stops` / 170~400 → `Run_Stops` / 400~ → `Sprint_Stops` / `ShouldTurnInPlace` → `TurnInPlace` / 착지 Light·Heavy → `Idle_Lands_*` / 직전 Sliding → 슬라이드 탈출 |
+| OnGround·Stand·Moving·Walk | `Stand Walks`(25) | `IsStarting` × F·B·LL·RL → `Walk_*_Starts` / 직전 OnGround × F·B·LL·RL → `Walk_*_Loops` / `IsPivoting` + 방향·`MovementDirection_Recent` 마스크 → `Walk_F_Turns`(F→F)·`Walk_*_Pivots` / `ShouldSpinTransition` × 방향 → `Walk_*_Spins` / `JustTraversed` → `FromTraversal` / 착지 → `Walk_Lands_*` / 슬라이드 탈출(비활성) |
+| …·Run | `Stand Runs`(26) | Walk와 같은 구성 + 직전 보행 Walk·Sprint면 `Run_F_GaitTransitions` |
+| …·Sprint | `Stand Sprint`(6) | `IsStarting` → `Sprint_Starts` / 직전 OnGround·!Pivot → `Sprint_Loops` / `IsPivoting` → `Sprint_Turns` / 착지 Light·Heavy / 슬라이드 탈출 |
+| Crouch Idle·Crouch Moving·Slide·InAir | 각 2~4행 | 범위 밖(InAir는 `Stand_Jump`·`WalkAndRun_Jump`·`Sprint_Jump`·`Jumps_FromTraversal`) |
+
+- 방향 enum `E_MovementDirection` 표시 이름 = F·B·LR·LL·RL·RR(값 0~5). Chooser는 좌·우를 **LL·RL**로만 고른다. `LR`·`RR` 루프 DB는 어느 행도 쓰지 않는다. 각 행에 방향 "Any" 행이 하나씩 비활성으로 남아 있다.
+- 루프 DB 항목은 모두 `bDisableReselection=True`, 미러·샘플 범위 기본값. 비용 바이어스는 DB마다 다르다(예: Run LL·RL 진행 포즈 −0.2, Sprint −0.5, Idles −0.01).
+- 스키마: `PSS_Relaxed_Loops` = 궤적(−0.125·0·0.33·0.8·1.35s, 위치·속도 XY) + `Phase` 곡선(0, −0.033s) + 골반 Heading X(0.3), **포즈 채널 없음**. `PSS_Relaxed_Idle` = 포즈(발 위치·속도, 골반·spine_05 속도) + 궤적(**가중치 0**). 정규화는 `PSN_Relaxed_All` 하나(`NormalizeWithCommonSchema`).
+- GASP MM 노드: 0.5s HermiteCubic, 블렌드 프로필 `FastFeet_InstantRoot`, 재생 속도 0.85~1.15, `poseReselectHistory` 0.3, 최대 블렌드 4, `bShouldFilterNotifies`.
+
+LootNPop 구성(2-2):
+
+- 평면 멀티 결과 Chooser `CHT_PoseSearchDatabases_UEFN` 11행 — 지상·Idle → `PSD_Stand_Idles_UEFN`, 지상·Moving × Walk·Run × F·B·L·R → `PSD_Stand_{Walk,Run}_{F,B,LL,RL}_Loops_UEFN`, Sprint → `PSD_Stand_Sprint_Loops_UEFN`, 공중 → `PSD_Jump_UEFN`. 2-4에서 Starts·Stops·Pivots·Spins·Turns·TurnInPlace·Lands 행을 더한다(술어·`_Recent`·`_LastFrame`은 2-1에서 이미 공급). 루프 행에 GASP의 "직전 OnGround" 조건은 넣지 않았다 — Lands DB가 없어 착지 프레임에 빈 결과가 되기 때문이다(2-4에서 같이 넣는다).
+- PSD·PSS·PSN은 GASP 것을 `LNP.Editor.GASPRef clone`으로 `Characters/MotionMatchingData/`에 복제했다(항목·바이어스·스키마 값이 GASP와 같다). MM 노드 설정은 GASP 값으로 맞췄다.
+- 인터럽트: GASP 식 + **출발 프레임(Idle→Moving)**. Idle 스키마가 궤적을 보지 않아 진행 중인 Idle 포즈가 움직여도 이기기 때문이다(GASP는 Starts DB가 이 구간을 받는다). 2-4에서 Starts DB가 들어오면 이 예외를 다시 본다.
+- 승격 적 `MovementState` 깜빡임: Chooser는 현재 값을 쓴다. 사용자 PIE(적도·리슨 2인·승격 적 전투)에서 떨림이 보이지 않았다.

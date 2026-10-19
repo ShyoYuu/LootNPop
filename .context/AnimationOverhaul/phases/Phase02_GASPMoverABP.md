@@ -1,6 +1,6 @@
 # Phase 2 — 스켈레톤 전환과 GASP Mover ABP 재구성
 
-> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1 완료 2026-10-19, 다음 2-2)
+> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1·2-2 완료 2026-10-19, 다음 2-3)
 > 선행: Phase 1C 완료(GASP 5.8 소스, 93본 `SK_UEFN_Mannequin`), AN-011(UEFN 전환)·AN-015(MM 노드 방식)·AN-016(폴더·git)·AN-018(소스 저장 금지)
 > 순서: 2-0a → 2-0b → 2-1 → … → 2-6. 단위 하나가 세션 하나이고, 단위마다 커밋하고 사용자 확인을 받는다.
 > 단위 목록·블록 정의는 `Roadmap.md` §4 Phase 2와 `design/GASPReference.md` §2.2·§2.7이 소유한다. 이 문서는 착수한 단위의 실행 계획·결과·재생성 절차를 소유한다.
@@ -147,9 +147,49 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 | 검증(사용자 리슨 2인 PIE, 적도) | 호스트·게스트(자신·상대)·승격 적 2마리 모두 값이 나왔다. 로그 585줄에서 정지·출발(`Starting`)·착지 Light/Heavy(Heavy는 Up 속도 −690~−3914)·Spin·Pivot·TurnInPlace·방향 F·B·L·R·Strafe/Aim 확인. 회귀(근접 콤보·재장전·가드/패링·대시·피격·랙돌·리스폰) 없음 |
 | PIE에서 고친 것 | `bJustTeleported` 오탐: 고속 낙하 착지 프레임, 게스트가 보는 호스트의 Actor 스냅(74회). 메시 위치 + 속력 허용치로 바꿔 착지 오탐 0, 시뮬 프록시 15회/80초(1000cm/s 이상에서 메시가 실제로 튀는 경우)로 줄였다. 남은 것은 2-5에서 정한다 |
 
+## 단위 2-2 — B1 MM 선택 코어 + 스트레이프 복구
+
+`Roadmap.md` §4 2-2 행이 범위를 소유한다. 시작·정지·피벗·회전 DB(B6)는 2-4, Orientation Warping·Steering(B2)·Offset Root(B3)는 2-3이다. 이번에는 **루프만** 고른다. 에디터는 LootNPop(8000)과 GASP(8001, 읽기 전용) 둘 다 쓴다.
+
+착수 시 확인한 GASP 구성(상세 `design/GASPReference.md` §2.9, 결과 셀은 아래 2번 명령으로 덤프):
+
+- `CHT_PoseSearchDatabases_Relaxed` 루트 8행(이동 모드·자세·이동 상태·보행)의 결과는 모두 **중첩 Chooser**(`Stand Idles`·`Stand Walks`·`Stand Runs`·`Stand Sprint`…)다. 중첩 테이블은 `<Chooser>.<표시 이름>` 경로로 컬럼까지 읽힌다. Walk·Run 테이블은 `MovementDirection`(F·B·LL·RL)·`_Recent`·술어로 나뉜 25~26행이고, ABP는 여러 결과를 한꺼번에 받아 검색한다(멀티 결과).
+- 방향별 루프 DB는 `PSD_Relaxed_Stand_{Walk,Run}_{F,B,LL,RL}_Loops`, 루프 스키마는 `PSS_Relaxed_Loops`(궤적 위치·속도 XY 5샘플 + `Phase` 곡선 2개 + 골반 Heading, 포즈 채널 없음), Idle은 `PSS_Relaxed_Idle`, 정규화는 `PSN_Relaxed_All` 하나다. `LR`·`RR` 루프 DB는 Chooser가 고르지 않는다.
+- 결과 셀(`ResultsStructs`)과 PSD 항목(`DatabaseAnimationAssets`)은 MCP·Python으로 읽히지 않는다. 둘 다 C++에서는 접근할 수 있다.
+
+계획:
+
+1. **반입.** 루프 DB 10개가 쓰는 시퀀스 27개 중 LootNPop에 없는 26개를 GASP 원본 경로 그대로 복사한다(LootNPop 에디터를 끈 상태). 외부 의존(Foley Walk/Run·`PSD_SM_CMC_Idles`·커브 압축 설정)은 이미 `Removed` 리다이렉트·반입 목록에 있다.
+2. **GASP 참조 편집기 명령**(`LootNPopEditor`): GASP `Content/`를 임시 마운트 포인트로 올려 LootNPop 에디터에서 GASP 구성 에셋을 **읽기만** 한다. ① 덤프 — Chooser 결과 행·중첩 테이블, PSD 항목 설정을 JSON으로(스크린샷 대신). ② 복제 — GASP PSD·PSS를 LootNPop 경로(`Characters/MotionMatchingData/`)에 새 구성 에셋으로 복제하고, 복제본끼리 참조를 다시 잇는다. GASP 패키지는 저장하지 않는다(AN-009·AN-016 ②).
+3. **LootNPop 구성 에셋**: `PSS_Relaxed_{Loops,Idle}_UEFN`, `PSN_Relaxed_UEFN`, PSD 10개(`PSD_Stand_Idles_UEFN`, `PSD_Stand_{Walk,Run}_{F,B,LL,RL}_Loops_UEFN`, `PSD_Stand_Sprint_Loops_UEFN`), 평면 멀티 결과 Chooser `CHT_PoseSearchDatabases_UEFN`(행 입력 `ELNPMovementMode`·`ELNPMovementState`·`ELNPGait`·`ELNPMovementDirection`). 스트레이프는 `MovementDirection`이 이미 회전 모드를 반영한다(OrientToMovement·Sprint면 F). 공중 행은 기존 `PSD_Jump_UEFN`(MM 노드는 공중에서 꺼져 있다, AN-007).
+4. **C++**(`ULNPAnimInstance`): `GetMMInterruptMode`·`GetMMBlendTime`(GASP 식, §2.8)과 MM 노드 갱신 함수 하나(Chooser 멀티 평가 → `SetDatabasesToSearch` → 블렌드 시간 덮어쓰기). `ABP_Main_UEFN` `OnUpdate_MotionMatching`은 이 함수를 호출만 한다. 디버그 CVar 2에서 고른 DB가 바뀔 때 로그(`[AnimB1]`).
+5. 승격 적 `MovementState` 깜빡임 대응: Chooser는 현재 값을 쓴다(GASP와 같다). 근거 — 관찰된 깜빡임 주기(0.1~0.5초)가 `_Recent` 유지 시간(0.1초)보다 길어 `_Recent`로는 거의 걸러지지 않고 모든 정지·출발에 지연만 더한다. 이동 상태 변화는 DB 인터럽트 조건이 아니어서(`DoNotInterrupt`) 진행 중인 포즈가 유지된다. PIE에서 떨림이 보이면 다시 정한다.
+6. 유지: 공중 `Fall_Loop` 고정(AN-007), 무기 레이어·슬롯 3종·AO·근접 보정 어댑터, 슬롯 그룹 런타임 등록(AN-020). 옛 `CHT_PSD_UEFN`·`PSD_{Idle,Walk,Run}_UEFN`은 되돌림용으로 남긴다(런타임 미참조).
+
+완료 조건:
+
+- Idle·Walk·Run·Sprint 루프 전환, 정지 뒤 Idle 복귀, 총기·락온 스트레이프 방향별 클립(F·B·좌·우 DB. 대각 입력은 히스테리시스 임계로 가장 가까운 DB가 고르고, 허리를 이동 방향으로 돌리는 보정은 2-3 Orientation Warping), 무기별 상체 레이어·AO 유지
+- 근접 콤보·재장전·가드·랙돌 회귀 없음, 적도·`ActorPromoted`(게스트 재시뮬 포함)·리슨 2인
+- 커밋 뒤 깨끗한 트리에서 `Build.bat` 재확인
+
+### 2-2 결과 (2026-10-19, 상세 `history/Phase02_Log.md`)
+
+| 항목 | 결과 |
+|:---|:---|
+| GASP 확인 | 루트 8행 → 중첩 Chooser 8개, Walk 25행·Run 26행·Idle 8행·Sprint 6행의 결과를 C++ 덤프로 얻었다(스크린샷 불필요, 요약 `design/GASPReference.md` §2.9) |
+| 반입 | 시퀀스 26개(목록 `phases/Phase01C_GASPAssetRefresh.md` "2-2 반입분", 해시 `Saved/AssetRefresh/2026-10-19/import_list_2-2_sha256.txt`). 새 노티파이·외부 의존 없음(기존 `Removed` 리다이렉트로 충분). git 제외 확인 |
+| 편집기 명령 | `LNP.Editor.GASPRef`(GASP Content 임시 마운트 + 불러오는 동안만 패키지 리다이렉트 → 덤프·복제), `LNP.Editor.SetChooserResults`(Chooser 결과 행 = 에셋, 컴파일). `LootNPopEditor`에 `AssetTools`·`Chooser`·`Json`·`PoseSearch` 의존 추가 |
+| 구성 에셋 | `PSS_Relaxed_{Loops,Idle}_UEFN`·`PSN_Relaxed_UEFN`·PSD 10개(GASP 복제, 내부 참조 재연결, `/GASPRef/` 잔여 0), `CHT_PoseSearchDatabases_UEFN`(11행, `CHT_PSD_UEFN` 복제 후 결과·컬럼 교체 — 복제 원본의 폴백 결과 `PSD_Idle_UEFN`은 `ReplaceAssetRefs`로 새 Idle DB로) |
+| C++ | `ULNPAnimInstance::UpdateMotionMatchingNode`(Chooser 멀티 평가 → `SetDatabasesToSearch` → 블렌드 시간 덮어쓰기)·`GetMMInterruptMode`·`GetMMBlendTime`, 프로퍼티 `LocomotionDatabaseChooser`(ABP 기본값), `[AnimB1]` 로그. `FMotionMatchingBlueprintBlendSettings` 생성자가 PoseSearch 밖으로 내보내지지 않아 리플렉션으로 인스턴스를 만든다 |
+| ABP | `OnUpdate_MotionMatching` = `UpdateMotionMatchingNode(Node)` 한 줄. MM 노드 GASP 값(0.5s HermiteCubic, `FastFeet_InstantRoot`, 재생 속도 0.85~1.15, 노티파이 필터). 경고 없이 컴파일 |
+| PIE에서 고친 것 | ① 적도에서 앞으로 걸어도 옆·뒤 클립: 엔진 `CalculateDirection`이 속도를 `GetSafeNormal2D`로 정규화(월드 Z 제거) → `Direction`을 캐릭터 Up 둘레 부호각으로. ② 걷는데 Idle 유지(대시로 풀림): Idle 스키마는 궤적 가중치 0이라 `DoNotInterrupt`에서 진행 중인 Idle 포즈가 계속 이김 → 출발 프레임에도 인터럽트(2-4 Starts DB 때 재검토) |
+| 검증(사용자 1·2인 PIE, 적도) | 걷기·달리기·질주·정지, 8방향 이동, ADS 이동, 총기 상체 자세, 가드 이동·가드·패링, 재장전, 근접 콤보, 승격 적 전투 — 어색함 없음. 자동 PIE 경고 0 |
+| 남긴 것 | 옛 `CHT_PSD_UEFN`·`PSD_{Idle,Walk,Run}_UEFN`(되돌림용, 런타임 미참조). 감속 구간은 Stops DB가 없어 `MovementState`가 Idle이 되는 순간(약 330cm/s) Idle DB로 넘어간다 — 2-4 |
+
 ## 완료 조건 체크리스트
 
 - [x] 2-0a: 실사용 목록 확정(98개, 0-3 대비 차이 설명), 리타깃 사본 98개 `Retargeted/Lyra/`, 몽타주 대조 결함 0, 서브 ABP 5개 경고 0 컴파일, 재생성 절차·스크립트, 2-0b 임시 로코모션 계획 수정 (2026-10-18)
 - [x] 2-0b: 전환 — 결정 A·B 반영, 근접 콤보·ANS 판정·근접 보정·재장전·가드/패링·랙돌·HitStop, 적도·`ActorPromoted`·2인 PIE, ISKM 무영향(ISKM 에셋 미변경). 알려진 차이: 스트레이프 방향 클립 → 2-2 (2026-10-19)
 - [x] 2-1: B0 공급값(상태·이력·궤적 파생값·가속·지면·술어) C++, 궤적 C++ 소유, Pose History GASP 설정, DeadBlending, 디버그 CVar, 2인·적도·승격 적 값 확인, 회귀 없음 (2026-10-19)
-- [ ] 2-2 ~ 2-6: `Roadmap.md` §4
+- [x] 2-2: B1 상태별 PSD 묶음 Chooser(멀티 결과)·루프 DB 10개(GASP 복제), 방향별 스트레이프 복구(시퀀스 26개 반입), 인터럽트·블렌드 시간 C++, MM 노드 GASP 설정, 적도 이동 방향 수정, 1·2인·적도·승격 적 PIE 회귀 없음 (2026-10-19)
+- [ ] 2-3 ~ 2-6: `Roadmap.md` §4
