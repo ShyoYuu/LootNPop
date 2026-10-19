@@ -226,3 +226,7 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에�
 - 엔진 BP 라이브러리 함수에도 월드 XY 전제가 숨어 있다(`CalculateDirection`). 구면 월드에서 각도·방향을 내는 엔진 함수는 구현을 확인하고 쓴다.
 - MCP `get_dependencies`는 디스크 레지스트리를 읽어 저장 전 새 에셋에는 `None`을 돌려준다.
 - 상태 표시줄 `Cmd` 입력창(SlateInspector `Type`, submit)으로 콘솔 명령을 실행하고 결과는 `Saved/Logs/LootNPop.log`에서 읽었다.
+
+### 6. 커밋 뒤 빌드 재확인
+
+- 커밋 `0f7e55a` 뒤 깨끗한 트리(변경 0)에서 **게임 타깃** `Build.bat LootNPop Win64 Development` 통과. 에디터 타깃은 LootNPop 에디터가 켜져 있어 Live Coding 검사에 막히므로 돌리지 않았다. 에디터 타깃은 커밋 전 같은 소스(이후 `LNPAnimInstance.cpp`의 방향·인터럽트 수정만 Live Coding으로 반영)로 경고 없이 빌드됐다. 다음에 LootNPop 에디터를 끈 김에 에디터 타깃을 한 번 더 돌린다.
