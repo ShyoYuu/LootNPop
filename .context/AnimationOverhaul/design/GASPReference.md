@@ -1,6 +1,6 @@
 # GASP 참조 조사
 
-> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1, §2.9 단위 2-2, §2.10 단위 2-3 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
+> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1, §2.9 단위 2-2, §2.10 단위 2-3, §2.11 단위 2-4 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
 > 마지막 갱신: 2026-10-20
 > 소유 정보: GASP 5.8 에디터(`unreal-mcp-gasp`, 포트 8001)에서 무엇을 어떻게 읽는지, 그리고 블록별로 LootNPop에서 무엇을 만들지. 원본 덤프가 아니라 요약만 둔다(README §11).
 
@@ -104,7 +104,7 @@ AnimGraph
 | **B4 발 배치** (`Procedural_Feet`) | 이동 모드 Blend: Sliding·Traversing·InAir → `LegIK`(“BasicIK”, 애니의 ik_foot 위치로만 풂), Ragdoll → IK 없음, 그 밖(OnGround·Flying) → Bool(← CVar `a.AnimNode.FootPlacement.Enable`)이 참이면 `CR_Biped_FootPlacement`, 거짓이면 LegIK. `DDCvar.FootPlacementMode`는 Mover ABP에서 쓰지 않는다. CR 입력: `Ground Normal` ← 구조체 `GroundNormal`, `GroundMovementWorldDelta` ← `BasedMovementDelta`(Break 핀 이름으로 추정), `DoRaycast`=true, `Enable Foot Pinning`·`Enable Slope Warping`·`WorldZDamperEnabled`(셋 다 OnGround일 때만), `Has Teleported`, `ForceReset`(OnBecomeRelevant). **5.8 Mover ABP에는 `AnimNode_FootPlacement`가 없다** | `CR_Biped_FootPlacement` 구성을 따른 CR + 레이어(지상만 CR, 공중은 LegIK). 접지 입력은 B0 | CR 씬 쿼리·평면 보정은 리그(컴포넌트) 공간 Z — 메시가 중력에 정렬돼 있으면 안전. ⚠️ **`UpdateRootDamper`가 `To World` 뒤 월드 `.Z`에 스프링 감쇠** → `WorldZDamperEnabled` 끔 또는 중력 Up 축으로 수정 | CR 1개(구성 에셋, 그래프 42개), 본 `foot_*`·`ball_*`·`ik_foot_*`·`pelvis` | 없음(신규) |
 | **B5 경사·슬라이드** | 경사: CR 슬로프 워핑(B4) + Chooser가 고르는 `BS_Relaxed_*_Loop_F_Slopes`(블렌드 스택 태그 `BS_Slope`, 입력 `SlopeAngle` ±30°). `SlopeAngle`은 `GetSlopeDegreeAngles(캐릭터 Up)` + `SmoothedGroundNormal`(VInterpTo 5). 슬라이드: `Procedural_PreLayering`이 Sliding일 때 root를 `ModifyBone`(이동 월드 공간·회전 컴포넌트 공간 additive)으로 경사에 맞춘다 | 경사만: 경사 각도·지면 법선 공급(B0) + 경사 BS 행. 슬라이드는 LootNPop에 슬라이드 이동 모드가 없어 제외 | 경사 각도 계산은 캐릭터 Up을 쓴다 — 안전. `SlopeWarping` 노드는 쓰지 않는다(§1, `research` §5의 ⚠️ 회피) | 경사 BS 2개 + 원본 시퀀스 | 없음(신규) |
 | **B6 정지·회전 전환** | MM: Chooser가 Starts·Stops·Pivots·Spins·TurnInPlace·Turns·GaitTransitions·Lands DB를 함께 검색. SM: 상태·전이(Pivot·Turn In Place·"Broke" rotation·WrongWay·Started Circling…)와 Chooser 행 | B1 DB 묶음에 포함(MM). 술어(`ShouldTurnInPlace`: \|FutureFacingDelta\|≥50° & 속도<50, `ShouldSpinTransition`: ≥130° & ≥150, `IsPivoting`)는 C++ | B0와 같음 | B1 시퀀스에 포함 | 현 PSD에 없는 세트 **확장** |
-| **B7 공중** | MM: Jump·Lands_Light/Heavy DB, 블렌드 시간 `Get_MMBlendTime`(InAir 0.15/0.5, 착지 0.2). SM: In Air 상태 | **AN-007 유지**(Fall_Loop 고정). 착지(Lands_Light/Heavy)만 2-3에서 검토 | Jump 채널에 수직 성분 없음(TechDesign_CombatAnimation §5.5) | Jump 59개 중 착지 일부 | Fall_Loop 고정 경로 유지 |
+| **B7 공중** | MM: Jump·Lands_Light/Heavy DB, 블렌드 시간 `Get_MMBlendTime`(InAir 0.15/0.5, 착지 0.2). SM: In Air 상태 | **AN-007 유지**(Fall_Loop 고정). 착지(Lands_Light/Heavy)는 2-4에서 지상 첫 프레임 DB로만 넣었다(§2.11) | Jump 채널에 수직 성분 없음(TechDesign_CombatAnimation §5.5) | Jump 59개 중 착지 일부 | Fall_Loop 고정 경로 유지 |
 | **B8 Additive Leans** | 레이어: 이동 모드 Blend(Sliding만 통과, 공중 포함 나머지는 적용) → 이동 상태 Blend(Moving만 적용) → Bool(← `EnableAO`): AO가 켜져 있으면 몸통만, 꺼져 있으면 몸통+머리(`BS_Relaxed_Lean_Head`). 몸통 = `BS_Relaxed_Walk_Leans`↔`BS_Relaxed_Run_Leans` TwoWayBlend(α ← `Speed2D`를 200~320에서 0~1로 매핑). BS 입력 X·Y ← `LeanAmount`. Mesh Space Additive. `LeanAmount` = 가속을 속도 방향 기준으로 Unrotate한 측면 성분 / 속도별 정규화. 곡선 `Disable_AdditiveLeans`로 끔 | 레이어 + C++ `LeanAmount`(캐릭터 로컬 축). 머리 기울기 분기는 LootNPop 조준 상태(FreeAim·락온)로 바꾼다 | ⚠️ `RotationFromXVector(Velocity)`는 월드 Z 기준 회전 → C++에서 접평면 기저로 | BS 3개(Poses 폴더) | 없음(신규). 무기 서브 ABP 오버레이 뒤에 둘지는 2-5에서 |
 | B9 Aim Offset | 레이어: `BS_Neutral_AO_Stand_NoSmoothing` Mesh Space Additive, `EnableAO`(회전 모드 Strafe/Aim, 각도 한계 180/110) 아니면 Identity, DeadBlending, 곡선 `Disable_AO`. `AimingRotation`을 Critical Spring으로 평활 | **가져오지 않는다.** 무기별 AO(서브 ABP + C++ 로컬 좌표 `AimYaw`/`AimPitch`)를 유지. 평활(Critical Spring)만 필요하면 C++에 | GASP는 Rotator 델타(월드) — LootNPop 방식이 이미 구면 대응 | — | 무기 서브 ABP AO 유지 |
 | B10 포즈 히스토리·DeadBlending | `PoseHistoryCollector`를 **출력 직전**(절차 레이어 뒤)에: 포즈 2개, 수집 본(foot·thigh·spine…), 곡선 `Phase`, 궤적 이력 10·예측 8. `DefaultSlot` 뒤 `DeadBlending`(0.25s, Ragdoll 강도 곡선 필터) | 히스토리 위치·설정을 GASP식으로, 슬롯 뒤 DeadBlending 추가 | — | — | 기존 `PoseHistoryCollector`·슬롯 3종 **확장** |
@@ -251,9 +251,9 @@ B10 노드 설정(GASP):
 
 LootNPop 구성(2-2):
 
-- 평면 멀티 결과 Chooser `CHT_PoseSearchDatabases_UEFN` 11행 — 지상·Idle → `PSD_Stand_Idles_UEFN`, 지상·Moving × Walk·Run × F·B·L·R → `PSD_Stand_{Walk,Run}_{F,B,LL,RL}_Loops_UEFN`, Sprint → `PSD_Stand_Sprint_Loops_UEFN`, 공중 → `PSD_Jump_UEFN`. 2-4에서 Starts·Stops·Pivots·Spins·Turns·TurnInPlace·Lands 행을 더한다(술어·`_Recent`·`_LastFrame`은 2-1에서 이미 공급). 루프 행에 GASP의 "직전 OnGround" 조건은 넣지 않았다 — Lands DB가 없어 착지 프레임에 빈 결과가 되기 때문이다(2-4에서 같이 넣는다).
+- 평면 멀티 결과 Chooser `CHT_PoseSearchDatabases_UEFN` 11행 — 지상·Idle → `PSD_Stand_Idles_UEFN`, 지상·Moving × Walk·Run × F·B·L·R → `PSD_Stand_{Walk,Run}_{F,B,LL,RL}_Loops_UEFN`, Sprint → `PSD_Stand_Sprint_Loops_UEFN`, 공중 → `PSD_Jump_UEFN`. 2-4에서 전환 행을 더해 52행이 됐고 루프 행에 "직전 OnGround"도 넣었다(§2.11).
 - PSD·PSS·PSN은 GASP 것을 `LNP.Editor.GASPRef clone`으로 `Characters/MotionMatchingData/`에 복제했다(항목·바이어스·스키마 값이 GASP와 같다). MM 노드 설정은 GASP 값으로 맞췄다.
-- 인터럽트: GASP 식 + **출발 프레임(Idle→Moving)**. Idle 스키마가 궤적을 보지 않아 진행 중인 Idle 포즈가 움직여도 이기기 때문이다(GASP는 Starts DB가 이 구간을 받는다). 2-4에서 Starts DB가 들어오면 이 예외를 다시 본다.
+- 인터럽트: GASP 식 + **출발 프레임(Idle→Moving)**. Idle 스키마가 궤적을 보지 않아 진행 중인 Idle 포즈가 움직여도 이기기 때문이다2-4에서 Starts DB가 생긴 뒤에도 필요해 유지했고, 같은 이유로 제자리 회전 요청도 끊는다(§2.11).
 - 승격 적 `MovementState` 깜빡임: Chooser는 현재 값을 쓴다. 사용자 PIE(적도·리슨 2인·승격 적 전투)에서 떨림이 보이지 않았다.
 
 ### 2.10 B2 블렌드 스택·B3 Offset Root — GASP 노드 값과 LootNPop 구성 (2-3 확인, 2026-10-20)
@@ -289,4 +289,26 @@ GASP `SandboxCharacter_Mover_ABP`를 MCP(`find_nodes`·`get_node_infos`·`get_pr
 | base 이동량 | `OnUpdate`에서 `ApplyDeltaToOffsetRootBone(BasedMovementDelta)` | `NativeThreadSafeUpdateAnimation`(그래프 갱신 직전)이 태그로 노드를 찾아 더하고 Up 정렬까지 한다. ABP 노드 함수 없음 |
 
 - GASP는 AO·`RootTransform` 계산을 오프셋 루트 기준으로 한다. LootNPop도 AO(`AimYaw`/`AimPitch`)와 `FutureFacingDelta` 첫 기준을 가상 루트로 바꿨다(서브 ABP는 메인 인스턴스 값을 읽는다).
+- 정지 회전(2-4 갱신): TurnInPlace DB가 생겨 제자리 회전은 회전 클립 + 두 번째 Steering이 맡는다. `MaxRotationError` 90°는 안전망으로 남겼다(정지 중 가상 루트 Yaw p95 73°, §2.11).
 - 디버그: `LNP.Anim.DebugLocomotion` 표시 마지막 줄과 `[AnimB3]`(2, 1초마다) — 모드, 거리, Yaw, 기울기, 궤적 facing 기울기. 거리는 직전 평가 가상 루트와 이번 프레임 메시를 비교해 한 프레임 이동량이 더해진다. 엔진 토글 `a.AnimNode.OffsetRootBone.Enable`·`a.AnimNode.Steering.Enabled`·`a.AnimNode.OrientationWarping.Enable`, 시각화 `a.AnimNode.OffsetRootBone.Debug`.
+
+### 2.11 B6 전환 DB·B7 착지 — GASP 행 조건과 LootNPop 구성 (2-4 확인, 2026-10-20)
+
+GASP 중첩 테이블(`Stand Idles`·`Stand Walks`·`Stand Runs`·`Stand Sprint`)의 행 조건은 2-2 덤프(`GASPRef_2-2.json`)에 이미 있었다. 새 DB 41개와 스키마는 `GASPRef_2-4.json`, 참조 시퀀스는 GASP MCP `get_dependencies`로 읽었다(DSL 안 씀, 저장 없음).
+
+**행 구성 원리**
+
+- 결과는 **멀티 결과 합집합**이다. 루프 행은 술어와 무관하게 "직전 OnGround"면 늘 나오고, 전환 행(Starts·Pivots·Spins·Turns·TurnInPlace·Lands·GaitTransitions)은 술어가 켜진 프레임에만 더해진다. MM이 비용으로 고르고, 고른 클립은 `DoNotInterrupt`로 이어 간다(전환 DB의 `ContinuingPoseCostBias` −0.2~−1.0).
+- 피벗·스핀 행은 `MovementDirection_Recent`를 **MultiEnum 비트마스크**로 본다(값 i → 비트 1<<i). GASP enum은 F0·B1·LR2·LL3·RL4·RR5 계열이라 마스크 63=전부, 62=F 아님, 61=B 아님, 51=왼쪽 계열 아님, 15=오른쪽 계열 아님. LootNPop enum(F0·B1·L2·R3)으로 옮기면 15·14·13·11·7이다. `F_Turns`는 최근 방향도 F(1). GASP Walk `F_Pivots`만 마스크가 63(전부)이다.
+- `Run_F_GaitTransitions`는 `Gait_LastFrame` 마스크 Walk|Sprint(5) — 보행이 바뀐 **한 프레임**에만 나온다.
+- Stops는 Idle 상태에서 `Speed2D` 구간 20~170(Walk)·170~400(Run)·400~(Sprint), `Stand_Idles`는 20 미만·`ShouldTurnInPlace` 거짓일 때만. 착지는 `JustLanded_Light/Heavy`(지상 첫 프레임). 착지 행을 뺀 거의 모든 행이 착지 술어 거짓을 요구한다.
+- 스키마: Starts(궤적 가중치 2, 위치·Heading·속도) · Stops(3.25, XY 플래그) · StandTurn(Heading 위주, 발 위치 0.5) · Pivots · WalkSpins · RunSpins · Jump(3D 위치·속도 방향, 루트 공간 — 구면 안전). Idle 스키마만 궤적 가중치 0이다. DB 태그는 TurnInPlace DB의 `TurnInPlace`, Run·Sprint Pivots/Turns의 `Pivots`.
+
+**LootNPop 구성(2-4)**
+
+- 평면 멀티 결과 `CHT_PoseSearchDatabases_UEFN` 52행 = 지상 Idle 7 + Walk 19 + Run 20 + Sprint 5 + 공중 1. 컬럼 14개: `MovementMode`·`MovementState`·`Gait`·`MovementDirection`, `MovementDirection_Recent`·`Gait_LastFrame`(마스크), `MovementMode_LastFrame`, `GroundSpeed`(구간), `bIsStarting`·`bIsPivoting`·`bShouldSpinTransition`·`bShouldTurnInPlace`·`bJustLanded_Light/Heavy`. 행 정의 원본 `Scripts/AnimOverhaul/BuildLocomotionChooser_2-4.py` — 결과 목록은 `LNP.Editor.SetChooserResults <Chooser> @목록`, 컬럼 JSON은 MCP `ProgrammaticToolset`에서 `AssetTools.read_file` → `ObjectTools.set_properties`(빈 배열을 먼저 쓴다)로 넣었다.
+- PSD 41개·스키마 7개는 GASP 복제. 기존 2-2 복제본(`PSS_Relaxed_{Loops,Idle}_UEFN`, `PSN_Relaxed_UEFN`)에는 스펙 `relink`로 다시 이었다(새 PSD는 기존 정규화 세트 목록에도 자동으로 더해진다). 정규화 세트가 커져 루프 DB 비용 척도도 GASP처럼 공통 정규화로 바뀌었다.
+- **인터럽트(LootNPop 추가 두 가지).** 진행 포즈는 자기 DB 스키마로 평가된다(`SearchContinuingPose`). Idle 스키마는 궤적을 안 보므로, 끊지 않으면 움직이거나 돌려 해도 Idle 포즈가 Starts·TurnInPlace 후보를 이긴다. ① 출발 프레임(Idle→Moving) — 2-4에서 끄고 시험하니 정면 출발 때 Idle 포즈로 미끄러짐이 재현돼 유지. ② Idle·`ShouldTurnInPlace`·현재 DB에 `TurnInPlace` 태그 없음 — 없으면 술어 96회 중 4회만 회전 DB가 뽑혔고 가상 루트가 90°까지 벌어졌다가 뚝 돌았다. GASP 그래프에는 이 예외가 없다(GASP에서 무엇이 Idle 진행 포즈를 끊는지는 확인하지 않았다).
+- 착지: Lands DB 8개를 넣었다. 공중 MM 출력은 그대로 `Fall_Loop`로 덮이고(AN-007), Lands 행은 지상 첫 프레임에만 오른다. 그 프레임은 이동 모드 변화라 원래 인터럽트다. 이 단위에서 AN-007은 바꾸지 않았다.
+- PIE 관찰: 피벗·스핀은 거의 안 뽑힌다(LootNPop 고속 이동은 0.5초 안 속도 방향 변화가 75°에 잘 못 닿는다, §2.8). GaitTransitions는 Sprint↔Run 35회 동안 0회(한 프레임 조건 + `DoNotInterrupt`) — 튀지 않는다. 승격 적 `MovementState` 깜빡임으로 Stops·Starts가 번갈아 뽑히는 현상은 보이지 않았다.
+- 디버그: `LNP.Anim.DebugLocomotion 2`의 `[AnimB6]` — MM이 고른 DB가 바뀔 때 DB·애니·시간·비용·상태.

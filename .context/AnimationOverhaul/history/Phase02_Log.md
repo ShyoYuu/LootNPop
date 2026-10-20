@@ -275,3 +275,42 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에�
 ### 6. 커밋 뒤 빌드 재확인
 
 - 커밋 aee2997 뒤 깨끗한 트리에서 게임 타깃 `Build.bat`(LootNPop 에디터가 켜져 있어 게임 타깃) 성공, 53초. 에디터 타깃은 같은 소스(임시 진단 로그를 넣기 전)로 3절에서 성공했다. 차이는 cpp 주석 한 줄과 Live Coding으로 넣었다 뺀 임시 로그뿐이다.
+
+## 2026-10-20 — 단위 2-4 B6 정지·회전 전환 + B7 착지 검토
+
+LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에서는 `ProgrammaticToolset`으로 `AssetTools.get_dependencies`만 돌렸다(DSL 안 씀, 저장 없음). 2-2 덤프에 중첩 테이블 행 조건과 결과가 이미 있어 MCP 컬럼 조회는 필요 없었다.
+
+### 1. GASP 확인
+
+- 2-2 덤프 `GASPRef_2-2.json`의 `Stand Idles`(8)·`Stand Walks`(25)·`Stand Runs`(26)·`Stand Sprint`(6) 행을 풀었다(파서는 세션 스크래치). 필요한 DB 41개 = Stops 3, TurnInPlace 1, Idle/Walk/Run/Sprint Lands 8, Walk·Run Starts 8 + Sprint 1, Turns 3, Pivots 8, Spins 8, `Run_F_GaitTransitions` 1. 슬라이드·Traversal 행은 범위 밖.
+- `MovementDirection_Recent`·`Gait_LastFrame`은 MultiEnum 비트마스크 컬럼이었다. 마스크를 enum 값으로 풀어 보니 GASP 방향 enum은 왼쪽 계열(값 2·3)·오른쪽 계열(4·5)로 묶여 있다(요약 `design/GASPReference.md` §2.11).
+- 새 DB·스키마 덤프 `GASPRef_2-4.json`(53개 오브젝트 패키지). TurnInPlace DB 태그 `TurnInPlace` 확인. 착지 스키마 `PSS_Relaxed_Jump`는 3D 위치·속도 방향(XY 아님, 루트 공간)이라 구면에서도 기준이 캐릭터 Up이다.
+- PSD 항목의 시퀀스는 LootNPop에 반입 전이라 덤프에 `None`으로 나왔다 → GASP MCP `get_dependencies`로 DB별 시퀀스 272개와 시퀀스 외부 의존(Foley Walk/Run·EarlyTransition·커브 압축·`AM_BakePhaseCurve…`, 모두 기존 리다이렉트·반입분)을 얻었다.
+- 엔진 `PoseSearchLibrary.cpp` 확인: `DoNotInterrupt`면 진행 포즈를 **자기 DB의 스키마로** 평가해 후보에 넣는다(`SearchContinuingPose`, DB가 목록에 없어도). `InterruptOnDatabaseChange`는 현재 DB가 새 목록에 없을 때만 끊는다.
+
+### 2. 반입과 빌드
+
+- 272개 중 LootNPop에 없던 239개를 GASP 원본 경로 그대로 복사(LootNPop 에디터 끈 상태, GASP 에디터는 켠 채). 있던 33개(1C-3분)는 GASP 5.8과 해시 동일. 목록·해시 `Saved/AssetRefresh/2026-10-20/import_list_2-4{,_sha256}.txt`, 스크립트 `copy_2-4.py`·`gen_list.py`(같은 폴더). `git status`에 반입 파일 없음.
+- C++: 편집기 명령에 복제 `relink`(기존 LootNPop 복제본으로 잇기, 새 PSD를 기존 정규화 세트에 추가)와 `SetChooserResults @목록파일`. 런타임은 `[AnimB6]` 선택 DB 로그(헤더에 private 멤버 하나). 에디터를 켠 채 게임 타깃 빌드 성공(118초), 에디터를 끈 뒤 에디터 타깃 `-NoHotReloadFromIDE` 빌드 성공(105초). 경고 1건은 기존 `LNPReplaceAssetRefsCommand.cpp`.
+- 재시작한 에디터 로드 경고 없음.
+
+### 3. 구성 에셋·Chooser
+
+- `LNP.Editor.GASPRef` 복제 48개(스키마 7 + PSD 41), `/GASPRef/` 잔여 경고 0, 저장 뒤 디스크에 GASP 경로 문자열 0. `PSN_Relaxed_UEFN` DB 10 → 51.
+- 행 정의를 `Scripts/AnimOverhaul/BuildLocomotionChooser_2-4.py`로 만들고(결과 목록 + MCP 컬럼 JSON), 컬럼은 `ProgrammaticToolset`에서 `read_file` → `set_properties`(빈 배열 먼저), 결과는 `SetChooserResults @목록`으로 넣었다. 되읽은 컬럼 14개 × 52행이 파일과 차이 0. 컴파일·저장(50개 에셋).
+- 무인 PIE: 스폰 낙하 착지에서 `PSD_Stand_Idle_Lands_Heavy_UEFN` 선택, 새 경고 없음. 에디터가 백그라운드라 PIE가 느리고 입력이 없어 출발·정지는 사용자 PIE로 넘겼다.
+
+### 4. 사용자 PIE와 수정(적도, 1·2인, 승격 적)
+
+- 첫 PIE(로그 `Saved/AnimOverhaul/pie_2-4_a.log`, git 제외): 고른 DB — Run Starts 89·Run Stops 63·Sprint Starts 15·Sprint Stops 13·Walk Stops 10·Idle Lands 30·Run Lands 3 등 전환 DB가 실제로 뽑혔다. Pivots·Spins는 각 1회, GaitTransitions 0회.
+- **출발 예외 재검토**: 임시 CVar로 끄자 사용자가 "정면 이동 때 Idle 포즈로 미끄러지며 이동"을 종종, "멈췄는데 걷는 모션 유지"를 1회 봤다. 켜면 없음 → 유지 확정, CVar 삭제.
+- **제자리 회전 실패**: "멈춰서 카메라만 돌리면 한순간 이상한 포즈로 깜박이고 뚝 끊기듯 발이 돌아가 있다". 로그: 술어 `+TurnInPlace` 96회에 회전 DB 선택 4회. DB 목록이 `[TurnInPlace]`로 바뀐 프레임이 `DoNotInterrupt`라 Idle 진행 포즈(궤적 가중치 0 스키마)가 계속 이겼고, 가상 루트만 `MaxRotationError` 90°까지 벌어졌다가 Idle 재선택 때 뚝 돌았다. → `GetMMInterruptMode`에 "Idle·`bShouldTurnInPlace`·현재 DB에 `TurnInPlace` 태그 없음" 추가(Live Coding).
+- 재검증(`pie_2-4_b.log`): 술어 59회·회전 DB 선택 33회(나머지는 회전 클립 재생 중에 다시 켜진 술어). 사용자: "깜박임·뚝 끊김 완전히 없어졌다, 발을 디디며 돈다, 약간 미끄러지지만 훨씬 자연스럽다". 출발·정지·근접 콤보 회귀 없음. 정지 중 가상 루트 Yaw p50 30°·p95 73°·최대 100° → `MaxRotationError` 90° 안전망 유지.
+- 보행 전환: 질주 방향 게이트로 Sprint→Run 35회·Run→Sprint 36회, GaitTransitions 선택 0회 — 튀는 문제 없음(한 프레임 조건 + `DoNotInterrupt`라 진행 루프가 이긴다).
+- 2인·적도·승격 적: 사용자 "어색한 부분 없음". 승격 적 3마리 DB 변경 13분간 78회(Idle 34·Walk 루프 18·Run Starts 13…), Starts·Stops 반복 깜빡임 없음. 새 경고 없음(Mover "Simulation start location disagrees"는 기존 네트워크 보정 노이즈).
+
+### 시행착오·주의
+
+- 덤프 파서 첫 판은 셸 경로(`/Game/...`이 Git Bash에서 `C:/Program Files/Git/Game/...`로 바뀜) 탓에 실패 → PowerShell로 돌렸다. 긴 heredoc도 Git Bash에서 따옴표 짝 오류가 나 파일로 썼다.
+- 반입 전 덤프는 시퀀스를 `None`으로 보여 준다(리다이렉트하지 않는 경로라 LootNPop 쪽으로 풀린다). DB 항목 목록은 GASP `get_dependencies`가 빠르다.
+- 원인 분석에 `[AnimB1]`(검색 DB 목록)과 `[AnimB6]`(선택 DB)을 함께 보는 것이 결정적이었다. 목록에 전환 DB가 있어도 선택되지 않으면 진행 포즈가 이기는 것이다.

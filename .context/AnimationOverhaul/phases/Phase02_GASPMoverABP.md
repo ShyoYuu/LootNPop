@@ -1,6 +1,6 @@
 # Phase 2 — 스켈레톤 전환과 GASP Mover ABP 재구성
 
-> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1·2-2 완료 2026-10-19, 2-3 완료 2026-10-20, 다음 2-4)
+> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1·2-2 완료 2026-10-19, 2-3·2-4 완료 2026-10-20, 다음 2-5)
 > 선행: Phase 1C 완료(GASP 5.8 소스, 93본 `SK_UEFN_Mannequin`), AN-011(UEFN 전환)·AN-015(MM 노드 방식)·AN-016(폴더·git)·AN-018(소스 저장 금지)
 > 순서: 2-0a → 2-0b → 2-1 → … → 2-6. 단위 하나가 세션 하나이고, 단위마다 커밋하고 사용자 확인을 받는다.
 > 단위 목록·블록 정의는 `Roadmap.md` §4 Phase 2와 `design/GASPReference.md` §2.2·§2.7이 소유한다. 이 문서는 착수한 단위의 실행 계획·결과·재생성 절차를 소유한다.
@@ -225,6 +225,41 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 | PIE에서 고친 것 | 정지 중 룩만 돌리면 허리가 180°까지 꺾임(제자리 회전 DB가 없어 메시가 돌 방법이 없다) → `MaxRotationError` 90°로 그 이상은 하체가 캡슐을 따라 미끄러지며 돈다. 발을 디디는 회전은 2-4 TurnInPlace |
 | 남긴 것 | 질주 옆·뒷걸음 어색함(질주 클립이 정면뿐, GASP도 질주는 F 고정) → 정면에서만 질주 최고속도를 내는 이동 변경은 별도 작업으로 제안. Stride Warping은 미끄러짐 보고가 없어 넣지 않았다. `OrientationWarping` 끄고 켜기 차이는 사용자가 거의 못 느꼈다(방향별 DB가 이미 각도를 줄여 남는 보정이 대각 약 45° 몫뿐) |
 
+## 단위 2-4 — B6 정지·회전 전환 + B7 착지 검토
+
+`Roadmap.md` §4 2-4 행이 범위를 소유한다. 발 배치·경사(2-5)와 Leans(2-6)는 범위 밖이다. 에디터는 LootNPop(8000)과 GASP(8001, 읽기 전용) 둘 다 쓴다.
+
+착수 시 확인한 GASP 구성(2-2 덤프 `Saved/AnimOverhaul/GASPRef_2-2.json`의 중첩 테이블, 요약 `design/GASPReference.md` §2.9·§2.11):
+
+- 중첩 테이블 행은 **멀티 결과의 합집합**이다. 예: Walk 출발 프레임은 `Walk_F_Starts`와 `Walk_F_Loops`가 함께 나오고 MM이 비용으로 고른다. 전환 행은 술어(`IsStarting`·`IsPivoting`·`ShouldSpinTransition`·`ShouldTurnInPlace`·`JustLanded_*`)로 켜지고, 루프 행은 술어와 무관하게 "직전 프레임 OnGround"면 늘 나온다.
+- 피벗·스핀 행은 `MovementDirection_Recent`를 **비트마스크**(MultiEnum)로 본다 — "지금 방향 = X이고 최근 방향 ≠ X 계열". `F_Turns`는 최근 방향도 F(방향 회전 모드의 급선회)다. Run의 `F_GaitTransitions`는 직전 보행 Walk·Sprint(마스크)일 때만.
+- Stops는 Idle 테이블에서 `Speed2D` 구간(20~170 Walk·170~400 Run·400~ Sprint)으로, TurnInPlace는 `ShouldTurnInPlace`, 착지는 `JustLanded_Light/Heavy`(이번 프레임만)로 고른다.
+
+계획:
+
+1. **덤프·복제.** 전환 DB 41개(Stops 3, TurnInPlace 1, Starts 9, Turns 3, Pivots 8, Spins 8, GaitTransitions 1, Lands 8)와 스키마를 `LNP.Editor.GASPRef`로 덤프해 태그·스키마·시퀀스를 확인한다. 복제는 기존 `PSS_*_UEFN`·`PSN_Relaxed_UEFN`에 다시 잇는다(편집기 명령에 "기존 복제본으로 잇기" 추가).
+2. **반입.** 새 DB가 참조하는 시퀀스 중 LootNPop에 없는 것을 GASP 원본 경로 그대로 복사한다(LootNPop 에디터를 끈 상태). 목록·해시는 `Saved/AssetRefresh/2026-10-20/`, `README.md` §4와 `phases/Phase01C_GASPAssetRefresh.md` 반입 표를 갱신한다.
+3. **Chooser.** `CHT_PoseSearchDatabases_UEFN`(평면 멀티 결과)에 GASP 중첩 테이블과 같은 행을 펼쳐 넣는다. 입력은 2-1 술어·`_Recent`·`_LastFrame`. 루프 행에 "직전 OnGround"를 넣는다(착지 프레임은 Lands 행이 받는다).
+4. **C++ 재검토.** 출발 프레임 인터럽트 예외(Starts가 생기면 필요한지), 선택 DB 로그, 질주 방향 게이트(§4.3)로 Sprint↔Run이 자주 바뀔 때 GaitTransitions가 튀는지.
+5. **TurnInPlace·착지.** TurnInPlace DB 태그, 정지 회전 발 디딤, `MaxRotationError` 90° 유지 여부. 착지는 AN-007(공중 `Fall_Loop` 고정) 안에서 지상 쪽 Lands DB만 넣을지 판단한다.
+6. **PIE.** 출발·정지·피벗·제자리 회전·보행 전환·착지, 회귀(근접 콤보·대시·재장전·가드), 적도·승격 적·리슨 2인.
+
+### 2-4 결과 (2026-10-20, 상세 `history/Phase02_Log.md`)
+
+| 항목 | 결과 |
+|:---|:---|
+| GASP 확인 | 중첩 테이블 행 조건·결과는 2-2 덤프에 이미 있었다. 새 DB 41개·스키마 7개는 `LNP.Editor.GASPRef`로 덤프했다(`GASPRef_2-4.json`). 참조 시퀀스는 반입 전이라 덤프에 `None`으로 나와 GASP MCP `get_dependencies`로 얻었다. TurnInPlace DB는 태그 `TurnInPlace`를 갖고, 착지 스키마 `PSS_Relaxed_Jump`는 3D 위치·속도 방향(루트 공간)이라 구면에서도 쓸 수 있다 |
+| 반입 | 시퀀스 272개 중 없던 **239개**(있던 33개는 GASP 5.8과 해시 동일). 새 외부 의존 없음(Foley Walk/Run·EarlyTransition·커브 압축·`AM_BakePhaseCurve…`, 모두 기존 리다이렉트·반입분). 목록·해시 `Saved/AssetRefresh/2026-10-20/import_list_2-4{,_sha256}.txt`. git 제외 확인 |
+| 구성 에셋 | 스키마 7개(`PSS_Relaxed_{Stops,StandTurn,Jump,Starts,Pivots,WalkSpins,RunSpins}_UEFN`), PSD 41개(`PSD_Stand_*_UEFN`), `PSN_Relaxed_UEFN` 51개 DB. 기존 `PSS_Relaxed_{Loops,Idle}_UEFN`·`PSN_Relaxed_UEFN`에 다시 이었다(편집기 명령 `relink`). GASP 경로 참조 0 |
+| Chooser | `CHT_PoseSearchDatabases_UEFN` 11 → **52행**, 컬럼 14개(이동 모드·상태·보행·방향, 최근 방향·직전 보행 마스크, 직전 이동 모드, 속력 구간, 술어 6개). 루프 행에 "직전 OnGround"를 넣었다. 행 정의 원본은 `Scripts/AnimOverhaul/BuildLocomotionChooser_2-4.py`(결과 목록·컬럼 JSON 생성), 요약은 `design/GASPReference.md` §2.11 |
+| C++ | 인터럽트 예외 두 가지: 출발 프레임(2-2 유지 확정) + **정지 중 제자리 회전 요청인데 아직 회전 DB가 아님**(새로). `[AnimB6]` 선택 DB 로그. 편집기 명령: 복제 `relink`, `SetChooserResults @목록파일` |
+| 출발 예외 재검토 | CVar로 끄고 PIE: 정면 출발 때 Idle 포즈로 미끄러지는 일이 종종, 정지 뒤 걷기 유지 1회 → **유지**. Starts DB가 있어도 진행 중 Idle 포즈(궤적 가중치 0 스키마)가 이긴다. CVar는 지웠다 |
+| 제자리 회전 | 첫 PIE: 술어 96회에 회전 DB 선택 4회, 깜박이며 뚝 돎(Idle 진행 포즈가 이김, 가상 루트만 90°까지 벌어짐) → 위 인터럽트 추가 뒤 술어 59회·선택 33회(나머지는 회전 클립 재생 중), 사용자 "깜박임·뚝 끊김 없음, 발을 디디며 돈다, 약간 미끄러짐은 남음". 정지 중 가상 루트 Yaw p95 73°·최대 100°. `MaxRotationError` 90°는 **안전망으로 유지** |
+| 착지 | Lands 8개 DB를 넣었다 — 공중은 그대로 `Fall_Loop` 고정(AN-007)이고, 착지 DB는 지상 첫 프레임(`JustLanded_*`)에만 Chooser에 오른다. 스폰·점프·낙하에서 `Idle_Lands_Light/Heavy`·`Run_Lands_*`가 뽑혔고 사용자 PIE에서 어색함 없음 |
+| 보행 전환 | 질주 방향 게이트로 Sprint↔Run 35회 전환 동안 `Run_F_GaitTransitions`는 한 번도 뽑히지 않았다(직전 보행 조건이 한 프레임뿐이고 `DoNotInterrupt`). 튀는 문제는 없다 |
+| 검증(사용자 1·2인 PIE, 적도) | 출발·정지·피벗·제자리 회전·보행 전환·착지, 근접 콤보·대시·재장전·가드 회귀 없음, 2P 적도·승격 적 어색함 없음. 승격 적 DB 변경 13분간 78회(깜빡임 없음). 새 경고 0(Mover 보정 경고는 기존 노이즈) |
+| 남긴 것 | 피벗·스핀은 거의 안 뽑힌다(선택 1회씩) — LootNPop은 고속에서 큰 호를 그려 `Trj_TurnAngle` 75°에 잘 못 닿는다(2-1 관찰과 같다). 제자리 회전 발 미끄러짐 소량(발 배치 2-5에서 다시 본다) |
+
 ## 완료 조건 체크리스트
 
 - [x] 2-0a: 실사용 목록 확정(98개, 0-3 대비 차이 설명), 리타깃 사본 98개 `Retargeted/Lyra/`, 몽타주 대조 결함 0, 서브 ABP 5개 경고 0 컴파일, 재생성 절차·스크립트, 2-0b 임시 로코모션 계획 수정 (2026-10-18)
@@ -232,4 +267,5 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 - [x] 2-1: B0 공급값(상태·이력·궤적 파생값·가속·지면·술어) C++, 궤적 C++ 소유, Pose History GASP 설정, DeadBlending, 디버그 CVar, 2인·적도·승격 적 값 확인, 회귀 없음 (2026-10-19)
 - [x] 2-2: B1 상태별 PSD 묶음 Chooser(멀티 결과)·루프 DB 10개(GASP 복제), 방향별 스트레이프 복구(시퀀스 26개 반입), 인터럽트·블렌드 시간 C++, MM 노드 GASP 설정, 적도 이동 방향 수정, 1·2인·적도·승격 적 PIE 회귀 없음 (2026-10-19)
 - [x] 2-3: B2 블렌드 스택 체인(Steering×2·OrientationWarping·ResetRoot·CopyBone)과 B3 Offset Root Bone(모드·반감기 C++, 전신 몽타주 Release, base 이동량, 구면 함정 3건 대응), AO·FacingDelta 가상 루트 기준, 적도·리슨 2인·승격 적·움직이는 발판 확인, 회귀 없음. 정지 회전은 `MaxRotationError` 90° 임시(2-4 TurnInPlace) (2026-10-20)
-- [ ] 2-4 ~ 2-6: `Roadmap.md` §4
+- [x] 2-4: B6 전환 DB 41개(Starts·Stops·Pivots·Turns·Spins·TurnInPlace·GaitTransitions·Lands, GASP 복제)와 52행 Chooser, 시퀀스 239개 반입, 출발·제자리 회전 인터럽트 예외, 착지 DB(AN-007 유지), 적도·리슨 2인·승격 적 PIE 회귀 없음. `MaxRotationError` 90° 안전망 유지 (2026-10-20)
+- [ ] 2-5 ~ 2-6: `Roadmap.md` §4

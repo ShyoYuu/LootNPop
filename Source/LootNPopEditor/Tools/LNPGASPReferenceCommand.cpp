@@ -21,12 +21,15 @@
 //   "redirectPrefixes": ["/Game/Characters/UEFN_Mannequin/Animations/MotionMatchingData/"],
 //   "dumpOut": "D:/.../Saved/AnimOverhaul/GASPRef.json",
 //   "dump": ["/Game/Characters/.../CHT_PoseSearchDatabases_Relaxed"],
-//   "clone": [ { "from": "/Game/.../PSS_Relaxed_Loops", "to": "/Game/Characters/MotionMatchingData/PSS_Relaxed_Loops_UEFN" } ]
+//   "clone": [ { "from": "/Game/.../PSS_Relaxed_Loops", "to": "/Game/Characters/MotionMatchingData/PSS_Relaxed_Loops_UEFN" } ],
+//   "relink": [ { "from": "/Game/.../PSS_Relaxed_Loops", "to": "/Game/Characters/MotionMatchingData/PSS_Relaxed_Loops_UEFN" } ]
 // }
+// relink(2-4): 이미 있는 LootNPop 복제본. 새 복제본이 그 GASP 원본을 가리키면 기존 복제본으로 잇는다.
+// 기존 정규화 세트로 이은 새 PSD는 그 세트의 Databases에도 더한다.
 //
-// LNP.Editor.SetChooserResults <Chooser> [Asset ...]
+// LNP.Editor.SetChooserResults <Chooser> [Asset ... | @목록파일]
 //   Chooser 결과 행을 에셋 결과(FAssetChooser)로 바꾼다(행 수 = 에셋 수). 에셋을 주지 않으면 결과는 두고 컴파일만 한다.
-//   컬럼 행 값은 MCP ObjectTools.set_properties(columnsStructs)로 쓴다. 저장하지 않는다.
+//   @목록파일은 한 줄에 에셋 경로 하나(빈 줄·# 줄 무시). 컬럼 행 값은 MCP ObjectTools.set_properties(columnsStructs)로 쓴다. 저장하지 않는다.
 
 #include "AssetToolsModule.h"
 #include "Chooser.h"
@@ -189,6 +192,27 @@ namespace
 				SourceToClone.Add(Source, Clone);
 			}
 
+			// 이미 있는 LootNPop 복제본(이전 단위에서 만든 PSS·PSN)도 잇기 대상에 넣는다
+			TMap<UObject*, UObject*> SourceToTarget = SourceToClone;
+			const TArray<TSharedPtr<FJsonValue>>* RelinkValues = nullptr;
+			if (Spec->TryGetArrayField(TEXT("relink"), RelinkValues))
+			{
+				for (const TSharedPtr<FJsonValue>& Value : *RelinkValues)
+				{
+					const TSharedPtr<FJsonObject>& Pair = Value->AsObject();
+					const FString From = Pair->GetStringField(TEXT("from"));
+					const FString To   = Pair->GetStringField(TEXT("to"));
+					UObject* Source = LoadObject<UObject>(nullptr, *LNPGASPRefObjectPath(LNPGASPRefToMounted(From)));
+					UObject* Target = LoadObject<UObject>(nullptr, *LNPGASPRefObjectPath(To));
+					if (Source == nullptr || Target == nullptr)
+					{
+						UE_LOG(LogLNPGASPRef, Error, TEXT("[GASPRef] relink: cannot load %s -> %s"), *From, *To);
+						continue;
+					}
+					SourceToTarget.Add(Source, Target);
+				}
+			}
+
 			// 복제본이 다른 GASP 원본을 가리키면 그 복제본으로 잇는다(PSD → PSS·PSN, PSN → PSD)
 			for (const TPair<UObject*, UObject*>& Pair : SourceToClone)
 			{
@@ -198,9 +222,22 @@ namespace
 				int64 Replaced = 0;
 				for (UObject* Object : PackageObjects)
 				{
-					FArchiveReplaceObjectRef<UObject> Replacer(Object, SourceToClone,
+					FArchiveReplaceObjectRef<UObject> Replacer(Object, SourceToTarget,
 						EArchiveReplaceObjectFlags::IgnoreOuterRef | EArchiveReplaceObjectFlags::IgnoreArchetypeRef);
 					Replaced += Replacer.GetCount();
+				}
+
+				// 기존 정규화 세트로 이은 새 PSD는 그 세트 목록에도 넣는다(복제한 세트는 아래에서 GASP DB만 걸러 낸다)
+				if (UPoseSearchDatabase* Database = Cast<UPoseSearchDatabase>(Clone))
+				{
+					UPoseSearchNormalizationSet* ExistingSet = const_cast<UPoseSearchNormalizationSet*>(Database->NormalizationSet.Get());
+					if (ExistingSet && !SourceToClone.FindKey(ExistingSet) && ExistingSet->GetPathName().StartsWith(TEXT("/Game/")))
+					{
+						ExistingSet->Modify();
+						ExistingSet->Databases.AddUnique(Database);
+						ExistingSet->PostEditChange();
+						ExistingSet->MarkPackageDirty();
+					}
 				}
 
 				// 정규화 세트는 복제하지 않은 GASP DB를 뺀다
@@ -269,13 +306,36 @@ namespace
 				return;
 			}
 
-			TArray<FInstancedStruct> Results;
+			// @목록파일: 한 줄에 경로 하나(콘솔 한 줄 길이를 넘는 행 수용, 2-4)
+			TArray<FString> AssetPaths;
 			for (int32 Index = 1; Index < Args.Num(); ++Index)
 			{
-				UObject* Asset = LoadObject<UObject>(nullptr, *LNPGASPRefObjectPath(Args[Index]));
+				if (!Args[Index].StartsWith(TEXT("@")))
+				{
+					AssetPaths.Add(Args[Index]);
+					continue;
+				}
+				TArray<FString> Lines;
+				if (!FFileHelper::LoadFileToStringArray(Lines, *Args[Index].RightChop(1)))
+				{
+					UE_LOG(LogLNPGASPRef, Error, TEXT("Cannot read result list: %s"), *Args[Index]);
+					return;
+				}
+				for (FString& Line : Lines)
+				{
+					Line.TrimStartAndEndInline();
+					if (!Line.IsEmpty() && !Line.StartsWith(TEXT("#")))
+						AssetPaths.Add(Line);
+				}
+			}
+
+			TArray<FInstancedStruct> Results;
+			for (int32 Index = 0; Index < AssetPaths.Num(); ++Index)
+			{
+				UObject* Asset = LoadObject<UObject>(nullptr, *LNPGASPRefObjectPath(AssetPaths[Index]));
 				if (Asset == nullptr)
 				{
-					UE_LOG(LogLNPGASPRef, Error, TEXT("Result asset not found (row %d): %s"), Index - 1, *Args[Index]);
+					UE_LOG(LogLNPGASPRef, Error, TEXT("Result asset not found (row %d): %s"), Index, *AssetPaths[Index]);
 					return;
 				}
 				FInstancedStruct& Result = Results.AddDefaulted_GetRef();
@@ -303,6 +363,6 @@ namespace
 	static FAutoConsoleCommand LNPSetChooserResultsCommand(
 		TEXT("LNP.Editor.SetChooserResults"),
 		TEXT("Editor only. Replace chooser result rows with asset results: ")
-		TEXT("LNP.Editor.SetChooserResults <Chooser> [Asset ...] (no assets = compile only). Marks dirty, does not save."),
+		TEXT("LNP.Editor.SetChooserResults <Chooser> [Asset ... | @ListFile] (no assets = compile only, list file = one path per line). Marks dirty, does not save."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&LNPRunSetChooserResults));
 }

@@ -114,7 +114,7 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "LNP|MotionMatching", meta = (BlueprintThreadSafe))
 	void UpdateMotionMatchingNode(const FAnimNodeReference& Node);
 
-	/** GASP Get_MMInterruptMode: 이동 모드가 바뀌었거나, 움직이는 중 이동 방향이 바뀌면 DB가 바뀔 때 진행 포즈를 끊는다 */
+	/** GASP Get_MMInterruptMode: 이동 모드가 바뀌었거나, 움직이는 중 이동 방향이 바뀌면 DB가 바뀔 때 진행 포즈를 끊는다. LootNPop은 출발 프레임·정지 중 제자리 회전 요청도 끊는다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|MotionMatching", meta = (BlueprintThreadSafe))
 	EPoseSearchInterruptMode GetMMInterruptMode() const;
 
@@ -496,6 +496,8 @@ private:
 	FVector LocomotionUp = FVector::UpVector;
 	/** 디버그 로그용 — 직전에 MM 노드에 넘긴 DB 목록 */
 	TArray<const UPoseSearchDatabase*> LastSearchedDatabases;
+	/** 디버그 로그용 — MM이 직전에 고른 DB([AnimB6]) */
+	TWeakObjectPtr<const UPoseSearchDatabase> LastSelectedDatabase;
 	/** MM이 마지막으로 고른 DB에 TurnInPlace 태그가 있다(MM 노드 갱신에서 쓰고 블렌드 스택 그래프가 읽는다, 같은 워커) */
 	bool bTurnInPlaceDatabaseActive = false;
 	/** 디버그 로그 간격용 — 마지막 [AnimB3] 로그 시각 */

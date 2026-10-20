@@ -637,6 +637,20 @@ void ULNPAnimInstance::UpdateMotionMatchingNode(const FAnimNodeReference& Node)
 	bTurnInPlaceDatabaseActive = bSearchResultValid && SearchResult.SelectedDatabase
 		&& SearchResult.SelectedDatabase->Tags.Contains(TurnInPlaceDatabaseTag);
 
+	// 디버그(2-4): MM이 고른 DB가 바뀔 때만 한 줄 — 전환 DB(Starts·Stops·Pivots…)가 실제로 뽑히는지 본다
+	const UPoseSearchDatabase* SelectedDatabase = bSearchResultValid ? SearchResult.SelectedDatabase.Get() : nullptr;
+	if (SelectedDatabase != LastSelectedDatabase.Get())
+	{
+		if (CVarDebugLocomotion.GetValueOnAnyThread() >= 2)
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[AnimB6] %s selected %s / %s t=%.2f cost %.3f (%s %s %s %s speed %.0f)"),
+				*GetNameSafe(OwningMoverCharacter), *GetNameSafe(SelectedDatabase), *GetNameSafe(SearchResult.SelectedAnim),
+				SearchResult.SelectedTime, SearchResult.SearchCost,
+				*EnumName(MovementMode), *EnumName(MovementState), *EnumName(Gait), *EnumName(MovementDirection), GroundSpeed);
+		}
+		LastSelectedDatabase = SelectedDatabase;
+	}
+
 	TArray<UPoseSearchDatabase*> Databases;
 	if (LocomotionDatabaseChooser)
 	{
@@ -689,10 +703,13 @@ EPoseSearchInterruptMode ULNPAnimInstance::GetMMInterruptMode() const
 {
 	const bool bMovementModeChanged = MovementMode != MovementMode_LastFrame;
 	const bool bDirectionChangedWhileMoving = MovementDirection != MovementDirection_LastFrame && MovementState == ELNPMovementState::Moving;
-	// LootNPop 추가: 출발 프레임에도 끊는다. 진행 포즈는 자기 DB 스키마로 평가되는데 Idle 스키마는 궤적 가중치가 0이라
-	// 움직여도 Idle 포즈 비용이 오르지 않아 계속 이긴다. GASP는 이 구간을 Starts DB가 받는다 — 2-4에서 Starts가 들어오면 다시 본다.
+	// LootNPop 추가 두 가지. 진행 포즈는 자기 DB 스키마로 평가되는데 Idle 스키마는 궤적 가중치가 0이라,
+	// 궤적이 바뀌어도 Idle 포즈 비용이 오르지 않아 Starts·TurnInPlace 후보를 계속 이긴다.
+	// ① 출발 프레임(2-2). 2-4에서 Starts DB가 생긴 뒤에도 빼면 출발 때 Idle 포즈로 미끄러졌다.
+	// ② 정지 중 제자리 회전 요청인데 아직 회전 DB가 아니다(2-4). 끊지 않으면 회전 클립이 안 뽑히고 가상 루트만 벌어졌다가 뚝 돈다.
 	const bool bStartedMoving = MovementState == ELNPMovementState::Moving && MovementState_LastFrame == ELNPMovementState::Idle;
-	return (bMovementModeChanged || bDirectionChangedWhileMoving || bStartedMoving)
+	const bool bTurnInPlaceRequested = MovementState == ELNPMovementState::Idle && bShouldTurnInPlace && !bTurnInPlaceDatabaseActive;
+	return (bMovementModeChanged || bDirectionChangedWhileMoving || bStartedMoving || bTurnInPlaceRequested)
 		? EPoseSearchInterruptMode::InterruptOnDatabaseChange
 		: EPoseSearchInterruptMode::DoNotInterrupt;
 }

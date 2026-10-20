@@ -191,16 +191,18 @@ AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstanc
 
 **방향별 DB 선택(2026-10-19 AnimationOverhaul 2-2).** 스트레이프 방향은 PSD 하나 안에서 궤적으로 고르지 않고 Chooser가 DB를 나눠 고른다(GASP 5.8 구성). `ULNPAnimInstance`의 `MovementDirection`(F·B·좌·우, 히스테리시스 임계 — 이동 방향 회전·질주면 항상 F)이 행 입력이다.
 
-| Chooser 행(`CHT_PoseSearchDatabases_UEFN`, 멀티 결과) | DB |
+| Chooser 행(`CHT_PoseSearchDatabases_UEFN`, 멀티 결과 52행) | DB |
 |:---|:---|
-| 지상·Idle | `PSD_Stand_Idles_UEFN` |
-| 지상·Moving·Walk/Run × F·B·좌·우 | `PSD_Stand_{Walk,Run}_{F,B,LL,RL}_Loops_UEFN` |
-| 지상·Moving·Sprint | `PSD_Stand_Sprint_Loops_UEFN` |
+| 지상·Idle | `PSD_Stand_Idles_UEFN`(속력 20 미만), 감속 `PSD_Stand_{Walk,Run,Sprint}_Stops_UEFN`(속력 구간), 제자리 회전 `PSD_Stand_TurnInPlace_UEFN`, 착지 `PSD_Stand_Idle_Lands_{Light,Heavy}_UEFN` |
+| 지상·Moving·Walk/Run × F·B·좌·우 | 루프 `PSD_Stand_{Walk,Run}_{F,B,LL,RL}_Loops_UEFN`(직전 프레임 지상) + 술어가 켜진 프레임에 출발 `_Starts`·급선회 `_F_Turns`·피벗 `_Pivots`·스핀 `_Spins`·착지 `_Lands_*`, Run은 보행이 바뀐 프레임에 `Run_F_GaitTransitions` |
+| 지상·Moving·Sprint | `PSD_Stand_Sprint_{Loops,Starts,Turns,Lands_*}_UEFN` |
 | 공중 | `PSD_Jump_UEFN`(MM 노드는 공중에서 꺼져 있다, §5.5) |
 
-- 스키마는 GASP와 같은 `PSS_Relaxed_Loops_UEFN`(궤적 위치·속도 + `Phase` 곡선 + 골반 Heading)·`PSS_Relaxed_Idle_UEFN`, 정규화는 `PSN_Relaxed_UEFN` 하나다.
-- `OnUpdate_MotionMatching`은 `ULNPAnimInstance::UpdateMotionMatchingNode`만 호출한다. 이 함수가 Chooser를 멀티 결과로 평가해 `SetDatabasesToSearch`를 부르고, `GetMMInterruptMode`(이동 모드 변화·이동 중 방향 변화·출발 프레임이면 `InterruptOnDatabaseChange`)·`GetMMBlendTime`(지상 0.5s, 착지 0.2s)을 적용한다.
-- **출발 프레임 인터럽트는 LootNPop 추가다.** 진행 포즈는 자기 DB 스키마로 평가되는데 Idle 스키마는 궤적 가중치가 0이라, 끊지 않으면 움직이는 동안에도 Idle 포즈가 계속 이긴다(PIE에서 "앞으로 걷는데 Idle"). GASP는 이 구간을 Starts DB가 받는다.
+전환 행(2026-10-20 AnimationOverhaul 2-4)은 GASP 5.8 중첩 테이블을 평면으로 펼친 것이다. 피벗·스핀은 `MovementDirection_Recent` 비트마스크("최근 방향 ≠ 지금 방향"), 착지는 지상 첫 프레임의 `bJustLanded_Light/Heavy`로 고른다 — 공중 `Fall_Loop` 고정(§5.5)은 그대로다. 행 정의 원본은 `Scripts/AnimOverhaul/BuildLocomotionChooser_2-4.py`, GASP 대응은 [AnimationOverhaul design/GASPReference.md](AnimationOverhaul/design/GASPReference.md) §2.11.
+
+- 스키마는 GASP 복제다(루프 `PSS_Relaxed_Loops_UEFN`, Idle `PSS_Relaxed_Idle_UEFN`, 전환용 Starts·Stops·StandTurn·Pivots·WalkSpins·RunSpins·Jump). 정규화는 `PSN_Relaxed_UEFN` 하나(DB 51개)다.
+- `OnUpdate_MotionMatching`은 `ULNPAnimInstance::UpdateMotionMatchingNode`만 호출한다. 이 함수가 Chooser를 멀티 결과로 평가해 `SetDatabasesToSearch`를 부르고, `GetMMInterruptMode`(이동 모드 변화·이동 중 방향 변화·출발 프레임·정지 중 제자리 회전 요청이면 `InterruptOnDatabaseChange`)·`GetMMBlendTime`(지상 0.5s, 착지 0.2s)을 적용한다.
+- **출발 프레임·제자리 회전 인터럽트는 LootNPop 추가다.** 진행 포즈는 자기 DB 스키마로 평가되는데(`DoNotInterrupt`여도 후보에 남는다) Idle 스키마는 궤적 가중치가 0이라, 끊지 않으면 움직이거나 돌아도 Idle 포즈가 Starts·TurnInPlace 후보를 이긴다. PIE 증상: "앞으로 걷는데 Idle 포즈로 미끄러짐"(Starts DB가 있어도), "제자리 회전이 깜박이며 뚝 돎"(술어 96회에 회전 DB 4회). 제자리 회전 조건은 "Idle·`bShouldTurnInPlace`·지금 DB에 `TurnInPlace` 태그 없음"이라 회전 클립이 시작되면 다시 끊지 않는다.
 - 대각 입력은 가장 가까운 방향 DB가 고른다. 허리를 이동 방향으로 돌리는 Orientation Warping은 AnimationOverhaul 2-3.
 
 ### 5.4 이동 입력 차단
