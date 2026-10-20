@@ -15,6 +15,13 @@
 #include "PoseSearch/MotionMatchingAnimNodeLibrary.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchTrajectoryLibrary.h"
+#include "BoneControllers/AnimNode_OffsetRootBone.h"
+#include "AnimationWarpingLibrary.h"
+#include "BlendStack/BlendStackAnimNodeLibrary.h"
+#include "Animation/AnimClassInterface.h"
+#include "Animation/AnimInstanceProxy.h"
+#include "Animation/AnimSequenceBase.h"
+#include "Animation/AnimSubsystem_Tag.h"
 #include "StructUtils/InstancedStruct.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Animation/Skeleton.h"
@@ -71,6 +78,39 @@ namespace
 	constexpr float DirBackLimitFromFrontBack     = 120.0f;
 	constexpr float DirFrontLimitFromSide         = 40.0f;
 	constexpr float DirBackLimitFromSide          = 140.0f;
+
+	// Offset Root Bone 반감기(GASP Get_OffsetRootTranslationHalfLife)
+	constexpr float OffsetRootHalfLifeIdle        = 0.1f;
+	constexpr float OffsetRootHalfLifeMoving      = 0.3f;
+
+	// Steering 목표 시간(GASP Get_DesiredFacing·Get_ProceduralTargetTime). 곡선 SteeringTargetTime 0~1을 이 범위로 옮긴다
+	constexpr float SteeringTargetTimeMin         = 0.1f;
+	constexpr float SteeringTargetTimeMax         = 1.5f;
+	constexpr float SteeringProceduralTimeMin     = 0.1f;
+	constexpr float SteeringProceduralTimeMax     = 0.3f;
+
+	const FName OffsetRootNodeTag(TEXT("OffsetRoot"));
+	const FName SteeringTargetTimeCurve(TEXT("SteeringTargetTime"));
+	const FName EnableWarpingCurve(TEXT("Enable_Warping"));
+	const FName TurnInPlaceDatabaseTag(TEXT("TurnInPlace"));
+
+	/** Offset Root를 Release하는 전신 몽타주 슬롯. UpperBody(재장전)·가산 슬롯(사격·피격)은 로코모션 하체를 그대로 두므로 넣지 않는다 */
+	const FName FullBodyMontageSlots[] = { TEXT("DefaultSlot"), TEXT("FullBody") };
+
+	/** Rotation을 Up 쪽으로 최소 회전(스윙)해 Z축을 Up에 맞춘다. 접평면 안의 방향(Yaw)은 그대로 남는다 */
+	FQuat AlignAxisZToUp(const FQuat& Rotation, const FVector& Up)
+	{
+		return (FQuat::FindBetweenNormals(Rotation.GetAxisZ(), Up) * Rotation).GetNormalized();
+	}
+
+	/** 블렌드 스택 입력 노드가 재생 중인 애니의 곡선 값(GASP: GetCurrentBlendStackAnimAsset → GetCurveValueFromAnimation) */
+	float GetBlendStackCurveValue(const FAnimNodeReference& Node, FName CurveName)
+	{
+		float Value = 0.0f;
+		if (const UAnimSequenceBase* Sequence = Cast<UAnimSequenceBase>(UBlendStackAnimNodeLibrary::GetCurrentBlendStackAnimAsset(Node)))
+			UAnimationWarpingLibrary::GetCurveValueFromAnimation(Sequence, CurveName, UBlendStackAnimNodeLibrary::GetCurrentBlendStackAnimAssetTime(Node), Value);
+		return Value;
+	}
 
 	/** From → To 회전각(도). Axis 둘레 부호각, UE 좌표에서 +는 오른쪽(Yaw 증가). 둘 중 하나라도 접평면 성분이 없으면 0 */
 	float SignedAngleAroundAxis(const FVector& From, const FVector& To, const FVector& Axis)
@@ -237,8 +277,10 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	// GetBaseAimRotation()은 플레이어의 경우 Control Rotation, AI는 별도 로직을 따름.
 	// 구형 세계 보정: 월드 공간 Euler 각도 뺄셈은 캐릭터 Up이 World Up과 벌어질 때 오차가 생긴다.
 	// 에임 방향 벡터를 캐릭터 로컬 좌표계로 변환한 뒤 Pitch/Yaw를 추출해 항상 올바른 로컬 에임 각도를 얻는다.
+	// 기준은 메시가 실제로 향한 방향 — Offset Root Bone(B3)이 메시를 캡슐보다 늦게 돌리므로 그만큼 더한다(GASP도 오프셋 루트 기준).
 	FRotator BaseAimRotation = OwningMoverCharacter->GetBaseAimRotation();
-	FVector LocalAimDir = OwningMoverCharacter->GetActorTransform().InverseTransformVectorNoScale(BaseAimRotation.Vector());
+	const FQuat VisualFacing = GetOffsetRootRotationDelta() * OwningMoverCharacter->GetActorQuat();
+	FVector LocalAimDir = VisualFacing.UnrotateVector(BaseAimRotation.Vector());
 	FRotator LocalAimRot = LocalAimDir.Rotation();
 	AimPitch = FMath::ClampAngle(LocalAimRot.Pitch, -90.0f, 90.0f);
 	AimYaw   = FRotator::NormalizeAxis(LocalAimRot.Yaw);
@@ -284,6 +326,38 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 			InitializeLocomotionSource();
 		UpdateLocomotionValues(DeltaSeconds);
 	}
+}
+
+void ULNPAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
+{
+	Super::NativeThreadSafeUpdateAnimation(DeltaSeconds);
+
+	// 그래프 갱신 직전(워커). 메인 인스턴스의 OffsetRootBone 노드에 base 이동량과 Up 정렬을 넣는다 — 노드 Update가 이 값에서 시작한다.
+	FAnimNode_OffsetRootBone* OffsetRootNode = nullptr;
+	if (bLocomotionSourceInitialized)
+	{
+		if (const IAnimClassInterface* AnimClass = IAnimClassInterface::GetFromClass(GetClass()))
+		{
+			if (const FAnimSubsystem_Tag* TagSubsystem = AnimClass->FindSubsystem<FAnimSubsystem_Tag>())
+				OffsetRootNode = TagSubsystem->FindNodeByTag<FAnimNode_OffsetRootBone>(OffsetRootNodeTag, this);
+		}
+	}
+	bHasOffsetRoot = OffsetRootNode != nullptr;
+	if (OffsetRootNode == nullptr)
+		return;
+
+	// GASP OnUpdate_OffsetRootBone: 움직이는 base가 캐릭터를 옮긴 만큼 가상 루트도 옮긴다(안 하면 base 위에서 메시가 뒤처진다)
+	FVector Translation = OffsetRootNode->GetOffsetRootTranslation() + BasedMovementDelta.GetTranslation();
+	FQuat Rotation = BasedMovementDelta.GetRotation() * OffsetRootNode->GetOffsetRootRotation();
+
+	// 구면: Accumulate·Interpolate 모드는 캡슐 회전 변화를 가상 루트에 더하지 않아, 구면을 따라 이동하면 캡슐 Up만 돌고 메시가 기운다.
+	// 매 프레임 가상 루트 Up을 컴포넌트 Up으로 스윙만 맞춘다(Yaw 오프셋은 노드 몫으로 남긴다).
+	const FTransform& ComponentTransform = GetProxyOnAnyThread<FAnimInstanceProxy>().GetComponentTransform();
+	Rotation = AlignAxisZToUp(Rotation, ComponentTransform.GetUnitAxis(EAxis::Z));
+
+	OffsetRootNode->SetOffsetRootTranslation(Translation);
+	OffsetRootNode->SetOffsetRootRotation(Rotation);
+	OffsetRootTransform = FTransform(Rotation, Translation);
 }
 
 bool ULNPAnimInstance::IsLocomotionSource() const
@@ -412,9 +486,9 @@ void ULNPAnimInstance::UpdateTrajectoryValues(float DeltaSeconds)
 	Trj_FutureFacing           = Trajectory.GetSampleAtTime(1.5f).Facing;
 
 	// 지금 메시 facing에서 예측 0·0.25·0.75·1.5s facing까지 누적(GASP Get_TotalFacingDelta).
-	// GASP 첫 기준은 Offset Root Bone 루트다. 그 노드는 2-3(B3)에서 들어오므로 지금은 메시 facing이 루트와 같다.
+	// 첫 기준은 Offset Root Bone 가상 루트(메시가 실제로 향한 방향), 노드가 없으면 메시 컴포넌트.
 	static constexpr float FacingTimes[] = { 0.0f, 0.25f, 0.75f, 1.5f };
-	FQuat PreviousFacing = GetSkelMeshComponent()->GetComponentQuat();
+	FQuat PreviousFacing = bHasOffsetRoot ? OffsetRootTransform.GetRotation() : GetSkelMeshComponent()->GetComponentQuat();
 	float TotalFacingDelta = 0.0f;
 	for (const float Time : FacingTimes)
 	{
@@ -556,6 +630,13 @@ void ULNPAnimInstance::UpdateMotionMatchingNode(const FAnimNodeReference& Node)
 	if (ConversionResult != EAnimNodeReferenceConversionResult::Succeeded)
 		return;
 
+	// 직전 선택의 DB 태그(GASP Update_MotionMatching_PostSelection → CurrentDatabaseTags). 제자리 회전 Steering이 읽는다
+	FPoseSearchBlueprintResult SearchResult;
+	bool bSearchResultValid = false;
+	UMotionMatchingAnimNodeLibrary::GetMotionMatchingSearchResult(MotionMatchingNode, SearchResult, bSearchResultValid);
+	bTurnInPlaceDatabaseActive = bSearchResultValid && SearchResult.SelectedDatabase
+		&& SearchResult.SelectedDatabase->Tags.Contains(TurnInPlaceDatabaseTag);
+
 	TArray<UPoseSearchDatabase*> Databases;
 	if (LocomotionDatabaseChooser)
 	{
@@ -623,6 +704,85 @@ float ULNPAnimInstance::GetMMBlendTime() const
 	return FVector::DotProduct(Velocity, LocomotionUp) > MMRisingUpSpeed ? MMBlendTimeInAirRising : MMBlendTimeInAir;
 }
 
+bool ULNPAnimInstance::ShouldEnableSteering(const FAnimNodeReference& Node) const
+{
+	// GASP는 SM 경로의 루프 플래그도 OR하지만 MM 경로에서는 늘 거짓이다
+	return (UBlendStackAnimNodeLibrary::GetCurrentBlendStackAnimIsActive(Node) && bIsMoving)
+		|| MovementMode == ELNPMovementMode::InAir;
+}
+
+FQuat ULNPAnimInstance::GetSteeringTargetFacing(const FAnimNodeReference& Node) const
+{
+	const FTransform& ComponentTransform = GetProxyOnAnyThread<FAnimInstanceProxy>().GetComponentTransform();
+	if (Trajectory.Samples.IsEmpty())
+		return ComponentTransform.GetRotation();
+
+	const float TargetTime = FMath::GetMappedRangeValueClamped(FVector2f(0.0f, 1.0f), FVector2f(SteeringTargetTimeMin, SteeringTargetTimeMax),
+		GetBlendStackCurveValue(Node, SteeringTargetTimeCurve));
+	// 궤적 facing은 Mover 예측(표시 컴포넌트 회전)이다. Steering은 가상 루트와의 상대 회전 전체를 루트모션에 더하므로
+	// 예측 facing의 Up이 지금 컴포넌트 Up과 다르면(구면에서 앞쪽 샘플) 기울기까지 보정하려 든다 → Up을 맞춰 Yaw만 남긴다.
+	return AlignAxisZToUp(Trajectory.GetSampleAtTime(TargetTime).Facing, ComponentTransform.GetUnitAxis(EAxis::Z));
+}
+
+float ULNPAnimInstance::GetSteeringProceduralTargetTime(const FAnimNodeReference& Node) const
+{
+	return FMath::GetMappedRangeValueClamped(FVector2f(0.0f, 1.0f), FVector2f(SteeringProceduralTimeMin, SteeringProceduralTimeMax),
+		GetBlendStackCurveValue(Node, SteeringTargetTimeCurve));
+}
+
+bool ULNPAnimInstance::IsTurnInPlaceDatabaseActive() const
+{
+	return bTurnInPlaceDatabaseActive;
+}
+
+float ULNPAnimInstance::GetOrientationWarpingAlpha(const FAnimNodeReference& Node) const
+{
+	return GetBlendStackCurveValue(Node, EnableWarpingCurve);
+}
+
+bool ULNPAnimInstance::IsFullBodyMontageActive() const
+{
+	for (const FName& Slot : FullBodyMontageSlots)
+	{
+		if (IsSlotActive(Slot))
+			return true;
+	}
+	return false;
+}
+
+EOffsetRootBoneMode ULNPAnimInstance::GetOffsetRootTranslationMode() const
+{
+	// GASP Get_OffsetRootTranslationMode. 몽타주 루트모션(근접 보정 워핑 포함)은 캡슐이 따라가므로 메시를 캡슐로 되돌린다
+	if (IsFullBodyMontageActive() || MovementMode == ELNPMovementMode::InAir)
+		return EOffsetRootBoneMode::Release;
+	return bIsMoving ? EOffsetRootBoneMode::Interpolate : EOffsetRootBoneMode::Release;
+}
+
+EOffsetRootBoneMode ULNPAnimInstance::GetOffsetRootRotationMode() const
+{
+	// GASP Get_OffsetRootRotationMode
+	return IsFullBodyMontageActive() ? EOffsetRootBoneMode::Release : EOffsetRootBoneMode::Accumulate;
+}
+
+float ULNPAnimInstance::GetOffsetRootTranslationHalfLife() const
+{
+	return MovementState == ELNPMovementState::Moving ? OffsetRootHalfLifeMoving : OffsetRootHalfLifeIdle;
+}
+
+FVector ULNPAnimInstance::GetOffsetRootGroundNormal() const
+{
+	return GetProxyOnAnyThread<FAnimInstanceProxy>().GetComponentTransform().GetUnitAxis(EAxis::Z);
+}
+
+FQuat ULNPAnimInstance::GetOffsetRootRotationDelta() const
+{
+	// 서브 ABP(링크 레이어)도 자기 AimYaw를 계산하므로 메인 인스턴스의 가상 루트를 읽는다
+	const ULNPAnimInstance* Main = OwningMoverCharacter ? Cast<ULNPAnimInstance>(OwningMoverCharacter->GetAnimInstance()) : nullptr;
+	if (Main == nullptr || !Main->bHasOffsetRoot)
+		return FQuat::Identity;
+	return Main->OffsetRootTransform.GetRotation() * Main->GetSkelMeshComponent()->GetComponentQuat().Inverse();
+}
+
 void ULNPAnimInstance::DrawLocomotionDebug() const
 {
 #if ENABLE_DRAW_DEBUG
@@ -643,16 +803,49 @@ void ULNPAnimInstance::DrawLocomotionDebug() const
 	if (bJustLanded_Heavy)     Flags += TEXT(" LandH");
 	if (bJustTeleported)       Flags += TEXT(" Tele");
 
+	// 2-3 구면 확인값: 가상 루트(B3)가 메시 컴포넌트에서 벌어진 거리·Yaw·기울기, 궤적 예측 facing(Steering 목표)의 Up이 캐릭터 Up에서 기운 최대각.
+	// 거리는 직전 평가의 가상 루트와 이번 프레임 메시를 비교하므로 한 프레임 이동량(속도 × dt)이 더해진다 — 실제 벌어짐은 노드가 MaxTranslationError로 자른다.
+	const FTransform MeshTransform = GetSkelMeshComponent()->GetComponentTransform();
+	const float RootDistance = bHasOffsetRoot ? FVector::Dist(OffsetRootTransform.GetLocation(), MeshTransform.GetLocation()) : 0.0f;
+	const float RootYaw      = bHasOffsetRoot ? FacingDeltaAroundUp(MeshTransform.GetRotation(), OffsetRootTransform.GetRotation(), Up) : 0.0f;
+	const float RootTilt     = bHasOffsetRoot ? FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(OffsetRootTransform.GetUnitAxis(EAxis::Z), Up), -1.0f, 1.0f))) : 0.0f;
+	float TrajectoryFacingTilt = 0.0f;
+	if (!Trajectory.Samples.IsEmpty())
+	{
+		for (const float Time : { SteeringTargetTimeMin, 0.5f, 1.0f, SteeringTargetTimeMax })
+		{
+			const float Cos = FMath::Clamp(FVector::DotProduct(Trajectory.GetSampleAtTime(Time).Facing.GetAxisZ(), Up), -1.0f, 1.0f);
+			TrajectoryFacingTilt = FMath::Max(TrajectoryFacingTilt, FMath::RadiansToDegrees(FMath::Acos(Cos)));
+		}
+	}
+	const EOffsetRootBoneMode RootTranslationMode = GetOffsetRootTranslationMode();
+	const EOffsetRootBoneMode RootRotationMode    = GetOffsetRootRotationMode();
+
 	const FString Text = FString::Printf(
 		TEXT("%s %s %s %s %s (recent %s)\n")
 		TEXT("spd %.0f acc %.2f velAcc %.0f lean %.2f,%.2f\n")
 		TEXT("turn %.0f facing %.0f yawRate %.0f/%.0f\n")
-		TEXT("slope %.1f,%.1f based %.1f%s"),
+		TEXT("slope %.1f,%.1f based %.1f%s\n")
+		TEXT("root %s/%s %.1fcm yaw %.1f tilt %.2f trjTilt %.2f"),
 		*EnumName(MovementMode), *EnumName(MovementState), *EnumName(Gait), *EnumName(RotationMode), *EnumName(MovementDirection), *EnumName(MovementDirection_Recent),
 		GroundSpeed, AccelerationAmount, VelocityAcceleration.Size(), LeanAmount.X, LeanAmount.Y,
 		Trj_TurnAngle, FutureFacingDelta, Trj_PastYawRate, Trj_CurrentYawRate,
-		SlopeAngle_X, SlopeAngle_Y, BasedMovementDelta.GetTranslation().Size(), *Flags);
+		SlopeAngle_X, SlopeAngle_Y, BasedMovementDelta.GetTranslation().Size(), *Flags,
+		*EnumName(RootTranslationMode), *EnumName(RootRotationMode), RootDistance, RootYaw, RootTilt, TrajectoryFacingTilt);
 	DrawDebugString(World, Location + Up * 130.0f, Text, nullptr, FColor::White, 0.0f, true, 1.0f);
+
+	// 2: 1초마다 한 줄(호스트·게스트 로그 대조용)
+	const double Now = World ? World->GetTimeSeconds() : 0.0;
+	if (CVarDebugLocomotion.GetValueOnGameThread() >= 2 && Now - LastOffsetRootLogTime >= 1.0)
+	{
+		LastOffsetRootLogTime = Now;
+		UE_LOG(LogLootNPop, Log, TEXT("[AnimB3] %s %s/%s %s speed %.0f root %s/%s dist %.1f yaw %.1f tilt %.2f trjTilt %.2f aimYaw %.1f"),
+			*GetNameSafe(OwningMoverCharacter),
+			World && World->GetNetMode() == NM_Client ? TEXT("Client") : TEXT("Server"),
+			*StaticEnum<ENetRole>()->GetNameStringByValue(OwningMoverCharacter->GetLocalRole()),
+			*EnumName(MovementState), GroundSpeed, *EnumName(RootTranslationMode), *EnumName(RootRotationMode),
+			RootDistance, RootYaw, RootTilt, TrajectoryFacingTilt, AimYaw);
+	}
 
 	// 초록 = 접평면 속도, 노랑 = 0.4~0.5s 예측 속도, 하늘 = 평활 지면 법선
 	DrawDebugLine(World, Location, Location + FVector::VectorPlaneProject(Velocity, Up) * 0.2f, FColor::Green, false, 0.0f, 0, 2.0f);

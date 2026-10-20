@@ -11,6 +11,8 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 [ABP_Main_UEFN — 메인 AnimBP (AnimInstance = ULNPAnimInstance, 스켈레톤 SK_UEFN_Mannequin, §3.3)]
    Motion Matching (PSD 전신 포즈, 궤적 = ULNPAnimInstance::Trajectory,
    │                DB 묶음 = CHT_PoseSearchDatabases_UEFN 멀티 결과 — ULNPAnimInstance::UpdateMotionMatchingNode)
+   │   └ 블렌드 스택 그래프(샘플마다): CopyBone foot→ik_foot → Steering(궤적 facing) → Steering(제자리 회전 DB)
+   │                                  → Orientation Warping(LastNonZeroVelocity) → Reset Root   (2026-10-20 AnimationOverhaul 2-3)
        │
    Blend Poses by Bool (bIsOnGround) — 공중이면 Fall_Loop 고정 재생 (§5.5)
        │
@@ -25,12 +27,16 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
        │
    Dead Blending (0.25s, 관성 블렌드 요청을 받는 자리 — 2026-10-19 AnimationOverhaul 2-1)
        │
+   Offset Root Bone (태그 OffsetRoot — 메시 루트가 캡슐을 부드럽게 따라온다. 전신 몽타주 중 Release, 2026-10-20 2-3)
+       │
    Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponPostProcess)
        │
    Pose History Collector (출력 직전 — 절차 보정까지 반영된 포즈를 기록)
        │
    Output Pose
 ```
+
+**루트 추종(Offset Root Bone).** 메시 루트는 캡슐을 바로 따르지 않고, 애니메이션 루트모션(Steering이 궤적 facing 쪽으로 휘게 한 것)으로 움직이다가 반감기로 캡슐에 다가간다(이동 30cm·회전 90° 상한). 모드·반감기·지면 법선은 `ULNPAnimInstance` 함수가 핀으로 공급하고, 움직이는 base 이동량과 가상 루트 Up 정렬은 `NativeThreadSafeUpdateAnimation`이 태그로 노드를 찾아 넣는다. `DefaultSlot`·`FullBody` 몽타주 중에는 Release라 몽타주 루트모션·근접 보정 워핑(§6.6)은 캡슐과 메시가 같이 간다. 엔진 노드의 구면 함정은 §7.4. GASP 값·구성은 AnimationOverhaul `design/GASPReference.md` §2.10.
 
 **애니 변수 공급층.** 상태 enum(이동 모드·이동 상태·보행·자세·회전 모드·이동 방향)과 그 이력, 궤적 파생값(`Trj_*`·`FutureFacingDelta`), 가속, 지면 법선·경사, 상태 술어(`bIsPivoting`·`bShouldTurnInPlace`·`bJustLanded_*` 등)는 `ULNPAnimInstance`가 메인 인스턴스에서만 C++로 계산한다(AnimationOverhaul AN-002·AN-003). 궤적 생성(Mover 예측기)도 C++가 소유하고, `PoseHistoryCollector`의 `TransformTrajectory` 핀이 C++ `Trajectory`에 이름으로 바인딩돼 있다. 계산식·GASP 출처는 AnimationOverhaul `design/GASPReference.md` §2.8, 확인용 CVar는 `LNP.Anim.DebugLocomotion`(1 화면 표시, 2 + 전이 로그).
 
@@ -135,7 +141,7 @@ VisualMesh ──┬─ 플레이어: SKM_Manny_Simple(MoverSample) + ABP_Retarg
 
 AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstance`가 계산한다.
 
-"카메라 Yaw − 캐릭터 Yaw" 방식은 월드 Euler 뺄셈이라 캐릭터 Up이 World Up과 벌어지면 틀린다. 대신 `GetBaseAimRotation()`의 방향 벡터를 캐릭터 로컬 좌표계로 변환(`InverseTransformVectorNoScale`)한 뒤 Pitch(±90 클램프)·Yaw를 뽑는다.
+"카메라 Yaw − 캐릭터 Yaw" 방식은 월드 Euler 뺄셈이라 캐릭터 Up이 World Up과 벌어지면 틀린다. 대신 `GetBaseAimRotation()`의 방향 벡터를 캐릭터 로컬 좌표계로 변환한 뒤 Pitch(±90 클램프)·Yaw를 뽑는다. 기준 좌표계는 캡슐이 아니라 **메시가 실제로 향한 방향**(Offset Root 가상 루트가 캡슐보다 더 돈 만큼을 더한 회전)이다 — 메시가 캡슐보다 늦게 돌 때도 총구가 조준점을 유지한다. 서브 ABP 인스턴스는 메인 인스턴스의 가상 루트를 읽는다(2026-10-20 AnimationOverhaul 2-3).
 
 **`GetBaseAimRotation()`의 공급원은 폰 종류마다 다르다.** 계산식은 그대로 두고 공급원만 갈아끼운다.
 
@@ -368,6 +374,7 @@ ANS는 몽타주 에셋에 배치된 **단일 오브젝트**를 그 몽타주를
 - `GroundSpeed`: `Size2D()`는 월드 XY 평면 전제 → 캐릭터 Up에 수직인 평면으로 `VectorPlaneProject`해 계산.
 - Aim Offset: §4.1의 로컬 좌표계 변환.
 - 이동 방향 `Direction`: 엔진 `UKismetAnimationLibrary::CalculateDirection`은 캐릭터 회전 기준이지만 속도를 `GetSafeNormal2D`(월드 Z 제거)로 정규화해 **적도에서 틀린 방향을 낸다**. 캐릭터 Up 둘레 부호각(전방 → 속도)으로 직접 계산한다(2026-10-19 AnimationOverhaul 2-2, 방향별 DB 선택에서 드러남).
+- Offset Root Bone(엔진 `AnimNode_OffsetRootBone`): ① 지상이면 가상 루트 위치를 `GroundNormal`(기본 월드 Z) 평면에 투영 → 컴포넌트 Up을 핀으로 준다. ② `bClampToTranslationVelocity`는 보정 방향을 `GetSafeNormal2D`로 만든다 → 켜지 않는다. ③ Accumulate·Interpolate 모드는 캡슐 회전 변화를 가상 루트에 더하지 않아 구면을 걸으면 메시가 기운다 → 매 프레임 가상 루트 Up을 컴포넌트 Up으로 스윙 정렬. Steering 목표 facing도 같은 정렬을 한다(2026-10-20 AnimationOverhaul 2-3).
 
 ### 7.5 Motion Warping을 구면 월드·Mover·멀티플레이에 얹을 때의 함정 4건
 

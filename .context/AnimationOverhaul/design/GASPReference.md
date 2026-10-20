@@ -1,7 +1,7 @@
 # GASP 참조 조사
 
-> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1, §2.9 단위 2-2 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
-> 마지막 갱신: 2026-10-19
+> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1, §2.9 단위 2-2, §2.10 단위 2-3 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
+> 마지막 갱신: 2026-10-20
 > 소유 정보: GASP 5.8 에디터(`unreal-mcp-gasp`, 포트 8001)에서 무엇을 어떻게 읽는지, 그리고 블록별로 LootNPop에서 무엇을 만들지. 원본 덤프가 아니라 요약만 둔다(README §11).
 
 ## 1. 읽기 방법
@@ -139,9 +139,10 @@ GASP는 Pawn이 BPI로 구조체를 넘기고 ABP가 가공한다. LootNPop은 M
 | `Speed2D`·`IsStarting`의 `VectorLengthXY`, Lean의 `RotationFromXVector` | 월드 Z | C++ 접평면 투영(B0) |
 | `StrideWarping` `FloorNormalDirection`·`GravityDirection` | `WorldSpaceVector` ±Z(엔진 기본값) | `ComponentSpaceVector` (0,0,±1) |
 | `CR_Biped_FootPlacement` `UpdateRootDamper` | 월드 `.Z` 감쇠 | `WorldZDamperEnabled` 끔 또는 중력 Up 축으로 수정 |
-| `Steering` 목표 방향 | 궤적 facing(월드 쿼터니언) | 궤적 facing이 중력 Up 기준인지 적도에서 확인 |
+| `Steering` 목표 방향 | 궤적 facing(월드 쿼터니언)과 가상 루트의 상대 회전 전체를 루트모션에 더한다 | 2-3 확인: 이동 중 궤적 facing은 중력 Up 기준(기울기 1° 미만). 스폰 첫 프레임 빈 이력만 약 90° → C++ 목표 함수가 Up으로 정렬(§2.10) |
 | `ModifyBone`(슬라이드) 이동 월드 공간 | 입력 벡터가 월드 | 슬라이드 제외라 해당 없음 |
-| `OrientationWarping`·`OffsetRootBone`·CR 씬 쿼리·`GetSlopeDegreeAngles` | 컴포넌트/캐릭터 Up | 안전(블록 단위에서 적도 확인) |
+| `OffsetRootBone` | ⚠️ 2-3 엔진 확인: `GroundNormal` 기본 월드 (0,0,1) 평면 투영, `bClampToTranslationVelocity`의 `GetSafeNormal2D`, Accumulate·Interpolate가 캡슐 회전 변화를 안 더함(구면 이동 시 메시가 기욺) | 지면 법선 = 컴포넌트 Up(C++ 함수), 속도 클램프 끔, 매 프레임 가상 루트 Up을 컴포넌트 Up으로 스윙 정렬(§2.10) |
+| `OrientationWarping`·CR 씬 쿼리·`GetSlopeDegreeAngles` | 컴포넌트/캐릭터 Up | 안전(OrientationWarping은 2-3에서 가상 루트 로컬 변환 확인). 나머지는 블록 단위에서 적도 확인 |
 
 ### 2.5 선택 코어 경로 — MM 노드 방식 (AN-015)
 
@@ -254,3 +255,38 @@ LootNPop 구성(2-2):
 - PSD·PSS·PSN은 GASP 것을 `LNP.Editor.GASPRef clone`으로 `Characters/MotionMatchingData/`에 복제했다(항목·바이어스·스키마 값이 GASP와 같다). MM 노드 설정은 GASP 값으로 맞췄다.
 - 인터럽트: GASP 식 + **출발 프레임(Idle→Moving)**. Idle 스키마가 궤적을 보지 않아 진행 중인 Idle 포즈가 움직여도 이기기 때문이다(GASP는 Starts DB가 이 구간을 받는다). 2-4에서 Starts DB가 들어오면 이 예외를 다시 본다.
 - 승격 적 `MovementState` 깜빡임: Chooser는 현재 값을 쓴다. 사용자 PIE(적도·리슨 2인·승격 적 전투)에서 떨림이 보이지 않았다.
+
+### 2.10 B2 블렌드 스택·B3 Offset Root — GASP 노드 값과 LootNPop 구성 (2-3 확인, 2026-10-20)
+
+GASP `SandboxCharacter_Mover_ABP`를 MCP(`find_nodes`·`get_node_infos`·`get_properties`)로 읽고, 바인딩은 사용자 Ctrl+C 텍스트로 확인했다(DSL 미사용, 저장 없음).
+
+**MM 노드 블렌드 스택 그래프(블렌드 샘플마다 따로 돈다)**
+
+| 순서 | 노드 | GASP 값 | LootNPop |
+|:---|:---|:---|:---|
+| 1 | LocalToComponent | — | 같음 |
+| 2 | CopyBone `foot_l→ik_foot_l`, `foot_r→ik_foot_r` | 컴포넌트 공간, **이동·회전·스케일 복사가 모두 꺼짐**(바인딩 없음) → 사실상 무동작 | 같은 값으로 두었다. ik_foot 정렬이 필요하면 2-5(발 배치)에서 켠다 |
+| 3 | Steering | 활성 = `EnableSteering`(현재 애니 활성·`IsMoving`, 또는 공중·슬라이드), 목표 = `Get_DesiredFacing`(곡선 `SteeringTargetTime` 0~1 → 궤적 0.1~1.5s facing), 절차 목표 시간 = 같은 곡선 → 0.1~0.3s, `AnimatedTargetTime` **10**(핀 값, 노드 구조체 2는 낡은 값), `DisableSteeringBelowSpeed` 10, 알파 블렌드 0.1s | C++ `ShouldEnableSteering`·`GetSteeringTargetFacing`(+ 컴포넌트 Up 정렬)·`GetSteeringProceduralTargetTime` |
+| 4 | Steering(제자리 회전) | 활성 = `CurrentDatabaseTags`에 `TurnInPlace`, 목표 같음, 절차 목표 시간 0.2 고정, `DisableSteeringBelowSpeed` −1 | C++ `IsTurnInPlaceDatabaseActive`(MM 검색 결과 DB 태그, 1프레임 늦음). 2-4에서 TurnInPlace DB가 생기면 동작 |
+| 5 | OrientationWarping | Graph 모드, α = 현재 애니 곡선 `Enable_Warping`, 방향 = `LastNonZeroVelocity`, 공간 `RootBoneTransform`(바인딩 `Get_OrientationWarpingWarpingSpace` = Offset Root가 켜져 있으면 이 값), 척추 `spine_01~05`, IK 발 `ik_foot_l/r`·`ik_foot_root`, 회전 보간 속도 8, `LocomotionAngleDeltaThreshold` 135 | α = C++ `GetOrientationWarpingAlpha`, 공간 상수 |
+| 6 | ResetRoot → ComponentToLocal | α 1 | 같음 |
+
+- 함수 입력은 태그 `MMBlendStackInput`(입력 노드) 노드 참조다. 엔진 `GetCurrentBlendStackAnimAsset/Time`이 그 샘플의 애니·시간을 준다.
+- MCP `create_node`는 블렌드 스택 그래프 같은 중첩 그래프에서 `Cannot cast ... to 'Blueprint'`로 실패한다(`connect_pins`·`break_pins`·`set_properties`는 된다). GASP Ctrl+C 텍스트의 함수 참조를 C++ 함수로 바꿔 붙여넣었다(변환 스크립트는 세션 스크래치, 결과 `Saved/AnimOverhaul/lnp_2-3_blendstack_paste.txt`).
+
+**Offset Root Bone(AnimGraph, `DeadBlending` 뒤 · 무기 후처리 레이어 앞)**
+
+| 항목 | GASP | LootNPop |
+|:---|:---|:---|
+| 이동 모드 | `DefaultSlot` 몽타주 → Release, 지상 `IsMoving` → Interpolate·아니면 Release, 공중 → Release | 전신 슬롯 `DefaultSlot`·`FullBody` 몽타주 → Release, 나머지 같음(`GetOffsetRootTranslationMode`) |
+| 회전 모드 | `DefaultSlot` 몽타주 → Release, 아니면 Accumulate(Ragdoll·Flying → Release) | 전신 슬롯 → Release, 아니면 Accumulate |
+| 이동 반감기 | Idle 0.1, Moving 0.3 | 같음 |
+| 회전 반감기 | 0.1 | 같음 |
+| `MaxTranslationError` | 바인딩 `Get_OffsetRootTranslationRadius` = CVar `DDCvar.OffsetRootBone.TranslationRadius`(ini 기본 0, 런타임 값 미확인), 노드 기본 30 | 30 상수 |
+| `MaxRotationError` | −1(제한 없음) | **90°** — 제자리 회전 DB가 없는 동안 정지 중 허리가 180°까지 꺾이는 것을 막는다. 2-4 뒤에도 안전망 |
+| `bClampToTranslationVelocity` | 바인딩 `IsMoving` | 끔(엔진이 `GetSafeNormal2D` 사용) |
+| 지면 법선 | 기본 월드 (0,0,1) | `GetOffsetRootGroundNormal` = 컴포넌트 Up |
+| base 이동량 | `OnUpdate`에서 `ApplyDeltaToOffsetRootBone(BasedMovementDelta)` | `NativeThreadSafeUpdateAnimation`(그래프 갱신 직전)이 태그로 노드를 찾아 더하고 Up 정렬까지 한다. ABP 노드 함수 없음 |
+
+- GASP는 AO·`RootTransform` 계산을 오프셋 루트 기준으로 한다. LootNPop도 AO(`AimYaw`/`AimPitch`)와 `FutureFacingDelta` 첫 기준을 가상 루트로 바꿨다(서브 ABP는 메인 인스턴스 값을 읽는다).
+- 디버그: `LNP.Anim.DebugLocomotion` 표시 마지막 줄과 `[AnimB3]`(2, 1초마다) — 모드, 거리, Yaw, 기울기, 궤적 facing 기울기. 거리는 직전 평가 가상 루트와 이번 프레임 메시를 비교해 한 프레임 이동량이 더해진다. 엔진 토글 `a.AnimNode.OffsetRootBone.Enable`·`a.AnimNode.Steering.Enabled`·`a.AnimNode.OrientationWarping.Enable`, 시각화 `a.AnimNode.OffsetRootBone.Debug`.

@@ -54,6 +54,8 @@ public class LootNPop : ModuleRules
             "MassReplication",
             "MotionWarping",
             "PoseSearch",
+            "AnimationWarpingRuntime",
+            "BlendStack",
             "PhysicsControl",
             "LNPUI"
             ]);

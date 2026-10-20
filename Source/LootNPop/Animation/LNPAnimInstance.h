@@ -6,6 +6,7 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimNodeReference.h"
 #include "Animation/TrajectoryTypes.h"
+#include "AnimationWarpingTypes.h"
 #include "MoverTypes.h"
 #include "PoseSearch/PoseSearchLibrary.h"
 #include "LNPAnimInstance.generated.h"
@@ -81,6 +82,7 @@ class LOOTNPOP_API ULNPAnimInstance : public UAnimInstance
 public:
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+	virtual void NativeThreadSafeUpdateAnimation(float DeltaSeconds) override;
 
 protected:
 	/** 오프셋 그립의 왼손이 그립을 떠나야 하는 정도(0~1). LeftHandIKAlpha 주석 참조. */
@@ -119,6 +121,58 @@ protected:
 	/** GASP Get_MMBlendTime: 지상 0.5s(착지 직후 0.2s), 공중 0.5s(상승 중 0.15s) */
 	UFUNCTION(BlueprintPure, Category = "LNP|MotionMatching", meta = (BlueprintThreadSafe))
 	float GetMMBlendTime() const;
+
+	// ---------------------------------------------------------------------------------------------
+	// 블렌드 스택 절차 보정(B2). MM 노드 블렌드 스택 그래프의 Steering·OrientationWarping 핀이 호출한다(워커 스레드).
+	// Node = 블렌드 스택 입력 노드 참조(태그 MMBlendStackInput) — 블렌드 샘플마다 자기 애니의 곡선을 읽는다.
+	// ---------------------------------------------------------------------------------------------
+
+	/** GASP EnableSteering(MM 경로): 현재 애니가 활성이고 움직이는 중, 또는 공중 */
+	UFUNCTION(BlueprintPure, Category = "LNP|Steering", meta = (BlueprintThreadSafe))
+	bool ShouldEnableSteering(const FAnimNodeReference& Node) const;
+
+	/** GASP Get_DesiredFacing: 곡선 SteeringTargetTime(0~1)을 0.1~1.5s로 옮긴 궤적 샘플 facing. 컴포넌트 Up으로 맞춘다(구면) */
+	UFUNCTION(BlueprintPure, Category = "LNP|Steering", meta = (BlueprintThreadSafe))
+	FQuat GetSteeringTargetFacing(const FAnimNodeReference& Node) const;
+
+	/** GASP Get_ProceduralTargetTime: 같은 곡선을 0.1~0.3s로 */
+	UFUNCTION(BlueprintPure, Category = "LNP|Steering", meta = (BlueprintThreadSafe))
+	float GetSteeringProceduralTargetTime(const FAnimNodeReference& Node) const;
+
+	/** 제자리 회전 Steering 활성: MM이 고른 DB에 태그 TurnInPlace가 있다(GASP CurrentDatabaseTags). 2-4에서 그 DB가 생기면 동작한다 */
+	UFUNCTION(BlueprintPure, Category = "LNP|Steering", meta = (BlueprintThreadSafe))
+	bool IsTurnInPlaceDatabaseActive() const;
+
+	/** OrientationWarping α = 현재 애니 곡선 Enable_Warping */
+	UFUNCTION(BlueprintPure, Category = "LNP|Steering", meta = (BlueprintThreadSafe))
+	float GetOrientationWarpingAlpha(const FAnimNodeReference& Node) const;
+
+	// ---------------------------------------------------------------------------------------------
+	// Offset Root Bone(B3). AnimGraph OffsetRootBone 노드(태그 OffsetRoot)의 핀이 호출한다(워커 스레드).
+	// ---------------------------------------------------------------------------------------------
+
+	/** 전신 몽타주 중·공중·정지는 Release, 지상 이동은 Interpolate */
+	UFUNCTION(BlueprintPure, Category = "LNP|OffsetRoot", meta = (BlueprintThreadSafe))
+	EOffsetRootBoneMode GetOffsetRootTranslationMode() const;
+
+	/** 전신 몽타주 중 Release, 그 밖에는 Accumulate(애니 루트모션과 Steering이 메시 방향을 정한다) */
+	UFUNCTION(BlueprintPure, Category = "LNP|OffsetRoot", meta = (BlueprintThreadSafe))
+	EOffsetRootBoneMode GetOffsetRootRotationMode() const;
+
+	/** Idle 0.1s, Moving 0.3s */
+	UFUNCTION(BlueprintPure, Category = "LNP|OffsetRoot", meta = (BlueprintThreadSafe))
+	float GetOffsetRootTranslationHalfLife() const;
+
+	/** 가상 루트 위치를 투영할 평면 법선 = 컴포넌트 Up. 노드 기본값은 월드 Z라 구면에서 틀린다 */
+	UFUNCTION(BlueprintPure, Category = "LNP|OffsetRoot", meta = (BlueprintThreadSafe))
+	FVector GetOffsetRootGroundNormal() const;
+
+	/** OffsetRootBone 가상 루트의 월드 트랜스폼(메시 컴포넌트 축). 노드가 없으면 bHasOffsetRoot = false. 워커에서 쓰고 다음 게임 스레드 갱신이 읽는다 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|OffsetRoot")
+	FTransform OffsetRootTransform = FTransform::Identity;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|OffsetRoot")
+	bool bHasOffsetRoot = false;
 
 	/** 상태별 PSD 묶음 Chooser(멀티 결과, 컨텍스트 = 이 인스턴스). ABP 클래스 기본값에서 지정한다 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LNP|MotionMatching")
@@ -442,5 +496,13 @@ private:
 	FVector LocomotionUp = FVector::UpVector;
 	/** 디버그 로그용 — 직전에 MM 노드에 넘긴 DB 목록 */
 	TArray<const UPoseSearchDatabase*> LastSearchedDatabases;
+	/** MM이 마지막으로 고른 DB에 TurnInPlace 태그가 있다(MM 노드 갱신에서 쓰고 블렌드 스택 그래프가 읽는다, 같은 워커) */
+	bool bTurnInPlaceDatabaseActive = false;
+	/** 디버그 로그 간격용 — 마지막 [AnimB3] 로그 시각 */
+	mutable double LastOffsetRootLogTime = 0.0;
+
+	bool IsFullBodyMontageActive() const;
+	/** 이 인스턴스(또는 메인 인스턴스)의 가상 루트가 캡슐보다 더 돈 양(월드 회전). 가상 루트가 없으면 Identity */
+	FQuat GetOffsetRootRotationDelta() const;
 	ELNPMovementDirection ComputeMovementDirection(ELNPRotationMode NewRotationMode, ELNPGait NewGait) const;
 };

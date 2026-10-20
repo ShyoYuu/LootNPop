@@ -230,3 +230,44 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에�
 ### 6. 커밋 뒤 빌드 재확인
 
 - 커밋 `0f7e55a` 뒤 깨끗한 트리(변경 0)에서 **게임 타깃** `Build.bat LootNPop Win64 Development` 통과. 에디터 타깃은 LootNPop 에디터가 켜져 있어 Live Coding 검사에 막히므로 돌리지 않았다. 에디터 타깃은 커밋 전 같은 소스(이후 `LNPAnimInstance.cpp`의 방향·인터럽트 수정만 Live Coding으로 반영)로 경고 없이 빌드됐다. 다음에 LootNPop 에디터를 끈 김에 에디터 타깃을 한 번 더 돌린다.
+
+## 2026-10-20 — 단위 2-3 B3 Offset Root Bone + B2 블렌드 스택 절차 보정
+
+LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에서는 `list_graphs`·`find_nodes`·`get_node_infos`·`get_properties`만 썼다(DSL 안 씀, 저장 없음). 바인딩은 사용자가 Ctrl+C로 준 텍스트 두 개(`Saved/AnimOverhaul/gasp_2-3_blendstack.txt`·`gasp_2-3_offsetroot.txt`)로 확인했다.
+
+### 1. GASP 확인
+
+- 블렌드 스택 그래프 체인·노드 값, `EnableSteering`·`Get_DesiredFacing`·`Get_ProceduralTargetTime`·`Get_OffsetRoot*`·`OnUpdate_OffsetRootBone`·`Get_OrientationWarpingWarpingSpace`를 노드 정보로 읽었다. 요약은 `design/GASPReference.md` §2.10.
+- Ctrl+C 텍스트에서: OffsetRoot 노드의 모드·반감기·오차·클램프는 **프로퍼티 바인딩**(함수 이름 경로)이고, CopyBone의 복사 핀은 바인딩 없이 모두 false(사실상 무동작), Steering `AnimatedTargetTime`은 핀 값 10이 실제 값(노드 구조체 2는 낡은 값)이다. GASP의 `TranslationRadius` CVar는 ini 기본 0이고 위젯이 런타임에 바꾸는지는 확인하지 않았다.
+
+### 2. 엔진 구현 확인(구면)
+
+- `AnimNode_OffsetRootBone.cpp`: ① `GetOnGround()`면 가상 루트 위치를 `GroundNormal`(기본 월드 (0,0,1)) 평면에 투영 ② `bClampToTranslationVelocity`면 보정 방향을 `GetSafeNormal2D()` ③ Accumulate·Interpolate는 `ShouldCounterComponentDelta`가 거짓이라 캡슐 회전 변화를 가상 루트에 더하지 않는다 — 구면을 걸어가면 캡슐 Up만 돈다. 모두 월드 Z 가정이거나 구면에서 누적되는 오차라 C++로 막았다(지면 법선 = 컴포넌트 Up, 클램프 끔, 매 프레임 Up 스윙 정렬).
+- `AnimNode_Steering.cpp`: 목표 = `RootBoneRotation⁻¹ × TargetOrientation` 전체를 루트모션 회전에 스프링으로 더한다. 루트는 Offset Root가 보내는 가상 루트다. 목표 facing의 Up이 다르면 기울기까지 보정하려 들므로 C++ 목표 함수가 Up을 맞춘다.
+- `AnimNode_OrientationWarping.cpp`: 방향을 `WarpingSpaceTransform`(가상 루트) 로컬로 바꾼다 → 가상 루트 Up이 중력 Up이면 안전.
+- `MoverPoseSearchTrajectoryPredictor.cpp`: facing은 표시 컴포넌트 회전과 Mover 예측 회전이다(월드 Z 가정 없음).
+- `AnimInstanceProxy.cpp`: `NativeThreadSafeUpdateAnimation`은 그래프 갱신 직전(워커)에 돈다. `FAnimSubsystem_Tag::FindNodeByTag`로 태그 노드를 찾을 수 있어 base 이동량·Up 정렬을 ABP 노드 함수 없이 C++에서 넣었다.
+
+### 3. 빌드
+
+- 헤더 변경(새 UFUNCTION·UPROPERTY, 의존성 `AnimationWarpingRuntime`·`BlendStack`). 에디터를 켠 채 게임 타깃으로 먼저 컴파일을 확인하고(성공, 468초), 사용자가 LootNPop 에디터를 끈 뒤 에디터 타깃 `-NoHotReloadFromIDE`로 빌드했다(성공, 410초, GASP 에디터는 켠 채). 이것으로 2-2에서 미룬 에디터 타깃 확인도 했다. 경고 1건은 기존 `LNPReplaceAssetRefsCommand.cpp`의 지원 중단 API다.
+
+### 4. ABP
+
+- MCP `create_node`는 블렌드 스택 그래프(외곽이 AnimGraph 노드)에서 `Cannot cast type 'AnimGraphNode_MotionMatching' to 'Blueprint'`로 실패한다. `connect_pins`·`break_pins`·`set_properties`는 된다. → GASP Ctrl+C 텍스트에서 함수 참조를 C++로 바꾸고(같은 핀 이름·형식), 태그 배열 비교 2노드를 `IsTurnInPlaceDatabaseActive` 하나로, 곡선 읽기 노드를 `GetOrientationWarpingAlpha`로 바꾸고, 주석·외부 링크를 뺀 텍스트(`lnp_2-3_blendstack_paste.txt`)를 사용자가 붙여넣었다. 내부 연결은 그대로 살았고, 입력·출력 연결과 입력 노드 태그 `MMBlendStackInput`은 MCP로 했다.
+- AnimGraph `OffsetRootBone`은 MCP로 만들었다(`showPinForProperties` 수정으로 핀 노출 → C++ 함수 노드 4개 연결). `DeadBlending` → `OffsetRootBone` → `ApplyWeaponPostProcess`.
+- 컴파일·저장. 무인 PIE 시작·정지에 새 경고 없음.
+
+### 5. 사용자 PIE와 수정(적도, 1·2인, 승격 적)
+
+- 캡슐이 먼저 가고 메시가 30cm 이내에서 부드럽게 따라붙는다. 총기·락온 스트레이프, ADS·가드 8방향은 "매우 자연스럽다". 조준 중 급회전에서 총구 이탈 없음. 재장전 중 복잡한 이동, 근접 콤보·락온·근접 보정 모두 회귀 없음. 2P에서 본 1P도 자연스럽다.
+- 로그 `[AnimB3]` 약 3,600줄: 가상 루트 기울기 최대 0.98°(95%가 0.1° 미만). 궤적 facing 기울기는 이동 중 1° 미만, 스폰·승격 첫 로그만 82~94°(빈 궤적 이력). 30cm를 넘는 `dist`는 측정 방식 탓(직전 평가 가상 루트 vs 이번 프레임 메시, 800cm/s에서 한 프레임 13~27cm가 더해짐)이고 표시 차이는 노드가 30cm에서 자른다.
+- **정지 중 룩만 돌리면 허리가 180°까지 꺾인다**(로그 Yaw 최대 179.7°). 메시 회전이 애니(+Steering)를 따르게 됐는데 제자리 회전 DB가 없어 정지 중에는 메시가 돌 수 없고, AO가 가상 루트 기준이라 허리로 다 돌린다. → 노드 `MaxRotationError` 90°(그 이상은 하체가 캡슐을 따라 미끄러지며 돈다). 사용자 확인: "아까보다 낫다". 발을 디디는 회전은 2-4 TurnInPlace DB + 두 번째 Steering.
+- 움직이는 발판: 직접 `LNP.DynamicTerrain.PlaceRider 0`으로 올려 Live Coding 임시 진단(`[AnimB3T]`, 커밋 전 제거)으로 쟀다. 정지 시 프레임마다 발판 이동량(약 15cm)이 정확히 상쇄됐다(반영 뒤 지연 0.00cm). 게임 스레드 `[AnimB3]` 거리에 보였던 24cm는 측정 시점 차이였다. 사용자가 발판 위에서 움직여 봤고 문제 없었다.
+- 사용자 관찰: 질주 옆·뒷걸음이 어색하다(질주 클립은 정면뿐, GASP도 질주는 F 고정). 사용자는 정면에서만 질주 최고속도를 내는 이동 변경을 원한다 → 이 단위 밖, 별도 작업 제안. `OrientationWarping` 끄고 켜기 차이는 거의 못 느꼈다(방향별 DB가 각도 차이를 이미 줄여 남는 몫이 대각 약 45°뿐).
+
+### 시행착오·주의
+
+- 처음 시험한 `create_node`·`delete_node`·`break/connect`로 `ABP_Main_UEFN`이 dirty가 됐다. 에디터를 끌 때 저장하지 말아 달라고 사용자에게 알렸다.
+- Ctrl+C 텍스트의 `PropertyBindings`는 함수 이름 경로(`PathAsText`)로 묶인다. 같은 이름의 C++ 함수가 있으면 붙여넣기만으로 풀린다.
+- `get_properties`로 노드의 `bHasCompilerMessage`·`errorType`은 읽히지 않는다. 컴파일 결과는 출력 로그로 본다.

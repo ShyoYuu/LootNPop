@@ -1,6 +1,6 @@
 # Phase 2 — 스켈레톤 전환과 GASP Mover ABP 재구성
 
-> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1·2-2 완료 2026-10-19, 다음 2-3)
+> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1·2-2 완료 2026-10-19, 2-3 완료 2026-10-20, 다음 2-4)
 > 선행: Phase 1C 완료(GASP 5.8 소스, 93본 `SK_UEFN_Mannequin`), AN-011(UEFN 전환)·AN-015(MM 노드 방식)·AN-016(폴더·git)·AN-018(소스 저장 금지)
 > 순서: 2-0a → 2-0b → 2-1 → … → 2-6. 단위 하나가 세션 하나이고, 단위마다 커밋하고 사용자 확인을 받는다.
 > 단위 목록·블록 정의는 `Roadmap.md` §4 Phase 2와 `design/GASPReference.md` §2.2·§2.7이 소유한다. 이 문서는 착수한 단위의 실행 계획·결과·재생성 절차를 소유한다.
@@ -186,10 +186,50 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 | 검증(사용자 1·2인 PIE, 적도) | 걷기·달리기·질주·정지, 8방향 이동, ADS 이동, 총기 상체 자세, 가드 이동·가드·패링, 재장전, 근접 콤보, 승격 적 전투 — 어색함 없음. 자동 PIE 경고 0 |
 | 남긴 것 | 옛 `CHT_PSD_UEFN`·`PSD_{Idle,Walk,Run}_UEFN`(되돌림용, 런타임 미참조). 감속 구간은 Stops DB가 없어 `MovementState`가 Idle이 되는 순간(약 330cm/s) Idle DB로 넘어간다 — 2-4 |
 
+## 단위 2-3 — B3 Offset Root Bone + B2 블렌드 스택 절차 보정
+
+`Roadmap.md` §4 2-3 행이 범위를 소유한다. 감속(Stops)·출발 인터럽트 예외·전환 DB는 2-4, 발 배치는 2-5다. 에디터는 LootNPop(8000)과 GASP(8001, 읽기 전용) 둘 다 쓴다.
+
+착수 시 확인한 GASP 구성(요약 `design/GASPReference.md` §2.10):
+
+- MM 노드 블렌드 스택 그래프: 입력 → 컴포넌트 공간 → CopyBone `foot_l→ik_foot_l`·`foot_r→ik_foot_r` → Steering(활성 = `EnableSteering`, 목표 = `Get_DesiredFacing`, 절차 목표 시간 = `Get_ProceduralTargetTime`) → Steering(제자리 회전, 활성 = 현재 DB 태그에 `TurnInPlace`, 목표 같음) → OrientationWarping(α = 곡선 `Enable_Warping`, 방향 = `LastNonZeroVelocity`, 공간 `RootBoneTransform`) → ResetRoot → 로컬 공간. 함수 입력은 태그 `MMBlendStackInput` 노드 참조다(블렌드 샘플마다 자기 애니의 곡선을 읽는다). MM 경로에 Stride Warping은 없다.
+- `OffsetRootBone`(태그 `OffsetRoot`, Graph 모드): 회전 반감기 0.1, `MaxTranslationError` ← CVar(GASP 기본 0 — 위젯이 바꾸는지는 미확인), 모드·반감기 ← `Get_OffsetRoot*`, `OnUpdate`가 base 이동량을 `ApplyDeltaToOffsetRootBone`으로 더한다.
+- **엔진 구현에서 찾은 구면 함정 3건**(`AnimNode_OffsetRootBone.cpp`): ① `GroundNormal` 기본값이 월드 (0,0,1)이고 지상이면 가상 루트 위치를 그 평면에 투영한다. ② `bClampToTranslationVelocity`가 켜지면 보정량 방향을 `GetSafeNormal2D()`(월드 Z 제거)로 만든다. ③ Accumulate·Interpolate 모드는 캡슐 회전 변화를 가상 루트에 더하지 않는다 — 구면을 걸어가면 캡슐 Up은 돌아가는데 가상 루트 Up은 남아 메시가 점점 기운다. Steering·OrientationWarping은 가상 루트 기준 상대 회전·로컬 변환이라 루트 Up이 중력 Up이면 안전하다.
+
+계획:
+
+1. **C++(`ULNPAnimInstance`, 헤더 변경 → 에디터 재시작 필요).**
+   - Offset Root 모드·반감기 함수: 전신 몽타주 슬롯(`DefaultSlot`·`FullBody`) 재생 중 Release(이동·회전), 지상 이동 Interpolate·정지 Release, 공중 Release, 회전은 그 밖에 Accumulate. 반감기 Idle 0.1·Moving 0.3. 지면 법선 함수 = 캐릭터 Up(함정 ①). `bClampToTranslationVelocity`는 끈다(함정 ②).
+   - `NativeThreadSafeUpdateAnimation`(그래프 갱신 직전, 워커)에서 태그 `OffsetRoot` 노드를 찾아 base 이동량(2-1 `BasedMovementDelta`)을 더하고, 가상 루트 Up을 컴포넌트 Up으로 맞춘다(함정 ③, 스윙만 보정하고 Yaw는 그대로). 가상 루트 트랜스폼(`OffsetRootTransform`)을 보관한다.
+   - Steering 함수(블렌드 스택 입력 노드 참조를 받는다): 활성 여부(현재 애니 활성 & 움직임, 또는 공중), 목표 facing(곡선 `SteeringTargetTime` 0~1 → 궤적 0.1~1.5s facing, 컴포넌트 Up으로 정렬), 절차 목표 시간(같은 곡선 → 0.1~0.3), 제자리 회전 DB 여부(MM 검색 결과 DB 태그), OrientationWarping α(곡선 `Enable_Warping`).
+   - 가상 루트가 캡슐과 다르게 돌므로 Aim Offset 각도와 `FutureFacingDelta` 첫 기준을 가상 루트 기준으로 바꾼다(GASP도 `RootTransform` = 오프셋 루트 기준).
+2. **`ABP_Main_UEFN`.** 블렌드 스택 그래프에 GASP와 같은 체인을 만들고 입력 노드에 태그 `MMBlendStackInput`을 단다. AnimGraph `DeadBlending` 뒤·`ApplyWeaponPostProcess` 앞에 `OffsetRootBone`(태그 `OffsetRoot`)을 넣고 핀을 C++ 함수에 잇는다. 분기는 C++ 함수 안에만 둔다(AN-003).
+3. **구면 확인.** 디버그 표시(`LNP.Anim.DebugLocomotion`)에 궤적 facing Up과 캐릭터 Up의 각도, 가상 루트 오프셋(거리·Yaw·기울기)을 더해 적도에서 잰다.
+4. 유지: 무기 레이어·슬롯 3종·AO 경로·공중 `Fall_Loop` 고정(AN-007)·근접 보정 Motion Warping 어댑터(전신 몽타주 중 Release)·슬롯 그룹 런타임 등록(AN-020). Stride Warping은 미끄러짐이 보일 때만.
+
+완료 조건:
+
+- 대각·스트레이프에서 허리가 진행 방향을 따라 돌고 발 미끄러짐이 줄어든다. 방향 전환 시 루트가 부드럽게 따라온다(캡슐-메시 벌어짐 ≤ `MaxTranslationError`).
+- 근접 콤보·대시·재장전 중 Release, 근접 보정 워핑 유지, 움직이는 base, 적도·`ActorPromoted`(게스트 재시뮬)·리슨 2인에서 회귀 없음.
+- 커밋 뒤 깨끗한 트리에서 `Build.bat` 재확인.
+
+### 2-3 결과 (2026-10-20, 상세 `history/Phase02_Log.md`)
+
+| 항목 | 결과 |
+|:---|:---|
+| GASP 확인 | 블렌드 스택 체인·노드 값·`Get_OffsetRoot*`·`OnUpdate_OffsetRootBone`은 MCP로, 바인딩은 사용자 Ctrl+C 텍스트(`Saved/AnimOverhaul/gasp_2-3_*.txt`, git 제외)로 확인(요약 `design/GASPReference.md` §2.10). CopyBone은 이동·회전·스케일 복사가 모두 꺼져 사실상 무동작이고, Steering `AnimatedTargetTime`의 실제 값은 핀 10이다(노드 구조체 2는 낡은 값). OrientationWarping `WarpingSpace` 바인딩은 Offset Root가 켜져 있으면 `RootBoneTransform`인 상수다 |
+| C++ | `ULNPAnimInstance`: B2 함수 5개(`ShouldEnableSteering`·`GetSteeringTargetFacing`·`GetSteeringProceduralTargetTime`·`IsTurnInPlaceDatabaseActive`·`GetOrientationWarpingAlpha`), B3 함수 4개(이동·회전 모드, 이동 반감기, 지면 법선 = 컴포넌트 Up), `NativeThreadSafeUpdateAnimation`이 태그 `OffsetRoot` 노드에 base 이동량과 Up 정렬을 넣는다. AO·`FutureFacingDelta`는 가상 루트 기준. 빌드 의존성 `AnimationWarpingRuntime`·`BlendStack`. 디버그 표시·`[AnimB3]` 로그 |
+| ABP | 블렌드 스택 그래프: GASP 노드를 C++ 함수 참조로 바꾼 텍스트를 사용자가 붙여넣었다(MCP `create_node`는 중첩 그래프에서 막힌다), 입력·출력 연결과 입력 노드 태그 `MMBlendStackInput`은 MCP. AnimGraph: `DeadBlending` → `OffsetRootBone`(Graph, 태그 `OffsetRoot`, 회전 반감기 0.1, `MaxTranslationError` 30, `MaxRotationError` 90, 속도 클램프 끔) → `ApplyWeaponPostProcess`, 핀 4개를 C++ 함수 노드에 연결(MCP). 컴파일·저장, 무인 PIE 새 경고 0 |
+| 구면 확인(로그 약 3,600줄, 적도·리슨 2인·승격 적) | 가상 루트 기울기 최대 0.98°(95%가 0.1° 미만) — Up 정렬 동작. 궤적 facing 기울기는 이동 중 1° 미만, 스폰·승격 첫 프레임만 약 90°(빈 이력) → `GetSteeringTargetFacing`의 Up 정렬이 거른다. 움직이는 발판(`LNP.DynamicTerrain.PlaceRider`) 위 정지 시 base 이동량을 프레임마다 정확히 상쇄(반영 뒤 지연 0.00cm) |
+| 사용자 PIE | 캡슐이 먼저 가고 메시가 30cm 이내에서 부드럽게 따라붙음, 총기·락온 스트레이프·ADS·가드 8방향 "매우 자연스러움", 조준 중 급회전 총구 이탈 없음, 재장전·근접 콤보·락온·근접 보정 회귀 없음, 2P에서 본 1P도 자연스러움, 발판 이동 문제 없음 |
+| PIE에서 고친 것 | 정지 중 룩만 돌리면 허리가 180°까지 꺾임(제자리 회전 DB가 없어 메시가 돌 방법이 없다) → `MaxRotationError` 90°로 그 이상은 하체가 캡슐을 따라 미끄러지며 돈다. 발을 디디는 회전은 2-4 TurnInPlace |
+| 남긴 것 | 질주 옆·뒷걸음 어색함(질주 클립이 정면뿐, GASP도 질주는 F 고정) → 정면에서만 질주 최고속도를 내는 이동 변경은 별도 작업으로 제안. Stride Warping은 미끄러짐 보고가 없어 넣지 않았다. `OrientationWarping` 끄고 켜기 차이는 사용자가 거의 못 느꼈다(방향별 DB가 이미 각도를 줄여 남는 보정이 대각 약 45° 몫뿐) |
+
 ## 완료 조건 체크리스트
 
 - [x] 2-0a: 실사용 목록 확정(98개, 0-3 대비 차이 설명), 리타깃 사본 98개 `Retargeted/Lyra/`, 몽타주 대조 결함 0, 서브 ABP 5개 경고 0 컴파일, 재생성 절차·스크립트, 2-0b 임시 로코모션 계획 수정 (2026-10-18)
 - [x] 2-0b: 전환 — 결정 A·B 반영, 근접 콤보·ANS 판정·근접 보정·재장전·가드/패링·랙돌·HitStop, 적도·`ActorPromoted`·2인 PIE, ISKM 무영향(ISKM 에셋 미변경). 알려진 차이: 스트레이프 방향 클립 → 2-2 (2026-10-19)
 - [x] 2-1: B0 공급값(상태·이력·궤적 파생값·가속·지면·술어) C++, 궤적 C++ 소유, Pose History GASP 설정, DeadBlending, 디버그 CVar, 2인·적도·승격 적 값 확인, 회귀 없음 (2026-10-19)
 - [x] 2-2: B1 상태별 PSD 묶음 Chooser(멀티 결과)·루프 DB 10개(GASP 복제), 방향별 스트레이프 복구(시퀀스 26개 반입), 인터럽트·블렌드 시간 C++, MM 노드 GASP 설정, 적도 이동 방향 수정, 1·2인·적도·승격 적 PIE 회귀 없음 (2026-10-19)
-- [ ] 2-3 ~ 2-6: `Roadmap.md` §4
+- [x] 2-3: B2 블렌드 스택 체인(Steering×2·OrientationWarping·ResetRoot·CopyBone)과 B3 Offset Root Bone(모드·반감기 C++, 전신 몽타주 Release, base 이동량, 구면 함정 3건 대응), AO·FacingDelta 가상 루트 기준, 적도·리슨 2인·승격 적·움직이는 발판 확인, 회귀 없음. 정지 회전은 `MaxRotationError` 90° 임시(2-4 TurnInPlace) (2026-10-20)
+- [ ] 2-4 ~ 2-6: `Roadmap.md` §4
