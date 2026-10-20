@@ -1,6 +1,6 @@
 # Phase 2 — 스켈레톤 전환과 GASP Mover ABP 재구성
 
-> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1·2-2 완료 2026-10-19, 2-3·2-4 완료 2026-10-20, 다음 2-5)
+> 상태: 진행 중(2-0a 완료 2026-10-18, 2-0b·2-1·2-2 완료 2026-10-19, 2-3·2-4·2-5 완료 2026-10-20, 다음 2-6)
 > 선행: Phase 1C 완료(GASP 5.8 소스, 93본 `SK_UEFN_Mannequin`), AN-011(UEFN 전환)·AN-015(MM 노드 방식)·AN-016(폴더·git)·AN-018(소스 저장 금지)
 > 순서: 2-0a → 2-0b → 2-1 → … → 2-6. 단위 하나가 세션 하나이고, 단위마다 커밋하고 사용자 확인을 받는다.
 > 단위 목록·블록 정의는 `Roadmap.md` §4 Phase 2와 `design/GASPReference.md` §2.2·§2.7이 소유한다. 이 문서는 착수한 단위의 실행 계획·결과·재생성 절차를 소유한다.
@@ -260,6 +260,45 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 | 검증(사용자 1·2인 PIE, 적도) | 출발·정지·피벗·제자리 회전·보행 전환·착지, 근접 콤보·대시·재장전·가드 회귀 없음, 2P 적도·승격 적 어색함 없음. 승격 적 DB 변경 13분간 78회(깜빡임 없음). 새 경고 0(Mover 보정 경고는 기존 노이즈) |
 | 남긴 것 | 피벗·스핀은 거의 안 뽑힌다(선택 1회씩) — LootNPop은 고속에서 큰 호를 그려 `Trj_TurnAngle` 75°에 잘 못 닿는다(2-1 관찰과 같다). 제자리 회전 발 미끄러짐 소량(발 배치 2-5에서 다시 본다) |
 
+## 단위 2-5 — B4 발 배치 + B5 경사
+
+`Roadmap.md` §4 2-5 행이 범위를 소유한다. Leans(2-6)·물리 히트리액트(Phase 3)는 범위 밖이고, 표시 ABP의 RBWC 자리는 건드리지 않는다. 에디터는 LootNPop(8000)과 GASP(8001, 읽기 전용) 둘 다 쓴다.
+
+착수 시 확인한 GASP 구성(상세 `design/GASPReference.md` §2.12):
+
+- `Procedural_Feet` 레이어: 입력 → 캐시 `PreProceduralPose` → 이동 모드 Blend(기본 0.3s, InAir 0.2s, Ragdoll 0) — OnGround는 Bool(CVar `a.AnimNode.FootPlacement.Enable`) 참이면 `CR_Biped_FootPlacement`, 거짓이면 `LegIK`(ik_foot 목표), Sliding·Traversing·InAir는 `LegIK`, Ragdoll은 IK 없음. 몽타주 예외는 없다.
+- CR 핀: `Ground Normal` ← 캐릭터 구조체 `GroundNormal`(월드), `GroundMovementWorldDelta` ← `BasedMovementDelta`, `DoRaycast` true, `Enable Foot Pinning` ← `AllowFootPinning`(= OnGround, `IsMoving`과의 AND는 결과에 안 이어져 있다), `Enable Slope Warping`·`WorldZDamperEnabled` ← `AllowSlopeWarping`(OnGround·Sliding), `Has Teleported` ← `JustTeleported`, `ForceReset` ← `OnBecomeRelevant`에서 켜는 변수.
+- CR 구면 점검(그래프 전체를 서브 핀 단위로 덤프): 접지 트레이스·평면 보정·골반·다리 IK는 리그 공간 Z(= 컴포넌트 Up)를 쓰고, 트레이스는 소유 Actor를 무시한다(엔진 `RigUnit_WorldCollision.cpp`). **월드 축 성분을 직접 쓰는 곳은 세 군데**다 — `UpdateRootDamper`·`Reset`(월드 Z 높이 감쇠, 적도에서는 루트가 행성 반지름만큼 튄다), `Update Foot Pinning`(핀 = 월드 XY는 핀, 월드 Z는 애니), `ComputePinnedToeTransform`(같은 섞기 + 월드 XY 평면 Yaw 보정).
+- 경사 BS `BS_Relaxed_{Walk,Run}_Loop_F_Slopes`는 **SM 경로 Chooser(`CHT_MoverCharacterAnimations_PoseMatch`)만** 참조한다. MM 경로(AN-015)의 경사 대응은 CR slope warping뿐이다.
+
+계획:
+
+1. **CR 구성 에셋.** `LNP.Editor.GASPRef clone`으로 `Content/Characters/ControlRigs/CR_Biped_FootPlacement_UEFN`에 복제(AN-016 ②). 복제본 함수 참조가 GASP 경로 라이브러리를 가리키므로 자기 라이브러리로 다시 잇고, 구면 세 곳을 리그 공간·컴포넌트 Up 기준으로 고친다(`Scripts/AnimOverhaul/FixFootPlacementCR_2-5.py`, 에디터 Python).
+2. **C++(`ULNPAnimInstance`, 헤더 변경 → 에디터 재시작).** CR 분기·리셋·디버그 함수. 입력은 2-1 공급값(`GroundNormal`·`BasedMovementDelta`·`bJustTeleported`·`bIsOnGround`).
+3. **`ABP_Main_UEFN` 발 배치.** `OffsetRootBone` 뒤에 둔다. 지상 = CR, 공중 = IK 없음(아래 결정), 몽타주 예외 없음(GASP와 같다).
+4. **B5(사용자 결정 2026-10-20, AN-021).** GASP MM 경로 그대로 경사는 CR slope warping만 쓴다. 경사 BS·시퀀스 반입과 Chooser 경사 행은 하지 않는다 — 경사 BS는 SM 경로 Chooser만 참조하고, PSD 스키마에 경사 채널이 없어 MM이 경사각을 모른 채 BS 샘플을 고르게 된다.
+5. **PIE.** 평지·경사·계단·턱 접지, 제자리 회전 발 고정, 움직이는 발판, 공중↔착지, 근접 콤보·대시·재장전·가드·랙돌 회귀, 적도·승격 적·리슨 2인.
+
+정한 것(근거는 `design/GASPReference.md` §2.12):
+
+- **`UseIKBoneTargets` 끔.** CR은 기본으로 `ik_foot_*`를 애니 발 목표로 쓴다. GASP 클립은 ik_foot = foot이지만, Lyra에서 리타깃한 몽타주·`Fall_Loop`은 ik_foot을 믿을 수 없다. 끄면 FK 발끝(`ball_*`)이 목표다. 그래서 2-3의 블렌드 스택 CopyBone `foot→ik_foot`은 계속 무동작으로 둔다.
+- **공중은 IK 없음.** GASP 공중 LegIK는 ik_foot으로 다리를 푼다. LootNPop 공중 포즈(`Fall_Loop`, Lyra 리타깃)는 ik_foot이 위와 같은 이유로 믿을 수 없고, ik_foot = foot이면 LegIK는 무동작이다.
+- **시뮬 프록시 `bJustTeleported` 오탐은 그대로 리셋에 쓴다.** 남은 오탐은 메시가 실제로 한 프레임에 크게 튄 경우(2-1)라 핀·바닥 평활을 버리는 것이 맞다.
+- **분기 대신 CR 노드 알파(Bool).** 공중이 IK 없음이라 GASP처럼 별도 분기·캐시 포즈를 두지 않고 CR 노드 알파를 `ShouldUseFootPlacementRig`(블렌드 인 0.3s·아웃 0.2s)로 준다. 알파 0이면 CR이 멈추므로 착지 프레임에 `ForceReset`을 켠다(`ShouldResetFootPlacement`). 레이어 함수가 아니라 AnimGraph 안 노드 하나다.
+- **움직이는 base 위에서는 핀 고정·루트 감쇠 끔(PIE에서 추가).** `IsOnStaticGround` = 지상 & base가 움직이는 컴포넌트가 아님. 경사 보정은 켠다. 근거는 아래 결과 표.
+
+### 2-5 결과 (2026-10-20, 상세 `history/Phase02_Log.md`)
+
+| 항목 | 결과 |
+|:---|:---|
+| GASP 확인 | CR 그래프 42개를 서브 핀 단위까지 MCP로 덤프, `Procedural_Feet`는 0-2 Ctrl+C 텍스트와 판정 함수 MCP 읽기. 요약 `design/GASPReference.md` §2.12 |
+| CR | `CR_Biped_FootPlacement_UEFN`(GASP 복제). 함수 참조 44개 재연결, 구면 수정 3곳(루트 감쇠 = Up 방향 지연량, 핀 위치·고정 발끝 = 리그 공간 섞기), 루트 감쇠는 base 몫을 뺀 자기 이동량만 본다. 재현 스크립트 `Scripts/AnimOverhaul/FixFootPlacementCR_2-5.py` |
+| C++ | `ShouldUseFootPlacementRig`·`ShouldResetFootPlacement`·`IsOnStaticGround`·`IsFootPlacementDebugEnabled`, CVar `LNP.Anim.FootPlacement`·`LNP.Anim.FootPlacementOnMovingBase`·`LNP.Anim.DebugFootPlacement`. 텔레포트 판정은 base가 옮긴 몫을 뺀다. 정지 프레임 인터럽트 추가. 가상 루트 회전 오차 90° 제한을 C++로 옮겼다(아래) |
+| ABP | `OffsetRootBone` → CR 노드(붙여넣기 1회) → 무기 후처리. 핀 11개를 C++ 값·함수에 연결(MCP). `OffsetRootBone.MaxRotationError` −1 |
+| B5 | AN-021 — 반입·Chooser 행 없음, CR slope warping만 |
+| PIE에서 고친 것 | ① 이동 패널 위 CR 매 프레임 리셋: Mover 속도는 base 기준이라 0인데 메시는 패널과 함께 움직여 텔레포트로 판정 → base 몫 제외. ② 아주 느린 정지 뒤 걷기 유지(2-4부터): 진행 중 걷기 포즈가 Idle·Stops 후보를 이김 → 정지 프레임 인터럽트. ③ 패널 위 다리 끊김(핀이 끌리다 풀림)·전신 움찔(패널 상하 속도가 바뀌는 프레임마다 루트 10cm 넘게 튐): CR 평가 시점의 컴포넌트 이동엔 이번 프레임 base 이동이 들어 있는데 공급 base 이동량은 한 프레임 전 값 → 움직이는 base 위에서 핀 고정·루트 감쇠 끔(A/B CVar로 원인 확인). ④ **적도에서 빠르게 돌면 골반·발이 수 m 튐**: 엔진 `OffsetRootBone`의 `MaxRotationError` 클램프가 로컬 오차를 월드 쪽에 곱해 가상 루트가 최대 90° 기욺 → `ik_foot_root` 기준 바닥 평면이 서서 CR 교차점이 수 m 밖으로 → 노드 클램프 끄고 C++에서 Up 둘레로 제한(구면 함정 4번째) |
+| 검증(사용자 PIE, 적도) | 평지·여러 각도 경사 오르내림 접지, 제자리 회전 발 미끄러짐 크게 줄어듦, 점프·낙하 착지, 패널 위 정지·이동, 빠른 회전, 근접 콤보·대시·재장전·가드·패링·랙돌 회귀 없음, 1P·2P |
+
 ## 완료 조건 체크리스트
 
 - [x] 2-0a: 실사용 목록 확정(98개, 0-3 대비 차이 설명), 리타깃 사본 98개 `Retargeted/Lyra/`, 몽타주 대조 결함 0, 서브 ABP 5개 경고 0 컴파일, 재생성 절차·스크립트, 2-0b 임시 로코모션 계획 수정 (2026-10-18)
@@ -268,4 +307,5 @@ Roadmap 초안은 임시 로코모션으로 `CHT_PSD_UEFN`·`PSD_*_UEFN`을 쓴�
 - [x] 2-2: B1 상태별 PSD 묶음 Chooser(멀티 결과)·루프 DB 10개(GASP 복제), 방향별 스트레이프 복구(시퀀스 26개 반입), 인터럽트·블렌드 시간 C++, MM 노드 GASP 설정, 적도 이동 방향 수정, 1·2인·적도·승격 적 PIE 회귀 없음 (2026-10-19)
 - [x] 2-3: B2 블렌드 스택 체인(Steering×2·OrientationWarping·ResetRoot·CopyBone)과 B3 Offset Root Bone(모드·반감기 C++, 전신 몽타주 Release, base 이동량, 구면 함정 3건 대응), AO·FacingDelta 가상 루트 기준, 적도·리슨 2인·승격 적·움직이는 발판 확인, 회귀 없음. 정지 회전은 `MaxRotationError` 90° 임시(2-4 TurnInPlace) (2026-10-20)
 - [x] 2-4: B6 전환 DB 41개(Starts·Stops·Pivots·Turns·Spins·TurnInPlace·GaitTransitions·Lands, GASP 복제)와 52행 Chooser, 시퀀스 239개 반입, 출발·제자리 회전 인터럽트 예외, 착지 DB(AN-007 유지), 적도·리슨 2인·승격 적 PIE 회귀 없음. `MaxRotationError` 90° 안전망 유지 (2026-10-20)
-- [ ] 2-5 ~ 2-6: `Roadmap.md` §4
+- [x] 2-5: B4 발 배치 CR(GASP 복제·구면 수정 3곳·함수 참조 재연결)과 AnimGraph CR 노드, 착지 리셋·움직이는 base 처리, B5는 AN-021(반입 없음), 엔진 `MaxRotationError` 적도 함정 대응, 적도·리슨 2인·승격 적 PIE 회귀 없음 (2026-10-20)
+- [ ] 2-6: `Roadmap.md` §4

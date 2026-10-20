@@ -1,6 +1,6 @@
 # GASP 참조 조사
 
-> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1, §2.9 단위 2-2, §2.10 단위 2-3, §2.11 단위 2-4 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
+> 상태: 초안(§1 단위 0-1, §2 단위 0-2, §2.7 단위 0-3, §2.8 단위 2-1, §2.9 단위 2-2, §2.10 단위 2-3, §2.11 단위 2-4, §2.12 단위 2-5 완료 — 블록별 수치는 해당 단위 착수 시 재확인)
 > 마지막 갱신: 2026-10-20
 > 소유 정보: GASP 5.8 에디터(`unreal-mcp-gasp`, 포트 8001)에서 무엇을 어떻게 읽는지, 그리고 블록별로 LootNPop에서 무엇을 만들지. 원본 덤프가 아니라 요약만 둔다(README §11).
 
@@ -101,11 +101,11 @@ AnimGraph
 | ~~B1′ 선택 코어(SM 경로)~~ **미채택(AN-015)** | GASP Mover **기본값**. `State Controller` 상태 10개(Idle Loop·Idle Transition·Idle Break·Locomotion Transition·Locomotion Loop·In Air Transition·In Air Loop·Slide Transition·Slide Loop·Debug Flying Loop)+Conduit, 전이 24개. 상태 진입 함수가 `SetBlendStackAnimFromChooser`로 Chooser(상태 이름 + 포즈 히스토리)를 평가해 `BlendStack`(0.2s QuadraticInOut, 미러 `MDT_UEFN_Mannequin`)에 넣는다. 재생 속도는 `Get_DynamicPlayRate`(곡선 `MoveData_Speed` 대비 `Speed2D`) | 만들지 않는다(§2.5) | — | 시퀀스 약 387개(Crouch 96·Walk 88·Run 86·Jump 54·Sprint 20·Idle 19·Traversal 12·Slide 9), PSS 6개(`PSS_SM_Mover_*` 5 + `PSS_SM_CMC_Idles`), 경사 BS 2개 | 대체(신규 상태 머신) |
 | **B2 블렌드 스택 절차 보정** | 블렌드 스택 입력 그래프마다: `Steering`×2(목표 방향 = 궤적 샘플, 시간은 곡선 `SteeringTargetTime`; 두 번째는 제자리 회전 — MM은 DB 태그 `TurnInPlace`, SM은 곡선 `Enable_TurnInPlaceSteering`) → `OrientationWarping`(공간 `RootBoneTransform`, 축 Z, α=곡선 `Enable_Warping`, 방향 = MM `LastNonZeroVelocity`) → (SM 경로에만) `StrideWarping`(α=`Enable_Warping`). MM 경로는 Stride Warping 없이 노드 재생 속도 범위(0.85~1.15)로 보폭 차를 흡수한다 → `ResetRoot` → CopyBone foot→ik_foot | 같은 체인을 MM 노드 블렌드 스택 그래프에 만든다. 입력은 B0(궤적·속도). Stride Warping은 미끄러짐이 보일 때만 추가 | `Steering`은 월드 목표 쿼터니언과 루트 트랜스폼을 비교한다 — 궤적 facing이 중력 Up 기준이어야 한다(2-2에서 적도 확인). `OrientationWarping` 안전(방향을 루트 로컬로 변환). ⚠️ **`StrideWarping`을 넣으면** 기본 `FloorNormalDirection`·`GravityDirection`이 `WorldSpaceVector` ±Z → `ComponentSpaceVector`로 바꾼다 | 시퀀스 곡선 6종: `Enable_Warping`·`SteeringTargetTime`·`Enable_TurnInPlaceSteering`·`MoveData_Speed`·`Max/MinDynamicPlayRate` | 없음(신규) |
 | **B3 Offset Root Bone** | 슬롯·DeadBlending 뒤. Graph 모드, 이동 Interpolate·회전 Accumulate, 반감기 0.2/0.1, `MaxTranslationError` 30. 모드 함수: `DefaultSlot` 몽타주 중 Release, OnGround 이동 중 Interpolate·정지 Release, InAir Release. 반감기는 Idle 0.1·Moving 0.3. 핀 바인딩: 모드·반감기 ← `Get_OffsetRoot*` 함수, `bClampToTranslationVelocity` ← `IsMoving`, `MaxTranslationError` ← CVar `DDCvar.OffsetRootBone.TranslationRadius`. `OnUpdate`가 `BasedMovementDelta`(움직이는 base 이동량)를 루트 오프셋에 더한다. EssentialValues의 `RootTransform` = 오프셋 루트(+90° yaw) | 노드 + 모드 함수. Release 조건을 LootNPop 슬롯 3종(`DefaultSlot`·`FullBody`·`UpperBody` 중 전신 슬롯)으로 넓힌다. base 이동량은 Mover base 규칙(자기 Actor 틱)과 맞춘다 | `UpVector`는 디버그에만 등장 — 안전 추정(2-2 확인) | — | 없음(신규) |
-| **B4 발 배치** (`Procedural_Feet`) | 이동 모드 Blend: Sliding·Traversing·InAir → `LegIK`(“BasicIK”, 애니의 ik_foot 위치로만 풂), Ragdoll → IK 없음, 그 밖(OnGround·Flying) → Bool(← CVar `a.AnimNode.FootPlacement.Enable`)이 참이면 `CR_Biped_FootPlacement`, 거짓이면 LegIK. `DDCvar.FootPlacementMode`는 Mover ABP에서 쓰지 않는다. CR 입력: `Ground Normal` ← 구조체 `GroundNormal`, `GroundMovementWorldDelta` ← `BasedMovementDelta`(Break 핀 이름으로 추정), `DoRaycast`=true, `Enable Foot Pinning`·`Enable Slope Warping`·`WorldZDamperEnabled`(셋 다 OnGround일 때만), `Has Teleported`, `ForceReset`(OnBecomeRelevant). **5.8 Mover ABP에는 `AnimNode_FootPlacement`가 없다** | `CR_Biped_FootPlacement` 구성을 따른 CR + 레이어(지상만 CR, 공중은 LegIK). 접지 입력은 B0 | CR 씬 쿼리·평면 보정은 리그(컴포넌트) 공간 Z — 메시가 중력에 정렬돼 있으면 안전. ⚠️ **`UpdateRootDamper`가 `To World` 뒤 월드 `.Z`에 스프링 감쇠** → `WorldZDamperEnabled` 끔 또는 중력 Up 축으로 수정 | CR 1개(구성 에셋, 그래프 42개), 본 `foot_*`·`ball_*`·`ik_foot_*`·`pelvis` | 없음(신규) |
-| **B5 경사·슬라이드** | 경사: CR 슬로프 워핑(B4) + Chooser가 고르는 `BS_Relaxed_*_Loop_F_Slopes`(블렌드 스택 태그 `BS_Slope`, 입력 `SlopeAngle` ±30°). `SlopeAngle`은 `GetSlopeDegreeAngles(캐릭터 Up)` + `SmoothedGroundNormal`(VInterpTo 5). 슬라이드: `Procedural_PreLayering`이 Sliding일 때 root를 `ModifyBone`(이동 월드 공간·회전 컴포넌트 공간 additive)으로 경사에 맞춘다 | 경사만: 경사 각도·지면 법선 공급(B0) + 경사 BS 행. 슬라이드는 LootNPop에 슬라이드 이동 모드가 없어 제외 | 경사 각도 계산은 캐릭터 Up을 쓴다 — 안전. `SlopeWarping` 노드는 쓰지 않는다(§1, `research` §5의 ⚠️ 회피) | 경사 BS 2개 + 원본 시퀀스 | 없음(신규) |
+| **B4 발 배치** (`Procedural_Feet`) | 이동 모드 Blend: Sliding·Traversing·InAir → `LegIK`(“BasicIK”, 애니의 ik_foot 위치로만 풂), Ragdoll → IK 없음, 그 밖(OnGround·Flying) → Bool(← CVar `a.AnimNode.FootPlacement.Enable`)이 참이면 `CR_Biped_FootPlacement`, 거짓이면 LegIK. `DDCvar.FootPlacementMode`는 Mover ABP에서 쓰지 않는다. CR 입력: `Ground Normal` ← 구조체 `GroundNormal`, `GroundMovementWorldDelta` ← `BasedMovementDelta`(Break 핀 이름으로 추정), `DoRaycast`=true, `Enable Foot Pinning`·`Enable Slope Warping`·`WorldZDamperEnabled`(셋 다 OnGround일 때만), `Has Teleported`, `ForceReset`(OnBecomeRelevant). **5.8 Mover ABP에는 `AnimNode_FootPlacement`가 없다** | **2-5 완료(§2.12):** 복제 CR `CR_Biped_FootPlacement_UEFN`(구면 수정) + AnimGraph CR 노드(알파 Bool = 지상, 공중은 IK 없음, `UseIKBoneTargets` 끔). 접지 입력은 B0, 움직이는 base 위에서는 핀 고정·루트 감쇠 끔 | CR 씬 쿼리·평면 보정은 리그(컴포넌트) 공간 Z — 메시가 중력에 정렬돼 있으면 안전. ⚠️ **`UpdateRootDamper`가 `To World` 뒤 월드 `.Z`에 스프링 감쇠** → `WorldZDamperEnabled` 끔 또는 중력 Up 축으로 수정 | CR 1개(구성 에셋, 그래프 42개), 본 `foot_*`·`ball_*`·`ik_foot_*`·`pelvis` | 없음(신규) |
+| **B5 경사·슬라이드** | 경사: CR 슬로프 워핑(B4) + Chooser가 고르는 `BS_Relaxed_*_Loop_F_Slopes`(블렌드 스택 태그 `BS_Slope`, 입력 `SlopeAngle` ±30°). `SlopeAngle`은 `GetSlopeDegreeAngles(캐릭터 Up)` + `SmoothedGroundNormal`(VInterpTo 5). 슬라이드: `Procedural_PreLayering`이 Sliding일 때 root를 `ModifyBone`(이동 월드 공간·회전 컴포넌트 공간 additive)으로 경사에 맞춘다 | **2-5 확정(AN-021): CR slope warping만.** 경사 BS는 SM 경로 Chooser만 참조하고 MM 경로 PSD 스키마에 경사 채널이 없어 반입·Chooser 행을 만들지 않는다(§2.12). 슬라이드는 LootNPop에 슬라이드 이동 모드가 없어 제외 | 경사 각도 계산은 캐릭터 Up을 쓴다 — 안전. `SlopeWarping` 노드는 쓰지 않는다(§1, `research` §5의 ⚠️ 회피) | 경사 BS 2개 + 원본 시퀀스 | 없음(신규) |
 | **B6 정지·회전 전환** | MM: Chooser가 Starts·Stops·Pivots·Spins·TurnInPlace·Turns·GaitTransitions·Lands DB를 함께 검색. SM: 상태·전이(Pivot·Turn In Place·"Broke" rotation·WrongWay·Started Circling…)와 Chooser 행 | B1 DB 묶음에 포함(MM). 술어(`ShouldTurnInPlace`: \|FutureFacingDelta\|≥50° & 속도<50, `ShouldSpinTransition`: ≥130° & ≥150, `IsPivoting`)는 C++ | B0와 같음 | B1 시퀀스에 포함 | 현 PSD에 없는 세트 **확장** |
 | **B7 공중** | MM: Jump·Lands_Light/Heavy DB, 블렌드 시간 `Get_MMBlendTime`(InAir 0.15/0.5, 착지 0.2). SM: In Air 상태 | **AN-007 유지**(Fall_Loop 고정). 착지(Lands_Light/Heavy)는 2-4에서 지상 첫 프레임 DB로만 넣었다(§2.11) | Jump 채널에 수직 성분 없음(TechDesign_CombatAnimation §5.5) | Jump 59개 중 착지 일부 | Fall_Loop 고정 경로 유지 |
-| **B8 Additive Leans** | 레이어: 이동 모드 Blend(Sliding만 통과, 공중 포함 나머지는 적용) → 이동 상태 Blend(Moving만 적용) → Bool(← `EnableAO`): AO가 켜져 있으면 몸통만, 꺼져 있으면 몸통+머리(`BS_Relaxed_Lean_Head`). 몸통 = `BS_Relaxed_Walk_Leans`↔`BS_Relaxed_Run_Leans` TwoWayBlend(α ← `Speed2D`를 200~320에서 0~1로 매핑). BS 입력 X·Y ← `LeanAmount`. Mesh Space Additive. `LeanAmount` = 가속을 속도 방향 기준으로 Unrotate한 측면 성분 / 속도별 정규화. 곡선 `Disable_AdditiveLeans`로 끔 | 레이어 + C++ `LeanAmount`(캐릭터 로컬 축). 머리 기울기 분기는 LootNPop 조준 상태(FreeAim·락온)로 바꾼다 | ⚠️ `RotationFromXVector(Velocity)`는 월드 Z 기준 회전 → C++에서 접평면 기저로 | BS 3개(Poses 폴더) | 없음(신규). 무기 서브 ABP 오버레이 뒤에 둘지는 2-5에서 |
+| **B8 Additive Leans** | 레이어: 이동 모드 Blend(Sliding만 통과, 공중 포함 나머지는 적용) → 이동 상태 Blend(Moving만 적용) → Bool(← `EnableAO`): AO가 켜져 있으면 몸통만, 꺼져 있으면 몸통+머리(`BS_Relaxed_Lean_Head`). 몸통 = `BS_Relaxed_Walk_Leans`↔`BS_Relaxed_Run_Leans` TwoWayBlend(α ← `Speed2D`를 200~320에서 0~1로 매핑). BS 입력 X·Y ← `LeanAmount`. Mesh Space Additive. `LeanAmount` = 가속을 속도 방향 기준으로 Unrotate한 측면 성분 / 속도별 정규화. 곡선 `Disable_AdditiveLeans`로 끔 | 레이어 + C++ `LeanAmount`(캐릭터 로컬 축). 머리 기울기 분기는 LootNPop 조준 상태(FreeAim·락온)로 바꾼다 | ⚠️ `RotationFromXVector(Velocity)`는 월드 Z 기준 회전 → C++에서 접평면 기저로 | BS 3개(Poses 폴더) | 없음(신규). 무기 서브 ABP 오버레이 뒤에 둘지는 2-6에서 |
 | B9 Aim Offset | 레이어: `BS_Neutral_AO_Stand_NoSmoothing` Mesh Space Additive, `EnableAO`(회전 모드 Strafe/Aim, 각도 한계 180/110) 아니면 Identity, DeadBlending, 곡선 `Disable_AO`. `AimingRotation`을 Critical Spring으로 평활 | **가져오지 않는다.** 무기별 AO(서브 ABP + C++ 로컬 좌표 `AimYaw`/`AimPitch`)를 유지. 평활(Critical Spring)만 필요하면 C++에 | GASP는 Rotator 델타(월드) — LootNPop 방식이 이미 구면 대응 | — | 무기 서브 ABP AO 유지 |
 | B10 포즈 히스토리·DeadBlending | `PoseHistoryCollector`를 **출력 직전**(절차 레이어 뒤)에: 포즈 2개, 수집 본(foot·thigh·spine…), 곡선 `Phase`, 궤적 이력 10·예측 8. `DefaultSlot` 뒤 `DeadBlending`(0.25s, Ragdoll 강도 곡선 필터) | 히스토리 위치·설정을 GASP식으로, 슬롯 뒤 DeadBlending 추가 | — | — | 기존 `PoseHistoryCollector`·슬롯 3종 **확장** |
 | B11 래그돌 연동 | `Ragdoll` 상태 머신(NoRagdoll ↔ In Ragdoll ↔ Blend Out Pose, 진입 MovementMode==Ragdoll). In Ragdoll 안의 중첩 상태 머신이 공중(`BS_Ragdoll_Flail`/`Reach`)·지면(부상 상태별 `M_ragdoll_poses_injured`·`BS_Ragdoll_OnGround/Rolling`) 포즈를 내고 `ModifyCurve`로 `Ragdoll_Strength_*` 곡선을 써서 PhysicsControl 강도를 준다. Blend Out은 `PoseSnapshot 'Ragdoll'` | **제외**(AN-005). Phase 3 참고: "애니 곡선으로 PhysicsControl 강도를 준다" 패턴 | — | Ragdoll 폴더 47개(Phase 3에서 필요한 것만) | 없음. 사망 랙돌은 `VisualMesh` 물리 |
@@ -138,10 +138,10 @@ GASP는 Pawn이 BPI로 구조체를 넘기고 ABP가 가공한다. LootNPop은 M
 |:---|:---|:---|
 | `Speed2D`·`IsStarting`의 `VectorLengthXY`, Lean의 `RotationFromXVector` | 월드 Z | C++ 접평면 투영(B0) |
 | `StrideWarping` `FloorNormalDirection`·`GravityDirection` | `WorldSpaceVector` ±Z(엔진 기본값) | `ComponentSpaceVector` (0,0,±1) |
-| `CR_Biped_FootPlacement` `UpdateRootDamper` | 월드 `.Z` 감쇠 | `WorldZDamperEnabled` 끔 또는 중력 Up 축으로 수정 |
+| `CR_Biped_FootPlacement` `UpdateRootDamper`·`Reset`·`Update Foot Pinning`·`ComputePinnedToeTransform` | 월드 `.Z` 감쇠, 월드 XY/Z 성분 섞기 | 2-5: 컴포넌트 Up 방향 지연량, 리그 공간 섞기로 수정(§2.12) |
 | `Steering` 목표 방향 | 궤적 facing(월드 쿼터니언)과 가상 루트의 상대 회전 전체를 루트모션에 더한다 | 2-3 확인: 이동 중 궤적 facing은 중력 Up 기준(기울기 1° 미만). 스폰 첫 프레임 빈 이력만 약 90° → C++ 목표 함수가 Up으로 정렬(§2.10) |
 | `ModifyBone`(슬라이드) 이동 월드 공간 | 입력 벡터가 월드 | 슬라이드 제외라 해당 없음 |
-| `OffsetRootBone` | ⚠️ 2-3 엔진 확인: `GroundNormal` 기본 월드 (0,0,1) 평면 투영, `bClampToTranslationVelocity`의 `GetSafeNormal2D`, Accumulate·Interpolate가 캡슐 회전 변화를 안 더함(구면 이동 시 메시가 기욺) | 지면 법선 = 컴포넌트 Up(C++ 함수), 속도 클램프 끔, 매 프레임 가상 루트 Up을 컴포넌트 Up으로 스윙 정렬(§2.10) |
+| `OffsetRootBone` | ⚠️ 2-3 엔진 확인: `GroundNormal` 기본 월드 (0,0,1) 평면 투영, `bClampToTranslationVelocity`의 `GetSafeNormal2D`, Accumulate·Interpolate가 캡슐 회전 변화를 안 더함(구면 이동 시 메시가 기욺). 2-5: `MaxRotationError` 클램프가 로컬 오차를 월드 쪽에 곱함(적도에서 루트가 최대 90° 기욺) | 지면 법선 = 컴포넌트 Up(C++ 함수), 속도 클램프 끔, 매 프레임 가상 루트 Up을 컴포넌트 Up으로 스윙 정렬(§2.10), 회전 오차 제한은 노드에서 끄고 C++가 Up 둘레로(§2.12) |
 | `OrientationWarping`·CR 씬 쿼리·`GetSlopeDegreeAngles` | 컴포넌트/캐릭터 Up | 안전(OrientationWarping은 2-3에서 가상 루트 로컬 변환 확인). 나머지는 블록 단위에서 적도 확인 |
 
 ### 2.5 선택 코어 경로 — MM 노드 방식 (AN-015)
@@ -283,7 +283,7 @@ GASP `SandboxCharacter_Mover_ABP`를 MCP(`find_nodes`·`get_node_infos`·`get_pr
 | 이동 반감기 | Idle 0.1, Moving 0.3 | 같음 |
 | 회전 반감기 | 0.1 | 같음 |
 | `MaxTranslationError` | 바인딩 `Get_OffsetRootTranslationRadius` = CVar `DDCvar.OffsetRootBone.TranslationRadius`(ini 기본 0, 런타임 값 미확인), 노드 기본 30 | 30 상수 |
-| `MaxRotationError` | −1(제한 없음) | **90°** — 제자리 회전 DB가 없는 동안 정지 중 허리가 180°까지 꺾이는 것을 막는다. 2-4 뒤에도 안전망 |
+| `MaxRotationError` | −1(제한 없음) | **90°**(2-5부터 노드는 −1, C++가 Up 둘레로 제한 — 노드 클램프는 적도에서 루트를 기울인다, §2.12) — 제자리 회전 DB가 없는 동안 정지 중 허리가 180°까지 꺾이는 것을 막는다. 2-4 뒤에도 안전망 |
 | `bClampToTranslationVelocity` | 바인딩 `IsMoving` | 끔(엔진이 `GetSafeNormal2D` 사용) |
 | 지면 법선 | 기본 월드 (0,0,1) | `GetOffsetRootGroundNormal` = 컴포넌트 Up |
 | base 이동량 | `OnUpdate`에서 `ApplyDeltaToOffsetRootBone(BasedMovementDelta)` | `NativeThreadSafeUpdateAnimation`(그래프 갱신 직전)이 태그로 노드를 찾아 더하고 Up 정렬까지 한다. ABP 노드 함수 없음 |
@@ -312,3 +312,41 @@ GASP 중첩 테이블(`Stand Idles`·`Stand Walks`·`Stand Runs`·`Stand Sprint`
 - 착지: Lands DB 8개를 넣었다. 공중 MM 출력은 그대로 `Fall_Loop`로 덮이고(AN-007), Lands 행은 지상 첫 프레임에만 오른다. 그 프레임은 이동 모드 변화라 원래 인터럽트다. 이 단위에서 AN-007은 바꾸지 않았다.
 - PIE 관찰: 피벗·스핀은 거의 안 뽑힌다(LootNPop 고속 이동은 0.5초 안 속도 방향 변화가 75°에 잘 못 닿는다, §2.8). GaitTransitions는 Sprint↔Run 35회 동안 0회(한 프레임 조건 + `DoNotInterrupt`) — 튀지 않는다. 승격 적 `MovementState` 깜빡임으로 Stops·Starts가 번갈아 뽑히는 현상은 보이지 않았다.
 - 디버그: `LNP.Anim.DebugLocomotion 2`의 `[AnimB6]` — MM이 고른 DB가 바뀔 때 DB·애니·시간·비용·상태.
+
+### 2.12 B4 발 배치·B5 경사 — GASP 구성, CR 구면 점검과 LootNPop 구성 (2-5 확인, 2026-10-20)
+
+GASP `CR_Biped_FootPlacement`는 `ControlRigTools`(`list_nodes`·`list_pins`·`get_connected_pins`·`get_pin_value`)로 그래프 42개를 묶음 스크립트 한 번에 덤프했다. 구조체 핀은 최상위 핀이 연결돼 있지 않을 때만 서브 핀(`.X`·`.Translation.Z`…)을 따로 물어야 연결이 보인다 — 양쪽이 서브 핀인 연결은 최상위 덤프에 안 나온다. `Procedural_Feet` 바인딩은 0-2에서 받은 Ctrl+C 텍스트(`Saved/GASPRef/feet.txt`), `AllowFootPinning`·`AllowSlopeWarping`·`JustTeleported`·`Biped_FootPlacement_OnBecomeRelevant`는 GASP MCP `find_nodes`·`get_node_infos`로 읽었다(DSL 안 씀, 저장 없음).
+
+**GASP `Procedural_Feet`**
+
+| 항목 | GASP |
+|:---|:---|
+| 구조 | 입력 → 캐시 `PreProceduralPose` → `BlendListByEnum(MovementMode)` — 기본(OnGround·Flying) 0.3s: `BlendListByBool`(CVar `a.AnimNode.FootPlacement.Enable`) 참 = CR, 거짓 = LegIK / Sliding 0.3s·Traversing 0.2s·InAir 0.2s: LegIK / Ragdoll 0s: IK 없음 |
+| LegIK | `ik_foot_l/r` → `foot_l/r`, 힌지 Z, 회전 제한, SoftPercentLength 0.99. 애니의 ik_foot 위치로만 푼다 |
+| CR 핀 | `Ground Normal` ← 구조체 `GroundNormal`(월드), `GroundMovementWorldDelta` ← `BasedMovementDelta`, `DoRaycast` true, `Enable Foot Pinning` ← `AllowFootPinning`, `Enable Slope Warping`·`WorldZDamperEnabled` ← `AllowSlopeWarping`, `Has Teleported` ← `JustTeleported`, `ForceReset` ← `ForceFootPlacementReset`(노드 `OnBecomeRelevant`가 켠다), `DebugDraw` ← `FootPlacement_Debug` |
+| 판정 함수 | `AllowFootPinning` = MovementMode OnGround(`IsMoving`과의 AND 노드는 결과에 안 이어져 있다). `AllowSlopeWarping` = OnGround·Sliding. `JustTeleported` = 직전·현재 캐릭터 위치 거리 > `TeleportThreshold` |
+| 몽타주 | 레이어에 몽타주 예외가 없다. 핀 고정은 애니 곡선 `contact_l/r`이 켠다(곡선이 없는 몽타주는 고정 없음) |
+
+**CR 동작 요약(포워드 솔브 순서)**: `CheckEarlyOut`(기능이 모두 꺼지고 알파 0이면 건너뜀) → 리셋(`Has Teleported`·`PendingReset`·`ForceReset`) → 애니 발끝 목표(`UseIKBoneTargets`면 `ik_foot` 기준, 아니면 FK `ball`) → `UpdateRootDamper` → 접지 트레이스(`Do Scene Query`, 애니 발끝 위아래 구 트레이스 반지름 5, Visibility) → 바닥 평활(`Update Floor Control`, 월드 공간 Damp 0.05s) → 핀 고정(`Update Foot Pinning`, 곡선 `contact_*` ≥ 0.97이면 잠금, 반경 40) → 다리 제어·골반(`Update Leg Controls`·`Update Pelvis Control`) → 다리 IK → 발 후처리.
+
+**구면 점검(LootNPop은 메시 = 캡슐 = 중력 Up 정렬)**
+
+| 위치 | 축 | 판정 |
+|:---|:---|:---|
+| 접지 트레이스 | 리그(컴포넌트) 공간 시작·끝을 `ToWorldSpace`로 옮기고 결과를 리그 공간으로 되돌린다. 소유 Actor·컴포넌트는 무시(엔진 `RigUnit_WorldCollision.cpp`) | 안전 — 방향이 컴포넌트 −Z = 중력 아래 |
+| 평면 보정·골반·다리 IK·경사각(`CalculateSlopeAngle`)·발 후처리 | 리그 공간 `.Z` | 안전 |
+| 바닥 평활·base 이동량 적용 | 월드 트랜스폼 전체(축 성분 분해 없음) | 안전 |
+| ⚠️ `UpdateRootDamper`·`Reset` | `ToWorld(0).Z`(월드 Z 높이)를 스프링 감쇠하고 `FromWorld((0,0,h)).Z`를 루트 리그 Z로 | **수정** — 적도에서는 월드 Z가 수평이라 루트가 행성 반지름 규모로 튄다 |
+| ⚠️ `Update Foot Pinning` | 잠금 유지 중 핀 = (월드 X·Y는 반경 제한한 핀, 월드 Z는 애니) | **수정** — 적도에서는 수평축 하나만 고정되고 높이가 핀에 묶인다 |
+| ⚠️ `ComputePinnedToeTransform` | 같은 월드 X·Y/Z 섞기 + 월드 XY 평면에 투영한 발끝 Yaw 보정 | **수정** |
+
+**LootNPop 구성(2-5)**
+
+- CR: `LNP.Editor.GASPRef clone` → `Content/Characters/ControlRigs/CR_Biped_FootPlacement_UEFN`(스펙 `Saved/AnimOverhaul/GASPRef_2-5_clone_spec.json`). 외부 의존은 엔진과 프리뷰 메시 `SKM_UEFN_Mannequin`뿐이다. 복제본의 함수 참조 44개가 GASP 원래 경로 라이브러리를 가리켜(함수 식별자는 소프트 경로라 하드 참조 재연결에 안 걸린다) 컴파일이 깨진다 → `Scripts/AnimOverhaul/FixFootPlacementCR_2-5.py`(에디터 Python, `RigVMController.swap_function_reference` + `find_graph_function_identifier`)가 자기 라이브러리로 다시 잇고 구면 세 곳을 고친 뒤 컴파일·저장한다.
+- 구면 수정 방식: A) 루트 감쇠 상태를 "컴포넌트 Up 방향 지연량 e"로 바꿨다 — e −= (n·D_own)(n·Up), D_own = 프레임 컴포넌트 이동 − base 이동량, e를 0으로 스프링 감쇠(0.15s), 루트 리그 Z = e, 감쇠 꺼짐·리셋이면 e = 0. Up = `ToWorld(0,0,1) − ToWorld(0)` 정규화. 북극·정지 base에서는 원래 식과 같다(GASP 식은 base 이동의 접선 성분까지 더하는 셈이라 PIE에서 뺐다). B) 핀 위치 = 리그 공간에서 섞은 `To World_3` 전체. C) 리그 공간에서 섞고 Yaw를 보정한 뒤 `ToWorld`.
+- `UseIKBoneTargets` 끔: GASP 클립은 ik_foot = foot이지만 Lyra 리타깃 몽타주·`Fall_Loop`은 ik_foot을 믿을 수 없다. 끄면 FK `ball`이 목표라 2-3의 블렌드 스택 CopyBone `foot→ik_foot`은 필요 없다(무동작 유지).
+- 공중: IK 없음(같은 이유, ik_foot = foot이면 LegIK는 무동작). 그래서 분기 노드 대신 CR 노드 알파를 Bool(`ShouldUseFootPlacementRig`, 블렌드 인 0.3s·아웃 0.2s)로 준다. 알파 0이면 CR이 실행되지 않고 상태가 멈추므로 착지 프레임에 `ForceReset`(`ShouldResetFootPlacement`)을 켠다(GASP는 공중에 CR 노드가 비관련이 돼 `OnBecomeRelevant`로 같은 일을 한다).
+- 시뮬 프록시 `bJustTeleported` 오탐(2-1)은 그대로 `Has Teleported`에 넣는다. 남은 오탐은 메시가 한 프레임에 실제로 크게 튄 경우라 핀·바닥 평활을 버리는 것이 맞다.
+- **움직이는 base 위에서는 핀 고정·루트 감쇠 끔**(`IsOnStaticGround`, A/B CVar `LNP.Anim.FootPlacementOnMovingBase`). CR 평가 시점의 컴포넌트 이동에는 이번 프레임 base 이동이 들어 있는데, C++가 공급하는 `BasedMovementDelta`(Mover `OnBasedMovementApplied` 누적)는 애니 갱신 시점까지라 한 프레임 늦다. 이동 패널 위에서 월드 공간 핀이 끌리다 반경 40cm에서 풀리며 다리가 끊겼고, 패널 상하 속도가 바뀌는 프레임마다 루트가 그 변화량(10cm 남짓)만큼 튀었다. 경사 보정(바닥 평활)은 영향이 작아 켠다. 텔레포트 판정은 메시 이동에서 base 몫을 빼고 잰다(안 빼면 패널 위에서 매 프레임 리셋).
+- **⚠️ 엔진 `OffsetRootBone` 구면 함정 4번째 — `MaxRotationError` 클램프.** 오차를 `Component⁻¹ × Simulated`(로컬)로 구해 축·각을 자른 뒤 `RotationOffset × Component`(월드 쪽)로 다시 곱한다. 북극에서는 두 회전이 모두 Z축이라 같지만, 적도에서는 로컬 Yaw가 월드 Z 회전으로 들어가 가상 루트가 최대 90° 기운다. 오차가 90°를 넘는 빠른 룩 회전에서만 나고, 루트 자식 `ik_foot_root` 기준으로 바닥 평면을 다시 표현하는 CR `AdjustPositionToPlane`(아래 −Z 교차)이 수 m 밖 교차점을 내 골반·발이 튀었다. 노드 값은 −1(GASP 기본)로 끄고 `NativeThreadSafeUpdateAnimation`이 Up 정렬 직후 컴포넌트 Up 둘레 90°로 자른다.
+- 경사(B5): `BS_Relaxed_{Walk,Run}_Loop_F_Slopes`를 참조하는 GASP 에셋은 SM 경로 Chooser `CHT_MoverCharacterAnimations_PoseMatch`뿐이다(GASP MCP `get_referencers`). MM 경로(AN-015)는 PSD를 고르고 PSS에 경사 채널이 없어, GASP MM 경로의 경사 대응은 CR slope warping뿐이다. BS를 PSD에 넣으면 MM이 경사각을 모른 채 BS 샘플을 고른다. **사용자 결정(AN-021): 반입·Chooser 경사 행 없이 CR slope warping만 쓴다.** 경사 전용 애니가 필요해지면 가산 레이어나 PSD 경사 채널을 별도로 설계한다(`Roadmap.md` 후보).

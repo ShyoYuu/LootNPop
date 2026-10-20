@@ -90,7 +90,7 @@ MM 노드 방식(AN-015). 블록 정의는 `design/GASPReference.md` §2.2(B0~B1
 | 2-2 | B1 | **완료(2026-10-19).** 평면 멀티 결과 Chooser `CHT_PoseSearchDatabases_UEFN`(행 입력 `ELNP*` 이동 모드·상태·보행·방향) + 루프 DB 10개(Idle·Walk/Run × F·B·LL·RL·Sprint, GASP PSD·PSS·PSN을 `LNP.Editor.GASPRef`로 복제). 방향별 시퀀스 26개 반입으로 **스트레이프 복구**. 인터럽트·블렌드 시간·DB 설정은 `ULNPAnimInstance::UpdateMotionMatchingNode`(ABP는 호출만), MM 노드 GASP 설정 | 사용자 1·2인 PIE(적도·승격 적) 통과. PIE에서 고친 것: 적도 이동 방향(`CalculateDirection` 월드 Z 제거), 출발 시 Idle 고착(출발 프레임 인터럽트). AN-007 유지 |
 | 2-3 | B3 + B2 | **완료(2026-10-20).** MM 블렌드 스택 그래프에 GASP 체인(CopyBone×2 → Steering → 제자리 회전 Steering → OrientationWarping → ResetRoot, 함수는 C++), AnimGraph `DeadBlending` 뒤 `OffsetRootBone`(모드·반감기·지면 법선 C++, 전신 몽타주 Release, `MaxRotationError` 90°). `NativeThreadSafeUpdateAnimation`이 base 이동량·Up 정렬을 넣는다. AO·`FutureFacingDelta`는 가상 루트 기준 | 엔진 구면 함정 3건(지면 법선 월드 Z, 속도 클램프 `GetSafeNormal2D`, Accumulate가 캡슐 기울기를 안 따라감) 대응. 사용자 1·2인 PIE(적도·승격 적)·움직이는 발판 통과. 정지 회전은 미끄러짐(2-4 TurnInPlace). Stride Warping은 넣지 않음 |
 | 2-4 | B6 (+B7 착지) | **완료(2026-10-20).** 전환 DB 41개(Starts·Stops·Pivots·Turns·Spins·TurnInPlace·GaitTransitions·Lands, GASP 복제)와 스키마 7개, 시퀀스 239개 반입, `CHT_PoseSearchDatabases_UEFN` 52행(최근 방향·직전 보행 마스크, 속력 구간, 술어 6개). 인터럽트 예외 = 출발 프레임(유지 확정) + 정지 중 제자리 회전 요청. 착지 DB는 지상 첫 프레임만(AN-007 유지) | 사용자 1·2인 PIE(적도·승격 적) 회귀 없음, 제자리 회전 발 디딤 확인(소량 미끄러짐). `MaxRotationError` 90° 안전망 유지. 피벗·스핀은 LootNPop 고속 큰 호 탓에 거의 안 뽑힘 |
-| 2-5 | B4 + B5 | `CR_Biped_FootPlacement` 구성 CR + `Procedural_Feet` 레이어, 경사 BS 행 | ⚠️ CR `UpdateRootDamper` 월드 Z 감쇠 수정. 접지 트레이스·적도 확인 |
+| 2-5 | B4 + B5 | **완료(2026-10-20).** GASP CR 복제 `CR_Biped_FootPlacement_UEFN`(함수 참조 재연결, 구면 수정 3곳 — 루트 감쇠 Up 방향 지연량·핀 리그 공간 섞기), AnimGraph `OffsetRootBone` 뒤 CR 노드(알파 = 지상, 공중 IK 없음, `UseIKBoneTargets` 끔, 착지 리셋). 움직이는 base 위 핀 고정·루트 감쇠 끔. B5는 CR slope warping만(AN-021, 반입 없음) | PIE에서 고친 것: 발판 위 텔레포트 오탐, 느린 정지 걷기 유지(정지 프레임 인터럽트), 발판 위 다리 끊김·전신 움찔, **엔진 `OffsetRootBone` `MaxRotationError` 클램프의 적도 루트 기울어짐(구면 함정 4번째)**. 사용자 1·2인 PIE(적도) 회귀 없음 |
 | 2-6 | B8 + 적 검증 | Additive Leans 레이어(LeanAmount C++ 로컬 축), `ActorPromoted` 적 전체 회귀(AI 입력 궤적 예측, 게스트 재시뮬레이션 떨림) | 무기 서브 ABP 오버레이와의 순서 결정 |
 
 제외: B9 GASP Aim Offset(무기별 AO 유지), B11 래그돌 연동(AN-005, 곡선으로 PhysicsControl 강도를 주는 패턴만 Phase 3 참고), B12 상호작용 손 IK, Slide·Traversal·Debug Flying. 앉기(Crouch)는 입력이 생길 때까지 보류.
@@ -133,4 +133,5 @@ MM 노드 방식(AN-015). 블록 정의는 `design/GASPReference.md` §2.2(B0~B1
 
 - 파워드 래그돌 넉다운·기상(AN-005). [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §8의 넉다운 몽타주 확보는 그와 별개로 몽타주 교체만으로 할 수 있다.
 - `PureEntity`(ISKM) 적의 애니메이션 — ISKM은 물리·절차 애니메이션을 쓸 수 없다. UAFMass 플러그인은 관찰만 한다.
+- 경사 전용 애니(GASP `BS_Relaxed_*_Loop_F_Slopes`) — 2-5에서 넣지 않았다(AN-021). 필요해지면 경사각 가산 레이어나 PSD 경사 채널을 별도로 설계한다.
 - 원거리 무기 왼손 IK, 이동 중 상체 공격 같은 기존 잔여 작업([TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §8)은 Phase 2 중 자연스럽게 걸리면 같이 처리하되 이 로드맵의 완료 조건에는 넣지 않는다.

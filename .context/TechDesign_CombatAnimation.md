@@ -29,6 +29,8 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
        │
    Offset Root Bone (태그 OffsetRoot — 메시 루트가 캡슐을 부드럽게 따라온다. 전신 몽타주 중 Release, 2026-10-20 2-3)
        │
+   Control Rig CR_Biped_FootPlacement_UEFN (발 배치 — 경사 보정·발 고정·루트 감쇠, 알파 = 지상, 2026-10-20 2-5)
+       │
    Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponPostProcess)
        │
    Pose History Collector (출력 직전 — 절차 보정까지 반영된 포즈를 기록)
@@ -37,6 +39,8 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 ```
 
 **루트 추종(Offset Root Bone).** 메시 루트는 캡슐을 바로 따르지 않고, 애니메이션 루트모션(Steering이 궤적 facing 쪽으로 휘게 한 것)으로 움직이다가 반감기로 캡슐에 다가간다(이동 30cm·회전 90° 상한). 모드·반감기·지면 법선은 `ULNPAnimInstance` 함수가 핀으로 공급하고, 움직이는 base 이동량과 가상 루트 Up 정렬은 `NativeThreadSafeUpdateAnimation`이 태그로 노드를 찾아 넣는다. `DefaultSlot`·`FullBody` 몽타주 중에는 Release라 몽타주 루트모션·근접 보정 워핑(§6.6)은 캡슐과 메시가 같이 간다. 엔진 노드의 구면 함정은 §7.4. GASP 값·구성은 AnimationOverhaul `design/GASPReference.md` §2.10.
+
+**발 배치(Control Rig).** GASP `CR_Biped_FootPlacement`를 복제해 구면용으로 고친 `CR_Biped_FootPlacement_UEFN`이 지상에서 발을 실제 지면에 맞추고(접지 트레이스·바닥 평활·골반 보정), 정지 중 디딘 발을 고정하며(애니 곡선 `contact_l/r`), 캡슐 계단 스냅을 루트 높이 감쇠로 부드럽게 한다. 노드 알파는 `ULNPAnimInstance::ShouldUseFootPlacementRig`(지상)로 Bool 블렌드되고 공중에는 IK가 없다. 착지 프레임에 CR 상태를 리셋한다. 애니 발 목표는 FK 발끝이다(`UseIKBoneTargets` 끔 — Lyra 리타깃 몽타주의 ik_foot을 믿을 수 없다). 움직이는 base(이동 패널) 위에서는 발 고정·루트 감쇠를 끈다(`IsOnStaticGround`) — 공급하는 base 이동량이 CR 평가 시점보다 한 프레임 늦어 핀이 끌리고 루트가 튀었다. 경사 전용 애니는 쓰지 않는다(AN-021). 구성·근거는 AnimationOverhaul `design/GASPReference.md` §2.12, CR 재현 스크립트 `Scripts/AnimOverhaul/FixFootPlacementCR_2-5.py`, CVar `LNP.Anim.FootPlacement`·`LNP.Anim.FootPlacementOnMovingBase`·`LNP.Anim.DebugFootPlacement`.
 
 **애니 변수 공급층.** 상태 enum(이동 모드·이동 상태·보행·자세·회전 모드·이동 방향)과 그 이력, 궤적 파생값(`Trj_*`·`FutureFacingDelta`), 가속, 지면 법선·경사, 상태 술어(`bIsPivoting`·`bShouldTurnInPlace`·`bJustLanded_*` 등)는 `ULNPAnimInstance`가 메인 인스턴스에서만 C++로 계산한다(AnimationOverhaul AN-002·AN-003). 궤적 생성(Mover 예측기)도 C++가 소유하고, `PoseHistoryCollector`의 `TransformTrajectory` 핀이 C++ `Trajectory`에 이름으로 바인딩돼 있다. 계산식·GASP 출처는 AnimationOverhaul `design/GASPReference.md` §2.8, 확인용 CVar는 `LNP.Anim.DebugLocomotion`(1 화면 표시, 2 + 전이 로그).
 
@@ -376,7 +380,8 @@ ANS는 몽타주 에셋에 배치된 **단일 오브젝트**를 그 몽타주를
 - `GroundSpeed`: `Size2D()`는 월드 XY 평면 전제 → 캐릭터 Up에 수직인 평면으로 `VectorPlaneProject`해 계산.
 - Aim Offset: §4.1의 로컬 좌표계 변환.
 - 이동 방향 `Direction`: 엔진 `UKismetAnimationLibrary::CalculateDirection`은 캐릭터 회전 기준이지만 속도를 `GetSafeNormal2D`(월드 Z 제거)로 정규화해 **적도에서 틀린 방향을 낸다**. 캐릭터 Up 둘레 부호각(전방 → 속도)으로 직접 계산한다(2026-10-19 AnimationOverhaul 2-2, 방향별 DB 선택에서 드러남).
-- Offset Root Bone(엔진 `AnimNode_OffsetRootBone`): ① 지상이면 가상 루트 위치를 `GroundNormal`(기본 월드 Z) 평면에 투영 → 컴포넌트 Up을 핀으로 준다. ② `bClampToTranslationVelocity`는 보정 방향을 `GetSafeNormal2D`로 만든다 → 켜지 않는다. ③ Accumulate·Interpolate 모드는 캡슐 회전 변화를 가상 루트에 더하지 않아 구면을 걸으면 메시가 기운다 → 매 프레임 가상 루트 Up을 컴포넌트 Up으로 스윙 정렬. Steering 목표 facing도 같은 정렬을 한다(2026-10-20 AnimationOverhaul 2-3).
+- Offset Root Bone(엔진 `AnimNode_OffsetRootBone`): ① 지상이면 가상 루트 위치를 `GroundNormal`(기본 월드 Z) 평면에 투영 → 컴포넌트 Up을 핀으로 준다. ② `bClampToTranslationVelocity`는 보정 방향을 `GetSafeNormal2D`로 만든다 → 켜지 않는다. ③ Accumulate·Interpolate 모드는 캡슐 회전 변화를 가상 루트에 더하지 않아 구면을 걸으면 메시가 기운다 → 매 프레임 가상 루트 Up을 컴포넌트 Up으로 스윙 정렬. Steering 목표 facing도 같은 정렬을 한다(2026-10-20 AnimationOverhaul 2-3). ④ `MaxRotationError` 클램프는 오차를 컴포넌트 로컬로 구한 뒤 월드 쪽에 곱해, 적도에서 빠르게 돌면 가상 루트가 최대 90° 기운다 → 노드 값은 −1, 같은 90° 제한을 C++가 Up 정렬 직후 컴포넌트 Up 둘레로 건다(2-5).
+- 발 배치 CR: GASP 원본은 루트 높이 감쇠·발 고정에서 월드 `.Z`·XY 성분을 직접 쓴다 → 컴포넌트 Up 방향 지연량·리그 공간 섞기로 고쳤다. 접지 트레이스·평면 보정은 리그 공간이라 그대로다(2-5).
 
 ### 7.5 Motion Warping을 구면 월드·Mover·멀티플레이에 얹을 때의 함정 4건
 

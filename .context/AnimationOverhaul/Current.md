@@ -1,7 +1,7 @@
 # 애니메이션 개선 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase 0·1A·1C 완료, Phase 2 단위 2-0a·2-0b·2-1·2-2·2-3·2-4 완료 — 다음 2-5(사용자 승인 후 착수). 1B는 대기
+> 현재 작업: Phase 0·1A·1C 완료, Phase 2 단위 2-0a·2-0b·2-1·2-2·2-3·2-4·2-5 완료 — 다음 2-6(사용자 승인 후 착수). 1B는 대기
 > 마지막 갱신: 2026-10-20
 
 ## 현재 결정
@@ -22,13 +22,14 @@
 - **선택 코어(2-2 완료):** 평면 멀티 결과 Chooser `CHT_PoseSearchDatabases_UEFN`이 `ELNP*`(이동 모드·상태·보행·방향)로 루프 DB 10개(`PSD_Stand_*_UEFN`, GASP 복제)를 고르고, `ULNPAnimInstance::UpdateMotionMatchingNode`가 DB·인터럽트·블렌드 시간을 적용한다(ABP는 호출만). 스트레이프는 방향별 DB(F·B·LL·RL). 인터럽트는 GASP 식 + 출발 프레임(Idle 스키마가 궤적을 안 봐서, 2-4에서 유지 확정). GASP 구성 에셋은 `LNP.Editor.GASPRef`로 덤프·복제한다(`design/GASPReference.md` §1.4·§2.9). 이동 방향 `Direction`은 엔진 `CalculateDirection` 대신 Up 둘레 부호각(적도 버그)
 - **루트·워핑(2-3 완료):** MM 블렌드 스택 그래프 = GASP 체인(Steering×2·OrientationWarping·ResetRoot·CopyBone, 판정은 C++ 함수), AnimGraph `DeadBlending` 뒤 `OffsetRootBone`(태그 `OffsetRoot`). 모드·반감기·지면 법선은 C++ 함수, base 이동량과 가상 루트 Up 정렬은 `NativeThreadSafeUpdateAnimation`. 엔진 Offset Root는 구면에서 세 군데가 틀린다(월드 Z 지면 법선, 속도 클램프 `GetSafeNormal2D`, Accumulate가 캡슐 기울기를 안 따라감) — 속도 클램프는 켜지 말 것. AO·`FutureFacingDelta`는 가상 루트 기준. `MaxRotationError` 90°는 2-4 뒤에도 안전망으로 유지. 값 요약 `design/GASPReference.md` §2.10
 - **전환 세트(2-4 완료):** Chooser 52행 = 루프 + 전환 DB 41개(Starts·Stops·Pivots·Turns·Spins·TurnInPlace·GaitTransitions·Lands, GASP 복제). 피벗·스핀은 `MovementDirection_Recent` 마스크, 착지는 지상 첫 프레임만(AN-007 유지). 인터럽트 예외는 출발 프레임 + **정지 중 제자리 회전 요청**(Idle 진행 포즈가 회전 후보를 이겨서). 행 정의 원본 `Scripts/AnimOverhaul/BuildLocomotionChooser_2-4.py`, 요약 `design/GASPReference.md` §2.11, 선택 확인은 `[AnimB6]` 로그
+- **발 배치(2-5 완료):** GASP CR 복제 `CR_Biped_FootPlacement_UEFN`(함수 참조 재연결·구면 수정 3곳, 재현 `Scripts/AnimOverhaul/FixFootPlacementCR_2-5.py`)이 AnimGraph `OffsetRootBone` 뒤 노드 하나로 돈다(알파 = 지상, 공중 IK 없음, 착지 리셋, `UseIKBoneTargets` 끔). 움직이는 base 위에서는 핀 고정·루트 감쇠 끔(`IsOnStaticGround`). 경사는 CR slope warping만(AN-021). ⚠️ 엔진 `OffsetRootBone` `MaxRotationError` 클램프는 적도에서 루트를 기울인다 — 노드 값 −1, C++가 Up 둘레로 90° 제한(구면 함정 4번째). 요약 `design/GASPReference.md` §2.12
 - **빌드:** GASP 에디터만 떠 있어도 LootNPop `Build.bat`이 Live Coding 검사에 막힌다(같은 엔진 실행 파일). LootNPop 에디터를 끈 뒤 `-NoHotReloadFromIDE`를 붙여 빌드한다. GASP 에디터는 끄지 않아도 된다
 
 ## 바로 다음 행동 (갈래별 첫 행동)
 
 | 갈래 | 첫 행동 | 건드리는 에셋 |
 |:---|:---|:---|
-| **2-5 B4 발 배치 + B5 경사(다음 단위)** | 2-4 완료(2026-10-20, [로그](history/Phase02_Log.md)). 착수 직전에 `phases/Phase02_GASPMoverABP.md`에 2-5 절을 만든다. ① GASP `CR_Biped_FootPlacement`(그래프 42개·변수 48개, `ControlRigTools`로 전부 읽힌다 — `design/GASPReference.md` §1.1)와 Mover ABP `Procedural_Feet` 레이어 노드를 읽고, CR을 LootNPop 구성 에셋으로 만들지(직접 재작성 또는 `LNP.Editor.GASPRef clone` 시험) 정한다. ② ⚠️ `UpdateRootDamper`가 `To World` 뒤 월드 `.Z`에 스프링 감쇠 — `WorldZDamperEnabled` 끔 또는 중력 Up 축으로 고친다. CR 입력(`Ground Normal`·`GroundMovementWorldDelta`·`Has Teleported`)은 2-1 공급값(`GroundNormal`·`BasedMovementDelta`·`bJustTeleported`). 시뮬 프록시 `bJustTeleported` 오탐 처리(§2.8)를 여기서 정한다. ③ 2-3에서 무동작으로 둔 블렌드 스택 CopyBone `foot→ik_foot`이 발 배치에 필요한지 본다. ④ B5 경사: `BS_Relaxed_*_Loop_F_Slopes` 반입과 Chooser 행(입력 `SlopeAngle_X/Y`). 2-4에서 남은 제자리 회전 발 미끄러짐 소량이 발 고정(pinning)으로 줄어드는지도 본다. **GASP 에디터(8001)가 필요하다**(CR 그래프·레이어 노드는 MCP로 읽는다) | 새 CR·`ABP_Main_UEFN` `Procedural_Feet` 레이어, 경사 BS·시퀀스 반입(`UEFN_Mannequin/`, git 제외), `CHT_PoseSearchDatabases_UEFN`(경사 행) |
+| **2-6 B8 Additive Leans + 적 검증(다음 단위)** | 2-5 완료(2026-10-20, [로그](history/Phase02_Log.md)). 착수 직전에 `phases/Phase02_GASPMoverABP.md`에 2-6 절을 만든다. ① GASP `AdditiveLeans` 레이어 구성(0-2 Ctrl+C 텍스트 `Saved/GASPRef/leans.txt` — 이동 모드·이동 상태 Blend, `EnableAO`면 몸통만, Walk↔Run Leans TwoWayBlend α = Speed2D 200~320, Mesh Space Additive, 곡선 `Disable_AdditiveLeans`)를 확인하고 BS 3개(`BS_Relaxed_{Walk,Run}_Leans`·`BS_Relaxed_Lean_Head`)와 그 시퀀스를 반입한다(LootNPop 에디터 끈 상태, GASP 원본 경로). 입력 `LeanAmount`는 2-1에서 C++가 이미 캐릭터 로컬 축으로 공급한다. ② 레이어 위치를 정한다: 무기 서브 ABP 오버레이(`ApplyWeaponStyleOverlay`) 앞인지 뒤인지, 머리 기울기 분기를 LootNPop 조준 상태(FreeAim·락온)로 바꾼다. ③ `ActorPromoted` 적 전체 회귀(AI 입력 궤적 예측, 게스트 재시뮬레이션 떨림, 2-5 발 배치 포함). **GASP 에디터(8001)가 있으면 BS 반입 목록을 `get_dependencies`로 바로 얻는다**(레이어 바인딩은 텍스트로 이미 있다) | `ABP_Main_UEFN`(Leans 노드), Leans BS·시퀀스 반입(`UEFN_Mannequin/`, git 제외), 필요하면 `ULNPAnimInstance` |
 | 1A 물리 히트리액트 스파이크 | **완료(2026-10-18).** 결과·Phase 3 인계는 [research/PhysicsHitReactSpike.md](research/PhysicsHitReactSpike.md) §6. 2-0b가 RBWC 자리를 남겼다: 플레이어 `ABP_Retarget`, UEFN 메시 적은 Leader Pose가 아닌 ABP 노드 `ABP_VisualCopyPose`(같은 문서 §1.5) | 스파이크 사본 `Content/Characters/PhysHitReactSpike/`(존치) |
 | 1B 마커리스 모캡 스파이크 | 착수 직전에 `phases/Phase01B_*.md`를 만든다. 사용자가 Fab 마커리스 플러그인(약 5GB)을 설치하고 고정 카메라 영상 1클립을 고른다(AN-010). 리타깃 대상은 UEFN 스켈레톤(93본) | 새 시퀀스·몽타주(새 폴더). PIE 확인 시 `CHT_Montage` 행 하나 |
 

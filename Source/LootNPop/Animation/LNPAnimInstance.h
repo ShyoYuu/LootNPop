@@ -114,7 +114,7 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "LNP|MotionMatching", meta = (BlueprintThreadSafe))
 	void UpdateMotionMatchingNode(const FAnimNodeReference& Node);
 
-	/** GASP Get_MMInterruptMode: 이동 모드가 바뀌었거나, 움직이는 중 이동 방향이 바뀌면 DB가 바뀔 때 진행 포즈를 끊는다. LootNPop은 출발 프레임·정지 중 제자리 회전 요청도 끊는다 */
+	/** GASP Get_MMInterruptMode: 이동 모드가 바뀌었거나, 움직이는 중 이동 방향이 바뀌면 DB가 바뀔 때 진행 포즈를 끊는다. LootNPop은 출발·정지 프레임과 정지 중 제자리 회전 요청도 끊는다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|MotionMatching", meta = (BlueprintThreadSafe))
 	EPoseSearchInterruptMode GetMMInterruptMode() const;
 
@@ -166,6 +166,38 @@ protected:
 	/** 가상 루트 위치를 투영할 평면 법선 = 컴포넌트 Up. 노드 기본값은 월드 Z라 구면에서 틀린다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|OffsetRoot", meta = (BlueprintThreadSafe))
 	FVector GetOffsetRootGroundNormal() const;
+
+	// ---------------------------------------------------------------------------------------------
+	// 발 배치(B4). AnimGraph Procedural_Feet의 분기와 CR_Biped_FootPlacement_UEFN 노드가 호출한다(워커 스레드).
+	// CR 입력 중 지면 법선·base 이동량·텔레포트·지상 여부는 B0 공급값을 그대로 바인딩한다.
+	// ---------------------------------------------------------------------------------------------
+
+	/**
+	 * CR 노드 알파(Bool, 블렌드 인 0.3s·아웃 0.2s). 지상이면 발 배치 CR, 아니면 IK 없이 통과(GASP Procedural_Feet 이동 모드 Blend).
+	 * CVar LNP.Anim.FootPlacement 0이면 끈다. 알파가 0인 동안 CR은 실행되지 않고 상태가 멈춘다.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LNP|FootPlacement", meta = (BlueprintThreadSafe))
+	bool ShouldUseFootPlacementRig() const;
+
+	/**
+	 * CR ForceReset 핀 — 착지 프레임. 공중 동안 멈춰 있던 CR의 바닥 평활·핀 상태는 이륙 지점 것이라 버린다.
+	 * GASP는 레이어 OnBecomeRelevant에서 켠다(공중은 LegIK 분기라 CR 노드가 비관련이 된다). LootNPop은 같은 노드의 알파만 내린다.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LNP|FootPlacement", meta = (BlueprintThreadSafe))
+	bool ShouldResetFootPlacement() const;
+
+	/**
+	 * CR Enable Foot Pinning·WorldZDamperEnabled 핀. 지상(GASP AllowFootPinning·AllowSlopeWarping)이면서 움직이는 base 위가 아닐 때만 참.
+	 * CVar LNP.Anim.FootPlacementOnMovingBase 1이면 움직이는 base 위에서도 켠다(A/B 확인용).
+	 * 2-5 PIE: CR 평가 시점의 컴포넌트 이동에는 이번 프레임 base 이동이 들어 있는데 공급하는 base 이동량은 한 프레임 전 값이라,
+	 * 이동 패널 위에서 핀이 끌리다 풀리며 다리가 끊기고(핀 고정), 패널 상하 속도가 바뀌는 프레임마다 루트가 10cm 넘게 튀었다(루트 감쇠).
+	 */
+	UFUNCTION(BlueprintPure, Category = "LNP|FootPlacement", meta = (BlueprintThreadSafe))
+	bool IsOnStaticGround() const;
+
+	/** CR DebugDraw 핀 ← CVar LNP.Anim.DebugFootPlacement */
+	UFUNCTION(BlueprintPure, Category = "LNP|FootPlacement", meta = (BlueprintThreadSafe))
+	bool IsFootPlacementDebugEnabled() const;
 
 	/** OffsetRootBone 가상 루트의 월드 트랜스폼(메시 컴포넌트 축). 노드가 없으면 bHasOffsetRoot = false. 워커에서 쓰고 다음 게임 스레드 갱신이 읽는다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|OffsetRoot")
@@ -492,6 +524,8 @@ private:
 	/** GASP: 예측 facing 누적각이 한 프레임에 200° 넘게 뛰면(±180 경계 넘김) 방향을 B로 한 번 바꿔 DB 인터럽트를 일으킨다 */
 	bool bForceMovementDirectionChange = false;
 	FTransform PendingBasedMovementDelta = FTransform::Identity;
+	/** Mover 이동 base가 움직이는 컴포넌트다(발 고정 판정용, 게임 스레드에서 쓰고 워커가 읽는다) */
+	bool bOnMovingBase = false;
 	/** 마지막 공급층 갱신의 캐릭터 Up. 워커 스레드(MM 노드 함수)에서 Actor를 읽지 않으려고 보관한다 */
 	FVector LocomotionUp = FVector::UpVector;
 	/** 디버그 로그용 — 직전에 MM 노드에 넘긴 DB 목록 */

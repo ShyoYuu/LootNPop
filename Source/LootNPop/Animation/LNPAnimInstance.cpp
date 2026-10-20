@@ -10,6 +10,7 @@
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverPoseSearchTrajectoryPredictor.h"
+#include "MoveLibrary/BasedMovementUtils.h"
 #include "Chooser.h"
 #include "ChooserFunctionLibrary.h"
 #include "PoseSearch/MotionMatchingAnimNodeLibrary.h"
@@ -38,6 +39,23 @@ namespace
 		TEXT("  0: off\n")
 		TEXT("  1: text above every character with a main anim instance (player and promoted enemies)\n")
 		TEXT("  2: text + one log line per state change and predicate edge (compare host and guest logs)"),
+		ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> CVarFootPlacement(
+		TEXT("LNP.Anim.FootPlacement"), 1,
+		TEXT("Procedural_Feet foot placement Control Rig (slope warping, foot pinning, root damper) on the ground.\n")
+		TEXT("  0: off (pose passes through)\n")
+		TEXT("  1: on"),
+		ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> CVarFootPlacementOnMovingBase(
+		TEXT("LNP.Anim.FootPlacementOnMovingBase"), 0,
+		TEXT("Allow foot pinning and the root damper of the foot placement Control Rig while standing on a moving movement base. 0: off (default), 1: on"),
+		ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> CVarDebugFootPlacement(
+		TEXT("LNP.Anim.DebugFootPlacement"), 0,
+		TEXT("Drive the DebugDraw input of the foot placement Control Rig (legs, floor collision, pins). 0: off, 1: on"),
 		ECVF_Cheat);
 
 	/*
@@ -82,6 +100,8 @@ namespace
 	// Offset Root Bone 반감기(GASP Get_OffsetRootTranslationHalfLife)
 	constexpr float OffsetRootHalfLifeIdle        = 0.1f;
 	constexpr float OffsetRootHalfLifeMoving      = 0.3f;
+	// 가상 루트 Yaw 오차 상한(도). GASP는 제한 없음(-1). 정지 중 룩 회전이 TurnInPlace보다 빠를 때 허리가 180°까지 꺾이는 것을 막는다(2-3)
+	constexpr float OffsetRootMaxRotationError    = 90.0f;
 
 	// Steering 목표 시간(GASP Get_DesiredFacing·Get_ProceduralTargetTime). 곡선 SteeringTargetTime 0~1을 이 범위로 옮긴다
 	constexpr float SteeringTargetTimeMin         = 0.1f;
@@ -355,6 +375,18 @@ void ULNPAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
 	const FTransform& ComponentTransform = GetProxyOnAnyThread<FAnimInstanceProxy>().GetComponentTransform();
 	Rotation = AlignAxisZToUp(Rotation, ComponentTransform.GetUnitAxis(EAxis::Z));
 
+	// 회전 오차 제한(정지 중 룩 회전 안전망, 2-3). 노드의 MaxRotationError는 끈다(-1): 엔진이 오차를 컴포넌트 로컬 축으로 구하고
+	// RotationOffset * ComponentRotation(월드 쪽)으로 다시 곱해, 적도에서는 로컬 Yaw가 월드 Z 회전으로 들어가 가상 루트가 최대 90° 기운다(2-5).
+	// Up 정렬 뒤라 남은 오차는 컴포넌트 Up 둘레 회전뿐이다 → 로컬 Z 각으로 자른다.
+	const FQuat ComponentRotation = ComponentTransform.GetRotation();
+	FVector OffsetAxis;
+	float OffsetAngle;
+	(ComponentRotation.Inverse() * Rotation).GetNormalized().ToAxisAndAngle(OffsetAxis, OffsetAngle);
+	const float SignedYaw = FMath::UnwindRadians(OffsetAxis.Z >= 0.0f ? OffsetAngle : -OffsetAngle);
+	const float MaxYaw = FMath::DegreesToRadians(OffsetRootMaxRotationError);
+	if (FMath::Abs(SignedYaw) > MaxYaw)
+		Rotation = (ComponentRotation * FQuat(FVector::UpVector, FMath::Sign(SignedYaw) * MaxYaw)).GetNormalized();
+
 	OffsetRootNode->SetOffsetRootTranslation(Translation);
 	OffsetRootNode->SetOffsetRootRotation(Rotation);
 	OffsetRootTransform = FTransform(Rotation, Translation);
@@ -403,10 +435,11 @@ void ULNPAnimInstance::UpdateLocomotionValues(float DeltaSeconds)
 	// --- 필수값 (GASP Update_EssentialValues) ---
 	Velocity_LastFrame = bHasLocomotionHistory ? PreviousVelocity : Velocity;
 
-	// 두 프레임 속력 중 큰 쪽으로 갈 수 있는 거리 + 50cm를 넘게 움직였을 때만. 고속 낙하 착지 프레임(직전 −3000cm/s → 0)을 오탐하지 않는다
+	// 두 프레임 속력 중 큰 쪽으로 갈 수 있는 거리 + 50cm를 넘게 움직였을 때만. 고속 낙하 착지 프레임(직전 −3000cm/s → 0)을 오탐하지 않는다.
+	// 움직이는 base가 옮긴 몫은 뺀다 — Mover 속도는 base 기준이라 발판 위에 서 있으면 0인데 메시는 발판과 함께 움직인다(2-5: 발 배치 CR이 매 프레임 리셋됐다)
 	const float ReachableDistance = TeleportThreshold + FMath::Max(Velocity.Size(), Velocity_LastFrame.Size()) * DeltaSeconds;
-	bJustTeleported = bHasLocomotionHistory
-		&& FVector::DistSquared(Location, Location_LastFrame) > FMath::Square(ReachableDistance);
+	const FVector OwnDisplacement = Location - Location_LastFrame - PendingBasedMovementDelta.GetTranslation();
+	bJustTeleported = bHasLocomotionHistory && OwnDisplacement.SizeSquared() > FMath::Square(ReachableDistance);
 
 	const FVector PlaneVelocity          = FVector::VectorPlaneProject(Velocity, Up);
 	const FVector PlaneVelocityLastFrame = FVector::VectorPlaneProject(Velocity_LastFrame, Up);
@@ -438,6 +471,8 @@ void ULNPAnimInstance::UpdateLocomotionValues(float DeltaSeconds)
 		GroundNormal   = Up;
 		GroundLocation = GetSkelMeshComponent()->GetComponentLocation();
 	}
+	bOnMovingBase = UBasedMovementUtils::IsADynamicBase(MoverComponent->GetMovementBase());
+
 	SmoothedGroundNormal = bHasLocomotionHistory
 		? FMath::VInterpTo(SmoothedGroundNormal, GroundNormal, DeltaSeconds, GroundNormalInterpSpeed).GetSafeNormal(UE_SMALL_NUMBER, Up)
 		: GroundNormal;
@@ -707,9 +742,11 @@ EPoseSearchInterruptMode ULNPAnimInstance::GetMMInterruptMode() const
 	// 궤적이 바뀌어도 Idle 포즈 비용이 오르지 않아 Starts·TurnInPlace 후보를 계속 이긴다.
 	// ① 출발 프레임(2-2). 2-4에서 Starts DB가 생긴 뒤에도 빼면 출발 때 Idle 포즈로 미끄러졌다.
 	// ② 정지 중 제자리 회전 요청인데 아직 회전 DB가 아니다(2-4). 끊지 않으면 회전 클립이 안 뽑히고 가상 루트만 벌어졌다가 뚝 돈다.
+	// ③ 정지 프레임(2-5). 아주 느리게 걷다 서면 궤적 차이가 작아 진행 중인 걷기·출발 포즈가 Idle·Stops 후보를 계속 이겨 제자리 걸음이 남았다.
 	const bool bStartedMoving = MovementState == ELNPMovementState::Moving && MovementState_LastFrame == ELNPMovementState::Idle;
+	const bool bStoppedMoving = MovementState == ELNPMovementState::Idle && MovementState_LastFrame == ELNPMovementState::Moving;
 	const bool bTurnInPlaceRequested = MovementState == ELNPMovementState::Idle && bShouldTurnInPlace && !bTurnInPlaceDatabaseActive;
-	return (bMovementModeChanged || bDirectionChangedWhileMoving || bStartedMoving || bTurnInPlaceRequested)
+	return (bMovementModeChanged || bDirectionChangedWhileMoving || bStartedMoving || bStoppedMoving || bTurnInPlaceRequested)
 		? EPoseSearchInterruptMode::InterruptOnDatabaseChange
 		: EPoseSearchInterruptMode::DoNotInterrupt;
 }
@@ -789,6 +826,27 @@ float ULNPAnimInstance::GetOffsetRootTranslationHalfLife() const
 FVector ULNPAnimInstance::GetOffsetRootGroundNormal() const
 {
 	return GetProxyOnAnyThread<FAnimInstanceProxy>().GetComponentTransform().GetUnitAxis(EAxis::Z);
+}
+
+bool ULNPAnimInstance::ShouldUseFootPlacementRig() const
+{
+	// GASP: OnGround → CR, InAir → LegIK(ik_foot 목표). LootNPop 공중 포즈(Fall_Loop, Lyra 리타깃)는 ik_foot을 믿을 수 없어 IK 없이 통과한다
+	return MovementMode == ELNPMovementMode::OnGround && CVarFootPlacement.GetValueOnAnyThread() > 0;
+}
+
+bool ULNPAnimInstance::IsOnStaticGround() const
+{
+	return MovementMode == ELNPMovementMode::OnGround && (!bOnMovingBase || CVarFootPlacementOnMovingBase.GetValueOnAnyThread() > 0);
+}
+
+bool ULNPAnimInstance::ShouldResetFootPlacement() const
+{
+	return MovementMode == ELNPMovementMode::OnGround && MovementMode_LastFrame != ELNPMovementMode::OnGround;
+}
+
+bool ULNPAnimInstance::IsFootPlacementDebugEnabled() const
+{
+	return CVarDebugFootPlacement.GetValueOnAnyThread() > 0;
 }
 
 FQuat ULNPAnimInstance::GetOffsetRootRotationDelta() const

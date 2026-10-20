@@ -318,3 +318,36 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에�
 ### 5. 커밋 뒤 빌드 재확인
 
 - 커밋 c7c0571 뒤 깨끗한 트리에서 게임 타깃 `Build.bat`(LootNPop 에디터가 켜져 있어 게임 타깃) 성공, 65초, 경고 0. 에디터 타깃은 2절에서 성공했다. 그 뒤 바뀐 것은 cpp 본문(제자리 회전 인터럽트, CVar 삭제)과 헤더 주석뿐이고 Live Coding으로도 컴파일됐다.
+
+## 2026-10-20 — 단위 2-5 B4 발 배치 + B5 경사
+
+### 1. GASP 읽기
+
+- 두 에디터(8000·8001) MCP 확인. MCP `call_tool`은 `toolset_name`과 짧은 `tool_name`을 따로 넣어야 한다(풀네임은 not found).
+- `CR_Biped_FootPlacement`: `ControlRigTools`(`list_nodes`·`list_pins`·`get_connected_pins`·`get_pin_value`)를 묶음 스크립트로 돌려 그래프 42개를 덤프(약 125KB, 스크래치). 구조체 핀은 최상위가 연결돼 있지 않을 때만 서브 핀을 따로 물어야 연결이 보인다 — 양쪽이 서브 핀인 연결(`Subtract.Result.X → ClampLength.Value.X`)은 최상위 덤프에 안 나온다. 서브 핀 스캔으로 월드 축 성분을 직접 쓰는 곳 세 군데를 찾았다(`design/GASPReference.md` §2.12).
+- `Procedural_Feet`: 0-2 Ctrl+C 텍스트(`Saved/GASPRef/feet.txt`)를 스크립트로 요약. `AllowFootPinning`·`AllowSlopeWarping`·`JustTeleported`·`Biped_FootPlacement_OnBecomeRelevant`는 `find_nodes`·`get_node_infos`(DSL 안 씀). `AllowFootPinning`의 `IsMoving` AND는 결과에 안 이어져 있다.
+- 경사 BS를 참조하는 것은 SM 경로 Chooser뿐(GASP `get_referencers`) → 마스터 세션에 범위 질문, 사용자 결정 A(AN-021): 반입·Chooser 행 없이 CR slope warping만.
+
+### 2. CR 구성 에셋
+
+- `LNP.Editor.GASPRef` 복제(스펙 `Saved/AnimOverhaul/GASPRef_2-5_clone_spec.json`) → `Content/Characters/ControlRigs/CR_Biped_FootPlacement_UEFN`. 복제는 됐지만 함수 참조 44개가 GASP 원래 경로(`/Game/Blueprints/ControlRigs/CR_Biped_FootPlacement`) 라이브러리를 가리켜 컴파일이 깨졌다(함수 식별자는 소프트 경로라 하드 참조 재연결에 안 걸린다).
+- 에디터 Python(상태 표시줄 Cmd 입력창, SlateInspector `Type`)으로 `Scripts/AnimOverhaul/FixFootPlacementCR_2-5.py`: `RigVMController.find_graph_function_identifier(<CR>_C, 이름)` → `swap_function_reference`로 재연결, 구면 수정, 컴파일·저장. `RigVMGraphFunctionIdentifier.library_node_path`는 읽기 전용이라 직접 만들 수 없다.
+
+### 3. C++·ABP
+
+- C++: CR 알파 `ShouldUseFootPlacementRig`(지상 & CVar), 착지 프레임 `ShouldResetFootPlacement`, `IsFootPlacementDebugEnabled`. 게임 타깃 빌드(에디터 켠 채) → 에디터 종료 → 에디터 타깃 `-NoHotReloadFromIDE` 빌드.
+- ABP: GASP CR 노드 Ctrl+C 텍스트를 바꿔(클래스 → 복제본, 알파 Bool·블렌드 0.3/0.2, `UseIKBoneTargets` 핀 기본 false, 바인딩 제거) 사용자가 붙여넣고, K2 값·함수 노드 9개 생성과 연결은 MCP. 핀 순서는 CR 변수 순서다(`get_node_infos`의 `name`으로 확인). `OffsetRootBone` → CR → 무기 후처리. 경고 없이 컴파일.
+
+### 4. PIE에서 고친 것
+
+1. **이동 패널 위 CR 매 프레임 리셋**(서버 플레이어 `speed 0 +Teleported` 연속): Mover 속도는 base 기준이라 0인데 메시는 패널과 함께 프레임당 50cm 넘게 움직였다(2인 PIE 12fps). 텔레포트 판정에서 base 몫(`PendingBasedMovementDelta`)을 뺀다.
+2. **아주 느리게 걷다 서면 걷기 유지**(2-4부터 있던 것): 정지 프레임에 DB가 `Idles`/`Walk_Stops`로 바뀌어도 `DoNotInterrupt`라 진행 중 출발·루프 포즈가 계속 이겼다(`[AnimB6]` 선택 변화 없음). 정지 프레임도 인터럽트.
+3. **패널 위 다리 끊김**: 임시 진단(`[AnimB4diag]`, CR 인스턴스 변수를 리플렉션으로 읽음)에서 핀이 애니 발끝에서 20~30cm 벌어지고 골반이 수평으로 ±15~24cm 움직였다. CVar A/B로 핀 고정이 원인임을 확인 → 움직이는 base 위에서 핀 고정 끔.
+4. **패널 위 전신 움찔**: 루트(감쇠 e)가 패널 상하 속도가 바뀌는 프레임에만 그 변화량(최대 12cm)만큼 튀었다. CR 평가 시점의 컴포넌트 이동에는 이번 프레임 base 이동이 있고 공급 base 이동량은 한 프레임 전 값이다(정속에서는 상쇄). 감쇠 식을 "자기 이동량의 법선 성분"으로 바꿔도 남아 → 움직이는 base 위에서 루트 감쇠도 끔(`IsOnStaticGround`로 합침). 패널 위 루트 표준편차 1.3 → 0.02cm.
+5. **적도에서 제자리 빠른 회전 시 공중 튐**(사용자: 반시계 → 아래로 튀었다 솟음, 시계 → 위로 튀었다 떨어짐, 플레이어 스타트 근처는 안 남): 진단에서 루트·바닥 기울기는 정상인데 골반·두 발만 한 프레임에 −2200~+1500cm로 갔다가 골반 평활(0.2s)로 돌아왔다. CR `AdjustPositionToPlane`이 바닥 법선을 `ik_foot_root`(루트 자식) 기준으로 바꿔 아래(−Z)로 교차하는데, 엔진 `OffsetRootBone`의 `MaxRotationError` 클램프가 로컬 오차를 월드 쪽에 곱해 적도에서 가상 루트를 최대 90° 기울였다(엔진 구면 함정 4번째). 노드 값 −1, C++가 Up 정렬 직후 컴포넌트 Up 둘레로 90° 제한.
+
+### 5. 검증
+
+- 사용자 1·2인 PIE(적도): 평지·여러 각도 경사, 제자리 회전 발 미끄러짐 크게 줄어듦, 점프·낙하 착지, 패널 위 정지·이동·빠른 회전, 정지 전환, 근접 콤보·대시·재장전·가드·패링·랙돌 회귀 없음. 적 스폰 0(`LNP.Spawn.EnemyDensity 0`, 에디터 콘솔)으로 측정한 뒤 1로 되돌렸다.
+- 마지막 수정 뒤 사용자 리슨 2인 PIE(적도, 승격 적과 경사로 왕복, 서로 화면 관찰): 어색함 없음. 텔레포트 판정 80회 중 대부분은 적 승격·강등 스냅(적마다 서버·게스트 2회씩).
+- 임시 진단 코드는 커밋 전에 지웠다.
