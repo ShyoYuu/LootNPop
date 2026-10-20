@@ -222,6 +222,7 @@ bool CanADS()    const { return !IsGuarding() && !IsGliding(); }   // 활공 중
 | 항목 | 기본값 |
 |:---|:---:|
 | `SprintSpeed` / `SprintAcceleration` | 1200 cm/s / 6000 cm/s² |
+| `SprintStartDirectionAngle` / `SprintCancelDirectionAngle` | 50° / 65° (§4.3) |
 | `GuardWalkSpeed` / `GuardAcceleration` | 200 cm/s / 2000 cm/s² |
 | `ADSWalkSpeed` / `ADSAcceleration` | 300 cm/s / 2500 cm/s² |
 
@@ -255,7 +256,7 @@ LNP.Mover.IsSprinting / IsGuarding / IsADS (Gameplay Tag)
 
 - Modifier는 Mover `SyncState`에 포함돼 롤백 시 함께 복구된다.
 - 의도를 **InputCmd로 전달하는 이유**는 §7.1 — 이 시스템의 핵심 규약.
-- 처리 순서 Guard → ADS → Sprint. `CanSprint()`가 `!IsGuarding() && !IsADS()`를 본다.
+- 처리 순서 Guard → ADS → Sprint. `CanSprint()`가 `!IsGuarding() && !IsADS()`를 본다. 질주는 여기에 방향 판정이 더해진다(§4.3).
 - `FLNPModifierInputs::NetSerialize`는 bool 4개를 1비트씩, `DashInputIntent`와 `bIsLockOn`은 대시 프레임에만, `AIDesiredSpeed`는 값이 있을 때만 직렬화한다.
 - ⚠️ 공격 입력(조준점·락온·근접 보정 대상)은 이 구조체에 넣지 않는다 — 60Hz로 중복 전송되고 서버는 입력 버퍼 깊이만큼 과거 커맨드를 읽는다. 발동 요청에 싣는다([TechDesign_Networking.md](TechDesign_Networking.md)).
 
@@ -290,6 +291,23 @@ CommonSettings->MaxSpeed = BaseSpeed × max(0.01, MoveSpeed)
 - **실측 줄**은 `FTSTicker`에서 액터 월드 위치의 프레임 간 변화량만으로 구한다 — 이동 로직을 바깥에서 교차 검증한다.
 - **설정 줄**은 `기준값 × MoveSpeed = MaxSpeed` 대조용. `state`는 Walk/Sprint/Guard/ADS.
 - 엔진 도구 병행: `mover.debug.ShowCorrections`·`ShowTrail`·`ShowTrajectory`, GameplayDebugger Mover 카테고리.
+
+### 4.3 질주 방향 게이트 — 정면으로 갈 때만 질주한다 (2026-10-20)
+
+질주 키를 누르고 있어도 **이동 방향이 바라보는 방향에서 크게 벗어나면 질주 상태 자체가 풀린다.** 키를 계속 누르고 있으면 정면으로 돌아오는 틱에 다시 붙는다(뗐다 누를 필요 없음).
+
+- **동기:** 모션 매칭에 옆·뒷걸음 질주 클립이 없고, ABP는 질주면 이동 방향을 F로 고정한다(GASP 규칙). 스트레이프 중 옆으로 질주하면 정면 질주 포즈가 옆으로 미끄러졌다.
+- **판정:** `IsSprintDirectionAllowed()`가 InputCmd의 `MoveInput`과 `OrientationIntent`를 캐릭터 Up(`GetUpDirection()`, 스텝 시작 위치 기준 — §7.9) 접평면에 투영한 사잇각을 본다. 질주 시작은 `SprintStartDirectionAngle`(50°) 이하, 질주 중에는 `SprintCancelDirectionAngle`(65°)을 넘으면 해제. 이동 입력이 없으면 통과한다.
+- **50°/65°인 이유:** 키보드 대각(45°)은 질주하고 옆(90°)·뒤는 막는다. 둘을 띄운 것은 스틱 떨림과 `OrientationIntent` 양자화(16비트 고정소수, 서버만 양자화 값을 본다)로 경계에서 질주가 깜빡이거나 보정이 생기지 않게 하려는 것이다.
+- **왜 현재 몸 방향이 아니라 `OrientationIntent`인가:**
+  - 이동 방향을 바라보는 모드에서는 `OrientationIntent`가 곧 이동 방향이라 각도가 항상 0 — 기존과 같다. 몸 방향과 비교하면 급선회 중 몸이 도는 동안 질주가 끊겼다 붙어 Gait가 깜빡인다.
+  - 스트레이프(락온·지향 사격 무기, `bFaceMoveDirection=false`)에서는 `OrientationIntent`가 카메라 수평 전방이라 옆·뒷걸음이 그대로 각도로 드러난다.
+  - 락온·무기 모드는 로컬 상태지만 결과가 `OrientationIntent`에 담겨 InputCmd로 간다 — §7.1 규약을 새 필드·대역폭 없이 지킨다.
+- **속도는 손대지 않는다:** 태그가 빠지면 §4.1이 달리기 기준 속도를 낸다. 최고속도 초과분은 엔진 `ComputeVelocity`가 감속값과 마찰로 매 틱 깎아 내므로 뚝 끊기지 않는다. 속도만 각도로 보간하는 안은 기각했다 — 태그가 남아 애니메이션이 계속 질주+F 고정이 되어 원래 문제가 그대로다.
+- **영향 없음:** AI·ActorPromoted 적은 `bWantsToSprint`가 항상 false다. 스태미나 시스템은 없다.
+- ⚠️ 코드가 회전을 덮어쓰는 동안(`OrientationOverride` — 근접 공격 보정)에는 그 방향이 기준이 된다. 질주 중 옆의 적을 치면 질주가 풀릴 수 있다.
+
+**검증 (2026-10-20, 1인·리슨 2인 PIE):** 질주 키를 누른 채 정면 1200 → 좌우·뒤 전환 시 800으로 부드럽게 감속, 정면 복귀 시 1200으로 자연스럽게 재가속. 고속 옆·뒷걸음 포즈가 더는 보이지 않는다. 한계는 §8(이동 속도 버프).
 
 ---
 
@@ -485,6 +503,7 @@ Ground 모드에서 넉백을 주면 매 틱 클램프 + 지면 스냅으로 "�
 ## 8. 미구현 / 한계
 
 - **`CanGuard()` 상시 true:** 이동 쪽 가드 조건은 없다. 가드 브레이크(경직)는 입력 쪽 `Client_ForceReleaseGuard` → `ReleaseGuardState()`로 푼다([TechDesign_Poise.md](TechDesign_Poise.md)).
+- **버프로 빨라진 옆·뒷걸음은 남는다:** 질주 방향 게이트(§4.3)는 질주 태그만 막는다. `MoveSpeed` 버프가 달리기 속도를 질주 수준까지 올리면 고속 옆·뒷걸음 모션이 다시 어색해질 수 있다. 고치기로 하면 그때 방향별 상한(예: 옆·뒤 기준 속도에 버프 상한)이나 애니메이션 쪽 대응을 따져 본다.
 - **넉백 미예측:** 정합성은 맞지만 피격자 화면에서 RTT만큼 늦다(§6). 예측하려면 SyncState 트리거로 옮겨야 한다.
 - **공중 대시 미지원:** 의도된 제한. 대시 점프는 지원한다(§5.1).
 - **대시 점프 도달 거리 미실측:** 평지 근사 추정은 약 13~15m(질주 점프 약 8.4m). 그래플·런처 전용으로 의도한

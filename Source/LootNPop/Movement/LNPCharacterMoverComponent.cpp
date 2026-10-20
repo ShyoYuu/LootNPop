@@ -71,6 +71,26 @@ bool ULNPCharacterMoverComponent::CanSprint() const
 	return IsOnGround() && !IsGuarding() && !IsADS();
 }
 
+bool ULNPCharacterMoverComponent::IsSprintDirectionAllowed(const FMoverInputCmdContext& InputCmd, bool bIsSprinting) const
+{
+	const FCharacterDefaultInputs* CharacterInputs = InputCmd.InputCollection.FindDataByType<FCharacterDefaultInputs>();
+	const ULNPCharacterMovementSettings* LNPSettings = FindSharedSettings<ULNPCharacterMovementSettings>();
+	if (CharacterInputs == nullptr || LNPSettings == nullptr)
+		return true;
+
+	// 현재 몸 방향이 아니라 바라볼 방향(OrientationIntent)과 비교한다 — 이동 방향을 바라보는 모드에서
+	// 급선회할 때 몸이 도는 동안 질주가 끊겼다 붙지 않게. 락온·무기 모드는 로컬 상태지만 결과가
+	// OrientationIntent에 이미 담겨 InputCmd로 가므로 서버·리시뮬레이션이 같은 판정을 한다.
+	const FVector Up        = GetUpDirection();
+	const FVector MoveDir   = FVector::VectorPlaneProject(CharacterInputs->GetMoveInput(), Up).GetSafeNormal();
+	const FVector FacingDir = FVector::VectorPlaneProject(CharacterInputs->OrientationIntent, Up).GetSafeNormal();
+	if (MoveDir.IsZero() || FacingDir.IsZero())
+		return true;
+
+	const float LimitDeg = bIsSprinting ? LNPSettings->SprintCancelDirectionAngle : LNPSettings->SprintStartDirectionAngle;
+	return FVector::DotProduct(MoveDir, FacingDir) >= FMath::Cos(FMath::DegreesToRadians(LimitDeg));
+}
+
 bool ULNPCharacterMoverComponent::IsGuarding() const
 {
 	return HasGameplayTag(LNP_Mover_IsGuarding, true);
@@ -536,7 +556,10 @@ void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep&
 		}
 
 		const bool bIsSprinting  = HasGameplayTag(LNP_Mover_IsSprinting, true);
-		const bool bShouldSprint = ModifierInputs && ModifierInputs->bWantsToSprint;
+		// 방향 판정은 질주 키를 누르고 있는 동안 매 틱 다시 한다 — 옆으로 가며 풀린 질주가
+		// 키를 다시 누르지 않아도 정면으로 돌아오면 이어진다.
+		const bool bShouldSprint = ModifierInputs && ModifierInputs->bWantsToSprint
+			&& IsSprintDirectionAllowed(InputCmd, bIsSprinting);
 
 		if (bIsSprinting && (!bShouldSprint || !CanSprint()))
 		{

@@ -39,6 +39,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool CanSprint() const;
 
+	/**
+	 * 이 InputCmd의 이동 방향이 질주를 허용하는가. 이동 의도와 바라볼 방향(둘 다 InputCmd)을
+	 * 캐릭터 Up 접평면에 투영한 사잇각을 시작/해제 각도와 비교한다 (bIsSprinting이면 해제 각도).
+	 * 이동 방향을 바라보는 모드에서는 두 벡터가 같아 늘 통과하고, 스트레이프(락온·지향 사격)에서만
+	 * 옆·뒷걸음 질주를 막는다. 이동 입력이 없으면 통과한다.
+	 */
+	bool IsSprintDirectionAllowed(const FMoverInputCmdContext& InputCmd, bool bIsSprinting) const;
+
 	/** 캐릭터가 현재 가드 Modifier가 활성화되어 있으면 true를 반환한다 */
 	UFUNCTION(BlueprintPure, Category = "LNP|Movement")
 	bool IsGuarding() const;
