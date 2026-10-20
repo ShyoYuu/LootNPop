@@ -314,3 +314,7 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에�
 - 덤프 파서 첫 판은 셸 경로(`/Game/...`이 Git Bash에서 `C:/Program Files/Git/Game/...`로 바뀜) 탓에 실패 → PowerShell로 돌렸다. 긴 heredoc도 Git Bash에서 따옴표 짝 오류가 나 파일로 썼다.
 - 반입 전 덤프는 시퀀스를 `None`으로 보여 준다(리다이렉트하지 않는 경로라 LootNPop 쪽으로 풀린다). DB 항목 목록은 GASP `get_dependencies`가 빠르다.
 - 원인 분석에 `[AnimB1]`(검색 DB 목록)과 `[AnimB6]`(선택 DB)을 함께 보는 것이 결정적이었다. 목록에 전환 DB가 있어도 선택되지 않으면 진행 포즈가 이기는 것이다.
+
+### 5. 커밋 뒤 빌드 재확인
+
+- 커밋 c7c0571 뒤 깨끗한 트리에서 게임 타깃 `Build.bat`(LootNPop 에디터가 켜져 있어 게임 타깃) 성공, 65초, 경고 0. 에디터 타깃은 2절에서 성공했다. 그 뒤 바뀐 것은 cpp 본문(제자리 회전 인터럽트, CVar 삭제)과 헤더 주석뿐이고 Live Coding으로도 컴파일됐다.
