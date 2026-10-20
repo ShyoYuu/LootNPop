@@ -271,3 +271,7 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에�
 - 처음 시험한 `create_node`·`delete_node`·`break/connect`로 `ABP_Main_UEFN`이 dirty가 됐다. 에디터를 끌 때 저장하지 말아 달라고 사용자에게 알렸다.
 - Ctrl+C 텍스트의 `PropertyBindings`는 함수 이름 경로(`PathAsText`)로 묶인다. 같은 이름의 C++ 함수가 있으면 붙여넣기만으로 풀린다.
 - `get_properties`로 노드의 `bHasCompilerMessage`·`errorType`은 읽히지 않는다. 컴파일 결과는 출력 로그로 본다.
+
+### 6. 커밋 뒤 빌드 재확인
+
+- 커밋 aee2997 뒤 깨끗한 트리에서 게임 타깃 `Build.bat`(LootNPop 에디터가 켜져 있어 게임 타깃) 성공, 53초. 에디터 타깃은 같은 소스(임시 진단 로그를 넣기 전)로 3절에서 성공했다. 차이는 cpp 주석 한 줄과 Live Coding으로 넣었다 뺀 임시 로그뿐이다.
