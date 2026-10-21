@@ -69,7 +69,10 @@ void ALNPGameplayCueNotify_FlameStream::OnLocalHoldExpired()
 
 void ALNPGameplayCueNotify_FlameStream::StartStream(AActor* Target)
 {
-	if (StreamComponent && StreamComponent->IsActive())
+	// 활성 여부가 아니라 "이미 갖고 있나"로 판단한다 — 정지할 때 포인터를 비우므로 둘은 같아야 하지만,
+	// 시스템이 아직 로드·컴파일 중이면(에디터 기동 후 첫 PIE) 막 만든 컴포넌트가 잠시 IsActive() == false다.
+	// 그 사이 같은 프레임의 WhileActive가 두 번째 컴포넌트를 만들면 첫 번째를 잃어버려, 끄는 쪽 없이 무기 메시에 남았다.
+	if (IsValid(StreamComponent))
 		return;
 
 	const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(Target);
