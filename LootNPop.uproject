@@ -320,6 +320,10 @@
 		{
 			"Name": "GeometryProcessing",
 			"Enabled": true
+		},
+		{
+			"Name": "BlendStack",
+			"Enabled": true
 		}
 	]
 }

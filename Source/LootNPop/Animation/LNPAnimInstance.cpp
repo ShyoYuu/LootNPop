@@ -5,6 +5,7 @@
 #include "Character/LNPPlayerCharacter.h"
 #include "Item/LNPWeaponVisualSet.h"
 #include "Movement/LNPCharacterMoverComponent.h"
+#include "Movement/LNPModifierInputs.h"
 #include "LootNPop.h"
 
 #include "DefaultMovementSet/CharacterMoverComponent.h"
@@ -51,6 +52,13 @@ namespace
 	TAutoConsoleVariable<int32> CVarFootPlacementOnMovingBase(
 		TEXT("LNP.Anim.FootPlacementOnMovingBase"), 0,
 		TEXT("Allow foot pinning and the root damper of the foot placement Control Rig while standing on a moving movement base. 0: off (default), 1: on"),
+		ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> CVarAdditiveLeans(
+		TEXT("LNP.Anim.AdditiveLeans"), 1,
+		TEXT("Additive lean poses while moving (body lean from lateral acceleration, plus head lean when not free-aiming or locked on).\n")
+		TEXT("  0: off\n")
+		TEXT("  1: on"),
 		ECVF_Cheat);
 
 	TAutoConsoleVariable<int32> CVarDebugFootPlacement(
@@ -284,6 +292,8 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bIsCrouching  = MoverComponent->IsCrouching();
 	bIsSprinting  = MoverComponent->IsSprinting();
 	bIsGuarding   = MoverComponent->IsGuarding();
+	const FLNPModifierInputs* ModifierInputs = MoverComponent->GetLastInputCmd().InputCollection.FindDataByType<FLNPModifierInputs>();
+	bIsLockOn     = ModifierInputs && ModifierInputs->bIsLockOn;
 
 	// 4. 이동 방향 계산 — 캐릭터 Up 기준 부호각(+ 오른쪽).
 	// UKismetAnimationLibrary::CalculateDirection은 속도를 GetSafeNormal2D(월드 Z 제거)로 정규화해 적도에서 틀린 방향을 낸다.
@@ -484,7 +494,7 @@ void ULNPAnimInstance::UpdateLocomotionValues(float DeltaSeconds)
 	UpdateTrajectoryValues(DeltaSeconds);
 	UpdateStates(DeltaSeconds);
 
-	// --- Additive Lean 입력 (GASP Update_AdditiveLean, 레이어는 2-6) ---
+	// --- Additive Lean 입력 (GASP Update_AdditiveLean) ---
 	const FVector VelocityRight = FVector::CrossProduct(Up, PlaneVelocity.GetSafeNormal());
 	const float LateralAccelerationAmount = FMath::Clamp(
 		FVector::DotProduct(VelocityAcceleration, VelocityRight)
@@ -849,6 +859,17 @@ bool ULNPAnimInstance::IsFootPlacementDebugEnabled() const
 	return CVarDebugFootPlacement.GetValueOnAnyThread() > 0;
 }
 
+bool ULNPAnimInstance::ShouldApplyAdditiveLeans() const
+{
+	return MovementState == ELNPMovementState::Moving && CVarAdditiveLeans.GetValueOnAnyThread() > 0;
+}
+
+bool ULNPAnimInstance::ShouldApplyHeadLean() const
+{
+	// bShouldStrafe = FreeAim 무기(이동 방향으로 돌지 않는다). 락온은 무기와 무관하다
+	return !bShouldStrafe && !bIsLockOn;
+}
+
 FQuat ULNPAnimInstance::GetOffsetRootRotationDelta() const
 {
 	// 서브 ABP(링크 레이어)도 자기 AimYaw를 계산하므로 메인 인스턴스의 가상 루트를 읽는다
@@ -877,6 +898,7 @@ void ULNPAnimInstance::DrawLocomotionDebug() const
 	if (bJustLanded_Light)     Flags += TEXT(" LandL");
 	if (bJustLanded_Heavy)     Flags += TEXT(" LandH");
 	if (bJustTeleported)       Flags += TEXT(" Tele");
+	if (bIsLockOn)             Flags += TEXT(" LockOn");
 
 	// 2-3 구면 확인값: 가상 루트(B3)가 메시 컴포넌트에서 벌어진 거리·Yaw·기울기, 궤적 예측 facing(Steering 목표)의 Up이 캐릭터 Up에서 기운 최대각.
 	// 거리는 직전 평가의 가상 루트와 이번 프레임 메시를 비교하므로 한 프레임 이동량(속도 × dt)이 더해진다 — 실제 벌어짐은 노드가 MaxTranslationError로 자른다.
@@ -898,12 +920,13 @@ void ULNPAnimInstance::DrawLocomotionDebug() const
 
 	const FString Text = FString::Printf(
 		TEXT("%s %s %s %s %s (recent %s)\n")
-		TEXT("spd %.0f acc %.2f velAcc %.0f lean %.2f,%.2f\n")
+		TEXT("spd %.0f acc %.2f velAcc %.0f lean %.2f,%.2f %s%s\n")
 		TEXT("turn %.0f facing %.0f yawRate %.0f/%.0f\n")
 		TEXT("slope %.1f,%.1f based %.1f%s\n")
 		TEXT("root %s/%s %.1fcm yaw %.1f tilt %.2f trjTilt %.2f"),
 		*EnumName(MovementMode), *EnumName(MovementState), *EnumName(Gait), *EnumName(RotationMode), *EnumName(MovementDirection), *EnumName(MovementDirection_Recent),
 		GroundSpeed, AccelerationAmount, VelocityAcceleration.Size(), LeanAmount.X, LeanAmount.Y,
+		ShouldApplyAdditiveLeans() ? TEXT("on") : TEXT("off"), ShouldApplyHeadLean() ? TEXT("+head") : TEXT(""),
 		Trj_TurnAngle, FutureFacingDelta, Trj_PastYawRate, Trj_CurrentYawRate,
 		SlopeAngle_X, SlopeAngle_Y, BasedMovementDelta.GetTranslation().Size(), *Flags,
 		*EnumName(RootTranslationMode), *EnumName(RootRotationMode), RootDistance, RootYaw, RootTilt, TrajectoryFacingTilt);
@@ -914,12 +937,13 @@ void ULNPAnimInstance::DrawLocomotionDebug() const
 	if (CVarDebugLocomotion.GetValueOnGameThread() >= 2 && Now - LastOffsetRootLogTime >= 1.0)
 	{
 		LastOffsetRootLogTime = Now;
-		UE_LOG(LogLootNPop, Log, TEXT("[AnimB3] %s %s/%s %s speed %.0f root %s/%s dist %.1f yaw %.1f tilt %.2f trjTilt %.2f aimYaw %.1f"),
+		UE_LOG(LogLootNPop, Log, TEXT("[AnimB3] %s %s/%s %s speed %.0f root %s/%s dist %.1f yaw %.1f tilt %.2f trjTilt %.2f aimYaw %.1f lean %.2f,%.2f %s%s"),
 			*GetNameSafe(OwningMoverCharacter),
 			World && World->GetNetMode() == NM_Client ? TEXT("Client") : TEXT("Server"),
 			*StaticEnum<ENetRole>()->GetNameStringByValue(OwningMoverCharacter->GetLocalRole()),
 			*EnumName(MovementState), GroundSpeed, *EnumName(RootTranslationMode), *EnumName(RootRotationMode),
-			RootDistance, RootYaw, RootTilt, TrajectoryFacingTilt, AimYaw);
+			RootDistance, RootYaw, RootTilt, TrajectoryFacingTilt, AimYaw, LeanAmount.X, LeanAmount.Y,
+			ShouldApplyAdditiveLeans() ? TEXT("on") : TEXT("off"), ShouldApplyHeadLean() ? TEXT("+head") : TEXT(""));
 	}
 
 	// 초록 = 접평면 속도, 노랑 = 0.4~0.5s 예측 속도, 하늘 = 평활 지면 법선

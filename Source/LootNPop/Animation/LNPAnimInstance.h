@@ -199,6 +199,25 @@ protected:
 	UFUNCTION(BlueprintPure, Category = "LNP|FootPlacement", meta = (BlueprintThreadSafe))
 	bool IsFootPlacementDebugEnabled() const;
 
+	// ---------------------------------------------------------------------------------------------
+	// Additive Leans(B8). AnimGraph Leans 노드 묶음(무기 오버레이 뒤, 슬롯 앞)의 Bool 블렌드가 바인딩으로 호출한다(워커 스레드).
+	// BS 입력은 LeanAmount, 몸통 Walk↔Run α는 GroundSpeed(200~320 매핑)를 그대로 바인딩한다.
+	// ---------------------------------------------------------------------------------------------
+
+	/**
+	 * 기울기 적용(블렌드 0.3s). GASP 이동 상태 Blend와 같이 이동 상태 Moving일 때만, 공중도 포함한다
+	 * (GASP 이동 모드 Blend는 Sliding만 빼는데 LootNPop에는 Sliding이 없다). CVar LNP.Anim.AdditiveLeans 0이면 끈다.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LNP|AdditiveLeans", meta = (BlueprintThreadSafe))
+	bool ShouldApplyAdditiveLeans() const;
+
+	/**
+	 * 몸통 기울기에 머리 기울기(BS_Relaxed_Lean_Head)를 더할지(블렌드 0.3s). GASP는 EnableAO면 뺀다(AO와 겹치면 머리가 과회전한다).
+	 * LootNPop은 AO가 FreeAim 무기 서브 ABP에만 있고, 락온 중에는 시선이 타깃에 고정돼야 하므로 FreeAim·락온이면 뺀다.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LNP|AdditiveLeans", meta = (BlueprintThreadSafe))
+	bool ShouldApplyHeadLean() const;
+
 	/** OffsetRootBone 가상 루트의 월드 트랜스폼(메시 컴포넌트 축). 노드가 없으면 bHasOffsetRoot = false. 워커에서 쓰고 다음 게임 스레드 갱신이 읽는다 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|OffsetRoot")
 	FTransform OffsetRootTransform = FTransform::Identity;
@@ -262,6 +281,10 @@ protected:
 	/** 캐릭터가 현재 가드 중인가? Guard Modifier 활성 여부로 판단. ABP 분기에 사용. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
 	bool bIsGuarding;
+
+	/** 락온 중인가. 락온 컴포넌트·루즈 태그는 락온을 건 머신에만 있어서 InputCmd의 FLNPModifierInputs::bIsLockOn을 읽는다(원격·시뮬 프록시 포함). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	bool bIsLockOn = false;
 
 	/** Aim Offset: 카메라 Yaw - 캐릭터 Yaw 차이 (-180 ~ 180) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|AimOffset")
@@ -380,7 +403,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Ground")
 	FTransform BasedMovementDelta = FTransform::Identity;
 
-	/** 측면 가속 비율(-1~1)을 이동 방향에 맞춰 Lean 블렌드스페이스 입력으로 옮긴 값(레이어는 2-6) */
+	/** 측면 가속 비율(-1~1)을 이동 방향에 맞춰 Lean 블렌드스페이스 입력으로 옮긴 값(AnimGraph Leans 노드 묶음이 바인딩한다) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Locomotion")
 	FVector2D LeanAmount = FVector2D::ZeroVector;
 

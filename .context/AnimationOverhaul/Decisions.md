@@ -1,7 +1,7 @@
 # 애니메이션 개선 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-10-20
+> 마지막 갱신: 2026-10-21
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다. ID 접두어 `AN-`은 다른 작업 폴더(`D-`·`L-`)와 구분하기 위한 것이다.
 
 ## 결정 목록
@@ -30,6 +30,7 @@
 | AN-019 | GASP 5.8 `SKM_UEFN_Mannequin`에 붙어 온 포스트프로세스 ABP `ABP_UEFN_Mannequin_PostProcess`(머리 1.15배·허벅지 1.12배 고정 스케일)는 **쓰지 않는다.** 이 메시를 쓰는 스켈레탈 메시 컴포넌트마다 `bDisablePostProcessBlueprint = true`로 끈다(소스 메시는 수정하지 않는다). 지금은 `BP_LNPEnemy`의 `VisualMesh`다. 2-0b에서 `AnimSourceMesh`도 이 메시로 바뀌면 같은 설정을 넣는다. 끄는 이유: 사용자 PIE에서 체감 차이가 거의 없었다. ISKM은 이 ABP를 평가하지 않아 켜 두면 승격 때 비율이 바뀐다. 끄면 인스턴스마다 붙는 평가 비용도 없어진다. | 확정(2026-10-18, 사용자 결정) | [TechDesign_EnemyNPC.md](../TechDesign_EnemyNPC.md) §6 |
 | AN-020 | **몽타주 슬롯 그룹은 C++ 런타임 등록으로 맞춘다.** GASP `SK_UEFN_Mannequin`에는 슬롯 그룹이 `DefaultGroup{DefaultSlot}`·`Partials{UpperBody}`뿐이라, 그대로 전환하면 Lyra에서 `AdditiveGroup`이던 피격 몽타주가 공격 몽타주를 끊고 재장전 몽타주는 그룹 불일치 경고가 난다. Lyra와 같은 슬롯 → 그룹 표를 C++(`ULNPAnimInstance` 초기화 등)에서 `USkeleton`에 등록하고 스켈레톤 에셋은 저장하지 않는다(AN-018). 소스 스켈레톤 저장·몽타주 슬롯 이름 변경은 기각. 실행은 2-0b(`ULNPAnimInstance::NativeInitializeAnimation`, 2026-10-18 구현) | 확정(2026-10-18, 사용자 결정) | `phases/Phase02_GASPMoverABP.md` 2-0b 결정 B |
 | AN-021 | **경사(B5)는 발 배치 CR의 slope warping만 쓴다.** GASP 경사 BS(`BS_Relaxed_{Walk,Run}_Loop_F_Slopes`)는 SM 경로 Chooser(`CHT_MoverCharacterAnimations_PoseMatch`)만 참조하고, MM 경로(AN-015) PSD 스키마에는 경사 채널이 없어 MM이 경사각을 모른 채 BS 샘플을 고르게 된다. 경사 BS·시퀀스 반입과 Chooser 경사 행은 만들지 않는다. 경사 전용 애니가 필요해지면 가산 레이어나 PSD 경사 채널을 별도로 설계한다. | 확정(2026-10-20, 사용자 결정) | `design/GASPReference.md` §2.12 |
+| AN-022 | **Additive Leans(B8)는 무기 오버레이(`ApplyWeaponStyleOverlay`) 뒤, 몽타주 슬롯 앞에 둔다.** 무기 서브 ABP가 `spine_02` 위를 메시 공간 회전 블렌드로 덮어, 앞에 두면 무기를 든 상체의 기울기가 지워진다. 머리 기울기는 GASP `EnableAO` 대신 "FreeAim 무기도 락온도 아님"일 때만 더한다(C++ `ShouldApplyHeadLean`, 락온은 InputCmd에서 읽음). 오버레이 앞으로 옮기거나 무기 오버레이를 로컬 공간 블렌드로 바꾸면 이 결정을 다시 본다. | 확정(2026-10-21, 2-6 사용자 PIE 통과) | `design/GASPReference.md` §2.13 |
 
 ## 변경 규칙
 

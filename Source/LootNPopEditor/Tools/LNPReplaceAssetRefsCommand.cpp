@@ -15,6 +15,7 @@
 #include "Serialization/ArchiveReplaceObjectRef.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectHash.h"
+#include "UObject/FindObjectFlags.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogLNPReplaceAssetRefs, Log, All);
 
@@ -67,7 +68,7 @@ namespace
 		// 패키지 안의 오브젝트(에셋·BP CDO·그래프 노드 등)마다 따로 돌린다.
 		UPackage* Package = Target->GetOutermost();
 		TArray<UObject*> PackageObjects;
-		GetObjectsWithPackage(Package, PackageObjects, /*bIncludeNestedObjects=*/true);
+		GetObjectsWithPackage(Package, PackageObjects, EGetObjectsFlags::IncludeNestedObjects);
 		int64 ReplacedCount = 0;
 		for (UObject* Object : PackageObjects)
 		{

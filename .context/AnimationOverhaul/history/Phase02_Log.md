@@ -352,3 +352,40 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에�
 - 마지막 수정 뒤 사용자 리슨 2인 PIE(적도, 승격 적과 경사로 왕복, 서로 화면 관찰): 어색함 없음. 텔레포트 판정 80회 중 대부분은 적 승격·강등 스냅(적마다 서버·게스트 2회씩).
 - 임시 진단 코드는 커밋 전에 지웠다.
 - 커밋 0265f91 뒤 깨끗한 트리에서 게임 타깃 `Build.bat`(LootNPop 에디터가 켜져 있어 게임 타깃) 성공, 94초, 경고 0. 에디터 타깃은 진단 코드를 지우기 전 같은 소스로 성공했다(47초). 그 뒤 바뀐 것은 cpp의 임시 진단 블록 삭제뿐이다.
+
+## 2026-10-21 — 단위 2-6 B8 Additive Leans + ActorPromoted 적 전체 회귀 (Phase 2 종료)
+
+### 1. GASP 확인
+
+- 두 에디터(8000·8001) MCP 확인. GASP 쪽은 `AssetTools.get_dependencies`만 썼다(DSL 안 씀, 저장 없음).
+- `Saved/GASPRef/leans.txt`를 스크립트로 요약: 노드 21개(캐시 3, BS 플레이어 3, Mesh Space Additive 2, Enum 블렌드 2, Bool 1, TwoWayBlend 2). 바인딩은 `MovementMode`·`MovementState`·`LeanAmount.X/Y`·`Speed2D`(승격 바인딩)·`EnableAO`, 곡선은 `Disable_AdditiveLeans`. BS 축 보간 시간은 0이다(LootNPop 사본 MCP 읽기).
+- BS 의존 = 시퀀스 13개 + `SK_UEFN_Mannequin`. 16개 모두 LootNPop에 이미 있었다. 시퀀스 13개는 1C-3 `import_list_1C3.txt`에 들어 있어 해시가 같았다. BS 3개는 `identical_except_path_49.txt`(1C 분류 HEADER_ONLY — 1C-2 경로 이동 때 다시 저장돼 헤더만 다름)라 1C-3이 덮어쓰지 않았다.
+
+### 2. 위치 결정
+
+- 무기 서브 ABP 4종의 `ApplyWeaponStyleOverlay`를 MCP로 읽었다: `LayeredBoneBlend`(`spine_02` 깊이 2, 가중치 1, `bMeshSpaceRotationBlend` 참). 맨손은 통과다. 재장전 레이어드 블렌드(메인 ABP)도 `spine_01` 메시 공간이다.
+- 오버레이 앞에 두면 메시 공간 회전 블렌드가 `spine_03` 위를 무기 자세의 컴포넌트 공간 회전으로 덮어, 무기를 든 상태에서 상체 기울기가 지워진다 → 오버레이 뒤, 슬롯 앞으로 정했다. GASP처럼 몽타주 슬롯이 기울기를 덮는다.
+- 원거리 발사는 총구 소켓 위치에서 조준점으로 수렴하므로(`TechDesign_HitDetection.md` §7.7) 기울기가 AO 뒤에 얹혀도 명중은 그대로다.
+
+### 3. 반입·C++·빌드
+
+- 사용자가 LootNPop 에디터를 끈 뒤 BS 3개를 GASP 원본으로 덮어썼다(이전 사본 `Saved/AssetRefresh/2026-10-21/backup_pre2-6/`). 16개 해시 일치 `Saved/AssetRefresh/2026-10-21/import_list_2-6_sha256.txt`. git 제외 확인(`.gitignore` `Content/Characters/UEFN_Mannequin/`).
+- C++: `ShouldApplyAdditiveLeans`·`ShouldApplyHeadLean`(UFUNCTION, 스레드 세이프), `bIsLockOn`(InputCmd `FLNPModifierInputs`, 원격·시뮬 프록시 포함), CVar `LNP.Anim.AdditiveLeans`, 디버그 표시 `lean x,y on/off +head`·`LockOn` 플래그. 에디터 타깃 `-NoHotReloadFromIDE` 빌드 68초, 경고 0(GASP 에디터는 켜 둔 채).
+- 그 뒤 `[AnimB3]` 1초 로그에 Lean 값·적용 여부를 더했다(함수 본문만, Live Coding).
+
+### 4. ABP
+
+- `Scripts/AnimOverhaul/BuildLeansPaste_2-6.py`가 `leans.txt`를 바꿔 `Saved/AnimOverhaul/lnp_2-6_leans_paste.txt`를 만든다. 레이어 입·출력과 이동 모드 Enum을 빼고, 이동 상태 Enum을 머리 Bool의 사본(새 핀 GUID)으로 바꿔 `ShouldApplyAdditiveLeans`에 바인딩하고, 머리 Bool은 `ShouldApplyHeadLean`에 바인딩하면서 참·거짓 캐시 참조를 맞바꿨다. `Speed2D`(double, 승격) → `GroundSpeed`(float). 노드 이름에 `_Lean`을 붙여 ABP의 기존 `SaveCachedPose_0`(`PreUpperBody`)과 섞이지 않게 했다. 생성 뒤 링크 양방향 일관성 검사(불일치 0).
+- 클립보드에 넣어 사용자가 붙여넣고, MCP로 `ApplyWeaponStyleOverlay` → `PreLeanPose` 캐시, 곡선 TwoWayBlend → `Slot 'FullBodyAdditivePreAim'`을 이었다. 캐시 참조는 `get_node_infos`의 노드 제목으로 확인했다(`UseCachedPose.SaveCachedPoseNode`·`AnimGraphNodeBinding_Base.PropertyBindings`는 MCP `get_properties`로 읽히지 않는다).
+- 경고를 오류로 다루는 컴파일 통과(바인딩 경로가 틀리면 2-1처럼 `Invalid field` 경고가 난다) → 저장.
+
+### 5. 검증
+
+- 자체 PIE(MCP `StartPIE`, 상태 표시줄 Cmd에 `LNP.Anim.DebugLocomotion 2`): 권총(FreeAim) 정지 상태 `lean 0,0 off`(머리 기울기 꺼짐), 새 경고 없음. 플레이어가 가만히 있으면 적이 다가오지 않아 승격 적 로그는 두 번 시도해도 못 모았다.
+- 사용자 1인 PIE(맨손·롱소드·총기, 락온 스트레이프, ADS·이동 재장전, 콤보·대시·가드, 점프·활공·그래플, 랙돌, 적도)와 리슨 2인 PIE(게스트 화면에서 호스트·승격 적 이동·선회·출발·정지·제자리 회전·발 배치): "전체적으로 어색한 부분 없음". 그 구간 로그에는 디버그 CVar 명령이 없어(게임패드 `DebugManager` 명령뿐) Lean 수치 대조는 없다.
+- 사용자 PIE 구간 경고: Mover `UpDirection` 0 벡터(적 3기, 44회), 초기화 전 궤적 예측(스폰 순간), NetworkPrediction 롤백 5회 — 모두 10-20 로그에도 있던 기존 노이즈다.
+
+### 6. Phase 2 종료
+
+- 체크리스트 2-0a~2-6 완료. 최종 포즈 파이프라인은 `phases/Phase02_GASPMoverABP.md` "Phase 2 종료", 공통 설계는 `TechDesign_CombatAnimation.md` §1·§7.4에 반영했다.
+- ActorPromoted 적 회귀: 단위마다 2인 PIE로 확인했고(2-1 값 로그, 2-2·2-4 DB 변경 횟수, 2-5 텔레포트 판정·경사로 왕복), 2-6에서 최종 상태를 게스트 화면으로 다시 봤다.

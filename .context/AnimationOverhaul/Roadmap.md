@@ -2,7 +2,7 @@
 
 > 상태: 기준 로드맵
 > 읽기 조건: Phase 전환, 전체 순서 변경, 작업 범위 재산정 시
-> 마지막 갱신: 2026-10-20
+> 마지막 갱신: 2026-10-21
 
 ## 1. 진행 원칙
 
@@ -44,7 +44,7 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 | 1A | 물리 히트리액트 스파이크 | 1세션 | 완료(2026-10-18, RBWC 노드 방식 — `research/PhysicsHitReactSpike.md`) | 테스트 폰의 `VisualMesh` 상체에 PhysicsControl 임펄스, 적도에서 처짐 없음, 2인 PIE 각 머신 로컬 재생, 캡슐·Mover 무영향 |
 | 1B | 마커리스 모캡 스파이크 | 1~2세션 | 계획 | 영상 1클립 → MetaHuman 바디 → UEFN 리타깃 → 루트모션·검 방향 정리 → 공격 몽타주로 PIE 1타 |
 | 1C | GASP 소스 에셋 최신화 | 1C-1 대조표·백업 · 1C-2 경로 정렬 · 1C-3 덮어쓰기 · 1C-4 회귀 (3~4세션) | 완료(2026-10-18, 4세션. ISKM 인스턴싱 설정은 `Retargeted/` 사본에(AN-018), 포스트프로세스 ABP 끔(AN-019)) | 옛 GASP 유래 411개를 5.8 최신본으로 교체, 원본 경로 정렬·`.gitignore`(AN-016), 노티파이 리다이렉트(AN-017), LootNPop 산출물 보존, 깨진 참조 0, ISKM·승격 적 회귀 없음 (`phases/Phase01C_GASPAssetRefresh.md`) |
-| 2 | 스켈레톤 전환 + GASP Mover ABP 재구성 | 2-0a·2-0b 전환 2세션 + 블록당 1세션 6세션 | 진행 중(2-0a~2-4 완료 2026-10-18~20, `phases/Phase02_GASPMoverABP.md`) | 아래 §4. 블록마다 적도·NPC·2인 확인, 무기 레이어·슬롯·ANS 회귀 없음 |
+| 2 | 스켈레톤 전환 + GASP Mover ABP 재구성 | 2-0a·2-0b 전환 2세션 + 블록당 1세션 6세션 | 완료(2026-10-21, 8세션 2-0a~2-6, `phases/Phase02_GASPMoverABP.md`) | 아래 §4. 블록마다 적도·NPC·2인 확인, 무기 레이어·슬롯·ANS 회귀 없음 |
 | 3 | 물리 히트리액트 본 구현 | 2~3세션 | 계획 | 히트리액트 몽타주 대체, 방향·강도 반영, 플레이어·`ActorPromoted` 적, 2인 PIE |
 | 4 | 모캡 근접 세트 확충 | 무기 세트당 1~2세션 | 계획 | 루트모션 공격이 근접 보정 Motion Warping 경로를 탐, ANS 5종 배치, 칼날 판정 일치 |
 | 5 | UAF 판정 스파이크 | 1~2세션 | 계획 | 체크리스트(§4 Phase 5) 전 항목 판정, Go/No-Go 기록 |
@@ -91,7 +91,7 @@ MM 노드 방식(AN-015). 블록 정의는 `design/GASPReference.md` §2.2(B0~B1
 | 2-3 | B3 + B2 | **완료(2026-10-20).** MM 블렌드 스택 그래프에 GASP 체인(CopyBone×2 → Steering → 제자리 회전 Steering → OrientationWarping → ResetRoot, 함수는 C++), AnimGraph `DeadBlending` 뒤 `OffsetRootBone`(모드·반감기·지면 법선 C++, 전신 몽타주 Release, `MaxRotationError` 90°). `NativeThreadSafeUpdateAnimation`이 base 이동량·Up 정렬을 넣는다. AO·`FutureFacingDelta`는 가상 루트 기준 | 엔진 구면 함정 3건(지면 법선 월드 Z, 속도 클램프 `GetSafeNormal2D`, Accumulate가 캡슐 기울기를 안 따라감) 대응. 사용자 1·2인 PIE(적도·승격 적)·움직이는 발판 통과. 정지 회전은 미끄러짐(2-4 TurnInPlace). Stride Warping은 넣지 않음 |
 | 2-4 | B6 (+B7 착지) | **완료(2026-10-20).** 전환 DB 41개(Starts·Stops·Pivots·Turns·Spins·TurnInPlace·GaitTransitions·Lands, GASP 복제)와 스키마 7개, 시퀀스 239개 반입, `CHT_PoseSearchDatabases_UEFN` 52행(최근 방향·직전 보행 마스크, 속력 구간, 술어 6개). 인터럽트 예외 = 출발 프레임(유지 확정) + 정지 중 제자리 회전 요청. 착지 DB는 지상 첫 프레임만(AN-007 유지) | 사용자 1·2인 PIE(적도·승격 적) 회귀 없음, 제자리 회전 발 디딤 확인(소량 미끄러짐). `MaxRotationError` 90° 안전망 유지. 피벗·스핀은 LootNPop 고속 큰 호 탓에 거의 안 뽑힘 |
 | 2-5 | B4 + B5 | **완료(2026-10-20).** GASP CR 복제 `CR_Biped_FootPlacement_UEFN`(함수 참조 재연결, 구면 수정 3곳 — 루트 감쇠 Up 방향 지연량·핀 리그 공간 섞기), AnimGraph `OffsetRootBone` 뒤 CR 노드(알파 = 지상, 공중 IK 없음, `UseIKBoneTargets` 끔, 착지 리셋). 움직이는 base 위 핀 고정·루트 감쇠 끔. B5는 CR slope warping만(AN-021, 반입 없음) | PIE에서 고친 것: 발판 위 텔레포트 오탐, 느린 정지 걷기 유지(정지 프레임 인터럽트), 발판 위 다리 끊김·전신 움찔, **엔진 `OffsetRootBone` `MaxRotationError` 클램프의 적도 루트 기울어짐(구면 함정 4번째)**. 사용자 1·2인 PIE(적도) 회귀 없음 |
-| 2-6 | B8 + 적 검증 | Additive Leans 레이어(LeanAmount C++ 로컬 축), `ActorPromoted` 적 전체 회귀(AI 입력 궤적 예측, 게스트 재시뮬레이션 떨림) | 무기 서브 ABP 오버레이와의 순서 결정 |
+| 2-6 | B8 + 적 검증 | **완료(2026-10-21).** GASP `AdditiveLeans`를 AnimGraph 노드 묶음으로(분기는 C++ `ShouldApplyAdditiveLeans`·`ShouldApplyHeadLean`, 머리 기울기는 FreeAim·락온이 아닐 때만, 락온은 InputCmd에서 읽음). 위치는 **무기 오버레이 뒤·슬롯 앞** — 무기 서브 ABP가 `spine_02` 위를 메시 공간 회전 블렌드로 덮어 앞이면 상체 기울기가 지워진다. Leans 소스 16개는 1C에 이미 있었고 BS 3개만 GASP 원본으로 덮어써 해시를 맞췄다. `ActorPromoted` 적 전체 회귀 | 사용자 1·2인 PIE(적도·승격 적·게스트) 어색함 없음(육안). 최종 파이프라인은 `phases/Phase02_GASPMoverABP.md` "Phase 2 종료" |
 
 제외: B9 GASP Aim Offset(무기별 AO 유지), B11 래그돌 연동(AN-005, 곡선으로 PhysicsControl 강도를 주는 패턴만 Phase 3 참고), B12 상호작용 손 IK, Slide·Traversal·Debug Flying. 앉기(Crouch)는 입력이 생길 때까지 보류.
 
