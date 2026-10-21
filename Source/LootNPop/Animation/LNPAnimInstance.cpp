@@ -11,6 +11,7 @@
 #include "DefaultMovementSet/CharacterMoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverPoseSearchTrajectoryPredictor.h"
+#include "MoverDataModelTypes.h"
 #include "MoveLibrary/BasedMovementUtils.h"
 #include "Chooser.h"
 #include "ChooserFunctionLibrary.h"
@@ -433,14 +434,29 @@ void ULNPAnimInstance::UpdateLocomotionValues(float DeltaSeconds)
 	const float SafeDeltaSeconds = FMath::Max(DeltaSeconds, 0.001f);
 
 	// --- 궤적 생성 (GASP Update_Trajectory 앞부분) ---
-	if (TrajectoryPredictor)
+	FTransformTrajectory NewTrajectory;
+	const bool bCanPredictTrajectory = TrajectoryPredictor && MoverComponent->HasBeenInitialized()
+		&& MoverComponent->HasBegunPlay() && !MoverComponent->IsBeingDestroyed()
+		&& MoverComponent->GetMovementMode()
+		&& MoverComponent->GetSyncState().SyncStateCollection.FindDataByType<FMoverDefaultSyncState>();
+	if (bCanPredictTrajectory)
 	{
-		FTransformTrajectory NewTrajectory;
 		UPoseSearchTrajectoryLibrary::PoseSearchGenerateTransformTrajectoryWithPredictor(
 			TrajectoryPredictor.Get(), DeltaSeconds, Trajectory, PreviousDesiredControllerYaw, NewTrajectory,
 			TrajectoryHistoryInterval, TrajectoryHistoryCount, TrajectoryPredictionInterval, TrajectoryPredictionCount);
-		Trajectory = MoveTemp(NewTrajectory);
 	}
+	else
+	{
+		// BeginPlay 전에는 원점 기본 예측 대신 현재 메시 자세로 정지 궤적을 만든다. 이전 사용의 히스토리도 섞지 않는다.
+		FPoseSearchTrajectoryData::FSampling Sampling;
+		Sampling.NumHistorySamples = TrajectoryHistoryCount;
+		Sampling.SecondsPerHistorySample = TrajectoryHistoryInterval;
+		Sampling.NumPredictionSamples = TrajectoryPredictionCount;
+		Sampling.SecondsPerPredictionSample = TrajectoryPredictionInterval;
+		UPoseSearchTrajectoryLibrary::InitTrajectorySamples(NewTrajectory, Location,
+			GetSkelMeshComponent()->GetComponentQuat(), Sampling, DeltaSeconds);
+	}
+	Trajectory = MoveTemp(NewTrajectory);
 
 	// --- 필수값 (GASP Update_EssentialValues) ---
 	Velocity_LastFrame = bHasLocomotionHistory ? PreviousVelocity : Velocity;

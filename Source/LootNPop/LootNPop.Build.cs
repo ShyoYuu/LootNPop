@@ -33,6 +33,7 @@ public class LootNPop : ModuleRules
             "MassCommon",
             "MassEntity",
             "MassRepresentation",
+            "MassCrowd",
             "MassSpawner",
             "MassMovement",
             "MassActors",

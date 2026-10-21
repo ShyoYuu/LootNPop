@@ -628,7 +628,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		// 엔티티 Transform의 기준점은 **캡슐 중심**이다 — 발밑이 아니다.
 		// Actor가 붙어 있는 동안에는 MassAgentCapsuleCollisionSyncTrait(ActorToMass)가
 		// 캡슐 컴포넌트 Transform을 그대로 넣으므로 중심 기준이고, 피격 판정 프로세서와
-		// Actor 승격 시의 TeleportActor도 중심을 가정한다. 여기(Actor 없는 경로)만 표면점을
+		// 프로젝트 ActorManagement도 중심을 그대로 전달한다. 여기(Actor 없는 경로)만 표면점을
 		// 그대로 쓰면 LOD가 바뀔 때마다 좌표가 HalfHeight만큼 튄다.
 		// 구 내벽이라 Up은 중심 방향 = 반지름이 줄어드는 쪽이므로 표면 반지름에서 빼준다.
 		const float CapsuleHalfHeight = SharedFragment.Config->CapsuleHalfHeight;
@@ -1237,8 +1237,9 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 						Enemy->InitializeOnce(WeakConfig.Get());
 						Enemy->SyncFromEntity(Health, TState, Velocity);
 						const ULNPEnemyConfig* Config = WeakConfig.Get();
-						// Mass의 raw Actor teleport만으로는 Mover의 시뮬레이션 자세가 함께 초기화되지 않는다.
-						// 정적 접지 승격은 같은 층의 캡슐 중심을 검증하고 Mover 효과로 반영한다.
+						// raw Actor teleport만으로는 풀에 남은 Mover 상태가 갱신되지 않는다.
+						// 모든 승격에서 Entity 중심·자세를 전달하고, 정적 접지만 같은 층에 투영해 보정한다.
+						FTransform MoverTransform = ActivationTransform;
 						if (Config && !Config->IsFlying() && Velocity.IsNearlyZero() && Surface.IsValid())
 						{
 							const auto* Data = Enemy->GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
@@ -1254,13 +1255,14 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 									(Center - Params.GravityOrigin).GetSafeNormal(), Params.CapsuleHalfHeight, Surface, GroundedCenter))
 							{
 								const FVector Up = (Params.GravityOrigin - GroundedCenter).GetSafeNormal();
-								auto Teleport = MakeShared<FTeleportEffect>();
-								Teleport->TargetLocation = GroundedCenter + Up * 2.0;
-								Teleport->bUseActorRotation = false;
-								Teleport->TargetRotation = ActivationTransform.Rotator();
-								Enemy->GetMoverComponent()->QueueInstantMovementEffect(Teleport);
+								MoverTransform.SetLocation(GroundedCenter + Up * 2.0);
 							}
 						}
+						auto Teleport = MakeShared<FTeleportEffect>();
+						Teleport->TargetLocation = MoverTransform.GetLocation();
+						Teleport->bUseActorRotation = false;
+						Teleport->TargetRotation = MoverTransform.Rotator();
+						Enemy->GetMoverComponent()->QueueInstantMovementEffect(Teleport);
 						InEntityManager.AddTagToEntity(Entity, FLNPEnemyActorInitializedTag::StaticStruct());
 					}
 				});

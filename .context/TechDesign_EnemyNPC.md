@@ -329,14 +329,24 @@ Entity 모드, legacy(EnemyExactGround 0, 비교용 — Phase 6에서 제거):
 두 모드가 같은 `FTransformFragment`를 공유하므로 **기준점과 쓰기 권한을 하나로 못 박는다.**
 
 - **기준점은 언제나 캡슐 중심이다.** 발밑이 아니다.
-  피격 판정 프로세서(`|Axial| <= HalfHeight`), Actor 승격 시 엔진의 `TeleportActor`,
-  플레이어 엔티티가 모두 중심을 가정한다. Entity 모드에서 표면점을 쓸 때는
+  피격 판정 프로세서(`|Axial| <= HalfHeight`)와 플레이어 엔티티가 중심을 가정한다. Entity 모드에서 표면점을 쓸 때는
   `표면 반지름 - CapsuleHalfHeight`로 중심 반지름을 만든다 (구 내벽이라 Up이 반지름 감소 방향).
+  Actor 승격용 EntityConfig는 **`ULNPEnemyRepresentationActorManagement`** 를 사용한다. 기본 MassCrowd의
+  발밑 기준 월드 +Z 반높이 보정·Z sweep을 건너뛰고 중심을 그대로 전달한다. 메시 활성화·Puppet pause는
+  MassCrowd 구현을 상속한다. 게스트의 복제 Actor는 Representation에서 텔레포트하지 않고 Mover 복제를 따른다.
+  서버 ActorInitializer는 매 활성화마다 Entity 중심·회전을 Mover 효과로 전달한다. 같은 층의 접지 투영은
+  성공했을 때만 목표를 보정하며, 공중·지원면 없음·투영 실패도 원래 Entity 자세를 전달한다.
+  남반구 전환 누적 이동의 재현과 수정 근거는 [PIE 경고 분석 §10](Analysis_PIEWarnings_20261021.md#10-남반구-ismactor-전환-시-적도-방향-누적-이동-재현과-수정)을 참조한다.
 - **Actor로 그려지는 동안 Transform의 권한은 Mover 단독이다.** Mass는 읽기만 한다.
-  이를 보장하려고 EntityConfig의 `MassAgent*SyncTrait`를 **`ActorToMass`** 로 둔다
-  (플레이어 설정과 동일). 엔진 기본값 `BothWays`로 두면 `AddTranslator`가 양방향 태그를 전부
+  이를 보장하려고 EntityConfig와 BP 내부 MassAgentComponent의 Capsule Collision Sync Trait을 **`ActorToMass`** 로 둔다
+  (플레이어 설정과 동일). Puppet 연결 때 BP 내부 Config의 태그도 합쳐지므로 두 위치 모두 확인한다. 엔진 기본값 `BothWays`로 두면 `AddTranslator`가 양방향 태그를 전부
   아키타입에 심어 `UMassTransformToActorCapsuleTranslator`가 매 프레임 Mover의 변위를
   되쓰기로 지운다 — 걷기 모션만 재생되고 제자리에 멈추는 증상이 된다.
+
+  Mover Pawn에는 CMC 전용 `MassAgentMovementSyncTrait`·`MassAgentOrientationSyncTrait`을 붙이지 않는다.
+  플레이어 EntityConfig와 적 BP 내부 Config에서 두 Trait을 함께 제거했다. 위치·회전은 캡슐 Sync가
+  복사하고, 적 속도는 프로젝트 전용 `FLNPEnemyVelocityFragment`로 전달한다. CMC 추출 Error의
+  원인·제거 범위·PIE 검증 상태는 [PIE 경고 분석 §11](Analysis_PIEWarnings_20261021.md#11-cmc-전용-movementorientation-sync-trait-제거)을 참조한다.
 
   ⚠️ **판정 기준은 "Actor가 붙어 있는가"가 아니라 "Actor로 그려지는가"다.**
   `ALNPEnemyCharacter`는 `bReplicates = true`(ASC 복제용)라 서버가 승격시킨 적 Actor가
