@@ -389,3 +389,7 @@ LootNPop(8000)과 GASP(8001, 읽기 전용) 에디터를 함께 썼다. GASP에�
 
 - 체크리스트 2-0a~2-6 완료. 최종 포즈 파이프라인은 `phases/Phase02_GASPMoverABP.md` "Phase 2 종료", 공통 설계는 `TechDesign_CombatAnimation.md` §1·§7.4에 반영했다.
 - ActorPromoted 적 회귀: 단위마다 2인 PIE로 확인했고(2-1 값 로그, 2-2·2-4 DB 변경 횟수, 2-5 텔레포트 판정·경사로 왕복), 2-6에서 최종 상태를 게스트 화면으로 다시 봤다.
+
+### 7. 커밋 뒤 빌드 재확인
+
+- 커밋 08b57d8 뒤 깨끗한 트리에서 게임 타깃 `Build.bat`(LootNPop 에디터가 켜져 있어 게임 타깃) 성공, 476초, 경고 0. 이 커밋에 함께 넣은 빌드 경고 수정 2건은 경고가 사라졌다: `BlendStack` 플러그인 활성화(UBT 플러그인 참조 경고 없음), 에디터 모듈 `LNPReplaceAssetRefsCommand.cpp`는 에디터 타깃 `-SingleFile` 컴파일(링크 없음, 17초)로 `GetObjectsWithPackage` 경고 없음을 확인했다.
