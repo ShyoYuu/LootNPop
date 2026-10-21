@@ -34,7 +34,7 @@
 - [x] 스파이크 사본 폴더 삭제
 - [x] PIE ① 방향성 비교 — 모드 1·2·4와 8 조합을 같은 조건에서 비교해 기본값을 고른다
 - [x] PIE ② 확인 묶음 — HitStop, 사망 랙돌 진입·`ExitRagdoll` 표현 풀 재사용, 캡슐·Mover·판정 무영향, 근접 콤보·가드·패링 중 피격, 적도 근처, 승격 적, 리슨 2인 각 머신 로컬 재생
-- [ ] 커밋 뒤 깨끗한 트리에서 `Build.bat` 재확인
+- [x] 커밋 뒤 깨끗한 트리에서 `Build.bat` 재확인
 - [x] 문서: 이 체크리스트, `history/Phase03_Log.md`, `Roadmap.md`, `Current.md`(3-2 첫 행동·필요한 결정), `research/PhysicsHitReactSpike.md`(방향성 비교 결과), 공통 설계가 바뀌면 `TechDesign_CombatAnimation.md` §6.4
 
 ### 3-1 결과 (2026-10-21, 상세 `history/Phase03_Log.md`)
