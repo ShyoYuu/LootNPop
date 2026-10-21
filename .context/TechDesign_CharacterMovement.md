@@ -86,7 +86,7 @@ UE 5.8 **Mover 2.0** 기반. 구형 중력(위치마다 Up이 다른 Dyson Spher
 | 2 | **`LNPRagdollPivotOffset`** | 랙돌일 때만 피벗을 중력 Up 방향으로 이동(§9.4). **BoomArm 앞** | 캐릭터 중력 Up |
 | 3 | `BoomArm` | Yaw/Pitch 회전 + 피벗 조인트 발행. `BoomOffset = (0,0,0)` | **Roll=0 월드 Z-Up** |
 | 4 | **`LNPGravityRollCorrection`** | 피벗 회전을 중력 정렬로 보정 (위치·회전 동시) | — |
-| 5 | `DampenPosition` | 고무줄 지연. `DampenSpace = CameraPose` | 4번이 보정한 회전 |
+| 5 | `LNPMovementBaseDamping` → `DampenPosition` | 이동패널 운반분을 제외한 고무줄 지연. `DampenSpace = CameraPose` | 패널 운반 좌표계에서 4번이 보정한 회전 |
 | 6 | `Offset` (카메라오프셋) | 붐 거리. `CameraOffset` 파라미터. `OffsetSpace = CameraPose` | 4번이 보정한 회전 |
 | 7 | `CollisionPush` | 카메라가 지형을 뚫지 않게 피벗(safe position) 쪽으로 당김. 엔진 기본값(`Pivot`·`ECC_Camera`·구 10cm·동기 sweep, 플레이어 폰 무시). **위치를 바꾸는 노드 중 맨 뒤** — 앞에 두면 뒤 노드가 붐을 다시 늘려 지형을 뚫는다 | 3번이 발행한 피벗 |
 | 8 | `FieldOfView` / `PostProcess` | 포즈 미변경 | — |
@@ -102,6 +102,14 @@ UE 5.8 **Mover 2.0** 기반. 구형 중력(위치마다 Up이 다른 Dyson Spher
 **배치 제약**
 - `BoomArm` **뒤** — 피벗 조인트를 읽어야 한다. 앞에 두면 조인트가 없어 no-op.
 - `DampenPosition`·`Offset` **앞** — 이들이 `CameraPose` 회전을 프레임으로 쓰므로 먼저 보정돼야 감쇠 Vertical 축과 오프셋이 중력 Up 기준이 된다.
+
+**이동패널과 카메라 지연.** `LNPMovementBaseDamping`은 기존 `DampenPosition`을 자식으로 실행한다.
+Mover의 movement base가 `ALNPMovingPanel`일 때 연속된 두 평가 사이 패널의 위치·회전 변화를 누적하고,
+입력 포즈를 그 운반 좌표계로 되돌려 감쇠한 뒤 월드 좌표로 복원한다. 패널 운반은 즉시 따라가고
+패널에 대한 캐릭터 이동은 기존 감쇠를 받는다. 메시의 비균일 스케일은 운반에서 제외한다.
+승하차·패널 교체 시에는 누적 좌표계를 유지하되 서로 다른 base 사이의 변환은 적용하지 않아 위치 점프를 막는다.
+자식은 `DampenSpace = CameraPose`를 사용하며 기존 3축 감쇠 파라미터 연결은 유지한다. ADS·활공 래퍼도 같은 리그를 공유한다.
+입력 유무로 감쇠를 켜고 끄는 방식이 아니므로 점프·관성·넉백의 기존 지연은 유지한다.
 
 ### 2.5 ⚠️ 카메라 노드에서 "내 폰"을 얻는 법 (2026-08-21 실측)
 

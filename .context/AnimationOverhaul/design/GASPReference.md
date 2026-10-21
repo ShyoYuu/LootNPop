@@ -286,7 +286,10 @@ GASP `SandboxCharacter_Mover_ABP`를 MCP(`find_nodes`·`get_node_infos`·`get_pr
 | `MaxRotationError` | −1(제한 없음) | **90°**(2-5부터 노드는 −1, C++가 Up 둘레로 제한 — 노드 클램프는 적도에서 루트를 기울인다, §2.12) — 제자리 회전 DB가 없는 동안 정지 중 허리가 180°까지 꺾이는 것을 막는다. 2-4 뒤에도 안전망 |
 | `bClampToTranslationVelocity` | 바인딩 `IsMoving` | 끔(엔진이 `GetSafeNormal2D` 사용) |
 | 지면 법선 | 기본 월드 (0,0,1) | `GetOffsetRootGroundNormal` = 컴포넌트 Up |
-| base 이동량 | `OnUpdate`에서 `ApplyDeltaToOffsetRootBone(BasedMovementDelta)` | `NativeThreadSafeUpdateAnimation`(그래프 갱신 직전)이 태그로 노드를 찾아 더하고 Up 정렬까지 한다. ABP 노드 함수 없음 |
+| base 이동량 | `OnUpdate`에서 `ApplyDeltaToOffsetRootBone(BasedMovementDelta)` | `NativeThreadSafeUpdateAnimation`(그래프 갱신 직전)이 태그로 노드를 찾아 이동·회전 각각 `Accumulate`·`Interpolate` 모드일 때만 운반분을 더하고 Up 정렬한다. `Release`·`LockOffset*`는 엔진이 컴포넌트 변화를 이미 더하므로(엔진 `ShouldCounterComponentDelta`) 중복 보정하지 않는다. ABP 노드 함수 없음 |
+
+- **이동패널 위 정지 시 루트 선행 수정(2026-10-21):** `Release`에서도 base 이동량을 더하던 코드가 엔진의 컴포넌트 델타 반영과 중복되어, 왕복 방향에 따라 가상 루트가 ±30cm(`MaxTranslationError`)까지 앞섰다. 카메라 감쇠를 꺼도 조준점과 메시 사이의 간격이 바뀌던 원인이다. 위 모드별 분기로 운반분의 반영을 한 번으로 제한한다.
+  정지 탑승 왕복을 각각 25초 기록한 결과, 루트의 진행 방향 오차는 수정 전 약 ±30cm에서 수정 후 ±0.12cm 이내로 줄었다. Live Coding 컴파일과 사용자 ADS 양방향 비교에서 개선을 확인했다. 사용자 걷기·스프린트·점프·대시 플레이에서도 어색한 부분이 없음을 확인했다.
 
 - GASP는 AO·`RootTransform` 계산을 오프셋 루트 기준으로 한다. LootNPop도 AO(`AimYaw`/`AimPitch`)와 `FutureFacingDelta` 첫 기준을 가상 루트로 바꿨다(서브 ABP는 메인 인스턴스 값을 읽는다).
 - 정지 회전(2-4 갱신): TurnInPlace DB가 생겨 제자리 회전은 회전 클립 + 두 번째 Steering이 맡는다. `MaxRotationError` 90°는 안전망으로 남겼다(정지 중 가상 루트 Yaw p95 73°, §2.11).

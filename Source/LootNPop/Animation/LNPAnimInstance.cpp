@@ -377,9 +377,18 @@ void ULNPAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
 	if (OffsetRootNode == nullptr)
 		return;
 
-	// GASP OnUpdate_OffsetRootBone: 움직이는 base가 캐릭터를 옮긴 만큼 가상 루트도 옮긴다(안 하면 base 위에서 메시가 뒤처진다)
-	FVector Translation = OffsetRootNode->GetOffsetRootTranslation() + BasedMovementDelta.GetTranslation();
-	FQuat Rotation = BasedMovementDelta.GetRotation() * OffsetRootNode->GetOffsetRootRotation();
+	// Release·LockOffset 계열은 엔진 노드가 컴포넌트 이동·회전을 이미 더한다. 이때 base를 다시 더하면 메시가 진행 방향으로 밀린다.
+	// 컴포넌트 변화를 따라가지 않는 Accumulate·Interpolate에서만 base 운반분을 직접 보충한다(엔진 ShouldCounterComponentDelta의 반대).
+	const auto DoesNotFollowComponent = [](EOffsetRootBoneMode Mode)
+	{
+		return Mode == EOffsetRootBoneMode::Accumulate || Mode == EOffsetRootBoneMode::Interpolate;
+	};
+	FVector Translation = OffsetRootNode->GetOffsetRootTranslation();
+	if (DoesNotFollowComponent(GetOffsetRootTranslationMode()))
+		Translation += BasedMovementDelta.GetTranslation();
+	FQuat Rotation = OffsetRootNode->GetOffsetRootRotation();
+	if (DoesNotFollowComponent(GetOffsetRootRotationMode()))
+		Rotation = BasedMovementDelta.GetRotation() * Rotation;
 
 	// 구면: Accumulate·Interpolate 모드는 캡슐 회전 변화를 가상 루트에 더하지 않아, 구면을 따라 이동하면 캡슐 Up만 돌고 메시가 기운다.
 	// 매 프레임 가상 루트 Up을 컴포넌트 Up으로 스윙만 맞춘다(Yaw 오프셋은 노드 몫으로 남긴다).
