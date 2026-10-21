@@ -136,7 +136,7 @@ VisualMesh ──┬─ 플레이어: SKM_Manny_Simple(MoverSample) + ABP_Retarg
    랙돌·물리 히트리액트의 대상. 무기 메시는 VisualMesh 소켓에 붙는다
 ```
 
-- **적은 Leader Pose가 아니라 ABP 노드로 복사한다.** Leader Pose면 `VisualMesh`가 ABP를 돌리지 않아, 물리 히트리액트용 RigidBodyWithControl 노드를 둘 곳이 없다. Phase 3에서 두 표시 ABP(`ABP_Retarget`·`ABP_VisualCopyPose`)의 왼손 IK(§4.2) 뒤, 출력 앞에 RBWC를 넣는다(→ AnimationOverhaul `research/PhysicsHitReactSpike.md` §1.5·§6).
+- **적은 Leader Pose가 아니라 ABP 노드로 복사한다.** Leader Pose면 `VisualMesh`가 ABP를 돌리지 않아, 물리 히트리액트용 RigidBodyWithControl 노드를 둘 곳이 없다. Phase 3-1에서 두 표시 ABP(`ABP_Retarget`·`ABP_VisualCopyPose`)의 왼손 IK(§4.2) 뒤, 출력 앞에 RBWC를 넣었다(§6.4, → AnimationOverhaul `research/PhysicsHitReactSpike.md` §1.5·§6).
 - **`AnimSourceMesh`에도 포스트프로세스 ABP를 끈다**(AnimationOverhaul AN-019). GASP 5.8 메시에 붙어 온 `ABP_UEFN_Mannequin_PostProcess`의 머리·허벅지 고정 스케일이 포즈 원본에 들어가지 않게 한다.
 - **플레이어 리타기터 `RTG_GASP_to_MS`의 대상 IK 리그는 `IK_MS_FootGoal`이다.** MoverSample `IK_Mannequin`을 복제해 다리 체인 끝·목표를 `foot`으로 옮기고 다리 목표를 솔버에서 뗐다. 다리는 FK로 원본 회전을 그대로 받고, IK는 팔만 풀어 무기 그립(오른손 기준 왼손 위치)을 맞춘다. 원본 리그의 다리 목표(`ball`)를 그대로 풀면 달릴 때 다리가 프레임마다 100° 넘게 뒤집힌다. 대상 리타깃 포즈는 **정렬하지 않은 기본 포즈**다. `auto_align_all_bones`로 정렬하면 견착 위치 오차는 줄지만 위팔·아래팔 기준 자세가 13°·22° 돌아 총구가 27° 숙여진다(세 총 모두). 정렬하지 않으면 총구 방향은 Lyra와 같고, 총이 상체에 대해 약 9cm 뒤·4cm 위에 남는다 → 무기별 견착 보정(§4.2 아래)으로 맞춘다. 원본 UEFN 리그에 없는 대상 체인(트위스트·`ik_*`)은 매핑하지 않고, op 스택 맨 앞의 Copy Base Pose가 본 이름으로 로컬 포즈를 복사한다. 설정 스크립트 `Scripts/AnimRetarget/FixGASPtoMSRetargeter.py`(`verify` 인자로 튐·그립 측정).
 - **몽타주 슬롯 그룹은 C++가 맞춘다**(AnimationOverhaul AN-020). GASP `SK_UEFN_Mannequin`에는 `DefaultGroup{DefaultSlot}`·`Partials{UpperBody}`뿐이라, `ULNPAnimInstance::NativeInitializeAnimation`이 Lyra와 같은 표를 `USkeleton`에 런타임 등록한다: `DefaultGroup` ← `DefaultSlot`·`FullBody`·`FullBodyAdditivePreAim`·`UpperBody`·`UpperBodyAdditive`, `AdditiveGroup` ← `AdditiveHitReact`. 이게 없으면 ① 피격 몽타주가 공격과 같은 그룹이 되어 공격을 끊고 ② 재장전(`UpperBody` + `UpperBodyAdditive`)은 그룹이 갈려 `HasValidSlotSetup()`에 걸려 **재생되지 않는다**. `SetSlotGroupName`은 패키지를 dirty로 만들지 않는다. ⚠️ 에디터에서 `SK_UEFN_Mannequin`을 열어 저장하면 이 그룹이 소스 에셋에 들어간다 — 저장하지 말 것(AN-018).
@@ -168,7 +168,7 @@ AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstanc
 - **그립 목표:** 무기 메시의 `LeftHandGrip` 소켓이 우선이다(롱소드). 소켓이 없는 Lyra 총기 메시(라이선스 원본이라 소켓을 추가하지 않는다)는 표현 세트의 `ULNPWeaponVisualSet::LeftHandGripOffset`(무기 메시 컴포넌트 공간, `bUseLeftHandGripOffset`)을 쓴다. 값은 전환 전 Lyra 경로의 조준 아이들(서브 ABP 기본 자세)에서 잰 `hand_l` 위치다(`Scripts/AnimRetarget/ComputeLeftHandGripOffsets.py`). 라이플 (6.5, 29.7, 7.0)·샷건 (7.3, 27.8, 6.9), 권총은 리타깃만으로 맞아 쓰지 않는다. Lyra 원본에서도 조준과 힙파이어의 무기 기준 왼손 위치가 2.5cm쯤 다르다.
 - `ULNPAnimInstance`가 매 프레임 그립 월드 위치(`LeftHandGripLocation`)·존재 여부(`bHasLeftHandGrip`)·알파(`LeftHandIKAlpha`)를 갱신한다. 알파는 소켓 그립이면 1이다. 오프셋 그립이면 `1 − max(DisableLHandIK 커브, DefaultSlot·FullBody·UpperBody 몽타주 가중치)`로, 재장전·대시·경직 동안 손이 그립을 떠날 수 있게 한다. 사격·피격은 가산 슬롯이라 IK를 유지한다. 커브·몽타주는 포즈 원본(`AnimSourceMesh`) 인스턴스에서 읽는다(표시 ABP도 이 클래스를 부모로 쓴다). `DisableLHandIK` 커브는 Lyra 라이플 재장전에만 있다.
 - **견착 보정(플레이어만):** `ULNPWeaponVisualSet::RightHandCorrection`(무기 공간 cm)만큼 `ABP_Retarget`의 오른팔 Two Bone IK가 손을 옮긴다(Effector = BoneSpace `hand_r` + `ULNPAnimInstance::RightHandIKOffset`, 관절 목표 = 현재 `lowerarm_r`, 손 회전 유지). 무기가 따라가고 왼손 그립 IK도 무기 기준이라 함께 따라간다. 값은 정렬하지 않은 런타임 리타깃 결과의 "오른손 `spine_05` 기준 위치"를 Lyra와 같게 만드는 이동량이다(`ComputeLeftHandGripOffsets.py`가 계산). 라이플 (0.5, 8.7, −3.8)·샷건 (0.1, 9.7, −3.9)·권총 (1.9, 6.7, −4.9) — Y가 총구 쪽, Z가 위. 알파 `RightHandIKAlpha`는 왼손 오프셋 그립과 같은 몽타주·커브 차단을 따른다. 승격 적(UEFN 표시 메시)은 오차가 달라 넣지 않았다. 순서: 리타깃 → 오른팔 IK → 왼손 IK → 출력.
-- **IK는 두 군데다.** ① 포즈 원본: `ABP_Sub_LongSword_UEFN`의 Two Bone IK(`bHasLeftHandGrip`) — 롱소드만. ② **표시 메시**: `ABP_Retarget`(플레이어)·`ABP_VisualCopyPose`(승격 적)의 포즈 노드 뒤 Two Bone IK(`hand_l` → `LeftHandGripLocation`, 알파 `LeftHandIKAlpha`). 무기가 `VisualMesh` 소켓에 붙어 있으므로 ②에서 맞춰야 리타깃(UEFN → MoverSample) 비율 차이와 무관하게 그립에 닿는다. Phase 3 RBWC는 ② 뒤에 둔다.
+- **IK는 두 군데다.** ① 포즈 원본: `ABP_Sub_LongSword_UEFN`의 Two Bone IK(`bHasLeftHandGrip`) — 롱소드만. ② **표시 메시**: `ABP_Retarget`(플레이어)·`ABP_VisualCopyPose`(승격 적)의 포즈 노드 뒤 Two Bone IK(`hand_l` → `LeftHandGripLocation`, 알파 `LeftHandIKAlpha`). 무기가 `VisualMesh` 소켓에 붙어 있으므로 ②에서 맞춰야 리타깃(UEFN → MoverSample) 비율 차이와 무관하게 그립에 닿는다. Phase 3 RBWC는 ② 뒤에 있다(§6.4).
 
 ### 4.3 Guard 자세 분기
 
@@ -285,7 +285,11 @@ UE는 `Montage_Stop` 취소 시에도 활성 ANS에 `NotifyEnd`를 보장한다.
 
 ### 6.4 히트리액트
 
-`PlayHitReact(HitFromWorldDir)`: 피격 방향을 로컬 공간으로 변환 → 4방향 태그 분류 → `PlayMontage(HitReaction, Direction)`. `GameplayCue.LNP.Character.HitReact` 노티파이가 몽타주와 피격자 HitStop(0.08초)을 함께 재생한다. 근접 공격자 쪽 HitStop(본인 0.2초 / 구경꾼 0.08초)은 별도 경로다(→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md)).
+`PlayHitReact(HitFromWorldDir, ImpactPoint, Damage, bMelee)`: 피격 방향을 로컬 공간으로 변환 → 4방향 태그 분류 → `PlayMontage(HitReaction, Direction)`. 이어서 `VisualMesh` 상체 물리 반응을 덧붙인다(아래). `GameplayCue.LNP.Character.HitReact` 노티파이가 이 둘과 피격자 HitStop(0.08초)을 함께 재생한다. 근접 공격자 쪽 HitStop(본인 0.2초 / 구경꾼 0.08초)은 별도 경로다(→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md)).
+
+**큐 파라미터 규약** — 서버의 `FLNPApplyDamageGECommand`가 정한다: `Location` = 맞은 지점, `Normal` = 피격자 → 공격자, `RawMagnitude` = 피해, `NormalizedMagnitude` = 근접이면 1. 두 크기 필드는 0이면 직렬화되지 않는다. 큐를 낼지와 근접 여부는 `ELNPHitReactKind`(None = 화염·화상 틱처럼 큐 없음 / Ranged / Melee)다.
+
+**물리 히트리액트**(애니메이션 개선 Phase 3, 코스메틱·비복제 AN-004) — 두 표시 ABP(`ABP_Retarget`·`ABP_VisualCopyPose`, 부모 `ULNPPhysicalHitReactAnimInstance` : `ULNPAnimInstance`)의 왼손 IK 뒤·출력 앞 RigidBodyWithControl 노드가 피격 구간에만 알파를 올린다(유지 0.15초 + 페이드 0.35초, 애님 시간이라 HitStop만큼 늘어난다. 상시 켜면 이동만으로 상체가 출렁인다). 골반·다리는 키네마틱, 상체는 30Hz 부모 공간 모터로 애니 포즈에 복귀하고, 중력은 끈다(구면). 세기 = `clamp(피해/20, 0.5, 2) × (근접 1.5)`. 방향성은 CVar `LNP.Anim.PhysHitReactMode` 비트(1 가슴 선속도·2 젖힘·4 맞은 지점 임펄스·8 강도 낮추기·16 몽타주 생략)이고 기본값은 12다. 랙돌 중에는 알파 0이고 그 사이 온 피격은 버린다(표현 풀 재사용 대비). 설정·비교 근거는 AnimationOverhaul `research/PhysicsHitReactSpike.md`.
 
 **히트리액트 몽타주에는 입력 차단 ANS를 붙이지 않는다** (2026-08-29 결정). 행동을 끊는 판단은 경직 시스템(→ [TechDesign_Ability.md §2.5](TechDesign_Ability.md))이 하고, 히트리액트는 코스메틱이다.
 

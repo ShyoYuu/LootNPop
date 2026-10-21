@@ -88,7 +88,7 @@ void ULNPBurnProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutio
 				{
 					// 틱 피해라 HitReact 몽타주를 억제한다 (원뿔 피격과 같은 이유).
 					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Actor, EffectClass, Damage, FVector::ZeroVector,
-						Actor->GetActorLocation(), /*KnockbackStrength*/ 0.f, /*bSuppressHitReact*/ true);
+						Actor->GetActorLocation(), /*KnockbackStrength*/ 0.f, ELNPHitReactKind::None);
 					if (bLog)
 						UE_LOG(LogLootNPop, Log, TEXT("[Burn] entity=%d tick GE stacks=%d damage=%.1f remaining=%.2f"),
 							Ctx.GetEntity(i).Index, Burn.Stacks, Damage, Burn.TimeRemaining);

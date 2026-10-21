@@ -26,18 +26,6 @@
 
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 
-namespace
-{
-	// 애니메이션 개선 Phase 1A 스파이크 — 물리 히트리액트 ABP 사본을 켜는 스위치와 임펄스 크기.
-	TAutoConsoleVariable<FString> CVarPhysHitReactSpikeABP(
-		TEXT("LNP.Anim.PhysHitReactSpikeABP"), TEXT(""),
-		TEXT("Spike: anim class applied to VisualMesh at BeginPlay, e.g. /Game/Characters/PhysHitReactSpike/ABP_Retarget_PhysHitSpike.ABP_Retarget_PhysHitSpike_C. Empty: off. Set before PIE starts."));
-
-	TAutoConsoleVariable<float> CVarPhysHitReactImpulse(
-		TEXT("LNP.Anim.PhysHitReactImpulse"), 250.f,
-		TEXT("Spike: upper-body velocity change (cm/s) added on hit react when VisualMesh runs the physical hit react ABP."));
-}
-
 ALNPCharacterBase::ALNPCharacterBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -221,16 +209,6 @@ void ALNPCharacterBase::BeginPlay()
 
 	MontageCtx = NewObject<ULNPMontageChooserContext>(this);
 
-	// Phase 1A 스파이크: CVar가 켜져 있으면 VisualMesh 애님 클래스를 물리 히트리액트 사본으로 바꾼다.
-	const FString SpikeABPPath = CVarPhysHitReactSpikeABP.GetValueOnGameThread();
-	if (!SpikeABPPath.IsEmpty() && VisualMesh)
-	{
-		if (UClass* SpikeABPClass = LoadClass<UAnimInstance>(nullptr, *SpikeABPPath))
-			VisualMesh->SetAnimInstanceClass(SpikeABPClass);
-		else
-			UE_LOG(LogLootNPop, Warning, TEXT("PhysHitReactSpike: failed to load anim class '%s'"), *SpikeABPPath);
-	}
-
 	// 무기 원본(EquipmentComponent::WeaponSlot / EnemyConfig)이 이 시점에 이미 도착해 있을 수 있으므로
 	// 무조건 맨손으로 링크하지 않고 현재 값을 존중한다 (풀 방향). 아직 없으면 nullptr = 맨손 레이어 링크.
 	ApplyWeaponVisuals(ResolveWeaponDefForVisuals());
@@ -380,7 +358,7 @@ void ALNPCharacterBase::EquipTestWeapon(int32 SlotIndex)
 	RequestEquipWeapon(Target);
 }
 
-void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir)
+void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir, FVector ImpactPoint, float Damage, bool bMelee)
 {
 	UAnimInstance* Anim = GetAnimInstance();
 	if (!Anim)
@@ -397,15 +375,26 @@ void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir)
 	else if (Angle >= -135.0f && Angle <  -45.0f) Direction = TAG_Montage_Value_Direction_Left;
 	else                                          Direction = TAG_Montage_Value_Direction_Front;
 
-	PlayMontage(TAG_Montage_Situation_HitReaction, Direction);
+	// 몽타주 대체 판단용: 방향성 모드에 비트 16이 있으면 히트리액트 몽타주를 건너뛰고 물리만 본다(애니메이션 개선 3-1).
+	static const IConsoleVariable* PhysHitReactModeCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.PhysHitReactMode"));
+	const bool bSkipHitReactMontage = PhysHitReactModeCVar && (PhysHitReactModeCVar->GetInt() & 16);
+	if (!bSkipHitReactMontage)
+		PlayMontage(TAG_Montage_Situation_HitReaction, Direction);
 
-	// Phase 1A 스파이크: VisualMesh가 물리 히트리액트 ABP일 때만 상체 임펄스를 덧붙인다. 그 외에는 no-op.
+	static const IConsoleVariable* PhysHitReactLogCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.PhysHitReactLog"));
+	if (PhysHitReactLogCVar && PhysHitReactLogCVar->GetBool())
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("[PhysHitReact] %s hit react montage %s (%s)"),
+			*GetName(), bSkipHitReactMontage ? TEXT("skipped") : TEXT("played"), *Direction.ToString());
+	}
+
+	// 몽타주 위에 VisualMesh 상체 물리 반응을 덧붙인다(표시 ABP의 RBWC 노드, 코스메틱·비복제 AN-004).
 	// 공격이 날아온 반대쪽으로, 캐릭터 Up에 수직인 접평면 안에서 민다(구면 월드에서 위아래로 튀지 않게).
 	if (ULNPPhysicalHitReactAnimInstance* PhysAnim = VisualMesh ? Cast<ULNPPhysicalHitReactAnimInstance>(VisualMesh->GetAnimInstance()) : nullptr)
 	{
 		const FVector PushDir = FVector::VectorPlaneProject(-HitFromWorldDir, GetUpDirection()).GetSafeNormal();
 		if (!PushDir.IsZero())
-			PhysAnim->QueueHitImpulse(PushDir * CVarPhysHitReactImpulse.GetValueOnGameThread());
+			PhysAnim->QueueHitReact(PushDir, ImpactPoint, Damage, bMelee);
 	}
 }
 

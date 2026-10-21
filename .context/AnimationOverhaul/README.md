@@ -36,7 +36,7 @@ UE 5.8 Game Animation Sample(이하 GASP)의 애니메이션 구성을 LootNPop�
 | UE 5.8 기능 사실(UAF·PhysicsControl·Locomotor·마커리스·워핑 노드 Up 축) | `research/UE58_AnimationFeatures.md` |
 | GASP 블록별 구성 조사 결과 | `design/GASPReference.md` (Phase 0에서 생성) |
 | GASP 소스 에셋 최신화(경로 정렬·덮어쓰기·적 회귀) | `phases/Phase01C_GASPAssetRefresh.md`, `research/UE58_AnimationFeatures.md` §6 |
-| 물리 히트리액트(Phase 1A 결과·RBWC 설정·Phase 3 인계) | `research/PhysicsHitReactSpike.md` |
+| 물리 히트리액트(Phase 1A 결과·RBWC 설정·Phase 3 인계·방향성 비교) | `research/PhysicsHitReactSpike.md`, 실행 계획 `phases/Phase03_PhysicsHitReact.md` |
 | 현재 메인 ABP·무기 레이어·몽타주·ANS·근접 보정 | [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) |
 | 구형 중력·Mover·랙돌(§9) | [TechDesign_CharacterMovement.md](../TechDesign_CharacterMovement.md) |
 | 경직(그로기·다운)과 히트리액트의 경계 | [TechDesign_Poise.md](../TechDesign_Poise.md) |

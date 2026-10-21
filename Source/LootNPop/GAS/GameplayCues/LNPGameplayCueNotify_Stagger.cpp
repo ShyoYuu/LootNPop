@@ -4,6 +4,7 @@
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
+#include "HAL/IConsoleManager.h"
 
 bool ULNPGameplayCueNotify_Stagger::OnExecute_Implementation(AActor* MyTarget, const FGameplayCueParameters& Parameters) const
 {
@@ -31,5 +32,10 @@ bool ULNPGameplayCueNotify_Stagger::OnExecute_Implementation(AActor* MyTarget, c
 	}
 
 	VictimChar->PlayMontage(TAG_Montage_Situation_Stagger, ValueTag);
+
+	// 물리 히트리액트 비교 때 경직 몽타주를 히트리액트 몽타주와 구분하려고 같은 로그 스위치를 쓴다.
+	static const IConsoleVariable* PhysHitReactLogCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.PhysHitReactLog"));
+	if (PhysHitReactLogCVar && PhysHitReactLogCVar->GetBool())
+		UE_LOG(LogLootNPop, Log, TEXT("[PhysHitReact] %s stagger montage played (%s)"), *VictimChar->GetName(), *ValueTag.ToString());
 	return true;
 }

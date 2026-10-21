@@ -640,6 +640,14 @@ private:
 // 데미지
 // ──────────────────────────────────────────────────────────────────────────────
 
+/** 피격자 HitReact 큐를 낼지와 무기 종류. 물리 히트리액트 세기 배율에 쓰인다(코스메틱). */
+enum class ELNPHitReactKind : uint8
+{
+	None,	// 틱 피해(화염 원뿔·화상)처럼 짧은 간격으로 들어오는 피해 — 몽타주를 끊임없이 다시 걸지 않는다
+	Ranged,
+	Melee,
+};
+
 /**
  * 순수 데미지 적용 + 피격자 반응(HitReact 몽타주 · 넉백). 판정 로직 없음.
  *
@@ -659,14 +667,14 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 		FVector                      HitFromDirection;
 		FVector                      ImpactPoint;       // 무기·투사체가 실제로 닿은 지점 (월드)
 		float                        KnockbackStrength;
-		bool                         bSuppressHitReact; // 틱 피해(화염 원뿔)처럼 짧은 간격으로 들어오는 피해는 몽타주를 끊임없이 다시 걸지 않는다
+		ELNPHitReactKind             HitReactKind;
 	};
 
 	FLNPApplyDamageGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
 
-	void Add(AActor* InVictim, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, const FVector& InImpactPoint, float InKnockbackStrength = 0.f, bool bInSuppressHitReact = false)
+	void Add(AActor* InVictim, TSubclassOf<UGameplayEffect> InEffectClass, float InDamage, FVector InHitFromDir, const FVector& InImpactPoint, float InKnockbackStrength = 0.f, ELNPHitReactKind InHitReactKind = ELNPHitReactKind::Ranged)
 	{
-		Entries.Add({ InVictim, InEffectClass, InDamage, InHitFromDir, InImpactPoint, InKnockbackStrength, bInSuppressHitReact });
+		Entries.Add({ InVictim, InEffectClass, InDamage, InHitFromDir, InImpactPoint, InKnockbackStrength, InHitReactKind });
 		bHasWork = true;
 	}
 
@@ -694,11 +702,14 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 				UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
 
 			// 피격자 HitReact 몽타주는 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).
-			if (!Entry.bSuppressHitReact)
+			// 피해·근접 여부는 물리 히트리액트 세기에만 쓴다. 두 크기 필드는 0이면 직렬화되지 않아 원거리는 근접 비트를 싣지 않는다.
+			if (Entry.HitReactKind != ELNPHitReactKind::None)
 			{
 				FGameplayCueParameters CueParams;
 				CueParams.Location = Entry.ImpactPoint;
 				CueParams.Normal   = Entry.HitFromDirection;
+				CueParams.RawMagnitude = Entry.Damage;
+				CueParams.NormalizedMagnitude = (Entry.HitReactKind == ELNPHitReactKind::Melee) ? 1.f : 0.f;
 				ASC->ExecuteGameplayCue(TAG_GameplayCue_Character_HitReact, CueParams);
 			}
 

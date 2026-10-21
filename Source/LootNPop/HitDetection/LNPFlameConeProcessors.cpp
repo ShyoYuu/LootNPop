@@ -270,7 +270,7 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 				{
 					// 틱 피해라 HitReact 몽타주를 억제한다 — 근접·원거리와 달리 0.1초마다 들어온다.
 					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Actor, EffectClass, C.Damage, HitFromDir,
-						OnCapsuleAxis, /*KnockbackStrength*/ 0.f, /*bSuppressHitReact*/ true);
+						OnCapsuleAxis, /*KnockbackStrength*/ 0.f, ELNPHitReactKind::None);
 				}
 				else
 				{
@@ -356,7 +356,7 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 					if (EffectClass)
 					{
 						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Actor, EffectClass, C.Damage, HitFromDir,
-							OnCapsuleAxis, /*KnockbackStrength*/ 0.f, /*bSuppressHitReact*/ true);
+							OnCapsuleAxis, /*KnockbackStrength*/ 0.f, ELNPHitReactKind::None);
 					}
 				}
 

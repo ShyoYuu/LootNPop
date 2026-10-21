@@ -132,9 +132,16 @@ public:
 	 */
 	virtual void CancelCurrentAttackAbility() {}
 
-	/** 피격 방향에 맞는 HitReact 몽타주 섹션을 재생한다. GameplayCue.LNP.Character.HitReact 노티파이에서 호출한다. */
+	/**
+	 * 피격 방향에 맞는 HitReact 몽타주 섹션을 재생하고, VisualMesh 상체 물리 반응을 덧붙인다(코스메틱).
+	 * GameplayCue.LNP.Character.HitReact 노티파이에서 호출한다.
+	 * @param HitFromWorldDir  피격자 → 공격자(공격이 날아온 쪽) 방향
+	 * @param ImpactPoint      맞은 지점(월드). 모르면 ZeroVector
+	 * @param Damage           피해량(물리 반응 세기). 0이면 기준 세기
+	 * @param bMelee           근접 피격인가(물리 반응 세기 배율)
+	 */
 	UFUNCTION(BlueprintCallable, Category = "LNP|Combat")
-	void PlayHitReact(FVector HitFromWorldDir);
+	void PlayHitReact(FVector HitFromWorldDir, FVector ImpactPoint, float Damage, bool bMelee);
 
 	/**
 	 * MontageChooser를 평가해 조건에 맞는 몽타주를 반환한다.

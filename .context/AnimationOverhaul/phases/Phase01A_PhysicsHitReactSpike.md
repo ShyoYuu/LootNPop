@@ -54,6 +54,8 @@
 
 ## 존치하는 스파이크 산출물과 사유
 
+> 3-1(2026-10-21) 정리: 클래스는 `ULNPAnimInstance` 파생으로 바꿔 두 표시 ABP의 부모가 됐고, 애님 클래스 교체 CVar와 사본 폴더는 지웠다(`phases/Phase03_PhysicsHitReact.md`).
+
 - `ULNPPhysicalHitReactAnimInstance`, `PlayHitReact`의 임펄스 훅, CVar 4종: 기본 상태(CVar 빈 값)에서는 `VisualMesh`가 기존 `ABP_Retarget`을 쓰므로 캐스트가 실패해 아무 일도 하지 않는다. Phase 3이 같은 클래스와 훅에서 시작한다. Phase 3에서 `ABP_Retarget`에 노드를 넣으면 `BeginPlay`의 애님 클래스 교체 CVar(`LNP.Anim.PhysHitReactSpikeABP`)는 지운다.
 - `/Game/Characters/PhysHitReactSpike/ABP_Retarget_PhysHitSpike`: Phase 3이 `ABP_Retarget`(2-0b 이후 구조)에 같은 노드를 옮길 때의 기준 설정이다. 옮긴 뒤 폴더째 삭제한다.
 - `.uproject`·`Build.cs`의 PhysicsControl 명시: 본 구현에서도 필요하다.

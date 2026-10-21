@@ -1,8 +1,8 @@
 # 물리 히트리액트 스파이크 결과 (Phase 1A)
 
-> 상태: 완료(2026-10-18, Phase 3 근거)
-> 마지막 갱신: 2026-10-18
-> 소유 정보: 방식 선택 근거, 스파이크 구성·파라미터, 검증 결과, HitStop 상호작용, 실패 지점, Phase 3 인계. 실행 계획·체크리스트는 `phases/Phase01A_PhysicsHitReactSpike.md`, 날짜별 경위는 `history/Phase01A_Log.md`.
+> 상태: 완료(2026-10-18, Phase 3 근거). §7 방향성 비교는 Phase 3-1(2026-10-21)
+> 마지막 갱신: 2026-10-21
+> 소유 정보: 방식 선택 근거, 스파이크 구성·파라미터, 검증 결과, HitStop 상호작용, 실패 지점, Phase 3 인계, 방향성 비교 결과(§7). 실행 계획·체크리스트는 `phases/Phase01A_PhysicsHitReactSpike.md`, 날짜별 경위는 `history/Phase01A_Log.md`.
 
 ## 1. 방식 선택 — RigidBodyWithControl(RBWC) 노드
 
@@ -62,6 +62,8 @@ CVar(모두 스파이크용, 런타임 조정 가능):
 | `LNP.Anim.PhysHitReactFadeSeconds` | 0.35 | 알파 1 → 0 페이드 시간 |
 
 ### 2.2 에셋 `/Game/Characters/PhysHitReactSpike/ABP_Retarget_PhysHitSpike`
+
+> 3-1(2026-10-21)에서 노드를 두 표시 ABP로 옮기고 이 사본 폴더와 스파이크 CVar `LNP.Anim.PhysHitReactSpikeABP`를 지웠다. 아래 노드 값은 지금 두 표시 ABP의 RBWC 값과 같다(필드 차이 0).
 
 `ABP_Retarget` 복제본이고, 부모는 위 C++ 클래스다. 원본 `ABP_Retarget`은 건드리지 않았다(2-0b와 같은 에셋). AnimGraph는 `RetargetPoseFromMesh → LocalToComponent → RigidBodyWithControl → ComponentToLocal → Output`이다. RBWC는 컴포넌트 공간 포즈만 받으므로 변환 노드 두 개가 필요하다. `Alpha` 핀에는 `PhysicsAlpha`, `ForcesAndTorques` 핀에는 `HitForces`를 연결했다.
 
@@ -126,3 +128,23 @@ RBWC 노드 값(Phase 3 출발점):
 4. **적 반응이 약하게 느껴진다.** `PA_UEFN_Mannequin`은 `spine_01` 바디가 더 있고 질량·관절 제한이 MoverSample PA와 다르다. 메시별로 임펄스·강도를 나누거나 PhysicsControl 프로필 에셋(PCA)으로 분리하는 것을 검토한다. 피격 HitStop 차이(적은 Actor 공격자 경로) 여부도 함께 본다.
 5. **남은 확인:** 승격 적이 랙돌로 죽은 직후 재사용되는 장면(§3), `np.PrintReconciles` 켬/끔 비교, URO·LOD로 평가가 건너뛰어질 때 1프레임 임펄스가 사라지는지.
 6. **몽타주 대체 범위:** 경직(GA_Stagger)·다운은 몽타주 유지(AN-004). 가벼운 히트리액트 몽타주만 물리로 바꿀지, 몽타주 + 물리 덧붙임으로 갈지는 3의 방향성 개선 결과를 보고 정한다. 이번 스파이크에서는 덧붙임만으로도 어색하지 않았다.
+
+## 7. 방향성 비교 결과 (Phase 3-1, 2026-10-21)
+
+§6-3의 세 후보를 같은 노드 설정(30Hz 부모 공간, 골반·다리 키네마틱)에서 CVar `LNP.Anim.PhysHitReactMode` 비트로 바꿔 가며 사용자 PIE로 비교했다. 실행 경위는 `history/Phase03_Log.md` §4~6.
+
+| 조건 | 본 것 | 평가 |
+|:---|:---|:---|
+| 몽타주 위 | 1(가슴 선속도)·2(`Up × PushDir` 각속도)·4(맞은 지점에 가장 가까운 바디 지점 임펄스)·9·10·12(+ 강도 낮추기) | 모두 자연스럽고 모드끼리 체감 차이가 작다. 방향별 차이로 느낀 것은 4방향 몽타주였다 |
+| 물리 단독(비트 16) | 17·26·28, 과장값(강도 배율 0.1·젖힘 20rad/s·지점 800cm/s) | 가벼운 피격 몽타주를 대체할 만큼 움찔은 확실하다. 맞은 부위·방향을 뚜렷이 체감할 정도는 아니다 |
+
+**선택: 모드 12(지점 임펄스 + 강도 낮추기), 강도 배율 0.1, 지점 임펄스 800cm/s.** 체감 차이가 작아 맞은 부위 정보(머리·팔·가슴 중 어디에 줄지)를 쓰는 후보를 골랐다. 선속도·젖힘 비트는 남겨 두었다.
+
+왜 방향성이 약한가(3-2 근거):
+
+- 30Hz 부모 공간 컨트롤은 ω₀ ≈ 188rad/s라, 임계 감쇠에서 최대 변위 ≈ v₀/(ω₀·e)다. 가슴 250cm/s는 관절당 1° 안팎이다. 강도를 낮추면 변위는 커지지만 "어느 쪽으로 밀렸는지"를 만드는 것은 **몸 전체의 이동**(골반이 밀리거나 반 걸음 물러남)인데, 골반·다리가 키네마틱이라 이 성분이 없다.
+- `ParentSpace_Torso` 세트는 척추만이 아니라 팔·목·다리 컨트롤까지 담는다(pelvis에서 시작하는 Torso 림이 하위 전부를 가진다, `LogPhysicsControl` Verbose로 확인). 강도 낮추기는 사실상 온몸이 물러지는 것이다. 척추만 무르게 하려면 세트를 따로 만들어야 한다(`AdditionalSets`, 메시마다 `pelvis_spine_01`/`pelvis_spine_02`가 다르다).
+- 지점 임펄스(`LocationSpace=World`, VelocityChange)는 Chaos `AddForceAtLocation`이 각속도까지 만든다. 바디 선택은 정상(머리·팔·가슴으로 갈림)이지만 체감은 다른 모드와 비슷했다.
+
+경로·확인 결과: 큐가 맞은 지점(`Location`)·피해(`RawMagnitude`)·근접(`NormalizedMagnitude`)을 싣는다. 리슨 2인에서 보정 횟수는 물리 끔 84/분 → 켬 60/분으로 늘지 않았다(1A §6-5 "켬/끔 비교" 해소). HitStop·랙돌 진입·표현 풀 재사용·적도·근접 콤보·가드·패링 중 피격 모두 이상 없음. URO·LOD 1프레임 소실은 아직 보지 않았다(3-2).
+

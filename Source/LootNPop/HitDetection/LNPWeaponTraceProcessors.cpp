@@ -619,7 +619,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 				const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 				if (EffectClass)
-					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, EffectClass, Frag.Damage, AttackerDir, PlayerImpactPoint, Frag.KnockbackStrength);
+					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, EffectClass, Frag.Damage, AttackerDir, PlayerImpactPoint, Frag.KnockbackStrength, ELNPHitReactKind::Melee);
 			};
 
 			// 대상 후보는 팀 규칙 하나가 고른다 (LNPTeam::CanHit).
@@ -695,7 +695,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (Enemy.Actor && EffectClass)
 					{
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, EffectClass, Frag.Damage, HitFromDir, ImpactPoint, Frag.KnockbackStrength);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, EffectClass, Frag.Damage, HitFromDir, ImpactPoint, Frag.KnockbackStrength, ELNPHitReactKind::Melee);
 					}
 					else
 					{

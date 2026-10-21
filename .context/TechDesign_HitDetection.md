@@ -297,7 +297,7 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 | 형상 판정 (워커) | 캡슐 축 선분에서 원뿔 축에 가장 가까운 점 P. `t = (P-O)·A ∈ [-r, Range+r]`, 측면 거리 ≤ `lerp(Near, Far, t/ConeRange) + r` |
 | 사선 | 총구 → P `TraceWorld`가 막히면 제외 — 축 트레이스는 정면 벽만 자르므로 축 옆 기둥 뒤 대상은 이것으로 거른다 |
 | 되감기 | 근접과 같은 RTT/2만(보간 지연 가산 없음, §5). 발동 시점에 `CachedRewindSeconds`로 캐싱 |
-| 피격 | Actor 적 → `FLNPApplyDamageGECommand`(넉백 0, **`bSuppressHitReact`**), 순수 엔티티 → HP 직접 차감 + `ApplyDefense`. 경직은 소량 누적, 배회 중 주시(`HitReactTimer`)는 걸고 **플린치는 걸지 않는다** |
+| 피격 | Actor 적 → `FLNPApplyDamageGECommand`(넉백 0, **`ELNPHitReactKind::None`**), 순수 엔티티 → HP 직접 차감 + `ApplyDefense`. 경직은 소량 누적, 배회 중 주시(`HitReactTimer`)는 걸고 **플린치는 걸지 않는다** |
 | 화상 | Actor·순수 엔티티 구분 없이 `LNPBurn::TryApply`로 `FLNPBurnFragment`에 중첩을 건다. 정산은 `ULNPBurnProcessor`(→ [TechDesign_Ability.md](TechDesign_Ability.md) §5.6) |
 
 - **틱 피해는 피격 반응을 억제한다.** 0.1초마다 HitReact 몽타주·플린치가 다시 걸리면 대상이 움찔 상태에서 빠져나오지 못한다.
@@ -309,7 +309,7 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 - **플레이어 대상은 원뿔 공격자와 다른 팀일 때만** 판정한다(§3.2 팀 규칙). 원뿔 프래그먼트가 그 틱의 공격자 팀(`InstigatorTeam`)을 싣는다. 적은 화염방사기를 쓰지 않으므로 이 분기는 다른 팀 플레이어 → 플레이어뿐이다. 플레이어 수가 적어 쿼리는 늘 돈다(예전에는 아군 사격이 꺼지면 쿼리째 건너뛰었다).
   - 형상·사선·되감기는 적 분기와 같은 헬퍼(`FlameConeHitsCapsule`·`FlameConeRewoundCenter`)를 쓴다. 플레이어는 엔티티 위치가 곧 캡슐 중심이고 RTT/2만 되감는다(근접과 같은 규약).
   - 패링 → 가드 → 피격 순서는 근접과 같은 단일 함수 `LNPGuardParry::Judge`가 정한다(§7.5). 화염은 **패링 불가**라 `bInParryRange = false`를 넘긴다 — 패링 입력 중이라도 정면이면 가드로 떨어진다.
-  - 가드: 직접 피해만 막고 경직은 `PoiseGuardMultiplier`로 쌓는다. **가드 큐는 내지 않는다**(초당 10회). 피격: `FLNPApplyDamageGECommand`(넉백 0·`bSuppressHitReact`), 임팩트 큐 없음 — 적 분기와 같다.
+  - 가드: 직접 피해만 막고 경직은 `PoiseGuardMultiplier`로 쌓는다. **가드 큐는 내지 않는다**(초당 10회). 피격: `FLNPApplyDamageGECommand`(넉백 0·`ELNPHitReactKind::None`), 임팩트 큐 없음 — 적 분기와 같다.
   - **화상은 가드 여부와 무관하게** 확률 판정해 `FLNPApplyPlayerBurnGECommand`로 주기 GE를 건다(→ [TechDesign_Ability.md](TechDesign_Ability.md) §5.6 플레이어 화상).
   - 시체 제외: 플레이어 쿼리가 `FLNPPlayerDeadTag`를 거른다(리스폰 지연 동안 시체가 남는다).
 - 디버그: `LNP.Flame.DebugDraw 1` — 서버 월드에 원뿔을 그린다(끝 단면이 빨강이면 벽에 잘림). 게스트 화면에는 보이지 않는다.
@@ -364,7 +364,7 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 
 | 커맨드 | 처리 |
 |:---|:---|
-| `FLNPApplyDamageGECommand` | SetByCaller 피해 GE 적용 + HitReact GameplayCue(`bSuppressHitReact`면 생략 — 화염 틱) + 넉백 |
+| `FLNPApplyDamageGECommand` | SetByCaller 피해 GE 적용 + HitReact GameplayCue(`ELNPHitReactKind::None`이면 생략 — 화염 틱, 아니면 피해·근접 여부를 실음) + 넉백 |
 | `FLNPImpactCueCommand` | 임팩트 GameplayCue(근접·원거리 공용) + (근접) 공격자 HitStop |
 | `FLNPMeleeParryCommand` | 방어자 Parry.Success 이벤트/큐 + 공격자 Stagger 이벤트 + 공격자 넉백(Actor는 `ApplyKnockback`, 엔티티는 속도 프래그먼트) |
 | `FLNPProjectileParryCommand` | 방어자 이벤트/큐 + 반사 Ghost 소멸·재스폰 방송 |

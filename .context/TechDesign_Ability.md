@@ -465,7 +465,7 @@ Actor는 LOD에 따라 풀로 반납·재사용되므로 ASC에 건 GE는 강등
 |:---|:---|
 | `FLNPBurnFragment` (`GAS/LNPBurnTypes.h`) | `Stacks`·`TimeRemaining`·`TickAccum`·`TickInterval`·`DamagePerStack`·`DamageEffectClass`. `ULNPEnemyTrait::BuildTemplate`가 Poise 옆에 **무조건** 붙인다(게스트도 같은 아키타입이어야 복제값을 받을 자리가 있다) |
 | `LNPBurn::TryApply` | 원뿔 프로세서의 적 피격 블록에서 호출. 확률 통과 시 `Stacks = min(+1, Max)`, `TimeRemaining = Duration`. **처음 걸릴 때만** 틱 위상을 0으로 둔다 |
-| `ULNPBurnProcessor` (`GAS/`) | PostPhysics, `Server \| Standalone`. 틱 피해 `Stacks × DamagePerStack` — Actor 적은 `FLNPApplyDamageGECommand`(넉백 0·`bSuppressHitReact`), 순수 엔티티는 HP 직접 차감 + `ApplyDefense`. 틱을 먼저 정산하고 만료를 본다(3초면 6틱) |
+| `ULNPBurnProcessor` (`GAS/`) | PostPhysics, `Server \| Standalone`. 틱 피해 `Stacks × DamagePerStack` — Actor 적은 `FLNPApplyDamageGECommand`(넉백 0·`ELNPHitReactKind::None`), 순수 엔티티는 HP 직접 차감 + `ApplyDefense`. 틱을 먼저 정산하고 만료를 본다(3초면 6틱) |
 | 복제 | `FLNPReplicatedAgent::BurnStacks`(uint8) → 게스트 `FLNPBurnFragment::Stacks`. 나머지 필드는 게스트에서 쓰지 않는다 |
 
 - **갱신이 틱 위상을 건드리지 않는 이유**: 계속 지지는 동안 적중마다 위상을 0으로 돌리면 0.5초 틱이 한 번도 터지지 않는다.
