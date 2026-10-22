@@ -57,3 +57,32 @@ LootNPop 에디터(8000)만 썼다. GASP 에디터는 쓰지 않았다.
 
 - 사용자 결정: 결정 C는 "물리로 히트리액트 몽타주 완전 대체를 목표로", 결정 D는 "3-2에서 방향성 보강 시도"(AN-023). 이 세션은 3-1까지이므로 실행은 3-2 세션이 한다.
 - 3-1 세션이 3-2 첫 실험(골반 밀림 비트 32, 척추만 무르게 비트 64)을 설계·구현해 게임 타깃 컴파일(74초)까지 통과시켰으나, 범위를 지키려고 코드는 되돌렸다. 설계 요지는 `phases/Phase03_PhysicsHitReact.md` "단위 3-2"에 옮겼다.
+
+## 2026-10-22 — 3-2 첫 실험 구현·비교(116 선호 선정, 3-2 전체는 진행 중)
+
+- 깨끗한 작업 트리에서 시작. LootNPop MCP(8000)로 두 표시 ABP의 RBWC 존재와 기존 핀 연결을 확인했다. 두 에셋 저장 성공 후 `Saved/AnimOverhaul/Phase3-2/backup/`에 사본을 뒀다. GASP 에디터는 불필요하다.
+- 엔진 `RigidBodyWithControl.cpp`의 `OffsetInWorldSpace`는 입력 포즈 위치에 월드 이동을 더하고 월드 회전을 앞에 곱한다. 이를 쓰는 `HitKinematicTargets` UPROPERTY, 피격 시점 방향·강도·좌우값 보관, 애님 시간 기반 골반 이동·젖힘·비틀림, 척추 컨트롤만 강도 낮추기(64)를 C++에 추가했다. 기본 모드 12 유지.
+- 비교표의 오류를 수정했다. 92/124는 비트 8·64를 동시에 포함해 8 우선 규칙상 척추 단독 비교가 안 된다. 28/60/84/116으로 고쳤다.
+- `git diff --check` 통과. **컴파일·ABP 변경·PIE는 아직 하지 않았다.** 새 UPROPERTY를 반영할 전체 빌드 전 사용자에게 에디터 저장·종료를 요청했다. 종료 확인 후 빌드, 재실행, 두 ABP의 골반 타깃 설정·핀 연결, 컴파일·저장, 사용자 비교로 이어간다. 3-2 완료·커밋 전이다.
+- 사용자 에디터 종료 확인 후 권한 확장으로 `Build.bat LootNPopEditor Win64 Development D:/UnrealProjects/LootNPop/LootNPop.uproject -WaitMutex -NoHotReloadFromIDE` 실행. UHT(2개 생성 파일)·컴파일·링크 6/6 성공, `Result: Succeeded`, 63.92초. 사용자 에디터 재실행을 요청했다.
+- 사용자 재실행 확인 후 MCP로 두 표시 ABP에 `GetHitKinematicTargets` getter 생성 → RBWC `KinematicTargets` 연결. 초기 모디파이어의 `pelvis` 항목에서 `kinematicTargetSpace`만 `OffsetInWorldSpace`로, `bEnableKinematicTargetSpace`만 true로 변경했다. 전후 `Node` 전체 구조체와 입력 핀을 대조해 두 필드·새 연결 이외 차이 0 확인. 컴파일(경고=오류) 2/2·두 에셋 저장 성공.
+- 사용자에게 직접 PIE에서 `LNP.Anim.PhysHitReactLog 1`, 모드 28/60/84/116을 비교하고 플레이어·승격 적의 방향성·골반/다리 변형·선호 모드를 알려 달라고 요청했다. 경직 몽타주가 끼지 않게 피격 간격을 두도록 안내. **체감 판정·기본값 선정·몽타주 제거·적 세기 분리·URO/LOD 확인은 아직이며, 다음 구현 착수 전 사용자 확인을 받는다.**
+- 첫 사용자 PIE에서 84·116에 `SetRecordParameters: Failed to find control with name pelvis_spine_01 / spine_01_spine_02` 경고가 반복됐다. 없는 컨트롤을 조용히 건너뛴다는 최초 설계의 가정이 틀렸다. 두 PA의 컨트롤 합집합을 그대로 공급한 것이 원인이다. 각 후보의 부모·자식 바디 존재와 `FindParentBodyIndex`가 실제 부모 바디와 일치하는지 검사해 유효한 이름만 공급하도록 수정했다. 플레이어의 `pelvis_spine_02`와 UEFN의 `pelvis_spine_01`·`spine_01_spine_02`를 서로 잘못 보내지 않는다.
+- 헤더 변경 없이 Live Coding `Result: Success`·`Live coding succeeded` 확인. 사용자에게 84·116 피격 재확인(경고 소멸·체감 차이)을 요청했다. 수정 후 PIE 검증은 대기 중이다.
+- 수정 후 사용자 PIE 로그에서 84 피격 59회·116 피격 135회 동안 `SetRecordParameters: Failed` 0건 확인. 사용자가 기존 히트리액트 몽타주 생략 여부를 재질문해 비트 16 처리 코드와 최신 84 로그의 `hit react montage skipped`를 확인했다. 경직 몽타주는 별도 경로로 유지되며, 사용자 체감 판정은 아직 대기 중이다.
+- 사용자 요청: 물리 단독 비교 동안 경직 몽타주도 끄고 이번 세션 종료 때 복구. 경직 큐에 임시 CVar `LNP.Anim.PhysHitReactSkipStaggerMontage`(기본 true)를 추가해 Light·Heavy·Parried 몽타주 재생만 생략하고 로그도 `skipped`로 구분했다. 경직 어빌리티·판정·입력 제한은 변경하지 않았다. Live Coding 성공. **비교 후 임시 스위치·분기·변경 로그를 제거하고 Live Coding으로 복구할 의무가 남아 있다.**
+- 사용자 최종 평가: **"116이 제일 나은거 같아."** 경직 몽타주를 끈 최종 비교 구간에서 116 피격 60회·경직 몽타주 생략 4회, 컨트롤 경고 0건을 로그로 확인했다. 체감 비교 결과 원본은 `research/PhysicsHitReactSpike.md` §8.
+- 비교 종료 후 약속대로 경직 큐의 임시 CVar·생략 분기·변경 로그를 제거했다. `LNPGameplayCueNotify_Stagger.cpp` 작업 전 대비 차이 0, Live Coding `Result: Success`·`Live coding succeeded` 확인. **경직 몽타주 복구 의무 완료.** HitReact 몽타주 경로·기본값 12는 아직 유지하며, 다음 구현(116 구성 기본 적용·HitReact 몽타주/Chooser 정리) 전 사용자 확인을 받는다. 적도·2인 회귀·골반/다리 변형에 대한 개별 통과 응답은 없으므로 확대 해석하지 않는다.
+
+### 사용자 승인 후 — 기본 적용·HitReact 몽타주 제거
+
+- 사용자 "응 진행해줘"로 후속 구현 승인. `PlayHitReact`의 4방향 태그 분류·몽타주 재생·생략 비트 분기를 제거하고 표시 애님 인스턴스 물리 예약만 유지했다. 피격자 HitStop 경로는 그대로다. 기본 모드는 100(4+32+64)이며 선택한 116에서 이제 불필요한 몽타주 생략 비트 16만 빠졌다. 관련 헤더 주석·Chooser 문맥 예제·큐 태그 설명을 수정했다.
+- Chooser는 GUI 조작이 더 효율적이므로 사용자에게 직접 삭제를 요청했다. 삭제 전 저장·`Saved/AnimOverhaul/Phase3-2/backup/CHT_Montage.uasset` 백업 후 사용자가 HitReaction 10행 삭제·저장 완료. MCP로 4개 컬럼 모두 26→16행, 삭제 전의 유지 행 인덱스 `[0..7,18..25]`와 조건·컬럼 설정 완전 동일, `is_dirty=false` 확인. Stagger 3행·Dash·공격·패링·가드·재장전 행은 유지됐다.
+- C++ Live Coding `Result: Success`·`Live coding succeeded` 확인. 왼손 IK 차단은 `DefaultSlot`·`FullBody`·`UpperBody`와 `DisableLHandIK` 커브로, 기존 가산 피격 슬롯은 차단 대상이 아니었음을 확인했다. 슬롯 그래프·소스 몽타주 에셋은 수정하지 않았다.
+- 사용자에게 PIE에서 모드 100·로그 1을 명시 설정하고 일반 피격 물리 반응·경직 몽타주 복구·공격/재장전 왼손 그립을 확인하도록 요청 → **"문제 없어"** 응답. 최신 Live Coding 이후 모드 100 피격 74회·경직 몽타주 재생 2회·경직 생략 0회·HitReact 몽타주 로그 0회·PhysicsControl 경고 0건 확인.
+- 이 구현을 마무리하고 남은 적 세기·URO/LOD 등의 다음 구현 전 다시 사용자 확인을 받는다. 3-2 전체 완료·커밋은 아직이며, 적도·2인·골반/다리 변형 확인도 마지막 검증 묶음에 남긴다.
+
+### 중간 커밋 범위
+
+- 사용자 요청으로 3-2의 골반·척추 방향성 보강, 기본 모드 100, HitReact 몽타주 호출·Chooser 10행 제거, 없는 컨트롤 경고 수정, 관련 문서·표시 ABP를 중간 커밋 범위로 정리했다. 경직 몽타주 임시 차단 코드는 제거된 상태다. `git diff --check` 통과. 검증 근거는 위 전체 빌드·ABP 컴파일·Live Coding·사용자 PIE 기록이다.
+- 남은 작업: 적 메시의 반응 세기 분리 필요성 확인·필요시 조정, URO/LOD 평가 누락 때 1프레임 임펄스 소실 확인·필요시 수정, 새 기본값으로 적도·2인·랙돌/표현 풀·골반/다리 변형 최종 회귀, 마지막 빌드·문서/Roadmap 정리. 방향/무기별 곡선은 기존 반응이 부족할 때만 검토한다. 3-2 전체 완료로 표시하지 않는다.

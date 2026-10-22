@@ -5,6 +5,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "HAL/IConsoleManager.h"
 #include "LootNPop.h"
+#include "PhysicsEngine/PhysicsAsset.h"
 
 namespace
 {
@@ -22,6 +23,12 @@ namespace
 	 */
 	const FName SoftenControlSet = TEXT("ParentSpace_Torso");
 
+	/** 두 PhysicsAsset의 척추 체인 후보. 실제 바디의 부모 관계와 일치하는 것만 공급한다. */
+	const TPair<FName, FName> SpineBodyPairs[] = {
+		{ TEXT("pelvis"), TEXT("spine_01") }, { TEXT("spine_01"), TEXT("spine_02") },
+		{ TEXT("pelvis"), TEXT("spine_02") }, { TEXT("spine_02"), TEXT("spine_03") },
+		{ TEXT("spine_03"), TEXT("spine_04") }, { TEXT("spine_04"), TEXT("spine_05") } };
+
 	/** 방향성 모드 비트. 조합할 수 있다. */
 	enum EHitReactModeBits : int32
 	{
@@ -29,13 +36,14 @@ namespace
 		Mode_Tilt   = 2,	// Up × PushDir 축 각속도로 상체 젖히기
 		Mode_Point  = 4,	// 피격 위치에 가장 가까운 바디에 월드 지점 임펄스
 		Mode_Soften = 8,	// 피격 구간 동안 몸통 컨트롤 강도 낮추기
-		// 16 = 히트리액트 몽타주 생략(물리만 보기) — ALNPCharacterBase::PlayHitReact가 읽는다.
+		Mode_Pelvis = 32, // 키네마틱 골반의 월드 공간 밀림·젖힘·비틀림
+		Mode_SpineSoften = 64, // 척추 컨트롤만 약하게(8과 함께면 8 우선)
 	};
 
-	// 기본값은 3-1 사용자 비교에서 골랐다 — 모드끼리 체감 차이는 작았고, 맞은 부위를 쓰는 지점 임펄스 + 강도 낮추기로 정했다.
+	// 3-2 사용자 선택 116의 물리 구성. 몽타주 경로 제거로 생략 비트 16이 빠져 기본값은 100이다.
 	TAutoConsoleVariable<int32> CVarPhysHitReactMode(
-		TEXT("LNP.Anim.PhysHitReactMode"), Mode_Point | Mode_Soften,
-		TEXT("Physical hit react direction mode bits: 1=linear chest velocity, 2=tilt (angular about Up x PushDir), 4=point impulse at nearest body, 8=soften torso strength during the window, 16=skip the hit react montage (physics only). 0 disables the physical hit react."));
+		TEXT("LNP.Anim.PhysHitReactMode"), Mode_Point | Mode_Pelvis | Mode_SpineSoften,
+		TEXT("Physical hit react direction mode bits: 1=linear chest velocity, 2=tilt (angular about Up x PushDir), 4=point impulse at nearest body, 8=soften all torso-set controls, 32=pelvis offset, 64=soften spine only (8 takes priority). Default 100. Hit react montages are no longer used; former bit 16 has no effect. 0 disables the physical hit react."));
 
 	TAutoConsoleVariable<float> CVarPhysHitReactImpulse(
 		TEXT("LNP.Anim.PhysHitReactImpulse"), 250.f,
@@ -51,7 +59,23 @@ namespace
 
 	TAutoConsoleVariable<float> CVarPhysHitReactSoftenStrength(
 		TEXT("LNP.Anim.PhysHitReactSoftenStrength"), 0.1f,
-		TEXT("Mode 8: angular strength multiplier of the ParentSpace_Torso set (in practice every control) at full physics weight (blends back to 1 with the fade)."));
+		TEXT("Modes 8/64: angular strength multiplier at full physics weight (blends back to 1 with the fade). Mode 8 affects the whole torso set; 64 affects the spine only."));
+
+	TAutoConsoleVariable<float> CVarPhysHitReactPelvisShift(
+		TEXT("LNP.Anim.PhysHitReactPelvisShift"), 4.f,
+		TEXT("Mode 32: peak pelvis translation along the push direction (cm) at reference strength."));
+
+	TAutoConsoleVariable<float> CVarPhysHitReactPelvisLean(
+		TEXT("LNP.Anim.PhysHitReactPelvisLean"), 8.f,
+		TEXT("Mode 32: peak pelvis lean about Up x PushDir (degrees) at reference strength."));
+
+	TAutoConsoleVariable<float> CVarPhysHitReactPelvisTwist(
+		TEXT("LNP.Anim.PhysHitReactPelvisTwist"), 10.f,
+		TEXT("Mode 32: peak pelvis twist about Up (degrees), scaled by impact side and reference strength."));
+
+	TAutoConsoleVariable<float> CVarPhysHitReactPelvisPeakSeconds(
+		TEXT("LNP.Anim.PhysHitReactPelvisPeakSeconds"), 0.1f,
+		TEXT("Mode 32: animation seconds from hit to peak pelvis offset."));
 
 	TAutoConsoleVariable<float> CVarPhysHitReactHoldSeconds(
 		TEXT("LNP.Anim.PhysHitReactHoldSeconds"), 0.15f,
@@ -172,6 +196,7 @@ void ULNPPhysicalHitReactAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	const int32 Mode = CVarPhysHitReactMode.GetValueOnGameThread();
 	const float FadeSeconds = FMath::Max(CVarPhysHitReactFadeSeconds.GetValueOnGameThread(), UE_KINDA_SMALL_NUMBER);
 	HitBlendTimeRemaining = FMath::Max(HitBlendTimeRemaining - DeltaSeconds, 0.f);
+	PelvisHitElapsed += DeltaSeconds;
 
 	const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwningActor());
 	const bool bRagdoll = Character && Character->IsRagdollActive();
@@ -184,6 +209,14 @@ void ULNPPhysicalHitReactAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		if (!bRagdoll && Mode != 0)
 		{
 			BuildHitForces();
+			ActivePelvisHit = PendingHit;
+			PelvisHitElapsed = 0.f;
+			PelvisHitSide = 0.f;
+			if (const USkeletalMeshComponent* Mesh = GetSkelMeshComponent(); Mesh && !PendingHit.ImpactPoint.IsNearlyZero())
+			{
+				const FVector SideAxis = FVector::CrossProduct(PendingHit.Up, PendingHit.PushDir).GetSafeNormal();
+				PelvisHitSide = FMath::Clamp(FVector::DotProduct(PendingHit.ImpactPoint - Mesh->GetBoneLocation(TEXT("spine_04")), SideAxis) / 20.f, -1.f, 1.f);
+			}
 			// 알파가 0이던 동안 노드가 평가되지 않았으므로, 다시 올라가는 첫 평가에서 시간 기반 리셋
 			// (EvaluationResetTime)이 바디를 현재 애니 포즈로 옮긴 뒤 이 임펄스를 준다 — 튐 없이 시작한다.
 			HitBlendTimeRemaining = CVarPhysHitReactHoldSeconds.GetValueOnGameThread() + FadeSeconds;
@@ -196,11 +229,44 @@ void ULNPPhysicalHitReactAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	PhysicsAlpha = FMath::Clamp(HitBlendTimeRemaining / FadeSeconds, 0.f, 1.f);
 
+	HitKinematicTargets.Targets.Reset();
+	if ((Mode & Mode_Pelvis) && PhysicsAlpha > 0.f)
+	{
+		const float Phase = PelvisHitElapsed / FMath::Max(CVarPhysHitReactPelvisPeakSeconds.GetValueOnGameThread(), UE_KINDA_SMALL_NUMBER);
+		const float Envelope = Phase * FMath::Exp(1.f - Phase) * ActivePelvisHit.Strength;
+		FRigidBodyKinematicTarget Target;
+		Target.TargetPosition = ActivePelvisHit.PushDir * (CVarPhysHitReactPelvisShift.GetValueOnGameThread() * Envelope);
+		const FVector LeanAxis = FVector::CrossProduct(ActivePelvisHit.Up, ActivePelvisHit.PushDir).GetSafeNormal();
+		const FQuat Lean(LeanAxis, FMath::DegreesToRadians(CVarPhysHitReactPelvisLean.GetValueOnGameThread() * Envelope));
+		// 맞은 쪽 어깨가 밀리는 회전은 Up 둘레 음의 방향이다.
+		const FQuat Twist(ActivePelvisHit.Up, FMath::DegreesToRadians(-CVarPhysHitReactPelvisTwist.GetValueOnGameThread() * PelvisHitSide * Envelope));
+		Target.TargetOrientation = (Twist * Lean).Rotator();
+		HitKinematicTargets.Targets.Add(TEXT("pelvis"), Target);
+	}
+
 	HitControlParameters.ControlMultiplierParameters.Reset();
-	if ((Mode & Mode_Soften) && PhysicsAlpha > 0.f)
+	if ((Mode & (Mode_Soften | Mode_SpineSoften)) && PhysicsAlpha > 0.f)
 	{
 		FPhysicsControlSparseMultiplier Multiplier;
 		Multiplier.AngularStrengthMultiplier = FMath::Lerp(1.f, CVarPhysHitReactSoftenStrength.GetValueOnGameThread(), PhysicsAlpha);
-		HitControlParameters.ControlMultiplierParameters.Emplace(SoftenControlSet, Multiplier);
+		if (Mode & Mode_Soften)
+			HitControlParameters.ControlMultiplierParameters.Emplace(SoftenControlSet, Multiplier);
+		else
+		{
+			const USkeletalMeshComponent* Mesh = GetSkelMeshComponent();
+			const UPhysicsAsset* PhysicsAsset = Mesh ? Mesh->GetPhysicsAsset() : nullptr;
+			if (PhysicsAsset)
+				for (const TPair<FName, FName>& BodyPair : SpineBodyPairs)
+				{
+					const int32 ParentBodyIndex = PhysicsAsset->FindBodyIndex(BodyPair.Key);
+					if (ParentBodyIndex == INDEX_NONE || PhysicsAsset->FindBodyIndex(BodyPair.Value) == INDEX_NONE)
+						continue;
+					// 바디가 둘 다 있어도 실제 부모가 다르면 해당 이름의 컨트롤은 생성되지 않는다.
+					if (PhysicsAsset->FindParentBodyIndex(Mesh->GetSkeletalMeshAsset(), Mesh->GetBoneIndex(BodyPair.Value)) != ParentBodyIndex)
+						continue;
+					const FName ControlName(*(BodyPair.Key.ToString() + TEXT("_") + BodyPair.Value.ToString()));
+					HitControlParameters.ControlMultiplierParameters.Emplace(ControlName, Multiplier);
+				}
+		}
 	}
 }

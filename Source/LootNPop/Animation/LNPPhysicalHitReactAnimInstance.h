@@ -43,6 +43,10 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Transient, Category = "LNP|PhysicalHitReact")
 	FPhysicsControlControlAndModifierParameters HitControlParameters;
 
+	/** RBWC KinematicTargets 핀. 골반에 캐릭터 Up 기준의 월드 공간 오프셋을 준다. */
+	UPROPERTY(BlueprintReadOnly, Transient, Category = "LNP|PhysicalHitReact")
+	FRigidBodyKinematicTargets HitKinematicTargets;
+
 	/**
 	 * RBWC Alpha 핀. 평소엔 0(순수 애니)이고 피격 때만 1로 올렸다가 유지 후 페이드한다.
 	 * 상시 켜 두면 이동·점프 가속마다 상체 체인이 출렁인다. 랙돌 중에도 0(물리 씬 바디가 포즈를 덮는다).
@@ -63,6 +67,11 @@ private:
 	};
 	FPendingHit PendingHit;
 	bool bHasPendingHit = false;
+
+	/** 골반 오프셋은 임펄스와 달리 피격 구간 동안 매 업데이트 공급한다. */
+	FPendingHit ActivePelvisHit;
+	float PelvisHitElapsed = 0.f;
+	float PelvisHitSide = 0.f;
 
 	/** 물리 구간의 남은 시간(유지+페이드). 애님 DeltaSeconds로 줄어 HitStop 동안은 같이 늘어진다. */
 	float HitBlendTimeRemaining = 0.f;

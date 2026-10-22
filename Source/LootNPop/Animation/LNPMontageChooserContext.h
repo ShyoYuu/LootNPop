@@ -15,8 +15,8 @@
  *
  * 사용 예:
  *   Character->EvaluateMontage(TAG_VisualSet_LongSword,
- *                               TAG_Montage_Situation_HitReaction,
- *                               TAG_Montage_Value_Direction_Front);
+ *                               TAG_Montage_Situation_Stagger,
+ *                               TAG_Montage_Value_Stagger_Light);
  */
 UCLASS(Transient, BlueprintType)
 class LOOTNPOP_API ULNPMontageChooserContext : public UObject

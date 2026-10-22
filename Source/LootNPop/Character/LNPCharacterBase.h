@@ -133,7 +133,7 @@ public:
 	virtual void CancelCurrentAttackAbility() {}
 
 	/**
-	 * 피격 방향에 맞는 HitReact 몽타주 섹션을 재생하고, VisualMesh 상체 물리 반응을 덧붙인다(코스메틱).
+	 * 피격 방향·지점·피해에 따른 VisualMesh 물리 반응을 예약한다(코스메틱).
 	 * GameplayCue.LNP.Character.HitReact 노티파이에서 호출한다.
 	 * @param HitFromWorldDir  피격자 → 공격자(공격이 날아온 쪽) 방향
 	 * @param ImpactPoint      맞은 지점(월드). 모르면 ZeroVector

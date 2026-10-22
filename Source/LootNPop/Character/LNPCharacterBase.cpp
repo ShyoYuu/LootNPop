@@ -360,35 +360,7 @@ void ALNPCharacterBase::EquipTestWeapon(int32 SlotIndex)
 
 void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir, FVector ImpactPoint, float Damage, bool bMelee)
 {
-	UAnimInstance* Anim = GetAnimInstance();
-	if (!Anim)
-		return;
-
-	// 피격자 로컬 공간으로 변환 (X=Forward, Y=Right)
-	const FVector LocalDir = GetActorTransform().InverseTransformVectorNoScale(HitFromWorldDir);
-	const float Angle = FMath::RadiansToDegrees(FMath::Atan2(LocalDir.Y, LocalDir.X));
-
-	FGameplayTag Direction;
-	if      (Angle >= -45.0f  && Angle <   45.0f) Direction = TAG_Montage_Value_Direction_Front;
-	else if (Angle >=  45.0f  && Angle <  135.0f) Direction = TAG_Montage_Value_Direction_Right;
-	else if (Angle >=  135.0f || Angle < -135.0f) Direction = TAG_Montage_Value_Direction_Back;
-	else if (Angle >= -135.0f && Angle <  -45.0f) Direction = TAG_Montage_Value_Direction_Left;
-	else                                          Direction = TAG_Montage_Value_Direction_Front;
-
-	// 몽타주 대체 판단용: 방향성 모드에 비트 16이 있으면 히트리액트 몽타주를 건너뛰고 물리만 본다(애니메이션 개선 3-1).
-	static const IConsoleVariable* PhysHitReactModeCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.PhysHitReactMode"));
-	const bool bSkipHitReactMontage = PhysHitReactModeCVar && (PhysHitReactModeCVar->GetInt() & 16);
-	if (!bSkipHitReactMontage)
-		PlayMontage(TAG_Montage_Situation_HitReaction, Direction);
-
-	static const IConsoleVariable* PhysHitReactLogCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.PhysHitReactLog"));
-	if (PhysHitReactLogCVar && PhysHitReactLogCVar->GetBool())
-	{
-		UE_LOG(LogLootNPop, Log, TEXT("[PhysHitReact] %s hit react montage %s (%s)"),
-			*GetName(), bSkipHitReactMontage ? TEXT("skipped") : TEXT("played"), *Direction.ToString());
-	}
-
-	// 몽타주 위에 VisualMesh 상체 물리 반응을 덧붙인다(표시 ABP의 RBWC 노드, 코스메틱·비복제 AN-004).
+	// VisualMesh의 RBWC 노드가 피격 반응을 전부 담당한다(코스메틱·비복제 AN-004).
 	// 공격이 날아온 반대쪽으로, 캐릭터 Up에 수직인 접평면 안에서 민다(구면 월드에서 위아래로 튀지 않게).
 	if (ULNPPhysicalHitReactAnimInstance* PhysAnim = VisualMesh ? Cast<ULNPPhysicalHitReactAnimInstance>(VisualMesh->GetAnimInstance()) : nullptr)
 	{

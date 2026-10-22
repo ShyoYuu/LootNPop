@@ -285,11 +285,13 @@ UE는 `Montage_Stop` 취소 시에도 활성 ANS에 `NotifyEnd`를 보장한다.
 
 ### 6.4 히트리액트
 
-`PlayHitReact(HitFromWorldDir, ImpactPoint, Damage, bMelee)`: 피격 방향을 로컬 공간으로 변환 → 4방향 태그 분류 → `PlayMontage(HitReaction, Direction)`. 이어서 `VisualMesh` 상체 물리 반응을 덧붙인다(아래). `GameplayCue.LNP.Character.HitReact` 노티파이가 이 둘과 피격자 HitStop(0.08초)을 함께 재생한다. 근접 공격자 쪽 HitStop(본인 0.2초 / 구경꾼 0.08초)은 별도 경로다(→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md)).
+`PlayHitReact(HitFromWorldDir, ImpactPoint, Damage, bMelee)`는 공격 반대 방향을 캐릭터 Up의 접평면에 투영하고 `VisualMesh` 표시 애님 인스턴스에 물리 반응을 예약한다. Phase 3-2에서 가벼운 피격의 4방향 태그 분류·HitReaction 몽타주 호출을 제거했다. `GameplayCue.LNP.Character.HitReact` 노티파이가 물리 반응과 피격자 HitStop(0.08초)을 함께 재생한다. 경직(Light·Heavy·Parried)은 별도 몽타주 경로를 유지한다. 근접 공격자 쪽 HitStop(본인 0.2초 / 구경꾼 0.08초)은 별도 경로다(→ [TechDesign_HitDetection.md](TechDesign_HitDetection.md)).
 
 **큐 파라미터 규약** — 서버의 `FLNPApplyDamageGECommand`가 정한다: `Location` = 맞은 지점, `Normal` = 피격자 → 공격자, `RawMagnitude` = 피해, `NormalizedMagnitude` = 근접이면 1. 두 크기 필드는 0이면 직렬화되지 않는다. 큐를 낼지와 근접 여부는 `ELNPHitReactKind`(None = 화염·화상 틱처럼 큐 없음 / Ranged / Melee)다.
 
-**물리 히트리액트**(애니메이션 개선 Phase 3, 코스메틱·비복제 AN-004) — 두 표시 ABP(`ABP_Retarget`·`ABP_VisualCopyPose`, 부모 `ULNPPhysicalHitReactAnimInstance` : `ULNPAnimInstance`)의 왼손 IK 뒤·출력 앞 RigidBodyWithControl 노드가 피격 구간에만 알파를 올린다(유지 0.15초 + 페이드 0.35초, 애님 시간이라 HitStop만큼 늘어난다. 상시 켜면 이동만으로 상체가 출렁인다). 골반·다리는 키네마틱, 상체는 30Hz 부모 공간 모터로 애니 포즈에 복귀하고, 중력은 끈다(구면). 세기 = `clamp(피해/20, 0.5, 2) × (근접 1.5)`. 방향성은 CVar `LNP.Anim.PhysHitReactMode` 비트(1 가슴 선속도·2 젖힘·4 맞은 지점 임펄스·8 강도 낮추기·16 몽타주 생략)이고 기본값은 12다. 랙돌 중에는 알파 0이고 그 사이 온 피격은 버린다(표현 풀 재사용 대비). 설정·비교 근거는 AnimationOverhaul `research/PhysicsHitReactSpike.md`.
+**물리 히트리액트**(애니메이션 개선 Phase 3, 코스메틱·비복제 AN-004) — 두 표시 ABP(`ABP_Retarget`·`ABP_VisualCopyPose`, 부모 `ULNPPhysicalHitReactAnimInstance` : `ULNPAnimInstance`)의 왼손 IK 뒤·출력 앞 RigidBodyWithControl 노드가 피격 구간에만 알파를 올린다(유지 0.15초 + 페이드 0.35초, 애님 시간이라 HitStop만큼 늘어난다. 상시 켜면 이동만으로 상체가 출렁인다). 골반·다리는 키네마틱, 상체는 30Hz 부모 공간 모터로 애니 포즈에 복귀하고, 중력은 끈다(구면). 세기 = `clamp(피해/20, 0.5, 2) × (근접 1.5)`. CVar `LNP.Anim.PhysHitReactMode` 기본값은 **100 = 지점 임펄스(4) + 골반 밀림(32) + 척추만 강도 낮추기(64)**다. 사용자 비교에서 선택한 116에서 몽타주 생략 비트 16만 뺀 동일 물리 구성이다. 진단용 1(가슴 선속도)·2(젖힘)·8(온몸 강도 낮추기, 64보다 우선)은 유지한다. 이전 비트 16은 효과가 없고, 0은 물리 반응을 끈다. 랙돌 중에는 알파 0이고 그 사이 온 피격은 버린다(표현 풀 재사용 대비). 설정·비교 근거는 AnimationOverhaul `research/PhysicsHitReactSpike.md`.
+
+골반은 RBWC `KinematicTargets`로 월드 오프셋을 준다. 기준 세기에서 이동 4cm·젖힘 8°·피격 지점 좌우에 따른 비틀림 10°, 애님 시간 0.1초에 정점이다. 회전 축은 캐릭터 Up·밀림 방향으로 계산해 구면에서도 동작한다. 척추 강도는 피격 구간에 0.1배로 낮추고 복귀시키며, 메시별 PhysicsAsset의 실제 바디·부모 관계가 맞는 컨트롤만 공급한다(없는 이름은 경고를 낸다). 캡슐·Mover는 움직이지 않는다. 왼손 IK의 기존 차단 조건은 `DefaultSlot`·`FullBody`·`UpperBody`와 `DisableLHandIK` 커브이며, 제거한 가산 HitReact 몽타주는 원래 이 슬롯 차단 대상이 아니었다. 물리는 기존대로 왼손 IK 뒤에서 적용한다.
 
 **히트리액트 몽타주에는 입력 차단 ANS를 붙이지 않는다** (2026-08-29 결정). 행동을 끊는 판단은 경직 시스템(→ [TechDesign_Ability.md §2.5](TechDesign_Ability.md))이 하고, 히트리액트는 코스메틱이다.
 

@@ -1,8 +1,10 @@
 # 애니메이션 개선 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase 0·1A·1C·2 완료. **Phase 3 진행 — 3-1(경로·방향성) 완료 2026-10-21, 다음 3-2**(결정 C·D 확정 2026-10-22). 1B는 대기
+> 현재 작업: Phase 0·1A·1C·2 완료. **Phase 3-2 몽타주 대체·사용자 PIE 통과. 다음 적 세기·URO/LOD 구현 진행 확인 대기.** 1B는 대기
 > 마지막 갱신: 2026-10-22
+
+사용자가 116을 선호해 기본 적용·HitReact 몽타주 제거를 승인했다. 기본 모드는 **100 = 지점 임펄스(4) + 골반 밀림(32) + 척추만 강도 낮추기(64)**로, 116에서 불필요해진 몽타주 생략 비트 16만 뺀 값이다. `PlayHitReact`의 몽타주 호출·4방향 분기와 Chooser HitReaction 10행을 제거했다. 경직 몽타주는 임시 차단을 원복해 유지한다. 사용자 PIE에서 일반 피격·경직 몽타주·공격/재장전 왼손 그립에 **"문제 없어"** 응답, 로그에서 모드 100 피격 74회·경직 몽타주 재생 2회·PhysicsControl 경고 0건 확인. **적 세기·URO/LOD 등 다음 구현 전 사용자 확인을 받는다.**
 
 ## 현재 결정
 
@@ -24,17 +26,17 @@
 - **전환 세트(2-4 완료):** Chooser 52행 = 루프 + 전환 DB 41개(Starts·Stops·Pivots·Turns·Spins·TurnInPlace·GaitTransitions·Lands, GASP 복제). 피벗·스핀은 `MovementDirection_Recent` 마스크, 착지는 지상 첫 프레임만(AN-007 유지). 인터럽트 예외는 출발 프레임 + **정지 중 제자리 회전 요청**(Idle 진행 포즈가 회전 후보를 이겨서). 행 정의 원본 `Scripts/AnimOverhaul/BuildLocomotionChooser_2-4.py`, 요약 `design/GASPReference.md` §2.11, 선택 확인은 `[AnimB6]` 로그
 - **발 배치(2-5 완료):** GASP CR 복제 `CR_Biped_FootPlacement_UEFN`(함수 참조 재연결·구면 수정 3곳, 재현 `Scripts/AnimOverhaul/FixFootPlacementCR_2-5.py`)이 AnimGraph `OffsetRootBone` 뒤 노드 하나로 돈다(알파 = 지상, 공중 IK 없음, 착지 리셋, `UseIKBoneTargets` 끔). 움직이는 base 위에서는 핀 고정·루트 감쇠 끔(`IsOnStaticGround`). 경사는 CR slope warping만(AN-021). ⚠️ 엔진 `OffsetRootBone` `MaxRotationError` 클램프는 적도에서 루트를 기울인다 — 노드 값 −1, C++가 Up 둘레로 90° 제한(구면 함정 4번째). 요약 `design/GASPReference.md` §2.12
 - **기울기(2-6 완료, AN-022):** GASP `AdditiveLeans`를 AnimGraph 노드 묶음으로, 위치는 무기 오버레이 뒤·슬롯 앞(무기 서브 ABP가 `spine_02` 위를 메시 공간 회전 블렌드로 덮어서). 분기는 C++ `ShouldApplyAdditiveLeans`(Moving, 공중 포함)·`ShouldApplyHeadLean`(FreeAim·락온이 아닐 때 머리도). 락온은 InputCmd `bIsLockOn`. CVar `LNP.Anim.AdditiveLeans`, 붙여넣기 생성 `Scripts/AnimOverhaul/BuildLeansPaste_2-6.py`. 요약 `design/GASPReference.md` §2.13
-- **물리 히트리액트(3-1 완료):** 두 표시 ABP(`ABP_Retarget`·`ABP_VisualCopyPose`)의 부모가 `ULNPPhysicalHitReactAnimInstance`(`ULNPAnimInstance` 파생)이고, 왼손 IK 뒤·출력 앞에 RBWC가 있다(스파이크 값 그대로). 큐가 맞은 지점·피해·근접 여부를 싣고(`ELNPHitReactKind`), 방향성은 CVar `LNP.Anim.PhysHitReactMode` 비트(기본 12 = 지점 임펄스 + 강도 낮추기, 16 = 히트리액트 몽타주 생략). 히트리액트 몽타주는 아직 유지한다. 공통 설계 [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §6.4, 비교 결과 `research/PhysicsHitReactSpike.md` §7
+- **물리 히트리액트(3-2 진행):** 두 표시 ABP의 왼손 IK 뒤·출력 앞 RBWC가 물리 반응을 담당한다. 기본 모드 100(선호 116에서 생략 비트 16 제거), 골반 월드 오프셋 + 실제 존재하는 척추 컨트롤만 강도 조절. HitReact 몽타주 호출·Chooser 10행 제거, 경직 몽타주·HitStop 유지. 공통 설계 [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §6.4, 비교 결과 `research/PhysicsHitReactSpike.md` §8
 - **Phase 2 최종 포즈 파이프라인**은 `phases/Phase02_GASPMoverABP.md` "Phase 2 종료"와 [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §1이 소유한다. 엔진 노드 구면 함정 4건 + `CalculateDirection`은 같은 문서 §7.4
 - **빌드:** GASP 에디터만 떠 있어도 LootNPop `Build.bat`이 Live Coding 검사에 막힌다(같은 엔진 실행 파일). LootNPop 에디터를 끈 뒤 `-NoHotReloadFromIDE`를 붙여 빌드한다. GASP 에디터는 끄지 않아도 된다
 
 ## 바로 다음 행동 (갈래별 첫 행동)
 
-Phase 3은 3-2가 남았다. 결정은 확정됐다(2026-10-22, AN-023): **C** 히트리액트 몽타주를 물리로 완전히 대체하는 것을 목표로, **D** 그 전에 3-2에서 방향성을 보강한다. 3-2 첫 실험(골반 밀림 비트 32·척추만 무르게 비트 64, 헤더 변경 → 에디터 재시작 1회)의 설계는 `phases/Phase03_PhysicsHitReact.md` "단위 3-2"에 있다. 다른 갈래를 먼저 골라도 된다. 착수하는 갈래의 `phases/` 문서는 착수 직전에 만든다.
+골반·척추 보강과 몽타주 대체 구현을 마쳤다. 전체 빌드(63.92초), ABP 컴파일(경고=오류) 2/2, 후속 Live Coding 성공. 사용자가 직접 Chooser 10행 삭제·저장 후 MCP로 남은 16행의 모든 조건·컬럼 설정이 이전과 동일함을 확인했다. 사용자 PIE 회귀도 통과했다. 사용자 요청으로 여기까지를 중간 커밋 범위로 정리했다. **다음 구현(적 반응 세기 분리 필요성·URO/LOD 임펄스 소실 확인)을 진행할지 사용자에게 확인한다.** 적도·2인 회귀·골반/다리 변형의 별도 통과 응답은 아직 없으므로 마지막 확인 묶음에 남긴다. 에셋 백업은 `Saved/AnimOverhaul/Phase3-2/backup/`(표시 ABP 2개·삭제 전 Chooser). 3-2 전체는 아직 진행 중이다.
 
 | 갈래 | 첫 행동 | GASP 에디터(8001) | 건드리는 에셋 |
 |:---|:---|:---|:---|
-| **Phase 3-2 방향성 보강·몽타주 대체·적 분리** | 골반 밀림(32)·척추만 무르게(64)를 구현해 몽타주를 끈 상태로 28/60/92/124를 사용자 PIE로 비교한다. 방향성이 서면 `PlayHitReact`의 히트리액트 몽타주 재생을 걷어내고(비트 16이 그 스위치의 시험판) `CHT_Montage` HitReaction 행을 정리한다. 적 반응 세기(`PA_UEFN_Mannequin`)는 메시별 세기 또는 PhysicsControl 프로필로 나누고, URO·LOD로 1프레임 임펄스가 사라지는지 본다 | 불필요. GASP B11 곡선 → 강도 패턴을 직접 보고 싶을 때만 | 표시 ABP 2개, `CHT_Montage` HitReaction 행, 히트리액트 C++ |
+| **Phase 3-2 방향성 보강·몽타주 대체·적 분리** | 몽타주 대체·사용자 PIE 통과. 다음 구현 진행 확인 후 적 반응 세기(`PA_UEFN_Mannequin`) 분리 필요성, URO·LOD의 1프레임 임펄스 소실, 적도·2인 회귀를 확인한다 | 불필요. GASP B11 곡선 → 강도 패턴을 직접 보고 싶을 때만 | 표시 ABP 2개, 히트리액트 C++ |
 | ISKM 총기 적 재베이크 | [TechDesign_EnemyNPC_LowLOD.md](../TechDesign_EnemyNPC_LowLOD.md) "미해결 — ISKM 총기 적" 절대로 `Retargeted/Enemy/` 총기 클립을 다시 굽는다(정렬하지 않은 리타깃 포즈 + 견착 보정, 왼손 IK를 그립 오프셋으로 굽기). Phase 2와 독립 | 불필요 | `Retargeted/Enemy/`(git 제외), ISKM 베이크 스크립트 |
 | 1B 마커리스 모캡 스파이크 | `phases/Phase01B_*.md`를 만든다. 사용자가 Fab 마커리스 플러그인(약 5GB)을 설치하고 고정 카메라 영상 1클립을 고른다(AN-010). 리타깃 대상은 UEFN 스켈레톤(93본) | 불필요 | 새 시퀀스·몽타주(새 폴더), PIE 확인 시 `CHT_Montage` 행 하나 |
 | Phase 5 UAF 판정 스파이크 | `phases/Phase05_*.md`를 만든다. `Roadmap.md` §4 Phase 5 체크리스트(PSD·Chooser 재사용, 몽타주 `NotifyEnd` 보장, `UAFLayering`, Motion Warping·Mover, 시뮬 프록시, 디버깅, 적도)를 무기 없는 플레이어 1명으로 판정한다. 먼저 GASP 5.8에 UAF 캐릭터가 있는지 다시 확인한다(`research/UE58_AnimationFeatures.md` §1 — 로컬에서는 못 찾음). Phase 2 ABP에는 엔진 구면 함정 우회(Offset Root·발 배치 CR)와 C++ 판정 함수가 많아, UAF 쪽에 같은 노드·핀이 있는지가 관건이다 | **필요** — UAF 캐릭터 에셋 유무 확인 | 테스트 폰·UAF 에셋(새 폴더). 기존 ABP는 건드리지 않는다 |
