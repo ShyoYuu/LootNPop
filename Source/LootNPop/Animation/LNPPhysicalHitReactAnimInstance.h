@@ -12,7 +12,7 @@
  * ULNPPhysicalHitReactAnimInstance
  * VisualMesh 표시 ABP(ABP_Retarget·ABP_VisualCopyPose)의 부모. 왼손 IK 등 표시 메시 변수는 ULNPAnimInstance가 그대로 공급하고,
  * 이 클래스는 출력 앞 RigidBodyWithControl 노드 핀(힘·알파·컨트롤 배율)을 공급한다(애니메이션 개선 Phase 3).
- * 코스메틱이며 복제하지 않는다 — 각 머신이 HitReact 큐를 받아 로컬로 호출한다(AN-004).
+ * 각 머신이 HitReact 큐를 받아 로컬로 호출한다(비복제). 플레이어 근접 공격 중에는 판정 궤적을 보호하려고 억제한다(AN-024).
  */
 UCLASS()
 class LOOTNPOP_API ULNPPhysicalHitReactAnimInstance : public ULNPAnimInstance

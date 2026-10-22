@@ -291,9 +291,13 @@ UE는 `Montage_Stop` 취소 시에도 활성 ANS에 `NotifyEnd`를 보장한다.
 
 **물리 히트리액트**(애니메이션 개선 Phase 3, 코스메틱·비복제 AN-004) — 두 표시 ABP(`ABP_Retarget`·`ABP_VisualCopyPose`, 부모 `ULNPPhysicalHitReactAnimInstance` : `ULNPAnimInstance`)의 왼손 IK 뒤·출력 앞 RigidBodyWithControl 노드가 피격 구간에만 알파를 올린다(유지 0.15초 + 페이드 0.35초, 애님 시간이라 HitStop만큼 늘어난다. 상시 켜면 이동만으로 상체가 출렁인다). 골반·다리는 키네마틱, 상체는 30Hz 부모 공간 모터로 애니 포즈에 복귀하고, 중력은 끈다(구면). 세기 = `clamp(피해/20, 0.5, 2) × (근접 1.5)`. CVar `LNP.Anim.PhysHitReactMode` 기본값은 **100 = 지점 임펄스(4) + 골반 밀림(32) + 척추만 강도 낮추기(64)**다. 사용자 비교에서 선택한 116에서 몽타주 생략 비트 16만 뺀 동일 물리 구성이다. 진단용 1(가슴 선속도)·2(젖힘)·8(온몸 강도 낮추기, 64보다 우선)은 유지한다. 이전 비트 16은 효과가 없고, 0은 물리 반응을 끈다. 랙돌 중에는 알파 0이고 그 사이 온 피격은 버린다(표현 풀 재사용 대비). 설정·비교 근거는 AnimationOverhaul `research/PhysicsHitReactSpike.md`.
 
-골반은 RBWC `KinematicTargets`로 월드 오프셋을 준다. 기준 세기에서 이동 4cm·젖힘 8°·피격 지점 좌우에 따른 비틀림 10°, 애님 시간 0.1초에 정점이다. 회전 축은 캐릭터 Up·밀림 방향으로 계산해 구면에서도 동작한다. 척추 강도는 피격 구간에 0.1배로 낮추고 복귀시키며, 메시별 PhysicsAsset의 실제 바디·부모 관계가 맞는 컨트롤만 공급한다(없는 이름은 경고를 낸다). 캡슐·Mover는 움직이지 않는다. 왼손 IK의 기존 차단 조건은 `DefaultSlot`·`FullBody`·`UpperBody`와 `DisableLHandIK` 커브이며, 제거한 가산 HitReact 몽타주는 원래 이 슬롯 차단 대상이 아니었다. 물리는 기존대로 왼손 IK 뒤에서 적용한다.
+골반은 RBWC `KinematicTargets`로 월드 오프셋을 준다. 기준 세기에서 이동 3cm·젖힘 6°·피격 지점 좌우에 따른 비틀림 7.5°, 애님 시간 0.1초에 정점이다(2026-10-23 사용자 과장 완화 요청으로 종전 4cm·8°·10°보다 25% 감소, 빌드·실측·사용자 선호 판정 통과). 회전 축은 캐릭터 Up·밀림 방향으로 계산해 구면에서도 동작한다. 척추 강도는 피격 구간에 0.1배로 낮추고 복귀시키며, 메시별 PhysicsAsset의 실제 바디·부모 관계가 맞는 컨트롤만 공급한다(없는 이름은 경고를 낸다). 캡슐·Mover는 움직이지 않는다. 왼손 IK의 기존 차단 조건은 `DefaultSlot`·`FullBody`·`UpperBody`와 `DisableLHandIK` 커브이며, 제거한 가산 HitReact 몽타주는 원래 이 슬롯 차단 대상이 아니었다. 물리는 기존대로 왼손 IK 뒤에서 적용한다.
 
 **히트리액트 몽타주에는 입력 차단 ANS를 붙이지 않는다** (2026-08-29 결정). 행동을 끊는 판단은 경직 시스템(→ [TechDesign_Ability.md §2.5](TechDesign_Ability.md))이 하고, 히트리액트는 코스메틱이다.
+
+**플레이어 근접 공격 중 물리 반응 억제**(AN-024, 2026-10-22 사용자 결정). `ANS_LNPMeleeHitWindow`는 실제 `WeaponMesh`의 칼끝·뿌리 위치를 읽으므로 표시 포즈에 얹은 물리가 판정 궤적에도 섞인다. `ULNPPhysicalHitReactAnimInstance`는 소유자가 `ALNPPlayerCharacter`이고 메인 인스턴스에 `ANS_LNPMeleeHitWindow`를 포함한 몽타주가 남아 있으면 반응을 억제한다. 준비·회수·블렌드아웃까지 포함하고, 이미 시작된 반응도 즉시 알파 0으로 종료하며 그동안의 피격 예약은 버린다. 공격이 끝난 뒤 늦게 재생하지 않는다. 로컬 제어 여부나 비복제 태그에 의존하지 않아 서버·소유 클라·시뮬레이티드 프록시 모두 같은 기준을 쓴다. NPC는 이 제한 없이 공격 중 물리를 허용하며, 그에 따른 NPC 무기 궤적 흔들림은 사용자가 허용한 예외다. 경직 몽타주·HitStop은 그대로다.
+
+진단은 기본 꺼짐인 `LNP.Anim.PhysHitReactLog`로 피격·억제·메인 몽타주를 확인한다. Phase 3 검증에 쓴 매 평가 포즈 계측 훅·`PhysHitReactMeasure`는 결과 보존 후 제거했다. 실제 바디 목록·측정 방법·수치·증거 한계는 AnimationOverhaul `research/PhysicsHitReactSpike.md` §10에 있다.
 
 1. 차단 ANS를 달면 **모든 피격이 곧 경직**이 되어 누적·임계 체계가 무의미해진다.
 2. 히트리액트는 각 머신이 큐를 받아 로컬 재생하고 `AddLooseGameplayTag`는 복제되지 않는다. 차단 시점이 머신마다 RTT만큼 갈린다.

@@ -75,7 +75,7 @@ UE 5.8 Game Animation Sample(이하 GASP)의 애니메이션 구성을 LootNPop�
   VisualMesh ───── AnimSourceMesh 포즈를 받아 그린다  ← 랙돌·물리 히트리액트의 대상 메시
                      ├ 플레이어 SKM_Manny_Simple(MoverSample) + ABP_Retarget(RTG_GASP_to_MS)
                      ├ 적 SKM_UEFN_Mannequin + ABP_VisualCopyPose(포즈 복사)
-                     └ (Phase 3) PhysicsControl 상체 임펄스 — 코스메틱, 비복제
+                     └ PhysicsControl 피격 반응(Phase 3 완료) — 비복제, 플레이어 근접 공격 중 억제(AN-024)
 ```
 
 `ActorPromoted` 적은 같은 `ABP_Main_UEFN`을 공유하므로 Phase 2 결과를 자동으로 받는다. 무기·몽타주용 Lyra 애니는 UEFN으로 리타깃한 사본(`Content/Characters/Retargeted/`, git 제외)을 쓴다(AN-011·AN-016).
@@ -94,7 +94,7 @@ UE 5.8 Game Animation Sample(이하 GASP)의 애니메이션 구성을 LootNPop�
 ## 7. 모든 구현이 지켜야 하는 불변 조건
 
 - **구면 월드.** 위치마다 중력 Up이 다르다. 새로 넣는 애니 노드·Control Rig·물리 설정은 월드 Z를 Up으로 가정하는지 먼저 확인하고, 적도 근처에서 검증한다(`research/UE58_AnimationFeatures.md` §5).
-- **게임플레이와 연출 분리.** 물리 애니메이션은 캡슐·Mover·판정을 움직이지 않는다. 히트리액트는 코스메틱이고 복제하지 않는다(AN-004).
+- **게임플레이와 연출 분리.** 물리 히트리액트는 캡슐·Mover를 움직이지 않고 복제하지 않는다. 무기 위치를 읽는 근접 판정은 표시 포즈의 영향을 받으므로 플레이어 근접 공격 중에는 물리 반응을 끈다. NPC의 공격 중 흔들림은 허용한다(AN-024, AN-004 대체).
 - **무기 레이어·슬롯·ANS 계약 유지.** `ALI_WeaponStyles` 레이어 교체, `DefaultSlot`·`FullBody`·`UpperBody` 슬롯, ANS 5종의 시각 계약을 깨지 않는다. ANS는 근접 판정 엔티티 수명과 입력 차단을 소유한다.
 - **선택 로직은 Chooser와 C++에.** ABP 그래프에 분기 로직을 쌓지 않는다(AN-003).
 - **애니 변수는 `ULNPAnimInstance`가 공급한다.** 속도·가속은 캐릭터 Up에 수직인 접평면으로 투영한 값만 넘긴다.

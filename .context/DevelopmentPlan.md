@@ -164,7 +164,7 @@
       선형 스캔으로 충분하다. 첫 소비자는 적 겹침 분리력이다.
     - 설계 명세: [TechDesign_TargetQuery.md](TechDesign_TargetQuery.md)
 - [x] **히트리액션**
-    - 피격 시 캐릭터 히트리액션 애니메이션 구현.
+    - PhysicsControl 물리 히트리액트로 가벼운 피격 몽타주 대체(애니메이션 개선 Phase 3, 2026-10-23). 플레이어 근접 공격 중 억제·NPC 공격 중 허용, 경직 몽타주·HitStop 유지. 사용자 2인 회귀·포즈 실측 통과. 상세: [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md) §6.4, [완료 기록](AnimationOverhaul/history/Phase03_Log.md).
 - [x] **피격 반응 시스템** (HitStop·넉백·사망 드랍)
     - `ALNPCharacterBase::ApplyKnockback` → Mover `FApplyVelocityEffect`(Instant Effect). 권위에서만 트리거하고
       결과가 SyncState로 복제된다. 피격 넉백과 근접 패링 성공 시 공격자 넉백이 같은 경로를 쓴다.

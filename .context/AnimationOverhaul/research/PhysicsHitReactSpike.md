@@ -154,5 +154,75 @@ RBWC 노드 값(Phase 3 출발점):
 
 사용자 요청으로 최종 비교 때 경직 몽타주(Light·Heavy·Parried)까지 임시로 생략했다. 비교 종료 후 해당 임시 코드를 제거하고 Live Coding으로 원래 재생을 복구했다. 최종 구간 로그는 116 피격 60회·경직 몽타주 생략 4회·컨트롤 경고 0건이다. 첫 비교에서 없는 척추 컨트롤 이름이 경고를 내므로, 실제 PhysicsAsset의 바디 존재와 부모 관계를 확인해 유효한 이름만 공급하도록 수정했다.
 
-후속으로 사용자가 기본 적용·몽타주 제거를 승인했다. 기본값은 **100**(116에서 몽타주 생략 비트 16 제거)으로 바꾸고 HitReact 몽타주 호출과 Chooser HitReaction 10행을 제거했다. 일반 피격·경직 몽타주·공격/재장전 왼손 그립 사용자 PIE 확인도 통과했다(상세 `history/Phase03_Log.md`). 적도·2인 회귀·골반/다리 변형의 별도 통과 응답과 URO/LOD 확인은 남아 있다.
+후속으로 사용자가 기본 적용·몽타주 제거를 승인했다. 기본값은 **100**(116에서 몽타주 생략 비트 16 제거)으로 바꾸고 HitReact 몽타주 호출과 Chooser HitReaction 10행을 제거했다. 일반 피격·경직 몽타주·공격/재장전 왼손 그립 사용자 PIE 확인도 통과했다. 2026-10-23에는 AN-024의 플레이어 근접 공격 중 억제를 추가하고, 적도·리슨 2인·골반/다리·랙돌/LOD 재접근·리스폰 최종 수동 회귀도 사용자 "모두 정상"으로 통과했다(증거·한계는 `history/Phase03_Log.md`). URO·RBWC LOD 설정 확인 결과는 §9.
+
+## 9. URO·RBWC LOD 평가 생략 조건 확인 (2026-10-22)
+
+LootNPop MCP로 실제 에셋 기본값과 전역 CVar를 읽었다. 에셋·C++은 수정하지 않았다.
+
+| 항목 | 플레이어 | ActorPromoted 적 |
+|:---|:---|:---|
+| VisualMesh `bEnableUpdateRateOptimizations` | false | false |
+| VisualMesh `VisibilityBasedAnimTickOption` | AlwaysTickPoseAndRefreshBones | AlwaysTickPoseAndRefreshBones |
+| 표시 ABP의 RBWC `LODThreshold` | −1 | −1 |
+| 전역 `p.RigidBodyWithControlLODThreshold` | −1(노드 값 사용) | 동일 |
+
+엔진 근거(`Engine/` 상대 경로):
+
+- `Source/Runtime/Engine/Private/Components/SkeletalMeshComponent.cpp`의 `TickPose`·`RefreshBoneTransforms`: URO를 사용할 때 업데이트·평가 생략 여부를 각각 판단한다. URO를 사용하지 않으면 이 평가 생략 분기를 쓰지 않는다.
+- `Source/Runtime/Engine/Private/Components/SkinnedMeshComponent.cpp`의 `AnimUpdateRateSetParams`: 화면 밖의 인간 조작 캐릭터 등은 업데이트 빈도와 평가 빈도가 다를 수 있다. 일반적인 보이는 AI의 URO는 두 빈도를 함께 낮춘다.
+- `Plugins/Animation/PhysicsControl/Source/PhysicsControl/Private/AnimNode_RigidBodyWithControl.cpp`: `UpdateInternal`은 시간을 누적하고, `EvaluateSkeletalControl_AnyThread`가 `ApplyForcesAndTorques`를 호출한다. `GetLODThreshold`는 노드 값과 전역 값으로 평가 제한을 정한다. 메시 LOD 변경 시에는 `InitializeBoneReferences`가 활성 바디를 갱신한다.
+
+**현재 설정에서는 URO·RBWC LOD 제한에 의한 평가 생략이 활성화돼 있지 않다.** 따라서 `NativeUpdateAnimation` 한 번에만 힘을 채우는 기존 코드를 유지한다. 아직 발생 조건을 쓰지 않는 프로젝트에 임펄스 보류·소비 확인 로직을 추가하지 않는다.
+
+이 확인은 **URO를 켠 상태의 런타임 통과 증거가 아니다.** 추후 URO·화면 밖 본 평가 생략·RBWC LOD 제한을 도입하면 업데이트 뒤 평가가 생략되는 피격을 재현하고, 평가까지 보류할지 화면 밖 코스메틱을 버릴지 정해야 한다. 메시 LOD별 바디 축소의 체감·표현 풀 재사용은 사용자 PIE 회귀로 따로 확인한다.
+
+## 10. 실제 피격 시뮬레이션 바디·포즈 실측 결과 (2026-10-23)
+
+사용자가 공격 중 피격 물리의 차이가 미묘하다며 수치 증명을 요청했고, 물리로 움직일 수 있는 부위도 물었다. MCP로 두 표시 메시의 PhysicsAsset 바디 목록과 RBWC 노드 설정을 읽었다. PhysicsAsset·ABP는 수정하지 않았다.
+
+| 부위 | 플레이어 `PA_Mannequin` | NPC `PA_UEFN_Mannequin` |
+|:---|:---|:---|
+| 직접 시뮬레이션: 척추 | `spine_02`~`spine_05`(4개) | `spine_01`~`spine_05`(5개) |
+| 직접 시뮬레이션: 목·머리 | `neck_01`, `neck_02`, `head` | 동일 |
+| 직접 시뮬레이션: 양쪽 어깨·팔·손 | `clavicle_l/r`, `upperarm_l/r`, `lowerarm_l/r`, `hand_l/r`(8개) | 동일 |
+| 키네마틱: 골반 | `pelvis`, 피격 타깃 오프셋으로만 이동·회전 | 동일 |
+| 키네마틱: 양쪽 다리·발 | `thigh_l/r`, `calf_l/r`, `foot_l/r`(6개), 애니 포즈 유지 | 동일 |
+| 전체 바디 / 직접 시뮬레이션 허용 바디 | 22 / 15 | 23 / 16 |
+
+RBWC 기본 모디파이어는 `Simulated`, 초기 갱신은 골반·다리/발 7개를 `Kinematic`으로 바꾼다. 위 수는 그 설정과 현재 바디 목록의 교집합이며 일반 피격 경로 기준이다(LOD별 본 축소·사망 랙돌 제외). 임펄스를 직접 받는 후보는 `spine_03/04/05`, `head`, `upperarm_l/r` 중 피격 지점에 가장 가까운 하나다. 나머지 상체 바디는 관절을 통해 반응한다. 손가락 등 별도 바디가 없는 본은 부모 변화를 따라가며 독립 물리 바디는 없다.
+
+**검증 당시 측정 구현(실측 후 제거).** 에디터 전용 CVar `LNP.Anim.PhysHitReactMeasure`로 `NativePostEvaluateAnimation`에서 골반·`spine_04`·머리·양손·양발의 같은 평가 입력/출력 컴포넌트 공간 변위(cm)·회전차(도)를 `[PhysHitMeasure]`로 남겼다. 월드·Actor·Player/NPC·프레임·메인 몽타주/시각·RBWC `ActualAlpha`도 기록해 머신·공격 상태를 구분했다. 이 일회성 CVar·훅은 최종 빌드에서 제거했으므로 현재 명령으로 사용할 수 없다. 기본 꺼짐인 `[PhysHitReact]` 공급/억제 로그만 유지하며 이를 실제 변형량의 증거로 혼동하지 않는다.
+
+엔진 근거: `AnimNode_SkeletalControlBase.cpp`가 `ForwardedPose`를 알파 적용 전 복사한다(0일 때도). `SkeletalMeshComponent.cpp`의 `SwapEvaluationContextBuffers`는 평가 출력을 Editable 배열에 놓고, `PostAnimEvaluation`은 버퍼 반전 전에 `NativePostEvaluateAnimation`을 호출한다. 따라서 현재 그래프처럼 RBWC 뒤에 공간 변환·출력만 있으면 같은 프레임의 입력/출력을 비교할 수 있다. Read 배열은 이전 프레임일 수 있어 쓰지 않는다.
+
+검증 요청은 0/68/100 비교였고 실제 로그에는 100→68→100만 기록됐다. 모드 0 검증을 했다고 쓰지 않는다. 대신 같은 측정 경로의 `ActualAlpha=0` 샘플 10,550개 모두 7개 측정 본 차이가 0임을 대조군으로 확인했다.
+
+추가 조정: 사용자 "가끔 골반이 크게 흔들리면 춤추는 것 같다" 요청으로 골반 이동·젖힘·비틀림 기본값을 각각 4→3cm·8→6°·10→7.5°로 25% 낮췄다. 정점 시간·상체 임펄스·척추 강도는 유지했다. 전체 빌드 성공 후 사용자 **"측정 완료, 골반 켠 100이 나음"** 판정으로 100을 유지한다.
+
+사용자가 골반 완전 끔/켬 비교도 요청했다. 기존 `LNP.Anim.PhysHitReactMode` 비트 32로 이미 분리할 수 있으므로 새 토글은 추가하지 않는다. **68 = 지점 임펄스(4)+척추 조절(64), 100 = 68+골반(32)**. `68 ↔ 100`은 골반 성분만 다르고, 0은 물리 전체 끔 대조군이다. CVar 도움말에도 비교 값을 명시했다. 사용자 에디터 종료 확인 후 전체 빌드 성공(35.32초), 아래 실측·선호 판정도 통과했다.
+
+### 실측 수치
+
+원본은 `Saved/Logs/LootNPop.log`(한국 2026-10-23 01:55:31 시작)이며 `Saved/AnimOverhaul/Phase3-2/evidence/physics_measure_2026-10-23.log`로 보존했다. 1인 PIE `TestMap03`, 수집 01:58:12~02:01:05, 총 13,016개 평가 샘플이다. 집계 산출물 `Saved/AnimOverhaul/Phase3-2/physics_measure_summary_2026-10-23.json`, 스크립트 `AnalyzePhysicsMeasure.py`(같은 폴더). 보존 원본을 인수로 다시 집계했고 JSON에 그 경로·SHA-256·모드 전환 행·조건별 전체 통계를 남겼다. 최초 모드는 코드 기본값 100이며 최초 힘 로그도 100이다.
+
+| 조건 | 평가 샘플 | 가슴 위치 차이 평균 / 최대(cm) | 가슴 회전 차이 평균 / 최대(°) | 비고 |
+|:---|---:|---:|---:|:---|
+| 100 플레이어 근접 공격 | 1,043 | 0 / 0 | 0 / 0 | 실제 알파와 7개 측정 본 차이 모두 0 |
+| 68 플레이어 근접 공격 | 536 | 0 / 0 | 0 / 0 | 동일 |
+| 100 NPC 근접 공격·알파>0 | 313 | 2.7308 / 11.0548 | 19.4093 / 69.5609 | 262샘플에서 측정 본 중 하나 이상 차이>0.001cm/° |
+| 68 NPC 근접 공격·알파>0 | 106 | 2.3567 / 8.9348 | 16.4546 / 90.794 | 골반은 0, 상체 반응 유지 |
+| 100 플레이어 근접 공격 밖·알파>0 | 1,287 | 2.4965 / 9.9806 | 15.4812 / 40.6569 | 공격 밖 반응도 실제 출력에 남음 |
+
+- 68의 전체 4,974샘플은 골반 위치·회전 차이 모두 0. 100의 전체 8,042샘플에서 골반 최대 2.475cm·7.9223°다. 해당 실행의 힘 기록 104회는 모두 세기 0.83이었다. 따라서 이 최대값을 세기 상한(근접 최대 3)의 결과라고 일반화하지 않는다.
+- 100 NPC 공격·활성의 오른손 차이는 평균 21.176cm·최대 95.2793cm(P95 67.7977cm)로 클 수 있다. 이는 **같은 순간의 원본 공격 포즈 대비 RBWC 전체 기여분**이며, 임펄스뿐 아니라 모터가 빠른 공격 포즈를 따라가는 지연·골반 오프셋도 포함한다. 이 값을 순수 피격 힘만의 이동량으로 설명하지 않는다. NPC 공격 무기 궤적도 그 영향을 받을 수 있다는 AN-024 예외와 일치한다. 플레이어 근접 공격 중 오른손 차이는 전 샘플 0이다.
+- 100 NPC 공격·활성의 키네마틱 발에는 최대 0.026cm 수준 위치 잔차가 있었고 회전 차이는 0이다. 68과 플레이어 근접 공격 구간은 발 차이도 0이었다.
+- 모드 간 피격 지점·시각을 통제한 반복 실험은 아니므로 평균 차이를 골반 하나의 인과 효과로 정량 비교하지 않는다. 샘플은 프레임별 평가 기록이며 독립 피격 횟수가 아니다. NPC는 피격 반응 구간에만 알파가 올라가므로 공격 중 알파 0 샘플이 많은 것도 정상이다.
+- PhysicsControl Warning/Error·컨트롤 누락·ensure 0건. 이번 1인 실행의 Mover 0-Up 경고도 0건이나 이전 2인 경고가 해결된 것으로 보지 않는다. 사용자 선호 100 유지, 일회성 진단 CVar는 최종 정리에서 제거했다.
+
+### 실측 종료 후 정리
+
+사용자 요청으로 Phase 3 종료 정리까지 마친 뒤 한 번에 커밋한다. 매 평가 로그·전용 CVar·평가 훅·전용 include는 제거하고 기존 기본 꺼짐 피격/억제 로그와 68/100 비교만 유지했다. 제거 전 소스·헤더는 `evidence/LNPPhysicalHitReactAnimInstance_measurement.cpp`·`.h`로 보존했다. 재측정이 필요하면 이 사본과 위 엔진 근거로 진단만 복원해 빌드한다. 최종 런타임에는 해당 계측이 없다.
+
+리슨 2인 원본도 `evidence/listen_regression_2026-10-23.log`로 보존했다. `Saved` 증거·집계·진단 사본은 로컬 보관이며 git 커밋에는 넣지 않는다. 검증 결과·방법·한계는 이 문서와 Phase 3 로그에 남겨 저장소에서도 확인할 수 있다.
 

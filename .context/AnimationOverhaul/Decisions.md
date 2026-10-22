@@ -11,7 +11,7 @@
 | AN-001 | GASP 시스템은 에셋을 통째로 마이그레이트하지 않고 **구성을 보며 핵심 블록부터 LootNPop에서 직접 다시 만든다.** 애니메이션 시퀀스·스켈레탈 메시 같은 소스 에셋만 마이그레이트하고 git에서 제외한다(기존 `Content/Characters/GASP_Mannequin/*` 패턴). ABP·Chooser·PSD·PSS·Control Rig·PhysicsControl 프로필 같은 구성 에셋은 직접 만들고 추적한다. | 확정(2026-10-16, 사용자 결정) | `Roadmap.md` §1 |
 | AN-002 | GASP의 이동 모드 BP(`BP_MovementMode_*`)와 BPI 인터페이스(`BPI_SandboxCharacter_*`)는 가져오지 않는다. 이동은 기존 C++ Mover 모드가 소유하고, 애니 변수는 `ULNPAnimInstance`(C++)가 접평면 투영 값으로 공급한다. | 확정 | [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §7.4 |
 | AN-003 | 상태별 애니메이션 선택 로직은 ABP 그래프가 아니라 **Chooser 테이블과 C++**에 둔다. PSD·Chooser는 UAF(`UAFChooser`·`UAFPoseSearch`)에서도 재사용되므로 이후 UAF 이전 비용을 그래프 배선 수준으로 줄인다. | 확정 | `research/UE58_AnimationFeatures.md` §1 |
-| AN-004 | 히트리액트는 지금처럼 **코스메틱**이다(GameplayCue 수신 시 머신별 로컬 재생, 비복제, 데디 서버 생략). 물리 히트리액트는 `VisualMesh`의 상체 바디만 구동하고 캡슐·Mover·판정은 건드리지 않는다. 행동을 끊는 경직(GA_Stagger)은 몽타주 경로를 유지한다. | 확정 | [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §6.4·§6.5 |
+| AN-004 | 히트리액트는 지금처럼 **코스메틱**이다(GameplayCue 수신 시 머신별 로컬 재생, 비복제, 데디 서버 생략). 물리 히트리액트는 `VisualMesh`의 상체 바디만 구동하고 캡슐·Mover·판정은 건드리지 않는다. 행동을 끊는 경직(GA_Stagger)은 몽타주 경로를 유지한다. | 대체됨(2026-10-22, 무기 추종 판정의 예외를 AN-024에 명시) | [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §6.4·§6.5 |
 | AN-005 | GASP식 파워드 래그돌 넘어짐·기상(캡슐이 물리를 따라가는 연출)은 이 작업 범위 밖이다. 서버 권위 위치·리컨실리에이션 문제를 낳으므로 필요해지면 별도 결정으로 다룬다. | 확정 | `Roadmap.md` §5 |
 | AN-006 | UAF는 **판정 게이트**다. Phase 5 스파이크를 통과하기 전에는 마이그레이션에 착수하지 않는다. 불합격이면 사유를 [DiscardedApproaches.md](../DiscardedApproaches.md)에 남기고 다음 엔진 버전에서 다시 본다. | 확정 | `Roadmap.md` Phase 5 |
 | AN-007 | 공중 `Fall_Loop` 고정([TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §5.5)은 유지한다. 수직 채널을 가진 공중 스키마를 따로 만들기 전에는 GASP 점프·낙하 처리로 바꾸지 않는다. | 확정 | 같은 문서 §5.5 |
@@ -32,6 +32,7 @@
 | AN-021 | **경사(B5)는 발 배치 CR의 slope warping만 쓴다.** GASP 경사 BS(`BS_Relaxed_{Walk,Run}_Loop_F_Slopes`)는 SM 경로 Chooser(`CHT_MoverCharacterAnimations_PoseMatch`)만 참조하고, MM 경로(AN-015) PSD 스키마에는 경사 채널이 없어 MM이 경사각을 모른 채 BS 샘플을 고르게 된다. 경사 BS·시퀀스 반입과 Chooser 경사 행은 만들지 않는다. 경사 전용 애니가 필요해지면 가산 레이어나 PSD 경사 채널을 별도로 설계한다. | 확정(2026-10-20, 사용자 결정) | `design/GASPReference.md` §2.12 |
 | AN-022 | **Additive Leans(B8)는 무기 오버레이(`ApplyWeaponStyleOverlay`) 뒤, 몽타주 슬롯 앞에 둔다.** 무기 서브 ABP가 `spine_02` 위를 메시 공간 회전 블렌드로 덮어, 앞에 두면 무기를 든 상체의 기울기가 지워진다. 머리 기울기는 GASP `EnableAO` 대신 "FreeAim 무기도 락온도 아님"일 때만 더한다(C++ `ShouldApplyHeadLean`, 락온은 InputCmd에서 읽음). 오버레이 앞으로 옮기거나 무기 오버레이를 로컬 공간 블렌드로 바꾸면 이 결정을 다시 본다. | 확정(2026-10-21, 2-6 사용자 PIE 통과) | `design/GASPReference.md` §2.13 |
 | AN-023 | **가벼운 히트리액트 몽타주는 물리 히트리액트로 완전히 대체하는 것을 목표로 한다.** 3-1에서 물리 단독이 "가벼운 피격은 대체 가능, 부위·방향 체감은 약함"으로 평가돼, 3-2에서 방향성을 보강한 뒤 대체를 판정·실행한다. 경직(GA_Stagger)·다운·Light/Heavy/Parried 몽타주는 유지한다(AN-004). | 확정(2026-10-22, 사용자 결정) | `phases/Phase03_PhysicsHitReact.md` 단위 3-2 결정 C·D |
+| AN-024 | **히트리액트는 머신별 로컬 연출·비복제·데디 서버 생략이며 캡슐·Mover를 움직이지 않는다.** 무기 위치를 읽는 근접 판정은 표시 포즈의 영향을 받으므로, **플레이어의 근접 공격 몽타주 전체(블렌드아웃 포함) 동안 물리 반응을 끄고 기존 반응도 즉시 종료한다.** 그동안 받은 피격은 나중에 재생하지 않는다. NPC는 공격 중에도 물리 반응을 허용한다(사용자가 NPC 무기 궤적의 흔들림은 허용). 경직(GA_Stagger)은 기존 몽타주 경로를 유지한다. AN-004를 대체한다. | 확정(2026-10-22, 사용자 결정) | [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §6.4·§6.5 |
 
 ## 변경 규칙
 

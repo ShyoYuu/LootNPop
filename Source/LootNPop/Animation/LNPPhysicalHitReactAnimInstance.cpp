@@ -1,7 +1,10 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/LNPPhysicalHitReactAnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/ANS_LNPMeleeHitWindow.h"
 #include "Character/LNPCharacterBase.h"
+#include "Character/LNPPlayerCharacter.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "HAL/IConsoleManager.h"
 #include "LootNPop.h"
@@ -43,7 +46,7 @@ namespace
 	// 3-2 사용자 선택 116의 물리 구성. 몽타주 경로 제거로 생략 비트 16이 빠져 기본값은 100이다.
 	TAutoConsoleVariable<int32> CVarPhysHitReactMode(
 		TEXT("LNP.Anim.PhysHitReactMode"), Mode_Point | Mode_Pelvis | Mode_SpineSoften,
-		TEXT("Physical hit react direction mode bits: 1=linear chest velocity, 2=tilt (angular about Up x PushDir), 4=point impulse at nearest body, 8=soften all torso-set controls, 32=pelvis offset, 64=soften spine only (8 takes priority). Default 100. Hit react montages are no longer used; former bit 16 has no effect. 0 disables the physical hit react."));
+		TEXT("Physical hit react direction mode bits: 1=linear chest velocity, 2=tilt (angular about Up x PushDir), 4=point impulse at nearest body, 8=soften all torso-set controls, 32=pelvis offset, 64=soften spine only (8 takes priority). Default 100. Compare 100 (pelvis on) with 68 (pelvis off), keeping point impulse and spine softening unchanged. Hit react montages are no longer used; former bit 16 has no effect. 0 disables the physical hit react."));
 
 	TAutoConsoleVariable<float> CVarPhysHitReactImpulse(
 		TEXT("LNP.Anim.PhysHitReactImpulse"), 250.f,
@@ -62,15 +65,15 @@ namespace
 		TEXT("Modes 8/64: angular strength multiplier at full physics weight (blends back to 1 with the fade). Mode 8 affects the whole torso set; 64 affects the spine only."));
 
 	TAutoConsoleVariable<float> CVarPhysHitReactPelvisShift(
-		TEXT("LNP.Anim.PhysHitReactPelvisShift"), 4.f,
+		TEXT("LNP.Anim.PhysHitReactPelvisShift"), 3.f,
 		TEXT("Mode 32: peak pelvis translation along the push direction (cm) at reference strength."));
 
 	TAutoConsoleVariable<float> CVarPhysHitReactPelvisLean(
-		TEXT("LNP.Anim.PhysHitReactPelvisLean"), 8.f,
+		TEXT("LNP.Anim.PhysHitReactPelvisLean"), 6.f,
 		TEXT("Mode 32: peak pelvis lean about Up x PushDir (degrees) at reference strength."));
 
 	TAutoConsoleVariable<float> CVarPhysHitReactPelvisTwist(
-		TEXT("LNP.Anim.PhysHitReactPelvisTwist"), 10.f,
+		TEXT("LNP.Anim.PhysHitReactPelvisTwist"), 7.5f,
 		TEXT("Mode 32: peak pelvis twist about Up (degrees), scaled by impact side and reference strength."));
 
 	TAutoConsoleVariable<float> CVarPhysHitReactPelvisPeakSeconds(
@@ -95,7 +98,7 @@ namespace
 
 	TAutoConsoleVariable<bool> CVarPhysHitReactLog(
 		TEXT("LNP.Anim.PhysHitReactLog"), false,
-		TEXT("Log each physical hit react (owner, mode, strength, nearest body)."));
+		TEXT("Log each physical hit react (owner, mode, strength, nearest body, source montage and position)."));
 }
 
 void ULNPPhysicalHitReactAnimInstance::QueueHitReact(const FVector& PushDirWorld, const FVector& ImpactPointWorld, float Damage, bool bMelee)
@@ -183,9 +186,14 @@ void ULNPPhysicalHitReactAnimInstance::BuildHitForces()
 
 	if (CVarPhysHitReactLog.GetValueOnGameThread())
 	{
-		UE_LOG(LogLootNPop, Log, TEXT("[PhysHitReact] %s mode=%d strength=%.2f push=%s impact=%s pointBody=%s"),
+		// 공격 몽타주 도중에도 힘이 공급되는지 메인 인스턴스의 재생 상태와 함께 확인한다.
+		const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwningActor());
+		const UAnimInstance* SourceAnim = Character ? Character->GetAnimInstance() : nullptr;
+		const UAnimMontage* Montage = SourceAnim ? SourceAnim->GetCurrentActiveMontage() : nullptr;
+		UE_LOG(LogLootNPop, Log, TEXT("[PhysHitReact] %s mode=%d strength=%.2f push=%s impact=%s pointBody=%s sourceMontage=%s pos=%.3f"),
 			*GetNameSafe(GetOwningActor()), Mode, PendingHit.Strength, *PendingHit.PushDir.ToCompactString(),
-			*PendingHit.ImpactPoint.ToCompactString(), *PointBody.ToString());
+			*PendingHit.ImpactPoint.ToCompactString(), *PointBody.ToString(), *GetNameSafe(Montage),
+			Montage ? SourceAnim->Montage_GetPosition(Montage) : 0.f);
 	}
 }
 
@@ -200,13 +208,35 @@ void ULNPPhysicalHitReactAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	const ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(GetOwningActor());
 	const bool bRagdoll = Character && Character->IsRagdollActive();
+	const UAnimMontage* PlayerMeleeMontage = nullptr;
+	if (Character && Character->IsA<ALNPPlayerCharacter>())
+	{
+		// 로컬 제어 여부·비복제 태그 대신 실제 메인 몽타주를 읽어 원격 플레이어도 같은 억제 기준을 쓴다.
+		if (const UAnimInstance* SourceAnim = Character->GetAnimInstance())
+			for (const FAnimMontageInstance* Instance : SourceAnim->MontageInstances)
+			{
+				if (!Instance || !Instance->Montage || (!Instance->IsActive() && Instance->GetWeight() <= ZERO_ANIMWEIGHT_THRESH))
+					continue;
+				// 판정 창 밖의 준비·회수 동작과 블렌드아웃도 포함해, 잔여 물리가 다음 판정 궤적으로 섞이지 않게 한다.
+				if (Instance->Montage->Notifies.ContainsByPredicate([](const FAnimNotifyEvent& Notify)
+					{ return Notify.NotifyStateClass && Notify.NotifyStateClass->IsA<UANS_LNPMeleeHitWindow>(); }))
+				{
+					PlayerMeleeMontage = Instance->Montage;
+					break;
+				}
+			}
+	}
+	const bool bSuppressPhysics = bRagdoll || Mode == 0 || PlayerMeleeMontage != nullptr;
+	if (PlayerMeleeMontage && (bHasPendingHit || HitBlendTimeRemaining > 0.f) && CVarPhysHitReactLog.GetValueOnGameThread())
+		UE_LOG(LogLootNPop, Log, TEXT("[PhysHitReact] %s suppressed=PlayerMeleeAttack pending=%d active=%d sourceMontage=%s"),
+			*GetNameSafe(Character), bHasPendingHit, HitBlendTimeRemaining > 0.f, *GetNameSafe(PlayerMeleeMontage));
 
 	// 노드는 핀 값이 남아 있는 동안 매 Evaluate마다 힘을 준다 — 한 업데이트만 채우고 바로 비운다.
 	HitForces.ForcesAndTorques.Reset();
 	if (bHasPendingHit)
 	{
-		// 랙돌 중에 온 피격은 버린다 — 표현 풀 재사용(ExitRagdoll) 뒤 첫 프레임에 남은 임펄스가 튀지 않게.
-		if (!bRagdoll && Mode != 0)
+		// 랙돌·플레이어 근접 공격 중 피격은 버린다 — 종료 뒤 늦게 재생하지 않는다.
+		if (!bSuppressPhysics)
 		{
 			BuildHitForces();
 			ActivePelvisHit = PendingHit;
@@ -224,7 +254,8 @@ void ULNPPhysicalHitReactAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		PendingHit = FPendingHit();
 		bHasPendingHit = false;
 	}
-	if (bRagdoll || Mode == 0)
+	// 공격 전에 시작된 반응도 즉시 끊어 무기 소켓에서 읽는 플레이어 판정 궤적을 보호한다.
+	if (bSuppressPhysics)
 		HitBlendTimeRemaining = 0.f;
 
 	PhysicsAlpha = FMath::Clamp(HitBlendTimeRemaining / FadeSeconds, 0.f, 1.f);
