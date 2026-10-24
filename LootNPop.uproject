@@ -324,6 +324,38 @@
 		{
 			"Name": "BlendStack",
 			"Enabled": true
+		},
+		{
+			"Name": "GameplayInsights",
+			"Enabled": true
+		},
+		{
+			"Name": "UAF",
+			"Enabled": true
+		},
+		{
+			"Name": "UAFAnimGraph",
+			"Enabled": true
+		},
+		{
+			"Name": "UAFChooser",
+			"Enabled": true
+		},
+		{
+			"Name": "UAFPoseSearch",
+			"Enabled": true
+		},
+		{
+			"Name": "UAFControlRig",
+			"Enabled": true
+		},
+		{
+			"Name": "UAFWarping",
+			"Enabled": true
+		},
+		{
+			"Name": "MoverAnimNext",
+			"Enabled": true
 		}
 	]
 }

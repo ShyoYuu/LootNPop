@@ -1,7 +1,7 @@
 # UE 5.8 애니메이션 기능 사실 조사
 
 > 상태: 검증 필요(각 Phase 착수 시 재확인)
-> 마지막 갱신: 2026-10-16
+> 마지막 갱신: 2026-10-24(§1 Phase 5 중간 결과, 나머지는 기존 조사)
 > 소유 정보: 계획 수립 때 확인한 엔진·GASP 사실과 출처. 결정은 `Decisions.md`가 소유한다.
 
 조사 방법: 로컬 엔진 설치본(`C:/Program Files/Epic Games/UE_5.8`)의 플러그인 메타데이터·소스, 로컬 GASP 프로젝트(`D:/UnrealProjects/GameAnimationSample`) 에셋 목록, 공개 자료(§6).
@@ -10,9 +10,11 @@
 
 - 엔진 `Engine/Plugins/Experimental/UAF/` 아래 `UAF`·`UAFAnimGraph`·`UAFAnimNode`·`UAFChooser`·`UAFControlRig`·`UAFLayering`·`UAFMass`·`UAFMirroring`·`UAFPoseSearch`·`UAFStateTree`·`UAFWarping`이 있다. 전부 Experimental이다.
 - Mover 연동은 `Experimental/MoverAnimNext`(FriendlyName "Mover UAF", Experimental)다.
-- 로컬 GASP에서는 UAF 캐릭터 에셋을 찾지 못했다(바이너리 문자열 검색으로는 `CR_Biped_FootPlacement` 하나만 걸림). 공개 자료에는 GASP에 UAF 캐릭터가 포함된다는 언급이 있어, Phase 5 착수 시 다시 확인한다.
+- 로컬 GASP에서는 UAF 캐릭터 에셋을 찾지 못했다(기존 바이너리 문자열 검색으로는 `CR_Biped_FootPlacement` 하나만 걸림). 2026-10-23 5-0에서 사용자 에디터 `/Game` 레지스트리의 UAF·AnimNext 클래스 조회도 `[]`였다. 클래스 조회는 Blueprint 내부 컴포넌트·플러그인 콘텐츠 부재까지 증명하지 않는다. Epic GASP 5.8 소개도 UAF 캐릭터를 명시하지 않는다. 조회 명령·출처·실행 계획은 `../phases/Phase05_UAFSpike.md` §3.
 - 공개 자료의 평가: 5.8은 "평가해 볼 만한" 첫 버전이지만 출시 타이틀에 걸 단계는 아니라는 의견. Mover 자체도 5.8에서 Beta로 가지 못했다(Epic 포럼 답변).
-- `UAFChooser`·`UAFPoseSearch`가 있어 Chooser 테이블과 PSD는 UAF에서도 재사용될 것으로 본다 → AN-003의 근거. Phase 5에서 실증한다.
+- 5-0 로컬 소스 대조: UAF Motion Matching은 기존 PSD 배열을 받으며, `FRigVMDispatch_EvaluateChooser`는 기존 `UChooserTable`·객체 컨텍스트·배열 결과를 지원한다. 구면 Offset Root·몽타주 메시 선택 등 차단 후보는 `../phases/Phase05_UAFSpike.md` §3에 기록했다. API 존재만으로 AN-003의 전체 실행 통과를 주장하지 않는다.
+- 5-1 기본 `Evaluate Chooser`는 `UAFAssetInstance` 구조체를 0번에 넣어 기존 테이블의 `LNPAnimInstance` 컨텍스트와 불일치했다. 기존 C++ 함수로 같은 테이블을 평가한 PSD 배열을 공유 변수로 전달하는 경로로 바꿨다. 빌드·런타임 입력 ready·UAF 달리기/Idle DB·클립 선택과 과거 시점 재조회는 확인했다. 입력 배열 시점별 대조·전환/인터럽트 전체는 미검증이다.
+- 구면 Offset Root 보정 trait를 구현·연결·컴파일했으나 첫 런타임 급전환에서 표시 방향 추종 실패가 나타났다(Offset Root 1에서 재현·0에서 미재현). 기존 ABP의 Accumulate와 짝인 Steering이 최소 UAF에 누락돼 있어 보완 후보로 조사했다. 구면·base 동등성 통과나 UAF 전체 Go로 판정하지 않는다. 구현·검증·인계는 Phase05 §6·§7이 소유한다.
 
 ## 2. PhysicsControl과 GASP 래그돌
 

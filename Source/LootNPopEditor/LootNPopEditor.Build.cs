@@ -20,6 +20,7 @@ public class LootNPopEditor : ModuleRules
 			"Chaos",
 			"Chooser",
 			"DynamicMesh",
+			"GameplayInsights",
 			"GeometryCore",
 			"InteractiveToolsFramework",
 			"Json",
@@ -36,12 +37,18 @@ public class LootNPopEditor : ModuleRules
 			"PCG",
 			"PoseSearch",
 			"PropertyEditor",
+			"RewindDebugger",
+			"RewindDebuggerInterface",
 			"Slate",
 			"SlateCore",
 			"StaticMeshDescription",
+			"TraceBasedDebuggersAnalysis",
 			"UnrealEd",
 		]);
 
 		PublicIncludePaths.AddRange(["LootNPopEditor"]);
+
+		// UE 5.8 공개 인터페이스에는 Trace 세션 관리자 접근자가 없다.
+		PrivateIncludePaths.Add(System.IO.Path.Combine(GetModuleDirectory("RewindDebugger"), "Private"));
 	}
 }
