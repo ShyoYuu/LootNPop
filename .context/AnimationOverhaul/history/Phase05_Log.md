@@ -194,3 +194,95 @@
 - 이번 커밋 범위는 Steering·소비 후 구면 보정·최종 루트 진단/수치 회귀를 담은 스파이크 C++/Build.cs 5개와 Phase 5 문서 5개다. TestMap03 및 기존 사용자 데이터 에셋 3개는 제외한다. Saved의 로그·시험 보고서·크래시/백업은 git 제외 상태로 보존한다. 새로운 에셋/엔진/기본 ABP 변경은 없다.
 - 인계 확인 시 MCP PIE 활성, 일시정지는 별도 확인하지 않았다. 에디터/PIE나 임시 GameMode Override는 변경하지 않았다. 다른 체크아웃에서는 테스트 Override를 재지정해야 하며 원래 Override는 아직 구체 값 미확인이다.
 - 최신 검증은 Development 빌드 성공(5 actions, 37.65초), C++ 수치 회귀 1/1, AG/S 컴파일, 사용자 세 지역 시험과 최종 루트 수치다. 이번 정리에서는 코드 수정·재빌드·새 PIE를 하지 않고 문서 링크·diff 공백·커밋 파일 범위를 확인한다. 5-1 미완료·5-2 미착수·Go/No-Go 보류를 유지한다.
+
+### 공중 Fall_Loop 고정 단위 착수(2026-10-25, 진행 중)
+
+- 사용자 Phase 5 진행 요청으로 AN-007 단위에 착수했다. 기존 ABP의 실제 UEFN Fall_Loop 참조·속도 1/시작 0/루프와 Bool 양방향 0.25초를 MCP에서 확인했다. 기본 ABP·소스 에셋은 읽기만 했다.
+- 사용자 PIE 종료와 MCP 비활성을 확인했다. dirty AG 하나만 저장 성공 후 `Saved/AnimationOverhaul/2026-10-25_131403_PreAirLoop/`에 백업했다. 전용 UAF 그래프 MCP가 없어 Bool·Sequence Player 배선과 Pose History 재배치를 수동 요청했다. 사용자는 1~5단계 진행을 보고했고 trait 이동 방법을 질문했다. Bool 내부에 재추가·설정 복사 후 MM 쪽 것을 제거하는 의미로 바로잡아 안내했다. 완료·컴파일 결과는 아직 대기다.
+- 기본 Bool의 복수 자식이 Steering 인터페이스 전달을 막는 점을 엔진에서 확인했다. 같은 cpp의 MM 조회에 목적 자식 경유를 추가하고, 그 MM 스택에서 활성 클립·시간을 함께 읽게 했다. 새 클래스/공유 변수·엔진 변경 없음. diff 공백 검사 통과, C++ 컴파일·실행은 아직 하지 않았다.
+- 현재 구성·다음 검증은 Phase05 §12가 소유한다. 이번 단위·5-1 미완료, 5-2 미착수·Go/No-Go 보류. 단위가 끝나면 다음 단위 진행 여부를 다시 확인한다.
+
+### 공중 고정 배선 완료 보고·컴파일 확인(2026-10-25 13:26 KST)
+
+- 사용자 Pose History 재배치·Compile/Save 완료 보고. 로그에서 13:26:05~06 AG 성공 컴파일·13:26:07 저장을 확인했다. MCP로 배선 전체를 덤프한 것은 아니다.
+- PIE 비활성 확인 후 Live Coding 실행 **Success**, 13:26:47 AG/S 재컴파일 성공. cpp 한 파일의 조회 변경을 반영했다. 전체 빌드·새 자동화 시험은 수행하지 않았다.
+- 북극/적도에서 기존 세 CVar로 지상 이동/회전·점프·5초 이상 활공/그래플·착지 후 이동과 마지막 5초 정지 후 일시정지·보고를 수동 요청했다. 현재 결과 대기, 공중 고정 단위·5-1 미완료·5-2 미착수·Go/No-Go 보류다.
+
+### 공중 고정 첫 PIE 회귀 보고(2026-10-25)
+
+- 사용자는 지역 도착 전 정면 달리기 이상·점프 착지 후 잠시 옆 걷기 재생을 보고했다. 지역별 공중 검증은 미완료, MCP PIE 종료 확인. 이번 단위는 통과 처리하지 않는다.
+- 13:28 실행의 Phase 커브 누락 경고 794건을 확인했다. 같은 실행의 UAFSteering 34개 표본에서 지상 MM DB/클립·시간 조회는 작동했다. 원인 전체를 확정하지 않는다. 로그를 `Saved/AnimationOverhaul/2026-10-25_AirLoopRegression/LootNPop.log`에 복사 보존했다.
+- 새 Bool Pose History의 Collected Curves=Phase·공유 Trajectory 연결·Generate Trajectory 끔·배율 1·본/Condition을 사용자에게 수동 확인/보완 요청했다. 재배치 후 실제 입력 확인 전에 넓은 지역 시험을 요청한 점을 바로잡고 짧은 지상/점프 재시험부터 진행한다. 이 확인에서 새 C++ 변경·컴파일 없음. 5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+### Phase 보완 후 짧은 재시험 통과(2026-10-25 13:37 KST)
+
+- 사용자 Phase 누락 보완·새 Bool Pose History에 공유 Trajectory 연결·Generate Trajectory 끔/배율 1/본 4개 정상 보고. MM의 Trajectory 핀은 제거한 Pose History 소유여서 사라지는 것이 정상이며 MM 연결 유지 안내를 정정했다. 13:36:51~52 AG 컴파일/저장 성공.
+- 짧은 달리기·이동 점프/착지 후 사용자 두 증상 모두 사라짐 보고. 13:37:21~41 21구간·1,247평가 프레임(ground 1,015·air 232)에서 상태/출력 거리 최대 30cm·Yaw 21.28°·Tilt 0.000°. 실제 구간 끝 위도 −87.21~−67.46°의 남극 인근이며 북극/적도 완료로 취급하지 않는다.
+- 새 실행 Phase 경고·PoseSearch Warning/Error·LogAnimation Error·assertion/fatal 0건, 기존 Foley 경고 잔류. Steering 적용 표본 12개·공중 MM 조회 비활성 표본 4개·착지 Lands/Run 복귀 확인. 로그 `Saved/AnimationOverhaul/2026-10-25_AirLoopShortVerified/LootNPop.log` 보존. 실제 고정 Sequence Player·긴 체공 전체는 아직 미검증이다.
+- 확인 시 PIE 종료·세 CVar 1/1/2. 코드 변경·재컴파일 없이 남은 긴 체공/적도 및 가능하면 Rewind 녹화를 요청했다. 공중 고정 단위·5-1 미완료, 5-2 미착수·Go/No-Go 보류.
+
+### 긴 체공·적도 녹화 시험 관찰/로그 확인(2026-10-25)
+
+- 사용자 시험·녹화 완료·이상 없음 보고. 최신 Trace `Saved/RewindDebugger/RewindDebugger-LootNPop-Editor-20261025_133940695.utrace` 생성과 녹화 종료 확인, 로그는 `Saved/AnimationOverhaul/2026-10-25_AirLoopRecorded/LootNPop.log`에 보존했다.
+- 13:39 이후~13:42:55 205구간·10,163평가 프레임(ground 6,997·air 3,166), 최종 상태/출력 거리≤30cm·Yaw≤90°·Tilt 0.000°. 끝 위도 기준 남극 17구간/895프레임·적도 45구간/2,202프레임 확인. 위도와 프레임 분모 한계는 Phase05 §12에 기록했다.
+- 그래플 발동 11회, 연속 공중 5.28초·32.53초 확인. 순수 공중 구간 끝 위도 5.11~51.05°로 긴 체공 전체가 적도 ±5°에 머물렀다고 해석하지 않는다. Steering 적용 표본 109개·공중 MM 조회 비활성 62개. Phase/PoseSearch 경고·애니 Error·assertion/fatal 0건, Foley Warning 443건 잔류.
+- 녹화 종료 때 MassTrace 미종료 PrePhysics 경고 1건·요약 Error 카테고리(`1 warnings; 0 errors`), ETW 권한/프로파일 메타데이터 메시지를 관찰했다. 전체 로그가 무경고/무Error라는 판정은 하지 않는다.
+- UAFLocomotion의 실제 Fall_Loop 두 공중 시점·착지 지상 MM 복귀를 Rewind에서 확인하도록 요청했고 결과 대기다. 코드/에셋 추가 변경·재컴파일 없음. 공중 단위·5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+### Rewind 클립 확인 경로 정정(2026-10-25)
+
+- 사용자는 숨김 ABP에서 Fall_Loop를 찾았으나 AG 하위 트랙에서는 못 찾았다고 보고했다. 이것으로 UAF 실행을 통과/실패 판정하지 않았다.
+- 엔진 SequenceInfoTrack.cpp에서 UUAFComponent의 `SequenceInfo` 트랙이 실제 기록된 평가 프로그램의 SequenceKeyframe task를 읽어 AnimSequence·SampleTime을 표시하는 점을 확인했다. `UAFLocomotion → SequenceInfo → Details의 Sequence Trace Info`에서 공중 두 시점·착지 후 클립을 확인하도록 안내를 정정했다.
+- 기존 녹화를 유지하고 답변 대기. 새 코드/계측·PIE/녹화 없음. 공중 고정 단위·5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+### 실제 UAF 공중 평가 task 직접 확인(2026-10-25)
+
+- 사용자 SequenceInfo 트랙 없음 보고 후 computer-use와 Slate snapshot으로 현재 UI를 직접 확인했다. 해당 트랙은 없으며 기존 EvaluationProgram에서 Tasks를 읽는 경로를 사용했다. SequenceInfo 표시 조건 자체의 실패 원인은 미확정으로 남긴다.
+- `UAFLocomotion → S → UAFAnimGraph_7 → AG_LocomotionSpike → EvaluationProgram`의 약 156.1초 Tasks[1]에서 `MM_Unarmed_Jump_Fall_Loop_UEFN`, SampleTime 0.243282, Looping 켬을 직접 확인했다. 같은 프로그램은 History Collector·구면 Offset Root의 준비/기본/최종 보정/진단 작업도 포함한다.
+- 시간 헤드 자동 스크럽이 반영되지 않아 수동이 더 효율적이라고 판단하고 약 159초 공중과 약 190초 착지 후 클립/SampleTime만 추가 조회 요청했다. 새 코드/에셋/녹화/PIE 변경 없이 화면의 평가 task를 펼친 상태로 인계했다. observer 해제, 나머지 두 시점 대기. 단위·5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+### 공중 Fall_Loop 고정 단위 완료(2026-10-25)
+
+- 사용자 조회: 159초 `MM_Unarmed_Jump_Fall_Loop_UEFN`·SampleTime 0.102736, 190초 `M_Relaxed_Run_Stop_F_Lfoot`·SampleTime 1.812737. 에이전트가 직접 읽은 약 156.1초의 같은 Fall_Loop·0.243282·Looping 켬과 합쳐 실제 UAF 공중 두 시점 유지·착지 후 지상 클립 복귀를 확인했다.
+- Bool/고정 시퀀스와 Pose History 재배치·Steering 조회 보완, Live Coding/AG/S 컴파일, 최초 설정 누락 회귀 해소, 긴 체공/적도 사용자 관찰, 10,163평가 프레임의 최종 Tilt 0.000°·Yaw≤90°·거리≤30cm까지 확인해 **이번 구현·검증 단위를 완료**했다. 모든 프레임 클립 동일성·활공 단독·북극 별도·적/네트워크까지 확대하지 않는다.
+- 실제 확인 경로는 SequenceInfo가 아니라 AG의 EvaluationProgram Tasks다. SequenceInfo 표시 문제·기존 Foley 및 녹화 분석 경고는 남긴다. 이 결과 확인에서 추가 코드/에셋 변경·재컴파일·녹화 없음.
+- Current·Phase05 완료 체크리스트/판정표·Roadmap을 갱신했다. 다음 입력 PSD 배열 대조·전환/인터럽트 검증은 진행 여부를 확인하고 승인 전 착수하지 않는다. 5-1 전체 미완료·5-2 미착수·Go/No-Go 보류.
+
+### 입력 PSD 배열·전환/인터럽트 검증 착수(2026-10-25)
+
+- 사용자 진행 승인 후 기존 녹화·공급 코드/로그를 재사용해 대조를 시작했다. 190초 AG Native Properties의 `[PSD_Stand_Idles_UEFN]`·DoNotInterrupt·BlendTime 0.5와 같은 시점 공급 Chooser의 Idle 행/상태를 직접 확인했다. 실제 Run Stop 진행 포즈와 입력 배열의 이름을 별개로 판정한다.
+- Chooser Rewind 트랙의 더블클릭은 테이블 편집기를 디버그 대상으로 연결하며 단일 클릭에는 Details가 없는 점을 엔진에서 확인했다. 읽기 후 Chooser 창을 닫았고 해당 에셋 파일 변경은 없다.
+- 약 1.5초의 첫 출발로 사용자 수동 스크럽을 요청했다. 코드/에셋 변경·빌드·추가 녹화 없음. 이어지는 실제 표본은 Phase05 §13이 소유한다. 이번 단위·5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+### 출발 배열·인터럽트 경계 확인(2026-10-25)
+
+- 사용자 첫 출발 스크럽 이후, 약 1.5초 공급 Chooser의 Starts/Loops 두 결과와 AG의 같은 순서 배열·DoNotInterrupt·0.5를 대조했다. 툴바 한 프레임 뒤로 버튼으로 첫 이동 경계를 읽어 같은 배열/0.5·InterruptOnDatabaseChange를 확인했고, 한 프레임 더 뒤는 Idles·DoNotInterrupt·0.5였다.
+- UAF Pose Search Active Pose의 Run_F_Starts DB·M_Relaxed_Run_Start_F_Rfoot, Asset Player Time 0.266667·InterruptOnDatabaseChange·Elapsed Pose Search Time 0.0을 읽었다. 후보표/Active Pose·이벤트 없는 프레임의 표시 잔류를 구분한다. 세부는 Phase05 §13.
+- 첫 착지 약 16초로 수동 스크럽 요청. 코드/에셋 저장·빌드·새 녹화 없이 검증 중. 단위·5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+### 첫 착지와 후속 지상 설정 확인(2026-10-25)
+
+- 사용자 첫 착지 스크럽 뒤 AG의 Run_Lands_Heavy 단일 DB·InterruptOnDatabaseChange·0.2초와 실제 UAF Heavy Rfoot 착지 검색/인터럽트를 확인했다. 다음 프레임은 Sprint_Loops·DoNotInterrupt·0.5초, 한 프레임 뒤로 되돌리면 착지 설정이었다. 공급 로그의 연속 프레임 615→616도 같은 값이다.
+- 착지 공급 Chooser 창의 Gait Sprint 표시는 입력/로그와 시점 차이가 있어 그 창의 동일 평가 배열 대조까지 완료로 확대하지 않는다. 코드/에셋 변경·저장·빌드·새 녹화 없음. 약 188.6초 제자리 회전 구간으로 사용자 수동 스크럽 요청, 정지·방향 전환 검증은 남았다. 상세 Phase05 §13, 단위·5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+### 제자리 회전 요청·인터럽트 확인(2026-10-25)
+
+- 약 188.6초 공급 Chooser의 TurnInPlace 결과와 AG의 같은 단일 배열·InterruptOnDatabaseChange·0.5를 대조했다. 실제 UAF Active Pose는 M_Relaxed_Stand_Turn_045_R, 인터럽트·Elapsed Pose Search Time 0.0·Asset Player Time 0.153641초였다.
+- 이전 프레임의 Idles·DoNotInterrupt·0.5와 회전 요청 경계, 이후 회전 DB 유지·인터럽트 해제를 직접 확인했다. 단일 프레임 펄스로 일반화하지 않는다. 약 189.4초 마지막 달리기→정지로 수동 스크럽 요청했다. 상세 Phase05 §13, 현재 단위 진행 중이며 코드/에셋 저장·빌드·새 녹화 없음.
+
+### 정지 입력·실제 Run Stop 확인(2026-10-25)
+
+- 약 189.4초 Run Stops·DoNotInterrupt·0.5, 한 프레임 이전의 같은 배열·InterruptOnDatabaseChange·0.5와 공급 Chooser의 같은 결과를 확인했다. 실제 UAF Active Pose는 M_Relaxed_Run_Stop_F_Lfoot, DoNotInterrupt, Asset Player Time 1.15367초였다. 190초 Idle 입력 표본 및 공급 로그의 정지→Idle 복귀와 함께 기록했다.
+- Details가 비거나 이전 선택을 유지한 후속 조회는 근거로 쓰지 않았다. 약 35.35초 방향 전환으로 사용자 수동 스크럽과 AG 트랙 선택을 요청했다. 상세 Phase05 §13, 단위 진행 중이며 코드/에셋 저장·빌드·새 녹화 없음.
+
+### 방향 전환 확인·대표 입력/전환 검증 단위 완료(2026-10-25)
+
+- 사용자 스크럽 및 Details 전환 후 일부 프레임의 빈 Native Properties를 실제 입력 없음으로 해석하지 않고 인접 프레임을 조회했다. AG에서 F Loops/DoNotInterrupt → RL Loops+RL Spins/InterruptOnDatabaseChange → 같은 두 DB/DoNotInterrupt, BlendTime 0.5를 직접 확인했다. 두 DB 순서는 공급 로그와 일치한다. 실제 UAF RL Spins/Rfoot·인터럽트·Asset Player Time 0.966667초도 확인했다. Chooser 화면은 RL Loops 선택까지 직접 읽었고 두 번째 행은 공급 로그로 대조했다.
+- Idle·출발·착지·제자리 회전·정지·이동 방향 전환의 대표 표본 검증 단위 완료. 모든 전환 DB/프레임 동등성이나 PSD·Chooser 게이트 전체 통과로 확대하지 않는다. 착지 Chooser 표시 시점 차이·빈 Native Properties 프레임·Pivot/Sprint Turns/GaitTransitions 추가 표본 등 한계를 Phase05 §13에 남겼다.
+- 이번 단위는 문서만 변경했고 C++/에셋 저장·빌드·새 계측·녹화 없음. Current·Phase05 판정표·Roadmap 갱신. 다음 지상 Orientation Warping 동등 경로 단위는 사용자 진행 확인 후 착수한다. 5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+### 세션 종료·커밋 인계(2026-10-25)
+
+- 사용자 요청으로 다음 구현을 시작하지 않고 인계 문서를 정리했다. Current의 세션 종료 인계에 다음 첫 행동·승인 경계·실제 Rewind 조회 경로/기록 한계·로컬 Trace/로그/백업 경로·커밋 범위를 모았다. 인계 시 PIE 실행 상태만 API로 확인했으며 에디터/PIE 종료·새 녹화는 하지 않았다.
+- 공중 고정 AG와 Bool 목적 자식 MM을 따르는 Steering 조회 C++, 관련 문서 4개의 총 6파일을 커밋 대상으로 한정한다. TestMap03 및 기존 데이터 에셋 3개의 로컬 변경은 보존·제외한다. 문서/코드 diff 공백 검사와 커밋 대상 확인을 수행하고, 앞서 성공한 Live Coding·AG/S 컴파일·PIE/녹화 검증 이후 구현 변경이 없어 빌드를 반복하지 않는다.
+- 다음 Orientation Warping 단위는 아직 착수 전이다. 다음 세션에서 진행 요청을 받으면 이어가며, 구현 단위마다 진행 확인·수동 조작 우선 규칙을 유지한다. 5-1 미완료·5-2 미착수·Go/No-Go 보류.

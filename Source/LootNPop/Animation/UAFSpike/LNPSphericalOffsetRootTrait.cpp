@@ -13,6 +13,7 @@
 #include "OffsetRootBoneTrait.h" // UE 5.8 내부 상태 의존성. 기본 task 구현은 복사하지 않는다.
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "TraitInterfaces/IBlendStack.h"
+#include "TraitInterfaces/IDiscreteBlend.h"
 #include "TraitInterfaces/ITimeline.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -112,16 +113,34 @@ namespace UE::UAF
 		Task.Inputs = Shared->GetRootInputs(Binding);
 		Task.SteeringAngularVelocities = Instance->SteeringAngularVelocities;
 		Task.SteeringDebugElapsed = &Instance->SteeringDebugElapsed;
-		// Offset Root → MM → 활성 애니로 인터페이스를 전달한다. 블렌드아웃 클립의 시간과 섞지 않는다.
+		// Bool 선택기는 기본 인터페이스 전달을 막으므로 목적 자식의 MM만 조회한다.
 		FTraitStackBinding Stack;
+		TTraitBinding<IBlendStack> BlendStack;
+		bool bHasBlendStack = IHierarchy::GetForwardedStackInterface<IBlendStack>(Context, Binding, Stack, BlendStack);
+		if (!bHasBlendStack)
+		{
+			FTraitStackBinding SelectorStack;
+			TTraitBinding<IDiscreteBlend> Selector;
+			if (IHierarchy::GetForwardedStackInterface<IDiscreteBlend>(Context, Binding, SelectorStack, Selector))
+			{
+				FChildrenArray Children;
+				IHierarchy::GetStackChildren(Context, SelectorStack, Children);
+				const int32 Destination = Selector.GetBlendDestinationChildIndex(Context);
+				FTraitStackBinding ChildStack;
+				if (Children.IsValidIndex(Destination) && Context.GetStack(Children[Destination], ChildStack))
+					bHasBlendStack = IHierarchy::GetForwardedStackInterface<IBlendStack>(Context, ChildStack, Stack, BlendStack);
+			}
+		}
+		// MM 스택에서 같은 활성 애니의 시간을 읽는다. 공중 루프를 이전 지상 검색 결과와 섞지 않는다.
+		FTraitStackBinding TimelineStack;
 		TTraitBinding<ITimeline> Timeline;
 		FTimelineState Time;
-		const bool bHasTimeline = IHierarchy::GetForwardedStackInterface<ITimeline>(Context, Binding, Stack, Timeline)
+		const bool bHasTimeline = bHasBlendStack
+			&& IHierarchy::GetForwardedStackInterface<ITimeline>(Context, Stack, TimelineStack, Timeline)
 			&& Timeline.GetState(Context, Time);
 		if (bHasTimeline)
 			Task.CurrentAnimAssetTime = Time.GetPosition();
-		TTraitBinding<IBlendStack> BlendStack;
-		if (IHierarchy::GetForwardedStackInterface<IBlendStack>(Context, Binding, Stack, BlendStack))
+		if (bHasBlendStack)
 		{
 			IBlendStack::FGraphRequestPtr ActiveGraph = nullptr;
 			BlendStack.GetActiveGraph(Context, ActiveGraph);
