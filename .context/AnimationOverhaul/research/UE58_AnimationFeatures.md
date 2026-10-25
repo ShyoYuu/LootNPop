@@ -14,7 +14,7 @@
 - 공개 자료의 평가: 5.8은 "평가해 볼 만한" 첫 버전이지만 출시 타이틀에 걸 단계는 아니라는 의견. Mover 자체도 5.8에서 Beta로 가지 못했다(Epic 포럼 답변).
 - 5-0 로컬 소스 대조: UAF Motion Matching은 기존 PSD 배열을 받으며, `FRigVMDispatch_EvaluateChooser`는 기존 `UChooserTable`·객체 컨텍스트·배열 결과를 지원한다. 구면 Offset Root·몽타주 메시 선택 등 차단 후보는 `../phases/Phase05_UAFSpike.md` §3에 기록했다. API 존재만으로 AN-003의 전체 실행 통과를 주장하지 않는다.
 - 5-1 기본 `Evaluate Chooser`는 `UAFAssetInstance` 구조체를 0번에 넣어 기존 테이블의 `LNPAnimInstance` 컨텍스트와 불일치했다. 기존 C++ 함수로 같은 테이블을 평가한 PSD 배열을 공유 변수로 전달하는 경로로 바꿨다. 빌드·런타임 입력 ready·UAF 달리기/Idle DB·클립 선택과 과거 시점 재조회는 확인했다. 입력 배열 시점별 대조·전환/인터럽트 전체는 미검증이다.
-- 구면 Offset Root 보정 trait를 구현·연결·컴파일했으나 첫 런타임 급전환에서 표시 방향 추종 실패가 나타났다(Offset Root 1에서 재현·0에서 미재현). 기존 ABP의 Accumulate와 짝인 Steering이 최소 UAF에 누락돼 있어 보완 후보로 조사했다. 구면·base 동등성 통과나 UAF 전체 Go로 판정하지 않는다. 구현·검증·인계는 Phase05 §6·§7이 소유한다.
+- 구면 Offset Root 급전환 실패는 프로젝트 Steering 보완 후 개선을 확인했다. 최초 지연 루트모션 콜백 assertion은 활성 시퀀스 즉시 샘플·값 전달로 수정했다. 이후 실제 출력의 북극 Yaw 92.4°·패널 Tilt 10.593°를 발견해 소비 후 누적 상태/출력 회전을 함께 보정했다. C++ 수치 회귀 1/1과 북극·적도·패널 수동 재시험에서 관찰 이상 없음, 기록된 최종 Tilt 0.000°·Yaw 최대 90°·30cm 제한을 확인했다. 블렌드 출력 보정의 샘플별 B2 전체 동등성·큰 회전 base·공중 고정/발 배치 등은 미검증이라 UAF 전체 Go는 보류다. 구현·검증·한계는 Phase05 §6~§10이 소유한다.
 
 ## 2. PhysicsControl과 GASP 래그돌
 

@@ -9,6 +9,8 @@
 #include "Graph/AnimNextAnimationGraph.h"
 #include "LootNPop.h"
 #include "Module/AnimNextModule.h"
+#include "Movement/LNPCharacterMoverComponent.h"
+#include "MoveLibrary/BasedMovementUtils.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "Variables/AnimNextVariableReference.h"
 
@@ -66,6 +68,14 @@ void ULNPUAFSpikeAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Inputs.OffsetRoot.TranslationHalfLife = GetOffsetRootTranslationHalfLife();
 	Inputs.OffsetRoot.bOnGround = MovementMode == ELNPMovementMode::OnGround;
 	Inputs.OffsetRoot.bReset = bJustTeleported;
+	Inputs.OffsetRoot.bEnableMovementSteering = bIsMoving || MovementMode == ELNPMovementMode::InAir;
+	Inputs.OffsetRoot.Trajectory = Trajectory;
+	if (MoverComponent)
+	{
+		const UPrimitiveComponent* Base = MoverComponent->GetMovementBase();
+		Inputs.OffsetRoot.MovementBase = Base ? FName(*Base->GetPathName()) : NAME_None;
+		Inputs.OffsetRoot.bOnMovingBase = UBasedMovementUtils::IsADynamicBase(Base);
+	}
 
 	const auto SetInput = [UAFComponent](FName Name, const auto& Value)
 	{

@@ -64,6 +64,7 @@ public class LootNPop : ModuleRules
 			"UAF", // Phase 5 스파이크 전용 입력 전달
 			"UAFAnimGraph",
 			"UAFWarping",
+			"UAFPoseSearch", // 스파이크 Steering은 실제 UAF 검색 결과의 DB 태그를 읽는다.
 			"RigVM", // UAF 스파이크 공유 구조체 타입 등록
 			"Chaos", // Gate 0 스파이크의 scene read lock 계측
 			"GeometryCore" // Support Atlas 베이크 광선 교차(TMeshAABBTree3)
@@ -75,6 +76,8 @@ public class LootNPop : ModuleRules
 
 		// Phase 5 스파이크: 기본 Offset Root의 누적 상태를 같은 평가 프로그램에서 보정한다.
 		PrivateIncludePaths.Add(System.IO.Path.Combine(GetModuleDirectory("UAFWarping"), "Private"));
+		PrivateIncludePaths.Add(System.IO.Path.Combine(GetModuleDirectory("UAFPoseSearch"), "Private"));
+		PrivateIncludePaths.Add(System.IO.Path.Combine(GetModuleDirectory("UAFPoseSearch"), "Internal"));
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

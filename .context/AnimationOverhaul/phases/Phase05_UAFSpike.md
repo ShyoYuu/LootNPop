@@ -1,7 +1,7 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0 완료, 5-1 진행 중(구면 보정 구현·연결 후 급전환 방향 추종 실패 확인, Steering 보완 단위 승인 대기)
-> 마지막 갱신: 2026-10-24
+> 상태: 5-0 완료, 5-1 진행 중(소비 후 회전 보정 단위 완료·북극/적도/패널 관찰과 최종 수치 확인, 다음 공중 고정 경로 단위 승인 대기)
+> 마지막 갱신: 2026-10-25
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
 ## 1. 목표와 범위
@@ -15,7 +15,7 @@
 | 단위 | 작업 | 검증·종료 조건 | 상태 |
 |:---|:---|:---|:---|
 | 5-0 | GASP 참조 유무·로컬 엔진 API 조사, 실행서 작성 | 참조 조회 결과·재사용 경로·차단 후보·미검증 항목 기록. 코드·에셋 변경 없음 | 완료(2026-10-23) |
-| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(기본 이동·UAF 달리기/Idle 검색 확인, 구면 보정 구현·연결 완료 후 런타임 검증 중) |
+| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(북극·적도/패널 병진의 최종 루트 확인, 공중 고정·발 배치·입력 목록 대조 등 미완료) |
 | 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 미착수 |
 
 최초 로드맵의 1~2세션 예상에서 **준비 포함 3단위로 구체화**했다. 로컬 GASP UAF 참조를 찾지 못했고, Phase 2 구면 보정과 몽타주 메시 선택을 별도로 확인해야 한다. 5-1의 조기 No-Go면 5-2를 수행하지 않는다.
@@ -64,7 +64,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 |
 | 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 미검증 |
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
-| 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 미통과 — Offset Root 적용 시 급전환 방향 추종 실패. 적도·발 배치·공중 고정·base 미검증 |
+| 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 북극·적도·패널 병진의 최종 Tilt/Yaw·거리 제한 확인. 큰 각도 회전 base·발 배치·공중 고정 등은 미검증 |
 
 **현재 Go/No-Go는 보류.** 소스 조사만으로 체크하지 않는다. 한 항목이라도 동등하게 구현할 수 없으면 AN-006에 따라 No-Go와 사유를 `.context/DiscardedApproaches.md`에 남긴다. 통과해도 Phase 6 착수는 사용자 확인 뒤 별도 단위다.
 
@@ -126,7 +126,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 
 ## 6. 구면 루트 보정 — 동등 구현 경로 조사(2026-10-23)
 
-**조사·구현/그래프 연결 단위 완료. 기본 UAF trait 핀 설정만으로는 기존 보정과 동등하지 않다.** 사용자 승인 후 아래 보정 trait를 구현했고 C++ 컴파일·링크, 에디터 등록·그래프 연결/컴파일을 확인했다. 첫 런타임에서 급전환 방향 추종 문제가 재현돼 §7의 Steering 보완 단위 승인 대기로 인계한다. 현재 No-Go로 확정하지도, 구면 게이트를 통과 처리하지도 않는다.
+**조사·구현/그래프 연결 단위 완료. 기본 UAF trait 핀 설정만으로는 기존 보정과 동등하지 않다.** 아래는 최초 보정 경로의 조사·구현 기록이다. 첫 런타임의 방향 추종 문제는 이후 §8 Steering·§10 소비 후 보정으로 현재 시험 범위에서 개선을 확인했다. 전체 구면 게이트/Go는 아직 보류하며 최신 인계는 §11이다.
 
 ### 기존 계약과 차이
 
@@ -176,7 +176,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 
 ## 7. 새 세션 — Steering 보완 단위의 조사 시작점
 
-**아직 구현 승인 전이다.** 사용자가 세션 인계·커밋을 요청했으며 Steering 보완 코드는 쓰지 않았다. 새 세션에서는 진행 확인부터 받고 아래를 이어간다.
+**이 절은 이전 인계의 조사 시작점이다.** 2026-10-24~25에 아래 조사 후 §8~§10을 구현·검증했다. 현재 새 세션의 시작점은 §11이며 아래 미구현/대기 문구는 당시 상태다.
 
 1. 현재 재현 기준은 이동 중 룩 급회전 뒤 전방 달리기 포즈가 옆/대각선으로 달리는 것이다. Offset Root `1`에서 쉽게 재현·`0`에서 미재현, 마지막 값 `1`, PIE 종료 상태다. 이 비교는 Offset Root 적용 경로와의 연관성을 보여 주며 Steering 누락이 유일한 원인이라는 증명은 아니다.
 2. 기존 계약은 `design/GASPReference.md` §2.10의 블렌드 스택 Steering×2·OrientationWarping·ResetRoot·CopyBone 후 OffsetRoot다. 현재 UAF는 최소 MM/Pose History → Offset Root+프로젝트 구면 보정 → Output으로 Steering·OrientationWarping·ResetRoot/CopyBone·발 배치가 빠져 있다. 이번 문제는 우선 Steering/회전 추종 범위에서 조사하고 나머지 누락을 검증 완료로 간주하지 않는다.
@@ -189,3 +189,146 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 `TestMap03`은 기존 사용자 변경과 시험용 GameMode Override가 섞여 있어 이번 커밋에서 제외하고 로컬에 유지한다. 새 체크아웃에서는 `BP_GameModeUAFSpike`를 임시 지정해야 한다. 5-1 종료 시 원래 Override를 확인해 복원하되 맵 전체를 되돌리지 않는다. DT_PlayerBaseStats·DT_LongSword_Levels·DA_MassSpawnConfig_TestOnePerSpecies도 이번 작업 밖의 로컬 변경으로 남긴다.
 
 검증: 최신 C++ 빌드 성공(5 actions, 48.13초), AG/S 컴파일·배선 확인과 사용자 CVar 비교까지다. 새 Steering 코드·빌드·급전환 해결은 아직 없다. 구면·적·2인 최종 회귀·5-1 완료·5-2·Go 판정도 남아 있다.
+
+## 8. Steering 보완·현재 시작 지면 급전환 재검증(2026-10-24, 단위 완료)
+
+사용자 진행 요청·저장 후 에디터 종료 답변을 받고 스파이크 C++만 변경했다. 기존 그래프 배선은 유지한다.
+
+- `LNPUAFSpikeRootInputs`에 궤적 사본과 이동 Steering 활성 플래그를 추가한다. 숨김 ABP는 상태·궤적만 공급하며 그 ABP의 누적 루트·선택 DB 태그를 가져오지 않는다.
+- 기존 구면 보정 trait가 `IHierarchy`의 forwarding을 통해 `ITimeline`·`IBlendStack`·MM 스택에 접근한다. 실제 `FMotionMatchingTrait` 검색 결과의 DB `TurnInPlace` 태그와 선택 클립의 `SteeringTargetTime` 곡선을 읽는다. 활성 그래프의 FactoryObject가 `UAnimSequence`이며 실제 MM 선택과 일치할 때 같은 활성 timeline의 시간·재생속도·루프 설정으로 미래 루트모션을 **PostEvaluate에서 즉시 샘플링**하고 회전 값 2개만 task에 복사한다. 비시퀀스/불일치/시간 없음은 ready=0이다. UAFPoseSearch 모듈의 Private·Internal 헤더 의존성이 있다. 최초 `IAttributeProvider` 콜백 지연 호출은 아래 크래시 후 제거했다.
+- task 순서는 **UAF 입력 포즈 평가 → 기존 base/Up/Yaw 보정 → Steering 회전 루트모션 Override → 기본 Offset Root 소비·포즈 쓰기**다. RootMotion 이동량은 바꾸지 않고 UAF 자신의 보정된 누적 루트 회전과 Up 정렬한 궤적 facing을 비교한다. 두 Steering 채널은 각자 스프링 속도를 가진다. 이동은 애니 루트 속도 10 초과·AnimatedTargetTime=10·절차 시간 0.1~0.3, 제자리 회전은 실제 DB 태그·AnimatedTargetTime=0.2·절차 시간 0.2다. 목표 샘플 시간은 곡선 0~1을 0.1~1.5초로 매핑한다.
+- 첫 평가·텔레포트·무효 입력·루트모션 없음·비활성·CVar 끔에서 스프링 잔여 속도를 버린다. 전신 몽타주에 해당하는 회전 Release에서는 적용하지 않는다. `LNP.UAFSpike.Steering`은 기본 1이며 Offset Root를 켠 채 Steering만 비교한다. `LNP.Anim.DebugLocomotion 2`는 `[UAFSteering]`을 약 1초마다 출력한다. ready는 현재 활성 시퀀스/MM 선택 일치·시간·궤적 유효성, applied는 Override 호출 여부다. rootYaw/rootTilt는 **이번 루트모션 소비 전** UAF 상태이며 최종 포즈 수치로 해석하지 않는다. 이전 코드의 callback 바인딩 여부만으로는 캡처 객체 수명이 보장되지 않았다.
+- **한계:** 블렌드된 출력에 활성 클립 예측으로 한 번 적용하므로 기존 샘플별 Steering×2와 다르며 기존 0.1초 알파 블렌드도 재현하지 않았다. 이번 급전환 개선 후보이며 B2 전체·미러·전환 블렌드 동등성이나 최종 Go의 근거가 아니다. OrientationWarping·ResetRoot/CopyBone·발 배치도 여전히 별도다.
+- 빌드: 첫 시도는 UAFPoseSearch 내부 헤더 경로 누락으로 컴파일 실패했다. Internal 경로 추가 후 기준 권한 확장 Development 빌드 **Succeeded, 14 actions, 54.53초**, 새 경고 없음. diff 공백 검사 통과. 엔진 파일·기본 ABP·맵은 수정하지 않았다.
+- AG/S 변경 전 백업은 `Saved/AnimationOverhaul/2026-10-24_PreSteering_020043e9/`이며 두 파일 SHA-256 일치를 확인했다. 재실행 후 사용자 컴파일·저장 완료 보고와 15:51:57 KST S·15:52:01 AG 성공 컴파일 로그를 확인했다. 파일 시각은 이전 그대로라 내용 변경에 따른 저장이 발생했다고 주장하지 않는다. 아래 첫 크래시를 수정한 뒤 최종 재시험을 완료했다.
+
+### 첫 런타임 크래시·수정
+
+- 사용자 Steering 0에서 기존 옆/대각선 달리기가 쉽게 재현, 1에서는 크래시한다고 보고했다. 0 구간 로그는 ready=1·applied=0·rootYaw ±90°·rootTilt 0° 표본이 있다. 16:02:15·16:03:41 KST 로그에서 `SequencePlayer.cpp:78 AnimSequence->IsValidLowLevel()` assertion → 네이티브 루트모션 delegate → 프로젝트 task 호출을 확인했다. 1의 개선을 관찰할 수 없었으므로 통과 처리하지 않는다.
+- 콜백 캡처 객체가 무효인 점은 확인했지만 무효화의 정확한 원인(GC 등)은 확정하지 않았다. assertion을 끄거나 무시하지 않고 **네이티브 콜백 지연 호출·task 내 delegate 자체를 제거**했다. 현재 구현은 위의 활성 시퀀스 직접 샘플·회전 값 전달이다. 엔진 파일 변경 없음. 첫/두 번째 크래시 로그는 `Saved/AnimationOverhaul/2026-10-24_SteeringCallbackCrash/`에 복사 보존했다. 원래 Saved/Crashes의 dump는 유지한다.
+- 에디터 프로세스 종료 확인 후 기준 권한 확장 Development 빌드 성공(5 actions, 21.48초, 새 경고 없음). 공유 입력·그래프 배선은 추가 변경하지 않았다. 수정 후 크래시 소실·Steering 적용은 아직 미검증이다.
+
+### 수정 후 최종 재시험 결과
+
+- 사용자는 재실행 뒤 8방향 달리기·정지·방향 전환 등을 시험했고 어색한 부분이 없었다고 보고했다. 16:10:35~16:10:48 KST의 Offset Root=1·Steering=1·디버그=2 명령, 16:11:02 inputs=ready를 확인했다.
+- 16:11:03~16:12:08 KST 약 65초의 `[UAFSteering]` 66개 모두 ready=1, 56개 applied=1. 실제 F/B/LL/RL 이동·Starts·Sprint 클립을 읽었고 이동 중 회전 루트모션 Override 실행을 확인했다. 이번 실행 assertion/fatal·구면 입력/스택 설정 오류는 0건이다. 기존 FoleyEvent 미처리 경고는 남았다.
+- 약 1초 간격의 **소비 전 상태 표본**에서 rootTilt 모두 0°·|rootYaw| 최대 58.1°·|deltaYaw| 최대 6.33°다. 전 프레임 최대값·최종 포즈 오차 상한·정밀 구면/base 동등성으로 일반화하지 않는다. tip=1 표본은 0개라 제자리 회전 채널의 실제 적용은 별도 확인이 필요하다.
+- 결과 확인 시 MCP PIE=false, Steering=1·Offset Root Enable=1/Enabled=true. 성공 로그는 `Saved/AnimationOverhaul/2026-10-24_SteeringVerified/LootNPop.log`에 복사했다. 이번 결과 정리에서 C++·에셋 변경이나 재빌드 없음.
+
+**이번 단위 완료:** 현재 시작 지면의 이동 중 방향 추종 문제 개선·콜백 제거 후 해당 assertion 미재발·실제 Steering 적용 확인. **다음 제안 단위는 북극·적도 및 움직이는 base의 구면 루트 검증이며 승인 전이다.** 위치/최종 UAF 루트 수치 경로를 정하고 직접 플레이가 빠르면 수동 요청한다. 제자리 회전 채널·샘플별 보정 동등성·공중 고정·발 배치 등 미검증 범위는 유지한다. 5-1 미완료·5-2 미착수·Go/No-Go 보류다.
+
+## 9. 북극·적도/base 구면 루트 검증(2026-10-24~25, 관찰/측정 단위 완료·수치 미통과)
+
+사용자가 진행을 승인했고 시험 지점으로 직접 이동·패널 탑승할 수 있다고 답했다. 자동 이동/테스트 장치를 만들지 않는다. 편집 월드에는 PlayerStart 4개를 조회했고 런타임 패널/마커 조회는 빈 배열이었다. 런타임 생성 패널의 부재로 해석하지 않는다.
+
+### 진단 보완
+
+- 기존 `[UAFSteering]`은 소비 전 상태의 약 1초 간격 표본이다. 최종 Up·30cm 제한·base 중복 검증에 그대로 사용하지 않는다.
+- 기존 prepare task → 기본 Offset Root task → 새 `FLNPInspectSphericalOffsetRootTask` 순서로, 기본 task가 쓴 누적 상태와 같은 VM keyframe의 실제 root를 읽는다. 출력 root는 그 프레임의 메시 월드 변환으로 옮긴다. 포즈/상태를 수정하지 않으며 숨김 ABP 포즈를 읽지 않는다.
+- `LNP.Anim.DebugLocomotion 2`일 때만 매 평가 프레임을 모아 약 1초마다 `[UAFRoot]` 출력. `maxStateCm/Yaw/Tilt`는 기본 Offset Root의 소비/감쇠/클램프 후 누적 상태, `maxPoseCm/Yaw/Tilt`는 실제 출력 루트다. cm는 같은 프레임의 메시 원점과 거리, Yaw는 메시 로컬의 절댓값, Tilt는 메시 Up과 루트 Up의 각도다. 현재 그래프에서는 Offset Root 뒤 다른 포즈 노드가 없어 이 지점이 AG 최종 루트지만 이후 후처리를 넣으면 재확인한다.
+- `frames/moving/ground/based/resets`는 해당 구간의 평가 횟수와 조건별 횟수다. moving은 이동 Steering 활성 플래그(공중도 포함)이므로 정지 탑승은 `ground=frames`, `moving=0`, `based=frames`, `resets=0`인 안정 구간으로 좁혀 본다. 구간이 섞이면 마지막 상태만으로 정지 탑승이라 분류하지 않는다.
+- lat·upZ·pos·base는 구간 마지막 프레임의 위도(원점 기준)·메시 Up.Z·좌표·base 컴포넌트 경로다. 북극은 +Z 축 부근, 적도는 Z≈0인지 실제 좌표/위도로 확인한다. `maxBaseCm/Deg`는 공급된 프레임별 base 운반 델타의 구간 최대값이며 이 값만으로 중복 소비가 없음을 증명하지 않는다. 공유 RootInputs에 base 경로와 동적 여부만 추가했다.
+- 성공 조건은 시험 위치·실제 base 탑승/이동 조건 확인, 최종 루트 Up 정렬과 기존 30cm 상태 제한 유지, 정지 패널 탑승에서 앞선 ±30cm 이중 운반 패턴이 없고 반복 운반 뒤 계속 밀림/급회전/기울어짐이 없는 것이다. 출력 루트와 누적 상태의 차이가 있으면 원본 입력 root 포즈와 분리해 조사하며 state 거리만으로 표시 포즈까지 통과 처리하지 않는다. 이동/회전 base 델타를 각각 실제로 관찰한 범위만 판정한다.
+
+### 빌드·현재 수동 요청
+
+사용자 저장·에디터 종료 답변 후 권한 확장 기준 Development 빌드를 수행했다. 첫 빌드는 동명 `FReferencePose` 충돌로 실패했고 `UE::UAF::FReferencePose` 명시 후 **Succeeded, 4 actions, 11.68초**, 새 경고 없음. diff 공백 검사 통과. 스파이크 파일 4개만 추가 변경했고 엔진·기본 ABP·맵은 바꾸지 않았다.
+
+에디터 재실행 → AG/S 각각 Compile·Save → 1인 Standalone PIE·Offset Root=1·Steering=1·디버그=2 → 북극(+Z 축 부근) 수동 시험을 요청했다. 새 배선은 없다. 아래 결과를 확인했고 현재 적도 시험 답변 대기다.
+
+### 북극 결과와 현재 요청(2026-10-25)
+
+- 사용자 북극 근처 이동 관찰에서 어색한 부분 없음 보고. 12:01:19 KST AG·12:01:22 S 성공 컴파일과 12:01:47~12:02:00 세 CVar 명령을 확인했다.
+- 구간 끝 위도 80.59~89.93°인 `[UAFRoot]` 135개 구간에 8,086 평가 프레임(ground 7,952·based 0·reset 0)이 포함됐다. 각 구간의 매 프레임 최대값을 집계해 누적 상태와 실제 출력 모두 거리 최대 30.000cm·Yaw 최대 92.40°·Tilt 최대 0.055°를 확인했다. lat은 구간 끝 좌표이므로 각 프레임의 위도 범위를 측정했다고 주장하지 않는다. 공중 포함 구간을 순수 지상 최대값으로 해석하지 않는다.
+- 92.40°는 12:04:48 KST 지상 구간(60프레임·moving 24), Tilt 0.055°는 12:04:22 지상 구간(60프레임·moving 60)에서 나왔다. 현재 보정은 **소비 전** ±90° 클램프이고 기본 task가 그 뒤 애니/Steering 루트모션을 더하므로 평가 후 엄밀한 ±90° 상한은 보장되지 않는다. 관찰 이상 없음과 별개로 이 상한을 통과 처리하지 않고 적도 결과와 함께 검토한다. 이번 결과 정리에서는 코드를 바꾸지 않았다.
+- 완전 정지 지상 구간은 9개. 마지막 12:06:17 거리 최대 0.055cm → 12:06:18~19 0.000cm로 수렴했다. 12:06:06의 `TurnInPlace` DB·045_L에서 ready=1·applied=1·tip=1을 확인해 제자리 회전 채널의 실제 실행 근거가 생겼다. 전체 실행 assertion/fatal 0건. Foley 미처리 경고 등 잔류 경고를 전체 0으로 표현하지 않는다.
+- 로그는 `Saved/AnimationOverhaul/2026-10-25_NorthRoot/LootNPop.log`에 복사했다. MCP에서 PIE 활성·Steering=1·Offset Root Enable=1/Enabled=true 확인. 일시정지 여부는 이 API만으로 확인하지 않았다.
+
+### 적도 결과와 현재 요청(2026-10-25)
+
+- 사용자 적도 부근에서도 비슷하게 플레이했고 어색한 부분이 없었다고 보고했다. 북극 결과 확인 전 지나간 적도 표본과 분리하기 위해 12:06:19 KST 이후·구간 끝 |lat|≤5°인 구간으로 집계했다.
+- 12:08:50~12:11:18 KST 접근/시험 구간은 끝 위도 −1.97~4.97°·138구간·8,143평가 프레임, 모두 지상·base/reset 0. 누적 상태/실제 출력 모두 거리 최대 30.000cm·Yaw 최대 90.00°·Tilt 최대 1.613°다. 완전 정지 지상 구간 39개, 마지막 12:11:11~18 거리 최대 0.000cm·Tilt 0.000°로 수렴했다. 구간 끝 위도 기준이라 모든 프레임의 위도를 측정한 것은 아니다.
+- Tilt 1.613° 피크는 12:10:02 KST(60프레임 모두 이동·지상·base 없음), 1.454°는 12:09:11에 기록됐다. 가까운 시점의 Steering 표본은 Sprint Loop지만 **최대 Tilt가 난 동일 프레임의 클립/원인은 아직 특정하지 않았다.** 현재 최대값 로그만으로 원본 애니 회전·Steering 스프링·기타 시점 차이를 단일 원인으로 확정하지 않는다. 사용자 관찰 이상 없음과 분리해 최종 Up 완전 정렬은 보류한다.
+- 전체 실행 assertion/fatal 0건, MCP PIE 활성·Steering=1 확인. 로그는 `Saved/AnimationOverhaul/2026-10-25_EquatorRoot/LootNPop.log`에 복사했다. 이번 결과 확인에서 코드/에셋·설정 변경·빌드 없음.
+
+**현재 수동 요청:** 같은 PIE·세 CVar 유지, 이동패널 위 이동/룩 입력 없이 왕복 1회 이상(최소 30초), 이후 걷기→정지·룩 방향 전환 약 10초. 왕복 완료 여부와 앞서감/밀림/기울어짐/급회전을 보고하고 PIE 일시정지. base 수치 확인 후 두 지역의 Yaw/Tilt 피크도 검토한다. 이 단위 미완료·5-1 미완료·5-2 미착수·Go/No-Go 보류다.
+
+### 패널 결과·이번 단위 판정(2026-10-25)
+
+- 사용자는 요청한 패널 시험을 완료했고 어색한 부분이 없었다고 보고했다. 실제 base는 `BP_PyramidExteriorPanel_C_3.PanelMesh`, 동적 base 탑승 177구간·10,327 based 프레임을 확인했다. 컴포넌트 조회에서도 해당 PanelMesh를 확인했다. 로그는 `Saved/AnimationOverhaul/2026-10-25_PanelRoot/LootNPop.log`에 보존했다.
+- `based=ground=frames`, moving=0, reset=0인 이동 기준 정지 탑승은 107구간·6,332프레임. 누적 상태/실제 출력 모두 거리 최대 0.901cm, 마지막 구간은 0.000cm였다. 관찰한 범위에서 이전 ±30cm 이중 운반 패턴은 재현되지 않았다. moving 플래그만으로 룩 입력까지 없었다고 증명하지는 않으며 요청한 무입력 탑승은 사용자 시험 보고와 함께 해석한다.
+- 정지 구간 Tilt 최대 **5.196°**, 이동 포함 based 구간 Tilt 최대 **10.593°**, 전체 based 거리 최대 30cm·Yaw 최대 90°다. 정지 구간의 5.196°는 12:17:02 KST, 이동 구간 10.593°는 12:16:53에 기록됐다. 사용자 시각 관찰 이상 없음과 별개로 최종 Up 정렬은 미통과다.
+- base 프레임 델타 최대 38.071cm·0.0028°다. 병진 운반은 확인했으나 큰 각도로 회전하는 base의 동등성까지 통과 처리하지 않는다. 전체 실행 assertion/fatal 0건, MCP PIE 활성 확인. 일시정지 자체는 이 API로 확인하지 않았다.
+- 소스 재대조: 프로젝트는 기본 task **전**에 base 운반·Up 정렬·±90° 제한을 적용한다. 기본 task가 그 뒤 `ConsumedRootMotionDelta * SimulatedTransform`을 수행하며 회전 Accumulate에서 root rotation을 소비한다. 기본 회전 클램프는 구면 곱셈 문제 때문에 −1로 꺼 두었다. 따라서 현재 순서만으로 최종 Up/±90°가 보장되지 않는 구조를 확인했다. 피크가 난 동일 프레임의 세부 루트모션/스프링 원인은 아직 계측하지 않았다.
+
+**관찰·측정 단위는 완료, 구면 수치는 미통과.** 북극·적도·패널에 대해 사용자 관찰과 실제 UAF 출력을 확보했고, 패널 병진의 이중 운반 패턴은 미재현이다. 최종 Up/Yaw 보완과 큰 각도 회전 base 등은 남긴다. 5-1 미완료·5-2 미착수·Go/No-Go 보류다.
+
+### LogAnimation 경고 확인
+
+사용자가 다수 경고의 영향을 질문했다. 확인 시점 LogAnimation Warning 1,997건은 모두 UAF 시스템의 미구현 Foley 이벤트다(Run 1,846·Walk 83·Jump 36·RunStrafe 32), LogAnimation Error 0건. 설치 소스 `UAF/Private/Script/UAFRigVMComponent.cpp:79~83`은 이벤트 엔트리가 없으면 경고를 기록하고 그 호출을 반환한다. 해당 Foley 연출이 실행되지 않지만 현재 이동/포즈 검증을 중단할 사유는 아니다. 로그 비용·누락 연출은 최종 구성 전에 정리해야 하며 루트 기울기와의 인과는 확인되지 않았다. 이번 확인에서 이벤트·소스 에셋·로그 카테고리를 수정하지 않았다.
+
+## 10. 소비 후 구면 제약 보완(2026-10-25, 단위 완료)
+
+1. 기본 Offset Root 소비 후에도 Up 정렬·컴포넌트 Up 둘레 ±90° 제약이 유지되도록 최소 프로젝트 보정 경로를 정한다. 원본 애니의 의도된 포즈 회전과 누적 root 제약을 구분한다.
+2. **같은 UAF 누적 상태와 실제 출력 root를 일관되게** 보정한다. 숨김 ABP 루트 대입·표시 포즈만 덮기·회전 Release로 우회하지 않는다. 기존 base 운반·위치/모드·CVar/알파 계약과 게임플레이 분리는 유지한다. 엔진 파일은 수정하지 않는다.
+3. 빌드/컴파일 후 동일 북극·적도·패널 수동 회귀와 최종 수치로 검증한다. 직접 조작이 빠르면 즉시 요청한다. 큰 각도 회전 base는 관찰한 델타 범위와 분리한다.
+
+사용자 진행 승인·PIE 종료/저장/에디터 종료 답변 후 아래를 구현했다. 빌드·수치 회귀 시험과 아래 최종 수동 재시험까지 마쳐 이 단위는 완료했다.
+
+### 구현
+
+- `LNPSphericalOffsetRootTrait.h/.cpp`에 `FLNPFinalizeSphericalOffsetRootTask`를 추가했다. 실행 순서는 준비(base 운반/기존 회전 제약·Steering) → 기본 Offset Root(루트모션 소비/감쇠/위치 제한/포즈 쓰기) → **최종 회전 보정** → 기존 진단이다.
+- 준비/최종 보정에 같은 구면 회전 함수를 사용한다. 컴포넌트 Up으로 스윙 정렬 후 그 컴포넌트의 로컬 Z Yaw를 ±90°로 제한한다. 월드 Z를 회전축으로 쓰지 않는다.
+- 최종 보정은 누적 상태의 이전 회전 S와 보정 회전 C, 컴포넌트 회전 M으로부터 `M⁻¹·C·S⁻¹·M`을 구해 출력 root의 로컬 회전에 곱한다. 상태만 고치거나 출력만 덮지 않는다. 원본 포즈가 상태에 대해 가진 상대 회전은 보존하며, root 위치/스케일·누적 위치·base 델타·루트모션 속성은 변경하지 않는다. 원본 입력 root 자체에 의도된 기울기/Yaw가 있다면 그 부분까지 무조건 평평하게 만들지 않는다. 최종 누적 상태와 실제 포즈의 진단을 계속 분리한다.
+- 디버그 꺼짐에서도 보정한다. Offset Root 비활성에서는 task를 넣지 않으며, 무효 입력·초기화/기본 task 미실행·알파 0·비양수 dt·루트모션 속성 없음에서는 기존 출력을 유지한다. 숨김 ABP 포즈/루트·기본 플레이어·엔진 파일·base 운반 로직은 변경하지 않았다.
+
+### 빌드·회귀 시험
+
+- 기준 권한 확장 Development 빌드 **Succeeded, 5 actions, 37.65초**, 새 컴파일 경고 없음. diff 공백 검사 통과.
+- `LootNPop.Animation.UAFSpike.SphericalRootFinalization` 자동화 시험을 같은 C++ 파일의 개발 시험 조건부 구간에 추가했다. +Z/+X/−Z/기울어진 컴포넌트 방향과 Yaw 양/음 경계에서 관찰한 10.593° Tilt·±92.4° Yaw를 수치로 재현한다. 보정 후 상태 Up·±90° 경계, 입력 root의 비영 상대 회전 및 위치/스케일 보존, 이미 제약 안에 있는 출력의 불변성을 검증한다.
+- `/Engine/Maps/Entry`·NullRHI headless UnrealEditor-Cmd에서 실제 시험 실행 **1/1 성공·실패 0·종료 코드 0**, 시험 시간 약 0.02초. 보고서 `Saved/Automation/2026-10-25_UAFRootFinalization/index.json`, 로그 `Saved/Logs/UAFRootFinalizationTest_2026-10-25.log`. 회전 계산 시험이며 그래프/네트워크/PIE 실행 통과는 아니다.
+
+### 최종 실행 재검증
+
+- 사용자 재실행·컴파일/저장 및 요청한 북극·적도·패널 시험을 완료했고 어색한 부분이 없었다고 보고했다. 12:43:40 KST S·12:43:44 AG 성공 컴파일, 12:44:07~17 세 CVar 실행을 확인했다. 새 배선 없음.
+- 12:44:40~12:50:59 KST 기록된 378구간·22,583평가 프레임 전체에서 누적 상태와 실제 출력 모두 거리 최대 30cm·Yaw 최대 90°·Tilt 최대 **0.000°(로그 해상도)**였다. 구간 내부는 매 평가 프레임을 집계한다. 로그가 없는 프레임이나 임의의 원본 애니/조건까지 일반화하지 않는다.
+
+| 구간(구간 끝 위도/조건 기준) | 구간 수 / 평가 프레임 | 위도 범위 | 거리 최대(상태/출력) | Yaw 최대(상태/출력) | Tilt 최대(상태/출력) |
+|:---|:---|:---|:---|:---|:---|
+| 북극, lat≥80°·based=0 | 65 / 3,882 | 81.20~89.88° | 30cm | 87.70° | 0.000° |
+| 적도, \|lat\|≤5°·based=0 | 73 / 4,372 | −2.89~4.79° | 30cm | 90.00° | 0.000° |
+| 동적 base 포함 | 118 / 7,036 | 4.19~7.98° | 30cm | 87.38° | 0.000° |
+| 정지 탑승(ground=based=frames, moving=reset=0) | 70 / 4,192 | 5.30~6.02° | 0.345cm | 87.14° | 0.000° |
+
+- 동적 base 프레임은 실제 7,009개(구간 경계의 비탑승 프레임 포함 평가 합계 7,036과 구분). 패널 정지 탑승의 마지막 거리 최대는 0.000cm. 이전의 거리 이중 운반과 새로운 회전 보정 부작용은 이 관찰 범위에서 재현되지 않았다. base 델타 최대 75.336cm·0.001°로 큰 각도의 회전 base는 여전히 미검증이다.
+- 제자리 회전 Steering 적용 표본 12개, assertion/fatal·구면 입력/스택 설정 오류 0건. LogAnimation Error 0건, 기존 Foley 미처리 Warning은 1,361건 남았다. 이 단위에서 경고를 억제하거나 Foley를 구현하지 않았다.
+- 로그는 `Saved/AnimationOverhaul/2026-10-25_FinalRootVerified/LootNPop.log`에 복사 보존했다. MCP PIE 활성·Steering=1·Offset Root Enable=1/Enabled=true 확인. 일시정지는 별도 확인하지 않았다. 결과 정리에서 코드/에셋 변경·재빌드 없음.
+
+**이번 구현·재검증 단위 완료.** 이전 북극 Yaw 92.4°·적도 Tilt 1.613°·패널 Tilt 10.593° 문제는 현재 구성/시험 범위의 최종 상태와 출력에서 개선을 확인했다. 다음 제안은 공중 Fall_Loop 고정(AN-007)의 UAF 경로 조사·구현·수동 검증이며 사용자 승인 전 착수하지 않는다. 샘플별 보정 동등성·큰 회전 base·OrientationWarping/ResetRoot/CopyBone·발 배치·입력/전환·적/네트워크는 남았다. 5-1 미완료·5-2 미착수·Go/No-Go 보류다.
+
+## 11. 새 세션 인계(2026-10-25)
+
+사용자가 다음 작업을 새 세션으로 넘기고 문서 정리·커밋을 요청했다. 이번 세션에서는 다음 공중 고정 단위에 착수하지 않는다.
+
+### 시작할 단위
+
+**공중 Fall_Loop 고정(AN-007)의 UAF 경로 조사·구현·수동 검증.** 새 세션에서 진행 확인 후 다음 순서로 좁힌다.
+
+1. `Decisions.md` AN-007과 [TechDesign_CombatAnimation.md](../../TechDesign_CombatAnimation.md) §5.5, 기존 `ABP_Main_UEFN`의 공중 포즈 계약을 읽는다. 현재 테스트 AG는 공중에도 MM 출력을 쓰므로 기존 공중 고정과 동등하지 않다. GASP 점프/낙하 체계로 교체하지 않는다.
+2. 기존 UEFN 리타깃 Fall_Loop 소스의 실제 참조/존재와 UAF에서 고정 포즈를 선택할 최소 경로를 확인한다. `Retargeted/Lyra/`는 git 제외이며 새 환경은 README §4·Phase02의 재생성 절차가 필요하다. 소스 에셋을 수정/저장하지 않는다.
+3. `/Game/Characters/UAFSpike/`와 스파이크 C++ 범위에서 연결하고 공중 진입/유지·착지 복귀를 확인한다. 그래프 조작·점프/착지가 더 빠르면 바로 수동 요청한다. 이 단위가 끝나면 다시 다음 단위 진행 여부를 묻는다.
+
+### 재사용할 현재 구성·검증
+
+- 에셋은 `ABP_SourceUAFSpike`·`BP_PlayerUAFSpike`·`BP_GameModeUAFSpike`·`S_LocomotionSpike`·`AG_LocomotionSpike`. S locator=`Current Actor → VisualMesh`, AG=MM/Pose History → Offset Root Bone+LNP Spherical Offset Root → Output. 공유 RootInputs 전체 핀 배선은 이미 있고 이번 커밋의 새 에셋 변경은 없다.
+- `LNPSphericalOffsetRootTrait`는 준비(base/Up/Yaw·Steering) → 기본 Offset Root → 최종 회전 보정 → 선택적 진단을 실행한다. Steering은 활성 UAF 시퀀스/시간/DB 태그 기준이며 네이티브 루트모션 콜백을 지연 호출하지 않는다. 엔진 UAFWarping·UAFPoseSearch 내부 헤더 의존성이 있어 엔진 갱신 때 재대조해야 한다.
+- 최신 코드 빌드 5 actions·37.65초 성공, 실제 C++ 수치 회귀 1/1 성공. AG/S 컴파일과 사용자 북극·적도·패널 재시험 관찰 이상 없음. §10의 22,583평가 프레임에서 최종 Tilt 0.000°·Yaw 최대 90°·거리 최대 30cm, 패널 정지 탑승 최대 0.345cm. 새 코드 변경이 없으면 기준 빌드를 반복하지 않는다.
+- 직접 플레이/패널 탑승은 사용자가 할 수 있다. 진단은 `a.UAF.OffsetRootBone.Enable 1`, `LNP.UAFSpike.Steering 1`, `LNP.Anim.DebugLocomotion 2`. `[UAFSteering]`은 소비 전 표본, `[UAFRoot]`는 최종 상태/출력의 구간 내 매 평가 최대값이다. 숨김 ABP `[AnimB3]`와 소유권이 다르다. Rewind 녹화가 필요하면 1인 PIE Net Mode=`Play Standalone`, 프로젝트 Saved 경로만 사용한다.
+- 인계 확인 시 PIE는 활성이다. 일시정지 여부는 별도 확인하지 않았고 에디터/PIE를 변경하지 않았다. 다음 편집 전 현재 상태를 다시 확인한다. TestMap03은 테스트 GameMode Override가 로컬에 남아 있으며 다른 체크아웃에서는 수동 재지정해야 한다. 원래 Override의 구체 값은 기록이 없어 5-1 종료 복원 전에 사용자 기준값을 확인하고 맵 전체를 되돌리지 않는다.
+
+### 한계·로컬 자료·커밋 범위
+
+- 5-1 전체 미완료·5-2 미착수·Go/No-Go 보류. 공중 고정·발 배치·OrientationWarping/ResetRoot/CopyBone·입력 PSD 배열 대조·전환/인터럽트 전체·샘플별 보정 동등성·큰 각도 회전 base·적/2인 등은 미검증이다. 숨김 ABP와 UAF가 함께 돌아 성능 비교도 하지 않는다.
+- FoleyEvent 미구현 경고는 해당 호출을 건너뛴다. 최종 시험에서 LogAnimation Warning 1,361·Error 0건이었고 경고 억제/이벤트 구현은 하지 않았다. 현재 로코모션 검증은 가능하나 누락 연출과 로그 정리는 남아 있다.
+- 최종 로그 `Saved/AnimationOverhaul/2026-10-25_FinalRootVerified/LootNPop.log`, 수치 시험 보고서 `Saved/Automation/2026-10-25_UAFRootFinalization/index.json`, 별도 시험 로그 `Saved/Logs/UAFRootFinalizationTest_2026-10-25.log`. 중간 크래시·북극·적도·패널 로그와 이전 AG/S 백업도 Saved에 보존했다. 모두 git 제외이며 새 체크아웃에는 포함되지 않는다.
+- 이번 커밋은 스파이크 C++/Build.cs 5개와 Phase 5 문서 5개다. 기존 사용자 변경인 TestMap03·DT_PlayerBaseStats·DT_LongSword_Levels·DA_MassSpawnConfig_TestOnePerSpecies는 커밋에서 제외하고 로컬에 둔다. GASP 소스/엔진/기본 ABP/맵 수정은 없다.
