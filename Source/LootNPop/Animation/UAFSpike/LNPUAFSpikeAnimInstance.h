@@ -11,6 +11,31 @@ class UUAFAnimGraph;
 class UUAFComponent;
 class UUAFSystem;
 
+/** 기존 발 배치 CR과 Passthrough Blend에 전달하는 스파이크 전용 입력. */
+USTRUCT(BlueprintType)
+struct FLNPUAFSpikeFootPlacementInputs
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
+	FVector GroundNormal = FVector::UpVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
+	bool bEnabled = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
+	bool bForceReset = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
+	bool bAllowFootPinning = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
+	bool bAllowSlopeWarping = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
+	bool bDebugDraw = false;
+};
+
 /** UAF 시스템과 그래프가 함께 가져오는 스파이크 전용 입력. */
 USTRUCT(BlueprintType)
 struct LOOTNPOP_API FLNPUAFSpikeInputs
@@ -31,6 +56,9 @@ struct LOOTNPOP_API FLNPUAFSpikeInputs
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Offset Root")
 	FLNPUAFSpikeRootInputs OffsetRoot;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
+	FLNPUAFSpikeFootPlacementInputs FootPlacement;
 };
 
 /** 숨김 ABP의 기존 공급값을 UAF 표시 메시 시험에 전달한다. 기본 플레이어에는 사용하지 않는다. */
@@ -54,5 +82,6 @@ private:
 	bool bUAFDependencyAdded = false;
 	bool bHasReportedInputs = false;
 	bool bLastInputsSucceeded = false;
+	bool bWasFootPlacementEnabled = false;
 	int64 RootInputSerial = 0;
 };

@@ -1,6 +1,6 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0 완료, 5-1 진행 중(공중 고정 — §12, 대표 입력/전환 — §13, 기본 Strafe Warping 비교 — §14 단위 완료. 기존 ABP 완전 동등성·최종 게이트 미판정)
+> 상태: 5-0 완료, 5-1 진행 중(공중 고정 — §12, 대표 입력/전환 — §13, 기본 Strafe 비교 — §14, 발 배치 최소 연결·검증 — §15 단위 완료. 기존 ABP 완전 동등성·최종 게이트 미판정)
 > 마지막 갱신: 2026-10-26
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
@@ -15,7 +15,7 @@
 | 단위 | 작업 | 검증·종료 조건 | 상태 |
 |:---|:---|:---|:---|
 | 5-0 | GASP 참조 유무·로컬 엔진 API 조사, 실행서 작성 | 참조 조회 결과·재사용 경로·차단 후보·미검증 항목 기록. 코드·에셋 변경 없음 | 완료(2026-10-23) |
-| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(최종 구면 루트·패널 병진·공중 고정·대표 입력/전환·기본 Strafe 비교 확인, 발 배치·큰 회전 base 등 미완료) |
+| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(구면 루트·패널 병진·공중 고정·대표 입력/전환·기본 Strafe 비교·발 배치 최소 연결 확인, 큰 회전 base·잔여 계약 등 미완료) |
 | 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 미착수 |
 
 최초 로드맵의 1~2세션 예상에서 **준비 포함 3단위로 구체화**했다. 로컬 GASP UAF 참조를 찾지 못했고, Phase 2 구면 보정과 몽타주 메시 선택을 별도로 확인해야 한다. 5-1의 조기 No-Go면 5-2를 수행하지 않는다.
@@ -608,3 +608,81 @@ Root 값은 진단 구간별 매 프레임 최대값의 합집계이고 각도�
 **기본 Strafe Warping 비교 구현 단위 완료.** 승인받은 기본 노드 후보를 연결해 실제 task 순서·북극/적도 0/1·공중 해제/착지 복귀·최종 구면 루트 제한과 사용자 관찰을 확인했다. 기본값 1을 유지하는 시험 후보이며, 기존 ABP의 TargetTime 0.8·샘플별 보정·발/루트 처리와 완전 동등하다고 판정하지 않는다. 본 원소 전체의 독립 재조회도 하지 않았다. 스파이크 전체·최종 Go의 근거로 확대하지 않는다.
 
 다음 제안 단위는 **발 배치 Control Rig의 UAF 연결 경로 조사·최소 구현·검증**이다. ResetRoot/CopyBone의 남은 계약·큰 회전 base·추가 전환 표본·적/네트워크·무기/몽타주 게이트도 별도로 남는다. **사용자 진행 확인 전 다음 구현에 착수하지 않는다.** 5-1 미완료·5-2 미착수·Go/No-Go 보류.
+
+## 15. 발 배치 Control Rig UAF 연결(2026-10-26, 최소 연결·검증 단위 완료)
+
+사용자가 새 세션에서 Phase 5 계속 진행을 요청해 이 단위를 시작했다. 기존 CR/ABP·Chooser·PSD·GASP 소스를 수정하지 않는다. 종료 후 다음 구현 단위는 다시 진행 확인을 받는다.
+
+### 엔진 대조·최소 구현
+
+- 기준 계약은 `design/GASPReference.md` §2.12와 Phase02 단위 2-5다. `/Game/Characters/ControlRigs/CR_Biped_FootPlacement_UEFN`의 공개 변수 이름·타입을 MCP로 확인했다. `UseIKBoneTargets`의 에셋 기본값은 true이므로 UAF 노드에서 반드시 false로 지정한다.
+- 로컬 UE 5.8 `UAFControlRig/Source/UAFControlRig/Internal/ControlRigTrait.h`, `Private/ControlRigTrait.cpp`는 Control Rig 입력 포즈·커브 전달, 공개 변수 핀, 바인딩된 SkeletalMeshComponent의 월드 변환/OwnerComponent 등록을 지원한다. UAF 시스템은 이미 `VisualMesh`에 바인딩돼 있고 시험 메시도 UEFN이다. 실제 실행 바인딩·트레이스는 아직 미검증이다.
+- `UAFAnimGraph/Source/UAFAnimGraph/Public/Traits/PassthroughBlendTrait.h`·`Private/Traits/PassthroughBlendTrait.cpp`는 단일 입력 Control Rig의 평가 결과와 원래 포즈를 혼합한다. Bool 알파 0에서 CR 평가 task를 추가하지 않고, 중간 알파에서는 포즈 복사/CR/블렌드 task를 추가한다. 따라서 새 분기나 엔진 보정 수학을 만들지 않고 **Control Rig(Base) + Passthrough Blend(Additive)** 스택을 기존 최종 구면 보정 뒤에 둔다. Bool 알파 블렌드 인 0.3초·아웃 0.2초를 사용한다.
+- `LNPUAFSpikeAnimInstance.h/.cpp`에 `FootPlacement` 공유 입력을 추가했다. 기존 `GroundNormal`, `ShouldUseFootPlacementRig`, `ShouldResetFootPlacement`, `IsOnStaticGround`, `IsFootPlacementDebugEnabled`를 재사용한다. 최초 활성/착지/CVar 재활성화 때 `bForceReset`을 켠다. 기존 `OffsetRoot` 입력의 base 이동·텔레포트 플래그를 CR에 연결하므로 중복 공급하지 않는다. `LootNPop.cpp`에 새 구조체의 RigVM 등록을 추가했다. 새 trait·CVar·엔진 변경은 없다.
+
+### 편집·빌드 근거
+
+- MCP에서 PIE 활성 확인 → 사용자 수동 종료 → `IsPIERunning=false` 확인. AG/S만 저장 성공 후 `Saved/AnimationOverhaul/2026-10-26_PreFootPlacement/`에 파일 백업했다(AG 310,698·S 78,051바이트). 기존 사용자 변경 4개는 보존한다.
+- 사용자 에디터 종료 후 정상 전체 빌드를 권한 확장으로 실행했다. `Build.bat LootNPopEditor Win64 Development <uproject> -WaitMutex -NoHotReloadFromIDE`: **Succeeded, 종료 코드 0, 8 actions, 43.72초**. C++ 등록·컴파일·링크 근거이며 새 AG 배선·런타임 성공 근거는 아니다. Live Coding은 사용하지 않았다.
+- 다음은 사용자 에디터 재실행 후 아래 배선·AG/S 컴파일·저장, 북극/적도·경사/턱·점프/착지·움직이는 base 수동 검증이다. 구조체 Getter가 재시작 후 실제 생성되는지 확인한다. 기존 구면 진단은 새 CR **앞**의 값이므로 발 배치 뒤 최종 포즈까지 검증했다고 해석하지 않는다.
+
+### 배선 계약
+
+기존 최종 Offset Root/LNP Spherical 스택 → 새 Control Rig/Passthrough Blend 스택 → Output. CR은 기존 구면 보정본을 읽기 전용으로 참조한다. 원본 CR 변경이 필요해지면 UAFSpike 사본을 먼저 만든다.
+
+| 새 스택 입력 | 값/공유 입력 |
+|:---|:---|
+| Control Rig 참조 | `CR_Biped_FootPlacement_UEFN` |
+| Ground Normal | `FootPlacement.GroundNormal` |
+| GroundMovementWorldDelta | `OffsetRoot.BasedMovementDelta` |
+| DoRaycast | true |
+| UseIKBoneTargets | false |
+| Enable Foot Pinning | `FootPlacement.bAllowFootPinning` |
+| Enable Slope Warping | `FootPlacement.bAllowSlopeWarping` |
+| WorldZDamperEnabled | `FootPlacement.bAllowFootPinning`(기존 `IsOnStaticGround` 계약) |
+| Has Teleported | `OffsetRoot.bReset` |
+| ForceReset | `FootPlacement.bForceReset` |
+| DebugDraw | `FootPlacement.bDebugDraw` |
+| Passthrough Blend Alpha Input Type | Bool |
+| Passthrough Blend bEnabled | `FootPlacement.bEnabled` |
+| Bool Blend In/Out | 0.3 / 0.2초 |
+
+### 재실행·수동 설정 중간 확인
+
+- 사용자 재실행 후 MCP 읽기 연결·PIE 종료 상태와 새 입력 구조체의 ScriptStruct 등록을 확인했다. 기동 로그에서 기존 AG/S 컴파일 성공을 확인했다.
+- 사용자가 새 스택에 Control Rig → Passthrough Blend를 생성하고 CR 참조를 지정했다. Slate로 참조 `CR_Biped_FootPlacement_UEFN`을 읽었고, 화면에서 Bool Value 알파·Blend In 0.3/Out 0.2를 확인했다. 입력 포즈/커브 전달은 켜짐, 전역 공간 전달은 꺼짐이다.
+- **UI 안내 정정:** 새 `Control Rig`(v2)의 Input 범주를 실제로 확인하기 전에 노출하도록 안내했다. 사용자 질문 뒤 소스를 좁혀 대조하니 `UAFControlRigEditor/Private/AnimNextControlRigEditorModule.cpp`는 `ControlRigTraitSharedData`(Legacy)에만 커스텀 UI를 등록하고 v2 등록은 없다. v2에 변수 핀 생성 구현은 있으나 현재 Details에 노출 UI가 없는 원인이다. Legacy는 `Hidden` 메타데이터 때문에 Add Trait 메뉴에서도 제외된다(`TraitStackEditor.cpp::FStructFilter`). 엔진/프로젝트 C++ 우회 코드를 바로 추가하지 않고 새 미연결 스택의 복사 텍스트로 Legacy 구성 가능 여부를 확인 중이다.
+- 사용자 노드 복사 텍스트로 미연결 대상 `AnimNextTraitStack_2`를 확인했다. Details 복사 JSON과 노드 복사(`Begin Object`)를 구분했다. 엔진의 `UAnimNextController::SwapTraitByName`을 쓰는 일회성 Python `Saved/AnimationOverhaul/2026-10-26_PreFootPlacement/UseLegacyFootRig.py`로 Legacy 전환·동일 CR 지정 후 AG 컴파일 성공과 실제 Input/Use Pin UI 표시를 확인했다. Python 모드에서 `py` 접두사를 넣은 첫 명령은 실행 전 SyntaxError였고, `exec(compile(open(...).read(), ..., 'exec'))`로 실행했다. AG 전환 전 백업은 `AG_BeforeLegacy.uasset`다.
+- **Legacy 채택 보류(사용자 우려).** 두 타입은 같은 `TControlRigTraitBase` 실행 구현을 공유하고 참조 형식만 다르지만, 이전 타입을 최종 채택하는 것으로 진행하지 않는다. 신규 v2를 유지하는 경로를 좁혀 조사했다. `URigVMController::ImportNodesFromText`는 unit node를 붙여넣을 때 `RepopulatePinsOnNode`를 호출하며, CR v2의 `GetProgrammaticPins`는 공개 변수 이름 배열로 핀을 생성한다. Python에는 Repopulate 자체가 노출되지 않아 기존 Export/Import API를 이용한다. 엔진/추가 C++/MCP 도구 변경은 없다.
+- **v2 핀 생성 성공:** 사용자 `ExposeV2FootRigPins.py` 실행 후 `[UAFFeetSetup] V2 stack=AnimNextTraitStack_3 generatedPins=10 DoRaycast=True UseIKBoneTargets=False LegacyRemoved=True`와 AG 컴파일 성공을 확인했다. 화면에서 새 Control Rig(v2)·CR 참조·10개 변수·Bool/0.3·0.2를 확인했다. Legacy 스택은 제거됐다. 엔진 Export/Import가 재생성한 변수 핀의 범주는 `SetPinCategory`로 지정했다. 이 절차는 미연결 스택만 변경하고 Undo bracket 실패 시 취소한다. 실행 전 백업은 `AG_BeforeV2Pins.uasset`다.
+- 복사 후 기존 포즈 `Input`이 노드 레이아웃에서 빠진 것을 화면에서 발견했다. 사용자 `clear_pin_category` → `set_pin_category(..., 'Control Rig')` → `set_pin_index_in_category(..., 0)` 실행 후 Input 표시와 AG 컴파일 성공을 확인했다. 재현 스크립트에도 이 보완을 추가했다. Slate Type은 focus 실패로 실행되지 않았으며 사용자 수동 명령으로 처리했다. v2의 Input 목록 UI 자체는 여전히 없는 상태이며 생성한 핀을 그래프에서 직접 연결한다.
+- **공유 입력 배선 확인:** 사용자가 §15 표의 Getter/포즈 배선과 AG/S Compile·Save 완료를 보고했다. 로그에서 AG(18:58:41 KST)·S(18:58:48 KST) 컴파일 성공, 화면의 All Saved를 확인했다. 19:37:49 KST 사용자 읽기 전용 Python의 실제 링크 11개를 대조해 입력 9개와 포즈 2개가 표대로인 것을 확인했다. `VariableNode_5`는 FootPlacement Getter, `VariableNode_4`는 OffsetRoot Getter다. 특히 `Has Teleported ← VariableNode_4.Value.bReset`이며 Enabled 오연결은 없었다. `AnimNextTraitStack.Result → AnimNextTraitStack_3.ControlRigTraitSharedData_v2.Input → RigUnit_AnimNextGraphRoot.Result`도 확인했다. 첫 안내의 경로 직접 조회 함수는 C++ 전용이어서 노출된 `get_source_pin().get_pin_path()`/`get_target_pin().get_pin_path()`로 정정했다.
+- **북극 첫 PIE 관찰 통과:** 사용자가 걷기/달리기/제자리 회전/점프·착지에서 이상 없다고 보고했고 PIE 활성도 확인했다. 최신 세 번째 PIE(20:13:43 KST 시작)의 고정 로그 `NorthSmoke.log`에서 입력 ready 1회·unbound 0회, LogAnimation Error 0·검색한 CR/RigVM/Assertion/Ensure 오류 0, 기존 Foley 경고179회를 확인했다(고정 로그 끝20:15:39). 첫/두 번째 PIE도 ready였으나 최신 세션과 합쳐 집계하지 않았다. 이때 DebugLocomotion=0이라 북극 위도나 루트 수치를 확인한 근거는 아니다. 실제 CR task/입출력 포즈를 독립 조회한 근거도 아직 없다.
+- **현재 수동 검증:** PIE에서 `LNP.Anim.DebugLocomotion 2`와 Rewind 녹화를 켜고, 경사/턱 한 곳의 FootPlacement 0→1 비교·재활성 튐, 적도 이동/큰 회전/점프·착지/경사·턱, 움직이는 발판의 정지/이동/점프·착지를 확인하도록 요청했다. 종료 시 녹화만 종료하고 PIE를 유지한다. 현재 설정은 FootPlacement=1·FootPlacementOnMovingBase=0·Steering=1·StrafeWarping=1이다. 실행 전 로그는 `BeforeFirstPIE.log`에 보존했다. 실제 CR 평가 task와 공중 알파 해제/착지 리셋·큰 회전 base는 확인 전이다.
+
+### 최종 검증 결과·단위 종료
+
+**발 배치 최소 연결·검증 단위 완료.** 사용자는 북극 주변 경사에서 발 배치0/1 모두 튐이 없고 **1의 발 접지가 훨씬 자연스럽다**고 평가했다. 이어 적도에서 여러 방향 걷기·달리기·점프·정지를 반복해 어색함이 없다고 보고했다. 움직이는 발판도 시각적으로 어색함이 없었다. 동일 입력/프레임 A/B나 기존 ABP와 본별 수치 대조로 확대하지 않는다.
+
+| 근거 | 확인 결과 |
+|:---|:---|
+| 경사·적도 녹화 | `RewindDebugger-LootNPop-Editor-20261026_201850667.utrace`, 363,654,323바이트. Trace 연결20:18:50.706~종료20:21:01.871 KST(약131.165초). FootPlacement0은20:18:53.856, 1은20:19:18.644부터 |
+| 경사0 진단 | 24개 Root 창·1,178프레임, 지상1,100. 창 끝 위도67.03~71.29° |
+| 켬 진단 | 102개 Root 창·4,706프레임, 지상4,487. 이동 중 적도 도달 표본41개·1,872프레임(공중143), 창 끝 위도−1.72~2.83° |
+| 기존 루트 계약 | 위 끔/켬 창에서 누적/출력 거리≤30cm·Yaw≤90°·Tilt=0.000°. **CR 앞의 진단**이며 새 발 배치 뒤 최종 본 포즈 측정은 아님 |
+| 상태·오류 | 경사/적도 기록에 공중 진입·착지 각7회. LogAnimation Error0·검색한 CR/RigVM/Assertion/Ensure 오류0, 기존 Foley 경고480회 |
+| 발판 첫 녹화 | `...20261026_202321824.utrace`, 28,886,782바이트, 약10.223초. Root 창10개·472프레임 전부 지상/접지 base 있음, Moving209프레임. 실제 base는 `BP_PyramidExteriorPanel_C_0.PanelMesh`. CR 앞 최대 거리30cm·Yaw77.66°·Tilt0.000° |
+| 발판 두 번째 녹화 | `...20261026_202342105.utrace`, 11,019,442바이트, 약3.934초. Root 창3개·138프레임 전부 지상/base 있음·Moving0. CR 앞 거리0cm·Yaw16.94°·Tilt0.000° |
+
+Root 창은 약1초간의 매 프레임 최대/계수이며 끝 시점 위도/명령으로 묶었다. 명령·위도 경계의 첫 창은 이전 구간을 일부 포함할 수 있다. 경사/적도 켬 구간의 based135프레임은 정지한 SpringLauncher MeshComponent 접촉이며 실제 이동 발판 검증과 구분한다. 발판 최대 base 회전은 두 녹화 각각0.0012°·0.0026°에 불과해 큰 회전 base 게이트는 남는다. 첫 창의 base 이동량에는 녹화 시작 hitch 구간이 포함될 수 있다. 성능 비교가 아니다.
+
+**Rewind 실제 과거 시점 조회**
+
+- 사용자가 첫 녹화를 열고35초 EvaluationProgram을 선택했다. 직접 읽은 작업10개에는 공중 분기의 Sequence Keyframe(SampleTime1.204161), 기존 준비/Strafe/Offset Root/최종 구면 보정과 진단이 있었고 **Control Rig task는 없었다**. 이 안정 공중 시점에서 발 배치 평가가 해제됨을 확인했다. 매 공중 프레임이나0.2초 블렌드아웃의 정확한 길이를 실측한 것은 아니다.
+- 같은 녹화40초에는 작업12개 중 마지막 `[11] Anim Next Control Rig Task`가 `LNPFinalize Spherical Offset Root Task`와 진단 뒤에 있었다. 지상 복귀 후 실제 CR 실행과 순서를 확인했다. 별도 Pose History/원본 숨김 ABP를 읽은 결과가 아니다.
+- 첫 발판 녹화5초의 AG Native Properties를 직접 읽었다. `OffsetRoot.UpdateSerial=30841`, `OnGround=true`, `OnMovingBase=true`, `MovementBase=...BP_PyramidExteriorPanel_C_0.PanelMesh`. `FootPlacement.Enabled=true`, `ForceReset=false`, `AllowFootPinning=false`, `AllowSlopeWarping=true`, `GroundNormal=(0.625998,-0.743638,0.234797)`이었다. 검증한 두 링크에 따라 핀 고정·WorldZDamper가 모두 꺼지고 경사 보정은 유지된다. CR 내부의 순간 컨트롤 상태를 전부 읽었다는 뜻은 아니다.
+- 사용자가 녹화 실패를 의심했으나 세 파일의 존재/크기·정상 시작/종료 로그와 위 평가 작업/Native Properties가 실제로 확인됐다. 이후 새 PIE를 시작해 Rewind UI가 빈 상태로 바뀐 것과 저장 파일 부재를 구분한다. 재녹화하지 않고 기존 파일로 검증했다.
+
+고정 로그·집계·조회 근거는 `Saved/AnimationOverhaul/2026-10-26_UAFFootPlacement/`의 `SlopeEquator.log`, `SlopeEquatorSummary.json`, `Panel.log`, `PanelSummary.json`, `Rewind35AirTasks.json`, `Rewind40GroundTasks.json`, `RewindPanel5Inputs.json`이다. Saved는 git 제외다. 편집/Legacy 전환/신규 v2 생성 백업과 일회성 스크립트는 `2026-10-26_PreFootPlacement/`에 있다.
+
+**한계와 다음 승인 경계.** 착지·CVar 재활성 리셋은 코드/배선과 튐 없는 관찰·공중→지상 task 복귀로 확인했으며 `ForceReset=true`인 정확한 한 프레임은 직접 조회하지 않았다. 짧은 발판 녹화에는 공중 프레임이 없어 발판 점프/착지의 직접 기록 근거가 없다. 큰 회전 base·본별 출력 수치·전체 무기/몽타주·적/네트워크·완전 동등성 판정도 남는다. 기본 ABP/CR·Chooser·PSD·GASP 소스는 변경하지 않았다. 최종 후보는 신규 v2이며 Legacy는 남기지 않았다. **5-1 미완료·5-2 미착수·Go/No-Go 보류.** 다음 제안은 ResetRoot/CopyBone의 남은 계약 대조이며 사용자 진행 확인 전 착수하지 않는다. 종료 조회 뒤 Slate observer는 해제했다.

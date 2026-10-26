@@ -78,6 +78,15 @@ void ULNPUAFSpikeAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		Inputs.OffsetRoot.bOnMovingBase = UBasedMovementUtils::IsADynamicBase(Base);
 	}
 
+	Inputs.FootPlacement.GroundNormal = GroundNormal;
+	Inputs.FootPlacement.bEnabled = ShouldUseFootPlacementRig();
+	// 알파 0에서 멈춘 CR의 핀·바닥 평활은 착지와 CVar 재활성화 때 버린다.
+	Inputs.FootPlacement.bForceReset = ShouldResetFootPlacement()
+		|| (Inputs.FootPlacement.bEnabled && !bWasFootPlacementEnabled);
+	Inputs.FootPlacement.bAllowFootPinning = IsOnStaticGround();
+	Inputs.FootPlacement.bAllowSlopeWarping = Inputs.OffsetRoot.bOnGround;
+	Inputs.FootPlacement.bDebugDraw = IsFootPlacementDebugEnabled();
+
 	const auto SetInput = [UAFComponent](FName Name, const auto& Value)
 	{
 		return UAFComponent->SetVariable(FAnimNextVariableReference::FromName(Name, FLNPUAFSpikeInputs::StaticStruct()), Value);
@@ -90,6 +99,8 @@ void ULNPUAFSpikeAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, InterruptMode), Inputs.InterruptMode);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, BlendArguments), Inputs.BlendArguments);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, OffsetRoot), Inputs.OffsetRoot);
+	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, FootPlacement), Inputs.FootPlacement);
+	bWasFootPlacementEnabled = Inputs.FootPlacement.bEnabled;
 
 	if (!bHasReportedInputs || bSucceeded != bLastInputsSucceeded)
 	{
