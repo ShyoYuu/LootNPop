@@ -11,6 +11,7 @@
 #include "LootNPop.h"
 #include "MotionMatchingTrait.h" // UE 5.8 내부 검색 상태. 숨김 ABP의 DB 태그는 사용하지 않는다.
 #include "OffsetRootBoneTrait.h" // UE 5.8 내부 상태 의존성. 기본 task 구현은 복사하지 않는다.
+#include "StrafeWarpingTrait.h" // 기본 Strafe Warping task에 입력만 전달한다.
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "TraitInterfaces/IBlendStack.h"
 #include "TraitInterfaces/IDiscreteBlend.h"
@@ -24,6 +25,14 @@ namespace
 {
 	TAutoConsoleVariable<int32> CVarSpikeSteering(TEXT("LNP.UAFSpike.Steering"), 1,
 		TEXT("Enable steering before the UAF spike offset root. 0: off, 1: on."));
+	TAutoConsoleVariable<int32> CVarSpikeStrafeWarping(TEXT("LNP.UAFSpike.StrafeWarping"), 1,
+		TEXT("Enable native UAF strafe warping in the spike graph. 0: off, 1: on."));
+
+	bool IsSpikeOffsetRootEnabled()
+	{
+		const IConsoleVariable* Enabled = IConsoleManager::Get().FindConsoleVariable(TEXT("a.UAF.OffsetRootBone.Enable"));
+		return !Enabled || Enabled->GetInt() != 0;
+	}
 
 	// UAF SteeringTrait의 회전 스케일·스프링 순서. 평가 출력에 적용하므로 샘플별 ABP와 동등하다고 간주하지 않는다.
 	void SteerRootMotion(FTransform& RootMotion, const FQuat& RootRotation, const FQuat& Target,
@@ -87,11 +96,21 @@ namespace UE::UAF
 	AUTO_REGISTER_ANIM_TRAIT(FLNPSphericalOffsetRootTrait)
 
 #define TRAIT_INTERFACE_ENUMERATOR(GeneratorMacro) \
-	GeneratorMacro(IEvaluate)
+	GeneratorMacro(IEvaluate) \
+	GeneratorMacro(ILNPSpikeRootScope)
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FLNPSphericalOffsetRootTrait, TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_EVENT_ENUMERATOR)
 #undef TRAIT_INTERFACE_ENUMERATOR
 
-	void FLNPSphericalOffsetRootTrait::PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
+	void FLNPSphericalOffsetRootTrait::PreEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
+	{
+		Binding.GetInstanceData<FInstanceData>()->bPreparationScheduled = false;
+		FTraitBinding Base;
+		if (Binding.GetStackBaseTrait(Base) && Base.IsValid() && Base.GetTrait()->GetTraitUID() == FOffsetRootBoneTrait::TraitUID)
+			Context.PushScopedInterface<ILNPSpikeRootScope>(Binding);
+		IEvaluate::PreEvaluate(Context, Binding);
+	}
+
+	FLNPPrepareSphericalOffsetRootTask FLNPSphericalOffsetRootTrait::MakePreparationTask(FEvaluateTraversalContext& Context, const FTraitBinding& Binding)
 	{
 		FInstanceData* Instance = Binding.GetInstanceData<FInstanceData>();
 		FTraitBinding Base;
@@ -102,8 +121,7 @@ namespace UE::UAF
 				Context.Log(ELogVerbosity::Error, TEXT("Add LNP Spherical Offset Root to the same stack as the UAFWarping Offset Root Bone base trait."), TEXT("LNPSphericalOffsetRoot"));
 				Instance->bReportedConfigurationError = true;
 			}
-			IEvaluate::PostEvaluate(Context, Binding);
-			return;
+			return {};
 		}
 
 		const FSharedData* Shared = Binding.GetSharedData<FSharedData>();
@@ -181,6 +199,19 @@ namespace UE::UAF
 			Context.Log(ELogVerbosity::Error, TEXT("Missing valid OffsetRoot shared input; root offset evaluation is disabled."), TEXT("LNPSphericalOffsetRoot"));
 			Instance->bReportedConfigurationError = true;
 		}
+		return Task;
+	}
+
+	void FLNPSphericalOffsetRootTrait::PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
+	{
+		FInstanceData* Instance = Binding.GetInstanceData<FInstanceData>();
+		FLNPPrepareSphericalOffsetRootTask Task = MakePreparationTask(Context, Binding);
+		if (!Task.RootState)
+		{
+			Context.PopScopedInterface<ILNPSpikeRootScope>(Binding);
+			IEvaluate::PostEvaluate(Context, Binding);
+			return;
+		}
 
 		FLNPInspectSphericalOffsetRootTask Inspect;
 		Inspect.RootState = Task.RootState;
@@ -194,10 +225,9 @@ namespace UE::UAF
 		Finalize.RootState = Task.RootState;
 		Finalize.bValid = Task.Inputs.bValid;
 
-		// 기본 trait는 아래 호출에서 핀 값을 복사한다. VM에서는 준비 → 기본 평가 → 최종 회전 보정 → 진단 순서다.
-		const IConsoleVariable* Enabled = IConsoleManager::Get().FindConsoleVariable(TEXT("a.UAF.OffsetRootBone.Enable"));
-		const bool bEvaluateRoot = !Enabled || Enabled->GetInt() != 0;
-		if (bEvaluateRoot)
+		// Strafe 자식이 있으면 그 task 앞에서 준비·Steering을 한 번만 실행한다.
+		const bool bEvaluateRoot = IsSpikeOffsetRootEnabled();
+		if (bEvaluateRoot && !Instance->bPreparationScheduled)
 			Context.AppendTask(Task);
 		IEvaluate::PostEvaluate(Context, Binding);
 		if (bEvaluateRoot)
@@ -207,7 +237,94 @@ namespace UE::UAF
 			Context.AppendTask(Inspect);
 		else
 			Instance->RootDebugWindow = {};
+		Context.PopScopedInterface<ILNPSpikeRootScope>(Binding);
 	}
+
+	AUTO_REGISTER_ANIM_TRAIT(FLNPStrafeWarpingInputsTrait)
+#define TRAIT_INTERFACE_ENUMERATOR(GeneratorMacro) \
+	GeneratorMacro(IEvaluate)
+	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FLNPStrafeWarpingInputsTrait, TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_EVENT_ENUMERATOR)
+#undef TRAIT_INTERFACE_ENUMERATOR
+
+	void FLNPStrafeWarpingInputsTrait::PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
+	{
+		FInstanceData* Instance = Binding.GetInstanceData<FInstanceData>();
+		FLNPPrepareStrafeWarpingTask Prepare;
+		const FTraitStackBinding& Stack = *Binding.GetStack();
+		for (uint32 Index = 0; Index < Binding.GetTraitIndex(); ++Index)
+		{
+			FTraitBinding Candidate;
+			if (Stack.GetTrait(Index, Candidate) && Candidate.GetTrait()->GetTraitUID() == FStrafeWarpingTrait::TraitUID)
+				Prepare.StrafeState = Candidate.GetInstanceData<FStrafeWarpingTrait::FInstanceData>();
+		}
+		TTraitBinding<ILNPSpikeRootScope> Root;
+		if (Prepare.StrafeState && Context.GetScopedInterface(Root) && IsSpikeOffsetRootEnabled())
+		{
+			auto* RootInstance = Root.GetInstanceData<FLNPSphericalOffsetRootTrait::FInstanceData>();
+			if (!RootInstance->bPreparationScheduled)
+			{
+				FLNPPrepareSphericalOffsetRootTask RootPrepare = FLNPSphericalOffsetRootTrait::MakePreparationTask(Context, Root);
+				Prepare.RootState = RootPrepare.RootState;
+				Prepare.Inputs = RootPrepare.Inputs;
+				Context.AppendTask(RootPrepare);
+				RootInstance->bPreparationScheduled = true;
+			}
+		}
+		if ((!Prepare.StrafeState || !Root.IsValid()) && !Instance->bReportedConfigurationError)
+		{
+			Context.Log(ELogVerbosity::Error, TEXT("Place LNP Strafe Warping Inputs above native Strafe Warping on a child stack of LNP Spherical Offset Root."), TEXT("LNPStrafeWarpingInputs"));
+			Instance->bReportedConfigurationError = true;
+		}
+		if (Prepare.StrafeState)
+			Context.AppendTask(Prepare);
+		IEvaluate::PostEvaluate(Context, Binding);
+		const IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.DebugLocomotion"));
+		if (Prepare.StrafeState && Debug && Debug->GetInt() >= 2)
+		{
+			FLNPInspectStrafeWarpingTask Inspect;
+			Inspect.StrafeState = Prepare.StrafeState;
+			Inspect.Elapsed = &Instance->DebugElapsed;
+			Context.AppendTask(Inspect);
+		}
+	}
+}
+
+void FLNPPrepareStrafeWarpingTask::Execute(UE::UAF::FEvaluationVM& VM) const
+{
+	using namespace UE::UAF;
+	auto& Strafe = *static_cast<FStrafeWarpingTrait::FInstanceData*>(StrafeState);
+	const auto* Root = static_cast<FOffsetRootBoneTrait::FInstanceData*>(RootState);
+	const auto* Keyframe = VM.PeekValue<TUniquePtr<FKeyframeState>>(KEYFRAME_STACK_NAME, 0);
+	const FVector Up = Inputs.MeshComponentTransform.GetUnitAxis(EAxis::Z);
+	const FVector Direction = FVector::VectorPlaneProject(Inputs.LastNonZeroVelocity, Up).GetSafeNormal();
+	const bool bEnabled = Root && Keyframe && Inputs.bValid && Inputs.bOnGround && !Inputs.bReset
+		&& !Root->bIsFirstUpdate && Root->Alpha > 0.0f && !Direction.IsNearlyZero() && CVarSpikeStrafeWarping.GetValueOnAnyThread() != 0;
+	Strafe.Alpha = bEnabled ? FMath::Clamp(Keyframe->Get()->Curves.Get(TEXT("Enable_Warping")), 0.0f, 1.0f) : 0.0f;
+	if (Strafe.Alpha <= 0.0f)
+	{
+		Strafe.RootMotionDeltaDirection = FVector::ZeroVector;
+		Strafe.RootMotionDeltaRotation = FQuat::Identity;
+		Strafe.CounterCompensateTargetAngleRad = 0.0f;
+		Strafe.OrientationAngleForPoseWarpRad = 0.0f;
+		return;
+	}
+	Strafe.RootBoneTransform = FTransform(Root->SimulatedRotation, Root->SimulatedTranslation);
+	Strafe.TargetOrientation = FRotationMatrix::MakeFromXZ(Direction, Up).ToQuat();
+}
+
+void FLNPInspectStrafeWarpingTask::Execute(UE::UAF::FEvaluationVM& VM) const
+{
+	using namespace UE::UAF;
+	const auto& Strafe = *static_cast<FStrafeWarpingTrait::FInstanceData*>(StrafeState);
+	*Elapsed += Strafe.DeltaTime;
+	if (*Elapsed < 1.0f) return;
+	*Elapsed = 0.0f;
+	const auto* Keyframe = VM.PeekValue<TUniquePtr<FKeyframeState>>(KEYFRAME_STACK_NAME, 0);
+	UE_LOG(LogLootNPop, Log, TEXT("[UAFStrafe] alpha=%.3f angle=%.3f curve=%.3f rootTilt=%.3f pose=%d"),
+		Strafe.Alpha, FMath::RadiansToDegrees(Strafe.OrientationAngleForPoseWarpRad),
+		Keyframe ? Keyframe->Get()->Curves.Get(TEXT("Enable_Warping")) : 0.0f,
+		FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(Strafe.RootBoneTransform.GetUnitAxis(EAxis::Z), Strafe.TargetOrientation.GetAxisZ()), -1.0, 1.0))),
+		Keyframe != nullptr);
 }
 
 void FLNPPrepareSphericalOffsetRootTask::Execute(UE::UAF::FEvaluationVM& VM) const

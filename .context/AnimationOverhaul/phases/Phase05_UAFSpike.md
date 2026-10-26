@@ -1,7 +1,7 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0 완료, 5-1 진행 중(공중 고정 완료 — §12, 입력 배열·대표 전환 검증 단위 완료 — §13)
-> 마지막 갱신: 2026-10-25
+> 상태: 5-0 완료, 5-1 진행 중(공중 고정 — §12, 대표 입력/전환 — §13, 기본 Strafe Warping 비교 — §14 단위 완료. 기존 ABP 완전 동등성·최종 게이트 미판정)
+> 마지막 갱신: 2026-10-26
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
 ## 1. 목표와 범위
@@ -15,7 +15,7 @@
 | 단위 | 작업 | 검증·종료 조건 | 상태 |
 |:---|:---|:---|:---|
 | 5-0 | GASP 참조 유무·로컬 엔진 API 조사, 실행서 작성 | 참조 조회 결과·재사용 경로·차단 후보·미검증 항목 기록. 코드·에셋 변경 없음 | 완료(2026-10-23) |
-| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(최종 구면 루트·패널 병진·공중 고정·대표 입력/전환 확인, 워핑·발 배치 등 미완료) |
+| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(최종 구면 루트·패널 병진·공중 고정·대표 입력/전환·기본 Strafe 비교 확인, 발 배치·큰 회전 base 등 미완료) |
 | 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 미착수 |
 
 최초 로드맵의 1~2세션 예상에서 **준비 포함 3단위로 구체화**했다. 로컬 GASP UAF 참조를 찾지 못했고, Phase 2 구면 보정과 몽타주 메시 선택을 별도로 확인해야 한다. 5-1의 조기 No-Go면 5-2를 수행하지 않는다.
@@ -496,3 +496,115 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 **이번 입력 배열·대표 전환/인터럽트 검증 단위는 완료했다.** 기존 녹화와 코드/로그만 읽었고 추가 C++/에셋 수정·저장·빌드·계측·녹화는 없다. 문서만 갱신했다. 같은 시점의 Chooser 창 전체 결과까지 모두 직접 읽은 것은 아니며, 착지 표시 시점 차이·빈 Native Properties 프레임은 한계로 유지한다. Pivot·Sprint Turns·GaitTransitions·모든 방향/보행 조합·모든 프레임의 전달 동등성을 통과 처리하지 않는다. PSD·Chooser 게이트는 부분 확인, 5-1 미완료·5-2 미착수·Go/No-Go 보류다.
 
 다음 제안 단위는 **지상 Orientation Warping의 기존 ABP 대비 동등 경로 조사·최소 구현·검증**이다. Steering/Offset Root와 별도 항목으로 다루고, 공개 UAF 경로가 없으면 구현 가능성과 제한을 먼저 판정한다. 발 배치 Control Rig·ResetRoot/CopyBone·큰 회전 base와 적/네트워크 검증은 별도로 남긴다. 사용자 진행 확인 전 다음 구현에는 착수하지 않는다.
+
+## 14. 기본 UAF Strafe Warping 비교(2026-10-25~26, 비교 단위 완료)
+
+사용자가 Phase 5 재개를 요청했고, 조사에서 확인한 차이를 설명한 뒤 **기본 UAF Strafe Warping을 최소 연결해 시각 비교하는 경로**를 선택했다. 기존 ABP의 수학을 별도 이식하는 단위가 아니다. 기본 노드가 존재한다는 이유로 B2 전체나 최종 게이트를 통과 처리하지 않는다.
+
+### 실제 구성·엔진 대조
+
+- LootNPop MCP의 `IsPIERunning=false`. GASP 에디터는 사용하지 않았다. `ABP_SourceUAFSpike`의 실제 중첩 MM 그래프에서 `AnimGraphNode_OrientationWarping_1.Node`를 읽었다. Graph 모드, RootBoneTransform 공간, Z 축, 척추 5개, IK root/feet, 분배 0.5, 보간 8, 각도 임계값 135, 최소 속도 10, 카운터 보간 45, 최대 보정 180, 보상 임계값 45, 미래 예측 **TargetTime=0.8초**다. §2.10 기존 표에는 마지막 값이 빠져 있었다.
+- 기준 소스: 엔진 `Animation/AnimationWarping/Source/Runtime/Private/BoneControllers/AnimNode_OrientationWarping.cpp`, `Experimental/UAF/UAFWarping/Source/UAFWarping/Private/StrafeWarpingTrait.h/.cpp`. 같은 플러그인의 `AnimNode/UAFStrafeWarpingNode`도 있으나 현재 AG는 trait 평가 경로이므로 비교 후보는 `FStrafeWarpingTrait`다.
+
+| 계약 | 기존 OrientationWarping | 기본 UAF Strafe Warping |
+|:---|:---|:---|
+| 방향·Up | 월드 이동 방향을 가상 루트 로컬로 변환, 로컬 Z 평면 투영 | 월드 목표 쿼터니언을 입력 루트 로컬로 변환, 로컬 Z 평면 투영. 구면 사용 가능 후보이며 적도 실행 검증 전 |
+| 미래 루트모션 | 실제 TargetTime 0.8초, 미래 오차가 작으면 사용 | 해당 예측 코드가 주석 처리돼 있어 없음 |
+| 발 처리 | `ik_foot_root` 회전과 `ik_foot_l/r` 회전 상쇄 | 실제 `foot_l/r`로 목표를 만들고 두 본 IK를 풀거나 IK 목표만 설정. 같은 IK root 필드 없음 |
+| 루트 | 루트를 돌리고 뒤의 ResetRoot를 거침 | 기본 PreserveOriginalRootRotation=true는 루트 자식을 보정. false는 직접 루트 회전 |
+| 보정 단위 | MM 블렌드 샘플마다 커브·상태·워핑 | 이번 최소 후보는 블렌드된 포즈 1회, 평가 포즈의 Enable_Warping 사용 |
+
+기존 발 배치 CR은 `UseIKBoneTargets=false`라 FK 발끝을 쓴다. 따라서 비교 후보는 `FootMode=DoBasicIK`로 실제 다리를 보정한다. IK 목표만 설정하는 모드와 같다고 처리하지 않으며, 아직 CR을 연결하거나 검증하지 않았다. RootMotion 방향·각도 보간의 공통 부분도 완전 동등하다고 일반화하지 않는다.
+
+### 입력·순서 어댑터 구현
+
+- `LNPUAFSpikeRootInputs`에 `LastNonZeroVelocity`를 추가하고 숨김 ABP의 기존 공급값을 전달한다. 숨김 ABP의 가상 루트는 전달하지 않는다.
+- `LNP Spherical Offset Root`는 평가 범위 인터페이스로 자신의 루트를 자식에게 노출한다. 새 `LNP Strafe Warping Inputs`가 그 루트의 기존 준비/Steering task를 먼저 한 번 예약한다. 어댑터가 없으면 기존 루트 준비 경로를 유지한다.
+- 의도한 평가 순서: 자식 포즈 → 기존 구면 준비/Steering → Strafe 입력 준비 → **엔진 기본 Strafe Warping task** → 진단 → 기본 Offset Root → 최종 구면 보정 → 기존 루트 진단. 엔진 보정 수학은 복제·변경하지 않았다. 이 순서는 실행 프로그램에서도 확인해야 한다.
+- 알파는 실제 평가 포즈의 `Enable_Warping`, 방향은 현 Up 평면에 투영한 `LastNonZeroVelocity`, 기준은 준비가 끝난 UAF 누적 루트다. 공중·텔레포트·초기 프레임·유효하지 않은 입력·CVar 끔에서는 알파와 보간 잔여값을 초기화한다. 루트 CVar 끔에서는 Strafe도 비활성이다.
+- 비교 CVar `LNP.UAFSpike.StrafeWarping 0/1`, 기본 1. `LNP.Anim.DebugLocomotion 2`일 때 `[UAFStrafe]`가 실제 기본 task의 알파·각도·커브를 약 1초 간격으로 기록한다. 아직 런타임 성공 근거가 아니다.
+
+### 구현·복구·수동 배선 경위
+
+- C++ 4파일 수정, `git diff --check` 통과. 17:24 KST 요청한 Live Coding의 UBT 컴파일은 9 actions·293.99초·Succeeded, 패치 링크와 AG/S 재컴파일도 성공했다. 그러나 MCP 응답은 300초 시간 초과, 17:29:50 KST 에디터가 크래시했다. 사용자 콜스택은 `FLiveCodingModule::AttemptSyncLivePatching → ShowNotification → FSlateNotificationManager → SWindow → mimalloc`이며 새 Strafe 평가 task는 아직 배선·실행되지 않았다. Live Coding 재인스턴싱/알림 경로에서 발생했다는 범위까지만 확인했고 메모리 손상 근본 원인은 미확정이다.
+- 크래시 로그·UBT 로그·사용자 콜스택은 `Saved/AnimationOverhaul/2026-10-25_StrafeLiveCodingCrash/`에 보존했다. 에디터 종료 상태에서 권한 확장으로 `Build.bat LootNPopEditor Win64 Development ... -WaitMutex -NoHotReloadFromIDE` 전체 빌드를 시작했다(12 actions). 정상 DLL로 재실행하고 AG/S·기존 구면 회귀를 확인한 뒤 그래프를 편집한다. 단순 재시도 Live Coding이나 엔진 수정은 하지 않았다.
+- **정상 전체 빌드 성공: 12 actions·88.71초·Succeeded, 컴파일 진단 오류 없음.** 사용자에게 에디터 재실행과 AG/S 정상 열기만 요청했다. 재실행·MCP 복구·기존 구면 수치 회귀는 대기 중이다. 원본 AG와 편집 전 백업 SHA256이 일치해 디스크 에셋 변경 없음을 확인했다.
+- **재실행 확인:** 사용자가 AG/S 정상 열기를 확인했다. MCP 읽기 호출 재접속·PIE 종료 상태를 확인했고 재실행 로그에서 두 에셋의 컴파일 성공을 읽었다. 기존 `LootNPop.Animation.UAFSpike.SphericalRootFinalization` 수치 회귀는 1/1 성공, 오류·경고 0, 0.016초다. 이 시험은 기존 구면 제약 수학의 회귀이며 아직 배선하지 않은 Strafe·평가 순서·시각 품질을 검증하지 않는다. 다음은 아래 수동 배선이다.
+- 에셋 배선·저장·PIE·새 녹화는 하지 않았다. 편집 전 디스크 AG 백업: `Saved/AnimationOverhaul/2026-10-25_PreStrafeWarping/AG_LocomotionSpike.uasset`.
+- 컴파일 성공 뒤 수동 배선 후보: 기존 Bool/Pose History → **Passthrough(기본) + Strafe Warping + LNP Strafe Warping Inputs(마지막)** → 기존 Offset Root/LNP Spherical → Output. 기존 Bool 공중 연결·공유 입력은 유지한다. Strafe의 Alpha·TargetOrientation·RootBoneTransform 추가 배선은 필요 없다(어댑터가 실제 task 실행 직전에 전달).
+- **생성 메뉴 정정:** Passthrough는 노드 생성 메뉴 항목이 아니라 스택의 기본 trait다. 실제 에디터 우클릭 검색으로 `Animation → Trait Stack` 항목을 확인했다. 빈 Trait Stack 생성 → 선택 → Details의 `Add Trait`에서 Passthrough 추가 → 같은 스택에 Strafe Warping → LNP Strafe Warping Inputs 순으로 추가한다. 엔진 `TraitStackEditor.cpp`도 빈 스택의 Add Trait는 Base, 이후는 Additive로 필터링한다. 확인 중에는 메뉴만 열고 닫았으며 에셋은 수정하지 않았다.
+- **스택 생성 확인:** 사용자 생성 후 Slate 화면/Details에서 Passthrough → Strafe Warping → LNP Strafe Warping Inputs 순서를 확인했다. 새 스택은 아직 미연결이다. Details에서 IK Foot Bones 배열이 편집 가능하고 Spine/Foot 배열은 각각 0개, 보간 10·각도 임계값 90 기본값임을 읽었다. Strafe 카테고리만 펼쳤고 값은 바꾸지 않았다. 다음은 보간 8·임계값 135·척추 5개·다리 2개를 수동 설정하고 기존 Bool과 루트 사이를 배선한 뒤 컴파일·저장하는 단계다. 생성 과정의 AG 컴파일은 성공했고 엔진 메타데이터 `EditCondition ... 0.0f`의 `f` 파싱 오류가 별도로 기록됐다. 값/포즈 평가 실패로 분류하지 않으며 기본값을 쓰는 해당 두 설정의 엔진 코드는 변경하지 않았다.
+- **설정·배선 완료 보고 후 확인:** 사용자가 설정·배선·컴파일·저장 완료를 보고했다. 화면에서 Bool → 새 스택 → 기존 Offset Root의 포즈 연결, 보간 8·임계값 135·Preserve Original Root Rotation 켬·Do Basic IK·척추 배열 5개를 확인했다. 다리 필드 전체와 척추 각 원소는 아직 별도 재조회하지 않았다. AG 17:58:37 KST 컴파일 성공, 17:58:38 저장 로그와 All Saved 확인. PIE는 종료 상태다. CVar 재조회는 Steering=1, StrafeWarping=1, OffsetRootBone.Enable=1, DebugLocomotion=0이다. 사용자에게 DebugLocomotion 2 설정과 1인 PIE 북극 지상 약 10초의 첫 실행을 요청한다. 아직 평가 task 순서·실제 보정 각도·시각 품질 검증 전이다.
+- 기본 Strafe 설정 후보: RotationAxis Z, DistributedBoneOrientationAlpha 0.5, RotationInterpSpeed 8, LocomotionAngleDeltaThreshold 135, SpineBones spine_01~05, PreserveOriginalRootRotation=true, FootMode DoBasicIK, FootData 두 다리(thigh_l/calf_l/foot_l/ik_foot_l, thigh_r/calf_r/foot_r/ik_foot_r, JointSideVector 로컬 Z). 나머지 위 표와 같은 기본값 유지. 편집 UI에서 항목 접근과 값 재조회를 확인한다.
+- 수동 비교 예정: 북극 지상에서 대각 이동·급전환·정지/출발을 0/1로 비교, 적도에서 같은 동작 및 점프/착지. 먼저 짧은 크래시/배선 확인 후 기록 시험으로 나눈다. 발 꼬임·상체 비틀림·루트 기울기·발 미끄러짐을 보고, 로그/평가 task 순서를 대조한다. 아직 다음 구현 단위나 발 배치·ResetRoot/CopyBone·큰 회전 base·적/네트워크에 착수하지 않았다.
+
+### 첫 실행 확인
+
+- 사용자가 첫 실행 정상(T 포즈·다리 꼬임·크래시 관찰 없음)을 보고했고 MCP에서 PIE 활성 확인. `[UAFSpike] inputs=ready databases=1 trajectorySamples=31`, `[UAFSteering] ready=1 applied=1`, `[UAFStrafe]` 알파/각도 적용을 읽었다.
+- 고정 스냅샷 `Saved/AnimationOverhaul/2026-10-25_StrafeFirstRun/LootNPop.log`와 `Summary.json`을 보관했다. Strafe 표본 230개 중 알파 비영 155개, 기록 각도 −57.687~67.899°다. 이는 약 1초 간격의 표본이며 매 프레임 각도의 최소·최대가 아니다.
+- `[UAFRoot]` 230구간의 매 프레임 최대값을 합산하면 누적 상태/출력 모두 거리≤30.000cm·Yaw≤90.00°·Tilt=0.000°다. 구간 끝 위도는 −87.21~89.79°로 북극만의 시험으로 한정하지 않는다. 모든 프레임의 위치나 지상 여부를 같은 범위로 일반화하지 않는다. 구성 오류·LogAnimation Error·ensure/fatal은 스냅샷에서 0건이며, 기존 Foley 경고와 에디터 메타데이터 오류까지 0이라는 뜻은 아니다.
+- 첫 실행은 실제 기본 Strafe task의 동작과 관찰/루트 수치 확인이다. 켬/끔 품질 비교·적도에서 의도한 동작·공중 보정 해제·Rewind EvaluationProgram의 task 순서·본 원소 전체 재조회는 아직 남았다. 다음 요청은 현재 북극 부근에서 Rewind 녹화 후 StrafeWarping 0/1 각각 같은 이동·급전환/정지, 켬 상태 점프 1회, 이후 PIE 일시정지다. 코드·에셋·빌드는 추가 변경하지 않았다.
+
+### 0/1 비교·재시작 후 복원 확인(2026-10-26)
+
+- 사용자는 10월 25일 두 모드 모두 녹화했고, **둘 다 자연스럽지만 1이 약간 더 나은 느낌이며 큰 체감 차이는 없다**고 보고했다. 단위 전체 완료나 기존 ABP와의 동등성으로 확대하지 않는다.
+- PC 재시작 뒤 기존 변경 C++ 4파일·저장 AG·전체 빌드 DLL이 남아 있고, 이번 에디터 기동 로그에서 AG/S 컴파일 성공을 확인했다. MCP 재접속과 `IsPIERunning=false`를 확인했다. 이전 세션의 PIE 인스턴스를 복원한 상태가 아니라 저장된 녹화를 조회 중이다. 구현 변경이 없어 빌드·자동화 회귀를 반복하지 않았다.
+- 현재 연 녹화는 `Saved/RewindDebugger/RewindDebugger-LootNPop-Editor-20261025_184053031.utrace`(233,145,933바이트)다. 로드 완료 로그로 파일을 확인했다. 10월 25일 전체 공급 로그는 `Saved/Logs/LootNPop-backup-2026.10.25-09.43.54.log`에 남아 있어 `Saved/AnimationOverhaul/2026-10-26_StrafeComparisonResume/LootNPop_2026-10-25.log`로 보존하고 `Summary.json`을 만들었다.
+- 명령 시각: Strafe 0은 18:40:49.394 KST, 녹화 시작 18:40:53.070, Strafe 1은 18:41:30.167, 녹화 종료 18:42:14.479다. 녹화상 약 37.1초부터 켬 구간이다.
+
+| 로그 구간 | 끔 | 켬 |
+|:---|:---|:---|
+| Strafe 표본 / 알파 비영 | 37 / 0 | 43 / 38 |
+| 표본 각도 | 전부 0° | −65.764~69.866° |
+| Root 구간 / 평가 프레임 | 37 / 1,794 | 43 / 2,062 |
+| 집계 지상 프레임 | 1,794 | 2,062 |
+| 누적/출력 거리·Yaw·Tilt 최대 | 30cm·90°·0.000° | 30cm·90°·0.000° |
+| 구간 끝 위도 | 87.78~89.77° | 88.49~89.86° |
+
+각도는 약 1초 간격의 표본이고 Root 값은 각 진단 구간의 매 프레임 최대값이다. 경계의 첫 Root 구간은 이전 프레임을 일부 포함할 수 있다. 양 구간은 서로 다른 수동 입력이며 동일 프레임 A/B나 성능 비교가 아니다. 이번 비교에서 공중 진입 로그가 없고 집계 프레임도 모두 지상이라 **점프/공중 게이트의 근거로 쓰지 않는다**.
+
+### 실제 평가 프로그램 순서 확인(2026-10-26)
+
+사용자가 약 50초의 지상 시점으로 수동 이동하고 `UAFLocomotion → S_LocomotionSpike → UAFAnimGraph_1 → AG_LocomotionSpike → EvaluationProgram`을 선택했다. Rewind Debugger Details의 Tasks 11개를 직접 읽었다.
+
+| 인덱스 | 실제 task |
+|:---|:---|
+| 0~3 | History Collector Pre Evaluate → Anim Sequence Keyframe → Evaluation Notifies → History Collector |
+| 4 | LNPPrepare Spherical Offset Root Task(기존 Steering 포함) |
+| 5 | LNPPrepare Strafe Warping Task |
+| 6 | Anim Next Strafe Warping Task(엔진 기본) |
+| 7 | LNPInspect Strafe Warping Task |
+| 8 | Anim Next Offset Root Bone Task |
+| 9 | LNPFinalize Spherical Offset Root Task |
+| 10 | LNPInspect Spherical Offset Root Task |
+
+같은 기록의 Keyframe task는 `M_Relaxed_Sprint_Loop_F`, SampleTime=1.6425였다. 준비/Steering → 기본 Strafe → 기본 Offset Root → 최종 구면 보정 순서를 확인했다. 이 한 시점의 기록을 모든 프레임·전환 동등성으로 확대하지 않는다. 조회 중 코드·에셋 변경·저장·빌드·새 녹화는 없으며 Slate observer를 해제했다.
+
+**순서 확인 직후 남았던 작업(아래 최종 결과로 해소):** 적도에서 Strafe 0/1 이동 비교, 켬 상태 점프/체공/착지로 공중 알파 해제 및 복귀 확인. 필요하면 새 녹화는 이 미검증 구간에 한정한다. 본 배열 전체 재조회도 남았지만 실제 기본 다리 평가의 첫 실행은 정상이다. 워핑 단위·5-1 미완료, 5-2 미착수·Go/No-Go 보류. 다음 구현 단위에는 아직 착수하지 않는다.
+
+### 적도·공중 검증과 비교 단위 종료(2026-10-26)
+
+사용자가 적도 0/1 이동과 점프·착지를 완료했고 **둘 다 정상, 차이는 작음**이라고 보고했다. 최종 녹화는 `Saved/RewindDebugger/RewindDebugger-LootNPop-Editor-20261026_172123536.utrace`(189,181,212바이트)다. 앞선 `171910512`·`172025681` 기록을 최종 시험과 섞지 않는다. 공급 로그와 집계 JSON은 `Saved/AnimationOverhaul/2026-10-26_StrafeEquator/`에 고정 보관했다.
+
+- 명령/기록 시각(KST): Strafe 0 17:21:20.149 → 녹화 17:21:23.564 → Strafe 1 17:21:48.299 → 녹화 종료 17:22:30.193. 기록상 약 24.7초부터 켬 구간이다.
+
+| 로그 구간 | 끔 | 켬(점프 포함) |
+|:---|:---|:---|
+| Strafe 표본 / 알파 비영 | 24 / 0 | 42 / 25 |
+| 각도 표본 | 전부 0° | −76.412~56.725° |
+| Root 구간 / 평가 프레임 | 24 / 1,203 | 42 / 2,120 |
+| 지상 / 공중 프레임 | 1,203 / 0 | 1,844 / 276 |
+| 누적/출력 거리 최대 | 30.000cm | 30.000cm |
+| 누적/출력 Yaw 최대 | 77.88° | 90.00° |
+| 누적/출력 Tilt 최대 | 0.000° | 0.000° |
+| 구간 끝 위도 | −0.66~1.84° | −1.56~2.35° |
+
+Root 값은 진단 구간별 매 프레임 최대값의 합집계이고 각도는 약 1초 간격 표본이다. 구간 끝 위도와 프레임별 위도를 구분하며, 켬 구간의 최대값은 지상·공중 혼합이다. 경계 첫 진단 창은 직전 프레임을 일부 포함할 수 있다. 정확히 같은 입력/포즈의 A/B 또는 성능 시험으로 해석하지 않는다.
+
+- **공중 해제:** 17:22:16.242~27.306 사이 공중 진입/착지 7쌍(각 약 0.70~0.76초)을 확인했다. 공중에 찍힌 Strafe 표본 6개는 모두 alpha=0·angle=0이었다. 특히 17:22:26.559 진입 뒤 26.628 표본은 **curve=0.631인데 alpha=0·angle=0**이어서 커브가 남은 전환 중에도 지상 조건이 보정을 차단함을 확인했다.
+- **착지 복귀:** 17:22:27.306 착지 뒤 27.633 표본에서 alpha=1·curve=1·angle=−6.786°로 재활성화됐다. 이후 Idle 커브 0에서 alpha/각도 0으로 돌아왔다. 이전 Phase §12의 긴 체공 시험은 별도이며, 이번 기록을 긴 체공 전체 검증으로 확대하지 않는다.
+- 새 기록에서 스택/공유 입력 구성 오류·LogAnimation Error·ensure/fatal은 확인되지 않았다. 기존 Foley 경고·앞선 에디터 EditCondition 파싱 오류가 사라졌다는 뜻은 아니다. 코드/에셋/빌드 추가 변경 없이 고정 로그를 분석했고 PIE 활성 상태에서 녹화 종료를 확인했다. Slate observer는 해제했다.
+
+**기본 Strafe Warping 비교 구현 단위 완료.** 승인받은 기본 노드 후보를 연결해 실제 task 순서·북극/적도 0/1·공중 해제/착지 복귀·최종 구면 루트 제한과 사용자 관찰을 확인했다. 기본값 1을 유지하는 시험 후보이며, 기존 ABP의 TargetTime 0.8·샘플별 보정·발/루트 처리와 완전 동등하다고 판정하지 않는다. 본 원소 전체의 독립 재조회도 하지 않았다. 스파이크 전체·최종 Go의 근거로 확대하지 않는다.
+
+다음 제안 단위는 **발 배치 Control Rig의 UAF 연결 경로 조사·최소 구현·검증**이다. ResetRoot/CopyBone의 남은 계약·큰 회전 base·추가 전환 표본·적/네트워크·무기/몽타주 게이트도 별도로 남는다. **사용자 진행 확인 전 다음 구현에 착수하지 않는다.** 5-1 미완료·5-2 미착수·Go/No-Go 보류.

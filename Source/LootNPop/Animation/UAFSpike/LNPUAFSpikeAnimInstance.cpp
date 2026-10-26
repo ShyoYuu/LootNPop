@@ -70,6 +70,7 @@ void ULNPUAFSpikeAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Inputs.OffsetRoot.bReset = bJustTeleported;
 	Inputs.OffsetRoot.bEnableMovementSteering = bIsMoving || MovementMode == ELNPMovementMode::InAir;
 	Inputs.OffsetRoot.Trajectory = Trajectory;
+	Inputs.OffsetRoot.LastNonZeroVelocity = LastNonZeroVelocity;
 	if (MoverComponent)
 	{
 		const UPrimitiveComponent* Base = MoverComponent->GetMovementBase();

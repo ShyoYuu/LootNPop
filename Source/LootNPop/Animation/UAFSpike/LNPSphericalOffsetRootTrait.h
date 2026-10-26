@@ -6,8 +6,11 @@
 #include "EvaluationVM/EvaluationTask.h"
 #include "TraitCore/Trait.h"
 #include "TraitCore/TraitSharedData.h"
+#include "TraitCore/IScopedTraitInterface.h"
 #include "TraitInterfaces/IEvaluate.h"
 #include "LNPSphericalOffsetRootTrait.generated.h"
+
+struct FLNPPrepareSphericalOffsetRootTask;
 
 /** 약 1초 동안 실제 평가한 모든 프레임의 최대값. 기본 꺼짐인 로코모션 디버그에서만 수집한다. */
 struct FLNPUAFRootDebugWindow
@@ -34,7 +37,16 @@ struct FLNPSphericalOffsetRootSharedData : public FAnimNextTraitSharedData
 
 namespace UE::UAF
 {
-	struct FLNPSphericalOffsetRootTrait : FAdditiveTrait, IEvaluate
+	/** 자식 Strafe Warping이 같은 UAF 루트의 준비 task를 먼저 예약하기 위한 평가 범위. */
+	struct ILNPSpikeRootScope : IScopedTraitInterface
+	{
+		DECLARE_ANIM_TRAIT_INTERFACE(ILNPSpikeRootScope)
+	};
+
+	template<>
+	struct TTraitBinding<ILNPSpikeRootScope> : FTraitBinding {};
+
+	struct FLNPSphericalOffsetRootTrait : FAdditiveTrait, IEvaluate, ILNPSpikeRootScope
 	{
 		DECLARE_ANIM_TRAIT(FLNPSphericalOffsetRootTrait, FAdditiveTrait)
 		using FSharedData = FLNPSphericalOffsetRootSharedData;
@@ -46,11 +58,61 @@ namespace UE::UAF
 			FVector SteeringAngularVelocities[2] = { FVector::ZeroVector, FVector::ZeroVector };
 			float SteeringDebugElapsed = 0.0f;
 			FLNPUAFRootDebugWindow RootDebugWindow;
+			bool bPreparationScheduled = false;
 		};
 
+		virtual void PreEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const override;
+		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const override;
+		static FLNPPrepareSphericalOffsetRootTask MakePreparationTask(FEvaluateTraversalContext& Context, const FTraitBinding& Binding);
+	};
+}
+
+/** 기본 Strafe Warping의 수학은 유지하고 현재 평가 포즈·UAF 루트 입력만 공급한다. */
+USTRUCT(meta = (DisplayName = "LNP Strafe Warping Inputs"))
+struct FLNPStrafeWarpingInputsSharedData : public FAnimNextTraitSharedData
+{
+	GENERATED_BODY()
+};
+
+namespace UE::UAF
+{
+	struct FLNPStrafeWarpingInputsTrait : FAdditiveTrait, IEvaluate
+	{
+		DECLARE_ANIM_TRAIT(FLNPStrafeWarpingInputsTrait, FAdditiveTrait)
+		using FSharedData = FLNPStrafeWarpingInputsSharedData;
+		struct FInstanceData : FTrait::FInstanceData
+		{
+			bool bReportedConfigurationError = false;
+			float DebugElapsed = 0.0f;
+		};
 		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const override;
 	};
 }
+
+/** 루트 준비와 기본 Strafe Warping 사이에서 실제 평가 커브·이동 방향을 전달한다. */
+USTRUCT()
+struct FLNPPrepareStrafeWarpingTask : public FAnimNextEvaluationTask
+{
+	GENERATED_BODY()
+	DECLARE_ANIM_EVALUATION_TASK(FLNPPrepareStrafeWarpingTask)
+	virtual void Execute(UE::UAF::FEvaluationVM& VM) const override;
+
+	UE::UAF::FTraitInstanceData* StrafeState = nullptr;
+	UE::UAF::FTraitInstanceData* RootState = nullptr;
+	FLNPUAFSpikeRootInputs Inputs;
+};
+
+/** 기본 task가 계산한 실제 워핑 각도를 낮은 빈도로 확인한다. */
+USTRUCT()
+struct FLNPInspectStrafeWarpingTask : public FAnimNextEvaluationTask
+{
+	GENERATED_BODY()
+	DECLARE_ANIM_EVALUATION_TASK(FLNPInspectStrafeWarpingTask)
+	virtual void Execute(UE::UAF::FEvaluationVM& VM) const override;
+
+	UE::UAF::FTraitInstanceData* StrafeState = nullptr;
+	float* Elapsed = nullptr;
+};
 
 /** 기본 Offset Root task 바로 앞에서 같은 인스턴스의 누적 상태를 보정한다. */
 USTRUCT()

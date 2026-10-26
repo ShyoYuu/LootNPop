@@ -46,6 +46,9 @@ struct FLNPUAFSpikeRootInputs
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering")
 	FTransformTrajectory Trajectory;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Warping")
+	FVector LastNonZeroVelocity = FVector::ZeroVector;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Offset Root")
 	FName MovementBase;
 
