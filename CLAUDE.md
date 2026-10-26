@@ -44,6 +44,7 @@
 | .context/MultiplayerLobby/README.md | 멀티플레이 로비 작업 진입점(여러 세션 이어 가기용 폴더) — 메인 메뉴·IP 직접 접속·실패 복귀, 5인·중간 참가, 메뉴 UI 대기실, 세션 계층·LAN 방 목록, 온라인 백엔드(Steam/EOS) 단계 계획 |
 | .context/GameDesign_ParrySystem.md | 패링 성공 조건, 투사체 타입별 반사, 패링하는 쪽은 플레이어 전용·당하는 쪽은 LOD 무관, 플레이어 경험 의도 |
 | .context/TechDesign_ParrySystem.md | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 — 상태 미러링 패턴 |
+| .context/JustDodge/README.md | 저스트 회피 작업 진입점(여러 세션 이어 가기용 폴더) — 대시 무적, Judge 단일 지점 확장, 저스트 회피 판정·버프, 비주얼 별도 트랙(순보·잔상·오라)과 그래픽스 이관 항목 단계 계획 |
 | .context/EngineAnalysis_SlateUMG.md | Unreal Engine의 Slate·UMG 분석 — 레이아웃 2패스, 슬롯 개념, 위젯 수명주기, 애니메이션·드래그앤드롭, Invalidation·Retainer 성능 |
 | .context/EngineAnalysis_MVVM.md | Unreal Engine의 ModelViewViewModel 분석 — FieldNotify 통지, 바인딩·실행 모드, ViewModel 주입 6종, 리스트 한계 |
 | .context/EngineAnalysis_CommonUI.md | Unreal Engine의 CommonUI 분석 — 화면 활성화·Back 전파, 입력 액션/모드, 스타일 에셋, 탭·리스트 함정 |
