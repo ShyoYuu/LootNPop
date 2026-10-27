@@ -1,7 +1,7 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0 완료, 5-1 진행 중(공중 고정 — §12, 대표 입력/전환 — §13, 기본 Strafe 비교 — §14, 발 배치 최소 연결·검증 — §15 단위 완료. 기존 ABP 완전 동등성·최종 게이트 미판정)
-> 마지막 갱신: 2026-10-26
+> 상태: 5-0 완료, 5-1 진행 중(§12~§18 단위 완료. 큰 Yaw 롱소드 관찰/로그·지상 CR·재시작 후 AG 계약과 임시 Actor 정리 확인. 기존 ABP 완전 동등성·최종 게이트 미판정)
+> 마지막 갱신: 2026-10-27
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
 ## 1. 목표와 범위
@@ -15,7 +15,7 @@
 | 단위 | 작업 | 검증·종료 조건 | 상태 |
 |:---|:---|:---|:---|
 | 5-0 | GASP 참조 유무·로컬 엔진 API 조사, 실행서 작성 | 참조 조회 결과·재사용 경로·차단 후보·미검증 항목 기록. 코드·에셋 변경 없음 | 완료(2026-10-23) |
-| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(구면 루트·패널 병진·공중 고정·대표 입력/전환·기본 Strafe 비교·발 배치 최소 연결 확인, 큰 회전 base·잔여 계약 등 미완료) |
+| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(구면 루트·패널 병진·공중 고정·대표 입력/전환·기본 Strafe 비교·발 배치 최소 연결 확인, 추가 전환 입력/후보 검색·큰 Yaw 롱소드 base 확인, 본별 동등성 등 잔여 범위 정리 필요) |
 | 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 미착수 |
 
 최초 로드맵의 1~2세션 예상에서 **준비 포함 3단위로 구체화**했다. 로컬 GASP UAF 참조를 찾지 못했고, Phase 2 구면 보정과 몽타주 메시 선택을 별도로 확인해야 한다. 5-1의 조기 No-Go면 5-2를 수행하지 않는다.
@@ -686,3 +686,165 @@ Root 창은 약1초간의 매 프레임 최대/계수이며 끝 시점 위도/�
 고정 로그·집계·조회 근거는 `Saved/AnimationOverhaul/2026-10-26_UAFFootPlacement/`의 `SlopeEquator.log`, `SlopeEquatorSummary.json`, `Panel.log`, `PanelSummary.json`, `Rewind35AirTasks.json`, `Rewind40GroundTasks.json`, `RewindPanel5Inputs.json`이다. Saved는 git 제외다. 편집/Legacy 전환/신규 v2 생성 백업과 일회성 스크립트는 `2026-10-26_PreFootPlacement/`에 있다.
 
 **한계와 다음 승인 경계.** 착지·CVar 재활성 리셋은 코드/배선과 튐 없는 관찰·공중→지상 task 복귀로 확인했으며 `ForceReset=true`인 정확한 한 프레임은 직접 조회하지 않았다. 짧은 발판 녹화에는 공중 프레임이 없어 발판 점프/착지의 직접 기록 근거가 없다. 큰 회전 base·본별 출력 수치·전체 무기/몽타주·적/네트워크·완전 동등성 판정도 남는다. 기본 ABP/CR·Chooser·PSD·GASP 소스는 변경하지 않았다. 최종 후보는 신규 v2이며 Legacy는 남기지 않았다. **5-1 미완료·5-2 미착수·Go/No-Go 보류.** 다음 제안은 ResetRoot/CopyBone의 남은 계약 대조이며 사용자 진행 확인 전 착수하지 않는다. 종료 조회 뒤 Slate observer는 해제했다.
+
+## 16. ResetRoot/CopyBone 잔여 계약 대조(2026-10-27, 단위 완료)
+
+사용자의 새 Phase 5 진행 요청으로 이 대조 단위에 착수했다. 이전 인계의 조사 승인 대기는 해소됐으며 이후 단위는 다시 진행 확인을 받는다. 시작 시 PIE는 종료 상태였고 작업 트리에는 기존 사용자 에셋4개만 변경돼 있었다.
+
+### 실제 계약과 엔진 경로
+
+- 기본 `/Game/Characters/ABP_Main_UEFN`과 숨김 `/Game/Characters/UAFSpike/ABP_SourceUAFSpike`의 실제 MM 중첩 그래프를 읽었다. 두 CopyBone은 `foot_l/r → ik_foot_l/r`, 컴포넌트 공간이며 이동·회전·스케일 복사가 모두 false다. 기본 ABP의 세 플래그 핀도 false·연결 없음이다. `AnimNode_CopyBone.cpp`는 이 경우 즉시 반환한다. 따라서 UAF에 대응 CopyBone을 새로 넣을 동작 계약은 없다. 기존 발 배치 CR은 `UseIKBoneTargets=false`로 FK 목표를 쓰며 이 판정을 보강한다(§15).
+- 기존 ResetRoot는 알파1이고 기본 ABP의 Alpha 핀도1·연결 없음이다. `Engine/Source/Runtime/AnimGraphRuntime/Private/BoneControllers/AnimNode_ResetRoot.cpp`는 루트를 기준 포즈로 되돌리면서 루트 직계 자식의 컴포넌트 공간 변환을 보존한다. 누적 Offset Root 상태나 루트모션 속성을 초기화하는 노드가 아니다.
+- `CHT_PoseSearchDatabases_UEFN`의 직접 PSD 의존52개에서 GASP 애니메이션 의존을 모아 중복 제거한 시퀀스319개를 실제 조회했다. 전부 `bEnableRootMotion=true`, `RootMotionRootLock=RefPose`, `bForceRootLock=true`다. 별도 공중 `/Game/Characters/Retargeted/Lyra/MM_Unarmed_Jump_Fall_Loop_UEFN`도 같은 값이다. 폴더 전체의 사용하지 않는 PSD까지 포함한 최초 탐색과 최종 Chooser 범위를 구분한다. 이 수치는 모든 무기/몽타주·향후 반입 시퀀스를 포함하지 않는다.
+- UAF `UAFAnimGraph/Private/EvaluationVM/Tasks/PushAnimSequenceKeyframe.cpp`와 `DecompressionTools.cpp`에서도 위 잠금 설정을 사용한다. `FRootMotionReset::ResetRootBoneForRootMotion`의 RefPose 경로는 기준 루트 변환을 대입한다. 루트모션 추출로 잠그는 경로 외에도 현재 시퀀스들은 ForceRootLock이 모두 켜져 있다.
+- 프로젝트 Steering은 루트모션 속성만 Override한다. 엔진 `UAFWarping/Private/StrafeWarpingTrait.cpp`의 `PreserveOriginalRootRotation=true` 경로는 루트를 돌리지 않고 직계 자식 회전을 보정한다. 따라서 **이 설정을 유지하는 현재 구성에서는 Offset Root 전에 루트를 다시 RefPose로 돌리기 위한 별도 ResetRoot가 불필요하다**는 정적 판정이다. Offset Root 뒤에 추가하면 의도한 누적 오프셋을 지우므로 그 위치에 넣지 않는다.
+
+### 수동 설정 확인·완료 판정과 검증 한계
+
+- 사용자가 `AG_LocomotionSpike`의 Strafe Warping 스택에서 `Preserve Original Root Rotation`이 **체크돼 있음**을 직접 확인했다. §14의 true 설정 기록과 일치한다. 값 변경·PIE·새 녹화 없이 이번 최신 설정 확인을 마쳤다.
+- 별도 ResetRoot 생략 판정은 위 시퀀스 설정·현재 처리 순서·Preserve=true를 전제로 한다. 향후 RootLock 설정이 다른 클립이나 루트를 변경하는 보정을 넣으면 다시 대조한다.
+- **기존 ABP와 모든 본 포즈가 같다는 판정은 아니다.** 기존 OrientationWarping→ResetRoot는 회전된 자식의 컴포넌트 공간 변환을 보존하지만 기본 UAF Preserve 경로는 자식 회전만 바꾼다. 자식 이동·발/척추 처리·샘플별 보정 차이는 §14의 동등성 한계로 유지한다. 이 차이는 ResetRoot 하나를 붙이는 것으로 해소되지 않는다. CR 뒤 본별 포즈·모든 전환·큰 회전 base·적/네트워크·몽타주 게이트도 남는다.
+- 정적 대조 동안 C++/에셋 변경·저장·빌드·PIE·새 녹화를 하지 않았다. 불필요한 ResetRoot/CopyBone 노드·추가 런타임 trait·진단 장치도 만들지 않았다. 조회용 Slate observer는 해제했다. **이번 대조 단위는 완료이며 5-1 미완료·5-2 미착수·Go/No-Go 보류다.**
+- 로컬 근거: `Saved/AnimationOverhaul/2026-10-27_ResetRootCopyBone/ContractInspection.json`(319개별 경로·설정/스파이크 ABP 노드), `MainNodePins.json`(기본 ABP 실제 핀/연결). Saved는 git 제외다.
+
+다음 제안 단위는 **추가 전환 표본(Pivot·Sprint Turns·GaitTransitions) 검증**이다. 기존 녹화에서 공급/수신 입력과 실제 선택을 먼저 대조하고 부족한 동작만 수동 플레이로 요청한다. 사용자 진행 확인 전 다음 단위에 착수하지 않는다.
+
+## 17. 추가 전환 표본 검증(2026-10-27, 단위 완료)
+
+사용자의 “계속 진행하자”로 착수했다. 성공 기준은 세 종류의 추가 표본에서 공급 로그·AG 수신 Databases/InterruptMode/BlendTime·실제 UAF 검색 결과를 구분해 대조하는 것이다. 특정 전환 DB를 반드시 선택하게 만들기 위해 조건·비용·인터럽트를 바꾸지 않는다. 실제 선택이 없으면 그 사실과 표본 한계를 기록한다. 새 C++·에셋 변경·계측/테스트 장치 구현 전에 기존 기록을 우선 사용한다.
+
+### 기존 기록 탐색·수동 요청
+
+- 시작 시 PIE=false·`LNP.Anim.DebugLocomotion=0`을 MCP로 확인했다. 기존 고정 로그4개를 탐색해 아래 세 표본을 찾았다. 공급 `[AnimB1]`은 배열 변경 시 로그이고 `[AnimB6]`는 숨김 ABP 선택이다. 약1초 간격 `[UAFSteering]`에는 대상 DB의 선택 표본이 없어 실제 UAF 선택 여부는 Rewind로 직접 읽는다. 로그 미검출을 미선택 확정으로 해석하지 않는다.
+
+| 종류 | 저장 녹화·대략 시간 | 공급 배열/정책 |
+|:---|:---|:---|
+| Sprint Turns | `20261025_133940695.utrace` 약125.51초 | Sprint Starts + Sprint Turns, InterruptOnDatabaseChange, 0.5초 |
+| GaitTransitions | 같은 녹화 약71.93초 | Run F GaitTransitions + Run F Loops, DoNotInterrupt, 0.5초 |
+| Run Pivot | `20261026_171514977.utrace` 약79.38초 | Run RL Starts + RL Loops + RL Pivots, InterruptOnDatabaseChange, 0.5초 |
+
+- 시간은 로그의 Trace 연결 시각과 입력 로그 시각의 차이로 찾은 탐색 기준이며 실제 Rewind 프레임과의 정확한 일치를 아직 확인하지 않았다. 후보 파일 존재·크기를 확인했다. Sprint Turns는 착지 바로 뒤 속도7의 표본이며 지속 고속 회전 시험으로 확대하지 않는다. Pivot도 속도26·방향L→R·예측 회전−81° 표본이다. 두 표본의 기본 ABP는 이후 Starts를 선택했지만 이를 UAF 결과로 대체하지 않는다.
+- GaitTransitions는 Sprint→Run 한 프레임 조건이고 다음 공급 프레임에 Run F Loops 단독으로 돌아간다. 기존 C++는 보행 변화만으로 인터럽트하지 않는다. Sprint Turns는 Pivot 술어가 true일 때 Sprint Loops 대신 나오는 기존 Chooser 계약을 유지한다.
+- **현재 수동 요청:** 사용자가 첫 녹화 약125.5초의 `UAFLocomotion → S_LocomotionSpike → UAFAnimGraph_* → AG_LocomotionSpike`를 선택해 Native Properties를 표시한다. 다음으로 인접 프레임 입력과 UAF Pose Search를 읽는다. 새 PIE·녹화·코드/에셋 변경·빌드는 아직 없다.
+- 후보와 공급 근거는 `Saved/AnimationOverhaul/2026-10-27_AdditionalTransitions/Targets.json`에 보관했다. **이번 단위 진행 중·5-1 미완료·5-2 미착수·Go/No-Go 보류다.**
+
+### Sprint Turns 입력·실제 검색 확인
+
+- 사용자가 첫 녹화 약125.5초의 AG Native Properties를 표시했다. 최초 표본은 Jump 단일 배열·DoNotInterrupt·0.5로 아직 공중이었다. 프레임 이동 버튼 호출 뒤 표시 변화가 확인되지 않아 반복 자동화하지 않고 사용자에게 약125.55~125.65초 수동 스크럽을 요청했다. 정확한 프레임 시각은 직접 읽지 않았다.
+- 사용자 이동 후 UAF `UAFAnimGraph_7 → AG_LocomotionSpike`의 수신 배열을 순서대로 `[PSD_Stand_Sprint_Starts_UEFN, PSD_Stand_Sprint_Turns_UEFN]`, InterruptOnDatabaseChange, BlendTime0.5로 직접 읽었다. 공급 로그의 배열 순서·정책과 일치한다.
+- 같은 시점의 UAF Pose Search Active Pose는 `PSD_Stand_Sprint_Starts_UEFN / M_Relaxed_Sprint_Start_F_Lfoot`, 표시 시간0.07초·비용0.168, InterruptOnDatabaseChange였다. 실제 후보표에는 `PSD_Stand_Sprint_Turns_UEFN / M_Relaxed_Sprint_Turn_090_L_Rfoot`도 있으며 표시 비용2.293·시간0.33초였다. 이 표본은 Turn 입력 전달·실제 후보 평가를 확인하지만 Turn 클립 재생을 확인한 것은 아니다. 숨김 ABP의 Start Rfoot 선택과 UAF의 Lfoot 선택이 같아야 한다고 요구하지 않는다.
+- 착지 직후 저속 표본·입력 해제 인접 프레임의 AG 직접 조회 미실시·현재 최신 Strafe/CR 전의 과거 구성이라는 한계를 유지한다. 이번 결과를 최신 전체 포즈 회귀나 지속 고속 Sprint Turn 통과로 확대하지 않는다. 로컬 근거는 `SprintTurnsInspection.json`이다.
+- **현재 수동 요청:** 같은 녹화 약71.9~72.1초의 AG Native Properties에서 GaitTransitions+Run F Loops 두 DB가 보이는 프레임을 찾는다. GaitTransitions와 Pivot 검증이 남아 단위는 미완료다. 에셋 변경·저장·빌드·새 PIE/녹화는 없다.
+
+### GaitTransitions 수신 확인·선택 조회 대기
+
+- 사용자 수동 이동 후 같은 녹화의 AG Native Properties에서 `[PSD_Stand_Run_F_GaitTransitions_UEFN, PSD_Stand_Run_F_Loops_UEFN]` 순서·DoNotInterrupt·BlendTime0.5를 직접 읽었다. 공급 로그와 배열/정책이 일치한다. 정확한 프레임 시각이나 인접 프레임 입력 해제는 이번 조회에서 읽지 않았다.
+- UAF Pose Search를 자동 클릭했으나 Details가 AG 입력에 머물러 있어 실제 선택 근거로 사용하지 않았다. **현재 요청:** 시간을 유지하고 사용자가 UAF Pose Search 트랙을 직접 선택해 Active Pose·후보표를 표시한다. 로컬 입력 근거는 `GaitTransitionsInspection.json`이다.
+- 엔진 MM trait는 검색을 건너뛴 프레임에도 요청 DB와 진행 DB를 trace에 남긴다. 따라서 트랙/후보 DB 이름만으로 그 프레임의 새 검색 실행이나 전환 클립 재생을 판정하지 않는다. 실제 Active/Continuing Pose와 검색 상태를 구분해 읽는다. GaitTransitions 선택 조회·Pivot이 남아 단위는 미완료다.
+
+### GaitTransitions 실제 검색·진행 포즈 유지 확인
+
+- 사용자가 시간을 유지한 채 UAF Pose Search를 직접 선택했다. Active Pose와 Continuing Pose는 모두 `PSD_Stand_Sprint_Loops_UEFN / M_Relaxed_Sprint_Loop_F`, 표시 비용2.276이었다. MM 상태는 DoNotInterrupt·Elapsed Pose Search Time0.0초·Asset Player Time1.338866초였다.
+- 후보표의 `PSD_Stand_Run_F_GaitTransitions_UEFN / M_Relaxed_Transition_Sprint_to_Run_Lfoot`는 표시 비용3.537·시간0.5초였고 그 외 전환 후보들도 표시됐다. 입력에 없는 이전 Sprint DB의 진행 포즈를 유지했으며 그 비용이 표시된 전환 후보보다 낮았다. 전환 입력 전달·후보 평가를 확인한 것으로, 전환 클립을 실제 재생했다고 판정하지 않는다. 모든 프레임의 검색 동작이나 모든 보행 조합으로 확대하지 않는다.
+- 로컬 근거는 `GaitTransitionsInspection.json`과 `GaitTransitionsSearch.json`이다. 이번에는 인접 프레임의 입력 해제를 AG에서 재조회하지 않았다. 공급 로그의 한 프레임 해제와 구분한다.
+- **현재 수동 요청:** `20261026_171514977.utrace`의 약79.35~79.55초에서 AG Native Properties의 Run RL Starts+Loops+Pivots 세 DB 표본을 찾는다. Pivot 입력/실제 선택이 남아 단위는 미완료다. 코드/에셋 변경·저장·빌드·새 PIE/녹화는 없다.
+
+### Run Pivot 입력·후보 검색 확인
+
+- 사용자가 두 번째 녹화로 이동한 뒤 AG 수신 배열을 `[PSD_Stand_Run_RL_Starts_UEFN, PSD_Stand_Run_RL_Loops_UEFN, PSD_Stand_Run_RL_Pivots_UEFN]` 순서·InterruptOnDatabaseChange·BlendTime0.5로 직접 읽었다. 공급 로그와 일치한다. 이번 에디터 로그에서도 두 녹화의 로드 완료 경로를 확인했다.
+- 같은 표본의 UAF Pose Search Active Pose는 `PSD_Stand_Run_RL_Starts_UEFN / M_Relaxed_Run_Start_RL_Lfoot`, 표시 비용0.631·Asset Player Time0.0초·Elapsed Pose Search Time0.0초·InterruptOnDatabaseChange였다.
+- 최초 후보 검색어를 `Pivots`로 잘못 안내해 빈 결과가 나왔다. 로컬 `PoseSearchDebuggerDatabaseView.cpp`는 DB명이 아닌 `AssetName.Contains(Token)`으로 필터링한다. PSD의 실제 시퀀스 이름도 `...Run_Pivot_LL_RL...`(단수)임을 의존 목록으로 확인했다. 탐색 중 뒤 프레임의 진행 포즈 표시가 나왔으므로 그 값을 원래 표본의 후보 비용으로 사용하지 않았다.
+- 사용자가 세 DB 프레임으로 복귀하고 검색어를 `Pivot`으로 바꾼 뒤, Active Pose/비용/인터럽트/재생시간이 위 원래 값으로 돌아온 것을 읽었다. 후보표의 `PSD_Stand_Run_RL_Pivots_UEFN / M_Relaxed_Run_Pivot_LL_RL_Lfoot`는 표시 비용2.648·시간0.87초였다(Rfoot 후보2.662도 표시). Pivot 후보 평가까지 확인했으며 Pivot 클립 재생은 확인하지 않았다.
+- 로컬 근거는 `RunPivotInspection.json`, `RunPivotSearch.json`, `RunPivotCandidates.json`이다. 자동 입력은 포커스 실패로 false였고 수동 조작으로 진행했다. 엔진·C++·에셋은 수정하지 않았다.
+
+### 이번 단위 완료 판정
+
+| 표본 | AG 수신 배열·인터럽트·블렌드 | 실제 UAF 결과 | 표시된 해당 전환 후보 |
+|:---|:---|:---|:---|
+| Sprint Turns | Sprint Starts+Turns · InterruptOnDatabaseChange · 0.5 | Start F Lfoot · 비용0.168 | Turn090 L Rfoot · 비용2.293 |
+| GaitTransitions | Run F GaitTransitions+Loops · DoNotInterrupt · 0.5 | Sprint Loop F 유지 · 비용2.276 | Sprint→Run Lfoot · 비용3.537 |
+| Run Pivot | RL Starts+Loops+Pivots · InterruptOnDatabaseChange · 0.5 | RL Start Lfoot · 비용0.631 | Pivot LL→RL Lfoot · 비용2.648 |
+
+**세 추가 표본의 입력 전달·정책·후보 검색 대조 단위 완료.** 기존 녹화·공급 로그·현재 C++와 실제 UAF 입력/검색을 대조했으며 새 코드/에셋·저장·빌드·PIE·녹화·계측 장치를 만들지 않았다. 종료 시 PIE=false·조회 Slate observer 해제를 확인했다. Rewind에는 마지막 Pivot 필터와 과거 시점이 남아 있다.
+
+**한계:** 해당 세 표본에서 목표 전환 클립은 선택되지 않았다. Sprint Turns/Pivot은 저속 경계 표본이고 두 기록은 최신 발 배치 연결 전 구성이다. 현재 포즈 품질·지속 고속 동작·모든 보행/방향·모든 프레임의 전달 동등성·인접 프레임 해제까지 통과한 것은 아니다. 표시 비용은 각 시점의 후보 비교이며 DB 간 일반 비용 척도나 성능 수치로 사용하지 않는다. 특정 클립을 강제하기 위해 조건/비용/인터럽트를 바꾸지 않았다. **5-1 미완료·5-2 미착수·Go/No-Go 보류다.**
+
+다음 제안은 **큰 회전 base 및 발판 점프/착지 검증**이다. 기존 발판으로 수동 시험 가능한 범위를 먼저 확인하고 큰 회전이 불가능하면 필요한 최소 시험 구성을 설명한다. 사용자 진행 확인 전 다음 단위에 착수하지 않는다.
+
+## 18. 큰 회전 base 및 발판 점프/착지 검증(2026-10-27, 시험 범위 내 단위 완료)
+
+사용자의 “계속 진행하자”로 착수했다. 우선 기존 발판에서 공중 전환/동일 발판 착지와 CR 해제/복귀를 직접 기록한다. 회전은 기존 발판이 실제로 제공하는 범위를 확인하고, 부족한 축/크기의 시험을 위해 새 장치를 만들기 전에 필요한 최소 구성을 설명한다. 기본 ABP·CR·Mover·동적 지형 시스템을 바꾸는 단위가 아니다.
+
+### 기존 패널 계약·측정 범위
+
+- 시작 PIE=false, FootPlacement1·FootPlacementOnMovingBase0·Steering1·StrafeWarping1·DebugLocomotion0을 확인했다. 마커는 현재 에디터 월드 조회에서 찾지 못했으며 이를 런타임 패널 부재로 해석하지 않는다.
+- `ALNPMovingPanel`은 마커에서 받은 위치 곡선을 등속 왕복한다. 열린 경로의 자세는 양 끝의 중력 수평 자세를 거리 비율로 Slerp하며, 닫힌 경로는 원점 자세 고정이다. 별도의 제자리 Yaw 회전 설정은 없다. 경로는 활성화 후 변경을 지원하지 않으므로 실행 중 Path를 덮어쓰지 않는다.
+- `Art/Octants/Pyramid_00/Placement.json`과 조립용 transform 계산상 세 Lift의 끝점 Up 차이는0°, FacadeFerry는약29.336°, SkyFerry는약14.829°다. 이는 소스 배치에서 계산한 예상값이며 현재 월드의 실제 마커/런타임 패널 자세를 측정한 근거가 아니다. 큰 회전을 전부 새 장치로만 시험해야 한다고 결론 내리지 않는다.
+- **진단 범위 보완:** `[UAFRoot] maxBaseDeg`는 `BasedMovementDelta`의 프레임 회전량이다. 공급은 Mover의 `OnBasedMovementApplied`가 보낸 TransformDelta를 누적한 값이며, 엔진 `BasedMovementUtils.cpp`는 base 이동으로 Actor에 적용한 델타를 이벤트로 보낸다. 패널 Actor 자체의 전체 회전량이나 경로 양 끝 회전각과 동일하지 않다. 앞선 §15의 작은 값만으로 실제 패널 회전이 작았다고 확대하지 않는다. 기존 큰 회전 검증 미완료 판정은 유지한다.
+
+### 현재 수동 요청·검증 기준
+
+1. 1인 PIE에서 `LNP.Anim.DebugLocomotion 2`, `LNP.DynamicTerrain.PlaceRider`로 가까운 패널에 탑승한다. 기존 FootPlacement/MovingBase/Steering/Strafe 값은 유지한다.
+2. Rewind 녹화를 시작해 입력 없이 약10초 탑승, 중앙 점프→같은 발판 착지3회, 짧게 걷고 멈춘 뒤 점프/착지1회를 수행한다. 발/골반 튐·착지 급회전·발판 앞섬/밀림을 보고한다. 어려우면 자동 시험 장치를 만들지 않고 즉시 어려운 지점을 확인한다.
+3. 녹화만 종료하고 PIE는 유지한다. 로그의 지상/공중·base 전환·실제 발판 신원과 구면 제한을 확인하고, 녹화에서 공중 CR 해제/착지 복귀를 읽는다. 이 진단은 CR 앞 수치라는 §15 한계를 유지한다.
+
+**현재 수동 시험 결과 대기.** 새 코드/에셋 변경·빌드·시험 장치를 만들지 않았다. 소스 조사 근거는 `Saved/AnimationOverhaul/2026-10-27_BaseJumpRotation/SourceInspection.json`이다. 이번 단위·5-1 미완료·5-2 미착수·Go/No-Go 보류다.
+
+### 사용자 관찰·새 기록의 로그 확인
+
+- 사용자는 요청한 발판 시험을 완료하고 이상 없음을 보고했다. 새 파일은 `RewindDebugger-LootNPop-Editor-20261027_153613941.utrace`(148,240,307바이트), Trace 연결15:36:13.996~채널 복원/기록 종료15:37:22.448 KST, 약68.452초다. 고정 로그는 `PanelJump.log`, 집계는 `PanelJumpSummary.json`에 보관했다.
+- 녹화 구간에 지상→공중/공중→지상17쌍이 있다. 끝 시각이 녹화 안인 Root 창68개는2,661프레임, 지상/동적 base2,147·공중514프레임, Moving857프레임이다. base 문자열은 `BP_PyramidExteriorPanel_C_0.PanelMesh`와 공중의 None이다. 첫 창이 녹화 전 프레임을 일부 포함할 수 있고 마지막 창 뒤 일부 프레임은 합계에 들어가지 않으므로 녹화 전체 프레임 수로 해석하지 않는다.
+- CR 앞 누적/출력 최대 거리30cm·Yaw90°·Tilt0.000°. 전달 based 델타 최대 회전0.0023°다. 구간 내 LogAnimation Error0·assertion/ensure/fatal0, 기존 Foley 경고58회다. 기록 종료 직후15:37:22.465에 LogTrace error64가 있지만 파일 존재/크기·분석 종료와 구분하며 과거 task 재조회로 실제 기록을 확인할 예정이다.
+- PIE가 계속 실행 중일 때 실제 패널 Actor 변환을3회 읽었다. 샘플 사이 쿼터니언 각도 차이 최대10.896426°로 패널 자체의 여러 도 회전이 있음을 확인했다. 이는 녹화 후 라이브 조회의 하한이며 경로 전체 각도·녹화 프레임의 측정·큰 Yaw 회전을 통과한 근거가 아니다. `LivePanelRotation.json`에 실제 변환과 계산을 보관했다.
+- **현재 수동 요청:** PIE를 일시정지하고 새 녹화 약26.3초의 UAF EvaluationProgram Tasks를 표시한다. 첫 점프 진입은 녹화 약25.946초, 착지는26.702초로 공중26.3·복귀27.3초를 좁혀 읽는다. 수치는 공급 로그 기준의 탐색 시각이며 실제 프레임 확인 전이다. CR task의 해제/복귀와 큰 회전의 나머지 범위는 아직 미판정이다.
+
+### Rewind 공중/재착지 조회·기존 발판 소단위 종료
+
+- 사용자 수동 스크럽으로 약26.3초의 실제 UAF EvaluationProgram 작업10개를 읽었다. `MM_Unarmed_Jump_Fall_Loop_UEFN`의 Sequence Keyframe(SampleTime0.308793), History·기존 준비/Strafe/Offset Root/최종 구면 보정·진단이며 **Control Rig task는 없다**. 안정 공중에서 발 배치 평가가 해제됨을 확인했다.
+- 같은 녹화 약27.3초 재착지 뒤에는 작업12개였다. 마지막 `[11] Anim Next Control Rig Task`가 최종 구면 보정과 진단 뒤에 있다. 실제 CR 복귀를 확인했으며 정확한 블렌드 길이·ForceReset=true 한 프레임·17개 점프 전체의 task 배열까지 읽은 것은 아니다.
+- 첫 Root 창을 제외하고 frames=ground=based·moving0인 안정 탑승 창30개/1,167프레임의 CR 앞 최대 거리는0.143cm·Yaw83.46°·Tilt0°였다. 이 부분집합은 로그 기반 정지 상태이며 사용자 입력 원본의 전 프레임 대조는 아니다. 전체 혼합 창의30cm 최대와 구분한다.
+- 새 파일에서 공중/지상 과거 task를 실제로 읽었으므로 기록 종료 직후 LogTrace error64를 녹화 전체 실패로 해석하지 않는다. 해당 오류와 기존 Foley 경고는 억제하거나 수정하지 않았다.
+- 근거는 `RewindAirTasks.json`, `RewindGroundTasks.json`, `PanelJump.log`, `PanelJumpSummary.json`, `LivePanelRotation.json`이다. 종료 시 PIE=true·DebugLocomotion2를 재확인했고 사용자는 일시정지 요청 후 Tasks를 표시했다. 일시정지 상태 자체는 별도 API로 확인하지 않았다. Slate observer는 해제했고 에셋 저장·코드/에셋 변경·빌드는 없다.
+
+**기존 발판의 점프/동일 발판 착지·CR 해제/복귀·구면 루트 제한과 실제 패널 회전 범위 확인 소단위 완료.** 사용자 관찰은 이상 없음이며 실제 패널 회전은 라이브 표본 사이10.896426° 하한을 확인했다. 이 회전은 경로를 따른 기울기 변화이며 제자리에서90° 이상 도는 Yaw 회전 시험은 아니다. CR 뒤 전체 본 포즈·큰 Yaw·적/네트워크·최종 게이트는 남는다. **§18 전체·5-1 미완료·5-2 미착수·Go/No-Go 보류다.**
+
+다음 구현 제안은 **큰 Yaw 회전용 최소 시험 발판 구성·검증**이다. 시험용 BP 하나에 메시와 기본 RotatingMovement를 사용해 현재 중력 Up 둘레로90° 이상 회전하는 후보를 검토한다. 기존 동적 패널 경로·Mover·기본 맵/에셋을 바꾸지 않는 방향이며 구체 API/배치/복구 절차는 승인 후 조사한다. 사용자 진행 확인 전 다음 조사·구현에 착수하지 않는다.
+
+### 큰 Yaw 발판 구현·초기 탑승 시험 대기
+
+사용자의 추가 진행 확인으로 이 구현 단위에 착수했다. 성공 기준은 실제 동적 base 위에서90° 이상 Yaw 회전 노출·구면 Up 유지·루트 제한·발/골반/몸통의 튐 여부를 확인하는 것이다. 기존 패널 경로·Mover·ABP/CR은 변경하지 않는다.
+
+- `/Game/Characters/UAFSpike/BP_UAFYawTestPlatform`을 StaticMeshActor 부모로 만들었다. 루트 StaticMeshComponent0은 엔진 Cube·scale(16,16,0.3)·Movable·LNPDynamicTerrain 충돌(QueryAndPhysics/WorldDynamic)·물리/중력 시뮬레이션 끔이다. SCS `YawRotation`은 기본 RotatingMovementComponent이며 로컬 Yaw30°/초·피벗0·Root 자동 선택이다. 엔진 구현은 `OldRotation * DeltaRotation`으로 회전하고 UpdatedComponent/Owner의 틱 의존성을 설정한다.
+- BP 컴파일 호출 정상 종료 후 메시/충돌/회전 설정을 재조회했고 해당 BP만 저장했다(34,175바이트). C++/엔진/도구 변경이나 전체 빌드는 없다.
+- 에디터 SceneTools의 스폰은 PIE 중 거부되고 에디터 월드를 사용한다. PIE 전용 Python 스폰 스크립트를 준비했으나 첫 실행은 `MathLibrary.make_transform` 미노출, 생성자로 고친 두 번째 실행은 `GameplayStatics.begin_deferred_actor_spawn_from_class` 미노출로 **Actor 생성 전에** 실패했다. `BlueprintInternalUseOnly` 함수의 Python 제외도 로컬 엔진에서 확인했다. 우회 API나 추가 C++를 만들지 않고 이 경로를 중단했으며 생성했던 `Scripts/AnimOverhaul/SpawnUAFYawTestPlatform.py`는 제거했다.
+- 대신 실제 플레이어 위치/자세·캡슐 반높이96cm를 읽고 PIE 종료 후 Actor 하나를 에디터에 임시 배치했다. Actor label=`UAFYawTestPlatform_Temporary`, 위치=(-1748.459333,1602.789693,-29846.663008), 회전=(-3.625604,-5.385914,-2.740603), scale(16,16,0.3). 윗면은 기존 발보다50cm 높고 로컬 Z는 당시 중력 Up이다. 맵은 저장하지 않았다.
+- 기존 `LNP.Debug.TeleportToOctant`의 좌표 변환·반지름30000 설정으로 윗면 좌표를 계산했다. **현재 수동 요청:** 새 1인 PIE에서 `LNP.Debug.TeleportToOctant 4 36002.142 -161.222 74.236` 실행, 착지 후 입력 없이5초 탑승·회전/포즈 정상 여부 보고. 아직 새 녹화는 요청하지 않았다. 명령은 폰을 새로 생성해 윗면150cm 위에 놓는다.
+- 정확한 정리 대상 Actor ref와 배치 계산은 `Saved/AnimationOverhaul/2026-10-27_YawPlatform/EditorPlacement.json`, BP 설정은 `Setup.json`, 실패까지 로그는 `BeforeEditorPlacement.log`다. 시험 후 PIE 종료·해당 에디터 Actor만 제거하고 맵 전체를 저장/되돌리지 않는다. **초기 런타임 미검증·이번 구현 단위와§18/5-1 미완료·5-2 미착수·Go/No-Go 보류다.**
+
+
+### 큰 Yaw 관찰·로그 확인 및 에디터 재시작(같은 날, 정리 진행 중)
+
+- 사용자는 초기 회전/탑승 정상을 보고했다. 런타임 RotatingMovement의 로컬 Yaw30°/초·실제 루트 UpdatedComponent를 재조회했다. 라이브 Actor 두 자세의 쿼터니언 차이는91.27487998455808°·Up 차이0°다. 이는 실제 큰 회전 노출의 근거이며 녹화와 동기화된 프레임 적분은 아니다. 근거는 `LiveYawRotation.json`이다.
+- 사용자가 총기는 카메라 방향을 유지하려고 제자리 회전을 반복하고 현재 롱소드는 발판과 함께 회전한다고 설명했다. 수동 회전 입력 없는 탑승 기준으로 **현재 롱소드 상태**의15초 정지→10초 짧은 걷기/멈춤→5초 정지를 녹화했고 이상 없음을 보고했다. 총기 동작을 결함으로 판정하거나 총기/카메라 유지 분기까지 검증했다고 해석하지 않는다.
+- 새 녹화 `20261027_163122363.utrace`는109,352,237바이트, 연결16:31:22.503~종료16:32:03.972 KST의41.469초다. 끝 시각이 녹화 안인 Root 창41개/1,846프레임은 모두 지상/base, Moving500프레임이며 실제 base는 시험 발판의 StaticMeshComponent0 하나다. 첫 창은 녹화 전 프레임을 일부 포함할 수 있고 마지막 창 뒤 일부 구간은 합계에서 빠지므로 정확한 전체 녹화 프레임 수로 쓰지 않는다.
+- CR 앞 최대 거리30cm·Yaw88°·Tilt0°. 전달 based 델타 최대7.806cm·8.5424°는 발판 총 회전량과 다르다. 첫 창 제외 frames=ground=based/moving0인25창1,143프레임의 최대 거리21.766cm는 정지 직후 감쇠를 포함한다. 마지막 정지6창(UTC07:31:58.015~07:32:03.083)은 최대 거리0cm·Yaw0.16°·Tilt0°다. 전체 본 배열이나 CR 뒤 수치로 확대하지 않는다.
+- 녹화 중 LogAnimation Error0·assertion/ensure/fatal0, 기존 Foley 경고78회다. 종료6ms 뒤 LogTrace error64가 있으며 아직 해당 파일 확인과 구분한다. 고정 로그/집계는 `YawRecord.log`/`YawRecordSummary.json`이다.
+- 사용자가 한도 초기화 중 에디터를 재시작하고 AG_LocomotionSpike와 임시 Actor의 Unsaved 항목을 저장했다고 보고했다. 재연결 후 PIE=false·TestMap03·동일한 정확한 임시 Actor 참조를 확인했다. 원래 사용자 에셋4개 해시는 `PreservedAssetHashes.json`과 모두 같다. 발판은 `Content/__ExternalActors__/Maps/TestMap03/E/N2/QRLU7Z5MMC4DQV6760VJ46.uasset`으로 저장됐으며 맵 전체를 되돌리지 않는다.
+- AG는 HEAD391,920바이트→재저장415,245바이트로 달라졌다. 바이트/문자열 차이만으로 의미 변경을 단정하지 않는다. 현재 AG·HEAD 원본·외부 Actor를 `AfterRestart/`에 백업했고 읽기 전용 그래프 Export로 기존 배선/기본값을 대조한다. 자동 입력 포커스 실패로 사용자에게 Cmd 명령 실행을 즉시 요청했다. 에셋 변경/컴파일/저장을 하지 않는 조회다.
+- 재시작 후 Rewind 화면 약10초의 UAF EvaluationProgram에서12개 task·최종 구면 보정/진단 뒤 마지막 Control Rig를 읽었다. 열린 파일 신원은 사용자 확인 대기다. 저장된 AG 검사와 임시 Actor 정리가 남아 **이번 단위/§18·5-1 미완료·5-2 미착수·Go/No-Go 보류**를 유지한다.
+
+
+### 저장된 AG 계약·Rewind 파일 확인 및 임시 Actor 제거(같은 날)
+
+- 사용자가 열린 파일이 `20261027_163122363.utrace` 약10초임을 확인했다. 실제 UAF EvaluationProgram은12개 task이며 `[9] LNPFinalize Spherical Offset Root Task → [10] LNPInspect Spherical Offset Root Task → [11] Anim Next Control Rig Task`다. 사용자 파일/시점 확인과 직접 읽은 배열은 `RewindYawTasks.json`에 보관했다. 기록 종료 직후 error64를 전체 녹화 실패로 해석하지 않는다.
+- 사용자 Cmd 실행으로 현재 AG를 읽기 전용 Export했다. 발 배치 연결11개(입력9/포즈2), 공개핀10개, ControlRig v2·Legacy 없음, Bool 알파·진입0.3/해제0.2초, DoRaycast=true·UseIKBoneTargets=false, 기존 CR 참조, PreserveOriginalRootRotation=true가 기존 문서 계약과 일치한다. 근거는 `AfterRestart/AG_CurrentExport.txt`, `AGContractInspection.json`, `AGExposedPinsInspection.json`이다. 완전한 HEAD 의미 차이 판정이나 재시작 후 새 PIE 시험을 한 것은 아니다. 검증한 구성을 유지하며 AG를 원복/재저장하지 않았다.
+- PIE=false에서 기록된 정확한 임시 Actor만 SceneTools로 제거했다(true). 재조회 결과 Actor 목록은 비었다. 외부 Actor 파일은 백업 해시와 같지만 에디터의 파일 잠금으로 직접 삭제되지 않았다. 반복 시도나 맵 전체 저장 대신, 해당 빈 패키지 하나만 EditorLoadingAndSavingUtils.save_packages에 전달하도록 사용자에게 요청했다. 로컬 FileHelpers는 빈 패키지를 디스크 삭제 대상으로 처리한다. **삭제 반영 확인 전이며 이번 단위는 아직 정리 중이다.**
+- 재시작 후 현재 CVar는 FootPlacement1/MovingBase0/Steering1/Strafe1/DebugLocomotion0이다. 에이전트가 값을 바꾸지 않았다. 원래 사용자 변경4개 해시는 여전히 동일하며 다음 단위는 아직 시작하지 않는다.
+
+
+### 정리 완료·이번 단위 최종 판정(같은 날)
+
+- 사용자가 해당 빈 외부 패키지 하나에 save_packages를 실행했다. 이어 정확한 외부 Actor 파일 부재, SceneTools 조회 결과 빈 배열, PIE=false를 확인했다. 기존 사용자 변경4개는 `PreservedAssetHashes.json`과 여전히 모두 일치한다. 맵 전체 저장/원복, AG 원복/재저장, 새 C++·빌드·커밋/푸시는 하지 않았다. 재사용할 시험 BP는 남겼다. 정리 근거는 `Cleanup.json`이다.
+- **§18 완료:** 기존 이동 패널의 점프/동일 발판 착지·공중 CR 해제/복귀와, 별도 로컬 Up Yaw 발판의91.274880° 라이브 회전·Up 유지·롱소드 정지/짧은 걷기 관찰·CR 앞 루트 제한·녹화 약10초 지상 CR 실행을 확인했다. 에디터 재시작 후 저장된 AG의 문서화된 계약도 보존됐다.
+- **범위 한계:** 큰 Yaw 시험은 배치 위치인 남극 부근(위도 약−85.46°)·현재 롱소드 기준이다. 적도 큰 Yaw, 총기 카메라 유지 분기, 전환 클립 실제 재생/지속 고속, CR 뒤 전체 본 포즈 동등성·ForceReset 정확한 한 프레임·적/네트워크·5-2 게이트까지 통과한 것은 아니다. 기존 패널 점프와 큰 Yaw의 모든 조합을 시험한 것도 아니다. 이번 단위 성공을 전체 마이그레이션 승인으로 확대하지 않는다.
+- **5-1 미완료·5-2 미착수·Go/No-Go 보류.** 다음 제안은 **5-1 종료 판정·남은 비교 범위 정리**다. 최초 조건에 완료 근거를 대응하고 실제로 필요한 부족 표본/비교만 정한다. 다음 단위 진행 확인 전 조사/구현하지 않는다.
