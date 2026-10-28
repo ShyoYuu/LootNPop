@@ -1,7 +1,7 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0 완료, 5-1 진행 중(§12~§18 단위 완료. 큰 Yaw 롱소드 관찰/로그·지상 CR·재시작 후 AG 계약과 임시 Actor 정리 확인. 기존 ABP 완전 동등성·최종 게이트 미판정)
-> 마지막 갱신: 2026-10-27
+> 상태: 5-0·5-1 완료. 5-2 진행 중(§24 Bool 갱신 보정 구현/검증 완료·§25 새 세션 인계 정리). 다음 native DefaultSlot 최소 연결은 진행 확인 대기이며 최종 Go/No-Go는 미판정
+> 마지막 갱신: 2026-10-28
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
 ## 1. 목표와 범위
@@ -15,8 +15,8 @@
 | 단위 | 작업 | 검증·종료 조건 | 상태 |
 |:---|:---|:---|:---|
 | 5-0 | GASP 참조 유무·로컬 엔진 API 조사, 실행서 작성 | 참조 조회 결과·재사용 경로·차단 후보·미검증 항목 기록. 코드·에셋 변경 없음 | 완료(2026-10-23) |
-| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 진행 중(구면 루트·패널 병진·공중 고정·대표 입력/전환·기본 Strafe 비교·발 배치 최소 연결 확인, 추가 전환 입력/후보 검색·큰 Yaw 롱소드 base 확인, 본별 동등성 등 잔여 범위 정리 필요) |
-| 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 미착수 |
+| 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 완료(2026-10-27, §19). 최소 기능 조건과 시험 정리 충족. 기존 ABP와의 최종 동등성 통과를 의미하지 않음 |
+| 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 진행 중(§20 경로 조사 완료. 원본 메시 선택·입력 공급 분리 후보는 실행 미검증) |
 
 최초 로드맵의 1~2세션 예상에서 **준비 포함 3단위로 구체화**했다. 로컬 GASP UAF 참조를 찾지 못했고, Phase 2 구면 보정과 몽타주 메시 선택을 별도로 확인해야 한다. 5-1의 조기 No-Go면 5-2를 수행하지 않는다.
 
@@ -58,19 +58,21 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 
 | 게이트 | 통과 기준 | 현재 판정 |
 |:---|:---|:---|
-| PSD·Chooser | 기존 에셋을 변경하지 않고 같은 상태 입력의 PSD 배열로 UAF가 검색. Starts/Stops/Turns 등 전환과 인터럽트 확인 | 부분 확인 — Idle·출발/정지·착지·제자리 회전·방향 전환의 입력 배열/인터럽트/블렌드와 실제 UAF 선택 확인(§13). Pivot·Sprint Turns·보행 전환 등 전 종류 실증은 남음 |
-| 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS 5종의 정상 종료·`Montage_Stop`(즉시/블렌드아웃)·교체 시 End 정확히 한 번, 태그/근접 판정 엔티티 잔류 없음 | 미검증 |
+| PSD·Chooser | 기존 에셋을 변경하지 않고 같은 상태 입력의 PSD 배열로 UAF가 검색. Starts/Stops/Turns 등 전환과 인터럽트 확인 | 부분 확인 — 대표 전환의 전달·실제 선택(§13), Sprint Turns·GaitTransitions·Run Pivot의 전달·후보 검색(§17) 확인. §17의 목표 전환 클립은 미선택. 지속 고속/전환의 최종 품질 비교는 5-2에 남음(§19) |
+| 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS 5종의 정상 종료·`Montage_Stop`(즉시/블렌드아웃)·교체 시 End 정확히 한 번, 태그/근접 판정 엔티티 잔류 없음 | 실행 미검증 — §20에서 기본 몽타주/노티파이의 메시 선택과 일반 ABP 공급의 충돌 확인. 시험 전용 폰의 대상 선택·공급 분리 후보를 정리했으며 구현 전 |
 | UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 미검증 |
 | Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 |
 | 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 미검증 |
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
-| 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 북극·적도·패널 병진의 최종 Tilt/Yaw·거리 제한과 공중 고정 확인. 큰 각도 회전 base·발 배치 등은 미검증 |
+| 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 구면 루트 제한(§10)·공중 고정(§12)·Strafe 비교(§14)·발 배치/경사/적도(§15)·패널 점프/착지와 큰 Yaw 롱소드(§18) 확인. 루트 수치는 CR 앞이며 기존 ABP 대비 최종 포즈 품질·무기 통합 후 동등성은 5-2에 남음(§19) |
 
 **현재 Go/No-Go는 보류.** 소스 조사만으로 체크하지 않는다. 한 항목이라도 동등하게 구현할 수 없으면 AN-006에 따라 No-Go와 사유를 `.context/DiscardedApproaches.md`에 남긴다. 통과해도 Phase 6 착수는 사용자 확인 뒤 별도 단위다.
 
 **5-1에서 확인한 5-0 조사 한계:** 기본 `Evaluate Chooser`의 UAF 경로는 `UAFAssetInstance` 구조체를 컨텍스트 0번에 먼저 넣고 객체를 나중에 넣는다. 기존 테이블의 0번은 `LNPAnimInstance`여서 직접 연결 시 반복 오류가 났다. 단순히 `AnimContext`를 채우면 해결되는 문제가 아니다. 기존 테이블을 보존하고 `UChooserFunctionLibrary::EvaluateChooserMulti`로 같은 객체 컨텍스트에서 평가한 배열을 전달하는 시험으로 바꿨다.
 
 ## 5. 다음 행동
+
+현재 **5-2 시험용 원본 메시 선택·입력 공급 분리 최소 구현/검증**을 진행 중이다(§21). 시험 BP 설정·수치 회귀를 완료했고 첫 수동 PIE 스모크 결과를 기다린다. 아래는 5-1 착수 당시의 실행 기록이다.
 
 사용자 승인으로 5-1을 시작했다. LootNPop MCP의 `ListEnabledPlugins`에서 `UAF`·`UAFAnimGraph`·`UAFMirroring`가 활성인 것을 확인했다. `UAFChooser`·`UAFPoseSearch`·`UAFControlRig`·`UAFWarping`·`MoverAnimNext` 5개를 `LootNPop.uproject`에 명시하고 JSON 파싱·diff 공백 검사를 통과했다. MCP `SetPluginEnabled`는 메모리의 프로젝트 설정만 바꾸고 파일을 저장하지 않아 파일에도 명시했다(엔진 툴 구현 확인). 런타임 로드 확인은 재시작 후 수행한다. GASP는 더 필요하지 않아 닫아도 된다고 안내했다.
 
@@ -848,3 +850,233 @@ Root 창은 약1초간의 매 프레임 최대/계수이며 끝 시점 위도/�
 - **§18 완료:** 기존 이동 패널의 점프/동일 발판 착지·공중 CR 해제/복귀와, 별도 로컬 Up Yaw 발판의91.274880° 라이브 회전·Up 유지·롱소드 정지/짧은 걷기 관찰·CR 앞 루트 제한·녹화 약10초 지상 CR 실행을 확인했다. 에디터 재시작 후 저장된 AG의 문서화된 계약도 보존됐다.
 - **범위 한계:** 큰 Yaw 시험은 배치 위치인 남극 부근(위도 약−85.46°)·현재 롱소드 기준이다. 적도 큰 Yaw, 총기 카메라 유지 분기, 전환 클립 실제 재생/지속 고속, CR 뒤 전체 본 포즈 동등성·ForceReset 정확한 한 프레임·적/네트워크·5-2 게이트까지 통과한 것은 아니다. 기존 패널 점프와 큰 Yaw의 모든 조합을 시험한 것도 아니다. 이번 단위 성공을 전체 마이그레이션 승인으로 확대하지 않는다.
 - **5-1 미완료·5-2 미착수·Go/No-Go 보류.** 다음 제안은 **5-1 종료 판정·남은 비교 범위 정리**다. 최초 조건에 완료 근거를 대응하고 실제로 필요한 부족 표본/비교만 정한다. 다음 단위 진행 확인 전 조사/구현하지 않는다.
+
+## 19. 5-1 종료 판정·남은 비교 범위 정리(2026-10-27, 단위 완료)
+
+사용자의 Phase 5 재개 요청으로 최초 조건(§2)과 기존 완료 근거를 대조했다. **5-1의 최소 기능 조건은 충족했다.** 기본 UAF Strafe와 기존 OrientationWarping의 차이가 남으므로 최종 동등성이나 Go를 선언하지 않는다. 5-2의 일곱 게이트는 계속 실행 근거로 판정한다.
+
+### 최초 종료 조건과 근거
+
+| 5-1 조건 | 기존 확인 근거 | 종료 판정의 범위 |
+|:---|:---|:---|
+| 최소 테스트 폰·UAF 출력·Mover 궤적 | §5의 시험 폰/시스템/그래프, `Current Actor → VisualMesh`, 숨김 메시 뒤 PrePhysics, 공유 궤적 전달. §13·§17의 실제 UAF 입력/검색 | 중간 공급 구성으로 기능 확인. 숨김 ABP 제거·성능 비교는 하지 않음 |
+| 같은 Chooser의 PSD 배열·실제 검색 | §13의 Idle·출발·정지·착지·제자리 회전·방향 전환, §17의 세 추가 전환 입력/정책/후보 | 대표 입력의 전달·검색 확인. 목표 전환 클립을 반드시 골라야 한다는 조건은 없음 |
+| 북극·적도 이동/정지/회전 | §10의 관찰·루트 제한, §14의 북극/적도 Strafe 0/1, §15의 발 배치 연결 후 북극·적도 관찰 | 단계별 완료 근거를 사용. 모든 조합을 최신 구성으로 다시 녹화하지 않음 |
+| 공중 Fall_Loop 고정 | §12의 두 공중 시점/착지 실제 클립, §14의 공중 Strafe 해제/복귀, §15·§18의 공중 CR 해제/착지 복귀 | 공중 계약의 구현·대표 실행 확인. 모든 공중 프레임의 클립을 전수 조회한 것은 아님 |
+| 발 배치·경사·재착지 | §15의 기존 CR/v2 배선·북극 경사/적도 관찰·실제 task, §18의 발판 점프/착지 및 재시작 후 AG 계약 | 연결·활성 조건·대표 관찰 확인. ForceReset=true 한 프레임·CR 뒤 본별 수치는 미측정 |
+| 움직이는 base | §10의 병진·중복 운반 수정, §18의 실제 패널 회전/점프와 별도 로컬 Up Yaw91.274880°·Up 유지·롱소드 관찰 | 기존 패널과 큰 Yaw 각각의 범위에서 확인. 적도 큰 Yaw·총기 카메라 유지까지 교차 검증한 것은 아님 |
+| 조기 No-Go 차단 여부 | §10·§14~§16에서 구면 루트·기본 Strafe·발 배치·루트 잠금의 실행/구성 경로 확인 | 현재 근거에 동등 구현이 불가능하다는 확정 사유는 없음. 알려진 처리 차이의 최종 수용 판정은 남음 |
+
+### 남은 비교의 소속과 최소 범위
+
+- **5-2에서 반드시 판정:** §4의 일곱 게이트. 몽타주/ANS·UAFLayering·Motion Warping/Mover·적/네트워크는 아직 미검증이다. 이미 확인한 PSD 검색과 Rewind 기록은 재사용하며 새 계약에 필요한 부분만 추가 확인한다.
+- **최종 포즈·PSD 게이트의 남은 비교:** 최신 발 배치까지 포함한 UAF와 기존 ABP의 대표 이동 품질을 비교한다. 특히 지속 달리기/질주 뒤 방향·보행 전환을 포함해 §17의 저속 표본 한계를 보완한다. §14·§16의 미래 예측/샘플별 보정·발/자식 본 처리 차이가 실제 품질에 미치는 영향과 무기 통합 후 결과를 판정한다. 구체 시험 구성은 해당 5-2 단위에서 정하며 지금 새 폰·진단 장치를 만들지 않는다.
+- **별도 필수 조건으로 추가하지 않음:** 모든 본/동일 프레임의 수치 일치, 모든 전환 클립의 선택, 모든 위도×장비×발판×점프 조합, ForceReset의 정확한 한 프레임 전수 조회. 기존 조건은 기능·품질 동등성이며 알고리즘의 수치 동일성이 아니다. 실제 이상이나 근거 충돌이 발견되면 관련 표본만 좁혀 보완한다.
+- 특정 전환 후보가 미선택된 사실은 유지한다. 이 자체를 실패로 보거나 선택시키려고 Chooser/PSD/비용을 바꾸지 않는다. 대표 품질 비교에서 기존 경로 대비 문제가 확인되면 재현 구간을 좁혀 판정하며, 동등하게 해결할 수 없으면 AN-006의 No-Go를 적용한다.
+
+### 실제 상태 대조·종료 정리
+
+- 시작 작업 트리는 기존 사용자 에셋4개만 수정 상태였다. 해당4개 SHA256은 §18 `Cleanup.json`과 모두 같았다. 현재 AG도 `AfterRestart/AG_LocomotionSpike.uasset` 검사 백업과 SHA256이 같아 기존 계약 검사 근거를 재사용한다. 소스는 `LNPUAFSpikeAnimInstance`의 Chooser 다중 평가·궤적/인터럽트/발 배치 공급과 대조했다. 새 PIE·Rewind·빌드를 실행하지 않았다.
+- MCP로 **PIE=false**와 TestMap03 WorldSettings의 시험용 GameMode를 확인했다. 사용자가 원래 값은 **`/Game/Gameplay/BP_LNPGameMode`**라고 알려줬다. 맵의 디스크 사본을 `Saved/AnimationOverhaul/2026-10-27_UAF51Closure/TestMap03_BeforeGameModeRestore.umap`에 보관한 뒤 `DefaultGameMode` 하나를 원래 생성 클래스로 복원·재조회했다. `save_assets`에는 `/Game/Maps/TestMap03`만 전달해 저장 성공을 확인했다. 다른 에셋 저장·맵 전체 원복은 하지 않았다.
+- 저장 후에도 원래 GameMode·PIE=false·맵 dirty=false를 확인했다. 다른 사용자 데이터3개와 AG의 해시는 그대로다. 복원 전/후 해시·백업과 에디터 조회 근거는 같은 폴더의 `ClosureAudit.json`·`EditorVerification.json`이다. 이번 단위는 문서/설정 정리로 C++ 테스트·빌드·플레이를 반복하지 않았다.
+- **5-1 완료·5-2 미착수·Go/No-Go 보류.** 이번 종료 판정/정리 단위는 완료다. 다음 제안은 **5-2 몽타주·ANS 최소 연결 경로 조사**로, 이중 메시의 대상 선택과 기존 슬롯/ANS 종료 계약을 먼저 확인한다. 사용자 진행 확인 전 해당 조사·구현에 착수하지 않는다. 5-2 시험 때만 GameMode Override를 다시 `BP_GameModeUAFSpike`로 임시 지정하며 복원 기준은 위 원래 값이다.
+
+## 20. 5-2 몽타주·ANS 최소 연결 경로 조사(2026-10-27, 조사 단위 완료)
+
+사용자의 5-2 시작 요청으로 몽타주 대상·틱·슬롯/ANS 경로를 로컬 UE 5.8 소스와 현재 시험 폰 설정에 대조했다. 이번 단위는 연결 후보와 검증 순서를 확정하는 조사이며 C++/에셋을 변경하거나 PIE를 시작하지 않았다. **기본 Montage Trait를 현재 그래프에 추가하는 것만으로는 기존 계약을 유지할 수 없다.** 다음 후보의 실행 가능성·몽타주/ANS 통과는 아직 미판정이다.
+
+### 확인한 기본 경로와 현재 구성의 충돌
+
+엔진 경로는 `C:/Program Files/Epic Games/UE_5.8/Engine/` 기준이다.
+
+| 확인 대상 | 소스/현재 설정 | 결론 |
+|:---|:---|:---|
+| 몽타주 소유 메시 | `Plugins/Experimental/UAF/UAFAnimGraph/Source/UAFAnimGraph/Private/Injection/UAFMontageComponent.cpp`의 `OnBindToInstance`: UAF Owner의 첫 `USkeletalMeshComponent` 선택, `bEnableAnimation=true`면 경고 후 중단 | 시스템의 포즈 출력 locator를 VisualMesh로 지정해도 이 대상은 바뀌지 않음. 현재 기본 연결을 그대로 사용할 수 없음 |
+| 몽타주 클래스/설정 | 같은 모듈 `Internal/Injection/UAFMontageComponent.h`: 노출 설정은 틱 이전 이벤트와 Legacy Montage AnimInstance 클래스. 구현에서 메시 지정 입력을 사용하지 않음 | Legacy 클래스 지정만으로 일반 ABP 갱신과 몽타주 전용 틱의 충돌을 해결하지 못함 |
+| 현재 시험 폰 | MCP CDO: AnimSourceMesh는 `ABP_SourceUAFSpike`·일반 평가 켬, VisualMesh는 일반 평가 끔, WeaponMesh는 AnimClass 없음·일반 평가 켬. BP 부모는 `/Script/LootNPop.LNPPlayerCharacter` | 숨김 ABP를 단순히 끄면 `NativeUpdateAnimation`이 공급하던 Chooser·궤적·구면/발 배치 입력도 멈춤 |
+| 첫 메시의 의미 | `Actor.cpp::FindComponentByClass`는 OwnedComponents의 첫 일치 항목 반환. CDO의 메시 열거는 WeaponMesh→AnimSourceMesh→VisualMesh였음 | 첫 메시를 AnimSourceMesh라고 가정하지 않음. CDO 열거를 실제 PIE 순서의 증거로 확대하지 않고, 컴포넌트 순서 조작으로 해결하지 않음 |
+| 전용 초기화/틱 | `AnimInstance.cpp::InitializeMontageOnly`는 skeleton/required bones 준비, `TickMontageOnly`는 몽타주 갱신·이벤트 처리. 일반 NativeInitialize/NativeUpdate 호출을 대신하지 않음. `SkeletalMeshComponent.cpp::TickAnimation`은 일반 평가 끔에서 반환 | 런타임 슬롯 그룹 등록·B0 공급을 별도로 유지해야 함. 일반 틱과 전용 틱을 함께 돌려 중복 전진시키지 않음 |
+| ANS 메시 | `UAF/Source/UAF/Private/Module/AnimNextActorComponentReferenceComponent.cpp`도 Owner의 첫 해당 컴포넌트를 선택. `UAFNotifyDispatcherComponent.cpp`는 그 참조로 NotifyBegin/Tick/End 전달 | 포즈 출력·몽타주 소유·ANS 전달 대상은 각각 확인해야 함. 현재 포즈 locator만 맞춰서는 부족함 |
+| 기존 게임플레이 대상 | `ALNPCharacterBase::GetAnimInstance`는 AnimSourceMesh. `ANS_LNPCancelMontageOnMovement`는 전달받은 MeshComp의 AnimInstance에서 Stop. MeleeHitWindow는 MeshComp를 스윙 상태 키로 사용하고 실제 칼날은 WeaponMesh에서 읽음 | 몽타주 소유와 ANS 메시를 같은 AnimSourceMesh로 유지하는 후보가 기존 계약 변경을 줄임. 숨김 ABP와 UAF 양쪽에서 ANS를 중복 발화시키면 안 됨 |
+
+`FMontageTrait`는 루트 모듈의 `FUAFMontageComponent`를 사용하며 슬롯별 포즈/노티파이를 공급한다. `UAFLayering`의 `MontageLayerDataTrait`도 같은 컴포넌트를 사용하므로 레이어 노드로 바꾸는 것만으로 위 문제를 우회하지 못한다.
+
+### 다음 최소 구현 후보 — 시험 폰 안에서 명시적 대상·공급 분리
+
+1. **원본 메시를 명시적으로 선택하는 시험 전용 C++ 폰.** `ALNPPlayerCharacter` 파생으로 두고 `FindComponentByClass(TSubclassOf<UActorComponent>)`의 정확한 SkeletalMeshComponent 질의에만 AnimSourceMesh를 반환하며 나머지는 Super에 위임하는 후보다. 해당 함수가 엔진의 virtual임을 확인했다. BP_PlayerUAFSpike의 현재 부모도 네이티브 LNPPlayerCharacter이므로 시험 사본만 새 파생 클래스로 변경할 수 있는 구성이다. 기본 플레이어/적 클래스·엔진은 수정하지 않는다. 이 선택이 UAF 몽타주·노티파이 참조와 GAS ActorInfo에 실제로 일관되게 반영되는지는 런타임 검증 대상이다.
+2. **원본 메시를 몽타주 전용으로 전환하고 입력 공급을 명시적으로 구동.** 동일한 스파이크 AnimInstance를 AnimSourceMesh에 유지하되 일반 포즈 평가를 끄고, 시험 전용 게임 스레드 구동에서 기존 B0/공유 입력 공급을 프레임당 한 번 수행하는 후보다. 몽타주 재생 시간은 엔진 전용 틱만 진행시킨다. 초기 인스턴스 생성·Native 초기화/슬롯 그룹·UAF Graph 참조 공급의 순환 대기와 틱 선후 관계를 먼저 해결한다. 단순히 `bEnableAnimation`만 끄거나 `NativeUpdateAnimation`만 호출하면 완료라는 뜻은 아니다.
+3. **공급 분리 자체의 회귀를 먼저 검증.** 숨김 그래프 평가가 없어지면 기존 `OffsetRootTransform`을 읽는 FutureFacing/Aim 기준도 사라진다. UAF의 완료된 루트 상태를 안전하게 공급하는 경로 또는 별도 동등 대책을 포함해야 하며 기본 컴포넌트 facing으로 조용히 대체하지 않는다. 이전 입력/구면/공중 계약을 유지하는 것이 이 다음 단위의 성공 기준이다. 워커 상태를 게임 스레드에서 동기화 없이 직접 읽지 않는다.
+4. 공급 분리 검증 뒤 **DefaultSlot 하나의 UAF Montage Trait**부터 연결한다. 기존 순서에 맞춰 Strafe 뒤·Offset Root/발 배치 앞을 후보로 삼고 먼저 in-place 몽타주를 확인한다. 실제 배선·첫 표본은 그 구현 단위에서 선택한다. ABP 래퍼·원본 포즈 복사를 성공시켜 native UAF 몽타주 통과로 기록하지 않는다.
+
+위 항목은 **구현 후보**다. 이번에 엔진 포크·내부 private 필드의 강제 변경·몽타주 상태 복사 브리지를 만들지 않았다. 타깃 선택/공급 분리가 동등하게 성립하지 않으면 원인을 기록하고 경로를 다시 판정한다. 조사만으로 No-Go나 Go를 선언하지 않는다.
+
+### 몽타주·ANS의 실행 성공 기준과 단위 분리
+
+| 후속 단위 | 최소 성공 기준 |
+|:---|:---|
+| 원본 메시 선택·입력 공급 분리 | 실제 UAF/GAS/ANS 대상이 AnimSourceMesh로 일치. 슬롯 그룹 초기화·B0/공유 입력 연속 갱신·프레임당 단일 공급·단일 몽타주 전진. 대표 북극/적도 이동·회전·공중/착지에서 이전 계약 회귀 없음 |
+| DefaultSlot 최소 연결 | 실제 UAF 평가 task에서 몽타주 포즈 확인, 정상 재생/종료·즉시 Stop·블렌드아웃 Stop·다른 몽타주 교체 확인. 같은 슬롯을 중복 평가하지 않음 |
+| 슬롯·ANS 계약 확대 | 기본 DefaultSlot/FullBody/UpperBody와 기존 그룹/가산 슬롯 순서 유지. ANS5종의 Begin/End 정확히 한 번·Tick 대상 일치·태그/근접 엔티티 잔류 없음. 정상 종료뿐 아니라 이동 취소·몽타주 교체·인스턴스/시스템 종료를 확인 |
+
+- 실제 슬롯 그룹 표는 `LNPAnimInstance.cpp`의 런타임 등록이 소유한다. DefaultSlot·FullBody·FullBodyAdditivePreAim·UpperBody·UpperBodyAdditive는 DefaultGroup, AdditiveHitReact는 AdditiveGroup이다. §4의 핵심3슬롯만 확인하고 다른 기존 계약을 삭제하지 않는다. UpperBody의 본 마스크/AO/그립 IK·물리 히트리액트와 근접 루트모션·네트워크는 해당5-2 게이트에 남긴다.
+- UAF dispatcher는 실행 종료 시 현재/이전 ANS 목록을 비교해 End를 큐에 넣는 코드를 가진다. 이것은 Stop/교체/시스템 파괴에서 End가 정확히 한 번 전달됐다는 실행 근거가 아니다. 같은 파일/헤더에서 별도 종료 훅을 찾지 못했으므로 파괴 경로는 특히 미판정으로 둔다. Native branching point와 queued notify도 실제 몽타주 설정을 구분해 확인한다.
+- PIE/GUI 확인은 위 연결이 준비된 뒤 사용자 수동 플레이를 바로 요청한다. 아직 연결되지 않은 그래프에 시험을 요청하거나 새 자동화 도구를 만들지 않는다. 각 후속 구현 단위마다 종료 후 진행 확인을 받는다.
+
+### 이번 단위 상태
+
+MCP에서 PIE=false를 확인했고 조회만 수행했다. TestMap03은 §19의 BP_LNPGameMode 복원 상태를 유지하며 시험 GameMode를 재지정하지 않았다. 코드/플러그인/에셋 변경·컴파일·저장·새 녹화·빌드·커밋/푸시는 없다. 조회 설정과 근거 목록은 `Saved/AnimationOverhaul/2026-10-27_UAF52MontageInvestigation/Inspection.json`에 보관한다. **이번 조사 단위 완료·5-2 진행 중·몽타주/ANS 실행 미검증·Go/No-Go 보류**다. 다음 제안은 **시험용 원본 메시 선택·입력 공급 분리 최소 구현**이며 사용자 진행 확인 전 착수하지 않는다.
+
+## 21. 시험용 원본 메시 선택·입력 공급 분리(2026-10-27~28, 기능 스모크 완료·호출 순서 오류 미해결)
+
+사용자의 추가 진행 요청으로 §20의 다음 구현에 착수했다. 성공 기준은 시험 폰의 명시적 원본 선택·일반 포즈 평가 없는 단일 입력 공급·UAF 루트 기준 유지와 대표 구면 이동 회귀 확인이다. 몽타주 포즈/ANS 계약은 이후 native Montage Trait 연결에서 실행 판정한다.
+
+### 소스 구현·빌드
+
+- `Animation/UAFSpike/LNPUAFSpikePlayerCharacter.h/.cpp`: 시험 전용 LNPPlayerCharacter 파생 클래스. 정확한 SkeletalMeshComponent 질의에는 AnimSourceMesh를 반환하고 다른 질의는 Super에 위임한다. 원본의 일반 평가 끔/항상 틱 설정을 기본으로 두며 잘못된 BP 설정은 오류로 알린다. 게임 월드의 PostInitializeComponents에서 스파이크 인스턴스를 준비하고 폰의 PrePhysics 틱으로 입력을 구동한다. 기본 캐릭터/플레이어/적 클래스는 수정하지 않았다.
+- `LNPUAFSpikeAnimInstance`: 몽타주 전용 초기화와 프로젝트 Native 초기화를 명시적으로 수행해 슬롯 그룹·캐시를 유지한다. 일반 NativeUpdate 경로와 명시적 드라이버 경로를 분리하고 후자는 GFrameCounter로 프레임당 한 번만 갱신한다. UAF PrePhysics는 폰의 공급 틱 뒤에 의존성을 건다. 기존 ABP 사본의 Chooser/System/Graph 기본값은 그대로 사용한다.
+- `LNPUAFRootFeedback.h`와 기존 구면 trait/task: UAF 루트 보정 뒤 누적 월드 루트·입력 serial·유효 여부를 모듈 컴포넌트에 기록한다. 게임 스레드는 UAF의 ReadComponent API와 컴포넌트 잠금을 통해 값 사본만 읽어 기존 `OffsetRootTransform/bHasOffsetRoot`에 반영한 뒤 B0를 갱신한다. 무효/비활성 루트도 통지해 이전 값을 무조건 유지하지 않는다. 워커 trait 상태 포인터를 게임 스레드로 넘기지 않는다. 이 루트는 CR 앞 값이다.
+- UAF 모듈 인스턴스에서 피드백 컴포넌트를 만드는 데 `UAF/Internal` 헤더 경로가 추가됐다. 기존 UAFWarping/UAFPoseSearch 내부 의존성과 함께 엔진 갱신 시 재검토 대상이다. 엔진 소스·공유 입력 구조체 레이아웃·AG 배선은 수정하지 않았다.
+- 종료 확인 전 첫 빌드 호출은 권한 확장 환경의 에디터 프로세스 검사에서 차단돼 Build.bat이 시작되지 않았다. 제한 환경 Get-Process 결과로 종료됐다고 안내했던 내용을 정정했고 사용자 종료 확인을 받은 뒤 실행했다.
+- 첫 실제 전체 빌드는9 actions·66.19초, 루트 trait 파일의 `Module/AnimNextModuleInstance.h` C1083으로 실패했다. 헤더가 UAF/Internal에 있음을 확인해 include 경로를 추가했다. 같은 구성 재빌드는 **14 actions·98.10초·Succeeded·종료 코드0**이다. 새 네이티브 타입이 있어 Live Coding을 쓰지 않았다.
+- 근거/백업: `Saved/AnimationOverhaul/2026-10-27_UAF52SourceDriver/`의 BeforeBuild·Build_FirstFailureSummary·Build_Succeeded.log·BuildSummary와 시험 BP/AG 백업. 기본 에셋/사용자 데이터는 저장하지 않았다.
+
+### 검증 범위와 후속 경계
+
+재실행 뒤 아래와 같이 시험 BP 설정·수치 회귀·남극 부근/적도 기능 스모크를 수행했다. 현재 그래프에는 native Montage Trait가 없다. 실제 GAS ActorInfo에 저장된 메시·UAF 몽타주 소유 메시·ANS dispatcher 대상과 단일 몽타주 전진은 연결 후 검증해야 한다. 이 단계의 virtual 메시 조회 결과만으로 해당 계약을 통과시키지 않는다. 기존 5-1의 북극 표본도 새 공급층의 북극 재시험 근거로 재사용하지 않는다.
+
+### 재실행·시험 BP 설정·수치 회귀 확인
+
+- 사용자가 재실행 후 AG_LocomotionSpike·S_LocomotionSpike 정상 열기를 확인했다. 새 MCP 읽기 호출로 PIE=false와 기존 부모를 확인했고 시험 BP의 재부모화 직전 디스크 사본을 `BP_PlayerUAFSpike_BeforeReparent.uasset`에 추가 보관했다.
+- BP_PlayerUAFSpike의 부모를 `/Script/LootNPop.LNPUAFSpikePlayerCharacter`로 변경·재조회했다. 원본의 AnimClass는 기존 ABP_SourceUAFSpike, 일반 평가=false·VisibilityBasedAnimTickOption=AlwaysTickPoseAndRefreshBones였다. 새 부모 기본값이 반영돼 별도 속성 덮어쓰기는 하지 않았다. warnings_as_errors=true 컴파일 호출이 오류 없이 종료됐고 해당 BP만 저장 성공했다. 클래스 객체에 인스턴스 속성을 조회한 첫 호출의 Warning은 CDO 조회로 정정했으며 컴파일 오류로 해석하지 않는다.
+- 숨김 ABP 사본의 SpikeSystem·SpikeGraph·LocomotionDatabaseChooser 참조가 기존 S/AG/Chooser인지 재조회했다. AG를 수정/저장하지 않았다.
+- 기존 `LootNPop.Animation.UAFSpike.SphericalRootFinalization`은 **1/1 성공·0.017769903초·오류/경고0**이다. 이 결과는 구면 수학의 회귀이며 새 공급층의 런타임 동작을 판정한 것은 아니다.
+- TestMap03 WorldSettings의 원래 BP_LNPGameMode를 확인한 뒤 시험용 BP_GameModeUAFSpike로 **메모리에서만** 변경·재조회했다. 맵은 저장하지 않았다. 원래 복원값은 `/Game/Gameplay/BP_LNPGameMode.BP_LNPGameMode_C`다.
+- 사용자에게 1인 PIE·`LNP.Anim.DebugLocomotion 2`, 정지→걷기/달리기→큰 룩 회전→점프/착지의 첫 스모크를 요청했다. 공격/새 녹화 없이 관찰과 라이브 로그/속성을 확인했다. 아래에 2026-10-28 결과를 기록한다.
+- 설정/수치 근거는 같은 로컬 폴더의 `BlueprintSetup.json`·`RootRegression.json`이다.
+
+### 명시적 공급·루트 피드백과 구면 기능 스모크(2026-10-28)
+
+- 사용자는 첫 이동/회전/점프·착지, AG/S 탭이 닫혀 있는 상태의 반복 점프, 적도 이동/정지/큰 룩 회전/점프·착지 모두 **이상 없음**으로 보고했다. 후속 설명에 따르면 탭 닫기 요청 당시 이미 닫혀 있어 별도 조작은 없었다. 새 녹화·공격·소스 변경·빌드는 없었다.
+- 런타임 AnimSourceMesh의 일반 평가=false·기존 ABP_SourceUAFSpike, VisualMesh의 일반 평가=false를 읽었다. 사용자 읽기 전용 Python의 `get_component_by_class(SkeletalMeshComponent)`도 실제 AnimSourceMesh를 반환했다. 소스 인스턴스의 `bExplicitDriver=true`, `bHasOffsetRoot=true`와 갱신되는 입력/피드백을 확인했다. 적도 최신 조회는 input41537/feedback41536·OnGround다. 단일 공급 상한은 코드의 GFrameCounter 가드, 갱신 연속성은 스냅샷/로그가 근거다.
+- 두 Python 표본의 입력은14166→26285, 피드백은14165→26284였다. 에디터 프레임 증가12129와 입력 증가12119의 차이10은 원인이 확정되지 않았다. 에디터 프레임에는 비게임/일시정지 프레임도 포함될 수 있어 정확한 매 게임 프레임 공급률이나 전수 추적으로 확대하지 않는다. 두 표본에서 피드백은 입력보다1 작았다.
+
+| 표본 | 진단 분모·동작 | CR 앞 구면 루트 결과 |
+|:---|:---|:---|
+| 첫 스모크 | 창139개/7,653프레임, 공중646·이동1,970, 점프/착지15쌍. 창 끝 위도−87.21~−79.83° | 상태/포즈 거리≤30cm·Yaw≤25.92°·Tilt0° |
+| 두 Python 표본 사이 반복 점프 | 창220개/12,124프레임·점프/착지15쌍. 창 끝 위도−84.71~−81.56°. 요청 전 대기 포함 | 거리≤30cm·Yaw≤90°·Tilt0° |
+| 적도 도착 이후 | 창 끝 위도 절댓값≤5°로 선택한171창/8,615프레임, 지상8,096·이동2,130, 위도−3.53~1.49°. 적도 도착 이후 점프/착지13쌍 | 거리≤30cm·Yaw≤90°·Tilt0° |
+
+창 합계는 정확한 전체 PIE 프레임 수나 사용자 조작20초의 분모가 아니다. 적도 선택은 창 끝 위도 기준이며 창 안의 모든 프레임 위치를 보장하지 않는다. 루트는 CR 앞 진단이고 CR 뒤 본별 포즈 동등성·최종 품질 통과를 뜻하지 않는다. 첫 표본은 남극 부근이며 북극 표본으로 표기하지 않는다.
+
+### 발견한 호출 순서 오류와 이번 판정
+
+- 첫 스모크의 UTC01:49:04.662에 `FMotionMatchingTrait::PostEvaluate, PostEvaluate called without calling PreUpdate on this frame!`가 **1회** 있었다. 직전 지상→공중 전환은01:49:04.431이다. 오류에 Actor/인스턴스 식별자가 없어 PIE와 열린 그래프 미리보기 중 어느 쪽인지 확정하지 못했다. 사용자는 시각적 이상을 보고하지 않았다.
+- 두 Python 표본 사이 점프/착지15쌍과 이후 적도 표본에서는 추가 PoseSearch 오류0이다. 사용자는 닫기 요청 당시 AG/S 탭이 이미 닫혀 있었고 추가 조작을 하지 않았다고 정정했다. **탭 닫기 전/후 비교가 아니며, 미리보기 원인·탭 닫기 효과·수정 완료로 판정하지 않는다.** 최초 오류 시각의 탭 상태를 별도로 특정한 기록도 없다. 엔진 MotionMatchingTrait의 검사값은 PreUpdate/PostEvaluate 사이 bool 상태이며 원인을 특정한 프레임 추적 근거는 아직 없다. 기존 Bool/Fall_Loop AG 배선은 수정 전 백업과 SHA256이 같다.
+- 첫 스모크·후속 표본의 LogAnimation Error·드라이버 오류·assertion/ensure/fatal은0이다. 기존 Foley 이벤트 미처리 경고는 남으며 첫 스모크91회·두 번째 Python 이후 이동/대기 포함 구간342회다. 오류를 억제하지 않았다.
+- **공급 분리 구현과 사용자 기능 스모크는 완료했으나, 이번 단위 전체의 오류 해소 판정은 보류**다. 5-2·최종 일곱 게이트·Go/No-Go는 계속 미판정이다. 다음 제안은 native Montage 연결 전에 **Motion Matching 호출 순서 오류의 원인 범위를 좁히는 조사 단위**다. 사용자 진행 확인 전 조사/구현을 확장하지 않는다.
+
+근거: `Saved/AnimationOverhaul/2026-10-28_UAF52DriverSmoke/`의 FirstSmoke·AfterPreviewClosedJump·AfterEquator 로그/요약, RootWindows·RuntimeInspection JSON. PIE=true·DebugLocomotion2·AG/S 미리보기 탭 닫힘 상태를 유지했다. TestMap03의 에디터 메모리는 BP_GameModeUAFSpike이며 원래 복원값은 BP_LNPGameMode다. 이번 로그 확인에서는 맵을 저장/원복하지 않았다. 현재 디스크 맵 해시는 §19/빌드 전 기준과 다르므로 동일 보존이라고 주장하지 않는다. 변경 경위는 미확정이며 현재 사본을 TestMap03_CurrentDisk.umap에 보관했다. 다른 사용자 데이터3개와 AG 해시는 기존 기준과 같다. `PreservedAssets.json`·`PreservationNotes.json`이 근거다. PIE 중 map dirty 조회는 도구의 Asset does not exist 오류로 확인하지 못했으며 맵 부재로 해석하지 않는다.
+
+## 22. Motion Matching 호출 순서 오류의 원인 범위 조사(2026-10-28, 조사 완료·원인 미확정)
+
+사용자가 조사를 승인하고 AG/S 탭 닫기 요청 당시 이미 닫혀 있어 아무 조작도 하지 않았다고 설명했다. §21의 반복 점프는 탭 닫기 전/후 실험이 아니므로 관련 해석을 정정했다. 이번 단위는 소스 대조와 좁힌 수동 재현 시험이며 코드/에셋을 변경하지 않았다.
+
+### 확인된 경로와 유력 후보
+
+경로는 설치 UE 5.8 `Engine/` 기준이다.
+
+| 확인한 사실 | 소스/현재 설정 | 의미 |
+|:---|:---|:---|
+| 지상 MM 갱신 조건 | `UAFAnimGraph/Private/Traits/BlendByBool.cpp:70`은 TrueChild 유효·AlwaysUpdate 또는 `FAnimWeight::IsRelevant`일 때만 갱신 큐에 추가 | 현재 AlwaysUpdateTrueChild=false이므로 지상 가중치≤0.00001이면 MM 갱신 생략 가능 |
+| 자식 제거 조건 | `BlendSmoother.cpp:164`는 가중치≤0일 때만 blend 종료·자식 제거 | **0보다 크고0.00001 이하**인 자식은 유효한 채 남을 수 있음 |
+| 포즈 평가 방문 조건 | `BlendByBool.cpp:97`은 양쪽 자식 핸들을 반환. `TraitInterfaces/IEvaluate.cpp:181~187`은 유효 핸들을 가중치 검사 없이 방문 | 위 구간에서 PreUpdate를 건너뛴 MM에 PostEvaluate가 도달할 수 있는 코드 경로가 존재 |
+| 오류 검사 방식 | `UAFPoseSearch/Private/MotionMatchingTrait.cpp`의 PreUpdate는 bool을 false, PostEvaluate는 true로 변경하며 이미 true이면 이번 오류를 출력. 초기값도 true | 검사값은 프레임 번호가 아님. 갱신 누락·첫 평가 전 갱신 누락·중복 평가를 로그 한 줄만으로 구분할 수 없음 |
+| 현재 공중 분기 | MM→Bool True, Fall_Loop→False, 조건=bOnGround. 양쪽 블렌드0.25초·HermiteCubic. MM 출력 링크는1개 | 최초 오류가 이륙 후0.231초에 발생한 사실과 블렌드 종료 부근 가설이 양립함. 실제 오류 프레임의 가중치를 증명하지는 않음 |
+
+전체 엔진 경로 접두사는 `Plugins/Experimental/UAF/UAFAnimGraph/Source/` 및 `UAFPoseSearch/Source/`다. 임계값은 `Source/Runtime/Core/Public/Math/VectorRegister.h:133`, 관련성 검사는 `Source/Runtime/Engine/Public/Animation/AnimTypes.h:666`이다. `FAlphaBlend`의 HermiteCubic은 SmoothStep을 사용하며0에 도달하기 전 임계값 아래의 양수 구간이 존재한다. 해당 구간을 실제 최초 오류가 통과했는지는 미측정이다.
+
+AG SHA256은 수정 전 백업과 같다. 설정은 동일 해시의 기존 Export를 재사용했다. ObjectTools의 RigVMPin.DefaultValue 직접 읽기는 지원되지 않아 실패했고 반복하지 않았다. 시험 폰의 명시적 공급 코드는 EvaluateGraph/UpdateGraph를 직접 호출하지 않는다. 기존 구면/Strafe trait도 각 경로에서 상위 PostEvaluate를 한 번 전달한다. 이것만으로 모든 중복 평가·다른 인스턴스·스케줄 문제를 배제하지는 않는다.
+
+### 좁힌 재현 시험
+
+- 시작 시 MCP에서 PIE=false를 확인했다. 사용자에게 새1인 PIE·DebugLocomotion2·AG/S 탭 닫힘 상태에서 약45초 방향을 바꾸며 착지 직후 재점프를 반복하도록 요청했다. 최초 오류 직전 착지→이륙 간격0.295초를 겨냥한 시험이다. 사용자는 방향을 바꾸며 다수 점프를 완료했다고 답했다. 이 답변은 조작 완료 보고이며 시각 이상 없음이라는 명시 답변으로 확대하지 않는다.
+- 새 드라이버 초기화 UTC02:09:35.173부터 캡처 끝02:11:02.006까지 **점프/착지59쌍**, PoseSearch 오류0·LogAnimation Error0·드라이버 오류0·assertion/ensure/fatal0이다. 구간에는 수동 조작 전후 대기도 포함된다. 새 녹화·공격·빌드 없이 PIE=true를 유지했다. 재현되지 않았으므로 최초 오류 해결 판정은 하지 않는다.
+- 근거는 `Saved/AnimationOverhaul/2026-10-28_UAF52OrderInvestigation/`의 SourceAnalysis.json·MotionMatchingOutgoingLinks.txt·RapidJumpBaseline.log/요약이다. 과거 AfterPreviewClosedJump 파일명은 그대로 두되 탭 조작이 없었다는 정정을 추가했다.
+
+### 판정·다음 한 단위
+
+**조사 단위 완료, 최초 오류의 원인 확정/수정은 미완료**다. 유력 후보는 Bool 공중 블렌드 끝의 갱신/평가 임계값 차이이며 엔진 소스에서 그 경로를 확인했다. 실제 발생 인스턴스·가중치·입력 serial이 없어 이번 오류의 직접 원인으로 단정하지 않는다. 공급층 변경 때문이라는 판정이나 UAF No-Go도 내리지 않는다.
+
+다음 제안은 **기존 스파이크 trait에 조건부 진단 로그만 추가하는 구현 단위**다. 바깥 루트의 PreEvaluate에서 유효 MM 자식의 검사 bool이 이미 true인 경우에만 모듈/Owner 경로·입력 serial·Bool 목적 자식·MM 가중치를 남겨 다음 오류와 대응한다. 초기/반복 평가 가능성도 구분할 수 있게 기록한다. 기존 타입을 재사용하고 엔진/에셋·공중 블렌드 정책·AlwaysUpdate 설정을 바꾸지 않는다. 레이아웃 변경이 필요 없는 범위로 제한하며 이전 Live Coding 크래시 이력이 있어 빌드 방법은 구현 시 명확히 정한다. 사용자 진행 확인 전 구현하지 않는다. 진단 후에도 불규칙 재현이면 같은 수동 시험을 무작정 반복하지 않고 얻은 기록에 따라 다음 경로를 선택한다.
+
+## 23. 호출 순서 오류 조건부 진단 구현(2026-10-28, 구현/검증 완료·동일 오류 재현)
+
+사용자 진행 승인으로 기존 `LNPSphericalOffsetRootTrait.cpp`의 PreEvaluate에 진단을 추가했다. 성공 기준은 전체 빌드와 대표 수동 스모크에서 진단 경로를 확인하고, 재발하면 엔진 오류와 같은 인스턴스/serial/가중치를 대응하는 것이다. 오류가 재발하지 않으면 원인 확정·수정 완료로 처리하지 않는다.
+
+- `WITH_EDITOR`·기존 `LNP.Anim.DebugLocomotion>=2`에서만 Bool 자식을 읽는다. 유효한 MM 자식의 `bIsPostEvaluateBeingCalled`가 PreEvaluate 진입에 이미 true일 때만 `[UAFMMOrder]` Warning을 남긴다. MM 검사값·블렌드/검색 상태는 변경하지 않는다.
+- 출력은 host의 전체 UObject 경로·module/MM/root 인스턴스 주소·현재 입력 serial·마지막 루트 적용 serial·지상 여부·목적/현재 자식 index·실제 가중치·엔진 관련성 판정·선택 DB/애니다. MM 자식의 PostEvaluate보다 먼저 기록해 엔진 오류와 대응할 수 있게 한다. 경로는 PIE/미리보기 구분, 포인터는 같은 실행의 인스턴스 대응, serial은 반복 입력 평가/공급 정체 가설을 판단하는 근거다. 이전 적용 serial만으로 엔진 프레임이나 갱신 횟수를 직접 측정한 것은 아니며 DB 없음도 초기화의 확정 증거는 아니다.
+- 새 CVar·타입·구조체 필드/레이아웃·에셋·엔진 변경은 없다. 기본 상위 PreEvaluate 전달과 기존 루트 task 순서는 유지한다. `Animation/AnimTypes.h`를 명시적으로 포함해 실제 FAnimWeight 판정을 출력한다. 정상 상태에서는 로그를 출력하지 않는다.
+- 변경 직전 cpp 사본과 사용자 에셋/시험 BP/AG 해시를 `Saved/AnimationOverhaul/2026-10-28_UAF52OrderDiagnostic/`에 보관했다. 변경 범위 검토는 include1줄과 진단 블록36줄이며 헤더는 이번 단위에서 변경하지 않았다. 진단 구현을 그대로 복제한 테스트를 추가하지 않는다. 필요한 검증은 실제 편집기 빌드와 런타임 상관관계다.
+- 이전 Live Coding 크래시 이력에 따라 이번 cpp 변경도 에디터 종료 후 `LootNPopEditor Win64 Development` 전체 빌드로 확인했다. 사용자의 종료 회신 뒤 권한 확장 환경의 프로세스 검사에서도 에디터 부재를 확인하고 기준 명령을 실행했다. **4 actions·20.50초·Succeeded·종료 코드0**이다. 진단 cpp 컴파일과 lib/dll 링크를 확인했다. Live Coding은 사용하지 않았다. 근거는 같은 폴더의 Build.log·BuildSummary.json이다.
+- 사용자에게 에디터 재실행·TestMap03 준비 확인을 요청했다. AG/S 탭과 PIE는 아직 열지 않도록 안내했다. 시험 GameMode 확인 후 DebugLocomotion2·빠른 재점프 표본을 수동 요청한다. **컴파일만 완료, 런타임 진단 경로는 미검증이며 이번 구현 단위는 미완료**다. 기존 구면 수학/포즈를 바꾸지 않은 진단 추가이므로 과거 수치 회귀를 반복하지 않는다. 실패/재발 기록에 따라 필요한 후속만 진행한다.
+
+### 재실행 설정 확인·수동 시험 요청
+
+- 사용자 재실행 확인 뒤 MCP 읽기 호출에서 PIE=false·GetOpenAssets=[]를 확인했다. TestMap03은 이미 BP_GameModeUAFSpike였다. 이번 재연결에서 설정을 변경/저장하지 않았다. 재시작 후에도 시험 값이라는 사실과 §21의 디스크 해시 차이를 유지하며, 이전의 메모리만 임시 지정했다는 기록을 현재 디스크 복원 상태로 확대하지 않는다. 원래 복원값은 사용자 확인한 BP_LNPGameMode다.
+- DebugLocomotion=0을 확인해 사용자에게 **PIE 시작 전에 2로 설정**한 뒤 새1인 PIE·약45초 방향 전환/착지 직후 재점프·이상 여부 보고·PIE 유지를 요청했다. 열린 AG/S 탭·공격·새 녹화는 필요 없다. 초기 MM 자식의 첫 평가 구간도 기록하기 위해 디버그를 먼저 켠다.
+- 근거는 OrderDiagnostic/RestartSetup.json이다. 현재 사용자 수동 결과 대기·진단 이벤트 실행 미검증이며 최초 오류 해소/단위 완료를 선언하지 않는다.
+
+### 진단 발화·엔진 오류 대응 확인과 이번 단위 종료
+
+- 사용자는 이번 방향 전환/빠른 재점프 시험도 **이상 없음**으로 보고했다. 드라이버 초기화 UTC02:20:10.701부터 캡처 끝02:23:09.429까지 로그상 **점프/착지133쌍**이다. 이 구간에는 조작 전후 대기가 포함되며 요청한45초의 정확한 분모로 해석하지 않는다.
+- **[UAFMMOrder]1회와 기존 PoseSearch 호출 순서 오류1회**가 UTC02:20:42.056·동일 로그 프레임 접두사[967]에서 연속으로 출력됐다. 진단 host는 실제 PIE의 `BP_PlayerUAFSpike_C_0.UAFLocomotion`이다. 이번 재현을 AG/S 미리보기 오류로 해석하지 않는다.
+- 당시 input1691·previousApplied1690, ground0·목적 자식1(Fall_Loop)·현재 자식0(MM), **가중치0.00000220537186·relevant0**이었다. 유효 MM의 검사 bool이 이미 true인 상태를 자식 평가 전에 기록했고 바로 뒤 엔진 PostEvaluate 오류가 발화했다. 직전 착지02:20:41.720→이륙41.889(지상0.169초), 오류는 이륙0.167초 뒤다. 기본0.25초 전환이 중간에 반전될 수 있으므로 고정0.25초 뒤에만 나타나는 문제로 한정하지 않는다.
+- §22의 엔진 코드와 이번 값을 대응하면 **양수이지만 관련성 임계값0.00001 이하인 지상 MM 자식이 제거되지 않은 채, 갱신 큐에서는 제외되고 평가에는 방문하는 경로**가 이번 재현에서 확인된다. 입력 번호/직전 루트 적용 번호만으로 모든 중복 평가 가능성을 전수 배제한 것은 아니지만 이 조건이 같은 오류를 발생시키는 근거를 확보했다. 최초 무진단 이벤트 자체의 인스턴스 식별은 여전히 없으며, 이번에 동일 오류가 실제 PIE에서 해당 경로로 재현됐다는 판정이다.
+- LogAnimation Error·드라이버 오류·assertion/ensure/fatal은0이다. Root177창/9,607진단 프레임(지상4,081·이동7,602), 창 끝 위도−89.48~3.27°, CR 앞 상태/포즈 거리≤30cm·Yaw≤90°·Tilt0°다. 이는 진단 추가 뒤 기능 스모크 근거이며 CR 뒤 포즈 동등성이나 몽타주/ANS 통과를 뜻하지 않는다.
+- 진단 추가 전 기준으로 사용자 에셋4개·시험 BP·AG의 디스크 해시는 모두 그대로다. 새 녹화·추가 소스/에셋 변경·저장·커밋/푸시는 없다. PIE=true·DebugLocomotion2를 유지했다. 원시 근거는 OrderDiagnostic/DiagnosticSmoke.log·DiagnosticSmokeSummary.json·RootWindows·MatchedIncident.log·AfterSmokeHashes.json이다.
+
+**조건부 진단 구현·전체 빌드·런타임 발화 검증 단위는 완료**다. 오류를 수정하거나 억제하지 않았고5-2/Go-NoGo는 보류다. 다음 제안은 **평가에 남아 있는 자식이 갱신에서만 빠지지 않도록 프로젝트 안에서 최소 보정하는 구현/재검증 단위**다. 기존 자식 수명·공중 Fall_Loop과0.25초 블렌드 정책을 유지하며 엔진 포크나 MM 전체 공중 상시 갱신을 기본 해법으로 택하지 않는다. 구체 구현은 해당 단위에서 확인하고 사용자 진행 승인 전 수정하지 않는다. 다음 수동 시험에서는 같은 빠른 재점프로 진단/엔진 오류와 기능 회귀를 함께 확인한다.
+
+## 24. Bool 블렌드의 유효 자식 갱신 누락 보정(2026-10-28, 구현/검증 완료)
+
+사용자 승인으로 §23에서 재현한 경계 조건의 보정을 구현한다. 성공 기준은 전체 빌드/AG 연결과, 같은 빠른 재점프에서 **보충 갱신의 실제 실행·기존 순서 오류0·사용자 기능 회귀 없음**을 함께 확인하는 것이다. 보정 분기가 실행되지 않은 무오류 표본만으로 수정 검증을 완료하지 않는다.
+
+- 신규 `LNPUAFBoolBlendUpdateTrait.h/.cpp`의 빈 공유 타입과 additive 트레이트는 Bool 스택에 추가할 `LNP Bool Blend Update`다. 자식 생성/제거·블렌드 가중치/시간·조건을 바꾸지 않으며 별도 인스턴스 상태/CVar는 없다.
+- 설치 엔진 `IUpdate.cpp:234`와 실제 순회는 IUpdateTraversal을 각 트레이트에 따로 호출하고 상위로 전달하지 않는다고 명시한다. 보정은 기본 Bool을 대체/재호출하지 않고 **기본 큐에서 제외된 유효 자식만** 추가한다. True 가중치·False의1-True·관련성/AlwaysUpdate 조건과 PreviousChildIndex/bWasRelevant를 그대로 읽어 중복 등록을 피하고 BlendingOut/NewlyRelevant를 유지한다. 자식이 제거되면 보정에서도 갱신하지 않는다. 가중치0에서도 DeltaTime0 등으로 유효 핸들이 남는다면 같은 원칙을 적용한다.
+- `UAFAnimGraph/Internal` include 경로를 Build.cs에 추가했다. Bool 공유/인스턴스 타입에 대한 UE5.8 내부 의존성이므로 엔진 갱신 시 재검토한다. 기존 DebugLocomotion2에서 실제 보충 때만 `[UAFBoolUpdate]`로 host·자식/목적·가중치·NewlyRelevant를 기록한다. §23 진단/엔진 오류는 유지한다. 엔진·기본 캐릭터/ABP·공유 입력·공중 상시 MM 유지 정책은 변경하지 않는다.
+- 시작 시 PIE=false를 확인했다. AG/Build.cs 사본과 사용자 에셋4개·시험 BP/AG의 해시는 `Saved/AnimationOverhaul/2026-10-28_UAF52BoolUpdateFix/`에 보관했다. 소스 준비 뒤 해당 에셋 해시는 모두 그대로이며 AG는 아직 수정하지 않았다.
+- UAF 트레이트 추가용 MCP 도구가 없고 ControlRig 도구는 ControlRigBlueprint 전용이다. 빌드 후 **기존 Blend By Bool 노드 선택→Details Add Trait→LNP Bool Blend Update 추가→Compile/Save**를 수동 요청한다. 기존 스택/연결은 유지한다. GUI 한 번이 더 효율적이므로 도구/스크립트를 만들지 않는다.
+- 새 타입 때문에 에디터 종료 후 기준 Development 전체 빌드를 수행한다. 현재 작업 저장·에디터 종료 회신을 요청한 상태이며 **종료 확인/빌드 대기·이번 단위 미완료**다. 종료 확인 전 빌드하지 않는다. 재실행 후 수동 연결·설정 확인·빠른 재점프까지 같은 단위에서 이어간다.
+
+### 전체 빌드 완료·AG 추가 요청
+
+- 사용자의 종료 회신 직후 프로세스 검사에서 LootNPop 에디터가 아직 남아 첫 호출은 Build.bat 시작 전에 차단됐다. 실제 프로젝트 명령행을 확인한 뒤 잠시 기다렸고 해당 프로세스가 정상 종료된 것을 확인했다. 강제 종료는 하지 않았다. 종료 전 빌드 시도나 컴파일 실패로 해석하지 않는다.
+- 실제 전체 빌드 직전 LootNPop 프로세스 부재를 다시 확인했다. 새 파일/UHT 처리와 보정 cpp 컴파일·lib/dll 링크를 포함해 **15 actions·58.89초·Succeeded·종료 코드0**이다. Live Coding은 사용하지 않았다. BoolUpdateFix/ShutdownGuard.json·Build.log·BuildSummary.json이 근거다.
+- 사용자에게 에디터 재실행 후 기존 Bool 노드의 Details/Add Trait에서 **LNP Bool Blend Update를 한 번 추가→Compile/Save→AG 탭 닫기**를 요청했다. 기존 트레이트/연결은 유지하고 PIE는 아직 시작하지 않도록 안내했다. 현재 수동 완료 회신 대기이며 AG 연결·보충 갱신 실행·회귀 검증은 남아 있다. **이번 단위 미완료·5-2/Go-NoGo 보류**다.
+
+### AG 수동 추가 보고·실행 시험 요청
+
+- 사용자가 추가 완료를 보고했다. 재연결 읽기에서 PIE=false·GetOpenAssets=[]·시험 GameMode·DebugLocomotion0을 확인했다. AG 디스크 SHA256은 `5EFF88E13FEA53D4639517802ACB04D3E8EADA7A166789301CFFD793FCD9EBDC`로 변경됐고 저장 후 사본을 보관했다. 사용자 에셋4개·시험 BP는 보정 전 해시와 같다.
+- ObjectTools의 TraitRootPinNames 직접 읽기는 지원되지 않아 실패했다. 반복/추가 도구를 만들지 않고 사용자 추가/Compile/Save 보고와 실제 `[UAFBoolUpdate]` 발화를 함께 연결 근거로 삼는다. 아직 발화 전이므로 트레이트 연결을 독립 검증 완료로 표기하지 않는다.
+- 사용자에게 PIE 시작 전 DebugLocomotion2를 켜고 새1인 PIE·약60초 방향 전환/빠른 재점프·중간 정지/큰 룩 회전·이상 여부 보고·PIE 유지를 요청했다. 새 녹화/공격은 필요 없다. 현재 수동 결과 대기·이번 단위 미완료다. 설정/해시 근거는 BoolUpdateFix의 SetupReads.json·AfterAGSetupHashes.json이다.
+
+### 보충 갱신의 실제 실행·회귀 검증과 종료 판정
+
+- 사용자는 방향 전환/빠른 재점프/정지/큰 룩 회전에서 **이상 없음**으로 보고했다. PIE 시작 전 Debug2 입력을 로그로 확인했다. 드라이버 초기화 UTC02:44:51.677부터 캡처 끝02:46:23.704까지 **점프/착지67쌍**이다. 조작 전후 대기까지 포함한 캡처이며 요청60초의 정확한 분모는 아니다.
+- 실제 PIE `BP_PlayerUAFSpike_C_0.UAFLocomotion`에서 **[UAFBoolUpdate]2회**를 확인했다. 두 표본 모두 child0(MM)·destination1(Fall_Loop)·NewlyRelevant0이며 가중치는 각각 **0.00000011920929·0.000000655651093**이다. 둘 다 기본 관련성 임계값0.00001 이하인 양수라 기존 Bool에서 빠지는 자식을 보정이 갱신한 표본이다. 사용자 추가 보고뿐 아니라 실제 실행으로 AG 연결을 확인했다.
+- 이 캡처의 **[UAFMMOrder] 경고0·PoseSearch Error0**이다. PreUpdate/PostEvaluate 순서 오류를 억제하지 않았고 보정이 실제 발화한 상태에서 재현되지 않았다. LogAnimation Error·드라이버 오류·assertion/ensure/fatal도0이다. §23은 같은 임계값 아래 양수 MM 자식에서 진단/오류1회를 재현했으므로 이번 결과는 보정 분기가 한 번도 실행되지 않은 무오류 표본과 구분된다.
+- Root91창/4,925진단 프레임(지상2,168·이동3,665), 창 끝 위도−89.49~−36.77°에서 CR 앞 상태/포즈 거리≤30cm·Yaw≤90°·Tilt0°를 유지했다. 창 합계는 정확한 전체 PIE 프레임 수가 아니며 CR 뒤 포즈/본 동등성·모든 위도 조합 검증으로 확대하지 않는다.
+- 연결 후 기준으로 사용자 에셋4개·시험 BP·AG의 해시는 모두 그대로다. 보정 전 대비 AG만 사용자 추가/저장으로 변경됐고 저장 후 사본을 유지한다. 새 녹화·추가 코드/에셋 수정·맵 저장/원복·커밋/푸시는 없다. PIE=true·Debug2·AG/S 탭 닫힘을 유지했다. 근거는 BoolUpdateFix/FixSmoke.log·FixSmokeSummary.json·FixSmokeRootWindows.json·AfterSmokeHashes.json이다.
+
+**이번 Bool 보정 구현/검증 단위는 관측한 스파이크 조건에서 완료**다. §21 공급 분리 기능 스모크에서 남았던 호출 순서 오류는 §23 재현/원인 경로 확인과 이번 실제 보정 실행/무오류 표본으로 후속 검증을 마쳤다. 모든 그래프·DeltaTime0·NewlyRelevant=true·AlwaysUpdate=true·False 자식 경계의 런타임 전수 검증을 주장하지 않는다. 해당 분기들의 중복 방지/상태 전달은 기본 조건의 여집합을 사용한 코드 대조가 근거다. 이전 무진단 이벤트의 인스턴스를 소급 특정하지도 않는다.
+
+5-2 전체와 최종 Go/No-Go는 계속 미판정이다. 실제 몽타주/GAS/ANS 대상·단일 몽타주 전진은 연결 후 확인한다. 다음 제안은 §20의 **native DefaultSlot 최소 연결**이며 사용자 진행 확인 전 조사/구현을 확장하지 않는다. 기존 보정/진단은 유지해 후속 통합에서도 같은 오류가 다시 생기는지 관찰한다.
+
+## 25. 새 세션 인계·단일 커밋 정리(2026-10-28)
+
+사용자 요청으로 다음 몽타주 단위를 시작하지 않고 문서를 정리한다. Current는 이번에 유지할 구현·검증 요약·바로 다음 작업·승인 경계·에디터/맵 상태·로컬 근거 중심으로 갱신하고, Roadmap의 오래된 Phase5 상태와 누적 중간 상태를 최종 결과로 요약했다. README/Decisions와 프로젝트 공통 설계는 새 확정 결정이나 정식 마이그레이션이 없어 변경하지 않는다.
+
+- 다음 시작점은 §20의 native DefaultSlot 하나 최소 연결이다. 연결 뒤 실제 몽타주/GAS/ANS 메시 선택·단일 몽타주 전진·정상 종료/Stop/교체를 확인한다. 이번 인계/커밋 승인을 그 구현 승인으로 해석하지 않는다. 사용자 새 진행 요청 후 착수한다.
+- 인계 시 읽기 조회는 **PIE=false·GetOpenAssets=[]·DebugLocomotion2·BP_GameModeUAFSpike**다. 재시작/새 PIE 뒤 현재 참조를 새로 확인한다. 맵을 자동 복원/저장하지 않았으며 원래 GameMode는 사용자 확인한 BP_LNPGameMode다. TestMap03 전체를 원복하지 않는다.
+- 이번 커밋 범위는 문서4개·시험 BP/AG2개·스파이크 소스/Build.cs10개로16파일이다. 기존 사용자 변경4개(TestMap03·플레이어 기본 스탯·롱소드 레벨·스폰 설정)는 제외/보존한다. 인덱스와 에셋 해시를 확인하고 최근 커밋의 feat 제목·한국어 항목별 본문 양식을 따른다. Saved 근거는 git 제외이므로 커밋하지 않는다.
+- 기존 전체 빌드/수치 회귀/수동 스모크를 재사용하고 인계만을 위해 새 빌드·PIE·녹화를 반복하지 않는다. Build.cs의 이번 작업 중 발생한 BOM 제거만 기존 인코딩으로 복원해 불필요한 차이를 없앴으며 기능 변경은 없다. 다음 구현·새 채팅 생성·푸시는 수행하지 않는다.

@@ -2,12 +2,15 @@
 
 #include "Animation/UAFSpike/LNPSphericalOffsetRootTrait.h"
 
+#include "Animation/UAFSpike/LNPUAFRootFeedback.h"
 #include "Animation/AnimRootMotionProvider.h"
 #include "Animation/AnimSequence.h"
+#include "Animation/AnimTypes.h"
 #include "AnimationWarpingLibrary.h"
 #include "EvaluationVM/EvaluationVM.h"
 #include "HAL/IConsoleManager.h"
 #include "Math/SpringMath.h"
+#include "Module/AnimNextModuleInstance.h"
 #include "LootNPop.h"
 #include "MotionMatchingTrait.h" // UE 5.8 내부 검색 상태. 숨김 ABP의 DB 태그는 사용하지 않는다.
 #include "OffsetRootBoneTrait.h" // UE 5.8 내부 상태 의존성. 기본 task 구현은 복사하지 않는다.
@@ -107,6 +110,42 @@ namespace UE::UAF
 		FTraitBinding Base;
 		if (Binding.GetStackBaseTrait(Base) && Base.IsValid() && Base.GetTrait()->GetTraitUID() == FOffsetRootBoneTrait::TraitUID)
 			Context.PushScopedInterface<ILNPSpikeRootScope>(Binding);
+#if WITH_EDITOR
+		// MM 자식이 평가되기 전에 검사한다. 엔진의 갱신/평가 검사값은 읽기만 한다.
+		const IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.DebugLocomotion"));
+		FTraitStackBinding SelectorStack;
+		TTraitBinding<IDiscreteBlend> Selector;
+		if (Debug && Debug->GetInt() >= 2
+			&& IHierarchy::GetForwardedStackInterface<IDiscreteBlend>(Context, Binding, SelectorStack, Selector))
+		{
+			FChildrenArray Children;
+			IHierarchy::GetStackChildren(Context, SelectorStack, Children);
+			for (int32 ChildIndex = 0; ChildIndex < Children.Num(); ++ChildIndex)
+			{
+				FTraitStackBinding ChildStack;
+				if (!Children[ChildIndex].IsValid() || !Context.GetStack(Children[ChildIndex], ChildStack))
+					continue;
+				for (uint32 Index = 0; Index < ChildStack.GetNumTraits(); ++Index)
+				{
+					FTraitBinding Candidate;
+					if (!ChildStack.GetTrait(Index, Candidate) || Candidate.GetTrait()->GetTraitUID() != FMotionMatchingTrait::TraitUID)
+						continue;
+					const auto* MotionMatching = Candidate.GetInstanceData<FMotionMatchingTrait::FInstanceData>();
+					if (!MotionMatching->bIsPostEvaluateBeingCalled)
+						continue;
+					const auto Inputs = Binding.GetSharedData<FSharedData>()->GetRootInputs(Binding);
+					const FAnimNextModuleInstance* Module = Context.GetRootGraphInstance().GetModuleInstance();
+					const float Weight = Selector.GetBlendWeight(Context, ChildIndex);
+					const auto& Result = MotionMatching->MotionMatchingState.SearchResult;
+					UE_LOG(LogLootNPop, Warning, TEXT("[UAFMMOrder] phase=PreEvaluate host=%s module=%p mm=%p root=%p input=%lld previousApplied=%lld ground=%d destination=%d child=%d weight=%.9g relevant=%d database=%s animation=%s"),
+						*GetPathNameSafe(Module ? Module->GetObject() : nullptr), Module, MotionMatching, Binding.GetInstanceData<FInstanceData>(),
+						Inputs.UpdateSerial, Binding.GetInstanceData<FInstanceData>()->LastAppliedSerial, Inputs.bOnGround,
+						Selector.GetBlendDestinationChildIndex(Context), ChildIndex, Weight, FAnimWeight::IsRelevant(Weight),
+						*GetNameSafe(Result.SelectedDatabase), *GetNameSafe(Result.SelectedAnim));
+				}
+			}
+		}
+#endif
 		IEvaluate::PreEvaluate(Context, Binding);
 	}
 
@@ -224,14 +263,18 @@ namespace UE::UAF
 		FLNPFinalizeSphericalOffsetRootTask Finalize;
 		Finalize.RootState = Task.RootState;
 		Finalize.bValid = Task.Inputs.bValid;
+		Finalize.InputSerial = Task.Inputs.UpdateSerial;
+		if (FAnimNextModuleInstance* Module = Context.GetRootGraphInstance().GetModuleInstance())
+			Finalize.Feedback = &Module->GetOrAddComponent<FLNPUAFRootFeedback>();
 
 		// Strafe 자식이 있으면 그 task 앞에서 준비·Steering을 한 번만 실행한다.
 		const bool bEvaluateRoot = IsSpikeOffsetRootEnabled();
 		if (bEvaluateRoot && !Instance->bPreparationScheduled)
 			Context.AppendTask(Task);
 		IEvaluate::PostEvaluate(Context, Binding);
-		if (bEvaluateRoot)
-			Context.AppendTask(Finalize);
+		// 무효/비활성 상태도 전달해 이전 유효 루트가 공급층에 남지 않게 한다.
+		Finalize.bValid &= bEvaluateRoot;
+		Context.AppendTask(Finalize);
 		const IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.DebugLocomotion"));
 		if (bEvaluateRoot && Debug && Debug->GetInt() >= 2)
 			Context.AppendTask(Inspect);
@@ -447,10 +490,16 @@ void FLNPFinalizeSphericalOffsetRootTask::Execute(UE::UAF::FEvaluationVM& VM) co
 	FTransform RootMotion;
 	if (!bValid || !Keyframe || State.bIsFirstUpdate || State.Alpha <= 0.0f || State.DeltaTime <= 0.0f
 		|| !Provider || !Provider->ExtractRootMotion(Keyframe->Get()->Attributes, RootMotion))
+	{
+		if (Feedback)
+			Feedback->Publish(FTransform::Identity, InputSerial, false);
 		return;
+	}
 	FTransform PoseRoot(Keyframe->Get()->Pose.LocalTransforms[UE::UAF::FReferencePose::RootBoneIndex]);
 	FinalizeSphericalRootRotation(State.SimulatedRotation, PoseRoot, State.MeshComponentTransformWorld.GetRotation());
 	Keyframe->Get()->Pose.LocalTransforms[UE::UAF::FReferencePose::RootBoneIndex] = PoseRoot;
+	if (Feedback)
+		Feedback->Publish(FTransform(State.SimulatedRotation, State.SimulatedTranslation), InputSerial, true);
 }
 
 void FLNPInspectSphericalOffsetRootTask::Execute(UE::UAF::FEvaluationVM& VM) const

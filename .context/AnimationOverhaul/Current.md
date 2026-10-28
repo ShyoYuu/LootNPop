@@ -1,79 +1,63 @@
 # 애니메이션 개선 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: **Phase 5, 5-0 완료·5-1 진행 중. §16~§18 검증 단위와 임시 Actor 정리 완료. 새 세션으로 인계하며 다음 단위는 미착수.**
-> 마지막 갱신: 2026-10-27
+> 현재 작업: **5-0·5-1 완료, 5-2 진행 중. 원본 입력 공급 분리와 Bool 갱신 보정 검증 완료. 다음 native DefaultSlot 최소 연결은 진행 확인 대기.**
+> 마지막 갱신: 2026-10-28
 
-Phase 0·1A·1C·2·3은 완료, 1B는 대기다. **5-1 미완료·5-2 미착수·Go/No-Go 보류**이며 이번 결과를 UAF 마이그레이션 승인으로 해석하지 않는다.
+Phase 0·1A·1C·2·3은 완료, 1B는 대기다. **최종 일곱 게이트·Go/No-Go는 미판정**이며 UAF 마이그레이션 승인으로 해석하지 않는다.
 
 ## 새 세션의 시작점과 승인 경계
 
-1. `CLAUDE.md`·이 폴더의 `README.md`·`Current.md`·`Decisions.md`를 읽고 `phases/Phase05_UAFSpike.md` §2·§18 최종 판정을 확인한다. 전체 게이트를 대응할 때 `Roadmap.md` Phase 5를 추가로 읽는다.
-2. 다음 제안은 **5-1 종료 판정·남은 비교 범위 정리**다. 기존 완료 근거를 최초 조건에 대응하고, 미판정 항목이 5-1 종료에 필요한지 구분해 실제로 필요한 부족 표본/비교만 정한다. 현재 세션에서는 이 단위의 조사·구현을 시작하지 않았다. 새 세션에서 사용자 진행 요청을 받은 뒤 착수한다.
-3. 각 구현 단위가 끝나면 계속 진행할지 확인한다. PIE·Rewind·GUI 수동 조작이 더 빠르면 자동화·시험 장치 추가 전에 즉시 요청한다. 이미 완료한 빌드·녹화를 인계만을 위해 반복하지 않는다.
-4. 사용자가 이번 세션의 인수인계 작성과 단일 커밋을 승인했다. 이후 구현·추가 커밋·푸시는 자동 승인 범위가 아니다. 새 세션/채팅 생성이나 푸시는 하지 않았다.
+1. `CLAUDE.md`·`README.md`·`Current.md`·`Decisions.md`를 읽고 `phases/Phase05_UAFSpike.md` §2·§4·§19~§25를 확인한다. 최종 게이트는 `Roadmap.md` Phase 5가 소유한다.
+2. 이번 요청은 **인계 문서 정리와 단일 커밋**이다. 다음 몽타주 조사/구현은 시작하지 않았다. 새 세션에서 사용자 진행 요청을 받으면 §20의 **native DefaultSlot 하나 최소 연결**부터 이어간다. 기존 Strafe 뒤·Offset Root/발 배치 앞을 후보로 검토하고 첫 in-place 몽타주를 선택한다.
+3. 연결 뒤 실제 UAF/GAS/ANS 대상 메시·단일 몽타주 전진·재생/정상 종료·즉시 Stop/블렌드아웃 Stop/교체를 확인한다. 현재 virtual 메시 조회 결과만으로 해당 계약을 통과시키지 않는다. 다른 슬롯·ANS5종·무기 레이어·루트모션·적/네트워크는 후속 게이트다.
+4. **한 번에 한 구현 단위만 진행하고 완료마다 계속할지 확인한다.** PIE/GUI 수동 조작이 빠르면 즉시 요청한다. 전용 UAF 그래프 편집 MCP가 없으므로 간단한 트레이트 추가는 수동 GUI가 효율적이다. 인계만을 위해 기존 빌드/녹화를 반복하지 않는다.
 
-## 이번 세션 완료 결과
+## 이번 세션에서 확정한 결과
 
-상세 근거·분모·한계는 실행서의 해당 절이 소유한다.
-
-| 단위 | 확인한 결과 | 남은 한계 |
+| 범위 | 결과 | 한계/상세 원본 |
 |:---|:---|:---|
-| §16 ResetRoot/CopyBone | 기본/숨김 ABP CopyBone 두 개의 복사 플래그 모두 false. Chooser PSD52개의 GASP 시퀀스319개와 Fall_Loop의 RefPose 루트 잠금, UAF Preserve Original Root Rotation 확인. 현재 Offset Root 전 루트 복원만을 위한 별도 노드 불필요 | 정적 계약 판정이며 전체 본 포즈 동등성은 미판정 |
-| §17 추가 전환 | Sprint Turns·GaitTransitions·Run Pivot의 PSD 배열/정책/블렌드 전달과 실제 후보 평가 확인. 선택 결과는 Sprint Start·Sprint Loop 유지·Run RL Start | 목표 전환 클립 재생·지속 고속 품질을 확인한 것은 아님. 최신 발 배치 전의 과거 녹화 |
-| §18 기존 이동 패널 | 사용자 관찰 이상 없음. 점프/동일 발판 착지17쌍, 공중26.3초 task10개/CR 없음·재착지27.3초 task12개/마지막 CR 복귀. 실제 패널 라이브 회전 차이10.896426° | 경로상 기울기 변화이며 큰 Yaw와 구분. ForceReset 정확한 한 프레임·17쌍 전체 task 조회는 안 함 |
-| §18 큰 Yaw 발판 | 신규 BP·로컬 Yaw30°/초. 라이브 자세 사이91.274880°·Up 차이0°. 롱소드15초 정지→10초 짧은 걷기/멈춤→5초 정지 관찰 이상 없음. 녹화 약10초 task12개·최종 구면 보정/진단 뒤 CR 실행 | 남극 부근(위도 약−85.46°)·현재 롱소드 기준. 라이브 회전은 녹화 프레임과 동기화하지 않음. 적도 큰 Yaw·총기 카메라 유지 분기는 미검증 |
+| 5-1 종료 | 최초 최소 기능 조건을 기존 근거에 대응해 완료 판정 | 최종 품질 동등성은 별도. 모든 본 수치 일치·특정 전환 클립 강제 선택을 새 조건으로 추가하지 않음. §19 |
+| 5-2 연결 경로 조사 | 기본 Montage/Notify/GAS의 메시 선택과 일반 ABP 평가 충돌 확인 | 기본 Montage Trait는 아직 연결 전. §20 |
+| 원본 공급 분리 | 시험 BP 재부모화·숨김 일반 평가 끔·명시적 입력/루트 피드백, 남극 부근/적도 수동 관찰 이상 없음 | GAS ActorInfo/UAF 몽타주/ANS 실제 저장 대상은 연결 후 확인. §21 |
+| MM 순서 오류 | 실제 PIE에서 임계값 이하 양수 MM 자식의 갱신 누락/평가 잔류 재현. 보정 전133쌍 중 진단/오류1회 | 최초 무진단 이벤트의 인스턴스는 소급 특정하지 않음. 탭 닫기 요청 때 이미 닫혀 있었으므로 전/후 실험도 아님. §22~§23 |
+| Bool 보정 | 기본 큐에서 빠진 유효 자식만 보충. **점프/착지67쌍·실제 보충2회·진단/PoseSearch 오류0·사용자 이상 없음** | DeltaTime0·NewlyRelevant=true·AlwaysUpdate=true·False 자식 경계·모든 그래프의 런타임 전수 검증은 아님. §24 |
 
-- 기존 패널 녹화 Root 창68개/2,661프레임 중 지상/base2,147·공중514, CR 앞 거리≤30cm·Yaw≤90°·Tilt0°. 첫 창 제외 안정 탑승30창/1,167프레임 최대 거리0.143cm다.
-- 큰 Yaw 녹화 Root 창41개/1,846프레임은 모두 지상/base이며 CR 앞 거리≤30cm·Yaw≤88°·Tilt0°다. 마지막 정지6창은 최대 거리0cm·Yaw0.16°다. 창 합계를 정확한 녹화 전체 프레임 수로 해석하지 않는다.
-- `maxBaseDeg`는 Mover가 Actor에 적용한 based 델타이며 발판 자체의 전체 회전각이 아니다. 모든 `[UAFRoot]` 수치는 **CR 앞** 진단이다. CR 뒤 전체 본 포즈 수치나 완전 동등성으로 확대하지 않는다.
-- 큰 Yaw 시험의 총기/롱소드 차이는 사용자 관찰이다. 총기는 카메라 방향을 유지하려고 제자리 회전을 반복한다고 보고했으며 이를 결함으로 판정하지 않았다. 무기 레이어/몽타주/ANS 계약 통과 근거도 아니다.
+- 최신 Development 전체 빌드: **15 actions·58.89초·Succeeded·종료 코드0**. 원본 공급층 전체 빌드14 actions·98.10초와 기존 구면 수치 회귀1/1(오류/경고0)은 이전 근거다. Live Coding은 사용하지 않았다.
+- 최종 보정 시험 Root91창/4,925진단 프레임에서 CR 앞 거리≤30cm·Yaw≤90°·Tilt0°를 유지했다. 창 합계를 정확한 전체 PIE 프레임 수로 해석하지 않는다. CR 뒤 본별 포즈 동등성이나 모든 위도 조합의 근거가 아니다.
+- 최종 PSD/포즈 품질 비교·지속 고속/전환·무기 통합·몽타주/ANS·적/네트워크·Mover 루트모션·최종 일곱 게이트는 남아 있다. 기존 Foley 이벤트 미처리 경고도 유지한다. 성능은 측정하지 않았다.
 
-## 유지한 구현과 현재 에디터 상태
+## 유지할 구현과 에셋
 
-- 숨김 `ABP_SourceUAFSpike`가 Chooser 다중 PSD·Mover 궤적·상태를 공급하고 UAF가 VisualMesh의 UEFN 포즈를 평가한다. locator는 `Current Actor → VisualMesh`, UAF PrePhysics는 숨김 메시 뒤에 실행된다.
-- AG 흐름: MM/Fall_Loop Bool + Pose History → Passthrough/Strafe/입력 어댑터 → Offset Root/최종 구면 보정 → **Control Rig(v2)/Passthrough Blend → Output**. 기존 B0·공중 고정·Strafe/Steering 계약을 유지한다.
-- 발 배치는 기존 `/Game/Characters/ControlRigs/CR_Biped_FootPlacement_UEFN`을 수정 없이 참조한다. 지상 Bool 알파·진입0.3/해제0.2초, DoRaycast=true·UseIKBoneTargets=false, 최초 활성/착지/재활성 ForceReset 공급, moving base의 핀 고정·루트 감쇠 억제를 유지한다. §15와 직전 커밋이 구현/전체 빌드 근거를 소유한다.
-- 사용자가 에디터 재시작 후 `AG_LocomotionSpike`와 임시 발판의 Unsaved 항목을 저장했다. 현재 AG를 읽기 전용 Export해 발 배치 연결11개(입력9/포즈2)·공개핀10개·v2/Legacy 없음·Bool 알파·0.3/0.2초·레이캐스트/IK/루트 회전 보존 설정이 기존 계약과 일치함을 확인했다. **재저장된 AG를 원복하지 않고 이번 커밋에 포함한다.** HEAD와의 완전한 의미 동등성이나 재시작 후 새 PIE 포즈 시험을 주장하지 않는다.
-- 신규 `/Game/Characters/UAFSpike/BP_UAFYawTestPlatform`은 StaticMeshActor·Cube1600×1600×30cm·Movable·LNPDynamicTerrain 충돌·물리/중력 시뮬레이션 끔·기본 RotatingMovement 로컬 Yaw30°/초다. 재사용할 BP만 유지한다. PIE Python 스폰은 API 미노출로 생성 전에 실패해 중단했고 `Scripts/AnimOverhaul/SpawnUAFYawTestPlatform.py`는 제거했다. 재시도하지 않는다.
-- **정리 완료:** `EditorPlacement.json`의 정확한 `UAFYawTestPlatform_Temporary` Actor를 제거했고 조회 결과 빈 배열이다. 저장됐던 외부 Actor 파일도 해당 빈 패키지만 save_packages로 처리해 삭제 확인했다. 재배치 없이 과거 Teleport 명령을 실행하지 않는다. 맵 전체를 저장/원복하지 않았다.
-- 마지막 조회는 **PIE=false·Slate observer 해제**다. Rewind에는 `20261027_163122363.utrace` 약10초의 UAF EvaluationProgram이 표시돼 있었으며 사용자도 파일/시점을 확인했다. 다음 세션은 과거 widget/object ref를 재사용하지 않는다.
-- 재시작 후 CVar는 FootPlacement1·FootPlacementOnMovingBase0·Steering1·StrafeWarping1·DebugLocomotion0이다. FootPlacement 비교는 `LNP.Anim.FootPlacement`, Steering/Strafe는 `LNP.UAFSpike.*`다.
-- TestMap03의 GameMode Override는 `BP_GameModeUAFSpike` 임시 설정이다. 기존 사용자 맵 변경과 섞여 있으므로 전체 원복하지 않는다. 다른 체크아웃에서는 다시 지정한다. 5-1 종료 시 원래 값은 기록돼 있지 않으므로 사용자 기준값을 먼저 확인한다.
+- 시험 BP `/Game/Characters/UAFSpike/BP_PlayerUAFSpike`의 부모는 `/Script/LootNPop.LNPUAFSpikePlayerCharacter`다. AnimSourceMesh는 기존 `ABP_SourceUAFSpike`·일반 평가=false·AlwaysTickPoseAndRefreshBones다. 정확한 SkeletalMeshComponent 질의만 원본 메시를 반환하고 다른 질의는 Super에 위임한다. 기본 플레이어/적 클래스는 바꾸지 않았다.
+- 시험 폰이 몽타주 전용 초기화와 프로젝트 Native 초기화/슬롯 그룹을 준비하고 PrePhysics 틱에서 기존 B0/공유 입력을 공급한다. GFrameCounter 가드는 프레임당 최대 한 번 공급한다. UAF PrePhysics는 폰 공급 틱 뒤에 의존한다. 두 serial 표본만으로 매 게임 프레임 공급률을 전수 측정했다고 주장하지 않는다.
+- 루트 평가 task의 완료 상태를 모듈 피드백에 기록한다. 게임 스레드는 UAF ReadComponent와 잠금으로 사본만 읽어 기존 OffsetRootTransform/bHasOffsetRoot를 갱신한다. FutureFacing/Aim은 이 CR 앞 UAF 루트를 기준으로 삼는다. 워커 trait 상태 포인터를 게임 스레드에서 직접 읽지 않는다.
+- AG 흐름: **MM/Fall_Loop Bool + Pose History + LNP Bool Blend Update → Passthrough/Strafe/입력 어댑터 → Offset Root/최종 구면 보정 → Control Rig(v2)/Passthrough Blend → Output**. locator는 Current Actor→VisualMesh다. 기존 구면 CR·0.3/0.2초 Bool 알파·착지 리셋/발판 정책은 유지한다.
+- Bool 보정은 기본과 같은 가중치/AlwaysUpdate/관련성 및 BlendingOut/NewlyRelevant 조건을 읽어 기본이 제외한 유효 자식만 추가한다. 기본 큐와 중복 등록하지 않고 자식 수명/가중치/블렌드를 바꾸지 않는다. DebugLocomotion2에서 `[UAFBoolUpdate]`가 실제 보충을 기록한다. `[UAFMMOrder]` 진단과 엔진 오류 검사도 억제하지 않았다.
+- UAF/Internal·UAFAnimGraph/Internal·UAFWarping/Private·UAFPoseSearch 내부 API 의존성이 있다. UE 버전 갱신 시 재검토한다. 새 타입/trait 레이아웃 변경은 에디터 종료 후 전체 빌드한다. 과거 Live Coding은 완료 알림 Slate/mimalloc 경로에서 크래시했으며 원인은 미확정이다(§14).
+- 현재 AG는 사용자가 보정 트레이트를 한 번 추가/Compile/Save한 버전이다. SHA256은 `5EFF88E13FEA53D4639517802ACB04D3E8EADA7A166789301CFFD793FCD9EBDC`다. 과거 AG 백업으로 덮어쓰지 않는다. 시험 Yaw 발판 BP는 유지하되 과거 임시 Actor/외부 파일은 정리돼 있다. 재배치 없이 이전 Teleport 명령을 실행하지 않는다.
 
-## 미판정 항목과 다음 판정의 주의점
+## 인계 시 에디터와 맵 상태
 
-- 본별 포즈/샘플별 보정의 완전 동등성, 목표 전환 클립 실제 재생·지속 고속 품질, 적/네트워크·무기 레이어/몽타주/ANS·루트모션 및 최종 일곱 게이트가 남는다. 이 목록 전부를 새 시험의 필수 교차 조합으로 자동 확대하지 않고 다음 단위에서 최초 조건과 대응한다.
-- 공중 해제·착지 복귀는 코드/배선/관찰과 task로 확인했지만 ForceReset=true 정확한 한 프레임은 직접 조회하지 않았다.
-- 기존 Foley 이벤트 미처리 경고가 남는다. 큰 Yaw 구간 LogAnimation Error0·assertion/ensure/fatal0과 구분한다. 녹화 종료 직후 LogTrace error64는 실제 저장된 과거 task 조회가 성공한 사실과 함께 기록했고 억제하지 않았다.
-- 숨김 ABP와 UAF가 함께 평가되는 중간 구성이다. 이번 기록으로 성능을 비교하지 않는다.
+- 마지막 읽기 조회는 **PIE=false·열린 에셋 없음·DebugLocomotion2**다. 재실행/새 PIE 뒤에는 상태와 실제 runtime ref를 새로 읽는다. 과거 Rewind/widget/인스턴스 ref를 재사용하지 않는다. 새 녹화는 없다.
+- TestMap03의 현재 GameMode Override는 **BP_GameModeUAFSpike**다. §21에서 메모리만 바꾼 뒤 나중에 디스크 해시가 달라졌고, 재시작 후에도 시험 값인 것을 확인했다. 경위는 미확정이며 에이전트가 이번 인계에서 맵을 저장/원복하지 않았다.
+- 사용자 확인한 원래 값은 **`/Game/Gameplay/BP_LNPGameMode.BP_LNPGameMode_C`**다. 시험 종료 정리 때 해당 속성만 복원하고 다른 사용자 맵 변경을 유지한다. 이번 커밋에는 TestMap03을 포함하지 않는다. 새 세션 시작 시 시험 GameMode를 그대로 사용할지 확인한다.
+- 직접 조회가 지원되지 않는 RigVMPin.DefaultValue/TraitRootPinNames/AnimScriptInstance를 반복 호출하지 않는다. 간단한 GUI 추가와 실제 실행 로그를 사용했고, 필요할 때 사용자 읽기 전용 Python으로 인스턴스 경로를 확인했다. 새 자동화 도구를 만들지 않는다.
 
-## 로컬 근거와 조회 경로
+## 로컬 근거와 커밋 범위
 
-`Saved`는 git 제외이므로 다른 체크아웃에 따라가지 않는다. 같은 로컬 프로젝트에서 아래 파일을 읽고 필요할 때만 녹화를 다시 연다.
+`Saved`는 git 제외이므로 다른 체크아웃에 따라가지 않는다. 같은 로컬 프로젝트에서는 아래 원본을 재사용한다.
 
-| 기록 | 위치/용도 |
+| 폴더(`Saved/AnimationOverhaul/` 아래) | 근거 |
 |:---|:---|
-| ResetRoot/CopyBone | `Saved/AnimationOverhaul/2026-10-27_ResetRootCopyBone/`의 ContractInspection·MainNodePins·FallLoopAndGraph JSON |
-| 추가 전환 | `Saved/AnimationOverhaul/2026-10-27_AdditionalTransitions/`의 Targets·SprintTurns·GaitTransitions·RunPivot JSON. 녹화는 실행서 §17 |
-| 패널 점프/착지 | `Saved/RewindDebugger/RewindDebugger-LootNPop-Editor-20261027_153613941.utrace`(148,240,307바이트·약68.452초), `Saved/AnimationOverhaul/2026-10-27_BaseJumpRotation/`의 로그/집계·라이브 자세·공중/지상 task JSON |
-| 큰 Yaw 롱소드 | `Saved/RewindDebugger/RewindDebugger-LootNPop-Editor-20261027_163122363.utrace`(109,352,237바이트·약41.469초). `Saved/AnimationOverhaul/2026-10-27_YawPlatform/`의 Setup·LiveYawRotation·YawRecordSummary·RewindYawTasks·Cleanup JSON, YawRecord.log |
-| AG 재시작 검사·백업 | 위 YawPlatform의 `AfterRestart/`: 현재 AG·커밋 전 HEAD·외부 Actor 백업, AG_CurrentExport.txt·AGContractInspection·AGExposedPinsInspection JSON |
-| 직전 발 배치 근거 | `Saved/AnimationOverhaul/2026-10-26_UAFFootPlacement/`, `Saved/AnimationOverhaul/2026-10-26_PreFootPlacement/`. 경사/적도 녹화 `20261026_201850667.utrace`·35초 공중/40초 지상. 과거 발판 입력 녹화 `20261026_202321824.utrace`·5초 |
+| `2026-10-27_UAF51Closure/` | 5-1 종료·당시 GameMode 복원과 맵 백업/해시 |
+| `2026-10-27_UAF52MontageInvestigation/` | 몽타주/ANS 메시 선택·초기화 조사 |
+| `2026-10-27_UAF52SourceDriver/` | 공급층 전체 빌드·BP 설정/백업·구면 수치 회귀 |
+| `2026-10-28_UAF52DriverSmoke/` | 남극 부근/적도 공급 스모크·serial·현재 디스크 맵 사본 |
+| `2026-10-28_UAF52OrderInvestigation/`·`2026-10-28_UAF52OrderDiagnostic/` | 소스 경로 대조·오류 재현/MatchedIncident·진단 빌드 |
+| `2026-10-28_UAF52BoolUpdateFix/` | 보정 빌드·AG 전후 사본·FixSmoke 로그/요약·보존 해시 |
 
-- 실제 task는 `UAFLocomotion → S_LocomotionSpike → UAFAnimGraph_* → AG_LocomotionSpike → EvaluationProgram → Tasks`, 공유 입력은 상위 AG의 Native Properties에서 읽는다. 빈 Details나 새 PIE 뒤 빈 트랙을 기록 부재로 해석하지 않는다.
-- 이번 사용자 AG 재저장 전 기준 커밋은 `31d40d6`이다. 위 백업과 읽기 전용 검사 자료를 사용하며 필요 없이 파일을 덮어쓰지 않는다.
-
-## 커밋 범위·보존 대상·빌드 주의
-
-- 이번 인계 커밋 범위는 문서4개(Current·Roadmap·Phase05 실행서·이력), 검사 후 유지한 AG, 신규 Yaw 시험 BP다. 이번 세션에서 C++/엔진/기존 CR·Chooser·PSD·GASP 소스는 변경하지 않았다.
-- **기존 사용자 변경4개는 보존하고 커밋에서 제외한다:** `Content/Maps/TestMap03.umap`, `Content/Gameplay/DT_PlayerBaseStats.uasset`, `Content/ItemData/Weapons/Levels/DT_LongSword_Levels.uasset`, `Content/SpawnData/DA_MassSpawnConfig_TestOnePerSpecies.uasset`. 정리 후 해시가 저장 전과 모두 일치한다(`YawPlatform/Cleanup.json`). 다음 세션에서 이 파일들이 수정 상태로 남아 있어도 실패나 누락으로 해석하지 않는다.
-- 직전 §15의 Development 전체 빌드는8 actions·43.72초·종료 코드0이었다. 이후 C++ 변경이 없어 재빌드하지 않았다. 이번 BP는 컴파일·설정 재조회·수동 실행 검증을 완료했고 문서 diff 검사를 수행했다.
-- 구조체/trait 레이아웃을 바꾸면 에디터 종료 후 전체 빌드를 우선한다. 앞선 Strafe Live Coding은 완료 알림 Slate/mimalloc 경로에서 크래시했고 원인은 미확정이다(§14). Build.bat은 처음부터 권한 확장, `LootNPopEditor Win64 Development <uproject> -WaitMutex -NoHotReloadFromIDE`. 전체 빌드와 Live Coding은 동시에 돌리지 않는다.
-- GASP 참조 에디터는 불필요하며 쓰기 금지다(AN-009·AN-018). 소스 확보/리타깃 재생성은 README §4와 Phase01C/Phase02를 따른다.
-
-## 다른 트랙
-
-- ISKM 총기 적 재베이크는 `TechDesign_EnemyNPC_LowLOD.md`의 미해결 절이며 Phase 5와 독립이다.
-- 1B 마커리스 모캡은 플러그인 설치·영상 선택 후 별도 착수(AN-010), Locomotor 사족 드론은 최후순위 별도 트랙(AN-008)이다.
-- 한 번에 한 세션만 진행한다. 새 세션은 위 다음 단위부터 이어가고 이 세션에서 추가 구현하지 않는다.
+- 사용자 요청으로 문서4개·시험 BP/AG2개·스파이크 소스/Build.cs10개의 **16파일을 한 커밋**으로 정리한다. 최근 프로젝트의 `feat: … 및 새 세션 인계` 제목과 한국어 항목별 본문을 따른다. 푸시는 하지 않는다.
+- **기존 사용자 변경4개는 제외/보존한다:** `Content/Maps/TestMap03.umap`, `Content/Gameplay/DT_PlayerBaseStats.uasset`, `Content/ItemData/Weapons/Levels/DT_LongSword_Levels.uasset`, `Content/SpawnData/DA_MassSpawnConfig_TestOnePerSpecies.uasset`. §24 전후 해당4개와 시험 BP의 해시가 같고 AG만 보정 추가로 변경됐다. 맵 전체 원복이나 자동 포함은 하지 않는다.
+- Build.bat/cook/package는 처음부터 권한 확장 실행한다. 기준은 `LootNPopEditor Win64 Development <uproject> -WaitMutex -NoHotReloadFromIDE`이며 전체 빌드/Live Coding을 동시에 사용하지 않는다. 종료 회신 직후 프로세스가 남아 있으면 종료 완료를 확인하고 빌드한다. 강제 종료하지 않는다.
+- GASP 소스/참조 에디터는 쓰기 금지다(AN-009·AN-018). 소스 반입/리타깃은 README §4를 따른다. ISKM 총기 재베이크·1B 모캡·Locomotor는 별도 트랙이다.

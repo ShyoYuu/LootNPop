@@ -61,7 +61,7 @@ struct LOOTNPOP_API FLNPUAFSpikeInputs
 	FLNPUAFSpikeFootPlacementInputs FootPlacement;
 };
 
-/** 숨김 ABP의 기존 공급값을 UAF 표시 메시 시험에 전달한다. 기본 플레이어에는 사용하지 않는다. */
+/** 기존 공급값을 UAF 표시 메시 시험에 전달한다. 명시적 드라이버에서는 숨김 그래프를 평가하지 않는다. */
 UCLASS()
 class LOOTNPOP_API ULNPUAFSpikeAnimInstance : public ULNPAnimInstance
 {
@@ -69,6 +69,8 @@ class LOOTNPOP_API ULNPUAFSpikeAnimInstance : public ULNPAnimInstance
 
 public:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+	void InitializeExplicitDriver();
+	void UpdateFromDriver(float DeltaSeconds);
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|UAFSpike")
@@ -78,10 +80,21 @@ protected:
 	TObjectPtr<UUAFAnimGraph> SpikeGraph;
 
 private:
+	void UpdateInputs(float DeltaSeconds);
+
 	TWeakObjectPtr<UUAFComponent> CachedUAFComponent;
 	bool bUAFDependencyAdded = false;
 	bool bHasReportedInputs = false;
 	bool bLastInputsSucceeded = false;
 	bool bWasFootPlacementEnabled = false;
+	uint64 LastDrivenFrame = MAX_uint64;
+
+	UPROPERTY(VisibleAnywhere, Category = "LNP|UAFSpike")
+	bool bExplicitDriver = false;
+
+	UPROPERTY(VisibleAnywhere, Category = "LNP|UAFSpike")
 	int64 RootInputSerial = 0;
+
+	UPROPERTY(VisibleAnywhere, Category = "LNP|UAFSpike")
+	int64 RootFeedbackSerial = 0;
 };

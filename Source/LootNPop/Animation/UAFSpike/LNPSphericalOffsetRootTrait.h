@@ -11,6 +11,7 @@
 #include "LNPSphericalOffsetRootTrait.generated.h"
 
 struct FLNPPrepareSphericalOffsetRootTask;
+struct FLNPUAFRootFeedback;
 
 /** 약 1초 동안 실제 평가한 모든 프레임의 최대값. 기본 꺼짐인 로코모션 디버그에서만 수집한다. */
 struct FLNPUAFRootDebugWindow
@@ -147,6 +148,8 @@ struct FLNPFinalizeSphericalOffsetRootTask : public FAnimNextEvaluationTask
 
 	UE::UAF::FTraitInstanceData* RootState = nullptr;
 	bool bValid = false;
+	FLNPUAFRootFeedback* Feedback = nullptr;
+	int64 InputSerial = 0;
 };
 
 /** 기본 Offset Root 평가 직후 누적 상태와 실제 출력 포즈를 읽는다. 포즈를 바꾸지 않는다. */

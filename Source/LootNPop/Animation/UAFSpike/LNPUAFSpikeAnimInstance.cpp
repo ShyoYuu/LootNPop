@@ -2,6 +2,7 @@
 
 #include "Animation/UAFSpike/LNPUAFSpikeAnimInstance.h"
 
+#include "Animation/UAFSpike/LNPUAFRootFeedback.h"
 #include "ChooserFunctionLibrary.h"
 #include "Component/AnimNextComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -16,6 +17,48 @@
 
 void ULNPUAFSpikeAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
+	if (!bExplicitDriver)
+		UpdateInputs(DeltaSeconds);
+}
+
+void ULNPUAFSpikeAnimInstance::InitializeExplicitDriver()
+{
+	if (bExplicitDriver)
+		return;
+	bExplicitDriver = true;
+	InitializeMontageOnly();
+	// MontageOnly의 초기화는 프로젝트 슬롯 그룹 등록·캐시 초기화를 호출하지 않는다.
+	NativeInitializeAnimation();
+	UE_LOG(LogLootNPop, Log, TEXT("[UAFSpikeDriver] %s source=%s generalAnimation=0"),
+		*GetNameSafe(GetOwningActor()), *GetNameSafe(GetSkelMeshComponent()));
+}
+
+void ULNPUAFSpikeAnimInstance::UpdateFromDriver(float DeltaSeconds)
+{
+	check(IsInGameThread());
+	if (LastDrivenFrame == GFrameCounter)
+		return;
+	LastDrivenFrame = GFrameCounter;
+	UpdateInputs(DeltaSeconds);
+}
+
+void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
+{
+	if (bExplicitDriver)
+	{
+		bHasOffsetRoot = false;
+		if (UUAFComponent* UAF = GetOwningActor()->FindComponentByClass<UUAFComponent>())
+		{
+			const FUAFWeakSystemReference Reference = UAF->GetSystemReference();
+			if (Reference.IsValid())
+			{
+				Reference.ReadComponent<FLNPUAFRootFeedback>([this](TConstStructView<FLNPUAFRootFeedback> Feedback)
+				{
+					bHasOffsetRoot = Feedback.Get().Read(OffsetRootTransform, RootFeedbackSerial);
+				});
+			}
+		}
+	}
 	Super::NativeUpdateAnimation(DeltaSeconds);
 
 	if (!IsLocomotionSource() || !SpikeSystem || !SpikeGraph)
@@ -32,10 +75,13 @@ void ULNPUAFSpikeAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	if (!UAFComponent || !UAFComponent->GetSystemReference().IsValid())
 		return;
 
-	// 숨김 메시의 상태 갱신·포즈 평가가 끝난 뒤 UAF를 실행한다.
+	// 일반 경로는 숨김 메시 뒤, 명시적 드라이버는 폰의 입력 공급 틱 뒤에 평가한다.
 	if (!bUAFDependencyAdded)
 	{
-		UAFComponent->AddComponentPrerequisite(GetSkelMeshComponent(), TEXT("PrePhysics"));
+		if (bExplicitDriver)
+			UAFComponent->AddPrerequisite(GetOwningActor(), GetOwningActor()->PrimaryActorTick, TEXT("PrePhysics"));
+		else
+			UAFComponent->AddComponentPrerequisite(GetSkelMeshComponent(), TEXT("PrePhysics"));
 		bUAFDependencyAdded = true;
 	}
 
