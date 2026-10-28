@@ -52,9 +52,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Gravity")
 	FVector GetUpDirection() const;
 
-	/** 중력 가속도 크기 (cm/s²). 랙돌 바디에 구형 중력을 직접 주입할 때 읽는다. */
+	/** LNP Settings의 공통 중력 가속도 크기 (cm/s²). Mover와 랙돌이 함께 읽는다. */
 	UFUNCTION(BlueprintPure, Category = "LNP|Gravity")
-	float GetGravityStrength() const { return GravityStrength; }
+	float GetGravityStrength() const;
 
 protected:
 	/** 현재 활성화된 중력 모드 */
@@ -68,10 +68,6 @@ protected:
 	/** Fixed 모드의 중력 방향 (기본값은 World 다운) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
 	FVector FixedGravityDirection = FVector::DownVector;
-
-	/** 중력 가속도 크기 */
-	UPROPERTY(EditAnywhere, Category = "LNP|Gravity")
-	float GravityStrength = 2000.0f;
 
 private:
 	/** Owner의 MoverComponent Cache 참조 */

@@ -1024,7 +1024,7 @@ Config의 `ELNPEnemyAttackType` 필드로 교체했다. 원래 이 Stage의 항�
 | 모드 | 처리 |
 |:---|:---|
 | `ActorPromoted` | 기존 그대로 — `TriggerRagdoll()` 방송 + `DeathCountdown = ULNPSettings::EnemyRagdollDuration` |
-| `PureEntity` | 랙돌 방송 없음 + `DeathCountdown = ULNPEnemyConfig::PureEntityDeathDuration` (기본 2.2초) |
+| `PureEntity` | 랙돌 방송 없음 + `DeathCountdown = ULNPEnemyConfig::PureEntityDeathDuration` (기본 5초) |
 
 랙돌은 `ActorPromoted` 전용 연출로 남는다. `PureEntity`가 그냥 사라지지 않는 이유는 행동 상태 채널이
 `Dying`을 전파하고 ISKM이 Death 시퀀스를 재생하기 때문이다 — **트랙 B가 없으면 순수 엔티티는
@@ -1048,7 +1048,8 @@ Config의 `ELNPEnemyAttackType` 필드로 교체했다. 원래 이 Stage의 항�
 ① 엔티티 파괴가 곧 버블 제거라, 복제 LOD의 최장 갱신 주기(0.3초)와 넷 틱 몇 개를 덮지 못하면
 **게스트가 `Dying`을 받기도 전에 적이 사라진다**(일회성 전이라 게이트는 우회하지만 패킷은 한 번 나가야 한다).
 ② 팝의 체공 시간(대략 `2 * PopSpeed / GravityStrength`)보다 짧으면 **시체가 공중에서 사라진다.**
-기본값 조합(2000 / 2000)의 왕복이 2.0초라 소멸 기본값을 1.5 → **2.2초**로 올렸다.
+중력은 `ULNPSettings::GravityStrength`(기본 **980 cm/s²**)를 공유하므로 팝 2000의 왕복은 약 **4.08초**다.
+소멸 기본값은 **5초**로 늘려 이를 덮는다. 승격 개체의 랙돌 지속 시간도 기존 기본값이 5초다.
 `ActorPromoted`는 랙돌 지속이 5초라 이 제약이 드러나지 않는다 — 같은 팝 속도를 쓰려면 소멸 시간도 함께 본다.
 
 ---

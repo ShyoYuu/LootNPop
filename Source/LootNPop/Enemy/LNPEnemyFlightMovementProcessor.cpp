@@ -1,6 +1,7 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Enemy/LNPEnemyFlightMovementProcessor.h"
+#include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
@@ -91,6 +92,7 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	const float GravityStrength = GetDefault<ULNPSettings>()->GravityStrength;
 	if (DeltaTime <= 0.f)
 		return;
 
@@ -158,7 +160,7 @@ void ULNPEnemyFlightMovementProcessor::Execute(FMassEntityManager& EntityManager
 		// 시체의 낙하는 지상 공중 분기와 같은 함수를 쓴다(Phase03c §3.5).
 		LNPEnemyExactMovement::FParams FallParams;
 		FallParams.GravityOrigin = GravityOrigin;
-		FallParams.GravityStrength = MoveConfig.GravityStrength;
+		FallParams.GravityStrength = GravityStrength;
 		FallParams.CapsuleRadius = Config->CapsuleRadius;
 		FallParams.CapsuleHalfHeight = Config->CapsuleHalfHeight;
 

@@ -201,10 +201,6 @@ struct FLNPEnemyMovementConfig
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	float RotationRate = 360.0f;
 
-	/** 중력 가속도 크기 (RadialOutward) */
-	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
-	float GravityStrength = 2000.0f;
-
 	/** 중력 원점 (구형 세계의 중심) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Movement")
 	FVector GravityOrigin = FVector::ZeroVector;
@@ -589,12 +585,12 @@ public:
 	 * 이 시간이 짧으면 게스트가 `Dying`을 받기도 전에 적이 사라져 **소리 없이 소멸한다.**
 	 * `Dying` 전이는 일회성이라 갱신 주기 게이트를 우회하지만, 그래도 패킷이 한 번은 나가야 한다.
 	 *
-	 * ⚠️ **사망 팝의 체공 시간(`2 * PureEntityDeathPopSpeed / GravityStrength`)도 덮어야 한다.**
-	 * 기본값 조합(2000 / 2000)의 왕복이 2.0초라 여유를 두고 2.2초로 잡았다 — 짧게 잡으면
+	 * ⚠️ **사망 팝의 체공 시간(`2 * PureEntityDeathPopSpeed / ULNPSettings::GravityStrength`)도 덮어야 한다.**
+	 * 팝 기본값 2000과 공통 중력 980의 왕복은 약 4.08초라 소멸 기본값을 5초로 둔다 — 짧게 잡으면
 	 * 시체가 **공중에서 사라진다.** `ActorPromoted`는 랙돌 지속이 5초라 이 제약이 드러나지 않는다.
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "0.5"))
-	float PureEntityDeathDuration = 2.2f;
+	float PureEntityDeathDuration = 5.0f;
 
 	/**
 	 * `PureEntity`가 한 방 맞고 움찔하는 시간(초). **경직(Stagger) 시퀀스를 그대로 재활용한다** —
@@ -616,8 +612,8 @@ public:
 	 * 랙돌이 없어도 "맞고 날아간다"는 그림은 남기려는 것이다.
 	 *
 	 * ⚠️ **`PureEntityDeathDuration`이 왕복 시간을 덮어야 한다.** 체공 시간은 대략
-	 * `2 * 이 값 / MovementConfig.GravityStrength`이고, 그보다 소멸이 빠르면 시체가 **공중에서 사라진다.**
-	 * 기본값(2000 / 2000)이면 왕복이 2.0초이고, `PureEntityDeathDuration` 기본값 2.2초가 그것을 덮는다 —
+	 * `2 * 이 값 / ULNPSettings::GravityStrength`이고, 그보다 소멸이 빠르면 시체가 **공중에서 사라진다.**
+	 * 팝 기본값 2000과 공통 중력 980이면 왕복이 약 4.08초이고 `PureEntityDeathDuration` 기본값 5초가 이를 덮는다 —
 	 * 어느 한쪽을 바꾸면 반대쪽도 함께 볼 것.
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Combat", meta = (ClampMin = "0.0"))

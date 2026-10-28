@@ -64,7 +64,7 @@ Chaos Networked Physics(리심 기반 예측)는 과잉 — 굴림은 게임플�
 
 **"AddForce만으로 자연스러운 중력이 되는가" → 된다.** 엔진 내장 중력도 Chaos `PerParticleGravity`가 매 서브스텝 가속도를 더하는 **상수 가속도일 뿐**이라, `bEnableGravity=false`로 내장 -Z를 끄고 매 Tick `AddForce(GravityDir × GravityAccel, bAccelChange=true)`를 주면 **동일한 수학**으로 적분된다. 방향은 Tick당 1회만 갱신되지만 행성 곡률 대비 한 Tick 이동 거리가 미미해 오차는 무시 가능하다.
 
-- 방향은 `ALNPGameState::bIsSphereWorld`(복제)를 보고 산출한다 — 구 내벽 세계는 "바깥쪽 = 아래"(폰 중력과 같은 부호), GameState 미도착 프레임은 평면 중력 폴백. 가속도 `GravityAccel = 2000`은 폰 중력과 같은 값이라 낙하 체감이 통일된다.
+- 방향은 `ALNPGameState::bIsSphereWorld`(복제)를 보고 산출한다 — 구 내벽 세계는 "바깥쪽 = 아래"(폰 중력과 같은 부호), GameState 미도착 프레임은 평면 중력 폴백. 가속도는 매 Tick `ULNPSettings::GravityStrength`(기본 980 cm/s²)를 읽어 폰·NPC·포물선 발사체와 공유한다. LootDice 개별 중력 속성은 없다.
 - 물리 권위는 서버지만, 클라이언트 로컬 물리 블렌딩 품질을 위해 클라이언트에서도 동일한 힘을 적용한다.
 
 ⚠️ **슬립을 깨우지 않는다.** 잠든 바디에 매 Tick 힘을 넣으면 영원히 잠들지 못해 §2.3의 "슬립 후 트래픽 소멸"이 무너진다. `IsAnyRigidBodyAwake()`가 참일 때만 AddForce 한다.

@@ -1,7 +1,13 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Item/LNPWeaponData.h"
+#include "Config/LNPSettings.h"
 #include "LootNPop.h"
+
+float ULNPWeaponData::GetEffectiveProjectileGravity() const
+{
+	return (ProjectileType == ELNPProjectileType::Lobbed) ? GetDefault<ULNPSettings>()->GravityStrength : 0.f;
+}
 
 const FLNPWeaponLevelRow* ULNPWeaponData::FindLevelRow(int32 Level) const
 {

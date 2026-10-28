@@ -209,7 +209,7 @@ protected:
 	 * 평지 점프로는 펼 수 없다 — 정점 = JumpUpwardsSpeed² / (2 × 중력).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Glide", meta = (ClampMin = "0", ForceUnits = "cm"))
-	float MinGlideHeight = 300.0f;
+	float MinGlideHeight = 400.0f;
 
 private:
 	/** OnPreSimulate가 스텝마다 중력을 맞출 때 쓰는 Owner의 중력 Component Cache. */

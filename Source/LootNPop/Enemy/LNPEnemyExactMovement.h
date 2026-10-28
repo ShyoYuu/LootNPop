@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Config/LNPSettings.h"
 
 class ULNPMassWorldCollisionSubsystem;
 struct FLNPExactHitIdentity;
@@ -26,7 +27,7 @@ namespace LNPEnemyExactMovement
 	struct FParams
 	{
 		FVector GravityOrigin = FVector::ZeroVector;
-		float GravityStrength = 2000.f;
+		float GravityStrength = GetDefault<ULNPSettings>()->GravityStrength;
 		float CapsuleRadius = 35.f;
 		float CapsuleHalfHeight = 88.f;
 

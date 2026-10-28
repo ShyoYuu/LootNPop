@@ -97,7 +97,7 @@ void ALNPLootDice::Tick(float DeltaSeconds)
 	// 깨어 있는 바디에만 준다.
 	if (MeshComponent->IsSimulatingPhysics() && MeshComponent->IsAnyRigidBodyAwake())
 	{
-		MeshComponent->AddForce(ComputeGravityDir() * GravityAccel, NAME_None, /*bAccelChange=*/true);
+		MeshComponent->AddForce(ComputeGravityDir() * GetDefault<ULNPSettings>()->GravityStrength, NAME_None, /*bAccelChange=*/true);
 	}
 
 	UpdateExpiryBlink();

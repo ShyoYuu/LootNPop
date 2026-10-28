@@ -574,6 +574,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	const float GravityStrength = GetDefault<ULNPSettings>()->GravityStrength;
 	const ULNPSurfaceDataSubsystem& SurfaceData = Context.GetSubsystemChecked<ULNPSurfaceDataSubsystem>();
 	// 한 실행 동안 immutable generation을 고정한다. 엔티티마다 shared ref를 증감하지 않고
 	// 병렬 worker가 같은 snapshot을 lock-free로 읽는다.
@@ -623,7 +624,6 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 		const FVector GravityOrigin = SharedFragment.Config->MovementConfig.GravityOrigin;
 		const float AttackRange = SharedFragment.Config->MovementConfig.AttackRange;
 		const float BaseMoveSpeed = SharedFragment.Config->MovementConfig.MoveSpeed;
-		const float GravityStrength = SharedFragment.Config->MovementConfig.GravityStrength;
 
 		// 엔티티 Transform의 기준점은 **캡슐 중심**이다 — 발밑이 아니다.
 		// Actor가 붙어 있는 동안에는 MassAgentCapsuleCollisionSyncTrait(ActorToMass)가

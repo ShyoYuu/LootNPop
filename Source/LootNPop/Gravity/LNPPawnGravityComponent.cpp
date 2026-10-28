@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Gravity/LNPPawnGravityComponent.h"
+#include "Config/LNPSettings.h"
 #include "GameMode/LNPGameState.h"
 
 #include "GameFramework/Pawn.h"
@@ -141,12 +142,17 @@ FVector ULNPPawnGravityComponent::GetUpDirection() const
 	return FVector::UpVector;
 }
 
+float ULNPPawnGravityComponent::GetGravityStrength() const
+{
+	return GetDefault<ULNPSettings>()->GravityStrength;
+}
+
 void ULNPPawnGravityComponent::UpdatePawnOrientation(const FVector& PawnUpDir, const FVector& PawnDownDir)
 {
 	if (CachedMoverComponent == nullptr)
 		return;
 
-	const FVector CustomGravityVector = PawnDownDir * GravityStrength;
+	const FVector CustomGravityVector = PawnDownDir * GetGravityStrength();
 
 	CachedMoverComponent->SetGravityOverride(true, CustomGravityVector);
 	CachedMoverComponent->SetUpDirectionOverride(true, PawnUpDir);

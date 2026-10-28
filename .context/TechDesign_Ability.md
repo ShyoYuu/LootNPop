@@ -164,9 +164,9 @@ UDataAsset
 | 조준 | `DefaultAimMode` (표현이 아니라 조작 규칙이라 VisualSet이 아닌 여기) |
 | 공격 | `FireCooldown`, `MaxComboCount`, `MagazineSize`(0 = 탄약 없음), `ReloadTime`, `MeleeIdealDistance`(근접 보정, 0 = 위치 보정 없음) |
 | 레벨 | `LevelTable` (행 구조 `FLNPWeaponLevelRow`, **행 이름 = 레벨 숫자**) |
-| 발사체 | `ProjectileType`(Linear/Guided/Lobbed), `ProjectileSpeed`, `ProjectileGravity`, `HitRadius`, `ExplosionRadius`, `ProjectileLifetime`, `MuzzleOffset`, `ProjectileDamageEffect`(근접도 사용), `ProjectileVFXData` |
+| 발사체 | `ProjectileType`(Linear/Guided/Lobbed), `ProjectileSpeed`, `HitRadius`, `ExplosionRadius`, `ProjectileLifetime`, `MuzzleOffset`, `ProjectileDamageEffect`(근접도 사용), `ProjectileVFXData` |
 
-- `ProjectileGravity`는 **`Lobbed`일 때만** 적용된다. 해석 창구는 `GetEffectiveProjectileGravity()` 하나(→ [TechDesign_HitDetection.md §3.4](TechDesign_HitDetection.md)).
+- 중력 크기는 `ULNPSettings::GravityStrength`(기본 980 cm/s²)를 공유하며 **`Lobbed`일 때만** 적용된다. 해석 창구는 `GetEffectiveProjectileGravity()` 하나(→ [TechDesign_HitDetection.md §3.4](TechDesign_HitDetection.md)).
 - 공격 몽타주는 WeaponData가 아닌 **Chooser Table**에서 고른다(`VisualSet->AnimSetTag`가 입력 조건, → [TechDesign_CombatAnimation.md §6.1](TechDesign_CombatAnimation.md)).
 - 런처는 `VS_Shotgun`을 가리켜 메시·애님 레이어·몽타주를 샷건과 함께 쓰고, 발사 간격·발사체·스탯은 자기 것을 갖는다. ⚠️ **표현 세트도 그 안의 태그도 규칙의 키가 될 수 없다** — 공유하는 무기들이 함께 묶인다. 무기의 정체성은 `ULNPWeaponData` 에셋 그 자체다(§5.2).
 - `ParryRadius`·`KnockbackStrength`·`PoiseDamage`(근접은 콤보별 배열)는 어빌리티 프로퍼티다 — 같은 무기라도 어빌리티마다 튜닝할 수 있다.

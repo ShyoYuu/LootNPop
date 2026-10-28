@@ -142,10 +142,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "LNP|Interaction")
 	float InteractionRadius = 250.0f;
 
-	/** 구형 중력 가속도 (cm/s²) — 폰 중력(LNPPawnGravityComponent::GravityStrength)과 일치시켜 낙하 체감 통일 */
-	UPROPERTY(EditDefaultsOnly, Category = "LNP|Physics")
-	float GravityAccel = 2000.0f;
-
 	/** Pop 임펄스 속도 (cm/s, bVelChange) — 표면 Up 기준 원뿔 내 랜덤 방향 */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Physics")
 	float PopImpulseSpeed = 600.0f;

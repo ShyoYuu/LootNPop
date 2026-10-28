@@ -1,6 +1,7 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Enemy/LNPEnemyCrawlMovementProcessor.h"
+#include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyExactMovement.h"
@@ -123,6 +124,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 		return;
 
 	const float DeltaTime = Context.GetDeltaTimeSeconds();
+	const float GravityStrength = GetDefault<ULNPSettings>()->GravityStrength;
 	if (DeltaTime <= 0.f)
 		return;
 
@@ -215,7 +217,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 		// 낙하는 지상 공중 분기와 같은 함수를 쓴다. 몸이 구라 반높이도 반지름이다(캡슐 = 구).
 		LNPEnemyExactMovement::FParams FallParams;
 		FallParams.GravityOrigin = GravityOrigin;
-		FallParams.GravityStrength = MoveConfig.GravityStrength;
+		FallParams.GravityStrength = GravityStrength;
 		FallParams.CapsuleRadius = Config->CapsuleRadius;
 		FallParams.CapsuleHalfHeight = Config->CapsuleRadius;
 		// D-066: 넉백 낙하는 걸을 수 없는 Blocker 면에도 착지해 붙는다. 그러지 않으면 프랍 둘 사이 골에 끼어 바닥에 닿지 못하고
@@ -318,7 +320,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 					PhysVelocity = EnemyData.DynamicSupportContact.LastLinearVelocity;
 					EnemyData.DynamicSupportContact.Reset();
 					if (PhysVelocity.IsNearlyZero())
-						PhysVelocity = -GravityUp * MoveConfig.GravityStrength * DeltaTime;
+						PhysVelocity = -GravityUp * GravityStrength * DeltaTime;
 				}
 			}
 
@@ -635,7 +637,7 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				++ChunkStats.SurfaceLost;
 				EnemyData.DynamicSupportContact.Reset();
 				// 붙을 표면이 없다. 기어가던 속도를 실은 채 구 중심 중력으로 떨어진다. 속도 0은 붙음을 뜻하므로 중력 한 스텝을 더한다.
-				PhysVelocity = FVector::VectorPlaneProject(Velocity, Normal) - GravityUp * MoveConfig.GravityStrength * DeltaTime;
+				PhysVelocity = FVector::VectorPlaneProject(Velocity, Normal) - GravityUp * GravityStrength * DeltaTime;
 				NewNormal = (GravityOrigin - NewLocation).GetSafeNormal();
 			}
 			CrawlData.SurfaceNormal = NewNormal;

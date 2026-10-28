@@ -24,6 +24,10 @@ class LOOTNPOP_API ULNPSettings : public UDeveloperSettings
 public:
 	ULNPSettings();
 
+	/** 캐릭터·NPC·포물선 발사체·LootDice가 공유하는 중력 가속도 크기 (cm/s²). 방향은 각 이동 방식이 결정한다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Gravity", meta = (ClampMin = "0.0", ForceUnits = "cm/s^2"))
+	float GravityStrength = 980.0f;
+
 	UPROPERTY(Config, EditAnywhere, Category = "World Generation")
 	float SphereRadius = 25000.0f;
 

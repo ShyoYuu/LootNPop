@@ -43,6 +43,9 @@ UE 5.8 **Mover 2.0** 기반. 구형 중력(위치마다 Up이 다른 Dyson Spher
 
 ### 2.1 중력 타입 (`ELNPGravityType`)
 
+- 중력 크기의 단일 원본은 `Project Settings → Game → LNP Settings → Gravity → GravityStrength`(`ULNPSettings`, 기본 **980 cm/s²**)다. 캐릭터 Mover·랙돌, Mass NPC, 포물선 발사체, LootDice가 공유한다. 컴포넌트·NPC/무기 에셋·LootDice의 개별 중력 속성은 제거했다.
+- 중력 크기 튜닝은 PIE 시작 전에 한다. 발사체는 생성 시 값을 공유 프래그먼트에 고정하고 Ghost에도 전달하므로, 비행 도중 설정을 바꿔도 이미 발사된 탄의 중력은 유지된다. 서버·클라이언트는 동일한 프로젝트 설정을 사용해야 한다.
+
 | 모드 | 적용 환경 | Down 방향 |
 |:---|:---|:---|
 | `Fixed` | 표준 지형 | `FixedGravityDirection` |
@@ -685,7 +688,7 @@ LNP.Debug.KillPlayer [PlayerIndex]
 
 - **원점은 컴포넌트가 아니라 스텝 시작 상태다** — §7.7·§7.8과 같은 이유(서브스텝·재시뮬에서 컴포넌트는 낡았다).
 - **오브젝트 타입은 WorldStatic·WorldDynamic만.** 폰 채널을 넣으면 적 캡슐 위를 지날 때 판정이 적의 복제 위치에 따라 머신마다 갈린다.
-- `MinGlideHeight` 기본 300cm. 점프 정점은 `JumpUpwardsSpeed² / (2 × 중력)` = 750² / 4000 ≈ **141cm**라 평지 점프로는
+- `MinGlideHeight` 기본 400cm. 점프 속도는 750cm/s를 유지한다. 점프 정점은 `JumpUpwardsSpeed² / (2 × 중력)` = 750² / 1960 ≈ **287cm**라 평지 점프로는
   도달하지 못한다(대시 점프도 수직 속도가 같다). 절벽에서 뛰어내리거나 런처로 날아오르면 펼 수 있다.
 - 그래플 비행 중에는 열지 않는다. 비행이 끝나 낙하로 돌아오면 다시 펼 수 있다.
 
@@ -749,7 +752,7 @@ LNP.Debug.KillPlayer [PlayerIndex]
 | 사건 | 필드 밖 | 필드 안 | 구현 |
 |:---|:---|:---|:---|
 | 지상 점프 | 일반 점프 | **점프 없이 즉시 전개** | `CanActorJump()` 오버라이드가 필드 안에서 false → 엔진 점프가 안 나가고 같은 `bIsJumpJustPressed`를 §10.2의 글라이드 분기가 소비 |
-| 공중 점프 | 고도 300cm 이상일 때만 전개 | 고도 무관 즉시 전개 | `CanGlide()`가 필드 안이면 `HasGlideClearance()`·`IsFalling()` 요구를 풀고 지상도 허용 |
+| 공중 점프 | 발밑 여유 400cm를 넘을 때만 전개 | 고도 무관 즉시 전개 | `CanGlide()`가 필드 안이면 `HasGlideClearance()`·`IsFalling()` 요구를 풀고 지상도 허용 |
 | 활공 중 점프 | 접힘 | 접힘(기존 규칙 유지) | 변경 없음 |
 | 활공 수직 | 하강 300cm/s 수렴 | 목표 고도까지 상승 후 호버 | `ULNPGlideMode::GenerateMove` 수직 분기 |
 | 필드가 꺼짐·벗어남 | — | 행글라이더 유지, 일반 활공으로 하강 | 다음 스텝 조회가 실패해 기존 분기로 자연 복귀 |
