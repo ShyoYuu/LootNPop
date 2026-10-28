@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/ANS_LNPAttackInputBlock.h"
+#include "Animation/UAFSpike/LNPUAFNotifyAudit.h"
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 
@@ -26,6 +27,7 @@ void UANS_LNPAttackInputBlock::NotifyBegin(USkeletalMeshComponent* MeshComp,
 				ASC->AddLooseGameplayTag(TAG_Block_AttackInput);
 		}
 	}
+	LNPUAFNotifyAudit::Trace(TEXT("Begin"), this, MeshComp, Animation, EventReference);
 }
 
 void UANS_LNPAttackInputBlock::NotifyEnd(USkeletalMeshComponent* MeshComp,
@@ -43,4 +45,5 @@ void UANS_LNPAttackInputBlock::NotifyEnd(USkeletalMeshComponent* MeshComp,
 		if (ASC->HasMatchingGameplayTag(TAG_Block_AttackInput))
 			ASC->RemoveLooseGameplayTag(TAG_Block_AttackInput);
 	}
+	LNPUAFNotifyAudit::Trace(TEXT("End"), this, MeshComp, Animation, EventReference);
 }

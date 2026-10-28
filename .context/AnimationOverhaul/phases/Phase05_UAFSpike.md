@@ -1,6 +1,6 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0·5-1 완료. 5-2 진행 중(§24 Bool 갱신 보정 구현/검증 완료·§25 새 세션 인계 정리). 다음 native DefaultSlot 최소 연결은 진행 확인 대기이며 최종 Go/No-Go는 미판정
+> 상태: 5-0·5-1 완료. 5-2 진행 중. §26 DefaultSlot·§27 FullBody/ANS 확인, §28 생존 Actor의 활성 차단2종+Melee 모듈 제거 보완 완료. 나머지 종료 경로/전체 게이트·최종 Go/No-Go 미판정. 새 세션 인계 정리 완료
 > 마지막 갱신: 2026-10-28
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
@@ -16,7 +16,7 @@
 |:---|:---|:---|:---|
 | 5-0 | GASP 참조 유무·로컬 엔진 API 조사, 실행서 작성 | 참조 조회 결과·재사용 경로·차단 후보·미검증 항목 기록. 코드·에셋 변경 없음 | 완료(2026-10-23) |
 | 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 완료(2026-10-27, §19). 최소 기능 조건과 시험 정리 충족. 기존 ABP와의 최종 동등성 통과를 의미하지 않음 |
-| 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 진행 중(§20 경로 조사 완료. 원본 메시 선택·입력 공급 분리 후보는 실행 미검증) |
+| 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 진행 중(§26 DefaultSlot·§27 FullBody/ANS 정상·중단·§28 생존 Actor의 활성3종 모듈 제거 보완 확인. 나머지 종료 경로/전체 게이트는 남음) |
 
 최초 로드맵의 1~2세션 예상에서 **준비 포함 3단위로 구체화**했다. 로컬 GASP UAF 참조를 찾지 못했고, Phase 2 구면 보정과 몽타주 메시 선택을 별도로 확인해야 한다. 5-1의 조기 No-Go면 5-2를 수행하지 않는다.
 
@@ -59,7 +59,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | 게이트 | 통과 기준 | 현재 판정 |
 |:---|:---|:---|
 | PSD·Chooser | 기존 에셋을 변경하지 않고 같은 상태 입력의 PSD 배열로 UAF가 검색. Starts/Stops/Turns 등 전환과 인터럽트 확인 | 부분 확인 — 대표 전환의 전달·실제 선택(§13), Sprint Turns·GaitTransitions·Run Pivot의 전달·후보 검색(§17) 확인. §17의 목표 전환 클립은 미선택. 지속 고속/전환의 최종 품질 비교는 5-2에 남음(§19) |
-| 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS 5종의 정상 종료·`Montage_Stop`(즉시/블렌드아웃)·교체 시 End 정확히 한 번, 태그/근접 판정 엔티티 잔류 없음 | 실행 미검증 — §20에서 기본 몽타주/노티파이의 메시 선택과 일반 ABP 공급의 충돌 확인. 시험 전용 폰의 대상 선택·공급 분리 후보를 정리했으며 구현 전 |
+| 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS 5종의 정상 종료·`Montage_Stop`(즉시/블렌드아웃)·교체 시 End 정확히 한 번, 태그/근접 판정 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26 DefaultSlot·§27 FullBody/ANS 정상·대표 활성 Stop/교체/이동 취소 확인. §27 시스템 제거 실패는 §28의 같은 활성3종 표본에서 End 각1·태그/실제 엔티티 정리로 보완 확인. Combo/Cancel 활성 제거·Actor/월드 종료·UpperBody/전체 슬롯·Branching은 미검증 |
 | UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 미검증 |
 | Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 |
 | 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 미검증 |
@@ -72,7 +72,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 
 ## 5. 다음 행동
 
-현재 **5-2 시험용 원본 메시 선택·입력 공급 분리 최소 구현/검증**을 진행 중이다(§21). 시험 BP 설정·수치 회귀를 완료했고 첫 수동 PIE 스모크 결과를 기다린다. 아래는 5-1 착수 당시의 실행 기록이다.
+현재 §28의 **생존 Actor UAF 제거 보완 단위는 완료**다. 새 세션에서는 사용자 진행 요청을 받은 뒤 Combo/Cancel 활성 제거를 먼저 확인하고, Actor/월드 종료 시 정리 소유권과 현재 호출 생략 경로를 조사한다. 구체적인 재현 메모는 §28 마지막에 둔다. 한 구현 단위마다 진행 확인을 유지하며, 이번 인계 요청을 후속 구현 승인으로 해석하지 않는다. 전체 슬롯/ANS 게이트·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
 
 사용자 승인으로 5-1을 시작했다. LootNPop MCP의 `ListEnabledPlugins`에서 `UAF`·`UAFAnimGraph`·`UAFMirroring`가 활성인 것을 확인했다. `UAFChooser`·`UAFPoseSearch`·`UAFControlRig`·`UAFWarping`·`MoverAnimNext` 5개를 `LootNPop.uproject`에 명시하고 JSON 파싱·diff 공백 검사를 통과했다. MCP `SetPluginEnabled`는 메모리의 프로젝트 설정만 바꾸고 파일을 저장하지 않아 파일에도 명시했다(엔진 툴 구현 확인). 런타임 로드 확인은 재시작 후 수행한다. GASP는 더 필요하지 않아 닫아도 된다고 안내했다.
 
@@ -1080,3 +1080,259 @@ AG SHA256은 수정 전 백업과 같다. 설정은 동일 해시의 기존 Expo
 - 인계 시 읽기 조회는 **PIE=false·GetOpenAssets=[]·DebugLocomotion2·BP_GameModeUAFSpike**다. 재시작/새 PIE 뒤 현재 참조를 새로 확인한다. 맵을 자동 복원/저장하지 않았으며 원래 GameMode는 사용자 확인한 BP_LNPGameMode다. TestMap03 전체를 원복하지 않는다.
 - 이번 커밋 범위는 문서4개·시험 BP/AG2개·스파이크 소스/Build.cs10개로16파일이다. 기존 사용자 변경4개(TestMap03·플레이어 기본 스탯·롱소드 레벨·스폰 설정)는 제외/보존한다. 인덱스와 에셋 해시를 확인하고 최근 커밋의 feat 제목·한국어 항목별 본문 양식을 따른다. Saved 근거는 git 제외이므로 커밋하지 않는다.
 - 기존 전체 빌드/수치 회귀/수동 스모크를 재사용하고 인계만을 위해 새 빌드·PIE·녹화를 반복하지 않는다. Build.cs의 이번 작업 중 발생한 BOM 제거만 기존 인코딩으로 복원해 불필요한 차이를 없앴으며 기능 변경은 없다. 다음 구현·새 채팅 생성·푸시는 수행하지 않는다.
+
+## 26. native DefaultSlot 최소 연결·검증(2026-10-28, 단위 완료)
+
+사용자 재개 요청으로 §20의 다음 단위에 착수했다. 성공 기준은 실제 UAF 몽타주 포즈·단일 전진·정상 종료·즉시/블렌드아웃 Stop·교체 확인이다. 슬롯/ANS 전체나 최종 게이트 통과를 의미하지 않는다.
+
+- 시작 읽기 조회에서 PIE=false·열린 에셋 없음·TestMap03의 BP_GameModeUAFSpike·AG dirty=false를 확인했다. 현재 시험 GameMode 유지 여부를 사용자에게 확인 요청했다. 회신 전 PIE를 시작하거나 맵을 저장/복원하지 않았다.
+- AG 해시는 §24의 `5EFF88E13FEA53D4639517802ACB04D3E8EADA7A166789301CFFD793FCD9EBDC`와 같다. 수정 전 AG 사본과 사용자 에셋4개·시험 BP/AG 해시는 `Saved/AnimationOverhaul/2026-10-28_UAF52DefaultSlot/`의 `AG_BeforeDefaultSlot.uasset`·`BeforeHashes.json`에 보관했다.
+- 설치 엔진의 `Internal/Injection/MontageTrait.h`에서 native Montage Trait의 Source·SlotName·두 Bool 입력을 확인했다. 기존 Export의 Strafe Result → Offset Root Input 위치 사이에 노드 하나를 넣고 Slot Name=DefaultSlot, Always Update Source=false, Disable Synchronization=false로 Compile·해당 AG만 Save·탭 닫기를 요청했다. Bool 보정 등 기존 스택을 유지하고 PIE는 시작하지 않도록 안내했다. 전용 UAF 편집 MCP가 없어 새 도구를 만들지 않고 수동 연결을 요청했다.
+- 첫 표본은 `/Game/Characters/Retargeted/Lyra/AM_SW_Damage_Fast_UEFN`이다. SlotAnimTracks에서 DefaultSlot·길이 약0.567초·시퀀스 `A_SW_Damage_Fast_UEFN`을 확인했고 시퀀스는 bEnableRootMotion=false·AAT_None이다. 약0.7초의 `AM_SW_Blocking_Hit_UEFN`도 같은 슬롯의 후속 교체 후보로 확인했다. Dash는 FullBody이므로 이 단위의 첫 표본으로 쓰지 않는다. Notifies 직접 읽기는 지원되지 않아 실패했으며 노티파이 부재로 해석하지 않는다.
+- **현재 AG 수동 연결·GameMode 회신 대기, 이번 단위 미완료**다. C++/에셋 수정·PIE·빌드·새 녹화·맵 저장·커밋/푸시는 수행하지 않았다. 연결 후 실제 런타임 대상을 새로 조회하고 필요한 수동 재생 시험을 요청한다.
+
+### 수동 연결 완료 보고·저장/컴파일 확인·첫 재생 요청
+
+- 사용자는 AG 연결 완료와 시험 GameMode 유지를 회신했다. 새 읽기에서 PIE=false·열린 에셋 없음·AG dirty=false·BP_GameModeUAFSpike를 확인했다. 로그 UTC04:59:02의 컴파일 성공·04:59:03의 해당 AG 저장·04:59:13의 탭 닫힘을 확인했다.
+- AG 새 SHA256은 `68CABF1278BF2519B8D33CF4E41BA07118CF99F6717FA29DC973D00B13D8B4BB`이며 `AG_AfterDefaultSlot.uasset`에 보관했다. `AfterAGSetupHashes.json`에서 시험 BP·사용자 에셋4개는 수정 전과 같다. 그래프 Nodes/Links 직접 조회는 지원되지 않아 실패했다. 반복하거나 새 편집 도구를 만들지 않았고, 사용자 배선 보고·컴파일 성공을 실제 Montage task 실행 확인으로 확대하지 않는다.
+- GUI 작업 구간에는 Strafe EditCondition의 `f` 파싱 오류와 bInitialized/AlphaBlend 텍스트 가져오기 경고·FootPlacement editor data 경고도 있다. 컴파일 성공과 별도로 보존하며 런타임 무오류나 기존 설정의 완전 동일성을 주장하지 않는다. 원문은 `AGSetup.log`다.
+- 다음 수동 시험은 새1인 PIE Net Mode=Play Standalone, DebugLocomotion2, Rewind 녹화 후 첫 표본을0.1배속(약5.67초)으로 재생하는 것이다. Output Log Python에서 새 game world/player/AnimSourceMesh/AnimInstance를 구해 경로와 Montage_Play 반환을 출력한다. 복귀한 로코모션·눈에 보이는 피격 자세/오류 여부를 보고하고 녹화 정지 뒤 PIE를 유지하도록 요청한다. 첫 재생 후 실제 trace/evaluation task와 전진/종료를 좁혀 확인하며 Stop/교체는 같은 단위의 후속 시험이다.
+- 현재 실제 재생 전·이번 단위 미완료다. 추가 C++ 수정/빌드·새 녹화·맵 저장/복원·커밋/푸시는 없다. 시험 종료 시 원래 GameMode를 해당 속성만 복원하되 맵 전체를 원복하지 않는다.
+
+### 첫 재생 결과·Montage 원본 갱신 재확인
+
+- 사용자는 피격 자세가 슬로우모션처럼 재생된 뒤 Idle로 돌아왔다고 보고했다. 요청한0.1배속과 일치하는 관찰이며 실시간 재생률/단일 전진을 수치 검증한 것은 아니다. UTC05:08:25.765의 Python 출력에서 실제 `BP_PlayerUAFSpike_C_0.AnimSourceMesh.ABP_SourceUAFSpike_C_0`의 Montage_Play 반환0.5666666626930237을 확인했다.
+- 같은 재생 구간 UTC05:08:26.010~05:08:31.177에서 **UAFMMOrder236회·FMotionMatchingTrait 오류236회·FHistoryCollectorTrait 오류236회**가 있었다. 진단 host는 실제 PIE UAFLocomotion이며 내부 Bool의 MM 자식은 ground1·weight1·relevant1이다. §24의 임계값 이하 Bool 자식 표본과는 조건이 다르며 기존 보정을 삭제/되돌리지 않는다. 이번 연결을 무오류 통과로 처리하지 않는다.
+- 설치 엔진 `MontageTrait.cpp`의 QueueChildrenForTraversal은 AlwaysUpdateSource=false이고 원본 가중치가 관련성 임계값 이하면 원본 갱신을 제외한다. GetChildren은 유효 원본을 가중치 검사 없이 평가에 넘긴다. 새 Montage가 MM/Pose History를 포함한 상위 경로에 있으므로 이 생략 경로는 이번 지속 오류와 부합하는 원인 후보다. 실제 Montage SourceWeight는 측정하지 않아 특정 값까지 입증한 것으로 기록하지 않는다.
+- 최소 후속 조치로 **PIE 종료 후 새 Montage Trait의 Always Update Source만 true로 변경 → Compile/해당 AG만 Save/탭 닫기**를 즉시 수동 요청했다. 같은 구현 단위의 재검증이며 새 C++/엔진 수정·도구 구현은 없다. 이 설정은 몽타주가 원본을 덮는 동안에도 로코모션을 갱신하는 엔진 옵션이다. 성능은 측정하지 않았다. 완료 회신 전 새 PIE/재생을 요청하지 않는다.
+- 녹화 `Saved/RewindDebugger/RewindDebugger-LootNPop-Editor-20261028_140819272.utrace` 약22MB가 생성됐다. 실제 EvaluationProgram task/몽타주 시간축은 아직 확인하지 않았다. 녹화 정지 부근 LogTrace error64와 trace 분석 경고도 있어 녹화 무결성을 아직 판정하지 않는다. 사용자 그래프 조작과 겹치지 않도록 UI 조회를 확장하지 않았다.
+- 근거는 DefaultSlot 폴더의 `FirstPlay.log`·`FirstPlaySummary.json`이다. 읽기 시 PIE=true·Standalone 창을 확인했으며 이후 사용자 수동 변경을 기다린다. **이번 단위 미완료·Stop/교체/대상 전체 계약·최종 Go/No-Go 미판정**이다.
+
+### Always Update Source 변경 완료 보고·재검증 요청
+
+- 사용자는 true 변경 완료를 보고했다. 새 조회에서 PIE=false·열린 에셋 없음·AG dirty=false·시험 GameMode·DebugLocomotion2를 확인했다. UTC05:11:31.938의 컴파일 성공·05:11:32.947의 저장·05:11:39의 탭 닫힘 로그가 있다.
+- AG SHA256은 `3EBCB7119262252281E5929D5207434A0ADA26ADC8EDD8A973CB45477FF3E77A`다. `AG_AfterAlwaysUpdateSource.uasset`·`AfterAlwaysUpdateSetupHashes.json`·`AlwaysUpdateSetup.log`를 보관했다. 시험 BP와 사용자 에셋4개는 변경 전 해시를 유지했다. GUI의 정확한 설정값은 사용자 보고를 근거로 하며 실제 오류 해소는 아직 확인하지 않았다.
+- 같은1인 Standalone PIE/Rewind·같은 몽타주0.1배속 재생을 요청한다. 새 월드/폰/원본 인스턴스를 다시 구하고 Idle 복귀 뒤 Montage_IsPlaying/GetCurrentActiveMontage를 출력해 잔류 여부를 확인한다. 녹화를 끈 뒤 PIE는 유지한다. 실제 UAF task·단일 전진·Stop/교체 검증은 후속으로 남는다.
+- 현재 사용자 재생 결과 대기·이번 단위 미완료다. C++/엔진 변경·빌드·맵 저장·커밋/푸시는 없다.
+
+### true 설정 후 재생 재검증·정상 종료 확인·Rewind 시점 선택 대기
+
+- 사용자는 재실행 완료를 보고했다. 새 드라이버 시작 UTC05:16:14.726 이후의 캡처에서 **MM 오류0·Pose History 오류0·UAFMMOrder0·LogAnimation Error0·드라이버 오류0**을 확인했다. 첫 false 설정 재생의 각236회와 구분한다. 실제 원본 인스턴스 경로의 Montage_Play 반환은 UTC05:16:35.428에0.5666666626930237이고, UTC05:16:45.502의 종료 조회는 **playing=False·active=None**이다. 이 사후 조회만으로 정확한 종료 프레임/콜백·단일 전진을 입증하지 않는다.
+- 새 trace `RewindDebugger-LootNPop-Editor-20261028_141624426.utrace`는46,209,880바이트다. 정지 부근 LogTrace error64는 이번에도 있어 별도로 보존한다. Slate에서 새 runtime 창의 Standalone 표기와 Rewind의 원본 ABP Montages 트랙·UAFLocomotion/S_LocomotionSpike/UAFAnimGraph_0/AG_LocomotionSpike·EvaluationProgram 트랙을 확인했다. 데이터가 표시되는 사실은 확인했으나 실제 피격 task/시간축과 trace 전체 무결성은 아직 미판정이다.
+- 일시정지/피격 시점 선택은 사용자 수동 GUI가 빠르므로 즉시 요청했다. 사용자가 PIE 일시정지·피격 중간 시점 스크럽·EvaluationProgram 선택·Rewind Debugger Details 열기를 완료하면 새 refs로 읽는다. 툴의 Pause/트랙 Click 성공 반환만으로 실제 일시정지/시점 선택 완료라고 기록하지 않는다. 추가 녹화/도구 구현 없이 기존 녹화를 사용한다. 사용한 observer_2/3은 해제했다.
+- 근거는 `AlwaysUpdateRetry.log`·`AlwaysUpdateRetrySummary.json`이다. **첫 재생의 갱신 순서 오류는 변경 후 표본에서 재발하지 않았고 정상 종료 상태를 확인했으나, 이번 DefaultSlot 단위는 task·단일 전진·Stop/교체 확인 전으로 미완료**다. 실제 GAS ActorInfo/ANS 저장 대상과 슬롯/ANS 전체 게이트를 통과시킨 것도 아니다. 코드/에셋 추가 수정·빌드·맵 저장/복원·커밋/푸시는 없다.
+
+### Rewind의 ABP 몽타주 트랙 소유권·실제 UAF 피격 task 확인
+
+- 사용자는 피격 시점을 열고 몽타주 트랙이 UAF가 아닌 ABP 하위인 점을 질문했다. 설치 엔진 `AnimInstance.cpp:583`은 AnimInstance를 소유자로 TRACE_ANIM_MONTAGE를 기록한다. `UAFMontageComponent.cpp`는 그 인스턴스를 몽타주 전용으로 틱하고 위치/재생률/블렌드를 복사하며, `MontageTrait.cpp:408~418`은 시퀀스/AnimPosition으로 UAF keyframe task를 추가한다. 따라서 현재 구성에서 ABP 하위 몽타주 시간 트랙과 UAF 포즈 평가는 양립한다. ABP 트랙만으로 native 포즈 평가를 통과시키지는 않는다.
+- 실제 새 Slate 읽기에서 PIE Resume 버튼을 확인해 일시정지 상태를 확인했다. 사용자가 연 UAFAnimGraph_0/EvaluationProgram의16개 task 중 **Index8=Anim Next Anim Sequence Keyframe Task·A_SW_Damage_Fast_UEFN·SampleTime0.282371·Looping=false**를 펼쳐 읽었다. Index9/10의 블렌드·Index12 OffsetRoot·Index13 최종 구면 보정·Index15 ControlRig가 뒤따른다. 이 프레임의 피격 포즈가 native UAF 평가 프로그램에 들어 있음을 확인했다. 최종 본별 동등성이나 모든 프레임의 중복 평가 전수 검증은 아니다.
+- 원본은 `HitEvaluationProgram.txt`다. 화면의 Rewind 커서는 약13초 부근이지만 정확한 시간값을 별도로 읽지 못해0.282371과 시간축의 정확한 비율을 아직 계산하지 않는다. 단일 전진 확인을 위해 기존 녹화에서 약1초 뒤로 스크럽하고 EvaluationProgram을 다시 선택하도록 수동 요청했다. 추가 녹화/자동화 도구는 만들지 않았다. observer_4/5는 해제했다.
+- 정상 종료/순서 오류 재검증과 실제 UAF 피격 task 확인은 충족했으나 **단일 전진·즉시/블렌드아웃 Stop·교체는 미검증**이다. 전체 DefaultSlot 단위와5-2/Go-NoGo는 미완료다.
+
+### 두 시점의 재생 전진 비교·Stop/교체 수동 시험 준비
+
+- 사용자의 약1초 뒤 스크럽 후 같은 UAF task의 SampleTime은 **0.396758**이다. 앞선0.282371과의 차는 **0.114387초**다. 동일 화면 눈금/스케일에서 커서는 약12.9초→14.1초 부근으로 이동했고, 약1.1~1.2초 녹화 구간에0.114387초 샘플 전진은 요청0.1배속과 부합한다. 대표 표본에서 두 배 전진 징후는 없다고 판정한다. 정확한 커서 수치/게임 DeltaTime·모든 프레임의 틱 횟수는 읽지 못했으므로 정확한 비율이나 전수 단일 틱 검증으로 확대하지 않는다. 새 녹화/계측을 필수 조건으로 추가하지 않는다.
+- 새 snapshot은 `HitSecondTimeSnapshot.txt`다. PIE Resume 버튼이 보여 일시정지 유지 상태이며 task는16개다. 사용한 observer_6은 해제했다. 교체 후보 A_SW_Blocking_Hit_UEFN은 bEnableRootMotion=false·AAT_None도 확인했다.
+- 다음 수동 시험은 같은 PIE의 Rewind 프리뷰를 끝내고 Resume한 뒤, 공통 AM_SW_Damage_Fast_UEFN0.05배속 재생을 각 경우에 다시 실행하는 것이다. 재생 중 위치/playing을 찍고 Stop0/Stop0.5/다른 DefaultSlot 몽타주를 각각 수행한다. Stop0.5 뒤1초 이상·교체 몽타주0.1배속 재생 뒤9초 이상 대기한 종료 상태도 출력한다. 실제 동작 전 playing=true·위치가 있어야 중단 표본이며, 이미 종료한 재생에 Stop한 결과는 성공 근거로 쓰지 않는다. 코드/새 자동화 도구 대신 사용자 콘솔 조작을 즉시 요청한다.
+- **즉시 Stop·블렌드아웃 Stop·교체는 실행 대기·이번 단위 미완료**다. 전체 슬롯/ANS 종료 계약·GAS ActorInfo·무기·루트모션·적/네트워크·최종 게이트도 남아 있다.
+
+### Stop/교체 첫 시도 검토·종료 후 호출로 유효 중단 표본 부족
+
+- 사용자는 이상 없음으로 보고했다. 로그의 원본 첫 재생은 UTC05:52:28.190이고 Stop0Before는05:52:47.026으로 약18.836초 뒤다.0.05배속 전체 재생 예상 약11.33초보다 늦었으며 **Stop0Before=False/0.0·Stop05Before=False/0.0·ReplaceBefore=False/0.0**이다. 각 경우 실제 재생 중이던 원본을 끊은 표본이 아니므로 Stop/교체 성공으로 판정하지 않는다. 사용자 관찰을 부정하는 것이 아니라 중단 대상이 없었던 조건을 구분한다.
+- Stop0After/Stop05End는False/None, ReplacePlay는0.699999988079071, ReplaceAfter=False/True, ReplaceEnd=False/False/None이다. 새 몽타주 단독 재생/종료는 확인되지만 실제 재생 교체의 증거는 아니다. 해당 실행 구간 MM/Pose History/진단 오류는0이다.
+- 근거는 `StopReplaceSmoke.log`·행동 구간 `StopReplaceActions.log`·`StopReplaceAttemptSummary.json`이다. 같은 PIE=true·시험 GameMode를 유지한다. 단위 완료/맵 복원·다음 구현 착수·커밋/푸시는 하지 않았다.
+- 콘솔 입력 시간을 충분히 확보하도록 **매 시험 직전에 Montage_Play(원본,0.001,MontageLength,0.2)**를 새로 실행하는 수동 재시험으로 바꾼다. 원본은0.2초 지점부터 약366.7초 동안 남아 있어 수십 초 뒤 콘솔을 입력해도 실제 중단 대상을 확보한다. 각 동작 전에 playing/위치를 출력하고 true일 때만 유효 표본으로 인정한다. 위치를0.2초에서 시작하는 것은 이번 중단 시험의 입력이며 앞서 확인한 정상 시작/종료·0.1배속 비교를 대체하지 않는다. 새 코드/자동화 도구는 만들지 않는다.
+- **이번 단위는 미완료**다. 즉시/블렌드아웃 Stop와 실제 교체 표본을 확보한 뒤 종료 판정을 한다.
+
+### 유효한 Stop/교체 표본·단위 완료·시험 정리
+
+0.2초 지점부터0.001배속으로 각 경우에 새로 재생한 재시험에서 다음을 확인했다. 느린 재생은 콘솔 입력 시간을 확보하는 시험 입력이며 실제 플레이 속도/블렌드 정책 변경이 아니다.
+
+| 경우 | 중단/교체 직전 | 결과 |
+|:---|:---|:---|
+| 즉시 Stop | playing=True·위치0.2037631273 | Stop0 뒤 playing=False·active=None |
+| 블렌드아웃 Stop | playing=True·위치0.2031794488 | Stop0.5 뒤 약6초 후 playing=False·active=None |
+| 다른 DefaultSlot 몽타주 교체 | 기존 playing=True·위치0.2039573938 | 새 재생 반환0.6999999881·직후 기존False/새True·약8.94초 뒤 둘 다False/active=None |
+
+- 해당 유효 중단 구간의 **MM 오류0·Pose History 오류0·UAFMMOrder0·LogAnimation Error0**이다. 사용자는 다른 이상을 보고하지 않았고, **즉시 Stop은 의도대로지만 플레이 감각으로는 어색하다**고 관찰했다. 0초 블렌드의 강제 중단 기능 확인과 플레이 품질 수용을 구분한다. 이 결과로 실사용 취소 블렌드를0초로 정하거나 기존 정책을 변경하지 않았다. Stop0.5의 정확한 종료 프레임·곡선이나 ANS End 콜백을 수치 검증한 것은 아니다.
+- 이로써 **native DefaultSlot 최소 연결 단위는 관측한 스파이크 범위에서 완료**다. 실제 UAF keyframe task·정상 재생/종료·대표 구간 전진·유효한 즉시/블렌드아웃 Stop·교체와 사후 잔류 없음을 확인했다. 대표 전진 근거는 위 두 시점/눈금 비교이며 모든 프레임 틱 횟수의 전수 측정으로 확대하지 않는다. 첫 무효 Stop/교체 표본은 삭제하지 않고 유효 재시험과 분리 보존한다.
+- 실제 원본 AnimInstance의 재생 경로와 UAF 포즈 평가를 확인했지만 **GAS ActorInfo/ANS 전달 대상·ANS5종 Begin/End/잔류·다른 슬롯/그룹·가산 슬롯·무기 레이어·루트모션·적/네트워크·최종 포즈/성능은 미검증**이다.5-2와 최종 일곱 게이트·Go/NoGo는 계속 미판정이다. 다음 제안은 §20의 슬롯·ANS 계약 확장으로 사용자 진행 확인 전 착수하지 않는다.
+- 종료 정리로 PIE를 정상 종료하고false를 확인했다. TestMap03 WorldSettings의 **DefaultGameMode 속성 하나만** 원래 `/Game/Gameplay/BP_LNPGameMode.BP_LNPGameMode_C`로 메모리 복원하고 재조회했다. 열린 에셋은 없고 맵 dirty=true다. 맵 저장·전체 원복은 하지 않았으며 디스크 맵/다른 사용자 에셋3개·시험 BP의 해시는 단위 시작과 같다. 현재 디스크 맵은 이전 시험 설정을 유지하므로 재시작/재로드 후 값은 새로 확인한다.
+- 현재 AG 해시는 true 변경 후의 `3EBCB7119262252281E5929D5207434A0ADA26ADC8EDD8A973CB45477FF3E77A`를 유지한다. 이번 단위는 AG의 native 트레이트/옵션과 문서4개 변경이며 C++ 변경·추가 빌드·새 도구·커밋/푸시는 없다. 기존 사용자 변경4개를 포함하거나 원복하지 않았다.
+- 근거는 `StopReplaceValidSmoke.log`·`StopReplaceValidSummary.json`·`AfterValidSmokeHashes.json`·`ClosureAudit.json`이며 최초 캡처/trace/UAF task 근거는 같은 DefaultSlot 폴더와 앞선 녹화를 재사용한다. README/Decisions·프로젝트 공통 설계는 새 확정 결정/정식 마이그레이션이 없어 변경하지 않았다.
+
+## 27. FullBody 슬롯 추가·ANS5종 계약 확인(2026-10-28, 시스템 종료 계약 미통과)
+
+사용자 진행 승인으로 슬롯·ANS 확장에 착수했다. 이번 구현 단위는 **FullBody 슬롯 추가와 기존 근접 몽타주의 ANS5종/실제 GAS 대상 확인**으로 좁힌다. UpperBody의 본 마스크/AO/IK 결합은 레이어 게이트와 함께 후속 단위에서 다룬다. 전체 슬롯/ANS 게이트를 이번 준비만으로 통과시키지 않는다.
+
+### 계획과 성공 기준
+
+1. 기존 슬롯/근접 몽타주·실제 콜백 경로 확인 → 기존 슬롯 순서·원본을 보존하고 필요한 구성만 추가.
+2. 스파이크 폰 한정 진단·FullBody 연결 → 기준 전체 빌드와 AG Compile/Save 확인.
+3. 실제 수동 실행 → FullBody 포즈/DefaultSlot 배타 그룹, ANS5종 Begin/End 페어·기능 Tick 대상·GAS ActorInfo 메시/인스턴스 일치, 정상 종료/유효 중단/교체/이동 취소/시스템 종료에서 태그·근접 엔티티 정리 확인. 결과마다 관측 범위와 미검증 항목을 구분한다.
+
+### 확인한 기존 구성·범위
+
+- 기존 ABP의 슬롯 순서는 FullBodyAdditivePreAim→DefaultSlot→FullBody→마스크를 씌운 UpperBody→AdditiveHitReact다. 단순 전신 UpperBody 슬롯 추가로 본 마스크를 대체하지 않는다. 기존 런타임 그룹 등록은 그대로 사용한다.
+- 기존 `Saved/AnimRetarget/LyraToUEFN_RetargetList_compare.json`에서 AM_SW_Attack_01_UEFN의 DefaultSlot·ANS5종/두 공격 구간을 확인했다. 첫 구간은 이동/공격 차단 시작 약0초, MeleeHitWindow0.6611~0.9943초, ComboWindow1.0024~1.3405초, CancelOnMovement1.3368~2.4667초다. 이는 기존 리타깃 대조 자료이며 새 런타임 발화 근거가 아니다. 현재 Notifies 직접 조회는 지원되지 않으므로 필요하면 기존 AnimationLibrary 읽기 방법으로 좁혀 확인한다.
+- UAF dispatcher는 실제 NotifyBegin/Tick/End를 선택된 SkeletalMeshComponent로 전달하지만 ANS5종에 호출 횟수 로그가 없었다. 태그가0이라는 사실만으로 중복 Begin/End를 배제하지 않는다. MeleeHitWindow는 실제 무기 정의/WeaponMesh가 있어야 엔티티를 만들므로 콜백 로그와 BuildQueued를 함께 확인한다.
+- 근접 엔티티 검증은 정상 속도 표본을 기본으로 한다. MeleeData.TimeToLive는 ANS 원래 TotalDuration+0.2초이며 극단적으로 느린 재생에 맞춰 늘어나지 않는다. §26의 입력 시간 확보용 느린 재생을 근접 엔티티 수명 동등성 근거로 쓰지 않는다.
+
+### FullBody 수동 연결 보고·보존
+
+- 시작 읽기 PIE=false였다. 사용자에게 기존 DefaultSlot Result→새 Montage Source→Offset Root Input, Slot Name=FullBody·Always Update Source=true·Disable Synchronization=false로 추가/Compile/해당 AG만 Save/탭 닫기를 즉시 수동 요청했다. 새 편집 도구를 만들지 않았다.
+- 사용자는 완료를 회신했다. 새 조회에서 PIE=false·AG dirty=false·열린 에셋 없음과 컴파일/저장/탭 닫힘 로그를 확인했다. AG SHA256은 **DADEE0844CEE352A47965875247B2D1CA4A697E4B343A5D85B0E35EBC351C00D**다. 정확한 설정/배선은 사용자 보고를 근거로 하며 FullBody 실제 포즈는 아직 미검증이다.
+- `Saved/AnimationOverhaul/2026-10-28_UAF52SlotANS/`에 이전 정상 DefaultSlot 사본·추가 후 AG·StartHashes/AfterFullBodyHashes를 보관했다. 시험 BP와 기존 사용자 에셋4개의 디스크 해시는 그대로다. 맵 저장·GameMode 변경·PIE는 아직 하지 않았다.
+
+### 진단 코드 준비·빌드 요청
+
+- `LNPUAFNotifyAudit.h/.cpp`를 추가했다. **LNP.UAFSpike.DebugNotifies 기본0**,1은 Begin/End와 엔티티,2는 실제 기능을 가진 Melee/Cancel의 Tick도 기록한다. 대상은 ALNPUAFSpikePlayerCharacter뿐이다. notify 객체/이벤트·Queued/Branching 모드·실제 전달 Mesh/AnimInstance·GAS ActorInfo Mesh/AnimInstance·태그 수·프레임/월드 시각을 기록한다.
+- ANS5종의 기존 콜백에 진단 호출만 넣고, 원래 Tick만 있던 CancelOnMovement에는 동일 Super 호출+로그의 Begin/End override를 추가했다. 기존 차단/콤보/취소·Melee 엔티티 생성/파괴·TTL 정책은 변경하지 않았다. 태그 ANS의 로그는 기존 변경 뒤이며, Melee Begin/End는 진입 시점이다. 모든 로그를 일괄 사후 상태로 해석하지 않는다.
+- Melee의 BuildQueued/DestroyQueued를 기록하고, 파괴 요청 뒤0.1초의 게임 스레드 ticker에서 동일 엔티티 핸들의 유효/활성을 읽는다. 직접 정리하지 않으며 월드가 종료 중이거나 없어 확인할 수 없으면 AfterDestroyUnavailable로 남긴다. 무효 핸들에서 IsEntityActive를 호출하지 않는다. 이 조회는 실제 End 호출/정리를 대신하거나 End 누락을 숨기지 않는다.
+- 소스는 기존6개/신규2개이며 C++ API와 diff 공백 검사를 대조했다. **컴파일 전**이다. 사용자에게 필요한 본인 작업만 저장 후 LootNPop 에디터 종료를 요청했다. 종료 회신과 실제 프로세스 부재 확인 전 빌드하지 않는다. 기존 Live Coding 크래시 이력 때문에 Live Coding 대신 권한 확장 기준 Development 전체 빌드를 사용한다.
+- 현재 **에디터 종료/전체 빌드·실행 확인 대기, 이번 단위 미완료**다. 콜백/그룹/ANS End·GAS 대상·엔티티 정리를 아직 통과시키지 않으며5-2/Go-NoGo도 미판정이다. 커밋/푸시는 없다.
+
+### 에디터 종료 확인·전체 빌드 성공·첫 수동 실행 요청
+
+- 사용자는 저장 안 함으로 에디터를 종료했다고 회신했다. 첫 CIM 조회는 접근 불가였으므로 빈 결과를 종료 근거로 쓰지 않았다. 실제 빌드 명령의 Get-Process 조회에서 UnrealEditor 프로세스가 없음을 확인하고 ShutdownGuard.json을 갱신했다. 강제 종료/에디터가 열린 상태의 빌드·Live Coding은 없다.
+- 기준 명령을 처음부터 권한 확장으로 실행했다: LootNPopEditor Win64 Development <uproject> -WaitMutex -NoHotReloadFromIDE. **16 actions·106.09초·Succeeded·종료 코드0**이다. UHT 처리·진단/ANS6개 cpp와 관련 모듈 컴파일·lib/dll 링크·metadata를 통과했다. 셸 측 전체 경과106.499초는 별도 측정이며106.09초는 UBT 보고값이다.
+- Build.log·BuildSummary.json·ShutdownGuard.json·AfterBuildHashes.json을 보관했다. FullBody AG/시험 BP/사용자 에셋4개의 디스크 해시는 빌드 전과 같다. 맵 메모리 복원을 저장하지 않고 종료했으므로 재실행 뒤 GameMode는 새로 확인해야 한다.
+- 사용자에게 에디터 재실행/TestMap03·시험 BP_GameModeUAFSpike 확인(필요시 임시 지정, 맵 미저장), PIE 전 Cmd 콘솔에서 DebugNotifies2/DebugLocomotion2, 새1인 Play Standalone PIE를 요청했다. 롱소드 장착/적 없는 곳/이동 없이 정상 공격3회(각 Idle 복귀 후)와 대시3회·이상 여부 보고/PIE 유지를 요청했다. 첫 표본에 새 녹화/Python은 필요 없다.
+- 현재 **첫 실행 회신 대기·이번 단위 미완료**다. 빌드 성공을 실제 콜백/대상/정리·FullBody/ANS 계약 통과로 처리하지 않는다. 이후 새 runtime refs로 로그/태그/엔티티를 확인하고 중단/교체/이동 취소/종료를 검증한다. 추가 소스 수정·맵 저장·커밋/푸시는 없다.
+
+### 정상 공격3회·ANS 페어/실제 GAS 대상/정리 확인
+
+- 사용자는 정상 공격/대시에서 이상 없음으로 보고했다. 재시작 후 새 조회에서 PIE=true·BP_PlayerUAFSpike_C_0·시험 GameMode·DebugNotifies2를 확인했다. CVar2 설정은 PIE 전 로그에도 있다. 신규 runtime 참조를 사용했으며 이전 Python/widget 참조는 재사용하지 않았다.
+- 정상 공격3회의 ANS5종은 **각 Begin3/End3·총15쌍**, 최대 동시 균형1·최종0·음수 없음이다. 기능 Tick은 Melee49회·Cancel158회다. 전체 콜백237개에서 실제 전달 Mesh/AnimInstance와 GAS ActorInfo의 Mesh/AnimInstance가 모두 AnimSourceMesh/ABP_SourceUAFSpike로 일치했다. Mode0(Queued) 표본이며 Branching Point 전수 검증이 아니다.
+- 엔티티122:1/122:3/122:5 모두 BuildQueued→DestroyQueued→AfterDestroy(valid0/active0)를 확인했다. 마지막 태그 샘플은 move/attack/combo0이고 실제 ASC 활성 태그도 AimMode.None/VisualSet.LongSword뿐이었다. MM/Pose History/순서 진단/LogAnimation 오류0이다. 에디터 재접속의 MCP Unknown session 로그는 애니메이션 오류와 분리한다.
+- FullBody 대시3회는 사용자 관찰 이상 없음이며 별도 Rewind task/클립 전수 조회는 하지 않았다. 정상 공격의 실제 GAS 경유 재생과 ANS 원본 대상 일치를 확인했으나 다른 중단/시스템 종료까지 확대하지 않는다. 근거는 FirstNormalSmoke.log·FirstNormalSummary.json·FirstNormalRuntimeReads.json이다.
+
+### 이동 취소·대시 교체 표본·다음 활성 창 준비
+
+- 사용자는 공격 직후 이동 유지와 공격 중 대시 교체에서 이상 없음으로 보고했다. 실제 캡처는 대기/추가 시도를 포함해 이동/공격 차단 ANS 시작12회이며 요청3+3의 정확한 분모가 아니다. 각 ANS Begin/End는 이동/공격 차단12쌍씩·Melee/Combo/Cancel9쌍씩으로 **총51쌍**이다. 모든 이벤트 균형 최대1·최종0·음수0, 기능 Tick의 활성 구간 밖 호출0이다.
+- MovementStop 호출6회와 선딜 차단 ANS의 약0.256~0.322초 조기 End 표본을 확인했다. 일부 Cancel 창도 정상 약1.13초보다 짧은0.128/0.207초에 종료됐다. 사용자 대시 조작과 대응하는 중단 표본이며 새 몽타주를 직접 기록한 전수 트랙 증거는 아니다. Melee9쌍은 약0.34~0.38초라 활성 Melee의 강제 중단 근거로 쓰지 않는다.
+- 전체321콜백의 GAS/ANS 대상 불일치0이다. 엔티티9개의 Build/Destroy/AfterDestroy가 각각9회이고 모두valid0/active0이다. 조회된 차단/콤보 태그 잔류와 MM/Pose History/순서 진단 오류0이다. 원문/요약/사후 태그 조회는 MovementDashSmoke.log·MovementDashSummary.json·MovementDashRuntimeReads.json이다.
+- 다음 유효 강제 중단 표본은 **일시정지한 PIE에서 원본 몽타주0.72초/1배속 재생 후 Skip1회**로 준비하도록 즉시 수동 요청했다. Melee 창이 짧고 TTL은 애니 재생률에 맞춰 늘지 않으므로, 월드 시간을 멈춘 상태에서 활성 콜백/엔티티를 확보한 뒤 Stop/Resume하는 방식이다. 준비 단계 자체를 실제 Begin/생성 확인으로 처리하지 않고 회신 후 새 로그로 확인한다. 새 자동화 도구/진단 코드 추가는 없다.
+- 현재 준비 회신 대기이며 **이번 단위 미완료**다. 강제 Stop0/블렌드아웃·시스템/인스턴스 종료·다른 슬롯/레이어·최종 게이트는 남아 있다. 같은 PIE를 유지했고 맵 저장/복원·추가 빌드·커밋/푸시는 없다.
+
+### 활성 Melee 즉시 Stop·Combo 블렌드아웃 Stop·Cancel 교체 확인
+
+- Pause/0.72초 재생/Skip1회 뒤 이동 차단·공격 차단·Melee가 같은 프레임에 Begin했고 Melee Tick/엔티티122:25 BuildQueued를 확인했다. ASC에서도 두 차단 태그가 활성 상태였다. Stop 직전 playing=True·위치0.7366669178·월드 시각1147.659564로, 일시정지 중 실시간 대기에도 시뮬레이션 시각은 유지됐다.
+- Stop0/Resume 뒤 월드 시각1147.676231(차 약0.016667초)에서 세 ANS가 각각 End1회, 엔티티 DestroyQueued와0.1초 뒤valid0/active0을 확인했다. 원래 Melee 종료 경계나 TTL까지 기다린 표본이 아니다. Stop 직후False/None·사후 차단 태그 잔류 없음이다. 원문은 PausedMeleePrepare.log·PausedMeleeStop0.log다.
+- Combo 준비1.10초/Skip1회 뒤 이동 차단·Combo Begin을 확인했다. Stop0.5 직전True·위치1.1166669130이며 Resume 뒤 월드 시각1151.445586→1151.462252에서 두 End가 각각1회였다. 사후 태그 잔류 없음이다. 정확한 시각별 포즈 블렌드 곡선을 측정한 것은 아니다.
+- Cancel 준비1.60초/Skip1회 뒤 Cancel Begin을 확인했다. 교체 직전True·위치1.6166666746, FullBody Dash 새 재생 반환0.9333000183·직후 기존False/새True, Resume 뒤 월드 시각1154.840198→1154.856864에서 Cancel End1회다. 이 교체는 물리 대시 입력이 없는0.1배속 포즈 시험이다. 원문은 PausedComboCancel.log, 세 경우 요약은 PausedStopsSummary.json이다.
+- 이로써 ANS5종의 정상 경로와 대표 활성 중단 경로를 확인했다. **모든 ANS×모든 Stop/교체 변형의 전수 조합을 검증한 것은 아니다.** 실제 객체/이벤트와 callback 대상은 로그로 확인하며 이번 추가 표본에도 순서 오류/LogAnimation 오류는 없었다. Branching Point는 여전히 미검증이다.
+
+### 활성 ANS 상태의 UAF 시스템 종료 준비
+
+- 마지막 종료 경로는 현재 PIE에서만 UAFLocomotion 컴포넌트를 제거해 Actor/ASC가 남은 상태의 End/태그 정리를 확인하는 시험으로 한다. 종료하면서 Actor/ASC도 함께 없어지는 PIE Stop만으로 잔류 여부를 통과시키지 않는다.
+- 설치 엔진 UUAFComponent::EndPlay는 Deactivate, OnUnregister는 SystemReference.Reset을 호출한다. UActorComponent의 BlueprintCallable K2_DestroyComponent는 ScriptName=DestroyComponent이며 소유 Actor를 인자로 전달하는 경로를 확인했다. 기본 dispatcher의 실제 종료 End 보장은 아직 실행 미검증이다.
+- 사용자에게 Pause 상태의 그룹 이름 조회/원본0.72초 재생→Skip1회→UAFLocomotion 검색/중단 직전 출력/DestroyComponent(소유 Actor)→컴포넌트 목록 출력→Resume1~2초/Pause를 요청했다. 자산이 아닌 PIE 컴포넌트만 제거하며 포즈가 멈추는 것은 예상되는 시험 결과다. 실행 보고/실제 Begin·제거·End·태그 정리를 확인하기 전 통과시키지 않는다.
+- 현재 **종료 시험 회신 대기·이번 단위 미완료**다. 컴포넌트/시스템 종료 이후 잔류·인스턴스 종료·전체 슬롯/레이어·최종 Go/NoGo는 미판정이다. 추가 코드/빌드·맵 저장·커밋/푸시는 없다.
+
+### 시스템 제거 시 End 누락·차단 태그 잔류 확인 — 종료 계약 미통과
+
+- 사용자 실행 결과 그룹 조회는 원본 근접/FullBody Dash 모두 **DefaultGroup**이었다. Pause/0.72초 재생/Skip1 뒤 이동 차단·공격 차단·Melee의 Begin3·Melee Tick·엔티티122:27 BuildQueued를 확인했다. 실제 대상과 GAS 참조는 기존 원본 메시/인스턴스로 일치했다.
+- 제거 직전 원본은 **playing=True·위치0.7366667986**이었다. DestroyComponent(소유 Actor) 뒤 UAFLocomotion 이름 목록은 **[]**이고 Actor/ASC는 남아 있었다. Resume 뒤 공급층 AnimB3 로그도4회 있어, 단순히 일시정지한 채 다음 갱신을 기다린 상태와 구분한다.
+- 이 캡처는 **Begin3·End0·DestroyQueued0·AfterDestroy0**이다. 실제 ASC 조회에도 **LNP.Block.MovementInput·LNP.Block.AttackInput이 잔류**했다. 로그 오류/크래시가 없어도 게임 상태 정리 계약은 실패다. 엔티티는 End에서 파괴 요청이 없었지만 TTL 이후 실존을 직접 조회하지 않았으므로, 살아 있는 엔티티 누수나 정상 정리를 어느 쪽으로도 단정하지 않는다.
+- 원문은 SystemShutdown.log, 요약은 SystemShutdownSummary.json, 제거 뒤 태그 조회는 SystemShutdownTags.json이다. PIE 종료 뒤까지의 원문도 SystemShutdownAfterPIEStop.log에 보관했으며 해당 캡처에서도 End/DestroyQueued가 나타나지 않았다. 기존 정상/대표 Stop/교체 결과와 실패 표본을 섞어 전체 무오류 통과로 기록하지 않는다.
+- 확인한 엔진 경로에서 UUAFComponent EndPlay는 Deactivate, OnUnregister는 SystemReference.Reset을 호출하고, 기본 notify dispatcher의 End 큐 생성은 OnEndExecution의 활성 목록 비교에 있다. 이번 종료 경로에서 마지막 갱신 없이 활성 상태가 버려진다는 설명과 관측이 부합한다. 모든 UAF 그래프/종료 방식의 보편 결함이나 동등 보완 불가능이 증명된 것은 아니다.
+
+### 이번 구현/검증 단위의 판정과 정리
+
+- FullBody 구성/진단 구현·전체 빌드와 정상/이동 취소/대시 교체·대표 활성 Stop0/Stop0.5/교체 시험을 수행했다. **종료 계약은 미통과**이며 §27/몽타주·ANS 게이트를 완료로 체크하지 않는다. 다음은 **UAF 시스템 종료 시 활성 ANS를 안전하게 끝내는 경로 조사·동등 보완** 제안이며 사용자 진행 확인 전 새 코드/에셋 수정을 하지 않는다.
+- 다음 보완은 실제 End를 한 번 전달해 원래 ANS가 소유한 태그·스윙 엔티티를 정리하고, 실행 중인 워커/게임 스레드 이벤트의 동기화와 중복 End를 피할 수 있는지를 확인하는 것이다. 태그만 지우거나 TTL 만료를 End 보장으로 취급하지 않는다. 프로젝트에서 동등하게 보완할 수 없음이 확인되면 AN-006에 따라 No-Go를 판정한다. **현재 최종 Go/NoGo는 계속 미판정**이다.
+- 실패 근거 확보 뒤 PIE를 정상 종료했다. 새 조회 PIE=false·열린 에셋 없음, TestMap03 DefaultGameMode는 원래 `/Game/Gameplay/BP_LNPGameMode.BP_LNPGameMode_C`로 속성 하나만 메모리 복원했다. 맵 dirty=true이며 저장하지 않았다. 원본 사용자 맵/다른 에셋 변경을 통째로 원복하지 않았다. UAF 제거는 종료된 PIE 인스턴스에만 적용돼 BP/AG는 그대로다.
+- 종료 시 AG DADEE084…·시험 BP·사용자 에셋4개는 빌드 직후와 같은 디스크 해시다. DebugNotifies2/DebugLocomotion2를 유지하며 다음 PIE는 새 runtime/Python 참조를 구한다. 정리 근거는 ClosureAudit.json·ClosureEditorReads.json이다.
+- 이번 단위 변경은 FullBody 시험 AG·진단 소스8개(기존6/신규2)·문서4개이며 빌드 이후 추가 코드/빌드·맵 저장·커밋/푸시는 없다. 정상 결과·실패/한계·바로 다음 행동을 Current/Roadmap에 반영했다. README/Decisions·정식 전투 애니 설계는 정식 마이그레이션/새 확정 결정이 없어 바꾸지 않았다.
+
+## 28. UAF 모듈 해제 시 활성 ANS 종료 보완(2026-10-28, 생존 Actor의 활성3종 제거 보완 확인)
+
+사용자가 §27 다음 보완 단위를 승인했다. 앞서 실패한 **Actor/월드가 살아 있는 UAFLocomotion 컴포넌트 제거**를 먼저 수정하고, 정상 종료 뒤 중복 End가 없는지 함께 검증한다. 최종 슬롯/ANS 게이트나 전체 수명주기 동등성을 선승인하지 않는다.
+
+### 조사와 구현
+
+- 설치 엔진의 기본 FUAFNotifyDispatcherComponent는 OnEndExecution에서 활성 목록을 비교해 게임 스레드 End/Begin/Tick 이벤트를 만들지만, 소멸자에는 남은 상태 종료가 없다. 해당 가상 함수의 DLL export도 없어 상속 후 Super 호출로 작은 보완을 붙이는 경로는 사용하지 않았다. 엔진/기본 dispatcher 코드는 수정하지 않는다.
+- FLNPUAFNotifyCleanup 모듈 컴포넌트를 추가했다. 기존 스파이크 루트 trait의 PostEvaluate에서 기본 dispatcher가 존재할 때만 그 뒤에 등록한다. 모듈의 컴포넌트 순회 순서에 따라 기본 OnEndExecution 뒤에 현재 활성 참조와 메시를 복사한다. GT에서 워커의 mutable 상태를 직접 읽지 않고 소유한 사본만 사용한다.
+- FAnimNextModuleInstance::ResetBindingsAndInstanceData는 GT 확인·tick 등록 해제 뒤 ReleaseComponents를 수행한다. 새 컴포넌트 소멸자는 남은 사본을 먼저 비우고, 실제 NotifyEnd를 원래 메시/이벤트 참조로 전달한다. 태그만 강제 제거하거나 Melee TTL을 늘리는 우회는 하지 않는다. 기존 ANS가 자기 태그와 엔티티를 정리하게 한다.
+- 현재 a.AnimNext.GameThreadEventBatchMode=1을 새로 조회했다. 기본 큐/틱 완료 경로의 게임 스레드 이벤트 처리를 확인했지만 다른 배치 모드나 모든 중도 해제 조합의 런타임 전수 증명은 아니다. 정상 End 이후 스냅샷이 비어 추가 End가 없는지 실제 표본이 필요하다.
+- 메시/월드가 사라졌거나 월드가 종료 중이면 경고 후 호출을 생략한다. 따라서 **Actor 파괴/월드 종료까지 같은 계약을 해결했다고 주장하지 않는다.** 현재 실패 재현과 같은 생존 Actor의 모듈 제거가 우선 검증 대상이다.
+
+### 계획과 검증 상태
+
+1. 신규 타입 전체 빌드 → 에디터 종료 회신과 실제 프로세스 부재 확인 후 기준 Development 빌드. Live Coding은 사용하지 않는다.
+2. 정상 공격/기존 중단 회귀 → 실제 ANS 페어·대상·태그/엔티티 정리 및 중복 End 확인.
+3. Pause/0.72초 재생/Skip1로 활성 차단2종+Melee 확보 → 같은 UAF 컴포넌트 제거/Resume 뒤 End 각1·태그 제거·실제 엔티티 파괴 요청과 사후 무효·관련 순서 오류0 확인.
+
+- 소스는 기존 루트 trait1개/신규 Cleanup2개이며 diff 공백 검사를 통과했다. **컴파일/실행 전으로 종료 계약은 계속 미통과**다. PIE=false·열린 에셋 없음이며 에디터 종료를 수동 요청했다. 사용자 변경4개/시험 BP/AG는 이번 보완 시작 해시를 유지했다. 맵 저장·에셋 추가 편집·커밋/푸시는 없다.
+- 로컬 근거는 Saved/AnimationOverhaul/2026-10-28_UAF52NotifyCleanup/의 BeforeHashes.json·LNPSphericalOffsetRootTrait_Before.cpp부터 누적한다. 이전 실패/정상 표본은 SlotANS 폴더에 그대로 보존한다.
+
+### 전체 빌드 성공·수동 재검증 요청
+
+- 사용자가 에디터 종료를 회신했고 권한 확장 빌드 명령의 Get-Process 가드에서 UnrealEditor0개를 확인했다. 기준 LootNPopEditor Win64 Development·WaitMutex·NoHotReloadFromIDE로 **7 actions·47.13초·Succeeded·종료0**을 확인했다. UHT 생성3개·신규 Cleanup/기존 루트 trait/생성 모듈 컴파일과 lib/dll 링크를 통과했다. 셸 경과47.5247674초는 별도 수치다. Live Coding은 없다.
+- ShutdownGuard.json·Build.log·BuildSummary.json·AfterEditorCloseHashes.json·AfterBuildHashes.json을 보관했다. AG/시험 BP/사용자 변경4개는 보완 시작 해시와 같다. 맵/에셋 저장과 커밋/푸시는 없다.
+- 에디터 재실행·TestMap03의 시험 GameMode 확인(임시 변경 시 맵 미저장), DebugNotifies2/DebugLocomotion2·새1인 Standalone PIE·롱소드 정상 공격3회를 수동 요청했다. 첫 단계는 콜백 회귀 확인이며 실행 회신 대기다. 그 뒤 정상 종료 후 모듈 제거의 중복 End와 활성 ANS 제거를 확인한다. **빌드 성공만으로 종료 계약 통과를 판정하지 않는다.**
+
+### 보완 후 정상 공격 회귀 확인·비활성 모듈 해제 시험 대기
+
+- 사용자는 정상 공격3회에서 이상 없다고 보고했다. 새 읽기에서 PIE=true·시험 BP_PlayerUAFSpike_C_0·시험 GameMode·진단2/2를 확인했다. NormalRegression.log와 Summary.json·RuntimeReads.json에 보관했다.
+- ANS5종 각각 Begin3/End3·총15쌍이고 모든 균형은 최대1/최소0/최종0이다. 기능 Tick은 Melee46·Cancel148이며 활성 구간 밖 호출0이다. 콜백224개 모두 GAS/ANS 메시·인스턴스가 원본 AnimSourceMesh/ABP_SourceUAFSpike로 일치했다. Queued(mode0) 표본이며 Branching Point 전수 검증은 아니다.
+- 엔티티122:1/122:3/122:5는 모두 BuildQueued→DestroyQueued→AfterDestroy(valid0/active0)다. 현재 ASC 태그는 AimMode.None/VisualSet.LongSword뿐이다. MM/Pose History/순서 진단/LogAnimation 오류0·종료 보완 경고0이다. 정상 재생에서 보완 추가로 인한 관측 회귀는 없다.
+- Idle/Pause 후 새 Python 참조로 active montage=None을 확인하고 UAF 컴포넌트를 제거, Resume1~2초/Pause하도록 수동 요청했다. **모듈 해제에서 정상 End를 중복 호출하지 않는지와 활성 ANS 종료 보완은 아직 미검증**이다. 제거는 PIE 인스턴스에만 적용하며 맵/에셋 저장·추가 코드/빌드·커밋/푸시는 없다.
+
+### 정상 종료 후 UAF 제거·프로젝트 ANS 중복 End 없음
+
+- 사용자 완료 회신 뒤 로그의 IdleReleaseBefore=None·IdleReleaseAfter=[]를 확인했다. Resume 뒤 공급 틱7회와 실제 ModuleRelease 로그가 있어 제거/지연 해제가 진행된 표본이다. 프로젝트 ANS5종의 추가 Begin/End/Tick0·엔티티 추가 요청0·현재 ASC 차단/콤보 태그0·관련 애니메이션/Python 오류0이다. 정상 공격 종료 뒤 그 ANS의 중복 End는 관측되지 않았다.
+- 단, ModuleRelease의 native 활성 참조 수는 **remaining=1**이다. 프로젝트 ANS5종 로그와 구별하며 대상은 이번 로그에서 특정하지 못했다. Idle/active montage=None은 모든 그래프 ANS가 비어 있음을 뜻하지 않는다. 소멸자가 호출됐다는 근거와 전체 활성 상태가 비었다는 주장은 구분한다.
+- IdleRelease.log·Summary.json·Tags.json을 보관했다. 새 PIE로 재시작/롱소드 장착/Idle/Pause 후 새 참조로 근접 몽타주0.72초 재생·Skip1을 요청했다. 실제 Begin/엔티티를 읽은 뒤 같은 컴포넌트 제거를 이어간다. **활성 제거의 End/정리는 아직 미검증**이며 전체 종료 계약·최종 GoNoGo는 미통과/미판정이다.
+
+### 활성 Melee 준비 확인·실제 제거 회신 대기
+
+- 사용자 완료 회신 뒤 새 PIE의 0.72초 재생 반환4.5666666031과 Skip1의 월드 시각9.158740에서 이동 차단/공격 차단/Melee Begin3·Melee Tick·엔티티122:1 BuildQueued를 확인했다. 실제 GAS/ANS 대상은 원본 메시/인스턴스로 일치하고 ASC의 이동/공격 차단 태그도 현재 활성이다. ActiveMeleePrepare.log·Tags.json이 근거다.
+- 같은 Pause 상태에서 playing/위치/월드 시각을 출력하고 UAF 컴포넌트 제거→Resume1~2초→Pause하도록 요청했다. End/DestroyQueued/AfterDestroy·태그 제거는 아직 실행 회신 전이다. 새 자동화 도구/코드/빌드·맵 저장·커밋/푸시는 없다.
+
+### 활성 제거 재시험 통과·이번 보완 단위 완료
+
+- 제거 직전 playing=True·몽타주 위치0.7366669178·월드 시각9.1587399095를 확인했다. 제거 뒤 UAF 목록은[]이며 Actor/ASC는 살아 있었다. Resume 뒤 공급 틱2회와 ModuleRelease가 기록됐다.
+- 보완은 native 활성 참조4개를 보관했고, 프로젝트의 이동 차단/공격 차단/Melee 각각 **Begin1·End1**이다. End 시각9.175407로 준비/제거 직전과 약0.016667초 차이여서 다음 시뮬레이션 프레임에 실제 종료가 전달됐다. 실제 ANS/GAS 메시·인스턴스도 원본으로 일치했다. 프로젝트3개 외 참조1개는 Idle 표본과 마찬가지로 대상 미특정이며, 전체4개에 대한 콜백 횟수를 주장하지 않는다.
+- 엔티티122:1은 같은 End 프레임에 DestroyQueued가 발생했고0.1초 읽기에서 valid0/active0이다. 월드 시간상 TTL 만료보다 먼저 End/파괴 요청이 생겼으므로 TTL 정리를 대신 성공으로 계산한 표본이 아니다. 현재 ASC에는 AimMode.None/VisualSet.LongSword만 있고 이동/공격/콤보 태그는 없다. 관련 애니메이션/Python 오류0·종료 보완 경고0이다.
+- PIE 종료 뒤까지의 추가 캡처에서도 Begin3·End3·BuildQueued1·DestroyQueued1·AfterDestroy1을 유지해 지연된 중복 End가 나타나지 않았다. 원문/요약은 ActiveSystemRelease.log·Summary.json·Tags.json 및 AfterPIEStop.log·Summary.json이다. 기존 §27 실패 원본은 그대로 남긴다.
+- 이로써 **같은 실패 재현 조건의 생존 Actor UAF 컴포넌트 제거 보완 단위는 완료**다. 정상 공격3회 회귀·정상 종료 후 프로젝트 ANS 중복 End 없음과 활성 차단2종+Melee의 실제 End/정리를 확인했다. **Combo/Cancel의 활성 모듈 제거·Actor 파괴/월드 종료·다른 배치 모드/Branching Point는 미검증**이다. 특히 현재 코드는 월드 종료 중이면 호출을 생략하므로 전체 수명주기 동등성을 통과시키지 않는다. 전체 슬롯/ANS 게이트·최종 Go/NoGo도 미판정이다.
+- 다음 제안은 나머지 ANS와 Actor/월드 종료 경로 검증이며 사용자 진행 확인 전 착수하지 않는다. 보완이 불가능한 경로가 확인되면 AN-006에 따라 판정한다. 다음 단위 범위가 정해지기 전에 무기/레이어 마이그레이션으로 넘어가지 않는다.
+
+### 종료 정리와 보존
+
+- PIE를 정상 종료하고 false·열린 에셋 없음을 확인했다. GameMode 속성만 원래 BP_LNPGameMode로 메모리 복원/재조회했다. 맵 dirty=true·미저장이며 디스크 맵을 덮어쓰거나 전체 원복하지 않았다. UAF 제거는 종료된 PIE 인스턴스에만 적용됐다.
+- 사용자 에셋4개·시험 BP·AG의 디스크 해시는 이번 보완 시작과 모두 같다. AG는 FullBody 추가 후 DADEE084… 버전을 유지한다. ClosureHashes.json·ClosureEditorReads.json이 근거다. DebugNotifies2/DebugLocomotion2는 유지하고 다음 PIE는 새 참조를 사용한다.
+- 이번 단위 변경은 기존 루트 trait1개/신규 Cleanup2개와 문서4개다. §27의 진단8개/시험 AG 변경은 기존 미커밋 작업으로 보존한다. 엔진/소스 에셋 변경·Live Coding·새 자동화 도구·맵 저장·커밋/푸시는 없다. README/Decisions/정식 전투 설계는 최종 게이트/정식 마이그레이션 전이라 갱신하지 않았다.
+
+### 새 세션의 첫 검증 메모(제안·아직 미실행)
+
+- 사용자 진행 요청을 받은 뒤 첫 단위를 시작한다. 기존 DefaultSlot·정상 공격3회·활성 Melee 제거를 인계 확인만을 위해 반복하지 않는다. 먼저 Combo/Cancel의 활성 모듈 제거를 확인하고 Actor/월드 종료의 정리 소유권을 조사한다. 한 구현 단위가 끝나면 다시 계속할지 확인한다.
+- 시험은 맵을 저장하지 않은 BP_GameModeUAFSpike·진단2/2·롱소드·적 없는 위치를 유지한다. 컴포넌트 제거 뒤에는 같은 인스턴스를 재사용할 수 없으므로 **각 제거 시험은 새 PIE**로 시작한다. Idle/Pause 뒤 아래 공통 준비로 참조를 새로 만든다. 이어 후보 시작 지점으로 재생하고 Skip1만 실행한 뒤, 실제 Begin/태그 로그를 확인한다. 시점 값은 과거 Stop 표본의 유효 창을 재사용하는 입력이며 새로운 모듈 제거 결과가 아니다.
+
+```python
+import unreal
+ans_w = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
+ans_p = unreal.GameplayStatics.get_player_pawn(ans_w, 0)
+ans_s = next(c for c in ans_p.get_components_by_class(unreal.SkeletalMeshComponent) if c.get_name() == 'AnimSourceMesh')
+ans_a = ans_s.get_anim_instance()
+ans_m = unreal.load_asset('/Game/Characters/Retargeted/Lyra/AM_SW_Attack_01_UEFN')
+```
+
+| 후보 | Pause 중 재생 입력(실행 후 Skip1) | 먼저 확인할 활성 상태 |
+|:---|:---|:---|
+| Combo | `ans_a.montage_play(ans_m, 1.0, unreal.MontagePlayReturnType.MONTAGE_LENGTH, 1.10)` | 이동 차단/Combo Begin과 현재 태그. 과거 Stop0.5 표본에서 이 창을 확인했음 |
+| Cancel | `ans_a.montage_play(ans_m, 1.0, unreal.MontagePlayReturnType.MONTAGE_LENGTH, 1.60)` | Cancel Begin/Tick. 과거 FullBody 교체 표본에서 이 창을 확인했음 |
+
+- 실제 활성 상태가 확인됐을 때만 Pause 중 다음 제거를 수동 요청한다. `playing=True`와 위치가 전제다. Resume1~2초/Pause 후 실제 End 각1·정리·중복/관련 오류를 읽는다. 이미 종료한 몽타주에 제거한 표본으로 활성 종료를 통과시키지 않는다.
+
+```python
+ans_uaf = next(c for c in ans_p.get_components_by_class(unreal.ActorComponent) if c.get_name() == 'UAFLocomotion')
+print('[UAFNextReleaseBefore]', ans_uaf.get_path_name(), ans_a.montage_is_playing(ans_m), ans_a.montage_get_position(ans_m), unreal.GameplayStatics.get_time_seconds(ans_w))
+ans_uaf.destroy_component(ans_p)
+print('[UAFNextReleaseAfter]', [c.get_name() for c in ans_p.get_components_by_class(unreal.ActorComponent) if c.get_name() == 'UAFLocomotion'])
+```
+
+- Actor/월드 종료는 위 생존 Actor 시험과 구별한다. 먼저 ANS의 ASC 접근·Melee 메시별 상태와 MassSubsystem, 엔진의 UUAFComponent 종료/모듈 해제 순서를 다시 확인해 콜백이 가능한 시점을 판단한다. 현재 `Mesh/World` 소실 또는 `bIsTearingDown`에서 End를 생략하는 동작과 AfterDestroyUnavailable은 성공 근거가 아니다. Actor가 사라져 태그를 조회할 수 없다는 사실만으로 End 정확히1회를 통과시키지 않는다. 필요 보완과 최소 수동 재현은 이 조사 뒤 결정한다.
+- native 사본의 프로젝트 ANS 외 참조1개는 미특정이며 Idle의1개와 활성의 추가1개가 같은 대상이라는 증거도 없다. 현재 로그의 수가 같다는 사실만으로 동일성을 가정하지 않는다. Branching Point/다른 이벤트 배치 모드는 미검증으로 유지하며 관련 실패가 확인되면 별도 근거를 남긴다.

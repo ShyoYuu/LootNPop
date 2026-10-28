@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/ANS_LNPComboWindow.h"
+#include "Animation/UAFSpike/LNPUAFNotifyAudit.h"
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 
@@ -19,6 +20,7 @@ void UANS_LNPComboWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 		if (!ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
 			ASC->AddLooseGameplayTag(TAG_State_ComboWindow);
 	}
+	LNPUAFNotifyAudit::Trace(TEXT("Begin"), this, MeshComp, Animation, EventReference);
 }
 
 void UANS_LNPComboWindow::NotifyEnd(USkeletalMeshComponent* MeshComp,
@@ -33,4 +35,5 @@ void UANS_LNPComboWindow::NotifyEnd(USkeletalMeshComponent* MeshComp,
 		if (ASC->HasMatchingGameplayTag(TAG_State_ComboWindow))
 			ASC->RemoveLooseGameplayTag(TAG_State_ComboWindow);
 	}
+	LNPUAFNotifyAudit::Trace(TEXT("End"), this, MeshComp, Animation, EventReference);
 }

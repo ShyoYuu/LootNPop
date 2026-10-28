@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/ANS_LNPMeleeHitWindow.h"
+#include "Animation/UAFSpike/LNPUAFNotifyAudit.h"
 #include "Character/LNPCharacterBase.h"
 #include "Item/LNPWeaponData.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
@@ -37,6 +38,7 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 	const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
+	LNPUAFNotifyAudit::Trace(TEXT("Begin"), this, MeshComp, Animation, EventReference);
 
 	// 이 노티파이 오브젝트는 몽타주를 재생하는 모든 캐릭터(서버·클라이언트 포함)가 공유하므로
 	// MeshComp를 키로 스윙별 상태를 분리한다.
@@ -161,6 +163,7 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 	Swing.Entity = EntityManager->ReserveEntity();
 	EntityManager->Defer().PushCommand<FMassCommandBuildEntity<FLNPWeaponTraceFragment, FTransformFragment>>(
 		Swing.Entity, MeleeData, TransFrag);
+	LNPUAFNotifyAudit::TraceMeleeEntity(MeshComp, Swing.Entity, false);
 }
 
 void UANS_LNPMeleeHitWindow::NotifyTick(USkeletalMeshComponent* MeshComp,
@@ -168,6 +171,7 @@ void UANS_LNPMeleeHitWindow::NotifyTick(USkeletalMeshComponent* MeshComp,
 	const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
+	LNPUAFNotifyAudit::Trace(TEXT("Tick"), this, MeshComp, Animation, EventReference);
 
 	if (!MeshComp)
 		return;
@@ -206,6 +210,7 @@ void UANS_LNPMeleeHitWindow::NotifyEnd(USkeletalMeshComponent* MeshComp,
 	const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyEnd(MeshComp, Animation, EventReference);
+	LNPUAFNotifyAudit::Trace(TEXT("End"), this, MeshComp, Animation, EventReference);
 
 	if (!MeshComp)
 		return;
@@ -221,4 +226,5 @@ void UANS_LNPMeleeHitWindow::NotifyEnd(USkeletalMeshComponent* MeshComp,
 
 	EntityManager->Defer().PushCommand<FMassCommandDestroyEntities>(
 		TConstArrayView<FMassEntityHandle>(&Swing.Entity, 1));
+	LNPUAFNotifyAudit::TraceMeleeEntity(MeshComp, Swing.Entity, true);
 }

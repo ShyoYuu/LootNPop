@@ -542,3 +542,126 @@
 - 사용자 요청으로 native DefaultSlot 다음 단위는 시작하지 않고 Current를 다음 행동/승인 경계·유지할 공급/루트/Bool 보정·검증 한계·로컬 근거·보존 대상으로 재정리했다. Roadmap의 Phase5 상태는5-1 완료/5-2 진행 중으로 갱신하고 중간 대기/오류 미확정 이력 대신 최신 재현/보정 완료를 요약했다. 상세 이력은 실행서§19~§25에 유지한다.
 - 마지막 읽기 조회는 PIE=false·열린 에셋 없음·Debug2·TestMap03 시험 GameMode다. 맵 설정 저장/원복이나 새 녹화/PIE·빌드 없이 인계한다. 원래 BP_LNPGameMode와 현재 시험 값/맵 해시 차이도 명시했다. 새 세션에서 진행 요청을 받으면 DefaultSlot 최소 연결부터 이어간다.
 - 이전 프로젝트 양식에 맞춰 feat 제목과 한국어 항목별 본문으로 문서4개·시험 BP/AG2개·스파이크 소스/Build.cs10개를 한 커밋으로 정리한다. 기존 사용자 에셋4개·Saved 근거는 제외한다. 코드의 기능 변경 없이 Build.cs BOM만 기존 상태로 복원했고 차이/스테이징 범위/보존 해시를 확인한다. 푸시·새 채팅 생성은 하지 않는다.
+
+### native DefaultSlot 최소 연결 착수·수동 GUI 대기(2026-10-28)
+
+- 사용자 재개 요청으로 다음 구현 단위에 착수했다. PIE=false·열린 에셋 없음·시험 GameMode·AG dirty=false를 확인하고 기존 AG 해시 일치를 대조했다. 수정 전 AG 사본과 사용자 에셋4개/시험 BP/AG 해시를 UAF52DefaultSlot 폴더에 보관했다.
+- native Montage Trait 하나를 Strafe 뒤·Offset Root 앞에 연결하고 DefaultSlot/두 Bool=false로 Compile·해당 AG만 Save·탭 닫기를 수동 요청했다. 시험 GameMode 유지 여부도 회신 대기다. 첫 표본은 DefaultSlot·비가산·루트모션 꺼짐의 AM_SW_Damage_Fast_UEFN이며 실제 재생은 아직 하지 않았다.
+- 이번 단위는 연결/재생 검증 전으로 미완료이며5-2/Go-NoGo는 보류다. 소스/에셋 수정·PIE·빌드·새 녹화·맵 저장·커밋/푸시는 없다. 상세는 실행서§26이다.
+
+### DefaultSlot 연결 보고·Compile/Save 확인·첫 PIE 요청(2026-10-28)
+
+- 사용자는 수동 연결 완료와 시험 GameMode 유지를 회신했다. 컴파일/저장/탭 닫힘 로그와 PIE=false·열린 에셋 없음·AG dirty=false를 확인했다. 새 AG 사본/해시를 보관했고 시험 BP/사용자 에셋4개는 그대로다.
+- 그래프 Nodes/Links 직접 읽기는 지원되지 않아 반복하지 않았다. GUI 구간의 EditCondition/텍스트 가져오기/FootPlacement 경고는 별도로 보존하며 런타임 통과로 판단하지 않는다.
+- 새1인 Standalone PIE/Rewind 녹화에서 AM_SW_Damage_Fast_UEFN을0.1배속으로 첫 재생하는 수동 시험을 요청한다. 실제 출력/종료·평가 task·단일 전진·Stop/교체는 남아 있어 이번 단위 미완료·Go/NoGo 보류다. 상세는 실행서§26과 UAF52DefaultSlot 폴더다.
+
+### DefaultSlot 첫 재생·Idle 복귀 관찰과 순서 오류 확인(2026-10-28)
+
+- 사용자 관찰은0.1배속 피격 자세 재생 후 Idle 복귀다. 실제 원본 AnimInstance의 Montage_Play 반환을 확인했지만 같은 구간 MM/Pose History 순서 오류가 각각236회였다. 내부 Bool MM 자식은 weight1/relevant1이라 이전 임계값 이하 Bool 표본과 구분한다.
+- native Montage의 원본 갱신 생략/평가 방문 경로가 원인 후보다. 실제 SourceWeight는 미측정이다. 같은 단위의 최소 보완으로 PIE 종료 후 새 Montage의 Always Update Source만 true로 변경/Compile/해당 AG만 Save/탭 닫기를 즉시 수동 요청했다. 완료 회신 대기이며 재생 검증은 아직 통과하지 않았다.
+- 새 trace는 생성됐으나 task/시간축/녹화 무결성 검증은 남아 있다. 원시 로그/요약은 UAF52DefaultSlot의 FirstPlay 파일에 보존했다. C++/엔진 수정·빌드·맵 저장·커밋/푸시는 없다. 이번 단위/Go-NoGo는 미판정이며 상세는 실행서§26이다.
+
+### Always Update Source 변경 보고·재생 재검증 대기(2026-10-28)
+
+- true 변경 완료 보고 뒤 AG의 컴파일/저장/탭 닫힘과 PIE=false·dirty=false·시험 GameMode·Debug2를 확인했다. 새 AG 사본/해시를 보관했고 시험 BP/사용자 에셋4개는 그대로다.
+- 같은 몽타주의0.1배속 재생·Idle 복귀 뒤 playing/active 출력·Rewind 녹화 정지/PIE 유지를 요청한다. 아직 오류 해소/전체 단위 완료를 판정하지 않는다. 상세는 실행서§26과 UAF52DefaultSlot의 AlwaysUpdateSetup 근거다.
+
+### DefaultSlot true 설정 재생·오류0·종료 잔류 없음(2026-10-28)
+
+- 사용자 재실행 후 로그에서 MM/Pose History/진단 오류0을 확인했다. 실제 원본 인스턴스의 재생 반환과 종료 뒤 playing=False/active=None을 확인했으나 단일 전진/task/Stop/교체는 남아 있다.
+- 최신 녹화의 ABP Montages 및 UAF graph/EvaluationProgram 트랙이 표시됐다. 피격 시점 선택은 수동 GUI가 빨라 PIE 일시정지·중간 시점 스크럽·EvaluationProgram/Details 열기를 요청했다. 녹화 정지 부근 Trace error64는 별도로 보존하며 전체 무결성 통과를 주장하지 않는다.
+- 단위 미완료·Go/NoGo 보류다. 원문/요약은 UAF52DefaultSlot의 AlwaysUpdateRetry 파일, 상세는 실행서§26이다. 추가 소스/에셋 변경·빌드·맵 저장·커밋/푸시는 없다.
+
+### ABP 몽타주 트랙 의미와 native UAF 피격 task 확인(2026-10-28)
+
+- 사용자 질문에 ABP 하위 트랙은 전용 AnimInstance의 시간/이벤트 소유권이며 UAF 포즈 평가와 양립한다고 로컬 엔진 소스로 확인했다. 실제 EvaluationProgram의 Index8이 A_SW_Damage_Fast_UEFN을0.282371초에서 샘플링하고 뒤에 블렌드/OffsetRoot/CR task가 있어 native UAF 포즈 경로를 확인했다.
+- PIE 일시정지 상태다. 단일 전진을 확인할 추가 시점은 기존 녹화에서 약1초 뒤로 스크럽하도록 요청했다. 새 녹화 없이 사용자 준비 회신을 기다리며 Stop/교체도 남아 있다. 원문 HitEvaluationProgram.txt·실행서§26이 상세 근거다. 이번 단위/Go-NoGo는 미완료다.
+
+### 대표 구간 전진 비교·Stop/교체 시험 대기(2026-10-28)
+
+- 같은 UAF task의 SampleTime0.282371→0.396758(차0.114387)을 확인했다. 화면 눈금 약1.1~1.2초 이동과0.1배속이 부합해 대표 구간의 두 배 전진 징후는 없다. 정확한 커서/프레임별 틱 전수 검증은 아니다. 원문은 HitSecondTimeSnapshot.txt다.
+- 같은 PIE Resume 후 즉시 Stop/0.5초 Stop/다른 DefaultSlot 몽타주 교체와 사후 잔류 상태를 수동 확인하도록 요청한다. 중단 직전 실제 playing/위치를 출력해 이미 종료된 표본과 구분한다. 교체 시퀀스도 비가산/루트모션 꺼짐을 확인했다. 이번 단위/Go-NoGo는 아직 미완료다.
+
+### Stop/교체 첫 시도는 원본 종료 후 호출·재시험 요청(2026-10-28)
+
+- 사용자는 이상 없음으로 보고했으나 각 Before가playing=False/위치0이었다. 첫 Stop은 재생 약18.836초 뒤로 약11.33초의 재생이 이미 끝난 상태다. 원본을 끊은 표본이 없어 세 경우를 통과 처리하지 않았다. 새 몽타주의 단독 재생/종료와 해당 구간 순서 오류0은 확인했다.
+- 각 시험 직전에 원본0.2초 지점/0.001배속 재생을 새로 실행해 입력 시간을 확보하는 수동 재시험을 요청한다. 이번 단위는 미완료며 상세는 실행서§26·StopReplaceAttemptSummary.json이다. 코드/에셋 추가 변경·빌드·맵 복원·커밋/푸시는 없다.
+
+### native DefaultSlot 최소 연결 단위 완료·정리(2026-10-28)
+
+- 각 경우0.2초 지점/0.001배속으로 새로 재생한 재시험에서 Before는 모두True·위치 약0.204초였다. Stop0/Stop0.5 뒤False/None, 교체 직후 기존False/새True와 종료 뒤둘 다False/None을 확인했다. 유효 중단 구간 MM/Pose History/진단/LogAnimation 오류0이다. 사용자는0초 Stop의 감각은 어색하지만 의도대로라고 관찰했으며 실사용 블렌드 정책은 바꾸지 않았다.
+- 정상 재생/종료·UAF 피격 task·대표 전진·실제 재생 중 Stop/교체·사후 잔류 없음으로 **이번 최소 연결 단위는 완료**다. 전체 슬롯/ANS·GAS ActorInfo·무기·루트모션·적/네트워크·최종 품질/성능과5-2/Go-NoGo는 미판정이다. 다음 슬롯·ANS 계약 확장은 사용자 진행 확인을 받는다.
+- PIE를 종료하고 GameMode 속성만 원래 BP_LNPGameMode로 메모리 복원/재조회했다. 맵 dirty=true·열린 에셋 없음이며 맵을 저장하지 않았다. 사용자 에셋4개/시험 BP의 디스크 해시와 true 설정 AG 해시를 유지했다. 디스크 맵은 이전 시험 설정이므로 재시작 뒤 실제 값을 새로 읽는다.
+- 문서4개(Current/Roadmap/실행서/이력)와 시험 AG만 이번 변경이다. C++ 변경/추가 빌드·도구 구현·커밋/푸시는 없다. 원시 근거는 UAF52DefaultSlot의 StopReplaceValidSmoke/ValidSummary·AfterValidSmokeHashes·ClosureAudit, 상세는 실행서§26이다.
+
+### FullBody 수동 추가·ANS5종 스파이크 진단 준비(2026-10-28)
+
+- 사용자 진행 승인으로 FullBody/ANS5종 계약 확인에 착수했다. UpperBody 본 마스크/AO/IK는 후속 레이어 단위로 구분했다. 기존 근접 몽타주의 ANS5종 배치와 엔진 dispatch 경로를 읽고 실제 콜백/대상/정리를 확인할 진단을 준비했다.
+- FullBody 하나를 DefaultSlot 뒤/Offset Root 앞에 수동 추가·Always Update Source=true·Disable Synchronization=false로 Compile/해당 AG만 Save/탭 닫기를 요청했고 완료 보고를 받았다. 새 읽기에서 PIE=false·dirty=false·열린 에셋 없음·컴파일/저장을 확인했다. AG DADEE084… 사본과 보존 해시는 UAF52SlotANS 폴더에 있다. 시험 BP/사용자 에셋4개의 해시는 그대로다.
+- 기본 꺼짐·스파이크 폰 한정 LNPUAFNotifyAudit와 ANS5종의 진단 호출/Cancel Begin·End override를 준비했다(기존6/신규2소스). 실제 GAS 참조·콜백 페어·태그 수·Melee 엔티티 지연 파괴 뒤 읽기를 기록하며 기존 게임 상태/TTL/정리 정책은 바꾸지 않는다.
+- diff 공백/API 대조만 마쳤고 아직 컴파일 전이다. 전체 빌드를 위해 사용자 에디터 종료 회신을 기다린다. 종료/프로세스 부재 확인 전 빌드하지 않으며 Live Coding은 사용하지 않는다. 이번 단위 미완료·Go-NoGo 미판정·커밋/푸시 없음. 상세는 실행서§27이다.
+
+### ANS 진단 전체 빌드 성공·첫 공격/대시 수동 시험 대기(2026-10-28)
+
+- 사용자가 저장 안 함 종료를 회신했다. CIM 접근 불가를 종료 근거로 쓰지 않고 실제 빌드 전 Get-Process에서 에디터 부재를 확인했다. 처음부터 권한 확장 기준 Development 전체 빌드로 **16 actions·106.09초·Succeeded·종료0**을 확인했다. 강제 종료/Live Coding은 없다.
+- FullBody AG·시험 BP·사용자 에셋4개는 빌드 전 해시를 유지한다. 빌드/종료 가드/보존 근거는 UAF52SlotANS에 있다. 재실행 후 시험 GameMode를 새로 확인한다.
+- 새1인 Standalone PIE에서 DebugNotifies2/DebugLocomotion2·롱소드 정상 공격3회·대시3회·이상 여부 보고/PIE 유지를 요청했다. 실행/실제 GAS·ANS 대상/BeginEnd/정리는 아직 미검증으로 이번 단위·Go-NoGo 미완료다. 상세는 실행서§27이다.
+
+### 정상 공격/이동 취소/대시 교체의 ANS·GAS·정리 확인(2026-10-28)
+
+- 정상 공격3회에서 ANS5종 Begin/End 각3회·총15쌍,237콜백의 GAS/ANS 원본 대상 일치, 엔티티3개 정리·태그 잔류/관련 오류0을 확인했다. 사용자는 대시 포함 이상 없음으로 보고했다.
+- 추가 캡처는 시작12회·ANS51쌍·321콜백 대상 일치·MovementStop6호출이며 요청 횟수의 정확한 분모는 아니다. 선딜/후딜 조기 End 표본과 엔티티9개 정리·태그/순서 오류0을 확인했다. 실제 활성 Melee의 강제 중단 표본은 아직 없다.
+- PIE Pause→원본0.72초/1배속 재생→Skip1회로 활성 Melee 창을 준비하는 수동 조작을 요청했다. 회신 후 실제 Begin/엔티티를 확인한다. 새 자동화 도구/코드·추가 빌드·맵 저장·커밋/푸시는 없고 단위/Go-NoGo는 미완료다. 원문은 UAF52SlotANS의 FirstNormal/MovementDash 파일, 상세는 실행서§27이다.
+
+### 활성 ANS 강제 Stop/교체 확인·시스템 종료 시험 요청(2026-10-28)
+
+- Pause/Skip1로 활성 Melee/차단 ANS3종과 엔티티122:25를 확보했다. Stop0 후 다음 시뮬레이션 프레임(월드 시각 차0.016667초)에 각각 End1·DestroyQueued/AfterDestroy0을 확인해 TTL 만료 전의 실제 강제 중단을 확인했다.
+- 활성 Combo/이동 차단의 Stop0.5와 활성 Cancel의 FullBody Dash 교체도 각각 다음 프레임 End1·태그 잔류 없음이었다. 전체 변형 조합 전수 검증이 아닌 대표 활성 상태의 근거다. 원문/요약은 UAF52SlotANS의 PausedMelee/PausedComboCancel/PausedStopsSummary다.
+- 마지막으로 Actor/ASC가 남은 상태에서 UAF 시스템 종료를 검증하도록 PIE UAFLocomotion 컴포넌트 제거를 수동 요청했다. 실행/End/잔류 확인 전이며 단위/GoNoGo는 미완료다. 자산 변경·추가 코드/빌드·맵 저장·커밋/푸시는 없다. 상세는 실행서§27이다.
+
+### UAF 시스템 제거의 종료 계약 실패·보완 진행 확인 대기(2026-10-28)
+
+- 두 몽타주의 런타임 그룹은 DefaultGroup이었다. 활성 ANS3종/Melee 엔티티122:27을 확보한 뒤 실제 UAF 컴포넌트를 제거했고 Actor/ASC와 Resume 뒤 공급 틱은 유지됐다. 그러나 Begin3/End0·DestroyQueued0이며 이동/공격 차단 태그가 남았다. 엔티티의 TTL 이후 실존은 직접 측정하지 않아 누수/정리 어느 쪽으로도 단정하지 않는다.
+- 정상/대표 Stop/교체와 달리 **시스템 종료 계약은 미통과**다. 실제 End/정리·스레드 동기화·중복 방지를 만족하는 동등 보완 경로를 다음 단위로 제안하며 진행 확인 전 수정하지 않는다. 보완 불가능이 확인되기 전 최종 No-Go는 미판정이다. 원문/요약/태그는 UAF52SlotANS의 SystemShutdown 파일이다.
+- PIE를 종료하고 GameMode 속성만 원래 BP_LNPGameMode로 메모리 복원/재조회했다. PIE=false·열린 에셋 없음·맵 dirty=true·미저장, AG/시험 BP/사용자 에셋4개 디스크 해시를 유지했다. 진단CVar2를 유지하되 다음 PIE는 새 참조를 구한다. ClosureAudit/ClosureEditorReads가 정리 근거다.
+- FullBody AG·진단 소스8개·문서4개가 이번 변경이며 커밋/푸시·추가 코드/빌드·맵 저장은 없다. 이번 검증 결과는 종료 계약 실패로 남기고 다음 보완 단위의 진행 확인을 받는다. 상세는 실행서§27이다.
+
+### UAF 모듈 해제 ANS 종료 보완 착수·전체 빌드 준비(2026-10-28)
+
+- 사용자 진행 승인으로 이전 실패 경로의 보완에 착수했다. 기본 dispatcher의 활성 목록 비교/GT 이벤트와 모듈 해제 순서를 설치 엔진에서 확인했다. 기본 함수의 export 제약 때문에 상속 대체 대신 기본 dispatcher 뒤에서 활성 참조를 복사하는 별도 모듈 컴포넌트로 좁혔다.
+- 신규 LNPUAFNotifyCleanup2개와 기존 루트 trait 등록부1개를 준비했다. GT 모듈 해제 때 보관한 활성 상태에 실제 NotifyEnd를 전달하며 태그/TTL/엔티티를 별도로 강제 정리하지 않는다. 일반 종료 후 중복 End가 없는지는 런타임 확인 전이다. 메시/월드 소실·월드 종료는 호출 생략/경고이므로 해당 경로까지 해결한 것으로 보지 않는다.
+- 새 조회 PIE=false·열린 에셋 없음·GT 이벤트 배치 모드1이다. diff 공백 검사와 보존 해시를 확인했으며 전체 빌드를 위해 에디터 종료를 요청했다. 종료 회신/실제 프로세스 부재 확인 전 빌드하지 않는다. 보완 빌드/실행 전으로 종료 계약/최종 GoNoGo는 미통과·미판정이며 상세는 실행서§28이다.
+
+### ANS 종료 보완 전체 빌드 성공·정상 재생 회신 대기(2026-10-28)
+
+- 사용자 종료 회신 후 실제 프로세스0개를 확인하고 처음부터 권한 확장 기준 전체 빌드를 실행했다. 신규 타입의 UHT·컴파일·링크를 포함한 **7 actions·47.13초·Succeeded·종료0**이다. Live Coding은 사용하지 않았고 에디터/기존 사용자 에셋4개·시험 BP·AG의 디스크 해시는 보존했다.
+- 에디터 재실행/시험 GameMode 확인·진단2/2·새1인 Standalone PIE에서 롱소드 정상 공격3회를 요청했다. 이후 정상 End 뒤 모듈 해제의 중복 End와 앞서 실패한 활성 제거 경로를 재검증한다. 실행 회신 전이므로 종료 계약은 미통과·GoNoGo 미판정이다. 빌드/해시 근거는 UAF52NotifyCleanup, 상세는 실행서§28이다.
+
+### 종료 보완 후 정상 공격3회 회귀 확인(2026-10-28)
+
+- 사용자 이상 없음 보고와 새 PIE/시험 폰/GameMode·진단2/2를 확인했다. ANS5종 각 Begin3/End3·총15쌍,224콜백 대상 일치·균형0~1/최종0·활성 구간 밖 Tick0이다. 엔티티3개 실제 파괴 후 무효·차단/콤보 태그 잔류0·관련 애니메이션 오류0을 확인했다.
+- 정상 종료 뒤 Idle/Pause 상태에서 UAF를 제거하고 Resume/Pause하는 수동 시험을 요청했다. 실제 모듈 해제 시 중복 End와 활성 제거 보완 효과는 확인 전이다. 근거는 UAF52NotifyCleanup/NormalRegression 파일, 상세는 실행서§28이다. 추가 코드/빌드·에셋 저장·커밋/푸시는 없다.
+
+### 정상 종료 후 모듈 제거의 ANS 중복 검사(2026-10-28)
+
+- Idle의 active montage=None·제거 후 UAF 목록[]·Resume 공급 틱7회와 ModuleRelease를 확인했다. 프로젝트 ANS5종 추가 콜백0·태그 잔류0·관련 오류0으로 정상 종료한 ANS의 중복 End는 관측되지 않았다.
+- native 종료 사본에는 remaining=1이 기록됐다. 대상은 특정하지 못했으며 모든 ANS가 비어 있었다고 판정하지 않는다. 근거는 UAF52NotifyCleanup/IdleRelease 파일이다. 새 PIE/새 Python 참조로 활성 Melee 준비를 요청했고 실제 제거 보완 효과는 아직 확인 전이다. 상세는 실행서§28이다.
+
+### 보완 후 활성 Melee 재현 준비·제거 요청(2026-10-28)
+
+- 새 PIE에서 Begin3/실제 원본 대상 일치·Melee 엔티티122:1 생성 요청·ASC 이동/공격 차단을 확인했다. 이전 실패와 같은 활성 상태가 준비됐으며 ActiveMeleePrepare 로그/태그를 보존했다.
+- Pause에서 실제 playing/위치를 출력하고 UAF 제거/Resume/Pause하는 수동 시험을 요청했다. 종료 보완 효과는 회신/로그 확인 전이다. 상세는 실행서§28이며 추가 코드/빌드·에셋 저장·커밋/푸시는 없다.
+
+### 활성3종 모듈 해제 보완 확인·단위 완료(2026-10-28)
+
+- 제거 직전 playing=True/위치0.7366669178·월드 시각9.1587399095, 제거 뒤 UAF 목록[]·Actor/ASC 유지와 Resume 공급 틱을 확인했다. ModuleRelease 다음 실제 이동 차단/공격 차단/Melee End가 각1회 발생했다. End 월드 시각9.175407로 다음 시뮬레이션 프레임이다.
+- 엔티티122:1의 실제 DestroyQueued와 AfterDestroy(valid0/active0), ASC 차단/콤보 태그 없음·실제 GAS/ANS 대상 일치·관련 오류0을 확인했다. native 사본4개 중 프로젝트3개 외 참조1개는 미특정이다. PIE 종료 뒤까지 프로젝트 Begin3/End3과 엔티티 생성/파괴1회를 유지해 지연 중복 End는 없었다.
+- 정상 공격3회/정상 종료 뒤 중복 검사와 같은 실패 재현의 활성3종 제거로 **이번 보완 단위는 완료**다. 나머지 Combo/Cancel 활성 해제·Actor/월드 종료·다른 배치 모드는 미검증이고 전체 종료 계약/GoNoGo는 미판정이다. 특히 월드 종료 시 호출 생략이라는 구현 한계를 유지한다. 다음 종료 경로 검증 단위는 사용자 진행 확인을 받는다.
+- PIE=false·열린 에셋 없음·GameMode 속성만 원래 값으로 메모리 복원·맵 dirty/미저장을 확인했다. 사용자 변경4개/시험 BP/AG의 해시는 이번 시작과 같다. 소스3개(기존1/신규2)와 문서4개가 이번 변경이며 엔진/에셋 저장·추가 빌드·커밋/푸시는 없다. 근거는 UAF52NotifyCleanup의 ActiveSystemRelease/AfterPIEStop/Closure 파일, 상세는 실행서§28이다.
+
+### 새 세션 인계 정리·단일 커밋 범위(2026-10-28)
+
+- 사용자가 후속 구현 대신 새 세션 인계 문서 정리와 한 번의 커밋을 요청했다. Current의 시작 문서/다음 행동/승인 경계를 정리하고 실행서 상단·단위 상태·판정표·다음 행동의 보완 전 실패 상태를 최신 §28 결과로 맞췄다. 기존 실패 표본은 삭제하지 않는다. Roadmap은 최신 단위/참조 범위를 반영했다.
+- 실행서 §28에 다음 Combo/Cancel 활성 제거의 새 PIE/새 참조·후보 시점/명령·활성 확인·End/태그 성공 기준을 남겼다. Actor/월드 종료의 정리 소유권과 현재 호출 생략, native 참조1개의 미특정/동일성 미확인, Branching/다른 배치 모드와 최종 게이트 미판정을 분명히 했다. 이번 요청으로 후속 시험/마이그레이션을 시작하지 않았다.
+- 마지막 읽기에서 PIE=false·열린 에셋 없음·원래 BP_LNPGameMode·DebugNotifies2를 확인했다. 사용자 에셋4개/시험 BP/AG의 해시를 보존하며 맵은 저장하지 않는다. 새 빌드/녹화/PIE를 인계만을 위해 반복하지 않는다. 같은 로컬 프로젝트의 Saved 근거는 재사용하고 다른 체크아웃에는 따라가지 않음을 Current에 유지했다.
+- 최근 `feat:` 제목·한국어 항목별 본문 형식을 확인해 **문서4개·시험 AG1개·소스11개(기존7/신규4), 총16개**를 한 커밋으로 정리한다. 사용자 맵/데이터4개와 git 제외 Saved는 제외하며 커밋 전에 스테이징 범위/공백/보존 해시를 대조한다. 푸시·새 채팅 생성은 하지 않는다. README/Decisions/공통 전투 설계는 새 확정 결정·정식 마이그레이션이 없어 변경하지 않는다.

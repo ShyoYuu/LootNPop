@@ -3,6 +3,8 @@
 #include "Animation/UAFSpike/LNPSphericalOffsetRootTrait.h"
 
 #include "Animation/UAFSpike/LNPUAFRootFeedback.h"
+#include "Animation/UAFSpike/LNPUAFNotifyCleanup.h"
+#include "Module/UAFNotifyDispatcherComponent.h"
 #include "Animation/AnimRootMotionProvider.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimTypes.h"
@@ -243,6 +245,13 @@ namespace UE::UAF
 
 	void FLNPSphericalOffsetRootTrait::PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
 	{
+		if (FAnimNextModuleInstance* Module = Context.GetRootGraphInstance().GetModuleInstance())
+		{
+			// 기본 dispatcher 뒤에 추가해 OnEndExecution의 갱신 순서를 유지한다.
+			if (Module->TryGetComponent<FUAFNotifyDispatcherComponent>())
+				(void)Module->GetOrAddComponent<FLNPUAFNotifyCleanup>();
+		}
+
 		FInstanceData* Instance = Binding.GetInstanceData<FInstanceData>();
 		FLNPPrepareSphericalOffsetRootTask Task = MakePreparationTask(Context, Binding);
 		if (!Task.RootState)

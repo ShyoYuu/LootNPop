@@ -1,6 +1,7 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/ANS_LNPBlockMovementInput.h"
+#include "Animation/UAFSpike/LNPUAFNotifyAudit.h"
 #include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 
@@ -21,6 +22,7 @@ void UANS_LNPBlockMovementInput::NotifyBegin(USkeletalMeshComponent* MeshComp,
 
 	if (UAbilitySystemComponent* ASC = GetASC(MeshComp))
 		ASC->AddLooseGameplayTag(TAG_Block_MovementInput);
+	LNPUAFNotifyAudit::Trace(TEXT("Begin"), this, MeshComp, Animation, EventReference);
 }
 
 void UANS_LNPBlockMovementInput::NotifyEnd(USkeletalMeshComponent* MeshComp,
@@ -31,4 +33,5 @@ void UANS_LNPBlockMovementInput::NotifyEnd(USkeletalMeshComponent* MeshComp,
 
 	if (UAbilitySystemComponent* ASC = GetASC(MeshComp))
 		ASC->RemoveLooseGameplayTag(TAG_Block_MovementInput);
+	LNPUAFNotifyAudit::Trace(TEXT("End"), this, MeshComp, Animation, EventReference);
 }
