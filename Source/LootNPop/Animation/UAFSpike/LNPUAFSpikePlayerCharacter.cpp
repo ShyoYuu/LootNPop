@@ -3,6 +3,8 @@
 #include "Animation/UAFSpike/LNPUAFSpikePlayerCharacter.h"
 
 #include "Animation/UAFSpike/LNPUAFSpikeAnimInstance.h"
+#include "Animation/UAFSpike/LNPUAFNotifyCleanup.h"
+#include "Component/AnimNextComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "LootNPop.h"
@@ -51,6 +53,25 @@ bool ALNPUAFSpikePlayerCharacter::InitializeSourceDriver()
 		return false;
 	Source->InitializeExplicitDriver();
 	return true;
+}
+
+void ALNPUAFSpikePlayerCharacter::ShutdownUAFNotifies(const TCHAR* Phase)
+{
+	UUAFComponent* UAF = Cast<UUAFComponent>(FindComponentByClass(UUAFComponent::StaticClass()));
+	FLNPUAFNotifyCleanup::EndBeforeOwnerShutdown(UAF, AnimSourceMesh, Phase);
+}
+
+void ALNPUAFSpikePlayerCharacter::Destroyed()
+{
+	// APawn::Destroyed가 PlayerState를 해제하기 전에 태그/근접 판정 소유 ANS를 종료한다.
+	ShutdownUAFNotifies(TEXT("ActorDestroyed"));
+	Super::Destroyed();
+}
+
+void ALNPUAFSpikePlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	ShutdownUAFNotifies(TEXT("ActorEndPlay"));
+	Super::EndPlay(EndPlayReason);
 }
 
 void ALNPUAFSpikePlayerCharacter::Tick(float DeltaSeconds)

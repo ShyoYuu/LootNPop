@@ -15,9 +15,12 @@ public:
 	ALNPUAFSpikePlayerCharacter(const FObjectInitializer& ObjectInitializer);
 	virtual UActorComponent* FindComponentByClass(const TSubclassOf<UActorComponent> ComponentClass) const override;
 	virtual void PostInitializeComponents() override;
+	virtual void Destroyed() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
 	bool InitializeSourceDriver();
+	void ShutdownUAFNotifies(const TCHAR* Phase);
 	bool bReportedDriverError = false;
 };

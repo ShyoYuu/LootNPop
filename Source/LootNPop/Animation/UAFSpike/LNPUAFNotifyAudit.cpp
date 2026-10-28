@@ -58,11 +58,13 @@ void LNPUAFNotifyAudit::TraceMeleeEntity(USkeletalMeshComponent* MeshComp, FMass
 	if (!bDestroy)
 		return;
 
-	// Mass의 지연 파괴가 반영된 뒤 읽기만 한다. TTL이나 정리 경로를 바꾸지 않는다.
+	// Pause 중 조기 End에서는 월드가 진행할 때까지 기다린다. TTL이나 정리 경로를 바꾸지 않는다.
 	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
-		[WeakWorld = TWeakObjectPtr<UWorld>(MeshComp->GetWorld()), MeshPath, Entity](float)
+		[WeakWorld = TWeakObjectPtr<UWorld>(MeshComp->GetWorld()), DestroyTime = MeshComp->GetWorld()->GetTimeSeconds(), MeshPath, Entity](float)
 		{
 			UWorld* World = WeakWorld.Get();
+			if (World && !World->bIsTearingDown && World->GetTimeSeconds() <= DestroyTime)
+				return true;
 			UMassEntitySubsystem* Subsystem = World && !World->bIsTearingDown ? World->GetSubsystem<UMassEntitySubsystem>() : nullptr;
 			if (Subsystem)
 			{

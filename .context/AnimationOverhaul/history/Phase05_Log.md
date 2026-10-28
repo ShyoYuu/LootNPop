@@ -665,3 +665,123 @@
 - 실행서 §28에 다음 Combo/Cancel 활성 제거의 새 PIE/새 참조·후보 시점/명령·활성 확인·End/태그 성공 기준을 남겼다. Actor/월드 종료의 정리 소유권과 현재 호출 생략, native 참조1개의 미특정/동일성 미확인, Branching/다른 배치 모드와 최종 게이트 미판정을 분명히 했다. 이번 요청으로 후속 시험/마이그레이션을 시작하지 않았다.
 - 마지막 읽기에서 PIE=false·열린 에셋 없음·원래 BP_LNPGameMode·DebugNotifies2를 확인했다. 사용자 에셋4개/시험 BP/AG의 해시를 보존하며 맵은 저장하지 않는다. 새 빌드/녹화/PIE를 인계만을 위해 반복하지 않는다. 같은 로컬 프로젝트의 Saved 근거는 재사용하고 다른 체크아웃에는 따라가지 않음을 Current에 유지했다.
 - 최근 `feat:` 제목·한국어 항목별 본문 형식을 확인해 **문서4개·시험 AG1개·소스11개(기존7/신규4), 총16개**를 한 커밋으로 정리한다. 사용자 맵/데이터4개와 git 제외 Saved는 제외하며 커밋 전에 스테이징 범위/공백/보존 해시를 대조한다. 푸시·새 채팅 생성은 하지 않는다. README/Decisions/공통 전투 설계는 새 확정 결정·정식 마이그레이션이 없어 변경하지 않는다.
+
+## 2026-10-28 — Combo/Cancel 활성 모듈 제거 검증 착수(수동 실행 대기)
+
+- 사용자 Phase 5 계속 진행 요청으로 다음 단위를 Combo/Cancel 활성 UAF 제거 검증으로 정했다. 완료 후 계속할지 확인하며 Actor/월드 종료 검증은 다음 단위로 둔다.
+- 실제 에디터는 TestMap03·PIE=false·진단2/2였고 AG SHA256은 DADEE0844CEE352A47965875247B2D1CA4A697E4B343A5D85B0E35EBC351C00D로 인계와 같다. 소스 작업 트리는 깨끗하며 기존 사용자 에셋4개 변경은 보존했다.
+- 원래 defaultGameMode=BP_LNPGameMode를 읽고 해당 속성만 BP_GameModeUAFSpike로 메모리 임시 설정/재조회했다. 맵 저장은 없으며 종료 시 원래 속성으로 복원한다.
+- BeforeHashes.json·LogStart.json을 Saved/AnimationOverhaul/2026-10-28_UAF52ComboCancelRelease/에 보관했다. 코드/에셋 저장·빌드·커밋/푸시는 없다.
+- 새 1인 Standalone PIE·롱소드·적 없는 위치·Pause 뒤 §28 공통 준비와 Combo 1.10초 재생/Skip1을 수동 요청했다. 실제 활성 여부를 읽기 전 제거하지 않으며 실행 통과를 주장하지 않는다.
+
+### Combo 활성 제거 통과·Cancel 새 PIE 요청
+
+- Combo/이동 차단 Begin 각1과 ASC 태그 활성 상태를 먼저 확인했다. 사용자 제거 명령의 playing=true·위치1.116666913초·게임 시각11.240674410에서 컴포넌트가 제거돼 목록이 빈 배열이 됐다.
+- Resume 후 게임 시각11.257341의 다음 시뮬레이션 프레임에 ModuleRelease remaining=3과 이동 차단/Combo End 각1을 확인했다. 현재 ASC 태그는 AimMode.None/VisualSet.LongSword뿐이며 중복 End와 해당 시험의 순서 진단/PoseSearch·Animation 오류/종료 보완 경고는 없다. 추가 native 참조1개는 여전히 미특정이다.
+- ComboRelease.log·ComboReleaseSummary.json에 보관했다. 이번 표본에는 Melee가 활성이지 않아 엔티티 파괴를 새로 검증했다고 주장하지 않는다.
+- 같은 단위의 Cancel 활성 제거를 위해 기존 PIE 종료/새 1인 PIE·새 참조·1.60초 재생/Skip1을 수동 요청했다. Actor/월드 종료와 전체 게이트는 미판정이다.
+
+### Cancel 활성 제거 통과·이번 단위 완료
+
+- 새 PIE의 Cancel Begin/Tick 각1 뒤 playing=true·위치1.616666913초·게임 시각9.592827614에서 제거했다. 다음 시뮬레이션 프레임인9.609495에 ModuleRelease remaining=2·End1을 확인했다. 제거 후 추가 Tick/End와 관련 태그 잔류는 없다.
+- Combo/Cancel 활성 제거 검증 단위를 완료했다. 관련 순서/Animation·PoseSearch/Python 오류와 종료 보완 경고는 없으며 기존 FoleyEvent 경고는 유지한다. Melee 비활성 표본·추가 native 참조1개 미특정·Queued(mode0) 한계를 실행서 §29에 남겼다. Actor/월드 종료와 전체 게이트는 미판정이며 다음 단위는 진행 확인 대기다.
+- PIE를 종료해 false를 확인하고 GameMode 속성만 원래 BP_LNPGameMode로 메모리 복원/재조회했다. 맵은 저장하지 않았다. 사용자 에셋4개/시험 BP/AG 해시는 시작과 모두 같다. 문서4개와 Saved 근거만 갱신했으며 코드/에셋 저장·빌드·커밋/푸시는 없다.
+
+## 2026-10-28 — Actor/월드 종료 순서 조사·최소 재현 착수
+
+- 사용자가 §29 다음 단위 진행을 승인했다. 기존 코드의 생명주기/정리 소유권을 읽고 최소 Actor 파괴/월드 종료 표본을 수동 요청한다. 새 자동화/계측 도구는 만들지 않는다.
+- APawn::Destroyed는 DetachFromControllerPendingDestroy를 Super보다 먼저 호출하고 APawn::UnPossessed는 PlayerState를 비운다. 프로젝트 GetAbilitySystemComponent는 Pawn의 PlayerState를 통해 ASC를 얻으므로 늦은 End가 태그를 제거하지 못할 수 있다. 일반 월드 종료의 APawn::EndPlay도 Super 전에 연결을 해제한다.
+- UUAFComponent::EndPlay는 Deactivate, OnUnregister는 SystemReference.Reset을 수행한다. 모듈 ResetBindingsAndInstanceData는 GT tick 해제 뒤 ReleaseComponents를 수행한다. 현재 FLNPUAFNotifyCleanup은 이 해제 시점에 End를 전달하지만 bIsTearingDown이면 생략한다.
+- UWorld::EndPlay는 bIsTearingDown을 먼저 설정하고 Actor RouteEndPlay 뒤 Subsystem OnWorldEndPlay를 호출한다. Melee End는 메시별 ActiveSwings를 제거하고 MassSubsystem이 있으면 지연 파괴를 요청한다. 월드 종료의 AfterDestroyUnavailable은 실제 정리 성공 근거로 쓰지 않는다.
+- PIE=false·원래 GameMode를 확인하고 시험 GameMode만 메모리 임시 설정/재조회했다. BeforeHashes/LogStart를 UAF52ActorWorldShutdown에 보관했다. 새 PIE의 공격0.72초/Skip1·별도 PlayerState 참조 확보를 수동 요청했으며 아직 Actor 파괴 결과는 없다. 맵/에셋 저장·코드 수정·빌드는 없다.
+
+### 활성 Actor 파괴 실패 확인·월드 종료 표본 준비
+
+- 이동 차단/공격 차단/Melee Begin 각1·Melee Tick1/BuildQueued(entity122:3)와 별도 PlayerState의 차단 태그2개를 먼저 확인했다. 실제 파괴 직전 playing=true·위치0.736666739초·게임 시각17.969870314였다. 파괴 후 GetPlayerPawn=None이며 별도 PlayerState는 생존했다.
+- Resume 뒤 End3종 각0이고 모듈 해제에서 dispatch mesh or world unavailable로4개 상태 종료를 생략했다. 별도 PlayerState 직접 조회에서도 이동/공격 차단 태그가 남았다. Melee DestroyQueued/AfterDestroy는 없으며 TTL 등 다른 경로의 실제 엔티티 상태는 관측하지 않아 누수 확정으로 확대하지 않는다.
+- ActorDestroy.log·ActorDestroySummary.json을 보관했다. 해당 PIE는 종료해 false를 확인했다. 시험 GameMode/맵 미저장 상태를 유지하고 별도 새 PIE의0.72초/Skip1로 월드 종료 활성 표본을 준비하도록 수동 요청했다. 코드/에셋 변경·빌드는 없다.
+
+### 월드 종료 실패 확인·조사/재현 단위 완료
+
+- 새 PIE의 차단2종/Melee Begin 각1·BuildQueued/태그를 확인한 뒤 playing=true·위치0.736666739초·게임 시각9.356747098을 기록하고 사용자가 Pause 상태에서 Stop했다. Stop 처리 중9.373429의 Melee Tick1회가 추가된 뒤 BeginTearingDown/CleanupWorld와4개 상태 종료 생략 경고가 기록됐다. End3종 각0·DestroyQueued 없음으로 종료 계약 미통과다.
+- Actor 파괴 실패와 함께 조사/최소 재현 단위를 완료했다. 실제 Melee 엔티티 잔류는 관측하지 않았고 native 추가 참조1개도 미특정이다. 월드 소실을 ANS 종료 성공으로 해석하지 않는다. 상세 소스 순서·실행 근거·다음 조기 종료 보완 후보/검증 기준은 실행서 §30에 남겼다.
+- PIE=false·원래 GameMode 메모리 복원/재조회·맵 미저장을 확인했다. 사용자 에셋4개/시험 BP/AG 해시는 시작과 모두 같다. 문서4개/로컬 Saved 근거만 갱신했으며 소스/에셋 변경·빌드·커밋/푸시는 없다. 다음 보완 구현은 사용자 진행 확인 대기다.
+
+## 2026-10-28 — Actor 종료 전 ANS 정리 보완 구현·빌드 대기
+
+- 사용자 승인으로 §31 보완을 구현했다. 시험 폰 Destroyed/EndPlay의 Super 호출 전에 기존 Cleanup 사본을 ReadComponent/사본 잠금으로 복사하고 종료 소유권을 인수한다. 잠금 밖에서 UnregisterSystem 후 실제 NotifyEnd를 전달하고 이후 소멸자의 중복 전달을 막는다. 기존 소멸자 가드/ANS 정책/기본 플레이어·적·엔진은 유지한다.
+- 소스4개이며 diff 공백 검사를 통과했다. FCriticalSection/종료 표시와 가상 함수 변경으로 전체 빌드가 필요하다. 아직 컴파일/실행 전이며 기존 종료 계약 실패를 통과로 바꾸지 않는다. 예약된 GT 이벤트/콜백 내부 파괴/다른 배치 모드의 전수 보장은 아니다.
+- 일반 샌드박스 프로세스 조회는0개였지만 권한 확장 빌드 가드에서 UnrealEditor PID18312를 확인해 코드2로 빌드를 생략했다. Build.bat/UBT는 실행되지 않았으며 에디터 종료를 수동 요청했다. 회신 후 권한 확장 가드에서 재확인하고 전체 빌드한다.
+- UAF52EarlyNotifyShutdown 폴더에 소스4개 보완 전 사본·Before/AfterEditHashes·BuildProcessGuard를 보관한다. 맵/에셋 저장·커밋/푸시는 없다. 빌드 성공 후 정상/생존 Actor 제거 중복 회귀와 같은 Actor/월드 수동 재현을 진행한다.
+
+### 에디터 종료·컴파일 수정 후 전체 빌드 성공
+
+- 사용자 종료 회신 후 권한 확장 가드0개를 확인했다. 첫 전체 빌드는 비공개 UnregisterSystem 호출의 C2248로 실패(UBT72.73초·종료6)했다. 공개 UnregisterComponent→UUAFComponent::OnUnregister→SystemReference.Reset 경로로 수정하고 IsRegistered로 중복 해제를 건너뛰었다.
+- 재빌드 가드도0개였으며 Development 전체 빌드4 actions·9.12초·Succeeded·종료0(셸9.4152771초)을 확인했다. 첫 실패와 최종 로그/요약·가드·종료/빌드 후 해시를 UAF52EarlyNotifyShutdown에 보관했다. 사용자 에셋4개/시험 BP/AG 총6개 해시는 모두 같다.
+- 에디터 재실행·TestMap03/시험 GameMode·진단2/2·새1인 Standalone PIE·롱소드 정상 공격3회/Pause를 수동 요청했다. 이어 정상 종료/생존 Actor 제거 중복 회귀와 같은 활성 Actor/월드 재현을 검증한다. 빌드 성공만으로 종료 계약 통과를 판정하지 않는다. Live Coding·에셋 저장·커밋/푸시는 없다.
+
+### 정상 공격/정상 종료 회귀 통과·활성 Actor 재시험 준비
+
+- 새 PIE/시험 폰·GameMode·DebugNotifies2를 재조회했다. 정상 공격3회의 ANS5종 Begin/End 각3·총15쌍(최소0/최대1/최종0), 콜백195개 대상 일치·활성 밖 Tick0이다. Melee 엔티티3개는 모두 파괴 요청 후valid0/active0이며 차단/Combo 태그 잔류는 없다.
+- 같은 PIE 종료 후 ActorEndPlay remaining=1 외 프로젝트 추가 콜백/엔티티 요청0·관련 오류/종료 보완 경고0이고 PIE=false다. native1개 미특정 한계를 유지한다. NormalRegression/NormalOwnerShutdown 로그와 요약을 UAF52EarlyNotifyShutdown에 보관했다.
+- 새 PIE의0.72초/Skip1·PlayerState 별도 참조로 활성 Actor 파괴 표본을 수동 준비하도록 요청했다. 활성 Actor/월드 실행 검증과 전체 종료 계약은 아직 미통과다. 에셋/맵 저장·추가 코드/빌드는 없다.
+
+### 활성 Actor 재시험 ensure 확인·동일 단위 보완 중
+
+- ActorDestroyed에서 End3종 각1·차단 태그 제거·DestroyQueued는 실행됐지만, 이어진 EndPlay가 무효 UAF 참조를 ReadComponent해 Instance.IsValid ensure가 발생했다. ActorDestroyAttempt.log/Summary.json에 원문/결과를 보관했다. 성공 표본으로 판정하지 않는다.
+- Pause 중 CoreTicker가 entity122:3 valid1/active1을 읽은 것은 world 시각 진행 전 관측이다. Cleanup에 참조 유효성 가드를, Audit에 요청 시각보다 월드가 진행한 뒤 읽는 대기를 추가했다. 파괴/TTL 정책은 변경하지 않았다. 신규 수정은 재빌드 전이며 소스는 총5개다.
+- 현재 PIE=false·원래 GameMode 메모리 복원/재조회·맵 미저장·에셋6개 해시 보존이다. 에디터 종료 후 전체 재빌드를 수동 요청했고, 성공 후 기존 정상3회를 반복하지 않고 활성 Actor 재시험부터 진행한다. 같은 승인 단위의 오류 수정이며 다음 단위로 넘어가지 않는다.
+
+### 재진입 가드/관측 보완 빌드 성공
+
+- 종료 회신 후 권한 확장 가드0개를 확인하고 기준 Development 전체 빌드6 actions·45.08초·Succeeded·종료0을 확인했다. BuildRuntimeFix.log/Summary.json·가드·종료/빌드 후 해시를 보관했다. 에셋6개 해시는 시작과 같다.
+- 사용자에게 정상 공격3회 반복 없이 에디터 재실행/시험 GameMode/진단2/2·새1인 PIE의0.72초/Skip1·별도 PlayerState로 활성 Actor 표본을 준비하도록 요청했다. 이후 ensure 없음/End 각1/태그·엔티티 정리를 확인한다. 최신 실행 전이며 종료 계약 통과를 주장하지 않는다.
+
+### 활성 Actor 재시험 통과
+
+- 최신 빌드 새 PIE의 playing=true·위치0.736666799초에서 파괴 후 End3종 각1·PlayerState 차단 태그 제거·entity122:3 실제 무효(valid0/active0)·ensure/관련 오류0을 확인했다. ActorRetry 로그/요약과 태그/종료 뒤 중복 근거를 보관했다.
+- 해당 PIE 종료 후 추가 콜백/경고/ensure0·PIE=false다. 다음 같은 단위의 월드 종료 활성 표본을 새 PIE의0.72초/Skip1로 수동 요청했다. 이전 ensure 표본은 삭제하지 않으며 전체 종료 게이트 통과로 확대하지 않는다.
+
+### 월드 종료 End 전달 확인·생존 Actor 제거 회귀 대기
+
+- 월드 종료에서 활성3종 End 각1·DestroyQueued·ensure/관련 오류0을 확인했다. GAS 메시 참조는None이고 AfterDestroyUnavailable이므로 독립 태그 제거/실제 엔티티 무효 근거로 확대하지 않는다. WorldStop 로그/요약에 원문을 보관했다.
+- 현재 PIE=false이며 마지막 생존 Actor 활성 UAF 컴포넌트 제거 회귀를 새 PIE의0.72초/Skip1로 수동 준비하도록 요청했다. 전체 게이트/모든 종료 조합은 미판정이며 같은 보완 단위 안에서 진행한다.
+
+### 최종 회귀·§31 보완 단위 완료
+
+- 생존 Actor의 활성 UAF 컴포넌트 제거는 playing=true·위치0.736666918초에서 수행했다. End3종 각1·태그 제거·entity122:3 실제 무효·ensure/관련 오류0으로 통과했다. 최종 PIE 종료 후 추가 콜백0이며 원래 GameMode 메모리 복원/재조회·맵 미저장·시작 대비 에셋6개 해시 보존을 확인했다.
+- 정상15쌍/정상 종료 중복0·활성 Actor 파괴/생존 제거 정리·월드 종료 End 전달/정리 요청으로 이번 구현/대표 재검증 단위를 완료했다. 월드 GAS 메시None/사후 AfterDestroyUnavailable은 독립 태그/실제 무효 증거가 아니다. 전체 종료 게이트·최종 GoNoGo와 미검증 경계는 실행서 §31에 남겼다.
+- 변경은 문서4개·소스5개다. 기존 사용자 에셋4개/시험 BP/AG는 보존했다. 다음 Combo/Cancel Actor/월드 종료 대표 검증은 진행 확인 대기다. 추가 빌드/에셋 저장·커밋/푸시는 없다.
+
+## 2026-10-28 — §32 Combo/Cancel Actor·월드 종료 검증 착수
+
+- 사용자 진행 요청으로 네 대표 종료 경계(Combo Actor/Cancel Actor/Combo 월드/Cancel 월드) 검증 단위에 착수했다. 각 새 PIE에서 기존1.10초/1.60초·Skip1로 활성 상태를 먼저 확인한다. 새 도구/코드는 만들지 않는다.
+- PIE=false·원래 GameMode를 읽은 뒤 시험 GameMode 속성만 메모리 임시 설정/재조회했고 진단2/2를 확인했다. 에셋6개 시작 해시·로그 시작 정보를 UAF52ComboCancelOwnerShutdown에 보관했다. 맵은 저장하지 않았다.
+- 첫 Combo Actor 표본을 새 PIE의1.10초/Skip1·별도 PlayerState로 수동 준비하도록 요청했다. 활성 확인/실제 파괴 결과는 아직 없다. 전체 게이트·월드 종료 사후 조회 한계를 유지하며 단위 종료 후 진행 확인을 받는다.
+
+### §32 Combo Actor 통과(1/4)
+
+- playing=true·위치1.116666675초에서 파괴 후 Combo/이동 차단 End 각1·생존 PlayerState 태그 제거·중복/ensure/관련 오류0을 확인했다. PIE 종료 후 추가 콜백도0이고 현재false다. 원문/요약/종료 근거를 UAF52ComboCancelOwnerShutdown에 보관했다.
+- 새 PIE의 Cancel1.60초/Skip1·별도 PlayerState 준비를 수동 요청했다. 네 대표 경계 중1개 완료이며 전체 게이트는 미판정이다. 추가 코드/빌드/에셋 저장은 없다.
+
+### §32 Cancel Actor 통과(2/4)
+
+- playing=true·위치1.616666913초에서 파괴 후 Cancel Begin/Tick/End 각1·추가 Tick/End0·ensure/관련 오류0을 확인했다. 생존 PlayerState는 기본 태그만 보유하며 Cancel 자체 태그/엔티티는 없다. PIE 종료 후 추가 콜백0·현재false다.
+- CancelActor 원문/요약/종료 근거를 보관하고 다음 새 PIE의 Combo1.10초/Skip1 월드 종료 표본을 수동 요청했다. 전체 게이트는 미판정이며 코드/빌드/에셋 저장은 없다.
+
+### §32 Combo 월드 End 확인(3/4)
+
+- playing=true·위치1.116666675초의 활성 Combo 월드 Stop에서 Combo/이동 차단 End 각1·중복/ensure/관련 오류0·PIE=false를 확인했다. GAS 메시None·독립 태그/사후 조회 한계를 유지한다. ComboWorld 원문/요약을 보관했다.
+- 마지막 Cancel 월드1.60초/Skip1을 새 PIE에서 수동 준비하도록 요청했다. 전체 게이트는 미판정이며 추가 코드/빌드/에셋 저장은 없다.
+
+### §32 네 대표 종료 경계 완료(4/4)
+
+- Cancel 월드는 playing=true·위치1.616666913초의 활성 Stop에서 Begin1/Tick2/End1·End 이후 추가 Tick0·중복/ensure/관련 오류0을 확인했다. 추가 Tick1회는 Stop 처리 중 End 전이다. GAS 메시None/독립 태그 조회 한계를 유지하며 CancelWorld 원문/요약에 보관했다.
+- Combo/Cancel Actor·월드 종료의 네 대표 경계 검증 단위를 완료했다. Actor Combo 태그 제거와 각 End1/관련 오류0을 확인했으며 월드 태그/사후 조회와 기타 미검증 경계를 전체 게이트 통과로 확대하지 않는다.
+- PIE=false·원래 GameMode 메모리 복원/재조회·맵 미저장·에셋6개 시작/종료 해시 보존이다. §32는 추가 소스/빌드/에셋 저장·커밋/푸시 없이 문서4개/Saved 근거를 갱신했다. 다음 UpperBody 슬롯·그룹 최소 연결 경로 조사는 사용자 진행 확인 대기다.
+
+### 새 세션 인계 정리·단일 커밋(2026-10-28)
+
+- 사용자 요청으로 후속 UpperBody 조사 대신 문서 인계와 단일 커밋을 준비했다. Current의 현재 승인 경계/읽을 문서/다음 행동·최신 에디터 상태·로컬 근거를 정리했다. §29~§32 실행 결과와 실패/보완 증거·월드 관측 및 기타 미검증 경계는 원문에 보존한다.
+- 실제 읽기에서 PIE=false·원래 BP_LNPGameMode를 확인했고 사용자 에셋4개/시험 BP/AG는 §32 시작 대비 HandoffHashes도 모두 같다. 맵/에셋 저장은 없으며 새 빌드/PIE/녹화를 인계만을 위해 반복하지 않는다.
+- 이전 feat 제목·한국어 항목별 본문을 참고해 문서4개·소스5개 총9개만 한 커밋으로 정리한다. 기존 사용자 에셋4개와 git 제외 Saved는 제외한다. 다음 UpperBody 슬롯·그룹 경로 조사는 진행 확인 대기이며 최종 Go/NoGo 보류다. 푸시/새 채팅 생성은 하지 않는다.
