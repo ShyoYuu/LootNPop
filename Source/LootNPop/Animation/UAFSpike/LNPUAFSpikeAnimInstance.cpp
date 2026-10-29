@@ -3,11 +3,13 @@
 #include "Animation/UAFSpike/LNPUAFSpikeAnimInstance.h"
 
 #include "Animation/UAFSpike/LNPUAFRootFeedback.h"
+#include "Animation/UAFSpike/LNPUAFMontageIKTrait.h"
 #include "ChooserFunctionLibrary.h"
 #include "Component/AnimNextComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Actor.h"
 #include "Graph/AnimNextAnimationGraph.h"
+#include "HAL/IConsoleManager.h"
 #include "LootNPop.h"
 #include "Module/AnimNextModule.h"
 #include "Movement/LNPCharacterMoverComponent.h"
@@ -79,7 +81,17 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	if (!bUAFDependencyAdded)
 	{
 		if (bExplicitDriver)
+		{
 			UAFComponent->AddPrerequisite(GetOwningActor(), GetOwningActor()->PrimaryActorTick, TEXT("PrePhysics"));
+			// 표시 ABP가 이번 UAF 출력과 완료된 슬롯 가중치를 함께 읽게 한다.
+			TInlineComponentArray<USkeletalMeshComponent*> Meshes(GetOwningActor());
+			for (USkeletalMeshComponent* Mesh : Meshes)
+				if (Mesh->GetFName() == TEXT("VisualMesh"))
+				{
+					UAFComponent->AddComponentSubsequent(Mesh, TEXT("PrePhysics"));
+					Mesh->AddTickPrerequisiteComponent(GetSkelMeshComponent());
+				}
+		}
 		else
 			UAFComponent->AddComponentPrerequisite(GetSkelMeshComponent(), TEXT("PrePhysics"));
 		bUAFDependencyAdded = true;
@@ -97,15 +109,10 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	Inputs.Trajectory = Trajectory;
 	Inputs.InterruptMode = GetMMInterruptMode();
 	Inputs.BlendArguments.BlendTime = GetMMBlendTime();
-	TInlineComponentArray<USkeletalMeshComponent*> Meshes(GetOwningActor());
-	for (USkeletalMeshComponent* Mesh : Meshes)
+	if (const USkeletalMeshComponent* Mesh = GetSkelMeshComponent())
 	{
-		if (Mesh->GetFName() == TEXT("VisualMesh"))
-		{
-			Inputs.OffsetRoot.bValid = true;
-			Inputs.OffsetRoot.MeshComponentTransform = Mesh->GetComponentTransform();
-			break;
-		}
+		Inputs.OffsetRoot.bValid = true;
+		Inputs.OffsetRoot.MeshComponentTransform = Mesh->GetComponentTransform();
 	}
 	Inputs.OffsetRoot.UpdateSerial = ++RootInputSerial;
 	Inputs.OffsetRoot.BasedMovementDelta = BasedMovementDelta;
@@ -156,4 +163,33 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 		bHasReportedInputs = true;
 		bLastInputsSucceeded = bSucceeded;
 	}
+}
+
+float ULNPUAFSpikeAnimInstance::ComputeLeftHandOffDemand() const
+{
+	if (!bExplicitDriver)
+		return Super::ComputeLeftHandOffDemand();
+	check(IsInGameThread());
+	FLNPUAFHandIKSnapshot Snapshot;
+	if (const UUAFComponent* UAF = GetOwningActor()->FindComponentByClass<UUAFComponent>())
+	{
+		const FUAFWeakSystemReference Reference = UAF->GetSystemReference();
+		if (Reference.IsValid())
+			Reference.ReadComponent<FLNPUAFHandIKFeedback>([&Snapshot](TConstStructView<FLNPUAFHandIKFeedback> Feedback)
+			{
+				Snapshot = Feedback.Get().Read();
+			});
+	}
+	// 일반 평가가 꺼진 원본은 AnimInstanceProxy가 아니라 컴포넌트에 UAF 커브가 있다.
+	const float Curve = GetSkelMeshComponent()->GetAnimCurves().Get(TEXT("DisableLHandIK"));
+	const float Demand = Snapshot.GetDemand(Curve);
+	const IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.DebugLocomotion"));
+	if (Debug && Debug->GetInt() >= 2 && GFrameCounter % 60 == 0 && LastHandIKLogFrame != GFrameCounter)
+	{
+		LastHandIKLogFrame = GFrameCounter;
+		UE_LOG(LogLootNPop, Log, TEXT("[UAFHandIK] owner=%s serial=%lld valid=%d slots=(%.3f,%.3f,%.3f) curve=%.3f demand=%.3f"),
+			*GetNameSafe(GetOwningActor()), Snapshot.Serial, Snapshot.bValid,
+			Snapshot.Weights[0], Snapshot.Weights[1], Snapshot.Weights[2], Curve, Demand);
+	}
+	return Demand;
 }

@@ -86,7 +86,7 @@ public:
 
 protected:
 	/** 오프셋 그립의 왼손이 그립을 떠나야 하는 정도(0~1). LeftHandIKAlpha 주석 참조. */
-	float ComputeLeftHandOffDemand() const;
+	virtual float ComputeLeftHandOffDemand() const;
 
 	/** 이 인스턴스가 AnimSourceMesh의 메인 인스턴스인가. 링크 레이어·표시 메시 ABP도 이 클래스를 부모로 쓰므로 로코모션 공급층(B0)은 메인에서만 돈다. */
 	bool IsLocomotionSource() const;

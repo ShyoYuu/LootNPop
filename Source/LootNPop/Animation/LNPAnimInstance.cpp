@@ -984,6 +984,9 @@ float ULNPAnimInstance::ComputeLeftHandOffDemand() const
 	const UAnimInstance* SourceAnim = OwningMoverCharacter ? OwningMoverCharacter->GetAnimInstance() : nullptr;
 	if (SourceAnim == nullptr)
 		return 0.0f;
+	// 표시/링크 인스턴스도 원본의 평가 방식에 맞는 차단 값을 사용한다.
+	if (const ULNPAnimInstance* Source = Cast<ULNPAnimInstance>(SourceAnim); Source && Source != this)
+		return Source->ComputeLeftHandOffDemand();
 
 	static const FName DisableLHandIKCurve(TEXT("DisableLHandIK"));
 	static const FName HandOffSlots[] = { TEXT("DefaultSlot"), TEXT("FullBody"), TEXT("UpperBody") };

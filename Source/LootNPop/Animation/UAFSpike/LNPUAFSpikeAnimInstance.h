@@ -73,6 +73,8 @@ public:
 	void UpdateFromDriver(float DeltaSeconds);
 
 protected:
+	virtual float ComputeLeftHandOffDemand() const override;
+
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|UAFSpike")
 	TObjectPtr<UUAFSystem> SpikeSystem;
 
@@ -88,6 +90,7 @@ private:
 	bool bLastInputsSucceeded = false;
 	bool bWasFootPlacementEnabled = false;
 	uint64 LastDrivenFrame = MAX_uint64;
+	mutable uint64 LastHandIKLogFrame = MAX_uint64;
 
 	UPROPERTY(VisibleAnywhere, Category = "LNP|UAFSpike")
 	bool bExplicitDriver = false;

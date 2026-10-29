@@ -1,6 +1,6 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0·5-1 완료. 5-2 진행 중. §34 UpperBody 최소 마스크 연결·대표 재장전/대시·한 프레임 평가 구조 확인과 종료 정리 완료. 표시 후처리·무기 레이어 연결 경로 조사 진행 확인 대기. 무기 이상 회전/남은 경계/전체 게이트·최종 Go/No-Go 미판정.
+> 상태: 5-0·5-1 완료. 5-2 진행 중. §35 조사·§36 원본 출력/표시 ABP·IK 차단 연결과 대표 정상/중단·물리/공격 중 억제·근적도 실행·종료 정리 단위 완료. 다음 라이플 자세/AO 최소 UAF 연결은 진행 확인 대기. 무기 이상 회전/남은 경계/전체 게이트·최종 Go/No-Go 미판정.
 > 마지막 갱신: 2026-10-29
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
@@ -16,7 +16,7 @@
 |:---|:---|:---|:---|
 | 5-0 | GASP 참조 유무·로컬 엔진 API 조사, 실행서 작성 | 참조 조회 결과·재사용 경로·차단 후보·미검증 항목 기록. 코드·에셋 변경 없음 | 완료(2026-10-23) |
 | 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 완료(2026-10-27, §19). 최소 기능 조건과 시험 정리 충족. 기존 ABP와의 최종 동등성 통과를 의미하지 않음 |
-| 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 진행 중(§26~§32 정상/대표 중단·종료 보완, §34 UpperBody 최소 마스크/대표 재장전 확인. 무기 최종 포즈/남은 경계/전체 게이트 미판정) |
+| 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 진행 중(§26~§32 정상/대표 중단·종료 보완, §34 UpperBody 최소 마스크, §36 원본/표시 연결·IK/물리·근적도 대표 검증 완료. 무기 자세/AO·최종 포즈/남은 경계/전체 게이트 미판정) |
 
 최초 로드맵의 1~2세션 예상에서 **준비 포함 3단위로 구체화**했다. 로컬 GASP UAF 참조를 찾지 못했고, Phase 2 구면 보정과 몽타주 메시 선택을 별도로 확인해야 한다. 5-1의 조기 No-Go면 5-2를 수행하지 않는다.
 
@@ -60,7 +60,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 |:---|:---|:---|
 | PSD·Chooser | 기존 에셋을 변경하지 않고 같은 상태 입력의 PSD 배열로 UAF가 검색. Starts/Stops/Turns 등 전환과 인터럽트 확인 | 부분 확인 — 대표 전환의 전달·실제 선택(§13), Sprint Turns·GaitTransitions·Run Pivot의 전달·후보 검색(§17) 확인. §17의 목표 전환 클립은 미선택. 지속 고속/전환의 최종 품질 비교는 5-2에 남음(§19) |
 | 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS5종 정상/중단/교체/종료 시 End 각1·태그/근접 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26~§32 정상/대표 중단/소유 Actor 종료 보완 확인. §34 UpperBody 최소 마스크/대표 정상·이동·대시 재장전/실제 평가 구조 확인. 월드 사후 실제 무효/독립 태그·전체 슬롯/그룹의 상세 실행·Branching/다른 배치 모드는 미검증 |
-| UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 미검증 |
+| UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 부분 확인·무기 레이어 게이트 미판정 — §36 같은 UEFN 표시 ABP·재장전 IK 차단/대시 복귀·Idle 물리와 공격 중 억제 대표 확인. 무기별 자세/AO·native 레이어 전환/마스크·Manny 견착/적/네트워크는 미검증 |
 | Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 |
 | 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 미검증 |
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
@@ -1624,3 +1624,139 @@ print('[UAFNextReleaseAfter]', [c.get_name() for c in ans_p.get_components_by_cl
 - 새 세션은 필수 README/Current/Decisions·실행서 §2/§4/§33~§34를 읽는다. 사용자 진행 확인 뒤 공통 CombatAnimation §3~§4/§6.4·시험 BP/S locator·native UAFLayering/ABP 연결을 좁혀 비교한다. 표시 후처리·무기 레이어/최종 무기 포즈 문제를 현 마스크 구현의 통과로 처리하지 않는다. Phase 6·마이그레이션/후속 조사 착수는 승인하지 않았다.
 - 인계 직전 새 MCP 읽기로 PIE=false·원래 BP_LNPGameMode를 확인했다. 사용자 에셋4개/시험 BP/최종 AG는 §34 종료 대비 인계 해시를 보관한다. 소스3개는 빌드/테스트 때의 SourceHashes와 같아 새 빌드/PIE/녹화를 반복하지 않는다. 맵 저장·기존 사용자 변경 원복은 없다.
 - 커밋 범위는 **문서4개·소스3개·AG1개 총8개**다. 이전 커밋83f9c40/876269c의 feat 제목·한국어 항목별 본문 형식을 따르며 사용자 에셋4개와 Saved는 제외한다. 푸시/새 채팅 생성/후속 구현은 하지 않는다. 커밋 후 남는 사용자 에셋4개를 깨끗한 트리를 만들 목적으로 되돌리지 않는다.
+
+## 35. 표시 후처리·무기 레이어 연결 경로 조사(2026-10-29, 조사 단위 완료)
+
+사용자가 새 세션에서 문서 확인과 Phase 5 계속 진행을 요청했다. 이번 단위는 Current가 예고한 경로 조사다. 소스/에셋 구현과 새 PIE·빌드는 하지 않았다. 후속 구현은 이 조사 단위를 마친 뒤 계속할지 확인한다.
+
+### 실제 구성과 기존 소비 계약
+
+- 새 MCP 읽기에서 PIE=false·현재 맵 `/Game/Maps/TestMap03`·GameMode=`BP_LNPGameMode`·AG dirty=false·열린 에셋0을 확인했다. 시험 CDO의 AnimSourceMesh는 UEFN/`ABP_SourceUAFSpike`·일반 평가=false, VisualMesh는 UEFN/`ABP_Retarget` 클래스·일반 평가=false다. 둘 다 AlwaysTickPoseAndRefreshBones·소스 후처리 비활성이다. 이 CDO 읽기를 새 런타임 AnimInstance 관측으로 확대하지 않는다. 표시 인스턴스 None·재장전 커브0/IK1은 §34의 기존 런타임 근거다.
+- `ALNPCharacterBase::ApplyWeaponVisuals`는 표현 세트의 AnimLayerClass를 **AnimSourceMesh**에 Link하고 무기는 **VisualMesh** 소켓에 붙인다. 원본 일반 ABP를 평가하지 않는 현재 UAF 그래프가 그 Linked Layer의 포즈를 자동 소비하지는 않는다. 기본 그래프를 다시 켜는 것은 기존 공급 분리/몽타주 전용 초기화와 충돌한다.
+- 기존 메인 ABP의 실제 연결은 MM/Fall Bool→`ApplyWeaponStyleOverlay`→Leans→슬롯→Offset Root→CR→`ApplyWeaponPostProcess`→Pose History다. `get_connected_subgraph`는 Cached Pose 경계를 넘어 원본을 모두 따라가지 않으므로 오버레이 앞/슬롯 뒤 체인을 따로 읽고 기존 Leans 기록과 대조했다. 큰 그래프 전체 DSL 읽기는 빈 문자열을 반환해 노드/연결 질의로 전환했다. 원본 그래프는 수정하지 않았다.
+- Rifle의 오버레이는 `MM_Rifle_Idle_ADS_UEFN`→`AO_MM_Rifle_Idle_ADS_UEFN`→Layered Bone Blend다. **실제 마스크는 spine_02/깊이2·메시 공간 회전=true·커브 Override**다. 공통 §3.1의 spine_01 요약만으로 새 마스크를 만들지 않는다. Rifle `ApplyWeaponPostProcess`는 현재 입력 포즈를 그대로 출력한다. 이 무기 후처리 레이어와 스켈레탈 메시의 Post Process Anim Blueprint 비활성 플래그는 다른 계약이다. 다른 무기 후처리의 무동작까지 전수 확인한 것은 아니다.
+- `ABP_VisualCopyPose`는 부모 메시 Copy Pose(`bUseAttachedParent=true`, `bCopyCurves=true`)→왼손 IK→RBWC→출력이다. 엔진 `Source/Runtime/AnimGraphRuntime/Private/AnimNodes/AnimNode_CopyPoseFromMesh.cpp`의 PreUpdate는 원본 bEnableAnimation=false일 때 컴포넌트 GetAnimCurves를 복사하는 UAF 분기를 이미 갖고 있다. 다만 아래 IK 차단 코드는 여전히 원본 AnimInstance API를 읽으므로 포즈 커브 복사만으로 그 값 경계가 해결되지는 않는다. `ABP_Retarget`은 부모 메시 리타깃→오른손 IK→왼손 IK→RBWC→출력이다. 현재 UEFN 표시 메시에서 비활성인 ABP_Retarget을 단순 활성화하는 대신, 같은 스켈레톤 시험에는 기존 ABP_VisualCopyPose가 더 작은 후보다. 실제 플레이어 Manny+ABP_Retarget/견착 검증을 대체하지 않는다.
+- 물리 반응 진입은 VisualMesh의 `ULNPPhysicalHitReactAnimInstance`가 있어야 한다. 플레이어 근접 공격 억제는 원본 MontageInstances에 MeleeHitWindow를 가진 몽타주가 남아 있는지 읽으며 준비/회수/블렌드아웃을 포함한다. 따라서 현재 원본 몽타주 인스턴스와 ANS 정리 경로를 유지하면서 표시 ABP만 뒤에 두는 후보가 있다. 실제 물리 반응/억제 재검증은 하지 않았다.
+
+### IK 차단 값의 경계 — 단순 ABP 활성화로 끝나지 않음
+
+| 기존 읽기 | UAF의 실제 저장/평가 | 영향과 남은 확인 |
+|:---|:---|:---|
+| `ComputeLeftHandOffDemand`→원본 `UAnimInstance::GetCurveValue(DisableLHandIK)` | `UAnimInstance`는 AnimInstanceProxy의 AttributeCurve를 읽는다. UAF WritePose는 메시 컴포넌트의 AnimCurves/커스텀 속성에 기록하며 일반 ABP 프록시를 채우는 경로가 아니다 | 메시 커브 복사 여부와 원본 AnimInstance 커브 API는 구분한다. 완료된 UAF 커브를 표시 IK가 읽는 최소 연결 필요 |
+| 원본 `GetSlotMontageGlobalWeight(DefaultSlot/FullBody/UpperBody)` | 기존 API는 AnimInstanceProxy의 슬롯 가중치를 읽는다. native MontageTrait는 자체 SourceWeight/평가 가중치, FUAFMontageComponent는 MontageEvalData를 사용한다 | 조사한 두 native 파일에서 기존 프록시 슬롯 갱신 호출은 없다. `GetSlotLocalWeight` API는 있으나 기존 global weight와 동등하다고 단정하지 않는다 |
+| 표시 ABP의 좌우 IK 알파 | 오프셋 그립/오른손 견착은 위 차단 요구량을 사용하고, 소켓 그립은 기존대로 왼손 알파1 | 재장전 중 감소·끝/중단 때 복귀, 슬롯 중첩/가산 슬롯 제외를 실제 평가 값과 대조해야 함 |
+
+§34 원본 curve0/IK1 관측은 이 경계와 양립하지만, 이 조사에서 같은 장면을 새로 재현하거나 무기 이상 회전의 원인으로 확정하지 않았다. 프록시 내부 값을 임의로 채우거나 몽타주를 두 번 틱하는 방식은 후보에 넣지 않는다.
+
+### native 후보 비교
+
+엔진 기준은 `C:/Program Files/Epic Games/UE_5.8/Engine/Plugins/Experimental/UAF/`다. 아래는 해당 설치본의 소스 대조이며 실행 통과 판정이 아니다.
+
+| 후보 | 확인한 사실 | 이번 권고 |
+|:---|:---|:---|
+| UAFLayering Layer Stack | Enable/Disable/Weight 이벤트·콘텐츠/마스크/블렌드 프로필 경로 존재. `BlendLayerTraitData`의 bBlendInMeshSpace 기본은 false이고, `UAFLayerDefaultBlendProvider.cpp`의 해당 생성 경로는 이 값을 설정하지 않음. CachePoseTask는 Pop 뒤 저장 TODO가 남음 | 기존 ALI 클래스의 자동 이전으로 취급하지 않는다. AO·입력·spine_02 마스크·메시 공간 회전을 후속 최소 무기 단위에서 별도 연결/검증 |
+| 기존 AnimGraph 안 `FAnimNode_AnimNextGraph` | 노드 소유의 별도 GraphInstance를 Allocate/Update/Evaluate. PropagateInputProperties의 복사 루프 본문이 비어 있고 SourceLink는 Update하지만 정상 UAF Evaluate에서 입력 포즈를 넘기는 구현은 없음 | 현재 UUAFComponent 시스템을 그대로 래핑하는 간단한 교체로 보지 않는다. 공급/몽타주/피드백 재연결 범위가 커 첫 후보로 삼지 않음 |
+| UAF→AnimSourceMesh→표시 ABP | native WritePose는 대상 bEnableAnimation=false와 같은 reference pose를 요구. UUAFComponent는 Output Component를 마지막 사용자 이벤트 뒤에 두는 의존성을 설정하고 AddComponentSubsequent도 제공 | **표시 계약을 분리해 검증할 첫 후보.** locator/reference pose·명시적 Write Pose 대상과 BP Output Component를 함께 원본으로 맞추고 표시 ABP가 그 완료 뒤 실행되게 확인 |
+
+`LNPUAFSpikeAnimInstance::UpdateInputs`는 현재 MeshComponentTransform을 이름이 VisualMesh인 컴포넌트에서 가져온다. 출력 대상을 바꾸면 이 입력·루트 피드백 기준도 같이 맞춰야 한다. 현재 CDO상 VisualMesh 상대 변환은 항등이고 원본은 Z=-84/Yaw=-90이지만, 이를 모든 런타임의 동등성 보장으로 삼지 않는다. 기존 ANS/GAS 메시 선택은 원본으로 유지한다.
+
+### 다음 최소 구현 후보와 확인 조건 — 제안·미구현
+
+1. 시험 에셋의 디스크 사본/해시를 확보하고, UAF 시스템의 SkeletalMesh locator/초기 reference pose/명시적 Write Pose와 BP Output Component를 원본으로 정렬한다. 원본 일반 ABP 평가는 계속 끈다. VisualMesh는 UEFN+기존 ABP_VisualCopyPose를 사용하고 실행을 켠다. 루트 입력 기준과 UAF 완료→표시 평가의 틱 의존성을 함께 맞춘다. GUI locator 변경·Compile/Save는 수동이 빠르므로 그 시점에 즉시 요청한다.
+2. 기존 일반 ABP의 읽기는 유지하고 시험 UAF 원본에서만 완료된 커브/차단 슬롯 요구량을 표시 IK에 전달하는 최소 연결을 둔다. GT/워커 사이에는 완료된 사본만 읽으며 native 몽타주 틱·ANS·그룹/재생 정책은 바꾸지 않는다. local/global 가중치와 실제 슬롯 기여의 차이는 구현 전에 좁히고, 값 API가 존재한다는 이유만으로 동등하다고 가정하지 않는다.
+3. 사용자 PIE로 이동/급회전·공중/착지·적도 대표 조건의 포즈 전달, 라이플 재장전 활성/중단/종료의 왼손 IK 차단·복귀, 가벼운 물리 반응과 플레이어 근접 공격 중 억제/지연 재생 없음·캡슐 불변을 관찰한다. 로그/실제 값을 함께 확인하고 기존 MM/History 순서 오류·쓰기 거부/관련 ensure가 없어야 한다. 시험 종료 뒤 GameMode 속성만 복원하고 맵 저장은 하지 않는다.
+
+이 단위로 무기 AO/자세·Manny 오른손 견착·모든 그룹/배치·적/네트워크·전체 게이트를 통과시키지 않는다. 무기 이상 회전은 표시 계약 연결 뒤 기존 ABP 기준과 별도로 비교한다. 후속 무기 레이어 이전과 Phase 6은 승인하지 않았다.
+
+### 수동 요청·보존과 현재 경계
+
+- 사용자에게 `S_LocomotionSpike.SkeletalMesh`의 locator와 시험 BP `UAFLocomotion.Output Component`를 **수정 없이 읽어** 알려 주도록 요청했고, 사용자가 **두 값 모두 VisualMesh**라고 확인했다. locator는 Current Actor→VisualMesh이며 사용자 GUI 확인 근거다. 이번 세션 MCP로 직접 읽었다고 하지 않는다. CDO의 uAFLocomotion 속성은 None이며 S EditorData의 components 목록은 변수 기본 locator를 노출하지 않는다. 전용 조회 도구는 만들지 않았다. 이 확인으로 조사 단위를 마감하며 다음 구현은 별도 진행 확인 대기다. 값 확인 회신을 구현 착수 승인으로 해석하지 않는다.
+- 기존 사용자4개+시험 BP+최종 AG 총6개의 SHA256은 §34 인계와 모두 같다. AG는 여전히 5C9EEFD997DB27BE343C5890544191DD2B0C6CCBF21600EBB4F3B2566C468D3D다. 읽은 기존 ABP와 소스의 저장/수정·새 PIE/빌드/테스트·커밋/푸시는 하지 않았다. HEAD는 기존 §34 커밋5f21844다.
+- 근거는 `Saved/AnimationOverhaul/2026-10-29_UAF52DisplayPathInvestigation/`의 EditorAndGraphReads·HandoffHashComparison·SourceHashes다. 빈 DSL·미지원 도구 약칭/잘못된 경로 조회는 대상을 정정한 읽기로 보완했으며 실행 실패나 기능 부재의 증거로 쓰지 않는다. Saved는 git 제외다.
+
+## 36. UAF 원본 출력·표시 ABP·IK 차단 연결(2026-10-29, 구현·대표 검증·종료 정리 단위 완료)
+
+사용자가 §35 다음 구현을 승인했다. 이번 단위는 같은 UEFN 스켈레톤에서 원본 포즈 출력→표시 ABP와 IK 차단 값을 연결한다. 무기 AO/자세 레이어 이전·Manny 리타깃/오른손 견착·무기 회전 원인 해결·Phase 6은 포함하지 않는다.
+
+### 계획과 검증 조건
+
+1. 원본 일반 평가는 계속 끄고 UAF locator/reference pose/Write Pose·BP Output Component를 AnimSourceMesh로 정렬한다. VisualMesh는 기존 UEFN+ABP_VisualCopyPose로 일반 평가를 실행한다. UAF 루트 입력의 기준과 출력 대상, UAF 완료→원본→표시 틱 순서를 함께 맞춘다.
+2. 기존 API와 같은 슬롯 local×그래프 global 가중치를 실제 native Montage Trait 갱신에서 읽는다. 완료된 프레임의 세 슬롯 사본만 공개하고, 커브는 UAF 원본 컴포넌트에서 읽는다. 기본 일반 ABP 계산은 유지한다. 몽타주 틱/ANS/재생·슬롯 그룹 정책을 바꾸지 않는다.
+3. 전체 빌드와 피드백 수명 테스트 뒤 사용자가 GUI 연결/컴파일/저장한다. 이어 PIE에서 이동/공중/적도 대표 전달·재장전 정상/중단 IK 감소와 복귀·가벼운 피격과 플레이어 근접 공격 중 물리 억제를 검증한다. 해당 실행의 실제 값/오류를 확인하기 전 완료로 판정하지 않는다.
+
+### 준비한 코드와 근거
+
+- 기존 소스4개 수정·신규 소스3개다. LNPAnimInstance의 기존 차단 함수를 virtual로 두고 표시/링크 인스턴스는 원본 구현에 위임한다. 일반 원본의 기존 프록시 읽기 공식은 그대로다. 시험 원본 override는 완료된 UAF 슬롯 사본과 메시 GetAnimCurves의 DisableLHandIK를 합쳐 읽는다.
+- `LNPUAFMontageIKTrait.h/.cpp`는 native DefaultSlot/FullBody/UpperBody 스택에 추가하는 IUpdate 관찰 트레이트다. 기본 PreUpdate를 먼저 호출하고 `FUAFMontageComponent::GetSlotLocalWeight × FTraitUpdateState::GetTotalWeight`를 기록한다. 모듈 Begin에서 작업 사본을 비우고 End에서 잠금으로 완료 사본을 공개한다. 세 슬롯이 빠지거나 같은 슬롯이 중복 갱신되면 그 사본은 유효하지 않다. native 갱신·자식 큐/평가를 복제하지 않는다.
+- 엔진 AnimNode_Slot/AnimInstanceProxy에서 기존 global API=local×node global임을 직접 확인했다. 단순 local 최대값으로 대체하지 않았다. 준비한 자동화 `LootNPop.Animation.UAF.HandIKFeedback`은 교체 중 0.8 local이 0.48 global로 줄어드는 사례·커브 우선·미완료 사본 비공개·다음 실행의 누락/중복/Idle 복구를 검사한다. 아직 컴파일/실행하지 않았다.
+- 시험 입력 MeshComponentTransform은 VisualMesh 이름 탐색 대신 원본 GetSkelMeshComponent에서 공급한다. 기존 폰→UAF 의존성에 UAF PrePhysics→VisualMesh와 원본→VisualMesh 의존성을 추가했다. 실제 출력 locator는 아직 VisualMesh이며 GUI 변경 전이다.
+- `LNP.Anim.DebugLocomotion>=2`에서 `[UAFHandIK]`는 약60 게임 프레임마다 사본 serial/valid·세 슬롯 global 값·커브/최종 요구량을 기록한다. 원본의 입력 공급 전 읽기는 이전 완료 프레임일 수 있으므로 로그 한 줄을 이번 표시 평가와 동시라고 단정하지 않는다. 표시 알파와 출력 순서는 실제 PIE에서 함께 확인한다.
+
+### 현재 수동 요청과 보존
+
+- 시작 PIE=false·열린 에셋 S/BP, 시험 BP·S·AG dirty=false를 확인했다. `Saved/AnimationOverhaul/2026-10-29_UAF52DisplayBridge/`에 기존 소스4개·시험 에셋3개 사본과 사용자4개/시험 BP/AG 해시를 저장했다. 시험 에셋/소스 원본 반입분/사용자 에셋은 아직 저장하거나 바꾸지 않았다. 소스 diff 공백 검사는 통과했다.
+- 새 UAF 반사 타입과 C++ 가상 함수 변경이 있어 **LootNPop 에디터 정상 종료를 요청했다.** 기존 사용자 맵까지 전체 저장하지 않으며 저장 질문이 나오면 알려 달라고 했다. 종료 회신 뒤 권한 확장 프로세스 확인과 기준 Development 전체 빌드를 진행한다. 아직 UBT/Live Coding은 실행하지 않았다.
+- 빌드 성공 뒤의 GUI 작업은 세 Montage 스택에 `LNP Montage IK Feedback` 추가(UpperBody는 기존 마스크 위), S locator와 BP Output Component를 AnimSourceMesh로 정렬, VisualMesh를 ABP_VisualCopyPose/일반 평가=true로 변경하는 것이다. 현재는 이 조작을 요청/실행하기 전이며 이전 AG 백업으로 덮어쓰지 않는다.
+
+### 전체 빌드·첫 테스트 실패·수정 후 통과
+
+- 사용자 에디터 정상 종료 회신 뒤 권한 확장 가드에서 실행 중 UnrealEditor가 없어 기준 Development 전체 빌드를 실행했다. **13 actions·99.12초·Succeeded·종료0**이다. UHT3개 생성 파일·신규 소스/공통 가상 함수 변경·링크까지 성공했으며 Live Coding은 사용하지 않았다.
+- 첫 NullRHI 자동화는 프로세스 종료0이었지만 리포트는 **테스트1개 실패/오류1**이었다. `0.8f×0.6f`와 `0.48f`의 float 차이가2.980232238769531e-8로 기본 IsNearlyEqual 허용 오차보다 커 global 기여도 검사 하나만 실패했다. 종료 코드만으로 통과시키지 않았다. Automation.log/AutomationReport·FirstAutomationFailure.json을 보존했다.
+- 해당 비교에 1.e-6f 허용 오차만 명시했다. 기능 소스는 바꾸지 않았다. UI/명령행 에디터 프로세스가 없는지 다시 확인한 뒤 재빌드는 **4 actions·7.22초·Succeeded·종료0**이다. 별도 AutomationRetryReport의 HandIKFeedback **Success1/Fail0·테스트 경고0/오류0**, 명령행 종료0을 확인했다. 이 테스트는 사본 수명/숫자 계산 검증이며 실제 native 트레이트 배선이나 표시 IK/물리 동작 통과가 아니다.
+- 사용자에게 에디터를 다시 열고 PIE 없이 세 슬롯 피드백 트레이트 추가·S locator/BP Output Component의 AnimSourceMesh 정렬·VisualMesh ABP_VisualCopyPose/Enable Animation=true를 설정한 뒤 AG/S/시험 BP만 Compile/Save하도록 요청했다. AnimSourceMesh의 기존 ABP/일반 평가=false와 슬롯 설정·연결은 유지한다. 경고/오류는 그대로 회신받고, 완료 뒤 새 MCP 읽기로 실제 설정/저장과 맵 상태를 확인한다. 아직 사용자 연결 완료 회신/PIE는 없다.
+- Saved UAF52DisplayBridge에 Build/BuildRetry·첫/재시험 로그와 별도 리포트·AutomationSummary·BuiltSourceHashes·AfterBuildAssetHashes를 보관했다. 빌드만으로 구현 단위를 완료하거나 다음 단위에 착수하지 않는다.
+
+### 사용자 연결 완료·저장/설정 재조회·첫 PIE 요청
+
+- 사용자가 세 시험 에셋 연결·Compile/Save 완료를 회신했다. 새 MCP에서 PIE=false·TestMap03·열린 에셋0·시험 AG/S/BP dirty=false를 읽었다. 원본 CDO는 UEFN+ABP_SourceUAFSpike/Enable Animation=false, 표시 CDO는 UEFN+ABP_VisualCopyPose/Enable Animation=true이며 두 메시의 소스 Post Process ABP 비활성도 유지됐다. S locator/BP Output Component와 세 트레이트 배선은 사용자 GUI 완료 보고 근거이며 직접 읽지 못한 RigVM 속성을 반복 호출하지 않았다. 슬롯별 실제 수집은 PIE의 valid/serial과 관련 로그로 확인한다.
+- 재시작 뒤 GameMode는 디스크 맵의 BP_GameModeUAFSpike다. 새 속성 변경/맵 저장은 하지 않았다. 사용자 기존4개 에셋은 시작 해시와 모두 같고, 시험 BP/AG는 요청한 연결 변경으로 달라졌다. S도 포함한 연결 후3개 해시·ConnectionEditorReads/ConnectionEditor.log를 별도로 보관했다. 이전 AG 백업을 복원하지 않았다.
+- 이번 에디터의 진단 CVar 두 값은0/0으로 다시 읽혔다. 사용자에게 PIE 전 DebugLocomotion2/DebugNotifies2를 입력하고 새1인 Standalone PIE에서 라이플·적 없는 위치의10초 이동/급회전·점프/착지2회, 탄 소비 뒤 정지 재장전2회/이동 재장전2회를 정상 종료까지 관찰하도록 요청했다. 성공/이상 발생 시 PIE를 Pause로 유지한다. 실제 캐릭터/표시 인스턴스·커브/슬롯 요구량·표시 알파·관련 오류는 회신 뒤 새 런타임 참조로 확인한다.
+- 연결 에디터 로그에는 기존 Lyra/MVVM 클래스 뷰어·Slate/JSON schema 경고와 재시작 뒤 첫 MCP의 Unknown session 오류/자동 재초기화가 있다. 후속 읽기는 성공했다. 이 로그 전체를 경고/오류0으로 요약하거나 PIE의 UAF 실행 실패로 확대하지 않는다. 아직 새 PIE 성공/IK 차단/물리 반응 검증 결과는 없다.
+
+### 첫 표시·정상 재장전 스모크 관찰·활성 IK 값 확인 대기
+
+- 사용자가 요청한 이동/급회전/점프·정지/이동 재장전 정상과 PIE Pause 유지를 회신했다. 새 PIE Actor 경로를 조회했으며 원본은 ABP_SourceUAFSpike/일반 평가=false, 표시는 ABP_VisualCopyPose/일반 평가=true인 실제 컴포넌트 설정을 확인했다. 런타임 UAF Output Component의 componentProperty=**AnimSourceMesh**, OutputMode=WriteToSkeletalMeshComponentPose를 직접 읽었다. S locator/AG 개별 배선의 MCP 직접 조회로 확대하지 않는다.
+- 연결 후 기준 로그부터 첫 스모크 구간을 보관했다. `[UAFHandIK]` **71줄/valid1 모두71·valid0=0**, 비영 요구량9줄·상체 마스크9줄이다. UpperBody1/curve1/demand1과 블렌드아웃0.895·종료 뒤0을 확인했다. 간헐 표본이며 모든 프레임의 유효/단일 평가 증거는 아니다. 구간 Error/ensure/쓰기 경고/MM순서 진단0, 기존 Foley 경고190이다. 정상 라이플 재장전 구간에서 프로젝트 ANS5종 콜백0은 그 계약 재검증 근거가 아니다.
+- CR 앞 루트 진단84창의 maxPose/State 거리30cm·Yaw90°·Tilt0°를 확인했다. 대표 위도는 남극 부근(-82.46°)이며 적도/모든 위도·CR 뒤 본별 최종 포즈 통과가 아니다. 진단 창을 정확한 전체 PIE 프레임 수로 확대하지 않는다.
+- **표시 ABP의 실제 IK 알파 소비는 다음 수동 읽기 대기**다. 현재 재장전 종료 Pause에서 None 안전 Python으로 원본/표시 실제 AnimInstance 경로·활성 몽타주·GetCurveValue/좌우 IK 알파를 읽고, Resume/탄 소비/재장전 중간 Pause에서 같은 명령을 다시 실행하도록 요청했다. 원본 GetCurveValue는 여전히 프록시 API이며 컴포넌트 커브와 구분한다. 첫 사용자 관찰/요구량 로그만으로 표시 알파 차단 통과를 주장하지 않는다. 중단/대시·물리·적도 대표 검증은 아직 남아 있다.
+- Saved UAF52DisplayBridge의 FirstDisplaySmoke.log/Counts·FirstDisplayRootSummary·FirstDisplayRuntimeReads에 원문/요약을 보관했다. 같은 PIE의 진단2/2도 실제 재조회했다. 소스/에셋 수정·재빌드·녹화는 추가하지 않았다.
+
+### 두 상태의 실제 표시 IK·대시 중단/후속 재장전 복귀
+
+- 사용자 두 상태 읽기 완료 회신 뒤08:08:56/08:09:22 UTC의 실제 출력에서 원본 ABP_SourceUAFSpike_C_0·표시 ABP_VisualCopyPose_C_0를 확인했다. Idle에서는 두 인스턴스 모두 몽타주None·커브0·좌우 IK알파1이었다. 재장전 중간에서는 원본 AM_MM_Rifle_Reload_UEFN 활성·표시 몽타주None이며 **원본/표시 왼손 IK알파가 모두0**이었다. 표시는 원본 몽타주 포즈를 복사하면서 차단 값을 실제로 소비했다. 원본/표시 프록시 커브는 이 시점 모두0이며, 앞 컴포넌트 커브1 표본과 동시라고 하지 않는다.
+- 오른손 알파도1→0이었으나 UEFN CopyPose 표시 ABP에는 오른손 IK 노드가 없다. 이를 Manny 리타깃/견착 소비 통과로 확대하지 않는다. TwoStateIKReads.log/TwoStateIKSummary.json에 실제 인스턴스·시점·한계를 보관했다.
+- 같은 PIE에서 현재 활성 재장전 Resume/즉시 대시·추가 재장전/대시·후속 정상 재장전1회와 종료 읽기를 요청했고 사용자가 모두 정상이라고 회신했다. DashSmoke17표본 모두valid1·마스크5줄·관련 Error/ensure/MM순서/쓰기 경고0이다. 실제 FullBody1/demand1 표본과 UpperBody1→0.880→0을 확인했다. 08:13:05 UTC 종료 읽기는 같은 원본/표시 인스턴스의 몽타주None·좌우 IK알파1로 복귀했다. 간헐 표본/대표 중단 관찰이며 모든 프레임의 슬롯 중첩/블렌드 동등성 검증은 아니다.
+
+### 현재 수동 요청 — 표시 물리 반응
+
+- PhysHitReactMode=100을 실제 읽었다. 사용자에게 같은 Idle Pause에서 PhysHitReactLog1과 공개 PlayHitReact를 호출해 코스메틱 피격1회를 예약하고, 입력 없이1~2초 Resume 후 상체 반응/복귀를 관찰·Pause/종료 상태를 읽도록 요청했다. Python은 매번 현재 폰/VisualMesh를 새로 찾고 호출 전 Actor 위치·몽타주/PhysicsAlpha와 종료 뒤 Actor 위치/PhysicsAlpha를 기록한다. HP 피해나 GameplayCue 전달 자체를 시험하는 호출은 아니다.
+- 아직 이 물리 표본의 회신/실행 결과는 없다. 플레이어 근접 공격 중 억제·지연 재생 없음과 적도 대표 출력도 남아 있다. PhysicalIdleStart·앞 두 상태/대시 근거를 보존했고 같은 구현 단위에서 진행 중이다. 소스/에셋 변경·빌드·새 녹화는 없다.
+
+### Idle 물리 반응·복귀 확인·공격 중 억제 표본 요청
+
+- 사용자가 물리 반응/복귀 정상·종료 읽기를 회신했다.08:24:18 UTC 호출 전 sourceMontage=None·PhysicsAlpha0,08:24:26의 실제 `[PhysHitReact]`1회는 mode100/strength1/pointBody=spine_04였다.08:24:35 종료 읽기는 PhysicsAlpha0이다. 두 Actor 위치가 출력 정밀도 내 동일(-2552.497014,-2909.156143,-29596.345441)이고 해당 구간 관련 오류0이다. PhysicalIdle.log/Counts/Summary에 보관했다. 한 표본의 위치/복귀와 사용자 시각 관찰이며 모든 프레임 Alpha/캡슐 측정은 아니다.
+- 사용자에게 롱소드 공격 도중 Pause→원본 활성 몽타주가 있을 때만 동일 코스메틱 피격 예약→입력 없이 공격 종료 후2초 더 관찰→Pause/종료 읽기를 요청했다. Python은 현재 폰/표시/원본을 새로 찾으며 활성 몽타주가 없으면 예약하지 않는다. 억제의 실제 분기/원본 몽타주·종료 뒤 늦은 재생 없음을 로그와 관찰로 대조한다. 아직 이 표본의 실행 결과는 없다.
+
+### 공격 중 억제·지연 재생 없음 확인·근적도 대표 검증 요청
+
+- 사용자가 공격 중/종료 후 흔들림 없음·읽기 완료를 회신했다.08:28:03 UTC의 실제 원본 활성 몽타주는 **AM_SW_Attack_01_UEFN**, 표시 PhysicsAlpha0이었다. Resume 후 `[PhysHitReact] suppressed=PlayerMeleeAttack pending=1 active=0 sourceMontage=AM_SW_Attack_01_UEFN`1회를 확인했다. 이후 실제 mode 피격 적용0·NotActive0·관련 오류0,08:29:36 종료 읽기의 PhysicsAlpha0이다. 이 표본에서 예약 피격을 억제했고 사용자 관찰과 함께 지연 재생 없음으로 확인한다. 모든 블렌드아웃/네트워크 경계의 전수 보장은 아니다.
+- 같은 구간 사용자의 실제 공격들에서 프로젝트 ANS5종 각각 Begin3/End3를 추가 관측했다. 전달 mesh/instance와 GAS 대상은 원본 AnimSourceMesh/ABP_SourceUAFSpike로 일치하는 대표 로그가 있다. 이를 이번 단위에서 종료/모든 배치 계약을 다시 전수 검증한 것으로 확대하지 않는다. PhysicalAttack.log/Counts/NotifyPairs에 보관했다.
+- 기존 구면 조건의 대표 검증을 위해 현재 PIE에 로드된 ReviewPoint122개의 위치를 기존 툴로 읽기 전용 조회했다. 가장 적도에 가까운 PodTerraceSouth 두 지점은 위도 약−5.537°다. 기존 TeleportToReview 구현이 해당 런타임 TargetPoint에서 Up150cm 위로 폰을 재생성함을 소스로 대조했다. 이전 Yaw 발판 좌표/Teleport 명령을 재사용하지 않았다. EquatorReviewCandidates.json에 후보를 보관했다.
+- 사용자에게 `LNP.Debug.TeleportToReview PodTerraceSouth`·착지 뒤 WhereAmI, 라이플 이동/급회전/점프/이동 재장전1회·Pause/UAF36Read를 요청했다. **폰이 재생성되는 명령**임을 알렸고 이후 새 런타임 참조로 확인한다. 아직 근적도 실행 결과는 없다. 이 대표 검증과 PIE 종료/보존 확인 뒤 이번 구현 단위를 마감하고 다음 단위 진행 여부를 확인한다.
+
+### 근적도 새 폰 검증·단위 완료·종료 정리
+
+- 사용자가 근적도 동작 정상·읽기 완료/Pause 유지를 회신했다. 실제 커맨드는 PodTerraceSouth **slot5**로1명을 리스폰했고 새 폰은 BP_PlayerUAFSpike_C_1이다. WhereAmI의 발밑은 SM_Bastion_00_T02_Floor다. 새 원본/표시 인스턴스와 종료 몽타주None·좌우 IK알파1을 읽었고, 새 런타임 UAF Output Component도 AnimSourceMesh/WriteToSkeletalMeshComponentPose로 직접 대조했다.
+- 전체 EquatorSmoke에는 리스폰 전 구간이 섞여 있어 완료 마커 뒤를 EquatorAfterRespawn으로 따로 분리했다. **새 폰 피드백28표본 모두valid1·valid0=0, CR 앞 루트67창 위도−6.99°~−3.40°·거리≤30cm·Yaw≤90°·Tilt0°**다. FullBody1·UpperBody1 요구량과 종료 복귀를 확인했다. 해당 구간 관련 Error/ensure/MM순서/쓰기·모듈 종료 경고0, 기존 Foley167이다. 정확히 위도0/모든 위도·본별 최종 포즈·모든 프레임 갱신 통과는 아니다.
+- **이번 구현/대표 검증 단위는 완료**다. 원본 출력과 표시 CopyPose ABP 연결·기존 계산의 원본 위임·완료된 actual global 슬롯 피드백/컴포넌트 커브 읽기·전체 빌드/수명 자동화·사용자 정상 이동/재장전·실제 표시 알파1→0/중단 후1·Idle 물리와 플레이어 근접 공격 중 억제/지연 적용 없음·근적도 대표 실행을 확인했다. 별도 새 테스트 장치/새 녹화는 만들지 않았다.
+- PIE Stop 성공 뒤 실제 false를 확인하고 운영용 BP_LNPGameMode로 **GameMode 속성만 메모리 복원/재조회**했다. 이번 재시작 시 읽은 디스크 값은 시험 GameMode였으므로 이를 세션 시작값 복원이라고 하지 않는다. 맵은 저장하지 않았다. AG/S/시험 BP dirty=false·열린 에셋0이며 종료 구간 관련 오류/ensure/종료 보완 경고0이다. 이번 정리를 새 활성 ANS 종료 전수 검증으로 확대하지 않는다.
+- 연결 후 시험 에셋3개·시작 사용자 에셋4개·빌드 때 소스7개는 종료 해시가 모두 같다. 현재 AG=0832611B22B63D16B69B8659ACDD7E530495B89D73C3DCB0C13C13B0735B027A, S=BDBCA87E9B36AD857E727563DBA4B856D4E46B1037F7B71D2B62BA9D8D4ED8DC, BP=346D5664FC744C2E23575281DCC89750A53FFBD1B5D4442EF9357F954482ED3C다. ClosureEditorReads/Closure*Hashes·PIEStop와 근적도 원문/요약을 보관했다. 진단은 종료 재조회에서 DebugLocomotion2/DebugNotifies2/PhysHitReactLog1이며 종료 후 변경하지 않았다.
+- 현재 변경은 **기존 소스4개·신규 소스3개·시험 에셋3개·문서4개 총14개**다. 기존 사용자 에셋4개는 보존하며 커밋/푸시는 요청받지 않아 수행하지 않았다. 첫 자동화의 float 허용 오차 실패/보완, 기존 Foley/에디터 경고와 MCP 재초기화 오류도 기록에 유지한다.
+- 다음 제안은 **라이플 기본 자세·Aim Offset의 최소 UAF 연결**이다. 기존 실제 오버레이의 spine_02/깊이2·메시 공간 회전과 AimYaw/Pitch/자세·슬롯 앞 순서를 기준으로 한 무기부터 연결한다. 이 후속 단위는 사용자 진행 확인 전 착수하지 않는다. 무기 이상 회전 원인은 미확정이며 전체 무기 전환·Manny 견착·독립 커브 차단/모든 슬롯/배치·Mover 루트모션·적/네트워크·최종 게이트/Go-NoGo는 미판정이다.
+
+### 새 세션 인계·단일 커밋 정리(2026-10-29)
+
+- 사용자가 후속 구현 대신 새 세션 인계 문서 갱신과 한 번의 커밋을 요청했다. Current는 완료 이력 나열을 줄이고 현재 시험 구성/검증·한계/에디터 상태·다음 라이플 자세/AO 범위와 진행 확인 경계를 중심으로 정리했다. 과거 상세는 실행서와 로그가 유지한다. Roadmap의 §34 직접 표시 출력과 §36 원본→표시 연결을 구분해 현재 상태로 갱신했다.
+- 다음 세션은 CLAUDE/README/Current/Decisions와 실행서 §2/§4/§35·§36 마지막 완료/인계 요약을 먼저 읽는다. 사용자 진행 요청 뒤에만 라이플 한 무기의 자세/AO 연결을 시작하며 Phase 6·전체 무기 이전/후속 구현은 이번 인계로 승인하지 않는다. 기본 운영 ABP 설계나 확정 결정이 바뀐 것은 없어 README/Decisions/공통 CombatAnimation은 변경하지 않는다.
+- 새 실제 읽기로 PIE=false·운영 BP_LNPGameMode·열린 에셋0을 재확인했다. 연결 후 시험 에셋3개/기존 사용자4개와 빌드 소스7개의 인계 해시 비교를 Saved Handoff*에 남기며, 인계만을 위한 새 빌드/PIE/녹화/맵 저장은 하지 않는다. 진단2/2/PhysLog1과 디스크 시험 GameMode 재로드 주의는 유지한다.
+- 커밋 범위는 **문서4개·기존 소스4개/신규3개·시험 에셋3개 총14개**다. 최근5f21844/83f9c40/876269c의 feat 제목·한국어 항목별 본문 형식을 따른다. 기존 사용자 에셋4개/Saved는 제외하고 커밋 뒤 남는4개를 되돌리지 않는다. 푸시·새 채팅 생성·후속 구현은 하지 않는다.
