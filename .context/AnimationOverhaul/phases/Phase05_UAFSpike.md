@@ -1,7 +1,7 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0·5-1 완료. 5-2 진행 중. §31 조기 종료 보완·§32 Combo/Cancel 소유 Actor 종료 대표4개 검증 완료. 다음 UpperBody 슬롯·그룹 경로 조사 진행 확인 대기. 남은 경계/전체 게이트·최종 Go/No-Go 미판정.
-> 마지막 갱신: 2026-10-28
+> 상태: 5-0·5-1 완료. 5-2 진행 중. §34 UpperBody 최소 마스크 연결·대표 재장전/대시·한 프레임 평가 구조 확인과 종료 정리 완료. 표시 후처리·무기 레이어 연결 경로 조사 진행 확인 대기. 무기 이상 회전/남은 경계/전체 게이트·최종 Go/No-Go 미판정.
+> 마지막 갱신: 2026-10-29
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
 ## 1. 목표와 범위
@@ -16,7 +16,7 @@
 |:---|:---|:---|:---|
 | 5-0 | GASP 참조 유무·로컬 엔진 API 조사, 실행서 작성 | 참조 조회 결과·재사용 경로·차단 후보·미검증 항목 기록. 코드·에셋 변경 없음 | 완료(2026-10-23) |
 | 5-1 | 최소 테스트 폰·UAF 그래프, 기존 PSD·Chooser·Mover 궤적 연결 | 같은 Chooser가 반환하는 PSD 목록과 실제 UAF 검색 결과 확인. 북극·적도 이동/정지/회전·공중 고정·발 배치·움직이는 base 확인. 동등 구현 경로가 없으면 해당 사유로 조기 No-Go 판정 | 완료(2026-10-27, §19). 최소 기능 조건과 시험 정리 충족. 기존 ABP와의 최종 동등성 통과를 의미하지 않음 |
-| 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 진행 중(§26~§29 정상/대표 중단·§31 조기 종료 보완/대표 회귀 확인. 남은 경계/전체 게이트 미판정) |
+| 5-2 | 몽타주·ANS·레이어·루트모션·네트워크·디버깅 판정 | 아래 표 전 항목에 실행 근거를 붙여 Go/No-Go 기록. 기본 플레이어·승격 적 경로에 회귀가 없는지 확인 | 진행 중(§26~§32 정상/대표 중단·종료 보완, §34 UpperBody 최소 마스크/대표 재장전 확인. 무기 최종 포즈/남은 경계/전체 게이트 미판정) |
 
 최초 로드맵의 1~2세션 예상에서 **준비 포함 3단위로 구체화**했다. 로컬 GASP UAF 참조를 찾지 못했고, Phase 2 구면 보정과 몽타주 메시 선택을 별도로 확인해야 한다. 5-1의 조기 No-Go면 5-2를 수행하지 않는다.
 
@@ -59,7 +59,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | 게이트 | 통과 기준 | 현재 판정 |
 |:---|:---|:---|
 | PSD·Chooser | 기존 에셋을 변경하지 않고 같은 상태 입력의 PSD 배열로 UAF가 검색. Starts/Stops/Turns 등 전환과 인터럽트 확인 | 부분 확인 — 대표 전환의 전달·실제 선택(§13), Sprint Turns·GaitTransitions·Run Pivot의 전달·후보 검색(§17) 확인. §17의 목표 전환 클립은 미선택. 지속 고속/전환의 최종 품질 비교는 5-2에 남음(§19) |
-| 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS5종 정상/중단/교체/종료 시 End 각1·태그/근접 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26~§29 정상/대표 중단/생존 모듈 제거 확인. §30 실패는 §31 활성3종 Actor 파괴의 End/태그/실제 엔티티 정리와 월드 종료 End/정리 요청으로 보완. §32 Combo/Cancel Actor/월드 대표4개도 End 각1·중복/ensure0 확인. 월드 사후 실제 무효/독립 태그·UpperBody/전체 슬롯·Branching/다른 배치 모드는 미검증 |
+| 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS5종 정상/중단/교체/종료 시 End 각1·태그/근접 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26~§32 정상/대표 중단/소유 Actor 종료 보완 확인. §34 UpperBody 최소 마스크/대표 정상·이동·대시 재장전/실제 평가 구조 확인. 월드 사후 실제 무효/독립 태그·전체 슬롯/그룹의 상세 실행·Branching/다른 배치 모드는 미검증 |
 | UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 미검증 |
 | Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 |
 | 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 미검증 |
@@ -72,7 +72,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 
 ## 5. 다음 행동
 
-현재 **§31 조기 종료 보완·§32 Combo/Cancel Actor/월드 대표 종료 검증 단위는 완료**다. 다음 UpperBody 슬롯·그룹 최소 연결 경로 조사는 사용자 진행 확인을 받는다. 월드 독립 태그/사후 실제 무효와 기타 미검증 경계를 유지하며 전체 슬롯/ANS·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
+현재 **§34 UpperBody 최소 마스크 연결·대표 실행 단위는 완료**다. 다음 표시 후처리·무기 레이어의 UAF 연결 경로 조사는 사용자 진행 확인을 받는다. 무기 이상 회전/표시 IK·월드 독립 태그/사후 실제 무효와 기타 미검증 경계를 유지하며 전체 슬롯/ANS·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
 
 사용자 승인으로 5-1을 시작했다. LootNPop MCP의 `ListEnabledPlugins`에서 `UAF`·`UAFAnimGraph`·`UAFMirroring`가 활성인 것을 확인했다. `UAFChooser`·`UAFPoseSearch`·`UAFControlRig`·`UAFWarping`·`MoverAnimNext` 5개를 `LootNPop.uproject`에 명시하고 JSON 파싱·diff 공백 검사를 통과했다. MCP `SetPluginEnabled`는 메모리의 프로젝트 설정만 바꾸고 파일을 저장하지 않아 파일에도 명시했다(엔진 툴 구현 확인). 런타임 로드 확인은 재시작 후 수행한다. GASP는 더 필요하지 않아 닫아도 된다고 안내했다.
 
@@ -1502,3 +1502,125 @@ print('[UAFNextReleaseAfter]', [c.get_name() for c in ans_p.get_components_by_cl
 - §29~§32 검증 결과와 §31 최종 소스/빌드·정상 회귀/종료 근거는 유지하고 Current의 중복된 이전 에디터 상태를 정리했다. 최초 종료 실패·비공개 API 컴파일 실패·첫 재진입 ensure도 삭제하지 않는다. 최종 표본의 성공과 모든 종료 조합의 미판정을 구분한다.
 - 인계 직전 PIE=false·원래 BP_LNPGameMode를 실제 재조회했고 에셋6개는 §32 시작/종료/인계 해시가 같다. GameMode는 메모리만 복원한 상태이며 디스크 맵의 기존 시험 값은 그대로다. 맵을 저장하지 않고 다음 세션은 실제 값을 다시 읽는다. Saved는 git 제외라 같은 로컬에서 재사용하되 다른 체크아웃에는 따라가지 않는다.
 - 이번 커밋은 **소스5개·문서4개 총9개**다. 기존 사용자 에셋4개와 시험 BP/AG는 포함하지 않는다. 이전 커밋의 feat 제목·한국어 항목별 본문 형식으로 단일 커밋하며 푸시/새 채팅 생성/후속 구현은 하지 않는다. 인계만을 위한 빌드/녹화/정상 시험 반복도 없다.
+
+## 33. UpperBody 슬롯·그룹 최소 연결 경로 조사(2026-10-28, 조사 단위 완료)
+
+사용자가 문서를 읽고 Phase 5를 이어 진행하도록 요청했다. 이를 Current의 다음 **조사 단위** 승인으로 해석했다. 실제 구현/그래프 연결은 다음 단위이며 진행 확인 전 착수하지 않는다. `unreal-mcp`와 프로젝트 Blueprint 읽기 지침을 적용해 기존 ABP의 해당 노드만 좁혀 읽었다. 코드/에셋 변경·빌드·PIE·녹화는 없다.
+
+### 기존 계약 — 현재 에셋과 소스 대조
+
+- `ABP_Main_UEFN:AnimGraph.AnimGraphNode_LayeredBoneBlend_0`의 실제 값은 BranchFilter·`spine_01`·BlendDepth=0·BlendWeights=[1]·메시 공간 회전=true·루트 공간 회전=false·메시 공간 스케일=false·CurveBlendOption=Override·루트 본 기반 루트모션=true·LODThreshold=-1이다. `FAnimationRuntime::CreateMaskWeights`에서 깊이0은 해당 본과 모든 자손의 가중치1이다. 무기 오버레이의 `spine_02`/깊이2와 혼동하지 않는다.
+- 연결은 `PreUpperBody` 캐시를 Base로, 같은 캐시를 Source로 받는 Slot `UpperBody`를 BlendPoses_0으로 사용한다. FullBody 뒤·Offset Root/발 배치 앞이라는 기존 순서를 유지해야 한다. `UpperBody`는 전신 몽타주 Release 조건에 포함하지 않는다(`LNPAnimInstance.cpp::IsFullBodyMontageActive`).
+- 현재 `AM_MM_Rifle_Reload_UEFN`은 UEFN 스켈레톤·2.2초·블렌드인0.1초/아웃0.3초(HermiteCubic), BlendProfileIn/Out=None이다. 두 트랙은 `UpperBody`와 `UpperBodyAdditive`이며 각각 리타깃된 일반/가산 시퀀스를 참조한다. **기존 메인 ABP에는 UpperBodyAdditive 소비 슬롯이 없고 보정 가산 트랙은 생략한다.** 공통 Ability 문서 §5.5와 현재 그래프가 일치한다. 트랙 존재를 새 슬롯 추가 요구로 해석하지 않는다.
+- 그룹은 `ULNPAnimInstance`의 AN-020 표 그대로다. `DefaultSlot`·`FullBody`·`FullBodyAdditivePreAim`·`UpperBody`·`UpperBodyAdditive`는 DefaultGroup, `AdditiveHitReact`만 AdditiveGroup이다. 시험 공급층 `InitializeExplicitDriver`가 NativeInitializeAnimation을 호출하므로 새 등록 경로는 필요하지 않다. 이번에는 런타임 재장전/교체의 그룹 동작을 시험하지 않았다. 소스 스켈레톤 저장은 하지 않는다.
+- AO는 무기 서브 ABP가 공급된 AimYaw/Pitch와 UAF 루트 피드백 좌표계를 소비하는 별도 계약이다. 표시 메시의 왼손/견착 IK 차단은 원본 인스턴스의 `DisableLHandIK` 커브 및 DefaultSlot/FullBody/UpperBody 가중치를 읽는다. 상체 슬롯 추가만으로 AO·커브 전달·최종 IK·표시 포즈·물리 반응 통과를 판정하지 않는다.
+
+### native UAF 경로와 단순 GUI 연결의 한계
+
+기준 엔진 경로는 `C:/Program Files/Epic Games/UE_5.8/Engine/Plugins/Experimental/UAF/`다.
+
+| 소스 | 확인한 사실 | 이번 조사에서의 의미 |
+|:---|:---|:---|
+| `UAFAnimGraph/.../Internal/Injection/MontageTrait.h`와 `Private/Injection/MontageTrait.cpp` | Source·SlotName·AlwaysUpdateSource·DisableSynchronization이 있고 본 마스크 입력은 없다. 같은 native 컴포넌트가 몽타주·ANS를 처리한다 | UpperBody 슬롯만 직렬 추가하면 전신을 덮는다. 기존 DefaultSlot/FullBody의 true·false 설정과 native 종료 경로를 유지해야 한다 |
+| `UAFAnimGraph/.../Public/Traits/BlendLayerTraitData.h`·`Private/Traits/BlendLayer.cpp` | ChildBase/ChildBlend·UUAFBlendMask·메시 공간 회전 합성을 제공한다 | 본 마스크 기능은 있으나 두 입력의 포즈 원본 공유가 별도 문제다. 원본 출력 핀의 두 갈래 연결을 ABP 캐시와 같다고 가정하지 않는다 |
+| `UAFAnimGraph/.../Private/TraitCore/ExecutionContext.cpp::AllocateNodeInstance` | 같은 부모 노드 내부 참조는 약한 핸들이지만 다른 노드의 child 요청은 새 노드 인스턴스를 할당한다 | Base와 Montage.Source가 동일 외부 로코모션을 각각 요청하는 구성은 별도 MM/History/슬롯 인스턴스를 만들 수 있다. 단순 분기를 최소안으로 권하지 않는다 |
+| `UAFLayering/.../Internal/Traits/CachePoseTraitData.h`·`Private/Tasks/UAFCachePoseTask.cpp` | Cache Pose는 Hidden·TODO이며 현재 top keyframe을 pop하고 보관하지 않는다 | UI 이름만으로 PreUpperBody 캐시 대체를 지시하지 않는다. Layer Stack 전환도 이 문제의 자동 해결로 간주하지 않는다 |
+| `UAFLayering/.../Private/Traits/MontageLayerDataTrait.cpp` | 슬롯 활성으로 레이어 enable/disable과 블렌드 시간을 이벤트로 설정한다 | 마스크·단일 원본 평가·기존 몽타주 블렌드와의 동등성은 별도다. 이번 슬롯 하나를 위해 전체 레이어 전환은 하지 않는다 |
+| `UAFAnimGraph/.../Public/EvaluationVM/Tasks/StoreKeyframe.h`·대응 cpp | `FAnimNextDuplicateTopKeyframeTask`는 일반 keyframe 경로에서 포즈/커브/속성을 복사한다. ActiveNamedSet 경로는 TODO이고 빈 bundle을 push한다 | 같은 평가 결과의 사본으로 원본을 보존하는 작은 어댑터 후보가 있다. 현재 CVar `UAF.UseAbstractSkeletonRuntime=false`를 읽었으나 다른 배치/표현을 지원한다고 확대하지 않는다 |
+
+### 다음 최소 구현 후보와 검증 계획 — 제안·미구현
+
+1. **시험 전용 additive 평가 어댑터**를 새 UpperBody Montage Trait 위에 붙이는 경로를 우선 검토한다. 자식 로코모션을 한 번 평가한 뒤 native 몽타주 평가 task 앞에 원본 keyframe 복사, 뒤에 `spine_01` 마스크 합성을 넣는 후보이다. `IEvaluate::PostEvaluate`의 Super 전달과 native 몽타주의 task 순서를 소스에서 대조했다. 실행 시 스택 균형/수명/원본 유지가 성립하는지는 아직 미검증이다. 범용 포즈 캐시·무기 레이어 전환·엔진 수정은 추가하지 않는다.
+2. 기존과 같은 spine_01 이하 가중치1/나머지0·메시 공간 회전/로컬 이동과 스케일·커브 Override·루트 본 기반 속성 정책을 지킨다. native per-bone task는 재사용 후보지만 마스크/커브/속성 및 task 배열 수명을 실제 구현에서 대조해야 한다. 추상 스켈레톤/NamedSet의 미구현 duplicate 경로는 지원 조건에서 제외하거나 명시적으로 처리하며 조용히 잘못된 포즈를 내보내지 않는다.
+3. 새 UpperBody 노드는 **FullBody 뒤 → 상체 합성 → 기존 Offset Root/구면 보정/발 배치**에 연결한다. Always Update Source=true·Disable Synchronization=false를 유지한다. 작은 GUI 추가/배선이 필요한 시점에는 즉시 수동 요청한다. 새 반사 타입/trait이 생기면 저장·에디터 종료 후 기준 전체 빌드하며 Live Coding은 사용하지 않는다.
+4. 최소 실행 검증은 기존 라이플 재장전으로 한다. 정지/이동 중 상체 재장전과 하체 로코모션 유지, 블렌드인/정점/아웃·정상 종료/유효 중단·대시 교체, 동일 DefaultGroup 배타 관계, MM/History 단일 갱신/순서 오류0을 확인한다. UAF 평가 task와 실제 메시 포즈를 근거로 삼는다. 슬롯 가중치/커브의 표시 IK 차단과 복귀도 별도 확인한다. AO/파지 레이어가 아직 빠진 시험 구성의 결과를 전체 무기 통합 통과로 확대하지 않는다.
+
+이번 조사로 native 본 마스크 경로와 단일 평가 보완 후보를 좁혔을 뿐 **UpperBody 실행/레이어/전체 슬롯 게이트는 미통과**다. 다음 마스크 어댑터 구현 단위는 사용자 진행 확인을 받는다. 예약 GT 이벤트/콜백 내부 파괴/Branching/다른 배치 모드·월드 독립 태그/사후 실제 무효·native 추가 참조1개 미특정·최종 Go/No-Go는 기존 미판정을 유지한다.
+
+### 종료 상태와 근거
+
+- 실제 읽기에서 PIE=false·현재 레벨 `/Game/Maps/TestMap03`이며 GameMode는 이번에 변경하지 않았다. 이전 메모리 복원 상태를 새 조회로 확인했다고 주장하지 않는다. 기존 사용자 에셋4개/시험 BP/AG는 §32 HandoffHashes 대비 6개 모두 동일하다. 조사에서 읽은 기존 메인 ABP·라이플 재장전·소스 스켈레톤 해시도 보관했다.
+- 로컬 근거: `Saved/AnimationOverhaul/2026-10-28_UAF52UpperBodyInvestigation/EditorReads.json`·`HandoffComparison.json`·`ReadAssetHashes.json`. Saved는 git 제외이며 다른 체크아웃에 따라가지 않는다. 변경은 Current·이 실행서·Phase05 로그의 문서3개뿐이다. 코드/에셋 저장·빌드·커밋/푸시는 없다.
+
+## 34. UpperBody 마스크 어댑터 구현(2026-10-29, 최소 연결·대표 실행 단위 완료)
+
+사용자가 §33 다음 구현 단위를 승인했다. 스파이크 폴더에 `LNPUAFUpperBodyMontageTrait.h/.cpp`와 `LNPUAFUpperBodyMontageTest.cpp` 소스3개를 추가했다. 기존 소스·ABP·몽타주·스켈레톤·그룹 정책은 변경하지 않았다. 아래는 구현부터 검증까지의 기록이며 **최종 최소 단위 완료 판정과 남은 한계는 이 절 마지막 항목**에 있다.
+
+### 구현과 범위
+
+- `LNP UpperBody Montage Mask`는 native Montage Trait 위의 additive IEvaluate다. 연결된 Source·SlotName=UpperBody·AlwaysUpdateSource=true·DisableSynchronization=false·추상 런타임 꺼짐을 검사한다. 설정이 다르면 한 번 오류를 기록하고 native 몽타주 평가 task를 예약하지 않는다. 자식 갱신/몽타주 재생/ANS dispatch/종료 소유권을 재구현하지 않는다.
+- native 몽타주 평가 자료가 있을 때만 이미 평가한 원본의 DuplicateTopKeyframe→Super의 native 몽타주 task→새 상체 합성 task를 예약한다. 몽타주가 없으면 원본을 그대로 사용한다. 그래프를 두 갈래로 나누거나 별도 MM/History 자식을 할당하지 않는다. 실제 그래프의 단일 갱신은 후속 실행에서 확인해야 한다.
+- 합성 task는 같은 스켈레톤에서 spine_01/모든 자손1·나머지0을 만들고 native mesh rotation 변환→per-bone 합성→normalize→local rotation 변환을 동기 실행한다. 마스크 배열은 task 실행 안의 지역 변수여서 평가 예약 이후의 외부 배열 포인터 수명에 의존하지 않는다. 마스크 에셋/범용 캐시/옵션은 추가하지 않았다. 프레임별 작은 배열 생성 비용의 성능 판정은 하지 않았다.
+- native per-bone task의 속성 가중치는 compact 인덱스를 쓰므로 원본의 LOD→스켈레톤 맵으로 따로 변환해 `BlendAttributesPerBone`을 수행한다. native 포즈/커브 합성 뒤 이 속성 결과를 복원한다. 스켈레톤 순서 배열을 속성에 그대로 넘기거나 nullptr의 native 속성 삭제를 최종 결과로 내보내지 않는다. 커브는 가중치1 Override에 대응한다. 본에 연결된 커브의 전수 동등성은 미검증이다.
+- 일반 keyframe 경로 전용이다. 추상 런타임은 trait에서 거절하고 ActiveNamedSet은 합성 task의 ensure로 알린다. NamedSet이 없는 현 시험 그래프만 대상으로 하며 미지원 배치를 자동 변환하지 않는다. DebugLocomotion>=2에서 활성 평가 약60회당 `[UAFUpperBody]`가 스켈레톤/본 수/상체 수/루트 가중치를 기록한다. 이 로그만으로 포즈 품질/단일 MM/History 통과를 판정하지 않는다.
+
+### 빌드와 task 검증
+
+- 사용자 저장/에디터 종료 회신을 받고 권한 확장 프로세스 가드 뒤 기준 Development 전체 빌드를 실행했다. 최초8 actions는 테스트의 `FReferencePose` 이름 충돌 C2872와 후속 진단·두 PopValue의 nodiscard C4834로 실패(종료 코드6·57.02초)했다. UAF 타입을 명시하고 반환값을 검사해 수정했다. 재빌드는5 actions·10.86초·Succeeded·종료 코드0이다.
+- `UnrealEditor-Cmd /Engine/Maps/Entry -NullRHI -unattended`에서 **`LootNPop.Animation.UAF.UpperBodyMask` 1개 성공·경고0·오류0·종료 코드0**을 확인했다(2026-10-29 01:06 KST). transient5본으로 기본/발이 척추보다 앞인 두 평가 순서를 구성해 기울어진 원본 루트/골반·하체 이동 유지, 상체 로컬 이동/메시 공간 척추 회전 일치, 원본 전용/Override/DisableLHandIK 커브, 루트/발/손 float 속성, 원본 복사와 하위 sentinel/추가 keyframe0을 검증했다. 실제 native 몽타주 부분은 그 결과 포즈로 대체한 합성 task 단위 테스트이며 native 몽타주 재생·태그·GAS·ANS 검증이 아니다.
+- 이후 테스트 출력 문구만 영어로 맞추고 최종 전체 빌드4 actions·9.79초·Succeeded·종료 코드0을 확인했다. 합성 구현/검증 조건 변경은 없어 같은 런타임 테스트를 반복하지 않았다. Live Coding은 사용하지 않았다.
+- 시작/빌드 뒤 사용자 에셋4개·시험 BP/AG의6개 해시는 모두 같고 §32 인계와도 같다. 연결 전 FullBody AG 사본을 보존했다. 사용자 맵/GameMode/에셋 저장은 없고 GUI 에디터는 다시 열지 않았다.
+
+### 현재 수동 요청 — 같은 구현 단위 안에서 진행
+
+1. LootNPop 에디터를 다시 열고 `AG_LocomotionSpike`를 연다. 빈 곳 우클릭 Trait Stack을 추가하고 Details의 Add Trait에서 **Montage Trait 먼저 → LNP UpperBody Montage Mask 다음**으로 넣는다.
+2. Montage 설정은 SlotName=UpperBody·Always Update Source=true·Disable Synchronization=false다. 기존 **FullBody Result → 새 스택 Source**, **새 스택 Result → 기존 Offset Root Input**으로 바꾼다. 기존 구면 보정·CR 등 다른 연결은 유지한다.
+3. 해당 AG만 Compile/Save하고 탭을 닫은 뒤 완료를 회신한다. 아직 PIE는 시작하지 않는다. 원본 스켈레톤을 저장하거나 Save All하지 않는다.
+4. 회신 뒤 실제 컴파일/저장·설정/배선 근거·에디터/맵 상태를 확인하고, 기존 라이플 재장전으로 정지/이동·하체 유지·중단/대시 교체/그룹·커브/표시 IK와 단일 MM/History·순서 오류를 수동 검증한다. AO/파지 레이어·전체 무기 통합은 별도이며 최종 Go/No-Go는 미판정이다.
+
+근거는 `Saved/AnimationOverhaul/2026-10-29_UAF52UpperBodyMask/`의 BeforeHashes/AfterBuildHashes·AG_BeforeUpperBody·Build/BuildRetry/BuildFinal·Automation.log/AutomationConsole.log·AutomationReport에 있다. 기존 §31~§32의 종료 검증을 인계 목적으로 반복하지 않았고 커밋/푸시는 하지 않았다.
+
+### 수동 연결 보고·저장 확인·첫 재장전 스모크 요청(2026-10-29)
+
+- 사용자가 연결 완료를 회신했다. 실제 로그에서 12:33:00 KST AG 컴파일 성공·12:33:01 저장·12:33:13 탭 종료를 확인했다. 편집 중 FootPlacement editor data·bInitialized/AlphaBlend text import 경고가 있었고 마지막 성공 컴파일과 구분해 ConnectionEditor.log에 보존했다. 정확한 배선/trait 설정은 사용자 보고를 근거로 하며 실행에서 확인한다. 지원되지 않는 RigVMPin 기본값 조회를 반복하지 않았다.
+- 새 MCP 읽기는 PIE=false·열린 에셋0·AG dirty=false·현재 TestMap03·GameMode=BP_GameModeUAFSpike다. GameMode는 이미 시험 값이라 변경하지 않았다. 추상 런타임=false·DebugLocomotion/DebugNotifies=0을 확인했다. 현재 상태를 이전 메모리 복원 상태로 가정하지 않는다.
+- 저장된 AG SHA256은 `5C9EEFD997DB27BE343C5890544191DD2B0C6CCBF21600EBB4F3B2566C468D3D`다. 사용자 에셋4개/시험 BP는 시작 대비5개 모두 동일하고 AG만 다르다. AG_AfterUpperBody·AfterConnectionHashes·AfterConnectionEditorReads·ConnectionEditor.log·FirstSmokeStart.json을 보관했다.
+- 첫 수동 표본은 새1인 PIE(Net Mode=Play Standalone)·라이플·적 없는 위치다. PIE 전에 Cmd 콘솔에서 `LNP.Anim.DebugLocomotion 2`·`LNP.UAFSpike.DebugNotifies 2`를 설정한다. 탄창을1~2발 소비하고 정지 재장전2회, 다시 탄을 소비해 이동 중 재장전2회를 각각 정상 종료까지 관찰하도록 요청했다. 각 재장전 전 탄 소비가 필요하다(가득 차면 어빌리티 활성 불가). 상체 재장전·하체 이동 유지·종료 복귀·튐/오류 여부를 보고하고 PIE를 유지한다. 중단/대시 교체·최종 무기 파지/AO 통합은 이 첫 표본 통과 뒤다.
+- 현재 **첫 실행 회신 대기·같은 §34 구현 단위 미완료**다. `[UAFUpperBody]` 실제 발화·설정 오류/ensure·MM/History 순서 오류·몽타주 대상/커브·표시 IK 및 단일 갱신을 실행 근거로 확인할 예정이다. 새 빌드/도구 구현·맵 저장·커밋/푸시는 없다.
+
+### 첫 정상 재장전 스모크·무기 회전 관찰과 범위 구분
+
+- 사용자는 정지/이동 재장전의 상체 동작·하체 이동 유지·종료 복귀에 튐/어색함이 없었다고 보고했다. 캐릭터와 별도로 무기가 모션 중 이상한 방향으로 회전했다고 보고했으며, **무기 최종 포즈의 미해결 관찰**로 보존한다. 캐릭터 스모크 성공을 무기 연동/최종 포즈 통과로 확대하지 않는다.
+- 새 실제 읽기는 PIE=true·BP_PlayerUAFSpike_C_0·AnimSourceMesh/VisualMesh/WeaponMesh3개·DebugNotifies2다. 첫 실행 구간에서 원본 공급층1개와 `[UAFUpperBody]`9줄(93본/상체66·루트 가중치0·메시 회전1), 설정 오류/ensure/UAFMMOrder/Python/관련 Error0을 확인했다.9줄은 재장전9회가 아니라 활성 평가 약60회당 로그다. 종료 뒤 ASC 태그는 FreeAim/Rifle뿐이며 Reloading 잔류는 없다. 단일 MM/History/표시 IK 전수 검증은 아니다.
+- 무기 메시의 실제 에셋은 SK_Rifle·AnimationSingleNode이고 현재 컴포넌트 상대 회전은 대략(0,90,-4)다. 이 종료 뒤1회 조회만으로 모션 중 잘못된 회전의 원인을 특정하지 않는다. 소스상 WeaponMesh는 VisualMesh의 표현 세트 소켓에 부착되고, GameplayCue_Reload가 별도 WeaponReloadAnim을 PlayAnimation/종료 시 Stop+SetAnimation(nullptr)한다. 손 소켓 자세·리타깃/IK/무기 레이어·무기 자체 애니메이션 중 어느 경로의 문제인지는 미확정이다. 후속 무기 최종 포즈 검증에서 기존 ABP와 비교하며 원인 확정 전 소스 에셋/부착 회전/마스크를 수정하지 않는다.
+- 첫 캐릭터 스모크 표본을 확인하고 **같은 PIE에서 재장전 도중 대시2회→이후 정상 재장전1회**를 다음 수동 표본으로 요청했다. 각 시도 전1~2발을 소비하고 재장전 중간에 대시한다. 재장전 포즈 중단·대시/복귀·후속 재장전 재활성화를 관찰하고 PIE를 유지한다. 무기 회전 문제는 보류하되 해결됨/무관함으로 처리하지 않는다.
+- FirstSmoke.log/Summary.json·FirstSmokeRuntimeReads·DashSmokeStart.json에 근거를 보관했다. 코드/에셋/맵 수정·빌드·커밋/푸시는 없으며 같은 §34 구현 단위/전체 게이트는 미완료다.
+
+### 대시 중단/후속 정상 재장전 스모크·활성 표본 요청
+
+- 사용자는 요청한 재장전 중 대시2회·후속 정상 재장전에 이상이 없다고 회신했다. 새 조회에서 PIE=true·라이플/FreeAim 태그만 유지하며 Reloading 잔류는 없다. DashSmokeStart 이후 마스크4줄·설정/ensure/UAFMMOrder/PoseSearch/관련 Error0이다. 로그에는 대시/몽타주 이름이 없으므로 중단 타이밍/그룹 배타의 상세 실행 근거는 사용자 관찰과 구분한다.
+- DashSmoke.log·DashSmokeCounts.json을 보관했다. native UAF Montage 컴포넌트는 자체 슬롯 가중치 API를 가지고 있어 기존 AnimInstance 슬롯 가중치·커브의 표시 IK 소비 동등성은 아직 확인이 필요하다. 함수가 존재한다는 이유로 전달을 가정하지 않는다. 코드/에셋/빌드 변경은 없다.
+- 같은 PIE에서 Rewind 기록을 켜고 라이플 재장전 중간에 Pause한 활성 표본1개를 요청했다. Output Log Python의 한 번의 읽기로 새 원본/표시 AnimInstance의 현재 몽타주·DisableLHandIK·LeftHandIKAlpha/RightHandIKAlpha를 기록하고, 기록된 실제 UAF 평가 task에서 원본 중복이 없는지도 확인할 예정이다. 기존 Python 참조는 재사용하지 않는다. 아직 §34 단위 완료/전체 게이트 판정을 하지 않는다. 무기 이상 회전의 원인 미확정/후속 최종 포즈 미해결도 유지한다.
+
+### 활성 표본 Python 조회 실패 — None 검사 보완 대기
+
+- 사용자는 Rewind 기록/재장전 중 Pause 뒤 조회를 실행했고 Python 오류를 보고했다. 12:49:43 KST 조회문의 list comprehension에서 `NoneType.get_current_active_montage`가 발생했다. 에이전트가 준 조회문에 AnimInstance None 검사가 없었으며 어느 메시인지도 출력되지 않았다. 구현 런타임 오류와 분리해 ActiveReadFailure.log/json에 보존하고 값이0/정상이라고 처리하지 않는다.
+- 새 실제 읽기는 PIE=true·Reloading/무기 Reload Cue 활성이다. 원본/표시의 AnimClass는 기존 설정·AnimationBlueprint이며 bEnableAnimation은 둘 다false다. 이 속성 조회만으로 누락된 AnimInstance의 원인이나 Rewind의 영향은 특정하지 않는다. 지원되지 않는 AnimScriptInstance 속성을 반복 질의하거나 실행/에셋 상태를 바꾸지 않았다.
+- Pause 표본은 유지하고 새 Pawn 경로·메시별 인스턴스 유무를 먼저 출력하는 None 안전 조회를 한 번 더 요청했다. 인스턴스가 있을 때만 몽타주/커브/IK를 읽는다. 표본 재생성은 아직 요청하지 않았고 같은 단위/게이트는 미완료다.
+
+### None 안전 조회 성공·표시 IK 범위 정정
+
+- 12:53:02 KST 새 조회는 Python 오류 없이 시험 Pawn 경로와 원본 `AnimSourceMesh.ABP_SourceUAFSpike_C_0`·실제 `AM_MM_Rifle_Reload_UEFN`·DisableLHandIK=0·LeftHandIKAlpha=1·RightHandIKAlpha=1을 출력했다. VisualMesh의 AnimInstance는None이다. 원문/요약은 ActiveRuntimeRead.log/json에 보관했다. 이 값만으로 슬롯 가중치 전달 실패/표시 IK 통과/무기 회전 원인을 단정하지 않는다.
+- 실제 VisualMesh는 SKM_UEFN_Mannequin·bEnableAnimation=false·ABP_Retarget 클래스 설정이다. §5-1 사본 설정에서부터 UAF가 VisualMesh에 직접 출력하며 표시 ABP를 돌리지 않았다. **현재 표본에서 표시 ABP IK를 읽고 통과시킬 수 있다는 에이전트의 전제가 잘못됐다.** VisualMesh None을 새 회귀/임의의 Rewind 영향으로 보지 않는다. 읽힌 원본 알파와 실제 표시 IK 소비는 다르며 무기 레이어/AO/표시 후처리 통합 게이트는 미판정을 유지한다.
+- 같은 Pause/기록에서 재장전 중간의 `UAFLocomotion → S_LocomotionSpike → UAFAnimGraph_* → AG_LocomotionSpike → EvaluationProgram`을 선택하도록 수동 요청했다. 실제 native 몽타주/복사/합성 task와 원본 MM/History 중복 여부를 확인하고 최소 마스크 연결 단위의 판정을 정리할 예정이다. 별도 표시 IK/무기 회전 보완 구현은 승인하지 않았으며 다음 구현 단위에서 진행 확인을 받는다.
+
+### 기록된 평가 프로그램18개 확인·재장전 시퀀스 상세 대기
+
+- 사용자가 Rewind 녹화만 중지하고 지정 트랙을 선택했다. Slate 읽기/화면에서 UAFAnimGraph_0의 EvaluationProgram·Tasks18개를 확인했다.0~3은 History Pre/시퀀스/노티파이/History,4~7은 기존 루트 준비/Strafe 체인,8은 DuplicateTopKeyframe,9는 두 번째 시퀀스,10~12는 몽타주 overwrite/add/normalize,13은 LNPUAFBlendUpperBody,14~17은 OffsetRoot/최종 구면 보정·진단/CR이다. 선택한 한 프레임에서 History 체인은1개이며 두 번째 원본 체인은 보이지 않는다. 모든 프레임/구성의 단일 갱신 보장으로 확대하지 않는다.
+- 재장전 역할의 Index9 시퀀스 항목을 펼쳐 실제 AnimSequence/샘플 시각을 확인하도록 수동 요청했다. 현재는18개 task의 순서와 타입 계열을 읽었고 해당 클립/시간은 아직 읽지 않았다. UI 조작을 자동화하는 새 도구는 만들지 않았다. EvaluationProgramSummary.json에 관측과 한계를 보관했다.
+- 로컬 녹화 `RewindDebugger-LootNPop-Editor-20261029_124914511.utrace`는183,693,455바이트다. 녹화 종료 시 Trace 연결 종료 code64/분석 종료 로그도 별도로 보존 대상으로 두며 앞 재장전 런타임의 Error0과 혼동하지 않는다. PIE는 계속true/Pause이고 에셋/코드/맵 변경·빌드는 없다.
+
+### 확대 시퀀스·최소 단위 판정·시험 종료
+
+- 사용자가 Index9를 펼쳤다. 실제 화면/Slate에서 SampleTime=**0.701436초**·Interpolate=true·ExtractTrajectory=true·Looping=false를 확인했다. 에셋명은 화면에서 `MM_Rifle...oad_UEFN`으로 축약된다. 라이플 재장전 계열 표시는 앞서 직접 읽은 몽타주의 UpperBody 시퀀스 참조/활성 AM_MM_Rifle_Reload_UEFN과 부합하며, 이번 UI에서 전체 UObject 경로를 독립적으로 읽었다고 주장하지 않는다. ExpandedEvaluationObservation.json에 이 한계까지 기록했다.
+- **이번 최소 연결·대표 실행 단위는 완료**다. 소스/전체 빌드/합성 task 테스트·사용자 AG 연결/성공 컴파일·대표 정상/이동/대시 중단·후속 재장전·원본 활성 몽타주·해당 구간 관련 오류0/종료 뒤 Reloading 태그0·한 기록 프레임의 History 체인1개/원본 복사→native 몽타주→상체 합성→기존 후처리 순서를 확인했다. 상세 그룹 가중치/모든 프레임·네트워크·적/다른 배치 모드까지 통과한 것은 아니다.
+- **표시 후처리/무기 레이어 게이트는 미판정**이다. 현재 표시 ABP 인스턴스가 없는 직접 UAF 출력이므로 원본의 curve0/IK1을 표시 IK 차단 검증으로 삼을 수 없다. 무기의 모션 중 이상 회전도 원인 미확정/미해결이다. 후속 경로 조사에서 ALI 무기 오버레이/PostProcess·AO/그립/견착 IK·PhysicsControl 계약의 소비 위치와 기존 ABP 기준 비교를 먼저 좁힌다. 이 후속 조사/구현은 아직 착수하지 않았고 사용자 진행 확인을 받는다.
+- PIE Stop 성공 후 실제 false를 확인했다. TestMap03의 GameMode 속성만 원래 BP_LNPGameMode로 메모리 복원/재조회했고 맵은 저장하지 않았다. AG dirty=false·열린 에셋0이다. 사용자 에셋4개/시험 BP/최종 AG의 연결 후 대비 ClosureHashes6개는 모두 같고 AG 최종 SHA256은5C9EEFD997DB27BE343C5890544191DD2B0C6CCBF21600EBB4F3B2566C468D3D다. 종료 로그에 새 관련 Error/ensure/종료 보완 경고는 없으며 이번 정리를 새 활성 ANS 종료 검증으로 확대하지 않는다.
+- ClosureEditorReads/ClosureHashes·PIEStop.log를 보관하고 Slate 관측자2개를 해제했다. 최종 변경은 신규 소스3개·AG1개·문서3개다. 기존 사용자 에셋4개는 보존하며 커밋/푸시는 요청받지 않아 수행하지 않았다. 최초 컴파일 실패/조회문 None 오류/Trace 종료 code64/편집 경고와 남은 한계도 기록에 유지한다.
+
+### 새 세션 인계·단일 커밋 정리(2026-10-29)
+
+- 사용자가 후속 조사 대신 새 세션 인계 문서 갱신과 한 번의 커밋을 요청했다. Current의 다음 읽기/조사 범위·승인 경계·최종 AG 흐름/해시·에디터 상태를 정리하고, Roadmap의 이전 UpperBody 조사 대기 상태를 §34 최소 연결 완료/다음 표시 후처리·무기 레이어 경로 조사 대기로 갱신했다. README/Decisions/공통 CombatAnimation은 새 공통 설계나 확정 결정이 없어 변경하지 않는다.
+- 새 세션은 필수 README/Current/Decisions·실행서 §2/§4/§33~§34를 읽는다. 사용자 진행 확인 뒤 공통 CombatAnimation §3~§4/§6.4·시험 BP/S locator·native UAFLayering/ABP 연결을 좁혀 비교한다. 표시 후처리·무기 레이어/최종 무기 포즈 문제를 현 마스크 구현의 통과로 처리하지 않는다. Phase 6·마이그레이션/후속 조사 착수는 승인하지 않았다.
+- 인계 직전 새 MCP 읽기로 PIE=false·원래 BP_LNPGameMode를 확인했다. 사용자 에셋4개/시험 BP/최종 AG는 §34 종료 대비 인계 해시를 보관한다. 소스3개는 빌드/테스트 때의 SourceHashes와 같아 새 빌드/PIE/녹화를 반복하지 않는다. 맵 저장·기존 사용자 변경 원복은 없다.
+- 커밋 범위는 **문서4개·소스3개·AG1개 총8개**다. 이전 커밋83f9c40/876269c의 feat 제목·한국어 항목별 본문 형식을 따르며 사용자 에셋4개와 Saved는 제외한다. 푸시/새 채팅 생성/후속 구현은 하지 않는다. 커밋 후 남는 사용자 에셋4개를 깨끗한 트리를 만들 목적으로 되돌리지 않는다.
