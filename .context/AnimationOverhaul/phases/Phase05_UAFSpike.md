@@ -1,7 +1,7 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0·5-1 완료. 5-2 진행 중. §35 조사·§36 원본 출력/표시 ABP·IK 차단 연결과 대표 정상/중단·물리/공격 중 억제·근적도 실행·종료 정리 단위 완료. 다음 라이플 자세/AO 최소 UAF 연결은 진행 확인 대기. 무기 이상 회전/남은 경계/전체 게이트·최종 Go/No-Go 미판정.
-> 마지막 갱신: 2026-10-29
+> 상태: 5-0·5-1 완료. 5-2 진행 중. §36 원본 출력/표시 ABP·IK 차단 연결 단위 완료. §37 입력 코드/빌드·정적 배선 확인 후 첫 PIE에서 첫/재장착 모두 심한 비틀림 보고·자세 검증 미통과. Alpha0 비교 요청 상태이며 원인/남은 경계/전체 게이트·최종 Go/No-Go 미판정.
+> 마지막 갱신: 2026-11-01
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
 ## 1. 목표와 범위
@@ -72,7 +72,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 
 ## 5. 다음 행동
 
-현재 **§34 UpperBody 최소 마스크 연결·대표 실행 단위는 완료**다. 다음 표시 후처리·무기 레이어의 UAF 연결 경로 조사는 사용자 진행 확인을 받는다. 무기 이상 회전/표시 IK·월드 독립 태그/사후 실제 무효와 기타 미검증 경계를 유지하며 전체 슬롯/ANS·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
+현재 **§36 원본 출력·표시 ABP·IK 차단 연결 단위는 완료**다. 사용자 요청으로 §37 라이플 기본 자세/AO 한 단위를 진행한다. 무기 이상 회전·월드 독립 태그/사후 실제 무효와 기타 미검증 경계를 유지하며 전체 슬롯/ANS·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
 
 사용자 승인으로 5-1을 시작했다. LootNPop MCP의 `ListEnabledPlugins`에서 `UAF`·`UAFAnimGraph`·`UAFMirroring`가 활성인 것을 확인했다. `UAFChooser`·`UAFPoseSearch`·`UAFControlRig`·`UAFWarping`·`MoverAnimNext` 5개를 `LootNPop.uproject`에 명시하고 JSON 파싱·diff 공백 검사를 통과했다. MCP `SetPluginEnabled`는 메모리의 프로젝트 설정만 바꾸고 파일을 저장하지 않아 파일에도 명시했다(엔진 툴 구현 확인). 런타임 로드 확인은 재시작 후 수행한다. GASP는 더 필요하지 않아 닫아도 된다고 안내했다.
 
@@ -1760,3 +1760,268 @@ print('[UAFNextReleaseAfter]', [c.get_name() for c in ans_p.get_components_by_cl
 - 다음 세션은 CLAUDE/README/Current/Decisions와 실행서 §2/§4/§35·§36 마지막 완료/인계 요약을 먼저 읽는다. 사용자 진행 요청 뒤에만 라이플 한 무기의 자세/AO 연결을 시작하며 Phase 6·전체 무기 이전/후속 구현은 이번 인계로 승인하지 않는다. 기본 운영 ABP 설계나 확정 결정이 바뀐 것은 없어 README/Decisions/공통 CombatAnimation은 변경하지 않는다.
 - 새 실제 읽기로 PIE=false·운영 BP_LNPGameMode·열린 에셋0을 재확인했다. 연결 후 시험 에셋3개/기존 사용자4개와 빌드 소스7개의 인계 해시 비교를 Saved Handoff*에 남기며, 인계만을 위한 새 빌드/PIE/녹화/맵 저장은 하지 않는다. 진단2/2/PhysLog1과 디스크 시험 GameMode 재로드 주의는 유지한다.
 - 커밋 범위는 **문서4개·기존 소스4개/신규3개·시험 에셋3개 총14개**다. 최근5f21844/83f9c40/876269c의 feat 제목·한국어 항목별 본문 형식을 따른다. 기존 사용자 에셋4개/Saved는 제외하고 커밋 뒤 남는4개를 되돌리지 않는다. 푸시·새 채팅 생성·후속 구현은 하지 않는다.
+
+## 37. 라이플 기본 자세·Aim Offset 최소 UAF 연결(2026-10-29~11-02, 대표 검증/종료 완료)
+
+> 완료 판정(2026-11-02): **라이플 기본 자세/AO 최소 연결은 최종 사용자 시각 검증·실제 평가 task·근적도 대표 회귀·종료 정리까지 완료**했다. LyraFrame24개와 원본 Lyra 장착을 유지한다. 실제 탄은 표적을 향하지만 총열/탄 차이(원거리 약1.56°·근거리 약3.34°)는 남으며, 사용자가 정밀 총열 보정을 별도 세션/단위로 분리 승인했다. 발사 FullBodyAdditivePreAim 슬롯은 지원3슬롯 밖이고 모든 슬롯/위도·네트워크·최종 Phase 5 게이트 통과는 아니다. 아래 중간 실패/대기 기록은 이력이며 최신 종료 근거는 본 절 마지막과 history/Phase05_Log.md를 따른다.
+
+> 설계 선택 이력(2026-11-01): 모든 총기 애니메이션이 Lyra 원본이므로 weapon_r의 원본 규약을 보존하는 공통 접근을 사용자 승인으로 선택했다. 아래 손 고정 Pin 후보/좌표(−8,3,−3)는 진단 이력이며 현재 경로가 아니다. 원본 Lyra/UEFN/공유 에셋은 읽기 전용, Lyra MCP는8002로 구분했다. 최종 선택/검증은 본 절 마지막을 따른다.
+
+새 사용자 Phase 5 진행 요청을 다음 한 단위의 승인으로 받아 착수했다. §36의 완료 검증을 반복하지 않고 실제 PIE=false·열린 에셋0·시험 AG/S/BP dirty=false와 디스크 해시를 확인했다. HEAD는 `6523d60`이며 시작 변경은 기존 사용자 에셋4개뿐이었다.
+
+### 대조한 기존 계약과 최소 경로
+
+- 기존 `/Game/Characters/ABP_Sub_Rifle_UEFN:ApplyWeaponStyleOverlay` 노드 속성을 새로 읽었다. `/Game/Characters/Retargeted/Lyra/MM_Rifle_Idle_ADS_UEFN`은 재생속도1·시작0·루프=false, 같은 폴더 `AO_MM_Rifle_Idle_ADS_UEFN`은 X=AimYaw/Y=AimPitch·알파1·루프=true·root-space additive=false다. Layered Bone Blend는 §35와 같은 spine_02/깊이2·메시 공간 회전=true·스케일=false·커브 Override다. 기존 ABP/리타깃 에셋은 수정하지 않았다.
+- 설치 엔진 `UAFAnimGraph/Private/Traits/BlendSpacePlayer.cpp`는 기존 BlendSpace의 필터/샘플을 사용해 시퀀스 그래프를 만든다. `ApplyAdditiveKeyframe.cpp`는 일반 keyframe의 additive/mesh-space-additive 플래그를 검사해 메시 공간 가산을 수행한다. 기본 Sequence Player + AO Blend Space Player + Apply Additive를 첫 후보로 사용한다. 실제 샘플/최종 포즈 동등성은 실행 확인 전이다.
+- `UAFAnimGraph/Public/Traits/BlendLayerTraitData.h`·`Private/Traits/BlendLayer.cpp`의 Blend Layer는 두 입력/UUAFBlendMask·메시 공간 회전 설정을 제공하고 base 자식을 가중치1로 갱신한다. `BlendKeyframesPerBone.cpp`의 일반 keyframe 경로는 마스크에 명시하지 않은 커브를 유지하고 가중치1에서 겹치는 커브를 덮는다. 라이플 활성 가중치는0/1만 사용한다. 별도 커브 항목 없는 마스크를 먼저 사용하고 실행 시 확인한다. 마스크가 커브를 본 가중치로 자동 차단한다고 가정하지 않는다.
+- 엔진 `FAnimationRuntime::CreateMaskWeights`의 깊이2는 spine_02=0.5·그 자손=1·그 밖=0이다. 새 UAF Blend Mask는 이 값을 명시한다. spine_02 아래를 전부0.5로 상속시키는 설정은 기존 마스크와 다르다. 이 단위는 일반 keyframe/현재 UEFN 표시 경로에 한정하며 NamedSet/모든 LOD 속성 합성·UAFLayering 런타임 전환 전체 통과를 뜻하지 않는다.
+
+### 준비한 코드와 검증 조건
+
+- `FLNPUAFSpikeInputs`에 float `RifleOverlayWeight`·`AimYaw`·`AimPitch`3개를 추가했다. `ULNPUAFSpikeAnimInstance::UpdateInputs`는 실제 적용 표현 세트의 태그가 Rifle일 때만 가중치1을 공급하고 기존 공급층의 구면 로컬 조준값을 그대로 복사한다. 새 무기 선택 체계나 월드 Euler 계산을 만들지 않는다.
+- 기존 입력과 같은 SetVariable 경로로3개를 공급한다. `DebugLocomotion>=2`일 때60프레임 간격 `[UAFWeapon]`에 공급 성공/라이플 가중치/조준값을 기록한다. 이 로그는 그래프의 실제 소비·최종 포즈 증명이 아니다. 기존 ANS·몽타주·IK 피드백·물리/표시 경로는 바꾸지 않는다.
+- GUI 계획: 기존 Strafe/입력 어댑터 출력→Blend Layer의 ChildBase. Rifle Idle→Apply Additive의 Base, AO Blend Space(X=AimYaw/Y=AimPitch)→Additive. 합성 출력→Blend Layer의 ChildBlend, RifleOverlayWeight→BlendWeight, 새 마스크·bBlendInMeshSpace=true. Blend Layer 출력→기존 Montage(DefaultSlot) Source. 세 Montage/상체 마스크/IK 피드백과 그 뒤 Root/CR/표시 출력은 유지한다. Sequence는 ForceNonLoop, AO는 ForceLoop·Apply Additive 알파1로 기존 설정을 따른다. 입력 인터페이스의 신규3개는 S/AG 양쪽에 반영한다.
+- 실행 조건: 공급 성공·라이플 장착1/해제0·Yaw/Pitch 변화와 실제 AO 샘플/가산/본별 합성 task 확인, 정지/이동/급회전/조준 상하·좌우·공중/착지의 사용자 관찰, 정상 재장전·대시 중단/복귀와 IK 회귀, 근적도 대표 포즈 및 MM/History 순서 오류·ensure/쓰기 경고 확인. 기존 ABP 기준과 무기 회전 관찰을 대조하되 현재 이상 회전 원인은 미확정이다. 전체 무기/ALI 전환·Manny 견착·루트모션·적/네트워크·전체 게이트는 남긴다.
+
+### 보존과 현재 수동 요청
+
+- `Saved/AnimationOverhaul/2026-10-29_UAF52RifleOverlay/`에 소스2개/시험 에셋3개의 Before 사본과 기존 사용자4개 포함9개 SHA256을 남겼다. AG는 §36 종료 해시 `0832611B22B63D16B69B8659ACDD7E530495B89D73C3DCB0C13C13B0735B027A`와 같다. 전체 맵 저장/사용자 변경 원복/소스 스켈레톤 저장은 하지 않는다.
+- 소스2개25줄 추가 후 diff 공백 검사를 통과했다. 입력 USTRUCT 레이아웃 변경 때문에 에디터 정상 종료를 즉시 요청했고 사용자 완료 회신을 받았다. UnrealEditor 프로세스 부재 가드 뒤 권한 확장 Development 전체 빌드 **7 actions·79.69초·Succeeded/종료0**을 확인했다. Build.log·BuiltSourceHashes.json과 빌드 뒤 시험3개/사용자4개 보존 해시를 남겼다. 입력 전달을 위한 단순 필드 추가라 별도 자동화 테스트는 추가하지 않았고 실제 소비는 GUI/PIE에서 검증한다.
+- 에디터 재실행 후 `/Game/Characters/UAFSpike/BM_RifleUpperBodySpike` UAF Blend Mask 생성·UEFN 스켈레톤 선택·root/나머지0·spine_02=0.5·그 자손1·별도 커브 항목 없음·저장을 수동 요청했다. 현재 아직 마스크 생성 보고·GUI 배선·PIE 검증이 없으며 구현 단위는 미완료다. 간단한 GUI를 대신하는 편집 자동화 도구는 만들지 않는다.
+
+### 마스크 생성 확인·native 그래프 배선 요청(2026-11-01)
+
+- 사용자 완료 회신 뒤 새 MCP로 PIE=false·마스크 dirty=false·스켈레톤=`/Game/Characters/UEFN_Mannequin/Meshes/SK_UEFN_Mannequin`을 확인했다. 열린 에셋은 새 마스크1개다. ObjectTools는 이 타입에서 skeleton만 노출하므로 private Table/캐시를 반복 조회하지 않았다. CaptureEditorImage에 root0·pelvis/spine_010·spine_02=0.5·spine_03과 화면에 표시된 양팔 자손1이 보인다. 전체 본/커브 캐시 전수 읽기나 실제 합성 통과로 확대하지 않는다.
+- 새 마스크는 디스크에 있고 해시를 `MaskCreatedHashes_2026-11-01.json`에 보관했다. 기존 AG/S/BP3개와 사용자4개 해시는 BeforeHashes와 모두 같다. 새 빌드/소스 변경/PIE/맵 저장은 하지 않았다.
+- 같은 단위의 GUI 연결을 요청한다. AG의 기존 Strafe/입력 어댑터→DefaultSlot 사이에 Blend Layer를 넣고 ChildBase에는 기존 출력, ChildBlend에는 Rifle Idle+AO의 Apply Additive 출력을 연결한다. BlendMask=새 마스크·BlendWeight=공유 RifleOverlayWeight·Blend In Mesh Space=true. Idle Sequence는 기존 에셋/속도1/시작0/ForceNonLoop, AO Blend Space는 기존 AO/ForceLoop/X=AimYaw/Y=AimPitch, Apply Additive는 알파1이다. S/AG의 LNPUAFSpikeInputs Native Shared Variables에서 신규3개가 보이는지 확인하고 AG Getter를 연결한다. AG/S만 Compile/Save 후 회신을 받으며 PIE는 그 뒤 설정/로그 확인 후 요청한다. 단위는 아직 미완료다.
+
+### Base Trait 생성 UI 안내 정정(2026-11-01)
+
+- 사용자가 Sequence Player/Blend Space Player 생성·설정은 완료했으나 Apply Additive/Blend Layer가 노드·Add Trait 목록에 없다고 보고했다. 새 에디터 이미지에 공유 AimYaw/Pitch Getter→AO X/Y와 기존 슬롯 체인 유지가 보인다. Player의 모든 속성/저장 상태를 이 이미지로 전수 확인한 것은 아니다.
+- 로컬 `ApplyAdditiveTrait.h`와 `BlendLayer.h`에서 두 구현이 FBaseTrait인 것을 확인했다. `UAFAnimGraphEditor/Private/TraitStackEditor.cpp`의 Add Trait은 이미 트레이트가 있는 노드에서 Additive 모드만, 빈 스택에서 Base 모드만 보여 준다. 반면 기존 Base 행의 메뉴 `Replace...`는 같은 Base 모드로 필터한다. 따라서 Player에 Add Trait으로 얹는 항목이 아니다. 앞선 안내는 이 생성 UI 경로를 누락했다.
+- 설정한 Player2개는 유지하고 Sequence Player를 별도 복제한 두 스택에서 Base 행 오른쪽 메뉴→Replace...→각각 Apply Additive/Blend Layer로 교체하도록 정정 요청한다. 복사본에 따라온 Notify Dispatcher는 새 합성 스택에서만 Remove하며 기존 Player/몽타주 스택은 수정하지 않는다. 메뉴에 실제 항목이 보이는지와 새 핀을 확인한 뒤 앞선 배선을 이어간다. 새 코드/빌드/자동화 우회는 없다.
+
+### 배선 완료 보고·화면 확인과 상세 검토 대기(2026-11-01)
+
+- 사용자 Replace 메뉴에서 두 Base Trait을 찾고 앞선 안내대로 배선했다고 보고했다. 새 MCP는 PIE=false·AG/S/마스크 dirty=false다. 에디터 Compiler Results에 AG compilation successful·115.279ms가 표시됐다. 이 화면의 컴파일 성공을 실행 검증으로 확대하지 않는다.
+- 화면에 Blend Layer의 ChildBase/ChildBlend 연결·공유 RifleOverlayWeight→BlendWeight·새 마스크 지정·Blend In Mesh Space=true·Always Update Child Blend=false, 출력→DefaultSlot Source→FullBody를 확인했다. DefaultSlot/FullBody는 Always Update Source=true·Disable Synchronization=false가 보인다. 왼쪽 Player2개/Apply Additive의 전체 배선·속성 및 화면 밖 후단은 이 캡처만으로 재확인하지 못했다. 복제된 스택 제목이 Play MM_Rifle_Idle_ADS_UEFN이어도 실제 Base 행은 Blend Layer로 표시된다.
+- 신규4개 스택과 AimYaw/AimPitch/RifleOverlayWeight Getter3개를 선택해 Ctrl+C한 노드 복사 텍스트를 요청한다. 미지원 private RigVMPin 값을 반복 질의하거나 편집 자동화 도구를 만들지 않는다. AG EditorData의 공개 설정에는 그래프 모델/트레이트 값이 노출되지 않는다. 화면 밖 상세를 확인한 뒤 같은 단위의 PIE 검증으로 이어가며 현재 전체 배선/무기 포즈 통과로 판정하지 않는다.
+- 배선 후 AG/마스크 사본과 해시는 Saved의 `Wired_2026-11-01_*`·`WiredAssetAndSourceHashes_2026-11-01.json`에 보관했다. 기존 S/BP2개·사용자4개·빌드 당시 소스2개 해시는 그대로다. 새 컴파일/저장/빌드/PIE/맵 변경은 수행하지 않았다.
+
+### 노드 복사 텍스트 대조·첫 PIE 요청(2026-11-01)
+
+- 사용자 첨부45,113바이트의 노드 복사 텍스트를 읽고 `UserRifleNodes_2026-11-01.txt`로 Saved에 보관했다. 실제4개 스택/공유 Getter3개·RigVM 링크6개를 확인했다. Idle은 기존 MM_Rifle_Idle_ADS_UEFN/속도1/시작0/ForceNonLoop, AO는 기존 AO_MM_Rifle_Idle_ADS_UEFN/속도1/시작0/ForceLoop다. Apply Additive는 알파1·단일 Base Trait, Blend Layer는 지정 마스크·메시 공간 회전true·AlwaysUpdateChildBlend=false·단일 Base Trait다. 합성2개에 복제된 Notify Dispatcher는 없고 원래 Sequence에는 유지된다.
+- Getter6=AimYaw→AO X, Getter7=AimPitch→AO Y, Idle→Apply Additive.Base, AO→Apply Additive.Additive, 합성→Blend Layer.ChildBlend, Getter8=RifleOverlayWeight→BlendWeight의6개 링크가 맞다. 세 Getter의 Struct는 `/Script/LootNPop.LNPUAFSpikeInputs`다. BlendWeight의 미연결 기본값1은 연결된 Getter의 런타임 값과 구분한다. 선택 밖 기존 ChildBase 원천/후단 전체는 이 복사본에 없으므로 이전 화면과 사용자 연결 보고를 근거로 유지한다. 새 분기의 정적 대조 완료이며 실제 소비 검증은 아니다.
+- 에디터 로그의 `Could not resolve valid editor data for [AimYaw/AimPitch/RifleOverlayWeight]`를 발견해 로컬 `UAFEditor/Private/AnimNextEditorModule.cpp`의 노드 선택/Details 대상 해석 경로와 대조했다. 이 분기는 Struct 공유 노드의 Asset이 없을 때 EditorData=null로 경고한다. 이번 선택 경고 자체를 런타임 변수 실패로 판정하지 않으며 실제 입력 공급/소비는 PIE에서 확인한다. 관련 경고를 없애기 위한 코드 변경은 하지 않는다.
+- 새 MCP는 TestMap03·BP_GameModeUAFSpike·PIE=false·DebugLocomotion0/DebugNotifies0다. 사용자에게 두 진단을2로 켜고 새1인 Standalone PIE에서 라이플 조준 상하/좌우·정지/이동/급회전·점프/착지, 정지/이동 정상 재장전과 대시 중단/후속 재장전 복귀를 관찰 후 Pause 유지하도록 요청했다. 성공/이상 관찰 회신 뒤 새 폰/실제 값·로그를 읽는다. 첫 PIE 전 로그 경계는 `PreFirstRiflePIE_2026-11-01.json`에 보관했다. 새 PIE·빌드·그래프 수정/저장은 아직 하지 않았다.
+
+### 첫 PIE 자세 미통과·AO0 분리 비교 요청(2026-11-01)
+
+- 사용자는 첫 라이플 장착에서 라이플이 뒤집혀 총구가 등 뒤로 향하고 왼손이 심하게 비틀리며, 다른 무기 뒤 재장착하면 총이 우측 하방으로 뻗는 서로 다른 비정상 자세라고 보고했다. 왼손은 잘못된 총의 그립을 IK로 따라간 결과일 수 있다는 사용자 추정이며 원인 확정은 아니다. 정지/이동/점프/재장전 항목을 정상 통과로 처리하지 않는다.
+- 즉시 현재 PIE Pause 유지를 요청했으나 새 MCP 시점에는 PIE=false·시험 폰0개였고 에디터 출력도 PIE 종료 상태였다. 살아 있는 폰/표시 포즈를 읽었다고 주장하지 않는다. 첫 로그 경계부터 `FirstRifleAbnormal_2026-11-01.log`·Summary를 보존했다. 두 driver 시작을 포함한 구간이며 입력101표본 모두 inputs1·라이플0=11/1=90, IK101표본 모두valid1이다. 가중치1→0→1 전환과 Yaw/Pitch 변화가 보이고 Error/ensure/가산 task 경고/MM순서 진단 패턴0이다. 이는 간헐 공급/슬롯 피드백 근거이며 포즈·그래프 내부 소비/모든 프레임 통과가 아니다.
+- 수동 비교는 **Apply Additive Alpha만1→0**, AG만 Compile/Save 후 새 PIE에서 첫 라이플→다른 무기→라이플 재장착, 종료 대신 Pause 유지다. 기존 Aim X/Y·마스크/메시 공간 회전·IK·Always Update Child Blend/루프를 함께 변경하지 않는다. AO를 꺼도 첫 자세가 비정상이면 Idle/본별 합성/표시를 조사하고, 정상이면 AO 샘플·가산 공간/평가를 좁힌다. 재장착 차이는 별도로 기록한다. 비교 전 로그 경계를 `PreAOOffComparison_2026-11-01.json`에 보관했으며 회신은 대기다. Alpha1 배선 AG 사본은 기존 Wired 파일로 남아 있다.
+- 독립 소스 대조에서 native `BlendLayer.cpp`는 ChildBlend를 Reset한 뒤 `bWasChildBlendRelevant`를 false로 되돌리지 않고 다음 Allocate 때도 그대로 사용한다. `QueueChildrenForTraversal`는 그 값의 역으로 AsNewlyRelevant를 덮어쓴다. `SequencePlayer.cpp`의 AnimSequence 캐시는 OnBecomeRelevant에서만 채우고 `IUpdate.cpp`는 NewlyRelevant일 때만 이를 호출한다. 따라서 재생성 뒤 초기화 누락은 **재장착 차이의 정적 후보**다. 아직 실제 task/시퀀스 무효를 관측한 것은 아니며 첫 장착 비틀림까지 설명하지 않는다. Alpha0 비교 전 엔진/프로젝트 수정이나 Always Update 우회 설정은 하지 않았다.
+
+### Alpha0에서도 재현·현재 포즈 읽기 요청(2026-11-01)
+
+- 사용자는 Apply Additive Alpha0 비교에서도 첫/재장착이 모두 비정상이고 서로 다른 자세라고 회신했다. AO 비활성은 사용자 변경/보고 근거이며 실제 가산 task 부재를 아직 Rewind로 확인한 것은 아니다. AO 바깥의 기본 Idle/상체 합성/재장착 수명 경로를 우선 조사한다. AO 자체 정상 판정은 하지 않는다.
+- 새 MCP로 PIE=true·시험 폰C_0/원본 AnimSourceMesh/표시 VisualMesh/UAFLocomotion 참조를 찾았다. 실제 원본은 UEFN+ABP_SourceUAFSpike/일반 평가false/상대Yaw−90, 표시는 UEFN+ABP_VisualCopyPose/평가true/상대회전0이다. CaptureEditorImage에서도 총이 하방으로 향한 자세가 보인다. 본별 최종 수치를 이 이미지에서 추정하지 않는다.
+- Idle 에셋은 AAT_None·ABPT_None·UEFN 스켈레톤/RetargetSourceAsset·길이3.4초·root motion/force lock=false다. 기본 포즈를 가산 에셋으로 잘못 지정한 경우는 이 읽기에서 제외된다. 원본/표시 컴포넌트 공개 속성에 실제 본 배열은 없어 private/AnimScriptInstance 속성을 반복 조회하지 않았다.
+- 현재 재장착 원본이 참조 포즈로 돌아갔는지 확인할 한 번의 읽기 전용 `InspectRiflePose.py`(Saved 전용)를 준비했다. 사용자 Pause 상태에서 기존 Editor Python으로 실행하며 Actor/애니 상태를 변경하지 않고 local 본 회전9개를 참조 포즈·기존 Idle의 압축 끝 샘플 및 표시 메시와 대조해 JSON에 쓴다. API는 설치 엔진 `AnimPose.h`·`SkinnedMeshComponent.h`·`KismetMathLibrary.h`에서 확인했다. 사용자 실행/결과는 대기이며 새 MCP 도구/테스트 하네스·C++ 계측/빌드는 없다. 이 읽기로 첫 장착 시점까지 확인한 것으로 확대하지 않는다.
+- AO0 로그/요약·AG 사본을 `AOOffComparison_2026-11-01.log`·`AOOffComparisonSummary_2026-11-01.json`·`AOOff_2026-11-01_AG_LocomotionSpike.uasset`에 보존했다. native 재생성 후보를 근거 없이 확정하거나 마스크/IK/AlwaysUpdate/루프를 동시에 바꾸지 않는다.
+
+### 두 번째 장착의 원본 팔 참조 포즈 확인·첫 장착 표본 요청(2026-11-01)
+
+- 사용자가 Pause 유지 실행 완료와 현재가 **두 번째 라이플 장착**이라고 명시했다. 스크립트 출력 JSON과 Saved 로그의 성공 줄을 읽었다. EditorLevelLibrary.get_game_world의 Deprecated 경고1개는 있었고 실행 실패는 없다. 보고서를 `RiflePoseRead_SecondEquip_AO0_2026-11-01.json`으로 복사해 첫 표본 재실행 덮어쓰기에 대비했다.
+- 원본의 clavicle_r/upperarm_r/lowerarm_r/hand_r·왼팔3본 local 회전은 모두 참조와0°다. 오른팔4본의 라이플 Idle 압축 끝 샘플과 차이는 각각29.6574°/60.7580°/91.7215°/66.0555°이며 오른팔 표시→원본 차이는 모두0°다. 원본 spine_02/03은 참조와6.4754°/7.6511°로 다르다. 따라서 이 표본에서 상체 전체가 완전 참조 포즈라는 뜻이 아니라, 조사한 팔 분절이 참조 회전으로 돌아간 것이다. 표시 왼팔은 원본과100.2597°/40.2323°/89.5550° 차이가 있어 그립 IK 소비와 양립하나 실제 IK task의 인과 증명은 아니다.
+- 위 결과는 재장착 시 캐시 초기화 누락 후보와 맞지만 아직 native Sequence의 AnimSequence 포인터/실제 평가 task를 직접 읽지 않았다. 첫 장착 뒤집힘과 같은 원인이라고 합치지 않는다. 새 설정/코드 변경 전에 같은 Alpha0로 새 PIE의 **첫 라이플만** 장착·입력 없이4초 대기(비루프3.4초 끝 비교)·Pause 후 동일 InspectRiflePose.py를 다시 실행하도록 요청했다. 첫/재장착 보고서로 샘플/합성과 재생성 문제를 나눠 좁힌다. 새 결과는 대기이며 AlwaysUpdate/마스크/IK·소스/빌드는 변경하지 않았다.
+
+### 첫 장착 팔 샘플 일치·재장착 보완 코드 준비(2026-11-01)
+
+- 사용자 첫 장착 읽기 완료 회신 뒤 실제 JSON을 읽어 `RiflePoseRead_FirstEquip_AO0_LocalOnly_2026-11-01.json`으로 보존했다. 첫 장착 오른쪽 쇄골/상완/손은 Idle 압축 끝과0°·하완0.0214°, 오른팔 표시/원본은 모두0°다. 왼팔 원본도 Idle과0~0.031°지만 표시는 그립 IK가 있는 경로에서 다르다. spine_02/03 local은 Idle과7.3694°/8.5305°다. 첫 장착의 팔 샘플 자체는 읽은 범위에서 맞고, 재장착 때는 같은 분절이 참조로 돌아간다는 두 상태 차이를 확인했다. 첫 총구 방향 정상 판정은 아니다.
+- 현재 첫 장착 Pause에서 상위 본/root-relative 회전과 weapon_r/l·부착 소켓/상대회전을 함께 읽도록 Saved 스크립트를 보완하고 동일 명령 추가 실행을 요청했다. 아직 확장 읽기 결과는 없다. 실제 VS_Rifle은 AttachSocketName=weapon_r·상대회전(0,90,−4)이고 runtime WeaponMesh도 같은 메시/상대회전이다. UEFN weapon_r 부모는 hand_r다. 이 값이 UEFN 표시에서 올바른 최종 방향이라는 판정은 아니다.
+- 재장착 문제에는 `LNPUAFRifleOverlayTrait.h/.cpp`의 **LNP Rifle Overlay Relevance** additive IUpdate를 준비했다. 같은 스택 Base가 native Blend Layer일 때 ChildBlend가 해제됐는데 bWasChildBlendRelevant가 남아 있으면 false로 되돌린 뒤 기존 IUpdate PreUpdate에 위임한다. 자식 생성/해제·가중치·큐/포즈 합성은 native가 유지하며 AlwaysUpdate로 분기를 상시 재생하는 우회는 하지 않는다. DebugLocomotion2에서 실제 잔류 플래그 보정 때만 로그를 남긴다.
+- native FBlendLayerTrait의 상태 레이아웃을 읽기 위해 Build.cs에 UAFAnimGraph Private include1줄을 추가했다. 엔진 수정은 없고 내부 API 의존성이므로 엔진 갱신 시 재검토한다. 이 코드2개/Build.cs 변경은 준비·diff 공백 검사만 통과했으며 **미빌드·미연결·실행 미검증**이다. 새 반사 타입이므로 확장 읽기를 마친 뒤 에디터 정상 종료/Development 전체 빌드가 필요하다. 첫 뒤집힘을 이 보완이 해결한다고 주장하지 않는다.
+
+### 첫 장착 확장 읽기·무기 부착 본 일시 비교 요청(2026-11-01)
+
+- 사용자 추가 실행 완료 뒤 확장 보고서를 읽어 FirstEquip_AO0_Expanded 사본으로 보존했다. 첫 장착 source의 spine_03 이후 조사한 팔/weapon_r/l은 Idle 압축 끝 샘플의 root-relative 회전과0°다. 출력 root의40.6664°는 이전 Offset Root 진단과 맞으며 source/visual 오른팔·weapon_r도0°다. 따라서 해당 표본에서 상체/무기 본이 원본 Idle와 다른 방향으로 손상됐다는 근거는 없다.
+- 단, 원본 Idle의 weapon_r local은 참조보다179.2018° 회전해 있고 runtime은 그 Idle와0.0179° 차이다. 실제 총은 VisualMesh.weapon_r에 붙어 상대(0,90,−4)를 사용한다. UAF 출력/CopyPose가 이 회전을 그대로 표시하는 현재 UEFN 시험 경로의 부착 기준을 별도로 확인해야 한다. 일반 Manny 리타깃 경로·소스 에셋 자체 오류/전역 VS 변경 필요를 이 표본만으로 단정하지 않는다.
+- 현재 첫 Pause에서 `TestRifleHandAttachment.py`를 실행하도록 요청했다. 이 파일은 현재 PIE의 VisualMesh.weapon_r 부착을 확인한 뒤 상대 변환을 보존하며 hand_r로 일시 재부착하고 JSON에 기록한다. SceneComponent.h의 AttachToComponent 시그니처를 확인했다. 약1초 Resume 후 총 방향/왼손을 관찰·Pause 유지하며 다른 무기 교체는 하지 않는다. 재장착 때 ApplyWeaponVisuals가 원래 weapon_r로 다시 붙인다. 에디터 애셋/맵 저장·기존 VS/리타깃 애셋 변경은 없다. 비교 실행/결과는 대기다.
+
+### hand_r 일시 비교 개선·부착/재장착 보완 코드 준비(2026-11-01)
+
+- 사용자가 일시 부착 비교 후 "제법 자연스러워졌다"고 회신했다. HandAttachmentComparison JSON에서 실제 weapon_r→hand_r와 원래 상대 변환 보존을 확인했고 MCP는 PIE=true다. 이 결과는 현재 Alpha0·첫 장착·UEFN CopyPose 표시의 부착 기준 개선이며 정밀 견착/모든 조준·재장전/AO1/다른 무기/메시·네트워크 통과가 아니다.
+- 기본 장착 함수 `ALNPCharacterBase::ApplyWeaponVisuals`의 기존 구현은 유지하고 선언만 virtual로 했다. 시험 폰 override는 Super의 태그/레이어/데이터 적용 뒤 실제 표현 세트=Rifle·원본/표시 SkeletalMeshAsset 동일 조건에서만 hand_r로 KeepRelativeTransform 재부착한다. 기본 플레이어·적은 기존 구현을 그대로 사용하고 향후 Manny처럼 다른 표시 메시인 시험 경로도 이 조건에서 제외된다. VS_Rifle·리타깃 원본/구성 애셋은 수정하지 않는다. Tick마다 부착을 덮는 방식은 쓰지 않는다.
+- 준비한 LNP Rifle Overlay Relevance와 합쳐 새 소스2개·기존 PlayerCharacter2개/공통 헤더1개/Build.cs1줄이 보완 범위다. 이번 §37 전체 입력 소스2개까지 포함하면 소스8개다. 변경 전 공통 헤더/시험 폰3개 사본과 PendingRifleFixSourceHashes, 사용자4개 보존 체크를 Saved에 남겼다. diff 공백 검사는 통과했다. 아직 미빌드·미연결이다.
+- 새 반사 트레이트와 virtual 함수 변경 때문에 PIE·에디터 정상 종료를 즉시 요청했다. 맵 전체 저장은 하지 않는다. 회신 뒤 프로세스 부재 가드와 권한 확장 Development 전체 빌드, 성공 뒤 Blend Layer에 새 additive 트레이트 추가·Alpha0 첫/재장착/원본 팔 유지 재검증으로 이어간다. 이어 Alpha1 복원·조준/이동·재장전/대시 회귀가 남으며 이번 단위 완료/후속 단위 승인은 아직 아니다.
+
+### 보완 전체 빌드 시작(2026-11-01)
+
+- 에디터 프로세스 부재를 읽고 같은 부재 가드를 포함한 권한 확장 Development 전체 빌드를 시작했다. 사용자 정상 종료 완료 회신도 받았다. BuildRifleFix_2026-11-01.log에 보존하며 현재 아직 성공 판정 전이다. 새 반사 타입/가상 함수 변경이라 Live Coding은 사용하지 않았다.
+- 성공 뒤 GUI는 native Blend Layer 스택의 +Add Trait→LNP Rifle Overlay Relevance 하나만 추가하고 AG Compile/Save다. 기존 Apply Additive Alpha0·AlwaysUpdateChildBlend=false를 유지한다. 재장착 새 자식이 참조로 돌아가지 않는지 실제 포즈/초기화 보정 로그와 사용자 첫/재장착 관찰로 검증하고, AO1/대표 회귀는 뒤에 같은 단위에서 진행한다.
+
+### 부착/재장착 보완 빌드 성공·AO0 재검증 요청(2026-11-01)
+
+- Development 전체 빌드 **16 actions·71.38초·Succeeded/종료0**을 확인했다. 소스8개의 빌드 전후 해시가 일치하고 사용자4개도 보존됐다. BuildRifleFix 로그·RifleFixBuildSourceHashCheck/AfterRifleFixBuildUserAssets가 근거다. 컴파일/링크 통과이며 보완 후 실제 포즈/재장착 통과는 아니다. 별도 구현 모사 자동화 테스트 대신 앞선 실패 재현/본 회전 보고서를 실제 재검증 기준으로 사용한다.
+- 사용자에게 에디터 재실행·native Blend Layer(복제 노드 제목과 구분)의 +Add Trait→LNP Rifle Overlay Relevance 추가·Apply Additive Alpha0/AlwaysUpdateChildBlend=false 유지·AG Compile/Save를 요청했다. 컴파일 오류가 있으면 실행하지 않고 보고한다.
+- 이후 진단2/2를 켜고 새1인 Standalone PIE에서 첫 라이플 입력 없이4초, 다른 무기 뒤 재라이플 입력 없이4초·Pause 유지, 동일 InspectRiflePose.py 실행과 첫/재장착 사용자 관찰을 요청했다. 임시 TestRifleHandAttachment는 재실행하지 않는다. 새 override의 실제 hand_r 부착/로그와 관련성 보정 로그, 원본 팔이 Idle을 유지하는지·표시/IK·관련 오류를 회신 뒤 확인한다. AO1 복원/조준·이동·정상 재장전/대시 중단·후속 복귀는 여전히 남아 있다. 이번 단위는 미완료이며 다음 단위 진행 승인은 요청하지 않았다.
+
+### AO0 첫/재장착 개선 확인·hand_r 우회 최종 채택 보류(2026-11-01)
+
+- 사용자 첫/재장착 모두 어색한 부분 없음·Python 실행 완료를 회신했다. 실제 재장착 보고서에서 오른팔 local은 Idle 끝과0~0.0214°·spine_03 이후 조사한 본의 root-relative도0°, 오른팔 표시/원본0°로 유지됐고 무기 부착은hand_r다. 관련성 보정 로그1회·장착 override 로그2회·입력40표본 모두성공·IK40표본 모두valid1을 확인했다. 애니 런타임 오류/ensure/가산 task/MM순서 패턴0이며 MCP Unknown session 오류1회 뒤 재초기화는 별도로 분리한다. 간헐 표본/정지 AO0 범위다.
+- `RiflePoseRead_PostFix_SecondEquip_AO0_2026-11-01.json`과 RifleFixAO0 로그/요약에 보존했다. Python 경고는 EditorLevelLibrary.get_game_world Deprecated이며 실행/보고서 저장은 성공했다. Saved 진단2개는 설치 헤더에서 확인한 UnrealEditorSubsystem.get_game_world로 바꿨다. 새 API의 사용자 재실행 결과는 아직 없다.
+- 사용자가 원인 설명과 weapon_r를 고치는 방향·향후 다른 소켓 변경 시 유지보수 문제를 제기했다. 지적대로 현재 시험 폰 C++ override는 Rifle에서 VS.AttachSocketName보다 hand_r를 우선하므로 데이터의 부착 설정을 덮는다. 이는 범위를 제한한 진단 우회이며 **최종 처리로 채택하지 않는다**. 진단 Python은 게임 동작 경로가 아니고, 실제 하드코딩은 C++다. 원인 경계를 확인한 뒤 정규 데이터/리타깃 수정과 함께 이 우회와 필요 없어진 virtual hook을 제거할 방향으로 재검토한다. 아직 제거/애셋 저장·추가 빌드는 하지 않았다.
+- 확인된 두 문제는 구분한다. native Blend Layer 재생성의 초기화 누락은 소스 경로·실패 팔 참조 복귀·보정 후 Idle 유지/보정 로그로 대표 재현에서 개선됐다. 첫 뒤집힘은 원본과 같은 Idle weapon_r의 약179° 회전 및 현재 UEFN 부착 기준 불일치와 hand_r 비교 개선을 확인했다. 그179°가 잘못된 리타깃인지 의도된 원본/기준축 규약인지는 아직 미확정이다. weapon_r는 이 UEFN에서 hand_r 아래의 본이며 소켓 에셋 자체 회전 오류로 단정하지 않는다.
+- `SetupOfflineRetargeter.py`는 Copy Base Pose op를 맨 앞에 넣는다. 설치 `CopyBasePoseOp.cpp`의 Run은 본 이름으로 source local pose를 그대로 복사하고 BonesToExclude는 별도 처리한다. 과거 리그 목록에는 무기 본 전용 체인이 없다. 따라서 무기 본 기준축 불일치가 복사되는지 원본/사본 참조축·Idle 처음/끝을 먼저 비교한다. 현재 source/target 리그/op도 함께 읽는 Saved 전용 `InspectWeaponBoneRetarget.py`를 준비해 사용자 실행을 요청했다. 이것은 읽기 전용이며 결과 전에 전역 본 회전·리타깃/원본/VS 애셋을 바꾸지 않는다. Alpha1 진행은 이 처리 위치를 정리한 뒤 이어간다.
+
+### 원본 무기 본 기준축 비교·분리 리타깃 시험 준비(2026-11-01)
+
+- 읽기 보고서 저장 성공을 확인했다. Lyra weapon_r의 Idle local 회전은 참조와172.7528°, UEFN은179.2018°이며 두 Idle의 local 회전 자체는 부호를 제외하면 거의 같다. 원본과 대상의 참조축이 다른 상태에서 Copy Base Pose가 local을 복사하고 양쪽 리그에는 무기 체인이 없다. 원본에도 큰 회전이 있으므로 전역180°/참조0회전으로 덮지 않는다. 이 읽기만으로 올바른 보정 결과를 확정하지 않는다.
+- 원본 Lyra 메시 로드 때 M_Mannequin·MI_Manny_01_Blue·MI_Manny_02_Blue에 Missing Material Function/기본 머테리얼 대체 경고3건이 발생했다. WeaponBoneRetargetInspection 보고서 저장은 성공했고 본 수치 비교는 수행됐다. 관련 없는 머테리얼 복구는 이번 단위에 추가하지 않는다.
+- 사용자가 PIE만 종료했고 에디터는 유지한다. Saved의 BuildWeaponBoneProbe.py 실행을 요청한다. /Game/Characters/UAFSpike/WeaponBoneProbe에 리그2개/리타기터1개 사본을 만들고 양쪽 weapon_r→weapon_r의 단일 본 RightWeapon 체인과 매핑을 추가한다. 기존 체인 매핑을 보존하고 /Game/Characters/Retargeted/UAFWeaponProbe에 원본 Rifle Idle1개만 생성한다. 기존4개 목적지 존재 시 거부하고 생성된4개만 저장한다. 원본 구성/Idle/VS6개 해시를 사전에 보존했다.
+- 아직 시험 애셋 생성/시각 검증은 하지 않았다. 후보와 기존 Idle의 본 회전 보고서를 먼저 비교한다. 기존 C++ hand_r 우회는 제거 전이므로 후보를 그대로 PIE에 연결해도 weapon_r 시험이 되지 않는다는 점을 유지한다. 단위 완료/추가 단위 승인은 여전히 아니다.
+
+### 기본 무기 체인 시험 생성 성공·그립 기준 포즈 사본 준비(2026-11-01)
+
+- 사용자 실행 완료 뒤 WeaponBoneProbe 보고서/로그와 새4개 파일을 확인했다. RightWeapon 매핑과 기존 발가락 None 매핑을 보존했고4개 저장/보고서 성공·실행 구간 Error/Traceback/ensure 패턴0이다. 압축 의존성 로드와 원본 커브 없음 경고2건·메모리 추정치 미제공 Display2건이 있었으나 배치 생성은 성공했다. 원본6개 해시도 모두 보존됐다.
+- 처음/끝 weapon_r는 기존과20.7015° 달라졌고 대상 참조와172.7528°다. 조사한 spine_03/오른팔 차이는 최대0.0365°다. 즉 기준축 변환은 일어났지만 원본 애니에 들어 있는 큰 상대 회전은 여전하며, 체인 추가만으로 첫 뒤집힘 해결/시각 통과를 선언하지 않는다. 아직 AG/실제 장착은 기존 경로다.
+- 다음 비교는 새 RTG_WeaponBasisProbe 사본의 source weapon_r 리타깃 포즈를 원본 Rifle Idle 시각0의 local 방향에 맞추는 가정이다. 설치 엔진의 RefLocal*Offset 연산과 FK 단일 본 부모 기준 전달을 확인했고 Offset=RefLocal.inverse()*IdleLocal로 계산한다. 다른 본의 포즈와 원본 리그/애니는 유지한다. 매 프레임 무기 본을0으로 덮는 방식이 아니라 기준 그립 이후의 상대 회전을 전달하는 후보이며, 다른 라이플 동작/AO의 호환성은 아직 미검증이다.
+- Saved BuildWeaponBasisProbe.py를 준비·설치 Python AST 문법 검사했다. 새 리타기터1개/생성 Idle1개만 만들고5시각×5본 회전/이동을 보고한다. 아직 사용자 미실행이며 기준 보정 후보 생성/성공을 미리 주장하지 않는다. hand_r C++ 우회 제거·Alpha1/대표 회귀·단위 완료는 계속 남아 있다.
+
+### 그립 기준 포즈 후보 수치 확인·강제 부착 제거 준비(2026-11-01)
+
+- 사용자 실행 완료 뒤 WeaponBasisProbe 보고서·새 리타기터/Idle2개 저장 성공·실행 구간 오류 패턴0·원본6개 보존을 확인했다. 이전 배치와 같은 압축 의존성/커브 없음 경고2건 및 압축 작업 메모리 추정 Display2건을 분리한다.
+- 0/0.85/1.7/2.55/3.4초의 weapon_r local 회전은 대상 참조와0/0.2099/0.2822/0.3048/0°이고, 위치는 전 시각(0.19749,3.41115,−0.38107)cm다. 회전을 고정0으로 지우지 않고 작은 상대 운동이 남았다. 조사한 spine_03/upperarm_r/lowerarm_r/hand_r의 기존 대비 회전 차이 최대0.0566°다. 팔 전체/모든 프레임 동등성·시각 통과/재장전/AO 판정으로 확대하지 않는다.
+- 후보를 실제 데이터 부착으로 검증하려고 시험 폰 ApplyWeaponVisuals override와 전용 includes2개·공통 헤더의 virtual 추가를 제거했다. 세 소스의 기존 커밋 대비 diff는 없어졌고 이번 임시 우회의 흔적을 정리했다. 제거 전3소스/AG 사본과 제거 후 빌드 대상8개 해시를 Saved에 남겼다. 기존 관련성 보정 트레이트/입력 소스는 유지한다. **소스만 수정됐고 아직 미빌드이므로 열린 에디터에는 hand_r override가 남아 있다.**
+- 사용자가 AG의 기본 Rifle Sequence Player 애니만 MM_Rifle_Idle_ADS_WeaponBasisProbe로 교체·Alpha0/관련성 트레이트/AlwaysUpdate 설정 유지·Compile/Save한 뒤 PIE와 에디터를 정상 종료하도록 요청한다. 맵 전체 저장은 하지 않는다. 회신 후 권한 확장 Development 빌드, 새 PIE의 첫/재장착 weapon_r 데이터 부착·포즈/본 수치 검증으로 이어간다. 아직 단위 완료나 다른 단위 진행은 아니다.
+
+### 강제 부착 제거 빌드 성공·후보 실제 부착 재시험 요청(2026-11-01)
+
+- 사용자 AG 후보 교체/Compile·Save와 정상 종료 완료 회신 뒤 에디터 프로세스 부재를 확인했다. AG 해시는4F08B5017B0C130130665A767A7B457EA0492F47AD452573DABDBCE19560EF61이며 저장 파일에 후보 이름도 포함돼 있다. 사본/해시는 WeaponBasisWired에 보존했고 이것만으로 실제 실행 중 선택 에셋까지 검증했다고 보지 않는다.
+- 권한 확장 LootNPopEditor Win64 Development 전체 빌드가13 actions·65.85초·Succeeded/종료0으로 끝났다. 소스8개/사용자4개/AG·후보 리타기터·Idle3개 모두 빌드 전후 해시가 같다. BuildRemoveAttachmentOverride 로그와 RemoveAttachmentBuildHashCheck가 근거다. 에디터 재시작부터 실제 장착은 기존 공통 함수/VS.AttachSocketName을 사용하고 hand_r override는 없다. 관련성 보정 트레이트는 유지한다.
+- Saved InspectRiflePose.py의 비교 Idle을 기준 보정 후보로 바꾸고 보고서에 expectedAnimation·실제/VS 소켓 이름·상대 위치를 추가했다. 읽기 전용이며 AST 문법 검사를 통과했다. 아직 재시작 후 사용자 실행/실제 포즈 결과는 없다.
+- 에디터 재실행 후 DebugLocomotion2/DebugNotifies2·Alpha0 새1인 Standalone PIE의 첫 라이플4초 관찰→다른 무기→재라이플4초 대기·Pause·읽기 명령 실행을 요청한다. 임시 부착 변경 스크립트는 사용하지 않는다. 사용자 첫/재장착 시각 판정과 weapon_r 데이터 부착·원본 팔/무기 본 일치·오류를 확인한 뒤 AO1로 이어간다. 정식 재생성 경로/다른 동작 검증·단위 완료는 남아 있다.
+
+### weapon_r 데이터 부착 첫/재장착 정상 확인·AO1 대표 회귀 요청(2026-11-01)
+
+- 사용자가 첫/재장착 모두 매우 자연스럽다고 회신했다. 실제 재장착 Pause 보고서에서 WeaponMesh 부모는 VisualMesh·실제 소켓/VS 설정 모두weapon_r·상대 위치0/상대 회전(0,90,−4)다. 오른팔/weapon_r local은 후보 Idle 끝과0~0.02°·spine_03 이후 조사한 본의 root-relative는0°이고 오른팔/weapon_r 표시→원본도0°다. 표시 왼팔은 그립 IK 경로에서13.57/35.58/22.88° 다르며 수동 시각 정상 판정을 함께 기록한다.
+- 새 PIE 구간 입력37개 모두성공·IK37개 모두valid1·관련성 보정1회·강제 부착 로그0·관련 애니 오류/ensure/MM순서 패턴0·Python 경고/오류0이다. 정지 AO0·간헐 로그/재장착 본 읽기 범위이며 모든 프레임 동등성으로 확대하지 않는다. WeaponBasisAO0 로그/요약과 RiflePoseRead_WeaponBasis_SecondEquip_AO0 사본에 보존했다.
+- 이 대표 재현에서 재장착 초기화 보완과 weapon_r 기준 보정 후보/기존 데이터 부착의 조합이 정상이며 hand_r C++ 우회를 제거한 상태로 확인됐다. 향후 소켓 변경은 기존 VS.AttachSocketName 경로가 소유한다. 아직 정식 재생성 스크립트/다른 클립·메시의 기준 계약까지 확정한 것은 아니다.
+- 같은 §37 단위의 남은 검증으로 PIE 종료→Apply Additive Alpha1만 복원→AG Compile/Save→새 PIE 첫/재장착·좌우/상하 조준·이동/스트레이프·정상 재장전·재장전 중 대시 취소/복귀를 요청한다. 이상이 생기면 해당 상태 Pause에서 멈추고 관찰을 보고한다. 모두 정상이어도 마지막 라이플 Idle Pause로 로그 경계를 보존한다. AO0 전용 InspectRiflePose.py는 AO1 동등성 검사로 재사용하지 않는다. AO1 결과·정규 생성 경로 반영·종료 정리 뒤에만 단위 완료/다음 단위 여부를 묻는다.
+
+### AO1 후속 검증 중 장전 무기 반전·Pause 읽기 요청(2026-11-01)
+
+- 사용자가 장전 중 총구가 반대로 돌아가고 장전 종료 때 정상 복귀한다고 보고했다. 현재 장전 도중 Pause를 유지한다. 장전 외 첫/재장착·조준·이동의 정상 여부는 자동으로 가정하지 않고 별도로 질문했다. 이 결과는 장전 회귀 실패이며 AO1/단위 통과로 표시하지 않는다.
+- MCP로 기존 AM_MM_Rifle_Reload_UEFN의 UpperBody 트랙→MM_Rifle_Reload_UEFN(일반 AAT_None·ABPT_None·2.2초·UEFN), UpperBodyAdditive 트랙→MM_Rifle_Reload_Additive_UEFN을 확인했다. blendIn0.1/blendOut0.3 HermiteCubic이다. Idle만 그립 기준 보정 후보로 바꿨으므로 장전의 기존 weapon_r 기준이 다시 덮이는 가설과 맞지만 실제 UAF 활성 포인터/재생 위치를 읽은 근거는 아니다.
+- Saved InspectRifleReloadPose.py를 준비·문법 검사했다. 사용자 장전 Pause에서 원본/표시 local 본8개·실제 부착 소켓·기존 Reload의5시각 weapon_r를 읽고 오른팔3본 회전 기준133표본 중 가장 가까운 Reload 표본과 비교한다. 가까운 표본 시각은 네이티브 UAF 재생 위치 질의와 구분하며 실시간/애셋 상태를 바꾸지 않는다. 사용자 실행/결과 대기다. 관련 시퀀스/몽타주5개 해시와 현재 새 PIE 로그를 Saved에 보존했다.
+- 원본/기존 생성 에셋·리타기터·C++는 아직 추가 변경하지 않았다. 결과 뒤 장전도 같은 그립 기준으로 생성할 최소 사본을 검증하고 정식 재생성 경로와 함께 정리한다. hand_r 강제 부착으로 되돌리지 않는다. AO1/장전·대시/구면 대표 회귀·종료 정리와 단위 완료/다음 단위 질문은 계속 남아 있다.
+
+### AO1 장전 외 사용자 대표 관찰 확인(2026-11-01)
+
+- 추가 회신으로 사용자가 Alpha1 첫 장착/재장착·좌우/상하 조준·이동/스트레이프 모두 자연스럽다고 확인했다. 장전 전 대표 시각 관찰이며 정밀 AO 샘플 동등성/모든 위도 검증으로 확대하지 않는다. 장전 중 반전 실패와 현재 Pause 읽기 요청은 유지한다. 정상 재장전/대시 중단·복귀는 아직 통과가 아니다.
+
+### 장전 Pause 포즈 기존 시퀀스 일치·동일 기준 장전 사본 준비(2026-11-01)
+
+- 사용자 읽기 실행 완료 뒤 RifleReloadPose 보고서와 성공 로그를 확인했다. 실제 소켓은weapon_r다. 오른팔3본 회전으로 찾은 가장 가까운 기존 Reload 표본은1.3666667초·RMS0.19989°이며 실제 weapon_r는 표본과0.1002°·보정 Idle/UEFN 참조와163.5338°다. 오른팔 각 분절은 표본과0.1145/0.0583/0.3215°이고, 읽은8본의 표시/원본 차이는 모두0°다. 가장 가까운 표본 시각을 실제 네이티브 몽타주 위치 조회로 표현하지 않는다.
+- 기존 Reload의5시각 weapon_r는 참조와153.90~175.24°다. 사용자 장전 반전/종료 때 보정 Idle 복귀 관찰과 함께 기존 장전 무기 방향이 원본/표시로 전달됨을 확인했다. AO1 다른 동작의 정상 관찰과 분리하며 포즈 복사·그립 IK가 새 반전을 만들었다고 보지 않는다. 읽기 중 추가 경고/실패 없이 저장됐고 장전 관련 원본/생성5개 디스크 해시도 모두 보존됐다.
+- Saved BuildRifleReloadProbe.py를 준비·문법 검사했다. PIE 종료 가드/새 목적지 존재 거부를 두고 검증한 RTG_WeaponBasisProbe로 MM_Rifle_Reload_WeaponBasisProbe1개를 새 생성한다. 기존 UEFN 장전 몽타주를 시험 AM_RifleReloadWeaponBasisProbe로 복제해 단일 UpperBody 세그먼트 참조만 후보로 잇는다. UpperBodyAdditive 트랙과 노티파이는 보존하고 새2개만 저장하며 기존 몽타주/Chooser·Lyra/UEFN 원본/리타기터/C++는 바꾸지 않는다. 이 후보는 직접 몽타주 재생 비교용으로, 일반 장전 입력의 수정이 아니다.
+- 사용자에게 에디터는 유지하고 PIE만 종료한 뒤 생성 스크립트를 실행하도록 요청한다. 아직 미생성이다. 결과 수치 확인 후 기존 AnimInstance.montage_play→native UAF 경로의 시험 재생으로 시각 비교하고, 성공하면 정식 생성/일반 장전 경로 반영과 대시 취소/복귀를 검증한다. 전체 무기 일괄 재생성이나 다음 단위 진행으로 확대하지 않는다.
+
+### 장전 사본 참조 교체 실패 확인·MCP 복구/시험 재생 준비(2026-11-01)
+
+- 사용자 완료 회신 뒤 보고서 부재를 확인했다. 최초 생성은 시퀀스/몽타주를 메모리에 만들었지만 Probe montage reference did not update 검증에서 RuntimeError로 멈췄고 새2개 저장/수치 보고서는 수행하지 못했다. 원인은 작성한 Python 중첩 배열의 복사본 수정 뒤 segments[0]/tracks[index]에 다시 넣는 처리가 빠진 것이다. 기존5개 파일은 보존됐다. 별도의 Lyra 머테리얼3개 Missing Material Function·압축 의존성 경고와 이 스크립트 실패를 구분한다.
+- 새 미저장 사본2개가 라이브 에디터에 있음을 MCP로 확인했다. candidate는 UEFN·2.2초·AAT_None이다. ObjectTools로 시험 몽타주의 전체 slotAnimTracks 값을 읽고 UpperBody 단일 세그먼트 참조만 후보로 바꿔 다시 설정했다. 재읽기에서 새 참조·시간0~2.2/속도1/반복1/별도 기존 UpperBodyAdditive·blend0.1/0.3 HermiteCubic을 확인한 뒤 AssetTools.save_assets로 새2개만 저장 성공했다. 원본5개 해시도 다시 모두 일치했다. ReloadProbeRepairEditorRead/ReloadProbeSavedHashes/AfterReloadProbeRepairOriginalHashes와 실패/복구 로그를 보존했다.
+- BuildRifleReloadProbe.py의 배열 대입 누락4줄을 수정했지만 이미 생성/저장된 사본이 있으므로 재실행하지 않는다. 노티파이 private 속성은 MCP에서 읽을 수 없었고 반복 조회하지 않았다. 몽타주 복제 이후 변경은 slotAnimTracks뿐이다.
+- Saved PlayRifleReloadProbe.py를 준비·문법 검사했다. 새 PIE의 라이플 Idle/다른 몽타주 없음·올바른 시험 참조를 확인하고 후보/기존 장전의6시각×8본 회전/위치 보고서를 만든 뒤 기존 AnimInstance.montage_play로 시험 몽타주를0.25배속(약8.8초) 직접 재생한다. 일반 장전 입력/Chooser·기존 몽타주는 그대로이며 실제 장전 능력 발동 검증과 구분한다. 현재 후보 수치/직접 재생 결과는 아직 없다. 시각 정상·복귀를 확인한 뒤 일반 경로의 정식 반영/재시험을 진행한다. §37은 계속 미완료다.
+
+### 장전 후보 총 방향 개선·왼손 탄창 접촉 오차 조사(2026-11-01)
+
+- 사용자가 Python을 여러 번 재생해 총 위치/방향과 전반 동작은 자연스러우나 왼손이 캐릭터 오른쪽 약한뼘 치우쳐 탄창을 잡거나 넣을 때 허공을 짚는다고 보고했다. 장전 접촉은 미해결로 두고 단위 완료로 표시하지 않는다. 실제 직접 시험 재생4회·0.25배속·반환2.2초와 올바른 후보/원본 인스턴스·weapon_r 부착을 확인했다. 관련 애니 오류/ensure/MM순서0·IK invalid0이며 장전 중 UpperBody 요구1/종료0 복귀다. 일반 장전 능력 입력/대시 취소 통과는 아니다.
+- 후보6시각의 기존 대비 spine_03/양팔6본 local 회전 차이는 모두0°다. weapon_r는 참조와7.9654~31.9949°로 상대 회전이 남지만 위치는(0.19749,3.41115,−0.38107)cm에 고정됐다. 기존 weapon_r 위치는 x≈−7.2~−7.9cm여서 약8cm 차이가 있다. 이 차이가 전체 접촉 오차의 원인이라고 수치 비교 전에 단정하지 않는다.
+- 전환 전 표시 MoverSample SKM_Manny_Simple에는 weapon_r **소켓**이 hand_r에 붙고 상대 위치(−1.163383,1.317055,−0.519517)cm·회전(pitch15.80837,yaw−8.517089,roll−11.617612)°다. Lyra 메시의 소켓 목록에는 weapon_r가 없으며 UEFN은 이미 본으로 확인했다. 동일한 이름만으로 두 부착 기준이 동등하다고 보지 않는다. 기존 ComputeLeftHandGripOffsets.py도 전환 전 소켓:hand_r 기준으로 그립을 계산했다.
+- Saved InspectReloadHandContact.py를 준비·문법 검사했다. 원본 Lyra 장전/Idle과 후보의 손-무기 상대 위치를 기존 MS 표시 소켓 기준에 비교하고, 같은 소켓을 후보 손에 가정한 경우·단순 hand_r 기준·spine_05 기준 양손 위치 및 팔 체인 목표/FK·IK op 설정을 읽어 보고한다. 손끝/탄창 실제 접촉을 직접 측정한 값이 아님을 명시한다. 기존 PIE를 유지한 채 읽기 명령 실행을 요청하며 아직 추가 보정/에셋/C++ 변경은 없다. 고정 그립 IK를 장전 중 켜서 탄창 이동을 막는 방향으로 우회하지 않는다.
+
+### 손-무기 상대 위치 읽기·기존 손 부착 규약으로 시험 수정 준비(2026-11-01)
+
+- ReloadHandContact 저장 성공을 확인했다. 원본 Lyra 포즈+전환 전 MS 소켓 기준과 후보의 hand_l 무기 공간 차이는 장전1.1/1.3667초에서11.9981/10.2716cm다. 같은 대상 팔 포즈를 target hand_r에 고정 부착하는 비교는약0.93/2.33cm로 작다. 손이 탄창에서 멀리 떨어지는0.55초 표본에서는 현재후보41.21cm/고정 손 비교약6.66cm이나, 이 수치를 손끝-탄창 실제 접촉 거리로 표현하지 않는다. 이 읽기는 본 원점/부착 기준 비교다.
+- source/target LeftArm/RightArm 체인은 각각 LeftHandIK/RightHandIK 목표와 solver1개를 가지고 FK/IK op가 켜져 있다. 단순 IK 미설정이라고 보지 않는다. 팔/상체 형태 차이에 따른 잔여 위치 오차는 있지만 대표 접촉의 큰 차이는 무기 기준이다. 이전 실험에서 source weapon_r의 상대 회전까지 전달한다는 가정이 프로젝트의 전환 전 고정 소켓 규약과 맞지 않았다. source 무기 본 운동을 보존하는 이전 후보를 최종 처리로 채택하지 않는다.
+- 설치 PinBoneOp의 target→target 복사·기본 전역 위치/회전 복사·identity offset과 SetBonePair/GetAllBonePairs API를 확인했다. UEFN weapon_r는 자식 본이 없는 leaf다. 새 리타기터 사본에서 모든 기존 팔/IK 처리 뒤 **target hand_r→target weapon_r**를 굽는 후보를 준비한다. 이것은 데이터의 부착 대상(VS.AttachSocketName)을 덮지 않고, 생성 애니의 해당 무기 본을 프로젝트 표시 규약에 맞추는 처리다. 새 C++/런타임 부착 override·팔 고정 IK는 추가하지 않는다.
+- Saved BuildRifleAttachmentProbe.py 준비·문법 검사 완료. 원본 RTG_Lyra_to_UEFN_Offline만 복제해 Pin Bones op를 끝에 추가하고 Idle/Reload2개를 _AttachmentProbe로 생성·기존 몽타주를 새 시험 사본에 복제/UpperBody 참조만 교체한다. 새4개 목적지 존재 거부/PIE 종료 가드·샘플103/67개에서 무기/손 변환 일치 검사·다른7본 회전 비교 후 새4개만 저장한다. 기존 리그/보정 사본/원본/C++/VS/Chooser는 그대로다. BeforeRifleAttachmentProbeHashes로 읽을 기존 에셋들을 보존했다.
+- 사용자에게 에디터는 유지하고 PIE만 종료한 뒤 생성 명령 실행을 요청한다. 아직 미실행·새 후보 개선 미확인이다. 이후 AG Idle/직접 시험 몽타주를 일관된 새 후보로 연결해 접촉·Idle/AO를 확인하고, 정식 재생성/일반 장전 입력·대시 회귀와 종료 정리로 이어간다. §37 단위 완료·후속 단위 승인은 아직 아니다.
+
+### 손 부착 규약 새 후보 생성 성공·시각 재시험 요청(2026-11-01)
+
+- 사용자 실행 완료 뒤 RifleAttachmentProbe 보고서와 새4개 저장/검증 로그를 확인했다. Pin Bones 설정은 Target·hand_r→weapon_r·전역 위치/회전/스케일 복사·identity offset이다. Idle103개/Reload67개의30fps 표본에서 weapon_r/hand_r의 컴포넌트 회전·위치 차이는 모두0이다. 기존 대비 다른7본 local 회전 최대는0.060295°/0.058831°다. 압축 샘플 검사이며 실제 AO/몽타주 합성 후의 모든 프레임 검증은 아니다.
+- 읽은 기존 원본/생성/구성15개 해시가 모두 보존됐다. 새 RTG_RifleAttachmentProbe·AM_RifleReloadAttachmentProbe·MM_Rifle_Idle_ADS_AttachmentProbe·MM_Rifle_Reload_AttachmentProbe만 생성/저장했고 일반 몽타주/Chooser·VS/C++는 바꾸지 않았다. 기존 source weapon_r 상대 운동/기준 포즈 보정 후보와 나란히 보존해 아직 새 후보 시각 성공을 미리 선언하지 않는다.
+- PlayRifleReloadProbe.py를 새 Attachment 몽타주/시퀀스로 갱신하고 결과는 RifleReloadAttachmentPlay에 별도 저장한다. 문법 검사 통과. 사용자 AG 기본 Idle을 MM_Rifle_Idle_ADS_AttachmentProbe로 교체·Alpha1/관련성 트레이트 유지·Compile/Save 후 새 PIE 첫/재장착/조준 및 같은 재생 명령의0.25배속 장전/왼손 접촉/Idle 복귀를 요청한다. 아직 미실행이다. 일반 장전 입력/대시 회귀·정식 생성 경로와 종료 정리까지 같은 단위에서 남아 있다.
+
+### Attachment 후보 왼손 정상·무기 전체 전방 그립 오프셋 임시 비교(2026-11-01)
+
+- 사용자가 새 후보에서 전반 동작과 왼손 위치는 자연스러워졌다고 확인했다. 다만 새 각도에서 오른손이 손잡이보다 탄창 안으로 들어가 있어 무기 메시 전체를 조금 앞으로 옮기면 양손이 맞을 것 같다고 요청했다. 장전 왼손 접촉 개선과 새 오른손 그립 미세 조정 필요를 함께 기록하며 단위 완료로 표시하지 않는다. 새 직접 재생 보고서의 실제 Attachment 몽타주/시퀀스·원본 인스턴스·0.25배속/반환2.2초·weapon_r 부착을 확인했다.
+- 현재 PIE WeaponMesh와 VS_Rifle을 MCP로 읽어 메시SK_Rifle·실제 상대 위치0/회전(0,90,−4)·데이터 위치0/같은 회전·VS 소켓weapon_r를 확인했다. Rifle Muzzle 소켓은 Barrel에 붙고 로컬X31.29495cm이며 소켓 로컬축을 메시 전방으로 오인하지 않았다. 메시 총구 방향은 기존 총기 기준의+Y이고 UE Rotator의Y축을 부모 공간으로 변환해2cm를 시험한다.
+- 현재 PIE 컴포넌트 relativeLocation만(−1.9951281005,≈0,0.1395129475)cm로 적용·재읽기 성공했다. 회전/메시/부착 대상은 그대로고 파일/맵 저장·VS/리타기터/애니/C++ 수정은 없다. 기존15개 파일 해시도 모두 보존됐다. RifleGripForwardTrial JSON과 GripForwardTrialOriginalHashes, 변경 전 Attachment 직접 재생 보고서 사본을 Saved에 보존했다.
+- 같은 라이플을 유지한 채 Resume로 표시 IK를 갱신하고 Idle 오른손 그립 및 같은 PlayRifleReloadProbe.py의 장전 양손 접촉을 관찰·Pause하도록 요청한다.2cm가 적당한지/부족한지/과한지 회신을 기다린다. 장착 교체/PIE 종료 시 임시값은 사라진다. 영속 데이터의 적용 위치/값은 아직 결정하지 않았다. 공유 VS_Rifle의 기존 Manny/적 경로에 대한 무조건 전역 변경은 하지 않으며 이번 UEFN 시험 부착 기준과 함께 검토한다.
+
+### 2cm 속성 값 유지·실제 이동 재검증 요청(2026-11-01)
+
+- 사용자가2cm 변화가 전혀 안 보이고 적용됐는지 질문했다. 새 MCP 읽기에서 relativeLocation은(−1.995128,≈0,0.139513)cm 그대로다. 그러나 앞서 증명한 것은 속성 값 재읽기뿐이며 컴포넌트 월드/화면 이동까지 확인하지 못했음을 명확히 정정했다. 적용 실패나 단순 크기 부족 중 어느 쪽인지 아직 단정하지 않는다.
+- Scene/Primitive 도구에는 필요한 기존 컴포넌트 native 이동/월드 위치 질의가 없어, 설치 SceneComponent/Kismet 헤더로 확인한 Python API를 사용한다. Saved TestRifleGripForwardNative.py 준비·문법 검사 완료. 현재 PIE의 Rifle/데이터 소켓을 검증하고 실제 Muzzle 소켓+X 월드 방향으로 기준 데이터 위치 대비 총8cm를 SetRelativeLocation으로 이동한다. 속성 전후·월드 전후·기준 위치 대비 거리를 함께 저장해2cm가 월드에도 반영돼 있었는지와 새8cm 반영을 구분한다. 아직 사용자 실행 전으로8cm가 적용됐다고 표현하지 않는다.
+- 이 동작은 현재 PIE만 대상으로 한다. 기존 영속 데이터/코드 변경은 없으며 일반 장전·대시/구면/종료·정식 생성 경로와 단위 완료는 남아 있다.
+
+### PC 재시작 후 저장 상태 확인·임시 그립 시험 재개 안내(2026-11-01)
+
+- 사용자가 한도 대기 중 PC를 재시작했다고 알려 복원 상태를 확인했다. 디스크 AG 해시EC482C015B9CA85365925B679F3B96CB81CDB17B5AAECFD7D092788D11442757이며 새 MM_Rifle_Idle_ADS_AttachmentProbe 이름 포함/이전 WeaponBasis Idle 이름 없음이다. 새4개 시험 에셋과 native 이동 시험 스크립트는 모두 존재하고 기존15개 해시 불일치는 없다. 그래프 재배선/추가 빌드는 필요하지 않다.
+- 실제 MCP 읽기 성공으로 현재 TestMap03의 GameMode=BP_GameModeUAFSpike·PIE=false를 확인했다. DebugLocomotion/DebugNotifies는 모두0이다. 셸 프로세스 열거 결과만으로 에디터 종료를 판단하지 않았고 라이브 에디터 읽기 근거를 사용했다. 이전 런타임 폰/컴포넌트 참조는 재사용하지 않는다.
+- 현재 PIE에만 줬던2cm 임시 이동은 재시작으로 사라졌다. RifleGripForwardNativeTrial 보고서는 없으므로8cm 시험은 아직 미실행이다. 이전2cm의 실제 월드/화면 반영 여부는 사후 증명할 수 없으며 속성 값 재읽기와 구분한다.
+- 두 진단을2로 복원하고 새1인 Standalone PIE의 라이플 Idle/Pause에서 TestRifleGripForwardNative.py를 실행해 기본 데이터 위치 대비 총8cm 이동/전후 월드 거리와 실제 시각을 확인하도록 안내한다. 이 스크립트는 새 월드/폰을 다시 구하고 현재 PIE만 조정한다. 영속 데이터/일반 장전/대시·단위 완료는 남아 있다.
+
+### 사용자 그립 위치 확정·영속 시험 생성/장전 선택 사본 준비(2026-11-01)
+
+- 사용자가 GUI로 최종 WeaponMesh 상대 Location을(−8,3,−3)cm에 맞춰 라이플에 적절하다고 확인했다. 현재 PIE를 MCP로 읽어 정확히 같은 값·회전(0,90,−4)·SK_Rifle을 확인했다. 사용자 확정 값을 누적 이동량/월드 좌표로 오해하지 않고 최종 부착 상대 좌표로 기록한다. 앞선2cm/8cm 시험 대신 이 직접 조정 값을 사용한다. Gizmos.DebugDraw=true는 UI 그림/설정으로 확인해 Cmd의0 안내를 했으며 사용자는 표시 문제 해결을 회신했다.
+- 영속 범위는 이번 UEFN 라이플 시험으로 둔다. target hand_r와 weapon_r가 기존 후보에서 동일 변환이므로 이 상대 위치를 시험 리타기터의 Pin Bones LocalOffset에 저장하면 같은 부착 위치를 만들 수 있다. 공유 VS_Rifle은 기존 Manny/적 경로가 같이 쓰므로 이번 시험 값으로 전역 변경하지 않는다. 새 PIE WeaponMesh 상대 위치는 VS의0으로 돌아가지만 생성한 무기 본 오프셋이 같은 최종 위치를 만드는 방식임을 사용자에게 설명했다. AO/실행 최종 위치 유지도 새 PIE에서 확인해야 한다.
+- 추적 스크립트 Scripts/AnimRetarget/SetupUAFRifleAttachment.py를 추가·AST 문법 검사했다. 현재 시험 리타기터/몽타주·제외 Idle/Reload2개만 갱신하고, 원본 CHT_Montage를 CHT_MontageRifleSpike로 복제해 기존 편집 명령 ReplaceAssetRefs로 라이플 장전 결과만 시험 몽타주로 바꾼다. 공유 Chooser/VS·원본·BP/맵은 수정하지 않는다. 무기 오프셋170샘플 검사·시험 몽타주 세그먼트 재읽기·새 Chooser 의존성에서 새 장전 포함/기존 장전 제외를 확인한 뒤 보고한다. BP의 MontageChooser는 보고서 성공 뒤 별도 MCP로 연결할 예정이다.
+- 기존 native 편집 명령 소스와 캐릭터의 EditDefaultsOnly MontageChooser 필드를 읽었다. 시험 BP 현재 값은 공유 CHT_Montage다. 새 Chooser 연결은 일반 장전 키/GAS 경로의 남은 회귀를 같은 §37 단위에서 검증하려는 최소 격리 구성이다. 전 무기 마이그레이션/다음 단위를 승인한 것으로 확대하지 않는다.
+- 기존 시험4개/BP/AG/공유 Chooser 사본과 해시를 BeforePersistentGrip에 보존했고 사용자 확정 좌표를 RifleGripAccepted JSON에 남겼다. 사용자 PIE 종료 후 새 스크립트 실행을 요청한다. 아직 영속 값/재생성/Chooser 생성은 미실행이다. 실제 일반 장전/대시와 대표 구면·종료 정리/단위 완료는 남아 있으며 C++ 추가 변경/빌드는 없다.
+
+### 영속 그립 생성/저장·마지막 레지스트리 검사 실패 복구·일반 장전 연결(2026-11-01)
+
+- 사용자 실행 완료 뒤 최초 보고서 부재를 확인했다. 실제 실행은 Pin LocalOffset(−8,3,−3)·Idle103/Reload67샘플의 각 회전≤0.01°/위치≤0.01cm guard·시험 몽타주 참조 검증을 통과하고5개 에셋 저장까지 마쳤다. 마지막 새 Chooser의 즉시 get_dependencies가 None을 반환해 반복문 TypeError로 보고서 생성만 중단됐다. 정확한 표본 최대값은 이 실행에서 보고서로 수집되지 않았으므로 guard 통과 범위만 기록한다.
+- MCP 재조회는 새 Chooser에 시험 장전 참조가 있고 기존 장전 참조는 없음을 확인했다. 원본/사본 의존성을 대조해 제거는 AM_MM_Rifle_Reload_UEFN 하나·추가는 AM_RifleReloadAttachmentProbe 하나이고 다른 외부 참조는 동일하다. 생성 로그에도1쌍/2참조 교체가 있다. 기존15개 해시와 사용자4개도 보존됐다. 실패/복구 로그·RiflePersistentRecoveredState와 저장 해시를 Saved에 보존했다.
+- SetupUAFRifleAttachment.py에 저장한 새 Chooser 파일 하나만 scan_files_synchronous로 갱신하고 None을 빈 목록으로 처리한 뒤 의미 검증하도록 보완했다. 설치 AssetRegistry 헤더로 API를 확인했고 AST 검사했다. 수정 버전의 전체 재생성은 반복하지 않았으며 실제 저장물은 MCP 재조회로 복구 검증했다. 재생성 절차를 README §4에 연결했다.
+- PIE=false에서 시험 BP의 MontageChooser를 CHT_MontageRifleSpike로만 변경·Compile 성공·재읽기/저장 성공했다. 기본 WeaponMesh relativeLocation0을 확인해 임시 위치와 중복 적용하지 않는다. 시험 BP·새 Chooser/리타기터/몽타주/클립6개 모두 dirty=false다. 공유 VS/Chooser·원본·기본 플레이어/적과 맵은 바꾸지 않았다. C++ 빌드는 필요 없다.
+- 새 PIE에서 직접 재생 명령 대신 **일반 장전 키**로 새 경로를 검증하도록 요청한다. 첫/재장착·조준/이동에서 영속 위치, 정상 장전의 양손 접촉, 장전 중 대시 취소/복귀를 관찰한다. 마지막 라이플 Idle Pause에서 읽기 전용 InspectRiflePersistent.py를 실행하면 실제 선택 Chooser/소켓·컴포넌트0/최종 무기 원점의 손 기준 위치·리타기터 설정과170샘플 정확한 오프셋 오차를 보고한다. 아직 실행/시각 통과 판정은 없다. 대표 구면 회귀·미채택 후보 정리/종료·단위 완료와 다음 단위 질문도 남아 있다.
+
+### 첫 라이플 장착 크래시·시퀀스 overwrite의 삭제 객체 참조 확인/재생성 안전화(2026-11-01)
+
+- 사용자가 새 PIE **첫 라이플 장착**에서 SequencePlayer.cpp179의 접근 위반0x3a8을 보고했다. 로그의 새 PIE는 Pistol로 시작/입력 rifle0 이후 첫 Rifle 전환에서 크래시해 정상 장전·대시 검증까지 가지 못했다. 오류를 이번 영속 변경 이후 새 회귀로 기록하며 단위 완료로 표시하지 않는다. CrashContext/로그/UEMinidump를 Crash_SequencePlayer_2026-11-01에 보존했다.
+- 설치 소스179는 AnimSeq->GetPlayLength다. 미니덤프의 예외 context/모듈/메모리를 표준 형식으로 읽고 해당 설치 DLL의 PE 구간을 대조했다. RIP의 기계어는 ff 90 a8 03 00 00(call [rax+0x3a8]), RAX=0, 애니메이션 this 주소RCX=0x2664f4f0e00은 남았지만 그 메모리 첫24바이트(가상 함수 테이블 포함)가0이다. 단순 AnimSeq==nullptr를 넘긴 경우가 아니라 객체 주소만 남은 파괴 참조 상태와 맞는다. 원시 레지스터/명령/참조 메모리를 SequenceCrashRegisters JSON에 보존했다. 디버거 추가 설치/엔진 변경은 하지 않았다.
+- 직전 Setup 실행은 _AttachmentProbe1 임시 새 객체를 만들고 기존 _AttachmentProbe를 Force Deleting한 기록이 있다. 설치 IKRetargetBatchOperation::OverwriteExistingAssets는 실제로 ForceReplaceReferences→ForceDeleteObjects→새 객체 Rename 순서다. 삭제 직전 UAF가 참조하던 기존 Idle 객체를 compiled shared/instance 경로에서 그대로 읽은 원인으로 판단한다. 내가 작성한 overwrite_existing_files=True 재생성 방식의 문제이며, 앞서 오프셋 guard/에셋 저장 통과가 UAF 참조 수명 안전까지 보장한 것은 아니었다. 관련성 플래그 보완을 임의 제거하거나 엔진의 null guard로 가리는 수정은 하지 않았다.
+- 추적 SetupUAFRifleAttachment.py를 안전화했다. 기존 두 출력이 있으면 그대로 로드/170표본 검증·UObject 동일성 확인만 하고 배치를 호출하지 않는다. 하나만 있으면 중단한다. 둘 다 없을 때만 overwrite_existing_files=False로 새 생성한다. 기존 값이 목표와 다르면 새 출력 경로/그래프 참조 갱신을 요구하며 기존 시퀀스를 삭제·교체하지 않는다. 재사용 때는 Lyra 소스 메시도 불필요하게 로드하지 않는다. README 재생성 절차에 강제 삭제 위험과 새 경로/AG 재지정 규칙을 명시했다. AST 문법 검사는 통과했으며 수정 경로의 에디터 실행은 대기다.
+- 크래시 전 저장7개(리타기터/몽타주/2클립/시험BP/Chooser/AG) 해시는 모두 보존됐다. 사용자4개도 동일하다. 영속 오프셋/새 장전 연결을 임의 원복하지 않았다. 사용자 에디터 재실행 후 아직 PIE 없이 수정 스크립트 재사용 실행·AG 기본 Rifle Idle 재지정/Compile·Save를 요청한다. reusedExistingSequences=true/newSequenceCount=0·객체 동일성/170표본과 그래프 재저장을 먼저 확인한 뒤 첫 장착 재시험으로 이어간다. C++/엔진/전체 빌드 변경은 없다.
+
+### 콜드 에디터 재사용/AG 재연결 성공·첫 장착 재시험 요청(2026-11-01)
+
+- 사용자가 오토세이브 복원 창을 보고 문의했다. 검증된 저장 AG를 쓰도록 복원하지 않음을 안내했고 이후 완료 회신을 받았다. 새 에디터 로그에서 수정 스크립트 보고서 저장 성공과 AG/S 컴파일 성공·AG 재저장을 확인했다. 오토세이브의 실제 내부 상태를 확인했다고 주장하지 않는다.
+- 실제 Setup 보고서는 reusedExistingSequences=true/newSequenceCount=0/reusedSequenceObjectsUnchanged=true다. Idle103/Reload67표본 회전 오차0/0°·최대 위치 오차0/0.0000102409cm다. Pin LocalOffset(−8,3,−3)와 새 Chooser 장전 참조도 포함됐다. 새 실행 구간 ForceDelete0/NewAsset0/PythonError0/성공 보고1로, 이전 위험한 overwrite 경로를 타지 않았음을 확인했다. SafeSetupAndRebind 로그에 보존했다.
+- MCP에서 PIE=false·AG dirty=false·시험 BP의 CHT_MontageRifleSpike·TestMap03 시험 GameMode·DebugLocomotion/DebugNotifies=2/2를 확인했다. AG 새 저장 해시는D1EC5D890C10FA4A088155E3D92C6975E40F44C7F795CF9AD286342961DBA607이다. 이는 재사용/저장·참조 갱신 검증이며 복구 후 첫 장착 런타임 통과는 아니다.
+- 새 PIE 첫/재장착·조준/이동을 먼저 확인하고 정상이면 일반 장전 키의 양손 접촉·장전 중 대시 취소/복귀를 이어서 확인하도록 요청한다. 마지막 라이플 Idle Pause에서 InspectRiflePersistent.py를 실행해 실제 새 폰의 Chooser/소켓·컴포넌트0/최종 그립·오프셋170표본을 읽는다. 현재 단위와 전체 게이트는 계속 미완료/미판정이다.
+
+### 첫 장착/영속 위치·일반 입력 정상·대시 본 규약 반전 잔여(2026-11-01)
+
+- 사용자가 복구 후 라이플 장착/재장착·조준/이동·장전 중 대시 취소/복귀까지 이상 없다고 회신하고, 별도로 대시 재생 중 무기 반전을 보고했다. 취소/복귀와 대시 재생 품질을 구분하며 전 항목 정상/단위 완료로 합치지 않는다. 실제 새 RiflePersistentRead는 새 Chooser·weapon_r·컴포넌트 relativeLocation0·회전(0,90,−4)·최종 무기 원점의 표시 hand_r 기준(−8,3,−3)cm/오차4.49e−13cm다. Idle103/Reload67의 회전0·위치0/0.00001024cm도 재확인했다. 이전 크래시 재현 없는 실제 첫/재장착 범위의 복구 확인이며 모든 수명 경계/GC/네트워크 검증으로 확대하지 않는다.
+- 새 PIE 로그 관련 애니 오류/ensure/MM순서0·IK invalid0·관련성 보정1·읽기 성공2를 확인했다. PersistentRifleNormalInput_DashFlip 로그와 변경 전 보고서 사본을 보존했다. 대시4개 몽타주 설정은 여전히 기존 MM_Dash_Forward/Backward/Left/Right_UEFN의 FullBody 트랙이다.
+- 공통 원인은 Lyra 애니의 weapon_r와 현재 UE​FN 실제 부착 본을 같은 이름만으로 같은 규약으로 취급한 경로다. 이전 MS 표시의 같은 이름 소켓은 hand_r 기준 고정이고, 기존 오프라인 Copy Base Pose는 무기 체인 밖 로컬 본을 그대로 복사했다. 현재 시퀀스별 정규화는 Idle/장전에만 적용돼 다른 몽타주가 덮는 동안 기존 무기 방향이 다시 나온다. 모든 몽타주의 모든 표본을 같은 수치로 단정하지 않고 대시의 손 자체 회전도 분리해서 확인한다.
+- 최종 슬롯 합성 뒤 공통 부착 본 규약을 적용하는 후보를 조사했다. native Copy Bones in Component Space는 일반 keyframe용 뼈 복사만 지원하며 오프셋/활성 가중치가 없어 현재 라이플 오프셋/한정 조건의 완성 대안은 아니다. 아직 새 C++/그래프/에셋 구현은 하지 않았다. 공통 처리 위치/범위가 정리되기 전에 대시·발사·피격을 하나씩 새 사본으로 덮는 식의 추가 변경은 하지 않는다.
+- Saved InspectMontageWeaponBasis.py를 준비·문법 검사했다. 현재 시험 Chooser가 참조하는 몽타주의 DefaultSlot/FullBody/UpperBody 일반 시퀀스에서5표본씩 weapon_r local 회전, 기존 총구/hand_r 기준 총구의 Idle 대비 방향을 읽는다. 가산/미지원 세그먼트는 별도 목록이며 런타임/에셋을 바꾸지 않는다. 사용자 현재 Pause에서 실행 요청 상태다. 결과로 손 동작과 부착 보조 본 의미 차이를 나눠 최종 공통 보정의 필요 범위를 정한다. §37과 최종 게이트는 계속 미완료다.
+
+### 최종 채택 경로·대표 검증/종료 완료(2026-11-02)
+
+- 최종 장착은 Lyra 원본 WID_Rifle/B_Rifle과 같은 weapon_r·위치0·회전(pitch0,yaw−90,roll0)·Scale1이다. 공유 VS_Rifle/DA_Rifle/Chooser 대신 UAFSpike/LyraWeaponContract의 VS/DA/Chooser 사본과 시험 BP만 연결했다. 런타임 hand_r 강제 부착 override는 사용하지 않는다.
+- 기존 오프라인 리타깃은 손의 기준 회전 차이를 변환하면서 체인 밖 weapon_r 로컬 운동을 복사해 서로 다른 기준을 섞었다. 소유한 RTG_LyraWeaponFrame 끝의 native Pin Bones로 원본 hand_r의 **애니메이션 전역 회전만** 대상 손/자식에 전달한다. 위치/스케일/기준 포즈와 원본 weapon_r 상대 운동은 유지한다. 무기를 손에 고정하거나 원본 본을 수정하는 방식이 아니다. 생성24개(시퀀스23/AO1)의 시퀀스별5시각에서 원본 총열 차이 최대0.104332°·이전 대비 오른손/손가락 그립 변화0.009846cm·손 위치 변화0.040612cm다. 장전 왼손의 원본 대비 수치는 접촉 품질과 구분하고 사용자 시각 검증으로 보완했다.
+- 현재 AG는 MM_Rifle_Idle_ADS_LyraFrame/AO_MM_Rifle_Idle_ADS_LyraFrame·Alpha1·기존 Aim 입력·상체 마스크/관련성 트레이트를 사용한다. 시험 몽타주6개/Chooser6쌍13참조 교체와 BP 데이터 연결을 확인했고, 종료 뒤 실제 의존성과 BP 값·14개 clean을 다시 읽었다. 재생성 순서는 README §4, 생성/연결의 상세 수정 이력은 history/Phase05_Log.md가 소유한다. 시퀀스 overwrite/삭제는 계속 금지한다.
+- 사용자는 최종 근적도 검증의 첫/재장착·상하좌우 조준/이동/급회전·점프/착지·장전/대시 취소·복귀에서 육안상 어색함이 없다고 확인했다. 이번 배치 PodTerraceSouth는 슬롯1이며 이전 슬롯5 안내는 재사용하지 않는다. 새 폰C_1의77.419초 녹화에서 끝나는 Root74창/3,602프레임(지상3,211·공중391), 창 끝 위도+3.89~+11.51°다. 재스폰 이후 전체120창의 CR 앞 거리≤30cm/Yaw≤90°/Tilt0°·마지막5창 거리/Tilt0, IK106표본valid1을 확인했다. 창/간헐 표본이며 정확한 적도·모든 프레임/위도 통과가 아니다.
+- 같은 녹화의 지상 프레임31 task를 직접 읽었다. Index8=Idle3.4초,9~11=AO_RC/RD/RBC(0.026822/0.027782/0.007696초),12~14=AO 합성 가중치0.104232/0.164480/0.731289,16=Apply Additive,17~20=메시 공간 변환/본별 합성(scale1)/정규화/로컬 복귀다.21=의도된 원본 복사,22=새 Reload0.548784초,26=상체 마스크,27~30=OffsetRoot/최종 구면 보정/진단/CR이다. History 전/후 체인은 각1개이며 별도 MM 원본 체인은 보이지 않았다. 장전도 활성인 한 프레임으로, 전 프레임 단일 갱신·모든 슬롯/본별 최종 동등성의 증명은 아니다.
+- 실제10발의 표적 방향 오차≤0.000001°·총열/탄 차이 원거리1.550~1.559°/근거리3.319~3.347°를 별도 계측했다. 사용자는 이 정밀 정렬을 다른 세션의 새 단위로 분리했다. 기존 조준점 캐시를 공유하는 다음 작업의 범위/검증 기준은 Current.md에 인계했다. 발사 FullBodyAdditivePreAim 슬롯은 현재 지원3슬롯 밖이라 실제 탄 발사를 발사 애니 슬롯 소비 통과로 확대하지 않는다.
+- 새 실행 Assertion/Ensure/Fatal/MM순서/LogAnimation Error0이다. 기존 Foley312회·녹화 종료 trace64/CPU 메타데이터·플랫폼 이벤트 권한 경고와 내가 PIE 중 저장 상태 도구를 호출해 만든 LogUtils 차단 오류30회는 분리 보존했다. 저장 상태 도구는 PIE 종료 뒤 재호출해 정상 확인했다.
+- 종료 상태는 PIE=false·운영 BP_LNPGameMode 메모리 복원·맵 미저장·열린 에셋0·시험14개 clean·DebugLocomotion/DebugNotifies/DebugFireAim0이다. 사용자4개/공유3개 해시를 보존했고 소스6개/연결14개 해시·직접 읽기를 Saved UAF52RifleOverlay/Closure*2026-11-02에 남겼다. 새 빌드/커밋/푸시는 하지 않았다. **§37 기본 연결 단위는 이 대표 범위에서 완료**, 정밀 총열 정렬·모든 슬롯/네트워크·최종 Phase 5 게이트는 별도/미판정이다.

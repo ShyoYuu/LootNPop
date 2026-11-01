@@ -59,6 +59,16 @@ struct LOOTNPOP_API FLNPUAFSpikeInputs
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
 	FLNPUAFSpikeFootPlacementInputs FootPlacement;
+
+	/** 라이플 표현 세트에서만 기본 자세·AO 오버레이를 활성화한다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rifle Overlay")
+	float RifleOverlayWeight = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rifle Overlay")
+	float AimYaw = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rifle Overlay")
+	float AimPitch = 0.0f;
 };
 
 /** 기존 공급값을 UAF 표시 메시 시험에 전달한다. 명시적 드라이버에서는 숨김 그래프를 평가하지 않는다. */

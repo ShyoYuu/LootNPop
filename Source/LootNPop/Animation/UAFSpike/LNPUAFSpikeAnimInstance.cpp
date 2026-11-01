@@ -4,12 +4,15 @@
 
 #include "Animation/UAFSpike/LNPUAFRootFeedback.h"
 #include "Animation/UAFSpike/LNPUAFMontageIKTrait.h"
+#include "Character/LNPCharacterBase.h"
 #include "ChooserFunctionLibrary.h"
 #include "Component/AnimNextComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Actor.h"
 #include "Graph/AnimNextAnimationGraph.h"
 #include "HAL/IConsoleManager.h"
+#include "Item/LNPWeaponVisualSet.h"
+#include "LNPGameplayTags.h"
 #include "LootNPop.h"
 #include "Module/AnimNextModule.h"
 #include "Movement/LNPCharacterMoverComponent.h"
@@ -139,6 +142,11 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	Inputs.FootPlacement.bAllowFootPinning = IsOnStaticGround();
 	Inputs.FootPlacement.bAllowSlopeWarping = Inputs.OffsetRoot.bOnGround;
 	Inputs.FootPlacement.bDebugDraw = IsFootPlacementDebugEnabled();
+	const ULNPWeaponVisualSet* VisualSet = OwningMoverCharacter ? OwningMoverCharacter->GetAppliedVisualSet() : nullptr;
+	Inputs.RifleOverlayWeight = VisualSet && VisualSet->AnimSetTag == TAG_VisualSet_Rifle ? 1.0f : 0.0f;
+	// 기존 공급층이 완료된 UAF 루트를 기준으로 계산한 접평면 조준값을 그대로 전달한다.
+	Inputs.AimYaw = AimYaw;
+	Inputs.AimPitch = AimPitch;
 
 	const auto SetInput = [UAFComponent](FName Name, const auto& Value)
 	{
@@ -153,6 +161,9 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, BlendArguments), Inputs.BlendArguments);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, OffsetRoot), Inputs.OffsetRoot);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, FootPlacement), Inputs.FootPlacement);
+	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, RifleOverlayWeight), Inputs.RifleOverlayWeight);
+	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, AimYaw), Inputs.AimYaw);
+	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, AimPitch), Inputs.AimPitch);
 	bWasFootPlacementEnabled = Inputs.FootPlacement.bEnabled;
 
 	if (!bHasReportedInputs || bSucceeded != bLastInputsSucceeded)
@@ -163,6 +174,10 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 		bHasReportedInputs = true;
 		bLastInputsSucceeded = bSucceeded;
 	}
+	const IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.DebugLocomotion"));
+	if (Debug && Debug->GetInt() >= 2 && GFrameCounter % 60 == 0)
+		UE_LOG(LogLootNPop, Log, TEXT("[UAFWeapon] owner=%s serial=%lld inputs=%d rifle=%.1f aim=(%.2f,%.2f)"),
+			*GetNameSafe(GetOwningActor()), RootInputSerial, bSucceeded, Inputs.RifleOverlayWeight, Inputs.AimYaw, Inputs.AimPitch);
 }
 
 float ULNPUAFSpikeAnimInstance::ComputeLeftHandOffDemand() const

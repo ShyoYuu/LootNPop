@@ -20,6 +20,16 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "GameplayPrediction.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "HAL/IConsoleManager.h"
+
+#if !UE_BUILD_SHIPPING
+namespace
+{
+	TAutoConsoleVariable<int32> CVarDebugFireAim(TEXT("LNP.Projectile.DebugFireAim"), 0,
+		TEXT("Log local projectile launch direction versus the current weapon barrel. 0: off, 1: on."));
+}
+#endif
 
 
 void ULNPAbility_RangedAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
@@ -139,6 +149,41 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 
 	// --- 파생 클래스가 발사 방향 배열을 제공 (단일 / 방사형 등) ---
 	const TArray<FVector> Directions = GetFireDirections(SpawnPos, AimInput);
+
+#if !UE_BUILD_SHIPPING
+	// 실제 발사에 쓰는 방향과 같은 순간의 표시 총열을 비교한다. 발사 기하는 바꾸지 않는다.
+	if (bIsLocalInstigator && CVarDebugFireAim.GetValueOnGameThread() != 0)
+	{
+		const USkeletalMeshComponent* WeaponMesh = Character->GetWeaponMesh();
+		if (WeaponMesh && WeaponMesh->DoesSocketExist(TEXT("Muzzle")) && WeaponMesh->DoesSocketExist(TEXT("Barrel")))
+		{
+			const FVector SocketPosition = WeaponMesh->GetSocketLocation(TEXT("Muzzle"));
+			const FVector BarrelDirection = (SocketPosition - WeaponMesh->GetSocketLocation(TEXT("Barrel"))).GetSafeNormal();
+			const FVector ViewDirection = AimInput && !AimInput->ViewDirection.IsNearlyZero()
+				? AimInput->ViewDirection.GetSafeNormal() : Character->GetBaseAimRotation().Vector();
+			const bool bHasTarget = AimInput && !AimInput->AimTargetLocation.IsZero();
+			const FVector AimTarget = bHasTarget ? FVector(AimInput->AimTargetLocation) : FVector::ZeroVector;
+			const FQuat ViewRotation = Character->GetBaseAimRotation().Quaternion();
+			const FRotator BarrelInView = ViewRotation.UnrotateVector(BarrelDirection).Rotation();
+			const auto AngleDegrees = [](const FVector& A, const FVector& B)
+			{
+				return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(
+					FVector::DotProduct(A.GetSafeNormal(), B.GetSafeNormal()), -1.0, 1.0)));
+			};
+			for (int32 Index = 0; Index < Directions.Num(); ++Index)
+			{
+				const FVector ShotDirection = Directions[Index].GetSafeNormal();
+				const FRotator ShotInView = ViewRotation.UnrotateVector(ShotDirection).Rotation();
+				UE_LOG(LogLootNPop, Display, TEXT("[FireAim] owner=%s frame=%llu time=%.6f net=%d index=%d targetPresent=%d barrelShotDeg=%.6f barrelViewDeg=%.6f shotViewDeg=%.6f targetErrorDeg=%.6f targetDistanceCm=%.3f spawnSocketDeltaCm=%.6f barrelYaw=%.6f barrelPitch=%.6f shotYaw=%.6f shotPitch=%.6f speed=%.3f gravity=%.3f"),
+					*Character->GetName(), GFrameCounter, World->GetTimeSeconds(), static_cast<int32>(World->GetNetMode()), Index, bHasTarget,
+					AngleDegrees(BarrelDirection, ShotDirection), AngleDegrees(BarrelDirection, ViewDirection), AngleDegrees(ShotDirection, ViewDirection),
+					bHasTarget ? AngleDegrees(ShotDirection, AimTarget - SpawnPos) : -1.0, bHasTarget ? FVector::Dist(SpawnPos, AimTarget) : -1.0,
+					FVector::Dist(SpawnPos, SocketPosition), BarrelInView.Yaw, BarrelInView.Pitch, ShotInView.Yaw, ShotInView.Pitch,
+					WeaponDef->ProjectileSpeed, SharedData.GravityAccel);
+			}
+		}
+	}
+#endif
 
 	// --- 시뮬레이티드 프록시(구경꾼) 가시성 — 서버가 전 클라이언트에 발사 시점 1회 방송 (TechDesign_Networking.md §3.3) ---
 	if (Character->HasAuthority())
