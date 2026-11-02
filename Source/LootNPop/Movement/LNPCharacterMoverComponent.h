@@ -151,7 +151,8 @@ protected:
 	 *
 	 * ⚠️ ExecuteDash의 Montage_Play는 첫 시뮬레이션에서만 돈다. ForwardPredict 프록시는 대시를 서버 상태 수신 뒤
 	 * 재시뮬레이션으로만 지나가므로(그나마 받은 상태에 쿨다운이 이미 있어 ExecuteDash 자체가 안 불리는 경우가 대부분이다)
-	 * 이 경로가 없으면 게스트 화면의 호스트 대시 몽타주가 재생되지 않는다. 단서는 복제된 FLNPLayeredMove_DashMontageSync다.
+	 * 이 경로가 없으면 게스트 화면의 호스트 대시 몽타주가 재생되지 않는다. 단서는 복제된 FLNPDashCooldownModifier다
+	 * (대시 무브는 지연 환경에서 따라잡는 동안 이미 끝나 보이지 않는다).
 	 */
 	virtual void UpdateSyncedMontageState(const FMoverTimeStep& TimeStep, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState) override;
 

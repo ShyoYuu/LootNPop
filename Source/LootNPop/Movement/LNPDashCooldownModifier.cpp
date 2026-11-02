@@ -16,6 +16,13 @@ FMovementModifierBase* FLNPDashCooldownModifier::Clone() const
 void FLNPDashCooldownModifier::NetSerialize(FArchive& Ar)
 {
 	Super::NetSerialize(Ar);
+	Ar << DashMontage;
+}
+
+void FLNPDashCooldownModifier::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Super::AddReferencedObjects(Collector);
+	Collector.AddReferencedObject(DashMontage);
 }
 
 UScriptStruct* FLNPDashCooldownModifier::GetScriptStruct() const

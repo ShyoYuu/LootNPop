@@ -331,7 +331,7 @@ CommonSettings->MaxSpeed = BaseSpeed × max(0.01, MoveSpeed)
 | 무브 | 역할 |
 |:---|:---|
 | `FLayeredMove_LinearVelocity` | 물리 이동. `OverrideAllExceptVerticalVelocity`로 수평만 즉각 추진, 종료 시 `MaintainLastRootMotionVelocity`로 걷기 전환 |
-| `FLNPLayeredMove_DashMontageSync` | 몽타주 동기화(`FLayeredMove_AnimRootMotion` 파생). Override를 먼저 큐잉된 위 무브가 가져가 속도에 기여하지 않으므로 대시 거리·속도는 코드로 제어된다. 메시 재생 검사를 건너뛰어 수명이 대시 길이로만 정해진다 — 프록시 재생의 단서(§5.4) |
+| `FLNPLayeredMove_DashMontageSync` | 몽타주 동기화(`FLayeredMove_AnimRootMotion` 파생). Override를 먼저 큐잉된 위 무브가 가져가 속도에 기여하지 않으므로 대시 거리·속도는 코드로 제어된다. 메시 재생 검사를 건너뛰어 수명이 대시 길이로만 정해진다. 프록시에서는 이 무브가 활성인 동안 엔진 동기화가 몽타주를 멈추지 못하게 막는다(재생 단서는 쿨다운 Modifier, §5.4) |
 
 - `StartingMontagePosition`은 **0 고정**. 재생 중인 인스턴스에서 되읽으면 몽타주가 돌지 않는 서버·리시뮬레이션과 값이 갈린다.
 - 몽타주 평가(`EvaluateMontage`) 실패는 **물리 대시를 취소하지 않는다**. Chooser 결과가 머신마다 갈리면 그것만으로 시뮬레이션이 분기한다.
@@ -379,10 +379,11 @@ CommonSettings->MaxSpeed = BaseSpeed × max(0.01, MoveSpeed)
 2. **`OnProduceInput`:** 버퍼가 열린 동안 `bWantsToDash`와 `DashInputIntent`를 싣는다.
 3. **`OnMoverPreSimulationTick`:** `bWantsToDash && CanDash()`면 `ExecuteDash`. 오토노머스(예측)·서버(권위)·시뮬레이티드(포워드 예측) 모두 같은 경로.
 
-- **쿨다운은 SyncState에 싣는다.** 월드 시간 기준은 서버의 지연 시뮬레이션·롤백 재시뮬레이션에서 클라와 판정이 갈린다. 이동에 영향 없는 지속시간 Modifier `FLNPDashCooldownModifier`로 표현했다.
+- **쿨다운은 SyncState에 싣는다.** 월드 시간 기준은 서버의 지연 시뮬레이션·롤백 재시뮬레이션에서 클라와 판정이 갈린다. 이동에 영향 없는 지속시간 Modifier `FLNPDashCooldownModifier`로 표현했다. 이 Modifier는 고른 몽타주(`DashMontage`)도 함께 복제한다(아래 프록시 재생 단서).
 - **연출은 리시뮬레이션에서 제외한다.** 몽타주 재생과 `OnDashExecuted`(HUD 쿨다운 파이)는 `TimeStep.bIsResimulating`으로 게이팅 — 안 하면 롤백마다 재생·리셋된다.
 - **시뮬레이티드 프록시의 몽타주는 이 경로가 아니다.** 프록시는 대시를 재시뮬레이션으로만 지나가고 대개 `ExecuteDash`도 불리지 않는다.
-  `UpdateSyncedMontageState` 재정의가 복제된 `FLNPLayeredMove_DashMontageSync`를 보고 무브 시작 시각당 한 번 재생해 끝까지 둔다
+  `UpdateSyncedMontageState` 재정의가 복제된 `FLNPDashCooldownModifier`를 보고 Modifier 시작 시각당 한 번, 대시 시작부터 지난 시간만큼
+  건너뛴 위치에서 재생해 끝까지 둔다. 대시 무브(0.2초)는 지연 환경에서 프록시가 따라잡는 동안 이미 끝나 단서가 될 수 없다
   (2026-11-02, 원인·엔진 동기화가 닿지 않는 이유는 네트워킹 문서 §4.12).
 - `ControlRotation`과 이동 인텐트는 폰이 아니라 **InputCmd에서 읽는다**. 서버가 원격 폰을 시뮬레이션하는 시점의 폰 값은 그 프레임 값이 아니다.
 

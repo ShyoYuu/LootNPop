@@ -1,19 +1,19 @@
 # 애니메이션 개선 현재 작업 상태
 
 > 상태: 다음 단위 사용자 확인 대기
-> 마지막 갱신: 2026-11-02(§46)
-> 현재: **5-0·5-1 완료, 5-2 진행 중. §38 총열 보정·§40 발사 가산 연결 완료, §41 보조 가산 기존 생략 확인, §42 루트모션 전달 조사 완료, §43 전신 몽타주 Release 판정 보완·대표 재검증 완료, §44 대시 이동·표시 추종의 기존 ABP 동등 확인(극지·근적도, `29804ce`), §45 리슨 2인 사본 비교 완료(`1837977`), §46 라이플 블렌드 레이어 뒤 Steering MM 탐색 회귀 수정·대표 재검증 완료(미커밋).**
+> 마지막 갱신: 2026-11-02(§47)
+> 현재: **5-0·5-1 완료, 5-2 진행 중. §38 총열 보정·§40 발사 가산 연결 완료, §41 보조 가산 기존 생략 확인, §42 루트모션 전달 조사 완료, §43 전신 몽타주 Release 판정 보완·대표 재검증 완료, §44 대시 이동·표시 추종의 기존 ABP 동등 확인(극지·근적도, `29804ce`), §45 리슨 2인 사본 비교 완료(`1837977`), §46 라이플 블렌드 레이어 뒤 Steering MM 탐색 회귀 수정·대표 재검증 완료(`9b7b435`), §47 클라 2명·지연/손실·적도 사본 비교 완료와 지연 시 프록시 대시 몽타주 단서 보완(커밋 완료, `git log`의 "지연 환경 프록시 대시").**
 
-§46 C++ 1개(`LNPSphericalOffsetRootTrait.cpp`)·샘플러 `Scripts/AnimOverhaul/SampleTorsoTwist.py`·문서 변경은 아직 커밋하지 않았다. 커밋은 요청받지 않았다. 구현 단위마다 계속할지 확인하고, PIE/GUI 수동 조작이 빠르면 즉시 요청한다. 푸시와 새 채팅 생성은 요청받지 않았다.
+C++ 변경은 모두 커밋돼 있고 작업 트리에는 사용자 에셋 4개만 남아 있다. 구현 단위마다 계속할지 확인하고, PIE/GUI 수동 조작이 빠르면 즉시 요청한다. 푸시와 새 채팅 생성은 요청받지 않았다.
 
 최종 일곱 게이트·Go/No-Go는 미판정이며 Phase 6 마이그레이션은 승인 전이다. Phase 0·1A·1C·2·3 완료, 1B 대기 상태도 유지한다.
 
 ## 다음 세션에서 바로 할 일
 
-1. `CLAUDE.md`·`README.md`·`Decisions.md`와 `phases/Phase05_UAFSpike.md` §4·§43~§46을 읽는다. 표시/IK 전제는 §36, 라이플 프레임/재생성은 §37, UpperBody 마스크는 §33~§34가 소유한다.
-2. §43 cpp 2개는 adaptive unity에서 제외돼 단독 컴파일됐다. §46은 Live Coding과 게임 타깃 빌드만 확인했다. 에디터를 닫을 기회에 커밋 뒤 깨끗한 트리에서 에디터 타깃 `Build.bat`을 돌린다.
+1. `CLAUDE.md`·`README.md`·`Decisions.md`와 `phases/Phase05_UAFSpike.md` §4·§43~§47을 읽는다. 표시/IK 전제는 §36, 라이플 프레임/재생성은 §37, UpperBody 마스크는 §33~§34가 소유한다.
+2. §47 에디터 타깃 `Build.bat`(14 actions·71.9초 성공)에서 커밋된 §43·§46 cpp는 unity로 함께 컴파일됐다. 이번 미커밋 Movement 파일 3개만 adaptive unity에서 제외됐으므로, 커밋 뒤 에디터를 닫을 기회에 깨끗한 트리에서 한 번 더 돌린다.
 3. §46에서 라이플 Blend Layer(§37) 뒤로 Steering이 MM을 못 찾던 회귀를 고쳤다(§37~§45 기간 이동·제자리 회전 Steering 꺼짐). 이 기간에 판정한 대시·사격·2인 비교는 루트 회전 Steering과 독립된 지표였지만, 이동 방향 추종·제자리 회전 품질은 §46 측정이 최신 근거다. UAF AG에 다자식 노드를 추가하면 `[UAFSteering] ready=1`을 다시 확인한다.
-4. §45에서 리슨 2인 UAF 4사본(서버 권위·자율·시뮬레이티드 프록시)의 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같고 기존 ABP와 같은 양상임을 확인했다. 게스트 화면에서 호스트 대시 몽타주가 안 보이는 것은 기존 ABP도 같은 Mover 연출 결함(`ExecuteDash`의 `bIsResimulating` 가드)이다. UAF 게이트와 분리하며 아직 고치지 않았다. 남은 게이트 후보(제안·미승인): `ActorPromoted` 적 UAF 경로(미적용이라 착수 전 범위 결정 필요), 클라 2명·지연 에뮬레이션·적도 2인, 루트모션 워핑(에셋 없음), 최종 일곱 게이트 Go/No-Go 정리.
+4. §45에서 리슨 2인 UAF 4사본(서버 권위·자율·시뮬레이티드 프록시)의 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같고 기존 ABP와 같은 양상임을 확인했다. §47에서 리슨 3인(클라 2명)·지연 60~90ms·손실 2%·극지/적도도 기존 ABP와 같은 양상임을 확인했다. 지연이 붙자 `5588703`의 프록시 대시 몽타주가 두 경로 모두 다시 전부 누락돼, 재생 단서를 0.2초 대시 무브에서 쿨다운 Modifier(`DashMontage`)로 옮겼다(107/107 재생, [TechDesign_Networking.md](../TechDesign_Networking.md) §4.12 "보완"). 연속 대시에서 프록시 자체 예측(입력 외삽)이 몽타주를 일찍·가끔 오방향으로 시작하는 기존 동작은 남아 있다. 남은 게이트 후보(제안·미승인): `ActorPromoted` 적 UAF 경로(미적용이라 착수 전 범위 결정 필요), 루트모션 워핑(에셋 없음), 최종 일곱 게이트 Go/No-Go 정리.
 5. 대시 직후 발사가 대시 몽타주를 끊는 동작(`FullBodyAdditivePreAim`이 `DefaultGroup`, AN-020 표)은 기존 그룹 계약의 결과로 관찰만 했다. 게임플레이 의도인지 사용자에게 확인할 수 있다.
 
 ## 재현 도구와 미검증 경계
@@ -55,11 +55,11 @@
 | 2026-11-02_UAF52ReloadAdditiveReview | §41 기존 생략/그래프 조회·Preserved* |
 | 2026-11-02_UAF52RootMotion | §42 Idle/DashInspection·InspectionLogTail·Closure*·Handoff*, §43 FixedDashInspection·FixedRootModeLog |
 | 2026-11-02_UAF53DashCompare | §44 UAF/Base(극지)·UAF_Equator/Base_Equator(근적도) 매 틱 표본·Summary.txt |
-| 2026-11-02_UAF54NetPawns | §45 Net2P(UAF 2인)·Base2P(운영 2인) 매 틱 표본·각 _Summary.txt·probe.json |
+| 2026-11-02_UAF54NetPawns | §45 Net2P(UAF 2인)·Base2P(운영 2인) 매 틱 표본·각 _Summary.txt·probe.json, §47 Lag3P_{UAF,Base,Fix}_{Pole,Equator}(3인·지연, Fix는 대시 단서 보완 뒤) |
 | TorsoTwist | §46 UAF_Twist(수정 전)·ABP_Twist(운영)·UAF_Twist_Fixed(수정 후) 매 틱 표본 |
 
 Saved는 git 제외다. 같은 작업 폴더의 새 세션에서는 재사용하고, 다른 환경에서는 추적된 스크립트와 실행서 요약으로 재현한다. §40 녹화는 `Saved/RewindDebugger/RewindDebugger-LootNPop-Editor-20261102_125719631.utrace`다. 이전 실패/수정 이력은 `history/Phase05_Log.md`와 실행서가 소유한다.
 
-§35~§36은 `6523d60`, §37은 `e5b1cb5`, §38~§42는 `f3c79fe`, §43~§44는 `29804ce`, §45는 `1837977`에 있다. 커밋할 때 범위는 **§46 C++ 1개(`LNPSphericalOffsetRootTrait.cpp`)·샘플러(`SampleTorsoTwist.py`)·§46 문서(실행서·로그·Current·Roadmap)**다. 사용자 변경 4개는 해시를 보존하고 커밋에서 제외한다: `Content/Maps/TestMap03.umap`, `Content/Gameplay/DT_PlayerBaseStats.uasset`, `Content/ItemData/Weapons/Levels/DT_LongSword_Levels.uasset`, `Content/SpawnData/DA_MassSpawnConfig_TestOnePerSpecies.uasset`. 트리를 깨끗하게 만들기 위한 원복/맵 전체 저장은 하지 않는다.
+§35~§36은 `6523d60`, §37은 `e5b1cb5`, §38~§42는 `f3c79fe`, §43~§44는 `29804ce`, §45는 `1837977`, §46은 `9b7b435`, §47은 그 다음 커밋에 있다. 사용자 변경 4개는 해시를 보존하고 커밋에서 제외한다: `Content/Maps/TestMap03.umap`, `Content/Gameplay/DT_PlayerBaseStats.uasset`, `Content/ItemData/Weapons/Levels/DT_LongSword_Levels.uasset`, `Content/SpawnData/DA_MassSpawnConfig_TestOnePerSpecies.uasset`. 트리를 깨끗하게 만들기 위한 원복/맵 전체 저장은 하지 않는다.
 
 전체 빌드는 에디터 정상 종료 후 `Build.bat LootNPopEditor Win64 Development D:/UnrealProjects/LootNPop/LootNPop.uproject -WaitMutex -NoHotReloadFromIDE`로 처음부터 권한 확장 실행한다. 과거 Live Coding 크래시 원인은 미확정이다. GASP 에디터/소스 에셋은 읽기 전용이며 내부 UAF API는 엔진 갱신 때 재검토한다.

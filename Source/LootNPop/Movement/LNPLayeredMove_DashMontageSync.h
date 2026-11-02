@@ -16,7 +16,8 @@
  *
  * 대시 이동은 같은 틱에 먼저 큐잉된 FLayeredMove_LinearVelocity가 소유한다 — 우선순위·시작 시각이 같으면 먼저 들어간
  * 무브가 Override를 가져가므로 이 무브는 속도에 기여하지 않는다. 그래서 수명을 늘려도 이동은 바뀌지 않는다.
- * 프록시의 재생은 ULNPCharacterMoverComponent::UpdateSyncedMontageState가 이 타입을 보고 한다.
+ * 프록시에서 이 타입이 활성이면 ULNPCharacterMoverComponent::UpdateSyncedMontageState가 엔진 동기화(무브가 끝나면 몽타주 정지)를
+ * 건너뛴다. 재생 단서는 이 무브가 아니라 FLNPDashCooldownModifier다 — 지연이 크면 프록시가 따라잡는 동안 이 무브는 이미 끝나 있다.
  */
 USTRUCT(BlueprintType)
 struct FLNPLayeredMove_DashMontageSync : public FLayeredMove_AnimRootMotion

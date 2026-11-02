@@ -54,11 +54,16 @@ def segments(rows):
 def analyze(path):
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     copies = defaultdict(list)  # (net, id, role) -> [(frame, row)]
-    by_frame = defaultdict(dict)  # (id, frame) -> {net: row}
+    by_frame = defaultdict(dict)  # (id, frame) -> {(net, role): row}
+    # 클라 월드가 둘 이상이면 같은 플레이어의 프록시가 월드마다 따로 있으므로 월드 번호로 사본을 구분한다.
+    client_worlds = sorted({row["world"] for entry in data["frames"] for row in entry["pawns"] if row["net"] == "Client"})
+    net_label = {world: "Client" if len(client_worlds) == 1 else "Client%d" % (index + 1)
+                 for index, world in enumerate(client_worlds)}
     for entry in data["frames"]:
         for row in entry["pawns"]:
-            copies[(row["net"], row["id"], row["role"])].append((entry["frame"], row))
-            by_frame[(row["id"], entry["frame"])][row["net"]] = row
+            net = net_label.get(row["world"], row["net"])
+            copies[(net, row["id"], row["role"])].append((entry["frame"], row))
+            by_frame[(row["id"], entry["frame"])][(net, row["role"])] = row
 
     lines = ["label=%s frames=%d reason=%s" % (data["label"], len(data["frames"]), data["reason"]), ""]
     lines.append("== 사본별 원본 root 이탈 / 표시 pelvis 접평면 거리 / 표시 메시 Up 높이 (cm, p50/p95/max) ==")
@@ -85,13 +90,14 @@ def analyze(path):
     lines.append("")
     lines.append("== 몽타주 구간: 서버 사본 vs 클라이언트 사본 (프레임 단위 시작 시차 = 클라 - 서버) ==")
     ids = sorted({key[1] for key in copies})
-    for pid in ids:
+    # 클라 2명 구성에서는 한 플레이어에 클라 사본이 둘(소유 클라·상대 클라의 프록시)이라 사본마다 서버와 짝짓는다.
+    pairs = [(pid, key) for pid in ids for key in sorted(copies) if key[0].startswith("Client") and key[1] == pid]
+    for pid, client_key in pairs:
         server = next((copies[k] for k in copies if k[0] == "Server" and k[1] == pid), [])
-        client_key = next((k for k in copies if k[0] == "Client" and k[1] == pid), None)
-        client = copies[client_key] if client_key else []
+        client = copies[client_key]
         s_segments, c_segments = segments(server), segments(client)
-        lines.append("id=%d client role=%s server segments=%d client segments=%d" % (
-            pid, client_key[2] if client_key else "-", len(s_segments), len(c_segments)))
+        lines.append("id=%d %s role=%s server segments=%d client segments=%d" % (
+            pid, client_key[0], client_key[2], len(s_segments), len(c_segments)))
         used = set()
         for name, start, end, pos in s_segments:
             match = None
@@ -112,20 +118,21 @@ def analyze(path):
 
     lines.append("")
     lines.append("== 같은 프레임 사본 차이: 위치 / Up 각도 / 루트 모드 불일치 ==")
-    for pid in ids:
+    for pid, client_key in pairs:
         dist, up_angle, mode_mismatch, both = [], [], defaultdict(int), 0
         for (row_id, frame), rows in by_frame.items():
-            if row_id != pid or "Server" not in rows or "Client" not in rows:
+            server_key = next((k for k in rows if k[0] == "Server"), None)
+            if row_id != pid or server_key is None or client_key[::2] not in rows:
                 continue
-            s, c = rows["Server"], rows["Client"]
+            s, c = rows[server_key], rows[client_key[::2]]
             both += 1
             dist.append(length(sub(s["loc"], c["loc"])))
             up_angle.append(math.degrees(math.acos(max(-1.0, min(1.0, dot(s["up"], c["up"]))))))
             if s.get("montage") == c.get("montage") and (s.get("rootT"), s.get("rootR")) != (c.get("rootT"), c.get("rootR")):
                 mode_mismatch["%s/%s vs %s/%s @%s" % (s.get("rootT"), s.get("rootR"), c.get("rootT"), c.get("rootR"),
                                                       s.get("montage") or "-")] += 1
-        lines.append("id=%d paired=%d posDiff p50/p95/max=%.1f/%.1f/%.1f upDiff max=%.2fdeg" % (
-            pid, both, pct(dist, .5), pct(dist, .95), max(dist or [0]), max(up_angle or [0])))
+        lines.append("id=%d %s %s paired=%d posDiff p50/p95/max=%.1f/%.1f/%.1f upDiff max=%.2fdeg" % (
+            pid, client_key[0], client_key[2], both, pct(dist, .5), pct(dist, .95), max(dist or [0]), max(up_angle or [0])))
         for text, count in sorted(mode_mismatch.items(), key=lambda item: -item[1])[:8]:
             lines.append("    mode mismatch (same montage) %4d  %s" % (count, text))
 

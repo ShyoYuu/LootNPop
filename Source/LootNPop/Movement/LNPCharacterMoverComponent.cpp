@@ -325,9 +325,15 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 
 	const float DashDurationMs = DashDuration * 1000.0f;
 
+	// 몽타주는 연출이다. 평가에 실패해도 물리 대시는 그대로 실행한다
+	// (기존 구현은 여기서 조기 return이라 몽타주가 없으면 대시 자체가 취소됐다).
+	UAnimMontage* SelectedMontage = Character->EvaluateMontage(TAG_Montage_Situation_Dash, DirTag);
+
 	// 쿨다운을 SyncState에 남긴다 — 롤백 시 함께 복원되어 클라이언트와 서버의 CanDash 판정이 일치한다.
+	// 몽타주도 함께 실어 시뮬레이티드 프록시의 재생 단서로 쓴다 (UpdateSyncedMontageState 참조).
 	TSharedPtr<FLNPDashCooldownModifier> CooldownModifier = MakeShared<FLNPDashCooldownModifier>();
 	CooldownModifier->DurationMs = DashCooldown * 1000.0f;
+	CooldownModifier->DashMontage = SelectedMontage;
 	QueueMovementModifier(CooldownModifier);
 
 	TSharedPtr<FLayeredMove_LinearVelocity> DashMove = MakeShared<FLayeredMove_LinearVelocity>();
@@ -341,14 +347,11 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 	DashMove->FinishVelocitySettings.FinishVelocityMode = ELayeredMoveFinishVelocityMode::MaintainLastRootMotionVelocity;
 	QueueLayeredMove(DashMove);
 
-	// 몽타주는 연출이다. 평가에 실패해도 물리 대시는 그대로 실행한다
-	// (기존 구현은 여기서 조기 return이라 몽타주가 없으면 대시 자체가 취소됐다).
-	UAnimMontage* SelectedMontage = Character->EvaluateMontage(TAG_Montage_Situation_Dash, DirTag);
 	if (SelectedMontage)
 	{
 		// 시작 위치를 재생 중인 몽타주 인스턴스에서 되읽지 않고 0으로 고정한다 —
 		// 서버와 리시뮬레이션에는 몽타주가 재생되지 않아 되읽은 값이 서로 갈린다.
-		// LNP 타입인 이유: 엔진 타입은 메시에 몽타주가 없으면 스스로 끝나 프록시가 재생할 단서를 잃는다 (타입 주석 참조).
+		// LNP 타입인 이유: 엔진 타입이면 프록시에서 엔진 동기화가 대시 무브와 함께 몽타주를 멈춘다 (타입 주석 참조).
 		TSharedPtr<FLNPLayeredMove_DashMontageSync> AnimSyncMove = MakeShared<FLNPLayeredMove_DashMontageSync>();
 		AnimSyncMove->MontageState.Montage = SelectedMontage;
 		AnimSyncMove->MontageState.PlayRate = 1.0f;
@@ -476,33 +479,55 @@ void ULNPCharacterMoverComponent::OnPreSimulate(const FMoverTimeStep& TimeStep, 
 void ULNPCharacterMoverComponent::UpdateSyncedMontageState(const FMoverTimeStep& TimeStep, const FMoverSyncState& SyncState,
 	const FMoverAuxStateContext& AuxState)
 {
-	// 대시 몽타주는 엔진 동기화에 맡기지 않는다. 엔진은 무브가 끝나면 몽타주를 멈추는데, 대시 무브(DashDuration)는
-	// 몽타주보다 짧아 프록시만 중간에 끊긴다. 서버·소유 클라처럼 한 번 재생하고 끝까지 둔다.
-	const FLNPLayeredMove_DashMontageSync* DashSync = GetOwnerRole() == ROLE_SimulatedProxy
-		? SyncState.LayeredMoves.FindActiveMove<FLNPLayeredMove_DashMontageSync>() : nullptr;
-	if (DashSync == nullptr)
+	if (GetOwnerRole() != ROLE_SimulatedProxy)
 	{
 		Super::UpdateSyncedMontageState(TimeStep, SyncState, AuxState);
 		return;
 	}
 
-	// 보정마다 서버 무브가 다시 주입되지만 시작 시각은 같다 — 대시 하나에 한 번만 재생한다.
-	// 재생 중이면 건너뛰는 검사는 프록시가 재시뮬레이션에서 무브를 직접 만든 경우(시작 시각이 서버와 다를 수 있다)의 이중 재생을 막는다.
-	if (DashSync->StartSimTimeMs == LastProxyDashStartSimTimeMs)
-		return;
-	LastProxyDashStartSimTimeMs = DashSync->StartSimTimeMs;
+	// 대시 몽타주는 엔진 동기화에 맡기지 않는다. 엔진은 무브가 끝나면 몽타주를 멈추는데, 대시 무브(DashDuration)는
+	// 몽타주보다 짧아 프록시만 중간에 끊긴다. 서버·소유 클라처럼 한 번 재생하고 끝까지 둔다.
+	if (SyncState.LayeredMoves.FindActiveMove<FLNPLayeredMove_DashMontageSync>() == nullptr)
+	{
+		Super::UpdateSyncedMontageState(TimeStep, SyncState, AuxState);
+	}
 
-	const FMoverAnimMontageState& MontageState = DashSync->MontageState;
+	// 재생 단서는 대시 무브가 아니라 쿨다운 Modifier다. 이 함수는 재시뮬레이션으로 현재 프레임까지 따라잡은 뒤의 상태를 본다.
+	// 지연이 크면 그 사이에 0.2초 대시 무브는 이미 끝나 있어 프록시가 한 번도 재생하지 못했다(리슨 3인·편도 60~90ms에서 전부 누락).
+	// 쿨다운은 몽타주보다 길게 남는다.
+	const FLNPDashCooldownModifier* Cooldown = nullptr;
+	for (auto It = SyncState.MovementModifiers.GetActiveModifiersIterator(); It; ++It)
+	{
+		if (It->IsValid() && (*It)->GetScriptStruct() == FLNPDashCooldownModifier::StaticStruct())
+		{
+			Cooldown = static_cast<const FLNPDashCooldownModifier*>(It->Get());
+			break;
+		}
+	}
+	if (Cooldown == nullptr || Cooldown->DashMontage == nullptr)
+		return;
+
+	// 보정마다 서버 Modifier가 다시 주입되지만 시작 시각은 같다 — 대시 하나에 한 번만 재생한다.
+	// 재생 중이면 건너뛰는 검사는 프록시가 재시뮬레이션에서 대시를 직접 만든 경우(시작 시각이 서버와 다를 수 있다)의 이중 재생을 막는다.
+	if (Cooldown->StartSimTimeMs == LastProxyDashStartSimTimeMs)
+		return;
+	LastProxyDashStartSimTimeMs = Cooldown->StartSimTimeMs;
+
+	UAnimMontage* Montage = Cooldown->DashMontage;
 	const USkeletalMeshComponent* Mesh = GetOwner()->FindComponentByClass<USkeletalMeshComponent>();
 	UAnimInstance* AnimInstance = Mesh ? Mesh->GetAnimInstance() : nullptr;
-	if (MontageState.Montage == nullptr || AnimInstance == nullptr || AnimInstance->Montage_IsPlaying(MontageState.Montage))
+	if (AnimInstance == nullptr || AnimInstance->Montage_IsPlaying(Montage))
 		return;
 
-	// 시작 위치는 무브가 진행한 위치다 — 재시뮬레이션이 대시 시작부터 지금까지 따라잡은 만큼 건너뛴다(엔진 동기화와 같은 기준).
-	AnimInstance->Montage_Play(MontageState.Montage, MontageState.PlayRate, EMontagePlayReturnType::MontageLength, MontageState.CurrentPosition);
+	// 시작 위치는 대시 시작부터 이 프레임 끝까지의 시간이다 — 재시뮬레이션이 따라잡은 만큼 건너뛴다(엔진 루트모션 무브와 같은 기준).
+	// 이미 몽타주가 끝났을 만큼 늦게 알게 된 대시는 재생하지 않는다.
+	const float StartPosition = FMath::Max(0.0, (TimeStep.BaseSimTimeMs + TimeStep.StepMs - Cooldown->StartSimTimeMs) / 1000.0 * Montage->RateScale);
+	if (StartPosition >= Montage->GetPlayLength())
+		return;
+	AnimInstance->Montage_Play(Montage, 1.0f, EMontagePlayReturnType::MontageLength, StartPosition);
 
 	UE_LOG(LogLootNPop, Log, TEXT("[Dash] %s proxy montage play | montage=%s startPos=%.3f startSimMs=%.0f"),
-		*GetOwner()->GetName(), *MontageState.Montage->GetName(), MontageState.CurrentPosition, DashSync->StartSimTimeMs);
+		*GetOwner()->GetName(), *Montage->GetName(), StartPosition, Cooldown->StartSimTimeMs);
 }
 
 void ULNPCharacterMoverComponent::OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd)
