@@ -62,7 +62,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS5종 정상/중단/교체/종료 시 End 각1·태그/근접 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26~§32 정상/대표 중단/소유 Actor 종료 보완 확인. §34 UpperBody 최소 마스크/대표 정상·이동·대시 재장전/실제 평가 구조 확인. 월드 사후 실제 무효/독립 태그·전체 슬롯/그룹의 상세 실행·Branching/다른 배치 모드는 미검증 |
 | UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 부분 확인·무기 레이어 게이트 미판정 — §36 같은 UEFN 표시 ABP·재장전 IK 차단/대시 복귀·Idle 물리와 공격 중 억제 대표 확인. 무기별 자세/AO·native 레이어 전환/마스크·Manny 견착/적/네트워크는 미검증 |
 | Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 — §42에서 기존 몽타주 직접 샘플링/워핑 경로와 원본 메시 연결·RootMotionAttribute 미사용 확인. §43에서 시험 공급층의 전신 몽타주 Release 판정을 보완해 대표 재검증. §44에서 대시 캡슐 이동/방향/몽타주 길이·루트모션 비중복이 극지·근적도 모두 기존 ABP와 동등함을 실측(이동은 선형 속도 무브 소유). 루트모션 워핑 경로(에셋 없음)·경사/움직이는 base·대시 중단 실측·재시뮬레이션·네트워크는 남음 |
-| 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 미검증 |
+| 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 부분 확인 — §45 리슨 2인에서 4사본(서버 권위·자율·시뮬레이티드 프록시) 모두 UAF 경로로 돌고, 프록시 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같으며 기존 ABP와 같은 양상. 프록시의 호스트 대시 몽타주 누락은 기존 ABP도 같은 Mover 연출 결함(UAF 회귀 아님). `ActorPromoted` 적(UAF 미적용)·클라 2명·지연 에뮬레이션·적도 2인은 남음 |
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
 | 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 구면 루트 제한(§10)·공중 고정(§12)·Strafe 비교(§14)·발 배치/경사/적도(§15)·패널 점프/착지와 큰 Yaw 롱소드(§18) 확인. 루트 수치는 CR 앞이며 기존 ABP 대비 최종 포즈 품질·무기 통합 후 동등성은 5-2에 남음(§19) |
 
@@ -72,7 +72,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 
 ## 5. 다음 행동
 
-현재 **§36~§38/§40은 기록한 대표 회귀/종료 정리까지 완료**다. §41 보조 가산 기존 생략과 §42 몽타주 직접 샘플링 경로를 확인했고, §43에서 전신 몽타주 Release 판정을 보완·대표 재검증했고, §44에서 대시 이동/표시 추종이 기존 ABP와 동등함을 확인했다. 다음 단위는 사용자 확인 전이다. AN-025·월드 독립 태그/사후 실제 무효와 기타 미검증 경계를 유지하며 전체 슬롯/ANS·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
+현재 **§36~§38/§40은 기록한 대표 회귀/종료 정리까지 완료**다. §41 보조 가산 기존 생략과 §42 몽타주 직접 샘플링 경로를 확인했고, §43에서 전신 몽타주 Release 판정을 보완·대표 재검증했고, §44에서 대시 이동/표시 추종이 기존 ABP와 동등함을 확인했고, §45에서 리슨 2인 사본이 기존 ABP와 같은 동작임을 확인했다. 다음 단위는 사용자 확인 전이다. AN-025·월드 독립 태그/사후 실제 무효와 기타 미검증 경계를 유지하며 전체 슬롯/ANS·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
 
 사용자 승인으로 5-1을 시작했다. LootNPop MCP의 `ListEnabledPlugins`에서 `UAF`·`UAFAnimGraph`·`UAFMirroring`가 활성인 것을 확인했다. `UAFChooser`·`UAFPoseSearch`·`UAFControlRig`·`UAFWarping`·`MoverAnimNext` 5개를 `LootNPop.uproject`에 명시하고 JSON 파싱·diff 공백 검사를 통과했다. MCP `SetPluginEnabled`는 메모리의 프로젝트 설정만 바꾸고 파일을 저장하지 않아 파일에도 명시했다(엔진 툴 구현 확인). 런타임 로드 확인은 재시작 후 수행한다. GASP는 더 필요하지 않아 닫아도 된다고 안내했다.
 
@@ -2294,3 +2294,44 @@ print('[UAFNextReleaseAfter]', [c.get_name() for c in ans_p.get_components_by_cl
 - 근적도의 높이 변동 증가는 두 폰에 공통이며 Base가 오히려 더 크다. 테라스 지형 굴곡 탓이고 UAF 구면 보정의 회귀가 아니다. 제자리 대시 원본 root 이탈 0.4~0.6cm는 루트모션 중복(수백 cm 규모)과 무관한 크기다.
 - 측정 구간 Python/Error/ensure/Assertion 0건이다. 종료 뒤 PIE=false·GameMode 메모리 복원(디스크 값)·맵 미저장이고, 연결14개/보호7개 해시를 보존했다. 근거는 같은 폴더의 UAF_Equator.json·Base_Equator.json·Summary.txt(네 측정 통합)다.
 - **판정:** 현재 자산의 대시는 극지·근적도에서 기존 ABP와 동등하다. 정확한 위도 0 연속 구간·큰 경사·움직이는 base 위 대시, 대시 중단 실측, 게스트 재시뮬레이션·리슨 2인은 미검증이다. 루트모션 워핑 경로는 에셋이 없어 검증 대상이 아니다.
+
+## 45. 리슨 2인 호스트/게스트 사본 비교(2026-11-02, 2인 대표 비교 단위 완료)
+
+사용자가 Phase 5 계속 진행을 지시해, §44 인계의 제안 후보였던 리슨 2인 확인을 진행했다. C++/에셋은 바꾸지 않았다. `ActorPromoted` 적은 UAF 시험 경로를 쓰지 않으므로 게이트의 "컨트롤러 없는 적" 항목은 이번 범위가 아니다.
+
+### 게스트 경로 코드 조사
+
+- 시험 GameMode의 DefaultPawn이 `BP_PlayerUAFSpike`라서 호스트와 게스트 모두 시험 폰이다. `PostInitializeComponents`의 드라이버 초기화, PrePhysics 입력 공급 컴포넌트, UAF 컴포넌트는 넷 역할 분기 없이 모든 사본에서 돈다.
+- 클라이언트 ASC는 `OnRep_PlayerState`에서 초기화되고, ActorInfo 메시는 `FindComponentByClass` 재정의로 AnimSourceMesh다. 따라서 GAS 몽타주 복제도 UAF 시험 인스턴스에 도달한다. 정밀 Rifle Aim은 로컬 제어 폰만 계산한다(AN-025, 프록시 보정 없음이 정상).
+- 대시 몽타주는 `ExecuteDash`가 시뮬레이션 안에서 직접 `Montage_Play`한다. 다만 `TimeStep.bIsResimulating`이면 건너뛴다. ForwardPredict 시뮬레이티드 프록시는 대시 프레임을 서버 상태 수신 뒤 재시뮬레이션으로만 지나가므로, 애니 그래프와 무관하게 프록시에서는 재생되지 않을 수 있는 구조다.
+
+### 측정 도구와 절차
+
+- `Scripts/AnimOverhaul/SampleNetPawns_5-2.py`(start/stop/probe): 모든 PIE 월드의 `LNPPlayerCharacter`를 매 틱 읽는다. PlayerId·넷 역할·로컬 제어, 위치/Up/속도, 활성 몽타주/위치, 공급 루트 모드(이동/회전), AnimSourceMesh·VisualMesh의 컴포넌트/root/pelvis를 기록한다. 첫 probe의 `get_player_id` 오류는 `player_id` 속성 읽기로 고쳤다.
+- `Scripts/AnimOverhaul/AnalyzeNetPawns_5-2.py`: 사본별 root 이탈·표시 pelvis·메시 높이, 같은 플레이어의 서버/클라 사본 몽타주 구간 짝(시작 시차·길이·시작 위치), 같은 프레임 위치·Up·루트 모드 불일치, 몽타주 중 루트 모드 분포를 요약한다.
+- PIE를 리슨 서버·2인으로 메모리에서만 바꾸고 `LNP.UAFSpike.DebugNotifies 1`·`np.PrintReconciles 1`로 시험했다. 사용자가 호스트/게스트 각각 라이플 이동·정지·4방향 대시·사격·재장전·재장전 중 대시와 롱소드 콤보·공격 중 이동을 수행했다(UAF 5219프레임). 이어서 운영 `BP_LNPGameMode`를 메모리에서만 지정해 대시·사격 대조를 했다(Base 2659프레임).
+
+### 결과
+
+| 항목 | UAF 시험 폰 | 기존 ABP 폰 |
+|:---|:---|:---|
+| 사본 초기화 | 4사본 모두 `ABP_SourceUAFSpike_C`·드라이버/입력 ready | 4사본 `ABP_Main_UEFN_C` |
+| 프록시 몽타주(사격/재장전/검술) | 서버 사본과 같은 프레임 시작(+0f), 길이·시작 위치 같음 | 사격 같음(+0f) |
+| 소유 클라 몽타주 | 사격/재장전/검술 −1f, 대시 −2f(예측), 길이 같음 | 사격 −1f, 대시 −2f |
+| **호스트 대시 → 게스트 화면 프록시** | **17회 모두 누락** | **3회 모두 누락** |
+| 게스트 대시 → 서버 사본 | 전부 재생 | 전부 재생 |
+| 몽타주 중 루트 모드 | 대시/검술 Release/Release, 사격/재장전 Release/Accumulate — 4사본 같음 | 대시 Release/Release, 사격 Release/Accumulate |
+| 원본 root 이탈 | 전 사본 max 30.0cm(Interpolate 상한), 대시 p95 25.6~25.7cm | 전 사본 max 30.0cm, 대시 p95 25.8~26.0cm |
+| 표시 pelvis 접평면 p95 | 47.9~54.4cm | 34.7~46.2cm |
+| 서버/클라 사본 위치 차 | p50 0.0~0.1·p95 51.2·max 160cm, Up 차 max 0.34° | p95 50.7~51.1·max 128cm, Up 차 max 0.32° |
+
+- ANS 5종 Begin/End는 UAF 4사본 모두 균형이고 횟수도 월드끼리 같다. 근접 판정 엔티티는 사본마다 11개 생성·11개 정리, 사후 valid=0이다. 공격 중 이동 취소(MovementStop)는 조작 머신에서만 발생한다. `ANS_LNPCancelMontageOnMovement`가 로컬 입력(`HasMovementInput`)을 읽는 기존 설계이고, 다른 사본은 GAS 몽타주 복제로 같은 길이에 끝났다.
+- 보정 120건(np.PrintReconciles)은 ForwardPredict 프록시의 입력 예측(MoveInput·ControlRotation) 불일치다. 애니 그래프 상태가 아니다. 오류·ensure 0건이다.
+- 표시 pelvis p95 차이는 이번 Base 표본이 짧고 대시/사격 위주라(검술 없음) 같은 조건 비교가 아니다. root 이탈·몽타주·사본 일치 지표에서 UAF 고유 이상은 없다.
+- 사용자 육안: UAF 시험에서 어색한 부분은 없었고, 게스트 화면에서 호스트 대시 몽타주가 안 보이는 것 하나만 관찰했다. 기존 ABP 대조에서도 같았다.
+
+### 판정과 남은 경계
+
+- **리슨 2인에서 UAF 시험 폰의 호스트/게스트·프록시·서버 사본은 기존 ABP와 같은 동작이다.** 프록시 호스트 대시 몽타주 누락은 기존 Mover 연출 경로(`ExecuteDash`의 재시뮬레이션 가드)의 결함이며 UAF 회귀가 아니다. 이 게이트에서 고치지 않고 별도 작업으로 분리한다.
+- 남은 범위: `ActorPromoted` 적(UAF 경로 미적용), 클라이언트 2명(호스트 조작 없음) 구성, 지연·패킷 손실 에뮬레이션, 적도에서의 2인 비교다.
+- 종료 뒤 PIE=false, PIE 설정 Standalone·1인, 디스크 값인 시험 GameMode로 메모리 복원, 디버그 CVar 2개 0이다. 맵은 저장하지 않았다. 근거는 `Saved/AnimationOverhaul/2026-11-02_UAF54NetPawns/`(Net2P.json·Base2P.json·각 _Summary.txt)다.

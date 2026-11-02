@@ -1,18 +1,18 @@
 # 애니메이션 개선 현재 작업 상태
 
 > 상태: 다음 단위 사용자 확인 대기
-> 마지막 갱신: 2026-11-02
-> 현재: **5-0·5-1 완료, 5-2 진행 중. §38 총열 보정·§40 발사 가산 연결 완료, §41 보조 가산 기존 생략 확인, §42 루트모션 전달 조사 완료, §43 전신 몽타주 Release 판정 보완·대표 재검증 완료, §44 대시 이동·표시 추종의 기존 ABP 동등 확인(극지·근적도, 둘 다 미커밋).**
+> 마지막 갱신: 2026-11-02(§45)
+> 현재: **5-0·5-1 완료, 5-2 진행 중. §38 총열 보정·§40 발사 가산 연결 완료, §41 보조 가산 기존 생략 확인, §42 루트모션 전달 조사 완료, §43 전신 몽타주 Release 판정 보완·대표 재검증 완료, §44 대시 이동·표시 추종의 기존 ABP 동등 확인(극지·근적도, `29804ce`), §45 리슨 2인 사본 비교 완료(미커밋).**
 
-§43 소스 4개(`LNPAnimInstance.h/.cpp`·`LNPUAFSpikeAnimInstance.h/.cpp`), §44 측정 스크립트 2개(`Scripts/AnimOverhaul/SampleDashMotion_5-2.py`·`AnalyzeDashMotion_5-2.py`)와 문서 변경은 아직 커밋하지 않았다. 커밋은 요청받지 않았다. 구현 단위마다 계속할지 확인하고, PIE/GUI 수동 조작이 빠르면 즉시 요청한다. 푸시와 새 채팅 생성은 요청받지 않았다.
+§45 측정 스크립트 2개(`Scripts/AnimOverhaul/SampleNetPawns_5-2.py`·`AnalyzeNetPawns_5-2.py`)와 문서 변경은 아직 커밋하지 않았다. C++ 변경은 없다. 커밋은 요청받지 않았다. 구현 단위마다 계속할지 확인하고, PIE/GUI 수동 조작이 빠르면 즉시 요청한다. 푸시와 새 채팅 생성은 요청받지 않았다.
 
 최종 일곱 게이트·Go/No-Go는 미판정이며 Phase 6 마이그레이션은 승인 전이다. Phase 0·1A·1C·2·3 완료, 1B 대기 상태도 유지한다.
 
 ## 다음 세션에서 바로 할 일
 
-1. `CLAUDE.md`·`README.md`·`Decisions.md`와 `phases/Phase05_UAFSpike.md` §4·§42~§44를 읽는다. 표시/IK 전제는 §36, 라이플 프레임/재생성은 §37, UpperBody 마스크는 §33~§34가 소유한다.
-2. 커밋을 요청받으면 adaptive unity가 숨긴 충돌이 없는지 커밋 뒤 깨끗한 트리에서 `Build.bat`을 다시 확인한다(§43 변경 cpp 2개가 unity에서 제외돼 단독 컴파일됐다).
-3. §44에서 대시 이동은 선형 속도 무브가 소유하고 몽타주 루트모션은 이동에 기여하지 않음을 확인했다. UAF/기존 ABP를 극지·근적도(PodTerraceSouth)에서 실측해 캡슐 이동·방향·몽타주 길이·루트모션 비중복이 같았다. 근적도 표시 메시 높이 변동(최대 4~5cm)은 두 폰 공통의 지형 영향이다. 루트모션 워핑 경로는 에셋이 없어 검증할 수 없다. 남은 게이트 후보(제안·미승인): 리슨 2인 호스트/게스트에서 시험 폰 재시뮬레이션·프록시 확인(착수 전 시험 폰의 게스트 경로부터 조사).
+1. `CLAUDE.md`·`README.md`·`Decisions.md`와 `phases/Phase05_UAFSpike.md` §4·§43~§45를 읽는다. 표시/IK 전제는 §36, 라이플 프레임/재생성은 §37, UpperBody 마스크는 §33~§34가 소유한다.
+2. §43 cpp 2개는 adaptive unity에서 제외돼 단독 컴파일됐다. `29804ce` 뒤 깨끗한 트리에서 `Build.bat`을 다시 돌린 기록이 없으므로 다음 빌드 기회에 확인한다.
+3. §45에서 리슨 2인 UAF 4사본(서버 권위·자율·시뮬레이티드 프록시)의 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같고 기존 ABP와 같은 양상임을 확인했다. 게스트 화면에서 호스트 대시 몽타주가 안 보이는 것은 기존 ABP도 같은 Mover 연출 결함(`ExecuteDash`의 `bIsResimulating` 가드)이다. UAF 게이트와 분리하며 아직 고치지 않았다. 남은 게이트 후보(제안·미승인): `ActorPromoted` 적 UAF 경로(미적용이라 착수 전 범위 결정 필요), 클라 2명·지연 에뮬레이션·적도 2인, 루트모션 워핑(에셋 없음), 최종 일곱 게이트 Go/No-Go 정리.
 4. 대시 직후 발사가 대시 몽타주를 끊는 동작(`FullBodyAdditivePreAim`이 `DefaultGroup`, AN-020 표)은 기존 그룹 계약의 결과로 관찰만 했다. 게임플레이 의도인지 사용자에게 확인할 수 있다.
 
 ## 재현 도구와 미검증 경계
@@ -54,9 +54,10 @@
 | 2026-11-02_UAF52ReloadAdditiveReview | §41 기존 생략/그래프 조회·Preserved* |
 | 2026-11-02_UAF52RootMotion | §42 Idle/DashInspection·InspectionLogTail·Closure*·Handoff*, §43 FixedDashInspection·FixedRootModeLog |
 | 2026-11-02_UAF53DashCompare | §44 UAF/Base(극지)·UAF_Equator/Base_Equator(근적도) 매 틱 표본·Summary.txt |
+| 2026-11-02_UAF54NetPawns | §45 Net2P(UAF 2인)·Base2P(운영 2인) 매 틱 표본·각 _Summary.txt·probe.json |
 
 Saved는 git 제외다. 같은 작업 폴더의 새 세션에서는 재사용하고, 다른 환경에서는 추적된 스크립트와 실행서 요약으로 재현한다. §40 녹화는 `Saved/RewindDebugger/RewindDebugger-LootNPop-Editor-20261102_125719631.utrace`다. 이전 실패/수정 이력은 `history/Phase05_Log.md`와 실행서가 소유한다.
 
-§35~§36은 `6523d60`, §37은 `e5b1cb5`, §38~§42는 `f3c79fe`에 있다. 커밋할 때 범위는 **§43 C++4개(`LNPAnimInstance.h/.cpp`·`LNPUAFSpikeAnimInstance.h/.cpp`), §44 스크립트2개, §43~§44 문서(실행서·로그·Current·README·Roadmap)**다. 사용자 변경4개는 해시를 보존하고 커밋에서 제외한다: `Content/Maps/TestMap03.umap`, `Content/Gameplay/DT_PlayerBaseStats.uasset`, `Content/ItemData/Weapons/Levels/DT_LongSword_Levels.uasset`, `Content/SpawnData/DA_MassSpawnConfig_TestOnePerSpecies.uasset`. 트리를 깨끗하게 만들기 위한 원복/맵 전체 저장은 하지 않는다.
+§35~§36은 `6523d60`, §37은 `e5b1cb5`, §38~§42는 `f3c79fe`, §43~§44는 `29804ce`에 있다. 커밋할 때 범위는 **§45 스크립트 2개(`SampleNetPawns_5-2.py`·`AnalyzeNetPawns_5-2.py`)와 §45 문서(실행서·로그·Current·Roadmap)**다. 사용자 변경 4개는 해시를 보존하고 커밋에서 제외한다: `Content/Maps/TestMap03.umap`, `Content/Gameplay/DT_PlayerBaseStats.uasset`, `Content/ItemData/Weapons/Levels/DT_LongSword_Levels.uasset`, `Content/SpawnData/DA_MassSpawnConfig_TestOnePerSpecies.uasset`. 트리를 깨끗하게 만들기 위한 원복/맵 전체 저장은 하지 않는다.
 
 전체 빌드는 에디터 정상 종료 후 `Build.bat LootNPopEditor Win64 Development D:/UnrealProjects/LootNPop/LootNPop.uproject -WaitMutex -NoHotReloadFromIDE`로 처음부터 권한 확장 실행한다. 과거 Live Coding 크래시 원인은 미확정이다. GASP 에디터/소스 에셋은 읽기 전용이며 내부 UAF API는 엔진 갱신 때 재검토한다.
