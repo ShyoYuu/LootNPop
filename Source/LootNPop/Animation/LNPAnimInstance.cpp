@@ -829,11 +829,16 @@ float ULNPAnimInstance::GetOrientationWarpingAlpha(const FAnimNodeReference& Nod
 	return GetBlendStackCurveValue(Node, EnableWarpingCurve);
 }
 
+bool ULNPAnimInstance::IsMontageSlotActive(FName SlotName) const
+{
+	return IsSlotActive(SlotName);
+}
+
 bool ULNPAnimInstance::IsFullBodyMontageActive() const
 {
 	for (const FName& Slot : FullBodyMontageSlots)
 	{
-		if (IsSlotActive(Slot))
+		if (IsMontageSlotActive(Slot))
 			return true;
 	}
 	return false;

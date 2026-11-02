@@ -61,7 +61,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | PSD·Chooser | 기존 에셋을 변경하지 않고 같은 상태 입력의 PSD 배열로 UAF가 검색. Starts/Stops/Turns 등 전환과 인터럽트 확인 | 부분 확인 — 대표 전환의 전달·실제 선택(§13), Sprint Turns·GaitTransitions·Run Pivot의 전달·후보 검색(§17) 확인. §17의 목표 전환 클립은 미선택. 지속 고속/전환의 최종 품질 비교는 5-2에 남음(§19) |
 | 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS5종 정상/중단/교체/종료 시 End 각1·태그/근접 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26~§32 정상/대표 중단/소유 Actor 종료 보완 확인. §34 UpperBody 최소 마스크/대표 정상·이동·대시 재장전/실제 평가 구조 확인. 월드 사후 실제 무효/독립 태그·전체 슬롯/그룹의 상세 실행·Branching/다른 배치 모드는 미검증 |
 | UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 부분 확인·무기 레이어 게이트 미판정 — §36 같은 UEFN 표시 ABP·재장전 IK 차단/대시 복귀·Idle 물리와 공격 중 억제 대표 확인. 무기별 자세/AO·native 레이어 전환/마스크·Manny 견착/적/네트워크는 미검증 |
-| Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 — §42에서 기존 몽타주 직접 샘플링/워핑 경로와 원본 메시 연결·RootMotionAttribute 미사용 확인. 전신 몽타주 중 Offset Root Release 판정 누락을 재현해 보완/실제 이동 검증이 남음 |
+| Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 — §42에서 기존 몽타주 직접 샘플링/워핑 경로와 원본 메시 연결·RootMotionAttribute 미사용 확인. §43에서 시험 공급층의 전신 몽타주 Release 판정을 보완해 대표 재검증. §44에서 대시 캡슐 이동/방향/몽타주 길이·루트모션 비중복이 극지·근적도 모두 기존 ABP와 동등함을 실측(이동은 선형 속도 무브 소유). 루트모션 워핑 경로(에셋 없음)·경사/움직이는 base·대시 중단 실측·재시뮬레이션·네트워크는 남음 |
 | 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 미검증 |
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
 | 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 구면 루트 제한(§10)·공중 고정(§12)·Strafe 비교(§14)·발 배치/경사/적도(§15)·패널 점프/착지와 큰 Yaw 롱소드(§18) 확인. 루트 수치는 CR 앞이며 기존 ABP 대비 최종 포즈 품질·무기 통합 후 동등성은 5-2에 남음(§19) |
@@ -72,7 +72,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 
 ## 5. 다음 행동
 
-현재 **§36~§38/§40은 기록한 대표 회귀/종료 정리까지 완료**다. §41 보조 가산 기존 생략과 §42 몽타주 직접 샘플링 경로를 확인했고 전신 몽타주 Release 판정 누락을 재현했다. 다음 제안은 시험 공급층의 해당 판정 보완/재검증이며 사용자 확인 전이다. AN-025·월드 독립 태그/사후 실제 무효와 기타 미검증 경계를 유지하며 전체 슬롯/ANS·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
+현재 **§36~§38/§40은 기록한 대표 회귀/종료 정리까지 완료**다. §41 보조 가산 기존 생략과 §42 몽타주 직접 샘플링 경로를 확인했고, §43에서 전신 몽타주 Release 판정을 보완·대표 재검증했고, §44에서 대시 이동/표시 추종이 기존 ABP와 동등함을 확인했다. 다음 단위는 사용자 확인 전이다. AN-025·월드 독립 태그/사후 실제 무효와 기타 미검증 경계를 유지하며 전체 슬롯/ANS·최종 Go/No-Go는 미판정이다. 아래는 5-1 착수 당시의 실행 기록이다.
 
 사용자 승인으로 5-1을 시작했다. LootNPop MCP의 `ListEnabledPlugins`에서 `UAF`·`UAFAnimGraph`·`UAFMirroring`가 활성인 것을 확인했다. `UAFChooser`·`UAFPoseSearch`·`UAFControlRig`·`UAFWarping`·`MoverAnimNext` 5개를 `LootNPop.uproject`에 명시하고 JSON 파싱·diff 공백 검사를 통과했다. MCP `SetPluginEnabled`는 메모리의 프로젝트 설정만 바꾸고 파일을 저장하지 않아 파일에도 명시했다(엔진 툴 구현 확인). 런타임 로드 확인은 재시작 후 수행한다. GASP는 더 필요하지 않아 닫아도 된다고 안내했다.
 
@@ -2205,3 +2205,92 @@ print('[UAFNextReleaseAfter]', [c.get_name() for c in ans_p.get_components_by_cl
 - Saved에만 있던 읽기 스크립트를 `Scripts/AnimOverhaul/InspectUAFRootMotion_5-2.py`로 옮겨 추적한다. 진단 기능은 실행 검증된 수정본과 같고 사용법/결과 덮어쓰기 주석과 출력 폴더 생성만 보완했다. 에셋 저장·몽타주 재생·캐릭터 이동은 하지 않는다. Inspector 결과의 Idle/Dash 사본과 주요 수치는 본 절/Current에 보존하며 Saved 원문은 로컬 전용임을 명시했다.
 - 현재 게임 C++13개와 연결14개/보호7개 해시를 기존 빌드/종료 근거와 대조한다. 마지막 성공 빌드/TestsTiming과 실제 PIE 결과를 재사용하고 인계만을 위한 재빌드/녹화는 하지 않는다. §42 Release 판정 누락은 미수정 상태로 남긴다.
 - 커밋 범위는 §38 C++13개·현재 AG·인계용 읽기 스크립트·§38~§42 문서다. 기존 사용자 맵/DT_PlayerBaseStats/DT_LongSword_Levels/DA_MassSpawnConfig_TestOnePerSpecies4개는 보존하고 제외한다. 이전 `feat: … 및 새 세션 인계` 제목/한국어 항목 본문 양식을 따른다. 푸시/새 채팅 생성은 하지 않는다.
+
+## 43. 시험 공급층 전신 몽타주 활성 판정 보완(2026-11-02, 구현·대표 재검증 단위 완료)
+
+사용자가 §42에서 재현한 판정 누락의 보완을 승인했다. 일반 ABP의 슬롯/그룹·Release 정책과 Mover 직접 샘플링/워핑 경로는 그대로 두고, UAF 시험 경로의 판정만 실제 몽타주 상태를 읽게 한다. 이 판정 보완을 실제 이동/워핑 게이트 통과로 확대하지 않는다.
+
+### 구현
+
+- `ULNPAnimInstance`에 protected virtual `IsMontageSlotActive(FName)`를 추가했다. 기본 구현은 엔진 `IsSlotActive`를 그대로 호출한다. `IsFullBodyMontageActive`는 기존 `FullBodyMontageSlots`(DefaultSlot/FullBody)를 돌며 이 함수만 호출한다. 슬롯 목록은 한 곳에만 있다. 일반 ABP·적·워커 스레드 호출은 바뀌지 않는다. `ComputeLeftHandOffDemand`와 같은 재정의 패턴이다.
+- `ULNPUAFSpikeAnimInstance`는 명시적 드라이버일 때만 재정의한다. 게임 스레드(`check`)에서 `MontageInstances`를 직접 읽는다. 엔진 `UpdateMontageEvaluationData`→`IsSlotActive`와 같은 기준(`Montage` 유효·`IsActive()`·`IsValidSlot`)을 쓴다. 가중치 필터(`GetWeight() > ZERO_ANIMWEIGHT_THRESH`)는 두지 않는다. 공급이 UAF 틱보다 앞이라 이번 프레임에 재생한 몽타주의 가중치가 아직 0이기 때문이다. 블렌드아웃이 시작되면 `IsActive()`가 false이므로 복귀 시점은 일반 경로와 같다.
+- 검증용 `[UAFRootMode]` 로그: `LNP.Anim.DebugLocomotion >= 1`일 때 공급 루트 모드 쌍이 바뀌는 프레임에만 한 줄을 남긴다(활성 몽타주·위치 포함).
+- Proxy 강제 갱신·RootMotionAttribute·새 이동 어댑터는 추가하지 않았다. 엔진 `is_slot_active()`는 계속 false이며 완료 조건이 아니다.
+
+### 빌드와 재검증
+
+- 사용자 에디터 정상 종료 뒤 `Build.bat LootNPopEditor Win64 Development … -WaitMutex -NoHotReloadFromIDE` 전체 빌드: 10 actions·65.61초·Succeeded·exit0. 변경 cpp 2개는 adaptive unity에서 제외돼 단독 컴파일됐다. 커밋 뒤 깨끗한 트리에서 다시 확인해야 한다.
+- 디스크 사용자 맵의 GameMode는 이미 시험 `BP_GameModeUAFSpike`였다(메모리 지정 불필요, 맵 미저장). 사용자가 1인 PIE에서 라이플 정지/이동 대시·연속 대시·발사·장전·장전 중 대시를 수행했다.
+- 로그(`FixedRootModeLog.log`) 판정:
+  - 대시 몽타주 시작 프레임에 이동/회전이 모두 Release가 됐다(위치 0.0167초 = 첫 틱). 끝나면 정지 시 Release/Accumulate, 이동 시 Interpolate/Accumulate로 돌아왔다. 전방/뒤/좌/우 4종 모두 나왔다.
+  - 연속 대시(몽타주 교체) 중에는 Release가 유지됐다. 발사·장전 단독에서는 모드가 바뀌지 않았다(FullBodyAdditivePreAim·UpperBody는 전신 판정 대상이 아님).
+  - 장전 중 대시도 대시 구간만 Release였다.
+- slomo0.1 대시 중 Pause 읽기(`FixedDashInspection.json`): **AM_MM_Dash_Backward_LyraFrame 재생=true·위치0.139초·엔진 FullBody/DefaultSlot 활성=false·루트 이동/회전=Release.** §42 재현값(회전 Accumulate)이 기대값으로 바뀌었다.
+- 오류·ensure·check 0건이다. 경고는 기존 Foley 이벤트 미포함 139건과 스폰 밀도 0/비행 스폰 기각/GameplayCue 경로 각 1건으로, 모두 기존 노이즈다.
+- 사용자 slomo1/DebugLocomotion0/PIE 종료 뒤 PIE=false·DebugLocomotion0·열린 에셋0을 확인했다. 연결 14개/보호 7개 해시는 §42 종료값과 같다.
+
+### 관찰과 남은 경계
+
+- 대시 직후 발사한 표본 1건(frame 12807)에서 발사 몽타주가 대시 몽타주를 끊고 모드가 즉시 복귀했다. `FullBodyAdditivePreAim`이 `DefaultGroup`에 등록돼(AN-020 슬롯 표) 같은 그룹 몽타주가 교체된 결과다. 일반 ABP에서도 같은 엔진 그룹 규칙이므로 이번 변경의 회귀는 아니다. 게임플레이 의도 여부는 별도 확인 대상이다.
+- 시작 프레임은 로그상 일반 경로와 같은 첫 틱이다. 다만 기존 ABP 폰과 같은 프레임에서 나란히 비교하지는 않았다.
+- 실제 이동량·방향·중단 동등성, 혼합 중복, 적도/재시뮬레이션, 네트워크는 여전히 미검증이다. Motion Warping·Mover 게이트는 미판정이다.
+
+## 44. 대시 캡슐 이동·표시 추종의 기존 ABP 비교(2026-11-02, 대시 대표 비교 단위 완료)
+
+사용자가 Motion Warping·Mover 게이트의 다음 단위로 대시 실제 이동 비교를 승인했다. C++/에셋은 바꾸지 않았다. 읽기 전용 샘플러로 같은 절차를 두 폰에서 측정했다.
+
+### 코드 경로 확인 — 현재 자산의 이동은 애니 그래프와 무관
+
+- `ExecuteDash`는 `FLayeredMove_LinearVelocity`(2000cm/s·0.2초, OverrideAllExceptVerticalVelocity)를 먼저, `FLayeredMove_AnimRootMotion`(OverrideAll)을 나중에 큐잉한다. 두 무브는 우선순위 0·시작 시각이 같다. `UMovementMixer::CheckPriority`는 동률이면 시작 시각이 **더 이른** 무브만 받아들이므로, 먼저 처리되는 선형 속도가 이동을 정한다. 몽타주 무브는 이동에 기여하지 않고, 재생이 끝나면 함께 종료되는 동기화 역할만 한다. `TechDesign_CharacterMovement.md` §5.1의 의도("루트 모션 추출은 쓰지 않아 대시 거리·속도를 코드로 제어")와 같다.
+- 몽타주 무브가 UAF에 의존하는 곳은 `Montage_IsPlaying/GetPosition`뿐이다. UAF가 원본 메시 인스턴스의 몽타주를 전진시키므로 성립한다(§42).
+- 검술 `AM_SW_Attack_01`은 이동량이 0이라 근접 보정이 선형 속도 Pull 경로다. 이 경로도 그래프와 무관하다(실측은 하지 않았다). 루트모션 워핑 경로는 루트모션이 실린 근접 에셋이 생겨야 검증할 수 있다. ForceMode=1로 대신 검증하지 않는다(사용자 결정, 근접 보정 두 경로 유지).
+
+### 측정 도구와 절차
+
+- `Scripts/AnimOverhaul/SampleDashMotion_5-2.py`(start/stop): 슬레이트 post-tick에서 로컬 폰의 위치·속도·방향, 활성 몽타주/위치, AnimSourceMesh·VisualMesh의 컴포넌트·root·pelvis 월드 위치를 매 틱 기록한다. 첫 실행은 API 이름 오류(`get_component_location`)로 매 틱 예외가 났다. `get_world_location`으로 고치고, 첫 예외에서 기록을 멈추게 보완했다.
+- `Scripts/AnimOverhaul/AnalyzeDashMotion_5-2.py`: 대시 구간별로 시작 Up 접평면의 이동량·방향, 최고 속도, 구간 안/종료 뒤 0.5초의 표시 pelvis-캡슐 거리와 원본 root-컴포넌트 거리를 요약한다.
+- 사용자가 라이플 장착 평지에서 제자리 무입력 대시 2회, W/A/D+대시 각 2회, 달리며 대시를 수행했다. UAF는 시험 GameMode(디스크 맵 값), Base는 운영 `BP_LNPGameMode`를 메모리에서만 지정해 측정했다. UAF 17회(59.7fps), Base 17회(50.7fps)다.
+
+### 결과
+
+| 항목 | UAF 시험 폰(`*_LyraFrame`) | 기존 ABP 폰(`*_UEFN`) |
+|:---|:---|:---|
+| 최고 속도 | 2000.0~2000.2cm/s | 1999.9~2000.7cm/s |
+| 제자리 뒤 대시 총 이동 | 479.4cm ×2 | 479.4cm ×2 |
+| 방향(시작 전방 기준) | 0/±90/180°, 대각 ±45/±135° | 0/±90/180°, 대각 ±46° |
+| 몽타주 구간 길이 | 뒤0.567·좌0.668·우0.585·전0.59~0.60초 | 뒤0.56~0.565·좌0.654~0.667·우0.585~0.594·전0.585~0.601초 |
+| 원본 root-컴포넌트(제자리 대시 중) | 0.2~0.3cm | 0.1~0.3cm |
+| 원본 root-컴포넌트(이동 대시 중/뒤) | 최대 28.8/30.0cm | 최대 28.6/30.0cm |
+| 표시 pelvis-캡슐 접평면(대시 중) | 31~84cm | 59~103cm |
+
+- 캡슐 이동·방향·몽타주 길이는 두 폰이 같다. 0.2초 창 이동량(352/384/320cm)의 차이는 표본 프레임 경계 양자화(2000cm/s × 한 프레임)라 판정에 쓰지 않는다.
+- 제자리 대시에서 원본 root가 컴포넌트에 붙어 있어, 몽타주 루트모션(전방 추출 860cm)이 포즈에 남거나 캡슐에 이중 적용되는 흔적이 없다. 이동 대시의 약 29~30cm는 직전 Interpolate 오프셋의 상한으로, 두 폰이 같다.
+- 표시 pelvis 거리는 대시 자세와 표시 갱신 시차(2000cm/s에서 한 프레임 33~39cm)가 섞인 값이다. 프레임률이 다르므로 정밀 비교 지표로 쓰지 않는다. UAF가 Base보다 크지 않아 메시 밀림 회귀는 없다.
+- UAF t=32.0초 왼쪽 대시 1회(최고 95cm/s·17cm)는 사용자 확인 결과 지형 프랍에 막힌 정상 표본이라 비교에서 뺐다.
+- 측정 중 Python 오류 0건이다. 종료 뒤 PIE=false·GameMode 메모리 복원(디스크 값)·맵 미저장이고, 연결14개/보호7개 해시는 §42 종료값과 같다. 근거는 `Saved/AnimationOverhaul/2026-11-02_UAF53DashCompare/`(UAF.json·Base.json·Summary.txt)다.
+
+### 판정과 남은 경계
+
+- **대시(현재 자산)의 캡슐 이동/방향/길이와 루트모션 비중복은 기존 ABP와 동등**하다. 근접 Pull 경로는 코드상 그래프와 무관하다.
+- 루트모션 워핑 경로는 해당 에셋이 없어 검증할 수 없다. 대시 중단 중 이동은 몽타주가 아니라 선형 속도 무브가 소유하므로 코드상 몽타주 중단과 무관하다. 다만 별도 실측은 하지 않았다(§43에서 발사가 대시 몽타주를 끊은 표본만 있다).
+- 적도/큰 기울기, 게스트 재시뮬레이션(Montage_IsPlaying 검사를 건너뜀), 리슨 2인 네트워크는 미검증이다. Motion Warping·Mover 게이트 전체는 여전히 미판정이다.
+
+### 근적도 대시 비교(2026-11-02, 같은 단위의 후속)
+
+- 평지 측정은 실제로 위도 81~87°(북극 근처)였다. 같은 샘플러로 `LNP.Debug.TeleportToReview PodTerraceSouth` 뒤 같은 절차를 반복했다. UAF는 슬롯2·위도 −3.2~+3.3°·19회, Base는 슬롯3·위도 −17.1~−0.9°·19회다.
+- 분석기에 시작 위도, 구간 동안 Up 회전량, 캡슐 기준 표시 메시 Up 방향 높이 변동 폭을 추가했다.
+
+| 항목 | UAF 근적도 | Base 근적도 | (참고) UAF 극지 |
+|:---|:---|:---|:---|
+| 제자리 뒤 대시 총 이동 | 479.5cm ×2 | 479.1/479.2cm | 479.4cm ×2 |
+| 최고 속도 | 1999.7~2002.1cm/s | 2000.0~2002.0cm/s | 2000.0~2000.2cm/s |
+| 방향 | 0/±90/180°, 대각 ±46° | 0/±90/180°, 대각 ±45/±135° | 같음 |
+| 몽타주 구간 길이 | 뒤0.555~0.568·좌0.653·우0.595~0.600·전0.585~0.599초 | 뒤0.553~0.569·좌0.651~0.659·우0.582~0.598·전0.587~0.601초 | 같은 범위 |
+| 제자리 대시 중 원본 root 이탈 | 0.4~0.6cm | 0.2~0.3cm | 0.2~0.3cm |
+| 대시 동안 Up 회전 | 0.92~1.64° | 0.92~1.64° | 0.92~1.48° |
+| 표시 메시 높이 변동 폭 | 0.4~4.0cm | 0.3~5.2cm | ≤0.4cm |
+
+- 적도에서도 캡슐 이동·방향·몽타주 길이가 두 폰에서 같다. 방향은 그 위치의 접평면 기준으로 정확하다. 제자리 총 이동의 0.3cm 차이는 슬롯별 지형 차이 범위다.
+- 근적도의 높이 변동 증가는 두 폰에 공통이며 Base가 오히려 더 크다. 테라스 지형 굴곡 탓이고 UAF 구면 보정의 회귀가 아니다. 제자리 대시 원본 root 이탈 0.4~0.6cm는 루트모션 중복(수백 cm 규모)과 무관한 크기다.
+- 측정 구간 Python/Error/ensure/Assertion 0건이다. 종료 뒤 PIE=false·GameMode 메모리 복원(디스크 값)·맵 미저장이고, 연결14개/보호7개 해시를 보존했다. 근거는 같은 폴더의 UAF_Equator.json·Base_Equator.json·Summary.txt(네 측정 통합)다.
+- **판정:** 현재 자산의 대시는 극지·근적도에서 기존 ABP와 동등하다. 정확한 위도 0 연속 구간·큰 경사·움직이는 base 위 대시, 대시 중단 실측, 게스트 재시뮬레이션·리슨 2인은 미검증이다. 루트모션 워핑 경로는 에셋이 없어 검증 대상이 아니다.

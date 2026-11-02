@@ -88,6 +88,9 @@ protected:
 	/** 오프셋 그립의 왼손이 그립을 떠나야 하는 정도(0~1). LeftHandIKAlpha 주석 참조. */
 	virtual float ComputeLeftHandOffDemand() const;
 
+	/** 전신 몽타주 판정(Offset Root Release)이 읽는 슬롯 활성. 기본은 엔진 IsSlotActive(Proxy 평가 사본, 워커 안전). */
+	virtual bool IsMontageSlotActive(FName SlotName) const;
+
 	/** 이 인스턴스가 AnimSourceMesh의 메인 인스턴스인가. 링크 레이어·표시 메시 ABP도 이 클래스를 부모로 쓰므로 로코모션 공급층(B0)은 메인에서만 돈다. */
 	bool IsLocomotionSource() const;
 

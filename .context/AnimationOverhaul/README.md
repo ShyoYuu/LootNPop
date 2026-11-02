@@ -74,7 +74,7 @@ UE 5.8 Game Animation Sample(이하 GASP)의 애니메이션 구성을 LootNPop�
 
 재장전의 `UpperBodyAdditive` 보조 트랙은 기존 ABP에서 의도적으로 생략한다(TechDesign_Ability.md §5.5·Phase05 §33/§41). UAF에도 소비 슬롯을 추가하지 않는다. 몽타주의 두 트랙과 런타임 그룹 등록은 그대로 유지한다.
 
-§42에서 기존 몽타주 직접 샘플링→Motion Warping→Mover 경로와 원본 메시 연결을 확인했고, 전신 몽타주 중 일반 Proxy 기반 활성 판정이 false여서 루트 회전 Release가 누락되는 문제를 재현했다. 아직 수정하지 않았으며 다음 세션의 첫 단위다. 읽기 전용 재현 스크립트는 `Scripts/AnimOverhaul/InspectUAFRootMotion_5-2.py`이고 실제 재생/Idle 사본·인계/승인 경계는 `Current.md`와 실행서 §42를 따른다. RootMotionAttribute를 추가하는 것으로 우회하지 않는다.
+§42에서 기존 몽타주 직접 샘플링→Motion Warping→Mover 경로와 원본 메시 연결을 확인했고, 전신 몽타주 중 일반 Proxy 기반 활성 판정이 false여서 루트 회전 Release가 누락되는 문제를 재현했다. §43에서 `IsMontageSlotActive` 재정의로 시험 경로가 실제 몽타주 인스턴스를 읽게 보완하고 대표 재검증했다. 읽기 전용 재현 스크립트는 `Scripts/AnimOverhaul/InspectUAFRootMotion_5-2.py`다. RootMotionAttribute를 추가하는 것으로 우회하지 않는다.
 
 **사용 중인 시퀀스를 배치 overwrite하지 않는다.** 기존 UObject 강제 삭제로 UAF 컴파일 참조가 무효화돼 첫 장착에서 크래시한 사례가 있다. 설정이 달라 재생성이 필요하면 새 출력 경로와 AG 재지정/Compile을 사용한다. 원본/공유 VS·Chooser·맵은 저장하지 않는다. 과거 `SetupUAFRifleAttachment.py`의 손 고정 후보는 이전 진단용이며 현재 후보 재생성 순서에 넣지 않는다. 선택 경로·검증/한계는 `phases/Phase05_UAFSpike.md` §37, 현재 진행 상태는 `Current.md`가 소유한다.
 

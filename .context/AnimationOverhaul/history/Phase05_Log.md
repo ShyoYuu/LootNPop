@@ -1210,3 +1210,19 @@ PIE=false·운영 GameMode·AG clean, 연결14개/보호7개/소스13개 해시 
 사용자 요청에 따라 다음 구현은 시작하지 않고 Current를 최신 첫 수정/검증 기준과 승인 경계·에디터/보존 상태 중심으로 정리했다. 즉시 사격 우선/현재 총열 보정 수용·발사 가산 소비·UpperBodyAdditive 의도적 생략·미수정 전신 몽타주 Release 판정 누락과 최종 게이트 미판정을 명확히 남겼다. 읽기 스크립트를 Scripts/AnimOverhaul/InspectUAFRootMotion_5-2.py로 추적해 Saved가 없는 환경의 재현 경로를 남겼다. 기존 성공 빌드/TestsTiming과 PIE/조사 결과를 재사용하며 새 빌드/PIE/녹화는 반복하지 않는다.
 
 새 MCP 읽기는 PIE=false·운영 BP_LNPGameMode·열린 에셋0·디버그3개0·RifleAim1이다. 커밋 전 빌드 C++13개·연결14개/보호7개 해시와 진단 스크립트 구문을 확인한다. 커밋은 소유한 C++/AG/스크립트/문서만 명시적으로 스테이징해 한 번에 만들고, 기존 사용자 변경4개는 제외한다. 메시지는 기존 feat 접두사·한국어 제목/항목 본문 양식을 따른다. 푸시/새 채팅 생성은 요청받지 않았다.
+
+## 2026-11-02 — §43 시험 공급층 전신 몽타주 활성 판정 보완
+
+사용자 승인으로 §42 판정 누락을 보완했다. `ULNPAnimInstance::IsMontageSlotActive`(protected virtual, 기본=엔진 IsSlotActive)를 추가하고, `IsFullBodyMontageActive`가 이를 쓰게 했다. UAF 시험 인스턴스는 명시적 드라이버일 때 게임 스레드에서 `MontageInstances`의 활성·슬롯을 직접 읽는다. 공급이 UAF 틱보다 앞이라 가중치 필터는 두지 않았다. DebugLocomotion≥1용 `[UAFRootMode]` 전환 로그를 추가했다. 일반 ABP 경로·슬롯 그룹·Mover 직접 샘플링은 바꾸지 않았다.
+
+에디터 종료 뒤 전체 빌드 10 actions·65.61초 성공(변경 cpp 2개 adaptive 제외). 1인 PIE에서 대시 4방향의 시작 프레임 Release/Release와 종료 뒤 Release·Interpolate/Accumulate 복귀, 연속 대시 유지, 발사·장전 단독 불변을 로그로 확인했다. slomo0.1 Pause 읽기는 AM_MM_Dash_Backward_LyraFrame 재생·0.139초·엔진 FullBody=false·루트 Release/Release다. 오류0, 기존 경고만 있다. 대시 직후 발사가 DefaultGroup 공유로 대시 몽타주를 끊은 표본 1건을 관찰했고, 기존 그룹 계약이라 회귀로 보지 않았다.
+
+종료 뒤 PIE=false·DebugLocomotion0·열린 에셋0, 연결14개/보호7개 해시 보존, 맵 미저장이다. 근거는 UAF52RootMotion/FixedDashInspection.json·FixedRootModeLog.log다. 커밋은 요청받지 않았다. Motion Warping·Mover 게이트(실제 이동/방향/중단·적도·재시뮬레이션·네트워크)는 미판정이다.
+
+## 2026-11-02 — §44 대시 캡슐 이동·표시 추종의 기존 ABP 비교
+
+엔진 믹서 동률 규칙상 대시 이동은 먼저 큐잉된 선형 속도 무브가 소유하고, 몽타주 루트모션 무브는 이동에 기여하지 않는다는 것을 확인했다. 읽기 전용 매 틱 샘플러(`SampleDashMotion_5-2.py`)와 요약기(`AnalyzeDashMotion_5-2.py`)를 추가했다. 첫 실행의 API 이름 오류는 고쳤고, 첫 예외에서 기록을 멈추도록 보완했다.
+
+UAF 시험 폰과 기존 ABP 폰에서 각 17회 대시를 측정했다. 최고 속도 2000cm/s, 제자리 뒤 대시 총 479.4cm, 입력 방향, 몽타주 길이, 원본 root-컴포넌트 거리(제자리 0.1~0.3cm, 이동 직전 오프셋 약 29~30cm)가 두 폰에서 같았다. 루트모션 이중 적용이나 메시 밀림 회귀는 없다. 프랍에 막힌 UAF 왼쪽 대시 1회는 사용자 확인 뒤 비교에서 뺐다. GameMode는 메모리에서만 바꾸고 디스크 값으로 복원했다. 맵은 저장하지 않았고 연결14/보호7 해시를 보존했다. 워핑 경로(에셋 없음), 대시 중단 실측, 적도·재시뮬레이션·네트워크는 미검증이다. 커밋은 요청받지 않았다.
+
+같은 날 후속으로 근적도(PodTerraceSouth) 비교를 했다. 앞선 평지 측정은 위도 81~87°였다. 분석기에 위도·Up 회전·표시 메시 높이 변동 지표를 추가했다. UAF(위도 ±3.3°)와 Base(위도 −17~−1°) 각 19회에서 제자리 뒤 대시 479.5/479.1~479.2cm, 최고 속도 2000cm/s, 접평면 기준 입력 방향, 몽타주 길이, Up 회전 0.92~1.64°가 같았다. 높이 변동(UAF 0.4~4.0cm, Base 0.3~5.2cm)은 두 폰 공통의 지형 영향이다. 오류 0건이다. GameMode는 디스크 값으로 복원했고 맵은 저장하지 않았으며 해시를 보존했다. 대시는 극지·근적도에서 기존 ABP와 동등하다고 판정했다. 경사·움직이는 base·중단 실측·재시뮬레이션·네트워크는 남는다.

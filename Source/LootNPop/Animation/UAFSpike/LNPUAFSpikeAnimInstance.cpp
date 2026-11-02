@@ -2,6 +2,7 @@
 
 #include "Animation/UAFSpike/LNPUAFSpikeAnimInstance.h"
 
+#include "Animation/AnimMontage.h"
 #include "Animation/UAFSpike/LNPUAFRootFeedback.h"
 #include "Animation/UAFSpike/LNPUAFMontageIKTrait.h"
 #include "Animation/UAFSpike/LNPUAFSpikePlayerCharacter.h"
@@ -201,9 +202,36 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 		bLastInputsSucceeded = bSucceeded;
 	}
 	const IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.Anim.DebugLocomotion"));
+	const uint8 RootModes = static_cast<uint8>(Inputs.OffsetRoot.TranslationMode) << 4 | static_cast<uint8>(Inputs.OffsetRoot.RotationMode);
+	if (Debug && Debug->GetInt() >= 1 && RootModes != LastLoggedRootModes)
+	{
+		LastLoggedRootModes = RootModes;
+		const UAnimMontage* Montage = GetCurrentActiveMontage();
+		UE_LOG(LogLootNPop, Log, TEXT("[UAFRootMode] owner=%s frame=%llu translation=%s rotation=%s montage=%s position=%.4f"),
+			*GetNameSafe(GetOwningActor()), GFrameCounter,
+			*StaticEnum<EOffsetRootBoneMode>()->GetNameStringByValue(static_cast<int64>(Inputs.OffsetRoot.TranslationMode)),
+			*StaticEnum<EOffsetRootBoneMode>()->GetNameStringByValue(static_cast<int64>(Inputs.OffsetRoot.RotationMode)),
+			*GetNameSafe(Montage), Montage ? Montage_GetPosition(Montage) : -1.0f);
+	}
 	if (Debug && Debug->GetInt() >= 2 && GFrameCounter % 60 == 0)
 		UE_LOG(LogLootNPop, Log, TEXT("[UAFWeapon] owner=%s serial=%lld inputs=%d rifle=%.1f aim=(%.2f,%.2f)"),
 			*GetNameSafe(GetOwningActor()), RootInputSerial, bSucceeded, Inputs.RifleOverlayWeight, Inputs.AimYaw, Inputs.AimPitch);
+}
+
+bool ULNPUAFSpikeAnimInstance::IsMontageSlotActive(FName SlotName) const
+{
+	if (!bExplicitDriver)
+		return Super::IsMontageSlotActive(SlotName);
+	// UAF의 TickMontageOnly는 몽타주 인스턴스만 전진시키고 Proxy 평가 사본(IsSlotActive가 읽는 곳)을 갱신하지 않는다.
+	// 엔진 UpdateMontageEvaluationData와 같은 기준(활성·슬롯)을 인스턴스에서 직접 읽는다. 공급이 UAF 틱보다 앞이라
+	// 이번 프레임에 재생된 몽타주는 가중치가 아직 0이므로 가중치 필터는 두지 않는다.
+	check(IsInGameThread());
+	for (const FAnimMontageInstance* Instance : MontageInstances)
+	{
+		if (Instance && Instance->Montage && Instance->IsActive() && Instance->Montage->IsValidSlot(SlotName))
+			return true;
+	}
+	return false;
 }
 
 float ULNPUAFSpikeAnimInstance::ComputeLeftHandOffDemand() const

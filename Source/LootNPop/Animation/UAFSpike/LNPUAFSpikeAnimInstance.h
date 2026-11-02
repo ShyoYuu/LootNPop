@@ -88,6 +88,7 @@ public:
 
 protected:
 	virtual float ComputeLeftHandOffDemand() const override;
+	virtual bool IsMontageSlotActive(FName SlotName) const override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|UAFSpike")
 	TObjectPtr<UUAFSystem> SpikeSystem;
@@ -105,6 +106,7 @@ private:
 	bool bWasFootPlacementEnabled = false;
 	uint64 LastDrivenFrame = MAX_uint64;
 	mutable uint64 LastHandIKLogFrame = MAX_uint64;
+	uint8 LastLoggedRootModes = MAX_uint8;
 
 	UPROPERTY(VisibleAnywhere, Category = "LNP|UAFSpike")
 	bool bExplicitDriver = false;
