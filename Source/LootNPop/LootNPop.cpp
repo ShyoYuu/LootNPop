@@ -15,7 +15,8 @@ public:
 		// UAF 공유 변수 Getter에서 사용할 네이티브 구조체를 RigVM에도 등록한다.
 		UScriptStruct* InputStructs[] = {
 			FLNPUAFSpikeRootInputs::StaticStruct(),
-			FLNPUAFSpikeFootPlacementInputs::StaticStruct()
+			FLNPUAFSpikeFootPlacementInputs::StaticStruct(),
+			FLNPUAFRifleAimInputs::StaticStruct()
 		};
 		FRigVMRegistry& Registry = FRigVMRegistry::Get();
 		Registry.RegisterStructTypes(MakeArrayView(InputStructs));

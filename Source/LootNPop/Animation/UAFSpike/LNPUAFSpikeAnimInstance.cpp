@@ -4,20 +4,25 @@
 
 #include "Animation/UAFSpike/LNPUAFRootFeedback.h"
 #include "Animation/UAFSpike/LNPUAFMontageIKTrait.h"
+#include "Animation/UAFSpike/LNPUAFSpikePlayerCharacter.h"
 #include "Character/LNPCharacterBase.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "ChooserFunctionLibrary.h"
 #include "Component/AnimNextComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Graph/AnimNextAnimationGraph.h"
 #include "HAL/IConsoleManager.h"
 #include "Item/LNPWeaponVisualSet.h"
+#include "Item/LNPWeaponData.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 #include "Module/AnimNextModule.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "MoveLibrary/BasedMovementUtils.h"
 #include "PoseSearch/PoseSearchDatabase.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "Variables/AnimNextVariableReference.h"
 
 void ULNPUAFSpikeAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
@@ -85,7 +90,7 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	{
 		if (bExplicitDriver)
 		{
-			UAFComponent->AddPrerequisite(GetOwningActor(), GetOwningActor()->PrimaryActorTick, TEXT("PrePhysics"));
+			UAFComponent->AddComponentPrerequisite(GetOwningActor()->FindComponentByClass<ULNPUAFSpikeInputComponent>(), TEXT("PrePhysics"));
 			// 표시 ABP가 이번 UAF 출력과 완료된 슬롯 가중치를 함께 읽게 한다.
 			TInlineComponentArray<USkeletalMeshComponent*> Meshes(GetOwningActor());
 			for (USkeletalMeshComponent* Mesh : Meshes)
@@ -147,6 +152,26 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	// 기존 공급층이 완료된 UAF 루트를 기준으로 계산한 접평면 조준값을 그대로 전달한다.
 	Inputs.AimYaw = AimYaw;
 	Inputs.AimPitch = AimPitch;
+	if (Inputs.RifleOverlayWeight > 0.0f && OwningMoverCharacter->IsLocallyControlled())
+	{
+		const auto* Handler = OwningMoverCharacter->FindComponentByClass<ULNPInputHandlerComponent>();
+		const auto* Weapon = OwningMoverCharacter->GetWeaponMesh();
+		const auto* Parent = Weapon ? Cast<USkeletalMeshComponent>(Weapon->GetAttachParent()) : nullptr;
+		const ULNPWeaponData* Definition = OwningMoverCharacter->GetActiveWeaponDef();
+		if (Handler && Parent && Definition && Weapon->DoesSocketExist(TEXT("Muzzle"))
+			&& Weapon->GetAttachSocketName() == TEXT("weapon_r")
+			&& Parent->GetSkeletalMeshAsset() == GetSkelMeshComponent()->GetSkeletalMeshAsset()
+			&& Handler->GetCrosshairAimPoint(Inputs.RifleAim.AimTarget))
+		{
+			Inputs.RifleAim.bEnabled = true;
+			Inputs.RifleAim.ViewDirection = OwningMoverCharacter->GetControlRotation().Vector();
+			Inputs.RifleAim.MeshWorld = Parent->GetComponentTransform();
+			Inputs.RifleAim.MuzzleInWeaponBone = Weapon->GetSocketTransform(TEXT("Muzzle"), RTS_Component) * Weapon->GetRelativeTransform();
+			Inputs.RifleAim.MuzzleOffsetWorld = OwningMoverCharacter->GetActorTransform().TransformVector(Definition->MuzzleOffset);
+			Inputs.RifleAim.ActorLocation = OwningMoverCharacter->GetActorLocation();
+			Inputs.RifleAim.WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+		}
+	}
 
 	const auto SetInput = [UAFComponent](FName Name, const auto& Value)
 	{
@@ -164,6 +189,7 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, RifleOverlayWeight), Inputs.RifleOverlayWeight);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, AimYaw), Inputs.AimYaw);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, AimPitch), Inputs.AimPitch);
+	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, RifleAim), Inputs.RifleAim);
 	bWasFootPlacementEnabled = Inputs.FootPlacement.bEnabled;
 
 	if (!bHasReportedInputs || bSucceeded != bLastInputsSucceeded)

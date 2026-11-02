@@ -33,6 +33,8 @@ struct FLNPUAFHandIKFeedback : public FUAFModuleInstanceComponent
 	virtual void OnEndExecution(float InDeltaTime) override;
 	void RecordSlot(int32 Index, float LocalWeight, float GlobalWeight);
 	FLNPUAFHandIKSnapshot Read() const;
+	/** UAF의 갱신 순회 완료 뒤, 같은 실행의 평가 순회에서만 읽는다. GT는 Read를 사용한다. */
+	FLNPUAFHandIKSnapshot ReadCurrentUpdate() const;
 
 private:
 	FLNPUAFHandIKSnapshot Pending;

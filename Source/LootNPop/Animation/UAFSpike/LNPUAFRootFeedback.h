@@ -7,7 +7,22 @@
 #include "Module/UAFModuleInstanceComponent.h"
 #include "LNPUAFRootFeedback.generated.h"
 
-/** 평가 task의 완료된 루트만 게임 스레드에 사본으로 전달한다. UObject나 trait 상태를 노출하지 않는다. */
+/** 발사 진단이 비교하는 마지막 총열 평가 사본. UObject나 워커 포인터를 포함하지 않는다. */
+struct FLNPUAFRifleAimSnapshot
+{
+	uint64 EvaluationFrame = 0;
+	int64 InputSerial = 0;
+	float Alpha = 0.0f;
+	bool bHasPose = false;
+	FTransform MeshWorld = FTransform::Identity;
+	FVector AimTarget = FVector::ZeroVector;
+	FVector ViewDirection = FVector::ForwardVector;
+	FVector MuzzleWorld = FVector::ZeroVector;
+	FVector SpawnWorld = FVector::ZeroVector;
+	FVector BarrelWorld = FVector::ForwardVector;
+};
+
+/** 완료된 루트와 선택적 총열 진단을 게임 스레드에 사본으로 전달한다. */
 USTRUCT()
 struct FLNPUAFRootFeedback : public FUAFModuleInstanceComponent
 {
@@ -30,11 +45,25 @@ struct FLNPUAFRootFeedback : public FUAFModuleInstanceComponent
 		return bHasRoot;
 	}
 
+	void PublishRifleAim(const FLNPUAFRifleAimSnapshot& Snapshot)
+	{
+		FScopeLock Lock(&Mutex);
+		RifleAim = Snapshot;
+		RifleAim.InputSerial = InputSerial;
+	}
+
+	FLNPUAFRifleAimSnapshot ReadRifleAim() const
+	{
+		FScopeLock Lock(&Mutex);
+		return RifleAim;
+	}
+
 private:
 	mutable FCriticalSection Mutex;
 	FTransform RootTransform = FTransform::Identity;
 	int64 InputSerial = 0;
 	bool bHasRoot = false;
+	FLNPUAFRifleAimSnapshot RifleAim;
 };
 
 template<>

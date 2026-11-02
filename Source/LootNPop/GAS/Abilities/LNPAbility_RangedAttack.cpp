@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GAS/Abilities/LNPAbility_RangedAttack.h"
+#include "Animation/UAFSpike/LNPUAFRifleAimTrait.h"
 #include "Item/LNPWeaponData.h"
 #include "HitDetection/LNPProjectileMassTypes.h"
 #include "HitDetection/LNPFireGeometry.h"
@@ -180,6 +181,8 @@ void ULNPAbility_RangedAttack::SpawnProjectile(const FGameplayAbilityActivationI
 					bHasTarget ? AngleDegrees(ShotDirection, AimTarget - SpawnPos) : -1.0, bHasTarget ? FVector::Dist(SpawnPos, AimTarget) : -1.0,
 					FVector::Dist(SpawnPos, SocketPosition), BarrelInView.Yaw, BarrelInView.Pitch, ShotInView.Yaw, ShotInView.Pitch,
 					WeaponDef->ProjectileSpeed, SharedData.GravityAccel);
+				LNPUAFRifleAim::LogFireComparison(*Character, SocketPosition, BarrelDirection, SpawnPos,
+					ShotDirection, ViewDirection, bHasTarget ? &AimTarget : nullptr);
 			}
 		}
 	}

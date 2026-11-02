@@ -5,6 +5,7 @@
 #include "Animation/LNPAnimInstance.h"
 #include "AlphaBlend.h"
 #include "Animation/UAFSpike/LNPUAFSpikeRootInputs.h"
+#include "Animation/UAFSpike/LNPUAFRifleAimTrait.h"
 #include "LNPUAFSpikeAnimInstance.generated.h"
 
 class UUAFAnimGraph;
@@ -69,6 +70,9 @@ struct LOOTNPOP_API FLNPUAFSpikeInputs
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rifle Overlay")
 	float AimPitch = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rifle Aim")
+	FLNPUAFRifleAimInputs RifleAim;
 };
 
 /** 기존 공급값을 UAF 표시 메시 시험에 전달한다. 명시적 드라이버에서는 숨김 그래프를 평가하지 않는다. */

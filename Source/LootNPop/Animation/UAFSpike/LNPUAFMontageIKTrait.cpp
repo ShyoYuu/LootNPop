@@ -36,6 +36,13 @@ FLNPUAFHandIKSnapshot FLNPUAFHandIKFeedback::Read() const
 	return Completed;
 }
 
+FLNPUAFHandIKSnapshot FLNPUAFHandIKFeedback::ReadCurrentUpdate() const
+{
+	FLNPUAFHandIKSnapshot Snapshot = Pending;
+	Snapshot.bValid = SeenSlots == 7 && !bDuplicateSlot;
+	return Snapshot;
+}
+
 namespace UE::UAF
 {
 	AUTO_REGISTER_ANIM_TRAIT(FLNPUAFMontageIKTrait)

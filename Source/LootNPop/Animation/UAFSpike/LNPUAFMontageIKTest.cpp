@@ -17,6 +17,8 @@ bool FLNPUAFMontageIKTest::RunTest(const FString& Parameters)
 	Feedback.RecordSlot(1, 0.8f, 0.6f);
 	Feedback.RecordSlot(0, 0.0f, 0.12f);
 	TestFalse(TEXT("Incomplete execution is not published"), Feedback.Read().bValid);
+	TestTrue(TEXT("Evaluation can consume the current update before publication"), Feedback.ReadCurrentUpdate().bValid);
+	TestTrue(TEXT("Evaluation uses current slot demand"), FMath::IsNearlyEqual(Feedback.ReadCurrentUpdate().GetDemand(0), 0.48f, 1.e-6f));
 	Feedback.OnEndExecution(0.016f);
 	const FLNPUAFHandIKSnapshot First = Feedback.Read();
 	TestTrue(TEXT("All three slots completed"), First.bValid);
@@ -27,6 +29,7 @@ bool FLNPUAFMontageIKTest::RunTest(const FString& Parameters)
 	Feedback.OnBeginExecution(0.016f);
 	TestEqual(TEXT("Readers retain the completed execution while updating"), Feedback.Read().Serial, First.Serial);
 	Feedback.RecordSlot(2, 0, 1);
+	TestFalse(TEXT("Missing current slots keep aim correction disabled"), Feedback.ReadCurrentUpdate().bValid);
 	Feedback.OnEndExecution(0.016f);
 	TestFalse(TEXT("Missing slots invalidate the new execution"), Feedback.Read().bValid);
 	TestEqual(TEXT("Missing slots do not retain previous montage demand"), Feedback.Read().GetDemand(0), 0.0f);
@@ -35,6 +38,7 @@ bool FLNPUAFMontageIKTest::RunTest(const FString& Parameters)
 	for (int32 Index = 0; Index < 3; ++Index)
 		Feedback.RecordSlot(Index, 0, 1);
 	Feedback.RecordSlot(0, 1, 1);
+	TestFalse(TEXT("Duplicate current traversal keeps aim correction disabled"), Feedback.ReadCurrentUpdate().bValid);
 	Feedback.OnEndExecution(0.016f);
 	TestFalse(TEXT("Duplicate slot traversal cannot masquerade as one update"), Feedback.Read().bValid);
 

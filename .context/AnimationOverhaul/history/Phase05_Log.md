@@ -1134,3 +1134,79 @@
 - 사용자 선택 뒤 패널 스크롤은 computer-use 스킬로 수행했다. 새 녹화/에셋 저장/코드 변경 없이 읽었고 이후 MCP StopPIE·PIE=false를 확인했다. DebugLocomotion/DebugNotifies를 콘솔에서0으로 바꾸고 DebugFireAim 포함0/0/0을 재읽었다. 운영 BP_LNPGameMode는 WorldSettings 메모리만 복원하고 맵은 저장하지 않았다. 열린 에셋0·Slate observer 해제를 확인했다.
 - PIE 종료 뒤 BP/S/AG·마스크·LyraWeaponContract10개, 총14개 is_dirty=false다. 실제 BP의 새 Chooser/라이플 데이터와 AG 새 Idle/AO 의존성도 확인했다. 사용자4개/공유 VS·DA·Chooser3개 해시는 모두 이전과 같다. ClosureEditorReads/SourceHashes/ConnectedAssetHashes/UserAndSharedHashes_2026-11-02에 남겼다. AG20662985…C328FD6·BP34354E9C…93D63A0이며 전체 해시는 해당 JSON이 소유한다.
 - **§37 라이플 기본 자세/AO 최소 연결 단위는 사용자 대표 관찰·실제 평가 경로·근적도 회귀와 종료 정리까지 완료**다. 정밀 총열 보정은 사용자 결정대로 다음 별도 세션으로 넘겼고 Current에 승인 범위·기존 조준점 캐시·발사 계측/한계를 기록했다. FullBodyAdditivePreAim 슬롯 소비·모든 무기/위도·네트워크·5-2/최종 일곱 게이트/Go-No-Go는 통과로 확대하지 않는다. 새 커밋/푸시/새 채팅 생성은 하지 않았다.
+
+## 2026-11-02 — §38 정밀 총열 보정 코드·빌드/자동화 통과, GUI 대기
+
+- 사용자 에디터 종료 회신 후 Development 전체 빌드. 테스트 FReferencePose 이름 충돌과 transient 본 이름 매핑 누락을 수정했다. 첫 빌드/실패 테스트 보고서는 삭제하지 않았다. 보정 task 자체의 수치 수정으로 통과시킨 것은 아니다.
+- RifleAim 공유 입력·최종 keyframe 보정 트레이트와 시험 폰 입력 공급 컴포넌트, 같은 실행 슬롯 피드백 소비를 구현했다. 기존 RigVM 목록에 새 구조체 등록. 최종 빌드5 actions·34.60초 성공/종료0, TestsFinal의 RifleAim/HandIKFeedback2개 Success·경고/오류0·0.033초·종료0.
+- transient 포즈216회 중 완전 보정72조건 오차0.01° 미만·양손 상대 자세/자식/하체/커브 보존·슬롯/커브 차단을 확인했다. 실제 에셋/벽 클리핑·모든 LOD/스케일·표시 IK/반동·발사 입력과 평가의 시차/네트워크는 미검증이다.
+- Saved/AnimationOverhaul/2026-11-02_UAF52RifleAim/에 사본/해시·Build*.log·Tests/TestsRetry/TestsFinal을 보존했다. 시험3개/사용자4개 해시 동일. GUI/PIE·맵 저장·커밋/푸시는 하지 않았다.
+- 에디터 재실행·S/AG RifleAim 입력 확인·최종 CR Passthrough Blend 스택에 LNP Rifle Aim 추가와 Inputs 연결/Compile/Save를 수동 요청한다. §38 단위는 계속 미완료이며 실제 발사·장전/대시·구면 회귀 뒤 완료와 다음 진행 여부를 확인한다.
+
+### §38 첫 PIE 판독(2026-11-02)
+
+사용자 시각 결과는 어색함 없음이다. FirstPIE.log/FirstPIESummary.json에27발(첫 피스톨1·라이플 활성구간26)을 보존했다. 라이플 원거리10발89.11~101.06m는≤0.000001°, 근거리16발 중13발은≤0.000061°이고3발0.054958/0.043354/1.101815°는 잔여로 남긴다. 마지막 예외 직전 Moving speed796·앞선 두 예외 직전 Idle speed169이나 간헐 로그이므로 원인은 미확정이다. 입력/IK71표본 모두정상·완전보정task56표본≤0.000003°·장전/대시 보정0→1복귀 확인. PIE 오류/ensure/MM순서0·Foley94, CR 앞72창 거리≤30/Yaw≤90/Tilt0·위도−87.51~−79.93°라 적도는 남았다. 같은 PIE에서 벽을 향한 고정 시점의 좌우 이동5발/정지1초후5발을 요청한다. 새 구현/빌드나 종료는 하지 않았고 단위는 미완료다.
+
+### §38 이동 재현·시차 진단 보강(2026-11-02)
+
+MoveStopPIE/MoveStopSummary에 추가53발을 보존했다. 직전 이동 표본41발 중앙0.122272°/최대1.201287°·마지막 충분히 정지한10발≤0.000001°로 이동 잔차가 재현됐다. 실제 마지막 정지 거리는51.3m이며 요청한5~10m로 단정하지 않는다.1발은 시선 fallback(수직 이탈 약210cm>150cm)으로 분리했다. 새 Error/ensure0·Foley171. 원인은 아직 미확정이다.
+
+사용자 PIE/에디터 종료 회신 뒤 최소 FireAimPose/FireAimPoseInputs 진단을 추가했다. task의 입력/평가 프레임과 마지막 계산 총열 사본을 잠금으로 읽어 발사 순간의 조준점/시선·메시/표시 총열과 비교한다. 시뮬레이션/포즈 정책은 변경하지 않았다. 직접 헤더 누락1건 수정 후 빌드4 actions·10.24초 성공/종료0, TestsTiming의2개 회귀 Success·테스트 경고/오류0·종료0. BeforeTiming*·BuiltTimingSourceHashes/TimingAssetHashes로 소스 사본/해시와 사용자/시험 에셋 보존을 기록했다. 에디터 재실행 뒤 기존 그래프 그대로 이동5발/정지5발 진단을 수동 요청한다. 단위는 미완료이며 적도·후속 종료 정리도 남았다.
+
+### §38 발사 시차 진단 완료·후속 처리 순서 단위 진행 확인(2026-11-02)
+
+TimingPIE/TimingSummary에서 새27발 중 직접 비교 가능한20쌍을 읽었다. 모두 evalFrame=N−1/fire=N·alpha1이다. 정지6발은 메시 이동0/오차0°, 이동14발은 메시12.78~13.76cm 이동·표시 총열/재배치 평가 총열0°·실탄 차이0.003765~0.125109°다. 그중 조준점/시선 동일12발도0.084818~0.125109°라 일반 이동 잔차의 원인은 평가 뒤 메시가 이동한 시차로 특정했다. 표적 변화2발·보정 차단과 겹친 미짝지음6발과 초기 비라이플1발은 분리한다. 대시/모든 포즈의 전체 잔차를 같은 원인으로 확정하지 않는다.
+
+시차 진단은 완료지만 정밀 이동 정렬은 미완료다. 입력은 현재 즉시 발동/발동 순간 조준 스냅샷 RPC 계약이므로 다음 단위의 표시 포즈/사격 처리 순서 보완은 사용자 진행 확인 뒤 검토한다. 지연/스냅샷 변경 필요시 영향을 구체적으로 결정한다. 이번 회신은 소스/에셋 변경·빌드 없이 로그 판독/문서 갱신만 했다. PIE는 유지하며 종료 정리·적도/최종 게이트는 남았다.
+
+## 2026-11-02 — §39 사격 처리 순서 조사·발사 보류 선호 확인
+
+사용자 후속 진행 승인 뒤 즉시 발사 보존 경로를 조사했다. 현재 Controller→Actor/입력/ControlRotation→UAF→표시 사슬에서 Controller의 UAF 의존성을 단순 추가하면 순환한다. 활성 표시 ABP 직접 버퍼 쓰기/한 프레임 전체 재평가는 최소 안전 후보로 채택하지 않았다. 검토 후보는 시험 라이플의 입력 조준 사본을 보존하고 동일 입력의 표시/무기 출력 뒤 GAS를 실제 발동하는 것이다. 최대1프레임 보류와 실제 발동 기준 탄약·쿨다운 시점 변경 가능성을 사용자에게 명시해 선택을 요청했다. 아직 응답/승인 전이며 새 코드/에셋 변경·빌드/PIE는 없다. 실제 새 읽기는 PIE=false다. 세부 경계는 Phase05 실행서 §39를 따른다.
+
+## 2026-11-02 — AN-025 즉시 사격 우선·현재 보정 유지
+
+사용자는 현재 육안 품질이 충분하므로 실제 발사 지연을 최소화하고 일반 이동의 한 프레임 시차 잔차를 허용하도록 결정했다. Simulated Proxy의 정밀 총열 정렬도 추가 개선 범위에서 제외했다. §39의 GAS/RPC/예측 고스트 보류 후보는 미채택으로 종료하며, 소스 구현 전이므로 보류 코드 원복은 없다. 현재 즉시 GAS 발동과 매 프레임 UAF 보정을 유지한다. 사격과 UAF는 동일 조준 캐시를 각 시점에 읽으며 발동 사본을 고정 공유하는 것은 아니라고 설명했다. 결정은 Decisions.md의 AN-025에 기록했다. 이번에는 문서만 변경했고 §38의 근적도 대표 회귀/종료 정리는 남아 있다.
+
+## 2026-11-02 — §38 품질 수용·추가 계측 생략·근적도 육안 회귀 요청
+
+사용자는 현재 동작을 충분하다고 수용하고 추가 실측을 의심이 생겼을 때로 미룬 채 다음 구현 단위로 진행하도록 요청했다. 현재 단위의 남은 근적도 육안 회귀/종료 정리를 먼저 진행한다. TestMap03·시험 GameMode·PIE=false·디버그3개0을 읽었고, 기존 빌드 소스13개와 직전 계측의 시험3개/사용자4개 해시가 모두 일치했다. ClosureBeforeManual_2026-11-02에 비교를 보존했다. 사용자에게 1인 PIE에서 PodTerraceSouth로 리스폰해 라이플 조준·이동 사격·장전·장전 중 대시/복귀를 확인한 뒤 PIE 종료/이상 여부를 회신하도록 요청했다. 녹화·정밀 계측·재빌드는 요청하지 않았고 소스/에셋도 수정하지 않았다. 회신과 종료 정리 결과는 아직 대기다.
+
+## 2026-11-02 — §38 근적도 육안 회귀/종료 정리 완료
+
+사용자가 요청한 대표 동작 정상과 PIE 종료를 회신했다. 새 PIE 로그에서 PodTerraceSouth slot1 재스폰·월드 종료/Cleanup과 오류/ensure/MM 순서 오류0을 확인했다. 기존 Foley 경고305개·GameplayCue 경로 fallback1개·EnemyDensity0 설정 경고1개는 남는다. 새 정밀 계측이나 녹화/빌드/자동화는 하지 않았다.
+
+PIE=false 뒤 운영 BP_LNPGameMode를 메모리 복원/재읽었고 맵은 저장하지 않았다. 시험14개 clean·열린 에셋0·RifleAim1을 확인했다. 켜져 있던 DebugLocomotion2/DebugFireAim1은 사용자 수동 명령 뒤 각각0으로 재읽었고 DebugNotifies도0이다. 빌드 소스13개·연결14개·사용자4개/공유3개 해시 보존을 확인했다. 근거는 UAF52RifleAim/ClosureVisualPIE/VisualSummary·ClosureEditorReads/BeforeManual/ConnectedHashes/ProtectedHashes_2026-11-02다. §38은 AN-025의 품질 수용 기준으로 완료하며 전체 Phase5 게이트는 미판정이다. 다음 제안은 FullBodyAdditivePreAim 발사 슬롯 최소 연결이고 착수 전 사용자 진행 확인을 받는다.
+
+## 2026-11-02 — §40 발사 슬롯 최소 연결 승인·GUI 컴파일 확인
+
+사용자 승인 뒤 기존 ABP의 FullBodyAdditivePreAim 위치와 시험 발사 사본의 메시 공간 가산 방식을 확인했다. 엔진 MontageTrait→PushAnimSequenceKeyframe/DecompressionTools→ApplyAdditiveKeyframe의 메시 공간 가산 분기가 있어 새 어댑터/C++ 없이 native 슬롯을 재사용한다. 사격 가산 슬롯은 기존과 같이 IK 차단 대상에서 제외하고 기존 세 슬롯 피드백/최종 총열 보정을 유지한다.
+
+PIE=false·AG clean과 연결14개/보호7개 해시 보존을 확인하고 UAF52RifleFire/Before*에 백업했다. 사용자에게 기존 DefaultSlot 복제·복제본 IK Feedback 제거·Slot Name 변경·Always Update Source=true/Disable Synchronization=false·DefaultSlot 앞 연결을 요청했다. 사용자 완료 회신 뒤 화면에서 배선/설정과 최종 컴파일153.182ms 성공·AG clean을 확인했다. AG만4C7DC270…5F996B6으로 변경됐고 빌드 소스13개는 그대로다. 복제 중 editor data/기존 AlphaBlend import 경고는 보존했다.
+
+시험 GameMode를 메모리 지정/재읽고 사용자에게 DebugLocomotion2·Rewind 녹화에서 정지 사격/이동 연사/장전 뒤 사격/장전 중 대시 취소 뒤 사격을 확인한 뒤 녹화 중지·PIE 일시정지를 요청했다. 실제 가산 평가는 같은 녹화의 사격 한 프레임에서 확인할 예정이다. 아직 결과 대기이며 §40 단위 완료/종료 정리는 하지 않았다. 새 빌드/자동화·발사 시차 정밀 계측·맵 저장은 없다.
+
+## 2026-11-02 — §40 사격 가산 대표 검증/종료 완료
+
+사용자가 요청한 사격/장전/대시 조합의 반동·그립·조준·복귀 정상을 회신했다. HandIK100표본 모두valid1·애니 오류/ensure/MM 순서 오류0이다. 녹화 종료 시 LogTrace 연결 오류64가1개 있으며 기존 Foley80개·CPU metadata 중복 경고도 보존했다. 선택한 사격 프레임은 정상 조회돼 EvaluationProgram28 task 중21의 MM_Rifle_Fire_LyraFrame(0.039249초)→22 Apply Additive→23~27 루트/CR/Rifle Aim을 확인했다. Tasks는 시스템 트랙의 하위 EvaluationProgram을 선택해야 보인다는 사용자 보완을 기록했다.
+
+사용자 종료/디버그 해제 뒤 PIE=false·운영 GameMode 메모리 복원·맵 미저장·시험14개clean·열린 에셋0·디버그3개0·RifleAim1을 확인했다. 연결14개·보호7개·소스13개 해시 보존과 읽기용 observer 해제를 확인했다. AG만 바뀌었고 C++/빌드/자동화·커밋은 추가하지 않았다. UAF52RifleFire의 EvaluationProof/TasksRaw·FirstPIE/Summary·Closure*와 RewindDebugger-LootNPop-Editor-20261102_125719631.utrace가 근거다. §40는 대표 범위에서 완료하며 다음 UpperBodyAdditive 확인/최소 연결은 사용자 승인 전이다. 최종 Phase5 게이트는 미판정이다.
+
+## 2026-11-02 — §41 UpperBodyAdditive 기존 생략 확인·변경 없이 종료
+
+사용자 승인 뒤 재장전 보조 가산의 기존 합성 위치를 조사했다. 실제 메인 ABP Slot5개와 라이플 서브 ABP 세 그래프에 UpperBodyAdditive가 없고 PostProcess는 직접 통과다. TechDesign_Ability.md §5.5와 Phase05 §33에서 보조 트랙을 의도적으로 생략한다고 이미 명시한 것을 재확인했다. 앞선 다음 단위 제안은 이 규약을 놓친 판단이었으며 사용자에게 설명하고 새 연결 전에 바로잡았다. 몽타주의 두 트랙/그룹은 유지하고 소비 슬롯을 추가하지 않는다.
+
+PIE=false·운영 GameMode·AG clean, 연결14개/보호7개/소스13개 해시 모두 §40 종료와 같음을 확인했다. UAF52ReloadAdditiveReview/EditorReads·PreservedConnected/Protected/SourceHashes에 근거를 남겼다. 새 소스/에셋 변경·PIE/녹화·빌드/자동화·수동 조작 요청은 없다. §41 확인 단위는 완료하며 다음 미검증 게이트인 몽타주 루트모션→Mover·Motion Warping 연동 조사는 사용자 진행 확인 전이다.
+
+## 2026-11-02 — §42 루트모션 전달 조사·전신 몽타주 Release 누락 재현
+
+사용자 승인 뒤 동기 NetworkPrediction의 FLayeredMove_AnimRootMotion이 몽타주 에셋을 시뮬레이션 시간으로 직접 샘플링하고 기존 MotionWarpingMoverAdapter를 거쳐 월드 이동으로 바꾸는 경로를 대조했다. 시험 폰의 PrimaryVisual=AnimSourceMesh·RootMotionAttribute feature=false·모듈 ToggleRootMotion 없음도 실제 읽기로 확인했다. 현재 에셋의0.2초 창 스캔에서 검술/뒤 대시는 이동0, 전방/좌우 대시는 이동이 있어 향후 유효한 검증 후보를 구분했다. 이 수치를 실제 물리 이동/섹션별 워프 창 통과로 해석하지 않는다.
+
+읽기 전용 InspectRootMotion.py의 첫 GameplayTag 생성자 오류는 import_text 방식으로 수정하고 재실행 성공했다. 일반 Proxy 데이터만 보는 IsSlotActive와 UAF 몽타주 별도 데이터의 차이를 찾아, slomo0.1·대시 중 Pause에서 재현했다. 실제 에셋은 AM_MM_Dash_Backward_LyraFrame, 재생=true·위치0.1293199초이나 FullBody=false·루트 회전 Accumulate였다. 기존 Release 계약이 누락되는 판정 문제를 확인했고 소스 보완은 아직 하지 않았다. 이동 모드는 당시 Release여서 이동 모드 오류까지 재현했다고 주장하지 않는다.
+
+사용자 slomo1 복원/PIE 종료와 명령/Cleanup 로그를 확인하고 운영 GameMode를 메모리 복원/재읽었다. AG/S/BP clean·열린 에셋0·디버그3개0·연결14개/보호7개/소스13개 해시 보존이며 맵 미저장·새 게임 소스/에셋/빌드 변경은 없다. UAF52RootMotion/IdleInspection/DashInspection·InspectionLogTail·Closure*가 근거다. §42 조사 단위는 완료하고 다음 시험 공급층 전신 몽타주 판정 보완/재검증은 사용자 확인 전이다. 실제 이동/워핑·중단/재시뮬레이션 게이트는 미판정이다.
+
+## 2026-11-02 — §38~§42 새 세션 인계·단일 커밋 준비
+
+사용자 요청에 따라 다음 구현은 시작하지 않고 Current를 최신 첫 수정/검증 기준과 승인 경계·에디터/보존 상태 중심으로 정리했다. 즉시 사격 우선/현재 총열 보정 수용·발사 가산 소비·UpperBodyAdditive 의도적 생략·미수정 전신 몽타주 Release 판정 누락과 최종 게이트 미판정을 명확히 남겼다. 읽기 스크립트를 Scripts/AnimOverhaul/InspectUAFRootMotion_5-2.py로 추적해 Saved가 없는 환경의 재현 경로를 남겼다. 기존 성공 빌드/TestsTiming과 PIE/조사 결과를 재사용하며 새 빌드/PIE/녹화는 반복하지 않는다.
+
+새 MCP 읽기는 PIE=false·운영 BP_LNPGameMode·열린 에셋0·디버그3개0·RifleAim1이다. 커밋 전 빌드 C++13개·연결14개/보호7개 해시와 진단 스크립트 구문을 확인한다. 커밋은 소유한 C++/AG/스크립트/문서만 명시적으로 스테이징해 한 번에 만들고, 기존 사용자 변경4개는 제외한다. 메시지는 기존 feat 접두사·한국어 제목/항목 본문 양식을 따른다. 푸시/새 채팅 생성은 요청받지 않았다.

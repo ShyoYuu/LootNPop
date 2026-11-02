@@ -4,15 +4,42 @@
 
 #include "Animation/UAFSpike/LNPUAFSpikeAnimInstance.h"
 #include "Animation/UAFSpike/LNPUAFNotifyCleanup.h"
+#include "Camera/LNPControlRotationComponent.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "Component/AnimNextComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "LootNPop.h"
 
+ULNPUAFSpikeInputComponent::ULNPUAFSpikeInputComponent()
+{
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.TickGroup = TG_PrePhysics;
+}
+
+void ULNPUAFSpikeInputComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	AddTickPrerequisiteActor(GetOwner());
+	AddTickPrerequisiteComponent(GetOwner()->FindComponentByClass<ULNPInputHandlerComponent>());
+	AddTickPrerequisiteComponent(GetOwner()->FindComponentByClass<ULNPControlRotationComponent>());
+	if (auto* UAF = GetOwner()->FindComponentByClass<UUAFComponent>())
+		UAF->AddComponentPrerequisite(this, TEXT("PrePhysics"));
+}
+
+void ULNPUAFSpikeInputComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	const auto* Character = CastChecked<ALNPUAFSpikePlayerCharacter>(GetOwner());
+	if (auto* Source = Cast<ULNPUAFSpikeAnimInstance>(Character->GetAnimInstance()))
+		Source->UpdateFromDriver(DeltaTime);
+}
+
 ALNPUAFSpikePlayerCharacter::ALNPUAFSpikePlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	PrimaryActorTick.TickGroup = TG_PrePhysics;
+	CreateDefaultSubobject<ULNPUAFSpikeInputComponent>(TEXT("UAFSpikeInputs"));
 	AnimSourceMesh->bEnableAnimation = false;
 	AnimSourceMesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 }
@@ -72,11 +99,4 @@ void ALNPUAFSpikePlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReas
 {
 	ShutdownUAFNotifies(TEXT("ActorEndPlay"));
 	Super::EndPlay(EndPlayReason);
-}
-
-void ALNPUAFSpikePlayerCharacter::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-	if (InitializeSourceDriver())
-		CastChecked<ULNPUAFSpikeAnimInstance>(AnimSourceMesh->GetAnimInstance())->UpdateFromDriver(DeltaSeconds);
 }
