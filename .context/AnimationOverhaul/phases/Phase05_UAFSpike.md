@@ -2335,3 +2335,23 @@ print('[UAFNextReleaseAfter]', [c.get_name() for c in ans_p.get_components_by_cl
 - **리슨 2인에서 UAF 시험 폰의 호스트/게스트·프록시·서버 사본은 기존 ABP와 같은 동작이다.** 프록시 호스트 대시 몽타주 누락은 기존 Mover 연출 경로(`ExecuteDash`의 재시뮬레이션 가드)의 결함이며 UAF 회귀가 아니다. 이 게이트에서 고치지 않고 별도 작업으로 분리한다.
 - 남은 범위: `ActorPromoted` 적(UAF 경로 미적용), 클라이언트 2명(호스트 조작 없음) 구성, 지연·패킷 손실 에뮬레이션, 적도에서의 2인 비교다.
 - 종료 뒤 PIE=false, PIE 설정 Standalone·1인, 디스크 값인 시험 GameMode로 메모리 복원, 디버그 CVar 2개 0이다. 맵은 저장하지 않았다. 근거는 `Saved/AnimationOverhaul/2026-11-02_UAF54NetPawns/`(Net2P.json·Base2P.json·각 _Summary.txt)다.
+
+## 46. 라이플 블렌드 레이어 뒤 Steering MM 탐색 회귀 수정(2026-11-02, 구현·대표 재검증 단위 완료)
+
+### 증상과 원인
+
+- 사용자가 UAF 시험에서 두 현상을 보고했다. ① 허리가 돌아간 상태로 이동해도 하체가 룩 방향으로 따라붙지 않고 오프셋이 그대로 유지된다. ② 정지 상태에서 몸과 카메라가 약 45° 넘게 벌어지면 다리가 간헐적으로 움찔거린다. 같은 측정에서 기존 ABP는 두 현상이 모두 없었다(사용자 확인).
+- 매 틱 샘플러 `Scripts/AnimOverhaul/SampleTorsoTwist.py`(캡슐↔카메라, 메시↔가상 루트, 허벅지 선, AimYaw, FutureFacingDelta, TurnInPlace)로 UAF/ABP를 같은 절차로 측정했다. UAF는 W·D·S 이동 중 가상 루트 오프셋이 −39.5°/−39.8°/−40.1°에서 소수점까지 그대로였다. TurnInPlace는 50°를 넘을 때만 켜져 10°쯤 돌고 꺼졌다. 90° 상한에서는 25초 내내 켜진 채 오프셋이 움직이지 않고, 허벅지 방향만 85~108° 사이를 오갔다. ABP는 이동 시작 0.3초에 −49°→−4°였고, 50°에서 TurnInPlace가 0°까지 완료됐다.
+- `[UAFSteering]` 732줄이 전부 `ready=0 db=None`이었다. 보존 로그를 거슬러 보면 10-29 §36 표시 연결까지는 ready=1이었고, **§37 RifleOverlay부터 §38·§40까지 ready=1이 0건**이다. §37에서 라이플 Idle/AO를 Blend Layer로 넣었는데, UAF 기본 `IHierarchy::GetStackForwardingChild`는 자식이 하나일 때만 전달하므로 자식이 둘인 Blend Layer에서 탐색이 멈춘다. 그래서 구면 루트 trait가 MM 선택을 찾지 못해 이동·제자리 회전 Steering이 모두 꺼져 있었다. §38 이후 검증은 대시·사격·몽타주 중심이라 이 지점을 보지 않았다.
+
+### 구현
+
+- `LNPSphericalOffsetRootTrait.cpp`에 `GetForwardedStackInterfaceThroughBlendLayers`를 추가했다. 엔진 전달이 멈춘 스택에 `FBlendLayerTrait`가 있으면 기본 자식(`ChildBase`, 로코모션)으로 내려가 다시 찾는다. MM 탐색(`MakePreparationTask`의 `IBlendStack`·`IDiscreteBlend`)과 `[UAFMMOrder]` 디버그 탐색에 적용했다. Blend Layer UID는 `UAFAnimGraph/Private/Traits/BlendLayer.h`(기존 Private 포함 경로)에서 읽는다.
+- ABP·공유 C++(`ULNPAnimInstance`)·AG/에셋은 바꾸지 않았다. TurnInPlace 기준 50°와 ±90° 안전 상한도 그대로다.
+
+### 검증
+
+- Live Coding 성공 뒤 새 UAF PIE의 대기 상태에서 `ready=1 db=PSD_Stand_Idles_UEFN`을 확인했다.
+- 사용자가 라이플 스트레이프로 같은 절차를 재플레이했다. 이동 시작 5회 모두 −48~−49° → 0.3초 −7.5° → 0.6초 −0.2°로 정렬됐다(ABP는 0.3초 −3.9°). TurnInPlace는 50°에서 0~5°까지 완료됐고, 로그는 `ready=1 applied=1 tip=1 db=PSD_Stand_TurnInPlace_UEFN`(`Turn_045_L/R`)이다. 정지 유지 구간의 허벅지 범위는 2~6°로, ABP 1~6°와 같다. 사용자 육안으로도 두 현상이 사라졌고 ABP와 같다고 확인했다.
+- 0.3초 안에 카메라를 115°까지 돌리는 급회전에서는 소비 전 상한 뒤 루트모션이 더해져 가상 루트가 순간적으로 −111°까지 갔다가 90°로 복귀하고, TurnInPlace가 1.5초 안에 정렬했다. 이는 §9의 "소비 전 ±90° 클램프라 평가 후 엄밀한 상한은 보장하지 않음"과 같은 기존 한계다.
+- 근거는 `Saved/AnimationOverhaul/TorsoTwist/`(UAF_Twist·ABP_Twist·UAF_Twist_Fixed.json)다. 종료 뒤 PIE=false, DebugLocomotion=0, 시험 GameMode로 메모리 복원(운영 GameMode 대조는 메모리에서만 바꿈), 맵 미저장이다. 적도·리슨 2인·`ActorPromoted` 적 경로 재확인은 하지 않았다(UAF 경로 미적용이고 시험 폰만 영향).

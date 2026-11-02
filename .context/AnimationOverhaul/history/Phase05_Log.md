@@ -1236,3 +1236,11 @@ UAF 시험 폰과 기존 ABP 폰에서 각 17회 대시를 측정했다. 최고 
 UAF 4사본 모두 시험 ABP였다. 프록시 사격/재장전/검술 몽타주는 서버 사본과 같은 프레임에 시작했고 길이·시작 위치가 같았다. 대시/검술 Release/Release·사격/재장전 Release/Accumulate 루트 모드, root 이탈 max 30cm, ANS 5종 Begin/End 균형, 근접 엔티티 11생성/11정리(valid0)가 사본 간 같았다. 보정 120건은 프록시 입력 예측 불일치, 오류 0건이다. 게스트 화면의 호스트 대시 몽타주는 UAF 17회·Base 3회 모두 누락돼 사용자 육안과 일치했다. 기존 ABP도 같으므로 UAF 회귀가 아닌 기존 Mover 연출 결함으로 분리했다.
 
 종료 뒤 PIE=false·Standalone 1인·시험 GameMode(디스크 값) 메모리 복원·CVar 0, 맵 미저장이다. 근거는 `Saved/AnimationOverhaul/2026-11-02_UAF54NetPawns/`다. `ActorPromoted` 적·클라 2명·지연 에뮬레이션·적도 2인은 남는다. 커밋은 요청받지 않았다.
+
+## 2026-11-02 — §46 라이플 블렌드 레이어 뒤 Steering MM 탐색 회귀 수정
+
+사용자가 UAF 시험에서 이동 중 허리 오프셋 유지와 45° 이상 정지 시 다리 움찔을 보고했다. 처음에는 공유 판정(TurnInPlace 50°·±90° 상한) 문제로 추정했지만, 측정으로 UAF 전용 회귀임을 확인했다. 매 틱 샘플러 `SampleTorsoTwist.py`를 추가하고, UAF·운영 GameMode에서 같은 절차(30/60/85° 정지 → W/D/S 이동 → 좌 60°)를 사용자에게 요청했다.
+
+UAF는 `[UAFSteering]`이 전부 ready=0이었고 이동 중 오프셋이 고정이었다. ABP는 이동 0.3초 정렬·50° TurnInPlace 완료로 두 현상이 없었다. 보존 로그를 날짜별로 대조해 §37 RifleOverlay부터 ready=1이 0건임을 찾았다. 원인은 Blend Layer가 자식 둘이라 UAF 기본 인터페이스 전달이 멈추는 것이다. 구면 루트 trait의 탐색이 Blend Layer의 기본 자식으로 내려가게 고쳤다(Live Coding).
+
+재측정에서 이동 0.6초 정렬·TurnInPlace 완료(tip=1 applied=1)·정지 허벅지 범위 2~6°로 ABP와 같았고, 사용자도 같다고 확인했다. 게임 타깃 빌드로 컴파일을 확인했다. 에디터 타깃 `Build.bat`은 에디터가 떠 있어 미실행이다. 종료 정리 PIE=false·CVar 0·시험 GameMode 메모리 복원·맵 미저장. 커밋은 요청받지 않았다.

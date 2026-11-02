@@ -21,6 +21,7 @@
 #include "TraitInterfaces/IBlendStack.h"
 #include "TraitInterfaces/IDiscreteBlend.h"
 #include "TraitInterfaces/ITimeline.h"
+#include "Traits/BlendLayer.h" // UE 5.8 내부 트레이트 UID. 라이플 블렌드 레이어의 기본 자식으로 MM 탐색을 이어 간다.
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
@@ -86,6 +87,38 @@ namespace
 		return (ComponentRotation * FQuat(FVector::UpVector, FMath::Clamp(Yaw, -UE_HALF_PI, UE_HALF_PI))).GetNormalized();
 	}
 
+	bool HasStackTrait(const UE::UAF::FTraitStackBinding& Stack, UE::UAF::FTraitUID TraitUID)
+	{
+		for (uint32 Index = 0; Index < Stack.GetNumTraits(); ++Index)
+		{
+			UE::UAF::FTraitBinding Candidate;
+			if (Stack.GetTrait(Index, Candidate) && Candidate.GetTrait()->GetTraitUID() == TraitUID)
+				return true;
+		}
+		return false;
+	}
+
+	// 자식이 둘인 노드는 엔진 기본 전달을 멈춘다. 라이플 Idle/AO 블렌드 레이어(§37)를 만나면
+	// 기본 자식(로코모션) 쪽에서 다시 찾는다. 없으면 Steering이 MM을 못 찾아 꺼진다(ready=0).
+	template<class TraitInterface>
+	bool GetForwardedStackInterfaceThroughBlendLayers(const UE::UAF::FExecutionContext& Context, const UE::UAF::FTraitBinding& Binding,
+		UE::UAF::FTraitStackBinding& OutStack, UE::UAF::TTraitBinding<TraitInterface>& OutBinding)
+	{
+		using namespace UE::UAF;
+		FTraitStackBinding Cursor = *Binding.GetStack();
+		while (true)
+		{
+			if (IHierarchy::GetForwardedStackInterface<TraitInterface>(Context, Cursor, OutStack, OutBinding))
+				return true;
+			if (!HasStackTrait(OutStack, FBlendLayerTrait::TraitUID))
+				return false;
+			FChildrenArray Children;
+			IHierarchy::GetStackChildren(Context, OutStack, Children);
+			if (Children.IsEmpty() || !Children[0].IsValid() || !Context.GetStack(Children[0], Cursor))
+				return false;
+		}
+	}
+
 	void FinalizeSphericalRootRotation(FQuat& StateRotation, FTransform& PoseRoot, const FQuat& ComponentRotation)
 	{
 		const FQuat Corrected = ConstrainSphericalRootRotation(StateRotation, ComponentRotation);
@@ -118,7 +151,7 @@ namespace UE::UAF
 		FTraitStackBinding SelectorStack;
 		TTraitBinding<IDiscreteBlend> Selector;
 		if (Debug && Debug->GetInt() >= 2
-			&& IHierarchy::GetForwardedStackInterface<IDiscreteBlend>(Context, Binding, SelectorStack, Selector))
+			&& GetForwardedStackInterfaceThroughBlendLayers<IDiscreteBlend>(Context, Binding, SelectorStack, Selector))
 		{
 			FChildrenArray Children;
 			IHierarchy::GetStackChildren(Context, SelectorStack, Children);
@@ -175,12 +208,12 @@ namespace UE::UAF
 		// Bool 선택기는 기본 인터페이스 전달을 막으므로 목적 자식의 MM만 조회한다.
 		FTraitStackBinding Stack;
 		TTraitBinding<IBlendStack> BlendStack;
-		bool bHasBlendStack = IHierarchy::GetForwardedStackInterface<IBlendStack>(Context, Binding, Stack, BlendStack);
+		bool bHasBlendStack = GetForwardedStackInterfaceThroughBlendLayers<IBlendStack>(Context, Binding, Stack, BlendStack);
 		if (!bHasBlendStack)
 		{
 			FTraitStackBinding SelectorStack;
 			TTraitBinding<IDiscreteBlend> Selector;
-			if (IHierarchy::GetForwardedStackInterface<IDiscreteBlend>(Context, Binding, SelectorStack, Selector))
+			if (GetForwardedStackInterfaceThroughBlendLayers<IDiscreteBlend>(Context, Binding, SelectorStack, Selector))
 			{
 				FChildrenArray Children;
 				IHierarchy::GetStackChildren(Context, SelectorStack, Children);
