@@ -31,6 +31,10 @@ public:
 	virtual void Destroyed() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+protected:
+	/** 표시 ABP 없이 UAF가 VisualMesh에 쓰므로 원본 공급층이 피격 반응을 계산해 물리 CR 입력으로 넘긴다. */
+	virtual ULNPPhysicalHitReactAnimInstance* GetPhysicalHitReactInstance() const override;
+
 private:
 	bool InitializeSourceDriver();
 	void ShutdownUAFNotifies(const TCHAR* Phase);

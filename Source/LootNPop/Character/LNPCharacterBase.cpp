@@ -362,12 +362,17 @@ void ALNPCharacterBase::PlayHitReact(FVector HitFromWorldDir, FVector ImpactPoin
 {
 	// VisualMesh의 RBWC 노드가 피격 반응을 전부 담당한다(코스메틱·비복제 AN-004).
 	// 공격이 날아온 반대쪽으로, 캐릭터 Up에 수직인 접평면 안에서 민다(구면 월드에서 위아래로 튀지 않게).
-	if (ULNPPhysicalHitReactAnimInstance* PhysAnim = VisualMesh ? Cast<ULNPPhysicalHitReactAnimInstance>(VisualMesh->GetAnimInstance()) : nullptr)
+	if (ULNPPhysicalHitReactAnimInstance* PhysAnim = GetPhysicalHitReactInstance())
 	{
 		const FVector PushDir = FVector::VectorPlaneProject(-HitFromWorldDir, GetUpDirection()).GetSafeNormal();
 		if (!PushDir.IsZero())
 			PhysAnim->QueueHitReact(PushDir, ImpactPoint, Damage, bMelee);
 	}
+}
+
+ULNPPhysicalHitReactAnimInstance* ALNPCharacterBase::GetPhysicalHitReactInstance() const
+{
+	return VisualMesh ? Cast<ULNPPhysicalHitReactAnimInstance>(VisualMesh->GetAnimInstance()) : nullptr;
 }
 
 void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)

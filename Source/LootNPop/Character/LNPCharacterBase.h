@@ -19,6 +19,7 @@ class UAnimSequence;
 class UGameplayAbility;
 class UChooserTable;
 class ULNPMontageChooserContext;
+class ULNPPhysicalHitReactAnimInstance;
 
 class ULNPCharacterMoverComponent;
 class ULNPInputHandlerComponent;
@@ -251,6 +252,9 @@ protected:
 	 * 플레이어는 EquipmentComponent::WeaponSlot, 적은 EnemyConfig에서 읽는다.
 	 */
 	virtual ULNPWeaponData* ResolveWeaponDefForVisuals() const { return nullptr; }
+
+	/** 물리 피격 반응을 계산하는 인스턴스. 기본은 VisualMesh 표시 ABP이고, UAF 시험 폰은 원본 공급층이 맡는다. */
+	virtual ULNPPhysicalHitReactAnimInstance* GetPhysicalHitReactInstance() const;
 
 	/** 원본에서 무기를 다시 읽어 비주얼을 강제 재적용한다 (풀 방향). InitAbilitySystem() 뒤에서만 호출할 것. */
 	void RefreshWeaponVisuals();

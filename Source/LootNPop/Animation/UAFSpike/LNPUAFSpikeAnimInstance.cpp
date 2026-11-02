@@ -191,6 +191,10 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, AimYaw), Inputs.AimYaw);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, AimPitch), Inputs.AimPitch);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, RifleAim), Inputs.RifleAim);
+	Inputs.Physics = MakePhysicsInputs();
+	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, Physics), Inputs.Physics);
+	Inputs.bWriteDisplayPose = !(OwningMoverCharacter && OwningMoverCharacter->IsRagdollActive());
+	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, bWriteDisplayPose), Inputs.bWriteDisplayPose);
 	bWasFootPlacementEnabled = Inputs.FootPlacement.bEnabled;
 
 	if (!bHasReportedInputs || bSucceeded != bLastInputsSucceeded)
@@ -216,6 +220,35 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 	if (Debug && Debug->GetInt() >= 2 && GFrameCounter % 60 == 0)
 		UE_LOG(LogLootNPop, Log, TEXT("[UAFWeapon] owner=%s serial=%lld inputs=%d rifle=%.1f aim=(%.2f,%.2f)"),
 			*GetNameSafe(GetOwningActor()), RootInputSerial, bSucceeded, Inputs.RifleOverlayWeight, Inputs.AimYaw, Inputs.AimPitch);
+}
+
+FLNPUAFSpikePhysicsInputs ULNPUAFSpikeAnimInstance::MakePhysicsInputs()
+{
+	FLNPUAFSpikePhysicsInputs Physics;
+	Physics.Alpha = PhysicsAlpha;
+	// RBWC 핀 값(실제 월드 공간)을 그대로 넘긴다. ControlRigPhysics 솔버가 리그 소유 컴포넌트(바인딩된 원본 메시)의
+	// 월드 변환으로 힘·지점·OffsetInWorldSpace 목표를 시뮬 공간으로 옮긴다.
+	// 힘 핀은 피격이 있던 업데이트 한 번만 채워진다. 기본 모드는 지점 임펄스 기록 하나다.
+	if (!HitForces.ForcesAndTorques.IsEmpty())
+	{
+		if (HitForces.ForcesAndTorques.Num() > 1 && !bReportedExtraForces)
+		{
+			UE_LOG(LogLootNPop, Warning, TEXT("[UAFPhysics] %s has %d force records; the spike rig applies only the first (diagnostic modes 1/2 are not supported)."),
+				*GetNameSafe(GetOwningActor()), HitForces.ForcesAndTorques.Num());
+			bReportedExtraForces = true;
+		}
+		const auto It = HitForces.ForcesAndTorques.CreateConstIterator();
+		Physics.ForceBody = It.Key();
+		Physics.Force = It.Value();
+		++PhysicsForceSerial;
+	}
+	Physics.ForceSerial = PhysicsForceSerial;
+	if (const FRigidBodyKinematicTarget* Pelvis = HitKinematicTargets.Targets.Find(TEXT("pelvis")))
+		Physics.PelvisOffset = FTransform(Pelvis->TargetOrientation, Pelvis->TargetPosition);
+	// 척추 항목들은 같은 배율을 쓴다(모드 64). 온몸 세트(모드 8)도 같은 값으로 척추에만 건다.
+	if (!HitControlParameters.ControlMultiplierParameters.IsEmpty())
+		Physics.SpineAngularStrengthMultiplier = HitControlParameters.ControlMultiplierParameters[0].Data.AngularStrengthMultiplier;
+	return Physics;
 }
 
 bool ULNPUAFSpikeAnimInstance::IsMontageSlotActive(FName SlotName) const

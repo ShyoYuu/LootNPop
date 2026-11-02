@@ -136,6 +136,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "ControlRigPhysics",
+			"Enabled": true
+		},
+		{
 			"Name": "HairStrands",
 			"Enabled": true
 		},

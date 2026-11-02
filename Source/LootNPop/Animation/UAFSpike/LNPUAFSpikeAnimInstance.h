@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Animation/LNPAnimInstance.h"
+#include "Animation/LNPPhysicalHitReactAnimInstance.h"
 #include "AlphaBlend.h"
 #include "Animation/UAFSpike/LNPUAFSpikeRootInputs.h"
 #include "Animation/UAFSpike/LNPUAFRifleAimTrait.h"
@@ -35,6 +35,39 @@ struct FLNPUAFSpikeFootPlacementInputs
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foot Placement")
 	bool bDebugDraw = false;
+};
+
+/**
+ * 물리 히트리액트 CR(ControlRigPhysics)에 넘기는 값. 기존 RBWC 핀(힘·골반 목표·척추 배율·알파)을 바디 하나씩으로 편다.
+ * 기본 모드 100(지점 임펄스·골반·척추 강도)만 담는다 — 힘 기록은 피격당 하나다.
+ */
+USTRUCT(BlueprintType)
+struct FLNPUAFSpikePhysicsInputs
+{
+	GENERATED_BODY()
+
+	/** Step Physics Solver 알파. 기존 RBWC와 같이 피격 구간에만 올라간다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
+	float Alpha = 0.0f;
+
+	/** 새 피격마다 증가한다. CR은 값이 바뀐 실행에서만 힘을 한 번 더한다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
+	int32 ForceSerial = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
+	FName ForceBody = NAME_None;
+
+	/** 기존 RBWC 핀과 같은 값(월드 공간·VelocityChange). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
+	FPhysicsControlForceAndTorqueData Force;
+
+	/** 골반 키네마틱 목표 오프셋(월드 축). RBWC KinematicTargets의 pelvis 항목과 같다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
+	FTransform PelvisOffset = FTransform::Identity;
+
+	/** 척추 컨트롤 각강도 배율. 피격 구간에만 1 아래로 내려간다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
+	float SpineAngularStrengthMultiplier = 1.0f;
 };
 
 /** UAF 시스템과 그래프가 함께 가져오는 스파이크 전용 입력. */
@@ -73,11 +106,21 @@ struct LOOTNPOP_API FLNPUAFSpikeInputs
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rifle Aim")
 	FLNPUAFRifleAimInputs RifleAim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
+	FLNPUAFSpikePhysicsInputs Physics;
+
+	/** 사망 랙돌 중에는 시스템이 VisualMesh에 포즈를 쓰지 않는다. 컴포넌트 물리 블렌드가 표시 포즈를 소유한다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display")
+	bool bWriteDisplayPose = true;
 };
 
-/** 기존 공급값을 UAF 표시 메시 시험에 전달한다. 명시적 드라이버에서는 숨김 그래프를 평가하지 않는다. */
+/**
+ * 기존 공급값을 UAF 표시 메시 시험에 전달한다. 명시적 드라이버에서는 숨김 그래프를 평가하지 않는다.
+ * 물리 히트리액트 계산은 표시 ABP 부모와 같은 클래스를 상속해 그대로 재사용한다.
+ */
 UCLASS()
-class LOOTNPOP_API ULNPUAFSpikeAnimInstance : public ULNPAnimInstance
+class LOOTNPOP_API ULNPUAFSpikeAnimInstance : public ULNPPhysicalHitReactAnimInstance
 {
 	GENERATED_BODY()
 
@@ -98,6 +141,11 @@ protected:
 
 private:
 	void UpdateInputs(float DeltaSeconds);
+	/** 이번 업데이트의 RBWC 핀 값을 물리 CR 입력으로 편다. */
+	FLNPUAFSpikePhysicsInputs MakePhysicsInputs();
+
+	int32 PhysicsForceSerial = 0;
+	bool bReportedExtraForces = false;
 
 	TWeakObjectPtr<UUAFComponent> CachedUAFComponent;
 	bool bUAFDependencyAdded = false;

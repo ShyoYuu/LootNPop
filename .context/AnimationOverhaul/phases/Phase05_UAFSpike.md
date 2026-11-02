@@ -1,6 +1,6 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0·5-1 완료. 5-2 진행 중. §36~§38/§40 대표 검증·종료 완료, §39 발사 보류 미채택·§41 재장전 보조 가산 기존 생략 확인. §42 전달 경로 조사 완료·전신 몽타주 Release 판정 누락 재현. 다음은 해당 판정 보완 제안이며 전체 게이트/Go-No-Go는 미판정이다.
+> 상태: 5-0·5-1 완료. 5-2 진행 중(최신 §49 ⓐ UAF 물리 히트리액트·포즈 복사·랙돌 최소 시험 통과). §36~§38/§40 대표 검증·종료 완료, §39 발사 보류 미채택·§41 재장전 보조 가산 기존 생략 확인. §42 전달 경로 조사 완료·전신 몽타주 Release 판정 누락 재현. 다음은 해당 판정 보완 제안이며 전체 게이트/Go-No-Go는 미판정이다.
 > 마지막 갱신: 2026-11-02
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
@@ -61,10 +61,12 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | PSD·Chooser | 기존 에셋을 변경하지 않고 같은 상태 입력의 PSD 배열로 UAF가 검색. Starts/Stops/Turns 등 전환과 인터럽트 확인 | 부분 확인 — 대표 전환의 전달·실제 선택(§13), Sprint Turns·GaitTransitions·Run Pivot의 전달·후보 검색(§17) 확인. §17의 목표 전환 클립은 미선택. 지속 고속/전환의 최종 품질 비교는 5-2에 남음(§19) |
 | 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS5종 정상/중단/교체/종료 시 End 각1·태그/근접 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26~§32 정상/대표 중단/소유 Actor 종료 보완 확인. §34 UpperBody 최소 마스크/대표 정상·이동·대시 재장전/실제 평가 구조 확인. 월드 사후 실제 무효/독립 태그·전체 슬롯/그룹의 상세 실행·Branching/다른 배치 모드는 미검증 |
 | UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 부분 확인·무기 레이어 게이트 미판정 — §36 같은 UEFN 표시 ABP·재장전 IK 차단/대시 복귀·Idle 물리와 공격 중 억제 대표 확인. 무기별 자세/AO·native 레이어 전환/마스크·Manny 견착/적/네트워크는 미검증 |
-| Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음 | 미검증 — §42에서 기존 몽타주 직접 샘플링/워핑 경로와 원본 메시 연결·RootMotionAttribute 미사용 확인. §43에서 시험 공급층의 전신 몽타주 Release 판정을 보완해 대표 재검증. §44에서 대시 캡슐 이동/방향/몽타주 길이·루트모션 비중복이 극지·근적도 모두 기존 ABP와 동등함을 실측(이동은 선형 속도 무브 소유). 루트모션 워핑 경로(에셋 없음)·경사/움직이는 base·대시 중단 실측·재시뮬레이션·네트워크는 남음 |
+| Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음. **루트모션 워핑 경로는 판정 조건에서 제외(AN-027)** — Mover가 몽타주 에셋에서 직접 추출해 워핑 어댑터로 보내므로 코드 경로상 그래프와 독립이고, 그래프 의존(`Montage_IsPlaying`·`GetPosition`, 몽타주 중 Offset Root Release)은 §42~§43에서 확인했다. ABP 시절에도 실제 에셋으로 탄 적이 없어 비교 기준이 없다(롱소드·대시는 이동량 0 또는 선형 속도 소유). 루트모션 공격 에셋을 확보하면 확인한다 | 부분 확인(워핑 제외) — §42에서 기존 몽타주 직접 샘플링/워핑 경로와 원본 메시 연결·RootMotionAttribute 미사용 확인. §43에서 시험 공급층의 전신 몽타주 Release 판정을 보완해 대표 재검증. §44에서 대시 캡슐 이동/방향/몽타주 길이·루트모션 비중복이 극지·근적도 모두 기존 ABP와 동등함을 실측(이동은 선형 속도 무브 소유). §45·§47에서 리슨 2인/3인·지연에서 대시 몽타주의 사본별 동작 확인. 경사/움직이는 base·대시 중단 실측은 남음 |
 | 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 부분 확인 — §45 리슨 2인에서 4사본(서버 권위·자율·시뮬레이티드 프록시) 모두 UAF 경로로 돌고, 프록시 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같으며 기존 ABP와 같은 양상. 프록시의 호스트 대시 몽타주 누락은 기존 ABP도 같은 Mover 연출 결함(UAF 회귀 아님, `5588703`·§47에서 수정). §47 리슨 3인(클라 2명)·지연 60~90ms·손실 2%·극지/적도에서도 사본 동작이 기존 ABP와 같은 양상. `ActorPromoted` 적(UAF 미적용)은 남음 |
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
 | 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 구면 루트 제한(§10)·공중 고정(§12)·Strafe 비교(§14)·발 배치/경사/적도(§15)·패널 점프/착지와 큰 Yaw 롱소드(§18) 확인. 루트 수치는 CR 앞이며 기존 ABP 대비 최종 포즈 품질·무기 통합 후 동등성은 5-2에 남음(§19) |
+
+**AN-026 추가 조건(2026-11-02).** Go면 ABP를 전부 폐기하므로 다음 두 항목도 Go 조건이다. ① `ActorPromoted` 적이 UAF로 돈다 — 컨트롤러 없는 이동 입력, 게스트 재시뮬레이션, 승격/반납 때 표현 풀 재사용, ISKM 전환 경계. ② 표시 메시 후처리(포즈 복사·왼손 IK·RBWC 물리 히트리액트와 공격 중 억제(AN-024)·플레이어 리타깃)를 UAF로 옮길 수 있다. 둘 다 아직 실행 미검증이다. ②는 §48에서 엔진 소스상 대체 경로를 확인했다(포즈 복사·리타깃·IK·억제는 엔진 부품 조합, RBWC는 Beta ControlRigPhysics로 재작성 필요 — 최대 위험). §49에서 그 최대 위험을 실행으로 통과했다(물리 히트리액트·공격 중 억제·적도·사망 랙돌·포즈 복사). IK·리타깃·원본/표시 분리 그래프는 남음.
 
 **현재 Go/No-Go는 보류.** 소스 조사만으로 체크하지 않는다. 한 항목이라도 동등하게 구현할 수 없으면 AN-006에 따라 No-Go와 사유를 `.context/DiscardedApproaches.md`에 남긴다. 통과해도 Phase 6 착수는 사용자 확인 뒤 별도 단위다.
 
@@ -2393,3 +2395,72 @@ print('[UAFNextReleaseAfter]', [c.get_name() for c in ans_p.get_components_by_cl
 
 - 남은 게이트 후보: `ActorPromoted` 적(UAF 경로 미적용, 착수 전 범위 결정 필요), 루트모션 워핑(에셋 없음), 최종 일곱 게이트 Go/No-Go 정리.
 - 종료 뒤 PIE=false, PIE 설정 리슨·2인·에뮬레이션 꺼짐(측정 전 값), 시험 GameMode(디스크 값), `LNP.UAFSpike.DebugNotifies`·`np.PrintReconciles` 0이다. 맵은 저장하지 않았다(수정 시각 10-28 그대로). 근거는 `Saved/AnimationOverhaul/2026-11-02_UAF54NetPawns/Lag3P_*`다.
+
+## 48. 표시 후처리의 UAF 대체 경로 조사(2026-11-02, 조사 단위 완료·코드/에셋 변경 없음)
+
+AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 히트리액트와 AN-024 억제·플레이어 리타깃)를 UAF로 옮길 수 있는지가 Go 조건이 됐다. 이번 단위는 엔진 소스(`C:/Program Files/Epic Games/UE_5.8/Engine/`) 대조만 했다. 에디터·PIE·빌드는 쓰지 않았고, 아래 판정은 **경로 존재**이지 실행 통과가 아니다. 경로는 `Plugins/` 기준 상대 경로다.
+
+### 기존 표시 체인(대조 기준)
+
+- 승격 적: `ABP_VisualCopyPose` = Copy Pose From Mesh(같은 UEFN) → 왼손 Two Bone IK → RBWC → 출력.
+- 플레이어: `ABP_Retarget` = 리타깃(`RTG_GASP_to_MS`, UEFN→Manny) → 오른팔 Two Bone IK(견착) → 왼손 Two Bone IK → RBWC → 출력.
+- RBWC 공급(`ULNPPhysicalHitReactAnimInstance`): `HitForces`(지점 임펄스)·`HitControlParameters`(척추 강도 배율)·`HitKinematicTargets`(골반 오프셋)·`PhysicsAlpha`. 골반·다리 키네마틱, 상체 부모 공간 모터, 중력 끔(구면).
+
+### 엔진 대조 결과
+
+| 기존 처리 | UAF 대체 후보(엔진 근거) | 판정 | 남은 위험·확인 |
+|:---|:---|:---|:---|
+| 포즈 복사(적) | `Make Reference Pose`(VisualMesh) → `Remap Pose` → `Write Pose`(SkeletalMeshComponent=VisualMesh). `Experimental/UAF/UAF/Source/UAF/Private/Graph/RigUnit_AnimNext{RemapPose,WriteSkeletalMeshComponentPose}.cpp` | **경로 있음(엔진 내장)** | 참조 포즈 캐시가 **컴포넌트 단위**(`DataRegistry.cpp` `GetOrGenerateReferencePose(USkeletalMeshComponent*)`)라 같은 메시여도 AnimSourceMesh 포즈를 VisualMesh에 바로 쓰면 "different reference poses"로 거부된다. Remap(같은 스켈레톤은 빠른 복사, 커브 포함)을 반드시 거친다. 대상은 `bEnableAnimation=false`여야 한다(표시 ABP 폐기와 일치) |
+| 리타깃(플레이어) | IKRig 플러그인의 `IK Retargeter` RigUnit(`Animation/IKRig/Source/IKRigUAF/…/RigUnit_UAFIKRetargeter.h`). 기존 `UIKRetargeter` 에셋·커스텀 프로필·오버라이드 세트를 받는다 | **경로 있음** | ① 출력 포즈를 참조 포즈로 채운 뒤 **본만** 덮는다 → 커브가 Manny 쪽으로 넘어가지 않는다(현재 IK 차단 값은 C++가 원본 쪽에서 계산하므로 직접 영향은 없음). ② 리타깃 Variables 입력은 TODO(미지원). ③ `IKRigUAF` 모듈은 `LoadingPhase=None`이고 IKRig 시작 때 UAF 모듈이 이미 로드돼 있어야 로드된다(UAF는 PreDefault라 순서상 충족, 실제 로드는 미확인) |
+| 왼손·오른팔 Two Bone IK | UAFControlRig trait + 새 CR 에셋(Two Bone IK). 같은 trait로 발 배치 CR을 §15에서 이미 실행 검증했다 | **경로 있음** | CR 에셋 신규 작성. 그립 목표는 C++가 컴포넌트 공간으로 넘기는 편이 안전하다(아래 바인딩 컴포넌트 문제). 알파는 §36에서 이미 UAF 값으로 계산한다 |
+| RBWC 물리 히트리액트 | **UAF 네이티브 trait 없음.** 유일 후보는 `Experimental/ControlRigPhysics`(**Beta**, PhysicsControl 기반, 솔버가 `AnimNode_RigidBodyWithControl.h` 타입을 공유)를 UAFControlRig trait 안에서 돌리는 것 | **조건부 — 최대 위험** | 필요한 기능은 모두 있다: `Instantiate From Physics Asset`, `Spawn Physics Control`/`Use Parent Body`(부모 공간 모터), `Set Physics Control Multiplier/Strength`, `Set Physics Body Kinematic Target`(OffsetInBoneSpace), `Set Physics Body Movement Mode`, `Add Force`(임펄스·지점), `Set Physics Body Gravity Multiplier`, `Step Physics Solver`(Alpha·텔레포트 감지·시뮬 공간 설정). 그러나 ① RBWC 설정을 변환하는 도구가 없어 **물리 리그를 새로 작성**해야 한다. ② 프로젝트에 ControlRigPhysics가 활성화돼 있지 않다. ③ UAF 안에서의 실행(워커 스레드 스텝·LOD 재초기화·프레임 간 상태 유지)은 엔진 예제도 없다(UAF·ControlRigPhysics 콘텐츠에 해당 에셋 0). ④ 1회성 임펄스를 변수로 넘기는 방식(카운터/ID) 설계가 필요하다 |
+| 공격 중 억제(AN-024) | C++ 값 → Step Solver Alpha=0 | 경로 있음 | 몽타주 인스턴스 읽기는 §36에서 UAF 몽타주 컴포넌트로 이미 옮겼다 |
+
+### 구성상 확인한 사실
+
+- **바인딩 컴포넌트.** Control Rig trait는 그래프의 바인딩 객체(`Context.GetBindingObject()`, 모듈 기준 컴포넌트)에 리그를 묶고, ControlRigPhysics는 그 `GetOwningSceneComponent()`로 소유 Actor·시뮬 공간을 얻는다(`ControlRigTrait.cpp` `SetBindableObject`, `RigPhysicsSolverExecution.cpp` `StepSimulation`). 한 모듈에서 표시 체인을 돌리면 바인딩은 AnimSourceMesh다. 두 메시가 같은 캡슐에 붙어 있어 이동은 같지만 상대 변환이 다르면(§35: 원본 Z=−84/Yaw=−90, 표시 항등) 월드 변환·시뮬 공간 기준이 어긋날 수 있다. 시험에서 실제 값을 확인한다.
+- **입력 포즈 전달.** `Run Graph`(v2)에는 포즈 입력 핀이 없고 변수 오버라이드가 있다. `Input Pose` trait는 5.8에서 폐기되고 Input Value trait로 대체됐다. 후처리 그래프에 포즈를 넘기는 길은 변수 오버라이드 + Input Value다(실행 미확인). 메시 에셋의 UAF 후처리 그래프(`Get Post-Process Animation`, 에셋 UserData)는 소스 메시 수정이라 AN-018 위반이므로 쓰지 않는다.
+- **권장 모듈 구성(제안).** 주 그래프 → `Write Pose`(AnimSourceMesh) → `Remap Pose`(적) 또는 `IK Retargeter`(플레이어) → 후처리 그래프(CR IK → CR 물리) → `Write Pose`(VisualMesh). 게임플레이가 읽는 원본 포즈에 물리가 섞이지 않는다. 현재 시험은 시스템 출력(`Write System Output`)으로 원본을 쓰므로 VisualMesh용 두 번째 쓰기를 어디에 둘지는 GUI 확인이 필요하다.
+- **무기 소켓.** `Write Pose`는 소켓 부착이 있으면 `UpdateChildTransforms(OnlyUpdateIfUsingSocket)`를 부른다(`SkinnedMeshComponentExtensions.cpp` `CompleteAndDispatch`). VisualMesh에 붙은 무기는 따라간다.
+- **래그돌.** `RefreshBoneTransforms`는 `bEnableAnimation=false`면 바로 반환하지만, 래그돌 물리 블렌드(`EndPhysicsTickComponent` → `ShouldBlendPhysicsBones` → `BlendInPhysicsInternal`)에는 그 가드가 없다. UAF 쓰기는 PrePhysics, 블렌드는 EndPhysics라 순서상 물리가 덮는다. 래그돌 중 VisualMesh 쓰기를 멈출지는 실행 확인 항목이다.
+
+### 판정과 다음 단위
+
+- **조기 No-Go 사유 없음.** 다섯 처리 모두 코드 경로상 대체 후보가 있다. 포즈 복사·리타깃·IK·억제는 엔진 내장 부품의 조합이다. RBWC만 엔진 내장 대체가 아니라 Beta 플러그인으로 다시 작성해야 하며, 가장 큰 미검증 위험이다.
+- AN-026 ②(표시 후처리)는 **미검증 유지**. 다음 최소 시험 후보(순서 미승인): ⓐ 시험 폰(같은 UEFN)에서 `Remap`→`Write Pose(VisualMesh)` 포즈 복사 + ControlRigPhysics 최소 물리(상체 모터·골반 키네마틱·지점 임펄스, 중력 0)를 UAF 안에서 돌려 피격 반응·공격 중 억제·적도·래그돌 전환을 기존 RBWC와 비교한다. ⓑ CR Two Bone IK로 왼손 그립·재장전 차단 복귀를 옮긴다. ⓒ Manny 플레이어에 `IK Retargeter` + 오른팔 견착. ⓐ가 실패하면 표시 후처리만으로 No-Go가 되므로 ⓐ를 먼저 권한다. ⓐ는 `ActorPromoted` 적 UAF 시험(Current ②)의 표시 쪽과 같은 부품이라 함께 설계할 수 있다.
+
+## 49. ⓐ UAF 안 물리 히트리액트·포즈 복사·사망 랙돌 최소 시험(2026-11-02, 구현·대표 검증 단위 완료)
+
+§48 권고 ⓐ를 사용자가 승인했다. 시험 폰(같은 UEFN 스켈레톤)에서 표시 ABP를 끄고, UAF만으로 VisualMesh 포즈 복사와 물리 히트리액트를 돌려 기존 RBWC와 비교했다. 왼손 IK(ⓑ)·Manny 리타깃(ⓒ)·적(ⓓ)은 범위 밖이다.
+
+### 구성(임시 시험 구성)
+
+- **물리 위치:** 원본/표시 분리 그래프(§48 권장안)의 값 번들 입력 배선 위험을 피해, 물리 CR을 `AG_LocomotionSpike` **맨 끝**(Rifle Aim 스택 뒤·출력 앞)에 Control Rig trait(`AnimNextTraitStack_8`)으로 붙였다. 결과 포즈가 원본·표시 양쪽에 같이 쓰인다(숨김 원본에도 피격 0.5초 흔들림이 섞임). 원본/표시 분리 구조는 ⓒ에서 검증한다.
+- **표시 쓰기:** `S_LocomotionSpike` PrePhysics의 기존 `Write Pose`(원본) 뒤에 Branch(`bWriteDisplayPose`) → `Make Reference Pose`(VisualMesh) → `Remap Pose`(Run Graph 결과) → `Write Pose`(VisualMesh). 시험 BP VisualMesh는 `Enable Animation=false`(AnimClass는 남김, 인스턴스 미생성).
+- **물리 CR `CR_PhysHitReactUAFSpike`(신규, MCP 작성):** 구성 이벤트 = 솔버(`root`, 중력 0·컴포넌트 공간·관성 0) → `Instantiate From Physics Asset`(`PA_UEFN_Mannequin`, 관절 켬·드라이브 끔·부모 공간 컨트롤 30Hz/감쇠비 1/선형 0/애니 목표) → 골반·다리 7개 Kinematic → **상체 16개 Simulated** → 골반 목표 공간 `OffsetInWorldSpace` → 바디 23개 NoCollision. Forward = 골반 키네마틱 목표 → 척추 5개 각강도 배율 → `ForceSerial` 변경 때만 `Add Force` → `Step Physics Solver`(Alpha, 솔버 키 `root/PhysicsSolver`). 입력은 공개 변수 `Physics` 하나.
+- **C++:** `ALNPCharacterBase::GetPhysicalHitReactInstance()` 가상화(기본 = VisualMesh 표시 ABP). `ULNPUAFSpikeAnimInstance` 부모를 `ULNPPhysicalHitReactAnimInstance`로 바꿔 피격 계산을 그대로 재사용하고 RBWC 핀 값을 `FLNPUAFSpikeInputs::Physics`로 편다(모드 100의 힘 기록 1개·골반 오프셋·척추 배율·알파). 시험 폰은 표시 ABP가 없으면 원본 공급층을 피격 대상으로 돌려준다. `bWriteDisplayPose`는 랙돌 중 false. `LootNPop.uproject`에 `ControlRigPhysics`(Beta) 활성화.
+- v2 Control Rig trait에는 변수 노출 UI가 없어 §15 방식(노출 목록 지정 → 복사/붙여넣기 재생성)을 연결 보존판으로 고친 `Saved/.../2026-11-02_UAF52PhysicsSpike/ExposePhysicsRigPin.py`를 사용자가 실행했다.
+
+### 엔진 사실 — 실패 원인 3건(모두 로그 없이 조용히 실패)
+
+| 증상 | 원인(엔진 소스) | 조치 |
+|:---|:---|:---|
+| 피격 반응 0(골반 30cm·임펄스 10배도 무반응), 오류 로그 0 | `Step Physics Solver`의 솔버 키 기본값이 `(Bone None, PhysicsSolver)`. `FindComponent` 실패 시 아무 로그 없이 반환(`RigPhysicsSolverExecution.cpp`) | 키를 `root/PhysicsSolver`로 지정, Instantiate 키는 Spawn 출력에 연결 |
+| 솔버는 돌지만(화면 `ShowSimulationSpaceInfo` 확인) 바디가 애니에 붙어 있음 | `Instantiate From Physics Asset`는 물리 에셋 바디 타입이 **명시적 `Simulated`일 때만** 시뮬레이션, `Default`는 전부 Kinematic(`RigPhysicsExecution.cpp` 352행). RBWC는 모디파이어 기본값이 Simulated | 상체 16개에 `Set Physics Body Movement Mode = Simulated` |
+| 사망 래그돌이 선 자세 동상으로 떨어짐 | ① UAF가 사망 중에도 VisualMesh에 애니 포즈를 씀. ② 쓰기를 멈춰도 애니가 꺼진 메시는 물리 블렌드 뒤 본 버퍼 교체(`bNeedToFlipSpaceBaseBuffers`)가 요청되지 않아 렌더가 마지막 포즈에 멈춤. 플래그는 애니 평가 경로(`SkeletalMeshComponent.cpp` 3327행)에서만 켜짐. 프로브로 바디·본은 물리를 따르는데 렌더만 낡음을 확인 | 랙돌 중 UAF 쓰기 중단(Branch) + **랙돌 동안만 VisualMesh를 ABP 없는 엔진 기본 평가로 전환**(`SetAnimInstanceClass(nullptr)`·`SetEnableAnimation(true)`, 리스폰 때 끔). 단일 버퍼 전환(`SetComponentSpaceTransformsDoubleBuffering`) 시도는 병렬 블렌드 버퍼 교환과 얽혀 깜박임/고착으로 기각 |
+
+- UAF 안 CR은 바인딩 원본 메시를 소유 컴포넌트로 잡아(`ControlRig.cpp` `SetOwningComponent`) 실제 월드 변환으로 힘·목표를 변환한다. RBWC와 같은 월드 값을 그대로 넘기면 된다(enum 주석의 "World=리그 공간"과 다름).
+- v2 trait 디버그 바디 그리기(`ShowBodiesOverride`·`a.AnimNode.ControlRig.Debug`)는 이 구성에서 보이지 않았다. 솔버 실행 확인은 `ControlRig.Physics.ShowSimulationSpaceInfo 1`의 화면 문자가 유효했다.
+- `LogRigPhysics`는 스폰·리스폰마다 가속도 텔레포트 감지를 남긴다(포즈 불변, 예상 동작).
+
+### 사용자 PIE 판정(1인, 시험 GameMode, 기본 CVar)
+
+- 평소 동작(서기·이동·회전·점프·대시)·일반 피격·롱소드 공격 중 피격 억제(AN-024): 일반 지형·적도 모두 이상 없음.
+- 사망 래그돌: 최종 방식으로 2회 이상 반복 모두 정상, 리스폰 뒤 정상 복귀. 전환 경고(`Could not write`)·오류 0.
+- 기존 RBWC 비교: 출력이 다르고 체감은 UAF 쪽이 더 좋다는 평가. 기존 ABP는 Unarmed를 보지 않아 같은 조건 비교는 아니다. **라이플 자세에서 팔·손이 과하게 출렁인다** — 팔·손 부위 물리 약화 튜닝 필요(이 시험엔 표시 왼손 IK가 없어 실제보다 크게 보일 수 있으므로 ⓑ 뒤 조정).
+
+### 판정과 남은 경계
+
+- **AN-026 ②의 최대 위험(RBWC 대체)은 실행으로 통과.** ControlRigPhysics를 UAF Control Rig trait 안에서 돌려 피격 물리·공격 중 억제·구면을 재현했고, UAF 쓰기 표시 메시에서 사망 래그돌도 유지할 수 있음을 확인했다. 포즈 복사(Remap→Write Pose)도 실행 확인.
+- 남은 것: 원본/표시 분리 그래프(값 번들 입력)·표시 왼손/오른팔 IK(ⓑ)·Manny `IK Retargeter`(ⓒ)·`ActorPromoted` 적(ⓓ)·라이플 팔 튜닝·물리 CR 상시 스텝 비용(알파 0에서도 시뮬레이션 추적) 측정·네트워크 사본별 확인.
+- 근거: `Saved/AnimationOverhaul/2026-11-02_UAF52PhysicsSpike/`(Before 사본·Before/AfterHashes·Wiring.json·RigProbe*.json·RagdollProbe_*.json·스크립트 4종). 종료 해시 AG `f04c0cb1…`, S `7eb95acf…`, BP `459e8c97…`, CR `cfdb77fd…`.

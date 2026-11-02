@@ -33,6 +33,20 @@ void ULNPUAFSpikeInputComponent::TickComponent(float DeltaTime, ELevelTick TickT
 	const auto* Character = CastChecked<ALNPUAFSpikePlayerCharacter>(GetOwner());
 	if (auto* Source = Cast<ULNPUAFSpikeAnimInstance>(Character->GetAnimInstance()))
 		Source->UpdateFromDriver(DeltaTime);
+
+	// 애니 평가가 꺼진 표시 메시는 랙돌 물리 블렌드 뒤 본 버퍼 교체가 요청되지 않아(엔진은 애니 평가 경로에서만 요청)
+	// 렌더가 마지막 UAF 포즈에 멈춘다. 랙돌 동안은 ABP 없이 엔진 기본 평가(참조 포즈)로 되돌려 표준 블렌드 경로를 쓴다.
+	// SetEnableAnimation은 프레임 끝에 반영되므로 다음 틱까지 같은 요청이 반복될 수 있다(값이 같으면 무시된다).
+	const bool bRagdoll = Character->IsRagdollActive();
+	TInlineComponentArray<USkeletalMeshComponent*> Meshes(GetOwner());
+	for (USkeletalMeshComponent* Mesh : Meshes)
+	{
+		if (Mesh->GetFName() != TEXT("VisualMesh") || Mesh->bEnableAnimation == bRagdoll)
+			continue;
+		if (bRagdoll)
+			Mesh->SetAnimInstanceClass(nullptr);
+		Mesh->SetEnableAnimation(bRagdoll);
+	}
 }
 
 ALNPUAFSpikePlayerCharacter::ALNPUAFSpikePlayerCharacter(const FObjectInitializer& ObjectInitializer)
@@ -80,6 +94,14 @@ bool ALNPUAFSpikePlayerCharacter::InitializeSourceDriver()
 		return false;
 	Source->InitializeExplicitDriver();
 	return true;
+}
+
+ULNPPhysicalHitReactAnimInstance* ALNPUAFSpikePlayerCharacter::GetPhysicalHitReactInstance() const
+{
+	// 기존 표시 ABP가 남아 있으면 그쪽 RBWC가 계속 맡는다(표시 경로 비교용).
+	if (ULNPPhysicalHitReactAnimInstance* Display = Super::GetPhysicalHitReactInstance())
+		return Display;
+	return Cast<ULNPUAFSpikeAnimInstance>(AnimSourceMesh->GetAnimInstance());
 }
 
 void ALNPUAFSpikePlayerCharacter::ShutdownUAFNotifies(const TCHAR* Phase)
