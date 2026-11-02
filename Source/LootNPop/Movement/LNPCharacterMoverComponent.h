@@ -147,6 +147,15 @@ protected:
 	virtual void OnMoverPreSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd) override;
 
 	/**
+	 * FinalizeFrame마다 호출되는 엔진의 시뮬레이티드 프록시 몽타주 동기화. 대시 몽타주만 가로채 직접 재생한다.
+	 *
+	 * ⚠️ ExecuteDash의 Montage_Play는 첫 시뮬레이션에서만 돈다. ForwardPredict 프록시는 대시를 서버 상태 수신 뒤
+	 * 재시뮬레이션으로만 지나가므로(그나마 받은 상태에 쿨다운이 이미 있어 ExecuteDash 자체가 안 불리는 경우가 대부분이다)
+	 * 이 경로가 없으면 게스트 화면의 호스트 대시 몽타주가 재생되지 않는다. 단서는 복제된 FLNPLayeredMove_DashMontageSync다.
+	 */
+	virtual void UpdateSyncedMontageState(const FMoverTimeStep& TimeStep, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState) override;
+
+	/**
 	 * Dash를 실행한다. 반드시 시뮬레이션 틱(OnMoverPreSimulationTick) 안에서만 호출해야 한다 —
 	 * 입력 콜백 등 바깥에서 호출하면 InputCmd를 타지 않아 서버와 리시뮬레이션이 재현할 수 없고,
 	 * 로컬에서만 한 번 튀었다가 다음 권위 상태 도착 시 롤백된다.
@@ -218,6 +227,9 @@ private:
 
 	/** OnMoverPreSimulationTick이 InputCmd에서 옮겨 담는다. 리시뮬레이션 프레임마다 그 프레임의 값으로 갱신된다. */
 	float AIDesiredSpeedFromInput = 0.f;
+
+	/** 프록시가 마지막으로 몽타주를 재생한 대시 무브의 시작 시각. 보정마다 같은 무브가 다시 주입되어도 한 번만 재생한다. */
+	double LastProxyDashStartSimTimeMs = -1.0;
 
 	/** 이 Component가 의도에 따라 Sprint 로직을 직접 처리할지 여부. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Movement", meta = (AllowPrivateAccess = "true"))

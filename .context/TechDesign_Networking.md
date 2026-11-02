@@ -652,6 +652,53 @@ ForwardPredict 프록시(§4.4)는 무브가 늘 네트워크에서 오므로 �
 **검증.** 게스트에서 `net.PktLag=300` + `Mover.LocalPlayer.ShowCorrections`, 그래플 도착 직후 `np.ForceReconcile 1`.
 관전 측은 게임플레이 디버거 Mover 카테고리 + `mover.debug.ShowCorrections 1`.
 
+### 4.12 ForwardPredict 프록시는 "첫 시뮬레이션 연출"을 받지 못한다 — 게스트 화면의 호스트 대시 몽타주 (2026-11-02)
+
+**증상(단방향).** 리슨 2인에서 게스트 화면의 호스트 대시 몽타주가 한 번도 재생되지 않았다(UAF 시험 폰 17/17,
+기존 ABP 3/3). 대시 이동 자체와 서버 화면의 게스트 대시 몽타주는 정상이다. 사격·재장전·검술처럼 GAS 몽타주 복제를 타는
+몽타주는 프록시에서도 같은 프레임에 시작했다.
+
+**원인 — 두 겹.**
+1. `ExecuteDash`의 `Montage_Play`는 `TimeStep.bIsResimulating`이 아닐 때만 돈다(소유 클라 롤백마다 재생·HUD 리셋 방지).
+   프록시는 대시를 서버 상태 수신 뒤 재시뮬레이션으로만 지나간다. 서버가 보내는 프레임(`Buffer[PendingFrame]`)은
+   대시 틱의 **결과** 상태라 이미 쿨다운 Modifier가 들어 있어, 프록시에서는 `ExecuteDash` 자체가 대부분 불리지 않는다.
+   대시는 복제된 레이어드 무브(이동·몽타주 동기화)로만 도착한다.
+2. 엔진에는 이 경우를 위한 프록시 몽타주 동기화(`UCharacterMoverComponent::UpdateSyncedMontageState`, `OnPostFinalize`)가
+   있지만 ForwardPredict에서는 닿지 않는다. `FLayeredMove_AnimRootMotion::GenerateMove`가 **재시뮬레이션이 아닌 스텝마다
+   "메시에 몽타주가 재생 중인가"를 보고 아니면 무브를 끝낸다.** 재시뮬레이션 직후의 첫 예측 스텝(FinalizeFrame 전)이
+   무브를 끝내 버려, Finalize 시점의 SyncState에는 동기화할 무브가 없다. 이 동기화는 보간(Interpolated) 프록시를 전제로 짠 경로다.
+   설령 닿아도 엔진은 무브가 끝나면 몽타주를 멈추므로 대시 무브(0.2초)보다 긴 몽타주(약 0.66초)가 프록시에서만 잘린다.
+
+**해결.** 새 RPC·복제 프로퍼티 없이 이미 복제되는 레이어드 무브를 단서로 쓴다.
+- `FLNPLayeredMove_DashMontageSync`(`FLayeredMove_AnimRootMotion` 파생): 메시 검사만 건너뛰어 수명이 대시 길이로만 정해진다.
+  대시 이동은 같은 틱에 먼저 큐잉된 `FLayeredMove_LinearVelocity`가 가져가므로(같은 우선순위·시작 시각이면 먼저 들어간
+  Override가 이긴다, `UMovementMixer::CheckPriority`) 수명이 늘어도 이동은 바뀌지 않는다. `ShouldReconcile`도 레이어드 무브를
+  비교하지 않는다(§4.11).
+- `ULNPCharacterMoverComponent::UpdateSyncedMontageState` 재정의: 프록시에서 이 무브가 활성이면 엔진 동기화 대신
+  **무브 시작 시각당 한 번** `Montage_Play`(시작 위치 = 무브가 진행한 `CurrentPosition`)하고 끝까지 둔다.
+  다른 몽타주 무브(근접 보정 워프)는 그대로 엔진 경로다.
+- 소유 클라·서버의 기존 경로(`ExecuteDash`의 첫 시뮬레이션 재생·리시뮬레이션 게이팅)는 그대로다.
+
+**교훈.** `bIsResimulating`으로 게이팅한 연출은 "그 머신이 그 프레임을 처음 시뮬레이션한다"를 전제한다.
+ForwardPredict 프록시는 남의 입력 프레임을 처음부터 재시뮬레이션으로 받으므로 그 전제가 없다 — 프록시에 보여야 하는
+연출은 복제 상태(SyncState)에서 다시 끌어내야 한다.
+
+**검증(2026-11-02, 리슨 2인 PIE·UAF 시험 폰, 2477프레임).** `SampleNetPawns_5-2.py`·`AnalyzeNetPawns_5-2.py`·`np.PrintReconciles 1`.
+- 원인 확정: 호스트 대시 13회 중 게스트 월드의 호스트 사본(프록시)이 `ExecuteDash`를 거친 것은 2회뿐이고, 둘 다 서버 대시를
+  앞선 비재시뮬레이션 예측이었다(아래). 나머지 11회는 `ExecuteDash` 없이 복제 무브로만 도착했다 — 재시뮬레이션 가드를 푸는
+  수정으로는 고쳐지지 않는 구조였다.
+- 프록시 몽타주 **13/13 재생**(수정 전 17/17·3/3 누락). 시작 시차 −1~+1프레임. 프록시는 몽타주에 0.10~0.16초 들어간 위치에서
+  시작해(재시뮬레이션이 따라잡은 만큼, 서버 사본 0.033) 끝까지 재생한다 — 구간이 서버 사본보다 3~4프레임 짧은 것은 이 시작 위치 때문이다.
+  `proxy montage play`는 대시당 1회(이중 재생 없음).
+- 소유 클라 18/18 −2프레임·같은 길이, 프록시 전용 구간 없음 — 기존 경로 회귀 없음.
+- 보정: 프록시가 대시를 처음 알게 되는 순간(쿨다운 Modifier가 롤백으로 들어오는 시점) 뒤 0.5초 안의 보정이 대시당 1.9건(수정 전 §45 로그,
+  20회)에서 1.3건(13회)으로, 늘지 않았다. 게스트 대시 뒤 0건.
+- **남은 기존 동작(이 수정과 무관):** 쿨다운 만료 직전에 누른 대시 입력을 프록시가 외삽 예측해, 서버가 기각한 대시를 프록시만
+  실행하고 몽타주를 재생하는 경우가 1회 있었다(직전 대시 0.99초 뒤, `role=ROLE_SimulatedProxy resim=0`). ForwardPredict 입력 외삽의
+  오예측이고 이동은 다음 보정으로 되돌아가지만, 몽타주는 끝까지 남는다. 같은 패턴이 맞게 예측된 경우(서버가 다음 틱에 실제로 대시)도 1회 있었다.
+- 로그 `[Dash] ... execute | role=`(어느 사본이 어떤 문맥으로 `ExecuteDash`를 지나가는가)와 `[Dash] ... proxy montage play`(프록시 재생 시작 위치)는
+  이후 회귀 확인용으로 남겨 둔다. 근거 `Saved/AnimationOverhaul/2026-11-02_UAF54NetPawns/DashFix2P.json`·`_Summary.txt`.
+
 ---
 
 ## 5. 검증
