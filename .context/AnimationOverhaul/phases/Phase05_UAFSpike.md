@@ -2486,10 +2486,19 @@ AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 �
 
 | 크래시 | 확인한 사실 | 상태 |
 |:---|:---|:---|
-| `FAnimNextModuleInstance::GetReference` → `AsShared` 단언(`DoesSharedInstanceExist`), `Run Graph v2`의 `AllocateInstance` 경유 | 2인 PIE에서 1회. 직전 로그는 같은 프레임의 새 UAF 적 스폰. 시스템 해제(`FSystemReference::Reset`)는 공유 포인터만 즉시 놓고 인스턴스·모듈 틱은 월드 틱 뒤 `PendingDeletes`에서 정리한다(`SystemReference.cpp`). `AllocateInstance`는 그래프 첫 실행에서만 불린다 → "한 번도 돈 적 없는 시스템이 해제된 뒤 틱"으로 추정 | **원인 미확정.** 리슨 2인에서만 2회 발생(두 번 모두 크래시 프레임에 새 UAF 적 스폰 로그가 바로 앞에 있음, `Crash_AsShared*.log`). 1인에서는 생성·파괴 489회에도 없음. 시험 CVar `LNP.UAFSpike.DestroyBeforeFirstEvent 1`(스폰 다음 프레임 첫 입력 틱에서 파괴)로 467회 파괴해도 재현 안 됨 |
+| `FAnimNextModuleInstance::GetReference` → `AsShared` 단언(`DoesSharedInstanceExist`), `Run Graph v2`의 `AllocateInstance` 경유 | 리슨 2인에서 2회, 두 번 모두 크래시 프레임에 **호스트 월드**의 새 UAF 적 스폰(스폰 로그는 호스트→2프레임 뒤 게스트 쌍인데 크래시 프레임 것은 짝이 없다). 엔진 동작: 시스템 틱 함수는 `OnRegister`에서 활성 상태로 등록되고, 해제(`Reset`)는 공유 포인터만 놓은 채 틱 함수를 다음 월드 틱 직전 지연 삭제까지 남긴다 → **스폰 프레임에 첫 실행 전에 놓인 시스템의 이벤트가 그 프레임에 돌며 단언**(아래 "AsShared 원인과 대응") | **메커니즘 확정·대응 구현·결정적 재현 통과.** 재현: `DestroyBeforeFirstEvent 2`+`DisableTicksOnRelease 0`이면 첫 적 스폰에서 같은 콜스택으로 크래시. 대응(기본 켬)으로 같은 재현 2175회 해제·크래시 0. 리슨 2인에서 실제로 스폰 프레임 해제를 일으키는 주체는 미확인 |
 | `FRemapPoseDataPool::GarbageCollect` → `FWeakObjectPtr::IsValid` 접근 위반(PIE 종료 GC) | 위 시험 뒤 PIE 종료에서 발생. 풀 키는 컴포넌트별 참조 포즈 **원시 포인터**인데 정리는 메시 에셋 약한 참조만 본다(`RemapPoseDataPool.cpp`). 레지스트리는 컴포넌트가 사라지면 그 참조 포즈를 GC 뒤 티커에서 해제한다(`DataRegistry.cpp` `RunGCCleanup`). 다음 GC에서 풀이 해제된 메모리를 읽는다 | **엔진 use-after-free 확정.** 풀에 항목 제거 공개 API가 없어 프로젝트 코드로 막을 수 없다. Remap Pose를 쓰는 컴포넌트가 파괴되기만 하면(플레이 중 GC 포함) 발생 가능. §49 플레이어 시험 폰도 같은 위험 |
 
 수정 후보는 엔진의 풀 정리에서 컴포넌트 약한 참조도 확인하는 것이다(풀 정리가 레지스트리 해제보다 먼저 돌아 순서상 안전). 설치형 엔진이라 UAF 플러그인을 프로젝트로 덮어써야 해서 채택하지 않았다.
+
+### AsShared 원인과 대응(2026-11-03, 같은 날 후속 단위)
+
+- **엔진 경로.** `FAnimNextModuleInstance::Initialize`(시스템 생성 = `UUAFComponent::OnRegister`)가 이벤트 틱 함수를 바로 등록하고, 틱 함수는 `bStartWithTickEnabled=true`다. `BeginPlay`의 `Activate`(다음 `OnWorldPreActorTick`에 반영)는 사실상 중복이다. 그래서 Mass가 월드 틱 도중(PrePhysics 페이즈 시작) 스폰한 적은 **스폰 프레임에 새로 생성된 틱으로 첫 실행**을 한다. `FSystemReference::Reset`은 공유 포인터를 놓고 외부 의존만 지운다. 틱 함수 등록 해제는 인스턴스 소멸자, 즉 `PendingDeletes` 처리(`OnWorldPreActorTick`·GC 직전)에서야 일어난다. 그 사이 이번 프레임에 대기 중인 이벤트는 해제된 인스턴스 위에서 돈다. 첫 실행이면 `Run Graph v2` → `AllocateInstance` → `GetReference`(`SharedThis`)가 단언한다. 이미 돈 시스템은 그래프 인스턴스가 있어 단언 없이 한 번 더 돈다. 기존 모드 1(스폰 다음 프레임 파괴) 467회가 재현하지 못한 이유다.
+- **결정적 재현.** `LNP.UAFSpike.DestroyBeforeFirstEvent 2`(스폰 프레임의 첫 입력 틱 = 첫 이벤트 선행 조건에서 파괴)와 `LNP.UAFSpike.DisableTicksOnRelease 0`을 켜고 1인 PIE를 돌렸다. 첫 적 승격 순간 같은 프레임(29362)에 "첫 이벤트 전 해제(ticks=left)" 경고 → "해제 뒤 이벤트 실행" 오류 → 원래와 같은 콜스택의 단언 순으로 크래시했다(사용자 실행, **에디터 종료**).
+- **대응(프로젝트, 엔진 수정 없음).** 시험 폰이 시스템을 놓기 직전(`Destroyed`·`EndPlay` → `LNPUAFSpikeDriver::ShutdownNotifies`)에 모듈의 이벤트 틱 함수를 전부 끈다(`LNP.UAFSpike.DisableTicksOnRelease`, 기본 1). 틱 작업은 실행 직전에 활성 여부를 다시 보므로(`TickTaskManager.cpp` `FTickFunctionTask::DoTask`) 이미 큐에 들어간 이번 프레임 실행도 막힌다. 틱 함수는 사용자 이벤트 `PrePhysics`의 틱 함수(`UUAFComponent::FindTickFunction`)가 가진 `ModuleInstance->GetTickFunctions()`로 찾는다(Internal 헤더). 엔진 쪽 근본 수정 후보는 `Reset`에서 틱 함수를 즉시 끄는 것이다.
+- **검증.** 대응을 켜고 같은 재현(모드 2, 1인)을 돌렸다. 첫 이벤트 전 해제 2175회(`ticks=disabled`, 모두 `phase=ActorDestroyed`·`TG_DuringPhysics`·스폰 프레임 = 해제 프레임), 해제 뒤 이벤트 실행 0, 오류 0, 크래시 0이었다. 화면에서는 적이 승격 거리에서 T자로 깜박였다. 그래프가 한 번도 돌지 않은 Actor가 한 프레임 보였다가 사라지고, Mass가 다시 스폰하는 반복이라 시험 모드의 예상 동작이다. 리슨 2인 일반 플레이(접근·이탈 수차례, 스폰 로그 53)에서도 크래시·오류가 0이었다. 다만 이 세션에서는 자연 발생한 첫 이벤트 전 해제가 0회였다.
+- **남은 경계.** 리슨 2인에서 실제로 스폰 프레임에 시스템을 놓은 주체는 확인하지 못했다. 1인 PIE도 넷 모드는 Listen Server라, 서버에서 파괴를 시간 분할하지 않는 Mass 분기(`ProcessPendingDestruction`)로는 1인/2인 차이를 설명할 수 없다. 후보는 원격 시점의 위치 점프로 LOD가 뒤집혀 Mass가 스폰한 Actor를 같은 페이즈 끝에 파괴하는 경우지만 미검증이다. `Destroyed`·`EndPlay`를 거치는 해제는 모두 대응 범위다. 컴포넌트 재등록(`OnUnregister`만 호출)으로 놓이는 경로는 범위 밖이다. 대응을 켠 채 단언이 다시 나고 같은 프레임에 "releases a UAF system before its first event" 경고가 없으면 그 경로다. Remap Pose GC 크래시(AN-028)와는 콜스택(`FRemapPoseDataPool::GarbageCollect`)으로 구분한다.
+- 근거: 같은 폴더의 `AsSharedRepro_B_Mode2_TicksLeft.log`(재현 크래시), `AsSharedFix_A_Mode2_TicksDisabled.log`(대응 재현), `AsSharedFix_C_2P_TicksDisabled.log`(2인 일반).
 
 ### 판정
 
