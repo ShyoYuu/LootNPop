@@ -62,7 +62,7 @@
 ### LootPod & LootDice
 - **LootPod**은 MassEntity(시뮬레이션) + Actor(비주얼·상호작용·복제) 하이브리드. 게이지·근접 판정은 서버 Mass 프로세서가 태그 교체 상태 머신(`Idle ↔ Looting → Popped`)으로 처리.
 - 루팅 존 안의 **모든 플레이어 루팅 속도를 합산**해 게이지가 오르므로 협동하면 빨라지고, 전원 이탈 시 감쇠하다 0에 도달해야 완전 취소된다. 상호작용(250cm + 정면 60°)과 루팅 존(500cm) 반경은 분리.
-- 상호작용 탐색에 쓰던 SmartObject 공간 쿼리는 Mass 액터 풀링과 충돌해 폐기하고, `ULNPInteractableRegistrySubsystem`(살아 있는 인터랙터블 레지스트리) 순회로 대체. (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03)
+- 상호작용 탐색에 쓰던 SmartObject 공간 쿼리는 Pod 옆에서도 0건이 나와 폐기하고(원인 미확정), `ULNPInteractableRegistrySubsystem`(살아 있는 인터랙터블 레지스트리) 순회로 대체. (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03)
 - **LootDice**는 보상의 월드 실체화 형태(주사위 픽업). Pod의 `Popped` 또는 인벤토리 드랍으로 생성되며, Mass가 아닌 **순수 Actor + 서버 권위 물리 + Iris `ReplicatedMovement`** 로 구현. (→ [TechDesign_LootDice.md](TechDesign_LootDice.md))
 
 ### Inventory & Items

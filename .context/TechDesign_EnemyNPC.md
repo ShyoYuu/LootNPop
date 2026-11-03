@@ -390,12 +390,29 @@ Entity 모드, legacy(EnemyExactGround 0, 비교용 — Phase 6에서 제거):
 | API | 역할 |
 |:---|:---|
 | `InitializeOnce(Config)` | ASC·어빌리티·무기 1회 초기화 (`bInitializedOnce` 가드) |
-| `SyncFromEntity(Health, State, Velocity)` | 매 활성화: Mass → Actor 주입(HP·속도). **Actor는 표현 풀에서 재사용되므로** 직전 개체의 흔적을 함께 되돌린다 — `ExitRagdoll()`, AI 입력 3종, 조준 Pitch 0 |
+| `SyncFromEntity(Health, State, Velocity)` | 매 활성화: Mass → Actor 주입(HP·속도). 직전 개체의 흔적도 함께 되돌린다 — `ExitRagdoll()`, AI 입력 3종, 조준 Pitch 0. **현재는 승격마다 새 Actor라 지울 흔적이 없다**(아래 §Actor 수명). 풀링을 켤 때 그대로 쓰도록 남긴 멱등 초기화다 |
 | `SyncToEntity(out Health, out Velocity)` | 매 프레임: Actor → Mass 역동기화 |
-| `TriggerRagdoll()` | **서버 전용** 사망 진입점 — `Multicast_TriggerRagdoll(PopVelocity)`로 방송한다. 사망 판정이 서버 전용 Mass 프로세서라 방송하지 않으면 클라이언트는 적이 그냥 사라지는 것만 보게 된다. 실제 랙돌은 베이스의 `EnterRagdoll()`/`ExitRagdoll()` (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §9). `SyncFromEntity`가 매 활성화마다 `ExitRagdoll()`을 불러 풀 재사용을 되돌린다 |
+| `TriggerRagdoll()` | **서버 전용** 사망 진입점 — `Multicast_TriggerRagdoll(PopVelocity)`로 방송한다. 사망 판정이 서버 전용 Mass 프로세서라 방송하지 않으면 클라이언트는 적이 그냥 사라지는 것만 보게 된다. 실제 랙돌은 베이스의 `EnterRagdoll()`/`ExitRagdoll()` (→ [TechDesign_CharacterMovement.md](TechDesign_CharacterMovement.md) §9). `SyncFromEntity`가 매 활성화마다 `ExitRagdoll()`을 부른다(재사용 대비, 현재는 새 Actor) |
 | `SetAimTargetLocation(WorldTarget)` / `ClearAimTarget()` | **서버 전용** 상하 조준 갱신·해제 (아래 §상하 조준) |
 | `GetBaseAimRotation()` | 액터 전방에 복제된 로컬 Pitch를 얹은 조준선. Aim Offset과 발사 방향의 **공통 원본** |
 | `EnemyConfig` (복제, `OnRep_EnemyConfig`) | 적 무기 상태의 단일 원본. **복제해야 하는 이유:** Actor 스폰·`InitializeOnce`가 서버 전용인데 게스트의 Actor는 일반 Relevancy로 온다 — 없으면 게스트에서 무기 메시·애님 레이어가 안 붙고 `GetActiveWeaponDef()`도 null이 된다. OnRep은 **비주얼만** 갱신한다 |
+
+**Actor 수명 — 풀링하지 않는다.** 강등 때 Actor는 **파괴**되고 승격 때 **새로 스폰**된다.
+엔진 Mass 액터 풀(`UMassActorSpawnerSubsystem`, CVar `mass.spawning.actorpooling` 기본 켬)은 있지만
+Actor가 `IMassActorPoolableInterface`를 구현하고 `CanBePooled()`가 true일 때만 풀에 넣고, 아니면 파괴한다.
+`ALNPEnemyCharacter`는 구현하지 않는다. EntityConfig의 `bKeepLowResActors=false`라 엔티티에 Actor를 꺼 둔 채
+붙여 두는 경로도 타지 않는다(이 옵션은 풀이 아니라 엔티티당 1개를 남기는 방식이라 개체 수가 많은 구성에 맞지 않는다).
+
+풀링을 켜려면 엔진이 하지 않는 정리를 `PrepareForPooling`/`PrepareForGame`이 모두 맡아야 한다 — 엔진은 숨김·에이전트
+등록 해제·텔레포트만 한다. 미해결 위험:
+- **충돌·틱:** 숨김만으로는 캡슐 충돌·Mover 시뮬레이션·애니 틱이 계속 돈다.
+- **복제:** Iris 경로에서 `bHidden`/`IsNetRelevantFor`를 검사하는 곳을 찾지 못했다 — 풀에 든 서버 Actor가 게스트에 계속
+  복제될 가능성이 높다(미검증). Dormancy로 막는다면 Mover/NetworkPrediction이 그것을 따르는지 확인이 필요하다.
+- **게스트 퍼펫 연결:** 재사용 Actor는 다른 NetID로 다시 붙는다. 이전 엔티티의 `FMassActorFragment`를 누가 비우는지
+  정해져 있지 않아 §7.10의 "Actor 하나에 엔티티 둘"이 재발할 수 있다.
+- **GAS:** 진행 중 어빌리티 취소·이펙트 정리. Config 교체 시의 어빌리티·무기 GE 재설정은 `InitializeOnce`가 이미 한다.
+
+도입 여부는 승격 1회 비용(Insights)과 승격 빈도(CSV `MassActors/NumSpawned`)를 먼저 측정해 정한다.
 
 **메시 구성 (`BP_LNPEnemy`).** `AnimSourceMesh`(숨김) = GASP 소스 `/Game/Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin` + `ABP_Main_UEFN`(플레이어와 같은 메인 ABP), `VisualMesh` = 같은 `SKM_UEFN_Mannequin` + `ABP_VisualCopyPose`(Copy Pose From Mesh로 부모 포즈 복사, 2026-10-18 AnimationOverhaul 2-0b부터). 두 메시가 같은 스켈레톤이라 런타임 리타기터가 없다. 이전의 `ABP_Retarget` + `RTG_Lyra_to_GASP`(루트 본 미지정·발가락 오매핑 결함)는 빠졌다. Leader Pose가 아니라 ABP 노드로 복사하는 이유는 [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md) §3.3.
 ISKM·ISM 표현은 이 메시가 아니라 `Retargeted/` 사본을 쓴다(→ [TechDesign_EnemyNPC_LowLOD.md](TechDesign_EnemyNPC_LowLOD.md) §6.7).
@@ -440,7 +457,7 @@ GetBaseAimRotation()       (모든 머신) 로컬 Pitch를 액터 트랜스폼�
 - **조준선의 기준점은 캡슐 중심이다.** 총구는 조준 자세에 따라 움직여 자기참조가 된다.
   총구는 캡슐 중심과 거의 같은 높이라 실제 오차는 그립의 좌우 오프셋뿐이고, Yaw에서 이미 감수하던 값이다.
 - **Attack 상태에서만 켠다.** `ExitState`의 `ClearAimTarget()`을 빠뜨리면 배회 중에도 하늘을 겨눈 채 걷는다.
-  `SyncFromEntity`에서도 0으로 되돌린다 — Actor는 표현 풀에서 재사용되므로 직전 개체의 자세가 따라온다.
+  `SyncFromEntity`에서도 0으로 되돌린다 — Actor를 재사용하게 되면 직전 개체의 자세가 따라오기 때문이다(현재는 새 Actor, §Actor 수명).
 
 ---
 

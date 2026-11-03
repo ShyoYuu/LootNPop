@@ -127,7 +127,7 @@ void ALNPEnemyCharacter::InitializeOnce(ULNPEnemyConfig* InConfig)
 
 void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity)
 {
-	// Actor는 Mass 표현 풀에서 재사용된다 — 직전에 시체였을 수 있으므로 매 활성화마다 되돌린다 (멱등).
+	// 매 활성화마다 랙돌을 되돌린다 (멱등). 지금은 승격마다 새 Actor지만, 풀링을 켜면 직전 개체가 시체였을 수 있다.
 	ExitRagdoll();
 
 	if (AnimSourceMesh)
@@ -137,7 +137,7 @@ void ALNPEnemyCharacter::SyncFromEntity(float InHealth, ELNPTargetingState InTar
 	{
 		InputHandlerComponent->SetAIMoveInput(FVector::ZeroVector);
 		InputHandlerComponent->SetAIOrientationIntent(FVector::ZeroVector);
-		// Actor는 표현 풀에서 재사용된다 — 직전 개체의 속도가 남지 않도록 함께 되돌린다.
+		// 풀링을 켜면 직전 개체의 속도가 남으므로 함께 되돌린다 (지금은 새 Actor라 무해한 초기화).
 		InputHandlerComponent->SetAIDesiredSpeed(0.f);
 	}
 

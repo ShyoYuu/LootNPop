@@ -66,7 +66,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
 | 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 구면 루트 제한(§10)·공중 고정(§12)·Strafe 비교(§14)·발 배치/경사/적도(§15)·패널 점프/착지와 큰 Yaw 롱소드(§18) 확인. 루트 수치는 CR 앞이며 기존 ABP 대비 최종 포즈 품질·무기 통합 후 동등성은 5-2에 남음(§19) |
 
-**AN-026 추가 조건(2026-11-02).** Go면 ABP를 전부 폐기하므로 다음 두 항목도 Go 조건이다. ① `ActorPromoted` 적이 UAF로 돈다 — 컨트롤러 없는 이동 입력, 게스트 재시뮬레이션, 승격/반납 때 표현 풀 재사용, ISKM 전환 경계. ② 표시 메시 후처리(포즈 복사·왼손 IK·RBWC 물리 히트리액트와 공격 중 억제(AN-024)·플레이어 리타깃)를 UAF로 옮길 수 있다. 둘 다 아직 실행 미검증이다. ②는 §48에서 엔진 소스상 대체 경로를 확인했다(포즈 복사·리타깃·IK·억제는 엔진 부품 조합, RBWC는 Beta ControlRigPhysics로 재작성 필요 — 최대 위험). §49에서 그 최대 위험을 실행으로 통과했다(물리 히트리액트·공격 중 억제·적도·사망 랙돌·포즈 복사). §51에서 왼손 IK를 CR Basic IK로 옮겨 통과했다. 리타깃·오른팔 견착·원본/표시 분리 그래프는 남음. §50에서 ①의 기능 경로는 통과했지만, ②의 포즈 복사가 쓰는 `Remap Pose`에 엔진 use-after-free가 있어 컴포넌트가 파괴되는 한 크래시할 수 있음을 확인했다. **사용자 결정(AN-028)으로 이 결함을 Go 차단 요인으로 기록한다.**
+**AN-026 추가 조건(2026-11-02).** Go면 ABP를 전부 폐기하므로 다음 두 항목도 Go 조건이다. ① `ActorPromoted` 적이 UAF로 돈다 — 컨트롤러 없는 이동 입력, 게스트 재시뮬레이션, 승격/강등 때 Actor 파괴·재스폰, ISKM 전환 경계. ② 표시 메시 후처리(포즈 복사·왼손 IK·RBWC 물리 히트리액트와 공격 중 억제(AN-024)·플레이어 리타깃)를 UAF로 옮길 수 있다. 둘 다 아직 실행 미검증이다. ②는 §48에서 엔진 소스상 대체 경로를 확인했다(포즈 복사·리타깃·IK·억제는 엔진 부품 조합, RBWC는 Beta ControlRigPhysics로 재작성 필요 — 최대 위험). §49에서 그 최대 위험을 실행으로 통과했다(물리 히트리액트·공격 중 억제·적도·사망 랙돌·포즈 복사). §51에서 왼손 IK를 CR Basic IK로 옮겨 통과했다. 리타깃·오른팔 견착·원본/표시 분리 그래프는 남음. §50에서 ①의 기능 경로는 통과했지만, ②의 포즈 복사가 쓰는 `Remap Pose`에 엔진 use-after-free가 있어 컴포넌트가 파괴되는 한 크래시할 수 있음을 확인했다. **사용자 결정(AN-028)으로 이 결함을 Go 차단 요인으로 기록한다.**
 
 **현재 Go/No-Go는 보류.** 소스 조사만으로 체크하지 않는다. 한 항목이라도 동등하게 구현할 수 없으면 AN-006에 따라 No-Go와 사유를 `.context/DiscardedApproaches.md`에 남긴다. 통과해도 Phase 6 착수는 사용자 확인 뒤 별도 단위다.
 
@@ -2473,7 +2473,7 @@ AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 �
 
 - **C++:** 플레이어 시험 폰에 있던 입력 공급 컴포넌트·원본 공급층 초기화·피격 인스턴스 선택·ANS 종료를 `LNPUAFSpikeDriver.h/.cpp`로 옮겨 공용화했다(플레이어 동작 불변). `ALNPUAFSpikeEnemyCharacter`(`ALNPEnemyCharacter` 상속)가 같은 드라이버를 쓴다. ANS 감사(`LNP.UAFSpike.DebugNotifies`)는 입력 공급 컴포넌트가 있는 폰 전체로 넓혔다. Mass가 Actor를 끌 때 UAF 시스템도 끄는 경로를 넣었지만, 현재 EntityConfig(`bKeepLowResActors=false`)는 강등 때 Actor를 바로 파괴해 한 번도 발동하지 않았다(미검증 보호 경로).
 - **에셋(`/Game/Characters/UAFSpike/`):** `BP_EnemyUAFSpike`(BP_LNPEnemy 사본, 부모 교체, 원본 `ABP_SourceUAFSpike`·애니 끔, 표시 애니 끔, `UAFLocomotion`은 플레이어 시험 BP에서 사용자가 복사), `DA_EnemyEntityConfig_UAFSpike_Melee01`(템플릿 Actor 교체), `DA_MassSpawnConfig_UAFSpikeEnemy`(Pod 60개×UAF 적 3, 맵 저작 편성이 참조하는 다섯 종은 0명 행 — 없으면 스폰 계획이 `Authored formation references unconfigured enemy`로 실패). 생성 스크립트 `Scripts/AnimOverhaul/SetupEnemyUAFSpike_5-2.py`, 시험은 `LNP.Spawn.ConfigOverride`로 건다.
-- **엔진 사실:** 승격 적 Actor는 엔진 Mass 액터 풀(`IMassActorPoolableInterface`)을 구현하지 않고 `bKeepLowResActors=false`라 강등 때 **파괴**되고 승격 때 새로 스폰된다. "표현 풀 재사용"은 실제로는 일어나지 않는다([TechDesign_EnemyNPC.md](../../TechDesign_EnemyNPC.md) §6 서술과 다름 — 문서 정정은 이 트랙 밖).
+- **엔진 사실:** 승격 적 Actor는 엔진 Mass 액터 풀(`IMassActorPoolableInterface`)을 구현하지 않고 `bKeepLowResActors=false`라 강등 때 **파괴**되고 승격 때 새로 스폰된다. "표현 풀 재사용"은 실제로는 일어나지 않는다([TechDesign_EnemyNPC.md](../../TechDesign_EnemyNPC.md) §6은 2026-11-03에 이 사실대로 정정됨).
 
 ### 실행 결과
 

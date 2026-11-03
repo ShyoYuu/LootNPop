@@ -33,7 +33,7 @@
     - 결과물은 HISM으로 Bake하여 런타임 계산 제거.
 - [x] **인터랙터블 레지스트리 기반 상호작용 인프라** (`ULNPInteractableRegistrySubsystem`, `ULNPInteractionComponent`)
     - 살아 있는 인터랙터블(Pod·Dice) 레지스트리를 컴포넌트가 순회. `UMassAgentComponent` + Niagara VFX 연동.
-    - SmartObject 공간 쿼리는 Mass Representation의 액터 풀링(재사용·텔레포트)과 충돌해 폐기 (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03). `ALNPLootPod`의 `SmartObjectComponent`는 미사용 잔존.
+    - SmartObject 공간 쿼리는 Pod 옆에서도 0건이 나와 폐기(당시 사유로 든 Mass 액터 풀링 충돌은 전제 오류로 정정, 원인 미확정) (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03). `ALNPLootPod`의 `SmartObjectComponent`는 미사용 잔존.
 - [x] **LootPod 랜덤 스폰 로직**
     - Mass Spawner와 연동한 LootPod 위치 결정 및 동적 스폰.
 - [x] **Octant 이음매·프랍 접지 정비** (2026-09-10)

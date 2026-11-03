@@ -9,8 +9,8 @@
 /**
  * 월드에 살아 있는 ILNPInteractable Actor 레지스트리.
  *
- * 상호작용 탐색용 — SmartObject 공간 쿼리는 Mass Representation의 액터 풀링(재사용·텔레포트)과
- * 충돌해 폐기했고(등록 시점 위치가 파티션에 고정됨), 월드 전체 액터 순회(TActorIterator)는 비효율적이라
+ * 상호작용 탐색용 — SmartObject 공간 쿼리는 Pod 옆에서도 0건이 나와 폐기했고(원인 미확정,
+ * DiscardedApproaches Case 03), 월드 전체 액터 순회(TActorIterator)는 비효율적이라
  * 대상 Actor가 BeginPlay/EndPlay에 스스로 등록/해제하는 목록을 쓴다. 등록 대상은 항상 소수다
  * (High LOD Pod는 근접 시에만 스폰, Dice는 소수·단명, 월드 장치는 수십 개 고정).
  *

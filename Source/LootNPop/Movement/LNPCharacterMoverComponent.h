@@ -121,7 +121,7 @@ public:
 	 */
 	void EnterDeadMode();
 
-	/** 사망 정지를 해제하고 기본 낙하 모드로 되돌린다 (Mass 표현 풀 재사용용). */
+	/** 사망 정지를 해제하고 기본 낙하 모드로 되돌린다 (적 승격 활성화의 ExitRagdoll 경로). */
 	void ExitDeadMode();
 
 	/** 현재 ULNPDeadMode 상태인지. */

@@ -41,7 +41,7 @@ UE 5.8 Game Animation Sample(이하 GASP)의 애니메이션 구성을 LootNPop�
 | 현재 메인 ABP·무기 레이어·몽타주·ANS·근접 보정 | [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) |
 | 구형 중력·Mover·랙돌(§9) | [TechDesign_CharacterMovement.md](../TechDesign_CharacterMovement.md) |
 | 경직(그로기·다운)과 히트리액트의 경계 | [TechDesign_Poise.md](../TechDesign_Poise.md) |
-| 적 Actor 승격·표현 풀 재사용 | [TechDesign_EnemyNPC.md](../TechDesign_EnemyNPC.md) |
+| 적 Actor 승격·강등(파괴·재스폰, 풀링 안 함) | [TechDesign_EnemyNPC.md](../TechDesign_EnemyNPC.md) |
 | ISKM·PureEntity와의 경계 | [TechDesign_EnemyNPC_LowLOD.md](../TechDesign_EnemyNPC_LowLOD.md) |
 | 복제·게스트 재시뮬레이션 | [TechDesign_Networking.md](../TechDesign_Networking.md) |
 | 과거 경위·회귀 원인 조사 | 관련 `history/PhaseNN_Log.md` |

@@ -73,13 +73,14 @@ Pod Actor 바로 옆(217cm)에 서 있어도 쿼리 결과가 항상 0건. Defin
 
 ### 기각 사유
 
-1. **Mass 액터 풀링과의 구조적 충돌 (결정적):** SmartObject는 정적 오브젝트 전제라 **등록(BeginPlay) 시점 위치가 공간 파티션(HashGrid)에 고정**되고 이후 액터 이동을 추적하지 않는다. 그러나 Mass Representation은 High LOD 액터를 풀에서 재사용하며 다른 엔티티 위치로 텔레포트시킨다 — 파티션 엔트리와 실제 액터 위치가 어긋나 쿼리가 영원히 빗나간다.
+1. ~~**Mass 액터 풀링과의 구조적 충돌 (결정적):** Mass Representation이 High LOD 액터를 풀에서 재사용하며 다른 엔티티 위치로 텔레포트시켜, 등록(BeginPlay) 시점에 고정된 공간 파티션 엔트리와 실제 위치가 어긋난다.~~
+   **정정(2026-11-03): 전제가 틀렸다.** 엔진 Mass 액터 풀(`UMassActorSpawnerSubsystem`)은 Actor가 `IMassActorPoolableInterface`를 구현할 때만 쓰이는데 `ALNPLootPod`·`BP_LNPLootPod`는 구현하지 않는다. Pod Actor는 강등 때 파괴되고 승격 때 **자기 엔티티 위치에** 새로 스폰된다(`SpawnActor`가 요청 Transform을 그대로 쓴다). Pod는 움직이지 않으므로 등록 위치와 실제 위치가 어긋날 수 없다 — 이 사유로는 0건을 설명하지 못한다. **0건의 실제 원인은 확정하지 못했다.** "SmartObject는 등록 후 액터 이동을 추적하지 않는다"는 성질 자체는 맞으므로, 움직이는 대상에 쓰지 않는다는 판단만 유효하다.
 2. **조용한 실패 함정 2중:** ① Definition이 없으면 등록은 조용히 성공(RegisteredHandle 유효)하지만 쿼리엔 절대 안 잡힘. ② SOD에 슬롯이 0개면 등록이 경고 로그와 함께 거부됨. 어느 쪽도 게임플레이 코드에서 눈에 띄는 에러가 없다.
 3. **에셋 의존 부담:** SOD 슬롯 + Behavior Definition(추상 클래스라 구체 서브클래스 필요) + BP CDO 설정까지, 단순 근접 탐색에 비해 요구 설정이 과도. 슬롯·클레임 등 SmartObject의 본기능은 전혀 사용하지 않았다.
 
 ### 채택한 대안
 
-- **`ULNPInteractableRegistrySubsystem` 레지스트리 (구 `ULNPLootPodSubsystem` — LootDice 도입 시 AActor 기반으로 일반화):** 대상 Actor(Pod·Dice)가 `BeginPlay`/`EndPlay`에 스스로 등록/해제하는 목록을 `ULNPInteractionComponent`가 순회. High LOD Actor는 항상 소수(플레이어 주변만 스폰)라 순회 비용이 무시할 수준이고, 풀링 재배치와 무관하게 항상 현재 위치 기준으로 판정된다. (월드 전체를 도는 `TActorIterator`도 비효율 사유로 배제)
+- **`ULNPInteractableRegistrySubsystem` 레지스트리 (구 `ULNPLootPodSubsystem` — LootDice 도입 시 AActor 기반으로 일반화):** 대상 Actor(Pod·Dice)가 `BeginPlay`/`EndPlay`에 스스로 등록/해제하는 목록을 `ULNPInteractionComponent`가 순회. High LOD Actor는 항상 소수(플레이어 주변만 스폰)라 순회 비용이 무시할 수준이고, 등록이 Actor 수명(BeginPlay/EndPlay)을 따르며 판정은 항상 현재 위치 기준이다 — 대상이 움직이거나 Actor가 다시 스폰돼도 어긋나지 않는다. (월드 전체를 도는 `TActorIterator`도 비효율 사유로 배제)
 - Pod의 `USmartObjectComponent`·SOD 에셋은 현재 상호작용 경로에서 미사용 — NPC AI(StateTree) 연동 후보로만 보류, 불필요 확정 시 제거 예정.
 
 ---

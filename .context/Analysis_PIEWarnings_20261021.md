@@ -128,7 +128,7 @@ CMC를 더미로 추가하거나 Actor를 ACharacter로 바꾸는 것은 해결 
 
 **위험도: 이번 조사에서 우선 확인할 설정 문제.** 실제로 매번 가시적인 위치 되돌림이 발생한다고 로그만으로 확정할 수는 없다. Translator 실행 순서와 그 시점 Transform 값에 따라 동일 위치를 다시 쓸 수도 있다. 그러나 Mover 밖의 유효한 캡슐 쓰기 경로가 설정으로 존재한다는 것은 확인됐다. 일반 위치 경고 전부를 오탐으로 처리하기 전에 제거해야 한다.
 
-권장 수정은 `BP_LNPEnemy.MassAgentComponent` 내부 Capsule Sync도 `ActorToMass`로 맞추는 것이다. 별도 EntityConfig만 고치면 불충분하다. 수정 후 PIE를 새로 시작해 템플릿 캐시를 새로 만들고, High LOD 승격·강등·풀 재사용·게스트 표현을 검증한다. 역방향 태그 `FMassCapsuleTransformCopyToActorTag`가 최종 Puppet 엔티티에 남지 않는지도 확인한다.
+권장 수정은 `BP_LNPEnemy.MassAgentComponent` 내부 Capsule Sync도 `ActorToMass`로 맞추는 것이다. 별도 EntityConfig만 고치면 불충분하다. 수정 후 PIE를 새로 시작해 템플릿 캐시를 새로 만들고, High LOD 승격·강등·재승격·게스트 표현을 검증한다. 역방향 태그 `FMassCapsuleTransformCopyToActorTag`가 최종 Puppet 엔티티에 남지 않는지도 확인한다.
 
 ## 5. Mover: Cannot predict trajectory ... not initialized
 
@@ -175,7 +175,7 @@ CMC를 더미로 추가하거나 Actor를 ACharacter로 바꾸는 것은 해결 
 
 | 순서 | 수정/확인 대상 | 성공 기준 |
 |---|---|---|
-| 1 | BP_LNPEnemy 내부 Capsule Sync를 ActorToMass로 정렬 | 최종 Puppet에 역방향 캡슐 태그가 없고 승격·강등·풀 재사용·게스트에서 위치 되돌림 없음 |
+| 1 | BP_LNPEnemy 내부 Capsule Sync를 ActorToMass로 정렬 | 최종 Puppet에 역방향 캡슐 태그가 없고 승격·강등·재승격·게스트에서 위치 되돌림 없음 |
 | 2 | 플레이어 에셋·적 내부 Config의 CMC Movement/Orientation Trait 정리 | CMC 추출 Error 0, 템플릿 의존성 실패 0, 회전·위치·필요 속도 데이터 유지 |
 | 3 | 적 프록시의 초기 원점 SyncState 경로 | 신규 적·복제 합류·풀 재활성화에서 잘못된 원점 시뮬레이션과 Up=0 경고 0 |
 | 4 | AnimInstance의 궤적 예측 준비 조건 | 초기화 전 예측 경고 0, 첫 포즈·무기 애니메이션 정상 |
@@ -241,7 +241,7 @@ CMC를 더미로 추가하거나 Actor를 ACharacter로 바꾸는 것은 해결 
 
 이는 양방향 Translator가 올바르게 보장해 주던 기능을 제거했다고 확정한 사례는 아니다. 그 Translator도 캡슐만 쓰며 Mover SyncState를 갱신하지 않는다. 다만 기존 역방향 쓰기를 없앴을 때 전환 프레임의 덮어쓰기 순서가 달라질 수 있으므로, 이번 설정 수정의 회귀 검증 대상으로 포함해야 한다.
 
-**최종 권고:** 지속 이동의 설정은 ActorToMass 유지. 1번 대응의 플레이 검증에는 정적 접지 승격 외에 공중/넉백 중 승격·낮은 LOD에서 복귀·구면 적도 부근 풀 재사용을 포함한다. 후속 수정 시 ActorManagement의 중심·중력 좌표 규약과 Mover 상태 전달을 한 경로로 일관되게 맞추는 것이 필요하다. 이번 재검토에서는 추가 게임 코드·에셋 수정이나 새 PIE 실행을 하지 않았다.
+**최종 권고:** 지속 이동의 설정은 ActorToMass 유지. 1번 대응의 플레이 검증에는 정적 접지 승격 외에 공중/넉백 중 승격·낮은 LOD에서 복귀·구면 적도 부근 재승격을 포함한다(적 Actor는 풀링되지 않아 재승격은 새 스폰이다). 후속 수정 시 ActorManagement의 중심·중력 좌표 규약과 Mover 상태 전달을 한 경로로 일관되게 맞추는 것이 필요하다. 이번 재검토에서는 추가 게임 코드·에셋 수정이나 새 PIE 실행을 하지 않았다.
 
 ## 10. 남반구 ISM→Actor 전환 시 적도 방향 누적 이동 재현과 수정
 

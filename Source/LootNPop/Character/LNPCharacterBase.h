@@ -185,7 +185,7 @@ public:
 	 */
 	void EnterRagdoll(const FVector& PopVelocity);
 
-	/** 랙돌을 되돌려 애니메이션 구동 상태로 복귀시킨다. 멱등 — Mass 표현 풀 재사용 경로가 매번 부른다. */
+	/** 랙돌을 되돌려 애니메이션 구동 상태로 복귀시킨다. 멱등 — 적은 승격 활성화(SyncFromEntity)마다 부른다. */
 	void ExitRagdoll();
 
 	bool IsRagdollActive() const { return bRagdollActive; }

@@ -1237,7 +1237,7 @@ void ULNPEnemyActorInitializerProcessor::Execute(FMassEntityManager& EntityManag
 						Enemy->InitializeOnce(WeakConfig.Get());
 						Enemy->SyncFromEntity(Health, TState, Velocity);
 						const ULNPEnemyConfig* Config = WeakConfig.Get();
-						// raw Actor teleport만으로는 풀에 남은 Mover 상태가 갱신되지 않는다.
+						// raw Actor teleport만으로는 Mover 상태가 갱신되지 않는다.
 						// 모든 승격에서 Entity 중심·자세를 전달하고, 정적 접지만 같은 층에 투영해 보정한다.
 						FTransform MoverTransform = ActivationTransform;
 						if (Config && !Config->IsFlying() && Velocity.IsNearlyZero() && Surface.IsValid())

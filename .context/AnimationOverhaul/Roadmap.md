@@ -59,7 +59,7 @@ L1 Locomotor 구면 검증 → L2 드론 전투 설계 → L3 이식
 - PhysicsControl **컴포넌트** 방식과 ABP의 **RigidBodyWithControl 노드** 방식 중 하나를 고르고 근거를 남긴다. `VisualMesh`가 포즈를 받는 경로와의 순서가 판단 기준이다.
 - 구면 중력: 시뮬레이션되는 상체 바디의 Chaos 중력을 끄고, 필요하면 기존 `TickRagdollGravity` 패턴(중력 Up 방향 가속)을 재사용한다.
 - 다리·골반은 키네마틱, 상체는 부모 공간 모터로 애니 포즈에 복귀한다.
-- 확인: 사망 랙돌 진입·`ExitRagdoll`(표현 풀 재사용)과 충돌하지 않는다.
+- 확인: 사망 랙돌 진입·`ExitRagdoll`(승격 활성화마다 호출)과 충돌하지 않는다.
 - 결과(2026-10-18): RBWC 노드 방식을 택했다. 알파를 상시 켜면 이동만으로 상체가 출렁이므로 피격 구간에만 켠다. 방향성 보강과 적 반응 세기가 Phase 3 과제다. 상세는 `research/PhysicsHitReactSpike.md`.
 
 ### Phase 1B — 마커리스 모캡 스파이크

@@ -34,8 +34,9 @@ public:
 	/**
 	 * 매 High LOD 활성화마다 호출: HP·속도를 Mass에서 주입하고 AnimSourceMesh를 숨긴다.
 	 *
-	 * ⚠️ **Actor는 Mass 표현 풀에서 재사용된다** — 직전 개체(시체일 수도 있다)의 흔적을 함께
-	 * 되돌려야 한다. 랙돌 해제·AI 입력 3종·조준 Pitch를 여기서 초기화하는 이유이며, 전부 멱등이다.
+	 * 랙돌 해제·AI 입력 3종·조준 Pitch도 여기서 초기화한다(전부 멱등). 현재 Actor는 강등 때 파괴되고
+	 * 승격 때 새로 스폰되므로(엔진 Mass 액터 풀 미사용) 지울 흔적이 없다 — 풀링을 켜면 직전 개체
+	 * (시체일 수도 있다)의 흔적을 되돌리는 자리가 된다.
 	 */
 	void SyncFromEntity(float InHealth, ELNPTargetingState InTargetingState, FVector InVelocity);
 

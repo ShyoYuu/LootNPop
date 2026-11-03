@@ -61,7 +61,7 @@ void ULNPInteractionComponent::UpdateInteractionCandidate()
 	{
 		AActor* Actor = WeakActor.Get();
 
-		// 파괴됐거나 풀에 반납되어 숨겨진 액터는 제외
+		// 파괴됐거나 숨겨진 액터는 제외 (Mass 액터 풀은 반납 시 숨긴다 — 지금은 풀링하지 않지만 켜도 맞도록 둔다)
 		if (Actor == nullptr || Actor->IsHidden())
 			continue;
 

@@ -11,7 +11,7 @@
 [ALNPLootPod Actor]                  → 레지스트리 등록 + Niagara·존 링 비주얼 + 상태·게이지 복제
 ```
 
-> 상호작용 탐색에 쓰던 SmartObject 공간 쿼리는 Mass 액터 풀링과의 구조적 충돌로 폐기 (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03).
+> 상호작용 탐색에 쓰던 SmartObject 공간 쿼리는 Pod 옆에서도 0건이 나와 폐기 — 당시 사유로 든 Mass 액터 풀링 충돌은 전제 오류로 정정했다(Pod Actor는 풀링되지 않고 자기 위치에 새로 스폰된다) (→ [DiscardedApproaches.md](DiscardedApproaches.md) Case 03).
 
 **상태 머신 (태그 교체):**
 
@@ -69,7 +69,7 @@ FLNPLootPodIdleTag ──(활성화 요청 Tag 감지 — Interaction Input)─�
 
 ### 3.1 플레이어 측 (ULNPInteractionComponent)
 
-`ULNPInteractableRegistrySubsystem` 레지스트리(Pod·Dice Actor가 BeginPlay/EndPlay에 자기 등록/해제)를 매 Tick 순회해 컴포넌트 탐색 반경(500cm) 내 후보를 수집한다. High LOD Actor는 항상 소수(근접 시에만 스폰)라 순회 비용은 무시할 수준이며, 풀에 반납된(Hidden) 액터는 제외한다. **탐색 반경과 판정 반경은 별개다** — 후보에 들어와도 실제 상호작용은 대상의 `CanInteract`(Pod 250cm+60°, Dice 250cm)를 통과해야 한다.
+`ULNPInteractableRegistrySubsystem` 레지스트리(Pod·Dice Actor가 BeginPlay/EndPlay에 자기 등록/해제)를 매 Tick 순회해 컴포넌트 탐색 반경(500cm) 내 후보를 수집한다. High LOD Actor는 항상 소수(근접 시에만 스폰)라 순회 비용은 무시할 수준이며, 숨겨진(Hidden) 액터는 제외한다. Pod Actor는 엔진 Mass 액터 풀을 쓰지 않아 강등 때 파괴되지만, 풀에 반납되는 Actor는 숨겨지므로 풀링을 켜도 이 필터가 맞다. **탐색 반경과 판정 반경은 별개다** — 후보에 들어와도 실제 상호작용은 대상의 `CanInteract`(Pod 250cm+60°, Dice 250cm)를 통과해야 한다.
 
 **상호작용 프롬프트:** 후보 중 **가장 가까운 Idle Pod 또는 Dice** 머리 위에 키 아이콘(스크린 스페이스 WidgetComponent)을 표시한다. 판정은 로컬 플레이어 전용(`IsLocallyControlled`) — 복제 무관. Looting 중인 Pod는 프레즌스 기여라 입력이 불필요하므로 프롬프트를 띄우지 않는다.
 

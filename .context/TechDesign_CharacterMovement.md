@@ -611,9 +611,9 @@ Chaos 바디는 커스텀 중력을 모른다. `LootDice`와 같은 전략 — `
 - `UnPossess()`를 먼저 부르는 이유: 그냥 `Destroy()`하면 `APawn::Destroyed` 경로가 컨트롤러를 Inactive 상태로 민다.
 - **빙의는 랙돌 동안 유지한다** — `ALNPPlayerController::OnUnPossess`가 `HudWidget->DeinitViewModel()`을 불러 일찍 풀면 HUD가 꺼진다. ASC·인벤토리·장비는 PlayerState 소유라 살아남고, Health만 `MaxHealth`로 되돌리면 HUD가 자동 갱신된다.
 
-### 9.6 Enemy 풀 재사용
+### 9.6 Enemy 재승격과 랙돌 해제
 
-Enemy Actor는 Mass 표현 풀에서 재사용된다. `ALNPEnemyCharacter::SyncFromEntity` 선두에서 `ExitRagdoll()`을 부르지 않으면 재활용 액터가 랙돌 상태로 되살아난다. `EnterRagdoll`/`ExitRagdoll`은 멱등이다.
+Enemy Actor는 엔진 Mass 액터 풀을 쓰지 않는다 — 강등 때 파괴되고 승격 때 새로 스폰된다([TechDesign_EnemyNPC.md](TechDesign_EnemyNPC.md) §6 Actor 수명). 그래도 `ALNPEnemyCharacter::SyncFromEntity` 선두에서 `ExitRagdoll()`을 부른다 — 풀링을 켜면 시체였던 Actor가 랙돌 상태로 되살아나기 때문이다. `EnterRagdoll`/`ExitRagdoll`은 멱등이라 새 Actor에서는 아무 일도 하지 않는다.
 
 ### 9.7 사망 오버레이
 
@@ -627,7 +627,7 @@ LNP.Debug.KillPlayer [PlayerIndex]
 
 권위(호스트) 콘솔 전용. 대상 Health를 0으로 내려 **정상 사망 경로**(`PossessedBy`의 Health 델리게이트)를 그대로 태운다. 인수 없으면 0번(호스트). 리스폰 랜덤성 확인에 사실상 필수. 구현: `Character/LNPPlayerCharacter.cpp` 끝.
 
-**PIE 2인 검증 완료 (2026-08-21):** 랙돌·구형 중력 낙하·시체 추적 카메라·전량 드랍·카운트다운·랜덤 리스폰·기본 장비 재지급·상호 관전, Enemy 랙돌과 풀 재사용, 구 정반대 적도 부근 카메라(§2.5 수정 확인).
+**PIE 2인 검증 완료 (2026-08-21):** 랙돌·구형 중력 낙하·시체 추적 카메라·전량 드랍·카운트다운·랜덤 리스폰·기본 장비 재지급·상호 관전, Enemy 랙돌과 재승격, 구 정반대 적도 부근 카메라(§2.5 수정 확인).
 
 ### 9.9 알려진 한계
 
