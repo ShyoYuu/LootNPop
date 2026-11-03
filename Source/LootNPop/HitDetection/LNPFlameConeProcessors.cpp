@@ -344,6 +344,13 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 				const ELNPPlayerDefenseResult Result = LNPGuardParry::Judge(ParryFrags[i],
 					FVector::DotProduct(Fwd, HitFromDir), Now, /*bInParryRange*/ false, /*bInHitRange*/ true);
 
+				// 무적 동안은 틱 피해·경직·새 화상 스택을 모두 건너뛴다. 이미 걸린 화상의 지속 틱은 GE가 계속 깎는다.
+				if (Result == ELNPPlayerDefenseResult::Dodged)
+				{
+					LNPGuardParry::ReportDodgeIgnored(TEXT("Flame"), Actor);
+					continue;
+				}
+
 				if (Result == ELNPPlayerDefenseResult::Guarded)
 				{
 					// 막아내도 경직은 쌓인다 (가드 브레이크).

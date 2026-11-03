@@ -83,6 +83,13 @@ struct LOOTNPOP_API FLNPProjectileFragment : public FMassFragment
 	UPROPERTY()
 	FMassEntityHandle Instigator;
 
+	/**
+	 * 대시 무적으로 이 탄을 흘려보낸 플레이어. 탄은 관통해 계속 날고, 무적이 끝난 뒤 다시 겹쳐도 이 대상은 맞히지 않는다.
+	 * 1칸뿐이다 — 한 탄이 무적 플레이어 둘을 연달아 지나는 일은 드물다. 패링 반사 때 비운다(반사탄은 원래 공격자를 노린다).
+	 * 서버 판정과 클라 Ghost 예측이 같은 규칙으로 각자 기록한다.
+	 */
+	FMassEntityHandle DodgedEntity;
+
 	/** 발사(또는 패링 반사) 시점의 공격자 팀 (Player/LNPTeam.h). 이후 공격자가 팀을 바꿔도 이 탄은 그대로다. */
 	uint8 InstigatorTeam = LNPTeam::NPCTeam;
 

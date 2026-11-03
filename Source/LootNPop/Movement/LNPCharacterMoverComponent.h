@@ -191,6 +191,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Dash")
 	float DashCooldown = 1.0f;
 
+	/** 대시 실행 시점부터 피격을 무시하는 시간 (초). 대시 길이(DashDuration)보다 짧게 둔다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Dash")
+	float IFrameDuration = 0.15f;
+
 	/** 그래플 비행 속력 (cm/s). 비행 시간 = 거리 / 이 값. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Grapple")
 	float GrappleSpeed = 2500.0f;

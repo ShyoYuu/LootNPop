@@ -44,8 +44,9 @@ ExecuteDash(...)
 
 - 기록하는 머신: **권위(서버)**와 **오토노머스(소유 클라이언트)**. 서버 기록은 판정에 쓰이고, 소유 클라이언트 기록은 예측 연출을 생략하는 데만 쓰인다. 시뮬레이티드 프록시에서는 기록하지 않는다.
 - `IFrameDuration`(초안 0.15)과 `JustDodgeWindow`(초안 0.12)는 `ULNPCharacterMoverComponent`의 UPROPERTY다(대시 파라미터와 같은 곳).
-- 프래그먼트 접근 수단은 단위 0에서 정한다. 이동 컴포넌트가 InputHandler의 `GetParryFragment()`를 빌리는 방법과 헬퍼를 공용으로 옮기는 방법 중에서 고른다. 서버의 원격 폰에서도 그 경로가 동작하는지 확인해야 한다.
-- **해제는 만료 시각으로만 한다.** 가드의 bool 미러는 명령형이라 해제 경로가 하나라도 빠지면 가드가 남는다(Parry §2.2). 회피는 시각 비교만 하므로 해제 경로가 없다. 사망·리스폰 때 -1로 초기화하는 지점만 둔다.
+- 프래그먼트 접근 수단은 공용 헬퍼 `LNPGuardParry::FindFragment(const AActor*)`다. 소유 Actor의 `UMassAgentComponent`만 쓰므로 서버의 원격 폰에서도 동작한다. InputHandler의 `GetParryFragment()`도 이 헬퍼에 위임한다(Phase 1 단위 0).
+- **해제는 만료 시각으로만 한다.** 가드의 bool 미러는 명령형이라 해제 경로가 하나라도 빠지면 가드가 남는다(Parry §2.2). 회피는 시각 비교만 하므로 해제 경로가 없다.
+- **사망·리스폰 초기화 지점도 두지 않는다.** 리스폰은 새 폰과 새 엔티티를 만들고, 필드는 기본값 -1로 시작한다. 사망부터 리스폰까지는 `FLNPPlayerDeadTag`가 판정 쿼리에서 빼 준다(Phase 1 단위 0).
 - 시계: 서버 판정 프로세서의 `Now`도 같은 `World->GetTimeSeconds()`다(`ParryWindowExpiryTime`과 같은 규약).
 
 ## 3. `Judge` 확장
@@ -75,9 +76,11 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
 | 투사체 직격 (`LNPProjectileProcessors.cpp:1039-1051`) | `FinishHit` 없음 → 관통해 계속 비행. 투사체 프래그먼트에 회피 대상을 기록하고 이후 그 대상을 후보에서 뺀다(J-003) | 같음 + 커맨드. 패링 반경 계산 조건을 `PS.bIsParrying \|\| 저스트 창 열림`으로 넓힌다 |
 | 스플래시 (`LNPProjectileProcessors.cpp:715-724`) | 피해·넉백·경직 없음 | 발생하지 않음 |
 | 화염 원뿔 (`LNPFlameConeProcessors.cpp:344`) | 틱 피해·화상 스택 없음 | 발생하지 않음 |
-| 클라이언트 예측 (`LNPProjectileProcessors.cpp:404-474`, `LNPWeaponTraceProcessors.cpp:299`) | 로컬 플레이어가 무적이면 예측 임팩트를 생략한다(관통하는 그림 유지) | — |
+| 클라이언트 투사체 예측 (`LNPProjectileProcessors.cpp:393-484`) | 대상 플레이어의 무적 창이 열려 있으면 예측 임팩트를 생략하고 Ghost의 회피 대상 칸에 기록한다(관통하는 그림 유지, 무적이 끝난 뒤 다시 겹쳐도 맞지 않음) | — |
+| 클라이언트 근접 예측 (`LNPWeaponTraceProcessors.cpp:250-368`) | 처리하지 않는다. 로컬 공격자의 HitStop 예측이라 로컬 플레이어가 대상이 아니고, 상대의 무적 창은 그 머신에 없다. PvP에서 예측 HitStop이 한 번 어긋나는 것은 허용한다 | — |
+| 플레이어 화상 지속 틱 (`ULNPGameplayEffect_Burn` 주기 GE) | `Judge`를 거치지 않으며 회피하지 않는다. 막는 것은 무적 중에 새로 붙는 스택까지다 | — |
 
-- **투사체 회피 대상 칸:** 투사체 프래그먼트(`LNPProjectileMassTypes.h:72~`)에는 지금 "이미 맞힌 대상"을 담는 칸이 없다. `FMassEntityHandle` 1칸을 추가한다. 탄 하나가 무적 플레이어 둘을 연달아 관통하는 경우는 드물어서 1칸으로 시작하고, 필요하면 늘린다. 반사(패링) 때 이 칸을 초기화할지는 Phase 1 단위 0에서 정한다.
+- **투사체 회피 대상 칸:** `FLNPProjectileFragment`에 `FMassEntityHandle DodgedEntity` 1칸을 둔다. 탄 하나가 무적 플레이어 둘을 연달아 관통하는 경우는 드물어서 1칸으로 시작하고, 필요하면 늘린다. **패링 반사 때 초기화한다.** 반사탄은 원래 공격자를 노리고, 반사한 사람은 새 `Instigator`라 어차피 제외된다. 클라이언트 Ghost도 같은 칸을 쓴다.
 - **근접 Dodged에 MarkHit을 하지 않는 이유:** 너무 일찍 대시해서 무적이 끝났는데도 아직 칼날 안에 있다면 맞는 것이 정직하다. 저스트 회피는 타이밍이 맞았다는 뜻이므로 그 휘두르기를 끝낸다.
 
 ## 5. 성공 처리와 버프 (Phase 2)
@@ -124,7 +127,14 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
 
 ## 7. 디버그
 
-- `LNP.Debug.Dodge [0|1]`
-  - 서버 로그: `[Dodge] IFrame ignored path=<Melee|Projectile|Splash|Flame>`, `[Dodge] JustDodge success ...`
-  - 화면: 로컬 폰의 무적 창과 저스트 창 남은 시간, 성공 시 텍스트 `JUST DODGE`(비주얼이 없는 메인 트랙에서 테스터 피드백용)
+- 로그와 화면 문구는 CVar를 나눈다. 둘 다 기본은 꺼짐이다(사용자 요청, 2026-11-03). 구현은 `LNPGuardParry::ReportDodgeIgnored`·`ReportDodgeWindowOpened`(`HitDetection/LNPGuardParryTypes.cpp`)에 있다.
+- `LNP.Debug.Dodge [0|1]` — 로그
+  - `[Dodge] IFrame open <폰> role=<역할> expiry=<시각>`: 권위·오토노머스에서 창을 연 시점
+  - `[Dodge] IFrame ignored path=<Melee|Projectile|Splash|Flame> player=<폰>`: 서버
+  - `[Dodge] JustDodge success ...`: Phase 2
+- `LNP.Debug.ShowDodge [0|1]` — 화면 문구(보라 계열, 사용자 요청으로 두 색을 구분, 2026-11-03)
+  - `IFRAME  0.15s  (<폰>)` — **연한 보라**: 로컬 폰이 창을 연 순간 창 길이만큼 떠 있다. 문구가 보이는 동안이 곧 무적 창이다
+  - `IFRAME BLOCK  <경로>  (<폰>)` — **짙은 보라**: 서버가 무적으로 피격을 무시할 때마다 1초. 경로마다 한 줄을 덮어쓴다. **이 문구가 떴다면 무적이 없었을 때 맞았을 공격이다.** 이동만으로 빗나간 공격과 플레이 중에 구분하는 수단이다(사용자 피드백, 2026-11-03)
+  - 서버 판정 시점에 띄우는 `GEngine` 문구라 단일 프로세스 PIE에서는 모든 창에 보인다. 별도 프로세스 게스트에게는 보이지 않는다
+  - Phase 2: 저스트 창, 성공 시 `JUST DODGE`(비주얼이 없는 메인 트랙에서 테스터 피드백용)
 - 보조 도구는 기존 것을 쓴다: `LNP.Debug.ShowSpeed 1`(버프 배율 확인), `mover.debug.ShowCorrections 1`, `LNP.Spawn.EnemyDensity 0`(보정 진단 시 적 제거).

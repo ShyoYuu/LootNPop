@@ -357,6 +357,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			bool    bIsEnemy;
 			uint8   Team;             // 판정 팀 (Player/LNPTeam.h) — 적은 NPCTeam, 플레이어는 복제된 PlayerState 값
 			int32   PlayerID;        // Player 타겟의 PlayerId — 관전용 Ghost가 발사자 본인 캡슐에 자폭하지 않도록 제외용
+			FMassEntityHandle Entity = {};   // Player 타겟만 — Ghost의 DodgedEntity와 대조한다
+			bool    bDodging = false; // Player 타겟의 무적 창이 열려 있는가 (소유 클라만 기록하므로 사실상 로컬 플레이어)
 		};
 		TArray<FClientCapsuleTarget> ClientTargets;
 
@@ -390,12 +392,16 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			}
 		});
 
+		// 무적 창 비교용. 시계는 이 머신 자신의 것이다 — 기록한 소유 클라가 같은 시계로 비교한다.
+		const double ClientNow = World->GetTimeSeconds();
+
 		PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(LNPProjectile_ClientCollectPlayers);
 			FLNPProjectileHitProfileScope Scope(HitProfile, FLNPProjectileHitProfile::CollectPlayers, ProfileStride > 0);
-			const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
-			TArrayView<FMassActorFragment>            ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+			const TConstArrayView<FTransformFragment>     Transforms = Ctx.GetFragmentView<FTransformFragment>();
+			TArrayView<FMassActorFragment>                ActorFrags = Ctx.GetMutableFragmentView<FMassActorFragment>();
+			const TConstArrayView<FLNPParryStateFragment> ParryFrags = Ctx.GetFragmentView<FLNPParryStateFragment>();
 
 			for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 			{
@@ -410,7 +416,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				const APlayerState* TargetPS = PlayerPawn->GetPlayerState<APlayerState>();
 				const FVector Loc = Transforms[i].GetTransform().GetLocation();
 				ClientTargets.Add({ PlayerActor, Loc, (-Loc).GetSafeNormal(), HalfH, Radius, false,
-					LNPTeam::GetTeam(PlayerPawn), TargetPS ? TargetPS->GetPlayerId() : INDEX_NONE });
+					LNPTeam::GetTeam(PlayerPawn), TargetPS ? TargetPS->GetPlayerId() : INDEX_NONE,
+					Ctx.GetEntity(i), ClientNow <= ParryFrags[i].DodgeIFrameExpiryTime });
 			}
 		});
 
@@ -466,12 +473,21 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 						if (HitProfile.bSample) ++HitProfile.TeamExcluded;
 						continue;
 					}
+					if (!Target.bIsEnemy && Target.Entity == Proj.DodgedEntity)
+						continue;
 					}
 
 					FVector HitPoint;
 					if (!SegmentHitsCapsule(Segment, Target.Location, Target.UpDir,
 						Target.CapsuleHalfHeight, Target.CapsuleRadius, Shared.HitRadius, HitPoint))
 						continue;
+
+					// 서버 판정과 같은 규칙 — 무적이면 임팩트 없이 관통하고, 무적이 끝난 뒤 다시 겹쳐도 맞지 않는다.
+					if (Target.bDodging)
+					{
+						Proj.DodgedEntity = Target.Entity;
+						continue;
+					}
 
 					// 원거리는 공격자 HitStop을 재생하지 않는다 (근접 전용 — 물리적 충돌감이 없어 어색함).
 					// Ghost 즉시 소멸(트레일 관통 방지) + 예측 위치 임팩트 VFX. 서버 확정 결과가 최종.
@@ -720,8 +736,15 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			const FVector SplashPoint = SP.Location + SplashDir * SP.CapsuleRadius;
 
 			// 폭발은 패링할 수 없다(bInParryRange=false). 가드 방향은 탄이 날아온 쪽이 아니라 폭심 쪽이다.
-			if (LNPGuardParry::Judge(SP.ParryState, FVector::DotProduct(SP.ForwardVector, SplashDir), Now,
-				/*bInParryRange*/ false, /*bInHitRange*/ true) == ELNPPlayerDefenseResult::Guarded)
+			const ELNPPlayerDefenseResult Result = LNPGuardParry::Judge(SP.ParryState,
+				FVector::DotProduct(SP.ForwardVector, SplashDir), Now, /*bInParryRange*/ false, /*bInHitRange*/ true);
+			if (Result == ELNPPlayerDefenseResult::Dodged)
+			{
+				// 피해·넉백·경직 모두 없다.
+				LNPGuardParry::ReportDodgeIgnored(TEXT("Splash"), SP.Actor);
+				continue;
+			}
+			if (Result == ELNPPlayerDefenseResult::Guarded)
 			{
 				// 막아내도 경직은 쌓인다 (가드 브레이크). 피해·넉백은 막는다.
 				LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now, PoiseGuardMultiplier);
@@ -1028,6 +1051,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					if (HitProfile.bSample) ++HitProfile.SelfExcluded;
 					continue;
 				}
+				// 무적으로 한 번 흘려보낸 대상은 무적이 끝난 뒤에도 다시 맞히지 않는다.
+				if (Player.Handle == Proj.DodgedEntity)
+					continue;
 				// 같은 팀은 탄을 막지도 않고 통과시킨다 — 클라 예측 판정과 같은 규칙.
 				if (!LNPTeam::CanHit(Proj.InstigatorTeam, Player.Team))
 				{
@@ -1051,6 +1077,14 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					FVector::DotProduct(Player.ForwardVector, IncomingDir), Now, bInParryRange, bInHitRange);
 				if (Result == ELNPPlayerDefenseResult::None)
 					continue;
+
+				// 관통 — FinishHit 없이 계속 날아 뒤의 대상(다른 플레이어·지형)에 맞는다.
+				if (Result == ELNPPlayerDefenseResult::Dodged)
+				{
+					Proj.DodgedEntity = Player.Handle;
+					LNPGuardParry::ReportDodgeIgnored(TEXT("Projectile"), Player.Actor);
+					continue;
+				}
 
 				if (Result == ELNPPlayerDefenseResult::Parried)
 				{
@@ -1083,6 +1117,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					Proj.CachedRewindSeconds = DefenderHalfRTT;
 					Proj.bInstigatorIsRemoteClient = bDefenderIsRemoteClient;
 					Proj.InstigatorViewLocation    = Player.Location; // 반사 주체가 새 뷰어다
+					Proj.DodgedEntity              = FMassEntityHandle(); // 반사탄은 원래 공격자를 노린다
 
 					FLNPProjectileParryCommand::FEntry ParryEntry;
 					ParryEntry.Victim                = Player.Actor;

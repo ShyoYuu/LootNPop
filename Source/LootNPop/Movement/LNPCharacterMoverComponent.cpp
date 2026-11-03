@@ -14,6 +14,7 @@
 #include "WorldDevice/LNPGrappleAnchor.h"
 #include "WorldDevice/LNPWindFieldSubsystem.h"
 #include "Gravity/LNPPawnGravityComponent.h"
+#include "HitDetection/LNPGuardParryTypes.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LNPGameplayTags.h"
@@ -369,6 +370,17 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 	// 시뮬레이티드 프록시는 이 함수를 첫 시뮬레이션으로 지나가지 않는다 — 재생은 UpdateSyncedMontageState가 맡는다.
 	if (TimeStep.bIsResimulating)
 		return;
+
+	// 회피 무적 창을 판정용 Fragment에 미러링한다 — 롤백마다 다시 열리면 안 되므로 위 게이트 뒤에 둔다.
+	// 서버는 판정에, 소유 클라는 예측 연출 생략에 쓴다. 시뮬레이티드 프록시는 기록하지 않는다.
+	if (Pawn->GetLocalRole() == ROLE_Authority || Pawn->GetLocalRole() == ROLE_AutonomousProxy)
+	{
+		if (FLNPParryStateFragment* PF = LNPGuardParry::FindFragment(Pawn))
+		{
+			PF->DodgeIFrameExpiryTime = GetWorld()->GetTimeSeconds() + IFrameDuration;
+			LNPGuardParry::ReportDodgeWindowOpened(Pawn, PF->DodgeIFrameExpiryTime, IFrameDuration);
+		}
+	}
 
 	OnDashExecuted.Broadcast();
 

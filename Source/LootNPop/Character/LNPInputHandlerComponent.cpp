@@ -27,8 +27,6 @@
 #include "LNPGameplayTags.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 
-#include "MassAgentComponent.h"
-#include "MassEntitySubsystem.h"
 #include "HitDetection/LNPGuardParryTypes.h"
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "Player/LNPTeam.h"
@@ -606,28 +604,7 @@ void ULNPInputHandlerComponent::OnProduceInput(float DeltaMs, FMoverInputCmdCont
 
 FLNPParryStateFragment* ULNPInputHandlerComponent::GetParryFragment() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-		return nullptr;
-
-	UMassEntitySubsystem* MassSub = World->GetSubsystem<UMassEntitySubsystem>();
-	if (!MassSub)
-		return nullptr;
-
-	AActor* Owner = GetOwner();
-	if (!Owner)
-		return nullptr;
-
-	UMassAgentComponent* AgentComp = Owner->FindComponentByClass<UMassAgentComponent>();
-	if (!AgentComp)
-		return nullptr;
-
-	FMassEntityManager& EM = MassSub->GetMutableEntityManager();
-	const FMassEntityHandle Handle = AgentComp->GetEntityHandle();
-	if (!EM.IsEntityActive(Handle))
-		return nullptr;
-
-	return EM.GetFragmentDataPtr<FLNPParryStateFragment>(Handle);
+	return LNPGuardParry::FindFragment(GetOwner());
 }
 
 // --- Input Event Implementation ---

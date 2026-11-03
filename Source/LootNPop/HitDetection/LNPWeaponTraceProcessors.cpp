@@ -591,6 +591,13 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				if (Result == ELNPPlayerDefenseResult::None)
 					return;
 
+				// MarkHit을 하지 않는다 — 너무 일찍 대시해 무적이 끝난 뒤에도 칼날 안에 남아 있으면 그 휘두르기에 맞는다.
+				if (Result == ELNPPlayerDefenseResult::Dodged)
+				{
+					LNPGuardParry::ReportDodgeIgnored(TEXT("Melee"), Player.Actor);
+					return;
+				}
+
 				MarkHit(Frag, Player.Handle);
 				if (!Player.Actor)
 					return;
