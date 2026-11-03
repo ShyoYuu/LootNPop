@@ -248,6 +248,21 @@ FLNPUAFSpikePhysicsInputs ULNPUAFSpikeAnimInstance::MakePhysicsInputs()
 	// 척추 항목들은 같은 배율을 쓴다(모드 64). 온몸 세트(모드 8)도 같은 값으로 척추에만 건다.
 	if (!HitControlParameters.ControlMultiplierParameters.IsEmpty())
 		Physics.SpineAngularStrengthMultiplier = HitControlParameters.ControlMultiplierParameters[0].Data.AngularStrengthMultiplier;
+	// 그립과 앵커 본은 같은 (지난 프레임) 표시 포즈에서 읽어 상대 위치만 넘긴다. 표시 메시는 원본과 같은 스켈레톤이다.
+	// 그립이 없어도 유효한 본을 넘긴다. CR의 Get Transform은 없는 본이면 매 실행 경고를 남긴다(알파 0이라 포즈는 그대로).
+	Physics.LeftHandAnchorBone = TEXT("hand_l");
+	const USkeletalMeshComponent* WeaponParent = WeaponMeshComp ? Cast<USkeletalMeshComponent>(WeaponMeshComp->GetAttachParent()) : nullptr;
+	if (bHasLeftHandGrip && WeaponParent)
+	{
+		const FName AnchorBone = WeaponParent->GetSocketBoneName(WeaponMeshComp->GetAttachSocketName());
+		const int32 AnchorIndex = WeaponParent->GetBoneIndex(AnchorBone);
+		if (AnchorIndex != INDEX_NONE)
+		{
+			Physics.LeftHandIKAlpha = LeftHandIKAlpha;
+			Physics.LeftHandAnchorBone = AnchorBone;
+			Physics.LeftHandGripInAnchor = WeaponParent->GetBoneTransform(AnchorIndex).InverseTransformPosition(LeftHandGripLocation);
+		}
+	}
 	return Physics;
 }
 

@@ -68,6 +68,24 @@ struct FLNPUAFSpikePhysicsInputs
 	/** 척추 컨트롤 각강도 배율. 피격 구간에만 1 아래로 내려간다. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics")
 	float SpineAngularStrengthMultiplier = 1.0f;
+
+	/**
+	 * 표시 왼손 Two Bone IK 알파. `ABP_VisualCopyPose`의 IK 노드를 같은 CR의 물리 앞에서 대신한다(IK → 물리 순서 유지).
+	 * 그립 목표가 없으면 0. 구조체에 두는 이유는 v2 Control Rig trait에 변수를 새로 노출하지 않기 위해서다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Left Hand IK")
+	float LeftHandIKAlpha = 0.0f;
+
+	/**
+	 * 무기가 붙은 본. CR이 이번 평가의 이 본 위치에 아래 오프셋을 더해 왼손 목표를 만든다.
+	 * 목표를 지난 프레임 표시 포즈의 월드 위치로 넘기면 매 프레임 조준 보정이 상체를 돌리는 동안 왼손이 한 프레임씩 늦어 떨린다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Left Hand IK")
+	FName LeftHandAnchorBone = NAME_None;
+
+	/** 그립 위치(앵커 본 공간, cm). 무기가 앵커에 강체로 붙어 있어 지난 프레임 포즈로 구해도 정확하다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Left Hand IK")
+	FVector LeftHandGripInAnchor = FVector::ZeroVector;
 };
 
 /** UAF 시스템과 그래프가 함께 가져오는 스파이크 전용 입력. */
