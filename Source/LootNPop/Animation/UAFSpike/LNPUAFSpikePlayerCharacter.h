@@ -3,20 +3,8 @@
 #pragma once
 
 #include "Character/LNPPlayerCharacter.h"
-#include "Components/ActorComponent.h"
+#include "Animation/UAFSpike/LNPUAFSpikeDriver.h"
 #include "LNPUAFSpikePlayerCharacter.generated.h"
-
-/** Actor·입력·ControlRotation 뒤, UAF 앞에서 시험 입력을 한 번 공급한다. */
-UCLASS()
-class ULNPUAFSpikeInputComponent : public UActorComponent
-{
-	GENERATED_BODY()
-
-public:
-	ULNPUAFSpikeInputComponent();
-	virtual void BeginPlay() override;
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-};
 
 /** UAF 시험에서만 원본 메시 선택과 포즈 평가 없는 입력 공급을 명시한다. */
 UCLASS()
@@ -36,7 +24,5 @@ protected:
 	virtual ULNPPhysicalHitReactAnimInstance* GetPhysicalHitReactInstance() const override;
 
 private:
-	bool InitializeSourceDriver();
-	void ShutdownUAFNotifies(const TCHAR* Phase);
 	bool bReportedDriverError = false;
 };

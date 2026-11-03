@@ -81,9 +81,12 @@ protected:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_TriggerRagdoll(FVector PopVelocity);
 
-	/** 사망 시 표면 Up 방향으로 부여할 Pop 속도 (cm/s). */
+	/**
+	 * 사망 시 표면 Up 방향으로 부여할 Pop 속도 (cm/s).
+	 * 시체가 `ULNPSettings::EnemyRagdollDuration` 안에 바닥에 닿아야 랙돌이 보인다 — 2000·667이면 체공이 소멸 시간을 넘었다.
+	 */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Death")
-	float RagdollPopSpeed = 2000.f;;
+	float RagdollPopSpeed = 333.f;
 
 	/**
 	 * 조준 Pitch 추종 속도(FInterpTo). 목표를 잡는 순간 상체가 튀지 않도록 한 박자 늦춘다.

@@ -1040,8 +1040,9 @@ Config의 `ELNPEnemyAttackType` 필드로 교체했다. 원래 이 Stage의 항�
 
 랙돌이 없어도 "맞고 날아간다"는 그림은 남긴다. `ULNPHealthProcessor`가 사망 순간
 `FLNPEnemyVelocityFragment`에 표면 Up 방향 속도를 실어 주고, 이동 프로세서의 공중 분기가 중력과 함께
-적분해 표면에 스냅한다. 값(`PureEntityDeathPopSpeed`, 기본 2000)은 승격 개체가 랙돌에 주는 팝
-(`ALNPEnemyCharacter::RagdollPopSpeed`)과 **같다.** 공중 물리는 **넉백과 같은 람다**를 쓴다 —
+적분해 표면에 스냅한다. 값(`PureEntityDeathPopSpeed`, 기본 2000)은 원래 승격 개체가 랙돌에 주는 팝
+(`ALNPEnemyCharacter::RagdollPopSpeed`)과 같았으나, 랙돌 시체가 소멸 전에 바닥에 닿지 않아 랙돌 쪽만
+333으로 낮췄다(2026-11-03). 공중 물리는 **넉백과 같은 람다**를 쓴다 —
 복제했다면 죽는 순간에만 다른 곡선을 그리는 어긋남이 생겼을 자리다.
 
 ⚠️ **`PureEntityDeathDuration`이 두 하한을 동시에 덮어야 한다.**

@@ -608,7 +608,7 @@ public:
 
 	/**
 	 * `PureEntity`가 죽는 순간 표면 Up 방향으로 튀어오르는 속도(cm/s).
-	 * `ActorPromoted`가 랙돌에 주는 팝(`ALNPEnemyCharacter::RagdollPopSpeed`)의 엔티티판이며 기본값도 같다 —
+	 * `ActorPromoted`가 랙돌에 주는 팝(`ALNPEnemyCharacter::RagdollPopSpeed`)의 엔티티판이다(랙돌 쪽은 착지를 위해 더 낮다) —
 	 * 랙돌이 없어도 "맞고 날아간다"는 그림은 남기려는 것이다.
 	 *
 	 * ⚠️ **`PureEntityDeathDuration`이 왕복 시간을 덮어야 한다.** 체공 시간은 대략

@@ -1,7 +1,7 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0·5-1 완료. 5-2 진행 중(최신 §49 ⓐ UAF 물리 히트리액트·포즈 복사·랙돌 최소 시험 통과). §36~§38/§40 대표 검증·종료 완료, §39 발사 보류 미채택·§41 재장전 보조 가산 기존 생략 확인. §42 전달 경로 조사 완료·전신 몽타주 Release 판정 누락 재현. 다음은 해당 판정 보완 제안이며 전체 게이트/Go-No-Go는 미판정이다.
-> 마지막 갱신: 2026-11-02
+> 상태: 5-0·5-1 완료. 5-2 진행 중(최신 §50 ⓓ `ActorPromoted` 적 최소 UAF 경로 — 기능 통과, **Remap Pose 엔진 결함을 Go 차단 요인으로 기록(AN-028)**). §36~§38/§40 대표 검증·종료 완료, §39 발사 보류 미채택·§41 재장전 보조 가산 기존 생략 확인. 전체 게이트/Go-No-Go는 미판정이며 차단 요인이 풀리기 전에는 Go가 아니다.
+> 마지막 갱신: 2026-11-03
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
 ## 1. 목표와 범위
@@ -62,11 +62,11 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS5종 정상/중단/교체/종료 시 End 각1·태그/근접 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26~§32 정상/대표 중단/소유 Actor 종료 보완 확인. §34 UpperBody 최소 마스크/대표 정상·이동·대시 재장전/실제 평가 구조 확인. 월드 사후 실제 무효/독립 태그·전체 슬롯/그룹의 상세 실행·Branching/다른 배치 모드는 미검증 |
 | UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 부분 확인·무기 레이어 게이트 미판정 — §36 같은 UEFN 표시 ABP·재장전 IK 차단/대시 복귀·Idle 물리와 공격 중 억제 대표 확인. 무기별 자세/AO·native 레이어 전환/마스크·Manny 견착/적/네트워크는 미검증 |
 | Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음. **루트모션 워핑 경로는 판정 조건에서 제외(AN-027)** — Mover가 몽타주 에셋에서 직접 추출해 워핑 어댑터로 보내므로 코드 경로상 그래프와 독립이고, 그래프 의존(`Montage_IsPlaying`·`GetPosition`, 몽타주 중 Offset Root Release)은 §42~§43에서 확인했다. ABP 시절에도 실제 에셋으로 탄 적이 없어 비교 기준이 없다(롱소드·대시는 이동량 0 또는 선형 속도 소유). 루트모션 공격 에셋을 확보하면 확인한다 | 부분 확인(워핑 제외) — §42에서 기존 몽타주 직접 샘플링/워핑 경로와 원본 메시 연결·RootMotionAttribute 미사용 확인. §43에서 시험 공급층의 전신 몽타주 Release 판정을 보완해 대표 재검증. §44에서 대시 캡슐 이동/방향/몽타주 길이·루트모션 비중복이 극지·근적도 모두 기존 ABP와 동등함을 실측(이동은 선형 속도 무브 소유). §45·§47에서 리슨 2인/3인·지연에서 대시 몽타주의 사본별 동작 확인. 경사/움직이는 base·대시 중단 실측은 남음 |
-| 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 부분 확인 — §45 리슨 2인에서 4사본(서버 권위·자율·시뮬레이티드 프록시) 모두 UAF 경로로 돌고, 프록시 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같으며 기존 ABP와 같은 양상. 프록시의 호스트 대시 몽타주 누락은 기존 ABP도 같은 Mover 연출 결함(UAF 회귀 아님, `5588703`·§47에서 수정). §47 리슨 3인(클라 2명)·지연 60~90ms·손실 2%·극지/적도에서도 사본 동작이 기존 ABP와 같은 양상. `ActorPromoted` 적(UAF 미적용)은 남음 |
+| 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 부분 확인 — §45 리슨 2인에서 4사본(서버 권위·자율·시뮬레이티드 프록시) 모두 UAF 경로로 돌고, 프록시 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같으며 기존 ABP와 같은 양상. 프록시의 호스트 대시 몽타주 누락은 기존 ABP도 같은 Mover 연출 결함(UAF 회귀 아님, `5588703`·§47에서 수정). §47 리슨 3인(클라 2명)·지연 60~90ms·손실 2%·극지/적도에서도 사본 동작이 기존 ABP와 같은 양상. §50에서 `ActorPromoted` 적 UAF 시험 셸로 1인·리슨 2인(게스트 재시뮬레이션) 승격·강등·배회·추격·공격·피격이 자연스럽고 ANS/근접 엔티티 균형을 확인. 게스트 사망 랙돌이 참조 포즈에 가깝게 굳는 사례는 원인 미확정 |
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
 | 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 구면 루트 제한(§10)·공중 고정(§12)·Strafe 비교(§14)·발 배치/경사/적도(§15)·패널 점프/착지와 큰 Yaw 롱소드(§18) 확인. 루트 수치는 CR 앞이며 기존 ABP 대비 최종 포즈 품질·무기 통합 후 동등성은 5-2에 남음(§19) |
 
-**AN-026 추가 조건(2026-11-02).** Go면 ABP를 전부 폐기하므로 다음 두 항목도 Go 조건이다. ① `ActorPromoted` 적이 UAF로 돈다 — 컨트롤러 없는 이동 입력, 게스트 재시뮬레이션, 승격/반납 때 표현 풀 재사용, ISKM 전환 경계. ② 표시 메시 후처리(포즈 복사·왼손 IK·RBWC 물리 히트리액트와 공격 중 억제(AN-024)·플레이어 리타깃)를 UAF로 옮길 수 있다. 둘 다 아직 실행 미검증이다. ②는 §48에서 엔진 소스상 대체 경로를 확인했다(포즈 복사·리타깃·IK·억제는 엔진 부품 조합, RBWC는 Beta ControlRigPhysics로 재작성 필요 — 최대 위험). §49에서 그 최대 위험을 실행으로 통과했다(물리 히트리액트·공격 중 억제·적도·사망 랙돌·포즈 복사). IK·리타깃·원본/표시 분리 그래프는 남음.
+**AN-026 추가 조건(2026-11-02).** Go면 ABP를 전부 폐기하므로 다음 두 항목도 Go 조건이다. ① `ActorPromoted` 적이 UAF로 돈다 — 컨트롤러 없는 이동 입력, 게스트 재시뮬레이션, 승격/반납 때 표현 풀 재사용, ISKM 전환 경계. ② 표시 메시 후처리(포즈 복사·왼손 IK·RBWC 물리 히트리액트와 공격 중 억제(AN-024)·플레이어 리타깃)를 UAF로 옮길 수 있다. 둘 다 아직 실행 미검증이다. ②는 §48에서 엔진 소스상 대체 경로를 확인했다(포즈 복사·리타깃·IK·억제는 엔진 부품 조합, RBWC는 Beta ControlRigPhysics로 재작성 필요 — 최대 위험). §49에서 그 최대 위험을 실행으로 통과했다(물리 히트리액트·공격 중 억제·적도·사망 랙돌·포즈 복사). IK·리타깃·원본/표시 분리 그래프는 남음. §50에서 ①의 기능 경로는 통과했지만, ②의 포즈 복사가 쓰는 `Remap Pose`에 엔진 use-after-free가 있어 컴포넌트가 파괴되는 한 크래시할 수 있음을 확인했다. **사용자 결정(AN-028)으로 이 결함을 Go 차단 요인으로 기록한다.**
 
 **현재 Go/No-Go는 보류.** 소스 조사만으로 체크하지 않는다. 한 항목이라도 동등하게 구현할 수 없으면 AN-006에 따라 No-Go와 사유를 `.context/DiscardedApproaches.md`에 남긴다. 통과해도 Phase 6 착수는 사용자 확인 뒤 별도 단위다.
 
@@ -2464,3 +2464,35 @@ AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 �
 - **AN-026 ②의 최대 위험(RBWC 대체)은 실행으로 통과.** ControlRigPhysics를 UAF Control Rig trait 안에서 돌려 피격 물리·공격 중 억제·구면을 재현했고, UAF 쓰기 표시 메시에서 사망 래그돌도 유지할 수 있음을 확인했다. 포즈 복사(Remap→Write Pose)도 실행 확인.
 - 남은 것: 원본/표시 분리 그래프(값 번들 입력)·표시 왼손/오른팔 IK(ⓑ)·Manny `IK Retargeter`(ⓒ)·`ActorPromoted` 적(ⓓ)·라이플 팔 튜닝·물리 CR 상시 스텝 비용(알파 0에서도 시뮬레이션 추적) 측정·네트워크 사본별 확인.
 - 근거: `Saved/AnimationOverhaul/2026-11-02_UAF52PhysicsSpike/`(Before 사본·Before/AfterHashes·Wiring.json·RigProbe*.json·RagdollProbe_*.json·스크립트 4종). 종료 해시 AG `f04c0cb1…`, S `7eb95acf…`, BP `459e8c97…`, CR `cfdb77fd…`.
+
+## 50. ⓓ `ActorPromoted` 적 최소 UAF 경로(2026-11-03, 기능 통과·Remap Pose 엔진 결함으로 Go 차단 요인 기록)
+
+§49 뒤 남은 단위 후보 중 사용자가 ⓓ를 골랐다. AN-026 ①(컨트롤러 없는 이동 입력·게스트 재시뮬레이션·승격/반납·ISKM 전환)을 시험 셸로 확인했다. 기본 적(`BP_LNPEnemy`)·EntityConfig·스폰 설정은 저장하지 않았다.
+
+### 구성
+
+- **C++:** 플레이어 시험 폰에 있던 입력 공급 컴포넌트·원본 공급층 초기화·피격 인스턴스 선택·ANS 종료를 `LNPUAFSpikeDriver.h/.cpp`로 옮겨 공용화했다(플레이어 동작 불변). `ALNPUAFSpikeEnemyCharacter`(`ALNPEnemyCharacter` 상속)가 같은 드라이버를 쓴다. ANS 감사(`LNP.UAFSpike.DebugNotifies`)는 입력 공급 컴포넌트가 있는 폰 전체로 넓혔다. Mass가 Actor를 끌 때 UAF 시스템도 끄는 경로를 넣었지만, 현재 EntityConfig(`bKeepLowResActors=false`)는 강등 때 Actor를 바로 파괴해 한 번도 발동하지 않았다(미검증 보호 경로).
+- **에셋(`/Game/Characters/UAFSpike/`):** `BP_EnemyUAFSpike`(BP_LNPEnemy 사본, 부모 교체, 원본 `ABP_SourceUAFSpike`·애니 끔, 표시 애니 끔, `UAFLocomotion`은 플레이어 시험 BP에서 사용자가 복사), `DA_EnemyEntityConfig_UAFSpike_Melee01`(템플릿 Actor 교체), `DA_MassSpawnConfig_UAFSpikeEnemy`(Pod 60개×UAF 적 3, 맵 저작 편성이 참조하는 다섯 종은 0명 행 — 없으면 스폰 계획이 `Authored formation references unconfigured enemy`로 실패). 생성 스크립트 `Scripts/AnimOverhaul/SetupEnemyUAFSpike_5-2.py`, 시험은 `LNP.Spawn.ConfigOverride`로 건다.
+- **엔진 사실:** 승격 적 Actor는 엔진 Mass 액터 풀(`IMassActorPoolableInterface`)을 구현하지 않고 `bKeepLowResActors=false`라 강등 때 **파괴**되고 승격 때 새로 스폰된다. "표현 풀 재사용"은 실제로는 일어나지 않는다([TechDesign_EnemyNPC.md](../../TechDesign_EnemyNPC.md) §6 서술과 다름 — 문서 정정은 이 트랙 밖).
+
+### 실행 결과
+
+- **1인 PIE:** 승격·강등·배회·추격·공격·피격·사망 모두 사용자 정상. UAF 적 22기 전부 `inputs=ready`, ANS Begin 120 = End 120, 근접 엔티티 생성/파괴 26/26, 파괴 16회 모두 활성 ANS 종료 정리, 오류 0(기존 Foley 경고만).
+- **리슨 2인:** 게스트 화면 승격·강등·배회·추격·공격·피격 사용자 정상. Mover `UpDirection zero vector` 경고는 기존 적에서도 기록된 노이즈다(`Analysis_PIEWarnings_20261021.md` §6). 첫 2인 세션의 크래시(Iris→Mass `ArchetypeHandle.IsValid()`)는 다른 세션이 추적 중인 네트워크 결함이다.
+- **게스트 사망 랙돌(원인 미확정):** 게스트에서 시체가 T/A자에 가깝게 굳어 날아가는 사례가 있었고 같은 편성의 ABP 적에서는 보이지 않았다. 측정에서 시체 본이 참조 포즈와 최대 28cm(호스트 같은 개체는 100cm) 차이였고, 다른 시점에는 호스트 시체도 손 간격이 참조 포즈에 가까웠다. 가설: 랙돌 동안 표시 메시를 ABP 없는 엔진 평가로 돌려 본 버퍼가 매 프레임 참조 포즈로 채워지는데, 그 사이 부모 텔레포트가 오면 엔진이 시뮬 바디를 본 버퍼로 옮긴다(`PhysAnim.cpp` `UpdateKinematicBonesToAnim`의 `bTeleport` 분기). 텔레포트 출처는 찾지 못했다. 프로브: `Scripts/AnimOverhaul/ProbeEnemyRagdoll_5-2.py`·`ProbeGuestSkinnedMeshes_5-2.py`·`ProbeRagdollRefPose_5-2.py`.
+- 시체가 소멸 전에 바닥에 닿지 않아 사용자 요청으로 `RagdollPopSpeed` 기본값을 2000→333으로 낮췄다(순수 엔티티 팝 `PureEntityDeathPopSpeed`는 2000 유지). 랙돌 실제 중력이 설정값(980)보다 약해 보이는 기존 현상은 이 단위 밖이다.
+
+### UAF 엔진 크래시 2건
+
+| 크래시 | 확인한 사실 | 상태 |
+|:---|:---|:---|
+| `FAnimNextModuleInstance::GetReference` → `AsShared` 단언(`DoesSharedInstanceExist`), `Run Graph v2`의 `AllocateInstance` 경유 | 2인 PIE에서 1회. 직전 로그는 같은 프레임의 새 UAF 적 스폰. 시스템 해제(`FSystemReference::Reset`)는 공유 포인터만 즉시 놓고 인스턴스·모듈 틱은 월드 틱 뒤 `PendingDeletes`에서 정리한다(`SystemReference.cpp`). `AllocateInstance`는 그래프 첫 실행에서만 불린다 → "한 번도 돈 적 없는 시스템이 해제된 뒤 틱"으로 추정 | **원인 미확정.** 시험 CVar `LNP.UAFSpike.DestroyBeforeFirstEvent 1`(스폰 다음 프레임 첫 입력 틱에서 파괴)로 467회 파괴해도 재현 안 됨 |
+| `FRemapPoseDataPool::GarbageCollect` → `FWeakObjectPtr::IsValid` 접근 위반(PIE 종료 GC) | 위 시험 뒤 PIE 종료에서 발생. 풀 키는 컴포넌트별 참조 포즈 **원시 포인터**인데 정리는 메시 에셋 약한 참조만 본다(`RemapPoseDataPool.cpp`). 레지스트리는 컴포넌트가 사라지면 그 참조 포즈를 GC 뒤 티커에서 해제한다(`DataRegistry.cpp` `RunGCCleanup`). 다음 GC에서 풀이 해제된 메모리를 읽는다 | **엔진 use-after-free 확정.** 풀에 항목 제거 공개 API가 없어 프로젝트 코드로 막을 수 없다. Remap Pose를 쓰는 컴포넌트가 파괴되기만 하면(플레이 중 GC 포함) 발생 가능. §49 플레이어 시험 폰도 같은 위험 |
+
+수정 후보는 엔진의 풀 정리에서 컴포넌트 약한 참조도 확인하는 것이다(풀 정리가 레지스트리 해제보다 먼저 돌아 순서상 안전). 설치형 엔진이라 UAF 플러그인을 프로젝트로 덮어써야 해서 채택하지 않았다.
+
+### 판정
+
+- **AN-026 ①(적 UAF 경로):** 기능은 통과(게스트 랙돌 자세 문제만 미확정).
+- **AN-026 ②(표시 후처리):** 포즈 복사가 의존하는 `Remap Pose`의 엔진 결함 때문에 **Go 차단 요인으로 기록(AN-028, 사용자 결정)**. 5.8에서 Remap Pose 없이 원본 포즈를 표시 메시에 쓰는 경로는 찾지 못했다(§48: 컴포넌트 단위 참조 포즈라 직접 쓰기는 거부). 최종 Go/No-Go 판정은 내리지 않았다.
+- 근거: `Saved/AnimationOverhaul/2026-11-03_UAF52EnemyPath/`(Setup*.json·PIE1P.log·RagdollProbe_*·SkinnedProbe_*·RefPoseProbe_*·GuestTPose*.png·Crash_AsShared.log·Crash_RemapPoseGC.log).

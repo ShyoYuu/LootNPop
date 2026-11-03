@@ -5,7 +5,7 @@
 #include "Animation/AnimMontage.h"
 #include "Animation/UAFSpike/LNPUAFRootFeedback.h"
 #include "Animation/UAFSpike/LNPUAFMontageIKTrait.h"
-#include "Animation/UAFSpike/LNPUAFSpikePlayerCharacter.h"
+#include "Animation/UAFSpike/LNPUAFSpikeDriver.h"
 #include "Character/LNPCharacterBase.h"
 #include "Character/LNPInputHandlerComponent.h"
 #include "ChooserFunctionLibrary.h"

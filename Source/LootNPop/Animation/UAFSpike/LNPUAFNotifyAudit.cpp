@@ -1,7 +1,8 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/UAFSpike/LNPUAFNotifyAudit.h"
-#include "Animation/UAFSpike/LNPUAFSpikePlayerCharacter.h"
+#include "Animation/UAFSpike/LNPUAFSpikeDriver.h"
+#include "Character/LNPCharacterBase.h"
 #include "LNPGameplayTags.h"
 #include "LootNPop.h"
 
@@ -19,18 +20,20 @@
 
 static TAutoConsoleVariable<int32> CVarUAFNotifyAudit(
 	TEXT("LNP.UAFSpike.DebugNotifies"), 0,
-	TEXT("Audit notify callbacks on UAF spike players only. 0: off, 1: Begin/End and entity cleanup, 2: include functional Tick callbacks."));
+	TEXT("Audit notify callbacks on UAF spike pawns (players and enemies) only. 0: off, 1: Begin/End and entity cleanup, 2: include functional Tick callbacks."));
 
-static ALNPUAFSpikePlayerCharacter* GetAuditCharacter(USkeletalMeshComponent* MeshComp)
+static ALNPCharacterBase* GetAuditCharacter(USkeletalMeshComponent* MeshComp)
 {
-	return CVarUAFNotifyAudit.GetValueOnGameThread() > 0 && MeshComp
-		? Cast<ALNPUAFSpikePlayerCharacter>(MeshComp->GetOwner()) : nullptr;
+	if (CVarUAFNotifyAudit.GetValueOnGameThread() <= 0 || !MeshComp)
+		return nullptr;
+	ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(MeshComp->GetOwner());
+	return Character && Character->FindComponentByClass<ULNPUAFSpikeInputComponent>() ? Character : nullptr;
 }
 
 void LNPUAFNotifyAudit::Trace(const TCHAR* Phase, const UAnimNotifyState* Notify, USkeletalMeshComponent* MeshComp,
 	UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
 {
-	ALNPUAFSpikePlayerCharacter* Character = GetAuditCharacter(MeshComp);
+	ALNPCharacterBase* Character = GetAuditCharacter(MeshComp);
 	if (!Character || (FCString::Strcmp(Phase, TEXT("Tick")) == 0 && CVarUAFNotifyAudit.GetValueOnGameThread() < 2))
 		return;
 
