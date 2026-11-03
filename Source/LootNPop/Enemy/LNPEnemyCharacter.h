@@ -83,10 +83,11 @@ protected:
 
 	/**
 	 * 사망 시 표면 Up 방향으로 부여할 Pop 속도 (cm/s).
-	 * 시체가 `ULNPSettings::EnemyRagdollDuration` 안에 바닥에 닿아야 랙돌이 보인다 — 2000·667이면 체공이 소멸 시간을 넘었다.
+	 * 시체가 `ULNPSettings::EnemyRagdollDuration` 안에 바닥에 닿아야 랙돌이 보인다. 체공은 대략 `2 * 이 값 / GravityStrength`이고,
+	 * 2000·980이면 약 4.08초라 기본 소멸 5초 전에 닿아 1초 가까이 바닥에 남는다 — 어느 한쪽을 바꾸면 반대쪽도 함께 볼 것.
 	 */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|Death")
-	float RagdollPopSpeed = 333.f;
+	float RagdollPopSpeed = 2000.f;
 
 	/**
 	 * 조준 Pitch 추종 속도(FInterpTo). 목표를 잡는 순간 상체가 튀지 않도록 한 박자 늦춘다.
