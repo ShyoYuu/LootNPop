@@ -2,8 +2,12 @@
 
 #include "Animation/LNPAnimInstance.h"
 #include "Character/LNPCharacterBase.h"
+#include "Character/LNPInputHandlerComponent.h"
 #include "Character/LNPPlayerCharacter.h"
+#include "Item/LNPWeaponData.h"
 #include "Item/LNPWeaponVisualSet.h"
+#include "LNPGameplayTags.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Movement/LNPModifierInputs.h"
 #include "LootNPop.h"
@@ -348,6 +352,35 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		const FVector CorrectionWorld = WeaponMeshComp->GetComponentTransform().TransformVectorNoScale(VisualSet->RightHandCorrection);
 		RightHandIKOffset = HandWorld.InverseTransformVectorNoScale(CorrectionWorld);
 		RightHandIKAlpha  = 1.0f - ComputeLeftHandOffDemand();
+	}
+
+	// 8-1. 왼손 그립을 무기 부착 본 공간으로도 넘긴다 — 이번 평가의 총열 보정·AO가 상체를 돌려도 손이 같은 프레임에 따라간다.
+	LeftHandGripInHand = FVector::ZeroVector;
+	if (WeaponParent && bHasLeftHandGrip)
+	{
+		const FName HandBone = WeaponParent->GetSocketBoneName(WeaponMeshComp->GetAttachSocketName());
+		LeftHandGripInHand = WeaponParent->GetBoneTransform(WeaponParent->GetBoneIndex(HandBone)).InverseTransformPosition(LeftHandGripLocation);
+	}
+
+	// 8-2. 라이플 총열 정밀 보정(AN-025) — 무기가 붙은 표시 메시 인스턴스, 로컬 제어 라이플만. 실탄과 같은 조준점 캐시를 읽는다.
+	static const FName MuzzleSocketName(TEXT("Muzzle"));
+	RifleAim = FLNPRifleAimInputs();
+	if (WeaponParent == GetSkelMeshComponent() && VisualSet && VisualSet->AnimSetTag == TAG_VisualSet_Rifle
+		&& OwningMoverCharacter->IsLocallyControlled() && WeaponMeshComp->DoesSocketExist(MuzzleSocketName))
+	{
+		const ULNPInputHandlerComponent* Handler = OwningMoverCharacter->FindComponentByClass<ULNPInputHandlerComponent>();
+		const ULNPWeaponData* Definition = OwningMoverCharacter->GetActiveWeaponDef();
+		if (Handler && Definition && Handler->GetCrosshairAimPoint(RifleAim.AimTarget))
+		{
+			RifleAim.Alpha = 1.0f - ComputeLeftHandOffDemand();
+			RifleAim.ViewDirection = OwningMoverCharacter->GetControlRotation().Vector();
+			RifleAim.AnchorBone = WeaponParent->GetSocketBoneName(WeaponMeshComp->GetAttachSocketName());
+			RifleAim.MuzzleInAnchor = WeaponMeshComp->GetSocketTransform(MuzzleSocketName)
+				.GetRelativeTransform(WeaponParent->GetBoneTransform(WeaponParent->GetBoneIndex(RifleAim.AnchorBone)));
+			RifleAim.MuzzleOffsetWorld = OwningMoverCharacter->GetActorTransform().TransformVector(Definition->MuzzleOffset);
+			RifleAim.ActorLocation = OwningMoverCharacter->GetActorLocation();
+			RifleAim.WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+		}
 	}
 
 	// 9. 로코모션 공급층(B0) — 메인 인스턴스만

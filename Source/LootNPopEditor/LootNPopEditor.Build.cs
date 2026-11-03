@@ -15,8 +15,11 @@ public class LootNPopEditor : ModuleRules
 		]);
 
 		PrivateDependencyModuleNames.AddRange([
+			"AnimGraph",
+			"AnimGraphRuntime",
 			"AssetRegistry",
 			"AssetTools",
+			"BlueprintGraph",
 			"Chaos",
 			"Chooser",
 			"DynamicMesh",

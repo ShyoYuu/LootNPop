@@ -168,7 +168,17 @@ AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstanc
 - **그립 목표:** 무기 메시의 `LeftHandGrip` 소켓이 우선이다(롱소드). 소켓이 없는 Lyra 총기 메시(라이선스 원본이라 소켓을 추가하지 않는다)는 표현 세트의 `ULNPWeaponVisualSet::LeftHandGripOffset`(무기 메시 컴포넌트 공간, `bUseLeftHandGripOffset`)을 쓴다. 값은 전환 전 Lyra 경로의 조준 아이들(서브 ABP 기본 자세)에서 잰 `hand_l` 위치다(`Scripts/AnimRetarget/ComputeLeftHandGripOffsets.py`). 라이플 (6.5, 29.7, 7.0)·샷건 (7.3, 27.8, 6.9), 권총은 리타깃만으로 맞아 쓰지 않는다. Lyra 원본에서도 조준과 힙파이어의 무기 기준 왼손 위치가 2.5cm쯤 다르다.
 - `ULNPAnimInstance`가 매 프레임 그립 월드 위치(`LeftHandGripLocation`)·존재 여부(`bHasLeftHandGrip`)·알파(`LeftHandIKAlpha`)를 갱신한다. 알파는 소켓 그립이면 1이다. 오프셋 그립이면 `1 − max(DisableLHandIK 커브, DefaultSlot·FullBody·UpperBody 몽타주 가중치)`로, 재장전·대시·경직 동안 손이 그립을 떠날 수 있게 한다. 사격·피격은 가산 슬롯이라 IK를 유지한다. 커브·몽타주는 포즈 원본(`AnimSourceMesh`) 인스턴스에서 읽는다(표시 ABP도 이 클래스를 부모로 쓴다). `DisableLHandIK` 커브는 Lyra 라이플 재장전에만 있다.
 - **견착 보정(플레이어만):** `ULNPWeaponVisualSet::RightHandCorrection`(무기 공간 cm)만큼 `ABP_Retarget`의 오른팔 Two Bone IK가 손을 옮긴다(Effector = BoneSpace `hand_r` + `ULNPAnimInstance::RightHandIKOffset`, 관절 목표 = 현재 `lowerarm_r`, 손 회전 유지). 무기가 따라가고 왼손 그립 IK도 무기 기준이라 함께 따라간다. 값은 정렬하지 않은 런타임 리타깃 결과의 "오른손 `spine_05` 기준 위치"를 Lyra와 같게 만드는 이동량이다(`ComputeLeftHandGripOffsets.py`가 계산). 라이플 (0.5, 8.7, −3.8)·샷건 (0.1, 9.7, −3.9)·권총 (1.9, 6.7, −4.9) — Y가 총구 쪽, Z가 위. 알파 `RightHandIKAlpha`는 왼손 오프셋 그립과 같은 몽타주·커브 차단을 따른다. 승격 적(UEFN 표시 메시)은 오차가 달라 넣지 않았다. 순서: 리타깃 → 오른팔 IK → 왼손 IK → 출력.
-- **IK는 두 군데다.** ① 포즈 원본: `ABP_Sub_LongSword_UEFN`의 Two Bone IK(`bHasLeftHandGrip`) — 롱소드만. ② **표시 메시**: `ABP_Retarget`(플레이어)·`ABP_VisualCopyPose`(승격 적)의 포즈 노드 뒤 Two Bone IK(`hand_l` → `LeftHandGripLocation`, 알파 `LeftHandIKAlpha`). 무기가 `VisualMesh` 소켓에 붙어 있으므로 ②에서 맞춰야 리타깃(UEFN → MoverSample) 비율 차이와 무관하게 그립에 닿는다. Phase 3 RBWC는 ② 뒤에 있다(§6.4).
+- **IK는 두 군데다.** ① 포즈 원본: `ABP_Sub_LongSword_UEFN`의 Two Bone IK(`bHasLeftHandGrip`) — 롱소드만. ② **표시 메시**: `ABP_Retarget`(플레이어)·`ABP_VisualCopyPose`(승격 적)의 포즈 노드 뒤 Two Bone IK(`hand_l`, 알파 `LeftHandIKAlpha`). 무기가 `VisualMesh` 소켓에 붙어 있으므로 ②에서 맞춰야 리타깃(UEFN → MoverSample) 비율 차이와 무관하게 그립에 닿는다. Phase 3 RBWC는 ② 뒤에 있다(§6.4).
+- **플레이어 왼손 목표는 무기 부착 본 공간이다.** `ABP_Retarget`은 Effector = BoneSpace `hand_r`(`weapon_r` 소켓의 부모 본) + `LeftHandGripInHand`를 쓴다. 월드 목표 `LeftHandGripLocation`은 지난 프레임 무기 위치라, 같은 평가에서 총열 보정(§4.4)이 상체를 돌리면 룩 회전 때 손이 떨며 따라붙는다(UAF 시험에서 확인, AnimationOverhaul Phase05 §51). 무기가 손에 강체로 붙어 있어 본 공간 값은 지난 프레임 포즈로 구해도 정확하다. 승격 적(`ABP_VisualCopyPose`)은 총열 보정이 없어 월드 목표 그대로다.
+
+### 4.4 라이플 총열 정밀 보정(플레이어 표시 ABP)
+
+AO만으로는 총열이 조준점을 정확히 가리키지 않는다(리타깃·견착·애니 자세 오차). 총구에서 조준점으로 수렴하는 실탄 방향과 표시 총열을 나란히 맞추기 위해, `ABP_Retarget`의 **오른팔 견착 IK 뒤·왼손 IK 앞**에 `LNP Rifle Aim` 노드(`FAnimNode_LNPRifleAim`)를 둔다. 순서: 리타깃 → 오른팔 IK → 총열 보정 → 왼손 IK → RBWC → 출력.
+
+- **해.** 이번 평가 포즈에서 `spine_03` 피벗·무기 앵커 본·`Muzzle` 기하를 읽고, 피벗 회전에 따른 총구 이동까지 풀어 `spine_03` 회전만 바꾼다. 발사 원점·방향은 실탄과 같은 `ClipMuzzleToWorld`·`ResolveAimDirection`(전방 50cm·시선 수직 이탈 150cm 게이트와 시선 폴백)을 쓴다. 해는 UAF 시험 trait와 공유하는 `FLNPRifleAimSolver`이고 이전 프레임 보정을 누적하지 않는다.
+- **입력.** `ULNPAnimInstance::RifleAim` — 실탄과 같은 크로스헤어 조준점 캐시, `ControlRotation`, `Muzzle`의 앵커 본 공간 변환, `MuzzleOffset`. 무기가 붙은 표시 메시 인스턴스이고 로컬 제어 라이플일 때만 켠다(Simulated Proxy·적 제외, AN-025). 알파는 왼손 오프셋 그립과 같은 몽타주·커브 차단을 따라 재장전·대시 중 0이다.
+- **시차.** 발사는 입력 즉시 일어나고 표시 포즈는 정규 애니 틱에서 평가되므로, 이동 중에는 한 프레임 근처의 포즈/메시 시차 잔차가 남는다. 즉시 사격을 위해 이를 허용한다(AN-025).
+- CVar `LNP.Anim.RifleAim`(기본 1)로 끄고 비교한다. 검증에는 `LNP.Projectile.DebugFireAim 1`의 `[FireAim] barrelShotDeg`를 쓴다.
 
 ### 4.3 Guard 자세 분기
 

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimNodeReference.h"
+#include "Animation/AnimNode_LNPRifleAim.h"
 #include "Animation/TrajectoryTypes.h"
 #include "AnimationWarpingTypes.h"
 #include "MoverTypes.h"
@@ -330,6 +331,18 @@ protected:
 	/** 오른팔 견착 보정 IK 알파(0~1). 보정이 있을 때만, 왼손 오프셋 그립과 같은 몽타주·커브 차단을 따른다. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
 	float RightHandIKAlpha = 0.0f;
+
+	/**
+	 * 왼손 그립 목표를 무기 부착 본(hand_r) 공간으로 옮긴 값(cm). 플레이어 표시 ABP의 왼손 IK가 Effector = BoneSpace hand_r로 쓴다.
+	 * 월드 목표(LeftHandGripLocation)는 지난 프레임 무기 위치라, 이번 평가에서 총열 보정이 상체를 돌리면 손이 한 프레임 늦게 따라붙는다.
+	 * 무기가 손에 강체로 붙어 있어 이 값은 지난 프레임 포즈로 구해도 정확하다(AnimationOverhaul Phase05 §51).
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	FVector LeftHandGripInHand = FVector::ZeroVector;
+
+	/** 라이플 총열 정밀 보정 입력. 무기가 붙은 표시 메시 인스턴스이고 로컬 제어 라이플일 때만 Alpha가 0보다 크다. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "LNP|Combat")
+	FLNPRifleAimInputs RifleAim;
 
 	// ---------------------------------------------------------------------------------------------
 	// 로코모션 공급층(B0). 메인 인스턴스에서만 채운다(IsLocomotionSource).
