@@ -1,6 +1,6 @@
 # Phase 5 — UAF 판정 스파이크
 
-> 상태: 5-0·5-1 완료. 5-2 진행 중(최신 §51 ⓑ 표시 왼손 IK를 물리 CR 안 Basic IK로 이전·대표 검증 완료. §50 ⓓ 적 경로 기능 통과, **Remap Pose 엔진 결함을 Go 차단 요인으로 기록(AN-028)**). §36~§38/§40 대표 검증·종료 완료, §39 발사 보류 미채택·§41 재장전 보조 가산 기존 생략 확인. 전체 게이트/Go-No-Go는 미판정이며 차단 요인이 풀리기 전에는 Go가 아니다.
+> 상태: 5-0·5-1 완료. 5-2 진행 중(최신 §52 Manny 리타깃·분리 경로 조사 — 5.8 막힘 없음, 구현은 엔진 업데이트 뒤. §51 ⓑ 표시 왼손 IK를 물리 CR 안 Basic IK로 이전·대표 검증 완료. §50 ⓓ 적 경로 기능 통과, **Remap Pose 엔진 결함을 Go 차단 요인으로 기록(AN-028)**). §36~§38/§40 대표 검증·종료 완료, §39 발사 보류 미채택·§41 재장전 보조 가산 기존 생략 확인. 전체 게이트/Go-No-Go는 미판정이며 차단 요인이 풀리기 전에는 Go가 아니다.
 > 마지막 갱신: 2026-11-03
 > 전제: Phase 2·3 완료. AN-006에 따라 판정 전 마이그레이션하지 않는다.
 
@@ -2548,3 +2548,35 @@ AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 �
 - 피격 물리는 동작 확인만 했다. 오른손·라이플까지 크게 흔들리는 튜닝(§49)은 별도다. 왼손은 IK 덕에 덜 출렁인다는 관찰이다.
 - 미검증: 적 시험 폰의 무기 그립, 리슨 2인 사본, Manny 리타깃 뒤 왼손(ⓒ와 함께), 관절 목표 원점 규약의 팔꿈치 방향 비교.
 - 빌드: 에디터 타깃 8 actions·65초, 앵커 수정 뒤 52초, 경고 회피는 Live Coding. AG는 바뀌지 않았다(`f04c0cb1…`). CR 종료 해시 `848fce8f…`. 근거 `Saved/AnimationOverhaul/2026-11-03_UAF52LeftHandIK/`(Before 사본·해시·Build 로그).
+
+## 52. Manny 리타깃·견착·원본/표시 분리 경로 조사(2026-11-03, 조사 단위 완료·코드/에셋 변경 없음)
+
+UAF 크래시 2건 때문에 본격 적용은 엔진 업데이트를 기다리는 상황이다. 사용자와 정리한 결과, Manny 리타깃·견착은 우회가 아니라 AN-026 마이그레이션의 필수 경로다. 그래서 조사만 하기로 했다. 5.8에서 막히는 지점이 없으면 구현은 엔진 업데이트 뒤로 미룬다. 기준은 엔진 소스(`C:/Program Files/Epic Games/UE_5.8/Engine/Plugins/`)와 MCP 에셋 읽기이며, 아래 판정은 **경로 존재**이고 실행 통과가 아니다.
+
+### 기존 대조 기준(`ABP_Retarget`, MCP로 읽음)
+
+- Retarget Pose From Mesh(부모 메시) → 오른팔 Two Bone IK(`hand_r`, 이펙터 = `hand_r` 본 공간 `RightHandIKOffset`, 관절 목표 = `lowerarm_r` 본 공간, 늘이기 끔) → 왼손 Two Bone IK(§51과 같은 설정) → RBWC → 출력.
+- 리타깃 노드의 에셋 칸은 None이다. 리타기터는 태그(`RTG_GASP_to_MS`) → 리타기터 맵으로 고른다([TechDesign_CombatAnimation.md](../../TechDesign_CombatAnimation.md) §3.3).
+
+### 엔진 대조 결과
+
+| 처리 | UAF 경로(엔진 근거) | 판정 | 남은 확인 |
+|:---|:---|:---|:---|
+| UEFN → Manny 리타깃 | `IKRig/Source/IKRigUAF/Public/RigUnit_UAFIKRetargeter.h`: Source Pose(LOD 포즈)·Target Ref Pose·IK Retarget Asset·Custom Profile·Override Sets → Retargeted Pose. 시스템 그래프 유닛이라 `Run Graph` 결과와 `Write Pose` 사이에 그대로 놓인다 | **경로 있음** | 출력은 대상 참조 포즈로 채운 뒤 본만 덮는다(커브·속성 없음). 리타깃 변수 입력은 TODO. 모듈은 `IKRig` 시작 때 UAF가 이미 로드돼 있으면 로드된다(`IKRig.cpp`). 에디터 로드는 로그로 확인, 패키지는 미확인 |
+| 후처리 그래프를 Manny 참조 포즈로 실행 | `UAFAnimGraph/.../RigUnit_AnimNextRunAnimationGraph_v2.h`: `ReferencePose` 입력이 있어 표시 메시 참조 포즈로 돌릴 수 있다. `Run Asset`은 모듈 출력 참조 포즈만 쓰므로 부적합 | **경로 있음** | — |
+| 리타깃 포즈를 후처리 그래프에 전달 | `Input Value` trait(`InputValueTrait.h/.cpp`, 5.8에서 `Input Pose` 대체)가 `FUAFValueBundle` 변수 안의 LOD 포즈를 밀어 넣는다. `Override Variables` 유닛의 오버라이드는 노드 핀 메모리를 가리켜 매 프레임 값이 살아 있다(`VariableOverrides.h`) | **조건부** | **LOD 포즈 → `FUAFValueBundle` 변환 유닛이 엔진에 없다.** 번들을 만드는 곳은 `Run Asset`·`Run AnimNode v2` 결과뿐이다. 프로젝트 RigUnit(`Result.SetAs<FVirtualValueBundle_ValueBundle>(Pose)`, UAFAnimGraph Internal 헤더) 하나가 필요하다. 번들의 커브·속성 전달은 TODO |
+| 오른팔 견착·왼손 IK·물리 | §51과 같은 CR Basic IK·ControlRigPhysics를 후처리 그래프의 Control Rig trait로 돌린다. CR은 평가 포즈의 참조 포즈로 본 이름 매핑하고(`ControlRigTask.cpp`·`AnimNextControlRigHierarchyMappings.cpp`), 초기 변환도 그 참조 포즈에서 잡는다 | **경로 있음** | 바인딩 대상은 여전히 원본 메시(UEFN)다. 표시 메시가 항등으로 붙어 월드 변환은 같다. 물리 에셋은 Manny용으로 바꿔야 한다. CR 계층에 없는 Manny 전용 본(트위스트·`ik_*`)은 건드리지 않는다 |
+
+권장 시스템 그래프(제안): `Run Graph`(주 AG, UEFN) → `Write Pose`(AnimSourceMesh) → `IK Retargeter`(대상 = `Make Reference Pose`(VisualMesh)) → [프로젝트 유닛: 포즈 → 번들] → `Override Variables` → `Run Graph v2`(후처리 AG, 참조 포즈 = 같은 VisualMesh 참조 포즈, `Input Value` → CR 견착·왼손 IK·물리) → `Write Pose`(VisualMesh). 주 AG 끝의 물리 CR이 후처리로 옮겨지므로 §49의 "숨김 원본에도 IK·물리가 섞임"도 함께 없어진다.
+
+### AN-028과의 관계(새로 확인한 사실)
+
+- `FRemapPoseDataPool::GetRemapData`를 부르는 곳은 다섯이다: `Remap Pose`, `Retarget Pose`(번역 리타깃 유닛), LOD 포즈 복사(`AnimNext_LODPose.cpp`), 키프레임 상태로 포즈 넣기(`KeyframeState.cpp`, `Input Value`가 쓰는 Push Pose), `InputValueAnimNode`. 두 포즈의 참조 포즈 **객체 주소가 다를 때만** 풀을 거친다(`NeedsRemapping` = 포인터 비교). 참조 포즈는 컴포넌트마다 따로 생긴다(§48).
+- **`IK Retargeter`는 풀을 쓰지 않는다**(헤더만 포함). 위 권장 그래프에서 후처리 참조 포즈를 리타깃 출력과 같은 객체로 맞추면 플레이어 표시 경로는 풀을 거치지 않을 수 있다(미검증. 다른 내부 복사가 없다는 실행 확인 필요).
+- 같은 스켈레톤인 적은 `Remap Pose`가 유일한 엔진 경로다. 다만 프로젝트 RigUnit으로 "같은 메시·같은 LOD면 대상 참조 포즈로 준비한 포즈에 로컬 변환을 그대로 복사"하면 풀을 거치지 않는다. 이것은 엔진 결함을 프로젝트에서 **피해 가는 우회**이며 AN-028(엔진 패치 미채택)과 별개의 결정이 필요하다. 미구현·미검증.
+
+### 판정
+
+- **5.8에서 막히는 지점은 없다.** 엔진에 빠진 부품은 LOD 포즈 → 값 번들 변환 하나이고, 프로젝트 유닛으로 메울 수 있다.
+- 합의에 따라 구현은 엔진 업데이트 뒤로 미룬다. 다음 버전에서는 `Run Graph v2`·`Input Value`·값 번들 API·`IK Retargeter` 변수 입력 변화와 Remap 풀 수정 여부부터 본다.
+- 조사 중 MCP 읽기 외 에셋·소스 변경은 없다.
