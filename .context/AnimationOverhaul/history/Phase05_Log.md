@@ -1312,3 +1312,7 @@ AN-028 뒤 방향으로 사용자가 "남은 항목 계속 측정"을 골랐다.
 ## 2026-11-03 — §52 Manny 리타깃·원본/표시 분리 경로 조사
 
 엔진 업데이트 대기 중이라 조사만 했다. `ABP_Retarget`의 리타깃·오른팔 견착·왼손 IK 설정을 MCP로 읽고 UE 5.8 소스를 대조했다. `IK Retargeter` RigUnit(IKRigUAF), `Run Graph v2`의 참조 포즈 입력, `Input Value` trait + `Override Variables`로 표시 후처리 그래프를 Manny 포즈에서 돌리는 경로가 있다. 빠진 부품은 LOD 포즈 → `FUAFValueBundle` 변환 유닛 하나다. 곁가지로 Remap 풀 호출처 다섯 곳을 찾았다. `IK Retargeter`는 풀을 쓰지 않아 플레이어 표시 경로는 풀을 피할 수 있고, 적은 프로젝트 복사 유닛으로 피해 가는 우회가 가능하다(둘 다 미검증). 막히는 지점이 없어 구현은 엔진 업데이트 뒤로 미뤘다.
+
+## 2026-11-03 — 운영 구성 ABP 복귀·UAF 시험 구성 보관
+
+사용자 결정으로 UAF 에셋·코드는 엔진 업데이트까지 보관하고 플레이어·NPC를 ABP 구성으로 돌렸다. 기본 BP·GameMode·스폰 설정은 처음부터 ABP였다. UAF 시험을 걸고 있던 것은 사용자 작업본 `TestMap03`의 월드 설정 GameMode 오버라이드(`BP_GameModeUAFSpike`)뿐이었다. MCP로 `BP_LNPGameMode`로 바꿔 저장했고(저장 전 맵 dirty 아님), 1인 PIE에서 `BP_LNPPlayer`만 스폰되고 UAF 드라이버 로그·오류가 0임을 확인했다. 맵은 사용자 에셋이라 커밋하지 않았다.

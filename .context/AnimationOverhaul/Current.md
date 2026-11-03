@@ -1,10 +1,12 @@
 # 애니메이션 개선 현재 작업 상태
 
-> 상태: 다음 단위 사용자 확인 대기
-> 마지막 갱신: 2026-11-03(§52 Manny 리타깃·분리 경로 조사 완료)
+> 상태: 엔진 업데이트 대기(UAF 시험 구성 보관, 운영은 ABP)
+> 마지막 갱신: 2026-11-03(§52 조사 뒤 운영 구성 ABP 복귀)
 > 현재: **5-0·5-1 완료, 5-2 진행 중. AN-028(Remap Pose 엔진 use-after-free)로 Go가 막혀 있고, 사용자 결정으로 엔진 수정 뒤 바로 판정할 수 있게 남은 항목을 계속 측정한다.** §51에서 왼손 IK를 물리 CR 안 Basic IK로 옮겨 통과했다. §52 조사에서 Manny 리타깃·원본/표시 분리도 5.8 경로가 있음을 확인했다(구현은 엔진 업데이트 뒤). 최종 Go/No-Go는 미판정이며 Phase 6은 승인 전이다. Phase 0·1A·1C·2·3 완료, 1B 대기.
 
 §51까지의 변경은 `git log`의 "표시 왼손 IK" 커밋에 있다. 커밋에서 제외한 것: 사용자 에셋 4개(`TestMap03.umap`·`DT_PlayerBaseStats`·`DT_LongSword_Levels`·`DA_MassSpawnConfig_TestOnePerSpecies`). 구현 단위마다 계속할지 확인하고, PIE/GUI 수동 조작이 빠르면 즉시 요청한다. 시험 중 Remap Pose GC 크래시(AN-028)가 날 수 있다(콜스택 `FRemapPoseDataPool::GarbageCollect`로 구분).
+
+**보관 상태(2026-11-03, 사용자 결정).** UAF 관련 에셋(`/Game/Characters/UAFSpike/` 전체)·C++(`Animation/UAFSpike/`)·플러그인 활성화는 엔진 업데이트까지 그대로 보관한다. 플레이어·NPC는 모두 ABP 구성이다(`BP_LNPPlayer` = `ABP_Main_UEFN` + `ABP_Retarget`, `BP_LNPEnemy` = `ABP_Main_UEFN` + `ABP_VisualCopyPose`). 이번에 되돌린 곳은 `TestMap03` 월드 설정의 GameMode 오버라이드 하나다(`BP_GameModeUAFSpike` → `BP_LNPGameMode`, 맵 저장. 맵은 사용자 에셋이라 커밋하지 않았다). 운영 설정 ini·기본 스폰 설정은 원래 UAF 시험을 참조하지 않는다. 복귀 뒤 1인 PIE에서 `BP_LNPPlayer`만 스폰되고 UAF 드라이버 로그·오류가 0이었다(적 승격은 짧은 PIE라 관찰하지 않았다). 시험을 재개할 때는 맵 GameMode를 `BP_GameModeUAFSpike`로 바꾸고(저장하지 않는 편이 안전), 적은 아래 `LNP.Spawn.ConfigOverride`를 건다.
 
 ## 다음 세션에서 바로 할 일
 
