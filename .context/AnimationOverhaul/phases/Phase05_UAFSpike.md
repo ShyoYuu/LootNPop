@@ -2479,14 +2479,14 @@ AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 �
 
 - **1인 PIE:** 승격·강등·배회·추격·공격·피격·사망 모두 사용자 정상. UAF 적 22기 전부 `inputs=ready`, ANS Begin 120 = End 120, 근접 엔티티 생성/파괴 26/26, 파괴 16회 모두 활성 ANS 종료 정리, 오류 0(기존 Foley 경고만).
 - **리슨 2인:** 게스트 화면 승격·강등·배회·추격·공격·피격 사용자 정상. Mover `UpDirection zero vector` 경고는 기존 적에서도 기록된 노이즈다(`Analysis_PIEWarnings_20261021.md` §6). 첫 2인 세션의 크래시(Iris→Mass `ArchetypeHandle.IsValid()`)는 다른 세션이 추적 중인 네트워크 결함이다.
-- **게스트 사망 랙돌(원인 미확정):** 게스트에서 시체가 T/A자에 가깝게 굳어 날아가는 사례가 있었고 같은 편성의 ABP 적에서는 보이지 않았다. 측정에서 시체 본이 참조 포즈와 최대 28cm(호스트 같은 개체는 100cm) 차이였고, 다른 시점에는 호스트 시체도 손 간격이 참조 포즈에 가까웠다. 가설: 랙돌 동안 표시 메시를 ABP 없는 엔진 평가로 돌려 본 버퍼가 매 프레임 참조 포즈로 채워지는데, 그 사이 부모 텔레포트가 오면 엔진이 시뮬 바디를 본 버퍼로 옮긴다(`PhysAnim.cpp` `UpdateKinematicBonesToAnim`의 `bTeleport` 분기). 텔레포트 출처는 찾지 못했다. 프로브: `Scripts/AnimOverhaul/ProbeEnemyRagdoll_5-2.py`·`ProbeGuestSkinnedMeshes_5-2.py`·`ProbeRagdollRefPose_5-2.py`.
+- **게스트 사망 랙돌(원인 미확정):** 팝을 낮춘 뒤 확인하니 **랙돌 시작 자세만 참조 포즈(T/A자)이고, 전환 뒤 동작과 착지 붕괴는 자연스럽다**(사용자 확인). 사망 순간 자세와 무관하게 참조 포즈에서 시작해 어색하며, §49의 1인 시험에서는 보이지 않았다. 처음에는 시체가 T/A자에 가깝게 굳어 날아가는 것으로 보였고 같은 편성의 ABP 적에서는 보이지 않았다. 측정에서 시체 본이 참조 포즈와 최대 28cm(호스트 같은 개체는 100cm) 차이였고, 다른 시점에는 호스트 시체도 손 간격이 참조 포즈에 가까웠다. 가설: 랙돌 동안 표시 메시를 ABP 없는 엔진 평가로 돌려 본 버퍼가 매 프레임 참조 포즈로 채워지는데, 그 사이 부모 텔레포트가 오면 엔진이 시뮬 바디를 본 버퍼로 옮긴다(`PhysAnim.cpp` `UpdateKinematicBonesToAnim`의 `bTeleport` 분기). 텔레포트 출처는 찾지 못했다. 프로브: `Scripts/AnimOverhaul/ProbeEnemyRagdoll_5-2.py`·`ProbeGuestSkinnedMeshes_5-2.py`·`ProbeRagdollRefPose_5-2.py`.
 - 시체가 소멸 전에 바닥에 닿지 않아 사용자 요청으로 `RagdollPopSpeed` 기본값을 2000→333으로 낮췄다(순수 엔티티 팝 `PureEntityDeathPopSpeed`는 2000 유지). 랙돌 실제 중력이 설정값(980)보다 약해 보이는 기존 현상은 이 단위 밖이다.
 
 ### UAF 엔진 크래시 2건
 
 | 크래시 | 확인한 사실 | 상태 |
 |:---|:---|:---|
-| `FAnimNextModuleInstance::GetReference` → `AsShared` 단언(`DoesSharedInstanceExist`), `Run Graph v2`의 `AllocateInstance` 경유 | 2인 PIE에서 1회. 직전 로그는 같은 프레임의 새 UAF 적 스폰. 시스템 해제(`FSystemReference::Reset`)는 공유 포인터만 즉시 놓고 인스턴스·모듈 틱은 월드 틱 뒤 `PendingDeletes`에서 정리한다(`SystemReference.cpp`). `AllocateInstance`는 그래프 첫 실행에서만 불린다 → "한 번도 돈 적 없는 시스템이 해제된 뒤 틱"으로 추정 | **원인 미확정.** 시험 CVar `LNP.UAFSpike.DestroyBeforeFirstEvent 1`(스폰 다음 프레임 첫 입력 틱에서 파괴)로 467회 파괴해도 재현 안 됨 |
+| `FAnimNextModuleInstance::GetReference` → `AsShared` 단언(`DoesSharedInstanceExist`), `Run Graph v2`의 `AllocateInstance` 경유 | 2인 PIE에서 1회. 직전 로그는 같은 프레임의 새 UAF 적 스폰. 시스템 해제(`FSystemReference::Reset`)는 공유 포인터만 즉시 놓고 인스턴스·모듈 틱은 월드 틱 뒤 `PendingDeletes`에서 정리한다(`SystemReference.cpp`). `AllocateInstance`는 그래프 첫 실행에서만 불린다 → "한 번도 돈 적 없는 시스템이 해제된 뒤 틱"으로 추정 | **원인 미확정.** 리슨 2인에서만 2회 발생(두 번 모두 크래시 프레임에 새 UAF 적 스폰 로그가 바로 앞에 있음, `Crash_AsShared*.log`). 1인에서는 생성·파괴 489회에도 없음. 시험 CVar `LNP.UAFSpike.DestroyBeforeFirstEvent 1`(스폰 다음 프레임 첫 입력 틱에서 파괴)로 467회 파괴해도 재현 안 됨 |
 | `FRemapPoseDataPool::GarbageCollect` → `FWeakObjectPtr::IsValid` 접근 위반(PIE 종료 GC) | 위 시험 뒤 PIE 종료에서 발생. 풀 키는 컴포넌트별 참조 포즈 **원시 포인터**인데 정리는 메시 에셋 약한 참조만 본다(`RemapPoseDataPool.cpp`). 레지스트리는 컴포넌트가 사라지면 그 참조 포즈를 GC 뒤 티커에서 해제한다(`DataRegistry.cpp` `RunGCCleanup`). 다음 GC에서 풀이 해제된 메모리를 읽는다 | **엔진 use-after-free 확정.** 풀에 항목 제거 공개 API가 없어 프로젝트 코드로 막을 수 없다. Remap Pose를 쓰는 컴포넌트가 파괴되기만 하면(플레이 중 GC 포함) 발생 가능. §49 플레이어 시험 폰도 같은 위험 |
 
 수정 후보는 엔진의 풀 정리에서 컴포넌트 약한 참조도 확인하는 것이다(풀 정리가 레지스트리 해제보다 먼저 돌아 순서상 안전). 설치형 엔진이라 UAF 플러그인을 프로젝트로 덮어써야 해서 채택하지 않았다.
@@ -2495,4 +2495,4 @@ AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 �
 
 - **AN-026 ①(적 UAF 경로):** 기능은 통과(게스트 랙돌 자세 문제만 미확정).
 - **AN-026 ②(표시 후처리):** 포즈 복사가 의존하는 `Remap Pose`의 엔진 결함 때문에 **Go 차단 요인으로 기록(AN-028, 사용자 결정)**. 5.8에서 Remap Pose 없이 원본 포즈를 표시 메시에 쓰는 경로는 찾지 못했다(§48: 컴포넌트 단위 참조 포즈라 직접 쓰기는 거부). 최종 Go/No-Go 판정은 내리지 않았다.
-- 근거: `Saved/AnimationOverhaul/2026-11-03_UAF52EnemyPath/`(Setup*.json·PIE1P.log·RagdollProbe_*·SkinnedProbe_*·RefPoseProbe_*·GuestTPose*.png·Crash_AsShared.log·Crash_RemapPoseGC.log).
+- 근거: `Saved/AnimationOverhaul/2026-11-03_UAF52EnemyPath/`(Setup*.json·PIE1P.log·RagdollProbe_*·SkinnedProbe_*·RefPoseProbe_*·GuestTPose*.png·Crash_AsShared.log·Crash_AsShared2.log·Crash_RemapPoseGC.log).
