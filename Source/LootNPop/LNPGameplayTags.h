@@ -49,6 +49,8 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Character_Stagger)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Weapon_Reload)     // 무기 메시 재장전 애니 (WhileActive)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Weapon_Flame)      // 화염 분사 VFX (FlameFiring GE WhileActive + 게스트 소유자 로컬 Executed 펄스)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_Status_Burn)      // 플레이어 화상 루프 VFX (ULNPGameplayEffect_Burn WhileActive)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_JustDodge_Success) // 저스트 회피 성공 순간 (FLNPJustDodgeCommand Executed) — 비주얼 트랙 경계
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayCue_JustDodge_Buff)    // 저스트 회피 버프 지속 (ULNPGameplayEffect_JustDodgeBuff WhileActive) — 비주얼 트랙 경계
 
 // Guard / Parry / 경직 GameplayEvent 태그 (GA 트리거용)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GameplayEvent_Parry_Success) // 방어자에게 전송 → GA_ParrySuccess 트리거

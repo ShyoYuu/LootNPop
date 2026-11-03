@@ -14,7 +14,10 @@
 
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "GAS/Effects/LNPGameplayEffect_Damage.h"
+#include "GAS/Effects/LNPGameplayEffect_JustDodgeBuff.h"
+#include "HitDetection/LNPGuardParryTypes.h"
 #include "HitDetection/LNPProjectileImpactContext.h"
+#include "Config/LNPSettings.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "Enemy/LNPEnemyMassTypes.h"     // FLNPEntityAttackFragment · FLNPEnemySharedFragment
 #include "Enemy/LNPEnemyConfig.h"        // FLNPEntityAttackConfig::ParriedRecoveryTime
@@ -497,6 +500,83 @@ struct FLNPGuardBlockCommand : public FMassBatchedCommand
 			CueParams.Normal   = Entry.ImpactNormal;
 			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Guard_Block, CueParams);
 			UE_LOG(LogLootNPop, Log, TEXT("[Guard] Block success"));
+		}
+	}
+
+	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
+	virtual SIZE_T GetAllocatedSize()     const override { return Entries.GetAllocatedSize(); }
+	virtual int32  GetNumOperationsStat() const override { return Entries.Num(); }
+
+private:
+	TArray<FEntry> Entries;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 저스트 회피
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 저스트 회피 성공 처리 (서버). 버프 GE를 걸고 성공 큐를 실행한다 (.context/JustDodge/design/Architecture.md §5.1).
+ *
+ * ⚠️ **소비 플래그는 여기서만 세운다.** 판정 프로세서는 Worker Thread라 프래그먼트를 읽기만 한다 — 그래서 같은
+ *    프레임에 들어온 공격 여럿이 모두 JustDodged로 판정될 수 있고, 이 커맨드가 첫 건만 인정한다 (대시당 1회, J-011).
+ *    다음 프레임부터는 Judge가 플래그를 보고 Dodged로 떨어뜨린다(무적 창은 아직 열려 있다).
+ * 공격자에게는 아무 효과도 주지 않는다.
+ */
+struct FLNPJustDodgeCommand : public FMassBatchedCommand
+{
+	struct FEntry
+	{
+		FMassEntityHandle      Defender;
+		TWeakObjectPtr<AActor> Victim;
+		const TCHAR*           Attack;   // "Melee" | "Projectile" — 로그용 리터럴
+	};
+
+	FLNPJustDodgeCommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
+
+	void Add(const FMassEntityHandle InDefender, AActor* InVictim, const TCHAR* InAttack)
+	{
+		Entries.Add({ InDefender, InVictim, InAttack });
+		bHasWork = true;
+	}
+
+	virtual void Run(FMassEntityManager& EntityManager) override
+	{
+		const ULNPSettings* Settings = GetDefault<ULNPSettings>();
+
+		for (const FEntry& Entry : Entries)
+		{
+			if (!EntityManager.IsEntityActive(Entry.Defender))
+				continue;
+			FLNPParryStateFragment* PS = EntityManager.GetFragmentDataPtr<FLNPParryStateFragment>(Entry.Defender);
+			if (!PS || PS->bJustDodgeConsumed)
+				continue;
+			PS->bJustDodgeConsumed = true;
+
+			AActor* Victim = Entry.Victim.Get();
+			UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Victim);
+			if (!IsValid(ASC))
+				continue;
+
+			// 같은 GE가 이미 있으면 스택 규칙(상한 1 + 적용마다 지속 리셋)이 시간만 갱신한다.
+			// ⚠️ MultiplyAdditive는 배율 자체(항등원 1)를 받는다 — 설정의 +0.2를 그대로 넣으면 ×0.2로 느려진다.
+			//    아이템 스탯 경로(LNPStat::ApplyModifiers)도 항등원 1에 더해 넣는다.
+			FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(ULNPGameplayEffect_JustDodgeBuff::StaticClass(), 1.f, ASC->MakeEffectContext());
+			if (Spec.IsValid())
+			{
+				Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Stat_AttackSpeed, 1.f + Settings->JustDodgeBuffAttackSpeed);
+				Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Stat_MoveSpeed,   1.f + Settings->JustDodgeBuffMoveSpeed);
+				Spec.Data->SetDuration(Settings->JustDodgeBuffDuration, /*bLockDuration*/ true);
+				ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+			}
+
+			// 비주얼 트랙 경계 — 순보 연출이 위치와 대시 방향을 쓴다. 지금은 빈 GCN이다.
+			FGameplayCueParameters CueParams;
+			CueParams.Location = Victim->GetActorLocation();
+			CueParams.Normal   = Victim->GetVelocity().GetSafeNormal();
+			ASC->ExecuteGameplayCue(TAG_GameplayCue_JustDodge_Success, CueParams);
+
+			LNPGuardParry::ReportJustDodgeSuccess(Entry.Attack, Victim);
 		}
 	}
 

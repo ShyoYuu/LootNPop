@@ -195,6 +195,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Dash")
 	float IFrameDuration = 0.15f;
 
+	/** 대시 실행 시점부터 저스트 회피가 성립하는 시간 (초). 무적 창(IFrameDuration)보다 길게 잡아도 그 길이로 묶인다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Dash")
+	float JustDodgeWindow = 0.12f;
+
 	/** 그래플 비행 속력 (cm/s). 비행 시간 = 거리 / 이 값. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Grapple")
 	float GrappleSpeed = 2500.0f;

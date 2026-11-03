@@ -377,8 +377,13 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 	{
 		if (FLNPParryStateFragment* PF = LNPGuardParry::FindFragment(Pawn))
 		{
-			PF->DodgeIFrameExpiryTime = GetWorld()->GetTimeSeconds() + IFrameDuration;
-			LNPGuardParry::ReportDodgeWindowOpened(Pawn, PF->DodgeIFrameExpiryTime, IFrameDuration);
+			const double Now = GetWorld()->GetTimeSeconds();
+			// 무적 창 이하로 묶는다 — 저스트 회피인데 무적이 이미 닫힌 상태를 만들지 않는다.
+			const float JustWindow = FMath::Min(JustDodgeWindow, IFrameDuration);
+			PF->DodgeIFrameExpiryTime = Now + IFrameDuration;
+			PF->JustDodgeExpiryTime   = Now + JustWindow;
+			PF->bJustDodgeConsumed    = false;
+			LNPGuardParry::ReportDodgeWindowOpened(Pawn, PF->DodgeIFrameExpiryTime, IFrameDuration, JustWindow);
 		}
 	}
 

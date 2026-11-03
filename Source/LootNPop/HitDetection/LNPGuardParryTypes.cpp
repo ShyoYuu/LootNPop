@@ -30,6 +30,9 @@ namespace
 	// 저스트 회피 색 계열(보라, J-009). 막아낸 순간은 짙게, 단순히 창이 열린 것은 연하게 — 한눈에 구분되게 한다.
 	const FColor     GLNPDodgeBlockMsgColor(140, 50, 230);
 	const FColor     GLNPDodgeWindowMsgColor(215, 185, 255);
+	// 성공은 보상이 따르는 순간이라 가장 눈에 띄게 — 밝은 자홍 쪽 보라.
+	const FColor     GLNPJustDodgeMsgColor(255, 90, 255);
+	constexpr float  GLNPJustDodgeMsgSeconds = 1.5f;
 }
 
 bool LNPGuardParry::IsDodgeDebugEnabled()
@@ -60,17 +63,34 @@ void LNPGuardParry::ReportDodgeIgnored(const TCHAR* Path, const AActor* Victim)
 	}
 }
 
-void LNPGuardParry::ReportDodgeWindowOpened(const AActor* Owner, const double ExpiryTime, const float Duration)
+void LNPGuardParry::ReportDodgeWindowOpened(const AActor* Owner, const double ExpiryTime, const float Duration, const float JustDuration)
 {
 	const APawn* Pawn = Cast<APawn>(Owner);
 	if (IsDodgeDebugEnabled() && Pawn)
-		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] IFrame open %s role=%s expiry=%.3f"),
-			*Pawn->GetName(), *UEnum::GetValueAsString(Pawn->GetLocalRole()), ExpiryTime);
+		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] IFrame open %s role=%s expiry=%.3f just=%.2f"),
+			*Pawn->GetName(), *UEnum::GetValueAsString(Pawn->GetLocalRole()), ExpiryTime, JustDuration);
 
 	// 창 길이만큼만 떠 있다 — 문구가 보이는 동안이 곧 무적 창이다. 원격 폰은 그 화면의 주인이 아니라 띄우지 않는다.
 	if (IsDodgeScreenEnabled() && GEngine && Pawn && Pawn->IsLocallyControlled())
 		GEngine->AddOnScreenDebugMessage(GLNPDodgeBlockMsgKeyBase - 1, Duration, GLNPDodgeWindowMsgColor,
-			FString::Printf(TEXT("IFRAME  %.2fs  (%s)"), Duration, *Pawn->GetName()));
+			FString::Printf(TEXT("IFRAME  %.2fs  JUST %.2fs  (%s)"), Duration, JustDuration, *Pawn->GetName()));
+}
+
+void LNPGuardParry::ReportGhostImpactSkipped(const AActor* Victim)
+{
+	if (IsDodgeDebugEnabled())
+		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] Ghost impact skipped player=%s"), *GetNameSafe(Victim));
+}
+
+void LNPGuardParry::ReportJustDodgeSuccess(const TCHAR* Attack, const AActor* Defender)
+{
+	if (IsDodgeDebugEnabled())
+		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] JustDodge success player=%s attack=%s"), *GetNameSafe(Defender), Attack);
+
+	// 서버 판정 시점에 띄운다 — 단일 프로세스 PIE에서는 모든 창에 보이고, 별도 프로세스 게스트에게는 보이지 않는다.
+	if (IsDodgeScreenEnabled() && GEngine)
+		GEngine->AddOnScreenDebugMessage(GLNPDodgeBlockMsgKeyBase - 2, GLNPJustDodgeMsgSeconds, GLNPJustDodgeMsgColor,
+			FString::Printf(TEXT("JUST DODGE  %s  (%s)"), Attack, *GetNameSafe(Defender)));
 }
 
 FLNPParryStateFragment* LNPGuardParry::FindFragment(const AActor* Owner)

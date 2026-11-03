@@ -1,7 +1,7 @@
 # 저스트 회피 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: 메인 트랙 Phase 2 저스트 회피 판정 + 버프 + 연출 경계 — 착수 전
+> 현재 작업: 메인 트랙 Phase 3 수치 1차 튜닝·지연 측정·문서 마감 — 착수 전
 > 마지막 갱신: 2026-11-03
 
 ## 현재 결정
@@ -14,23 +14,23 @@
 - 버프는 AttackSpeed·MoveSpeed 곱연산 +20%, 2.5초, 시간만 갱신한다(J-005).
 - 비주얼은 마지막 독립 트랙으로 둔다. 화면 연출·림라이트·Niagara 정밀도 조사는 그래픽스 작업으로 넘긴다(J-012).
 
-Phase 1(회피 무적)은 2026-11-03에 끝났다. 결과는 `history/Phase01_Log.md`에 있다. Phase 2가 올라설 토대는 다음과 같다.
+Phase 1(회피 무적)과 Phase 2(저스트 회피)는 2026-11-03에 끝났다. 결과는 `history/Phase01_Log.md`·`history/Phase02_Log.md`에 있다. Phase 3이 올라설 토대는 다음과 같다.
 
-- `FLNPParryStateFragment::DodgeIFrameExpiryTime`이 있다. `ExecuteDash`의 리시뮬레이션 게이트 뒤에서 권위·오토노머스일 때만 기록한다. 시뮬레이티드 프록시도 `ExecuteDash`를 첫 시뮬레이션으로 지나가므로 역할 게이트가 꼭 필요하다.
-- 프래그먼트 접근은 `LNPGuardParry::FindFragment(const AActor*)`로 한다.
-- `Judge` 순서는 Parried → (피격 반경 밖이면 None) → Dodged → Guarded → Hit다. `JustDodged`는 Parried 바로 다음, 반경 검사 앞에 들어간다(`design/Architecture.md` §3).
-- 경로별 `Dodged` 처리, 투사체 `DodgedEntity`(반사 시 초기화), 클라 Ghost 예측 생략이 들어가 있다.
-- 디버그 CVar 두 개(둘 다 기본 꺼짐):
-  - `LNP.Debug.Dodge`: 로그
-  - `LNP.Debug.ShowDodge`: 화면 문구. 연한 보라는 창 열림, 짙은 보라는 무적 성공이다. 사용자가 남은 작업 내내 쓰겠다고 했다. Phase 2의 성공 문구도 여기에 붙인다.
+- `ExecuteDash`가 무적 창과 저스트 창(무적 창 이하로 묶음)을 `FLNPParryStateFragment`에 기록한다. 소비 플래그 `bJustDodgeConsumed`는 서버 성공 커맨드 `FLNPJustDodgeCommand`만 세운다.
+- `Judge` 순서: Parried → JustDodged → (피격 반경 밖이면 None) → Dodged → Guarded → Hit.
+- 버프 `ULNPGameplayEffect_JustDodgeBuff`. ⚠️ `MultiplyAdditive` SetByCaller에는 `1 + 배율`을 넣는다(`design/Architecture.md` §5.2).
+- 연출 경계: 큐 `GameplayCue.LNP.JustDodge.Success`·`.Buff`와 빈 GCN 2개(`Content/GAS/GameplayCues/`). 비주얼 트랙은 여기서 시작한다.
+- 튜닝 손잡이: Mover 컴포넌트의 `IFrameDuration`(0.15)·`JustDodgeWindow`(0.12), 프로젝트 설정 `Combat|Just Dodge`(2.5초, 0.2, 0.2).
+- 디버그: `LNP.Debug.Dodge`(로그), `LNP.Debug.ShowDodge`(화면 문구 — 연한 보라 창, 짙은 보라 무적 차단, 자홍 `JUST DODGE`). 문자열은 `design/Architecture.md` §7.
 
 ## 바로 다음 행동
 
-- `Roadmap.md` §4 Phase 2를 바탕으로 `phases/Phase02_JustDodge.md` 실행서를 쓰고 사용자 확인을 받는다.
-- 실행서에 넣을 Phase 1 인계 항목:
-  - 투사체 직격 경로의 패링 반경 계산 조건을 `PS.bIsParrying || 저스트 창 열림`으로 넓힌다.
-  - 클라 Ghost가 예측 임팩트를 생략할 때 남기는 로그를 넣는다. D-07 게스트 화면이 산탄 때문에 육안으로 판정되지 않아 부분 통과로 남았다.
-- Phase 3에서 사용자 판단이 필요한 것:
+- `Roadmap.md` §4 Phase 3을 바탕으로 `phases/Phase03_*.md` 실행서를 쓰고 사용자 확인을 받는다.
+- 실행서에 넣을 Phase 2 인계 항목:
+  - J-03(화염·폭발 안에서 대시)은 실측하지 않았다. 플레이 테스트에 끼워 넣는다.
+  - 버프 경계 보정은 `PktLag` 50/100ms에서 다시 본다(지연 없는 2인에서는 체감 없음).
+  - J-006·J-011을 확정으로 올릴지 사용자에게 묻는다.
+- Phase 3에서 사용자 판단이 필요한 것(Phase 1에서 이어짐):
   - 화상 지속 틱은 회피하지 않는다. 그래서 화염을 대시로 피해도 계속 깎인다(실측상 사망의 주원인).
   - 근접 예측 HitStop은 고치지 않았다.
   - D-02(일찍 대시해 칼날 안에 남음)는 재현이 어려워 코드 근거로만 둔다.

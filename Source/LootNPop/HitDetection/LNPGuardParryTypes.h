@@ -41,6 +41,18 @@ struct LOOTNPOP_API FLNPParryStateFragment : public FMassFragment
 	 * 해제 경로가 없다: 시각 비교만 하므로 가드 bool 미러처럼 내리는 곳이 빠져 남을 일이 없다.
 	 */
 	double DodgeIFrameExpiryTime = -1.0;
+
+	/**
+	 * 저스트 회피 창의 절대 만료 시각. 기록 규칙은 DodgeIFrameExpiryTime과 같고, 창 길이는 무적 창 이하로 묶인다 —
+	 * 그래서 저스트 창이 열려 있으면 무적 창도 열려 있다.
+	 */
+	double JustDodgeExpiryTime = -1.0;
+
+	/**
+	 * 이번 대시의 저스트 회피를 이미 썼는가 (대시 한 번에 한 번, J-011). 대시가 false로 되돌린다.
+	 * ⚠️ 판정 프로세서(Worker Thread)는 읽기만 한다 — 세우는 것은 Game Thread의 성공 커맨드 몫이다.
+	 */
+	bool bJustDodgeConsumed = false;
 };
 
 /** 플레이어 피격 대상 판정 결과. */
@@ -48,6 +60,7 @@ enum class ELNPPlayerDefenseResult : uint8
 {
 	None,     // 닿지 않았다
 	Parried,
+	JustDodged, // 저스트 회피 — 피해 없이 버프를 받는다. 무적 창도 열려 있다
 	Dodged,   // 대시 무적으로 무시했다 — 피해·경직·큐 모두 없다
 	Guarded,
 	Hit,
@@ -74,17 +87,38 @@ namespace LNPGuardParry
 	 */
 	LOOTNPOP_API void ReportDodgeIgnored(const TCHAR* Path, const AActor* Victim);
 
-	/** 대시가 무적 창을 열었음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 로컬 폰의 화면에 창 길이만큼 문구. Game Thread 전용. */
-	LOOTNPOP_API void ReportDodgeWindowOpened(const AActor* Owner, double ExpiryTime, float Duration);
+	/** 대시가 무적·저스트 창을 열었음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 로컬 폰의 화면에 무적 창 길이만큼 문구. Game Thread 전용. */
+	LOOTNPOP_API void ReportDodgeWindowOpened(const AActor* Owner, double ExpiryTime, float Duration, float JustDuration);
+
+	/** 클라 Ghost가 무적 때문에 예측 임팩트를 생략했음을 알린다 — LNP.Debug.Dodge면 로그. 판정 프로세서(Worker Thread)에서 불러도 된다. */
+	LOOTNPOP_API void ReportGhostImpactSkipped(const AActor* Victim);
+
+	/** 서버가 저스트 회피를 확정했음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 화면 문구. Game Thread 전용(성공 커맨드). */
+	LOOTNPOP_API void ReportJustDodgeSuccess(const TCHAR* Attack, const AActor* Defender);
+
+	/** 저스트 회피가 아직 가능한가 — 창이 열려 있고 이번 대시에서 쓰지 않았다. */
+	inline bool IsJustDodgeOpen(const FLNPParryStateFragment& PS, const double Now)
+	{
+		return Now <= PS.JustDodgeExpiryTime && !PS.bJustDodgeConsumed;
+	}
 
 	/**
-	 * 플레이어 대상의 **패링 → 회피 무적 → 가드 → 피격** 순서를 정하는 단일 정의 (TechDesign_HitDetection.md §7.5).
+	 * Judge가 bInParryRange를 볼 상태인가. 패링 반경 계산이 비싼 경로(투사체)는 이 값이 false면 계산을 건너뛴다 —
+	 * 조건을 경로마다 복제하면 Judge에 새 반경 소비자가 생길 때 한쪽이 빠진다.
+	 */
+	inline bool NeedsParryRange(const FLNPParryStateFragment& PS, const double Now)
+	{
+		return PS.bIsParrying || IsJustDodgeOpen(PS, Now);
+	}
+
+	/**
+	 * 플레이어 대상의 **패링 → 저스트 회피 → 회피 무적 → 가드 → 피격** 순서를 정하는 단일 정의 (TechDesign_HitDetection.md §7.5).
 	 * 근접 PvP(다른 팀 플레이어)·Enemy→Player와 화염 원뿔이 이 함수 하나를 공유한다 — 분기를 복제했던 시절
 	 * PvP 쪽에만 패링 체크가 빠진 버그가 있었다.
 	 *
 	 * 기하 판정(칼날 거리, 원뿔 형상)은 호출자 몫이다. 여기서는 그 결과만 받는다.
 	 * @param FacingDot     피격자 정면 · (피격자 → 공격자) 방향
-	 * @param bInParryRange 패링 반경 안인가 — 패링할 수 없는 공격(화염 틱)은 false를 넘긴다
+	 * @param bInParryRange 패링 반경 안인가 — 저스트 회피도 이 반경을 쓴다. 패링·저스트 회피 대상이 아닌 공격(화염 틱·스플래시)은 false를 넘긴다
 	 * @param bInHitRange   피격 반경 안인가
 	 */
 	inline ELNPPlayerDefenseResult Judge(const FLNPParryStateFragment& PS, const float FacingDot, const double Now,
@@ -93,6 +127,10 @@ namespace LNPGuardParry
 		if (bInParryRange && PS.bIsParrying && (PS.ParryWindowExpiryTime < 0.0 || Now <= PS.ParryWindowExpiryTime)
 			&& FacingDot >= PS.ParryAngleCos)
 			return ELNPPlayerDefenseResult::Parried;
+
+		// 피격 반경 검사보다 앞이다 — 패링 반경 안까지 들어온 "아슬아슬하게 빗나간" 공격도 저스트 회피다. 각도는 보지 않는다(J-004).
+		if (bInParryRange && IsJustDodgeOpen(PS, Now))
+			return ELNPPlayerDefenseResult::JustDodged;
 
 		if (!bInHitRange)
 			return ELNPPlayerDefenseResult::None;

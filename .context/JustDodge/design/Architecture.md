@@ -101,7 +101,7 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
 |:---|:---|
 | 지속 | `HasDuration` 2.5초 (SetByCaller 또는 UPROPERTY) |
 | 스택 | `AggregateByTarget`, `StackLimitCount = 1`, `StackDurationRefreshPolicy = RefreshOnSuccessfulApplication` → 중첩 없이 시간만 갱신 |
-| Modifier | `AttackSpeed`·`MoveSpeed` 각각 `MultiplyAdditive` +0.2 (`TAG_GE_Data_Stat_*` SetByCaller) — 곱연산 채널 (`GAS/LNPStatModifier.h:26-34`) |
+| Modifier | `AttackSpeed`·`MoveSpeed` 각각 `MultiplyAdditive` +0.2 (`TAG_GE_Data_Stat_*` SetByCaller) — 곱연산 채널 (`GAS/LNPStatModifier.h:26-34`). ⚠️ SetByCaller에는 배율 자체 `1 + 0.2`를 넣는다. `MultiplyAdditive`의 항등원은 1이라 0.2를 그대로 넣으면 ×0.2로 느려진다(2026-11-03 실측). 설정값(`ULNPSettings::JustDodgeBuff*`)은 +0.2 표기다 |
 | GameplayCue | `GameplayCue.LNP.JustDodge.Buff` (지속 큐 — GE가 갱신돼도 유지, 만료 시 제거) |
 
 - 스택 설정은 `GAS/Effects/LNPGameplayEffect_Burn.cpp:24-34`의 C++ 패턴을 따른다. `SetStackingType`이 에디터 전용이라 deprecated 필드에 직접 쓰고 `PRAGMA_DISABLE_DEPRECATION_WARNINGS`로 감싼다.
@@ -127,14 +127,15 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
 
 ## 7. 디버그
 
-- 로그와 화면 문구는 CVar를 나눈다. 둘 다 기본은 꺼짐이다(사용자 요청, 2026-11-03). 구현은 `LNPGuardParry::ReportDodgeIgnored`·`ReportDodgeWindowOpened`(`HitDetection/LNPGuardParryTypes.cpp`)에 있다.
+- 로그와 화면 문구는 CVar를 나눈다. 둘 다 기본은 꺼짐이다(사용자 요청, 2026-11-03). 구현은 `LNPGuardParry::ReportDodgeIgnored`·`ReportDodgeWindowOpened`·`ReportJustDodgeSuccess`·`ReportGhostImpactSkipped`(`HitDetection/LNPGuardParryTypes.cpp`)에 있다.
 - `LNP.Debug.Dodge [0|1]` — 로그
-  - `[Dodge] IFrame open <폰> role=<역할> expiry=<시각>`: 권위·오토노머스에서 창을 연 시점
+  - `[Dodge] IFrame open <폰> role=<역할> expiry=<시각> just=<저스트 창 길이>`: 권위·오토노머스에서 창을 연 시점
   - `[Dodge] IFrame ignored path=<Melee|Projectile|Splash|Flame> player=<폰>`: 서버
-  - `[Dodge] JustDodge success ...`: Phase 2
+  - `[Dodge] JustDodge success player=<폰> attack=<Melee|Projectile>`: 서버 성공 커맨드가 확정한 시점(대시당 최대 1줄)
+  - `[Dodge] Ghost impact skipped player=<폰>`: 클라 Ghost가 무적 때문에 예측 임팩트를 생략한 시점(탄 하나당 1줄). 게스트 화면의 D-07 판정용
 - `LNP.Debug.ShowDodge [0|1]` — 화면 문구(보라 계열, 사용자 요청으로 두 색을 구분, 2026-11-03)
-  - `IFRAME  0.15s  (<폰>)` — **연한 보라**: 로컬 폰이 창을 연 순간 창 길이만큼 떠 있다. 문구가 보이는 동안이 곧 무적 창이다
+  - `IFRAME  0.15s  JUST 0.12s  (<폰>)` — **연한 보라**: 로컬 폰이 창을 연 순간 무적 창 길이만큼 떠 있다. 문구가 보이는 동안이 곧 무적 창이다
   - `IFRAME BLOCK  <경로>  (<폰>)` — **짙은 보라**: 서버가 무적으로 피격을 무시할 때마다 1초. 경로마다 한 줄을 덮어쓴다. **이 문구가 떴다면 무적이 없었을 때 맞았을 공격이다.** 이동만으로 빗나간 공격과 플레이 중에 구분하는 수단이다(사용자 피드백, 2026-11-03)
   - 서버 판정 시점에 띄우는 `GEngine` 문구라 단일 프로세스 PIE에서는 모든 창에 보인다. 별도 프로세스 게스트에게는 보이지 않는다
-  - Phase 2: 저스트 창, 성공 시 `JUST DODGE`(비주얼이 없는 메인 트랙에서 테스터 피드백용)
+  - `JUST DODGE  <Melee|Projectile>  (<폰>)` — **밝은 자홍**: 서버가 저스트 회피를 확정할 때 1.5초. 비주얼이 없는 메인 트랙에서 테스터 피드백용이다. `IFRAME BLOCK`과 같은 이유로 단일 프로세스 PIE에서는 모든 창에 보인다
 - 보조 도구는 기존 것을 쓴다: `LNP.Debug.ShowSpeed 1`(버프 배율 확인), `mover.debug.ShowCorrections 1`, `LNP.Spawn.EnemyDensity 0`(보정 진단 시 적 제거).

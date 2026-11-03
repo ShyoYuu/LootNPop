@@ -205,6 +205,21 @@ public:
 	float PoiseParryBreakRatio = 1.75f;
 
 	/**
+	 * 저스트 회피 버프 지속 (초). 버프 중 다시 성공하면 중첩 없이 이 길이로 다시 시작한다.
+	 * 판정 창(IFrameDuration·JustDodgeWindow)은 대시 파라미터라 ULNPCharacterMoverComponent에 있다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Just Dodge", meta = (ClampMin = "0.0", Units = "s"))
+	float JustDodgeBuffDuration = 2.5f;
+
+	/** 저스트 회피 버프의 공격속도 곱연산 배율 (0.2 = +20%). 다른 곱연산 버프와 합산된 뒤 한 번 곱해진다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Just Dodge", meta = (ClampMin = "0.0"))
+	float JustDodgeBuffAttackSpeed = 0.2f;
+
+	/** 저스트 회피 버프의 이동속도 곱연산 배율 (0.2 = +20%). */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Just Dodge", meta = (ClampMin = "0.0"))
+	float JustDodgeBuffMoveSpeed = 0.2f;
+
+	/**
 	 * 근접 공격 보정 강도 (0~1). 0이면 보정을 끈다.
 	 *
 	 * "타겟까지의 초과 거리" 중 몇 할을 메울지를 뜻한다 — 이미 이상 거리 안이면 보정량은 0이고,

@@ -486,6 +486,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					if (Target.bDodging)
 					{
 						Proj.DodgedEntity = Target.Entity;
+						// 탄 하나당 한 번 — 위에서 DodgedEntity와 대조해 이후로는 여기까지 오지 않는다.
+						LNPGuardParry::ReportGhostImpactSkipped(Target.Actor);
 						continue;
 					}
 
@@ -1066,9 +1068,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				const FVector                 IncomingDir  = (Proj.PreviousPos - CurrentPos).GetSafeNormal();
 				const FVector                 JudgedCenter = RewoundCenter(Player.Location, Player.RawLocation, Player.History);
 
-				// 패링 반경(ParryRadius)이 피격 반경보다 크다 — 패링 창이 닫혀 있으면 넓은 판정은 건너뛴다.
+				// 패링 반경(ParryRadius)이 피격 반경보다 크다 — 패링 창도 저스트 창도 닫혀 있으면 넓은 판정은 건너뛴다.
 				FVector ParryPoint = FVector::ZeroVector, HitPoint;
-				const bool bInParryRange = PS.bIsParrying && SegmentHitsCapsule(Segment, JudgedCenter, Player.UpDir,
+				const bool bInParryRange = LNPGuardParry::NeedsParryRange(PS, Now) && SegmentHitsCapsule(Segment, JudgedCenter, Player.UpDir,
 					Player.CapsuleHalfHeight, Player.CapsuleRadius, ParryRadius, ParryPoint);
 				const bool bInHitRange = SegmentHitsCapsule(Segment, JudgedCenter, Player.UpDir,
 					Player.CapsuleHalfHeight, Player.CapsuleRadius, HitRadius, HitPoint);
@@ -1083,6 +1085,14 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				{
 					Proj.DodgedEntity = Player.Handle;
 					LNPGuardParry::ReportDodgeIgnored(TEXT("Projectile"), Player.Actor);
+					continue;
+				}
+
+				// 저스트 회피도 관통이다 — 회피 대상 칸 규칙은 Dodged와 같다.
+				if (Result == ELNPPlayerDefenseResult::JustDodged)
+				{
+					Proj.DodgedEntity = Player.Handle;
+					Ctx.Defer().PushCommand<FLNPJustDodgeCommand>(Player.Handle, Player.Actor, TEXT("Projectile"));
 					continue;
 				}
 

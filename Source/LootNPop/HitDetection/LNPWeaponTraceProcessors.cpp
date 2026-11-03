@@ -598,6 +598,14 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					return;
 				}
 
+				// 타이밍이 맞았다 — Dodged와 달리 그 휘두르기는 이 대상에게 끝난다.
+				if (Result == ELNPPlayerDefenseResult::JustDodged)
+				{
+					MarkHit(Frag, Player.Handle);
+					Ctx.Defer().PushCommand<FLNPJustDodgeCommand>(Player.Handle, Player.Actor, TEXT("Melee"));
+					return;
+				}
+
 				MarkHit(Frag, Player.Handle);
 				if (!Player.Actor)
 					return;

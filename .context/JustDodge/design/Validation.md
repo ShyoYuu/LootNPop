@@ -62,13 +62,14 @@
 
 ## 6. 로그 판정 문자열
 
-로그는 `LNP.Debug.Dodge 1`, 화면 문구(`IFRAME`·`IFRAME BLOCK`)는 `LNP.Debug.ShowDodge 1`로 켠다. 둘 다 기본은 꺼짐이다. 문구 규약은 `Architecture.md` §7에 있다.
+로그는 `LNP.Debug.Dodge 1`, 화면 문구(`IFRAME`·`IFRAME BLOCK`·`JUST DODGE`)는 `LNP.Debug.ShowDodge 1`로 켠다. 둘 다 기본은 꺼짐이다. 문구 규약은 `Architecture.md` §7에 있다.
 
 - ⚠️ PvP 경로(스플래시·화염을 다른 플레이어가 쏘는 경우)는 `LNP.Team.Set 1 2`를 빼먹으면 탄이 같은 팀을 통과해 `Judge`까지 가지 않는다. 그러면 로그도 피해도 없어 "무적이 잘 된다"로 오인하기 쉽다. 시작할 때 `[LNP.Team.Set] ... team 1 -> 2` 줄로 확인한다.
 
 | 문자열 | 의미 |
 |:---|:---|
-| `[Dodge] IFrame open <폰> role=<역할> expiry=<시각>` | 대시가 무적 창을 열었다 (권위·오토노머스) |
+| `[Dodge] IFrame open <폰> role=<역할> expiry=<시각> just=<길이>` | 대시가 무적·저스트 창을 열었다 (권위·오토노머스) |
 | `[Dodge] IFrame ignored path=<Melee\|Projectile\|Splash\|Flame> player=<폰>` | 무적으로 무시한 피격 (서버) |
-| `[Dodge] JustDodge success player=<id> attack=<Melee\|Projectile>` | 저스트 회피 성공 (서버) |
+| `[Dodge] JustDodge success player=<폰> attack=<Melee\|Projectile>` | 저스트 회피 성공 (서버, 대시당 최대 1줄) |
+| `[Dodge] Ghost impact skipped player=<폰>` | 클라 Ghost가 무적 때문에 예측 임팩트를 생략 (클라, 탄 하나당 1줄) |
 | `[Guard] Block success` | 기존 가드 로그 — 회귀 확인용 |
