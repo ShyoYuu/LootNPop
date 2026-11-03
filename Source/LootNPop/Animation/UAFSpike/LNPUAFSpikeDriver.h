@@ -31,6 +31,8 @@ private:
 	/** 재현 시험 CVar용 — 스폰 프레임/다음 프레임의 첫 틱을 고른다. */
 	uint64 BeginPlayFrame = 0;
 	bool bTestDestroyChecked = false;
+	/** 랙돌 진단 로그(LNP.UAFSpike.DebugRagdoll)용 — 랙돌을 처음 본 프레임, 랙돌이 아니면 0. */
+	uint64 RagdollStartFrame = 0;
 	TSharedRef<std::atomic<bool>> SystemEventRan = MakeShared<std::atomic<bool>>(false);
 };
 

@@ -2,6 +2,7 @@
 
 #include "Animation/UAFSpike/LNPUAFSpikeDriver.h"
 
+#include "Animation/UAFSpike/LNPUAFRagdollPoseAnimInstance.h"
 #include "Animation/UAFSpike/LNPUAFSpikeAnimInstance.h"
 #include "Animation/UAFSpike/LNPUAFNotifyCleanup.h"
 #include "Camera/LNPControlRotationComponent.h"
@@ -52,6 +53,12 @@ void ULNPUAFSpikeInputComponent::BeginPlay()
 		// 해제 진단용: 첫 사용자 이벤트 시작 직전에 한 번 기록한다.
 		UAF->QueueTask(NAME_None, [Ran = SystemEventRan](const UE::UAF::FModuleTaskContext&) { Ran->store(true); });
 	}
+	TInlineComponentArray<USkeletalMeshComponent*> Meshes(GetOwner());
+	for (USkeletalMeshComponent* Mesh : Meshes)
+	{
+		if (Mesh->GetFName() == TEXT("VisualMesh"))
+			LNPUAFRagdollPose::BindTeleportProbe(*Mesh, *this, &RagdollStartFrame);
+	}
 }
 
 void ULNPUAFSpikeInputComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -91,18 +98,24 @@ void ULNPUAFSpikeInputComponent::TickComponent(float DeltaTime, ELevelTick TickT
 		Source->UpdateFromDriver(DeltaTime);
 
 	// 애니 평가가 꺼진 표시 메시는 랙돌 물리 블렌드 뒤 본 버퍼 교체가 요청되지 않아(엔진은 애니 평가 경로에서만 요청)
-	// 렌더가 마지막 UAF 포즈에 멈춘다. 랙돌 동안은 ABP 없이 엔진 기본 평가(참조 포즈)로 되돌려 표준 블렌드 경로를 쓴다.
+	// 렌더가 마지막 UAF 포즈에 멈춘다. 랙돌 동안은 ABP 없이 엔진 평가로 되돌려 표준 블렌드 경로를 쓴다.
+	// 인스턴스 없는 평가는 참조 포즈를 낸다. 전환(InitAnim)이 그 포즈로 본 버퍼를 즉시 뒤집고 다음 물리 블렌드까지 남겨 두는데,
+	// 그 사이 부모가 TeleportPhysics로 움직이면(게스트 Mover 롤백) 시뮬 바디가 참조 포즈로 옮겨진다. 그래서 사망 순간 포즈를 내는 인스턴스를 건다.
+	// 리스폰 때 인스턴스를 지워 다음 사망이 새 포즈를 잡게 한다.
 	// SetEnableAnimation은 프레임 끝에 반영되므로 다음 틱까지 같은 요청이 반복될 수 있다(값이 같으면 무시된다).
 	const bool bRagdoll = Character->IsRagdollActive();
 	TInlineComponentArray<USkeletalMeshComponent*> Meshes(Owner);
 	for (USkeletalMeshComponent* Mesh : Meshes)
 	{
-		if (Mesh->GetFName() != TEXT("VisualMesh") || Mesh->bEnableAnimation == bRagdoll)
+		if (Mesh->GetFName() != TEXT("VisualMesh"))
 			continue;
-		if (bRagdoll)
-			Mesh->SetAnimInstanceClass(nullptr);
+		LNPUAFRagdollPose::TickProbe(*Mesh, RagdollStartFrame);
+		if (Mesh->bEnableAnimation == bRagdoll)
+			continue;
+		Mesh->SetAnimInstanceClass(bRagdoll ? LNPUAFRagdollPose::GetRagdollAnimClass() : nullptr);
 		Mesh->SetEnableAnimation(bRagdoll);
 	}
+	RagdollStartFrame = bRagdoll ? (RagdollStartFrame != 0 ? RagdollStartFrame : GFrameCounter) : 0;
 }
 
 bool LNPUAFSpikeDriver::InitializeSource(USkeletalMeshComponent& Source, bool& bReportedError)

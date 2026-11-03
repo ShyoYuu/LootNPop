@@ -62,7 +62,7 @@ import unreal; ar = unreal.AssetRegistryHelpers.get_asset_registry(); print([(st
 | 몽타주·ANS | 슬롯 3종과 그룹 계약 유지. ANS5종 정상/중단/교체/종료 시 End 각1·태그/근접 엔티티 잔류 없음 | **부분 확인·전체 게이트 미판정** — §26~§32 정상/대표 중단/소유 Actor 종료 보완 확인. §34 UpperBody 최소 마스크/대표 정상·이동·대시 재장전/실제 평가 구조 확인. 월드 사후 실제 무효/독립 태그·전체 슬롯/그룹의 상세 실행·Branching/다른 배치 모드는 미검증 |
 | UAFLayering | 런타임 레이어 전환·본 마스크·무기별 AO/그립 IK와 슬롯 순서 동등. Phase 3 표시 포즈·공격 중 물리 억제 계약 유지 | 부분 확인·무기 레이어 게이트 미판정 — §36 같은 UEFN 표시 ABP·재장전 IK 차단/대시 복귀·Idle 물리와 공격 중 억제 대표 확인. 무기별 자세/AO·native 레이어 전환/마스크·Manny 견착/적/네트워크는 미검증 |
 | Motion Warping·Mover | 루트모션 공격의 이동/회전/중단이 기존 어댑터와 일치, 중복 적용 없음. **루트모션 워핑 경로는 판정 조건에서 제외(AN-027)** — Mover가 몽타주 에셋에서 직접 추출해 워핑 어댑터로 보내므로 코드 경로상 그래프와 독립이고, 그래프 의존(`Montage_IsPlaying`·`GetPosition`, 몽타주 중 Offset Root Release)은 §42~§43에서 확인했다. ABP 시절에도 실제 에셋으로 탄 적이 없어 비교 기준이 없다(롱소드·대시는 이동량 0 또는 선형 속도 소유). 루트모션 공격 에셋을 확보하면 확인한다 | 부분 확인(워핑 제외) — §42에서 기존 몽타주 직접 샘플링/워핑 경로와 원본 메시 연결·RootMotionAttribute 미사용 확인. §43에서 시험 공급층의 전신 몽타주 Release 판정을 보완해 대표 재검증. §44에서 대시 캡슐 이동/방향/몽타주 길이·루트모션 비중복이 극지·근적도 모두 기존 ABP와 동등함을 실측(이동은 선형 속도 무브 소유). §45·§47에서 리슨 2인/3인·지연에서 대시 몽타주의 사본별 동작 확인. 경사/움직이는 base·대시 중단 실측은 남음 |
-| 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 부분 확인 — §45 리슨 2인에서 4사본(서버 권위·자율·시뮬레이티드 프록시) 모두 UAF 경로로 돌고, 프록시 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같으며 기존 ABP와 같은 양상. 프록시의 호스트 대시 몽타주 누락은 기존 ABP도 같은 Mover 연출 결함(UAF 회귀 아님, `5588703`·§47에서 수정). §47 리슨 3인(클라 2명)·지연 60~90ms·손실 2%·극지/적도에서도 사본 동작이 기존 ABP와 같은 양상. §50에서 `ActorPromoted` 적 UAF 시험 셸로 1인·리슨 2인(게스트 재시뮬레이션) 승격·강등·배회·추격·공격·피격이 자연스럽고 ANS/근접 엔티티 균형을 확인. 게스트 사망 랙돌이 참조 포즈에 가깝게 굳는 사례는 원인 미확정 |
+| 프록시·재시뮬레이션 | 리슨 2인 호스트/게스트 및 `ActorPromoted`에 컨트롤러 없는 경로·게스트 재시뮬레이션 확인 | 부분 확인 — §45 리슨 2인에서 4사본(서버 권위·자율·시뮬레이티드 프록시) 모두 UAF 경로로 돌고, 프록시 몽타주 시작/길이·루트 모드·root 이탈·ANS 균형/근접 엔티티 정리가 사본 간 같으며 기존 ABP와 같은 양상. 프록시의 호스트 대시 몽타주 누락은 기존 ABP도 같은 Mover 연출 결함(UAF 회귀 아님, `5588703`·§47에서 수정). §47 리슨 3인(클라 2명)·지연 60~90ms·손실 2%·극지/적도에서도 사본 동작이 기존 ABP와 같은 양상. §50에서 `ActorPromoted` 적 UAF 시험 셸로 1인·리슨 2인(게스트 재시뮬레이션) 승격·강등·배회·추격·공격·피격이 자연스럽고 ANS/근접 엔티티 균형을 확인. 게스트 사망 랙돌이 참조 포즈에서 시작하는 사례는 원인 확정·수정(§50 "랙돌 시작 자세 원인과 수정") |
 | 디버깅 | 선택 DB/클립·그래프 실행을 기록하고 필요한 시점으로 돌아가 확인 가능 | 부분 확인 — 최소 MM 구성의 UAF 시스템/그래프·클립 트랙, Active Pose·과거 구간 재조회 확인. 전체 계약은 5-2에서 판정 |
 | 구면·최종 포즈 | 적도 이동/회전·정지·경사·착지·움직이는 base에서 루트 Up·발 배치 유지. 공중 `Fall_Loop` 고정(AN-007) | 부분 확인 — 구면 루트 제한(§10)·공중 고정(§12)·Strafe 비교(§14)·발 배치/경사/적도(§15)·패널 점프/착지와 큰 Yaw 롱소드(§18) 확인. 루트 수치는 CR 앞이며 기존 ABP 대비 최종 포즈 품질·무기 통합 후 동등성은 5-2에 남음(§19) |
 
@@ -2479,7 +2479,7 @@ AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 �
 
 - **1인 PIE:** 승격·강등·배회·추격·공격·피격·사망 모두 사용자 정상. UAF 적 22기 전부 `inputs=ready`, ANS Begin 120 = End 120, 근접 엔티티 생성/파괴 26/26, 파괴 16회 모두 활성 ANS 종료 정리, 오류 0(기존 Foley 경고만).
 - **리슨 2인:** 게스트 화면 승격·강등·배회·추격·공격·피격 사용자 정상. Mover `UpDirection zero vector` 경고는 기존 적에서도 기록된 노이즈다(`Analysis_PIEWarnings_20261021.md` §6). 첫 2인 세션의 크래시(Iris→Mass `ArchetypeHandle.IsValid()`)는 다른 세션이 추적 중인 네트워크 결함이다.
-- **게스트 사망 랙돌(원인 미확정):** 팝을 낮춘 뒤 확인하니 **랙돌 시작 자세만 참조 포즈(T/A자)이고, 전환 뒤 동작과 착지 붕괴는 자연스럽다**(사용자 확인). 사망 순간 자세와 무관하게 참조 포즈에서 시작해 어색하며, §49의 1인 시험에서는 보이지 않았다. 처음에는 시체가 T/A자에 가깝게 굳어 날아가는 것으로 보였고 같은 편성의 ABP 적에서는 보이지 않았다. 측정에서 시체 본이 참조 포즈와 최대 28cm(호스트 같은 개체는 100cm) 차이였고, 다른 시점에는 호스트 시체도 손 간격이 참조 포즈에 가까웠다. 가설: 랙돌 동안 표시 메시를 ABP 없는 엔진 평가로 돌려 본 버퍼가 매 프레임 참조 포즈로 채워지는데, 그 사이 부모 텔레포트가 오면 엔진이 시뮬 바디를 본 버퍼로 옮긴다(`PhysAnim.cpp` `UpdateKinematicBonesToAnim`의 `bTeleport` 분기). 텔레포트 출처는 찾지 못했다. 프로브: `Scripts/AnimOverhaul/ProbeEnemyRagdoll_5-2.py`·`ProbeGuestSkinnedMeshes_5-2.py`·`ProbeRagdollRefPose_5-2.py`.
+- **게스트 사망 랙돌(원인 확정·수정, 아래 "랙돌 시작 자세 원인과 수정"):** 팝을 낮춘 뒤 확인하니 **랙돌 시작 자세만 참조 포즈(T/A자)이고, 전환 뒤 동작과 착지 붕괴는 자연스럽다**(사용자 확인). 사망 순간 자세와 무관하게 참조 포즈에서 시작해 어색하며, §49의 1인 시험에서는 보이지 않았다. 처음에는 시체가 T/A자에 가깝게 굳어 날아가는 것으로 보였고 같은 편성의 ABP 적에서는 보이지 않았다. 측정에서 시체 본이 참조 포즈와 최대 28cm(호스트 같은 개체는 100cm) 차이였고, 다른 시점에는 호스트 시체도 손 간격이 참조 포즈에 가까웠다. 프로브: `Scripts/AnimOverhaul/ProbeEnemyRagdoll_5-2.py`·`ProbeGuestSkinnedMeshes_5-2.py`·`ProbeRagdollRefPose_5-2.py`.
 - 시체가 소멸 전에 바닥에 닿지 않아 사용자 요청으로 `RagdollPopSpeed` 기본값을 2000→333으로 낮췄다(순수 엔티티 팝 `PureEntityDeathPopSpeed`는 2000 유지). 랙돌 실제 중력이 설정값(980)보다 약해 보이는 기존 현상은 이 단위 밖이다.
 
 ### UAF 엔진 크래시 2건
@@ -2500,8 +2500,21 @@ AN-026으로 표시 후처리(포즈 복사·왼손/오른팔 IK·RBWC 물리 �
 - **남은 경계.** 리슨 2인에서 실제로 스폰 프레임에 시스템을 놓은 주체는 확인하지 못했다. 1인 PIE도 넷 모드는 Listen Server라, 서버에서 파괴를 시간 분할하지 않는 Mass 분기(`ProcessPendingDestruction`)로는 1인/2인 차이를 설명할 수 없다. 후보는 원격 시점의 위치 점프로 LOD가 뒤집혀 Mass가 스폰한 Actor를 같은 페이즈 끝에 파괴하는 경우지만 미검증이다. `Destroyed`·`EndPlay`를 거치는 해제는 모두 대응 범위다. 컴포넌트 재등록(`OnUnregister`만 호출)으로 놓이는 경로는 범위 밖이다. 대응을 켠 채 단언이 다시 나고 같은 프레임에 "releases a UAF system before its first event" 경고가 없으면 그 경로다. Remap Pose GC 크래시(AN-028)와는 콜스택(`FRemapPoseDataPool::GarbageCollect`)으로 구분한다.
 - 근거: 같은 폴더의 `AsSharedRepro_B_Mode2_TicksLeft.log`(재현 크래시), `AsSharedFix_A_Mode2_TicksDisabled.log`(대응 재현), `AsSharedFix_C_2P_TicksDisabled.log`(2인 일반).
 
+### 랙돌 시작 자세 원인과 수정(2026-11-03, 같은 날 후속 단위)
+
+- **엔진 경로.** 랙돌에 들어가면 드라이버가 표시 메시를 인스턴스 없는 엔진 평가로 돌린다(`SetAnimInstanceClass(nullptr)`·`SetEnableAnimation(true)`). 반영은 프레임 끝 티커의 `InitAnim(false)`다. `bTickAnimationOnSkeletalMeshInit`(기본 true)이라 `RefreshBoneTransforms()`를 틱 함수 없이 부른다. 인스턴스가 없으니 결과는 참조 포즈다. 끝의 `if (TickFunction == nullptr && ShouldBlendPhysicsBones()) FinalizeBoneTransform();`가 그 포즈를 **읽기 버퍼로 즉시 뒤집는다.** 참조 포즈는 다음 프레임 EndPhysics 물리 블렌드가 덮을 때까지 읽기 버퍼에 남는다. 그 사이 부모가 `TeleportPhysics`로 움직이면 `USkeletalMeshComponent::OnUpdateTransform` → `UpdateKinematicBonesToAnim(GetComponentSpaceTransforms(), TeleportPhysics)`가 시뮬 중인 바디까지 그 포즈로 옮긴다.
+  - 이전 가설("매 프레임 참조 포즈")은 틀렸다. 일반 틱의 `PostAnimEvaluation`은 물리 블렌드 중이면 버퍼 교체를 블렌드 뒤로 미룬다. 그래서 참조 포즈가 읽기 버퍼에 보이는 것은 전환 직후 한 번뿐이다.
+  - 게스트는 적을 예측 재시뮬레이션해(§45) 사망 직후 Mover 롤백 텔레포트가 잦다(`SetFrameStateFromContext`의 `bDueToRollback`). 관통 해소·스탠스 시각 오프셋도 같은 종류다. ABP 적은 그 자리에 애니 포즈가 있어 증상이 없다. 1인은 롤백이 없어 거의 보이지 않는다.
+- **측정(리슨 2인, `LNP.UAFSpike.DebugRagdoll 1`, 손 간격 cm, 참조 포즈 ≈104).**
+  - `RagdollHoldPose 0`(이전 동작): 전환 직후 프레임(+1) 읽기 버퍼는 호스트·게스트 모두 104다. 그 프레임에 `TeleportPhysics`를 받은 게스트 개체(C_0·C_1)는 바디도 104가 되어 이후 104로 남는다(시작 자세 = 참조 포즈). 텔레포트가 없던 호스트 개체(바디 17·59)와 게스트 C_2(바디 52)는 다음 프레임 버퍼가 바디 값으로 돌아와 정상이다. 이 결과는 증상이 텔레포트가 그 틈에 떨어질 때만 나는 간헐 현상이라는 점과 맞는다. 호스트에서도 같은 틈에 텔레포트가 오면 날 수 있다.
+  - `RagdollHoldPose 1`(수정): +1 버퍼가 사망 자세(23~74)다. +1~+3의 게스트 텔레포트 뒤에도 바디가 사망 자세(23·40·55)를 유지한다. 이후 값 변화는 물리 낙하다.
+- **수정(프로젝트, 엔진·`ALNPCharacterBase` 변경 없음).** 새 `ULNPUAFRagdollPoseAnimInstance`(`Animation/UAFSpike/LNPUAFRagdollPoseAnimInstance.h/.cpp`)는 그래프 없는 네이티브 인스턴스다. `InitAnim`이 첫 평가 전에 인스턴스를 만들 때, 아직 UAF가 마지막으로 쓴 사망 순간 포즈인 읽기 버퍼를 로컬 포즈로 잡아 둔다. 그 뒤로는 매 평가 그 포즈를 낸다(프록시 `Evaluate`). 드라이버는 랙돌 진입 때 `nullptr` 대신 이 클래스를 걸고, 리스폰 때 지워 다음 사망이 새 포즈를 잡게 한다. 바디 있는 본은 물리 블렌드가 덮으므로 실제로 바뀌는 것은 텔레포트 기준 포즈와 바디 없는 본뿐이다. 엔진 쪽 근본 수정 후보는 `InitAnim`의 즉시 `FinalizeBoneTransform` 또는 텔레포트가 시뮬 바디를 옮기는 분기다.
+- **CVar.** `LNP.UAFSpike.RagdollHoldPose`(기본 1, 0이면 이전 동작, 다음 랙돌 진입부터 반영). `LNP.UAFSpike.DebugRagdoll`(기본 0, 랙돌 초반 30프레임과 텔레포트마다 `[UAFRagdollProbe]` 로그로 버퍼·바디 손 간격을 남긴다).
+- **사용자 확인.** 리슨 2인 게스트 화면에서 0은 증상 재현, 1은 사망 자세 그대로 랙돌 전환. 1인 PIE에서도 1로 사망 자세 그대로 전환했다. 빌드는 에디터 타깃 7 actions·25.7초였다.
+- 근거: 같은 폴더의 `RagdollHoldPose_AB.log`(A/B 프로브 줄과 CVar 변경 시점).
+
 ### 판정
 
-- **AN-026 ①(적 UAF 경로):** 기능은 통과(게스트 랙돌 자세 문제만 미확정).
+- **AN-026 ①(적 UAF 경로):** 기능은 통과(게스트 랙돌 시작 자세는 원인 확정·수정).
 - **AN-026 ②(표시 후처리):** 포즈 복사가 의존하는 `Remap Pose`의 엔진 결함 때문에 **Go 차단 요인으로 기록(AN-028, 사용자 결정)**. 5.8에서 Remap Pose 없이 원본 포즈를 표시 메시에 쓰는 경로는 찾지 못했다(§48: 컴포넌트 단위 참조 포즈라 직접 쓰기는 거부). 최종 Go/No-Go 판정은 내리지 않았다.
 - 근거: `Saved/AnimationOverhaul/2026-11-03_UAF52EnemyPath/`(Setup*.json·PIE1P.log·RagdollProbe_*·SkinnedProbe_*·RefPoseProbe_*·GuestTPose*.png·Crash_AsShared.log·Crash_AsShared2.log·Crash_RemapPoseGC.log).
