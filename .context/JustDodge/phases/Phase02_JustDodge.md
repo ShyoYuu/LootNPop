@@ -114,4 +114,4 @@ Phase 1에서 대시가 무적 창을 열고, `Judge`가 `Dodged`를 판정하�
 - 튜닝 손잡이: `ULNPCharacterMoverComponent`의 `IFrameDuration`·`JustDodgeWindow`, 프로젝트 설정 `Combat|Just Dodge`의 버프 지속·배율.
 - 소유 클라이언트도 저스트 창을 기록하지만 아무 데서도 읽지 않는다. J-007을 재검토해 연출 예측을 채택하면 이 값을 쓴다.
 - `GCN_LNP_JustDodge_Buff`에 MCP 도구가 붙인 빈 BP 컴포넌트 1개가 있다. V3에서 오라를 붙일 때 정리한다.
-- J-006(판정 순서)·J-011(대시당 1회)은 구현·실측과 일치한다. 초안에서 확정으로 올릴지 사용자 결정이 남았다.
+- J-006(판정 순서)·J-011(대시당 1회)은 2026-11-03에 사용자가 스펙으로 확정했다.
