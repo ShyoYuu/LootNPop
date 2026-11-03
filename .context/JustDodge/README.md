@@ -33,7 +33,8 @@
 
 | 작업 | 추가로 읽을 문서 |
 |:---|:---|
-| 단계 조정·Phase 전환·그래픽스 이관 항목 | `Roadmap.md` |
+| 단계 조정·Phase 전환 | `Roadmap.md` |
+| 그래픽스 이관 항목(원본) | [Graphics/Roadmap.md](../Graphics/Roadmap.md) §5 |
 | 현재 Phase 구현 | `Current.md`가 가리키는 `phases/PhaseNN_*.md` |
 | 프래그먼트 필드·Judge 확장·경로별 처리·버프 GE·지연 분석 | `design/Architecture.md` |
 | 비주얼 트랙(V) — 순보·잔상·오라, 색 규약, 그래픽스 경계 | `design/VisualDesign.md` |

@@ -879,6 +879,9 @@ Pivot   Forward 20 / Up 10          Blade  Inner 30 / Outer 140
   Motion Matching 로코모션(→ [TechDesign_CombatAnimation.md](TechDesign_CombatAnimation.md))과
   근본적으로 맞지 않는다. 비용이 이득을 압도한다.
 
+> 재검토 중(2026-11-04): ISKM↔ISM↔Actor 전환 팝핑 개선을 그래픽스 작업 Phase 2-5에서 다시 본다
+> ([Graphics/Roadmap.md](Graphics/Roadmap.md) §4, GX-005). 결론이 나기 전까지는 위 결정이 유효하다.
+
 ### 6.7 에셋 요건 — 전부 실측으로 나온 것들
 
 #### 렌더 요건은 **Nanite가 아니다**
