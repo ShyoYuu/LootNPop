@@ -211,7 +211,70 @@ void FLNPMassClientBubbleHandler::PostReplicatedAdd(const TArrayView<int32> Adde
 		ApplyReplicatedBurn(EntityView, Item);
 	};
 
-	PostReplicatedAddHelper(AddedIndices, AddRequirementsForSpawnQuery, CacheFragmentViewsForSpawnQuery, SetSpawnedEntityData, SetModifiedEntityData);
+	// 장부(EntityInfoMap)와 **같은 ReplicationID**로 다시 들어온 Add는 엔진 헬퍼에 넘기지 않는다.
+	// 엔진은 이를 "이미 있는 쪽이 최신"으로 보고 ensure 한 번만 남긴 채 건너뛰는데, 그 항목이
+	// 앞서 제거 판정을 받아 엔티티가 파괴된 상태면 핸들이 빈 채로 남아 다음 Change에서
+	// FMassEntityView 생성이 죽는다. 서버는 ReplicationID를 단조 증가로만 발급하므로 같은 ID의
+	// 재추가는 **서버에는 계속 있던 항목을 이쪽이 잃었다가 다시 받은 것**이다 — 다시 스폰한다.
+	// 유력한 계기(패킷 손실 에뮬레이션에서만 관측): Iris 배열 직렬화는 **원소 수는 매 패킷 최신값**을,
+	// 원소 내용은 변경 마스크가 켜진 것만 싣고, 손실된 마스크는 **나중 패킷에** 다시 싣는다.
+	// 서버의 RemoveAtSwap(끝 원소를 빈 칸으로 이동)이 실린 패킷을 잃으면, 다음 패킷의 줄어든 원소 수가
+	// 끝 원소를 잘라 내는데 그 원소의 새 칸 내용은 재전송 전까지 도착하지 않는다 → 잠깐 빠졌다 같은 ID로 돌아온다.
+	FMassEntityManager& EntityManager = Serializer->GetEntityManagerChecked();
+	UMassReplicationSubsystem* ReplicationSubsystem = Serializer->GetReplicationSubsystem();
+	check(ReplicationSubsystem);
+
+	TArray<int32> RegularIndices;
+	TArray<int32> ReviveIndices;
+	RegularIndices.Reserve(AddedIndices.Num());
+	for (const int32 Idx : AddedIndices)
+	{
+		const FLNPMassFastArrayItem& Item = (*Agents)[Idx];
+		const FMassNetworkID NetID = Item.Agent.GetNetID();
+		const FMassReplicationEntityInfo* EntityInfo = ReplicationSubsystem->FindMassEntityInfo(NetID);
+		if (EntityInfo == nullptr || EntityInfo->ReplicationID != Item.ReplicationID)
+		{
+			RegularIndices.Add(Idx);
+			continue;
+		}
+
+		// 서버 배열에 실제로 있는 항목이므로 제거 기록을 지운다 — 남겨 두면 AgentRemoveInterval(5초) 뒤
+		// 엔진이 장부 항목 자체를 지워, 다음 Change가 checkf(EntityInfo)에서 죽는다.
+		// 지우기 전에 제거 시각을 읽어 둔다 — 제거→재추가 간격이 손실 감지·재전송 지연(대략 RTT 이상)이면 위 계기와 맞는다.
+		const FMassAgentRemoveData* RemoveData = AgentsRemoveDataMap.Find(NetID);
+		const double RemovedAgoMs = RemoveData ? (GetWorld()->GetRealTimeSeconds() - RemoveData->TimeLastRemoved) * 1000.0 : -1.0;
+		AgentsRemoveDataMap.Remove(NetID);
+
+		if (EntityManager.IsEntityActive(EntityInfo->Entity))
+		{
+			UE_LOG(LogLootNPop, Warning, TEXT("[MassRepGuard] Re-add with same ReplicationID on live entity, applied as modify: NetID=%u RepID=%d entity=%s"),
+				NetID.GetValue(), Item.ReplicationID, *EntityInfo->Entity.DebugGetDescription());
+			SetModifiedEntityData(FMassEntityView(EntityManager, EntityInfo->Entity), Item.Agent);
+			continue;
+		}
+
+		// 핸들은 남았는데 엔티티만 죽은 경우는 살리지 않는다 — 비우려면 ResetEntityIfValid를 거쳐야 하고,
+		// 그 통지가 퍼펫 해제(UMassAgentSubsystem)로 이어져 죽은 엔티티의 컴포지션을 건드린다.
+		// 관측된 경로(PreReplicatedRemove가 핸들을 비운 뒤 재추가)는 빈 핸들이므로 여기에 해당하지 않는다.
+		if (EntityInfo->Entity.IsSet())
+		{
+			UE_LOG(LogLootNPop, Warning, TEXT("[MassRepGuard] Re-add with same ReplicationID on dead entity handle, not respawned: NetID=%u RepID=%d entity=%s"),
+				NetID.GetValue(), Item.ReplicationID, *EntityInfo->Entity.DebugGetDescription());
+			continue;
+		}
+
+		UE_LOG(LogLootNPop, Warning, TEXT("[MassRepGuard] Re-add with same ReplicationID on lost entity, respawning: NetID=%u RepID=%d removedAgoMs=%.0f"),
+			NetID.GetValue(), Item.ReplicationID, RemovedAgoMs);
+		ReviveIndices.Add(Idx);
+	}
+
+	PostReplicatedAddHelper(MakeArrayView(RegularIndices), AddRequirementsForSpawnQuery, CacheFragmentViewsForSpawnQuery, SetSpawnedEntityData, SetModifiedEntityData);
+
+	// 장부 항목은 이미 있으므로 조회·갱신 단계를 건너뛰고 스폰(+SetEntity)만 한다.
+	if (!ReviveIndices.IsEmpty())
+	{
+		PostReplicatedAddEntitiesHelper(MakeArrayView(ReviveIndices), AddRequirementsForSpawnQuery, CacheFragmentViewsForSpawnQuery, SetSpawnedEntityData);
+	}
 
 	SpawnTransformList = TArrayView<FTransformFragment>();
 }
@@ -228,7 +291,32 @@ void FLNPMassClientBubbleHandler::PostReplicatedChange(const TArrayView<int32> C
 		ApplyReplicatedBurn(EntityView, Item);
 	};
 
-	PostReplicatedChangeHelper(ChangedIndices, SetModifiedEntityData);
+	// 엔티티를 잃은 항목은 엔진 헬퍼에 넘기지 않는다 — 장부가 없으면 checkf, 핸들이 죽었으면
+	// FMassEntityView 생성에서 죽는다. 재추가 복구(PostReplicatedAdd)가 정상이면 여기는 오지 않는다.
+	// ReplicationID가 어긋난 경우는 엔진 판정(checkf/ensure)에 그대로 맡긴다.
+	const FMassEntityManager& EntityManager = Serializer->GetEntityManagerChecked();
+	const UMassReplicationSubsystem* ReplicationSubsystem = Serializer->GetReplicationSubsystem();
+	check(ReplicationSubsystem);
+
+	TArray<int32> ValidIndices;
+	ValidIndices.Reserve(ChangedIndices.Num());
+	for (const int32 Idx : ChangedIndices)
+	{
+		const FLNPMassFastArrayItem& Item = (*Agents)[Idx];
+		const FMassReplicationEntityInfo* EntityInfo = ReplicationSubsystem->FindMassEntityInfo(Item.Agent.GetNetID());
+		if (EntityInfo && (EntityInfo->ReplicationID != Item.ReplicationID || EntityManager.IsEntityActive(EntityInfo->Entity)))
+		{
+			ValidIndices.Add(Idx);
+			continue;
+		}
+
+		UE_LOG(LogLootNPop, Warning, TEXT("[MassRepGuard] Change on lost agent skipped: NetID=%u RepID=%d storedRepID=%d entity=%s"),
+			Item.Agent.GetNetID().GetValue(), Item.ReplicationID,
+			EntityInfo ? EntityInfo->ReplicationID : INDEX_NONE,
+			EntityInfo ? *EntityInfo->Entity.DebugGetDescription() : TEXT("<no entity info>"));
+	}
+
+	PostReplicatedChangeHelper(MakeArrayView(ValidIndices), SetModifiedEntityData);
 }
 #endif // UE_REPLICATION_COMPILE_CLIENT_CODE
 
