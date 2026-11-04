@@ -136,6 +136,9 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
   - `[Dodge] IFrame ignored path=<Melee|Projectile|Splash|Flame> player=<폰>`: 서버
   - `[Dodge] JustDodge success player=<폰> attack=<Melee|Projectile>`: 서버 성공 커맨드가 확정한 시점(대시당 최대 1줄)
   - `[Dodge] Ghost impact skipped player=<폰>`: 클라 Ghost가 무적 때문에 예측 임팩트를 생략한 시점(탄 하나당 1줄). 게스트 화면의 D-07 판정용
+  - `[Dodge] Hit path=<Melee|Projectile> player=<폰> sinceJust=<ms|->`: 서버. 저스트 회피 대상 공격이 그대로 맞은 시점(`ReportDodgeHit`). `sinceJust`는 마지막 저스트 창이 닫힌 뒤 경과 ms이고, 1초가 넘었거나 대시가 없었으면 `-`다. 놓친 저스트 회피 계측용(Phase 3)
+  - `[Dodge] Success cue arrived player=<폰> local=<0|1> role=<역할>`: `.Success` 큐가 그 머신에 도착한 시점(`ULNPGameplayCueNotify_JustDodgeSuccess`). `local=1`이 소유 화면이다. 연출 지연 계측용(Phase 3)
+  - 집계: `Scripts/Profiling/AnalyzeDodgeLog.py <로그> [--since HH:MM:SS]`. 리스폰한 폰은 서버·게스트 월드에서 이름이 달라서 게스트 쪽 줄은 시각으로 짝짓는다
 - `LNP.Debug.ShowDodge [0|1]` — 화면 문구(보라 계열, 사용자 요청으로 두 색을 구분, 2026-11-03)
   - `IFRAME  0.15s  JUST 0.12s  (<폰>)` — **연한 보라**: 로컬 폰이 창을 연 순간 무적 창 길이만큼 떠 있다. 문구가 보이는 동안이 곧 무적 창이다
   - `IFRAME BLOCK  <경로>  (<폰>)` — **짙은 보라**: 서버가 무적으로 피격을 무시할 때마다 1초. 경로마다 한 줄을 덮어쓴다. **이 문구가 떴다면 무적이 없었을 때 맞았을 공격이다.** 이동만으로 빗나간 공격과 플레이 중에 구분하는 수단이다(사용자 피드백, 2026-11-03)

@@ -1155,6 +1155,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				}
 				else
 				{
+					LNPGuardParry::ReportDodgeHit(TEXT("Projectile"), Player.Actor, PS, Now);
 					LNPPoise::Accumulate(Player.Poise, Shared.PoiseDamage, Now);
 					if (Shared.DamageEffectClass)
 					{

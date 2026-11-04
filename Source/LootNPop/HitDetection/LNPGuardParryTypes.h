@@ -93,6 +93,13 @@ namespace LNPGuardParry
 	/** 클라 Ghost가 무적 때문에 예측 임팩트를 생략했음을 알린다 — LNP.Debug.Dodge면 로그. 판정 프로세서(Worker Thread)에서 불러도 된다. */
 	LOOTNPOP_API void ReportGhostImpactSkipped(const AActor* Victim);
 
+	/**
+	 * 저스트 회피 대상 공격(근접·투사체 직격)이 그대로 맞았음을 알린다 — LNP.Debug.Dodge면 로그만. Worker Thread에서 불러도 된다.
+	 * "놓친 저스트 회피"를 세는 계측이다(.context/JustDodge/phases/Phase03_TuningLatency.md 단위 1).
+	 * 이른 대시는 sinceJust(저스트 창이 닫힌 뒤 경과 ms)로, 늦은 대시는 이 줄 뒤의 서버 IFrame open과 짝지어 집계한다.
+	 */
+	LOOTNPOP_API void ReportDodgeHit(const TCHAR* Path, const AActor* Victim, const FLNPParryStateFragment& PS, double Now);
+
 	/** 서버가 저스트 회피를 확정했음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 화면 문구. Game Thread 전용(성공 커맨드). */
 	LOOTNPOP_API void ReportJustDodgeSuccess(const TCHAR* Attack, const AActor* Defender);
 

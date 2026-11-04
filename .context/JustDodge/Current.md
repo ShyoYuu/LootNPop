@@ -1,8 +1,8 @@
 # 저스트 회피 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: 메인 트랙 Phase 3 수치 1차 튜닝·지연 측정·문서 마감 — 착수 전
-> 마지막 갱신: 2026-11-03
+> 현재 작업: 메인 트랙 Phase 3 수치 1차 튜닝·지연 측정·문서 마감 — 단위 1(계측) 완료, 단위 2(플레이 테스트) 대기
+> 마지막 갱신: 2026-11-04
 
 ## 현재 결정
 
@@ -22,11 +22,13 @@ Phase 1(회피 무적)과 Phase 2(저스트 회피)는 2026-11-03에 끝났다. 
 - 연출 경계: 큐 `GameplayCue.LNP.JustDodge.Success`·`.Buff`와 빈 GCN 2개(`Content/GAS/GameplayCues/`). 비주얼 트랙은 여기서 시작한다.
 - 튜닝 손잡이: Mover 컴포넌트의 `IFrameDuration`(0.15)·`JustDodgeWindow`(0.12), 프로젝트 설정 `Combat|Just Dodge`(2.5초, 0.2, 0.2).
 - 디버그: `LNP.Debug.Dodge`(로그), `LNP.Debug.ShowDodge`(화면 문구 — 연한 보라 창, 짙은 보라 무적 차단, 자홍 `JUST DODGE`). 문자열은 `design/Architecture.md` §7.
+- 계측(Phase 3 단위 1): `[Dodge] Hit ... sinceJust=`(놓친 저스트 회피), `[Dodge] Success cue arrived ... local=`(연출 지연). 집계는 `Scripts/Profiling/AnalyzeDodgeLog.py <로그> [--since HH:MM:SS]`. 성공 큐 에셋의 부모는 이제 `ULNPGameplayCueNotify_JustDodgeSuccess`다(V1이 확장한다).
 
 ## 바로 다음 행동
 
-- `Roadmap.md` §4 Phase 3을 바탕으로 `phases/Phase03_*.md` 실행서를 쓰고 사용자 확인을 받는다.
-- 실행서에 넣을 Phase 2 인계 항목:
+- 실행서 `phases/Phase03_TuningLatency.md` 단위 2: 리슨 2인 R1(지연 없음·군중·J-03) → R2(RTT 약 50ms) → R3(약 100ms). 회차마다 스크립트로 집계하고 체감 질문을 받은 뒤 수치를 조정한다.
+- 지연 없는 업링크 기준선은 p50 57ms다(`history/Phase03_Log.md`). 지연 회차는 이 값과 비교한다.
+- 실행서에 반영한 Phase 2 인계 항목:
   - J-03(화염·폭발 안에서 대시)은 실측하지 않았다. 플레이 테스트에 끼워 넣는다.
   - 버프 경계 보정은 `PktLag` 50/100ms에서 다시 본다(지연 없는 2인에서는 체감 없음).
 - Phase 3에서 사용자 판단이 필요한 것(Phase 1에서 이어짐):

@@ -82,6 +82,23 @@ void LNPGuardParry::ReportGhostImpactSkipped(const AActor* Victim)
 		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] Ghost impact skipped player=%s"), *GetNameSafe(Victim));
 }
 
+void LNPGuardParry::ReportDodgeHit(const TCHAR* Path, const AActor* Victim, const FLNPParryStateFragment& PS, const double Now)
+{
+	if (!IsDodgeDebugEnabled())
+		return;
+
+	// 1초가 지난 창은 그 피격과 무관한 대시다 — 숫자 대신 '-'로 남겨 집계에서 이른 놓침으로 세지 않게 한다.
+	const double SinceJust = Now - PS.JustDodgeExpiryTime;
+	if (PS.JustDodgeExpiryTime >= 0.0 && SinceJust <= 1.0)
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] Hit path=%s player=%s sinceJust=%.0f"), Path, *GetNameSafe(Victim), SinceJust * 1000.0);
+	}
+	else
+	{
+		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] Hit path=%s player=%s sinceJust=-"), Path, *GetNameSafe(Victim));
+	}
+}
+
 void LNPGuardParry::ReportJustDodgeSuccess(const TCHAR* Attack, const AActor* Defender)
 {
 	if (IsDodgeDebugEnabled())

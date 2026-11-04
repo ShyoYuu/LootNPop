@@ -625,6 +625,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					return;
 				}
 
+				LNPGuardParry::ReportDodgeHit(TEXT("Melee"), Player.Actor, PS, NowForRewind);
 				LNPPoise::Accumulate(Player.Poise, Frag.PoiseDamage, NowForRewind);
 
 				// 적 피격 분기와 같은 자리에서 임팩트 연출을 낸다 — 데미지 커맨드가 더는 연출을 내지 않는다.

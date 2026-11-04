@@ -72,4 +72,6 @@
 | `[Dodge] IFrame ignored path=<Melee\|Projectile\|Splash\|Flame> player=<폰>` | 무적으로 무시한 피격 (서버) |
 | `[Dodge] JustDodge success player=<폰> attack=<Melee\|Projectile>` | 저스트 회피 성공 (서버, 대시당 최대 1줄) |
 | `[Dodge] Ghost impact skipped player=<폰>` | 클라 Ghost가 무적 때문에 예측 임팩트를 생략 (클라, 탄 하나당 1줄) |
+| `[Dodge] Hit path=<Melee\|Projectile> player=<폰> sinceJust=<ms\|->` | 저스트 회피 대상 공격에 그대로 맞음 (서버). 놓친 저스트 회피 집계용 |
+| `[Dodge] Success cue arrived player=<폰> local=<0\|1> role=<역할>` | 성공 큐 도착 (모든 머신, `local=1`이 소유 화면). 연출 지연 집계용 |
 | `[Guard] Block success` | 기존 가드 로그 — 회귀 확인용 |
