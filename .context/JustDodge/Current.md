@@ -32,9 +32,10 @@ Phase 1~3은 끝났다(Phase 3은 2026-11-04). 결과는 `history/Phase0N_Log.md
 ## 바로 다음 행동
 
 - 실행서 `phases/Phase04_HitGraceBuffer.md` 초안을 썼다(2026-11-04, 코드 위치 재확인 포함). 사용자 결정 1~4는 모두 권장안으로 확정됐다(창 대칭·지연 0 게스트에도 적용·보류된 피격만 소급·화염 포함). 단위 1부터 진행한다.
-- 단위 1·2 완료(2026-11-04): 풀 빌드와 2인 PIE 로그 검증을 통과했다. 게스트 `H` 110ms, 호스트 0, `Enable 0`에서 해제 0줄, `Enable 1`에서 4경로 모두 해제 뒤 적용. 실효 보류는 프레임 양자화로 p50 141ms다(`history/Phase04_Log.md`). **다음: 단위 3(소급 판정 — `ExecuteDash` 권위 분기의 `ResolveDash`, 창 대칭 기록, `LNPGuardParry::JudgeRetro`).**
+- 단위 1·2 완료·커밋(7aafd4a). 게스트 `H` 110ms(실효 p50 141ms, 프레임 양자화), 호스트 0, `Enable 0` 회귀 없음(`history/Phase04_Log.md`).
+- 단위 3 완료(2026-11-04): PktLag 25에서 소급 89건, Phase 3 유형 거부 0. 남은 거부 6건은 모두 "서버 피격 뒤에 누른" 경우다(호스트도 잃는다). 누름 추정은 +13~+25ms 이르다(`HitGraceInputAllowance` 0.06 과대). **다음: 단위 4 — 집계 스크립트 확장(누름 추정 오차·Retro·거부 유형 분리), allowance를 0.045 안팎으로 낮춘 뒤 R1~R3 재측정.**
 - 초안의 핵심 변경: 누름 추정 `U`와 보류 길이 `H`를 나눴다(§6.2 초안의 `T_press = E − H`는 보류 여유만큼 과하게 소급한다). `H`는 Game Thread가 `FLNPParryStateFragment::HitGraceSeconds`로 미러링해 판정 프로세서가 UObject를 읽지 않는다.
-- 완료 기준: Phase 3 R2·R3 조건 재측정에서 `dropped by server`가 0에 가깝고, 호스트 동작이 바뀌지 않으며, 지연 0 게스트의 거부가 0으로 유지된다.
+- 완료 기준: Phase 3 R2·R3 조건 재측정에서 "누름 전 서버 피격" 유형의 거부가 0에 가깝고, 호스트 동작이 바뀌지 않으며, 지연 0 게스트의 거부가 0으로 유지된다.
 - Phase 4 끝에 Phase 3에서 옮겨 온 문서 마감을 한다(`Roadmap.md` §4 Phase 4).
 
 ## 인계 근거

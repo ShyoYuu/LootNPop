@@ -134,6 +134,49 @@ void ULNPHitGraceSubsystem::Enqueue(FLNPHeldPlayerHit&& Hit)
 	Held.Add(MoveTemp(Hit));
 }
 
+void ULNPHitGraceSubsystem::ResolveDash(const APawn* Pawn, const double PressTime, const float IFrameDuration, const float JustWindow)
+{
+	UWorld* World = GetWorld();
+	UMassEntitySubsystem* MassSub = World ? World->GetSubsystem<UMassEntitySubsystem>() : nullptr;
+	if (!Pawn || !MassSub || Held.IsEmpty())
+		return;
+
+	FMassEntityManager& EntityManager = MassSub->GetMutableEntityManager();
+	const double Now = World->GetTimeSeconds();
+
+	// 들어온 순서(= 판정 순서)대로 본다 — 저스트 회피는 대시당 한 번이라 가장 이른 대상 피격이 가져간다(J-011).
+	for (int32 i = 0; i < Held.Num();)
+	{
+		const FLNPHeldPlayerHit& Hit = Held[i];
+		if (Hit.Victim.Get() != Pawn || !EntityManager.IsEntityActive(Hit.Defender))
+		{
+			++i;
+			continue;
+		}
+
+		// 소비 플래그는 매번 다시 읽는다 — 바로 앞 묶음의 성공 처리가 세웠을 수 있다.
+		const FLNPParryStateFragment* PS = EntityManager.GetFragmentDataPtr<FLNPParryStateFragment>(Hit.Defender);
+		const ELNPPlayerDefenseResult Result = LNPGuardParry::JudgeRetro(Hit.HitTime, PressTime, IFrameDuration, JustWindow,
+			Hit.bJustEligible, PS && PS->bJustDodgeConsumed);
+		if (Result == ELNPPlayerDefenseResult::None)
+		{
+			++i;
+			continue;
+		}
+
+		if (Result == ELNPPlayerDefenseResult::JustDodged)
+		{
+			FLNPJustDodgeCommand::ApplyEntry(EntityManager, { Hit.Defender, Hit.Victim, Hit.Path });
+			LNPGuardParry::ReportRetroDodge(TEXT("JustDodged"), Hit.Path, Pawn, Now - Hit.HitTime);
+		}
+		else
+		{
+			LNPGuardParry::ReportRetroDodge(TEXT("Dodged"), Hit.Path, Pawn, Now - Hit.HitTime);
+		}
+		Held.RemoveAt(i, EAllowShrinking::No);
+	}
+}
+
 void ULNPHitGraceSubsystem::Tick(float DeltaTime)
 {
 	UWorld* World = GetWorld();

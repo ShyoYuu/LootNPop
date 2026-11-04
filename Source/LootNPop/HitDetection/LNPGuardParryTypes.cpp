@@ -63,17 +63,40 @@ void LNPGuardParry::ReportDodgeIgnored(const TCHAR* Path, const AActor* Victim)
 	}
 }
 
-void LNPGuardParry::ReportDodgeWindowOpened(const AActor* Owner, const double ExpiryTime, const float Duration, const float JustDuration)
+void LNPGuardParry::ReportDodgeWindowOpened(const AActor* Owner, const double ExpiryTime, const float Duration, const float JustDuration,
+	const double PressTime)
 {
 	const APawn* Pawn = Cast<APawn>(Owner);
 	if (IsDodgeDebugEnabled() && Pawn)
-		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] IFrame open %s role=%s expiry=%.3f just=%.2f"),
-			*Pawn->GetName(), *UEnum::GetValueAsString(Pawn->GetLocalRole()), ExpiryTime, JustDuration);
+	{
+		// press는 누름 추정 보정용이다 — 같은 시계인 단일 프로세스 PIE에서 게스트의 Autonomous 줄과 비교한다.
+		if (PressTime >= 0.0)
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[Dodge] IFrame open %s role=%s expiry=%.3f just=%.2f press=%.3f"),
+				*Pawn->GetName(), *UEnum::GetValueAsString(Pawn->GetLocalRole()), ExpiryTime, JustDuration, PressTime);
+		}
+		else
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[Dodge] IFrame open %s role=%s expiry=%.3f just=%.2f"),
+				*Pawn->GetName(), *UEnum::GetValueAsString(Pawn->GetLocalRole()), ExpiryTime, JustDuration);
+		}
+	}
 
 	// 창 길이만큼만 떠 있다 — 문구가 보이는 동안이 곧 무적 창이다. 원격 폰은 그 화면의 주인이 아니라 띄우지 않는다.
 	if (IsDodgeScreenEnabled() && GEngine && Pawn && Pawn->IsLocallyControlled())
 		GEngine->AddOnScreenDebugMessage(GLNPDodgeBlockMsgKeyBase - 1, Duration, GLNPDodgeWindowMsgColor,
 			FString::Printf(TEXT("IFRAME  %.2fs  JUST %.2fs  (%s)"), Duration, JustDuration, *Pawn->GetName()));
+}
+
+void LNPGuardParry::ReportRetroDodge(const TCHAR* Result, const TCHAR* Path, const AActor* Victim, const double HeldSeconds)
+{
+	if (IsDodgeDebugEnabled())
+		UE_LOG(LogLootNPop, Log, TEXT("[Dodge] Retro %s path=%s player=%s held=%.0f"), Result, Path, *GetNameSafe(Victim), HeldSeconds * 1000.0);
+
+	// 무적으로 막은 것과 같은 줄을 덮어쓴다 — 플레이 중에는 "무적이 없었다면 맞았을 공격"이라는 뜻이 같다.
+	if (IsDodgeScreenEnabled() && GEngine)
+		GEngine->AddOnScreenDebugMessage(GLNPDodgeBlockMsgKeyBase + (FCrc::StrCrc32(Path) & 0xFF), GLNPDodgeBlockMsgSeconds, GLNPDodgeBlockMsgColor,
+			FString::Printf(TEXT("IFRAME BLOCK  %s  RETRO  (%s)"), Path, *GetNameSafe(Victim)));
 }
 
 void LNPGuardParry::ReportGhostImpactSkipped(const AActor* Victim)

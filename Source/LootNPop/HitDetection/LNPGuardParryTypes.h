@@ -94,8 +94,18 @@ namespace LNPGuardParry
 	 */
 	LOOTNPOP_API void ReportDodgeIgnored(const TCHAR* Path, const AActor* Victim);
 
-	/** 대시가 무적·저스트 창을 열었음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 로컬 폰의 화면에 무적 창 길이만큼 문구. Game Thread 전용. */
-	LOOTNPOP_API void ReportDodgeWindowOpened(const AActor* Owner, double ExpiryTime, float Duration, float JustDuration);
+	/**
+	 * 대시가 무적·저스트 창을 열었음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 로컬 폰의 화면에 무적 창 길이만큼 문구. Game Thread 전용.
+	 * @param PressTime 서버가 원격 게스트의 누름을 추정한 시각(피격 유예). 0 미만이면 추정하지 않았다 — 로그에 press를 남기지 않는다.
+	 */
+	LOOTNPOP_API void ReportDodgeWindowOpened(const AActor* Owner, double ExpiryTime, float Duration, float JustDuration, double PressTime = -1.0);
+
+	/**
+	 * 보류된 피격을 늦게 도착한 대시가 소급 회피했음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 화면 문구. Game Thread 전용.
+	 * @param Result      "Dodged" | "JustDodged"
+	 * @param HeldSeconds 피격 판정에서 대시 실행까지 보류된 시간
+	 */
+	LOOTNPOP_API void ReportRetroDodge(const TCHAR* Result, const TCHAR* Path, const AActor* Victim, double HeldSeconds);
 
 	/** 클라 Ghost가 무적 때문에 예측 임팩트를 생략했음을 알린다 — LNP.Debug.Dodge면 로그. 판정 프로세서(Worker Thread)에서 불러도 된다. */
 	LOOTNPOP_API void ReportGhostImpactSkipped(const AActor* Victim);
@@ -157,5 +167,26 @@ namespace LNPGuardParry
 			return ELNPPlayerDefenseResult::Guarded;
 
 		return ELNPPlayerDefenseResult::Hit;
+	}
+
+	/**
+	 * 피격 유예로 보류된 피격(Hit·Guarded)을 늦게 도착한 대시가 소급 회피하는가 — Judge의 저스트 회피·무적 단계를
+	 * 서버 실행 시각이 아니라 **누름 추정 시각** 기준으로 다시 본다 (.context/JustDodge/phases/Phase04_HitGraceBuffer.md 단위 3).
+	 *
+	 * 반경은 다시 보지 않는다 — 보류된 것은 피격 반경 안이었고, 패링 반경은 피격 반경보다 크다.
+	 * Guarded도 소급된다. Judge 순서(J-006)에서 회피가 가드보다 앞이기 때문이다.
+	 * @param bJustEligible 저스트 회피 대상 공격인가(근접·직격, J-002)
+	 * @return JustDodged / Dodged. 소급하지 않으면 None
+	 */
+	inline ELNPPlayerDefenseResult JudgeRetro(const double HitTime, const double PressTime, const float IFrameDuration,
+		const float JustWindow, const bool bJustEligible, const bool bJustConsumed)
+	{
+		if (HitTime < PressTime || HitTime > PressTime + IFrameDuration)
+			return ELNPPlayerDefenseResult::None;
+
+		if (bJustEligible && !bJustConsumed && HitTime <= PressTime + JustWindow)
+			return ELNPPlayerDefenseResult::JustDodged;
+
+		return ELNPPlayerDefenseResult::Dodged;
 	}
 }

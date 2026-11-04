@@ -15,6 +15,7 @@
 #include "WorldDevice/LNPWindFieldSubsystem.h"
 #include "Gravity/LNPPawnGravityComponent.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "HitDetection/LNPHitGraceSubsystem.h"
 #include "Character/LNPCharacterBase.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LNPGameplayTags.h"
@@ -380,10 +381,24 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 			const double Now = GetWorld()->GetTimeSeconds();
 			// 무적 창 이하로 묶는다 — 저스트 회피인데 무적이 이미 닫힌 상태를 만들지 않는다.
 			const float JustWindow = FMath::Min(JustDodgeWindow, IFrameDuration);
-			PF->DodgeIFrameExpiryTime = Now + IFrameDuration;
-			PF->JustDodgeExpiryTime   = Now + JustWindow;
+
+			// 피격 유예: 서버가 본 원격 게스트는 누른 순간이 업링크만큼 과거다. 창을 누름 추정 시각부터 열어
+			// 소급 구간(보류된 피격)과 실시간 구간을 합친 길이가 호스트와 같게 한다(Phase 4 결정 1).
+			// 호스트·소유 클라·유예 꺼짐은 업링크가 0이라 지금 시각 그대로다.
+			const float  Uplink    = Pawn->GetLocalRole() == ROLE_Authority ? LNPHitGrace::EstimateUplink(Pawn) : 0.f;
+			const double PressTime = Now - Uplink;
+
+			PF->DodgeIFrameExpiryTime = PressTime + IFrameDuration;
+			PF->JustDodgeExpiryTime   = PressTime + JustWindow;
 			PF->bJustDodgeConsumed    = false;
-			LNPGuardParry::ReportDodgeWindowOpened(Pawn, PF->DodgeIFrameExpiryTime, IFrameDuration, JustWindow);
+			LNPGuardParry::ReportDodgeWindowOpened(Pawn, PF->DodgeIFrameExpiryTime, IFrameDuration, JustWindow,
+				Uplink > 0.f ? PressTime : -1.0);
+
+			if (Uplink > 0.f)
+			{
+				if (ULNPHitGraceSubsystem* Grace = GetWorld()->GetSubsystem<ULNPHitGraceSubsystem>())
+					Grace->ResolveDash(Pawn, PressTime, IFrameDuration, JustWindow);
+			}
 		}
 	}
 

@@ -1,6 +1,6 @@
 # Phase 4 — 피격 유예 버퍼(J-010 대응) + 문서 마감
 
-> 상태: 진행 중 (2026-11-04) — 단위 1·2 풀 빌드·2인 PIE 로그 검증 통과(사용자 체감 확인 대기), 다음은 단위 3
+> 상태: 진행 중 (2026-11-04) — 단위 1~3 완료, 다음은 단위 4(누름 추정 보정·재측정)
 > 선행: Phase 3 수치 1차 튜닝·지연 측정 (완료)
 > 순서: 단위 1 → 2 → 3 → 4 → 5. 각 단위를 끝내고 검증한 뒤 사용자에게 진행 여부를 확인받는다.
 > 설계 원본: `design/Architecture.md` §6.2 A. 이 문서는 실행 순서와 이번에 정할 수치·형태를 소유한다.
@@ -131,6 +131,13 @@ LNPGuardParry::JudgeRetro(t_h, T_press, IFrame, JustWindow, bJustEligible, bCons
   - 그대로: 남겨 둔다. 만료되면 단위 2의 해제가 적용한다.
 - 가드 중 대시도 같은 규칙이다. `Judge` 순서에서 `Dodged`가 `Guarded`보다 앞이기 때문이다(J-006).
 
+구현(2026-11-04):
+
+- `LNPGuardParry::JudgeRetro`(`LNPGuardParryTypes.h`), `ULNPHitGraceSubsystem::ResolveDash`, `FLNPJustDodgeCommand::ApplyEntry`(성공 처리 본문을 꺼냄).
+- `ExecuteDash`는 권위일 때 `U = EstimateUplink`를 다시 계산해 `PressTime = E − U`부터 창을 연다. 호스트·소유 클라는 `U = 0`이라 동작이 그대로다.
+- 로그: 서버 `IFrame open ... press=<T_press>`(원격 게스트만), `[Dodge] Retro <Dodged|JustDodged> path=<경로> player=<폰> held=<ms>`. `ShowDodge` 화면 문구는 `IFRAME BLOCK  <경로>  RETRO`.
+- 단위 4-1의 `press=` 로그를 이 단위에서 미리 붙였다.
+
 완료 조건: 2인 PIE `net.PktLag=25`(두 창)에서 게스트가 근접 공격 직전에 대시하면 `Retro` 줄이 나오고, 넉백·피해가 없으며, 대시가 실행된다. 저스트 회피면 성공 큐가 온다.
 
 ## 단위 4 — 계측과 재측정
@@ -144,6 +151,7 @@ LNPGuardParry::JudgeRetro(t_h, T_press, IFrame, JustWindow, bJustEligible, bCons
   - **누름 추정 오차:** 추정 `T_press` − 실제 누름(ms) 분포. p50이 0 근처면 `HitGraceInputAllowance`가 맞다.
   - **소급 결과:** `Retro Dodged`·`Retro JustDodged` 수, `hold` 분포, 만료로 그대로 적용된 보류 수. `hold`가 `H`에 붙어 있으면 `H`가 짧다.
 - `Retro` 회피는 `dropped`·놓침 집계에서 빼고 성공·회피로 센다.
+- `dropped by server`를 "누름 전 서버 피격(Phase 3 유형, 0이 목표)"과 "누름 뒤 서버 피격(호스트도 잃는 경우)"으로 나눈다(단위 3 PIE에서 발견, 2026-11-04).
 
 ### 4-2. 재측정 (요인설계, 리슨 2인 PIE)
 
@@ -188,6 +196,6 @@ Phase 3 R1~R3과 같은 편성과 행동이다(게스트 팀 2 `LNP.Team.Set 1 2
 - [x] 사용자 결정 1~4 (2026-11-04, 모두 권장안)
 - [x] 단위 1 — 미러·서브시스템 골격·설정·CVar (2026-11-04, 게스트 `H` 110ms·호스트 0)
 - [x] 단위 2 — 효과 묶음화, 4경로 연결, `Enable 0` 회귀 없음 (2026-11-04, 로그 기준. 실효 보류는 프레임 양자화로 `H`~`H+1프레임`, `history/Phase04_Log.md`)
-- [ ] 단위 3 — 소급 판정, PktLag 25 수동 확인
+- [x] 단위 3 — 소급 판정, PktLag 25 수동 확인 (2026-11-04, 소급 124건·Phase 3 유형 거부 0, `history/Phase04_Log.md`)
 - [ ] 단위 4 — 누름 추정 보정, R1~R3 재측정, 완료 조건
 - [ ] 단위 5 — 공통 문서·교차 링크·인덱스 3곳·결정 원장

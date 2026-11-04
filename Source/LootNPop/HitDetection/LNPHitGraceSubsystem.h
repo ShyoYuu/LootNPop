@@ -110,6 +110,13 @@ public:
 	/** 보류 묶음을 받는다. FLNPHoldPlayerHitCommand(Game Thread)가 부른다. */
 	void Enqueue(FLNPHeldPlayerHit&& Hit);
 
+	/**
+	 * 서버가 원격 게스트의 대시를 실행했다 — 그 게스트의 보류된 피격을 누름 추정 시각 기준으로 소급 판정한다
+	 * (LNPGuardParry::JudgeRetro). 소급된 묶음은 버리고, 저스트 회피면 성공 처리를 바로 한다. 나머지는 해제 시각까지 남는다.
+	 * ULNPCharacterMoverComponent::ExecuteDash의 권위·비리시뮬레이션 분기가 창을 기록한 직후 부른다.
+	 */
+	void ResolveDash(const APawn* Pawn, double PressTime, float IFrameDuration, float JustWindow);
+
 	// UTickableWorldSubsystem
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override;

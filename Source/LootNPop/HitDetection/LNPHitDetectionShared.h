@@ -560,42 +560,46 @@ struct FLNPJustDodgeCommand : public FMassBatchedCommand
 
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
+		for (const FEntry& Entry : Entries)
+			ApplyEntry(EntityManager, Entry);
+	}
+
+	/** 한 건 적용. 피격 유예의 소급 저스트 회피(ULNPHitGraceSubsystem::ResolveDash)도 이 함수를 부른다. Game Thread 전용. */
+	static void ApplyEntry(FMassEntityManager& EntityManager, const FEntry& Entry)
+	{
 		const ULNPSettings* Settings = GetDefault<ULNPSettings>();
 
-		for (const FEntry& Entry : Entries)
+		if (!EntityManager.IsEntityActive(Entry.Defender))
+			return;
+		FLNPParryStateFragment* PS = EntityManager.GetFragmentDataPtr<FLNPParryStateFragment>(Entry.Defender);
+		if (!PS || PS->bJustDodgeConsumed)
+			return;
+		PS->bJustDodgeConsumed = true;
+
+		AActor* Victim = Entry.Victim.Get();
+		UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Victim);
+		if (!IsValid(ASC))
+			return;
+
+		// 같은 GE가 이미 있으면 스택 규칙(상한 1 + 적용마다 지속 리셋)이 시간만 갱신한다.
+		// ⚠️ MultiplyAdditive는 배율 자체(항등원 1)를 받는다 — 설정의 +0.2를 그대로 넣으면 ×0.2로 느려진다.
+		//    아이템 스탯 경로(LNPStat::ApplyModifiers)도 항등원 1에 더해 넣는다.
+		FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(ULNPGameplayEffect_JustDodgeBuff::StaticClass(), 1.f, ASC->MakeEffectContext());
+		if (Spec.IsValid())
 		{
-			if (!EntityManager.IsEntityActive(Entry.Defender))
-				continue;
-			FLNPParryStateFragment* PS = EntityManager.GetFragmentDataPtr<FLNPParryStateFragment>(Entry.Defender);
-			if (!PS || PS->bJustDodgeConsumed)
-				continue;
-			PS->bJustDodgeConsumed = true;
-
-			AActor* Victim = Entry.Victim.Get();
-			UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Victim);
-			if (!IsValid(ASC))
-				continue;
-
-			// 같은 GE가 이미 있으면 스택 규칙(상한 1 + 적용마다 지속 리셋)이 시간만 갱신한다.
-			// ⚠️ MultiplyAdditive는 배율 자체(항등원 1)를 받는다 — 설정의 +0.2를 그대로 넣으면 ×0.2로 느려진다.
-			//    아이템 스탯 경로(LNPStat::ApplyModifiers)도 항등원 1에 더해 넣는다.
-			FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(ULNPGameplayEffect_JustDodgeBuff::StaticClass(), 1.f, ASC->MakeEffectContext());
-			if (Spec.IsValid())
-			{
-				Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Stat_AttackSpeed, 1.f + Settings->JustDodgeBuffAttackSpeed);
-				Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Stat_MoveSpeed,   1.f + Settings->JustDodgeBuffMoveSpeed);
-				Spec.Data->SetDuration(Settings->JustDodgeBuffDuration, /*bLockDuration*/ true);
-				ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-			}
-
-			// 비주얼 트랙 경계 — 순보 연출이 위치와 대시 방향을 쓴다. 지금은 빈 GCN이다.
-			FGameplayCueParameters CueParams;
-			CueParams.Location = Victim->GetActorLocation();
-			CueParams.Normal   = Victim->GetVelocity().GetSafeNormal();
-			ASC->ExecuteGameplayCue(TAG_GameplayCue_JustDodge_Success, CueParams);
-
-			LNPGuardParry::ReportJustDodgeSuccess(Entry.Attack, Victim);
+			Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Stat_AttackSpeed, 1.f + Settings->JustDodgeBuffAttackSpeed);
+			Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Stat_MoveSpeed,   1.f + Settings->JustDodgeBuffMoveSpeed);
+			Spec.Data->SetDuration(Settings->JustDodgeBuffDuration, /*bLockDuration*/ true);
+			ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 		}
+
+		// 비주얼 트랙 경계 — 순보 연출이 위치와 대시 방향을 쓴다. 지금은 빈 GCN이다.
+		FGameplayCueParameters CueParams;
+		CueParams.Location = Victim->GetActorLocation();
+		CueParams.Normal   = Victim->GetVelocity().GetSafeNormal();
+		ASC->ExecuteGameplayCue(TAG_GameplayCue_JustDodge_Success, CueParams);
+
+		LNPGuardParry::ReportJustDodgeSuccess(Entry.Attack, Victim);
 	}
 
 	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
