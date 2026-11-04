@@ -53,6 +53,7 @@
 → 서버 판정 프로세서 4곳(근접·투사체 직격·스플래시·화염)이 모두 부르는 `LNPGuardParry::Judge`가 `JustDodged` / `Dodged`를 판정한다.
 → `Dodged`면 피해를 주지 않는다. 투사체는 관통한다.
 → `JustDodged`면 `FLNPJustDodgeCommand`가 버프 GE를 적용하고 성공 큐를 실행한다.
+→ 원격 게스트 피격자는 `Hit`·`Guarded` 효과를 피격 유예 버퍼(`ULNPHitGraceSubsystem`)가 잠시 보류한다. 늦게 도착한 대시가 누름 추정 시각 기준으로 소급 회피한다(`LNPGuardParry::JudgeRetro`, J-015).
 → 비주얼은 GameplayCue 태그 2개(`GameplayCue.LNP.JustDodge.Success`, `.Buff`) 뒤에 둔다.
 
 상세는 `design/Architecture.md`가 소유한다.
@@ -70,7 +71,8 @@
 
 ## 6. 모든 구현이 지켜야 하는 불변 조건
 
-- 회피 판정은 `LNPGuardParry::Judge` 한 곳에서만 한다. 경로별로 회피 분기를 복제하지 않는다(J-001, HitDetection §7.5).
+- 회피 판정은 `LNPGuardParry::Judge` 한 곳에서만 한다. 경로별로 회피 분기를 복제하지 않는다(J-001, HitDetection §7.5). 피격 유예의 소급 술어 `JudgeRetro`도 같은 파일에 둔다.
+- 4경로의 `Hit`·`Guarded` 효과는 `LNPHitGrace::Dispatch` 하나로 넘긴다. 경로마다 즉시·보류 분기를 따로 쓰지 않는다(J-019).
 - 판정 프로세서는 Worker Thread에서 Mass 프래그먼트만 읽는다. ASC 태그를 판정 근거로 쓰지 않는다.
 - 회피 상태는 대시 실행과 같은 시뮬레이션 경로(InputCmd → `OnMoverPreSimulationTick` → `ExecuteDash`)에서만 생긴다. 입력 콜백에서 직접 쓰지 않는다(CharacterMovement §7.6의 함정).
 - 리시뮬레이션 중에는 프래그먼트를 쓰지 않는다(`TimeStep.bIsResimulating`).

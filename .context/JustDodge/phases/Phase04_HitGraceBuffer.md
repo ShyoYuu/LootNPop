@@ -1,6 +1,6 @@
 # Phase 4 — 피격 유예 버퍼(J-010 대응) + 문서 마감
 
-> 상태: 진행 중 (2026-11-04) — 단위 1~3 완료, 다음은 단위 4(누름 추정 보정·재측정)
+> 상태: 완료 (2026-11-05) — 단위 1~5
 > 선행: Phase 3 수치 1차 튜닝·지연 측정 (완료)
 > 순서: 단위 1 → 2 → 3 → 4 → 5. 각 단위를 끝내고 검증한 뒤 사용자에게 진행 여부를 확인받는다.
 > 설계 원본: `design/Architecture.md` §6.2 A. 이 문서는 실행 순서와 이번에 정할 수치·형태를 소유한다.
@@ -146,7 +146,8 @@ LNPGuardParry::JudgeRetro(t_h, T_press, IFrame, JustWindow, bJustEligible, bCons
 
 단일 프로세스 PIE는 서버·게스트 줄이 같은 시계라 실제 누름 시각(게스트 `IFrame open role=Autonomous`)을 안다. 서버가 추정한 `T_press`를 로그에 남기고 둘을 비교한다.
 
-- `[Dodge] IFrame open` 서버 줄에 `press=<T_press>`를 덧붙인다(원격 게스트만).
+- `[Dodge] IFrame open` 서버 줄에 `press=<T_press> uplink=<U ms>`를 덧붙인다(원격 게스트만). `press`는 단위 3에서, `uplink`는 단위 4에서 붙였다 — 서버 월드 시계와 로그 벽시계가 달라 `press`만으로는 오차를 못 낸다.
+- 구현(2026-11-04): `AnalyzeDodgeLog.py`에 Retro 표, 소급된 `Hit`의 놓침 제외, 거부 유형 분리(`press-then-hit`=Phase 3 유형 / `hit-then-press`), 누름 추정 오차(`press estimate - actual press`, 음수=서버가 이르게 추정)를 더했다. 단위 3 로그에 돌려 손 집계와 같은 결과(거부 6건 모두 hit-then-press, 소급 89건)를 확인했다.
 - `AnalyzeDodgeLog.py`에 표 두 개를 더한다.
   - **누름 추정 오차:** 추정 `T_press` − 실제 누름(ms) 분포. p50이 0 근처면 `HitGraceInputAllowance`가 맞다.
   - **소급 결과:** `Retro Dodged`·`Retro JustDodged` 수, `hold` 분포, 만료로 그대로 적용된 보류 수. `hold`가 `H`에 붙어 있으면 `H`가 짧다.
@@ -197,5 +198,5 @@ Phase 3 R1~R3과 같은 편성과 행동이다(게스트 팀 2 `LNP.Team.Set 1 2
 - [x] 단위 1 — 미러·서브시스템 골격·설정·CVar (2026-11-04, 게스트 `H` 110ms·호스트 0)
 - [x] 단위 2 — 효과 묶음화, 4경로 연결, `Enable 0` 회귀 없음 (2026-11-04, 로그 기준. 실효 보류는 프레임 양자화로 `H`~`H+1프레임`, `history/Phase04_Log.md`)
 - [x] 단위 3 — 소급 판정, PktLag 25 수동 확인 (2026-11-04, 소급 124건·Phase 3 유형 거부 0, `history/Phase04_Log.md`)
-- [ ] 단위 4 — 누름 추정 보정, R1~R3 재측정, 완료 조건
-- [ ] 단위 5 — 공통 문서·교차 링크·인덱스 3곳·결정 원장
+- [x] 단위 4 — 누름 추정 보정(0.045), R1~R3 재측정, 완료 조건 (2026-11-05, Phase 3 유형 거부 E0 8 → E1 0, 사용자 체감 OK)
+- [x] 단위 5 — 공통 문서(`GameDesign_JustDodge.md`·`TechDesign_JustDodge.md`)·교차 링크 5곳(Parry·HitDetection·CharacterMovement·Poise·Networking)·인덱스 3곳·`DevelopmentPlan.md`·결정 원장 J-015~J-019 (2026-11-05)

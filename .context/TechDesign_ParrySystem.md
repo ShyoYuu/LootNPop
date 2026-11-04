@@ -29,6 +29,8 @@ ASC 태그(`TAG_State_Guarding`/`TAG_State_ParryWindow`)는 GAS·애니메이션
 | `ParryAngleCos` / `GuardAngleCos` | 0.707 / 0.5 | cos(45°) / cos(60°) |
 | `ParryWindowExpiryTime` | −1 | 서버 전용 — RTT 역보정된 절대 만료 시각 (§6) |
 
+대시 회피 필드(`DodgeIFrameExpiryTime`·`JustDodgeExpiryTime`·`bJustDodgeConsumed`)와 피격 유예 보류 길이(`HitGraceSeconds`)도 이 구조체에 있다. 판정 함수가 이 구조체 하나만 받기 때문이다(→ [TechDesign_JustDodge.md](TechDesign_JustDodge.md) §2).
+
 ### 2.2 상태 갱신 (ULNPInputHandlerComponent)
 
 ```
@@ -90,6 +92,7 @@ ReleaseGuardState()       ← 해제는 전부 이 하나를 거친다
 
 **근접 판정의 단일화:** Player 타겟 2단계 판정은 `JudgePlayerTarget` 람다 하나로 구현되어, Enemy→Player와 근접 PvP(다른 팀 플레이어)가 항상 같은 로직을 탄다 (§7.3의 버그 재발 방지).
 그 순서(패링 → 가드 → 피격)는 공용 함수 `LNPGuardParry::Judge`가 정하고, 화염 원뿔의 플레이어 대상 분기와 투사체 직격·스플래시도 같은 함수를 쓴다(2026-10-13) — 플레이어 판정 경로 네 곳이 순서 하나를 공유한다. 화염과 스플래시는 패링 불가라 패링 반경 조건을 항상 false로 넘긴다.
+2026-11-03부터 이 순서에 대시 회피 두 단계가 끼어 **패링 → 저스트 회피 → 회피 무적 → 가드 → 피격**이다. 저스트 회피는 패링 반경을 그대로 쓰고 각도를 보지 않는다(→ [TechDesign_JustDodge.md](TechDesign_JustDodge.md) §3).
 
 ### 각도 판정
 

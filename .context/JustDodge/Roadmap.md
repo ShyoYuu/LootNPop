@@ -2,7 +2,7 @@
 
 > 상태: 기준 로드맵
 > 읽기 조건: Phase 전환, 전체 순서 변경, 범위 재산정, 그래픽스 이관 항목 확인 시
-> 마지막 갱신: 2026-11-04
+> 마지막 갱신: 2026-11-05
 
 ## 1. 진행 원칙
 
@@ -32,7 +32,7 @@
 | 1 | 회피 무적 | 1~2세션 | 완료(2026-11-03) | 4개 경로 모두 무적 중 피해 0, 투사체가 관통해 뒤 대상을 맞힘, 무적이 끝난 뒤 정상 피격, 리슨 2P 게스트 대시 무적(`phases/Phase01_DodgeIFrame.md`) |
 | 2 | 저스트 회피 판정 + 버프 + 연출 경계 | 1~2세션 | 완료(2026-11-03) | 근접·직격에서만 발동, 대시당 1회, 연속 성공 시 시간만 갱신, 2.5초 만료, 스탯 탭 표기, 큐 태그 2개와 빈 GCN 연결 |
 | 3 | 수치 1차 튜닝·지연 측정 | 1세션 | 완료(2026-11-04) | 수치 현행 유지로 1차 확정, RTT +50·+100 측정, J-007 확정, J-010 대응 설계(넉백이 늦은 대시를 거부하는 비용 발견). 문서 마감은 Phase 4로 이동 |
-| 4 | 피격 유예 버퍼 + 문서 마감 | 1~2세션 | 계획 | 원격 클라 피격 효과 보류와 대시 소급 회피(`design/Architecture.md` §6.2 A), RTT +50·+100에서 대시 거부 0에 근접, 공통 설계 문서 신설과 인덱스 3곳 |
+| 4 | 피격 유예 버퍼 + 문서 마감 | 2세션 | 완료(2026-11-05) | 원격 게스트 피격 효과 보류와 대시 소급 회피(J-015~J-019). R1~R3에서 Phase 3 유형 거부 8→0, 지연 구간 성공률 R2 38→65%·R3 30→60%. 공통 설계 문서 신설과 인덱스 3곳 |
 
 ### 비주얼 트랙(V)
 
@@ -72,12 +72,13 @@
 ### Phase 4
 
 - Phase 3 측정에서 지연이 있으면 넉백이 늦게 도착한 게스트 대시를 거부함을 확인했다(`design/Architecture.md` §6.1). 사용자 결정으로 피격 유예 버퍼(§6.2 A)를 구현한다. B(넉백 중 대시 허용)는 채택하지 않았다.
-- 재측정은 Phase 3의 R2·R3와 같은 조건으로 한다(두 창 모두 `net.PktLag=25`·`50`, 검증 편성). `AnalyzeDodgeLog.py`의 `dropped by server`가 기준이다.
+- 재측정은 Phase 3의 R2·R3와 같은 조건으로 한다(두 창 모두 `net.PktLag=25`·`50`, 검증 편성). 기준은 `AnalyzeDodgeLog.py`의 `dropped by server` 중 `press-then-hit`(Phase 3 유형)이다. 이미 맞은 뒤 누른 거부는 호스트도 잃는 경우라 기준에서 뺐다(2026-11-04).
 - 위험: 게스트가 받는 모든 피해가 유예만큼 늦게 보인다. 경직 누적이 Worker Thread에서 Game Thread 보류 큐로 옮겨 가는 경로가 생긴다.
 - Phase 3에서 옮겨 온 문서 마감을 이 Phase 끝에 한다.
   - `GameDesign_JustDodge.md`·`TechDesign_JustDodge.md`를 새로 만든다.
   - `TechDesign_ParrySystem.md`(Judge 순서), `TechDesign_HitDetection.md` §7.5(결과 enum), `TechDesign_CharacterMovement.md` §5(대시 무적)에 교차 링크를 넣는다.
   - 문서 인덱스 3곳(CLAUDE.md, ProjectOverview, Notion)과 `DevelopmentPlan.md`를 갱신한다.
+- 결과(2026-11-05): 위 항목을 모두 했다. 교차 링크는 `TechDesign_Poise.md`(경직의 보류 경로)와 `TechDesign_Networking.md`(피격 유예)에도 넣었다. 상세는 `history/Phase04_Log.md`에 있다.
 
 ### 비주얼 트랙(V)
 

@@ -64,16 +64,16 @@ void LNPGuardParry::ReportDodgeIgnored(const TCHAR* Path, const AActor* Victim)
 }
 
 void LNPGuardParry::ReportDodgeWindowOpened(const AActor* Owner, const double ExpiryTime, const float Duration, const float JustDuration,
-	const double PressTime)
+	const float Uplink)
 {
 	const APawn* Pawn = Cast<APawn>(Owner);
 	if (IsDodgeDebugEnabled() && Pawn)
 	{
 		// press는 누름 추정 보정용이다 — 같은 시계인 단일 프로세스 PIE에서 게스트의 Autonomous 줄과 비교한다.
-		if (PressTime >= 0.0)
+		if (Uplink > 0.f)
 		{
-			UE_LOG(LogLootNPop, Log, TEXT("[Dodge] IFrame open %s role=%s expiry=%.3f just=%.2f press=%.3f"),
-				*Pawn->GetName(), *UEnum::GetValueAsString(Pawn->GetLocalRole()), ExpiryTime, JustDuration, PressTime);
+			UE_LOG(LogLootNPop, Log, TEXT("[Dodge] IFrame open %s role=%s expiry=%.3f just=%.2f press=%.3f uplink=%.0f"),
+				*Pawn->GetName(), *UEnum::GetValueAsString(Pawn->GetLocalRole()), ExpiryTime, JustDuration, ExpiryTime - Duration, Uplink * 1000.f);
 		}
 		else
 		{

@@ -12,6 +12,12 @@
   로그는 1초까지 숫자를 남기지만, 그보다 먼 대시는 저스트 회피 시도로 보기 어려워 여기서 자른다
 - 그 밖의 대시(근처에 공격이 없음)는 분모에서 뺀다
 성공률 = success / (success + early + late)
+
+Phase 4(피격 유예, .context/JustDodge/phases/Phase04_HitGraceBuffer.md 단위 4):
+- `Retro` 줄로 소급 회피된 `Hit`은 놓침에서 뺀다(피격 시각 = Retro 시각 − held). 소급 저스트 회피는 `JustDodge success` 줄로 이미 성공에 들어간다
+- 서버가 거부한 누름을 "누름 전 피격"(누른 뒤에야 서버 피격 — Phase 3에서 고치려던 유형)과
+  "누름 뒤 피격"(이미 맞은 뒤 누름 — 호스트도 넉백으로 대시를 잃는다)으로 나눈다
+- 서버 `IFrame open ... uplink=`로 누름 추정 오차(추정 − 실제 누름)를 낸다. 음수면 서버가 누름을 실제보다 이르게 잡았다
 """
 
 import argparse
@@ -22,11 +28,15 @@ from collections import Counter, defaultdict
 from datetime import datetime
 
 LINE = re.compile(r"^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}):(\d{3})\]\[\s*\d+\]LogLootNPop: \[Dodge\] (.*)$")
-OPEN = re.compile(r"^IFrame open (\S+) role=(\S+)")
+OPEN = re.compile(r"^IFrame open (\S+) role=(\S+)(?:.* uplink=(\d+))?")
 SUCCESS = re.compile(r"^JustDodge success player=(\S+) attack=(\S+)")
 HIT = re.compile(r"^Hit path=(\S+) player=(\S+) sinceJust=(\S+)")
 IGNORED = re.compile(r"^IFrame ignored path=(\S+) player=(\S+)")
 CUE = re.compile(r"^Success cue arrived player=(\S+) local=(\d) role=(\S+)")
+RETRO = re.compile(r"^Retro (\S+) path=(\S+) player=(\S+) held=(\d+)")
+
+# Retro 줄에서 되짚은 피격 시각과 Hit 줄 시각의 허용 오차(초). 로그 시각이 ms 단위라 반올림만 덮는다.
+RETRO_MATCH = 0.02
 
 # 같은 대시에 붙는 사건의 최대 거리(초). 저스트 창 0.12초 + 커맨드 지연을 넉넉히 덮는다.
 SUCCESS_AFTER_DASH = 0.5
@@ -59,6 +69,14 @@ def stats(values):
     v = sorted(values)
     p = lambda q: v[min(len(v) - 1, int(len(v) * q))]
     return f"n={len(v)} min={v[0]:.0f} p50={p(0.5):.0f} p90={p(0.9):.0f} max={v[-1]:.0f} (ms)"
+
+
+def signed_stats(values):
+    if not values:
+        return "n=0"
+    v = sorted(values)
+    p = lambda q: v[min(len(v) - 1, int(len(v) * q))]
+    return f"n={len(v)} min={v[0]:+.0f} p50={p(0.5):+.0f} p90={p(0.9):+.0f} max={v[-1]:+.0f} (ms)"
 
 
 def histogram(values, bin_ms):
@@ -119,19 +137,37 @@ def main():
     hits = defaultdict(list)          # pawn -> [(t, path, sinceJust|None)]
     ignored = Counter()
     cue_local = defaultdict(list)     # pawn -> [(t, role)]
+    retro = defaultdict(list)         # pawn -> [(t_hit, result, path, held_ms)]
+    server_uplink = defaultdict(dict) # pawn -> {server open t: 추정 업링크(초)}
 
     for t, msg in parse(args.log, since, until):
         if m := OPEN.match(msg):
             (server_open if m.group(2) == "ROLE_Authority" else auto_open)[m.group(1)].append(t)
+            if m.group(2) == "ROLE_Authority" and m.group(3):
+                server_uplink[m.group(1)][t] = int(m.group(3)) / 1000.0
         elif m := SUCCESS.match(msg):
             success[m.group(1)].append((t, m.group(2)))
         elif m := HIT.match(msg):
             hits[m.group(2)].append((t, m.group(1), None if m.group(3) == "-" else float(m.group(3))))
         elif m := IGNORED.match(msg):
             ignored[m.group(2)] += 1
+        elif m := RETRO.match(msg):
+            held = int(m.group(4))
+            retro[m.group(3)].append((t - held / 1000.0, m.group(1), m.group(2), held))
         elif (m := CUE.match(msg)) and m.group(2) == "1":
             # 게스트 월드의 자기 폰이 서버의 호스트 폰과 같은 이름(_C_0)일 수 있다 — 역할로 월드를 가른다
             cue_local[f"{m.group(1)}@{m.group(3)}"].append((t, m.group(3)))
+
+    # 소급 회피된 Hit을 지운다 — 판정 시점 줄이라 남아 있으면 늦은 놓침으로 잘못 센다.
+    # Splash·Flame과 Guarded는 Hit 줄이 없어 짝이 없다(정상).
+    retro_hits_removed = Counter()
+    for pawn, items in retro.items():
+        for t_hit, _, path, _ in items:
+            for k, (ht, hpath, _) in enumerate(hits[pawn]):
+                if hpath == path and abs(ht - t_hit) <= RETRO_MATCH:
+                    del hits[pawn][k]
+                    retro_hits_removed[pawn] += 1
+                    break
 
     pawns = sorted(set(server_open) | set(success) | set(hits))
     if not pawns:
@@ -206,18 +242,40 @@ def main():
         deltas, dropped = pair_deltas(firsts, opens, UPLINK_MAX)
         # 서버가 끝내 실행하지 않은 누름 — 그 직전·직후 서버 피격이 있으면 피격(넉백)이 먼저 처리돼 대시가 거부된 것으로 본다
         hit_times = [h[0] for h in hits.get(server, [])]
-        near_hit = sum(1 for t in firsts
-                       if not any(0 <= o - t <= UPLINK_MAX for o in opens)
-                       and any(abs(h - t) <= late_s for h in hit_times))
+        dropped_presses = [t for t in firsts if not any(0 <= o - t <= UPLINK_MAX for o in opens)]
+        near_hit = sum(1 for t in dropped_presses if any(abs(h - t) <= late_s for h in hit_times))
+        # 앞쪽에 피격이 있으면 "누름 뒤 피격"(이미 맞은 뒤 누름)으로 본다 — 뒤쪽 피격은 거부된 대시가 못 피한 결과일 수 있다
+        after_hit = sum(1 for t in dropped_presses if any(0 < t - h <= late_s for h in hit_times))
+        before_hit = sum(1 for t in dropped_presses
+                         if not any(0 < t - h <= late_s for h in hit_times) and any(0 <= h - t <= late_s for h in hit_times))
         reexec = sum(1 for p in presses if len(p) > 1)
         print(f"  {pawn} -> {server}: presses={len(presses)} (re-executed {reexec}) {stats(deltas)}")
-        print(f"    dropped by server={dropped} (with server hit within {args.late_ms:.0f}ms: {near_hit})")
+        print(f"    dropped by server={dropped} (with server hit within {args.late_ms:.0f}ms: {near_hit};"
+              f" press-then-hit (Phase 3 type): {before_hit}, hit-then-press: {after_hit})")
+        # 누름 추정 오차 — 서버 대시마다 짝지은 실제 누름(첫 Autonomous 줄)과 비교한다
+        uplinks = server_uplink.get(server, {})
+        if uplinks:
+            errors = []
+            for t in firsts:
+                i = bisect_left(opens, t)
+                if i < len(opens) and opens[i] - t <= UPLINK_MAX and opens[i] in uplinks:
+                    errors.append(((opens[i] - uplinks[opens[i]]) - t) * 1000.0)
+            print(f"    press estimate - actual press: {signed_stats(errors)}")
         # 거부된 누름은 서버 대시가 없어 위 표의 분모에서 빠진다 — 늦은 놓침으로 더해 다시 낸 성공률
         k = kinds_by_pawn.get(server)
         if k is not None:
             attempts = k["success"] + k["early"] + k["late"] + near_hit
             rate = f"{100.0 * k['success'] / attempts:.0f}%" if attempts else "-"
             print(f"    {server} rate incl. dropped presses={rate} ({k['success']}/{attempts})")
+
+    print("\n== Retro (hit grace): held hits dodged by a late-arriving dash ==")
+    if not retro:
+        print("  (none)")
+    for pawn in sorted(retro):
+        items = retro[pawn]
+        by_kind = Counter(f"{r}/{p}" for _, r, p, _ in items)
+        print(f"  {pawn}: {dict(sorted(by_kind.items()))} hits removed from misses={retro_hits_removed[pawn]}")
+        print(f"    held {stats([h for _, _, _, h in items])}")
 
     success_times = {p: [t for t, _ in v] for p, v in success.items()}
     cue_times = {p: [t for t, _ in v] for p, v in cue_local.items()}

@@ -221,10 +221,11 @@ public:
 
 	/**
 	 * 피격 유예: 원격 게스트의 업링크 추정(누름 → 서버 대시 실행)에 RTT/2 외에 더하는 입력 버퍼 여유 (초).
-	 * 지연이 없어도 업링크가 p50 약 60~70ms다(Phase 3 측정). 누름 시각 추정 오차가 0 근처가 되게 맞춘다.
+	 * 지연이 없어도 업링크가 p50 약 55~70ms다(Phase 3 측정). 누름 시각 추정 오차가 0 근처가 되게 맞춘다.
+	 * 0.06은 누름을 13~25ms 이르게 잡았다(Phase 4 단위 3, 2026-11-04) — 그만큼 낮췄다.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Combat|Just Dodge", meta = (ClampMin = "0.0", Units = "s"))
-	float HitGraceInputAllowance = 0.06f;
+	float HitGraceInputAllowance = 0.045f;
 
 	/** 피격 유예: 보류 길이에 업링크 추정 위로 더하는 지터 여유 (초). 대시가 추정보다 조금 늦게 와도 아직 보류 중이게 한다. */
 	UPROPERTY(Config, EditAnywhere, Category = "Combat|Just Dodge", meta = (ClampMin = "0.0", Units = "s"))

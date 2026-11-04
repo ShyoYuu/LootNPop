@@ -198,6 +198,12 @@
     - GameplayCue 에셋 연결 완료(`GCN_LNP_Guard_Block`·`GCN_LNP_Parry_Success`, VFX 지정됨).
     - **잔여: Guided 반사** — 유도 투사체 타입 자체가 미구현이라 현재 반사는 전부 Linear다. 방어자 HitStop도 미구현.
     - 설계 명세: [TechDesign_ParrySystem.md](TechDesign_ParrySystem.md)
+- [x] **대시 무적 · 저스트 회피** (메인 트랙 완료 2026-11-05, 비주얼 트랙 V 계획)
+    - 회피 무적(0.15초, 4개 판정 경로)·저스트 회피(0.12초, 근접·직격, 대시당 1회) — `LNPGuardParry::Judge` 단일 지점 확장. 투사체는 관통한다.
+    - 성공 시 AttackSpeed·MoveSpeed 곱연산 +20%·2.5초 버프 GE(중첩 없이 시간만 갱신), 연출 경계 GameplayCue 태그 2개.
+    - 피격 유예 버퍼: 원격 게스트 피격 효과를 잠시 보류하고 늦게 도착한 대시를 소급 회피. 지연 시 "누른 직후 맞아 대시를 잃는" 거부 8→0(R1~R3 2인 PIE).
+    - **잔여:** 비주얼 트랙 V(순보·잔상·오라·카메라) — 그래픽스 작업 진행 뒤 착수.
+    - 설계 명세: [TechDesign_JustDodge.md](TechDesign_JustDodge.md), [GameDesign_JustDodge.md](GameDesign_JustDodge.md), 작업 폴더 [JustDodge/README.md](JustDodge/README.md)
 - [ ] **팀 규칙 단일화 · 런타임 플레이어 팀** (2026-10-13, 구현·컴파일 완료 — 2인 검증 대기)
     - 피격 판정 전부(투사체·폭발·근접·화염, 서버·예측, 조준점 깊이)가 `LNPTeam::CanHit` 하나로 후보를 고른다. 막힘과 피해가 갈리지 않는다.
     - 서버만 갖던 "적 탄은 다른 적 몸에 막힌다" 예외 제거 — 게스트 Ghost 관통·거짓 착탄 VFX 해소, 서버 적 후보 루프의 99.7%가 사라진다.

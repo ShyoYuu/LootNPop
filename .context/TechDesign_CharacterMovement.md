@@ -387,6 +387,13 @@ CommonSettings->MaxSpeed = BaseSpeed × max(0.01, MoveSpeed)
   (2026-11-02, 원인·엔진 동기화가 닿지 않는 이유는 네트워킹 문서 §4.12).
 - `ControlRotation`과 이동 인텐트는 폰이 아니라 **InputCmd에서 읽는다**. 서버가 원격 폰을 시뮬레이션하는 시점의 폰 값은 그 프레임 값이 아니다.
 
+### 5.5 대시 무적 · 저스트 회피 (2026-11-05)
+
+`ExecuteDash`의 비리시뮬레이션 분기(권위·오토노머스)가 무적 창(`IFrameDuration` 0.15)과 저스트 창(`JustDodgeWindow` 0.12)을 `FLNPParryStateFragment`에 만료 시각으로 기록한다. 연출과 같은 `bIsResimulating` 게이트 뒤라 롤백마다 창이 다시 열리지 않는다. 판정은 HitDetection 쪽 `LNPGuardParry::Judge`가 한다.
+
+- **원격 게스트는 창을 실행 시각보다 업링크 추정만큼 앞에서 연다.** 그리고 같은 자리에서 피격 유예로 보류된 피격을 소급 판정한다. 넉백(§6)이 이동 모드를 공중으로 강제하면 늦게 도착한 대시를 `CanDash()`가 거부했기 때문에, 서버가 게스트의 피격 효과를 잠시 보류한다.
+- 상세: [TechDesign_JustDodge.md](TechDesign_JustDodge.md) §2·§6.
+
 ---
 
 ## 6. 넉백 / Launch

@@ -116,6 +116,7 @@
 
 - 캐릭터 거대화, 초고속 이동, 광역 넉백 등 **과장된 물리 연출** 지향.
 - 패링 성공 시 공격자를 포물선으로 날려버리는 시원한 피드백.
+- 공격이 닿기 직전에 대시하면 저스트 회피 — 공격속도·이동속도 버프를 받는다. (→ [GameDesign_JustDodge.md](GameDesign_JustDodge.md))
 
 ---
 
@@ -153,10 +154,12 @@
 | [인게임 메뉴 기술 설계](TechDesign_InGameMenu.md) | CommonUI 위젯 계층, Back 전파 규칙, 커스텀 힌트 바·입력 글리프, 스탯 합/곱 분해, 로컬라이제이션, PIE 2인 게임패드 라우팅 |
 | [HitDetection 기술 설계](TechDesign_HitDetection.md) | 근접 Swept Volume·원거리 Line Segment 판정, 팀 규칙 단일 술어(막힘=피해)·런타임 플레이어 팀, 판정 캡슐 중심 규약 단일 헬퍼, 조준 원본 단일화와 수직 이탈 게이트, 조준점 깊이(적 엔티티 질의), 연출과 데미지의 분리·ASC는 전송 수단, 스플래시 감쇠, 지면 착탄·수명 만료 폭발(판정 소유권 단일화), 트레일 해제 소유권(파괴 시점 단일화) |
 | [적 탐색 질의 기술 설계](TechDesign_TargetQuery.md) | 적 탐색 질의 시스템 — 상시 질의 구조, 순수 엔티티를 빠뜨리는 물리 경유 3곳, 등장방형 축소 행 공간 분할, 도입 단계 |
-| [멀티플레이 네트워킹 기술 설계](TechDesign_Networking.md) | Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 대역폭 예산 규약(상한=안전판·엔티티당 비용·조용한 소실), 공격 입력은 InputCmd가 아니라 발동 요청에, 엔진 소스 분석 이슈 8건 |
+| [멀티플레이 네트워킹 기술 설계](TechDesign_Networking.md) | Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 대역폭 예산 규약(상한=안전판·엔티티당 비용·조용한 소실), 공격 입력은 InputCmd가 아니라 발동 요청에, 넉백이 늦은 대시를 거부하는 문제와 피격 유예 버퍼, 구현 중 발견 이슈 13건 |
 | [네트워크 대역폭 가이드](Guide_NetBandwidth.md) | 비용 3축(버블·승격 Actor·절편), 페이로드 양자화 규약과 int16 월드 반지름 캡, 절제(ablation)와 사유별 계수 측정법·분모 규약, 반복된 실패 패턴 |
 | [멀티플레이 로비 작업 안내](MultiplayerLobby/README.md) | 여러 세션 이어 가기용 작업 폴더 진입점 — 메인 메뉴·IP 직접 접속·실패 복귀, 5인·중간 참가, 메뉴 UI 대기실, 세션 계층·LAN 방 목록, 온라인 백엔드(Steam/EOS) 단계 계획 |
 | [ParrySystem 게임 기획](GameDesign_ParrySystem.md) | 패링 성공 조건, 투사체 타입별 반사, 패링하는 쪽은 플레이어 전용·당하는 쪽은 LOD 무관, 플레이어 경험 의도 |
 | [ParrySystem 기술 설계](TechDesign_ParrySystem.md) | FLNPParryStateFragment, HitDetection 연계 판정 흐름, Mass-GAS 브릿지 — 상태 미러링 패턴 |
-| [저스트 회피 작업 안내](JustDodge/README.md) | 여러 세션 이어 가기용 작업 폴더 진입점 — 대시 무적, Judge 단일 지점 확장, 저스트 회피 판정·버프, 비주얼 별도 트랙(순보·잔상·오라)과 그래픽스 이관 항목 단계 계획 |
+| [저스트 회피 게임 기획](GameDesign_JustDodge.md) | 회피 무적·저스트 창, 공격 종류별 동작, 버프(곱연산 +20%·2.5초·시간만 갱신), 멀티플레이 공정성, 연출 계획 |
+| [저스트 회피 기술 설계](TechDesign_JustDodge.md) | 회피 창 만료 시각 미러, Judge 확장(패링→저스트→무적→가드→피격), 경로별 처리, 성공 커맨드·버프 GE, 피격 유예 버퍼(누름 추정 U·보류 H 분리, 소급 판정) |
+| [저스트 회피 작업 안내](JustDodge/README.md) | 여러 세션 이어 가기용 작업 폴더 진입점 — 메인 트랙 완료(대시 무적, Judge 단일 지점 확장, 저스트 회피 판정·버프, 지연 대응 피격 유예 버퍼), 비주얼 별도 트랙(순보·잔상·오라)과 그래픽스 이관 항목 단계 계획 |
 | [그래픽스 작업 안내](Graphics/README.md) | 여러 세션 이어 가기용 작업 폴더 진입점 — 패키지 빌드 측정 하네스·기준선, 벤치마크 콘텐츠(옥탄트 1개·파라곤 적), 대규모 적 전투 렌더링 비용 분석·전환 팝핑, RDG 렌더 패스(화면 효과 레이어·캐릭터 강조·스캔 시야), 구면 지형 흔적, JustDodge 이관 항목 단계 계획 |

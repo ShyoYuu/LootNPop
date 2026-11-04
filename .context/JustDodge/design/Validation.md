@@ -1,7 +1,7 @@
 # 저스트 회피 검증 규약
 
 > 상태: 기준 설계
-> 마지막 갱신: 2026-10-26
+> 마지막 갱신: 2026-11-05
 
 ## 1. 실행 환경
 
@@ -68,10 +68,16 @@
 
 | 문자열 | 의미 |
 |:---|:---|
-| `[Dodge] IFrame open <폰> role=<역할> expiry=<시각> just=<길이>` | 대시가 무적·저스트 창을 열었다 (권위·오토노머스) |
+| `[Dodge] IFrame open <폰> role=<역할> expiry=<시각> just=<길이> [press=<시각> uplink=<ms>]` | 대시가 무적·저스트 창을 열었다 (권위·오토노머스). `press`·`uplink`는 서버의 원격 게스트 줄에만 있다(피격 유예의 누름 추정) |
 | `[Dodge] IFrame ignored path=<Melee\|Projectile\|Splash\|Flame> player=<폰>` | 무적으로 무시한 피격 (서버) |
 | `[Dodge] JustDodge success player=<폰> attack=<Melee\|Projectile>` | 저스트 회피 성공 (서버, 대시당 최대 1줄) |
 | `[Dodge] Ghost impact skipped player=<폰>` | 클라 Ghost가 무적 때문에 예측 임팩트를 생략 (클라, 탄 하나당 1줄) |
 | `[Dodge] Hit path=<Melee\|Projectile> player=<폰> sinceJust=<ms\|->` | 저스트 회피 대상 공격에 그대로 맞음 (서버). 놓친 저스트 회피 집계용 |
 | `[Dodge] Success cue arrived player=<폰> local=<0\|1> role=<역할>` | 성공 큐 도착 (모든 머신, `local=1`이 소유 화면). 연출 지연 집계용 |
+| `[Dodge] Grace player=<폰> rtt=<ms> uplink=<ms> hold=<ms>` | 피격 유예 보류 길이 미러 (서버, 값이 10ms 이상 바뀔 때). 호스트는 `hold=0` |
+| `[Dodge] Grace release path=<경로> player=<폰> held=<ms>` | 보류된 피격 효과를 적용했다 (서버) |
+| `[Dodge] Retro <Dodged\|JustDodged> path=<경로> player=<폰> held=<ms>` | 늦게 도착한 대시가 보류된 피격을 소급 회피했다 (서버). 화면 문구는 `IFRAME BLOCK <경로> RETRO` |
 | `[Guard] Block success` | 기존 가드 로그 — 회귀 확인용 |
+
+- 집계: `Scripts/Profiling/AnalyzeDodgeLog.py <로그> --since HH:MM:SS [--until HH:MM:SS]`. 소급된 `Hit`은 놓침에서 빼고, 서버가 거부한 누름을 `press-then-hit`(누른 뒤 서버 피격 — 피격 유예가 없애야 하는 유형)과 `hit-then-press`(이미 맞은 뒤 누름 — 호스트도 잃는다)로 나눈다. `press estimate - actual press`는 누름 추정 오차다(음수 = 서버가 이르게 추정).
+- 피격 유예 A/B: `LNP.HitGrace.Enable 0|1`을 한 PIE 세션 안에서 바꿔 구간을 나눈다. 지연은 두 창 모두 `net.PktLag=N`.

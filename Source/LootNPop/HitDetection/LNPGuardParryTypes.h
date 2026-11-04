@@ -96,9 +96,10 @@ namespace LNPGuardParry
 
 	/**
 	 * 대시가 무적·저스트 창을 열었음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 로컬 폰의 화면에 무적 창 길이만큼 문구. Game Thread 전용.
-	 * @param PressTime 서버가 원격 게스트의 누름을 추정한 시각(피격 유예). 0 미만이면 추정하지 않았다 — 로그에 press를 남기지 않는다.
+	 * @param Uplink 서버가 원격 게스트의 누름을 이만큼 과거로 추정했다(피격 유예, 초). 0 이하면 추정하지 않았다 — 로그에 press·uplink를 남기지 않는다.
+	 *               uplink는 로그 벽시계로 실제 누름과 비교하는 데 쓴다 — press는 서버 월드 시계라 그것만으로는 오차를 못 낸다.
 	 */
-	LOOTNPOP_API void ReportDodgeWindowOpened(const AActor* Owner, double ExpiryTime, float Duration, float JustDuration, double PressTime = -1.0);
+	LOOTNPOP_API void ReportDodgeWindowOpened(const AActor* Owner, double ExpiryTime, float Duration, float JustDuration, float Uplink = 0.f);
 
 	/**
 	 * 보류된 피격을 늦게 도착한 대시가 소급 회피했음을 알린다 — LNP.Debug.Dodge면 로그, LNP.Debug.ShowDodge면 화면 문구. Game Thread 전용.
