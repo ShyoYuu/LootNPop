@@ -220,6 +220,21 @@ public:
 	float JustDodgeBuffMoveSpeed = 0.2f;
 
 	/**
+	 * 피격 유예: 원격 게스트의 업링크 추정(누름 → 서버 대시 실행)에 RTT/2 외에 더하는 입력 버퍼 여유 (초).
+	 * 지연이 없어도 업링크가 p50 약 60~70ms다(Phase 3 측정). 누름 시각 추정 오차가 0 근처가 되게 맞춘다.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Just Dodge", meta = (ClampMin = "0.0", Units = "s"))
+	float HitGraceInputAllowance = 0.06f;
+
+	/** 피격 유예: 보류 길이에 업링크 추정 위로 더하는 지터 여유 (초). 대시가 추정보다 조금 늦게 와도 아직 보류 중이게 한다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Just Dodge", meta = (ClampMin = "0.0", Units = "s"))
+	float HitGraceJitterMargin = 0.04f;
+
+	/** 피격 유예: 업링크 추정과 보류 길이의 상한 (초). 이보다 지연이 크면 그 너머의 대시 거부는 그대로 남는다. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat|Just Dodge", meta = (ClampMin = "0.0", Units = "s"))
+	float HitGraceMax = 0.25f;
+
+	/**
 	 * 근접 공격 보정 강도 (0~1). 0이면 보정을 끈다.
 	 *
 	 * "타겟까지의 초과 거리" 중 몇 할을 메울지를 뜻한다 — 이미 이상 거리 안이면 보정량은 0이고,

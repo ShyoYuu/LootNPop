@@ -53,6 +53,13 @@ struct LOOTNPOP_API FLNPParryStateFragment : public FMassFragment
 	 * ⚠️ 판정 프로세서(Worker Thread)는 읽기만 한다 — 세우는 것은 Game Thread의 성공 커맨드 몫이다.
 	 */
 	bool bJustDodgeConsumed = false;
+
+	/**
+	 * 서버 전용: 이 피격자의 Hit·Guarded 효과를 보류할 길이(초). 0이면 즉시 적용한다(호스트·적·유예 꺼짐).
+	 * 원격 클라이언트 피격자만 0보다 크다 — 늦게 도착한 대시가 소급 회피할 틈이다 (.context/JustDodge/phases/Phase04_HitGraceBuffer.md).
+	 * ULNPHitGraceSubsystem이 매 틱 Game Thread에서 쓴다. 판정 프로세서가 PlayerState를 읽지 않게 하는 미러다.
+	 */
+	float HitGraceSeconds = 0.f;
 };
 
 /** 플레이어 피격 대상 판정 결과. */

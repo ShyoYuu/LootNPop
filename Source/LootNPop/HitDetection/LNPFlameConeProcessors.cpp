@@ -6,6 +6,7 @@
 #include "HitDetection/LNPProjectileMotion.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "HitDetection/LNPHitGraceSubsystem.h"
 #include "Player/LNPTeam.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "GAS/LNPBurnTypes.h"
@@ -78,67 +79,6 @@ namespace
 			: Center + (History.GetInterpolatedLocation(Now - RewindSeconds, Surface) - RawLoc);
 	}
 }
-
-/**
- * 플레이어 화상 GE 적용 (아군 사격). 게임 스레드에서 피격자 ASC에 ULNPGameplayEffect_Burn을 건다 —
- * 같은 GE가 이미 있으면 엔진 스택 규칙이 중첩 +1·지속 갱신을 한다. 스펙의 지속·주기는 새 인스턴스일 때만 쓰인다.
- */
-struct FLNPApplyPlayerBurnGECommand : public FMassBatchedCommand
-{
-	struct FEntry
-	{
-		TWeakObjectPtr<AActor> Victim;
-		float DamagePerStack;
-		float Duration;
-		float TickInterval;
-	};
-
-	FLNPApplyPlayerBurnGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
-
-	void Add(AActor* InVictim, const float InDamagePerStack, const float InDuration, const float InTickInterval)
-	{
-		Entries.Add({ InVictim, InDamagePerStack, InDuration, InTickInterval });
-		bHasWork = true;
-	}
-
-	virtual void Run(FMassEntityManager& EntityManager) override
-	{
-		for (const FEntry& Entry : Entries)
-		{
-			// 같은 배치의 원뿔 피해가 방금 이 대상을 죽였을 수 있다 — 사망 처리가 지운 화상을 다시 걸지 않는다.
-			// 사망 태그(쿼리 제외)는 지연 커맨드라 같은 프레임의 이 커맨드를 막지 못한다.
-			const ALNPPlayerCharacter* VictimPawn = Cast<ALNPPlayerCharacter>(Entry.Victim.Get());
-			if (VictimPawn && VictimPawn->IsDead())
-				continue;
-
-			UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Entry.Victim.Get());
-			if (!IsValid(ASC))
-				continue;
-
-			FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(ULNPGameplayEffect_Burn::StaticClass(), 1.f, ASC->MakeEffectContext());
-			if (!Spec.IsValid())
-				continue;
-
-			Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Damage, Entry.DamagePerStack);
-			Spec.Data->SetDuration(Entry.Duration, /*bLockDuration*/ true);
-			Spec.Data->Period = Entry.TickInterval;
-			const FActiveGameplayEffectHandle Handle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-
-			if (LNPBurn::IsLogEnabled())
-			{
-				UE_LOG(LogLootNPop, Log, TEXT("[Burn][Player] apply victim=%s stacks=%d perStack=%.1f"),
-					*GetNameSafe(Entry.Victim.Get()), ASC->GetCurrentStackCount(Handle), Entry.DamagePerStack);
-			}
-		}
-	}
-
-	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
-	virtual SIZE_T GetAllocatedSize()     const override { return Entries.GetAllocatedSize(); }
-	virtual int32  GetNumOperationsStat() const override { return Entries.Num(); }
-
-private:
-	TArray<FEntry> Entries;
-};
 
 ULNPFlameConeHitDetectionProcessor::ULNPFlameConeHitDetectionProcessor()
 	: ConeQuery(*this), EnemyQuery(*this), PlayerQuery(*this)
@@ -351,25 +291,30 @@ void ULNPFlameConeHitDetectionProcessor::Execute(FMassEntityManager& EntityManag
 					continue;
 				}
 
+				// 피격자 쪽 효과는 묶음 하나로 모은다 — 원격 게스트면 피격 유예가 보류한다.
+				FLNPPlayerHitEffects Effects;
+				Effects.PoiseDamage = C.PoiseDamage;
 				if (Result == ELNPPlayerDefenseResult::Guarded)
 				{
 					// 막아내도 경직은 쌓인다 (가드 브레이크).
-					LNPPoise::Accumulate(Poise, C.PoiseDamage, Now, PoiseGuardMultiplier);
+					Effects.PoiseMultiplier = PoiseGuardMultiplier;
 				}
 				else
 				{
-					LNPPoise::Accumulate(Poise, C.PoiseDamage, Now);
 					const TSubclassOf<UGameplayEffect> EffectClass(C.DamageEffectClass);
 					if (EffectClass)
 					{
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Actor, EffectClass, C.Damage, HitFromDir,
-							OnCapsuleAxis, /*KnockbackStrength*/ 0.f, ELNPHitReactKind::None);
+						Effects.Damage.Emplace(FLNPApplyDamageGECommand::FEntry{ Actor, EffectClass, C.Damage, HitFromDir,
+							OnCapsuleAxis, /*KnockbackStrength*/ 0.f, ELNPHitReactKind::None });
 					}
 				}
 
 				// 화상은 가드로 막지 못한다 — 가드 여부와 무관하게 확률 판정한다 (GameDesign_Ability.md 화상 절).
+				// 확률은 판정 시점에 굴린다. 보류는 결과만 늦춘다.
 				if (C.MaxBurnStacks > 0 && C.BurnDuration > 0.f && C.BurnTickInterval > 0.f && FMath::FRand() < C.BurnChance)
-					Ctx.Defer().PushCommand<FLNPApplyPlayerBurnGECommand>(Actor, C.BurnDamagePerStack, C.BurnDuration, C.BurnTickInterval);
+					Effects.Burn.Emplace(FLNPApplyPlayerBurnGECommand::FEntry{ Actor, C.BurnDamagePerStack, C.BurnDuration, C.BurnTickInterval });
+
+				LNPHitGrace::Dispatch(Ctx, ParryFrags[i], Poise, Ctx.GetEntity(i), Actor, TEXT("Flame"), /*bJustEligible*/ false, MoveTemp(Effects), Now);
 			}
 		}
 	});

@@ -19,6 +19,9 @@
 #include "HitDetection/LNPProjectileImpactContext.h"
 #include "Config/LNPSettings.h"
 #include "GAS/LNPPoiseTypes.h"
+#include "GAS/LNPBurnTypes.h"
+#include "GAS/Effects/LNPGameplayEffect_Burn.h"
+#include "Character/LNPPlayerCharacter.h"
 #include "Enemy/LNPEnemyMassTypes.h"     // FLNPEntityAttackFragment · FLNPEnemySharedFragment
 #include "Enemy/LNPEnemyConfig.h"        // FLNPEntityAttackConfig::ParriedRecoveryTime
 #include "Character/LNPCharacterBase.h"
@@ -445,15 +448,19 @@ struct FLNPEntityHitStopCommand : public FMassBatchedCommand
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
 		for (const FMassEntityHandle& Attacker : Entries)
-		{
-			if (!Attacker.IsSet() || !EntityManager.IsEntityActive(Attacker))
-				continue;
+			Apply(EntityManager, Attacker);
+	}
 
-			// 한 스윙이 두 플레이어를 동시에 맞히면 카운터가 두 번 오르지만, 수신 측은 "값이 달라졌는가"만
-			// 보므로 연출은 한 번이다 — 적중 횟수를 세는 값이 아니다.
-			if (FLNPEnemyActionFragment* Action = EntityManager.GetFragmentDataPtr<FLNPEnemyActionFragment>(Attacker))
-				++Action->HitStopSeq;
-		}
+	/** 한 건 적용. 피격 유예 해제(ULNPHitGraceSubsystem)도 이 함수를 부른다. Game Thread 전용. */
+	static void Apply(FMassEntityManager& EntityManager, const FMassEntityHandle Attacker)
+	{
+		if (!Attacker.IsSet() || !EntityManager.IsEntityActive(Attacker))
+			return;
+
+		// 한 스윙이 두 플레이어를 동시에 맞히면 카운터가 두 번 오르지만, 수신 측은 "값이 달라졌는가"만
+		// 보므로 연출은 한 번이다 — 적중 횟수를 세는 값이 아니다.
+		if (FLNPEnemyActionFragment* Action = EntityManager.GetFragmentDataPtr<FLNPEnemyActionFragment>(Attacker))
+			++Action->HitStopSeq;
 	}
 
 	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
@@ -486,21 +493,32 @@ struct FLNPGuardBlockCommand : public FMassBatchedCommand
 		bHasWork = true;
 	}
 
+	/** 미리 만든 엔트리 — 피격 유예 묶음(LNPHitGrace::Dispatch)의 즉시 분기가 쓴다. */
+	void Add(const FEntry& InEntry)
+	{
+		Entries.Add(InEntry);
+		bHasWork = true;
+	}
+
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
 		for (const FEntry& Entry : Entries)
-		{
-			AActor* Victim = Entry.Victim.Get();
-			UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(Victim);
-			if (!IsValid(VictimASC))
-				continue;
+			ApplyEntry(Entry);
+	}
 
-			FGameplayCueParameters CueParams;
-			CueParams.Location = Entry.ImpactPoint;
-			CueParams.Normal   = Entry.ImpactNormal;
-			VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Guard_Block, CueParams);
-			UE_LOG(LogLootNPop, Log, TEXT("[Guard] Block success"));
-		}
+	/** 한 건 적용. 피격 유예 해제(ULNPHitGraceSubsystem)도 이 함수를 부른다. Game Thread 전용. */
+	static void ApplyEntry(const FEntry& Entry)
+	{
+		AActor* Victim = Entry.Victim.Get();
+		UAbilitySystemComponent* VictimASC = LNPHitDetection::GetASC(Victim);
+		if (!IsValid(VictimASC))
+			return;
+
+		FGameplayCueParameters CueParams;
+		CueParams.Location = Entry.ImpactPoint;
+		CueParams.Normal   = Entry.ImpactNormal;
+		VictimASC->ExecuteGameplayCue(TAG_GameplayCue_Guard_Block, CueParams);
+		UE_LOG(LogLootNPop, Log, TEXT("[Guard] Block success"));
 	}
 
 	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
@@ -644,9 +662,23 @@ struct FLNPImpactCueCommand : public FMassBatchedCommand
 	void Add(AActor* InVictim, FMassEntityHandle InAttacker,
 		const FVector& InImpactPoint, const FVector& InImpactNormal)
 	{
-		Entries.Add({ InVictim, InAttacker, nullptr, InImpactPoint, InImpactNormal,
-			0, INDEX_NONE, 0, /*bIsMeleeHit*/ true });
+		Entries.Add(MakeMelee(InVictim, InAttacker, InImpactPoint, InImpactNormal));
 		bHasWork = true;
+	}
+
+	/** 미리 만든 엔트리 — 피격 유예 묶음(LNPHitGrace::Dispatch)의 즉시 분기가 쓴다. */
+	void Add(const FEntry& InEntry)
+	{
+		Entries.Add(InEntry);
+		bHasWork = true;
+	}
+
+	/** 근접 엔트리. Add와 피격 유예 묶음이 같은 형태를 쓰게 한 곳에서 만든다. */
+	static FEntry MakeMelee(AActor* InVictim, FMassEntityHandle InAttacker,
+		const FVector& InImpactPoint, const FVector& InImpactNormal)
+	{
+		return { InVictim, InAttacker, nullptr, InImpactPoint, InImpactNormal,
+			0, INDEX_NONE, 0, /*bIsMeleeHit*/ true };
 	}
 
 	virtual void Run(FMassEntityManager& EntityManager) override
@@ -655,55 +687,59 @@ struct FLNPImpactCueCommand : public FMassBatchedCommand
 			? EntityManager.GetWorld()->GetSubsystem<UMassActorSubsystem>() : nullptr;
 
 		for (const FEntry& Entry : Entries)
+			ApplyEntry(EntityManager, ActorSub, Entry);
+	}
+
+	/** 한 건 적용. 피격 유예 해제(ULNPHitGraceSubsystem)도 이 함수를 부른다. Game Thread 전용. */
+	static void ApplyEntry(FMassEntityManager& EntityManager, UMassActorSubsystem* ActorSub, const FEntry& Entry)
+	{
+		AActor* Attacker = nullptr;
+		if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
+			Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
+
+		// 전송 수단만 고른다 — 피격자 ASC가 우선이고, 없을 때만 공격자 ASC로 나른다.
+		UAbilitySystemComponent* CueASC = LNPHitDetection::GetASC(Entry.Victim.Get());
+		if (!IsValid(CueASC))
+			CueASC = LNPHitDetection::GetASC(Attacker);
+
+		if (IsValid(CueASC))
 		{
-			AActor* Attacker = nullptr;
-			if (ActorSub && Entry.AttackerEntity.IsSet() && EntityManager.IsEntityActive(Entry.AttackerEntity))
-				Attacker = ActorSub->GetActorFromHandle(Entry.AttackerEntity);
+			FGameplayCueParameters CueParams;
+			CueParams.Location = Entry.ImpactPoint;
+			CueParams.Normal   = Entry.ImpactNormal;
 
-			// 전송 수단만 고른다 — 피격자 ASC가 우선이고, 없을 때만 공격자 ASC로 나른다.
-			UAbilitySystemComponent* CueASC = LNPHitDetection::GetASC(Entry.Victim.Get());
-			if (!IsValid(CueASC))
-				CueASC = LNPHitDetection::GetASC(Attacker);
-
-			if (IsValid(CueASC))
-			{
-				FGameplayCueParameters CueParams;
-				CueParams.Location = Entry.ImpactPoint;
-				CueParams.Normal   = Entry.ImpactNormal;
-
-				if (Entry.bIsMeleeHit)
-				{
-					CueASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_Impact, CueParams);
-				}
-				else
-				{
-					FLNPProjectileImpactContext* ImpactCtx = new FLNPProjectileImpactContext();
-					ImpactCtx->PredictionKeyID    = Entry.PredictionKeyID;
-					ImpactCtx->SpawnIndex         = Entry.SpawnIndex;
-					ImpactCtx->InstigatorPlayerID = Entry.InstigatorPlayerID;
-					ImpactCtx->VFXData            = Entry.VFXData;
-
-					CueParams.EffectContext = FGameplayEffectContextHandle(ImpactCtx);
-					CueASC->ExecuteGameplayCue(TAG_GameplayCue_Projectile_Impact, CueParams);
-				}
-			}
-
-			// 공격자 HitStop은 근접에서만 재생한다 — 원거리(총기류)는 물리적 충돌감이 없어 어색하다.
-			// 공격자 본인 화면은 예측 경로(리슨서버 호스트는 아래 직접 호출, 원격 클라는 ApplyLocalHitFeedback)로 즉시 처리하고,
-			// 제3자(구경꾼) 화면은 GameplayCue.LNP.Melee.AttackerHitStop으로 전파한다 — 핸들러가 로컬 컨트롤 여부로 중복을 걸러낸다.
 			if (Entry.bIsMeleeHit)
 			{
-				if (ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(Attacker))
-					AttackerChar->ApplyHitStop(0.2f);
+				CueASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_Impact, CueParams);
+			}
+			else
+			{
+				FLNPProjectileImpactContext* ImpactCtx = new FLNPProjectileImpactContext();
+				ImpactCtx->PredictionKeyID    = Entry.PredictionKeyID;
+				ImpactCtx->SpawnIndex         = Entry.SpawnIndex;
+				ImpactCtx->InstigatorPlayerID = Entry.InstigatorPlayerID;
+				ImpactCtx->VFXData            = Entry.VFXData;
 
-				if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
-				{
-					// 파라미터를 **하나도 싣지 않는다.** 이 큐의 핸들러는 대상 액터만 쓰고
-					// (ULNPGameplayCueNotify_AttackerHitStop: 로컬 컨트롤 여부로 걸러 ApplyHitStop만 호출)
-					// 파라미터를 읽지 않는다. FGameplayCueParameters는 설정된 필드만 직렬화하므로
-					// 비워 두면 히트마다 FVector_NetQuantize10 하나가 전 연결에서 사라진다.
-					AttackerASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_AttackerHitStop, FGameplayCueParameters());
-				}
+				CueParams.EffectContext = FGameplayEffectContextHandle(ImpactCtx);
+				CueASC->ExecuteGameplayCue(TAG_GameplayCue_Projectile_Impact, CueParams);
+			}
+		}
+
+		// 공격자 HitStop은 근접에서만 재생한다 — 원거리(총기류)는 물리적 충돌감이 없어 어색하다.
+		// 공격자 본인 화면은 예측 경로(리슨서버 호스트는 아래 직접 호출, 원격 클라는 ApplyLocalHitFeedback)로 즉시 처리하고,
+		// 제3자(구경꾼) 화면은 GameplayCue.LNP.Melee.AttackerHitStop으로 전파한다 — 핸들러가 로컬 컨트롤 여부로 중복을 걸러낸다.
+		if (Entry.bIsMeleeHit)
+		{
+			if (ALNPCharacterBase* AttackerChar = Cast<ALNPCharacterBase>(Attacker))
+				AttackerChar->ApplyHitStop(0.2f);
+
+			if (UAbilitySystemComponent* AttackerASC = LNPHitDetection::GetASC(Attacker))
+			{
+				// 파라미터를 **하나도 싣지 않는다.** 이 큐의 핸들러는 대상 액터만 쓰고
+				// (ULNPGameplayCueNotify_AttackerHitStop: 로컬 컨트롤 여부로 걸러 ApplyHitStop만 호출)
+				// 파라미터를 읽지 않는다. FGameplayCueParameters는 설정된 필드만 직렬화하므로
+				// 비워 두면 히트마다 FVector_NetQuantize10 하나가 전 연결에서 사라진다.
+				AttackerASC->ExecuteGameplayCue(TAG_GameplayCue_Melee_AttackerHitStop, FGameplayCueParameters());
 			}
 		}
 	}
@@ -758,48 +794,135 @@ struct FLNPApplyDamageGECommand : public FMassBatchedCommand
 		bHasWork = true;
 	}
 
+	/** 미리 만든 엔트리 — 피격 유예 묶음(LNPHitGrace::Dispatch)의 즉시 분기가 쓴다. */
+	void Add(const FEntry& InEntry)
+	{
+		Entries.Add(InEntry);
+		bHasWork = true;
+	}
+
 	virtual void Run(FMassEntityManager& EntityManager) override
 	{
 		for (const FEntry& Entry : Entries)
+			ApplyEntry(Entry);
+	}
+
+	/** 한 건 적용. 피격 유예 해제(ULNPHitGraceSubsystem)도 이 함수를 부른다. Game Thread 전용. */
+	static void ApplyEntry(const FEntry& Entry)
+	{
+		AActor* Victim = Entry.Victim.Get();
+		UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Victim);
+		if (!IsValid(ASC) || !Entry.EffectClass)
+			return;
+
+		const float HpBefore = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute());
+
+		FGameplayEffectContextHandle Ctx  = ASC->MakeEffectContext();
+		FGameplayEffectSpecHandle    Spec = ASC->MakeOutgoingSpec(Entry.EffectClass, 1.0f, Ctx);
+		if (!Spec.IsValid())
+			return;
+
+		Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Damage, Entry.Damage);
+		ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+
+		const float HpAfter = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute());
+		if (0.f < HpBefore)
+			UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
+
+		// 피격자 HitReact 몽타주는 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).
+		// 피해·근접 여부는 물리 히트리액트 세기에만 쓴다. 두 크기 필드는 0이면 직렬화되지 않아 원거리는 근접 비트를 싣지 않는다.
+		if (Entry.HitReactKind != ELNPHitReactKind::None)
 		{
-			AActor* Victim = Entry.Victim.Get();
-			UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Victim);
-			if (!IsValid(ASC) || !Entry.EffectClass)
-				continue;
+			FGameplayCueParameters CueParams;
+			CueParams.Location = Entry.ImpactPoint;
+			CueParams.Normal   = Entry.HitFromDirection;
+			CueParams.RawMagnitude = Entry.Damage;
+			CueParams.NormalizedMagnitude = (Entry.HitReactKind == ELNPHitReactKind::Melee) ? 1.f : 0.f;
+			ASC->ExecuteGameplayCue(TAG_GameplayCue_Character_HitReact, CueParams);
+		}
 
-			const float HpBefore = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute());
+		if (ALNPCharacterBase* VictimChar = Cast<ALNPCharacterBase>(Victim))
+		{
+			// Entry.HitFromDirection은 "피격자 → 공격자"(공격이 날아온 쪽) 방향이다 (PlayHitReact의 방향 판정 컨벤션).
+			// 넉백은 그 반대, 즉 공격자로부터 밀려나는 방향으로 밀어야 하므로 부호를 반전한다.
+			if (Entry.KnockbackStrength > 0.f)
+				VictimChar->ApplyKnockback(-Entry.HitFromDirection, Entry.KnockbackStrength);
+		}
+	}
 
-			FGameplayEffectContextHandle Ctx  = ASC->MakeEffectContext();
-			FGameplayEffectSpecHandle    Spec = ASC->MakeOutgoingSpec(Entry.EffectClass, 1.0f, Ctx);
-			if (!Spec.IsValid())
-				continue;
+	virtual void Reset() override { Entries.Reset(); FMassBatchedCommand::Reset(); }
+	virtual SIZE_T GetAllocatedSize()     const override { return Entries.GetAllocatedSize(); }
+	virtual int32  GetNumOperationsStat() const override { return Entries.Num(); }
 
-			Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Damage, Entry.Damage);
-			ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+private:
+	TArray<FEntry> Entries;
+};
 
-			const float HpAfter = ASC->GetNumericAttribute(ULNPBaseAttributeSet::GetHealthAttribute());
-			if (0.f < HpBefore)
-				UE_LOG(LogLootNPop, Log, TEXT("[GE] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, HpAfter, Entry.Damage);
+// ──────────────────────────────────────────────────────────────────────────────
+// 화상 (플레이어)
+// ──────────────────────────────────────────────────────────────────────────────
 
-			// 피격자 HitReact 몽타주는 GameplayCue를 통해 서버·전 클라이언트에 전파된다 (Run은 서버에서만 실행).
-			// 피해·근접 여부는 물리 히트리액트 세기에만 쓴다. 두 크기 필드는 0이면 직렬화되지 않아 원거리는 근접 비트를 싣지 않는다.
-			if (Entry.HitReactKind != ELNPHitReactKind::None)
-			{
-				FGameplayCueParameters CueParams;
-				CueParams.Location = Entry.ImpactPoint;
-				CueParams.Normal   = Entry.HitFromDirection;
-				CueParams.RawMagnitude = Entry.Damage;
-				CueParams.NormalizedMagnitude = (Entry.HitReactKind == ELNPHitReactKind::Melee) ? 1.f : 0.f;
-				ASC->ExecuteGameplayCue(TAG_GameplayCue_Character_HitReact, CueParams);
-			}
+/**
+ * 플레이어 화상 GE 적용 (아군 사격). 게임 스레드에서 피격자 ASC에 ULNPGameplayEffect_Burn을 건다 —
+ * 같은 GE가 이미 있으면 엔진 스택 규칙이 중첩 +1·지속 갱신을 한다. 스펙의 지속·주기는 새 인스턴스일 때만 쓰인다.
+ */
+struct FLNPApplyPlayerBurnGECommand : public FMassBatchedCommand
+{
+	struct FEntry
+	{
+		TWeakObjectPtr<AActor> Victim;
+		float DamagePerStack;
+		float Duration;
+		float TickInterval;
+	};
 
-			if (ALNPCharacterBase* VictimChar = Cast<ALNPCharacterBase>(Victim))
-			{
-				// Entry.HitFromDirection은 "피격자 → 공격자"(공격이 날아온 쪽) 방향이다 (PlayHitReact의 방향 판정 컨벤션).
-				// 넉백은 그 반대, 즉 공격자로부터 밀려나는 방향으로 밀어야 하므로 부호를 반전한다.
-				if (Entry.KnockbackStrength > 0.f)
-					VictimChar->ApplyKnockback(-Entry.HitFromDirection, Entry.KnockbackStrength);
-			}
+	FLNPApplyPlayerBurnGECommand() : FMassBatchedCommand(EMassCommandOperationType::None) {}
+
+	void Add(AActor* InVictim, const float InDamagePerStack, const float InDuration, const float InTickInterval)
+	{
+		Entries.Add({ InVictim, InDamagePerStack, InDuration, InTickInterval });
+		bHasWork = true;
+	}
+
+	/** 미리 만든 엔트리 — 피격 유예 묶음(LNPHitGrace::Dispatch)의 즉시 분기가 쓴다. */
+	void Add(const FEntry& InEntry)
+	{
+		Entries.Add(InEntry);
+		bHasWork = true;
+	}
+
+	virtual void Run(FMassEntityManager& EntityManager) override
+	{
+		for (const FEntry& Entry : Entries)
+			ApplyEntry(Entry);
+	}
+
+	/** 한 건 적용. 피격 유예 해제(ULNPHitGraceSubsystem)도 이 함수를 부른다. Game Thread 전용. */
+	static void ApplyEntry(const FEntry& Entry)
+	{
+		// 같은 배치의 원뿔 피해가 방금 이 대상을 죽였을 수 있다 — 사망 처리가 지운 화상을 다시 걸지 않는다.
+		// 사망 태그(쿼리 제외)는 지연 커맨드라 같은 프레임의 이 커맨드를 막지 못한다.
+		const ALNPPlayerCharacter* VictimPawn = Cast<ALNPPlayerCharacter>(Entry.Victim.Get());
+		if (VictimPawn && VictimPawn->IsDead())
+			return;
+
+		UAbilitySystemComponent* ASC = LNPHitDetection::GetASC(Entry.Victim.Get());
+		if (!IsValid(ASC))
+			return;
+
+		FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(ULNPGameplayEffect_Burn::StaticClass(), 1.f, ASC->MakeEffectContext());
+		if (!Spec.IsValid())
+			return;
+
+		Spec.Data->SetSetByCallerMagnitude(TAG_GE_Data_Damage, Entry.DamagePerStack);
+		Spec.Data->SetDuration(Entry.Duration, /*bLockDuration*/ true);
+		Spec.Data->Period = Entry.TickInterval;
+		const FActiveGameplayEffectHandle Handle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+
+		if (LNPBurn::IsLogEnabled())
+		{
+			UE_LOG(LogLootNPop, Log, TEXT("[Burn][Player] apply victim=%s stacks=%d perStack=%.1f"),
+				*GetNameSafe(Entry.Victim.Get()), ASC->GetCurrentStackCount(Handle), Entry.DamagePerStack);
 		}
 	}
 

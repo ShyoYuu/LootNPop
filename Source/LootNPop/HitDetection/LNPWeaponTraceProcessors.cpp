@@ -4,6 +4,7 @@
 #include "HitDetection/LNPWeaponTraceMassTypes.h"
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "HitDetection/LNPHitGraceSubsystem.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "HitDetection/LNPPositionHistoryFragment.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
@@ -576,12 +577,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				// ApplyHitStop으로 이미 처리하므로 여기서 중복해서 세지 않는다.
 				// ⚠️ 패링은 제외한다 — 그쪽은 Parried 자세 붕괴라는 훨씬 강한 반응이 따로 있고,
 				//    가드와 패링의 차이가 흐려지면 안 된다 (GameDesign_ParrySystem.md).
-				auto SignalEntityHitStop = [&]
-				{
-					if (Frag.InstigatorActor.IsValid() || !Frag.InstigatorEntity.IsSet())
-						return;
-					Ctx.Defer().PushCommand<FLNPEntityHitStopCommand>(Frag.InstigatorEntity);
-				};
+				const FMassEntityHandle EntityHitStopAttacker = (Frag.InstigatorActor.IsValid() || !Frag.InstigatorEntity.IsSet())
+					? FMassEntityHandle() : Frag.InstigatorEntity;
 
 				// 패링 반경(ParryRadius)이 피격 반경보다 크다 — 패링은 살짝 더 관대하다 (§7.4).
 				const ELNPPlayerDefenseResult Result = LNPGuardParry::Judge(PS, Dot, NowForRewind,
@@ -616,26 +613,31 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					return;
 				}
 
+				// 여기부터 피격자 쪽 효과는 묶음 하나로 모은다 — 원격 게스트면 피격 유예가 보류한다(MarkHit은 위에서 이미 했다).
+				FLNPPlayerHitEffects Effects;
+				Effects.PoiseDamage           = Frag.PoiseDamage;
+				Effects.EntityHitStopAttacker = EntityHitStopAttacker;
+
 				if (Result == ELNPPlayerDefenseResult::Guarded)
 				{
 					// 막아내도 경직은 쌓인다 — 임계를 넘으면 가드가 풀리며 경직에 걸린다 (가드 브레이크).
-					LNPPoise::Accumulate(Player.Poise, Frag.PoiseDamage, NowForRewind, PoiseGuardMultiplier);
-					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor, ImpactPointOf(), AttackerDir);
-					SignalEntityHitStop();
+					Effects.PoiseMultiplier = PoiseGuardMultiplier;
+					Effects.GuardBlock.Emplace(FLNPGuardBlockCommand::FEntry{ Player.Actor, ImpactPointOf(), AttackerDir });
+					LNPHitGrace::Dispatch(Ctx, PS, Player.Poise, Player.Handle, Player.Actor, TEXT("Melee"), /*bJustEligible*/ true, MoveTemp(Effects), NowForRewind);
 					return;
 				}
 
 				LNPGuardParry::ReportDodgeHit(TEXT("Melee"), Player.Actor, PS, NowForRewind);
-				LNPPoise::Accumulate(Player.Poise, Frag.PoiseDamage, NowForRewind);
 
 				// 적 피격 분기와 같은 자리에서 임팩트 연출을 낸다 — 데미지 커맨드가 더는 연출을 내지 않는다.
 				const FVector PlayerImpactPoint = ImpactPointOf();
-				Ctx.Defer().PushCommand<FLNPImpactCueCommand>(Player.Actor, Frag.InstigatorEntity, PlayerImpactPoint, AttackerDir);
-				SignalEntityHitStop();
+				Effects.ImpactCue.Emplace(FLNPImpactCueCommand::MakeMelee(Player.Actor, Frag.InstigatorEntity, PlayerImpactPoint, AttackerDir));
 
 				const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 				if (EffectClass)
-					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, EffectClass, Frag.Damage, AttackerDir, PlayerImpactPoint, Frag.KnockbackStrength, ELNPHitReactKind::Melee);
+					Effects.Damage.Emplace(FLNPApplyDamageGECommand::FEntry{ Player.Actor, EffectClass, Frag.Damage, AttackerDir, PlayerImpactPoint, Frag.KnockbackStrength, ELNPHitReactKind::Melee });
+
+				LNPHitGrace::Dispatch(Ctx, PS, Player.Poise, Player.Handle, Player.Actor, TEXT("Melee"), /*bJustEligible*/ true, MoveTemp(Effects), NowForRewind);
 			};
 
 			// 대상 후보는 팀 규칙 하나가 고른다 (LNPTeam::CanHit).

@@ -6,6 +6,7 @@
 #include "HitDetection/LNPProjectileVisualSubsystem.h"
 #include "HitDetection/LNPHitDetectionShared.h"
 #include "HitDetection/LNPGuardParryTypes.h"
+#include "HitDetection/LNPHitGraceSubsystem.h"
 #include "GAS/LNPPoiseTypes.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPProjectileImpactContext.h"
@@ -746,21 +747,25 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				LNPGuardParry::ReportDodgeIgnored(TEXT("Splash"), SP.Actor);
 				continue;
 			}
+			// 피격자 쪽 효과는 묶음 하나로 모은다 — 원격 게스트면 피격 유예가 보류한다.
+			FLNPPlayerHitEffects Effects;
+			Effects.PoiseDamage = Shared.PoiseDamage;
 			if (Result == ELNPPlayerDefenseResult::Guarded)
 			{
 				// 막아내도 경직은 쌓인다 (가드 브레이크). 피해·넉백은 막는다.
-				LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now, PoiseGuardMultiplier);
-				Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(SP.Actor, SplashPoint, SplashDir);
-				continue;
+				Effects.PoiseMultiplier = PoiseGuardMultiplier;
+				Effects.GuardBlock.Emplace(FLNPGuardBlockCommand::FEntry{ SP.Actor, SplashPoint, SplashDir });
 			}
-			LNPPoise::Accumulate(SP.Poise, Shared.PoiseDamage, Now);
+			else
+			{
+				float SplashDamage, SplashKnockback;
+				SplashFalloff(DistSq, SplashDamage, SplashKnockback);
 
-			float SplashDamage, SplashKnockback;
-			SplashFalloff(DistSq, SplashDamage, SplashKnockback);
-
-			Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(
-				SP.Actor, Shared.DamageEffectClass,
-				SplashDamage, SplashDir, SplashPoint, SplashKnockback);
+				Effects.Damage.Emplace(FLNPApplyDamageGECommand::FEntry{
+					SP.Actor, Shared.DamageEffectClass,
+					SplashDamage, SplashDir, SplashPoint, SplashKnockback, ELNPHitReactKind::Ranged });
+			}
+			LNPHitGrace::Dispatch(Ctx, SP.ParryState, SP.Poise, SP.Handle, SP.Actor, TEXT("Splash"), /*bJustEligible*/ false, MoveTemp(Effects), Now);
 		}
 	};
 
@@ -1147,22 +1152,26 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 					break;  // 반사된 투사체는 파괴하지 않고 계속 비행 (FinishHit 호출 없음)
 				}
 
+				// 피격자 쪽 효과는 묶음 하나로 모은다 — 원격 게스트면 피격 유예가 보류한다.
+				// 탄의 소멸·임팩트 큐·주변 스플래시(FinishHit)는 보류하지 않는다. 소급 회피되어도 이 탄은 관통하지 않는다.
+				FLNPPlayerHitEffects Effects;
+				Effects.PoiseDamage = Shared.PoiseDamage;
 				if (Result == ELNPPlayerDefenseResult::Guarded)
 				{
 					// 막아내도 경직은 쌓인다 (가드 브레이크).
-					LNPPoise::Accumulate(Player.Poise, Shared.PoiseDamage, Now, PoiseGuardMultiplier);
-					Ctx.Defer().PushCommand<FLNPGuardBlockCommand>(Player.Actor, HitPoint, IncomingDir);
+					Effects.PoiseMultiplier = PoiseGuardMultiplier;
+					Effects.GuardBlock.Emplace(FLNPGuardBlockCommand::FEntry{ Player.Actor, HitPoint, IncomingDir });
 				}
 				else
 				{
 					LNPGuardParry::ReportDodgeHit(TEXT("Projectile"), Player.Actor, PS, Now);
-					LNPPoise::Accumulate(Player.Poise, Shared.PoiseDamage, Now);
 					if (Shared.DamageEffectClass)
 					{
 						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Player.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
+						Effects.Damage.Emplace(FLNPApplyDamageGECommand::FEntry{ Player.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength, ELNPHitReactKind::Ranged });
 					}
 				}
+				LNPHitGrace::Dispatch(Ctx, PS, Player.Poise, Player.Handle, Player.Actor, TEXT("Projectile"), /*bJustEligible*/ true, MoveTemp(Effects), Now);
 
 				FinishHit(HitPoint, (HitPoint - Player.Location).GetSafeNormal(), nullptr, &Player);
 				break;
