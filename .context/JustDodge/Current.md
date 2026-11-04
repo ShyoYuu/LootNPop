@@ -35,5 +35,5 @@
 - 검증 절차와 로그 문자열: `design/Validation.md`. PvP 경로는 `LNP.Team.Set 1 2`를 빼먹지 않는다(§6). PIE를 새로 시작하면 다시 넣어야 한다.
 - 지연 에뮬레이션: `net.PktLag=N`은 입력한 창의 송신에만 걸린다. 호스트·게스트 두 창 모두에 넣어야 RTT가 약 +2N이 된다.
 - 단일 프로세스 PIE 로그에서는 폰 이름이 월드마다 다르거나 겹친다. 집계 스크립트는 시각과 역할로 짝짓는다.
-- 지연 중 게스트 리스폰 때 Iris `Rejected RPC ... missing object` 에러가 난다. 피격 유예와는 무관하다(`history/Phase04_Log.md` 2026-11-05). 원인 조사는 별도 작업으로 떼어 냈다.
+- 지연 중 게스트 리스폰 때 Iris `Rejected RPC (0:0) ... missing object` 에러가 2~4줄 난다. 서버가 파괴된 옛 폰으로 날아오던 게스트 이동 입력 RPC를 버리는 것이다. 영향이 없고 피격 유예와도 무관하다(`history/Phase04_Log.md` 2026-11-05).
 - 빌드·PIE 검증 방법: 프로젝트 공통 워크플로를 따른다. 커밋한 뒤에는 `-DisableAdaptiveUnity`로 전체 unity 구성을 한 번 확인한다(adaptive unity가 수정 중인 파일을 unity에서 빼기 때문이다).
