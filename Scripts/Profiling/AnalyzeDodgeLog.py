@@ -1,6 +1,6 @@
 """저스트 회피 Phase 3 단위 1: `LNP.Debug.Dodge 1` 로그에서 성공률·놓침 분포·업링크 지연·연출 지연을 집계한다.
 
-사용: python AnalyzeDodgeLog.py <로그> [--since HH:MM:SS] [--early-ms 300] [--late-ms 300] [--bin-ms 50]
+사용: python AnalyzeDodgeLog.py <로그> [--since HH:MM:SS] [--until HH:MM:SS] [--early-ms 300] [--late-ms 300] [--bin-ms 50]
 
 단일 프로세스 PIE라 서버·게스트 줄이 한 파일에 같은 벽시계로 찍힌다. 시각은 로그 접두사(`[YYYY.MM.DD-HH.MM.SS:mmm]`)를 쓴다.
 월드마다 다른 `expiry`(월드 시각)는 쓰지 않는다. 폰은 이름으로 짝짓는다(서버·게스트 월드에서 같은 이름이라는 가정 — 짝 없는 줄 수를 함께 출력한다).
@@ -32,9 +32,10 @@ CUE = re.compile(r"^Success cue arrived player=(\S+) local=(\d) role=(\S+)")
 SUCCESS_AFTER_DASH = 0.5
 UPLINK_MAX = 1.0
 CUE_MAX = 2.0
+PRESS_GAP = 0.3
 
 
-def parse(path, since):
+def parse(path, since, until):
     events = []
     with open(path, encoding="utf-8", errors="replace") as f:
         for raw in f:
@@ -43,6 +44,8 @@ def parse(path, since):
                 continue
             t = datetime.strptime(m.group(1), "%Y.%m.%d-%H.%M.%S").timestamp() + int(m.group(2)) / 1000.0
             if since and datetime.fromtimestamp(t).time() < since:
+                continue
+            if until and datetime.fromtimestamp(t).time() >= until:
                 continue
             events.append((t, m.group(3)))
     # Worker Thread 줄이 섞여 순서가 어긋날 수 있다
@@ -102,11 +105,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("log")
     ap.add_argument("--since", help="HH:MM:SS (log timestamp, usually UTC)")
+    ap.add_argument("--until", help="HH:MM:SS, exclusive. One PIE session can hold several lag settings")
     ap.add_argument("--early-ms", type=float, default=300.0)
     ap.add_argument("--late-ms", type=float, default=300.0)
     ap.add_argument("--bin-ms", type=float, default=50.0)
     args = ap.parse_args()
     since = datetime.strptime(args.since, "%H:%M:%S").time() if args.since else None
+    until = datetime.strptime(args.until, "%H:%M:%S").time() if args.until else None
 
     server_open = defaultdict(list)   # pawn -> [t]
     auto_open = defaultdict(list)
@@ -115,7 +120,7 @@ def main():
     ignored = Counter()
     cue_local = defaultdict(list)     # pawn -> [(t, role)]
 
-    for t, msg in parse(args.log, since):
+    for t, msg in parse(args.log, since, until):
         if m := OPEN.match(msg):
             (server_open if m.group(2) == "ROLE_Authority" else auto_open)[m.group(1)].append(t)
         elif m := SUCCESS.match(msg):
@@ -125,7 +130,8 @@ def main():
         elif m := IGNORED.match(msg):
             ignored[m.group(2)] += 1
         elif (m := CUE.match(msg)) and m.group(2) == "1":
-            cue_local[m.group(1)].append((t, m.group(3)))
+            # 게스트 월드의 자기 폰이 서버의 호스트 폰과 같은 이름(_C_0)일 수 있다 — 역할로 월드를 가른다
+            cue_local[f"{m.group(1)}@{m.group(3)}"].append((t, m.group(3)))
 
     pawns = sorted(set(server_open) | set(success) | set(hits))
     if not pawns:
@@ -134,6 +140,7 @@ def main():
 
     late_s = args.late_ms / 1000.0
     early_all, late_all = [], []
+    kinds_by_pawn = {}
 
     print("== Attempts per pawn (server dashes) ==")
     for pawn in pawns:
@@ -164,7 +171,8 @@ def main():
                 result[i] = ("early", since_just)
 
         kinds = Counter(k for k, _ in result.values())
-        early = [v for k, v in result.values() if k == "early"]
+        kinds_by_pawn[pawn] = kinds
+        early =[v for k, v in result.values() if k == "early"]
         late = [v for k, v in result.values() if k == "late"]
         early_all += early
         late_all += late
@@ -183,11 +191,33 @@ def main():
 
     # 리스폰한 폰은 서버·게스트 월드에서 이름이 달라진다(예: 서버 _C_2, 게스트 _C_10) — 이름 대신 시각으로 짝짓는다
     auto_to_server = map_names(auto_open, server_open, UPLINK_MAX)
-    print("\n== Uplink: autonomous dash -> server dash ==")
+    print("\n== Uplink: autonomous dash press -> server dash ==")
     for pawn in sorted(auto_open):
         server = auto_to_server.get(pawn)
-        deltas, unmatched = pair_deltas(auto_open[pawn], server_open.get(server, []), UPLINK_MAX)
-        print(f"  {pawn} -> {server}: {stats(deltas)} unmatched={unmatched}")
+        opens = server_open.get(server, [])
+        # 롤백 뒤 같은 대시가 다시 실행되면 Autonomous 줄이 여러 번 찍힌다 — PRESS_GAP 안의 줄은 한 번 누른 것으로 묶는다
+        presses = []
+        for t in auto_open[pawn]:
+            if presses and t - presses[-1][-1] <= PRESS_GAP:
+                presses[-1].append(t)
+            else:
+                presses.append([t])
+        firsts = [p[0] for p in presses]
+        deltas, dropped = pair_deltas(firsts, opens, UPLINK_MAX)
+        # 서버가 끝내 실행하지 않은 누름 — 그 직전·직후 서버 피격이 있으면 피격(넉백)이 먼저 처리돼 대시가 거부된 것으로 본다
+        hit_times = [h[0] for h in hits.get(server, [])]
+        near_hit = sum(1 for t in firsts
+                       if not any(0 <= o - t <= UPLINK_MAX for o in opens)
+                       and any(abs(h - t) <= late_s for h in hit_times))
+        reexec = sum(1 for p in presses if len(p) > 1)
+        print(f"  {pawn} -> {server}: presses={len(presses)} (re-executed {reexec}) {stats(deltas)}")
+        print(f"    dropped by server={dropped} (with server hit within {args.late_ms:.0f}ms: {near_hit})")
+        # 거부된 누름은 서버 대시가 없어 위 표의 분모에서 빠진다 — 늦은 놓침으로 더해 다시 낸 성공률
+        k = kinds_by_pawn.get(server)
+        if k is not None:
+            attempts = k["success"] + k["early"] + k["late"] + near_hit
+            rate = f"{100.0 * k['success'] / attempts:.0f}%" if attempts else "-"
+            print(f"    {server} rate incl. dropped presses={rate} ({k['success']}/{attempts})")
 
     success_times = {p: [t for t, _ in v] for p, v in success.items()}
     cue_times = {p: [t for t, _ in v] for p, v in cue_local.items()}

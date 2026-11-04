@@ -119,7 +119,7 @@
 2. `Roadmap.md`의 상태를 갱신한다.
 3. `Current.md`를 다음 Phase 기준으로 짧게 다시 쓴다.
 4. 다음 Phase 실행 문서는 착수 직전에 만들거나 구체화한다.
-5. 메인 트랙 Phase 3에서는 프로젝트 공통 설계 문서를 확정한다(`GameDesign_JustDodge.md`·`TechDesign_JustDodge.md` 신설, Parry·HitDetection·CharacterMovement 교차 링크, 문서 인덱스 3곳).
+5. 메인 트랙 Phase 4에서는 프로젝트 공통 설계 문서를 확정한다(Phase 3에서 옮겨 옴)(`GameDesign_JustDodge.md`·`TechDesign_JustDodge.md` 신설, Parry·HitDetection·CharacterMovement 교차 링크, 문서 인덱스 3곳).
 
 ## 9. 문서 상태 표기
 

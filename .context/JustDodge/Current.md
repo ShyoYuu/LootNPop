@@ -1,42 +1,44 @@
 # 저스트 회피 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: 메인 트랙 Phase 3 수치 1차 튜닝·지연 측정·문서 마감 — 단위 1(계측) 완료, 단위 2(플레이 테스트) 대기
+> 현재 작업: 메인 트랙 Phase 4 피격 유예 버퍼(J-010 대응) + 문서 마감 — 착수 전
 > 마지막 갱신: 2026-11-04
 
 ## 현재 결정
 
-사용자가 정한 것(2026-10-26):
+사용자가 정한 것:
 
 - 저스트 회피는 근접 공격과 투사체 직격에만 발동한다(J-002).
 - 무적 중인 플레이어를 지나는 투사체는 관통한다(J-003).
 - 반경은 기존 패링 반경을 쓴다(J-004).
-- 버프는 AttackSpeed·MoveSpeed 곱연산 +20%, 2.5초, 시간만 갱신한다(J-005).
-- 비주얼은 마지막 독립 트랙으로 둔다. 화면 연출·림라이트·Niagara 정밀도 조사는 그래픽스 작업으로 넘긴다(J-012).
+- 버프는 AttackSpeed·MoveSpeed 곱연산 +20%, 2.5초, 시간만 갱신한다(J-005). 사용자가 천천히 상향을 검토한다.
+- 연출은 서버 확정 뒤에만 낸다(J-007 확정, 2026-11-04).
+- 화상 지속 틱은 무적으로 막지 않는다(J-013). PvP 근접 예측 HitStop 어긋남은 허용한다(J-014).
+- 비주얼은 마지막 독립 트랙으로 둔다(J-012).
 
-Phase 1(회피 무적)과 Phase 2(저스트 회피)는 2026-11-03에 끝났다. 결과는 `history/Phase01_Log.md`·`history/Phase02_Log.md`에 있다. Phase 3이 올라설 토대는 다음과 같다.
+Phase 1~3은 끝났다(Phase 3은 2026-11-04). 결과는 `history/Phase0N_Log.md`에 있다. Phase 4가 올라설 토대는 다음과 같다.
 
-- `ExecuteDash`가 무적 창과 저스트 창(무적 창 이하로 묶음)을 `FLNPParryStateFragment`에 기록한다. 소비 플래그 `bJustDodgeConsumed`는 서버 성공 커맨드 `FLNPJustDodgeCommand`만 세운다.
-- `Judge` 순서: Parried → JustDodged → (피격 반경 밖이면 None) → Dodged → Guarded → Hit.
-- 버프 `ULNPGameplayEffect_JustDodgeBuff`. ⚠️ `MultiplyAdditive` SetByCaller에는 `1 + 배율`을 넣는다(`design/Architecture.md` §5.2).
-- 연출 경계: 큐 `GameplayCue.LNP.JustDodge.Success`·`.Buff`와 빈 GCN 2개(`Content/GAS/GameplayCues/`). 비주얼 트랙은 여기서 시작한다.
-- 튜닝 손잡이: Mover 컴포넌트의 `IFrameDuration`(0.15)·`JustDodgeWindow`(0.12), 프로젝트 설정 `Combat|Just Dodge`(2.5초, 0.2, 0.2).
-- 디버그: `LNP.Debug.Dodge`(로그), `LNP.Debug.ShowDodge`(화면 문구 — 연한 보라 창, 짙은 보라 무적 차단, 자홍 `JUST DODGE`). 문자열은 `design/Architecture.md` §7.
-- 계측(Phase 3 단위 1): `[Dodge] Hit ... sinceJust=`(놓친 저스트 회피), `[Dodge] Success cue arrived ... local=`(연출 지연). 집계는 `Scripts/Profiling/AnalyzeDodgeLog.py <로그> [--since HH:MM:SS]`. 성공 큐 에셋의 부모는 이제 `ULNPGameplayCueNotify_JustDodgeSuccess`다(V1이 확장한다).
+- 판정: `ExecuteDash`가 무적·저스트 창을 `FLNPParryStateFragment`에 기록한다. `Judge` 순서는 Parried → JustDodged → (반경 밖 None) → Dodged → Guarded → Hit이다. 성공은 `FLNPJustDodgeCommand`가 버프 GE와 `.Success` 큐로 처리한다.
+- 수치(1차 확정, 현행 유지): Mover 컴포넌트의 `IFrameDuration` 0.15·`JustDodgeWindow` 0.12, 프로젝트 설정 `Combat|Just Dodge`(2.5초, 0.2, 0.2).
+- 계측: `LNP.Debug.Dodge 1`이면 `[Dodge] Hit ... sinceJust=`(놓친 회피)와 `[Dodge] Success cue arrived ... local=`(연출 지연)가 찍힌다. 성공 큐 에셋의 부모는 `ULNPGameplayCueNotify_JustDodgeSuccess`다(V1이 확장한다).
+- 집계: `Scripts/Profiling/AnalyzeDodgeLog.py <로그> --since HH:MM:SS [--until HH:MM:SS]`. 한 PIE 세션 안의 지연 구간은 로그의 `LogNet: PktLag set to N` 줄로 나눈다.
+
+## Phase 4가 고칠 문제
+
+지연이 있으면 게스트가 맞기 직전에 누른 대시를 서버가 거부한다. RTT +50에서 38번 중 10번, +100에서 19번 중 4번이었다. 서버가 피격 넉백(이동 모드를 공중으로 강제)을 먼저 처리하면, `CanDash()`의 `IsOnGround()` 조건 때문에 뒤늦게 도착한 대시 입력이 실행되지 않는다. 게스트는 맞고 대시까지 잃는다(`design/Architecture.md` §6.1).
+
+대응은 §6.2 A 피격 유예 버퍼다. 원격 클라이언트 피격자의 효과를 짧게 보류하고, 그 사이 도착한 대시가 먼저 눌렸다고 추정되면 `Dodged`·`JustDodged`로 소급한다.
 
 ## 바로 다음 행동
 
-- 실행서 `phases/Phase03_TuningLatency.md` 단위 2: 리슨 2인 R1(지연 없음·군중·J-03) → R2(RTT 약 50ms) → R3(약 100ms). 회차마다 스크립트로 집계하고 체감 질문을 받은 뒤 수치를 조정한다.
-- 지연 없는 업링크 기준선은 p50 57ms다(`history/Phase03_Log.md`). 지연 회차는 이 값과 비교한다.
-- 실행서에 반영한 Phase 2 인계 항목:
-  - J-03(화염·폭발 안에서 대시)은 실측하지 않았다. 플레이 테스트에 끼워 넣는다.
-  - 버프 경계 보정은 `PktLag` 50/100ms에서 다시 본다(지연 없는 2인에서는 체감 없음).
-- Phase 3에서 사용자 판단이 필요한 것(Phase 1에서 이어짐):
-  - 화상 지속 틱은 회피하지 않는다. 그래서 화염을 대시로 피해도 계속 깎인다(실측상 사망의 주원인).
-  - 근접 예측 HitStop은 고치지 않았다.
-  - D-02(일찍 대시해 칼날 안에 남음)는 재현이 어려워 코드 근거로만 둔다.
+- `design/Architecture.md` §6.2 A를 바탕으로 `phases/Phase04_HitGraceBuffer.md` 실행서를 쓰고 사용자 확인을 받는다. 착수 전에 4개 경로의 효과 커맨드 위치를 다시 확인한다(근접 `LNPWeaponTraceProcessors.cpp:620-640`, 직격 `LNPProjectileProcessors.cpp:1150-1165`, 스플래시 `:750-765`, 화염 `LNPFlameConeProcessors.cpp:355-372`, 2026-11-04 기준).
+- 실행서에서 정할 것: 유예 `H`의 여유값·상한(지연 없는 업링크가 입력 버퍼를 포함해 p50 약 70ms라 RTT/2만으로는 부족하다), 보류 묶음의 형태, 경직 누적을 Game Thread로 옮기는 방법, 소급 판정 술어의 위치(`LNPGuardParry`).
+- 완료 기준: Phase 3 R2·R3 조건 재측정에서 `dropped by server`가 0에 가깝고, 지연 없는 회차의 동작이 바뀌지 않는다.
+- Phase 4 끝에 Phase 3에서 옮겨 온 문서 마감을 한다(`Roadmap.md` §4 Phase 4).
 
 ## 인계 근거
 
 - 검증 절차와 시나리오: `design/Validation.md`. PvP 경로는 `LNP.Team.Set 1 2`를 빼먹지 않는다(§6).
-- 빌드·PIE 검증 방법: 프로젝트 공통 워크플로(Build.bat, Live Coding, Unreal MCP)를 따른다. 구조체 레이아웃·새 `.cpp`·새 CVar가 있으면 에디터를 닫고 풀 빌드한다. 커밋한 뒤에는 깨끗한 트리에서 Build.bat을 다시 돌려 확인한다.
+- 지연 에뮬레이션: `net.PktLag=N`은 입력한 창의 송신에만 걸린다. 호스트·게스트 두 창 모두에 넣어야 RTT가 약 +2N이 된다.
+- 단일 프로세스 PIE 로그에서는 폰 이름이 월드마다 다르거나 겹친다(리스폰 뒤 서버 `_C_2`·게스트 `_C_10`, 게스트 월드의 자기 폰 `_C_0`이 서버의 호스트 폰과 같은 이름). 집계 스크립트는 시각과 역할로 짝짓는다.
+- 빌드·PIE 검증 방법: 프로젝트 공통 워크플로(Build.bat, Live Coding, Unreal MCP)를 따른다. 구조체 레이아웃·새 `.cpp`·새 CVar가 있으면 에디터를 닫고 풀 빌드한다. 에디터가 떠 있으면 게임 타깃 빌드로 컴파일만 확인할 수 있다. 커밋한 뒤에는 깨끗한 트리에서 Build.bat을 다시 돌려 확인한다.
