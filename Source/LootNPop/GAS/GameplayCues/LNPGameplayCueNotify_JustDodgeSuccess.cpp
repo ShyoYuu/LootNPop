@@ -2,6 +2,7 @@
 
 #include "GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeSuccess.h"
 #include "Character/LNPCharacterBase.h"
+#include "Character/LNPPlayerCharacter.h"
 #include "HitDetection/LNPGuardParryTypes.h"
 #include "GameFramework/Pawn.h"
 #include "LootNPop.h"
@@ -19,6 +20,9 @@ bool ULNPGameplayCueNotify_JustDodgeSuccess::OnExecute_Implementation(AActor* My
 
 	if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(MyTarget))
 		Character->ApplyJustDodgeBlink(DisappearVFX, ReappearVFX, Parameters.Normal, AfterimageMaterial);
+
+	if (ALNPPlayerCharacter* Player = Cast<ALNPPlayerCharacter>(MyTarget))
+		Player->StartJustDodgeCameraPunch();
 
 	return Super::OnExecute_Implementation(MyTarget, Parameters);
 }

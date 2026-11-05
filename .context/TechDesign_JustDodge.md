@@ -1,8 +1,8 @@
 # 저스트 회피 (Just Dodge) 기술 설계
 
 > 기획: [GameDesign_JustDodge.md](GameDesign_JustDodge.md)
-> 상세 설계 원본: [JustDodge/design/Architecture.md](JustDodge/design/Architecture.md) — 이 문서는 프로젝트 공통 요약이다. 결정 원장은 [JustDodge/Decisions.md](JustDodge/Decisions.md)(J-001~J-023)다.
-> 구현 상태: 메인 트랙 완료(2026-11-05, Phase 1~4). 비주얼 V1a 순보·V2 잔상 주요 검증 정리. 미재현 경계는 각 실행서에 명시했다.
+> 상세 설계 원본: [JustDodge/design/Architecture.md](JustDodge/design/Architecture.md) — 이 문서는 프로젝트 공통 요약이다. 결정 원장은 [JustDodge/Decisions.md](JustDodge/Decisions.md)(J-001~J-024)다.
+> 구현 상태: 메인 트랙 완료(2026-11-05, Phase 1~4). 비주얼 V1a 순보·V2 잔상·V3a 카메라/부착 오라 주요 검증 마감(2026-11-06). 미확인 경계는 각 실행서에 명시했다.
 
 ## 1. 한눈에 보기
 
@@ -29,6 +29,8 @@
 | `GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeSuccess` | 성공 큐가 캐릭터의 순보 숨김·복원과 Niagara 두 시스템을 시작한다 |
 | `Character/LNPCharacterBase` | 순보 타이머·숨김 상태·재등장 에셋 보관, 사망·종료 취소 처리 |
 | `Character/LNPCharacterBase`의 잔상 처리 | 캐릭터 소유 PoseableMesh 몸·무기 한 세트 재사용, 미부착 월드 고정·1회 포즈 복사, 공유 MID 게임 시간 페이드·0.35초 숨김 타이머 (J-023). 무기 교체·양방향 출력 확인, 잔상 수명 중 피격·넉백 경계 미확인 |
+| `Camera/LNPJustDodgeFOVCameraNode`·`Character/LNPPlayerCharacter` | 성공 큐 수신의 로컬 시작 시각을 읽어 기본 FOV 뒤 가산. ADS 생략·진입 시 종료(J-024) |
+| `GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeBuff` | 지속 큐의 부착 대상을 표시용 메시로 지정. 발밑·양손 오라의 시작/제거/재활용은 엔진 Looping 큐 경로 사용 |
 
 순보의 숨김 0.12초는 성공 큐 도착부터 재는 연출 시간이며 판정 창과 독립이다. 전신 무채색 속도선과 흰색 중심 강조, 로컬 스페이스 규칙 및 상세 수치는 [비주얼 설계](JustDodge/design/VisualDesign.md) §2.1을 따른다. 실제 서버 확정 성공의 2인 양방향 전파와 사용자 시각 평가를 확인했다. 이후 게스트 방향 불일치를 발견해, Actor 속도 대신 실제 대시 방향 미러를 성공 큐로 전달하도록 수정했다. 수정 빌드와 사용자 실제 성공 재검증을 통과했다. 남은 검증과 보정 재관찰 결과는 [V1a 실행서](JustDodge/phases/PhaseV1a_Blink.md)에 구분해 기록했다.
 
@@ -119,6 +121,7 @@ ExecuteDash (권위, 원격 게스트) 창을 E − U부터 열고 → ResolveDa
 | `LNP.Debug.Dodge 1` | 로그: `[Dodge] IFrame open/ignored`, `JustDodge success`, `Hit ... sinceJust`, `Success cue arrived`, `Grace`, `Grace release`, `Retro` |
 | `LNP.Debug.ShowDodge 1` | 화면 문구(보라 계열): `IFRAME`, `IFRAME BLOCK [RETRO]`, `JUST DODGE` |
 | `LNP.Debug.JustDodgePreview 0\|1` | 임시 로컬 대시 비주얼 미리보기(기본 0). 판정·버프는 변경하지 않는다. 실제 성공·원격 관찰·큐 지연 검증에는 끈다 |
+| `LNP.Debug.JustDodgeTest [pause\|resume]` | 임시 호스트 PIE 성공·버프·큐 재생. 기본 실시간, pause는 0.3초 뒤 에디터 정지, resume은 명시적 재개. 실제 공격 판정·지연 검증을 대신하지 않는다 |
 | `LNP.HitGrace.Enable 0\|1` | 피격 유예 A/B(기본 1) |
 | `Scripts/Profiling/AnalyzeDodgeLog.py` | 성공률·놓침·업링크·연출 지연·소급·거부 유형·누름 추정 오차 집계 |
 
@@ -137,7 +140,7 @@ ExecuteDash (권위, 원격 게스트) 창을 E − U부터 열고 → ResolveDa
 
 ## 9. 미구현 / 한계
 
-- V1a의 부재 중 교체·사망 경계와 V2의 잔상 수명 중 피격·넉백 경계는 런타임 미확인이다. 전반적인 Mover 보정 표시는 여러 행동에서 빈번했으나 체감 위치 튐은 없었고, 순보 전후 증가 비교는 미측정이다. 후속 비주얼(오라·카메라)이 남았다. 일부는 그래픽스 작업으로 넘겼다.
+- V1a의 부재 중 교체·사망 경계와 V2의 잔상 수명 중 피격·넉백 경계는 런타임 미확인이다. 전반적인 Mover 보정 표시는 여러 행동에서 빈번했으나 체감 위치 튐은 없었고, 순보 전후 증가 비교는 미측정이다. V3a 오라·카메라는 주요 검증을 마쳤으며 ADS 전환의 정확한 경계는 미확인이다. 남은 지연 체감 점검은 V4a, 이동 꼬리·화면 연출·림라이트는 그래픽스 게이트 뒤 후속 단위다.
 - 피격 유예 상한 0.25초를 넘는 지연에서는 그 너머의 거부가 남는다.
 - 공격 종류별로 저스트 회피 보상을 다르게 하면 같은 프레임 다중 성공의 우선순위 규칙이 필요하다.
 - PvP 근접에서 공격자 화면의 예측 HitStop이 상대의 무적과 한 번 어긋날 수 있다(J-014, 허용).

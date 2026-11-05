@@ -546,10 +546,26 @@ void ALNPPlayerCharacter::TickDeathCameraFollow(float DeltaSeconds)
 	GameplayCamera->SetWorldLocation(DeathCameraSmoothedLocation);
 }
 
+void ALNPPlayerCharacter::StartJustDodgeCameraPunch()
+{
+	if (IsLocallyControlled() && !IsADSActive() && !bIsDead)
+		JustDodgeCameraPunchStartTime = GetWorld()->GetTimeSeconds();
+}
+
+float ALNPPlayerCharacter::GetJustDodgeCameraPunchElapsed() const
+{
+	if (JustDodgeCameraPunchStartTime < 0.0 || !IsLocallyControlled() || IsADSActive() || bIsDead)
+		return -1.f;
+	return static_cast<float>(GetWorld()->GetTimeSeconds() - JustDodgeCameraPunchStartTime);
+}
+
 void ALNPPlayerCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickDeathCameraFollow(DeltaSeconds);
+
+	if (IsADSActive() || bIsDead)
+		JustDodgeCameraPunchStartTime = -1.0;
 
 	// 활공 모드는 SyncState로 복제되므로 각 머신이 폴링만 하면 원격 폰의 행글라이더도 맞게 보인다.
 	const bool bGliding = IsGlidingActive();

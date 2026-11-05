@@ -60,6 +60,10 @@ public:
 
 	bool IsDead() const { return bIsDead; }
 
+	/** 성공 큐 수신 시 본인 카메라의 FOV 펀치를 시작한다. ADS 중에는 생략한다. */
+	void StartJustDodgeCameraPunch();
+	float GetJustDodgeCameraPunchElapsed() const;
+
 	/** 재장전을 시도한다 (재장전 키·빈 탄창 발사 시도). 탄창 없는 무기이거나 가득 차 있으면 실패한다. */
 	bool TryReload();
 
@@ -204,4 +208,7 @@ private:
 
 	bool bDeathCameraFollowActive = false;
 	FVector DeathCameraSmoothedLocation = FVector::ZeroVector;
+
+	/** 로컬 연출 시작 시각. ADS 진입 뒤 해제해도 이전 펀치를 재개하지 않는다. */
+	double JustDodgeCameraPunchStartTime = -1.0;
 };
