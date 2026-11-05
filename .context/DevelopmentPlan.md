@@ -211,6 +211,9 @@
     - 폭발이 발사자를 거르지 않던 결함(아군 사격 시 자기 유탄에 피격) 수정. 탄 색은 보는 사람 기준 아군/적.
     - 잔여: 락온·근접 보정·LootPod 협동은 아직 팀 무관 → [Idea_Backlog.md](Idea_Backlog.md) "팀이 다른 플레이어를 적으로 다루기".
     - 설계 명세: [TechDesign_HitDetection.md](TechDesign_HitDetection.md) §3.2 팀 규칙
+- [ ] **부위별 데미지 차등 판정** (2026-11-05 설계, 구현 전)
+    - 러프 2단계: 기존 판정 캡슐(×1.0) + 캡슐 안 약점 구(인간형 적·플레이어 머리, 드론 센서, ×1.5). 투사체 직격·근접, PvP 포함. 전용 연출 없음.
+    - 설계 명세: [TechDesign_HitZoneDamage.md](TechDesign_HitZoneDamage.md)
 
 ---
 

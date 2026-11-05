@@ -637,3 +637,4 @@ HP 바 마커)는 `GetHitCapsuleRadius/HalfHeight()`를 읽는다. 되감기·�
 - **근접 임팩트 큐 에셋이 비어 있다:** `GCN_LNP_Melee_Impact`의 `VFX`·`Sound`·`CameraShake`가 모두 미설정이라
   배선은 살아 있어도 재생할 것이 없다. 순수 엔티티만의 문제가 아니라 Actor 적도 마찬가지다 — 저작 대기.
 - **피격 아이템 드랍:** 넉백은 완료, 피격 시 보유 아이템 드랍 및 LootPod Interruption 연동 미구현.
+- **부위별 데미지(약점 구 ×1.5, 투사체 직격·근접, 적·플레이어):** 설계만 완료 → [TechDesign_HitZoneDamage.md](TechDesign_HitZoneDamage.md).
