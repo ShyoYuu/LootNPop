@@ -23,6 +23,8 @@
 #include "ChooserFunctionLibrary.h"
 #include "Net/UnrealNetwork.h"
 #include "HAL/IConsoleManager.h"
+#include "TimerManager.h"
+#include "NiagaraFunctionLibrary.h"
 
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 
@@ -214,6 +216,12 @@ void ALNPCharacterBase::BeginPlay()
 	ApplyWeaponVisuals(ResolveWeaponDefForVisuals());
 }
 
+void ALNPCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	FinishJustDodgeBlink(false);
+	Super::EndPlay(EndPlayReason);
+}
+
 void ALNPCharacterBase::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -385,6 +393,68 @@ void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)
 	}), Duration, false);
 }
 
+void ALNPCharacterBase::ApplyJustDodgeBlink(UNiagaraSystem* DisappearVFX, UNiagaraSystem* ReappearVFX, const FVector& DashDirection)
+{
+	if (GetNetMode() == NM_DedicatedServer || bRagdollActive)
+		return;
+
+	if (DisappearVFX)
+	{
+		const FVector Up = GetUpDirection();
+		FVector Forward = FVector::VectorPlaneProject(DashDirection, Up).GetSafeNormal();
+		if (Forward.IsNearlyZero())
+			Forward = GetActorForwardVector();
+		const FRotator Rotation = FRotationMatrix::MakeFromXZ(Forward, Up).Rotator();
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, DisappearVFX, GetActorLocation(), Rotation,
+			FVector::OneVector, true, true, ENCPoolMethod::AutoRelease);
+	}
+	JustDodgeReappearVFX = ReappearVFX;
+
+	if (JustDodgeMeshStates.IsEmpty())
+	{
+		// 원본 메시의 상시 숨김도 보존한다. 자식으로 전파하지 않아 이펙트·카메라는 계속 표시된다.
+		for (USkeletalMeshComponent* Mesh : { AnimSourceMesh.Get(), VisualMesh.Get(), WeaponMesh.Get() })
+		{
+			JustDodgeMeshStates.Add({ Mesh, Mesh->bHiddenInGame != 0, Mesh->bCastHiddenShadow != 0 });
+			Mesh->SetCastHiddenShadow(false);
+			Mesh->SetHiddenInGame(true);
+		}
+	}
+
+	// 같은 타이머를 갱신하므로 이전 성공의 복원이 새 순보를 일찍 끝내지 않는다.
+	GetWorldTimerManager().SetTimer(JustDodgeBlinkTimer, FTimerDelegate::CreateWeakLambda(this, [this, DashDirection]()
+	{
+		FinishJustDodgeBlink(true, DashDirection);
+	}), 0.12f, false);
+}
+
+void ALNPCharacterBase::FinishJustDodgeBlink(bool bPlayReappearVFX, const FVector& DashDirection)
+{
+	GetWorldTimerManager().ClearTimer(JustDodgeBlinkTimer);
+	for (const FJustDodgeMeshState& State : JustDodgeMeshStates)
+	{
+		if (USkeletalMeshComponent* Mesh = State.Mesh.Get())
+		{
+			Mesh->SetHiddenInGame(State.bHiddenInGame);
+			Mesh->SetCastHiddenShadow(State.bCastHiddenShadow);
+		}
+	}
+	JustDodgeMeshStates.Reset();
+
+	if (bPlayReappearVFX && JustDodgeReappearVFX)
+	{
+		// 옆·뒤 대시에서도 사라짐과 같은 대시 축을 유지한다. Up은 복원 위치의 구면 기준으로 갱신한다.
+		const FVector Up = GetUpDirection();
+		FVector Forward = FVector::VectorPlaneProject(DashDirection, Up).GetSafeNormal();
+		if (Forward.IsNearlyZero())
+			Forward = GetActorForwardVector();
+		const FRotator Rotation = FRotationMatrix::MakeFromXZ(Forward, Up).Rotator();
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, JustDodgeReappearVFX, GetActorLocation(), Rotation,
+			FVector::OneVector, true, true, ENCPoolMethod::AutoRelease);
+	}
+	JustDodgeReappearVFX = nullptr;
+}
+
 void ALNPCharacterBase::ApplyLocalHitFeedback()
 {
 	ApplyHitStop(0.2f);
@@ -447,6 +517,9 @@ FVector ALNPCharacterBase::GetUpDirection() const
 
 void ALNPCharacterBase::EnterRagdoll(const FVector& PopVelocity)
 {
+	// 부재 중 사망해도 랙돌을 숨긴 채 남기지 않는다.
+	FinishJustDodgeBlink(false);
+
 	if (bRagdollActive || VisualMesh == nullptr)
 		return;
 

@@ -16,6 +16,7 @@ class UAbilitySystemComponent;
 class UMassAgentComponent;
 class UAnimMontage;
 class UAnimSequence;
+class UNiagaraSystem;
 class UGameplayAbility;
 class UChooserTable;
 class ULNPMontageChooserContext;
@@ -171,6 +172,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LNP|Combat")
 	void ApplyHitStop(float Duration, float TimeDilation = 0.1f);
 
+	/** 서버 확정 성공 큐가 부르는 순보 연출. 몸·무기·그림자를 0.12초 숨기고 복원한다. */
+	void ApplyJustDodgeBlink(UNiagaraSystem* DisappearVFX, UNiagaraSystem* ReappearVFX, const FVector& DashDirection);
+
 	/** 클라이언트 예측 판정 전용 로컬 히트 피드백 (공격자 자신의 화면에서만 즉시 재생). 서버 확정 GameplayCue와 별개. */
 	void ApplyLocalHitFeedback();
 
@@ -263,6 +267,7 @@ protected:
 	virtual bool TryActivateAttack_Impl();
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
@@ -336,6 +341,24 @@ protected:
 
 private:
 	void InitAbilitySystem();
+
+	/** 순보 전의 숨김·그림자 상태를 복원하고 타이머를 정리한다. */
+	void FinishJustDodgeBlink(bool bPlayReappearVFX, const FVector& DashDirection = FVector::ZeroVector);
+
+	struct FJustDodgeMeshState
+	{
+		TWeakObjectPtr<USkeletalMeshComponent> Mesh;
+		bool bHiddenInGame;
+		bool bCastHiddenShadow;
+	};
+
+	/** 재진입해도 첫 숨김 전 상태를 유지한다. bVisible은 무기 장착 코드가 계속 소유한다. */
+	TArray<FJustDodgeMeshState> JustDodgeMeshStates;
+	FTimerHandle JustDodgeBlinkTimer;
+
+	/** 타이머가 끝날 때 재생할 나타남 버스트. 사망·종료로 취소할 때는 재생하지 않는다. */
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraSystem> JustDodgeReappearVFX;
 
 	/** 랙돌 바디에 구형 중력을 매 틱 주입한다 (Chaos는 프로젝트의 커스텀 중력을 모른다). */
 	void TickRagdollGravity();

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeSuccess.h"
+#include "Character/LNPCharacterBase.h"
 #include "HitDetection/LNPGuardParryTypes.h"
 #include "GameFramework/Pawn.h"
 #include "LootNPop.h"
@@ -15,6 +16,9 @@ bool ULNPGameplayCueNotify_JustDodgeSuccess::OnExecute_Implementation(AActor* My
 			*GetNameSafe(MyTarget), Pawn && Pawn->IsLocallyControlled() ? 1 : 0,
 			MyTarget ? *UEnum::GetValueAsString(MyTarget->GetLocalRole()) : TEXT("None"));
 	}
+
+	if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(MyTarget))
+		Character->ApplyJustDodgeBlink(DisappearVFX, ReappearVFX, Parameters.Normal);
 
 	return Super::OnExecute_Implementation(MyTarget, Parameters);
 }

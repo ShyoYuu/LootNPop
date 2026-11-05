@@ -1,8 +1,8 @@
 # 저스트 회피 (Just Dodge) 기술 설계
 
 > 기획: [GameDesign_JustDodge.md](GameDesign_JustDodge.md)
-> 상세 설계 원본: [JustDodge/design/Architecture.md](JustDodge/design/Architecture.md) — 이 문서는 프로젝트 공통 요약이다. 결정 원장은 [JustDodge/Decisions.md](JustDodge/Decisions.md)(J-001~J-019)다.
-> 구현 상태: 메인 트랙 완료(2026-11-05, Phase 1~4). 비주얼 트랙 V는 계획 단계다.
+> 상세 설계 원본: [JustDodge/design/Architecture.md](JustDodge/design/Architecture.md) — 이 문서는 프로젝트 공통 요약이다. 결정 원장은 [JustDodge/Decisions.md](JustDodge/Decisions.md)(J-001~J-022)다.
+> 구현 상태: 메인 트랙 완료(2026-11-05, Phase 1~4). 비주얼 V1a 단위 1·2 구현 및 사용자 시각 평가 완료, 단위 3은 다음 세션에서 진행한다.
 
 ## 1. 한눈에 보기
 
@@ -26,7 +26,10 @@
 | `HitDetection/LNPHitGraceSubsystem.h/.cpp` | 피격 유예: 효과 묶음, `Dispatch`, 보류·해제·소급 |
 | `Movement/LNPCharacterMoverComponent.cpp` | `ExecuteDash` 창 기록, `IFrameDuration`·`JustDodgeWindow` |
 | `GAS/Effects/LNPGameplayEffect_JustDodgeBuff` | 버프 GE |
-| `GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeSuccess` | 성공 큐(V1a 순보가 확장할 자리) |
+| `GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeSuccess` | 성공 큐가 캐릭터의 순보 숨김·복원과 Niagara 두 시스템을 시작한다 |
+| `Character/LNPCharacterBase` | 순보 타이머·숨김 상태·재등장 에셋 보관, 사망·종료 취소 처리 |
+
+순보의 숨김 0.12초는 성공 큐 도착부터 재는 연출 시간이며 판정 창과 독립이다. 전신 무채색 속도선과 흰색 중심 강조, 로컬 스페이스 규칙 및 상세 수치는 [비주얼 설계](JustDodge/design/VisualDesign.md) §2.1을 따른다. 이번 세션의 검증은 로컬 미리보기와 시각 평가까지이며, 실제 서버 확정 성공의 2인 전파는 다음 단위에서 확인한다.
 
 ## 2. 데이터 — 만료 시각 미러
 
@@ -113,6 +116,7 @@ ExecuteDash (권위, 원격 게스트) 창을 E − U부터 열고 → ResolveDa
 |:---|:---|
 | `LNP.Debug.Dodge 1` | 로그: `[Dodge] IFrame open/ignored`, `JustDodge success`, `Hit ... sinceJust`, `Success cue arrived`, `Grace`, `Grace release`, `Retro` |
 | `LNP.Debug.ShowDodge 1` | 화면 문구(보라 계열): `IFRAME`, `IFRAME BLOCK [RETRO]`, `JUST DODGE` |
+| `LNP.Debug.JustDodgePreview 0\|1` | 임시 로컬 대시 비주얼 미리보기(기본 0). 판정·버프는 변경하지 않는다. 실제 성공·원격 관찰·큐 지연 검증에는 끈다 |
 | `LNP.HitGrace.Enable 0\|1` | 피격 유예 A/B(기본 1) |
 | `Scripts/Profiling/AnalyzeDodgeLog.py` | 성공률·놓침·업링크·연출 지연·소급·거부 유형·누름 추정 오차 집계 |
 
@@ -131,7 +135,7 @@ ExecuteDash (권위, 원격 게스트) 창을 E − U부터 열고 → ResolveDa
 
 ## 9. 미구현 / 한계
 
-- 비주얼 트랙 V(순보·잔상·오라·카메라)가 남았다. 일부는 그래픽스 작업으로 넘겼다.
+- V1a 순보 핵심의 2인·경계 검증과 후속 비주얼(잔상·오라·카메라)이 남았다. 일부는 그래픽스 작업으로 넘겼다.
 - 피격 유예 상한 0.25초를 넘는 지연에서는 그 너머의 거부가 남는다.
 - 공격 종류별로 저스트 회피 보상을 다르게 하면 같은 프레임 다중 성공의 우선순위 규칙이 필요하다.
 - PvP 근접에서 공격자 화면의 예측 HitStop이 상대의 무적과 한 번 어긋날 수 있다(J-014, 허용).

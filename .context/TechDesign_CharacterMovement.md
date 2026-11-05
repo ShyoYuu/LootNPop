@@ -364,6 +364,17 @@ CommonSettings->MaxSpeed = BaseSpeed × max(0.01, MoveSpeed)
 
 결정된 태그(`LNP.Montage.Value.Direction.*`)로 `EvaluateMontage(TAG_Montage_Situation_Dash, DirTag)`를 불러 Chooser Table에서 몽타주를 고른다.
 
+**현재 대시 모션 길이 (2026-11-05 에셋 조회):** `/Game/Characters/Retargeted/Lyra/AM_MM_Dash_*_UEFN`의 몽타주 길이는 아래와 같다. 네 방향 모두 몽타주 `RateScale=1`, 세그먼트 `AnimPlayRate=1`이며, 코드도 `Montage_Play(..., 1.0f)`로 재생한다.
+
+| 방향 | 몽타주 길이 |
+|:---|---:|
+| 앞 | 0.9333초 |
+| 뒤 | 0.9000초 |
+| 왼쪽 | 1.0000초 |
+| 오른쪽 | 0.9300초 |
+
+고속 이동 구간은 별도 파라미터 `DashDuration=0.20초`다(`BP_LNPPlayer`의 Mover 기본 객체에서도 확인). 이동이 끝나도 몽타주를 즉시 자르지 않고 마무리 모션까지 재생한다(§5.4). 회피 무적 0.15초·저스트 창 0.12초(§5.5), 성공 큐 도착부터 시작하는 순보 숨김 0.12초([비주얼 설계](JustDodge/design/VisualDesign.md) §2.1)는 각각 별도 시간이다.
+
 ### 5.3 제한 조건
 
 - 공중 발동 불가 (`IsOnGround()`). **비대칭이다** — 대시 중 점프는 허용(§5.1, 후방 회피 대시 포함), 점프 중 대시는 금지.

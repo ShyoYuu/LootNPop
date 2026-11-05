@@ -32,9 +32,20 @@
 #include "GameFramework/PlayerController.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
+#include "GameplayCueManager.h"
 #include "Containers/Ticker.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
+
+namespace
+{
+	// 비주얼 확인용 임시 경로. 실제 저스트 회피 판정·버프·서버 확정 시점은 바꾸지 않는다.
+	TAutoConsoleVariable<int32> CVarJustDodgePreview(
+		TEXT("LNP.Debug.JustDodgePreview"), 0,
+		TEXT("Preview Just Dodge visuals on every local dash without a successful dodge or buff. 0: off, 1: on."),
+		ECVF_Cheat);
+}
 
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsSprinting, "LNP.Mover.IsSprinting", "Character is sprinting");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(LNP_Mover_IsGuarding, "LNP.Mover.IsGuarding",  "Character is guarding");
@@ -399,6 +410,14 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 					Grace->ResolveDash(Pawn, PressTime, IFrameDuration, JustWindow);
 			}
 		}
+	}
+
+	if (Pawn->IsLocallyControlled() && CVarJustDodgePreview.GetValueOnGameThread() != 0)
+	{
+		FGameplayCueParameters CueParams;
+		CueParams.Location = Pawn->GetActorLocation();
+		CueParams.Normal = DashDirection;
+		UGameplayCueManager::ExecuteGameplayCue_NonReplicated(Pawn, TAG_GameplayCue_JustDodge_Success, CueParams);
 	}
 
 	OnDashExecuted.Broadcast();
