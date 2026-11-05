@@ -1,0 +1,50 @@
+# 엘리트 NPC 로드맵
+
+> 상태: 기준 로드맵
+> 읽기 조건: Phase 전환, 전체 순서 변경, 범위 재산정 시
+> 마지막 갱신: 2026-11-05
+
+## 1. 진행 원칙
+
+- 단위 하나에 세션 하나를 쓴다. 세션은 한 번에 하나씩 순차로 진행한다.
+- 각 Phase는 따로 검증하고 커밋할 수 있어야 한다.
+- 다음 Phase의 상세 실행서(`phases/PhaseEN_*.md`)는 착수 직전에 쓴다.
+- 모든 Phase의 완료 조건에 다음 두 가지를 넣는다.
+  - `design/Validation.md` §2 공통 회귀(Pod 적 스폰 수·배치 불변, Pod 루팅·Popped 보상, 기존 PureEntity 전투)
+  - 깨끗한 트리에서 Build.bat 통과
+
+## 2. 단계 의존성
+
+`E0 설계 문서화`
+→ `E1 스폰 구성·Roam 배치`
+→ `E2 사망 드랍`
+→ `E3 아레나 마커·베이크`
+→ `E4 Mass 매크로 두뇌`
+→ `E5 Actor 전투 두뇌 프레임워크`
+→ `E6 첫 엘리트 콘텐츠·2P 검증·문서 마감`
+
+- E2는 Roam 엘리트 하나만 있으면 검증할 수 있어 앞쪽에 둔다. 작고 독립적이다.
+- E3는 전 옥탄트 재베이크라는 콘텐츠 작업이 따르므로, 코드 쪽(E1·E2)이 안정된 뒤에 한다.
+- E4가 끝나야 엘리트가 "기존 적 트리로 싸우는 비귀속 적"에서 벗어난다. E1~E3 동안 엘리트는 임시로 `ST_EnemyEntity`를 쓴다. 이 경우 IdleTask가 무효 Pod 위치 주변을 배회하므로 E1에서 무해한지 확인만 한다.
+
+## 3. Phase 요약
+
+| Phase | 목표 | 예상 | 상태 | 핵심 완료 조건 |
+|:---|:---|:---:|:---|:---|
+| E0 | 설계 문서화 | 1세션 | 완료(2026-11-05) | 이 폴더 작성, EnemyNPC 문서 교차 링크, 인덱스 갱신 |
+| E1 | 스폰 구성·Roam 배치 | 1~2세션 | 계획 | `UnboundEnemies`·검증 규칙, `BuildUnboundPlan`(Roam), 귀속 프래그먼트·태그, Pod 경로 제외, Pod 편성 PureEntity 교체. PlanTest에서 Pod 계획 불변·결정론, PIE 로그에서 Unbound 스폰 수 확인, 엘리트가 Pod에 재귀속되지 않음 |
+| E2 | 사망 드랍 | 1세션 | 계획 | `DeathRewards`, `SpawnRewardSet` 추출(Pod 보상 회귀 없음), `ULNPHealthProcessor` 배치 커맨드. PIE에서 Roam 엘리트 처치 시 Dice 드랍, 2P 게스트가 보고 주움 |
+| E3 | 아레나 마커·베이크 | 1~2세션 | 계획 | `ALNPArenaSpawnPoint`, Spawn codec v4(`LNPSpawnDataTest` 통과), 베이커 수집·투영, 전 옥탄트 재베이크, 보스 랜드마크 옥탄트에 마커 배치, Arena 배치 계획. 아레나 엘리트가 마커 위치에 스폰됨 |
+| E4 | Mass 매크로 두뇌 | 2세션 | 계획 | `ST_EnemyUnbound`(Guard·Roam·Return·Alert·Combat), 귀속 Evaluator, HomeMode별 추격 자격, 해제 리셋 프로세서, `FLNPEnemyActorBrainTag`와 의도 소유권. PIE: 아레나 이탈 → 귀환 → 리셋, 밖에서 사격해도 교전 안 함, Roam이 옥탄트 이음매를 넘어 순회 |
+| E5 | Actor 전투 두뇌 프레임워크 | 2세션 | 계획 | `CombatBrain` 컴포넌트·노드(Evaluator·패턴 발동·전투 이동·주시·준비 조건), `ULNPAbility_MontagePattern`, 경직 시 패턴 어빌리티 전체 취소. 시험 엘리트가 패턴 2개를 거리로 고르고, 경직이 패턴을 끊고, StateTree 디버거로 전이 확인 |
+| E6 | 첫 엘리트 콘텐츠·2P 검증·문서 마감 | 2세션 | 계획 | 아레나 보스 1종(2페이즈, 패턴 4~6개)·배회형 1종, 2P PIE, Promoted Actor 대역폭 측정(1기 700~900 B/s 범위 확인), 패키지 프레임 확인, 공통 설계 문서·인덱스 3곳 |
+
+## 4. 착수 전 조사 항목
+
+| Phase | 먼저 확인할 것 |
+|:---|:---|
+| E1 | `SetupSpawnedEntities`에서 프래그먼트·태그를 붙이는 방법(지연 커맨드 vs 템플릿). 게스트 쪽 템플릿 등록과 복제 아키타입이 어긋나지 않는지 |
+| E3 | codec 버전을 올렸을 때 옛 스트림이 Decode에서 확실히 실패하는지, 재베이크 대상 옥탄트 목록 |
+| E4 | `ULNPEnemyPathProcessor`의 경로 요청을 Idle·Roam에 열 때 장거리(옥탄트 간) 경로 비용과 예산. `ULNPEnemyTargetFollowProcessor` 신호가 Engage 상태에도 오는지 |
+| E5 | UE 5.8 `UStateTreeComponent` 스키마로 Pawn 컨텍스트를 받을 수 있는지(AIController 없이), Utility Selection·Consideration API, ASC 어빌리티 종료 델리게이트를 Task가 안전하게 구독·해제하는 방법 |
+| E6 | Promoted 슬롯 2로 아레나 엘리트 + 배회 엘리트가 겹칠 때 슬롯을 놓치는지 |

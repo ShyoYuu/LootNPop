@@ -8,6 +8,8 @@ Enemy NPC의 행동 선택을 MassEntity + StateTree로 구현한다. 길찾기(
 
 ⚠️ **Task Tick은 신호 구동이다.** `StateTreeActivate` 신호가 없으면 돌지 않으므로, Task 안에 타임아웃을 넣어도 그 코드가 실행되지 않는다. 시간 계측과 깨우기는 매 프레임 도는 프로세서가 맡는다 (§3.B.4의 배회 교착 복구).
 
+이 문서는 Pod 적이 쓰는 `ST_EnemyEntity`를 다룬다. Pod에 귀속되지 않는 적(엘리트)은 별도 트리 `ST_EnemyUnbound`(매크로)와 Actor의 전투 트리(패턴)를 쓴다 → [EliteNPC/design/Architecture.md](EliteNPC/design/Architecture.md) §6, §7 (2026-11-05 설계, 구현 예정).
+
 ---
 
 ## 2. StateTree 구조 (`ST_EnemyEntity`)

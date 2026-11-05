@@ -49,6 +49,7 @@
 | .context/TechDesign_JustDodge.md | 회피 창 만료 시각 미러, Judge 확장(패링→저스트→무적→가드→피격), 경로별 처리, 성공 커맨드·버프 GE, 피격 유예 버퍼(누름 추정 U·보류 H 분리, 소급 판정) |
 | .context/JustDodge/README.md | 저스트 회피 작업 진입점(여러 세션 이어 가기용 폴더) — 메인 트랙 완료(대시 무적, Judge 단일 지점 확장, 저스트 회피 판정·버프, 지연 대응 피격 유예 버퍼), 비주얼 별도 트랙(순보·잔상·오라)과 그래픽스 이관 항목 단계 계획 |
 | .context/Graphics/README.md | 그래픽스 작업 진입점(여러 세션 이어 가기용 폴더) — 패키지 빌드 측정 하네스·기준선, 벤치마크 콘텐츠(옥탄트 1개·파라곤 적), 대규모 적 전투 렌더링 비용 분석·전환 팝핑, RDG 렌더 패스(화면 효과 레이어·캐릭터 강조·스캔 시야), 구면 지형 흔적, JustDodge 이관 항목 단계 계획 |
+| .context/EliteNPC/README.md | 엘리트 NPC 작업 진입점(여러 세션 이어 가기용 폴더) — Pod 적 PureEntity 전환, Pod 비귀속 ActorPromoted 적(배회·아레나), 귀속 축(HomeMode)·별도 시드 배치·아레나 마커 베이크, Mass 매크로 StateTree + Actor 전투 StateTree 두뇌 분할(BT 기각), 아레나 이탈 리셋, 사망 LootDice 드랍 단계 계획 |
 | .context/EngineAnalysis_SlateUMG.md | Unreal Engine의 Slate·UMG 분석 — 레이아웃 2패스, 슬롯 개념, 위젯 수명주기, 애니메이션·드래그앤드롭, Invalidation·Retainer 성능 |
 | .context/EngineAnalysis_MVVM.md | Unreal Engine의 ModelViewViewModel 분석 — FieldNotify 통지, 바인딩·실행 모드, ViewModel 주입 6종, 리스트 한계 |
 | .context/EngineAnalysis_CommonUI.md | Unreal Engine의 CommonUI 분석 — 화면 활성화·Back 전파, 입력 액션/모드, 스타일 에셋, 탭·리스트 함정 |

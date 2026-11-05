@@ -57,6 +57,10 @@ enum class ELNPEnemyCombatMode : uint8
 `bCanPromoteToActor` + `bHasEntityAttack`처럼 bool 둘로 쪼개지 않는 이유도 같다 — bool 조합은
 정의되지 않은 상태(둘 다 false / 둘 다 true)를 만들고, 그 동작을 문서로 방어해야 한다.
 
+**보강(2026-11-05):** 엘리트 작업에서 이 규약을 유지하기로 했다. 시스템 축은 두 개가 된다 — 위의
+`ELNPEnemyCombatMode`와, 적이 무엇을 집으로 삼는가를 가르는 **귀속 방식** `ELNPEnemyHomeMode { Pod, Arena, Roam }`.
+"엘리트"는 여전히 기획 용어이고 코드에서는 "비귀속(Unbound) 적"이다 → [EliteNPC/Decisions.md](EliteNPC/Decisions.md) EL-002.
+
 ---
 
 ## 3. 이미 준비되어 있는 것 (재사용 자산)
