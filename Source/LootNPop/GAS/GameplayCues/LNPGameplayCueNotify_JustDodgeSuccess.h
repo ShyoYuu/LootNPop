@@ -6,6 +6,8 @@
 #include "GAS/GameplayCues/LNPGameplayCueNotify_VFXSound.h"
 #include "LNPGameplayCueNotify_JustDodgeSuccess.generated.h"
 
+class UMaterialInterface;
+
 /**
  * 저스트 회피 성공 큐(`GameplayCue.LNP.JustDodge.Success`) — 서버 FLNPJustDodgeCommand가 실행하고 ASC를 타고 모든 머신에 도착한다.
  *
@@ -27,4 +29,8 @@ protected:
 	/** 0.12초 뒤 복원 위치에서 재생할 버스트. 대시 축 속도선과 흰색 중심 강조를 포함한다. */
 	UPROPERTY(EditDefaultsOnly, Category = "LNP|VFX")
 	TObjectPtr<UNiagaraSystem> ReappearVFX;
+
+	/** 몸·표시 중인 무기의 고정 포즈 잔상. StartTime에서 0.35초 동안 머티리얼이 페이드한다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|VFX")
+	TObjectPtr<UMaterialInterface> AfterimageMaterial;
 };

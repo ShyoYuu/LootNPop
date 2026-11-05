@@ -97,7 +97,7 @@ Phase 2까지 판정·버프·연출 경계가 모두 붙었고, 수치는 초�
 | 회차 | 지연 | 편성 | 추가 행동 |
 |:---|:---|:---|:---|
 | R1 | 없음 | 기본 `DA_MassSpawnConfig`(군중) | 군중 속 저스트 회피가 지나치게 쉬운지. **J-03**(게스트 화염·폭발 안에서 호스트 대시) |
-| R2 | 중간 (게스트 RTT 약 50ms 목표) | `DA_MassSpawnConfig_TestOnePerSpecies` + `LNP.Spawn.ConfigOverride` | 근접·직격 저스트 회피 반복, 버프 경계 보정(`mover.debug.ShowCorrections 1`) |
+| R2 | 중간 (게스트 RTT 약 50ms 목표) | `DA_MassSpawnConfig_TestOnePerSpecies` + `LNP.Spawn.ConfigOverride` | 근접·직격 저스트 회피 반복, 버프 경계 보정(`Mover.LocalPlayer.ShowCorrections`) |
 | R3 | 높음 (게스트 RTT 약 100ms 목표) | R2와 같음 | R2와 같음. 게스트 체감 "피했는데 맞았다" 빈도 |
 
 - 매회 `LNP.Debug.Dodge 1`, `LNP.Debug.ShowDodge 1`. 지연값은 시작 시 넣고, 실제 값은 1-3 업링크 표로 확정한다.

@@ -593,10 +593,10 @@ struct FLNPJustDodgeCommand : public FMassBatchedCommand
 			ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 		}
 
-		// 비주얼 트랙 경계 — 순보 연출이 위치와 대시 방향을 쓴다. 지금은 빈 GCN이다.
+		// 소급 성공은 대시 이동 적용 전에도 실행된다. Actor 속도 대신 해당 대시의 기록된 방향을 전파한다.
 		FGameplayCueParameters CueParams;
 		CueParams.Location = Victim->GetActorLocation();
-		CueParams.Normal   = Victim->GetVelocity().GetSafeNormal();
+		CueParams.Normal   = PS->DodgeDirection;
 		ASC->ExecuteGameplayCue(TAG_GameplayCue_JustDodge_Success, CueParams);
 
 		LNPGuardParry::ReportJustDodgeSuccess(Entry.Attack, Victim);

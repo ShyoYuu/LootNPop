@@ -18,7 +18,7 @@ bool ULNPGameplayCueNotify_JustDodgeSuccess::OnExecute_Implementation(AActor* My
 	}
 
 	if (ALNPCharacterBase* Character = Cast<ALNPCharacterBase>(MyTarget))
-		Character->ApplyJustDodgeBlink(DisappearVFX, ReappearVFX, Parameters.Normal);
+		Character->ApplyJustDodgeBlink(DisappearVFX, ReappearVFX, Parameters.Normal, AfterimageMaterial);
 
 	return Super::OnExecute_Implementation(MyTarget, Parameters);
 }

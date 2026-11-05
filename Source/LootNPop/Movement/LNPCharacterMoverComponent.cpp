@@ -401,6 +401,7 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 
 			PF->DodgeIFrameExpiryTime = PressTime + IFrameDuration;
 			PF->JustDodgeExpiryTime   = PressTime + JustWindow;
+			PF->DodgeDirection       = DashDirection;
 			PF->bJustDodgeConsumed    = false;
 			LNPGuardParry::ReportDodgeWindowOpened(Pawn, PF->DodgeIFrameExpiryTime, IFrameDuration, JustWindow, Uplink);
 

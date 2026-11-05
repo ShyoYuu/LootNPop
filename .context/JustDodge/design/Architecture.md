@@ -24,6 +24,7 @@
 |:---|---:|:---|
 | `DodgeIFrameExpiryTime` | -1 | 무적 창 절대 만료 시각(`World->GetTimeSeconds()` 기준). -1이면 없음 |
 | `JustDodgeExpiryTime` | -1 | 저스트 창 절대 만료 시각 (Phase 2) |
+| `DodgeDirection` | 영벡터 | 실제 대시 이동의 월드 방향. 비리시뮬레이션 분기에서 창과 함께 기록하고 일반·소급 성공 큐가 읽는다 |
 | `bJustDodgeConsumed` | false | 이번 대시의 저스트 회피를 이미 썼는지 (J-011, Phase 2) |
 
 구조체 이름을 바꾸지 않는 이유: 이 구조체를 참조하는 프로세서 쿼리·`LNPPoiseTypes.cpp:102`·InputHandler가 모두 그대로 동작한다. 의미가 "방어 상태"로 넓어졌다는 점은 헤더 주석으로 남긴다.
@@ -38,6 +39,7 @@ ExecuteDash(...)
      Now = World->GetTimeSeconds()
      PF->DodgeIFrameExpiryTime = Now + IFrameDuration
      PF->JustDodgeExpiryTime   = Now + JustDodgeWindow   (Phase 2)
+     PF->DodgeDirection       = DashDirection
      PF->bJustDodgeConsumed    = false                   (Phase 2)
   OnDashExecuted.Broadcast() / Montage_Play (기존)
 ```
@@ -93,7 +95,7 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
 
 1. 소비 플래그를 확인하고 이미 소비됐으면 버린다. 아니면 세운다.
 2. 버프 GE `ULNPGameplayEffect_JustDodgeBuff`를 방어자 ASC에 적용한다.
-3. `GameplayCue.LNP.JustDodge.Success`를 실행한다. 큐에 실을 정보는 위치와 대시 방향이다(V1a 연출에 쓴다).
+3. `GameplayCue.LNP.JustDodge.Success`를 실행한다. 큐의 `Location`은 현재 방어자 위치, `Normal`은 프래그먼트에 기록된 `DodgeDirection`이다. `ExecuteDash`는 소급 판정의 `ResolveDash`를 부르기 전에 이 방향을 기록한다. Actor의 현재 속도는 새 대시 적용 전의 값일 수 있으므로 사용하지 않는다(V1a 방향 버그 수정).
 4. 서버 로그 `[Dodge] JustDodge success player=<id> attack=<Melee|Projectile>`를 남긴다.
 
 - 공격자에게는 아무 효과도 주지 않는다(감속·경직 없음 — 사용자 결정).
@@ -197,4 +199,4 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
   - 서버 판정 시점에 띄우는 `GEngine` 문구라 단일 프로세스 PIE에서는 모든 창에 보인다. 별도 프로세스 게스트에게는 보이지 않는다
   - `JUST DODGE  <Melee|Projectile>  (<폰>)` — **밝은 자홍**: 서버가 저스트 회피를 확정할 때 1.5초. 비주얼이 없는 메인 트랙에서 테스터 피드백용이다. `IFRAME BLOCK`과 같은 이유로 단일 프로세스 PIE에서는 모든 창에 보인다
 - `LNP.HitGrace.Enable [0|1]`(기본 1) — 피격 유예 A/B. `[Dodge] Grace ...`·`Grace release ...`·`Retro ...` 줄과 `IFrame open`의 `press=`·`uplink=`는 `design/Validation.md` §6.
-- 보조 도구는 기존 것을 쓴다: `LNP.Debug.ShowSpeed 1`(버프 배율 확인), `mover.debug.ShowCorrections 1`, `LNP.Spawn.EnemyDensity 0`(보정 진단 시 적 제거).
+- 보조 도구는 기존 것을 쓴다: `LNP.Debug.ShowSpeed 1`(버프 배율 확인), `Mover.LocalPlayer.ShowCorrections`, `LNP.Spawn.EnemyDensity 0`(보정 진단 시 적 제거).

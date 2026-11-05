@@ -88,7 +88,7 @@ Phase 1에서 대시가 무적 창을 열고, `Judge`가 `Dodged`를 판정하�
 ## 단위 4 — 검증과 마무리
 
 1. 1인 PIE: J-01~J-07, J-09.
-2. 리슨 2인 PIE: J-08(게스트 저스트 회피와 버프 경계 보정, `mover.debug.ShowCorrections 1`, 필요하면 `LNP.Spawn.EnemyDensity 0`), D-07 재확인(게스트 Ghost 생략 로그).
+2. 리슨 2인 PIE: J-08(게스트 저스트 회피와 버프 경계 보정, `Mover.LocalPlayer.ShowCorrections`, 필요하면 `LNP.Spawn.EnemyDensity 0`), D-07 재확인(게스트 Ghost 생략 로그).
 3. 공통 회귀(`design/Validation.md` §2).
 4. J 시나리오를 요인설계로 묶어 사용자 플레이 테스트를 1회 요청한다. 편성은 Phase 1과 같은 `DA_MassSpawnConfig_TestOnePerSpecies` + `LNP.Spawn.ConfigOverride`, PvP 경로는 `LNP.Team.Set 1 2`.
 5. 커밋한 뒤 깨끗한 트리에서 Build.bat을 다시 돌린다.

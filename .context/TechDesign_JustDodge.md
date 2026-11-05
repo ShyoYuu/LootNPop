@@ -1,8 +1,8 @@
 # 저스트 회피 (Just Dodge) 기술 설계
 
 > 기획: [GameDesign_JustDodge.md](GameDesign_JustDodge.md)
-> 상세 설계 원본: [JustDodge/design/Architecture.md](JustDodge/design/Architecture.md) — 이 문서는 프로젝트 공통 요약이다. 결정 원장은 [JustDodge/Decisions.md](JustDodge/Decisions.md)(J-001~J-022)다.
-> 구현 상태: 메인 트랙 완료(2026-11-05, Phase 1~4). 비주얼 V1a 단위 1·2 구현 및 사용자 시각 평가 완료, 단위 3은 다음 세션에서 진행한다.
+> 상세 설계 원본: [JustDodge/design/Architecture.md](JustDodge/design/Architecture.md) — 이 문서는 프로젝트 공통 요약이다. 결정 원장은 [JustDodge/Decisions.md](JustDodge/Decisions.md)(J-001~J-023)다.
+> 구현 상태: 메인 트랙 완료(2026-11-05, Phase 1~4). 비주얼 V1a 순보·V2 잔상 주요 검증 정리. 미재현 경계는 각 실행서에 명시했다.
 
 ## 1. 한눈에 보기
 
@@ -28,8 +28,9 @@
 | `GAS/Effects/LNPGameplayEffect_JustDodgeBuff` | 버프 GE |
 | `GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeSuccess` | 성공 큐가 캐릭터의 순보 숨김·복원과 Niagara 두 시스템을 시작한다 |
 | `Character/LNPCharacterBase` | 순보 타이머·숨김 상태·재등장 에셋 보관, 사망·종료 취소 처리 |
+| `Character/LNPCharacterBase`의 잔상 처리 | 캐릭터 소유 PoseableMesh 몸·무기 한 세트 재사용, 미부착 월드 고정·1회 포즈 복사, 공유 MID 게임 시간 페이드·0.35초 숨김 타이머 (J-023). 무기 교체·양방향 출력 확인, 잔상 수명 중 피격·넉백 경계 미확인 |
 
-순보의 숨김 0.12초는 성공 큐 도착부터 재는 연출 시간이며 판정 창과 독립이다. 전신 무채색 속도선과 흰색 중심 강조, 로컬 스페이스 규칙 및 상세 수치는 [비주얼 설계](JustDodge/design/VisualDesign.md) §2.1을 따른다. 이번 세션의 검증은 로컬 미리보기와 시각 평가까지이며, 실제 서버 확정 성공의 2인 전파는 다음 단위에서 확인한다.
+순보의 숨김 0.12초는 성공 큐 도착부터 재는 연출 시간이며 판정 창과 독립이다. 전신 무채색 속도선과 흰색 중심 강조, 로컬 스페이스 규칙 및 상세 수치는 [비주얼 설계](JustDodge/design/VisualDesign.md) §2.1을 따른다. 실제 서버 확정 성공의 2인 양방향 전파와 사용자 시각 평가를 확인했다. 이후 게스트 방향 불일치를 발견해, Actor 속도 대신 실제 대시 방향 미러를 성공 큐로 전달하도록 수정했다. 수정 빌드와 사용자 실제 성공 재검증을 통과했다. 남은 검증과 보정 재관찰 결과는 [V1a 실행서](JustDodge/phases/PhaseV1a_Blink.md)에 구분해 기록했다.
 
 ## 2. 데이터 — 만료 시각 미러
 
@@ -39,6 +40,7 @@
 |:---|:---|
 | `DodgeIFrameExpiryTime` | 무적 창 절대 만료 시각(`World->GetTimeSeconds()`), −1 = 없음 |
 | `JustDodgeExpiryTime` | 저스트 창 만료 시각. 길이는 무적 창 이하로 묶는다 |
+| `DodgeDirection` | 실제 대시 이동의 월드 방향. 소급 판정 전에 기록하고 성공 큐 `Normal`로 전파한다. Actor 속도로 추정하지 않는다 |
 | `bJustDodgeConsumed` | 이번 대시의 저스트 회피를 썼는가(대시당 1회) |
 | `HitGraceSeconds` | 서버 전용 피격 유예 보류 길이(§6). 0이면 즉시 처리 |
 
@@ -135,7 +137,7 @@ ExecuteDash (권위, 원격 게스트) 창을 E − U부터 열고 → ResolveDa
 
 ## 9. 미구현 / 한계
 
-- V1a 순보 핵심의 2인·경계 검증과 후속 비주얼(잔상·오라·카메라)이 남았다. 일부는 그래픽스 작업으로 넘겼다.
+- V1a의 부재 중 교체·사망 경계와 V2의 잔상 수명 중 피격·넉백 경계는 런타임 미확인이다. 전반적인 Mover 보정 표시는 여러 행동에서 빈번했으나 체감 위치 튐은 없었고, 순보 전후 증가 비교는 미측정이다. 후속 비주얼(오라·카메라)이 남았다. 일부는 그래픽스 작업으로 넘겼다.
 - 피격 유예 상한 0.25초를 넘는 지연에서는 그 너머의 거부가 남는다.
 - 공격 종류별로 저스트 회피 보상을 다르게 하면 같은 프레임 다중 성공의 우선순위 규칙이 필요하다.
 - PvP 근접에서 공격자 화면의 예측 HitStop이 상대의 무적과 한 번 어긋날 수 있다(J-014, 허용).

@@ -15,6 +15,8 @@
 
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/PoseableMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "AbilitySystemComponent.h"
 #include "MassAgentComponent.h"
 #include "Character/LNPMassAgentComponent.h"
@@ -219,6 +221,7 @@ void ALNPCharacterBase::BeginPlay()
 void ALNPCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	FinishJustDodgeBlink(false);
+	HideJustDodgeAfterimage();
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -393,10 +396,15 @@ void ALNPCharacterBase::ApplyHitStop(float Duration, float TimeDilation)
 	}), Duration, false);
 }
 
-void ALNPCharacterBase::ApplyJustDodgeBlink(UNiagaraSystem* DisappearVFX, UNiagaraSystem* ReappearVFX, const FVector& DashDirection)
+void ALNPCharacterBase::ApplyJustDodgeBlink(UNiagaraSystem* DisappearVFX, UNiagaraSystem* ReappearVFX, const FVector& DashDirection,
+	UMaterialInterface* AfterimageMaterial)
 {
 	if (GetNetMode() == NM_DedicatedServer || bRagdollActive)
 		return;
+
+	// 숨기기 전의 표시 포즈를 복사한다. 미리보기와 실제 큐가 겹쳐도 숨긴 포즈로 덮어쓰지 않는다.
+	if (AfterimageMaterial && JustDodgeMeshStates.IsEmpty())
+		StartJustDodgeAfterimage(AfterimageMaterial);
 
 	if (DisappearVFX)
 	{
@@ -426,6 +434,58 @@ void ALNPCharacterBase::ApplyJustDodgeBlink(UNiagaraSystem* DisappearVFX, UNiaga
 	{
 		FinishJustDodgeBlink(true, DashDirection);
 	}), 0.12f, false);
+}
+
+void ALNPCharacterBase::StartJustDodgeAfterimage(UMaterialInterface* Material)
+{
+	if (!JustDodgeAfterimageMID)
+		JustDodgeAfterimageMID = UMaterialInstanceDynamic::Create(Material, this);
+	JustDodgeAfterimageMID->SetScalarParameterValue(TEXT("StartTime"), GetWorld()->GetTimeSeconds());
+
+	auto CopySnapshot = [this](USkeletalMeshComponent* Source, TObjectPtr<UPoseableMeshComponent>& Snapshot)
+	{
+		if (!Source->GetSkeletalMeshAsset() || !Source->IsVisible() || Source->bHiddenInGame)
+		{
+			if (Snapshot)
+				Snapshot->SetVisibility(false);
+			return;
+		}
+
+		if (!Snapshot)
+		{
+			Snapshot = NewObject<UPoseableMeshComponent>(this);
+			Snapshot->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Snapshot->SetGenerateOverlapEvents(false);
+			Snapshot->SetCastShadow(false);
+			Snapshot->SetReceivesDecals(false);
+			AddInstanceComponent(Snapshot);
+			Snapshot->RegisterComponent();
+			Snapshot->SetComponentTickEnabled(false);
+		}
+
+		// 부착·Leader Pose 없이 복사한다. 이후 본체 이동·넉백·물리 반응은 잔상에 전달되지 않는다.
+		Snapshot->SetSkinnedAssetAndUpdate(Source->GetSkinnedAsset());
+		Snapshot->SetWorldTransform(Source->GetComponentTransform());
+		Snapshot->CopyPoseFromSkeletalComponent(Source);
+		for (int32 Index = 0; Index < Source->GetNumMaterials(); ++Index)
+			Snapshot->SetMaterial(Index, JustDodgeAfterimageMID);
+		Snapshot->RefreshBoneTransforms();
+		Snapshot->SetVisibility(true);
+	};
+	CopySnapshot(VisualMesh, JustDodgeBodyAfterimage);
+	CopySnapshot(WeaponMesh, JustDodgeWeaponAfterimage);
+
+	// 페이드는 머티리얼의 게임 시간으로 계산한다. CPU에서는 끝날 때 한 번 숨긴다.
+	GetWorldTimerManager().SetTimer(JustDodgeAfterimageTimer, this, &ALNPCharacterBase::HideJustDodgeAfterimage, 0.35f, false);
+}
+
+void ALNPCharacterBase::HideJustDodgeAfterimage()
+{
+	GetWorldTimerManager().ClearTimer(JustDodgeAfterimageTimer);
+	if (JustDodgeBodyAfterimage)
+		JustDodgeBodyAfterimage->SetVisibility(false);
+	if (JustDodgeWeaponAfterimage)
+		JustDodgeWeaponAfterimage->SetVisibility(false);
 }
 
 void ALNPCharacterBase::FinishJustDodgeBlink(bool bPlayReappearVFX, const FVector& DashDirection)

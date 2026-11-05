@@ -48,6 +48,9 @@ struct LOOTNPOP_API FLNPParryStateFragment : public FMassFragment
 	 */
 	double JustDodgeExpiryTime = -1.0;
 
+	/** 이번 대시의 월드 방향. 성공 큐는 아직 갱신되지 않았을 수 있는 Actor 속도 대신 이 값을 쓴다. */
+	FVector DodgeDirection = FVector::ZeroVector;
+
 	/**
 	 * 이번 대시의 저스트 회피를 이미 썼는가 (대시 한 번에 한 번, J-011). 대시가 false로 되돌린다.
 	 * ⚠️ 판정 프로세서(Worker Thread)는 읽기만 한다 — 세우는 것은 Game Thread의 성공 커맨드 몫이다.

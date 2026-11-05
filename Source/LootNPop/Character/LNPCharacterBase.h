@@ -17,6 +17,9 @@ class UMassAgentComponent;
 class UAnimMontage;
 class UAnimSequence;
 class UNiagaraSystem;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
+class UPoseableMeshComponent;
 class UGameplayAbility;
 class UChooserTable;
 class ULNPMontageChooserContext;
@@ -173,7 +176,8 @@ public:
 	void ApplyHitStop(float Duration, float TimeDilation = 0.1f);
 
 	/** 서버 확정 성공 큐가 부르는 순보 연출. 몸·무기·그림자를 0.12초 숨기고 복원한다. */
-	void ApplyJustDodgeBlink(UNiagaraSystem* DisappearVFX, UNiagaraSystem* ReappearVFX, const FVector& DashDirection);
+	void ApplyJustDodgeBlink(UNiagaraSystem* DisappearVFX, UNiagaraSystem* ReappearVFX, const FVector& DashDirection,
+		UMaterialInterface* AfterimageMaterial);
 
 	/** 클라이언트 예측 판정 전용 로컬 히트 피드백 (공격자 자신의 화면에서만 즉시 재생). 서버 확정 GameplayCue와 별개. */
 	void ApplyLocalHitFeedback();
@@ -344,6 +348,20 @@ private:
 
 	/** 순보 전의 숨김·그림자 상태를 복원하고 타이머를 정리한다. */
 	void FinishJustDodgeBlink(bool bPlayReappearVFX, const FVector& DashDirection = FVector::ZeroVector);
+	void StartJustDodgeAfterimage(UMaterialInterface* Material);
+	void HideJustDodgeAfterimage();
+
+	/** 캐릭터에는 소유만 되고 부착되지 않는다. 포즈 복사 후 Tick 없이 월드에 고정한다. */
+	UPROPERTY(Transient)
+	TObjectPtr<UPoseableMeshComponent> JustDodgeBodyAfterimage;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPoseableMeshComponent> JustDodgeWeaponAfterimage;
+
+	/** 몸·무기가 같은 시간으로 페이드한다. 성공할 때 시작 시각만 갱신한다. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> JustDodgeAfterimageMID;
+	FTimerHandle JustDodgeAfterimageTimer;
 
 	struct FJustDodgeMeshState
 	{
