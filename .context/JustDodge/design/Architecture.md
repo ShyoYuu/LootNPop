@@ -93,7 +93,7 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
 
 1. 소비 플래그를 확인하고 이미 소비됐으면 버린다. 아니면 세운다.
 2. 버프 GE `ULNPGameplayEffect_JustDodgeBuff`를 방어자 ASC에 적용한다.
-3. `GameplayCue.LNP.JustDodge.Success`를 실행한다. 큐에 실을 정보는 위치와 대시 방향이다(V1 연출에 쓴다).
+3. `GameplayCue.LNP.JustDodge.Success`를 실행한다. 큐에 실을 정보는 위치와 대시 방향이다(V1a 연출에 쓴다).
 4. 서버 로그 `[Dodge] JustDodge success player=<id> attack=<Melee|Projectile>`를 남긴다.
 
 - 공격자에게는 아무 효과도 주지 않는다(감속·경직 없음 — 사용자 결정).

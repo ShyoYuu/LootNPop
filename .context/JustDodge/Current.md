@@ -1,7 +1,7 @@
 # 저스트 회피 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: 메인 트랙 완료(Phase 1~4, 2026-11-05). 남은 것은 비주얼 트랙 V — 착수 대기
+> 현재 작업: 메인 트랙 완료(Phase 1~4, 2026-11-05). 다음은 비주얼 트랙 1차(V1a) — 착수 전
 > 마지막 갱신: 2026-11-05
 
 ## 현재 결정
@@ -15,19 +15,22 @@
 - 연출은 서버 확정 뒤에만 낸다(J-007).
 - 화상 지속 틱은 무적으로 막지 않는다(J-013). PvP 근접 예측 HitStop 어긋남은 허용한다(J-014).
 - 원격 게스트 피격 효과는 피격 유예 버퍼로 보류하고, 늦게 도착한 대시가 소급 회피한다(J-015~J-019, J-010 대체).
-- 비주얼은 마지막 독립 트랙으로 둔다(J-012).
+- 비주얼은 메인 트랙 뒤의 독립 트랙으로 둔다(J-012). 그래픽스와 무관한 1차(V1a·V2·V3a·V4a)는 그래픽스 Phase 0보다 먼저 하고, 2차(V3b·V5·V6·V4b)는 그래픽스 게이트 뒤에 한다(J-020).
 
 ## 메인 트랙이 남긴 토대
 
 - 판정: `ExecuteDash`가 무적·저스트 창을 `FLNPParryStateFragment`에 기록한다(원격 게스트는 `E − U`부터). `Judge` 순서는 Parried → JustDodged → (반경 밖 None) → Dodged → Guarded → Hit이다. 성공은 `FLNPJustDodgeCommand`가 버프 GE와 `.Success` 큐로 처리한다.
 - 수치: Mover 컴포넌트의 `IFrameDuration` 0.15·`JustDodgeWindow` 0.12. 프로젝트 설정 `Combat|Just Dodge`는 버프 2.5초·0.2·0.2와 피격 유예 `HitGraceInputAllowance` 0.045·`HitGraceJitterMargin` 0.04·`HitGraceMax` 0.25다.
-- 연출 경계: 큐 태그 `GameplayCue.LNP.JustDodge.Success`·`.Buff`. 성공 큐 에셋의 부모는 `ULNPGameplayCueNotify_JustDodgeSuccess`다. V1이 이 클래스에 순보를 붙인다. 소유 화면의 누름 → 큐 지연은 RTT +100에서 p50 약 150ms, PktLag 50(두 창)에서 약 225ms다. V-05에서 다시 본다.
+- 연출 경계: 큐 태그 `GameplayCue.LNP.JustDodge.Success`·`.Buff`. 성공 큐 에셋의 부모는 `ULNPGameplayCueNotify_JustDodgeSuccess`다. V1a가 이 클래스에 순보를 붙인다. 소유 화면의 누름 → 큐 지연은 RTT +100에서 p50 약 150ms, PktLag 50(두 창)에서 약 225ms다. V-05에서 다시 본다.
 - 프로젝트 공통 문서: [GameDesign_JustDodge.md](../GameDesign_JustDodge.md), [TechDesign_JustDodge.md](../TechDesign_JustDodge.md).
 
 ## 바로 다음 행동
 
-- 비주얼 트랙 V는 사용자 계획상 그래픽스 작업 뒤에 한다. 착수 전에 [Graphics/Current.md](../Graphics/Current.md)에서 두 가지를 확인한다. 화면 효과 레이어가 생겼는가, 그리고 Niagara 원거리 정밀도 문제의 원인이 확정됐는가(`Roadmap.md` §4 비주얼 트랙).
-- V1을 시작할 때 `phases/PhaseV1_*.md` 실행서를 쓴다. 설계 원본은 `design/VisualDesign.md`다.
+- V1a(순보 핵심) 실행서 `phases/PhaseV1a_*.md`를 쓰고 사용자 확인을 받는다. 설계 원본은 `design/VisualDesign.md` §2.1이다.
+  - 1차의 제약(`Roadmap.md` §4 비주얼 트랙): Niagara는 로컬 스페이스 버스트만, 캐릭터 오버레이 머티리얼 금지, 화면 연출 임시 구현 금지.
+  - 실행서에서 정할 것: 보라색 구체 값, 숨김·복원을 맡을 캐릭터 함수 이름, 부재·나타남 길이.
+- 1차 순서는 V1a → V2 → V3a → V4a다. V3a 착수 전에 ADS FOV와 FOV 펀치의 우선순위를 사용자와 정한다.
+- 2차 단위(V3b·V5·V6·V4b)는 [Graphics/Current.md](../Graphics/Current.md)에서 게이트(단위 N·3-2·3-3)가 끝났는지 확인한 뒤 시작한다.
 - 수치 상향(버프)은 사용자가 플레이하면서 정한다. 프로젝트 설정 값이라 코드 변경이 없다.
 
 ## 인계 근거

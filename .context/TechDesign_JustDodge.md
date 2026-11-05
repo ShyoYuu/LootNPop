@@ -26,7 +26,7 @@
 | `HitDetection/LNPHitGraceSubsystem.h/.cpp` | 피격 유예: 효과 묶음, `Dispatch`, 보류·해제·소급 |
 | `Movement/LNPCharacterMoverComponent.cpp` | `ExecuteDash` 창 기록, `IFrameDuration`·`JustDodgeWindow` |
 | `GAS/Effects/LNPGameplayEffect_JustDodgeBuff` | 버프 GE |
-| `GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeSuccess` | 성공 큐(V1 순보가 확장할 자리) |
+| `GAS/GameplayCues/LNPGameplayCueNotify_JustDodgeSuccess` | 성공 큐(V1a 순보가 확장할 자리) |
 
 ## 2. 데이터 — 만료 시각 미러
 

@@ -1,8 +1,8 @@
 # 그래픽스 작업 현재 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase 0 측정 하네스와 기준선 — 착수 전
-> 마지막 갱신: 2026-11-04
+> 현재 작업: Phase 0 측정 하네스와 기준선 — 착수 전(JustDodge 비주얼 1차 뒤)
+> 마지막 갱신: 2026-11-05
 
 ## 현재 결정
 
@@ -12,11 +12,13 @@
 - 목표 사양은 사용자 PC 기준이다(GX-002). 확인된 장비는 RTX 4060 Laptop GPU, 2560×1440 디스플레이다. iGPU(Radeon 780M)도 함께 있다.
 - 벤치마크 콘텐츠는 옥탄트 1개와 적 2~3종만 채운다(GX-004).
 - ISKM↔ISM↔Actor 전환 팝핑을 개선한다. 기존의 "포즈 연속성 포기" 결정을 다시 본다(GX-005).
+- (2026-11-05) JustDodge 비주얼 1차(V1a·V2·V3a·V4a)를 Phase 0보다 먼저 한다. 단위 N은 Phase 0 직후에 한다(GX-009, J-020).
 
 프로젝트에는 아직 커스텀 셰이더(`.usf`)·RDG 패스·SceneViewExtension 코드가 없다. 렌더 모듈은 Phase 3-1에서 처음 만든다.
 
 ## 바로 다음 행동
 
+- JustDodge 비주얼 1차가 끝났는지 [JustDodge/Current.md](../JustDodge/Current.md)에서 확인한다. 끝났으면 V2 잔상을 Phase 2 측정 항목에 넣을 수 있다.
 - `Roadmap.md` §4 Phase 0을 바탕으로 `phases/Phase00_MeasurementBaseline.md` 실행서를 쓰고 사용자 확인을 받는다.
 - 실행서에서 정할 것:
   - 내부 해상도와 업스케일러(1440p 네이티브 대 TSR)
