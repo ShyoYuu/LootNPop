@@ -42,6 +42,9 @@
 
 namespace
 {
+	TAutoConsoleVariable<int32> CVarHitZoneLog(TEXT("LNP.HitZone.Log"), 0,
+		TEXT("Log server hit zone classification and raw/scaled direct damage. 0: off, 1: on."));
+
 	TAutoConsoleVariable<int32> CVarProjectileProfileStride(TEXT("LNP.Projectile.ProfileStride"), 0,
 		TEXT("Detailed hit detection profiling: 0=off, N=sample every Nth projectile. Diagnostic only."));
 	TAutoConsoleVariable<int32> CVarProjectileSphereBroadPhase(TEXT("LNP.Projectile.SphereBroadPhase"), 1,
@@ -531,6 +534,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 	}
 
 	const double Now = World ? World->GetTimeSeconds() : 0.0; // 패링 창 RTT 역보정용 (TechDesign_ParrySystem.md 6장)
+	const bool bLogHitZone = CVarHitZoneLog.GetValueOnAnyThread() != 0;
 
 	// ── Pass 1: Enemy 캡슐 데이터 수집 ────────────────────────────────────────
 	struct FCollectedEnemy
@@ -547,6 +551,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 		const ULNPEnemyConfig* Config;    // 청크 공용 Config (피격 반응 시간 조회용)
 		FVector*           Velocity;      // Actor 없는 적의 넉백이 쓰는 물리 속도
+		FVector            WeakSpotOffset; // 현재 몸 회전으로 돌린 오프셋. 되감긴 캡슐 중심에 더한다.
+		float              WeakSpotRadius;
 		FLNPProjectileHistoryCache HistoryCache;
 	};
 	TArray<FCollectedEnemy> Enemies;
@@ -582,7 +588,10 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			const FVector Loc   = Transforms[i].GetTransform().GetLocation();
 			const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 			AActor*       Actor = ActorFrags[i].GetMutable();
-			Enemies.Add({ LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HitOffset, Actor), UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config, &VelFrags[i].Velocity });
+			const FVector WeakSpotOffset = Shared.Config->WeakSpotRadius > 0.f
+				? LNPHitDetection::ResolveWeakSpotOffset(Transforms[i].GetTransform().GetRotation(), Shared.Config->WeakSpotLocalOffset)
+				: FVector::ZeroVector;
+			Enemies.Add({ LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HitOffset, Actor), UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config, &VelFrags[i].Velocity, WeakSpotOffset, Shared.Config->WeakSpotRadius });
 		}
 	});
 
@@ -601,6 +610,8 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 		const FLNPPositionHistoryFragment* History;
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 		uint8              Team;          // 판정 팀 (Player/LNPTeam.h)
+		FVector            WeakSpotOffset;
+		float              WeakSpotRadius;
 	};
 	TArray<FCollectedPlayer> Players;
 
@@ -637,7 +648,11 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				Loc,
 				&Histories[i],
 				PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr,
-				LNPTeam::GetTeam(PlayerPawn)
+				LNPTeam::GetTeam(PlayerPawn),
+				PlayerPawn->WeakSpotRadius > 0.f
+					? LNPHitDetection::ResolveWeakSpotOffset(T.GetRotation(), PlayerPawn->WeakSpotLocalOffset)
+					: FVector::ZeroVector,
+				PlayerPawn->WeakSpotRadius
 			});
 		}
 	});
@@ -1011,12 +1026,20 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				}
 #endif
 
+				const FVector Center = RewoundEnemyCenter(Enemy);
 				FVector HitPoint;
 				if (!SegmentHitsCapsule(Segment,
-					RewoundEnemyCenter(Enemy), Enemy.UpDir,
+					Center, Enemy.UpDir,
 					Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius, HitRadius,
 					HitPoint))
 					continue;
+
+				const LNPHitDetection::ELNPHitZone Zone = LNPHitDetection::ClassifyProjectileHitZone(
+					Segment, Center + Enemy.WeakSpotOffset, Enemy.UpDir, Enemy.WeakSpotRadius, HitRadius);
+				const float Damage = LNPHitDetection::ScaleDamageForZone(Shared.Damage, Zone);
+				if (bLogHitZone)
+					UE_LOG(LogLootNPop, Log, TEXT("[HitZone] path=Projectile victim=Enemy zone=%s raw=%.1f scaled=%.1f"),
+						Zone == LNPHitDetection::ELNPHitZone::WeakSpot ? TEXT("WeakSpot") : TEXT("Body"), Shared.Damage, Damage);
 
 				const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal(); // 피격자 → 공격자
 
@@ -1036,13 +1059,13 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 
 				if (Enemy.Actor && Shared.DamageEffectClass)
 				{
-					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
+					Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, Shared.DamageEffectClass, Damage, HitFromDir, HitPoint, Shared.KnockbackStrength);
 				}
 				else
 				{
 					const float HpBefore = Enemy.Fragment->Health;
-					Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(Shared.Damage, Enemy.Fragment->Defense));
-					UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Shared.Damage);
+					Enemy.Fragment->Health = FMath::Max(0.f, HpBefore - LNPDamage::ApplyDefense(Damage, Enemy.Fragment->Defense));
+					UE_LOG(LogLootNPop, Log, TEXT("[HitDetection][Entity] HP: %.1f -> %.1f (damage=%.1f)"), HpBefore, Enemy.Fragment->Health, Damage);
 
 					// Actor 넉백(Mover)의 엔티티판. 이동 프로세서의 공중 분기가 이 속도를 적분한다.
 					if (Enemy.Velocity)
@@ -1175,10 +1198,16 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				else
 				{
 					LNPGuardParry::ReportDodgeHit(TEXT("Projectile"), Player.Actor, PS, Now);
+					const LNPHitDetection::ELNPHitZone Zone = LNPHitDetection::ClassifyProjectileHitZone(
+						Segment, JudgedCenter + Player.WeakSpotOffset, Player.UpDir, Player.WeakSpotRadius, HitRadius);
+					const float Damage = LNPHitDetection::ScaleDamageForZone(Shared.Damage, Zone);
+					if (bLogHitZone)
+						UE_LOG(LogLootNPop, Log, TEXT("[HitZone] path=Projectile victim=Player zone=%s raw=%.1f scaled=%.1f"),
+							Zone == LNPHitDetection::ELNPHitZone::WeakSpot ? TEXT("WeakSpot") : TEXT("Body"), Shared.Damage, Damage);
 					if (Shared.DamageEffectClass)
 					{
 						const FVector HitFromDir = (-Proj.Velocity).GetSafeNormal();
-						Effects.Damage.Emplace(FLNPApplyDamageGECommand::FEntry{ Player.Actor, Shared.DamageEffectClass, Shared.Damage, HitFromDir, HitPoint, Shared.KnockbackStrength, ELNPHitReactKind::Ranged });
+						Effects.Damage.Emplace(FLNPApplyDamageGECommand::FEntry{ Player.Actor, Shared.DamageEffectClass, Damage, HitFromDir, HitPoint, Shared.KnockbackStrength, ELNPHitReactKind::Ranged });
 					}
 				}
 				LNPHitGrace::Dispatch(Ctx, PS, Player.Poise, Player.Handle, Player.Actor, TEXT("Projectile"), /*bJustEligible*/ true, MoveTemp(Effects), Now);
@@ -1357,6 +1386,7 @@ void ULNPProjectileDebugDrawProcessor::ConfigureQueries(const TSharedRef<FMassEn
 	ProjectileQuery.RegisterWithProcessor(*this);
 
 	PlayerQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
+	PlayerQuery.AddRequirement<FMassActorFragment>(EMassFragmentAccess::ReadOnly);
 	PlayerQuery.AddTagRequirement<FLNPPlayerTag>(EMassFragmentPresence::All);
 	PlayerQuery.RegisterWithProcessor(*this);
 
@@ -1380,6 +1410,7 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		const TConstArrayView<FTransformFragment> Transforms = Ctx.GetFragmentView<FTransformFragment>();
+		const TConstArrayView<FMassActorFragment> ActorFrags = Ctx.GetFragmentView<FMassActorFragment>();
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
 		{
 			const FVector Location  = Transforms[i].GetTransform().GetLocation();
@@ -1388,6 +1419,13 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 			const FVector BotSphere = Location - UpDir * 54.f;
 			Batcher.DrawSphere(TopSphere, 42.f, FLinearColor(FColor::Green));
 			Batcher.DrawSphere(BotSphere, 42.f, FLinearColor(FColor::Green));
+			const ALNPPlayerCharacter* PlayerPawn = Cast<ALNPPlayerCharacter>(ActorFrags[i].Get());
+			if (PlayerPawn && PlayerPawn->WeakSpotRadius > 0.f)
+			{
+				const FVector Offset = LNPHitDetection::ResolveWeakSpotOffset(
+					Transforms[i].GetTransform().GetRotation(), PlayerPawn->WeakSpotLocalOffset);
+				Batcher.DrawSphere(Location + Offset, PlayerPawn->WeakSpotRadius, FLinearColor(FColor::Yellow));
+			}
 			PlayerLocations.Add(Location);
 		}
 	});
@@ -1459,6 +1497,12 @@ void ULNPProjectileDebugDrawProcessor::Execute(FMassEntityManager& EntityManager
 			const FVector BotSphere = Center - UpDir * CylHalfLen;
 			Batcher.DrawSphere(TopSphere, Radius, FLinearColor(FColor::Red));
 			Batcher.DrawSphere(BotSphere, Radius, FLinearColor(FColor::Red));
+			if (Shared.Config->WeakSpotRadius > 0.f)
+			{
+				const FVector Offset = LNPHitDetection::ResolveWeakSpotOffset(
+					Transforms[i].GetTransform().GetRotation(), Shared.Config->WeakSpotLocalOffset);
+				Batcher.DrawSphere(Center + Offset, Shared.Config->WeakSpotRadius, FLinearColor(FColor::Yellow));
+			}
 		}
 	});
 }

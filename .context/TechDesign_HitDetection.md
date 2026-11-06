@@ -90,6 +90,7 @@ Pass 3에서 적·플레이어 대상 루프를 각각 `LNPTeam::CanHit`으로 �
 ```
 Enemy 판정 (LNPTeam::CanHit이 거짓인 탄 — 적 탄 — 은 격자 질의·후보 루프를 통째로 건너뜀)
    └─ SegmentHitsCapsule(Prev, Curr, 되감긴 캡슐 중심, Up, HalfH, CapsuleR, HitRadius)
+      └─ 몸 명중 시 같은 선분으로 약점 구 분류 → 원시 피해 ×1.0/1.5 (2026-11-06)
 
 Player 판정 (시체·자기 자신·같은 팀은 후보에서 제외 — 팀은 대상마다 묻는다)
    기하: bInParryRange = bIsParrying && (CapsuleR + ParryRadius) 교차
@@ -97,7 +98,7 @@ Player 판정 (시체·자기 자신·같은 팀은 후보에서 제외 — 팀�
    순서: LNPGuardParry::Judge(PS, Dot, Now, bInParryRange, bInHitRange)   (§7.5)
           Parried → 반사 처리 (Fragment 직접 변경 + 식별자 재발급, §TechDesign_ParrySystem)
           Guarded → 경직 × PoiseGuardMultiplier + GuardBlockCommand
-          Hit     → 경직 + ApplyDamageGECommand
+          Hit     → 약점 구 분류 + 경직 + 배율 피해를 기존 피격 유예/ApplyDamageGECommand에 전달
 
 FinishHit (공통 후처리 람다):
    GameplayCue.LNP.Projectile.Impact 실행 (Ghost 대조 토큰을 FLNPProjectileImpactContext로)
@@ -154,6 +155,8 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 [SurfaceSupportNavigation/design/RuntimeCollision.md](SurfaceSupportNavigation/design/RuntimeCollision.md) "투사체 월드 충돌".
 
 **스플래시:** `ExplosionRadius > 0`이면 직격 대상을 제외한 반경 내 대상에 거리 감쇠된 GE + `SplashKnockbackStrength` 넉백 (→ §6.3).
+
+**부위 배율(2026-11-06, 투사체 직격 구현):** 몸 명중 뒤 같은 되감긴 중심에 몸 로컬 오프셋을 더한 약점 구와 선분의 접촉으로 분류한다. 구는 캡슐 밖으로 돌출할 수 있으나 단독 명중을 만들지 않는다. 약점은 방어력 전 원시 피해 ×1.5이며 기존 Actor 물리 HitReact도 이 피해를 받는다. 몸 `HitPoint`·폭발 중심·주변 스플래시·경직·이동 넉백·가드/패링/회피·클라이언트 예측은 유지한다. 근접 적용은 아직 미구현이다. 세부 결정·수치·검증·다음 구현은 [TechDesign_HitZoneDamage.md](TechDesign_HitZoneDamage.md) §12.
 
 **팀 규칙 — 대상 후보는 `LNPTeam::CanHit` 하나가 고른다 (2026-10-13):**
 
@@ -639,4 +642,4 @@ HP 바 마커)는 `GetHitCapsuleRadius/HalfHeight()`를 읽는다. 되감기·�
 - **근접 임팩트 큐 에셋이 비어 있다:** `GCN_LNP_Melee_Impact`의 `VFX`·`Sound`·`CameraShake`가 모두 미설정이라
   배선은 살아 있어도 재생할 것이 없다. 순수 엔티티만의 문제가 아니라 Actor 적도 마찬가지다 — 저작 대기.
 - **피격 아이템 드랍:** 넉백은 완료, 피격 시 보유 아이템 드랍 및 LootPod Interruption 연동 미구현.
-- **부위별 데미지(약점 구 ×1.5, 투사체 직격·근접, 적·플레이어):** 설계만 완료 → [TechDesign_HitZoneDamage.md](TechDesign_HitZoneDamage.md).
+- **부위별 데미지:** 적·플레이어 투사체 직격의 약점 구 ×1.5와 주요 검증은 마감했다(2026-11-06). 근접 적용·길이 0 축 폴백 회귀 테스트는 새 세션의 단위 3으로 남았다 → [TechDesign_HitZoneDamage.md](TechDesign_HitZoneDamage.md) §12.
