@@ -14,7 +14,7 @@
 ## 구현과 결함 수정
 
 - J-025의 원격 무적 미러: 기존 Mover 대시 시작 시각과 서버 무적 종료 오프셋으로 남은 시간만 로컬 월드 시계에 기록한다. 서버·소유 클라의 판정은 기존 ExecuteDash 경로를 유지한다. 공식과 소유권은 [아키텍처 §2.3](../design/Architecture.md)을 따른다.
-- 착탄 비교 CVar: `LNP.Projectile.PredictRemotePlayerImpact` 1은 기존 로컬 예측·원격 무적 미러, 0은 원격 플레이어만 로컬 Ghost 충돌 후보에서 제외해 서버 착탄 큐에 맡긴다. 비행·로컬 플레이어·적·지형/수명은 유지한다. 보류/복구 큐는 만들지 않았다. 사용법은 [검증 규약 §5](../design/Validation.md)를 따른다.
+- 착탄 비교 CVar: `LNP.Projectile.PredictRemotePlayerImpact` 1은 기존 로컬 예측·원격 무적 미러, 0은 원격 플레이어만 로컬 Ghost 충돌 후보에서 제외해 서버 착탄 큐에 맡긴다. 비행·로컬 플레이어·적·지형/수명은 유지한다. 보류/복구 큐는 만들지 않았다. 이 CVar는 이후 탄속 기준 `LNP.Projectile.RemoteImpactPredictMinSpeed`로 교체했다(J-027). 사용법은 [검증 규약 §5](../design/Validation.md)를 따른다.
 - 값 0의 최초 시험에서 일반 명중의 HP·임팩트는 반영됐지만 Ghost가 화면 밖까지 남고 지면에서만 소멸했다. 송수신 로그 10건 모두 게스트 key=0·destroyed=0이었다. 서버 key=-213342가 게스트 key=0으로 바뀐 예로 Iris 파생 필드 전달 누락을 확정했다.
 - `FLNPProjectileImpactContext` 식별자 3개에 UPROPERTY를 추가했다. 레거시 NetSerialize·키 계산·서버 피해 판정은 유지했다. 기존 네트워킹 문서의 GE 컨텍스트 직렬화 예외 설명도 정정했다.
 - 진단은 기존 `LNP.Debug.Dodge 1` 아래 Send/Receive 로그를 사용한다. 호스트 net=2에는 Ghost가 없어 destroyed=0이 정상이다. 게스트 net=3의 키와 검색 결과를 본다. 정확한 코드·시간별 경위는 [V4a 로그](../history/PhaseV4a_Log.md)에 있다.

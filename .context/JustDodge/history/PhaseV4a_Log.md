@@ -78,3 +78,12 @@
 - 사용자는 추가 정책 검토를 별도 작업으로 남기고 이번에는 CVar를 보존하면서 기본값만 0으로 바꿔 마감하도록 정했다(J-026). CVar 기본값과 영어 도움말을 수정했다. 원격 무적 미러·복제 오프셋·전용 테스트·임시 명령·진단 로그를 제거하지 않았으며 사용자 적 에셋도 수정하지 않았다.
 - 기본값 변경 최종 정규 빌드: 컴파일 뒤 DLL이 UnrealEditor에 사용 중이라 링크 실패(70.81초). 사용자에게 저장·종료를 요청해 확인한 뒤 같은 `LootNPopEditor Win64 Development -WaitMutex -NoHotReloadFromIDE -DisableAdaptiveUnity`를 재실행했다. 남은 링크/메타데이터 2개 작업이 2.84초에 성공해 최종 빌드 통과. 컴파일 진단 오류가 아닌 파일 잠금이었다.
 - 마지막 변경은 이미 A/B로 확인한 값 0을 기본값으로 설정하는 것과 도움말뿐이므로 같은 플레이 검증이나 기존 자동화 테스트를 반복하지 않았다. Current·Decisions·설계·검증 규약·실행서·로드맵을 실제 마감 상태로 갱신했다. 일반 명중/관통·지연 체감 외 미확인 경계는 통과로 확대하지 않았다. 새로운 구현 단위는 시작하지 않는다.
+
+### 원격 플레이어 착탄 탄속 분기로 교체
+
+- 사용자가 상용 방식 비교 뒤 소멸한 Ghost의 숨김·복구를 포함한 완전한 예측을 제외하고, 탄속 분기로 `PredictRemotePlayerImpact`를 교체하도록 정했다(J-027, J-026 대체).
+- `LNPProjectileProcessors.cpp`에서 원격 플레이어를 항상 수집하고 `bRemotePlayer`로 표시한 뒤, 탄별 충돌 루프에서 `Proj.Velocity.Size() < LNP.Projectile.RemoteImpactPredictMinSpeed`이면 건너뛴다. 기본값은 3000 cm/s다. 값 0은 항상 예측, 충분히 큰 값은 항상 대기다.
+- 에디터 에셋 조회 값은 `DA_Rifle`·`DA_Pistol` 5000 cm/s, `DA_Shotgun`·`DA_NPC_Pistol` 1000 cm/s다. 기본 팀에서 플레이어끼리는 맞지 않으므로 현재 PvE의 원격 플레이어 접촉은 NPC 1000 cm/s 탄이며 서버 착탄 대기를 유지한다.
+- Live Coding 컴파일·링크는 성공했지만 신규 CVar는 `SearchCVars`에 나타나지 않았고, 기존 CVar만 남아 있었다. 정적 초기화가 돌지 않은 패치로 PIE를 켜면 클라이언트 분기의 CVar 조회가 안전하지 않으므로 이 세션에서는 PIE를 실행하지 않았다.
+- 사용자 에디터 종료 뒤 프로세스 부재를 확인하고 정규 `LootNPopEditor Win64 Development -WaitMutex -NoHotReloadFromIDE -DisableAdaptiveUnity` 빌드를 통과했다(6개 작업·37.26초). 재시작한 에디터의 `SearchCVars`에서 신규 CVar 값 3000과 기존 CVar 제거를 확인했다. 다른 작업의 변경이 있는 트리이므로 깨끗한 트리 빌드로 기록하지 않는다.
+- 사용자 2인 PIE 확인: 느린 NPC 탄에서 값 0은 저스트 회피 무적 판정에 성공해도 탄이 가끔 막혔고, 값 999999에서는 한 번도 보지 못했다. 일반 명중의 관통은 탄속이 느려 두 값 모두 체감하기 어려웠다. 의도대로 동작한다는 사용자 판단으로 기록한다. 건수를 집계하지는 않았고, 기준 이상의 실제 고속 탄으로 시험하지는 않았다.

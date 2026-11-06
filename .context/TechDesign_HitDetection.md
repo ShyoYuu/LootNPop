@@ -330,7 +330,7 @@ snapshot 사이에 공유하지 않는다. 발사자별 ping·뷰어 거리의 �
 대상 후보는 서버와 같은 `LNPTeam::CanHit`으로 고른다(§3.2 팀 규칙) — 예측과 서버가 어느 대상에 막히는지 갈리지 않는다.
 타겟 캡슐 수집은 서버 경로와 동일하게 Mass 쿼리를 쓴다 — MassReplication 이후 클라이언트에도 유효한 엔티티가 있으므로 게임 스레드 전용 `TActorIterator`가 필요 없다.
 
-원격 플레이어 착탄은 `LNP.Projectile.PredictRemotePlayerImpact`로 비교한다(기본 0, J-026). 0은 원격 플레이어만 로컬 Ghost 충돌 후보에서 제외하고 서버 착탄 큐를 기다리며, 1은 기존 로컬 예측을 사용한다. 로컬 플레이어·적·지형/수명 처리는 유지한다. CVar를 보존하며 삭제·방식 고정은 별도 논의한다. 이 비교에서 발견한 `FLNPProjectileImpactContext` 키 전송 누락은 키 3개를 UPROPERTY로 선언해 수정했다. 절차·송수신 진단은 [JustDodge 검증 규약 §5](JustDodge/design/Validation.md)를 따른다.
+원격 플레이어 착탄은 탄별 탄속으로 가른다(J-027). Ghost의 현재 탄속이 `LNP.Projectile.RemoteImpactPredictMinSpeed`(기본 3000 cm/s) 이상이면 로컬 예측하고, 미만이면 원격 플레이어를 건너뛰고 서버 착탄 큐를 기다린다. 서버를 기다릴 때의 관통 거리는 탄속에 비례하고, 잘못 소멸한 탄은 느릴수록 눈에 띈다. 값 0은 항상 예측, 충분히 큰 값은 항상 대기다. 로컬 플레이어·적·지형/수명 처리는 유지하고, 소멸한 Ghost를 되살리지 않는다. 착탄 비교에서 발견한 `FLNPProjectileImpactContext` 키 전송 누락은 키 3개를 UPROPERTY로 선언해 수정했다. 절차·송수신 진단은 [JustDodge 검증 규약 §5](JustDodge/design/Validation.md)를 따른다.
 
 ---
 

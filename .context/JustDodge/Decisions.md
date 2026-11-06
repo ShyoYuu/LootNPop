@@ -33,7 +33,8 @@
 | J-023 | 잔상은 별도 액터 대신 캐릭터 소유 PoseableMesh 컴포넌트 한 세트를 재사용한다. 몸용 하나·표시 무기용 하나이며 미부착·포즈 1회 복사·Tick 없이 월드에 고정한다. 게임 시간 기반 머티리얼 페이드와 종료 타이머를 사용하며 넉백·물리 반응에도 잔상이 흔들리지 않아야 한다 | 확정(2026-11-05, 사용자) | [비주얼 설계 §2.2](design/VisualDesign.md), [V2 실행서](phases/PhaseV2_Afterimage.md) |
 | J-024 | 성공 FOV 펀치는 ADS 중 적용하지 않는다. 펀치 도중 ADS에 진입하면 종료하고, 조준을 풀어도 이전 펀치를 재개하지 않는다 | 확정(2026-11-05, 사용자) | [비주얼 설계 §2.5](design/VisualDesign.md), [V3a 실행서](phases/PhaseV3a_CameraAura.md) |
 | J-025 | 원격 플레이어의 Ghost 관통 판단은 기존 Mover 대시 시작 시각과 서버의 무적 종료 오프셋으로 남은 무적 구간을 복원한다. 서버 피해 판정·성공 연출 정책은 유지한다. 수신 전 Ghost 오소멸은 먼저 재검증하고, 소멸 보류·복구는 이번 단위에 넣지 않는다 | 확정(2026-11-06, 사용자 진행 승인). 구현·런타임 검증은 V4a에서 추적 | [아키텍처 §2.3](design/Architecture.md), [V4a 실행서](phases/PhaseV4a_VisualReadability.md) |
-| J-026 | 원격 플레이어 Ghost 착탄의 비교 CVar는 보존하고 기본값만 0(서버 착탄 큐 대기)으로 둔다. 1의 로컬 예측과 J-025 원격 무적 미러·관련 코드도 유지한다. CVar 삭제·정책 고정·추가 정리는 별도 논의한다 | 확정(2026-11-06, 사용자). PktLag 0·양쪽 50 A/B 통과 뒤 이번 세션 범위 한정 | [검증 규약 §5](design/Validation.md), [V4a 실행서](phases/PhaseV4a_VisualReadability.md) |
+| J-026 | 원격 플레이어 Ghost 착탄의 비교 CVar는 보존하고 기본값만 0(서버 착탄 큐 대기)으로 둔다. 1의 로컬 예측과 J-025 원격 무적 미러·관련 코드도 유지한다. CVar 삭제·정책 고정·추가 정리는 별도 논의한다 | 대체됨(J-027). 확정(2026-11-06, 사용자). PktLag 0·양쪽 50 A/B 통과 뒤 이번 세션 범위 한정 | [검증 규약 §5](design/Validation.md), [V4a 실행서](phases/PhaseV4a_VisualReadability.md) |
+| J-027 | 원격 플레이어 Ghost 착탄은 탄별 탄속으로 가른다. `LNP.Projectile.RemoteImpactPredictMinSpeed`(기본 3000 cm/s) 이상이면 로컬 예측, 미만이면 서버 착탄 큐를 기다린다. 이 CVar가 `PredictRemotePlayerImpact`를 대체한다(0=항상 예측, 충분히 큰 값=항상 대기). 로컬 소멸한 Ghost의 숨김·복구는 만들지 않는다. J-025 원격 무적 미러는 빠른 탄 경로에서 계속 쓴다 | 확정(2026-11-06, 사용자). 서버 복구까지 갖춘 완전한 예측은 효용 대비 복잡도가 커서 제외 | [검증 규약 §5](design/Validation.md), [HitDetection](../TechDesign_HitDetection.md) |
 
 ## 변경 규칙
 
