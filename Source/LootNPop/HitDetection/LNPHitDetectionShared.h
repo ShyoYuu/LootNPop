@@ -30,8 +30,14 @@
 #include "LootNPop.h"
 #include "LNPMassUtils.h"
 
+struct FLNPWeaponTraceFragment;
+
 namespace LNPHitDetection
 {
+	/** 서버 근접의 칼날 궤적과 캡슐 축 거리². 정지·저속 칼날과 길이 0인 구 축도 처리한다. */
+	float MeleeCapsuleDistSq(const FLNPWeaponTraceFragment& Trace, const FVector& Center,
+		const FVector& UpDir, float HalfHeight, float Radius);
+
 	/** 맞은 부위. 몸 명중 뒤 약점 구와의 접촉으로 분류한다. */
 	enum class ELNPHitZone : uint8 { Body, WeakSpot };
 

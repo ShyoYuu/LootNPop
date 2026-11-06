@@ -25,6 +25,7 @@
 #include "MassCommonFragments.h"
 #include "MassCommandBuffer.h"
 #include "AbilitySystemComponent.h"
+#include "HAL/IConsoleManager.h"
 #if WITH_EDITOR
 #include "MassDebugDrawHelpers.h"
 #endif
@@ -203,6 +204,22 @@ namespace
 	private:
 		TArray<FEntry> Entries;
 	};
+}
+
+float LNPHitDetection::MeleeCapsuleDistSq(const FLNPWeaponTraceFragment& Trace, const FVector& Center,
+	const FVector& UpDir, float HalfHeight, float Radius)
+{
+	FVector CapsuleBot, CapsuleTop;
+	MakeCapsuleSeg(Center, UpDir, HalfHeight, Radius, CapsuleBot, CapsuleTop);
+	if (FVector::DistSquared(Trace.SwordTipPrev, Trace.SwordTipCurr) < 1.f)
+	{
+		FVector OnBlade, OnAxis;
+		FMath::SegmentDistToSegmentSafe(Trace.SwordRootCurr, Trace.SwordTipCurr,
+			CapsuleBot, CapsuleTop, OnBlade, OnAxis);
+		return FVector::DistSquared(OnBlade, OnAxis);
+	}
+	return SweptQuadCapsuleDistSq(Trace.SwordRootPrev, Trace.SwordTipPrev,
+		Trace.SwordRootCurr, Trace.SwordTipCurr, CapsuleBot, CapsuleTop);
 }
 
 // ============================================================
@@ -384,6 +401,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 		const ULNPEnemyConfig* Config;    // 청크 공용 Config (피격 반응 시간 조회용)
 		FVector*           Velocity;      // Actor 없는 적의 넉백이 쓰는 물리 속도
+		FVector            WeakSpotOffset;
+		float              WeakSpotRadius;
 	};
 	TArray<FCollectedEnemy> Enemies;
 
@@ -410,7 +429,10 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const FVector UpDir = LNPMass::GetEntityUp(Transforms[i].GetTransform());
 			AActor*       Actor = ActorFrags[i].GetMutable();
 			const FVector Center = LNPHitDetection::ResolveEnemyCapsuleCenter(Loc, UpDir, HitOffset, Actor);
-			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config, &VelFrags[i].Velocity });
+			const FVector WeakSpotOffset = Shared.Config->WeakSpotRadius > 0.f
+				? LNPHitDetection::ResolveWeakSpotOffset(Transforms[i].GetTransform().GetRotation(), Shared.Config->WeakSpotLocalOffset)
+				: FVector::ZeroVector;
+			Enemies.Add({ Center, UpDir, HalfH, Radius, &EnemyFrags[i], Ctx.GetEntity(i), Actor, Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr, Shared.Config, &VelFrags[i].Velocity, WeakSpotOffset, Shared.Config->WeakSpotRadius });
 		}
 	});
 
@@ -429,6 +451,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		const FLNPPositionHistoryFragment* History;
 		FLNPPoiseFragment* Poise;         // 아키타입에 없으면 null (Optional 요구)
 		uint8              Team;          // 판정 팀 (Player/LNPTeam.h)
+		FVector            WeakSpotOffset;
+		float              WeakSpotRadius;
 	};
 	TArray<FCollectedPlayer> Players;
 
@@ -448,8 +472,13 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 			const FTransform& T   = Transforms[i].GetTransform();
 			const FVector     Loc = T.GetLocation();
 			const FVector     Up  = (-Loc).GetSafeNormal();
+			const ALNPPlayerCharacter* PlayerPawn = Cast<ALNPPlayerCharacter>(Actor);
 			Players.Add({ Loc, Up, T.GetRotation().GetForwardVector(), HalfH, Radius, Ctx.GetEntity(i), Actor, ParryFrags[i], Loc, &Histories[i], PoiseFrags.IsValidIndex(i) ? &PoiseFrags[i] : nullptr,
-				Actor ? LNPTeam::GetTeam(Actor) : LNPTeam::DefaultPlayerTeam });
+				Actor ? LNPTeam::GetTeam(Actor) : LNPTeam::DefaultPlayerTeam,
+				PlayerPawn && PlayerPawn->WeakSpotRadius > 0.f
+					? LNPHitDetection::ResolveWeakSpotOffset(T.GetRotation(), PlayerPawn->WeakSpotLocalOffset)
+					: FVector::ZeroVector,
+				PlayerPawn ? PlayerPawn->WeakSpotRadius : 0.f });
 		}
 	});
 
@@ -457,6 +486,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 		return;
 
 	const float PoiseGuardMultiplier = GetDefault<ULNPSettings>()->PoiseGuardMultiplier;
+	static const IConsoleVariable* HitZoneLog = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.HitZone.Log"));
+	const bool bLogHitZone = HitZoneLog && HitZoneLog->GetInt() != 0;
 
 	// ── Pass 3: Swept Volume 피격 판정 (Lag Compensation 포함) ─────────────────
 	const auto* RewindSurfaces = World->GetSubsystem<ULNPSurfaceDataSubsystem>();
@@ -525,25 +556,21 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 			// Prev==Curr(첫 프레임): 칼날 이동 없음 → 선분 vs 선분으로 폴백
 			// 그 외: Swept Quad(삼각형 2개) vs 캡슐 축 선분 최단 거리 계산
-			const bool  bDegenerate = FVector::DistSquared(Frag.SwordTipPrev, Frag.SwordTipCurr) < 1.f;
 			const float SwordRadius = Frag.HitRadius;
 
 			// 캡슐 축 선분(Bot~Top)과 칼날의 최단 거리²를 반환하는 람다
 			auto CalcDistSq = [&](const FVector& CapsuleCenter, const FVector& UpDir, float HalfH, float CapsuleR) -> float
 			{
-				FVector CapsuleBot, CapsuleTop;
-				MakeCapsuleSeg(CapsuleCenter, UpDir, HalfH, CapsuleR, CapsuleBot, CapsuleTop);
+				return LNPHitDetection::MeleeCapsuleDistSq(Frag, CapsuleCenter, UpDir, HalfH, CapsuleR);
+			};
 
-				if (bDegenerate)
-				{
-					FVector P1, P2;
-					FMath::SegmentDistToSegment(Frag.SwordRootCurr, Frag.SwordTipCurr, CapsuleBot, CapsuleTop, P1, P2);
-					return FVector::DistSquared(P1, P2);
-				}
-				return SweptQuadCapsuleDistSq(
-					Frag.SwordRootPrev, Frag.SwordTipPrev,
-					Frag.SwordRootCurr, Frag.SwordTipCurr,
-					CapsuleBot, CapsuleTop);
+			auto ClassifyMeleeHitZone = [&](const FVector& Center, const FVector& UpDir,
+				const FVector& WeakSpotOffset, float WeakSpotRadius) -> LNPHitDetection::ELNPHitZone
+			{
+				return WeakSpotRadius > 0.f
+					&& CalcDistSq(Center + WeakSpotOffset, UpDir, WeakSpotRadius, WeakSpotRadius)
+						<= FMath::Square(SwordRadius + WeakSpotRadius)
+					? LNPHitDetection::ELNPHitZone::WeakSpot : LNPHitDetection::ELNPHitZone::Body;
 			};
 
 			// Player 타겟 공용 2단계 판정 (1단계 패링 → 2단계 가드/피격).
@@ -563,7 +590,8 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				const FLNPParryStateFragment& PS          = Player.ParryState;
 				const FVector                 AttackerDir = (AttackerLoc - Player.CapsuleCenter).GetSafeNormal();
 				const float                   Dot         = FVector::DotProduct(Player.ForwardVector, AttackerDir);
-				const float                   DistSq      = CalcDistSq(RewoundCenter(Player.CapsuleCenter, Player.RawLocation, Player.History), Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
+				const FVector                 JudgedCenter = RewoundCenter(Player.CapsuleCenter, Player.RawLocation, Player.History);
+				const float                   DistSq      = CalcDistSq(JudgedCenter, Player.UpDir, Player.CapsuleHalfHeight, Player.CapsuleRadius);
 
 				// 패링·가드·피격 큐가 공용으로 쓰는 충돌 지점. 아래 세 분기 중 실제로 성립한 것에서만 평가된다.
 				auto ImpactPointOf = [&]
@@ -628,6 +656,15 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 				}
 
 				LNPGuardParry::ReportDodgeHit(TEXT("Melee"), Player.Actor, PS, NowForRewind);
+				const LNPHitDetection::ELNPHitZone Zone = ClassifyMeleeHitZone(
+					JudgedCenter, Player.UpDir, Player.WeakSpotOffset, Player.WeakSpotRadius);
+				const float Damage = LNPHitDetection::ScaleDamageForZone(Frag.Damage, Zone);
+				if (bLogHitZone)
+					UE_LOG(LogLootNPop, Log, TEXT("[HitZone] path=Melee victim=Player zone=%s raw=%.1f scaled=%.1f swing=%d:%d target=%d:%d weakDistSq=%.2f weakThresholdSq=%.2f"),
+						Zone == LNPHitDetection::ELNPHitZone::WeakSpot ? TEXT("WeakSpot") : TEXT("Body"), Frag.Damage, Damage,
+						Ctx.GetEntity(i).Index, Ctx.GetEntity(i).SerialNumber, Player.Handle.Index, Player.Handle.SerialNumber,
+						CalcDistSq(JudgedCenter + Player.WeakSpotOffset, Player.UpDir, Player.WeakSpotRadius, Player.WeakSpotRadius),
+						FMath::Square(SwordRadius + Player.WeakSpotRadius));
 
 				// 적 피격 분기와 같은 자리에서 임팩트 연출을 낸다 — 데미지 커맨드가 더는 연출을 내지 않는다.
 				const FVector PlayerImpactPoint = ImpactPointOf();
@@ -635,7 +672,7 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 
 				const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 				if (EffectClass)
-					Effects.Damage.Emplace(FLNPApplyDamageGECommand::FEntry{ Player.Actor, EffectClass, Frag.Damage, AttackerDir, PlayerImpactPoint, Frag.KnockbackStrength, ELNPHitReactKind::Melee });
+					Effects.Damage.Emplace(FLNPApplyDamageGECommand::FEntry{ Player.Actor, EffectClass, Damage, AttackerDir, PlayerImpactPoint, Frag.KnockbackStrength, ELNPHitReactKind::Melee });
 
 				LNPHitGrace::Dispatch(Ctx, PS, Player.Poise, Player.Handle, Player.Actor, TEXT("Melee"), /*bJustEligible*/ true, MoveTemp(Effects), NowForRewind);
 			};
@@ -681,11 +718,21 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					}
 #endif
 
-					if (CalcDistSq(RewoundEnemyCenter(Enemy, AttackerLoc), Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius)
+					const FVector JudgedCenter = RewoundEnemyCenter(Enemy, AttackerLoc);
+					if (CalcDistSq(JudgedCenter, Enemy.UpDir, Enemy.CapsuleHalfHeight, Enemy.CapsuleRadius)
 						> FMath::Square(SwordRadius + Enemy.CapsuleRadius))
 						continue;
 
 					MarkHit(Frag, Enemy.Handle);
+					const LNPHitDetection::ELNPHitZone Zone = ClassifyMeleeHitZone(
+						JudgedCenter, Enemy.UpDir, Enemy.WeakSpotOffset, Enemy.WeakSpotRadius);
+					const float Damage = LNPHitDetection::ScaleDamageForZone(Frag.Damage, Zone);
+					if (bLogHitZone)
+						UE_LOG(LogLootNPop, Log, TEXT("[HitZone] path=Melee victim=Enemy zone=%s raw=%.1f scaled=%.1f swing=%d:%d target=%d:%d weakDistSq=%.2f weakThresholdSq=%.2f"),
+							Zone == LNPHitDetection::ELNPHitZone::WeakSpot ? TEXT("WeakSpot") : TEXT("Body"), Frag.Damage, Damage,
+							Ctx.GetEntity(i).Index, Ctx.GetEntity(i).SerialNumber, Enemy.Handle.Index, Enemy.Handle.SerialNumber,
+							CalcDistSq(JudgedCenter + Enemy.WeakSpotOffset, Enemy.UpDir, Enemy.WeakSpotRadius, Enemy.WeakSpotRadius),
+							FMath::Square(SwordRadius + Enemy.WeakSpotRadius));
 
 					const FVector HitFromDir = (AttackerLoc - Enemy.CapsuleCenter).GetSafeNormal(); // 피격자 → 공격자
 
@@ -713,15 +760,15 @@ void ULNPWeaponTraceHitDetectionProcessor::Execute(FMassEntityManager& EntityMan
 					const TSubclassOf<UGameplayEffect> EffectClass(Frag.DamageEffectClass);
 					if (Enemy.Actor && EffectClass)
 					{
-						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, EffectClass, Frag.Damage, HitFromDir, ImpactPoint, Frag.KnockbackStrength, ELNPHitReactKind::Melee);
+						Ctx.Defer().PushCommand<FLNPApplyDamageGECommand>(Enemy.Actor, EffectClass, Damage, HitFromDir, ImpactPoint, Frag.KnockbackStrength, ELNPHitReactKind::Melee);
 					}
 					else
 					{
 						const float HpBefore = Enemy.Fragment->Health;
 						Enemy.Fragment->Health = FMath::Max(0.f,
-							HpBefore - LNPDamage::ApplyDefense(Frag.Damage, Enemy.Fragment->Defense));
+							HpBefore - LNPDamage::ApplyDefense(Damage, Enemy.Fragment->Defense));
 						UE_LOG(LogLootNPop, Log, TEXT("[WeaponTrace][Entity] HP: %.1f -> %.1f (damage=%.1f)"),
-							HpBefore, Enemy.Fragment->Health, Frag.Damage);
+							HpBefore, Enemy.Fragment->Health, Damage);
 
 						// Actor 넉백(Mover)의 엔티티판. 이동 프로세서의 공중 분기가 이 속도를 적분한다.
 						if (Enemy.Velocity)

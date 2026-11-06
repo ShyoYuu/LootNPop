@@ -5,6 +5,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "HitDetection/LNPHitDetectionShared.h"
+#include "HitDetection/LNPWeaponTraceMassTypes.h"
 #include "GAS/LNPDamageFormula.h"
 #include "Misc/DataValidation.h"
 
@@ -100,6 +101,47 @@ bool FLNPHitZoneFirstContactTest::RunTest(const FString& Parameters)
 		FVector::UpVector, 64, 64, 0, HitPoint));
 	TestEqual(TEXT("Drone front first contact is weak spot"),
 		ClassifyProjectileHitZone(DroneSegment, FVector(39, 0, 0), FVector::UpVector, 32, 0), ELNPHitZone::WeakSpot);
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPHitZoneMeleeDegenerateTest,
+	"LNP.HitDetection.HitZone.MeleeDegenerate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPHitZoneMeleeDegenerateTest::RunTest(const FString& Parameters)
+{
+	// 서버가 호출하는 실제 함수로 폴백 선택·구 축 거리·몸 명중 게이트를 검증한다.
+	for (const double Movement : {0.0, 0.5})
+	for (const bool bReverse : {false, true})
+	for (const double Height : {78.0, 0.0, 110.0})
+	{
+		FLNPWeaponTraceFragment Trace;
+		Trace.SwordRootCurr = FVector(bReverse ? 100 : -100, 0, Height);
+		Trace.SwordTipCurr = FVector(bReverse ? -100 : 100, 0, Height);
+		Trace.SwordRootPrev = Trace.SwordRootCurr - FVector(0, Movement, 0);
+		Trace.SwordTipPrev = Trace.SwordTipCurr - FVector(0, Movement, 0);
+		Trace.HitRadius = 5.f;
+		const float BodyDistSq = MeleeCapsuleDistSq(Trace, FVector::ZeroVector, FVector::UpVector, 96, 42);
+		const float WeakDistSq = MeleeCapsuleDistSq(Trace, FVector(0, 0, 78), FVector::UpVector, 40, 40);
+		TestTrue(TEXT("Sphere axis distance uses blade interior in either endpoint order"),
+			FMath::IsNearlyEqual(WeakDistSq, float(FMath::Square(Height - 78.0))));
+		const bool bBodyHit = BodyDistSq <= FMath::Square(Trace.HitRadius + 42.f);
+		TestEqual(TEXT("Only protruding sphere is a body miss"), bBodyHit, Height != 110.0);
+		const bool bSphereHit = WeakDistSq <= FMath::Square(Trace.HitRadius + 40.f);
+		TestEqual(TEXT("Head is weak spot and chest stays body after body gate"),
+			bBodyHit && bSphereHit, Height == 78.0);
+		if (!bBodyHit)
+			TestTrue(TEXT("Sphere contact alone still cannot authorize melee damage"), bSphereHit);
+	}
+
+	// 폴백 밖에서도 같은 함수가 칼날 사이를 채운 면으로 구를 검사한다.
+	FLNPWeaponTraceFragment Sweep;
+	Sweep.SwordRootPrev = FVector(-100, -60, 78);
+	Sweep.SwordTipPrev = FVector(100, -60, 78);
+	Sweep.SwordRootCurr = FVector(-100, 60, 78);
+	Sweep.SwordTipCurr = FVector(100, 60, 78);
+	TestTrue(TEXT("Moving swept blade reaches sphere between frames"), FMath::IsNearlyZero(
+		MeleeCapsuleDistSq(Sweep, FVector(0, 0, 78), FVector::UpVector, 40, 40)));
 	return !HasAnyErrors();
 }
 

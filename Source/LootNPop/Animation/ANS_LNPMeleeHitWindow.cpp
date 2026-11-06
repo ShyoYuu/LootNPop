@@ -18,8 +18,11 @@
 #include "MassCommonFragments.h"
 #include "MassCommands.h"
 #include "AbilitySystemComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/PlayerState.h"
+#include "HAL/IConsoleManager.h"
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 내부 헬퍼
@@ -161,6 +164,17 @@ void UANS_LNPMeleeHitWindow::NotifyBegin(USkeletalMeshComponent* MeshComp,
 	// (BuildEntity + AddTag를 동일 배치에서 디퍼드하면 아키타입 전환 타이밍으로 쿼리가 엔티티를 못 찾는 문제 있음)
 	FActiveSwing& Swing = ActiveSwings.Add(MeshComp);
 	Swing.Entity = EntityManager->ReserveEntity();
+	static const IConsoleVariable* HitZoneLog = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.HitZone.Log"));
+	if (Character->HasAuthority() && HitZoneLog && HitZoneLog->GetInt() != 0)
+	{
+		const UAnimInstance* AnimInstance = MeshComp->GetAnimInstance();
+		const UAnimMontage* Montage = AnimInstance ? AnimInstance->GetCurrentActiveMontage() : nullptr;
+		UE_LOG(LogLootNPop, Log, TEXT("[HitZoneMeleeWindow] swing=%d:%d attacker=%s combo=%d animation=%s montage=%s section=%s position=%.3f"),
+			Swing.Entity.Index, Swing.Entity.SerialNumber, *Character->GetPathName(), Character->GetCurrentComboIndex() + 1,
+			*GetNameSafe(Animation), *GetNameSafe(Montage),
+			AnimInstance ? *AnimInstance->Montage_GetCurrentSection(Montage).ToString() : TEXT("None"),
+			AnimInstance ? AnimInstance->Montage_GetPosition(Montage) : 0.f);
+	}
 	EntityManager->Defer().PushCommand<FMassCommandBuildEntity<FLNPWeaponTraceFragment, FTransformFragment>>(
 		Swing.Entity, MeleeData, TransFrag);
 	LNPUAFNotifyAudit::TraceMeleeEntity(MeshComp, Swing.Entity, false);
