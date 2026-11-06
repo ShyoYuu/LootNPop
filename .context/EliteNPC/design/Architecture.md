@@ -17,7 +17,7 @@ DA_MassSpawnConfig.UnboundEnemies                                               
    ▼                                                                                │
 ST_EnemyUnbound (Mass, 매크로) ── Guard / Roam / Return / Alert / Combat            │
    │                                   │                                            │
-   │ Combat && Actor 있음               │ Combat && Actor 없음 → 기존 Chase 폴백     │
+   │ Combat && Actor 초기화 완료        │ Combat && Actor 없음 → 기존 Chase 폴백     │
    ▼                                                                                │
 Engage: FLNPEnemyActorBrainTag 부착 → ALNPEnemyCharacter::StartCombatBrain()        │
    │                                                                                │
@@ -52,8 +52,10 @@ USTRUCT() struct FLNPEnemyHomeFragment : public FMassFragment
     ELNPEnemyHomeMode HomeMode = ELNPEnemyHomeMode::Roam;
     FVector HomeCenter = FVector::ZeroVector;  // Arena: 앵커 월드 위치. Roam: 스폰 위치(기록용)
     float LeashRadius = 0.f;                   // Arena: ArenaRadius. Roam: 0(무제한)
-    double LastConfirmedTime = 0.0;            // 해제 리셋 판정용
-    bool bResetApplied = true;                 // 리셋을 한 번만 적용
+    FLNPSurfaceHandle HomeSurface;             // Arena: 앵커의 slot·Layer·generation
+    double DisengagedSince = -1.0;             // Confirmed 해제 시각. -1이면 계측 안 함
+    bool bResetPending = false;                // 교전 또는 허용된 피격 이후 리셋 필요
+    bool bReturning = false;                   // 귀환 이동이 목표를 소유함
 };
 
 USTRUCT() struct FLNPEnemyUnboundTag : public FMassTag {};     // Pod 기반 프로세서 쿼리 제외용
@@ -62,6 +64,8 @@ USTRUCT() struct FLNPEnemyActorBrainTag : public FMassTag {};  // 전투 두뇌�
 
 - Pod 적은 이 프래그먼트를 갖지 않는다. HomeMode `Pod`는 스폰 엔트리 검증에서 "금지 값"으로만 쓴다. 귀속 축 전체를 한 enum으로 표현하기 위해 둔다.
 - 기존 `FLNPEnemyFragment::ParentPodLocation`을 아레나 중심으로 재사용하지 않는다. 이름이 거짓말을 하게 되고, Pod 기반 프로세서가 읽기 때문이다.
+- 위 필드는 설계용 스케치다. `bReturning`은 앵커 도착까지 유지한다(EL-016). 넉백 이탈과 교전 해제의 리셋 규칙이 다르므로 귀환 시작 사유도 엔티티에 보존한다.
+- Roam·Return·전투 이동의 경로 목표는 **위치 + 목적지 `FLNPSurfaceHandle`**로 구성한다. 목적지 식별 정보는 현재 위치의 Surface와 별개이며, 기존 이동/경로 프래그먼트의 확장 위치는 E4에서 정한다. 페이즈 연출 소비 상태는 §7.5가 소유한다.
 
 ### 2.2 스폰 구성 (`DataAsset/LNPMassSpawnConfig.{h,cpp}`)
 
@@ -130,7 +134,7 @@ TArray<FLNPUnboundEnemySpawnEntry> UnboundEnemies;
 - **Arena:** 게시된 8칸의 `ArenaAnchors` 중 `ArenaTag`가 같은 앵커마다 `Count`기.
   - 위치: 앵커 반경 안, 앵커와 같은 (slot, Layer)의 Enemy 플래그 후보. 앵커에 가까운 것부터. 적끼리 `MinEnemySpacing`(200) 유지.
   - 후보가 없으면 앵커 위치 자체를 쓴다(아레나는 수동 배치라 앵커가 표면 위에 있음이 베이크로 보장된다).
-  - 출력: HomeCenter = 앵커 월드 위치, LeashRadius = `Radius`.
+  - 출력: HomeCenter = 앵커 월드 위치, HomeSurface = 앵커의 slot·Layer·현재 generation, LeashRadius = `Radius`.
 - **Roam:** `RandomCandidates` 중 Enemy 플래그 후보. 모든 Pod에서 `MinDistanceFromPods` 이상, 이미 놓인 Roam 엘리트와도 같은 거리 이상.
 - 놓지 못한 수량은 계획 오류가 아니라 경고 로그(`[UnboundPlan] entry=... placed=N/M`)로 남긴다. 옥탄트 조합에 따라 아레나 태그가 없을 수 있기 때문이다.
 - 비행 적 천장 높이 처리(`GetSpawnRequiredHeadroom`)는 엘리트가 지상 전용이라 쓰지 않는다.
@@ -168,8 +172,16 @@ switch (Home ? Home->HomeMode : Pod)
 ```
 
 - Arena에서 `AwarenessDistance` 예외를 막는 이유: 아레나 경계 바로 밖에 서서 근접 반격을 유도하는 공략을 막는다. 근접 거리가 아레나 반경보다 훨씬 작으므로 경계 안쪽 플레이에는 영향이 없다.
-- Roam에서 §7.8(세력권을 NPC 위치로 재면 자기진동)이 문제되지 않는 이유: 비교할 앵커가 없다.
+- Roam에서 기존 EnemyNPC 문서 §7.8의 자기진동(세력권을 NPC 위치로 측정)이 문제되지 않는 이유: 비교할 앵커가 없다.
 - Promoted 슬롯 풀(플레이어당 2, `Enemy/LNPTargetingSubsystem.h:66-83`)은 이제 엘리트 전용이다. 한도는 바꾸지 않는다(LowLOD §7 대역폭 근거).
+
+### 5.4 아레나 피격 자격 (EL-015)
+
+- **추격 자격과 피격 자격은 별개다.** §5.3에서 슬롯을 막는 것만으로 아레나 밖 피해 누적·지연 시간 안의 처치를 막을 수 없다.
+- 피해 허용 정책의 원본은 [GameRules.md](GameRules.md) §6.1이다. 서버 명중 판정 시 공격자가 아레나 안이고 피격자가 귀환·리셋 중이 아닐 때만 피해·경직·넉백을 허용한다.
+- E4에서 근접·투사체 직격·폭발 범위의 서버 판정에 같은 자격 검사를 연결한다. Actor 유무와 무관하게 엔티티의 Home 정보로 판단하며, 거부된 피격이 HP·경직·넉백·피격 인지를 일부만 적용하지 않게 한다. 지연 커맨드는 적용 직전에도 피격자 활성·생존·현재 귀환/리셋 상태를 검사한다.
+- 기준은 서버가 해당 명중을 판정하는 시점의 공격자 위치 스냅샷이다. 발사 시점 위치나 Lag Compensation으로 되감은 충돌 시점의 위치를 대신 쓰지 않는다. 판정 후 게임 스레드 적용까지 공격자가 이동했다는 이유로 다른 시각의 위치를 다시 혼합하지 않는다.
+- 스플래시도 폭발 중심이 아니라 공격자의 위치로 자격을 판단한다. 반사탄은 기존 반사 파이프라인이 갱신한 공격자 귀속을 사용한다. 유효한 공격자 핸들을 확인할 수 없으면 위치 자격을 입증할 수 없으므로 아레나 보스에 대한 해당 피해를 거부한다. 공격 종류별 이 귀속 정보 전달을 E4에서 확인한다.
 
 ## 6. 매크로 두뇌 `ST_EnemyUnbound` (Mass StateTree)
 
@@ -177,11 +189,11 @@ switch (Home ? Home->HomeMode : Pod)
 
 | 우선순위 | 상태 | Enter 조건 | Task |
 |---:|:---|:---|:---|
-| 1 | **Combat** | `TargetingState == Confirmed` | (자식) |
-| 1-1 | └ Engage | Actor 있음 && `ActorCombatStateTree` 있음 | `FLNPEnemyEngageTask` |
-| 1-2 | └ Attack | 사거리 안 | 기존 `FLNPEnemyAttackTask`(폴백) |
-| 1-3 | └ Chase | 그 외 | 기존 `FLNPEnemySteeringTask`(폴백) |
-| 2 | **Return** | Arena && `bOutsideHome` | `FLNPEnemyReturnTask` |
+| 1 | **Return** | Arena && `bReturning` | `FLNPEnemyReturnTask` |
+| 2 | **Combat** | `TargetingState == Confirmed` && 귀환 아님 | (자식) |
+| 2-1 | └ Engage | Actor 초기화 완료 && `ActorCombatStateTree` 있음 | `FLNPEnemyEngageTask` |
+| 2-2 | └ Attack | 사거리 안 | 기존 `FLNPEnemyAttackTask`(폴백) |
+| 2-3 | └ Chase | 그 외 | 기존 `FLNPEnemySteeringTask`(폴백) |
 | 3 | **Alert** | `TargetingState == Alert` | 기존 `FLNPEnemyLookAtTask` |
 | 4 | **Idle** | (기본) | (자식) |
 | 4-1 | └ Guard | `HomeMode == Arena` | `FLNPEnemyGuardTask` |
@@ -189,42 +201,57 @@ switch (Home ? Home->HomeMode : Pod)
 
 - 전이는 기존 트리와 같이 On Tick + 조건 불일치 → Root.
 - Engage가 Attack·Chase보다 위다. Actor가 강등돼 사라지면 Engage 조건이 깨져 폴백으로 내려간다.
+- 사망 확정은 모든 상태보다 우선한다. 사망 시 §7.7의 종료 경로를 실행하고 매크로 트리도 정지시킨다. DyingTag로 프로세서 쿼리에서 빠지는 것만으로 Task 종료를 대신하지 않는다.
+- 귀환 시작은 매크로 두뇌가 결정한다. 아레나 밖으로 밀려났거나 교전 후 모든 플레이어가 추격 자격을 잃으면 시작한다. 안쪽에 추격 가능한 후보가 있는데 슬롯만 잠깐 끊긴 경우에는 즉시 귀환을 고정하지 않고 Alert와 기존 리셋 지연을 사용한다. 귀환 중에는 슬롯 경쟁·새 패턴 발동을 보류하되 추격 가능한 후보 관측은 유지한다.
+- `GuardRadius`는 사용하지 않는다. 아레나 이탈은 `LeashRadius`, 앵커 도착은 기존 `FLNPEnemyMovementConfig::ArrivalTolerance`를 쓴다. 귀환 중에는 도착 전까지 `bReturning`을 유지하여 도착 허용 범위의 경계에서 상태가 반복되지 않게 한다. 플레이어 재진입으로 조기 해제하지 않는다(EL-016).
 
 ### 6.2 노드 (`Enemy/LNPEnemyUnboundStateTree.{h,cpp}`)
 
 | 노드 | 역할 |
 |:---|:---|
-| `FLNPEnemyHomeEvaluator` | 출력: `HomeMode`, `DistanceToHome`, `bOutsideHome`(Arena에서 HomeCenter에서 `GuardRadius` 초과) |
-| `FLNPEnemyEngageTask` | Enter: `FLNPEnemyActorBrainTag` 부착, `StartCombatBrain()`. Exit: 태그 제거, `StopCombatBrain()`. Tick: Actor·트리 유효성만 확인 |
-| `FLNPEnemyReturnTask` | `MoveTarget`을 HomeCenter로. 도착하면 Succeeded |
+| `FLNPEnemyHomeEvaluator` | 출력: `HomeMode`, `DistanceToHome`, `bOutsideArena`(`LeashRadius` 초과), `bReturning`, 앵커 도착 여부 |
+| `FLNPEnemyEngageTask` | Enter: §6.3의 소유권 인계 후 `StartCombatBrain()`. Exit: §7.7 종료 계약. Tick: 생존·Confirmed·Actor·트리 유효성 확인 |
+| `FLNPEnemyReturnTask` | 목표를 HomeCenter + HomeSurface로 설정. 경로 조향점으로 이동하고 앵커 도착을 보고. 재교전/리셋 조건까지 충족해야 귀환 상태 해제 |
 | `FLNPEnemyGuardTask` | 앵커 근처 정지. 아레나 중심 또는 마지막 위협 방향을 본다 |
 | `FLNPEnemyRoamTask` | §6.5 경유점 선택. 도착하면 다음 경유점 |
 
 - Task는 Transform을 건드리지 않는다. `MoveTarget`에 의도만 남기고 이동은 `ULNPEnemyMovementProcessor`가 한다(StateTree 문서 §1 규약 유지).
-- Tick은 신호 구동이다. 귀환 도착은 Movement 프로세서의 도착 신호가, 전투 중 진행은 `ULNPEnemyTargetFollowProcessor`(`Enemy/LNPEnemyProcessors.cpp:467-523`) 신호가 깨운다. 이 신호가 Engage 상태에도 오는지 E4에서 확인한다.
+- 이 표는 최종 구조다. E4는 Guard·Roam·Return과 기존 Attack/Chase 폴백까지 검증하고, Engage의 실제 CombatBrain 시작·종료 연결은 E5에서 완성한다. E4 리셋은 기존 무기 공격·경직을 정리하고, E5에서 §7.7의 패턴 정리를 연결해 같은 리셋 검증을 반복한다. 아직 없는 CombatBrain 구현을 E4 빌드의 선행 조건으로 두지 않는다.
+- Tick은 신호 구동이다. 귀환 도착은 Movement 프로세서의 도착 신호로 깨운다. Actor 준비·소실 신호는 E5의 두뇌 인계에서 연결한다. 기존 TargetFollow 신호가 모든 Confirmed 프레임에 온다고 가정하지 않는다.
 
 ### 6.3 이동 의도 소유권 (EL-004)
 
 - `ULNPEnemyMovementProcessor`의 Actor 위임 분기(`Enemy/LNPEnemyProcessors.cpp:868-889`)는 엔티티에 `FLNPEnemyActorBrainTag`가 있으면 `SetAIMoveInput`·`SetAIOrientationIntent`·`SetAIDesiredSpeed`를 쓰지 않는다.
 - 전투 두뇌는 `StartCombatBrain()`과 `StopCombatBrain()` 사이에서만 의도를 쓴다. Stop 때 의도를 0으로 비운다(남은 입력이 다음 소유자에게 새지 않도록).
 - Actor가 사라지면 `ULNPEnemyActorSyncProcessor`(`:1299-1348`)가 초기화 태그를 뗄 때 `FLNPEnemyActorBrainTag`도 같이 뗀다. 그래야 Actor 없는 Chase 폴백에서 엔티티 적분이 다시 돈다.
+- **귀환 목표도 단일 작성자다.** `bReturning` 동안 TargetFollow는 타겟 위치를 MoveTarget에 쓰지 않는다. PathProcessor는 Alert/Confirmed의 플레이어 목표 대신 HomeCenter + HomeSurface를 소비하고, MovementProcessor는 Alert 정지 분기 대신 귀환 속도·조향을 적용한다. 타겟 장부는 유지하되 이동을 덮지 않는다. Pod 적의 기존 분기는 그대로 둔다.
+- 전투 두뇌의 이동 목표도 §7.8에 따라 경로에 전달한다. ActorBrain이 켜진 동안 TargetFollow의 기본 추격 목표가 전투 이동 목표를 덮지 않도록 한다. 이동 의도 작성자와 경로 계산자는 구분한다.
+- 소유권 전환은 게임 스레드에서 순서가 보장되는 인계로 처리한다. 이전 두뇌 정지·입력 초기화 후 새 두뇌만 입력을 쓴다. 지연된 Mass 이동 커맨드는 적용 시점에도 엔티티 활성 여부·현재 Actor 연결·현재 소유권을 확인하여 이전 소유자의 입력이 뒤늦게 덮지 못하게 한다.
 
 ### 6.4 해제 리셋 (Arena 전용, EL-006)
 
-- 새 프로세서 `ULNPEnemyHomeProcessor`(서버, Behavior 그룹 뒤, `FLNPEnemyUnboundTag` 쿼리 — 소수라 매 프레임 돌아도 된다).
-  - Confirmed면 `LastConfirmedTime = Now`, `bResetApplied = false`.
-  - `!bResetApplied && Now - LastConfirmedTime >= DisengageResetDelay`면 리셋:
-    - `FLNPEnemyFragment::Health`를 최대치로(최대치는 템플릿이 계산한 값, `Enemy/LNPEnemyMassTypes.cpp:43-59`)
-    - `FLNPPoiseFragment` 누적·그로기·다운 상태를 초기화
-    - Actor가 있으면 게임 스레드 커맨드로 ASC Health도 최대로(다음 프레임 `SyncToEntity`가 덮어쓰지 않게 같은 커맨드에서 처리)
-  - 페이즈는 HP 비율에서 파생하므로 자동으로 1페이즈로 돌아간다(EL-007).
+- 새 프로세서 `ULNPEnemyHomeProcessor`(서버, Arena인 `FLNPEnemyUnboundTag`만). 매크로 상태 갱신과 실제 리셋 적용의 순서를 구분한다.
+- 일반 교전의 Confirmed 동안 `bResetPending = true`, `DisengagedSince = -1`이다. Confirmed를 잃으면 해제 시각을 한 번 기록한다. 귀환 고정 전이고 지연 안에 다시 Confirmed가 되면 타이머를 취소한다. 미교전 상태에서 **허용된 피격**으로 HP·경직 등이 바뀌어도 pending을 세우고 해제 타이머를 시작한다. 반복 피격이 타이머를 계속 연장하지 않는다. §5.4에서 피격이 거부되면 pending도 만들지 않는다.
+- pending이고 해제 시간이 `DisengageResetDelay` 이상이면 리셋 가능 상태다. 교전 해제로 귀환하는 경우 앵커 도착과 지연을 모두 충족한 뒤 리셋하고 `bReturning`을 내린다. 먼저 도착하면 남은 지연을 대기하고, 먼저 지연이 지나면 귀환을 계속한다. 도중 재진입은 이 귀환·리셋을 취소하지 않는다(EL-016).
+- 넉백 귀환은 별도 사유로 남긴다. 안에 추격 가능한 후보가 계속 있으면 귀환이 억제한 Confirmed 상실로 타이머를 시작하지 않는다. 앵커 도착 후 HP·경직·연출 장부를 리셋하지 않고 재교전한다. 도중 후보가 모두 사라지면 교전 해제 귀환으로 전환하고 그 시점에 해제 타이머를 시작한다.
+- 리셋 성공 때만 pending을 내리며, 이후 새 교전·허용된 피격은 다시 pending을 세운다. 한 번 리셋한 뒤 영구히 재무장되지 않는 `bResetApplied` 방식은 쓰지 않는다.
+- 리셋은 게임 스레드에서 엔티티와 현재 Actor에 **한 번의 정리 작업**으로 적용한다.
+  1. 엔티티·Actor 연결과 실제 HP를 다시 읽는다. `Health <= 0` 또는 Dying이면 리셋을 취소한다. 이미 확정된 사망과 보상을 되돌리지 않는다.
+  2. CombatBrain 정지, 진행 패턴 취소, 칼날·워프·AI 입력 정리를 §7.7에 따라 완료한다.
+  3. 활성 그로기·다운 GA를 명시적으로 종료한다. `FLNPStaggerCommand`의 해제 경로를 재사용하거나 같은 정리를 실행한 뒤 경직 누적·LastHitTime·GroggyElapsed·면역 잔여·상태 플래그를 초기화한다. 프래그먼트만 0으로 만들어 PoiseProcessor의 해제 에지를 없애지 않는다. 저항·임계값 등 Config 유래 값은 보존한다.
+  4. 템플릿이 계산한 최대 HP로 엔티티와 현재 Actor ASC를 함께 맞추고, §7.5의 전환 연출 장부를 초기화한다. HP 비율에서 파생하는 페이즈는 1로 돌아간다.
+  5. pending·타이머를 정리한 뒤 매크로 트리를 깨운다. Actor가 없을 때도 엔티티에 완료 상태가 남아야 한다.
+- **실행 순서는 E4의 완료 조건이다.** 기존 ActorSync·피해 적용·Poise·Health와 같은 PostPhysics 안의 선후 및 커맨드 flush 지점을 확인한다. 이번 프레임의 피해 적용과 Actor→엔티티 HP 반영, 사망 확정 후 살아 있는 개체만 리셋하며, 다음 ActorSync가 이전 HP를 덮지 않도록 한다. 다른 ProcessingPhase에 `ExecuteAfter`만 선언하거나, 프래그먼트 쓰기와 ASC 쓰기를 서로 다른 시점에 예약하는 것으로 보장했다고 보지 않는다. E4 계획에 실제 순서와 치명타/리셋 동시 프레임의 증거를 남긴다.
+- 기존 Poise의 자연회복 원칙에서 **아레나 완전 리셋을 별도 예외**로 기록한다. 공통 Poise 문서는 E4 구현과 함께 갱신한다.
 - 로그: `[UnboundReset] entity=... hp=...`.
 
 ### 6.5 배회 경유점 (Roam)
 
 - `FLNPEnemyRoamTask`가 자기 위치에서 `RoamStepMin`~`RoamStepMax` 거리 대역의 Enemy 플래그 후보를 고른다. 후보 원본은 Surface 데이터의 Spawn 스트림이다.
-- 지상 도달성 검사는 `FLNPEnemyIdleTask`의 지상 후보 검증(`ProjectWanderTarget` + 도달성, `Enemy/LNPEnemyStateTreeProcessors.cpp:440-532`)을 함수로 빼서 공유한다.
-- 장거리 경로 추종은 `ULNPEnemyPathProcessor`의 경로 요청을 Idle(Roam) 상태에도 연다. 옥탄트를 넘는 경로의 비용·예산은 E4 착수 시 먼저 조사한다(Roadmap §4).
+- 후보의 slot·Layer에서 현재 generation을 붙인 **목적지 Surface**를 만들고 위치와 함께 보존한다. 출발 Surface는 적의 현재 지지면이다. 두 식별 정보로 `ResolveEndpoints`와 경로 요청을 수행한다.
+- 기존 `ProjectWanderTarget`은 다른 slot·Layer를 거부하는 같은 표면 전용 헬퍼다. Pod IdleTask에는 이 제약을 유지하고, Roam에는 후보 자체의 Surface를 검증하는 경로를 쓴다. 도달성·안전성의 공통 부분만 공유하며 기존 헬퍼를 그대로 호출해 옥탄트 간 배회를 구현했다고 보지 않는다.
+- `ULNPEnemyPathProcessor`는 Roam·Return의 명시적 목적지 Surface를 사용한다. `GoalSurface = Enemy.SurfaceHandle`로 대체하지 않는다. 오래된 generation이면 목표·경로를 폐기하고 새 snapshot에서 재선정한다. Return의 HomeSurface는 베이크 앵커의 slot·Layer로 갱신·재검증하고, 귀환 불가 시 반복 요청하지 않도록 실패 원인을 기록한다. 강제 순간이동은 별도 합의 없이 추가하지 않는다.
+- 도착하면 다음 경유점을 고르고, 도달 불가·타임아웃이면 목표를 폐기하고 재추첨한다. 장거리 경로는 기존 스케줄러의 예산·우선순위를 사용한다. 옥탄트를 넘는 경로의 비용·예산은 E4 착수 시 먼저 조사한다(Roadmap §4).
 - 경유점 추첨은 서버 전용이라 결정론이 필요 없다(기존 배회도 `FMath::FRandRange`).
 
 ## 7. 전투 두뇌 `CombatBrain` (Actor StateTreeComponent, 서버 전용)
@@ -242,14 +269,14 @@ switch (Home ? Home->HomeMode : Pod)
 | 종류 | 이름 | 역할 |
 |:---|:---|:---|
 | 전역 Evaluator | `FLNPCombatContextEvaluator` | 엔티티의 Confirmed 타겟 Pawn(타겟 엔티티의 `FMassActorFragment`), 거리, 정면각, 타겟 속도, HP 비율, 그로기·다운 여부, 패턴 어빌리티 활성 여부, HomeMode·HomeCenter·LeashRadius |
-| Task | `FLNPActivatePatternTask` | 어빌리티 태그로 발동한다. 발동 직전 조준점(`SetAimTargetLocation`)과 MotionWarping 타겟을 설정한다. ASC의 어빌리티 종료 이벤트로 Succeeded(정상 종료)/Failed(취소·발동 실패)를 돌려준다. Exit에서 구독을 반드시 해제한다 |
-| Task | `FLNPCombatMoveTask` | 접근·측면 이동·후퇴. 모드, 목표 거리 대역, 최대 지속 시간을 파라미터로 받는다. 의도는 방향 단위벡터 + 속도로 분리해서 넣는다(Mover 의도 크기<1 함정). Arena면 다음 위치가 LeashRadius 밖이면 접선 성분만 남긴다 |
+| Task | `FLNPActivatePatternTask` | 태그로 해당 패턴의 AbilitySpecHandle을 찾아 발동하고 그 핸들의 종료만 처리한다. 정상 종료는 Succeeded, 취소·실패는 Failed. 동기 종료·강제 Exit의 안전 규칙은 §7.7 |
+| Task | `FLNPCombatMoveTask` | 접근·측면 이동·후퇴 목표를 §7.8에 따라 검증하고 기존 경로 조향점을 소비한다. 모드, 목표 거리 대역, 최대 지속 시간을 파라미터로 받는다. 의도는 방향 단위벡터 + 속도로 분리한다 |
 | Task | `FLNPFaceTargetTask` | 제자리 회전. 정면각이 임계값 안이면 Succeeded |
 | Condition | `FLNPPatternReadyCondition` | 패턴 어빌리티의 쿨다운 태그가 없고 `CanActivateAbility`가 참 |
 
 - 거리·각도·페이즈 조건은 엔진 float·enum 비교 조건을 쓴다. C++ 조건은 위 하나만 만든다.
 - 패턴 선택: 패턴 상태들을 형제로 두고 부모의 선택 방식을 Utility Selection으로 한다. Consideration은 거리 커브, 정면각 커브, 페이즈 가중치. 같은 점수면 무작위.
-- 페이즈: 최상위에 Phase1·Phase2 상태를 두고 Phase2 진입 조건을 `HP 비율 <= 임계값`으로 한다. Phase2 진입 직후 전환 연출 상태(어빌리티 1개)를 한 번 거친다. 리셋으로 HP가 돌아오면 Phase1로 돌아간다.
+- 페이즈: 현재 페이즈는 HP 비율에서 파생한다. Phase1·Phase2의 조건을 상호 배타적으로 두고, 임계값 통과 시의 명시적 전이와 Staggered 해제 후 재선택을 구성한다. Phase1의 무조건 진입이나 형제 순서만으로 페이즈 전환을 구현하지 않는다. Phase2 전환 연출(어빌리티 1개)의 소비 여부는 §7.5에서 따로 관리한다. 리셋으로 HP가 돌아오면 Phase1로 돌아간다.
 - 경직 대기: 최상위 첫 상태로 "Staggered"를 두고, `GA_Stagger`의 입력 차단 태그가 있는 동안 머문다.
 
 ### 7.3 패턴 어빌리티 `ULNPAbility_MontagePattern` (`GAS/Abilities/`)
@@ -258,7 +285,7 @@ switch (Home ? Home->HomeMode : Pod)
 - 판정은 몽타주의 `ANS_LNPMeleeHitWindow`가 만드는 칼날 엔티티(`FLNPWeaponTraceFragment`)를 그대로 탄다. 그래서 패링·저스트 회피·가드·무적이 `LNPGuardParry::Judge` 한 곳에서 자동으로 성립한다.
 - 필드: `Montage`, `DamageMultiplier`, `PoiseDamageMultiplier`, `bUseMotionWarping` + 워프 타겟 이름, 쿨다운(기존 `LNPAbility_BasicAttack`의 Cooldown GE 방식, `GAS/Abilities/LNPAbility_BasicAttack.cpp:66-95`).
 - 태그: `Ability.Pattern.<이름>`(발동용), `Ability.Type.Attack`(경직 취소용).
-- 원거리 패턴은 `ULNPAbility_RangedAttack` 계열을 쓴다. 조준은 `GetBaseAimRotation()`(복제 Pitch)이라 추가 작업이 없다.
+- 원거리 패턴은 기존 `ULNPAbility_RangedAttack`의 발사·조준(`GetBaseAimRotation`, 복제 Pitch)을 재사용한다. 단, 기존 GA는 발사·몽타주 시작 직후 종료하므로 그대로 패턴 수명으로 쓰지 않는다. 원거리 패턴 GA는 선딜·발사·후딜 전체를 소유하고 완료 때 종료한다. 기존 플레이어/일반 원거리 공격의 수명은 바꾸지 않는다. §7.7의 종료·취소 계약을 따른다.
 
 ### 7.4 경직·패링 연동
 
@@ -271,12 +298,31 @@ switch (Home ? Home->HomeMode : Pod)
 - Actor는 풀링되지 않고 강등 때 파괴된다(TechDesign_EnemyNPC "Actor 수명"). Confirmed 동안에는 LODOverride가 High를 강제하므로 교전 중 파괴는 드물다.
 - 전투 두뇌가 가진 상태(현재 패턴, 쿨다운)는 Actor와 함께 사라진다. 다시 승격되면 쿨다운이 비어 있는 상태로 시작한다. 이를 허용한다.
 - 페이즈는 저장하지 않는다. 엔티티 HP 비율에서 매번 파생한다.
+- **현재 페이즈와 전환 연출 소비 여부는 다르다.** 전환 연출을 이미 사용했는지는 엔티티의 서버 전용 장부로 보존한다. 경직 후 Phase2 재진입, 타겟 교체, CombatBrain 재시작, Actor 재생성만으로 장부를 지우지 않는다. Arena 완전 리셋 때 초기화하고 Roam은 완전 리셋이 없으므로 Actor 강등만으로 재허용하지 않는다.
+- 장부는 연출 GA 발동 성공으로 연출이 시작될 때 소비한다(EL-017, GameRules §6.3). 발동 전에 실패하면 미소비, 시작 후 중단되면 소비를 유지하고 페이즈 패턴으로 진행한다. 이 장부는 EL-007의 HP 기반 페이즈를 대체하지 않으며 새 복제 필드도 아니다.
 
 ### 7.6 복제
 
 - 전투 두뇌·패턴 선택은 서버에서만 돈다. 결과는 기존 경로로 복제된다: 몽타주(ASC), GameplayCue, Mover 이동, 복제 Pitch.
 - 적 ASC는 Minimal 복제 모드다. 패턴 몽타주가 게스트에서 재생되는지 E5에서 2P로 확인한다(기존 근접 적이 같은 경로를 쓰므로 위험은 낮다).
 - 새 복제 필드를 만들지 않는다. 대역폭 예산은 Promoted Actor 1기당 기존 값(700~900 B/s)을 넘지 않아야 한다(E6 측정).
+
+### 7.7 패턴 수명과 종료 계약
+
+- 패턴 GA 하나가 예고·유효 공격·후딜 전체를 소유한다. 발사 1회나 몽타주 시작을 패턴 완료로 해석하지 않는다. PatternTask는 조준·워프를 설정하고 **발동 전에** 종료 구독을 준비한다. 발동 실패와 발동 호출 안의 동기 종료를 모두 처리하며, 성공 핸들을 나중에 저장하는 사이 종료를 놓치지 않는다.
+- 구독은 해당 AbilitySpecHandle로 필터링하고 StateTree의 약한 실행 컨텍스트를 사용한다. 종료된 상태의 인스턴스 데이터나 스택의 ExecutionContext를 콜백에서 직접 참조하지 않는다. Exit는 구독 해제와 종료 처리를 멱등으로 수행해 취소 콜백이 이미 종료된 Task를 다시 완료시키지 않게 한다.
+- 정상 완료는 해당 GA의 EndAbility가 칼날·워프·패턴 소유 입력을 정리한 뒤 Succeeded로 보고한다. 이미 완료한 GA를 Exit에서 다시 취소하지 않는다.
+- 경직, Confirmed 상실, Return 진입, 리셋, 사망, Actor 연결 해제/EndPlay, 트리 교체·중지는 **강제 종료**다. 새 패턴 발동을 먼저 막고, Task가 소유한 활성 GA를 취소하고, 몽타주·칼날·워프·입력을 정리한 뒤 두뇌의 이동 소유권을 반환한다. 경직 GA와 그로기 태그까지 무조건 지우는 것은 리셋 경로에서만 한다.
+- 칼날 정리는 NotifyEnd만 가정하지 않는다. 몽타주 취소·Actor 파괴 경로에서도 패턴이 만든 칼날이 다음 유효 판정을 하지 않도록 소유 핸들과 수명 정리를 확인한다. 수명이 남은 기존 비행 발사체의 소거는 별도 정책이며 이 종료 계약만으로 소거한다고 가정하지 않는다. 피격 허용은 §5.4를 계속 따른다.
+- `StopCombatBrain()`은 반복 호출 가능해야 한다. 사망 처리에서 명시적으로 호출하며 랙돌·DyingTag 쿼리 제외가 대신 호출해 준다고 가정하지 않는다. E5에서 EndPlay와 리셋까지 같은 종료 함수를 사용하고, 무기 폴백 공격에서 Engage로 넘길 때도 남은 이전 공격을 정리한다.
+
+### 7.8 전투 이동·아레나 경계
+
+- **접근:** 전투 두뇌가 위치 + 목적지 Surface를 정하고 기존 PathProcessor/스케줄러로 우회를 계산한다. CombatMoveTask는 `FLNPEnemyPathFragment::SteeringPoint`를 소비해 Actor 의도를 작성한다. 벽·계단이 있는 상황에서 타겟까지 직선 입력만 넣는 것을 접근 구현으로 보지 않는다.
+- **측면 이동·후퇴:** 후보 지면과 목적지 Surface, 경로 도달성, 캡슐 이동 안전성을 검증한다. 도달 불가 또는 지속 시간 초과 시 Task를 종료하고 매크로/패턴 선택에 실패를 보고한다. 제자리에서 같은 실패 목표를 매 프레임 재요청하지 않는다.
+- **Arena:** 일반 이동 목표·중간 조향점·워프 목표에 같은 LeashRadius 제약을 적용하고 실제 이동도 검증한다. 경계 밖 성분을 접선으로 바꾸는 것만으로 반경 내부가 보장된다고 보지 않는다. 루트 모션은 시작·종점만이 아니라 이동 구간이 경계를 넘는지 검사한다. E5에서는 필요한 경우 해당 패턴/워프 이동을 제한하거나 취소하여 경계를 지킨다. 넉백 이탈은 §6의 귀환 경로로 처리한다.
+- 경계 위치는 서버의 월드 좌표와 HomeCenter 거리로 통일한다. NPC 몸체 기준과 플레이어 추격 자격 기준의 차이(캡슐 중심/지면점·몸체 여유)를 E4에서 명시하고 같은 헬퍼를 사용한다. Return 경로는 바깥에서 안으로 복귀해야 하므로 일반 전투 이동의 내부 후보 제한으로 막지 않는다.
+- 복합 근접·원거리 패턴은 기존 Config의 `AttackType`이 인지·슬롯 도달성에도 쓰인다는 제약을 따른다. 첫 콘텐츠에서 접근 가능한 지상 타겟을 기준으로 검증하며, 원거리 패턴이 있다는 이유만으로 기존 근접 슬롯의 도달 불가 판정을 자동 우회하지 않는다. 높은/분리된 지면의 타겟을 원거리로 계속 상대해야 한다면 E5 콘텐츠 요구로 분리해 자격 정책을 추가 결정한다.
 
 ## 8. 사망 LootDice 드랍 (EL-009)
 

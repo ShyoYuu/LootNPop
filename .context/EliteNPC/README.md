@@ -54,7 +54,7 @@
 → Pod 배치가 끝난 뒤 별도 시드 스트림으로 `BuildUnboundPlan`이 배치를 정한다(Arena는 베이크된 아레나 앵커, Roam은 절차 후보).
 → 스폰 직후 `FLNPEnemyHomeFragment` + `FLNPEnemyUnboundTag`를 붙인다. Pod 기반 프로세서는 이 태그를 쿼리에서 뺀다.
 → 엘리트 전용 Mass StateTree `ST_EnemyUnbound`가 Guard·Roam·Return·Alert·Combat를 고른다.
-→ Combat에서 Actor가 있으면 `Engage`가 `FLNPEnemyActorBrainTag`를 붙이고 Actor의 `CombatBrain`(StateTreeComponent)을 켠다. 이때부터 이동 의도는 Actor 두뇌만 쓴다.
+→ 귀환 중이면 Home 목표가 우선한다. Combat에서 Actor 초기화가 끝났으면 `Engage`가 `FLNPEnemyActorBrainTag`를 붙이고 Actor의 `CombatBrain`(StateTreeComponent)을 켠다. 이때부터 이동 의도는 Actor 두뇌만 쓴다.
 → Actor 두뇌는 패턴 어빌리티(GAS 몽타주)를 Utility Selection으로 고르고, 판정은 기존 칼날·발사체 파이프라인을 그대로 탄다.
 → HP가 0이 되면 `ULNPHealthProcessor`가 `DeathRewards`를 보고 배치 커맨드로 `ALNPLootDice::SpawnRewardSet`을 부른다.
 
@@ -70,7 +70,7 @@
 | 매크로 두뇌 | Mass StateTree `ST_EnemyUnbound`. 싸울지·돌아갈지·어디로 갈지를 정한다 |
 | 전투 두뇌 | Actor의 `CombatBrain`(StateTreeComponent). 어떻게 싸울지(패턴·연계·페이즈)를 정한다 |
 | 패턴 | 전투 두뇌가 고르는 공격 단위. GAS 어빌리티 1개 = 패턴 1개 |
-| 해제 리셋 | 아레나 엘리트가 Confirmed 타겟 없이 일정 시간이 지나면 HP·경직을 초기값으로 되돌리는 것 |
+| 해제 리셋 | 아레나 엘리트의 교전 해제 후 HP·경직·연출 장부를 초기화하는 것. 귀환 완료와 넉백 예외는 EL-016을 따른다 |
 
 ## 6. 모든 구현이 지켜야 하는 불변 조건
 
@@ -80,6 +80,8 @@
 - **코드에 등급 어휘를 넣지 않는다.** 축은 CombatMode와 HomeMode 둘뿐이다(EL-002, LowLOD §2).
 - **상태는 엔티티가 보존한다.** Actor는 풀링되지 않고 강등 시 파괴된다. 페이즈는 HP 비율에서 파생하고, 쿨다운은 Actor 재생성 때 초기화되는 것을 허용한다(EL-007).
 - **전투 두뇌와 드랍은 서버 전용이다.** 새 복제 필드를 만들지 않는다. 결과는 기존 GAS(몽타주·GameplayCue)와 LootDice 복제 경로로 나간다.
+- **귀환·피격·패턴 종료를 함께 처리한다.** 귀환 중에는 타겟 추격이 Home 목표를 덮지 않는다. 바깥 공격과 귀환·리셋 중 피격은 EL-015로 차단하며, 교전 중단·사망 때 패턴을 정리한다(EL-012~016).
+- **페이즈 전환 연출 소비는 엔티티가 보존한다.** 현재 페이즈는 계속 HP에서 파생한다. 연출은 시작 시 소비하고 Arena 완전 리셋 때 다시 허용한다(EL-017).
 
 ## 7. 문서별 소유 정보
 

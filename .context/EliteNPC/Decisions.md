@@ -18,6 +18,13 @@
 | EL-008 | 아레나 엘리트의 추격 자격은 "플레이어가 아레나 안에 있는가"(플레이어↔HomeCenter ≤ LeashRadius)다. Roam은 앵커 없이 시야·인지·인내 규칙만 쓴다 | 기준 설계 | `design/Architecture.md` §5, `design/GameRules.md` §2 |
 | EL-009 | 사망 보상은 `ULNPEnemyConfig::DeathRewards`(`FLNPLootDiceRewardSet`, 비어 있으면 드랍 없음)에 둔다. 등급 어휘가 없는 범용 필드다. 추첨·스폰은 Pod 보상과 같은 `ALNPLootDice::SpawnRewardSet`을 쓴다 | 기준 설계 | `design/Architecture.md` §8 |
 | EL-010 | 아레나 위치는 에디터 전용 마커 `ALNPArenaSpawnPoint`를 Spawn 스트림에 베이크해서 얻는다. 런타임은 레벨 Actor를 스캔하지 않는다(D-059 원칙 유지). Spawn codec 3→4 | 기준 설계 | `design/Architecture.md` §3 |
+| EL-011 | Roam·Return 경로 목표는 위치와 목적지 Surface를 함께 보존한다. Pod 배회의 같은 slot·Layer 제약을 풀지 않고 옥탄트 간 경로를 구성한다 | 기준 설계(2026-11-05 검토 반영) | `design/Architecture.md` §2.1, §6.5 |
+| EL-012 | 귀환·전투 이동의 목표 작성자도 한 명이다. TargetFollow·Path·Movement가 귀환 목표를 타겟 추격으로 덮지 않으며 Actor 전투 이동은 기존 경로 조향을 소비한다 | 기준 설계(2026-11-05 검토 반영) | `design/Architecture.md` §6.3, §7.8 |
+| EL-013 | 패턴 GA는 선딜·유효 공격·후딜 전체를 소유한다. 귀환·사망·두뇌 정지 시 GA·칼날·워프·입력을 정리한 뒤 이동 소유권을 반환한다 | 기준 설계(2026-11-05 검토 반영) | `design/Architecture.md` §7.3, §7.7 |
+| EL-014 | 완전 리셋은 생존을 재검사한 뒤 엔티티·현재 Actor를 함께 정리한다. 활성 경직 GA를 명시적으로 종료하고 HP·경직·연출 장부를 초기화하며, 확정된 사망을 되돌리지 않는다 | 기준 설계(2026-11-05 검토 반영) | `design/Architecture.md` §6.4 |
+| EL-015 | 서버 명중 판정 시 공격자가 아레나 안이고 보스가 귀환·리셋 중이 아닐 때만 피해·경직·넉백을 허용한다 | 확정(2026-11-05, 사용자) | `design/GameRules.md` §6.1, `design/Architecture.md` §5.4 |
+| EL-016 | 귀환은 앵커 도착까지 유지한다. 플레이어 이탈 귀환은 도착과 해제 지연을 충족해 완전 리셋한 뒤 재교전한다. 안에 유효한 플레이어가 계속 남은 넉백 귀환은 HP를 유지한다. EL-006의 넉백 예외를 구체화한다 | 확정(2026-11-05, 사용자) | `design/GameRules.md` §6.2, `design/Architecture.md` §6.4 |
+| EL-017 | 페이즈 전환 연출은 발동 성공으로 시작할 때 소비한다. 소비 장부는 엔티티가 보존하고 경직·재교전·Actor 재생성으로 지우지 않는다. Arena 완전 리셋 때 다시 허용한다 | 확정(2026-11-05, 사용자) | `design/GameRules.md` §6.3, `design/Architecture.md` §7.5 |
 
 ## BT를 쓰지 않는 이유 (EL-001 근거 요약)
 

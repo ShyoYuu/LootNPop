@@ -26,6 +26,7 @@
 - E2는 Roam 엘리트 하나만 있으면 검증할 수 있어 앞쪽에 둔다. 작고 독립적이다.
 - E3는 전 옥탄트 재베이크라는 콘텐츠 작업이 따르므로, 코드 쪽(E1·E2)이 안정된 뒤에 한다.
 - E4가 끝나야 엘리트가 "기존 적 트리로 싸우는 비귀속 적"에서 벗어난다. E1~E3 동안 엘리트는 임시로 `ST_EnemyEntity`를 쓴다. 이 경우 IdleTask가 무효 Pod 위치 주변을 배회하므로 E1에서 무해한지 확인만 한다.
+- E4의 전투는 새 매크로 트리 안의 기존 Attack/Chase 폴백으로 검증한다. Engage·CombatBrain의 실제 연결과 패턴 정리는 E5에서 완성하고 E4 리셋 회귀를 반복한다. E4는 HP·기존 공격·경직 정리를, E5는 새 패턴·전환 연출 장부 정리까지 각각 빌드 가능한 단위로 닫는다.
 
 ## 3. Phase 요약
 
@@ -35,8 +36,8 @@
 | E1 | 스폰 구성·Roam 배치 | 1~2세션 | 계획 | `UnboundEnemies`·검증 규칙, `BuildUnboundPlan`(Roam), 귀속 프래그먼트·태그, Pod 경로 제외, Pod 편성 PureEntity 교체. PlanTest에서 Pod 계획 불변·결정론, PIE 로그에서 Unbound 스폰 수 확인, 엘리트가 Pod에 재귀속되지 않음 |
 | E2 | 사망 드랍 | 1세션 | 계획 | `DeathRewards`, `SpawnRewardSet` 추출(Pod 보상 회귀 없음), `ULNPHealthProcessor` 배치 커맨드. PIE에서 Roam 엘리트 처치 시 Dice 드랍, 2P 게스트가 보고 주움 |
 | E3 | 아레나 마커·베이크 | 1~2세션 | 계획 | `ALNPArenaSpawnPoint`, Spawn codec v4(`LNPSpawnDataTest` 통과), 베이커 수집·투영, 전 옥탄트 재베이크, 보스 랜드마크 옥탄트에 마커 배치, Arena 배치 계획. 아레나 엘리트가 마커 위치에 스폰됨 |
-| E4 | Mass 매크로 두뇌 | 2세션 | 계획 | `ST_EnemyUnbound`(Guard·Roam·Return·Alert·Combat), 귀속 Evaluator, HomeMode별 추격 자격, 해제 리셋 프로세서, `FLNPEnemyActorBrainTag`와 의도 소유권. PIE: 아레나 이탈 → 귀환 → 리셋, 밖에서 사격해도 교전 안 함, Roam이 옥탄트 이음매를 넘어 순회 |
-| E5 | Actor 전투 두뇌 프레임워크 | 2세션 | 계획 | `CombatBrain` 컴포넌트·노드(Evaluator·패턴 발동·전투 이동·주시·준비 조건), `ULNPAbility_MontagePattern`, 경직 시 패턴 어빌리티 전체 취소. 시험 엘리트가 패턴 2개를 거리로 고르고, 경직이 패턴을 끊고, StateTree 디버거로 전이 확인 |
+| E4 | Mass 매크로 두뇌 | 착수 전 재산정 | 계획 | `ST_EnemyUnbound`, 위치+목적지 Surface 기반 Roam·Return 경로, TargetFollow·Path·Movement의 귀환 목표 소유권, EL-015 피격 자격, EL-016 귀환·넉백 예외, HP·경직 GA를 함께 정리하는 해제 리셋과 실행 순서. 검증 §3 E4의 경계·치명타·경직 리셋·옥탄트/Layer 간 이동 통과 |
+| E5 | Actor 전투 두뇌 프레임워크 | 착수 전 재산정 | 계획 | `CombatBrain`과 패턴 GA 전체 수명·종료 계약, 기존 경로 조향 기반 전투 이동·워프/루트 모션 경계 제한, 전환 연출 장부(EL-017), 경직 시 패턴 취소. 패턴 2개로 귀환·사망·동기 종료·재생성·2P 검증 후 콘텐츠 확장 |
 | E6 | 첫 엘리트 콘텐츠·2P 검증·문서 마감 | 2세션 | 계획 | 아레나 보스 1종(2페이즈, 패턴 4~6개)·배회형 1종, 2P PIE, Promoted Actor 대역폭 측정(1기 700~900 B/s 범위 확인), 패키지 프레임 확인, 공통 설계 문서·인덱스 3곳 |
 
 ## 4. 착수 전 조사 항목
@@ -45,6 +46,6 @@
 |:---|:---|
 | E1 | `SetupSpawnedEntities`에서 프래그먼트·태그를 붙이는 방법(지연 커맨드 vs 템플릿). 게스트 쪽 템플릿 등록과 복제 아키타입이 어긋나지 않는지 |
 | E3 | codec 버전을 올렸을 때 옛 스트림이 Decode에서 확실히 실패하는지, 재베이크 대상 옥탄트 목록 |
-| E4 | `ULNPEnemyPathProcessor`의 경로 요청을 Idle·Roam에 열 때 장거리(옥탄트 간) 경로 비용과 예산. `ULNPEnemyTargetFollowProcessor` 신호가 Engage 상태에도 오는지 |
-| E5 | UE 5.8 `UStateTreeComponent` 스키마로 Pawn 컨텍스트를 받을 수 있는지(AIController 없이), Utility Selection·Consideration API, ASC 어빌리티 종료 델리게이트를 Task가 안전하게 구독·해제하는 방법 |
+| E4 | 목적지 Surface를 보존할 프래그먼트·PathProcessor 연결, 기존 같은 Layer 전용 헬퍼와 분리, 장거리 경로 예산. 피격 자격의 근접·직격·스플래시 전달, ActorSync·피해·Poise·Health·리셋 커맨드의 실제 실행/flush 순서와 사망 우선 보장 |
+| E5 | UE 5.8 컴포넌트 스키마·Utility API, ASC 동기 종료와 약한 Task 컨텍스트 구독·해제, 몽타주 취소/EndPlay의 칼날 정리, 경로 조향 소비·루트 모션 경계 제한. E4의 리셋에 새 패턴·연출 장부 정리를 연결하고 회귀 |
 | E6 | Promoted 슬롯 2로 아레나 엘리트 + 배회 엘리트가 겹칠 때 슬롯을 놓치는지 |
