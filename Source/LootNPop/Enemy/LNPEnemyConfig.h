@@ -554,6 +554,10 @@ class LOOTNPOP_API ULNPEnemyConfig : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
+
 	/** 이 Enemy 타입을 식별하는 Tag (예: Enemy.Type.Humanoid.Melee) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Identity")
 	FGameplayTag EnemyTypeTag;
@@ -718,6 +722,14 @@ public:
 
 	float GetHitCapsuleRadius() const { return HitCapsuleRadius > 0.f ? HitCapsuleRadius : CapsuleRadius; }
 	float GetHitCapsuleHalfHeight() const { return HitCapsuleHalfHeight > 0.f ? HitCapsuleHalfHeight : CapsuleHalfHeight; }
+
+	/** 약점 분류 구의 반지름(cm). 0이면 약점이 없다. 몸 명중 범위는 늘리지 않는다. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Collision|WeakSpot", meta = (ClampMin = "0", Units = "cm"))
+	float WeakSpotRadius = 0.f;
+
+	/** 판정 캡슐 중심 기준 몸 로컬 오프셋(cm). X=전방, Y=우측, Z=Up. */
+	UPROPERTY(EditAnywhere, Category = "LNP|Collision|WeakSpot", meta = (Units = "cm"))
+	FVector WeakSpotLocalOffset = FVector::ZeroVector;
 
 	/**
 	 * HP 바 기준점을 판정 캡슐 중심에서 몸 Up 방향으로 옮기는 값(cm). HUD의 머리 위 높이(`HpBarHeightOffset`)에 더해진다.

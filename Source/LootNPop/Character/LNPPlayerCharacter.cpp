@@ -45,6 +45,11 @@
 #include "MassEntityUtils.h"
 #include "MassCommands.h"
 
+#if WITH_EDITOR
+#include "HitDetection/LNPHitDetectionShared.h"
+#include "Misc/DataValidation.h"
+#endif
+
 ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -84,6 +89,23 @@ ALNPPlayerCharacter::ALNPPlayerCharacter(const FObjectInitializer& ObjectInitial
 	// UMoverComponent가 일반 경로에서 CachedLastUsedInputCmd를 채운다 —
 	// GetBaseAimRotation 오버라이드가 읽는 GetLastInputCmd()의 ControlRotation이 그대로 유효하다.
 }
+
+#if WITH_EDITOR
+EDataValidationResult ALNPPlayerCharacter::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+	float HalfHeight, Radius;
+	LNPHitDetection::GetCapsuleSize(GetCapsule(), HalfHeight, Radius);
+	if (!LNPHitDetection::IsWeakSpotPlacementValid(HalfHeight, Radius, WeakSpotLocalOffset, WeakSpotRadius))
+	{
+		Context.AddError(FText::FromString(FString::Printf(
+			TEXT("WeakSpot must overlap and protrude from the hit capsule: HalfHeight=%.2f Radius=%.2f Offset=(%s) WeakSpotRadius=%.2f."),
+			HalfHeight, Radius, *WeakSpotLocalOffset.ToString(), WeakSpotRadius)));
+		Result = EDataValidationResult::Invalid;
+	}
+	return Result == EDataValidationResult::NotValidated ? EDataValidationResult::Valid : Result;
+}
+#endif
 
 void ALNPPlayerCharacter::BeginPlay()
 {

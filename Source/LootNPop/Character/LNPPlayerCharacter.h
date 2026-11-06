@@ -32,6 +32,18 @@ public:
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
 
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
+
+	/** 약점 분류 구의 반지름(cm). 0이면 약점이 없다. 몸 명중 범위는 늘리지 않는다. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Collision|WeakSpot", meta = (ClampMin = "0", Units = "cm"))
+	float WeakSpotRadius = 40.f;
+
+	/** 판정 캡슐 중심 기준 몸 로컬 오프셋(cm). X=전방, Y=우측, Z=Up. */
+	UPROPERTY(EditDefaultsOnly, Category = "LNP|Collision|WeakSpot", meta = (Units = "cm"))
+	FVector WeakSpotLocalOffset = FVector(0, 0, 78);
+
 	virtual void RequestEquipWeapon(ULNPWeaponData* WeaponData) override;
 	virtual const ULNPWeaponData* GetActiveWeaponDef() const override;
 

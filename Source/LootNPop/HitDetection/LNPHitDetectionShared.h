@@ -32,6 +32,35 @@
 
 namespace LNPHitDetection
 {
+	/** 맞은 부위. 몸 명중 뒤 약점 구와의 접촉으로 분류한다. */
+	enum class ELNPHitZone : uint8 { Body, WeakSpot };
+
+	/** 캡슐 중심에 더할 월드 오프셋. 위치만 되감아도 몸과 구가 함께 이동한다. */
+	inline FVector ResolveWeakSpotOffset(const FQuat& BodyRotation, const FVector& LocalOffset)
+	{
+		return BodyRotation.RotateVector(LocalOffset);
+	}
+
+	/** 활성 구는 캡슐과 부피가 겹치면서 표면 밖으로 돌출해야 한다. 반지름 0은 약점 없음이다. */
+	inline bool IsWeakSpotPlacementValid(float CapsuleHalfHeight, float CapsuleRadius,
+		const FVector& LocalOffset, float WeakSpotRadius)
+	{
+		if (WeakSpotRadius <= 0.f)
+			return WeakSpotRadius == 0.f;
+		const double AxisHalfLength = FMath::Max(0.0, double(CapsuleHalfHeight) - CapsuleRadius);
+		const double AxialDistance = FMath::Max(FMath::Abs(LocalOffset.Z) - AxisHalfLength, 0.0);
+		const double Distance = FMath::Sqrt(FMath::Square(LocalOffset.X) + FMath::Square(LocalOffset.Y)
+			+ FMath::Square(AxialDistance));
+		return Distance < double(CapsuleRadius) + WeakSpotRadius
+			&& Distance + WeakSpotRadius > CapsuleRadius;
+	}
+
+	/** 약점 배율은 원시 피해에만 적용한다. 경직·이동 넉백은 호출자가 기존 값을 유지한다. */
+	inline float ScaleDamageForZone(float RawDamage, ELNPHitZone Zone)
+	{
+		return Zone == ELNPHitZone::WeakSpot ? RawDamage * GetDefault<ULNPSettings>()->WeakSpotDamageMultiplier : RawDamage;
+	}
+
 	/** LNP 캐릭터 Actor의 ASC를 반환한다. 캐릭터가 아니거나 무효하면 null. */
 	inline UAbilitySystemComponent* GetASC(AActor* Actor)
 	{
@@ -190,6 +219,15 @@ namespace LNPHitDetection
 	{
 		return SegmentHitsCapsule(FPreparedSegment(A, B), Center, UpDir,
 			CapsuleHalfHeight, CapsuleRadius, HitRadius, OutHitPoint);
+	}
+
+	/** 몸 명중 뒤에만 호출한다. 구의 최근접점은 기존 몸 HitPoint와 독립된 임시 값이다. */
+	inline ELNPHitZone ClassifyProjectileHitZone(const FPreparedSegment& Segment, const FVector& WeakSpotCenter,
+		const FVector& UpDir, float WeakSpotRadius, float HitRadius)
+	{
+		FVector SphereHitPoint;
+		return WeakSpotRadius > 0.f && SegmentHitsCapsule(Segment, WeakSpotCenter, UpDir,
+			WeakSpotRadius, WeakSpotRadius, HitRadius, SphereHitPoint) ? ELNPHitZone::WeakSpot : ELNPHitZone::Body;
 	}
 
 	/**

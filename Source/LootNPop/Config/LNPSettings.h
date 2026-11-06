@@ -24,6 +24,10 @@ class LOOTNPOP_API ULNPSettings : public UDeveloperSettings
 public:
 	ULNPSettings();
 
+	/** 투사체 직격·근접 약점 명중 시 방어력 적용 전 원시 피해에 곱하는 배율. */
+	UPROPERTY(Config, EditAnywhere, Category = "Combat", meta = (ClampMin = "1.0"))
+	float WeakSpotDamageMultiplier = 1.5f;
+
 	/** 캐릭터·NPC·포물선 발사체·LootDice가 공유하는 중력 가속도 크기 (cm/s²). 방향은 각 이동 방식이 결정한다. */
 	UPROPERTY(Config, EditAnywhere, Category = "Gravity", meta = (ClampMin = "0.0", ForceUnits = "cm/s^2"))
 	float GravityStrength = 980.0f;
