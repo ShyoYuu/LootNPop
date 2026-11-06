@@ -600,7 +600,7 @@ Dirty로 표시된 오브젝트는 폴 주기를 건너뛴다. ⚠️ 다만 Iri
 UPROPERTY 없는 필드 + NetSerialize로 만들었더니 **타입만 도착하고 내용은 기본값**이라 서버가 82스윙 전부 "대상 없음"으로 판단했다.
 신호는 `LogIris: Warning: Generating descriptor for struct <이름> that has custom serialization.` 한 줄뿐이다.
 필드는 전부 UPROPERTY로 두고 양자화는 타입(`FVector_NetQuantize`, `FVector_NetQuantizeNormal`)으로 표현한다.
-(GE 컨텍스트 파생 `FLNPProjectileImpactContext`는 전용 직렬화기를 타서 NetSerialize가 동작한다 — 선례로 삼으면 속는다.)
+**GE 컨텍스트 파생 타입도 예외가 아니다(2026-11-06 정정).** UE 5.8 Iris는 부모 `FGameplayEffectContext`의 전용 직렬화기 뒤에 파생 UPROPERTY를 수집한다. `FLNPProjectileImpactContext`의 키 3개가 UPROPERTY 없이 NetSerialize에만 있던 상태에서 서버 `key=-213342`가 게스트 `key=0`으로 도착해 Ghost 검색이 실패했다. 키도 UPROPERTY로 선언한다. 로컬 코스메틱 충돌이 먼저 탄을 지우던 경로가 이 전달 누락을 가렸으며, 서버 착탄만 기다리는 비교 모드에서 드러났다. 송수신 로그·빌드·재검증은 [V4a 기록](JustDodge/history/PhaseV4a_Log.md)을 따른다.
 
 ### 4.9 LocalPredicted 어빌리티의 "지연 후 확정"은 타이머 콜백이 아니라 EndAbility에 둔다 (2026-09-19)
 

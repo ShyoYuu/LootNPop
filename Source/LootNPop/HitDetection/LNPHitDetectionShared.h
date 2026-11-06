@@ -725,6 +725,9 @@ struct FLNPImpactCueCommand : public FMassBatchedCommand
 				ImpactCtx->VFXData            = Entry.VFXData;
 
 				CueParams.EffectContext = FGameplayEffectContextHandle(ImpactCtx);
+				if (LNPGuardParry::IsDodgeDebugEnabled())
+					UE_LOG(LogLootNPop, Log, TEXT("[GhostImpact] Send target=%s player=%d key=%d index=%d"),
+						*GetNameSafe(Entry.Victim.Get()), Entry.InstigatorPlayerID, Entry.PredictionKeyID, Entry.SpawnIndex);
 				CueASC->ExecuteGameplayCue(TAG_GameplayCue_Projectile_Impact, CueParams);
 			}
 		}

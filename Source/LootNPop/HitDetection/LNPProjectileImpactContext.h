@@ -18,8 +18,12 @@ struct LOOTNPOP_API FLNPProjectileImpactContext : public FGameplayEffectContext
 {
 	GENERATED_BODY()
 
+	// Iris는 부모 전용 직렬화기 뒤에 파생 UPROPERTY만 수집한다. 아래 NetSerialize만으로는 키가 전달되지 않는다.
+	UPROPERTY()
 	int32 PredictionKeyID    = 0;
+	UPROPERTY()
 	uint8 SpawnIndex         = 0;
+	UPROPERTY()
 	int32 InstigatorPlayerID = INDEX_NONE;
 
 	UPROPERTY()

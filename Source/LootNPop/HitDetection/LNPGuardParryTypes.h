@@ -37,8 +37,9 @@ struct LOOTNPOP_API FLNPParryStateFragment : public FMassFragment
 
 	/**
 	 * 대시 무적 창의 절대 만료 시각(World->GetTimeSeconds() 기준). -1 = 없음.
-	 * 권위(서버)와 오토노머스(소유 클라)만 기록한다 — 서버 값은 판정에, 소유 클라 값은 예측 연출 생략에만 쓰인다.
-	 * 해제 경로가 없다: 시각 비교만 하므로 가드 bool 미러처럼 내리는 곳이 빠져 남을 일이 없다.
+	 * 서버·소유 클라는 ExecuteDash가 기록한다. 원격 프록시는 확정된 Mover 대시 상태의 남은 시간만 로컬 시계로 옮긴다.
+	 * 서버 값만 피해 판정에 쓰며, 클라이언트 값은 Ghost의 코스메틱 임팩트 생략에만 쓴다.
+	 * 시각 비교로 만료된다. 프록시는 대시 부재·만료 상태를 확정할 때 -1로 갱신한다.
 	 */
 	double DodgeIFrameExpiryTime = -1.0;
 

@@ -347,6 +347,8 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 	TSharedPtr<FLNPDashCooldownModifier> CooldownModifier = MakeShared<FLNPDashCooldownModifier>();
 	CooldownModifier->DurationMs = DashCooldown * 1000.0f;
 	CooldownModifier->DashMontage = SelectedMontage;
+	const float Uplink = Pawn->GetLocalRole() == ROLE_Authority ? LNPHitGrace::EstimateUplink(Pawn) : 0.f;
+	CooldownModifier->DodgeIFrameEndOffsetMs = (IFrameDuration - Uplink) * 1000.f;
 	QueueMovementModifier(CooldownModifier);
 
 	TSharedPtr<FLayeredMove_LinearVelocity> DashMove = MakeShared<FLayeredMove_LinearVelocity>();
@@ -396,7 +398,6 @@ void ULNPCharacterMoverComponent::ExecuteDash(const FMoverTimeStep& TimeStep, co
 			// 피격 유예: 서버가 본 원격 게스트는 누른 순간이 업링크만큼 과거다. 창을 누름 추정 시각부터 열어
 			// 소급 구간(보류된 피격)과 실시간 구간을 합친 길이가 호스트와 같게 한다(Phase 4 결정 1).
 			// 호스트·소유 클라·유예 꺼짐은 업링크가 0이라 지금 시각 그대로다.
-			const float  Uplink    = Pawn->GetLocalRole() == ROLE_Authority ? LNPHitGrace::EstimateUplink(Pawn) : 0.f;
 			const double PressTime = Now - Uplink;
 
 			PF->DodgeIFrameExpiryTime = PressTime + IFrameDuration;
@@ -555,6 +556,15 @@ void ULNPCharacterMoverComponent::UpdateSyncedMontageState(const FMoverTimeStep&
 			break;
 		}
 	}
+	// 확정된 상태의 남은 시간만 로컬 시계로 옮긴다. 수신할 때마다 무적 창을 새로 열지 않는다.
+	// 몽타주가 없거나 이미 끝나도 갱신한다. 서버·소유 클라의 판정 창은 ExecuteDash만 기록한다.
+	if (FLNPParryStateFragment* PF = LNPGuardParry::FindFragment(GetOwner()))
+	{
+		const float Remaining = Cooldown
+			? Cooldown->GetDodgeIFrameRemainingSeconds(TimeStep.BaseSimTimeMs + TimeStep.StepMs) : -1.f;
+		PF->DodgeIFrameExpiryTime = Remaining >= 0.f ? GetWorld()->GetTimeSeconds() + Remaining : -1.0;
+	}
+
 	if (Cooldown == nullptr || Cooldown->DashMontage == nullptr)
 		return;
 

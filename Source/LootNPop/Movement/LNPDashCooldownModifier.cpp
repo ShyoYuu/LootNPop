@@ -17,6 +17,15 @@ void FLNPDashCooldownModifier::NetSerialize(FArchive& Ar)
 {
 	Super::NetSerialize(Ar);
 	Ar << DashMontage;
+	Ar << DodgeIFrameEndOffsetMs;
+}
+
+float FLNPDashCooldownModifier::GetDodgeIFrameRemainingSeconds(double CurrentSimTimeMs) const
+{
+	const double ElapsedMs = CurrentSimTimeMs - StartSimTimeMs;
+	if (StartSimTimeMs < 0.0 || ElapsedMs < 0.0 || ElapsedMs > DodgeIFrameEndOffsetMs)
+		return -1.f;
+	return static_cast<float>((DodgeIFrameEndOffsetMs - ElapsedMs) * 0.001);
 }
 
 void FLNPDashCooldownModifier::AddReferencedObjects(FReferenceCollector& Collector)

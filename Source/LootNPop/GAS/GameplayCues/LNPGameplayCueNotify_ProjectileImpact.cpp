@@ -4,6 +4,8 @@
 #include "HitDetection/LNPProjectileImpactContext.h"
 #include "HitDetection/LNPGhostProjectileSubsystem.h"
 #include "HitDetection/LNPProjectileVisualSubsystem.h"
+#include "HitDetection/LNPGuardParryTypes.h"
+#include "LootNPop.h"
 
 bool ULNPGameplayCueNotify_ProjectileImpact::OnExecute_Implementation(AActor* MyTarget, const FGameplayCueParameters& Parameters) const
 {
@@ -17,8 +19,11 @@ bool ULNPGameplayCueNotify_ProjectileImpact::OnExecute_Implementation(AActor* My
 
 	// 서버 확정 임팩트 — 이 클라이언트에 남아 있는 Ghost(공격자 예측·관전용 공통 키)를 정리한다.
 	// 로컬 판정이 이미 파괴했거나 애초에 없던 클라이언트에서는 no-op.
-	if (GhostSub)
-		GhostSub->DestroyGhost(Key);
+	const bool bDestroyedGhost = GhostSub && GhostSub->DestroyGhost(Key);
+	if (LNPGuardParry::IsDodgeDebugEnabled())
+		UE_LOG(LogLootNPop, Log, TEXT("[GhostImpact] Receive net=%d target=%s type=%s player=%d key=%d index=%d destroyed=%d"),
+			static_cast<int32>(World->GetNetMode()), *GetNameSafe(MyTarget), *Ctx->GetScriptStruct()->GetName(),
+			Key.InstigatorPlayerID, Key.KeyOrSalvo, Key.SpawnIndex, bDestroyedGhost ? 1 : 0);
 
 	// 로컬 코스메틱 판정이 이미 예측 위치에서 임팩트 VFX를 재생했다면 중복 재생하지 않는다.
 	// 기록이 없으면(Ghost가 아직 살아있던 브랜치 B, 예측 경로가 없는 리슨 호스트, 스폰 방송 미수신 등)

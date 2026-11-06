@@ -46,6 +46,9 @@ namespace
 		TEXT("Detailed hit detection profiling: 0=off, N=sample every Nth projectile. Diagnostic only."));
 	TAutoConsoleVariable<int32> CVarProjectileSphereBroadPhase(TEXT("LNP.Projectile.SphereBroadPhase"), 1,
 		TEXT("Conservative sphere rejection and prepared segment reuse before exact capsule tests. 0: reference, 1: enabled."));
+	TAutoConsoleVariable<int32> CVarPredictRemotePlayerImpact(TEXT("LNP.Projectile.PredictRemotePlayerImpact"), 0,
+		TEXT("Client Ghost impacts against remote players. 0 (default): wait for authoritative impact cues, 1: predict locally for comparison. Local players, enemies and world collision are unchanged."),
+		ECVF_Cheat);
 	TAutoConsoleVariable<int32> CVarProjectileSpatialGrid(TEXT("LNP.Projectile.SpatialGrid"), 1,
 		TEXT("Server current-position enemy capsule candidates. Rewound/remote projectiles use full scan. 0: off, 1: on."));
 	TAutoConsoleVariable<int32> CVarValidateProjectileSpatialGrid(TEXT("LNP.Projectile.ValidateSpatialGrid"), 0,
@@ -359,7 +362,7 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			uint8   Team;             // 판정 팀 (Player/LNPTeam.h) — 적은 NPCTeam, 플레이어는 복제된 PlayerState 값
 			int32   PlayerID;        // Player 타겟의 PlayerId — 관전용 Ghost가 발사자 본인 캡슐에 자폭하지 않도록 제외용
 			FMassEntityHandle Entity = {};   // Player 타겟만 — Ghost의 DodgedEntity와 대조한다
-			bool    bDodging = false; // Player 타겟의 무적 창이 열려 있는가 (소유 클라만 기록하므로 사실상 로컬 플레이어)
+			bool    bDodging = false; // 로컬 대시 또는 원격 Mover 상태에서 미러한 코스메틱 무적 창
 		};
 		TArray<FClientCapsuleTarget> ClientTargets;
 
@@ -393,8 +396,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 			}
 		});
 
-		// 무적 창 비교용. 시계는 이 머신 자신의 것이다 — 기록한 소유 클라가 같은 시계로 비교한다.
+		// 소유 클라와 원격 프록시 모두 이 머신의 월드 시계로 미러된 무적 창을 비교한다.
 		const double ClientNow = World->GetTimeSeconds();
+		const bool bPredictRemotePlayerImpact = CVarPredictRemotePlayerImpact.GetValueOnAnyThread() != 0;
 
 		PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 		{
@@ -410,6 +414,9 @@ void ULNPProjectileHitDetectionProcessor::Execute(FMassEntityManager& EntityMana
 				const ALNPPlayerCharacter* PlayerPawn = Cast<ALNPPlayerCharacter>(PlayerActor);
 				// FLNPPlayerDeadTag는 서버에만 붙는다 — 클라는 Multicast_OnDeath가 켜는 IsDead()로 서버와 맞춘다.
 				if (!PlayerPawn || PlayerPawn->IsDead())
+					continue;
+				// 비교 모드에서는 원격 플레이어 접촉만 서버 착탄 큐에 맡긴다. Ghost의 비행·지형 판정은 계속한다.
+				if (!bPredictRemotePlayerImpact && !PlayerPawn->IsLocallyControlled())
 					continue;
 
 				float HalfH, Radius;

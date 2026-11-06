@@ -1,7 +1,7 @@
 # 저스트 회피 기술 설계
 
 > 상태: 기준 설계 (메인 트랙 완료, 2026-11-05). 수치는 Phase 3에서 1차 확정했다.
-> 마지막 갱신: 2026-11-05
+> 마지막 갱신: 2026-11-06
 > 코드 인용은 대부분 2026-10-26 기준이다. 작업 전에 실제 위치를 다시 확인한다.
 
 ## 1. 출발점 — 현재 코드 사실
@@ -44,13 +44,23 @@ ExecuteDash(...)
   OnDashExecuted.Broadcast() / Montage_Play (기존)
 ```
 
-- 기록하는 머신: **권위(서버)**와 **오토노머스(소유 클라이언트)**. 서버 기록은 판정에 쓰이고, 소유 클라이언트 기록은 예측 연출을 생략하는 데만 쓰인다. 시뮬레이티드 프록시에서는 기록하지 않는다.
+- `ExecuteDash`가 기록하는 머신은 **권위(서버)**와 **오토노머스(소유 클라이언트)**다. 서버 기록은 판정에 쓰이고, 소유 클라이언트 기록은 예측 연출을 생략하는 데만 쓰인다. 원격 프록시의 별도 코스메틱 미러는 §2.3을 따른다.
 - `IFrameDuration`(초안 0.15)과 `JustDodgeWindow`(초안 0.12)는 `ULNPCharacterMoverComponent`의 UPROPERTY다(대시 파라미터와 같은 곳).
 - 프래그먼트 접근 수단은 공용 헬퍼 `LNPGuardParry::FindFragment(const AActor*)`다. 소유 Actor의 `UMassAgentComponent`만 쓰므로 서버의 원격 폰에서도 동작한다. InputHandler의 `GetParryFragment()`도 이 헬퍼에 위임한다(Phase 1 단위 0).
 - **해제는 만료 시각으로만 한다.** 가드의 bool 미러는 명령형이라 해제 경로가 하나라도 빠지면 가드가 남는다(Parry §2.2). 회피는 시각 비교만 하므로 해제 경로가 없다.
 - **사망·리스폰 초기화 지점도 두지 않는다.** 리스폰은 새 폰과 새 엔티티를 만들고, 필드는 기본값 -1로 시작한다. 사망부터 리스폰까지는 `FLNPPlayerDeadTag`가 판정 쿼리에서 빼 준다(Phase 1 단위 0).
 - 시계: 서버 판정 프로세서의 `Now`도 같은 `World->GetTimeSeconds()`다(`ParryWindowExpiryTime`과 같은 규약).
 - **원격 게스트(서버 기록):** 창을 실행 시각 `E`가 아니라 누름 추정 시각 `E − U`부터 연다. 그리고 같은 자리에서 보류된 피격을 소급 판정한다(§6.2, J-016). 호스트·소유 클라는 `U = 0`이다.
+
+### 2.3 원격 프록시의 코스메틱 무적 미러 (J-025)
+
+- `FLNPDashCooldownModifier`의 기존 `StartSimTimeMs`를 재사용한다. `ExecuteDash`는 같은 상태에 `DodgeIFrameEndOffsetMs = (IFrameDuration − U) × 1000`을 기록해 복제한다. `U`는 서버 회피 창 계산과 같은 값이며, 호스트·소유 클라에서는 0이다. 서버에서 창이 이미 끝났다면 오프셋이 음수일 수 있다.
+- `UpdateSyncedMontageState`의 SimulatedProxy 분기는 프레임 확정 후 `현재 시뮬레이션 시각 = BaseSimTimeMs + StepMs`와 대시 시작 시각으로 남은 무적 시간을 계산한다. 남은 시간이 유효하면 `DodgeIFrameExpiryTime = 로컬 World 시간 + 남은 시간`, 대시 부재·시작 전·만료이면 -1로 갱신한다. 월드 시계와 Mover 시계의 절대값을 직접 비교하지 않는다.
+- 이 갱신은 몽타주 존재·재생 중·이미 재생함 검사보다 앞에서 매 확정 프레임 실행한다. 새 상태 수신 때 0.15초 창을 다시 열지 않으며, 저스트 창·성공 소비·방향은 쓰지 않는다. 서버·소유 클라 분기는 이 경로에 들어오지 않는다.
+- Ghost는 기존 `bDodging` 검사와 `DodgedEntity` 칸을 그대로 사용해 임팩트 없이 관통한다. 서버의 Judge·피해·소급 판정·착탄 큐는 유지한다.
+- 대시 상태 수신 전에 이미 소멸한 Ghost의 복구·착탄 보류는 하지 않는다. 기존 정보 연결 누락을 먼저 수정한 뒤 PktLag 0/50 수동 검증에서 남는 빈도·체감을 평가한다. 회귀 테스트·빌드·PIE 상태는 [V4a 실행서](../phases/PhaseV4a_VisualReadability.md)가 소유한다.
+- 원격 무적 미러 뒤에도 PktLag 0에서 오소멸이 자주 남는다는 사용자 보고로, `LNP.Projectile.PredictRemotePlayerImpact` A/B를 추가했다. 현재 기본 0은 원격 플레이어만 로컬 후보에서 제외해 서버 착탄 큐를 기다리고, 1은 기존 예측·원격 무적 미러를 비교용으로 사용한다(J-026). 비행·적/로컬 플레이어·지형·수명 처리는 유지하며 복구 큐를 만들지 않는다. CVar와 원격 미러는 보존하고 삭제·정책 고정은 별도 논의한다. 비교 절차는 [Validation.md §5](Validation.md)를 따른다.
+- A/B 중 일반 피격의 서버 임팩트는 보이지만 Ghost가 남는 기존 식별자 전송 결함을 발견했다. Iris가 파생 컨텍스트의 미반영 필드를 전송하지 않아 서버의 음수 키가 게스트에 0으로 도착했다. `FLNPProjectileImpactContext`의 키 3개에 UPROPERTY를 추가한다. 기존 로컬 코스메틱 소멸이 이 결함을 가렸으므로 수정·에디터 재시작·일반 명중 재검증 뒤에 A/B를 재개한다. 코드 근거와 검증 기록은 [V4a 로그](../history/PhaseV4a_Log.md)를 따른다.
 
 ## 3. `Judge` 확장
 
@@ -83,7 +93,7 @@ Judge(PS, FacingDot, Now, bInParryRange, bInHitRange)
 | 스플래시 (`LNPProjectileProcessors.cpp:715-724`) | 피해·넉백·경직 없음 | 발생하지 않음 |
 | 화염 원뿔 (`LNPFlameConeProcessors.cpp:344`) | 틱 피해·화상 스택 없음 | 발생하지 않음 |
 | 클라이언트 투사체 예측 (`LNPProjectileProcessors.cpp:393-484`) | 대상 플레이어의 무적 창이 열려 있으면 예측 임팩트를 생략하고 Ghost의 회피 대상 칸에 기록한다(관통하는 그림 유지, 무적이 끝난 뒤 다시 겹쳐도 맞지 않음) | — |
-| 클라이언트 근접 예측 (`LNPWeaponTraceProcessors.cpp:250-368`) | 처리하지 않는다. 로컬 공격자의 HitStop 예측이라 로컬 플레이어가 대상이 아니고, 상대의 무적 창은 그 머신에 없다. PvP에서 예측 HitStop이 한 번 어긋나는 것은 허용한다 | — |
+| 클라이언트 근접 예측 (`LNPWeaponTraceProcessors.cpp:250-368`) | 처리하지 않는다. 로컬 공격자의 HitStop 예측은 원격 코스메틱 무적 미러를 소비하지 않는다. PvP에서 예측 HitStop이 한 번 어긋나는 것은 허용한다(J-014) | — |
 | 플레이어 화상 지속 틱 (`ULNPGameplayEffect_Burn` 주기 GE) | `Judge`를 거치지 않으며 회피하지 않는다. 막는 것은 무적 중에 새로 붙는 스택까지다 | — |
 
 - **투사체 회피 대상 칸:** `FLNPProjectileFragment`에 `FMassEntityHandle DodgedEntity` 1칸을 둔다. 탄 하나가 무적 플레이어 둘을 연달아 관통하는 경우는 드물어서 1칸으로 시작하고, 필요하면 늘린다. **패링 반사 때 초기화한다.** 반사탄은 원래 공격자를 노리고, 반사한 사람은 새 `Instigator`라 어차피 제외된다. 클라이언트 Ghost도 같은 칸을 쓴다.

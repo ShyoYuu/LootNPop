@@ -33,6 +33,12 @@ public:
 	UPROPERTY(VisibleInstanceOnly, Transient, Category = Mover)
 	TObjectPtr<UAnimMontage> DashMontage = nullptr;
 
+	/** 대시 시작부터 무적 종료까지의 시간(ms). 서버의 누름 추정 보정을 포함하며, 프록시의 코스메틱 판정에만 쓴다. */
+	float DodgeIFrameEndOffsetMs = 0.f;
+
+	/** 현재 시뮬레이션 시각에서 남은 무적 시간(초). 시작 전·만료·미시작이면 -1이다. */
+	float GetDodgeIFrameRemainingSeconds(double CurrentSimTimeMs) const;
+
 	// --- FMovementModifierBase 인터페이스 ---
 	virtual FMovementModifierBase* Clone() const override;
 	virtual void NetSerialize(FArchive& Ar) override;

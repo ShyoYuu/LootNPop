@@ -74,7 +74,7 @@
 - 회피 판정은 `LNPGuardParry::Judge` 한 곳에서만 한다. 경로별로 회피 분기를 복제하지 않는다(J-001, HitDetection §7.5). 피격 유예의 소급 술어 `JudgeRetro`도 같은 파일에 둔다.
 - 4경로의 `Hit`·`Guarded` 효과는 `LNPHitGrace::Dispatch` 하나로 넘긴다. 경로마다 즉시·보류 분기를 따로 쓰지 않는다(J-019).
 - 판정 프로세서는 Worker Thread에서 Mass 프래그먼트만 읽는다. ASC 태그를 판정 근거로 쓰지 않는다.
-- 회피 상태는 대시 실행과 같은 시뮬레이션 경로(InputCmd → `OnMoverPreSimulationTick` → `ExecuteDash`)에서만 생긴다. 입력 콜백에서 직접 쓰지 않는다(CharacterMovement §7.6의 함정).
+- 서버·소유 클라이언트의 회피 상태는 대시 실행과 같은 시뮬레이션 경로(InputCmd → `OnMoverPreSimulationTick` → `ExecuteDash`)에서만 생긴다. 원격 프록시는 확정된 Mover 대시 상태에서 남은 무적 시간만 복원해 Ghost 코스메틱 판정에 쓴다(J-025). 입력 콜백에서 직접 쓰지 않는다(CharacterMovement §7.6의 함정).
 - 리시뮬레이션 중에는 프래그먼트를 쓰지 않는다(`TimeStep.bIsResimulating`).
 - 회피는 서버 권위다. 클라이언트는 예측 연출만 생략할 수 있고 피해 결과를 정하지 않는다(J-007).
 - 월드 전체 시간을 늦추지 않는다(J-008).
