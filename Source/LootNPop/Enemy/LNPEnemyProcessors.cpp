@@ -2,6 +2,7 @@
 
 #include "Enemy/LNPEnemyProcessors.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
+#include "Graphics/LNPGraphicsBenchmark.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPTargetingSubsystem.h"
 #include "Enemy/LNPEnemyCharacter.h"
@@ -89,7 +90,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& PlayerContext)
 	{
 		// 배회 복제 대조의 관찰자는 인지 후보에서만 제외한다. 활동 대역의 거리 질의는 그대로 둔다.
-		if (LNPLoadBaseline::IsWanderObservation())
+		if (LNPLoadBaseline::IsWanderObservation() || LNPGraphicsBenchmark::IsRequested())
 			return;
 		const TConstArrayView<FTransformFragment> Transforms = PlayerContext.GetFragmentView<FTransformFragment>();
 		for (int32 i = 0; i < PlayerContext.GetNumEntities(); ++i)

@@ -1,0 +1,82 @@
+{
+  "source_asset": "/Game/SpawnData/DA_MassSpawnConfig",
+  "enemy_order": [
+    "Crawler",
+    "Melee",
+    "Ranged",
+    "Flyer"
+  ],
+  "pod_sets": [
+    {
+      "spawn_set_id": "Bench01",
+      "count": 20
+    },
+    {
+      "spawn_set_id": "Bench01_2",
+      "count": 40
+    },
+    {
+      "spawn_set_id": "Bench01_3",
+      "count": 30
+    },
+    {
+      "spawn_set_id": "Bench01_4",
+      "count": 30
+    }
+  ],
+  "min_distance_between_pods": 2000,
+  "enemy_spawn_radius_around_pod": 1500,
+  "max_spawns_per_frame": 50,
+  "profiles": [
+    {
+      "name": "Low",
+      "asset_path": "/Game/SpawnData/Graphics/DA_MassSpawnConfig_Graphics_Low",
+      "enemy_counts_per_generic_pod": [
+        3,
+        2,
+        1,
+        3
+      ],
+      "nominal_enemies": 1080
+    },
+    {
+      "name": "Medium",
+      "asset_path": "/Game/SpawnData/Graphics/DA_MassSpawnConfig_Graphics_Medium",
+      "enemy_counts_per_generic_pod": [
+        9,
+        6,
+        3,
+        9
+      ],
+      "nominal_enemies": 3240
+    },
+    {
+      "name": "High",
+      "asset_path": "/Game/SpawnData/Graphics/DA_MassSpawnConfig_Graphics_High",
+      "enemy_counts_per_generic_pod": [
+        15,
+        10,
+        5,
+        15
+      ],
+      "nominal_enemies": 5400
+    }
+  ],
+  "cook_roots": [
+    "/Game/Maps/TestMap03",
+    "/Game/Maps/OctantPoolData",
+    "/Game/Maps/Meadow_00/LVI_Octant_Meadow_00",
+    "/Game/Maps/Meadow_00/DA_OctantSurface_Meadow_00",
+    "/Game/Maps/Bastion_00/LVI_Octant_Bastion_00",
+    "/Game/Maps/Bastion_00/DA_OctantSurface_Bastion_00",
+    "/Game/Maps/Hollow_00/LVI_Octant_Hollow_00",
+    "/Game/Maps/Hollow_00/DA_OctantSurface_Hollow_00",
+    "/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00",
+    "/Game/Maps/Acropolis_00/DA_OctantSurface_Acropolis_00",
+    "/Game/Maps/Pyramid_00/LVI_Octant_Pyramid_00",
+    "/Game/Maps/Pyramid_00/DA_OctantSurface_Pyramid_00",
+    "/Game/SpawnData/Graphics/DA_MassSpawnConfig_Graphics_Low",
+    "/Game/SpawnData/Graphics/DA_MassSpawnConfig_Graphics_Medium",
+    "/Game/SpawnData/Graphics/DA_MassSpawnConfig_Graphics_High"
+  ]
+}

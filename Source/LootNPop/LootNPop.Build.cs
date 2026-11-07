@@ -67,12 +67,17 @@ public class LootNPop : ModuleRules
 			"UAFPoseSearch", // 스파이크 Steering은 실제 UAF 검색 결과의 DB 태그를 읽는다.
 			"RigVM", // UAF 스파이크 공유 구조체 타입 등록
 			"Chaos", // Gate 0 스파이크의 scene read lock 계측
-			"GeometryCore" // Support Atlas 베이크 광선 교차(TMeshAABBTree3)
+			"GeometryCore", // Support Atlas 베이크 광선 교차(TMeshAABBTree3)
+			"Json",
+			"RenderCore",
+			"RHI"
 			]);
 
 		PublicIncludePaths.AddRange([
 			"LootNPop"
 		]);
+
+		RuntimeDependencies.Add("$(ProjectDir)/Scripts/Profiling/Graphics/AcropolisViewpoints.json", StagedFileType.NonUFS);
 
 		// Phase 5 스파이크: 기본 Offset Root의 누적 상태를 같은 평가 프로그램에서 보정한다.
 		PrivateIncludePaths.Add(System.IO.Path.Combine(GetModuleDirectory("UAF"), "Internal")); // 완료된 루트를 모듈 피드백 컴포넌트에 기록

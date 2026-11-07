@@ -2,6 +2,7 @@
 
 #include "GameLogic/LNPMassSpawnSubsystem.h"
 #include "DataAsset/LNPMassSpawnConfig.h"
+#include "Graphics/LNPGraphicsBenchmark.h"
 #include "Config/LNPSettings.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
@@ -67,6 +68,7 @@ namespace
 	/** 위 CVar의 커맨드라인 우선 경로. 인자가 없으면 CVar 값을 그대로 쓴다. */
 	float GetEnemySpawnDensity()
 	{
+		if (LNPGraphicsBenchmark::IsRequested()) return 1.f;
 		float FromCommandLine = 0.f;
 		if (FParse::Value(FCommandLine::Get(), TEXT("LNPEnemyDensity="), FromCommandLine))
 		{
@@ -95,7 +97,9 @@ namespace
 	ULNPMassSpawnConfig* LoadSpawnConfig(const ULNPSettings& Settings)
 	{
 		FString OverridePath;
-		if (!FParse::Value(FCommandLine::Get(), TEXT("LNPSpawnConfig="), OverridePath))
+		if (LNPGraphicsBenchmark::IsRequested())
+			OverridePath = LNPGraphicsBenchmark::GetSpawnConfigPath();
+		else if (!FParse::Value(FCommandLine::Get(), TEXT("LNPSpawnConfig="), OverridePath))
 			OverridePath = CVarSpawnConfigOverride.GetValueOnGameThread();
 
 		if (OverridePath.IsEmpty())
@@ -678,7 +682,9 @@ void ULNPMassSpawnSubsystem::ProcessQueue()
 						ParentLoc = Request.SpawnLink->PodLocation;
 					}
 
-					SetupSpawnedEntities(OutEntities, Slice, ParentPod, ParentLoc, Request.Surface);
+					const int32 Accepted = SetupSpawnedEntities(OutEntities, Slice, ParentPod, ParentLoc, Request.Surface);
+					if (auto* Benchmark = World->GetSubsystem<ULNPGraphicsBenchmarkSubsystem>())
+						Benchmark->RecordSpawn(*EntityConfig, Request.Surface.OctantSlot, ToSpawn, Accepted, Request.RequestType == ELNPSpawnRequestType::Enemy);
 				}
 			}
 
@@ -768,7 +774,7 @@ bool ULNPMassSpawnSubsystem::TrySettleCrawlSpawn(const ULNPEnemyConfig& Config, 
 	return true;
 }
 
-void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
+int32 ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 	TConstArrayView<FMassEntityHandle> Entities,
 	TConstArrayView<FTransform> Transforms,
 	FMassEntityHandle ParentLootPod,
@@ -883,4 +889,5 @@ void ULNPMassSpawnSubsystem::SetupSpawnedEntities(
 	}
 	
 	UE_LOG(LogLootNPop, Log, TEXT("LNPMassSpawnSubsystem: Initialized %d spawned entities."), NumToProcess - Rejected);
+	return NumToProcess - Rejected;
 }

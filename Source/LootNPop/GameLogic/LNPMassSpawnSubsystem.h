@@ -106,7 +106,7 @@ protected:
 	/**
 	 * 스폰된 Entity를 Transform과 선택적 메타데이터 (Leash 등)로 초기화한다.
 	 */
-	void SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms,
+	int32 SetupSpawnedEntities(TConstArrayView<FMassEntityHandle> Entities, TConstArrayView<FTransform> Transforms,
 		FMassEntityHandle ParentLootPod = FMassEntityHandle(), const FVector& ParentPodLocation = FVector::ZeroVector,
 		const FLNPSurfaceHandle& Surface = FLNPSurfaceHandle());
 

@@ -1,0 +1,184 @@
+# Phase 0 — 측정 하네스와 기준선 기록
+
+## 2026-11-06 — 0-A 실행서 초안
+
+### 수행
+
+- Graphics 필수 문서, 로드맵·측정 규약, 프로젝트 협업 규칙, JustDodge 현재 인계를 확인했다.
+- JustDodge 비주얼 1차의 주요 검증 마감을 확인했다. 인계에 남은 미검증 항목은 완료로 간주하지 않는다.
+- [Phase 0 실행서](../phases/Phase00_MeasurementBaseline.md)를 작성했다. 해상도·경로·구역·편성은 사용자 확인 전 권장안이다.
+- 사용자 요청대로 단위별 계속 진행 확인과 수동 조작 우선 시점을 명시했다.
+
+### 코드 확인과 의미
+
+- `LNPMassSpawnSubsystem.cpp`의 기존 커맨드라인 편성 오버라이드를 재사용할 수 있다.
+- `LNPMassSpawnPlan.cpp`의 베이크 후보·간격·공간 제약과 authored 편성 경로 때문에 설정 적 수가 실제 생성 수를 보장하지 않는다. 단계별 실제 수 확인을 완료 조건으로 삼았다.
+- `OctantGenSeed`는 0이면 랜덤이며 현재 월드 생성은 8-slot 완료를 요구한다. 측정 구역 1개와 월드 생성 수를 혼동하지 않도록 실행서에 기록했다.
+- 기존 내비게이션·네트워크 하네스는 `-nullrhi` 등을 쓰므로 그래픽스 실행 명령으로 그대로 재사용하지 않는다.
+
+### 검증·미수행
+
+- 시작 시 `git status --short` 출력이 없었다.
+- 소스·설정·맵/에셋 파일 존재를 확인했다. 바이너리 에셋의 내부 값·실제 slot 배정은 읽지 않았다.
+- 문서 변경만 수행했다. PIE·에디터 조작·빌드·패키지·성능 측정은 하지 않았다. 수치·영상 산출물은 아직 없다.
+- 변경 후 `git diff --check`와 세 문서의 Markdown 링크 대상 존재 점검을 통과했다.
+
+### 다음 행동
+
+- 사용자 실행안 확인 뒤 0-B만 진행한다. 라이브 에셋 조회 → 수동 구역·경로 선택 → 별도 편성과 실제 수·시드 재현 검증 순서다.
+
+### 사용자 피드백 — 측정 구역 후보 정정
+
+- 사용자는 Meadow가 레벨 구성을 고려하지 않은 테스트 맵이므로 Acropolis·Bastion·Pyramid 프로토타입 중 하나를 고르자고 했다. 실행서와 현재 인계에서 Meadow 후보를 제외했다.
+- Phase 0에는 고밀도 구성이 필요하지 않고 해당 콘텐츠 작업은 Phase 1이 소유함을 명시했다.
+- Acropolis 공간 설계·V016 승인 기록, Bastion 광원 평가 기록, Pyramid V058 제작 인계를 확인했다. 열린 지상·부유섬에서 거리별 군중을 보기 좋은 Acropolis를 첫 기준선 후보로 권장했다. 최종 선택은 사용자 확인 대기이며, 실측 성능 우열이나 1k/3k/5k 수용량을 확인한 것은 아니다.
+
+## 2026-11-06 — 0-B 착수·수동 PIE 대기
+
+- 사용자가 Acropolis 선택과 0-B 진행을 승인했다. Unreal MCP 스킬을 읽고 프로젝트 Agent Skills를 조회했으며 이번 조회에 추가로 적용할 전용 스킬은 없었다.
+- 라이브 에디터는 `/Game/Maps/TestMap03`, PIE 비활성이다. 실제 게임모드는 `BP_LNPGameMode`, GameState는 `BP_LNPGameState`, 플레이어는 `BP_LNPPlayer`다.
+- 실제 풀은 Meadow·Bastion·Hollow·Acropolis·Pyramid 순서의 정의 5개이며 모두 허용 slot mask 255·동일 seam signature다. Acropolis SurfaceData 버전 7, Support 2,344,601요소/16,551,612bytes, Spawn stream 12,043요소/482,656bytes를 읽었다. Spawn 요소 수를 배치 가능한 적 수로 해석하지 않는다. 현재성·전체 codec 검증을 수행한 것은 아니다.
+- 기본 편성은 세트 ID `Bench01`, `Bench01_2`, `Bench01_3`, `Bench01_4`, Pod 요청 수 20/40/30/30이다. 각 세트는 Crawler/Melee/Ranged/Flyer=9/6/3/9로 일반 편성 산술상 3,240마리지만 authored 편성·배치 제약이 있어 실제 수가 아니다.
+- 기존 에디터 CVar는 `LNP.Spawn.ConfigOverride=/Game/SpawnData/DA_MassSpawnConfig_TestOnePerSpecies.DA_MassSpawnConfig_TestOnePerSpecies`, `LNP.Spawn.EnemyDensity=1`이다. 에이전트가 바꾸지 않았고 첫 구도 확인에 사용한다.
+- GameState CDO는 구면 월드 true·월드 시드 0·PCG 오프셋 0이었다. 이번 PIE 준비를 위해 BP CDO의 시드만 메모리에서 1로 설정하고 재조회했다. BP 패키지가 dirty가 되었으나 저장하지 않았다. **장면 확인 후 0으로 복구해야 한다.** 디스크 원본과 기본 편성·풀 해시는 `Saved/Profiling/Graphics/Phase00/Recovery/`에 보존했다.
+- UE 5.8 `FRandomStream`과 프로젝트 선택 알고리즘으로 계산한 시드 1 예상 배정은 Acropolis/Hollow/Pyramid/Meadow/Bastion/Bastion/Acropolis/Meadow(slot 0~7)다. 런타임 배정 검증 전 예상값이며 PIE 로그와 대조해야 한다.
+- `LNPEnemyActivityProcessor`는 플레이어 Mass Transform으로 활성 거리를 계산한다. 엔진 MassLOD는 설정에 따라 Pawn 또는 `GetPlayerViewPoint`를 쓴다. 경로 설계에서 AI 활성 기준과 카메라가 어긋나는지 확인해야 한다.
+- 조회 원자료와 임시 상태는 `Saved/Profiling/Graphics/Phase00/Preflight.json`에 기록했다. 기본 에셋 변경·정식 편성 생성·C++ 변경·빌드·패키지·성능 측정은 하지 않았다.
+- 다음은 사용자 수동 PIE다. 플레이어 1명·Standalone → `LNP.Debug.TeleportToReview AcropolisBoss` → 중앙 언덕에서 부유섬을 보는 첫 구도 선택 → PIE 유지 후 알림. 이후 카메라·런타임 배정·스폰 결과를 읽고 나머지 경로 기준점과 편성을 정한다. 0-B는 아직 완료되지 않았다.
+
+## 2026-11-07 — 0-B 첫 카메라 기준점·런타임 초기 배치 확인
+
+- 사용자 준비 알림 뒤 PIE를 읽었다. 게임스테이트는 시드 1·PCG 오프셋 0·Complete, PlayerArray 1개다. 화면의 NetMode도 Standalone이다.
+- 런타임 slot 배정은 앞서 계산한 8개 순서와 모두 일치했다. `AcropolisBoss` 텔레포트는 slot 6으로 기록됐다.
+- `Saved/Logs/LootNPop.log`의 이번 초기화에서 테스트 편성은 Pod 120개를 전부 배치했고 적은 요청 793·계획 배치 793이다. 초기화 로그 합계는 913개이며 스폰 거부·계획 실패는 0건이다. 555는 spawn request 수이므로 적 개체 수와 혼동하지 않는다. 현재 생존 수나 종류별 수를 읽은 것은 아니다.
+- 첫 구도는 부유섬 하부를 올려다본다. `PlayerCameraManager` 액터의 월드 자세와 `GameplayCamera.OutputCameraComponent` 렌즈를 읽어 `Saved/Profiling/Graphics/Phase00/CameraPointA.json`에 기록했다. FOV 약 80도, 컴포넌트 aspect ratio 약 1.33315·MaintainYFOV다. 컴포넌트 aspect ratio를 게임 창의 실제 출력 비율로 간주하지 않는다.
+- 카메라 위치는 `(18151.9534, -18394.8393, -18413.8316)`, 회전은 pitch/yaw/roll=`(34.8303, 62.2710, 66.7198)`도다. 플레이어 위치와 자세도 JSON에 기록했다. 에디터 `GetCameraTransform`은 별도 뷰포트 자세를 반환해 사용하지 않았다. 엔진 `PlayerCameraManager.cpp`의 ViewTarget 결과와 액터 자세 동기화 경로를 확인했다.
+- `BP_LNPGameState` CDO 시드를 0으로 복구하고 재조회했다. 실행 중 GameState 시드 1은 유지된다. 복구 기록과 비교해 GameState BP·기본 편성·기본 풀의 디스크 SHA256가 모두 동일하다. BP 패키지 dirty 표시는 별도 정리하지 않았다.
+- 다음 수동 조작은 지면과 주변 발판이 함께 보이는 두 번째 구도 선택이다. 초기 배치 재시작 반복·정식 편성 생성·종류별/slot별 실제 수·패키지 검증은 아직 남아 있으므로 0-B 완료로 표시하지 않는다.
+
+### 두 번째 구도 변경 — 사용자 제안
+
+- 사용자는 상부 부유섬에서 여러 부유섬을 내려다보면 더 많은 NPC를 화면에 담을 수 있다고 제안했다. 같은 자리의 시선 조정 대신 상부 섬 조망 구도로 변경했다.
+- 배치 원본의 `Upper_04`는 상부 섬 네 곳 중 가장 높은 H=13000cm이며, 조립 스크립트의 검토점 이름은 `AcropolisUpper_04`다. 첫 구도와 같은 slot 6에서 해당 검토점으로 이동해 사용자가 시야를 고른다.
+- 화면에 많은 NPC가 보이는 렌더링 부하와 플레이어 거리 기반 AI 활성 부하는 구분해 확인한다. 상부 조망을 전투 부하 검증으로 확대하지 않는다.
+
+### NPC 없는 재시작·상부 조망 B 기록
+
+- 사용자는 NPC가 구도 조작을 방해해 PIE를 종료하고 `LNP.Spawn.EnemyDensity 0`으로 다시 시작했다. 기본 시드를 0으로 복구한 뒤라 새 실행의 시드는 7783이다.
+- 새 slot 0~7은 Meadow/Pyramid/Hollow/Bastion/Acropolis/Acropolis/Pyramid/Bastion이다. 텔레포트 로그는 `AcropolisBoss` slot 5이며 이후 사용자가 직접 상부 섬으로 이동해 구도를 골랐다. `AcropolisUpper_04` 명령으로 도착했다고 기록하지 않는다.
+- 라이브 상태는 Complete·플레이어 1명·PCG 오프셋 0이다. CVar 밀도 0, 테스트 편성 오버라이드 유지. 초기화 로그는 Pod 120/120·적 0/0, 초기화 개체 합계 120·스폰 거부 0이다.
+- 화면에서 여러 부유섬의 윗면과 Pod가 보이는 상부 조망을 확인했다. 카메라 자세·렌즈·플레이어 자세·slot 5의 실제 옥탄트 변환을 `Saved/Profiling/Graphics/Phase00/CameraPointB.json`에 기록했다. 다른 slot에서 기록한 A와 B는 옥탄트 frame 기준으로 변환해 사용해야 한다.
+- B의 카메라 위치는 `(-11416.8312,-10290.6401,-7866.9642)`, pitch/yaw/roll=`(-65.3839,-16.6062,51.3432)`도다. FOV 약 80도·MaintainYFOV는 A와 같다. NPC 없는 구도 확인이므로 가시 군중 수·AI 활성 수 검증을 대신하지 않는다.
+- 다음은 같은 PIE에서 섬 하나의 윗면을 가까이 보는 구도 C를 고른다. 밀도 0을 유지하며 정식 편성 검증 전에는 1 복원이 필요하다. A·B 화면에 보인 디버그 표시와 HUD는 현재 구도 선택 단계에서 허용한 것이며 패키지 측정 표시 정책은 0-C에서 고정한다.
+
+### 근거리 C·공통 좌표 저장·측정 편성 생성
+
+- 사용자 준비 알림 뒤 Pod가 있는 섬 바닥이 화면을 넓게 차지하는 근거리 구도 C를 읽었다. 시드 7783·slot 5·PCG 오프셋 0·플레이어 1명·Complete였다. 게임 카메라·출력 렌즈·플레이어·옥탄트 자세를 `Saved/Profiling/Graphics/Phase00/CameraPointC.json`에 기록하고 PIE를 종료했다.
+- UE 5.8 `FRotator3d::Quaternion` 식과 옥탄트 변환으로 A/B/C를 공통 옥탄트 로컬 위치·쿼터니언으로 변환했다. `Scripts/Profiling/Graphics/AcropolisViewpoints.json`에 저장했다. 목표는 시드 1·Acropolis slot 6이다. 위치 왕복 오차 최댓값 약 2.04e-12cm·회전 quaternion dot 오차 약 4.45e-16이며 JSON 읽기 확인을 통과했다. 실제 카메라 재생·충돌 없는 이동 경로 검증을 대신하지 않는다.
+- 사용자는 정확한 1k/3k/5k 강제 대신 기존 스폰 유지·실제 생성 수 단계/결과 표기를 선택했다. 실행서·측정 규약·로드맵에 반영했다.
+- 기본 편성과 풀의 저장 상태를 확인하고 저장 API를 호출한 뒤, 기본 편성을 별도 Low/Medium/High 에셋으로 복제했다. 각 에셋은 일반 편성 적 수만 바꾸고 저장·재조회 값 전체를 기대값과 대조했다. 원본 편성 재조회 값도 일치한다.
+
+| 에셋 접미어 | 일반 Pod당 Crawler/Melee/Ranged/Flyer | 일반 편성 산술합 | 실제 생성 |
+|:---|:---|---:|:---|
+| Low | 3/2/1/3 | 1080 | 검증 대기 |
+| Medium | 9/6/3/9 | 3240 | 검증 대기 |
+| High | 15/10/5/15 | 5400 | 검증 대기 |
+
+- 에셋 경로는 `/Game/SpawnData/Graphics/DA_MassSpawnConfig_Graphics_{Low,Medium,High}`다. 네 SpawnSetId·Pod 요청 20/40/30/30·최소 간격 2000cm·적 배치 반경 1500cm·프레임당 스폰 50을 유지했다. 적 종류는 현재 PureEntity 4종이며 Phase 1의 2~3종 아트 반입 범위와 별개다. authored 편성 수는 에셋 일반 편성 수로 강제 대체하지 않았다.
+- 편성 값과 cook root 목록은 `Scripts/Profiling/Graphics/SpawnProfiles.json`에 보존했다. 동적 로드 에셋의 실제 cook 포함 여부는 패키지에서 따로 확인해야 한다.
+- 기본 편성·풀·GameState BP의 디스크 SHA256가 최초 복구 기록과 동일함을 확인했다. 신규 측정 에셋 3개 외 기존 에셋 저장 변경은 없다. C++ 변경·빌드·성능 측정은 하지 않았다.
+- 검증 준비로 BP GameState CDO 시드를 다시 메모리에서 1로 설정하고 PCG 오프셋 0과 함께 재조회했다. 검증이 끝나면 원래 0으로 복구한다. 현재 기존 스폰 오버라이드와 사용자 밀도 0은 유지돼 있어 첫 검증 전 콘솔 설정이 필요하다.
+- 다음은 밀도 1에서 Low 두 번·Medium/High 각 한 번의 짧은 1인 Standalone PIE다. 각 회차는 플레이어가 나타나 초기화 완료가 확인될 때까지 실행한다. 앞 세 회차 종료·마지막 High 유지 후 알림을 받으면 로그를 묶어 초기 생성 수·부족·거부·반복 재현을 확인한다. 종류별/slot별 실제 수 검증도 아직 남아 있으므로 0-B는 진행 중이다.
+
+### 수동 PIE 네 회차 — 초기 합계·재현 확인
+
+사용자가 Low 두 번·Medium/High 각 한 번을 실행했다. 아래 수는 **전체 8-slot 월드의 초기 생성 합계**이며 Acropolis 화면 가시 수·AI 활성 수가 아니다.
+
+| 회차 | 단계 | 계획 요청 적 | 계획 배치 적 | 초기화 적 | 미배치 적 | 초기화 전체(Pod 포함) |
+|:---|:---|---:|---:|---:|---:|---:|
+| 1 | Low | 1053 | 1053 | 1053 | 0 | 1173 |
+| 2 | Low | 1053 | 1053 | 1053 | 0 | 1173 |
+| 3 | Medium | 2223 | 2223 | 2223 | 0 | 2343 |
+| 4 | High | 3393 | 3257 | 3257 | 136 | 3377 |
+
+- 네 회차 모두 Pod 120/120, All entities spawned와 1인 Server init complete가 있다. 초기화 로그의 개체 수 합계가 계획 배치 적+Pod와 일치하고, flying/crawler의 추가 스폰 거부·계획 자체 실패는 0건이다. 계획 미배치와 스폰 후 거부를 구분했다.
+- Low 두 번의 세트별 요청/배치·초기화 합계가 일치한다. 네 회차의 slot 배정도 동일하며 Acropolis는 0·6이다. 개별 Transform 해시를 비교하지 않았으므로 위치 전체 재현 검증으로 확대하지 않는다.
+- 네 회차의 WorldDevice seed가 모두 24300이다. `LNPWorldDeviceSpawnSubsystem.cpp`의 `OctantGenSeed ^ 0x5EED`를 역산해 월드 시드 1을 확인했다. 마지막 High GameState는 시드 1·PCG 오프셋 0·Complete·PlayerArray 1을 직접 읽었다. 시작 전 밀도 1 콘솔 명령과 Low/Medium/High 오버라이드 변경 명령도 원본 로그에 있다.
+- High는 네 세트에서 각각 17/68/34/17마리를 계획 단계에 놓지 못해 Error 로그 4건이 발생했다. 기존 planner의 후보 사용 여부·headroom·반경·간격 필터를 통과한 후보가 목표를 채우지 못하는 경로다. 어떤 지점의 어떤 조건이 제한했는지는 별도 계수하지 않았다. 미배치 136을 기록하고 사용자 선택대로 실제 수를 보고한다. 기존 스폰을 수정하거나 강제 충원하지 않았다.
+- 원자료: `Saved/Profiling/Graphics/Phase00/SpawnValidation.json`(회차·slot·세트별 수·오류·초기화 대조), `SpawnValidation.log`(네 회차 초기화 원문), `SpawnValidation_Source.log`(검증 직후 원본 로그 사본). 로그의 UTC 시각은 2026-11-06 16:34~16:35, 사용자 시간은 2026-11-07 01:34~01:35다.
+- BP GameState CDO 시드를 0으로 복구·재조회하고 High PIE를 종료했다. 기본 편성·풀·GameState BP 파일의 SHA256가 최초 복구 기록과 동일하다. 현재 에디터 CVar는 High·밀도 1로 남아 있으므로 사용자에게 기존 TestOnePerSpecies·밀도 0 복구를 요청한다. 재조회 전에는 복구 완료로 쓰지 않는다.
+- 남은 것은 종류별/slot별 실제 수 계수다. 기존 로그는 초기화 합계만 제공한다. 이를 0-C의 실행 메타데이터 수집에 통합하는 단위 조정을 사용자에게 제안한다. 그 확인과 CVar 원복 전에는 0-B 전체 완료로 표시하지 않는다. Medium/High 반복 재현·가시/활성 수·패키지·성능은 미검증이다.
+
+### 0-C 착수·첫 검증과 크래시 수정
+
+- 사용자가 0-C 진행과 초기 상세 계수 통합을 승인했다. 신규 그래픽스 서브시스템·관찰 카메라·CSV/메타데이터·패키지 런처/집계기를 구현했다. 기본 비활성이고 활성 실행에서만 시드 1·선택 편성·밀도 1·에픽·TSR 100%를 적용한다. 관찰자는 인지 대상에서 빼고 카메라 위치로 활동 거리를 계산하므로 전투 부하 시나리오가 아니다.
+- 경로 파일은 NonUFS 런타임 의존성으로 stage하도록 등록했다. 초기 계수는 SpawnConfig의 EntityConfig/slot/초기화·거부 수, 실행 표본은 EnemyConfig/현재 Support slot/생존·활동 대역·표현·시야 후보 수다. 시야 후보는 구 프러스텀 검사이며 가림을 판정하지 않는다. ISM/ISKM은 합쳐 센다.
+- 첫 Live Coding은 통과했다(UBT 141.53초·패치 링크 성공). `LootNPop.Graphics.Benchmark.Viewpoints`와 기존 MassSpawnPlanning/Headroom 자동화 3건은 오류·경고 없이 통과했다. 경로 테스트는 직접 기록한 월드 위치·구면 roll·slot 5→6 변환·루프·잘못된 좌표계/쿼터니언 거부를 확인한다.
+- 사용자 PIE는 워밍업5초·경로30초·Low로 시작했고, 초기 상세 계수 1053·Pod120과 생존 Query 일치를 확인했다. 종류별 초기화는 Crawler442·Flyer416·Melee130·Ranged65, slot6은 각각90/90/60/30이다. 이때 프러스텀/활동 표본·CSV 완료는 아직 확인하지 못했다.
+- CSV 시작 직후 `FCsvProfiler::RecordCustomStat`의 카테고리 인덱스 배열 접근 지점에서 크래시가 났다. 덤프는 `Saved/Crashes/UECC-Windows-573242814DB2645F770DE0B5569D9556_0000/`이다. 신규 전역 카테고리와 Live Coding의 초기화가 관련됐는지는 확정하지 않았으며, 실패 접근을 없애기 위해 새 카테고리를 제거하고 엔진 기본 인덱스0·`LNPGraphics_` 접두사 열로 변경했다. CSV 자체 벤치마크도 측정 실행에서 끈다.
+- 사용자 에디터/크래시 창 종료 확인 뒤 정규 Editor 빌드가 통과했다(19개 작업·63.43초). 그다음 별도 `-game` 스모크는 시작용 임시 월드 폐기를 측정 실패로 처리하며 자동 종료를 요청했고, 맵 로드가 진행되던 중 WorldPartition assertion으로 끝났다(종료3). 이 실행은 `Saved/Profiling/Graphics/Phase00/RegularSmoke/`에 보존했다. CSV 수정 검증 완료로 간주하지 않는다.
+- 서브시스템을 TestMap03에만 생성하도록 수정했다. 그 정규 빌드는 자동 승인 검토의 사용 한도로 실행되지 않았고, 사용자가 한도 초기화를 알린 뒤 재개했다. 이 실패는 안전성 거부가 아닌 승인 검토의 한도 실패였으며 샌드박스 우회 실행은 하지 않았다.
+- 현재 정규 빌드·스모크·사용자 경로 확인·패키지 예비 실행이 남아 있다. 0-C·Phase 0을 완료로 표시하지 않는다.
+
+### 0-C 복구 후 정규 빌드·수집·패키지 검증
+
+- 한도 복구 뒤 TestMap03 생성 제한을 포함한 정규 Editor 빌드가 통과했다(24.79초). `RegularSmoke2`는 워밍업5초·경로6초·Low로 정상 종료했고 CSV 281프레임과 초기 적1053을 대조했다. 이후 `RegularPreview` 1447프레임, `RegularPreview2` 1480프레임도 정상 종료·집계를 통과했다. 최초 자동화 3건 이후 변경은 CSV 카테고리와 서브시스템 수명 처리이며 자동화 3건을 다시 실행했다고 쓰지 않는다.
+- 엔진 CSV에 다른 카테고리의 중복 헤더 `MassSignalsCounters/StateTreeActivate`가 있어 `Import-Csv`가 실패했다. 집계기는 `TextFieldParser`로 헤더 인덱스를 읽고 `LNPGraphics_*` 열을 정확히 하나씩 찾도록 수정했다. CaptureFrame=1 행 수와 메타데이터 프레임 수, Frame/GT/RT/GPU/드로우콜의 유한 양수, 생존·활동·표현 분할, 프러스텀 후보 상한, 초기 종류별 합계를 검증한다. 예비 실행을 기본적으로 거부하는 경로도 확인했다.
+- `PackageGraphicsBenchmark.ps1`로 Win64 Game Development build/cook/stage/pak/iostore/archive를 완료했다. 게임 빌드63.91초, BuildCookRun237.15초, 종료0이다. 1612패키지의 cook 오류0·경고1이며, 경고는 기존 프로젝트 설정 우선순위 때문에 `r.Shadow.Virtual.MaxPhysicalPages`가 4096을 유지한다는 내용이다. 설정을 바꾸거나 경고를 숨기지 않았다.
+- `SpawnProfiles.json`의 cook root와 경로 NonUFS 스테이징을 적용했다. 패키지 위치는 `Saved/Graphics/Phase00Package/Windows/LootNPop/Binaries/Win64/LootNPop.exe`다. UAT·cook·게임 빌드 로그는 `Saved/Profiling/Graphics/Phase00/PackageBuild/`에 복사했다. 현재 작업 트리의 빌드이며 깨끗한 트리 빌드 검증은 아니다.
+
+패키지 예비 실행은 모두 워밍업5초·경로6초, DX12·RTX 4060 Laptop·2560×1440·시드1·PCG0·Acropolis slot6, 종료0·CSV 집계 통과다. 아래 수는 전체 월드 초기 수다.
+
+| 단계 | 측정 프레임 | 초기 적 | Crawler | Flyer | Melee | Ranged | Pod |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Low | 269 | 1053 | 442 | 416 | 130 | 65 | 120 |
+| Medium | 279 | 2223 | 832 | 806 | 390 | 195 | 120 |
+| High | 258 | 3257 | 1206 | 1196 | 570 | 285 | 120 |
+
+- 요약과 각 원자료의 절대 경로는 `Saved/Profiling/Graphics/Phase00/PackagedPreflightSummary.json`에 있다. High 계획 미배치136은 동일하게 기록됐고 초기화 중 추가 거부는 없다. 기존 설정·스폰을 변경하지 않았다. Low slot6은 Crawler90·Flyer90·Melee60·Ranged30이다.
+- 세 실행의 실행 파일·스테이징된 경로 파일 해시가 동일함을 확인했다. 사후 컨테이너 해시 스냅샷은 `PackageBuild/PackageIdentity.json`이다. 이를 과거 실행 시점의 기록이라고 쓰지 않는다. 이후 런처는 실행 전 `.pak`·`.utoc`·`.ucas` 해시도 Launch.json에 기록한다. 경로 파일은 작업 폴더 대신 패키지에 스테이징된 파일을 기본으로 쓴다.
+- 벤치마크 인자를 주지 않은 패키지의 짧은 기본 실행도 확인했다. CVar는 `LNP.Graphics.Benchmark = 0`·Constructor, 하네스 로그 없음·일반1인 초기화·종료0이다. 이 검증만 `-nullrhi`를 썼으며 성능 측정이 아니다. 근거는 `Saved/Profiling/Graphics/Phase00/DefaultDisabled/Runtime.log`다.
+- 기본 편성·풀·GameState BP 파일 해시는 복구 기록과 일치한다. 엔진 MassLOD의 카메라 기준 기본값도 확인했다. 프러스텀 후보는 가림을 포함하므로 실제 가시 NPC 수로 보고하지 않는다.
+- 사용자가 앞부분을 놓쳤다고 알려 재생을 요청했다. 최신 패키지 재생은 워밍업10초·경로30초·Low, 종료0·CSV1515프레임·초기1053·집계 통과다. 원자료는 `Saved/Profiling/Graphics/Phase00/PackagedPreviewRepeat/Low_20261106_175407_35fba2/Low_29B7E17B450431113AC15CA89D0D9096/`다. 사용자 지형 관통·회전·NPC 관찰 구도 확인은 답변 대기다.
+- 모든 짧은 실행은 `performance_eligible=false`다. 성능 기준선 수치를 채택하지 않았다. 0-D 정식60초 워밍업·60초 측정·단계별3회는 사용자 진행 확인과 전원·성능 모드·GPU 경로·클럭/온도 기록 조건 확인 뒤 수행한다. 0-C는 육안 확인 대기, Phase 0은 미완료다.
+
+### 경로 관통 위치 확인·우회 위치 선택 요청
+
+- 추가 사용자 요청으로 같은 패키지 Low·워밍업10초·경로30초를 다시 재생했다. 종료0·complete이며 원자료는 `Saved/Profiling/Graphics/Phase00/PackagedPreviewRepeat/Low_20261107_034945_101251/Low_D045CA4240BB9B3EE2C5B294B85446D2/`다.
+- 사용자는 1(A 하부 상향)→2(B 상부 조망)의 도착 직전 모서리를 살짝 관통하고, 2(B)→3(C 근거리 Pod 섬)에서 부유섬을 두 번 관통한다고 확인했다. 3→1의 무관통·회전 적절성까지 확인받은 것은 아니다.
+- 현재 경로는 구도 사이 직선 보간이며 지형 회피를 하지 않는다. 기존 세 구도를 유지하면서 우회 지점을 직접 고르는 편이 정확하므로 벤치마크0·밀도0의1인 Standalone PIE와 AcropolisBoss 이동을 요청했다. 중간 좌표는 아직 정하지 않았으며 코드·경로 파일도 바꾸지 않았다. 좌표 수집 후 필요한 최소한의 중간점 재생을 구현·재검증한다. 0-D는 착수하지 않는다.
+
+### 사용자 변경안 — 중간점 대신 2·3번 구도 재선택
+
+- 사용자는 앞선 구도가 동선을 고려하지 않았다고 설명하고 직선 이동을 감안해 2·3번을 새로 고르기로 했다. 우회 중간점 추가안은 진행하지 않는다. 1번은 유지하고 3점 루프 구조를 보존한다.
+- 사용자가 이미 선택한 새 2번을 PIE의 PlayerCameraManager 자세로 읽고 저장했다. 시드3962·PCG0·Complete·플레이어1명·Acropolis slot2다. 벤치마크0·밀도0과 FOV약80·MaintainYFOV·기준화면비1.3331548을 조회했다. 슬롯 액터의 worldAsset과 변환을 함께 읽었으며 원자료는 `Saved/Profiling/Graphics/Phase00/CameraPointB_Revision2.json`이다. 카메라 위치는 `(-10579.114846158252,-7320.179262224368,10738.257216823957)`, pitch/yaw/roll은 `(5.8777411958635835,-70.3747504280153,129.91180080236575)`도다.
+- 앱의 Unreal 도구 목록이 없어 프로젝트에 설정된 로컬 `http://127.0.0.1:8000/mcp`를 통해 도구 목록·스키마를 조회하고 읽기 호출로 접근했다. 에셋·플레이어 자세는 수정하지 않았다.
+- 같은 PIE에서 새 3번을 고르도록 요청했다. 2→3뿐 아니라 3→1 직선 복귀도 고려한다. 원본 경로·패키지·기존 자동화 기대 좌표는 아직 바꾸지 않았다. 두 점을 확보한 후 slot2→공통 로컬→촬영용slot6 변환, 기대 좌표 갱신, 재생 검증을 진행한다. 새 2번만으로 무관통을 판정하지 않는다.
+
+- 사용자는 공중 정지가 어려워 기록 자세에 수치 오프셋을 적용할 수 있는지 물었고, 새 2번을 캐릭터 기준 앞방향으로50cm 옮기도록 요청했다. 현재 카메라가 기록된 새 2번 위치와 일치함을 확인한 뒤 플레이어 액터의 구면 자세에서 로컬+X 전방 벡터를 계산해 카메라 위치에만 적용했다. 월드Z를 위로 가정하지 않았고 회전·렌즈·실제 플레이어 자세는 바꾸지 않았다. 이동 거리50cm·회전 보존을 수치 검증했다. 초안의 `adjustment`에 원래 카메라·기준 플레이어 자세·방향·거리를 보존했으며 기준 조회 원문은 `CameraPointB_Revision2_OffsetReference.json`이다. 실제 재생의 관통 검증은 여전히 남아 있다.
+
+- **위 오프셋 기준점 정정:** 사용자의 의도는 기존 카메라에서50cm 이동이 아니라 **캐릭터 위치 + 캐릭터 전방50cm**에 카메라를 두는 것이다. 캐릭터가 모서리 끝에 있어 뒤쪽 카메라 위치로 보간하면 지면을 통과하기 때문이다. 앞선 기준점 해석을 잘못 적용했으며 해당 초안 값을 교체했다. 현재 PIE 자세를 다시 읽어 캐릭터와 원래 카메라의 자세가 각각 앞선 조회에서 변하지 않았음을 확인하고, 캐릭터 액터 위치를 기준으로 계산했다. 카메라 회전은 최초 기록 그대로 유지했다. 수정 기록의 `adjustment.kind`는 `PlayerOriginPlusForward`, 기준 원문은 `CameraPointB_Revision2_PlayerOriginReference.json`이다. 캐릭터 기준 거리50cm·카메라 회전 보존을 검증했으며 실제 PIE 액터는 수정하지 않았다. 새 3번·경로 재생은 여전히 대기다.
+
+### 새 3번 기록·경로 반영·검증
+
+- 사용자 새 3번 준비 알림과 카메라 위치 그대로 사용 지시에 따라 PlayerCameraManager를 기록했다. 시드3962·Acropolis slot2·PCG0·Complete·플레이어1명이며 렌즈는 기존과 일치했다. 원자료는 `Saved/Profiling/Graphics/Phase00/CameraPointC_Revision2.json`과 `_Raw.json`·`_Lens.json`이다. 위치는 `(-7664.860253690804,-15426.92606323785,12466.216059413013)`, pitch/yaw/roll은 `(59.92685263138905,15.701050913785787,141.92552668350538)`도다.
+- 새 2번의 보정 위치와 새 3번을 공통 옥탄트 로컬로 변환해 `AcropolisViewpoints.json`에 반영했다. 1번은 원본과 동일함을 비교했다. 위치 왕복 오차0cm·쿼터니언 dot 오차최대2.23e-16을 확인했다. 근거는 `CameraRevision2_Roundtrip.json`이다. 기존 경로는 `AcropolisViewpoints_Revision1.json`으로 보존했다. 경로 점3개·선형 위치/구면 회전 보간·1→2→3→1 순서는 유지한다.
+- 기존 자동화의 2·3번 기대 위치를 갱신하고 두 점의 기록 회전 보존 검사를 추가했다. PIE를 종료하고 Live Coding 성공 후 `LootNPop.Graphics.Benchmark.Viewpoints`를 실행해1/1통과·오류0·경고0을 확인했다. 원자료는 `CameraRevision2_Automation.json`이다. 경로를 지형에 대조한 시험은 아니므로 육안 검증을 대신하지 않는다.
+- 패키지의 NonUFS 경로 JSON만 새 파일로 복사하고 해시 일치를 확인했다. 게임 실행 파일·cook 컨테이너는 재빌드하지 않았다. 기록은 `PackageBuild/ViewpointsRevision2.json`, 새 경로SHA256은 `E07430EA141E3543457C2030E2B7E1040297448191EE6EE8DC71B40C34F766CB`다. 이전 경로의 실행과 동일 경로로 묶지 않는다.
+- 새 경로 Low 예비 재생을 `CameraRevision2Preview/`에 실행했다. 워밍업 도중 이동과 촬영 시작 복귀가 혼동을 주지 않도록 이번 육안 검증만 워밍업0초·경로30초로 설정했다. 구간당10초이며 성능 기준선이 아니다. 종료·수집 결과와 사용자 지형 관통·회전·NPC 구도 확인은 아직 대기다.
+- 위 실행은 종료0·complete, CSV1407프레임·초기적1053·개체 분할 대조를 통과했다. 저장된 실행 경로 JSON도 수정본과 일치한다. 원자료는 `CameraRevision2Preview/Low_20261107_041125_ddb87f/Low_9E21E7E2400A1DCEB9F160BAEF502F4F/`다. `performance_eligible=false`를 확인했고 사용자 육안 답변은 아직 기다린다.
+
+### 수정 경로 육안 통과·3번 주변 Pod 조건 지적
+
+- 사용자 재생 요청으로 같은 수정 경로를 워밍업0초·경로30초로 다시 실행했다. 종료0·complete이며 원자료는 `CameraRevision2Preview/Low_20261107_041440_5ac018/Low_14E75E44474BC52B9ABBBB9060BFF636/`다. 사용자는 세 구간 모두 관통 없이 정상이라고 확인했다.
+- 사용자는 Pod의 랜덤 배치 때문에 3번 주변에 Pod가 없을 수 있다고 지적했다. 실제로 해당 위치에 Pod가 없음을 모든 편성에서 확인한 것은 아니다. 위치 기록 당시 PIE는 시드3962·밀도0이었고 벤치마크는 시드1·밀도1이므로 같은 배치를 전제하지 않는다.
+- 생성 코드를 다시 확인했다. `LNPMassSpawnPlan.cpp`는 정렬된 입력에 `FRandomStream(WorldSeed ^ 0x51A7F00D)`를 사용하므로 같은 시드·편성·베이크 입력에서는 계획이 결정론적이다. 그러나 랜덤 Pod는 남은 적 후보와 편성 전량 배치 가능 여부에 따라 채택되므로 편성이 달라지면 시드가 같아도 Pod 위치가 달라질 수 있다. 고정 시드만으로 Low/Medium/High의 동일 Pod 배치를 보장하지 않는다.
+- 기본 스폰 유지 방침은 바꾸지 않는다. 0-C의 수집·좌표·경로 통과 결과를 보고하고, 다음 단위 시작 전에 세 편성의 3번 주변 Pod·NPC 조건부터 확인하는 안을 제안한다. 무조건 Pod를 추가하거나 전투 부하로 확대하지 않는다. 정식 반복 측정·0-D는 사용자 진행 확인 전이다.
+
+### 세션 종료·일괄 커밋 인계
+
+- 사용자가 다음 단위를 새 세션으로 넘기고 인수인계 문서와 이번 변경을 한 번에 커밋하도록 요청했다. 0-D·추가 편성 재생·정식 측정은 시작하지 않았다.
+- `Current.md`를 완료 이력 누적 대신 다음 세션 진입점으로 다시 정리했다. 다음 첫 작업은3번 주변의 편성별 Pod·NPC 확인 범위를 제안하고 진행 확인을 받는 것이다. 이후 전원·성능 모드·디스플레이 GPU·온도/클럭 조건과 정식 반복 측정을 확인한다.
+- 로드맵·Phase 실행서·측정 규약에0-C 검증 통과·최종 경로·NonUFS 경로 교체 절차·Pod 배치의 재현 범위·미검증 범위를 반영했다. 새 공통 설계 문서를 추가하지 않아 공통 인덱스 추가는 없다.
+- 커밋 범위는 측정 서브시스템과 기존 경로 연결, 별도 편성3개, 경로/편성 JSON, 패키지/실행/집계 스크립트, 경로 자동화, 그래픽스 문서다. 빌드·원자료·크래시 덤프·로컬 스냅샷 등 `Saved/` 산출물은 포함하지 않는다.
+- 검증 근거는 앞 절의 정규 Editor 빌드·Game 패키지·초기 자동화3건·최종 경로 자동화1건·패키지 예비 실행·사용자 무관통 확인이다. 인계 정리만을 위해 실행을 반복하거나 성능 수치를 추가하지 않았다. 깨끗한 트리의 최종 전체 빌드·새 경로 Medium/High 화면·3번 주변 Pod 분포·정식3회 기준선은 미실시로 남긴다.

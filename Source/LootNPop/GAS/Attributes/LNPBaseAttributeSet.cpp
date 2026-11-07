@@ -8,6 +8,7 @@
 #include "GAS/Effects/LNPGameplayEffect_Burn.h"
 #include "LootNPop.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
+#include "Graphics/LNPGraphicsBenchmark.h"
 #include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
 
@@ -100,7 +101,7 @@ void ULNPBaseAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCal
 
 		// 부하 harness 측정 중에는 플레이어가 죽지 않는다. 사망·리스폰이 capture 구간을 끊지 않게 한다.
 		const APawn* Avatar = Cast<APawn>(Data.Target.AbilityActorInfo.IsValid() ? Data.Target.AbilityActorInfo->AvatarActor.Get() : nullptr);
-		if (LNPLoadBaseline::IsActive() && Avatar && Avatar->IsPlayerControlled())
+		if ((LNPLoadBaseline::IsActive() || LNPGraphicsBenchmark::IsRequested()) && Avatar && Avatar->IsPlayerControlled())
 			return;
 
 		const float FinalDamage = LNPDamage::ApplyDefense(RawDamage, GetDefensePower());

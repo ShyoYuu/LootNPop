@@ -11,6 +11,7 @@
 #include "Player/LNPPlayerController.h"
 #include "GAS/Attributes/LNPBaseAttributeSet.h"
 #include "LootNPop.h"
+#include "Graphics/LNPGraphicsBenchmark.h"
 
 #include "AbilitySystemComponent.h"
 #include "GameFramework/Pawn.h"
@@ -32,6 +33,12 @@ void ALNPGameMode::BeginPlay()
 
 	ALNPGameState* GS = World->GetGameState<ALNPGameState>();
 	check(GS);
+
+	if (LNPGraphicsBenchmark::IsRequested())
+	{
+		GS->OctantGenSeed = 1;
+		GS->PCGSeedOffset = 0;
+	}
 
 	// Seed 결정: config로 설정되지 않았으면 지금 생성하여 모든 클라이언트가 동일한 값을 사용
 	if (GS->OctantGenSeed == 0)

@@ -1,0 +1,113 @@
+{
+  "map": "/Game/Maps/TestMap03",
+  "world_seed": 1,
+  "pcg_seed_offset": 0,
+  "octant_asset": "/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00",
+  "target_slot": 6,
+  "coordinate_space": "octant_local",
+  "lens": {
+    "fieldOfView": 79.99999237060547,
+    "aspectRatio": 1.3331547975540161,
+    "aspectRatioAxisConstraint": "AspectRatio_MaintainYFOV"
+  },
+  "points": [
+    {
+      "id": "A_UpwardIslands",
+      "capture_seed": 1,
+      "capture_slot": 6,
+      "camera": {
+        "location": [
+          18151.953409770336,
+          18394.83929964723,
+          18413.831631335015
+        ],
+        "rotation_quaternion_xyzw": [
+          -0.767242494800165,
+          0.27120063371736464,
+          0.48526710945922163,
+          -0.3198515326228876
+        ]
+      },
+      "player": {
+        "location": [
+          18300.082833226188,
+          18300.082833226166,
+          18300.082833226174
+        ],
+        "rotation_quaternion_xyzw": [
+          -0.8711003375084435,
+          0.17279854336043657,
+          0.25559619616642254,
+          -0.3820935093801552
+        ]
+      }
+    },
+    {
+      "id": "B_UpperIslandOverview",
+      "capture_seed": 3962,
+      "capture_slot": 2,
+      "camera": {
+        "location": [
+          10513.431709385082,
+          7587.9381277014245,
+          10842.515507489785
+        ],
+        "rotation_quaternion_xyzw": [
+          0.5036499298299881,
+          0.7519667487991452,
+          -0.3187420179993707,
+          -0.2815782002293157
+        ]
+      },
+      "player": {
+        "location": [
+          10539.751932031544,
+          7545.603409244581,
+          10846.39074851718
+        ],
+        "rotation_quaternion_xyzw": [
+          0.45438133161833905,
+          0.7838398403953786,
+          -0.3857425709894723,
+          -0.17417054576513277
+        ]
+      },
+      "camera_position_adjustment": {
+        "origin": "player",
+        "direction": "player_forward",
+        "distance_cm": 50
+      }
+    },
+    {
+      "id": "C_CloseIsland",
+      "capture_seed": 3962,
+      "capture_slot": 2,
+      "camera": {
+        "location": [
+          7664.860253690802,
+          15426.92606323785,
+          12466.216059413013
+        ],
+        "rotation_quaternion_xyzw": [
+          -0.2732453588308786,
+          0.7890338736814353,
+          -0.34442594200711524,
+          -0.4291075512423015
+        ]
+      },
+      "player": {
+        "location": [
+          7622.415326980628,
+          15436.287603802144,
+          12714.064352031628
+        ],
+        "rotation_quaternion_xyzw": [
+          -0.31358963573306314,
+          0.8358810855762714,
+          -0.3081457384248684,
+          -0.32864959307327857
+        ]
+      }
+    }
+  ]
+}

@@ -55,7 +55,7 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 ## 4. 모든 구현이 지켜야 하는 불변 조건
 
 - **성능 판정은 패키지 빌드에서만 한다.** 에디터 `-game`은 `WITH_EDITOR` 코드와 디버그 드로우로 오염된다(GX-001).
-- **기본 `DA_MassSpawnConfig`를 보존한다.** 측정 편성은 별도 에셋을 만들고 `LNP.Spawn.ConfigOverride`로 고른다.
+- **기본 `DA_MassSpawnConfig`를 보존한다.** 측정 편성은 별도 에셋을 만들고 오버라이드로 고른다. Phase 0 하네스는 `LNP.Graphics.Benchmark.Profile`로 선택하며 일반 PIE의 편성 선택에는 `LNP.Spawn.ConfigOverride`를 쓴다.
 - **구면 월드다. 월드 Z가 Up이라는 가정을 쓰지 않는다.** 높이 안개·RVT·데칼 투영처럼 엔진 기능이 Z를 가정하는지 먼저 확인하고, 적도 근처에서 검증한다.
 - **렌더 확장은 엔진 수정 없이 한다.** 프로젝트·플러그인 모듈과 SceneViewExtension/RDG 범위 안에서 해결한다(GX-008).
 - **연출은 비복제 코스메틱이다.** 스캔 시야·지형 흔적·화면 효과는 기존 경로(GameplayCue, 착탄 이벤트)에서 트리거만 받는다. 게임플레이 판정에 쓰지 않는다(GX-007).

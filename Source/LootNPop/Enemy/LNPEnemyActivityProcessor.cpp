@@ -9,6 +9,7 @@
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 #include "SurfaceNavigation/LNPNavPathSubsystem.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
+#include "Graphics/LNPGraphicsBenchmark.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "MassActorSubsystem.h"
@@ -110,6 +111,12 @@ void ULNPEnemyActivityProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				}
 			}
 		});
+	}
+	FVector Observer;
+	if (bDistanceDue && LNPGraphicsBenchmark::GetObserverLocation(GetWorld(), Observer))
+	{
+		Players.Reset();
+		Players.Add(Observer);
 	}
 	auto NearestPlayerSq = [&Players](const FVector& Position)
 	{
