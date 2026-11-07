@@ -32,14 +32,14 @@ bool FLNPGraphicsPathTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Upper viewpoint uses player origin plus 50cm forward, remapped from slot 2 to slot 6"),
 		WorldView(1.0 / 3.0).GetLocation().Equals(FVector(10513.431709385082, -7587.938127701423, -10842.515507489785), 0.001));
 	TestTrue(TEXT("Close viewpoint is remapped to fixed slot 6"),
-		WorldView(2.0 / 3.0).GetLocation().Equals(FVector(7664.860253690804, -15426.92606323785, -12466.216059413013), 0.001));
+		WorldView(2.0 / 3.0).GetLocation().Equals(FVector(14535.285332646312, -16365.976549887891, -8072.451088895411), 0.001));
 	const FTransform CaptureSlot(FRotator(0, 180, 0));
 	TestTrue(TEXT("Upper viewpoint preserves captured rotation after player-origin position adjustment"),
 		WorldView(1.0 / 3.0).GetRotation().Equals(Slot.TransformRotation(CaptureSlot.InverseTransformRotation(
 			FRotator(5.8777411958635835, -70.3747504280153, 129.91180080236575).Quaternion())), 1.e-6));
 	TestTrue(TEXT("Close viewpoint preserves captured rotation"),
-		WorldView(2.0 / 3.0).GetRotation().Equals(Slot.TransformRotation(CaptureSlot.InverseTransformRotation(
-			FRotator(59.92685263138905, 15.701050913785787, 141.92552668350538).Quaternion())), 1.e-6));
+		WorldView(2.0 / 3.0).GetRotation().Equals(
+			FRotator(5.242406831384363, 43.94168399565651, 70.10535088742321).Quaternion(), 1.e-6));
 	TestTrue(TEXT("Loop returns to its initial pose"), WorldView(1).Equals(WorldView(0), 1.e-6));
 	TestTrue(TEXT("Interpolated orientation remains normalized"), WorldView(0.17).GetRotation().IsNormalized());
 	TestTrue(TEXT("Captured FOV is preserved"), FMath::IsNearlyEqual(FOV, 80.f, 0.001f));

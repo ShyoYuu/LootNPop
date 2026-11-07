@@ -54,7 +54,7 @@
 |:---|:---|
 | 패키지 생성 | `Scripts/Profiling/Graphics/PackageGraphicsBenchmark.ps1` — Game Development build/cook/stage/archive. UBT·cook 외부 캐시 쓰기를 위해 처음부터 권한 확장으로 실행한다 |
 | 한 단계 실행 | `Scripts/Profiling/Graphics/RunGraphicsBenchmark.ps1 -Profile Low -Repeats 1` |
-| 정식 3회 실행 | 위 명령의 `-Repeats 3`, 각 Low/Medium/High는 사용자 진행 확인 뒤 별도로 실행한다 |
+| 현재 공통 조건의 정식3회 실행 | 위 명령에 `-Repeats 3 -WarmupSeconds 180 -DurationSeconds 60`을 명시한다. 각 편성은 사용자 진행 확인 뒤 별도로 실행하며 기존60초 워밍업 세트와 분리한다 |
 | 짧은 패키지 기능 검증 | `-WarmupSeconds 5 -DurationSeconds 6`을 추가한다. 성능 판정에서는 제외한다 |
 | 결과 집계 | `Scripts/Profiling/Graphics/AnalyzeGraphicsBenchmark.ps1 -RunDirectory <Run.json이 있는 폴더>` |
 | 예비 실행 집계 | 집계 명령에 `-AllowPreview`를 추가한다. 기본 집계는 예비 실행을 거부한다 |
@@ -62,11 +62,11 @@
 
 패키지 실행 파일은 `Saved/Graphics/Phase00Package/Windows/LootNPop/Binaries/Win64/LootNPop.exe`다. 런처는 DX12·단일 플레이어로 실행하고, 시드·편성·카메라 준비 → 워밍업 → CSV 시작 확인 → 경로 재생 → CSV 쓰기 완료 순서를 기다린다. 경로는 60초 기본값에서 A(하부 상향) → B(상부 조망) → C(근거리) → A로 선형 위치·쿼터니언 구면 보간한다. 워밍업도 같은 경로를 돌린다. 카메라 시점과 구도는 사용자 육안 검증이 필요하다.
 
-최종 경로는 사용자 확인에서 세 구간 모두 관통 없이 통과했다(2026-11-07). 구도 확인만 빠르게 반복할 때는 `-WarmupSeconds 0 -DurationSeconds 30`을 사용한다. 이 경우 구간당10초이며 성능 기준선으로 쓰지 않는다. 워밍업이 있으면 해당 경로를 미리 돌고 촬영 시작 때1번으로 복귀한다.
+이전 경로(Revision2)는 사용자 확인에서 세 구간 모두 관통 없이 통과했지만, Low의3번 구도에서 Pod가 보이지 않아 사용자 재선택 카메라로3번을 교체했다(Revision3, 2026-11-07). 신규 Low/Medium/High 패키지 재생 모두에서 사용자가 Pod·NPC와 무관통을 확인했다. 구도 확인만 빠르게 반복할 때는 `-WarmupSeconds 0 -DurationSeconds 30`을 사용한다. 이 경우 구간당10초이며 성능 기준선으로 쓰지 않는다. 워밍업이 있으면 해당 경로를 미리 돌고 촬영 시작 때1번으로 복귀한다.
 
 경로 JSON은 NonUFS 파일이므로 카메라만 바꿀 때는 기존 파일을 보존한 뒤 패키지의 `Windows/LootNPop/Scripts/Profiling/Graphics/AcropolisViewpoints.json`에 같은 파일을 복사하고 해시를 확인할 수 있다. 런처는 이 스테이징된 파일을 읽는다. 실행 파일·cook 콘텐츠를 재빌드한 것과 구분해 기록하고, 경로 해시가 다른 회차는 같은 조건으로 묶지 않는다.
 
-고정 시드는 같은 편성·베이크의 초기 계획을 재현한다. 편성별 적 배치 제약이 랜덤 Pod 후보 채택에 영향을 주므로 Low/Medium/High 사이의 Pod 위치 일치까지 보장하지 않는다. 구도를 잡은 임의 시드·밀도0 PIE와 실제 벤치마크의 군중 분포도 따로 확인한다. 현재3번 주변의 편성별 Pod·근거리 NPC 조건은 다음 세션의 확인 항목이다.
+고정 시드는 같은 편성·베이크의 초기 계획을 재현한다. 편성별 적 배치 제약이 랜덤 Pod 후보 채택에 영향을 주므로 Low/Medium/High 사이의 Pod 위치 일치까지 보장하지 않는다. 구도를 잡은 임의 시드·밀도0 PIE와 실제 벤치마크의 군중 분포도 따로 확인한다. Revision3의3번은 시드1022·밀도0·Acropolis slot6에서 기록했으며 벤치마크 시드1·밀도1의 세 편성에서 Pod·근거리 NPC 화면 조건을 별도 확인했다. 이 확인은 편성 간 Pod 좌표가 같다는 검증이 아니다.
 
 관찰자 원래 폰은 숨기고 정지시키며 입력·HUD를 끈다. 적의 인지 대상에서 관찰자를 제외하고, 활동 대역의 거리 원점을 카메라로 대체한다. 배회·애니메이션을 유지하는 **관찰 부하**이며 추격·공격·피격이 섞인 전투 부하와 구분한다. MassLOD는 엔진 기본값의 카메라 위치를 사용한다(`bUsePlayerPawnLocationInsteadOfCamera=false`).
 
@@ -96,7 +96,27 @@ CSV 열의 의미는 다음과 같다.
 
 PIE·에디터 `-game`·60초 미만 워밍업/캡처 또는1440p가 아닌 출력은 `performance_eligible=false`로 기록한다. 이 필드가 true여도 전원·써멀·어댑터·동일 바이너리·3회 편차 확인을 대신하지 않는다. 트레이스와 RenderDoc 녹화는 기본 실행 인자에 없으며 원인 분석용 별도 실행에서 추가한다.
 
+### GPU 환경 기록
+
+0-D 준비에서 `nvidia-smi --query-gpu=timestamp,index,name,pstate,temperature.gpu,clocks.current.graphics,clocks.current.memory,power.draw,utilization.gpu --format=csv -l 1`의1초 간격CSV 저장을 확인했다. 측정 시에는 별도 숨김 프로세스로 워밍업부터 종료까지 기록하고 성공·실패 모두에서 해당 기록 프로세스를 종료한다. `Run.json`·실행 로그의 시각과 대조할 때 타임존을 맞춘다. 이 환경의 nvidia-smi 시각은KST이며 확인 근거는 `Saved/Profiling/Graphics/Phase00/FormalPreparation_20261107/GpuTelemetryProbe.{csv,json}`이다.
+
+전력 상한 질의는 이 노트북에서N/A였다. GPU 온도·그래픽/메모리 클럭·전력·사용률 기록 가능 여부와 별도로 남긴다. `powercfg /getactivescheme`의 전원 계획만으로 Windows 설정의 전원 모드나 ASUS Armoury Crate의 작동 모드를 확정하지 않는다. 사용자 확인 값과 사용 화면·화면 연결 GPU도 회차 환경 기록에 포함한다.
+
+워밍업 길이가 다른 세트는 별도로 집계하고 각 `Session.json`·`Run.json`에 실제 시간을 남긴다. 워밍업 중에도 AI 배회가 진행되므로 시간을 늘리면 열/클럭뿐 아니라 측정 시작 시 활동 상태도 달라질 수 있다. 편차가 줄었다는 사실만으로 열 안정화 원인이 해결됐다고 단정하지 않는다. 동일 조건의 편성 비교를 하려면 워밍업 시간도 맞춘다.
+
+초기 `initial_spawns` 비교가 보장하는 범위는 종류/slot별 요청·초기화·거부 수량의 일치다. 현재 로컬 요약의 `SameInitialPlansAndCounts`·`SameInitialPlans` 같은 이름도 이 수량 범위로 해석하며 개별 배치 위치 해시 검증을 뜻하지 않는다. 초기 수량·현재 생존·활동 상태·프러스텀 후보는 각각 따로 대조한다.
+
 ## 5. 보고 형식
+
+### CPU 진단 구간 분리
+
+2026-11-07 Medium 별도 진단에서 패키지 인자 `-trace=cpu,frame,bookmark,log,task -tracefile="<회차 폴더>/CPU.utrace"`를 사용했다. 전체 트레이스에는 시작·워밍업이 포함되므로 전체 세션 통계를60초 측정 통계로 쓰지 않는다. Insights Log에서 `[GraphicsBenchmark] Capture started`의 Time을 확인하고 그 시각부터60초만 분석한다. 이번에는 사용자 확인184.502898초를 시작으로 사용했다.
+
+공식 `UnrealInsights.exe -OpenTraceFile=<trace> -ExecOnAnalysisCompleteCmd=@=<응답 파일>`로 분석 완료 후 내보낼 수 있다. 응답 파일은 명령마다 실제 줄바꿈을 넣는다. 검증한 명령은 `TimingInsights.ExportTimerStatistics "<출력 CSV>" -threads=GameThread -startTime=184.502898 -endTime=244.502898 -sortBy=TotalInclusiveTime`이다. 같은 구간 전체 스레드와20초 구간별 통계도 보존한다. 이번 구간별 내보내기는 `-NoUI -AutoQuit` 조합에서 분석 전 창 종료로 파일이 생성되지 않아 두 플래그를 뺀 GUI 실행으로 완료했다. 종료 코드0만으로 내보내기 성공을 판단하지 않고 파일·분석 완료 로그를 확인한다.
+
+통계의 `Incl`·`Excl`은 초 단위 총합이며, 프레임당 비용은 같은 구간 `FEngineLoop::Tick` 횟수로 나눈다. 이번 전체60초는2983회다. 포함 시간은 하위 타이머와 겹치므로 합산하지 않는다. 렌더 동기화·작업 대기를 구분하고 엔진 CSV의 GT 시간과 전체 프레임 벽시계 시간을 동일시하지 않는다. 경계에 걸친 범위가 있어20초 구간 횟수의 합과 전체 횟수가 다를 수 있다.
+
+진단은 `DiagnosticOnly=true`·`BaselineEligible=false`로 기준선에서 분리한다. 하네스의 `performance_eligible=true`만으로 트레이스 오버헤드·비정상 종료·분석 경고를 무시하지 않는다. 원본 실행 종료 코드와 트레이스 해석 가능 여부를 각각 기록하며, 단일 진단으로 다른3회 실행 간 편차의 원인을 확정하지 않는다.
 
 측정 보고는 Phase 로그(`history/PhaseNN_Log.md`)에 다음 표로 남긴다. 원자료(CSV·트레이스)는 `Saved/` 경로만 적는다.
 
