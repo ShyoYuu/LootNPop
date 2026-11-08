@@ -35,6 +35,7 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "ProfilingDebugging/CsvProfiler.h"
+#include "ProfilingDebugging/MiscTrace.h"
 #include "RenderTimer.h"
 #include "RHI.h"
 #include "RHIStats.h"
@@ -52,6 +53,9 @@ namespace
 		TEXT("Warm-up seconds. Values below 60 are preview only."), ECVF_Cheat);
 	TAutoConsoleVariable<float> GGraphicsDuration(TEXT("LNP.Graphics.Benchmark.DurationSeconds"), 60.f,
 		TEXT("Camera loop and capture seconds. Values below 60 are preview only."), ECVF_Cheat);
+
+	/** 측정 구간 trace region 이름. GPU 패스 내보내기의 -region= 인자와 같아야 한다. */
+	const TCHAR* const GraphicsCaptureRegionName = TEXT("LNPGraphicsCapture");
 
 	FString ProfileName()
 	{
@@ -274,6 +278,28 @@ bool ULNPGraphicsBenchmarkSubsystem::Prepare()
 	{
 		if (IConsoleVariable* Var = Object->AsVariable(); Var && !FCString::Strstr(Name, TEXT("Distance"))) SetRunCVar(Name, TEXT("0"));
 	}), TEXT("LNP.Debug."));
+	// 원인 분리용 진단 CVar("이름=값;이름=값"). 위 기본 조건 뒤에 덮어써야 효과가 있고, 같은 경로로 종료 때 복구된다.
+	// 지정한 실행은 기준선이 아니므로 performance_eligible에서 빠진다. 없는 이름은 조용히 무시하지 않고 실패시킨다.
+	FString DiagnosticCVars;
+	if (FParse::Value(FCommandLine::Get(), TEXT("LNPGraphicsDiagnosticCVars="), DiagnosticCVars, /*bShouldStopOnSeparator*/ false) && !DiagnosticCVars.IsEmpty())
+	{
+		TArray<FString> Pairs;
+		DiagnosticCVars.ParseIntoArray(Pairs, TEXT(";"));
+		TArray<TSharedPtr<FJsonValue>> Requested;
+		for (const FString& Pair : Pairs)
+		{
+			FString Name, Value;
+			if (!Pair.Split(TEXT("="), &Name, &Value) || !IConsoleManager::Get().FindConsoleVariable(*Name.TrimStartAndEnd()))
+			{
+				Finish(false, FString::Printf(TEXT("Unknown diagnostic CVar: %s"), *Pair));
+				return false;
+			}
+			SetRunCVar(*Name.TrimStartAndEnd(), *Value.TrimStartAndEnd());
+			Requested.Add(MakeShared<FJsonValueString>(Pair.TrimStartAndEnd()));
+		}
+		Manifest->SetArrayField(TEXT("diagnostic_cvars"), Requested);
+		UE_LOG(LogLootNPop, Display, TEXT("[GraphicsBenchmark] Diagnostic CVars: %s"), *DiagnosticCVars);
+	}
 	APlayerController* PC = World->GetFirstPlayerController();
 	if (!PC || !PC->GetPawn() || !World->GetGameViewport() || !World->GetGameViewport()->Viewport)
 	{
@@ -440,7 +466,8 @@ void ULNPGraphicsBenchmarkSubsystem::SaveManifest(const FString& Status, const F
 	if (GetWorld()->GetGameViewport() && GetWorld()->GetGameViewport()->Viewport) Size = GetWorld()->GetGameViewport()->Viewport->GetSizeXY();
 	Manifest->SetNumberField(TEXT("viewport_width"), Size.X);
 	Manifest->SetNumberField(TEXT("viewport_height"), Size.Y);
-	Manifest->SetBoolField(TEXT("performance_eligible"), !WITH_EDITOR && WarmupSeconds >= 60 && DurationSeconds >= 60 && Size == FIntPoint(2560, 1440));
+	Manifest->SetBoolField(TEXT("performance_eligible"), !WITH_EDITOR && WarmupSeconds >= 60 && DurationSeconds >= 60 && Size == FIntPoint(2560, 1440)
+		&& !Manifest->HasField(TEXT("diagnostic_cvars")));
 	FString Json;
 	FJsonSerializer::Serialize(Manifest.ToSharedRef(), TJsonWriterFactory<>::Create(&Json));
 	if (!FFileHelper::SaveStringToFile(Json, *(OutputDirectory / TEXT("Run.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
@@ -452,6 +479,8 @@ void ULNPGraphicsBenchmarkSubsystem::Finish(bool bSuccess, const FString& Reason
 #if CSV_PROFILER
 	if (bOwnsCsv) { FCsvProfiler::Get()->EndCapture(); bOwnsCsv = false; }
 #endif
+	// 측정 도중 중단돼도 region이 열린 채 남지 않게 닫는다.
+	if (Stage == EStage::Capture) TRACE_END_REGION(GraphicsCaptureRegionName);
 	Stage = EStage::Done;
 	SaveManifest(bSuccess ? TEXT("complete") : TEXT("failed"), Reason);
 	if (PopulationRows.Num() > 0) FFileHelper::SaveStringArrayToFile(PopulationRows, *(OutputDirectory / TEXT("Population.csv")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
@@ -496,6 +525,8 @@ void ULNPGraphicsBenchmarkSubsystem::Tick(float DeltaTime)
 		NextPopulationSample = Now;
 		Stage = EStage::Capture;
 		SaveManifest(TEXT("capturing"));
+		// Insights에서 측정 구간만 -region=으로 잘라 내보낼 수 있게 남긴다(-trace 인자가 없으면 비용 없음).
+		TRACE_BEGIN_REGION(GraphicsCaptureRegionName);
 		UE_LOG(LogLootNPop, Display, TEXT("[GraphicsBenchmark] Capture started. Seconds=%.3f"), DurationSeconds);
 	}
 	if (Stage == EStage::Capture)
@@ -503,6 +534,7 @@ void ULNPGraphicsBenchmarkSubsystem::Tick(float DeltaTime)
 		const double Elapsed = Now - StageStart;
 		if (Elapsed >= DurationSeconds)
 		{
+			TRACE_END_REGION(GraphicsCaptureRegionName);
 			CsvWrite = FCsvProfiler::Get()->EndCapture();
 			bOwnsCsv = false;
 			Stage = EStage::Flushing;

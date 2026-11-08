@@ -5,7 +5,9 @@ param(
     [string]$OutputDirectory = 'Saved/Profiling/Graphics/Phase00/Runs',
     [ValidateRange(1, 3)][int]$Repeats = 1,
     [ValidateRange(0, 600)][int]$WarmupSeconds = 60,
-    [ValidateRange(1, 600)][int]$DurationSeconds = 60
+    [ValidateRange(1, 600)][int]$DurationSeconds = 60,
+    # 진단 실행 전용 추가 인자(-trace=..., -LNPGraphicsDiagnosticCVars=... 등). Launch.json에 그대로 남는다.
+    [string[]]$ExtraArguments = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,7 +36,9 @@ for ($taskRun = 1; $taskRun -le $Repeats; $taskRun++) {
     $taskName = '{0}_{1}_{2}' -f $Profile, [DateTime]::UtcNow.ToString('yyyyMMdd_HHmmss'), [Guid]::NewGuid().ToString('N').Substring(0, 6)
     $taskRunDirectory = Join-Path $taskOutput $taskName
     New-Item -ItemType Directory -Force -Path $taskRunDirectory | Out-Null
-    $taskArguments = @(
+    # 회차 폴더 경로가 필요한 트레이스 파일은 {RunDirectory}로 적는다.
+    $taskExtra = @($ExtraArguments | ForEach-Object { $_.Replace('{RunDirectory}', $taskRunDirectory) })
+    $taskArguments = @($taskExtra) + @(
         '-LNPGraphicsBenchmark', '-LNPGraphicsQuit', '-d3d12', '-unattended',
         "-LNPGraphicsProfile=$Profile", "-LNPGraphicsWarmup=$WarmupSeconds", "-LNPGraphicsDuration=$DurationSeconds",
         ('-LNPGraphicsOutput="{0}"' -f $taskRunDirectory),

@@ -63,6 +63,8 @@ Phase 0의 Medium CPU 진단(`Saved/Profiling/Graphics/Phase00/MediumCPUTrace_20
 
 ## 6. 렌더링 최적화 후보 (미검증)
 
+> 2026-11-08 재집계: 1440p Phase 0 기준선에서는 Low(적1053)와 Medium(적2223)의 GPU 중앙값이 19.93/19.92ms로 같아, 아래 1번보다 2번(목표 해상도의 기본 장면 비용)이 먼저다. 근거는 [렌더 동기화 인계](RenderSyncOptimizationHandoff.md) §6.2. 2번의 첫 측정(렌더 해상도 100/67/50%, 고정 약7.5ms + 화소 비례 약12.8ms)은 같은 인계 §6.6에 있다.
+
 1. **적 메시의 Lumen 기여 제한.** 표면 캐시에서 제외하거나 거리를 제한한다. 적 컴포넌트의 Lumen·DF 기여 플래그(`bAffectDistanceFieldLighting`, `bAffectDynamicIndirectLighting` 등), `r.LumenScene.SurfaceCache.*`·mesh card 예산을 본다. 현재 프로젝트 소스에는 이 플래그를 설정하는 코드가 없다. **ISM/ISKM 인스턴싱 적이 어떤 경로로 카드를 만드는지 먼저 확인한다.**
 2. **목표 해상도의 기본 장면 비용.** 1440p 대조군(적 최소)의 GPU 비용을 업스케일 비율별로 다시 잰다.
 3. **설명되지 않은 약 3~4ms와 P95 스파이크.** Insights GUI에서 GPU 트랙 계층으로 본다.

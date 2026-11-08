@@ -129,6 +129,7 @@ UE5.8의 `FTasksProvider::TryGetWaiting`은 `WaitUntilTasksComplete`·`GameThrea
 GUI 대신 명령줄로도 개별 이벤트를 내보낼 수 있다(2026-11-08 배회 전후 비교에서 검증).
 - 응답 파일 한 줄: `TimingInsights.ExportTimingEvents "<csv>" -threads="GameThread" -timers="LNPEnemyWanderProcessor*,FEngineLoop::Tick,LNPWander_*" -columns="ThreadName,TimerName,StartTime,EndTime,Duration,Depth"`. `-timers`는 와일드카드를 받으므로 접미사가 붙는 프로세서 타이머도 잡힌다.
 - 실행은 `UnrealInsights.exe -OpenTraceFile=<trace> -ExecOnAnalysisCompleteCmd=@=<응답 파일>`로 한다. `-NoUI -AutoQuit`를 붙이면 분석 전에 끝나 파일이 생기지 않는다. 그래서 창 모드로 띄우고, 로그에 `Exported N timing events`가 찍히면 프로세스를 끝낸다.
+- 응답 파일 경로를 `@="<경로>"`처럼 따옴표로 감싸면 따옴표까지 경로로 읽혀 `Failed to open the response file`로 끝난다. 공백 없는 경로를 따옴표 없이 쓴다. 응답 파일 안의 출력 경로는 따옴표 안의 역슬래시가 이스케이프로 사라지므로 슬래시(`D:/...`)로 쓴다. 두 실수 모두 Insights 창은 정상으로 남아 있어, 대기 판정은 출력 파일이 아니라 로그의 `Commands executed in` 줄로 하고 그 뒤 파일 유무를 본다.
 - 측정 구간은 손으로 고른 시각 대신 정렬로 정한다. 프레임당 Wander가 1회라는 전제에서 CSV 캡처 행과 이벤트 열을 이동량별로 대조한다. 이동량을 고를 때는 계수–시간 상관을 쓴다. 이를 독립적으로 검증할 때는 `LNPWander_WorldSeconds` 증분과 이벤트 시작 시각 증분의 상관을 쓴다. 맞는 위치에서만 상관이 0.95 이상이고, 한 프레임만 어긋나도 0 근처로 떨어진다. 스파이크가 없어진 실행에서는 계수 상관이 0.36까지 낮아지므로 증분 상관 검증을 꼭 함께 남긴다.
 - 스크립트: `Saved/Profiling/Graphics/Phase00/WanderOptimized_20261108/AnalyzeWander.py`·`CheckAlignment.py`. 이 경로로 기존 수동 내보내기의 기준선 수치를 그대로 재현했다.
 
@@ -141,7 +142,8 @@ GUI 대신 명령줄로도 개별 이벤트를 내보낼 수 있다(2026-11-08 �
 패스별 GPU 비용은 성능 실행과 분리한 진단 실행에서 `-trace=cpu,gpu,frame,bookmark,region,log`로 수집한다. 2026-09-25 선행 측정([선행 렌더링 부하 측정](../analysis/RenderingLoadBaseline_20260925.md))에서 검증한 내보내기는 응답 파일 한 줄 `TimingInsights.ExportTimerStatistics "<csv>" -threads="GPU*" -region="<캡처 region>" -sortBy=TotalInclusiveTime`이며, 당시에는 `-NoUI -AutoQuit`로 파일이 생성됐다. 위 CPU 구간 내보내기처럼 파일·분석 완료 로그로 성공을 확인한다.
 
 - **분모 함정:** GPU 이벤트가 트랙 두 개에 중복 기록돼 `Frame` 타이머의 Count가 실제 프레임의 2배다. 당시 `Frame`의 `Incl ÷ Count`가 벽시계 P50(8.8ms)과 일치해 포함 시간도 함께 2배로 쌓인 것을 확인했다. 패스의 프레임당 값은 그 타이머의 `Incl`을 같은 구간 `Frame` Count로 나눈다. 프레임당 여러 번 실행되는 패스는 자기 Count가 프레임 수가 아니므로 자기 Count로 나누지 않는다.
-- **구간 지정:** 그래픽스 하네스는 아직 trace region을 찍지 않는다. `[GraphicsBenchmark] Capture started` 로그 시각으로 `-startTime`/`-endTime`을 정하거나, O-1 착수 때 하네스 캡처 구간에 region을 추가하는 것을 검토한다(LoadBaseline 하네스의 `LNPLoadBaselineCapture`와 같은 방식).
+- **구간 지정:** 그래픽스 하네스는 측정 구간을 trace region `LNPGraphicsCapture`로 남긴다(2026-11-08 추가, 이 변경이 들어간 패키지부터). 캡처 시작에 열고 CSV 종료나 중단 시 닫는다. 이전 패키지의 트레이스는 `[GraphicsBenchmark] Capture started` 로그 시각으로 `-startTime`/`-endTime`을 정한다.
+- **진단 요인:** 하네스가 준비 단계에서 렌더 조건 CVar를 콘솔 우선순위로 다시 쓰므로, 해상도 비율 같은 요인은 `-ExecCmds` 대신 `-LNPGraphicsDiagnosticCVars="이름=값;이름=값"`으로 준다. 기본 조건 뒤에 적용·종료 때 복구되며, 없는 이름은 실행을 실패시킨다. 지정한 회차는 `Run.json`의 `diagnostic_cvars`에 남고 `performance_eligible=false`다. 런처는 `RunGraphicsBenchmark.ps1 -ExtraArguments @('-trace=...', '-tracefile="{RunDirectory}/Diag.utrace"', '-LNPGraphicsDiagnosticCVars=...')`처럼 받고 `Launch.json`에 기록한다. 진단 세트 구성은 [렌더 동기화 인계](../analysis/RenderSyncOptimizationHandoff.md) §6.5를 따른다.
 - GPU 트레이스 실행은 `DiagnosticOnly=true`·`BaselineEligible=false`다. 패스 표는 같은 실행의 CPU 대기 서명(`GPUBound_WaitingForGPUForOcclusionQueries`·`WaitForVisibilityTasks`·`Sync_RenderingThread`)과 함께 보고한다.
 
 ### Wander 재선택 진단 계수

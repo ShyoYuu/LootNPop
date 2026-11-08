@@ -9,7 +9,7 @@
 그래픽스 메인 작업은 멈춘 상태이고, 네 개선을 다른 세션에서 다음 순서로 진행한다(2026-11-08 사용자 확인).
 
 1. **배회 + 그래플 앵커**(병행 진행 중)
-2. **GT 렌더 동기화(범위 축소) + Nav 최근접 노드**: 두 작업은 파일이 겹치지 않고 Nav는 GPU에 영향이 없어 순차·병행 모두 가능하다. 렌더 동기화는 그래플 변경이 들어간 바이너리로 GPU 패스 분해를 하고, 화질을 바꾸는 렌더 변경(적 Lumen 기여·해상도·업스케일)은 O-2·O-3으로 미룬다([인계](analysis/RenderSyncOptimizationHandoff.md) §0). Nav는 완료했다. 힌트 반경 최근접으로 호출당 3.72→1.27μs가 됐다([인계](analysis/NavNearestNodeOptimizationHandoff.md) §7).
+2. **GT 렌더 동기화(범위 축소) + Nav 최근접 노드**: 두 작업은 파일이 겹치지 않고 Nav는 GPU에 영향이 없어 순차·병행 모두 가능하다. 렌더 동기화는 그래플 변경이 들어간 바이너리로 GPU 패스 분해를 하고, 화질을 바꾸는 렌더 변경(적 Lumen 기여·해상도·업스케일)은 O-2·O-3으로 미룬다([인계](analysis/RenderSyncOptimizationHandoff.md) §0). 렌더 동기화는 기존 자료 재집계로 GT 대기를 GPU 역압으로 판정하고 동기화 설정 변경을 기각했다. 하네스 trace region·진단 CVar 경로를 넣고 진단 세트 D0~D4로 GPU 패스 표를 확보했다(같은 인계 §6.6). 렌더 해상도 67%에서 Frame 20.33→13.14ms이고 GT 대기도 함께 줄어 역압 판정을 확인했다. 가림 버퍼2는 효과가 없고, Pod 빔(반투명) 상한은 약0.3ms다. 다음은 O-2 해상도·Lumen 품질 단계 비교다. Nav는 완료했다. 힌트 반경 최근접으로 호출당 3.72→1.27μs가 됐다([인계](analysis/NavNearestNodeOptimizationHandoff.md) §7).
 3. **그래픽스 메인 재개**
 
 현재 프레임은 GPU 쪽에서 막혀 있다(Medium GPU 19.92ms·GT 10.57ms). 배회·Nav 개선은 평균 Frame보다 꼬리 지연과 Medium GT 재현성에 효과를 기대한다. 네 결과가 모이면 [개선 후 재개 절차](phases/Phase00_PostOptimization.md)의 **R-A 결과 수령·통합 확인**부터 시작한다. 이어서 빌드/기능 검증→필요한Medium 비교 진단→새 바이너리의Medium·Low·High 정식3회씩→보고/영상과Phase0 마감 순서다. 이번 세션에서 후속 실행을 시작하지 않는다.
