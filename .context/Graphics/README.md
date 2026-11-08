@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 역할: 이 작업의 진입점과 문서 라우팅
-> 마지막 구조 갱신: 2026-11-04
+> 마지막 구조 갱신: 2026-11-08
 
 ## 1. 목적
 
@@ -38,7 +38,12 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 |:---|:---|
 | 단계 조정·Phase 전환·JustDodge 이관 항목 | `Roadmap.md` |
 | 현재 Phase 구현 | `Current.md`가 가리키는 `phases/PhaseNN_*.md` |
+| 네 개선 완료 뒤 통합 검증·재측정·Phase0 마무리 | [개선 후 재개 절차](phases/Phase00_PostOptimization.md) |
 | 측정 지표·절차·노트북 측정 함정·보고 형식 | `design/Measurement.md` |
+| 배회 프로세서 최적화·다른 세션 인계 | [배회 최적화 인계](analysis/WanderOptimizationHandoff.md) |
+| 그래플 앵커 Niagara·월드 후처리 작업 대기 | [그래플 앵커 최적화 인계](analysis/GrappleAnchorOptimizationHandoff.md) |
+| GT 렌더 동기화·RT/GPU 비용 분석 | [렌더 동기화 최적화 인계](analysis/RenderSyncOptimizationHandoff.md) |
+| Nav 최근접 노드 반복 조회 | [Nav 최근접 노드 최적화 인계](analysis/NavNearestNodeOptimizationHandoff.md) |
 | 절제(ablation) 측정과 분모 규약 | [Guide_NetBandwidth.md](../Guide_NetBandwidth.md) |
 | ISKM·ISM 표현, 유의도 구간, 에셋 요건(Optimize for Instancing·usage 플래그·제자리 클립) | [TechDesign_EnemyNPC_LowLOD.md](../TechDesign_EnemyNPC_LowLOD.md) §6 |
 | 적 Actor 승격·강등 | [TechDesign_EnemyNPC.md](../TechDesign_EnemyNPC.md) |
@@ -69,6 +74,7 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 - `Decisions.md`: 모든 세션이 알아야 하는 확정 결정(`GX-` 접두어)
 - `Roadmap.md`: 트랙·Phase 순서, Phase 게이트, JustDodge 이관 항목의 원본
 - `design/`: 현재 유효한 상세 설계와 측정 규약
+- `analysis/`: 측정으로 확인한 사실·미확정 사항과 별도 최적화 세션의 인계 자료
 - `phases/`: 해당 단계의 실행 계획과 완료 조건(착수 직전에 만든다)
 - `history/`: 끝난 작업, 측정 기록, 시행착오(첫 작업 세션에서 만든다)
 

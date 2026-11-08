@@ -16,9 +16,18 @@
 #include "MassCommonFragments.h"
 #include "MassNavigationFragments.h"
 #include "MassExecutionContext.h"
+#include "HAL/IConsoleManager.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 #include "LNPMassUtils.h"
 #include "SurfaceNavigation/LNPLoadBaseline.h"
 #include "LootNPop.h"
+
+namespace
+{
+	TAutoConsoleVariable<int32> CVarWanderDiagnostics(
+		TEXT("LNP.Enemy.Wander.Diagnostics"), 0,
+		TEXT("Record per-execution Wander reselection counters in the default CSV category. Diagnostic only; server/standalone."));
+}
 
 ULNPEnemyWanderProcessor::ULNPEnemyWanderProcessor() : EnemyQuery(*this)
 {
@@ -58,6 +67,18 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 	if (LNPMass::IsClientWorld(EntityManager))
 		return;
 	const double Now = EntityManager.GetWorld()->GetTimeSeconds();
+	const bool bDiagnostics = CVarWanderDiagnostics.GetValueOnGameThread() != 0;
+	struct FWanderDiagnostics
+	{
+		int32 Eligible = 0;
+		int32 Invalid = 0;
+		int32 Expired = 0;
+		int32 OverlapRejected = 0;
+		int32 CandidateAttempts = 0;
+		int32 Accepted = 0;
+		int32 Failed = 0;
+		int32 CodecRejected = 0;
+	} Diagnostics;
 	const auto Snapshot = Context.GetSubsystemChecked<ULNPSurfaceDataSubsystem>().TakeSnapshot();
 	const auto Overlay = Context.GetSubsystemChecked<ULNPNavPathSubsystem>().TakeOverlay();
 	const auto& Collision = Context.GetSubsystemChecked<ULNPMassWorldCollisionSubsystem>();
@@ -152,8 +173,15 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				continue;
 			}
 			Data.bWanderHandled = true;
+			if (bDiagnostics)
+				++Diagnostics.Eligible;
 			if (!Segment.bValid || Now >= Segment.StopUntil)
 			{
+				if (bDiagnostics)
+				{
+					Diagnostics.Invalid += !Segment.bValid ? 1 : 0;
+					Diagnostics.Expired += Segment.bValid ? 1 : 0;
+				}
 				bool bInitiallyOverlapping = false;
 				for (const auto& R : Reservations.FindChecked(Enemy.ParentLootPod))
 					if (R.Entity != Ctx.GetEntity(I))
@@ -161,6 +189,8 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 							< FMath::Square(R.Radius + FMath::Max(Params.CapsuleRadius, Params.CapsuleHalfHeight));
 				if (bInitiallyOverlapping)
 				{
+					if (bDiagnostics)
+						++Diagnostics.OverlapRejected;
 					if (LNPLoadBaseline::IsActivityDiagnostics())
 						UE_LOG(LogLootNPop, Display, TEXT("[WanderDiagnostic] Entity=%d Pod=%d Reason=Overlap Flight=%d"), Ctx.GetEntity(I).Index, Enemy.ParentLootPod.Index, Config->IsFlying());
 					Segment = FLNPEnemyWanderSegment();
@@ -186,8 +216,11 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 				const FVector Axis = FMath::Abs(Out.X) < 0.9 ? FVector::ForwardVector : FVector::RightVector;
 				const FVector Tangent = FVector::CrossProduct(Out, Axis).GetSafeNormal();
 				const FVector Other = FVector::CrossProduct(Out, Tangent).GetSafeNormal();
+				bool bCandidateAccepted = false;
 				for (int32 Attempt = 0; Attempt < 4; ++Attempt)
 				{
+					if (bDiagnostics)
+						++Diagnostics.CandidateAttempts;
 					const double Angle = SectorStart + Sector * FMath::FRandRange(0.15f, 0.85f);
 					const float Distance = FMath::FRandRange(Config->MovementConfig.WanderMinDistance, Config->MovementConfig.WanderMaxDistance);
 					FVector Goal = Enemy.ParentPodLocation + (Tangent * FMath::Cos(Angle) + Other * FMath::Sin(Angle)) * Distance;
@@ -285,7 +318,13 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 					const float Speed = 0.3f * (Config->IsFlying() ? Config->FlightConfig.FlightSpeed : Config->MovementConfig.MoveSpeed);
 					Segment.ArrivalTime = Now + FVector::Distance(Position, Goal) / FMath::Max(Speed, 1.f);
 					Segment.StopUntil = Segment.ArrivalTime + HoldSeconds;
+					bCandidateAccepted = true;
 					break;
+				}
+				if (bDiagnostics)
+				{
+					Diagnostics.Accepted += bCandidateAccepted ? 1 : 0;
+					Diagnostics.Failed += bCandidateAccepted ? 0 : 1;
 				}
 				for (auto& R : Reservations.FindChecked(Enemy.ParentLootPod))
 					if (R.Entity == Ctx.GetEntity(I))
@@ -295,6 +334,8 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 					: LNP::Replication::EncodeSphereLocalYaw(Transform));
 				if (!Quantized.IsEnabled())
 				{
+					if (bDiagnostics)
+						++Diagnostics.CodecRejected;
 					if (LNPLoadBaseline::IsActivityDiagnostics())
 						UE_LOG(LogLootNPop, Display, TEXT("[WanderDiagnostic] Entity=%d Pod=%d Reason=Codec"), Ctx.GetEntity(I).Index, Enemy.ParentLootPod.Index);
 					Segment = FLNPEnemyWanderSegment();
@@ -364,4 +405,17 @@ void ULNPEnemyWanderProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 			Moves[I].DesiredSpeed = FMassInt16Real(Now < Segment.ArrivalTime ? 0.3f * (Config->IsFlying() ? Config->FlightConfig.FlightSpeed : Config->MovementConfig.MoveSpeed) : 0.f);
 		}
 	});
+	if (bDiagnostics)
+	{
+		// 프로세서 실행마다 초기화한 계수다. 후보 선택 결과와 인코딩 거부는 구분한다.
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_WorldSeconds, Now, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_Eligible, Diagnostics.Eligible, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_Invalid, Diagnostics.Invalid, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_Expired, Diagnostics.Expired, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_OverlapRejected, Diagnostics.OverlapRejected, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_CandidateAttempts, Diagnostics.CandidateAttempts, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_Accepted, Diagnostics.Accepted, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_Failed, Diagnostics.Failed, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_GLOBAL(LNPWander_CodecRejected, Diagnostics.CodecRejected, ECsvCustomStatOp::Set);
+	}
 }

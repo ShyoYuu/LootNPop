@@ -26,6 +26,8 @@ foreach ($taskStat in @('CaptureFrame','FrameMs','GTMs','RTMs','GPUMs','DrawCall
 $taskRows = [Collections.Generic.List[object]]::new()
 try {
     while (-not $taskParser.EndOfData) {
+        # 후행 메타데이터의 commandline은 따옴표가 중첩될 수 있다. 프레임 표만 CSV로 읽는다.
+        if ($taskParser.PeekChars(20) -eq '[HasHeaderRowAtEnd],') { break }
         $taskFields = $taskParser.ReadFields()
         if ($taskFields.Count -gt $taskIndices.CaptureFrame -and $taskFields[$taskIndices.CaptureFrame] -match '^1(\.0+)?$') {
             $taskRows.Add($taskFields)

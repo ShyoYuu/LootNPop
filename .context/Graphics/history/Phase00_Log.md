@@ -481,3 +481,191 @@ GPU1Hz 기록의 측정 구간 표본은각60개다.
 - `Current.md`에 다음 세션의 읽기 순서, 사용자 진행 확인, 정확한 트레이스·내보내기·계산 파일,184.502898~244.502898초 분석 범위, 로컬 자료 누락 시 재실행 전 확인 절차를 남겼다. `Roadmap.md`의0-D 상태도 현재 수집·재현성 미통과 상태로 맞췄다.
 - 커밋 범위는 Revision3 근거리 구도·기존 경로 테스트 기대값, 측정 절차·결과·실행서·인수인계 문서다. 기본 스폰 에셋과 게임 동작은 추가 변경하지 않았다. `Saved/` 원자료·트레이스·보조 스크립트·패키지는 로컬에 보존하고 커밋에서 제외한다.
 - 앞서 완료한 경로 자동화1/1·정규 Editor 빌드·Game 패키지 생성·화면 확인·반복 수집 검증을 유지한다. 세션 마감에서1·2번 구도·렌즈 보존과Revision3 해시, Medium GT7.2288% 미통과 유지, 인계 입력 파일·문서 상대 링크 존재, 인코딩·git 공백 검사를 통과했다. 새 빌드나 게임 실행은 추가하지 않았다. 깨끗한 트리 빌드·GT 재현성·영상·최종 보고는 여전히 미완료다.
+
+### 작업 대기 호출 경로 분석 착수·수동 확인 대기(2026-11-07)
+
+- 새 세션에서 사용자가 문서 확인 후 작업 진행과 단위별 계속 진행 확인을 요청했다. 이를 인계된 첫 분석 단위의 진행 요청으로 해석한다고 알리고, 기존 트레이스와 소스 조사에 착수했다. 게임 코드·에셋·설정 변경이나 새 게임 실행·빌드·측정은 하지 않았다.
+- `CaptureInterval.json`·`CpuCostBreakdown.json`·`AnalysisValidation.json`·`Exports/Measured_GameThread.csv`를 대조했다. 분석 범위184.502898~244.502898초·분모2983프레임·`WaitForTasks`70922회/10.856891초(3.639588ms/프레임)를 유지한다. 기존CSV는 타이머별 통계이므로 상위 호출 경로나 실제 대기 대상을 복원할 수 없다.
+- 로컬UE5.8 `Core/Private/Async/TaskGraph.cpp:781`의 `WaitForTasks`는 named-thread 작업 큐에서 실행할 작업이 없을 때 `StallRestartEvent->Wait`를 감싼 범위다. `TickTaskManager.cpp:1040`의 틱 완료 대기는 `ProcessUntilTasksComplete`를 통해 준비된 작업을 실행하거나 완료 이벤트를 기다릴 수 있다. 이는 소스상 가능한 연결이며 이번 트레이스의 실제 호출 경로를 확인한 것은 아니다.
+- 대기 시간과 엔진CSV의GT를 해석할 때 주의한다. `UnrealClient.cpp:1844`는 `GGameThreadTime`에서 `FThreadIdleStats.Waits`를 제외하지만, `TaskGraph.cpp`의 `STATS` 활성GT 분기는 `bCountAsStall=true`를 이벤트 대기의 `bIgnoreThreadIdleStats` 인자로 넘긴다. `WindowsPlatformProcess.cpp:1931`의 `FEventWin::Wait`와 `ThreadIdleStats` 구현상 이 분기의 대기는 유휴 차감 대상에서 빠진다. 따라서 **이벤트를 기다렸다는 이유만으로 `WaitForTasks`가CSV GT에서 전부 제외된다고 가정하지 않는다.** 소스 분기의 의미이며 이번 패키지의 전처리 설정과 프레임별 차감량까지 검증한 것은 아니다.
+- Mass 소스 대조: `MassProcessingPhaseManager.cpp:142`는 병렬 파이프라인 완료 이벤트를 해당 틱의 `DontCompleteUntil`로 연결한다. `MassProcessor.cpp:503`의 composite dispatch는 해결된 프로세서 의존성을 작업 이벤트 선행 조건으로 전달하고, 마지막 완료 작업은 프로세서 이벤트 전체를 기다린다. 로그에서 `mass.UseProcessingQueue:0`을 확인했고 프로젝트 설정도False다. 실제 대기 대상 작업과 임계 경로는 이 구조만으로 식별할 수 없다.
+- 프로젝트의 `LNPEnemyWanderProcessor.cpp:23`은GT 실행·Path/Attack 이후·지상/비행/벽보행 이동 이전을 명시한다. Path와Attack도GT 실행을 명시한다. 엔진 dependency solver는 명시 순서 외에 읽기/쓰기 요구와 아키타입 충돌도 고려하므로 이 선언 목록을 전체 런타임 의존성 그래프로 부르지 않는다. Wander에는 직접적인TaskGraph 대기 호출이 없지만, 이것만으로 다른 작업과의 간접 의존성을 배제하지 않는다.
+- 로컬 `Exports/WaitCallPaths.rsp`에 `TimingInsights.ExportTimerCallees`를 기록해 `GameThread`·`FEngineLoop::Tick` 루트·위60초 범위 내보내기를 시도했다. Insights 프로세스12024는 결과CSV와 지정 로그를 남기지 않고 종료했다. 실행 인자는 `WaitCallPathsLaunch.json`에 보존했다. 종료 원인·종료 코드는 확보하지 못했으며 내보내기 성공으로 표시하지 않는다.
+- 반복 자동화 대신 사용자에게 기존 트레이스를GUI로 열어 위 구간·GameThread의 `WaitForTasks` Callers 상위 경로·시간을 복사해 달라고 요청했다. 구간·Callers 조작이 어려우면 파일을 연 상태라고만 답하도록 안내했다. **분석 단위는 수동 확인 대기 중이며 완료가 아니다.** Callers는 실행 문맥을 보여주므로 실제 대기 대상이 남으면Tasks 관계를 추가 확인해야 한다.
+- Medium GT7.2288% 미통과, 진단의 `DiagnosticOnly=true`·`BaselineEligible=false`, 종료 코드777003·기존 분석 경고와 Phase0 미완료 조건을 그대로 유지한다.
+
+### 작업 대기 호출 경로 분해·분석 단위 마감(2026-11-07)
+
+- 사용자가 기존CPU.utrace를Insights에 열고, 안내에 따라 `Ctrl+T`로184.502898초부터60초를 선택했다. 이후GPU·전체CPU 트랙을 숨기고GameThread만 켠 뒤 `WaitForTasks`를 선택해Callers를 펼쳤다. 화면의 `FEngineLoop::Tick`2983회와 `WaitForTasks`70922회/약10.86초가 기존 측정 구간CSV와 일치함을 확인했다. 게임 실행·재측정은 하지 않았다.
+- 아래 시간·비율은 **GUI 반올림 표시**이며 새CSV 내보내기 결과가 아니다. 프레임당 근삿값은 표시 시간을2983으로 나눴다. 경로에 귀속된 `WaitForTasks` 시간이며 상위 타이머 전체의 포함 시간이 아니다.
+
+| `WaitForTasks` 상위 경로(바깥쪽부터) | 호출 수 | 대기 합계(약초) | 전체 대기 비율 | 프레임당 대기(약ms) |
+|:---|---:|---:|---:|---:|
+| `UWorld_Tick → bDoingActorTicks → FWorldDelegates::OnWorldPostActorTick → WaitUntilTasksComplete` | 43506 | 7.31 | 67.31% | 2.45 |
+| `UWorld_Tick → TickCompletionEvents → ProcessUntilTasksComplete` | 27416 | 3.55 | 32.69% | 1.19 |
+
+- 두 분기의 바깥은 공통으로 `FEngineLoop::Tick → Frame → Tick_Engine`이다. 분기 호출 수 합70922=기존CSV 루트 호출 수, 표시 비율 합100%를 대조했다. 관측값·정밀도·전체 경로·진단 전용 여부는 `Saved/Profiling/Graphics/Phase00/MediumCPUTrace_20261107_102250_f65aca/WaitCallPathObservation.json`에 기록했다. 원본CSV의10.856891초와GUI 분기 합의 작은 차이는 반올림 표시를 고려하며 정밀한 분기 합 검증으로 표현하지 않는다.
+- **소스에서 추론한 후보:** `NiagaraWorldManager.cpp:525`가 `OnWorldPostActorTick`에 `TickWorld`를 등록하고, 1262줄의 `TickWorld`가 `PostActorTick`를 호출한다. `PostActorTick`는1438·1472줄에서 `WaitForInstancesTickComplete`를 호출한다. `NiagaraSystemSimulation.cpp:1778`과 `NiagaraSystemInstance.cpp:2525`·2536의 비동기 완료 대기는 `GameThread_Local`에서 `WaitUntilTaskCompletes`를 사용한다. 이는 관측된 첫 경로와 부합한다. 그러나 GUI Callers에는 이 Niagara 함수들이 표시되지 않으므로 **Niagara·특정 시스템·GrappleAnchor를 확정 원인으로 기록하지 않는다.** Navigation·Dataflow 후처리에는 별도 CPU 범위가 있어 화면의 직접 연결과 다르지만, 이것만으로 모든 다른 콜백을 배제하지 않는다.
+- 틱 완료 경로는 앞서 확인한 Mass 파이프라인 완료 의존성을 포함할 수 있으나, 같은 틱 그룹의 다른 작업도 함께 기다린다. 따라서32.69% 전체를 Mass로 귀속하거나43506/27416의 대기 호출 수를 작업·NPC 수로 바꾸지 않는다. Callers의 부모 경로와 태스크의 선행 관계는 구분한다.
+- **이번 호출 경로·Mass 소스 대조 단위를 마감한다.** 관측된 대기 문맥은 두 경로로 좁혔으며 현재 증거로 게임 코드 수정·Niagara 비활성화·새 계측·재측정을 시작할 근거는 부족하다. 다음 제안은 기존 트레이스의 대표 대기 이벤트에서 Tasks 관계를 확인해 월드 후처리의 실제 대기 대상과 틱 완료 선행 작업을 식별하는 별도 단위다. 사용자 진행 승인을 기다리며 새 게임 실행은 제안 범위에 넣지 않는다.
+- Medium GT7.2288% 미통과·기존 진단의 종료 코드/분석 경고·Phase0 미완료 조건을 유지한다. 한 진단의 호출 경로 분해를 기존3회 GT 편차 원인 확정이나 재현성 통과로 확대하지 않는다.
+
+### Tasks 관계 확인 단위 착수(2026-11-07)
+
+- 사용자가 후속 단위 진행을 승인했다. 기존 트레이스와 열린 Insights를 재사용하며 새 게임 실행·계측·설정 변경은 하지 않는다. 먼저 월드 후처리의 대표 대기 대상, 다음으로 틱 완료 선행 작업을 조사한다.
+- `TraceServices/Private/Model/TasksProfiler.cpp:541`의 `TryGetWaiting`은 `WaitUntilTasksComplete`·`GameThreadWaitForTask`·`Tasks::Wait`·`Tasks::BusyWait`만 인식한다. `WaitForTasks`와 `ProcessUntilTasksComplete` 선택만으로 직접 대기 연결이 나오지 않는 것을 자료 누락으로 단정하지 않는다.
+- `TaskTimingTrack.cpp:1144`는 인식된 대기의 작업ID로 관계를 표시하며 최대30개 작업까지만 그린다. 타이머를 통계에서 선택하는 것과 타임라인의 특정 인스턴스를 선택하는 것은 구분한다. 측정 구간의 `WaitUntilTasksComplete` 최대 인스턴스로 이동하는 수동 조작을 요청하고, 해당 인스턴스가 월드 후처리에 속하는지부터 확인한다. 최대값은 대표적인 큰 대기 사례이며 전체 대기의 전형으로 간주하지 않는다.
+- 현재 실제 작업ID·관계는 아직 확인하지 않았으며 이 단위는 진행 중이다. 기존 기준선 판정과 분석 한계를 유지한다.
+
+### 월드 후처리의 대표 대기 작업 식별·틱 완료 조사 계속(2026-11-07)
+
+- 사용자가 `WaitUntilTasksComplete`의 측정 구간 내 최대 인스턴스로 이동했다. 상위 CPU 범위는 `UWorld_Tick → bDoingActorTicks → FWorldDelegates::OnWorldPostActorTick`이었다. 대기 툴팁에239.319501~239.322189초·포함 약2.69ms/제외4.4μs·`Tasks[1]: 15523600`이 명시됐다. 작업 관계선도 같은 작업 완료 지점으로 연결됐다.
+- Foreground Workers 트랙을 켜 연결된 워커 작업을 선택했다. Task15523600의 표시 이름은 `GraphTask`, 생성 스레드는Foreground Worker #1, 실행 스레드는Foreground Worker(Standby #1)이었다. GUI 표시 시각은 생성239.31924초·시작239.319253초·실행 종료239.322174초·완료239.322179초이며 실행 시간은약2.92ms다. 선행0·후속2·부모0·중첩작업0으로 표시됐다. 생성 후 시작 지연 약13.1μs는 이 사례의 값이며 일반적인CPU 포화 여부 판정에 쓰지 않는다.
+- 해당 작업의 `ExecuteTask` 안에 여러 `NS_GrappleAnchor` CPU 범위가 보인다. 따라서 **이 한 사례는 GrappleAnchor Niagara 처리를 포함한 작업의 완료 대기**로 확인한다. 구체적인 C++ 태스크 타입은 표시 이름만으로 알 수 없고, 전체 월드 후처리 대기7.31초나 기존3회GT 편차를 이 사례에 귀속하지 않는다. 워커 트랙을 켠 후의Timers 전체 합계는 앞선GT 전용 통계와 혼용하지 않는다.
+- 중간 commentary에서 작업ID를15623600으로 잘못 읽어 알렸으나, 대기·작업 툴팁을 다시 읽어 **15523600**으로 정정했다. 로컬 `TaskRelationObservation.json`에는 정확한ID·표시 시각·정밀도·해석 한계와 정정 내용을 보존했다. 새 트레이스 내보내기나 성능 재측정은 아니다.
+- 사용자에게 이어서Timers의 `ProcessUntilTasksComplete → Find Instance → Maximum Duration Instance in Selection` 선택을 요청했다. 엔진의 직접 대기 조회 대상 이름에 이 타이머가 없으므로, 관계가 보이지 않더라도트레이스의task 채널 누락으로 간주하지 않는다. **현재 단위는 틱 완료 인스턴스 선택 대기 중이며 완료가 아니다.**
+
+### 최대 틱 완료 사례·Mass 실행 관계 확인과 단위 마감(2026-11-07)
+
+- 사용자가 측정 구간 내 최대 `ProcessUntilTasksComplete` 인스턴스로 이동했다. 약203.3초 부근의CPU 범위는 `FEngineLoop::Tick → Frame → Tick_Engine → UWorld_Tick → TickCompletionEvents → ProcessUntilTasksComplete`였다. 포함 약29.60ms·하위 범위 제외57.9μs로 표시됐고, 해당Frame은 약37.05ms·CSV934였다.
+- 이 범위의 대부분은 **GT에서 실행한 Wander**였다. `ExecuteTask` 약27.35ms·`Mass Processor Task` 약27.34ms·`LNPEnemyWanderProcessor_2147482013` 약27.34ms/하위 제외13.08ms가 중첩된다. 따라서 가장 긴 틱 완료 구간29.60ms 전체를 순수 대기로 판정하지 않는다. CPU 범위는 벽시계 시간이므로 이 값만으로 실제CPU 실행량과OS 선점 시간을 분리할 수도 없다.
+
+| 확인한 작업 | ID | 실행 스레드 | 실행 시간(GUI 표시) | 선행 / 후속 |
+|:---|---:|:---|---:|:---|
+| `LNPEnemyWanderProcessor` | 13145894 | GameThread(Main queue), High Pri | 약27.35ms | 11 / 7 |
+| Wander의 선행 `LNPEnemySpatialGridProcessor` | 13145892 | Foreground Worker #0 | 약265.7μs, 프로세서262.1μs | 2 / 6 |
+
+- Wander 작업은Background Worker #0에서203.295585초 생성·GT에서203.296428초 스케줄·203.296429초 시작·203.323777초 실행 종료·203.323785초 완료로 표시됐다. Tasks Overview에서 선행Task13145892를 선택하고 `F`로 확대했으며, 같은 작업ID의CPU 툴팁에서SpatialGrid 이름을 확인했다. SpatialGrid는203.296064초 시작·203.29633초 실행 종료/완료로 표시됐다. 이 관계는 소스에서만 추정한 간선이 아니라 해당 사례의 실제 선행 관계다. 전체11개 선행·7개 후속 작업을 열거하거나SpatialGrid가 마지막으로 완료된 선행 작업임을 검증한 것은 아니다.
+- `ProcessUntilTasksComplete`와 하위 `WaitForTasks`는 엔진의 직접 대기 작업 조회 대상 타이머가 아니다. 따라서 **틱 완료 경로의 순수 대기가 기다린 개별 작업ID 목록은 미확정으로 남긴다.** 위Wander 실행·SpatialGrid 선행 관계를 이 목록의 대체 자료로 쓰지 않는다. GUI는 일부 관계가 숨겨진Background Worker 트랙을 가리킨다고 알렸으며, 이는 트레이스 자료 누락을 뜻하지 않는다.
+- 로컬 `TaskRelationObservation.json`에 두 대표 사례·표시 시각·작업ID·GUI 정밀도·남은 한계를 기록했다. 기존 구간CSV의프레임/타이머 통계와 구분하고 `DiagnosticOnly=true`·`BaselineEligible=false`를 유지했다.
+- **대표 Tasks 관계 조사 단위를 확인 가능 범위와 한계를 기록하고 마감한다.** 월드 후처리 최대 사례의GrappleAnchor Niagara 작업 완료 대기와 최대 틱 완료 사례의GT Wander 실행을 구분할 수 있게 됐다. 이를 전체67.31%/32.69%의 비용 귀속이나 기존3회GT 편차 원인 확정으로 확대하지 않는다. 게임 코드·에셋·실효 설정 변경·새 실행·빌드·계측은 하지 않았다.
+- 다음 제안은 **기존 트레이스의 Wander 고비용 이벤트 발생 빈도·시간 분포와 하위 충돌 질의 구간 조사**다. 최대 사례만으로 최적화 대상을 확정하기 전에 기존 자료를 확인하며, 사용자 진행 승인을 기다린다. Medium GT7.2288% 미통과와 Phase0 미완료 조건을 유지한다.
+
+### 중단 후 기록 검증과 단위 마감 보고 준비(2026-11-08)
+
+- 사용자가 한도 초기화 후 하던 작업 재개를 요청했다. 앞선GUI 조사 결과 기록과 검증부터 이어갔으며 후속 Wander 분포 조사에는 착수하지 않았다.
+- 관측JSON의 진단 전용/기준선 제외 여부, Task15523600·13145894·13145892 일치, 측정 구간 포함, SpatialGrid 완료가 Wander 시작보다 앞서는 순서, 틱 완료 개별 대기 작업ID 미확정 표기를 확인했다. 문서UTF-8·상대 문서 링크 존재·추가 문장의 문자 혼입·git 공백 검사도 통과했다.
+- `Current.md`·측정 규약의 갱신일과 관측JSON의 검증일을2026-11-08로 기록했다. 관측 시각·원본 기준선·앞선 이력 날짜는 보존했다. 게임 코드·에셋·설정·빌드·실행은 추가 변경하지 않았고 커밋하지 않았다. 대표 Tasks 조사 결과를 보고한 뒤 다음 단위 진행 확인을 받는다.
+
+### Wander 고비용 구간 분포 조사 착수·이벤트 내보내기 대기(2026-11-08)
+
+- 사용자가 후속 단위 진행을 승인했다. 기존 트레이스의184.502898~244.502898초·GT 전용 이벤트로 Wander 분포와 하위 충돌 질의 횟수/시간을 조사한다. 게임 코드·에셋·설정 변경·새 게임 실행·계측은 하지 않는다.
+- 소스의 `STimersView::ContextMenu_ExportTimingEventsSelection_Execute`에서 `Export Timing Events (Selection)...`이 선택 타이머·표시 스레드·선택 시간 구간을 적용함을 확인했다. 저장 시 전체 이벤트나 집계 통계를 잘못 선택하지 않도록 구분한다. 기본 열은ThreadId·TimerId·StartTime·EndTime·Depth다.
+- 현재 열린 Insights 창이 없어 사용자에게 기존 트레이스를 다시 열고 같은60초 선택·GameThread만 표시한 상태에서 `LNPEnemyWanderProcessor_2147482013`·`LNPWorldCollision_SweepSphere`·`LNPWorldCollision_SweepCapsule`을 각각 저장하도록 요청했다. 진단 루트의 `Exports/Measured_WanderEvents.csv`·`Measured_SweepSphereEvents.csv`·`Measured_SweepCapsuleEvents.csv`를 기다린다.
+- 기존GT 통계의 호출 수는2982/79413/215378이다. Wander 포함6.476708초·하위 제외4.841622초의 차이1.635086초는 Sphere0.835494초+Capsule0.799592초와 표시 정밀도에서 일치한다. 이 합계만으로 개별 이벤트의 소유 관계를 가정하지 않고, 내보낸 파일에서 스레드·구간·호출 수·시간 포함·깊이를 검증한다. 경계에 걸친 이벤트와 내보내기 정밀도도 확인한다.
+- 요청 조건과 검증·분석 계획은 로컬 `WanderEventExportRequest.json`에 기록했다. 이벤트 분포·상위 사례·충돌 질의 분해 결과는 아직 없으며 단위는 수동 내보내기 대기 중이다. 기존GT7.2288% 미통과와 단일 진단의 해석 한계를 유지한다.
+
+### Wander 실행 분포·충돌 질의 집중 분석과 단위 마감(2026-11-08)
+
+- 사용자가CSV 3개의 저장을 완료했다. 분석 구간184.502898~244.502898초·GT(ThreadId2), Wander 타이머4755/깊이8·Sphere4895/깊이9·Capsule4914/깊이9를 검증했다. 호출 수2982/79413/215378은 기존GT 통계와 일치한다. 경계 교차·0길이·동일 타이머 중첩은0건이며, 충돌 질의294791건 전부가 Wander의 직접 하위 이벤트에 배정됐다. 부모 없는 질의·하위 질의 간 중첩도 없었다.
+- 분모는 **Wander 실행2982회**다. 기존 프레임당 집계의분모2983과 구분한다. 아래 분위수는 개별CSV 이벤트를 정렬한nearest-rank이며, 원본Insights의100칸 히스토그램 추정 `I.Med`와 구분한다.
+
+| Wander 실행별 지표 | 시간(ms) |
+|:---|---:|
+| 평균 | 2.1719 |
+| P50 | 1.790 |
+| P95 | 3.312 |
+| P99 | 9.994 |
+| 최대 | 27.343 |
+
+| 설명용 구간 | 실행 수 | 전체 실행 중 비율 | Wander 전체 포함 시간 중 비율 |
+|:---|---:|---:|---:|
+| 5ms 이상 | 96 | 3.2193% | 15.6083% |
+| 10ms 이상 | 29 | 0.9725% | 8.5869% |
+| 16.6ms 이상 | 20 | 0.6707% | 7.0445% |
+
+- 최대 한 번의 포함 시간 비중은0.4222%, 상위10회 합은3.8605%다. 원자료를 삭제하거나 최대 사례를 제외한 새 기준선을 만들지 않았다. 16.6ms 이상20회의 시작은185.242130초부터242.446689초까지이며, 연속19개 간격은최소3.000360초·평균3.010766초·최대3.020068초다. 이 진단 안에서는 약3초 간격의 반복 고비용 실행이며 단발 사례가 아니다.
+- 최대 실행은203.296430~203.323773초·27.343ms다. Sphere292회+Capsule3954회=총4246회를 포함하며, 반올림된 이벤트를 합산하면 Sphere 약2.14ms·Capsule 약12.1ms·두 질의를 뺀 잔여 약13.1ms다. 이 잔여는 맵 구성·정렬·지면 투영·예약 검사·목표 선택 등을 각각 나눈 값이 아니다.
+
+| Wander 실행 구분 | 평균 충돌 질의 수 | 평균 Capsule 수 | 질의1회당 평균 Sphere / Capsule 시간(μs) |
+|:---|---:|---:|---:|
+| 5ms 미만2886회 | 55.05 | 31.60 | 10.95 / 4.13 |
+| 5ms 이상96회 | 1415.69 | 1293.66 | 8.07 / 3.41 |
+
+- 질의1회당 평균은 해당 집단의 총질의 시간/총질의 횟수다. 고비용 집단에서 질의당 시간이 더 길어진 양상보다 **호출 수가 약25.71배 많아진 양상**을 관측했다. 이를 개별 질의의 원가가 항상 일정하다거나CPU 선점이 없다는 증거로 확대하지 않는다.
+- 20초 구간별 실행 수는993/996/993, 평균 포함 시간은2.2894/2.2097/2.0166ms, 평균 충돌 질의 수는110.85/104.64/81.06회다. 같은 구간의프레임 횟수를 대체하지 않는다.
+- **소스와 연결한 가설:** `LNPEnemyWanderProcessor.cpp:155`의 재선택 조건은 `!Segment.bValid || Now >= Segment.StopUntil`이며,176줄에서 기본 기한을 `Now + 3.0`으로 정한다. 최대4번 후보를 시도하고(189줄), 지상 후보는 경로 길이를반경 절반 간격으로 나눠 반복Capsule 질의로 검증한다(233~244줄). 성공 시기한은 도착+HoldSeconds로 바뀐다(287줄). 기본3초 기한에는 개체별 분산이 없어 재선택 시점 집중이 주기·질의 급증 관측과 부합한다. 그러나 해당 이벤트의개체 수·후보 시도/성공/실패·재시도 사유는 기록되지 않았으므로 **실패 개체의 동시 재시도로 원인을 확정하지 않는다.**
+- **정밀도:** 기본 시각 내보내기는 `%.9g`여서 이 구간에서는1μs 격자다. 원본 통계 대비 CSV 포함 합계 차이는 Wander−10μs·Sphere+119μs·Capsule−283μs이며, 두 질의를 뺀 잔여 합은4.841776초로 원본하위 제외4.841622초보다154μs 크다. 개별 실행의 질의 합산 오차는 호출 수에 따라 누적될 수 있으므로 세부 분해는 근삿값이다. 최대 사례의잔여 시간에 대한 보수적 반올림 오차 한계는4247μs다. 숫자의μs 자릿수를 같은 수준의 정확도로 해석하지 않는다. CPU 범위는 벽시계 시간이며OS 선점도 분리하지 못한다.
+- 원자료는 진단 루트의 `Exports/Measured_{Wander,SweepSphere,SweepCapsule}Events.csv`다. 재현용 `AnalyzeWanderEvents.mjs`, 결과 `WanderEventAnalysis.json`·실행별 `WanderEventBreakdown.csv`·실행 로그 `WanderEventAnalysis_Run.log`·독립 검증 `WanderEventAnalysisValidation.json`을 로컬에 보존했다. 입력/스크립트/참조 통계 해시·분위수 정의·정밀도·해석 한계를 결과JSON에 기록했다. 분석은 `node <진단 루트>/AnalyzeWanderEvents.mjs`로 재현한다.
+- Node 분석과 별개로PowerShell의decimal 파서로 원본3개CSV의 호출 수·시간 합계, Wander P50·5ms/16.6ms 이상 횟수, 최대 사례의두 질의 횟수/시간을 다시 계산해 일치를 확인했다. Node 분석에서는 모든 자식의시간 포함·깊이·중첩·배정과 구간 경계도 검사했다. **이번 이벤트 분포 조사 단위를 마감한다.** 게임 코드·에셋·설정·새 게임 실행·빌드·계측은 변경하지 않았다.
+- 다음 제안은 **재선택 시도·성공/실패·기한 만료 개체 수를 구분하는 기본 비활성 계측의 최소 추가**다. 계측용 진단 실행은 별도 단위로 확인받는다. 이번 주기성 관측을 기존3회GT 편차7.2288%의 원인 확정으로 확대하지 않으며, 기준선 제외·미통과와 Phase0 미완료 조건을 유지한다.
+
+### 기본 비활성 Wander 재선택 계측 추가·Editor 빌드(2026-11-08)
+
+- 사용자가 계측 추가 단위를 승인했다. 범위는 최소 계수 구현·정규 빌드·문서 갱신이며 새 진단 실행은 다음 단위로 구분했다. 소스 변경은 `LNPEnemyWanderProcessor.cpp`의54줄 추가·기존 줄 삭제0이다. 기존 후보 검사·재선택 기한·난수 호출·이동/복제 판정은 유지하고 진단용 지역 계수와 후보 수락 여부만 추가했다.
+- `LNP.Enemy.Wander.Diagnostics` 기본값0의CVar를 추가했다.1일 때만 기존 기본CSV 카테고리에 `LNPWander_Eligible/Invalid/Expired/OverlapRejected/CandidateAttempts/Accepted/Failed/CodecRejected` 8개 계수와 `LNPWander_WorldSeconds`를 쓴다. 새CSV 카테고리·프로세서·서브시스템·복제 필드·엔티티별 로그는 추가하지 않았다. 계수는 실행마다 초기화하며 모두GT에서 다룬다.
+- `Invalid`와 `Expired`는 재선택 진입 시점에 상호 배타적으로 센다. 초기 겹침 거부는 후보 루프 전에 별도로 세고, 후보 시도 횟수는 매 루프 진입에서 센다. `Accepted/Failed`는 인코딩 전 후보 선택 결과이며, 이후 `Quantized.IsEnabled()` 거부는 `CodecRejected`로 별도 집계한다. 모든 열의 정의와 향후 검증할 합계 관계는 [측정 규약](../design/Measurement.md)의 Wander 재선택 진단 계수 절에 기록했다.
+- 에디터 프로세스가 없는 상태에서 정규 `LootNPopEditor Win64 Development` 빌드를 처음부터 권한 확장으로 실행했다. 컴파일·링크 포함7개 작업, 종료0·`Result: Succeeded`·47.71초다. Live Coding·에디터 실행·PIE·새 게임 실행은 하지 않았다. 로컬MCP 읽기 요청은 소켓 권한 제한으로 실패했으며 라이브 에디터 도구 검증으로 표시하지 않는다.
+- 증거는 `Saved/Profiling/Graphics/Phase00/WanderDiagnostics_20261108/EditorBuild.log`·`EditorBuild.json`·`ImplementationReview.json`이다. 변경 소스 해시를 보존했다. 기존 패키지 실행 파일SHA256은 `4F4D6B5A66EF0A5547ACB4CF9021778496D022D8E70FCB9D8E3A7807BAA8B5F2`로 인계 기록과 일치하며 패키지는 갱신하지 않았다.
+- **런타임CSV 열 생성·실효CVar·계수 불변식은 아직 미검증**이다. 정적 코드 검토와 컴파일 성공을 런타임 검증으로 확대하지 않는다. 이번 빌드도 변경 중인 작업 트리의 빌드이며 Phase0의 깨끗한 트리 빌드 완료로 표시하지 않는다.
+- 구현 단위를 마감하고 다음은 **별도 진단 패키지 생성과 짧은CSV 기능 검증**으로 제안한다. 기존 `PackageGraphicsBenchmark.ps1 -ArchiveDirectory`와 실행기의 `-PackageDirectory`로 아카이브를 분리할 수 있다. 기본값0 실행과 진단1 실행에서 출력 열·계수 관계를 확인하고, 긴180초 워밍업/60초 진단은 그 뒤 별도 진행 확인을 받는다. GT7.2288% 미통과·기존 기준선·Phase0 미완료 조건은 유지한다.
+
+### 별도 진단 패키지와 짧은CSV 0/1 기능 검증 마감(2026-11-08)
+
+- 사용자가 패키지 생성과 짧은 기능 검증 단위를 승인했다. 에디터 종료를 확인하고 처음부터 권한 확장으로 build/cook/stage/archive했다. Game Development 빌드36.80초·cook1619패키지·BuildCookRun171.76초·종료0이다. cook 요약은오류0/경고1이며 VSM 페이지 수에 대한 기존 프로젝트 설정 우선순위 경고를 보존했다.
+- 새 아카이브는 `Saved/Graphics/Phase00WanderDiagnosticsPackage_20261108/`다. `AcropolisViewpoints.json`의Revision3 해시 일치를 확인했다. 기존 `Phase00Package`의 실행 파일2개·컨테이너5개·카메라 경로1개, 총8개 파일을 전후 해시 대조해 일치를 확인했다. 진단 패키지 실행 파일·컨테이너·경로의 해시는 아래 증거 폴더의 `PackageIdentity.json`을 따른다. 기존 기준선 패키지에 계측을 덮어쓰지 않았다.
+- Medium·5초 워밍업+6초 캡처를 기본값0/진단1로 각각 한 번 실행했다. 게임 창은 기존 그래픽스 실행 규약대로 표시했다. 기본값0은CVar를 조회만 해 `LastSetBy: Constructor`를 확인했고, 진단1은 `-ExecCmds`로1을 설정·조회해 실효값1을 확인했다. 두 게임 모두종료0·하네스complete·초기 적2223명·기존 수집/개체 분할 검증을 통과했다.
+
+| 실행 | 측정 행 수 | 실효 진단값 | `LNPWander_` 열 | 계수 검증 |
+|:---|---:|---:|:---|:---|
+| Default0 | 247 | 0(기본값) | 없음 | 비활성 출력 부재 확인. 계수 관계는 대상 아님 |
+| Enabled1 | 274 | 1 | 계수8개+월드 시각 |274개 행의 정수/비음수·시각 단조성·계수 관계 통과 |
+
+- 진단1 캡처의 행별 계수 합은 Invalid163+Expired758=재선택 진입921, 초기 겹침 거부12를 빼면 후보 선택909=Accepted352+Failed557이다. 후보 시도2746회는909~3636회 범위 안이다. Eligible 합179875·Expired 최대214·CandidateAttempts 최대771을 기록했다. 이 합계는 중복 개체를 포함한 **개체-실행 합계**이며 고유NPC 수가 아니다. `CodecRejected`는모든 행에서0으로 인코딩 거부 분기의 실동작은 미관측이다.
+- **후처리 오류와 수정:** 첫 실행기의 종료 코드는1이었으나 실패 단계는 게임 실행이 아니라 진단1 CSV의 마지막278번째 메타데이터 줄 파싱이었다. 두 게임 종료 코드는이미0이었다. `-ExecCmds="... 1,..."`가 후행 `[HasHeaderRowAtEnd],` 메타데이터의 인용 규칙을 깨뜨린다. `AnalyzeGraphicsBenchmark.ps1`에 예약 표식에서 프레임 읽기를 끝내는2줄을 추가했고, 로컬 계수 검증기에도 같은 경계를 적용했다. 원본CSV를 수정하거나 게임을 다시 실행하지 않고 동일 자료를 재집계했다. 기본값0의 프레임 수·기존 평균 집계가 변경 전과 일치했고, 진단1의 프레임/계수 검증도 통과했다. 후처리 스크립트 해시와 재집계 회귀 근거는 `CsvParserRegression.json`에 보존했다.
+- 증거 루트는 `Saved/Profiling/Graphics/Phase00/WanderDiagnostics_20261108/PackagePreflight/`다. `PackageBuild.log/json`·`BaselinePackageBefore/After.json`·`PackageIdentity.json`·`FunctionalValidation.json`·`PreflightSummary.json`, 각Default0/Enabled1의 `Launch.json`·`Runtime.log`·`Exit.json`·하네스 원자료/`Summary.json`·`CounterValidation.json`을 보존했다. 로컬 `RunPreflight.ps1`·`ValidatePreflight.ps1`은 이 단위의 실행/검증 근거다. 초기 후처리 실패도 삭제하지 않았다.
+- **이 단위를 마감한다.** 두 실행은 `DiagnosticOnly=true`·`BaselineEligible=false`·짧은 예비 실행이며 성능 비교를 하지 않는다. 새로운 바이너리/워밍업/경로 속도의 수치를 기존180초 기준선과 섞지 않는다. 작업 트리 변경 상태에서 만든 패키지이므로 깨끗한 트리 빌드 게이트도 유지한다.
+- 다음 제안은 별도 진단 패키지의Medium에서 **진단1·180초 워밍업+60초 경로·CSV+CPU 트레이스1회**를 수집해 Expired/Failed 집중과 고비용 실행을 연결하는 단위다. 사용자 진행 승인을 기다리며 이번 단위에서는 긴 진단을 실행하지 않았다. 기존GT7.2288% 미통과·종료777003 진단의 이력·Phase0 미완료 조건을 유지한다.
+
+### Wander 긴 진단1회 수집·CSV 검증과 CPU 수동 확인 대기(2026-11-08)
+
+- 사용자가 다음 단위를 승인했다. 검증한 별도 패키지를 재사용해 Medium·진단1·180초 워밍업+60초 캡처를 **한 번** 실행했다. 재빌드·추가 게임 실행·게임플레이 변경은 없다. 실행 전 에디터/게임 부재와 패키지 실행 파일·컨테이너·경로 및 계측 소스 해시를 대조했다. 실행 인자·해시·변경 소스 패치를 보존했다.
+- 원자료 루트는 `Saved/Profiling/Graphics/Phase00/WanderDiagnosticsTrace_20261108_041500_fa2a4b/`다. `Launch.json`·`Exit.json`·`Runtime.log`·`CPU.utrace` 및 하위 `Medium_67AAF5BB44826B99980D29BDAF137D08/`의 `Run.json`·`Frames.csv`·`Population.csv`·`Summary.json`을 보존했다. CPU 트레이스는 **1,986,846,241바이트**다. 하네스complete·초기 적2223명·측정2978프레임이며 CSV/개체 분할 검증을 통과했다.
+- **실제 종료 코드777003 재발:** 로그는 종료 요청0·`LogExit: Exiting.`·파일 닫힘까지 남지만 프로세스 종료는777003이다. 실행기는 이 결과를 실패로 기록하고 종료1을 반환했다. 저장된 CSV를 별도 후처리했으며 정상 프로세스 종료로 바꾸지 않았다. 원인은 미확정이다. 하네스의 길이/해상도 조건 때문에 `performance_eligible=true`지만 외부 검증 및 집계 요약에 `DiagnosticOnly=true`·`BaselineEligible=false`·`NormalProcessExit=false`·실제 종료 코드를 명시했다.
+- 실효 CVar1을 로그에서 확인했다. 2978개 행 모두9개 진단 열, 비음수 정수 계수·월드 시각 단조성·계수 관계를 통과했다. Invalid681+Expired10077=재선택 진입10758, 초기 겹침 거부47을 빼면 후보 선택10711=Accepted4558+Failed6153이다. 후보 시도30761회는10711~42844회 범위 안이다. Eligible 합2086604이며 CodecRejected는0으로 해당 분기는 여전히 미관측이다. 모든 합계는 중복 개체를 포함한 개체-실행 합계다.
+- **CSV 연관성:** 기한 만료가 가장 많은20개 프레임의 월드 시각 간격은3.0004~3.0193초다. 평균Expired103.75·후보 시도411.95·Failed102.5회이며, 같은 행의 `GameThreadTime` 평균은32.9936ms(전체10.5920ms)다. 전체 행의 Expired/후보 시도와 `GameThreadTime`의 Pearson 상관은각각0.9007/0.9261이다. 이 GT 값은 Wander 자체 시간이 아니며 동일 개체의 연속 실패 이력이나 기존3회 GT 편차의 원인을 확정하지 않는다. 최고20개는 계수 순위로 선택했으며 고비용 임계값으로 정의하지 않았다.
+- **GT 열의 프레임 지연:** `LNPGraphics_GTMs`는 하네스 Tick에서 직전 `GGameThreadTime`을 읽는다. 2977개 인접 행에서 `LNPGraphics_GTMs[i]`와 `GameThreadTime[i-1]`의 최대 절대 차이는0ms다. 현재 행 계수와 직전 GT를 대응시키지 않도록 위 연관성에는 기본CSV의 `GameThreadTime`을 썼다. CSV의월드 시각·트레이스 시각·`PathSeconds`도 구분한다.
+- Runtime 로그상 캡처 시작 시계 시각은04:18:05.399 UTC다. 이를 트레이스 세션 시각으로 쓰지 않는다. 캡처 초반 PSO 신규 생성2건(Frame2)·GC(Frame92) 로그도 보존했다. CPU 이벤트 판독 가능 여부·정확한60초 구간·CSV 행 대응은 아직 미확정이다. GUI 수동 조작이 더 빠르므로 사용자에게 **새CPU.utrace 열기와 Insights Log의 `[GraphicsBenchmark] Capture started` 행 Time 확인**을 요청했다. 다음은 GT 전용 프레임/Wander 이벤트를 경계 여유가 있는 구간으로 내보내고 프레임 포함 관계로 연결하는 작업이다.
+- 검증 근거는 `CounterValidation.json`·`DiagnosticValidation.json`·`CounterFrames.csv`·`CounterDistribution.json`·`ArtifactHashes.json`이다. 로컬 재현 스크립트는 `WanderDiagnostics_20261108/RunLongDiagnostic.ps1`·`ValidateLongDiagnostic.ps1`·`AnalyzeLongCounters.ps1`이고 `LatestLongDiagnostic.txt`에 이 실행 루트를 기록했다. **이 단위는 CPU 분석이 남아 진행 중**이다. 추가 최적화나 추가 실행으로 확대하지 않으며, 기존 기준선·Medium GT7.2288% 미통과·Phase0 미완료 조건을 유지한다.
+- **사용자 수동 확인:** 새 트레이스에서 `[GraphicsBenchmark] Capture started`의 Time을 `3m 5.032992s`로 전달받았다. 따라서 실제 분석 구간은185.032992~245.032992초다. 사용자 제공 원문·변환 시각·종료 코드·진단 제외 조건을 `CaptureInterval.json`에 기록했다. 경계 프레임을 보존하도록184.932992초부터60.2초·GT 전용으로 `FEngineLoop::Tick`과 `LNPEnemyWanderProcessor`를 각각 `Export Timing Events (Selection)`으로 내보내도록 요청했다. 요청 파일은 `Exports/Padded_GameThreadFrameEvents.csv`·`Padded_WanderEvents.csv`이며 절차는 `Exports/ExportRequest.json`에 보존했다. 트레이스가 열리고 로그를 읽은 것과 전체 이벤트/프레임 검증 완료를 구분한다.
+
+### Wander 계수·CPU 이벤트 연결 분석 마감(2026-11-08)
+
+- 사용자가 새 트레이스의 GT 프레임/Wander 이벤트를 내보냈다. 접미사 없는 `LNPEnemyWanderProcessor`의 Count/Incl/Excl이0이라는 사용자 확인에 따라 **실행된 `LNPEnemyWanderProcessor_2147482013`**를 선택하도록 바로잡았다. 내보내기는184.932992~245.132992초·GameThread 전용이다. 원본 두CSV를 변경하지 않고 입력 해시를 보존했다.
+- 프레임2985회(Thread2·Timer4482·Depth0), Wander2984회(Thread2·Timer4761·Depth8)를 받았다. 각 파일의 열·숫자·시간 순서·양수 길이·같은 타이머의 비중첩을 확인했으며 모든 Wander가 내보낸 GT 프레임 안에 들어간다. CSV2978개 행의 `캡처 시작Time + PathSeconds` 대응점이 각각 고유한 연속 프레임 안에 있고, 그 프레임마다 Wander가정확히1회다. Wander 시간도 모두 같은 행의 `GameThreadTime` 이하다. 이벤트 나열 순서만으로 연결하지 않았다.
+- **경계 정의:** 첫CSV 프레임은185.025797~185.046530초이고 그 안의 Wander는185.028342~185.029988초다. 캡처 시작 로그185.032992초보다 먼저 실행됐으므로 CSV 프레임 기준은2978회·Wander6.219306초, 실제 로그 시각 구간에 완전히 든 이벤트는2977회·6.217660초다. 차이는 첫 실행1.646ms다. 로그 구간 경계를 가로지르는 Wander는0회다. 앞뒤0.1초의 내보내기 여유가 이 첫 실행을 보존했다.
+- 대응점의 프레임 시작/끝과의 최소 거리는5.680/3.128ms다. 고정 시각 이동-5.680~+3.128ms 범위에서는 같은 프레임 대응을 유지한다(경계 제외). 이는CSV 기록 반올림보다 크지만 임의의 로그 지연에 대한 보장은 아니다. 하네스는 `Now`를 읽은 뒤 manifest 저장·시작 로그를 수행하므로 대응점 자체를 정확한CPU 이벤트 시각으로 해석하지 않는다. 같은 프레임 후보 시도와 Wander의 상관0.9385는 앞뒤 한 프레임 대조에서각각-0.0089/-0.0035다. 프레임 포함·연속성·GT 시간 상한과 함께 현재 대응을 검증했다.
+
+| CSV 프레임 기준 집단 | 프레임 수 | Wander 평균 ms | GT 평균 ms | Expired 평균 | 후보 시도 평균 | Failed 평균 |
+|:---|---:|---:|---:|---:|---:|---:|
+| 기한 만료 상위20개 | 20 | 24.2314 | 32.9936 | 103.75 | 411.95 | 102.50 |
+| 나머지 | 2958 | 1.9387 | 10.4406 | 2.7052 | 7.6139 | 1.3871 |
+
+- 이20개는 계수 순위로 선택했으며 월드 시각3.0004~3.0193초 간격으로 반복된다. Wander 시간 상위20개와19개가 겹치며 전체 Wander 시간의7.7923%를 차지한다. 전체 행의 Expired/후보 시도/Failed와 Wander 시간의 상관은각각0.9127/0.9385/0.9283이다. **이번 진단에서 만료·후보 선택 실패 집중과 긴Wander 실행을 연결했다.** 개체별ID/이력을 기록하지 않았으므로 동일 개체들의 연속 실패나 실패의 세부 사유는 확정하지 않는다. 기존 정식3회 GT 편차의 원인 확정이나 인과 개입 검증도 아니다.
+- Wander P50/P95/P99/최대는1.646/2.994/15.838/29.543ms다(nearest-rank). 5/10/16.6ms 이상은각각76/53/24회다. 최댓값은200.710157~200.739700초·CSV778번째 인덱스(0부터)이며 Expired105·후보 시도416·Failed103·GT38.2768ms다. 16.6ms 이상에는 기한 만료 상위20개 이외에도4개 프레임이 있고 Expired46~48·Failed45~46을 기록했다. 가장 큰20개 집중만으로 모든 고비용 실행을 설명하지 않는다. CPU 벽시계 시간에는OS 선점이 포함될 수 있다. 이전 진단과의 분포 차이를 최적화 효과로 쓰지 않는다.
+- 근거는 같은 진단 루트의 `WanderCounterJoinAnalysis.json`·`WanderCounterJoinValidation.json`·`WanderCounterJoinedFrames.csv`·`AnalyzeWanderCounterJoin.mjs`·`WanderCounterJoinRun.log`다. 이벤트 시각은 이 범위에서1us 단위로 출력되어 실행 길이의 반올림 오차 상한은1us다. CSV의 `PathSeconds`는0.1 이상 값에 소수4자리 출력이다. PowerShell decimal로 원본 이벤트의 정확한 로그 구간 합계와 연결표의 시간 합계·P99·5ms 이상 횟수를 검산했다(`WanderCounterJoinArithmeticCheck.json`). 두 원본CSV와 계수표 및 분석 스크립트·시각 근거의 해시를 보존했다.
+- **긴 진단 분석 단위를 마감한다.** 이번 후속 분석은 게임 코드·설정·패키지·원본CSV를 변경하거나 새 게임을 실행하지 않았다. 종료777003·`NormalProcessExit=false`·기준선 제외·Medium GT7.2288% 미통과·Phase0 미완료 조건을 유지한다. 다음 제안은 **실패 재시도 시점 분산의 최소 설계 검토**다. 현재기본 실패 기한 `Now + 3.0`·난수 소비·복제/코덱 규약에 미치는 영향과 검증 범위를 먼저 정하고 사용자 진행 확인을 받는다.
+
+### 배회 최적화 별도 세션 인계 문서 작성(2026-11-08)
+
+- 사용자는 재시도 시점 분산 외에도 배회 프로세서 자체를 다른 세션에서 최적화하기로 하고 분석의 별도 문서화를 요청했다. [배회 최적화 인계](../analysis/WanderOptimizationHandoff.md)에 코드 실행 경로·두 진단의 수치와 범위 차이·원자료/패키지/소스 식별·미확정 비용·최적화 후보·이동/복제 계약·반환할 검증 결과를 정리했다. 확정된 최적화 설계나 구현 완료로 표시하지 않았다.
+- 재시도 분산 외의 검토 지점으로 매 프레임 맵/배열·정렬, Pod 내 반복 탐색, 경로 표본별 Support/Capsule 검사, 늦은 예약 선분 거부, 임시Nodes, 현재 위치 표면 조회, 동적 지형 위험 순회와GT 순차 의존성을 기록했다. 소스의 `bClear &= !SweepCapsuleWorld(...)`는 앞선 표면/레이어 거부 뒤에도 우변을 호출한다. 초기/후보 겹침 루프도 `|=`로 끝까지 순회한다. 이러한 작업 구조는 코드로 확인했지만 각각의 발생 횟수·절감량은 미계측임을 명시했다.
+- 배회 외 후속 후보는 기존 진단의 렌더 동기화 대기9.2741ms/프레임, 월드 후처리 작업 대기와 `NS_GrappleAnchor` 대표 관계, 지속적인RT/GPU 예산 초과다. `Measured_AllThreads.csv`의 `NS_GrappleAnchor` 제외 시간 합8.090761초도 확인했으며 병렬 스레드 합을 같은 길이의 프레임 지연으로 해석하지 않았다. 작은Nav/공간 격자 관측과 중첩 시간의 해석 제한도 인계 문서 §8에 정리했다.
+- `README.md`에 문서 경로를 추가하고 `Current.md`의 누적 배회 분석을 요약/링크로 바꿨다. 계측 패키지의 준비 HEAD143048c와 이전 정식 기준선 준비6171904를 실제 `SourceCommit.txt`로 구분했다. 기존의 재시도 분산 설계 제안을 이 세션에서 자동 진행하지 않고 사용자 별도 최적화 결과를 인계받도록 갱신했다.
+- 이 단위는 문서 작성과 기존 소스/원자료 확인만 했다. 게임 코드·설정·패키지·원본CSV 변경, 새 게임 실행·빌드·최적화는 없다. 새 문서의 로컬 링크/식별값과 `git diff --check`를 확인했다. 기준선 제외·종료777003·GT 재현성 미통과·Phase0 미완료 조건을 유지한다.
+
+### 앵커·GT 렌더 동기화·Nav 최근접 탐색의 독립 인계 분리(2026-11-08)
+
+- 사용자가 세 항목도 각각 다른 세션에서 개선하기로 하고 독립 문서를 요청했다. `analysis/GrappleAnchorOptimizationHandoff.md`·`RenderSyncOptimizationHandoff.md`·`NavNearestNodeOptimizationHandoff.md`를 추가했다. 각 문서만 읽고 시작할 수 있도록 측정값의 구간/분모, 확인한 사실과 미확정 사항, 코드/에셋 진입점, 원자료, 검증 및 반환할 결과를 넣었다.
+- 앵커 문서에는 GT0.4400ms/프레임·전체 스레드 제외 합8.090761초와 대표 대기Task15523600을 구분했다. 기존 시각 배선·자동 활성화 누락 회귀와 시각 테스트를 연결했으며 에셋 내부의 최신 라이브 조회는 하지 않았다고 명시했다.
+- 렌더 문서에는 중첩된 Sync_RenderingThread9.2844ms/프레임와 GameThreadWaitForTask9.2741ms/프레임을 구분했다. 설치UE5.8의 프레임 fence 동기화 경로와 하네스 요청 설정을 확인하고, 대기 감소·처리량 개선·품질/지연 변경을 구분하도록 했다. GPU 패스 원인이나 동기화 설정의 구체적인 개선안을 확정하지 않았다.
+- Nav 문서에는 최근접169284회·0.629969초/GT2983프레임과 호출자 구분을 기록했다. 소스에 이미 `bNearestOnly=true`·목표 투영 캐시가 있음을 확인했다. 최근접 래퍼가 PlayerNav/PodNav/EnemyPath에서 공유되므로 전체 호출 수를 EnemyPath나배회에 일괄 귀속하지 않도록 했다. 호출자별 비중·후보 방문 수·할당량은 미계측이다.
+- 배회 문서 §8의 상세 관측은 각 독립 문서로 옮기고 연결만 남겼다. `README.md`·`Current.md`·Phase0 실행서에 네 독립 최적화 인계와 사용자 별도 세션 진행 상태를 반영했다. 문서 경로·코드/원자료 연결과 `git diff --check`를 확인했다. 이 단위에서 게임 코드·에셋·설정·패키지·원자료를 변경하거나 새 실행·빌드·최적화에 착수하지 않았다. 기존 GT 재현성 미통과·진단 제외·Phase0 미완료 조건은 유지한다.
+
+### 세션 마감과 네 개선 완료 후 재개 순서 기록(2026-11-08)
+
+- 사용자 요청으로 이번 세션을 마감한다. [네 개선 완료 후 재개 절차](../phases/Phase00_PostOptimization.md)에 R-A 결과 수령/통합→R-B 최종 소스 빌드/별도 패키지/짧은 기능 검증→R-C 필요한Medium 비교 진단→R-D 새 버전Medium/Low/High 각3회→R-E 보고/영상과Phase0 마감 순서를 기록했다. 각 단위는 진행 확인 뒤 실행하며 지금 후속 실행을 시작하지 않는다.
+- 네 개선의 단독 효과와 통합 효과, 행동/품질/지연 정책 변화, 소스/패키지/계측 차이를 구분하도록 했다. 반환 근거가 충분하면 불필요한 새 트레이스를 반복하지 않는다. 기존Low/High 통과값과새Medium을 섞지 않고 최종 바이너리의 공통 기준선을 새로 검증한다. Frame/GT/RT/GPU 편차5%와16.6ms 예산 달성도 별도 지표다.
+- Phase0의 남은 깨끗한 트리 빌드·정상 종료·재현성·보고/영상·사용자 확인 게이트를 유지한다. 마감 후에는 기존GX-009/GX-003대로 단위N→Phase1→후속 트랙으로 돌아간다. 그래플 앵커 성능 개선과 단위N의Niagara 원거리 정밀도 문제를 혼동하지 않는다.
+- README·Current·로드맵·Phase0 실행서와 네 인계 문서에 재개 절차를 연결했다. 기존 커밋의 `feat/fix/docs: 한국어 제목`과 한국어 변경 목록 형식을 확인하고 이번 세션의 계측·파서 수정·분석/인계를 하나의커밋으로 보존한다. 로컬 `Saved/`의 패키지/트레이스/CSV는 git에 포함하지 않는다.
+- 마감 검증은 문서 링크·diff/소스 변경 범위와 기존 검증 소스 해시 일치다. 정규Editor 빌드47.71초·별도 패키지 성공·짧은0/1 정상 종료와계수 검증·CSV 파서 회귀·긴 진단 프레임 연결 검증의 기존 근거를 유지한다. 긴 진단777003과Phase0 미완료는 그대로이며 커밋이 깨끗한 트리 빌드/새 측정 완료를 뜻하지 않는다.
