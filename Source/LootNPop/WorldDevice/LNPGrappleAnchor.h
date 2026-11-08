@@ -14,7 +14,7 @@ class UWidgetComponent;
 /**
  * 그래플 훅 앵커 — 바라보고 F를 누르면 그 지점으로 고속 이동하는 월드 장치.
  *
- * **가변 멤버가 없다** (런처와 같다). 쿨다운도 점유도 없고, 여러 명이 같은 앵커를 동시에 써도 된다.
+ * **가변 게임플레이 상태가 없다** (런처와 같다). 쿨다운도 점유도 없고, 여러 명이 같은 앵커를 동시에 써도 된다.
  *
  * 판정이 세 곳에 나뉘어 있고 그 경계가 이 장치의 핵심이다:
  *   · `GetInteractionSearchRadius` — 광역 컷. 근접 대상(250cm)과 달리 수십 m라 인터페이스 승격의 직접적 계기가 됐다.
@@ -48,6 +48,12 @@ public:
 	 */
 	float GetMaxGrappleDistance() const;
 
+	/** 로컬 상호작용 순회에서 이미 계산한 폰 거리를 재사용한다. 별도 Actor Tick·LOS 검사를 추가하지 않는다. */
+	void UpdateDistanceVisual(float DistanceSquared);
+
+	/** R=접근 진행률, G=사용 거리 충족, A=원거리 페이드. 실제 거리 판정과 같은 최소·최대 경계를 쓴다. */
+	static FLinearColor CalculateDistanceVisualState(float DistanceSquared, float MinDistance, float MaxDistance);
+
 	/**
 	 * 앵커별 최대 거리 (cm). 0이면 설정 에셋의 MaxGrappleDistance를 쓴다. 마커 배치 앵커만 채운다(시드 배치는 0).
 	 * 서버 재검증·Mover 시뮬·클라 프롬프트가 모두 같은 값을 봐야 하므로 스폰 번치에 실어 복제한다.
@@ -80,7 +86,7 @@ protected:
 
 	/**
 	 * 앵커의 시각 표현. **메시가 아니라 나이아가라다** — 앵커는 도달 지점일 뿐 부딪히는 물체가 아니고,
-	 * 25m 밖에서 식별되는 것이 유일한 요구사항이라 빛나는 스프라이트가 3D 모델보다 잘 맞는다.
+	 * 고정 크기의 스프라이트 한 장에 Core와 거리 진행 고리를 함께 그린다. 최대 사용 거리의 2배 밖에서는 쉰다.
 	 * 콜리전이 아예 없으므로 비행 스윕이 도착 직전에 자기 자신에 막힐 일도 없다.
 	 */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Anchor")
@@ -89,5 +95,9 @@ protected:
 	/** 상호작용 프롬프트 위젯 — 로컬 판정으로만 표시되므로 복제와 무관, 기본 숨김 */
 	UPROPERTY(VisibleAnywhere, Category = "LNP|Anchor")
 	TObjectPtr<UWidgetComponent> InteractionPromptWidget;
+
+private:
+	/** 렌더 상태가 눈에 띄게 바뀔 때만 Niagara 파라미터를 갱신한다. 복제하지 않는 로컬 표현 캐시다. */
+	FLinearColor DistanceVisualState = FLinearColor::Transparent;
 
 };

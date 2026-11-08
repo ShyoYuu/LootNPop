@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 ALNPGrappleAnchor::ALNPGrappleAnchor()
 {
@@ -29,6 +30,7 @@ ALNPGrappleAnchor::ALNPGrappleAnchor()
 
 	EffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("EffectComponent"));
 	EffectComponent->SetupAttachment(RootComponent);
+	EffectComponent->SetAutoActivate(false);
 
 	InteractionPromptWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("InteractionPromptWidget"));
 	InteractionPromptWidget->SetupAttachment(RootComponent);
@@ -57,6 +59,9 @@ void ALNPGrappleAnchor::InitializeFromMarker(const ALNPPlacementMarker& Marker, 
 void ALNPGrappleAnchor::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 로컬 폰의 첫 거리 갱신 전에는 원거리·서버 효과를 실행하지 않는다.
+	EffectComponent->DeactivateImmediate();
 
 	if (ULNPInteractableRegistrySubsystem* Registry = UWorld::GetSubsystem<ULNPInteractableRegistrySubsystem>(GetWorld()))
 	{
@@ -107,6 +112,52 @@ float ALNPGrappleAnchor::GetMaxGrappleDistance() const
 		return 0.f;
 	}
 	return MaxGrappleDistanceOverride > 0.f ? MaxGrappleDistanceOverride : Config->MaxGrappleDistance;
+}
+
+FLinearColor ALNPGrappleAnchor::CalculateDistanceVisualState(float DistanceSquared, float MinDistance, float MaxDistance)
+{
+	if (MaxDistance <= 0.f || DistanceSquared >= FMath::Square(MaxDistance * 2.f))
+	{
+		return FLinearColor::Transparent;
+	}
+
+	const float Distance = FMath::Sqrt(FMath::Max(DistanceSquared, 0.f));
+	const float Progress = FMath::Clamp(2.f - Distance / MaxDistance, 0.f, 1.f);
+	const bool bInRange = DistanceSquared <= FMath::Square(MaxDistance)
+		&& DistanceSquared >= FMath::Square(MinDistance);
+	// 마지막 20% 구간에서만 사라진다. 사용 거리 경계는 완성 고리로 정확하게 알린다.
+	const float Fade = FMath::Clamp((2.f - Distance / MaxDistance) / 0.4f, 0.f, 1.f);
+	return FLinearColor(Progress, bInRange ? 1.f : 0.f, 0.f, Fade);
+}
+
+void ALNPGrappleAnchor::UpdateDistanceVisual(float DistanceSquared)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(LNPGrappleAnchor_DistanceVisual);
+
+	const ULNPWorldDeviceConfig* Config = ULNPWorldDeviceConfig::Get(this);
+	const FLinearColor NewState = Config != nullptr && AnchorID != INDEX_NONE
+		? CalculateDistanceVisualState(DistanceSquared, Config->MinGrappleDistance, GetMaxGrappleDistance())
+		: FLinearColor::Transparent;
+	if (NewState.A <= 0.f)
+	{
+		if (EffectComponent->IsActive())
+		{
+			EffectComponent->DeactivateImmediate();
+		}
+		DistanceVisualState = NewState;
+		return;
+	}
+
+	const bool bNeedsActivation = !EffectComponent->IsActive();
+	if (bNeedsActivation || !DistanceVisualState.Equals(NewState, 1.f / 255.f))
+	{
+		EffectComponent->SetVariableLinearColor(TEXT("User.DistanceVisualState"), NewState);
+		DistanceVisualState = NewState;
+	}
+	if (bNeedsActivation)
+	{
+		EffectComponent->Activate(/*bReset=*/true);
+	}
 }
 
 bool ALNPGrappleAnchor::CanInteract_Implementation(const APawn* Interactor) const

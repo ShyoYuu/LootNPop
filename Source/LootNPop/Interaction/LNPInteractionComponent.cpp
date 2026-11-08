@@ -56,6 +56,7 @@ void ULNPInteractionComponent::UpdateInteractionCandidate()
 	ALNPLootPod* NearestPod = nullptr;
 	float NearestDistSq = TNumericLimits<float>::Max();
 	const FVector OwnerLocation = Owner->GetActorLocation();
+	const bool bUpdateAnchorVisuals = Owner->IsPlayerControlled() && Owner->IsLocallyControlled();
 
 	for (const TWeakObjectPtr<AActor>& WeakActor : Registry->GetInteractables())
 	{
@@ -71,6 +72,14 @@ void ULNPInteractionComponent::UpdateInteractionCandidate()
 
 		// 광역 컷은 타입마다 다르다 — 초근접 Pod(250cm)과 원거리 그래플 앵커(수십 m)가 같은 루프를 돈다.
 		const float DistSq = FVector::DistSquared(OwnerLocation, Actor->GetActorLocation());
+		// 상호작용 반경 밖에서도 접근 고리를 갱신하고, 먼 효과는 시뮬레이션까지 멈춘다.
+		if (bUpdateAnchorVisuals)
+		{
+			if (ALNPGrappleAnchor* Anchor = Cast<ALNPGrappleAnchor>(Actor))
+			{
+				Anchor->UpdateDistanceVisual(DistSq);
+			}
+		}
 		if (DistSq > FMath::Square(Interactable->GetInteractionSearchRadius()))
 			continue;
 
