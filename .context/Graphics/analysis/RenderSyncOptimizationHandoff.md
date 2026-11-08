@@ -1,6 +1,6 @@
 # GT 렌더 동기화 비용 분석·최적화 인계
 
-> 상태: GT 대기 원인은 GPU 역압으로 확인(§6.6) · 동기화 설정 변경 기각 · GPU 패스 표 확보, 다음은 해상도(O-2)·Lumen 단계 비교
+> 상태: **마무리(2026-11-09)** · GT 대기는 GPU 역압으로 확인, 동기화 쪽 수정 없음 · 큐별 GPU 패스 표와 진단 경로 확보 · TSR 히스토리·Lumen 설정 결정은 벤치마크 콘텐츠 이후로 보류(§6.9)
 > 갱신: 2026-11-09
 > 목적: 사용자가 별도 세션에서 GT의 렌더 대기와 RT/GPU 비용을 조사·개선할 근거
 
@@ -163,34 +163,100 @@ D1~D4는 화질이나 지연이 바뀌는 조건이라 결과를 개선으로 �
 | `GPUBound_WaitingForGPUForOcclusionQueries_SeeGPUTrack` | 16.14 | 9.11 | 6.78 | 17.26 | 16.47 |
 | `WaitForVisibilityTasks` | 15.82 | 8.80 | 6.46 | 16.96 | 16.24 |
 
-**GPU 주요 패스(D0, ms/프레임 — `Incl ÷ GPU Frame Count`, Measurement.md §5 분모 규약)**
+**GPU 주요 패스(큐별, ms/프레임 — 원시 이벤트에서 큐마다 자기 `Frame` 수로 나눔, §6.7)**
 
-| 패스 | 포함 | D1 | D2 | 비고 |
+그래픽 큐(`GPU0-Graphics0`, 작업 점유 19.73ms / Frame 20.31ms — **병목 큐**)
+
+| 패스 | D0 | D1 | D2 | 비고 |
 |:---|---:|---:|---:|:---|
-| Lumen `DiffuseIndirectAndAO`(스크린 프로브 4.15 포함) | 4.68 | 2.37 | 1.54 | 해상도 비례 |
-| `PostProcessing`(TSR 3.43 포함) | 3.91 | 2.59 | 2.19 | TSR은 출력 1440p 고정분이 남는다 |
-| `SceneRender` 자기 시간(이름 없는 구간) | 3.10 | 2.42 | 2.25 | 하위 패스에 속하지 않는 몫, 미분해 |
-| Lumen 반사·간접광 `DiffuseIndirectAndAO #2` | 2.79 | 1.51 | 1.00 | |
-| `RenderDeferredLighting #2`(직접광·VSM 투영 0.73) | 1.84 | 1.05 | 0.81 | |
-| `UpdateWorldRadianceCaches` | 1.33 | 0.77 | 0.60 | |
-| `LumenSceneLighting` | 1.07 | 0.85 | 0.77 | 거의 고정 |
-| `BasePass` | 0.46 | 0.36 | 0.33 | |
-| `ShadowDepths` | 0.19 | 0.15 | 0.14 | |
-| 반투명(`Translucency`) | 0.19 | 0.06 | 0.04 | D3에서0 |
-| `RayTracingDynamicGeometryUpdate` | 0.21 | 0.19 | 0.20 | |
+| TSR(`PostProcessing` 6.58 중) | 5.63 | 3.71 | 3.11 | 출력·히스토리 해상도 몫이 남는다(§6.7) |
+| Lumen `DiffuseIndirectAndAO`(하위 패스 없음) | 5.12 | 2.65 | 1.63 | 전부 계산 큐 Lumen과 겹친다 → 비동기 Lumen 대기로 판단(§6.7) |
+| 직접광 `Lights`(VSM 투영 1.46·`BatchedLights` 1.10 포함) | 2.89 | 1.38 | 0.92 | 해상도 비례 |
+| `ParallelDraw`(베이스·프리패스 그리기) | 1.37 | 1.14 | 1.08 | 거의 고정 |
+| `BasePass` | 0.92 | 0.72 | 0.66 | |
+| `LumenReflections` | 0.45 | 0.38 | 0.36 | |
+| 반투명 `Translucency` | 0.37 | 0.13 | 0.08 | D3에서0 |
+| `ShadowDepths` | 0.37 | 0.30 | 0.28 | |
+
+계산 큐(`GPU0-Compute0`, 작업 점유 14.21ms — 나머지 6.05ms는 유휴)
+
+| 패스 | D0 | D1 | D2 |
+|:---|---:|---:|---:|
+| `LumenScreenProbeGather` | 8.30 | 4.19 | 2.82 |
+| `UpdateWorldRadianceCaches` | 2.65 | 1.53 | 1.20 |
+| `LumenSceneLighting` | 2.14 | 1.69 | 1.55 |
+| TSR 일부 | 1.23 | 0.61 | 0.40 |
+| `TranslucencyVolumeLighting` | 1.04 | 0.53 | 0.25 |
+| `ContrastAdaptiveShading`(VRS 준비) | 0.82 | 0.72 | 0.69 |
+| `RayTracingDynamicGeometryUpdate` | 0.39 | 0.36 | 0.37 |
 
 **판정**
 
-1. **해상도가 가장 큰 지렛대다.** 화소 비율(1.0/0.449/0.25)에 GPU 합을 최소제곱으로 맞추면 고정 약7.5ms + 화소 비례 약12.8ms(네이티브 기준)다. 렌더 해상도 67%에서 Frame 13.14ms로 60fps 예산(16.6ms) 안에 든다. 화질 변화가 있으므로 채택 여부·기본값·옵션 노출은 O-2에서 사용자가 정한다.
+1. **해상도가 가장 큰 지렛대지만 최후의 카드로 미룬다(2026-11-09 사용자 결정).** 화소 비율(1.0/0.449/0.25)에 GPU 합을 최소제곱으로 맞추면 고정 약7.5ms + 화소 비례 약12.8ms(네이티브 기준)다. 렌더 해상도 67%에서 Frame 13.14ms다. 렌더 해상도를 낮추지 않는 후보(§6.7 TSR 히스토리·Lumen)를 먼저 본다.
 2. **GT 대기는 해상도와 함께 줄었다.** GT 작업은 5.3~6.1ms로 그대로이고 `Sync_RenderingThread`만 14.6→7.6→5.2ms로 줄었다. GT 대기가 GPU 역압이라는 §6.4 판정을 직접 확인했다. 이 Frame에서의 대기 14.6ms(§1의9.27ms보다 큼)는 GT 작업이 줄어든 만큼 대기가 늘어난 것이다(Frame ≈ GT 작업 + 대기).
 3. **가림 버퍼2(D4)는 기각을 확인했다.** RT의 가림 대기 16.5ms, GT 대기 15.2ms가 거의 그대로이고 Frame도 줄지 않았다.
-4. **Pod 빔 비용 상한은 약0.3ms다.** 반투명 패스·반투명 속도 벡터를 합쳐 D0 기준 약0.3ms(1.5%)이며, D3 전체 Frame은 오히려 0.9ms 늘었다(아래 드리프트). 성능을 이유로 Pod 빔을 스캔 시야로 바꿀 근거는 없다. 대체 여부는 게임 디자인으로 정한다.
-5. **동적 RT 지오메트리 GPU 몫은 작다(0.21ms).** §6.4의 화질 중립 후보 중 RT 동적 지오메트리는 GPU 쪽 이득이 작고, CPU(RT 스레드) 쪽 1.8ms만 남는다.
+4. **Pod 빔 비용 상한은 약0.5ms다.** 그래픽 큐 반투명 0.37ms와 반투명 속도 벡터 차이(`RenderVelocities` 0.38→0.26) 약0.12ms를 합친 값이다(약2.5%). 성능을 이유로 Pod 빔을 스캔 시야로 바꿀 근거는 없다. 대체 여부는 게임 디자인으로 정한다.
+5. **동적 RT 지오메트리 GPU 몫은 작다(계산 큐 0.39ms, 비동기).** §6.4의 화질 중립 후보 중 RT 동적 지오메트리는 GPU 쪽 이득이 작고, CPU(RT 스레드) 쪽 1.8ms만 남는다.
 
-**드리프트 주의.** 실행 순서는 D0→D1→D2→D3→D4이고, D3·D4는 거의 모든 패스가 D0보다 4~5% 균일하게 느리다(TSR 3.43→3.91, `SceneRender` 자기 3.10→3.30). 특정 패스가 아니라 전체가 같은 비율로 커진 모양이라 노트북 GPU의 클럭·온도 드리프트로 본다. 따라서 이 세트에서 ±1ms(약5%) 이하 차이는 판정하지 않는다. 1·2·3번 판정은 이 폭보다 훨씬 크다.
+**드리프트 주의.** 실행 순서는 D0→D1→D2→D3→D4이고, D3·D4는 거의 모든 패스가 D0보다 4~5% 균일하게 느리다(그래픽 큐 TSR 5.63→6.53/5.97, 계산 큐 스크린 프로브 8.30→8.57/8.75). 특정 패스가 아니라 전체가 같은 비율로 커진 모양이라 노트북 GPU의 클럭·온도 드리프트로 본다. 따라서 이 세트에서 ±1ms(약5%) 이하 차이는 판정하지 않는다. 1·2·3번 판정은 이 폭보다 훨씬 크다.
 
-**다음 후보(미검증)**
+### 6.7 미분해 3.1ms 확인과 큐별 재집계 (2026-11-09)
 
-- O-2 해상도: 67%·75%와 TSR 품질 단계를 화질 비교와 함께 정식 3회 측정.
-- Lumen 비용(위 표 `DiffuseIndirectAndAO` 두 항목만 7.5ms, 월드 래디언스 캐시·장면 조명과의 중첩 관계는 미확인, 해상도 비례가 대부분): `sg.GlobalIlluminationQuality`·`sg.ReflectionQuality` 단계와 스크린 프로브 다운샘플을 같은 진단 경로로 분리.
-- `SceneRender` 자기 시간 3.1ms: GPU 트랙 계층을 Insights GUI로 열어 이름 없는 구간의 위치를 확인(선행 측정 §6 3번의 미설명 몫과 같은 대상인지).
+§6.6 초판에 `SceneRender` 자기 시간 3.10ms로 적었던 몫은 **실제 작업이 아니라 계산 큐의 유휴 시간이다.**
+
+- `Frame`·`SceneRender`는 그래픽 큐와 계산 큐에 하나씩, 둘 다 프레임 전체 길이로 기록된다. `ExportTimerStatistics`는 `-threads="GPU0-Graphics0"`처럼 큐를 지정해도 모든 GPU 큐를 합쳐 내보낸다(두 큐 지정 결과가 합본과 같았다).
+- 합본 `Frame` Count가 실제 프레임의 2배인 이유는 "트랙 중복"이 아니라 이 두 큐다. 합본을 `Frame` Count로 나누면 한 큐에만 있는 패스는 **절반**이 되고, 계산 큐의 빈 시간이 `SceneRender` 자기 시간으로 섞인다. 계산 큐 `SceneRender` 자기 6.05ms + 그래픽 큐 0.15ms를 2로 나누면 3.10ms로 정확히 맞는다.
+- 그래서 패스 표는 `TimingInsights.ExportTimingEvents "<csv>" -columns="*" -threads="GPU*" -region="LNPGraphicsCapture"`로 원시 이벤트를 받아 큐마다 집계했다(포함 시간은 같은 이름 중첩을 한 번만, 자기 시간은 직계 자식 제외). 원자료는 각 회차 `Exports/GPUEvents_Capture.csv`, 집계는 `RenderSyncDiag_20261108/QueueStats.json`.
+
+**그래픽 큐의 Lumen 대기.** 그래픽 큐 `DiffuseIndirectAndAO`(D0 5.33ms, 10초 구간 492프레임)는 하위 패스가 하나도 없고 그 시간 전부가 계산 큐의 `LumenScreenProbeGather`·`Integrate` 작업과 겹친다. 그래픽 큐가 비동기 Lumen 결과를 기다리는 펜스 구간으로 판단한다(하드웨어 카운터 없이 겹침으로 추정). 즉 비동기 계산 Lumen이 **임계 경로에 약5ms** 올라와 있다. Lumen 비용을 줄이는 실험은 패스 시간이 아니라 Frame·그래픽 큐 점유로 판정한다.
+
+**TSR 히스토리 200%.** 프로젝트는 Epic 품질(`sg.AntiAliasingQuality=3`)이고, 엔진 `BaseScalability.ini`의 `[AntiAliasingQuality@3]`가 `r.TSR.History.ScreenPercentage=200`을 준다(High 이하는 100). 히스토리를 출력의 축당 2배(화소 4배)로 유지하므로, 렌더 해상도를 50%로 낮춰도 그래픽 큐 TSR이 3.11ms 남는다. 프로젝트 `Config`에는 이 값을 바꾸는 줄이 없다.
+
+**다음 후보(미검증, 렌더 해상도 유지)**
+
+- **TSR 히스토리:** `r.TSR.History.ScreenPercentage=100`(다른 AA 설정은 Epic 유지)을 같은 진단 경로로 1회 측정. 네이티브 렌더에서 히스토리 초해상도가 주는 화질 차이를 정지·이동 화면으로 함께 비교한다.
+- **Lumen 단계 분리:** 스크린 프로브(`r.Lumen.ScreenProbeGather.*` 다운샘플·트레이싱 옥타헤드론 해상도), 월드 래디언스 캐시, 비동기 계산 끄기(`r.Lumen.DiffuseIndirect.AsyncCompute=0`)를 하나씩. 임계 경로 대기가 실제로 줄어드는지 그래픽 큐 `DiffuseIndirectAndAO`로 확인한다.
+- **직접광 2.89ms:** VSM 투영 1.46ms가 해상도 비례로 커서 `r.Shadow.Virtual.*` 투영 품질을 Lumen 다음으로 본다.
+- 2026-09-25 선행 측정의 "설명되지 않은 약3~4ms"도 같은 합본 분모로 집계했으므로 같은 착시일 가능성이 높다(재집계는 하지 않았다).
+
+### 6.8 TSR 히스토리 100% 진단 D5 (2026-11-09)
+
+같은 패키지·같은 조건(Medium·180/60초·같은 trace 인자)에 `-LNPGraphicsDiagnosticCVars="r.TSR.History.ScreenPercentage=100"`만 더했다. 다른 AA 설정은 Epic(`sg.AntiAliasingQuality=3`) 그대로이고 렌더 해상도는 100%다. `status=complete`, 종료 코드 777003(보존), `Runtime.log`에 엔진 기본 200 적용 뒤 진단 줄로 100이 덮인 순서를 확인했다. 원자료 `RenderSyncDiag_20261108/D5/`.
+
+| 지표 | D0 | D5 | 차이 |
+|:---|---:|---:|---:|
+| Frame(CSV 평균) | 20.33 | 18.70 | −1.63 (−8%) |
+| GT 작업(CSV) | 5.75 | 5.88 | — |
+| GPU(CSV) | 19.82 | 18.19 | −1.63 |
+| Frame P95 | 21.25 | 19.69 | −1.56 |
+| 그래픽 큐 TSR | 5.63 | 4.04 | −1.59 |
+| 그래픽 큐 작업 점유 | 19.73 | 18.10 | −1.63 |
+| 그래픽 큐 Lumen 대기(`DiffuseIndirectAndAO`) | 5.57 | 5.55 | 0 |
+| 계산 큐 TSR | 1.23 | 1.23 | 0 |
+
+- **이득은 TSR 그래픽 몫에서만 나왔다.** 줄어든 Frame과 TSR 감소가 같고, 나머지 패스는 D0와 같아 이 회차에는 D3·D4에서 본 드리프트가 없다.
+- **남은 TSR 4.04ms**는 Epic 단계의 나머지 설정(`r.TSR.History.UpdateQuality=3`·`r.TSR.RejectionAntiAliasingQuality=2`)과 출력 1440p 처리 몫이다. High 단계(`sg.AntiAliasingQuality=2`)는 D5 설정에 이 두 값을 2·1로 낮춘 것과 같다.
+- **화질 육안 비교(2026-11-09 사용자):** 같은 패키지 콘솔에서 `r.TSR.History.ScreenPercentage 100`/`200`을 바꿔 원거리 디테일 위주로 봤고 차이를 거의 구분하지 못했다. 다만 현재 맵·캐릭터가 프로토타입 에셋이라 이 결과로는 판정하지 않는다(§6.9).
+- 채택하면 `DefaultScalability.ini`의 `[AntiAliasingQuality@3]`에 이 한 줄만 덮어쓰는 방식이 된다.
+
+### 6.9 마무리와 보류 결정 (2026-11-09 사용자 확인)
+
+**이 인계의 질문(GT 렌더 동기화 대기)은 닫는다.** GT 대기는 GPU 처리량 부족이 역류한 대기이고(§6.1·§6.6), 동기화 설정 변경은 효과가 없다(§6.4·D4). GT·동기화 쪽에서 고칠 것은 없다. 남은 개선은 GPU 비용이며 렌더링 최적화 트랙 O에서 다룬다.
+
+**설정 결정은 보류한다. 기준선은 Epic 기본값 그대로다.**
+
+- TSR 비용은 화소 수(출력·히스토리 해상도)로 정해져 콘텐츠가 바뀌어도 D5의 −1.6ms는 유지될 것으로 본다. 그러나 히스토리 초해상도의 화질 이득은 촘촘한 식생·얇은 형상·고주파 텍스처·카메라 이동에서 드러나는데, 현재 프로토타입 에셋에는 이런 요소가 거의 없다. 지금의 "구분 안 됨"은 최종 콘텐츠에서의 판단 근거가 되지 못한다.
+- Phase 0 기준선(Low·Medium·High 3회)은 Epic 200%로 잡았다. 지금 바꾸면 기존 자료와 이후 측정을 직접 비교할 수 없다.
+- Lumen 설정은 콘텐츠 영향이 TSR보다 크다(형상 밀도에 따라 표면 캐시·카드 캡처·그림자 비용 구성 자체가 바뀐다). 프로토타입 장면에서 세밀하게 조정하지 않는다.
+- 해상도 하향은 최후의 카드로 둔다(§6.6 판정 1).
+
+**재개 조건과 방법.** 벤치마크 콘텐츠(고밀도 옥탄트 1개·파라곤 적, [로드맵](../Roadmap.md) Phase 1)가 들어온 뒤, 같은 진단 경로(§6.5)와 큐별 집계(§6.7)로 다음을 다시 잰다.
+
+| 후보 | 이번 근거 | 재측정 때 볼 것 |
+|:---|:---|:---|
+| `r.TSR.History.ScreenPercentage=100` | D5 Frame −1.63ms(−8%) | 식생·얇은 형상 장면의 정지·이동 화질, 설정 메뉴 품질 옵션으로 노출할지 |
+| `sg.AntiAliasingQuality=2`(TSR 나머지 설정) | D5 뒤 TSR 4.04ms 잔여 | 위와 같은 화질 비교 |
+| Lumen 스크린 프로브·월드 래디언스 캐시·비동기 계산 | 그래픽 큐 Lumen 대기 약5ms(§6.7) | 그래픽 큐 `DiffuseIndirectAndAO`·Frame으로 판정 |
+| VSM 투영 | 그래픽 큐 1.46ms, 해상도 비례 | 그림자 품질 |
+
+진단 패키지 `Saved/Graphics/RenderSyncDiagPackage_20261108`와 원자료 `Saved/Profiling/Graphics/RenderSyncDiag_20261108/`(D0~D5, `QueueStats.json`)은 로컬에 보존한다. 콘텐츠가 바뀐 뒤에는 새 패키지로 D0부터 다시 잡고 이번 수치와 직접 섞지 않는다.
