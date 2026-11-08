@@ -4,6 +4,8 @@
 
 2026-10-13 사용자가 구덩이에 빠진 뒤 새 훅으로 원활하게 탈출하는 동작까지 PIE에서 확인했다. **Acropolis_00의 지형·이동 동선 프로토타입은 확정 상태**다.
 
+2026-11-08 프로토타입 지면 재질 `M_Acropolis_Ground`의 Base Color를 테라코타색 sRGB `#B77F70`으로 변경했다. 저장 Linear RGB는 약 `(0.4735315, 0.2122308, 0.1620294)`다. Pyramid 지각은 색상 변경 전에 복제한 전용 `M_Pyramid_Ground`로 분리해 기존 색을 유지한다. Acropolis의 LVI·메시·마커·DA·석재/부유석 재질은 변경하지 않았다. 변경 전 복구본과 전후 검사 기록은 `Saved/OctantGroundSeparation/20261108/`에 있다. 아래 기존 에셋 해시·검사 보고서는 당시 버전의 증거이며 이번 색상 변경의 재검사 결과로 취급하지 않는다.
+
 - `manifest.json`: 지형 치수·역할별 FBX·토폴로지·배치 의도.
 - `placement.json`: Pod·훅·대표 출발 지점의 옥탄트 로컬 좌표.
 - `geometry-verification.json`: 이음매 정점 표본·원본 바닥·연결 시야 검사.

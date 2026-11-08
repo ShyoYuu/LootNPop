@@ -26,7 +26,13 @@ TestMap03 PIE 초기 구동에서 Pyramid가 slot 2·7에 배치되고 8개 vali
 
 ## 최종 에셋과 로컬 작업물
 
-최종 경로는 `/Game/Maps/Pyramid_00`이다. LVI·SurfaceData·지각·이동패널 BP 두 개와 Authored V058 메시 15개만 이 폴더에 둔다. `/Game/Maps/OctantPoolData`의 기존 다섯 정의 중 Pyramid 정의가 이 최종 LVI와 SurfaceData를 참조한다. 다른 기존 옥탄트의 공통 재질·훅 BP 참조는 유지한다.
+최종 경로는 `/Game/Maps/Pyramid_00`이다. LVI·SurfaceData·지각·이동패널 BP 두 개·전용 지면 재질과 Authored V058 메시 15개를 이 폴더에 둔다. `/Game/Maps/OctantPoolData`의 기존 다섯 정의 중 Pyramid 정의가 이 최종 LVI와 SurfaceData를 참조한다. 다른 기존 옥탄트의 공통 석재 재질·훅 BP 참조는 유지한다.
+
+2026-11-08 프로토타입 테마 식별을 위해 공유 `M_Acropolis_Ground`를 `M_Pyramid_Ground`로 복제하고 지각의 재질 참조를 교체했다. 기존 Linear RGB `(0.19, 0.24, 0.22)`와 나머지 재질 설정을 보존한다. `Scripts/AssemblePyramidOctant.py`도 전용 재질을 사용한다. Acropolis는 별도 테라코타색으로 변경했으며 Pyramid의 공간·마커는 유지한다. 변경 전 복구본과 전후 검사 기록은 `Saved/OctantGroundSeparation/20261108/`에 있다. LVI 패키지 변경에 따른 DA 재베이크 현재성은 [현재 상태](../../../.context/SurfaceSupportNavigation/Current.md)를 따른다. 위 V058의 이전 에셋 해시·검사 기록은 당시 버전의 증거다.
+
+같은 날 사용자 재베이크에서 DA 저장을 확인했다. 유효 Atlas 표본이 없는 얇은 Layer 경고 17건은 2026-10-16 V058 `Bake.log`와 내용·횟수가 같다. 대상은 `Connections_Floor` 4건, `Storey1_Coarse` 1건, `Storey4_Coarse` 12건이다. 지각을 제외한 Layer 상세 보고 190개가 시간값을 제외하고 이전과 모두 일치하며 총 Layer는 지각 포함 191개다. 경고가 이번 재질 변경에서 새로 발생한 것은 아니며, 모든 얇은 면의 실제 통행 안전성을 이 비교만으로 보장하지 않는다. 경고를 없애기 위해 형상·태그·격자 해상도를 바꾸지 않았다. 비교 근거는 같은 복구 폴더의 `rebake-log-comparison.json`과 `UserRebake.log`다.
+
+후속 `ProductionSurfaceDataDefinitions`·`ProductionSpawnComposition` 혼합 풀 검사와 Pyramid 단독 풀의 `ProductionPoolCurrentAndDeterministic` 검사도 성공했다. 자동 검사 3개 오류/경고 0이며, 저장 DA의 원본 해시와 Support·Navigation·Traversal·Spawn·ConditionalPatch stream이 두 번의 재베이크와 일치한다. 실제 풀 에셋은 보존했다. 재질 변경에서 새 PIE 동선 검토는 반복하지 않았고, 검증 보고서는 같은 복구 폴더의 `CurrentBakeTests/index.json`에 있다.
 
 V056·V057 원본, V058 수정 직전 원본, 증분 제작 스크립트와 당시 기록은 `Art/Octants/_WorkInProgress/Pyramid_00`에 로컬 보관한다. 구버전 UE 메시·반입 시험·스폰 probe·검사 풀은 `Content/Maps/_WorkInProgress/Pyramid_00`에 있다. 두 경로는 `.gitignore`로 제외하며 최종 에셋에서 작업 폴더 참조가 없다. FBX·로그·임시 복구본은 Git 제외인 `Saved/SliceOctant/Pyramid_00/V058`에 남긴다.
 

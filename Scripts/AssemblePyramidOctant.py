@@ -193,8 +193,8 @@ def assemble():
         component.set_editor_property("use_default_collision",False)
         component.set_collision_profile_name("LNPStaticTerrain" if support else "LNPStaticBlocker")
         component.set_mobility(unreal.ComponentMobility.STATIC)
-        material="M_Acropolis_Ground" if item["role"]=="Crust" else "M_Acropolis_Stone"
-        component.set_material(0,unreal.load_asset("/Game/Maps/Acropolis_00/"+material))
+        material=BASE+"/M_Pyramid_Ground" if item["role"]=="Crust" else "/Game/Maps/Acropolis_00/M_Acropolis_Stone"
+        component.set_material(0,unreal.load_asset(material))
     anchor_class=unreal.load_class(None,"/Game/WorldDevice/BP_GrappleAnchor.BP_GrappleAnchor_C")
     panel_path=BASE+"/BP_PyramidMovingPanel"
     if not unreal.EditorAssetLibrary.does_asset_exist(panel_path):
