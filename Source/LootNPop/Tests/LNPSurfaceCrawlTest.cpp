@@ -1242,19 +1242,25 @@ bool FLNPSurfaceCrawlCornerSettleTest::RunTest(const FString& Parameters)
 	{
 		bool bArrived = false;
 		bool bSettled = false;
+		bool bCornerReached = false;
 		int32 Switches = 0;
+		int32 Frames = 0;
 		FVector Location = FVector::ZeroVector;
 		FVector Normal = FVector::UpVector;
 	};
 	// 이동 프로세서의 비교전 배회처럼 목표로 기어간다(조향 = SteerDirection, 도착 = GoalDistanceSq < 30²).
 	// bUseSettle이면 Step 뒤 UpdateCornerSettle을 부르고, 정착하면 중력 Up에 가까운 면에 서서 멈춘다.
-	auto Run = [&](const FVector& Start, const FVector& Goal, const int32 MaxFrames, const bool bUseSettle)
+	// bUseGuard면 Step에 FCornerGuard를 넘기고, 구석 도착을 알리면 그 자리에서 멈춘다.
+	auto Run = [&](const FVector& Start, const FVector& Goal, const int32 MaxFrames, const bool bUseSettle,
+		const bool bUseGuard = false, const FVector& StartNormal = FVector::UpVector)
 	{
 		FRun Result;
 		Result.Location = Start;
+		Result.Normal = StartNormal;
 		FCornerSettleState State;
 		for (int32 Frame = 0; Frame < MaxFrames; ++Frame)
 		{
+			Result.Frames = Frame;
 			if (GoalDistanceSq(Result.Location, Result.Normal, Goal, CrawlTestRadius) < FMath::Square(30.f))
 			{
 				Result.bArrived = true;
@@ -1263,9 +1269,20 @@ bool FLNPSurfaceCrawlCornerSettleTest::RunTest(const FString& Parameters)
 			const FVector GravityUp = (Fixture.FallParams.GravityOrigin - Result.Location).GetSafeNormal();
 			const FVector MoveDir = SteerDirection(Result.Location, Result.Normal, Goal, GravityUp, CrawlTestRadius);
 			FVector Next, NextNormal;
+			FCornerGuard Guard;
+			Guard.Goal = Goal;
+			Guard.GravityUp = GravityUp;
+			Guard.ReachDistance = CrawlTestRadius;
 			const EStepResult StepResult = Step(*Fixture.Collision, Fixture.Params, Result.Location, Result.Normal,
-				MoveDir * CrawlTestSpeed, CrawlTestDeltaTime, Next, NextNormal);
+				MoveDir * CrawlTestSpeed, CrawlTestDeltaTime, Next, NextNormal, nullptr, bUseGuard ? &Guard : nullptr);
 			Result.Switches += FVector::DotProduct(Result.Normal, NextNormal) < SettleParams.SwitchDot ? 1 : 0;
+			if (Guard.bCornerReached)
+			{
+				Result.bCornerReached = true;
+				Result.Location = Next;
+				Result.Normal = NextNormal;
+				break;
+			}
 			if (bUseSettle && StepResult == EStepResult::Attached
 				&& UpdateCornerSettle(State, SettleParams, Result.Normal, NextNormal, Next, CrawlTestDeltaTime))
 			{
@@ -1304,6 +1321,38 @@ bool FLNPSurfaceCrawlCornerSettleTest::RunTest(const FString& Parameters)
 	const FRun Climb = Run(Start, FVector(WallX, 0, 300), 240, true);
 	TestTrue(TEXT("Climbing goal arrives"), Climb.bArrived);
 	TestFalse(TEXT("Single corner pass does not settle"), Climb.bSettled);
+
+	// 4. 갈아타기 미리보기: 구석 목표에서 벽으로 한 번도 갈아타지 않고 바닥 구석에 선다.
+	const FRun Guarded = Run(Start, CornerGoal, 180, false, true);
+	TestTrue(TEXT("Guard reports corner reached"), Guarded.bCornerReached);
+	TestEqual(TEXT("Guard never switches to the wall"), Guarded.Switches, 0);
+	TestTrue(TEXT("Guarded body stays on the floor"), Guarded.Normal.Z > 0.99);
+	TestTrue(TEXT("Guarded body reaches the corner"), Guarded.Location.X > WallX - CrawlTestRadius);
+	TestFalse(TEXT("Guarded body does not penetrate"), Fixture.IsPenetrating(Guarded.Location, Guarded.Normal));
+
+	// 5. 미리보기가 있어도 벽을 오르는 목표는 갈아타서 도착한다.
+	const FRun GuardedClimb = Run(Start, FVector(WallX, 0, 300), 240, false, true);
+	TestTrue(TEXT("Guarded climbing goal arrives"), GuardedClimb.bArrived);
+	TestFalse(TEXT("Guarded climb is not a corner arrival"), GuardedClimb.bCornerReached);
+
+	// 6. 벽에서 내려와 구석에 닿으면 바닥(중력 Up에 가까운 면)으로 갈아타며 도착한다.
+	const FRun Descend = Run(FVector(WallX, 0, 250), CornerGoal, 240, false, true, FVector(-1, 0, 0));
+	TestTrue(TEXT("Descending guard reports corner reached"), Descend.bCornerReached);
+	TestTrue(TEXT("Descending guard lands on the floor face"), Descend.Normal.Z > 0.99);
+	TestFalse(TEXT("Descending guard does not penetrate"), Fixture.IsPenetrating(Descend.Location, Descend.Normal));
+
+	// 7. 목표 없이 밀리는 이동(분리력만)은 벽에 막혀도 갈아타지 않는다.
+	{
+		const FVector Near(WallX - 2.0, 0, FloorZ);
+		FCornerGuard Guard;
+		Guard.bForbidSwitch = true;
+		FVector Next, NextNormal;
+		const EStepResult StepResult = Step(*Fixture.Collision, Fixture.Params, Near, FVector::UpVector,
+			FVector(400, 0, 0), CrawlTestDeltaTime, Next, NextNormal, nullptr, &Guard);
+		TestEqual(TEXT("Push-only move is blocked at the wall"), static_cast<int32>(StepResult), static_cast<int32>(EStepResult::Blocked));
+		TestTrue(TEXT("Push-only move keeps the floor normal"), NextNormal.Z > 0.99);
+		TestFalse(TEXT("Push-only move is not a corner arrival"), Guard.bCornerReached);
+	}
 	return true;
 }
 

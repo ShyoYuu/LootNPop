@@ -485,7 +485,7 @@ namespace LNPSurfaceCrawl
 
 	EStepResult Step(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Location, const FVector& Normal, const FVector& Velocity, const float DeltaTime,
-		FVector& OutLocation, FVector& OutNormal, FLNPExactHitIdentity* OutSurfaceIdentity)
+		FVector& OutLocation, FVector& OutNormal, FLNPExactHitIdentity* OutSurfaceIdentity, FCornerGuard* Guard)
 	{
 		OutLocation = Location;
 		OutNormal = Normal;
@@ -554,6 +554,26 @@ namespace LNPSurfaceCrawl
 			FVector Corner;
 			FVector WallNormal;
 			SettleOn(Hit, Location + Lift, Params, Corner, WallNormal, OutSurfaceIdentity);
+			// 갈아타기 미리보기(FCornerGuard): 새 면에서의 조향이 지금 면으로 되돌아오면 구석이 목적지다. 갈아타지 않고 선다.
+			// 새 면이 중력 Up에 더 가까우면(벽에서 내려와 바닥 구석) 바닥에 서는 편이 자연스러우므로 갈아타되 도착으로 알린다.
+			if (Guard != nullptr)
+			{
+				const bool bReturns = Guard->bForbidSwitch
+					|| FVector::DotProduct(SteerDirection(Corner, WallNormal, Guard->Goal, Guard->GravityUp, Guard->ReachDistance), -Up)
+						> Guard->ReturnDot;
+				if (bReturns)
+				{
+					const bool bTakeLower = !Guard->bForbidSwitch
+						&& FVector::DotProduct(WallNormal, Guard->GravityUp) > FVector::DotProduct(Up, Guard->GravityUp);
+					Guard->bCornerReached = !Guard->bForbidSwitch;
+					if (!bTakeLower)
+					{
+						if (OutSurfaceIdentity != nullptr)
+							*OutSurfaceIdentity = FLNPExactHitIdentity();
+						return EStepResult::Blocked;
+					}
+				}
+			}
 			if (!Lift.IsZero())
 			{
 				FLNPWorldHit Down;

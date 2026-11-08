@@ -126,6 +126,12 @@ UE5.8의 `FTasksProvider::TryGetWaiting`은 `WaitUntilTasksComplete`·`GameThrea
 
 개별CPU 이벤트의 분포를 구할 때는GT 전용·같은 측정 선택에서 필요한 타이머를 각각 `Export Timing Events (Selection)`으로 저장하고, 스레드·타이머ID·호출 수·구간 경계·깊이를 기존 통계와 대조한다. 부모/자식 이벤트는 시간 포함과 깊이+1로 연결하며, 자식끼리 겹치거나 부모에 배정되지 않는 이벤트를 조용히 제외하지 않는다. 경계에 걸친 이벤트가 있으면 잘라 집계하는 규칙을 별도로 검증한다. 현재Wander 자료에는 경계 교차가 없다.
 
+GUI 대신 명령줄로도 개별 이벤트를 내보낼 수 있다(2026-11-08 배회 전후 비교에서 검증).
+- 응답 파일 한 줄: `TimingInsights.ExportTimingEvents "<csv>" -threads="GameThread" -timers="LNPEnemyWanderProcessor*,FEngineLoop::Tick,LNPWander_*" -columns="ThreadName,TimerName,StartTime,EndTime,Duration,Depth"`. `-timers`는 와일드카드를 받으므로 접미사가 붙는 프로세서 타이머도 잡힌다.
+- 실행은 `UnrealInsights.exe -OpenTraceFile=<trace> -ExecOnAnalysisCompleteCmd=@=<응답 파일>`로 한다. `-NoUI -AutoQuit`를 붙이면 분석 전에 끝나 파일이 생기지 않는다. 그래서 창 모드로 띄우고, 로그에 `Exported N timing events`가 찍히면 프로세스를 끝낸다.
+- 측정 구간은 손으로 고른 시각 대신 정렬로 정한다. 프레임당 Wander가 1회라는 전제에서 CSV 캡처 행과 이벤트 열을 이동량별로 대조한다. 이동량을 고를 때는 계수–시간 상관을 쓴다. 이를 독립적으로 검증할 때는 `LNPWander_WorldSeconds` 증분과 이벤트 시작 시각 증분의 상관을 쓴다. 맞는 위치에서만 상관이 0.95 이상이고, 한 프레임만 어긋나도 0 근처로 떨어진다. 스파이크가 없어진 실행에서는 계수 상관이 0.36까지 낮아지므로 증분 상관 검증을 꼭 함께 남긴다.
+- 스크립트: `Saved/Profiling/Graphics/Phase00/WanderOptimized_20261108/AnalyzeWander.py`·`CheckAlignment.py`. 이 경로로 기존 수동 내보내기의 기준선 수치를 그대로 재현했다.
+
 이벤트P50/P95/P99는 오름차순 자료의 `ceil(p×N)`번째 값(nearest-rank)이며 분모는 이벤트 실행 횟수다. 프레임당 비용의 분모와 구분한다. Insights의 기존 `I.Med`·`E.Med`는UE5.8 `TimelineStatistics`의100칸 히스토그램 기반 추정값이므로, 개별 이벤트의 정렬 분위수와 같다고 가정하지 않는다. 기존3회 기준선 중앙값 규약은 바꾸지 않는다.
 
 기본 내보내기의 시작/종료 시각은 `AppendValueAsTimestamp`의 `%.9g` 형식이다. 현재184~244초 구간은1μs 격자로 반올림되므로 짧은 자식 질의를 많이 더할 때 오차가 누적될 수 있다. 타이머 합계와 원본 집계의 차이를 기록하고, 개별 실행의 자식 합계/잔여 시간은 유도값으로 표시한다. 질의 수K개를 합산한 보수적 오차 한계는 자식 합계Kμs·부모에서 뺀 잔여 시간(K+1)μs다. 잔여 시간을 내부의 특정 코드 단계 비용으로 귀속하지 않는다. 고비용 구분용 임계값은 설명용이며 새 성능 통과 기준으로 쓰지 않는다.

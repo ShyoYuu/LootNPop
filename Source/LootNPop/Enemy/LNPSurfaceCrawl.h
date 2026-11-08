@@ -43,6 +43,7 @@ namespace LNPSurfaceCrawl
 		/**
 		 * 앞이 Unknown이거나 지지 hit가 Unknown이라 움직이지 않았다. 표면은 그대로다.
 		 * 낮은 틈에서 이동 결과가 법선 쪽 면에 겹쳐도 전진하지 않고 Blocked다 — 이때만 겹침 해소로 위치가 조금 바뀔 수 있다.
+		 * FCornerGuard가 오목 모서리 갈아타기를 거절해도 Blocked다(제자리, 지금 면 유지).
 		 */
 		Blocked,
 		/** 이동 끝에 붙을 표면이 없다. 호출자가 공중으로 넘긴다. */
@@ -346,6 +347,26 @@ namespace LNPSurfaceCrawl
 	LOOTNPOP_API bool IsCrawlable(const FLNPExactHitIdentity& Identity);
 
 	/**
+	 * 오목 모서리 갈아타기 미리보기(2026-11-08). 붙을 면은 "지금 면"에 따라 정해지므로, 목표가 몸이 닿을 수 없는 구석 안쪽이면
+	 * A에서는 B에 막혀 B로, B에서는 조향(내리막)이 A로 되돌려 A로 가는 주기 2 반복이 생긴다(바닥 ↔ 벽 떨림).
+	 * 갈아타기 직전에 새 면에서의 조향을 한 번 계산해, 그 방향이 지금 면 쪽으로 되돌아가면 갈아타지 않는다.
+	 * query는 늘지 않는다(거절하면 내려앉기 sweep 1회가 오히려 빠진다).
+	 */
+	struct FCornerGuard
+	{
+		/** 이동 프로세서와 같은 조향 입력. */
+		FVector Goal = FVector::ZeroVector;
+		FVector GravityUp = FVector::UpVector;
+		float ReachDistance = 0.f;
+		/** 새 면 조향과 지금 면 -법선의 내적이 이보다 크면 되돌아오는 것으로 본다. */
+		float ReturnDot = 0.5f;
+		/** 목표 없이 밀리는 이동(속도 0에 분리력만)은 갈아타지 않는다. */
+		bool bForbidSwitch = false;
+		/** 출력: 이번 Step에서 갈아타기를 거절했거나, 되돌아올 갈아타기를 받아들였다(중력 Up에 더 가까운 면으로만). 호출자가 도착으로 다룬다. */
+		bool bCornerReached = false;
+	};
+
+	/**
 	 * 한 프레임 이동. Velocity는 월드 속도이며 Normal의 접평면 성분만 쓴다.
 	 * - 접평면 sweep이 붙을 수 있는 면에 막히면 그 면의 접촉 법선으로 갈아탄다(오목 모서리). 남은 이동은 버린다.
 	 * - 이동 뒤 -Normal probe가 붙을 수 있는 면에 닿으면 그 접촉 법선으로 붙는다(평면·완만한 굴곡·볼록 모서리).
@@ -356,10 +377,13 @@ namespace LNPSurfaceCrawl
 	 * OutSurfaceIdentity: 이번 이동으로 새로 붙은 면의 hit identity. 붙을 면을 새로 찾지 않은 프레임(정지·겹침 해소·막힘·상실)에는
 	 * 바꾸지 않는다 — 호출자가 Unknown으로 초기화해 두면 "새 면 없음"으로 읽는다. 동적 지지면 운반 접촉에 쓴다.
 	 * 시작 겹침을 풀지 못하면(Depenetrate 실패) 제자리에 둔다. 마지막으로 민 자리는 다른 면 안일 수 있다.
+	 * Guard가 있으면 오목 모서리 갈아타기 전에 FCornerGuard 규칙으로 거절할 수 있다. 거절하면 제자리 Blocked다.
+	 * 단 새 면이 중력 Up에 더 가까우면(벽에서 바닥 구석으로 내려온 경우) 바닥으로 갈아타고 bCornerReached만 세운다.
 	 */
 	LOOTNPOP_API EStepResult Step(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Location, const FVector& Normal, const FVector& Velocity, float DeltaTime,
-		FVector& OutLocation, FVector& OutNormal, FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
+		FVector& OutLocation, FVector& OutNormal, FLNPExactHitIdentity* OutSurfaceIdentity = nullptr,
+		FCornerGuard* Guard = nullptr);
 
 	/**
 	 * 제자리에서 표면을 찾아 붙는다(스폰·착지 직후처럼 법선을 모를 때). SearchDirection 쪽으로 StepDown + Reach만큼 probe한다.

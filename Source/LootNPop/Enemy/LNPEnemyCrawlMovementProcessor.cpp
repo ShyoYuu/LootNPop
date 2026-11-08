@@ -626,9 +626,18 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 					bNearPanel |= FVector::DistSquared(Support.CurrentTransform.GetLocation(), Location) < FMath::Square(StationaryCrushCheckRadius);
 				}
 			}
+			// 오목 모서리 갈아타기 미리보기: 비교전 배회는 새 면의 조향이 되돌아오면 갈아타지 않는다(구석 목표의 바닥 ↔ 벽 떨림).
+			// 속도 0(도착·경계·공격·피격 반응)에서 분리력만으로 밀리는 이동은 갈아타지 않는다. 교전 추격은 우회 로직이 맡으므로 그대로다.
+			LNPSurfaceCrawl::FCornerGuard CornerGuard;
+			CornerGuard.Goal = Goal;
+			CornerGuard.GravityUp = GravityUp;
+			CornerGuard.ReachDistance = ReachDistance;
+			CornerGuard.bForbidSwitch = Speed <= 0.f;
+			const bool bUseCornerGuard = Targeting.State == ELNPTargetingState::None || Speed <= 0.f;
 			const LNPSurfaceCrawl::EStepResult StepResult = bNearPanel
 				? LNPSurfaceCrawl::ResolveStationaryOverlap(WorldCollision, CrawlParams, Location, Normal, NewLocation)
-				: LNPSurfaceCrawl::Step(WorldCollision, CrawlParams, Location, Normal, Velocity, DeltaTime, NewLocation, NewNormal, &SurfaceIdentity);
+				: LNPSurfaceCrawl::Step(WorldCollision, CrawlParams, Location, Normal, Velocity, DeltaTime, NewLocation, NewNormal, &SurfaceIdentity,
+					bUseCornerGuard ? &CornerGuard : nullptr);
 			// 압사(사용자 결정 2026-10-06): 움직이는 지형과 다른 면 사이에 끼어 겹침을 풀 수 없다. 체력을 0으로 만들어 기존 사망 경로
 			// (ULNPHealthProcessor → Dying 태그·사망 낙하·복제)를 탄다. 지상·비행 압사는 Idea_Backlog 후보다.
 			if (StepResult == LNPSurfaceCrawl::EStepResult::Crushed)
@@ -637,9 +646,15 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				EnemyData.Health = 0.f;
 				UE_LOG(LogLootNPop, Log, TEXT("[SurfaceCrawlCrush] enemy=%d at %s"), Ctx.GetEntity(i).Index, *Location.ToString());
 			}
-			// 비교전 배회가 몸이 닿을 수 없는 오목 구석 안쪽(Pod 뿌리 등)을 향하면 바닥 ↔ 벽을 매 프레임 갈아타며 떤다.
-			// 같은 구석의 왕복이 이어지면 두 면 중 중력 Up에 가까운 면(대개 바닥)에 서고 도착으로 다룬다.
-			if (Targeting.State == ELNPTargetingState::None && Speed > 0.f && StepResult == LNPSurfaceCrawl::EStepResult::Attached
+			// 구석이 목적지면(미리보기가 갈아타기를 거절) 그 자리를 도착으로 다룬다. 다음 목표는 IdleTask가 뽑는다.
+			if (Targeting.State == ELNPTargetingState::None && Speed > 0.f && CornerGuard.bCornerReached)
+			{
+				IdleData.bCornerSettled = true;
+				ChunkEntitiesToSignal.Add(Ctx.GetEntity(i));
+			}
+			// 안전망: 미리보기로 거르지 못한 왕복(조향이 경계값 근처인 비스듬한 구석 등)이 같은 구석에서 이어지면
+			// 두 면 중 중력 Up에 가까운 면(대개 바닥)에 서고 도착으로 다룬다.
+			else if (Targeting.State == ELNPTargetingState::None && Speed > 0.f && StepResult == LNPSurfaceCrawl::EStepResult::Attached
 				&& LNPSurfaceCrawl::UpdateCornerSettle(CrawlData.CornerSettle, CornerParams, Normal, NewNormal, NewLocation, DeltaTime))
 			{
 				IdleData.bCornerSettled = true;
