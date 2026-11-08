@@ -297,6 +297,45 @@ namespace LNPSurfaceCrawl
 	/** 교전·공중 등 계측하지 않는 프레임에 비운다. 재귀속 뒤에도 비운다. */
 	LOOTNPOP_API void ResetHomeApproach(FHomeApproachState& State);
 
+	/** 오목 구석 왕복 감지 상태. 개체마다 하나(FLNPEnemyCrawlFragment)이며 UpdateCornerSettle·ResetCornerSettle만 바꾼다. */
+	struct FCornerSettleState
+	{
+		/** 직전 면 전환에서 떠난 면의 법선. */
+		FVector LeftNormal = FVector::ZeroVector;
+		/** 첫 전환 자리. 왕복이 이 근처에서 이어져야 같은 구석이다. */
+		FVector Anchor = FVector::ZeroVector;
+		/** 마지막 면 전환 뒤 지난 시간(초). */
+		float SinceSwitch = 0.f;
+		/** 같은 구석에서 이어진 면 전환 수. 0이면 계측 전이다. */
+		uint8 Switches = 0;
+	};
+
+	struct FCornerSettleParams
+	{
+		/** 전후 법선 내적이 이보다 작으면 면을 갈아탄 것으로 본다(약 45도). 볼록 모서리 감싸기는 법선이 조금씩 돌아 세지 않는다. */
+		float SwitchDot = 0.7f;
+		/** 새 법선과 직전에 떠난 면의 법선 내적이 이보다 크면 그 면으로 되돌아온 것이다. */
+		float ReturnDot = 0.95f;
+		/** 전환 사이 간격이 이보다 길면 왕복으로 보지 않는다(초). */
+		float Window = 0.5f;
+		/** 왕복이 첫 전환 자리에서 이 거리(cm) 안이어야 한다. 몸 반지름을 쓴다. */
+		float Radius = 40.f;
+		/** 이만큼 이어진 전환(A→B→A→B)이면 정착이다. 턱을 한 번 넘는 A→B→A는 세지 않는다. */
+		uint8 SettleSwitches = 3;
+	};
+
+	/**
+	 * 비교전 배회 중 표면에 붙어 있는 프레임마다 Step 뒤에 부른다. Normal은 Step 전, NewNormal은 Step 뒤 법선이다.
+	 * 몸 구가 닿을 수 없는 오목 구석 안쪽의 목표(Pod 뿌리 등)를 향하면 바닥 → 벽 → 바닥을 매 프레임 갈아타며 떤다.
+	 * 같은 구석에서 Window 간격 안의 전환이 SettleSwitches번 이어지면 true를 반환하고 상태를 비운다 — 호출자가 도착으로 다룬다.
+	 * 모서리를 지나가는 한 번의 전환은 되돌아오지 않으므로 끼어들지 않는다. query는 쓰지 않는다.
+	 */
+	LOOTNPOP_API bool UpdateCornerSettle(FCornerSettleState& State, const FCornerSettleParams& Params, const FVector& Normal,
+		const FVector& NewNormal, const FVector& Location, float DeltaTime);
+
+	/** 교전·공중 등 비교전 배회가 아닌 프레임에 비운다. */
+	LOOTNPOP_API void ResetCornerSettle(FCornerSettleState& State);
+
 	/**
 	 * 직선거리로 가장 가까운 후보의 인덱스. 같은 거리면 앞 인덱스다. 후보가 없으면 INDEX_NONE.
 	 * Excluded[i]가 true인 후보는 건너뛴다(이미 다가가지 못한 Pod). 비어 있으면 모두 후보다.
@@ -372,4 +411,15 @@ namespace LNPSurfaceCrawl
 	 */
 	LOOTNPOP_API bool ValidateWanderSegment(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Start, const FVector& Normal, const FVector& Goal, float MaxGapError = 2.f, float MinNormalDot = 0.99f);
+
+	/**
+	 * ValidateWanderSegment와 같은 검사로 Start에서 Goal 쪽으로 쓸 수 있는 가장 긴 앞부분을 찾는다(거부 대신 자르기).
+	 * - 같은 높이 sweep이 막히면 hit 거리에서 몸 반지름 × 0.25를 남기고 자른다. 벽에 붙지 않아 Active 전환 때 구석에 끼어 출발하지 않는다.
+	 * - 그 안의 몸 반지름 간격 probe가 처음 실패하기 직전 표본이 끝이다.
+	 * 끝까지의 길이가 MinLength 이상이면 OutGoal을 쓰고 true. 시작이 지형에 겹쳐 있으면 false.
+	 * query: 1 + 통과한 probe 수(+실패 1)회.
+	 */
+	LOOTNPOP_API bool TrimWanderSegment(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Start, const FVector& Normal, const FVector& Goal, float MinLength, FVector& OutGoal,
+		float MaxGapError = 2.f, float MinNormalDot = 0.99f);
 }

@@ -30,7 +30,7 @@
 | `FLNPEnemySharedFragment` | `ULNPEnemyConfig` 포인터 (동일 타입 공유 — ConstShared) |
 | `FLNPEnemyTargetingCandidateFragment` | 인식된 잠재 타겟 최대 4명 (거리 정렬) + `AlertDwellTime`(경계 인내) + `DisengageTimer`(재발견 금지 잔여). **뒤 두 float는 Reset 대상이 아니다** — §3.4 |
 | `FLNPEnemyTargetingFragment` | 최종 타겟, `ELNPTargetingState`(None/Alert/Confirmed), 마지막 타겟 위치, 거리² |
-| `FLNPEnemyIdleFragment` | 배회 타이머·플래그 + 미도달 타임아웃(`TimeSinceWanderIssued`/`bWanderTargetTimedOut` — §5.1 끝) |
+| `FLNPEnemyIdleFragment` | 배회 타이머·플래그 + 미도달 타임아웃(`TimeSinceWanderIssued`/`bWanderTargetTimedOut` — §5.1 끝) + 구간 배회 상태(구간·정지 적용·연속 실패 수)·벽보행 오목 구석 정착(`bCornerSettled`) — 규칙은 `SurfaceSupportNavigation/design/MovementIntegration.md` "서버 구간 배회"·"벽 타기 NPC" |
 | `FLNPEnemyVelocityFragment` | Entity 모드 물리 속도 (넉백·사망 팝의 포물선). 접지 시 0 |
 | `FLNPEnemySeparationFragment` | 겹침을 푸는 접평면 밀어내기 속도. 분리 프로세서가 매 프레임 확정하고 이동 프로세서가 소비 — §5.0 |
 | `FLNPEntityAttackFragment` · `FLNPEnemyActionFragment` | 순수 엔티티 공격 위상 / 게스트 연출의 단일 입력인 행동 상태 → [LowLOD](TechDesign_EnemyNPC_LowLOD.md) §4·§5 |

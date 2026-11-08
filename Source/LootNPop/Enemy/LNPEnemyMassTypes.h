@@ -242,6 +242,15 @@ struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 	FLNPEnemyWanderSegment WanderSegment;
 	/** 이번 PrePhysics에 구간 프로세서가 이동을 소유했다. 매 실행 시작에 초기화한다. */
 	bool bWanderHandled = false;
+	/**
+	 * 구간 정지 위치를 이미 적용했다. 같은 스냅샷이면 지면 재투영·회전 계산의 결과가 같으므로 매 프레임 다시 하지 않는다.
+	 * 구간을 바꾸거나 무효화하면 내린다.
+	 */
+	bool bWanderHoldApplied = false;
+	/** bWanderHoldApplied를 세운 프레임의 스냅샷(비교 전용, 역참조하지 않는다). 같은 Generation이어도 조건부 패치가 스냅샷을 바꾼다. */
+	const void* WanderHoldSnapshot = nullptr;
+	/** 구간 배회 후보를 하나도 채택하지 못한 연속 횟수. 실패 뒤 재시도 간격을 늘린다. 채택·무효화하면 0이다. */
+	uint8 ConsecutiveWanderFailures = 0;
 
 	UPROPERTY(Transient)
 	double LastWanderTime = 0.0;
@@ -263,6 +272,13 @@ struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 	 */
 	UPROPERTY(Transient)
 	uint8 bWanderTargetTimedOut : 1 = false;
+
+	/**
+	 * 벽보행 개체가 오목 구석에서 두 면을 오가 배회 목표에 닿을 수 없다(LNPSurfaceCrawl::UpdateCornerSettle).
+	 * 벽보행 이동 프로세서가 세우고 도착으로 다루며, IdleTask가 도착 처리 후 새 목표를 발급할 때 내린다.
+	 */
+	UPROPERTY(Transient)
+	uint8 bCornerSettled : 1 = false;
 };
 
 /** 서버 경로와 현재 조향점. MoveTarget은 계속 의미상 목표를 소유한다. */
@@ -707,6 +723,9 @@ struct LOOTNPOP_API FLNPEnemyCrawlFragment : public FMassFragment
 
 	/** 비교전 중 Home 접근 계측(LNPSurfaceCrawl::UpdateHomeApproach). 서버 이동 프로세서만 쓴다. */
 	LNPSurfaceCrawl::FHomeApproachState HomeApproach;
+
+	/** 비교전 중 오목 구석 왕복 감지(LNPSurfaceCrawl::UpdateCornerSettle). 서버 이동 프로세서만 쓴다. */
+	LNPSurfaceCrawl::FCornerSettleState CornerSettle;
 
 	/**
 	 * 다가가지 못해 재귀속으로 떠난 Pod(최근 MaxFailedPods개, 순환 기록). 재귀속 후보에서 뺀다 — 섬 밑 지각에서는 도달할 수 없는

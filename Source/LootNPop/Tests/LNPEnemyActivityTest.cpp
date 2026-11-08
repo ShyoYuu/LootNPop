@@ -14,6 +14,7 @@
 #include "Enemy/LNPEnemySurfaceMovement.h"
 #include "Replication/LNPWanderReplication.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "SurfaceNavigation/LNPNavGraph.h"
 #include "DataAsset/LNPOctantPoolData.h"
 #include "DataAsset/LNPOctantSurfaceData.h"
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
@@ -459,6 +460,99 @@ bool FLNPEnemyWanderTimeTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Generation invalidates"), Segment.IsCurrent(6, nullptr));
 	Segment.ArrivalTime = Segment.StartTime;
 	TestTrue(TEXT("Rejected stationary segment has no divide by zero"), Segment.Evaluate(20.0).Equals(Segment.Goal));
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPWanderCachedEndpointsTest,
+	"LootNPop.SurfaceNavigation.Wander.CachedEndpoints", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPWanderCachedEndpointsTest::RunTest(const FString& Parameters)
+{
+	// 배회 후보의 빠른 끝점 스냅이 ResolveEndpoints와 같은 답을 내는지, 저장된 회귀 지형의 지면점 쌍으로 대조한다.
+	const TCHAR* SurfacePath = TEXT("/Game/Maps/SurfaceNavigation/Fixtures/DA_OctantSurface_Fixture_Regression.DA_OctantSurface_Fixture_Regression");
+	ULNPOctantSurfaceData* Asset = LoadObject<ULNPOctantSurfaceData>(nullptr, SurfacePath);
+	if (!TestNotNull(TEXT("Saved regression surface loads"), Asset))
+		return false;
+	TArray<FLNPOctantDefinition> Definitions;
+	TArray<ULNPOctantSurfaceData*> Assets;
+	for (int32 Slot = 0; Slot < 8; ++Slot)
+	{
+		auto& Definition = Definitions.AddDefaulted_GetRef();
+		Definition.LevelAsset = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Regression.LVI_Octant_Fixture_Regression")));
+		Definition.SurfaceData = TSoftObjectPtr<ULNPOctantSurfaceData>(FSoftObjectPath(SurfacePath));
+		Definition.SeamSignature = TEXT("WanderRegressionSeam");
+		Assets.Add(Asset);
+	}
+	FLNPSurfaceDataSnapshot Snapshot;
+	FString Error;
+	if (!TestTrue(TEXT("Saved fixture assembles"), LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, Assets, 1, Snapshot, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	struct FPoint
+	{
+		FVector Position;
+		FLNPSurfaceHandle Surface;
+	};
+	TArray<FPoint> Points;
+	const FVector Out = FVector(1, 1, 1).GetSafeNormal();
+	const FVector Tangent = FVector::CrossProduct(Out, FVector::ForwardVector).GetSafeNormal();
+	const FVector Other = FVector::CrossProduct(Out, Tangent).GetSafeNormal();
+	for (int32 X = -6; X <= 6; ++X)
+	{
+		for (int32 Y = -6; Y <= 6; ++Y)
+		{
+			FLNPSurfaceQuery Query;
+			Query.WorldPosition = FVector3d((Out * 30000.f + Tangent * X * 300.f + Other * Y * 300.f).GetSafeNormal() * 30000.f);
+			Query.MaxStepUp = 2000.f;
+			Query.MaxDrop = 2000.f;
+			FLNPSurfaceQueryResult Result;
+			if (LNPSurfaceDataLoading::QuerySupport(Snapshot, Query, Result) == ELNPSurfaceQueryStatus::HighConfidence)
+				Points.Add({ FVector(Result.Point), Result.Surface });
+		}
+	}
+	if (!TestTrue(TEXT("Fixture yields support points"), Points.Num() >= 20))
+		return false;
+	int32 Compared = 0;
+	int32 Reachable = 0;
+	for (int32 S = 0; S < Points.Num(); S += 5)
+	{
+		LNPNavGraph::FStartCache Cache;
+		for (int32 G = 0; G < Points.Num(); G += 3)
+		{
+			FLNPNavEndpointQuery Query;
+			Query.StartPosition = Points[S].Position;
+			Query.StartSurface = &Points[S].Surface;
+			Query.GoalPosition = Points[G].Position;
+			Query.GoalSurface = &Points[G].Surface;
+			Query.ApproachRadius = 0.0;
+			const FLNPNavEndpoints Full = LNPNavGraph::ResolveEndpoints(Snapshot.Nav, Query);
+			const FLNPNavEndpoints Fast = LNPNavGraph::ResolveEndpointsCached(Snapshot.Nav, Query, Cache);
+			const bool bSame = Full.Status == Fast.Status && Full.StartNode == Fast.StartNode && Full.GoalNode == Fast.GoalNode
+				&& Full.StartDistance == Fast.StartDistance && Full.GoalDistance == Fast.GoalDistance;
+			if (!bSame)
+				AddError(FString::Printf(TEXT("Cached endpoints differ for start %d goal %d: status %d/%d start %d/%d goal %d/%d"),
+					S, G, static_cast<int32>(Full.Status), static_cast<int32>(Fast.Status), Full.StartNode, Fast.StartNode, Full.GoalNode, Fast.GoalNode));
+			++Compared;
+			Reachable += Full.Status == ELNPNavEndpointStatus::Reachable ? 1 : 0;
+		}
+	}
+	AddInfo(FString::Printf(TEXT("Compared %d endpoint pairs, %d reachable."), Compared, Reachable));
+	TestTrue(TEXT("Some pairs are reachable"), Reachable > 0);
+
+	// 오래된 handle은 두 경로 모두 Stale이다.
+	FLNPSurfaceHandle Stale = Points[0].Surface;
+	++Stale.Generation;
+	FLNPNavEndpointQuery StaleQuery;
+	StaleQuery.StartPosition = Points[0].Position;
+	StaleQuery.StartSurface = &Stale;
+	StaleQuery.GoalPosition = Points[1].Position;
+	StaleQuery.GoalSurface = &Points[1].Surface;
+	StaleQuery.ApproachRadius = 0.0;
+	LNPNavGraph::FStartCache StaleCache;
+	TestEqual(TEXT("Stale start is stale in both paths"), static_cast<int32>(LNPNavGraph::ResolveEndpointsCached(Snapshot.Nav, StaleQuery, StaleCache).Status),
+		static_cast<int32>(LNPNavGraph::ResolveEndpoints(Snapshot.Nav, StaleQuery).Status));
 	return !HasAnyErrors();
 }
 #endif

@@ -227,6 +227,9 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 		// 착지·스폰 직후 붙을 표면을 찾는 거리. 스폰은 지면점에서 반높이만큼 올린 자리다.
 		const float AttachReach = Config->CapsuleRadius;
 
+		LNPSurfaceCrawl::FCornerSettleParams CornerParams;
+		CornerParams.Radius = Config->CapsuleRadius;
+
 		const bool bChunkIsDying = Ctx.DoesArchetypeHaveTag<FLNPEnemyDyingTag>();
 
 		for (int32 i = 0; i < Ctx.GetNumEntities(); ++i)
@@ -427,7 +430,15 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 			}
 
 			// 도착 신호와 배회 타임아웃은 지상과 같은 규약이다. 신호 없이는 IdleTask Tick이 돌지 않는다.
-			const bool bArrived = LNPSurfaceCrawl::GoalDistanceSq(Location, Normal, Goal, CrawlParams.BodyRadius)
+			// 오목 구석에 정착했으면(아래 UpdateCornerSettle) 목표에 닿을 수 없으므로 도착으로 다룬다. 교전하면 그 기억을 버린다.
+			FLNPEnemyIdleFragment& IdleData = IdleFragments[i];
+			if (Targeting.State != ELNPTargetingState::None)
+			{
+				IdleData.bCornerSettled = false;
+				LNPSurfaceCrawl::ResetCornerSettle(CrawlData.CornerSettle);
+			}
+			const bool bArrived = IdleData.bCornerSettled
+				|| LNPSurfaceCrawl::GoalDistanceSq(Location, Normal, Goal, CrawlParams.BodyRadius)
 				< FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance);
 			if (Speed > 0.f && bArrived)
 			{
@@ -436,7 +447,6 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				Speed = 0.f;
 			}
 
-			FLNPEnemyIdleFragment& IdleData = IdleFragments[i];
 			if (Targeting.State == ELNPTargetingState::None && !bArrived)
 			{
 				IdleData.TimeSinceWanderIssued += DeltaTime;
@@ -626,6 +636,20 @@ void ULNPEnemyCrawlMovementProcessor::Execute(FMassEntityManager& EntityManager,
 				++ChunkStats.Crushes;
 				EnemyData.Health = 0.f;
 				UE_LOG(LogLootNPop, Log, TEXT("[SurfaceCrawlCrush] enemy=%d at %s"), Ctx.GetEntity(i).Index, *Location.ToString());
+			}
+			// 비교전 배회가 몸이 닿을 수 없는 오목 구석 안쪽(Pod 뿌리 등)을 향하면 바닥 ↔ 벽을 매 프레임 갈아타며 떤다.
+			// 같은 구석의 왕복이 이어지면 두 면 중 중력 Up에 가까운 면(대개 바닥)에 서고 도착으로 다룬다.
+			if (Targeting.State == ELNPTargetingState::None && Speed > 0.f && StepResult == LNPSurfaceCrawl::EStepResult::Attached
+				&& LNPSurfaceCrawl::UpdateCornerSettle(CrawlData.CornerSettle, CornerParams, Normal, NewNormal, NewLocation, DeltaTime))
+			{
+				IdleData.bCornerSettled = true;
+				ChunkEntitiesToSignal.Add(Ctx.GetEntity(i));
+				if (FVector::DotProduct(Normal, GravityUp) > FVector::DotProduct(NewNormal, GravityUp))
+				{
+					NewLocation = Location;
+					NewNormal = Normal;
+					SurfaceIdentity = FLNPExactHitIdentity();
+				}
 			}
 			// 새로 붙은 면이 있으면 운반 접촉을 그 면으로 바꾼다(정적 면이면 비운다). 새 면이 없는 프레임(정지·막힘)은 유지한다.
 			if (StepResult != LNPSurfaceCrawl::EStepResult::Lost && SurfaceIdentity.IsKnown())

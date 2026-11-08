@@ -143,16 +143,22 @@ UE5.8의 `FTasksProvider::TryGetWaiting`은 `WaitUntilTasksComplete`·`GameThrea
 | `Invalid` | 기존 배회 구간이 유효하지 않아 재선택에 진입한 개체 수 |
 | `Expired` | 기존 구간은 유효하지만 `Now >= StopUntil`로 재선택에 진입한 개체 수 |
 | `OverlapRejected` | 재선택 진입 후 초기 겹침 때문에 후보 시도 전에 이탈한 개체 수 |
-| `CandidateAttempts` | 후보 루프의 실제 시도 횟수. 개체 수가 아니며 개체당 최대4회 |
-| `Accepted` | 모든 후보 검사를 통과해 목표·도착/정지 기한을 설정한 개체 수. 인코딩 전 결과 |
-| `Failed` | 최대4회 시도에서 후보를 고르지 못한 개체 수. 인코딩 실패와 구분한다 |
-| `CodecRejected` | 후보 선택 결과 처리 후 복제 데이터 인코딩이 비활성으로 판정된 개체 수. Accepted/Failed와 겹칠 수 있다 |
+| `CandidateAttempts` | 후보 루프의 실제 시도 횟수. 개체 수가 아니며 개체당 최대2회(2026-11-08 최적화 전 계측 패키지는 4회) |
+| `Accepted` | 후보 검사를 통과해(잘린 후보 포함) 목표·도착/정지 기한을 설정한 개체 수. 인코딩 전 결과 |
+| `Failed` | 최대 시도에서 후보를 고르지 못한 개체 수. 인코딩 실패와 구분한다 |
+| `CodecRejected` | 후보 선택 결과 처리 후 복제 데이터 인코딩이 비활성으로 판정된 개체 수. Accepted/Failed/Deferred와 겹칠 수 있다 |
+| `Deferred` | 실행당 재선택 상한(16)을 넘어 후보 검사 없이 짧은 제자리 구간을 받은 개체 수 |
+| `Truncated` | Accepted 중 막힌 자리 앞에서 잘라 쓴 구간 수 |
+| `GroundAttempts`·`FlightAttempts`·`CrawlAttempts` | 모드별 후보 시도 수. 합이 `CandidateAttempts`다 |
+| `GroundFailed`·`FlightFailed`·`CrawlFailed` | 모드별 Failed. 합이 `Failed`다 |
+| `RejectGoalSupport`·`RejectEndpoint`·`RejectDirectWalk`·`RejectPathSurface`·`RejectPathSweep`·`RejectFlightSweep`·`RejectCrawl`·`RejectReservation`·`RejectTileOverflow` | 거부된 시도의 단계별 수. 합이 거부된 시도 수(`CandidateAttempts − Accepted`)다 |
 
 런타임 기능 검증에서는 `R = Invalid + Expired`, `S = R - OverlapRejected`로 두고 아래 관계를 대조한다.
 
 - `Eligible >= R >= OverlapRejected >= 0`
-- `Accepted + Failed = S`
-- `S <= CandidateAttempts <= 4 × S`
+- `Accepted + Failed + Deferred = S`
+- `Accepted + Failed <= CandidateAttempts <= 2 × (Accepted + Failed)`
+- `Σ Reject* = CandidateAttempts − Accepted`, `Truncated <= Accepted`
 - `0 <= CodecRejected <= S`
 
 `Expired`의 같은 실행 내 개체 수는 기한 만료의 집중도를 보여주지만 직전 구간의 선택 실패 여부를 저장한 값은 아니다. 여러 행을 더한 계수는 개체-실행 합계이며 고유 개체 수가 아니다. 개체별 실패 이력을 복원하거나3초 집중의 원인을 이 계수만으로 자동 확정하지 않는다. 진단을 켠 실행은 별도 자료로 남기고 기준선에 섞지 않는다. 계측이 포함된 별도 패키지는 `Saved/Graphics/Phase00WanderDiagnosticsPackage_20261108/`이며, 기존 `Phase00Package`는 보존한다.

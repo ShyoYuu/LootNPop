@@ -1197,6 +1197,113 @@ bool FLNPSurfaceCrawlWanderSegmentTest::RunTest(const FString& Parameters)
 	// 5. 벽면에서 바닥으로 내려가는 직선: 볼록·오목 모서리를 건너므로 거부.
 	TestFalse(TEXT("Segment from wall down to the floor is rejected"),
 		ValidateWanderSegment(*Fixture.Collision, Fixture.Params, FVector(WallX, 0, 120), -FVector::ForwardVector, FVector(WallX, 0, 20)));
+
+	// 6. 자르기: 벽으로 들어가는 직선은 버리지 않고 벽 앞 몸 반지름 × 0.25를 남기고 같은 면 위에 선다.
+	FVector Trimmed;
+	TestTrue(TEXT("Segment into a wall is trimmed"),
+		TrimWanderSegment(*Fixture.Collision, Fixture.Params, FVector(100, 0, FloorZ), FVector::UpVector, FVector(380, 0, FloorZ), 20.f, Trimmed));
+	TestTrue(TEXT("Trimmed end keeps clearance from the wall"), Trimmed.X <= WallX - CrawlTestRadius * 0.25 + 1.0 && Trimmed.X > 200.0);
+	TestTrue(TEXT("Trimmed end stays on the floor plane"), FMath::IsNearlyEqual(Trimmed.Z, FloorZ, 0.01));
+	TestTrue(TEXT("Trimmed segment validates as a whole"),
+		ValidateWanderSegment(*Fixture.Collision, Fixture.Params, FVector(100, 0, FloorZ), FVector::UpVector, Trimmed));
+
+	// 7. 절벽 밖으로 나가는 직선은 마지막으로 같은 면에 붙은 표본에서 끝난다.
+	TestTrue(TEXT("Segment off a cliff is trimmed at the edge"),
+		TrimWanderSegment(*Fixture.Collision, Fixture.Params, FVector(1900, -1000, FloorZ), FVector::UpVector, FVector(2080, -1000, FloorZ), 20.f, Trimmed));
+	TestTrue(TEXT("Cliff trim stops before the edge"), Trimmed.X > 1900.0 && Trimmed.X < 2000.0 + CrawlTestRadius);
+
+	// 8. 남는 길이가 최소 이동보다 짧으면 거부한다.
+	TestFalse(TEXT("Too short trimmed segment is rejected"),
+		TrimWanderSegment(*Fixture.Collision, Fixture.Params, FVector(WallX - 5.0, 0, FloorZ), FVector::UpVector, FVector(380, 0, FloorZ), 20.f, Trimmed));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPSurfaceCrawlCornerSettleTest,
+	"LootNPop.SurfaceNavigation.SurfaceCrawl.ConcaveCornerSettle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPSurfaceCrawlCornerSettleTest::RunTest(const FString& Parameters)
+{
+	FCrawlWorld Fixture(TEXT("LNPSurfaceCrawlCornerSettleTest"));
+	if (!TestNotNull(TEXT("World collision subsystem exists"), Fixture.Collision))
+		return false;
+
+	// 바닥 top z=10, 벽 x 290~310(높이 600). 벽 아래 오목 구석은 Pod 뿌리와 같은 모양이다.
+	Fixture.Box(FVector(0, 0, 0), FVector(40, 40, 0.2), TEXT("LNPStaticTerrain"));
+	Fixture.Box(FVector(300, 0, 300), FVector(0.2, 40, 6), TEXT("LNPStaticTerrain"));
+	Fixture.Publish();
+	const double FloorZ = 10.0 + CrawlTestRadius + Fixture.Params.SurfaceGap;
+	const double WallX = 290.0 - CrawlTestRadius - Fixture.Params.SurfaceGap;
+	FCornerSettleParams SettleParams;
+	SettleParams.Radius = CrawlTestRadius;
+
+	struct FRun
+	{
+		bool bArrived = false;
+		bool bSettled = false;
+		int32 Switches = 0;
+		FVector Location = FVector::ZeroVector;
+		FVector Normal = FVector::UpVector;
+	};
+	// 이동 프로세서의 비교전 배회처럼 목표로 기어간다(조향 = SteerDirection, 도착 = GoalDistanceSq < 30²).
+	// bUseSettle이면 Step 뒤 UpdateCornerSettle을 부르고, 정착하면 중력 Up에 가까운 면에 서서 멈춘다.
+	auto Run = [&](const FVector& Start, const FVector& Goal, const int32 MaxFrames, const bool bUseSettle)
+	{
+		FRun Result;
+		Result.Location = Start;
+		FCornerSettleState State;
+		for (int32 Frame = 0; Frame < MaxFrames; ++Frame)
+		{
+			if (GoalDistanceSq(Result.Location, Result.Normal, Goal, CrawlTestRadius) < FMath::Square(30.f))
+			{
+				Result.bArrived = true;
+				break;
+			}
+			const FVector GravityUp = (Fixture.FallParams.GravityOrigin - Result.Location).GetSafeNormal();
+			const FVector MoveDir = SteerDirection(Result.Location, Result.Normal, Goal, GravityUp, CrawlTestRadius);
+			FVector Next, NextNormal;
+			const EStepResult StepResult = Step(*Fixture.Collision, Fixture.Params, Result.Location, Result.Normal,
+				MoveDir * CrawlTestSpeed, CrawlTestDeltaTime, Next, NextNormal);
+			Result.Switches += FVector::DotProduct(Result.Normal, NextNormal) < SettleParams.SwitchDot ? 1 : 0;
+			if (bUseSettle && StepResult == EStepResult::Attached
+				&& UpdateCornerSettle(State, SettleParams, Result.Normal, NextNormal, Next, CrawlTestDeltaTime))
+			{
+				Result.bSettled = true;
+				if (FVector::DotProduct(Result.Normal, GravityUp) > FVector::DotProduct(NextNormal, GravityUp))
+				{
+					Next = Result.Location;
+					NextNormal = Result.Normal;
+				}
+				Result.Location = Next;
+				Result.Normal = NextNormal;
+				break;
+			}
+			Result.Location = Next;
+			Result.Normal = NextNormal;
+		}
+		return Result;
+	};
+
+	// 1. 구석 안쪽(벽에서 5cm, 바닥에서 2cm) 목표: 몸 구는 닿을 수 없어 바닥 ↔ 벽을 왕복한다(정착 없이 재현).
+	const FVector Start(100, 0, FloorZ);
+	const FVector CornerGoal(285, 0, 12);
+	const FRun Jitter = Run(Start, CornerGoal, 180, false);
+	TestFalse(TEXT("Corner goal is unreachable without settling"), Jitter.bArrived);
+	TestTrue(TEXT("Corner goal reproduces floor-wall ping-pong"), Jitter.Switches >= 10);
+
+	// 2. 정착: 왕복이 이어지면 바닥에 서서 멈춘다. 구석에 닿고 나서 몇 프레임 안이다.
+	const FRun Settled = Run(Start, CornerGoal, 180, true);
+	TestTrue(TEXT("Corner ping-pong settles"), Settled.bSettled);
+	TestTrue(TEXT("Settles within a few switches"), Settled.Switches <= static_cast<int32>(SettleParams.SettleSwitches));
+	TestTrue(TEXT("Settles on the floor face"), Settled.Normal.Z > 0.99);
+	TestTrue(TEXT("Settled body stays near the corner"), Settled.Location.X > WallX - CrawlTestRadius);
+	TestFalse(TEXT("Settled body does not penetrate"), Fixture.IsPenetrating(Settled.Location, Settled.Normal));
+
+	// 3. 모서리를 한 번 지나 벽을 오르는 목표는 정착하지 않고 도착한다.
+	const FRun Climb = Run(Start, FVector(WallX, 0, 300), 240, true);
+	TestTrue(TEXT("Climbing goal arrives"), Climb.bArrived);
+	TestFalse(TEXT("Single corner pass does not settle"), Climb.bSettled);
 	return true;
 }
 

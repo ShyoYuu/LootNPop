@@ -255,6 +255,22 @@ namespace LNPNavGraph
 	LOOTNPOP_API FLNPNavEndpoints ResolveEndpoints(const FLNPNavSnapshot& Nav, const FLNPNavEndpointQuery& Query,
 		const FLNPNavOverlay* Overlay = nullptr);
 
+	/** ResolveEndpointsCached가 같은 시작점의 최근접 node를 한 번만 구하도록 담아 두는 값. 시작 위치·Surface·SnapRadius가 같을 때만 재사용한다. */
+	struct FStartCache
+	{
+		bool bResolved = false;
+		/** Node가 INDEX_NONE이면 시작 반경 안에 walkable node가 없다. */
+		FLNPNavGraphCandidate Nearest;
+	};
+
+	/**
+	 * ResolveEndpoints의 빠른 경로. 시작·목표의 최근접 node가 같은 group이면(규칙 1) 후보 전체 수집·정렬 없이 답한다.
+	 * 그 밖의 경우는 ResolveEndpoints 전체를 부른다. 최근접 선택은 같은 거리·index 동률 규칙이라 결과가 ResolveEndpoints와 같다.
+	 * 같은 시작점에서 목표만 바꿔 여러 번 스냅하는 호출자(배회 후보)가 StartCache를 공유한다.
+	 */
+	LOOTNPOP_API FLNPNavEndpoints ResolveEndpointsCached(const FLNPNavSnapshot& Nav, const FLNPNavEndpointQuery& Query,
+		FStartCache& StartCache, const FLNPNavOverlay* Overlay = nullptr);
+
 	/**
 	 * Nav 직선 보행 검사. 같은 slot·Layer의 두 node 사이 대원호를 격자 간격의 1/4로 샘플링해,
 	 * 연속 샘플이 같은 node이거나 통과 가능한 grid edge로 이어진 이웃인지 본다. slot·Layer가 다르면 false다.

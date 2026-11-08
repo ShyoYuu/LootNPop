@@ -434,7 +434,26 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 				constexpr float CrawlWanderReach = 300.f;
 				FVector Projected;
 				if (LNPEnemyExactMovement::ProjectToSameLayer(*WorldCollision, ExactParams, Enemy.ParentPodLocation, QueryDir, CrawlWanderReach, Projected))
+				{
 					MoveTarget.Center = Projected;
+					// 방사 투영점은 Pod 뿌리 같은 오목 구석 안쪽, 몸 구가 닿을 수 없는 자리일 수 있다. 몸보다 조금 큰 구로 구석 밖에
+					// 밀어낸 뒤 바닥에 다시 붙여 '설 수 있는 자리'로 바꾼다. 실패하면 투영점을 그대로 쓴다(이동 쪽 정착이 받친다).
+					constexpr float CornerClearance = 10.f;
+					const FVector Up = (GravityOrigin - Projected).GetSafeNormal();
+					LNPSurfaceCrawl::FParams Inflated;
+					Inflated.BodyRadius = ExactParams.CapsuleRadius + CornerClearance;
+					LNPSurfaceCrawl::FParams Body;
+					Body.BodyRadius = ExactParams.CapsuleRadius;
+					// 겹침 검사는 의심되는 면 쪽(Pod 쪽)으로 한다 — Chaos trimesh는 면에서 멀어지는 얕은 겹침을 보고하지 않는다.
+					const FVector TowardPod = FVector::VectorPlaneProject(Enemy.ParentPodLocation - Projected, Up);
+					FVector Free, Attached, AttachedNormal;
+					if (LNPSurfaceCrawl::Depenetrate(*WorldCollision, Inflated, Projected, Free,
+							TowardPod.IsNearlyZero() ? Up : TowardPod, nullptr, Up)
+						&& LNPSurfaceCrawl::Attach(*WorldCollision, Body, Free, -Up, CapsuleHalfHeight + CornerClearance, Attached, AttachedNormal))
+					{
+						MoveTarget.Center = Attached;
+					}
+				}
 			}
 		}
 		else if (WorldCollision && SharedConfig.Config)
@@ -542,13 +561,15 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 
 		IdleData.bNeedNewWanderTarget = false;
 		IdleData.TimeSinceWanderIssued = 0.0f;
+		IdleData.bCornerSettled = false;
 	}
 
 	// 3. 완료 체크: 현재 배회 타겟 도달 시 다음 인터벌 대기.
 	//    임계값은 MovementProcessor의 도착 신호 조건과 **같은 상수**여야 한다 — 이쪽이 더 느슨하면
 	//    신호 없이는 어차피 Tick이 안 돌아 의미가 없고, 더 빡빡하면 신호가 와도 완료가 안 잡힌다.
+	//    벽보행 개체가 오목 구석에 정착했으면(ULNPEnemyCrawlMovementProcessor) 목표에 닿을 수 없으니 도착으로 다룬다.
 	const float DistSq = GoalDistSq(MoveTarget.Center);
-	if (DistSq < FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance))
+	if (DistSq < FMath::Square(FLNPEnemyMovementConfig::ArrivalTolerance) || (bCrawling && IdleData.bCornerSettled))
 	{
 		if (IdleData.bNeedNewWanderTarget == false)
 		{

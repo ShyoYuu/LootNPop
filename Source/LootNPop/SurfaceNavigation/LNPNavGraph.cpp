@@ -633,6 +633,57 @@ FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const
 	return Result;
 }
 
+FLNPNavEndpoints LNPNavGraph::ResolveEndpointsCached(const FLNPNavSnapshot& Nav, const FLNPNavEndpointQuery& Query,
+	FStartCache& StartCache, const FLNPNavOverlay* Overlay)
+{
+	FLNPNavEndpoints Result;
+	if (!Nav.Graph.IsValid())
+	{
+		return Result;
+	}
+	// 판정 순서와 Stale·시작 없음의 반환은 ResolveEndpoints와 같다.
+	const bool bStartCurrent = IsCurrentHandle(Nav, Query.StartSurface);
+	const bool bGoalCurrent = IsCurrentHandle(Nav, Query.GoalSurface);
+	if ((Query.StartSurface != nullptr && Query.StartSurface->IsValid() && !bStartCurrent)
+		|| (Query.GoalSurface != nullptr && Query.GoalSurface->IsValid() && !bGoalCurrent))
+	{
+		Result.Status = ELNPNavEndpointStatus::Stale;
+		return Result;
+	}
+	if (!bStartCurrent)
+	{
+		return Result;
+	}
+	TArray<FLNPNavGraphCandidate> Nearest;
+	if (!StartCache.bResolved)
+	{
+		CollectNodesNear(Nav, Query.StartSurface->OctantSlot, Query.StartSurface->LocalLayerId,
+			Query.StartPosition, Query.SnapRadius, Nearest, Overlay, true);
+		StartCache.bResolved = true;
+		StartCache.Nearest = Nearest.IsEmpty() ? FLNPNavGraphCandidate() : Nearest[0];
+	}
+	if (StartCache.Nearest.Node == INDEX_NONE)
+	{
+		return Result;
+	}
+	if (bGoalCurrent)
+	{
+		CollectNodesNear(Nav, Query.GoalSurface->OctantSlot, Query.GoalSurface->LocalLayerId,
+			Query.GoalPosition, Query.SnapRadius, Nearest, Overlay, true);
+		if (!Nearest.IsEmpty() && Nearest[0].Group == StartCache.Nearest.Group)
+		{
+			Result.Status = ELNPNavEndpointStatus::Reachable;
+			Result.StartNode = StartCache.Nearest.Node;
+			Result.StartDistance = StartCache.Nearest.Distance;
+			Result.GoalNode = Nearest[0].Node;
+			Result.GoalDistance = Nearest[0].Distance;
+			return Result;
+		}
+	}
+	// 공통 group 재선택(D-062)·접근점(D-063)은 전체 후보 목록이 필요하다.
+	return ResolveEndpoints(Nav, Query, Overlay);
+}
+
 namespace
 {
 	/**

@@ -737,21 +737,78 @@ namespace LNPSurfaceCrawl
 	bool ValidateWanderSegment(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
 		const FVector& Start, const FVector& Normal, const FVector& Goal, const float MaxGapError, const float MinNormalDot)
 	{
+		// 막힘 없이 끝 표본까지 통과해야 자른 끝이 Goal과 같다.
+		FVector Trimmed;
+		return TrimWanderSegment(Collision, Params, Start, Normal, Goal, 0.f, Trimmed, MaxGapError, MinNormalDot)
+			&& Trimmed.Equals(Goal, 0.01);
+	}
+
+	bool TrimWanderSegment(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& Start, const FVector& Normal, const FVector& Goal, const float MinLength, FVector& OutGoal,
+		const float MaxGapError, const float MinNormalDot)
+	{
+		const double Length = FVector::Distance(Start, Goal);
+		double Reach = Length;
 		FLNPWorldHit Hit;
 		if (Sweep(Collision, Params, Start, Goal, Hit))
+		{
+			if (Hit.bStartPenetrating)
+				return false;
+			Reach = FMath::Max(0.0, Hit.Distance - Params.BodyRadius * 0.25);
+		}
+		if (Reach < MinLength)
 			return false;
-		const int32 Steps = FMath::Max(1, FMath::CeilToInt(FVector::Distance(Start, Goal) / FMath::Max(Params.BodyRadius, 1.f)));
+		const FVector End = Length > UE_KINDA_SMALL_NUMBER ? Start + (Goal - Start) * (Reach / Length) : Start;
+		const int32 Steps = FMath::Max(1, FMath::CeilToInt(Reach / FMath::Max(Params.BodyRadius, 1.f)));
+		FVector LastGood = Start;
 		for (int32 Index = 1; Index <= Steps; ++Index)
 		{
-			const FVector Sample = FMath::Lerp(Start, Goal, static_cast<double>(Index) / Steps);
+			const FVector Sample = FMath::Lerp(Start, End, static_cast<double>(Index) / Steps);
 			FVector Attached, AttachedNormal;
 			if (!Attach(Collision, Params, Sample, -Normal, MaxGapError, Attached, AttachedNormal)
 				|| FVector::DotProduct(AttachedNormal, Normal) < MinNormalDot
 				|| FVector::DistSquared(Attached, Sample) > FMath::Square(MaxGapError))
 			{
-				return false;
+				break;
 			}
+			LastGood = Sample;
 		}
+		if (FVector::Distance(Start, LastGood) < MinLength)
+			return false;
+		OutGoal = LastGood;
 		return true;
+	}
+
+	bool UpdateCornerSettle(FCornerSettleState& State, const FCornerSettleParams& Params, const FVector& Normal,
+		const FVector& NewNormal, const FVector& Location, const float DeltaTime)
+	{
+		State.SinceSwitch += DeltaTime;
+		if (State.Switches > 0 && State.SinceSwitch > Params.Window)
+			ResetCornerSettle(State);
+		if (FVector::DotProduct(Normal, NewNormal) >= Params.SwitchDot)
+			return false;
+		// 떠났던 면으로 같은 구석 안에서 되돌아오면 왕복이 이어진다. 아니면 새 전환에서 다시 센다.
+		const bool bReturn = State.Switches > 0 && FVector::DotProduct(NewNormal, State.LeftNormal) > Params.ReturnDot
+			&& FVector::DistSquared(Location, State.Anchor) < FMath::Square(Params.Radius);
+		if (bReturn)
+		{
+			++State.Switches;
+		}
+		else
+		{
+			State.Switches = 1;
+			State.Anchor = Location;
+		}
+		State.LeftNormal = Normal;
+		State.SinceSwitch = 0.f;
+		if (State.Switches < Params.SettleSwitches)
+			return false;
+		ResetCornerSettle(State);
+		return true;
+	}
+
+	void ResetCornerSettle(FCornerSettleState& State)
+	{
+		State = FCornerSettleState();
 	}
 }
