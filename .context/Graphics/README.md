@@ -15,6 +15,7 @@
 | P 군중 렌더링 | 대규모 적 전투의 GT/RT/GPU 비용 분석, 슬롯·LOD·그림자·머티리얼 절제, ISKM↔ISM↔Actor 전환 팝핑 | Phase 2 |
 | R 렌더 패스 | RDG 렌더 모듈 기반, 화면 효과 레이어, 캐릭터 강조 채널, 스캔 시야 | Phase 3 |
 | S 지형 흔적 | 화염방사기·런처·라이플이 구면 지형에 남기는 흔적 | Phase 4 |
+| O 렌더링 최적화 | GPU 패스 분해, 해상도·업스케일 스윕, 적 Lumen 기여 절제, 패스별 GPU 예산. 기존 Phase 게이트에 붙여 병행한다(GX-010) | `Roadmap.md` §4 트랙 O |
 
 JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한다(`Roadmap.md` §5).
 
@@ -43,6 +44,7 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 | 배회 프로세서 최적화·다른 세션 인계 | [배회 최적화 인계](analysis/WanderOptimizationHandoff.md) |
 | 그래플 앵커 Niagara·월드 후처리 작업 대기 | [그래플 앵커 최적화 인계](analysis/GrappleAnchorOptimizationHandoff.md) |
 | GT 렌더 동기화·RT/GPU 비용 분석 | [렌더 동기화 최적화 인계](analysis/RenderSyncOptimizationHandoff.md) |
+| 렌더링 최적화(트랙 O)·Lumen 동적 메시 비용·해상도 비례 비용 | [선행 렌더링 부하 측정](analysis/RenderingLoadBaseline_20260925.md) |
 | Nav 최근접 노드 반복 조회 | [Nav 최근접 노드 최적화 인계](analysis/NavNearestNodeOptimizationHandoff.md) |
 | 절제(ablation) 측정과 분모 규약 | [Guide_NetBandwidth.md](../Guide_NetBandwidth.md) |
 | ISKM·ISM 표현, 유의도 구간, 에셋 요건(Optimize for Instancing·usage 플래그·제자리 클립) | [TechDesign_EnemyNPC_LowLOD.md](../TechDesign_EnemyNPC_LowLOD.md) §6 |

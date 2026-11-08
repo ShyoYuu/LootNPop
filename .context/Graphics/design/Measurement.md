@@ -9,7 +9,7 @@
 |:---|:---|:---|
 | GPU | NVIDIA GeForce RTX 4060 Laptop GPU (iGPU Radeon 780M 병존) | 확정 |
 | 출력 해상도 | 2560×1440 | 확정 |
-| 내부 해상도·업스케일러 | Phase 0 기준선은 TSR·ScreenPercentage100 | 0-C 구현·패키지 실효값 확인 |
+| 내부 해상도·업스케일러 | Phase 0 기준선은 TSR·ScreenPercentage100. 운영 조건은 O-2 해상도 스윕 뒤 정한다 | 0-C 구현·패키지 실효값 확인 / 운영 조건 미정 |
 | 프레임 예산 | 60fps = 16.6ms | 확정 |
 | 적 수 목표 | 화면 안·전체 적 수를 Phase 0 기준선을 보고 정함 | 미정 |
 
@@ -135,6 +135,14 @@ GUI 대신 명령줄로도 개별 이벤트를 내보낼 수 있다(2026-11-08 �
 이벤트P50/P95/P99는 오름차순 자료의 `ceil(p×N)`번째 값(nearest-rank)이며 분모는 이벤트 실행 횟수다. 프레임당 비용의 분모와 구분한다. Insights의 기존 `I.Med`·`E.Med`는UE5.8 `TimelineStatistics`의100칸 히스토그램 기반 추정값이므로, 개별 이벤트의 정렬 분위수와 같다고 가정하지 않는다. 기존3회 기준선 중앙값 규약은 바꾸지 않는다.
 
 기본 내보내기의 시작/종료 시각은 `AppendValueAsTimestamp`의 `%.9g` 형식이다. 현재184~244초 구간은1μs 격자로 반올림되므로 짧은 자식 질의를 많이 더할 때 오차가 누적될 수 있다. 타이머 합계와 원본 집계의 차이를 기록하고, 개별 실행의 자식 합계/잔여 시간은 유도값으로 표시한다. 질의 수K개를 합산한 보수적 오차 한계는 자식 합계Kμs·부모에서 뺀 잔여 시간(K+1)μs다. 잔여 시간을 내부의 특정 코드 단계 비용으로 귀속하지 않는다. 고비용 구분용 임계값은 설명용이며 새 성능 통과 기준으로 쓰지 않는다.
+
+### GPU 패스 분해
+
+패스별 GPU 비용은 성능 실행과 분리한 진단 실행에서 `-trace=cpu,gpu,frame,bookmark,region,log`로 수집한다. 2026-09-25 선행 측정([선행 렌더링 부하 측정](../analysis/RenderingLoadBaseline_20260925.md))에서 검증한 내보내기는 응답 파일 한 줄 `TimingInsights.ExportTimerStatistics "<csv>" -threads="GPU*" -region="<캡처 region>" -sortBy=TotalInclusiveTime`이며, 당시에는 `-NoUI -AutoQuit`로 파일이 생성됐다. 위 CPU 구간 내보내기처럼 파일·분석 완료 로그로 성공을 확인한다.
+
+- **분모 함정:** GPU 이벤트가 트랙 두 개에 중복 기록돼 `Frame` 타이머의 Count가 실제 프레임의 2배다. 당시 `Frame`의 `Incl ÷ Count`가 벽시계 P50(8.8ms)과 일치해 포함 시간도 함께 2배로 쌓인 것을 확인했다. 패스의 프레임당 값은 그 타이머의 `Incl`을 같은 구간 `Frame` Count로 나눈다. 프레임당 여러 번 실행되는 패스는 자기 Count가 프레임 수가 아니므로 자기 Count로 나누지 않는다.
+- **구간 지정:** 그래픽스 하네스는 아직 trace region을 찍지 않는다. `[GraphicsBenchmark] Capture started` 로그 시각으로 `-startTime`/`-endTime`을 정하거나, O-1 착수 때 하네스 캡처 구간에 region을 추가하는 것을 검토한다(LoadBaseline 하네스의 `LNPLoadBaselineCapture`와 같은 방식).
+- GPU 트레이스 실행은 `DiagnosticOnly=true`·`BaselineEligible=false`다. 패스 표는 같은 실행의 CPU 대기 서명(`GPUBound_WaitingForGPUForOcclusionQueries`·`WaitForVisibilityTasks`·`Sync_RenderingThread`)과 함께 보고한다.
 
 ### Wander 재선택 진단 계수
 
