@@ -64,15 +64,15 @@ struct FLNPOctantSourcePackage
 manifest package는 long package name, kind 순으로 정렬하고 중복을 제거한다. 포함 범위는 다음으로 제한한다.
 
 - source LVI package
-- LVI가 직접 참조하는 external actor·external object package
+- LVI가 직접 참조하는 external actor·external object package. 단 베이크에 기여하지 않는 액터의 external actor package는 뺀다(D-081). 기여 액터는 Terrain Contract 역할 component(또는 충돌이 켜진 component)를 가진 액터, Mass spawn point, `PatchSources`가 있는 Placement Marker다. 런타임 전용 마커·장식·검토점은 기여하지 않는다. 액터와 대응하지 않는 external object package는 그대로 넣는다.
 - Terrain Contract 역할 component가 참조하는 Static Mesh package
-- Placement Marker의 PatchSources Static Mesh package와 Blueprint 요소 클래스 package(`PlacementClass` kind). native `/Script` 클래스는 package saved hash에서 제외하고 베이커 schema 변경으로 관리한다.
+- Placement Marker의 PatchSources Static Mesh package. 요소 클래스 package(`PlacementClass` kind)는 더 이상 넣지 않는다(D-081). 베이커가 클래스를 읽지 않으므로 BP의 기능·비주얼 수정은 SurfaceData를 바꾸지 않는다. 클래스 교체는 patch 마커 semantic row의 클래스 경로가 잡는다. enum 값은 이전 저장본 해석용으로 남긴다.
 
 Component Tag, component transform, collision profile은 package manifest에 억지로 넣지 않고 canonical byte stream의 `SourceSemanticHash`로 저장한다. baker schema version과 품질 설정은 `BakeSettingsHash`로 저장한다. `SourceContentHash`는 정렬된 package manifest와 두 hash를 합친 최종 stale 검출 값이다.
 
 Phase 2 수집기는 Asset Registry의 source LVI **직접 package dependency**만 조회하고, `ULevel::GetExternalObjectsPaths()`가 반환한 해당 LVI 소유 경로 아래의 `__ExternalActors__`·`__ExternalObjects__` package만 허용한다. 재귀 dependency를 순회하지 않는다. 초기 3-kind schema의 `ExternalActor` 값은 두 종류의 UE external package를 함께 나타낸다.
 
-현재 schema는 correctness를 우선해 LVI가 직접 참조하는 owned external package를 역할과 무관하게 모두 manifest에 넣는다. 따라서 decoration external actor의 저장 변경도 stale을 만들 수 있다. "decoration 제외"는 decoration component가 참조하는 mesh/material 하위 dependency를 추가하지 않는다는 뜻이지 그 actor package 자체를 제외한다는 뜻이 아니다. 실제 제작에서 false stale이 빈번하다는 측정이 있을 때만 contributor actor package 필터를 도입한다.
+초기 schema는 correctness를 우선해 owned external package를 역할과 무관하게 모두 넣었고, false stale이 빈번하다는 측정이 있을 때만 contributor actor package 필터를 도입하기로 했다. 2026-11-08 공유 장치 BP와 런타임 전용 마커가 여러 DA를 함께 낡게 만든 것을 근거로 필터를 도입했다(D-081). 기여 판정에 충돌이 켜진 component를 포함하므로, 태그 없는 충돌(수집 오류)이나 새로 역할 태그를 단 액터는 자동으로 다시 입력이 된다.
 
 Terrain mesh는 `LNP.Surface.Support` 또는 `LNP.Surface.Blocker` 역할 태그와 정확히 하나의 수명주기 태그를 가진 `UStaticMeshComponent`에서만 수집한다. `Decoration` 단독 component와 태그 없는 component는 Terrain mesh dependency에서 제외하고, `Decoration`과 역할 태그의 혼용이나 수명주기 태그 오류는 수집 실패로 처리한다. Material, PCG graph와 그 하위 dependency는 manifest에 넣지 않는다.
 

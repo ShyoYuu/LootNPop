@@ -166,7 +166,7 @@ Bridge
 - 파괴 바닥처럼 **처음부터 있는** 보행면도 patch다. 정적 payload에는 `Destructible` source가 없으므로(`TerrainContract.md`) 온전한 상태의 Support를 patch로 굽고 파괴 시 끈다.
 - 런타임 활성화 조건은 상태 값만 본다(Bridge 도달, 파괴 전). 요소 Actor의 실제 transform과 베이크 transform의 비교는 debug 진단으로만 둔다. 결정론적 움직임(D-027)이라 안정 transform은 authoring 값과 같다.
 - patch footprint와 영향 범위는 옥탄트 경계를 넘지 않는다(D-030). 같은 방향에서 정적 Layer와 patch Layer가 캡슐 높이 안쪽으로 겹치면 Layer 해석이 모호하므로 베이크 오류로 막는다.
-- stale 입력: MarkerId, 마커 transform, 요소 클래스, 경로·상태 파라미터, patch source mesh와 상태별 transform을 canonical hash에 넣는다(D-041, `DataModel.md`). 현재 DataVersion 7·BakerSchemaVersion 9다.
+- stale 입력: patch 마커의 MarkerId, 마커 transform, 요소 클래스 경로, 경로·상태 파라미터, patch source mesh와 상태별 transform을 canonical hash에 넣는다(D-041, `DataModel.md`). 요소 클래스 BP의 내용(saved hash)과 `PatchSources`가 없는 런타임 전용 마커는 넣지 않는다(D-081). 현재 DataVersion 7·BakerSchemaVersion 9다.
 
 ## 6. 파괴
 

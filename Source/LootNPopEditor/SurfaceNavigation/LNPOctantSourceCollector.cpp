@@ -149,6 +149,37 @@ bool IsPackageWithinRoot(const FString& PackageName, const FString& Root)
 	return PackageName == Root || PackageName.StartsWith(Root + TEXT("/"));
 }
 
+/**
+ * 베이커가 읽는 액터인지. Terrain Contract 역할 component(Support·Nav·여유 검사의 충돌 원본), Mass spawn point,
+ * Conditional Patch가 있는 Placement Marker만 베이크 결과를 바꾼다. 태그 없는 충돌 component는 수집 오류지만
+ * 보수적으로 기여자로 둔다. 런타임 전용 마커(그래플 앵커·런처·윈드필드)·장식·검토점은 기여하지 않는다.
+ */
+bool IsBakeContributor(const AActor& Actor)
+{
+	if (Actor.IsA<ALNPMassSpawnPoint>())
+	{
+		return true;
+	}
+	if (const ALNPPlacementMarker* Marker = Cast<ALNPPlacementMarker>(&Actor))
+	{
+		return !Marker->PatchSources.IsEmpty();
+	}
+	if (Actor.IsEditorOnly())
+	{
+		return false;
+	}
+	TInlineComponentArray<const UPrimitiveComponent*> Components(&Actor);
+	for (const UPrimitiveComponent* Component : Components)
+	{
+		if (IsValid(Component) && !Component->IsEditorOnly()
+			&& (HasTag(*Component, SupportTag) || HasTag(*Component, BlockerTag) || Component->IsCollisionEnabled()))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool TryMakePackageEntry(
 	FName PackageName,
 	ELNPOctantSourcePackageKind Kind,
@@ -490,6 +521,23 @@ bool FLNPOctantSourceCollector::CollectFromWorld(
 		OutCollection = FLNPOctantSourceCollection();
 		return false;
 	}
+	// 베이커가 읽지 않는 액터의 external package는 stale 입력이 아니다. 런타임 전용 마커·장식·검토점을 옮겨도 재베이크하지 않는다.
+	// 이 world에 액터로 있는 package만 판정하므로, 액터와 대응하지 않는 external object package는 그대로 남는다.
+	{
+		TSet<FName> NonContributorPackages;
+		for (const AActor* Actor : SourceWorld.PersistentLevel->Actors)
+		{
+			const UPackage* External = IsValid(Actor) ? Actor->GetExternalPackage() : nullptr;
+			if (External != nullptr && !IsBakeContributor(*Actor))
+			{
+				NonContributorPackages.Add(External->GetFName());
+			}
+		}
+		OutCollection.Manifest.RemoveAll([&NonContributorPackages](const FLNPOctantSourcePackage& Entry)
+		{
+			return Entry.Kind == ELNPOctantSourcePackageKind::ExternalActor && NonContributorPackages.Contains(Entry.PackageName);
+		});
+	}
 	FCanonicalBytes MarkerWriter;
 	constexpr ANSICHAR MarkerDomain[] = "LNP.PlacementSemantic.v1";
 	WriteDomain(MarkerWriter, MarkerDomain, UE_ARRAY_COUNT(MarkerDomain) - 1);
@@ -610,7 +658,15 @@ bool FLNPOctantSourceCollector::CollectPlacementMarkers(const UWorld& SourceWorl
 			OutError = TEXT("Duplicate Placement MarkerId in source Level.");
 			return false;
 		}
-		if (!BuildPlacementMarkerSemantic(Marker, OutRows.AddDefaulted_GetRef(), OutError)) { return false; }
+		// 모든 마커의 authoring은 검증하지만, 베이크 입력은 Conditional Patch가 있는 마커뿐이다. 런타임 전용 마커는
+		// 스폰 대상일 뿐이라 transform·클래스가 바뀌어도 SurfaceData가 같다.
+		TArray<uint8> Row;
+		if (!BuildPlacementMarkerSemantic(Marker, Row, OutError)) { return false; }
+		if (Marker.PatchSources.IsEmpty())
+		{
+			continue;
+		}
+		OutRows.Add(MoveTemp(Row));
 		for (const FLNPConditionalPatchSource& Source : Marker.PatchSources)
 		{
 			FLNPOctantSourcePackage Entry;
@@ -618,13 +674,8 @@ bool FLNPOctantSourceCollector::CollectPlacementMarkers(const UWorld& SourceWorl
 				AssetRegistry, Entry, OutError)) { return false; }
 			InOutManifest.Add(Entry);
 		}
-		const FName ClassPackage = Marker.ElementClass->GetOutermost()->GetFName();
-		if (!ClassPackage.ToString().StartsWith(TEXT("/Script/")))
-		{
-			FLNPOctantSourcePackage Entry;
-			if (!TryMakePackageEntry(ClassPackage, ELNPOctantSourcePackageKind::PlacementClass, AssetRegistry, Entry, OutError)) { return false; }
-			InOutManifest.Add(Entry);
-		}
+		// 요소 클래스 package의 saved hash는 넣지 않는다. 베이커는 클래스를 로드·스폰하지 않고 마커에 적힌 PatchSources만 읽으므로,
+		// BP의 기능·비주얼 수정이 SurfaceData를 바꾸지 않는다. 클래스 교체는 semantic row의 클래스 경로로 잡힌다.
 	}
 	return true;
 }

@@ -42,6 +42,7 @@ enum class ELNPOctantSourcePackageKind : uint8
 	/** 현재 3-kind schema에서 UE의 external actor와 external object package를 함께 나타낸다. */
 	ExternalActor,
 	TerrainMesh,
+	/** 더 이상 만들지 않는다. 베이커는 요소 클래스를 읽지 않으므로 BP saved hash를 stale 입력에 넣지 않는다. 이전 저장본 해석용으로 남긴다. */
 	PlacementClass
 };
 

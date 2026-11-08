@@ -17,6 +17,7 @@
 #include "Modules/ModuleManager.h"
 #include "PackageTools.h"
 #include "SurfaceNavigation/LNPOctantSourceCollector.h"
+#include "DynamicTerrain/LNPPlacementMarker.h"
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 #include "UObject/StrongObjectPtr.h"
@@ -89,6 +90,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPProductionOctantSourceValidationTest,
 	"LootNPop.SurfaceNavigation.Schema.ProductionOctantSourceValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPRuntimeOnlyPlacementSourceTest,
+	"LootNPop.SurfaceNavigation.Schema.RuntimeOnlyPlacementIsNotBakeInput",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -570,6 +576,68 @@ bool FLNPProductionOctantSourceValidationTest::RunTest(const FString& Parameters
 		TestTrue(FString::Printf(TEXT("%s has Terrain Contract role components"), LevelPath),
 			Collection.TerrainSemantics.Num() > 0);
 	}
+	return !HasAnyErrors();
+}
+
+// 런타임 전용 Placement Marker(PatchSources 없음: 그래플 앵커·런처·윈드필드)는 베이크 입력이 아니다.
+// 요소 클래스 BP의 saved hash와 그 마커의 external actor package가 manifest에 없어야 BP 수정·마커 이동이 재베이크를 요구하지 않는다.
+// Conditional Patch 마커는 그대로 입력이다.
+bool FLNPRuntimeOnlyPlacementSourceTest::RunTest(const FString& Parameters)
+{
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	AssetRegistry.WaitForCompletion();
+
+	int32 RuntimeOnlyMarkers = 0;
+	int32 PatchMarkers = 0;
+	for (const TCHAR* LevelPath : {
+		TEXT("/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Conditional.LVI_Octant_Fixture_Conditional"),
+		TEXT("/Game/Maps/Meadow_00/LVI_Octant_Meadow_00.LVI_Octant_Meadow_00")})
+	{
+		FLNPOctantSourceCollection Collection;
+		FString Error;
+		if (!FLNPOctantSourceCollector::CollectFromLevel(FSoftObjectPath(LevelPath), 1, {}, Collection, Error))
+		{
+			AddError(FString::Printf(TEXT("%s: %s"), LevelPath, *Error));
+			continue;
+		}
+		const UWorld* World = Cast<UWorld>(FSoftObjectPath(LevelPath).TryLoad());
+		if (!TestNotNull(FString::Printf(TEXT("%s loads"), LevelPath), World) || !World->PersistentLevel)
+		{
+			continue;
+		}
+		TSet<FName> Manifest;
+		for (const FLNPOctantSourcePackage& Entry : Collection.Manifest)
+		{
+			Manifest.Add(Entry.PackageName);
+			TestTrue(FString::Printf(TEXT("%s manifest has no element class package (%s)"), LevelPath, *Entry.PackageName.ToString()),
+				Entry.Kind != ELNPOctantSourcePackageKind::PlacementClass);
+		}
+		int32 LevelPatchMarkers = 0;
+		for (const AActor* Actor : World->PersistentLevel->Actors)
+		{
+			const ALNPPlacementMarker* Marker = Cast<ALNPPlacementMarker>(Actor);
+			if (!IsValid(Marker))
+			{
+				continue;
+			}
+			const bool bPatch = !Marker->PatchSources.IsEmpty();
+			LevelPatchMarkers += bPatch ? 1 : 0;
+			// patch 마커는 level package 안에 있을 수도 있다. external actor인 마커만 manifest 포함 여부를 본다.
+			const UPackage* External = Marker->GetExternalPackage();
+			if (External == nullptr)
+			{
+				continue;
+			}
+			RuntimeOnlyMarkers += bPatch ? 0 : 1;
+			TestEqual(FString::Printf(TEXT("%s marker %s external package is a bake input only with Conditional Patch"),
+				LevelPath, *Marker->GetName()), Manifest.Contains(External->GetFName()), bPatch);
+		}
+		TestEqual(FString::Printf(TEXT("%s placement semantic rows are the Conditional Patch markers only"), LevelPath),
+			Collection.MarkerSemanticRows.Num(), LevelPatchMarkers);
+		PatchMarkers += LevelPatchMarkers;
+	}
+	TestTrue(FString::Printf(TEXT("Fixtures exercise runtime-only markers (%d)"), RuntimeOnlyMarkers), RuntimeOnlyMarkers > 0);
+	TestTrue(FString::Printf(TEXT("Fixtures exercise Conditional Patch markers (%d)"), PatchMarkers), PatchMarkers > 0);
 	return !HasAnyErrors();
 }
 
