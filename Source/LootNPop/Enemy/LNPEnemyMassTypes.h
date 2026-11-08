@@ -300,6 +300,9 @@ struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
 	ELNPNavPathStatus Status = ELNPNavPathStatus::None;
 	double LastRequestTime = -DBL_MAX;
 	uint32 Replans = 0;
+	/** 지난 시작·목표 최근접 node. 다음 프레임 탐색 창을 줄이는 힌트일 뿐 결과는 바꾸지 않으므로 무효화하지 않는다. */
+	int32 StartHintNode = INDEX_NONE;
+	int32 GoalHintNode = INDEX_NONE;
 	bool bHasSteeringPoint = false;
 	/** 슬롯 없는 Alert도 접근점 경로를 따라 이동할 수 있다. */
 	bool bApproachingUnreachable = false;

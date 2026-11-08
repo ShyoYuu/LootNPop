@@ -57,18 +57,17 @@ namespace
 		return Center + Center.GetSafeNormal() * HalfHeight;
 	}
 
+	/** HintNode는 탐색 창만 줄이고 결과는 바꾸지 않는다(LNPNavGraph::FindNearestNode). 지난 프레임 결과를 넘긴다. */
 	int32 NearestNode(const FLNPNavSnapshot& Nav, const FLNPSurfaceHandle& Surface,
-		const FVector3d& Position, const FLNPNavOverlay* Overlay)
+		const FVector3d& Position, const FLNPNavOverlay* Overlay, const int32 HintNode = INDEX_NONE)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_NearestNode);
 		if (!Surface.IsValid() || Surface.Generation != Nav.SnapshotGeneration)
 		{
 			return INDEX_NONE;
 		}
-		TArray<FLNPNavGraphCandidate> Candidates;
-		LNPNavGraph::CollectNodesNear(Nav, Surface.OctantSlot, Surface.LocalLayerId,
-			Position, NavSnapRadius, Candidates, Overlay, true);
-		return Candidates.IsEmpty() ? INDEX_NONE : Candidates[0].Node;
+		return LNPNavGraph::FindNearestNode(Nav, Surface.OctantSlot, Surface.LocalLayerId,
+			Position, NavSnapRadius, Overlay, HintNode).Node;
 	}
 
 	bool IsFinished(const ELNPNavPathStatus Status)
@@ -389,7 +388,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			int32 StartNode;
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_StartProjection);
-				StartNode = NearestNode(Nav, Enemy.SurfaceHandle, Start, Overlay.Get());
+				StartNode = NearestNode(Nav, Enemy.SurfaceHandle, Start, Overlay.Get(), State.StartHintNode);
+				State.StartHintNode = StartNode;
 			}
 			int32 GoalNode;
 			{
@@ -403,9 +403,10 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				else
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_GoalProjectionMiss);
-					GoalNode = NearestNode(Nav, GoalSurface, Goal, Overlay.Get());
+					GoalNode = NearestNode(Nav, GoalSurface, Goal, Overlay.Get(), State.GoalHintNode);
 					GoalProjections.Add(Key, GoalNode);
 				}
+				State.GoalHintNode = GoalNode;
 			}
 			if (StartNode == INDEX_NONE)
 			{

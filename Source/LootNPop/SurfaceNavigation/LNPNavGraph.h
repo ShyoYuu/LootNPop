@@ -247,6 +247,16 @@ namespace LNPNavGraph
 		TArray<FLNPNavGraphCandidate>& OutCandidates, const FLNPNavOverlay* Overlay = nullptr, bool bNearestOnly = false);
 
 	/**
+	 * CollectNodesNear(bNearestOnly)와 같은 최근접 node 하나. 없으면 Node가 INDEX_NONE이다.
+	 * HintNode가 같은 slot·Layer의 막히지 않은 node이고 Radius 안이면 탐색 창을 힌트 거리로 줄인다. 최근접은 힌트보다 멀 수 없으므로
+	 * 결과(node·거리·동률 규칙)는 힌트 유무와 무관하게 같다. 힌트는 아무 node여도 안전하다 — 맞지 않으면 전체 반경으로 찾는다.
+	 * 지난 프레임의 결과를 힌트로 넘기는 호출자(매 프레임 조금씩 움직이는 시작점·그대로인 목표)를 위한 것이다.
+	 */
+	LOOTNPOP_API FLNPNavGraphCandidate FindNearestNode(
+		const FLNPNavSnapshot& Nav, int32 Slot, uint16 LocalNavLayerId, const FVector3d& WorldPosition, double Radius,
+		const FLNPNavOverlay* Overlay = nullptr, int32 HintNode = INDEX_NONE);
+
+	/**
 	 * D-062 시작·목표 스냅과 D-063 접근점.
 	 * 1) 각자 가장 가까운 node가 같은 group이면 그대로 쓴다.
 	 * 2) 다르면 양쪽 SnapRadius 안에서 공통 group 짝을 스냅 거리 합 최소로 다시 고른다.

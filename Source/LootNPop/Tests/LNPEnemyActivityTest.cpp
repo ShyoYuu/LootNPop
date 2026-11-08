@@ -555,4 +555,151 @@ bool FLNPWanderCachedEndpointsTest::RunTest(const FString& Parameters)
 		static_cast<int32>(LNPNavGraph::ResolveEndpoints(Snapshot.Nav, StaleQuery).Status));
 	return !HasAnyErrors();
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLNPNavHintedNearestTest,
+	"LootNPop.SurfaceNavigation.Nav.HintedNearest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPNavHintedNearestTest::RunTest(const FString& Parameters)
+{
+	// 힌트 node는 탐색 창만 줄인다. 어떤 힌트를 넘겨도 전체 반경 최근접(CollectNodesNear bNearestOnly)과 node·거리가 같아야 한다.
+	const TCHAR* SurfacePath = TEXT("/Game/Maps/SurfaceNavigation/Fixtures/DA_OctantSurface_Fixture_Regression.DA_OctantSurface_Fixture_Regression");
+	ULNPOctantSurfaceData* Asset = LoadObject<ULNPOctantSurfaceData>(nullptr, SurfacePath);
+	if (!TestNotNull(TEXT("Saved regression surface loads"), Asset))
+		return false;
+	TArray<FLNPOctantDefinition> Definitions;
+	TArray<ULNPOctantSurfaceData*> Assets;
+	for (int32 Slot = 0; Slot < 8; ++Slot)
+	{
+		auto& Definition = Definitions.AddDefaulted_GetRef();
+		Definition.LevelAsset = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Game/Maps/SurfaceNavigation/Fixtures/LVI_Octant_Fixture_Regression.LVI_Octant_Fixture_Regression")));
+		Definition.SurfaceData = TSoftObjectPtr<ULNPOctantSurfaceData>(FSoftObjectPath(SurfacePath));
+		Definition.SeamSignature = TEXT("WanderRegressionSeam");
+		Assets.Add(Asset);
+	}
+	FLNPSurfaceDataSnapshot Snapshot;
+	FString Error;
+	if (!TestTrue(TEXT("Saved fixture assembles"), LNPSurfaceDataLoading::ValidateAndBuildSnapshot(Definitions, Assets, 1, Snapshot, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	const FLNPNavSnapshot& Nav = Snapshot.Nav;
+	const int32 NodeCount = Nav.Graph.GetNodeCount();
+	constexpr double Radius = 300.0;
+	struct FPoint
+	{
+		FVector3d Position;
+		FLNPSurfaceHandle Surface;
+	};
+	TArray<FPoint> Points;
+	const FVector Out = FVector(1, 1, 1).GetSafeNormal();
+	const FVector Tangent = FVector::CrossProduct(Out, FVector::ForwardVector).GetSafeNormal();
+	const FVector Other = FVector::CrossProduct(Out, Tangent).GetSafeNormal();
+	for (int32 X = -12; X <= 12; ++X)
+	{
+		for (int32 Y = -12; Y <= 12; ++Y)
+		{
+			FLNPSurfaceQuery Query;
+			Query.WorldPosition = FVector3d((Out * 30000.f + Tangent * X * 150.f + Other * Y * 150.f).GetSafeNormal() * 30000.f);
+			Query.MaxStepUp = 2000.f;
+			Query.MaxDrop = 2000.f;
+			FLNPSurfaceQueryResult Result;
+			if (LNPSurfaceDataLoading::QuerySupport(Snapshot, Query, Result) == ELNPSurfaceQueryStatus::HighConfidence)
+			{
+				Points.Add({FVector3d(Result.Point), Result.Surface});
+				// 지면에서 띄운 점: 반경 밖이면 INDEX_NONE 의미도 대조한다.
+				Points.Add({FVector3d(Result.Point) * 0.97, Result.Surface});
+			}
+		}
+	}
+	if (!TestTrue(TEXT("Fixture yields support points"), Points.Num() >= 40))
+		return false;
+
+	auto Reference = [&Nav](const FPoint& Point, const FLNPNavOverlay* Overlay)
+	{
+		TArray<FLNPNavGraphCandidate> Candidates;
+		LNPNavGraph::CollectNodesNear(Nav, Point.Surface.OctantSlot, Point.Surface.LocalLayerId,
+			Point.Position, Radius, Candidates, Overlay, true);
+		return Candidates.IsEmpty() ? FLNPNavGraphCandidate() : Candidates[0];
+	};
+	int32 Compared = 0;
+	int32 Found = 0;
+	auto Check = [&](const FPoint& Point, const FLNPNavGraphCandidate& Expected, const int32 Hint, const FLNPNavOverlay* Overlay,
+		const TCHAR* Case)
+	{
+		const FLNPNavGraphCandidate Actual = LNPNavGraph::FindNearestNode(Nav, Point.Surface.OctantSlot, Point.Surface.LocalLayerId,
+			Point.Position, Radius, Overlay, Hint);
+		++Compared;
+		if (Actual.Node != Expected.Node || Actual.Distance != Expected.Distance || Actual.Group != Expected.Group)
+		{
+			AddError(FString::Printf(TEXT("%s hint %d: node %d/%d distance %.17g/%.17g"),
+				Case, Hint, Expected.Node, Actual.Node, Expected.Distance, Actual.Distance));
+		}
+	};
+
+	TArray<FLNPNavGraphCandidate> Expected;
+	for (const FPoint& Point : Points)
+	{
+		Expected.Add(Reference(Point, nullptr));
+		Found += Expected.Last().Node != INDEX_NONE ? 1 : 0;
+	}
+	TestTrue(TEXT("Some points have a node"), Found > 0);
+	TestTrue(TEXT("Some points have no node in range"), Found < Points.Num());
+
+	// 다른 slot·Layer·먼 node·범위 밖 index를 고루 섞은 공통 힌트.
+	TArray<int32> CommonHints = {INDEX_NONE, -5, NodeCount, NodeCount + 100};
+	for (int32 Node = 0; Node < NodeCount; Node += FMath::Max(1, NodeCount / 61))
+	{
+		CommonHints.Add(Node);
+	}
+	for (int32 Index = 0; Index < Points.Num(); ++Index)
+	{
+		const FPoint& Point = Points[Index];
+		for (const int32 Hint : CommonHints)
+		{
+			Check(Point, Expected[Index], Hint, nullptr, TEXT("Common"));
+		}
+		// 정답 자체와 이웃 점들의 정답(가까운 유효 힌트).
+		Check(Point, Expected[Index], Expected[Index].Node, nullptr, TEXT("Self"));
+		for (int32 Near = FMath::Max(0, Index - 6); Near < FMath::Min(Points.Num(), Index + 7); ++Near)
+		{
+			Check(Point, Expected[Index], Expected[Near].Node, nullptr, TEXT("Neighbor"));
+		}
+	}
+
+	// Overlay가 정답 node를 막으면 그 node는 힌트로도 후보로도 쓰이지 않는다.
+	FLNPNavOverlay Overlay;
+	Overlay.BlockedNodes.Init(false, NodeCount);
+	for (int32 Index = 0; Index < Points.Num(); Index += 3)
+	{
+		if (Expected[Index].Node != INDEX_NONE)
+		{
+			Overlay.BlockedNodes[Expected[Index].Node] = true;
+		}
+	}
+	for (int32 Index = 0; Index < Points.Num(); ++Index)
+	{
+		const FLNPNavGraphCandidate Blocked = Reference(Points[Index], &Overlay);
+		Check(Points[Index], Blocked, Expected[Index].Node, &Overlay, TEXT("BlockedHint"));
+		Check(Points[Index], Blocked, Blocked.Node, &Overlay, TEXT("OverlaySelf"));
+		Check(Points[Index], Blocked, INDEX_NONE, &Overlay, TEXT("OverlayNone"));
+	}
+
+	// 이동 경로를 따라 지난 결과를 다음 힌트로 넘긴다(EnemyPath 시작 투영과 같은 사용).
+	for (int32 Index = 0; Index + 2 < Points.Num(); Index += 2)
+	{
+		const FPoint& From = Points[Index];
+		const FPoint& To = Points[Index + 2];
+		int32 Hint = INDEX_NONE;
+		for (int32 Step = 0; Step <= 24; ++Step)
+		{
+			const FPoint Walk{FMath::Lerp(From.Position, To.Position, Step / 24.0), From.Surface};
+			const FLNPNavGraphCandidate WalkExpected = Reference(Walk, nullptr);
+			Check(Walk, WalkExpected, Hint, nullptr, TEXT("Chain"));
+			Hint = WalkExpected.Node;
+		}
+	}
+	AddInfo(FString::Printf(TEXT("Compared %d hinted lookups over %d points (%d with a node)."), Compared, Points.Num(), Found));
+	return !HasAnyErrors();
+}
 #endif

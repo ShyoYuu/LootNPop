@@ -74,10 +74,10 @@ namespace
 	}
 
 	/** 한 slot·Layer의 격자 좌표 창을 훑는다. Accept(Node, AssetNode) → 후보 여부. */
-	template <typename FAccept>
+	template <typename FAccept, typename FCandidates>
 	void ScanLayer(
 		const FLNPNavSnapshot& Nav, const int32 Slot, const int32 LayerOrdinal, const FVector3d& WorldPosition,
-		const double Radius, FAccept&& Accept, TArray<FLNPNavGraphCandidate>& OutCandidates,
+		const double Radius, FAccept&& Accept, FCandidates& OutCandidates,
 		const FLNPNavOverlay* Overlay = nullptr, const bool bNearestOnly = false)
 	{
 		const FLNPNavGraph& Graph = Nav.Graph;
@@ -483,6 +483,38 @@ void LNPNavGraph::CollectNodesNear(
 			SortCandidates(OutCandidates);
 		}
 	}
+}
+
+FLNPNavGraphCandidate LNPNavGraph::FindNearestNode(
+	const FLNPNavSnapshot& Nav, const int32 Slot, const uint16 LocalNavLayerId, const FVector3d& WorldPosition,
+	double Radius, const FLNPNavOverlay* Overlay, const int32 HintNode)
+{
+	const FLNPNavGraph& Graph = Nav.Graph;
+	if (!Graph.IsValid() || Slot < 0 || Slot >= GraphSlotCount || !(Radius > 0.0))
+	{
+		return FLNPNavGraphCandidate();
+	}
+	const int32 Ordinal = FindLayerOrdinal(*Graph.SlotGraphs[Slot], LocalNavLayerId);
+	if (Ordinal == INDEX_NONE)
+	{
+		return FLNPNavGraphCandidate();
+	}
+	// 힌트가 이 slot·Layer의 막히지 않은 node면 최근접 거리는 힌트 거리 이하다. 반경을 그만큼 줄여도 최근접과 동률 node가
+	// 모두 창 안에 남으므로 결과가 전체 반경 탐색과 같다. 거리식은 ScanLayer와 같고, 1cm 여유는 제곱·제곱근 반올림을 덮는다.
+	if (Graph.GetSlot(HintNode) == Slot && !Graph.BlockedNodes[HintNode] && !LNPNavOverlay::IsBlocked(Overlay, HintNode))
+	{
+		const FLNPNavGraphNode& Hint = Graph.GetNode(Slot, HintNode);
+		const double HintDistanceSquared = FVector3d::DistSquared(
+			Graph.SlotRotations[Slot].RotateVector(FVector3d(Hint.LocalPoint)), WorldPosition);
+		if (Hint.LayerOrdinal == Ordinal && HintDistanceSquared <= FMath::Square(Radius))
+		{
+			Radius = FMath::Min(Radius, FMath::Sqrt(HintDistanceSquared) + 1.0);
+		}
+	}
+	TArray<FLNPNavGraphCandidate, TInlineAllocator<1>> Nearest;
+	ScanLayer(Nav, Slot, Ordinal, WorldPosition, Radius,
+		[](int32, const FLNPNavGraphNode&) { return true; }, Nearest, Overlay, true);
+	return Nearest.IsEmpty() ? FLNPNavGraphCandidate() : Nearest[0];
 }
 
 FLNPNavEndpoints LNPNavGraph::ResolveEndpoints(const FLNPNavSnapshot& Nav, const FLNPNavEndpointQuery& Query,
