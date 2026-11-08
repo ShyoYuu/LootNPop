@@ -16,6 +16,7 @@
 | .context/Guide_OctantLevelDesign.md | 옥탄트 공간 설계 — 평면/단면/연결표·랜드마크·Pod 전투장·훅·자연 진입/회복, 대표 구역 통과 기준과 다음 세션 인계 |
 | .context/SurfaceSupportNavigation/phases/Phase09_GrovePrototype.md | Grove_00 제작 계획·새 세션 프롬프트 — 거목/뿌리 사이 지상 순환·측면 재교전 |
 | .context/SurfaceSupportNavigation/phases/Phase09_RidgePrototype.md | Ridge_00 제작 계획·새 세션 프롬프트 — 능선/분지의 시야 전환·노출 관리 |
+| .context/SurfaceSupportNavigation/phases/Phase15_ComplexMapPathRemeasure.md | 복잡한 맵 기준 추격 경로 재측정 계획 — Grove·Ridge 추가·Meadow 제외 뒤 flow field·계층형·개선 A* 재비교 |
 | .context/Guide_CustomSlateWidget.md | 커스텀 Slate 위젯 제작 절차 — 베이스 선택, TSlateAttribute, 스타일 분리, UMG 래퍼 |
 | .context/TechDesign_InitSequence.md | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | .context/TechDesign_SurfaceCache.md | [legacy] 과거 런타임 등장방형 그리드 베이크의 설계 근거 — 현재는 에디터 베이크 Support Atlas(`.context/SurfaceSupportNavigation/`)로 대체·제거됨. NavMesh 대체 이유, 수직 단차 표현 한계 |

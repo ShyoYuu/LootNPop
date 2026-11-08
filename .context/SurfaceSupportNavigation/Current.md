@@ -6,6 +6,8 @@
 
 ## 현재 결정
 
+**생산 Nav 자동화 2건 보완(2026-11-08).** Acropolis·Pyramid 추가 뒤 재실행하지 않아 깨져 있던 `Nav.Hierarchy`·`Nav.ProductionSpawnProjection`을 고쳤다. 베이커는 같은 Layer Nav node가 300cm 안에 없는 random candidate를 버린다. Acropolis 후보 4577은 가장 가까운 열린 node가 336.2cm였고, 재베이크에서 1개가 걸러졌다(12,009개). 투영 검사는 풀 정의마다 한 번씩 돌고 실패 사유를 남긴다. `Nav.Hierarchy`는 절대 8MiB 대신 Cluster당 바이트(715B 이하, 현재 약 651B)로 메모리 회귀를 보고, 기준 A*와 저수준 정제 모두 확장 상한 없이 비교한다(waypoint P95 1.032). Grove·Ridge 계획의 풀 통합 단계에 전체 SurfaceNavigation 실행을 넣었다. 규칙은 [검증·전환](design/ValidationAndMigration.md)이 소유한다. 같은 실행에서 회귀·Conditional fixture와 Meadow DA의 source hash가 낡은 것을 확인했다. 원인은 b1ae382의 `BP_GrappleAnchor` 재저장이다(스트림은 모두 현재). 세 DA를 다시 구웠고(필터 제거 0), 실패했던 베이크 검사 3종이 통과했다. 그래플 앵커처럼 여러 옥탄트가 공유하는 BP를 다시 저장하면 참조하는 DA도 다시 굽는다. commandlet 베이크는 Asset Registry 전체 검색(`search_all_assets(True)`)을 먼저 끝내야 엔진 에셋 의존을 읽는다.
+
 **Bastion·Hollow 외곽 엄폐 보강(2026-11-08, 사용자 PIE 확인·완료).** 각 맵 외곽에 기존 `FBlock` 경로의 큰 정적 엄폐 덩어리를 6개씩 추가했다. 폭 6~9m·지면 위 약 3.2~5m이며, Bastion은 `Block_06~11`, Hollow는 `Block_02~07`이다. Hollow는 기존 `M_Hollow_Strata`를 사용한다. 중앙 지형·Pod·훅·패널을 재생성하지 않고 새 액터만 추가했으며 기존 453/117개 액터의 transform·GUID 불변을 확인했다. 후보 12곳의 지면 중심/가장자리 108개 광선과 머리 높이 190cm의 엄폐 측면 48개 광선을 확인했다. 모든 엄폐물의 bounds는 이음매 평면에서 35m 밖이며 가장 가까운 기존 배치 마커와의 중심 거리는 Bastion 약 42.2m·Hollow 약 65.4m 이상이다. `LNPSliceOctant.cpp`의 원본 배치도 함께 갱신했고 Live Coding은 성공했다. 사용자 Bastion 재베이크·DA 저장 후 `BastionLowPolyContent`·`BastionLowPolyNav`·`BastionEncounters` 기존 자동 검사 3개가 오류/경고 0으로 통과했다. Hollow 첫 재베이크 뒤 `HollowContent`가 새 엄폐물 두 개의 기존 지각/내부 지형 보행 접합부 차단을 검출했다. 두 개를 (-14000, ±17500)으로 옮긴 저장본에서 같은 검사가 오류/경고 0으로 통과했고 수정 좌표의 Live Coding도 성공했다. 기존 실패를 제외하거나 검사 기준을 바꾸지 않았다. 이동한 엄폐물의 머리 높이 광선 8개도 재확인했다. 수정본 Hollow 재베이크·DA 저장 후 `HollowContent`·`ProductionSurfaceDataDefinitions`·`ProductionSpawnComposition`도 오류/경고 0으로 통과했다. Bastion 3개를 포함해 최종 적용 상태의 기존 자동 검사 총 6개가 성공했다. 사용자가 PIE에서 확인한 뒤 문제없음으로 외곽 엄폐 배치를 채택했다. 복구본·배치·원래 액터/충돌 검사 기록은 `Saved/OuterCover/20261108/`에 있다.
 
 **새 테마 계획 채택(2026-11-08).** [Grove_00](phases/Phase09_GrovePrototype.md)는 거목·뿌리 사이의 지상 순환과 측면 재교전, [Ridge_00](phases/Phase09_RidgePrototype.md)는 완만한 능선·얕은 분지에서의 시야 전환과 노출 관리를 목표로 한다. 각각 제작 순서·검증 기준·독립 세션 시작 프롬프트를 기록했다. 두 옥탄트의 실제 제작과 검증은 아직 미착수다.
@@ -32,6 +34,7 @@
 
 - 새 작업 세션은 [Grove 계획](phases/Phase09_GrovePrototype.md) 또는 [Ridge 계획](phases/Phase09_RidgePrototype.md)의 시작 프롬프트로 시작한다. 같은 에디터의 레벨 전환·베이크·풀 저장을 동시에 실행하지 않는다.
 - Pyramid_00은 V058 공간·동선을 보존한다. 추가 피드백이 생기면 새 형상 버전에서 해당 구간만 수정한다.
+- Grove·Ridge를 풀에 추가하고 Meadow를 뺀 뒤 [Phase 15 재측정 계획](phases/Phase15_ComplexMapPathRemeasure.md)으로 추격 경로 세 방식을 다시 잰다.
 
 ## 인계 근거
 

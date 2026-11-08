@@ -56,7 +56,7 @@ Pod는 노출된 넓은 마루, 사면 중간의 전투 평탄부, 분지의 교
 3. **사용자 대표 구역 확인:** 조준 카메라 높이에서의 시야와 전투감은 짧은 PIE를 요청한다. 필요 최소 베이크로 런타임 참조를 맞추되 통행 확인과 구분한다. 성공 기준: 단순한 빈 언덕 걷기가 아니라 노출을 감수하는 직행과 돌아 접근하는 선택을 사용자가 체감한다.
 4. **전체 구성:** 같은 공간 문법으로 크기·방향이 다른 능선과 분지를 확장한다. 원본은 `Art/Octants/Ridge_00/`, 생성/반입 코드는 `Scripts/`의 테마 전용 파일, 중간본은 `_WorkInProgress`, 복구·FBX·로그는 `Saved/SliceOctant/Ridge_00/<Version>/`로 구분한다. 확인: 지각 접합, 얇은 삼각형의 법선, 급한 횡경사·낙하 함정·반복 실루엣을 검사한다.
 5. **UE 반입·충돌·베이크:** 최종 구면 지형에서 보행면·접합 양방향·훅 접근/관성 착지·Pod 여유를 검사하고 기존 베이커를 사용한다. seam·현재성·결정론·혼합 정의/편성 중 적용 가능한 기존 검사를 실행하고 Support/Nav/Spawn 비용을 기록한다. 지각에 불필요한 overhang을 만들지 않는다.
-6. **풀 통합·마지막 PIE:** 최종 LVI·DA를 함께 저장하고 최신 풀에 정의를 한 번만 추가한다. `AllowedSlotRotations=255`와 현재 seam signature를 확인한다. Grove 등 다른 세션의 등록을 보존한다. 8slot 게시·경계 왕복·분지/능선 전투·복귀를 확인하고 미확인 부분과 다음 작업을 기록한다.
+6. **풀 통합·마지막 PIE:** 최종 LVI·DA를 함께 저장하고 최신 풀에 정의를 한 번만 추가한다. `AllowedSlotRotations=255`와 현재 seam signature를 확인한다. Grove 등 다른 세션의 등록을 보존한다. 등록 뒤 `LootNPop.SurfaceNavigation.Nav.ProductionSpawnProjection`(풀 정의마다 Spawn 후보·앵커 Nav 투영)을 포함해 `LootNPop.SurfaceNavigation` 전체를 한 번 돌린다. 테스트가 다시 저장하는 `SM_COptionSphereSculpt`·`SM_BOptionExtracted`는 git으로 되돌린다. 8slot 게시·경계 왕복·분지/능선 전투·복귀를 확인하고 미확인 부분과 다음 작업을 기록한다.
 
 현재 `BuildSliceOctant Ridge_00`은 지원된다고 가정하지 않는다. 연속 지각의 높이 변형을 단순하게 소유할 기존 코드 경로를 먼저 검토하고, Blender가 필요하면 지각과 능선의 접합 소유권을 명시한다. 새 지형 시스템·MCP 도구·측정 하네스를 먼저 만들지 않는다. 같은 에디터에서 Grove와 레벨 전환·베이크·풀 저장을 동시에 실행하지 않는다.
 

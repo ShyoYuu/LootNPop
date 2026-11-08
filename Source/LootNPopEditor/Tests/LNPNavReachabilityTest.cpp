@@ -74,10 +74,41 @@ namespace LNPNavReachabilityTest
 		}
 	};
 
-	/** 모든 slot의 authored anchor와, asset마다 처음 쓰는 slot의 random candidate를 같은 Layer node로 투영한다. */
-	FSpawnProjectionStats ProjectSpawnStream(const FLNPSurfaceDataSnapshot& Snapshot)
+	/**
+	 * 투영 실패 사유. 순서대로 group 없음, 막혔거나 비활성 Layer인 node, 넓은 반경의 최근접 열린 node, node 없음이다.
+	 * 다음 콘텐츠에서 실패가 나오면 재현 없이 원인 방향을 알 수 있게 한다.
+	 */
+	FString DescribeProjectionFailure(
+		const FLNPSurfaceDataSnapshot& Snapshot, const int32 Slot, const uint16 Layer, const FVector3d& WorldPosition)
 	{
-		FSpawnProjectionStats Stats;
+		constexpr double WideRadius = 3000.0;
+		const FLNPSurfaceHandle Handle{static_cast<uint16>(Slot), Layer, Snapshot.Generation};
+		FLNPNavProjection Projection;
+		if (LNPNavQuery::ProjectToNode(Snapshot, WorldPosition, Handle, LNPNavQuery::DefaultProjectionRadius, Projection))
+		{
+			return FString::Printf(TEXT("node at %.1fcm has no reachability group"), Projection.Distance);
+		}
+		const FLNPSurfaceDataSlotSnapshot& SlotSnapshot = Snapshot.Slots[Slot];
+		double LocalDistance = 0.0;
+		if (SlotSnapshot.Navigation.IsValid() && SlotSnapshot.Support.IsValid()
+			&& LNPNavQuery::FindLocalNodeNear(*SlotSnapshot.Navigation, *SlotSnapshot.Support, Layer,
+				SlotSnapshot.WorldToSlotRotation.RotateVector(WorldPosition), LNPNavQuery::DefaultProjectionRadius, LocalDistance))
+		{
+			return FString::Printf(TEXT("node at %.1fcm is blocked or on an inactive layer"), LocalDistance);
+		}
+		if (LNPNavQuery::ProjectToNode(Snapshot, WorldPosition, Handle, WideRadius, Projection))
+		{
+			return FString::Printf(TEXT("nearest open node %.1fcm"), Projection.Distance);
+		}
+		return FString::Printf(TEXT("no open node within %.0fcm"), WideRadius);
+	}
+
+	/**
+	 * 모든 slot의 authored anchor와, asset마다 처음 쓰는 slot의 random candidate를 같은 Layer node로 투영해 Stats에 더한다.
+	 * Slots가 있으면 그 slot만 본다. 여러 배치에 걸쳐 풀 정의마다 한 번씩 검사할 때 쓴다.
+	 */
+	void ProjectSpawnStream(const FLNPSurfaceDataSnapshot& Snapshot, FSpawnProjectionStats& Stats, const TBitArray<>* Slots = nullptr)
+	{
 		TSet<const FLNPSpawnData*> CandidateAssets;
 		// runtime StaticNavComponent별 node 수. asset-local descriptor를 runtime ID로 합산한다.
 		TArray<uint64> ComponentSizes;
@@ -119,17 +150,23 @@ namespace LNPNavReachabilityTest
 		};
 		for (int32 Slot = 0; Slot < Snapshot.Slots.Num(); ++Slot)
 		{
+			if (Slots != nullptr && !(*Slots)[Slot])
+			{
+				continue;
+			}
 			const FLNPSurfaceDataSlotSnapshot& SlotSnapshot = Snapshot.Slots[Slot];
+			const FString Asset = SlotSnapshot.SurfaceDataAsset.GetAssetName();
 			for (const FLNPSpawnAuthoredAnchor& Anchor : SlotSnapshot.Spawn->AuthoredAnchors)
 			{
 				const FVector3d Local(Anchor.LocalTransform.GetLocation());
+				const FVector3d World = SlotSnapshot.SlotRotation.RotateVector(Local);
 				FLNPNavProjection Projection;
 				FLNPNavGroupRef Group;
 				++Stats.Anchors;
-				Record(ProjectOnLayer(Snapshot, Slot, Anchor.LocalLayerId, SlotSnapshot.SlotRotation.RotateVector(Local),
-						Projection, Group),
-					Projection, Stats.AnchorFailures,
-					FString::Printf(TEXT("anchor slot=%d layer=%u local=%s"), Slot, Anchor.LocalLayerId, *Local.ToString()));
+				const bool bProjected = ProjectOnLayer(Snapshot, Slot, Anchor.LocalLayerId, World, Projection, Group);
+				Record(bProjected, Projection, Stats.AnchorFailures, bProjected ? FString()
+					: FString::Printf(TEXT("anchor %s slot=%d layer=%u local=%s: %s"), *Asset, Slot, Anchor.LocalLayerId,
+						*Local.ToString(), *DescribeProjectionFailure(Snapshot, Slot, Anchor.LocalLayerId, World)));
 			}
 			bool bAlreadyCounted = false;
 			CandidateAssets.Add(SlotSnapshot.Spawn.Get(), &bAlreadyCounted);
@@ -140,18 +177,18 @@ namespace LNPNavReachabilityTest
 			for (const FLNPSpawnRandomCandidate& Candidate : SlotSnapshot.Spawn->RandomCandidates)
 			{
 				const FVector3d Local(Candidate.LocalPosition);
+				const FVector3d World = SlotSnapshot.SlotRotation.RotateVector(Local);
 				FLNPNavProjection Projection;
 				FLNPNavGroupRef Group;
 				++Stats.Candidates;
-				Record(ProjectOnLayer(Snapshot, Slot, Candidate.LocalLayerId, SlotSnapshot.SlotRotation.RotateVector(Local),
-						Projection, Group),
-					Projection, Stats.CandidateFailures,
-					FString::Printf(TEXT("candidate %u slot=%d layer=%u allowed=%u local=%s"), Candidate.CandidateIndex,
-						Slot, Candidate.LocalLayerId, static_cast<uint32>(Candidate.Allowed), *Local.ToString()));
+				const bool bProjected = ProjectOnLayer(Snapshot, Slot, Candidate.LocalLayerId, World, Projection, Group);
+				Record(bProjected, Projection, Stats.CandidateFailures, bProjected ? FString()
+					: FString::Printf(TEXT("candidate %u %s slot=%d layer=%u allowed=%u local=%s: %s"), Candidate.CandidateIndex,
+						*Asset, Slot, Candidate.LocalLayerId, static_cast<uint32>(Candidate.Allowed), *Local.ToString(),
+						*DescribeProjectionFailure(Snapshot, Slot, Candidate.LocalLayerId, World)));
 			}
 		}
 		Stats.Distances.Sort();
-		return Stats;
 	}
 
 	TArray<FLNPOctantDefinition> MakeRegressionDefinitions()
@@ -353,7 +390,8 @@ bool FLNPNavRegressionReachabilityTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("Vertex %s has four slot copies"), *Axis.ToString()), Copies, 4);
 	}
 
-	const FSpawnProjectionStats Stats = ProjectSpawnStream(Snapshot);
+	FSpawnProjectionStats Stats;
+	ProjectSpawnStream(Snapshot, Stats);
 	TestEqual(TEXT("Regression authored anchors all project"), Stats.AnchorFailures, 0);
 	TestEqual(TEXT("Regression random candidates all project"), Stats.CandidateFailures, 0);
 	for (const FString& Sample : Stats.FailureSamples)
@@ -378,29 +416,72 @@ bool FLNPNavProductionSpawnProjectionTest::RunTest(const FString& Parameters)
 	}
 	TArray<FLNPOctantDefinition> EffectiveDefinitions;
 	Pool->BuildEffectiveDefinitions(EffectiveDefinitions);
-	TArray<FLNPOctantDefinition> SelectedDefinitions;
-	FString Error;
-	if (!TestTrue(TEXT("Production definitions select all eight slots"),
-		ULNPOctantSpawnSubsystem::SelectOctantDefinitions(
-			EffectiveDefinitions, 135792468, SelectedDefinitions, nullptr, &Error)))
+	// 후보는 asset마다 한 배치에서 한 번 센다. 기본 배치(seed 135792468)의 모든 slot을 본 뒤, 거기 없던 풀 정의는
+	// 고정 seed 열에서 처음 나오는 배치의 그 slot만 본다. 풀이 8종을 넘거나 구성이 바뀌어도 모든 정의를 덮는다.
+	TSet<FSoftObjectPath> Remaining;
+	for (const FLNPOctantDefinition& Definition : EffectiveDefinitions)
 	{
-		AddError(Error);
-		return false;
+		if (!Definition.LevelAsset.IsNull())
+		{
+			Remaining.Add(Definition.SurfaceData.ToSoftObjectPath());
+		}
 	}
-	TArray<ULNPOctantSurfaceData*> LoadedData;
-	for (const FLNPOctantDefinition& Definition : SelectedDefinitions)
+	FSpawnProjectionStats Stats;
+	uint32 Groups = 0;
+	uint32 Version = 0;
+	FRandomStream SeedStream(20261108);
+	int32 Seed = 135792468;
+	for (int32 Attempt = 0; Attempt < 64 && !Remaining.IsEmpty(); ++Attempt, Seed = static_cast<int32>(SeedStream.GetUnsignedInt()))
 	{
-		LoadedData.Add(Definition.SurfaceData.LoadSynchronous());
+		TArray<FLNPOctantDefinition> SelectedDefinitions;
+		FString Error;
+		if (!TestTrue(FString::Printf(TEXT("Production definitions select all eight slots (seed %d)"), Seed),
+			ULNPOctantSpawnSubsystem::SelectOctantDefinitions(EffectiveDefinitions, Seed, SelectedDefinitions, nullptr, &Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		TBitArray<> Slots(Attempt == 0, SelectedDefinitions.Num());
+		FString Layout;
+		for (int32 Slot = 0; Slot < SelectedDefinitions.Num(); ++Slot)
+		{
+			const FSoftObjectPath Path = SelectedDefinitions[Slot].SurfaceData.ToSoftObjectPath();
+			Slots[Slot] = Slots[Slot] || Remaining.Contains(Path);
+			Layout += FString::Printf(TEXT("%s%s%s"), Slot == 0 ? TEXT("") : TEXT(", "), *Path.GetAssetName(),
+				Slots[Slot] ? TEXT("") : TEXT("(skipped)"));
+		}
+		if (Slots.Find(true) == INDEX_NONE)
+		{
+			continue;
+		}
+		TArray<ULNPOctantSurfaceData*> LoadedData;
+		for (const FLNPOctantDefinition& Definition : SelectedDefinitions)
+		{
+			LoadedData.Add(Definition.SurfaceData.LoadSynchronous());
+		}
+		FLNPSurfaceDataSnapshot Snapshot;
+		if (!TestTrue(FString::Printf(TEXT("Production 8-slot snapshot builds (seed %d)"), Seed),
+			LNPSurfaceDataLoading::ValidateAndBuildSnapshot(SelectedDefinitions, LoadedData, 1, Snapshot, Error)))
+		{
+			AddError(Error);
+			return false;
+		}
+		ProjectSpawnStream(Snapshot, Stats, &Slots);
+		for (int32 Slot = 0; Slot < SelectedDefinitions.Num(); ++Slot)
+		{
+			if (Slots[Slot])
+			{
+				Remaining.Remove(SelectedDefinitions[Slot].SurfaceData.ToSoftObjectPath());
+			}
+		}
+		if (Attempt == 0)
+		{
+			Groups = Snapshot.Nav.ReachabilityGroupCount;
+			Version = Snapshot.Nav.ConnectivityGraphVersion;
+		}
+		AddInfo(FString::Printf(TEXT("Seed %d slots: %s"), Seed, *Layout));
 	}
-	FLNPSurfaceDataSnapshot Snapshot;
-	if (!TestTrue(TEXT("Production 8-slot snapshot builds"),
-		LNPSurfaceDataLoading::ValidateAndBuildSnapshot(SelectedDefinitions, LoadedData, 1, Snapshot, Error)))
-	{
-		AddError(Error);
-		return false;
-	}
-
-	const FSpawnProjectionStats Stats = ProjectSpawnStream(Snapshot);
+	TestTrue(FString::Printf(TEXT("Every pool definition's spawn stream is projected (%d left)"), Remaining.Num()), Remaining.IsEmpty());
 	TestEqual(TEXT("Production authored anchors all project"), Stats.AnchorFailures, 0);
 	TestEqual(TEXT("Production random candidates all project"), Stats.CandidateFailures, 0);
 	for (const FString& Sample : Stats.FailureSamples)
@@ -409,7 +490,7 @@ bool FLNPNavProductionSpawnProjectionTest::RunTest(const FString& Parameters)
 	}
 	AddInfo(FString::Printf(
 		TEXT("Production Nav projection: groups=%u version=%u anchors=%d anchorFailures=%d candidates=%d candidateFailures=%d projection P50=%.1f P90=%.1f P99=%.1f max=%.1fcm isolatedNodeHits=%d smallComponentHits(<=%llu nodes)=%d"),
-		Snapshot.Nav.ReachabilityGroupCount, Snapshot.Nav.ConnectivityGraphVersion, Stats.Anchors, Stats.AnchorFailures,
+		Groups, Version, Stats.Anchors, Stats.AnchorFailures,
 		Stats.Candidates, Stats.CandidateFailures,
 		Stats.Percentile(0.5), Stats.Percentile(0.9), Stats.Percentile(0.99), Stats.Percentile(1.0),
 		Stats.IsolatedNodeHits, FSpawnProjectionStats::SmallComponentNodes, Stats.SmallComponentHits));

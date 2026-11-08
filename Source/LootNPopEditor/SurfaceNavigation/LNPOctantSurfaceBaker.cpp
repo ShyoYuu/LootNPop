@@ -30,6 +30,7 @@
 #include "SurfaceNavigation/LNPSurfaceBakeGeometry.h"
 #include "SurfaceNavigation/LNPMassSpawnPoint.h"
 #include "SurfaceNavigation/LNPNavData.h"
+#include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPSpawnData.h"
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
@@ -605,11 +606,14 @@ namespace LNPOctantSurfaceBaker
 		const FSpawnClearanceWorld& ClearanceWorld,
 		TConstArrayView<FLNPSupportLayerRaster> Rasters,
 		const FLNPSupportAtlas& Atlas,
+		const FLNPNavData& Navigation,
 		const FLNPOctantBakeOptions& Options,
 		FLNPSpawnData& OutSpawnData,
+		int32& OutNoNavCandidates,
 		FString& OutError)
 	{
 		OutSpawnData = FLNPSpawnData();
+		OutNoNavCandidates = 0;
 		const ULNPSettings* Settings = GetDefault<ULNPSettings>();
 		const ULNPMassSpawnConfig* SpawnConfig = Settings ? Settings->MassSpawnConfig.LoadSynchronous() : nullptr;
 		if (!SpawnConfig)
@@ -669,6 +673,15 @@ namespace LNPOctantSurfaceBaker
 					}
 					if (Allowed == ELNPSpawnCandidateFlags::None)
 					{
+						continue;
+					}
+					// 런타임은 후보를 같은 Layer Nav node로 투영해 경로를 시작한다. Support 표본은 걸을 수 있어도 Nav가 경사·단차·점유로
+					// 뺀 자리면 투영이 실패하므로, 저장할 float 좌표로 같은 반경 투영을 확인해 거른다(Nav.ProductionSpawnProjection).
+					double NavDistance = 0.0;
+					if (!LNPNavQuery::FindLocalNodeNear(Navigation, Atlas, static_cast<uint16>(LayerId),
+						FVector3d(FVector3f(Direction * Sample.Radius)), LNPNavQuery::DefaultProjectionRadius, NavDistance))
+					{
+						++OutNoNavCandidates;
 						continue;
 					}
 					FLNPSpawnRandomCandidate& Candidate = OutSpawnData.RandomCandidates.AddDefaulted_GetRef();
@@ -1016,13 +1029,13 @@ FString FLNPOctantBakeReport::ToString() const
 	FString Result = FString::Printf(
 		TEXT("Crust=%s (%d tris, %d Support sources, %d Layers) N=%d Samples=%d Valid=%d Walkable=%d NeedsExact=%d (%.2f%%) ")
 		TEXT("Radius=[%.2f, %.2f] TotalSamples=%d SupportPayload=%lld bytes Nav cells=%d components=%d portals=%d candidates=%d/%d/%d seams=%d payloads=%lld/%lld bytes ")
-		TEXT("Spawn authored=%d candidates=%d payload=%lld bytes Time collect=%.2fs extract=%.2fs raster=%.2fs layers=%.2fs encode=%.2fs"),
+		TEXT("Spawn authored=%d candidates=%d noNavRejected=%d payload=%lld bytes Time collect=%.2fs extract=%.2fs raster=%.2fs layers=%.2fs encode=%.2fs"),
 		*CrustName, CrustTriangleCount, SupportSourceCount, SupportLayerCount, Subdivisions, SampleCount, ValidCount, WalkableCount,
 		NeedsExactCount, SampleCount > 0 ? 100.0 * NeedsExactCount / SampleCount : 0.0,
 		MinRadius, MaxRadius, TotalSampleCount, PayloadBytes, Nav.CellCount, Nav.StaticComponentCount, Nav.PortalCount,
 		Nav.PortalDistanceCandidateCount, Nav.PortalStepCandidateCount, Nav.PortalClearanceCandidateCount,
 		Nav.SeamEndpointCount, NavigationPayloadBytes, TraversalPayloadBytes,
-		SpawnAuthoredCount, SpawnCandidateCount, SpawnPayloadBytes,
+		SpawnAuthoredCount, SpawnCandidateCount, SpawnCandidateNoNavCount, SpawnPayloadBytes,
 		CollectSeconds, ExtractSeconds, RasterSeconds, LayerRasterSeconds, EncodeSeconds);
 	Result += FString::Printf(TEXT("\n  Sheets=%d split=%d cutEdges=%d cutBoundary=%.2fcm"),
 		OriginalSheetCount, SplitSheetCount, CutEdgeCount, CutBoundaryLength);
@@ -1231,7 +1244,8 @@ bool FLNPOctantSurfaceBaker::Bake(
 	OutReport.ConditionalPatchPayloadBytes = PatchPayload.Num();
 
 	FLNPSpawnData SpawnData;
-	if (!BuildSpawnData(*SourceWorld, ClearanceWorld, Rasters, Decoded, Options, SpawnData, OutError))
+	if (!BuildSpawnData(*SourceWorld, ClearanceWorld, Rasters, Decoded, Navigation, Options, SpawnData,
+		OutReport.SpawnCandidateNoNavCount, OutError))
 	{
 		return false;
 	}

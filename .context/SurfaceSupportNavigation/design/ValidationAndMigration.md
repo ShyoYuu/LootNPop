@@ -112,6 +112,10 @@ World Device는 두 source를 가진다(`DynamicTerrain.md` §1). 수동 Placeme
 
 옥탄트 Spawn 후보·편성·할당 규칙을 바꾸면 `Runtime.ProductionSpawnComposition`을 실행한다. 실제 풀 선택과 정식 `DA_MassSpawnConfig`로 패키지 배치·32 seed의 Pod 부족0과 적 전량 배치를 요구하며, 부족 Pod를 slot·Layer·적 종류·후보 수로 분류해 남긴다([Phase9 V009](../phases/Phase09_SpawnCompositionV009.md)).
 
+베이커는 random candidate를 저장하기 전에 같은 Layer Nav node가 런타임 투영 반경(300cm) 안에 있는지 확인하고, 없으면 버린다(`LNPNavQuery::FindLocalNodeNear`, 베이크 보고 `noNavRejected`). Support 표본은 걸을 수 있어도 Nav가 경사·단차·점유로 뺀 자리에 후보가 남으면, 거기 스폰된 적이 경로를 시작하지 못하기 때문이다. `Nav.ProductionSpawnProjection`은 풀 정의마다 한 번씩(기본 seed 배치에 없으면 고정 seed 열에서) 후보·앵커 투영을 검사하고, 실패 사유(group 없음·막힌 node·최근접 열린 node 거리)를 남긴다. 옥탄트를 풀에 추가하거나 다시 구운 뒤에는 이 검사를 포함해 `LootNPop.SurfaceNavigation` 전체를 돌린다.
+
+`Nav.Hierarchy`(processor 미연결 프로토타입)는 정확성 불변식과 규모로 나눈 회귀만 강제한다. 메모리는 Cluster당 사전 계산 바이트(715B 이하)로 보고, 기준 A*와 저수준 정제 모두 확장 상한 없이 경로 품질을 비교한다. 절대 메모리와 기본 정제 상한(30,000)에 걸리는 쌍 수는 기록만 하며, 채택 기준은 [Phase 15](../phases/Phase15_ComplexMapPathRemeasure.md)에서 다시 정한다.
+
 ### 성능 측정
 
 현재 기준:

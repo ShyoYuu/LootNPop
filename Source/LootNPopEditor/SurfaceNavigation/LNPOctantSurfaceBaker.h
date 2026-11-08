@@ -107,6 +107,8 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeReport
 	int64 PayloadBytes = 0;
 	int32 SpawnAuthoredCount = 0;
 	int32 SpawnCandidateCount = 0;
+	/** 같은 Layer의 Nav node가 런타임 투영 반경 안에 없어 버린 random candidate 수. */
+	int32 SpawnCandidateNoNavCount = 0;
 	int64 SpawnPayloadBytes = 0;
 	FLNPNavBakeReport Nav;
 	int64 NavigationPayloadBytes = 0;

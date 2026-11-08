@@ -162,6 +162,47 @@ bool LNPNavQuery::ProjectToNode(
 	return true;
 }
 
+bool LNPNavQuery::FindLocalNodeNear(
+	const FLNPNavData& Navigation, const FLNPSupportAtlas& Support, const uint16 LocalNavLayerId,
+	const FVector3d& LocalPosition, const double MaxDistance, double& OutDistance)
+{
+	OutDistance = 0.0;
+	const FLNPNavLayer* Layer = LNPNavData::FindLayer(Navigation, LocalNavLayerId);
+	const FLNPSupportAtlasLayer* SupportLayer = Layer && Support.Layers.IsValidIndex(Layer->LocalSupportLayerId)
+		? &Support.Layers[Layer->LocalSupportLayerId] : nullptr;
+	if (SupportLayer == nullptr || !(SupportLayer->BaseRadius > 0.0) || !(MaxDistance > 0.0))
+	{
+		return false;
+	}
+	const int32 N = Layer->Subdivisions;
+	FIntPoint Min, Max;
+	LNPNavData::GetGridSearchBounds(N, LocalPosition, MaxDistance, Min, Max);
+	double BestDistanceSquared = FMath::Square(MaxDistance);
+	bool bFound = false;
+	const FLNPNavTile* CachedTile = nullptr;
+	for (int32 J = Min.Y; J <= Max.Y; ++J)
+	{
+		for (int32 I = Min.X; I <= FMath::Min(Max.X, N - J); ++I)
+		{
+			FVector3d LocalPoint;
+			FVector3f LocalNormal;
+			if (FindCell(*Layer, I, J, CachedTile) == nullptr
+				|| !QueryNodeSupport(*SupportLayer, N, I, J, LocalPoint, LocalNormal))
+			{
+				continue;
+			}
+			const double DistanceSquared = FVector3d::DistSquared(LocalPoint, LocalPosition);
+			if (DistanceSquared <= BestDistanceSquared)
+			{
+				BestDistanceSquared = DistanceSquared;
+				bFound = true;
+			}
+		}
+	}
+	OutDistance = bFound ? FMath::Sqrt(BestDistanceSquared) : 0.0;
+	return bFound;
+}
+
 bool LNPNavQuery::GetNodeSupport(
 	const FLNPSurfaceDataSnapshot& Snapshot, const FLNPNavNodeRef& Node, FVector3d& OutPoint, FVector3f& OutNormal)
 {

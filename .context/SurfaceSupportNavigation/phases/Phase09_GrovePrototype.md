@@ -54,7 +54,7 @@ Pod는 공터 중앙·줄기 옆·뿌리 합류부 등 접근 양상이 다른 �
 3. **사용자 대표 구역 확인:** 실제 플레이로 더 빨리 판단할 수 있는 시야·카메라·전투감은 짧은 PIE 동작을 요청한다. 필요한 최소 베이크로 런타임 원본을 맞추되 이를 충돌 검증 완료로 기록하지 않는다. 성공 기준: 엄폐 뒤에서 이웃 공터로 자연스럽게 이어지고 이동이 좁은 틈에 자주 막히지 않는다.
 4. **전체 구성:** 확인한 공간 문법으로 나머지를 제작한다. 원본은 `Art/Octants/Grove_00/`, 생성/반입 코드는 `Scripts/`의 테마 전용 파일, 중간본은 `_WorkInProgress`, 복구·FBX·로그는 `Saved/SliceOctant/Grove_00/<Version>/`로 구분한다. 확인: 지형 중복 소유·내부 면·노출 틈·갇힘을 검사하고 지각과 접합한다.
 5. **UE 반입·충돌·베이크:** 최종 좌표·충돌 역할·양방향 접합·훅 접근/착지·Pod 바닥/머리 공간을 검사한다. 기존 Support/Nav/Spawn 베이커를 사용하고 seam·source 현재성·결정론·혼합 정의/편성 검사 중 적용 가능한 기존 검사를 실행한다. 새 기능이 없으면 테스트 장치를 먼저 만들지 않는다.
-6. **풀 통합·마지막 PIE:** 최종 LVI·DA를 묶어 기존 정의를 보존하고 한 번만 등록한다. `AllowedSlotRotations=255`와 현재 seam signature를 확인한다. 풀의 최신 상태를 다시 읽어 Ridge 등 다른 세션의 등록을 덮어쓰지 않는다. 8slot 게시·경계 이동·전체 탐색·Pod 교전·복귀를 확인하고 문서 상태를 갱신한다.
+6. **풀 통합·마지막 PIE:** 최종 LVI·DA를 묶어 기존 정의를 보존하고 한 번만 등록한다. `AllowedSlotRotations=255`와 현재 seam signature를 확인한다. 풀의 최신 상태를 다시 읽어 Ridge 등 다른 세션의 등록을 덮어쓰지 않는다. 등록 뒤 `LootNPop.SurfaceNavigation.Nav.ProductionSpawnProjection`(풀 정의마다 Spawn 후보·앵커 Nav 투영)을 포함해 `LootNPop.SurfaceNavigation` 전체를 한 번 돌린다. 테스트가 다시 저장하는 `SM_COptionSphereSculpt`·`SM_BOptionExtracted`는 git으로 되돌린다. 8slot 게시·경계 이동·전체 탐색·Pod 교전·복귀를 확인하고 문서 상태를 갱신한다.
 
 현재 `BuildSliceOctant Grove_00`은 지원된다고 가정하지 않는다. 첫 단계에서 기존 C++ 빌더 확장과 독립 Blender/조립 경로 중 단순한 경로를 선택해 기록한다. MCP 콘솔 기능 부재를 메우기 위한 새 도구를 만들지 않는다. 에디터를 공유하는 세션의 레벨 전환·베이크·풀 저장은 동시에 실행하지 않는다.
 

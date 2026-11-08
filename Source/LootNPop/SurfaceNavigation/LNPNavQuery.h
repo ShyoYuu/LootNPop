@@ -52,6 +52,15 @@ namespace LNPNavQuery
 		double MaxDistance,
 		FLNPNavProjection& OutProjection);
 
+	/**
+	 * 조립 전 한 옥탄트의 Nav·Support 데이터(slot local)에서 LocalPosition에 가장 가까운 같은 Layer node까지 거리.
+	 * ProjectToNode와 같은 격자 창·지면점·거리식이다. 이음매 차단과 Conditional Patch 활성은 조립 뒤에 정해지므로 보지 않는다.
+	 * 베이커가 Spawn 후보를 런타임 투영 기준으로 거를 때 쓴다.
+	 */
+	LOOTNPOP_API bool FindLocalNodeNear(
+		const FLNPNavData& Navigation, const FLNPSupportAtlas& Support, uint16 LocalNavLayerId,
+		const FVector3d& LocalPosition, double MaxDistance, double& OutDistance);
+
 	/** node의 world Support 지면점과 법선. generation이 다르거나 node가 없으면 false다. */
 	LOOTNPOP_API bool GetNodeSupport(
 		const FLNPSurfaceDataSnapshot& Snapshot, const FLNPNavNodeRef& Node, FVector3d& OutPoint, FVector3f& OutNormal);
