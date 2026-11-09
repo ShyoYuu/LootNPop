@@ -765,3 +765,26 @@ GPU1Hz 기록의 측정 구간 표본은각60개다.
 
 - 세 편성 모두 재현성을 통과했다. 적 수가 약 3배가 되는 동안 GT는 4.30→6.47ms로 늘지만 Frame은 0.41ms만 늘어 계속 GPU에 묶여 있다. 60fps 예산까지 남은 차이는 약 3.6~4.0ms이며 GPU 쪽(장면 렌더 비용)에서 줄여야 한다.
 - Phase0 마감까지 남은 것: 에디터 타깃 깨끗한 트리 빌드(맵 작업 세션 종료 뒤·사용자 허가), R-E 보고·영상, 사용자 확인.
+
+## 2026-11-09 — 에디터 풀빌드 확인·R-E 보고서 초안
+
+- 사용자가 에디터 타깃 풀빌드 성공을 확인했다. 작업 트리의 맵 세션 미커밋 변경(Grove 스크립트·아트·SurfaceSupportNavigation 문서)은 런타임 코드가 아니어서 사용자 판단으로 따로 확인하지 않았다.
+- 보고서 초안 [Phase0 기준선 보고서](../analysis/Phase00_BaselineReport.md)를 작성했다. 내용은 공통 기준선, 개선 전후(참고값), 네 개선의 문제·분석·변경·검증, D0 GPU 패스 표, 냉각 대기 절차, 미관측 범위, 체크리스트 대조다. 수치는 이 로그와 네 인계 문서에서 옮겼고 새 측정은 없다.
+- 남은 것: 경로 영상(사용자 녹화), 경로·화면·바뀐 행동/표현의 사용자 확인, Phase0 마감 확인.
+
+## 2026-11-09 — 경로 영상 녹화
+
+- 사용자 요청으로 ffmpeg 9.0.2 essentials(gyan.dev, SHA256 일치)를 `D:\Tools\ffmpeg`에 설치하고, 녹화 스크립트 `Scripts/Profiling/Graphics/RecordGraphicsBenchmark.ps1`을 추가했다. 게임(테두리 없는 전체 화면 2560×1440)이 덮는 모니터 한 대를 Desktop Duplication(`ddagrab`)·NVENC로 녹화하고, 로그의 `[GraphicsBenchmark] Capture started` 시각 기준으로 측정 구간만 잘라 libx264로 다시 인코딩한다. 게임이 뜨기 전·닫힌 뒤가 들어 있는 원본은 성공·실패와 관계없이 지운다.
+- 사용자가 다른 프로그램을 닫고 자리를 비운 상태에서 녹화했다. 같은 바이너리, High, 워밍업 60초·경로 60초, `-ExecCmds="stat unit"`. 종료 코드 0·`complete`. 녹화 전용 실행이며 기준선에 쓰지 않는다(`BaselineEligible=false`).
+- **영상:** `Portfolio/Graphics/Phase00/Phase00_High_Route_20261109_142623.mp4`(git 무시 폴더). 2560×1440·60fps·59.0초·H.264, 약 52MB. 실행 자료는 `Saved/Profiling/Graphics/Phase00/Video/Record_High_20261109_142623/`(`Record.json`에 녹화 시작·측정 시작·자르기 위치).
+- 0·10·20·30·40·50·58.5초 프레임을 뽑아 확인했다. 모두 게임 화면만 담겼고 다른 창은 없다. 우상단 `stat unit`은 Frame 약 20.7~21.5ms·GPU 약 19.8~20.6ms로 기준선 High(20.62 / 20.12ms)와 같은 수준이라 녹화 부하는 작다. 좌측에 CSV 프로파일러 프레임 번호가 함께 보인다.
+- 남은 것: 사용자의 영상·경로·화면·바뀐 행동/표현 확인, Phase0 마감 확인.
+
+## 2026-11-10 — Phase 0 마감
+
+- 사용자가 영상·경로·화면과 바뀐 행동(배회 정지 증가)·표현(앵커 단일 스프라이트)을 확인하고 Phase 0 마감을 승인했다.
+- [Phase0 실행서](../phases/Phase00_MeasurementBaseline.md) §6 완료 체크리스트를 모두 근거와 대조해 체크했다. [개선 후 재개 절차](../phases/Phase00_PostOptimization.md)와 [기준선 보고서](../analysis/Phase00_BaselineReport.md)를 완료로, `Roadmap.md` Phase 0을 완료·단위 N을 다음으로 바꿨다.
+- **포트폴리오 산출물(README §6):** 영상 `Portfolio/Graphics/Phase00/Phase00_High_Route_20261109_142623.mp4`, 수치 표는 보고서 §3·§4, 문제→분석→해결→측정 요약은 보고서 §5·§7.
+- **확정 기준선(냉각 대기 3회 중앙값):** Low / Medium / High Frame 20.21 / 20.26 / 20.62ms, GT 4.30 / 5.53 / 6.47ms, GPU 19.70 / 19.75 / 20.12ms. 60fps 예산 대비 122~124%이고 GPU에 묶여 있다.
+- Roadmap Phase 0 범위의 "내부 해상도와 업스케일러 결정(GX-002 세부)"은 Phase 0에서 정하지 않았다. 기준선은 네이티브(TSR 100%)로 두고, 운영 조건은 트랙 O의 O-2(단위 N과 같은 시기)에서 정한다.
+- 다음: 단위 N(Niagara 원거리 정밀도 원인 확정)과 O-2 해상도 스윕. 착수 전에 사용자 확인을 받는다.
