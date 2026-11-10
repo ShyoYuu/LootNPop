@@ -77,7 +77,7 @@
 - [x] 증상을 없애는 최소 요인을 절제로 하나로 좁혔다 — `PointAttractionForce` 하나
 - [x] 메커니즘을 엔진 모듈·소스로 설명했다 — 모듈 출력(`PointOriginVec`·길이)과 가속도/거리 ≈ 980 검산. 모듈 그래프 내부는 직접 읽지 않았다
 - [x] 이미터 규칙을 ParrySystem §8·JustDodge VisualDesign §4에 반영했다(+ Decisions GX-011)
-- [ ] 시험 에셋을 정리했고 원본 에셋이 바뀌지 않았음을 확인했다 — 원본 에셋은 수정하지 않았다. 시험 에셋 `Content/Dev/UnitN/`은 운영 에셋 수정 때 재사용할지 정해질 때까지 남겨 두었다(git 미추적)
+- [x] 시험 에셋을 정리했다 — `Content/Dev/UnitN/`(시스템 7개·`L_UnitN`)을 외부 참조 0건 확인 후 삭제(2026-11-10). 가드·패링 원본은 수정하지 않았고, `NS_Impact_Generic`·`NS_Explosion`은 사용자 요청으로 교체해 `28bd2a0`에 커밋했다
 - [x] V3b 게이트 해제 여부를 Current·Roadmap에 적었다 — 해제
 
 ## 7. 범위 밖

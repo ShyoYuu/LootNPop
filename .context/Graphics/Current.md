@@ -20,7 +20,7 @@
 ## 1. 바로 다음 작업
 
 - **단위 N 완료(2026-11-10).** 원거리 Niagara 비표시의 원인은 float 정밀도가 아니라 `PointAttractionForce`(`Use Falloff=false`)의 거리 비례 힘이었다. 대체 중력(`GravityForce` + `normalize(Particles.Position) * 980.0`)을 세 방향에서 검증하고 GX-011로 확정했다. JustDodge V3b 게이트는 해제했다. 근거는 [단위 N 로그](history/UnitN_Log.md), 규칙은 [JustDodge VisualDesign](../JustDodge/design/VisualDesign.md) §4.
-  - 후속 교체 완료(2026-11-10): 운영 `NS_Impact_Generic`(Sparks)·`NS_Explosion`(Sparks·Smoke)의 인력 모듈을 대체 중력으로 바꾸고 원거리 덤프로 폭주가 없음을 확인했다. 사용자 PIE 확인: 연기는 처음으로 보이게 됐고(자연스러움, 상승감은 없음), Impact 스파크는 콘 속도를 1150 → 300으로 낮춰 옛 크기에 맞췄다. 짧은 수명 탓에 스파크의 낙하는 체감되지 않는다. 시험 에셋 `Content/Dev/UnitN/`(git 미추적)은 남아 있다.
+  - 후속 교체 완료(2026-11-10): 운영 `NS_Impact_Generic`(Sparks)·`NS_Explosion`(Sparks·Smoke)의 인력 모듈을 대체 중력으로 바꾸고 원거리 덤프로 폭주가 없음을 확인했다. 사용자 PIE 확인: 연기는 처음으로 보이게 됐고(자연스러움, 상승감은 없음), Impact 스파크는 콘 속도를 1150 → 300으로 낮춰 옛 크기에 맞췄다. 짧은 수명 탓에 스파크의 낙하는 체감되지 않는다.
 
 [로드맵](Roadmap.md)과 GX-009 순서대로 다음 작업을 한다. 착수 전에 사용자 확인을 받고, 실행 문서는 착수 직전에 `phases/`에 만든다.
 
