@@ -1,0 +1,43 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 400' font-family='system-ui, sans-serif' font-size='12'>
+<style>
+  .bg{fill:#fcfcfb} .ink{fill:#0b0b0b} .sub{fill:#52514e} .grid{stroke:#e4e3df;stroke-width:1} .axis{stroke:#8a8984;stroke-width:1}
+  .budget{stroke:#52514e;stroke-width:1.5;stroke-dasharray:6 4} .s1{stroke:#2a78d6;fill:#2a78d6} .s2{stroke:#eb6834;fill:#eb6834}
+  @media (prefers-color-scheme: dark){ .bg{fill:#1a1a19} .ink{fill:#f0efec} .sub{fill:#c3c2b7} .grid{stroke:#383835} .budget{stroke:#c3c2b7} .s1{stroke:#3987e5;fill:#3987e5} .s2{stroke:#d95926;fill:#d95926} }
+</style>
+<rect class='bg' width='640' height='400'/>
+<text class='ink' x='56' y='22' font-size='15' font-weight='600'>Frame time vs render resolution (1440p output, TSR)</text>
+<text class='sub' x='56' y='38'>Packaged build, RTX 4060 Laptop, 1 run per point. Low and High overlap: enemy count adds ≤0.3 ms.</text>
+<line class='grid' x1='56' x2='530' y1='348' y2='348'/><text class='sub' x='48' y='348' dy='4' text-anchor='end'>0</text>
+<line class='grid' x1='56' x2='530' y1='298' y2='298'/><text class='sub' x='48' y='298' dy='4' text-anchor='end'>4</text>
+<line class='grid' x1='56' x2='530' y1='248' y2='248'/><text class='sub' x='48' y='248' dy='4' text-anchor='end'>8</text>
+<line class='grid' x1='56' x2='530' y1='198' y2='198'/><text class='sub' x='48' y='198' dy='4' text-anchor='end'>12</text>
+<line class='grid' x1='56' x2='530' y1='148' y2='148'/><text class='sub' x='48' y='148' dy='4' text-anchor='end'>16</text>
+<line class='grid' x1='56' x2='530' y1='98' y2='98'/><text class='sub' x='48' y='98' dy='4' text-anchor='end'>20</text>
+<line class='grid' x1='56' x2='530' y1='48' y2='48'/><text class='sub' x='48' y='48' dy='4' text-anchor='end'>24</text>
+<text class='sub' x='56' y='366' text-anchor='middle'>50%</text>
+<text class='sub' x='131.8' y='366' text-anchor='middle'>58%</text>
+<text class='sub' x='217.2' y='366' text-anchor='middle'>67%</text>
+<text class='sub' x='312' y='366' text-anchor='middle'>77%</text>
+<text class='sub' x='530' y='366' text-anchor='middle'>100%</text>
+<line class='axis' x1='56' x2='530' y1='348' y2='348'/>
+<text class='sub' x='293' y='390' text-anchor='middle'>Render resolution (ScreenPercentage, per axis)</text>
+<text class='sub' transform='translate(16 198) rotate(-90)' text-anchor='middle'>Frame ms</text>
+<line class='budget' x1='56' x2='530' y1='140.5' y2='140.5'/><text class='sub' x='538' y='140.5' dy='4'>60 fps budget 16.6</text>
+<polyline class='s1' style='fill:none' stroke-width='2' stroke-linejoin='round' points='56,216.3 131.8,207.1 217.2,189.8 312,166.9 530,94.4'/>
+<circle class='s1' cx='56' cy='216.3' r='4' stroke='#fcfcfb' stroke-width='2'><title>Low 50%: 10.54 ms</title></circle>
+<circle class='s1' cx='131.8' cy='207.1' r='4' stroke='#fcfcfb' stroke-width='2'><title>Low 58%: 11.27 ms</title></circle>
+<circle class='s1' cx='217.2' cy='189.8' r='4' stroke='#fcfcfb' stroke-width='2'><title>Low 67%: 12.66 ms</title></circle>
+<circle class='s1' cx='312' cy='166.9' r='4' stroke='#fcfcfb' stroke-width='2'><title>Low 77%: 14.49 ms</title></circle>
+<circle class='s1' cx='530' cy='94.4' r='4' stroke='#fcfcfb' stroke-width='2'><title>Low 100%: 20.29 ms</title></circle>
+<text class='ink' x='538' y='108.4'>Low (1053) 20.3</text>
+<polyline class='s2' style='fill:none' stroke-width='2' stroke-linejoin='round' points='56,214.4 131.8,204 217.2,188.5 312,164.2 530,94.4'/>
+<circle class='s2' cx='56' cy='214.4' r='4' stroke='#fcfcfb' stroke-width='2'><title>High 50%: 10.69 ms</title></circle>
+<circle class='s2' cx='131.8' cy='204' r='4' stroke='#fcfcfb' stroke-width='2'><title>High 58%: 11.52 ms</title></circle>
+<circle class='s2' cx='217.2' cy='188.5' r='4' stroke='#fcfcfb' stroke-width='2'><title>High 67%: 12.76 ms</title></circle>
+<circle class='s2' cx='312' cy='164.2' r='4' stroke='#fcfcfb' stroke-width='2'><title>High 77%: 14.70 ms</title></circle>
+<circle class='s2' cx='530' cy='94.4' r='4' stroke='#fcfcfb' stroke-width='2'><title>High 100%: 20.28 ms</title></circle>
+<text class='ink' x='538' y='86.4'>High (3257) 20.3</text>
+<text class='sub' x='312' y='152.2' text-anchor='start'>14.7</text>
+<text class='sub' x='56' y='202.4' text-anchor='start'>10.7</text>
+</svg>
+

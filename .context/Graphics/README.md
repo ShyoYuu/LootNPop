@@ -46,6 +46,7 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 | 그래플 앵커 Niagara·월드 후처리 작업 대기 | [그래플 앵커 최적화 인계](analysis/GrappleAnchorOptimizationHandoff.md) |
 | GT 렌더 동기화·RT/GPU 비용 분석 | [렌더 동기화 최적화 인계](analysis/RenderSyncOptimizationHandoff.md) |
 | 렌더링 최적화(트랙 O)·Lumen 동적 메시 비용·해상도 비례 비용 | [선행 렌더링 부하 측정](analysis/RenderingLoadBaseline_20260925.md) |
+| 해상도별 GPU 비용(고정/화소 비례 분해)·내부 해상도 운영 조건(GX-012) | [단위 O-2 로그](history/UnitO2_Log.md) |
 | Nav 최근접 노드 반복 조회 | [Nav 최근접 노드 최적화 인계](analysis/NavNearestNodeOptimizationHandoff.md) |
 | 절제(ablation) 측정과 분모 규약 | [Guide_NetBandwidth.md](../Guide_NetBandwidth.md) |
 | ISKM·ISM 표현, 유의도 구간, 에셋 요건(Optimize for Instancing·usage 플래그·제자리 클립) | [TechDesign_EnemyNPC_LowLOD.md](../TechDesign_EnemyNPC_LowLOD.md) §6 |
