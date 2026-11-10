@@ -42,3 +42,5 @@ TestMap03·정식6종 풀·적 밀도1로 실행했다. slot0 Grove,1 Bastion,2 
 ### 남은 자동 검사1건
 
 `LootNPop.SurfaceNavigation.Nav.PodOverlay`는 고정 seed135792468로 선택된 slot0 Pyramid의 첫 Nav 층에서 “Pod가 직선을 막고 양 끝점은 열린” 샘플을 찾지 못해 실패했다. Grove가 없는 기존 Pyramid 단독 풀에서도 같은 assertion 실패가 재현됐다. 기존 Pyramid 에셋 해시는 불변이다. Grove 지형을 수정하거나 풀 순서를 바꿔 우회하지 않았다. 샘플 선택이 slot0/첫 층에 고정된 검사 입력을 별도 검토해야 하며, 이를 실제 Pod 우회 기능의 성공/실패로 단정하지 않는다. C++ 테스트/런타임 코드·Live Coding·전체 빌드는 이번 공유 에디터 작업에서 변경하지 않았다. 전체 자동 검사를 모두 통과한 상태로 표기하지 않는다.
+
+후속 보정(2026-11-10): Pyramid 지각에는 바로 옆 이웃 간격이 Pod 차단 반경178cm를 넘는 node가 기하학적으로 없어서(외곽 밖 최대176.5cm) 검사가 끝점을 처음 열린 node까지 연장하도록 고쳤다. 정식5종 풀·Pyramid 단독 풀에서 모두 통과했다. 근거는 [현재 상태](../../../.context/SurfaceSupportNavigation/Current.md)에 있다.

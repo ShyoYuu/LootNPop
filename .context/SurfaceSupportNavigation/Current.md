@@ -1,12 +1,14 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: 옥탄트 양산 — Grove_00 통합·사용자 확인 후 Meadow 제외한 정식5종 풀 검증, PodOverlay 샘플 선정 후속 검토. Ridge_00 제작 계획. Roadmap의 기존 Phase는 모두 완료(직전 Phase 10 완료 2026-10-13)
+> 현재 작업: 옥탄트 양산 — Grove_00 통합·사용자 확인 후 Meadow 제외한 정식5종 풀 검증, PodOverlay 샘플 선정 보정 완료. Ridge_00 제작 계획. Roadmap의 기존 Phase는 모두 완료(직전 Phase 10 완료 2026-10-13)
 > 마지막 갱신: 2026-11-10
 
 재시작 후 현재 PIE: 정식5종·Grove slot1/5·8slot/293bindings·seam 높이 차 및 차단0·Pod120/120·적2,280/2,280(밀도1). 스폰 편성 테스트1곳의 Meadow 의존 보정과 사용자 승인 Editor 빌드 후33개 구성·적67,495/67,495 전량 배치 재검사를 통과했다. 런타임 코드와 지형/DA는 불변이다.
 
 ## 현재 결정
+
+**PodOverlay 샘플 선정 보정(2026-11-10).** 실패 원인은 Pod 우회 기능이 아니라 검사 입력이었다. 검사는 slot0 지각에서 `I±1` 바로 옆 이웃이 둘 다 Pod 차단 반경(Pod128+agent50=178cm) 밖인 node를 요구했다. 지각 격자 간격(N=368, 중심199.7cm)이 178cm를 넘는 곳은 옥탄트 중심26.85° 이내뿐인데, Pyramid는 지면 외곽(외접 반경31,500cm 삼각형)이 이 영역을 전부 덮어 지각이 없다. 외곽 밖 최대 간격은176.5cm라 조건이 성립할 수 없었다. 검사는 끝점을 `I±` 방향으로 처음 열린 node까지(최대4칸) 연장하도록 고쳤다. 검증하는 계약은 같다. Editor 빌드 후 정식5종 풀·Pyramid 단독 풀 모두 통과(오류/경고0)했고, 런타임 코드와 지형/DA는 불변이다.
 
 **Meadow 정식 풀 제외(2026-11-10).** 사용자가 실제 Grove 포함을 확인하고 Meadow 제외를 요청했다. 실제 풀 정의1개·legacy 참조1개만 제거해 Bastion/Hollow/Acropolis/Pyramid/Grove5종이며 나머지 정의와 기존326개/Grove7개 에셋·설정은 보존한다. 정의·Spawn Nav 투영은 최초 통과했고, 스폰 편성은 고정 회귀 배치의 Meadow 의존 조건 보정·Editor 빌드 후 재검사를 통과해 관련3개 항목을 검증했다. PodOverlay는 이번5종 구성에서도 동일 샘플 선택 assertion으로 실패했다. 기존 Pyramid 단독에서도 이미 재현된 항목으로 남기며 해당 검사 입력 검토가 후속 과제다. 새 PIE8slot·274bindings·seam delta0·blocked seam0·Pod120/120·적2,087/2,087, Grove slot1/6 확인. 추가 지형 전체 수동 검토는 필요하지 않다. [상세](../../Art/Octants/Grove_00/MeadowRemoval.md).
 

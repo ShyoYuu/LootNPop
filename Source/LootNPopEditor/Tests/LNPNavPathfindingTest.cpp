@@ -4111,6 +4111,25 @@ bool FLNPNavPodOverlayTest::RunTest(const FString& Parameters)
 	int32 Start = INDEX_NONE;
 	int32 Goal = INDEX_NONE;
 	FLNPNavOverlay Blocked;
+	// 지각 격자 간격은 옥탄트 중심에서만 Pod 차단 반경(Pod+agent 178cm)보다 넓다. 중심을 본체가 덮는 옥탄트(Pyramid)에서도
+	// 샘플이 나오도록, 끝점은 I축 양방향으로 처음 열린 node까지 연장한다. 같은 축의 직선이라 직선 보행 샘플은 격자점과 겹친다.
+	constexpr int32 MaxEndpointSteps = 4;
+	const auto FindOpenAlongAxis = [&Asset, &Blocked, Base](int32 Local, const int32 Direction)
+	{
+		for (int32 Step = 0; Step < MaxEndpointSteps; ++Step)
+		{
+			Local = Asset.Nodes[Local].Neighbors[Direction];
+			if (Local == INDEX_NONE)
+			{
+				return static_cast<int32>(INDEX_NONE);
+			}
+			if (!Blocked.IsBlocked(Base + Local))
+			{
+				return Base + Local;
+			}
+		}
+		return static_cast<int32>(INDEX_NONE);
+	};
 	for (int32 Local = Asset.Layers[0].NodeBegin; Local < Asset.Layers[0].NodeEnd; ++Local)
 	{
 		const FLNPNavGraphNode& Node = Asset.Nodes[Local];
@@ -4125,9 +4144,9 @@ bool FLNPNavPodOverlayTest::RunTest(const FString& Parameters)
 		{
 			continue;
 		}
-		const int32 A = Base + Node.Neighbors[0];
-		const int32 B = Base + Node.Neighbors[1];
-		if (!Blocked.IsBlocked(A) && !Blocked.IsBlocked(B)
+		const int32 A = FindOpenAlongAxis(Local, static_cast<int32>(ELNPNavNeighbor::IPositive));
+		const int32 B = FindOpenAlongAxis(Local, static_cast<int32>(ELNPNavNeighbor::INegative));
+		if (A != INDEX_NONE && B != INDEX_NONE
 			&& LNPNavGraph::IsDirectWalkable(Nav, A, B)
 			&& !LNPNavGraph::IsDirectWalkable(Nav, A, B, &Blocked))
 		{
