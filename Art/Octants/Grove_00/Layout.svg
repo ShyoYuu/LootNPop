@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <rect width="1200" height="900" fill="#18201d"/>
+  <g font-family="Malgun Gothic, sans-serif" fill="#e8eee7">
+    <text x="50" y="48" font-size="28">Grove_00 · V001 대표 구역과 전체 확장 초안</text>
+    <text x="50" y="80" font-size="16">평면은 옥탄트 로컬 X/Y의 개념도 · 실측 치수는 연결표와 검사 보고서를 따른다</text>
+    <path d="M600 110 L1090 620 L110 620 Z" fill="#344a37" stroke="#a9b7a7" stroke-width="3"/>
+    <g stroke="#749774" stroke-width="3" stroke-dasharray="10 8" fill="none">
+      <path d="M220 375 L410 275 L610 240 L790 340 L800 480 L620 550 L390 520 L220 375"/>
+      <path d="M410 275 L600 400 L800 480 M390 520 L600 400 L790 340"/>
+      <path d="M600 125 L610 240 M1070 600 L800 480 M135 600 L390 520"/>
+    </g>
+    <g font-size="18">
+      <text x="560" y="135">북동 경계</text><text x="930" y="600">남동 경계</text>
+      <text x="155" y="645">서쪽 경계</text>
+      <text x="650" y="225">갈라진 고목 · 보스 공터 후보</text>
+      <text x="630" y="570">전체 확장은 대표 구역 PIE 후</text>
+    </g>
+    <rect x="130" y="250" width="420" height="330" rx="16" fill="#202c23" stroke="#d3dfbb" stroke-width="2"/>
+    <text x="150" y="279" font-size="18">대표 구역 · 서쪽 자연 진입</text>
+    <g fill="none" stroke="#c9dab2" stroke-width="7" stroke-linejoin="round">
+      <path d="M150 420 L230 420 L260 515 M260 515 L230 420 L245 330 L390 330 M260 515 L475 480 L465 380 L390 330"/>
+    </g>
+    <g fill="#718767" stroke="#dae4cd" stroke-width="2">
+      <ellipse cx="260" cy="515" rx="48" ry="32"/><ellipse cx="390" cy="330" rx="48" ry="32"/>
+    </g>
+    <path d="M320 420 L335 380 L345 416 L405 440 L350 445 L310 485 L319 447 L275 418 Z" fill="#80654c"/>
+    <circle cx="335" cy="425" r="24" fill="#ab8962"/>
+    <path d="M275 495 Q450 530 465 410" fill="none" stroke="#65d6df" stroke-width="3" stroke-dasharray="6 5"/>
+    <circle cx="465" cy="410" r="8" fill="#65d6df"/>
+    <g font-size="16">
+      <text x="156" y="406">EntryWest</text><text x="220" y="548">공터 A · Pod</text>
+      <text x="350" y="315">공터 B · Pod</text><text x="265" y="374">큰 줄기</text>
+      <text x="415" y="358">얕은 분지</text><text x="426" y="441">선택 훅</text>
+    </g>
+    <text x="50" y="700" font-size="24">단면 · A → 뿌리 바깥 → 얕은 분지 → B</text>
+    <path d="M80 805 L300 805 Q360 805 390 790 L420 770 L443 780 L450 800 Q510 810 570 830 Q640 850 715 817 Q750 805 810 805 L1100 805" fill="none" stroke="#aac19b" stroke-width="5"/>
+    <path d="M340 805 L420 770 L445 755 L448 735 L460 735 L465 785 L500 812 Z" fill="#80654c"/>
+    <g font-size="17">
+      <text x="80" y="780">공터 A · 연속 지면</text><text x="330" y="730">뿌리 위 선택 경로</text>
+      <text x="560" y="875">H 약 -500cm · 보행 복귀</text><text x="880" y="780">공터 B</text>
+      <text x="700" y="730">수관 천장 없음 · 지상 순환이 주 경로</text>
+    </g>
+  </g>
+</svg>

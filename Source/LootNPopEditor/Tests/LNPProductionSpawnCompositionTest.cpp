@@ -75,6 +75,14 @@ bool FLNPProductionSpawnCompositionTest::RunTest(const FString& Parameters)
 		FArrangement& Package = Arrangements.AddDefaulted_GetRef();
 		Package.Label = TEXT("Package1P");
 		Package.WorldSeed = 1;
+		// 과거 패키지 회귀 배치의 Meadow는 현재 플레이 풀과 독립된 시험 원본이다.
+		FLNPOctantDefinition MeadowFixture;
+		MeadowFixture.LevelAsset = TSoftObjectPtr<UWorld>(FSoftObjectPath(
+			TEXT("/Game/Maps/Meadow_00/LVI_Octant_Meadow_00.LVI_Octant_Meadow_00")));
+		MeadowFixture.SurfaceData = TSoftObjectPtr<ULNPOctantSurfaceData>(FSoftObjectPath(
+			TEXT("/Game/Maps/Meadow_00/DA_OctantSurface_Meadow_00.DA_OctantSurface_Meadow_00")));
+		MeadowFixture.AllowedSlotRotations = 255;
+		MeadowFixture.SeamSignature = TEXT("DysonSphere_R300m_V1");
 		const TCHAR* Order[] = {TEXT("Meadow"), TEXT("Bastion"), TEXT("Hollow"), TEXT("Meadow"), TEXT("Hollow"), TEXT("Bastion"), TEXT("Hollow"), TEXT("Bastion")};
 		for (const TCHAR* Name : Order)
 		{
@@ -82,7 +90,8 @@ bool FLNPProductionSpawnCompositionTest::RunTest(const FString& Parameters)
 			{
 				return DefinitionName(Definition).Contains(Name);
 			});
-			if (!TestNotNull(FString::Printf(TEXT("Pool has %s definition"), Name), Match)) return false;
+			if (!Match && FCString::Strcmp(Name, TEXT("Meadow")) == 0) { Match = &MeadowFixture; }
+			if (!TestNotNull(FString::Printf(TEXT("Regression arrangement has %s definition"), Name), Match)) return false;
 			Package.Definitions.Add(*Match);
 		}
 	}

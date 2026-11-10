@@ -1,0 +1,1 @@
+(LevelAsset="/Game/Maps/Grove_00/LVI_Octant_Grove_00.LVI_Octant_Grove_00",SurfaceData="/Game/Maps/Grove_00/DA_OctantSurface_Grove_00.DA_OctantSurface_Grove_00",AllowedSlotRotations=255,SeamSignature="DysonSphere_R300m_V1")

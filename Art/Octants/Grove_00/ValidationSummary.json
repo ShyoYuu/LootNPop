@@ -1,0 +1,1182 @@
+{
+  "date": "2026-11-10",
+  "pool": "/Game/Maps/OctantPoolData",
+  "definitions": 6,
+  "tests": 135,
+  "initial_success_including_warnings": 133,
+  "initial_failed": 2,
+  "resolved_by_rebake_and_recheck": 1,
+  "verified_including_recheck": 134,
+  "remaining_failed": 1,
+  "warnings": [
+    {
+      "test": "LootNPop.SurfaceNavigation.Bake.LayerAtlasExactError",
+      "event": {
+        "type": "Warning",
+        "message": "LogHttp: HTTP request timed out after 3.00 seconds URL=https://www.google.com/generate_204",
+        "context": "log",
+        "artifact": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "test": "LootNPop.SurfaceNavigation.MeshTerrain.BOptionIndependentAssetExtraction",
+      "event": {
+        "type": "Warning",
+        "message": "B-option authoring world is not current; validating the previously extracted independent asset.",
+        "context": "",
+        "artifact": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "test": "LootNPop.SurfaceNavigation.Nav.Hierarchy",
+      "event": {
+        "type": "Warning",
+        "message": "LogHttp: HTTP request timed out after 3.00 seconds URL=https://www.google.com/generate_204",
+        "context": "log",
+        "artifact": "00000000000000000000000000000000"
+      }
+    },
+    {
+      "test": "LootNPop.SurfaceNavigation.Runtime.ProductionSurfaceDataDefinitions",
+      "event": {
+        "type": "Warning",
+        "message": "LogHttp: HTTP request timed out after 3.00 seconds URL=https://www.google.com/generate_204",
+        "context": "log",
+        "artifact": "00000000000000000000000000000000"
+      }
+    }
+  ],
+  "full_suite_failures": [
+    {
+      "testDisplayName": "ProductionPoolCurrentAndDeterministic",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.ProductionPoolCurrentAndDeterministic",
+      "tags": [],
+      "state": "Fail",
+      "deviceInstance": [
+        "C05375404B0DACA4F4AECA8D1E2261A8"
+      ],
+      "duration": 746.1755981445312,
+      "dateTime": "2026.11.10-04.07.47",
+      "entries": [
+        {
+          "event": {
+            "type": "Info",
+            "message": "LogStreaming: FlushAsyncLoading(418): 1 QueuedPackages, 0 AsyncPackages",
+            "context": "log",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.07.47"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "/Game/Maps/Meadow_00/LVI_Octant_Meadow_00.LVI_Octant_Meadow_00: checked saved freshness and two full bakes",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.08.03"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "/Game/Maps/Bastion_00/LVI_Octant_Bastion_00.LVI_Octant_Bastion_00: checked saved freshness and two full bakes",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.12.20"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "/Game/Maps/Hollow_00/LVI_Octant_Hollow_00.LVI_Octant_Hollow_00: checked saved freshness and two full bakes",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.13.07"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "LogStaticMesh: Waiting for static meshes to be ready 0/1 (/Game/Maps/Acropolis_00/SM_Octant_Acropolis_00_R30000) ...",
+            "context": "log",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.13.08"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "LogStaticMesh: Waiting for static meshes to be ready 0/1 (/Game/Maps/Acropolis_00/Authored/SM_Acropolis_00_Upper_01_Floor) ...",
+            "context": "log",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.13.09"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00.LVI_Octant_Acropolis_00: checked saved freshness and two full bakes",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.13.48"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "LogStaticMesh: Waiting for static meshes to be ready 0/1 (/Game/Maps/Pyramid_00/SM_Octant_Pyramid_00_R30000) ...",
+            "context": "log",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.13.55"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "/Game/Maps/Pyramid_00/LVI_Octant_Pyramid_00.LVI_Octant_Pyramid_00: checked saved freshness and two full bakes",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.19.43"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "LogStaticMesh: Waiting for static meshes to be ready 0/1 (/Game/Maps/Grove_00/Authored/SM_Grove_00_V040_Forest_Floor) ...",
+            "context": "log",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.19.44"
+        },
+        {
+          "event": {
+            "type": "Error",
+            "message": "Expected '/Game/Maps/Grove_00/LVI_Octant_Grove_00.LVI_Octant_Grove_00: saved source hash is current; rebake stale SurfaceData' to be true.",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "D:\\UnrealProjects\\LootNPop\\Source\\LootNPopEditor\\Tests\\LNPOctantSurfaceBakerTest.cpp",
+          "lineNumber": 926,
+          "timestamp": "2026.11.10-04.20.13"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "/Game/Maps/Grove_00/LVI_Octant_Grove_00.LVI_Octant_Grove_00: checked saved freshness and two full bakes",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.20.13"
+        }
+      ],
+      "warnings": 0,
+      "errors": 1,
+      "artifacts": []
+    },
+    {
+      "testDisplayName": "PodOverlay",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.PodOverlay",
+      "tags": [],
+      "state": "Fail",
+      "deviceInstance": [
+        "C05375404B0DACA4F4AECA8D1E2261A8"
+      ],
+      "duration": 100.5050277709961,
+      "dateTime": "2026.11.10-04.21.45",
+      "entries": [
+        {
+          "event": {
+            "type": "Error",
+            "message": "Expected 'Pod blocks a direct walk while leaving both endpoints open' to be true.",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "D:\\UnrealProjects\\LootNPop\\Source\\LootNPopEditor\\Tests\\LNPNavPathfindingTest.cpp",
+          "lineNumber": 4140,
+          "timestamp": "2026.11.10-04.23.25"
+        }
+      ],
+      "warnings": 0,
+      "errors": 1,
+      "artifacts": []
+    }
+  ],
+  "grove_current_recheck": [
+    {
+      "testDisplayName": "ProductionPoolCurrentAndDeterministic",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.ProductionPoolCurrentAndDeterministic",
+      "tags": [],
+      "state": "Success",
+      "deviceInstance": [
+        "920D702C463120F36D375DAB4542DC8D"
+      ],
+      "duration": 29.16151237487793,
+      "dateTime": "2026.11.10-04.26.06",
+      "entries": [
+        {
+          "event": {
+            "type": "Info",
+            "message": "/Game/Maps/Grove_00/LVI_Octant_Grove_00.LVI_Octant_Grove_00: checked saved freshness and two full bakes",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.26.36"
+        }
+      ],
+      "warnings": 0,
+      "errors": 0,
+      "artifacts": []
+    }
+  ],
+  "pyramid_only_baseline": [
+    {
+      "testDisplayName": "PodOverlay",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.PodOverlay",
+      "tags": [],
+      "state": "Fail",
+      "deviceInstance": [
+        "74D659DF4EFF0434894400A951E20294"
+      ],
+      "duration": 363.81683349609375,
+      "dateTime": "2026.11.10-04.28.09",
+      "entries": [
+        {
+          "event": {
+            "type": "Info",
+            "message": "LogStreaming: FlushAsyncLoading(374): 1 QueuedPackages, 0 AsyncPackages",
+            "context": "log",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.28.09"
+        },
+        {
+          "event": {
+            "type": "Error",
+            "message": "Expected 'Pod blocks a direct walk while leaving both endpoints open' to be true.",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "D:\\UnrealProjects\\LootNPop\\Source\\LootNPopEditor\\Tests\\LNPNavPathfindingTest.cpp",
+          "lineNumber": 4140,
+          "timestamp": "2026.11.10-04.34.13"
+        }
+      ],
+      "warnings": 0,
+      "errors": 1,
+      "artifacts": []
+    }
+  ],
+  "runtime_payloads_identical_after_rebake": true,
+  "production_spawn_projection": {
+    "testDisplayName": "ProductionSpawnProjection",
+    "fullTestPath": "LootNPop.SurfaceNavigation.Nav.ProductionSpawnProjection",
+    "tags": [],
+    "state": "Success",
+    "deviceInstance": [
+      "C05375404B0DACA4F4AECA8D1E2261A8"
+    ],
+    "duration": 2.854966640472412,
+    "dateTime": "2026.11.10-04.23.27",
+    "entries": [
+      {
+        "event": {
+          "type": "Info",
+          "message": "Seed 135792468 slots: DA_OctantSurface_Pyramid_00, DA_OctantSurface_Hollow_00, DA_OctantSurface_Bastion_00, DA_OctantSurface_Grove_00, DA_OctantSurface_Meadow_00, DA_OctantSurface_Acropolis_00, DA_OctantSurface_Hollow_00, DA_OctantSurface_Grove_00",
+          "context": "",
+          "artifact": "00000000000000000000000000000000"
+        },
+        "filename": "",
+        "lineNumber": -1,
+        "timestamp": "2026.11.10-04.23.30"
+      },
+      {
+        "event": {
+          "type": "Info",
+          "message": "Production Nav projection: groups=816 version=1 anchors=100 anchorFailures=0 candidates=99114 candidateFailures=0 projection P50=40.8 P90=66.0 P99=105.4 max=290.5cm isolatedNodeHits=22 smallComponentHits(<=10 nodes)=43",
+          "context": "",
+          "artifact": "00000000000000000000000000000000"
+        },
+        "filename": "",
+        "lineNumber": -1,
+        "timestamp": "2026.11.10-04.23.30"
+      }
+    ],
+    "warnings": 0,
+    "errors": 0,
+    "artifacts": []
+  },
+  "user_mixed_pie_review": "passed",
+  "pie": {
+    "observed_pie_running": true,
+    "pool": "/Game/Maps/OctantPoolData",
+    "definitions": 6,
+    "grove_slot": 0,
+    "enemy_density": 1,
+    "validated_slots": 8,
+    "source_bindings": 283,
+    "pods_requested": 120,
+    "pods_placed": 120,
+    "enemies_requested": 2087,
+    "enemies_placed": 2087,
+    "seam_radius_delta_cm": 0,
+    "blocked_seam_nodes": 49,
+    "blocked_seam_edges": 2,
+    "log_entries": [
+      "[2026.11.10-04.07.08:705][699]LogLootNPop: LNPOctantSpawnSubsystem: slot 0 (rotation R(0)) <- LVI_Octant_Grove_00",
+      "[2026.11.10-04.07.08:705][699]LogLootNPop: LNPOctantSpawnSubsystem: slot 1 (rotation R(Y=90.00)) <- LVI_Octant_Bastion_00",
+      "[2026.11.10-04.07.08:705][699]LogLootNPop: LNPOctantSpawnSubsystem: slot 2 (rotation R(Y=180.00)) <- LVI_Octant_Hollow_00",
+      "[2026.11.10-04.07.08:705][699]LogLootNPop: LNPOctantSpawnSubsystem: slot 3 (rotation R(Y=270.00)) <- LVI_Octant_Pyramid_00",
+      "[2026.11.10-04.07.08:706][699]LogLootNPop: LNPOctantSpawnSubsystem: slot 4 (rotation R(P=180.00)) <- LVI_Octant_Meadow_00",
+      "[2026.11.10-04.07.08:706][699]LogLootNPop: LNPOctantSpawnSubsystem: slot 5 (rotation R(P=180.00, Y=90.00)) <- LVI_Octant_Acropolis_00",
+      "[2026.11.10-04.07.08:706][699]LogLootNPop: LNPOctantSpawnSubsystem: slot 6 (rotation R(P=180.00, Y=180.00)) <- LVI_Octant_Bastion_00",
+      "[2026.11.10-04.07.08:706][699]LogLootNPop: LNPOctantSpawnSubsystem: slot 7 (rotation R(P=180.00, Y=270.00)) <- LVI_Octant_Hollow_00",
+      "[2026.11.10-04.07.09:768][700]LogLootNPop: LNPSurfaceDataSubsystem: Published generation 1 with 8 validated slots, 283 source bindings, registry generation 2.",
+      "[2026.11.10-04.07.09:768][700]LogLootNPop: LNPSurfaceDataSubsystem: Nav runtimeLayers=755 localComponents=1535 runtimeStaticComponents=891 reachabilityGroups=891 connectivityVersion=1 seamLinks=4379 blockedSeamNodes=49 blockedSeamEdges=2 maxSeamRadiusDelta=0.000cm minSeamNormalDot=0.95296 navResident=100.20MiB.",
+      "[2026.11.10-04.07.09:891][701]LogLootNPop: Display: LNPMassSpawnSubsystem: set=Bench01 requested=20 authored=0 generic=20 random=0 placed=20 shortfall=0 unused_authored=0 enemy_requested=321 enemy_placed=321.",
+      "[2026.11.10-04.07.09:891][701]LogLootNPop: Display: LNPMassSpawnSubsystem: set=Bench01_2 requested=40 authored=0 generic=19 random=21 placed=40 shortfall=0 unused_authored=0 enemy_requested=853 enemy_placed=853.",
+      "[2026.11.10-04.07.09:891][701]LogLootNPop: Display: LNPMassSpawnSubsystem: set=Bench01_3 requested=30 authored=0 generic=30 random=0 placed=30 shortfall=0 unused_authored=0 enemy_requested=431 enemy_placed=431.",
+      "[2026.11.10-04.07.09:891][701]LogLootNPop: Display: LNPMassSpawnSubsystem: set=Bench01_4 requested=30 authored=0 generic=30 random=0 placed=30 shortfall=0 unused_authored=0 enemy_requested=482 enemy_placed=482."
+    ],
+    "manual_combat_review": "user_passed",
+    "manual_review_response": "문제 없었어",
+    "manual_review_scope": "GroveEntryWest boundary round trip; GroveClearingA and GroveUndergroundHub Pod enemy approach and attack; individual enemy types not separately enumerated"
+  },
+  "test_results": [
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Activity.Boundaries",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Activity.DormantConsumers",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Activity.PodWake",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Activity.Safety",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.BastionCrustIntegrity",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.BastionDeviceProposal",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.BastionEncounters",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.BastionLowPolyContent",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.BastionLowPolyNav",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.BastionLowPolySource",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.BastionSpireProposal",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CaveKitContract",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasCliff",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasCodec",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasExactError",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasGrid",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasHole",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasOverhang",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasQuery",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasSeamSnap",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustAtlasSphere",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustIdentification",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustSeamMatch",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.CrustSeamPairs",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.FixtureTriangleExtractionMatchesExact",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.HollowContent",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.LayerAtlasExactError",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 1
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.NaniteComplexCollisionSource",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.OctantBakeDeterministic",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.OctantCrustIdentification",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.OctantSourceResolution",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.OctantSupportLayers",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.ProductionPoolCurrentAndDeterministic",
+      "state": "Fail",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SpawnAuthoringValidation",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SpawnCodec",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SupportAtlasCodec",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SupportAtlasFoldedSheet",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SupportAtlasFootprint",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SupportAtlasLayerQuery",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SupportAtlasSourceResolution",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SupportLayersSplit",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.SupportSourceValidation",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Bake.VolumetricFixture",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ConditionalPatch.Bake",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ConditionalPatch.Codec",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ConditionalPatch.DestroyedMovementBase",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ConditionalPatch.Publication",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ConditionalPatch.RegressionFixture",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ConditionalPatch.Runtime",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ConditionalPatch.StatefulTerrain",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.EnemyLineOfSight.Gate",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.EnemyMovement.ActorHandoff",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.EnemyMovement.CachedGroundDecision",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.EnemyMovement.DynamicSupportContact",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.EnemyMovement.GroundedFixture",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.EnemyMovement.SurfaceHandleIdentity",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ExactMovement.CaveAndUnknown",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ExactMovement.GroundAndCliff",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ExactMovement.IslandBody",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.ExactMovement.WallAndSlope",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.FlightSteering.DetourAndStuck",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.FlightSteering.LookaheadStop",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.FlightSteering.SpawnPenetration",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.HitIdentity.LootPodProxySwapRemap",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.MeshTerrain.BOptionIndependentAssetExtraction",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 1
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.MeshTerrain.COptionEightLevelInstanceAsset",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.MeshTerrain.COptionEightSlotSeamAndPCG",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.MeshTerrain.COptionLevelInstancePCGGraph",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.MeshTerrain.NonWPSphereSculptRoundTrip",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.MeshTerrain.NonWPStaticMeshTarget",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.Baking",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.EnemyReachability",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.FlowField",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.GraphView",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.Hierarchy",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 1
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.HintedNearest",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.MultiplePortals",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.NavigationCodec",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.PathScheduler",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.PodOverlay",
+      "state": "Fail",
+      "errors": 1,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.ProductionPath",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.ProductionScheduler",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.ProductionSpawnProjection",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.RegressionPath",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.RegressionReachability",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.RequestCostReplay",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.StepAndSlope",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.TileAddress",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.TraversalCodec",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.MassSpawnHeadroom",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.MassSpawnPlanning",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.NavAssembly",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.ProductionSpawnComposition",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.ProductionSurfaceDataDefinitions",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 1
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.SupportPrecision",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.SurfaceDataLoaderValidation",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Schema.DeterministicOctantSelection",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Schema.ProductionOctantSourceValidation",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Schema.RuntimeOnlyPlacementIsNotBakeInput",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Schema.SourceContractValidation",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Schema.SourceDependencyCollection",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Schema.SourceManifestAndHashDeterminism",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Schema.SurfaceDataPackageSaveReload",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Schema.SurfaceDataSerializationRoundTrip",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.Replication.NormalCodec",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.Replication.PoseDirty",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.ChaseDetour",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.ChaseProgress",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.CliffLineOfSight",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.ClimbAndDescend",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.ConcaveCornerSettle",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.CreviceContact",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.Detour",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.DynamicSupportCarry",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.FallAndUnknown",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.FlatAndCeiling",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.HomeApproach",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.SurfaceCrawl.WanderSegment",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Wander.CachedEndpoints",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Wander.Runtime",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.Wander.TimeAndRevision",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WanderReplication.Client",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WanderReplication.Codec",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WanderReplication.Crawl",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WanderReplication.Dirty",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WanderReplication.PoseControl",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WanderReplication.Rewind",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WorldCollision.Api",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WorldCollision.DynamicMarkerHit",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WorldCollision.EarliestHit",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WorldCollision.LayerIdentity",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WorldCollision.MeadowCaveKit",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WorldCollision.ProjectileArc",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WorldCollision.RegressionFixture",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    },
+    {
+      "fullTestPath": "LootNPop.SurfaceNavigation.WorldCollision.RegressionMap",
+      "state": "Success",
+      "errors": 0,
+      "warnings": 0
+    }
+  ]
+}

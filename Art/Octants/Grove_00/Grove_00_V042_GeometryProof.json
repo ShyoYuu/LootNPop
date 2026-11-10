@@ -1,0 +1,798 @@
+{
+  "routes": [
+    {
+      "id": "AtoBWest",
+      "rays": 693,
+      "max_slope": 20.698182644244177
+    },
+    {
+      "id": "AtoBEast",
+      "rays": 408,
+      "max_slope": 40.25012389882307
+    },
+    {
+      "id": "AtoRecovery",
+      "rays": 192,
+      "max_slope": 43.911620924853615
+    },
+    {
+      "id": "RecoveryToC",
+      "rays": 255,
+      "max_slope": 29.40499310869037
+    },
+    {
+      "id": "BtoBoss",
+      "rays": 366,
+      "max_slope": 24.41712558397952
+    },
+    {
+      "id": "BossToC",
+      "rays": 129,
+      "max_slope": 22.961917288802322
+    },
+    {
+      "id": "CtoE",
+      "rays": 444,
+      "max_slope": 24.371011828024894
+    },
+    {
+      "id": "EtoA",
+      "rays": 447,
+      "max_slope": 23.148655409493475
+    },
+    {
+      "id": "Top_R1",
+      "rays": 81,
+      "max_slope": 17.96884580763356
+    },
+    {
+      "id": "Top_R2",
+      "rays": 87,
+      "max_slope": 10.261668643903938
+    },
+    {
+      "id": "Top_R3",
+      "rays": 93,
+      "max_slope": 7.713425701692904
+    },
+    {
+      "id": "Top_R4",
+      "rays": 108,
+      "max_slope": 9.76862596712219
+    },
+    {
+      "id": "Top_R5",
+      "rays": 144,
+      "max_slope": 28.166643138869816
+    },
+    {
+      "id": "Top_R6",
+      "rays": 54,
+      "max_slope": 8.676543395627363
+    },
+    {
+      "id": "Top_R7",
+      "rays": 81,
+      "max_slope": 12.349761687586989
+    },
+    {
+      "id": "Top_R8",
+      "rays": 102,
+      "max_slope": 12.05481776037261
+    },
+    {
+      "id": "ZCarve",
+      "rays": 318,
+      "max_slope": 31.193447761119977
+    },
+    {
+      "id": "CrossRamp",
+      "rays": 213,
+      "max_slope": 40.28167160473046
+    },
+    {
+      "id": "Underground_West",
+      "rays": 183,
+      "max_slope": 35.200727379471395
+    },
+    {
+      "id": "Underground_Central",
+      "rays": 603,
+      "max_slope": 23.490208425704605
+    },
+    {
+      "id": "Underground_North",
+      "rays": 252,
+      "max_slope": 11.39970817686352
+    },
+    {
+      "id": "T1LowerBranch",
+      "rays": 21,
+      "max_slope": 2.020011436489019
+    },
+    {
+      "id": "T1UpperBranch",
+      "rays": 21,
+      "max_slope": 0.7720242094929392
+    },
+    {
+      "id": "T1Summit",
+      "rays": 21,
+      "max_slope": 0.5050328270846522
+    },
+    {
+      "id": "T2LowerBranch",
+      "rays": 21,
+      "max_slope": 1.688788402156785
+    },
+    {
+      "id": "T2UpperBranch",
+      "rays": 21,
+      "max_slope": 0.8678986213855242
+    },
+    {
+      "id": "T2Summit",
+      "rays": 21,
+      "max_slope": 2.3344777042775195
+    },
+    {
+      "id": "T4LowerBranch",
+      "rays": 21,
+      "max_slope": 0.3902948606367939
+    },
+    {
+      "id": "T4UpperBranch",
+      "rays": 21,
+      "max_slope": 0.8822101878645668
+    },
+    {
+      "id": "T4Summit",
+      "rays": 21,
+      "max_slope": 0.5734344170984241
+    },
+    {
+      "id": "T5LowerBranch",
+      "rays": 21,
+      "max_slope": 1.1759134805931974
+    },
+    {
+      "id": "T5UpperBranch",
+      "rays": 21,
+      "max_slope": 0.43597058981321174
+    },
+    {
+      "id": "T5Summit",
+      "rays": 21,
+      "max_slope": 0.7356598176732354
+    },
+    {
+      "id": "T3LowerBranch",
+      "rays": 21,
+      "max_slope": 0.4970021169979695
+    },
+    {
+      "id": "T3UpperBranch",
+      "rays": 21,
+      "max_slope": 0.6121177375722162
+    },
+    {
+      "id": "T3Summit",
+      "rays": 21,
+      "max_slope": 0.556067212428363
+    },
+    {
+      "id": "T6LowerBranch",
+      "rays": 21,
+      "max_slope": 0.44722125002532764
+    },
+    {
+      "id": "T6UpperBranch",
+      "rays": 21,
+      "max_slope": 0.39536931601092806
+    },
+    {
+      "id": "T6Summit",
+      "rays": 21,
+      "max_slope": 0.549974760369805
+    },
+    {
+      "id": "T7LowerBranch",
+      "rays": 21,
+      "max_slope": 1.313853313097307
+    },
+    {
+      "id": "T7UpperBranch",
+      "rays": 21,
+      "max_slope": 2.2883071409598186
+    },
+    {
+      "id": "T7Summit",
+      "rays": 21,
+      "max_slope": 0.32985653163482087
+    },
+    {
+      "id": "BranchRamp_T2",
+      "rays": 195,
+      "max_slope": 16.03052621900371
+    },
+    {
+      "id": "BranchRamp_T5",
+      "rays": 210,
+      "max_slope": 19.196241505907036
+    },
+    {
+      "id": "BranchRamp_T1",
+      "rays": 144,
+      "max_slope": 15.986174653725493
+    },
+    {
+      "id": "BranchRamp_T4",
+      "rays": 138,
+      "max_slope": 19.960546093071276
+    },
+    {
+      "id": "BranchRamp_T3",
+      "rays": 132,
+      "max_slope": 23.766630931479934
+    },
+    {
+      "id": "BranchRamp_T6",
+      "rays": 102,
+      "max_slope": 29.983136733824523
+    },
+    {
+      "id": "BranchRamp_T7",
+      "rays": 117,
+      "max_slope": 22.260017161889877
+    }
+  ],
+  "boundary_floor_rays": 285,
+  "hooks": [
+    {
+      "id": "CrownArrival",
+      "from": "BossClearing",
+      "takeoff_local": [
+        10500,
+        4000,
+        -1200.0
+      ],
+      "distance_cm": 5401.715187213645
+    },
+    {
+      "id": "EastArrival",
+      "from": "EastGround",
+      "takeoff_local": [
+        15500,
+        -7500,
+        -922.7486811893868
+      ],
+      "distance_cm": 4648.122724358624
+    },
+    {
+      "id": "NotchCross",
+      "from": "RootNotchWest",
+      "takeoff_local": [
+        -2050.0,
+        4510.0,
+        992.4775327675684
+      ],
+      "distance_cm": 3145.2576526665703
+    },
+    {
+      "id": "BreachCross",
+      "from": "RootBreachWest",
+      "takeoff_local": [
+        -11355.0,
+        2250.0,
+        9.89522458980673
+      ],
+      "distance_cm": 4705.712247889537
+    },
+    {
+      "id": "BasinReturn",
+      "from": "Recovery",
+      "takeoff_local": [
+        -9000,
+        4000,
+        -2564.435551824446
+      ],
+      "distance_cm": 2945.2784646189293
+    },
+    {
+      "id": "WestShaftLedge",
+      "from": "UndergroundWestBottom",
+      "takeoff_local": [
+        -11365.37155287674,
+        -6252.75098489236,
+        -8802
+      ],
+      "distance_cm": 7834.7544795750955
+    },
+    {
+      "id": "WestShaftLedge",
+      "from": "UndergroundWestLip",
+      "takeoff_local": [
+        -11509.600145022865,
+        -6211.542815707753,
+        -811.0486562814399
+      ],
+      "distance_cm": 1827.0582079316396
+    },
+    {
+      "id": "WestShaftReturn",
+      "from": "UndergroundWestLedge",
+      "takeoff_local": [
+        -9634.62844712326,
+        -6747.24901510764,
+        -5500
+      ],
+      "distance_cm": 7926.75801328701
+    },
+    {
+      "id": "NorthShaftLedge",
+      "from": "UndergroundNorthBottom",
+      "takeoff_local": [
+        -900.0,
+        11000.0,
+        -8802
+      ],
+      "distance_cm": 7615.834423905591
+    },
+    {
+      "id": "NorthShaftLedge",
+      "from": "UndergroundNorthLip",
+      "takeoff_local": [
+        -750.0,
+        11000.0,
+        -1058.9330666642857
+      ],
+      "distance_cm": 1927.1040221644657
+    },
+    {
+      "id": "NorthShaftReturn",
+      "from": "UndergroundNorthLedge",
+      "takeoff_local": [
+        -2700.0,
+        11000.0,
+        -5500
+      ],
+      "distance_cm": 7769.843327936994
+    },
+    {
+      "id": "T1LowerBranchArrival",
+      "from": "T1Ascent",
+      "takeoff_local": [
+        -1564,
+        -8459,
+        -1424.7930070725117
+      ],
+      "distance_cm": 6944.009925009742
+    },
+    {
+      "id": "T1LowerBranchArrival",
+      "from": "T1UpperBranchDescent",
+      "takeoff_local": [
+        -5690.269232621584,
+        -2251.1670923819984,
+        6496.202120170343
+      ],
+      "distance_cm": 4596.232753613285
+    },
+    {
+      "id": "T1UpperBranchArrival",
+      "from": "T1LowerBranch",
+      "takeoff_local": [
+        -1163.377851483975,
+        -4778.338394389895,
+        2976.202120170343
+      ],
+      "distance_cm": 8134.670824412072
+    },
+    {
+      "id": "T1UpperBranchArrival",
+      "from": "T1SummitDescent",
+      "takeoff_local": [
+        -4375.9254529826885,
+        -4478.540261775692,
+        10236.202120170343
+      ],
+      "distance_cm": 2736.506014138888
+    },
+    {
+      "id": "T1SummitArrival",
+      "from": "T1UpperBranch",
+      "takeoff_local": [
+        -7000.0,
+        -1520.0,
+        6496.202120170343
+      ],
+      "distance_cm": 6691.184081082414
+    },
+    {
+      "id": "T2LowerBranchArrival",
+      "from": "T2Ascent",
+      "takeoff_local": [
+        1667,
+        9454,
+        -1085.5464460898343
+      ],
+      "distance_cm": 8093.827350606971
+    },
+    {
+      "id": "T2LowerBranchArrival",
+      "from": "T2UpperBranchDescent",
+      "takeoff_local": [
+        -6734.0090911804655,
+        2517.322966712787,
+        8934.254814618573
+      ],
+      "distance_cm": 6119.373701980791
+    },
+    {
+      "id": "T2UpperBranchArrival",
+      "from": "T2LowerBranch",
+      "takeoff_local": [
+        -2174.079978861175,
+        8113.776940828174,
+        4454.254814618574
+      ],
+      "distance_cm": 8809.525871340496
+    },
+    {
+      "id": "T2UpperBranchArrival",
+      "from": "T2SummitDescent",
+      "takeoff_local": [
+        -2846.0032092949796,
+        4325.9464769455235,
+        13694.254814618573
+      ],
+      "distance_cm": 4369.29633342656
+    },
+    {
+      "id": "T2SummitArrival",
+      "from": "T2UpperBranch",
+      "takeoff_local": [
+        -7681.500473495223,
+        1354.4557858020562,
+        8934.254814618573
+      ],
+      "distance_cm": 7763.677569402868
+    },
+    {
+      "id": "T4LowerBranchArrival",
+      "from": "T4Ascent",
+      "takeoff_local": [
+        -860,
+        -8000,
+        -1394.1227098894906
+      ],
+      "distance_cm": 6813.736538375972
+    },
+    {
+      "id": "T4LowerBranchArrival",
+      "from": "T4UpperBranchDescent",
+      "takeoff_local": [
+        2836.4535641740467,
+        -10203.448003481133,
+        7299.748764302949
+      ],
+      "distance_cm": 4105.145906228977
+    },
+    {
+      "id": "T4UpperBranchArrival",
+      "from": "T4LowerBranch",
+      "takeoff_local": [
+        1917.1440318542363,
+        -5396.671507677291,
+        3056.202120170343
+      ],
+      "distance_cm": 8553.87509839816
+    },
+    {
+      "id": "T4UpperBranchArrival",
+      "from": "T4SummitDescent",
+      "takeoff_local": [
+        3661.8403533755973,
+        -8008.070444938085,
+        11549.748764302949
+      ],
+      "distance_cm": 2416.483289972428
+    },
+    {
+      "id": "T4SummitArrival",
+      "from": "T4UpperBranch",
+      "takeoff_local": [
+        3118.2257853594456,
+        -11676.745127407004,
+        7299.748764302949
+      ],
+      "distance_cm": 6840.875579512292
+    },
+    {
+      "id": "T5LowerBranchArrival",
+      "from": "T5Ascent",
+      "takeoff_local": [
+        13660,
+        6651,
+        -998.8636602569804
+      ],
+      "distance_cm": 10019.313600502457
+    },
+    {
+      "id": "T5LowerBranchArrival",
+      "from": "T5UpperBranchDescent",
+      "takeoff_local": [
+        13625.304211333863,
+        6655.261987935296,
+        10145.009361378477
+      ],
+      "distance_cm": 4567.556442993043
+    },
+    {
+      "id": "T5UpperBranchArrival",
+      "from": "T5LowerBranch",
+      "takeoff_local": [
+        21286.659625196666,
+        8120.517771848382,
+        4705.009361378477
+      ],
+      "distance_cm": 9489.573341009436
+    },
+    {
+      "id": "T5UpperBranchArrival",
+      "from": "T5SummitDescent",
+      "takeoff_local": [
+        18252.642426195172,
+        5469.513663290372,
+        15925.009361378477
+      ],
+      "distance_cm": 3887.758258909709
+    },
+    {
+      "id": "T5SummitArrival",
+      "from": "T5UpperBranch",
+      "takeoff_local": [
+        12152.007087407992,
+        6373.489766749898,
+        10145.009361378477
+      ],
+      "distance_cm": 8219.142199598895
+    },
+    {
+      "id": "T3LowerBranchArrival",
+      "from": "T3Ascent",
+      "takeoff_local": [
+        -4125,
+        15963,
+        -845.2648144876996
+      ],
+      "distance_cm": 7222.054540179971
+    },
+    {
+      "id": "T3LowerBranchArrival",
+      "from": "T3UpperBranchDescent",
+      "takeoff_local": [
+        -4531.320202826384,
+        15884.423671111042,
+        7170.085174423322
+      ],
+      "distance_cm": 3348.8466541815724
+    },
+    {
+      "id": "T3UpperBranchArrival",
+      "from": "T3LowerBranch",
+      "takeoff_local": [
+        -183.38597958072842,
+        14372.62944574415,
+        3330.0851744233223
+      ],
+      "distance_cm": 8169.469393796889
+    },
+    {
+      "id": "T3UpperBranchArrival",
+      "from": "T3SummitDescent",
+      "takeoff_local": [
+        -3235.3567549960426,
+        14224.735221682891,
+        11250.085174423322
+      ],
+      "distance_cm": 1938.715855548048
+    },
+    {
+      "id": "T3SummitArrival",
+      "from": "T3UpperBranch",
+      "takeoff_local": [
+        -5948.119050061439,
+        16377.050331446655,
+        7170.085174423322
+      ],
+      "distance_cm": 6511.49613757506
+    },
+    {
+      "id": "T6LowerBranchArrival",
+      "from": "T6Ascent",
+      "takeoff_local": [
+        -12173,
+        -10312,
+        -837.9695041697591
+      ],
+      "distance_cm": 5505.461576251196
+    },
+    {
+      "id": "T6LowerBranchArrival",
+      "from": "T6UpperBranchDescent",
+      "takeoff_local": [
+        -16860.223607978347,
+        -14350.726098052777,
+        5600.879096689933
+      ],
+      "distance_cm": 2632.1123856297113
+    },
+    {
+      "id": "T6UpperBranchArrival",
+      "from": "T6LowerBranch",
+      "takeoff_local": [
+        -15730.223837030979,
+        -11100.8362691844,
+        2400.8790966899337
+      ],
+      "distance_cm": 6642.256088538131
+    },
+    {
+      "id": "T6UpperBranchArrival",
+      "from": "T6SummitDescent",
+      "takeoff_local": [
+        -15811.760187510137,
+        -13825.146226884117,
+        9000.879096689932
+      ],
+      "distance_cm": 1279.2577707172713
+    },
+    {
+      "id": "T6SummitArrival",
+      "from": "T6UpperBranch",
+      "takeoff_local": [
+        -17352.85026831396,
+        -15767.524945287832,
+        5600.879096689933
+      ],
+      "distance_cm": 5510.382424555884
+    },
+    {
+      "id": "T7LowerBranchArrival",
+      "from": "T7Ascent",
+      "takeoff_local": [
+        -12908,
+        3009,
+        -2080.1047754101933
+      ],
+      "distance_cm": 7855.921355658437
+    },
+    {
+      "id": "T7LowerBranchArrival",
+      "from": "T7UpperBranchDescent",
+      "takeoff_local": [
+        -15009.730767378416,
+        3291.1670923819984,
+        5701.611782325526
+      ],
+      "distance_cm": 2831.881755243194
+    },
+    {
+      "id": "T7UpperBranchArrival",
+      "from": "T7LowerBranch",
+      "takeoff_local": [
+        -18521.55742703498,
+        5251.670847539481,
+        2341.6117823255267
+      ],
+      "distance_cm": 6256.717389856369
+    },
+    {
+      "id": "T7UpperBranchArrival",
+      "from": "T7SummitDescent",
+      "takeoff_local": [
+        -15671.532940350924,
+        4782.825410228996,
+        9271.611782325526
+      ],
+      "distance_cm": 2485.918646269891
+    },
+    {
+      "id": "T7SummitArrival",
+      "from": "T7UpperBranch",
+      "takeoff_local": [
+        -13700.0,
+        2560.0,
+        5701.611782325526
+      ],
+      "distance_cm": 6013.422145304481
+    }
+  ],
+  "failure_count": 0,
+  "native_scope": "anchors_only_frozen_geometry",
+  "branch_junction_lines": [
+    {
+      "y": -4700,
+      "max_step_cm": 79.80482149707314,
+      "rays": 29
+    },
+    {
+      "y": -4900,
+      "max_step_cm": 80.18823675322346,
+      "rays": 29
+    },
+    {
+      "y": -5100,
+      "max_step_cm": 79.62664372451036,
+      "rays": 29
+    },
+    {
+      "y": -5300,
+      "max_step_cm": 79.720739563596,
+      "rays": 29
+    }
+  ],
+  "surface_joint_floor_rays": 1334,
+  "surface_joint_max_slope": 37.44386006003563,
+  "floor_rays": 9459,
+  "clearance_rays": 8844,
+  "trees": 7,
+  "roots": 8,
+  "checkpoints": {
+    "BareTrees": "D:\\UnrealProjects\\LootNPop\\Saved\\SliceOctant\\Grove_00\\V021\\BareTrees\\manifest.json",
+    "SolidRoots": "D:\\UnrealProjects\\LootNPop\\Saved\\SliceOctant\\Grove_00\\V021\\SolidRoots\\manifest.json"
+  },
+  "cavern_floor_rays": 225,
+  "flight_bands": [
+    {
+      "altitude_cm": 500,
+      "axis": 0
+    },
+    {
+      "altitude_cm": 500,
+      "axis": 1
+    },
+    {
+      "altitude_cm": 1000,
+      "axis": 0
+    },
+    {
+      "altitude_cm": 1000,
+      "axis": 1
+    },
+    {
+      "altitude_cm": 1300,
+      "axis": 0
+    },
+    {
+      "altitude_cm": 1300,
+      "axis": 1
+    },
+    {
+      "altitude_cm": 2300,
+      "axis": 0
+    },
+    {
+      "altitude_cm": 2300,
+      "axis": 1
+    },
+    {
+      "altitude_cm": 3500,
+      "axis": 0
+    },
+    {
+      "altitude_cm": 3500,
+      "axis": 1
+    }
+  ],
+  "cover_count": 5,
+  "support_max_component_cm": 32177.236328125,
+  "underground_sample_offset_xy_cm": [
+    1,
+    0
+  ],
+  "limits": [
+    "Point rays, not Chaos capsule sweeps, Mover, hook inertia, combat or design approval"
+  ]
+}

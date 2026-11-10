@@ -1,0 +1,242 @@
+{
+  "date": "2026-11-10",
+  "definitions": 5,
+  "removed": "Meadow_00",
+  "removed_legacy_references": 1,
+  "succeeded": 2,
+  "succeeded_with_warnings": 0,
+  "failed": 2,
+  "test_results": [
+    {
+      "testDisplayName": "PodOverlay",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.PodOverlay",
+      "tags": [],
+      "state": "Fail",
+      "deviceInstance": [
+        "DDC47C914154EDE069BB3584D69E5507"
+      ],
+      "duration": 212.5720672607422,
+      "dateTime": "2026.11.10-04.39.45",
+      "entries": [
+        {
+          "event": {
+            "type": "Info",
+            "message": "LogStreaming: FlushAsyncLoading(374): 1 QueuedPackages, 0 AsyncPackages",
+            "context": "log",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.39.45"
+        },
+        {
+          "event": {
+            "type": "Error",
+            "message": "Expected 'Pod blocks a direct walk while leaving both endpoints open' to be true.",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "D:\\UnrealProjects\\LootNPop\\Source\\LootNPopEditor\\Tests\\LNPNavPathfindingTest.cpp",
+          "lineNumber": 4140,
+          "timestamp": "2026.11.10-04.43.17"
+        }
+      ],
+      "warnings": 0,
+      "errors": 1,
+      "artifacts": []
+    },
+    {
+      "testDisplayName": "ProductionSpawnProjection",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Nav.ProductionSpawnProjection",
+      "tags": [],
+      "state": "Success",
+      "deviceInstance": [
+        "DDC47C914154EDE069BB3584D69E5507"
+      ],
+      "duration": 2.8124616146087646,
+      "dateTime": "2026.11.10-04.43.17",
+      "entries": [
+        {
+          "event": {
+            "type": "Info",
+            "message": "Seed 135792468 slots: DA_OctantSurface_Hollow_00, DA_OctantSurface_Acropolis_00, DA_OctantSurface_Grove_00, DA_OctantSurface_Bastion_00, DA_OctantSurface_Pyramid_00, DA_OctantSurface_Acropolis_00, DA_OctantSurface_Bastion_00, DA_OctantSurface_Pyramid_00",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.43.20"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "Production Nav projection: groups=1213 version=1 anchors=152 anchorFailures=0 candidates=89124 candidateFailures=0 projection P50=39.1 P90=64.2 P99=102.4 max=213.5cm isolatedNodeHits=17 smallComponentHits(<=10 nodes)=18",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.43.20"
+        }
+      ],
+      "warnings": 0,
+      "errors": 0,
+      "artifacts": []
+    },
+    {
+      "testDisplayName": "ProductionSpawnComposition",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.ProductionSpawnComposition",
+      "tags": [],
+      "state": "Fail",
+      "deviceInstance": [
+        "DDC47C914154EDE069BB3584D69E5507"
+      ],
+      "duration": 0.1919739991426468,
+      "dateTime": "2026.11.10-04.43.20",
+      "entries": [
+        {
+          "event": {
+            "type": "Info",
+            "message": "LogStreaming: FlushAsyncLoading(380): 1 QueuedPackages, 0 AsyncPackages",
+            "context": "log",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.43.20"
+        },
+        {
+          "event": {
+            "type": "Error",
+            "message": "Expected 'Pool has Meadow definition' to be not null.",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "D:\\UnrealProjects\\LootNPop\\Source\\LootNPopEditor\\Tests\\LNPProductionSpawnCompositionTest.cpp",
+          "lineNumber": 85,
+          "timestamp": "2026.11.10-04.43.20"
+        }
+      ],
+      "warnings": 0,
+      "errors": 1,
+      "artifacts": []
+    },
+    {
+      "testDisplayName": "ProductionSurfaceDataDefinitions",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.ProductionSurfaceDataDefinitions",
+      "tags": [],
+      "state": "Success",
+      "deviceInstance": [
+        "DDC47C914154EDE069BB3584D69E5507"
+      ],
+      "duration": 19.93042755126953,
+      "dateTime": "2026.11.10-04.43.20",
+      "entries": [
+        {
+          "event": {
+            "type": "Info",
+            "message": "Production pool: seeds=32 arrangements=32 definitionSlots=40 orderedDefinitionPairs=25 bidirectionalPaths=2304 maxSeamRadiusDelta=0.000",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.43.40"
+        }
+      ],
+      "warnings": 0,
+      "errors": 0,
+      "artifacts": []
+    }
+  ],
+  "composition_recheck": [
+    {
+      "testDisplayName": "ProductionSpawnComposition",
+      "fullTestPath": "LootNPop.SurfaceNavigation.Runtime.ProductionSpawnComposition",
+      "tags": [],
+      "state": "Success",
+      "deviceInstance": [
+        "E3D3AE33440A44DC30ADAFBA7C74213D"
+      ],
+      "duration": 31.603424072265625,
+      "dateTime": "2026.11.10-04.49.56",
+      "entries": [
+        {
+          "event": {
+            "type": "Info",
+            "message": "Package1P: enemies placed=2235/2235",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.49.58"
+        },
+        {
+          "event": {
+            "type": "Info",
+            "message": "Production spawn composition: arrangements=33 shortArrangements=0 enemies=67495/67495",
+            "context": "",
+            "artifact": "00000000000000000000000000000000"
+          },
+          "filename": "",
+          "lineNumber": -1,
+          "timestamp": "2026.11.10-04.50.28"
+        }
+      ],
+      "warnings": 0,
+      "errors": 0,
+      "artifacts": []
+    }
+  ],
+  "resolved": 1,
+  "remaining_failed": 1,
+  "editor_build": "Succeeded",
+  "level_and_surface_data_unchanged": true,
+  "rebaked": false,
+  "preservation": {
+    "existing_assets_checked": 327,
+    "existing_terrain_assets_unchanged": 326,
+    "grove_assets_unchanged": 7,
+    "changed": [
+      "Content/Maps/OctantPoolData.uasset"
+    ],
+    "pool_before_sha256": "20feaa6a27f8b96e06e6778bdb8c80c6501df354bd8f40194e5fdc669b19e5d2",
+    "pool_after_sha256": "6c9165d9f1287c6d35b3433c4d26537fd94a5c29e94f78d2cd2056ec4ab8eb72",
+    "config_unchanged": true
+  },
+  "pie": {
+    "pool": "/Game/Maps/OctantPoolData",
+    "definitions": 5,
+    "grove_slots": [
+      1,
+      6
+    ],
+    "enemy_density": 1,
+    "validated_slots": 8,
+    "source_bindings": 274,
+    "pods_requested": 120,
+    "pods_placed": 120,
+    "enemies_requested": 2087,
+    "enemies_placed": 2087,
+    "seam_radius_delta_cm": 0,
+    "blocked_seam_nodes": 0,
+    "blocked_seam_edges": 0,
+    "log_entries": [
+      "[2026.11.10-04.40.11:177][763]LogLootNPop: LNPOctantSpawnSubsystem: slot 0 (rotation R(0)) <- LVI_Octant_Hollow_00",
+      "[2026.11.10-04.40.11:178][763]LogLootNPop: LNPOctantSpawnSubsystem: slot 1 (rotation R(Y=90.00)) <- LVI_Octant_Grove_00",
+      "[2026.11.10-04.40.11:178][763]LogLootNPop: LNPOctantSpawnSubsystem: slot 2 (rotation R(Y=180.00)) <- LVI_Octant_Acropolis_00",
+      "[2026.11.10-04.40.11:178][763]LogLootNPop: LNPOctantSpawnSubsystem: slot 3 (rotation R(Y=270.00)) <- LVI_Octant_Pyramid_00",
+      "[2026.11.10-04.40.11:178][763]LogLootNPop: LNPOctantSpawnSubsystem: slot 4 (rotation R(P=180.00)) <- LVI_Octant_Bastion_00",
+      "[2026.11.10-04.40.11:179][763]LogLootNPop: LNPOctantSpawnSubsystem: slot 5 (rotation R(P=180.00, Y=90.00)) <- LVI_Octant_Bastion_00",
+      "[2026.11.10-04.40.11:179][763]LogLootNPop: LNPOctantSpawnSubsystem: slot 6 (rotation R(P=180.00, Y=180.00)) <- LVI_Octant_Grove_00",
+      "[2026.11.10-04.40.11:179][763]LogLootNPop: LNPOctantSpawnSubsystem: slot 7 (rotation R(P=180.00, Y=270.00)) <- LVI_Octant_Hollow_00",
+      "[2026.11.10-04.40.12:023][764]LogLootNPop: LNPSurfaceDataSubsystem: Published generation 1 with 8 validated slots, 274 source bindings, registry generation 2.",
+      "[2026.11.10-04.40.12:023][764]LogLootNPop: LNPSurfaceDataSubsystem: Nav runtimeLayers=803 localComponents=1527 runtimeStaticComponents=869 reachabilityGroups=869 connectivityVersion=1 seamLinks=4428 blockedSeamNodes=0 blockedSeamEdges=0 maxSeamRadiusDelta=0.000cm minSeamNormalDot=0.95296 navResident=95.99MiB.",
+      "[2026.11.10-04.40.12:123][765]LogLootNPop: Display: LNPMassSpawnSubsystem: set=Bench01 requested=20 authored=0 generic=20 random=0 placed=20 shortfall=0 unused_authored=0 enemy_requested=308 enemy_placed=308.",
+      "[2026.11.10-04.40.12:124][765]LogLootNPop: Display: LNPMassSpawnSubsystem: set=Bench01_2 requested=40 authored=0 generic=40 random=0 placed=40 shortfall=0 unused_authored=0 enemy_requested=714 enemy_placed=714.",
+      "[2026.11.10-04.40.12:124][765]LogLootNPop: Display: LNPMassSpawnSubsystem: set=Bench01_3 requested=30 authored=0 generic=16 random=14 placed=30 shortfall=0 unused_authored=0 enemy_requested=645 enemy_placed=645.",
+      "[2026.11.10-04.40.12:124][765]LogLootNPop: Display: LNPMassSpawnSubsystem: set=Bench01_4 requested=30 authored=0 generic=30 random=0 placed=30 shortfall=0 unused_authored=0 enemy_requested=420 enemy_placed=420."
+    ]
+  }
+}
