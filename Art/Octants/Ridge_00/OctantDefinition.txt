@@ -1,0 +1,1 @@
+(LevelAsset="/Game/Maps/Ridge_00/LVI_Octant_Ridge_00.LVI_Octant_Ridge_00",SurfaceData="/Game/Maps/Ridge_00/DA_OctantSurface_Ridge_00.DA_OctantSurface_Ridge_00",AllowedSlotRotations=255,SeamSignature="DysonSphere_R300m_V1")

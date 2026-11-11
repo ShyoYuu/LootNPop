@@ -670,3 +670,7 @@ WhereAmI 두 지점(slot7 local(-4985,1038,-9901),(-10771,5020,-9902)) 근처에
 ### 2026-11-10 — Meadow 정식 풀 제외
 
 사용자가 Grove 실제 포함을 확인하고 Meadow 제외를 요청했다. 정식 정의1개와 legacy 참조1개를 제거해5종 풀로 저장했다. Meadow 원본/테스트 에셋과 기존326개/Grove7개 에셋·설정 SHA256를 보존했다. 정의·Spawn Nav 투영은 최초 통과했고, 스폰 편성은 고정 회귀 배치의 Meadow 의존 조건 보정·Editor 빌드 후 재검사를 통과해 관련3개 항목을 검증했다. PodOverlay는 이번5종 구성에서도 동일 샘플 선택 assertion으로 실패했다. 기존 Pyramid 단독에서도 이미 재현된 항목으로 남기며 해당 검사 입력 검토가 후속 과제다. 지형/DA 불변이므로 재베이크/전체 검사 반복은 하지 않았다. 새 혼합 PIE8slot·274bindings·seam 높이 차0cm·blocked seam0·Pod120/120·적2,087/2,087, Grove slot1/6이다. 추가 지형 전체 수동 검토는 요청하지 않는다. [상세](../../../Art/Octants/Grove_00/MeadowRemoval.md), 근거 Saved/SliceOctant/Grove_00/MeadowRemoval.
+
+### 2026-11-11 — Ridge 정식 풀 통합
+
+사용자가 V011 동선·교전을 PIE로 확인하고 통합을 요청했다. V011 작업본을 `/Game/Maps/Ridge_00` 정식 사본7개로 채택하고(액터48개 동일·WIP 의존0·seam2,208 일치), 실제 풀에 Ridge 정의1개를 추가해6종이다. 기존5개 정의·설정 보존. 전체 SurfaceNavigation135개 실패0(첫 실행), 혼합 PIE Ridge slot0·8slot·seam 높이 차0·Pod120/120·적2,223/2,223·오류0. 중간 산출물은 `_WorkInProgress`에만 있다. 상세 [정식 통합](../../../Art/Octants/Ridge_00/Production.md), 계획 §16.

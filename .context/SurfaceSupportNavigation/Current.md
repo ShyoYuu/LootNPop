@@ -1,12 +1,14 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: 옥탄트 양산 — Grove_00 통합·사용자 확인 후 Meadow 제외한 정식5종 풀 검증, PodOverlay 샘플 선정 보정 완료. Ridge_00 제작 계획. Roadmap의 기존 Phase는 모두 완료(직전 Phase 10 완료 2026-10-13)
-> 마지막 갱신: 2026-11-10
+> 현재 작업: 옥탄트 양산 — Grove_00·Ridge_00 정식 통합, Meadow 제외로 정식6종 풀(Bastion/Hollow/Acropolis/Pyramid/Grove/Ridge) 검증 완료, PodOverlay 샘플 선정 보정 완료. Roadmap의 기존 Phase는 모두 완료(직전 Phase 10 완료 2026-10-13)
+> 마지막 갱신: 2026-11-11
 
-재시작 후 현재 PIE: 정식5종·Grove slot1/5·8slot/293bindings·seam 높이 차 및 차단0·Pod120/120·적2,280/2,280(밀도1). 스폰 편성 테스트1곳의 Meadow 의존 보정과 사용자 승인 Editor 빌드 후33개 구성·적67,495/67,495 전량 배치 재검사를 통과했다. 런타임 코드와 지형/DA는 불변이다.
+현재 PIE: 정식6종·Ridge slot0·Grove slot5/6·8slot/264bindings·seam 높이 차 및 차단0·Pod120/120·적2,223/2,223(밀도1). 런타임 코드는 불변이다.
 
 ## 현재 결정
+
+**Ridge 정식 풀 통합(2026-11-11).** 사용자가 V011 전체 동선(적 밀도0)과 교전(밀도1)을 PIE로 확인하고 통합을 요청했다. Grove와 같은 절차로 V011 작업본을 `/Game/Maps/Ridge_00` 정식 사본7개로 채택했다. 액터48개(지형3·앵커6·Pod12·검토점27)가 경로 치환 외에 동일하고, 의존 패키지10개에 WIP 참조가0이다. 정식 재베이크 요소 수는 작업본과 같고 seam2,208이 일치한다. 실제 풀에는 기존5개 정의를 보존하고 Ridge1개를 추가해6종이다. 추적 파일 중 실제 풀만 바뀌었고 DefaultGame.ini는 불변이다. 실제6종 풀 전체 SurfaceNavigation135개는 첫 실행에서 실패0이다(경고5는 HTTP timeout4·B-option 안내1). 혼합 PIE는 위 현재 PIE 줄과 같다. 중간 산출물은 모두 `_WorkInProgress`(Git 무시)에 있다. [정식 통합 상세](../../Art/Octants/Ridge_00/Production.md).
 
 **PodOverlay 샘플 선정 보정(2026-11-10).** 실패 원인은 Pod 우회 기능이 아니라 검사 입력이었다. 검사는 slot0 지각에서 `I±1` 바로 옆 이웃이 둘 다 Pod 차단 반경(Pod128+agent50=178cm) 밖인 node를 요구했다. 지각 격자 간격(N=368, 중심199.7cm)이 178cm를 넘는 곳은 옥탄트 중심26.85° 이내뿐인데, Pyramid는 지면 외곽(외접 반경31,500cm 삼각형)이 이 영역을 전부 덮어 지각이 없다. 외곽 밖 최대 간격은176.5cm라 조건이 성립할 수 없었다. 검사는 끝점을 `I±` 방향으로 처음 열린 node까지(최대4칸) 연장하도록 고쳤다. 검증하는 계약은 같다. Editor 빌드 후 정식5종 풀·Pyramid 단독 풀 모두 통과(오류/경고0)했고, 런타임 코드와 지형/DA는 불변이다.
 
@@ -77,7 +79,7 @@
 
 - Grove는 V023의 새 큰 덩어리 규모·공터 분리·Z 절삭/직각 경사·상부 훅을 사용자 PIE로 확인한다. 이후 작은 Floor 3면 역할/접합 정리·최종 형상/정식 경로 채택·베이크 결정론·실제 풀 한 번 등록·전체 SurfaceNavigation·혼합 PIE가 남았다. 옛 뿌리/벽 생성기를 현재 형상 제작에 사용하지 않는다. 적 0을 NPC 교전 확인으로 취급하지 않는다. 그래픽스 세션과 레벨/베이크/저장을 동시에 조작하지 않는다.
 - Pyramid_00은 V058 공간·동선을 보존한다. 추가 피드백이 생기면 새 형상 버전에서 해당 구간만 수정한다.
-- Grove·Ridge를 풀에 추가하고 Meadow를 뺀 뒤 [Phase 15 재측정 계획](phases/Phase15_ComplexMapPathRemeasure.md)으로 추격 경로 세 방식을 다시 잰다.
+- Grove·Ridge 추가와 Meadow 제외가 끝났다. [Phase 15 재측정 계획](phases/Phase15_ComplexMapPathRemeasure.md)으로 추격 경로 세 방식을 다시 잰다.
 
 ## 인계 근거
 
