@@ -5,7 +5,8 @@ LootNPop 에디터 Output Log의 Cmd 창에서 실행한다.
 전환 전 경로(Lyra 원본 애니 + Lyra와 비율이 같은 MoverSample 메시)에서 조준 아이들의 왼손(hand_l) 위치를
 무기 메시 컴포넌트 공간으로 옮긴다. 무기 컴포넌트 변환 = 상대 오프셋(WeaponMeshRelative*) × 부착 소켓(MS 메시) × 소켓 부모 본.
 같은 계산을 힙파이어 아이들로도 해서 차이를 보고한다(크면 고정 오프셋이 맞지 않는다는 뜻).
-apply 인자를 주면 조준 아이들 값을 VS_Rifle·VS_Shotgun에 넣는다(저장하지 않는다). 권총은 리타깃만으로 0.3cm라 넣지 않는다.
+apply 인자를 주면 조준 아이들 값을 VS_Rifle·VS_Shotgun·VS_Pistol에 넣는다(저장하지 않는다).
+팔 정렬 포즈에서는 견착 보정 후 권총 왼손도 목표에서 약 2.5cm 벗어나므로 오프셋 IK를 사용한다.
 
 견착 보정(ULNPWeaponVisualSet::RightHandCorrection)도 계산한다. UEFN 사본 조준 아이들을 런타임 리타기터 RTG_GASP_to_MS로
 임시 폴더에 리타깃하고, 오른손의 spine_05 기준 위치를 Lyra 원본과 같게 만드는 이동량을 그 결과의 무기 공간으로 옮긴다.
@@ -24,7 +25,7 @@ LYRA_ANIM = "/Game/Characters/Lyra_Mannequin/Animations/Locomotion"
 SETS = {
     "VS_Rifle": {"apply": True, "ads": LYRA_ANIM + "/Rifle/MM_Rifle_Idle_ADS", "hip": LYRA_ANIM + "/Rifle/MM_Rifle_Idle_Hipfire"},
     "VS_Shotgun": {"apply": True, "ads": LYRA_ANIM + "/Shotgun/MM_Shotgun_Idle_ADS", "hip": LYRA_ANIM + "/Shotgun/MM_Shotgun_Idle_Hipfire"},
-    "VS_Pistol": {"apply": False, "ads": LYRA_ANIM + "/Pistol/MM_Pistol_Idle_ADS", "hip": LYRA_ANIM + "/Pistol/MM_Pistol_Idle_Hipfire"},
+    "VS_Pistol": {"apply": True, "ads": LYRA_ANIM + "/Pistol/MM_Pistol_Idle_ADS", "hip": LYRA_ANIM + "/Pistol/MM_Pistol_Idle_Hipfire"},
 }
 OUT = Path(unreal.Paths.project_saved_dir()).resolve() / "AnimRetarget" / "ComputeLeftHandGripOffsets.json"
 ML = unreal.MathLibrary
@@ -79,7 +80,7 @@ def runtime_retarget(ads_path):
     return unreal.load_asset(str(created[0].package_name))
 
 
-def shoulder_correction(vs, mesh, ads_path):
+def shoulder_correction(vs, mesh, ads_path, grip_offset):
     lyra_pose = PE.get_anim_pose_at_frame(unreal.load_asset(ads_path), 0, unreal.AnimPoseEvaluationOptions())
     ms_pose = PE.get_anim_pose_at_frame(runtime_retarget(ads_path), 0, unreal.AnimPoseEvaluationOptions())
     lyra_rel = PE.get_bone_pose(lyra_pose, "spine_05", unreal.AnimPoseSpaces.WORLD).inverse_transform_location(
@@ -87,8 +88,12 @@ def shoulder_correction(vs, mesh, ads_path):
     ms_spine = PE.get_bone_pose(ms_pose, "spine_05", unreal.AnimPoseSpaces.WORLD)
     ms_hand = PE.get_bone_pose(ms_pose, "hand_r", unreal.AnimPoseSpaces.WORLD).translation
     delta = ms_spine.transform_location(lyra_rel) - ms_hand
-    v = weapon_world(ms_pose, vs, mesh).rotation.unrotate_vector(delta)
-    return [round(v.x, 2), round(v.y, 2), round(v.z, 2)], round(delta.length(), 2)
+    weapon = weapon_world(ms_pose, vs, mesh)
+    v = weapon.rotation.unrotate_vector(delta)
+    left = PE.get_bone_pose(ms_pose, "hand_l", unreal.AnimPoseSpaces.WORLD).translation
+    desired_left = weapon.transform_location(unreal.Vector(*grip_offset)) + delta
+    return ([round(v.x, 2), round(v.y, 2), round(v.z, 2)], round(delta.length(), 2),
+            round((left - desired_left).length(), 2))
 
 
 res = {}
@@ -102,9 +107,10 @@ try:
         row = {"socket": str(vs.get_editor_property("attach_socket_name")), "kind": kind, "ads": ads, "hipfire": hip}
         if ads and hip:
             row["ads_vs_hip_cm"] = round(math.sqrt(sum((a - b) ** 2 for a, b in zip(ads, hip))), 2)
-        corr, corr_len = shoulder_correction(vs, mesh, cfg["ads"])
+        corr, corr_len, left_error = shoulder_correction(vs, mesh, cfg["ads"], ads)
         row["right_hand_correction"] = corr
         row["right_hand_correction_len_cm"] = corr_len
+        row["left_hand_error_after_correction_cm"] = left_error
         if apply and cfg["apply"] and ads:
             vs.modify()
             vs.set_editor_property("use_left_hand_grip_offset", True)

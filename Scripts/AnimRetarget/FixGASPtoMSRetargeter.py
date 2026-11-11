@@ -12,12 +12,13 @@ LootNPop 에디터 Output Log의 Cmd 창에서 실행한다.
 - 자동 매핑이 원본(UEFN) IK 리그에 없는 대상 체인을 엉뚱한 체인에 이었다. 허벅지·종아리 트위스트 ← 손가락 중수골·쇄골,
   FootIK ← Toe, HandIK ← Index, HandGunIK ← LeftPinky. → 원본에 같은 이름 체인이 없는 대상 체인은 매핑을 해제한다.
 - 체인 밖 본(트위스트·ik_*·ball)이 기준 포즈에 멈추지 않도록 스택 맨 앞에 Copy Base Pose op를 넣는다(본 이름으로 로컬 포즈 복사).
-- 대상 리타깃 포즈는 **정렬하지 않은 DefaultPose**로 둔다. auto_align_all_bones로 정렬하면 견착 위치 오차는 줄지만
-  (오른손의 spine_05 기준, Lyra 대비 라이플 9.5 → 4.2cm) 위팔·아래팔 기준 자세가 13°·22° 돌아 총구가 27° 숙여진다(세 총 모두,
-  사용자 PIE에서 권총으로 발견). 정렬하지 않으면 총구 방향은 Lyra와 0°로 같다. 남는 위치 오차는 무기별 견착 보정
-  (ULNPWeaponVisualSet::RightHandCorrection, 오른팔 IK — ComputeLeftHandGripOffsets.py가 계산)으로 메운다.
-  예전 실행이 만든 "AutoAligned" 포즈가 있으면 지운다.
-Root Motion op의 root·pelvis 본 지정도 다시 맞춘다. 저장하지 않는다. 확인 뒤 RTG_GASP_to_MS와 IK_MS_FootGoal만 저장한다.
+  단, 상완 트위스트 4개는 소스 IK 리그의 프로젝트 복제본에 체인을 추가해 FK로 리타깃한다. UEFN과 Manny의
+  트위스트 기준 위치가 달라 직접 로컬 포즈를 복사하면 Manny의 어깨 주변 피부가 수 cm 수축한다.
+- 대상 포즈 LNP_AlignedArms에서 위팔·아래팔을 정렬한다. 쇄골의 기준 회전은 유지한다.
+  손의 기준 컴포넌트 회전은 기본 포즈와 같도록 손목 로컬 오프셋을 역산한다. 정렬 후 손목 오프셋을 단순히 0으로 두면
+  부모 팔 회전이 누적돼 총구가 약 27° 숙여지므로, 부모까지 포함한 회전을 상쇄해야 한다.
+  다리·척추·손가락 포즈는 바꾸지 않는다. 견착 위치와 왼손 그립은 ComputeLeftHandGripOffsets.py로 다시 계산한다.
+Root Motion op의 root·pelvis 본 지정도 다시 맞춘다. 저장하지 않는다. 확인 뒤 RTG_GASP_to_MS·IK_MS_FootGoal·IK_UEFN_ArmTwist만 저장한다.
 verify 인자를 주면 클립을 임시 폴더에 배치 리타깃해 잰다(끝나면 지운다). ① 프레임 간 회전 튐(달리기 2개),
 ② 무기 그립 기준: 오른손 공간의 왼손 위치를 원본과 비교(조준 아이들, 전환 전 Lyra→MS 경로도 같은 방식으로 잰다).
 결과는 Saved/AnimRetarget/FixGASPtoMSRetargeter.json.
@@ -29,6 +30,8 @@ import unreal
 RTG = "/Game/Characters/Retargeters/RTG_GASP_to_MS"
 MS_RIG = "/Game/Characters/MoverSample_Mannequin/Rigs/IK_Mannequin"
 TGT_RIG = "/Game/Characters/Retargeters/IK_MS_FootGoal"
+SRC_RIG = "/Game/Characters/UEFN_Mannequin/Rigs/IK_UEFN_Mannequin"
+ARM_TWIST_RIG = "/Game/Characters/Retargeters/IK_UEFN_ArmTwist"
 SRC_MESH = "/Game/Characters/UEFN_Mannequin/Meshes/SKM_UEFN_Mannequin"
 TGT_MESH = "/Game/Characters/MoverSample_Mannequin/Meshes/SKM_Manny_Simple"
 RUN_CLIPS = ["/Game/Characters/UEFN_Mannequin/Animations/Run/M_Relaxed_Run_Loop_F_Troy",
@@ -132,20 +135,71 @@ def make_target_rig():
             if str(x.get_editor_property("chain_name")) in ("LeftLeg", "RightLeg")]
 
 
+def align_arm_pose(rc):
+    """팔을 정렬하고 손의 기준 컴포넌트 회전을 보존한다. 스켈레톤 에셋은 수정하지 않는다."""
+    tgt = unreal.RetargetSourceOrTarget.TARGET
+    name = "LNP_AlignedArms"
+    if name not in [str(p) for p in rc.get_retarget_poses(tgt)]:
+        rc.create_retarget_pose(name, tgt)
+    rc.set_current_retarget_pose(name, tgt)
+    rc.reset_retarget_pose(name, [], tgt)
+    mesh = unreal.new_object(unreal.SkeletalMeshComponent)
+    mesh.set_skeletal_mesh_asset(rc.get_preview_mesh(tgt))
+
+    def global_rotation(bone, with_offsets):
+        parent = mesh.get_parent_bone(bone)
+        q = mesh.get_ref_pose_transform(mesh.get_bone_index(bone)).rotation
+        if with_offsets:
+            q = q * rc.get_rotation_offset_for_retarget_pose_bone(bone, tgt)
+        return q if str(parent) == "None" else global_rotation(parent, with_offsets) * q
+
+    bones = [b + "_" + side for side in ("l", "r") for b in ("upperarm", "lowerarm")]
+    rc.auto_align_bones(bones, unreal.RetargetAutoAlignMethod.CHAIN_TO_CHAIN, tgt)
+    offsets = {}
+    for side in ("l", "r"):
+        hand = "hand_" + side
+        desired = global_rotation(hand, False)
+        parent = global_rotation(mesh.get_parent_bone(hand), True)
+        local = mesh.get_ref_pose_transform(mesh.get_bone_index(hand)).rotation
+        delta = local.inversed() * parent.inversed() * desired
+        rc.set_rotation_offset_for_retarget_pose_bone(hand, delta, tgt)
+        error = ang(global_rotation(hand, True), desired)
+        if error > 0.01:
+            raise RuntimeError("Hand reference rotation was not preserved: " + hand)
+        offsets[hand] = {"offset_quat": [delta.x, delta.y, delta.z, delta.w], "reference_error_deg": error}
+    return {"name": name, "hands": offsets}
+
+
+def make_source_rig():
+    """원본 UEFN 리그는 보존하고 상완 트위스트 체인만 프로젝트 복제본에 추가한다."""
+    if not unreal.EditorAssetLibrary.does_asset_exist(ARM_TWIST_RIG):
+        unreal.EditorAssetLibrary.duplicate_asset(SRC_RIG, ARM_TWIST_RIG)
+    rig = unreal.load_asset(ARM_TWIST_RIG)
+    controller = unreal.IKRigController.get_controller(rig)
+    existing = {str(c.get_editor_property("chain_name")) for c in controller.get_retarget_chains()}
+    for side, label in (("l", "Left"), ("r", "Right")):
+        for number in ("01", "02"):
+            chain = label + "UpperArmTwist" + number
+            bone = "upperarm_twist_" + number + "_" + side
+            if chain not in existing:
+                controller.add_retarget_chain(chain, bone, bone, "None")
+    return rig
+
+
 def fix(rc):
     log = {"target_rig_legs": make_target_rig()}
+    source = make_source_rig()
+    src = unreal.RetargetSourceOrTarget.SOURCE
+    if rc.get_ik_rig(src) != source:
+        rc.set_ik_rig(src, source)
+    rc.assign_ik_rig_to_all_ops(src, source)
+    log["source_rig"] = source.get_path_name()
     rig = unreal.load_asset(TGT_RIG)
     if rc.get_ik_rig(unreal.RetargetSourceOrTarget.TARGET) != rig:
         rc.set_ik_rig(unreal.RetargetSourceOrTarget.TARGET, rig)
     # op 설정도 대상 IK 리그를 따로 들고 있다. 리타기터의 대상 리그만 바꾸면 op는 옛 MS 리그로 계속 푼다
     # (op 설정 구조체의 ik_rig_asset을 set_settings로 바꾸는 것은 무시된다).
     rc.assign_ik_rig_to_all_ops(unreal.RetargetSourceOrTarget.TARGET, rig)
-    # 대상 리타깃 포즈는 정렬하지 않은 기본 포즈로 둔다(정렬하면 총구가 27° 숙여진다 — 위 설명).
-    tgt = unreal.RetargetSourceOrTarget.TARGET
-    rc.set_current_retarget_pose("Default Pose", tgt)  # 기본 포즈 이름에는 공백이 있다
-    if "AutoAligned" in [str(p) for p in rc.get_retarget_poses(tgt)]:
-        rc.remove_retarget_pose("AutoAligned", tgt)
-    log["target_retarget_pose"] = str(rc.get_current_retarget_pose_name(tgt))
     src_rig = unreal.IKRigController.get_controller(rc.get_ik_rig(unreal.RetargetSourceOrTarget.SOURCE))
     tgt_rig = unreal.IKRigController.get_controller(rig)
     src_names = {str(c.get_editor_property("chain_name")) for c in src_rig.get_retarget_chains()}
@@ -177,33 +231,35 @@ def fix(rc):
     if "Copy Base Pose" not in names:
         rc.add_retarget_op("/Script/IKRig.IKRetargetCopyBasePoseOp")
         rc.move_retarget_op_in_stack(rc.get_num_retarget_ops() - 1, 0)
+    log["target_retarget_pose"] = align_arm_pose(rc)
     log["ops"] = [[str(rc.get_op_name(i)), rc.get_retarget_op_enabled(i)] for i in range(rc.get_num_retarget_ops())]
     log["mapping"] = [[str(c.get_editor_property("chain_name")), str(rc.get_source_chain(str(c.get_editor_property("chain_name"))))]
                       for c in tgt_rig.get_retarget_chains()]
     return log
 
 
-res = {}
-try:
-    verify = len(sys.argv) > 1 and sys.argv[1] == "verify"
-    rc = unreal.IKRetargeterController.get_controller(unreal.load_asset(RTG))
-    if verify:
-        res["source_jumps"] = {c.rsplit("/", 1)[1]: jumps(unreal.load_asset(c)) for c in RUN_CLIPS}
-        old = {}
-        for k, v in batch(list(LYRA_GRIP), "/Game/Characters/Lyra_Mannequin/Meshes/SKM_Manny",
-                          "/Game/Characters/Retargeters/RTG_Lyra_to_MS", TEMP + "/LyraGrip").items():
-            src = grip(unreal.load_asset([p for p in LYRA_GRIP if p.endswith("/" + k)][0]))
-            old[k] = {"source": src, "target": grip(v), "error_cm": dist(src, grip(v))}
-        res["old_lyra_to_ms_grip"] = old
-        res["before"] = measure("Before")
-    res["fix"] = fix(rc)
-    if verify:
-        res["after"] = measure("After")
-        unreal.EditorAssetLibrary.delete_directory(TEMP)
-    res["dirty"] = sorted(str(p.get_name()) for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages())
-except Exception:
-    import traceback
-    res["error"] = traceback.format_exc()
-OUT.parent.mkdir(parents=True, exist_ok=True)
-OUT.write_text(json.dumps(res, indent=1, ensure_ascii=False), encoding="utf-8")
-unreal.log("FixGASPtoMSRetargeter: report written to " + str(OUT))
+if __name__ == "__main__":
+    res = {}
+    try:
+        verify = len(sys.argv) > 1 and sys.argv[1] == "verify"
+        rc = unreal.IKRetargeterController.get_controller(unreal.load_asset(RTG))
+        if verify:
+            res["source_jumps"] = {c.rsplit("/", 1)[1]: jumps(unreal.load_asset(c)) for c in RUN_CLIPS}
+            old = {}
+            for k, v in batch(list(LYRA_GRIP), "/Game/Characters/Lyra_Mannequin/Meshes/SKM_Manny",
+                              "/Game/Characters/Retargeters/RTG_Lyra_to_MS", TEMP + "/LyraGrip").items():
+                src = grip(unreal.load_asset([p for p in LYRA_GRIP if p.endswith("/" + k)][0]))
+                old[k] = {"source": src, "target": grip(v), "error_cm": dist(src, grip(v))}
+            res["old_lyra_to_ms_grip"] = old
+            res["before"] = measure("Before")
+        res["fix"] = fix(rc)
+        if verify:
+            res["after"] = measure("After")
+            unreal.EditorAssetLibrary.delete_directory(TEMP)
+        res["dirty"] = sorted(str(p.get_name()) for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages())
+    except Exception:
+        import traceback
+        res["error"] = traceback.format_exc()
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(json.dumps(res, indent=1, ensure_ascii=False), encoding="utf-8")
+    unreal.log("FixGASPtoMSRetargeter: report written to " + str(OUT))
