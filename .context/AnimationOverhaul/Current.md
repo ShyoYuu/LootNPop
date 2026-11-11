@@ -31,6 +31,18 @@
 - 사용 중인 시퀀스 삭제/배치 overwrite와 과거 손 고정 후보 복원은 금지한다. 재생성 절차는 README §4다.
 - 승격 적 Actor는 강등 때 파괴되고 승격 때 새로 스폰된다(Mass 액터 풀 미사용, `bKeepLowResActors=false`). 풀 재사용을 전제로 한 설계·시험을 하지 않는다.
 
+## UAF 이관 때 반영할 ABP 변경
+
+UAF 시험 구성은 보관 중이고 두 경로를 함께 유지보수하지 않는다(AN-026). 대신 보관 뒤 ABP에 들어간 애니메이션 변경을 여기에 쌓아, Go 뒤 UAF 그래프를 만들 때 하나씩 지운다. **ABP 쪽 애니메이션을 고치면 이 표에 한 줄을 더한다.**
+
+| 날짜·커밋 | ABP 변경 | UAF에서 할 일 | 근거 |
+|:---|:---|:---|:---|
+| 2026-11-11 `3a51576` | 무기 4종 서브 ABP 끝을 `LNP Locomotion Delta Blend`로 교체 — 마스크 `spine_01` 깊이 5, 메시 공간 회전 덮기 | `FLNPUAFRifleOverlayTrait`의 Blend Layer 마스크(`spine_02` 깊이 2 기준)를 같은 경사로 바꾸고 아래 두 처리를 함께 넣는 trait. 권총·샷건·롱소드 오버레이는 UAF에 아직 없다 | [TechDesign_CombatAnimation.md](../TechDesign_CombatAnimation.md) §4.5, AN-029 |
+| 같음 | 무장 시 골반 안정화 — 골반 순간 숙임·기울임 0.3배, 다리 메시 공간 회전 유지 | 위 trait 안에서 로코모션 포즈에 먼저 적용. 적 경로에도 필요 | §4.5 |
+| 같음 | 상체 델타 — 메시 공간·수직축 비틀기 제거, 스프링 0.08s, 느린 평균 1.5s 빼기, 0.3배. spine_05 델타를 커브로 내보냄 | 위 trait의 필터 상태(값·속도·느린 평균)와 델타 전달 경로 | §4.5 |
+| 같음 | 총열 보정 스프링 연성화 0.15s, 상체 델타는 되돌리지 않음 | `FLNPUAFRifleAimTrait`에 스프링 상태와 델타 입력 추가(해는 이미 `FLNPRifleAimSolver` 공유) | §4.4 |
+| 같음 | 총열 보정 대상을 라이플 → 라이플·권총·샷건 세트로 확장 | UAF 입력 공급의 라이플 한정 조건(`RifleOverlayWeight`)을 총기 세트로 | §4.4 |
+
 ## 로컬 근거와 커밋 범위
 
 | 근거 폴더(Saved/AnimationOverhaul 아래) | 내용 |
