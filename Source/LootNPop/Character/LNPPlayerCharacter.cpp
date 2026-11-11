@@ -863,4 +863,26 @@ namespace
 			ASC->SetNumericAttributeBase(ULNPBaseAttributeSet::GetHealthAttribute(), 0.f);
 			UE_LOG(LogLootNPop, Log, TEXT("[LNP.Debug.KillPlayer] Killed player %d (%s)."), PlayerIndex, *GetNameSafe(PS));
 		}));
+
+	/** 맨손 전환 커맨드. 숫자키가 모두 무기에 배정돼 있어 게임 안에서는 맨손이 될 방법이 없다.
+	 *  Usage: LNP.Debug.Unarmed
+	 *   - 입력한 창의 로컬 플레이어가 대상이다. 게스트 콘솔이면 장착 RPC로 서버에 요청한다.
+	 *   - 표시만 바꾸지 않고 실제 장착 해제(UnequipWeapon) 경로를 탄다 — 어빌리티·태그·애님 레이어가 함께 맨손이 된다.
+	 *   - 숫자키로 무기를 고르면 평소처럼 다시 장착된다. */
+	FAutoConsoleCommandWithWorld GLNPDebugUnarmed(
+		TEXT("LNP.Debug.Unarmed"),
+		TEXT("Unequip the local player's weapon (real unequip path, works from a guest console). Pick a weapon key to re-equip."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+			ALNPPlayerCharacter* Character = PC ? PC->GetPawn<ALNPPlayerCharacter>() : nullptr;
+			if (Character == nullptr)
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Debug.Unarmed] No local LNP player pawn."));
+				return;
+			}
+
+			Character->RequestEquipWeapon(nullptr);
+			UE_LOG(LogLootNPop, Log, TEXT("[LNP.Debug.Unarmed] Unequip requested for %s."), *GetNameSafe(Character));
+		}));
 }

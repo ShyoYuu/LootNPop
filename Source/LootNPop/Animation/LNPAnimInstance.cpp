@@ -1,6 +1,7 @@
 ﻿// Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Animation/LNPAnimInstance.h"
+#include "Animation/AnimNode_LNPLocomotionDeltaBlend.h"
 #include "Character/LNPCharacterBase.h"
 #include "Character/LNPInputHandlerComponent.h"
 #include "Character/LNPPlayerCharacter.h"
@@ -362,10 +363,13 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		LeftHandGripInHand = WeaponParent->GetBoneTransform(WeaponParent->GetBoneIndex(HandBone)).InverseTransformPosition(LeftHandGripLocation);
 	}
 
-	// 8-2. 라이플 총열 정밀 보정(AN-025) — 무기가 붙은 표시 메시 인스턴스, 로컬 제어 라이플만. 실탄과 같은 조준점 캐시를 읽는다.
+	// 8-2. 총열 정밀 보정(AN-025) — 무기가 붙은 표시 메시 인스턴스, 로컬 제어 총기만(라이플·권총·샷건 세트 — 런처·화염방사기는
+	// 샷건 세트를 쓴다). 실탄과 같은 조준점 캐시를 읽는다. 런처 곡사도 발사 방향은 총구 → 조준점이라 같은 해가 맞다.
 	static const FName MuzzleSocketName(TEXT("Muzzle"));
 	RifleAim = FLNPRifleAimInputs();
-	if (WeaponParent == GetSkelMeshComponent() && VisualSet && VisualSet->AnimSetTag == TAG_VisualSet_Rifle
+	const bool bGunVisualSet = VisualSet && (VisualSet->AnimSetTag == TAG_VisualSet_Rifle
+		|| VisualSet->AnimSetTag == TAG_VisualSet_Pistol || VisualSet->AnimSetTag == TAG_VisualSet_Shotgun);
+	if (WeaponParent == GetSkelMeshComponent() && bGunVisualSet
 		&& OwningMoverCharacter->IsLocallyControlled() && WeaponMeshComp->DoesSocketExist(MuzzleSocketName))
 	{
 		const ULNPInputHandlerComponent* Handler = OwningMoverCharacter->FindComponentByClass<ULNPInputHandlerComponent>();
@@ -380,6 +384,14 @@ void ULNPAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 			RifleAim.MuzzleOffsetWorld = OwningMoverCharacter->GetActorTransform().TransformVector(Definition->MuzzleOffset);
 			RifleAim.ActorLocation = OwningMoverCharacter->GetActorLocation();
 			RifleAim.WorldCollision = GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+
+			// 서브 ABP가 상체에 얹은 로코모션 델타 — 커브는 포즈 원본 인스턴스에서 읽는다(지난 평가 값, 스프링으로 걸러져 한 프레임 차이는 무시할 만하다).
+			if (const UAnimInstance* SourceAnim = OwningMoverCharacter->GetAnimInstance())
+			{
+				const FName* DeltaCurves = FAnimNode_LNPLocomotionDeltaBlend::ChestDeltaCurveNames;
+				RifleAim.BodyDeltaRotation = FVector(SourceAnim->GetCurveValue(DeltaCurves[0]),
+					SourceAnim->GetCurveValue(DeltaCurves[1]), SourceAnim->GetCurveValue(DeltaCurves[2]));
+			}
 		}
 	}
 

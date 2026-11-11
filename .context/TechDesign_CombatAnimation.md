@@ -18,6 +18,7 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
        │
    Linked Anim Layer (ALI_WeaponStyles::ApplyWeaponStyleOverlay)
        │   └─ ABP_Sub_{Unarmed,Pistol,Rifle,Shotgun,LongSword}_UEFN 런타임 교체
+       │      무기 4종의 끝은 LNP Locomotion Delta Blend — 골반 안정화 + 상체 델타 + 메시 공간 상체 덮기 (§4.5)
        │
    Additive Leans (측면 가속 몸통 기울기 + 머리 기울기, 이동 중만 — 2026-10-21 AnimationOverhaul 2-6)
        │
@@ -44,7 +45,7 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 
 **발 배치(Control Rig).** GASP `CR_Biped_FootPlacement`를 복제해 구면용으로 고친 `CR_Biped_FootPlacement_UEFN`이 지상에서 발을 실제 지면에 맞추고(접지 트레이스·바닥 평활·골반 보정), 정지 중 디딘 발을 고정하며(애니 곡선 `contact_l/r`), 캡슐 계단 스냅을 루트 높이 감쇠로 부드럽게 한다. 노드 알파는 `ULNPAnimInstance::ShouldUseFootPlacementRig`(지상)로 Bool 블렌드되고 공중에는 IK가 없다. 착지 프레임에 CR 상태를 리셋한다. 애니 발 목표는 FK 발끝이다(`UseIKBoneTargets` 끔 — Lyra 리타깃 몽타주의 ik_foot을 믿을 수 없다). 움직이는 base(이동 패널) 위에서는 발 고정·루트 감쇠를 끈다(`IsOnStaticGround`) — 공급하는 base 이동량이 CR 평가 시점보다 한 프레임 늦어 핀이 끌리고 루트가 튀었다. 경사 전용 애니는 쓰지 않는다(AN-021). 구성·근거는 AnimationOverhaul `design/GASPReference.md` §2.12, CR 재현 스크립트 `Scripts/AnimOverhaul/FixFootPlacementCR_2-5.py`, CVar `LNP.Anim.FootPlacement`·`LNP.Anim.FootPlacementOnMovingBase`·`LNP.Anim.DebugFootPlacement`.
 
-**기울기(Additive Leans).** GASP `AdditiveLeans` 레이어를 AnimGraph 노드 묶음으로 옮겼다. 측면 가속(`ULNPAnimInstance::LeanAmount`, 캐릭터 로컬 축)을 Walk·Run 기울기 BS(α = `GroundSpeed` 200~320)에 넣어 Mesh Space Additive로 얹고, 그 위에 머리 기울기 BS를 더한다. 분기는 C++ bool 두 개다. `ShouldApplyAdditiveLeans`는 이동 상태 Moving일 때(공중 포함), `ShouldApplyHeadLean`은 FreeAim 무기도 락온도 아닐 때 참이다. AO와 머리 기울기가 겹치면 머리가 과회전하고, 락온 중에는 시선이 타깃에 고정돼야 해서다. 락온 여부는 InputCmd `FLNPModifierInputs::bIsLockOn`에서 읽는다 — 루즈 태그는 건 머신에만 있다(§2). 곡선 `Disable_AdditiveLeans`가 일부 회전 애니에서 기울기를 끈다. **위치는 무기 오버레이 뒤·슬롯 앞이다.** 무기 서브 ABP는 `spine_02` 위를 메시 공간 회전 블렌드로 무기 자세로 덮어서, 앞에 두면 무기를 든 상체의 기울기가 지워진다. 몽타주 슬롯은 GASP처럼 기울기를 덮는다. AO 뒤에 얹히므로 측면 가속 중 총구가 조금 기울지만, 발사 방향은 총구 → 조준점으로 수렴한다([TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.7). CVar `LNP.Anim.AdditiveLeans`(0 끔), 확인은 `LNP.Anim.DebugLocomotion`(화면 `lean x,y on/off +head`, 2면 `[AnimB3]` 1초 로그). GASP 구성은 AnimationOverhaul `design/GASPReference.md` §2.13.
+**기울기(Additive Leans).** GASP `AdditiveLeans` 레이어를 AnimGraph 노드 묶음으로 옮겼다. 측면 가속(`ULNPAnimInstance::LeanAmount`, 캐릭터 로컬 축)을 Walk·Run 기울기 BS(α = `GroundSpeed` 200~320)에 넣어 Mesh Space Additive로 얹고, 그 위에 머리 기울기 BS를 더한다. 분기는 C++ bool 두 개다. `ShouldApplyAdditiveLeans`는 이동 상태 Moving일 때(공중 포함), `ShouldApplyHeadLean`은 FreeAim 무기도 락온도 아닐 때 참이다. AO와 머리 기울기가 겹치면 머리가 과회전하고, 락온 중에는 시선이 타깃에 고정돼야 해서다. 락온 여부는 InputCmd `FLNPModifierInputs::bIsLockOn`에서 읽는다 — 루즈 태그는 건 머신에만 있다(§2). 곡선 `Disable_AdditiveLeans`가 일부 회전 애니에서 기울기를 끈다. **위치는 무기 오버레이 뒤·슬롯 앞이다.** 무기 서브 ABP는 `spine_01`부터 위를 메시 공간 회전 블렌드로 무기 자세로 덮어서(§4.5), 앞에 두면 무기를 든 상체의 기울기가 지워진다. 몽타주 슬롯은 GASP처럼 기울기를 덮는다. AO 뒤에 얹히므로 측면 가속 중 총구가 조금 기울지만, 발사 방향은 총구 → 조준점으로 수렴한다([TechDesign_HitDetection.md](TechDesign_HitDetection.md) §7.7). CVar `LNP.Anim.AdditiveLeans`(0 끔), 확인은 `LNP.Anim.DebugLocomotion`(화면 `lean x,y on/off +head`, 2면 `[AnimB3]` 1초 로그). GASP 구성은 AnimationOverhaul `design/GASPReference.md` §2.13.
 
 **애니 변수 공급층.** 상태 enum(이동 모드·이동 상태·보행·자세·회전 모드·이동 방향)과 그 이력, 궤적 파생값(`Trj_*`·`FutureFacingDelta`), 가속, 지면 법선·경사, 상태 술어(`bIsPivoting`·`bShouldTurnInPlace`·`bJustLanded_*` 등)는 `ULNPAnimInstance`가 메인 인스턴스에서만 C++로 계산한다(AnimationOverhaul AN-002·AN-003). 궤적 생성(Mover 예측기)도 C++가 소유하고, `PoseHistoryCollector`의 `TransformTrajectory` 핀이 C++ `Trajectory`에 이름으로 바인딩돼 있다. 계산식·GASP 출처는 AnimationOverhaul `design/GASPReference.md` §2.8, 확인용 CVar는 `LNP.Anim.DebugLocomotion`(1 화면 표시, 2 + 전이 로그).
 
@@ -94,10 +95,12 @@ Motion Matching 공용 로코모션 위에 **무기별 Linked Anim Layer를 런�
 | `ABP_Main_UEFN` | Main AnimBP | Motion Matching + 레이어 합성 파이프라인 (§1). 로코모션 Chooser `CHT_PoseSearchDatabases_UEFN`(§5.3) |
 | `ALI_WeaponStyles` | Anim Layer Interface | `ApplyWeaponStyleOverlay` 레이어 함수 계약 |
 | `ABP_Sub_Unarmed_UEFN` | Sub AnimBP | 베이스 포즈 통과 |
-| `ABP_Sub_Pistol_UEFN` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_MM_Pistol_Idle_ADS` |
-| `ABP_Sub_Rifle_UEFN` | Sub AnimBP | spine_01 이상 파지 포즈 + `AO_MM_Rifle_Idle_ADS` |
+| `ABP_Sub_Pistol_UEFN` | Sub AnimBP | 파지 포즈 + `AO_MM_Pistol_Idle_ADS` → `LNP Locomotion Delta Blend`(§4.5) |
+| `ABP_Sub_Rifle_UEFN` | Sub AnimBP | 파지 포즈 + `AO_MM_Rifle_Idle_ADS` → `LNP Locomotion Delta Blend` |
 | `ABP_Sub_Shotgun_UEFN` | Sub AnimBP | Rifle과 동일 구성. 아이들만 `MM_Shotgun_Idle_ADS`, AO는 Rifle 것을 공용 |
-| `ABP_Sub_LongSword_UEFN` | Sub AnimBP | 롱소드 Stance + `bIsGuarding` Guard 자세 분기 + 왼손 Two Bone IK |
+| `ABP_Sub_LongSword_UEFN` | Sub AnimBP | 롱소드 Stance + `bIsGuarding` Guard 자세 분기 → `LNP Locomotion Delta Blend` + 왼손 Two Bone IK |
+
+무기 4종의 덮기 마스크는 같다 — `spine_01` 깊이 5(spine_01~05가 0.2·0.4·0.6·0.8·1.0, 그 위 1.0). 2026-11-11 전까지는 `spine_02` 깊이 2(spine_02 0.5, 그 위 1.0)의 Layered Blend per Bone이었다.
 
 서브 ABP가 쓰는 Lyra 애니는 UEFN으로 오프라인 리타깃한 사본(`Content/Characters/Retargeted/Lyra/*_UEFN`, git 제외)이다. AO·몽타주 이름은 사본 이름에서 `_UEFN`을 뺀 원본 이름으로 적는다. 전환 전 Lyra 스켈레톤 구성(`ABP_Lyra`·`ABP_Sub_*`)은 되돌림용으로 남아 있고 런타임에서는 참조하지 않는다(2026-10-18 AnimationOverhaul 2-0b).
 
@@ -171,14 +174,46 @@ AO 에셋은 서브 ABP가 적용하고, `AimYaw`/`AimPitch`는 `ULNPAnimInstanc
 - **IK는 두 군데다.** ① 포즈 원본: `ABP_Sub_LongSword_UEFN`의 Two Bone IK(`bHasLeftHandGrip`) — 롱소드만. ② **표시 메시**: `ABP_Retarget`(플레이어)·`ABP_VisualCopyPose`(승격 적)의 포즈 노드 뒤 Two Bone IK(`hand_l`, 알파 `LeftHandIKAlpha`). 무기가 `VisualMesh` 소켓에 붙어 있으므로 ②에서 맞춰야 리타깃(UEFN → MoverSample) 비율 차이와 무관하게 그립에 닿는다. Phase 3 RBWC는 ② 뒤에 있다(§6.4).
 - **플레이어 왼손 목표는 무기 부착 본 공간이다.** `ABP_Retarget`은 Effector = BoneSpace `hand_r`(`weapon_r` 소켓의 부모 본) + `LeftHandGripInHand`를 쓴다. 월드 목표 `LeftHandGripLocation`은 지난 프레임 무기 위치라, 같은 평가에서 총열 보정(§4.4)이 상체를 돌리면 룩 회전 때 손이 떨며 따라붙는다(UAF 시험에서 확인, AnimationOverhaul Phase05 §51). 무기가 손에 강체로 붙어 있어 본 공간 값은 지난 프레임 포즈로 구해도 정확하다. 승격 적(`ABP_VisualCopyPose`)은 총열 보정이 없어 월드 목표 그대로다.
 
-### 4.4 라이플 총열 정밀 보정(플레이어 표시 ABP)
+### 4.4 총열 정밀 보정(플레이어 표시 ABP)
 
-AO만으로는 총열이 조준점을 정확히 가리키지 않는다(리타깃·견착·애니 자세 오차). 총구에서 조준점으로 수렴하는 실탄 방향과 표시 총열을 나란히 맞추기 위해, `ABP_Retarget`의 **오른팔 견착 IK 뒤·왼손 IK 앞**에 `LNP Rifle Aim` 노드(`FAnimNode_LNPRifleAim`)를 둔다. 순서: 리타깃 → 오른팔 IK → 총열 보정 → 왼손 IK → RBWC → 출력.
+AO만으로는 총열이 조준점을 정확히 가리키지 않는다(리타깃·견착·애니 자세 오차). 총구에서 조준점으로 수렴하는 실탄 방향과 표시 총열을 나란히 맞추기 위해, `ABP_Retarget`의 **오른팔 견착 IK 뒤·왼손 IK 앞**에 `LNP Rifle Aim` 노드(`FAnimNode_LNPRifleAim`)를 둔다. 순서: 리타깃 → 오른팔 IK → 총열 보정 → 왼손 IK → RBWC → 출력. 이름은 라이플로 시작했지만 총기 전부가 대상이다.
 
-- **해.** 이번 평가 포즈에서 `spine_03` 피벗·무기 앵커 본·`Muzzle` 기하를 읽고, 피벗 회전에 따른 총구 이동까지 풀어 `spine_03` 회전만 바꾼다. 발사 원점·방향은 실탄과 같은 `ClipMuzzleToWorld`·`ResolveAimDirection`(전방 50cm·시선 수직 이탈 150cm 게이트와 시선 폴백)을 쓴다. 해는 UAF 시험 trait와 공유하는 `FLNPRifleAimSolver`이고 이전 프레임 보정을 누적하지 않는다.
-- **입력.** `ULNPAnimInstance::RifleAim` — 실탄과 같은 크로스헤어 조준점 캐시, `ControlRotation`, `Muzzle`의 앵커 본 공간 변환, `MuzzleOffset`. 무기가 붙은 표시 메시 인스턴스이고 로컬 제어 라이플일 때만 켠다(Simulated Proxy·적 제외, AN-025). 알파는 왼손 오프셋 그립과 같은 몽타주·커브 차단을 따라 재장전·대시 중 0이다.
-- **시차.** 발사는 입력 즉시 일어나고 표시 포즈는 정규 애니 틱에서 평가되므로, 이동 중에는 한 프레임 근처의 포즈/메시 시차 잔차가 남는다. 즉시 사격을 위해 이를 허용한다(AN-025).
-- CVar `LNP.Anim.RifleAim`(기본 1)로 끄고 비교한다. 검증에는 `LNP.Projectile.DebugFireAim 1`의 `[FireAim] barrelShotDeg`를 쓴다.
+- **대상.** 표현 세트가 라이플·권총·샷건인 총기(런처·화염방사기는 샷건 세트를 쓴다, 2026-11-11 확장). 런처 곡사도 발사 방향은 총구 → 조준점 직선이고 중력은 그 뒤 궤도만 휘게 하므로 같은 해가 맞다 — ADS 궤도 가이드의 시작선과 총열이 나란해진다.
+- **해.** 이번 평가 포즈에서 `spine_03` 피벗·무기 앵커 본·`Muzzle` 기하를 읽고, 피벗 회전에 따른 총구 이동까지 풀어 `spine_03` 회전만 바꾼다. 발사 원점·방향은 실탄과 같은 `ClipMuzzleToWorld`·`ResolveAimDirection`(전방 50cm·시선 수직 이탈 150cm 게이트와 시선 폴백)을 쓴다. 해는 UAF 시험 trait와 공유하는 `FLNPRifleAimSolver`다.
+- **스프링 연성화(2026-11-11).** 해를 그대로 쓰지 않고 메시 컴포넌트 공간의 임계 감쇠 스프링(`SpringMath::CriticalSpringDamperQuat`, `SmoothingTime` 0.15s)으로 뒤따른다. 매 프레임 즉시 덮으면 착지·피격으로 상체가 흔들려도 총열이 같은 프레임에 제자리로 돌아와 상체가 굳어 보인다. 근거리↔원거리 조준 왕복에서 총열이 살짝 늦게 붙는 것이 자연스러웠다(PIE). 알파가 0이 되면(재장전·대시) 스프링 상태를 버리고 다음에 그때의 해에서 시작한다.
+- **상체 델타는 되돌리지 않는다.** 무기 서브 ABP가 상체에 얹은 로코모션 델타(§4.5, 커브 `LNP_UpperBodyDelta_X/Y/Z`)만큼의 총구 이탈은 남기고 조준 잔차만 고친다(해 × 델타). 되돌리면 보정이 숙인 상체를 `spine_03`에서 다시 젖혀, 착지 후 가슴이 하체보다 먼저 튕겨 오르고 달릴 때 위상이 어긋난 흔들림이 생겼다. 커브는 포즈 원본 인스턴스에서 읽어 한 프레임 늦지만 스프링으로 걸러진 값이라 무시할 만하다.
+- **입력.** `ULNPAnimInstance::RifleAim` — 실탄과 같은 크로스헤어 조준점 캐시, `ControlRotation`, `Muzzle`의 앵커 본 공간 변환, `MuzzleOffset`, 상체 델타. 무기가 붙은 표시 메시 인스턴스이고 로컬 제어 총기일 때만 켠다(Simulated Proxy·적 제외, AN-025). 알파는 왼손 오프셋 그립과 같은 몽타주·커브 차단을 따라 재장전·대시 중 0이다.
+- **시차.** 발사는 입력 즉시 일어나고 표시 포즈는 정규 애니 틱에서 평가되므로, 이동 중에는 한 프레임 근처의 포즈/메시 시차 잔차가 남는다. 즉시 사격을 위해 이를 허용한다(AN-025). 스프링 지연과 착지 숙임 중의 총구 이탈도 같은 이유로 허용한다 — 발사 방향은 총구 → 조준점으로 수렴해 명중은 그대로다.
+
+| CVar | 기본 | 의미 |
+|:---|:---|:---|
+| `LNP.Anim.RifleAim` | 1 | 0이면 보정을 끈다 |
+| `LNP.Anim.RifleAimSmoothing` | -1 | 스프링 시간(초) 덮어쓰기. 0이면 매 프레임 즉시(2026-11-11 전 방식), 음수면 노드 값 |
+| `LNP.Anim.RifleAimKeepBodyDelta` | 1 | 0이면 상체 델타까지 되돌린다 |
+
+검증에는 `LNP.Projectile.DebugFireAim 1`의 `[FireAim] barrelShotDeg`를 쓴다.
+
+### 4.5 로코모션 보존 상체 블렌드 — 골반 안정화(2026-11-11)
+
+**문제.** 로코모션은 GASP(비무장 몸), 무기 자세는 Lyra다. 무기 서브 ABP가 상체를 메시 공간 회전으로 무기 자세에 덮으면 가슴 방향은 고정되고 골반만 GASP대로 움직인다. 골반 회전 전부를 허리 한 마디가 반대로 흡수해, 무기를 들면 **착지 때 엉덩이를 뒤로 빼며 허리가 꺾이고 씰룩거림이 과해졌다**(맨손은 자연스러움 — 1단계 PIE에서 발 배치 CR과 무관함도 확인).
+
+**해법 — 상체를 풀지 않고 골반을 잡는다.** 무기 4종 서브 ABP의 `ApplyWeaponStyleOverlay` 끝을 Layered Blend per Bone 대신 `LNP Locomotion Delta Blend`(`FAnimNode_LNPLocomotionDeltaBlend`, 에디터 노드는 `LootNPopEditor`)로 바꿨다. 입력은 로코모션(BasePose)과 무기 자세(OverlayPose, AO 포함)이고 한 노드가 아래를 차례로 한다.
+
+1. **골반 안정화.** 로코모션 골반의 메시 공간 숙임·기울임(기준 포즈 대비, 수직축 비틀기 제외)에서 느린 평균(`SettleTime` 1.5s)을 뺀 **순간 성분**만 `PelvisSwingKeep`(0.3)배로 줄인다. 수직축 회전(스트레이프 방향)·골반 높이(착지 압축)는 그대로이고, 골반의 다른 자식(다리)은 메시 공간 회전을 되돌려 발·무릎이 로코모션 그대로다. 실제 사수가 코어를 잡는 것과 같은 방향이다.
+2. **상체 델타.** spine_01~05 각 본의 "로코모션 − 기준 포즈" 메시 공간 회전에서 수직축 비틀기를 떼고, 스프링(`ResponseTime` 0.08s)으로 거른 뒤 느린 평균을 빼 `DeltaAlpha`(0.3)배로 무기 자세에 얹는다. spine_05 자손(목·머리·팔·무기)은 spine_05의 델타를 받아 한 덩어리로 움직인다. 착지 무게감만 남기는 낮은 값이다.
+3. **덮기.** 엔진 Layered Blend per Bone과 같은 경로(`CreateMaskWeights` → `BlendPosesPerBoneFilter`, 메시 공간 회전·커브 Override, 루트 모션은 로코모션만)로 합친다. 마스크는 `spine_01` 깊이 5로 남은 차이를 다섯 마디에 나눈다.
+4. **커브 출력.** spine_05에 얹은 델타를 커브 3개(메시 공간 회전 벡터, 라디안)로 내보낸다 — §4.4 총열 보정이 소비한다.
+
+기준 포즈는 `M_Neutral_Stand_Idle_Loop` 0프레임이다. 실제 무기 아이들과 고정 차이가 있어(정지 중 상체가 뒤로 젖혀지고 총열이 어긋났다) 느린 평균 빼기가 필수다. 무기를 드는 순간의 차이는 처음부터 "유지된 차이"로 잡아 무기 전환 때 튀지 않는다. 맨손 레이어는 통과라 안정화가 없다 — 비무장 몸은 출렁이는 게 맞다. 적(`ActorPromoted`)도 같은 서브 ABP라 함께 적용된다.
+
+| CVar | 기본 | 의미 |
+|:---|:---|:---|
+| `LNP.Anim.ArmedPelvisSwingKeep` | -1 | 골반 순간 출렁임 비율 덮어쓰기. 1 = 안정화 끔, 0 = 완전히 잡음 |
+| `LNP.Anim.UpperBodyLocomotionDelta` | 1 | 상체 델타 배율(노드 `DeltaAlpha`에 곱함). 0이면 순수 메시 공간 덮기 |
+| `LNP.Anim.UpperBodyDeltaResponse` | -1 | 상체 델타 스프링 시간 덮어쓰기. 0 = 거르지 않음 |
+| `LNP.Anim.UpperBodyDeltaSettle` | -1 | 느린 평균 시간 덮어쓰기(골반·상체 공용). 0 = 유지 성분도 남김 |
+
+`ArmedPelvisSwingKeep 1` + `UpperBodyLocomotionDelta 0`이 2026-11-11 전 모습이다. `ShowDebug Animation`의 노드 줄에 가슴 델타 각도(`Chest x.x deg`)가 나온다. 맨손 비교는 `LNP.Debug.Unarmed`(실제 장착 해제 경로, 숫자키로 재장착). 시도 후 버린 접근(로컬 공간 델타·상체 완전 추종)은 [DiscardedApproaches.md](DiscardedApproaches.md) Case 08.
 
 ### 4.3 Guard 자세 분기
 
@@ -434,12 +469,27 @@ ANS는 몽타주 에셋에 배치된 **단일 오브젝트**를 그 몽타주를
 
 ---
 
+### 7.6 비무장 로코모션 위의 전투 자세 — 상체를 풀지 않고 골반을 잡는다
+
+GASP(비무장) 로코모션에 Lyra 무기 자세를 메시 공간으로 얹으면 상·하체 동역학이 어긋난다(§4.5). 단계별로 원인을 좁혔다.
+
+| 시도 | 결과 | 원인 |
+|:---|:---|:---|
+| 마스크를 여러 척추로 경사 | 아주 조금 나아짐 | 가슴이 가중치 1로 고정이라 비틀림 위치만 옮겨 다닌다 |
+| 로코모션 델타를 로컬 공간으로 상체에 더함 | 착지 숙임이 옆 꺾임이 되고 달릴 때 팔이 휘둘림 | Lyra 견착 자세는 몸통이 돌아 있어 "앞으로 숙임" 축이 옆으로 바뀐다. 달리기 몸통 비틀기가 팔까지 흔든다 |
+| 메시 공간·수직축 비틀기 제거 델타 | 숙임은 정상, 대신 가슴이 튕겨 오르고 정지 중 뒤로 젖혀짐 | 총열 보정이 숙인 상체를 `spine_03`에서 다시 젖혔다(보정을 끄자 사라짐 — 한 번의 PIE로 판별) |
+| 보정이 델타를 남김 + 스프링 + 느린 평균 빼기 | 자연스러워졌지만 전투 자세로는 흐느적거림 | 상체를 비무장 몸에 맞추는 한 회복 속도를 하체와 맞출 값이 없다 |
+| **골반 순간 출렁임을 0.3배로 + 상체 델타 0.3** | 6종 무기 전부 자연스러움 | 사수처럼 코어(골반)를 잡으니 상체를 풀 필요가 줄었다 |
+
+교훈: 상체가 하체를 따라가게 만드는 대신 **출렁임의 출발점(골반)을 줄였다.** 진단마다 CVar로 켜고 끄는 대조군을 두어 한 번의 PIE로 원인을 갈랐다.
+
 ## 8. 미구현 / 잔여 작업
 
 - **근접 보정 강도의 사용자 환경설정 이전:** 환경설정 UI가 생기면 `LNPMeleeAssist::GetStrength()`의 출처만 바꾼다.
 - **루트모션 공격 모션 확보 시:** 이동량이 실린 모션을 넣으면 §6.6 경로 선택이 자동으로 Motion Warping을 탄다. 코드는 이미 있다.
 - **근접 보정 시야 차단 검사(선택):** 라인 트레이스 한 번으로 벽 너머 회전 보정을 막을 수 있다.
 - **원거리 무기 왼손 IK:** `ABP_Sub_Rifle`·`ABP_Sub_Shotgun`에 Two Bone IK 노드 추가(§4.2).
+- **플레이어 표시 메시 어깨 긴장감:** 맨손에서도 GASP 원본보다 어깨·위팔이 몸에 붙어 움츠린 느낌이 있다(2026-11-11 PIE). 블렌딩이 아니라 표시 리타깃(`RTG_GASP_to_MS`, 정렬하지 않은 리타깃 포즈·팔 IK) 쪽 원인으로 보인다(§3.3).
 - **락온 조준 모드 제한:** "LockOn은 AimMode None일 때만" 설계는 미구현이다 — 원거리 무기로도 락온이 걸린다(§5.1).
 - **`ABP_Sub_LongSword` Look At:** 락온 중 neck_01·head가 타겟을 미세 추적하는 Bone Control. 현재는 캐릭터 전체 회전(§5.2)으로 대체 — 필요성 재평가 후 적용.
 - **이동 중 상체 공격:** `UpperBody` 슬롯은 재장전용으로 생겼지만 근접 공격 몽타주는 `DefaultSlot` 전신이다. 상체 분리는 필요 시 도입.

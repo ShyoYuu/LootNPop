@@ -133,7 +133,7 @@
 | [초기화 시퀀스 기술 설계](TechDesign_InitSequence.md) | 서버/클라 4단계 초기화, 투-게이트 레이스 컨디션 해결, 폰 스폰 게이팅 |
 | [표면 캐시 기술 설계 (legacy)](TechDesign_SurfaceCache.md) | [legacy] 과거 런타임 등장방형 그리드 베이크의 설계 근거 — 현재는 에디터 베이크 Support Atlas([SurfaceSupportNavigation/](SurfaceSupportNavigation/README.md))로 대체·제거됨. NavMesh 대체 이유, 수직 단차 표현 한계 |
 | [CharacterMovement 기술 설계](TechDesign_CharacterMovement.md) | 구형 중력 3모드, 곡률 보정, 컨트롤 회전 파이프라인, 카메라 리그 노드 순서 제약, 질주·가드·대시·ADS 시스템, 행글라이더 활공·윈드필드 상승, 사망 랙돌·Mover 정지·리스폰 |
-| [전투 Animation 기술 설계](TechDesign_CombatAnimation.md) | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, Aim Offset·왼손 Two Bone IK·Guard 자세 분기, 몽타주 ANS 구간 제어와 경직 차단 소유권 구분, 근접 공격 타겟 보정(Motion Warping) |
+| [전투 Animation 기술 설계](TechDesign_CombatAnimation.md) | Motion Matching 로코모션, 무기별 Linked Anim Layer 교체, 무장 시 골반 안정화·로코모션 보존 상체 블렌드, 총기 총열 정밀 보정(스프링), Aim Offset·왼손 Two Bone IK·Guard 자세 분기, 몽타주 ANS 구간 제어와 경직 차단 소유권 구분, 근접 공격 타겟 보정(Motion Warping) |
 | [애니메이션 개선 작업 안내](AnimationOverhaul/README.md) | 여러 세션 이어 가기용 작업 폴더 진입점 — GASP 소스 에셋 최신화, GASP Mover ABP 재구성, PhysicsControl 물리 히트리액트, 마커리스 모캡 근접 모션, UAF 판정 게이트, Locomotor 사족 드론(최후순위 트랙) 단계 계획 |
 | [Ability System 게임 기획](GameDesign_Ability.md) | 무기·스킬·버프 아이템 구조, GAS 슬롯 관리, 합/곱 이원 스텟 체계, 구현 현황 |
 | [Ability System 기술 설계](TechDesign_Ability.md) | ASC/AttributeSet 아키텍처, 합/곱 2채널 스탯 파이프라인, 발사체 Mass 프로세서 4종, 어빌리티 클래스 계층 |
