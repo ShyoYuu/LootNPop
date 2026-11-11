@@ -270,7 +270,7 @@ LNP.Mover.IsSprinting / IsGuarding / IsADS (Gameplay Tag)
 - 의도를 **InputCmd로 전달하는 이유**는 §7.1 — 이 시스템의 핵심 규약.
 - 처리 순서 Guard → ADS → Sprint. `CanSprint()`가 `!IsGuarding() && !IsADS()`를 본다. 질주는 여기에 방향 판정이 더해진다(§4.3).
 - `FLNPModifierInputs::NetSerialize`는 bool 4개를 1비트씩, `DashInputIntent`와 `bIsLockOn`은 대시 프레임에만, `AIDesiredSpeed`는 값이 있을 때만 직렬화한다.
-- ⚠️ 공격 입력(조준점·락온·근접 보정 대상)은 이 구조체에 넣지 않는다 — 60Hz로 중복 전송되고 서버는 입력 버퍼 깊이만큼 과거 커맨드를 읽는다. 발동 요청에 싣는다([TechDesign_Networking.md](TechDesign_Networking.md)).
+- ⚠️ 공격 입력(조준점·락온·근접 보정 대상)은 이 구조체에 넣지 않는다 — 고정 틱(50Hz)마다 중복 전송되고 서버는 입력 버퍼 깊이만큼 과거 커맨드를 읽는다. 발동 요청에 싣는다([TechDesign_Networking.md](TechDesign_Networking.md)).
 
 ### 4.1 MoveSpeed — `FLNPMoveSpeedModifier` (MaxSpeed 단일 소유자)
 

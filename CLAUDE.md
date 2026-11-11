@@ -43,7 +43,7 @@
 | .context/TechDesign_HitDetection.md | 근접 Swept Volume·원거리 Line Segment 판정, 팀 규칙 단일 술어(막힘=피해)·런타임 플레이어 팀, 판정 캡슐 중심 규약 단일 헬퍼, 조준 원본 단일화와 수직 이탈 게이트, 조준점 깊이(적 엔티티 질의), 연출과 데미지의 분리·ASC는 전송 수단, 스플래시 감쇠, 지면 착탄·수명 만료 폭발(판정 소유권 단일화), 트레일 해제 소유권(파괴 시점 단일화) |
 | .context/TechDesign_HitZoneDamage.md | 부위별 데미지 차등 판정 — 단위 1·2·3 마감(데이터·투사체 직격·근접·적/플레이어 약점 ×1.5), 몸 명중 뒤 돌출 구 분류·몸 로컬 고정 오프셋, 기존 HitPoint·스플래시 유지, 인간형 머리·비행 센서·지상 드론 정수리, 방어력 전 피해·물리 HitReact 반영, 빌드·자동화 13/13·주요 PIE·최종 육안 확인(§13), 검증 근거·수용 RPC 오류·미관측 범위 |
 | .context/TechDesign_TargetQuery.md | 적 탐색 질의 시스템 — 상시 질의 구조, 순수 엔티티를 빠뜨리는 물리 경유 3곳, 등장방형 축소 행 공간 분할, 도입 단계 |
-| .context/TechDesign_Networking.md | 멀티플레이 네트워킹 — Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 대역폭 예산 규약(상한=안전판·엔티티당 비용·조용한 소실), 공격 입력은 InputCmd가 아니라 발동 요청에, 넉백이 늦은 대시를 거부하는 문제와 피격 유예 버퍼, 구현 중 발견 이슈 13건 |
+| .context/TechDesign_Networking.md | 멀티플레이 네트워킹 — Iris·MassReplication 하이브리드, Lag Compensation, 클라이언트 예측·Dead Reckoning, 대역폭 예산 규약(상한=안전판·엔티티당 비용·조용한 소실), 공격 입력은 InputCmd가 아니라 발동 요청에, 넉백이 늦은 대시를 거부하는 문제와 피격 유예 버퍼, 고정 틱 레이트는 1000의 약수(60Hz는 Mover를 0.96배로 돌림→50Hz), 구현 중 발견 이슈 13건 |
 | .context/Guide_NetBandwidth.md | 네트워크 대역폭 — 비용 3축(버블·승격 Actor·절편), 페이로드 양자화 규약과 int16 월드 반지름 캡, 절제(ablation)와 사유별 계수 측정법·분모 규약, 반복된 실패 패턴 |
 | .context/MultiplayerLobby/README.md | 멀티플레이 로비 작업 진입점(여러 세션 이어 가기용 폴더) — 메인 메뉴·IP 직접 접속·실패 복귀, 5인·중간 참가, 메뉴 UI 대기실, 세션 계층·LAN 방 목록, 온라인 백엔드(Steam/EOS) 단계 계획 |
 | .context/GameDesign_ParrySystem.md | 패링 성공 조건, 투사체 타입별 반사, 패링하는 쪽은 플레이어 전용·당하는 쪽은 LOD 무관, 플레이어 경험 의도 |
