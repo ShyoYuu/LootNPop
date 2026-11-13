@@ -23,6 +23,10 @@
 #include "MassCommonTypes.h"
 #include "MassStateTreeTypes.h"
 #include "MassActorSubsystem.h"
+#include "MassAgentComponent.h"
+#include "MassEntitySubsystem.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
 #include "MassRepresentationTypes.h"
 #include "MassMovementFragments.h"
 #include "MassRepresentationFragments.h"
@@ -43,6 +47,60 @@
 // (TargetFollow/Movement/SteeringTask가 동일 값을 공유해야 정지 지점이 일치).
 
 // --- Scoring Processor (점수 산정) ---
+
+namespace
+{
+	void IgnoreEnemyPlayer(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!World || World->GetNetMode() == NM_Client)
+			return;
+
+		int32 PlayerIndex = INDEX_NONE;
+		if (Args.Num() != 1 || !LexTryParseString(PlayerIndex, *Args[0]) || PlayerIndex < -1)
+		{
+			UE_LOG(LogLootNPop, Warning, TEXT("Usage: LNP.Enemy.IgnorePlayer <PlayerIndex>, or -1 to clear all."));
+			return;
+		}
+
+		UMassEntitySubsystem* MassEntities = World->GetSubsystem<UMassEntitySubsystem>();
+		if (!MassEntities)
+			return;
+		FMassEntityManager& Manager = MassEntities->GetMutableEntityManager();
+		int32 Index = 0;
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			APlayerController* PC = It->Get();
+			if (!PC)
+				continue;
+			const int32 CurrentIndex = Index++;
+			if (PlayerIndex != -1 && CurrentIndex != PlayerIndex)
+				continue;
+
+			const APawn* Pawn = PC->GetPawn();
+			const UMassAgentComponent* Agent = Pawn ? Pawn->FindComponentByClass<UMassAgentComponent>() : nullptr;
+			const FMassEntityHandle Player = Agent ? Agent->GetEntityHandle() : FMassEntityHandle();
+			if (!Manager.IsEntityActive(Player))
+			{
+				UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Enemy.IgnorePlayer] Player %d has no active Mass entity."), CurrentIndex);
+				continue;
+			}
+			if (PlayerIndex == -1)
+				Manager.Defer().RemoveTag<FLNPPlayerIgnoredByEnemiesTag>(Player);
+			else
+				Manager.Defer().AddTag<FLNPPlayerIgnoredByEnemiesTag>(Player);
+			UE_LOG(LogLootNPop, Display, TEXT("[LNP.Enemy.IgnorePlayer] Player %d (%s): ignored=%d."),
+				CurrentIndex, *GetNameSafe(Pawn), PlayerIndex != -1);
+		}
+		if (PlayerIndex >= Index)
+			UE_LOG(LogLootNPop, Warning, TEXT("[LNP.Enemy.IgnorePlayer] PlayerIndex %d out of range (0..%d)."), PlayerIndex, Index - 1);
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs GIgnoreEnemyPlayer(
+		TEXT("LNP.Enemy.IgnorePlayer"),
+		TEXT("Server-only: add a current pawn to enemy targeting exclusions. Args: <PlayerIndex>, or -1 to clear all. ")
+		TEXT("Indices follow LNP.Team.Set (0 = first player). Calls accumulate; respawning clears the exclusion."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&IgnoreEnemyPlayer), ECVF_Cheat);
+}
 
 ULNPEnemyScoringProcessor::ULNPEnemyScoringProcessor()
 	: ScoringQuery(*this), PlayerQuery(*this)
@@ -85,7 +143,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		SurfaceData ? SurfaceData->TakeSnapshot() : nullptr;
 
 	// 1. 모든 Player 수집
-	struct FPlayerData { FMassEntityHandle Handle; FVector Location; };
+	struct FPlayerData { FMassEntityHandle Handle; FVector Location; bool bIgnoredByEnemies; };
 	TArray<FPlayerData> Players;
 	PlayerQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& PlayerContext)
 	{
@@ -93,9 +151,10 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		if (LNPLoadBaseline::IsWanderObservation() || LNPGraphicsBenchmark::IsRequested())
 			return;
 		const TConstArrayView<FTransformFragment> Transforms = PlayerContext.GetFragmentView<FTransformFragment>();
+		const bool bIgnoredByEnemies = PlayerContext.DoesArchetypeHaveTag<FLNPPlayerIgnoredByEnemiesTag>();
 		for (int32 i = 0; i < PlayerContext.GetNumEntities(); ++i)
 		{
-			Players.Add({ PlayerContext.GetEntity(i), Transforms[i].GetTransform().GetLocation() });
+			Players.Add({ PlayerContext.GetEntity(i), Transforms[i].GetTransform().GetLocation(), bIgnoredByEnemies });
 		}
 	});
 
@@ -218,7 +277,8 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					}
 				}
 
-				if (bVisible)
+				// 거리·시야 검사는 유지하고, 제외된 플레이어만 후보에 넣지 않는다.
+				if (bVisible && !Player.bIgnoredByEnemies)
 				{
 					VisiblePlayers.Add({ Player.Handle, Player.Location, DistSq });
 				}

@@ -637,6 +637,9 @@ USTRUCT() struct LOOTNPOP_API FLNPEnemyTag : public FMassTag { GENERATED_BODY() 
 /** Entity를 Player로 식별하는 Tag */
 USTRUCT() struct LOOTNPOP_API FLNPPlayerTag : public FMassTag { GENERATED_BODY() };
 
+/** 촬영·테스트용 적 타겟팅 제외. 현재 폰에만 적용되며 리스폰하면 해제된다. */
+USTRUCT() struct LOOTNPOP_API FLNPPlayerIgnoredByEnemiesTag : public FMassTag { GENERATED_BODY() };
+
 /**
  * 사망한 Player를 적 타게팅에서 제외하는 Tag. 적 쪽 FLNPEnemyDyingTag와 대칭이다.
  *
