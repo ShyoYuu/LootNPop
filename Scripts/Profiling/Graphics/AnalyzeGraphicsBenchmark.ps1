@@ -51,7 +51,14 @@ foreach ($taskStat in @('FrameMs','GTMs','RTMs','GPUMs','DrawCalls')) {
     }
 }
 $taskPopulation = @(Import-Csv -LiteralPath (Join-Path $taskRoot 'Population.csv'))
-if ($taskPopulation.Count -eq 0) { throw 'Population samples are missing' }
+if ($taskManifest.no_enemies) {
+    if ($taskManifest.performance_eligible -or $taskManifest.initial_enemy_total -ne 0 -or $taskManifest.last_alive -ne 0 -or
+        $taskPopulation.Count -ne 0 -or @($taskRows | Where-Object {
+            [double]::Parse($_[$taskIndices.Alive], $taskCulture) -ne 0 -or
+            [double]::Parse($_[$taskIndices.Active], $taskCulture) -ne 0 -or
+            [double]::Parse($_[$taskIndices.FrustumCandidates], $taskCulture) -ne 0
+        }).Count -gt 0) { throw 'No-enemy diagnostic contains enemies or is marked as a performance baseline' }
+} elseif ($taskPopulation.Count -eq 0) { throw 'Population samples are missing' }
 foreach ($taskRow in $taskPopulation) {
     if ([int]$taskRow.Alive -ne ([int]$taskRow.Dormant + [int]$taskRow.Wander + [int]$taskRow.Active) -or
         [int]$taskRow.Alive -ne ([int]$taskRow.Actor + [int]$taskRow.Instanced + [int]$taskRow.None) -or
@@ -62,6 +69,7 @@ $taskInitial = [int](($taskEnemyRows | Measure-Object initialized -Sum).Sum)
 if ($taskInitial -ne $taskManifest.initial_enemy_total) { throw 'Initial enemy breakdown does not match total' }
 $taskSummary = [ordered]@{
     Profile=$taskManifest.profile; PerformanceEligible=[bool]$taskManifest.performance_eligible
+    NoEnemies=[bool]$taskManifest.no_enemies
     FrameCount=$taskRows.Count; Averages=$taskAverages; FrameP95Ms=$taskP95
     FrameBudgetRatio=($taskAverages.FrameMs / 16.6); InitialEnemies=$taskInitial
     InitialByType=@($taskEnemyRows | Group-Object entity_config | ForEach-Object {

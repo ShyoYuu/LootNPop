@@ -70,6 +70,12 @@
 
 관찰자 원래 폰은 숨기고 정지시키며 입력·HUD를 끈다. 적의 인지 대상에서 관찰자를 제외하고, 활동 대역의 거리 원점을 카메라로 대체한다. 배회·애니메이션을 유지하는 **관찰 부하**이며 추격·공격·피격이 섞인 전투 부하와 구분한다. MassLOD는 엔진 기본값의 카메라 위치를 사용한다(`bUsePlayerPawnLocationInsteadOfCamera=false`).
 
+### 적 0 대조군(Phase 1 준비, 패키지 검증 대기)
+
+`-LNPGraphicsNoEnemies`는 하네스 활성 실행에서만 적 생성을 생략한다. 선택 편성·밀도 1의 공간 계획을 그대로 만든 뒤 생성 큐에서 적 요청만 제외하므로, 적 배치 제약과 난수 소비에 따른 Pod 배치를 유지한다. `effective_enemy_density=1`은 계획 조건이며 `no_enemies=true`가 실제 생성 생략을 나타낸다. 계획 로그의 적 요청/배치 수를 실제 초기 적 수로 해석하지 않는다.
+
+이 회차는 `performance_eligible=false`인 진단이다. 런처의 `-ExtraArguments @('-LNPGraphicsNoEnemies')`로 실행하고 집계는 `-AllowPreview`를 명시한다. 초기·마지막·측정 프레임의 적 수가 모두 0이어야 하며, `Population.csv`에는 개체 행 없이 헤더만 남는다. 집계기는 해당 진단만 빈 개체 표를 허용한다. 일반 실행의 누락 검사는 유지한다. Medium 정식 3회와 별도 행으로 보고하며, 단일 적 0 진단을 기준선 중앙값으로 쓰지 않는다.
+
 ### 산출물·지표 의미
 
 런처 기본 출력은 `Saved/Profiling/Graphics/Phase00/Runs/`다. 회차 폴더에 `Launch.json`(실행 인자·실행 파일/스테이징된 경로 파일/패키지 컨테이너 SHA256)·`Runtime.log`·`Exit.json`이 있고, 그 아래 하네스가 만든 폴더에 다음을 쓴다. 컨테이너는 `.pak`·`.utoc`·`.ucas`를 모두 기록한다.

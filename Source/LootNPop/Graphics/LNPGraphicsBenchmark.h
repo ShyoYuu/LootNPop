@@ -16,6 +16,8 @@ namespace LNPGraphicsBenchmark
 {
 	/** 월드 시작 전에 선택한다. 일반 실행에서는 false다. */
 	bool IsRequested();
+	/** 적 0 진단에서는 공간 배치 계획을 유지하고 적 생성만 생략한다. */
+	bool AreEnemiesDisabled();
 	FString GetSpawnConfigPath();
 	/** 관찰 경로의 카메라 위치를 활동 거리 판정에 사용한다. 게임 스레드 전용. */
 	bool GetObserverLocation(const UWorld* World, FVector& OutLocation);

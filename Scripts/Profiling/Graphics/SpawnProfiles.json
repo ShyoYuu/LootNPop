@@ -65,8 +65,10 @@
   "cook_roots": [
     "/Game/Maps/TestMap03",
     "/Game/Maps/OctantPoolData",
-    "/Game/Maps/Meadow_00/LVI_Octant_Meadow_00",
-    "/Game/Maps/Meadow_00/DA_OctantSurface_Meadow_00",
+    "/Game/Maps/Grove_00/LVI_Octant_Grove_00",
+    "/Game/Maps/Grove_00/DA_OctantSurface_Grove_00",
+    "/Game/Maps/Ridge_00/LVI_Octant_Ridge_00",
+    "/Game/Maps/Ridge_00/DA_OctantSurface_Ridge_00",
     "/Game/Maps/Bastion_00/LVI_Octant_Bastion_00",
     "/Game/Maps/Bastion_00/DA_OctantSurface_Bastion_00",
     "/Game/Maps/Hollow_00/LVI_Octant_Hollow_00",

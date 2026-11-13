@@ -611,6 +611,10 @@ void ULNPMassSpawnSubsystem::AssembleSpawnQueueFromAsyncResult()
 
 	for (FLNPAsyncSpawnEntry& Entry : AsyncBuildResult)
 	{
+		// 적 배치 제약·난수 소비·Pod 위치를 유지하기 위해 완성된 계획에서 생성만 생략한다.
+		if (Entry.RequestType == ELNPSpawnRequestType::Enemy && LNPGraphicsBenchmark::AreEnemiesDisabled())
+			continue;
+
 		if (!CapturedAssets.IsValidIndex(Entry.AssetIndex))
 			continue;
 

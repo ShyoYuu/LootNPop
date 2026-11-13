@@ -92,6 +92,11 @@ bool LNPGraphicsBenchmark::IsRequested()
 #endif
 }
 
+bool LNPGraphicsBenchmark::AreEnemiesDisabled()
+{
+	return IsRequested() && FParse::Param(FCommandLine::Get(), TEXT("LNPGraphicsNoEnemies"));
+}
+
 FString LNPGraphicsBenchmark::GetSpawnConfigPath()
 {
 	const FString Name = TEXT("DA_MassSpawnConfig_Graphics_") + ProfileName();
@@ -147,6 +152,7 @@ void ULNPGraphicsBenchmarkSubsystem::Initialize(FSubsystemCollectionBase& Collec
 	IFileManager::Get().MakeDirectory(*OutputDirectory, true);
 	Manifest = MakeShared<FJsonObject>();
 	Manifest->SetStringField(TEXT("profile"), Profile);
+	Manifest->SetBoolField(TEXT("no_enemies"), LNPGraphicsBenchmark::AreEnemiesDisabled());
 	Manifest->SetStringField(TEXT("engine"), FEngineVersion::Current().ToString());
 	Manifest->SetStringField(TEXT("build"), LexToString(FApp::GetBuildConfiguration()));
 	Manifest->SetBoolField(TEXT("with_editor"), WITH_EDITOR != 0);
@@ -343,7 +349,7 @@ bool ULNPGraphicsBenchmarkSubsystem::Prepare()
 	Manifest->SetNumberField(TEXT("initial_enemy_total"), InitialEnemies);
 	Manifest->SetNumberField(TEXT("initial_pod_total"), InitialPods);
 	Manifest->SetStringField(TEXT("initial_request_scope"), TEXT("After spatial planning; plan shortfall is reported separately in the spawn log"));
-	if (InitialEnemies <= 0 || InitialEnemies != LastAlive)
+	if ((LNPGraphicsBenchmark::AreEnemiesDisabled() ? InitialEnemies != 0 : InitialEnemies <= 0) || InitialEnemies != LastAlive)
 	{
 		Finish(false, TEXT("Initial spawn counters do not match living enemy query"));
 		return false;
@@ -467,7 +473,7 @@ void ULNPGraphicsBenchmarkSubsystem::SaveManifest(const FString& Status, const F
 	Manifest->SetNumberField(TEXT("viewport_width"), Size.X);
 	Manifest->SetNumberField(TEXT("viewport_height"), Size.Y);
 	Manifest->SetBoolField(TEXT("performance_eligible"), !WITH_EDITOR && WarmupSeconds >= 60 && DurationSeconds >= 60 && Size == FIntPoint(2560, 1440)
-		&& !Manifest->HasField(TEXT("diagnostic_cvars")));
+		&& !Manifest->HasField(TEXT("diagnostic_cvars")) && !LNPGraphicsBenchmark::AreEnemiesDisabled());
 	FString Json;
 	FJsonSerializer::Serialize(Manifest.ToSharedRef(), TJsonWriterFactory<>::Create(&Json));
 	if (!FFileHelper::SaveStringToFile(Json, *(OutputDirectory / TEXT("Run.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
