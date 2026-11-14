@@ -263,3 +263,61 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - 패키지는 HEAD c6981a6 + 기록한 소스 변경으로 빌드됐다. 인계 커밋으로 HEAD가 달라져도 빌드 대상 파일/패키지 해시가 일치하면 기존 바이너리를 사용한다. 소스/패키지·로그는 Saved에 남기고 git에는 소스·JSON·문서만 넣는다.
 - 최근 커밋의 `feat:`/`fix:`/`docs:` + 한국어 제목·본문 bullet 형식을 확인했다. 커밋 범위는 Ridge 하네스/경로·검사·스테이징 참조와 위 문서로 제한한다. 다음 세션은 §9의 짧은 Medium/적 0 패키지 검증부터 시작한다.
 - 커밋 전 문서 상대 링크 73개·새 패키지 실행 예제 2개의 PowerShell 구문·빌드 소스/보존 에셋 13파일 해시·스테이징 경로 해시·git diff 검사를 통과했다. 인계 정리 중 런타임 실행이나 재빌드는 하지 않았다.
+
+### 추가 — 기존 패키지 해시 재검증·짧은 Medium 패키지 검증 완료(2026-11-14)
+
+- HEAD `aaf6267`·깨끗한 작업 트리에서 시작했다. PackageVerification.json·HandoffCommit.json·SourceSnapshot.json을 대조해 소스/보존 에셋 13파일과 패키지 핵심 7파일(실행 파일·경로 JSON·컨테이너 5개)의 SHA256·기록 크기가 일치했다. 아카이브 전체 49파일·1,455,482,688바이트도 기록과 같다. 49개 전부에 대한 개별 해시 목록이 있다는 뜻은 아니다. 재빌드하지 않았다. 근거: `Saved/Profiling/Graphics/Phase01/PackageValidation/Preflight.json`.
+- 샌드박스 첫 실행 `Medium_20261114_074729_973d6d`는 Runtime.log/Run.json 생성 전 종료해 런처 코드 1이었다. 게임 종료 코드는 확보하지 못했다. 같은 인자의 권한 확장 재시도는 정상 실행됐으나 첫 실패 원인을 샌드박스로 확정하지 않는다. 실패 폴더의 AttemptFailure.json과 Launch.json을 보존했다.
+- 사용자 화면 확인 준비 승인을 받은 뒤 §9의 명시적 패키지/출력 경로·워밍업 10초·캡처 60초로 실행했다. 성공 회차는 `PackageValidation/Medium/Medium_20261114_074758_eb262d/Medium_6256DA5B4E3BD37CC16CFBB0A38C5689`다(공통 루트 `Saved/Profiling/Graphics/Phase01/`). 종료 코드 0·complete·with_editor=false·CSV 3065프레임/개체 분할·초기/마지막 적 2002·Pod 120을 확인했고 AllowPreview 집계를 통과했다. performance_eligible=false로 성능 기준선에서 제외한다.
+- manifest의 정확 2560×1440·TSR=4·ScreenPercentage=100·Epic 그룹 11개=3·시드 1·PCG offset 0·Medium·실제 Ridge slot 1, 소스/스테이징/실행 경로·실행 파일·컨테이너 해시 일치를 확인했다. 사용자가 A/B/C와 연결 구간의 구도·관통에 문제없음을 확인하고 짧은 적 0 실행을 승인했다. 성공 회차 부모의 RuntimeValidation.json에 기록했다.
+- 런타임 경고는 VSM pages=4096의 ProjectSetting 우선순위 유지, GameplayCueNotifyPaths 미지정의 /Game 폴백, NS_BurnLoop 누락/적 화상 VFX 비활성화다. Error/Fatal은 관측되지 않았다. 이번 관찰 경로는 정상 종료했지만 화상 VFX 검증으로 해석하지 않는다. 설정/콘텐츠는 바꾸지 않았다.
+- 다음은 같은 패키지·Medium 공간 계획에 `-LNPGraphicsNoEnemies`만 추가한 짧은 검증과 Pod 계획/초기화 대조다. 사용자 승인 뒤 시작했으며 정식 기준선·환경 반입은 시작하지 않았다.
+
+### 추가 — 짧은 적 0 정상 종료·Medium과 계획/Pod 수량 대조 완료(2026-11-14)
+
+- 사용자 승인 뒤 같은 패키지·Medium·워밍업 10초·캡처 60초에 `-LNPGraphicsNoEnemies`만 추가했다. 회차는 `Saved/Profiling/Graphics/Phase01/PackageValidation/NoEnemies/Medium_20261114_075024_b41126/Medium_5EE712854276290E35BB0593D184EBD3`다. 종료 코드 0·complete·with_editor=false·3155프레임으로 AllowPreview 집계가 통과했다.
+- no_enemies=true·performance_eligible=false·초기/마지막/캡처 프레임 Alive/Active/FrustumCandidates 모두 0, Population.csv 헤더만·initial_spawns 적 행 없음을 확인했다. 정확 2560×1440·렌더 CVar 전체·시드/PCG offset/Medium·밀도 1·옥탄트 배정·실행 파일/컨테이너 5개/경로 해시가 Medium과 같다.
+- set별 공간 계획 로그와 미사용 generic anchor 11개가 정확히 일치했다. 계획의 적 수는 아래처럼 유지되지만 적 0의 실제 생성 수는 0이다.
+
+| set | Pod 요청/계획 배치(두 회차 동일) | generic | authored/random/shortfall | 적 요청/계획 배치(두 회차 동일) |
+|:---|---:|---:|:---|---:|
+| Bench01 | 20/20 | 20 | 0/0/0 | 317/317 |
+| Bench01_2 | 40/40 | 40 | 0/0/0 | 819/819 |
+| Bench01_3 | 30/30 | 30 | 0/0/0 | 430/430 |
+| Bench01_4 | 30/30 | 30 | 0/0/0 | 436/436 |
+
+- Pod의 config/slot별 post_plan_requested·initialized·rejected 행 8개가 정확히 일치했다. slot 0~7은 각각 26·12·12·22·7·8·21·12개, 거부 0·총 120개다. 소스상 BuildPlan 완료/계획 로그 뒤 AssembleSpawnQueueFromAsyncResult에서 적 큐만 생략한다. **개별 Pod 위치/회전/스케일의 런타임 덤프·해시가 없어 모든 Transform의 직접 일치를 증명하지 않았다.** 수량 비교와 소스 흐름 근거를 직접 배치 비교로 확대하지 않는다.
+- 입력 manifest/계획 로그 해시·16개 교차 검사 결과·배치 검증 한계를 `PackageValidation/Comparison.json`에 보존했다. Postflight.json에서 소스/불변 에셋 13파일·패키지 핵심 7파일 해시 재일치와 게임 프로세스 0개를 확인했다. 두 성공 회차의 런타임 경고는 같은 종류이며 Error/Fatal은 관측되지 않았다.
+- 짧은 검증 단위를 마감하고 실행서 §10·Current를 갱신했다. 정식 성능 수치로 사용하지 않으며 **1-A 전체는 미완료**다. 다음은 사용자 진행 확인과 전원/성능 모드 확인 뒤 정식 180초 워밍업·60초 캡처·회차별 냉각을 적용한 Medium 3회+적 0 1회다. 아직 정식 기준선·환경 반입·PCG·재질 변경·녹화·추가 빌드/쿡/Live Coding은 하지 않았다.
+
+### 추가 — 정식 출발 측정 3+1·Medium 재현성 통과·센서 보완 승인 대기(2026-11-14)
+
+- 사용자가 정식 측정 진행·전원 어댑터 연결·Windows Best Performance를 확인했고 진행 중 외부 모니터 사용도 확인했다. 제조사 도구 모드와 실제 외부 패널 연결 GPU는 미확인으로 남겼다. CIM은 AMD 780M 1440p/165Hz·RTX 4060 1440p/59Hz를 보고했으며 RHI는 네 회차 모두 RTX 4060 Laptop을 사용했다. 전원 계획 Balanced와 사용자 확인 Windows 전원 모드를 구분했다.
+- 최초 `StartBaseline_20261114` 세션은 작성한 실행 스크립트가 빈 ExtraArguments를 명시적으로 넘겨 기존 런처에서 null 오류가 났다. Launch.json/게임 실행/성능 표본 생성 전 실패다. 원래 폴더의 Session.json·AttemptFailure.json을 보존하고, 일반 Medium에서는 추가 인자를 아예 넘기지 않도록 고친 별도 `StartBaseline_20261114_Retry1` 세션에서 실제 측정을 수행했다. 기존 런처·게임 소스·패키지는 변경하지 않았다.
+- 워밍업 180초·캡처 60초·명시적 기존 패키지/새 출력 경로·회차별 냉각으로 Medium 3회와 적 0 1회를 완료했다. 네 회차 모두 종료 코드 0·complete·with_editor=false·정확 1440p·TSR100%·Epic·시드 1/PCG offset 0·Ridge slot 1·CSV 검증 통과다. Medium은 performance_eligible=true의 일반 집계, 적 0은 false/AllowPreview 진단으로 분리했다. 냉각 조건과 2회차 이후 최소 300초를 모두 충족했고 1200초 상한 예외는 없었다.
+- 실제 Medium 회차/프레임은 `Medium_20261114_081638_b7ca9c`/3097, `Medium_20261114_082546_a14098`/3048, `Medium_20261114_083454_6efb36`/3038이다. 모두 초기/마지막 적 2002·Pod 120이다. 지표별 3회 중앙값 Frame/GT/RT/GPU=19.687/5.022/19.681/19.223ms, 반복 편차 1.88/3.59/1.89/1.91%로 5% 기준을 통과했다. Frame은 예산 118.60%다. 각 회차를 보존했고 예비 실행/과거 월드와 합치지 않았다.
+- 적 0은 `NoEnemies/Medium_20261114_084402_b2b09f`, 3074프레임·적 수 0·Pod 120·Population 헤더만·initial_spawns 적 행 없음을 통과했다. 모든 회차의 set별 계획 로그 4개/미사용 generic 11개·Pod slot별 요청/초기화/거부·Medium 초기 편성·실효 렌더 CVar·실행 파일/컨테이너 5개/경로 및 Viewpoints 사본 해시가 같다. 개별 Pod Transform 직접 비교가 아니라는 범위를 유지한다.
+- 소스/보존 에셋 13파일·패키지 핵심 7파일 해시가 종료 뒤 다시 일치했다. 네 회차 런타임 Error/Fatal 0, VSM pages 우선순위·GameplayCue 경로 폴백·NS_BurnLoop 누락/화상 VFX 비활성화 경고는 유지됐다. 게임/해당 센서 프로세스는 종료했다. 새 빌드·쿡·Live Coding·환경 반입·PCG·재질 변경·녹화는 하지 않았다.
+- **센서 기록 제한 발견:** Medium 캡처 센서는 59/60/60표본·양끝 공백 1초 미만이지만 마지막 적 0 센서는 38표본·후반 22.210초 공백과 마지막 불완전 행이 남았다. 엔진 CSV 3074프레임/GPU 시간과 별도 제한이다. 파일 버퍼링/프로세스 종료 손실 가능성은 가설로 남긴다. 센서 평균은 확보된 부분으로만 보고한다.
+- 보완안은 `NoEnemyTelemetryRetry_20261114/RunSession.ps1`과 DrainGpuTelemetry.ps1이다. 직전 실행 후 300초 경과·연속 안정 60초를 확인하고 적 0 한 회차만 수행한 뒤, 게임 종료 이후의 완전한 센서 행이 디스크에 저장된 것을 확인하고 센서 프로세스를 종료한다. 센서 전용 probe는 대기 34.397초 후 목표 이후 행 저장 확인을 통과했다(TelemetryDrainProbe.json). **추가 게임 실행은 아직 하지 않았고 사용자 승인 대기다.**
+- 상세 표/식별/한계는 `analysis/Phase01_StartBaselineReport.md`, 원자료/18개 교차 검사/입력 해시는 `StartBaseline_20261114_Retry1/RepeatedSummary.json`·ValidationStatus.json·Session.json·각 회차 파일에 남겼다. Current·실행서 §11·README/Roadmap·Measurement의 센서 후반 저장 확인 절차를 갱신했다. 1-A/Phase 1 마감으로 표시하지 않는다.
+
+### 추가 — 적 0 센서 보완 회차·최종 교차 검증 통과(2026-11-14)
+
+- 사용자가 계속 진행을 승인했다. 준비된 NoEnemyTelemetryRetry_20261114/RunSession.ps1을 읽고 원본 패키지/소스 해시·중복 프로세스 없음·온도 약 43°C/전력 약 4W를 확인했다. 권한 확장으로 기존 패키지·명시적 보완 출력 경로·Medium 계획 적 0 한 회차를 실행했다. 빌드·쿡·Live Coding은 하지 않았다.
+- 실제 회차는 `NoEnemyTelemetryRetry_20261114/NoEnemies/Medium_20261114_093743_7c4929/Medium_EE2E7E2D40FF719CCA9C3A8E227AAD0E`다(공통 상위 `Saved/Profiling/Graphics/Phase01/`). 직전 게임 종료 후 2975.649초가 지났고 추가 60.56초 연속 안정 조건을 확인했다. 시작 43.00°C/4.04W·180초 워밍업/60초 캡처·출력 2560×1440·TSR100%·Epic·시드 1/PCG offset 0·Ridge slot 1을 유지했다.
+- 종료 코드 0·complete·with_editor=false·performance_eligible=false·CSV 3133프레임/AllowPreview 검증 통과. 초기/마지막/측정 프레임 적 수 0·Population.csv 헤더만·initial_spawns 적 행 없음·Pod 120을 확인했다. 진단 평균 Frame/GT/RT/GPU=19.157/2.947/19.151/18.666ms이며 단일 진단 값으로만 보고한다.
+- 캡처는 18:40:47.683~18:41:47.683 KST, 센서 60표본·시작/끝 공백 0.461/0.166초·최대 표본 간격 1.016초다. 후반 저장 확인 단계에서 33.413초를 기다려 게임 종료 이후 완전한 행을 디스크에서 확인한 뒤 센서 프로세스를 종료했다. 최초 적 0의 후반 22.210초 누락은 보완 실행으로 해소했으며 최초 자료도 보존했다.
+- FinalValidation 폴더에 원래 Medium 3회와 보완 진단을 가리키는 파생 분석 Session.json·두 센서 원본을 연결한 파생 CSV를 만들었다. 원본 경로를 명시했으며 파일을 옮기거나 덮어쓰지 않았다. 기존 적 0과 보완 적 0은 합쳐 평균내지 않는다. 보완 진단과 기존 Medium 사이의 18개 교차 검사를 통과했다: 동일 실행 파일/컨테이너 5개/경로 및 Viewpoints 사본, 실효 렌더 조건·어댑터·옥탄트 배정·계획 수량·Pod 초기화 행·Medium 초기 편성·적 0 자료·냉각/센서 존재·소스/패키지 해시. 개별 Pod Transform 직접 검증은 여전히 하지 않았다.
+- 기존 Medium의 Frame/GT/RT/GPU 중앙값 19.687/5.022/19.681/19.223ms·편차 1.88/3.59/1.89/1.91%는 변하지 않는다. 보완 회차 런타임 Error/Fatal 0이며 기존 경고 종류도 유지됐다. 게임/해당 센서 프로세스 종료와 해시 보존을 확인한다.
+- 보고서·Current·실행서 §12/체크리스트·README/Roadmap을 보완 완료 상태로 갱신했다. **1-A 측정·검증 조건은 충족했고 사용자 마감/다음 단위 진행 확인 대기다.** 환경 반입·PCG·재질 변경·파라곤 선정·녹화는 하지 않았다. Phase 1 전체 완료로 표시하지 않는다.
+
+### 1-A 마감 — 사용자 완료 확인·문서 정합·커밋(2026-11-14)
+
+- 사용자가 “1-A 마감하고 문서 반영 다한 다음에 커밋해줘”라고 요청했다. 출발 기준선/센서 보완과 기록한 검증 범위를 수용해 1-A를 완료 상태로 전환했다. Phase 1 전체는 진행 중이며 이번 요청은 1-B 실행 승인이 아니다.
+- Current·README/Roadmap·출발 기준선 보고서·Phase 1 실행서 §13과 체크리스트·1-B0 선정 문서의 다음 세션 인계를 완료 상태로 맞췄다. 중간 대기/실패 상태는 시점별 기록으로 보존하고 현재 행동과 구분했다. Measurement에는 앞서 검증한 센서 후반 저장 확인 절차를 반영했다.
+- Frame 19.687ms/예산 118.60%와 재현성 통과, 적 0 보완 3133프레임/센서 60표본을 마감 근거로 유지했다. 개별 Pod Transform 직접 비교·제조사 도구 모드·외부 패널 연결 GPU의 미확인과 런타임 경고를 삭제하지 않았다.
+- 최종 Saved의 ValidationStatus/FinalChecks에 사용자 마감을 반영하고 Closure.json·아티팩트 해시를 기록한다. 원래 측정 파일과 센서 부분 진단을 덮어쓰거나 재집계하지 않는다. 소스/패키지 파일은 동일하므로 재빌드하지 않는다.
+- 최근 커밋의 `접두어: 한국어 제목`과 본문 bullet 형식을 확인했다. 이번 변경은 그래픽스 문서 8개이며 `docs:`로 커밋한다. Saved의 원자료/실행용 스크립트와 라이선스 에셋은 커밋하지 않는다.
+- 다음 단위는 사용자 착수 확인 뒤 1-B 환경 반입 준비다. 선정 재검토·환경 반입·PCG·재질 변경·파라곤 선정·녹화·새 빌드/쿡/Live Coding은 하지 않았다.
+- 커밋 전 문서 8개·상대 링크 93개·소스/보존 에셋 13파일·패키지 핵심 7파일 해시·변경 범위와 git diff --check를 통과했다. 원자료는 Saved에 보존하고 문서만 커밋한다.

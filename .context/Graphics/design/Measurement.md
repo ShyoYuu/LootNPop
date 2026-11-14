@@ -1,7 +1,7 @@
 # 그래픽스 측정 규약
 
 > 상태: 0-C에서 실행·집계 검증, 0-D 정식 반복 측정 대기
-> 마지막 갱신: 2026-11-10
+> 마지막 갱신: 2026-11-14
 
 ## 1. 목표 사양 (GX-002)
 
@@ -107,6 +107,8 @@ PIE·에디터 `-game`·60초 미만 워밍업/캡처 또는1440p가 아닌 출�
 0-D 준비에서 `nvidia-smi --query-gpu=timestamp,index,name,pstate,temperature.gpu,clocks.current.graphics,clocks.current.memory,power.draw,utilization.gpu --format=csv -l 1`의1초 간격CSV 저장을 확인했다. 측정 시에는 별도 숨김 프로세스로 워밍업부터 종료까지 기록하고 성공·실패 모두에서 해당 기록 프로세스를 종료한다. `Run.json`·실행 로그의 시각과 대조할 때 타임존을 맞춘다. 이 환경의 nvidia-smi 시각은KST이며 확인 근거는 `Saved/Profiling/Graphics/Phase00/FormalPreparation_20261107/GpuTelemetryProbe.{csv,json}`이다.
 
 전력 상한 질의는 이 노트북에서N/A였다. GPU 온도·그래픽/메모리 클럭·전력·사용률 기록 가능 여부와 별도로 남긴다. `powercfg /getactivescheme`의 전원 계획만으로 Windows 설정의 전원 모드나 ASUS Armoury Crate의 작동 모드를 확정하지 않는다. 사용자 확인 값과 사용 화면·화면 연결 GPU도 회차 환경 기록에 포함한다.
+
+**센서 파일 후반 저장 확인(2026-11-14).** Phase 1 정식 적 0 실행은 엔진 CSV 60초를 통과했지만 nvidia-smi 종료 뒤 센서 파일 후반 22.210초와 마지막 불완전 행이 관측됐다. 기록 프로세스가 실행 중이었다는 사실만으로 파일의 전체 캡처 범위 저장을 보장하지 않는다. 성공 회차는 게임 종료 시각 이후의 완전한 센서 행이 디스크에서 확인될 때까지 센서 프로세스를 유지한 뒤 종료한다. 센서 전용 probe는 이 방식으로 약 34초 뒤 목표 이후 행 저장을 확인했다. 시간 제한을 넘기면 불완전 범위를 기록하고 전체 센서 기록 통과로 표시하지 않는다. 센서 평균은 확보된 표본 범위로 한정하며, 엔진 GPU 시간/프레임 CSV의 완전성과 구분한다. 근거와 보완 실행 상태는 [Phase 1 출발 보고서](../analysis/Phase01_StartBaselineReport.md)를 따른다.
 
 워밍업 길이가 다른 세트는 별도로 집계하고 각 `Session.json`·`Run.json`에 실제 시간을 남긴다. 워밍업 중에도 AI 배회가 진행되므로 시간을 늘리면 열/클럭뿐 아니라 측정 시작 시 활동 상태도 달라질 수 있다. 편차가 줄었다는 사실만으로 열 안정화 원인이 해결됐다고 단정하지 않는다. 동일 조건의 편성 비교를 하려면 워밍업 시간도 맞춘다.
 

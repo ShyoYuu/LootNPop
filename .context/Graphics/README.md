@@ -39,7 +39,7 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 |:---|:---|
 | 단계 조정·Phase 전환·JustDodge 이관 항목 | `Roadmap.md` |
 | 현재 Phase 구현 | `Current.md`가 가리키는 `phases/PhaseNN_*.md` |
-| Phase 1의 1-A 새 세션: 출발 패키지·짧은 Medium/적 0 실행 검증·출발 기준선 | [Phase 1 실행서](phases/Phase01_BenchmarkContent.md) §9 |
+| Phase 1의 1-A 마감·출발 기준선과 다음 1-B 준비 | [Phase 1 실행서](phases/Phase01_BenchmarkContent.md) §13, [출발 기준선 보고서](analysis/Phase01_StartBaselineReport.md), [기존 1-B0 선정](phases/Phase01_RidgeZonePalette.md) §8 |
 | Phase 1 Ridge 대표 구역·Electric Dreams 팔레트·장식 금지 규칙 | [1-B0 구역·팔레트](phases/Phase01_RidgeZonePalette.md) |
 | 네 개선 완료 뒤 통합 검증·재측정·Phase0 마무리 | [개선 후 재개 절차](phases/Phase00_PostOptimization.md) |
 | 측정 지표·절차·노트북 측정 함정·보고 형식 | `design/Measurement.md` |
