@@ -49,6 +49,20 @@ Art/Meshes/SKM_Shotgun_UEFN.fbx
 # Niagara Examples Pack — Epic 공식 샘플. 재배포 제한 + 용량(약 1.2GB)으로 추적하지 않는다.
 Content/NiagaraExamples/
 
+# Electric Dreams 환경 원본 — Phase 1 조건부 팔레트의 반입 경로를 유지한다.
+# 재생성 목록: Scripts/Profiling/Graphics/ElectricDreamsPalette.json
+/Content/Custom/CustomMaterials/
+/Content/Landscape/M_BGLandscape_Auto.uasset
+/Content/Landscape/MI_BGLandscape_Auto_01.uasset
+/Content/Megascans/
+/Content/Meshes/_GENERATED/RockFormation/SM_DryRiverBed_02.uasset
+/Content/MSPresets/MS_Foliage_Material_LATEST/
+/Content/MSPresets/MSVTTextures/
+/Content/PhysicalMaterials/PhysMat_SolidRock.uasset
+/Content/SmartAssets/
+# Electric Dreams에서 파생한 재질·함수·PCG 등도 로컬에서 재생성한다.
+/Content/Graphics/Environment/ElectricDreams/
+
 # 로컬 이슈 트래커 — 작업용 임시 기록. 항구적 결론은 .context/ 문서에 반영하고 여기는 추적하지 않는다.
 .issues/
 

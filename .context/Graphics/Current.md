@@ -1,49 +1,66 @@
 # 그래픽스 작업 현재 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase 1 · 1-A 완료(2026-11-14 사용자 마감), 다음은 1-B 환경 반입 준비
-> 마지막 갱신: 2026-11-14
+> 현재 작업: Phase 1-B · 1-B4a 근경 시험 마감 · 다음 1-B4b 진행 확인 대기
+> 마지막 확인/갱신: 2026-11-15
 
-## 0. 확정 기준
+## 1. 이어받을 상태
 
-- **Phase 0 완료(2026-11-10, 사용자 마감 확인).** Meadow 포함 월드의 과거 기준선으로 보존하며 Phase 1 새 월드와 직접 섞지 않는다. [기준선 보고서](analysis/Phase00_BaselineReport.md), [Phase 0 로그](history/Phase00_Log.md).
+- **1-A 출발 기준선 완료.** Ridge slot1·확정 A/B/C, Medium3회 중앙값 Frame/GT/RT/GPU=19.687/5.022/19.681/19.223ms·재현성 통과. 적0 센서 보완까지 마쳤다. [보고서](analysis/Phase01_StartBaselineReport.md). Phase0의 Meadow 포함 과거 수치와 섞지 않는다.
+- **1-B1/2 반입 완료.** Electric Dreams의 14시작점·104패키지를 원래 `/Game` 경로로 반입했다. VT65/66·실효 `r.VirtualTextures=1`, 로드/메시/재질 미리보기를 확인했다. Migrate는 재직렬화하므로 원본과 반입본 해시는 다르다. [반입 실행서](phases/Phase01_EnvironmentImport.md) §7.
+- **1-B3a~c 구현/기술 검증 마감·최종 채택 보류.** 구면 좌표/구역/경사 진단, 로컬 트라이플래너·월드 노멀, Texture_Bombing과 바닥의 큰 크기 색/거칠기 변화를 구현했다. AA 끄기 중립 노멀 비교는 내부29,043표본·전체/세 경사 구간 p95=1·최대2(RGB8)다. 한 +90° 회전 사례 후 복원했다. 원거리 잔여 반복과 **VT 조회 추정18→72·픽셀 명령1565→5367** 때문에 최종 화질/성능 채택은 보류다. 에디터 통계를 GPU ms로 해석하지 않는다. 실행서 §9~12.
+- **1-B4a 소수 근경 시험 마감.** 사암2·클로버6은 자연스러움/부유·이질감 없음으로 사용자 확인을 받았다. DryRiverBed_02는 표면은 자연스럽지만 네모 외곽이 주변과 어울리지 않아 제외하고 시험2액터만 제거했다. 원본은 보존했다. [현재 팔레트](phases/Phase01_RidgeZonePalette.md) §10, 실행서 §13.
+- **정식 Ridge·Support source·기본 편성·풀·확정 카메라 경로는 보존했다.** 원본104/보호12/V002재질4파일 해시와 기존 지각3메시 상태를 확인했다. 정식 적용·PCG·Support/Nav 베이크·새 빌드/쿡은 이번 1-B에서 하지 않았다. Phase1 전체는 미완료, 파라곤 선정도 남아 있다.
 
-| 편성 | 초기 적 | Frame | GT | RT | GPU | 예산 대비 Frame |
-|:---|---:|---:|---:|---:|---:|---:|
-| Low | 1053 | 20.21 | 4.30 | 20.21 | 19.70 | 121.8% |
-| Medium | 2223 | 20.26 | 5.53 | 20.25 | 19.75 | 122.0% |
-| High | 3257 | 20.62 | 6.47 | 20.61 | 20.12 | 124.2% |
+## 2. 로컬 에디터와 재생성
 
-- 단위 N·O-2도 완료했다. Niagara 대체 중력은 GX-011, 운영 해상도는 GX-012를 따른다. 측정은 네이티브 100%·TSR(Epic)이며 해상도 하향보다 TSR 히스토리/Lumen 후보를 먼저 검토한다. 상세는 [Decisions](Decisions.md)와 [O-2 로그](history/UnitO2_Log.md).
+마지막 확인은 LootNPop(8000), PIE=false, Lit, `r.AntiAliasingMethod=4`다. Electric Dreams(8001)는 VRAM 확보를 위해 종료했다. 다음 세션에서는 실제 연결/현재 맵/dirty 상태를 다시 읽는다.
 
-## 1. Phase 1의 현재 상태
+| 항목 | 마지막 저장 상태 |
+|:---|:---|
+| 열린 WIP | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/LVI_Ridge_SurfaceProbe` |
+| 지각 오버라이드 | `/Game/Graphics/Environment/ElectricDreams/RidgeSurface_V002/MI_Ridge_Surface` |
+| 소수 장식 | `Graphics/GroundProbe_V001`의 사암2·클로버6, 라벨 `GraphicsGroundProbe_*` |
+| 장식 계약 | Decoration 단독·LNPDecoration/NoCollision·Static·내비 영향 꺼짐. 그림자/RT/DF 기여는 기본값 유지 |
+| 조명 | WIP의 에디터 전용 `GraphicsPreview_SurfaceLight` 점광원1개. 게임 조명/성능의 통과 근거가 아님 |
+| 저장 | WIP와 생성 에셋 dirty=false, 원래3메시/광원 transform 복원 |
 
-- **대상/선정 유지:** 기존 Ridge + Electric Dreams(GX-013), 1차 보행 충돌 보존. 1-B0의 대분지 대표 구역·재질 방침·6종 조건부 팔레트 선정은 완료했다. 실제 환경 반입·PCG/재질 변경은 아직 하지 않았다. 파라곤 종류/수도 미확정이다. [선정 결과](phases/Phase01_RidgeZonePalette.md) §8.
-- **경로/하네스 완료:** 시드 1의 Ridge slot 1·7을 실제 확인했고 측정은 slot 1을 쓴다. `RidgeViewpoints.json`의 A=DeepBasin·B=TablelandRim·C=ValleyRise, B만 구면 현지 Up으로 50cm 보정했다. 기존 화면비와 사용자 설정 1280×720(실측 1280×722)에서 관통 없음 확인을 받았다. C++·NonUFS·패키저·런처·검사가 같은 JSON을 참조한다.
-- **최종 빌드/검사 완료:** 정규 `LootNPopEditor Win64 Development`, 최종 B 보정 Viewpoints 자동화 **1/1(테스트 오류/경고 0)**, Game Development build/cook/stage/archive가 모두 종료 코드 0이다. 기본 편성·풀·GameState의 디스크 해시는 보존했다.
-- **출발 패키지:** `Saved/Graphics/Phase01StartPackage_20261114`, 49파일·약 1.36GiB. 실행 파일·컨테이너 5개·Ridge JSON의 존재/해시와 소스 일치를 확인했다. 경로 SHA256는 `C1E46E0BCEAAB9D9C3FE2F2BCE80BAD37E959663C4775895814350B17E023CE6`이다.
-- **짧은 Medium 검증 완료:** 기존 패키지와 소스/보존 에셋 해시가 일치해 재빌드 없이 실행했다. 종료 코드 0·complete·with_editor=false·3065프레임·초기/마지막 적 2002·Pod 120, AllowPreview CSV 집계를 통과했다. 정확 2560×1440·TSR100%·Epic 그룹 3·시드 1/PCG offset 0·Ridge slot 1과 사용자 구도/무관통 확인을 받았다. 짧은 실행은 성능 기준선에서 제외한다.
-- **짧은 적 0 검증 완료:** 종료 코드 0·complete·3155프레임, no_enemies=true·performance_eligible=false·초기/마지막/캡처 프레임 적 수 0·Population.csv 헤더만·initial_spawns 적 행 없음을 확인했다. Medium과 실행 파일/컨테이너/경로·렌더 조건·set별 계획 수량·slot별 Pod 초기화 수가 같다. 개별 Pod Transform은 직접 비교하지 못했으며 모든 배치 좌표 일치를 증명한 것은 아니다. [실행 결과](phases/Phase01_BenchmarkContent.md#10-짧은-패키지-검증-결과2026-11-14).
-- **정식 측정:** 180초 워밍업·60초 캡처·회차별 냉각으로 Medium 3회+적 0 1회 모두 정상 종료/CSV 통과. Medium 중앙값 Frame/GT/RT/GPU=19.687/5.022/19.681/19.223ms, 반복 편차 1.88/3.59/1.89/1.91%로 5% 기준 통과. Frame은 16.6ms 예산의 118.60%다. [출발 기준선 보고서](analysis/Phase01_StartBaselineReport.md).
-- **센서 보완·1-A 마감 완료:** 사용자 승인으로 적 0 한 회차를 추가했다. 정상 종료·CSV 3133프레임·모든 측정 적 수 0·Pod 120·센서 60표본, 센서 양끝 공백 0.461/0.166초·후반 저장 확인을 통과했다. 기존 Medium과 계획/Pod 수량·렌더 조건·해시가 같으며 원래 적 0(센서 부분)도 보존했다. **2026-11-14 사용자 요청으로 1-A를 마감했다. Phase 1 전체는 미완료다.** 모든 Pod Transform 직접 비교는 미검증으로 유지한다.
-- **크래시 참고:** Live Coding 뒤 첫 PIE가 애니메이션 디버그 CVar 읽기에서 종료됐으나 풀빌드/재시작 후 세 회차는 정상 종료했다. Live Coding 관련성은 가설이며 애니메이션 소스는 수정하지 않았다. 새 세션에서 같은 증상이면 패치 상태를 먼저 분리한다.
+**현재 산출물이 있으므로 아래 빌더를 재실행하지 않는다.** 모두 저장소 `Scripts/Profiling/Graphics/`에 있다.
 
-## 2. 바로 다음 행동
+| 코드 | 역할·선행 조건 |
+|:---|:---|
+| `ElectricDreamsPalette.json` | 초기14시작점/104패키지 식별·크기·SHA256. 실패한 하상도 반입 이력으로 보존 |
+| `BuildRidgeSurfaceProbe.py` | 진단 함수/재질/MI5개만 생성 |
+| `BuildRidgeSurfaceMaterial.py` | 원본 부모/MI를 파생한 V001 2개 생성. 원본 반입·진단 함수 필요 |
+| `BuildRidgeSurfaceAntitile.py` | V001에서 V002 함수2/부모/MI4개 생성. 최종 바닥 보완 후 전체 깨끗한 재생성은 미실행 |
+| `BuildRidgeGroundProbe.py` | 열린 WIP에 최종 사암2/클로버6 배치·WIP만 저장. 실제 지각 hit/보호 가드 후 생성 |
 
-1. **[Phase 1 실행서 §13](phases/Phase01_BenchmarkContent.md#13-1-a-마감과-다음-단위-인계2026-11-14)와 [출발 기준선 보고서](analysis/Phase01_StartBaselineReport.md)를 읽는다.** §9~12는 패키지 인계부터 센서 보완까지의 기록이다. Saved는 git 제외이므로 새 세션/체크아웃에서는 원자료 존재부터 확인한다.
-2. **다음 착수 확인 대상은 1-B 환경 반입 준비다.** 진행 요청을 받으면 [기존 1-B0 선정 결과](phases/Phase01_RidgeZonePalette.md) §8을 유지하며 git 제외/반입·배치 방식과 작은 반입 시험 범위를 구체화한다. 이번 요청 범위는 1-A 마감·문서·커밋이며 1-B 작업은 시작하지 않았다.
-3. 1-B0을 재선정하지 않는다. 환경 반입·PCG·재질 변경·파라곤 선정은 후속 단위에서 진행하고 기존 보행 충돌/Support source를 보존한다.
+깨끗한 체크아웃은 **반입→진단→V001→V002 생성**, 정식 LVI를 **수동 Save Current Level As로 WIP 생성**→지각 Element0에 V002 MI 적용→소수 배치 순서다. 세 재질 빌더는 맵을 조작하지 않는다. **World `duplicate_asset` 직후 `load_level`은 World Memory Leaks 크래시를 냈으므로 재시도하지 않는다.** 상세 재현/검사용 광원 설정은 실행서를 따른다.
 
-## 3. 근거와 실행 규칙
+원본/파생 에셋·WIP·Saved는 Git 제외다. 저장소에는 식별 목록·재생성 코드·문서만 남긴다. 로컬 데이터가 없는 새 체크아웃에서 에셋이 자동 제공된다고 가정하지 않는다.
 
-- 최종 빌드/소스 식별/패키지 해시: `Saved/Profiling/Graphics/Phase01/Build_20261114/`의 SourceSnapshot.json·BuildStatus.json·PackageVerification.json, EditorBuild.log·Automation/index.json·PackageBuild.log.
-- 짧은 실행/교차 검증: `Saved/Profiling/Graphics/Phase01/PackageValidation/`의 Preflight.json·Comparison.json·Postflight.json 및 Medium/NoEnemies 하위 Launch/Exit/Run/Summary/Runtime.log. 첫 샌드박스 실행은 로그 생성 전 실패했고 같은 인자의 권한 확장 재시도는 통과했다. 원인은 미확정이다.
-- 정식 원자료: `Saved/Profiling/Graphics/Phase01/StartBaseline_20261114_Retry1/`의 Session.json·RepeatedSummary.json·ValidationStatus.json·GpuTelemetry.csv와 네 회차 자료. 전원 어댑터·Windows Best Performance·외부 모니터는 사용자 확인, 제조사 도구 모드/정확한 외부 패널 연결 GPU는 미확인이다. 최초 세션 스크립트는 빈 인자 오류로 게임 실행 전 실패했으며 실패 폴더도 보존했다.
-- 보완 원자료는 `NoEnemyTelemetryRetry_20261114/`, 최종 검증은 `StartBaseline_20261114_FinalValidation/RepeatedSummary.json`·ValidationStatus.json이다(같은 Phase01 상위). 최종 폴더는 기존 Medium 3회+보완 진단을 가리키는 파생 분석 인덱스이며 원자료를 옮기거나 덮어쓰지 않았다.
-- 측정 회차들에 VSM pages=4096 우선순위·GameplayCue 경로 폴백·NS_BurnLoop 누락/적 화상 VFX 비활성화 경고가 있다. 관찰 실행은 통과했으며 화상 VFX 검증은 아니다. 상세는 Phase 1 로그를 따른다.
-- 카메라·PIE·크래시 원자료: `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/`. 최종 육안 근거는 PathVisualValidation.json, 경과는 [Phase 1 로그](history/Phase01_Log.md)다.
-- 정식 측정 종료 뒤 게임/해당 센서 프로세스가 종료됐고 소스/보존 에셋 13파일·패키지 핵심 7파일 해시가 다시 일치했다. 새 실행 전 프로세스 상태를 다시 확인한다.
-- 성능 판정은 패키지에서만 한다. 짧은 실행은 `-AllowPreview`로 분리하며 정식 결과로 쓰지 않는다. 냉각·전원/GPU 환경 규약은 [Measurement](design/Measurement.md)를 따른다.
-- 빌드/Live Coding/쿡 직전에 사용자 병행 작업을 확인한다. UBT·cook/package는 AGENTS 규칙대로 처음부터 권한 확장으로 실행한다. Live Coding과 정규 빌드는 겹치지 않는다.
-- 각 구현/검증 단위가 끝나면 계속 진행할지 확인한다. 수동 PIE/GUI가 더 빠르면 즉시 요청한다.
-- 화면 녹화는 전체 모니터를 기록하므로 사용자가 다른 창을 닫고 자리를 비운다고 확인한 때만 실행한다. 이번 세션에서는 녹화하지 않았다.
+## 3. 다음 구현 단위와 남은 검증
+
+1. **다음 제안: 1-B4b 이끼 바위·절벽 부분 보강 소수 시험. 아직 미승인·미착수다.** 다음 세션에서 이 단위 진행 요청을 받으면 필요한 상태를 확인하고 착수한다. MossyForestBoulder_06의 MI는 **09**다. Cliff_01은 약13.59×9.33×14.19m여서 벽 전체 외장으로 쓰지 않고 노출/접촉을 함께 만족하는 작은 부분만 시험한다. 상세 팔레트/보호 원칙은 선정 문서 §8.5~8.7·10을 따른다.
+2. Fern은 별도 구면 바람/WPO·변위 시험이 필요하다. 하상 재도입/다른 후보 자동 대체는 승인하지 않았다. 1-B0을 재선정하지 않는다.
+3. 대표 구역 PCG/전체 확장 전 **재질 샘플 비용 축소·최종 화질·전체 bounds 보호 마스크·PIE 발/카메라/탄환·실제 SurfaceData 현재성/런타임 로드**를 확인한다. 현재 WIP의 런타임 SupportData 연결이나 독립 PIE 성공을 전제하지 않는다.
+4. 원거리 반복·전체 밀도, 구역의 단단한 경계, 기존 지각의 큰 삼각형 음영, 모든 회전 slot/적도/이음매, 게임 조명과 패키지 성능은 미검증이다. 근경 확인이나 한 에디터 회전을 전체 통과로 확대하지 않는다.
+
+## 4. 근거와 재발 방지
+
+공통 상위는 `Saved/Profiling/Graphics/Phase01/`이며 Saved는 로컬 자료다. 현재 결과 요약/재현 절차는 추적되는 [환경 반입 실행서](phases/Phase01_EnvironmentImport.md)가 소유한다.
+
+| 자료 | 위치·핵심 파일 |
+|:---|:---|
+| 반입 식별/검증 | `EnvironmentImport_20261114/`의 MigratedFiles·AssetVerification·FinalFileChecks/LiveChecks |
+| 좌표 진단/맵 크래시 | `RidgeSurfaceProbe_20261114/`의 Completion·FinalFileChecks·Crash_20261114 |
+| V001 투영/노멀 | `RidgeSurfaceMaterial_20261114/`의 Verification·NeutralNormalWorldComparison |
+| V002 반복 완화 | `RidgeSurfaceAntitile_20261114/`의 Verification·FinalStatistics·NeutralNormalNoAAComparison·Views |
+| 최종8개 소수 시험 | `RidgeGroundProbe_20261115/`의 Verification·FinalFileChecks·WipAfter·Views/Final_Close/A. BeforePlacement.umap은 배치 전 백업 |
+| 커밋 제외 검사 | `Handoff_20261115/RepositoryAudit.json` |
+
+- UE5.8 scalar setter는 성공해도 false를 반환하는 경우가 있어 getter로 검증한다. HLSL 예약어 `line`을 변수로 쓰지 않는다. MaterialFunction 노드 조회에는 Material 전용 API를 쓰지 않는다.
+- 노멀 표시 비교는 TSR 켜짐에서 변경 없는 캡처끼리도 차이가 났다. 진단 AA0/구역 내부 마스크/동일 구도를 사용한 결과와 실패 자료를 분리하고 실제 노멀·AA4·Lit를 복원했다. 같은 실효값 복구이며 원래 콘솔 변수 우선순위까지 복원됐는지는 미확인이다.
+- 소수 배치의 spec 높이 오차30cm 가드는 실제 지각 차이로 중단돼 **실제 hit component 확인**으로 고쳤다. 2m 경로 여유·bounds→spec 계수1.2는 시험용 가드이며 최종 PCG 규약이 아니다.
+- **구현 단위마다 계속 진행할지 확인하고, 수동 PIE/GUI가 빠르면 즉시 요청한다.** 현재 다음 단위 승인은 받지 않았다. 기존 미저장 사용자 변경을 임의로 버리거나 저장하지 않는다.
+- 성능은 패키지에서만 판정한다. 새 전체 빌드/쿡 전 병행 작업을 확인하고 AGENTS의 권한 확장 규칙을 따른다. 화면 녹화는 별도 사용자 확인이 필요하다.

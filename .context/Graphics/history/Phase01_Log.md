@@ -321,3 +321,121 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - 최근 커밋의 `접두어: 한국어 제목`과 본문 bullet 형식을 확인했다. 이번 변경은 그래픽스 문서 8개이며 `docs:`로 커밋한다. Saved의 원자료/실행용 스크립트와 라이선스 에셋은 커밋하지 않는다.
 - 다음 단위는 사용자 착수 확인 뒤 1-B 환경 반입 준비다. 선정 재검토·환경 반입·PCG·재질 변경·파라곤 선정·녹화·새 빌드/쿡/Live Coding은 하지 않았다.
 - 커밋 전 문서 8개·상대 링크 93개·소스/보존 에셋 13파일·패키지 핵심 7파일 해시·변경 범위와 git diff --check를 통과했다. 원자료는 Saved에 보존하고 문서만 커밋한다.
+
+### 1-B1 — 환경 반입 준비 완료·다음 단위 확인 대기(2026-11-14)
+
+- 사용자가 Phase 1-B 진행과 구현 단위별 진행 확인·수동 조작 우선을 요청했다. 필수 문서·1-A 마감/출발 기준선·1-B0 §8을 읽고 기존 구역/톤/6종 조건부 팔레트를 유지했다. 첫 단위는 반입 준비로 한정했다.
+- 기존 P4 자료와 실제 원본을 읽기 전용으로 검사했다. 104파일·1,785,971,111 bytes가 일치했고 타깃 동일 경로 파일은 0개다. 현재 SHA256 104개를 기록했으며 과거 해시가 있던 14개는 모두 일치했다. 나머지 90개는 과거 내용 일치까지 검증한 것이 아니다.
+- `Scripts/Profiling/Graphics/ElectricDreamsPalette.json`에 14시작점·104패키지의 클래스/크기/해시·외부 참조를 추적 가능한 목록으로 남겼다. 원본 에셋 데이터는 포함하지 않았다.
+- `.gitignore`에 실제 원본 경로와 타깃 파생본 폴더를 추가했다. 원본 경로 유지 Migrate를 택했으며 폴더 이동·참조 치환·원본 편집은 하지 않는다. 자동 검사에서 원본 104경로·파생/WIP 대표 3경로가 제외되고 원본 추적 파일 0개·자체 제작/식별 목록 비제외를 확인했다. 첫 검사는 PowerShell의 CRLF 파이프 입력 때문에 단일 파일 제외 규칙 4개를 놓쳤다. 인자 배열로 전달해 재검사했으며 제외 규칙을 넓혀 우회하지 않았다.
+- `Phase01_EnvironmentImport.md`에 Migrate 절차와 재질→소수 수동 배치→PCG→전체 확장, Decoration 계약·보호 영역·시험/마감 기준을 작성했다. 원본 지형 재질 파생본을 우선하고 Cliff는 부분 보강만 시험한다. 정식 Ridge와 Support source를 보존한다.
+- VT 65/66이며 원본 DefaultEngine.ini는 `r.VirtualTextures=True`다. 타깃 프로젝트/사용자 Engine.ini에 명시 값이 없어 다음 단위에서 실효값·로드/컴파일을 확인한다. 전역 설정 변경이 필요하면 별도 단위와 같은 조건의 대조 측정을 검토하도록 남겼다. 현재 설정은 바꾸지 않았다.
+- Codex의 도구 목록에 Unreal MCP가 없고 프로젝트 `.mcp.json`에는 8000/8001/8002가 있다. CIM 프로세스 조회는 접근 거부, 일반 Get-Process는 결과가 없었으며 라이브 에디터 상태를 확인했다고 쓰지 않았다. 다음 실제 조작 전 연결 복구 또는 사용자 수동 확인이 필요하다.
+- 검증 근거: `Saved/Profiling/Graphics/Phase01/EnvironmentPreparation_20261114/Preflight.json`·`Validation.json`. 1-A Build SourceSnapshot의 13파일 해시 보존도 확인했다. 소스/렌더 설정/기존 에셋은 바꾸지 않았으므로 빌드·쿡·PIE·패키지 재측정은 하지 않았다.
+- Current·README 라우팅·Phase 1 실행서/체크리스트·1-B0 인계를 갱신했다. **1-B1 완료, 1-B 전체는 미완료다.** 다음은 사용자에게 1-B2 진행을 확인하고 더 빠른 수동 GUI Migrate를 요청하는 것이다. 실제 반입·파생 재질·PCG·시험 배치는 아직 하지 않았다.
+
+### 1-B2 착수 — 라이브 사전 확인·수동 Migrate 요청(2026-11-14)
+
+- 사용자가 Electric Dreams(8001)와 LootNPop(8000) 에디터 준비 및 진행을 승인했다. 양쪽 MCP가 응답했고 UE 5.8.4·PIE=false, 현재 맵은 원본 Startup/타깃 TestMap03이다.
+- 원본 14시작점의 전이 의존성을 다시 조회해 104패키지 목록이 식별 JSON과 같음을 확인했다. 원본 맵/104패키지 dirty=false, 디스크 해시 104개 일치, 타깃 동일 경로 파일 0개다.
+- 타깃 TestMap03·정식 Ridge LVI/SurfaceData·풀·기본 SpawnConfig가 dirty=false다. Ridge 구성/기본 데이터/설정/카메라 12파일의 반입 전 해시를 기록했다. 양쪽을 저장하거나 원본 에셋을 수정하지 않았다.
+- 타깃 r.VirtualTextures=1을 실효 조회했다. VT 활성화 설정 변경/재시작 없이 반입 후 로드·샘플러 검증을 할 수 있다. 현재 값만으로 실제 반입 재질의 컴파일 성공을 주장하지 않는다.
+- 원본 Content Browser에 14시작점을 선택하고 재조회했다. 수동 GUI가 더 효율적이므로 사용자에게 Asset Actions→Migrate, 의존성 유지, 정확한 LootNPop/Content 목적지를 안내했다. 충돌/목록 차이는 복사 전에 멈추도록 요청했다. 아직 반입 완료 답변이나 타깃 파일을 검증하지 않았으며 1-B2는 진행 중이다.
+- 근거는 Saved/Profiling/Graphics/Phase01/EnvironmentImport_20261114/BeforeMigrate.json·ProtectedFilesBefore.json이다. 다음은 사용자 완료 답변 뒤 파일/의존성/로드 검증이며 1-B3는 시작하지 않는다.
+
+### 1-B2 완료 — 104패키지 반입/로드·미리보기와 보존 검증(2026-11-14)
+
+- 사용자가 Migrate 완료를 알렸다. 기대한 104파일이 모두 존재하고 추가/누락은 0개, git 제외 104·추적 원본 0개다. 원본 104파일과 반입 전 보호 12파일의 해시가 유지됐다.
+- 반입본은 104파일 모두 원본과 해시/크기가 달라졌다. 엔진 AssetTools.cpp의 SaveInstancedPackagesIntoDestination(1063행)·GEditor->Save(1107행)와 실제 Migrate 성공 로그를 대조해 대상 재직렬화 경로임을 확인했다. 원본 해시 목록을 타깃 해시로 덮어쓰지 않고 MigratedFiles.json에 별도로 기록했다.
+- 타깃 104패키지 로드·클래스가 통과했고 /Game 전이 closure는 104개, 누락 0이다. 재저장 뒤 일부 직접 의존성에 전이 참조가 추가되고 텍스처의 Interchange 스크립트 참조 일부가 사라졌다. 기존 /Game 의존성 삭제와 팔레트 밖 새 /Game 패키지는 없다.
+- 선정 6메시를 양쪽 라이브 로드 뒤 비교했다. bounds·LOD0 삼각형/정점·슬롯/MI·Nanite/fallback·DF/RT·complexCollisionMesh 설정이 같다. LOD0 삼각형은 Cliff 9424, Sandstone 7166, MossyForest 7414, DryRiverBed 27846, Clover 1716, Fern 306이다. 6개 모두 Nanite=true·슬롯 1개다. 원본 최적화는 하지 않았다.
+- 텍스처 66개·VT 65개와 주요 Format/Dimensions/SRGB/CompressionSettings/VT/SourceFormat 태그가 기존 기록과 같다. 저장 형식 SourceCompression은 PNG→UE Delta로 바뀌었다. 이를 픽셀 데이터 바이트 동일성 검증이라고 쓰지 않았다.
+- Migrate 후 원본 get_asset_class가 레지스트리 엔트리 부재로 실패했다. 소스 태그 비교는 읽었으나 현재 로드/레지스트리 상태가 달라 저장 전 태그와 그대로 비교하지 않았다. is_dirty 104개 true는 실제 dirty뿐 아니라 레지스트리상 디스크 엔트리 부재도 true로 반환하는 도구 구현의 영향을 받는다. 실제 source memory dirty는 분리 확인하지 못했다. 파일 해시는 유지됐고 원본을 저장/복원하지 않았다.
+- 첫 MI 썸네일은 미리보기 셰이더 요청 직후 기본 재질이었고 재조회에서 사암 텍스처가 표시됐다. 이후 두 에디터의 고용량 에셋 로드 상태에서 VRAM 부족 경고가 발생해 추가 캡처를 중단하고 사용자에게 원본만 저장 없이 종료를 요청했다. 사용자가 종료 완료를 확인했다. GPU 메모리는 7652/8188MiB→종료 직후5567/8188MiB→최종5666/8188MiB였다. 에디터 메모리 관측이며 패키지 성능 판정은 아니다.
+- LootNPop만으로 메시 MI 6개·지형 MI/부모의 미리보기 총8개를 다시 확인했고 VRAM 경고 없이 텍스처/Masked 식생이 표시됐다. 첫 메모리 부족 이미지는 Previews/, 최종은 PreviewsSingleEditor/로 나눴다. API가 에셋/재질 컴파일 완료를 기다리는 구현도 확인했다. 타깃 104패키지와 보호 대상 5패키지의 dirty 0, 재질/셰이더/텍스처/패키지 로드 오류 로그 0, r.VirtualTextures=1이다.
+- 최종 원본 104파일·보호 12파일 해시 재일치, 반입본 104파일의 로드/미리보기 전후 해시 불변을 통과했다. 근거는 Saved/Profiling/Graphics/Phase01/EnvironmentImport_20261114/의 AfterMigrateFiles.json·MigratedFiles.json·AssetVerification.json·FinalFileChecks.json·FinalLiveChecks.json·Completion.json·PreviewsSingleEditor/다. 큰 원자료 저장 시 셸 실행 인자 길이 및 Node 64000-byte 제한에 걸린 시도가 있어, 필요한 비교값으로 줄인 보고서와 작은 이미지 데이터 청크를 파일로 기록했다. 이 실패를 에셋 검증 실패로 집계하지 않았다.
+- Current·반입 실행서 §7·상위 실행서/체크리스트·Roadmap·1-B0 인계를 갱신했다. **1-B2 완료, 다음은 사용자 진행 확인 뒤 1-B3 지각 재질 시험**이다. 파생 재질·WIP 배치·정식 Ridge 적용·PCG·베이크·빌드/쿡·패키지 성능/구면 품질 검증은 하지 않았다.
+
+### 1-B3a 진행 — 좌표/마스크 진단 구현·두 실패와 복구 대기(2026-11-14)
+
+- 사용자 1-B3 진행 승인으로 텍스처 투영 전 좌표·현지 Up 경사·대표 구역 마스크 진단을 첫 단위로 나눴다. BuildRidgeSurfaceProbe.py에 좌표 함수·Unlit 진단 재질·Scope/Slope/Grid MI를 작성했다. float32 역투영 48표본 최대 XY 오차 0.001953125cm·8변 convex/반시계·Python 구문 검사를 통과했다. GPU/회전 검증은 아니다.
+- 첫 사용자 실행은 HLSL 예약어 line 때문에 컴파일 실패하고 scalar setter 반환값 assert에서 멈췄다. gridLine으로 수정한 라이브 재질 recompile은 성공했다. UE 5.8 MaterialEditingLibrary.cpp:1485~1493에서 scalar setter가 실제 변경 후에도 false를 반환함을 확인해 getter 재조회로 바꿨고 ProbeMode=0을 확인했다. 첫 미완성 3에셋만 정리하고 부재를 재조회했다. 보호 12파일 해시는 같았다.
+- 두 번째 사용자 실행은 수정된 진단 5에셋 저장 뒤 새 World duplicate_asset→load_level에서 에디터가 World Memory Leaks:2로 종료됐다. 로그의 참조 체인은 WIP standalone World의 GC keep flags와 패키지 잔류를 가리킨다. Python strong reference가 직접 원인이라고까지 확인한 것은 아니다. WIP umap 파일은 없고 진단 에셋 5파일은 저장됐다. 보호 12파일은 모두 그대로다.
+- 크래시 로그/컨텍스트를 Saved/Profiling/Graphics/Phase01/RidgeSurfaceProbe_20261114/Crash_20261114/에 보존하고 Recovery.json을 남겼다. 원본 Saved/Crashes 디렉터리도 보존한다.
+- 빌더에서 World 복제·맵 전환·적용을 제거하고 에셋 생성만 남겼다. 기존 스크립트 재실행이나 같은 자동 전환을 요청하지 않는다. 사용자에게 LootNPop 재시작, 정식 Ridge LVI를 열고 Save Current Level As로 WIP를 저장해 달라고 요청했다. 이는 아직 완료 답변 전이다.
+- 1-B3a/1-B3는 미완료다. 사용자 수동 WIP 저장 뒤 현재 맵 경로 확인→기존 지각 컴포넌트만 MI 적용→컴파일/구역/경사/격자 표시와 정식 자산 보존 검증이 남았다. 텍스처/노멀 원본 그래프 파생은 후속 단위다.
+
+### 1-B3a 완료 — 수동 Save As 복구·GPU 좌표/마스크 진단(2026-11-14)
+
+- 사용자가 LootNPop을 재시작하고 정식 Ridge LVI를 Save Current Level As로 WIP에 저장했다. MCP 읽기로 정확한 WIP 경로·PIE=false·dirty=false를 확인했다. 보호 12파일 해시도 그대로였다. 자동 World 복제/맵 로드는 재시도하지 않았다.
+- WIP의 StaticMeshActor 3개 루트 컴포넌트에서 실제 StaticMesh를 대조해 지각 1개를 식별했다. 변경 전 actor transform·메시·overrideMaterials·componentTags·상대 transform·BodyInstance를 WipBefore.json에 저장한 뒤 지각에만 Slope MI를 적용하고 WIP를 저장했다.
+- A에서 분지 바닥 초록·절벽 빨강·중간 띠 노랑, Grid의 1000cm 접평면 격자를 확인했다. C에서는 Scope 구역 안 초록·밖 회색이 보였다. 다른 암반 Floor/Shell의 재질 바인딩은 M_Ridge_Rock을 유지했다. 진단 Emissive의 주변 조명 영향과 실제 재질 바인딩 변경을 구분한다.
+- 세 메시 액터와 카메라를 월드 Z +90도로 함께 회전해 Grid/Slope 각각을 캡처했다. 격자/구역 경계·경사 분류가 같은 표면 위치에 남는 것을 육안 확인했다. 8개 런타임 slot·픽셀 동일성 검증은 아니다. try/finally로 원래 transform·A 카메라를 복원하고 Slope로 저장했다.
+- 최종 WipAfter.json 비교에서 actor transforms는 모두 원래 값이고 component 차이는 지각 overrideMaterials 1곳뿐이다. 다른 StaticMesh·componentTags·상대 transform·BodyInstance/profile/response는 같다. WIP dirty=false, 재시작 후 셰이더/World 오류 로그 0이다.
+- 현재 스크립트의 METRIC_CODE/DISPLAY_CODE와 저장된 Custom 노드 코드가 일치했다. MI ProbeMode=0/1/2를 재조회했고 Emissive 연결·WPO/Displacement 미연결을 확인했다. 보호 12파일·반입 원본 104파일의 최종 해시도 유지됐다.
+- 근거는 Saved/Profiling/Graphics/Phase01/RidgeSurfaceProbe_20261114/의 Completion.json·WipBefore/After.json·FinalFileChecks.json·ExpectedCode.json·Views PNG 5개다. 최종 WIP SHA256=ED10DD7C46E3C9951B05B0A9855DE8F2C7EF66797D10F117233AB02F9B95CBA6. 첫 CaptureViewport 호출은 optional 입력 기본값 문제로 거부돼 실제 transform과 비활성 annotation 값을 명시한 호출로 캡처했다. 에셋/코드를 바꾸는 우회는 하지 않았다.
+- 빌더는 진단 에셋만 만들며 레벨 복제/전환을 하지 않는다. 재현은 에셋 생성→사용자 Save As→WIP 지각 Element0에 MI 지정 순이다. 현재 5에셋이 있어 빌더 재실행을 요청하지 않는다. 코드는 저장소에, 에셋/WIP/원자료는 git 제외 경로에 남겼다.
+- **1-B3a 완료, 1-B3/1-B/Phase 1 전체는 미완료다.** 접평면 Grid가 급경사에서 늘어나므로 최종 절벽 UV로 채택하지 않는다. 다음은 사용자 진행 확인 뒤 1-B3b 원본 지형 그래프 파생본의 텍스처 투영·노멀 처리 시험이다. 암반 외부/지하 마스크·근경/경계 전이·적도/전체 slot·이음매·PIE/SupportData·패키지 비용 검증은 남아 있다.
+
+### 1-B3b 원본 파생·투영/노멀 기술 검증, 반복감 미통과(2026-11-14)
+
+- 사용자 승인으로 BuildRidgeSurfaceMaterial.py와 원본 지형 부모/MI 파생본 2개를 만들고 WIP 지각에만 적용했다. 엔진 WorldAlignedTexture/WorldAlignedNormals_HighQuality에 명시 로컬 좌표/법선을 공급하며 색/거칠기 조절은 원본을 재사용했다. BeachCliff 2000cm·MossyRockyGround 400cm, 경사 30~70도는 첫 시험값이다.
+- 초기 World→Tangent 출력의 중립 노멀 검사는 29,417표본·RGB8 p95=7/max=109로 실패했다. 월드 출력·기하 월드 노멀 블렌드로 수정한 재검사는 평균0.4330·p95=1/max=2로 통과했다. 표시 RGB 차이이며 각도 오차/전체 프레임 동일성은 아니다. 실제 노멀 텍스처를 복원했다. 실패 자료와 초기 Creation 기록은 보존했다.
+- 사용자가 Unlit/WorldNormal/Lit 전환을 수행했다. WIP에 에디터 전용 검사용 점광원 1개를 추가하고 A/B 및 한 +90도 회전 사례를 캡처했다. 3메시·광원 transform은 복원했다. B의 큰 삼각형 음영은 기존 단색 재질에서도 보여 기존 지각 후속 항목으로 남겼다. 게임 조명·전체 런타임 slot·PIE·패키지 성능 검증은 아니다.
+- 최종 저장 부모/MI·WIP dirty=false·관련 셰이더/World 오류 필터 빈 목록, 보호 12파일·반입 104파일 해시 보존을 확인했다. 기존 3메시 컴포넌트 차이는 지각 overrideMaterials뿐이다. 추가 광원은 별도다.
+- 사용자 근경 판정: 늘어짐이나 눈에 띄는 어색함은 없으나 누가 봐도 타일이라고 느낄 정도로 규칙적이고 기계적인 반복이 매우 명확하다. **투영/노멀 기술 검증 통과·반복감 미통과.** 최종 재질/팔레트 채택이나 1-B3/Phase 1 완료로 처리하지 않는다.
+- 다음 1-B3c는 무늬 배치/방향의 반복 완화 후보와 노멀 정합·이음새·추가 샘플 비용을 확인하는 단위다. 아직 착수하지 않았으며 사용자 진행 확인을 받는다. 구현/재현 상세는 환경 반입 실행서 §10, 근거는 Saved/Profiling/Graphics/Phase01/RidgeSurfaceMaterial_20261114/의 Verification.json·WipBefore/After.json·FinalFileChecks.json·NeutralNormalWorldComparison.json·Views PNG 10개다.
+
+### 1-B3c 착수 — 엔진 Texture_Bombing 재사용 시험(2026-11-14)
+
+- 사용자가 반복 완화 단위 진행을 승인했다. 기존 엔진 함수를 조사해 위치/방향 변형과 Is Normalmap 보정 입력을 확인했다. 원래 구면 투영/월드 노멀 프레임을 유지하며 각 투영의 샘플을 Texture_Bombing으로 바꾸는 별도 V002 스크립트를 작성했다. 높이 블렌드를 꺼 색/거칠기/노멀의 가중치를 맞춘다. 함수/부모/MI 4개만 생성하며 맵 조작은 없다.
+- PIE=false·정확한 WIP 경로·V001 부모/MI와 WIP dirty=false·지각 V001 적용을 확인했다. 사용자 근경·A/B의 기존 Lit 3개와 Preflight.json을 보존했다. 보호 12·반입 104파일·V001 부모/MI·WIP 해시가 직전 단계와 같다.
+- 첫 수동 실행은 함수 복제 직후 Material 전용 노드 조회에 MaterialFunction을 전달해 TypeError가 났다. MaterialTools.get_expressions로 수정하고 미완성 MF_RidgeBombAlignedTexture 1개만 삭제·부재 재조회했다. Python 구문 검사는 통과했다. 사용자에게 수정본 실행을 요청했다.
+- 아직 최종 생성·컴파일·WIP 적용/노멀·반복감·비용 통과가 아니다. 원자료는 Saved/Profiling/Graphics/Phase01/RidgeSurfaceAntitile_20261114/의 BeforeImages.json·Views/Before_*.png·Preflight.json·FirstRunError.json이다. 세부 구현/인계는 환경 반입 실행서 §11을 따른다.
+
+### 1-B3c 초기 V002 적용·바닥 보완, 중간 검증 대기(2026-11-14)
+
+- 수정본 생성 성공·MCP 재컴파일 통과·함수 2개 각 bombing 호출3개·색/마스크4/노멀2 교체·Height Lerp=false·노멀 경로 Is Normalmap=true를 확인했다. WIP 지각에만 적용·저장하고 기존과 같은 근경/A/B 3개를 캡처했다.
+- 보완 전 MI 통계는 V001→V002 픽셀 명령1565→5270·샘플러2→7·픽셀 샘플21→75·VT 조회18→72, 정점 명령148/샘플0이다. 에디터 플랫폼의 셰이더 추정이며 패키지 GPU 시간으로 확대하지 않는다. 높은 비용으로 성능 적합 채택은 보류했다.
+- 사용자 첫 판정은 절벽 수용 가능, 바닥은 여전히 규칙적 타일 반복이다. 바닥에만 로컬 위치 기반 두 크기의 부드러운 값 노이즈로 색/거칠기 변화를 추가했다. Ground Macro Size1800cm/Strength0.5, 보조 크기 약48.6m다. 추가 텍스처 조회 없이 UV/노멀을 유지했고 컴파일/저장·Custom 코드 일치를 확인했다. 현재 빌더에도 같은 보완을 반영했다.
+- MCP Custom 입력 배열 변경이 거부돼 기본 구조 전체를 유지한 크기 확장→이름 변경으로 적용했다. 잘못된 배열은 저장하지 않았다. 처음에는 매크로 노드만 추가됐고 나머지 4노드는 수정 뒤 연결했다.
+- 사용자의 바닥 재판정/World Normal 전환을 기다린다. 중립 노멀 비교·실제 노멀 복원 확인·보완 후 통계·최종 보존 확인이 남아 있다. 아직 1-B3c/1-B3 완료가 아니다. Creation.json은 바닥 보완 전 통계이며 최종 통계와 구분한다. 상세는 환경 반입 실행서 §11, 코드 검증은 MacroVerification.json·캡처는 Macro_User.png다.
+
+### 1-B3c 기술 검증 마감 — 잔여 반복/비용 조건부 후보(2026-11-14)
+
+- 사용자 보완 후 판정은 바닥과 벽에 잔여 반복이 있으며 프랍/식생 포함 장면에서는 덜 느껴질 수 있다는 의견이다. 최종 화질 승인으로 해석하지 않는다. V002를 후속 소수 배치의 조건부 시각 후보로 유지한다. 동선/Pod/훅 공간을 모두 덮는 계획은 없다.
+- TSR 켜짐의 엄격한 내부 마스크 비교는29,043표본·p95=4/max98, V001 임시 사본은p95=1/max2였다. 변경 없는 중립 재캡처끼리 max109·기하 노멀끼리 max98도 관측돼 AA/캡처 영향을 분리했다. 초기 넓은 마스크·무효 PowerShell 읽기·TSR 켜짐 자료는 구분 보존했다.
+- 사용자가 AA4→0을 수행했고 실효값0을 확인했다. 같은 내부29,043표본 AA 끄기 비교는 평균0.3801·p95=1·최대2, 절벽13904/바닥10168/전이4971 각각도p95=1로 통과했다. 표시RGB 차이이며 각도/전체프레임 동일성은 아니다. 원래 허용오차를 넓히지 않았다. 실제 노멀을 복원·컴파일하고 V001 임시 사본2개를 삭제/부재 확인했다.
+- 사용자 AA4·Lit 복구와 CaptureStats.py 읽기 실행 뒤 실효값4·Lit 캡처를 확인했다. 콘솔 변수의 원래 우선순위 복원은 미확인, INI는 보존됐다. 최종 MI 통계는 V001→V002 픽셀명령1565→5367·샘플러2→7·픽셀샘플21→75·VT조회18→72, 정점명령148/샘플0이다. 바닥 보완은 명령97만 늘고 조회 수는 같다. GPU ms/패키지 성능 판정은 아니다.
+- 3메시+검사용 점광원+카메라 월드Z +90도 Lit 한 사례에서 무늬 정합을 확인하고 transform을 finally로 복원/재조회했다. GI/노출 이력의 밝기 차이를 픽셀 불변으로 해석하지 않는다. 전체 런타임 slot은 남아 있다.
+- 파생4에셋·WIP 저장/dirty=false, 기존3메시 차이는 지각 overrideMaterials V001→V002뿐이다. 보호12·반입104·V001 부모/MI 해시가 유지됐고 V0024파일 git 제외를 확인했다. Bomb Offset1·Ground Macro Size1800/Strength0.5·editor-only 광원·실제 두 노멀 텍스처 복원을 재조회했다. 관련 shader compile/World Memory 오류 필터는 빈 목록이다.
+- 재생성 코드는 BuildRidgeSurfaceAntitile.py에 반영했다. 저장된 매크로 코드 일치·Python 구문 검사와 라이브 셰이더 컴파일을 통과했으며, 최종 보완 후 깨끗한 경로에서 전체 재생성을 다시 하지는 않았다. 기존 산출물이 있어 재실행하지 않는다.
+- 근거는 Saved/Profiling/Graphics/Phase01/RidgeSurfaceAntitile_20261114/의 Verification.json·FinalFileChecks.json·WipBefore/After.json·ComponentComparison.json·FinalStatistics.json·NeutralNormalNoAAComparison.json·MacroVerification.json·Views PNG19개다. 상세는 환경 반입 실행서 §12가 소유한다.
+- **1-B3c 구현/기술 검증 마감, 최종 재질/성능·1-B3/1-B/Phase1 미완료.** 다음은 진행 확인 뒤 1-B4a 낮은 사암·하상·클로버 소수 배치 시험을 제안한다. 접지/노출·보호 영역·장면 속 반복감을 확인하고 대표 구역 PCG/전체 확장 전 샘플 비용 축소/최종 화질 판정을 한다. 아직 배치를 시작하지 않았다.
+
+### 1-B4a 착수·소수 배치 기술 확인, 근경 판정 대기(2026-11-15)
+
+- 사용자 진행 승인 뒤 TestMap03·PIE=false를 확인했다. 기존 WIP 열기를 수동 요청해 완료했고, dirty=false·V002 지각 바인딩·보호12/반입104 해시 보존을 확인했다. 새 World 복제/자동 로드는 하지 않았다.
+- BuildRidgeGroundProbe.py에 사암2·하상2·클로버6의 개별 시험점을 작성했다. 경로 초안+전체 bounds·구역/이음매/암반 footprint·Pod3D(사암)·착지/입구·실제 경사를 생성 전에 검사한다. 실제 complex trace hit normal에 현지 Z를 정렬하며 지각/원본 에셋은 수정하지 않는다.
+- 첫 실행은 spec/실제 지각 높이 오차30cm 가드에서 사암2점(실제62.82/39.98cm)이 멈춰 액터0개였다. 가드를 실제 hit component == 기존 지각으로 바꿨고 수정본 생성은 성공했다. 원래 높이장 근사치를 실제 지각 확인에 쓰지 않는다. 첫 계획과 로그를 보존했다.
+- 추가10개 모두 Decoration 단독·LNPDecoration/NoCollision·Nav영향=false, 원래3메시 스냅샷 보존·WIP 저장/dirty=false를 확인했다. 경로 여유 초안+bound 바깥 최소112.60cm·사암 Pod3D 구+bound 바깥169.27cm·최대 실제경사16.36도다. 2m/계수1.2는 시험 가드이며 최종 PCG 규약이 아니다.
+- 새10개 모두 CastShadow/VisibleInRayTracing/AffectDistanceFieldLighting=true를 상속했다. 원본 메시/MI·Nanite/DF/충돌을 수정/최적화하지 않았다. 관련 shader/WorldMemory/VRAM 오류 필터는 생성 성공 로그 외 빈 목록이다. TSR실효4를 재조회했다.
+- 배치 전 BeforePlacement.umap은 PreflightFiles.json의 WIP해시와 같다. 자료는 Saved/Profiling/Graphics/Phase01/RidgeGroundProbe_20261115/의 Plan.json·Placement.json·TechnicalVerification.json·BackupVerification.json·ExecutionLog.json·Views/Before_A.png다.
+- 자동 FocusOnActors가 멀어 접지를 판정하지 않았다. 사용자에게 선택10개 F/직접 근접 관찰로 사암 뜸/매몰·하상 테두리/색·클로버 부유/판 모양을 확인해 달라고 요청했다. 현재 답변 대기이며 1-B4a/최종 팔레트 완료가 아니다. 전체 훅 시야/접근, PIE 발/카메라/탄환, 런타임 SurfaceData·패키지 성능·전체밀도 반복감은 미검증이다.
+
+### 1-B4a 근경 시험 마감 — 사암/클로버 통과·Riverbed 제외(2026-11-15)
+
+- 사용자가 전체적으로 들뜨거나 이질감이 없으며 근경에서는 지각 반복도 거슬리지 않는다고 확인했다. 역할을 구분한 뒤 Sandstone은 매우 자연스럽고, Riverbed는 표면 자체는 자연스러우나 너무 네모라 주변과 어울리지 않는다고 명확히 판정했다.
+- 실패 역할을 자동 대체/원본 수정하지 않고 WIP의 직접 생성한 Riverbed_02/03 시험 액터2개만 제거·저장했다. 원본 하상 메시/MI와 반입104패키지/최초 식별 기록은 보존했다. 최종은 사암2/클로버6이다. 재생성 코드 POINTS도 고정ID를 유지한8개로 맞췄으며 기존 배치 위 재실행은 하지 않았다.
+- 최종 라이브8개 모두 Static·Decoration 단독·NoCollision/LNPDecoration·내비 영향 꺼짐을 확인했다. 원래3메시의 transform과 기존 스냅샷 필드 차이0, 보호12·반입104·V002재질4파일 해시 변화0이다. WIP dirty=false를 확인했다. 배치 전 사본도 당시 해시와 같다.
+- 초기10개 Plan/Placement·WipAfter_Initial10.json·Initial10Images.json을 보존하고 최종8개는 WipAfter.json·Verification.json·FinalFileChecks.json에 기록했다. 초기/최종 같은A·사용자 근경 등 PNG6개가 Views에 있다. 재생성 코드 Python AST는 통과했고, 역할 제외 후 전체 재생성은 중복 방지 때문에 다시 하지 않았다.
+- **1-B4a는 배치·기술 확인·사용자 근경 시험 범위에서 마감.** 전체 밀도/원거리 반복, PIE 발/카메라/탄환, 전체 훅 접근/회복, WIP 런타임 SurfaceData, 패키지 비용까지 통과한 최종 팔레트는 아니다. 다음은 진행 확인 뒤 이끼 바위와 절벽 부분 보강 소수 시험을 제안한다. Fern 바람/변위와 재질 샘플 비용 축소도 남아 있다.
+- 현재 팔레트는 Phase01_RidgeZonePalette.md §10, 실행/제외/재현 근거는 Phase01_EnvironmentImport.md §13을 따른다. 소수 시험 맵/원본/원자료는 git 제외이며 커밋은 하지 않았다.
+
+### 새 세션 인수인계·단일 커밋 준비(2026-11-15)
+
+- 사용자 요청으로 Current.md를 현재 Phase1-B 상태·로컬 WIP/재생성 순서·다음1-B4b·미검증/재발 방지 중심으로 줄였다. 완료된1-A 상세는 기존 보고서/실행서를 참조한다. 다음 단위는 아직 승인/착수하지 않았고 이번 요청은 문서/커밋 마감이다.
+- README 라우팅·상위 실행서의 현재 상태 표·환경 반입 실행서의 반입 전/최종 상태 표현을 정합했다. 재반입/기존 빌더 재실행 금지, World복제→로드 크래시, 실제 지각 hit 검증, AA 진단/복원, 배치/런타임/성능의 검증 경계를 인계했다.
+- ElectricDreamsPalette.json의 원본104개·파생11개·WIP맵1개·Saved 예시가 모두 Git 제외이고 이미 추적된 에셋0개임을 확인했다(Handoff_20261115/RepositoryAudit.json). 실패한 하상 원본도 로컬 반입 이력으로 보존하며 Git에는 넣지 않는다.
+- 커밋 범위는 문서·재생성 Python4개·식별JSON·.gitignore의 명시 목록만이다. 이전 커밋의 feat/docs/fix 접두어+한글 제목·항목형 한글 본문 양식을 확인했다. 이번 작업은 구현 코드가 포함돼 feat 접두어로 단일 커밋한다. 실제 해시는 git log에서 확인한다.
+- Python AST·식별 목록/파일/해시 형식·로컬 문서 링크·Git diff와 스테이징 에셋 제외를 검사한다. UE 생성/노멀/근경 검증은 앞선 해당 단위 결과를 사용하며, 세션 마감 때문에 빌드/쿡/재생성을 반복하지 않는다.
