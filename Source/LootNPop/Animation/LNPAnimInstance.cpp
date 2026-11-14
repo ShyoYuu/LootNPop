@@ -30,6 +30,7 @@
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Animation/AnimSubsystem_Tag.h"
+#include "RigVMHost.h"
 #include "StructUtils/InstancedStruct.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Animation/Skeleton.h"
@@ -70,6 +71,15 @@ namespace
 	TAutoConsoleVariable<int32> CVarDebugFootPlacement(
 		TEXT("LNP.Anim.DebugFootPlacement"), 0,
 		TEXT("Drive the DebugDraw input of the foot placement Control Rig (legs, floor collision, pins). 0: off, 1: on"),
+		ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> CVarRootGroundOffset(
+		TEXT("LNP.Anim.RootGroundOffset"), 1,
+		TEXT("Lower the animated root onto the floor plane under it on slopes (foot placement Control Rig input LNP_RootGroundOffset).\n")
+		TEXT("Mover's flat-base floor check keeps the capsule bottom radius*tan(slope) above the slope under its center,\n")
+		TEXT("which otherwise reads as a crouched pose to the motion matching idle search.\n")
+		TEXT("  0: off\n")
+		TEXT("  1: on"),
 		ECVF_Cheat);
 
 	/*
@@ -122,6 +132,44 @@ namespace
 	constexpr float SteeringTargetTimeMax         = 1.5f;
 	constexpr float SteeringProceduralTimeMin     = 0.1f;
 	constexpr float SteeringProceduralTimeMax     = 0.3f;
+
+	/*
+	 * 루트 지면 보정(경사 Idle 움찔 수정, 2026-11-14). Mover 평판 바닥 판정은 경사에서 캡슐 원판 가장자리가 먼저 닿아,
+	 * 캡슐 중심 아래 경사면이 메시 루트보다 반지름 × tan(경사각)만큼 아래에 있다. 이 간격을 발 배치 CR 공개 변수로 넘기면
+	 * CR이 루트 감쇠 직후 루트를 그만큼 내린다(0.1s 평활은 CR 몫). 상한은 평판 반지름 42cm로 걸을 수 있는 경사 범위를 덮는다.
+	 */
+	const FName RootGroundOffsetVariable(TEXT("LNP_RootGroundOffset"));
+	constexpr double RootGroundOffsetMax        = 50.0;
+	constexpr double RootGroundOffsetMinNormalUp = 0.2;  // 바닥 법선이 이보다 누우면(약 78° 이상) 평면 교차가 발산하므로 보정하지 않는다
+
+	/**
+	 * 발 배치 CR 노드의 리그 인스턴스에 루트 지면 보정량을 넣는다. CR 노드가 다음 그래프 갱신·평가에서 읽는다.
+	 * ControlRig 모듈 의존을 피하려고 노드 구조체(FAnimNode_ControlRig)의 리플렉션 멤버 ControlRig를 RigVM 호스트로 읽는다.
+	 * 변수가 없는 리그(다른 CR 노드)는 GetPublicVariableByName이 무효를 돌려 건너뛴다.
+	 */
+	void SetFootPlacementRootGroundOffset(UAnimInstance* Instance, double Offset)
+	{
+		const IAnimClassInterface* AnimClass = IAnimClassInterface::GetFromClass(Instance->GetClass());
+		if (AnimClass == nullptr)
+			return;
+		static const FName ControlRigNodeStructName(TEXT("AnimNode_ControlRig"));
+		static const FName ControlRigMemberName(TEXT("ControlRig"));
+		for (const FStructProperty* NodeProperty : AnimClass->GetAnimNodeProperties())
+		{
+			if (NodeProperty == nullptr || NodeProperty->Struct->GetFName() != ControlRigNodeStructName)
+				continue;
+			const FObjectPropertyBase* RigProperty = FindFProperty<FObjectPropertyBase>(NodeProperty->Struct, ControlRigMemberName);
+			if (RigProperty == nullptr)
+				continue;
+			const void* Node = NodeProperty->ContainerPtrToValuePtr<void>(Instance);
+			URigVMHost* Rig = Cast<URigVMHost>(RigProperty->GetObjectPropertyValue_InContainer(Node));
+			if (Rig == nullptr)
+				continue;
+			FRigVMExternalVariable Variable = Rig->GetPublicVariableByName(RootGroundOffsetVariable);
+			if (Variable.IsValid() && !Variable.IsArray() && Variable.GetBaseCPPType() == TEXT("double"))
+				Variable.SetValue<double>(Offset);
+		}
+	}
 
 	const FName OffsetRootNodeTag(TEXT("OffsetRoot"));
 	const FName SteeringTargetTimeCurve(TEXT("SteeringTargetTime"));
@@ -455,6 +503,18 @@ void ULNPAnimInstance::NativeThreadSafeUpdateAnimation(float DeltaSeconds)
 	OffsetRootNode->SetOffsetRootTranslation(Translation);
 	OffsetRootNode->SetOffsetRootRotation(Rotation);
 	OffsetRootTransform = FTransform(Rotation, Translation);
+
+	// 루트 지면 보정: 가상 루트에서 컴포넌트 Up 반대로 Mover 바닥 평면까지의 거리. 평지(메시 = 캡슐 바닥 - 2cm)에서는 약 0이다.
+	// 지상이 아니면 GroundNormal = Up·GroundLocation = 메시 위치라 0이 되고, 공중에는 CR 알파도 0이다.
+	double RootGroundOffset = 0.0;
+	if (MovementMode == ELNPMovementMode::OnGround && CVarRootGroundOffset.GetValueOnAnyThread() > 0)
+	{
+		const FVector ComponentUp = ComponentTransform.GetUnitAxis(EAxis::Z);
+		const double NormalUp = FVector::DotProduct(GroundNormal, ComponentUp);
+		if (NormalUp > RootGroundOffsetMinNormalUp)
+			RootGroundOffset = FMath::Clamp(FVector::DotProduct(Translation - GroundLocation, GroundNormal) / NormalUp, 0.0, RootGroundOffsetMax);
+	}
+	SetFootPlacementRootGroundOffset(this, RootGroundOffset);
 }
 
 bool ULNPAnimInstance::IsLocomotionSource() const

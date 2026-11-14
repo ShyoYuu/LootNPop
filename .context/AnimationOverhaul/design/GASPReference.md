@@ -246,7 +246,7 @@ B10 노드 설정(GASP):
 
 - 방향 enum `E_MovementDirection` 표시 이름 = F·B·LR·LL·RL·RR(값 0~5). Chooser는 좌·우를 **LL·RL**로만 고른다. `LR`·`RR` 루프 DB는 어느 행도 쓰지 않는다. 각 행에 방향 "Any" 행이 하나씩 비활성으로 남아 있다.
 - 루프 DB 항목은 모두 `bDisableReselection=True`, 미러·샘플 범위 기본값. 비용 바이어스는 DB마다 다르다(예: Run LL·RL 진행 포즈 −0.2, Sprint −0.5, Idles −0.01).
-- 스키마: `PSS_Relaxed_Loops` = 궤적(−0.125·0·0.33·0.8·1.35s, 위치·속도 XY) + `Phase` 곡선(0, −0.033s) + 골반 Heading X(0.3), **포즈 채널 없음**. `PSS_Relaxed_Idle` = 포즈(발 위치·속도, 골반·spine_05 속도) + 궤적(**가중치 0**). 정규화는 `PSN_Relaxed_All` 하나(`NormalizeWithCommonSchema`).
+- 스키마: `PSS_Relaxed_Loops` = 궤적(−0.125·0·0.33·0.8·1.35s, 위치·속도 XY) + `Phase` 곡선(0, −0.033s) + 골반 Heading X(0.3), **포즈 채널 없음**. `PSS_Relaxed_Idle` = 포즈(발 위치·속도, 골반·spine_05 위치) + 궤적(**가중치 0**). 정규화는 `PSN_Relaxed_All` 하나(`NormalizeWithCommonSchema`).
 - GASP MM 노드: 0.5s HermiteCubic, 블렌드 프로필 `FastFeet_InstantRoot`, 재생 속도 0.85~1.15, `poseReselectHistory` 0.3, 최대 블렌드 4, `bShouldFilterNotifies`.
 
 LootNPop 구성(2-2):
@@ -351,6 +351,7 @@ GASP `CR_Biped_FootPlacement`는 `ControlRigTools`(`list_nodes`·`list_pins`·`g
 - 공중: IK 없음(같은 이유, ik_foot = foot이면 LegIK는 무동작). 그래서 분기 노드 대신 CR 노드 알파를 Bool(`ShouldUseFootPlacementRig`, 블렌드 인 0.3s·아웃 0.2s)로 준다. 알파 0이면 CR이 실행되지 않고 상태가 멈추므로 착지 프레임에 `ForceReset`(`ShouldResetFootPlacement`)을 켠다(GASP는 공중에 CR 노드가 비관련이 돼 `OnBecomeRelevant`로 같은 일을 한다).
 - 시뮬 프록시 `bJustTeleported` 오탐(2-1)은 그대로 `Has Teleported`에 넣는다. 남은 오탐은 메시가 한 프레임에 실제로 크게 튄 경우라 핀·바닥 평활을 버리는 것이 맞다.
 - **움직이는 base 위에서는 핀 고정·루트 감쇠 끔**(`IsOnStaticGround`, A/B CVar `LNP.Anim.FootPlacementOnMovingBase`). CR 평가 시점의 컴포넌트 이동에는 이번 프레임 base 이동이 들어 있는데, C++가 공급하는 `BasedMovementDelta`(Mover `OnBasedMovementApplied` 누적)는 애니 갱신 시점까지라 한 프레임 늦다. 이동 패널 위에서 월드 공간 핀이 끌리다 반경 40cm에서 풀리며 다리가 끊겼고, 패널 상하 속도가 바뀌는 프레임마다 루트가 그 변화량(10cm 남짓)만큼 튀었다. 경사 보정(바닥 평활)은 영향이 작아 켠다. 텔레포트 판정은 메시 이동에서 base 몫을 빼고 잰다(안 빼면 패널 위에서 매 프레임 리셋).
+- **루트 지면 보정(2026-11-14, GASP에 없음).** `UpdateRootDamper` 끝(Sequence.D → Return 사이)에 공개 변수 `LNP_RootGroundOffset`을 0.1s Damp(상태 변수 `LNP_RootGroundOffsetDamped`)해 루트 Global Z에서 빼는 단계를 넣었다. Mover 평판 바닥 판정이 경사에서 루트를 반지름 × tan(경사각)만큼 띄워 MM Idle 검색이 웅크린 포즈를 고르던 문제다(TechDesign_CombatAnimation §1 "루트 지면 보정"). 값은 `ULNPAnimInstance`가 매 프레임 넣는다. 스크립트 `Scripts/AnimOverhaul/AddRootGroundOffsetCR.py` — 재배선 도중 함수 그래프가 잠깐 Return에 닿지 않아 컨트롤러 검증 에러가 Python 예외로 올라오므로, 기록만 하고 최종 링크 집합으로 판정한다.
 - **⚠️ 엔진 `OffsetRootBone` 구면 함정 4번째 — `MaxRotationError` 클램프.** 오차를 `Component⁻¹ × Simulated`(로컬)로 구해 축·각을 자른 뒤 `RotationOffset × Component`(월드 쪽)로 다시 곱한다. 북극에서는 두 회전이 모두 Z축이라 같지만, 적도에서는 로컬 Yaw가 월드 Z 회전으로 들어가 가상 루트가 최대 90° 기운다. 오차가 90°를 넘는 빠른 룩 회전에서만 나고, 루트 자식 `ik_foot_root` 기준으로 바닥 평면을 다시 표현하는 CR `AdjustPositionToPlane`(아래 −Z 교차)이 수 m 밖 교차점을 내 골반·발이 튀었다. 노드 값은 −1(GASP 기본)로 끄고 `NativeThreadSafeUpdateAnimation`이 Up 정렬 직후 컴포넌트 Up 둘레 90°로 자른다.
 - 경사(B5): `BS_Relaxed_{Walk,Run}_Loop_F_Slopes`를 참조하는 GASP 에셋은 SM 경로 Chooser `CHT_MoverCharacterAnimations_PoseMatch`뿐이다(GASP MCP `get_referencers`). MM 경로(AN-015)는 PSD를 고르고 PSS에 경사 채널이 없어, GASP MM 경로의 경사 대응은 CR slope warping뿐이다. BS를 PSD에 넣으면 MM이 경사각을 모른 채 BS 샘플을 고른다. **사용자 결정(AN-021): 반입·Chooser 경사 행 없이 CR slope warping만 쓴다.** 경사 전용 애니가 필요해지면 가산 레이어나 PSD 경사 채널을 별도로 설계한다(`Roadmap.md` 후보).
 
