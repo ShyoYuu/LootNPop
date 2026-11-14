@@ -186,10 +186,10 @@ bool ULNPGraphicsBenchmarkSubsystem::ReadViewpoints(const FString& Json, TArray<
 	double Seed, Slot, PCGOffset;
 	if (!Root->TryGetStringField(TEXT("coordinate_space"), Space) || Space != TEXT("octant_local")
 		|| !Root->TryGetStringField(TEXT("map"), Map) || Map != TEXT("/Game/Maps/TestMap03")
-		|| !Root->TryGetStringField(TEXT("octant_asset"), Asset) || Asset != TEXT("/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00")
+		|| !Root->TryGetStringField(TEXT("octant_asset"), Asset) || Asset != TEXT("/Game/Maps/Ridge_00/LVI_Octant_Ridge_00")
 		|| !Root->TryGetNumberField(TEXT("world_seed"), Seed) || Seed != 1
 		|| !Root->TryGetNumberField(TEXT("pcg_seed_offset"), PCGOffset) || PCGOffset != 0
-		|| !Root->TryGetNumberField(TEXT("target_slot"), Slot) || Slot != 6) return false;
+		|| !Root->TryGetNumberField(TEXT("target_slot"), Slot) || Slot != 1) return false;
 	const TSharedPtr<FJsonObject>* Lens;
 	double FOV, Aspect;
 	FString Axis;
@@ -254,12 +254,12 @@ bool ULNPGraphicsBenchmarkSubsystem::Prepare()
 		return false;
 	}
 	const auto& Definitions = Octants->GetSelectedOctantDefinitions();
-	if (!Definitions.IsValidIndex(6) || Definitions[6].LevelAsset.ToSoftObjectPath().GetLongPackageName() != TEXT("/Game/Maps/Acropolis_00/LVI_Octant_Acropolis_00"))
+	if (!Definitions.IsValidIndex(1) || Definitions[1].LevelAsset.ToSoftObjectPath().GetLongPackageName() != TEXT("/Game/Maps/Ridge_00/LVI_Octant_Ridge_00"))
 	{
-		Finish(false, TEXT("Acropolis is not in target slot 6"));
+		Finish(false, TEXT("Ridge is not in target slot 1"));
 		return false;
 	}
-	FString Path = FPaths::ProjectDir() / TEXT("Scripts/Profiling/Graphics/AcropolisViewpoints.json");
+	FString Path = FPaths::ProjectDir() / TEXT("Scripts/Profiling/Graphics/RidgeViewpoints.json");
 	FParse::Value(FCommandLine::Get(), TEXT("LNPGraphicsPath="), Path);
 	if (!FFileHelper::LoadFileToString(PathJson, *Path) || !ReadViewpoints(PathJson, Views, FieldOfView, ReferenceAspect))
 	{
@@ -361,7 +361,7 @@ bool ULNPGraphicsBenchmarkSubsystem::Prepare()
 void ULNPGraphicsBenchmarkSubsystem::UpdateView(double Phase)
 {
 	const FTransform Local = EvaluateView(Views, Phase);
-	const FTransform Slot(ULNPOctantSpawnSubsystem::OctantRotations[6]);
+	const FTransform Slot(ULNPOctantSpawnSubsystem::OctantRotations[1]);
 	Camera->SetActorTransform(Local * Slot);
 }
 

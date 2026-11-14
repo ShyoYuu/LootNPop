@@ -16,6 +16,6 @@ $taskArguments = @(
 )
 & 'C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat' @taskArguments
 if ($LASTEXITCODE -ne 0) { throw "BuildCookRun failed: $LASTEXITCODE" }
-$taskStagedPath = Join-Path $taskArchive 'Windows/LootNPop/Scripts/Profiling/Graphics/AcropolisViewpoints.json'
+$taskStagedPath = Join-Path $taskArchive 'Windows/LootNPop/Scripts/Profiling/Graphics/RidgeViewpoints.json'
 if (-not (Test-Path -LiteralPath $taskStagedPath)) { throw "Viewpoints NonUFS dependency was not staged: $taskStagedPath" }
 Write-Output "Graphics benchmark package ready: $taskArchive"

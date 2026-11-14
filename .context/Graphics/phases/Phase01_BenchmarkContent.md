@@ -1,12 +1,12 @@
 # Phase 1 — 벤치마크 콘텐츠
 
-> 상태: 진행 중 · 1-B0 선정 완료(조건부 팔레트), 다음 1-A 경로/출발 기준선
-> 마지막 갱신: 2026-11-13
+> 상태: 진행 중 · 1-A 경로·패키지 준비 완료, 패키지 실행 검증부터 새 세션으로 인계
+> 마지막 갱신: 2026-11-14
 > 범위: 고밀도 옥탄트 1개·파라곤 적 2~3종(GX-004)
 
 ## 1. 목적과 비교 조건
 
-현재 월드에 실제 렌더 부하를 대표할 콘텐츠를 넣고, 같은 조건의 투입 전후 비용을 비교한다. Phase 0의 Meadow 포함 패키지(`29305b7`)는 완료된 과거 기록으로 보존한다. 이번 출발점은 착수 시 HEAD(`f0d0a8c`)와 아래 하네스 보완을 포함한 별도 패키지다.
+현재 월드에 실제 렌더 부하를 대표할 콘텐츠를 넣고, 같은 조건의 투입 전후 비용을 비교한다. Phase 0의 Meadow 포함 패키지(`29305b7`)는 완료된 과거 기록으로 보존한다. 착수 시 HEAD는 `f0d0a8c`였고, 실제 출발 패키지는 `c6981a6` + 이번 Ridge 경로 변경으로 빌드했다. 최종 소스/패키지 식별과 새 세션 절차는 §9를 따른다.
 
 측정·냉각·보고 형식은 [측정 규약](../design/Measurement.md)을 따른다. 출력 2560×1440, TSR·렌더 해상도 100%·에픽 품질, 시드 1·PCG 오프셋 0, 워밍업 180초·캡처 60초를 유지한다. 기본 `DA_MassSpawnConfig`와 실제 옥탄트 풀은 이 준비 작업에서 바꾸지 않는다.
 
@@ -18,12 +18,12 @@
 |:---|:---|
 | 꾸밀 옥탄트 | **기존 Ridge로 확정(2026-11-13, 사용자, GX-013).** 새 옥탄트 제작은 채택하지 않음. 근거는 [후보 비교](../analysis/Phase01_ContentCandidates.md) §5.3 |
 | 파라곤 적 | 2종부터 시작하는 안. 실제 캐릭터·기존 적 역할 대응은 미확정 |
-| 환경 원본 | **Electric Dreams로 확정.** 설치/실물 확인: `D:/UnrealProjects/ElectricDreamsEnv`, UE 5.8.4, 8001. [검토 결과](../analysis/ElectricDreamsReview_20261112.md)는 조건부 적합. 대표 팔레트·반입은 미확정 |
+| 환경 원본 | **Electric Dreams로 확정.** 설치/실물 확인: `D:/UnrealProjects/ElectricDreamsEnv`, UE 5.8.4, 8001. [검토 결과](../analysis/ElectricDreamsReview_20261112.md)는 조건부 적합. 1-B0의 6종 조건부 팔레트 선정 완료, 반입 시험은 미실행 |
 | 라이선스 | Fab 상품 표기 Standard License·0원 확인(2026-11-13). 수정·상업적 이용은 허용, 원본 재배포는 아니므로 git 제외 유지. "AI 사용 불허" 표시라 생성 AI 입력으로 쓰지 않는다. 세부 원본은 Fab EULA |
-| 빌드·쿡 | 사용자 병행 작업 없음·빌드 검증 승인 후 Live Coding 성공(2026-11-11). 정규 전체 빌드·쿡은 미실행. 새 실행 직전의 병행 여부는 [현재 상태](../Current.md) §2를 따른다 |
+| 빌드·쿡 | 최종 정규 Editor 빌드·Viewpoints 1/1·Game Development 패키지 생성/스테이징 완료(2026-11-14). 패키지 실행은 미검증. 다음 빌드/쿡 때도 실행 직전 병행 여부를 확인한다 |
 | 수동 확인 | 카메라 무관통·콘텐츠 구도, 적 표현·전환은 사용자 PIE/패키지 육안 확인을 받는다 |
 
-**카메라 선결 조건:** 기존 하네스는 Acropolis·slot 6만 허용한다(`ReadViewpoints`·`Prepare`·`UpdateView`). 현재 풀은 Bastion·Hollow·Acropolis·Pyramid·Grove·Ridge 6종이며, 옛 시드 1의 slot 배정을 재사용할 수 없다. 또한 Acropolis만 보는 구도로 Ridge 장식의 효과를 대표할 수 없다. 시드 1 배정 예측은 Ridge를 slot 1·7에 둔다([로그](../history/Phase01_Log.md) 2026-11-11, 실제 배정 미검증). 실제 배정을 확인하고 Ridge가 보이는 A/B/C를 확정한 후 정식 출발 기준선을 잰다. 경로가 바뀌면 콘텐츠 반입 전후 모두 같은 최종 경로를 사용한다. 구도는 사용자가 직접 잡는 절차를 우선한다.
+**카메라 선결 조건:** 시드 1의 실제 Ridge slot 1·7을 2026-11-13 PIE에서 확인했다. A/B/C는 이후 시드 2982의 Ridge slot 1에서 사용자 구도로 수집했고 출처 시드를 보존했다. 2026-11-14에 하네스를 Ridge·slot 1로 바꾸고 Live Coding·Viewpoints 검사를 통과했다. 시드 1/Medium의 연결 경로 검증은 아직 남아 있다(§8). 경로가 바뀌면 콘텐츠 반입 전후 모두 같은 최종 경로를 사용한다. 구도는 사용자가 직접 잡는 절차를 우선한다.
 
 ## 3. 실행 단위와 검증
 
@@ -54,7 +54,7 @@
 4. 회차별 냉각 규약을 적용해 Medium 3회를 각각 실행한다. 적 0은 같은 Medium 편성과 인자만 달리해 1회 실행하고 `-AllowPreview`로 별도 집계한다. 단일 진단을 3회 기준선으로 표시하지 않는다.
 5. 실행 파일·컨테이너·경로 해시와 소스 변경 식별값, 전원·GPU 환경을 기록한다. 전후 패키지가 달라지는 이유는 콘텐츠 투입이며, 렌더 설정·경로·편성 변경을 함께 섞지 않는다.
 
-예정 아카이브는 `Saved/Graphics/Phase01StartPackage_20261111`, 결과는 `Saved/Profiling/Graphics/Phase01/StartBaseline_20261111/`다. 날짜·경로는 실제 실행 시 확정한다. 런처는 기존 `RunGraphicsBenchmark.ps1`를 사용하고 적 0에만 `-ExtraArguments @('-LNPGraphicsNoEnemies')`를 추가한다. **경로 선결 조건 해결 전에는 기존 Acropolis 경로로 정식 반복을 시작하지 않는다.**
+출발 아카이브는 `Saved/Graphics/Phase01StartPackage_20261114`로 생성했다. 짧은 검증 결과는 §9의 PackageValidation 경로에, 정식 기준선은 실제 실행일의 별도 StartBaseline 폴더에 둔다. 런처는 기존 `RunGraphicsBenchmark.ps1`를 사용하고 적 0에만 `-ExtraArguments @('-LNPGraphicsNoEnemies')`를 추가한다. **경로 선결 조건 해결 전에는 기존 Acropolis 경로로 정식 반복을 시작하지 않는다.**
 
 ## 5. 콘텐츠 반입 규약
 
@@ -68,7 +68,8 @@
 - [x] 1-B0 대표 구역·톤·재질 방침·6종 조건부 팔레트·의존성·후속 시험 항목 선정(반입/배치 완료는 아님)
 - [ ] 대상 옥탄트·파라곤 종류/수·원본 위치/버전·라이선스·git 제외 확정
 - [ ] 적 0 진단과 집계·일반 실행 회귀 검증
-- [ ] 대상이 보이는 고정 경로·구도 사용자 확인
+- [x] 최종 Ridge slot 1 경로(B +50cm)·하네스·스테이징·검사 반영, 정규 Editor 빌드·Viewpoints 1/1·Game 패키징/스테이징 해시 검증 통과(패키지 실행 미검증)
+- [x] 대상이 보이는 고정 경로·구도 사용자 확인(에디터 기존/가로형 화면비, 패키지 정확 1440p 확인은 별도)
 - [ ] 출발 패키지 Medium 3회 + 적 0 1회, 재현성·환경·해시 기록
 - [ ] 고밀도 옥탄트 1개·PCG/Nanite·구면/동선 검증
 - [ ] 파라곤 2~3종의 ISKM·ISM·Actor·리타깃 검증과 O-3 설정 기록
@@ -80,6 +81,8 @@
 진행 이력과 실제 검증 근거는 [Phase 1 로그](../history/Phase01_Log.md)에 쓴다.
 
 ## 7. 1-A 새 세션 인수인계(2026-11-13)
+
+> 아래는 2026-11-13 착수 전 인계 기록이다. 현재 상태와 바로 다음 검증은 §8·§9를 우선한다.
 
 사용자 요청으로 **1-A 실작업은 다음 세션에 시작한다.** 이번 커밋은 적 0 진단 준비와 1-B0 선정 결과를 묶는다. 1-B0을 다시 선정하거나 환경 에셋부터 반입하지 않는다.
 
@@ -137,4 +140,95 @@ Medium 3회+별도 적 0 진단 1회이며 냉각 규약을 지켜줘.
 
 1-A를 마치기 전에는 환경 반입·PCG 배치·재질 변경을 시작하지 마.
 단위 종료 시 완료/미확인 근거와 다음 행동을 실행서·Current·로그에 남겨줘.
+```
+
+## 8. 1-A 구현·검증 결과(2026-11-14)
+
+- `RidgeViewpoints.json`의 목표는 시드 1·PCG offset 0·Ridge slot 1이다. 시드 1의 실제 배정 `[Acropolis, Ridge, Bastion, Pyramid, Grove, Hollow, Pyramid, Ridge]`를 확인했다. 세 구도의 수동 캡처 출처는 시드 2982·slot 1이며 메타데이터에 보존했다.
+- A=DeepBasin·B=TablelandRim·C=ValleyRise를 사용한다. B-C 절벽 모서리 관통을 사용자/PIE 복잡 충돌 중심선(첫 충돌 351.586cm)으로 확인한 뒤 B를 `B - normalize(B) * 50cm`로 보정했다. 구면 내부의 현지 Up이며 회전·렌즈·A/C·원본 플레이어 pose는 유지했다. 수정된 정/역방향 중심선 6개와 기존/가로형 화면의 사용자 육안 확인을 통과했다.
+- 하네스의 대상/실제 배정 검사·slot 회전, NonUFS, 패키저·런처, Viewpoints 검사가 같은 Ridge JSON을 쓴다. 기존 위치 직선 보간·회전 Slerp와 A→B→C→A 순서, 렌더 설정·기본 편성/풀은 유지했다. Acropolis JSON은 과거 기록으로 보존했다.
+- 카메라는 FOV≈80°·reference aspect≈1.3331548·MaintainYFOV·축 제약 override=true다. 1280×720 설정의 최종 에디터 회차는 실측 1280×722, complete·3174프레임·적 2002/Pod 120·AllowPreview CSV 집계 통과다. 정확 1440p 출력/성능 검증은 아니다.
+- Live Coding 뒤 첫 PIE는 `ULNPAnimInstance::UpdateStates`의 디버그 CVar 읽기에서 크래시했다. 애니메이션 코드 변경 없이 풀빌드/재시작 후 세 회차가 정상 종료했다. 원인을 Live Coding으로 확정하지 않는다. 다음 재빌드는 패치와 겹치지 않게 한다.
+- 최종 정규 `LootNPopEditor Win64 Development` 빌드, B +50cm 기대값을 포함한 Viewpoints **1/1(테스트 오류/경고 0)**, Game Development build/cook/stage/archive는 모두 종료 코드 0이다. 자동화는 NullRHI·NoLiveCoding의 정규 DLL로 실행했다.
+- Cook 요약은 오류 0·경고 1이다. 프로젝트 설정의 `r.Shadow.Virtual.MaxPhysicalPages=4096` 우선순위 때문에 Scalability 덮어쓰기를 무시한 경고이며 설정은 바꾸지 않았다. Foley notify 누락 의존성 Display 메시지도 로그에 남겼고 수정하지 않았다.
+- 새 패키지는 49파일·약 1.36GiB이며 실행 파일·컨테이너 5개·NonUFS 경로 해시를 기록했다. 소스/기본 SpawnConfig·OctantPool·GameState의 전후 디스크 해시가 같다. 새 환경 반입·PCG 장식·재질 변경·화면 녹화는 하지 않았다.
+
+세부 경과와 단계별 당시 상태는 [Phase 1 로그](../history/Phase01_Log.md)에만 누적한다. 다음 세션은 과거 대기 상태가 아니라 아래 §9부터 진행한다.
+
+## 9. 새 세션 인수인계(2026-11-14)
+
+사용자 요청으로 이번 세션은 **패키지 준비까지** 마감하고 코드·문서를 한 커밋으로 묶는다. **1-A 전체와 Phase 1은 아직 미완료다.** 다음은 짧은 Medium/적 0 패키지 실행이며 이번 세션에서는 시작하지 않았다.
+
+### 9.1 재선정/재구현하지 않을 것
+
+- 1-B0 선정은 완료했다. [선정 결과](Phase01_RidgeZonePalette.md) §8을 보존한다. 환경 반입은 1-A 마감 후다.
+- Ridge slot 1·A/B/C·B 현지 Up +50cm·구면 roll/FOV는 확정된 에디터 검증 경로다. 정확 1440p 패키지에서 문제가 보일 때만 다시 조정하고, 경로가 바뀌면 전후 기준선도 같은 최종 경로로 맞춘다.
+- 적 0 인자/집계기/현행 cook 목록은 이전 커밋에서 준비했고 이번에 정규 빌드·패키징까지 했다. 아직 실제 적 0 실행을 통과한 것은 아니다.
+
+### 9.2 패키지·소스·근거
+
+| 항목 | 위치/상태 |
+|:---|:---|
+| 새 패키지 | `Saved/Graphics/Phase01StartPackage_20261114` |
+| 실제 실행 파일 | 위 패키지의 `Windows/LootNPop/Binaries/Win64/LootNPop.exe` |
+| 스테이징 경로 JSON | 위 패키지의 `Windows/LootNPop/Scripts/Profiling/Graphics/RidgeViewpoints.json` |
+| 경로 SHA256 | `C1E46E0BCEAAB9D9C3FE2F2BCE80BAD37E959663C4775895814350B17E023CE6` |
+| 빌드 당시 소스 | HEAD `c6981a6` + Ridge 변경. SourceChanges.patch SHA256 `82A79E536BCF3776F5305965BD41A986E580CEADFE34A6CA52A1A926C9F61DFA`. 이후 인계 문서 갱신은 게임 소스를 바꾸지 않음 |
+| 빌드/해시 근거 | `Saved/Profiling/Graphics/Phase01/Build_20261114/`의 SourceSnapshot.json·BuildStatus.json·PackageVerification.json·EditorBuild.log·Automation/index.json·PackageBuild.log |
+| 카메라/관통/크래시 근거 | `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/`의 PathVisualValidation.json·Revision 0/1 자료·PreviewCrash_20261114/ |
+| 마지막 에디터 회차 | `Saved/Profiling/Graphics/Phase00/Medium_E55B2F1442E65F2309BBAC84A4F92FDE`(폴더명이 Phase00이어도 이번 경로 예비 실행이며 성능 판정 제외) |
+| 종료 상태 | LootNPop 에디터 종료, Electric Dreams 에디터 유지. 새 세션에서 재확인. 기존 메모리 CVar는 LootNPop 종료로 소실 |
+
+Saved와 패키지는 git 제외라 다른 체크아웃에는 없을 수 있다. 시작 때 파일/해시부터 확인한다. 이번 인계 커밋으로 HEAD가 바뀌어도 소스/패키지 파일 해시가 같으면 같은 바이너리를 사용한다. 문서 커밋만을 이유로 재빌드하지 않는다. 파일이 없거나 실제 소스가 달라졌다면 병행 여부·에디터 상태 확인 후 별도 새 아카이브로 재빌드한다.
+
+### 9.3 다음 첫 단위 — 짧은 패키지 실행
+
+새 세션에서 사용자에게 진행을 요청받으면 아래를 **한 회차씩** 실행한다. 런처 기본값은 Phase 0 경로이므로 PackageDirectory와 OutputDirectory를 반드시 명시한다. 아래 워밍업 10초·경로 60초는 **예비 검증안**이며 정식 기준선 조건이 아니다. 화면을 보아야 하므로 사용자 확인 가능한 시점에 실행하고 녹화는 하지 않는다.
+
+먼저 Medium:
+
+```powershell
+.\Scripts\Profiling\Graphics\RunGraphicsBenchmark.ps1 `
+  -Profile Medium `
+  -PackageDirectory 'Saved/Graphics/Phase01StartPackage_20261114' `
+  -OutputDirectory 'Saved/Profiling/Graphics/Phase01/PackageValidation/Medium' `
+  -Repeats 1 -WarmupSeconds 10 -DurationSeconds 60
+```
+
+Medium 정상 종료/조건 확인 후, 같은 Medium 계획의 적 0:
+
+```powershell
+.\Scripts\Profiling\Graphics\RunGraphicsBenchmark.ps1 `
+  -Profile Medium `
+  -PackageDirectory 'Saved/Graphics/Phase01StartPackage_20261114' `
+  -OutputDirectory 'Saved/Profiling/Graphics/Phase01/PackageValidation/NoEnemies' `
+  -Repeats 1 -WarmupSeconds 10 -DurationSeconds 60 `
+  -ExtraArguments @('-LNPGraphicsNoEnemies')
+```
+
+각 실행의 Run.json 부모 폴더에 `AnalyzeGraphicsBenchmark.ps1 -RunDirectory <폴더> -AllowPreview`를 적용한다. 다음을 확인한다.
+
+1. 프로세스 종료 코드 0·status=complete·with_editor=false·CSV 캡처 행 수/개체 분할 검증·동일 경로/실행 파일/컨테이너 해시.
+2. 정확 2560×1440·TSR(`r.AntiAliasingMethod=4`)·ScreenPercentage=100·Epic·시드 1/PCG offset 0·Medium·실제 Ridge slot 1. 정확 출력의 A/B/C 및 연결 구도는 사용자에게 확인받는다.
+3. Medium의 실제 초기 적/Pod를 기록한다. 에디터 관측은 2002/120이지만 패키지의 수를 검증 없이 강제 기대값으로 쓰지 않는다.
+4. 적 0은 no_enemies=true·performance_eligible=false·초기/마지막/프레임 적 수 0·빈 Population.csv(헤더만)·initial_spawns에 적 행 없음. 공간 계획의 적 요청/배치 로그와 Pod 계획은 Medium과 같아야 한다. `initial_spawns`는 실제 생성 계수이므로 적 행이 없는 것이 정상이다.
+5. 두 실행의 set별 계획 로그·Pod 초기화/slot별 수·가능한 배치 근거를 대조한다. 개수 일치만으로 모든 Pod Transform의 일치를 증명했다고 쓰지 않는다. 직접 배치 검증 자료가 부족하면 그 범위를 분리해 기록한다.
+
+빌드/쿡이 필요한 경우에만 직전 병행 여부를 묻고 AGENTS의 권한 확장 규칙을 따른다. 이번 세션은 빌드·cook만 통과했으므로 런타임 실패가 나오면 현재 로그로 원인을 확인하고 기본 편성이나 렌더 설정을 임의로 바꾸지 않는다.
+
+### 9.4 그 뒤의 단위와 새 세션 프롬프트
+
+짧은 Medium/적 0 검증을 마친 뒤 계속 진행할지 확인하고 정식 출발 기준선을 잰다. 출력 2560×1440·TSR100%·Epic·시드 1/PCG offset 0·워밍업 180초·캡처 60초, Medium 3회+적 0 1회다. 회차별 냉각/전원·GPU 환경/해시/재현성을 기록한다. 적 0은 진단으로 별도 집계한다. 1-A를 마감하기 전 환경 반입·PCG·재질 변경·파라곤 선정을 시작하지 않는다.
+
+```text
+.context/Graphics/README.md, Current.md, Decisions.md와
+.context/Graphics/phases/Phase01_BenchmarkContent.md §9를 읽고 이어서 진행해줘.
+1-A의 Ridge 경로(B +50cm)와 정규 빌드·Viewpoints 1/1·출발 패키지 생성은 완료됐어.
+먼저 기존 Saved/Graphics/Phase01StartPackage_20261114와 PackageVerification.json의
+파일/해시를 확인하고, 짧은 Medium·적 0 패키지 실행 검증부터 진행해줘.
+런처의 Phase 0 기본 경로를 쓰지 말고 §9의 명시적 경로를 써줘.
+패키지 1440p/TSR·실제 적 0·Pod 계획/배치·정식 기준선은 아직 미검증이야.
+1-B0 재선정이나 환경 반입은 시작하지 마.
+단위마다 계속 진행할지 확인하고, 수동 조작이 더 효율적이면 즉시 요청해줘.
+빌드/Live Coding/쿡이 필요할 때만 실행 직전에 병행 여부를 확인해줘.
 ```

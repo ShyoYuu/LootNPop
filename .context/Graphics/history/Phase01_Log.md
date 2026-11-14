@@ -151,3 +151,115 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - 상위 실행서 §7에 완료/미완료 근거, 실제 slot과 예측의 구분, 카메라 후보, 코드/JSON/NonUFS/기존 Viewpoints 검사/패키저/런처의 연결 지점, 빌드/쿡 직전 확인과 정식 측정 순서, 새 세션 시작 프롬프트를 추가했다. Current와 README에서 이 진입점을 연결하고 1-B0의 이전 재개 프롬프트를 완료 상태에 맞게 정리했다.
 - 기존 미커밋 적 0 진단 코드·집계기·현행 cook 목록 준비와 1-B0 선정 문서를 이번 단일 커밋 범위로 확인했다. 기존 프로젝트 양식인 `feat: 한국어 요약`과 항목별 본문을 따른다. 라이선스 에셋·Saved 원자료·새 환경 구현은 커밋에 포함하지 않는다.
 - 커밋 전 `Saved/Profiling/Graphics/Phase01/Preparation_20261111/VerifyAnalyzer.ps1`을 다시 실행해 합성/거부·기존 Medium 재집계·cook root 존재 검사 **8개 모두 통과**했다. 이는 집계/목록 검사이며 정규 빌드·실제 적 0 실행·새 출발 기준선의 검증은 아니다. 해당 미확인 범위를 인수인계에 유지했다.
+
+## 2026-11-13 — 1-A 착수·시드 1 수동 PIE 준비
+
+- 필수 문서 3개·Phase 1 실행서 §7·1-B0 선정 결과 §8과 실제 하네스를 대조했다. 첫 단위는 실제 시드/slot과 A/B/C 구도·연결 경로 확정이다. 단위별 사용자 확인을 유지하며 1-B0 재선정·콘텐츠 반입은 하지 않는다.
+- LootNPop MCP에서 현재 레벨 `/Game/Maps/TestMap03`, PIE=false를 확인했다. 프로젝트 등록 스킬 목록에는 이번 조회/카메라 작업에 추가 적용할 스킬이 없었다.
+- 시작 상태: `LNP.Graphics.Benchmark=0`, Profile=Low, Warmup/Duration=60, `LNP.Spawn.EnemyDensity=0`, `LNP.Spawn.ConfigOverride` 빈 문자열. `BP_LNPGameState` CDO의 시드/PCG offset은 0/0이었다.
+- 복구 정보를 `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/Recovery.json`에 기록한 뒤 CDO의 `octantGenSeed`만 메모리에서 1로 설정·재조회했다(PCG offset=0 유지). 에셋은 저장하지 않았다. 원본 BP SHA256는 `1833230091A9A1EC75933E0B47C8EFAC0C02982551A94760B233EFFC275A27F1`이다. **사용자 PIE 시작 후 런타임 시드 확인과 함께 CDO를 원래 0으로 복구하고 디스크 해시를 대조해야 한다.**
+- 사용자에게 에디터 콘솔에서 Medium 오버라이드·밀도 1 설정 후 1인 Standalone PIE 시작을 요청한다. 기존 하네스의 Acropolis/slot 6 검증은 남아 있으므로 이번 수동 구도 확인에서는 하네스를 켜지 않는다. 실제 배정과 런타임 GameState는 시작 후 확인한다.
+- 아직 미확인: 실제 Ridge slot(1·7은 여전히 예측), A/B/C pose·FOV/aspect·연결 구간. 소스 구현·컴파일·쿡·패키지·성능 측정은 하지 않았다. 다음은 실제 배정 확인 후 A=DeepBasin 구도를 사용자가 잡고 pose를 수집하는 것이다. 구도 확정 뒤 다음 구현 단위 진행 여부를 확인한다.
+
+### 추가 — 시드 1 실제 배정 확인·A 구도 대기
+
+- 사용자 PIE 시작 후 PIE=true·런타임 GameState 시드 1/PCG offset 0·Complete·플레이어 1명을 읽었다. 2026-11-13 13:11:56 KST 시작 로그의 실제 배정은 `[Acropolis, Ridge, Bastion, Pyramid, Grove, Hollow, Pyramid, Ridge]`다. **Ridge slot 1·7을 실제 확인했다.** 같은 시작 로그에 Medium 오버라이드, WorldDevice seed=24300, 초기화 완료가 있다. 이 확인은 고정 벤치마크 카메라/패키지 검증과 별개다.
+- CDO 시드 0 복구 성공과 PCG offset 0을 재조회했다. GameState BP 디스크 SHA256가 준비 전과 동일함도 확인했다. 에셋 저장·PIE 종료는 하지 않았다. Medium·밀도 설정은 구도 확인 중 유지한다.
+- 원자료는 `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/Seed1PIECheck.json`이다. slot 1을 카메라 기준 후보로 잡고 `LNP.Debug.TeleportToReview RidgeDeepBasin 1` 실행 후 대절벽/분지 바닥/적이 보이는 A 구도 조작을 요청한다. A가 준비되면 pose·렌즈를 수집하고 B/C로 이어 간다. 전체 구도·연결 경로 단위는 아직 완료되지 않았다.
+
+## 2026-11-14 — 1-A A 구도 후보 수집
+
+- 사용자 “A 준비됐어” 알림 후 PIE=true와 실제 카메라/플레이어 pose를 수집했다. 현재 runtime GameState는 시드 **2982**·PCG offset 0·Complete·플레이어 1명이다. 최근 시작 로그와 `RidgeDeepBasin (slot 1)` 이동 로그를 확인했다. 이전 시드 1 회차와 구분하며 기존 실제 배정 확인 기록은 보존한다.
+- 현재 CVar는 밀도 1·편성 오버라이드 빈 문자열이다. 따라서 A는 구도 후보 수집이며 Medium 편성/시드 1 기준선 확인으로 취급하지 않는다. B/C 수집 후 최종 경로는 시드 1·Medium에서 다시 확인한다.
+- `PlayerCameraManager_0`의 실제 게임 카메라와 `BP_LNPPlayer_C_1`의 월드 pose를 같은 배치 호출로 읽었고, 두 차례 호출 사이 값이 동일했다. slot 1 Level Instance의 실제 Ridge 에셋·원점·Yaw 90°·단위 스케일을 확인했다. slot 역회전으로 로컬 좌표/쿼터니언을 저장하고 회전 왕복 오차 및 기존 Phase 0 A 기준 pose/쿼터니언 대조를 1e-10 허용오차로 통과했다.
+- A 로컬 카메라(cm)는 `(14126.49257945583, 11981.177118997784, 25578.3334521097)`, 쿼터니언 XYZW는 `(-0.8181976050010245, -0.3955483232059188, 0.3972379035773024, -0.12765677083916582)`다. FOV≈80°·컴포넌트 aspect≈1.3331548·표기 축 제약 MaintainYFOV, aspect 제한=false·축 제약 override=false다. LocalPlayer의 실효 축 제약은 아직 확인하지 못했으므로 최종 렌즈 검증이 필요하다. 컴포넌트 aspect를 실제 1440p 출력 비율 확인으로 쓰지 않는다.
+- 원자료: `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/A_DeepBasin_Raw.json`·`A_DeepBasin_Candidate.json`. 저장 폴더 날짜는 앞선 동일 작업의 복구 정보와 묶기 위해 유지하며 캡처 날짜는 2026-11-14로 기록했다. 화면 캡처·에셋 변경·CVar 변경·빌드/쿡/성능 측정은 하지 않았다.
+- 다음은 `LNP.Debug.TeleportToReview RidgeTablelandRim 1` 실행 후 절벽 측면·분지를 보는 B 구도 수집이다. B/C·연결 경로 확인까지 같은 작업 단위로 진행하며, 단위 완료 후 다음 구현 진행 여부를 묻는다.
+
+### 추가 — B TablelandRim 구도 후보 수집
+
+- 사용자가 “절벽 아래 분지를 내려다보고 왼쪽에 대절벽 일부가 함께 보이는 구도”를 설명하고 준비 완료를 알렸다. B의 절벽 측면·분지 노출 목적에 부합하는 설명임을 확인하고 수집했다. 화면을 직접 캡처/검토한 것은 아니다.
+- PIE=true와 `RidgeTablelandRim (slot 1)` 이동 로그, 실제 Ridge Level Instance의 원점/Yaw 90°/단위 스케일을 확인했다. 런타임 시드 2982·PCG offset 0·Complete·플레이어 1명이며 이동으로 재생성된 플레이어는 `BP_LNPPlayer_C_2`다.
+- 게임 카메라와 플레이어 pose를 두 번 읽어 일치를 확인하고 Ridge 로컬 좌표/쿼터니언으로 저장했다. 정규화·월드 회전 왕복을 1e-10 허용오차로 통과했다. B 로컬 카메라(cm)는 `(11128.920084385212, 15446.863503344848, 20202.150679161663)`, 쿼터니언 XYZW는 `(0.9543650238795534, 0.07145389454196766, -0.01860617486256938, 0.2893709598545583)`다. FOV/aspect와 관련 플래그는 A와 동일하며 렌즈 실효 축 제약 검증은 남아 있다.
+- 원자료: `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/B_TablelandRim_Raw.json`·`B_TablelandRim_Candidate.json`. 출처 시드와 사용자 구도 설명을 명시했다. 에셋/렌더 설정 변경·소스 구현·빌드·측정은 하지 않았다.
+- 다음은 `LNP.Debug.TeleportToReview RidgeValleyRise 1`에서 허브 전경을 보는 C 구도 수집이다. 이후 시드 1·Medium에서 최종 경로/연결 구간을 확인한다. 카메라 작업 단위는 아직 진행 중이다.
+
+### 추가 — C ValleyRise 수집·A/B/C 후보 통합, 다음 구현 진행 확인 대기
+
+- “대분지 허브”가 A와 같은 분지 바닥·Pod 주변을 뜻함을 설명했다. C는 ValleyRise의 발앞 지형/분지 진입길과 그 너머 분지를 담는 취지이며 A와 대상이 겹쳐도 된다고 안내했다. 사용자가 “C 준비됐어”라고 알린 뒤 수집했으며 실제 화면을 직접 검토한 것은 아니다.
+- PIE=true·`RidgeValleyRise (slot 1)` 이동 로그와 Ridge Level Instance의 실제 에셋/원점/Yaw 90°/단위 스케일을 확인했다. 시드 2982·PCG offset 0·Complete·플레이어 1명이고 현재 플레이어는 `BP_LNPPlayer_C_3`다.
+- C 게임 카메라/플레이어 pose의 두 차례 읽기 값이 일치했다. 로컬 회전 쿼터니언 정규화·월드 왕복을 1e-10 허용오차로 통과했다. C 로컬 카메라(cm)는 `(13900.145215414032, 15391.090894585082, 24604.96972345391)`, 쿼터니언 XYZW는 `(0.9113247022208472, 0.14771302004129033, -0.3148181370014409, 0.22035809821131586)`다. A/B/C의 FOV/aspect/관련 플래그 값은 모두 동일하다.
+- 같은 원자료 폴더에 `C_ValleyRise_Raw.json`·`C_ValleyRise_Candidate.json`과 `RidgeViewpoints_Draft.json`을 저장했다. 초안의 목표는 시드 1·PCG offset 0·Ridge slot 1이며 각 점의 출처 시드 2982와 원본 pose를 보존했다. Saved 초안만 작성했고 정식 JSON/C++/스테이징/검사는 변경하지 않았다.
+- **후보 수집은 완료**, 정식 경로 확정은 미완료다. A→B→C→A 이동 중 무관통·환경/적 노출, LocalPlayer 실효 렌즈 축 제약, 시드 1·Medium의 최종 재현은 남아 있다. 성능 측정·빌드·쿡은 미실행이다.
+- 다음 구현 단위는 §7.2의 Ridge JSON·C++ 검증/slot 회전·NonUFS·패키저·런처·Viewpoints 검사를 함께 맞추는 작업이다. 사용자 요청대로 진행 여부를 확인한 뒤 착수한다. 이후 빌드/Live Coding 직전에 병행 작업 여부를 확인하고 고정 경로의 사용자 육안 검증을 받는다.
+
+### 추가 — Ridge 하네스 구현·Live Coding·자동화 검증 완료
+
+- 사용자 “계속 진행해줘” 승인으로 경로 하네스 구현 단위에 착수했다. `Scripts/Profiling/Graphics/RidgeViewpoints.json`을 만들고 A/B/C의 로컬 카메라/플레이어 pose와 출처 시드 2982를 보존했다. 목표 시드 1·PCG offset 0·Ridge slot 1이며 기존 직선 위치 보간/회전 Slerp/루프 순서는 유지했다. Acropolis JSON은 과거 기록으로 보존했다.
+- C++의 ReadViewpoints 대상/slot 검증·Prepare 실제 배정 검사/기본 JSON·UpdateView slot 회전, Build.cs NonUFS, 패키저 존재 확인, 런처 파일 조회/해시를 모두 Ridge로 맞췄다. 기존 편성·풀·렌더 설정·지형/장식 에셋은 변경하지 않았다.
+- Viewpoints 자동화 검사의 세 점 월드 위치/회전 기대값을 각 원본 캡처로 갱신했다. slot 6/Acropolis 에셋 거부, 캡처 aspect 보존, LocalPlayer 기본 MaintainYFOV 확인을 추가했다. 기존 잘못된 좌표계/쿼터니언 거부·구면 roll·루프/보간 검사는 유지했다.
+- 엔진 BaseEngine.ini의 LocalPlayer 기본 축 제약은 MaintainYFOV다. CameraComponent.cpp는 override=true에만 카메라 제약을 전달하고 CameraStackTypes.cpp는 값이 없으면 LocalPlayer 제약을 쓴다. 프로젝트 소스/Config/현재 Saved Config에는 관련 재정의를 찾지 못했다. MCP 기본 LocalPlayer 속성 조회는 노출되지 않아 실패했으며, C++의 실제 GetDefault<ULocalPlayer>() 검사를 추가해 실행·통과했다. 실효 출력 구도는 후속 육안 검증 대상이다.
+- 정적 정합 **16개**와 PowerShell 두 파일의 AST 구문 검사, `git diff --check`가 통과했다. 정적 검사는 원본 캡처 대비 월드 위치 0.001cm·회전 1e-10 허용오차, 렌즈/출처, 대상·파일 참조 일치를 확인한다. 원자료는 `HarnessStaticValidation.json`이다.
+- Current §2의 실행 직전 병행 확인 규칙에 따라 사용자에게 물었고 **“병행 작업 없음 — 컴파일·검사 진행”** 답변을 받았다. PIE는 이미 종료된 상태였다(종료 호출은 실행 중 세션 없음으로 반환, 뒤 재조회도 false). 이후 MCP CompileLiveCoding이 **Result: Success / Live coding succeeded**를 반환했다.
+- 테스트를 강제 재발견하고 갱신된 **LootNPop.Graphics.Benchmark.Viewpoints 1/1 통과**, 오류/경고 0, 0.0158315초를 확인했다. 근거는 `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/HarnessLiveCoding.json`·`HarnessAutomation.json`이다. 이 결과는 정규 전체 Editor 빌드·Game 패키지 검증과 구분한다.
+- **이번 구현 단위는 완료.** 다음은 사용자 진행 확인 뒤 시드 1·Medium의 고정 경로를 재생해 A/B/C와 연결 구간의 무관통·환경/적 노출을 육안 확인하는 단위다. 필요하면 경로를 조정한 뒤 같은 최종 경로로 출발 기준선을 잡는다. 실제 NonUFS 스테이징·정규 빌드·패키지·적 0 진단·출발 기준선·환경 반입은 아직 하지 않았다.
+
+### 추가 — 고정 경로 육안 검증 승인·수동 PIE 시작 요청
+
+- 사용자가 다음 단위 진행을 승인했다. PIE=false와 하네스=0·Profile=Low·Warmup/Duration=60을 확인했다. 기존 하네스는 시드 1·PCG offset 0·선택 편성/밀도 1을 강제하고 1인 Standalone만 허용한다.
+- 수동 PIE가 더 효율적이므로 별도 테스트 장치 없이 사용자에게 Profile=Medium·Warmup=60·Duration=60·하네스=1 설정과 Play 시작을 요청한다. 경로는 각 루프에서 A=0초·B=20초·C=40초·A=60초이며 워밍업과 캡처에 같은 경로를 사용한다. 원복 정보는 `PathPreviewPreparation.json`에 저장했다.
+- 아직 시작/관통/구도 결과는 미확인이다. 시작하면 실제 runtime 시드/slot/편성·저장된 Viewpoints.json을 확인한다. 기존 에디터 기본 출력 루트는 `Saved/Profiling/Graphics/Phase00/Medium_<GUID>`이며 이번 회차 경로를 로그에 남긴다. 이 결과는 성능 기준선에 합치지 않는다. 소스 추가 변경·컴파일·패키징은 하지 않았다.
+
+### 추가 — 첫 경로 확인 PIE 크래시·복구 검증 준비
+
+- 사용자가 설정 후 PIE 시작을 알렸고 이어 크래시 콜스택을 전달했다. MCP 조회 일부가 연결 실패로 끝났으며 파일 로그/크래시 보고서와 사용자 첨부를 대조했다. LootNPop 에디터 프로세스가 종료된 상태도 확인했다.
+- 2026-11-14 15:13:25 KST Medium 하네스가 waiting으로 시작했다. 실제 Ridge slot 1/7·Medium 오버라이드·WorldDevice seed=24300(시드 1)을 확인했다. 모든 엔티티 생성 뒤 플레이어 컴포넌트 등록/애니메이션 초기화 중 `ULNPAnimInstance::UpdateStates` → `LNPAnimInstance.cpp:733`의 CVar 읽기에서 null 접근으로 종료됐다. 카메라 Prepare 완료/경로 재생/프레임 캡처 전에 실패했으므로 육안 확인은 미검증이다.
+- 실패 회차는 `Saved/Profiling/Graphics/Phase00/Medium_0D773E3F40ECA2FB2E3D8D8942A3128B`이며 Run.json은 waiting·0프레임·performance_eligible=false다. 크래시 로그/컨텍스트·사용자 콜스택·manifest·요약을 `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/PreviewCrash_20261114/`에 보존했다. 원래 minidump 위치도 Summary.json에 기록했다.
+- Live Coding patch_0 코드의 정적 애니메이션 CVar 상태 문제 가능성을 가설로 두었다. 애니메이션 소스는 변경하지 않았다. 우선 에디터 종료 상태에서 정규 Editor 빌드로 패치를 분리해 재검증한다. 프로젝트 실행 직전 확인 규칙에 따라 사용자에게 다른 빌드/Live Coding/쿡의 병행 여부를 질문했으며 답변 대기다.
+
+### 추가 — 사용자 풀빌드/재시작 완료·새 에디터 자동화 통과
+
+- 사용자가 “에디터 풀빌드하고 다시 띄웠어”라고 알렸다. 빌드 로그 원문은 수집하지 않았으며 사용자 완료 보고와 새 프로세스 조회를 구분해 기록한다. 추가 소스 변경·Live Coding은 하지 않았다.
+- MCP 읽기 호출로 연결 복구와 `/Game/Maps/TestMap03`·PIE=false를 확인했다. 하네스=0·Profile=Low·Warmup/Duration=60으로 초기화됐고 `LNP.Anim.DebugLocomotion`은 등록돼 값 0을 반환했다. 새 에디터 로그에는 이 실행에서의 Live Coding 컴파일/성공 또는 크래시 기록이 없었다.
+- 새 에디터에서 테스트를 재발견하고 `LootNPop.Graphics.Benchmark.Viewpoints` **1/1 통과·오류/경고 0**, 0.0151692초를 확인했다. 근거는 `Saved/Profiling/Graphics/Phase01/RidgePath_20261113/FullBuildRestartAutomation.json`이다. 이 검사는 플레이어 스폰을 다루지 않으므로 크래시 해결로 표시하지 않는다.
+- 다음은 Profile=Medium·하네스=1만 다시 설정하고(현재 Warmup/Duration=60 유지) 1인 Standalone PIE를 재시도하는 수동 단계다. 시작 뒤 실제 편성/seed/slot·Prepare/카메라·manifest 및 사용자 무관통/구도 결과를 확인한다. Live Coding 관련성은 이 재검증 결과 전까지 가설로 유지한다.
+
+### 추가 — 풀빌드 재시도 정상 종료·사용자 B-C 관통 보고·B +50cm 조정
+
+- 재시도는 시드 1·PCG offset 0·Complete·플레이어 1명, Medium·Ridge slot 1/7을 확인했다. 실제 CameraActor가 생성됐고 CameraComponent의 MaintainYFOV override=true·FOV/aspect를 읽었다. 경로 해시 B5023004E585775F56128FED2763A9A52F66C4303F8AE124B267A92751D0AAFA가 당시 소스와 일치했다.
+- 회차 `Saved/Profiling/Graphics/Phase00/Medium_05B4D1C44AE0193BE8E9428109137E3D`는 complete·3494프레임·초기/마지막 적 2002·Pod 120, CSV 저장을 확인했고 AnalyzeGraphicsBenchmark -AllowPreview가 통과했다. 에디터 1147×859·performance_eligible=false로 성능 기준선에 합치지 않는다. 풀빌드 재시도에서 스폰 크래시는 재발하지 않았으나 원인은 확정하지 않았다. 시작·상태·실효 렌즈 근거는 FullBuildRetryStartLog.json·FullBuildRetryState.json·FullBuildRetryEffectiveLens.json이다.
+- 사용자가 B→C에서 B의 절벽 모서리 스침을 보고하고 B를 공중으로 조금 옮기는 안을 제안했다. SceneTools의 실제 PIE world·Visibility 복잡 충돌 라인 추적으로 기존 B-C의 첫 충돌 거리 351.586cm를 확인했다. 25/50/100/200cm의 현지 Up 이동에서는 A-B/B-C 중심선 충돌이 없었다. 작은 근접면 여유를 위해 50cm를 채택했다.
+- B 카메라 로컬 위치를 `(11108.874780012287, 15419.040760600383, 20165.76275865537)`로 조정했다. 원점 방향으로 정확히 50cm이며 시선·렌즈·A/C·원본 플레이어 pose 불변을 정적으로 확인했다. A-B/B-C/C-A의 정/역방향 중심선 6개도 모두 비충돌이다. 수정 전 원본과 근거는 RidgeViewpoints_Revision0.json·RidgeViewpoints_Revision1_Validation.json에 보존했다.
+- 자동화 검사 소스의 B 기대값도 원본 캡처+현지 Up 50cm로 갱신했으나 **재컴파일/자동화 재실행은 하지 않았다.** 기존 1/1은 수정 전 결과다. 하네스 런타임 변경이 없으므로 JSON만 다시 읽도록 PIE를 재시작해 사용자 육안 확인을 먼저 받는다. 최종 경로 수용 후 새 정규 빌드/검사를 한다. 현재 경로는 아직 최종 수용 전이다.
+
+### 추가 — B +50cm 재생 완료·관통 해소 확인, 16:9 재검증 요청
+
+- 수정 회차 `Medium_B4FCBD224B58C589CEA2FC84C99DA29C`는 complete·3467프레임·생존 적 2002로 정상 종료됐고 CSV 저장/AllowPreview 집계를 통과했다. 초기 적/Pod도 2002/120으로 이전 회차와 같다. 소스/실행 경로 해시는 C1E46E0BCEAAB9D9C3FE2F2BCE80BAD37E959663C4775895814350B17E023CE6이며 B의 현지 Up +50cm·원본 회전 보존을 확인했다. with_editor=true·performance_eligible=false로 성능 판정에서 제외한다.
+- 사용자는 “관통이 사라지긴 했는데 … 16:9처럼 가로가 긴 화면비로도 확인해보고 싶어”라고 답했다. 기존 화면비에서 해소된 것은 확인하되 전체 경로 최종 수용은 16:9 확인 뒤로 둔다.
+- 수직 FOV 유지 규약이라 16:9에서는 좌우가 더 보인다. 렌즈/경로는 바꾸지 않고 출력 창을 2560×1440으로 설정해 새 PIE를 시작하도록 요청한다. 시작 후 실제 viewport 크기와 해시를 대조한다. 자동화 B 기대값 갱신 뒤의 재컴파일은 여전히 미실행이며 최종 경로 확인 뒤 진행한다.
+
+### 추가 — 가로형 화면 관통 없음·정상 종료, 경로 육안 검증 마감
+
+- 사용자가 1280×720에서 관통이 없다고 확인했고, 이어 Complete 로그 확인 후 PIE를 종료했다고 알렸다. MCP에서 PIE=false를 재조회했다.
+- 마지막 회차는 `Saved/Profiling/Graphics/Phase00/Medium_E55B2F1442E65F2309BBAC84A4F92FDE`이며 complete·3174프레임·시드 1·PCG offset 0·Medium·초기/마지막 적 2002·Pod 120이다. 경로 해시 C1E46E0BCEAAB9D9C3FE2F2BCE80BAD37E959663C4775895814350B17E023CE6이 소스와 일치하고 AllowPreview CSV 집계도 통과했다. 근거는 `PathVisualValidation.json`이다.
+- 사용자 설정 크기 1280×720과 manifest 실측 1280×722를 구분한다. 기존 화면비 및 가로형 화면에서의 사용자 관통 해소 확인으로 에디터 경로 육안 검증 단위를 마감한다. 정확 2560×1440 출력·화질·성능은 패키지 단계에 남긴다. 해상도만 높인 동일 화면비의 추가 PIE 반복은 생략한다.
+- 다음은 B +50cm 보정 검사 기대값의 재컴파일·Viewpoints 검사와 패키지 준비 단위이며 사용자에게 계속 진행 여부를 묻는다. 현재 하네스=1·Profile=Medium·Warmup/Duration=60을 재조회했으므로 하네스 0·Profile Low 원복을 요청한다. 후속 실행 전에는 실제 값을 다시 확인한다.
+
+### 추가 — 최종 정규 빌드·검사·패키지 준비 단위 완료
+
+- 사용자 진행 승인과 에디터 종료·병행 작업 없음 확인 후 시작했다. 최초 프로세스 검사는 다른 프로젝트 Electric Dreams를 함께 감지해 빌드 실행 전에 멈췄다. 권한 있는 읽기 전용 실행 인자 조회로 ElectricDreamsEnv만 남은 것을 확인하고 LootNPop만 대상으로 검사해 진행했다. 다른 프로젝트를 종료/수정하지 않았다.
+- 소스/보존 에셋 13파일 해시, HEAD/SourceChanges.patch 해시, 17 cook root의 실제 파일 존재와 새 아카이브 경로를 기록했다. 현재 작업 트리는 미커밋 변경을 포함한다.
+- 정규 Editor 빌드와 최종 B +50cm 기대값의 Viewpoints 자동화가 종료 코드 0으로 통과했다. 테스트 1/1·오류/경고 0이며 이번에는 Live Coding을 사용하지 않았다. 자동화는 NoLiveCoding·NullRHI로 정규 DLL을 로드했다.
+- Game Development 빌드·cook·stage·archive도 종료 코드 0으로 성공했다. BuildCookRun 약 114초이며 cook 최종 요약은 오류 0·경고 1이다. 경고는 VSM physical pages=4096의 ProjectSetting 우선순위 유지다. 설정 변경은 하지 않았다. Foley notify 누락 의존성 Display 메시지는 로그에 보존했고 이번 작업에서 수정하지 않았다.
+- 아카이브는 `Saved/Graphics/Phase01StartPackage_20261114`, 49파일·1388.06MiB(약 1.36GiB)다. 실제 Game exe와 컨테이너 5개·NonUFS 경로를 검증/해시 기록했다. Ridge 경로 해시가 소스와 동일하고 소스/기본 SpawnConfig/OctantPool/GameState 디스크 해시가 전후 동일함을 확인했다.
+- 근거는 `Saved/Profiling/Graphics/Phase01/Build_20261114/`의 SourceSnapshot.json·BuildStatus.json·PackageVerification.json과 EditorBuild.log·Automation 보고서·PackageBuild.log다. 패키지 실행·적 0·정확 1440p·정식 기준선은 미검증이다.
+- 이번 준비 단위를 마감하고 다음 짧은 Medium/적 0 패키지 실행 검증 진행 여부를 묻는다. 해당 실행이 통과한 뒤 정식 출발 기준선을 별도 단위로 수행한다.
+
+### 세션 마감 — 새 세션 인수인계·통합 커밋(2026-11-14)
+
+- 사용자가 새 세션 인계 준비, 필요한 문서 전체 갱신, 이전 메시지 형식에 맞춘 한 번의 커밋을 요청했다. 패키지 실제 실행은 시작하지 않고 1-A의 경로·빌드·패키지 준비까지를 이번 범위로 고정했다. 1-A 전체/Phase 1 완료로 표시하지 않는다.
+- Current를 현재 완료 상태와 다음 행동 중심으로 정리하고 Phase 1 실행서 §8을 최종 결과로 압축했다. 단계별 경과는 이 로그에 보존했다. §9에 완료/미검증 구분·패키지/소스 식별·Saved 부재 시 처리·명시적 런처 인자·짧은 Medium/적 0 검증 항목·새 세션 시작 프롬프트를 추가했다.
+- README 라우팅·Roadmap 상태·1-B0 문서의 다음 세션 링크를 최신 §9로 연결했다. 기존 선정/결정·코드 구현·카메라/렌더 값은 인계 정리 중 변경하지 않았다.
+- 패키지는 HEAD c6981a6 + 기록한 소스 변경으로 빌드됐다. 인계 커밋으로 HEAD가 달라져도 빌드 대상 파일/패키지 해시가 일치하면 기존 바이너리를 사용한다. 소스/패키지·로그는 Saved에 남기고 git에는 소스·JSON·문서만 넣는다.
+- 최근 커밋의 `feat:`/`fix:`/`docs:` + 한국어 제목·본문 bullet 형식을 확인했다. 커밋 범위는 Ridge 하네스/경로·검사·스테이징 참조와 위 문서로 제한한다. 다음 세션은 §9의 짧은 Medium/적 0 패키지 검증부터 시작한다.
+- 커밋 전 문서 상대 링크 73개·새 패키지 실행 예제 2개의 PowerShell 구문·빌드 소스/보존 에셋 13파일 해시·스테이징 경로 해시·git diff 검사를 통과했다. 인계 정리 중 런타임 실행이나 재빌드는 하지 않았다.

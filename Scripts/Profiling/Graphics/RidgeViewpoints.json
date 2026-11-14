@@ -1,0 +1,113 @@
+{
+  "map": "/Game/Maps/TestMap03",
+  "world_seed": 1,
+  "pcg_seed_offset": 0,
+  "octant_asset": "/Game/Maps/Ridge_00/LVI_Octant_Ridge_00",
+  "target_slot": 1,
+  "coordinate_space": "octant_local",
+  "lens": {
+    "fieldOfView": 79.99999237060547,
+    "aspectRatio": 1.3331547975540161,
+    "aspectRatioAxisConstraint": "AspectRatio_MaintainYFOV"
+  },
+  "points": [
+    {
+      "id": "A_DeepBasin",
+      "capture_seed": 2982,
+      "capture_slot": 1,
+      "camera": {
+        "location": [
+          14126.49257945583,
+          11981.177118997784,
+          25578.3334521097
+        ],
+        "rotation_quaternion_xyzw": [
+          -0.8181976050010245,
+          -0.3955483232059188,
+          0.3972379035773024,
+          -0.12765677083916582
+        ]
+      },
+      "player": {
+        "location": [
+          14219.931262243013,
+          12164.686262256582,
+          25482.012467723172
+        ],
+        "rotation_quaternion_xyzw": [
+          -0.8584114907411444,
+          -0.4075937204763995,
+          0.3006243264121209,
+          -0.08137620021254045
+        ]
+      }
+    },
+    {
+      "id": "B_TablelandRim",
+      "camera_position_adjustment": {
+        "origin": "captured_camera",
+        "direction": "spherical_local_up",
+        "distance_cm": 50
+      },
+      "capture_seed": 2982,
+      "capture_slot": 1,
+      "camera": {
+        "location": [
+          11108.874780012287,
+          15419.040760600383,
+          20165.76275865537
+        ],
+        "rotation_quaternion_xyzw": [
+          0.9543650238795534,
+          0.07145389454196766,
+          -0.01860617486256938,
+          0.2893709598545583
+        ]
+      },
+      "player": {
+        "location": [
+          11363.240349079122,
+          15555.226174145793,
+          20228.761596462384
+        ],
+        "rotation_quaternion_xyzw": [
+          0.9284501111481007,
+          0.008109293276967244,
+          -0.22167358800922066,
+          0.2979520948923603
+        ]
+      }
+    },
+    {
+      "id": "C_ValleyRise",
+      "capture_seed": 2982,
+      "capture_slot": 1,
+      "camera": {
+        "location": [
+          13900.145215414032,
+          15391.090894585082,
+          24604.96972345391
+        ],
+        "rotation_quaternion_xyzw": [
+          0.9113247022208472,
+          0.14771302004129033,
+          -0.3148181370014409,
+          0.22035809821131586
+        ]
+      },
+      "player": {
+        "location": [
+          14090.349724500704,
+          15495.91889574451,
+          24515.78362534517
+        ],
+        "rotation_quaternion_xyzw": [
+          0.9248223054468775,
+          0.15767799498340246,
+          -0.27262955738000444,
+          0.21334122360368984
+        ]
+      }
+    }
+  ]
+}

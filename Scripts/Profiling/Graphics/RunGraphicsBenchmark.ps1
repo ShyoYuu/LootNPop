@@ -18,7 +18,7 @@ $taskRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Pat
 $taskPackage = if ([IO.Path]::IsPathRooted($PackageDirectory)) { $PackageDirectory } else { Join-Path $taskRoot $PackageDirectory }
 $taskOutput = if ([IO.Path]::IsPathRooted($OutputDirectory)) { $OutputDirectory } else { Join-Path $taskRoot $OutputDirectory }
 $taskExe = Join-Path $taskPackage 'Windows/LootNPop/Binaries/Win64/LootNPop.exe'
-$taskPath = Join-Path $taskPackage 'Windows/LootNPop/Scripts/Profiling/Graphics/AcropolisViewpoints.json'
+$taskPath = Join-Path $taskPackage 'Windows/LootNPop/Scripts/Profiling/Graphics/RidgeViewpoints.json'
 if (-not (Test-Path -LiteralPath $taskExe)) { throw "Package executable missing: $taskExe" }
 if (-not (Test-Path -LiteralPath $taskPath)) { throw "Viewpoint artifact missing: $taskPath" }
 $taskExeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $taskExe).Hash
