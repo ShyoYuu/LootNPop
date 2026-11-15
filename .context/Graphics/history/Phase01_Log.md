@@ -432,10 +432,89 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - **1-B4a는 배치·기술 확인·사용자 근경 시험 범위에서 마감.** 전체 밀도/원거리 반복, PIE 발/카메라/탄환, 전체 훅 접근/회복, WIP 런타임 SurfaceData, 패키지 비용까지 통과한 최종 팔레트는 아니다. 다음은 진행 확인 뒤 이끼 바위와 절벽 부분 보강 소수 시험을 제안한다. Fern 바람/변위와 재질 샘플 비용 축소도 남아 있다.
 - 현재 팔레트는 Phase01_RidgeZonePalette.md §10, 실행/제외/재현 근거는 Phase01_EnvironmentImport.md §13을 따른다. 소수 시험 맵/원본/원자료는 git 제외이며 커밋은 하지 않았다.
 
-### 새 세션 인수인계·단일 커밋 준비(2026-11-15)
+### 새 세션 인수인계·단일 커밋 정리(2026-11-15~16)
 
 - 사용자 요청으로 Current.md를 현재 Phase1-B 상태·로컬 WIP/재생성 순서·다음1-B4b·미검증/재발 방지 중심으로 줄였다. 완료된1-A 상세는 기존 보고서/실행서를 참조한다. 다음 단위는 아직 승인/착수하지 않았고 이번 요청은 문서/커밋 마감이다.
 - README 라우팅·상위 실행서의 현재 상태 표·환경 반입 실행서의 반입 전/최종 상태 표현을 정합했다. 재반입/기존 빌더 재실행 금지, World복제→로드 크래시, 실제 지각 hit 검증, AA 진단/복원, 배치/런타임/성능의 검증 경계를 인계했다.
 - ElectricDreamsPalette.json의 원본104개·파생11개·WIP맵1개·Saved 예시가 모두 Git 제외이고 이미 추적된 에셋0개임을 확인했다(Handoff_20261115/RepositoryAudit.json). 실패한 하상 원본도 로컬 반입 이력으로 보존하며 Git에는 넣지 않는다.
 - 커밋 범위는 문서·재생성 Python4개·식별JSON·.gitignore의 명시 목록만이다. 이전 커밋의 feat/docs/fix 접두어+한글 제목·항목형 한글 본문 양식을 확인했다. 이번 작업은 구현 코드가 포함돼 feat 접두어로 단일 커밋한다. 실제 해시는 git log에서 확인한다.
 - Python AST·식별 목록/파일/해시 형식·로컬 문서 링크·Git diff와 스테이징 에셋 제외를 검사한다. UE 생성/노멀/근경 검증은 앞선 해당 단위 결과를 사용하며, 세션 마감 때문에 빌드/쿡/재생성을 반복하지 않는다.
+
+### 1-B4b 착수 — 이끼 바위·절벽 부분 보강 계획 및 경사 가드 중단(2026-11-15)
+
+- 사용자 요청으로1-B4b를 승인받았다. TestMap03·PIE=false에서 기존 WIP 열기를 즉시 수동 요청했고 사용자가 완료했다. WIP 경로·dirty=false·직전 최종맵 해시 E53D5F53… 일치를 확인했다.
+- BuildRidgeRockProbe.py를 작성했다. 이끼 MI09·Cliff MI를 기본 슬롯에서 확인하고 원본/기존11메시를 보존한다. 이끼2개·축소0.15 절벽1개만 개별 배치하며 원본 에셋/충돌/Support/Nav·정식 LVI는 수정하지 않는다. 보호12/반입104/V0024파일의 시작 해시120개를 기록했다.
+- 첫 수동 실행은 이끼2점의 실제 경사33.34°/48.56° 때문에 생성 전 가드에서 중단됐다. 절벽은 실제79.96°·AABB 앞면9점의 지각 간격5.40~12.00cm로 시험 가드를 통과했다. 실제 메시 노출·접촉의 통과 근거는 아니다. 첫 Plan을 별도 보존했다.
+- 이끼 경사30° 기준을 유지하고 인근 후보8점 trace·경로/Pod 여유 조회 후 통과2점을 선택하는 Saved/SurveyAndBuild.py 실행을 수동 요청했다. 아직 성공·근경 판정 대기다. 성공 시 고정 좌표를 추적되는 빌더에 반영해 Saved 보조 의존성을 없앤다.
+- 현재 Python AST를 통과했다. 실행·재현·검증 범위는 환경 반입 실행서 §14, 원자료는 Saved/Profiling/Graphics/Phase01/RidgeRockProbe_20261115/다. 이후 단위는 아직 승인받지 않았다.
+
+### 1-B4b 배치·기술 확인 — 이끼2/절벽1 근경 판정 대기(2026-11-15)
+
+- 사용자 보조 스크립트 실행으로 실제 후보8점 조회 후 이끼(2650,-2750)/(2850,-2760)·절벽(0,0) 배치/저장에 성공했다. 이끼 경사는12.82°/16.24°, 경로 초안/bounds 밖 최소50.80cm·Pod3D 구/bounds 밖 최소220.59cm다. 최초 경사 기준은 유지했다.
+- 최종 좌표를 BuildRidgeRockProbe.py POINTS에 반영하고 AST를 통과했다. 로컬 Saved 보조 없이 기존1-B4a WIP에서 고정 좌표로 재생성할 수 있는 코드이며, 이미3개가 있어 최종 코드 전체를 다시 실행하지 않았다.
+- 라이브14컴포넌트의 저장 직후 기록 대조 차이0·신규3개 Decoration 단독/NoCollision/LNPDecoration/Static/Nav영향false를 재조회했다. 신규3개 그림자/RT/DF=true 기본값은 유지한다. 기존11메시 스냅샷·보호12/반입104/V0024파일 해시 보존, 복구 사본/시작 WIP 해시 일치, WIP dirty=false·성공 로그를 확인했다.
+- 사용자에게 개별 액터 선택/F로 이끼 뜸·사암 겹침·색/이끼, 절벽 실제 노출·매몰·네모 테두리/옆면 틈을 확인해 달라고 요청했다. 근경 판정 대기이며1-B4b/팔레트 최종 채택을 마감하지 않았다. PIE/런타임 SurfaceData/패키지 비용도 미검증이다.
+- 근거: RidgeRockProbe_20261115/MossSurvey.json·Plan.json·Placement.json·WipBefore/After.json·TechnicalVerification.json·FinalFileChecks.json·BeforePlacement.umap. 상세는 환경 반입 실행서 §14다.
+
+### 1-B4b 근경 시험 마감 — 이끼2/축소 절벽1 유지(2026-11-15)
+
+- 사용자는 전체적으로 자연스럽다고 확인했다. Moss_00은 기존 사암과 겹치지만 이끼 난 부분이 연결돼 자연스럽고 지면에 떠 있다는 느낌이 없으며, Cliff_02도 아주 자연스럽다는 판정이다. 이끼2/절벽1을 현재 위치에 유지하며 겹침을 없애는 이동은 하지 않았다.
+- **1-B4b의 소수 배치·기술 확인·사용자 근경 시험을 마감했다.** 종료 시 기존 WIP 경로·PIE=false·dirty=false를 재확인했다. WIP 파일도 배치 직후와 같은 해시이며 보호12/반입104/V0024파일 총120개 해시 변화0이다. 추가 에셋/맵 저장은 필요하지 않았다.
+- 최종 판정/미검증 범위는 RidgeRockProbe_20261115/Verification.json, 관찰 중 이끼/기존 장식 구도는 Views/User_Current.png다. 이 캡처가 절벽 개별 관찰의 근거를 대신하지는 않는다. 앞선 TechnicalVerification은 근경 판정 전 체크포인트로 보존했다.
+- 실제 통과 범위는 WIP 검사용 조명의 소수 근경이며 전체 밀도/원거리·PIE 발/벽보행/카메라/탄환·SurfaceData 런타임·패키지 비용은 미검증이다. 절벽 벽 전체 외장이나 최종 팔레트/Phase1 완료로 확대하지 않는다.
+- Current·현재 팔레트·상위 실행서·환경 반입 실행서 §14를 마감 상태로 정합했다. 다음 제안은1-B4c Fern 구면 바람/WPO·변위 소수 시험이다. 사용자에게 진행 여부를 확인하며 아직 착수하지 않는다. 재질 샘플 비용 축소와 최종 화질 게이트도 그대로 남긴다.
+
+### 1-B4c 착수 — 원본 Fern 바람 경로·실제 표면 조회(2026-11-15)
+
+- 사용자 승인으로1-B4c에 착수했다. 기존 WIP·PIE=false·dirty=false·보호/반입/V002120파일 해시 보존을 확인했다. 원본 바람 함수/실효 MI 파라미터를 읽고 원본은 편집하지 않았다.
+- 원본 MI는 Animate Foliage/Plant/Use Vertex RED=true, Noise/Gust/Gust Noise0.2/0.4/0.3이다. 일반 렌더 WPO는 MF_SimpleWind→SimpleGrassWind이며 고정Z와(0,0,-10) 피벗 보정이 있다. RayTraced 경로는 별도 상수다. 원본 한 표본의 자연스러움을 전체 구면/slot 정합으로 판정하지 않는다.
+- 수동 InspectFern.py는 실제 지각 trace·보호 가드·라이브 MPC 조회만 하며 성공했다. 후보20점 중(3000,-2700)1점만 전부 통과했다. 실제 경사16.47°이며 바람은 Direction0/Noise5/StrengthPlants2/SpeedPlants0.3/TilingPlants0.5다. survey 보호 반경은 메시+30cm 시험 여유로서 최대 WPO 측정값은 아니다.
+- BuildRidgeFernProbe.py에 그1점·원본 메시/MI·Decoration/NoCollision/Static/Nav영향false·WPO평가true 시험을 작성했다. 현재14메시/dirty/지각pose/보호 가드 확인→복구 사본→1개 생성→WIP만 저장한다. Python AST를 통과했다. 사용자에게 실행과 Realtime 근경 움직임/뿌리/부유/판 모양 관찰을 요청했으며 아직 결과 대기다.
+- 상세는 환경 반입 실행서 §15, 원자료는 Saved/Profiling/Graphics/Phase01/RidgeFernProbe_20261115/다. 이 단위 이후 진행은 별도 확인한다.
+
+### 1-B4c 원본 근경 동작 시험 마감 — Fern1개 유지·구면 방향 채택 보류(2026-11-15)
+
+- 사용자 빌더 실행으로 원본 Fern1개를 생성·WIP만 저장했다. 실제 경사16.47°·시험 바람30cm 포함 반경196.04cm·경로 초안/bounds 밖267.53cm·Pod3D 구/bounds 밖21.06cm로 가드를 통과했다. 최대 WPO 변위를 측정한 수치가 아니다.
+- 라이브 신규1개는 Decoration 단독/NoCollision/LNPDecoration/Static/Nav영향false·WPO평가true/거리제한0이다. 원본 MI override 없음, 그림자/RT/DF=true·WPO RT평가false·boundsScale1 기본값을 기록했다. 원본 메시/MI/MPC/공유함수와 기존14메시를 보존했다. 저장 직후15컴포넌트 필드 대조 차이0·보호120파일 해시 변화0·시작 WIP와 복구 사본 해시 일치를 확인했다.
+- 사용자는 Realtime 근경에서 잎이 자연스럽게 움직이고 다른 어색한 부분도 없다고 확인했다. 현재1개를 WPO 켜진 채 유지한다. 문제가 관찰되지 않아 WPO 끄기 비교나 원본/바람 값 수정은 하지 않았다. 실제 정점별 최대 변위·뿌리 이동량을 수치 측정하지 않았다.
+- **1-B4c의 원본 소수 배치·기술 조사·근경 동작 시험을 마감했다. 구면 방향 최종 채택은 보류다.** 원본 SimpleGrassWind의 고정 월드축/피벗 보정이 남아 있으므로 임의 slot/적도 정합을 통과로 처리하지 않는다. 전체 밀도/게임 조명/PIE/SurfaceData/패키지 성능도 별도 미검증이다.
+- 종료 시 WIP dirty=false·PIE=false·배치 직후 WIP 해시 유지와 보호120파일 보존을 재확인했다. 근거는 RidgeFernProbe_20261115/TechnicalVerification.json·FinalFileChecks.json·Verification.json·Views/Final_User.png다. 정지 캡처가 사용자 동작 관찰의 근거를 대신하지 않는다.
+- 재생성 코드는 Scripts/Profiling/Graphics/BuildRidgeFernProbe.py다. 조사 Saved에 의존하지 않는 고정 좌표이며 이미 생성돼 재실행하지 않는다. Current·현재 팔레트·상위 실행서·환경 반입 실행서 §15를 정합했다. 다음1-B4d Fern 바람 구면 방향 보정/회전 비교는 제안만 했으며 사용자 진행 확인 전 착수하지 않는다.
+
+### 1-B4d 마감 — Fern 구면 바람 파생본·현재 근경/+90° 사례 통과·복원(2026-11-15)
+
+- 사용자 승인으로 BuildRidgeFernWind.py와 파생 함수/부모/MI3개를 만들었다. 원본 MF_SimpleWind의 기하 위치/피벗/Tree 출력만 구면 접선 프레임으로 옮겼고 원본 노이즈/MI 파라미터/정점 R·공유 함수/MPC·레이 트레이싱 경로는 보존했다. 원본71노드에3개를 더한74노드·최종 Custom 코드/배선을 재조회했다.
+- 최초 생성 때 SimpleGrassWind 입력 index0 미연결의 MI 컴파일 경고1건이 있었다. 저장 성공을 바로 통과로 처리하지 않고 부모 재컴파일·Plant=true 재설정/배선 확인 후, VerifyAndApply.py에서 실효 MI Update/GetStatistics와 원본 override 배열/정적 스위치 일치를 확인했다. 이후 같은 경고는 재발하지 않았다. 빌더에는 부모 컴파일→MI 갱신→통계 양수 확인 순서를 반영했다. 기존 산출물이 있어 수정 후 깨끗한 전체 재생성은 반복하지 않았다.
+- MI 통계는 원본→보정 정점475→497·픽셀686→686·샘플러4·정점/픽셀 샘플4/4·VT조회4로 나머지는 같다. 현재 에디터 플랫폼 통계이며 GPU ms/패키지 비용으로 판정하지 않는다.
+- 기존 Fern1개의 Element0 override만 보정 MI로 적용·저장했다. 나머지14메시와 자신의 transform/태그/충돌 등은 보존했다. 사용자는 적용 후 여전히 자연스럽다고 확인했다.
+- 표시 메시15개/검사용 광원1개/카메라를 월드 Z +90°로 함께 임시 회전해 Realtime 관찰을 요청했고, 사용자는 여전히 아주 자연스럽다고 확인했다. 회전 상태의 맵 미저장을 디스크 해시로 확인했다. 기록한 원래16 transform/camera로 즉시 복원해 최대 위치 오차0cm·회전5.68e-14°·scale0·카메라0·재질/태그/충돌/렌더 필드 차이0을 확인하고 WIP를 저장했다. Preview 최종상태는 restored_saved다.
+- 파생3에셋/WIP dirty=false·PIE=false·원본104/보호12/V0024파일 해시 변화0·원본 MI 상태 복구 사본/시작 WIP 해시 일치를 확인했다. 회전 전 보정 MI 복구 사본은 별도로 보존한다. 캡처3개/카메라 메타데이터는 Views에 있다.
+- **1-B4d 구현·컴파일/배선·현재 근경 및 한 회전 사례·복원 범위 마감.** 모든 런타임 slot/적도/극점/기준축 전환·최대 변위/뿌리 이동량·전체 밀도/게임 조명·PIE/SurfaceData·패키지 성능은 미검증이다. PCG/정식 Ridge/원본 에셋은 수정하지 않았다.
+- 재현/범위는 환경 반입 실행서 §16, 최종 근거는 Saved/Profiling/Graphics/Phase01/RidgeFernWind_20261115/Bindings.json·FinalStatistics.json·Application.json·Preview.json·Restoration.json·FinalFileChecks.json·Verification.json·Views다. Current/팔레트/상위 실행서/README를 정합했다. 다음1-B3d 지각 재질 샘플 비용 축소는 제안만 했고 진행 확인 전 착수하지 않는다.
+
+### 1-B3d 착수 — V003 두 샘플 반복 완화 후보 준비(2026-11-15)
+
+- 사용자 승인으로 지각 재질 샘플 비용 축소에 착수했다. 기존 WIP·PIE=false·dirty=false를 확인했다. 보호12/반입104/기존 파생14파일 총130개 해시와 보정 Fern을 포함한 현재 V002 맵 복구 사본을 남겼다.
+- V002의 축당4샘플 Texture_Bombing을2샘플 UV 이동/부드러운 혼합으로 줄이는 BuildRidgeSurfaceReduced.py를 작성했다. V002 부모/MI·원래3축 투영 함수2개의 파생본 총4개만 생성하며 맵·원본·이전후보·장식은 변경하지 않는다.
+- 엔진 TextureVariation/RotateUV/RotateNormals를 조회했고 높이/경계 샘플과 분기가 있는 원형 대신 이번 최소2샘플 경로를 택했다. UV 회전/반전·높이 비교·추가 노이즈 텍스처 없이 색/마스크/노멀 공통가중치·노멀 정규화·원래 UV 명시적 DDX/DDY를 쓴다. 기존 좌표/경사/구역/바닥 macro와 Bomb Offset 강도는 유지한다.
+- Python AST/언어 검사를 통과했다. 사용자에게 생성 콘솔 실행을 요청했으며 아직 실행 결과 대기다. 실효 MI의 VT 조회/픽셀 명령이 줄었을 때만 새 에셋을 저장한다. 같은 구도 화질·중립 노멀 검증 전에는 채택/단위 완료로 처리하지 않는다.
+- 상세는 환경 반입 실행서 §17, 원자료는 Saved/Profiling/Graphics/Phase01/RidgeSurfaceReduced_20261115/다. 캡처 JSON의 base64 본문은 다시 출력하지 않고 카메라 메타데이터만 읽는다. 다음 단위는 승인받지 않았다.
+
+### 1-B3d 마감 — V003 바닥 실패·V004 혼합 비용 축소/중립 노멀 통과(2026-11-15)
+
+- V003 두 샘플 UV 이동 혼합은 생성/컴파일/배선 검사를 통과했다. V002 대비 VT72→36·픽셀5367→2972로 줄었으나 사용자가 바닥 원경을 거의 체크무늬에 가깝다고 판정했다. 절벽은 괜찮다는 결과였으며 전체 V003 적용은 미채택했다. UV 혼합 노이즈와 기존 macro 변조의 원인은 분리하지 않아 확정하지 않았다.
+- BuildRidgeSurfaceHybrid.py로 V004 부모/MI만 파생했다. 바닥 색/마스크/노멀3경로는 V002의4샘플 Texture_Bombing으로 복원하고 절벽3경로는 V003 두 샘플을 유지한다. 바닥의 기존 macro 색/거칠기와 MI 값은 보존했다. 사용자는 절벽은 여전히 괜찮고 바닥은 V003보다 확실히 개선됐다고 확인했다. 바닥 최종 화질 승인으로 확대하지 않았다.
+- V004 실효 에디터 통계는 정점148·픽셀4170·샘플러5·픽셀 샘플57·VT54다. V003보다 비용이 늘지만 V002 대비 VT25%·픽셀 명령22.3%를 줄인 절충안이라고 설명했다. 원래 절반 감소 목표는 바닥 실패로 채택하지 않았다. GPU ms/패키지 성능은 측정하지 않았다.
+- 사용자 수동 AA0/World Normal 전환 후 같은 구도의 기하 노멀과 V004 중립 노멀을 비교했다. stride4/구역 내부 마스크22,779표본에서 전체/바닥/절벽/전이 모두 p95=1·최대2(RGB8)로 기준 p95≤2를 통과했다. 표시 RGB 차이이며 법선 각도 오차나 실제 노멀맵 전체 정합의 측정은 아니다. 첫 회색 경사 마스크는 무효로 보존하고 독립 호출로 재캡처한 정상 마스크만 사용했다.
+- 실제 노멀 텍스처2개·V004 바인딩·사용자 카메라를 복원하고 부모/MI/WIP를 저장했다. 사용자가 AA4/Lit 복귀를 완료했고 실효4·최종 Lit 캡처를 확인했다. NormalDiagnosticState의 최종상태는 restored다. 진단 후 기존15 actor transform/컴포넌트 차이0·MI 파라미터 값 보존·dirty=false·PIE=false를 확인했다. 원래 CVar 우선순위까지 검증한 것은 아니다.
+- 보호12/반입104/기존 파생14/V0034파일 총134개의 해시 변화0이며 단위 시작 V002 복구 사본/시작 WIP 해시도 일치한다. V0034/V0042에셋은 Git 제외로 보존한다. V003는 V004 절벽 함수와 재생성의 선행 조건이므로 삭제하지 않는다. 두 신규 빌더는 AST를 통과했으며 기존 산출물 때문에 깨끗한 전체 재생성은 반복하지 않았다.
+- **1-B3d 구현·비용 축소/중립 노멀·보존/복원 기술 검증 마감, V004 조건부 유지.** 바닥 원경 최종 화질·모든 slot/적도/이음매·게임 조명/밀도·PIE/SurfaceData·패키지 성능은 미완료다. 다음 제안1-B3e는 같은 구도의 macro 유무 비교로 바닥 반복 원인을 분리하는 단위이며 아직 승인/착수하지 않았다.
+- 상세/재현은 환경 반입 실행서 §17이다. Saved/Profiling/Graphics/Phase01/RidgeSurfaceReduced_20261115/의 HybridCreation·V003VisualFailure·HybridApplication·NeutralNormalComparison·NormalDiagnosticState·FinalLiveVerification·WipAfter·FinalFileChecks·Verification과 Views14PNG에 근거를 남겼다. 복구 사본은 단위 시작 V002와 실패 V003를 구분한다. Current·상위 실행서·팔레트 요약을 정합했다.
+
+### 새 세션 인수인계·단일 커밋 정리(2026-11-15~16)
+
+- 사용자 요청으로 이번 세션의 1-B4b/c/d·1-B3d 결과와 재생성 코드5개를 한 커밋으로 정리한다. 최근 커밋의 `feat: 한국어 제목`과 본문 글머리표 양식을 따른다. 새1-B3e는 승인/착수하지 않고 다음 세션에서 진행 여부부터 확인한다.
+- Current에 읽을 문서·읽기 전용 에디터 점검·V004/보정 Fern·복구 기록·기존 빌더 재실행 금지·새 세션 요청 예시를 남겼다. 로드맵·상위 실행서·팔레트 요약·README 라우팅을 현재 결과와 정합했다. Phase1/최종 팔레트/패키지 성능은 미완료 상태를 유지한다.
+- 커밋 대상은 관련 문서와 Python 재생성 코드뿐이다. 원본/파생 에셋·WIP·Saved·캡처·복구 사본은 로컬 Git 제외로 유지하며, 이번 인계의 구문/공백·문서 링크·포함/제외 검사는 Saved/Profiling/Graphics/Phase01/Handoff_20261115/RepositoryAudit_RockFernSurface.json에 남긴다. 기존 산출물의 빌더 재실행·전체 빌드/쿡·새 에디터 변경은 하지 않는다.
+
+- 2026-11-16 한도 초기화 후 인계/커밋 작업만 재개했다. 에디터 마지막 확인은11월15일 결과이며 새 구현이나 에디터 변경은 하지 않았다.

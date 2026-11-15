@@ -1,6 +1,6 @@
 # Phase 1-B — 환경 반입과 작은 시험
 
-> 상태: 1-B4a 근경 시험 마감(사암/클로버 통과·하상 제외) · 다음 이끼 바위/절벽 소수 시험 확인 대기 · 1-B3c 화질/비용 조건부
+> 상태: 1-B3d 비용 축소/기술 검증 마감·V004 조건부 유지 · 바닥 원경 원인 분리 진행 확인 대기
 > 작성: 2026-11-14
 > 마지막 갱신: 2026-11-15
 > 상위: [Phase 1 실행서](Phase01_BenchmarkContent.md)
@@ -40,7 +40,7 @@
 | 시험 LVI·재질 적용·소수 배치 | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/` | 기존 WIP 제외 규칙 사용 |
 | 재생성 목록·실행 코드·절차 | `Scripts/Profiling/Graphics/`, 이 문서 | 추적 |
 
-위 폴더는 이번 원본용으로 사용한다. 자체 제작 에셋은 원본 제외 폴더에 넣지 않는다. 실제 재생성 코드/설정과 수동 보정은 §9~13, 새 세션의 읽기 순서와 마지막 로컬 상태는 [Current](../Current.md)를 따른다. 현재 WIP에는 V002 재질과 최종 사암2/클로버6이 있다. PCG는 아직 없고 정식 LVI 적용은 시험 채택 뒤 별도 단위에서 한다.
+위 폴더는 이번 원본용으로 사용한다. 자체 제작 에셋은 원본 제외 폴더에 넣지 않는다. 실제 재생성 코드/설정과 수동 보정은 §9~17, 새 세션의 읽기 순서와 마지막 로컬 상태는 [Current](../Current.md)를 따른다. 현재 WIP에는 V004 혼합 지각 재질과 사암2/클로버6/이끼2/절벽1·구면 보정 MI를 적용한 Fern1개가 있다. 지각은 비용 축소/중립 노멀 통과·화질/패키지 최종 채택 보류, Fern은 근경/+90° 회전 사례 통과·조건부 유지다. PCG는 아직 없고 정식 LVI 적용은 시험 채택 뒤 별도 단위에서 한다.
 
 ## 3. 새 체크아웃의 수동 Migrate(현재 반입 완료)
 
@@ -274,3 +274,134 @@ PIE=false·현재 WIP 경로·V001 부모/MI와 WIP dirty=false·지각 V001 바
 - 최종 캡처는 같은 A와 사용자 근경이며 `Views/Final_A.png`·`Final_Close.png`다. 초기10개/근경 포함 총6개 PNG를 보존했다. 점광원 검사 구도이며 게임 조명 완성도/멀리서의 반복감 최종 판정은 아니다.
 
 **1-B4a의 배치/기술 확인·사용자 근경 시험을 마감했다.** 다음 제안은 진행 확인 뒤 **1-B4b 이끼 바위·절벽 부분 보강의 소수 시험**이다. Fern은 별도 바람/변위 시험으로 남긴다. 실패한 하상 역할의 재도입/다른 패치 선정은 별도 확인 대상으로 두며, 대표 구역 PCG 전 조건부 재질의 비용/화질과 실제 플레이 접촉 검증이 남아 있다.
+
+## 14. 1-B4b 이끼 바위·절벽 부분 보강 소수 시험(2026-11-15, 근경 시험 마감)
+
+사용자가 이 단위 진행을 요청했다. 현재 맵이 TestMap03·PIE=false여서 기존 WIP 열기를 수동 요청했고, 사용자가 완료했다. WIP 경로·dirty=false·최종 1-B4a 맵 해시 일치를 확인했다. 새 맵 복제/로드·정식 Ridge 변경·PCG·Support/Nav 베이크·빌드/쿡은 하지 않는다.
+
+- 재생성 코드: `Scripts/Profiling/Graphics/BuildRidgeRockProbe.py`. 기존 WIP·원래 지각 identity pose·V002 바인딩·기존 메시11개·dirty 패키지 없음·같은 시험 라벨 부재를 요구한다. 이끼 바위는 원본 MI09, 절벽은 MI_Cliff_01을 기본 슬롯에서 확인한다. 원본 메시/재질을 편집하지 않는다.
+- 범위: 이끼 바위2개(스케일0.8)·절벽1개(스케일0.15, 높이 약2.13m). 실제 complex Visibility trace의 지각 component와 normal을 사용한다. 이끼는 현지 법선에 정렬·3cm 매몰, 절벽은 로컬+Y를 법선·Z를 접선 Up에 정렬하고 AABB 앞면 중심을 지각보다12cm 노출한다. 실제 메시 면의 노출/접촉을 AABB만으로 통과시키지 않는다.
+- 생성 전 가드: 구역·이음매·암반 footprint·경로 반폭+2m 및 hit 중심 bounds 반경×1.2·Pod 3D 편성 구·입구/앵커 착지 이격. 이끼 실제 경사<30°, 절벽70~90°이며 앞면 AABB 9점의 실제 지각 hit와 간격 -10~30cm를 검사한다. 이는 소수 시험용 가드이며 최종 PCG/훅 접근/회복 공간 검증이 아니다.
+- 첫 수동 실행은 이끼 후보(3100,-2660)/(3700,-2680)의 실제 경사33.34°/48.56° 때문에 생성 전에 중단됐다. 액터 생성/맵 저장은 없었다. 절벽 후보(0,0)는 실제 경사79.96°·앞면9점 간격5.40~12.00cm로 가드를 통과했지만 실제 메시 노출은 미검증이다. 첫 계획은 `Plan_FirstSlopeStop.json`에 보존했다.
+- 기준을 완화하지 않고 인근8점을 실제 trace로 조회한 로컬 보조 `SurveyAndBuild.py`를 사용자가 실행해 배치/저장에 성공했다. 선택된 이끼 좌표(2650,-2750)/(2850,-2760)는 실제 경사12.82°/16.24°·Pod 구/bounds 밖 여유260.40/220.59cm·경로 초안/bounds 밖 여유50.80/250.81cm다. 절벽까지 전체 가드를 통과했다. 최종 고정 좌표를 추적되는 빌더 `POINTS`에 반영해 Saved 보조 의존성을 없앴고 Python AST를 확인했다. 이미 배치돼 있어 최종 빌더를 재실행하지 않는다.
+- 라이브3개 모두 Decoration 단독·LNPDecoration/NoCollision·Static·내비 영향 꺼짐이다. 기존11개와 새3개의 저장 직후 컴포넌트 필드 대조도 차이0이다. 기존11메시 배치 전후 스냅샷과 보호12·반입104·V0024파일 해시는 그대로이며 복구 사본 해시는 시작 WIP와 일치한다. WIP dirty=false·배치 성공 로그를 확인했다. 신규3개 CastShadow/VisibleInRayTracing/AffectDistanceFieldLighting=true 기본값을 유지하며 비용 적합으로 판정하지 않는다.
+- 사용자에게 개별 액터 선택/F로 이끼의 뜸·사암과의 겹침·이끼/색 이질감과 절벽의 실제 노출·과도한 매몰·네모 테두리·틈/떠 있는 옆면 확인을 요청했다. 사용자는 **전체적으로 자연스럽고, Moss_00은 기존 사암과 겹치지만 이끼 부분이 연결돼 자연스러우며 지면에 떠 있다고 느껴지지 않고, Cliff_02도 아주 자연스럽다**고 확인했다. 이끼2/절벽1은 **수동 근경 시험 통과·조건부 유지**다. 겹침을 없애기 위한 이동은 하지 않았다. AABB 검사는 배치 가드이며 이 육안 판정을 대신하는 근거로 쓰지 않는다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeRockProbe_20261115/`다. 시작 `FilesBefore.json`은 보호12·반입104·V002 재질4파일, `PreflightFiles.json`은 WIP 해시를 기록한다. `BeforePlacement.umap` 복구 사본·기존11메시 스냅샷·계획/배치 결과·`TechnicalVerification.json`·`FinalFileChecks.json`·최종 사용자 판정 `Verification.json`을 남겼다. 관찰 중 캡처 `Views/User_Current.png`는 이끼/기존 장식 구도이며 절벽 개별 캡처를 대신하지 않는다. 종료 시 기존 WIP·PIE=false·dirty=false를 재확인했다.
+
+**1-B4b의 배치/기술 확인·사용자 근경 시험을 마감했다.** 이끼2·절벽1을 유지하며 추가 편집/저장은 필요하지 않았다. 전체 밀도·원거리 반복·PIE 발/벽보행/카메라/탄환, SurfaceData 런타임 로드·패키지 비용은 별도 미검증이다. 다음 제안은 진행 확인 뒤 **1-B4c Fern 구면 바람/WPO·변위 소수 시험**이며 아직 착수하지 않았다. 대표 구역 PCG/전체 확장 전 재질 샘플 비용 축소·최종 화질 검증도 남아 있다.
+
+## 15. 1-B4c Fern 구면 바람/WPO 소수 시험(2026-11-15, 원본 근경 시험 마감)
+
+사용자가1-B4b 마감 뒤 이 단위 진행을 승인했다. 기존 WIP·PIE=false·dirty=false를 확인했다. 원본 메시/MI·공유 함수/MPC와 기존14메시를 보존하고 원본 Fern 소수 표본부터 확인한다. 새 정식 LVI 적용·PCG·베이크·PIE 장치 구현·빌드/쿡은 범위에 넣지 않는다.
+
+### 원본 바람 경로와 검증 기준
+
+- 원본 `/Game/Megascans/3D_Plants/Fern/SM_Fern_01`은 로컬 AABB 약156.25×187.99×103.21cm, 기본 MI는 `MI_Fern_01`이다. 부모는 `M_MS_CustomFoliage`다. Animate Foliage/Plant/Use Vertex RED for Animation/optimize WPO=true, Use Procedural Gradient/Invert Gradient=false를 getter로 확인했다. MI 바람 Noise/Gust/Gust Noise는0.2/0.4/0.3이다.
+- 부모의 일반 렌더 WPO는 `MF_SimpleWind`의 WPO Tree (V3) 출력, RayTraced 경로는 별도 상수다. Plant=true 분기에서 엔진 `SimpleGrassWind`와 정점 R 가중치를 사용한다. 이 함수는 CrossProduct의 Up에(0,0,1), 피벗 보정에(0,0,-10)을 쓰고 WorldPosition으로 위상을 계산한다. 조회한 함수 내부에는 현지 구면 Up/접선 변환이 없다. **이 구조만으로 임의 slot 회전에 공변하는 구면 바람이라고 판정할 수 없다.** 원본에서 자연스러운 한 표본과 전체 구면 방향 적합을 구분한다.
+- 원본 MI/함수/MPC를 수정하지 않는다. 먼저 실제 지각 hit·보호 공간 밖 원본 표본에서 접지/움직임/카드 노출·뿌리 이동을 확인한다. 필요하면 컴포넌트의 WPO 평가를 끈 진단 표본과 비교한다. 가시적인 문제가 없더라도 고정 월드축 가정을 전체 구면 통과로 확대하지 않는다.
+- 읽기 전용 `InspectFern.py`를 사용자가 실행했다. 실제 후보20점 중(3000,-2700)1점만 전체 가드를 통과했다. 라이브 MPC는 Direction0·Noise5·Strength Plants2·Speed Plants0.3·Tiling Plants0.5이며 변경하지 않았다. WPO용30cm 여유는 시험 초안이며 실제 최대 변위의 측정값이 아니다.
+
+### 배치·기술 확인·사용자 판정
+
+- 재생성 코드 `Scripts/Profiling/Graphics/BuildRidgeFernProbe.py`를 사용자가 실행해 원본1개를 생성·WIP만 저장했다. 1-B4a/b가 있는 기존 WIP·14메시·지각 identity pose/V002 바인딩·dirty 패키지 없음·동일 라벨 부재를 요구한다. 현재 산출물이 있으므로 재실행하지 않는다. Saved 조사 자료 없이 고정 좌표로 재생성하며 Python AST를 통과했다.
+- 라벨은 `GraphicsFernProbe_Original_00`, 폴더는 `Graphics/FernProbe_V001`이다. 실제 지각 normal에 정렬·회전67°·스케일1·1.5cm 매몰이다. 실제 경사16.47°·메시 전체 bounds와 시험 WPO 여유30cm를 더한 반경196.04cm·경로 초안/bounds 밖 여유267.53cm·Pod3D 구/bounds 밖 여유21.06cm로 가드를 통과했다. 2m 경로 여유·bounds→spec 계수1.2와 WPO30cm는 소수 시험용이며 최종 PCG/실제 최대 변위 규약이 아니다.
+- 원본 메시/MI·WPO 평가true·거리 제한0, Decoration 단독·LNPDecoration/NoCollision·Static·내비 영향false를 라이브 재조회했다. CastShadow/VisibleInRayTracing/AffectDistanceFieldLighting=true·WPO의 RayTracing 평가false·boundsScale1 기본값을 기록했다. 실제 Lumen/RT 표현이나 비용 적합으로 해석하지 않는다.
+- 기존14메시 스냅샷과 저장 직후15컴포넌트 라이브 필드 대조는 차이0, 보호12/반입104/V0024파일 해시는 유지됐다. 배치 전 복구 사본 해시는 시작 WIP와 일치하며 최종 WIP dirty=false·PIE=false를 확인했다.
+- Realtime 근경 관찰을 요청했고 사용자는 **잎이 자연스럽게 움직이고 그 외에도 어색한 부분이 없다**고 확인했다. **원본 Fern1개는 근경 동작/외관 시험 통과·조건부 유지**다. 문제가 관찰되지 않아 WPO 끄기 비교나 바람 값/원본 수정은 수행하지 않았다. 실제 정점별 최대 변위·뿌리 이동량을 수치 측정한 것은 아니다.
+
+**1-B4c의 원본 소수 배치·기술 조사·사용자 근경 동작 시험을 마감했다. 구면 방향의 최종 채택은 보류다.** 원본의 고정 월드축이 남아 있으므로 한 위치의 육안 통과를 회전 slot/적도 전체의 방향 정합으로 확대하지 않는다. 다음 제안은 진행 확인 뒤 **1-B4d Fern 바람 구면 방향 보정·회전 비교**다. 원본을 보존한 별도 파생본에서 현지 Up/바람 방향·뿌리/변위와 회전 전후를 비교하며 아직 착수하지 않았다. 대표 구역 PCG 전 재질 샘플 비용 축소·최종 화질/플레이 접촉·SurfaceData 검증도 남아 있다.
+
+원자료는 `Saved/Profiling/Graphics/Phase01/RidgeFernProbe_20261115/`다. `SimpleWindGraph.json`·`OriginalWindWiring.json`·`EffectiveMaterialParameters.json`은 원본 배선/실효 파라미터, `Survey.json`·`Plan.json`·`Placement.json`·`WipBefore/After.json`·`TechnicalVerification.json`·`FinalFileChecks.json`·`Verification.json`은 실제 조사/배치/최종 판정이다. `BeforePlacement.umap`은 기존11장식을 포함한 복구 사본이며 `Views/Final_User.png`는 사용자 근경 구도다. 정지 캡처가 동작 관찰을 대신하지 않으며 에디터 표시로 패키지 성능을 판정하지 않는다.
+
+## 16. 1-B4d Fern 바람 구면 방향 보정·회전 비교(2026-11-15, 소수 시험 마감)
+
+사용자가 이 단위를 승인했다. 기존 WIP·PIE=false·dirty=false를 확인하고 원본/공유 함수/MPC를 보존한 파생 바람 함수·부모·MI3개를 생성했다. 정식 Ridge/PCG/베이크/빌드/쿡은 범위 밖이다.
+
+- 코드: `Scripts/Profiling/Graphics/BuildRidgeFernWind.py`. 원본 `MF_SimpleWind`71노드에서 Custom2개·영점3벡터1개만 추가한다. `RotateAboutAxis_2`의 Position은 셰이더 오프셋을 제외한 WorldPosition과 ObjectPivotPoint의 차이를 구면 접선 프레임에 투영한 값, PivotPoint는 영점이다. 기존 Tree 출력 변위는 같은 프레임에서 월드 벡터로 복귀한다. 엔진 SimpleGrassWind·공유 MF_WindGust·원본 파라미터/정점 R 가중치·스칼라 월드 공간 노이즈 위상은 유지한다.
+- 현지 Up은 `-normalize(PivotWS)`다. 행성 Z축은 Up이 아닌 공통 방향 기준으로 쓰며, `abs(Up.z)>=0.95`에서는 X축을 대체 기준으로 쓴다. 두 축과 Up으로 직교 프레임을 구성한다. 극점 부근의 기준 전환은 남은 검토 항목이며 전 구면에서 매끄러운 전역 바람장을 확정한 것은 아니다. 식생 표면 normal을 중력 Up으로 대신하지 않는다.
+- 산출물은 `/Game/Graphics/Environment/ElectricDreams/RidgeFernWind_V001/`의 `MF_Ridge_FernWind`·`M_Ridge_Fern`·`MI_Ridge_Fern`이다. 이 Fern 부모가 쓰는 Tree 출력만 보정하며 Impostor 출력/기타 식생에 일반화하지 않는다. RayTraced 상수 경로·쉐이딩 그래프·기존 노이즈 텍스처 조회는 보존한다. 현재 생성돼 있으므로 빌더를 재실행하지 않는다.
+- 최초 생성 시 MI가 `SimpleGrassWind call input with index 0 is unset` 컴파일 경고를 냈다. 예외 없이 저장됐지만 성공 근거로 바로 채택하지 않았다. 이후 부모 재컴파일은 통과했고 WindIntensity/Weight/Speed/AdditionalWPO 배선·Plant=true를 재확인한 뒤 같은 경고가 재발하지 않았다. 빌더는 부모 컴파일 완료→MI 부모 변경/갱신→실효 통계 양수 확인 순으로 보강했다. 기존 산출물이 있어 수정본 전체 재생성은 반복하지 않았다.
+- 실효 MI 컴파일 통계·원본 scalar/vector/texture override 및 정적 스위치 일치를 조회하고, 통과 시에만 기존 Fern1개에 적용/저장하는 `Saved/.../RidgeFernWind_20261115/VerifyAndApply.py` 실행을 수동 요청했다. 이 요청 시점에는 결과 대기였고, 최종 결과는 아래 절을 따른다. 에디터 통계는 GPU ms로 해석하지 않는다.
+
+회전 비교는 먼저 보정 MI의 현재 구도 움직임/뿌리 접지를 사용자에게 확인받고, WIP 표시 메시와 검사용 광원/카메라를 월드 원점 주위로 함께 임시 회전해 관찰한 뒤 복원한다. 회전된 상태로 맵을 저장하지 않는다. 원본 공간 노이즈 위상이 남으므로 회전 전후 같은 시각의 무늬/흔들림 위상 일치를 통과 기준으로 삼지 않는다. 현지 방향·뿌리 고정·비정상 변형과 복원을 확인한다. 전체 런타임 slot·극점·PIE/SurfaceData·패키지 성능은 별도다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeFernWind_20261115/`의 `Creation.json`·`WipBefore.json`·`FilesBefore.json`·`PreflightFiles.json`이다. `BeforeMaterialApplication.umap`은 원본 Fern MI 적용 상태의 복구 사본이다. 원본 에셋104/보호12/V0024파일은 해시로 보호한다.
+
+### 실효 MI 검증·적용·회전 관찰·복원
+
+`VerifyAndApply.py` 수동 실행이 성공했다. 부모 컴파일 오류 목록은 비었고, 원본과 scalar/vector/texture override 배열·정적 스위치6개가 일치했다. 실제 MI의 셰이더 통계를 강제로 컴파일 완료한 뒤 읽었다. WIP에서는 기존 Fern1개의 overrideMaterials만 보정 MI로 달라졌고 나머지14메시·자기 transform/충돌/태그 등은 보존했다. 파생3에셋과 WIP를 명시 저장했으며 사용자는 **여전히 자연스럽다**고 확인했다.
+
+| 에디터 MI 셰이더 통계 | 원본 | 보정 |
+|:---|---:|---:|
+| 최대 정점 명령 | 475 | 497 |
+| 최대 픽셀 명령 | 686 | 686 |
+| 샘플러 | 4 | 4 |
+| 정점/픽셀 텍스처 샘플 추정 | 4/4 | 4/4 |
+| VT 조회 추정 | 4 | 4 |
+
+GPU ms·패키지 성능 증가율이 아니다. 최초 경고는 보존하고 이후 실제 MI 컴파일/통계/표시 결과와 구분한다. 수정된 빌더의 깨끗한 전체 재생성은 기존 산출물 때문에 다시 수행하지 않았다.
+
+표시 메시15개·검사용 광원1개·카메라를 월드 Z +90°로 함께 임시 회전했고, 사용자는 Realtime 관찰에서 **여전히 아주 자연스럽다**고 확인했다. 이 상태를 저장하지 않았음을 디스크 맵/복구 사본 해시로 확인한 뒤 원래16 transform/camera로 즉시 복원했다. 재조회 결과 최대 위치 오차0cm·최대 회전 오차5.68e-14°·scale 차이0, 재질/충돌/태그/렌더 필드 차이0이었다. 복원된 WIP를 명시 저장·dirty=false로 확인했다. `Preview.json`의 최종 상태는 `restored_saved`이며 `Restoration.json`에 근거를 남겼다.
+
+`BeforeRotation.umap`은 보정 MI 적용·회전 전 복구 사본이고 `BeforeMaterialApplication.umap`은 원본 MI 상태다. 이 두 복구점을 혼동하지 않는다. `Views/BeforeRotation.png`·`Rotated_User.png`·`Restored.png`와 각 카메라 메타데이터를 남겼다. 사용자가 관찰 중 카메라를 움직일 수 있으므로 세 캡처를 픽셀 불변의 수치 비교로 해석하지 않는다. 정지 캡처는 사용자 동작 관찰의 대체 근거가 아니다.
+
+### 재현·마감과 남은 범위
+
+깨끗한 체크아웃에서는 기존 반입/지각 재질/1-B4a/b/c의 원본 Fern1개까지 만든 뒤 `BuildRidgeFernWind.py`를 실행한다. 부모/MI 컴파일·실효 원본 override/정적 스위치 일치·통계 양수를 확인하고 WIP Fern의 Element0에 `/Game/Graphics/Environment/ElectricDreams/RidgeFernWind_V001/MI_Ridge_Fern`만 적용·WIP를 저장한다. `VerifyAndApply.py`는 이번 세션의 Saved 검증 보조이며 재생성 의존성이 아니다. 원본 메시/MI/공유 함수/MPC는 편집하지 않는다. 현재 산출물은 이미 있으므로 어느 빌더도 재실행하지 않는다.
+
+**1-B4d의 구현·실효 컴파일/배선 확인·사용자 근경 및 한 +90° 회전 사례·복원 검증을 마감했다.** 현재 Fern1개에 보정 MI를 유지한다. 원본104/보호12/V0024파일 해시는 보존했고 원래15메시 중 의도한 Fern overrideMaterials 외 변경은 없다. 아직 모든 회전 slot/극점/기준축 전환·최대 변위/뿌리 이동량·전체 밀도·게임 조명·PIE 접촉/SurfaceData·패키지 성능을 통과한 최종 팔레트는 아니다. 다음 제안은 진행 확인 뒤 **1-B3d 지각 재질 샘플 비용 축소**다. V002의 높은 조회 수/픽셀 비용을 줄인 후보와 반복감·노멀 정합을 함께 확인하며 아직 착수하지 않았다.
+
+최종 근거는 같은 Saved 폴더의 `FinalStatistics.json`·`Application.json`·`WipApplied.json`·`ActivePreviewFileChecks.json`·`Preview.json`·`Restoration.json`·`Bindings.json`·`FinalFileChecks.json`·`Verification.json`과 `Views/`다. 최초 경고와 수정 후 확인 결과를 분리해 보존한다.
+
+## 17. 1-B3d 지각 재질 샘플 비용 축소(2026-11-15, 구현/기술 검증 마감)
+
+사용자가1-B4d 마감 뒤 이 단위 진행을 승인했다. 기존 WIP·PIE=false·dirty=false를 확인했다. V001/V002·기존 장식/Fern/바람·정식 Ridge를 보존하고 V003 후보만 만든다.
+
+- V001은 VT 조회 추정18·픽셀 명령1565, V002는72·5367이다. V002의3축×색/마스크4·노멀2 호출마다 엔진 Texture_Bombing이 축당4샘플을 사용한다. 이번에는 투영/재질 레이어 수를 바꾸지 않고 축당2샘플로 줄여 조회 수 절반을 목표로 한다. 에디터 추정이며 GPU ms는 아니다.
+- 엔진 TextureVariation/RotateUV/RotateNormals를 읽기 전용 조사했다. TextureVariation에는 높이/경계 비교용 샘플5개와 추가 분기가 있어 이번 후보의 최소 경로로 채택하지 않았다. 이 조사는 모든 스위치 조합의 실효 비용을 재어 기각한 결과는 아니다.
+- 코드 `Scripts/Profiling/Graphics/BuildRidgeSurfaceReduced.py`. 기존 V002 부모/MI를 파생하고 원래 WorldAlignedTexture/WorldAlignedNormals_HighQuality의 사본2개에서 각3축 샘플을2개씩 교체한다. `/Game/Graphics/Environment/ElectricDreams/RidgeSurface_V003/`에 투영 함수2·부모·MI4개만 생성한다. 맵/액터/원본을 변경하지 않는다.
+- UV당 부드러운 값 노이즈로 선택한 인접 이동2개를 혼합한다. UV 회전/반전·높이 비교·추가 노이즈 텍스처는 쓰지 않는다. 색/마스크/노멀에 동일한 UV/가중치를 사용하고 노멀 혼합 뒤 정규화한다. 원래 UV의 DDX/DDY를 각 TextureSample에 명시해 선택 경계의 mip 오염을 피한다. 노이즈 주기는4타일·선택 범위8이며 기존 Bomb Offset 파라미터를 이동 강도로 유지한다.
+- V002의 구면 좌표/노멀/경사/구역·레이어/거칠기·바닥 macro는 그대로 복제한다. 4점 회전/반전 bombing보다 반복 억제력이 낮거나 혼합이 흐려질 수 있으므로 조회 감소만으로 채택하지 않는다. 같은 구도 근경/원거리·노멀 정합과 함께 판정한다.
+- Python AST를 통과했고 사용자에게 생성 콘솔 실행을 요청했다. 실효 MI VT 조회 수와 픽셀 명령이 모두 줄었을 때만 새 에셋을 저장한다. 현재는 생성/컴파일/수치·화질/중립 노멀 검증 대기이며 기존 WIP는 V002다. 성능 최종 판정은 패키지에서만 한다.
+
+원자료는 `Saved/Profiling/Graphics/Phase01/RidgeSurfaceReduced_20261115/`다. `TextureVariationInventory.json`은 엔진 후보 조사, `FilesBefore.json`·`PreflightFiles.json`은 보호12/반입104/기존 파생14파일 총130개와 WIP 시작 해시다. `BeforeMaterialApplication.umap`은 보정 Fern을 포함한 V002 지각 상태의 복구 사본이다. 캡처 JSON에는 base64가 포함될 수 있어 메타데이터만 추려 읽는다.
+
+### V003 화질 실패·V004 바닥 복원 혼합 후보
+
+V003 생성/컴파일은 오류 없이 통과했다. 실효 MI 통계는 정점148 동일·픽셀5367→2972·샘플러7→2·픽셀 샘플75→39·VT조회72→36이다. 코드/각 함수의 좌표3노드·명시적 미분이 연결된 신규 샘플6개를 재조회했다. WIP 기존15 actor transform은 같고 지각 Element0 override만 V003로 바뀌었다. 기존130파일 해시 변화0이다. A/B/근경 전후6캡처를 남겼다.
+
+사용자는 **바닥 원경이 거의 체크무늬에 가까울 정도로 규칙적이고, 절벽은 괜찮은 것 같다**고 판정했다. V003 전체 적용은 실패로 기록하고 중립 노멀 검증/최종 채택을 진행하지 않았다. 원경 바닥의 회귀를 비용 절감으로 정당화하지 않는다. UV 혼합의4타일(바닥 약16m) 노이즈 격자가 읽힐 가능성은 있지만 macro와의 분리 실험을 하지 않아 원인을 확정하지 않는다.
+
+`BuildRidgeSurfaceHybrid.py`는 V003 부모/MI만 V004로 파생해 바닥 색/마스크/노멀3호출을 V002 함수로 돌리고, 절벽3호출은 V003 함수로 유지한다. 기존 함수는 복제/수정하지 않는다. V004 통계는 정점148·픽셀4170·샘플러5·픽셀 샘플57·VT54로 V002 대비 조회25%·픽셀 명령 약22.3% 감소다. 50% 조회 감소 목표를 유지하기보다 실패 역할의 최소 복원으로 범위를 줄였다. 모두 에디터 추정이며 GPU ms가 아니다.
+
+V004 생성/부모 재컴파일을 통과했고 기존 지각 Element0에만 시험 적용·저장했다. 기존15 actor transform과 재질 외 기존 필드는 보존했다. A/B/근경의 Hybrid 캡처를 남기고 A 원경에서 바닥 반복/절벽 재판정을 요청했다. 적용 직후에는 사용자 답변·중립 노멀 검증 대기였으며, 최종 결과는 아래 마감 절을 따른다. V003 실패 에셋4개/캡처/통계는 보존한다. `HybridFilesBefore.json`은 기존130+V0034파일 보호, `BeforeHybridApplication.umap`은 실패 V003 적용 상태다. 원래 채택 전 복귀 기준은 단위 시작 V002 복구 사본이다.
+
+사용자의 적용 기법 질문 시점에는 실제 바인딩이 V003임을 재조회했다. V003 바닥은2샘플 UV 이동 혼합+18m/48.6m macro 색/거칠기 변화이며 회전/반전은 없다. 이후 비교를 이어 V004를 적용했으므로 현재 바닥은 V002의4샘플 Texture Bombing(이동/회전/반전)+같은 macro이고 절벽만2샘플이다. 3축 투영과 반복 억제를 구분해 설명했다.
+
+캡처 이름은 MCP에서 소문자로 저장됐다. 변환 코드의 대소문자 처리 누락으로 PNG 바이트가 일시적으로 _base64.txt에 저장됐으나 PNG 시그니처 확인 후 올바른 .png와 원래 base64 텍스트로 복구했다. 이미지 픽셀/에셋/맵 변경은 없으며 변환에는 대소문자 무관한 접미사 처리를 사용한다.
+
+### V004 중립 노멀 검증·복원·마감
+
+사용자는 V004에 대해 **절벽은 여전히 괜찮고 바닥은 V003보다 확실히 개선됐다**고 확인한 뒤 비용 증가 여부를 물었다. V004는 실패 V003보다 VT36→54·픽셀2972→4170으로 증가하지만, 단위 출발점 V002보다 VT72→54(25% 감소)·픽셀5367→4170(약22.3% 감소)이다. 바닥의 비용 절감은 되돌리고 절벽의 절감을 유지한 후보이며 GPU 시간 감소율로 해석하지 않는다고 설명했다. 이 답변을 바닥 최종 화질 승인으로 확대하지 않는다.
+
+사용자가 AA4→0을 수행했고 실효값0을 조회했다. 현재 A 구도의 경사 진단 마스크를 새로 캡처하고, World Normal 전환을 수동 요청해 기하 노멀 재질과 V004 중립 노멀을 같은 구도로 비교했다. V004 부모의 정상 텍스처2개만 원래 사용했던 `/Game/MSPresets/MSVTTextures/Placeholder_Normal`로 잠시 바꾸고 검사 후 실제 BeachCliff/MossyRockyGround 노멀을 복원했다. V002/V003 함수와 원본 텍스처는 수정하지 않았다.
+
+| AA0 표시 RGB8 비교(stride4·구역 내부/4방향 이웃 마스크) | 표본 | 평균 최대 채널 차이 | p95 | 최대 |
+|:---|---:|---:|---:|---:|
+| 전체 | 22,779 | 0.4176 | 1 | 2 |
+| 절벽 | 9,675 | 0.1745 | 1 | 1 |
+| 바닥 | 9,149 | 0.7328 | 1 | 2 |
+| 전이 | 3,955 | 0.2834 | 1 | 1 |
+
+기준 p95≤2를 통과했다. World Normal 표시의 RGB 차이이며 법선 각도 오차·실제 노멀맵 무늬의 색/방향 정합 전부·전체 프레임 동일성을 측정한 것은 아니다. 이전 V002 비교와 표본/뷰포트 크기가 같다고 전제하지 않는다.
+
+첫 경사 마스크 캡처는 회색 기하 재질 화면이어서 무효로 보존했다(`diagnosticslope_first_gray.png`). 재질 변경과 캡처를 독립 MCP 호출로 분리한 뒤 빨강/초록/노랑의 정상 마스크를 다시 캡처해 수치에 사용했다. 같은 배치 안의 변경/캡처/후속 변경으로 정확한 렌더 상태를 보장한다고 가정하지 않는다.
+
+실제 노멀2개·V004 바인딩·검사 전 사용자 카메라를 복원하고 V004 부모/MI·WIP를 저장했다. 사용자가 AA4·Lit로 복귀했고 실효값4/최종 Lit 캡처를 확인했다. 원래 콘솔 변수 우선순위까지 확인한 복구는 아니며 프로젝트 INI를 수정하지 않았다. `NormalDiagnosticState.json`의 최종 상태는 `restored`다. 최종15 actor transform/컴포넌트는 V004 적용 직후와 차이0이고, V002와 V004 MI의 scalar/vector/texture 파라미터 값도 같았다. 진단 후 정상 텍스처 참조·부모/MI/WIP dirty=false·PIE=false를 재조회했다.
+
+깨끗한 재생성은 기존 반입/진단/V001/V002→V002 지각 상태에서 소수 장식/Fern 및 구면 바람→`BuildRidgeSurfaceReduced.py`(V0034개)→`BuildRidgeSurfaceHybrid.py`(V0042개)→지각 Element0에 V004 적용 순서다. V003 전체 MI는 실패했지만 V004의 절벽 함수와 재생성이 V003를 요구하므로 V003 산출물을 삭제하지 않는다. V003/V004 빌더는 맵을 변경하지 않으며 이미 생성돼 재실행하지 않는다. 소수 배치 빌더의 V002 가드를 깨지 않도록 V004 적용은 마지막에 한다.
+
+**1-B3d의 구현/셰이더 비용 축소·중립 노멀·보존/복원 기술 검증을 마감했다. V004를 조건부 후보로 유지한다.** 최초 VT 절반 감소 목표는 바닥 화질 실패로 채택하지 않았고 최종은 V002 대비 VT25%·픽셀 명령22.3% 축소다. 바닥 최종 화질/원경 반복·전체 slot/적도/이음매·게임 조명/밀도·PIE/SurfaceData·패키지 성능은 미완료다. 다음 제안은 진행 확인 뒤 **1-B3e 바닥 원경 반복 원인 분리**로, V003/V004의 매크로 변조 유무를 같은 구도에서 비교해 UV 혼합과 큰 크기 변조의 기여를 구분한 뒤 다음 저비용 후보를 고른다. 아직 착수하지 않았다.
+
+최종 근거는 `HybridCreation.json`·`V003VisualFailure.json`·`HybridApplication.json`·`TechnicalVerification.json`·`HybridWipApplied.json`·`NeutralNormalComparison.json`·`NormalDiagnosticState.json`·`FinalLiveVerification.json`·`WipAfter.json`·`FinalFileChecks.json`·`Verification.json`이다. 캡처는 최초 전후6개·Hybrid3개·진단 정상 마스크/기하/중립3개·무효 회색1개·최종 Lit1개 총14PNG다. 복구 사본은 단위 시작 V002(`BeforeMaterialApplication.umap`)와 실패 V003(`BeforeHybridApplication.umap`)을 구분한다.
