@@ -518,3 +518,29 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - 커밋 대상은 관련 문서와 Python 재생성 코드뿐이다. 원본/파생 에셋·WIP·Saved·캡처·복구 사본은 로컬 Git 제외로 유지하며, 이번 인계의 구문/공백·문서 링크·포함/제외 검사는 Saved/Profiling/Graphics/Phase01/Handoff_20261115/RepositoryAudit_RockFernSurface.json에 남긴다. 기존 산출물의 빌더 재실행·전체 빌드/쿡·새 에디터 변경은 하지 않는다.
 
 - 2026-11-16 한도 초기화 후 인계/커밋 작업만 재개했다. 에디터 마지막 확인은11월15일 결과이며 새 구현이나 에디터 변경은 하지 않았다.
+
+### 1-B3e~g 마감 — 바닥 원인 분리·V005 삼각3샘플·소수 회전(2026-11-16)
+
+- 사용자 승인으로 V003/V004의 macro0.5/0을 A/B 동일 구도8장 비교했다. 기존 MI를 보존한 진단 MI2개만 만들었다. V003의 규칙적인 바닥 무늬는 macro를 꺼도 남아 추가 macro만의 문제로 볼 수 없고 UV 혼합 경로를 우선 조사할 근거가 됐다. 정확한 UV 하위 원인/원본 텍스처/삼각형 음영의 기여까지 분리한 것은 아니다.
+- `BuildRidgeSurfaceTriangle.py`와 V005 함수2/부모/MI를 만들었다. 바닥에 삼각 격자3개의 이동 UV·공통4제곱 무게중심 가중치를 사용하고 노멀을 정규화했다. 각 함수의 신규9샘플에 원래 UV 미분을 연결했고 절벽 V0032샘플·구면 프레임·경사/구역·macro·MI 파라미터는 유지했다. 정식 히스토그램 보존 기법 전체를 구현한 것은 아니다.
+- V004→V005 실효 MI 추정은 VT54→45·픽셀4170→3401·샘플러5→2·정점148 동일이다. 사용자 원경 개선/근경 자연스러움 확인과 AA0 중립 노멀22,731표본·전체/각 경사 p95=1·최대2(RGB8)를 통과했다. 실제 노멀2개·V005·검사 전 카메라·AA4/Lit를 복원했다. 에디터 통계는 GPU ms가 아니다. Python AST, CPU 참조25,921개 가중치/297경계쌍 검사와 실제 셰이더 컴파일/배선 재조회를 확인했다.
+- V005 적용 WIP 저장은 자동 승인 검토에서 시각 확인만으로 영속화 승인이 명시되지 않았다는 사유로 거부됐다. 우회 저장하지 않았고 사용자가 WIP/V005 부모를 직접 저장한 뒤 dirty=false·실제 노멀·바인딩을 재조회해 해소했다.
+- slot5(Pitch180/Yaw90)와 적도 임의 회전(Roll54.337285)에서 사용자 재질/Fern 확인을 받았다. 메시15/검사용 광원1/카메라를 복원 대조·저장했고 최대 수치 차이는7.11e-14였다. 보호142파일 해시는 그대로다.
+- 경계 Lit/Scope 쌍으로 같은 지각의 구역 밖과 별도 보라색 암반을 구분했다. 사용자는 시험 범위의 끊김은 당연하며 완화 의미가 없다고 지적했다. 임시 시험 마스크를 최종 아트 전이와 섞은 미관 질문을 철회하고 이진 경계를 유지했다. 경계 완화는 구현하거나 승인받지 않았다. 진단도 V005로 복원·저장했다.
+- 상세/재현은 환경 실행서 §18~20, 근거는 `RidgeSurfaceRepetition_20261116/`·`RidgeSurfaceTriangle_20261116/`·`RidgeSurfaceOrientation_20261116/`다. 소수 회전을 전체 slot/극점/런타임 접촉/패키지 통과로 확대하지 않는다.
+
+### 1-B4e/4e-1 마감 — WIP 전용 데이터·검사용 풀·1인 PIE 접촉·복원(2026-11-16)
+
+- 최초 연결 점검에서 정식6개 정의에 그래픽스 WIP가 없고 SurfaceData42개 중 WIP SourceLevel 일치0개였다. WIP GameMode=None·프로젝트 기본 Engine.GameMode였으며, 원본 Ridge 데이터를 연결하는 방식은 런타임 Level/SourceLevel 쌍 검증에 맞지 않았다. manifest 검사를 우회하지 않고 WIP 전용 베이크/풀 선행 단위를 별도 승인받았다.
+- 사용자가 정상 루트 TestMap03에서 기존 `BakeOctant` 명령을 실행했다. 버전7·WIP SourceLevel1개, Support2소스/44층·전체593,257샘플·Nav73,836셀·Spawn authored12/candidates9,373/noNavRejected0을 확인했다. `DA_OctantSurface_LVI_Ridge_SurfaceProbe`는5,217,284B다. 형상/기존 데이터/정식 풀은 변경하지 않았다.
+- 정식 풀에서 `DA_GraphicsRidgeValidationPool`을 파생해 Ridge 정의 하나의 Level/SurfaceData만 바꾸고 새 풀만 저장했다. LNPSettings의 풀을 메모리에서 임시 선택하고 원래 선택을 먼저 기록했다. SaveConfig를 호출하지 않았고 INI/정식 풀 해시도 보존했다.
+- 첫1인 PIE는 WIP slot5/7·166 bindings, 사용자가 EnemyDensity0 적용을 위해 재시작한 다음 PIE는 slot2/6·195 bindings였다. 둘 다8 validated slots의 snapshot 게시와 seam delta0.000cm·blockedSeamNodes/Edges0을 확인했다. 매 실행의 slot을 다시 읽어 두 번째 이동 명령을 slot2로 안내했다.
+- 사용자는 두 번째 PIE에서 보행·착지·카메라·사격 모두 문제없다고 확인했다. WhereAmI는 WIP slot2·local X3000/Y-2699/H-3821·실제 Ridge 지각을 확인했다. 장식12개의 NoCollision/내비 영향 꺼짐을 유지한 검토다.2인 호스트/게스트·적 전투/부하·전체 slot의 미관·패키지 성능은 미검증이다.
+- native CaptureViewport는 별도 PIE 게임창 대신 검은 에디터 화면을 잡아 무효로 분리했다. 사용자 `Shot`의 실제 게임 화면을 확인·복사하고 원본도 보존했다. 사용자 PIE 종료 뒤 임시 풀 선택·원래 WIP/카메라를 복원했다. 사용자 EnemyDensity0은 유지했고15메시 변화0·보호142+추가3파일 변화0·관련 dirty=false다.
+- 상세/재현은 환경 실행서 §21~22, 근거는 `RidgeRuntimeProbe_20261116/`·`RidgeRuntimeValidation_20261116/`다. `SelectionState.json=restored`, 실제 게임 화면은 `Views/pie_game_shot.png`다. 새 데이터/풀은 모두 Git 제외이며 재생성 절차만 추적한다.
+
+### 1-B5a 새 세션 인수인계·단일 커밋 정리(2026-11-16)
+
+- 사용자가1-B5a를 새 세션에 넘기고 관련 문서/코드를 한 번에 커밋하도록 요청했다. **PCG는 착수하지 않았다.** 기존 대표 구역/팔레트·수동12개·V005/보정 Fern을 유지하고 전체 bounds 보호를 포함한 고정 시드 소수 배치부터 시작한다. 새 실행서는 착수 시 구체화한다.
+- Current는 완료 이력 대신 현재 자산/복원 상태·새 세션 절차·근거 표 중심으로 정리했다. README·로드맵·상위 실행서·팔레트·환경 실행서·이 로그를 정합했다. 기존 빌더 재실행 금지·동적 slot 재조회·원래 풀 복원·EnemyDensity0 유지·무효 캡처 구분·임시 경계 보존과 미검증 범위를 넘긴다.
+- 최근 커밋의 `feat: 한국어 제목`과 본문 글머리표 양식을 따른다. 커밋은 재생성 Python1개와 관련 문서만 포함한다. 원본/파생/WIP/SurfaceData/풀·Saved·캡처·복구 사본은 제외한다. 마지막 읽기 전용 에디터/보존 검사와 소스 구문·문서 링크·포함/제외 검사는 `Saved/Profiling/Graphics/Phase01/Handoff_20261116/RepositoryAudit.json`에 남긴다. 새 전체 빌드/쿡·베이크·PCG·추가 에디터 변경은 하지 않는다.

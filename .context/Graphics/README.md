@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 역할: 이 작업의 진입점과 문서 라우팅
-> 마지막 구조 갱신: 2026-11-15
+> 마지막 구조 갱신: 2026-11-16
 
 ## 1. 목적
 
@@ -41,7 +41,7 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 | 현재 Phase 구현 | `Current.md`가 가리키는 `phases/PhaseNN_*.md` |
 | Phase 1의 1-A 마감·출발 기준선과 다음 1-B 준비 | [Phase 1 실행서](phases/Phase01_BenchmarkContent.md) §13, [출발 기준선 보고서](analysis/Phase01_StartBaselineReport.md), [기존 1-B0 선정](phases/Phase01_RidgeZonePalette.md) §8 |
 | Phase 1 Ridge 대표 구역·Electric Dreams 팔레트·장식 금지 규칙 | [1-B0 구역·팔레트](phases/Phase01_RidgeZonePalette.md) |
-| Phase 1-B 반입·재생성·좌표/재질·소수 배치/바람·샘플 비용 시험과 새 세션 인계 | [Current](Current.md), [환경 반입 실행서](phases/Phase01_EnvironmentImport.md) §7~17, [현재 팔레트](phases/Phase01_RidgeZonePalette.md) §10 |
+| Phase 1-B 반입·재생성·좌표/재질·소수 배치/바람·샘플 비용/반복 원인/회전·WIP 베이크/런타임·접촉 검증과 새 세션 인계 | [Current](Current.md), [환경 반입 실행서](phases/Phase01_EnvironmentImport.md) §7~22, [현재 팔레트](phases/Phase01_RidgeZonePalette.md) §10 |
 | 네 개선 완료 뒤 통합 검증·재측정·Phase0 마무리 | [개선 후 재개 절차](phases/Phase00_PostOptimization.md) |
 | 측정 지표·절차·노트북 측정 함정·보고 형식 | `design/Measurement.md` |
 | Phase0 공통 기준선 수치·개선 전후·남은 GPU 비용 요약 | [Phase0 기준선 보고서](analysis/Phase00_BaselineReport.md) |

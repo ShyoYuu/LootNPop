@@ -1,8 +1,8 @@
 # Phase 1-B — 환경 반입과 작은 시험
 
-> 상태: 1-B3d 비용 축소/기술 검증 마감·V004 조건부 유지 · 바닥 원경 원인 분리 진행 확인 대기
+> 상태: 1-B4e/4e-1 WIP 런타임·수동 PIE 접촉·복원 마감 · 1-B5a 새 세션 이관·미착수
 > 작성: 2026-11-14
-> 마지막 갱신: 2026-11-15
+> 마지막 갱신: 2026-11-16
 > 상위: [Phase 1 실행서](Phase01_BenchmarkContent.md)
 > 선정 원본: [1-B0 결과](Phase01_RidgeZonePalette.md) §8
 
@@ -40,7 +40,7 @@
 | 시험 LVI·재질 적용·소수 배치 | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/` | 기존 WIP 제외 규칙 사용 |
 | 재생성 목록·실행 코드·절차 | `Scripts/Profiling/Graphics/`, 이 문서 | 추적 |
 
-위 폴더는 이번 원본용으로 사용한다. 자체 제작 에셋은 원본 제외 폴더에 넣지 않는다. 실제 재생성 코드/설정과 수동 보정은 §9~17, 새 세션의 읽기 순서와 마지막 로컬 상태는 [Current](../Current.md)를 따른다. 현재 WIP에는 V004 혼합 지각 재질과 사암2/클로버6/이끼2/절벽1·구면 보정 MI를 적용한 Fern1개가 있다. 지각은 비용 축소/중립 노멀 통과·화질/패키지 최종 채택 보류, Fern은 근경/+90° 회전 사례 통과·조건부 유지다. PCG는 아직 없고 정식 LVI 적용은 시험 채택 뒤 별도 단위에서 한다.
+위 폴더는 이번 원본용으로 사용한다. 자체 제작 에셋은 원본 제외 폴더에 넣지 않는다. 실제 재생성 코드/설정과 수동 보정은 §9~20, 새 세션의 읽기 순서와 마지막 로컬 상태는 [Current](../Current.md)를 따른다. V005는 사용자 저장을 마쳤다. 1-B3g 임시 회전/진단은 복원·저장까지 끝났으며 상세 근거는 §20을 따른다. 사암2/클로버6/이끼2/절벽1·구면 보정 MI를 적용한 Fern1개는 유지한다. 지각은 비용 축소/중립 노멀 통과·패키지 최종 채택 보류, Fern은 근경/+90° 회전 사례 통과·조건부 유지다. PCG는 아직 없고 정식 LVI 적용은 시험 채택 뒤 별도 단위에서 한다.
 
 ## 3. 새 체크아웃의 수동 Migrate(현재 반입 완료)
 
@@ -405,3 +405,189 @@ V004 생성/부모 재컴파일을 통과했고 기존 지각 Element0에만 시
 **1-B3d의 구현/셰이더 비용 축소·중립 노멀·보존/복원 기술 검증을 마감했다. V004를 조건부 후보로 유지한다.** 최초 VT 절반 감소 목표는 바닥 화질 실패로 채택하지 않았고 최종은 V002 대비 VT25%·픽셀 명령22.3% 축소다. 바닥 최종 화질/원경 반복·전체 slot/적도/이음매·게임 조명/밀도·PIE/SurfaceData·패키지 성능은 미완료다. 다음 제안은 진행 확인 뒤 **1-B3e 바닥 원경 반복 원인 분리**로, V003/V004의 매크로 변조 유무를 같은 구도에서 비교해 UV 혼합과 큰 크기 변조의 기여를 구분한 뒤 다음 저비용 후보를 고른다. 아직 착수하지 않았다.
 
 최종 근거는 `HybridCreation.json`·`V003VisualFailure.json`·`HybridApplication.json`·`TechnicalVerification.json`·`HybridWipApplied.json`·`NeutralNormalComparison.json`·`NormalDiagnosticState.json`·`FinalLiveVerification.json`·`WipAfter.json`·`FinalFileChecks.json`·`Verification.json`이다. 캡처는 최초 전후6개·Hybrid3개·진단 정상 마스크/기하/중립3개·무효 회색1개·최종 Lit1개 총14PNG다. 복구 사본은 단위 시작 V002(`BeforeMaterialApplication.umap`)와 실패 V003(`BeforeHybridApplication.umap`)을 구분한다.
+
+## 18. 1-B3e 바닥 원경 반복 원인 분리(2026-11-16, 기술 점검 마감)
+
+사용자가 이 단위 착수를 승인했다. 기존 빌더는 재실행하지 않고, V003/V004의 바닥 macro 색·거칠기 변조 유무만 같은 원경에서 비교했다. 새 Anti-Tiling 구현은 시작하지 않았다.
+
+### 비교 조건과 재현
+
+- 시작 맵은 기존 WIP, PIE=false, AA4다. V003/V004 부모·MI와 WIP는 dirty=false였고, 기존 메시 액터15개의 transform/컴포넌트는 1-B3d 인계 기록과 차이0이었다. Fern 보정 MI도 유지했다. 사용자 카메라는 별도로 기록했다.
+- `/Game/Graphics/Environment/ElectricDreams/RidgeSurfaceRepetitionProbe_V001/`에 기존 V003/V004의 `MI_Ridge_Surface`를 각각 `MI_Ridge_V003_MacroOff`·`MI_Ridge_V004_MacroOff`로 복제했다. **진단용 MI2개만 만들었고 부모/함수는 복제·수정하지 않았다.**
+- 두 진단 MI에서 `Ground Macro Strength`만0으로 설정했다. 기존 MI의 실효값은0.5다. getter로0/0.5를 확인했고, 복제본의 macro override를 제외한 scalar/vector/texture override와 부모가 원래 MI와 같음을 재조회했다. `Ground Macro Size`는 기존1800cm를 유지했다.
+- `BuildRidgeSurfaceAntitile.py`의 `MACRO_CODE`에서 Strength=0이면 multiplier=1이다. 색 곱셈이 중립이 되고 거칠기의 `(Macro - 1) * 0.2`도0이므로 이 값 하나로 두 변조를 함께 끈다. UV 혼합·노멀·나머지 재질 파라미터는 유지한다.
+- `RidgeSurfaceReduced_20261115/ViewPoses.json`의 A/B 두 카메라를 사용했다. WIP 지각 `StaticMeshActor_2.StaticMeshComponent0`의 `overrideMaterials[0]`만 V003·V003 MacroOff·V004·V004 MacroOff로 교체했다. 재질 변경과 캡처는 별도 MCP 호출로 분리했다. 각 구도4조건, 총8장이다. 모두 같은 카메라/FOV90·1010×859·AA4의 Lit 화면이다. AA0 픽셀 차이/중립 노멀 검증은 이번 단위에서 수행하지 않았다.
+- 재현하려면 기존 V003/V004 MI에서 위 이름의 진단 MI를 복제하고 macro strength0을 적용·저장한 뒤, 같은 A/B 구도에서 네 MI를 지각 Element0에 교대로 적용한다. 기존 진단 MI가 있으면 다시 만들지 않는다. 종료 때 지각을 원래 V004 MI로, 카메라를 세션 시작 위치로 복원하고 WIP만 저장한다. 원본 V003/V004 MI의 파라미터를 직접 바꾸지 않는다.
+
+### 관찰과 다음 후보
+
+**에이전트 육안 관찰:** V003 바닥의 규칙적인 무늬는 macro를 꺼도 남는다. V004도 macro 유무로 무늬 배치 전체가 사라지지 않는다. 따라서 이번 A/B에서는 **추가 macro 색·거칠기 변조만을 V003 체크무늬의 원인으로 볼 수 없다.** V003/V004 바닥 UV 혼합 경로의 차이를 우선 조사할 근거다. 사용자의 원경 화질 판정은 아직 받지 않았다.
+
+이 실험은 UV 선택 노이즈의4타일 격자, 두 샘플 이동 혼합, 원본 텍스처의 반복, 기존 지각 삼각형 음영 중 어느 항목이 얼마만큼 기여하는지까지 분리하지 않는다. 특히 화면의 큰 직선/삼각형 명암을 모두 UV 결함으로 해석하지 않는다. macro가 반복 지각에 전혀 영향을 주지 않는다고도 결론 내리지 않는다.
+
+**다음 제안은 1-B3f 바닥 한정 삼각 격자3샘플 혼합 후보 소수 시험**이다. V004의 절벽2샘플 경로와 구면 좌표·경사/구역 마스크를 유지하면서 바닥의 정사각 선택장/두 샘플 혼합을 바꾸어 같은 A/B와 근경에서 비교한다. [Heitz·Neyret의 원 연구](https://eheitzresearch.wordpress.com/722-2/)는 삼각 격자의 세 무작위 패치를 혼합하며, [후속 연구](https://jcgt.org/published/0008/04/02/paper.pdf)는 단순 혼합의 대비 손실을 지적한다. 따라서 사각 격자 억제와 함께 흐려짐·대비 손실·노멀 정합을 통과 조건으로 둔다. 이 프로젝트에서의 최종 혼합식·통계·화질은 미확정이며, **사용자 판정과 별도 진행 승인 전에는 구현하지 않는다.** 조회 수 예상만으로 채택하지 않고 성능은 패키지에서 판정한다.
+
+### 복원과 근거
+
+원자료는 `Saved/Profiling/Graphics/Phase01/RidgeSurfaceRepetition_20261116/`다. `BeforeComparison.umap`은 단위 시작 V004 WIP의 복구 사본이며 `CameraBefore.json`은 시작 카메라다. `WipBefore.json`·`WipRestored.json`·`TechnicalVerification.json`으로 기존15메시의 transform/컴포넌트 차이0과 진단 파라미터 격리를 확인했다. `FilesBefore.json`·`FinalFileChecks.json`의 보호136파일은 변경0이다. WIP는 복원 후 에디터 저장으로 파일 해시가 달라졌으므로 바이트 동일 복원이라고 표현하지 않는다.
+
+V004 바인딩·시작 카메라를 복원하고 WIP만 저장했다. `FinalLiveVerification.json`은 PIE=false·AA4·WIP/V003/V004/진단MI2개 dirty=false다. 원래 macro0.5는 유지했고 노멀 텍스처·광원·장식·정식 Ridge·Support source·기본 편성·확정 카메라 경로는 변경하지 않았다. 새 빌드/쿡/패키지 성능 측정은 없다.
+
+`Views/`의 `a_`·`b_` × `v003_`·`v004_` × `macro_on`·`macro_off`는8개 원본 PNG와 카메라/base64 JSON이다. `b_ground_comparison.png`는 B 원본의 동일 영역(x480,y509,530×350)을 확대 없이 배열한 비교판으로, 위 V003/아래 V004·왼쪽0.5/오른쪽0이다. 진단 MI·WIP·Saved는 모두 Git 제외다. 저장소에는 이 재현 절차와 현재 상태만 남긴다.
+
+## 19. 1-B3f 바닥 삼각 격자3샘플 후보(2026-11-16)
+
+사용자가 후속 단위 진행을 승인했다. `Scripts/Profiling/Graphics/BuildRidgeSurfaceTriangle.py`를 작성했고 사용자가 콘솔에서 실행해 V005 함수2/부모/MI4개를 생성·저장했다. 기존 빌더는 재실행하지 않았다. 코드 생성 단계는 맵을 변경하지 않는다.
+
+### 구현과 재생성
+
+- V004 부모/MI를 파생하고, 바닥 색·AoRDp·노멀3호출만 `MF_RidgeTriangleTexture`·`MF_RidgeTriangleNormal`로 바꾼다. 절벽의 V003 두 샘플3호출과 기존 구면 좌표/노멀 프레임·경사/구역·macro는 유지한다.
+- 엔진의 원래 투영 함수2개를 파생해 축마다 삼각 격자의 세 정점에서 결정되는 UV 이동3개를 샘플링한다. 원본 타일 크기400cm는 유지한다. `UV * 3.464101615`를 삼각 격자 좌표로 변환하고 정점 ID의 hash로 UV를 이동한다. 회전·반전은 없다.
+- 세 무게중심 좌표를4제곱 후 합으로 나눈 고정 가중치를 색/마스크/노멀에 공통 사용한다. 노멀은 혼합 뒤 정규화한다. 삼각 경계의 세 번째 가중치는0으로 수렴하고 공유 정점의 UV는 같게 유지한다. 이는 **히스토그램 보존 기법 전체의 구현이 아니며**, 흐려짐·대비 손실은 화질 검증 대상이다. 추가 노이즈 텍스처/LUT·원본 텍스처 전처리는 없다.
+- 모든 신규 샘플에 원래 투영 UV의 DDX/DDY를 명시한다. 라이브 배선 재조회에서 두 함수 각각 좌표 Custom3개·명시적 미분 샘플9개를 확인했다. V004/V005 MI의 scalar/vector/texture override도 같았다.
+- 새 체크아웃은 기존 반입/진단/V001/V002·소수 장식/Fern→V003→V004를 먼저 준비한다. 그 뒤 콘솔에서 `py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/BuildRidgeSurfaceTriangle.py"`를 한 번 실행한다. 현재는 V0054개가 있으므로 재실행하지 않는다. 생성 전 PIE/dirty/동일 버전 존재 가드가 있으며 에셋만 만든다. 적용 대상은 WIP 지각 Element0 한 곳이다. 정식 Ridge/Support source는 변경하지 않는다.
+
+### 검증 결과
+
+| 실효 MI 에디터 추정 | V004 | V005 |
+|:---|---:|---:|
+| 정점 명령 | 148 | 148 |
+| 픽셀 명령 | 4170 | 3401 |
+| 샘플러 | 5 | 2 |
+| 픽셀 샘플 | 57 | 48 |
+| VT 조회 | 54 | 45 |
+
+V004 대비 VT 조회16.7%·픽셀 명령18.4% 감소이며 **패키지 GPU ms 감소율이 아니다.** Python AST·실제 재질 컴파일을 통과했다. 별도의 CPU 참조 검사에서 가중치25,921개 지점의 비음수/합1과 삼각선·격자 변의297쌍 연속성을 확인했다(최대 가중치 차이 약4.0e-7). CPU 검사가 GPU HLSL의 수치 일치나 실제 화질을 증명하지는 않는다.
+
+기존 A/B·근경·사용자 시작 카메라4구도에서 V004/V005 전후8장을 AA4/Lit로 촬영했다. 사용자는 **원경이 개선됐고 근경도 자연스럽다**고 확인했다. 사용자의 이 답변을 모든 회전 slot·전체 밀도·게임 조명·패키지 성능 승인으로 확대하지 않는다.
+
+AA0에서 새 A 경사 마스크를 촬영하고 사용자가 World Normal로 전환했다. 기존 단색 `M_Ridge_Ground`의 기하 노멀과, V005 부모의 실제 노멀2개를 `Placeholder_Normal`로 잠시 바꾼 중립 노멀을 같은 카메라로 비교했다. 원본/V002/V003/V004 함수·재질은 수정하지 않았다.
+
+| AA0 표시 RGB8 비교(stride4·구역 내부/4방향 이웃 마스크) | 표본 | 평균 최대 채널 차이 | p95 | 최대 |
+|:---|---:|---:|---:|---:|
+| 전체 | 22,731 | 0.4816 | 1 | 2 |
+| 절벽 | 9,629 | 0.1744 | 1 | 1 |
+| 바닥 | 9,151 | 0.8611 | 1 | 2 |
+| 전이 | 3,951 | 0.3516 | 1 | 2 |
+
+전체/각 경사 구간 p95≤2를 통과했다. 표시 RGB 차이이며 법선 각도 오차·실제 노멀맵의 모든 방향 정합·전체 프레임 동일성 검증은 아니다. 실제 노멀2개와 검사 전 사용자 카메라를 복원했고 AA4·Lit 복귀를 요청했다.
+
+사용자가 AA4·Lit 복귀를 완료했고 실효값4·최종 Lit 캡처를 확인했다. 실제 노멀2개·V005 바인딩·검사 전 카메라·MI 파라미터 보존을 재조회했다. 진단 후 기존15메시 상태는 V005 시험 적용 직후와 차이0이며 보호138파일 해시는 모두 같다. V0054개는 생성 시 저장돼 있고 V005 부모는 진단 복원 후 dirty=true, MI는 dirty=false다. WIP는 V005 시험 적용·dirty=true이며 디스크는 여전히 V004다. `NormalDiagnosticState.json`은 `restored_unsaved`, `FinalLiveVerification.json`은 PIE=false·AA4·Lit·저장 승인 대기다. CVar 실효값 복원이며 원래 우선순위까지 복원했다고 전제하지 않는다.
+
+### 저장 상태와 복구 근거
+
+다음은1-B3f 저장 거부 당시의 기록이다. 저장 대기는 아래 **사용자 저장 확인·1-B3f 마감**에서 해소됐으며, 현재 상태는 [Current](../Current.md)를 따른다.
+
+V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. 명시 사유는 미저장 시험 적용의 시각 검증 승인만으로 후보 적용의 영속화를 승인받았다고 볼 수 없다는 것이다. 우회 저장하지 않았다. 현재 V0054개는 생성 시 저장됐지만 WIP 디스크 저장본은 단위 시작 V004이며, 진단 복원 뒤 V005 적용 WIP 저장을 사용자에게 명시적으로 확인한다. 저장 승인 전에는 단위를 저장 완료로 마감하지 않는다.
+
+근거 폴더는 `Saved/Profiling/Graphics/Phase01/RidgeSurfaceTriangle_20261116/`다. `FilesBefore.json`·`ApplicationFileChecks.json`의 보호138파일 변경0, `WipBefore.json`·`WipApplied.json`·`Application.json`의 기존15메시 transform/컴포넌트 차이는 지각 overrideMaterials 한 곳뿐이다. `Creation.json`·`GraphVerification.json`은 비용/배선, `NeutralNormalComparison.json`은 노멀 검사다. `Views/before_`·`candidate_`의 A/B/Close/User8장과 진단3장, `ground_comparison.png`를 보존한다.
+
+`BeforeComparison.umap`과 `BeforeNormalDiagnostic.umap`은 모두 **디스크의 V004 WIP**다. 두 번째 복사 전 V005 저장이 거부됐으므로 V005 복구 사본이라고 해석하지 않는다. `NormalDiagnosticRecovery.json`에 이 차이를 기록했다. `BeforeNormalDiagnostic_M_Ridge_Surface.uasset`은 실제 노멀이 있는 생성 직후 V005 부모다. 검사 전 카메라·실제 노멀 참조/복원 진행은 `NormalDiagnosticState.json`이 소유한다.
+
+**1-B3f의 구현·원경/근경 사용자 확인·중립 노멀·복원 검증은 마쳤고 저장 승인을 기다린다.** V005를 WIP의 조건부 후보로 유지할지 저장을 명시적으로 확인한 뒤 마감한다. 다음 제안은 별도 진행 확인 후1-B3g V005 회전/적도·경계 소수 시험이다. 모든 slot·게임 조명/밀도·PIE 발/탄환/카메라·SupportData·패키지 성능은 미검증이며 정식 Ridge 적용·PCG·새 빌드/쿡은 수행하지 않았다.
+
+### 사용자 저장 확인·1-B3f 마감
+
+사용자가 WIP `LVI_Ridge_SurfaceProbe`와 V005 `M_Ridge_Surface`를 직접 저장하고 다음 단위 진행을 승인했다. 읽기 전용 재조회로 WIP/V005 부모/MI dirty=false·지각 V005 바인딩·실제 BeachCliff/MossyRockyGround 노멀을 확인했다. 위 저장 대기는 해소됐고, 앞선 자동 승인 검토 거부를 우회 호출로 재시도하지 않았다. `UserSaveVerification.json`에 확인을 남겼고 `NormalDiagnosticState.json`은 `restored_saved`로 갱신했다. **1-B3f를 저장까지 마감하며 V005는 WIP 조건부 후보로 유지한다.**
+
+## 20. 1-B3g 회전/적도·경계 소수 시험(2026-11-16, 마감)
+
+사용자 승인 뒤 에디터 소수 시험으로 범위를 잡았다. 런타임 slot5에 해당하는 Pitch180°·Yaw90° 회전, 대표 식생 근처 기준점을 적도에 놓는 임의 회전, 기존 구역 경계를 확인한다. 실제8 slot 전체·인접 옥탄트 로드/이음매 접합·PIE/SupportData·패키지 성능 검증으로 확대하지 않는다. 기존 빌더는 재실행하지 않는다.
+
+- 코드의 slot 회전은 `LNPOctantSpawnSubsystem.cpp`의8개 회전에서 읽었다. 회전 합성은 엔진 `RotationTranslationMatrix.h`의 축 규약에 따라 계산했다. 구면 원점을 중심으로 기존 메시15개·검사용 PointLight1개·카메라를 같은 회전으로 옮긴다. 스폰/Support 마커 등 런타임용 액터는 이 렌더링 전용 시험에서 옮기지 않으며 PIE를 실행하지 않는다.
+- 시작 시 메시15개의 transform/컴포넌트가1-B3f 마지막 상태와 같고 WIP/V005 부모/MI dirty=false임을 확인했다. 보호142파일의 시작 해시와 **V005 저장 WIP** 복구 사본을 남겼다. 회전된 상태는 저장하지 않는다.
+- slot5 적용 재조회는16개 액터의 최대 위치 오차3.64e-12cm·최대 회전 기저 성분 오차1.17e-15, 재질/충돌/태그/렌더 필드 변화0이다. 실험 중 디스크 WIP와 복구 사본 해시가 같음을 확인했다. 원경/근경을 촬영하고 사용자에게 재질/Fern 동작 확인을 요청했다.
+- 적도 사례의 계획 회전은 Roll54.337285°다. 기존 Fern 근처 기준점(20185.296,15905.266,22164.943cm)을 회전해 월드 Z≈0cm에 놓는다. 이 임의 회전은 런타임 slot 회전 그 자체가 아니라 월드 Z를 Up으로 쓰는 가정의 스트레스 시험이다.
+
+원자료는 `Saved/Profiling/Graphics/Phase01/RidgeSurfaceOrientation_20261116/`의 `Before.json`·`FilesBefore.json`·`BeforeRotation.umap`·`slot5Plan.json`·`equatorPlan.json`·`Preview.json`·`slot5Verification.json`·`Views/`다. 현재 상태와 미복원 여부는 `Preview.json`을 먼저 읽는다. 모든 조작이 끝난 뒤 원래16 transform/카메라와 메시 컴포넌트를 대조해 복원한다. 다음 단위는 별도 진행 확인한다.
+
+### 회전 관찰과 복원 결과
+
+사용자는 slot5와 적도 사례 모두 **재질과 Fern이 자연스럽다**고 확인했다. 각 사례는 근경 Realtime 관찰이며 정지 캡처만으로 움직임을 통과시킨 것이 아니다. 원경/근경을 각1장씩 기록했다. 동일 프레임/픽셀 불변이나 바람 위상 일치를 판정하지 않았다. 적도 캡처에는 월드 Z=0 에디터 격자가 외곽 일부에 겹칠 수 있어 질감 결함과 구분한다.
+
+적도 재조회는16개 액터의 최대 위치 오차3.64e-12cm·회전 기저 성분 오차3.26e-14, 재질/충돌/태그/렌더 필드 변화0이다. 두 임시 회전 동안 디스크 WIP가 `BeforeRotation.umap`과 같은 해시임을 확인했다.
+
+이후 원래16 transform과 단위 시작 카메라로 복원했다. 메시15개 전체 컴포넌트·광원 transform·카메라를 시작 상태와 재귀 대조한 결과1e-7 허용치 초과 변화0·최대 수치 차이7.11e-14였다. 복원된 WIP만 명시 저장했고 WIP/V005 부모/MI dirty=false·보호142파일 해시 변화0을 확인했다. `Preview.json`은 `restored_saved`다. 새 재질/메시를 만들거나 정식 Ridge/Support source를 수정하지 않았다.
+
+남은 경계 확인을 위해 사용자에게 원래 구역의 질감/단색 접합 경계로 카메라만 옮기도록 요청했다. 실제 좌표 함수 재조회에서 구역 다각형은 `step(0, cross)`·이음매 제외는 `step(5500, min(PositionLocal))`인 것을 확인했다. 따라서 이번 경계 관찰은 원래 이진 마스크의 표현을 평가하며 아직 경계 전이를 새로 구현하지 않았다.
+
+사용자가 두 영역이 함께 보이는 구도를 준비했다. 같은 카메라의 Lit·Scope 진단 쌍으로 **중앙 큰 절벽 오른쪽 외곽은 실제 지각의 구역 경계**, 왼쪽 앞 보라색 기둥은 기존 별도 암반 메시라는 점을 구분했다. Scope에서 구역 안은 초록·구역 밖 지각은 회색이며 별도 암반은 보라색을 유지한다. 진단 뒤 V005를 즉시 복원했고,15메시 transform/컴포넌트가 회전 복원 직후와 정확히 같음을 확인한 뒤 WIP만 저장했다. 최종 WIP/V005 부모/MI dirty=false·PIE=false·AA4, 실제 노멀2개와 보호142파일 해시를 확인했다. 임시 진단 상태도 저장하지 않았다.
+
+회전 시험은 단위 시작 카메라로 복원했고, 이후 사용자가 선택한 경계 관찰 카메라는 그대로 유지했다. `BoundaryDiagnosticState.json`은 `restored`, `BoundaryRestoration.json`에 진단 복원을 기록했다. 캡처는 시작/slot5/적도 각 원경·근경6개, 회전 복원1개, 경계 Lit/Scope/복원3개 총10개다. 이 시점에는 경계 미관 질문의 답변 대기였으며, 이후 아래 정정 절에서 그 질문을 철회했다.
+
+### 임시 경계 질문 정정·단위 마감
+
+사용자는 시험 부분에만 텍스처를 덮었으므로 경계가 끊기는 것은 당연하며, 지금 완화하는 작업이 어떤 의미인지 지적했다. **임시 시험 마스크를 최종 아트 전이와 섞은 질문이었음을 인정하고 경계 미관 수용 질문을 철회했다.** 이 단계의 목적은 적용 범위/범위 밖 보존과 회전 정합 확인이다. 의도된 이진 마스크는 유지하며, 경계 완화는 구현하거나 승인받은 작업이 아니다. 이를 사용자의 경계 화질 통과 판정으로 기록하지 않는다. 최종 서로 다른 지형 재질을 연결할 때 전이가 필요한지는 별도로 판단한다.
+
+**1-B3g의 제한된 에디터 회전/적도 사례·구역 확인·복원/저장을 마감했다.** slot5/적도 사례는 사용자 재질/Fern 확인을 받았고, 임시 회전/진단 뒤 원래 액터와 V005·실제 노멀을 복원·저장했다. `Preview.json=restored_saved`, `BoundaryDiagnosticState.json=restored`, 최종 dirty=false·PIE=false·AA4/Lit·보호142파일 해시 변화0이다. 최종 WIP 파일은 복원 저장/사용자 경계 카메라 저장으로 시작 사본과 해시가 달라졌으며 바이트 동일 복원이라고 표현하지 않는다. 정식 Ridge·Support source·기본 편성·풀·확정 경로는 보존했다.
+
+남은 전체8 slot/극점·바람 기준축 전환·런타임 LevelInstance·인접 옥탄트 이음매·게임 조명/밀도·PIE/SurfaceData·패키지 성능은 별도다. 다음 제안은 진행 확인 뒤 **1-B4e WIP 런타임 연결/SurfaceData 현재성 점검과 수동 PIE 소수 접촉 검증**이며 미승인·미착수다. 새 재질/메시·PCG·Support/Nav 베이크·빌드/쿡은 이번 단위에서 하지 않았다.
+
+## 21. 1-B4e 런타임 연결/SurfaceData 초기 점검(2026-11-16, 선행 준비는 §22에서 해소)
+
+아래는 베이크 전 초기 점검 기록이다. 이후 §22에서 승인받아 전용 데이터를 생성하고 런타임·수동 접촉·복원까지 마쳤다.
+
+사용자가1-B4e 진행을 승인했다. 먼저 연결을 읽기 전용으로 점검했고, **현재 WIP를 정상 게임 경로로 검사할 선행 데이터가 없어 PIE는 시작하지 않았다.** 베이크·정식 Ridge 적용은 별도 단위로 분리한다고 착수 시 알렸으며 아직 수행하지 않았다.
+
+### 확인한 사실
+
+- 현재 맵은 기존 `Graphics/V001/LVI_Ridge_SurfaceProbe`, PIE=false·WIP/V005 부모/MI dirty=false다. 액터15개의 transform/컴포넌트는1-B3g 복원 상태와 정확히 같다. Support2개·Blocker 전용1개·Decoration12개이며, Decoration12개는 모두 NoCollision·내비 영향 꺼짐을 유지한다. 이는 설정 확인이고 실제 발/카메라/탄환 접촉 통과가 아니다.
+- `/Script/LootNPop.Default__LNPSettings.OctantPool`은 `/Game/Maps/OctantPoolData`다. 정식6개 정의(Bastion/Hollow/Acropolis/Pyramid/Grove/Ridge)에는 원래 `/Game/Maps/Ridge_00/LVI_Octant_Ridge_00`와 원본 Ridge SurfaceData가 연결돼 있고 그래픽스 WIP는 없다. 모든 정의의 slot mask255·SeamSignature=`DysonSphere_R300m_V1`을 확인했다.
+- `/Game` 아래 등록된 `ULNPOctantSurfaceData`42개 header를 조회했으나 `SourceLevel`이 이 그래픽스 WIP인 데이터는0개다. 과거 Ridge V001~V011 작업본 데이터도 각각 자기 작업본 경로를 가리킨다. **현재 WIP의 데이터가 낡았다는 판정이 아니라 대응 데이터가 없다는 판정**이다. 기존 Ridge 데이터의 전체 현재성/재베이크 검증을 대신 수행한 것은 아니다.
+- 런타임 `LNPSurfaceDataSubsystem.cpp::ValidateLevelPair`는 SourceLevel manifest가 정확히1개이고 `Definition.LevelAsset` 패키지와 일치해야 통과한다. 원본 Ridge SurfaceData를 WIP LevelAsset과 연결하면 이 검사에서 실패한다. 태그/형상이 같다는 이유로 manifest를 고치거나 검사를 우회하지 않는다.
+- WIP의 `WorldSettings.defaultGameMode=None`, INI의 `GlobalDefaultGameMode=/Script/Engine.GameMode`다. 또한 `LNPOctantSpawnSubsystem`은 설정의 풀로8개 LevelInstance를 만든다. 현재 WIP를 독립 PIE로 열었다는 사실만으로 LNP의 초기화·SurfaceData snapshot·플레이어/장식 접촉 검증이 성립하지 않는다.
+
+### 다음 선행 구현 단위 제안: 1-B4e-1
+
+다음은 **별도 승인 전 실행하지 않는다.** 현재 형상/충돌과 정식 풀을 유지하며 그래픽스 WIP만 대상으로 한다.
+
+1. 저장된 WIP를 보존하고 다른 정상 루트 맵을 연 뒤 기존 콘솔 명령 `LNP.SurfaceNav.BakeOctant /Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/LVI_Ridge_SurfaceProbe`로 WIP 전용 데이터를 생성한다. 기존 베이커의 기본 옵션을 쓰며 형상을 재생성하지 않는다. 베이크 로그/Support source/층·seam·Nav·Spawn 결과를 확인한다. 충돌/PIE 통과로 해석하지 않는다.
+2. 베이커의 이름 규칙은 `LVI_Octant_` 접두어만 제거하므로 이 WIP의 실제 예상 출력은 `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/DA_OctantSurface_LVI_Ridge_SurfaceProbe`다. 생성 전 경로 충돌을 다시 확인한다.
+3. `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/DA_GraphicsRidgeValidationPool` 같은 별도 풀을 정식 풀에서 파생하고 Ridge 정의만 WIP/새 SurfaceData 쌍으로 교체한다. 정식 풀·원본 SurfaceData·기본 편성·설정 파일은 보존한다. `LinkPoolSurfaceData`는 정식 풀을 저장하므로 이번 격리 시험에 사용하지 않는다.
+4. 검사용 풀의 임시 선택·복원 경로와 정상 게임 루트를 확인한 뒤 사용자가 수동 PIE를 시작한다. slot 로드 로그·SurfaceData snapshot 게시 성공을 확인하고 대표 구역의 발/카메라/탄환을 검토한다. 아직 임시 선택이나 맵 전환도 하지 않았다. 이 단계의 결과가 나오기 전1-B4e PIE 완료로 마감하지 않는다.
+
+원자료는 `Saved/Profiling/Graphics/Phase01/RidgeRuntimeProbe_20261116/`의 `RuntimePreflight.json`·`SurfaceDataInventory.json`·`CurrentWipContract.json`·`FileChecks.json`·`Verification.json`이다. 자산/설정 변경0·보호142파일 해시 변화0·PIE 미실시다. 이 읽기 전용 점검 뒤 새 베이크나 자동 검사 장치를 만들지 않고 다음 단위 진행을 확인한다.
+
+## 22. 1-B4e-1 WIP 전용 베이크/검사용 풀 준비(2026-11-16, 마감)
+
+사용자가 선행 단위를 승인했다. WIP·정식 풀·V005 부모/MI dirty=false·PIE=false와 새 데이터/풀 경로 부재를 재조회했다. WIP/정식 풀 복구 사본과142파일·INI 해시를 `Saved/Profiling/Graphics/Phase01/RidgeRuntimeValidation_20261116/`에 남겼다. 현재 복구/진행 상태는 이 폴더의 기록을 우선 확인한다.
+
+사용자에게 TestMap03을 연 뒤 `LNP.SurfaceNav.BakeOctant /Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/LVI_Ridge_SurfaceProbe`를 실행하도록 요청했다. TestMap03의 GameMode는 `/Game/Gameplay/BP_LNPGameMode`임을 읽기 전용으로 확인했다. 생성 결과·풀 구성·임시 선택·PIE는 아직 진행 전이다. 정식 풀/원본 SurfaceData/기본 편성·설정 파일을 보존한다. 기존 형상/재질 빌더를 재실행하지 않는다.
+
+### 베이크·풀 생성과 런타임 로드
+
+사용자 콘솔 실행이 성공해 WIP 전용 `DA_OctantSurface_LVI_Ridge_SurfaceProbe`를 저장했다. DataVersion7·SourceLevel=WIP1개·dirty=false를 재조회했다. 베이크 로그는 지각85,867 tris·Support2소스/44층·전체593,257샘플·Support4,202,801B, Nav73,836셀/109 components/350 portals, Spawn authored12/candidates9,373/noNavRejected0이다. 이는 데이터 생성 결과이며 실제 접촉 통과가 아니다.142개 보호 파일과 INI2개/WIP 추가 확인은 변경0이었다.
+
+`DA_GraphicsRidgeValidationPool`을 정식 풀에서 복제하고6개 정의 중 index5 Ridge의 LevelAsset/SurfaceData만 WIP/새 데이터로 바꿨다. 나머지 정의·AllowedSlotRotations255·SeamSignature는 유지했고 새 풀만 저장했다. 기존 풀의 구조를 JSON으로 읽어 파생값을 만들었으므로 원본 struct 배열을 수정하지 않았다.
+
+`/Script/LootNPop.Default__LNPSettings`의 `octantPool`만 새 풀로 임시 선택하고 재조회했다. **SaveConfig를 호출하지 않았으며 정식 풀/INI 해시도 그대로다.** 원래 선택과 복원 필요 상태를 `SelectionState.json`에 먼저 기록했다. 이 파일이 `active_memory_override`이면 PIE 종료 후 원래 풀 선택을 복원해야 한다. 재현 때도 먼저 복구 기록을 남기고 임시 선택의 비영속성과 파일 해시를 확인한다.
+
+사용자가 TestMap03에서1인 PIE를 시작했다. 실제 WIP가 slot5/7에 선택됐고8개 LevelInstance가 모두 로드됐다. `Published generation 1 with 8 validated slots, 166 source bindings, registry generation 2`를 확인했다. Nav runtimeLayers664·seamLinks4,428·blockedSeamNodes/Edges0·maxSeamRadiusDelta=0.000cm·minSeamNormalDot0.95296이다. 런타임의 Level/SurfaceData 쌍·payload·source binding·이음매 게이트를 통과해 snapshot이 게시된 근거다. 모든 게임플레이·전체 slot의 미관 통과로 확대하지 않는다.
+
+사용자에게 `LNP.Debug.TeleportToOctant 5 3000.3 -2699.5 -3936.8`과 `LNP.Debug.WhereAmI`를 실행한 뒤 걷기/점프·착지/카메라/사격을 확인하도록 요청했다. 이동점은 저장된 Fern base 위치를 현재 debug 명령의 구면 프레임으로 역산한 값이며 명령이 현지 Up으로150cm를 더한다. 장식12개는 NoCollision이므로 장식 자체를 통과하는 것은 실패가 아니고, 지형 접촉과 장식이 판정을 방해하지 않는지를 확인한다. 현재 수동 확인·PIE 종료·임시 선택 복원은 아직 대기다.
+
+사용자가 `LNP.Spawn.EnemyDensity 0` 적용을 위해 PIE를 종료/재시작했다. 새 편성에서 WIP는 slot2/6이고, snapshot은8 validated slots·195 bindings·registry generation2로 게시됐다. seam delta0.000cm·blockedSeamNodes/Edges0, CVar 실효값0·검사용 풀 임시 선택 유지를 다시 확인했다. 첫 실행의 slot5를 재사용하지 않고 **`LNP.Debug.TeleportToOctant 2 3000.3 -2699.5 -3936.8`**을 안내했다. 시드를 강제하거나 사용자 밀도 설정을 에이전트가 바꾼 것은 아니다. 접촉 검증은 이 재시작 후 실행을 기준으로 기록한다.
+
+사용자는 재시작 후 **보행·착지·카메라·사격 모두 문제없음**을 확인했다. `WhereAmI` 로그도 플레이어가 slot2 `LVI_Ridge_SurfaceProbe`, local X3000/Y-2699/H-3821에서 발밑 `SM_Octant_Ridge_00_V011_R30000`에 있음을 보여 준다. 이 수동 검토는1인/EnemyDensity0 조건이며 적 전투·2인 호스트/게스트·전체 slot·패키지 성능의 검증이 아니다.
+
+`CaptureViewport`의 검토 캡처는 별도 PIE 게임창 대신 검은 에디터 뷰포트를 잡아 무효로 분리했다(`CaptureStatus.json`, `Views/pie_review.png`). 게임플레이 통과의 시각 근거로 쓰지 않는다. 사용자에게 게임 콘솔 `Shot`으로 한 장 저장하고 PIE를 종료하도록 요청했으며, 실제 게임 화면 확인·임시 풀 복원은 아직 대기다.
+
+### 화면 확인·복원·마감
+
+사용자의 `Shot`은 `Saved/Screenshots/WindowsEditor/ScreenShot00000.png`로 저장됐다. 플레이어·지각 텍스처·Fern/바위/클로버가 있는 실제 게임 화면임을 확인하고 근거 폴더의 `Views/pie_game_shot.png`로 복사했다. 원본 캡처는 유지한다. 화면의 디버그 표시를 포함한 PIE 캡처이며 성능 판정/무결한 최종 아트 이미지가 아니다.
+
+사용자가 PIE를 종료했고 IsPIERunning=false를 재조회했다. 메모리의 LNPSettings.OctantPool을 원래 `/Game/Maps/OctantPoolData`로 복원·재조회했으며 `SelectionState.json=restored`다. SaveConfig는 호출하지 않았다. TestMap03 dirty=false를 확인한 뒤 원래 WIP 맵과 베이크 전 카메라를 복원했다. **사용자가 설정한 `LNP.Spawn.EnemyDensity=0`은 그대로 유지했다.**
+
+최종 WIP·V005 부모/MI·새 SurfaceData·검사용 풀·정식 풀 모두 dirty=false, PIE=false다. 기존15메시 transform/컴포넌트는 회전 시험 마감 상태와 정확히 같고 보호142파일+WIP/INI 추가3개 확인은 변경0이다. 새 데이터(5,217,284B)/풀(4,029B)2개만 WIP 경로에 저장돼 있으며 모두 Git 제외다. `FinalLiveVerification.json`·`FinalFileChecks.json`·`Verification.json`에 근거를 남겼다.
+
+**1-B4e와 선행1-B4e-1을 제한된1인/EnemyDensity0 조건의 런타임 로드·수동 접촉 검증·복원까지 마감했다.** 정확한 Level/SurfaceData 쌍을 새 베이크로 만들었고 런타임8개 slot snapshot 게시와 사용자 slot2 지형 접촉을 확인했다. 이를2인 호스트/게스트·적 전투/부하·모든 slot의 미관·PCG·패키지 GPU 성능의 통과로 확대하지 않는다.
+
+재현은 생성된 데이터/풀을 확인한 뒤 정상 게임 루트(TestMap03)에서 **검사용 풀을 메모리에서만 임시 선택**하고 수동 PIE로 진행한다. 매 실행의 실제 WIP slot을 로그에서 다시 읽는다. 위5→2 변경처럼 시드/편성이 바뀔 수 있어 예전 slot 번호를 재사용하지 않는다. 종료 뒤 PIE=false와 원래 풀 선택 복원·INI/정식 풀 해시 보존을 반드시 확인한다. WIP/Support 입력이 바뀌면 기존 데이터의 현재성을 다시 확인하고 필요한 범위의 베이크를 별도 판단한다. 현재 산출물이 있으므로 기존 형상/재질 빌더나 이번 베이크를 무조건 재실행하지 않는다.
+
+새 체크아웃의 풀 재생성은 `AssetTools.duplicate`로 `/Game/Maps/OctantPoolData`를 위 WIP 풀 경로에 복제한 뒤, `ObjectTools.get_properties`로 읽은 `octantDefinitions`6개를 복사하고 **원래 Ridge인 정의 한 개의 `levelAsset`/`surfaceData`만 위 WIP/데이터의 전체 object path로 바꾼다.** `allowedSlotRotations`·`seamSignature`·다른5개 정의는 보존하고 파생 풀만 저장한다. 임시 선택은 `ObjectTools.set_properties`의 대상 `/Script/LootNPop.Default__LNPSettings`, 값 `{"octantPool":"/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/DA_GraphicsRidgeValidationPool.DA_GraphicsRidgeValidationPool"}`다. 복원 값은 `{"octantPool":"/Game/Maps/OctantPoolData.OctantPoolData"}`다. SaveConfig를 호출하지 않고 getter와 INI 해시로 선택/비영속성/복원을 확인한다. 실행 전 `SelectionState.json`에 원래 선택을 기록한다.
+
+다음 제안은 별도 진행 확인 후 **1-B5a 전체 bounds 기반 보호 마스크를 포함한 대표 구역 PCG 소수 배치**다. 아직 미승인·미착수이며, 기존 소수 시험을 전체 밀도/확장 승인으로 해석하지 않는다.
+
+### 새 세션 이관(2026-11-16, 사용자 요청)
+
+사용자가1-B5a를 새 세션으로 넘기고 관련 재생성 코드/문서의 단일 커밋을 요청했다. 이번 세션에서 PCG 그래프·배치·보호 마스크를 구현하지 않았다. 다음 세션의 읽기 순서·마지막 자산/풀/카메라 상태·단위별 확인·재생성 금지·복구 근거와 시작 프롬프트는 [Current](../Current.md)를 따른다. 전체 bounds의 회전/스케일/WPO 여유·동선/Pod/훅 보호 조건을 그때 구체화하고 고정 시드의 작은 배치부터 검증한다. 이번 소수 사례를 전체 팔레트/밀도/Phase1 완료로 해석하지 않는다.
