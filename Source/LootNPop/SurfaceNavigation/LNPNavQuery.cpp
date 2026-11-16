@@ -33,14 +33,14 @@ namespace
 		return CellIndex != INDEX_NONE ? &InOutTile->Cells[CellIndex] : nullptr;
 	}
 
-	/** node 방향에서 대응 Support Layer를 보간한 slot local 지면점. 베이커가 같은 조회로 node를 만들었으므로 실패하지 않는다. */
+	/** node 방향에서 대응 Support Layer를 보간한 slot local 지면점. 베이커가 같은 Nav 조회로 node를 만들었으므로 실패하지 않는다. */
 	bool QueryNodeSupport(
 		const FLNPSupportAtlasLayer& SupportLayer, const int32 Subdivisions, const int32 I, const int32 J,
 		FVector3d& OutLocalPoint, FVector3f& OutLocalNormal)
 	{
 		const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(Subdivisions, I, J);
 		FLNPSupportLayerQuery Query;
-		if (!LNPSupportAtlas::QueryLayer(SupportLayer, Direction, Query))
+		if (!LNPSupportAtlas::QueryNavLayer(SupportLayer, Direction, Query))
 		{
 			return false;
 		}

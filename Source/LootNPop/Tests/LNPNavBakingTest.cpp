@@ -5,6 +5,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "SurfaceNavigation/LNPNavBaking.h"
+#include "SurfaceNavigation/LNPNavGraph.h"
 #include "SurfaceNavigation/LNPNavRuntime.h"
 #include "SurfaceNavigation/LNPNavPathfinding.h"
 
@@ -153,6 +154,104 @@ bool FLNPNavBakingTest::RunTest(const FString& Parameters)
 		LNPNavData::EncodeTraversal(TraversalAgain, NavigationAgain, TraversalPayloadAgain, Error));
 	TestTrue(TEXT("Navigation baking is byte deterministic"), NavigationPayloadAgain == NavigationPayload);
 	TestTrue(TEXT("Traversal baking is byte deterministic"), TraversalPayloadAgain == TraversalPayload);
+	return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPNavNeedsExactCoverageTest,
+	"LootNPop.SurfaceNavigation.Nav.NeedsExactWalkableCoverage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLNPNavNeedsExactCoverageTest::RunTest(const FString& Parameters)
+{
+	using namespace LNPNavBakingTest;
+	// 걸을 수 있는 꺾임 띠(Valid·Walkable·NeedsExact)와 그 안의 비보행 열(Valid·NeedsExact)을 가진 지각.
+	constexpr int32 SupportN = 40;
+	constexpr int32 BandMin = 8;
+	constexpr int32 BandMax = 24;
+	constexpr int32 WallI = 16;
+	// 엄격 node와 끊긴 고립 패치: 비보행 테두리 안의 NeedsExact 보행 칸.
+	constexpr int32 PatchI0 = 26;
+	constexpr int32 PatchI1 = 30;
+	constexpr int32 PatchJ0 = 2;
+	constexpr int32 PatchJ1 = 6;
+	FLNPSupportAtlas Support;
+	FLNPSupportAtlasLayer& Layer = Support.Layers.Add_GetRef(MakeFullLayer(SupportN, 1000.0));
+	for (int32 J = 0; J <= SupportN; ++J)
+	{
+		for (int32 I = BandMin; I <= FMath::Min(BandMax, SupportN - J); ++I)
+		{
+			Layer.Flags[Layer.Layout.Find(I, J)] = static_cast<uint8>(I == WallI
+				? ELNPSupportSampleFlags::Valid | ELNPSupportSampleFlags::NeedsExact
+				: ELNPSupportSampleFlags::Valid | ELNPSupportSampleFlags::Walkable | ELNPSupportSampleFlags::NeedsExact);
+		}
+	}
+	for (int32 J = PatchJ0 - 1; J <= PatchJ1 + 1; ++J)
+	{
+		for (int32 I = PatchI0 - 1; I <= PatchI1 + 1; ++I)
+		{
+			const bool bInside = I >= PatchI0 && I <= PatchI1 && J >= PatchJ0 && J <= PatchJ1;
+			Layer.Flags[Layer.Layout.Find(I, J)] = static_cast<uint8>(bInside
+				? ELNPSupportSampleFlags::Valid | ELNPSupportSampleFlags::Walkable | ELNPSupportSampleFlags::NeedsExact
+				: ELNPSupportSampleFlags::Valid | ELNPSupportSampleFlags::NeedsExact);
+		}
+	}
+
+	FLNPNavBakeSettings Settings;
+	Settings.CrustSpacing = 50.0;
+	FLNPNavData Navigation;
+	FLNPNavTraversalData Traversal;
+	FLNPNavBakeReport Report;
+	FString Error;
+	if (!TestTrue(TEXT("NeedsExact walkable band bakes"), LNPNavBaking::Build(Support, Settings,
+		[](uint16, const FVector3d&, const FVector3f&) { return true; },
+		[](uint16, const FVector3d&, const FVector3f&, uint16, const FVector3d&, const FVector3f&) { return true; },
+		Navigation, Traversal, Report, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	const int32 NavN = Navigation.Layers[0].Subdivisions;
+	int32 NavInterpolatedNodes = 0;
+	int32 WallAdjacentNodes = 0;
+	int32 SeamBandNodes = 0;
+	int32 PatchNodes = 0;
+	for (int32 J = 0; J <= NavN; ++J)
+	{
+		for (int32 I = 0; I + J <= NavN; ++I)
+		{
+			FLNPLocalNavNodeRef Ref;
+			if (!LNPNavData::MakeLocalNodeRef(Navigation, 0, I, J, Ref))
+			{
+				continue;
+			}
+			const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(NavN, I, J);
+			FLNPSupportLayerQuery Strict;
+			FLNPSupportLayerQuery Nav;
+			const bool bStrict = LNPSupportAtlas::QueryLayer(Layer, Direction, Strict);
+			TestTrue(TEXT("Every baked node reconstructs with the Nav query"), LNPSupportAtlas::QueryNavLayer(Layer, Direction, Nav));
+			if (bStrict)
+			{
+				TestTrue(TEXT("Nav query equals the strict query where both interpolate"),
+					Nav.Radius == Strict.Radius && Nav.Normal == Strict.Normal);
+			}
+			NavInterpolatedNodes += bStrict ? 0 : 1;
+			const double AtlasI = Direction.X / (Direction.X + Direction.Y + Direction.Z) * SupportN;
+			const double AtlasJ = Direction.Y / (Direction.X + Direction.Y + Direction.Z) * SupportN;
+			WallAdjacentNodes += FMath::Abs(AtlasI - WallI) < 1.0 ? 1 : 0;
+			PatchNodes += (AtlasI >= PatchI0 - 1 && AtlasI <= PatchI1 + 1 && AtlasJ >= PatchJ0 - 1 && AtlasJ <= PatchJ1 + 1) ? 1 : 0;
+			SeamBandNodes += (J == 0 && !bStrict) ? 1 : 0;
+		}
+	}
+	TestTrue(TEXT("Walkable NeedsExact band gets Nav nodes"), NavInterpolatedNodes > 0);
+	TestEqual(TEXT("Cells touching a non-walkable Atlas corner stay out of Nav"), WallAdjacentNodes, 0);
+	TestEqual(TEXT("Crust seam nodes keep the strict interpolation rule"), SeamBandNodes, 0);
+	TestEqual(TEXT("An isolated Nav-only-interpolated patch is dropped"), PatchNodes, 0);
+	TestTrue(TEXT("The bake reports dropped isolated Nav-only nodes"), Report.NavInterpIsolatedRejectCount > 0);
+
+	FLNPNavAssetGraph Graph;
+	TestTrue(TEXT("Runtime graph rebuilds every NeedsExact band node"), LNPNavGraph::BuildAssetGraph(Support, Navigation, Traversal, Graph, Error));
 	return !HasAnyErrors();
 }
 

@@ -1,6 +1,6 @@
 # Phase 16 — Support 없는 Blocker 단차 금지와 ISM Support
 
-> 상태: 새 세션 인계(벽 정지 PIE 미통과·분리력 제한 기각, Nav 커버리지·근접 목표 처리의 근본 수정 대기 / ISM Support 보류)
+> 상태: 1단계 진행 중 — 단위1 Nav 커버리지 완료(D-084), 단위2 플레이어 지면/Nav 분리·근접 목표 새 세션 인계(§3.7) / ISM Support 보류
 > 착수: 2026-11-16, 그래픽스 1-B5b(GX-014) 인계
 > 로그: `history/Phase16_Log.md`
 
@@ -52,9 +52,12 @@ Moss처럼 MaxStepUp보다 살짝 높은 둥근 바위도 같은 경로로 관�
 - [x] 게임 타깃 컴파일, Editor 빌드
 - [x] 픽스처 `LootNPop.SurfaceNavigation.EnemyMovement.SupportlessBlockerStep` 통과
 - [x] 당시 `LootNPop.SurfaceNavigation` 전체 회귀137/137 Success. **비채택 분리력 제한 실험을 포함한 결과이며 벽 정지 해결의 근거가 아니다.** 실험 제거·근본 수정 후 다시 검증한다. 경고/상세는 `history/Phase16_Log.md`
-- [ ] Ridge WIP PIE(EnemyDensity1): 지상형 적이 바위를 관통하지 않음, `blocker_rejects` 로그, 끼임 여부 육안 확인. 끝나면 원래 풀 복원
-- [ ] Phase 13 Production gate(`RunPhase13Gate.ps1 -Cases Production`) 수정 전후 비교: `GroundBlockerOverlap` 횟수·평균 시간, frame P95
-- [x] 사용자 요청으로 현재 작업 체크포인트 커밋. 비채택 실험·벽 정지 미해결·후속 근본 수정 인계를 포함하며 Phase16 완료를 뜻하지 않는다
+- [x] Ridge WIP PIE(EnemyDensity1): 지상형 적의 바위 관통 유지 없음(일시 겹침 후 바로 빠져나옴), 벽 근처 정지 재현 안 됨, 군집 겹침 수용 가능. 원래 풀 복원(2026-11-16 네 번째 PIE)
+- [x] 단위1 Nav 커버리지(D-084): 정식7·fixture5 재베이크, 최종 전체 회귀·Editor/Game 빌드(수치는 `history/Phase16_Log.md`)
+- [ ] 단위2 플레이어 물리 지면/Nav 투영 분리·근접 접근/공격 목표(§3.7)
+- [ ] Phase 13 Production gate(`RunPhase13Gate.ps1 -Cases Production`, 새 패키지 쿡 필요) 수정 전후 비교: `GroundBlockerOverlap` 횟수·평균 시간, frame P95, Nav node 증가의 경로 비용. 단위2 뒤 한 번에 잰다
+- [ ] 리슨2P(D-031). 단위2 뒤 한 번에 확인한다
+- [x] 사용자 요청으로 작업 체크포인트 커밋(66dba1c, 비채택 실험 포함 상태)
 
 ### 3.5 비채택 실험 — 분리력 제한으로 Nav 이탈 방지
 
@@ -62,7 +65,7 @@ Moss처럼 MaxStepUp보다 살짝 높은 둥근 바위도 같은 경로로 관�
 
 `StepGroundedWithSeparation`은 분리력 포함 결과가 300cm 안의 Nav 시작점을 잃으면 분리력을 빼고 재시도하는 실험이다. 합성 재현·캐시/정밀 검사·전체137/137·Editor/Game 빌드·헤드리스 이동7/7은 통과했으나, 실제 세 번째 PIE에서 벽 근처 NoNode 정지가 남았다. 사용자의 "줄어든 느낌"은1회 체감일 뿐 검증 결과가 아니다. `nav_separation_retries=196`은 판정 실행의 근거만 된다.
 
-**소스와 빌드 바이너리에는 이 비채택 실험이 아직 남아 있다.** 이번 인계는 문서/검토환경 복원만 수행했다. 새 세션은 먼저 해당 실험의 호출·함수·계측·전용 검사 기대값을 제거하거나 근본 수정 검사로 대체해야 한다. `LNPEnemyProcessors.cpp`, `LNPEnemySurfaceMovement.cpp/.h`, `LNPEnemyBlockerStepTest.cpp`에서 차분으로 구분하며 기존 D-082 구현·픽스처는 보존한다. 파일 전체를 되돌려 다른 미커밋 작업을 잃지 않는다. 상세 근거는 [기각 원장 Case09](../../DiscardedApproaches.md#case-09-nav-이탈을-막기-위한-npc-분리력-제한)·`history/Phase16_Log.md`를 따른다.
+**2026-11-16 제거 완료.** 함수·호출·`nav_separation_retries` 계측·`SeparationNavBoundary` 검사를 지웠고 이동 프로세서 호출은 D-082 이전과 같다. D-082 구현·`SupportlessBlockerStep` 픽스처는 보존했다. 상세 근거는 [기각 원장 Case09](../../DiscardedApproaches.md#case-09-nav-이탈을-막기-위한-npc-분리력-제한)·`history/Phase16_Log.md`를 따른다.
 
 ### 3.6 다음 세션 — 벽 근처 Nav 커버리지와 근접 목표의 근본 수정
 
@@ -74,6 +77,7 @@ Moss처럼 MaxStepUp보다 살짝 높은 둥근 바위도 같은 경로로 관�
 - Support 누락/불확실성, normal·경사 판정, node 캡슐 overlap, edge step/slope·연속 sweep, 격자 누락, Layer 투영을 나눠 배제 원인을 확인한다. 현재 지각 목표 간격200cm·베이크 agent 반지름50/반높이88cm·투영 반경300cm와 실제 개체 설정을 대조한다.
 - 실제로 걸을 수 있고 연결되는 정적 바닥이 과하게 빠졌다면 그 원인을 바로잡는다. 어떤 판정이 잘못됐는지 확인하기 전에 전역 해상도·agent 크기·허용 경사·투영 반경을 일괄 변경하지 않는다. 베이크 변경이 필요하면 WIP에서 먼저 확인하고 재베이크 영향 범위를 기록한다.
 - 검증: 재현 벽 구역의 실보행/캡슐 경로와 Nav 커버리지가 일치하고, 여러 지상 근접 NPC가 벽 근처로 몰린 뒤 플레이어를 따라 다시 나올 수 있어야 한다.
+- **결과(2026-11-16 완료, D-084).** 두 PIE의 NoNode NPC를 옥탄트 local로 환산하면 WIP의 같은 지형이었다. `LNP.SurfaceNav.ExplainNavGap` 진단에서 반경400cm 후보 탈락의 대부분이 Atlas `NeedsExact` 꼭짓점이었고, 그중 다수는 평탄하고 NPC 캡슐이 서는 바닥이었다. node 위치를 Nav 전용 보간(`QueryNavLayer`)으로 만들도록 바꾸고 베이커 schema를10으로 올렸다. WIP 재베이크 후 다섯 정지 지점의 최근접 node가 110~280cm(발 기준)로 투영 반경 안에 들어왔고 주 정적 component에 연결됐다. 실제 WIP PIE에서 사용자가 NPC를 벽에 붙여 끌고 다녀도 정지가 재현되지 않았고, 군집 겹침은 수용 가능, 바위 관통 유지는 없었다. 남은 탈락 사유 `ClearanceFloorOnly`(node 캡슐이 지형 바닥에만 닿음, 지점당1~3개)는 다루지 않았다. 수치·회귀는 `history/Phase16_Log.md`.
 
 **단위2: 물리적 바닥과 목표 Nav 투영 분리·근접 접근/공격 위치**
 
@@ -89,9 +93,21 @@ Moss처럼 MaxStepUp보다 살짝 높은 둥근 바위도 같은 경로로 관�
 - 최종 코드의 Editor/Game 빌드·전체 SurfaceNavigation·리슨2P·Production 비용 비교를 확인한다. 과거 비채택 실험의137/137·7/7 결과를 최종 구현의 검증으로 재사용하지 않는다.
 - 실제 WIP slot은 새 PIE 로그에서 다시 읽고, 검사용 풀은 메모리에서만 선택한다. 종료 뒤 원래 풀과 보호 파일 해시를 확인한다. 원거리 사선 재배치와 ISM Support는 이 근본 수정 뒤 별도 단위로 남긴다.
 
-### 3.7 새 세션 시작 프롬프트
+### 3.7 단위2 새 세션 인계
 
-> SurfaceSupportNavigation Phase16을 이어가자. README.md·Current.md·Decisions.md와 이 문서 §3.5~3.6, Phase16_Log.md의 마지막 사용자 결정을 읽어줘. 분리력을 빼거나 약화해 Nav 이탈을 막는 실험은 사용자가 기각했고 소스/바이너리에 아직 남아 있어. 먼저 해당 실험만 정리하고 D-082의 Blocker 비관통 구현은 보존하자. 다음은1) 실제 보행 가능한 벽 주변 바닥의 Nav 커버리지 원인 확인·수정,2) 플레이어 물리 지면과 Nav 투영 분리 및 근접 적의 도달 가능한 접근·공격 위치 처리다. 두 조치 모두 필요하며 군집의 NPC 겹침 해소가 악화되면 안 돼. 구현 단위마다 다음 진행을 확인하고, 수동 PIE가 더 효율적이면 즉시 요청해줘. 이전 PIE는 종료·원래 풀 복원됐으며 실제 slot은 새 실행 로그에서 다시 확인해줘.
+단위1(D-084)로 벽 근처 바닥의 Nav가 크게 늘었으므로, 벽 옆 플레이어 추격 실패가 지금도 남는지 **새 데이터로 먼저 재현**한다. 재현되지 않더라도 §3.6 단위2의 구조 결함(플레이어 Nav 투영 실패가 `Surface`·`GroundPoint`까지 지우고 근접 목표가 발밑 node 하나에 의존)은 사용자 결정(D-083)대로 고친다.
+
+알려진 코드 경로:
+
+- `ULNPPlayerNavProcessor::Execute`(`Enemy/LNPEnemyPathProcessor.cpp`): Floor hit → `ResolveFloorHit` → `MakeSurfaceHandle` 뒤 300cm 안의 최근접 node가 없으면 `Surface`·`Node`·`Group`을 모두 무효로 두고 `GroundPoint`도 갱신하지 않는다.
+- `ULNPEnemyPathProcessor::Execute`: 표적 도달성은 `PlayerNav->Surface`가 유효할 때만 `ResolveEndpoints`로 본다. 목표 경로에서 `PlayerNav->Surface`가 무효면 그 개체를 `continue`로 건너뛰어 조향점을 갱신하지 않는다. `StartNode`가 없으면 현재 위치를 조향점으로 둔다. 근접 접근 목표는 `MoveTarget.Center`의 발 위치 투영 하나다.
+- 진단: 정지 위치를 옥탄트 local로 바꿔 `LNP.SurfaceNav.ExplainNavGap`으로 주변 node·연결을 본다. slot 회전은 `R(P=180,Y=90)`이면 local=(-Wy,-Wx,-Wz), `R(P=180)`이면 (-Wx,Wy,-Wz)처럼 PIE 로그의 slot 회전으로 계산한다. commandlet에서는 `load_map` 뒤 실행한다.
+
+수용 기준은 §3.6 단위2와 공통 기준을 따른다. 단위2 뒤 Production gate(새 패키지)·리슨2P로 1단계를 마감한다.
+
+새 세션 시작 프롬프트:
+
+> SurfaceSupportNavigation Phase16 단위2를 진행하자. README.md·Current.md·Decisions.md와 `phases/Phase16_SupportlessBlockerStep.md` §3.6~3.7, `history/Phase16_Log.md`의 마지막 단위1 마감 기록을 읽어줘. 단위1(D-084 Nav 전용 보간)으로 벽 근처 NPC 정지는 해결됐고 정식 SurfaceData는 schema10으로 재베이크됐어. 이번 단위는 플레이어의 물리 지면/현재 지면점을 Nav node 투영과 분리하고, 근접 적이 같은 보행 연결 영역에서 실제로 접근·공격할 수 있는 위치를 목표로 쓰게 하는 거야. 먼저 Ridge WIP에서 벽에 붙은 플레이어를 근접 적이 추격·공격하는지 수동 PIE로 재현을 요청해줘. 벽 너머·다른 층 스냅이나 순간 이동으로 연결을 만들면 안 되고, 군집 겹침 해소를 약화하면 안 돼. 구현 단위마다 다음 진행을 확인해줘. 끝나면 Production gate(쿡 필요)·리슨2P로 1단계를 마감한다.
 
 ## 4. 2단계 — ISM Support(D-058 해제) 조사·계획
 

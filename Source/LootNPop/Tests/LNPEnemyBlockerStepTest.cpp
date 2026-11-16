@@ -1,7 +1,6 @@
 // Copyright (c) 2026 LootNPop. All rights reserved.
 
 #include "Misc/AutomationTest.h"
-#include "Misc/ScopeExit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -12,23 +11,15 @@
 #include "Enemy/LNPEnemyExactMovement.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
 #include "GameFramework/Actor.h"
-#include "HAL/IConsoleManager.h"
 #include "LootPod/LNPLootPodCollisionProxy.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
-#include "SurfaceNavigation/LNPNavBaking.h"
-#include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPEnemySupportlessBlockerStepTest,
 	"LootNPop.SurfaceNavigation.EnemyMovement.SupportlessBlockerStep",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FLNPEnemySeparationNavBoundaryTest,
-	"LootNPop.SurfaceNavigation.EnemyMovement.SeparationNavBoundary",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace
@@ -125,42 +116,6 @@ namespace
 			return (Direction * BlockerStepSurfaceRadius + Forward * X + Side * Y).GetSafeNormal() * BlockerStepSurfaceRadius;
 		}
 
-		/** 벽 근처처럼 Support는 있으나 Nav는 없는 띠를 만든다. Nav는 |x|<=200cm인 좁고 긴 구역이다. */
-		bool BuildNavCorridor(FAutomationTestBase& Test)
-		{
-			TSharedPtr<FLNPNavData, ESPMode::ThreadSafe> Navigation = MakeShared<FLNPNavData, ESPMode::ThreadSafe>();
-			TSharedPtr<FLNPNavTraversalData, ESPMode::ThreadSafe> Traversal = MakeShared<FLNPNavTraversalData, ESPMode::ThreadSafe>();
-			FLNPNavBakeSettings Settings;
-			Settings.CrustSpacing = 100.0;
-			FLNPNavBakeReport Report;
-			FString Error;
-			if (!LNPNavBaking::Build(*Snapshot.Slots[0].Support, Settings,
-				[&](uint16, const FVector3d& P, const FVector3f&)
-				{
-					return FMath::Abs(FVector3d::DotProduct(P, FVector3d(Forward))) <= 200.0
-						&& FMath::Abs(FVector3d::DotProduct(P, FVector3d(Side))) <= 1500.0;
-				},
-				[](uint16, const FVector3d&, const FVector3f&, uint16, const FVector3d&, const FVector3f&) { return true; },
-				*Navigation, *Traversal, Report, Error))
-			{
-				Test.AddError(Error);
-				return false;
-			}
-			TArray<FLNPNavSlotInput> Slots;
-			TArray<FRotator> Rotations;
-			for (int32 Slot = 0; Slot < 8; ++Slot)
-			{
-				Slots.Add({Snapshot.Slots[0].Support, Navigation, Traversal});
-				Rotations.Add(FRotator(Slot >= 4 ? 180.0 : 0.0, (Slot % 4) * 90.0, 0.0));
-			}
-			if (!LNPNavRuntime::BuildSnapshot(Slots, Rotations, Snapshot.Generation, Snapshot.Nav, Error))
-			{
-				Test.AddError(Error);
-				return false;
-			}
-			return true;
-		}
-
 		static FVector UpAt(const FVector& Point) { return -Point.GetSafeNormal(); }
 
 		/** 캐시 규약의 접지 캡슐 중심(캡슐 바닥이 지면). */
@@ -170,8 +125,8 @@ namespace
 			return Ground + UpAt(Ground) * Params.CapsuleHalfHeight;
 		}
 
-		/** 지면 위에 놓인 상자. 크기는 전진·옆·높이(cm)이고 바닥이 지면에서 Lift만큼 떠 있다. */
-		UStaticMeshComponent* Box(const double X, const FVector& Size, const FName Profile, const double Lift = 0.0)
+		/** 지면 위에 놓인 상자. 크기는 전진·옆·높이(cm)다. */
+		UStaticMeshComponent* Box(const double X, const FVector& Size, const FName Profile)
 		{
 			const FVector Ground = GroundPoint(X, 0.0);
 			const FVector Up = UpAt(Ground);
@@ -180,7 +135,7 @@ namespace
 			Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
 			Mesh->SetMobility(EComponentMobility::Static);
 			Mesh->SetCollisionProfileName(Profile);
-			Mesh->SetWorldLocationAndRotation(Ground + Up * (Lift + Size.Z * 0.5), FRotationMatrix::MakeFromZX(Up, Forward).Rotator());
+			Mesh->SetWorldLocationAndRotation(Ground + Up * (Size.Z * 0.5), FRotationMatrix::MakeFromZX(Up, Forward).Rotator());
 			Mesh->SetWorldScale3D(Size / 100.0);
 			Owner->SetRootComponent(Mesh);
 			Mesh->RegisterComponent();
@@ -324,112 +279,6 @@ bool FLNPEnemySupportlessBlockerStepTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("LootPod proxy stop distance is unchanged"), FMath::Abs(Result.FinalX - ExpectedStop) <= 3.0);
 	}
 
-	return !HasAnyErrors();
-}
-
-bool FLNPEnemySeparationNavBoundaryTest::RunTest(const FString& Parameters)
-{
-	FBlockerStepWorld Fixture(TEXT("SeparationNavBoundary"));
-	if (!Fixture.BuildCrustCache(*this) || !Fixture.BuildNavCorridor(*this))
-		return false;
-	UStaticMeshComponent* Floor = Fixture.Box(0.0, FVector(4000, 4000, 100), TEXT("LNPStaticTerrain"), -100.0);
-	FLNPPlacementId Placement;
-	Placement.Slot = 0;
-	Fixture.HitIdentity->RegisterRuntimeSource(Floor, Placement);
-	TSharedPtr<FLNPSupportFaceMap, ESPMode::ThreadSafe> FloorFaces = MakeShared<FLNPSupportFaceMap, ESPMode::ThreadSafe>();
-	FloorFaces->UniformLayer = 0;
-	Fixture.HitIdentity->BindRuntimePatchFaceMap(Floor, FloorFaces, Fixture.Snapshot.Generation);
-	Fixture.Publish();
-	IConsoleVariable* Cache = IConsoleManager::Get().FindConsoleVariable(TEXT("LNP.SurfaceNav.EnemySupportCache"));
-	const int32 PreviousCache = Cache->GetInt();
-	const auto CacheSetBy = static_cast<EConsoleVariableFlags>(Cache->GetFlags() & ECVF_SetByMask);
-	ON_SCOPE_EXIT { Cache->Set(PreviousCache, CacheSetBy); };
-	const auto SurfaceAtStart = [&]()
-	{
-		FLNPSurfaceHandle Surface;
-		Surface.OctantSlot = Surface.LocalLayerId = 0;
-		Surface.Generation = Fixture.Snapshot.Generation;
-		return Surface;
-	};
-	const auto NodeAt = [&](const FVector& Center, const FLNPSurfaceHandle& Surface)
-	{
-		const FVector Feet = Center - FBlockerStepWorld::UpAt(Center) * Fixture.Params.CapsuleHalfHeight;
-		return LNPNavGraph::FindNearestNode(Fixture.Snapshot.Nav, Surface.OctantSlot, Surface.LocalLayerId,
-			FVector3d(Feet), LNPNavQuery::DefaultProjectionRadius).Node;
-	};
-	const FVector Start = Fixture.CapsuleCenterAt(0.0);
-	TestTrue(TEXT("Chaser starts inside Nav"), NodeAt(Start, SurfaceAtStart()) != INDEX_NONE);
-
-	for (const int32 CacheMode : {1, 0})
-	{
-		Cache->Set(CacheMode, CacheSetBy);
-		AddInfo(FString::Printf(TEXT("Separation Nav boundary: cache=%d"), CacheMode));
-		// 기존 이동은 정상 Nav에서 출발해도 분리력만으로 Nav 밖에 밀려난다. NoNode면 경로 소비자는 의도를 지운다.
-		FVector Legacy = Start;
-		FLNPSurfaceHandle LegacySurface = SurfaceAtStart();
-		for (int32 Frame = 0; Frame < 150; ++Frame)
-		{
-			FVector Next, Velocity;
-			LNPEnemySurfaceMovement::StepGrounded(&Fixture.Snapshot, *Fixture.Collision, Fixture.Params,
-				Legacy, Fixture.Forward * 300.f, BlockerStepDeltaTime, Next, Velocity, LegacySurface);
-			Legacy = Next;
-		}
-		TestEqual(TEXT("Existing separation movement reproduces missing Nav start"), NodeAt(Legacy, LegacySurface), INDEX_NONE);
-
-		{
-			FVector Next, Velocity;
-			FLNPSurfaceHandle InsideSurface = SurfaceAtStart();
-			LNPEnemySurfaceMovement::StepGroundedWithSeparation(&Fixture.Snapshot, *Fixture.Collision, Fixture.Params,
-				Start, FVector::ZeroVector, Fixture.Forward * 300.f, BlockerStepDeltaTime,
-				Next, Velocity, InsideSurface, NodeAt(Start, InsideSurface));
-			TestTrue(TEXT("Separation still moves entities inside Nav"), FVector::DotProduct(Next - Start, Fixture.Forward) > 3.0);
-			TestTrue(TEXT("Grounded movement preserves the static Surface Layer"), InsideSurface.IsValid());
-		}
-
-		FVector Location = Start;
-		FLNPSurfaceHandle Surface = SurfaceAtStart();
-		bool bLostNav = false;
-		for (int32 Frame = 0; Frame < 150; ++Frame)
-		{
-			FVector Next, Velocity;
-			const int32 Node = NodeAt(Location, Surface);
-			const FVector Intent = Node != INDEX_NONE ? Fixture.Side * 90.f : FVector::ZeroVector;
-			LNPEnemySurfaceMovement::StepGroundedWithSeparation(&Fixture.Snapshot, *Fixture.Collision, Fixture.Params,
-				Location, Intent, Fixture.Forward * 300.f, BlockerStepDeltaTime, Next, Velocity, Surface, Node);
-			Location = Next;
-			bLostNav |= NodeAt(Location, Surface) == INDEX_NONE;
-		}
-		TestFalse(TEXT("Crowd separation never removes the chase Nav start"), bLostNav);
-		TestTrue(TEXT("Chase intent keeps moving along the boundary under crowd pressure"),
-			FVector::DotProduct(Location - Start, Fixture.Side) > 180.0);
-
-		// 이웃이 사라지거나 플레이어가 안쪽으로 옮기면 경계에서 다시 정상 추격한다.
-		const FVector BeforeReturn = Location;
-		for (int32 Frame = 0; Frame < 90; ++Frame)
-		{
-			FVector Next, Velocity;
-			const int32 Node = NodeAt(Location, Surface);
-			const FVector Intent = Node != INDEX_NONE ? -Fixture.Forward * 300.f : FVector::ZeroVector;
-			LNPEnemySurfaceMovement::StepGroundedWithSeparation(&Fixture.Snapshot, *Fixture.Collision, Fixture.Params,
-				Location, Intent, FVector::ZeroVector, BlockerStepDeltaTime, Next, Velocity, Surface, Node);
-			Location = Next;
-		}
-		TestTrue(TEXT("Chaser follows back after crowd pressure is removed"),
-			FVector::DotProduct(BeforeReturn - Location, Fixture.Forward) > 200.0);
-
-		// 넉백 등으로 이미 Nav 밖에 놓인 개체가 안쪽으로 빠져나가는 이동은 새 판정으로 막지 않는다.
-		Location = Legacy;
-		Surface = LegacySurface;
-		for (int32 Frame = 0; Frame < 120; ++Frame)
-		{
-			FVector Next, Velocity;
-			LNPEnemySurfaceMovement::StepGroundedWithSeparation(&Fixture.Snapshot, *Fixture.Collision, Fixture.Params,
-				Location, -Fixture.Forward * 300.f, -Fixture.Forward * 30.f, BlockerStepDeltaTime,
-				Next, Velocity, Surface, NodeAt(Location, Surface));
-			Location = Next;
-		}
-		TestTrue(TEXT("Movement starting outside Nav can return inside"), NodeAt(Location, Surface) != INDEX_NONE);
-	}
 	return !HasAnyErrors();
 }
 

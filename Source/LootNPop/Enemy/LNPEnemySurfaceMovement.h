@@ -93,21 +93,6 @@ namespace LNPEnemySurfaceMovement
 		FLNPSurfaceHandle& InOutSurface,
 		FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
 
-	/** 지상 의도와 분리력을 합쳐 이동하되, 분리력이 Nav 시작점을 잃게 하면 의도만으로 재시도한다. */
-	LOOTNPOP_API LNPEnemyExactMovement::EGroundResult StepGroundedWithSeparation(
-		const FLNPSurfaceDataSnapshot* SurfaceSnapshot,
-		const ULNPMassWorldCollisionSubsystem& Collision,
-		const LNPEnemyExactMovement::FParams& Params,
-		const FVector& Location,
-		const FVector& IntentVelocity,
-		const FVector& SeparationVelocity,
-		float DeltaTime,
-		FVector& OutLocation,
-		FVector& OutVelocity,
-		FLNPSurfaceHandle& InOutSurface,
-		int32 NavHintNode,
-		FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
-
 	/** 공중은 항상 exact다. 착지한 정적 Support의 handle을 기록하고 그 밖에는 무효화한다. */
 	LOOTNPOP_API bool StepAirborne(
 		const ULNPMassWorldCollisionSubsystem& Collision,

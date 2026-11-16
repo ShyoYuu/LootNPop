@@ -7,7 +7,6 @@
 #include "LootNPop.h"
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
-#include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 
 #include "HAL/IConsoleManager.h"
@@ -27,7 +26,6 @@ namespace LNPEnemySurfaceMovement
 		std::atomic<uint64> GExactFallbacks = 0;
 		std::atomic<uint64> GExactOnlySteps = 0;
 		std::atomic<uint64> GBlockerRejects = 0;
-		std::atomic<uint64> GNavSeparationRetries = 0;
 
 		FAutoConsoleCommand CmdReportStats(
 			TEXT("LNP.SurfaceNav.EnemyGround.Report"),
@@ -52,7 +50,6 @@ namespace LNPEnemySurfaceMovement
 		GExactFallbacks.store(0, std::memory_order_relaxed);
 		GExactOnlySteps.store(0, std::memory_order_relaxed);
 		GBlockerRejects.store(0, std::memory_order_relaxed);
-		GNavSeparationRetries.store(0, std::memory_order_relaxed);
 		UE_LOG(LogLootNPop, Display, TEXT("EnemyGround counters reset."));
 	}
 
@@ -63,12 +60,11 @@ namespace LNPEnemySurfaceMovement
 		const uint64 Fallbacks = GExactFallbacks.load(std::memory_order_relaxed);
 		const uint64 ExactOnly = GExactOnlySteps.load(std::memory_order_relaxed);
 		const uint64 BlockerRejects = GBlockerRejects.load(std::memory_order_relaxed);
-		const uint64 NavSeparationRetries = GNavSeparationRetries.load(std::memory_order_relaxed);
 		const double CacheRate = Steps > 0 ? 100.0 * static_cast<double>(CacheHits) / static_cast<double>(Steps) : 0.0;
 		UE_LOG(LogLootNPop, Display,
-			TEXT("EnemyGround: mode=%s steps=%llu cache_hits=%llu exact_fallbacks=%llu exact_only=%llu cache_rate=%.2f%% blocker_rejects=%llu nav_separation_retries=%llu"),
+			TEXT("EnemyGround: mode=%s steps=%llu cache_hits=%llu exact_fallbacks=%llu exact_only=%llu cache_rate=%.2f%% blocker_rejects=%llu"),
 			GEnemySupportCache != 0 ? TEXT("cache-first") : TEXT("exact-only"),
-			Steps, CacheHits, Fallbacks, ExactOnly, CacheRate, BlockerRejects, NavSeparationRetries);
+			Steps, CacheHits, Fallbacks, ExactOnly, CacheRate, BlockerRejects);
 	}
 
 	bool MakeSurfaceHandle(const FLNPExactHitIdentity& Identity, FLNPSurfaceHandle& OutHandle)
@@ -369,69 +365,6 @@ namespace LNPEnemySurfaceMovement
 			InOutSurface = FLNPSurfaceHandle();
 		}
 		return GroundResult;
-	}
-
-	LNPEnemyExactMovement::EGroundResult StepGroundedWithSeparation(
-		const FLNPSurfaceDataSnapshot* SurfaceSnapshot,
-		const ULNPMassWorldCollisionSubsystem& Collision,
-		const LNPEnemyExactMovement::FParams& Params,
-		const FVector& Location,
-		const FVector& IntentVelocity,
-		const FVector& SeparationVelocity,
-		const float DeltaTime,
-		FVector& OutLocation,
-		FVector& OutVelocity,
-		FLNPSurfaceHandle& InOutSurface,
-		const int32 NavHintNode,
-		FLNPExactHitIdentity* OutSurfaceIdentity)
-	{
-		const FLNPSurfaceHandle PreviousSurface = InOutSurface;
-		LNPEnemyExactMovement::EGroundResult Result = StepGrounded(SurfaceSnapshot, Collision, Params, Location, IntentVelocity + SeparationVelocity,
-			DeltaTime, OutLocation, OutVelocity, InOutSurface, OutSurfaceIdentity);
-		if (Result != LNPEnemyExactMovement::EGroundResult::Grounded || SeparationVelocity.IsNearlyZero()
-			|| SurfaceSnapshot == nullptr || !SurfaceSnapshot->Nav.Graph.IsValid() || !InOutSurface.IsValid())
-			return Result;
-
-		const FLNPNavSnapshot& Nav = SurfaceSnapshot->Nav;
-		auto HasNavStart = [&](const FVector& Center, const FLNPSurfaceHandle& Surface)
-		{
-			if (!Surface.IsValid() || Surface.Generation != Nav.SnapshotGeneration)
-				return false;
-			const FVector3d Feet(Center - (Params.GravityOrigin - Center).GetSafeNormal() * Params.CapsuleHalfHeight);
-			const FLNPNavGraph& Graph = Nav.Graph;
-			const int32 HintSlot = Graph.GetSlot(NavHintNode);
-			// 경로 소비자가 이미 찾은 node의 300cm 안이면 node 존재가 증명되므로 최근접을 다시 찾지 않는다.
-			if (HintSlot == Surface.OctantSlot && !Graph.BlockedNodes[NavHintNode])
-			{
-				const FLNPNavGraphNode& Hint = Graph.GetNode(HintSlot, NavHintNode);
-				if (Graph.SlotGraphs[HintSlot]->Layers[Hint.LayerOrdinal].LocalNavLayerId == Surface.LocalLayerId
-					&& FVector3d::DistSquared(Graph.GetWorldPoint(HintSlot, NavHintNode), Feet)
-						<= FMath::Square(LNPNavQuery::DefaultProjectionRadius))
-					return true;
-			}
-			return LNPNavGraph::FindNearestNode(Nav, Surface.OctantSlot, Surface.LocalLayerId, Feet,
-				LNPNavQuery::DefaultProjectionRadius, nullptr, NavHintNode).Node != INDEX_NONE;
-		};
-		if (HasNavStart(OutLocation, InOutSurface) || !HasNavStart(Location, PreviousSurface))
-			return Result;
-
-		// Support가 있는 Nav 공백으로 분리력이 밀어내면 다음 프레임 NoNode가 되어 추격도 배회도 복구하지 못한다.
-		// 원래 의도로 다시 걸어 경계 방향 추격을 살린다. 이미 Nav 밖에서 시작한 개체의 탈출은 막지 않는다.
-		GNavSeparationRetries.fetch_add(1, std::memory_order_relaxed);
-		InOutSurface = PreviousSurface;
-		Result = StepGrounded(SurfaceSnapshot, Collision, Params, Location, IntentVelocity,
-			DeltaTime, OutLocation, OutVelocity, InOutSurface, OutSurfaceIdentity);
-		if (Result == LNPEnemyExactMovement::EGroundResult::Grounded && InOutSurface.IsValid()
-			&& !HasNavStart(OutLocation, InOutSurface))
-		{
-			OutLocation = Location;
-			OutVelocity = FVector::ZeroVector;
-			InOutSurface = PreviousSurface;
-			if (OutSurfaceIdentity != nullptr)
-				*OutSurfaceIdentity = FLNPExactHitIdentity();
-			return LNPEnemyExactMovement::EGroundResult::Rejected;
-		}
-		return Result;
 	}
 
 	bool StepAirborne(

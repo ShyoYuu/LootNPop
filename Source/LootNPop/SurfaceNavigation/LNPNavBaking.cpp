@@ -14,6 +14,8 @@ namespace
 		uint8 ClearanceClass = 0;
 		uint16 Component = MAX_uint16;
 		bool bBoundary = false;
+		/** 엄격 Atlas 보간(QueryLayer)으로도 만들어지는 node. 아니면 Nav 전용 보간(D-084)으로만 생긴 node다. */
+		bool bStrictSupport = false;
 	};
 
 	struct FBakeLayer
@@ -188,8 +190,11 @@ bool LNPNavBaking::Build(
 			for (int32 I = 0; I + J <= Baked.Subdivisions; ++I)
 			{
 				const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(Baked.Subdivisions, I, J);
+				// 지각 이음매 node는 런타임 이음매 대조가 엄격 보간 값을 비교하므로 기존 규칙을 유지한다(D-084).
+				const bool bCrustSeam = LayerIndex == 0 && (I == 0 || J == 0 || I + J == Baked.Subdivisions);
 				FLNPSupportLayerQuery Query;
-				if (!LNPSupportAtlas::QueryLayer(SupportLayer, Direction, Query)
+				if (!(bCrustSeam ? LNPSupportAtlas::QueryLayer(SupportLayer, Direction, Query)
+						: LNPSupportAtlas::QueryNavLayer(SupportLayer, Direction, Query))
 					|| FVector3d::DotProduct(FVector3d(Query.Normal), -Direction) < Settings.Agent.WalkableMinDot)
 				{
 					continue;
@@ -197,12 +202,13 @@ bool LNPNavBaking::Build(
 				const FVector3d Position = Direction * Query.Radius;
 				if (!HasNodeClearance(Baked.LayerId, Position, Query.Normal))
 				{
-					const bool bCrustSeam = LayerIndex == 0 && (I == 0 || J == 0 || I + J == Baked.Subdivisions);
 					OutReport.SeamClearanceRejectCount += bCrustSeam ? 1 : 0;
 					continue;
 				}
+				FLNPSupportLayerQuery StrictQuery;
 				const int32 NodeIndex = Baked.Nodes.AddDefaulted();
 				FBakeNode& Node = Baked.Nodes[NodeIndex];
+				Node.bStrictSupport = bCrustSeam || LNPSupportAtlas::QueryLayer(SupportLayer, Direction, StrictQuery);
 				Node.I = I;
 				Node.J = J;
 				Node.Position = Position;
@@ -249,6 +255,80 @@ bool LNPNavBaking::Build(
 		}
 
 		TArray<int32> Queue;
+		auto ForEachEdgeNeighbor = [&Baked](const FBakeNode& Current, auto&& Visit)
+		{
+			for (uint8 Direction = 0; Direction < 6; ++Direction)
+			{
+				if ((Current.EdgeMask & (1u << Direction)) == 0)
+				{
+					continue;
+				}
+				FIntPoint NeighborCoord;
+				LNPNavData::TryGetNeighborCoord(
+					Baked.Subdivisions, Current.I, Current.J, static_cast<ELNPNavNeighbor>(Direction), NeighborCoord);
+				Visit(Baked.NodeByCoord.FindChecked(BakeCoordKey(NeighborCoord.X, NeighborCoord.Y)));
+			}
+		};
+
+		// Nav 전용 보간 node만으로 이뤄진 연결 조각은 버린다(D-084). 그 보간은 엄격 Atlas가 확인한 바닥에 이어지는 꺾임 띠를
+		// 채우려는 것이고, 떨어진 조각은 대부분 edge가 끊긴 1~2칸 잔재라 근처 개체의 최근접 투영을 고립 섬으로 잘못 보낸다.
+		// 연결 조각은 edge로만 정의되므로 버린 node와 남은 node 사이에는 edge가 없고, 남은 쪽 bBoundary도 이미 켜져 있다.
+		{
+			TArray<bool> Visited;
+			Visited.Init(false, Baked.Nodes.Num());
+			TArray<bool> Drop;
+			Drop.Init(false, Baked.Nodes.Num());
+			int32 DropCount = 0;
+			for (int32 Start = 0; Start < Baked.Nodes.Num(); ++Start)
+			{
+				if (Visited[Start])
+				{
+					continue;
+				}
+				Queue.Reset();
+				Queue.Add(Start);
+				Visited[Start] = true;
+				bool bHasStrict = false;
+				for (int32 ReadIndex = 0; ReadIndex < Queue.Num(); ++ReadIndex)
+				{
+					const FBakeNode& Current = Baked.Nodes[Queue[ReadIndex]];
+					bHasStrict |= Current.bStrictSupport;
+					ForEachEdgeNeighbor(Current, [&](const int32 NeighborIndex)
+					{
+						if (!Visited[NeighborIndex])
+						{
+							Visited[NeighborIndex] = true;
+							Queue.Add(NeighborIndex);
+						}
+					});
+				}
+				if (!bHasStrict)
+				{
+					for (const int32 Index : Queue)
+					{
+						Drop[Index] = true;
+					}
+					DropCount += Queue.Num();
+				}
+			}
+			if (DropCount > 0)
+			{
+				OutReport.NavInterpIsolatedRejectCount += DropCount;
+				TArray<FBakeNode> Kept;
+				Kept.Reserve(Baked.Nodes.Num() - DropCount);
+				Baked.NodeByCoord.Reset();
+				for (int32 Index = 0; Index < Baked.Nodes.Num(); ++Index)
+				{
+					if (!Drop[Index])
+					{
+						Baked.NodeByCoord.Add(BakeCoordKey(Baked.Nodes[Index].I, Baked.Nodes[Index].J), Kept.Num());
+						Kept.Add(Baked.Nodes[Index]);
+					}
+				}
+				Baked.Nodes = MoveTemp(Kept);
+			}
+		}
+
 		for (int32 Start = 0; Start < Baked.Nodes.Num(); ++Start)
 		{
 			if (Baked.Nodes[Start].Component != MAX_uint16)

@@ -16,6 +16,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
@@ -95,6 +96,8 @@ namespace LNPOctantSurfaceBaker
 	{
 		TStrongObjectPtr<UWorld> World;
 		int32 ProbeCount = 0;
+		/** 진단용 probe → source 이름. 베이크 결과에는 쓰지 않는다. */
+		TMap<const UPrimitiveComponent*, FString> ProbeLabels;
 
 		explicit FSpawnClearanceWorld(const UWorld& SourceWorld)
 		{
@@ -135,7 +138,7 @@ namespace LNPOctantSurfaceBaker
 							FTransform InstanceTransform;
 							if (Instances->GetInstanceTransform(InstanceIndex, InstanceTransform, false))
 							{
-								AddProbe(*Source, InstanceTransform * ComponentTransform);
+								AddProbe(*Source, InstanceTransform * ComponentTransform, InstanceIndex);
 							}
 						}
 					}
@@ -153,14 +156,40 @@ namespace LNPOctantSurfaceBaker
 			World->DestroyWorld(true);
 		}
 
-		void AddProbe(const UStaticMeshComponent& Source, const FTransform& Transform)
+		void AddProbe(const UStaticMeshComponent& Source, const FTransform& Transform, const int32 InstanceIndex = INDEX_NONE)
 		{
 			UStaticMeshComponent* Probe = NewObject<UStaticMeshComponent>(World.Get());
 			Probe->SetStaticMesh(Source.GetStaticMesh());
 			Probe->SetWorldTransform(Transform);
 			Probe->SetCollisionProfileName(Source.GetCollisionProfileName());
 			Probe->RegisterComponentWithWorld(World.Get());
+			ProbeLabels.Add(Probe, FString::Printf(TEXT("%s.%s%s[%s] mesh=%s"),
+				Source.GetOwner() ? *Source.GetOwner()->GetActorLabel() : TEXT("?"), *Source.GetName(),
+				InstanceIndex != INDEX_NONE ? *FString::Printf(TEXT("#%d"), InstanceIndex) : TEXT(""),
+				*Source.GetCollisionProfileName().ToString(), *GetNameSafe(Source.GetStaticMesh())));
 			++ProbeCount;
+		}
+
+		/** HasGravityCapsuleClearance와 같은 캡슐을 놓고 막는 probe 이름을 모은다(진단 전용). */
+		TArray<FString> ListGravityCapsuleBlockers(const FVector& Feet, const FVector& SurfaceNormal,
+			const double CapsuleRadius, const double CapsuleHalfHeight, const double ExtraLift) const
+		{
+			const FVector Up = -Feet.GetSafeNormal();
+			const double FloorDot = FMath::Max(static_cast<double>(FVector::DotProduct(Up, SurfaceNormal.GetSafeNormal())), 0.01);
+			const FVector Center = Feet + Up * (CapsuleHalfHeight + CapsuleRadius * (1.0 / FloorDot - 1.0) + 1.0 + ExtraLift);
+			TArray<FOverlapResult> Overlaps;
+			World->OverlapMultiByChannel(Overlaps, Center, FRotationMatrix::MakeFromZ(Up).ToQuat(), LNPCollisionChannels::WorldExact,
+				FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight), FCollisionQueryParams(SCENE_QUERY_STAT(LNPNavGapExplain), false));
+			TArray<FString> Labels;
+			for (const FOverlapResult& Overlap : Overlaps)
+			{
+				if (Overlap.bBlockingHit)
+				{
+					const FString* Label = ProbeLabels.Find(Overlap.GetComponent());
+					Labels.AddUnique(Label ? *Label : GetNameSafe(Overlap.GetComponent()));
+				}
+			}
+			return Labels;
 		}
 
 		UStaticMeshComponent* AddPatchProbe(const FLNPConditionalPatchSource& Source, const FTransform& MarkerTransform)
@@ -491,7 +520,7 @@ namespace LNPOctantSurfaceBaker
 				if (!Layer || !LNPNavData::ResolveLocalNode(BaseNav, Ref, &Coord)) { return false; }
 				const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(Layer->Subdivisions, Coord.X, Coord.Y);
 				FLNPSupportLayerQuery Query;
-				if (!LNPSupportAtlas::QueryLayer(BaseSupport.Layers[Layer->LocalSupportLayerId], Direction, Query)) { return false; }
+				if (!LNPSupportAtlas::QueryNavLayer(BaseSupport.Layers[Layer->LocalSupportLayerId], Direction, Query)) { return false; }
 				Feet = FVector(Direction * Query.Radius); Normal = FVector(Query.Normal);
 				return true;
 			};
@@ -1011,6 +1040,236 @@ namespace LNPOctantSurfaceBaker
 			TEXT("[LinkPoolSurfaceData] Saved %d definitions to %s."), Pool->OctantDefinitions.Num(), *Filename);
 	}
 
+	/**
+	 * 지정한 옥탄트 local 위치 주변의 Nav 격자 후보가 왜 node가 되지 않았는지 베이크와 같은 판정으로 다시 계산해 로그로 남긴다.
+	 * 저장된 SupportPayload를 읽고 source LVI로 clearance world를 다시 만든다. 에셋은 바꾸지 않는다.
+	 */
+	void ExplainNavGap(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 4)
+		{
+			UE_LOG(LogLNPSurfaceBake, Error, TEXT("Usage: LNP.SurfaceNav.ExplainNavGap <LevelPath> <LocalX> <LocalY> <LocalZ> [RadiusCm=400]"));
+			return;
+		}
+		FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get().WaitForCompletion();
+		const FSoftObjectPath SourceLevel = ToLevelObjectPath(Args[0]);
+		const FVector3d Point(FCString::Atod(*Args[1]), FCString::Atod(*Args[2]), FCString::Atod(*Args[3]));
+		const double SearchRadius = Args.Num() > 4 ? FCString::Atod(*Args[4]) : 400.0;
+		const FString DataPackage = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(SourceLevel);
+		const ULNPOctantSurfaceData* Data = LoadObject<ULNPOctantSurfaceData>(nullptr,
+			*FString::Printf(TEXT("%s.%s"), *DataPackage, *FPackageName::GetShortName(DataPackage)));
+		const UWorld* SourceWorld = LoadSourceWorld(SourceLevel);
+		FLNPSupportAtlas Atlas;
+		FLNPNavData SavedNav;
+		FLNPNavTraversalData SavedTraversal;
+		FString Error;
+		if (Data == nullptr || SourceWorld == nullptr || !LNPSupportAtlas::Decode(Data->SupportPayload, Atlas, Error)
+			|| !LNPNavData::DecodeNavigation(Data->NavigationPayload, SavedNav, Error)
+			|| !LNPNavData::DecodeTraversal(Data->TraversalPayload, SavedNav, SavedTraversal, Error))
+		{
+			UE_LOG(LogLNPSurfaceBake, Error, TEXT("[ExplainNavGap] Cannot load %s / %s: %s"), *SourceLevel.ToString(), *DataPackage, *Error);
+			return;
+		}
+		const FLNPOctantBakeOptions Options;
+		const FLNPNavAgentProfile& Agent = Options.Nav.Agent;
+		constexpr double NpcRadius = 35.0;
+		const FSpawnClearanceWorld ClearanceWorld(*SourceWorld);
+		const FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(LNPNavGapGround), false);
+		UE_LOG(LogLNPSurfaceBake, Display, TEXT("[ExplainNavGap] point=%s radius=%.0f agent r=%.0f hh=%.0f minDot=%.2f probes=%d"),
+			*Point.ToString(), SearchRadius, Agent.Radius, Agent.HalfHeight, Agent.WalkableMinDot, ClearanceWorld.ProbeCount);
+
+		// 실제 바닥: 위치에서 중력축으로 SurfaceSupport를 쏜다. 구 안쪽 월드라 Up은 중심 쪽이다.
+		{
+			const FVector Up = -FVector(Point).GetSafeNormal();
+			FHitResult Hit;
+			const bool bHit = ClearanceWorld.World->LineTraceSingleByChannel(Hit, FVector(Point) + Up * 300.0, FVector(Point) - Up * 400.0,
+				LNPCollisionChannels::SurfaceSupport, TraceParams);
+			const FString* Label = bHit ? ClearanceWorld.ProbeLabels.Find(Hit.GetComponent()) : nullptr;
+			UE_LOG(LogLNPSurfaceBake, Display, TEXT("[ExplainNavGap] ground hit=%d radius=%.1f dot=%.3f source=%s"),
+				bHit, bHit ? Hit.ImpactPoint.Size() : 0.0, bHit ? FVector::DotProduct(Hit.ImpactNormal, Up) : 0.0,
+				Label ? **Label : TEXT("-"));
+		}
+
+		for (int32 LayerIndex = 0; LayerIndex < Atlas.Layers.Num(); ++LayerIndex)
+		{
+			const FLNPSupportAtlasLayer& Layer = Atlas.Layers[LayerIndex];
+			const double Spacing = LayerIndex == 0 ? Options.Nav.CrustSpacing : Options.Nav.LayerSpacing;
+			const int32 N = LNPSupportAtlas::ComputeSubdivisionsForSpacing(Layer.BaseRadius, Spacing);
+			const FIntPoint Center = NavCoord(Point, N);
+			const int32 Window = FMath::CeilToInt32(SearchRadius / (Spacing * 0.8)) + 1;
+			TMap<FString, int32> Reasons;
+			for (int32 J = Center.Y - Window; J <= Center.Y + Window; ++J)
+			{
+				for (int32 I = Center.X - Window; I <= Center.X + Window; ++I)
+				{
+					if (I < 0 || J < 0 || I + J > N)
+					{
+						continue;
+					}
+					const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(N, I, J);
+					// 베이크와 같은 조회: 지각 이음매는 엄격 보간, 나머지는 Nav 전용 보간(D-084).
+					FLNPSupportLayerQuery Strict;
+					const bool bStrict = LNPSupportAtlas::QueryLayer(Layer, Direction, Strict);
+					const bool bCrustSeam = LayerIndex == 0 && (I == 0 || J == 0 || I + J == N);
+					FLNPSupportLayerQuery Query;
+					const bool bInterpolated = bCrustSeam ? bStrict : LNPSupportAtlas::QueryNavLayer(Layer, Direction, Query);
+					if (bCrustSeam || !bInterpolated)
+					{
+						Query = Strict;
+					}
+					if (Query.ValidCorners == 0 && !bInterpolated)
+					{
+						continue;
+					}
+					const FVector3d Position = Direction
+						* (bInterpolated ? Query.Radius : 0.5 * (Query.MinCornerRadius + Query.MaxCornerRadius));
+					const double Distance = FVector3d::Distance(Position, Point);
+					if (Distance > SearchRadius)
+					{
+						continue;
+					}
+					const FVector Up = -FVector(Direction);
+					// 후보 방향의 실제 SurfaceSupport 바닥과 실제 NPC 반지름 캡슐 여유.
+					FHitResult Hit;
+					const bool bGround = ClearanceWorld.World->LineTraceSingleByChannel(Hit, FVector(Position) + Up * 150.0,
+						FVector(Position) - Up * 150.0, LNPCollisionChannels::SurfaceSupport, TraceParams);
+					const double GroundDot = bGround ? FVector::DotProduct(Hit.ImpactNormal, Up) : 0.0;
+					const bool bNpcFits = bGround
+						&& ClearanceWorld.HasGravityCapsuleClearance(Hit.ImpactPoint, Up, Hit.ImpactNormal, NpcRadius, Agent.HalfHeight);
+					FString Reason;
+					FString Detail;
+					if (!bInterpolated)
+					{
+						Reason = Query.ValidCorners == 3 ? TEXT("NonWalkableOrNeedsExactCorner") : TEXT("InvalidCorner");
+					}
+					else if (FVector3d::DotProduct(FVector3d(Query.Normal), -Direction) < Agent.WalkableMinDot)
+					{
+						Reason = TEXT("AtlasSlope");
+					}
+					else if (!ClearanceWorld.HasGravityCapsuleClearance(FVector(Position), Up, FVector(Query.Normal), Agent.Radius, Agent.HalfHeight))
+					{
+						const TArray<FString> Blockers = ClearanceWorld.ListGravityCapsuleBlockers(
+							FVector(Position), FVector(Query.Normal), Agent.Radius, Agent.HalfHeight, 0.0);
+						const TArray<FString> Lifted = ClearanceWorld.ListGravityCapsuleBlockers(
+							FVector(Position), FVector(Query.Normal), Agent.Radius, Agent.HalfHeight, 10.0);
+						const TArray<FString> Npc = ClearanceWorld.ListGravityCapsuleBlockers(
+							FVector(Position), FVector(Query.Normal), NpcRadius, Agent.HalfHeight, 0.0);
+						Reason = Lifted.IsEmpty() ? TEXT("ClearanceFloorOnly") : TEXT("Clearance");
+						Detail = FString::Printf(TEXT(" blockers=[%s] lifted10=%d npcR35=%d"),
+							*FString::Join(Blockers, TEXT("; ")), Lifted.Num(), Npc.Num());
+					}
+					else
+					{
+						Reason = bStrict ? TEXT("Node") : TEXT("NodeNavInterp");
+						// 저장된 payload의 같은 node: edge 수와 정적 component 크기(고립 섬 여부).
+						FLNPLocalNavNodeRef Ref;
+						const FLNPNavCell* Cell = LNPNavData::MakeLocalNodeRef(SavedNav, static_cast<uint16>(LayerIndex), I, J, Ref)
+							? LNPNavData::ResolveLocalNode(SavedNav, Ref) : nullptr;
+						uint32 ComponentNodes = 0;
+						for (const FLNPNavStaticComponent& Component : SavedTraversal.StaticComponents)
+						{
+							if (Cell != nullptr && Component.LocalStaticComponentId == Cell->LocalStaticComponentId)
+							{
+								ComponentNodes = Component.NodeCount;
+							}
+						}
+						Detail = Cell != nullptr
+							? FString::Printf(TEXT(" saved=1 edges=%d component=%u componentNodes=%u"),
+								FMath::CountBits(Cell->EdgeMask), Cell->LocalStaticComponentId, ComponentNodes)
+							: FString(TEXT(" saved=0"));
+					}
+					++Reasons.FindOrAdd(Reason);
+					UE_LOG(LogLNPSurfaceBake, Display,
+						TEXT("[ExplainNavGap] layer=%d IJ=(%d,%d) dist=%.0f %s corners=%d atlasR=%.1f atlasDot=%.3f groundHit=%d groundDR=%.1f groundDot=%.3f npcFits=%d%s"),
+						LayerIndex, I, J, Distance, *Reason, Query.ValidCorners, Position.Length(),
+						bInterpolated ? FVector3d::DotProduct(FVector3d(Query.Normal), -Direction) : 0.0,
+						bGround, bGround ? Hit.ImpactPoint.Size() - Position.Length() : 0.0, GroundDot, bNpcFits, *Detail);
+				}
+			}
+			if (!Reasons.IsEmpty())
+			{
+				FString Summary;
+				for (const TPair<FString, int32>& Pair : Reasons)
+				{
+					Summary += FString::Printf(TEXT(" %s=%d"), *Pair.Key, Pair.Value);
+				}
+				UE_LOG(LogLNPSurfaceBake, Display, TEXT("[ExplainNavGap] layer=%d N=%d summary:%s"), LayerIndex, N, *Summary);
+			}
+		}
+	}
+
+	/**
+	 * 저장된 Nav의 정적 component 중 엄격 보간(QueryLayer)으로는 node가 하나도 없던 것, 즉 Nav 전용 보간(D-084)으로
+	 * 새로 생긴 component를 나열한다. 고립 섬이 실제 보행면인지 확인하는 진단 전용이다.
+	 */
+	void ListNavInterpComponents(const TArray<FString>& Args)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogLNPSurfaceBake, Error, TEXT("Usage: LNP.SurfaceNav.ListNavInterpComponents <LevelPath>"));
+			return;
+		}
+		const FString DataPackage = FLNPOctantSurfaceBaker::GetSurfaceDataPackageName(ToLevelObjectPath(Args[0]));
+		const ULNPOctantSurfaceData* Data = LoadObject<ULNPOctantSurfaceData>(nullptr,
+			*FString::Printf(TEXT("%s.%s"), *DataPackage, *FPackageName::GetShortName(DataPackage)));
+		FLNPSupportAtlas Atlas;
+		FLNPNavData Nav;
+		FString Error;
+		if (Data == nullptr || !LNPSupportAtlas::Decode(Data->SupportPayload, Atlas, Error)
+			|| !LNPNavData::DecodeNavigation(Data->NavigationPayload, Nav, Error))
+		{
+			UE_LOG(LogLNPSurfaceBake, Error, TEXT("[ListNavInterpComponents] Cannot load %s: %s"), *DataPackage, *Error);
+			return;
+		}
+		struct FComponentStats
+		{
+			int32 Nodes = 0;
+			int32 StrictNodes = 0;
+			int32 Layer = 0;
+			FVector3d Sum = FVector3d::ZeroVector;
+			double MinRadius = TNumericLimits<double>::Max();
+			double MaxRadius = 0.0;
+		};
+		TMap<uint16, FComponentStats> Components;
+		for (const FLNPNavLayer& Layer : Nav.Layers)
+		{
+			const FLNPSupportAtlasLayer& SupportLayer = Atlas.Layers[Layer.LocalSupportLayerId];
+			for (const FLNPNavTile& Tile : Layer.Tiles)
+			{
+				for (const FLNPNavCell& Cell : Tile.Cells)
+				{
+					const FIntPoint Coord = LNPNavData::DecodeTileAddress(Tile.TileX, Tile.TileY, Cell.LocalCellIndex);
+					const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(Layer.Subdivisions, Coord.X, Coord.Y);
+					FLNPSupportLayerQuery Query;
+					FLNPSupportLayerQuery Strict;
+					LNPSupportAtlas::QueryNavLayer(SupportLayer, Direction, Query);
+					FComponentStats& Stats = Components.FindOrAdd(Cell.LocalStaticComponentId);
+					Stats.Layer = Layer.LocalNavLayerId;
+					++Stats.Nodes;
+					Stats.StrictNodes += LNPSupportAtlas::QueryLayer(SupportLayer, Direction, Strict) ? 1 : 0;
+					Stats.Sum += Direction * Query.Radius;
+					Stats.MinRadius = FMath::Min(Stats.MinRadius, Query.Radius);
+					Stats.MaxRadius = FMath::Max(Stats.MaxRadius, Query.Radius);
+				}
+			}
+		}
+		int32 NewCount = 0;
+		for (const TPair<uint16, FComponentStats>& Pair : Components)
+		{
+			const FComponentStats& Stats = Pair.Value;
+			if (Stats.StrictNodes > 0)
+			{
+				continue;
+			}
+			++NewCount;
+			UE_LOG(LogLNPSurfaceBake, Display,
+				TEXT("[ListNavInterpComponents] component=%u layer=%d nodes=%d centroid=%s radius=[%.1f, %.1f]"),
+				Pair.Key, Stats.Layer, Stats.Nodes, *(Stats.Sum / Stats.Nodes).ToString(), Stats.MinRadius, Stats.MaxRadius);
+		}
+		UE_LOG(LogLNPSurfaceBake, Display, TEXT("[ListNavInterpComponents] %s components=%d navInterpOnly=%d"),
+			*DataPackage, Components.Num(), NewCount);
+	}
+
 	static FAutoConsoleCommand Command(
 		TEXT("LNP.SurfaceNav.BakeOctant"),
 		TEXT("Bake the multi-layer Support Atlas of an octant LVI into DA_OctantSurface_<Name> next to it and save it. ")
@@ -1022,6 +1281,18 @@ namespace LNPOctantSurfaceBaker
 		TEXT("Link each production octant definition to its sibling DA_OctantSurface asset and save the pool. ")
 		TEXT("Usage: LNP.SurfaceNav.LinkPoolSurfaceData [SeamSignature]"),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&LinkPoolSurfaceData));
+
+	static FAutoConsoleCommand ExplainNavGapCommand(
+		TEXT("LNP.SurfaceNav.ExplainNavGap"),
+		TEXT("Explain why Nav lattice candidates near an octant-local point did not become nodes, using the saved Support payload. ")
+		TEXT("Usage: LNP.SurfaceNav.ExplainNavGap <LevelPath> <LocalX> <LocalY> <LocalZ> [RadiusCm=400]"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ExplainNavGap));
+
+	static FAutoConsoleCommand ListNavInterpComponentsCommand(
+		TEXT("LNP.SurfaceNav.ListNavInterpComponents"),
+		TEXT("List saved static Nav components that have no node under the strict Atlas interpolation (created by Nav-only interpolation). ")
+		TEXT("Usage: LNP.SurfaceNav.ListNavInterpComponents <LevelPath>"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ListNavInterpComponents));
 }
 
 FString FLNPOctantBakeReport::ToString() const
@@ -1040,6 +1311,7 @@ FString FLNPOctantBakeReport::ToString() const
 	Result += FString::Printf(TEXT("\n  Sheets=%d split=%d cutEdges=%d cutBoundary=%.2fcm"),
 		OriginalSheetCount, SplitSheetCount, CutEdgeCount, CutBoundaryLength);
 	Result += FString::Printf(TEXT("\n  Portal spacingRejected=%d bake=%.3fs"), Nav.PortalSpacingRejectCount, Nav.PortalBakeSeconds);
+	Result += FString::Printf(TEXT("\n  Nav-only interpolation isolatedRejected=%d nodes"), Nav.NavInterpIsolatedRejectCount);
 	Result += FString::Printf(TEXT("\n  Conditional patches=%d payload=%lld bytes"), ConditionalPatchCount, ConditionalPatchPayloadBytes);
 	if (Nav.SeamClearanceRejectCount > 0)
 	{

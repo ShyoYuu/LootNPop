@@ -37,6 +37,8 @@ struct LOOTNPOP_API FLNPNavBakeReport
 	 * runtime에서 막힘으로 합쳐진다(D-060). 이음매 근처 정적 배치 금지 규칙의 콘텐츠 경고 지표다.
 	 */
 	int32 SeamClearanceRejectCount = 0;
+	/** Nav 전용 보간 node만으로 된 연결 조각이라 버린 node 수(D-084). */
+	int32 NavInterpIsolatedRejectCount = 0;
 };
 
 /** node 발 위치에 bake agent 캡슐을 놓을 수 있는지 판정한다. */

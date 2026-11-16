@@ -93,3 +93,52 @@
 - 사용자가 지난 작업부터 남은 변경 전체를 커밋하고 최근 프로젝트 메시지 양식을 따르도록 요청했다. 한국어 `fix:` 제목과 변경·검증·남은 작업을 설명하는 불릿 본문으로 현재 상태를 보존한다.
 - 범위는 D-082의 Blocker 비관통 구현·픽스처, 비채택 분리력 제한 실험의 소스/검사, D-083 기각 결정과 두 근본 수정 인계 문서다. 비채택 실험도 포함된 체크포인트이며 벽 정지 해결·Phase16 완료로 취급하지 않는다.
 - 다음 세션 첫 작업인 비채택 실험 정리와 실제 보행 Nav 커버리지·플레이어 물리 지면/Nav 투영 및 근접 목표 수정은 유지한다. 현재 문서의 미커밋 상태 표현을 정리했으며, 앞선 로그의 미커밋 기록은 당시 상태다. 코드·에셋을 추가로 변경하거나 새 빌드를 실행하지 않았다.
+
+## 2026-11-16 — 새 세션: 실험 정리, 단위1 원인 진단
+
+- 비채택 분리력 제한 실험 제거: `StepGroundedWithSeparation`·프로세서 호출·`nav_separation_retries`·`SeparationNavBoundary` 검사. 이동 프로세서 호출은 D-082 이전과 동일하고, D-082 Blocker 거부·`SupportlessBlockerStep` 픽스처는 보존했다. 게임 타깃 빌드 Success(`Saved/Logs/Phase16_Cleanup_GameBuild.log`).
+- NoNode NPC 위치를 slot 회전으로 옥탄트 local로 환산하면 Run2 NPC729/731(slot4)과 Run3 NPC594(slot5)가 `LVI_Ridge_SurfaceProbe` local 약 (19.8~20.0k, 15.5~15.7k, 22.2~22.5k)의 같은 지형이다. NPC733·730은 다른 두 지점이다.
+- 진단 명령 `LNP.SurfaceNav.ExplainNavGap <Level> <x> <y> <z> [r]`(에디터 전용, 에셋 불변)을 추가했다. 저장된 SupportPayload와 source LVI로 베이크와 같은 node 판정을 다시 계산하고, 후보마다 탈락 사유와 실제 SurfaceSupport 바닥·NPC 반지름35 캡슐 여유를 남긴다. Editor 빌드 Success.
+- 결과(`Saved/Profiling/Phase16/NavGap/ExplainNavGap_Run1.log`): 다섯 지점 모두 바닥은 지형 메시(LNPStaticTerrain)이고 NPC 발밑 경사 dot0.74~0.97로 보행 가능하다. 반경400cm 후보 탈락 사유는 **Atlas 꼭짓점 NeedsExact가 대부분**(731: 8/9, 729: 8/8, 594: 7/8, 730: 9/10)이며, 그중 실제 바닥이 평탄(dot≥0.97)하고 NPC 캡슐이 서는 후보가 다수다. 가장 가까운 node는 731 380cm·594 345cm·729 없음으로, 런타임 투영 반경300cm에서 NoNode가 그대로 재현된다. 733은 NeedsExact5 외에 지형 바닥만 겹치는 clearance 탈락3(10cm 들면 통과)이 있다.
+- 구조(수정 전): Nav node 위치는 payload에 저장하지 않고 런타임 그래프 구성 때 `QueryLayer`로 다시 만든다. `QueryLayer`는 세 꼭짓점 중 하나라도 NeedsExact면 보간을 거부하므로, Atlas의 정밀 경고(이웃 법선 25° 초과·가파른 이웃 선분)가 붙은 보행 바닥은 Nav에서 통째로 빠진다. 저폴리 능선의 꺾임 양쪽 띠가 여기에 해당한다.
+
+## 2026-11-16 — 단위1 구현: Nav 전용 보간(D-084)
+
+- 사용자 결정: Nav 전용 보간으로 진행(node 위치 저장 방식은 기각).
+- 구현: `LNPSupportAtlas::QueryNavLayer`(세 꼭짓점 Valid·Walkable이면 NeedsExact여도 보간, 엄격 보간 성공 시 동일 결과). 소비처는 `LNPNavBaking::Build` node 생성(지각 이음매만 엄격 유지), `LNPNavGraph` 런타임 graph 구성, `LNPNavQuery` node 지면점, 베이커 Conditional Patch의 base node 위치다. 접지·스폰 앵커·이음매 대조·patch 겹침 검사는 `QueryLayer`를 유지한다. 베이커 schema 9→10.
+- 새 자동화 `Nav.NeedsExactWalkableCoverage`: 합성 지각의 NeedsExact 보행 띠에 node 생성, 비보행 꼭짓점 인접 칸·지각 이음매는 제외, 엄격 성공 칸의 결과 동일, 런타임 graph 재구성 성공. 수정 전에는 띠 node가0이라 실패한다.
+- 검증: Editor 빌드 Success. 헤드리스 `Nav.Baking`·`Nav.NeedsExactWalkableCoverage`·`Nav.MultiplePortals`·`Runtime.SupportPrecision` 4/4 Success(`Saved/Profiling/Phase16/NavGap/NavUnitTests.log`).
+- WIP 재베이크(`BakeWip_NavInterp.log`, 원본 DA 백업 `NavGap/Backup/`, SHA256 341106d2…→a021e50c…): Support 표본 수 동일(Valid259,282·NeedsExact35,165), Nav cells73,835→75,950(+2.9%)·components109→115·portals350→441, spawn 후보 동일. commandlet 베이크는 `load_map` 뒤에 해야 한다(안 하면 스폰 포인트 transform이 원점으로 읽혀 실패).
+- 다섯 정지 지점 재진단(발 위치 기준, `ExplainNavGap_Run3_Feet.log`·`Run4_Connectivity.log`): 최근접 node 594 110cm·733 117cm·731 188cm·730 202cm·729 280cm로 모두 투영 반경300cm 안이고, 모두 새 보간 node다. 이 node들은 저장 payload에 있고 주 정적 component(59,232 node)에 edge로 연결된다.
+- 미검증: WIP 실제 PIE 군집 추격, 정식 옥탄트·fixture 재베이크와 전체 SurfaceNavigation, Production 비용. 잔여 탈락 사유 `ClearanceFloorOnly`(지형 바닥만 겹침, 10cm 들면 통과)는 지점마다1~3개 남아 있으며 이번 단위에서 바꾸지 않았다.
+
+### 네 번째 PIE — Nav 전용 보간 WIP 수동 검증
+
+- TestMap03·1인·밀도1·캐시1. 검사용 풀을 메모리에서만 선택했고 실제 WIP는 slot3/6이다. 8 validated slots·179 bindings·seam 높이 차/차단0(`NavGap/Run4_PIE.log`).
+- 사용자 확인: NPC를 최대한 벽에 붙여 끌고 다녀도 정지가 **재현되지 않았다**. 벽에 붙었던 NPC는 잠깐 멈칫한 뒤 돌아서 추격한다. 적끼리 겹침은 이전과의 비교 기억은 없으나 서로 잘 안 겹쳐 수용 가능한 수준이다. 바위 근처에서 지상형 발이 일시적으로 겹쳤다가 바로 돌아나오며, 관통이 유지되는 현상은 없었다.
+- 종료: StopPIE → IsPIERunning=false → 원래 `/Game/Maps/OctantPoolData` getter 복원. 보호 파일6개 해시는 재베이크한 WIP SurfaceData(a021e50c…)를 포함해 기대값과 같고 추적 Content/Config 변경0(`NavGap/SelectionState_Run4.json=restored`).
+- 남은 것: 정식 옥탄트·fixture 재베이크(schema10)와 전체 SurfaceNavigation·Editor/Game 빌드·Production 비용, 단위2(플레이어 물리 지면/Nav 투영 분리·근접 접근/공격 위치). 벽에 붙은 플레이어 추격은 이번 PIE에서 따로 판정하지 않았다.
+
+## 2026-11-16 — 단위1 마감: 정식 재베이크·고립 조각 제외·전체 회귀
+
+- 사용자 결정: 단위1을 먼저 마감하고 문서 갱신 뒤 커밋, 단위2는 새 세션.
+- 정식7(Meadow·Bastion·Hollow·Acropolis·Pyramid·Grove·Ridge)·fixture5(Crust·Regression·Conditional·Crawl·Island) SurfaceData를 schema10으로 재베이크했다(commandlet, 레벨별 `load_map` 뒤 `BakeOctant`). LVI 변경0.
+- 첫 전체 회귀 136/137: `Nav.RegressionReachability`가 도달 그룹41→49(slot당+1)로 실패했다. `LNP.SurfaceNav.ListNavInterpComponents`(새 진단)로 엄격 보간 node가 없는 새 component를 세면 전체 369개였고 그중 338개가 node1~2개 잔재였다. 최근접 투영이 이런 조각으로 가면 NoNode 대신 도달 불가가 되므로, 베이크에서 엄격 node가 없는 같은 Layer 연결 조각을 버리도록 했다(D-084 보완, 보고서 `isolatedRejected`). 합성 검사 `Nav.NeedsExactWalkableCoverage`에 고립 패치 제외 사례를 추가했다.
+- 최종 재베이크(`NavGap/BakeAll_Schema10_Drop.log`, WIP 포함13개). 이전 기준은 2026-11-08 D-081 재베이크, Grove·Ridge는 정식 통합 베이크다.
+
+| 에셋 | Nav cells 이전→이후 | components 이전→이후 | portals 이전→이후 | 버린 고립 node |
+|:---|:---|:---|:---|---:|
+| Meadow | 67,729→68,000 | 91→84 | 24→24 | 12 |
+| Bastion | 150,908→162,745 | 346→248 | 2,553→2,753 | 111 |
+| Hollow | 185,328→192,058 | 25→24 | 1,155→1,347 | 7 |
+| Acropolis | 136,706→139,452 | 280→237 | 1,325→1,528 | 57 |
+| Pyramid | 754,899→778,225 | 339→222 | 4,110→5,679 | 349 |
+| Grove | 128,907→130,817 | 83→76 | 423→509 | 7 |
+| Ridge | 73,836→75,888 | 109→70 | 350→424 | 64 |
+| Fixture Crust/Regression/Conditional/Crawl/Island | 68,500/73,302/73,528/69,729/72,814→68,546/73,735/73,983/69,856/72,984 | 5/17/19/26/6→5/17/19/26/6 | 0/66/66/4/10→0/79/79/4/12 | 0/1/1/0/0 |
+
+  Bastion·Hollow의 이전 수치는 외곽 엄폐 추가 전후 차이가 섞였을 수 있다. 모든 에셋에서 새 보간 전용 component는0이고, 끊겨 있던 기존 component가 이어지며 component 수가 줄었다. 베이크 경고는 기존 Pyramid Layer 표본 경고17건·Meadow 이음매 clearance49건(엄격 규칙 그대로)이다.
+- Game 빌드 Success(`Saved/Logs/Phase16_NavInterp_GameBuild.log`). Production 비용(쿡 필요)과 리슨2P는 단위2 뒤 1단계 마감에서 한 번에 잰다.
+- 고립 조각 제외 뒤 재실행에서 `Nav.RegressionReachability`는 통과했고 `Nav.ProductionScheduler`가 299/300 성공으로 실패했다. 스케줄러·직접 탐색 결과는 일치(불일치0)했다. 실패 쌍은 끊겼던 component가 이어져 같은 group이 된 긴 우회 경로였다(직선61.6m·비용331.7m·상한 없이 확장32,342로 성공, production 요청 상한30,000). 검사는 상한 때문에만 실패하는 쌍을 따로 세고, 그런 쌍이 상한 없이 풀리며 전체의1% 이하인지 확인하도록 바꿨다(상한 안 요청은 모두 성공 유지). 요청 상한 자체는 바꾸지 않았다.
+- **최종 전체 SurfaceNavigation 137/137 Success**(`NavGap/SurfaceNavFull_Final.log`). 경고4는 기존 노이즈(HTTP timeout3·B-option 안내1). 회귀가 재저장한 테스트 에셋3개는 git으로 원복했다. Editor·Game 빌드 Success. 다섯 정지 지점은 최종 WIP에서도 최근접 node 110~280cm·주 component 연결(`ExplainNavGap_Run5_Drop.log`).
+- 커밋 범위: 실험 제거, D-084 구현·진단 명령2종·검사, 정식7·fixture5 SurfaceData, 문서. WIP SurfaceData(Git 무시)는 최종 규칙으로 재베이크된 상태다(원본 백업 `NavGap/Backup/`). 단위2는 새 세션(Phase 문서 §3.7).

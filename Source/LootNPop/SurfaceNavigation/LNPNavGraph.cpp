@@ -257,7 +257,7 @@ bool LNPNavGraph::BuildAssetGraph(
 				const FIntPoint Coord = LNPNavData::DecodeTileAddress(Tile.TileX, Tile.TileY, Cell.LocalCellIndex);
 				const FVector3d Direction = LNPSupportAtlas::GetSampleDirection(NavLayer.Subdivisions, Coord.X, Coord.Y);
 				FLNPSupportLayerQuery Query;
-				if (!LNPSupportAtlas::QueryLayer(SupportLayer, Direction, Query))
+				if (!LNPSupportAtlas::QueryNavLayer(SupportLayer, Direction, Query))
 				{
 					OutError = FString::Printf(TEXT("Nav Layer %u node (%d,%d) has no Support."), Layer.LocalNavLayerId, Coord.X, Coord.Y);
 					return false;

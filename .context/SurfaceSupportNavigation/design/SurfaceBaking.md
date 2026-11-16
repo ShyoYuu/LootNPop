@@ -223,6 +223,8 @@ Support 해상도는 지형별로 다르게 둘 수 있다.
 
 지각 Atlas는 베이크 때 위 조건을 샘플 플래그 `NeedsExact`로 미리 계산한다. 조회(`LNPSupportAtlas::QueryLayer`)는 방향을 담은 격자 삼각형 세 꼭짓점이 모두 Valid이면서 `NeedsExact`가 아닐 때만 barycentric 보간한다.
 
+Nav node 위치만은 `LNPSupportAtlas::QueryNavLayer`를 쓴다(D-084). 세 꼭짓점이 모두 Valid·Walkable이면 `NeedsExact`여도 같은 식으로 보간하고, 엄격 보간이 성공하는 방향에서는 결과가 비트 단위로 같다. node 사이 이동 가능성은 베이크의 exact Support 경로·캡슐 sweep이 따로 검증하므로, 캐시 접지용 정밀 경고가 걸을 수 있는 꺾임 띠를 Nav에서 지우지 않게 하기 위해서다. 지각 이음매 node는 런타임 이음매 대조가 엄격 보간 값을 비교하므로 `QueryLayer` 규칙을 유지한다. edge를 만든 뒤 엄격 보간 node가 하나도 없는 같은 Layer 연결 조각은 버린다(보고서 `Nav-only interpolation isolatedRejected`). 첫 적용에서 이런 조각 338개 중 대부분이 1~2칸 잔재였고, 근처 개체의 최근접 node 투영을 고립 섬으로 보내 도달 불가 판정을 만든다.
+
 ### 동굴 키트 베이크
 
 동굴은 중심에서 첫 hit만 수집하는 방식으로 만들 수 없다. 지각·공동 천장·공동 바닥이 같은 방향에 겹치기 때문이다. 지하 공간 계약은 `TerrainContract.md` §6이 소유한다(D-071).

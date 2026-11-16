@@ -33,7 +33,7 @@ Mover floor query는 face index를 요청하지 않는다. uniform source는 기
 
 **군집 겹침 해소와 Nav 커버리지(D-083, 2026-11-16 사용자 결정).** Nav 이탈을 막기 위해 분리력을 빼거나 약화·취소하는 방식은 채택하지 않는다. NPC가 여럿 몰렸을 때 서로 겹치는 문제가 악화되어서는 안 된다. 실제 보행 가능 정적 바닥의 Nav 커버리지와 플레이어 목표의 Nav 처리를 바로잡는 두 조치를 수행한다. 구체적인 조사·수용 기준은 `../phases/Phase16_SupportlessBlockerStep.md` §3.6이 소유한다.
 
-`StepGroundedWithSeparation`·`nav_separation_retries`는 **소스/바이너리에 남은 비채택 실험**이다. 합성 검사 통과 뒤에도 실제 벽 정지가 남아 사용자에게 기각됐으며, 새 세션의 첫 정리 대상이다. 해당 실험의 자동화 통과를 채택된 이동 규칙으로 취급하지 않는다. 기존 D-082의 실제 Blocker 비관통 구현은 보존한다. 경위는 `../history/Phase16_Log.md`를 따른다.
+비채택 실험 `StepGroundedWithSeparation`·`nav_separation_retries`는 2026-11-16 소스에서 제거했다. 이동 프로세서는 분리력을 의도 속도에 더한 뒤 `StepGrounded`로 접지하는 기존 규칙이다. D-082의 실제 Blocker 비관통 구현은 보존한다. 벽 근처 정지는 Nav 커버리지(D-084)로 해결했고 실제 Ridge WIP PIE에서 재현되지 않았다. 경위는 `../history/Phase16_Log.md`를 따른다.
 
 ### airborne와 착지
 

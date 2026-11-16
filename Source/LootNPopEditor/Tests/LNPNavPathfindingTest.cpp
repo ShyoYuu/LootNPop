@@ -2729,10 +2729,24 @@ bool FLNPNavProductionSchedulerTest::RunTest(const FString& Parameters)
 
 	FLNPNavSearchScratch ReferenceScratch;
 	TArray<TArray<int32>> References;
+	int32 BeyondRequestCap = 0;
 	for (const FSchedulerCase& Case : Cases)
 	{
 		References.Add(ReferenceWaypoints(Snapshot, Case, ReferenceScratch));
+		if (References.Last().IsEmpty())
+		{
+			// 같은 group인데 production 요청 상한(30000) 안에 못 푸는 긴 우회 쌍은 상한 때문에만 실패해야 한다.
+			// D-084로 끊겼던 component가 이어지며 생긴다(2026-11-16 직선61.6m·비용331.7m·확장32,342 1건).
+			const FLNPNavEndpoints Ends = Resolve(Snapshot, Case.Start, Case.StartHandle, Case.Goal, Case.GoalHandle);
+			const FPathResult Uncapped = FindPath(Nav, Ends.StartNode, Ends.GoalNode, ReferenceScratch, true, MAX_int32, MAX_int32);
+			TestTrue(TEXT("A pair beyond the request cap is solvable without the cap"), Uncapped.Status == ELNPNavSearchStatus::Found);
+			++BeyondRequestCap;
+			AddInfo(FString::Printf(TEXT("Production pair beyond the request cap: straight=%.0fcm expansions=%d cost=%.0f nodes=%d start=%s"),
+				FVector3d::Dist(Case.Start, Case.Goal), Uncapped.Expansions, Uncapped.Cost, Uncapped.Nodes.Num(), *Case.Start.ToString()));
+		}
 	}
+	TestTrue(FString::Printf(TEXT("At most 1%% of production pairs exceed the request cap (%d)"), BeyondRequestCap),
+		BeyondRequestCap * 100 <= Cases.Num());
 
 	// 모든 요청을 한 프레임에 넣고 기본 예산으로 처리한다. cache는 끄고 직접 탐색과의 일치와 프레임당 시간을 본다.
 	for (const bool bParallel : {true, false})
@@ -2759,7 +2773,7 @@ bool FLNPNavProductionSchedulerTest::RunTest(const FString& Parameters)
 		}
 		const TCHAR* Label = bParallel ? TEXT("parallel") : TEXT("serial");
 		TestEqual(FString::Printf(TEXT("Production %s scheduler results equal the direct search"), Label), Mismatches, 0);
-		TestEqual(FString::Printf(TEXT("Production %s scheduler requests all succeed"), Label), Succeeded, Cases.Num());
+		TestEqual(FString::Printf(TEXT("Production %s scheduler requests within the cap all succeed"), Label), Succeeded, Cases.Num() - BeyondRequestCap);
 		const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
 		AddInfo(FString::Printf(
 			TEXT("Production scheduler %s: requests=%d ticks=%d budget=%d scratches=%d expansions=%llu tick P50=%.1fus P95=%.1fus max=%.1fus requestTicks P50=%.0f P95=%.0f max=%.0f scratch=%.2fMiB"),

@@ -22,9 +22,11 @@ Support 해상도는 접지 정확도를 위해 결정되고 Nav 해상도는 ag
 
 ### 벽 근처 보행 가능 영역과 근접 목표
 
-**Phase16 벽 근처 근본 수정 방향(D-083, 구현 대기).** NPC 캡슐이 실제로 설 수 있고 걸어서 연결되는 정적 바닥은 Nav로 표현해야 한다. 경사각만으로 보행 가능성을 정하지 않으며 경사·Support/Layer·node 여유·edge 연속 이동·격자 누락을 실제 실패 지점에서 대조한다. 분리력을 제한해 Nav 공백을 가리는 접근은 기각했다. 군집 겹침 해소를 유지하면서 누락 원인을 고친다.
+**Phase16 벽 근처 근본 수정 방향(D-083).** NPC 캡슐이 실제로 설 수 있고 걸어서 연결되는 정적 바닥은 Nav로 표현해야 한다. 경사각만으로 보행 가능성을 정하지 않으며 경사·Support/Layer·node 여유·edge 연속 이동·격자 누락을 실제 실패 지점에서 대조한다. 분리력을 제한해 Nav 공백을 가리는 접근은 기각했다. 군집 겹침 해소를 유지하면서 누락 원인을 고친다.
 
-플레이어의 물리적 Floor identity/현재 지면점은 Nav node 투영 성공과 분리해 보존하는 방향으로 수정한다. 근접 적은 플레이어 발밑 node 하나가 아니라 같은 보행 연결 영역의 실제 접근·공격 가능한 위치를 목표로 삼아야 한다. 벽 너머·다른 층으로의 스냅을 허용하는 뜻은 아니다. Nav 커버리지 수정과 목표 처리 수정 **둘 다 필요**하며, 검증 기준·현재 비채택 실험의 제거 범위는 `../phases/Phase16_SupportlessBlockerStep.md` §3.5~3.6을 따른다.
+**Nav node의 Atlas 조회(D-084, 단위1 완료).** Ridge 벽 정지 지점의 누락 원인은 Atlas `NeedsExact` 꼭짓점이었다. node 위치는 payload에 저장하지 않고 Atlas 보간으로 다시 만드는데, 캐시 접지용 엄격 보간은 꼭짓점 하나라도 `NeedsExact`면 거부해 저폴리 꺾임 양쪽의 보행 바닥 띠가 통째로 빠졌다. 이제 node 위치는 `LNPSupportAtlas::QueryNavLayer`(세 꼭짓점 Valid·Walkable이면 보간)로 만들며 베이크·런타임 graph·`LNPNavQuery` 투영·Conditional Patch base node가 같은 조회를 쓴다. 지각 이음매 node만 엄격 규칙이고, 엄격 node가 없는 연결 조각은 베이크에서 버린다(`SurfaceBaking.md`). 새로 생긴 조각 확인은 `LNP.SurfaceNav.ListNavInterpComponents <LVI>`다. 원인 진단 명령은 `LNP.SurfaceNav.ExplainNavGap <LVI> <localX> <localY> <localZ> [r]`(에디터, commandlet에서는 `load_map` 뒤)로, 저장된 Support와 source LVI로 주변 격자 후보의 탈락 사유·실제 바닥·NPC 캡슐 여유·저장 node 연결을 보고한다. 남은 탈락 사유 `ClearanceFloorOnly`(node 캡슐이 지형 바닥에만 닿음)는 아직 다루지 않았다.
+
+플레이어의 물리적 Floor identity/현재 지면점은 Nav node 투영 성공과 분리해 보존하는 방향으로 수정한다. 근접 적은 플레이어 발밑 node 하나가 아니라 같은 보행 연결 영역의 실제 접근·공격 가능한 위치를 목표로 삼아야 한다. 벽 너머·다른 층으로의 스냅을 허용하는 뜻은 아니다. Nav 커버리지 수정과 목표 처리 수정 **둘 다 필요**하며, 커버리지(단위1)는 D-084로 끝났고 목표 처리(단위2)가 남았다. 검증 기준은 `../phases/Phase16_SupportlessBlockerStep.md` §3.6·3.7을 따른다.
 
 ### 초기 해상도 후보
 

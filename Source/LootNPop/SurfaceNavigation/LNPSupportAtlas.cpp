@@ -895,6 +895,43 @@ bool LNPSupportAtlas::QueryLayer(const FLNPSupportAtlasLayer& Layer, const FVect
 	return OutQuery.bInterpolated;
 }
 
+bool LNPSupportAtlas::QueryNavLayer(const FLNPSupportAtlasLayer& Layer, const FVector3d& LocalDirection, FLNPSupportLayerQuery& OutQuery)
+{
+	OutQuery = FLNPSupportLayerQuery();
+	FIntPoint Corners[3];
+	double Weights[3];
+	if (!ComputeCell(Layer.Layout.Subdivisions, LocalDirection, Corners, Weights))
+	{
+		return false;
+	}
+	double Radius = 0.0;
+	FVector3f Normal = FVector3f::ZeroVector;
+	double MinRadius = TNumericLimits<double>::Max();
+	double MaxRadius = TNumericLimits<double>::Lowest();
+	for (int32 Corner = 0; Corner < 3; ++Corner)
+	{
+		const int32 Index = Layer.Layout.Find(Corners[Corner].X, Corners[Corner].Y);
+		if (Index == INDEX_NONE
+			|| !EnumHasAllFlags(Layer.GetFlags(Index), ELNPSupportSampleFlags::Valid | ELNPSupportSampleFlags::Walkable))
+		{
+			return false;
+		}
+		const double CornerRadius = Layer.GetRadius(Index);
+		MinRadius = FMath::Min(MinRadius, CornerRadius);
+		MaxRadius = FMath::Max(MaxRadius, CornerRadius);
+		// QueryLayer와 같은 순서·연산으로 누적해 둘 다 성공하는 방향에서 결과가 비트 단위로 같다.
+		Radius += Weights[Corner] * CornerRadius;
+		Normal += static_cast<float>(Weights[Corner]) * Layer.GetNormal(Index);
+	}
+	OutQuery.ValidCorners = 3;
+	OutQuery.bInterpolated = true;
+	OutQuery.Radius = Radius;
+	OutQuery.Normal = Normal.GetSafeNormal();
+	OutQuery.MinCornerRadius = MinRadius;
+	OutQuery.MaxCornerRadius = MaxRadius;
+	return true;
+}
+
 ELNPSupportQueryResult LNPSupportAtlas::QueryLayers(
 	const FLNPSupportAtlas& Atlas,
 	const FVector3d& LocalDirection,

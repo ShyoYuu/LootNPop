@@ -252,6 +252,14 @@ namespace LNPSupportAtlas
 	LOOTNPOP_API bool QueryLayer(const FLNPSupportAtlasLayer& Layer, const FVector3d& LocalDirection, FLNPSupportLayerQuery& OutQuery);
 
 	/**
+	 * Nav node 위치 전용 보간. 세 꼭짓점이 모두 Valid이고 Walkable이면 NeedsExact여도 보간한다. NeedsExact는 캐시 접지의
+	 * 정밀 경고(이웃 법선 25° 초과·가파른 이웃 선분)라 걸을 수 있는 꺾임 띠를 Nav에서 통째로 빼면 안 된다(D-084).
+	 * node 사이 이동 가능성은 베이크의 exact Support 경로와 캡슐 sweep이 따로 검증한다. 접지·지면 판정은 QueryLayer를 쓴다.
+	 * QueryLayer가 성공하는 방향에서는 같은 반지름·법선을 낸다.
+	 */
+	LOOTNPOP_API bool QueryNavLayer(const FLNPSupportAtlasLayer& Layer, const FVector3d& LocalDirection, FLNPSupportLayerQuery& OutQuery);
+
+	/**
 	 * 같은 방향에 겹친 Layer 중 발 위치 기준 하나를 고른다(`phases/Phase04b_MultiLayerSupport.md` §3.5). 반지름이 작을수록 위다.
 	 * 탐색 창은 [FeetRadius - MaxStepUp, FeetRadius + MaxDrop]이다.
 	 * 1. 창에 Valid 꼭짓점 반지름 범위가 걸치는데 보간되지 않는 Layer가 하나라도 있으면 NeedsExact다.
