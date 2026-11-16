@@ -1,6 +1,6 @@
 # Phase 1-B — 환경 반입과 작은 시험
 
-> 상태: 1-B4e/4e-1 WIP 런타임·수동 PIE 접촉·복원 마감 · 1-B5a 새 세션 이관·미착수
+> 상태: 1-B5a 대표 구역 PCG 소수 배치·재베이크·1인 PIE 접촉 마감 · 1-B5b 바위 충돌 승격 계획 초안(미승인·미착수)
 > 작성: 2026-11-14
 > 마지막 갱신: 2026-11-16
 > 상위: [Phase 1 실행서](Phase01_BenchmarkContent.md)
@@ -17,6 +17,7 @@
 | 1-B3 지각 재질 시험 | 원본 그래프 파생본의 좌표·노멀·구면 경사/구역 마스크 | 대표 구역 근경·급경사·회전 slot에서 반복/색/노멀 확인, WPO 없음, 범위 밖/지하 보존 |
 | 1-B4 메시 소수 시험 | 6종을 하나씩 배치해 채택 여부 판단 | 접지/노출/카메라/벽보행·발/착지·바람/시야 확인, 실패 역할 축소/제외 |
 | 1-B5 대표 구역 PCG | 시험을 통과한 역할만 고정 시드로 배치 | 전체 bounds 보호 마스크·동선·SurfaceData 현재성·런타임 로드 검증 |
+| 1-B5b 바위 충돌 승격(계획) | 높이 있는 바위 역할만 지형 계약 소스로 승격(§24) | 별도 GX 결정·SurfaceData 재베이크·발/탄환/적 이동/카메라 일치·동선 재측정 영향 확인 |
 | 1-B6 전체 확장 | 승인한 대표 구역 규칙을 Ridge로 확장 | 적도·이음매·다른 slot·전투/훅 동선 및 패키지 검증 |
 
 1-B3·4는 결과를 보고 더 작은 구현 단위로 나눈다. 성능 판정은 패키지에서만 한다. 파라곤 선정은 1-C다.
@@ -40,7 +41,7 @@
 | 시험 LVI·재질 적용·소수 배치 | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/` | 기존 WIP 제외 규칙 사용 |
 | 재생성 목록·실행 코드·절차 | `Scripts/Profiling/Graphics/`, 이 문서 | 추적 |
 
-위 폴더는 이번 원본용으로 사용한다. 자체 제작 에셋은 원본 제외 폴더에 넣지 않는다. 실제 재생성 코드/설정과 수동 보정은 §9~20, 새 세션의 읽기 순서와 마지막 로컬 상태는 [Current](../Current.md)를 따른다. V005는 사용자 저장을 마쳤다. 1-B3g 임시 회전/진단은 복원·저장까지 끝났으며 상세 근거는 §20을 따른다. 사암2/클로버6/이끼2/절벽1·구면 보정 MI를 적용한 Fern1개는 유지한다. 지각은 비용 축소/중립 노멀 통과·패키지 최종 채택 보류, Fern은 근경/+90° 회전 사례 통과·조건부 유지다. PCG는 아직 없고 정식 LVI 적용은 시험 채택 뒤 별도 단위에서 한다.
+위 폴더는 이번 원본용으로 사용한다. 자체 제작 에셋은 원본 제외 폴더에 넣지 않는다. 실제 재생성 코드/설정과 수동 보정은 §9~20, 새 세션의 읽기 순서와 마지막 로컬 상태는 [Current](../Current.md)를 따른다. V005는 사용자 저장을 마쳤다. 1-B3g 임시 회전/진단은 복원·저장까지 끝났으며 상세 근거는 §20을 따른다. 사암2/클로버6/이끼2/절벽1·구면 보정 MI를 적용한 Fern1개는 유지한다. 지각은 비용 축소/중립 노멀 통과·패키지 최종 채택 보류, Fern은 근경/+90° 회전 사례 통과·조건부 유지다. 1-B5a에서 대표 구역 PCG 소수 배치(장식20개)를 WIP에 저장했다(§23). 정식 LVI 적용은 시험 채택 뒤 별도 단위에서 한다.
 
 ## 3. 새 체크아웃의 수동 Migrate(현재 반입 완료)
 
@@ -591,3 +592,84 @@ V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. �
 ### 새 세션 이관(2026-11-16, 사용자 요청)
 
 사용자가1-B5a를 새 세션으로 넘기고 관련 재생성 코드/문서의 단일 커밋을 요청했다. 이번 세션에서 PCG 그래프·배치·보호 마스크를 구현하지 않았다. 다음 세션의 읽기 순서·마지막 자산/풀/카메라 상태·단위별 확인·재생성 금지·복구 근거와 시작 프롬프트는 [Current](../Current.md)를 따른다. 전체 bounds의 회전/스케일/WPO 여유·동선/Pod/훅 보호 조건을 그때 구체화하고 고정 시드의 작은 배치부터 검증한다. 이번 소수 사례를 전체 팔레트/밀도/Phase1 완료로 해석하지 않는다.
+
+## 23. 1-B5a 대표 구역 PCG 소수 배치(2026-11-16, 마감)
+
+사용자가 새 세션에서 1-B5a를 승인했다. 구현 방식은 사용자가 **C++ 커스텀 PCG 노드**를 골랐다. 기존 `ULNPOctantThemeSampler`는 옥탄트 전체 균등 샘플링·구 중심 Up·보호 마스크 없음이고, 엔진 표면 샘플러는 월드 Z-Up 또는 복셀 투영을 전제하므로([TechDesign_WorldGeneration](../../TechDesign_WorldGeneration.md) §6.6) 둘 다 쓰지 않았다. 기존 빌더·정식 Ridge/풀·원본 메시/MI는 수정하지 않았다.
+
+### 구현
+
+- `Source/LootNPop/PCG/LNPDecorationRuleData.h`: 규칙 데이터 에셋. 지각 메시·옥탄트 반지름·구역 다각형·구역 안쪽 여유·이음매 띠·수동 장식 간격·머리 위 개방 높이, 2D 보호 형상(통로/원/다각형, 여유, 지피 허용), 3D 보호 형상(구/캡슐, 지피 허용), 역할(메시·재질·격자 간격·확률·스케일·경사·매몰·WPO 여유·바닥 모서리 뜸/묻힘 허용치·지피 여부·법선 정렬)을 담는다. 수치를 데이터에 두어 재빌드 없이 바꾼다.
+- `Source/LootNPop/PCG/LNPDecorationSampler.h/.cpp`: 커스텀 PCG 노드. 옥탄트 로컬 X/Y 지터 격자에서 칸마다 독립 스트림(시드·역할 Id CRC·칸 좌표)을 쓴다. 역할이나 다른 칸을 바꿔도 그 칸의 결과는 유지된다. 구 중심→바깥 지각 trace로 플레이 표면을 찾고 현지 Up·지각 법선으로 정렬한다. **메시 로컬 범위×스케일×회전, 옆/위로 WPO 여유를 더한 상자 전체**로 검사한다. 8모서리 로컬 투영 볼록 껍질로 구역·통로·다각형을, 회전 상자-캡슐 거리로 3D 형상을 본다. 이어 바닥4모서리+중심의 현지 Up 지각 trace(뜸/묻힘), 머리 위 개방(지각 돌출·암반 지붕), 상자 overlap(암반·차단 메시), 수동 장식 AABB 간격, 이음매 띠를 검사한다. 거부 사유 집계는 역할별 로그 `LogLNPDecoration`, 통과 점의 여유값은 PCG 속성(`ZoneClearance`·`Clearance2D/3D`·`CornerFloat/Sink`·`Slope`)으로 남긴다. 레벨 상태를 읽으므로 메인 스레드·비캐시다. 지각이 identity가 아니면(회전된 LevelInstance 안) 오류로 중단한다.
+- **엔진 함정:** `UPCGSettings::UseSeed()` 기본 false면 노드·컴포넌트 시드를 무시하고 고정값 42를 쓴다(`PCGSettings.cpp` `GetSeed`). 첫 생성이 이 상태였고 노드에 `UseSeed()=true` override를 추가했다. 실효 시드는 `PCGHelpers::ComputeSeed(노드42, 컴포넌트51001)` = -1241783430이다.
+- 그래프: 샘플러 → 엔진 Self Pruning(기본 LargeToSmall, 점 범위에 WPO 여유 포함) → Static Mesh Spawner(By Attribute `MeshPath`, 재질 `MaterialPath`). ISM 디스크립터는 `LNP.Surface.Decoration` 단독·`LNPDecoration`(NoCollision)·Static·내비 영향 false·WPO 평가 true다. PCG가 붙이는 `PCG Generated Component`·`PCG Component` 태그는 수집기가 금지하는 계약 태그가 아니다.
+- **PCGVolume 함정:** 브러시 컴포넌트 기본 충돌이 Custom/QueryOnly다. 계약 태그 없는 충돌은 수집기가 거부하고 게임 trace도 맞을 수 있으므로 `place`가 NoCollision으로 바꾼다. 생성 트리거는 GenerateOnDemand라 런타임 재생성이 없다.
+- 재생성: `Scripts/Profiling/Graphics/BuildRidgeDecorationPCG.py <rules|graph|place>`. `rules`는 Ridge spec에서 보호 형상을 다시 계산해 `/Game/Graphics/Environment/ElectricDreams/RidgeDecoration_V001/DA_RidgeDecorationRules`를 덮어쓴다. `graph`는 같은 폴더 `PCG_RidgeDecoration`을 디스크에 없을 때만 만든다. `place`는 기존 WIP에 `GraphicsDecorationPCG_V001`(폴더 `Graphics/DecorationPCG_V001`, 컴포넌트 시드51001)을 만들고 생성하며 맵을 저장하지 않는다. 결과 검사는 읽기 전용 `InspectRidgeDecorationPCG.py`다. 에셋/WIP는 Git 제외이고 코드·절차만 추적한다. 새 체크아웃은 §22까지 재현한 뒤 에디터 빌드 → WIP 열기 → `rules`→`graph`→`place` → 육안 확인 뒤 저장 → TestMap03에서 WIP 재베이크 순서다.
+
+### 보호 형상과 여유 근거
+
+메시 전체 범위에 적용하므로 이전 소수 시험의 bounds→spec 계수1.2·경로2m는 쓰지 않는다. 형상은 `RidgeOctantSpec`이 원본이며 구역 밖 형상도 넣고 C++이 판정한다. 2D 49개·3D 40개다.
+
+| 대상 | 형상·값 | 근거 |
+|:---|:---|:---|
+| 선형 경로(PATHS, 착지부 포함) | 정점 반폭 + 50cm | 플레이어 캡슐 반지름42cm |
+| 연결표 보행 중심선(지표 ROUTES) | 반폭200 + 50cm | 캡슐 2개가 나란히 지나가는 폭168cm |
+| 지면 문(HallBasinGate 등) | 반폭500 + 50cm | 남쪽 문 폭10m |
+| 지면을 자르는 암반·동굴 몸체 외곽 | 엄폐 +100cm, 그 외 +50cm | BasinMonolith 실루엣/판정 보존. 석교·부유섬·섬 위 엄폐(지면을 자르지 않음)는 제외하고 실제 overlap 검사에 맡김 |
+| 지표 Pod 3D 편성 구 | 편성 반경, **지피만 허용** | 1-B0 Z3 "낮은 지피·표면 패치만". 사암을 Pod 밖에 두던 소수 시험 결정을 역할 플래그로 유지 |
+| 앵커 착지부 / 출발점(지면+170)→앵커 | 구 400cm / 캡슐 100cm | 4m 착지부 / 훅 조준·이동 공간 |
+| 벤치마크 카메라 A→B→C→A·지면 검토 시점 | 캡슐/구 150cm | 근거리 장식이 화면을 덮지 않게 함(경로는 선형 보간) |
+| 구역 안쪽 / 이음매 / 수동 장식 | 100cm / 성분 ≥5500cm / 30cm | 임시 이진 재질 경계 안 / 기존 이음매 보존 띠 / 관통 방지 |
+
+역할은 근경 통과한 Clover·Sandstone·Moss(MI09)·Fern(보정 MI)만이다. 절벽은 수동 부분 보강 역할이라 넣지 않았다. 경사는 모두 0~30°, 법선 정렬1이다.
+
+| 역할 | 간격(cm)·확률 | 스케일 | 매몰 | WPO 여유 | 뜸/묻힘 허용 |
+|:---|:---|:---|---:|---:|:---|
+| Clover(지피) | 800·1.0 | 0.85~1.1 | 0.7 | 0 | 8/15 |
+| Sandstone | 900·1.0 | 0.9~1.1 | 2.0 | 0 | 10/25 |
+| Moss | 1000·1.0 | 0.7~0.9 | 3.0 | 0 | 25/30 |
+| Fern | 1000·1.0 | 0.9~1.1 | 1.5 | 30 | 15/25 |
+
+간격·확률은 작은 배치 판정용이며 밀도 승인이 아니다. 첫 값(확률0.3~0.4)은 Clover6·나머지0으로 표본이 부족해 시도 수만 늘렸고 보호 규칙은 완화하지 않았다. Moss의 큰 뜸 허용은 둥근 바위의 AABB 바닥 모서리가 실제 접촉점이 아니기 때문이다. Fern WPO30cm는 여전히 실측 최대 변위가 아닌 시험 초안이다.
+
+### 결과·검증
+
+- 첫 생성(시드42, 확률0.3~0.4)은 Clover6개였다. 계약은 맞았지만 시드 함정과 볼륨 브러시 충돌을 발견해 WIP를 **저장하지 않고 버렸다.** 디스크 WIP와 `BeforePCG.umap` 해시 일치를 확인한 뒤 수정·에디터 재빌드했다.
+- 시드51001 생성: 후보/통과는 Clover135/18·Sandstone102/4·Moss87/4·Fern86/1이다. 주요 거부 사유는 경사, 동선·Pod 보호, 지각 없음(대전당 몸체 자리)이다. Self Pruning 뒤 **Clover15·Sandstone2·Moss2·Fern1 = 20개**다. ISM 4개 모두 계약 필드, 재질(MI09·`MI_Ridge_Fern`), 볼륨 NoCollision, 컴포넌트 시드51001·GenerateOnDemand를 재조회했다. Clover 다수는 DeepBasin Pod 안 분지 바닥(지피 허용)이고 사암·이끼·Fern은 Pod 3D 구 밖이다.
+- 사용자 근경 판정은 **자연스러움**이었다. 사용자 승인으로 WIP를 저장했다(미저장 변경이 WIP뿐인지 확인).
+- TestMap03에서 WIP를 재베이크했다. 수집기 오류0이고 지각85,867 tris·Support2소스/44층·샘플593,257·Support payload4,202,801B·Nav73,836셀/109 components/350 portals·Spawn authored12/candidates9,373/noNavRejected0으로 **§22 베이크와 수치가 모두 같다.** PCG 장식은 지형 데이터에 영향이 없다. 데이터 파일은 재저장으로 해시가 바뀌었고 이전 파일은 복구 사본으로 남겼다.
+- 검사용 풀 메모리 임시 선택(SaveConfig 없음, INI 해시 불변)으로 1인 PIE를 했다. EnemyDensity0이고 WIP는 slot2(Y180)·8 validated slots·274 bindings·seam delta0이었다. `TeleportToOctant 2 1150 400 -3998` 뒤 WhereAmI는 local H-3901·발밑 실제 지각이었다. 사용자는 **보행·착지·카메라·사격 이상 없음, 장식이 땅에 자연스럽게 붙어 있음**을 확인했다. PIE 종료 뒤 원래 풀을 복원·재조회했고 INI·정식 풀·저장 WIP 해시를 확인했다(`SelectionState.json=restored`).
+- 미검증: 생성 결과의 독립 재검산(노드 로그·속성에 의존), 전체 밀도·원거리 반복, 다른 slot/극점, 2인·적 전투, 게임 조명, 패키지 GPU 비용. Self Pruning은 점 범위 기반이며 바닥 접촉은 AABB 모서리 근사다. 이번 20개를 전체 밀도나 Ridge 확장 승인으로 해석하지 않는다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationPCG_20261116/`의 `Rules.json`·`BeforePCG.umap`·`Inspection_Seed42.json`·`Inspection_Seed51001.json`·`BeforeRebake_SurfaceData.uasset`·`SelectionState.json`·`ManualVerdict.json`·`FinalLiveCheck.json`(종료 시 TestMap03·PIE false·dirty0·EnemyDensity0)이다. 시작 대조(WIP·PIE false·dirty0·메시15·V005 바인딩·새 클래스 로드)는 같은 스크립트로 했지만 그 파일은 종료 검사로 덮어썼다. 생성 로그는 에디터 로그의 `LogLNPDecoration`이다.
+
+## 24. 1-B5b 바위 충돌 승격 계획(2026-11-16, 초안·미승인·미착수)
+
+1-B5a PIE에서 사용자는 풀·이끼 같은 식생의 NoCollision은 어색하지 않지만, **바위 프랍을 발·사격이 관통하는 것은 꽤 어색하다**고 지적했다. 1-B4e 때도 같은 인상이었다고 했다. 현재 GX-013은 "**1차** 장식은 보행 충돌을 바꾸지 않는다"이므로 NoCollision은 첫 장식 범위의 결정이며 최종 확정이 아니다. 바꾸려면 새 GX 결정과 이 단위가 필요하다.
+
+### 충돌만 켜면 안 되는 이유
+
+- **적이 모른다.** 적의 이동·벽보행·접지는 런타임 물리가 아니라 베이크한 SurfaceData(Support/Nav)를 쓴다. 플레이어만 막는 바위는 적이 통과하거나 바위 안에 서게 만든다.
+- **계약 위반이다.** Decoration은 NoCollision이 계약이고, 계약 태그 없는 충돌 컴포넌트는 수집기가 거부한다. 충돌을 주려면 Static/Blocker/Support 지형 계약 역할로 승격하고 재베이크해야 한다.
+- **판정이 비대칭해진다.** 플레이어 탄만 바위에 막히고 적 시야·사격은 바위를 무시하면 한쪽만 엄폐가 된다.
+
+### 방향(제안)
+
+1. **역할을 둘로 나눈다.** 풀·이끼 지피·Fern·Clover는 Decoration/NoCollision을 유지한다. 높이 있는 바위(Moss 바위, 절벽 부분 보강)는 지형 계약 소스로 승격해 단순 충돌(박스·컨벡스)을 갖게 한다. 발·탄환·적 이동·카메라가 같은 형상을 보게 하는 것이 목적이다.
+2. **역할 지정:** 위에 설 수 있어야 하면 Static+Support(+Blocker), 막기만 하면 Static+Blocker다. 기존 지형 태그 조합(`LNPStaticTerrain`/`LNPStaticBlocker` 프로필)을 따르고 새 조합을 만들지 않는다.
+3. **충돌 형상:** 원본 메시의 기존 단순 충돌(Moss 3개·Cliff 64개 프리미티브)을 우선 검토한다. Sandstone은 ComplexAsSimple이라 지원 형상으로 쓰기 전에 삼각형 수·베이크 비용을 확인한다. 원본 메시를 직접 수정하지 않고 필요하면 파생 메시를 만든다.
+4. **낮은 사암(높이 약20cm):** 넘어가는 높이라 관통이 거의 보이지 않는다. 관찰 뒤 승격 여부를 정하며 기본은 Decoration 유지다.
+5. **PCG:** 역할에 "지형 소스 승격" 플래그를 추가하고 Spawner를 계약별로 나눈다(ISM 디스크립터의 태그·프로필·내비 영향이 역할마다 다르다). 보호 마스크는 그대로 쓰되 승격 바위는 동선·착지부 여유를 다시 정한다(막히는 물체이므로 캡슐 반지름 이상 여유가 필수).
+
+### 영향과 검증
+
+- [상위 실행서](Phase01_BenchmarkContent.md) §5의 "보행면을 바꾸는 배치는 별도 합의 뒤 재베이크와 함께 한다"에 해당한다. Ridge는 SSN Phase 15 경로 재측정 대상이므로 그 측정과의 순서를 합의해야 한다.
+- SurfaceData 재베이크(Support 소스 수·payload·베이크 시간 증가), 런타임 source binding, 적 접지·벽보행·추격 경로, 탄환 착탄(HitDetection 지면 착탄 경로)과 적 시야, 카메라 충돌 채널, 이음매를 다시 확인한다.
+- 검증은 베이크 수치 변화 기록 → 1인 PIE(바위 위 서기·옆 막힘·사격 착탄·카메라) → EnemyDensity>0 근처 전투(적이 바위를 피하거나 오르는지) → 필요 시 2인 → 패키지 비용 순서다.
+- **시점:** 대표 구역 규칙이 굳은 뒤, **1-B6 전체 확장 전**에 한다. 확장 뒤에 바꾸면 재베이크·재검증 범위가 Ridge 전체로 커진다.
+
+### 착수 전 결정할 것
+
+- 승격 대상 역할과 기준(높이 임계·역할 단위), Support 여부, 충돌 형상 출처
+- 새 GX 결정 문구(GX-013의 "1차" 범위를 넘는 변경)와 SSN Phase 15 재측정 순서
+- 승격 바위의 동선·착지·Pod 여유 폭
