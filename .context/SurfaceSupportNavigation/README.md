@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 역할: 이 작업의 진입점과 문서 라우팅
-> 현재 우선순위: Phase16 벽 근처 Nav 커버리지·근접 목표 처리의 근본 수정. 분리력 제한은 기각(D-083), 새 세션은 [인계 계획 §3.5~3.7](phases/Phase16_SupportlessBlockerStep.md)부터 확인
+> 현재 우선순위: Phase16 1단계 마감(Production gate·리슨2P). 벽 근처 근본 수정은 D-084·D-085로 완료, 새 세션은 [§3.7](phases/Phase16_SupportlessBlockerStep.md)부터 확인
 > 마지막 구조 갱신: 2026-09-23
 
 ## 1. 목적

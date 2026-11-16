@@ -5,6 +5,7 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPEnemyNavigation.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
 #include "LootPod/LNPLootPodMassTypes.h"
 #include "LootNPop.h"
@@ -34,6 +35,12 @@ namespace
 	constexpr double RepathGoalDrift = 400.0;
 	constexpr double MinRepathSeconds = 0.5;
 	constexpr double NavSnapRadius = 300.0;
+	/** 플레이어 보행 anchor: node에서 걸어온 적의 발이 플레이어 발에서 이 거리 안이면 근접 공격 위치로 본다(D-085). */
+	constexpr double PlayerWalkAnchorReach = 150.0;
+	/** 플레이어가 이만큼 움직이면 캐시와 무관하게 보행 anchor를 다시 검증한다. */
+	constexpr double PlayerWalkAnchorMoveTolerance = 50.0;
+	/** Nav 밖 적의 마지막 접근 검증에서 MoveTarget 발에 닿았다고 보는 거리. */
+	constexpr double FinalApproachAccept = 50.0;
 
 	struct FGoalProjectionKey
 	{
@@ -113,6 +120,10 @@ void ULNPPlayerNavProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 		return;
 	}
 	const TSharedRef<const FLNPHitIdentitySnapshot, ESPMode::ThreadSafe> IdentitySnapshot = HitIdentity->GetSnapshot();
+	const double Now = World->GetTimeSeconds();
+	// 플레이어 쪽 보행 anchor는 적 설정과 무관한 기본 지상 캡슐로 검증한다(node에 선 적이 플레이어 근처까지 걸어간다).
+	LNPEnemyExactMovement::FParams AnchorParams;
+	AnchorParams.bLateralSweep = LNPEnemyExactMovement::IsLateralSweepEnabled();
 	PlayerNavQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
 	{
 		const TConstArrayView<FMassActorFragment> Actors = Ctx.GetFragmentView<FMassActorFragment>();
@@ -132,16 +143,40 @@ void ULNPPlayerNavProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				Value.Node = INDEX_NONE;
 				Value.Group = MAX_uint32;
 				Value.GroundGroup = FLNPNavGroupRef();
+				Value.bWalkAnchored = false;
 				FLNPSurfaceHandle Surface;
 				const FLNPExactHitIdentity Identity = Collision->ResolveFloorHit(*IdentitySnapshot, FloorHit);
 				if (LNPEnemySurfaceMovement::MakeSurfaceHandle(Identity, Surface))
 				{
+					// 물리 바닥은 Nav 투영과 무관하게 갱신한다(D-085).
 					const FVector3d Feet = FloorHit.ImpactPoint;
-					const int32 Node = NearestNode(Snapshot->Nav, Surface, Feet, nullptr);
+					Value.Surface = Surface;
+					Value.GroundPoint = Feet;
+					int32 Node = NearestNode(Snapshot->Nav, Surface, Feet, nullptr);
+					if (Node == INDEX_NONE)
+					{
+						// 투영 반경 밖: node에 선 적이 실제로 걸어서 플레이어 근처에 닿는 node만 anchor로 쓴다. 벽 너머는 실패한다.
+						const bool bCached = Value.WalkAnchorGeneration == Snapshot->Nav.SnapshotGeneration
+							&& Now - Value.WalkAnchorCheckTime < LNPEnemyNavigation::WalkAnchorRetrySeconds
+							&& FVector::DistSquared(Value.WalkAnchorCheckFeet, Feet) <= FMath::Square(PlayerWalkAnchorMoveTolerance);
+						if (!bCached)
+						{
+							const FVector Up = (AnchorParams.GravityOrigin - FVector(Feet)).GetSafeNormal();
+							Value.WalkAnchorNode = LNPEnemyNavigation::FindWalkAnchor(*Snapshot, *Collision, AnchorParams,
+								FVector(Feet) + Up * AnchorParams.CapsuleHalfHeight, Surface, nullptr, true, PlayerWalkAnchorReach);
+							Value.WalkAnchorGeneration = Snapshot->Nav.SnapshotGeneration;
+							Value.WalkAnchorCheckTime = Now;
+							Value.WalkAnchorCheckFeet = Feet;
+						}
+						Node = Value.WalkAnchorNode;
+						Value.bWalkAnchored = Node != INDEX_NONE;
+						if (Value.bWalkAnchored)
+						{
+							Value.WalkAnchorPoint = Snapshot->Nav.Graph.GetWorldPoint(Snapshot->Nav.Graph.GetSlot(Node), Node);
+						}
+					}
 					if (Node != INDEX_NONE)
 					{
-						Value.Surface = Surface;
-						Value.GroundPoint = Feet;
 						Value.Node = Node;
 						Value.Group = LNPNavGraph::GetGroup(Snapshot->Nav, Node);
 						Value.GroundGroup = {Value.Group, Snapshot->Nav.ConnectivityGraphVersion, Snapshot->Generation};
@@ -209,6 +244,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 		return;
 	}
 	const FLNPNavSnapshot& Nav = Snapshot->Nav;
+	const ULNPMassWorldCollisionSubsystem* Collision = World->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
 	const double ConsumerBegin = FPlatformTime::Seconds();
 	ON_SCOPE_EXIT { Paths->SetLastConsumerSeconds(FPlatformTime::Seconds() - ConsumerBegin); };
 	const TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> Overlay = Paths->TakeOverlay();
@@ -255,6 +291,26 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 		{
 			return;
 		}
+		// 보행 anchor·마지막 접근 검증은 이동 프로세서와 같은 접지 이동 설정으로 걷는다.
+		LNPEnemyExactMovement::FParams WalkParams;
+		WalkParams.GravityOrigin = Shared.Config->MovementConfig.GravityOrigin;
+		WalkParams.CapsuleRadius = Shared.Config->CapsuleRadius;
+		WalkParams.CapsuleHalfHeight = Shared.Config->CapsuleHalfHeight;
+		WalkParams.bLateralSweep = LNPEnemyExactMovement::IsLateralSweepEnabled();
+		// 투영 반경 밖 시작점의 보행 anchor(D-085). 걸어서 돌아갈 수 있다고 검증된 node만 돌려주며 결과는 잠시 재사용한다.
+		auto ResolveWalkAnchor = [&](FLNPEnemyPathFragment& State, const FVector3d& Center, const FLNPSurfaceHandle& Surface)
+		{
+			if (State.WalkAnchorGeneration != Nav.SnapshotGeneration || Now - State.WalkAnchorCheckTime >= LNPEnemyNavigation::WalkAnchorRetrySeconds)
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_WalkAnchor);
+				State.WalkAnchorNode = Collision ? LNPEnemyNavigation::FindWalkAnchor(*Snapshot, *Collision, WalkParams,
+					FVector(Center), Surface, Overlay.Get(), false, WaypointAcceptRadius) : INDEX_NONE;
+				State.WalkAnchorGeneration = Nav.SnapshotGeneration;
+				State.WalkAnchorCheckTime = Now;
+			}
+			return State.WalkAnchorNode;
+		};
+		auto NodePoint = [&Nav](const int32 Node) { return Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Node), Node); };
 		for (int32 Index = 0; Index < Ctx.GetNumEntities(); ++Index)
 		{
 			const FMassEntityHandle Owner = Ctx.GetEntity(Index);
@@ -336,15 +392,26 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_TargetReachability);
 				const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer);
-				if (PlayerNav && PlayerNav->Surface.IsValid())
+				if (PlayerNav && PlayerNav->Node != INDEX_NONE)
 				{
 					FLNPNavEndpointQuery Query;
 					Query.StartPosition = Start;
 					Query.StartSurface = &Enemy.SurfaceHandle;
-					Query.GoalPosition = Target.TargetLocation;
+					Query.GoalPosition = PlayerNav->bWalkAnchored ? PlayerNav->WalkAnchorPoint : FVector(Target.TargetLocation);
 					Query.GoalSurface = &PlayerNav->Surface;
 					Query.ApproachRadius = 0.0;
-					const ELNPNavEndpointStatus Reachability = LNPNavGraph::ResolveEndpoints(Nav, Query).Status;
+					FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(Nav, Query);
+					if (Ends.Status == ELNPNavEndpointStatus::NoNode && Ends.StartNode == INDEX_NONE)
+					{
+						// 시작점이 투영 반경 밖이면 걸어서 돌아갈 수 있는 anchor에서 다시 본다(D-085).
+						const int32 Anchor = ResolveWalkAnchor(State, Center, Enemy.SurfaceHandle);
+						if (Anchor != INDEX_NONE)
+						{
+							Query.StartPosition = NodePoint(Anchor);
+							Ends = LNPNavGraph::ResolveEndpoints(Nav, Query);
+						}
+					}
+					const ELNPNavEndpointStatus Reachability = Ends.Status;
 					bUnreachableTarget = Reachability == ELNPNavEndpointStatus::Unreachable || Reachability == ELNPNavEndpointStatus::NoNode;
 					bAlertApproach = Target.State == ELNPTargetingState::Alert && bUnreachableTarget;
 				}
@@ -370,21 +437,25 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				continue;
 			}
 			FLNPSurfaceHandle GoalSurface = Enemy.SurfaceHandle;
+			const FLNPPlayerNavFragment* GoalPlayerNav = nullptr;
 			if (bSynthetic)
 			{
 				GoalSurface = SyntheticSurface;
 			}
 			else if (bTargetPath)
 			{
-				const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer);
-				if (PlayerNav == nullptr || !PlayerNav->Surface.IsValid())
+				GoalPlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer);
+				// Nav 소속(투영 node·보행 anchor)이 없는 물리 바닥은 기존처럼 경로 목표로 쓰지 않는다.
+				if (GoalPlayerNav == nullptr || GoalPlayerNav->Node == INDEX_NONE)
 				{
 					continue;
 				}
-				GoalSurface = PlayerNav->Surface;
+				GoalSurface = GoalPlayerNav->Surface;
 			}
-			const FVector3d Goal = bSynthetic ? SyntheticGoal : bUnreachableTarget ? FVector3d(Target.TargetLocation)
+			FVector3d Goal = bSynthetic ? SyntheticGoal : bUnreachableTarget ? FVector3d(Target.TargetLocation)
 				: FeetOf(MoveTarget.Center, Shared.Config->CapsuleHalfHeight);
+			// 마지막 접근 검증의 목표. 보행 anchor로 목표를 바꿔도 실제로 다가갈 곳은 MoveTarget 발이다.
+			const FVector3d ApproachGoal = Goal;
 			int32 StartNode;
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_StartProjection);
@@ -408,12 +479,32 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				}
 				State.GoalHintNode = GoalNode;
 			}
+			if (GoalNode == INDEX_NONE && GoalPlayerNav != nullptr && GoalPlayerNav->bWalkAnchored && !bUnreachableTarget)
+			{
+				// Nav 밖 플레이어: 실제로 걸어서 플레이어 근처에 닿는다고 검증된 anchor node까지 경로를 낸다(D-085).
+				GoalNode = GoalPlayerNav->Node;
+				Goal = FVector3d(GoalPlayerNav->WalkAnchorPoint);
+			}
+			// 투영 반경 밖 시작점은 걸어서 돌아갈 수 있다고 검증된 anchor를 시작 node로 쓴다. 없으면 기존처럼 제자리다.
+			bool bOffNavStart = false;
+			if (StartNode == INDEX_NONE)
+			{
+				StartNode = ResolveWalkAnchor(State, Center, Enemy.SurfaceHandle);
+				bOffNavStart = StartNode != INDEX_NONE;
+			}
+			else
+			{
+				State.WalkAnchorNode = INDEX_NONE;
+				State.WalkAnchorCheckTime = -DBL_MAX;
+				State.FinalApproachCheckTime = -DBL_MAX;
+			}
 			if (StartNode == INDEX_NONE)
 			{
 				State.SteeringPoint = Center;
 				State.bHasSteeringPoint = true;
 				continue;
 			}
+			const FVector3d PathStart = bOffNavStart ? NodePoint(StartNode) : Start;
 			const uint32 GoalTile = GoalNode == INDEX_NONE ? MAX_uint32 : LNPNavGraph::GetTileKey(Nav, GoalNode);
 			const bool bGoalChanged = State.RequestedTarget != Target.TargetPlayer || State.GoalTile != GoalTile
 				|| (State.Status != ELNPNavPathStatus::Unreachable && FVector3d::Dist(State.RequestedGoal, Goal) > RepathGoalDrift);
@@ -428,6 +519,18 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_DirectGoal);
 				bDirectGoal = GoalNode != INDEX_NONE && LNPNavGraph::IsDirectWalkable(Nav, StartNode, GoalNode, Overlay.Get());
+			}
+			if (bDirectGoal && bOffNavStart && !bSynthetic)
+			{
+				// Nav 밖에서 목표로 곧게 가려면 현재 위치에서 MoveTarget 발까지의 실제 이동을 검증한다. 막히면 anchor로 먼저 돌아간다.
+				if (Now - State.FinalApproachCheckTime >= LNPEnemyNavigation::WalkAnchorRetrySeconds)
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_FinalApproach);
+					State.bFinalApproachWalkable = Collision && LNPEnemyNavigation::WalkReaches(*Snapshot, *Collision, WalkParams,
+						FVector(Center), Enemy.SurfaceHandle, FVector(ApproachGoal), FinalApproachAccept);
+					State.FinalApproachCheckTime = Now;
+				}
+				bDirectGoal = State.bFinalApproachWalkable;
 			}
 			if (bDirectGoal)
 			{
@@ -479,7 +582,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				FLNPNavPathRequest Request;
 				Request.Owner = Owner;
 				Request.Priority = bChasing ? ELNPNavPathPriority::Chase : ELNPNavPathPriority::Background;
-				Request.StartPosition = Start;
+				Request.StartPosition = PathStart;
 				Request.StartSurface = Enemy.SurfaceHandle;
 				Request.GoalPosition = Goal;
 				Request.GoalSurface = GoalSurface;
@@ -531,6 +634,12 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				Paths->RecordFollowerFrame(false, 0);
 				// 차단된 직선으로 관통하지 않도록 경로 대기 중에는 현재 위치를 조향점으로 쓴다.
 				State.SteeringPoint = Center;
+				State.bHasSteeringPoint = true;
+			}
+			if (bOffNavStart)
+			{
+				// 경로는 anchor에서 시작한다. 검증된 보행 구간인 anchor까지 먼저 걸어가 Nav 시작점을 되찾는다.
+				State.SteeringPoint = FVector(PathStart);
 				State.bHasSteeringPoint = true;
 			}
 		}

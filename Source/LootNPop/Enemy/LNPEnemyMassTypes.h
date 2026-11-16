@@ -306,6 +306,13 @@ struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
 	bool bHasSteeringPoint = false;
 	/** 슬롯 없는 Alert도 접근점 경로를 따라 이동할 수 있다. */
 	bool bApproachingUnreachable = false;
+	/** 시작 node가 투영 반경 밖일 때 실제 이동으로 걸어 돌아갈 수 있다고 검증한 node(D-085). 실패도 WalkAnchorCheckTime까지 재사용한다. */
+	int32 WalkAnchorNode = INDEX_NONE;
+	uint64 WalkAnchorGeneration = 0;
+	double WalkAnchorCheckTime = -DBL_MAX;
+	/** Nav 밖에서 목표(MoveTarget 발)까지 직접 걸어갈 수 있는지의 마지막 검증 결과와 시각. */
+	bool bFinalApproachWalkable = false;
+	double FinalApproachCheckTime = -DBL_MAX;
 };
 
 /** Mass가 archetype 이동 시 shared path handle을 정상 복사·파괴하도록 명시적으로 허용한다. */
@@ -315,18 +322,33 @@ struct TMassFragmentTraits<FLNPEnemyPathFragment> final
 	enum { AuthorAcceptsItsNotTriviallyCopyable = true };
 };
 
-/** 플레이어의 마지막 접지 Surface와 Nav 위치. 공중에서는 마지막 접지를 유지한다. */
+/**
+ * 플레이어의 마지막 접지 Surface와 Nav 위치. 공중에서는 마지막 접지를 유지한다.
+ * Surface·GroundPoint는 물리 바닥이고 Nav 투영과 독립이다(D-085). Nav 소속은 Node·Group·GroundGroup이 나타낸다.
+ */
 USTRUCT()
 struct LOOTNPOP_API FLNPPlayerNavFragment : public FMassFragment
 {
 	GENERATED_BODY()
 
 	FLNPSurfaceHandle Surface;
+	/** 투영 반경 안의 최근접 node, 없으면 보행 anchor(bWalkAnchored). 둘 다 없으면 INDEX_NONE. */
 	int32 Node = INDEX_NONE;
 	uint32 Group = MAX_uint32;
 	FLNPNavGroupRef GroundGroup;
 	FVector GroundPoint = FVector::ZeroVector;
+	/** Node가 보행 anchor일 때 그 node의 지면점. Nav 질의 목표로 쓴다. */
+	FVector WalkAnchorPoint = FVector::ZeroVector;
 	bool bGrounded = false;
+	bool bWalkAnchored = false;
+	/** 보행 anchor 검증 캐시. 실패도 재사용하며, 플레이어가 움직이거나 시간이 지나면 다시 검증한다. */
+	int32 WalkAnchorNode = INDEX_NONE;
+	uint64 WalkAnchorGeneration = 0;
+	double WalkAnchorCheckTime = -DBL_MAX;
+	FVector WalkAnchorCheckFeet = FVector::ZeroVector;
+
+	/** 적 쪽 Nav 질의(도달성·슬롯)에 쓸 목표 지점. */
+	FVector GetNavQueryPoint() const { return bWalkAnchored ? WalkAnchorPoint : GroundPoint; }
 };
 
 /** Entity 모드 시뮬레이션용 물리 속도 (넉백, 포물선). 지면 접지 시 0. */

@@ -47,9 +47,9 @@ namespace
 				if (Distance < PlayerDistance) { PlayerDistance = Distance; PlayerNav = Nav[I]; PlayerCenter = Center; }
 			}
 		});
-		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] player grounded=%d slot=%u layer=%u node=%d group=%u feet=%s"),
+		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] player grounded=%d slot=%u layer=%u node=%d group=%u walkAnchored=%d feet=%s"),
 			PlayerNav.bGrounded, PlayerNav.Surface.OctantSlot, PlayerNav.Surface.LocalLayerId, PlayerNav.Node,
-			PlayerNav.Group, *PlayerNav.GroundPoint.ToString());
+			PlayerNav.Group, PlayerNav.bWalkAnchored, *PlayerNav.GroundPoint.ToString());
 		const APlayerController* Controller = World.GetFirstPlayerController();
 		const ALNPCharacterBase* Character = Controller ? Cast<ALNPCharacterBase>(Controller->GetPawn()) : nullptr;
 		FHitResult FloorHit;
@@ -94,20 +94,20 @@ namespace
 				FLNPNavEndpointQuery Ends;
 				Ends.StartPosition = Center + Center.GetSafeNormal() * Config->CapsuleHalfHeight;
 				Ends.StartSurface = &Enemies[I].SurfaceHandle;
-				Ends.GoalPosition = PlayerNav.GroundPoint;
+				Ends.GoalPosition = PlayerNav.GetNavQueryPoint();
 				Ends.GoalSurface = &PlayerNav.Surface;
 				Ends.ApproachRadius = 0.0;
 				const auto Status = LNPNavGraph::ResolveEndpoints(Snapshot.Nav, Ends).Status;
 				const double Angle = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(
 					FVector::DotProduct(Transform.GetUnitAxis(EAxis::X), (PlayerCenter - Center).GetSafeNormal()), -1.0, 1.0)));
 				const auto& Path = Paths[I];
-				Nearby.Add({Distance, FString::Printf(TEXT("[NavEnemy] entity=%d config=%s pos=%s distance=%.1f angle=%.1f awareness=%.0f vision=%.0f flying=%d candidates=%u state=%d target=%d slot=%u layer=%u surfaceValid=%d airborneSpeed=%.1f endpoint=%d pathStatus=%d waypoints=%d waypoint=%d steering=%d"),
+				Nearby.Add({Distance, FString::Printf(TEXT("[NavEnemy] entity=%d config=%s pos=%s distance=%.1f angle=%.1f awareness=%.0f vision=%.0f flying=%d candidates=%u state=%d target=%d slot=%u layer=%u surfaceValid=%d airborneSpeed=%.1f endpoint=%d pathStatus=%d waypoints=%d waypoint=%d steering=%d walkAnchor=%d"),
 					Ctx.GetEntity(I).Index, *Config->GetName(), *Center.ToString(), Distance, Angle,
 					Config->TargetingConfig.AwarenessDistance, Config->TargetingConfig.VisionDistance, Config->IsFlying(),
 					Candidates[I].NumPotentialTargets, static_cast<int32>(Targets[I].State), Targets[I].TargetPlayer.Index,
 					Enemies[I].SurfaceHandle.OctantSlot, Enemies[I].SurfaceHandle.LocalLayerId, Enemies[I].SurfaceHandle.IsValid(),
 					Velocities[I].Velocity.Size(), static_cast<int32>(Status), static_cast<int32>(Path.Status),
-					Path.Path.IsValid() ? Path.Path->Waypoints.Num() : 0, Path.WaypointIndex, Path.bHasSteeringPoint)});
+					Path.Path.IsValid() ? Path.Path->Waypoints.Num() : 0, Path.WaypointIndex, Path.bHasSteeringPoint, Path.WalkAnchorNode)});
 			}
 		});
 		Nearby.Sort([](const FNearby& A, const FNearby& B) { return A.Distance < B.Distance; });

@@ -142,3 +142,26 @@
 - 고립 조각 제외 뒤 재실행에서 `Nav.RegressionReachability`는 통과했고 `Nav.ProductionScheduler`가 299/300 성공으로 실패했다. 스케줄러·직접 탐색 결과는 일치(불일치0)했다. 실패 쌍은 끊겼던 component가 이어져 같은 group이 된 긴 우회 경로였다(직선61.6m·비용331.7m·상한 없이 확장32,342로 성공, production 요청 상한30,000). 검사는 상한 때문에만 실패하는 쌍을 따로 세고, 그런 쌍이 상한 없이 풀리며 전체의1% 이하인지 확인하도록 바꿨다(상한 안 요청은 모두 성공 유지). 요청 상한 자체는 바꾸지 않았다.
 - **최종 전체 SurfaceNavigation 137/137 Success**(`NavGap/SurfaceNavFull_Final.log`). 경고4는 기존 노이즈(HTTP timeout3·B-option 안내1). 회귀가 재저장한 테스트 에셋3개는 git으로 원복했다. Editor·Game 빌드 Success. 다섯 정지 지점은 최종 WIP에서도 최근접 node 110~280cm·주 component 연결(`ExplainNavGap_Run5_Drop.log`).
 - 커밋 범위: 실험 제거, D-084 구현·진단 명령2종·검사, 정식7·fixture5 SurfaceData, 문서. WIP SurfaceData(Git 무시)는 최종 규칙으로 재베이크된 상태다(원본 백업 `NavGap/Backup/`). 단위2는 새 세션(Phase 문서 §3.7).
+
+## 2026-11-16 — 단위2: 보행 anchor(D-085)
+
+- 재현(`Saved/Profiling/Phase16/Unit2/`): TestMap03·1인·밀도1, 검사용 풀을 메모리에서만 선택(Ridge WIP slot4/7, 8 validated slots·264 bindings·seam 차단0). 사용자는 근접 적이 대체로 잘 추격했고(지형에 걸리면 잠깐 섰다가 돌아옴), **벽에 바짝 붙은 플레이어를 공격하지 못한 경우는 없었다**고 보고했다. 여러 번 시도해 한 번 근접 적(entity32)이 벽 밑에서 멈췄다.
+- 진단: 플레이어 Nav 투영은 유효(node 1671952, 157cm). entity32는 플레이어에서 277cm 떨어진 벽 밑 경사 띠(발밑 dot0.83, 실제 보행 가능)에 Alert·NoNode로 서 있었고 49초 동안 위치 변화0.001cm였다. `ExplainNavGap`(slot7 R(P=180,Y=270) → local=(Wy,Wx,−Wz))에서 주변 칸은 꼭짓점 하나가 벽면(비보행)에 걸려 빠졌고 최근접 node가 308cm로 투영 반경을 8cm 넘었다. 단위1의 NeedsExact와 다른 원인(격자 해상도)이다. 흐름: 직선 보행 판정 시 MoveTarget을 향해 곧게 걷다 띠에 올라섬 → 시작점 NoNode → 도달성 실패 → 1.5초 뒤 슬롯 반납 → Alert 정지. 근거 `Run1_Reports.log`·`ExplainNavGap_Run1.log`·`RuntimeInit_Run1.log`. PIE 종료 뒤 원래 풀 getter 복원, 보호 해시6개 불변(`SelectionState_Run1.json=restored`).
+- 사용자 승인 설계(D-085): 플레이어 물리 지면/Nav 분리, 실제 이동으로 검증된 보행 anchor로 Nav 밖 적의 복귀·Nav 밖 플레이어 접근, 도달성·슬롯에 같은 anchor 사용.
+- 구현:
+  - `LNPEnemyNavigation::WalkReaches`·`FindWalkAnchor`: 600cm 안 최대4개 node를 가까운 순으로, `StepGrounded`를 캡슐 반지름 걸음으로 반복해 같은 slot·Layer의 Grounded만으로 닿는지 본다(제자리걸음·다른 층 높이 차는 실패).
+  - `ULNPPlayerNavProcessor`: 접지 시 `Surface`·`GroundPoint`는 항상 물리 바닥. 300cm 안 node가 없으면 node에서 플레이어 발 150cm 안까지 걸어오는 anchor(`bWalkAnchored`·`WalkAnchorPoint`, 0.5초/50cm 캐시)를 `Node`로 쓴다.
+  - `ULNPEnemyPathProcessor`: 소비 조건을 `Surface` 대신 `Node`로 바꿨다(anchor 없는 물리 바닥은 기존 동작). 시작 node가 없으면 anchor(0.5초 캐시)를 도달성·시작 node·경로 요청 시작점으로 쓰고 anchor로 조향한다. 직선 보행 판정이어도 Nav 밖이면 현재 위치→MoveTarget 발 이동을 검증해(50cm, 0.5초 캐시) 통과할 때만 곧게 간다. 목표가 투영되지 않고 플레이어가 anchor면 anchor node를 목표로 한다.
+  - `ULNPTargetingSubsystem::RebalanceSlots`: 플레이어 `GetNavQueryPoint()`, 적 시작이 NoNode면 경로 fragment의 anchor에서 다시 판정한다.
+  - `NavReport`: 플레이어 `walkAnchored`, 적 `walkAnchor` 필드 추가. 분리력·이동 프로세서·베이크는 바꾸지 않았다.
+- 새 자동화 `EnemyMovement.WalkAnchorRecovery`(`LNPEnemyBlockerStepTest.cpp`, 이전 통로 픽스처 재사용: Nav |x|≤200, 적 x=520·플레이어 x=−520): 열린 띠는 기존 투영 NoNode(재현 조건) → anchor 발견·Reachable 회복·실제 걸어서 Nav 시작점 회복·마지막 접근 통과·플레이어 anchor, 벽(Blocker 높이300) 사이는 anchor·마지막 접근 모두 실패, 600cm 밖은 없음. 스텁(항상 실패) 상태에서 anchor·마지막 접근·플레이어 anchor 단언이 실패함을 먼저 확인했다(`WalkAnchor_Red.log`, 그때 플레이어 x=−480은 통로와 280cm라 재현 조건이 안 맞아 −520으로 고쳤다).
+- 검증: Editor·Game 빌드 Success. `EnemyMovement` 7/7(`WalkAnchor_Green.log`). 전체 `LootNPop.SurfaceNavigation` **138/138 Success**(`SurfaceNavFull.log`), 경고는 기존 HTTP timeout·B-option 안내뿐. 회귀가 재저장한 테스트 에셋3개는 git으로 원복했다.
+- 미검증: 수정본 Ridge WIP PIE, Production gate 비용(보행 검증의 접지 계측 포함분), 리슨2P. 보행 검증 걸음도 `EnemyGround` steps·cache 계측에 더해진다(드문 NoNode 개체만, 0.5초 간격).
+
+### 수정본 PIE — 보행 anchor WIP 수동 검증
+
+- TestMap03·1인·밀도1·캐시1, 검사용 풀을 메모리에서만 선택. 이번 배치의 Ridge WIP는 slot2 한 곳, 8 validated slots·264 bindings·seam 차단0(`Unit2/RuntimeInit_Run2.log`).
+- 사용자 확인: 여러 번 시도했지만 벽 근처 근접 적 정지가 **재현되지 않았다**. 군집 겹침 악화·바위 관통 유지도 발견하지 못했다. 로그에 ensure·assert 없음(`Unit2/Run2_PIE.log`).
+- 재현 빈도가 원래 낮았으므로(수정 전에도 여러 번 시도에 1회) 이 PIE는 재발 없음의 표본이지 부재의 증명은 아니다. 고정 회귀는 `WalkAnchorRecovery`가 소유한다.
+- 종료: PIE 종료 확인 → 원래 `/Game/Maps/OctantPoolData` getter 복원, 보호 해시6개 불변·Content/Config 변경0(`Unit2/SelectionState_Run2.json=restored`).
+- 단위2 완료. 남은 1단계 마감은 Production gate(새 패키지 쿡, 쿡 전 사용자 허가)와 리슨2P다.

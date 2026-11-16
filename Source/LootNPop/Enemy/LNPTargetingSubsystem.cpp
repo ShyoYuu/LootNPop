@@ -67,10 +67,21 @@ void ULNPTargetingSubsystem::RebalanceSlots(FMassEntityManager& EntityManager, c
 		Query.StartPosition = Center + Center.GetSafeNormal() * Shared->Config->CapsuleHalfHeight;
 		Query.StartSurface = &Enemy->SurfaceHandle;
 		// D-062는 원래 지면점 주위에서 짝을 고른다. 이미 스냅한 node를 다시 목표로 쓰지 않는다.
-		Query.GoalPosition = Player->GroundPoint;
+		// 투영 반경 밖 플레이어는 보행 anchor 지면점이 목표다(D-085).
+		Query.GoalPosition = Player->GetNavQueryPoint();
 		Query.GoalSurface = &Player->Surface;
 		Query.ApproachRadius = 0.0;
-		const FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(*Nav, Query);
+		FLNPNavEndpoints Ends = LNPNavGraph::ResolveEndpoints(*Nav, Query);
+		if (Ends.Status == ELNPNavEndpointStatus::NoNode && Ends.StartNode == INDEX_NONE)
+		{
+			// 투영 반경 밖 적은 경로 프로세서가 검증한 보행 anchor에서 본다. 걸어서 돌아갈 수 있는 적이 슬롯을 잃지 않는다(D-085).
+			const FLNPEnemyPathFragment* Path = EntityManager.GetFragmentDataPtr<FLNPEnemyPathFragment>(Entry.EnemyHandle);
+			if (Path && Path->WalkAnchorNode != INDEX_NONE && Path->WalkAnchorGeneration == Nav->SnapshotGeneration)
+			{
+				Query.StartPosition = Nav->Graph.GetWorldPoint(Nav->Graph.GetSlot(Path->WalkAnchorNode), Path->WalkAnchorNode);
+				Ends = LNPNavGraph::ResolveEndpoints(*Nav, Query);
+			}
+		}
 		// 다른 후보 검사가 현재 슬롯의 유예 상태를 덮지 않게 한다.
 		FLNPEnemySlotReachability State = Target->SlotReachability;
 		const bool bAllowed = LNPEnemyNavigation::UpdateMeleeSlot(*Nav, Ends.Status, Entry.PlayerHandle,
