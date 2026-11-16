@@ -1,12 +1,12 @@
-"""1-B5a 대표 구역 PCG 소수 배치와 1-B5b 바위 Blocker 승격의 규칙 에셋·PCG 그래프·WIP 변경을 만든다.
+"""1-B5a 대표 구역 PCG 소수 배치, 1-B5b 바위 Blocker 승격, 1-B5d 규칙 확장(GX-015)의 규칙 에셋·PCG 그래프·WIP 변경을 만든다.
 
 콘솔: py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/BuildRidgeDecorationPCG.py" <모드>
   blocker-mesh: Sandstone 파생 메시를 만들고 기존 단순 컨벡스를 충돌로 쓰게 한다(원본은 ComplexAsSimple).
   rules: Ridge spec에서 구역·보호 형상을 다시 계산해 규칙 에셋을 만들거나 덮어쓴다(파생 데이터).
-  graph: PCG 그래프(V002, Blocker/Decoration Spawner 분리)가 없을 때만 만든다.
+  graph: PCG 그래프(V004, 바위·키 큰 식생·지피별 겹침 정리, 키 큰 식생 > 바위 > 지피, Spawner 분리)가 없을 때만 만든다.
   place: 기존 WIP에 PCG 액터 1개를 만들고 생성한다.
   promote: 수동 바위5개를 Decoration에서 Static+Blocker로 바꾼다.
-  regenerate: 기존 PCG 액터를 V002 그래프로 바꿔 다시 생성한다.
+  regenerate: 기존 PCG 액터를 현재 그래프(V004)로 바꿔 다시 생성한다.
 맵 저장은 사용자 확인 뒤 따로 한다. 원본 메시/재질·정식 Ridge는 수정하지 않는다. 결과는 Saved 아래 JSON으로 남긴다.
 새 체크아웃: blocker-mesh → rules → graph → place → promote → 확인 뒤 WIP 저장.
 """
@@ -28,9 +28,10 @@ from BuildRidgeSurfaceProbe import ZONE
 LEVEL = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/LVI_Ridge_SurfaceProbe"
 FOLDER = "/Game/Graphics/Environment/ElectricDreams/RidgeDecoration_V001"
 RULES = FOLDER + "/DA_RidgeDecorationRules"
-# V001(단일 Decoration Spawner)은 1-B5a 복구용으로 디스크에 남기고 쓰지 않는다.
-GRAPH = FOLDER + "/PCG_RidgeDecoration_V002"
-OUT = ROOT / "Saved/Profiling/Graphics/Phase01/RidgeRockBlocker_20261116"
+# V001(단일 Decoration Spawner)은 1-B5a, V002(한 번에 겹침 정리)는 1-B5b, V003(바위 > 식생)은 1-B5d 첫 생성의
+# 복구용으로 디스크에 남기고 쓰지 않는다.
+GRAPH = FOLDER + "/PCG_RidgeDecoration_V004"
+OUT = ROOT / "Saved/Profiling/Graphics/Phase01/RidgeDecorationExpand_20261116"
 ACTOR_LABEL = "GraphicsDecorationPCG_V001"
 CRUST_NAME = "SM_Octant_Ridge_00_V011_R30000"
 SEED = 51001
@@ -62,22 +63,26 @@ HOOK_LINE_RADIUS = 100  # 출발 검토점(지면+170)→앵커 직선의 조준
 CAMERA_RADIUS = 150     # 벤치마크 카메라 경로·검토 시점: 근거리 장식이 화면을 덮지 않게 한다.
 ZONE_INSET = 100        # 임시 시험 재질 경계(이진 마스크) 안에 메시 전체를 둔다.
 EXISTING_CLEARANCE = 30  # 수동 장식12개와 관통하지 않게 하는 최소 간격.
-BLOCKER_PADDING = 50    # 막는 바위는 2D 보호 형상에서 Margin+50 → 동선·문 반폭+100cm(캡슐 지름84cm를 올림).
+# GX-015 역할별 2D 여유(Margin 기준, 음수면 Margin 안까지): 지피는 동선 형상 안까지(형상의 지피 허용),
+# 충돌 없는 Fern은 동선 반폭 가장자리까지(-50), 바위는 반폭+50(캡슐 여유만, 0).
+FERN_PADDING = -CAPSULE_MARGIN
+BLOCKER_PADDING = 0
 
 # 역할: 1-B4에서 근경 통과한 메시만. 절벽 부분 보강은 수동 배치 역할이라 PCG에 넣지 않는다.
-# 간격·확률은 작은 배치를 위한 값이고 밀도 승인이 아니다(첫 시드 결과 Clover6·나머지0으로 판정 표본이 부족해 시도 수만 늘렸다).
-# 스케일·매몰은 소수 시험 값 주변이다. 보호 규칙은 완화하지 않았다.
+# 1-B5d 간격은 1-B5a 값(800/900/1000/1000)에 지피 ×0.35·나머지 ×0.5를 곱했다. 1-B5c 사용자 판정(훨씬 더 풍성하게)의 시험값이다.
+# 지피와 Fern은 경사 0~40°로 넓혔다(1-B5d 판정: 바위 20~30%를 Fern으로. Fern은 바닥 범위가 커서 간격을 좁혀도 늘지 않았다).
+# 스케일·매몰은 소수 시험 값 주변이다.
 ROLES = [
-    dict(id="Clover", mesh="/Game/Megascans/3D_Plants/CloverVarieties/SM_CloverVarieties_01", spacing=800, probability=1.0,
-         scale=(0.85, 1.1), slope=(0, 30), sink=0.7, wind=0, max_float=8, max_sink=15, ground_cover=True),
-    dict(id="Sandstone", mesh=SANDSTONE_BLOCKER, spacing=900,
-         probability=1.0, scale=(0.9, 1.1), slope=(0, 30), sink=2.0, wind=0, max_float=10, max_sink=25, blocker=True),
+    dict(id="Clover", mesh="/Game/Megascans/3D_Plants/CloverVarieties/SM_CloverVarieties_01", spacing=280, probability=1.0,
+         scale=(0.85, 1.1), slope=(0, 40), sink=0.7, wind=0, max_float=8, max_sink=15, ground_cover=True, padding=0),
+    dict(id="Sandstone", mesh=SANDSTONE_BLOCKER, spacing=450, probability=1.0, scale=(0.9, 1.1), slope=(0, 30), sink=2.0,
+         wind=0, max_float=10, max_sink=25, blocker=True, padding=BLOCKER_PADDING),
     dict(id="Moss", mesh="/Game/Megascans/3D_Assets/MossyForestBoulder/SM_MossyForestBoulder_06",
-         material="/Game/Megascans/3D_Assets/MossyForestBoulder/MI_MossyForestBoulder_09", spacing=1000, probability=1.0,
-         scale=(0.7, 0.9), slope=(0, 30), sink=3.0, wind=0, max_float=25, max_sink=30, blocker=True),
+         material="/Game/Megascans/3D_Assets/MossyForestBoulder/MI_MossyForestBoulder_09", spacing=500, probability=1.0,
+         scale=(0.7, 0.9), slope=(0, 30), sink=3.0, wind=0, max_float=25, max_sink=30, blocker=True, padding=BLOCKER_PADDING),
     dict(id="Fern", mesh="/Game/Megascans/3D_Plants/Fern/SM_Fern_01",
-         material="/Game/Graphics/Environment/ElectricDreams/RidgeFernWind_V001/MI_Ridge_Fern", spacing=1000, probability=1.0,
-         scale=(0.9, 1.1), slope=(0, 30), sink=1.5, wind=30, max_float=15, max_sink=25),
+         material="/Game/Graphics/Environment/ElectricDreams/RidgeFernWind_V001/MI_Ridge_Fern", spacing=500, probability=1.0,
+         scale=(0.9, 1.1), slope=(0, 40), sink=1.5, wind=30, max_float=15, max_sink=25, padding=FERN_PADDING),
 ]
 
 
@@ -120,16 +125,18 @@ def keep_outs():
     """spec의 동선·Pod·훅·문·암반·카메라를 보호 형상으로 바꾼다. 범위 밖 형상도 넣어 두고 C++이 판정한다."""
     k2, k3 = [], []
     for path in spec.active(spec.PATHS):
+        # GX-015: 동선 형상(Path·Route·Gate)은 지피를 안까지 허용한다. 암반 외곽은 허용하지 않는다.
         k2.append(dict(id="Path_" + path["id"], points=[(x, y, w) for x, y, _, w in spec.path_points(path)],
-                       margin=CAPSULE_MARGIN))
+                       margin=CAPSULE_MARGIN, ground_cover=True))
     for route in spec.active(spec.ROUTES):
         if route.get("layer") or route.get("deck"):
             continue
         k2.append(dict(id="Route_" + route["id"], points=[(x, y, ROUTE_HALF_WIDTH) for x, y in route["xy"]],
-                       margin=CAPSULE_MARGIN))
+                       margin=CAPSULE_MARGIN, ground_cover=True))
     for node in spec.active(spec.NODES):
         if "Gate" in node["id"] and not node.get("layer"):
-            k2.append(dict(id="Gate_" + node["id"], points=[(*node["xy"], GATE_HALF_WIDTH)], margin=CAPSULE_MARGIN))
+            k2.append(dict(id="Gate_" + node["id"], points=[(*node["xy"], GATE_HALF_WIDTH)], margin=CAPSULE_MARGIN,
+                           ground_cover=True))
     for rock in spec.active(spec.ROCKS):
         if rock.get("cut") is False:
             continue  # 석교·부유섬·섬 위 엄폐는 지면을 자르지 않는 공중 몸체다. 그 아래 지면은 실제 overlap 검사가 맡는다.
@@ -166,7 +173,8 @@ def keep_outs():
 
 
 def build_rules():
-    require_wip_clean(allowed=(RULES,))
+    # 규칙 에셋만 저장하고 맵은 저장하지 않으므로, 직전 재생성으로 dirty인 WIP는 허용한다.
+    require_wip_clean(allowed=(RULES, LEVEL))
     tools = unreal.AssetToolsHelpers.get_asset_tools()
     rules = unreal.load_asset(RULES)
     if rules is None:
@@ -180,6 +188,7 @@ def build_rules():
         shape.set_editor_property("points", [unreal.Vector(float(x), float(y), float(w)) for x, y, w in s["points"]])
         shape.set_editor_property("closed_polygon", s.get("closed", False))
         shape.set_editor_property("margin", float(s["margin"]))
+        shape.set_editor_property("allow_ground_cover", s.get("ground_cover", False))
         shapes2.append(shape)
     shapes3 = []
     for s in k3:
@@ -208,6 +217,10 @@ def build_rules():
         role.set_editor_property("ground_cover", r.get("ground_cover", False))
         role.set_editor_property("normal_alignment", 1.0)
         role.set_editor_property("terrain_blocker", r.get("blocker", False))
+        # 바위는 막으므로 음수 여유를 쓰지 않는다(GX-015).
+        assert not (r.get("blocker") and r["padding"] < 0), r["id"]
+        role.set_editor_property("keep_out2d_padding", float(r["padding"]))
+        assert abs(role.get_editor_property("keep_out2d_padding") - r["padding"]) < 1e-3
         roles.append(role)
     rules.set_editor_property("crust_mesh", unreal.load_asset(crust_mesh_path()))
     rules.set_editor_property("octant_radius", float(spec.RADIUS))
@@ -215,8 +228,6 @@ def build_rules():
     rules.set_editor_property("zone_inset", float(ZONE_INSET))
     rules.set_editor_property("seam_clearance", float(spec.SEAM_MARGIN + spec.SEAM_BAND))
     rules.set_editor_property("existing_decoration_clearance", float(EXISTING_CLEARANCE))
-    rules.set_editor_property("blocker_keep_out2d_padding", float(BLOCKER_PADDING))
-    assert abs(rules.get_editor_property("blocker_keep_out2d_padding") - BLOCKER_PADDING) < 1e-3
     rules.set_editor_property("open_sky_height", 2000.0)
     rules.set_editor_property("keep_out2d", shapes2)
     rules.set_editor_property("keep_out3d", shapes3)
@@ -227,7 +238,8 @@ def build_rules():
                                         "route_half_width": ROUTE_HALF_WIDTH, "gate_half_width": GATE_HALF_WIDTH,
                                         "landing_radius": LANDING_RADIUS, "hook_line_radius": HOOK_LINE_RADIUS,
                                         "camera_radius": CAMERA_RADIUS, "zone_inset": ZONE_INSET,
-                                        "existing_clearance": EXISTING_CLEARANCE, "blocker_padding": BLOCKER_PADDING}})
+                                        "existing_clearance": EXISTING_CLEARANCE, "fern_padding": FERN_PADDING,
+                                        "blocker_padding": BLOCKER_PADDING}})
     unreal.log("Ridge decoration rules saved: %d 2D, %d 3D keep-outs, %d roles." % (len(k2), len(k3), len(ROLES)))
 
 
@@ -245,33 +257,62 @@ def build_graph():
     assert graph
     sampler_node, sampler = graph.add_node_of_type(unreal.LNPDecorationSamplerSettings)
     sampler.set_editor_property("rules", rules)
+    blocker_filter_node = add_attribute_filter(graph, "TerrainBlocker")
+    cover_filter_node = add_attribute_filter(graph, "GroundCover")
+    # 겹침 정리는 계약·등급별로 따로 한다(V002처럼 한 번에 하면 바닥 면적이 큰 지피가 바위를 지웠다, 1-B5c).
     # 기본값 LargeToSmall·시드 기반 무작위 동률 처리를 그대로 쓴다. 점 범위에는 WPO 여유가 들어 있다.
-    # 바위와 식생이 서로 겹치지 않도록 계약을 나누기 전에 한 번에 지운다.
-    prune_node, _ = graph.add_node_of_type(unreal.PCGSelfPruningSettings)
-    # TerrainBlocker > 0(기본 상수 Double 0) → InsideFilter가 Blocker, OutsideFilter가 Decoration이다.
-    filter_node, filtering = graph.add_node_of_type(unreal.PCGAttributeFilteringSettings)
+    prune_blocker_node, _ = graph.add_node_of_type(unreal.PCGSelfPruningSettings)
+    prune_tall_node, _ = graph.add_node_of_type(unreal.PCGSelfPruningSettings)
+    prune_cover_node, _ = graph.add_node_of_type(unreal.PCGSelfPruningSettings)
+    # 우선순위: 키 큰 식생(Fern) > 바위 > 지피. V003은 바위가 Fern을 지워 Fern 7→1이었다(1-B5d 사용자: 바위 20~30%를 Fern으로).
+    rock_difference_node = add_difference(graph)
+    cover_difference_node = add_difference(graph)
+    blocker_node = add_spawner(graph, BLOCKER_TAGS, BLOCKER_PROFILE)
+    decoration_node = add_spawner(graph, [DECORATION_TAG], DECORATION_PROFILE)
+    graph.add_edge(sampler_node, "Out", blocker_filter_node, "In")
+    graph.add_edge(blocker_filter_node, "InsideFilter", prune_blocker_node, "In")
+    graph.add_edge(blocker_filter_node, "OutsideFilter", cover_filter_node, "In")
+    graph.add_edge(cover_filter_node, "InsideFilter", prune_cover_node, "In")
+    graph.add_edge(cover_filter_node, "OutsideFilter", prune_tall_node, "In")
+    graph.add_edge(prune_blocker_node, "Out", rock_difference_node, "Source")
+    graph.add_edge(prune_tall_node, "Out", rock_difference_node, "Differences")
+    graph.add_edge(rock_difference_node, "Out", blocker_node, "In")
+    graph.add_edge(prune_cover_node, "Out", cover_difference_node, "Source")
+    graph.add_edge(rock_difference_node, "Out", cover_difference_node, "Differences")
+    graph.add_edge(cover_difference_node, "Out", decoration_node, "In")
+    graph.add_edge(prune_tall_node, "Out", decoration_node, "In")
+    graph.add_edge(blocker_node, "Out", graph.get_output_node(), "Out")
+    graph.add_edge(decoration_node, "Out", graph.get_output_node(), "Out")
+    layout = [(sampler_node, 0, 0), (blocker_filter_node, 300, 0), (cover_filter_node, 600, 150),
+              (prune_blocker_node, 600, -150), (prune_cover_node, 900, 300), (prune_tall_node, 900, 100),
+              (rock_difference_node, 1200, -150), (cover_difference_node, 1500, 300),
+              (blocker_node, 1800, -150), (decoration_node, 1800, 200)]
+    for node, x, y in layout:
+        node.set_node_position(x, y)
+    assert unreal.EditorAssetLibrary.save_loaded_asset(graph, False)
+    unreal.log("Ridge decoration PCG graph %s saved." % GRAPH)
+
+
+def add_attribute_filter(graph, attribute):
+    """attribute > 0(기본 상수 Double 0)이면 InsideFilter, 아니면 OutsideFilter로 보낸다(샘플러가 0/1로 남긴다)."""
+    node, filtering = graph.add_node_of_type(unreal.PCGAttributeFilteringSettings)
     filtering.set_editor_property("operator", unreal.PCGAttributeFilterOperator.GREATER)
     filtering.set_editor_property("use_constant_threshold", True)
     # Python에서 set_attribute_name은 ref 인자를 바꾸지 않는다(UE5.8 실측). 엔진 export 형식으로 import한다.
     target = filtering.get_editor_property("target_attribute")
-    target.import_text("PCGBegin(TerrainBlocker)PCGEnd")
+    target.import_text("PCGBegin(%s)PCGEnd" % attribute)
     filtering.set_editor_property("target_attribute", target)
     name = filtering.get_editor_property("target_attribute").get_name()
-    assert str(name) == "TerrainBlocker", "Filter target attribute was not set: %s" % name
-    blocker_node = add_spawner(graph, BLOCKER_TAGS, BLOCKER_PROFILE)
-    decoration_node = add_spawner(graph, [DECORATION_TAG], DECORATION_PROFILE)
-    graph.add_edge(sampler_node, "Out", prune_node, "In")
-    graph.add_edge(prune_node, "Out", filter_node, "In")
-    graph.add_edge(filter_node, "InsideFilter", blocker_node, "In")
-    graph.add_edge(filter_node, "OutsideFilter", decoration_node, "In")
-    graph.add_edge(blocker_node, "Out", graph.get_output_node(), "Out")
-    graph.add_edge(decoration_node, "Out", graph.get_output_node(), "Out")
-    for i, node in enumerate((sampler_node, prune_node, filter_node)):
-        node.set_node_position(300 * i, 0)
-    blocker_node.set_node_position(900, -150)
-    decoration_node.set_node_position(900, 150)
-    assert unreal.EditorAssetLibrary.save_loaded_asset(graph, False)
-    unreal.log("Ridge decoration PCG graph V002 saved.")
+    assert str(name) == attribute, "Filter target attribute was not set: %s" % name
+    return node
+
+
+def add_difference(graph):
+    """Source에서 Differences 점 범위와 조금이라도 겹치는 점을 뺀다(Binary: 밀도0, Discrete: 점으로 내보내며 밀도0 제거)."""
+    node, difference = graph.add_node_of_type(unreal.PCGDifferenceSettings)
+    difference.set_editor_property("density_function", unreal.PCGDifferenceDensityFunction.BINARY)
+    difference.set_editor_property("mode", unreal.PCGDifferenceMode.DISCRETE)
+    return node
 
 
 def add_spawner(graph, tags, profile):
@@ -306,7 +347,7 @@ def body_for_profile(profile):
 
 
 def repair_graph_bodies():
-    """이미 저장된 V002 그래프의 Spawner BodyInstance를 body_for_profile로 다시 채운다(메시·속성 선택은 그대로)."""
+    """이미 저장된 그래프(GRAPH)의 Spawner BodyInstance를 body_for_profile로 다시 채운다(메시·속성 선택은 그대로)."""
     graph = unreal.load_asset(GRAPH)
     assert graph, "Build the graph first."
     fixed = []
@@ -324,7 +365,7 @@ def repair_graph_bodies():
         fixed.append(profile)
     assert sorted(fixed) == sorted([BLOCKER_PROFILE, DECORATION_PROFILE]), fixed
     assert unreal.EditorAssetLibrary.save_loaded_asset(graph, False)
-    unreal.log("Ridge decoration PCG graph V002 spawner bodies repaired: %s" % fixed)
+    unreal.log("Ridge decoration PCG graph spawner bodies repaired: %s" % fixed)
 
 
 def place():
@@ -456,7 +497,7 @@ def regenerate():
     assert component.get_editor_property("seed") == SEED
     component.set_graph(graph)
     component.generate(True)
-    unreal.log("Ridge decoration PCG regeneration with V002 requested; inspect, then save the WIP after review.")
+    unreal.log("Ridge decoration PCG regeneration with %s requested; inspect, then save the WIP after review." % GRAPH)
 
 
 if __name__ == "__main__":

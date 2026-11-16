@@ -21,7 +21,8 @@
 | GX-011 | Niagara 구면 중력은 `PointAttractionForce`로 만들지 않는다(감쇠 끔 = 거리 비례 스프링, 원거리 비표시의 원인). 월드 스페이스 이미터의 `GravityForce`(World)에 `normalize(Particles.Position) * 980.0`을 쓴다. 월드 스페이스 자체는 24,000cm에서 써도 된다 | 확정(2026-11-10, 단위 N 측정) | [단위 N 로그](history/UnitN_Log.md) |
 | GX-012 | GX-002의 내부 해상도·업스케일러 운영 조건. 측정 기준은 네이티브 렌더 해상도 100%·TSR(에픽)이며 모든 Phase의 전후 비교를 이 조건으로 한다. 예산을 못 맞추면 위에서부터 쓴다: (1) 렌더 해상도를 유지하는 후보(TSR 히스토리·Lumen 설정, Phase 1 콘텐츠 뒤 화질과 함께 판정) → (2) 렌더 해상도 77% → (3) 67%. 업스케일러는 TSR만 쓰고, 외부 업스케일러 도입은 새 결정으로 다룬다 | 확정(2026-11-10, 사용자, O-2 측정) | [단위 O-2 로그](history/UnitO2_Log.md) |
 | GX-013 | Phase 1의 벤치마크 옥탄트(GX-004의 1개)는 기존 Ridge이고 환경 원본은 Electric Dreams다. 원본 팩에 맞춘 새 옥탄트는 Phase 1에서 만들지 않는다. 1차 장식은 보행 충돌을 바꾸지 않는다 | 확정(2026-11-13, 사용자) / "보행 충돌을 바꾸지 않는다"는 바위 역할에 한해 일부 대체됨(GX-014) | [후보 비교](analysis/Phase01_ContentCandidates.md) §5 |
-| GX-014 | Phase 1 바위 장식(Moss·Sandstone·Cliff)은 Static+Blocker 지형 계약(`LNPStaticBlocker`)으로 승격하고 재베이크한다. 풀·지피·Fern은 Decoration/NoCollision을 유지한다. Support 승격은 하지 않는다(ISM Support는 SSN D-058로 막힘). 승격 바위는 2D 동선·문·암반 보호 형상에서 Decoration보다 50cm 더(동선 반폭+100cm) 떨어뜨린다. SSN Phase 15와는 독립으로 진행하고 재측정 필요 여부는 정식 Ridge 적용 때 정한다 | 확정(2026-11-16, 사용자) | [실행서](phases/Phase01_EnvironmentImport.md) §24 |
+| GX-014 | Phase 1 바위 장식(Moss·Sandstone·Cliff)은 Static+Blocker 지형 계약(`LNPStaticBlocker`)으로 승격하고 재베이크한다. 풀·지피·Fern은 Decoration/NoCollision을 유지한다. Support 승격은 하지 않는다(ISM Support는 SSN D-058로 막힘). 승격 바위는 2D 동선·문·암반 보호 형상에서 Decoration보다 50cm 더(동선 반폭+100cm) 떨어뜨린다. SSN Phase 15와는 독립으로 진행하고 재측정 필요 여부는 정식 Ridge 적용 때 정한다 | 확정(2026-11-16, 사용자) / 2D 동선 추가 여유(+50cm)는 GX-015로 대체됨 | [실행서](phases/Phase01_EnvironmentImport.md) §24 |
+| GX-015 | Phase 1 장식의 2D 동선 여유는 역할 등급별로 둔다. 지피는 동선(Path·Route·Gate) 형상 안까지, 충돌 없는 Fern은 동선 반폭 가장자리까지(여유 −50cm), 바위(Static+Blocker)는 반폭+50cm(캡슐 여유만)까지 허용한다. 3D 보호(착지부·훅·카메라·Pod)는 그대로다 | 확정(2026-11-16, 사용자) | [실행서](phases/Phase01_EnvironmentImport.md) §25~26 |
 
 ## 변경 규칙
 

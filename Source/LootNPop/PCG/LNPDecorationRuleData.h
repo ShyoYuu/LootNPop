@@ -116,10 +116,18 @@ struct FLNPDecorationRole
 
 	/**
 	 * true면 Decoration이 아니라 Static+Blocker 지형 계약으로 생성한다(그래프가 TerrainBlocker 속성으로 Spawner를 나눈다).
-	 * 발·탄환·카메라·적 이동을 막으므로 2D 보호 형상에서 BlockerKeepOut2DPadding만큼 더 떨어뜨린다.
+	 * 발·탄환·카메라·적 이동을 막으므로 KeepOut2DPadding을 음수로 두지 않는다.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration")
 	bool bTerrainBlocker = false;
+
+	/**
+	 * 2D 보호 형상(동선·문·암반)의 Margin 바깥으로 더 떨어져야 하는 거리(cm). 음수면 Margin 안까지 들어올 수 있다.
+	 * 절댓값이 Margin을 넘지 않으면 형상 몸체(반폭·원·다각형) 안은 계속 거부된다(겹침 거리 -1cm).
+	 * 몸체 안까지 허용하려면 음수 대신 형상의 bAllowGroundCover와 지피 역할을 쓴다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration")
+	float KeepOut2DPadding = 0.f;
 };
 
 /**
@@ -154,10 +162,6 @@ public:
 	/** 이미 배치된 수동 장식(비 PCG)의 범위에서 떨어져야 하는 거리(cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration", meta = (ClampMin = "0.0"))
 	float ExistingDecorationClearance = 0.f;
-
-	/** 막는 역할(bTerrainBlocker)이 2D 보호 형상(동선·문·암반)의 Margin 바깥으로 더 떨어져야 하는 거리(cm). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration", meta = (ClampMin = "0.0"))
-	float BlockerKeepOut2DPadding = 0.f;
 
 	/** 바로 위에 덮개(암반·지각 돌출)가 없어야 하는 높이(cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration", meta = (ClampMin = "0.0"))

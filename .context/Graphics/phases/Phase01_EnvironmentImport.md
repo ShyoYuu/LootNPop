@@ -1,6 +1,6 @@
 # Phase 1-B — 환경 반입과 작은 시험
 
-> 상태: 1-B5a 대표 구역 PCG 소수 배치 마감 · 1-B5b 바위 Blocker 승격·재베이크·1인 PIE 마감(지상 적 발 관통은 SSN 인계)
+> 상태: 1-B5c 밀도 확인 마감 · 1-B5d 규칙 확장 마감(245개·재베이크·1인 PIE, 바위 우회 다듬기는 SSN 후보) · 다음 1-B5e 같은 계열 변형
 > 작성: 2026-11-14
 > 마지막 갱신: 2026-11-16
 > 상위: [Phase 1 실행서](Phase01_BenchmarkContent.md)
@@ -18,6 +18,9 @@
 | 1-B4 메시 소수 시험 | 6종을 하나씩 배치해 채택 여부 판단 | 접지/노출/카메라/벽보행·발/착지·바람/시야 확인, 실패 역할 축소/제외 |
 | 1-B5 대표 구역 PCG | 시험을 통과한 역할만 고정 시드로 배치 | 전체 bounds 보호 마스크·동선·SurfaceData 현재성·런타임 로드 검증 |
 | 1-B5b 바위 충돌 승격 | 바위 역할만 Static+Blocker 지형 계약으로 승격(§24, GX-014) | 별도 GX 결정·SurfaceData 재베이크·발/탄환/적 이동/카메라 일치·동선 재측정 영향 확인 |
+| 1-B5c 밀도 확인 | 간격 배율을 메모리에서만 바꿔 생성·캡처하고 밀도 방향을 정함(§25) | 원래 값 복원·검사 대조, 사용자 방향 결정 |
+| 1-B5d 규칙 확장 | 동선 등급별 완화·구석 밀도·겹침 정리 분리(§26, GX-015) | 사용자 밀도 판정·재베이크·1인 PIE 접촉/Nav/`blocker_rejects` |
+| 1-B5e 같은 계열 변형 | Sandstone·Moss·Clover·Fern 변형 반입과 근경 시험(§26) | 반입 대조·근경 판정·역할 추가 뒤 밀도 재판정 |
 | 1-B6 전체 확장 | 승인한 대표 구역 규칙을 Ridge로 확장 | 적도·이음매·다른 slot·전투/훅 동선 및 패키지 검증 |
 
 1-B3·4는 결과를 보고 더 작은 구현 단위로 나눈다. 성능 판정은 패키지에서만 한다. 파라곤 선정은 1-C다.
@@ -686,3 +689,71 @@ V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. �
 - 미검증: 2인 호스트/게스트, 적 시야·사격 엄폐 대칭, 다른 slot의 바위 접촉, 극점/적도, 패키지 GPU·물리 비용.
 
 근거는 `Saved/Profiling/Graphics/Phase01/RidgeRockBlocker_20261116/`의 `Preflight.json`·`BlockerMesh.json`·`Rules.json`·`Promotion.json`·`BeforeBlocker.umap`·`Inspection_V002.json`·`CliffCollisionFit.py/.json`·`SaveWip.json`·`BeforeRebake_SurfaceData.uasset`·`HashesBeforeRebake.txt`·`Rebake.json`·`SelectionState.json=restored`·`PieVerdict.json`이다. 원본/파생 메시·그래프·WIP·SurfaceData는 Git 제외다.
+
+## 25. 1-B5c 대표 구역 밀도 확인(2026-11-16, 마감)
+
+사용자가 밀도·원거리 확인을 골랐다. 기존 빌더는 실행하지 않고, 새 `Scripts/Profiling/Graphics/ExploreRidgeDecorationDensity.py`(state·preflight·variant·inspect·restore·hashes)로 규칙 에셋의 역할 간격과 PCG 시드를 **메모리에서만** 바꿔 다시 생성했다. 원래 값은 `Preflight.json`에서만 읽는다. 저장은 하지 않았다.
+
+| 간격 배율(시드51001) | Clover / Sandstone / Moss / Fern | 합계 | 정리 전 통과 |
+|:---|:---|---:|:---|
+| ×1.0 (800/900/1000/1000) | 15 / 1 / 2 / 1 | 19 | 1-B5b 검사와 위치까지 같음 |
+| ×0.7 | 16 / 3 / 2 / 2 | 23 | 22 / 6 / 6 / 3 |
+| ×0.5 | 34 / 5 / 2 / 4 | 45 | 51 / 13 / 12 / 7 |
+
+- 거부 사유는 경사(0~30°)·2D 동선 보호·지각 없음이 대부분이다. 간격을 좁혀도 구석에만 늘어난다.
+- **Moss는 어느 간격에서도 2개다.** ×0.5에서 12개가 통과했지만 Self Pruning(LargeToSmall, 모든 역할을 한 번에) 뒤 2개만 남았다. 바닥 면적이 더 큰 Clover가 이끼 바위를 지우는 것으로 추정한다(미검증).
+- **A/B/C 구도는 장식 밀도 판정에 맞지 않는다.** 화면 대부분이 절벽·암반 몸체이고 장식은 1m 안팎이라 ×0.5에서도 기준 대비 바뀐 픽셀이 A0.3%·B1.5%·C0.7%다. 원거리 반복이 장식으로 가려지는 효과도 이 구도에서는 거의 없다. 근경(Close)에서도 ×0.7과 ×0.5 차이는 작았다. 픽셀 변화율에는 노출·시간 누적 차이가 섞인다. 캡처는 에디터 FOV90·시험 점광원이다(벤치마크 렌즈 FOV80·게임 조명 아님).
+- **사용자 판정(에디터 직접 확인):** 훨씬 더 풍성해야 한다. 동선을 너무 피해 구석에만 놓인다. 동선 근처에도 어느 정도 있어야 하고, 구석도 더 풍성해야 한다. 종류도 너무 제한적이다.
+- 사용자 결정: 동선 **등급별 완화**(GX-015), 구석 밀도는 **간격+겹침 정리 분리+지피 경사 확대**, 종류는 **같은 계열 변형 먼저**(이후 사암 톤에 맞는 새 계열). 시드 비교는 규칙이 바뀌므로 하지 않았다.
+- 원본 ElectricDreamsEnv는 `3D_Assets` 약57계열·`3D_Plants` 약41계열이고 계열마다 변형이 여럿이다. 반입한 메시는 6개(하상 제외로 5개, PCG 4개)이고 각 계열에서 _01 또는 _06 하나만 쓴다. `AlexandraPalm`·`CustomMoss`·`HugeNordicCoastalCliff` 폴더는 재질 의존성으로 온 텍스처뿐이다.
+- 복원: 원래 간격·시드로 다시 생성한 결과가 `Inspection_V002`와 인스턴스·계약·수동 바위 모두 같고, 보호 파일 6개(WIP·SurfaceData·규칙·그래프·정식 풀·DefaultGame.ini) 해시가 사전 점검과 같다. **규칙 에셋과 WIP는 원래와 같은 내용으로 메모리에 dirty가 남아 있다.** 저장하지 말고 에디터를 닫을 때 "저장 안 함"으로 버린다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationDensity_20261116/`의 `State_start.json`·`Preflight.json`·`ViewPoses.json`·`Variant_*.json`·`Inspection_*.json`·`Restore.json`·`Hashes_restored.json`·`Views/`(변형별 A/B/C/Close와 `Compare_spacing_*.png`·`Compare_spacing.json`)이다. 캡처 분리·비교는 같은 폴더의 `DecodeCapture.py`·`MakeComparison.py`다. 거부 사유는 에디터 로그 `LogLNPDecoration`이다.
+
+## 26. 1-B5d 규칙 확장(마감)·1-B5e 같은 계열 변형(착수 전)
+
+### 1-B5d 결정(GX-015, 사용자 2026-11-16)
+
+| 등급 | 2D 동선(Path·Route·Gate) | 그 밖의 2D 형상(암반·동굴 외곽) | 간격·경사 |
+|:---|:---|:---|:---|
+| 지피(Clover, 이후 낮은 풀·잔돌) | **형상 안까지 허용**(기존 `bAllowGroundCover`를 동선 형상에 켬) | 지금처럼 여유 밖 | 간격 ×0.35(280cm), 경사 0~40° |
+| Fern(충돌 없음·약1m) | 여유 −50 → **동선 반폭 가장자리까지** | 여유 −50 | 간격 ×0.5(500cm), 경사 0~30° |
+| 바위(Static+Blocker) | +50 → **0(반폭+50cm, 캡슐 여유만)** | 0 | 간격 ×0.5(450/500cm), 경사 0~30° |
+
+최종 Fern은 간격500·경사 0~40°다(아래 결과).
+
+- 3D 보호(착지부·훅·벤치마크 카메라·검토 시점·Pod 편성 구), 구역·이음매·수동 장식 간격·접촉·머리 위 개방·overlap 검사는 그대로다. Pod 안 지피 허용도 그대로다.
+- C++: 역할에 부호 있는 `KeepOut2DPadding`(cm)을 추가하고 규칙 수준 `BlockerKeepOut2DPadding`은 역할 값으로 옮긴다(제거). 음수면 2D 형상의 Margin 안까지 허용한다. 반폭 안(Clearance < −Margin)은 지피 허용 형상이 아니면 계속 거부된다.
+- 그래프: V003은 Self Pruning을 바위·식생 그룹별로 나누고 식생에서 바위 범위를 뺐다. 최종 V004는 샘플러의 `GroundCover`(0/1) 속성으로 식생을 지피·키 큰 식생으로 다시 나눠 각각 정리하고, 겹침 우선순위를 **키 큰 식생 > 바위 > 지피**로 둔다(바위에서 Fern 범위를 빼고, 지피에서 남은 바위 범위를 뺀다). V002·V003은 복구용이다.
+- 순서: **에디터 빌드 허가**(에디터를 "저장 안 함"으로 닫음) → 빌드 → 빌더 `rules`·`graph`(V003)·`regenerate` → 검사·근경/분지 캡처 → 사용자 밀도 판정 → 승인 시 WIP·규칙 저장 → TestMap03 재베이크 → 1인 PIE(접촉·DrawNav·`blocker_rejects`). 성능은 판정하지 않는다.
+- 밀도 판정 구도는 A/B/C 대신 분지 바닥을 보는 근경·중경을 새로 정한다(§25).
+
+### 1-B5d 결과·검증(2026-11-16)
+
+- 구현: 역할 `KeepOut2DPadding`(부호 있음, 규칙 수준 `BlockerKeepOut2DPadding` 제거)·샘플러 `GroundCover` 속성·빌더 GX-015 값·동선 형상 지피 허용·그래프 V003/V004. `rules` 모드는 규칙 에셋만 저장하므로 재생성으로 dirty인 WIP를 허용한다. 게임 타깃·에디터 빌드 통과(사용자 허가 두 번).
+- **규칙 에셋을 덮어썼으므로 V002/V003으로 되돌리려면 `BeforeExpand_DA_RidgeDecorationRules.uasset`도 함께 되돌린다.**
+
+| 단계(시드51001) | Clover | Sandstone | Moss | Fern | 합계 |
+|:---|---:|---:|---:|---:|---:|
+| 1-B5b | 15 | 1 | 2 | 1 | 19 |
+| V003(바위 > 식생) | 215 | 14 | 9 | 1 | 239 |
+| V004(Fern > 바위 > 지피) | 222 | 13 | 6 | 4 | 245 |
+| V004 + Fern 간격400 | 222 | 13 | 8 | 3 | 246 |
+| **V004 + Fern 경사0~40°(채택)** | **222** | **12** | **6** | **5** | **245** |
+
+- Clover의 2D 보호 거부는 168(×0.5 시험)→21로 줄었다. 남은 주 거부는 경사·지각 없음이다. V003에서 Fern이 1개였던 것은 바위 범위 제외 때문이었다.
+- 사용자 판정: 밀도감은 괜찮고, 바위의 20~30%를 Fern으로 바꿔도 좋다고 했다. Fern은 바람 여유 포함 바닥 범위가 약2.2×2.5m라 간격을 좁혀도 늘지 않았고(후보539→통과3), 경사를 넓혀 Fern 비율 22%(5/23)로 확정했다. 4종뿐이라 같은 에셋 반복이 보인다는 지적은 1-B5e에서 다룬다.
+- 저장: 툴바 "Save Current Level" 클릭은 반영되지 않아 `LevelEditorSubsystem.save_current_level()`로 저장했다(316,772B, 검토 배치와 인스턴스 일치).
+- TestMap03 재베이크: 수집기 오류0, 지각·Support(2소스/44층)·Spawn(9,373/noNav0)은 같다. Nav는 SSN schema10 베이크 대비 셀75,886→75,877·component70→71·portal424→422다.
+- 1인 PIE(검사용 풀 메모리 임시 선택, EnemyDensity1, WIP slot5/6, 8 validated slots·seam delta0): 사용자는 다른 바위들은 바위 크기만큼만 DrawNav가 끊기고, 바위 하나(slot 로컬 X2647·Y-2575 PCG Moss, 30cm 옆 수동 Moss_01) 주변만 구멍이 커서 지상 적이 평지를 크게 우회하는 것이 어색하다고 했다. 추격 자체는 정상이다. `ExplainNavGap` 400cm에서 지각 노드11개 중 탈락은 Clearance2(두 Moss)·ClearanceFloorOnly2·NonWalkable1이다. 원인은 지각 Nav 200cm 격자·반지름50cm다. **사용자 결정: 바위는 옮기지 않고 경로 다듬기를 SSN 후보로만 기록**(SSN `Current.md`).
+- `EnemyGround` 8 slot 전체 `blocker_rejects`=5,920(접지 672,508단계)이다. 이전 기준선이 없어 바위 증가 효과만 따로 보지 않는다.
+- 종료: 원래 풀 복원·재조회, `SelectionState.json=restored`, INI·정식 풀·검사용 풀·WIP·SurfaceData 해시는 PIE 전 기록과 같다. 미검증: 2인 호스트/게스트, 적 시야·사격 엄폐 대칭, 다른 slot 근경, 패키지 GPU·물리 비용.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationExpand_20261116/`의 `BeforeExpand*`·`Rules.json`·`Rules_Fern500.json`·`Inspection_V003*/V004*`·`SaveWip.json`·`SelectionState.json`·`Views/`(V003 캡처·`pie_drawnav_hole.png`)와 `Saved/Screenshots/WindowsEditor/ScreenShot00002~3.png`다.
+
+### 1-B5e 같은 계열 변형(1-B5d 뒤)
+
+- 후보: `SandstoneBoulder_02~05`, `MossyForestBoulder_01~05·07`, `CloverVarieties_02~05`, `Fern_02~06`. 재질 계열이 같아 반입·검증이 가볍다. 반입은 사용자가 8001에서 수동 Migrate한다(§3 방식). 바위 변형은 1-B5b와 같은 충돌 형상 확인(ComplexAsSimple이면 파생 메시)이 필요하다.
+- 변형마다 역할을 하나씩 두고 간격을 변형 수만큼 넓혀 총밀도를 유지한다(데이터만 변경). 근경 판정 뒤 밀도를 다시 본다.
+- **낮은 우선순위 비교(사용자 요청 2026-11-16):** Electric Dreams 원본 레벨 수준의 아주 우거진 식생을 메모리 전용 변형으로 한 번 비교한다. 변형·새 계열 반입 뒤에 한다(4종으로는 반복이 먼저 보인다). 경사·보호 규칙도 함께 완화한 별도 규칙 사본으로 만들고 저장·재베이크하지 않는다. 비용은 패키지에서만 판정한다.
+- 그다음 새 계열 후보(사암 톤): 잔돌 `SmallStonesPack`, 낙엽 `DeadLeaves`, 마른 가지 `DryBranches`·`WoodenSticksAndTwigs`, 풀 `KikuyuGrass`·`GroundCover`, 꽃 1~2종. 하상처럼 네모 외곽이 보이는 지면 조각은 근경에서 먼저 거른다. 야자·토란 같은 열대 식생은 제외한다.

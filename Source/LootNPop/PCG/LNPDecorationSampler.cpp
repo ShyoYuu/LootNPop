@@ -318,6 +318,8 @@ bool FLNPDecorationSamplerElement::ExecuteInternal(FPCGContext* Context) const
 	auto* SinkAttr = Metadata->FindOrCreateAttribute<double>(TEXT("CornerSink"), 0.0, false, true);
 	// 그래프의 속성 필터(> 0)가 이 값으로 Blocker/Decoration Spawner를 나눈다.
 	auto* BlockerAttr = Metadata->FindOrCreateAttribute<double>(TEXT("TerrainBlocker"), 0.0, false, true);
+	// 그래프가 이 값으로 지피와 키 큰 식생을 나눠 겹침 우선순위를 정한다(키 큰 식생 > 바위 > 지피).
+	auto* GroundCoverAttr = Metadata->FindOrCreateAttribute<double>(TEXT("GroundCover"), 0.0, false, true);
 	TArray<FPCGPoint>& Points = OutPointData->GetMutablePoints();
 
 	// 지각 trace는 런타임 지면 조회와 같은 단순 trace(UseComplexAsSimple 메시라 실제 삼각형을 맞힌다).
@@ -449,7 +451,7 @@ bool FLNPDecorationSamplerElement::ExecuteInternal(FPCGContext* Context) const
 						Clearance2D = FMath::Min(Clearance2D, KeepOut2DClearance(Shape, Hull));
 					}
 				}
-				if (Clearance2D < (Role.bTerrainBlocker ? double(Rules->BlockerKeepOut2DPadding) : 0.0))
+				if (Clearance2D < double(Role.KeepOut2DPadding))
 				{
 					Reject(EReject::KeepOut2D);
 					continue;
@@ -527,6 +529,7 @@ bool FLNPDecorationSamplerElement::ExecuteInternal(FPCGContext* Context) const
 				FloatAttr->SetValue(Point.MetadataEntry, MaxFloat);
 				SinkAttr->SetValue(Point.MetadataEntry, MaxSink);
 				BlockerAttr->SetValue(Point.MetadataEntry, Role.bTerrainBlocker ? 1.0 : 0.0);
+				GroundCoverAttr->SetValue(Point.MetadataEntry, Role.bGroundCover ? 1.0 : 0.0);
 				++Accepted;
 			}
 		}

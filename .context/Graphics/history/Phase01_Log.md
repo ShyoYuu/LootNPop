@@ -566,3 +566,22 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - TestMap03 재베이크는 수집기 오류0, Nav 셀 −1·payload −8B 외 수치가 같았다. PIE①(slot3, 밀도0)에서 접촉·막힘·착탄·카메라 이상 없음, PIE②(slot0, 밀도1)에서 DrawNav 3000으로 바위 주변 노드·간선 차단을 확인했다. DrawNav 1200은 기준 반지름 거르기 때문에 Ridge 분지에서 `nodes=0`이었다.
 - 벽보행 적은 바위 표면에 붙지만 지상형 적은 발이 바위를 관통한다. 측면 sweep이 `MaxStepUp`45cm 아래를 턱으로 넘기고 Support(지각)로 접지하기 때문이다. 사용자가 별도 SSN 세션에서 다룬다(권장: Support 없는 Blocker 넘기 금지 → ISM Support). 종료 뒤 원래 풀을 복원했고 INI·정식 풀·WIP·SurfaceData 해시를 확인했다.
 - 상세/재현은 환경 실행서 §24, 근거는 `Saved/Profiling/Graphics/Phase01/RidgeRockBlocker_20261116/`이다.
+
+### 1-B5c 마감 — 대표 구역 밀도 확인·동선 등급별 완화 결정(2026-11-16)
+
+- 사용자 요청은 "1-B5b 진행"이었지만 문서상 이미 마감이라 확인했고, 사용자가 밀도·원거리 확인을 골랐다. 시작 시 unreal-mcp가 연결되지 않아 사용자가 에디터와 MCP를 연결했다.
+- 새 `ExploreRidgeDecorationDensity.py`로 규칙 간격·시드를 메모리에서만 바꿨다. 기준(×1.0)은 1-B5b 검사와 인스턴스까지 같았다(19개). ×0.7 23개, ×0.5 45개. 거부는 경사·2D 동선 보호·지각 없음이 대부분이고, Moss는 Self Pruning에서 Clover에 밀려 2개에 머문다(추정).
+- A/B/C·Close를 캡처해 비교 이미지를 만들었다. A/B/C는 절벽·암반 위주라 장식이 거의 보이지 않아 밀도 판정 구도로 맞지 않았다(바뀐 픽셀 A0.3%·B1.5%·C0.7%).
+- 사용자는 에디터에서 직접 보고 훨씬 더 풍성하게, 동선 근처에도, 구석도 더, 종류도 더 늘리기를 원했다. 결정: 동선 등급별 완화(GX-015 추가, GX-014 동선 추가 여유 대체), 간격+겹침 정리 분리+지피 경사 확대, 같은 계열 변형 먼저.
+- 원래 값으로 복원해 `Inspection_V002`와 인스턴스·계약·수동 바위 일치, 보호 파일6개 해시 불변을 확인했다. 규칙·WIP는 같은 내용으로 메모리 dirty이며 저장하지 않았다.
+- 상세는 환경 실행서 §25~26, 근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationDensity_20261116/`이다.
+
+### 1-B5d 마감 — 동선 등급별 완화·밀도·Fern 우선 그래프 V004·재베이크·1인 PIE(2026-11-16)
+
+- C++: 역할 `KeepOut2DPadding`(부호 있음)으로 규칙 수준 Blocker 여유를 대체하고, 샘플러가 `GroundCover` 속성을 남긴다. 게임 타깃 컴파일 뒤 사용자 허가로 에디터 빌드를 두 번 했다(V003용·V004용).
+- 빌더: GX-015 값(지피 동선 안 허용·Fern −50·바위 0), 간격 Clover280/Sandstone450/Moss500/Fern500, Clover·Fern 경사 0~40°, 그래프 V003(바위 > 식생) → V004(Fern > 바위 > 지피). `rules`가 재생성 직후 dirty WIP를 허용하게 했다.
+- V003은 239개였으나 Fern이 바위 범위 제외로 1개였다. 사용자 요청(바위 20~30%를 Fern으로)으로 V004를 만들었고, 간격 축소는 Fern을 늘리지 못해(통과3) 경사 확대로 Fern5·바위18(22%)을 채택했다. 최종 Clover222·Sandstone12·Moss6·Fern5 = 245.
+- 툴바 저장 클릭이 반영되지 않아 Python `save_current_level`로 WIP를 저장했다. TestMap03 재베이크는 수집기 오류0, Nav 셀75,886→75,877·component70→71·portal424→422(나머지 같음).
+- 1인 PIE(EnemyDensity1, WIP slot5/6): 사용자는 대부분의 바위가 바위 크기만큼만 Nav를 끊고, 바위 하나(PCG Moss와 30cm 옆 수동 Moss_01) 주변만 구멍이 커서 적이 평지를 크게 우회하는 것이 어색하다고 했다. 추격은 정상이다. `ExplainNavGap`으로 근거를 남기고 사용자 결정에 따라 바위는 옮기지 않고 SSN `Current.md`에 경로 다듬기 후보만 기록했다.
+- 원래 풀 복원·해시 확인. 사용자 요청으로 Electric Dreams 수준 우거진 식생 비교를 낮은 우선순위로 실행서 §26에 남겼다.
+- 상세는 환경 실행서 §26, 근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationExpand_20261116/`이다.
