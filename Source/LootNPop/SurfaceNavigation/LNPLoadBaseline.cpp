@@ -759,6 +759,17 @@ void ULNPLoadBaselineSubsystem::Tick(const float DeltaTime)
 			}
 			RespawnPlayersAtRing();
 		}
+		if (World->GetNetMode() != NM_Client && LNPLoadBaseline::IsProduction()
+			&& FParse::Param(FCommandLine::Get(), TEXT("LNPLoadBaselineGroundSeat")))
+		{
+			if (!SelectGroundSeat())
+			{
+				Stage = EStage::Done;
+				FPlatformMisc::RequestExitWithStatus(false, 1, TEXT("No ground engagement seat"));
+				return;
+			}
+			RespawnPlayersAtRing();
+		}
 
 		float HostToCenter = -1.f;
 		if (const APlayerController* PC = World->GetFirstPlayerController(); PC && PC->GetPawn())
@@ -946,6 +957,79 @@ bool ULNPLoadBaselineSubsystem::SelectWanderObserver()
 	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] WanderObserver NoPerception=1 Foot=%s CandidatesGround=%d CandidatesFlight=%d PoseControl=%d"),
 		*BestFoot.ToString(), BestCounts[0], BestCounts[1], LNPLoadBaseline::IsWanderPoseControl() ? 1 : 0);
 	return BestBalanced > 0;
+}
+
+bool ULNPLoadBaselineSubsystem::SelectGroundSeat()
+{
+	// 활동 대역은 Pod 위치와 가장 가까운 플레이어의 거리로 Pod 무리 전체를 깨운다(LNPEnemyActivityProcessor).
+	// 같은 규칙으로 Pod마다 활성 거리(PureEntity 구성원의 최댓값)와 종류별 수를 모은다.
+	struct FSeatPod { FVector Home; float Active = 0.f; int32 Counts[3] = {}; };
+	TMap<FMassEntityHandle, FSeatPod> Pods;
+	auto& Manager = GetWorld()->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+	FMassEntityQuery Query(Manager.AsShared());
+	Query.AddRequirement<FLNPEnemyFragment>(EMassFragmentAccess::ReadOnly);
+	Query.AddConstSharedRequirement<FLNPEnemySharedFragment>();
+	FMassExecutionContext Context(Manager, 0.f);
+	Query.ForEachEntityChunk(Context, [&](FMassExecutionContext& Ctx)
+	{
+		const auto Fragments = Ctx.GetFragmentView<FLNPEnemyFragment>();
+		const auto& Shared = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>();
+		const int32 Kind = Ctx.DoesArchetypeHaveTag<FLNPEnemyFlyingTag>() ? 1 : Ctx.DoesArchetypeHaveTag<FLNPEnemyCrawlTag>() ? 2 : 0;
+		for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
+		{
+			if (!Shared.Config || !Manager.IsEntityValid(Fragments[I].ParentLootPod))
+				continue;
+			FSeatPod& Pod = Pods.FindOrAdd(Fragments[I].ParentLootPod);
+			Pod.Home = Fragments[I].ParentPodLocation;
+			if (Shared.Config->CombatMode == ELNPEnemyCombatMode::PureEntity)
+				Pod.Active = FMath::Max(Pod.Active, Shared.ActivityActiveDistance);
+			++Pod.Counts[Kind];
+		}
+	});
+
+	// 후보는 Pod마다 고정 8방향(Pod 중심에서 SeatRingDistance)의 지각이다. 순서가 TMap 순회 순서에 의존하지 않게 한다.
+	constexpr float SeatRingDistance = 2000.f;
+	TArray<FMassEntityHandle> PodOrder;
+	Pods.GetKeys(PodOrder);
+	PodOrder.Sort([](const FMassEntityHandle& A, const FMassEntityHandle& B) { return A.Index < B.Index; });
+	const auto& Collision = *GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+	int32 BestCounts[3] = {}, BestPods = 0, BestTotal = 0, CandidateCount = 0;
+	FVector BestFoot = FVector::ZeroVector;
+	for (const FMassEntityHandle PodHandle : PodOrder)
+	{
+		const FSeatPod& Origin = Pods.FindChecked(PodHandle);
+		if (Origin.Counts[0] == 0)
+			continue;
+		FVector T1, T2;
+		MakeTangentBasis(Origin.Home.GetSafeNormal(), T1, T2);
+		for (int32 Index = 0; Index < 8; ++Index)
+		{
+			FVector Foot;
+			if (!FindCrustNear(Collision, MakeRingDirection(Origin.Home.GetSafeNormal(), T1, T2, Index * UE_PI / 4.f,
+				SeatRingDistance, Origin.Home.Size()), Foot))
+				continue;
+			++CandidateCount;
+			int32 Counts[3] = {}, AwakePods = 0;
+			for (const auto& Pair : Pods)
+				if (FVector::DistSquared(Foot, Pair.Value.Home) < FMath::Square(Pair.Value.Active))
+				{
+					++AwakePods;
+					for (int32 Kind = 0; Kind < 3; ++Kind)
+						Counts[Kind] += Pair.Value.Counts[Kind];
+				}
+			const int32 Total = Counts[0] + Counts[1] + Counts[2];
+			if (Counts[0] > BestCounts[0] || (Counts[0] == BestCounts[0] && Total > BestTotal))
+			{
+				FMemory::Memcpy(BestCounts, Counts, sizeof(Counts));
+				BestTotal = Total; BestPods = AwakePods; BestFoot = Foot;
+			}
+		}
+	}
+	if (BestCounts[0] > 0)
+		RingCenter = BestFoot;
+	UE_LOG(LogLootNPop, Display, TEXT("[LoadBaseline] GroundSeat Foot=%s Candidates=%d Pods=%d AwakePods=%d AwakeGround=%d AwakeFlight=%d AwakeCrawl=%d"),
+		*BestFoot.ToString(), CandidateCount, Pods.Num(), BestPods, BestCounts[0], BestCounts[1], BestCounts[2]);
+	return BestCounts[0] > 0;
 }
 
 void ULNPLoadBaselineSubsystem::RespawnPlayersAtRing()

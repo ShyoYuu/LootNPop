@@ -29,6 +29,8 @@ class ULNPMassWorldCollisionSubsystem;
  *     -LNPLoadBaselineActivityDiagnostics  ObserveWander의 활동 입력·컬 안 Pod 활성 사유를 1Hz로 기록한다. 성능 합격 실행에는 사용하지 않는다.
  *     -LNPLoadBaselineWanderPoseControl  같은 서버 구간 이동을 유지하고 구간 대신 PositionYaw를 복제한다(Production 전용).
  *     -LNPLoadBaselineSpawnRadius=1500  Production의 Pod 주변 스폰 반경만 덮어쓴다(cm). 에셋은 변경하지 않는다.
+ *     -LNPLoadBaselineGroundSeat  Production에서 플레이어를 지상 적이 가장 많이 깨어나는 지각 자리로 리스폰한다.
+ *                                기본 시작 극점 주변 옥탄트에 지상 Pod가 없으면 지상 부하가 0이 되므로, 풀 구성과 무관하게 지상 교전을 싣는다.
  *     -LNPLoadBaselineChase       네 가상 지각 목표(링 중심에서 25m)를 5초마다 교체해 지상 적의 실제 경로 추종 부하를 만든다
  *     -LNPLoadBaselineIslandSlot=5  링·섬 기준 slot(기본 4). 혼합 풀에서는 그 seed 배치의 Meadow slot을 지정한다(Phase 10)
  *     -LNPLoadBaselineVolumetric  회귀 옥탄트의 공동·복층·긴 경사로 Nav node에 배치하고 공동/상층 목표를 추격한다.
@@ -141,6 +143,8 @@ private:
 	bool IsReadyToMeasure() const;
 	void RespawnPlayersAtRing();
 	bool SelectWanderObserver();
+	/** Production 지상 교전 자리(-LNPLoadBaselineGroundSeat). 활성 거리 안에 드는 지상 적이 가장 많은 지각 자리를 RingCenter로 둔다. */
+	bool SelectGroundSeat();
 	void TopUpProjectiles();
 
 	/** 서버. 합성 넉백을 주고 적 이동 이벤트·분포를 센다. bCount가 false면 상태만 갱신한다(warm-up). */

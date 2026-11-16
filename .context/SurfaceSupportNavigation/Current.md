@@ -1,7 +1,7 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase16 완료 — 1단계(D-082·D-084·D-085)·독립 후속 [원거리 사선 후보 A](phases/Phase16_GroundRangedLineOfSight.md)(D-086)·2단계 ISM Support 조사 후 구현 보류(D-058 유지). 다음 후보는 현재 풀 Production 기준선·Phase 15 재측정
+> 현재 작업: Phase16 완료 — 1단계(D-082·D-084·D-085)·독립 후속 [원거리 사선 후보 A](phases/Phase16_GroundRangedLineOfSight.md)(D-086)·2단계 ISM Support 조사 후 구현 보류(D-058 유지). 현재 풀 지상 교전 기준선 `ProductionGround` 확보. 다음 후보는 Phase 15 재측정
 > 마지막 갱신: 2026-11-16
 
 **Phase16 2단계 ISM Support 보류(2026-11-16, 사용자 결정).** Sandstone에 Support를 주려면 ISM instance별 source와 볼록 충돌 Support가 모두 필요하다. 볼록 hit은 엔진이 FaceIndex를 주지 않아 지금의 face→Layer 표를 쓸 수 없다. Support+Blocker여도 Nav는 지금처럼 바위를 돌아가므로, 얻는 것은 밀린 적이 낮은 바위 위로 올라서는 것뿐이다. D-058을 유지하고 바위는 Blocker로 둔다. 1-B6에서 `blocker_rejects`·Nav 단절로 적이 갇히는 곳만 확인하고 문제가 보이면 B안(Sandstone 저폴리 complex 충돌+instance Support)부터 다시 잰다. 코드·에셋 변경은 없다. [조사 결과](phases/Phase16_SupportlessBlockerStep.md) §4.1.
@@ -82,7 +82,7 @@
 
 이어지는 기준선과 제약:
 
-- 성능 기준선은 [V011](phases/Phase09_PerfMemoryV011.md)이다. 혼합 풀 리슨 2P의 frame P95는 7.65~9.28ms다. 측정은 `Scripts/Profiling/RunPhase13Gate.ps1 -Cases Production`(헤드리스, seed 1)으로 한다. harness의 `exact ≤2ms` FAIL은 Gate가 아니다. 합성 추격 케이스(`N700Chase`·`N2000Chase`)는 반드시 `-IslandSlot 5`다.
+- 성능 기준선은 [V011](phases/Phase09_PerfMemoryV011.md)이다(Meadow 포함 풀, frame P95 7.65~9.28ms). **현재 풀 기준선(2026-11-16)**은 `-Cases ProductionGround,Production`이다. `ProductionGround`는 지상 활성27·투사체 약493으로 frame P95 8.14/7.96ms, `Production`은 기본 시작 극점에 지상 Pod가 없어 지상0·투사체0으로 6.89/6.93ms다. 지상 비용은 `ProductionGround`로 본다([로그](history/Phase16_Log.md)). 측정은 `Scripts/Profiling/RunPhase13Gate.ps1`(헤드리스, seed 1)으로 한다. harness의 `exact ≤2ms` FAIL은 Gate가 아니다. 합성 추격 케이스(`N700Chase`·`N2000Chase`)는 반드시 `-IslandSlot 5`다.
 - production 경로 비용은 병목이 아니다(V011 경로 tick P95 0.014~0.021ms, 큐 대기 P95 6.4ms).
 - 관통 Gate는 활성 개체로 판정한다(D-078).
 - 벽보행 교전 거리(`AttackRange`, 현재 800)는 사용자가 플레이 테스트로 정한다. 0~5,000 범위는 재측정하지 않아도 된다. 사거리를 늘린 뒤에는 ㄷ자 지형 회귀만 확인한다(Phase 14b).
@@ -91,9 +91,9 @@
 
 ## 바로 다음 행동
 
-- **Phase16 1단계 완료(2026-11-16 사용자 결정):** 새 패키지 Production gate 2회 통과(frame P95 6.93/6.78ms)·리슨2P 통과. 현재 풀 seed1 배치는 지상 활성0이라 Phase16 변경 비용이 Production에 실리지 않았고, 참고 `AlwaysActive`(지상414)는 frame P95 14.9ms·`GroundBlockerOverlap` 평균3.55us다([로그](history/Phase16_Log.md)). 측정 공백을 수용하고 닫았다. 다음 후보: 2단계 ISM Support 조사([§4](phases/Phase16_SupportlessBlockerStep.md)), 원거리 사선 재배치, 현재 풀에서 지상 교전이 실리는 Production 기준선(플레이어 배치·seed 재선정).
+- **Phase16 1단계 완료(2026-11-16 사용자 결정):** 새 패키지 Production gate 2회 통과(frame P95 6.93/6.78ms)·리슨2P 통과. 현재 풀 seed1 배치는 지상 활성0이라 Phase16 변경 비용이 Production에 실리지 않았고, 참고 `AlwaysActive`(지상414)는 frame P95 14.9ms·`GroundBlockerOverlap` 평균3.55us다([로그](history/Phase16_Log.md)). 측정 공백을 수용하고 닫았다. 이 공백은 이후 `ProductionGround` 기준선으로 메웠다(위 기준선 줄).
 - **원거리 사선 확보 후보 A 완료(D-086):** 사용자 PIE 확인·원래 풀 복원까지 마쳤다. 후보 B 옆걸음은 실제 필요가 생길 때만 검토한다.
-- **Phase16 종료(2026-11-16):** 2단계 ISM Support는 조사 후 보류했다(위 결정). 다음 후보는 현재 풀에서 지상 교전이 실리는 Production 기준선(플레이어 배치·seed 재선정)과 [Phase 15 재측정](phases/Phase15_ComplexMapPathRemeasure.md)이다.
+- **Phase16 종료(2026-11-16):** 2단계 ISM Support는 조사 후 보류했다(위 결정). 현재 풀 지상 교전 기준선(`ProductionGround`)도 확보했다. 다음 후보는 [Phase 15 재측정](phases/Phase15_ComplexMapPathRemeasure.md)이다.
 - **Phase 15 재측정 주의:** D-084로 정식 Nav node·portal이 늘고 component가 줄었다. 추격 경로 재측정은 schema10 데이터로 한다.
 - Grove는 V023의 새 큰 덩어리 규모·공터 분리·Z 절삭/직각 경사·상부 훅을 사용자 PIE로 확인한다. 이후 작은 Floor 3면 역할/접합 정리·최종 형상/정식 경로 채택·베이크 결정론·실제 풀 한 번 등록·전체 SurfaceNavigation·혼합 PIE가 남았다. 옛 뿌리/벽 생성기를 현재 형상 제작에 사용하지 않는다. 적 0을 NPC 교전 확인으로 취급하지 않는다. 그래픽스 세션과 레벨/베이크/저장을 동시에 조작하지 않는다.
 - Pyramid_00은 V058 공간·동선을 보존한다. 추가 피드백이 생기면 새 형상 버전에서 해당 구간만 수정한다.

@@ -173,7 +173,7 @@ CPU의 절대 합격값은 Phase 3의 부하 시나리오(적 수와 CombatMode 
 
 `RunPhase13Gate.ps1`의 `PackageDirectory`·`OutputDirectory`·`FirstRepeat`로 이전/현재 패키지의 실행 순서를 뒤집은 대조를 구성할 수 있다. 기존 로그 덮어쓰기 거부는 유지한다. Nav 요청과 timing CSV는 패키지의 공용 저장 경로에서 다음 실행 전에 실행별 출력 폴더로 복사한다. `AnalyzePhase13GroundAttribution.ps1`은 trace 없는 Gate와 trace 비용을 분리하고 보존된 CSV의 제출 수·요청/timing 키 일치·중복·시간 역전을 확인한다. 원본 CSV가 없는 실행의 행 수는 null로 남기며 확인했다고 보고하지 않는다. 병렬 부모 inclusive에는 대기가 포함되고, trace에서 승격 Actor 수 등 workload가 다르면 청크/메모리 증가만으로 비용을 귀속하지 않는다.
 
-`-LNPLoadBaselineProduction`은 일반 Pod 귀속 스폰을 유지하고 링 스폰·강제 리스폰·합성 넉백을 제외한다. 실제 총수는 에셋과 `LNP.Spawn.EnemyDensity`에 따른 스폰 결과를 기록한다. `-LNPLoadBaselineAlwaysActive`를 함께 지정하면 같은 production 스폰의 모든 Pod 무리를 항상 활성으로 유지하는 대조군이다. 일반 게임에는 적용하지 않는다.
+`-LNPLoadBaselineProduction`은 일반 Pod 귀속 스폰을 유지하고 링 스폰·강제 리스폰·합성 넉백을 제외한다. 실제 총수는 에셋과 `LNP.Spawn.EnemyDensity`에 따른 스폰 결과를 기록한다. `-LNPLoadBaselineAlwaysActive`를 함께 지정하면 같은 production 스폰의 모든 Pod 무리를 항상 활성으로 유지하는 대조군이다. `-LNPLoadBaselineGroundSeat`를 함께 지정하면(`ProductionGround` 케이스) 같은 production 스폰에서 플레이어를 지상 적이 가장 많이 깨어나는 지각 자리로 리스폰한다. 자리는 활동 대역 규칙(Pod 위치와 그 Pod의 PureEntity 최대 활성 거리)으로 지상 적이 있는 Pod마다 20m 떨어진 8방향 후보를 Pod 번호 순으로 평가해 결정론적으로 고른다. 기본 시작 극점 주변 옥탄트에 지상 Pod가 없으면 `Production`의 지상 부하가 0이 되므로, 지상 이동·경로·Blocker 비용은 이 케이스로 잰다. 일반 게임에는 적용하지 않는다.
 
 `Scripts/Profiling/RunPhase13Gate.ps1`은 새 Phase 13 Development 패키지로 production·항상 활성 대조군과 기존 지상/비행 링 부하를 실행한다. `-FixedSeed`는 엔진 난수 초기화를 고정하고 `-LNPLoadBaselineSeed=1`은 Pod/링 배치 seed를 고정한다. trace 없는 실행은 `After`, `-Trace`를 지정한 CPU 분해 실행은 `AfterTrace`에 따로 보존한다. 에디터·게임·Insights와 다른 무거운 작업을 종료하고 같은 전원/성능 조건에서 측정한다.
 

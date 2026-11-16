@@ -34,7 +34,9 @@ if (Get-Process -Name UnrealEditor,UnrealEditor-Cmd,LootNPop,UnrealInsights -Err
 $taskArguments = @{
     Production = '-LNPLoadBaselineProduction'
     AlwaysActive = '-LNPLoadBaselineProduction -LNPLoadBaselineAlwaysActive'
-    N700 = '-LNPLoadBaseline=700'
+    # 기본 시작 극점 주변에 지상 Pod가 없으면 Production 지상 부하가 0이다. 지상 적이 가장 많이 깨어나는 지각 자리로 리스폰한다.
+    ProductionGround = '-LNPLoadBaselineProduction -LNPLoadBaselineGroundSeat'
+    N700 ='-LNPLoadBaseline=700'
     N700Chase = '-LNPLoadBaseline=700 -LNPLoadBaselineChase'
     N800 = '-LNPLoadBaseline=800'
     N800Chase = '-LNPLoadBaseline=800 -LNPLoadBaselineChase'

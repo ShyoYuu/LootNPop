@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 역할: 이 작업의 진입점과 문서 라우팅
-> 현재 우선순위: Phase16 완료(1단계·[원거리 사선 후보 A](phases/Phase16_GroundRangedLineOfSight.md) D-086·2단계 ISM Support 조사 후 보류, D-058 유지). 다음 후보는 현재 풀 Production 기준선 또는 Phase 15 재측정
+> 현재 우선순위: Phase16 완료(1단계·[원거리 사선 후보 A](phases/Phase16_GroundRangedLineOfSight.md) D-086·2단계 ISM Support 조사 후 보류, D-058 유지). 현재 풀 지상 교전 기준선(`ProductionGround`) 확보. 다음 후보는 Phase 15 재측정
 > 마지막 구조 갱신: 2026-09-23
 
 ## 1. 목적

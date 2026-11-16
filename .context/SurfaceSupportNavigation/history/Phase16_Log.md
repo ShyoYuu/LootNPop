@@ -204,3 +204,21 @@
 - 볼록 충돌: Support 추출은 `CTF_UseComplexAsSimple` 단일 trimesh만 받는다. GX-014 바위는 볼록 충돌(Sandstone 파생 컨벡스1·Moss3·Cliff 단순64)이다. 엔진 `CollisionConversions.cpp` `ConvertQueryImpactHitImp`는 trimesh(외부 face 번호)·heightfield가 아닌 hit의 `FaceIndex`를 `INDEX_NONE`으로 둔다. face→Layer 표를 쓸 수 없다.
 - 이득: Support+Blocker여도 Nav 여유 검사가 바위에 걸려 경로는 그대로 돌아간다. 얻는 것은 밀린 적이 D-082 정지 대신 낮은 바위 위로 올라서는 것뿐이다. payload는 무시할 수준(25cm에서 윗면1m²당 수백 B), 베이크 시간·Phase 15 component 변화는 미측정이다.
 - **사용자 결정: 보류.** D-058 유지, 바위 Blocker 유지. 1-B6에서 `blocker_rejects`·Nav 단절로 적이 갇히는 곳만 확인하고, 문제가 보이면 B안(Sandstone 저폴리 complex 충돌+instance Support)부터 다시 잰다. Phase16을 종료한다. 상세는 `phases/Phase16_SupportlessBlockerStep.md` §4.1.
+
+## 2026-11-16 — 후속: 현재 풀 지상 교전 Production 기준선(`ProductionGround`)
+
+- 원인: `Production`은 플레이어를 옮기지 않아 TestMap03 기본 시작점(-Z 극점, slot4~7 꼭짓점)에 둔다. 현재 풀 seed1의 그 주변은 Pyramid4·Bastion5·Pyramid6·Hollow7이고(V011은 Hollow·Meadow·Meadow·Hollow) 깨어나는 Pod가 비행·벽보행뿐이라 지상 활성0·투사체0이었다. 옥탄트 배치는 `-FixedSeed`의 `FMath::Rand()`가 정하므로 `-LNPLoadBaselineSeed`로는 바꿀 수 없다.
+- 구현(사용자 선택 "새 케이스"): `-LNPLoadBaselineGroundSeat`(`SelectGroundSeat`)와 Gate 케이스 `ProductionGround`. 활동 대역과 같은 규칙(Pod 위치·PureEntity 최대 활성 거리)으로, 지상 적이 있는 Pod마다 20m 떨어진 8방향 지각 후보를 Pod 번호 순으로 평가해 깨어나는 지상 수 최대(동률은 전체 수)인 자리에 `RespawnPlayersAtRing`으로 두 플레이어를 리스폰한다. 기존 `Production`은 그대로다. 게임 타깃 빌드 Success.
+- 패키지: 사용자가 에디터를 닫은 뒤 현재 HEAD(42e485a)+하네스 변경을 `Saved/SurfaceNavigationGroundBaselinePackage`로 cook(BuildCookRun 약89초, exit0, exe SHA256 `D123743E38D7…`). 로그 `Saved/Profiling/GroundBaseline/Package_BuildCookRun.log`.
+- 자리 선정: 후보282곳 중 Foot(-11338,-21987,13394), 깨어나는 Pod3·지상27·비행27·벽보행27. 현재 풀에서 한 자리로 깨울 수 있는 최대 지상 수다(V011 극점은 지상117~144). warm-up 동안 플레이어가 적에게 66회 맞아(무적, 넉백은 유지) capture 시작 때 자리에서 약35~38m 밀려나 있었다. 실제 교전 동작으로 본다.
+- 측정(`RunPhase13Gate.ps1 -Cases ProductionGround,Production -Repeats 2`, 결과 `Saved/Profiling/GroundBaseline/Gate/`, probe 1회는 `Probe/`). 4회 모두 host/guest 종료0·기능 검사 통과·Gate PASS.
+
+| 실행 | frame P50/P95(ms) | exact P95(ms)·질의/frame P50 | 지상 활성 | 지상 cache | `GroundBlockerOverlap` | 투사체 avg | 게스트 수신(B/s) |
+|:---|:---|:---|---:|:---|:---|---:|---:|
+| ProductionGround 1 | 7.48/8.14 | 2.554·673 | 27 | 97.05%(steps107,811) | 72,764회·평균3.92us·hits0 | 493 | 18,820 |
+| ProductionGround 2 | 7.35/7.96 | 2.005·620 | 27 | 97.62%(steps109,782) | 78,764회·평균3.92us·hits0 | 493 | 16,753 |
+| Production 1 | 6.37/6.89 | 2.394·220 | 0 | (steps0) | 0 | 0 | 14,219 |
+| Production 2 | 6.42/6.93 | 2.425·236 | 0 | (steps0) | 0 | 0 | 12,815 |
+
+- `ProductionGround`에서 경로 요청은 capture 동안 40건으로 모두 Succeeded(cache 적중16)이고 경로 tick P95는0.000ms였다. `blocker_rejects`=0이다. `Production`의 2회는 Phase16 마감 측정(6.93/6.78ms)과 같은 범위다.
+- 해석: 현재 풀 지상 교전 기준선은 `ProductionGround` frame P95 약8.0ms다. `Production`보다 약1.1ms 높은데 지상 이동만이 아니라 원거리 적이 깨어나 투사체 약493발이 실린 몫을 포함한다. Phase16 변경(D-082·D-084·D-085) 전의 같은 조건 값은 없어 전후 비교는 여전히 못 한다. V011과는 풀 구성이 달라 직접 비교하지 않는다.

@@ -1,6 +1,6 @@
 # Phase 16 — Support 없는 Blocker 단차 금지와 ISM Support
 
-> 상태: 완료(2026-11-16) — 1단계 D-082·D-084·D-085, 2단계 ISM Support 조사 결과 구현 보류(§4.1, D-058 유지) / 측정 공백: 현재 풀 Production 기준선 없음(§3.4)
+> 상태: 완료(2026-11-16) — 1단계 D-082·D-084·D-085, 2단계 ISM Support 조사 결과 구현 보류(§4.1, D-058 유지) / 측정 공백(§3.4)은 후속 `ProductionGround` 기준선으로 해소
 > 착수: 2026-11-16, 그래픽스 1-B5b(GX-014) 인계
 > 로그: `history/Phase16_Log.md`
 
@@ -58,6 +58,7 @@ Moss처럼 MaxStepUp보다 살짝 높은 둥근 바위도 같은 경로로 관�
 - [x] Phase 13 Production gate(새 패키지 `Saved/SurfaceNavigationPhase16Package`): 2회 frame P95 6.93/6.78ms·경로 PASS. **단, 현재 풀의 seed1 배치는 지상 활성0이라 Phase16 변경 비용이 실리지 않고, 같은 풀의 수정 전 기준선도 없어 전후 비교는 못 했다.** 참고 `AlwaysActive`(지상 활성414) frame P95 14.9ms, `GroundBlockerOverlap` 평균3.55us·걸음당 약0.72회·거부0. 수치는 `history/Phase16_Log.md`
 - [x] 리슨2P(D-031): Gate 4회 헤드리스 패키지 리슨 서버+게스트 종료0·기능 검사 통과
 - [x] 1단계 마감(2026-11-16 사용자 결정): 위 측정 공백을 수용한다. 현재 풀의 지상 부하 Production 기준선은 Phase16 밖 후속이다
+- [x] 후속(2026-11-16): `ProductionGround` 케이스(`-LNPLoadBaselineGroundSeat`)로 현재 풀 지상 교전 기준선을 만들었다. 지상 활성27에서 frame P95 8.14/7.96ms·`GroundBlockerOverlap` 평균3.92us·거부0. 수정 전 비교값은 여전히 없다. 수치는 `history/Phase16_Log.md`
 - [x] 사용자 요청으로 작업 체크포인트 커밋(66dba1c, 비채택 실험 포함 상태)
 
 ### 3.5 비채택 실험 — 분리력 제한으로 Nav 이탈 방지
