@@ -1,6 +1,6 @@
 # Phase 1-B — 환경 반입과 작은 시험
 
-> 상태: 1-B5a 대표 구역 PCG 소수 배치·재베이크·1인 PIE 접촉 마감 · 1-B5b 바위 충돌 승격 계획 초안(미승인·미착수)
+> 상태: 1-B5a 대표 구역 PCG 소수 배치 마감 · 1-B5b 바위 Blocker 승격·재베이크·1인 PIE 마감(지상 적 발 관통은 SSN 인계)
 > 작성: 2026-11-14
 > 마지막 갱신: 2026-11-16
 > 상위: [Phase 1 실행서](Phase01_BenchmarkContent.md)
@@ -17,7 +17,7 @@
 | 1-B3 지각 재질 시험 | 원본 그래프 파생본의 좌표·노멀·구면 경사/구역 마스크 | 대표 구역 근경·급경사·회전 slot에서 반복/색/노멀 확인, WPO 없음, 범위 밖/지하 보존 |
 | 1-B4 메시 소수 시험 | 6종을 하나씩 배치해 채택 여부 판단 | 접지/노출/카메라/벽보행·발/착지·바람/시야 확인, 실패 역할 축소/제외 |
 | 1-B5 대표 구역 PCG | 시험을 통과한 역할만 고정 시드로 배치 | 전체 bounds 보호 마스크·동선·SurfaceData 현재성·런타임 로드 검증 |
-| 1-B5b 바위 충돌 승격(계획) | 높이 있는 바위 역할만 지형 계약 소스로 승격(§24) | 별도 GX 결정·SurfaceData 재베이크·발/탄환/적 이동/카메라 일치·동선 재측정 영향 확인 |
+| 1-B5b 바위 충돌 승격 | 바위 역할만 Static+Blocker 지형 계약으로 승격(§24, GX-014) | 별도 GX 결정·SurfaceData 재베이크·발/탄환/적 이동/카메라 일치·동선 재측정 영향 확인 |
 | 1-B6 전체 확장 | 승인한 대표 구역 규칙을 Ridge로 확장 | 적도·이음매·다른 slot·전투/훅 동선 및 패키지 검증 |
 
 1-B3·4는 결과를 보고 더 작은 구현 단위로 나눈다. 성능 판정은 패키지에서만 한다. 파라곤 선정은 1-C다.
@@ -643,9 +643,9 @@ V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. �
 
 근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationPCG_20261116/`의 `Rules.json`·`BeforePCG.umap`·`Inspection_Seed42.json`·`Inspection_Seed51001.json`·`BeforeRebake_SurfaceData.uasset`·`SelectionState.json`·`ManualVerdict.json`·`FinalLiveCheck.json`(종료 시 TestMap03·PIE false·dirty0·EnemyDensity0)이다. 시작 대조(WIP·PIE false·dirty0·메시15·V005 바인딩·새 클래스 로드)는 같은 스크립트로 했지만 그 파일은 종료 검사로 덮어썼다. 생성 로그는 에디터 로그의 `LogLNPDecoration`이다.
 
-## 24. 1-B5b 바위 충돌 승격 계획(2026-11-16, 초안·미승인·미착수)
+## 24. 1-B5b 바위 Blocker 승격(2026-11-16, 마감)
 
-1-B5a PIE에서 사용자는 풀·이끼 같은 식생의 NoCollision은 어색하지 않지만, **바위 프랍을 발·사격이 관통하는 것은 꽤 어색하다**고 지적했다. 1-B4e 때도 같은 인상이었다고 했다. 현재 GX-013은 "**1차** 장식은 보행 충돌을 바꾸지 않는다"이므로 NoCollision은 첫 장식 범위의 결정이며 최종 확정이 아니다. 바꾸려면 새 GX 결정과 이 단위가 필요하다.
+1-B5a PIE에서 사용자는 풀·이끼 같은 식생의 NoCollision은 어색하지 않지만, **바위 프랍을 발·사격이 관통하는 것은 꽤 어색하다**고 지적했다. 1-B4e 때도 같은 인상이었다고 했다. GX-013의 "**1차** 장식은 보행 충돌을 바꾸지 않는다"는 첫 장식 범위의 결정이라 새 GX 결정(GX-014)과 이 단위로 바꿨다.
 
 ### 충돌만 켜면 안 되는 이유
 
@@ -653,23 +653,36 @@ V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. �
 - **계약 위반이다.** Decoration은 NoCollision이 계약이고, 계약 태그 없는 충돌 컴포넌트는 수집기가 거부한다. 충돌을 주려면 Static/Blocker/Support 지형 계약 역할로 승격하고 재베이크해야 한다.
 - **판정이 비대칭해진다.** 플레이어 탄만 바위에 막히고 적 시야·사격은 바위를 무시하면 한쪽만 엄폐가 된다.
 
-### 방향(제안)
+### 결정(GX-014, 사용자 2026-11-16)
 
-1. **역할을 둘로 나눈다.** 풀·이끼 지피·Fern·Clover는 Decoration/NoCollision을 유지한다. 높이 있는 바위(Moss 바위, 절벽 부분 보강)는 지형 계약 소스로 승격해 단순 충돌(박스·컨벡스)을 갖게 한다. 발·탄환·적 이동·카메라가 같은 형상을 보게 하는 것이 목적이다.
-2. **역할 지정:** 위에 설 수 있어야 하면 Static+Support(+Blocker), 막기만 하면 Static+Blocker다. 기존 지형 태그 조합(`LNPStaticTerrain`/`LNPStaticBlocker` 프로필)을 따르고 새 조합을 만들지 않는다.
-3. **충돌 형상:** 원본 메시의 기존 단순 충돌(Moss 3개·Cliff 64개 프리미티브)을 우선 검토한다. Sandstone은 ComplexAsSimple이라 지원 형상으로 쓰기 전에 삼각형 수·베이크 비용을 확인한다. 원본 메시를 직접 수정하지 않고 필요하면 파생 메시를 만든다.
-4. **낮은 사암(높이 약20cm):** 넘어가는 높이라 관통이 거의 보이지 않는다. 관찰 뒤 승격 여부를 정하며 기본은 Decoration 유지다.
-5. **PCG:** 역할에 "지형 소스 승격" 플래그를 추가하고 Spawner를 계약별로 나눈다(ISM 디스크립터의 태그·프로필·내비 영향이 역할마다 다르다). 보호 마스크는 그대로 쓰되 승격 바위는 동선·착지부 여유를 다시 정한다(막히는 물체이므로 캡슐 반지름 이상 여유가 필수).
+| 항목 | 결정 | 근거 |
+|:---|:---|:---|
+| 대상 | Moss·Sandstone·Cliff 바위. Clover·Fern은 Decoration 유지 | 사용자: Sandstone(약20cm)도 현재 크기로는 관통이 너무 어색하다 |
+| 역할 | 전부 Static+Blocker(`LNPStaticBlocker`). Support는 주지 않는다 | PCG ISM Support는 SSN D-058로 베이크 오류. Blocker 전용 ISM은 수집기·여유 검사·hit registry가 지원 |
+| 충돌 형상 | Moss 원본 컨벡스3·Cliff 원본 단순64. Sandstone은 파생 메시가 원본의 생성 컨벡스1개를 쓴다 | 원본 Sandstone은 ComplexAsSimple(렌더7,166 tris). 삼각형 sweep 함정·비용을 피한다. 원본 에셋은 수정하지 않는다 |
+| 동선 여유 | 막는 역할만 2D 보호 형상 Margin+50(동선·문 반폭+100cm). 3D 착지부·훅·카메라·Pod는 그대로 | 캡슐 지름84cm를 올림. 암반 외곽에도 같이 적용돼 좁은 틈을 줄인다 |
+| SSN Phase 15 | 독립 진행. 재측정 필요 여부는 정식 Ridge 적용 때 판단 | 이 단위는 WIP 전용 LVI만 바꾸며 정식 Ridge·풀은 그대로다 |
 
-### 영향과 검증
+### 구현
 
-- [상위 실행서](Phase01_BenchmarkContent.md) §5의 "보행면을 바꾸는 배치는 별도 합의 뒤 재베이크와 함께 한다"에 해당한다. Ridge는 SSN Phase 15 경로 재측정 대상이므로 그 측정과의 순서를 합의해야 한다.
-- SurfaceData 재베이크(Support 소스 수·payload·베이크 시간 증가), 런타임 source binding, 적 접지·벽보행·추격 경로, 탄환 착탄(HitDetection 지면 착탄 경로)과 적 시야, 카메라 충돌 채널, 이음매를 다시 확인한다.
-- 검증은 베이크 수치 변화 기록 → 1인 PIE(바위 위 서기·옆 막힘·사격 착탄·카메라) → EnemyDensity>0 근처 전투(적이 바위를 피하거나 오르는지) → 필요 시 2인 → 패키지 비용 순서다.
-- **시점:** 대표 구역 규칙이 굳은 뒤, **1-B6 전체 확장 전**에 한다. 확장 뒤에 바꾸면 재베이크·재검증 범위가 Ridge 전체로 커진다.
+- C++: 역할 `bTerrainBlocker`·규칙 `BlockerKeepOut2DPadding`을 추가했다. 샘플러는 막는 역할의 2D 여유를 추가 패딩 이상으로 요구하고 점마다 `TerrainBlocker`(0/1)를 남긴다. 승격한 수동 바위는 Decoration 태그가 빠지므로 비계약 표식 `LNP.Graphics.ManualDecoration`으로 기존 30cm 간격 대상에 남긴다. 이전 생성의 PCG 컴포넌트는 trace·overlap에서 무시한다(정리 전 Blocker ISM에 자기 결과가 막히지 않게).
+- 그래프 V002(`PCG_RidgeDecoration_V002`): 샘플러 → Self Pruning(계약 분리 전 한 번에) → 속성 필터(`TerrainBlocker` > 상수 Double 0) → Blocker Spawner(Static·Blocker 태그, `LNPStaticBlocker`) / Decoration Spawner(기존 계약). V001은 1-B5a 복구용으로 남긴다.
+- 빌더 모드: `blocker-mesh`(파생 Sandstone, `CTF_UseDefault`) · `rules` · `graph` · `place` · `promote`(수동 바위5개: Sandstone_00/01·Moss_00/01·Cliff_02, 모두 확인 뒤에만 변경·transform 보존 검사) · `regenerate` · `repair-graph`. 새 체크아웃 순서는 §22까지 재현 → 에디터 빌드 → WIP 열기 → `blocker-mesh`→`rules`→`graph`→`place`→`promote` → 확인 뒤 WIP 저장 → TestMap03 재베이크다.
+- **UE5.8 Python 함정 2개:** (1) `PCGAttributePropertySelectorBlueprintHelpers.set_attribute_name`은 ref 인자를 바꾸지 않는다. 선택자는 `import_text("PCGBegin(TerrainBlocker)PCGEnd")`로 넣는다. (2) ISM 디스크립터 `BodyInstance`의 프로필 이름만 Python으로 바꾸면 충돌 활성·응답이 로드되지 않아 Blocker ISM이 NoCollision으로 생성됐다. 임시 `StaticMeshComponent`에 `set_collision_profile_name`을 호출해 프로필이 적용된 BodyInstance 전체를 복사한다(`repair-graph`로 저장된 그래프도 고쳤다).
+- `PrimitiveComponent.line_trace_component`의 Python 반환은 `(hit_location, hit_normal, bone_name, hit_result)`이고 맞지 않으면 None이다.
 
-### 착수 전 결정할 것
+### 결과·검증
 
-- 승격 대상 역할과 기준(높이 임계·역할 단위), Support 여부, 충돌 형상 출처
-- 새 GX 결정 문구(GX-013의 "1차" 범위를 넘는 변경)와 SSN Phase 15 재측정 순서
-- 승격 바위의 동선·착지·Pod 여유 폭
+- PCG 시드51001: 샘플러 통과는 Clover18·Sandstone3(이전4)·Moss4·Fern1. 프루닝 뒤 **Clover15·Moss2·Fern1은 1-B5a와 같은 위치**, Sandstone은 2→1(남은 1개는 같은 위치, 빠진 1개는 추가 50cm 여유로 거부). PCG Blocker ISM과 수동 바위5개 모두 `LNPStaticBlocker`·QueryAndPhysics, 식생은 NoCollision이다.
+- 사용자 근경(Show Collision): Sandstone·Moss 충돌선은 원래 형상에 아주 근접. Cliff는 선이 어지러워 보여 7.5cm 격자 광선으로 렌더 면·단순 충돌·지각을 비교했다. 보이는 면485개 광선에서 처음 막히는 면과 보이는 면의 차이는 중앙값 −0.1cm, 앞으로 튀어나옴 최대5.9cm(5cm 초과3), 안쪽으로 최대10.5cm 들어간 뒤 단순 충돌이나 뒤쪽 지각이 막는다. 보이지 않는 돌출은 34개 광선에서 최대9.2cm다. 사용자가 **Cliff를 그대로 유지**하기로 했고 WIP를 저장했다.
+- TestMap03 재베이크: 수집기 오류0(바위 태그·프로필·응답이 계약과 일치). Support2소스/44층·샘플593,257·payload4,202,801B, Nav component109·portal350, Spawn9,373/noNav0은 같고 **Nav 셀73,836→73,835·Nav payload −8B**, 데이터 5,217,284→5,219,831B다. Blocker는 Support를 만들지 않는다. 간선 비트는 요약에 나오지 않아 PIE DrawNav로 확인했다.
+- 1인 PIE①(slot3·EnemyDensity0): 수동·PCG 바위의 발 접촉·옆 막힘·사격 착탄·카메라 이상 없음. PIE②(slot0·EnemyDensity1): DrawNav 반지름3000에서 평지는 노드·간선이 촘촘하고 **바위 주변은 끊겨 있다**. 벽보행 적은 바위 표면에 잘 붙는다. **지상형 적은 발이 바위를 관통한다.** 두 실행 모두 8 validated slots·seam delta0이고, 종료 뒤 원래 풀을 복원했으며 INI·정식 풀·WIP·SurfaceData 해시를 확인했다.
+- **DrawNav 함정:** 층 기준 반지름으로 먼 노드를 먼저 거르므로(문턱 = 반지름×1.5+500), 기준 반지름에서 약39m 바깥인 Ridge 분지에서는 반지름1200이 `nodes=0`이다. 3000 이상을 쓴다.
+
+### 알려진 한계 — 지상형 적의 바위 발 관통(SSN 인계)
+
+- 원인: 지상 적 이동(`LNPEnemyExactMovement.cpp` `SweepLateral`)은 캡슐을 `MaxStepUp`45cm 올려 측면 sweep하므로 그보다 낮은 장애물을 턱으로 넘긴다. 이어서 `LNPEnemySurfaceMovement::StepGrounded`가 Support 캐시(지각)로 접지한다. 바위는 Blocker 전용이라 디딜 면이 지각에 남아 발이 바위 안에 놓인다. Sandstone은 전체, Moss(48~62cm)는 대부분이 이 높이 안이다. Nav는 바위를 막힌 곳으로 보지만 근접 추격·분리력으로 바위 위에 올라서면 생긴다.
+- 사용자가 별도 SSN 세션에서 다룬다. 권장 순서: ① "Support 없는 Blocker는 넘지 않는다"를 측면 sweep의 불변 조건으로(hit registry 역할 조회, LootPod 충돌 프록시 같은 기존 낮은 Blocker 회귀 확인) → ② 1-B6 확장 전 ISM Support(D-058 해제: 인스턴스별 Support 소스·층 대응 D-037·source binding 키·payload/베이크 시간·Phase 15 측정 조건) 후 역할별로 Sandstone은 Support+Blocker, Moss는 Blocker 유지를 다시 정한다.
+- 미검증: 2인 호스트/게스트, 적 시야·사격 엄폐 대칭, 다른 slot의 바위 접촉, 극점/적도, 패키지 GPU·물리 비용.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeRockBlocker_20261116/`의 `Preflight.json`·`BlockerMesh.json`·`Rules.json`·`Promotion.json`·`BeforeBlocker.umap`·`Inspection_V002.json`·`CliffCollisionFit.py/.json`·`SaveWip.json`·`BeforeRebake_SurfaceData.uasset`·`HashesBeforeRebake.txt`·`Rebake.json`·`SelectionState.json=restored`·`PieVerdict.json`이다. 원본/파생 메시·그래프·WIP·SurfaceData는 Git 제외다.

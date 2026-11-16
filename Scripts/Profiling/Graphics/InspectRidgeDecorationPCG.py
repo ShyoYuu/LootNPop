@@ -1,7 +1,7 @@
-"""1-B5a PCG 생성 결과를 읽기 전용으로 검사해 Saved JSON으로 남긴다.
+"""1-B5a/1-B5b PCG 생성 결과를 읽기 전용으로 검사해 Saved JSON으로 남긴다.
 
 콘솔: py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/InspectRidgeDecorationPCG.py" [이름]
-PCG 액터가 만든 ISM 컴포넌트의 계약(태그·충돌·내비·Static)과 인스턴스 변환, 기존 메시15개 스냅샷을 기록한다.
+PCG 액터가 만든 ISM 컴포넌트의 계약(태그·충돌·내비·Static)과 인스턴스 변환, 그래프, 승격 대상 수동 바위의 계약을 기록한다.
 맵·에셋을 수정하거나 저장하지 않는다.
 """
 import json
@@ -11,7 +11,7 @@ from pathlib import Path
 import unreal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from BuildRidgeDecorationPCG import ACTOR_LABEL, LEVEL, OUT, write
+from BuildRidgeDecorationPCG import ACTOR_LABEL, LEVEL, OUT, component_state, manual_blocker_actors, write
 
 
 def xyz(v):
@@ -28,7 +28,9 @@ def inspect(name):
                         list(unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages())]}
     for actor in pcg:
         pcg_component = actor.get_component_by_class(unreal.PCGComponent)
-        result["pcg"] = {"seed": pcg_component.get_editor_property("seed"),
+        graph = pcg_component.get_graph()
+        result["pcg"] = {"graph": graph.get_path_name() if graph else None,
+                         "seed": pcg_component.get_editor_property("seed"),
                          "trigger": str(pcg_component.get_editor_property("generation_trigger")),
                          "generated": pcg_component.get_editor_property("generated")}
         brush = actor.get_component_by_class(unreal.BrushComponent)
@@ -51,6 +53,8 @@ def inspect(name):
                 "evaluate_wpo": c.get_editor_property("evaluate_world_position_offset"),
                 "instances": instances})
     result["counts"] = {c["mesh"].split(".")[-1]: len(c["instances"]) for c in result["components"] if c["mesh"]}
+    result["manual_rocks"] = {label: component_state(actor.static_mesh_component)
+                              for label, actor in manual_blocker_actors().items()}
     write(name, result)
     unreal.log("Ridge decoration PCG inspection written: %s" % result["counts"])
 

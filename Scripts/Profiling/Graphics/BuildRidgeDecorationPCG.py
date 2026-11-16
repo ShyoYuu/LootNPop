@@ -1,10 +1,14 @@
-"""1-B5a 대표 구역 PCG 소수 배치의 규칙 에셋·PCG 그래프·WIP PCG 액터를 만든다.
+"""1-B5a 대표 구역 PCG 소수 배치와 1-B5b 바위 Blocker 승격의 규칙 에셋·PCG 그래프·WIP 변경을 만든다.
 
-콘솔: py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/BuildRidgeDecorationPCG.py" <rules|graph|place>
+콘솔: py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/BuildRidgeDecorationPCG.py" <모드>
+  blocker-mesh: Sandstone 파생 메시를 만들고 기존 단순 컨벡스를 충돌로 쓰게 한다(원본은 ComplexAsSimple).
   rules: Ridge spec에서 구역·보호 형상을 다시 계산해 규칙 에셋을 만들거나 덮어쓴다(파생 데이터).
-  graph: PCG 그래프가 없을 때만 만든다.
-  place: 기존 WIP에 PCG 액터 1개를 만들고 생성한다. 맵 저장은 사용자 확인 뒤 따로 한다.
-원본 메시/재질·정식 Ridge·기존 수동 장식은 수정하지 않는다. 결과는 Saved 아래 JSON으로 남긴다.
+  graph: PCG 그래프(V002, Blocker/Decoration Spawner 분리)가 없을 때만 만든다.
+  place: 기존 WIP에 PCG 액터 1개를 만들고 생성한다.
+  promote: 수동 바위5개를 Decoration에서 Static+Blocker로 바꾼다.
+  regenerate: 기존 PCG 액터를 V002 그래프로 바꿔 다시 생성한다.
+맵 저장은 사용자 확인 뒤 따로 한다. 원본 메시/재질·정식 Ridge는 수정하지 않는다. 결과는 Saved 아래 JSON으로 남긴다.
+새 체크아웃: blocker-mesh → rules → graph → place → promote → 확인 뒤 WIP 저장.
 """
 import hashlib
 import json
@@ -24,12 +28,29 @@ from BuildRidgeSurfaceProbe import ZONE
 LEVEL = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/LVI_Ridge_SurfaceProbe"
 FOLDER = "/Game/Graphics/Environment/ElectricDreams/RidgeDecoration_V001"
 RULES = FOLDER + "/DA_RidgeDecorationRules"
-GRAPH = FOLDER + "/PCG_RidgeDecoration"
-OUT = ROOT / "Saved/Profiling/Graphics/Phase01/RidgeDecorationPCG_20261116"
+# V001(단일 Decoration Spawner)은 1-B5a 복구용으로 디스크에 남기고 쓰지 않는다.
+GRAPH = FOLDER + "/PCG_RidgeDecoration_V002"
+OUT = ROOT / "Saved/Profiling/Graphics/Phase01/RidgeRockBlocker_20261116"
 ACTOR_LABEL = "GraphicsDecorationPCG_V001"
 CRUST_NAME = "SM_Octant_Ridge_00_V011_R30000"
 SEED = 51001
 DECORATION_TAG = "LNP.Surface.Decoration"
+DECORATION_PROFILE = "LNPDecoration"
+# GX-014: 바위는 Static+Blocker 지형 계약. Support는 ISM에서 막혀 있다(SSN D-058).
+BLOCKER_TAGS = ["LNP.Surface.Static", "LNP.Surface.Blocker"]
+BLOCKER_PROFILE = "LNPStaticBlocker"
+# 승격한 수동 장식이 PCG 간격 대상에 남도록 하는 표식. 지형 계약 태그가 아니다(LNPDecorationSampler.cpp).
+MANUAL_DECORATION_TAG = "LNP.Graphics.ManualDecoration"
+SANDSTONE_SOURCE = "/Game/Megascans/3D_Assets/SandstoneBoulder/SM_SandstoneBoulder_01"
+SANDSTONE_BLOCKER = FOLDER + "/SM_Ridge_SandstoneBoulder_01_Blocker"
+# 수동 장식 중 승격할 바위(라벨 → 바꿀 메시, None이면 유지). 라벨은 BuildRidgeGroundProbe/RockProbe가 정했다.
+MANUAL_BLOCKERS = {
+    "GraphicsGroundProbe_Sandstone_00": SANDSTONE_BLOCKER,
+    "GraphicsGroundProbe_Sandstone_01": SANDSTONE_BLOCKER,
+    "GraphicsRockProbe_Moss_00": None,
+    "GraphicsRockProbe_Moss_01": None,
+    "GraphicsRockProbe_Cliff_02": None,
+}
 
 # 여유 폭(cm)과 근거. 메시 전체 범위(회전·스케일·WPO 여유)에 적용하므로 이전 소수 시험의 bounds→spec 계수1.2는 쓰지 않는다.
 CAPSULE_MARGIN = 50     # 플레이어 캡슐 반지름42cm를 올림. 통로·암반 외곽 끝에 선 캐릭터와 겹치지 않게 한다.
@@ -41,6 +62,7 @@ HOOK_LINE_RADIUS = 100  # 출발 검토점(지면+170)→앵커 직선의 조준
 CAMERA_RADIUS = 150     # 벤치마크 카메라 경로·검토 시점: 근거리 장식이 화면을 덮지 않게 한다.
 ZONE_INSET = 100        # 임시 시험 재질 경계(이진 마스크) 안에 메시 전체를 둔다.
 EXISTING_CLEARANCE = 30  # 수동 장식12개와 관통하지 않게 하는 최소 간격.
+BLOCKER_PADDING = 50    # 막는 바위는 2D 보호 형상에서 Margin+50 → 동선·문 반폭+100cm(캡슐 지름84cm를 올림).
 
 # 역할: 1-B4에서 근경 통과한 메시만. 절벽 부분 보강은 수동 배치 역할이라 PCG에 넣지 않는다.
 # 간격·확률은 작은 배치를 위한 값이고 밀도 승인이 아니다(첫 시드 결과 Clover6·나머지0으로 판정 표본이 부족해 시도 수만 늘렸다).
@@ -48,11 +70,11 @@ EXISTING_CLEARANCE = 30  # 수동 장식12개와 관통하지 않게 하는 최�
 ROLES = [
     dict(id="Clover", mesh="/Game/Megascans/3D_Plants/CloverVarieties/SM_CloverVarieties_01", spacing=800, probability=1.0,
          scale=(0.85, 1.1), slope=(0, 30), sink=0.7, wind=0, max_float=8, max_sink=15, ground_cover=True),
-    dict(id="Sandstone", mesh="/Game/Megascans/3D_Assets/SandstoneBoulder/SM_SandstoneBoulder_01", spacing=900,
-         probability=1.0, scale=(0.9, 1.1), slope=(0, 30), sink=2.0, wind=0, max_float=10, max_sink=25),
+    dict(id="Sandstone", mesh=SANDSTONE_BLOCKER, spacing=900,
+         probability=1.0, scale=(0.9, 1.1), slope=(0, 30), sink=2.0, wind=0, max_float=10, max_sink=25, blocker=True),
     dict(id="Moss", mesh="/Game/Megascans/3D_Assets/MossyForestBoulder/SM_MossyForestBoulder_06",
          material="/Game/Megascans/3D_Assets/MossyForestBoulder/MI_MossyForestBoulder_09", spacing=1000, probability=1.0,
-         scale=(0.7, 0.9), slope=(0, 30), sink=3.0, wind=0, max_float=25, max_sink=30),
+         scale=(0.7, 0.9), slope=(0, 30), sink=3.0, wind=0, max_float=25, max_sink=30, blocker=True),
     dict(id="Fern", mesh="/Game/Megascans/3D_Plants/Fern/SM_Fern_01",
          material="/Game/Graphics/Environment/ElectricDreams/RidgeFernWind_V001/MI_Ridge_Fern", spacing=1000, probability=1.0,
          scale=(0.9, 1.1), slope=(0, 30), sink=1.5, wind=30, max_float=15, max_sink=25),
@@ -185,6 +207,7 @@ def build_rules():
         role.set_editor_property("max_corner_sink", float(r["max_sink"]))
         role.set_editor_property("ground_cover", r.get("ground_cover", False))
         role.set_editor_property("normal_alignment", 1.0)
+        role.set_editor_property("terrain_blocker", r.get("blocker", False))
         roles.append(role)
     rules.set_editor_property("crust_mesh", unreal.load_asset(crust_mesh_path()))
     rules.set_editor_property("octant_radius", float(spec.RADIUS))
@@ -192,6 +215,8 @@ def build_rules():
     rules.set_editor_property("zone_inset", float(ZONE_INSET))
     rules.set_editor_property("seam_clearance", float(spec.SEAM_MARGIN + spec.SEAM_BAND))
     rules.set_editor_property("existing_decoration_clearance", float(EXISTING_CLEARANCE))
+    rules.set_editor_property("blocker_keep_out2d_padding", float(BLOCKER_PADDING))
+    assert abs(rules.get_editor_property("blocker_keep_out2d_padding") - BLOCKER_PADDING) < 1e-3
     rules.set_editor_property("open_sky_height", 2000.0)
     rules.set_editor_property("keep_out2d", shapes2)
     rules.set_editor_property("keep_out3d", shapes3)
@@ -202,7 +227,7 @@ def build_rules():
                                         "route_half_width": ROUTE_HALF_WIDTH, "gate_half_width": GATE_HALF_WIDTH,
                                         "landing_radius": LANDING_RADIUS, "hook_line_radius": HOOK_LINE_RADIUS,
                                         "camera_radius": CAMERA_RADIUS, "zone_inset": ZONE_INSET,
-                                        "existing_clearance": EXISTING_CLEARANCE}})
+                                        "existing_clearance": EXISTING_CLEARANCE, "blocker_padding": BLOCKER_PADDING}})
     unreal.log("Ridge decoration rules saved: %d 2D, %d 3D keep-outs, %d roles." % (len(k2), len(k3), len(ROLES)))
 
 
@@ -221,29 +246,85 @@ def build_graph():
     sampler_node, sampler = graph.add_node_of_type(unreal.LNPDecorationSamplerSettings)
     sampler.set_editor_property("rules", rules)
     # 기본값 LargeToSmall·시드 기반 무작위 동률 처리를 그대로 쓴다. 점 범위에는 WPO 여유가 들어 있다.
+    # 바위와 식생이 서로 겹치지 않도록 계약을 나누기 전에 한 번에 지운다.
     prune_node, _ = graph.add_node_of_type(unreal.PCGSelfPruningSettings)
-    spawn_node, spawner = graph.add_node_of_type(unreal.PCGStaticMeshSpawnerSettings)
+    # TerrainBlocker > 0(기본 상수 Double 0) → InsideFilter가 Blocker, OutsideFilter가 Decoration이다.
+    filter_node, filtering = graph.add_node_of_type(unreal.PCGAttributeFilteringSettings)
+    filtering.set_editor_property("operator", unreal.PCGAttributeFilterOperator.GREATER)
+    filtering.set_editor_property("use_constant_threshold", True)
+    # Python에서 set_attribute_name은 ref 인자를 바꾸지 않는다(UE5.8 실측). 엔진 export 형식으로 import한다.
+    target = filtering.get_editor_property("target_attribute")
+    target.import_text("PCGBegin(TerrainBlocker)PCGEnd")
+    filtering.set_editor_property("target_attribute", target)
+    name = filtering.get_editor_property("target_attribute").get_name()
+    assert str(name) == "TerrainBlocker", "Filter target attribute was not set: %s" % name
+    blocker_node = add_spawner(graph, BLOCKER_TAGS, BLOCKER_PROFILE)
+    decoration_node = add_spawner(graph, [DECORATION_TAG], DECORATION_PROFILE)
+    graph.add_edge(sampler_node, "Out", prune_node, "In")
+    graph.add_edge(prune_node, "Out", filter_node, "In")
+    graph.add_edge(filter_node, "InsideFilter", blocker_node, "In")
+    graph.add_edge(filter_node, "OutsideFilter", decoration_node, "In")
+    graph.add_edge(blocker_node, "Out", graph.get_output_node(), "Out")
+    graph.add_edge(decoration_node, "Out", graph.get_output_node(), "Out")
+    for i, node in enumerate((sampler_node, prune_node, filter_node)):
+        node.set_node_position(300 * i, 0)
+    blocker_node.set_node_position(900, -150)
+    decoration_node.set_node_position(900, 150)
+    assert unreal.EditorAssetLibrary.save_loaded_asset(graph, False)
+    unreal.log("Ridge decoration PCG graph V002 saved.")
+
+
+def add_spawner(graph, tags, profile):
+    """메시·재질은 샘플러 속성에서 읽고, 계약(태그·충돌 프로필)은 Spawner마다 고정한다."""
+    node, spawner = graph.add_node_of_type(unreal.PCGStaticMeshSpawnerSettings)
     spawner.set_mesh_selector_type(unreal.PCGMeshSelectorByAttribute)
     selector = spawner.get_editor_property("mesh_selector_parameters")
     selector.set_editor_property("attribute_name", "MeshPath")
     selector.set_editor_property("use_attribute_material_overrides", True)
     selector.set_editor_property("material_override_attributes", ["MaterialPath"])
     descriptor = selector.get_editor_property("template_descriptor")
-    descriptor.set_editor_property("component_tags", [DECORATION_TAG])
+    descriptor.set_editor_property("component_tags", tags)
     descriptor.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
     descriptor.set_editor_property("can_ever_affect_navigation", False)
     descriptor.set_editor_property("evaluate_world_position_offset", True)
-    body = descriptor.get_editor_property("body_instance")
-    body.set_editor_property("collision_profile_name", "LNPDecoration")
-    descriptor.set_editor_property("body_instance", body)
+    descriptor.set_editor_property("body_instance", body_for_profile(profile))
     selector.set_editor_property("template_descriptor", descriptor)
-    graph.add_edge(sampler_node, "Out", prune_node, "In")
-    graph.add_edge(prune_node, "Out", spawn_node, "In")
-    graph.add_edge(spawn_node, "Out", graph.get_output_node(), "Out")
-    for i, node in enumerate((sampler_node, prune_node, spawn_node)):
-        node.set_node_position(300 * i, 0)
+    return node
+
+
+def body_for_profile(profile):
+    """BodyInstance의 프로필 이름만 Python으로 바꾸면 충돌 활성·응답이 로드되지 않는다(Blocker ISM이 NoCollision으로 나옴).
+    프로필을 실제로 적용하는 set_collision_profile_name을 임시 컴포넌트에 호출해 BodyInstance 전체를 복사한다."""
+    probe = unreal.StaticMeshComponent()
+    probe.set_collision_profile_name(profile)
+    body = probe.get_editor_property("body_instance")
+    assert str(body.get_editor_property("collision_profile_name")) == profile
+    expected = unreal.CollisionEnabled.NO_COLLISION if profile == DECORATION_PROFILE else \
+        unreal.CollisionEnabled.QUERY_AND_PHYSICS
+    assert probe.get_collision_enabled() == expected, "Profile %s did not apply." % profile
+    return body
+
+
+def repair_graph_bodies():
+    """이미 저장된 V002 그래프의 Spawner BodyInstance를 body_for_profile로 다시 채운다(메시·속성 선택은 그대로)."""
+    graph = unreal.load_asset(GRAPH)
+    assert graph, "Build the graph first."
+    fixed = []
+    for node in graph.get_editor_property("nodes"):
+        settings = node.get_settings()
+        if not isinstance(settings, unreal.PCGStaticMeshSpawnerSettings):
+            continue
+        selector = settings.get_editor_property("mesh_selector_parameters")
+        descriptor = selector.get_editor_property("template_descriptor")
+        tags = [str(t) for t in descriptor.get_editor_property("component_tags")]
+        profile = BLOCKER_PROFILE if tags == BLOCKER_TAGS else DECORATION_PROFILE
+        assert tags in (BLOCKER_TAGS, [DECORATION_TAG]), "Unexpected spawner tags: %s" % tags
+        descriptor.set_editor_property("body_instance", body_for_profile(profile))
+        selector.set_editor_property("template_descriptor", descriptor)
+        fixed.append(profile)
+    assert sorted(fixed) == sorted([BLOCKER_PROFILE, DECORATION_PROFILE]), fixed
     assert unreal.EditorAssetLibrary.save_loaded_asset(graph, False)
-    unreal.log("Ridge decoration PCG graph saved.")
+    unreal.log("Ridge decoration PCG graph V002 spawner bodies repaired: %s" % fixed)
 
 
 def place():
@@ -280,6 +361,105 @@ def place():
     unreal.log("Ridge decoration PCG generation requested; inspect, then save the WIP after review.")
 
 
+def build_blocker_mesh():
+    """원본 Sandstone은 ComplexAsSimple(렌더 삼각형7,166개)이다. 삼각형 sweep 대신 기존 생성 컨벡스를 충돌로 쓰는 파생본."""
+    assert not unreal.EditorAssetLibrary.does_asset_exist(SANDSTONE_BLOCKER), "Derived mesh already exists; inspect it."
+    source = unreal.load_asset(SANDSTONE_SOURCE)
+    source_body = source.get_editor_property("body_setup")
+    assert source_body.get_editor_property("collision_trace_flag") == unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE
+    mesh = unreal.EditorAssetLibrary.duplicate_asset(SANDSTONE_SOURCE, SANDSTONE_BLOCKER)
+    assert mesh
+    body = mesh.get_editor_property("body_setup")
+    convex = len(body.get_editor_property("agg_geom").get_editor_property("convex_elems"))
+    assert convex >= 1, "Derived mesh has no simple convex collision."
+    body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_DEFAULT)
+    assert body.get_editor_property("collision_trace_flag") == unreal.CollisionTraceFlag.CTF_USE_DEFAULT
+    assert unreal.EditorAssetLibrary.save_loaded_asset(mesh, False)
+    assert source_body.get_editor_property("collision_trace_flag") == unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE
+    write("BlockerMesh.json", {"source": SANDSTONE_SOURCE, "derived": SANDSTONE_BLOCKER, "convex_elems": convex,
+                               "trace_flag": "CTF_UseDefault"})
+    unreal.log("Sandstone blocker mesh saved with %d convex element(s)." % convex)
+
+
+def manual_blocker_actors():
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+    found = {}
+    for label in MANUAL_BLOCKERS:
+        matches = [a for a in actors if a.get_actor_label() == label]
+        assert len(matches) == 1 and isinstance(matches[0], unreal.StaticMeshActor), "Expected one actor: " + label
+        found[label] = matches[0]
+    return found
+
+
+def transform_values(t):
+    q = t.rotation
+    return [round(v, 4) for v in (t.translation.x, t.translation.y, t.translation.z, q.x, q.y, q.z, q.w,
+                                  t.scale3d.x, t.scale3d.y, t.scale3d.z)]
+
+
+def component_state(component):
+    return {"mesh": component.static_mesh.get_path_name(), "tags": [str(t) for t in component.component_tags],
+            "profile": str(component.get_collision_profile_name()), "collision": str(component.get_collision_enabled()),
+            "mobility": str(component.mobility),
+            "affects_navigation": component.get_editor_property("can_ever_affect_navigation")}
+
+
+def promote():
+    require_wip_clean()
+    assert unreal.EditorAssetLibrary.does_asset_exist(SANDSTONE_BLOCKER), "Run blocker-mesh first."
+    backup = OUT / "BeforeBlocker.umap"
+    source = ROOT / ("Content" + LEVEL[5:] + ".umap")
+    if backup.exists():
+        assert hashlib.sha256(backup.read_bytes()).digest() == hashlib.sha256(source.read_bytes()).digest(), \
+            "Recovery point differs from the saved WIP; inspect before retrying."
+    else:
+        OUT.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, backup)
+    actors = manual_blocker_actors()
+    # 모두 확인한 뒤에만 바꿔 일부만 승격된 상태를 남기지 않는다.
+    for label, actor in actors.items():
+        state = component_state(actor.static_mesh_component)
+        assert state["tags"] == [DECORATION_TAG] and state["profile"] == DECORATION_PROFILE, "Unexpected state: " + label
+    record = {}
+    for label, actor in actors.items():
+        component = actor.static_mesh_component
+        before = component_state(component)
+        transform = actor.get_actor_transform()
+        actor.modify()
+        component.modify()
+        if MANUAL_BLOCKERS[label]:
+            assert before["mesh"].split(".")[0] == SANDSTONE_SOURCE
+            assert component.set_static_mesh(unreal.load_asset(MANUAL_BLOCKERS[label]))
+        component.set_editor_property("component_tags", BLOCKER_TAGS + [MANUAL_DECORATION_TAG])
+        component.set_collision_profile_name(BLOCKER_PROFILE)
+        after = component_state(component)
+        assert after["profile"] == BLOCKER_PROFILE and component.get_collision_enabled() == \
+            unreal.CollisionEnabled.QUERY_AND_PHYSICS, "Promotion did not apply: " + label
+        assert transform_values(actor.get_actor_transform()) == transform_values(transform), "Transform changed: " + label
+        record[label] = {"before": before, "after": after}
+    write("Promotion.json", record)
+    unreal.log("Promoted %d manual rocks to Static+Blocker; review, then save the WIP." % len(record))
+
+
+def regenerate():
+    # promote가 남긴 WIP 변경만 허용한다. 다른 미저장 변경은 먼저 사람이 확인한다.
+    require_wip_clean(allowed=(LEVEL,))
+    for label, actor in manual_blocker_actors().items():
+        assert MANUAL_DECORATION_TAG in [str(t) for t in actor.static_mesh_component.component_tags], \
+            "Run promote first: " + label
+    graph = unreal.load_asset(GRAPH)
+    assert graph, "Build the graph first."
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+    pcg = [a for a in actors if a.get_actor_label() == ACTOR_LABEL]
+    assert len(pcg) == 1, "Expected the existing PCG actor."
+    component = pcg[0].get_component_by_class(unreal.PCGComponent)
+    assert component.get_editor_property("seed") == SEED
+    component.set_graph(graph)
+    component.generate(True)
+    unreal.log("Ridge decoration PCG regeneration with V002 requested; inspect, then save the WIP after review.")
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
-    {"rules": build_rules, "graph": build_graph, "place": place}[mode]()
+    {"blocker-mesh": build_blocker_mesh, "rules": build_rules, "graph": build_graph, "place": place,
+     "promote": promote, "regenerate": regenerate, "repair-graph": repair_graph_bodies}[mode]()

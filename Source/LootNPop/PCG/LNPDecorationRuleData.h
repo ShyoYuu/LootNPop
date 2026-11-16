@@ -113,6 +113,13 @@ struct FLNPDecorationRole
 	/** 0이면 구면 현지 Up, 1이면 실제 지각 법선에 메시 Z를 맞춘다. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float NormalAlignment = 1.f;
+
+	/**
+	 * true면 Decoration이 아니라 Static+Blocker 지형 계약으로 생성한다(그래프가 TerrainBlocker 속성으로 Spawner를 나눈다).
+	 * 발·탄환·카메라·적 이동을 막으므로 2D 보호 형상에서 BlockerKeepOut2DPadding만큼 더 떨어뜨린다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration")
+	bool bTerrainBlocker = false;
 };
 
 /**
@@ -147,6 +154,10 @@ public:
 	/** 이미 배치된 수동 장식(비 PCG)의 범위에서 떨어져야 하는 거리(cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration", meta = (ClampMin = "0.0"))
 	float ExistingDecorationClearance = 0.f;
+
+	/** 막는 역할(bTerrainBlocker)이 2D 보호 형상(동선·문·암반)의 Margin 바깥으로 더 떨어져야 하는 거리(cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration", meta = (ClampMin = "0.0"))
+	float BlockerKeepOut2DPadding = 0.f;
 
 	/** 바로 위에 덮개(암반·지각 돌출)가 없어야 하는 높이(cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LNP|Decoration", meta = (ClampMin = "0.0"))

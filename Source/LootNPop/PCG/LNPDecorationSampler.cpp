@@ -21,6 +21,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogLNPDecoration, Log, All);
 namespace LNPDecorationSampler
 {
 	const FName DecorationTag(TEXT("LNP.Surface.Decoration"));
+	// Blocker로 승격한 수동 장식은 Decoration 태그를 잃으므로 이 표식으로 간격 대상에 남긴다. 지형 계약 태그가 아니다.
+	const FName ManualDecorationTag(TEXT("LNP.Graphics.ManualDecoration"));
 	// 교차를 0과 구분하기 위한 음수. 여유가 0이어도 겹침은 반드시 거부된다.
 	constexpr double OverlapDistance = -1.0;
 	constexpr double NoConstraint = 1.0e9;
@@ -263,6 +265,7 @@ bool FLNPDecorationSamplerElement::ExecuteInternal(FPCGContext* Context) const
 	UStaticMesh* CrustMesh = Rules->CrustMesh.LoadSynchronous();
 	UStaticMeshComponent* Crust = nullptr;
 	TArray<FBox> ExistingBounds;
+	TArray<UPrimitiveComponent*> PreviousOutput;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		TInlineComponentArray<UStaticMeshComponent*> Components(*It);
@@ -278,7 +281,12 @@ bool FLNPDecorationSamplerElement::ExecuteInternal(FPCGContext* Context) const
 				Crust = Component;
 			}
 			// 수동 장식만 피한다. PCG가 만든 컴포넌트는 이번 실행이 다시 만든다.
-			if (Component->ComponentTags.Contains(DecorationTag) && !Component->ComponentTags.Contains(PCGHelpers::DefaultPCGTag))
+			if (Component->ComponentTags.Contains(PCGHelpers::DefaultPCGTag))
+			{
+				// 이전 생성의 Blocker ISM이 정리 전에 남아 있어도 trace·overlap이 자기 결과에 막히지 않게 한다.
+				PreviousOutput.Add(Component);
+			}
+			else if (Component->ComponentTags.Contains(DecorationTag) || Component->ComponentTags.Contains(ManualDecorationTag))
 			{
 				ExistingBounds.Add(Component->Bounds.GetBox().ExpandBy(Rules->ExistingDecorationClearance));
 			}
@@ -308,12 +316,15 @@ bool FLNPDecorationSamplerElement::ExecuteInternal(FPCGContext* Context) const
 	auto* Clear3DAttr = Metadata->FindOrCreateAttribute<double>(TEXT("Clearance3D"), 0.0, false, true);
 	auto* FloatAttr = Metadata->FindOrCreateAttribute<double>(TEXT("CornerFloat"), 0.0, false, true);
 	auto* SinkAttr = Metadata->FindOrCreateAttribute<double>(TEXT("CornerSink"), 0.0, false, true);
+	// 그래프의 속성 필터(> 0)가 이 값으로 Blocker/Decoration Spawner를 나눈다.
+	auto* BlockerAttr = Metadata->FindOrCreateAttribute<double>(TEXT("TerrainBlocker"), 0.0, false, true);
 	TArray<FPCGPoint>& Points = OutPointData->GetMutablePoints();
 
 	// 지각 trace는 런타임 지면 조회와 같은 단순 trace(UseComplexAsSimple 메시라 실제 삼각형을 맞힌다).
 	const FCollisionQueryParams CrustParams(NAME_None, false);
 	FCollisionQueryParams WorldParams(SCENE_QUERY_STAT(LNPDecorationSampler), true);
 	WorldParams.AddIgnoredComponent(Crust);
+	WorldParams.AddIgnoredComponents(PreviousOutput);
 	const FCollisionObjectQueryParams StaticObjects(FCollisionObjectQueryParams::AllStaticObjects);
 	const double TraceLength = Frame.Radius * 2.0;
 
@@ -438,7 +449,7 @@ bool FLNPDecorationSamplerElement::ExecuteInternal(FPCGContext* Context) const
 						Clearance2D = FMath::Min(Clearance2D, KeepOut2DClearance(Shape, Hull));
 					}
 				}
-				if (Clearance2D < 0.0)
+				if (Clearance2D < (Role.bTerrainBlocker ? double(Rules->BlockerKeepOut2DPadding) : 0.0))
 				{
 					Reject(EReject::KeepOut2D);
 					continue;
@@ -515,6 +526,7 @@ bool FLNPDecorationSamplerElement::ExecuteInternal(FPCGContext* Context) const
 				Clear3DAttr->SetValue(Point.MetadataEntry, Clearance3D);
 				FloatAttr->SetValue(Point.MetadataEntry, MaxFloat);
 				SinkAttr->SetValue(Point.MetadataEntry, MaxSink);
+				BlockerAttr->SetValue(Point.MetadataEntry, Role.bTerrainBlocker ? 1.0 : 0.0);
 				++Accepted;
 			}
 		}

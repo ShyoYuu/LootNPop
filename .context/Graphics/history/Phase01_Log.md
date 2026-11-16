@@ -555,3 +555,14 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - 사용자는 바위 관통이 어색하다고 지적했다. GX-013은 1차 장식 범위이므로 최종 확정이 아니라고 답했다. 적 SurfaceData·계약·판정 대칭 때문에 단순 충돌 켜기가 아니라 바위 역할 지형 소스 승격이 필요하다는 1-B5b 계획 초안을 환경 실행서 §24에 반영했다. 새 GX 결정은 아직 만들지 않았다.
 - 상세/재현은 환경 실행서 §23~24, 근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationPCG_20261116/`다.
 
+
+### 1-B5b 마감 — 바위 Static+Blocker 승격·재베이크·1인 PIE(2026-11-16)
+
+- 착수 전 사용자와 정했다: 대상 Moss·Sandstone·Cliff(Sandstone도 현재 크기로는 관통이 어색), 역할은 전부 Static+Blocker(ISM Support는 SSN D-058로 막힘), Phase 15는 독립 진행, 막는 역할만 2D 동선 여유 +100cm. GX-014를 추가하고 GX-013을 바위 역할에 한해 일부 대체됨으로 표기했다.
+- 메시 충돌을 읽기 전용으로 확인했다. Moss는 컨벡스3, Cliff는 단순64, Sandstone은 ComplexAsSimple(렌더7,166 tris)이라 원본의 생성 컨벡스를 쓰는 파생 메시를 만들었다. 실측 높이는 Moss 약48~62cm, Sandstone 약20cm, Cliff 약2.1m다.
+- C++ 규칙/샘플러에 막는 역할 플래그·추가 2D 패딩·`TerrainBlocker` 속성·수동 장식 표식·이전 PCG 출력 무시를 넣었다. 게임 타깃 컴파일 뒤 에디터가 꺼져 있어 바로 에디터 빌드했다(성공).
+- 빌더에 파생 메시·V002 그래프(필터 → Spawner2)·수동 바위 승격·재생성 모드를 추가했다. 선택자 `set_attribute_name`이 Python에서 ref를 바꾸지 않아 `import_text`로, 디스크립터 BodyInstance가 프로필 이름만 바뀌어 Blocker ISM이 NoCollision으로 나온 것을 임시 컴포넌트의 적용된 BodyInstance 복사로 고쳤다(`repair-graph`). 저장 전 재검사로 충돌 활성을 확인했다.
+- PCG 결과는 Clover15·Moss2·Fern1이 1-B5a와 같은 위치, Sandstone은 2→1(추가 여유로 1개 거부)이다. 사용자 근경에서 Sandstone·Moss 충돌은 자연스러움, Cliff는 광선 측정(보이는 면 기준 앞 최대5.9cm·안쪽 최대10.5cm에서 차단) 뒤 유지하기로 했고 WIP를 저장했다.
+- TestMap03 재베이크는 수집기 오류0, Nav 셀 −1·payload −8B 외 수치가 같았다. PIE①(slot3, 밀도0)에서 접촉·막힘·착탄·카메라 이상 없음, PIE②(slot0, 밀도1)에서 DrawNav 3000으로 바위 주변 노드·간선 차단을 확인했다. DrawNav 1200은 기준 반지름 거르기 때문에 Ridge 분지에서 `nodes=0`이었다.
+- 벽보행 적은 바위 표면에 붙지만 지상형 적은 발이 바위를 관통한다. 측면 sweep이 `MaxStepUp`45cm 아래를 턱으로 넘기고 Support(지각)로 접지하기 때문이다. 사용자가 별도 SSN 세션에서 다룬다(권장: Support 없는 Blocker 넘기 금지 → ISM Support). 종료 뒤 원래 풀을 복원했고 INI·정식 풀·WIP·SurfaceData 해시를 확인했다.
+- 상세/재현은 환경 실행서 §24, 근거는 `Saved/Profiling/Graphics/Phase01/RidgeRockBlocker_20261116/`이다.
