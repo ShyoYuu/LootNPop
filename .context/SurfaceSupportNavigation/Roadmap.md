@@ -71,7 +71,7 @@ Phase 13 완료 조건은 유지한다. 이동·Nav 격리 측정은 보조 진�
 | 14 | 벽 타기 NPC(`SurfaceCrawl`) | 3~4세션 | 완료(2026-10-06, 1:1:1 종류별 1,080 D-076·패널 운반·압사 D-077) | wall-walker 이동·Up 리팩터·법선 복제(D-066), 원거리 공격·360° 인지·재귀속, 개체 수 측정 후 예산 결정 |
 | 14b | 벽보행 추격 우회 | 1~2세션 | 완료(2026-10-12, 단위 1~4·ㄷ자 PIE 전원 추격, 갈래 거리 상한·재시도 반전) | 진행 기반 막힘 판정, 고정 방향 우회(벽은 등고선 좌우·경사선 위아래, 바닥·천장은 좌우)·실패 기억·포기 후 가장자리 대기, ㄷ자·틈 지형 자동화와 PIE |
 | 15 | 복잡한 맵 기준 추격 경로 재측정 | 미정 | 계획(Grove·Ridge 풀 추가와 Meadow 제외 뒤 착수) | 새 풀에서 경로 비용 병목 여부 재확인, 복잡한 옥탄트 추격 재캡처, flow field·계층형·개선 A* 재비교와 채택 기준 재검토(`phases/Phase15_ComplexMapPathRemeasure.md`) |
-| 16 | Support 없는 Blocker 단차 금지와 ISM Support | 3~4세션 | 1단계 완료(2026-11-16, 2단계 ISM Support 조사 대기) | 1단계: D-082 비관통 보존, 실험 정리 완료, 단위1 Nav 전용 보간(D-084)으로 벽 정지 해결, 단위2 플레이어 지면/Nav 분리와 실제 이동 검증 보행 anchor(D-085). 군집 겹침 해소 악화 금지(D-083). Production gate 통과·리슨2P 통과로 1단계 마감(현재 풀 Production은 지상 부하0 공백 수용). 다음 2단계 ISM Support 조사(`phases/Phase16_SupportlessBlockerStep.md` §4) |
+| 16 | Support 없는 Blocker 단차 금지와 ISM Support | 3~4세션 | 완료(2026-11-16, 2단계 ISM Support는 조사 후 구현 보류) | 1단계: D-082 비관통 보존, 실험 정리 완료, 단위1 Nav 전용 보간(D-084)으로 벽 정지 해결, 단위2 플레이어 지면/Nav 분리와 실제 이동 검증 보행 anchor(D-085). 군집 겹침 해소 악화 금지(D-083). Production gate 통과·리슨2P 통과로 1단계 마감(현재 풀 Production은 지상 부하0 공백 수용). 2단계 ISM Support 조사 결과 instance source·볼록 충돌 Support 두 기능이 필요하고 이득이 작아 D-058 유지·바위 Blocker 유지(`phases/Phase16_SupportlessBlockerStep.md` §4.1) |
 
 ## 4. Phase별 범위 보충
 

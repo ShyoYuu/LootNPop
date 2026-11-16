@@ -196,3 +196,11 @@
 - 그래서 전원 활성 `AlwaysActive`(Gate 아님)로 지상 이동을 실었다. 지상 활성414·추격 경로 요청 약530에서 frame P95 14.9ms, `GroundBlockerOverlap`은 접지 걸음당 약0.72회·평균3.55us(capture 전체 약2.2초, 프레임당 약1.06ms의 exact 시간, 워커 합계)이고 Blocker 거부0이다. 경로 consumer P95 1.14ms, 경로 tick P95 0.10ms다. V011 AlwaysActive(적2,431·지상648)와 풀·개체 수가 달라 직접 비교하지 않는다. 보행 anchor는 이 조건에서 별도 계측이 없고, consumer 시간에 포함된다.
 - 판정 보류 항목: 현재 풀에서 지상 교전이 실리는 Production 기준선(플레이어 배치·seed 재선정)이 필요하다. 측정 harness 조정은 Phase16 범위 밖의 후속으로 남긴다.
 - **1단계 마감(2026-11-16 사용자 결정):** 현재 풀 Production 측정에 지상 부하가 실리지 않는 공백을 수용하고 Phase16 1단계(D-082·D-084·D-085)를 닫는다. 현재 풀의 지상 교전 Production 기준선은 Phase16 밖 후속이다. 다음 후보는 2단계 ISM Support 조사와 원거리 사선 재배치다.
+
+## 2026-11-16 — 2단계 ISM Support(D-058 해제) 조사·보류
+
+- 범위: 코드·엔진 소스 조사만 했다. 코드·에셋·SurfaceData·풀 변경은 없다.
+- ISM: `LNPOctantTriangleExtractor::ExtractSupportSources`가 Support 태그 ISM을 오류로 막는다. registry `Resolve`는 component당 Atlas source 하나(`SupportSourceIndex`)만 face map으로 해석한다. 해제하려면 instance별 source key·Layer와 instance index→source index 표가 필요하다. 수집·`MaxRadius`·hit의 `InstanceIndex` 전달은 이미 instance를 안다.
+- 볼록 충돌: Support 추출은 `CTF_UseComplexAsSimple` 단일 trimesh만 받는다. GX-014 바위는 볼록 충돌(Sandstone 파생 컨벡스1·Moss3·Cliff 단순64)이다. 엔진 `CollisionConversions.cpp` `ConvertQueryImpactHitImp`는 trimesh(외부 face 번호)·heightfield가 아닌 hit의 `FaceIndex`를 `INDEX_NONE`으로 둔다. face→Layer 표를 쓸 수 없다.
+- 이득: Support+Blocker여도 Nav 여유 검사가 바위에 걸려 경로는 그대로 돌아간다. 얻는 것은 밀린 적이 D-082 정지 대신 낮은 바위 위로 올라서는 것뿐이다. payload는 무시할 수준(25cm에서 윗면1m²당 수백 B), 베이크 시간·Phase 15 component 변화는 미측정이다.
+- **사용자 결정: 보류.** D-058 유지, 바위 Blocker 유지. 1-B6에서 `blocker_rejects`·Nav 단절로 적이 갇히는 곳만 확인하고, 문제가 보이면 B안(Sandstone 저폴리 complex 충돌+instance Support)부터 다시 잰다. Phase16을 종료한다. 상세는 `phases/Phase16_SupportlessBlockerStep.md` §4.1.

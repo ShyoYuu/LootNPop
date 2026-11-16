@@ -1,6 +1,6 @@
 # Phase 16 — Support 없는 Blocker 단차 금지와 ISM Support
 
-> 상태: 1단계 완료(2026-11-16, D-082·D-084·D-085) — 다음은 2단계 ISM Support 조사(§4) / 측정 공백: 현재 풀 Production 기준선 없음(§3.4)
+> 상태: 완료(2026-11-16) — 1단계 D-082·D-084·D-085, 2단계 ISM Support 조사 결과 구현 보류(§4.1, D-058 유지) / 측정 공백: 현재 풀 Production 기준선 없음(§3.4)
 > 착수: 2026-11-16, 그래픽스 1-B5b(GX-014) 인계
 > 로그: `history/Phase16_Log.md`
 
@@ -122,3 +122,23 @@ Moss처럼 MaxStepUp보다 살짝 높은 둥근 바위도 같은 경로로 관�
 - payload·베이크 시간: 바위 수에 비례하는 Layer·portal 증가량(1-B6 전체 밀도 기준 추정)
 - Phase 15 경로 측정 조건 변화: Nav component·portal 증가가 A* 비교에 미치는 영향
 - 역할 재판정: Sandstone은 Support+Blocker, Moss는 Blocker 유지가 맞는지
+
+### 4.1 조사 결과와 결정(2026-11-16, 사용자 결정: 보류)
+
+**결정: D-058을 유지하고 바위는 Static+Blocker로 둔다.** 1-B6에서 바위 밀도가 늘면 D-082 거부 빈도(`EnemyGround`의 `blocker_rejects`)와 Nav 단절로 적이 갇히는 곳만 확인하고, 플레이 문제가 생기면 다시 검토한다.
+
+Sandstone에 Support를 주려면 서로 독립인 두 기능이 모두 필요하다.
+
+| 필요 기능 | 현재 상태 | 필요한 변경 |
+|:---|:---|:---|
+| ISM instance별 Support source | 추출기가 Support 태그 ISM을 오류로 막는다(`LNPOctantTriangleExtractor.cpp` `ExtractSupportSources`) | instance마다 source key(`Actor.Component#i`)·Layer 베이크, registry 항목에 instance index→source index 표(현재 `Resolve`는 component당 source 하나), binding 검증 확장 |
+| 볼록(convex) 충돌 Support | 추출기는 `CTF_UseComplexAsSimple` 단일 Chaos trimesh만 받는다. 바위는 GX-014에서 삼각형 sweep 함정·비용을 피하려고 볼록 충돌로 정했다(Sandstone 파생 컨벡스1·Moss 컨벡스3·Cliff 단순64) | 엔진은 trimesh·heightfield가 아닌 hit의 `FaceIndex`를 `INDEX_NONE`으로 돌려준다(엔진 `CollisionConversions.cpp` `ConvertQueryImpactHitImp`). face→Layer 표를 쓸 수 없어 "instance 하나 = Layer 하나 + hit 법선으로 보행 판정" 같은 새 규칙과 볼록 껍질 삼각형화 추출기가 필요하다 |
+
+나머지 조사 항목:
+
+- **source binding 키 안정성:** 문제없다. LVI의 ISM은 런타임에 바뀌지 않는다. PCG 재생성은 패키지 해시를 바꿔 stale 검사에 걸리고, 컴포넌트 이름이 바뀌면 `BuildSourceBindings`가 로드 단계 오류를 낸다. RemoveSwap은 런타임 proxy ISM의 규약이라 해당 없다.
+- **payload:** 25cm 해상도(D-072)에서 윗면1m²당 샘플 약16개·수백 B 수준이라 무시할 만하다. 베이크 시간은 Layer 간 portal의 50cm 간격 exact trace가 바위 수에 비례해 늘 수 있다(미측정).
+- **Nav·Phase 15 영향:** Support+Blocker여도 지각 node·edge 여유 검사(지면+1cm 캡슐)가 바위 Blocker에 걸려 경로는 지금처럼 바위를 돌아간다. 윗면1~2m 바위에는 반지름50cm agent의 node도 거의 생기지 않아 component·portal 수 변화는 작을 것으로 본다(미측정).
+- **얻는 것:** 분리력·근접 추격으로 낮은 바위 쪽으로 밀린 적이 D-082로 앞에서 멈추는 대신 위로 올라설 수 있는 것뿐이다. 현재 PIE에서 이 정지는 문제로 보고되지 않았다.
+- **역할 재판정:** Sandstone·Moss·Cliff 모두 Blocker 유지. 기각한 대안은 (B) Sandstone만 저폴리 complex 충돌로 바꾸고 instance Support만 구현(GX-014 재논의·trimesh sweep 함정 재도입), (C) 볼록 Support까지 완전 구현(이득 대비 과함)이다.
+- **재검토 조건:** 1-B6·플레이에서 낮은 바위 앞 정지가 눈에 띄거나 바위가 Nav를 막아 적이 갇힐 때. 그때는 B안부터 다시 잰다.
