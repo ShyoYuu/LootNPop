@@ -1,12 +1,20 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: 옥탄트 양산 — Grove_00·Ridge_00 정식 통합, Meadow 제외로 정식6종 풀(Bastion/Hollow/Acropolis/Pyramid/Grove/Ridge) 검증 완료, PodOverlay 샘플 선정 보정 완료. Roadmap의 기존 Phase는 모두 완료(직전 Phase 10 완료 2026-10-13)
-> 마지막 갱신: 2026-11-11
+> 현재 작업: [Phase16 §3.5~3.7](phases/Phase16_SupportlessBlockerStep.md) 벽 근처 Nav 커버리지·근접 목표 처리의 근본 수정으로 새 세션 인계. 분리력 제한은 사용자 기각(D-083), 비채택 실험 정리부터 진행
+> 마지막 갱신: 2026-11-16
 
-현재 PIE: 정식6종·Ridge slot0·Grove slot5/6·8slot/264bindings·seam 높이 차 및 차단0·Pod120/120·적2,223/2,223(밀도1). 런타임 코드는 불변이다.
+2026-11-16 종료 상태: 바위 발 관통은 관찰하지 못했으나 벽 근처 지상 근접 NPC의 NoNode 정지와 벽에 붙은 플레이어 추격 실패가 남았다. 분리력을 뺀 재시도 실험은 자동화137/137·Editor/Game 빌드·헤드리스 이동7/7이 통과해도 실제 PIE에서 미해결이었고, 사용자가 군집 겹침 악화 우려로 기각했다. 이 결과를 최종 해결 검증으로 재사용하지 않는다. 실험 소스/바이너리는 비채택 상태로 남아 새 세션 첫 정리 대상이다. 다음 작업은 실제 보행 가능 벽 주변 바닥의 Nav 커버리지 수정과 플레이어 물리 지면/Nav 투영 분리·근접 접근/공격 목표 처리 **둘 다**다. [조사·실험 경위](history/Phase16_Log.md).
 
 ## 현재 결정
+
+**검토환경 복원 완료:** PIE 종료·원래 `/Game/Maps/OctantPoolData` 선택 getter 확인·캐시1. 테스트 에셋3개는 원래 해시로 복원했고 Content/Config git 변경0이다. INI2개·정식 풀·WIP·SurfaceData·검사용 풀의 보호 SHA256 6개 불변을 확인했다. 에디터는 TestMap03으로 열려 있다. 복원 근거는 `Saved/Profiling/Phase16/RidgeWipPIE_20261116/SelectionState_Run3.json=restored`·`Run3_Final.log`다.
+
+**세 번째 PIE 미통과:** 벽 근처 정지는 여전히 발생한다. 사용자는 이번1회 체감으로 줄어든 듯하지만 미확정이라고 했고, 벽에 붙은 플레이어를 근접 적들이 추격하지 못하는 문제를 추가로 지적했다. `nav_separation_retries=196`으로 판정은 작동하지만 NPC594의 NoNode가 남았다. 현재 수정의 자동화 통과를 실제 벽 정지 해결로 보지 않는다. Nav 커버리지와 플레이어의 물리 지면/목표 Nav 투영을 함께 재검토한다.
+
+**확정 방향(D-083):** 분리력의 제거·약화·취소로 Nav 이탈을 막는 방식은 채택하지 않는다. NPC가 몰릴 때 겹침 해소가 악화되어서는 안 된다. 먼저 `StepGroundedWithSeparation`·호출·계측·전용 검사 기대값의 비채택 실험만 정리하고 D-082 Blocker 비관통 구현을 보존한다. 이후 아래 두 근본 수정 단위를 수행한다. 이번 인계에서는 소스 구현을 추가로 변경하지 않았다.
+
+**Phase16 1단계 — Support 없는 Blocker 단차 금지(2026-11-16 착수 기록).** 그래픽스 1-B5b가 Ridge WIP 바위를 Static+Blocker로 승격한 뒤 지상형 적의 발이 바위를 관통했다. 관통은 캐시 접지 경로에서만 생긴다. 측면 sweep이 45cm 올려 바위 위를 지나가고, Atlas가 지각 높이로 접지하기 때문이다. exact 경로·Nav 베이크·배회 구간은 이미 막는다. 사용자 결정으로 캐시 접지 결과의 캡슐이 Support 없는 Blocker와 겹치면 registry 역할 조회로 거부하고 제자리에 선다(D-082). 새 픽스처 `EnemyMovement.SupportlessBlockerStep`(로그 `Saved/Logs/BlockerStepTest.log`)은 통과했다. SurfaceNavigation 전체 회귀는 136/136 통과했다. 경고4는 기존 노이즈다(로그 `Saved/Logs/SurfaceNavFull.log`, 재저장 테스트 에셋3개는 되돌림). 이후 PIE 미통과·실험 기각과 다음 작업은 위 D-083 및 새 세션 인계를 따른다. [상세](history/Phase16_Log.md).
 
 **Ridge 정식 풀 통합(2026-11-11).** 사용자가 V011 전체 동선(적 밀도0)과 교전(밀도1)을 PIE로 확인하고 통합을 요청했다. Grove와 같은 절차로 V011 작업본을 `/Game/Maps/Ridge_00` 정식 사본7개로 채택했다. 액터48개(지형3·앵커6·Pod12·검토점27)가 경로 치환 외에 동일하고, 의존 패키지10개에 WIP 참조가0이다. 정식 재베이크 요소 수는 작업본과 같고 seam2,208이 일치한다. 실제 풀에는 기존5개 정의를 보존하고 Ridge1개를 추가해6종이다. 추적 파일 중 실제 풀만 바뀌었고 DefaultGame.ini는 불변이다. 실제6종 풀 전체 SurfaceNavigation135개는 첫 실행에서 실패0이다(경고5는 HTTP timeout4·B-option 안내1). 혼합 PIE는 위 현재 PIE 줄과 같다. 중간 산출물은 모두 `_WorkInProgress`(Git 무시)에 있다. [정식 통합 상세](../../Art/Octants/Ridge_00/Production.md).
 
@@ -77,6 +85,12 @@
 
 ## 바로 다음 행동
 
+- **Phase16 새 세션의 우선 작업:**
+  1. [§3.5~3.7](phases/Phase16_SupportlessBlockerStep.md)과 마지막 사용자 결정을 읽고, 비채택 분리력 제한 실험만 정리한다. 기존 D-082 구현·다른 미커밋 변경은 보존한다.
+  2. **단위1:** 실제 NPC 캡슐로 걸을 수 있는 벽 주변 바닥과 Nav 누락을 대조하고, Support/경사/여유/edge/격자/Layer 중 잘못된 배제 원인을 수정한다. 군집 겹침 해소를 유지한다.
+  3. **단위2:** 플레이어의 실제 물리 지면을 Nav 투영과 분리하고, 근접 적이 도달 가능한 접근·공격 위치를 처리한다. 벽 옆 플레이어도 정상 추격·공격할 수 있어야 한다.
+  4. 구현 단위마다 다음 진행을 확인한다. 실제 WIP slot은 새 로그에서 읽고, 수동 PIE가 더 효율적이면 즉시 요청한다. NPC 겹침 악화 금지·벽 근처 추격·바위 비관통을 함께 검증한다.
+  5. 최종 코드의 전체 회귀·Editor/Game 빌드·리슨2P·Production 비용을 확인한 뒤1단계를 마감한다. 원거리 사선 재배치·2단계 ISM Support는 뒤의 별도 단위다. 기존 실험 결과는 최종 검증을 대체하지 않는다.
 - Grove는 V023의 새 큰 덩어리 규모·공터 분리·Z 절삭/직각 경사·상부 훅을 사용자 PIE로 확인한다. 이후 작은 Floor 3면 역할/접합 정리·최종 형상/정식 경로 채택·베이크 결정론·실제 풀 한 번 등록·전체 SurfaceNavigation·혼합 PIE가 남았다. 옛 뿌리/벽 생성기를 현재 형상 제작에 사용하지 않는다. 적 0을 NPC 교전 확인으로 취급하지 않는다. 그래픽스 세션과 레벨/베이크/저장을 동시에 조작하지 않는다.
 - Pyramid_00은 V058 공간·동선을 보존한다. 추가 피드백이 생기면 새 형상 버전에서 해당 구간만 수정한다.
 - Grove·Ridge 추가와 Meadow 제외가 끝났다. [Phase 15 재측정 계획](phases/Phase15_ComplexMapPathRemeasure.md)으로 추격 경로 세 방식을 다시 잰다.

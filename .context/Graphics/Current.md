@@ -11,6 +11,7 @@
 - **1-B5a 마감.** 커스텀 C++ PCG 노드 `LNPDecorationSampler`와 규칙 에셋 `LNPDecorationRuleData`로 구면 구역 지터 격자·실제 지각 trace·메시 전체 상자 보호 배치를 한다. §23.
 - **1-B5b 마감(GX-014).** Moss·Sandstone·Cliff 바위를 Static+Blocker(`LNPStaticBlocker`)로 승격했다. PCG는 그래프 V002(필터 → Blocker/Decoration Spawner)이고 막는 역할은 2D 동선 여유 +50cm다. 시드51001 결과는 Clover15·Moss2·Fern1(1-B5a와 같은 위치)·Sandstone1이다. 수동 바위5개도 승격했고 Sandstone은 단순 컨벡스 파생 메시를 쓴다. 재베이크는 Nav 셀 −1 외 같고, 1인 PIE에서 접촉·막힘·착탄·카메라와 DrawNav 바위 주변 차단을 확인했다. §24.
 - **알려진 한계(SSN 인계).** 지상형 적은 `MaxStepUp`45cm 아래 장애물을 턱으로 넘고 Support(지각)로 접지해 **발이 바위를 관통한다.** 벽보행 적은 바위에 잘 붙는다. 사용자가 별도 SSN 세션에서 다룬다. 권장: "Support 없는 Blocker는 넘지 않는다" 불변 조건 → 1-B6 전 ISM Support(D-058 해제). 원인 위치·순서는 §24.
+- **SSN 인계 결과(2026-11-16, 근본 수정 대기).** SSN [Phase16](../SurfaceSupportNavigation/phases/Phase16_SupportlessBlockerStep.md)에서 캐시 접지의 Support 없는 Blocker 겹침을 거부했다(D-082). WIP PIE에서 바위 발 관통은 관찰하지 못했으나 벽 근처 지상 근접 NPC의 NoNode 정지·벽 옆 플레이어 추격 실패가 남았다. 분리력 제한 실험은137/137 회귀·정식 빌드·헤드리스 이동7/7이 통과해도 실제 PIE에서 미해결이었고 사용자 기각(D-083)이다. 현재 체크포인트는 비채택 실험 코드를 포함하며 새 세션에서 정리한다. 다음은 실제 보행 Nav 커버리지와 플레이어 물리 지면/Nav 투영·근접 접근/공격 목표의 근본 수정이다. 군집 겹침 해소 악화 금지, 원래 풀 복원 완료. 최종 비용 비교와 ISM Support는 이후다.
 - **엔진/도구 함정:** PCG `UseSeed()` 기본 false(시드42 고정), PCGVolume 브러시 QueryOnly, Python 선택자 `set_attribute_name`이 ref를 안 바꿈(`import_text`), 디스크립터 BodyInstance 프로필 이름만 바꾸면 NoCollision, DrawNav는 Ridge 분지에서 반지름3000 이상 필요.
 - **Phase1 전체는 미완료다.** 전체 밀도·원거리 반복·정식 Ridge 적용·파라곤·콘텐츠 패키지 성능은 남았다. 원본104패키지·정식 Ridge/Support source·기본 편성·정식 풀·확정 카메라 경로는 보존했다.
 

@@ -171,6 +171,12 @@ public:
 	FLNPExactHitIdentity ResolveHit(const FHitResult& Hit) const;
 	static FLNPExactHitIdentity ResolveHit(const FLNPHitIdentitySnapshot& InSnapshot, const FHitResult& Hit);
 
+	/**
+	 * 모든 스레드. 등록된 source가 디딜 면이 전혀 없는 Blocker인지(Blocker 역할이고 Support 역할·Support face 표·patch face 표가 모두 없음).
+	 * 지상 적은 이런 source를 단차로 넘지 않는다. 미등록 component는 false다.
+	 */
+	static bool IsSupportlessBlocker(const FLNPHitIdentitySnapshot& InSnapshot, const TWeakObjectPtr<UPrimitiveComponent>& Component);
+
 	uint32 GetUnknownHitCount() const { return UnknownHitCount.load(std::memory_order_relaxed); }
 
 	/** profile 이름을 수명주기·역할로 분류한다. LNPWorldExact에 응답하지 않거나 LNP profile이 아니면 false. */

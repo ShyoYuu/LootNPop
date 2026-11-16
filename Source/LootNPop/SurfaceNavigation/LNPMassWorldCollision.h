@@ -25,6 +25,8 @@ enum class ELNPWorldQueryClass : uint8
 	SurfaceCrawl,
 	/** 적 사격 전 총구 → 조준점 사선 확인(Phase03c §3.2, LNPEnemyLineOfSight). */
 	EnemyLineOfSight,
+	/** 지상 적 캐시 접지 결과가 Support 없는 Blocker와 겹치는지 확인하는 overlap(OverlapsSupportlessBlocker). */
+	GroundBlockerOverlap,
 	PeriodicGroundValidation,
 	DebugValidation,
 
@@ -129,6 +131,13 @@ public:
 
 	/** Position + Up*MaxStepUp에서 Position - Up*MaxDrop까지 구를 sweep해 지지면을 찾는다. 지지면이면 true. */
 	bool ProbeSupport(const FLNPSupportProbeQuery& Query, const FLNPWorldQueryParams& Params, FLNPSupportProbeResult& OutResult) const;
+
+	/**
+	 * 모든 스레드. 캡슐이 Support 없는 Blocker(ULNPHitIdentitySubsystem::IsSupportlessBlocker)와 겹치면 true.
+	 * sweep과 달리 겹친 component를 모두 받아 역할로 거르므로 발밑 지각·경사에 가려지지 않는다.
+	 */
+	bool OverlapsSupportlessBlocker(const FVector& Center, const FQuat& Rotation, float Radius, float HalfHeight,
+		const FLNPWorldQueryParams& Params) const;
 
 	/** 모든 스레드. */
 	uint64 GetQueryCount(const ELNPWorldQueryClass Class) const { return Stats[static_cast<int32>(Class)].Count.load(std::memory_order_relaxed); }

@@ -423,6 +423,17 @@ FLNPExactHitIdentity ULNPHitIdentitySubsystem::ResolveHit(const FLNPHitIdentityS
 	return Identity;
 }
 
+bool ULNPHitIdentitySubsystem::IsSupportlessBlocker(const FLNPHitIdentitySnapshot& InSnapshot,
+	const TWeakObjectPtr<UPrimitiveComponent>& Component)
+{
+	const FLNPExactSourceEntry* Entry = InSnapshot.Sources.Find(Component);
+	return Entry != nullptr
+		&& (Entry->Roles & ELNPExactSourceRole::Blocker) != 0
+		&& (Entry->Roles & ELNPExactSourceRole::Support) == 0
+		&& !Entry->HasSupportFaceMap()
+		&& !Entry->PatchFaceMap.IsValid();
+}
+
 FLNPExactHitIdentity ULNPHitIdentitySubsystem::ResolveHit(const FHitResult& Hit) const
 {
 	const FLNPExactHitIdentity Identity = ResolveHit(*GetSnapshot(), Hit);

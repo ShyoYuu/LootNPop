@@ -6,6 +6,7 @@
 
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "PBDRigidsSolver.h"
@@ -36,6 +37,7 @@ namespace
 		TEXT("FlightSteering"),
 		TEXT("SurfaceCrawl"),
 		TEXT("EnemyLineOfSight"),
+		TEXT("GroundBlockerOverlap"),
 		TEXT("PeriodicGroundValidation"),
 		TEXT("DebugValidation"),
 	};
@@ -143,6 +145,43 @@ bool ULNPMassWorldCollisionSubsystem::ProbeSupport(const FLNPSupportProbeQuery& 
 		&& !OutResult.Hit.bStartPenetrating
 		&& (OutResult.Hit.Identity.Roles & ELNPExactSourceRole::Support) != 0;
 	return OutResult.bSupported;
+}
+
+bool ULNPMassWorldCollisionSubsystem::OverlapsSupportlessBlocker(const FVector& Center, const FQuat& Rotation,
+	const float Radius, const float HalfHeight, const FLNPWorldQueryParams& Params) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(LNPWorldCollision_OverlapBlocker);
+	UWorld* World = GetWorld();
+	if (World == nullptr || HitIdentity == nullptr)
+		return false;
+
+	const uint64 QueryStart = FPlatformTime::Cycles64();
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(LNPWorldCollisionOverlap), /*bTraceComplex=*/false);
+	for (const uint32 ActorId : Params.IgnoredActorIds)
+	{
+		QueryParams.AddIgnoredActor(ActorId);
+	}
+
+	TArray<FOverlapResult> Overlaps;
+	World->OverlapMultiByChannel(Overlaps, Center, Rotation, LNPCollisionChannels::WorldExact,
+		FCollisionShape::MakeCapsule(Radius, HalfHeight), QueryParams);
+
+	const TSharedRef<const FLNPHitIdentitySnapshot, ESPMode::ThreadSafe> Snapshot = HitIdentity->GetSnapshot();
+	const bool bOverlaps = Overlaps.ContainsByPredicate([&Snapshot](const FOverlapResult& Overlap)
+	{
+		return ULNPHitIdentitySubsystem::IsSupportlessBlocker(*Snapshot, Overlap.Component);
+	});
+
+	FClassStats& ClassStats = Stats[static_cast<int32>(Params.Class)];
+	const uint64 QueryNs = WorldCollisionCyclesToNs(FPlatformTime::Cycles64() - QueryStart);
+	ClassStats.Count.fetch_add(1, std::memory_order_relaxed);
+	ClassStats.QueryNs.fetch_add(QueryNs, std::memory_order_relaxed);
+	AtomicMax(ClassStats.MaxQueryNs, QueryNs);
+	if (bOverlaps)
+	{
+		ClassStats.Hits.fetch_add(1, std::memory_order_relaxed);
+	}
+	return bOverlaps;
 }
 
 bool ULNPMassWorldCollisionSubsystem::RunQuery(const FVector& Start, const FVector& End, const FQuat& Rotation,

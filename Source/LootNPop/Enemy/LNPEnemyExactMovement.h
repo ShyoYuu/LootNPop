@@ -76,6 +76,13 @@ namespace LNPEnemyExactMovement
 		FVector& OutLocation, FVector& OutVelocity, FLNPExactHitIdentity* OutSurfaceIdentity = nullptr);
 
 	/**
+	 * CapsuleCenter의 캡슐이 Support 없는 Blocker와 겹치는지. 반지름을 BlockerOverlapSkin만큼 줄여 스치는 접촉은 겹침으로 보지 않는다.
+	 * exact probe는 이런 Blocker 위에 서지 않지만(Rejected), Support 캐시는 Blocker를 모르므로 캐시 접지 결과를 이것으로 검증한다.
+	 */
+	LOOTNPOP_API bool OverlapsSupportlessBlocker(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& CapsuleCenter);
+
+	/**
 	 * 접지 상태 한 프레임. Velocity는 접평면 이동 속도다(법선 성분은 버린다).
 	 * query: 수평 sweep 1회(막히면 미끄러짐 sweep 1회 추가) + 하향 probe 1회.
 	 */

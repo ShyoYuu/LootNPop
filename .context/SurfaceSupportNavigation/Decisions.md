@@ -1,7 +1,7 @@
 # Surface Support·Navigation 확정 결정
 
 > 상태: 확정 결정 원장
-> 마지막 갱신: 2026-10-13
+> 마지막 갱신: 2026-11-16
 > 규칙: 결론만 기록하고 상세 근거와 구현은 링크된 문서가 소유한다.
 
 ## 결정 목록
@@ -90,6 +90,8 @@
 | D-079 | 경로 cache 공유는 경로 길이 비율을 제한하는 합류 규칙을 따른다. 시작 node에서 공유 경로의 앞쪽 4개 waypoint 중 직선 보행 가능하고 합류 거리 a ≤ 0.1 × 합류점 이후 경로 길이 s인 첫 waypoint에 합류한다(요청별 비율 ≤ (1+r)/(1−r)). Chase 대기열은 같은 tick 제출분 안에서 직선 거리 오름차순이다. 몰림 시 예산 적응은 하지 않는다. 이 A*가 Phase 10 비교의 기준선이다. | 확정(Phase 10 단위 2) | `design/GroundNavigation.md` "경로 공유"·"실행 위치", `history/Phase10_Log.md` 2026-10-13 단위 2 |
 | D-080 | 대규모 추격 경로의 flow field·계층형 A*는 채택하지 않는다. 지상 NPC 경로는 D-079 개선 A*(scheduler cache·앞쪽 합류·Chase 거리 순서)로 확정한다. 같은 재생 비교에서 flow field는 기준 2(burst P95 −50%)·5(field 통째 재빌드), 계층형은 기준 1·2·3을 넘지 못했고, production 경로 비용은 병목이 아니다. 두 프로토타입과 재생기는 남겨 두며, 길찾기 최적화가 필요해지면 flow field를 첫 후보로 먼 추격자 없는 조건·움직이는 목표에서 다시 잰다. | 확정(Phase 10 단위 5, 사용자 결정) | `design/GroundNavigation.md` "Phase 10 판정", `history/Phase10_Log.md` 2026-10-13 단위 5 |
 | D-081 | SurfaceData stale 입력은 베이커가 실제로 읽는 것만이다. 요소 클래스 BP의 saved hash(`PlacementClass`)는 넣지 않는다 — 베이커는 클래스를 로드·스폰하지 않고 마커에 적힌 `PatchSources`만 읽는다. Conditional Patch가 없는 런타임 전용 마커(그래플 앵커·런처·윈드필드)는 semantic row에서 빠지고, 베이크에 기여하지 않는 액터(런타임 전용 마커·장식·검토점)의 external actor package도 manifest에서 뺀다. 장치가 베이크에 영향을 줘야 하면 BP 내부가 아니라 마커에 명시한 데이터로 넘긴다. D-041의 "marker authoring 전체"를 patch 마커로 좁힌다. 근거: 2026-11-08 `BP_GrappleAnchor` 재저장 하나로 fixture 2개와 Meadow DA가 모두 낡았다. | 확정(사용자 결정) | `design/DataModel.md` "SourceManifest", `design/DynamicTerrain.md` §5 |
+| D-082 | 지상 적은 Support 없는 Blocker(Blocker 역할이고 Support 역할·Support face 표·patch face 표가 모두 없는 registry source)를 높이와 무관하게 단차로 넘지 않는다. Support Atlas는 Blocker를 모르므로, 캐시 접지 결과의 캡슐(반지름·반높이 −1cm)이 이런 Blocker와 겹치면 hit identity registry 역할 조회로 거부하고 이번 프레임 제자리에 선다(exact probe의 `Rejected`와 같음). 이미 겹친 채 출발한 개체는 빠져나가도록 막지 않는다. Nav 베이크·배회 구간·exact 경로는 이미 같은 규칙이다. | 확정(Phase 16 1단계, 사용자 결정) | `phases/Phase16_SupportlessBlockerStep.md` §3, `design/MovementIntegration.md` "grounded 이동" |
+| D-083 | 벽 근처 Nav 이탈·근접 추격 문제를 분리력 억제/제거로 해결하지 않는다. 군집의 NPC 겹침 해소가 악화되어서는 안 된다. 실제 NPC가 서고 걸어서 연결되는 정적 바닥의 Nav 커버리지를 바로잡고, 플레이어의 물리 지면 정체성과 Nav 투영을 분리하며 근접 적의 도달 가능한 접근·공격 위치를 처리한다. 두 조치 모두 필요하다. 분리력을 뺀 재시도 실험은 실제 PIE 정지가 남았고 사용자에게 기각됐으며, 남은 비채택 실험 정리부터 새 세션에서 진행한다. D-082의 실제 Blocker 비관통 규칙은 유지한다. | 확정(2026-11-16 사용자 결정, 근본 수정 구현 대기) | `phases/Phase16_SupportlessBlockerStep.md` §3.5~3.7, `../DiscardedApproaches.md` Case09 |
 
 ## 변경 규칙
 

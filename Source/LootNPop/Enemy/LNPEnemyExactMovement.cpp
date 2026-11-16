@@ -28,6 +28,9 @@ namespace LNPEnemyExactMovement
 		 */
 		constexpr float WallSkin = 1.0f;
 
+		/** Support 없는 Blocker 겹침 검사에서 캡슐 반지름을 줄이는 양(cm). 벽에서 WallSkin만큼 물러난 접촉은 겹침이 아니다. */
+		constexpr float BlockerOverlapSkin = 1.0f;
+
 		FVector UpAt(const FParams& Params, const FVector& Location)
 		{
 			return (Params.GravityOrigin - Location).GetSafeNormal();
@@ -146,6 +149,14 @@ namespace LNPEnemyExactMovement
 			Target = SweepLateral(Collision, Params, Location, Up, Delta);
 		}
 		return Target;
+	}
+
+	bool OverlapsSupportlessBlocker(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,
+		const FVector& CapsuleCenter)
+	{
+		const float Radius = Params.CapsuleRadius - BlockerOverlapSkin;
+		return Collision.OverlapsSupportlessBlocker(CapsuleCenter, CapsuleRotation(UpAt(Params, CapsuleCenter)),
+			Radius, Params.CapsuleHalfHeight - BlockerOverlapSkin, FLNPWorldQueryParams(ELNPWorldQueryClass::GroundBlockerOverlap));
 	}
 
 	EGroundResult ProbeGroundedAt(const ULNPMassWorldCollisionSubsystem& Collision, const FParams& Params,

@@ -979,15 +979,14 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 					// 겹침을 푸는 분리력은 **방향 의도와 무관하게** 더한다 — 제자리에 선 개체들도
 					// 서로 밀어내야 한다. 아래 경사 체크와 표면 스냅이 그대로 뒤따르므로 구면 규약이
 					// 깨지지 않는다(이것이 분리 프로세서가 Transform을 직접 만지지 않는 이유다).
-					Velocity += SeparationFragments[i].Push;
 
 					// 경사·벽·절벽 판정을 cache-first와 exact 폴백이 맡는다. 지지면을 잃으면
 					// PhysVelocity가 0이 아니게 되어 다음 프레임부터 공중이다.
 					FVector FinalPos;
 					FLNPExactHitIdentity Identity;
-					const LNPEnemyExactMovement::EGroundResult GroundResult = LNPEnemySurfaceMovement::StepGrounded(
-						SurfaceSnapshot.Get(), WorldCollision, ExactParams, EntityLocation, Velocity, DeltaTime,
-						FinalPos, PhysVelocity, EnemyData.SurfaceHandle, &Identity);
+					const LNPEnemyExactMovement::EGroundResult GroundResult = LNPEnemySurfaceMovement::StepGroundedWithSeparation(
+						SurfaceSnapshot.Get(), WorldCollision, ExactParams, EntityLocation, Velocity, SeparationFragments[i].Push, DeltaTime,
+						FinalPos, PhysVelocity, EnemyData.SurfaceHandle, Path.StartHintNode, &Identity);
 					EntityTransform.SetLocation(FinalPos);
 
 					if (GroundResult == LNPEnemyExactMovement::EGroundResult::Grounded)

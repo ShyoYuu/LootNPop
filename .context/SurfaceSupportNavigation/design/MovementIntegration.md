@@ -25,11 +25,15 @@ Mover floor query는 face index를 요청하지 않는다. uniform source는 기
 ### grounded 이동
 
 1. 현재 `FSurfaceHandle`의 Support를 우선 조회
-2. high-confidence interior면 cache로 접지
+2. high-confidence interior면 cache로 접지. 단 그 자리의 캡슐(반지름·반높이 −1cm)이 Support 없는 Blocker와 겹치면 이번 프레임 제자리에 선다(`Rejected`). 측면 sweep은 MaxStepUp(45cm)만큼 올려 하므로 그 아래 Blocker는 캐시만으로 걸러지지 않는다. 판정은 overlap-multi + registry 역할 조회이고, 출발 위치도 이미 겹쳐 있으면 허용한다(D-082)
 3. edge/risk/discontinuity면 exact floor probe
 4. 정적 obstacle risk 또는 runtime blocker가 있으면 capsule sweep
 5. 같은 Layer에서 유효 support가 없으면 유령 지면으로 보간하지 않음
 6. 실제 낙차가 발생하면 airborne로 전환
+
+**군집 겹침 해소와 Nav 커버리지(D-083, 2026-11-16 사용자 결정).** Nav 이탈을 막기 위해 분리력을 빼거나 약화·취소하는 방식은 채택하지 않는다. NPC가 여럿 몰렸을 때 서로 겹치는 문제가 악화되어서는 안 된다. 실제 보행 가능 정적 바닥의 Nav 커버리지와 플레이어 목표의 Nav 처리를 바로잡는 두 조치를 수행한다. 구체적인 조사·수용 기준은 `../phases/Phase16_SupportlessBlockerStep.md` §3.6이 소유한다.
+
+`StepGroundedWithSeparation`·`nav_separation_retries`는 **소스/바이너리에 남은 비채택 실험**이다. 합성 검사 통과 뒤에도 실제 벽 정지가 남아 사용자에게 기각됐으며, 새 세션의 첫 정리 대상이다. 해당 실험의 자동화 통과를 채택된 이동 규칙으로 취급하지 않는다. 기존 D-082의 실제 Blocker 비관통 구현은 보존한다. 경위는 `../history/Phase16_Log.md`를 따른다.
 
 ### airborne와 착지
 
