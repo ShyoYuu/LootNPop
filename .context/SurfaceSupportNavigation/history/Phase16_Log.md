@@ -3,6 +3,17 @@
 > 상태: 진행 중
 > 계획: `phases/Phase16_SupportlessBlockerStep.md`
 
+## 2026-11-16 — 독립 후속: 지상 원거리 사선 확보 후보 A(D-086)
+
+- 사용자가 경량 조사 후보 A만 구현하도록 승인했다. B 짧은 옆걸음은 추후 플레이에서 필요할 때만 고려하고, C 주변 사격 위치 평가는 게임 성격에 과하므로 제외한다. 설계·검증 범위는 `phases/Phase16_GroundRangedLineOfSight.md`가 소유한다.
+- 대상은 지상 PureEntity 원거리다. 실제 `DA_Enemy_PureEntity_Ranged01`은 사거리1000cm·속도600cm/s·사선 플래그 false였고 플래그만 true로 저장했다(다른 공격 설정 동일성 재조회). 저장 전 사본은 `Saved/Profiling/Phase16/GroundRanged/Backup/`다.
+- 차단 중 정지 거리0으로 기존 Nav 추격을 재개하고, 게이트 통과 뒤 사거리 안에서 자리를 유지한다. 공통 조건을 Follow/Movement가 사용하며 기존0.25초 공격 게이트만 검사한다. 차단 중 우회로 정지 거리 밖에 나가도 사거리 안의 StateTree 요청 신호를 유지한다. 타겟 변경·Confirmed 상실·사거리 이탈 때 이전 결과를 지운다. 이동에서 추가 사선 검사·새 Nav 데이터·베이크·경로 알고리즘·분리력 변경은 없다.
+- 새 `EnemyLineOfSight.GroundChase`는 기존 캐시/Blocker 픽스처에서 실제 Follow·공격·이동 프로세서로 차단·0.25초 간격·최초 프레임 경로 준비 대기·기존 steering point 추종·사격/공격 사이 정지·결과 초기화를 확인한다. NavReport에는 `losBlocked`·`holdFire`·`attackPhase`를 더했다.
+- Live Coding Success. 최초 컴파일은 새 테스트의 snapshot 비공개 접근 오류로 실패했고 기존 friend 방식으로 수정했다. `EnemyLineOfSight` **2/2 Success**, 오류/경고0(에디터 로그 2026-11-16 11:59:53 UTC). Game 빌드 Success(137.39초). 전체 SurfaceNavigation **139/139 Success**(979.19초), 경고2는 RHI 가상 자원 예약258GB/예산256GB 안내와 기존 B-option 검토 월드 안내다. MCP 실행 호출은300초에 시간 초과됐으나 재실행 없이 종료 후 `GetTestResults`로 회수했다(`SurfaceNavFull.json`·`.log`).
+- 자동 회귀가 연 검토 맵을 원래 TestMap03으로 복원했다. 실제 풀은 `OctantPoolData` 유지·밀도1, 보호 파일5개 해시 불변이다. 재저장 테스트 에셋3개는 에디터 파일 잠금으로 복원 실패해 사용자에게 종료를 요청했다. 사용자가 검토용 `BP_Octant_COption`을 저장하지 않고 에디터를 닫은 뒤 에셋3개를 백업과 SHA256가 같은 상태로 원복했고 BP의 추적 변경도 없다. 패치 없는 Editor 전체 빌드 Success(77.76초, `EditorBuild.log`).
+- 새 Editor 바이너리 `-game`·헤드리스 리슨2P 통과(`ListenSmoke.json`·호스트/게스트 로그): 종료0·각 probe3종 PASS·assert/ensure/UnknownHits/EnvelopeEscapes0·게스트약13.8KB/s, 게스트만60fps다. 첫 실행은 게스트 인자 PowerShell 인용 오류로 중단했고 수정본으로 검증했다. 호스트 frame P95 15.58ms이나 적2485·지상 활성9~18·합성 투사체 약500개의 비패키지 스모크이며 변경 전 대조군·사선 차단 개체 수가 없어 변경 비용으로 해석하지 않는다. 수동 PIE·교전 부하 비용 검증이 남았다.
+- 수정본 사용자 PIE 완료: TestMap03·1인·밀도1·검사용 풀 메모리 선택, 실제 Ridge WIP slot5·8 validated slots·277 bindings·seam delta0/차단0·Pod120/120이다. 바위 구역 이동 명령을 안내했고 사용자가 사선 차단 중 접근→정지·사격 질문에 **"자연스럽게 동작해"**라고 답했다. 모든 지형/예외 조건의 통과로 확대하지 않는다. 이후 PIE 종료를 확인하고 원래 풀 getter 복원·보호 파일5개 해시 불변·`SelectionState.json=restored`를 확인했다. SaveConfig 미호출, TestMap03 에디터 유지다. 후보 A 기능 작업은 완료하며, 변경 비용을 분리한 전후 비교는 미측정으로 남긴다.
+
 ## 2026-11-16 — 착수, 1단계 구현·픽스처
 
 - 인계: 그래픽스 1-B5b(GX-014)의 Ridge WIP 바위 Static+Blocker 승격 뒤, 지상형 적의 바위 발 관통([그래픽스 실행서](../../Graphics/phases/Phase01_EnvironmentImport.md) §24).

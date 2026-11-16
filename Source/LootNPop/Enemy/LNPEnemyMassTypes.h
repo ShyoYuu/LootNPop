@@ -395,7 +395,7 @@ enum class ELNPEntityAttackPhase : uint8
  *
  * ⚠️ **`ActorPromoted` 개체에도 붙인다 — 모드로 아키타입을 가르지 않는다.**
  * 아키타입이 갈리면 같은 쿼리를 두 벌 유지해야 하고, StateTree 외부 데이터 핸들이 Optional이 되어
- * Task 코드에 null 분기가 생긴다. 대가는 개체당 ~24바이트로 두 비용보다 압도적으로 싸다.
+ * Task 코드에 null 분기가 생긴다. 대신 개체마다 작은 고정 크기 공격 상태를 둔다.
  *
  * 위상 진행을 Task에 두지 않는 이유는 배회 교착과 같다 — Mass StateTree의 Task Tick은
  * `StateTreeActivate` 신호가 있어야만 돌아서, 신호가 끊기면 스윙이 중간에 멈춘 채 칼날 엔티티만
@@ -426,6 +426,12 @@ struct LOOTNPOP_API FLNPEntityAttackFragment : public FMassFragment
 	 * 이동 도메인(비행: ULNPEnemyFlightMovementProcessor)이 읽어 재배치한 뒤 지운다. 공격을 시작하면 지워진다.
 	 */
 	uint8 bLineOfSightBlocked : 1 = 0;
+
+	/** 지상 원거리의 사격 자리 유지. 차단·사거리 이탈·타겟 변경 때 해제하며 서버에서만 쓴다. */
+	uint8 bHoldingGroundFirePosition : 1 = 0;
+
+	/** 사선 결과가 속한 타겟. 다른 플레이어에게 이전 결과를 적용하지 않는다. */
+	FMassEntityHandle GroundFireTarget;
 
 	/**
 	 * **서버 전용 장부** — 패링당해 자세가 무너진 채로 남은 시간(초).

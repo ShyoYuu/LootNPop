@@ -510,7 +510,7 @@ struct FLNPEntityAttackConfig
 	/**
 	 * 공격을 시작하기 전에 총구 → 조준점 사선이 트였는지 exact로 확인한다(`LNPEnemyLineOfSight`).
 	 * 막히면 공격을 시작하지 않고 `FLNPEntityAttackFragment::bLineOfSightBlocked`를 세운다 — 반응(재배치)은 이동 도메인이 맡는다.
-	 * 지금은 비행형만 켠다(Phase03c D-052). 지상 원거리형도 필요한 기능이지만, 켤 때 지상 이동의 재배치 반응을 함께 붙여야 한다.
+	 * 지상 PureEntity 원거리형은 막힌 동안 기존 Nav 추격을 재개하고, 트이면 사거리 안에서 그 자리를 지킨다.
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|EntityAttack|Ranged")
 	bool bRequireLineOfSight = false;
@@ -696,6 +696,24 @@ public:
 
 	bool IsFlying() const { return NavigationDomain == ELNPNavigationDomain::FreeFlight; }
 	bool IsCrawling() const { return NavigationDomain == ELNPNavigationDomain::SurfaceCrawl; }
+
+	/** 지상 원거리 사선 반응의 공통 적용 조건. Actor의 GAS 공격과 다른 이동 도메인은 별도다. */
+	bool UsesGroundLineOfSight() const
+	{
+		return NavigationDomain == ELNPNavigationDomain::GroundSupport && CombatMode == ELNPEnemyCombatMode::PureEntity
+			&& AttackType == ELNPEnemyAttackType::Ranged && EntityAttackConfig.bRequireLineOfSight;
+	}
+
+	/** 차단 중에는 플레이어 쪽 경로를 따르고, 사격에 성공한 자리는 사거리 안에서 유지한다. */
+	float GetChaseStopDistance(const FLNPEntityAttackFragment& Attack) const
+	{
+		if (UsesGroundLineOfSight())
+		{
+			if (Attack.bLineOfSightBlocked) { return 0.f; }
+			if (Attack.bHoldingGroundFirePosition) { return MovementConfig.AttackRange; }
+		}
+		return FLNPEnemyMovementConfig::ComputeStopDistance(MovementConfig.AttackRange);
+	}
 
 	/** 피격 감지 Processor가 사용하는 충돌 Capsule 크기. */
 	UPROPERTY(EditAnywhere, Category = "LNP|Collision", meta = (ClampMin = "1"))

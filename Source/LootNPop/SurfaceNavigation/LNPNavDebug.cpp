@@ -70,6 +70,7 @@ namespace
 		Query.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddRequirement<FLNPEnemyTargetingCandidateFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddRequirement<FLNPEnemyPathFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 		Query.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 		Query.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -81,6 +82,7 @@ namespace
 			const auto Targets = Ctx.GetFragmentView<FLNPEnemyTargetingFragment>();
 			const auto Candidates = Ctx.GetFragmentView<FLNPEnemyTargetingCandidateFragment>();
 			const auto Paths = Ctx.GetFragmentView<FLNPEnemyPathFragment>();
+			const auto Attacks = Ctx.GetFragmentView<FLNPEntityAttackFragment>();
 			const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
 			if (!Config) { return; }
 			for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
@@ -101,13 +103,14 @@ namespace
 				const double Angle = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(
 					FVector::DotProduct(Transform.GetUnitAxis(EAxis::X), (PlayerCenter - Center).GetSafeNormal()), -1.0, 1.0)));
 				const auto& Path = Paths[I];
-				Nearby.Add({Distance, FString::Printf(TEXT("[NavEnemy] entity=%d config=%s pos=%s distance=%.1f angle=%.1f awareness=%.0f vision=%.0f flying=%d candidates=%u state=%d target=%d slot=%u layer=%u surfaceValid=%d airborneSpeed=%.1f endpoint=%d pathStatus=%d waypoints=%d waypoint=%d steering=%d walkAnchor=%d"),
+				Nearby.Add({Distance, FString::Printf(TEXT("[NavEnemy] entity=%d config=%s pos=%s distance=%.1f angle=%.1f awareness=%.0f vision=%.0f flying=%d candidates=%u state=%d target=%d slot=%u layer=%u surfaceValid=%d airborneSpeed=%.1f endpoint=%d pathStatus=%d waypoints=%d waypoint=%d steering=%d walkAnchor=%d losBlocked=%d holdFire=%d attackPhase=%d"),
 					Ctx.GetEntity(I).Index, *Config->GetName(), *Center.ToString(), Distance, Angle,
 					Config->TargetingConfig.AwarenessDistance, Config->TargetingConfig.VisionDistance, Config->IsFlying(),
 					Candidates[I].NumPotentialTargets, static_cast<int32>(Targets[I].State), Targets[I].TargetPlayer.Index,
 					Enemies[I].SurfaceHandle.OctantSlot, Enemies[I].SurfaceHandle.LocalLayerId, Enemies[I].SurfaceHandle.IsValid(),
 					Velocities[I].Velocity.Size(), static_cast<int32>(Status), static_cast<int32>(Path.Status),
-					Path.Path.IsValid() ? Path.Path->Waypoints.Num() : 0, Path.WaypointIndex, Path.bHasSteeringPoint, Path.WalkAnchorNode)});
+					Path.Path.IsValid() ? Path.Path->Waypoints.Num() : 0, Path.WaypointIndex, Path.bHasSteeringPoint, Path.WalkAnchorNode,
+					Attacks[I].bLineOfSightBlocked, Attacks[I].bHoldingGroundFirePosition, static_cast<int32>(Attacks[I].Phase))});
 			}
 		});
 		Nearby.Sort([](const FNearby& A, const FNearby& B) { return A.Distance < B.Distance; });

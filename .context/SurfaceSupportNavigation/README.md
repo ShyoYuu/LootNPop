@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 역할: 이 작업의 진입점과 문서 라우팅
-> 현재 우선순위: Phase16 1단계 완료(D-082·D-084·D-085). 다음은 2단계 ISM Support 조사 또는 현재 풀 Production 기준선([Phase16 §3.4·§4](phases/Phase16_SupportlessBlockerStep.md))
+> 현재 우선순위: Phase16 1단계·독립 후속 [지상 원거리 사선 확보 후보 A](phases/Phase16_GroundRangedLineOfSight.md) 기능 구현·검증 완료(D-086). 다음 후보는 ISM Support 조사 또는 현재 풀 Production 기준선
 > 마지막 구조 갱신: 2026-09-23
 
 ## 1. 목적

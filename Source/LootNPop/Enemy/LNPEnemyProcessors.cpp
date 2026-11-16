@@ -516,6 +516,7 @@ void ULNPEnemyTargetFollowProcessor::ConfigureQueries(const TSharedRef<FMassEnti
 	FollowQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadOnly);
 	FollowQuery.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadWrite);
 	FollowQuery.AddRequirement<FLNPEnemyTargetingFragment>(EMassFragmentAccess::ReadOnly);
+	FollowQuery.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadWrite);
 	FollowQuery.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 	FollowQuery.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 	FollowQuery.AddTagRequirement<FLNPEnemyDormantTag>(EMassFragmentPresence::None);
@@ -540,38 +541,51 @@ void ULNPEnemyTargetFollowProcessor::Execute(FMassEntityManager& EntityManager, 
 		const TArrayView<FMassMoveTargetFragment> MoveTargets = EnemyContext.GetMutableFragmentView<FMassMoveTargetFragment>();
 		const TConstArrayView<FLNPEnemyTargetingFragment> TargetingFragments = EnemyContext.GetFragmentView<FLNPEnemyTargetingFragment>();
 		const FLNPEnemySharedFragment& SharedFragment = EnemyContext.GetConstSharedFragment<FLNPEnemySharedFragment>();
+		const TArrayView<FLNPEntityAttackFragment> Attacks = EnemyContext.GetMutableFragmentView<FLNPEntityAttackFragment>();
 
 		if (SharedFragment.Config == nullptr)
 			return;
 
 		const float AttackRange = SharedFragment.Config->MovementConfig.AttackRange;
+		const bool bGroundLineOfSight = SharedFragment.Config->UsesGroundLineOfSight();
 
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
 			const FVector EntityLocation = Transforms[i].GetTransform().GetLocation();
 			FMassMoveTargetFragment& MoveTarget = MoveTargets[i];
 			const FLNPEnemyTargetingFragment& Targeting = TargetingFragments[i];
+			FLNPEntityAttackFragment& Attack = Attacks[i];
+			if (bGroundLineOfSight && (Attack.GroundFireTarget != Targeting.TargetPlayer
+				|| Targeting.State != ELNPTargetingState::Confirmed || Targeting.DistanceToTargetSq > FMath::Square(AttackRange)))
+			{
+				Attack.GroundFireTarget = Targeting.TargetPlayer;
+				Attack.bLineOfSightBlocked = 0;
+				Attack.bHoldingGroundFirePosition = 0;
+			}
 
 			// 1. MoveTarget과 타게팅 데이터 동기화
 			if (Targeting.TargetPlayer.IsValid())
 			{
 				const float ActualDistance = FMath::Sqrt(Targeting.DistanceToTargetSq);
-				const float StopDist = FLNPEnemyMovementConfig::ComputeStopDistance(AttackRange);
+				const float StopDist = SharedFragment.Config->GetChaseStopDistance(Attack);
 
 				if (ActualDistance <= StopDist)
 				{
 					// 정지 구역: 타겟 방향 전환 (방향은 MoveTarget.Center 방향 사용)
 					MoveTarget.Center = Targeting.TargetLocation;
 					MoveTarget.DistanceToGoal = 0.f;
-					// StateTree 신호 발송으로 SteeringTask가 DistanceToTarget <= AttackRange 평가 가능
-					if (Targeting.State == ELNPTargetingState::Confirmed)
-						EntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				}
 				else
 				{
 					const FVector DirToTarget = (Targeting.TargetLocation - EntityLocation).GetSafeNormal();
 					MoveTarget.Center = Targeting.TargetLocation - DirToTarget * StopDist;
 					MoveTarget.DistanceToGoal = ActualDistance - StopDist;
+				}
+				// 우회 중 원래 정지 거리 밖으로 나가도 사거리 안에서는 공격 요청·0.25초 재검사를 유지한다.
+				if (Targeting.State == ELNPTargetingState::Confirmed
+					&& (ActualDistance <= StopDist || (bGroundLineOfSight && Attack.bLineOfSightBlocked && ActualDistance <= AttackRange)))
+				{
+					EntitiesToSignal.Add(EnemyContext.GetEntity(i));
 				}
 			}
 		}
@@ -683,7 +697,6 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 
 		const float RotationRate = SharedFragment.Config->MovementConfig.RotationRate;
 		const FVector GravityOrigin = SharedFragment.Config->MovementConfig.GravityOrigin;
-		const float AttackRange = SharedFragment.Config->MovementConfig.AttackRange;
 		const float BaseMoveSpeed = SharedFragment.Config->MovementConfig.MoveSpeed;
 
 		// 엔티티 Transform의 기준점은 **캡슐 중심**이다 — 발밑이 아니다.
@@ -841,7 +854,7 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 			case ELNPTargetingState::Confirmed:
 			{
 				const float ActualDistance = Targeting.TargetPlayer.IsValid() ? FMath::Sqrt(Targeting.DistanceToTargetSq) : 0.0f;
-				EffectiveSpeed = (ActualDistance <= FLNPEnemyMovementConfig::ComputeStopDistance(AttackRange)) ? 0.0f : BaseMoveSpeed;
+				EffectiveSpeed = (ActualDistance <= SharedFragment.Config->GetChaseStopDistance(AttackFragments[i])) ? 0.0f : BaseMoveSpeed;
 				OrientationIntent = TargetDirOnPlane;
 				break;
 			}
@@ -898,6 +911,13 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				EffectiveSpeed = FVector::VectorPlaneProject(SteeringTarget - EntityLocation, UpDir).SizeSquared()
 					> FMath::Square(100.f) ? BaseMoveSpeed : 0.f;
 				OrientationIntent = TargetDirOnPlane;
+			}
+
+			// 사선이 처음 막힌 프레임은 아직 정지 목표다. 다음 Follow/Path가 접근 경로를 준비할 때까지 직진하지 않는다.
+			if (SharedFragment.Config->UsesGroundLineOfSight() && AttackFragments[i].bLineOfSightBlocked
+				&& MoveTarget.DistanceToGoal <= FLNPEnemyMovementConfig::ArrivalTolerance)
+			{
+				EffectiveSpeed = 0.f;
 			}
 
 			// 그로기·다운 중에는 어떤 경로로도 움직이지 않는다. StateTree 속도 override 뒤에 두어야 다시 살아나지 않는다.

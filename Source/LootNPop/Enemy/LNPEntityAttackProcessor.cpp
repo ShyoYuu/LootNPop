@@ -184,10 +184,12 @@ void ULNPEntityAttackProcessor::Execute(FMassEntityManager& EntityManager, FMass
 						{
 							constexpr float LineOfSightRetryInterval = 0.25f;
 							Attack.bLineOfSightBlocked = 1;
+							if (Config->UsesGroundLineOfSight()) { Attack.bHoldingGroundFirePosition = 0; }
 							Attack.CooldownRemaining = LineOfSightRetryInterval;
 							continue;
 						}
 						Attack.bLineOfSightBlocked = 0;
+						if (Config->UsesGroundLineOfSight()) { Attack.bHoldingGroundFirePosition = 1; }
 					}
 
 					Attack.Phase        = ELNPEntityAttackPhase::Windup;

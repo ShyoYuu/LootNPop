@@ -172,6 +172,7 @@ private:
 	friend class FLNPConditionalPatchPublicationTest;
 	friend class FLNPStatefulTerrainTest;
 	friend class FLNPEnemyWanderRuntimeTest;
+	friend class FLNPGroundRangedLineOfSightTest;
 	bool PublishPendingPatches();
 	void OnAssetsLoaded();
 	void Fail(FString Error);

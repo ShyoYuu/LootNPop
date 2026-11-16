@@ -1,8 +1,10 @@
 # Surface Support·Navigation 현재 작업 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase16 1단계 완료(D-082·D-084·D-085). 다음 후보는 [Phase16 2단계 ISM Support 조사](phases/Phase16_SupportlessBlockerStep.md)·원거리 사선 재배치·현재 풀 Production 기준선
+> 현재 작업: Phase16 1단계 완료(D-082·D-084·D-085), 독립 후속 [지상 원거리 사선 확보 후보 A](phases/Phase16_GroundRangedLineOfSight.md) 기능 구현·검증 완료(D-086). 다음 후보는 ISM Support 조사·현재 풀 Production 기준선
 > 마지막 갱신: 2026-11-16
+
+**독립 후속 완료(2026-11-16, D-086):** [원거리 사선 확보 후보 A](phases/Phase16_GroundRangedLineOfSight.md)의 기존 추격 재개·0.25초 공격 게이트 재사용안만 구현했다. 지상 PureEntity 원거리의 차단 중 접근·사선 확보 뒤 자리 유지, Live Coding·Editor/Game 전체 빌드·전체 SurfaceNavigation139/139·새 Editor 바이너리 `-game` 리슨2P 스모크 통과다. 실제 Ridge WIP slot5·1인·밀도1 PIE에서 사용자가 **자연스럽게 동작함**을 확인했다. PIE 종료·원래 풀 getter 복원·테스트 에셋3개 원복·보호 파일5개 해시 불변을 확인했고 TestMap03 에디터를 유지한다. 변경 비용의 전후 비교는 미측정이다. 후보 B 옆걸음은 추후 플레이에서 필요할 때만 고려하고 후보 C 주변 사격 위치 탐색은 게임 성격에 과하므로 제외한다. ISM Support·Actor 승격형 GAS 공격은 별도다.
 
 2026-11-16 종료 상태: 벽 근처 지상 근접 NPC의 NoNode 정지는 Atlas `NeedsExact` 보행 띠가 Nav에서 빠진 탓이었다. Nav node 위치를 Nav 전용 보간(`QueryNavLayer`)으로 만들고 엄격 node가 없는 고립 조각은 버리도록 고쳤다(D-084, 베이커 schema10). 실제 Ridge WIP PIE에서 정지가 재현되지 않았고 군집 겹침은 수용 가능, 바위 관통 유지는 없었다. 정식7·fixture5 SurfaceData를 재베이크했고 전체 SurfaceNavigation 137/137·Editor/Game 빌드가 통과했다. 비채택 분리력 실험은 소스에서 제거했다(D-083 유지). 이어 단위2에서 투영 반경 밖 위치를 실제 이동으로 검증한 보행 anchor로 잇고 플레이어 물리 지면을 Nav 투영과 분리했다(D-085). 전체 SurfaceNavigation 138/138·Editor/Game 빌드·수정본 WIP PIE(정지·겹침 악화·바위 관통 유지 없음)가 통과했다. 남은 것은 Production gate(새 패키지 쿡)·리슨2P로 1단계 마감이다. [경위·수치](history/Phase16_Log.md).
 
@@ -88,6 +90,7 @@
 ## 바로 다음 행동
 
 - **Phase16 1단계 완료(2026-11-16 사용자 결정):** 새 패키지 Production gate 2회 통과(frame P95 6.93/6.78ms)·리슨2P 통과. 현재 풀 seed1 배치는 지상 활성0이라 Phase16 변경 비용이 Production에 실리지 않았고, 참고 `AlwaysActive`(지상414)는 frame P95 14.9ms·`GroundBlockerOverlap` 평균3.55us다([로그](history/Phase16_Log.md)). 측정 공백을 수용하고 닫았다. 다음 후보: 2단계 ISM Support 조사([§4](phases/Phase16_SupportlessBlockerStep.md)), 원거리 사선 재배치, 현재 풀에서 지상 교전이 실리는 Production 기준선(플레이어 배치·seed 재선정).
+- **원거리 사선 확보 후보 A 완료(D-086):** 사용자 PIE 확인·원래 풀 복원까지 마쳤다. 다음 후보는 ISM Support 조사 또는 현재 풀 Production 기준선이며 후보 B 옆걸음은 실제 필요가 생길 때만 검토한다.
 - **Phase 15 재측정 주의:** D-084로 정식 Nav node·portal이 늘고 component가 줄었다. 추격 경로 재측정은 schema10 데이터로 한다.
 - Grove는 V023의 새 큰 덩어리 규모·공터 분리·Z 절삭/직각 경사·상부 훅을 사용자 PIE로 확인한다. 이후 작은 Floor 3면 역할/접합 정리·최종 형상/정식 경로 채택·베이크 결정론·실제 풀 한 번 등록·전체 SurfaceNavigation·혼합 PIE가 남았다. 옛 뿌리/벽 생성기를 현재 형상 제작에 사용하지 않는다. 적 0을 NPC 교전 확인으로 취급하지 않는다. 그래픽스 세션과 레벨/베이크/저장을 동시에 조작하지 않는다.
 - Pyramid_00은 V058 공간·동선을 보존한다. 추가 피드백이 생기면 새 형상 버전에서 해당 구간만 수정한다.

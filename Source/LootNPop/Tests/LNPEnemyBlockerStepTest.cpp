@@ -9,6 +9,9 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Enemy/LNPEnemyExactMovement.h"
+#include "Enemy/LNPEnemyConfig.h"
+#include "Enemy/LNPEnemyProcessors.h"
+#include "Enemy/LNPEntityAttackProcessor.h"
 #include "Enemy/LNPEnemyNavigation.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
 #include "GameFramework/Actor.h"
@@ -19,6 +22,11 @@
 #include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
+#include "MassActorSubsystem.h"
+#include "MassCommonFragments.h"
+#include "MassEntitySubsystem.h"
+#include "MassExecutionContext.h"
+#include "MassNavigationFragments.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPEnemySupportlessBlockerStepTest,
@@ -28,6 +36,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPEnemyWalkAnchorRecoveryTest,
 	"LootNPop.SurfaceNavigation.EnemyMovement.WalkAnchorRecovery",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPGroundRangedLineOfSightTest,
+	"LootNPop.SurfaceNavigation.EnemyLineOfSight.GroundChase",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace
@@ -452,6 +465,129 @@ bool FLNPEnemyWalkAnchorRecoveryTest::RunTest(const FString& Parameters)
 	}
 
 	return !HasAnyErrors();
+}
+
+bool FLNPGroundRangedLineOfSightTest::RunTest(const FString& Parameters)
+{
+	FBlockerStepWorld F(TEXT("GroundRangedLineOfSight"));
+	if (!F.BuildCrustCache(*this)) { return false; }
+	auto* Surfaces = F.World->GetSubsystem<ULNPSurfaceDataSubsystem>();
+	Surfaces->PublishedSnapshot = MakeShared<FLNPSurfaceDataSnapshot, ESPMode::ThreadSafe>(F.Snapshot);
+	Surfaces->bSnapshotReady.store(true, std::memory_order_release);
+	UStaticMeshComponent* Wall = F.Box(400.0, FVector(100, 200, 300), TEXT("LNPStaticBlocker"));
+	F.Publish();
+	auto& Manager = F.World->GetSubsystem<UMassEntitySubsystem>()->GetMutableEntityManager();
+	auto* Config = NewObject<ULNPEnemyConfig>(F.World);
+	Config->CombatMode = ELNPEnemyCombatMode::PureEntity;
+	Config->AttackType = ELNPEnemyAttackType::Ranged;
+	Config->EntityAttackConfig.bRequireLineOfSight = true;
+	Config->MovementConfig.AttackRange = 1000.f;
+	TArray<FInstancedStruct> PlayerFragments{FInstancedStruct::Make<FTransformFragment>()};
+	const FMassEntityHandle Player = Manager.CreateEntity(PlayerFragments);
+	const FMassEntityHandle OtherPlayer = Manager.CreateEntity(PlayerFragments);
+	TArray<FInstancedStruct> Fragments{
+		FInstancedStruct::Make<FTransformFragment>(), FInstancedStruct::Make<FLNPEnemyFragment>(),
+		FInstancedStruct::Make<FLNPEnemyTargetingFragment>(), FInstancedStruct::Make<FLNPEnemyVelocityFragment>(),
+		FInstancedStruct::Make<FLNPEntityAttackFragment>(), FInstancedStruct::Make<FMassActorFragment>(),
+		FInstancedStruct::Make<FMassMoveTargetFragment>(), FInstancedStruct::Make<FLNPEnemySeparationFragment>(),
+		FInstancedStruct::Make<FLNPEnemyIdleFragment>(), FInstancedStruct::Make<FLNPEnemyPathFragment>()};
+	FLNPEnemySharedFragment Shared;
+	Shared.Config = Config;
+	FMassArchetypeSharedFragmentValues SharedValues;
+	SharedValues.Add(Manager.GetOrCreateConstSharedFragment(Shared));
+	SharedValues.Sort();
+	const auto Archetype = Manager.CreateArchetype(FMassArchetypeCompositionDescriptor(FMassFragmentBitSet(Fragments)));
+	const FMassEntityHandle Owner = Manager.CreateEntity(Archetype, SharedValues);
+	Manager.AddTagToEntity(Owner, FLNPEnemyTag::StaticStruct());
+	auto& Pose = Manager.GetFragmentDataChecked<FTransformFragment>(Owner).GetMutableTransform();
+	Pose = FTransform(FRotationMatrix::MakeFromXZ(F.Forward, -F.Direction).ToQuat(), F.CapsuleCenterAt(0));
+	Manager.GetFragmentDataChecked<FLNPEnemyFragment>(Owner).SurfaceHandle = F.CrustSurface();
+	auto& Target = Manager.GetFragmentDataChecked<FLNPEnemyTargetingFragment>(Owner);
+	Target.TargetPlayer = Player;
+	Target.State = ELNPTargetingState::Confirmed;
+	Target.TargetLocation = F.CapsuleCenterAt(800);
+	Target.DistanceToTargetSq = FVector::DistSquared(Pose.GetLocation(), Target.TargetLocation);
+	auto& Attack = Manager.GetFragmentDataChecked<FLNPEntityAttackFragment>(Owner);
+	auto& Goal = Manager.GetFragmentDataChecked<FMassMoveTargetFragment>(Owner);
+	auto& Path = Manager.GetFragmentDataChecked<FLNPEnemyPathFragment>(Owner);
+	auto* Follow = NewObject<ULNPEnemyTargetFollowProcessor>(F.World);
+	auto* Fire = NewObject<ULNPEntityAttackProcessor>(F.World);
+	auto* Move = NewObject<ULNPEnemyMovementProcessor>(F.World);
+	for (UMassProcessor* P : {static_cast<UMassProcessor*>(Follow), static_cast<UMassProcessor*>(Fire), static_cast<UMassProcessor*>(Move)})
+	{
+		P->CallInitialize(F.World, Manager.AsShared());
+	}
+	auto Run = [&](UMassProcessor* P, const float Dt = 0.02f)
+	{
+		FMassExecutionContext Context = Manager.CreateExecutionContext(Dt);
+		Context.SetExecutionType(EMassExecutionContextType::Processor);
+		Context.SetFlushDeferredCommands(false);
+		P->CallExecute(Manager, Context);
+		Manager.FlushCommands();
+	};
+	Run(Follow);
+	TestEqual(TEXT("Initially stops inside ordinary range"), Goal.DistanceToGoal, 0.f);
+	Attack.bAttackRequested = 1;
+	Run(Fire);
+	TestTrue(TEXT("Obstacle blocks attack before windup"), Attack.bLineOfSightBlocked && Attack.Phase == ELNPEntityAttackPhase::None);
+	const uint64 BlockedQueries = F.Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight);
+	for (int32 Tick = 0; Tick < 10; ++Tick) { Attack.bAttackRequested = 1; Run(Fire); }
+	TestEqual(TEXT("No per-frame retry before 0.25 seconds"), F.Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight), BlockedQueries);
+	Attack.bAttackRequested = 1;
+	Run(Fire, 0.06f);
+	TestEqual(TEXT("Retry uses one shared line-of-sight check"), F.Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight), BlockedQueries + 1);
+	const FVector Start = Pose.GetLocation();
+	Run(Move);
+	TestTrue(TEXT("First blocked frame waits for follow/path goal"), Pose.GetLocation().Equals(Start, 0.01));
+	Run(Follow);
+	TestTrue(TEXT("Blocked target requests approach even inside attack range"), Goal.DistanceToGoal > 700.f && Goal.Center.Equals(Target.TargetLocation));
+	// 실제 Nav 경로가 제공하는 waypoint 방향을 사용하고 플레이어 쪽 직진으로 덮어쓰지 않는다.
+	Path.bHasSteeringPoint = true;
+	Path.SteeringPoint = Start + F.Side * 200.f;
+	Run(Move);
+	TestTrue(TEXT("Blocked enemy follows existing steering point"), FVector::DotProduct(Pose.GetLocation() - Start, F.Side) > 5.f);
+	TestEqual(TEXT("Movement adds no line-of-sight checks"), F.Collision->GetQueryCount(ELNPWorldQueryClass::EnemyLineOfSight), BlockedQueries + 1);
+	Wall->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Pose.SetLocation(F.CapsuleCenterAt(-150));
+	Path.bHasSteeringPoint = false;
+	Target.DistanceToTargetSq = FVector::DistSquared(Pose.GetLocation(), Target.TargetLocation);
+	Run(Follow);
+	TestTrue(TEXT("Detour can remain outside ordinary stop distance but inside attack range"), Goal.DistanceToGoal > 900.f && Target.DistanceToTargetSq < 1000000.f);
+	Attack.bAttackRequested = 1;
+	Run(Fire, 0.26f);
+	TestTrue(TEXT("Clear shot starts attack and holds the firing position"), !Attack.bLineOfSightBlocked && Attack.bHoldingGroundFirePosition && Attack.Phase == ELNPEntityAttackPhase::Windup);
+	const FVector FirePosition = Pose.GetLocation();
+	Run(Move);
+	TestTrue(TEXT("Attack stops movement in the same frame"), Pose.GetLocation().Equals(FirePosition, 0.01));
+	Attack.Phase = ELNPEntityAttackPhase::None;
+	Attack.CooldownRemaining = 1.f;
+	Run(Follow);
+	Run(Move);
+	TestTrue(TEXT("Keeps firing position between attacks rather than returning to range boundary"), Goal.DistanceToGoal == 0.f && Pose.GetLocation().Equals(FirePosition, 0.01));
+	Target.TargetPlayer = OtherPlayer;
+	Attack.bLineOfSightBlocked = 1;
+	Run(Follow);
+	TestTrue(TEXT("New target clears prior blocked and holding results"), !Attack.bLineOfSightBlocked && !Attack.bHoldingGroundFirePosition && Goal.DistanceToGoal > 0.f);
+	Attack.bHoldingGroundFirePosition = 1;
+	Target.DistanceToTargetSq = FMath::Square(1100.f);
+	Run(Follow);
+	TestFalse(TEXT("Out-of-range target releases firing position"), Attack.bHoldingGroundFirePosition != 0);
+	Attack.bLineOfSightBlocked = 1;
+	Target.State = ELNPTargetingState::Alert;
+	Run(Follow);
+	TestFalse(TEXT("Losing confirmed target clears blocked state"), Attack.bLineOfSightBlocked != 0);
+	Config->AttackType = ELNPEnemyAttackType::Melee;
+	Attack.bLineOfSightBlocked = 1;
+	TestEqual(TEXT("Melee keeps its ordinary stop rule"), Config->GetChaseStopDistance(Attack), FLNPEnemyMovementConfig::ComputeStopDistance(1000.f));
+	Config->AttackType = ELNPEnemyAttackType::Ranged;
+	Config->NavigationDomain = ELNPNavigationDomain::FreeFlight;
+	TestFalse(TEXT("Flight remains outside ground behavior"), Config->UsesGroundLineOfSight());
+	Config->NavigationDomain = ELNPNavigationDomain::SurfaceCrawl;
+	TestFalse(TEXT("Crawl remains outside ground behavior"), Config->UsesGroundLineOfSight());
+	Config->NavigationDomain = ELNPNavigationDomain::GroundSupport;
+	Config->CombatMode = ELNPEnemyCombatMode::ActorPromoted;
+	TestFalse(TEXT("Actor GAS attacks remain outside ground behavior"), Config->UsesGroundLineOfSight());
+	return true;
 }
 
 #endif
