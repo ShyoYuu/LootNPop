@@ -1,6 +1,6 @@
 # Phase 16 — Support 없는 Blocker 단차 금지와 ISM Support
 
-> 상태: 1단계 진행 중 — 단위1 Nav 커버리지(D-084)·단위2 보행 anchor(D-085) 완료, Production gate·리슨2P 마감 남음(§3.7) / ISM Support 보류
+> 상태: 1단계 완료(2026-11-16, D-082·D-084·D-085) — 다음은 2단계 ISM Support 조사(§4) / 측정 공백: 현재 풀 Production 기준선 없음(§3.4)
 > 착수: 2026-11-16, 그래픽스 1-B5b(GX-014) 인계
 > 로그: `history/Phase16_Log.md`
 
@@ -55,8 +55,9 @@ Moss처럼 MaxStepUp보다 살짝 높은 둥근 바위도 같은 경로로 관�
 - [x] Ridge WIP PIE(EnemyDensity1): 지상형 적의 바위 관통 유지 없음(일시 겹침 후 바로 빠져나옴), 벽 근처 정지 재현 안 됨, 군집 겹침 수용 가능. 원래 풀 복원(2026-11-16 네 번째 PIE)
 - [x] 단위1 Nav 커버리지(D-084): 정식7·fixture5 재베이크, 최종 전체 회귀·Editor/Game 빌드(수치는 `history/Phase16_Log.md`)
 - [x] 단위2 플레이어 물리 지면/Nav 투영 분리·보행 anchor(D-085): `WalkAnchorRecovery`·전체 138/138·Editor/Game 빌드·수정본 WIP PIE(§3.6)
-- [ ] Phase 13 Production gate(`RunPhase13Gate.ps1 -Cases Production`, 새 패키지 쿡 필요) 수정 전후 비교: `GroundBlockerOverlap` 횟수·평균 시간, frame P95, Nav node 증가의 경로 비용. 단위2 뒤 한 번에 잰다
-- [ ] 리슨2P(D-031). 단위2 뒤 한 번에 확인한다
+- [x] Phase 13 Production gate(새 패키지 `Saved/SurfaceNavigationPhase16Package`): 2회 frame P95 6.93/6.78ms·경로 PASS. **단, 현재 풀의 seed1 배치는 지상 활성0이라 Phase16 변경 비용이 실리지 않고, 같은 풀의 수정 전 기준선도 없어 전후 비교는 못 했다.** 참고 `AlwaysActive`(지상 활성414) frame P95 14.9ms, `GroundBlockerOverlap` 평균3.55us·걸음당 약0.72회·거부0. 수치는 `history/Phase16_Log.md`
+- [x] 리슨2P(D-031): Gate 4회 헤드리스 패키지 리슨 서버+게스트 종료0·기능 검사 통과
+- [x] 1단계 마감(2026-11-16 사용자 결정): 위 측정 공백을 수용한다. 현재 풀의 지상 부하 Production 기준선은 Phase16 밖 후속이다
 - [x] 사용자 요청으로 작업 체크포인트 커밋(66dba1c, 비채택 실험 포함 상태)
 
 ### 3.5 비채택 실험 — 분리력 제한으로 Nav 이탈 방지
@@ -95,6 +96,8 @@ Moss처럼 MaxStepUp보다 살짝 높은 둥근 바위도 같은 경로로 관�
 - 실제 WIP slot은 새 PIE 로그에서 다시 읽고, 검사용 풀은 메모리에서만 선택한다. 종료 뒤 원래 풀과 보호 파일 해시를 확인한다. 원거리 사선 재배치와 ISM Support는 이 근본 수정 뒤 별도 단위로 남긴다.
 
 ### 3.7 1단계 마감 인계(단위2 뒤)
+
+**완료(2026-11-16).** 새 패키지 Production gate·리슨2P를 측정하고 사용자 결정으로 마감했다(결과 §3.4·`history/Phase16_Log.md`). 아래는 당시 인계 내용이다.
 
 단위1(D-084)·단위2(D-085)가 끝났다. 1단계에 남은 것은 다음 두 가지다.
 

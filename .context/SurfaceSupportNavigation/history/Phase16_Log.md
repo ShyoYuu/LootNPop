@@ -165,3 +165,23 @@
 - 재현 빈도가 원래 낮았으므로(수정 전에도 여러 번 시도에 1회) 이 PIE는 재발 없음의 표본이지 부재의 증명은 아니다. 고정 회귀는 `WalkAnchorRecovery`가 소유한다.
 - 종료: PIE 종료 확인 → 원래 `/Game/Maps/OctantPoolData` getter 복원, 보호 해시6개 불변·Content/Config 변경0(`Unit2/SelectionState_Run2.json=restored`).
 - 단위2 완료. 남은 1단계 마감은 Production gate(새 패키지 쿡, 쿡 전 사용자 허가)와 리슨2P다.
+
+## 2026-11-16 — 1단계 마감 측정: 새 패키지 Production gate·리슨2P
+
+- 사용자 허가로 `46a1063` 소스를 전체 cook했다: `Saved/SurfaceNavigationPhase16Package`(Development, BuildCookRun 약2분18초, 1,601 패키지·오류0·경고1, exe SHA256 `B89C963E8294…`). 로그 `Unit2/Package_BuildCookRun.log`. 에디터는 사용자가 닫았다.
+- `RunPhase13Gate.ps1`(헤드리스 리슨 서버+게스트, seed1, 30초 capture)로 측정했다. 결과 `Saved/Profiling/Phase16/Gate/`. 현재 풀(Bastion·Hollow·Acropolis·Pyramid·Grove·Ridge, Meadow 제외)의 seed1 배치는 Hollow0/7·Grove1·Ridge2·Acropolis3·Pyramid4/6·Bastion5, bindings189, probe5종 PASS다.
+
+| 실행 | frame P50/P95(ms) | 경로 tick P95(ms) | exact P95(ms) | 지상 활성 | 지상 cache | `GroundBlockerOverlap` | 게스트 수신(B/s) |
+|:---|:---|:---|:---|---:|:---|:---|---:|
+| Production 1 | 6.42/6.93 | 0.000 | 2.517 | 0 | (steps0) | 0 | 12,824 |
+| Production 2 | 6.30/6.78 | 0.000 | 2.217 | 0 | (steps0) | 0 | 14,280 |
+| AlwaysActive 1 | 14.18/14.89 | 0.104 | 15.413 | 414 | 99.41% | 629,077회·평균3.55us·hits0 | 10,429 |
+| AlwaysActive 2 | 14.20/14.93 | 0.093 | 15.432 | 414 | 99.11% | 619,169회·평균3.56us·hits0 | 10,435 |
+| 참고 V011 Production(Meadow 포함 풀) | 7.17~8.18/7.65~9.17 | 0.014~0.021 | 2.75~3.61 | 117~144 | 99.95~100% | — | — |
+| 참고 V011 AlwaysActive | 18.79/19.88 | — | 18.555 | 648 | 99.85% | — | — |
+
+- **Gate(frame P95 ≤16.67ms·경로 tick P95 ≤1.5ms) Production 2회 통과.** host/guest 종료0, assert·ensure·UnknownHits·EnvelopeEscapes0, probe PASS. 4회 모두 게스트 접속·복제 수신이 정상이라 리슨2P 스모크(D-031)도 통과로 본다(헤드리스 패키지 2프로세스, 입력 조작 없음).
+- **주의 — 현재 풀의 Production 측정은 지상 부하를 싣지 않는다.** seed1 배치에서 플레이어 근처 지상 적이 깨어나지 않아 지상 활성0·`EnemyGround` steps0·추격 경로0·투사체0이다(V011은 지상 활성117~144·투사체280~311). 이 2회는 Phase16 변경(D-082 Blocker 검사·D-084 Nav·D-085 보행 anchor)의 비용을 재지 못한다. 같은 풀의 수정 전 기준선도 없어 수정 전후 비교는 할 수 없다.
+- 그래서 전원 활성 `AlwaysActive`(Gate 아님)로 지상 이동을 실었다. 지상 활성414·추격 경로 요청 약530에서 frame P95 14.9ms, `GroundBlockerOverlap`은 접지 걸음당 약0.72회·평균3.55us(capture 전체 약2.2초, 프레임당 약1.06ms의 exact 시간, 워커 합계)이고 Blocker 거부0이다. 경로 consumer P95 1.14ms, 경로 tick P95 0.10ms다. V011 AlwaysActive(적2,431·지상648)와 풀·개체 수가 달라 직접 비교하지 않는다. 보행 anchor는 이 조건에서 별도 계측이 없고, consumer 시간에 포함된다.
+- 판정 보류 항목: 현재 풀에서 지상 교전이 실리는 Production 기준선(플레이어 배치·seed 재선정)이 필요하다. 측정 harness 조정은 Phase16 범위 밖의 후속으로 남긴다.
+- **1단계 마감(2026-11-16 사용자 결정):** 현재 풀 Production 측정에 지상 부하가 실리지 않는 공백을 수용하고 Phase16 1단계(D-082·D-084·D-085)를 닫는다. 현재 풀의 지상 교전 Production 기준선은 Phase16 밖 후속이다. 다음 후보는 2단계 ISM Support 조사와 원거리 사선 재배치다.
