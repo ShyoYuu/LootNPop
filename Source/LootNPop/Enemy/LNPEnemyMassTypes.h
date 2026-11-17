@@ -313,6 +313,14 @@ struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
 	/** Nav 밖에서 목표(MoveTarget 발)까지 직접 걸어갈 수 있는지의 마지막 검증 결과와 시각. */
 	bool bFinalApproachWalkable = false;
 	double FinalApproachCheckTime = -DBL_MAX;
+	/** 경로 지름길(D-088)의 마지막 걸음 검증 시각. 다음 검증까지 WalkAnchorRetrySeconds를 둔다. */
+	double ShortcutCheckTime = -DBL_MAX;
+	/** 걸어서 닿지 않은 지름길 후보. 같은 경로(RequestSerial)·같은 waypoint는 다시 걷지 않는다. */
+	uint32 ShortcutFailedSerial = 0;
+	int32 ShortcutFailedWaypoint = INDEX_NONE;
+	/** 걸음 검증으로 건너뛴 지금의 waypoint. 이 waypoint를 따라가는 동안은 Nav 밖이어도 anchor로 되돌리지 않는다. */
+	uint32 ShortcutSerial = 0;
+	int32 ShortcutWaypoint = INDEX_NONE;
 };
 
 /** Mass가 archetype 이동 시 shared path handle을 정상 복사·파괴하도록 명시적으로 허용한다. */

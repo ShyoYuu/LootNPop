@@ -233,3 +233,13 @@
 - PIE: WIP slot5·1인. 기본 편성에서 "이전보다 훨씬 잘 추격해온다". 지상 전용 메모리 편성(근접18·원거리9, 지상 2,220기)에서 "자연스럽게 돈다", steps 106,716·`blocker_rejects`0·`blocker_detours`716(0.67%). 풀·편성은 메모리 변경만 했고 PIE 뒤 원래 값으로 되돌렸다(`Saved/Profiling/Phase16/SmallBlockerDetour/SelectionState.json`).
 - `WalkReaches`·`FindWalkAnchor`도 같은 옆걸음으로 검증한다. 실제 이동과 검증이 일치하므로 의도와 맞고, 걸음 수 상한 1.5배·같은 Layer 유지는 그대로다(`WalkAnchorRecovery` 통과).
 - 남은 것: 변경 비용의 패키지 전후 비교는 미측정이다. 단위2(경로 추종 지름길)·단위3(`ClearanceFloorOnly` 오판)은 마스터 세션이 따로 띄운다.
+
+## 2026-11-17 — 후속 단위2: 경로 추종 지름길(D-088)
+
+- 인계: 그래픽스 1-B5d(바위 하나 주변 Nav 구멍을 평지에서 크게 돎). 사용자 결정은 바위를 옮기지 않고 노드 경로를 실제 보행 검증으로 가로지르는 지름길, 격자 100cm 축소는 권장하지 않음.
+- 원인 재확인: 추종의 waypoint 건너뛰기와 `SimplifyPath`가 모두 격자 직선 검사(모든 칸이 Nav node)만 써서 Nav 구멍을 가로지르는 지름길이 절대 나오지 않는다.
+- 구현(사용자 승인 값): 격자 검사가 멈춘 자리의 다음 waypoint를 `CheckPathShortcut`(800cm 이내·절약 50cm 이상일 때만 `WalkReaches`)으로 보고 통과하면 건너뛴다(최대 2개). 개체별 0.5초 간격·같은 경로·같은 waypoint 실패 기억. 검증한 지름길을 따라가는 동안은 Nav 밖이어도 anchor로 되돌리지 않는다. `NavReport`에 `shortcutWalks`·`shortcutPasses`. D-088 신설.
+- 테스트: `EnemyMovement.PathShortcut`(바위·빈 구멍 통과, 벽·넓은 Blocker·Support 끊김 거부, 거리·절약 필터). 픽스처에 Nav 판정 함수(`BuildNav`)와 Support 빈 띠(`BuildCrustCache` Gap·해상도) 인자를 더했다.
+- 검증: Game·Editor 빌드 성공, 헤드리스 전체 **140/140**(경고5 기존 노이즈), 시험편3개 원복. 패키지 전후 4회씩 `ProductionGround` consumer P95 0.115→0.117ms(차이 없음), frame P95 이전 7.52~7.84·이후 7.74~8.71(P50도 함께 이동한 편차, 단위1 몫 혼재). `Production` 6.87/7.16→7.11/6.98.
+- PIE: WIP slot2·1인, X2697·Y-2626 구멍에서 사용자 "자연스럽게 가로질러온다". `shortcutWalks`88·통과87. 풀은 메모리 변경만 했고 PIE 뒤 원래 값으로 되돌렸다.
+- 남은 것: 단위3(`ClearanceFloorOnly` 오판으로 Nav 구멍 자체가 커지는 문제)은 마스터 세션이 따로 띄운다. `ProductionGround` 부하에서 지름길이 실제로 몇 번 도는지는 측정 로그에 없다.

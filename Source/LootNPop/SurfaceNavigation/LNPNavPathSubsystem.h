@@ -94,6 +94,14 @@ public:
 	uint64 GetFollowerFrames() const { return FollowerFrames; }
 	uint64 GetFollowingPathFrames() const { return FollowingPathFrames; }
 	uint64 GetFollowerWaypointsAdvanced() const { return FollowerWaypointsAdvanced; }
+	/** 경로 지름길(D-088)의 걸음 검증 한 번. 거리·절약 거리로 걸러진 후보는 세지 않는다. */
+	void RecordPathShortcutWalk(const bool bWalkable)
+	{
+		++PathShortcutWalks;
+		PathShortcutPasses += bWalkable ? 1 : 0;
+	}
+	uint64 GetPathShortcutWalks() const { return PathShortcutWalks; }
+	uint64 GetPathShortcutPasses() const { return PathShortcutPasses; }
 
 	// UTickableWorldSubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -130,6 +138,8 @@ private:
 	uint64 FollowerFrames = 0;
 	uint64 FollowingPathFrames = 0;
 	uint64 FollowerWaypointsAdvanced = 0;
+	uint64 PathShortcutWalks = 0;
+	uint64 PathShortcutPasses = 0;
 
 	UPROPERTY(Transient)
 	TObjectPtr<ULNPSurfaceDataSubsystem> SurfaceData;

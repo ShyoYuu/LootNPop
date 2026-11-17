@@ -145,6 +145,20 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 결과 경로는 순수 엔티티(적의 90% 이상)에게는 waypoint fragment로, Actor 승격 엘리트에게는 기존 AI 이동 입력(`SetAIMoveInput`) 경로로 전달한다.
 - 다음 프레임으로 넘기는 request는 시작 당시 `SnapshotGeneration`, `ConnectivityGraphVersion`과 이미 읽은 tile revision을 보존한다. 어느 하나라도 바뀌면 영향 범위를 확인해 재시작하거나 실패시키며 서로 다른 snapshot의 node를 한 결과에 섞지 않는다.
 
+### 경로 추종
+
+순수 엔티티의 waypoint 추종(`LNPEnemyPathProcessor`, 게임 스레드)은 매 프레임 다음 순서로 조향점을 정한다.
+
+1. 발이 현재 waypoint 100cm 안이면 다음 waypoint로 넘어간다.
+2. 시작 node에서 다음 waypoint node까지 격자 직선 검사(`IsDirectWalkable`)가 통과하는 동안 개수 제한 없이 건너뛴다. 경로 자체도 `SimplifyPath`가 같은 검사로 줄인 모서리 점이다.
+3. 지름길(D-088). 2의 검사는 지나는 모든 칸이 Nav node여야 통과하므로 Nav 구멍을 가로지르지 못한다. 지각 200cm 격자·반지름50 agent에서는 1m 바위도 지름 4~6m 구멍이 되어, 평지에서 구멍 둘레를 크게 돈다. 그래서 2가 멈춘 자리의 다음 waypoint를 실제 보행(`LNPEnemyNavigation::CheckPathShortcut` → `WalkReaches`)으로 검증해 통과하면 건너뛴다.
+   - 한 번에 최대 2개를 가까운 것부터 본다. 실패가 흔한 일반 모서리(벽·절벽)는 걸음 검증 1회로 끝난다.
+   - 걷기 전 조건: 후보까지 발 거리 800cm 이내, 현재 waypoint를 거치는 길보다 50cm 이상 짧음. 도달 판정은 50cm다.
+   - 같은 개체는 걸음 검증 뒤 0.5초 동안 다시 걷지 않고, 같은 경로(`RequestSerial`)·같은 waypoint의 실패는 경로가 바뀔 때까지 다시 걷지 않는다.
+   - 걸음 검증은 Nav·overlay를 보지 않는다. 실제 이동과 같은 접지·옆걸음(D-087)을 쓰므로 벽·돌아갈 수 없는 Support 없는 Blocker·지지면 끊김·다른 층은 실패한다. Pod·마커는 실제 충돌이 막는다.
+   - 지름길로 Nav 구멍을 지나다 시작점이 투영 반경 300cm 밖이 되어도, 검증으로 건너뛴 waypoint를 따라가는 동안은 보행 anchor(D-085)로 조향을 되돌리지 않는다. 경로 재요청의 시작점은 기존처럼 anchor다.
+4. 남은 waypoint가 있으면 그 위치가 조향점이다. 계측은 `LNP.SurfaceNav.NavReport`의 `shortcutWalks`(걸음 검증 수)·`shortcutPasses`(통과 수)와 trace scope `LNPEnemyPath_Shortcut`이다.
+
 ---
 
 ## 대규모 추격 경로 비교 (Phase 10)

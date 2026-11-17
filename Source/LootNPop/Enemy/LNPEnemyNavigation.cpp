@@ -173,3 +173,21 @@ int32 LNPEnemyNavigation::FindWalkAnchor(const FLNPSurfaceDataSnapshot& Snapshot
 	}
 	return INDEX_NONE;
 }
+
+LNPEnemyNavigation::EPathShortcut LNPEnemyNavigation::CheckPathShortcut(const FLNPSurfaceDataSnapshot& Snapshot,
+	const ULNPMassWorldCollisionSubsystem& Collision, const LNPEnemyExactMovement::FParams& Params, const FVector& StartCenter,
+	const FLNPSurfaceHandle& Surface, const FVector& CurrentWaypoint, const FVector& Candidate)
+{
+	const FVector Feet = StartCenter - (Params.GravityOrigin - StartCenter).GetSafeNormal() * Params.CapsuleHalfHeight;
+	const double Direct = FVector::Distance(Feet, Candidate);
+	if (Direct > PathShortcutMaxDistance)
+	{
+		return EPathShortcut::TooFar;
+	}
+	if (FVector::Distance(Feet, CurrentWaypoint) + FVector::Distance(CurrentWaypoint, Candidate) - Direct < PathShortcutMinSaving)
+	{
+		return EPathShortcut::LowGain;
+	}
+	return WalkReaches(Snapshot, Collision, Params, StartCenter, Surface, Candidate, PathShortcutAccept)
+		? EPathShortcut::Walkable : EPathShortcut::Blocked;
+}

@@ -39,6 +39,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPEnemyPathShortcutTest,
+	"LootNPop.SurfaceNavigation.EnemyMovement.PathShortcut",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPGroundRangedLineOfSightTest,
 	"LootNPop.SurfaceNavigation.EnemyLineOfSight.GroundChase",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -93,10 +98,12 @@ namespace
 			World->DestroyWorld(false);
 		}
 
-		bool BuildCrustCache(FAutomationTestBase& Test)
+		/** Gap이 주어지면 그 접평면 좌표(x, y)의 Support 샘플을 비워 지지면 끊김을 만든다. 끊김 폭에 맞게 Subdivisions를 올린다. */
+		bool BuildCrustCache(FAutomationTestBase& Test, const int32 Subdivisions = 2,
+			TFunction<bool(double X, double Y)> Gap = nullptr)
 		{
 			FLNPSupportLayerRaster Crust;
-			Crust.Layout = FLNPSupportLayout::MakeFull(2);
+			Crust.Layout = FLNPSupportLayout::MakeFull(Subdivisions);
 			Crust.SourceIndex = 0;
 			Crust.Samples.SetNum(Crust.Layout.Num());
 			for (int32 J = 0; J <= Crust.Layout.Subdivisions; ++J)
@@ -108,6 +115,11 @@ namespace
 					Crust.Samples[Index].Radius = BlockerStepSurfaceRadius;
 					Crust.Samples[Index].Normal = FVector3f(-SampleDirection);
 					Crust.Samples[Index].Flags = ELNPSupportSampleFlags::Valid | ELNPSupportSampleFlags::Walkable;
+					if (Gap && Gap(FVector3d::DotProduct(SampleDirection, FVector3d(Forward)) * BlockerStepSurfaceRadius,
+						FVector3d::DotProduct(SampleDirection, FVector3d(Side)) * BlockerStepSurfaceRadius))
+					{
+						Crust.Samples[Index].Flags = ELNPSupportSampleFlags::None;
+					}
 				}
 			}
 
@@ -135,6 +147,12 @@ namespace
 		/** 벽 밑 띠처럼 Support는 이어지지만 Nav는 없는 구역을 만든다. Nav는 |x|<=200cm·|y|<=1500cm인 좁고 긴 통로다. */
 		bool BuildNavCorridor(FAutomationTestBase& Test)
 		{
+			return BuildNav(Test, [](const double X, const double Y) { return FMath::Abs(X) <= 200.0 && FMath::Abs(Y) <= 1500.0; });
+		}
+
+		/** Accept(x, y)인 접평면 좌표에만 Nav node를 둔다. Support가 빈 곳은 원래 node가 생기지 않는다. */
+		bool BuildNav(FAutomationTestBase& Test, TFunctionRef<bool(double X, double Y)> Accept)
+		{
 			TSharedPtr<FLNPNavData, ESPMode::ThreadSafe> Navigation = MakeShared<FLNPNavData, ESPMode::ThreadSafe>();
 			TSharedPtr<FLNPNavTraversalData, ESPMode::ThreadSafe> Traversal = MakeShared<FLNPNavTraversalData, ESPMode::ThreadSafe>();
 			FLNPNavBakeSettings Settings;
@@ -144,8 +162,7 @@ namespace
 			if (!LNPNavBaking::Build(*Snapshot.Slots[0].Support, Settings,
 				[&](uint16, const FVector3d& P, const FVector3f&)
 				{
-					return FMath::Abs(FVector3d::DotProduct(P, FVector3d(Forward))) <= 200.0
-						&& FMath::Abs(FVector3d::DotProduct(P, FVector3d(Side))) <= 1500.0;
+					return Accept(FVector3d::DotProduct(P, FVector3d(Forward)), FVector3d::DotProduct(P, FVector3d(Side)));
 				},
 				[](uint16, const FVector3d&, const FVector3f&, uint16, const FVector3d&, const FVector3f&) { return true; },
 				*Navigation, *Traversal, Report, Error))
@@ -631,6 +648,87 @@ bool FLNPGroundRangedLineOfSightTest::RunTest(const FString& Parameters)
 	Config->CombatMode = ELNPEnemyCombatMode::ActorPromoted;
 	TestFalse(TEXT("Actor GAS attacks remain outside ground behavior"), Config->UsesGroundLineOfSight());
 	return true;
+}
+
+bool FLNPEnemyPathShortcutTest::RunTest(const FString& Parameters)
+{
+	// Ridge WIP 1-B5d 재현(D-088): 지각 Nav 격자에서 1m 바위가 node를 지워 지름 약5m 구멍이 생긴다. 경로는 구멍 둘레 모서리(W)를
+	// 거치고, 격자 직선 검사는 구멍을 가로지르지 못한다. 지름길은 실제 보행으로만 판정한다.
+	// 픽스처: Nav |x|<=1200·|y|<=600에서 원점 반지름250 원판을 뺀다. 적 S(x=-380) → 구멍 둘레 W(0, 350) → 다음 waypoint C(x=380).
+	constexpr double HoleRadius = 250.0;
+	constexpr double StartX = -380.0;
+	constexpr double CandidateX = 380.0;
+	using namespace LNPEnemyNavigation;
+	auto HoleNav = [](const double X, const double Y)
+	{
+		return FMath::Abs(X) <= 1200.0 && FMath::Abs(Y) <= 600.0 && FMath::Square(X) + FMath::Square(Y) > FMath::Square(HoleRadius);
+	};
+
+	struct FCase
+	{
+		const TCHAR* Name;
+		TFunction<void(FBlockerStepWorld&)> Build;
+		EPathShortcut Expected;
+		int32 Subdivisions = 2;
+		TFunction<bool(double, double)> Gap;
+	};
+	const FCase Cases[] = {
+		// 1. 바위(Support 없는 Blocker 1m×1m×50cm)가 만든 구멍: 옆걸음(D-087)으로 바위를 돌아 C에 닿는다.
+		{TEXT("ShortcutHoleRock"), [](FBlockerStepWorld& F) { F.Box(0.0, FVector(100, 100, 50), TEXT("LNPStaticBlocker")); }, EPathShortcut::Walkable},
+		// 2. 장애물 없이 Nav만 빠진 구멍(베이커 clearance 오판 같은 경우): 그대로 걸어서 지난다.
+		{TEXT("ShortcutHoleOpen"), [](FBlockerStepWorld&) {}, EPathShortcut::Walkable},
+		// 3. 높은 벽: sweep에서 멈추므로 거부한다.
+		{TEXT("ShortcutWall"), [](FBlockerStepWorld& F) { F.Box(0.0, FVector(40, 1400, 300), TEXT("LNPStaticBlocker")); }, EPathShortcut::Blocked},
+		// 4. 낮지만 넓은 Support 없는 Blocker(옆 폭10m): 턱으로 넘지 않고 걸음 상한 안에 돌아가지 못하므로 거부한다.
+		{TEXT("ShortcutLargeBlocker"), [](FBlockerStepWorld& F) { F.Box(0.0, FVector(200, 1000, 20), TEXT("LNPStaticBlocker")); }, EPathShortcut::Blocked},
+		// 5. 지지면 끊김(|x|<=120 띠의 Support가 비었다): 접지를 잃으므로 거부한다.
+		{TEXT("ShortcutSupportGap"), [](FBlockerStepWorld&) {}, EPathShortcut::Blocked, 512,
+			[](const double X, const double) { return FMath::Abs(X) <= 120.0; }},
+	};
+
+	for (const FCase& Case : Cases)
+	{
+		FBlockerStepWorld F(Case.Name);
+		if (!F.BuildCrustCache(*this, Case.Subdivisions, Case.Gap) || !F.BuildNav(*this, HoleNav))
+		{
+			return false;
+		}
+		Case.Build(F);
+		F.Publish();
+		const FLNPSurfaceHandle Surface = F.CrustSurface();
+		const FVector StartFeet = F.GroundPoint(StartX, 0.0);
+		const FVector Corner = F.GroundPoint(0.0, HoleRadius + 100.0);
+		const FVector Candidate = F.GroundPoint(CandidateX, 0.0);
+
+		// 재현 조건: 양쪽 node 사이 격자 직선 검사는 구멍 때문에 실패하고, 모서리 W를 거치는 길은 통과한다.
+		const int32 StartNode = F.ProjectedNode(StartFeet);
+		const int32 CornerNode = F.ProjectedNode(Corner);
+		const int32 CandidateNode = F.ProjectedNode(Candidate);
+		if (!TestTrue(FString::Printf(TEXT("%s: start, corner and candidate project to Nav"), Case.Name),
+			StartNode != INDEX_NONE && CornerNode != INDEX_NONE && CandidateNode != INDEX_NONE))
+		{
+			continue;
+		}
+		TestFalse(FString::Printf(TEXT("%s: grid direct walk cannot cross the Nav hole"), Case.Name),
+			LNPNavGraph::IsDirectWalkable(F.Snapshot.Nav, StartNode, CandidateNode));
+
+		const EPathShortcut Result = CheckPathShortcut(F.Snapshot, *F.Collision, F.Params, F.CapsuleCenterAt(StartX), Surface,
+			Corner, Candidate);
+		AddInfo(FString::Printf(TEXT("%s: shortcut=%d"), Case.Name, static_cast<int32>(Result)));
+		TestEqual(FString::Printf(TEXT("%s: shortcut verdict"), Case.Name), static_cast<int32>(Result), static_cast<int32>(Case.Expected));
+
+		if (Case.Expected == EPathShortcut::Walkable)
+		{
+			// 비용 상한: 800cm 밖 후보는 걷지 않고, 거의 일직선인 모서리(절약 50cm 미만)도 걷지 않는다.
+			TestEqual(FString::Printf(TEXT("%s: candidate beyond the distance cap is not walked"), Case.Name),
+				static_cast<int32>(CheckPathShortcut(F.Snapshot, *F.Collision, F.Params, F.CapsuleCenterAt(-450.0), Surface,
+					Corner, F.GroundPoint(450.0, 0.0))), static_cast<int32>(EPathShortcut::TooFar));
+			TestEqual(FString::Printf(TEXT("%s: nearly straight corner is not walked"), Case.Name),
+				static_cast<int32>(CheckPathShortcut(F.Snapshot, *F.Collision, F.Params, F.CapsuleCenterAt(StartX), Surface,
+					F.GroundPoint(0.0, 60.0), Candidate)), static_cast<int32>(EPathShortcut::LowGain));
+		}
+	}
+	return !HasAnyErrors();
 }
 
 #endif

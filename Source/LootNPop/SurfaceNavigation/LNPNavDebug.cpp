@@ -351,7 +351,7 @@ namespace
 				const FLNPNavPathScheduler& Scheduler = Paths->GetScheduler();
 				const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
 				UE_LOG(LogLootNPop, Display,
-					TEXT("[%s] paths queued=%d running=%d success=%d noPath=%d unreachable=%d noNode=%d stale=%d cancelled=%d submitted=%llu expansions=%llu lastTickExpansions=%d lastTickMs=%.3f cacheHits=%llu cacheMisses=%llu followerFrames=%llu followingPathFrames=%llu waypointsAdvanced=%llu"),
+					TEXT("[%s] paths queued=%d running=%d success=%d noPath=%d unreachable=%d noNode=%d stale=%d cancelled=%d submitted=%llu expansions=%llu lastTickExpansions=%d lastTickMs=%.3f cacheHits=%llu cacheMisses=%llu followerFrames=%llu followingPathFrames=%llu waypointsAdvanced=%llu shortcutWalks=%llu shortcutPasses=%llu"),
 					Tag, Scheduler.GetQueuedCount(), Scheduler.GetRunningCount(),
 					StatusCounts[static_cast<int32>(ELNPNavPathStatus::Succeeded)],
 					StatusCounts[static_cast<int32>(ELNPNavPathStatus::NoPath)],
@@ -361,7 +361,8 @@ namespace
 					StatusCounts[static_cast<int32>(ELNPNavPathStatus::Cancelled)],
 					Stats.Submitted, Stats.Expansions, Stats.LastTickExpansions,
 					Paths->GetLastTickSeconds() * 1000.0, Stats.CacheHits, Stats.CacheMisses,
-					Paths->GetFollowerFrames(), Paths->GetFollowingPathFrames(), Paths->GetFollowerWaypointsAdvanced());
+					Paths->GetFollowerFrames(), Paths->GetFollowingPathFrames(), Paths->GetFollowerWaypointsAdvanced(),
+					Paths->GetPathShortcutWalks(), Paths->GetPathShortcutPasses());
 			}
 		}));
 

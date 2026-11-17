@@ -65,4 +65,34 @@ namespace LNPEnemyNavigation
 	LOOTNPOP_API int32 FindWalkAnchor(const FLNPSurfaceDataSnapshot& Snapshot, const ULNPMassWorldCollisionSubsystem& Collision,
 		const LNPEnemyExactMovement::FParams& Params, const FVector& Center, const FLNPSurfaceHandle& Surface,
 		const FLNPNavOverlay* Overlay, bool bWalkFromNode, double AcceptRadius);
+
+	/** 경로 지름길(D-088)을 볼 후보 waypoint의 최대 거리(cm, 현재 발 기준). 걸음 검증은 최대 약 37걸음이다. */
+	constexpr double PathShortcutMaxDistance = 800.0;
+	/** 현재 waypoint를 거쳐 가는 길보다 이만큼(cm) 이상 짧아질 때만 걸어 본다. 거의 일직선인 모서리는 보지 않는다. */
+	constexpr double PathShortcutMinSaving = 50.0;
+	/** 지름길 걸음 검증에서 후보 waypoint 지면점에 닿았다고 보는 거리(cm). */
+	constexpr double PathShortcutAccept = 50.0;
+	/** 한 번의 검사에서 격자 검사가 멈춘 뒤 이어서 건너뛸 수 있는 waypoint 수. */
+	constexpr int32 PathShortcutMaxSkips = 2;
+
+	enum class EPathShortcut : uint8
+	{
+		/** 실제로 걸어서 후보 waypoint에 닿는다. 건너뛴다. */
+		Walkable,
+		/** 후보가 PathShortcutMaxDistance 밖이다. 걷지 않는다. */
+		TooFar,
+		/** 절약 거리가 PathShortcutMinSaving보다 작다. 걷지 않는다. */
+		LowGain,
+		/** 걸어 봤지만 벽·돌아갈 수 없는 Support 없는 Blocker·지지면 끊김·다른 층으로 닿지 않는다. */
+		Blocked,
+	};
+
+	/**
+	 * 경로 추종의 지름길 판정(D-088). 격자 직선 검사(`LNPNavGraph::IsDirectWalkable`)는 Nav 구멍을 가로지르지 못하므로,
+	 * 현재 waypoint를 건너뛰고 다음 waypoint(Candidate)로 바로 갈 수 있는지를 실제 보행(WalkReaches)으로 본다.
+	 * 거리·절약 거리 조건을 먼저 보고, 통과한 경우에만 걷는다. Nav·overlay는 보지 않는다(Pod·마커는 실제 충돌이 막는다).
+	 */
+	LOOTNPOP_API EPathShortcut CheckPathShortcut(const FLNPSurfaceDataSnapshot& Snapshot, const ULNPMassWorldCollisionSubsystem& Collision,
+		const LNPEnemyExactMovement::FParams& Params, const FVector& StartCenter, const FLNPSurfaceHandle& Surface,
+		const FVector& CurrentWaypoint, const FVector& Candidate);
 }

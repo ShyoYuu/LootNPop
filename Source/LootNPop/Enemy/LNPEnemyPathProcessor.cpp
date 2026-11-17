@@ -616,6 +616,38 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				{
 					++State.WaypointIndex;
 				}
+				// 격자 직선 검사는 Nav 구멍을 가로지르지 못한다. 멈춘 자리의 다음 waypoint를 실제 보행으로 검증해 건너뛴다(D-088).
+				if (Collision && Waypoints.IsValidIndex(State.WaypointIndex + 1)
+					&& Now - State.ShortcutCheckTime >= LNPEnemyNavigation::WalkAnchorRetrySeconds)
+				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_Shortcut);
+					for (int32 Skip = 0; Skip < LNPEnemyNavigation::PathShortcutMaxSkips && Waypoints.IsValidIndex(State.WaypointIndex + 1); ++Skip)
+					{
+						const int32 Candidate = State.WaypointIndex + 1;
+						if (State.ShortcutFailedSerial == State.RequestSerial && State.ShortcutFailedWaypoint == Candidate)
+						{
+							break;
+						}
+						const LNPEnemyNavigation::EPathShortcut Shortcut = LNPEnemyNavigation::CheckPathShortcut(*Snapshot, *Collision,
+							WalkParams, FVector(Center), Enemy.SurfaceHandle, FVector(Waypoints[State.WaypointIndex].Location),
+							FVector(Waypoints[Candidate].Location));
+						if (Shortcut != LNPEnemyNavigation::EPathShortcut::Walkable && Shortcut != LNPEnemyNavigation::EPathShortcut::Blocked)
+						{
+							break;
+						}
+						State.ShortcutCheckTime = Now;
+						Paths->RecordPathShortcutWalk(Shortcut == LNPEnemyNavigation::EPathShortcut::Walkable);
+						if (Shortcut == LNPEnemyNavigation::EPathShortcut::Blocked)
+						{
+							State.ShortcutFailedSerial = State.RequestSerial;
+							State.ShortcutFailedWaypoint = Candidate;
+							break;
+						}
+						State.WaypointIndex = Candidate;
+						State.ShortcutSerial = State.RequestSerial;
+						State.ShortcutWaypoint = Candidate;
+					}
+				}
 				if (Waypoints.IsValidIndex(State.WaypointIndex))
 				{
 					State.SteeringPoint = Waypoints[State.WaypointIndex].Location;
@@ -636,7 +668,10 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				State.SteeringPoint = Center;
 				State.bHasSteeringPoint = true;
 			}
-			if (bOffNavStart)
+			// 걸음으로 검증한 지름길 waypoint를 따라가는 중이면 Nav 구멍 한가운데서 투영을 잃어도 anchor로 되돌아가지 않는다(D-088).
+			const bool bFollowingShortcut = State.Path.IsValid() && State.ShortcutSerial == State.RequestSerial
+				&& State.ShortcutWaypoint == State.WaypointIndex && State.Path->Waypoints.IsValidIndex(State.WaypointIndex);
+			if (bOffNavStart && !bFollowingShortcut)
 			{
 				// 경로는 anchor에서 시작한다. 검증된 보행 구간인 anchor까지 먼저 걸어가 Nav 시작점을 되찾는다.
 				State.SteeringPoint = FVector(PathStart);
