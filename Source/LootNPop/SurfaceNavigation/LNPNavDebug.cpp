@@ -9,6 +9,7 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyMassTypes.h"
 #include "MassCommonFragments.h"
+#include "MassNavigationFragments.h"
 #include "MassEntitySubsystem.h"
 #include "MassExecutionContext.h"
 #include "MassEntityQuery.h"
@@ -23,6 +24,39 @@
 #if !UE_BUILD_SHIPPING
 namespace
 {
+	/** 경로 추종 조향 진단(D-090): 조향점·현재 waypoint·MoveTarget까지의 거리와 시작 node 기준 실제 선분 판정. */
+	FString DescribeSteering(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, const FVector& Center, const double HalfHeight,
+		const FLNPEnemyPathFragment& Path, const FMassMoveTargetFragment& MoveTarget)
+	{
+		const FVector3d Feet = FVector3d(Center) + FVector3d(Center).GetSafeNormal() * HalfHeight;
+		const FVector3d GoalFeet = FVector3d(MoveTarget.Center) + FVector3d(MoveTarget.Center).GetSafeNormal() * HalfHeight;
+		auto NodeText = [&Nav](const int32 Node)
+		{
+			const int32 Slot = Nav.Graph.GetSlot(Node);
+			if (Slot == INDEX_NONE) { return FString(TEXT("none")); }
+			const FLNPNavGraphNode& GraphNode = Nav.Graph.GetNode(Slot, Node);
+			return FString::Printf(TEXT("%d(%u,%u)"), Node, GraphNode.I, GraphNode.J);
+		};
+		const int32 Start = Path.StartHintNode;
+		const bool bStartValid = Nav.Graph.GetSlot(Start) != INDEX_NONE;
+		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d"),
+			Path.bHasSteeringPoint ? FVector::Dist(Center, Path.SteeringPoint) : -1.0,
+			FVector3d::Dist(Feet, GoalFeet), MoveTarget.DistanceToGoal, *NodeText(Start),
+			bStartValid ? FVector3d::Dist(Feet, Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Start), Start)) : -1.0,
+			bStartValid && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Start, Feet, Overlay),
+			bStartValid && LNPNavGraph::IsInNavPocket(Nav, Start, Feet, Overlay),
+			bStartValid && Path.GoalHintNode != INDEX_NONE && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Path.GoalHintNode, GoalFeet, Overlay));
+		if (Path.Path.IsValid() && Path.Path->Waypoints.IsValidIndex(Path.WaypointIndex))
+		{
+			const FLNPNavPathWaypoint& Waypoint = Path.Path->Waypoints[Path.WaypointIndex];
+			Text += FString::Printf(TEXT(" waypointNode=%s waypointDist=%.1f waypointSeg=%d steerIsWaypoint=%d"),
+				*NodeText(Waypoint.Node), FVector3d::Dist(Feet, Waypoint.Location),
+				bStartValid && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Waypoint.Node, Waypoint.Location, Overlay),
+				Path.bHasSteeringPoint && FVector3d::Dist(FVector3d(Path.SteeringPoint), Waypoint.Location) < 1.0);
+		}
+		return Text;
+	}
+
 	/** 누적 경로 통계와 별도로 플레이어 가까운 NPC의 인지·접지·경로 상태를 비교한다. */
 	void LogNearbyEnemies(UWorld& World, const FLNPSurfaceDataSnapshot& Snapshot, const FVector3d& Feet)
 	{
@@ -60,6 +94,8 @@ namespace
 			UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] playerFloor component=%s face=%d blocking=%d slot=%u layer=%u"),
 				*GetNameSafe(FloorHit.GetComponent()), FloorHit.FaceIndex, FloorHit.IsValidBlockingHit(), Identity.Slot, Identity.LocalLayerId);
 		}
+		const ULNPNavPathSubsystem* NavPaths = World.GetSubsystem<ULNPNavPathSubsystem>();
+		const TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> Overlay = NavPaths ? NavPaths->TakeOverlay() : nullptr;
 		struct FNearby { double Distance; FString Line; };
 		TArray<FNearby> Nearby;
 		int32 Flyers = 0, NearbyFlyers = 0;
@@ -71,6 +107,7 @@ namespace
 		Query.AddRequirement<FLNPEnemyTargetingCandidateFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddRequirement<FLNPEnemyPathFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 		Query.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 		Query.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -83,6 +120,7 @@ namespace
 			const auto Candidates = Ctx.GetFragmentView<FLNPEnemyTargetingCandidateFragment>();
 			const auto Paths = Ctx.GetFragmentView<FLNPEnemyPathFragment>();
 			const auto Attacks = Ctx.GetFragmentView<FLNPEntityAttackFragment>();
+			const auto MoveTargets = Ctx.GetFragmentView<FMassMoveTargetFragment>();
 			const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
 			if (!Config) { return; }
 			for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
@@ -110,7 +148,10 @@ namespace
 					Enemies[I].SurfaceHandle.OctantSlot, Enemies[I].SurfaceHandle.LocalLayerId, Enemies[I].SurfaceHandle.IsValid(),
 					Velocities[I].Velocity.Size(), static_cast<int32>(Status), static_cast<int32>(Path.Status),
 					Path.Path.IsValid() ? Path.Path->Waypoints.Num() : 0, Path.WaypointIndex, Path.bHasSteeringPoint, Path.WalkAnchorNode,
-					Attacks[I].bLineOfSightBlocked, Attacks[I].bHoldingGroundFirePosition, static_cast<int32>(Attacks[I].Phase))});
+					Attacks[I].bLineOfSightBlocked, Attacks[I].bHoldingGroundFirePosition, static_cast<int32>(Attacks[I].Phase))
+					+ DescribeSteering(Snapshot.Nav, Overlay.Get(), Center, Config->CapsuleHalfHeight, Path, MoveTargets[I])
+					+ FString::Printf(TEXT(" | playerToPod=%.0f chaseRadius=%.0f orphaned=%d"),
+						FVector::Dist(PlayerCenter, Enemies[I].ParentPodLocation), Config->TargetingConfig.ChaseRadius, Enemies[I].bOrphaned)});
 			}
 		});
 		Nearby.Sort([](const FNearby& A, const FNearby& B) { return A.Distance < B.Distance; });

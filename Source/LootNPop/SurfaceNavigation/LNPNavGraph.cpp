@@ -794,6 +794,179 @@ bool LNPNavGraph::CollectDirectWalkNodes(const FLNPNavSnapshot& Nav, const int32
 	return WalkDirect(Nav, From, To, [&OutNodes](const int32 Node) { OutNodes.Add(Node); }, Overlay);
 }
 
+namespace
+{
+	/** 격자 삼각형의 세 꼭짓점 node가 있고 막히지 않았으며 세 변이 모두 막히지 않은 이웃 edge인지 본다(D-090). */
+	bool IsTriangleOpen(const FLNPNavGraph& Graph, const FLNPNavAssetGraph& Asset, const FLNPNavGraphLayer& Layer,
+		const int32 Base, const FIntPoint (&Corners)[3], const FLNPNavOverlay* Overlay)
+	{
+		int32 Nodes[3];
+		for (int32 Corner = 0; Corner < 3; ++Corner)
+		{
+			Nodes[Corner] = FindLayerNode(Layer, Corners[Corner].X, Corners[Corner].Y);
+			if (Nodes[Corner] == INDEX_NONE || Graph.BlockedNodes[Base + Nodes[Corner]]
+				|| LNPNavOverlay::IsBlocked(Overlay, Base + Nodes[Corner]))
+			{
+				return false;
+			}
+		}
+		for (int32 Corner = 0; Corner < 3; ++Corner)
+		{
+			const int32 From = Nodes[Corner];
+			const int32 To = Nodes[(Corner + 1) % 3];
+			if (Algo::Find(Asset.Nodes[From].Neighbors, To) == nullptr
+				|| (Graph.HasBlockedEdge[Base + From] && Graph.IsEdgeBlocked(Base + From, Base + To))
+				|| (Graph.HasBlockedEdge[Base + To] && Graph.IsEdgeBlocked(Base + To, Base + From)))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** 실수 격자 좌표를 담은 삼각형의 세 꼭짓점. 반환값은 같은 삼각형을 가리는 키(i0, j0, 위·아래)다. */
+	FIntVector GetGridTriangle(const FVector2d& Grid, FIntPoint (&OutCorners)[3])
+	{
+		const int32 I0 = FMath::FloorToInt32(Grid.X);
+		const int32 J0 = FMath::FloorToInt32(Grid.Y);
+		const bool bUpper = (Grid.X - I0) + (Grid.Y - J0) > 1.0;
+		OutCorners[0] = bUpper ? FIntPoint(I0 + 1, J0 + 1) : FIntPoint(I0, J0);
+		OutCorners[1] = FIntPoint(I0 + 1, J0);
+		OutCorners[2] = FIntPoint(I0, J0 + 1);
+		return FIntVector(I0, J0, bUpper ? 1 : 0);
+	}
+
+	/** 한 격자선 족(i, j 또는 i+j가 정수인 선)과 선분의 다음 교점. 선분 매개변수 t가 커지는 순서로 낸다. */
+	struct FGridLineCrossings
+	{
+		double Value = 0.0;
+		double Delta = 0.0;
+		int32 Next = 0;
+		int32 Direction = 0;
+
+		FGridLineCrossings(const double InValue, const double InDelta)
+			: Value(InValue), Delta(InDelta)
+		{
+			if (InDelta > UE_DOUBLE_SMALL_NUMBER)
+			{
+				Direction = 1;
+				Next = FMath::FloorToInt32(InValue) + 1;
+			}
+			else if (InDelta < -UE_DOUBLE_SMALL_NUMBER)
+			{
+				Direction = -1;
+				Next = FMath::CeilToInt32(InValue) - 1;
+			}
+		}
+
+		double NextT() const { return Direction == 0 ? TNumericLimits<double>::Max() : (Next - Value) / Delta; }
+	};
+}
+
+bool LNPNavGraph::IsSegmentWalkable(const FLNPNavSnapshot& Nav, const int32 FromNode, const FVector3d& FromPosition,
+	const int32 ToNode, const FVector3d& ToPosition, const FLNPNavOverlay* Overlay)
+{
+	const FLNPNavGraph& Graph = Nav.Graph;
+	const int32 Slot = Graph.GetSlot(FromNode);
+	if (Slot == INDEX_NONE || Graph.GetSlot(ToNode) != Slot)
+	{
+		return false;
+	}
+	const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[Slot];
+	const int32 Base = Graph.SlotNodeBase[Slot];
+	const int32 LayerOrdinal = Asset.Nodes[FromNode - Base].LayerOrdinal;
+	if (Asset.Nodes[ToNode - Base].LayerOrdinal != LayerOrdinal)
+	{
+		return false;
+	}
+	const FLNPNavGraphLayer& Layer = Asset.Layers[LayerOrdinal];
+	FVector2d A, B;
+	if (!LNPNavData::ProjectToGrid(Layer.Subdivisions, Graph.SlotRotations[Slot].UnrotateVector(FromPosition), A)
+		|| !LNPNavData::ProjectToGrid(Layer.Subdivisions, Graph.SlotRotations[Slot].UnrotateVector(ToPosition), B))
+	{
+		return false;
+	}
+
+	// 세 격자선 족과의 교점을 t 오름차순으로 병합한다. 이웃한 두 교점 사이 구간은 삼각형 하나 안에 있으므로 그 중점의 삼각형을 본다.
+	// 꼭짓점을 정확히 지나면 두 족의 교점이 겹쳐 길이 0 구간이 생기며, 그 구간은 건너뛴다(앞뒤 삼각형이 그 꼭짓점을 이미 본다).
+	const FVector2d Delta = B - A;
+	FGridLineCrossings Families[3] = {
+		FGridLineCrossings(A.X, Delta.X), FGridLineCrossings(A.Y, Delta.Y), FGridLineCrossings(A.X + A.Y, Delta.X + Delta.Y)};
+	constexpr double EmptyInterval = 1e-9;
+	const int32 MaxIntervals = FMath::CeilToInt32(FMath::Abs(Delta.X) + FMath::Abs(Delta.Y) + FMath::Abs(Delta.X + Delta.Y)) + 4;
+	FIntVector LastTriangle(MIN_int32, MIN_int32, 0);
+	double Previous = 0.0;
+	for (int32 Interval = 0; Interval < MaxIntervals; ++Interval)
+	{
+		const double Next = FMath::Min3(Families[0].NextT(), Families[1].NextT(), Families[2].NextT());
+		const double End = FMath::Min(Next, 1.0);
+		if (End - Previous > EmptyInterval)
+		{
+			FIntPoint Corners[3];
+			const FIntVector Triangle = GetGridTriangle(A + Delta * (0.5 * (Previous + End)), Corners);
+			if (Triangle != LastTriangle)
+			{
+				if (!IsTriangleOpen(Graph, Asset, Layer, Base, Corners, Overlay))
+				{
+					return false;
+				}
+				LastTriangle = Triangle;
+			}
+		}
+		if (Next >= 1.0)
+		{
+			return true;
+		}
+		for (FGridLineCrossings& Family : Families)
+		{
+			if (Family.NextT() <= Next)
+			{
+				Family.Next += Family.Direction;
+			}
+		}
+		Previous = Next;
+	}
+	// 교점 수는 MaxIntervals를 넘을 수 없다. 수치 오차로 넘으면 보수적으로 막힘이다.
+	return false;
+}
+
+bool LNPNavGraph::IsInNavPocket(const FLNPNavSnapshot& Nav, const int32 NearestNode, const FVector3d& Position,
+	const FLNPNavOverlay* Overlay)
+{
+	const FLNPNavGraph& Graph = Nav.Graph;
+	const int32 Slot = Graph.GetSlot(NearestNode);
+	if (Slot == INDEX_NONE)
+	{
+		return false;
+	}
+	const FLNPNavAssetGraph& Asset = *Graph.SlotGraphs[Slot];
+	const int32 Base = Graph.SlotNodeBase[Slot];
+	const FLNPNavGraphLayer& Layer = Asset.Layers[Asset.Nodes[NearestNode - Base].LayerOrdinal];
+	FVector2d Grid;
+	if (!LNPNavData::ProjectToGrid(Layer.Subdivisions, Graph.SlotRotations[Slot].UnrotateVector(Position), Grid))
+	{
+		return false;
+	}
+	FIntPoint Corners[3];
+	GetGridTriangle(Grid, Corners);
+	if (IsTriangleOpen(Graph, Asset, Layer, Base, Corners, Overlay))
+	{
+		return false;
+	}
+	// 그 자리 삼각형의 외접원 반지름(가장 긴 변/√3). 꼭짓점은 격자 방향을 Position 반경에 둔 점이다.
+	const double Radius = Position.Length();
+	FVector3d Points[3];
+	for (int32 Corner = 0; Corner < 3; ++Corner)
+	{
+		const FVector3d Direction(Corners[Corner].X, Corners[Corner].Y, Layer.Subdivisions - Corners[Corner].X - Corners[Corner].Y);
+		Points[Corner] = Graph.SlotRotations[Slot].RotateVector(Direction.GetSafeNormal()) * Radius;
+	}
+	const double LongestEdge = FMath::Sqrt(FMath::Max3(FVector3d::DistSquared(Points[0], Points[1]),
+		FVector3d::DistSquared(Points[1], Points[2]), FVector3d::DistSquared(Points[2], Points[0])));
+	const double Threshold = LongestEdge / UE_DOUBLE_SQRT_3 + NavPocketMargin;
+	return FVector3d::DistSquared(Position, Graph.GetWorldPoint(Slot, NearestNode)) > FMath::Square(Threshold);
+}
+
 uint32 LNPNavGraph::GetTileKey(const FLNPNavSnapshot& Nav, const int32 GraphNode)
 {
 	const int32 Slot = Nav.Graph.GetSlot(GraphNode);

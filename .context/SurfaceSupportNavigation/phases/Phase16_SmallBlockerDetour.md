@@ -1,6 +1,6 @@
 # 작은 Blocker 주변 지상 적 우회 — Phase16 후속
 
-> 상태: 단위1 완료(2026-11-17, 사용자 PIE "자연스럽게 돈다"). 단위2 완료(2026-11-17, 사용자 PIE "자연스럽게 가로질러온다"). 단위3 완료(2026-11-17, 사용자 PIE "구멍이 메워지고 Nav가 지형에 맞게 자연스러워짐"). 단위4(직선 목표 분기 정지) 대기
+> 상태: 단위1 완료(2026-11-17, 사용자 PIE "자연스럽게 돈다"). 단위2 완료(2026-11-17, 사용자 PIE "자연스럽게 가로질러온다"). 단위3 완료(2026-11-17, 사용자 PIE "구멍이 메워지고 Nav가 지형에 맞게 자연스러워짐"). 단위4(D-090 실제 선분의 삼각형 통로·Nav 주머니) 구현·커밋, 최종 PIE는 세력권 대치 귀환 개선(별도 세션) 뒤로 대기
 > 작성: 2026-11-17
 > 관계: Phase16 1단계(D-082 Blocker 비관통)의 후속. 그래픽스 1-B5d·1-B5e 인계를 받는다.
 > 진행: 단위는 한 세션에 하나씩 순서대로 진행한다(1→2→3). 마스터 세션이 결과를 확인한 뒤 다음 단위를 띄운다.
@@ -162,7 +162,9 @@
 - 차이는 단위2 측정 편차(7.52~8.71) 안이다. 지상 활성은 4회 모두 27이고, 경로 요청·waypoint(102·70→46·37)는 줄었다.
 - PIE(사용자, 2026-11-17): 검사용 풀을 메모리로만 지정, TestMap03 1인, WIP slot4. 사용자 관찰 "원래 문제 지형의 구멍이 메워졌고 Nav node와 연결선이 훨씬 지형에 맞게 자연스러워졌다. 추격도 자연스럽다(단위1·2 때 이미 자연스러웠으므로 이번 영향인지는 모름)". PIE 뒤 원래 풀로 복원(`Unit3/SelectionState.json`), 추적 Content/Config 변경은 재베이크한 SurfaceData12개뿐이다.
 
-## 5. 단위4 — 직선 목표 분기의 바위 앞 정지(대기)
+## 5. 단위4 — 실제 선분의 삼각형 통로(D-090)
+
+### 5.1 재현과 원인(코드로 재확인)
 
 단위3 PIE에서 단위1·2 때 재현하지 못한 정지를 재현했다.
 
@@ -171,7 +173,55 @@
 - WIP 로컬 좌표: NPC (20218.5, 15970.1, 21906.1), 플레이어 (20639.5, 16022.7, 21640.8). 진단 `Unit3/ExplainNavGap_Stuck525.log`.
 - 원인: `LNPEnemyPathProcessor` 직선 목표 분기. 시작 node→목표 node 격자 직선(J=102 줄, 바위에서 약1m)은 통과하지만 실제 조향은 현재 위치(바위 칸에서 108cm, 시작 node에서 약2m)→플레이어 직선이라 바위를 지난다. 실제 보행 검증(`WalkReaches`)은 Nav 밖 시작(D-085)에만 있다. 옆걸음(D-087)은 절벽 모서리·요철로 대부분 실패한다.
 - 단위3과의 관계: 이전에는 (127,102)·(128,102)가 `ClearanceFloorOnly`로 빠져 격자 직선이 실패하고 경로 waypoint로 돌았다. schema11이 node를 채워 기존 구멍(Nav 안 시작의 직선 분기 무검증)이 드러났다.
-- 수정 방향(안, 사용자 확인 전): 직선 분기 중 진척 없음·Blocker 거부가 이어질 때만 0.5초 간격 `WalkReaches`로 검증하고, 실패하면 경로를 요청한다. 같은 목표에서 경로 추종의 격자 건너뛰기도 실제 보행 검증을 거쳐야 다시 직선으로 끌려가지 않는다.
+
+- 코드: `LNPEnemyPathProcessor`의 직선 목표 분기(`bDirectGoal`)와 waypoint 건너뛰기가 모두 node↔node 격자 직선(`IsDirectWalkable` → `WalkDirect`)만 봤다. `WalkDirect`는 샘플마다 가장 가까운 격자점이 node인지만 보므로 선에서 약1m까지만 보장한다. 실제 조향은 발 → MoveTarget(또는 waypoint) 선분이라 그 사이 어긋남이 수 m였다.
+- 근거 확인: 베이커는 node 캡슐(`HasGravityCapsuleClearance`)과 edge 캡슐 sweep(`HasCapsulePolylineClearance`, 반지름50, 양방향)을 모두 본다. 세 변이 살아 있는 삼각형 안에서 검사 밖으로 남는 곳은 내접원 중심 반지름 약8cm(200cm 격자)뿐이다.
+- 이전에 기록한 안(정지 감지 뒤 `WalkReaches`)은 사후 대응이라 구현하지 않았다. 아래 판정이 예상 밖으로 실패하면 쓸 예비안으로 남긴다.
+
+### 5.2 결정(사용자 승인)
+
+| 항목 | 결정 |
+|:---|:---|
+| 끝점(플레이어)이 불완전 삼각형 | 직선 거부, 경로로 목표 node까지. waypoint가 끝나면 조향점이 비어 이동이 MoveTarget으로 곧장 간다(`LNPEnemyProcessors.cpp` 조향). Nav 밖 플레이어(D-085)도 같다 |
+| 시작점이 불완전 삼각형 | 직선·건너뛰기 거부, 현재 waypoint로 조향(새 경로는 최근접 node). PIE 1차 뒤 **Nav 주머니**만 보행 anchor로 보강(5.4) |
+| 현재 waypoint로 향하는 조향 선분 | 검사하지 않는다(waypoint 사이는 `SimplifyPath` 격자 직선) |
+| slot·Layer | 같은 slot·Layer만(시작 node 기준), 옥탄트 면 밖이면 거부 |
+| 격자 좌표 | Atlas `ComputeCell`과 같은 면 중심 투영을 `LNPNavData::ProjectToGrid`로 공개해 재사용 |
+
+### 5.3 구현
+
+- `LNPNavGraph::IsSegmentWalkable(Nav, FromNode, FromPosition, ToNode, ToPosition, Overlay)`: 선분을 시작 node의 slot·Layer 격자 (i,j)로 옮기고, i·j·i+j 정수선과의 교점을 t 순으로 병합해(정렬·할당 없음) 지나는 삼각형을 차례로 본다. 세 꼭짓점 node(BlockedNodes·overlay)와 세 변(이웃 edge·BlockedEdges 양방향)이 모두 있어야 통과다. 꼭짓점을 정확히 지나는 길이 0 구간은 건너뛴다.
+- 적용: `bDirectGoal`(발 또는 Nav 밖이면 anchor node → `ApproachGoal`)과 waypoint 건너뛰기(발 → 다음 waypoint 지면점). A*·`SimplifyPath`·cache 합류(D-079)·D-088 지름길·D-085 마지막 접근 검증·D-087 옆걸음·분리력은 그대로다.
+- 진단: `NavReport`의 `[NavEnemy]` 줄에 조향·waypoint·MoveTarget 거리, `startTri`·`pocket`·`directSeg`·`waypointSeg`(overlay 포함), `playerToPod`·`chaseRadius`를 붙였다.
+
+### 5.4 PIE(사용자, TestMap03 1인, 검사용 풀 메모리 지정)
+
+| 차수 | WIP slot | 관찰 | 조치 |
+|:---|:---|:---|:---|
+| 1 | 5 | `blocker_rejects` **1/190,206**(이전 6.5%). 근접 325가 벽 모서리+바위 사이 **Nav 주머니**(최근접 node 255cm, 투영 반경 안)에서 정지. 직선은 거부됐고 첫 waypoint 조향이 sweep에 막힘(`Unit4/ExplainNavGap_Stuck325.log`) | 주머니면 보행 anchor(D-085) 재사용 |
+| 2 | 4 | 원래 바위 자리 정지 재현 안 됨. 트인 평지에서 근접 496 **제자리걸음**. 프레임 추적상 주머니 판정(100cm 기준)이 Pod overlay 근처 경로에서 anchor↔waypoint를 오가며 진동(`Unit4/ExplainNavGap_March496.log`) | 주머니 기준을 삼각형 외접원+25cm로(`IsInNavPocket`), Live Coding 뒤 496이 플레이어에 도착 |
+| 3 | 1 | 근접 4마리가 Pod 세력권 경계(플레이어→Pod 6,087cm > `ChaseRadius` 5,000)에서 Alert 8초 ↔ None 1초를 무한 반복하며 쳐다보기만 함. 기존 타게팅 동작이라 단위4와 무관 | 사용자 결정으로 별도 세션(세력권 밖 Alert 대치 귀환 개선)에서 고친 뒤 이 단위의 최종 PIE를 다시 본다 |
+
+- 매 PIE 뒤 풀을 원래 값으로 되돌렸다(`Unit4/SelectionState.json`). 추적 Content/Config 변경은 없다.
+
+### 5.5 검증
+
+- 테스트 `EnemyMovement.DirectCorridor`: 재현 형태(격자 직선 통과·실제 선분 거부), 불완전 삼각형 시작·끝·정지 거부, 트인 삼각형·꼭짓점·격자선 통과 허용, slot 다름 거부, 살아 있는 꼭짓점 가까이는 주머니 아님, 주머니 픽스처(구멍 반지름220) 판정·보행 anchor.
+- 빌드·회귀: Game·Editor 빌드, 헤드리스 전체 `LootNPop.SurfaceNavigation` **141/141**(`Unit4/SurfaceNavFull3`), 재저장 시험편 3개 원복.
+- 비용(`RunPhase13Gate.ps1 -Cases ProductionGround,Production`, 단위3 패키지와 교대 2회씩, 모두 종료0·Gate PASS). 2차는 주머니 100cm 기준 판이다. 외접원 기준은 지각 격자에서 주머니 범위를 좁히므로 최종 재측정은 단위4 마무리 때 한다.
+
+| | ProductionGround frame P95(ms) | consumer P95(ms) | 경로 요청(캡처/전체) | 경로 추종 프레임 | Production P95(ms) |
+|:---|:---|:---|:---|:---|:---|
+| 1차 이전·이후(`Unit4/Cost_v1`) | 8.80·8.64 → 8.20·8.08 | 0.129·0.148 → 0.151·0.144 | 25/45·56/65 → 39/48·47/61 | 14,201·20,458 → 32,242·35,941 | 7.35·7.14 → 7.38·7.27 |
+| 2차 이전·이후(`Unit4/Cost`) | 8.18·8.39 → 8.50·8.47 | 0.119·0.120 → 0.145·0.138 | 40/50·34/38 → 21/38·32/67 | 10,632·9,146 → 21,406·26,620 | 7.32·7.33 → 7.37·7.47 |
+
+- 해석: 경로 요청은 늘지 않았다. 직선 분기가 더 자주 거부되어 경로 추종 프레임이 약2배이고, consumer P95가 약 +0.02ms 늘었을 수 있다(Gate 1.5ms 대비 작음). frame P95 차이는 두 측정의 방향이 반대라 편차로 본다.
+
+### 5.6 남은 것
+
+- 세력권 대치 귀환 개선(별도 세션) 뒤 같은 바위·주머니에서 최종 PIE, 외접원 기준 패키지 재측정.
+- 예비안: 판정이 예상 밖으로 실패하면 정지 감지 뒤 `WalkReaches` 검증·경로 재요청(이전 기록안).
+- 범위 밖: 배회 목표의 직선 판정(`LNPEnemyStateTreeProcessors.cpp`)과 cache 합류(D-079)는 여전히 node↔node 격자 직선이다.
 
 ## 6. PIE 검증 절차(단위1)
 

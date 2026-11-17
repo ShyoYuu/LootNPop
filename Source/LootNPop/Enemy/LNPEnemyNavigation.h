@@ -57,7 +57,7 @@ namespace LNPEnemyNavigation
 		const FVector& GoalFeet, double AcceptRadius);
 
 	/**
-	 * 기본 투영 반경 안에 node가 없는 위치의 보행 anchor(D-085). 같은 slot·Layer에서 WalkAnchorSearchRadius 안의 가까운 node부터
+	 * 기본 투영 반경 안에 node가 없는 위치(또는 불완전 삼각형 안의 Nav 주머니, D-090)의 보행 anchor(D-085). 같은 slot·Layer에서 WalkAnchorSearchRadius 안의 가까운 node부터
 	 * 실제 이동으로 걸어서 이어지는지 검증하고 처음 통과한 node를 돌려준다. 없으면 INDEX_NONE. 스냅·순간 이동은 하지 않는다.
 	 * bWalkFromNode=false: Center의 개체가 node까지 걸어간다(Nav 밖 적의 복귀). AcceptRadius는 node 지면점 기준이다.
 	 * bWalkFromNode=true: node에 선 적이 Center의 발까지 걸어간다(Nav 밖 플레이어에게 다가가기). AcceptRadius는 Center 발 기준이다.

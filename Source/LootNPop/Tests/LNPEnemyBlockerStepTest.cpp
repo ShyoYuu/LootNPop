@@ -44,6 +44,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPEnemyDirectCorridorTest,
+	"LootNPop.SurfaceNavigation.EnemyMovement.DirectCorridor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPGroundRangedLineOfSightTest,
 	"LootNPop.SurfaceNavigation.EnemyLineOfSight.GroundChase",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -726,6 +731,146 @@ bool FLNPEnemyPathShortcutTest::RunTest(const FString& Parameters)
 			TestEqual(FString::Printf(TEXT("%s: nearly straight corner is not walked"), Case.Name),
 				static_cast<int32>(CheckPathShortcut(F.Snapshot, *F.Collision, F.Params, F.CapsuleCenterAt(StartX), Surface,
 					F.GroundPoint(0.0, 60.0), Candidate)), static_cast<int32>(EPathShortcut::LowGain));
+		}
+	}
+	return !HasAnyErrors();
+}
+
+bool FLNPEnemyDirectCorridorTest::RunTest(const FString& Parameters)
+{
+	// Phase16 단위4 재현(D-090): 바위가 node R 하나를 지운 지각 Nav 격자. 좌표는 R 기준 격자 오프셋 (di, dj)이며
+	// 삼각 격자의 이웃 방향은 (±1,0)·(0,±1)·(1,-1)·(-1,1)이다. R을 꼭짓점으로 둔 삼각형은 모두 dj ∈ [-1, 1] 줄에 있다.
+	auto NavArea = [](const double X, const double Y) { return FMath::Abs(X) <= 1200.0 && FMath::Abs(Y) <= 1200.0; };
+	FBlockerStepWorld F(TEXT("DirectCorridor"));
+	if (!F.BuildCrustCache(*this) || !F.BuildNav(*this, NavArea))
+	{
+		return false;
+	}
+	// 1차 Nav(빈 칸 없음)에서 원점 node R의 격자 좌표를 얻고, R만 뺀 Nav를 다시 굽는다.
+	const int32 FullR = F.ProjectedNode(F.GroundPoint(0.0, 0.0));
+	if (!TestTrue(TEXT("Origin projects to a Nav node"), FullR != INDEX_NONE))
+	{
+		return false;
+	}
+	const FLNPNavGraphNode RNode = F.Snapshot.Nav.Graph.GetNode(0, FullR);
+	const int32 N = F.Snapshot.Nav.Graph.SlotGraphs[0]->Layers[RNode.LayerOrdinal].Subdivisions;
+	const FVector3d RPoint = F.NodePoint(FullR);
+	const double RX = F.ForwardOf(FVector(RPoint));
+	const double RY = F.SideOf(FVector(RPoint));
+	if (!F.BuildNav(*this, [&NavArea, RX, RY](const double X, const double Y)
+		{
+			return NavArea(X, Y) && FMath::Square(X - RX) + FMath::Square(Y - RY) > FMath::Square(5.0);
+		}))
+	{
+		return false;
+	}
+	const FLNPNavSnapshot& Nav = F.Snapshot.Nav;
+	auto Lattice = [&RNode, N](const double DI, const double DJ)
+	{
+		const double I = RNode.I + DI;
+		const double J = RNode.J + DJ;
+		return FVector3d(I, J, N - I - J).GetSafeNormal() * BlockerStepSurfaceRadius;
+	};
+	auto NodeAt = [&F, &Nav, &RNode](const FVector3d& Point, const int32 DI, const int32 DJ) -> int32
+	{
+		const int32 Node = F.ProjectedNode(FVector(Point));
+		if (Node == INDEX_NONE)
+		{
+			return INDEX_NONE;
+		}
+		const FLNPNavGraphNode& GraphNode = Nav.Graph.GetNode(0, Node);
+		return GraphNode.I == RNode.I + DI && GraphNode.J == RNode.J + DJ ? Node : INDEX_NONE;
+	};
+	TestEqual(TEXT("R lattice point no longer has a node"), NodeAt(Lattice(0.0, 0.0), 0, 0), static_cast<int32>(INDEX_NONE));
+
+	// 1. 이번 재현 형태: 실제 선분은 R에서 0.4줄(약35cm) 옆을 지나 R의 삼각형들을 지나지만,
+	//    두 끝의 최근접 node (-3,1)·(3,1) 사이 격자 직선은 R의 이웃 줄을 따라 통과한다.
+	const FVector3d ReproStart = Lattice(-2.7, 0.4);
+	const FVector3d ReproGoal = Lattice(3.3, 0.4);
+	const int32 ReproStartNode = NodeAt(ReproStart, -3, 1);
+	const int32 ReproGoalNode = NodeAt(ReproGoal, 3, 1);
+	if (TestTrue(TEXT("Repro endpoints project to (-3,1) and (3,1)"), ReproStartNode != INDEX_NONE && ReproGoalNode != INDEX_NONE))
+	{
+		TestTrue(TEXT("Repro: node-to-node grid line passes"), LNPNavGraph::IsDirectWalkable(Nav, ReproStartNode, ReproGoalNode));
+		TestFalse(TEXT("Repro: actual segment through R's triangles is rejected"),
+			LNPNavGraph::IsSegmentWalkable(Nav, ReproStartNode, ReproStart, ReproGoalNode, ReproGoal));
+		TestFalse(TEXT("Repro: reversed segment is rejected"),
+			LNPNavGraph::IsSegmentWalkable(Nav, ReproGoalNode, ReproGoal, ReproStartNode, ReproStart));
+	}
+
+	// 2. 바위 옆 불완전 삼각형((0,0)·(1,0)·(0,1))에서 출발하거나 그곳으로 끝나면 거부한다.
+	const FVector3d RockSide = Lattice(0.3, 0.3);
+	const FVector3d FarOpen = Lattice(3.1, 1.5);
+	const int32 RockSideNode = F.ProjectedNode(FVector(RockSide));
+	const int32 FarOpenNode = F.ProjectedNode(FVector(FarOpen));
+	if (TestTrue(TEXT("Rock-side and far points project to Nav"), RockSideNode != INDEX_NONE && FarOpenNode != INDEX_NONE))
+	{
+		TestFalse(TEXT("Start in an incomplete triangle is rejected"),
+			LNPNavGraph::IsSegmentWalkable(Nav, RockSideNode, RockSide, FarOpenNode, FarOpen));
+		TestFalse(TEXT("Goal in an incomplete triangle is rejected"),
+			LNPNavGraph::IsSegmentWalkable(Nav, FarOpenNode, FarOpen, RockSideNode, RockSide));
+		TestFalse(TEXT("Standing still in an incomplete triangle is rejected"),
+			LNPNavGraph::IsSegmentWalkable(Nav, RockSideNode, RockSide, RockSideNode, RockSide));
+	}
+	// 불완전 삼각형이어도 살아 있는 꼭짓점 (1,0) 가까이(외접원 안)면 Nav 주머니가 아니다. 경로 선분을 따라가는 적이 여기서
+	// 주머니로 바뀌면 anchor와 waypoint 사이를 오가는 진동이 생긴다(PIE 재현 3).
+	const FVector3d NearLiveCorner = Lattice(0.85, 0.1);
+	const int32 NearLiveNode = NodeAt(NearLiveCorner, 1, 0);
+	if (TestTrue(TEXT("Near-corner point projects to (1,0)"), NearLiveNode != INDEX_NONE))
+	{
+		TestFalse(TEXT("Near-corner point is in an incomplete triangle"),
+			LNPNavGraph::IsSegmentWalkable(Nav, NearLiveNode, NearLiveCorner, NearLiveNode, NearLiveCorner));
+		TestFalse(TEXT("Near a live corner is not a Nav pocket"), LNPNavGraph::IsInNavPocket(Nav, NearLiveNode, NearLiveCorner));
+	}
+	TestFalse(TEXT("Open triangle is not a Nav pocket"),
+		LNPNavGraph::IsInNavPocket(Nav, NodeAt(Lattice(-3.0, 2.0), -3, 2), Lattice(-2.6, 2.3)));
+
+	// 3. R 줄을 벗어난 트인 삼각형(dj ∈ (1, 2))만 지나면 허용한다. 꼭짓점·격자선을 정확히 지나는 선분도 같다.
+	const FVector3d OpenStart = Lattice(-3.3, 1.6);
+	const FVector3d OpenGoal = Lattice(3.1, 1.4);
+	const int32 OpenStartNode = F.ProjectedNode(FVector(OpenStart));
+	const int32 OpenGoalNode = F.ProjectedNode(FVector(OpenGoal));
+	if (TestTrue(TEXT("Open endpoints project to Nav"), OpenStartNode != INDEX_NONE && OpenGoalNode != INDEX_NONE))
+	{
+		TestTrue(TEXT("Open triangles only: allowed"),
+			LNPNavGraph::IsSegmentWalkable(Nav, OpenStartNode, OpenStart, OpenGoalNode, OpenGoal));
+		TestTrue(TEXT("Open triangles only: reversed allowed"),
+			LNPNavGraph::IsSegmentWalkable(Nav, OpenGoalNode, OpenGoal, OpenStartNode, OpenStart));
+		TestTrue(TEXT("Standing still in an open triangle is allowed"),
+			LNPNavGraph::IsSegmentWalkable(Nav, OpenStartNode, OpenStart, OpenStartNode, OpenStart));
+		TestTrue(TEXT("Segment along grid line j=2 through vertices is allowed"),
+			LNPNavGraph::IsSegmentWalkable(Nav, OpenStartNode, Lattice(-3.0, 2.0), OpenGoalNode, Lattice(3.0, 2.0)));
+		TestTrue(TEXT("Segment through vertices (-2,3)->(2,1) is allowed"),
+			LNPNavGraph::IsSegmentWalkable(Nav, OpenStartNode, Lattice(-2.0, 3.0), OpenGoalNode, Lattice(2.0, 1.0)));
+		// 4. slot이 다르면(이음매 너머) 기존 격자 검사처럼 거부한다. 같은 asset을 공유하므로 slot1 사본 index로 만든다.
+		const int32 OtherSlotNode = OpenGoalNode - Nav.Graph.SlotNodeBase[0] + Nav.Graph.SlotNodeBase[1];
+		TestFalse(TEXT("Different slots are rejected"),
+			LNPNavGraph::IsSegmentWalkable(Nav, OpenStartNode, OpenStart, OtherSlotNode, OpenGoal));
+	}
+
+	// 5. Nav 주머니(PIE 재현 2): 투영 반경 300cm 안이지만 최근접 node가 그 자리 삼각형 외접원보다 먼 불완전 삼각형.
+	//    경로 소비자는 이 조건에서 보행 anchor(D-085)로 실제로 걸어서 닿는 node를 먼저 찾는다.
+	{
+		FBlockerStepWorld P(TEXT("DirectCorridorPocket"));
+		if (!P.BuildCrustCache(*this) || !P.BuildNav(*this, [](const double X, const double Y)
+			{
+				return FMath::Abs(X) <= 1200.0 && FMath::Abs(Y) <= 1200.0 && FMath::Square(X) + FMath::Square(Y) > FMath::Square(220.0);
+			}))
+		{
+			return false;
+		}
+		P.Publish();
+		const FVector PocketFeet = P.GroundPoint(0.0, 0.0);
+		const int32 Nearest = P.ProjectedNode(PocketFeet);
+		if (TestTrue(TEXT("Pocket: still inside the 300cm projection"), Nearest != INDEX_NONE))
+		{
+			TestFalse(TEXT("Pocket: feet are in an incomplete triangle"),
+				LNPNavGraph::IsSegmentWalkable(P.Snapshot.Nav, Nearest, FVector3d(PocketFeet), Nearest, FVector3d(PocketFeet)));
+			TestTrue(TEXT("Pocket: nearest node is beyond the triangle circumradius"),
+				LNPNavGraph::IsInNavPocket(P.Snapshot.Nav, Nearest, FVector3d(PocketFeet)));
+			TestTrue(TEXT("Pocket: open floor finds a walk anchor"),
+				LNPEnemyNavigation::FindWalkAnchor(P.Snapshot, *P.Collision, P.Params, P.CapsuleCenterAt(0.0), P.CrustSurface(),
+					nullptr, false, 100.0) != INDEX_NONE);
 		}
 	}
 	return !HasAnyErrors();

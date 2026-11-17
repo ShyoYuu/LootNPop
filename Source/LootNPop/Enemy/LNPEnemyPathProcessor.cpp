@@ -497,6 +497,19 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				StartNode = ResolveWalkAnchor(State, Center, Enemy.SurfaceHandle);
 				bOffNavStart = StartNode != INDEX_NONE;
 			}
+			else if (LNPNavGraph::IsInNavPocket(Nav, StartNode, Start, Overlay.Get()))
+			{
+				// Nav 주머니(D-090): 발이 불완전 삼각형에 있고 최근접 node가 그 삼각형 외접원보다 멀면, 투영 반경 안이어도 그 node로
+				// 곧게 걸을 수 있다는 보장이 없다(벽 모서리·바위 사이). Nav 밖과 같이 실제 보행으로 검증한 anchor로 먼저 돌아간다.
+				// 경로 선분 위에서는 최근접 node가 외접원 안이라 이 분기에 들어오지 않는다(100cm 기준이 만든 진동을 막는다).
+				// 검증이 모두 실패하면 이전처럼 최근접 node에서 시작한다(새 정지를 만들지 않는다).
+				const int32 Anchor = ResolveWalkAnchor(State, Center, Enemy.SurfaceHandle);
+				if (Anchor != INDEX_NONE)
+				{
+					StartNode = Anchor;
+					bOffNavStart = true;
+				}
+			}
 			else
 			{
 				State.WalkAnchorNode = INDEX_NONE;
@@ -523,7 +536,10 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			bool bDirectGoal;
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_DirectGoal);
-				bDirectGoal = GoalNode != INDEX_NONE && LNPNavGraph::IsDirectWalkable(Nav, StartNode, GoalNode, Overlay.Get());
+				// 실제로 곧게 걸을 선분(발 또는 Nav 밖이면 anchor node → 실제로 다가갈 MoveTarget 발)이 트인 삼각형만 지나야 한다(D-090).
+				// node 사이 격자 직선은 실제 선분에서 수 m 어긋나 바위를 지날 수 있다. 끝점이 불완전 삼각형이면 경로로 목표 node까지 간다.
+				bDirectGoal = GoalNode != INDEX_NONE
+					&& LNPNavGraph::IsSegmentWalkable(Nav, StartNode, PathStart, GoalNode, ApproachGoal, Overlay.Get());
 			}
 			if (bDirectGoal && bOffNavStart && !bSynthetic)
 			{
@@ -616,8 +632,10 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				{
 					++State.WaypointIndex;
 				}
+				// 건너뛰기도 실제 선분(현재 발 → 다음 waypoint 지면점)이 트인 삼각형만 지날 때다(D-090).
 				while (Waypoints.IsValidIndex(State.WaypointIndex + 1)
-					&& LNPNavGraph::IsDirectWalkable(Nav, StartNode, Waypoints[State.WaypointIndex + 1].Node, Overlay.Get()))
+					&& LNPNavGraph::IsSegmentWalkable(Nav, StartNode, PathStart, Waypoints[State.WaypointIndex + 1].Node,
+						Waypoints[State.WaypointIndex + 1].Location, Overlay.Get()))
 				{
 					++State.WaypointIndex;
 				}

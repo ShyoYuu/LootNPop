@@ -255,3 +255,14 @@
 - PIE(WIP slot4, 1인): 사용자 "구멍이 메워졌고 Nav node·연결선이 훨씬 지형에 맞게 자연스러워졌다, 추격도 자연스럽다(단위1·2 영향과 구분 불가)". 풀은 메모리 변경만 하고 PIE 뒤 복원.
 - 새 재현: 근접 entity 525가 바위 Moss_01 옆에서 3분 정지(경로 요청 없음·`blocker_rejects` 6.5%). 원인은 직선 목표 분기가 Nav 안 시작점에서 실제 보행을 검증하지 않는 것이며, schema11이 바위 옆 node를 채워 드러났다. 사용자 결정으로 단위3을 마감하고 단위4로 넘긴다(`phases/Phase16_SmallBlockerDetour.md` §5).
 
+
+## 2026-11-17 — 후속 단위4: 실제 선분의 삼각형 통로(D-090)
+
+- 인계: 단위3 PIE에서 근접 적이 바위 Moss_01 옆에 3분 정지. 원인은 직선 목표 분기와 waypoint 건너뛰기가 node↔node 격자 직선(`IsDirectWalkable`)만 보고 실제 발→목표 선분을 보지 않는 것(수 m 어긋남). 마스터 검토 뒤 사용자가 실제 선분의 삼각형 통로 검사를 승인했다.
+- 결정(사용자): 끝점 불완전 삼각형은 거부하고 목표 node 경유(waypoint 소진 뒤 MoveTarget 직진), 시작점은 현재 waypoint 조향, waypoint 조향 선분은 검사하지 않음, 같은 slot·Layer만, 격자 투영은 Atlas와 같은 식 재사용.
+- 구현: `LNPNavData::ProjectToGrid`, `LNPNavGraph::IsSegmentWalkable`(세 격자선 족 교점 병합, 꼭짓점 node·변 edge·overlay·BlockedEdges), `bDirectGoal`·건너뛰기에 적용. 테스트 `EnemyMovement.DirectCorridor`.
+- PIE 1차(slot5): `blocker_rejects` 1/190,206(이전 6.5%). 근접 325가 벽 모서리+바위 사이 Nav 주머니(최근접 node 255cm)에서 첫 waypoint 조향이 sweep에 막혀 정지 → 사용자 승인으로 주머니면 보행 anchor(D-085) 재사용.
+- PIE 2차(slot4): 원래 자리 재현 안 됨. 트인 평지에서 근접 496 제자리걸음 → Live Coding 진단(`NavEnemy` 조향 진단, 임시 프레임 추적)으로 주머니 100cm 기준이 Pod overlay 근처 경로에서 anchor↔waypoint 진동을 만든 것을 확인 → 기준을 삼각형 외접원+25cm(`IsInNavPocket`)로 바꾸자 496이 플레이어에 도착.
+- PIE 3차(slot1): 근접 4마리가 세력권 경계(플레이어→Pod 6,087cm > 5,000)에서 Alert 8초↔None 1초를 무한 반복. 기존 타게팅 동작(포기 뒤 돌아서지 않아 1초 재발견 금지가 무력)이며 단위4와 무관. 사용자 결정으로 별도 세션에서 귀환을 개선한 뒤 이 단위의 최종 PIE를 다시 본다.
+- 검증: Game·Editor 빌드, 헤드리스 전체 141/141, 시험편3개 원복. 패키지 교대 2회씩 두 번(100cm 기준판까지): 경로 요청 불변, 경로 추종 프레임 약2배, consumer P95 약 +0.02ms 가능성, frame P95 편차 안. 결과 `Saved/Profiling/Phase16/SmallBlockerDetour/Unit4/`.
+- 남은 것: 귀환 개선 뒤 최종 PIE와 외접원 기준 패키지 재측정.

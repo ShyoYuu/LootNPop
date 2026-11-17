@@ -132,6 +132,23 @@ void LNPNavData::GetGridSearchBounds(
 	OutMax = FIntPoint(Bound(High.X, Low.Y + Low.Z, true), Bound(High.Y, Low.X + Low.Z, true));
 }
 
+bool LNPNavData::ProjectToGrid(const int32 Subdivisions, const FVector3d& LocalPosition, FVector2d& OutGrid)
+{
+	if (Subdivisions < 1 || LocalPosition.GetMin() < -UE_KINDA_SMALL_NUMBER * LocalPosition.GetAbsMax())
+	{
+		return false;
+	}
+	// 이음매 위 위치의 회전 오차(아주 작은 음수 성분)는 0으로 본다.
+	const FVector3d Direction = LocalPosition.ComponentMax(FVector3d::ZeroVector);
+	const double Sum = Direction.X + Direction.Y + Direction.Z;
+	if (Sum <= 0.0)
+	{
+		return false;
+	}
+	OutGrid = FVector2d(Direction.X / Sum * Subdivisions, Direction.Y / Sum * Subdivisions);
+	return true;
+}
+
 uint8 LNPNavData::GetNeighborBit(const ELNPNavNeighbor Neighbor)
 {
 	return 1u << static_cast<uint8>(Neighbor);

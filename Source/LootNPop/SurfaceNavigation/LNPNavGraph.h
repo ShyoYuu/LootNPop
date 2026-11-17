@@ -288,6 +288,28 @@ namespace LNPNavGraph
 	LOOTNPOP_API bool IsDirectWalkable(const FLNPNavSnapshot& Nav, int32 From, int32 To,
 		const FLNPNavOverlay* Overlay = nullptr);
 
+	/**
+	 * 실제 선분의 직선 보행 검사(D-090). FromPosition→ToPosition 대원호를 FromNode의 slot·Layer 격자 좌표로 옮기고,
+	 * 그 선분이 지나는 모든 격자 삼각형이 세 꼭짓점 node(막힘·overlay 포함)와 세 변 edge(막힌 edge 포함)를 모두 가질 때만 true다.
+	 * 베이커가 node와 edge sweep의 clearance를 모두 보므로 이런 삼각형 안에는 Blocker가 들어갈 자리가 거의 없다.
+	 * node만 보는 IsDirectWalkable은 선에서 약 1m 떨어진 곳까지만 보장하고 실제 발 위치·목표를 보지 않는다.
+	 * FromNode·ToNode의 slot·Layer가 다르거나 위치가 그 slot 옥탄트 밖이면 false다. 두 node는 slot·Layer만 정하며 꼭짓점일 필요는 없다.
+	 */
+	LOOTNPOP_API bool IsSegmentWalkable(const FLNPNavSnapshot& Nav, int32 FromNode, const FVector3d& FromPosition,
+		int32 ToNode, const FVector3d& ToPosition, const FLNPNavOverlay* Overlay = nullptr);
+
+	/** IsInNavPocket의 외접원 반지름에 더하는 여유(cm). 경로 선분 샘플 간격(격자 1/4)과 분리력으로 선에서 비켜난 몫이다. */
+	constexpr double NavPocketMargin = 25.0;
+
+	/**
+	 * Nav 주머니(D-090). Position을 담은 격자 삼각형이 불완전하고(IsSegmentWalkable과 같은 꼭짓점·변 기준),
+	 * 최근접 node(NearestNode, 같은 slot·Layer)까지가 그 삼각형의 외접원 반지름(가장 긴 변/√3)+NavPocketMargin보다 멀면 true다.
+	 * 경로 선분(IsDirectWalkable)은 샘플마다 가장 가까운 격자점이 살아 있는 node이므로 그 위에서는 이 거리를 넘지 않는다.
+	 * 따라서 경로를 따라가는 동안에는 true가 되지 않고, 죽은 꼭짓점에 둘러싸인 자리(벽 모서리·바위 사이)에서만 true다.
+	 */
+	LOOTNPOP_API bool IsInNavPocket(const FLNPNavSnapshot& Nav, int32 NearestNode, const FVector3d& Position,
+		const FLNPNavOverlay* Overlay = nullptr);
+
 	/** IsDirectWalkable과 같은 검사이며, 통과한 cell의 전역 index를 From부터 순서대로(중복 없이) 모은다. 경로 Tile fingerprint에 쓴다. */
 	LOOTNPOP_API bool CollectDirectWalkNodes(const FLNPNavSnapshot& Nav, int32 From, int32 To, TArray<int32>& OutNodes,
 		const FLNPNavOverlay* Overlay = nullptr);

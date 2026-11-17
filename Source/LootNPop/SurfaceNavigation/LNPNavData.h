@@ -157,6 +157,11 @@ namespace LNPNavData
 		int32 Subdivisions, const FVector3d& LocalPosition, double Radius, FIntPoint& OutMin, FIntPoint& OutMax);
 	LOOTNPOP_API bool TryGetNeighborCoord(
 		int32 Subdivisions, int32 I, int32 J, ELNPNavNeighbor Neighbor, FIntPoint& OutCoord);
+	/**
+	 * slot local 위치를 실수 격자 좌표 (i, j)로 옮긴다. Support Atlas 셀 주소(`ComputeCell`)와 같은 옥탄트 면 중심 투영이며
+	 * 반경과 무관하다. 대원호는 이 좌표에서 선분이다. 옥탄트 밖(오차보다 큰 음수 성분)이거나 원점이면 false다.
+	 */
+	LOOTNPOP_API bool ProjectToGrid(int32 Subdivisions, const FVector3d& LocalPosition, FVector2d& OutGrid);
 
 	/** 격자 좌표를 16x16 Tile 주소로 바꾼다. uint16 Tile 좌표 범위를 넘으면 false다. */
 	LOOTNPOP_API bool MakeTileAddress(int32 I, int32 J, uint16& OutTileX, uint16& OutTileY, uint8& OutLocalCellIndex);
