@@ -158,6 +158,9 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - Nav 주머니(`LNPNavGraph::IsInNavPocket`): 발이 불완전 삼각형에 있고 최근접 node가 그 삼각형의 외접원 반지름(가장 긴 변/√3)+25cm보다 멀면 투영 반경(300cm) 안이어도 보행 anchor(D-085)를 쓴다. 벽 모서리와 바위 사이처럼 최근접 node로 곧게 가는 길이 sweep에 막힐 수 있기 때문이다(Phase16 단위4 PIE 재현: 최근접 node 255cm). 실제 보행으로 검증한 node로 먼저 돌아가고 선분·경로 시작도 그 node다. 검증이 모두 실패하면 이전처럼 최근접 node에서 시작한다.
   - 기준을 외접원으로 둔 이유: 경로 선분(`IsDirectWalkable`)은 샘플마다 가장 가까운 격자점이 살아 있는 node라, 경로를 따라가는 동안에는 최근접 node가 외접원 안이다. 처음 둔 100cm(waypoint 도달 반경) 기준은 Pod overlay 근처 경로에서 anchor↔waypoint를 오가는 제자리걸음을 만들었다(단위4 PIE 2차). 25cm는 샘플 간격(격자 1/4)과 분리력으로 선에서 비켜난 몫이다.
   - 판정은 삼각형 하나라 매 프레임 싸고, 걸음 검증은 주머니 안에서만 0.5초마다 돈다.
+  - 보행 검증이 모두 실패하면(벽 모서리+바위처럼 빠져나가는 길이 꺾인 주머니) 발이 마지막으로 트인 삼각형에 있던 자리(`LastOpenPoint`, 같은 snapshot·slot·Layer, 600cm 이내)로 되돌아간다. 걸어 들어온 쪽이라 되돌아 나갈 수 있다. 기록이 없으면 최근접 node에서 시작한다.
+- 마지막 접근: 경로를 다 쓰면 조향점이 비어 이동은 MoveTarget으로 곧장 간다. 여기 왔다면 직선 판정이 거부됐으므로(끝 삼각형이 불완전) 그 구간을 실제 보행(`WalkReaches`, 0.5초 재사용)으로 검증하고, 막히면 목표 node에서 기다린다. MoveTarget(근접 슬롯)이 바위 뒤 주머니에 놓이면 적을 주머니로 끌고 들어가던 길을 막는다. Nav 밖 플레이어는 D-085 anchor 검증이 이미 그 구간을 걸었다.
+- 한계: 플레이어가 Nav 밖이고 보행 anchor도 없으면(주머니 안) 경로 소비자는 그 적을 건너뛰고 이동은 MoveTarget으로 곧장 간다(기존 규칙). 근접 적은 도달 불가여도 추적 중인 대상의 Confirmed를 유지하므로 주머니 입구에서 막혀 선다.
 - 진단: `LNP.SurfaceNav.NavReport`의 `[NavEnemy]` 줄 끝에 조향점·현재 waypoint·MoveTarget 거리, 시작 node와 시작 삼각형(`startTri`)·주머니(`pocket`)·직선(`directSeg`)·waypoint 선분(`waypointSeg`) 판정(overlay 포함), Pod까지 플레이어 거리(`playerToPod`·`chaseRadius`)를 붙인다. 끝점(플레이어)이 그 안이면 경로로 목표 node까지 간다. waypoint가 끝나면 조향점이 비어 이동은 MoveTarget으로 곧장 간다(근접 정지 거리 180cm). Nav 밖 플레이어(D-085)도 같은 규칙이다.
 - slot·Layer가 다르거나(이음매·섬·동굴 Layer 사이) 위치가 그 slot 옥탄트 면 밖이면 거부한다.
 - 현재 waypoint로 향하는 조향 선분은 검사하지 않는다. waypoint 사이는 `SimplifyPath`의 격자 직선이고, 적이 그 선에서 벗어나는 원인은 분리력·옆걸음 정도다. A*·`SimplifyPath`·cache 합류(D-079)는 node↔node 검사 그대로다.

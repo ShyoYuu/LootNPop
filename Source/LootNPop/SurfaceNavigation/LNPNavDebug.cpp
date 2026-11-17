@@ -39,13 +39,14 @@ namespace
 		};
 		const int32 Start = Path.StartHintNode;
 		const bool bStartValid = Nav.Graph.GetSlot(Start) != INDEX_NONE;
-		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d"),
+		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d endWalk=%d lastOpenDist=%.1f"),
 			Path.bHasSteeringPoint ? FVector::Dist(Center, Path.SteeringPoint) : -1.0,
 			FVector3d::Dist(Feet, GoalFeet), MoveTarget.DistanceToGoal, *NodeText(Start),
 			bStartValid ? FVector3d::Dist(Feet, Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Start), Start)) : -1.0,
 			bStartValid && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Start, Feet, Overlay),
 			bStartValid && LNPNavGraph::IsInNavPocket(Nav, Start, Feet, Overlay),
-			bStartValid && Path.GoalHintNode != INDEX_NONE && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Path.GoalHintNode, GoalFeet, Overlay));
+			bStartValid && Path.GoalHintNode != INDEX_NONE && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Path.GoalHintNode, GoalFeet, Overlay),
+			Path.bEndApproachWalkable, Path.LastOpenNode != INDEX_NONE ? FVector3d::Dist(Feet, FVector3d(Path.LastOpenPoint)) : -1.0);
 		if (Path.Path.IsValid() && Path.Path->Waypoints.IsValidIndex(Path.WaypointIndex))
 		{
 			const FLNPNavPathWaypoint& Waypoint = Path.Path->Waypoints[Path.WaypointIndex];

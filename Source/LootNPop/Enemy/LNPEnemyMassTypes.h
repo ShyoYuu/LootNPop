@@ -332,6 +332,13 @@ struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
 	/** 걸음 검증으로 건너뛴 지금의 waypoint. 이 waypoint를 따라가는 동안은 Nav 밖이어도 anchor로 되돌리지 않는다. */
 	uint32 ShortcutSerial = 0;
 	int32 ShortcutWaypoint = INDEX_NONE;
+	/** 경로를 다 쓴 뒤 MoveTarget으로 곧장 가는 마지막 접근의 걸음 검증 결과(D-090). 실패도 EndApproachCheckTime까지 재사용한다. */
+	bool bEndApproachWalkable = false;
+	double EndApproachCheckTime = -DBL_MAX;
+	/** 발이 마지막으로 트인 삼각형에 있던 지면점(D-090). Nav 주머니에서 보행 anchor가 없을 때 되돌아갈 곳이다. */
+	FVector LastOpenPoint = FVector::ZeroVector;
+	uint64 LastOpenGeneration = 0;
+	int32 LastOpenNode = INDEX_NONE;
 };
 
 /** Mass가 archetype 이동 시 shared path handle을 정상 복사·파괴하도록 명시적으로 허용한다. */

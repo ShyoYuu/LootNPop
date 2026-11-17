@@ -265,4 +265,6 @@
 - PIE 2차(slot4): 원래 자리 재현 안 됨. 트인 평지에서 근접 496 제자리걸음 → Live Coding 진단(`NavEnemy` 조향 진단, 임시 프레임 추적)으로 주머니 100cm 기준이 Pod overlay 근처 경로에서 anchor↔waypoint 진동을 만든 것을 확인 → 기준을 삼각형 외접원+25cm(`IsInNavPocket`)로 바꾸자 496이 플레이어에 도착.
 - PIE 3차(slot1): 근접 4마리가 세력권 경계(플레이어→Pod 6,087cm > 5,000)에서 Alert 8초↔None 1초를 무한 반복. 기존 타게팅 동작(포기 뒤 돌아서지 않아 1초 재발견 금지가 무력)이며 단위4와 무관. 사용자 결정으로 별도 세션에서 귀환을 개선한 뒤 이 단위의 최종 PIE를 다시 본다.
 - 검증: Game·Editor 빌드, 헤드리스 전체 141/141, 시험편3개 원복. 패키지 교대 2회씩 두 번(100cm 기준판까지): 경로 요청 불변, 경로 추종 프레임 약2배, consumer P95 약 +0.02ms 가능성, frame P95 편차 안. 결과 `Saved/Profiling/Phase16/SmallBlockerDetour/Unit4/`.
-- 남은 것: 귀환 개선 뒤 최종 PIE와 외접원 기준 패키지 재측정.
+- 최종 PIE 4차(slot6, 귀환 개선 24ea374 뒤): 근접 179가 같은 주머니에서 정지. 주머니 판정은 됐지만 보행 anchor 4개 모두 실패해 바위 너머 최근접 node로 조향 → 사용자 승인 A+B: 마지막 접근(경로 소진 뒤 MoveTarget 직진)을 `WalkReaches`로 검증해 막히면 대기, 주머니에서 anchor가 없으면 마지막으로 트인 자리(`LastOpenPoint`)로 되돌아가기.
+- 최종 PIE 5차(slot5): 원래 정지 재현 안 됨, `blocker_rejects` 41/390,416. 플레이어가 주머니 안(Nav 밖·보행 anchor 없음)에 서면 근접 적이 입구에서 서는 것은 기존 규칙이라 범위 밖 한계로 기록. 사용자 판단으로 단위4 마무리.
+- 마무리 검증: Editor 빌드·헤드리스 141/141(`Unit4/SurfaceNavFull4`), 패키지 3차(최종 코드+귀환 개선) consumer P95 0.125·0.130→0.191·0.162ms, frame P95 편차 안, 8회 모두 Gate PASS. 풀 복원.

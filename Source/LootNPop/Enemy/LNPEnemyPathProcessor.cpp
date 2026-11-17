@@ -41,6 +41,8 @@ namespace
 	constexpr double PlayerWalkAnchorMoveTolerance = 50.0;
 	/** Nav 밖 적의 마지막 접근 검증에서 MoveTarget 발에 닿았다고 보는 거리. */
 	constexpr double FinalApproachAccept = 50.0;
+	/** Nav 주머니에서 마지막으로 트인 자리(D-090)로 되돌아갈 때 도착으로 보는 거리. */
+	constexpr double LastOpenArrival = 30.0;
 
 	struct FGoalProjectionKey
 	{
@@ -492,6 +494,7 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 			// 투영 반경 밖 시작점은 걸어서 돌아갈 수 있다고 검증된 anchor를 시작 node로 쓴다. 없으면 기존처럼 제자리다.
 			bool bOffNavStart = false;
+			bool bRetreatToOpen = false;
 			if (StartNode == INDEX_NONE)
 			{
 				StartNode = ResolveWalkAnchor(State, Center, Enemy.SurfaceHandle);
@@ -502,12 +505,23 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				// Nav 주머니(D-090): 발이 불완전 삼각형에 있고 최근접 node가 그 삼각형 외접원보다 멀면, 투영 반경 안이어도 그 node로
 				// 곧게 걸을 수 있다는 보장이 없다(벽 모서리·바위 사이). Nav 밖과 같이 실제 보행으로 검증한 anchor로 먼저 돌아간다.
 				// 경로 선분 위에서는 최근접 node가 외접원 안이라 이 분기에 들어오지 않는다(100cm 기준이 만든 진동을 막는다).
-				// 검증이 모두 실패하면 이전처럼 최근접 node에서 시작한다(새 정지를 만들지 않는다).
 				const int32 Anchor = ResolveWalkAnchor(State, Center, Enemy.SurfaceHandle);
 				if (Anchor != INDEX_NONE)
 				{
 					StartNode = Anchor;
 					bOffNavStart = true;
+				}
+				else
+				{
+					// 곧게 걸어 닿는 node가 없으면(꺾인 주머니) 마지막으로 트인 삼각형에 있던 자리로 되돌아간다. 걸어 들어온 쪽이다.
+					// 기록이 없거나 다른 snapshot·slot·Layer이거나 너무 멀면 이전처럼 최근접 node에서 시작한다.
+					const int32 OpenSlot = Nav.Graph.GetSlot(State.LastOpenNode);
+					const int32 StartSlot = Nav.Graph.GetSlot(StartNode);
+					const double OpenDistanceSquared = FVector3d::DistSquared(Start, FVector3d(State.LastOpenPoint));
+					bRetreatToOpen = State.LastOpenGeneration == Nav.SnapshotGeneration && OpenSlot != INDEX_NONE && OpenSlot == StartSlot
+						&& Nav.Graph.GetNode(OpenSlot, State.LastOpenNode).LayerOrdinal == Nav.Graph.GetNode(StartSlot, StartNode).LayerOrdinal
+						&& OpenDistanceSquared <= FMath::Square(LNPEnemyNavigation::WalkAnchorSearchRadius)
+						&& OpenDistanceSquared > FMath::Square(LastOpenArrival);
 				}
 			}
 			else
@@ -515,6 +529,12 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				State.WalkAnchorNode = INDEX_NONE;
 				State.WalkAnchorCheckTime = -DBL_MAX;
 				State.FinalApproachCheckTime = -DBL_MAX;
+				if (LNPNavGraph::IsSegmentWalkable(Nav, StartNode, Start, StartNode, Start, Overlay.Get()))
+				{
+					State.LastOpenPoint = FVector(Start);
+					State.LastOpenGeneration = Nav.SnapshotGeneration;
+					State.LastOpenNode = StartNode;
+				}
 			}
 			if (StartNode == INDEX_NONE)
 			{
@@ -682,6 +702,24 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 					State.SteeringPoint = Waypoints.Last().Location;
 					State.bHasSteeringPoint = true;
 				}
+				else if (!bSynthetic && Collision && !Waypoints.IsEmpty() && !(GoalPlayerNav && GoalPlayerNav->bWalkAnchored))
+				{
+					// 경로를 다 쓰면 이동은 MoveTarget으로 곧장 간다. 여기 왔다면 직선 판정은 거부됐다(끝 삼각형이 불완전).
+					// 그 마지막 구간을 실제로 걸어서 닿는지 검증하고, 막히면(바위 뒤 주머니) 목표 node에서 기다린다(D-090).
+					// Nav 밖 플레이어는 anchor 검증(D-085)이 이미 이 구간을 걸어 봤다.
+					if (Now - State.EndApproachCheckTime >= LNPEnemyNavigation::WalkAnchorRetrySeconds)
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_EndApproach);
+						State.bEndApproachWalkable = LNPEnemyNavigation::WalkReaches(*Snapshot, *Collision, WalkParams,
+							FVector(Center), Enemy.SurfaceHandle, FVector(ApproachGoal), FinalApproachAccept);
+						State.EndApproachCheckTime = Now;
+					}
+					if (!State.bEndApproachWalkable)
+					{
+						State.SteeringPoint = Center;
+						State.bHasSteeringPoint = true;
+					}
+				}
 				Paths->RecordFollowerFrame(true, State.WaypointIndex - PreviousWaypoint);
 			}
 			else
@@ -698,6 +736,12 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			{
 				// 경로는 anchor에서 시작한다. 검증된 보행 구간인 anchor까지 먼저 걸어가 Nav 시작점을 되찾는다.
 				State.SteeringPoint = FVector(PathStart);
+				State.bHasSteeringPoint = true;
+			}
+			if (bRetreatToOpen)
+			{
+				// 주머니에서 곧게 닿는 node가 없다. 마지막으로 트인 자리로 걸어 나간 뒤 그곳에서 경로를 다시 따른다(D-090).
+				State.SteeringPoint = State.LastOpenPoint;
 				State.bHasSteeringPoint = true;
 			}
 		}
