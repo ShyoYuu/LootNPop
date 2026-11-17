@@ -1,8 +1,8 @@
 # Phase 1-B — 환경 반입과 작은 시험
 
-> 상태: 1-B5c 밀도 확인 마감 · 1-B5d 규칙 확장 마감(245개·재베이크·1인 PIE, 바위 우회 다듬기는 SSN 후보) · 다음 1-B5e 같은 계열 변형
+> 상태: 1-B5e 같은 계열 변형 마감(반입 §27·근경 §28·역할/보호 완화/바위 축소 §29, 384개·재베이크·1인 PIE) · 다음 1-B5f 새 계열·충돌 없는 식생 확대
 > 작성: 2026-11-14
-> 마지막 갱신: 2026-11-16
+> 마지막 갱신: 2026-11-17
 > 상위: [Phase 1 실행서](Phase01_BenchmarkContent.md)
 > 선정 원본: [1-B0 결과](Phase01_RidgeZonePalette.md) §8
 
@@ -21,6 +21,7 @@
 | 1-B5c 밀도 확인 | 간격 배율을 메모리에서만 바꿔 생성·캡처하고 밀도 방향을 정함(§25) | 원래 값 복원·검사 대조, 사용자 방향 결정 |
 | 1-B5d 규칙 확장 | 동선 등급별 완화·구석 밀도·겹침 정리 분리(§26, GX-015) | 사용자 밀도 판정·재베이크·1인 PIE 접촉/Nav/`blocker_rejects` |
 | 1-B5e 같은 계열 변형 | Sandstone·Moss·Clover·Fern 변형 반입과 근경 시험(§26) | 반입 대조·근경 판정·역할 추가 뒤 밀도 재판정 |
+| 1-B5f 새 계열·식생 확대 | 사암 톤 새 계열 반입, Fern 겹침·동선 안쪽 허용(§29) | 반입 대조·근경·동선 근처 식생 밀도 판정·재베이크·PIE |
 | 1-B6 전체 확장 | 승인한 대표 구역 규칙을 Ridge로 확장 | 적도·이음매·다른 slot·전투/훅 동선 및 패키지 검증 |
 
 1-B3·4는 결과를 보고 더 작은 구현 단위로 나눈다. 성능 판정은 패키지에서만 한다. 파라곤 선정은 1-C다.
@@ -710,7 +711,7 @@ V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. �
 
 근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationDensity_20261116/`의 `State_start.json`·`Preflight.json`·`ViewPoses.json`·`Variant_*.json`·`Inspection_*.json`·`Restore.json`·`Hashes_restored.json`·`Views/`(변형별 A/B/C/Close와 `Compare_spacing_*.png`·`Compare_spacing.json`)이다. 캡처 분리·비교는 같은 폴더의 `DecodeCapture.py`·`MakeComparison.py`다. 거부 사유는 에디터 로그 `LogLNPDecoration`이다.
 
-## 26. 1-B5d 규칙 확장(마감)·1-B5e 같은 계열 변형(착수 전)
+## 26. 1-B5d 규칙 확장(마감)·1-B5e 같은 계열 변형(계획)
 
 ### 1-B5d 결정(GX-015, 사용자 2026-11-16)
 
@@ -757,3 +758,89 @@ V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. �
 - 변형마다 역할을 하나씩 두고 간격을 변형 수만큼 넓혀 총밀도를 유지한다(데이터만 변경). 근경 판정 뒤 밀도를 다시 본다.
 - **낮은 우선순위 비교(사용자 요청 2026-11-16):** Electric Dreams 원본 레벨 수준의 아주 우거진 식생을 메모리 전용 변형으로 한 번 비교한다. 변형·새 계열 반입 뒤에 한다(4종으로는 반복이 먼저 보인다). 경사·보호 규칙도 함께 완화한 별도 규칙 사본으로 만들고 저장·재베이크하지 않는다. 비용은 패키지에서만 판정한다.
 - 그다음 새 계열 후보(사암 톤): 잔돌 `SmallStonesPack`, 낙엽 `DeadLeaves`, 마른 가지 `DryBranches`·`WoodenSticksAndTwigs`, 풀 `KikuyuGrass`·`GroundCover`, 꽃 1~2종. 하상처럼 네모 외곽이 보이는 지면 조각은 근경에서 먼저 거른다. 야자·토란 같은 열대 식생은 제외한다.
+
+## 27. 1-B5e-1 변형 반입·로드 검사(2026-11-17, 마감)
+
+### 반입
+
+- 원본 참조를 읽어 메시별 재질·텍스처 의존성을 대조했다. `MossyForestBoulder_07`은 원본에 없는 `MI_MossyForestBoulder`를 참조하므로 제외했다. Clover·Fern 변형은 모두 기존 `MI_*_01`을 쓴다(새 재질 없음).
+- 사용자가 8001에서 메시18개(Sandstone02~05·Moss01~05·Clover02~05·Fern02~06)를 Migrate했다. 덮어쓰기 확인에서 **전부 덮어쓰기**를 골랐다.
+- 대조: 새 파일48개가 예상 목록과 정확히 같다(추가·누락0, 약1.21GB, 모두 `/Content/Megascans/` git 제외). 덮어쓴47개는 덮어쓰기 전 수정 시각이 모두 첫 반입(2026-11-14 19시)이었고, 현재 해시가 첫 반입본 `MigratedFiles.json`과 **47개 모두 같다**. 결과적으로 바뀐 기존 파일은 없다. 원본과 해시가 다른 것은 §6의 Migrate 재저장 때문이다. 원본 ElectricDreamsEnv 파일은 그대로다.
+- 다음 반입에서도 덮어쓰기는 피한다. 이번에는 기존 반입본이 저장된 적이 없어 무해했을 뿐이다.
+
+### 로드 검사(`InspectRidgeVariantImport.py`, 읽기 전용)
+
+에디터 TestMap03·PIE=false·dirty 없음에서 실행했다. 18개 모두 레지스트리 등록·로드·하드 의존성 누락0, 재질은 ISM·Nanite 사용 켜짐, 로드 구간 로그 경고/오류0, dirty 변화0, 새 48파일 해시 불변이다.
+
+| 메시 | 크기(cm) | 충돌 | 판단 |
+|:---|:---|:---|:---|
+| Sandstone_01(기존) | 130×50×20 | ComplexAsSimple·컨벡스1 | 파생 Blocker 메시 사용 중 |
+| Sandstone_02 | 130×50×20 | Default·컨벡스1 | **01과 같은 형상**(삼각형·bounds 일치, 충돌 설정만 다름). 변형으로 쓰지 않는다 |
+| Sandstone_03 | 123×68×62 | Default·컨벡스3 | 기존 크기대 |
+| Sandstone_04 / 05 | 259×226×205 / 359×237×318 | Default·컨벡스6 / 2 | 큰 바위 |
+| Moss_06(기존) | 125×123×69(스케일0.7~0.9) | Default·컨벡스3 | — |
+| Moss_01 / 02 / 05 | 170×136×95 / 92×77×60 / 140×80×69 | Default·컨벡스5 / 1 / 1 | 기존 크기대 |
+| Moss_03 / 04 | 198×199×130 / 325×312×199 | Default·컨벡스1 / 32 | 큰 바위(04는 LOD5개) |
+| Clover_01(기존) | 136×128×15 | 없음 | — |
+| Clover_02 / 03 | 67×52×12 / 143×91×14 | 없음 | 기존 크기대 |
+| Clover_04 / 05 | 497×531×38 / 497×531×57, 바닥 아래 23 / 42cm | 없음(NoCollision) | 5m 깔개. 근경 시험 뒤 결정 |
+| Fern_01(기존) | 156×188×103 | 없음 | — |
+| Fern_02~06 | 149~202 × 138~188 × 63~95 | 없음 | 모두 기존 크기대, 재질 슬롯1개(보정 MI 덮어쓰기 가능) |
+
+- 바위 변형은 모두 단순 컨벡스 충돌(Default)이라 Sandstone_01 같은 파생 메시는 필요 없다. 컨벡스1개짜리(Moss_02·03·05)의 외곽 맞춤은 근경에서 확인한다.
+- **사용자 결정(큰 바위):** 큰 바위도 쓴다. Ridge를 포함한 여러 맵의 2~3m 이상 엄폐 지형을 나중에 큰 바위로 교체할 것을 감안해 반입한 것이며, 그 경우 오히려 더 키울 수도 있다. 축소해 작은 바위 역할에 섞지 않는다.
+- Clover_04·05는 근경 시험 뒤 채택을 정한다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeVariantImport_20261117/`의 `PreMigrate_files.tsv`·`PostMigrate_files.tsv`·`ExpectedNew.txt`·`Overwritten_hashcheck.json`·`Overwritten_vs_FirstMigrate.json`·`New48_sha_before_load.txt`·`LoadInspection.json`이다.
+
+## 28. 1-B5e-2 변형 근경 시험(2026-11-17, 마감)
+
+- `ProbeRidgeVariantCloseup.py`(open·place·view·clear)로 WIP 대분지(DeepBasin 중심 spec XY 3000,−300) 바닥에 변형19개를 **메모리에서만** 놓았다. 큰 바위4·작은 바위4·Fern5·Clover4와, Clover_04·05의 원점 기준 비교본2개다. 배치는 샘플러와 같은 규칙(bounds 바닥 접지·법선 정렬·바닥 4모서리+중심 접촉)이다. 큰 바위는 높이 비례(sink 5%, 허용 뜸5%·매몰20%) 시험값을 썼다. 바위는 `LNPStaticBlocker`이지만 재베이크하지 않았다.
+- 첫 시도는 지형 암반 `SM_Ridge_00_V011_Rocks_Floor/Shell`(bounds 반경 약170m)을 기존 장식으로 세어 모든 후보를 거부했다. 지형 메시를 제외하도록 고쳤다.
+- 결과: 분지 바닥 경사 0~3°, 모서리 뜸 최대 1.0cm(Fern_03 0.7·Fern_06 1.0), 묻힘은 작은 바위 3~5cm·큰 바위 7~16cm·Fern 1.5cm 안팎(Fern_06 한 모서리 23cm). Clover_04·05는 샘플러 규칙대로 놓으면 메시 원점이 23·42cm 위에 있고, 원점 기준 비교본은 bounds 바닥이 24~57cm 묻힌다.
+- **사용자 판정: 모두 문제없다.** 바위 충돌 외곽·접지·변형 구분·Clover_04·05 모두 통과다. Clover_04·05는 샘플러 규칙(bounds 바닥)을 그대로 쓴다. 큰 바위는 생각보다 작지만 원래 크기로도 괜찮다.
+- 복원: `clear`로 19개를 지웠다. WIP는 메모리에서만 dirty이고 디스크 파일은 저장 시각(2026-11-16 23:01)·크기(316,772B) 그대로다. **WIP는 저장하지 않고 버린다.**
+
+### 원본의 더 큰 바위 후보(2026-11-17 조사, 미반입)
+
+원본 메시 파일의 `ApproxSize` 태그로 크기를 읽었다(반입본 실측과 같은 값). 엄폐 지형 교체 후보가 될 수 있는 2~30m급만 적는다(가로×세로×높이 m).
+
+| 계열 | 크기 | 비고 |
+|:---|:---|:---|
+| SmartAssets `SM_Cliff_17` / `_03` / `_04` / `_13` | 2.6×2.3×2.0 / 2.5×0.9×2.1 / 3.5×1.2×2.8 / 8.5×2.3×4.9 | 이미 쓰는 `SM_Cliff_01`과 같은 계열(레이어 재질) |
+| `CanyonSandstoneRidge_03` | 16.0×6.0×3.8 | 사암 |
+| `MassiveCanyonSandstoneMesa_01` | 24.1×6.3×4.4 | 사암 |
+| `HugeSandstoneCliff_01~08` | 11~30 × 3.4~14 × 6.7~15 | 사암 절벽 |
+| `NordicBoulder_01·02` | 6.6×8.9×4.1 / 6.0×8.0×4.0 | 회색 화강암 톤 |
+| `TundraMossyBoulder_01` | 7.4×3.7×1.8 | 이끼 |
+| `NordicBeachRocks_01` | 5.8×3.6×2.4 | 바위 무더기 |
+| `MossyRockFace_01~03` | 2.1~3.7 × 0.7~1.2 × 1.0~1.9 | 이끼 암면 |
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeVariantCloseup_20261117/`의 `Placement.json`·`Clear.json`·`WipMeshes.json`이다.
+
+## 29. 1-B5e-3 변형 역할 추가·보호 완화·바위 축소(2026-11-17, 마감)
+
+### 진행과 판정
+
+| 단계 | 변경 | Clover / 작은 바위 / 큰 바위 / Fern | 합계 | 판정·근거 |
+|:---|:---|:---|---:|:---|
+| 1-B5d | — | 222 / 18 / — / 5 | 245 | |
+| 변형 역할 | 역할21개(작은 변형은 계열 간격 그대로, 큰 바위 별도) | 309 / 21 / 1 / 6 | 337 | 바위·Fern은 겹침 정리에 묶여 거의 늘지 않음. 큰 바위는 간격30→15→10→6m에서도 통과0~3 |
+| 보호 완화(GX-017) | 동선 반폭50%·Pod 중심9m | 282 / 62 / 2 / 50 | 396 | Fern > 바위 순서(V004)가 큰 바위를 지움(정리 전88 → 2) |
+| 그래프 V005(GX-016) | 큰 바위 > Fern > 작은 바위 > 지피, 큰 바위 간격20m | 258 / 95 / 5 / 46 | 404 | 사용자: 이전보다 훨씬 나음. 1인 PIE blocker_rejects 51,950/416,788(12.5%), 적 이동 부자연스러움 |
+| **바위 축소(GX-018, 채택)** | 바위 여유 +300/+450·간격2배, Fern 간격350 | **303 / 27 / 2 / 52** | **384** | 사용자: 훨씬 나아짐. blocker_rejects 12,122/460,164(**2.6%**, 1-B5d 0.9%) |
+
+- 원인 분석: 경사30° 이하 평지 중 바위가 놓일 수 있던 곳은 6%였다. Pod 편성 구(반경25~35m)가 구역 면적의61%, spec 동선(지형을 깎는 폭, BossValley 반폭15~18m·RiftCanyon 6.5~13m)이40%를 덮었다. 보행선(ROUTES 반폭2m)은 따로 있다. C++의 선분 반폭 보수 처리(두 정점 중 큰 값)는 차이 1~2%p라 고치지 않았다.
+- 시각화: 새 `DrawRidgeDecorationKeepOuts.py`(draw·clear)가 규칙 에셋의 보호 형상을 에디터 디버그 선으로 그린다(동선 중심 노랑·Fern 연두·작은 바위 빨강·큰 바위 분홍·암반 하양·Pod 주황·착지/훅 하늘·카메라 보라·구역 초록). 저장되지 않는다.
+- 큰 바위 판별은 점 범위 절반 높이 `$Extents.Z > 55`(큰 바위65~159cm, 작은 바위 최대48cm)다. Python 필터 확인은 선택자 `export_text()`로 한다(`get_display_text` 없음).
+- Fern은 후보를 2배로 늘려도 Fern끼리 겹침 정리(바람 여유 포함 약2.2×2.5m)로 52개에 묶인다. 사용자 결정: 충돌 없는 식생은 ① Fern끼리 겹침 허용 ② Fern 동선 안쪽 허용 ③ 새 계열 반입을 모두 하되, 새 계열 반입 단위에서 함께 한다.
+- 남은 문제: 지상 적이 작은 바위조차 가끔 우회하지 못한다. 사용자가 SSN 세션에서 따로 본다(SSN `Current.md` 후보에 추가).
+
+### 저장·재베이크·PIE
+
+- 규칙 에셋(역할21개)·그래프 V005 저장, WIP 저장(449,622B). V004 그래프와 1-B5e 전 규칙·WIP·SurfaceData는 `BeforeVariants_*` 복구 사본으로 남겼다.
+- TestMap03 재베이크(수집기 경고·오류0): Support 2소스/44층 같음, Nav 셀75,870·component70·portal424(1-B5d 75,877·71·422), Spawn 후보9,371·noNav0. SurfaceData 5,242,301B.
+- 1인 PIE 두 번(검사용 풀 메모리 임시 선택, EnemyDensity1): WIP slot5(바위 많을 때)·slot3/7(채택), 8 validated slots·이음매 반경 차이0. 두 번 모두 종료 뒤 원래 풀 복원·재조회, INI·정식 풀·검사용 풀·WIP·SurfaceData 해시 불변. `SelectionState.json=restored`.
+- 에디터가 사이에 한 번 재시작됐다(`QUIT_EDITOR`, 저장 없이 종료). 디스크에 저장된 규칙·그래프로 같은 결과를 다시 생성했다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationVariants_20261117/`의 `BeforeVariants*`·`Hashes_before.txt`·`Rules.json`·`Inspection_Variants/Relaxed_Big6m/V005/V005_RockSparse.json`·`SaveWip.json`·`SelectionState.json`·`Hashes_prePIE.txt`다. 재현: WIP 열기 → `BuildRidgeDecorationPCG.py rules`·`graph`(V005)·`regenerate` → 검사 → `save_current_level` → TestMap03 `LNP.SurfaceNav.BakeOctant <WIP>`.

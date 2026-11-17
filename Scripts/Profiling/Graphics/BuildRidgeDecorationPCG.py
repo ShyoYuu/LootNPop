@@ -1,12 +1,12 @@
-"""1-B5a 대표 구역 PCG 소수 배치, 1-B5b 바위 Blocker 승격, 1-B5d 규칙 확장(GX-015)의 규칙 에셋·PCG 그래프·WIP 변경을 만든다.
+"""1-B5a 대표 구역 PCG 소수 배치, 1-B5b 바위 Blocker 승격, 1-B5d 규칙 확장(GX-015), 1-B5e 변형 역할(GX-016)의 규칙 에셋·PCG 그래프·WIP 변경을 만든다.
 
 콘솔: py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/BuildRidgeDecorationPCG.py" <모드>
   blocker-mesh: Sandstone 파생 메시를 만들고 기존 단순 컨벡스를 충돌로 쓰게 한다(원본은 ComplexAsSimple).
   rules: Ridge spec에서 구역·보호 형상을 다시 계산해 규칙 에셋을 만들거나 덮어쓴다(파생 데이터).
-  graph: PCG 그래프(V004, 바위·키 큰 식생·지피별 겹침 정리, 키 큰 식생 > 바위 > 지피, Spawner 분리)가 없을 때만 만든다.
+  graph: PCG 그래프(V005, 바위·키 큰 식생·지피별 겹침 정리, 큰 바위 > 키 큰 식생 > 작은 바위 > 지피, Spawner 분리)가 없을 때만 만든다.
   place: 기존 WIP에 PCG 액터 1개를 만들고 생성한다.
   promote: 수동 바위5개를 Decoration에서 Static+Blocker로 바꾼다.
-  regenerate: 기존 PCG 액터를 현재 그래프(V004)로 바꿔 다시 생성한다.
+  regenerate: 기존 PCG 액터를 현재 그래프(V005)로 바꿔 다시 생성한다.
 맵 저장은 사용자 확인 뒤 따로 한다. 원본 메시/재질·정식 Ridge는 수정하지 않는다. 결과는 Saved 아래 JSON으로 남긴다.
 새 체크아웃: blocker-mesh → rules → graph → place → promote → 확인 뒤 WIP 저장.
 """
@@ -30,8 +30,12 @@ FOLDER = "/Game/Graphics/Environment/ElectricDreams/RidgeDecoration_V001"
 RULES = FOLDER + "/DA_RidgeDecorationRules"
 # V001(단일 Decoration Spawner)은 1-B5a, V002(한 번에 겹침 정리)는 1-B5b, V003(바위 > 식생)은 1-B5d 첫 생성의
 # 복구용으로 디스크에 남기고 쓰지 않는다.
-GRAPH = FOLDER + "/PCG_RidgeDecoration_V004"
-OUT = ROOT / "Saved/Profiling/Graphics/Phase01/RidgeDecorationExpand_20261116"
+# V004(키 큰 식생 > 바위 > 지피)는 1-B5d 결과의 복구용이다. V005는 큰 바위를 Fern보다 앞세운다(1-B5e-3).
+GRAPH = FOLDER + "/PCG_RidgeDecoration_V005"
+# 큰 바위 판별: 점 범위 절반 높이(스케일 전). 큰 바위65~159cm, 작은 바위 최대48cm.
+BIG_ROCK_EXTENT_Z = 55.0
+# 1-B5d 근거는 RidgeDecorationExpand_20261116, 1-B5e-3 변형 역할 추가부터 이 폴더에 쓴다.
+OUT = ROOT / "Saved/Profiling/Graphics/Phase01/RidgeDecorationVariants_20261117"
 ACTOR_LABEL = "GraphicsDecorationPCG_V001"
 CRUST_NAME = "SM_Octant_Ridge_00_V011_R30000"
 SEED = 51001
@@ -57,6 +61,12 @@ MANUAL_BLOCKERS = {
 CAPSULE_MARGIN = 50     # 플레이어 캡슐 반지름42cm를 올림. 통로·암반 외곽 끝에 선 캐릭터와 겹치지 않게 한다.
 COVER_ROCK_MARGIN = 100  # 기존 엄폐 암반(BasinMonolith 등) 실루엣·판정 보존. 캡슐 지름84cm를 올림.
 ROUTE_HALF_WIDTH = 200  # 폭이 없는 연결표 보행 중심선: 캡슐 2개가 나란히 지나가는 폭(168cm)+여유.
+# GX-017 spec 동선(PATHS)의 반폭은 지형을 깎는 폭이라 골짜기·협곡 바닥 전체를 덮는다(구역 면적40%).
+# 장식 보호에는 그 50%만 쓴다. 실제 보행선은 ROUTES(반폭200)가 그대로 지킨다.
+PATH_HALF_SCALE = 0.5
+# GX-017 Pod 편성 구(반경25~35m)는 대분지·협곡 바닥을 거의 다 덮었다(구역 면적61%). 바위·Fern은 Pod 중심
+# 반경9m만 막고 그 밖 편성 공간은 허용한다(사용자: 바위가 있어도 전투는 된다). 지피는 전부 허용 그대로다.
+POD_CORE_RADIUS = 900
 GATE_HALF_WIDTH = 500   # 대전당 남쪽 문 폭10m.
 LANDING_RADIUS = 400    # 앵커 착지부 4m.
 HOOK_LINE_RADIUS = 100  # 출발 검토점(지면+170)→앵커 직선의 조준·이동 공간.
@@ -66,24 +76,58 @@ EXISTING_CLEARANCE = 30  # 수동 장식12개와 관통하지 않게 하는 최�
 # GX-015 역할별 2D 여유(Margin 기준, 음수면 Margin 안까지): 지피는 동선 형상 안까지(형상의 지피 허용),
 # 충돌 없는 Fern은 동선 반폭 가장자리까지(-50), 바위는 반폭+50(캡슐 여유만, 0).
 FERN_PADDING = -CAPSULE_MARGIN
-BLOCKER_PADDING = 0
+# GX-018 충돌 바위는 GX-017로 줄어든 동선 반폭만큼 여유를 되돌려 구석으로 보낸다. 반폭50%+50에서 바위95개일 때
+# 1인 PIE blocker_rejects가 지상 이동 단계의12.5%(1-B5d 0.9%)였고 사용자는 적 이동이 부자연스럽다고 했다.
+BLOCKER_PADDING = 300
+# GX-016·018 큰 바위(2~3.6m)는 엄폐·Nav 구멍이 더 커서 작은 바위보다 150cm 더 둔다.
+BIG_ROCK_PADDING = 450
 
 # 역할: 1-B4에서 근경 통과한 메시만. 절벽 부분 보강은 수동 배치 역할이라 PCG에 넣지 않는다.
 # 1-B5d 간격은 1-B5a 값(800/900/1000/1000)에 지피 ×0.35·나머지 ×0.5를 곱했다. 1-B5c 사용자 판정(훨씬 더 풍성하게)의 시험값이다.
 # 지피와 Fern은 경사 0~40°로 넓혔다(1-B5d 판정: 바위 20~30%를 Fern으로. Fern은 바닥 범위가 커서 간격을 좁혀도 늘지 않았다).
 # 스케일·매몰은 소수 시험 값 주변이다.
+SAND = "/Game/Megascans/3D_Assets/SandstoneBoulder/SM_SandstoneBoulder_%02d"
+MOSS = "/Game/Megascans/3D_Assets/MossyForestBoulder/SM_MossyForestBoulder_%02d"
+CLOVER = "/Game/Megascans/3D_Plants/CloverVarieties/SM_CloverVarieties_%02d"
+FERN = "/Game/Megascans/3D_Plants/Fern/SM_Fern_%02d"
+FERN_MI = "/Game/Graphics/Environment/ElectricDreams/RidgeFernWind_V001/MI_Ridge_Fern"
 ROLES = [
     dict(id="Clover", mesh="/Game/Megascans/3D_Plants/CloverVarieties/SM_CloverVarieties_01", spacing=280, probability=1.0,
          scale=(0.85, 1.1), slope=(0, 40), sink=0.7, wind=0, max_float=8, max_sink=15, ground_cover=True, padding=0),
-    dict(id="Sandstone", mesh=SANDSTONE_BLOCKER, spacing=450, probability=1.0, scale=(0.9, 1.1), slope=(0, 30), sink=2.0,
+    # GX-018 바위 간격은 1-B5d의 2배(450→900, 500→1000): 역할당 후보를 1/4로 줄여 총 바위 수를 크게 낮춘다.
+    dict(id="Sandstone", mesh=SANDSTONE_BLOCKER, spacing=900, probability=1.0, scale=(0.9, 1.1), slope=(0, 30), sink=2.0,
          wind=0, max_float=10, max_sink=25, blocker=True, padding=BLOCKER_PADDING),
     dict(id="Moss", mesh="/Game/Megascans/3D_Assets/MossyForestBoulder/SM_MossyForestBoulder_06",
-         material="/Game/Megascans/3D_Assets/MossyForestBoulder/MI_MossyForestBoulder_09", spacing=500, probability=1.0,
+         material="/Game/Megascans/3D_Assets/MossyForestBoulder/MI_MossyForestBoulder_09", spacing=1000, probability=1.0,
          scale=(0.7, 0.9), slope=(0, 30), sink=3.0, wind=0, max_float=25, max_sink=30, blocker=True, padding=BLOCKER_PADDING),
+    # GX-018 동선 근처는 충돌 없는 식생으로 채운다: Fern 간격 500→350(후보 약2배).
     dict(id="Fern", mesh="/Game/Megascans/3D_Plants/Fern/SM_Fern_01",
-         material="/Game/Graphics/Environment/ElectricDreams/RidgeFernWind_V001/MI_Ridge_Fern", spacing=500, probability=1.0,
+         material=FERN_MI, spacing=350, probability=1.0,
          scale=(0.9, 1.1), slope=(0, 40), sink=1.5, wind=30, max_float=15, max_sink=25, padding=FERN_PADDING),
 ]
+
+# 1-B5e-3 같은 계열 변형(근경 통과, 실행서 §28). 기존 역할 ID는 그대로 두어 기존 위치를 유지하고
+# 변형마다 새 ID(새 지터 격자)를 더한다. 사용자 결정: 작은 변형은 계열 간격을 그대로 써서 밀도를 늘린다.
+# Sandstone_02는 01과 같은 형상이라 쓰지 않는다. Moss 변형은 기존 Moss와 같은 스케일 범위를 쓴다.
+for i in (2, 3):
+    ROLES.append(dict(ROLES[0], id="Clover%02d" % i, mesh=CLOVER % i))
+# 5m 깔개는 지피 간격으로 놓으면 서로 겹쳐 정리되므로 발자국(약7m 대각) 수준 간격으로 둔다.
+for i in (4, 5):
+    ROLES.append(dict(ROLES[0], id="Clover%02d" % i, mesh=CLOVER % i, spacing=1000))
+ROLES.append(dict(ROLES[1], id="Sandstone03", mesh=SAND % 3))
+for i in (1, 2, 5):
+    ROLES.append(dict(ROLES[2], id="Moss%02d" % i, mesh=MOSS % i, material=None))
+for i in range(2, 7):
+    ROLES.append(dict(ROLES[3], id="Fern%02d" % i, mesh=FERN % i))
+# GX-016 큰 바위는 원래 크기로 소수만(간격20m·경사0~30°). GX-017 보호 완화 전에는 간격6m에서도 통과3이었고,
+# 완화 뒤 6m는 정리 전88개였다. V004에서는 Fern이 큰 바위를 지워 2개만 남아 V005에서 큰 바위를 앞세웠다.
+# 접지 허용치는 높이 비례(매몰 sink 5%, 허용 뜸 5%·매몰 20%, 작은 바위 값보다 작아지지 않게)로
+# 근경 시험 값과 같고, 경사에서의 뜸은 모서리 접촉 검사가 거른다.
+for big_id, mesh, height in (("BigSandstone04", SAND % 4, 205), ("BigSandstone05", SAND % 5, 318),
+                             ("BigMoss03", MOSS % 3, 130), ("BigMoss04", MOSS % 4, 199)):
+    ROLES.append(dict(id=big_id, mesh=mesh, spacing=2000, probability=1.0, scale=(0.95, 1.05), slope=(0, 30),
+                      sink=round(max(3.0, .05 * height), 1), wind=0, max_float=round(max(10.0, .05 * height), 1),
+                      max_sink=round(max(25.0, .2 * height), 1), blocker=True, padding=BIG_ROCK_PADDING))
 
 
 def write(name, value):
@@ -126,7 +170,7 @@ def keep_outs():
     k2, k3 = [], []
     for path in spec.active(spec.PATHS):
         # GX-015: 동선 형상(Path·Route·Gate)은 지피를 안까지 허용한다. 암반 외곽은 허용하지 않는다.
-        k2.append(dict(id="Path_" + path["id"], points=[(x, y, w) for x, y, _, w in spec.path_points(path)],
+        k2.append(dict(id="Path_" + path["id"], points=[(x, y, w * PATH_HALF_SCALE) for x, y, _, w in spec.path_points(path)],
                        margin=CAPSULE_MARGIN, ground_cover=True))
     for route in spec.active(spec.ROUTES):
         if route.get("layer") or route.get("deck"):
@@ -146,10 +190,10 @@ def keep_outs():
     for pod in spec.active(spec.PODS):
         if pod.get("layer"):
             continue
-        # 낮은 지피만 Pod 3D 편성 공간에 허용한다(1-B0 Z3). 새 바위/식생 엄폐는 막는다.
+        # 1-B0 Z3(편성 공간 전체에 낮은 지피만)는 GX-017로 Pod 중심 반경 9m로 좁혔다. 지피는 그대로 허용한다.
         center = ground_point(pod["xy"])
         k3.append(dict(id="Pod_" + pod["id"], start=center, end=center,
-                       radius=pod.get("formation_radius", spec.FORMATION_RADIUS), ground_cover=True))
+                       radius=POD_CORE_RADIUS, ground_cover=True))
     nodes = {n["id"]: n for n in spec.active(spec.NODES)}
     for anchor in spec.active(spec.ANCHORS):
         landing = ground_point(anchor["landing"])
@@ -239,7 +283,8 @@ def build_rules():
                                         "landing_radius": LANDING_RADIUS, "hook_line_radius": HOOK_LINE_RADIUS,
                                         "camera_radius": CAMERA_RADIUS, "zone_inset": ZONE_INSET,
                                         "existing_clearance": EXISTING_CLEARANCE, "fern_padding": FERN_PADDING,
-                                        "blocker_padding": BLOCKER_PADDING}})
+                                        "blocker_padding": BLOCKER_PADDING, "big_rock_padding": BIG_ROCK_PADDING,
+                                        "path_half_scale": PATH_HALF_SCALE, "pod_core_radius": POD_CORE_RADIUS}})
     unreal.log("Ridge decoration rules saved: %d 2D, %d 3D keep-outs, %d roles." % (len(k2), len(k3), len(ROLES)))
 
 
@@ -259,42 +304,51 @@ def build_graph():
     sampler.set_editor_property("rules", rules)
     blocker_filter_node = add_attribute_filter(graph, "TerrainBlocker")
     cover_filter_node = add_attribute_filter(graph, "GroundCover")
+    big_filter_node = add_attribute_filter(graph, "$Extents.Z", BIG_ROCK_EXTENT_Z)
     # 겹침 정리는 계약·등급별로 따로 한다(V002처럼 한 번에 하면 바닥 면적이 큰 지피가 바위를 지웠다, 1-B5c).
     # 기본값 LargeToSmall·시드 기반 무작위 동률 처리를 그대로 쓴다. 점 범위에는 WPO 여유가 들어 있다.
     prune_blocker_node, _ = graph.add_node_of_type(unreal.PCGSelfPruningSettings)
     prune_tall_node, _ = graph.add_node_of_type(unreal.PCGSelfPruningSettings)
     prune_cover_node, _ = graph.add_node_of_type(unreal.PCGSelfPruningSettings)
-    # 우선순위: 키 큰 식생(Fern) > 바위 > 지피. V003은 바위가 Fern을 지워 Fern 7→1이었다(1-B5d 사용자: 바위 20~30%를 Fern으로).
+    # 우선순위: 큰 바위 > 키 큰 식생(Fern) > 작은 바위 > 지피. V003은 바위가 Fern을 지웠고(Fern 7→1),
+    # V004(Fern > 바위)는 Fern이 늘자 바닥 범위가 큰 큰 바위를 지웠다(정리 전88 → 2).
+    tall_difference_node = add_difference(graph)
     rock_difference_node = add_difference(graph)
     cover_difference_node = add_difference(graph)
     blocker_node = add_spawner(graph, BLOCKER_TAGS, BLOCKER_PROFILE)
     decoration_node = add_spawner(graph, [DECORATION_TAG], DECORATION_PROFILE)
     graph.add_edge(sampler_node, "Out", blocker_filter_node, "In")
     graph.add_edge(blocker_filter_node, "InsideFilter", prune_blocker_node, "In")
+    graph.add_edge(prune_blocker_node, "Out", big_filter_node, "In")
     graph.add_edge(blocker_filter_node, "OutsideFilter", cover_filter_node, "In")
     graph.add_edge(cover_filter_node, "InsideFilter", prune_cover_node, "In")
     graph.add_edge(cover_filter_node, "OutsideFilter", prune_tall_node, "In")
-    graph.add_edge(prune_blocker_node, "Out", rock_difference_node, "Source")
-    graph.add_edge(prune_tall_node, "Out", rock_difference_node, "Differences")
-    graph.add_edge(rock_difference_node, "Out", blocker_node, "In")
+    graph.add_edge(prune_tall_node, "Out", tall_difference_node, "Source")
+    graph.add_edge(big_filter_node, "InsideFilter", tall_difference_node, "Differences")
+    graph.add_edge(big_filter_node, "OutsideFilter", rock_difference_node, "Source")
+    graph.add_edge(tall_difference_node, "Out", rock_difference_node, "Differences")
     graph.add_edge(prune_cover_node, "Out", cover_difference_node, "Source")
+    graph.add_edge(big_filter_node, "InsideFilter", cover_difference_node, "Differences")
     graph.add_edge(rock_difference_node, "Out", cover_difference_node, "Differences")
+    graph.add_edge(big_filter_node, "InsideFilter", blocker_node, "In")
+    graph.add_edge(rock_difference_node, "Out", blocker_node, "In")
     graph.add_edge(cover_difference_node, "Out", decoration_node, "In")
-    graph.add_edge(prune_tall_node, "Out", decoration_node, "In")
+    graph.add_edge(tall_difference_node, "Out", decoration_node, "In")
     graph.add_edge(blocker_node, "Out", graph.get_output_node(), "Out")
     graph.add_edge(decoration_node, "Out", graph.get_output_node(), "Out")
     layout = [(sampler_node, 0, 0), (blocker_filter_node, 300, 0), (cover_filter_node, 600, 150),
-              (prune_blocker_node, 600, -150), (prune_cover_node, 900, 300), (prune_tall_node, 900, 100),
-              (rock_difference_node, 1200, -150), (cover_difference_node, 1500, 300),
-              (blocker_node, 1800, -150), (decoration_node, 1800, 200)]
+              (prune_blocker_node, 600, -150), (big_filter_node, 900, -150), (prune_cover_node, 900, 300),
+              (prune_tall_node, 900, 100), (tall_difference_node, 1200, 100), (rock_difference_node, 1500, -100),
+              (cover_difference_node, 1800, 300), (blocker_node, 2100, -150), (decoration_node, 2100, 200)]
     for node, x, y in layout:
         node.set_node_position(x, y)
     assert unreal.EditorAssetLibrary.save_loaded_asset(graph, False)
     unreal.log("Ridge decoration PCG graph %s saved." % GRAPH)
 
 
-def add_attribute_filter(graph, attribute):
-    """attribute > 0(기본 상수 Double 0)이면 InsideFilter, 아니면 OutsideFilter로 보낸다(샘플러가 0/1로 남긴다)."""
+def add_attribute_filter(graph, attribute, threshold=0.0):
+    """attribute > threshold(상수 Double)이면 InsideFilter, 아니면 OutsideFilter로 보낸다.
+    샘플러 속성(0/1)은 기본값0, 점 속성은 "$Extents.Z"처럼 쓴다."""
     node, filtering = graph.add_node_of_type(unreal.PCGAttributeFilteringSettings)
     filtering.set_editor_property("operator", unreal.PCGAttributeFilterOperator.GREATER)
     filtering.set_editor_property("use_constant_threshold", True)
@@ -302,8 +356,17 @@ def add_attribute_filter(graph, attribute):
     target = filtering.get_editor_property("target_attribute")
     target.import_text("PCGBegin(%s)PCGEnd" % attribute)
     filtering.set_editor_property("target_attribute", target)
-    name = filtering.get_editor_property("target_attribute").get_name()
-    assert str(name) == attribute, "Filter target attribute was not set: %s" % name
+    selected = filtering.get_editor_property("target_attribute")
+    # 점 속성($Extents.Z)은 이름이 아니라 선택자 종류·확장자로 저장되므로 export 문자열로 확인한다.
+    shown = selected.export_text() if attribute.startswith("$") else str(selected.get_name())
+    assert (attribute in shown) if attribute.startswith("$") else shown == attribute, \
+        "Filter target attribute was not set: %s" % shown
+    if threshold:
+        constant = filtering.get_editor_property("attribute_types")
+        constant.set_editor_property("double_value", float(threshold))
+        filtering.set_editor_property("attribute_types", constant)
+        value = filtering.get_editor_property("attribute_types").get_editor_property("double_value")
+        assert abs(value - threshold) < 1e-6, "Filter threshold was not set: %s" % value
     return node
 
 
