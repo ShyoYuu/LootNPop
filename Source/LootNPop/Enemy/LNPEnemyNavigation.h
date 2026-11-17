@@ -50,7 +50,7 @@ namespace LNPEnemyNavigation
 	/**
 	 * StartCenter(캡슐 중심)에서 GoalFeet 쪽으로 실제 지상 이동(LNPEnemySurfaceMovement::StepGrounded, cache 우선·exact 폴백)을
 	 * 반복해 발이 GoalFeet의 AcceptRadius 안에 닿는지 본다. 모든 걸음이 Grounded이고 같은 slot·Layer를 유지해야 한다.
-	 * 벽·Support 없는 Blocker·지지면 끊김·다른 층은 실패한다. 위치를 옮기지 않는 검사일 뿐이다(접지 계측에는 걸음 수가 더해진다).
+	 * 실제 이동과 같은 옆걸음(D-087)으로 작은 Blocker는 돌아가며, 벽·돌아갈 수 없는 Support 없는 Blocker·지지면 끊김·다른 층은 실패한다. 위치를 옮기지 않는 검사일 뿐이다(접지 계측에는 걸음 수가 더해진다).
 	 */
 	LOOTNPOP_API bool WalkReaches(const FLNPSurfaceDataSnapshot& Snapshot, const ULNPMassWorldCollisionSubsystem& Collision,
 		const LNPEnemyExactMovement::FParams& Params, const FVector& StartCenter, const FLNPSurfaceHandle& Surface,

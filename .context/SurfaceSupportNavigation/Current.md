@@ -2,7 +2,9 @@
 
 > 상태: 활성 인계 문서
 > 현재 작업: Phase16 완료 — 1단계(D-082·D-084·D-085)·독립 후속 [원거리 사선 후보 A](phases/Phase16_GroundRangedLineOfSight.md)(D-086)·2단계 ISM Support 조사 후 구현 보류(D-058 유지). 현재 풀 지상 교전 기준선 `ProductionGround` 확보. 다음 후보는 Phase 15 재측정
-> 마지막 갱신: 2026-11-16
+> 마지막 갱신: 2026-11-17
+
+**Phase16 후속 단위1 — 작은 Blocker 옆걸음(D-087, 2026-11-17 완료).** 그래픽스 1-B5e(작은 바위에 붙어 섬)의 원인은 올린 측면 sweep이 낮은 바위를 못 봐 캐시 접지가 D-082로 거부되고, 이 경로에 slide가 없어 같은 거부가 반복되는 것이었다. 거부 프레임에만 ±45°·±90° 옆걸음 후보를 같은 검사로 시험하고, 모두 실패해야 제자리다. 비관통·탈출 규칙·exact 폴백·분리력은 그대로다. 전체 SurfaceNavigation 139/139(헤드리스), WIP slot5 PIE에서 사용자가 "자연스럽게 돈다"고 확인했다(지상 전용 편성 `blocker_rejects`0·`blocker_detours`0.67%). 단위2(경로 추종 지름길)·단위3(`ClearanceFloorOnly` 오판)이 남았다. [계획·결과](phases/Phase16_SmallBlockerDetour.md).
 
 **Phase16 2단계 ISM Support 보류(2026-11-16, 사용자 결정).** Sandstone에 Support를 주려면 ISM instance별 source와 볼록 충돌 Support가 모두 필요하다. 볼록 hit은 엔진이 FaceIndex를 주지 않아 지금의 face→Layer 표를 쓸 수 없다. Support+Blocker여도 Nav는 지금처럼 바위를 돌아가므로, 얻는 것은 밀린 적이 낮은 바위 위로 올라서는 것뿐이다. D-058을 유지하고 바위는 Blocker로 둔다. 1-B6에서 `blocker_rejects`·Nav 단절로 적이 갇히는 곳만 확인하고 문제가 보이면 B안(Sandstone 저폴리 complex 충돌+instance Support)부터 다시 잰다. 코드·에셋 변경은 없다. [조사 결과](phases/Phase16_SupportlessBlockerStep.md) §4.1.
 
@@ -95,7 +97,7 @@
 - **원거리 사선 확보 후보 A 완료(D-086):** 사용자 PIE 확인·원래 풀 복원까지 마쳤다. 후보 B 옆걸음은 실제 필요가 생길 때만 검토한다.
 - **Phase16 종료(2026-11-16):** 2단계 ISM Support는 조사 후 보류했다(위 결정). 현재 풀 지상 교전 기준선(`ProductionGround`)도 확보했다. 다음 후보는 [Phase 15 재측정](phases/Phase15_ComplexMapPathRemeasure.md)이다.
 - **후보(그래픽스 1-B5d 인계, 2026-11-16): 작은 Blocker 주변 우회 경로 다듬기.** 그래픽스 WIP Ridge 분지에 PCG 바위(Static+Blocker) 18개를 깔았더니, 지상 적이 바위 하나 주변을 별거 없는 평지에서 크게 돌아 추격하는 것이 어색했다(추격 자체는 정상). 원인은 지각 Nav 200cm 삼각 격자·반지름 50cm 캡슐이라 1m 바위도 노드 1~3개와 간선을 지워 지름 4~6m 구멍이 되기 때문이다. 문제 지점(slot 로컬 X2647·Y-2575)의 `ExplainNavGap` 400cm: 지각 노드 11개 중 Node5·NodeNavInterp1, 탈락 Clearance2(PCG Moss + 30cm 옆 수동 Moss_01)·ClearanceFloorOnly2(지형만 닿음)·NonWalkable1. 사용자 결정: 바위는 옮기지 않고, 노드 경로를 실제 보행 직선 검증으로 가로지르는 경로 다듬기(지름길)를 SSN 후보로만 둔다. 격자 100cm 축소(Nav 데이터 약4배)는 권장하지 않는다. 기존 추종의 waypoint 건너뛰기 범위부터 확인한다. 그래픽스 근거 `Saved/Profiling/Graphics/Phase01/RidgeDecorationExpand_20261116/`.
-- **후보(그래픽스 1-B5e 인계, 2026-11-17): 작은 Blocker를 가끔 우회하지 못함.** 그래픽스 WIP Ridge에 PCG 바위(Static+Blocker) 29개(작은 바위27·2~3.6m 큰 바위2)를 동선 반폭+3.5m 밖으로 둔 뒤 1인 PIE에서, 지상 적이 작은 바위조차 가끔 돌아가지 못한다(사용자 관찰). `LNP.SurfaceNav.EnemyGround.Report` blocker_rejects는 12,122/460,164단계(2.6%)로 1-B5d(바위18개) 0.9%보다 높다. 바위95개 배치에서는 12.5%였다. 위 1-B5d 경로 다듬기 후보와 같은 원인(200cm 격자 Nav 구멍과 추종 경로)인지부터 확인한다. 재현: 검사용 풀 `DA_GraphicsRidgeValidationPool` 메모리 임시 선택 → TestMap03 PIE(WIP slot은 매 실행 로그에서 확인). 그래픽스 근거 `Saved/Profiling/Graphics/Phase01/RidgeDecorationVariants_20261117/SelectionState.json`. 그래픽스 세션과 WIP 저장·베이크를 동시에 하지 않는다.
+- **후보(그래픽스 1-B5e 인계, 2026-11-17): 작은 Blocker를 가끔 우회하지 못함.** → 단위1 옆걸음(D-087)으로 해결했다. 남은 경로 다듬기(단위2)·베이커 오판(단위3)은 [Phase16_SmallBlockerDetour](phases/Phase16_SmallBlockerDetour.md)를 따른다. 당시 기록: 그래픽스 WIP Ridge에 PCG 바위(Static+Blocker) 29개(작은 바위27·2~3.6m 큰 바위2)를 동선 반폭+3.5m 밖으로 둔 뒤 1인 PIE에서, 지상 적이 작은 바위조차 가끔 돌아가지 못한다(사용자 관찰). `LNP.SurfaceNav.EnemyGround.Report` blocker_rejects는 12,122/460,164단계(2.6%)로 1-B5d(바위18개) 0.9%보다 높다. 바위95개 배치에서는 12.5%였다. 위 1-B5d 경로 다듬기 후보와 같은 원인(200cm 격자 Nav 구멍과 추종 경로)인지부터 확인한다. 재현: 검사용 풀 `DA_GraphicsRidgeValidationPool` 메모리 임시 선택 → TestMap03 PIE(WIP slot은 매 실행 로그에서 확인). 그래픽스 근거 `Saved/Profiling/Graphics/Phase01/RidgeDecorationVariants_20261117/SelectionState.json`. 그래픽스 세션과 WIP 저장·베이크를 동시에 하지 않는다.
 - **Phase 15 재측정 주의:** D-084로 정식 Nav node·portal이 늘고 component가 줄었다. 추격 경로 재측정은 schema10 데이터로 한다.
 - Grove는 V023의 새 큰 덩어리 규모·공터 분리·Z 절삭/직각 경사·상부 훅을 사용자 PIE로 확인한다. 이후 작은 Floor 3면 역할/접합 정리·최종 형상/정식 경로 채택·베이크 결정론·실제 풀 한 번 등록·전체 SurfaceNavigation·혼합 PIE가 남았다. 옛 뿌리/벽 생성기를 현재 형상 제작에 사용하지 않는다. 적 0을 NPC 교전 확인으로 취급하지 않는다. 그래픽스 세션과 레벨/베이크/저장을 동시에 조작하지 않는다.
 - Pyramid_00은 V058 공간·동선을 보존한다. 추가 피드백이 생기면 새 형상 버전에서 해당 구간만 수정한다.

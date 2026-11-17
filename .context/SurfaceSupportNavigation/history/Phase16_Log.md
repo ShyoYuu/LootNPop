@@ -222,3 +222,14 @@
 
 - `ProductionGround`에서 경로 요청은 capture 동안 40건으로 모두 Succeeded(cache 적중16)이고 경로 tick P95는0.000ms였다. `blocker_rejects`=0이다. `Production`의 2회는 Phase16 마감 측정(6.93/6.78ms)과 같은 범위다.
 - 해석: 현재 풀 지상 교전 기준선은 `ProductionGround` frame P95 약8.0ms다. `Production`보다 약1.1ms 높은데 지상 이동만이 아니라 원거리 적이 깨어나 투사체 약493발이 실린 몫을 포함한다. Phase16 변경(D-082·D-084·D-085) 전의 같은 조건 값은 없어 전후 비교는 여전히 못 한다. V011과는 풀 구성이 달라 직접 비교하지 않는다.
+
+## 2026-11-17 — 후속 단위1: Support 없는 Blocker 거부 시 옆걸음(D-087)
+
+- 인계: 그래픽스 1-B5e(작은 바위를 가끔 못 돌고 붙어 섬, `blocker_rejects` 2.63%)·1-B5d(바위 Nav 구멍 크게 우회). 마스터 세션이 원인을 세 단위로 나눴고 사용자가 1→2→3 순차 진행을 승인했다. 계획·세 단위 기록은 `phases/Phase16_SmallBlockerDetour.md`다.
+- 원인 재확인: 올린(45cm) 측면 sweep이 낮은 바위·바위 아랫부분을 못 보고, 캐시 접지 캡슐이 겹쳐 D-082로 거부된다. 이 경로에는 slide가 없어 같은 조향이면 매 프레임 같은 거부가 반복된다.
+- 구현: 거부 프레임에만 ±45°·±90° 옆걸음 후보를 같은 sweep·캐시 접지·겹침 검사로 시험한다. 좌우 동점은 "캡슐 반지름만큼 비킨 앞자리가 트인 쪽"으로 고른다. 처음 계획한 "같으면 좌"만으로는 좌우 진척이 대칭이라 대부분 이 규칙이 정해, 바위가 치우친 긴 쪽으로 도는 것을 설계 중 확인해 보완했다. 상태 저장 없음, 모두 실패하면 `Rejected`. `EnemyGround.Report`에 `blocker_detours`를 더했다. D-082는 대체됨, D-087 신설.
+- 테스트: 사용자 확인으로 `SupportlessBlockerStep`의 "제자리 정지" 단언을 "비관통·돌아 지나감"으로 바꾸고 `OffsetSmallBlocker`·`BlockerPocket`을 추가했다. 55cm 경계 케이스는 확인 요청 때 "그대로"라고 설명했지만 실제로는 돌아 지나가 같은 방식으로 바꿨다. 첫 실행에서 낮은 상자 높이의 반구 수평 반지름(약30cm)을 반영하지 못한 임계값·주머니 여유를 고쳤다.
+- 검증: Game·Editor 빌드 성공. 에디터 안 전체 회귀는 76개째에서 GPU 크래시로 중단됐다(환경 실패2: MCP 대기 timeout의 HTTP Error 1줄·크래시 순간 테스트). 헤드리스 `-NullRHI` 재실행 **139/139 통과**(경고4 기존 노이즈), 시험편3개 원복.
+- PIE: WIP slot5·1인. 기본 편성에서 "이전보다 훨씬 잘 추격해온다". 지상 전용 메모리 편성(근접18·원거리9, 지상 2,220기)에서 "자연스럽게 돈다", steps 106,716·`blocker_rejects`0·`blocker_detours`716(0.67%). 풀·편성은 메모리 변경만 했고 PIE 뒤 원래 값으로 되돌렸다(`Saved/Profiling/Phase16/SmallBlockerDetour/SelectionState.json`).
+- `WalkReaches`·`FindWalkAnchor`도 같은 옆걸음으로 검증한다. 실제 이동과 검증이 일치하므로 의도와 맞고, 걸음 수 상한 1.5배·같은 Layer 유지는 그대로다(`WalkAnchorRecovery` 통과).
+- 남은 것: 변경 비용의 패키지 전후 비교는 미측정이다. 단위2(경로 추종 지름길)·단위3(`ClearanceFloorOnly` 오판)은 마스터 세션이 따로 띄운다.

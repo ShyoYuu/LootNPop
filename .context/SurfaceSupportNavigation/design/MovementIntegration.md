@@ -25,7 +25,7 @@ Mover floor query는 face index를 요청하지 않는다. uniform source는 기
 ### grounded 이동
 
 1. 현재 `FSurfaceHandle`의 Support를 우선 조회
-2. high-confidence interior면 cache로 접지. 단 그 자리의 캡슐(반지름·반높이 −1cm)이 Support 없는 Blocker와 겹치면 이번 프레임 제자리에 선다(`Rejected`). 측면 sweep은 MaxStepUp(45cm)만큼 올려 하므로 그 아래 Blocker는 캐시만으로 걸러지지 않는다. 판정은 overlap-multi + registry 역할 조회이고, 출발 위치도 이미 겹쳐 있으면 허용한다(D-082)
+2. high-confidence interior면 cache로 접지. 단 그 자리의 캡슐(반지름·반높이 −1cm)이 Support 없는 Blocker와 겹치면 이 이동은 거부한다. 측면 sweep은 MaxStepUp(45cm)만큼 올려 하므로 그 아래 Blocker(또는 바위의 넓은 아랫부분)는 캐시만으로 걸러지지 않고 slide도 없다. 판정은 overlap-multi + registry 역할 조회이고, 출발 위치도 이미 겹쳐 있으면 허용한다(D-082). 거부되면 이동을 접평면에서 ±45°, ±90° 돌린 옆걸음 후보를 작은 각도부터 같은 sweep·캐시 접지·겹침 검사로 시험해 통과한 후보로 움직이고, 모두 실패해야 제자리(`Rejected`)다. 좌우 선택은 진척 → Blocker가 먼저 끝나는 쪽 → 좌 순이며 상태를 저장하지 않는다(D-087). `EnemyGround.Report`의 `blocker_detours`가 옆걸음, `blocker_rejects`가 제자리 프레임이다
 3. edge/risk/discontinuity면 exact floor probe
 4. 정적 obstacle risk 또는 runtime blocker가 있으면 capsule sweep
 5. 같은 Layer에서 유효 support가 없으면 유령 지면으로 보간하지 않음

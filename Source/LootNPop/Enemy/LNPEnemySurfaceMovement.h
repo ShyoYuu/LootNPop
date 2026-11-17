@@ -80,6 +80,7 @@ namespace LNPEnemySurfaceMovement
 	/**
 	 * grounded 한 프레임. 수평 blocker sweep 뒤 cache high-confidence를 우선하고,
 	 * 그 밖의 상태는 같은 도달점에서 exact support probe로 폴백한다.
+	 * 캐시 접지가 Support 없는 Blocker 겹침으로 거부되면 ±45°·±90° 옆걸음 후보를 시험하고, 모두 실패해야 제자리(Rejected)다(D-087).
 	 */
 	LOOTNPOP_API LNPEnemyExactMovement::EGroundResult StepGrounded(
 		const FLNPSurfaceDataSnapshot* SurfaceSnapshot,

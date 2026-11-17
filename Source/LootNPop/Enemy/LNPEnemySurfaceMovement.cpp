@@ -26,6 +26,16 @@ namespace LNPEnemySurfaceMovement
 		std::atomic<uint64> GExactFallbacks = 0;
 		std::atomic<uint64> GExactOnlySteps = 0;
 		std::atomic<uint64> GBlockerRejects = 0;
+		std::atomic<uint64> GBlockerDetours = 0;
+
+		/** Blocker 거부 프레임의 옆걸음 후보 각도(도). 작은 각도부터 보고, 각 각도는 좌(+)·우(−) 순서다. */
+		constexpr float BlockerDetourAngles[] = {45.f, 90.f};
+
+		/** 같은 각도의 좌우 후보 진척(cm) 차이가 이 안이면 같다고 보고 좌(+)를 고른다. 부동소수 잡음으로 좌우가 번갈지 않게 한다. */
+		constexpr double BlockerDetourTieTolerance = 0.5;
+
+		/** 후보가 실제로 움직인 거리가 이번 걸음의 이 비율보다 작으면(벽에 막힘) 통과로 치지 않는다. */
+		constexpr double BlockerDetourMinMoveRatio = 0.25;
 
 		FAutoConsoleCommand CmdReportStats(
 			TEXT("LNP.SurfaceNav.EnemyGround.Report"),
@@ -50,6 +60,7 @@ namespace LNPEnemySurfaceMovement
 		GExactFallbacks.store(0, std::memory_order_relaxed);
 		GExactOnlySteps.store(0, std::memory_order_relaxed);
 		GBlockerRejects.store(0, std::memory_order_relaxed);
+		GBlockerDetours.store(0, std::memory_order_relaxed);
 		UE_LOG(LogLootNPop, Display, TEXT("EnemyGround counters reset."));
 	}
 
@@ -60,11 +71,12 @@ namespace LNPEnemySurfaceMovement
 		const uint64 Fallbacks = GExactFallbacks.load(std::memory_order_relaxed);
 		const uint64 ExactOnly = GExactOnlySteps.load(std::memory_order_relaxed);
 		const uint64 BlockerRejects = GBlockerRejects.load(std::memory_order_relaxed);
+		const uint64 BlockerDetours = GBlockerDetours.load(std::memory_order_relaxed);
 		const double CacheRate = Steps > 0 ? 100.0 * static_cast<double>(CacheHits) / static_cast<double>(Steps) : 0.0;
 		UE_LOG(LogLootNPop, Display,
-			TEXT("EnemyGround: mode=%s steps=%llu cache_hits=%llu exact_fallbacks=%llu exact_only=%llu cache_rate=%.2f%% blocker_rejects=%llu"),
+			TEXT("EnemyGround: mode=%s steps=%llu cache_hits=%llu exact_fallbacks=%llu exact_only=%llu cache_rate=%.2f%% blocker_rejects=%llu blocker_detours=%llu"),
 			GEnemySupportCache != 0 ? TEXT("cache-first") : TEXT("exact-only"),
-			Steps, CacheHits, Fallbacks, ExactOnly, CacheRate, BlockerRejects);
+			Steps, CacheHits, Fallbacks, ExactOnly, CacheRate, BlockerRejects, BlockerDetours);
 	}
 
 	bool MakeSurfaceHandle(const FLNPExactHitIdentity& Identity, FLNPSurfaceHandle& OutHandle)
@@ -293,6 +305,87 @@ namespace LNPEnemySurfaceMovement
 		}
 	}
 
+	namespace
+	{
+		/**
+		 * 캐시 접지가 Support 없는 Blocker 겹침으로 거부된 프레임에만 부른다(D-087). 이번 이동을 접평면에서 ±45°, ±90° 돌린
+		 * 후보를 작은 각도부터 기존과 같은 올린 sweep → 캐시 접지 → Blocker 겹침 검사로 시험한다. 같은 각도에서 좌우가 모두
+		 * 통과하면 원래 이동 방향 진척이 큰 쪽을 고른다. 좌우 후보는 대칭이라 진척은 대개 같다. 그때는 원래 목표 지점에서 각 쪽으로
+		 * 캡슐 반지름만큼 비킨 자리가 Blocker와 겹치지 않는 쪽(Blocker가 먼저 끝나는 쪽)을, 그래도 가릴 수 없으면 좌(+)를 고른다.
+		 * 상태를 남기지 않으므로 다음 프레임은 원래 방향부터 다시 본다.
+		 */
+		bool TryBlockerDetour(
+			const FLNPSurfaceDataSnapshot& Snapshot,
+			const ULNPMassWorldCollisionSubsystem& Collision,
+			const LNPEnemyExactMovement::FParams& Params,
+			const FVector& Location,
+			const FVector& Velocity,
+			const float DeltaTime,
+			const FLNPSurfaceHandle& Surface,
+			FLNPSurfaceHandle& OutSurface,
+			FVector& OutLocation)
+		{
+			struct FCandidate
+			{
+				bool bPassed = false;
+				double Progress = 0.0;
+				FVector Location = FVector::ZeroVector;
+				FLNPSurfaceHandle Surface;
+			};
+
+			const FVector Up = (Params.GravityOrigin - Location).GetSafeNormal();
+			const FVector Planar = FVector::VectorPlaneProject(Velocity, Up);
+			const FVector Heading = Planar.GetSafeNormal();
+			const double MinMoveSq = FMath::Square(Planar.Size() * DeltaTime * BlockerDetourMinMoveRatio);
+			constexpr float Signs[2] = {1.f, -1.f};
+			for (const float Angle : BlockerDetourAngles)
+			{
+				FCandidate Candidates[2];
+				for (int32 Side = 0; Side < 2; ++Side)
+				{
+					const FVector CandidateVelocity = FQuat(Up, FMath::DegreesToRadians(Signs[Side] * Angle)).RotateVector(Planar);
+					const FVector Target = LNPEnemyExactMovement::MoveGroundedLaterally(Collision, Params, Location, CandidateVelocity, DeltaTime);
+					FCandidate& Candidate = Candidates[Side];
+					Candidate.Surface = Surface;
+					if (!TryResolveCachedGround(Snapshot, Params, Target, Candidate.Surface, Candidate.Location)
+						|| FVector::VectorPlaneProject(Candidate.Location - Location, Up).SizeSquared() < MinMoveSq
+						|| LNPEnemyExactMovement::OverlapsSupportlessBlocker(Collision, Params, Candidate.Location))
+					{
+						continue;
+					}
+					Candidate.bPassed = true;
+					Candidate.Progress = FVector::DotProduct(Candidate.Location - Location, Heading);
+				}
+				if (!Candidates[0].bPassed && !Candidates[1].bPassed)
+				{
+					continue;
+				}
+
+				int32 Pick = Candidates[0].bPassed ? 0 : 1;
+				if (Candidates[0].bPassed && Candidates[1].bPassed)
+				{
+					const double ProgressDiff = Candidates[1].Progress - Candidates[0].Progress;
+					if (ProgressDiff > BlockerDetourTieTolerance)
+					{
+						Pick = 1;
+					}
+					else if (ProgressDiff >= -BlockerDetourTieTolerance)
+					{
+						const FVector Ahead = Location + Planar * DeltaTime;
+						const FVector Aside = FQuat(Up, UE_HALF_PI).RotateVector(Heading) * Params.CapsuleRadius;
+						const bool bLeftClear = !LNPEnemyExactMovement::OverlapsSupportlessBlocker(Collision, Params, Ahead + Aside);
+						const bool bRightClear = !LNPEnemyExactMovement::OverlapsSupportlessBlocker(Collision, Params, Ahead - Aside);
+						Pick = (bRightClear && !bLeftClear) ? 1 : 0;
+					}
+				}
+				OutLocation = Candidates[Pick].Location;
+				OutSurface = Candidates[Pick].Surface;
+				return true;
+			}
+			return false;
+		}
+	}
+
 	LNPEnemyExactMovement::EGroundResult StepGrounded(
 		const FLNPSurfaceDataSnapshot* SurfaceSnapshot,
 		const ULNPMassWorldCollisionSubsystem& Collision,
@@ -321,12 +414,19 @@ namespace LNPEnemySurfaceMovement
 				OutVelocity = FVector::ZeroVector;
 				GCacheHits.fetch_add(1, std::memory_order_relaxed);
 				// Support Atlas는 Blocker를 모른다. 측면 sweep이 MaxStepUp 아래 Blocker를 턱으로 넘기면 캐시는 그 밑의 지지면에
-				// 접지시켜 캡슐이 Blocker 안에 놓인다. exact probe라면 Rejected였을 자리이므로 같은 규칙으로 제자리에 선다.
+				// 접지시켜 캡슐이 Blocker 안에 놓인다. exact probe라면 Rejected였을 자리이므로 이 이동은 거부한다. 올린 sweep의
+				// slide가 이 Blocker를 보지 못하므로 옆걸음 후보를 대신 시험하고(D-087), 모두 실패하면 제자리에 선다.
 				// 이미 겹친 채 출발했다면(스폰·상태형 지형이 덮음) 빠져나갈 수 있게 막지 않는다.
 				if (Target != Location
 					&& LNPEnemyExactMovement::OverlapsSupportlessBlocker(Collision, Params, OutLocation)
 					&& !LNPEnemyExactMovement::OverlapsSupportlessBlocker(Collision, Params, Location))
 				{
+					if (TryBlockerDetour(*SurfaceSnapshot, Collision, Params, Location, Velocity, DeltaTime,
+						PreviousSurface, InOutSurface, OutLocation))
+					{
+						GBlockerDetours.fetch_add(1, std::memory_order_relaxed);
+						return LNPEnemyExactMovement::EGroundResult::Grounded;
+					}
 					GBlockerRejects.fetch_add(1, std::memory_order_relaxed);
 					InOutSurface = PreviousSurface;
 					OutLocation = Location;

@@ -202,10 +202,10 @@ namespace
 			return Ground + UpAt(Ground) * Params.CapsuleHalfHeight;
 		}
 
-		/** 지면 위에 놓인 상자. 크기는 전진·옆·높이(cm)다. */
-		UStaticMeshComponent* Box(const double X, const FVector& Size, const FName Profile)
+		/** 지면 위에 놓인 상자. 크기는 전진·옆·높이(cm)이고 Y는 상자 중심의 옆 위치다. */
+		UStaticMeshComponent* Box(const double X, const FVector& Size, const FName Profile, const double Y = 0.0)
 		{
-			const FVector Ground = GroundPoint(X, 0.0);
+			const FVector Ground = GroundPoint(X, Y);
 			const FVector Up = UpAt(Ground);
 			AActor* Owner = World->SpawnActor<AActor>();
 			UStaticMeshComponent* Mesh = NewObject<UStaticMeshComponent>(Owner);
@@ -230,12 +230,15 @@ namespace
 		void Publish() const { HitIdentity->Tick(0.f); }
 
 		double ForwardOf(const FVector& Location) const { return FVector::DotProduct(Location, Forward); }
+		double SideOf(const FVector& Location) const { return FVector::DotProduct(Location, Side); }
 	};
 
 	struct FBlockerStepWalkResult
 	{
 		double FinalX = 0.0;
 		double MaxX = -UE_BIG_NUMBER;
+		double MinY = UE_BIG_NUMBER;
+		double MaxY = -UE_BIG_NUMBER;
 		int32 Rejected = 0;
 		int32 LostSupport = 0;
 		bool bEverInsideBlocker = false;
@@ -262,6 +265,8 @@ namespace
 			Result.LostSupport += Ground == EGroundResult::LostSupport ? 1 : 0;
 			Location = Next;
 			Result.MaxX = FMath::Max(Result.MaxX, Fixture.ForwardOf(Location));
+			Result.MinY = FMath::Min(Result.MinY, Fixture.SideOf(Location));
+			Result.MaxY = FMath::Max(Result.MaxY, Fixture.SideOf(Location));
 			if (!bStartedInside)
 			{
 				Result.bEverInsideBlocker |= OverlapsSupportlessBlocker(*Fixture.Collision, Fixture.Params, Location);
@@ -287,26 +292,36 @@ bool FLNPEnemySupportlessBlockerStepTest::RunTest(const FString& Parameters)
 		Build(Fixture);
 		Fixture.Publish();
 		OutResult = WalkBlockerStep(Fixture, StartX);
+		AddInfo(FString::Printf(TEXT("%s: FinalX=%.1f MaxX=%.1f Y=[%.1f, %.1f] Rejected=%d Inside=%d"), Name,
+			OutResult.FinalX, OutResult.MaxX, OutResult.MinY, OutResult.MaxY, OutResult.Rejected, OutResult.bEverInsideBlocker ? 1 : 0));
 		TestEqual(FString::Printf(TEXT("%s: cache keeps support"), Name), OutResult.LostSupport, 0);
 		return true;
 	};
 
-	// 1. Sandstone 크기(20cm) Blocker: MaxStepUp(45cm) 아래지만 턱으로 넘지 않는다.
+	// 상자(옆 폭 200, 중심 y=0)를 넘지 않고 돌아 지나갔으면 상자 뒤까지 가는 동안 반폭 밖으로 비켰다. 20cm 상자 높이에서 캡슐
+	// 아래 반구의 수평 반지름은 약30cm라 옆 여유는 판정 반지름(34)보다 작다. 넘었는지는 bEverInsideBlocker가 따로 본다.
+	const double PassedX = BlockerX + 20.0 + 35.0;
+	const double AroundY = 100.0 + 25.0;
+	auto WentAround = [PassedX, AroundY](const FBlockerStepWalkResult& R)
+	{
+		return R.FinalX > PassedX && FMath::Max(-R.MinY, R.MaxY) >= AroundY;
+	};
+
+	// 1. Sandstone 크기(20cm) Blocker: MaxStepUp(45cm) 아래지만 턱으로 넘지 않는다. 정면으로 계속 밀면 옆걸음으로 옆면을 따라 돌아간다(D-087).
 	{
 		FBlockerStepWalkResult Result;
 		if (!RunCase(TEXT("LowBlocker"), [](FBlockerStepWorld& F) { F.Box(200.0, FVector(40, 200, 20), TEXT("LNPStaticBlocker")); }, 0.0, Result))
 			return false;
-		TestTrue(TEXT("Low Blocker is not stepped over"), Result.MaxX <= StopLimit);
-		TestTrue(TEXT("Low Blocker stops the walk with Rejected"), Result.Rejected > 0);
+		TestTrue(TEXT("Low Blocker is passed around, not stepped over"), WentAround(Result));
 		TestFalse(TEXT("Capsule never ends inside the low Blocker"), Result.bEverInsideBlocker);
 	}
 
-	// 2. Moss 경계(55cm): 올린 sweep은 윗부분만 보므로 아래쪽이 캡슐에 들어오기 전에 같은 규칙으로 멈춘다.
+	// 2. Moss 경계(55cm): 올린 sweep은 윗부분 모서리에 반구로만 닿아 아래쪽이 캡슐에 들어오므로 같은 규칙으로 거부되고 옆걸음으로 돌아간다.
 	{
 		FBlockerStepWalkResult Result;
 		if (!RunCase(TEXT("BoundaryBlocker"), [](FBlockerStepWorld& F) { F.Box(200.0, FVector(40, 200, 55), TEXT("LNPStaticBlocker")); }, 0.0, Result))
 			return false;
-		TestTrue(TEXT("Blocker slightly above MaxStepUp stops before overlap"), Result.MaxX <= StopLimit);
+		TestTrue(TEXT("Blocker slightly above MaxStepUp is passed around without overlap"), WentAround(Result));
 		TestFalse(TEXT("Capsule never ends inside the boundary Blocker"), Result.bEverInsideBlocker);
 	}
 
@@ -328,7 +343,7 @@ bool FLNPEnemySupportlessBlockerStepTest::RunTest(const FString& Parameters)
 				F.Box(200.0, FVector(40, 200, 20), TEXT("LNPStaticBlocker"));
 			}, 0.0, Result))
 			return false;
-		TestTrue(TEXT("Blocker is found while the capsule overlaps Support"), Result.MaxX <= StopLimit);
+		TestTrue(TEXT("Blocker is found while the capsule overlaps Support"), WentAround(Result));
 		TestFalse(TEXT("Capsule never ends inside the Blocker on embedded Support"), Result.bEverInsideBlocker);
 
 		FBlockerStepWalkResult Clear;
@@ -354,6 +369,34 @@ bool FLNPEnemySupportlessBlockerStepTest::RunTest(const FString& Parameters)
 		const double ExpectedStop = PodX - (LNPLootPodCollisionProxy::Radius + 35.0 + 1.0);
 		TestEqual(TEXT("LootPod proxy causes no new rejection"), Result.Rejected, 0);
 		TestTrue(TEXT("LootPod proxy stop distance is unchanged"), FMath::Abs(Result.FinalX - ExpectedStop) <= 3.0);
+	}
+
+	// 7. 걷는 직선에서 옆으로 비켜 놓인 작은 바위(40×40×20, 옆 y=0~40): 모서리에 비스듬히 닿으면 옆걸음으로 Blocker가 먼저 끝나는
+	//    쪽(−y)으로 돌아 지나간다(D-087). 비관통과 턱으로 넘지 않음은 그대로다.
+	{
+		FBlockerStepWalkResult Result;
+		if (!RunCase(TEXT("OffsetSmallBlocker"), [](FBlockerStepWorld& F) { F.Box(200.0, FVector(40, 40, 20), TEXT("LNPStaticBlocker"), 20.0); }, 0.0, Result))
+			return false;
+		TestTrue(TEXT("Offset small Blocker is passed by a side step"), Result.FinalX > BlockerX + 20.0 + 35.0);
+		TestFalse(TEXT("Capsule never ends inside the offset small Blocker"), Result.bEverInsideBlocker);
+		TestEqual(TEXT("Side step leaves no stuck frame"), Result.Rejected, 0);
+		TestTrue(TEXT("Side step takes the short side away from the Blocker"), Result.MaxY <= 1.0 && Result.MinY < -30.0);
+	}
+
+	// 8. 앞·좌·우가 낮은 Blocker인 U자 주머니: 옆 벽은 반구 위까지 닿는 40cm(올린 sweep 아래)이고 안쪽 면 |y|=36이라 옆 여유가
+	//    판정 반지름34에 2cm뿐이다. 옆걸음 후보가 모두 겹치므로 기존처럼 제자리(Rejected)다.
+	{
+		FBlockerStepWalkResult Result;
+		if (!RunCase(TEXT("BlockerPocket"), [](FBlockerStepWorld& F)
+			{
+				F.Box(200.0, FVector(40, 200, 20), TEXT("LNPStaticBlocker"));
+				F.Box(90.0, FVector(260, 20, 40), TEXT("LNPStaticBlocker"), 46.0);
+				F.Box(90.0, FVector(260, 20, 40), TEXT("LNPStaticBlocker"), -46.0);
+			}, 0.0, Result))
+			return false;
+		TestTrue(TEXT("Pocket Blocker is not stepped over"), Result.MaxX <= StopLimit);
+		TestTrue(TEXT("Pocket stops the walk with Rejected when every side step fails"), Result.Rejected > 0);
+		TestFalse(TEXT("Capsule never ends inside the pocket Blockers"), Result.bEverInsideBlocker);
 	}
 
 	return !HasAnyErrors();
