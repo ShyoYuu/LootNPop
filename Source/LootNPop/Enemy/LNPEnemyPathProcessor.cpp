@@ -452,6 +452,11 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				}
 				GoalSurface = GoalPlayerNav->Surface;
 			}
+			else if (Idle[Index].bReturningHome && Idle[Index].ReturnGoalSurface.IsValid())
+			{
+				// 귀환 목표는 Pod 표면에 투영한 점이다. 적의 현재 표면(다른 Layer·옥탄트일 수 있다)으로 찾으면 NoNode가 된다.
+				GoalSurface = Idle[Index].ReturnGoalSurface;
+			}
 			FVector3d Goal = bSynthetic ? SyntheticGoal : bUnreachableTarget ? FVector3d(Target.TargetLocation)
 				: FeetOf(MoveTarget.Center, Shared.Config->CapsuleHalfHeight);
 			// 마지막 접근 검증의 목표. 보행 anchor로 목표를 바꿔도 실제로 다가갈 곳은 MoveTarget 발이다.

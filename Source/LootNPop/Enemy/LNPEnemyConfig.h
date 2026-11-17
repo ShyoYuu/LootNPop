@@ -96,6 +96,7 @@ enum class ELNPTargetSlotPool : uint8
  *                            └──[플레이어가 세력권 밖]─┘
  *   Alert ──[타겟이 AlertRetentionDistance 밖]────────▶ None
  *   Alert ──[추격 못 한 채 AlertPatienceTime 경과]────▶ None (+ AlertRecoveryTime 동안 재발견 금지)
+ *   None  ──[Pod에서 HomeRadius 밖]──▶ Pod 쪽으로 귀환, 그동안 세력권 밖 플레이어는 시야로 발견하지 않음
  * ```
  *
  * **추격 자격은 "플레이어가 Pod 세력권 안에 있는가"로만 판정한다** — NPC 자신의 위치는 보지 않는다.
@@ -103,7 +104,8 @@ enum class ELNPTargetSlotPool : uint8
  * (실측: "부들부들 떨며 안절부절"). 히스테리시스를 걸어도 진동 주기가 늘어날 뿐 사라지지 않는다 —
  * 기준점을 제어 주체 밖으로 옮기는 것이 유일한 해법이다.
  *
- * 필수 대소 관계: `AwarenessDistance` < `VisionDistance` < `AlertRetentionDistance` <= `ChaseRadius`
+ * 필수 대소 관계: `AwarenessDistance` < `VisionDistance` < `AlertRetentionDistance` <= `ChaseRadius`,
+ * `HomeRadius + VisionDistance <= ChaseRadius`.
  * `AlertRetentionDistance`가 `VisionDistance`보다 커야 발견↔망각이 경계선에서 깜빡이지 않는다.
  */
 USTRUCT(BlueprintType)
@@ -124,6 +126,40 @@ struct FLNPEnemyTargetingConfig
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Scoring")
 	float ChaseRadius = 5000.0f;
+
+	/**
+	 * **홈 반경** — NPC가 Pod에서 이 거리보다 멀면 "자기 구역을 벗어나 있다"로 본다(귀환 중).
+	 * - 시야로는 **세력권 안 플레이어만** 새로 발견한다. 초근접·피격 주시·추적 중인 타겟 유지는 그대로다.
+	 * - Idle(None)이면 배회 대신 Pod 쪽 배회점으로 **정상 속도**로 돌아간다(`FLNPEnemyIdleFragment::bReturningHome`).
+	 *
+	 * 세력권 밖 대치를 끝내는 장치다. 인내를 소진한 NPC가 플레이어 앞에서 돌아서지 못해도(경로 대기·배회 목표 거부)
+	 * 세력권 밖 플레이어를 다시 발견하지 않으므로 Alert↔None 왕복이 생기지 않는다.
+	 *
+	 * NPC 위치를 쓰지만 **추격 자격에는 넣지 않는다**(자격은 여전히 플레이어 위치만 본다). 이 값이 바꾸는 것은
+	 * 세력권 밖 플레이어의 새 발견뿐이고, 홈 안에서 보이는 플레이어는 이미 세력권 안이라 경계선 진동이 없다.
+	 * 필수 대소 관계: `HomeRadius + VisionDistance <= ChaseRadius`(홈 안에서 시야에 든 플레이어는 늘 세력권 안),
+	 * `HomeRadius`는 Pod 출현 반경(전역 15m·authored 최대 25m)보다 커야 스폰 직후 귀환으로 달리지 않는다.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LNP|Scoring", meta = (ClampMin = "0.0"))
+	float HomeRadius = 3000.0f;
+
+	/** 플레이어가 Pod 세력권 안에 있는가. 추격 자격과 귀환 중 시야 발견이 같은 판정을 쓴다. */
+	bool IsInTerritory(const FVector& PlayerLocation, const FVector& PodLocation) const
+	{
+		return FVector::DistSquared(PlayerLocation, PodLocation) <= FMath::Square(ChaseRadius);
+	}
+
+	/** NPC가 홈 반경 밖에 있는가(귀환 중). */
+	bool IsAwayFromHome(const FVector& EnemyLocation, const FVector& PodLocation) const
+	{
+		return FVector::DistSquared(EnemyLocation, PodLocation) > FMath::Square(HomeRadius);
+	}
+
+	/** 시야(정면 FOV) 경로로 이 플레이어를 새로 발견해도 되는가. 귀환 중에는 세력권 안 플레이어만 발견한다. */
+	bool AllowsVisionAcquire(const FVector& EnemyLocation, const FVector& PodLocation, const FVector& PlayerLocation) const
+	{
+		return !IsAwayFromHome(EnemyLocation, PodLocation) || IsInTerritory(PlayerLocation, PodLocation);
+	}
 
 	/** **발견 거리** — 새로운 Player를 인지하는 거리 (VisionAngle 시야각 안일 때만) */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception")
@@ -173,6 +209,10 @@ struct FLNPEnemyTargetingConfig
 	 * 실제로 필요한 회전은 시야각 절반(45° = 0.125초)뿐이라 여유가 충분하다.
 	 * `AwarenessDistance` 안까지 들어온 상대는 이 금지를 무시하고 즉시 발견한다 — 회복 중이라고
 	 * 눈앞의 플레이어를 못 보는 장님이 되지는 않는다.
+	 *
+	 * ⚠️ "1초 안에 돌아선다"는 전제는 Pod에서 먼 개체에서 깨진다(2026-11-17 실측). None에 들어간 뒤 경로가 나올 때까지
+	 * 조향점이 제자리라 몸이 플레이어 쪽을 향해 굳고, 30분 넘게 Alert 8초 ↔ None 1초를 반복했다.
+	 * 대치를 실제로 끝내는 것은 `HomeRadius`다. 이 창은 홈 안 개체에 남는 안전판이다.
 	 */
 	UPROPERTY(EditAnywhere, Category = "LNP|Perception", meta = (ClampMin = "0.0"))
 	float AlertRecoveryTime = 1.0f;

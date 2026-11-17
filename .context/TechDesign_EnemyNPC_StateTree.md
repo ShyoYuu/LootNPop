@@ -68,6 +68,7 @@ Enemy NPC의 행동 선택을 MassEntity + StateTree로 구현한다. 길찾기(
 - 실제 목표점은 `ULNPSurfaceCacheSubsystem::GetSurfacePoint()`로 지형에 투영한 뒤 **캡슐 중심 높이로 끌어올린다** — 이 보정을 빼면 목적지와 현재 위치 사이에 `HalfHeight`만큼의 수직 성분이 상시로 남아 도착 임계값(`ArrivalTolerance` 30cm)을 영영 넘지 못하고 배회가 교착된다.
 - 도착하면 **3초 대기 후** 새 목표를 뽑는다(간격이 아니라 도착 후 대기다).
 - **시동 트릭:** EnterState에서 목적지를 현재 위치로 둬 다음 프레임의 "도착" 신호로 Tick이 즉시 재개되게 한다.
+- **귀환:** 지상 개체가 Pod에서 `HomeRadius`(30m) 밖일 때 뽑는 배회점은 적의 현재 위치가 아니라 **Pod 높이·Pod Layer 기준**으로 투영한다. 현재 위치 기준(±3m·같은 Layer)으로는 Pod와 높이·옥탄트가 다른 곳에서 후보가 전부 거부된다. 이 목표는 `bReturningHome`·`ReturnGoalSurface`로 표시되어 경로 프로세서가 Pod 표면으로 목표 node를 찾고 이동 프로세서가 정상 속도로 걷는다. 판단 근거는 → [TechDesign_EnemyNPC.md](TechDesign_EnemyNPC.md) §3.4.1.
 - **교착 복구:** MovementProcessor가 `bWanderTargetTimedOut`(`WanderTimeout` 10초)을 세우면 목표를 폐기하고 대기 간격을 건너뛰어 즉시 재추첨한다. 판단은 IdleTask 단독, 시간 계측은 프로세서 — 신호 구동 구조에서 목표 결정 주체를 하나로 유지하는 방식이다.
 
 ---

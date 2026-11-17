@@ -57,7 +57,7 @@ StateTree 외부 데이터 핸들이 Optional이 되어 Task마다 null 분기�
 | 연출 | `ActionSequences`(행동 상태 → ISKM 시퀀스 인덱스) / AnimBlendTime / PureEntity 사망·플린치 3종 |
 | 서브 구조체 3종 | 아래 |
 
-- **`FLNPEnemyTargetingConfig`**: 인지 거리 3종 (AwarenessDistance / VisionDistance+Angle / AlertRetentionDistance) + 세력권 반경 ChaseRadius + 시간 3종 (AlertPatienceTime / AlertRecoveryTime / HitReactLookTime) — §3.3~3.5. `DistanceWeight`/`AngleWeight`는 선언만 있고 쓰이지 않는다(§8).
+- **`FLNPEnemyTargetingConfig`**: 인지 거리 3종 (AwarenessDistance / VisionDistance+Angle / AlertRetentionDistance) + 세력권 반경 ChaseRadius + 홈 반경 HomeRadius(§3.4.1) + 시간 3종 (AlertPatienceTime / AlertRecoveryTime / HitReactLookTime) — §3.3~3.5. `DistanceWeight`/`AngleWeight`는 선언만 있고 쓰이지 않는다(§8).
 - **`FLNPEnemyMovementConfig`**: MoveSpeed, RotationRate, Gravity, Wander 반경, 분리 반경·강도, AttackRange/Interval, `AimPitchMin/MaxDeg`(§7.9) + 상수 `ArrivalTolerance`(30cm)·`WanderTimeout`(10초) + **`ComputeStopDistance()`** — 추격 정지 거리 공식의 단일 정의 (TargetFollow·Movement·SteeringTask가 공유)
 - **`FLNPEntityAttackConfig`**: 순수 엔티티 기본 공격의 위상 시간·가상 칼날 치수·산탄 → [LowLOD](TechDesign_EnemyNPC_LowLOD.md) §4
 
@@ -138,9 +138,11 @@ None      ──[발견: VisionDistance+VisionAngle  또는  AwarenessDistance]�
 Alert     ──[슬롯 획득]──────────────────────────────────────────────────▶ Confirmed
 Confirmed ──[플레이어가 Pod 세력권 밖]───────────────────────────────────▶ Alert
 Alert     ──[타겟이 AlertRetentionDistance 밖  또는  경계 인내 소진]─────▶ None
+None      ──[NPC가 Pod에서 HomeRadius 밖]──▶ 귀환(정상 속도), 시야 발견은 세력권 안 플레이어만  (§3.4.1)
 ```
 
-기본값: `AwarenessDistance` 200 < `VisionDistance` 2000 < `AlertRetentionDistance` 2500 ≤ `ChaseRadius` 5000.
+기본값: `AwarenessDistance` 200 < `VisionDistance` 2000 < `AlertRetentionDistance` 2500 ≤ `ChaseRadius` 5000,
+`HomeRadius` 3000 (`HomeRadius + VisionDistance <= ChaseRadius`).
 
 **인식 조건** (하나라도 충족 시 후보 등록):
 - `AwarenessDistance` 이내 → FOV·재발견 금지 무관, 무조건 감지
@@ -149,7 +151,8 @@ Alert     ──[타겟이 AlertRetentionDistance 밖  또는  경계 인내 소
 - **피격 주시 중**(`HitReactTimer > 0`)이고 `VisionDistance` 이내 + **피격 방향** 기준
   `VisionAngle/2` 이내 + **조준 가용 각도**(`AimPitchMin/MaxDeg`) 이내 → 감지.
   재발견 금지 창은 보지 않는다 — §7.9
-- `VisionDistance` 이내 + `VisionAngle/2` 이내 + 재발견 금지 창이 닫혀 있음 → 시야 감지
+- `VisionDistance` 이내 + `VisionAngle/2` 이내 + 재발견 금지 창이 닫혀 있음 → 시야 감지.
+  단 NPC가 홈 반경 밖이면 **세력권 안 플레이어만** (`FLNPEnemyTargetingConfig::AllowsVisionAcquire`, §3.4.1)
 
 ⚠️ **시야각은 3D 원뿔이다** — `VisionAngle`을 정면 벡터와 대상 방향의 3D 각도로 잰다.
 따라서 고저차가 좌우 예산을 그대로 잡아먹어, 급경사에서는 평면상 정면인 상대도 시야 밖이 된다
@@ -195,6 +198,41 @@ Alert     ──[타겟이 AlertRetentionDistance 밖  또는  경계 인내 소
 ⚠️ `AlertDwellTime`과 `DisengageTimer`는 `FLNPEnemyTargetingCandidateFragment::Reset()`이
 **지우지 않는다.** Reset()은 매 프레임 후보 목록을 비우는 용도이고, 둘 다 프레임을 가로질러
 유지되어야 하는 값이다.
+
+### 3.4.1 귀환 — 홈 반경 밖 개체 (2026-11-17)
+
+**재발견 금지 창의 전제("1초 안에 돌아선다")는 Pod에서 먼 개체에서 깨졌다.** 세력권 경계까지 따라 나온 근접 적 4마리가
+Pod에서 58m 떨어진 곳에서 Alert 8초 ↔ None 1.04초를 30분 넘게 반복했고, NavReport 위치가 소수점까지 같았다(None 구간에도 0cm 이동).
+
+- None에 들어가면 `FLNPEnemyIdleTask::EnterState`가 MoveTarget을 제자리로 두고, `ULNPEnemyPathProcessor`는
+  `bNeedNewWanderTarget`·경로 대기·경로 실패 동안 조향점을 제자리로 둔다. 이동 프로세서의 회전 의도가 0벡터라
+  **몸은 플레이어를 향한 채 굳는다.** 돌아서는 시점은 유효한 경로가 나온 뒤다.
+- 먼 개체에게는 그 경로가 끝내 나오지 않았다. 배회점 투영(`ProjectWanderTarget`)은 **적의 현재 발 높이 ±3m·현재 Layer**에서만
+  후보를 받는다. Pod가 다른 높이·옥탄트면 네 후보가 전부 거부되어 제자리에서 재추첨을 반복하고, 목표가 나오더라도 적의 표면으로
+  목표 node를 찾으면 NoNode가 된다(`WanderTimeout` 10초 동안 제자리). 로그만으로는 어느 쪽이었는지 가르지 못했다
+  (`pathStatus=6`은 Alert에서 초기화되지 않은 이전 값이다).
+
+해법은 두 갈래다. 둘 다 `FLNPEnemyTargetingConfig::HomeRadius`(3000) 하나로 판정한다.
+
+| 갈래 | 위치 | 동작 |
+|:---|:---|:---|
+| 발견 제한 | `ULNPEnemyScoringProcessor` 시야 경로 | NPC가 홈 반경 밖이면 세력권 안 플레이어만 시야로 새로 발견한다. 초근접·피격 주시·추적 유지 경로는 그대로 |
+| 귀환 이동 | `FLNPEnemyIdleTask` → 경로·이동 프로세서 | 지상 개체가 홈 반경 밖에서 배회점을 뽑으면 **Pod 높이·Pod Layer 기준**으로 투영하고(`bReturningHome`·`ReturnGoalSurface`), 경로 프로세서는 그 표면으로 목표 node를 찾고, 이동 프로세서는 정상 속도로 걷는다 |
+
+- **발견 제한만으로 대치는 끝난다.** 돌아서지 못하든 경로가 늦든, 세력권 밖 플레이어를 다시 발견하지 않으니 Alert로 돌아갈 길이 없다.
+  귀환 이동은 "그 자리에 계속 서 있다"를 고친다.
+- **추격 자격에는 NPC 위치를 넣지 않았다**(§7.8). 홈 반경이 바꾸는 것은 세력권 밖 플레이어의 새 발견뿐이다.
+  `HomeRadius + VisionDistance <= ChaseRadius`이므로 홈 안에서 시야에 든 플레이어는 늘 세력권 안 = 추격 자격이 있다 —
+  경계선에서 발견↔포기가 뒤집힐 조합이 없다. 이 대소 관계와 "홈 반경 > Pod 출현 반경(25m)"은
+  `LootNPop.Enemy.Territory.ConfigInvariants`가 기본값과 적 설정 에셋 5종에 대해 검사한다.
+- **래치(상태 플래그)가 아니라 거리로 판정한다.** 귀환이 끝나는 조건(홈 안 도착)과 풀리는 조건(플레이어 세력권 재진입)을 따로
+  저장하지 않아도 매 프레임 같은 결과가 나온다. `bReturningHome`은 이동 속도·경로 목표 표면을 위한 "현재 목표의 출처" 표시일 뿐이다.
+- 비행·벽보행 개체는 배회점을 원래부터 Pod 기준으로 잡으므로 귀환 이동을 넣지 않았다(발견 제한은 공통).
+  `DA_Enemy_PureEntity_Flyer01`·`Crawler01`은 발견 5000·세력권 6000이라 `HomeRadius`를 **1000**으로 둔다(대소 관계 상한).
+  출현 반경·배회 반경보다 작지만, 그 두 조건은 "정상 속도 귀환과 느린 배회가 섞이지 않게"라는 지상 귀환 전용 조건이라
+  테스트도 지상 개체에만 건다. 두 종에서 홈 반경이 작아서 생기는 효과는 "Pod에서 10m 밖이면 세력권 밖 플레이어를 새로 발견하지 않는다"뿐이다.
+- 재발견 금지 창(1초)은 남겼다. 위 대소 관계가 깨진 설정에서만 의미가 있는 안전판이다.
+- 반격 예외 거리(`AwarenessDistance` 2m)를 근접 공격 거리 수준으로 늘리는 안은 검토 후 유지했다(기획 판단).
 
 ### 3.5 피격 반응
 

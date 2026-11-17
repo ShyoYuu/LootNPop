@@ -265,8 +265,11 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 					bVisible = bWithinAimPitch && (AngleToHitDir <= (TConfig.VisionAngle * 0.5f));
 				}
-				else if (bCanAcquire && DistSq <= FMath::Square(TConfig.VisionDistance))
+				else if (bCanAcquire && DistSq <= FMath::Square(TConfig.VisionDistance)
+					&& TConfig.AllowsVisionAcquire(EnemyLoc, EnemyData.ParentPodLocation, Player.Location))
 				{
+					// 홈 반경 밖(귀환 중) 개체는 세력권 밖 플레이어를 시야로 새로 발견하지 않는다. 발견하면 추격 자격이 없어
+					// Alert → 인내 소진 → None을 반복하며 그 자리에 선다(HomeRadius 주석). 초근접·피격·유지 경로는 위에서 끝났다.
 					const FVector DirToTarget = (Player.Location - EnemyLoc).GetSafeNormal();
 					const float DotToTarget = FVector::DotProduct(EnemyForward, DirToTarget);
 					const float AngleToTarget = FMath::RadiansToDegrees(FMath::Acos(DotToTarget));
@@ -302,8 +305,7 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					// 재면 NPC가 움직일 때마다 자기 자격이 뒤집혀 경계선에서 자기진동한다(실측) —
 					// 히스테리시스를 걸어도 진동 주기가 늘어날 뿐 사라지지 않는다.
 					// 코앞(AwarenessDistance)까지 들어온 상대에게는 세력권과 무관하게 반격한다.
-					const float PlayerToPodSq = FVector::DistSquared(Candidate.Location, EnemyData.ParentPodLocation);
-					const bool bChaseEligible = (PlayerToPodSq <= FMath::Square(TConfig.ChaseRadius))
+					const bool bChaseEligible = TConfig.IsInTerritory(Candidate.Location, EnemyData.ParentPodLocation)
 						|| (Candidate.DistSq <= FMath::Square(TConfig.AwarenessDistance));
 					if (!bChaseEligible)
 						continue;
@@ -839,8 +841,8 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				}
 				else
 				{
-					// 대기 이동: 타겟 지점으로 천천히 이동
-					EffectiveSpeed = BaseMoveSpeed * 0.3f; // 느린 걷기
+					// 대기 이동: 타겟 지점으로 천천히 이동. 귀환 목표(홈 반경 밖에서 뽑은 Pod 쪽 배회점)는 정상 속도다.
+					EffectiveSpeed = IdleFragments[i].bReturningHome ? BaseMoveSpeed : BaseMoveSpeed * 0.3f;
 					OrientationIntent = TargetDirOnPlane;
 				}
 				break;

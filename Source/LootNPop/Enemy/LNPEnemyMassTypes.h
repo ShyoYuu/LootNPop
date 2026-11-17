@@ -279,6 +279,17 @@ struct LOOTNPOP_API FLNPEnemyIdleFragment : public FMassFragment
 	 */
 	UPROPERTY(Transient)
 	uint8 bCornerSettled : 1 = false;
+
+	/**
+	 * 현재 배회 목표가 귀환 목표다(지상 개체가 홈 반경 밖에서 뽑았다, `FLNPEnemyTargetingConfig::HomeRadius`).
+	 * 목표는 Pod 높이·Layer 기준으로 투영한 Pod 주변 배회점이고, 이동 프로세서는 정상 속도로 걷는다.
+	 * IdleTask가 목표를 뽑을 때마다 다시 정하고 EnterState에서 내린다.
+	 */
+	UPROPERTY(Transient)
+	uint8 bReturningHome : 1 = false;
+
+	/** 귀환 목표가 놓인 Pod의 표면. 적의 현재 표면과 다를 수 있어 경로 프로세서가 목표 투영에 쓴다. */
+	FLNPSurfaceHandle ReturnGoalSurface;
 };
 
 /** 서버 경로와 현재 조향점. MoveTarget은 계속 의미상 목표를 소유한다. */

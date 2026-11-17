@@ -321,6 +321,8 @@ EStateTreeRunStatus FLNPEnemyIdleTask::EnterState(FStateTreeExecutionContext& Co
 	IdleData.LastWanderTime = 0.0;
 	IdleData.TimeSinceWanderIssued = 0.0f;
 	IdleData.bWanderTargetTimedOut = false;
+	IdleData.bReturningHome = false;
+	IdleData.ReturnGoalSurface = FLNPSurfaceHandle();
 
 	// 목적지를 현재 위치로 설정: 다음 프레임에 MovementProcessor가 "도착"을 감지하여
 	// StateTreeActivate 신호를 발생시키고 1-2 프레임 내에 Tick()을 호출한다.
@@ -408,6 +410,8 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 		// ProjectWanderTarget은 Atlas 지면점과 exact 결과를 모두 중심 높이로 보정한다. 이 보정을 빼면
 		// 현재 위치 사이에 HalfHeight만큼의 수직 성분이 상시로 남아, MovementProcessor의 도착 임계값을 넘지 못한다.
 		const float CapsuleHalfHeight = SharedConfig.Config ? SharedConfig.Config->CapsuleHalfHeight : 96.0f;
+		IdleData.bReturningHome = false;
+		IdleData.ReturnGoalSurface = FLNPSurfaceHandle();
 
 		ULNPSurfaceDataSubsystem* SurfaceData = Context.GetWorld()->GetSubsystem<ULNPSurfaceDataSubsystem>();
 		const ULNPMassWorldCollisionSubsystem* WorldCollision = Context.GetWorld()->GetSubsystem<ULNPMassWorldCollisionSubsystem>();
@@ -471,6 +475,12 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 			const FMassEntityManager* Manager = MassEntities ? &MassEntities->GetEntityManager() : nullptr;
 			const FLNPLootPodFragment* Pod = Manager && Enemy.ParentLootPod.IsValid() && Manager->IsEntityActive(Enemy.ParentLootPod)
 				? Manager->GetFragmentDataPtr<FLNPLootPodFragment>(Enemy.ParentLootPod) : nullptr;
+			// 귀환: 홈 반경 밖이면 배회점을 **Pod 높이·Layer 기준**으로 투영한다. 현재 위치 기준(±WanderLayerReach)으로는
+			// Pod와 높이차가 큰 곳이나 다른 옥탄트에서 후보가 전부 거부되어 제자리에 선다(2026-11-17 실측, Ridge 58m).
+			const bool bReturn = Pod && Pod->SurfaceHandle.IsValid() && !Enemy.bOrphaned
+				&& SharedConfig.Config->TargetingConfig.IsAwayFromHome(EntityLocation, Enemy.ParentPodLocation);
+			const FLNPSurfaceHandle GoalSurface = bReturn ? Pod->SurfaceHandle : Enemy.SurfaceHandle;
+			const FVector ProjectionReference = bReturn ? Enemy.ParentPodLocation - PodOutDir * CapsuleHalfHeight : EntityLocation;
 			FVector FirstReachable = FVector::ZeroVector;
 			bool bHasReachable = false;
 			bool bFoundDirect = false;
@@ -487,8 +497,8 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 				}
 				FVector Candidate;
 				if (!LNPEnemySurfaceMovement::ProjectWanderTarget(
-					SurfaceSnapshot.Get(), *WorldCollision, ExactParams, EntityLocation, CandidateDirection,
-					WanderLayerReach, Enemy.SurfaceHandle, Candidate))
+					SurfaceSnapshot.Get(), *WorldCollision, ExactParams, ProjectionReference, CandidateDirection,
+					WanderLayerReach, GoalSurface, Candidate))
 				{
 					continue;
 				}
@@ -499,7 +509,7 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 					Query.StartPosition = EntityLocation;
 					Query.StartSurface = &Enemy.SurfaceHandle;
 					Query.GoalPosition = Candidate;
-					Query.GoalSurface = &Enemy.SurfaceHandle;
+					Query.GoalSurface = &GoalSurface;
 					Query.ApproachRadius = 0.0;
 					const FLNPNavEndpoints Endpoints = LNPNavGraph::ResolveEndpoints(SurfaceSnapshot->Nav, Query);
 					if (Endpoints.Status != ELNPNavEndpointStatus::Reachable)
@@ -547,6 +557,11 @@ EStateTreeRunStatus FLNPEnemyIdleTask::Tick(FStateTreeExecutionContext& Context,
 			{
 				MoveTarget.Center = bHasReachable ? FirstReachable : EntityLocation;
 				bWanderRejected = !bHasReachable;
+			}
+			if (bReturn && !bWanderRejected)
+			{
+				IdleData.bReturningHome = true;
+				IdleData.ReturnGoalSurface = GoalSurface;
 			}
 		}
 		else
