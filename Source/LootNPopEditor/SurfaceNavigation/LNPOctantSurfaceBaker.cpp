@@ -91,6 +91,16 @@ namespace LNPOctantSurfaceBaker
 		};
 	}
 
+	/**
+	 * Nav clearance 캡슐(node·edge·Conditional Patch)은 아래쪽만 이만큼(cm) 줄인다(D-089). node 위치는 Atlas 보간이라 실제 지면보다
+	 * 몇 cm 낮을 수 있어, 반지름 안의 작은 지형 요철에 캡슐 바닥만 닿아 평지 node가 빠졌다. 머리 끝은 그대로라 낮은 천장 판정은
+	 * 바뀌지 않는다. 이보다 낮은 Support 없는 Blocker는 Nav에 남고, 실제 이동에서는 옆걸음(D-087)이 돌아간다.
+	 */
+	constexpr double NavClearanceFloorTolerance = 10.0;
+
+	/** 실제 지상 NPC 캡슐 반지름(cm). Nav agent(50)보다 작다. 진단·베이크 보고 전용이다. */
+	constexpr double NpcCapsuleRadius = 35.0;
+
 	/** source LVI의 exact blocker를 등록해 Spawn capsule clearance를 검사하는 베이크 전용 physics world. */
 	struct FSpawnClearanceWorld
 	{
@@ -172,14 +182,15 @@ namespace LNPOctantSurfaceBaker
 
 		/** HasGravityCapsuleClearance와 같은 캡슐을 놓고 막는 probe 이름을 모은다(진단 전용). */
 		TArray<FString> ListGravityCapsuleBlockers(const FVector& Feet, const FVector& SurfaceNormal,
-			const double CapsuleRadius, const double CapsuleHalfHeight, const double ExtraLift) const
+			const double CapsuleRadius, const double CapsuleHalfHeight, const double FloorTolerance) const
 		{
 			const FVector Up = -Feet.GetSafeNormal();
 			const double FloorDot = FMath::Max(static_cast<double>(FVector::DotProduct(Up, SurfaceNormal.GetSafeNormal())), 0.01);
-			const FVector Center = Feet + Up * (CapsuleHalfHeight + CapsuleRadius * (1.0 / FloorDot - 1.0) + 1.0 + ExtraLift);
+			const FVector Center = Feet + Up * (CapsuleHalfHeight + CapsuleRadius * (1.0 / FloorDot - 1.0) + 1.0 + 0.5 * FloorTolerance);
 			TArray<FOverlapResult> Overlaps;
 			World->OverlapMultiByChannel(Overlaps, Center, FRotationMatrix::MakeFromZ(Up).ToQuat(), LNPCollisionChannels::WorldExact,
-				FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight), FCollisionQueryParams(SCENE_QUERY_STAT(LNPNavGapExplain), false));
+				FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight - 0.5 * FloorTolerance),
+				FCollisionQueryParams(SCENE_QUERY_STAT(LNPNavGapExplain), false));
 			TArray<FString> Labels;
 			for (const FOverlapResult& Overlap : Overlaps)
 			{
@@ -236,23 +247,35 @@ namespace LNPOctantSurfaceBaker
 			return static_cast<float>(bHit ? StartHeight + Hit.Distance + Radius : EndHeight + Radius);
 		}
 
+		/** FloorTolerance만큼 캡슐 아래쪽을 줄인다. 머리 끝 높이는 FloorTolerance와 무관하다. */
 		bool HasGravityCapsuleClearance(
 			const FVector& Feet,
 			const FVector& Up,
 			const FVector& SurfaceNormal,
 			double CapsuleRadius,
-			double CapsuleHalfHeight) const
+			double CapsuleHalfHeight,
+			double FloorTolerance) const
 		{
 			const FVector SafeUp = Up.GetSafeNormal();
 			const double FloorDot = FMath::Max(
 				static_cast<double>(FVector::DotProduct(SafeUp, SurfaceNormal.GetSafeNormal())), 0.01);
 			const double SlopeLift = CapsuleRadius * (1.0 / FloorDot - 1.0);
-			const FVector Center = Feet + SafeUp * (CapsuleHalfHeight + SlopeLift + 1.0);
+			const FVector Center = Feet + SafeUp * (CapsuleHalfHeight + SlopeLift + 1.0 + 0.5 * FloorTolerance);
 			const FQuat Rotation = FRotationMatrix::MakeFromZ(SafeUp).ToQuat();
-			const FCollisionShape Shape = FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight);
+			const FCollisionShape Shape = FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight - 0.5 * FloorTolerance);
 			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPNavNodeClearance), false);
 			return !World->OverlapBlockingTestByChannel(
 				Center, Rotation, LNPCollisionChannels::WorldExact, Shape, Params);
+		}
+
+		/** 위치에서 중력축으로 실제 SurfaceSupport 바닥을 찾아 실제 NPC 캡슐(줄이지 않음)이 서는지 본다. 베이크 보고·진단 전용. */
+		bool NpcFitsOnGround(const FVector& Feet, double CapsuleHalfHeight) const
+		{
+			const FVector Up = -Feet.GetSafeNormal();
+			FHitResult Hit;
+			return World->LineTraceSingleByChannel(Hit, Feet + Up * 150.0, Feet - Up * 150.0,
+					LNPCollisionChannels::SurfaceSupport, FCollisionQueryParams(SCENE_QUERY_STAT(LNPNavNpcFit), false))
+				&& HasGravityCapsuleClearance(Hit.ImpactPoint, Up, Hit.ImpactNormal, NpcCapsuleRadius, CapsuleHalfHeight, 0.0);
 		}
 
 		bool HasCapsulePolylineClearance(
@@ -262,7 +285,9 @@ namespace LNPOctantSurfaceBaker
 			double CapsuleHalfHeight) const
 		{
 			check(FeetPoints.Num() >= 2 && FeetPoints.Num() == SurfaceNormals.Num());
-			const FCollisionShape Shape = FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight);
+			// node와 같은 바닥 허용(D-089): 아래쪽만 줄이고 머리 끝은 그대로 둔다.
+			const double Lift = 0.5 * NavClearanceFloorTolerance;
+			const FCollisionShape Shape = FCollisionShape::MakeCapsule(CapsuleRadius, CapsuleHalfHeight - Lift);
 			const FCollisionQueryParams Params(SCENE_QUERY_STAT(LNPNavClearance), false);
 			const int32 SegmentCount = FeetPoints.Num() - 1;
 			for (int32 Segment = 0; Segment < SegmentCount; ++Segment)
@@ -278,9 +303,9 @@ namespace LNPOctantSurfaceBaker
 				const double ToDot = FMath::Max(
 					static_cast<double>(FVector::DotProduct(SegmentToUp, SegmentToNormal)), 0.01);
 				const FVector SegmentFromCenter = SegmentFromFeet + SegmentFromUp
-					* (CapsuleHalfHeight + CapsuleRadius * (1.0 / FromDot - 1.0) + 1.0);
+					* (CapsuleHalfHeight + CapsuleRadius * (1.0 / FromDot - 1.0) + 1.0 + Lift);
 				const FVector SegmentToCenter = SegmentToFeet + SegmentToUp
-					* (CapsuleHalfHeight + CapsuleRadius * (1.0 / ToDot - 1.0) + 1.0);
+					* (CapsuleHalfHeight + CapsuleRadius * (1.0 / ToDot - 1.0) + 1.0 + Lift);
 				if (World->SweepTestByChannel(
 					SegmentFromCenter, SegmentToCenter, FRotationMatrix::MakeFromZ(SegmentFromUp).ToQuat(),
 					LNPCollisionChannels::WorldExact, Shape, Params)
@@ -486,7 +511,7 @@ namespace LNPOctantSurfaceBaker
 				{
 					if (LayerId < BaseSupport.Layers.Num()) { FLNPLocalNavNodeRef Ref; return ResolveBase(LayerId, Position, Ref); }
 					return ActiveWorld.HasGravityCapsuleClearance(FVector(Position), FVector(-Position.GetSafeNormal()),
-						FVector(Normal), BaseNav.Agent.Radius, BaseNav.Agent.HalfHeight);
+						FVector(Normal), BaseNav.Agent.Radius, BaseNav.Agent.HalfHeight, NavClearanceFloorTolerance);
 				},
 				[&](uint16 FromLayer, const FVector3d& From, const FVector3f& FromNormal,
 					uint16 ToLayer, const FVector3d& To, const FVector3f& ToNormal)
@@ -547,7 +572,7 @@ namespace LNPOctantSurfaceBaker
 						FVector Feet, Normal;
 						if (!GetFeet(Ref, Feet, Normal) || !Influence.IsInsideOrOn(Feet)) { continue; }
 						if (!ActiveWorld.HasGravityCapsuleClearance(Feet, -Feet.GetSafeNormal(), Normal,
-							BaseNav.Agent.Radius, BaseNav.Agent.HalfHeight)) { Patch.BlockedNodes.Add(Ref); }
+							BaseNav.Agent.Radius, BaseNav.Agent.HalfHeight, NavClearanceFloorTolerance)) { Patch.BlockedNodes.Add(Ref); }
 						const FIntPoint Coord = LNPNavData::DecodeTileAddress(Tile.TileX, Tile.TileY, Cell.LocalCellIndex);
 						for (uint8 D = 0; D < 6; D += 2)
 						{
@@ -1072,7 +1097,7 @@ namespace LNPOctantSurfaceBaker
 		}
 		const FLNPOctantBakeOptions Options;
 		const FLNPNavAgentProfile& Agent = Options.Nav.Agent;
-		constexpr double NpcRadius = 35.0;
+		constexpr double NpcRadius = NpcCapsuleRadius;
 		const FSpawnClearanceWorld ClearanceWorld(*SourceWorld);
 		const FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(LNPNavGapGround), false);
 		UE_LOG(LogLNPSurfaceBake, Display, TEXT("[ExplainNavGap] point=%s radius=%.0f agent r=%.0f hh=%.0f minDot=%.2f probes=%d"),
@@ -1135,7 +1160,7 @@ namespace LNPOctantSurfaceBaker
 						FVector(Position) - Up * 150.0, LNPCollisionChannels::SurfaceSupport, TraceParams);
 					const double GroundDot = bGround ? FVector::DotProduct(Hit.ImpactNormal, Up) : 0.0;
 					const bool bNpcFits = bGround
-						&& ClearanceWorld.HasGravityCapsuleClearance(Hit.ImpactPoint, Up, Hit.ImpactNormal, NpcRadius, Agent.HalfHeight);
+						&& ClearanceWorld.HasGravityCapsuleClearance(Hit.ImpactPoint, Up, Hit.ImpactNormal, NpcRadius, Agent.HalfHeight, 0.0);
 					FString Reason;
 					FString Detail;
 					if (!bInterpolated)
@@ -1146,21 +1171,23 @@ namespace LNPOctantSurfaceBaker
 					{
 						Reason = TEXT("AtlasSlope");
 					}
-					else if (!ClearanceWorld.HasGravityCapsuleClearance(FVector(Position), Up, FVector(Query.Normal), Agent.Radius, Agent.HalfHeight))
+					else if (!ClearanceWorld.HasGravityCapsuleClearance(
+						FVector(Position), Up, FVector(Query.Normal), Agent.Radius, Agent.HalfHeight, NavClearanceFloorTolerance))
 					{
+						// 베이크와 같은 캡슐(아래쪽 10cm 허용, D-089)을 막는 source. npcR35는 줄이지 않은 실제 NPC 캡슐이다.
 						const TArray<FString> Blockers = ClearanceWorld.ListGravityCapsuleBlockers(
-							FVector(Position), FVector(Query.Normal), Agent.Radius, Agent.HalfHeight, 0.0);
-						const TArray<FString> Lifted = ClearanceWorld.ListGravityCapsuleBlockers(
-							FVector(Position), FVector(Query.Normal), Agent.Radius, Agent.HalfHeight, 10.0);
+							FVector(Position), FVector(Query.Normal), Agent.Radius, Agent.HalfHeight, NavClearanceFloorTolerance);
 						const TArray<FString> Npc = ClearanceWorld.ListGravityCapsuleBlockers(
 							FVector(Position), FVector(Query.Normal), NpcRadius, Agent.HalfHeight, 0.0);
-						Reason = Lifted.IsEmpty() ? TEXT("ClearanceFloorOnly") : TEXT("Clearance");
-						Detail = FString::Printf(TEXT(" blockers=[%s] lifted10=%d npcR35=%d"),
-							*FString::Join(Blockers, TEXT("; ")), Lifted.Num(), Npc.Num());
+						Reason = TEXT("Clearance");
+						Detail = FString::Printf(TEXT(" blockers=[%s] npcR35=%d"), *FString::Join(Blockers, TEXT("; ")), Npc.Num());
 					}
 					else
 					{
 						Reason = bStrict ? TEXT("Node") : TEXT("NodeNavInterp");
+						// 바닥 허용으로만 통과한 node(줄이지 않은 캡슐은 바닥에 닿음)를 표시한다.
+						const bool bFloorTolerance = !ClearanceWorld.HasGravityCapsuleClearance(
+							FVector(Position), Up, FVector(Query.Normal), Agent.Radius, Agent.HalfHeight, 0.0);
 						// 저장된 payload의 같은 node: edge 수와 정적 component 크기(고립 섬 여부).
 						FLNPLocalNavNodeRef Ref;
 						const FLNPNavCell* Cell = LNPNavData::MakeLocalNodeRef(SavedNav, static_cast<uint16>(LayerIndex), I, J, Ref)
@@ -1177,6 +1204,7 @@ namespace LNPOctantSurfaceBaker
 							? FString::Printf(TEXT(" saved=1 edges=%d component=%u componentNodes=%u"),
 								FMath::CountBits(Cell->EdgeMask), Cell->LocalStaticComponentId, ComponentNodes)
 							: FString(TEXT(" saved=0"));
+						Detail += FString::Printf(TEXT(" floorTolerance=%d"), bFloorTolerance);
 					}
 					++Reasons.FindOrAdd(Reason);
 					UE_LOG(LogLNPSurfaceBake, Display,
@@ -1312,6 +1340,8 @@ FString FLNPOctantBakeReport::ToString() const
 		OriginalSheetCount, SplitSheetCount, CutEdgeCount, CutBoundaryLength);
 	Result += FString::Printf(TEXT("\n  Portal spacingRejected=%d bake=%.3fs"), Nav.PortalSpacingRejectCount, Nav.PortalBakeSeconds);
 	Result += FString::Printf(TEXT("\n  Nav-only interpolation isolatedRejected=%d nodes"), Nav.NavInterpIsolatedRejectCount);
+	Result += FString::Printf(TEXT("\n  Nav clearance floorToleranceNodes=%d npcFits=%d (before isolated-fragment removal)"),
+		FloorToleranceNodeCount, FloorToleranceNpcFitCount);
 	Result += FString::Printf(TEXT("\n  Conditional patches=%d payload=%lld bytes"), ConditionalPatchCount, ConditionalPatchPayloadBytes);
 	if (Nav.SeamClearanceRejectCount > 0)
 	{
@@ -1471,9 +1501,21 @@ bool FLNPOctantSurfaceBaker::Bake(
 		Options.Nav,
 		[&](const uint16 LocalNavLayerId, const FVector3d& Position, const FVector3f& Normal)
 		{
-			return ClearanceWorld.HasGravityCapsuleClearance(
-				FVector(Position), FVector(-Position.GetSafeNormal()), FVector(Normal),
-				Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight);
+			const FVector Feet(Position);
+			const FVector Up = -Feet.GetSafeNormal();
+			if (!ClearanceWorld.HasGravityCapsuleClearance(Feet, Up, FVector(Normal),
+				Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight, NavClearanceFloorTolerance))
+			{
+				return false;
+			}
+			// 바닥 허용(D-089)으로만 통과한 node와 그중 실제 NPC 캡슐이 서는 수를 보고한다.
+			if (!ClearanceWorld.HasGravityCapsuleClearance(Feet, Up, FVector(Normal),
+				Options.Nav.Agent.Radius, Options.Nav.Agent.HalfHeight, 0.0))
+			{
+				++OutReport.FloorToleranceNodeCount;
+				OutReport.FloorToleranceNpcFitCount += ClearanceWorld.NpcFitsOnGround(Feet, Options.Nav.Agent.HalfHeight) ? 1 : 0;
+			}
+			return true;
 		},
 		[&](const uint16, const FVector3d& FromPosition, const FVector3f& FromNormal,
 			const uint16, const FVector3d& ToPosition, const FVector3f& ToNormal)

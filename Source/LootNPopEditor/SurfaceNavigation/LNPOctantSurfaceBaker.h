@@ -111,6 +111,10 @@ struct LOOTNPOPEDITOR_API FLNPOctantBakeReport
 	int32 SpawnCandidateNoNavCount = 0;
 	int64 SpawnPayloadBytes = 0;
 	FLNPNavBakeReport Nav;
+	/** Nav clearance를 바닥 허용(D-089)으로만 통과한 정적 node 수. 고립 조각 제거 전 값이다. */
+	int32 FloorToleranceNodeCount = 0;
+	/** 그중 실제 SurfaceSupport 바닥에서 실제 NPC 캡슐(반지름35, 줄이지 않음)이 서는 수. */
+	int32 FloorToleranceNpcFitCount = 0;
 	int64 NavigationPayloadBytes = 0;
 	int64 TraversalPayloadBytes = 0;
 	int32 ConditionalPatchCount = 0;
@@ -136,7 +140,7 @@ class LOOTNPOPEDITOR_API FLNPOctantSurfaceBaker
 {
 public:
 	/** 베이커 schema 버전. 베이크 규칙이 바뀌면 올린다. BakeSettingsHash에 들어간다. */
-	static constexpr uint32 BakerSchemaVersion = 10;
+	static constexpr uint32 BakerSchemaVersion = 11;
 
 	/** OutData의 Header와 SupportPayload를 채운다. 같은 입력이면 같은 payload를 만든다. */
 	static bool Bake(

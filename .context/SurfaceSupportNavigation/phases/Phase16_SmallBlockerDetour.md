@@ -1,6 +1,6 @@
 # 작은 Blocker 주변 지상 적 우회 — Phase16 후속
 
-> 상태: 단위1 완료(2026-11-17, 사용자 PIE "자연스럽게 돈다"). 단위2 완료(2026-11-17, 사용자 PIE "자연스럽게 가로질러온다"). 단위3 대기
+> 상태: 단위1 완료(2026-11-17, 사용자 PIE "자연스럽게 돈다"). 단위2 완료(2026-11-17, 사용자 PIE "자연스럽게 가로질러온다"). 단위3 완료(2026-11-17, 사용자 PIE "구멍이 메워지고 Nav가 지형에 맞게 자연스러워짐"). 단위4(직선 목표 분기 정지) 대기
 > 작성: 2026-11-17
 > 관계: Phase16 1단계(D-082 Blocker 비관통)의 후속. 그래픽스 1-B5d·1-B5e 인계를 받는다.
 > 진행: 단위는 한 세션에 하나씩 순서대로 진행한다(1→2→3). 마스터 세션이 결과를 확인한 뒤 다음 단위를 띄운다.
@@ -110,13 +110,70 @@
 - 해석: 지름길 코드는 모두 경로 consumer 안에서 도는데 consumer P95는 차이가 없다. frame P95 평균 차(+0.36ms)는 P50도 함께 올라(7.06→7.32) 프레임 전체가 밀린 것이고, 8.71ms 1회를 확인하려 2회씩 더 돌린 값은 기준(8.14/7.96) 범위다. 이전 패키지는 단위1 이전이라 그 몫도 섞인다. 측정 로그에는 지름길 횟수가 없어 이 부하에서 몇 번 돌았는지는 모른다.
 - PIE(사용자, 2026-11-17): 검사용 풀을 메모리로만 지정, TestMap03 1인, WIP Ridge는 slot2. `LNP.Debug.TeleportToOctant 2 2697 -2626 -3824`로 X2697·Y-2626 구멍(단위3 전이라 그대로)에 서서 `DrawNav component 3000`과 함께 추격을 보았다. 사용자 관찰 **"자연스럽게 가로질러온다"**. 같은 구간 `NavReport` 차이: followerFrames +37,431·경로 추종 +6,214·waypoint 진행 +260·`shortcutWalks` +88·`shortcutPasses` +87. PIE 뒤 원래 풀로 복원했다(`Saved/Profiling/Phase16/SmallBlockerDetour/Unit2_SelectionState.json`). 추적 Content/Config 변경은 0이다.
 
-## 4. 단위3 — 베이커 `ClearanceFloorOnly` 오판(대기)
+## 4. 단위3 — 베이커 `ClearanceFloorOnly` 오판(D-089)
 
-- 증상: 평지인데 반지름50 clearance 캡슐이 지형 바닥에만 닿아 node가 빠진다.
-- 근거: `Saved/Profiling/Phase16/GraphicsHandoff_20261117/ExplainNavGap_Slot6_X2697_Y-2626.log`. 반경 500cm 후보17 중 Node7·NodeNavInterp2·Clearance2(바위)·ClearanceFloorOnly2·NonWalkable4다. ClearanceFloorOnly2는 중심 67cm 지점을 포함하며 npcFits=1, dot0.96~0.98(평지)이다.
-- 이 탈락은 D-084 때도 남은 사유로 기록했다(Current D-084 단락).
+### 4.1 원인(코드로 재확인)
 
-## 5. PIE 검증 절차(단위1)
+- 근거: `Saved/Profiling/Phase16/GraphicsHandoff_20261117/ExplainNavGap_Slot6_X2697_Y-2626.log`. 반경 500cm 후보17 중 Node7·NodeNavInterp2·Clearance2(바위)·ClearanceFloorOnly2·NonWalkable4였다. ClearanceFloorOnly2는 중심 67cm 지점을 포함하며 npcFits=1, dot0.96~0.98(평지)이다.
+- node clearance(`HasGravityCapsuleClearance`)는 캡슐 바닥을 node 위치에서 `SlopeLift`+1cm 위에 둔다. node 위치는 Atlas 보간이라 두 node는 실제 지면보다 1.6·0.3cm 낮았고(`groundDR`), 반지름50 안의 작은 요철에 바닥만 닿았다.
+- 같은 구조: edge·portal sweep(`HasCapsulePolylineClearance`, 끝점이 같은 보간 위치이고 50cm 표본 사이 요철 위를 지남), Conditional Patch base node 차단·Patch Layer node(같은 함수). 지각 이음매 node는 같은 함수라 양쪽 사본에 대칭으로 적용되고 D-060 대조·엄격 보간은 그대로다. 런타임은 clearance를 다시 계산하지 않는다.
+
+### 4.2 구현(사용자 승인)
+
+- 캡슐 **아래쪽만** 10cm 줄인다(`NavClearanceFloorTolerance`, 중심 +5cm·반높이 88→83). 캡슐 전체를 올리는 방식(진단의 `lifted10`)은 머리 끝도 10cm 올라가 낮은 천장·동굴 통로 node가 새로 빠질 수 있어 고르지 않았다.
+- 적용 범위: 정적 node·같은 Layer edge·Layer 간 portal·Conditional Patch base node 차단과 Patch Layer node. node만 바꾸면 새 node가 edge를 못 얻어 고립 조각 제거(D-084)로 다시 빠질 수 있다.
+- 10cm 넘게 솟은 Blocker·벽·천장은 계속 막는다. NonWalkable·경사 판정과 고립 조각 제거는 그대로다. 10cm보다 낮은 Support 없는 Blocker는 Nav에 남고 실제 이동은 옆걸음(D-087)이 처리한다.
+- 베이크 보고 `Nav clearance floorToleranceNodes=<n> npcFits=<m>`(고립 조각 제거 전): 이 허용으로만 통과한 node와 그중 실제 바닥에서 실제 NPC 캡슐(반지름35, 줄이지 않음)이 서는 수.
+- `ExplainNavGap`: `ClearanceFloorOnly`·`lifted10`을 없애고 같은 캡슐의 `Clearance`+blocker로 표기, 통과 node에 `floorTolerance=1`(줄이지 않았다면 빠졌을 node)을 붙인다. 베이커 schema 10→11.
+
+### 4.3 재베이크(정식7·fixture5·WIP, `Unit3/BakeAll_Schema11.log`)
+
+| 옥탄트 | cells | components | portals | 새 node(r35 섬) |
+|:---|:---|:---|:---|:---|
+| Meadow | 68,000→68,824 (+1.2%) | 84→12 | 24→41 | 816 (757, 93%) |
+| Bastion | 162,745→164,783 (+1.3%) | 248→205 | 2,753→2,872 | 2,031 (1,534, 76%) |
+| Hollow | 192,058→192,409 (+0.2%) | 24→24 | 1,347→1,483 | 349 (199, 57%) |
+| Acropolis | 139,452→141,964 (+1.8%) | 237→170 | 1,528→1,737 | 2,478 (1,980, 80%) |
+| Pyramid | 778,225→778,916 (+0.1%) | 222→220 | 5,679→6,642 | 692 (385, 56%) |
+| Grove | 130,817→131,301 (+0.4%) | 76→69 | 509→1,157 | 482 (364, 76%) |
+| Ridge | 75,888→76,487 (+0.8%) | 70→48 | 424→528 | 577 (499, 86%) |
+| fixture5 | +0~8 | 불변 | Regression·Conditional 79→95, Crawl 4→31, Island 12→19 | 0~8 |
+| WIP Ridge | 75,870→76,466 | 70→48 | 424→528 | 574 (496) |
+
+- 정식7 새 node 7,425개 중 r35가 서는 것은 5,718개(77%)다. r35 검사는 실제 바닥에서 허용 없이 하므로, r35만 실패한 node는 캡슐 맨 아래(r50 검사가 보지 않는 10cm 띠)만 닿은 것이다(지형 요철·10cm 미만 물체·작은 턱). Hollow·Pyramid는 실내 바닥 요철이 많다.
+- 고립 조각 `ListNavInterpComponents` navInterpOnly는 13개 모두 0이다. 이음매 clearance 경고는 49→44(기존).
+- 문제 지점 ExplainNavGap(`Unit3/BakeAll_Schema11.log` 끝): 이전 ClearanceFloorOnly 두 node가 저장 node(edge 3·5, 주 component, `floorTolerance=1`)가 됐고 Clearance 2개는 바위만 남았다(Node7→9).
+
+### 4.4 검증
+
+- 빌드: Editor 타깃 Build.bat 성공(베이커는 에디터 모듈이라 게임 타깃으로는 확인 불가).
+- 전체 `LootNPop.SurfaceNavigation` 헤드리스: 137 통과·3 실패(Nav 데이터 변화). 사용자 결정으로 기준을 갱신·검사를 보강하고 3개를 다시 돌려 통과, 합계 **140/140**(경고는 HTTP timeout·B-option 안내의 기존 노이즈). 재저장 시험편3개 원복. 보고서 `Unit3/SurfaceNavFull`·`Unit3/Rerun3`.
+  - `Nav.Hierarchy`: Cluster당 682→728.8B(intraEntries 1.69M→1.82M, K 최대 59→67). 끊겼던 조각이 이어진 콘텐츠 변화라 상한을 715→802B(schema11 값 +10%)로 갱신.
+  - `Nav.ProductionScheduler`: 요청 상한(30,000) 초과 쌍 1→7/300(직선20~77m·비용362~555m, 대부분 이음매 근처, 상한 없이 모두 성공). 허용을 1%→3%로 갱신. 런타임에서는 상한 뒤 NoPath로 끝나고 프레임 예산 안에서 나뉜다.
+  - `Nav.FlowField`: 분할 빌드 검사가 "앞 3쌍은 120m 안"을 가정했는데 새 긴 우회 쌍이 섞였다(settled 40→36). 반경 안에 드는 앞쪽 3쌍을 고르도록 고쳤다.
+  - `Nav.ProductionSpawnProjection`: groups 786→549, 고립 node 투영 18→6, 작은 component 투영 21→7, 투영 최대 213.5→173.8cm. `Nav.RegressionReachability` 불변.
+- 비용: schema11 데이터로 `Saved/SurfaceNavigationFloorTolerancePackage`를 cook(83초, 오류0, exe는 단위2와 같은 SHA256 `91FD4EEF…`)하고 단위2 패키지와 번갈아 `RunPhase13Gate.ps1 -Cases ProductionGround,Production`을 2회씩 돌렸다. 8회 모두 종료0·Gate PASS. 결과 `Unit3/Cost/`.
+
+| | ProductionGround frame P95(ms) | consumer P95(ms) | Production frame P95(ms) | 경로 요청 |
+|:---|:---|:---|:---|:---|
+| 이전(schema10) | 7.66·7.44 | 0.121·0.101 | 6.71·6.57 | 55·43 |
+| 이후(schema11) | 7.78·7.55 | 0.114·0.117 | 6.57·7.12 | 37·23 |
+
+- 차이는 단위2 측정 편차(7.52~8.71) 안이다. 지상 활성은 4회 모두 27이고, 경로 요청·waypoint(102·70→46·37)는 줄었다.
+- PIE(사용자, 2026-11-17): 검사용 풀을 메모리로만 지정, TestMap03 1인, WIP slot4. 사용자 관찰 "원래 문제 지형의 구멍이 메워졌고 Nav node와 연결선이 훨씬 지형에 맞게 자연스러워졌다. 추격도 자연스럽다(단위1·2 때 이미 자연스러웠으므로 이번 영향인지는 모름)". PIE 뒤 원래 풀로 복원(`Unit3/SelectionState.json`), 추적 Content/Config 변경은 재베이크한 SurfaceData12개뿐이다.
+
+## 5. 단위4 — 직선 목표 분기의 바위 앞 정지(대기)
+
+단위3 PIE에서 단위1·2 때 재현하지 못한 정지를 재현했다.
+
+- 상황: WIP slot4 근접 PureEntity 525가 원래 문제 바위(`GraphicsRockProbe_Moss_01`, 칸 (128,101)) 옆에서 3분간 정지. 벽 지형 모서리+울퉁불퉁한 지면+바위, 바위에 직접 걸림.
+- 로그: `[NavEnemy] state=2 pathStatus=0 waypoints=0 steering=0 walkAnchor=-1`, 3분 동안 경로 요청 수 불변(357), `EnemyGround` `blocker_rejects` 10,584/161,968(6.5%)·`blocker_detours` 415.
+- WIP 로컬 좌표: NPC (20218.5, 15970.1, 21906.1), 플레이어 (20639.5, 16022.7, 21640.8). 진단 `Unit3/ExplainNavGap_Stuck525.log`.
+- 원인: `LNPEnemyPathProcessor` 직선 목표 분기. 시작 node→목표 node 격자 직선(J=102 줄, 바위에서 약1m)은 통과하지만 실제 조향은 현재 위치(바위 칸에서 108cm, 시작 node에서 약2m)→플레이어 직선이라 바위를 지난다. 실제 보행 검증(`WalkReaches`)은 Nav 밖 시작(D-085)에만 있다. 옆걸음(D-087)은 절벽 모서리·요철로 대부분 실패한다.
+- 단위3과의 관계: 이전에는 (127,102)·(128,102)가 `ClearanceFloorOnly`로 빠져 격자 직선이 실패하고 경로 waypoint로 돌았다. schema11이 node를 채워 기존 구멍(Nav 안 시작의 직선 분기 무검증)이 드러났다.
+- 수정 방향(안, 사용자 확인 전): 직선 분기 중 진척 없음·Blocker 거부가 이어질 때만 0.5초 간격 `WalkReaches`로 검증하고, 실패하면 경로를 요청한다. 같은 목표에서 경로 추종의 격자 건너뛰기도 실제 보행 검증을 거쳐야 다시 직선으로 끌려가지 않는다.
+
+## 6. PIE 검증 절차(단위1)
 
 1. `/Script/LootNPop.Default__LNPSettings`의 `OctantPool` 원래 값 `/Game/Maps/OctantPoolData.OctantPoolData`를 기록한다.
 2. 메모리로만 `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/DA_GraphicsRidgeValidationPool`을 지정한다(SaveConfig 금지).

@@ -2737,6 +2737,7 @@ bool FLNPNavProductionSchedulerTest::RunTest(const FString& Parameters)
 		{
 			// 같은 group인데 production 요청 상한(30000) 안에 못 푸는 긴 우회 쌍은 상한 때문에만 실패해야 한다.
 			// D-084로 끊겼던 component가 이어지며 생긴다(2026-11-16 직선61.6m·비용331.7m·확장32,342 1건).
+			// D-089(schema11) 바닥 허용으로 더 이어져 7건(직선20~77m·비용362~555m, 대부분 옥탄트 이음매 근처)이 됐다.
 			const FLNPNavEndpoints Ends = Resolve(Snapshot, Case.Start, Case.StartHandle, Case.Goal, Case.GoalHandle);
 			const FPathResult Uncapped = FindPath(Nav, Ends.StartNode, Ends.GoalNode, ReferenceScratch, true, MAX_int32, MAX_int32);
 			TestTrue(TEXT("A pair beyond the request cap is solvable without the cap"), Uncapped.Status == ELNPNavSearchStatus::Found);
@@ -2745,8 +2746,8 @@ bool FLNPNavProductionSchedulerTest::RunTest(const FString& Parameters)
 				FVector3d::Dist(Case.Start, Case.Goal), Uncapped.Expansions, Uncapped.Cost, Uncapped.Nodes.Num(), *Case.Start.ToString()));
 		}
 	}
-	TestTrue(FString::Printf(TEXT("At most 1%% of production pairs exceed the request cap (%d)"), BeyondRequestCap),
-		BeyondRequestCap * 100 <= Cases.Num());
+	TestTrue(FString::Printf(TEXT("At most 3%% of production pairs exceed the request cap (%d)"), BeyondRequestCap),
+		BeyondRequestCap * 100 <= Cases.Num() * 3);
 
 	// 모든 요청을 한 프레임에 넣고 기본 예산으로 처리한다. cache는 끄고 직접 탐색과의 일치와 프레임당 시간을 본다.
 	for (const bool bParallel : {true, false})
@@ -3544,16 +3545,19 @@ bool FLNPNavFlowFieldTest::RunTest(const FString& Parameters)
 	}
 
 	// 3) 여러 프레임 분할: 예산과 무관하게 같은 field가 되고, 짓는 중 확정된 node의 경로는 완성된 field의 경로와 같다.
-	for (int32 Index = 0; Index < 3; ++Index)
+	// 반경 12000 안에 시작이 드는 앞쪽 쌍 3개로 본다. schema11(D-089)에서 이어진 긴 우회 쌍이 앞쪽에 섞일 수 있다.
+	int32 SplitCases = 0;
+	for (int32 Index = 0; Index < Ends.Num() && SplitCases < 3; ++Index)
 	{
 		const int32 Goal = Ends[Index].GoalNode;
 		FLNPNavFlowField Reference;
 		BuildField(Goal, 12000.0, MAX_int32, Reference);
 		TArray<int32> ReferencePath;
-		if (!TestTrue(TEXT("Reference field reaches the pair start"), LNPNavFlowField::ExtractNodePath(Nav, Reference, Ends[Index].StartNode, ReferencePath)))
+		if (!LNPNavFlowField::ExtractNodePath(Nav, Reference, Ends[Index].StartNode, ReferencePath))
 		{
 			continue;
 		}
+		++SplitCases;
 		for (const int32 Budget : {1, 7, 333, 4000})
 		{
 			FLNPNavFlowField Field;
@@ -3590,6 +3594,7 @@ bool FLNPNavFlowFieldTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Partial field answers the settled part of the path"), Checked > 0 && Checked < ReferencePath.Num());
 		TestEqual(TEXT("Partial field paths equal the complete field paths"), Mismatches, 0);
 	}
+	TestEqual(TEXT("Split-build checks use three pairs inside the reference field"), SplitCases, 3);
 
 	// 4) overlay: 막힌 node는 확정하지 않고 경로가 비켜 가며, 짓는 중 overlay가 바뀌면 Invalid다.
 	{
@@ -3909,10 +3914,12 @@ bool FLNPNavHierarchyTest::RunTest(const FString& Parameters)
 	}
 	CheckStructure(TEXT("Production seed 1768"), Nav, Hierarchy);
 	// 메모리 회귀: Cluster당 사전 계산 바이트. 콘텐츠 규모와 무관하게 계층 구현이 무거워졌을 때만 걸린다.
-	// Phase 10 단위 4(3종 풀) 4.47MiB/7,226 Cluster ≈ 649B, Acropolis·Pyramid 포함 풀 9.44MiB/15,206 ≈ 651B에 10% 여유를 둔다.
+	// Phase 10 단위 4(3종 풀) 4.47MiB/7,226 Cluster ≈ 649B, Acropolis·Pyramid 포함 풀 9.44MiB/15,206 ≈ 651B에 10% 여유를 뒀다.
+	// 베이커 schema10(D-084) 10.06MiB/15,461 ≈ 682B, schema11(D-089) 10.75MiB/15,471 ≈ 729B로 오른 것은 끊겼던 조각이 이어져
+	// Cluster 안 portal 조합(intraEntries)이 는 콘텐츠 변화라, schema11 값에 10% 여유를 다시 둔다.
 	// 절대 크기는 풀 구성이 정하므로 기록만 한다. 채택 기준 4(추가 메모리)는 Phase 15 재측정에서 콘텐츠 규모에 맞춰 다시 정한다.
 	{
-		constexpr double MaxBytesPerCluster = 715.0;
+		constexpr double MaxBytesPerCluster = 802.0;
 		const double BytesPerCluster = static_cast<double>(Hierarchy.GetAllocatedBytes()) / FMath::Max(1, Hierarchy.BuildStats.Clusters);
 		TestTrue(FString::Printf(TEXT("Production hierarchy bytes per cluster %.1f <= %.0f (total %.2f MiB, clusters %d)"),
 			BytesPerCluster, MaxBytesPerCluster, Hierarchy.GetAllocatedBytes() / (1024.0 * 1024.0), Hierarchy.BuildStats.Clusters),

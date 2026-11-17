@@ -243,3 +243,15 @@
 - 검증: Game·Editor 빌드 성공, 헤드리스 전체 **140/140**(경고5 기존 노이즈), 시험편3개 원복. 패키지 전후 4회씩 `ProductionGround` consumer P95 0.115→0.117ms(차이 없음), frame P95 이전 7.52~7.84·이후 7.74~8.71(P50도 함께 이동한 편차, 단위1 몫 혼재). `Production` 6.87/7.16→7.11/6.98.
 - PIE: WIP slot2·1인, X2697·Y-2626 구멍에서 사용자 "자연스럽게 가로질러온다". `shortcutWalks`88·통과87. 풀은 메모리 변경만 했고 PIE 뒤 원래 값으로 되돌렸다.
 - 남은 것: 단위3(`ClearanceFloorOnly` 오판으로 Nav 구멍 자체가 커지는 문제)은 마스터 세션이 따로 띄운다. `ProductionGround` 부하에서 지름길이 실제로 몇 번 도는지는 측정 로그에 없다.
+
+## 2026-11-17 — 후속 단위3: Nav clearance 바닥 허용(D-089, schema11)
+
+- 인계: X2697·Y-2626(WIP Ridge) Nav 구멍에 남은 탈락 사유 `ClearanceFloorOnly`(node 캡슐이 지형 바닥에만 닿음, 10cm 들면 통과). 바위를 옮겨도 구멍 모양이 같았고 원인은 울퉁불퉁한 지형이다.
+- 원인 재확인: node 위치(Atlas 보간)가 실제 지면보다 1.6·0.3cm 낮고 캡슐 바닥은 `SlopeLift`+1cm라, 반지름50 안의 작은 요철에 바닥만 닿았다. edge·portal sweep과 Conditional Patch 검사도 같은 구조다.
+- 구현(사용자 승인): Nav clearance 캡슐의 아래쪽만 10cm 줄임(중심 +5cm·반높이 88→83, 머리 끝 불변), node·edge·portal·Patch에 같은 규칙, 베이크 보고에 `floorToleranceNodes`·`npcFits`, `ExplainNavGap` 사유 정리, 베이커 schema 11. 캡슐 전체를 올리는 안은 낮은 천장 node를 새로 뺄 수 있어 기각했다.
+- 재베이크: 정식7·fixture5·WIP(`Saved/Profiling/Phase16/SmallBlockerDetour/Unit3/BakeAll_Schema11.log`, WIP 원본 백업 `Unit3/Backup/`, SHA256 14d4b99c…→0a33b3ec…). cells +0.1~1.8%, components 크게 감소(Meadow 84→12·Ridge 70→48·Acropolis 237→170), portals 증가(Grove 509→1,157). 새 node 7,425개 중 r35가 서는 것 5,718개(77%). 고립 조각0. 문제 지점의 두 node가 저장 node(edge 3·5)가 됐다.
+- 회귀: 헤드리스 전체 137/140 → 데이터 변화로 실패한 `Nav.Hierarchy`(682→728.8B/Cluster)·`Nav.ProductionScheduler`(상한 초과 1→7/300)·`Nav.FlowField`(앞 3쌍 가정)를 사용자 결정으로 기준 갱신(802B·3%)·검사 보강 후 재실행 통과, 합계 140/140. 시험편3개 원복. SpawnProjection groups 786→549·고립 투영 18→6.
+- 비용: schema10/11 패키지(exe 동일) 교대 2회씩, ProductionGround frame P95 7.66·7.44→7.78·7.55ms, consumer P95 0.121·0.101→0.114·0.117ms, Production 6.71·6.57→6.57·7.12ms. 편차 안. 8회 모두 종료0·Gate PASS(`Unit3/Cost/`).
+- PIE(WIP slot4, 1인): 사용자 "구멍이 메워졌고 Nav node·연결선이 훨씬 지형에 맞게 자연스러워졌다, 추격도 자연스럽다(단위1·2 영향과 구분 불가)". 풀은 메모리 변경만 하고 PIE 뒤 복원.
+- 새 재현: 근접 entity 525가 바위 Moss_01 옆에서 3분 정지(경로 요청 없음·`blocker_rejects` 6.5%). 원인은 직선 목표 분기가 Nav 안 시작점에서 실제 보행을 검증하지 않는 것이며, schema11이 바위 옆 node를 채워 드러났다. 사용자 결정으로 단위3을 마감하고 단위4로 넘긴다(`phases/Phase16_SmallBlockerDetour.md` §5).
+

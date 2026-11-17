@@ -225,6 +225,8 @@ Support 해상도는 지형별로 다르게 둘 수 있다.
 
 Nav node 위치만은 `LNPSupportAtlas::QueryNavLayer`를 쓴다(D-084). 세 꼭짓점이 모두 Valid·Walkable이면 `NeedsExact`여도 같은 식으로 보간하고, 엄격 보간이 성공하는 방향에서는 결과가 비트 단위로 같다. node 사이 이동 가능성은 베이크의 exact Support 경로·캡슐 sweep이 따로 검증하므로, 캐시 접지용 정밀 경고가 걸을 수 있는 꺾임 띠를 Nav에서 지우지 않게 하기 위해서다. 지각 이음매 node는 런타임 이음매 대조가 엄격 보간 값을 비교하므로 `QueryLayer` 규칙을 유지한다. edge를 만든 뒤 엄격 보간 node가 하나도 없는 같은 Layer 연결 조각은 버린다(보고서 `Nav-only interpolation isolatedRejected`). 첫 적용에서 이런 조각 338개 중 대부분이 1~2칸 잔재였고, 근처 개체의 최근접 node 투영을 고립 섬으로 보내 도달 불가 판정을 만든다.
 
+**Nav node clearance(D-089, schema 11).** node·edge·portal과 Conditional Patch의 clearance 캡슐(반지름50·반높이88)은 아래쪽만 10cm 줄여 검사한다. 중심을 Up으로 5cm 올리고 반높이를 83으로 줄이므로 머리 끝 높이는 이전과 같다. node 위치가 Atlas 보간이라 실제 지면보다 0.3~1.6cm 낮은 자리가 있고, 캡슐 바닥(`SlopeLift`+1cm)이 반지름 안의 작은 지형 요철에만 닿아 평지 node가 빠졌다(이전 진단 사유 `ClearanceFloorOnly`). edge sweep도 끝점이 같은 보간 위치이고 50cm 표본 사이 요철 위로 지나가 같은 구조라 함께 바꿨다. 10cm 넘게 솟은 Blocker·벽·천장은 그대로 막는다. 베이크 보고 `Nav clearance floorToleranceNodes=<n> npcFits=<m>`은 이 허용으로만 통과한 node 수(고립 조각 제거 전)와 그중 실제 SurfaceSupport 바닥에서 실제 NPC 캡슐(반지름35, 줄이지 않음)이 서는 수다. npcFits가 아닌 node는 r35 캡슐 맨 아래(r50 검사가 보지 않는 10cm 띠)만 닿은 것으로 지형 요철·10cm 미만 물체·작은 턱이다. `ExplainNavGap`은 같은 캡슐로 `Clearance` 사유와 blocker를 보이고, 통과 node에는 `floorTolerance=1`(줄이지 않은 캡슐이면 빠졌을 node)을 붙인다.
+
 ### 동굴 키트 베이크
 
 동굴은 중심에서 첫 hit만 수집하는 방식으로 만들 수 없다. 지각·공동 천장·공동 바닥이 같은 방향에 겹치기 때문이다. 지하 공간 계약은 `TerrainContract.md` §6이 소유한다(D-071).
