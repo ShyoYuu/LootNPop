@@ -41,7 +41,7 @@ namespace
 		};
 		const int32 Start = Path.StartHintNode;
 		const bool bStartValid = Nav.Graph.GetSlot(Start) != INDEX_NONE;
-		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d endWalk=%d lastOpenDist=%.1f approachUnreachable=%d tail=%d tailBest=%.1f tailStallAge=%.2f crumbs=%u recover=%.2f"),
+		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d endWalk=%d lastOpenDist=%.1f approachUnreachable=%d tail=%d tailBest=%.1f tailStallAge=%.2f crumbs=%u recover=%.2f waypointStallAge=%.2f"),
 			Path.bHasSteeringPoint ? FVector::Dist(Center, Path.SteeringPoint) : -1.0,
 			FVector3d::Dist(Feet, GoalFeet), MoveTarget.DistanceToGoal, *NodeText(Start),
 			bStartValid ? FVector3d::Dist(Feet, Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Start), Start)) : -1.0,
@@ -51,7 +51,8 @@ namespace
 			Path.bEndApproachWalkable, Path.LastOpenNode != INDEX_NONE ? FVector3d::Dist(Feet, FVector3d(Path.LastOpenPoint)) : -1.0,
 			Path.bApproachingUnreachable, Path.TailIndex, Path.TailBestDistance == DBL_MAX ? -1.0 : Path.TailBestDistance,
 			Path.TailIndex != INDEX_NONE ? Now - Path.TailProgressTime : -1.0, Path.CrumbCount,
-			FMath::Max(0.0, Path.TailRecoverUntil - Now));
+			FMath::Max(0.0, Path.TailRecoverUntil - Now),
+			Path.StallWaypoint != INDEX_NONE && Path.StallSerial == Path.RequestSerial ? Now - Path.StallProgressTime : -1.0);
 		if (Path.Path.IsValid() && Path.Path->Waypoints.IsValidIndex(Path.WaypointIndex))
 		{
 			const FLNPNavPathWaypoint& Waypoint = Path.Path->Waypoints[Path.WaypointIndex];
@@ -511,7 +512,7 @@ namespace
 				const FLNPNavPathScheduler& Scheduler = Paths->GetScheduler();
 				const FLNPNavPathSchedulerStats& Stats = Scheduler.GetStats();
 				UE_LOG(LogLootNPop, Display,
-					TEXT("[%s] paths queued=%d running=%d success=%d noPath=%d unreachable=%d noNode=%d stale=%d cancelled=%d submitted=%llu expansions=%llu lastTickExpansions=%d lastTickMs=%.3f cacheHits=%llu cacheMisses=%llu followerFrames=%llu followingPathFrames=%llu waypointsAdvanced=%llu shortcutWalks=%llu shortcutPasses=%llu"),
+					TEXT("[%s] paths queued=%d running=%d success=%d noPath=%d unreachable=%d noNode=%d stale=%d cancelled=%d submitted=%llu expansions=%llu lastTickExpansions=%d lastTickMs=%.3f cacheHits=%llu cacheMisses=%llu followerFrames=%llu followingPathFrames=%llu waypointsAdvanced=%llu shortcutWalks=%llu shortcutPasses=%llu waypointStalls=%llu"),
 					Tag, Scheduler.GetQueuedCount(), Scheduler.GetRunningCount(),
 					StatusCounts[static_cast<int32>(ELNPNavPathStatus::Succeeded)],
 					StatusCounts[static_cast<int32>(ELNPNavPathStatus::NoPath)],
@@ -522,7 +523,7 @@ namespace
 					Stats.Submitted, Stats.Expansions, Stats.LastTickExpansions,
 					Paths->GetLastTickSeconds() * 1000.0, Stats.CacheHits, Stats.CacheMisses,
 					Paths->GetFollowerFrames(), Paths->GetFollowingPathFrames(), Paths->GetFollowerWaypointsAdvanced(),
-					Paths->GetPathShortcutWalks(), Paths->GetPathShortcutPasses());
+					Paths->GetPathShortcutWalks(), Paths->GetPathShortcutPasses(), Paths->GetWaypointStalls());
 			}
 		}));
 

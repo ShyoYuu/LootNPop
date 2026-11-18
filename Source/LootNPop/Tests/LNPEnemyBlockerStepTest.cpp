@@ -20,6 +20,7 @@
 #include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "SurfaceNavigation/LNPNavBaking.h"
+#include "SurfaceNavigation/LNPNavPathfinding.h"
 #include "SurfaceNavigation/LNPNavQuery.h"
 #include "SurfaceNavigation/LNPSupportAtlas.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
@@ -802,6 +803,36 @@ bool FLNPEnemyDirectCorridorTest::RunTest(const FString& Parameters)
 			LNPNavGraph::IsSegmentWalkable(Nav, ReproStartNode, ReproStart, ReproGoalNode, ReproGoal));
 		TestFalse(TEXT("Repro: reversed segment is rejected"),
 			LNPNavGraph::IsSegmentWalkable(Nav, ReproGoalNode, ReproGoal, ReproStartNode, ReproStart));
+	}
+
+	// 1b. 경로 단순화(단위6, Ridge (133,101) 재현 형태): node 열 (2,0)→(1,1)→(0,1)→(-1,1)의 양 끝 직선은 R의 아래 삼각형을
+	//     지난다. 단순화는 그 구간을 합치지 않고 트인 삼각형만 지나는 (0,1)에서 꺾어야 한다.
+	{
+		const int32 PathNodes[] = {NodeAt(Lattice(2.0, 0.0), 2, 0), NodeAt(Lattice(1.0, 1.0), 1, 1),
+			NodeAt(Lattice(0.0, 1.0), 0, 1), NodeAt(Lattice(-1.0, 1.0), -1, 1)};
+		if (TestTrue(TEXT("Simplify: path nodes exist"), PathNodes[0] != INDEX_NONE && PathNodes[1] != INDEX_NONE
+			&& PathNodes[2] != INDEX_NONE && PathNodes[3] != INDEX_NONE))
+		{
+			const FLNPNavGraph& Graph = Nav.Graph;
+			auto Point = [&Graph](const int32 Node) { return FVector3d(Graph.GetWorldPoint(0, Node)); };
+			TestFalse(TEXT("Simplify: end-to-end segment crosses R's triangle"),
+				LNPNavGraph::IsSegmentWalkable(Nav, PathNodes[0], Point(PathNodes[0]), PathNodes[3], Point(PathNodes[3])));
+			// node 지면점(꼭짓점)으로 끝나는 선분은 투영 오차로 꼭짓점 반대편(R 쪽) 삼각형을 보지 않는다.
+			TestTrue(TEXT("Node-to-node segment ending at a vertex beside R is allowed"),
+				LNPNavGraph::IsSegmentWalkable(Nav, PathNodes[0], Point(PathNodes[0]), PathNodes[2], Point(PathNodes[2])));
+			// 격자선 j=1을 따라가는 선분은 한쪽(R 쪽) 삼각형이 불완전해도 반대쪽이 트였으면 edge를 따라가는 것이다.
+			TestTrue(TEXT("Segment along grid line j=1 beside R's triangles is allowed"),
+				LNPNavGraph::IsSegmentWalkable(Nav, PathNodes[1], Point(PathNodes[1]), PathNodes[3], Point(PathNodes[3])));
+			AddInfo(FString::Printf(TEXT("Simplify: node-to-node grid line end-to-end walkable=%d (old SimplifyPath check)"),
+				LNPNavGraph::IsDirectWalkable(Nav, PathNodes[0], PathNodes[3])));
+			TArray<int32> Waypoints;
+			LNPNavPathfinding::SimplifyPath(Nav, MakeArrayView(PathNodes), Waypoints);
+			const TArray<int32> Expected = {PathNodes[0], PathNodes[2], PathNodes[3]};
+			if (!TestTrue(TEXT("Simplify: bends at (0,1) instead of crossing R's triangle"), Waypoints == Expected))
+			{
+				AddInfo(FString::Printf(TEXT("Simplify: got %d waypoints"), Waypoints.Num()));
+			}
+		}
 	}
 
 	// 2. 바위 옆 불완전 삼각형((0,0)·(1,0)·(0,1))에서 출발하거나 그곳으로 끝나면 거부한다.

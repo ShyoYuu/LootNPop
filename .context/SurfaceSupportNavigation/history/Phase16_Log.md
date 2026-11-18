@@ -290,3 +290,15 @@
 - PIE 5차(걷기만): 플레이어 발자취가 걷기만으로 21번 끊김(모서리에서 100cm 직선이 벽에 막힘), 주머니 속 적이 자기 발자취를 되짚다 첫 걸음부터 막힘 → 25cm마다 직선 검증·막히면 마지막 통과 자리를 점으로, 적 발자취 50cm·1초 정체 시 건너뜀. 헤드리스 142/142(`Unit5b/SurfaceNavFull3`).
 - PIE 6차: 바위를 넘어 들어간 자리는 끊김 → 도달 불가로 의도대로였으나 근접 Alert가 10초 넘게 안 끝남. 추격 자격 판정이 플레이어 물리 발을 투영해 주머니 속 플레이어를 "도달 가능"으로 보아 경계 인내 시계를 매 프레임 0으로 되돌림 → Nav 소속 기준으로 수정.
 - 마무리(사용자 결정): 마지막 수정은 Game·Editor 빌드만 확인하고 커밋. 그 PIE와 최종 코드 패키지 재측정은 다음 세션. 풀은 에디터 종료로 메모리 지정이 사라져 원래 값(추적 Config 변경 없음).
+
+## 2026-11-18 — 후속 단위6: 5b 마무리 검증과 Nav 가장자리에 낀 적(D-093·D-094·D-095)
+
+- 시작: 풀은 5b 세션이 남긴 WIP Ridge 검증 풀(메모리). 5b 최종 코드 헤드리스 142/142(`Unit6/SurfaceNavFull1`).
+- Ridge (133,101) 원인(`ExplainNavGap_Ridge133.log`, PIE 1~3차): (129~131,101) 높이 약30cm 가파른 턱 옆 102 줄 node. `SimplifyPath`가 격자 직선(약1m 허용)으로 (133,101)→(130,102)를 합쳐 실제 선분이 턱 칸을 지남, node 옆 불완전 삼각형에 선 적은 첫 걸음부터 Rejected, 정체 감지 없음.
+- 사용자 승인 순서: 안1(D-093 단순화 삼각형 통로) → B(D-094 포기 플레이어 기억) → 안2(D-095 waypoint 정체 회복) → C1(마지막 접근 대기는 목표 node에서) → D(적 자기 발자취 항상 기록). 매 PIE 뒤 원인을 로그로 확정하고 범위를 사용자와 정함.
+- 헤드리스에서 드러난 것: 안1이 아무 구간도 합치지 못함(`RegressionPath` 실패) → `IsSegmentWalkable` 꼭짓점·격자선 수치 오차, 허용 오차 1e-6은 node 좌표 정밀도보다 작아 1e-3으로.
+- PIE에서 드러난 것: 안2 감지가 `MoveTarget.DesiredSpeed`(Confirmed 추격 중에도 0)로 매 프레임 초기화 → 이동 프로세서의 `LastMoveIntentSpeed`로.
+- 환경 함정: 헤드리스가 MCP 포트 8000을 먼저 잡아 풀 지정이 헤드리스로 감(그 실행 중단). 이후 `-ModelContextProtocolPort=8099`.
+- 마지막 PIE(안2·C1): 10초 이상 정지 재현 안 됨, 대부분 몇 초 안에 추격 재개 또는 Pod 귀환. D는 재현이 드물어 PIE 미확인.
+- 검증: 헤드리스 142/142(`SurfaceNavFull6`·최종 `SurfaceNavFull7`), 시험편 원복. 패키지 `Saved/SurfaceNavigationUnit6Package`(BuildCookRun 96초)와 5b 패키지 교대 Gate: 8회 모두 Gate PASS, ProductionGround frame P95 8.83·8.76 → 8.55·8.40ms, consumer P95 0.195·0.169 → 0.142·0.147ms, Production 7.59·7.41 → 7.61·7.44ms(편차 안), 지상 교전 `waypointStalls=0`(`Unit6/Cost/`).
+- 진단 프로브는 사용자 결정으로 유지. 풀은 에디터 종료로 메모리 지정이 사라져 원래 값(추적 Config 변경 없음).

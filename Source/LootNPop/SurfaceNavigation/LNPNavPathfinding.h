@@ -88,7 +88,7 @@ namespace LNPNavPathfinding
 		const FLNPNavSearchScratch& Scratch, const FLNPNavSearch& Search, TArray<int32>& OutNodes);
 
 	/**
-	 * Nav 직선 보행 검사로 node 열을 waypoint 열로 줄인다. 같은 slot·Layer 구간 안에서만 건너뛰고,
+	 * 실제 선분의 삼각형 통로 검사(LNPNavGraph::IsSegmentWalkable, D-090)로 node 열을 waypoint 열로 줄인다. 같은 slot·Layer 구간 안에서만 건너뛰고,
 	 * seam link·portal 전이의 양쪽 node는 항상 남긴다. 첫·마지막 node는 유지한다.
 	 */
 	LOOTNPOP_API void SimplifyPath(const FLNPNavSnapshot& Nav, TConstArrayView<int32> Nodes, TArray<int32>& OutWaypoints,

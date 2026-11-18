@@ -893,6 +893,40 @@ bool LNPNavGraph::IsSegmentWalkable(const FLNPNavSnapshot& Nav, const int32 From
 	FGridLineCrossings Families[3] = {
 		FGridLineCrossings(A.X, Delta.X), FGridLineCrossings(A.Y, Delta.Y), FGridLineCrossings(A.X + A.Y, Delta.X + Delta.Y)};
 	constexpr double EmptyInterval = 1e-9;
+	// node 지면점처럼 끝점이 꼭짓점이면 투영 오차로 꼭짓점 바로 옆에 격자 길이 1e-9 수준의 구간이 생기고, 그 중점은 선분이 지나지 않는
+	// 꼭짓점 반대편 삼각형(구멍 쪽)에 떨어질 수 있다(단위6: node↔node 단순화가 구멍 옆 node에서 모두 거부됨). 이보다 짧은 구간은 건너뛴다.
+	// node 지면점의 격자 좌표 오차는 1e-5 수준이라 그보다 넉넉히 1e-3 격자(약 0.2cm)를 쓴다. 길이 0 선분(제자리 판정)은 그 점의 삼각형을 그대로 본다.
+	constexpr double MinGridInterval = 1e-3;
+	const double GridLength = Delta.Size();
+	// 격자선 위를 따라가는 구간(edge 줄)은 중점이 선 위라 오차가 고른 한쪽 삼각형만 보게 된다. 그 선 양쪽 중 하나라도 트였으면
+	// 그 삼각형의 변인 edge(베이커 sweep 반지름50)를 따라가는 것이므로 통과다.
+	constexpr double OnLineTolerance = 1e-3;
+	auto IsIntervalOpen = [&](const FVector2d& Mid, FIntPoint (&Corners)[3])
+	{
+		if (IsTriangleOpen(Graph, Asset, Layer, Base, Corners, Overlay))
+		{
+			return true;
+		}
+		const FVector2d Nudges[3] = {FVector2d(1.0, 0.0), FVector2d(0.0, 1.0), FVector2d(1.0, 0.0)};
+		const double Values[3] = {Mid.X, Mid.Y, Mid.X + Mid.Y};
+		for (int32 Family = 0; Family < 3; ++Family)
+		{
+			if (FMath::Abs(Values[Family] - FMath::RoundToDouble(Values[Family])) > OnLineTolerance)
+			{
+				continue;
+			}
+			for (const double Sign : {-1.0, 1.0})
+			{
+				FIntPoint Side[3];
+				GetGridTriangle(Mid + Nudges[Family] * (Sign * OnLineTolerance * 2.0), Side);
+				if (IsTriangleOpen(Graph, Asset, Layer, Base, Side, Overlay))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	};
 	const int32 MaxIntervals = FMath::CeilToInt32(FMath::Abs(Delta.X) + FMath::Abs(Delta.Y) + FMath::Abs(Delta.X + Delta.Y)) + 4;
 	FIntVector LastTriangle(MIN_int32, MIN_int32, 0);
 	double Previous = 0.0;
@@ -900,13 +934,14 @@ bool LNPNavGraph::IsSegmentWalkable(const FLNPNavSnapshot& Nav, const int32 From
 	{
 		const double Next = FMath::Min3(Families[0].NextT(), Families[1].NextT(), Families[2].NextT());
 		const double End = FMath::Min(Next, 1.0);
-		if (End - Previous > EmptyInterval)
+		if (End - Previous > EmptyInterval && ((End - Previous) * GridLength > MinGridInterval || GridLength <= MinGridInterval))
 		{
 			FIntPoint Corners[3];
-			const FIntVector Triangle = GetGridTriangle(A + Delta * (0.5 * (Previous + End)), Corners);
+			const FVector2d Mid = A + Delta * (0.5 * (Previous + End));
+			const FIntVector Triangle = GetGridTriangle(Mid, Corners);
 			if (Triangle != LastTriangle)
 			{
-				if (!IsTriangleOpen(Graph, Asset, Layer, Base, Corners, Overlay))
+				if (!IsIntervalOpen(Mid, Corners))
 				{
 					return false;
 				}

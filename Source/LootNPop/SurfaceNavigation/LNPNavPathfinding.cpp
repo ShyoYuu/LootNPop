@@ -194,11 +194,16 @@ void LNPNavPathfinding::SimplifyPath(
 	while (Anchor < Last)
 	{
 		// 바로 다음 node는 edge로 이어져 있으므로 항상 갈 수 있다. 그 너머는 같은 구간 안에서 직선 검사가 처음 실패할 때까지 민다.
+		// 직선 검사는 실제 선분의 삼각형 통로다(D-090, 단위6). node↔node 격자 직선(IsDirectWalkable)은 선에서 약 1m를 허용해
+		// 가파른 턱에 붙은 node 줄을 가로지르는 구간을 만들었고, 그 선을 따르던 적이 턱에 걸려 섰다(Ridge (133,101)).
+		const int32 AnchorSlot = Graph.GetSlot(Nodes[Anchor]);
+		const FVector3d AnchorPoint(Graph.GetWorldPoint(AnchorSlot, Nodes[Anchor]));
 		int32 Best = Anchor + 1;
 		for (int32 Candidate = Anchor + 2; Candidate <= FMath::Min(Last, Anchor + SimplifyLookahead); ++Candidate)
 		{
 			if (!IsSameSegment(Graph, Nodes[Anchor], Nodes[Candidate])
-				|| !LNPNavGraph::IsDirectWalkable(Nav, Nodes[Anchor], Nodes[Candidate], Overlay))
+				|| !LNPNavGraph::IsSegmentWalkable(Nav, Nodes[Anchor], AnchorPoint, Nodes[Candidate],
+					FVector3d(Graph.GetWorldPoint(AnchorSlot, Nodes[Candidate])), Overlay))
 			{
 				break;
 			}

@@ -102,6 +102,9 @@ public:
 	}
 	uint64 GetPathShortcutWalks() const { return PathShortcutWalks; }
 	uint64 GetPathShortcutPasses() const { return PathShortcutPasses; }
+	/** waypoint 추종 정체(단위6) 한 번. 경로를 놓고 걸어서 닿는 node부터 다시 간다. */
+	void RecordWaypointStall() { ++WaypointStalls; }
+	uint64 GetWaypointStalls() const { return WaypointStalls; }
 
 	// UTickableWorldSubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -140,6 +143,7 @@ private:
 	uint64 FollowerWaypointsAdvanced = 0;
 	uint64 PathShortcutWalks = 0;
 	uint64 PathShortcutPasses = 0;
+	uint64 WaypointStalls = 0;
 
 	UPROPERTY(Transient)
 	TObjectPtr<ULNPSurfaceDataSubsystem> SurfaceData;

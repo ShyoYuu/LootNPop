@@ -182,6 +182,27 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 		// (예전에는 EnemyTypeTag에 "Melee"가 들어 있는지로 봤는데, 이름과 거동이 조용히 어긋난다.)
 		const ELNPTargetSlotPool SlotPool = SharedFragment.Config->GetSlotPool();
 
+		// 근접 지상 적의 플레이어 도달성. 슬롯 판정(D-091)과 같이 플레이어 Nav 소속으로 본다. 물리 발을 그대로 투영하면 Nav 주머니 속
+		// 플레이어는 바위 너머 node로 "도달 가능"이 되어, 슬롯은 못 받는데 경계 인내 시계도 0으로 되돌아가 영구히 선다(단위5b PIE).
+		// 땅 위인데 소속이 없으면 도달 불가로 두어 AlertPatienceTime 뒤 포기한다.
+		const bool bMeleeGround = !SharedFragment.Config->IsFlying() && SharedFragment.Config->AttackType == ELNPEnemyAttackType::Melee;
+		auto IsMeleeReachable = [&](const FVector& EnemyLoc, const FLNPSurfaceHandle& EnemySurface, const FMassEntityHandle PlayerHandle)
+		{
+			const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(PlayerHandle);
+			const bool bOffNavPlayer = PlayerNav && PlayerNav->Node == INDEX_NONE && PlayerNav->Surface.IsValid();
+			if (!SurfaceSnapshot.IsValid() || !PlayerNav || bOffNavPlayer)
+			{
+				return false;
+			}
+			FLNPNavEndpointQuery Query;
+			Query.StartPosition = EnemyLoc + EnemyLoc.GetSafeNormal() * SharedFragment.Config->CapsuleHalfHeight;
+			Query.StartSurface = &EnemySurface;
+			Query.GoalPosition = PlayerNav->GetNavQueryPoint();
+			Query.GoalSurface = &PlayerNav->Surface;
+			Query.ApproachRadius = 0.0;
+			return LNPNavGraph::ResolveEndpoints(SurfaceSnapshot->Nav, Query).Status == ELNPNavEndpointStatus::Reachable;
+		};
+
 		for (int32 i = 0; i < EnemyContext.GetNumEntities(); ++i)
 		{
 			const FTransform& EnemyTransform = Transforms[i].GetTransform();
@@ -278,6 +299,19 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					{
 						bVisible = true;
 					}
+					// 포기한 플레이어는 여전히 도달 불가면 다시 발견하지 않는다. 재발견 금지 창(1초)만으로는 홈 반경 안에서
+					// 정면의 그 플레이어를 곧바로 다시 보아 Alert ↔ None을 반복했다(단위6). 도달 가능해졌으면 기억을 지운다.
+					if (bVisible && bMeleeGround && Player.Handle == CandidateData.GivenUpPlayer)
+					{
+						if (IsMeleeReachable(EnemyLoc, EnemyData.SurfaceHandle, Player.Handle))
+						{
+							CandidateData.GivenUpPlayer.Reset();
+						}
+						else
+						{
+							bVisible = false;
+						}
+					}
 				}
 
 				// 거리·시야 검사는 유지하고, 제외된 플레이어만 후보에 넣지 않는다.
@@ -311,25 +345,10 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 						continue;
 
 					bool bReachable = true;
-					if (!SharedFragment.Config->IsFlying() && SharedFragment.Config->AttackType == ELNPEnemyAttackType::Melee)
+					if (bMeleeGround)
 					{
-						const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Candidate.Handle);
-						bReachable = false;
-						// 슬롯 판정(D-091)과 같이 플레이어 Nav 소속으로 본다. 물리 발을 그대로 투영하면 Nav 주머니 속 플레이어는
-						// 바위 너머 node로 "도달 가능"이 되어, 슬롯은 못 받는데 경계 인내 시계도 0으로 되돌아가 영구히 선다(단위5b PIE).
-						// 땅 위인데 소속이 없으면 도달 불가로 두어 AlertPatienceTime 뒤 포기한다.
-						const bool bOffNavPlayer = PlayerNav && PlayerNav->Node == INDEX_NONE && PlayerNav->Surface.IsValid();
-						if (SurfaceSnapshot.IsValid() && PlayerNav && !bOffNavPlayer)
-						{
-							FLNPNavEndpointQuery Query;
-							Query.StartPosition = EnemyLoc + EnemyLoc.GetSafeNormal() * SharedFragment.Config->CapsuleHalfHeight;
-							Query.StartSurface = &EnemyData.SurfaceHandle;
-							Query.GoalPosition = PlayerNav->GetNavQueryPoint();
-							Query.GoalSurface = &PlayerNav->Surface;
-							Query.ApproachRadius = 0.0;
-							bReachable = LNPNavGraph::ResolveEndpoints(SurfaceSnapshot->Nav, Query).Status == ELNPNavEndpointStatus::Reachable;
-						}
-						bReachable |= PreviousState == ELNPTargetingState::Confirmed && Candidate.Handle == Targeting.TargetPlayer;
+						bReachable = IsMeleeReachable(EnemyLoc, EnemyData.SurfaceHandle, Candidate.Handle)
+							|| (PreviousState == ELNPTargetingState::Confirmed && Candidate.Handle == Targeting.TargetPlayer);
 					}
 					bAnyChaseEligible |= bReachable;
 
@@ -364,6 +383,11 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 			if (bExhausted)
 			{
 				CandidateData.DisengageTimer = FMath::Max(CandidateData.DisengageTimer, TConfig.AlertRecoveryTime);
+				// 근접 지상 적은 포기한 대상을 기억해 도달 불가인 동안 시야로 다시 발견하지 않는다(위 시야 분기).
+				if (bMeleeGround && Targeting.TargetPlayer.IsSet())
+				{
+					CandidateData.GivenUpPlayer = Targeting.TargetPlayer;
+				}
 			}
 			else
 			{
@@ -951,6 +975,8 @@ void ULNPEnemyMovementProcessor::Execute(FMassEntityManager& EntityManager, FMas
 				if (AttackPhase != ELNPEntityAttackPhase::Windup)
 					OrientationIntent = FVector::ZeroVector;
 			}
+			// 경로 처리기의 waypoint 정체 감지(단위6)가 다음 프레임에 읽는다.
+			EnemyData.LastMoveIntentSpeed = EffectiveSpeed;
 
 			if (AActor* Actor = ActorFragments[i].GetMutable())
 			{

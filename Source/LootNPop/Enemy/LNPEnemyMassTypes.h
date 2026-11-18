@@ -114,6 +114,13 @@ struct LOOTNPOP_API FLNPEnemyFragment : public FMassFragment
 	UPROPERTY(Transient)
 	float HitReactTimer = 0.0f;
 
+	/**
+	 * 이동 프로세서가 지난 프레임에 정한 지상 이동 속도(cm/s, 상태·공격·경직 정지 반영 후). 경로 처리기의 waypoint 정체 감지(단위6)가
+	 * "걸으려 했는데 못 갔다"를 가리는 데 쓴다. `FMassMoveTargetFragment::DesiredSpeed`는 Confirmed 추격 중에도 0일 수 있어 기준이 못 된다.
+	 */
+	UPROPERTY(Transient)
+	float LastMoveIntentSpeed = 0.0f;
+
 	/** 마지막 피격이 날아온 방향 (피격자 → 공격자, 월드 단위벡터). HitReactTimer가 살아 있는 동안 주시 방향으로 쓴다. */
 	UPROPERTY(Transient)
 	FVector HitReactDirection = FVector::ZeroVector;
@@ -190,13 +197,23 @@ struct LOOTNPOP_API FLNPEnemyTargetingCandidateFragment : public FMassFragment
 	UPROPERTY(Transient)
 	float DisengageTimer = 0.0f;
 
+	/**
+	 * **포기한 플레이어** — 근접 지상 적이 경계 인내를 소진해 포기한 대상. 그 플레이어가 여전히 도달 불가인 동안은
+	 * 재발견 금지 창이 끝나도 시야로 다시 발견하지 않는다(단위6). 없으면 홈 반경 안에서 Alert 8초 ↔ None 1초가 반복됐다.
+	 * 초근접·피격 주시는 이 기억을 무시하고, 도달 가능해진 것을 시야 판정에서 보면 지운다.
+	 *
+	 * ⚠️ `AlertDwellTime`과 마찬가지로 **Reset()이 지우지 않는다.**
+	 */
+	UPROPERTY(Transient)
+	FMassEntityHandle GivenUpPlayer;
+
 	void Reset()
 	{
 		NumPotentialTargets = 0;
 		for (int32 i = 0; i < 4; ++i)
 			PotentialTargets[i].Reset();
-		// AlertDwellTime·DisengageTimer는 의도적으로 건드리지 않는다 —
-		// 둘 다 프레임을 가로질러 유지되어야 하는 값이다.
+		// AlertDwellTime·DisengageTimer·GivenUpPlayer는 의도적으로 건드리지 않는다 —
+		// 모두 프레임을 가로질러 유지되어야 하는 값이다.
 	}
 };
 
@@ -351,8 +368,15 @@ struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
 	/** 현재 점까지 가장 가까웠던 접평면 거리와 그 시각. 정체하면 직전 점으로 한 칸 물러난다. */
 	double TailBestDistance = DBL_MAX;
 	double TailProgressTime = -DBL_MAX;
-	/** 머리 node에서도 정체해 점열을 놓았다. 이 시각까지는 걸어서 닿는 node(D-085)부터 경로로 다시 간다. */
+	/**
+	 * 머리 node에서도 정체해 점열을 놓았거나 waypoint 추종이 정체했다(단위6). 이 시각까지는 걸어서 닿는 node(D-085)부터 경로로 다시 간다.
+	 */
 	double TailRecoverUntil = -DBL_MAX;
+	/** waypoint 추종 정체 감지(단위6): 재고 있는 경로(RequestSerial)·waypoint, 그 waypoint까지 가장 가까웠던 거리와 그 시각. */
+	uint32 StallSerial = 0;
+	int32 StallWaypoint = INDEX_NONE;
+	double StallBestDistance = DBL_MAX;
+	double StallProgressTime = -DBL_MAX;
 	/**
 	 * 적 자신의 발자취(D-092). 점열을 따라 Nav 없는 바닥으로 들어가는 동안 약 TrailSpacing마다 발을 남기고,
 	 * 플레이어가 먼저 나가 점열을 잃으면 최근 점부터 거꾸로 되짚어 나온다. 트인 Nav에 서면 지운다.

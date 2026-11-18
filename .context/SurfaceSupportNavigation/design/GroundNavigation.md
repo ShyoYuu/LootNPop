@@ -164,11 +164,13 @@ Phase 8의 완성된 성공 경로는 snapshot generation과 통과 Tile revisio
 - 발자취·점열 추종(D-092): Nav 밖으로 걸어 들어간 플레이어는 마지막으로 트인 자리에서 시작한 발자취(`FLNPPlayerTrail`, 25cm마다 마지막 점 → 발 직선 걸음 검증, 100cm 간격, 상한 24점)로 Nav에 잇는다. 소속 우선순위는 투영 → 발자취 입구 node → 보행 anchor → 없음이다. 보행 anchor는 검증 궤적을 50cm마다 최대 12점(`AnchorPath`)으로 남긴다. 적은 경로를 다 쓰면 머리 node부터 이 점열 → 플레이어 발을 점마다 50cm 도달로 따라가고(`FollowTail`), 1초 정체하면 한 칸 물러나며, 머리 점에서도 막히면 점열을 놓고 걸어서 닿는 node부터 경로를 다시 낸다. 점열을 따라 Nav 없는 바닥에 들어간 적은 자기 발자취(`Crumbs`)로 되짚어 나온다. 검증 캡슐은 지상 적 중 가장 큰 캡슐이다. 근거·PIE 경과는 `phases/Phase16_SmallBlockerDetour.md` §7.7.
 - 진단: `LNP.SurfaceNav.NavReport`의 `[NavEnemy]` 줄 끝에 조향점·현재 waypoint·MoveTarget 거리, 시작 node와 시작 삼각형(`startTri`)·주머니(`pocket`)·직선(`directSeg`)·waypoint 선분(`waypointSeg`) 판정(overlay 포함), Pod까지 플레이어 거리(`playerToPod`·`chaseRadius`), 도달 불가 접근 경로 추종 여부(`approachUnreachable`)를 붙인다. 끝점(플레이어)이 그 안이면 경로로 목표 node까지 간다. waypoint가 끝나면 조향점이 비어 이동은 MoveTarget으로 곧장 간다(근접 정지 거리 180cm). Nav 밖 플레이어(D-085)도 같은 규칙이다.
 - slot·Layer가 다르거나(이음매·섬·동굴 Layer 사이) 위치가 그 slot 옥탄트 면 밖이면 거부한다.
-- 현재 waypoint로 향하는 조향 선분은 검사하지 않는다. waypoint 사이는 `SimplifyPath`의 격자 직선이고, 적이 그 선에서 벗어나는 원인은 분리력·옆걸음 정도다. A*·`SimplifyPath`·cache 합류(D-079)는 node↔node 검사 그대로다.
+- 현재 waypoint로 향하는 조향 선분은 검사하지 않는다. waypoint 사이는 `SimplifyPath`가 같은 삼각형 통로 판정으로 합친 선분이다(D-093, 단위6). 이전 node↔node 격자 직선(약1m 허용)은 가파른 턱에 붙은 node 줄을 가로지르는 구간을 만들어, 그 선을 따르던 적이 턱에 걸려 섰다(Ridge (133,101) 반복 정지). A*·cache 합류(D-079)는 node↔node 검사 그대로다.
+- 수치 강건성(D-093): node 지면점처럼 끝점이 꼭짓점이면 투영 오차로 꼭짓점 반대편(구멍 쪽) 삼각형을 보는 격자 길이 1e-3 미만 구간은 건너뛴다. 격자선 위를 따라가는 구간은 선 양쪽 삼각형 중 하나라도 트였으면 통과다(그 변 edge는 베이커 sweep 반지름50이 확인한 길).
+- 낀 적의 회복(D-095, 단위6): 적은 분리력·경사로 경로 선을 벗어나 Nav 가장자리 불완전 삼각형(턱 아래 경사·바위 옆)에 서면 첫 걸음부터 `Rejected`가 날 수 있다. D-087 옆걸음은 Blocker 겹침만 다룬다. 그래서 걸으려 한 프레임(이동 프로세서의 `LastMoveIntentSpeed`>0)에 조향 waypoint로 1초 동안 10cm도 가까워지지 못하면 경로를 놓고 3초 동안 걸어서 닿는 node(D-085, 도착 50cm)부터 다시 간다. 닿는 node가 없으면 자기 발자취, 그다음 마지막으로 트인 자리다. 마지막 접근이 막혀 기다릴 때(D-090 A)는 목표 node 50cm 안에서 기다리고, 밀려났으면 node로 돌아간다(그 복귀도 정체 감지 대상). 적 자기 발자취(`Crumbs`)는 점열 추종 중만이 아니라 발이 트인 삼각형 밖이면 늘 남겨, 밀려 들어간 주머니에서도 되짚어 나온다. 계측 `NavReport`의 `waypointStalls`(paths 줄)·`waypointStallAge`(적 줄).
 
 0. 목표 node가 있고 직선 보행 판정이 통과하면 경로 없이 MoveTarget으로 곧게 간다(Nav 밖 시작이면 D-085 마지막 접근 걸음 검증도 통과해야 한다).
 1. 발이 현재 waypoint 100cm 안이면 다음 waypoint로 넘어간다.
-2. 다음 waypoint까지 직선 보행 판정이 통과하는 동안 개수 제한 없이 건너뛴다. 경로 자체는 `SimplifyPath`가 node↔node 격자 직선 검사(`IsDirectWalkable`)로 줄인 모서리 점이다.
+2. 다음 waypoint까지 직선 보행 판정이 통과하는 동안 개수 제한 없이 건너뛴다. 경로 자체는 `SimplifyPath`가 node↔node 삼각형 통로 판정(`IsSegmentWalkable`, D-093)으로 줄인 모서리 점이다.
 3. 지름길(D-088). 2의 검사는 지나는 삼각형의 node·edge가 모두 있어야 통과하므로 Nav 구멍을 가로지르지 못한다. 지각 200cm 격자·반지름50 agent에서는 1m 바위도 지름 4~6m 구멍이 되어, 평지에서 구멍 둘레를 크게 돈다. 그래서 2가 멈춘 자리의 다음 waypoint를 실제 보행(`LNPEnemyNavigation::CheckPathShortcut` → `WalkReaches`)으로 검증해 통과하면 건너뛴다.
    - 한 번에 최대 2개를 가까운 것부터 본다. 실패가 흔한 일반 모서리(벽·절벽)는 걸음 검증 1회로 끝난다.
    - 걷기 전 조건: 후보까지 발 거리 800cm 이내, 현재 waypoint를 거치는 길보다 50cm 이상 짧음. 도달 판정은 50cm다.

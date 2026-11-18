@@ -664,6 +664,30 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				State.bHasSteeringPoint = true;
 				return true;
 			};
+			// 적 자기 발자취(D-092)는 점열 추종 중에만 남겼다. 분리력에 밀려 주머니로 들어간 적은 발자취가 없어 꺾인 길 너머의 트인 자리로
+			// 곧게 가다 영구히 섰다(단위6 PIE). 발이 트인 삼각형 밖이면 점열과 무관하게 남긴다. 되짚어 나가는 중에는 남기지 않는다
+			// (방금 지운 점 근처에 다시 남겨 제자리에서 돌지 않게, 호출하는 쪽이 되짚기 전 분기에서만 부른다).
+			auto RecordCrumb = [&State, &Start]()
+			{
+				if (State.CrumbCount < FLNPEnemyPathFragment::MaxCrumbs && (State.CrumbCount == 0
+					|| FVector3d::DistSquared(FVector3d(State.Crumbs[State.CrumbCount - 1]), Start)
+						>= FMath::Square(LNPEnemyNavigation::CrumbSpacing)))
+				{
+					State.Crumbs[State.CrumbCount++] = FVector3f(Start);
+				}
+			};
+			// 곧게 걸어 닿는 node가 없으면(꺾인 주머니) 마지막으로 트인 삼각형에 있던 자리로 되돌아간다. 걸어 들어온 쪽이다.
+			// 기록이 없거나 다른 snapshot·slot·Layer이거나 너무 멀면 이전처럼 최근접 node에서 시작한다.
+			auto CanRetreatToOpen = [&]()
+			{
+				const int32 OpenSlot = Nav.Graph.GetSlot(State.LastOpenNode);
+				const int32 StartSlot = Nav.Graph.GetSlot(StartNode);
+				const double OpenDistanceSquared = FVector3d::DistSquared(Start, FVector3d(State.LastOpenPoint));
+				return State.LastOpenGeneration == Nav.SnapshotGeneration && OpenSlot != INDEX_NONE && OpenSlot == StartSlot
+					&& Nav.Graph.GetNode(OpenSlot, State.LastOpenNode).LayerOrdinal == Nav.Graph.GetNode(StartSlot, StartNode).LayerOrdinal
+					&& OpenDistanceSquared <= FMath::Square(LNPEnemyNavigation::WalkAnchorSearchRadius)
+					&& OpenDistanceSquared > FMath::Square(LastOpenArrival);
+			};
 			const bool bTailRecover = Now < State.TailRecoverUntil;
 			if (StartNode == INDEX_NONE)
 			{
@@ -677,16 +701,24 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			}
 			else if (bTailRecover && !LNPNavGraph::IsInNavPocket(Nav, StartNode, Start, Overlay.Get()))
 			{
-				// 점열을 놓친 직후(Nav 위): 최근접 node가 아니라 실제로 걸어서 닿는 node부터 경로를 낸다. 닿으면 회복을 끝낸다.
+				// 점열을 놓쳤거나 waypoint 추종이 정체한 직후(Nav 위): 최근접 node가 아니라 실제로 걸어서 닿는 node부터 경로를 낸다.
+				// 그 node 지면점 TailArrival 안에 닿으면 회복을 끝낸다. waypoint 도착 반경(100cm)이면 node 99cm 옆 턱에 낀 적이
+				// 움직이지 않고 회복을 끝내 같은 자리로 다시 조향했다(단위6 PIE).
 				const int32 Anchor = ResolveWalkAnchor(State, Center, Enemy.SurfaceHandle);
 				if (Anchor != INDEX_NONE)
 				{
 					StartNode = Anchor;
-					bOffNavStart = FVector3d::DistSquared(Start, NodePoint(Anchor)) > FMath::Square(WaypointAcceptRadius);
+					bOffNavStart = FVector3d::DistSquared(Start, NodePoint(Anchor)) > FMath::Square(LNPEnemyNavigation::TailArrival);
 					if (!bOffNavStart)
 					{
 						State.TailRecoverUntil = -DBL_MAX;
 					}
+				}
+				else
+				{
+					// 걸어서 닿는 node가 없다. 주머니와 같이 자기 발자취, 없으면 마지막으로 트인 자리로 되돌아간다.
+					bRetreatCrumb = State.CrumbCount > 0;
+					bRetreatToOpen = CanRetreatToOpen();
 				}
 			}
 			else if (LNPNavGraph::IsInNavPocket(Nav, StartNode, Start, Overlay.Get()))
@@ -699,21 +731,14 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				{
 					StartNode = Anchor;
 					bOffNavStart = true;
+					RecordCrumb();
 				}
 				else
 				{
-					// 점열을 따라 들어온 주머니면 자기 발자취를 거꾸로 되짚어 나간다. 트인 자리 한 점은 꺾인 길에서 곧게 닿지 않는다(PIE).
+					// 걸어 들어오거나 밀려 들어온 주머니면 자기 발자취를 거꾸로 되짚어 나간다. 트인 자리 한 점은 꺾인 길에서 곧게 닿지 않는다(PIE).
 					// 발자취가 없거나 다 건너뛰었으면 아래 트인 자리 규칙으로 간다.
 					bRetreatCrumb = State.CrumbCount > 0;
-					// 곧게 걸어 닿는 node가 없으면(꺾인 주머니) 마지막으로 트인 삼각형에 있던 자리로 되돌아간다. 걸어 들어온 쪽이다.
-					// 기록이 없거나 다른 snapshot·slot·Layer이거나 너무 멀면 이전처럼 최근접 node에서 시작한다.
-					const int32 OpenSlot = Nav.Graph.GetSlot(State.LastOpenNode);
-					const int32 StartSlot = Nav.Graph.GetSlot(StartNode);
-					const double OpenDistanceSquared = FVector3d::DistSquared(Start, FVector3d(State.LastOpenPoint));
-					bRetreatToOpen = State.LastOpenGeneration == Nav.SnapshotGeneration && OpenSlot != INDEX_NONE && OpenSlot == StartSlot
-						&& Nav.Graph.GetNode(OpenSlot, State.LastOpenNode).LayerOrdinal == Nav.Graph.GetNode(StartSlot, StartNode).LayerOrdinal
-						&& OpenDistanceSquared <= FMath::Square(LNPEnemyNavigation::WalkAnchorSearchRadius)
-						&& OpenDistanceSquared > FMath::Square(LastOpenArrival);
+					bRetreatToOpen = CanRetreatToOpen();
 				}
 			}
 			else
@@ -727,6 +752,10 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 					State.LastOpenPoint = FVector(Start);
 					State.LastOpenGeneration = Nav.SnapshotGeneration;
 					State.LastOpenNode = StartNode;
+				}
+				else
+				{
+					RecordCrumb();
 				}
 			}
 			if (StartNode == INDEX_NONE)
@@ -885,10 +914,34 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 						State.ShortcutWaypoint = Candidate;
 					}
 				}
+				// 정체 감지(단위6): 걸으려는데 1초 동안 조향 waypoint로 10cm도 가까워지지 못하면, 경로 선을 벗어나 턱·바위에 끼었다
+				// (Ridge 재현: node 옆 불완전 삼각형에서 첫 걸음부터 Rejected). 경로를 놓고 걸어서 닿는 node부터 다시 간다.
+				// 이동 프로세서가 서 있기로 한 프레임(공격·경직·정지 거리, LastMoveIntentSpeed 0)과 조향점이 waypoint가 아닌 프레임
+				// (anchor·발자취·트인 자리로 되돌아가는 중)은 재지 않는다. MoveTarget.DesiredSpeed는 Confirmed 추격 중에도 0이라 쓰지 않는다.
+				// Key는 waypoint 번호, 마지막 접근 대기 중 목표 node로 돌아가는 동안은 Waypoints.Num()이다.
+				bool bWaypointStalled = false;
+				auto TrackStall = [&](const int32 Key, const FVector3d& Target)
+				{
+					const double Distance = FVector3d::Dist(Start, Target);
+					if (Enemy.LastMoveIntentSpeed <= 0.f || bOffNavStart || bRetreatCrumb || bRetreatToOpen
+						|| State.StallSerial != State.RequestSerial || State.StallWaypoint != Key
+						|| Distance < State.StallBestDistance - LNPEnemyNavigation::TailStallProgress)
+					{
+						State.StallSerial = State.RequestSerial;
+						State.StallWaypoint = Key;
+						State.StallBestDistance = Distance;
+						State.StallProgressTime = Now;
+					}
+					else if (Now - State.StallProgressTime >= LNPEnemyNavigation::TailStallSeconds)
+					{
+						bWaypointStalled = true;
+					}
+				};
 				if (Waypoints.IsValidIndex(State.WaypointIndex))
 				{
 					State.SteeringPoint = Waypoints[State.WaypointIndex].Location;
 					State.bHasSteeringPoint = true;
+					TrackStall(State.WaypointIndex, Waypoints[State.WaypointIndex].Location);
 				}
 				else if (State.bApproachingUnreachable && !Waypoints.IsEmpty())
 				{
@@ -930,11 +983,38 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 					}
 					if (!State.bEndApproachWalkable)
 					{
-						State.SteeringPoint = Center;
+						// 목표 node(마지막 waypoint)에서 기다린다. 도착 판정(100cm) 뒤 분리력·경사로 밀려나 node 밖 경사에 선 채 기다리면
+						// 슬롯 쪽으로 다시 다가갈 길이 없다(단위6 PIE: node에서 130cm 떨어진 턱 아래에서 30초 정지). 50cm 밖이면 node로
+						// 돌아가고, 그 복귀도 정체 감지에 넣어 못 돌아가면 걸어서 닿는 node부터 회복한다.
+						const FVector3d GoalNodePoint = Waypoints.Last().Location;
+						const FVector Up = (WalkParams.GravityOrigin - FVector(Center)).GetSafeNormal();
+						if (FVector::VectorPlaneProject(FVector(GoalNodePoint - Start), Up).SizeSquared()
+							> FMath::Square(LNPEnemyNavigation::TailArrival))
+						{
+							State.SteeringPoint = FVector(GoalNodePoint);
+							TrackStall(Waypoints.Num(), GoalNodePoint);
+						}
+						else
+						{
+							State.SteeringPoint = Center;
+						}
 						State.bHasSteeringPoint = true;
 					}
 				}
 				Paths->RecordFollowerFrame(true, State.WaypointIndex - PreviousWaypoint);
+				if (bWaypointStalled)
+				{
+					Paths->RecordWaypointStall();
+					State.StallWaypoint = INDEX_NONE;
+					State.TailRecoverUntil = Now + TailRecoverSeconds;
+					State.WalkAnchorCheckTime = -DBL_MAX;
+					Paths->Cancel(Owner);
+					State.Path.Reset();
+					State.RequestSerial = 0;
+					State.SteeringPoint = Center;
+					State.bHasSteeringPoint = true;
+					continue;
+				}
 			}
 			else
 			{
