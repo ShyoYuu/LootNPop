@@ -315,12 +315,16 @@ void ULNPEnemyScoringProcessor::Execute(FMassEntityManager& EntityManager, FMass
 					{
 						const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Candidate.Handle);
 						bReachable = false;
-						if (SurfaceSnapshot.IsValid() && PlayerNav)
+						// 슬롯 판정(D-091)과 같이 플레이어 Nav 소속으로 본다. 물리 발을 그대로 투영하면 Nav 주머니 속 플레이어는
+						// 바위 너머 node로 "도달 가능"이 되어, 슬롯은 못 받는데 경계 인내 시계도 0으로 되돌아가 영구히 선다(단위5b PIE).
+						// 땅 위인데 소속이 없으면 도달 불가로 두어 AlertPatienceTime 뒤 포기한다.
+						const bool bOffNavPlayer = PlayerNav && PlayerNav->Node == INDEX_NONE && PlayerNav->Surface.IsValid();
+						if (SurfaceSnapshot.IsValid() && PlayerNav && !bOffNavPlayer)
 						{
 							FLNPNavEndpointQuery Query;
 							Query.StartPosition = EnemyLoc + EnemyLoc.GetSafeNormal() * SharedFragment.Config->CapsuleHalfHeight;
 							Query.StartSurface = &EnemyData.SurfaceHandle;
-							Query.GoalPosition = PlayerNav->GroundPoint;
+							Query.GoalPosition = PlayerNav->GetNavQueryPoint();
 							Query.GoalSurface = &PlayerNav->Surface;
 							Query.ApproachRadius = 0.0;
 							bReachable = LNPNavGraph::ResolveEndpoints(SurfaceSnapshot->Nav, Query).Status == ELNPNavEndpointStatus::Reachable;

@@ -74,6 +74,8 @@ protected:
 	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 	FMassEntityQuery PlayerNavQuery;
+	/** 발자취 검증 캡슐(D-092): 지상 적 설정 중 가장 큰 캡슐. 청크의 공유 설정만 읽는다. */
+	FMassEntityQuery EnemyConfigQuery;
 };
 
 /** 의미상 목표와 별도로 지상 적의 경로 요청·waypoint 조향을 갱신한다. */

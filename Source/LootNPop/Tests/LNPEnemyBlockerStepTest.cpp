@@ -12,6 +12,7 @@
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyProcessors.h"
 #include "Enemy/LNPEntityAttackProcessor.h"
+#include "Enemy/LNPEnemyMassTypes.h"
 #include "Enemy/LNPEnemyNavigation.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
 #include "GameFramework/Actor.h"
@@ -46,6 +47,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FLNPEnemyDirectCorridorTest,
 	"LootNPop.SurfaceNavigation.EnemyMovement.DirectCorridor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FLNPEnemyPlayerTrailTest,
+	"LootNPop.SurfaceNavigation.EnemyMovement.PlayerTrail",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -873,6 +879,226 @@ bool FLNPEnemyDirectCorridorTest::RunTest(const FString& Parameters)
 					nullptr, false, 100.0) != INDEX_NONE);
 		}
 	}
+	return !HasAnyErrors();
+}
+
+bool FLNPEnemyPlayerTrailTest::RunTest(const FString& Parameters)
+{
+	// Phase16 단위5b(D-092) 플레이어 발자취. 픽스처 Nav는 x<=200 띠이고 그 밖은 Support만 이어진 걸을 수 있는 바닥이다.
+	using namespace LNPEnemyNavigation;
+	constexpr double ChaseReach = 150.0;
+	auto MakeFixture = [this](const TCHAR* Name, TUniquePtr<FBlockerStepWorld>& Out)
+	{
+		Out = MakeUnique<FBlockerStepWorld>(Name);
+		return Out->BuildCrustCache(*this)
+			&& Out->BuildNav(*this, [](const double X, const double Y) { return X <= 200.0 && FMath::Abs(Y) <= 1500.0; });
+	};
+	// 실제 근접 설정(Melee01) 캡슐로 검증하고 걷는다.
+	auto MeleeParams = [](const FBlockerStepWorld& F)
+	{
+		FParams Params = F.Params;
+		Params.CapsuleRadius = 42.f;
+		Params.CapsuleHalfHeight = 96.f;
+		return Params;
+	};
+	// 플레이어 판정 루프(ULNPPlayerNavProcessor)와 같은 입력으로 접지 한 프레임의 발자취를 갱신한다.
+	auto RecordFrame = [](const FBlockerStepWorld& F, const FParams& Params, const FVector& Feet, const bool bLanded, FLNPPlayerTrail& Trail)
+	{
+		const int32 Node = F.ProjectedNode(Feet);
+		const bool bOnNav = Node != INDEX_NONE && !LNPNavGraph::IsInNavPocket(F.Snapshot.Nav, Node, FVector3d(Feet), nullptr);
+		const int32 OpenNode = bOnNav && LNPNavGraph::IsSegmentWalkable(F.Snapshot.Nav, Node, FVector3d(Feet), Node, FVector3d(Feet), nullptr)
+			? Node : INDEX_NONE;
+		UpdatePlayerTrail(F.Snapshot, *F.Collision, Params, Feet, F.CrustSurface(), bOnNav, OpenNode, bLanded, Trail);
+	};
+	// 접평면 좌표 꺾은선을 10cm 간격 발 위치로 걷는다.
+	auto WalkPlayer = [&RecordFrame](const FBlockerStepWorld& F, const FParams& Params, TConstArrayView<FVector2D> Corners, FLNPPlayerTrail& Trail)
+	{
+		for (int32 Corner = 0; Corner + 1 < Corners.Num(); ++Corner)
+		{
+			const FVector2D A = Corners[Corner];
+			const FVector2D B = Corners[Corner + 1];
+			const int32 Steps = FMath::Max(1, FMath::CeilToInt(FVector2D::Distance(A, B) / 10.0));
+			for (int32 Step = Corner == 0 ? 0 : 1; Step <= Steps; ++Step)
+			{
+				const FVector2D P = FMath::Lerp(A, B, static_cast<double>(Step) / Steps);
+				RecordFrame(F, Params, F.GroundPoint(P.X, P.Y), false, Trail);
+			}
+		}
+	};
+	// 이동 프로세서처럼 조향점으로 접지 이동한다. bFollowTail이면 FollowTail, 아니면 플레이어 발로 곧장 간다. 공격 거리에 들면 true.
+	auto ChaseEnemy = [](const FBlockerStepWorld& F, const FParams& Params, const FVector& StartFeet, const TConstArrayView<FVector> Tail,
+		const bool bFollowTail, const FVector& PlayerFeet, double& OutClosest, const int32 StartIndex = 0)
+	{
+		FVector Location = StartFeet + FBlockerStepWorld::UpAt(StartFeet) * Params.CapsuleHalfHeight;
+		FLNPSurfaceHandle Walking = F.CrustSurface();
+		int32 Index = StartIndex;
+		double Best = DBL_MAX;
+		double Progress = 0.0;
+		OutClosest = DBL_MAX;
+		for (int32 Frame = 0; Frame < 900; ++Frame)
+		{
+			const double Now = Frame * BlockerStepDeltaTime;
+			const FVector Up = FBlockerStepWorld::UpAt(Location);
+			const FVector Feet = Location - Up * Params.CapsuleHalfHeight;
+			OutClosest = FMath::Min(OutClosest, FVector::Distance(Feet, PlayerFeet));
+			if (OutClosest <= ChaseReach)
+			{
+				return true;
+			}
+			FVector Steer = PlayerFeet;
+			if (bFollowTail && !FollowTail(Tail, PlayerFeet, Feet, Up, Now, Index, Best, Progress, Steer))
+			{
+				return false;
+			}
+			const FVector Velocity = FVector::VectorPlaneProject(Steer - Location, Up).GetSafeNormal() * 600.0;
+			FVector Next;
+			FVector PhysVelocity;
+			LNPEnemySurfaceMovement::StepGrounded(&F.Snapshot, *F.Collision, Params, Location, Velocity, BlockerStepDeltaTime,
+				Next, PhysVelocity, Walking);
+			if (!PhysVelocity.IsNearlyZero())
+			{
+				return false;
+			}
+			Location = Next;
+		}
+		return false;
+	};
+
+	// 1. 꺾인 주머니: 아래 벽 A(y 150~190)와 왼쪽 벽 B(x 300~340)가 감싼 구역에 오른쪽 끝(x>900)으로만 들어간다.
+	//    입구에서 발로 곧장 가면 A 아랫면 오목한 자리에 갇히고 보행 anchor도 없다. 발자취를 따라가면 공격 거리에 든다.
+	{
+		TUniquePtr<FBlockerStepWorld> Fixture;
+		if (!MakeFixture(TEXT("PlayerTrailBent"), Fixture))
+			return false;
+		FBlockerStepWorld& F = *Fixture;
+		F.Box(600.0, FVector(600, 40, 300), TEXT("LNPStaticBlocker"), 170.0);
+		F.Box(320.0, FVector(40, 710, 300), TEXT("LNPStaticBlocker"), 545.0);
+		F.Publish();
+		const FParams Params = MeleeParams(F);
+		const FVector2D Corners[] = {{0.0, 0.0}, {1000.0, 0.0}, {1000.0, 420.0}, {560.0, 420.0}};
+		FLNPPlayerTrail Trail;
+		WalkPlayer(F, Params, Corners, Trail);
+		const FVector PlayerFeet = F.GroundPoint(560.0, 420.0);
+		AddInfo(FString::Printf(TEXT("Bent: count=%d broken=%d revision=%u entry=%d"), Trail.Count, Trail.bBroken, Trail.Revision, Trail.EntryNode));
+		TestEqual(TEXT("Bent pocket player is off Nav"), F.ProjectedNode(PlayerFeet), INDEX_NONE);
+		TestTrue(TEXT("Walked bent pocket leaves a valid trail"), Trail.IsValid() && Trail.Count >= 8);
+		TestEqual(TEXT("Bent pocket player gets no walk anchor"),
+			FindWalkAnchor(F.Snapshot, *F.Collision, Params, PlayerFeet + FBlockerStepWorld::UpAt(PlayerFeet) * Params.CapsuleHalfHeight,
+				F.CrustSurface(), nullptr, true, 150.0), INDEX_NONE);
+		if (Trail.IsValid())
+		{
+			const TConstArrayView<FVector> Tail(Trail.Points, Trail.Count);
+			double Closest = 0.0;
+			TestFalse(TEXT("Straight steering from the entry node is blocked by the wall"),
+				ChaseEnemy(F, Params, Trail.Points[0], Tail, false, PlayerFeet, Closest));
+			AddInfo(FString::Printf(TEXT("Bent: straight closest=%.1f"), Closest));
+			TestTrue(TEXT("Following the trail reaches attack range"), ChaseEnemy(F, Params, Trail.Points[0], Tail, true, PlayerFeet, Closest));
+			AddInfo(FString::Printf(TEXT("Bent: trail closest=%.1f"), Closest));
+		}
+	}
+
+	// 2. 단위5a PIE 원인 재현: anchor는 node → 발 직선으로 통과하지만, 경로를 다 쓴 뒤 옆으로 밀려나 발로 곧장 가던 적(점열 끝점 조향)은
+	//    L자 벽 구석에 갇힌다. 정체하면 한 칸 물러나 anchor node로 돌아갔다가 검증된 직선으로 들어간다.
+	{
+		TUniquePtr<FBlockerStepWorld> Fixture;
+		if (!MakeFixture(TEXT("PlayerTrailDisplaced"), Fixture))
+			return false;
+		FBlockerStepWorld& F = *Fixture;
+		F.Box(370.0, FVector(40, 440, 300), TEXT("LNPStaticBlocker"), 280.0);
+		F.Box(330.0, FVector(120, 40, 300), TEXT("LNPStaticBlocker"), 80.0);
+		F.Publish();
+		const FParams Params = MeleeParams(F);
+		const FVector PlayerFeet = F.GroundPoint(560.0, 0.0);
+		TArray<FVector> Walked;
+		const int32 Anchor = FindWalkAnchor(F.Snapshot, *F.Collision, Params,
+			PlayerFeet + FBlockerStepWorld::UpAt(PlayerFeet) * Params.CapsuleHalfHeight, F.CrustSurface(), nullptr, true, 150.0, &Walked);
+		TestTrue(TEXT("Displaced case: player has a walk anchor"), Anchor != INDEX_NONE);
+		if (Anchor != INDEX_NONE)
+		{
+			// 플레이어 판정과 같이 anchor node + 검증 걸음 궤적을 점열로 만든다.
+			FVector PathPoints[12];
+			const int32 PathCount = BuildAnchorPath(FVector(F.NodePoint(Anchor)), Walked, PathPoints);
+			const TConstArrayView<FVector> AnchorTail(PathPoints, PathCount);
+			AddInfo(FString::Printf(TEXT("Displaced: walked=%d anchorPath=%d"), Walked.Num(), PathCount));
+			TestTrue(TEXT("Anchor path keeps the node and sampled walked feet"), PathCount >= 2 && Walked.Num() >= PathCount);
+			const FVector Displaced = F.GroundPoint(200.0, 300.0);
+			TestTrue(TEXT("Displaced enemy is beside the anchor"), FVector::Distance(Displaced, PathPoints[0]) > 150.0);
+			double Closest = 0.0;
+			TestFalse(TEXT("Displaced enemy steering straight to the feet stalls at the wall"),
+				ChaseEnemy(F, Params, Displaced, AnchorTail, false, PlayerFeet, Closest));
+			AddInfo(FString::Printf(TEXT("Displaced: straight closest=%.1f"), Closest));
+			// 경로를 다 쓴 뒤 밀려나 발(끝점)로 조향하던 상태에서 시작한다. 정체하면 궤적 점으로 물러났다 다시 들어간다.
+			TestTrue(TEXT("Displaced enemy following anchor path reaches attack range"),
+				ChaseEnemy(F, Params, Displaced, AnchorTail, true, PlayerFeet, Closest, PathCount));
+			AddInfo(FString::Printf(TEXT("Displaced: tail closest=%.1f"), Closest));
+		}
+
+		// 머리 점에서도 가까워지지 못하면 FollowTail은 점열을 놓는다(경로 회복으로 넘어간다).
+		const FVector HeadPoint = F.GroundPoint(0.0, 0.0);
+		const FVector Stuck = F.GroundPoint(0.0, 400.0);
+		int32 Index = 0;
+		double Best = DBL_MAX;
+		double Progress = 0.0;
+		FVector Steer;
+		bool bFollowing = true;
+		for (int32 Frame = 0; Frame < 90 && bFollowing; ++Frame)
+		{
+			bFollowing = FollowTail(TConstArrayView<FVector>(&HeadPoint, 1), PlayerFeet, Stuck, FBlockerStepWorld::UpAt(Stuck),
+				Frame * BlockerStepDeltaTime, Index, Best, Progress, Steer);
+		}
+		TestFalse(TEXT("Stalling at the head point releases the tail"), bFollowing);
+	}
+
+	// 3. 착지 구간 검증: 평지 착지는 이어지고, 적이 오를 수 없는 높은 상자 위 착지(그래플·런처·절벽)는 끊긴다. anchor도 없어 5a로 간다.
+	{
+		TUniquePtr<FBlockerStepWorld> Fixture;
+		if (!MakeFixture(TEXT("PlayerTrailLanding"), Fixture))
+			return false;
+		FBlockerStepWorld& F = *Fixture;
+		F.Box(800.0, FVector(200, 200, 260), TEXT("LNPStaticBlocker"));
+		F.Publish();
+		const FParams Params = MeleeParams(F);
+		const FVector2D Corners[] = {{0.0, 0.0}, {600.0, 0.0}};
+		FLNPPlayerTrail Trail;
+		WalkPlayer(F, Params, Corners, Trail);
+		TestTrue(TEXT("Landing: trail valid before the jump"), Trail.IsValid());
+		const int32 Before = Trail.Count;
+		RecordFrame(F, Params, F.GroundPoint(660.0, 0.0), true, Trail);
+		TestTrue(TEXT("Flat hop landing keeps the trail"), Trail.IsValid() && Trail.Count >= Before && Trail.CheckedFeet.Equals(F.GroundPoint(660.0, 0.0), 1.0));
+		const FVector Top = F.GroundPoint(800.0, 0.0) + FBlockerStepWorld::UpAt(F.GroundPoint(800.0, 0.0)) * 260.0;
+		RecordFrame(F, Params, Top, true, Trail);
+		TestTrue(TEXT("Landing on an unclimbable box breaks the trail"), Trail.bBroken && !Trail.IsValid());
+		TestEqual(TEXT("Broken trail player on the box gets no walk anchor (5a unreachable)"),
+			FindWalkAnchor(F.Snapshot, *F.Collision, Params, Top + FBlockerStepWorld::UpAt(Top) * Params.CapsuleHalfHeight,
+				F.CrustSurface(), nullptr, true, 150.0), INDEX_NONE);
+		RecordFrame(F, Params, F.GroundPoint(620.0, 0.0), true, Trail);
+		TestTrue(TEXT("Broken trail stays broken off Nav"), Trail.bBroken);
+		RecordFrame(F, Params, F.GroundPoint(0.0, 0.0), false, Trail);
+		TestTrue(TEXT("Returning to Nav clears the broken trail"), !Trail.bBroken && Trail.Count == 0);
+	}
+
+	// 4. 상한·고리: 오간 길은 되돌아온 점에서 지워지고, 계속 멀어지면 상한(24점)에서 끊겨 anchor 탐색 반경 밖이라 5a로 간다.
+	{
+		TUniquePtr<FBlockerStepWorld> Fixture;
+		if (!MakeFixture(TEXT("PlayerTrailCap"), Fixture))
+			return false;
+		FBlockerStepWorld& F = *Fixture;
+		F.Publish();
+		const FParams Params = MeleeParams(F);
+		FLNPPlayerTrail Trail;
+		const FVector2D OutAndBack[] = {{0.0, 0.0}, {900.0, 0.0}, {520.0, 0.0}};
+		WalkPlayer(F, Params, OutAndBack, Trail);
+		AddInfo(FString::Printf(TEXT("Cap: out-and-back count=%d"), Trail.Count));
+		TestTrue(TEXT("Walking back trims the trail"), Trail.IsValid() && Trail.Count <= 7);
+		const FVector2D Far[] = {{520.0, 0.0}, {3200.0, 0.0}};
+		WalkPlayer(F, Params, Far, Trail);
+		TestTrue(TEXT("Trail beyond the cap is broken"), Trail.bBroken);
+		const FVector PlayerFeet = F.GroundPoint(3200.0, 0.0);
+		TestEqual(TEXT("Cap-broken far player gets no walk anchor (5a unreachable)"),
+			FindWalkAnchor(F.Snapshot, *F.Collision, Params, PlayerFeet + FBlockerStepWorld::UpAt(PlayerFeet) * Params.CapsuleHalfHeight,
+				F.CrustSurface(), nullptr, true, 150.0), INDEX_NONE);
+	}
+
 	return !HasAnyErrors();
 }
 

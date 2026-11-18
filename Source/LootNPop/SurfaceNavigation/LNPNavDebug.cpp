@@ -8,6 +8,8 @@
 #include "Movement/LNPCharacterMoverComponent.h"
 #include "Enemy/LNPEnemyConfig.h"
 #include "Enemy/LNPEnemyMassTypes.h"
+#include "Enemy/LNPEnemyNavigation.h"
+#include "SurfaceNavigation/LNPMassWorldCollision.h"
 #include "MassCommonFragments.h"
 #include "MassNavigationFragments.h"
 #include "MassEntitySubsystem.h"
@@ -26,7 +28,7 @@ namespace
 {
 	/** 경로 추종 조향 진단(D-090): 조향점·현재 waypoint·MoveTarget까지의 거리와 시작 node 기준 실제 선분 판정. */
 	FString DescribeSteering(const FLNPNavSnapshot& Nav, const FLNPNavOverlay* Overlay, const FVector& Center, const double HalfHeight,
-		const FLNPEnemyPathFragment& Path, const FMassMoveTargetFragment& MoveTarget)
+		const FLNPEnemyPathFragment& Path, const FMassMoveTargetFragment& MoveTarget, const double Now)
 	{
 		const FVector3d Feet = FVector3d(Center) + FVector3d(Center).GetSafeNormal() * HalfHeight;
 		const FVector3d GoalFeet = FVector3d(MoveTarget.Center) + FVector3d(MoveTarget.Center).GetSafeNormal() * HalfHeight;
@@ -39,7 +41,7 @@ namespace
 		};
 		const int32 Start = Path.StartHintNode;
 		const bool bStartValid = Nav.Graph.GetSlot(Start) != INDEX_NONE;
-		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d endWalk=%d lastOpenDist=%.1f approachUnreachable=%d"),
+		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d endWalk=%d lastOpenDist=%.1f approachUnreachable=%d tail=%d tailBest=%.1f tailStallAge=%.2f crumbs=%u recover=%.2f"),
 			Path.bHasSteeringPoint ? FVector::Dist(Center, Path.SteeringPoint) : -1.0,
 			FVector3d::Dist(Feet, GoalFeet), MoveTarget.DistanceToGoal, *NodeText(Start),
 			bStartValid ? FVector3d::Dist(Feet, Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Start), Start)) : -1.0,
@@ -47,7 +49,9 @@ namespace
 			bStartValid && LNPNavGraph::IsInNavPocket(Nav, Start, Feet, Overlay),
 			bStartValid && Path.GoalHintNode != INDEX_NONE && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Path.GoalHintNode, GoalFeet, Overlay),
 			Path.bEndApproachWalkable, Path.LastOpenNode != INDEX_NONE ? FVector3d::Dist(Feet, FVector3d(Path.LastOpenPoint)) : -1.0,
-			Path.bApproachingUnreachable);
+			Path.bApproachingUnreachable, Path.TailIndex, Path.TailBestDistance == DBL_MAX ? -1.0 : Path.TailBestDistance,
+			Path.TailIndex != INDEX_NONE ? Now - Path.TailProgressTime : -1.0, Path.CrumbCount,
+			FMath::Max(0.0, Path.TailRecoverUntil - Now));
 		if (Path.Path.IsValid() && Path.Path->Waypoints.IsValidIndex(Path.WaypointIndex))
 		{
 			const FLNPNavPathWaypoint& Waypoint = Path.Path->Waypoints[Path.WaypointIndex];
@@ -57,6 +61,42 @@ namespace
 				Path.bHasSteeringPoint && FVector3d::Dist(FVector3d(Path.SteeringPoint), Waypoint.Location) < 1.0);
 		}
 		return Text;
+	}
+
+	const TCHAR* LexWalkEnd(const LNPEnemyNavigation::FWalkProbe::EEnd End)
+	{
+		using EEnd = LNPEnemyNavigation::FWalkProbe::EEnd;
+		switch (End)
+		{
+		case EEnd::Reached: return TEXT("reached");
+		case EEnd::NoSurface: return TEXT("noSurface");
+		case EEnd::NotGrounded: return TEXT("notGrounded");
+		case EEnd::LayerChanged: return TEXT("layerChanged");
+		case EEnd::Stuck: return TEXT("stuck");
+		case EEnd::MaxSteps: return TEXT("maxSteps");
+		}
+		return TEXT("?");
+	}
+
+	/** 근접 적이 보행 anchor 통과 뒤 공격 거리 밖에서 서는 원인 프로브(Phase16 단위5b 0단계). 실제 이동·상태는 바꾸지 않는다. */
+	void LogWalkProbe(const FLNPSurfaceDataSnapshot& Snapshot, const ULNPMassWorldCollisionSubsystem& Collision,
+		const TCHAR* Variant, const LNPEnemyExactMovement::FParams& Params, const FVector& StartFeet, const FLNPSurfaceHandle& Surface,
+		const FVector& GoalFeet, const double Accept, const double Stride = 0.0)
+	{
+		const FVector Up = (Params.GravityOrigin - StartFeet).GetSafeNormal();
+		LNPEnemyNavigation::FWalkProbe Probe;
+		if (Stride > 0.0)
+		{
+			Probe.StepLength = Stride;
+			Probe.StepSeconds = 1.f / 60.f;
+		}
+		const bool bReached = LNPEnemyNavigation::WalkReaches(Snapshot, Collision, Params, StartFeet + Up * Params.CapsuleHalfHeight,
+			Surface, GoalFeet, Accept, &Probe);
+		UE_LOG(LogLootNPop, Display,
+			TEXT("[NavProbe] variant=%s radius=%.0f halfHeight=%.0f accept=%.0f stride=%.1f reached=%d end=%s ground=%d steps=%d best3D=%.1f bestPlanar=%.1f bestHeight=%.1f startFeet=%s endFeet=%s"),
+			Variant, Params.CapsuleRadius, Params.CapsuleHalfHeight, Accept, Stride > 0.0 ? Stride : FMath::Max(Params.CapsuleRadius, 10.f),
+			bReached, LexWalkEnd(Probe.End), static_cast<int32>(Probe.LastGround), Probe.Steps, Probe.Best3D, Probe.BestPlanar,
+			Probe.BestHeight, *StartFeet.ToString(), *Probe.EndFeet.ToString());
 	}
 
 	/** 누적 경로 통계와 별도로 플레이어 가까운 NPC의 인지·접지·경로 상태를 비교한다. */
@@ -83,9 +123,11 @@ namespace
 				if (Distance < PlayerDistance) { PlayerDistance = Distance; PlayerNav = Nav[I]; PlayerCenter = Center; }
 			}
 		});
-		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] player grounded=%d slot=%u layer=%u node=%d group=%u walkAnchored=%d borrowedSurface=%d pocket=%d feet=%s"),
+		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] player grounded=%d slot=%u layer=%u node=%d group=%u walkAnchored=%d trailAnchored=%d trail=%d trailBroken=%d trailRevision=%u trailBreaks=%u lastBreak=%d lastBreakFeet=%s anchorPath=%d anchorRevision=%u borrowedSurface=%d pocket=%d feet=%s"),
 			PlayerNav.bGrounded, PlayerNav.Surface.OctantSlot, PlayerNav.Surface.LocalLayerId, PlayerNav.Node,
-			PlayerNav.Group, PlayerNav.bWalkAnchored, PlayerNav.bBorrowedSurface, PlayerNav.bInNavPocket, *PlayerNav.GroundPoint.ToString());
+			PlayerNav.Group, PlayerNav.bWalkAnchored, PlayerNav.bTrailAnchored, PlayerNav.Trail.Count, PlayerNav.Trail.bBroken,
+			PlayerNav.Trail.Revision, PlayerNav.Trail.Breaks, static_cast<int32>(PlayerNav.Trail.LastBreak),
+			*PlayerNav.Trail.LastBreakFeet.ToString(), PlayerNav.AnchorPathCount, PlayerNav.AnchorRevision, PlayerNav.bBorrowedSurface, PlayerNav.bInNavPocket, *PlayerNav.GroundPoint.ToString());
 		const APlayerController* Controller = World.GetFirstPlayerController();
 		const ALNPCharacterBase* Character = Controller ? Cast<ALNPCharacterBase>(Controller->GetPawn()) : nullptr;
 		FHitResult FloorHit;
@@ -98,7 +140,17 @@ namespace
 		}
 		const ULNPNavPathSubsystem* NavPaths = World.GetSubsystem<ULNPNavPathSubsystem>();
 		const TSharedPtr<const FLNPNavOverlay, ESPMode::ThreadSafe> Overlay = NavPaths ? NavPaths->TakeOverlay() : nullptr;
-		struct FNearby { double Distance; FString Line; };
+		struct FNearby
+		{
+			double Distance;
+			FString Line;
+			const ULNPEnemyConfig* Config = nullptr;
+			FVector Center = FVector::ZeroVector;
+			FLNPSurfaceHandle Surface;
+			FVector Push = FVector::ZeroVector;
+			bool bHasSteeringPoint = false;
+			FVector SteeringPoint = FVector::ZeroVector;
+		};
 		TArray<FNearby> Nearby;
 		int32 Flyers = 0, NearbyFlyers = 0;
 		FMassEntityQuery Query(Manager.AsShared());
@@ -110,6 +162,7 @@ namespace
 		Query.AddRequirement<FLNPEnemyPathFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddRequirement<FLNPEntityAttackFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddRequirement<FMassMoveTargetFragment>(EMassFragmentAccess::ReadOnly);
+		Query.AddRequirement<FLNPEnemySeparationFragment>(EMassFragmentAccess::ReadOnly);
 		Query.AddConstSharedRequirement<FLNPEnemySharedFragment>();
 		Query.AddTagRequirement<FLNPEnemyTag>(EMassFragmentPresence::All);
 		Query.AddTagRequirement<FLNPEnemyDyingTag>(EMassFragmentPresence::None);
@@ -123,6 +176,7 @@ namespace
 			const auto Paths = Ctx.GetFragmentView<FLNPEnemyPathFragment>();
 			const auto Attacks = Ctx.GetFragmentView<FLNPEntityAttackFragment>();
 			const auto MoveTargets = Ctx.GetFragmentView<FMassMoveTargetFragment>();
+			const auto Separations = Ctx.GetFragmentView<FLNPEnemySeparationFragment>();
 			const ULNPEnemyConfig* Config = Ctx.GetConstSharedFragment<FLNPEnemySharedFragment>().Config;
 			if (!Config) { return; }
 			for (int32 I = 0; I < Ctx.GetNumEntities(); ++I)
@@ -151,13 +205,76 @@ namespace
 					Velocities[I].Velocity.Size(), static_cast<int32>(Status), static_cast<int32>(Path.Status),
 					Path.Path.IsValid() ? Path.Path->Waypoints.Num() : 0, Path.WaypointIndex, Path.bHasSteeringPoint, Path.WalkAnchorNode,
 					Attacks[I].bLineOfSightBlocked, Attacks[I].bHoldingGroundFirePosition, static_cast<int32>(Attacks[I].Phase))
-					+ DescribeSteering(Snapshot.Nav, Overlay.Get(), Center, Config->CapsuleHalfHeight, Path, MoveTargets[I])
+					+ DescribeSteering(Snapshot.Nav, Overlay.Get(), Center, Config->CapsuleHalfHeight, Path, MoveTargets[I], World.GetTimeSeconds())
 					+ FString::Printf(TEXT(" | playerToPod=%.0f chaseRadius=%.0f orphaned=%d"),
-						FVector::Dist(PlayerCenter, Enemies[I].ParentPodLocation), Config->TargetingConfig.ChaseRadius, Enemies[I].bOrphaned)});
+						FVector::Dist(PlayerCenter, Enemies[I].ParentPodLocation), Config->TargetingConfig.ChaseRadius, Enemies[I].bOrphaned),
+					Config, Center, Enemies[I].SurfaceHandle, Separations[I].Push, Path.bHasSteeringPoint, Path.SteeringPoint});
 			}
 		});
 		Nearby.Sort([](const FNearby& A, const FNearby& B) { return A.Distance < B.Distance; });
 		for (int32 I = 0; I < FMath::Min(10, Nearby.Num()); ++I) { UE_LOG(LogLootNPop, Display, TEXT("%s"), *Nearby[I].Line); }
+
+		// 보행 anchor 원인 프로브(단위5b 0단계): 플레이어 anchor 검증을 그대로 다시 걷고, 캡슐·출발점·보폭을 하나씩 바꿔 걷는다.
+		const ULNPMassWorldCollisionSubsystem* Collision = World.GetSubsystem<ULNPMassWorldCollisionSubsystem>();
+		constexpr int32 MaxGroundProbes = 3;
+		const FNearby* Ground[MaxGroundProbes] = {};
+		int32 GroundCount = 0;
+		for (const FNearby& Entry : Nearby)
+		{
+			if (GroundCount < MaxGroundProbes && Entry.Config && !Entry.Config->IsFlying() && !Entry.Config->IsCrawling())
+			{
+				Ground[GroundCount++] = &Entry;
+			}
+		}
+		if (Collision && PlayerNav.bGrounded && PlayerNav.Surface.IsValid() && GroundCount > 0)
+		{
+			const FVector GoalFeet = PlayerNav.GroundPoint;
+			LNPEnemyExactMovement::FParams Default;
+			Default.bLateralSweep = LNPEnemyExactMovement::IsLateralSweepEnabled();
+			auto EnemyParams = [&Default](const ULNPEnemyConfig& Config)
+			{
+				LNPEnemyExactMovement::FParams Params = Default;
+				Params.GravityOrigin = Config.MovementConfig.GravityOrigin;
+				Params.CapsuleRadius = Config.CapsuleRadius;
+				Params.CapsuleHalfHeight = Config.CapsuleHalfHeight;
+				return Params;
+			};
+			const LNPEnemyExactMovement::FParams Melee = EnemyParams(*Ground[0]->Config);
+			UE_LOG(LogLootNPop, Display, TEXT("[NavProbe] player walkAnchored=%d node=%d feet=%s nearestGroundConfig=%s stop=%.0f"),
+				PlayerNav.bWalkAnchored, PlayerNav.Node, *GoalFeet.ToString(), *Ground[0]->Config->GetName(),
+				FLNPEnemyMovementConfig::ComputeStopDistance(Ground[0]->Config->MovementConfig.AttackRange));
+			if (PlayerNav.bWalkAnchored && Snapshot.Nav.Graph.GetSlot(PlayerNav.Node) != INDEX_NONE)
+			{
+				const FVector NodeFeet(Snapshot.Nav.Graph.GetWorldPoint(Snapshot.Nav.Graph.GetSlot(PlayerNav.Node), PlayerNav.Node));
+				// 실제 anchor 검증과 같은 입력(기본 캡슐·플레이어 바닥 Surface·150cm), 실제 근접 캡슐, 그리고 얼마나 가까이 가는지(30cm).
+				LogWalkProbe(Snapshot, *Collision, TEXT("anchorCheck"), Default, NodeFeet, PlayerNav.Surface, GoalFeet, 150.0);
+				LogWalkProbe(Snapshot, *Collision, TEXT("anchorMeleeCapsule"), Melee, NodeFeet, PlayerNav.Surface, GoalFeet, 150.0);
+				LogWalkProbe(Snapshot, *Collision, TEXT("anchorClosest"), Default, NodeFeet, PlayerNav.Surface, GoalFeet, 30.0);
+				LogWalkProbe(Snapshot, *Collision, TEXT("anchorMeleeClosest"), Melee, NodeFeet, PlayerNav.Surface, GoalFeet, 30.0);
+			}
+			for (int32 I = 0; I < GroundCount; ++I)
+			{
+				const FNearby& Entry = *Ground[I];
+				const LNPEnemyExactMovement::FParams Params = EnemyParams(*Entry.Config);
+				const FVector Up = (Params.GravityOrigin - Entry.Center).GetSafeNormal();
+				const FVector EnemyFeet = Entry.Center - Up * Params.CapsuleHalfHeight;
+				const FVector ToPlayer = FVector::VectorPlaneProject(GoalFeet - EnemyFeet, Up).GetSafeNormal();
+				const FVector PlanarPush = FVector::VectorPlaneProject(Entry.Push, Up);
+				UE_LOG(LogLootNPop, Display, TEXT("[NavProbe] enemyIndex=%d distance=%.1f moveSpeed=%.0f push=%.1f pushForward=%.1f pushSide=%.1f"),
+					I, Entry.Distance, Entry.Config->MovementConfig.MoveSpeed, PlanarPush.Size(), FVector::DotProduct(PlanarPush, ToPlayer),
+					FVector::CrossProduct(ToPlayer, PlanarPush).Size());
+				// 실제 이동 프로세서처럼 현재 자리에서 플레이어 발로 곧게: 실제 캡슐(반지름 보폭), 프레임 보폭, 기본 캡슐.
+				LogWalkProbe(Snapshot, *Collision, TEXT("enemyMeleeCapsule"), Params, EnemyFeet, Entry.Surface, GoalFeet, 30.0);
+				LogWalkProbe(Snapshot, *Collision, TEXT("enemyFrameStride"), Params, EnemyFeet, Entry.Surface, GoalFeet, 30.0,
+					Entry.Config->MovementConfig.MoveSpeed / 60.0);
+				LogWalkProbe(Snapshot, *Collision, TEXT("enemyDefaultCapsule"), Default, EnemyFeet, Entry.Surface, GoalFeet, 30.0);
+				// 지금 조향점(점열 점·waypoint·anchor)까지 실제로 걸어 닿는지. 조향점이 이미 30cm 안이면 걷지 않고 닿는다.
+				if (Entry.bHasSteeringPoint)
+				{
+					LogWalkProbe(Snapshot, *Collision, TEXT("enemyToSteer"), Params, EnemyFeet, Entry.Surface, Entry.SteeringPoint, 30.0);
+				}
+			}
+		}
 		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] aliveFlyers=%d within5000cm=%d"), Flyers, NearbyFlyers);
 	}
 

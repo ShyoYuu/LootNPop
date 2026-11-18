@@ -339,6 +339,27 @@ struct LOOTNPOP_API FLNPEnemyPathFragment : public FMassFragment
 	FVector LastOpenPoint = FVector::ZeroVector;
 	uint64 LastOpenGeneration = 0;
 	int32 LastOpenNode = INDEX_NONE;
+	/**
+	 * Nav 밖 플레이어의 검증된 점열(발자취 또는 보행 anchor, D-092)을 따라가는 중이면 다음 점 번호, 아니면 INDEX_NONE.
+	 * 점열 머리(입구·anchor node)·발자취 개정·종류가 바뀌면 가까운 점으로 다시 맞춘다.
+	 */
+	int32 TailIndex = INDEX_NONE;
+	FMassEntityHandle TailTarget;
+	int32 TailHeadNode = INDEX_NONE;
+	uint32 TailRevision = 0;
+	bool bTailTrail = false;
+	/** 현재 점까지 가장 가까웠던 접평면 거리와 그 시각. 정체하면 직전 점으로 한 칸 물러난다. */
+	double TailBestDistance = DBL_MAX;
+	double TailProgressTime = -DBL_MAX;
+	/** 머리 node에서도 정체해 점열을 놓았다. 이 시각까지는 걸어서 닿는 node(D-085)부터 경로로 다시 간다. */
+	double TailRecoverUntil = -DBL_MAX;
+	/**
+	 * 적 자신의 발자취(D-092). 점열을 따라 Nav 없는 바닥으로 들어가는 동안 약 TrailSpacing마다 발을 남기고,
+	 * 플레이어가 먼저 나가 점열을 잃으면 최근 점부터 거꾸로 되짚어 나온다. 트인 Nav에 서면 지운다.
+	 */
+	static constexpr int32 MaxCrumbs = 12;
+	FVector3f Crumbs[MaxCrumbs];
+	uint8 CrumbCount = 0;
 };
 
 /** Mass가 archetype 이동 시 shared path handle을 정상 복사·파괴하도록 명시적으로 허용한다. */
@@ -346,6 +367,38 @@ template<>
 struct TMassFragmentTraits<FLNPEnemyPathFragment> final
 {
 	enum { AuthorAcceptsItsNotTriviallyCopyable = true };
+};
+
+/**
+ * 플레이어 발자취(D-092, 서버 전용). Nav 밖으로 걸어 들어간 길을 적 캡슐 걸음으로 검증한 점열이다.
+ * Points[0]은 입구 node 지면점, Points[1]은 마지막으로 트인 삼각형에 있던 발, 그 뒤는 약 TrailSpacing마다 남긴 발이다.
+ * 끝점은 플레이어의 현재 발(GroundPoint)이다. 구간 검증 실패·상한 초과·층 변경이면 끊기고(bBroken) Nav로 돌아올 때까지 쓰지 않는다.
+ */
+struct FLNPPlayerTrail
+{
+	static constexpr int32 MaxPoints = 24;
+
+	/** 마지막으로 끊긴 사유(진단). Start: 시작할 트인 자리가 없거나 멀다. Layer: 다른 층·snapshot. Cap: 상한. Walk: 구간 걸음 실패. */
+	enum class EBreak : uint8 { None, Start, Layer, Cap, Walk };
+
+	FVector Points[MaxPoints];
+	int32 Count = 0;
+	int32 EntryNode = INDEX_NONE;
+	FLNPSurfaceHandle Surface;
+	bool bBroken = false;
+	/** 점이 지워지거나(복귀·끊김·되돌아온 고리) 새로 시작할 때 늘어난다. 끝에 점이 더해질 때는 그대로다. */
+	uint32 Revision = 0;
+	/** 마지막으로 Nav 위·트인 삼각형에 있던 발과 그 투영 node. 발자취의 시작점이다. */
+	int32 OpenNode = INDEX_NONE;
+	FVector OpenFeet = FVector::ZeroVector;
+	FLNPSurfaceHandle OpenSurface;
+	/** 마지막 점에서 곧게 걸어 닿는다고 마지막으로 확인한 발. 직선이 막히면 이 자리를 점으로 남긴다. */
+	FVector CheckedFeet = FVector::ZeroVector;
+	EBreak LastBreak = EBreak::None;
+	FVector LastBreakFeet = FVector::ZeroVector;
+	uint32 Breaks = 0;
+
+	bool IsValid() const { return Count >= 2 && !bBroken; }
 };
 
 /**
@@ -358,19 +411,31 @@ struct LOOTNPOP_API FLNPPlayerNavFragment : public FMassFragment
 	GENERATED_BODY()
 
 	FLNPSurfaceHandle Surface;
-	/** 투영 반경 안의 최근접 node, 없으면 보행 anchor(bWalkAnchored). 둘 다 없으면 INDEX_NONE. */
+	/** 투영 반경 안의 최근접 node, 없으면 발자취 입구 node(bTrailAnchored), 그것도 없으면 보행 anchor(bWalkAnchored). 모두 없으면 INDEX_NONE. */
 	int32 Node = INDEX_NONE;
 	uint32 Group = MAX_uint32;
 	FLNPNavGroupRef GroundGroup;
 	FVector GroundPoint = FVector::ZeroVector;
-	/** Node가 보행 anchor일 때 그 node의 지면점. Nav 질의 목표로 쓴다. */
+	/** Node가 걸음으로 이어진 Nav 밖 머리(보행 anchor 또는 발자취 입구)일 때 그 node의 지면점. Nav 질의 목표로 쓴다. */
 	FVector WalkAnchorPoint = FVector::ZeroVector;
 	bool bGrounded = false;
+	/** Nav 소속이 걸음 검증된 점열(보행 anchor 또는 발자취)로 이어졌다. 적은 머리 node까지 경로로 간 뒤 점열을 따라간다(D-092). */
 	bool bWalkAnchored = false;
+	/** bWalkAnchored 중 발자취로 이어졌다(Trail.Points). false면 보행 anchor 한 점이다. */
+	bool bTrailAnchored = false;
+	FLNPPlayerTrail Trail;
 	/** 바위(Support 없는 정적 Blocker) 위라 Surface를 직전 지지면에서 빌렸다(D-091). */
 	bool bBorrowedSurface = false;
 	/** 발이 Nav 주머니(D-090)라 투영 node 대신 보행 anchor로 검증했다(D-091). */
 	bool bInNavPocket = false;
+	/**
+	 * 보행 anchor 검증 걸음의 실제 궤적(D-092). [0]은 anchor node 지면점이고 AnchorPathSpacing마다 솎은 발 위치가 이어진다.
+	 * 적은 이 점열을 따라가 검증된 길을 그대로 밟는다. 궤적이 바뀌면 AnchorRevision이 늘어난다.
+	 */
+	static constexpr int32 MaxAnchorPath = 12;
+	FVector AnchorPath[MaxAnchorPath];
+	int32 AnchorPathCount = 0;
+	uint32 AnchorRevision = 0;
 	/** 보행 anchor 검증 캐시. 실패도 재사용하며, 플레이어가 움직이거나 시간이 지나면 다시 검증한다. */
 	int32 WalkAnchorNode = INDEX_NONE;
 	uint64 WalkAnchorGeneration = 0;
@@ -379,6 +444,16 @@ struct LOOTNPOP_API FLNPPlayerNavFragment : public FMassFragment
 
 	/** 적 쪽 Nav 질의(도달성·슬롯)에 쓸 목표 지점. */
 	FVector GetNavQueryPoint() const { return bWalkAnchored ? WalkAnchorPoint : GroundPoint; }
+
+	/** 적이 머리 node 뒤에 따라갈 검증된 점(끝점인 플레이어 발 제외). 보행 anchor는 anchor 지면점 한 개다. */
+	TConstArrayView<FVector> GetTailPoints() const
+	{
+		return bTrailAnchored ? TConstArrayView<FVector>(Trail.Points, Trail.Count)
+			: bWalkAnchored ? TConstArrayView<FVector>(AnchorPath, AnchorPathCount) : TConstArrayView<FVector>();
+	}
+
+	/** 점열 개정. 적은 머리 node·종류와 함께 비교해 바뀌면 가까운 점으로 다시 맞춘다. */
+	uint32 GetTailRevision() const { return bTrailAnchored ? Trail.Revision : AnchorRevision; }
 };
 
 /** Entity 모드 시뮬레이션용 물리 속도 (넉백, 포물선). 지면 접지 시 0. */
