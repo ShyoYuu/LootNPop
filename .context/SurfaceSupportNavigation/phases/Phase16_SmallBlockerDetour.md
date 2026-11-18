@@ -1,6 +1,6 @@
 # 작은 Blocker 주변 지상 적 우회 — Phase16 후속
 
-> 상태: 단위1 완료(2026-11-17, 사용자 PIE "자연스럽게 돈다"). 단위2 완료(2026-11-17, 사용자 PIE "자연스럽게 가로질러온다"). 단위3 완료(2026-11-17, 사용자 PIE "구멍이 메워지고 Nav가 지형에 맞게 자연스러워짐"). 단위4 완료(2026-11-17, D-090 실제 선분의 삼각형 통로·Nav 주머니·마지막 접근 검증, 사용자 최종 PIE에서 원래 정지 재현 안 됨)
+> 상태: 단위1 완료(2026-11-17, 사용자 PIE "자연스럽게 돈다"). 단위2 완료(2026-11-17, 사용자 PIE "자연스럽게 가로질러온다"). 단위3 완료(2026-11-17, 사용자 PIE "구멍이 메워지고 Nav가 지형에 맞게 자연스러워짐"). 단위4 완료(2026-11-17, D-090 실제 선분의 삼각형 통로·Nav 주머니·마지막 접근 검증, 사용자 최종 PIE에서 원래 정지 재현 안 됨). 단위5a 완료(2026-11-18, D-091 Nav 밖 플레이어 도달 불가·바위 위 층 빌리기·플레이어 주머니 판정·anchor 대상 조향, anchor 통과 주머니는 남은 한계). 단위5b(플레이어 발자취) 계획만 기록(§7.6)
 > 작성: 2026-11-17
 > 관계: Phase16 1단계(D-082 Blocker 비관통)의 후속. 그래픽스 1-B5d·1-B5e 인계를 받는다.
 > 진행: 단위는 한 세션에 하나씩 순서대로 진행한다(1→2→3). 마스터 세션이 결과를 확인한 뒤 다음 단위를 띄운다.
@@ -224,7 +224,7 @@
 
 ### 5.6 남은 것
 
-- 한계(범위 밖): 플레이어가 주머니 안처럼 Nav 밖이고 보행 anchor도 없으면 근접 적이 입구에서 막혀 선다(경로 소비자가 건너뛰고 MoveTarget 직진, 추적 중 Confirmed 유지). 도달 불가 접근(D-063)으로 돌릴지 등은 따로 정한다.
+- 한계(범위 밖): 플레이어가 주머니 안처럼 Nav 밖이고 보행 anchor도 없으면 근접 적이 입구에서 막혀 선다(경로 소비자가 건너뛰고 MoveTarget 직진, 추적 중 Confirmed 유지). → 단위5(§7)에서 다룬다: 5a 도달 불가 처리(D-091), 5b 플레이어 발자취(계획).
 - 예비안: 판정이 예상 밖으로 실패하면 정지 감지 뒤 `WalkReaches` 검증·경로 재요청(이전 기록안).
 - 범위 밖: 배회 목표의 직선 판정(`LNPEnemyStateTreeProcessors.cpp`)과 cache 합류(D-079)는 여전히 node↔node 격자 직선이다.
 
@@ -234,3 +234,80 @@
 2. 메모리로만 `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/DA_GraphicsRidgeValidationPool`을 지정한다(SaveConfig 금지).
 3. TestMap03 1인 PIE → 매 실행 로그에서 WIP slot 확인 → `LNP.SurfaceNav.EnemyGround.Reset` 후 교전 → `Report`의 `blocker_rejects` 비율을 2.63%와 비교한다.
 4. PIE 종료 뒤 원래 풀로 복원한다. 그래픽스 세션과 WIP 저장·베이크를 동시에 하지 않는다.
+
+## 7. 단위5 — Nav 밖 플레이어(5a D-091 도달 불가, 5b 발자취 계획)
+
+단위4 PIE 5차에서 남긴 한계(§5.6)를 두 단계로 나눈다(사용자 승인). 5a는 "판정 불가"를 "도달 불가"로 바꾸는 최소 변경이고, 5b는 Nav 없는 걸을 수 있는 바닥까지 추격을 늘린다. 5b는 별도 세션에서 한다.
+
+### 7.1 원인(코드로 재확인)
+
+플레이어가 땅에 서 있고 물리 바닥은 식별되지만 투영 반경 300cm 안에 node가 없고 보행 anchor(D-085)도 실패하면 `FLNPPlayerNavFragment.Node == INDEX_NONE`, `GroundGroup` 무효다.
+
+- `LNPEnemyNavigation::UpdateMeleeSlot`: `!GroundGroup.IsValid()`면 판정 없이 `bOccupied`를 돌려줬다. 이미 슬롯을 가진 근접 적은 기한 없이 슬롯을 유지하고 1.5초 도달 불가 유예도 시작되지 않았다. 새로 오는 적은 타게팅 후보 단계에서 도달 불가라 슬롯 경쟁에 들어오지 않았다.
+- `ULNPEnemyPathProcessor`: `bUnreachableTarget`·`bAlertApproach`(D-063)를 `Node != INDEX_NONE`일 때만 계산했고, Node가 없으면 경로 소비를 건너뛰었다(`continue`). Confirmed 적은 조향점 없이 MoveTarget으로 곧장 걷다 바위에 막혀 섰고, Alert 적은 제자리에 섰다.
+
+### 7.2 5a 구현(D-091)
+
+- 판정 조건: `bGrounded` + `Surface` 유효(현재 snapshot generation) + Nav 소속 없음(`GroundGroup` 무효 = `Node == INDEX_NONE`).
+- 슬롯(`UpdateMeleeSlot`에 플레이어 물리 바닥 `GroundSurface` 인자 추가): 위 조건이면 끝점 상태와 무관하게 도달 불가로 본다. 기존 슬롯은 1.5초 유예 뒤 반납하고 새 슬롯은 주지 않는다. 유예 시계는 기존과 같이 플레이어·group 변경(Nav 위 group → Nav 밖)에서 다시 시작한다. 끝점 Stale·바닥 handle이 이전 generation·바닥 식별 실패(`Surface` 무효)는 판정을 미루고(기존 슬롯 보존·새 슬롯 없음), 공중도 기존 슬롯 보존·새 슬롯 없음이다. 공중 유예 초기화(기존 규칙)는 Nav 소속이 있는 마지막 접지에만 적용된다. 마지막 접지가 Nav 밖이면 기존 코드 순서대로 공중 판정 전에 반환해 시계를 되돌리지 않는다. 주머니 안에서 1.5초보다 자주 뛰어 슬롯을 영구히 쥐는 길을 막기 위해 이 순서를 유지했다(1.5초가 지난 뒤 Nav 밖에 착지하면 바로 반납, Nav 위에 착지하면 Reachable로 유지).
+- 슬롯을 놓은 적: 타게팅 후보 단계가 Nav 밖 플레이어를 이미 도달 불가로 보므로(직전 Confirmed만 예외) 슬롯을 잃으면 Alert로 내려가고 다시 슬롯을 다투지 않는다. 플레이어가 Nav로 돌아오면 끝점이 Reachable이 되어 바로 슬롯을 받는다.
+- 경로 처리기: Node가 없어도 `Surface`가 유효하면 도달성을 계산하고, Stale이 아니면 도달 불가로 둔다. 목표는 `Target.TargetLocation`, 목표 Surface는 플레이어 물리 바닥이다. 투영 node가 없어도 `ResolveEndpoints`가 NoNode와 함께 접근점(자기 group의 6방향 내부 node 중 목표에 가장 가까운 것, 3,000cm)을 주므로 D-063 접근 경로가 그대로 나온다. 근접은 접근점까지 간 뒤 Alert로 서서 플레이어를 바라본다(절벽과 같은 모습). 1.5초 유예 동안의 Confirmed 적도 같은 접근 경로를 따른다(D-063과 같은 규칙).
+- 공중: 경로 처리기는 Node가 있을 때처럼 마지막 접지 바닥으로 판정한다(점프마다 경로를 버리지 않는다). 슬롯 쪽은 기존대로 공중이면 판정하지 않는다.
+- 바위 위(PIE 1차 뒤 추가, 사용자 승인): 플레이어가 Support 없는 정적 Blocker 위에 서면 바닥 층이 없어(`Surface` 무효) 위 조건에 들지 않았다. `ULNPPlayerNavProcessor`가 직전 접지가 같은 slot·현재 generation 지지면이면 그 층을 빌려(`LNPEnemyNavigation::BorrowBlockerFloorSurface`, `bBorrowedSurface`) 바위 위 발 위치로 Nav 투영·보행 anchor를 계속한다. 트인 평지의 바위는 둘레 node가 투영 반경 안이라 지금처럼 추격·공격하고, 주머니 속 바위는 node·anchor가 없어 5a 도달 불가가 된다. "바위 위면 무조건 도달 불가"는 평지의 작은 바위에만 올라서도 근접 적이 추격을 멈추는 악용 여지가 있어 택하지 않았다. Support 비보행 face·동적 지지면·미등록 Actor(Pod 등)·다른 slot·직전 지지면 없음은 빌리지 않는다(기존 규칙).
+- 플레이어 Nav 주머니(PIE 2차 뒤 추가, 사용자 승인): 투영 반경 안에 node가 있어도 플레이어 발이 Nav 주머니(`IsInNavPocket`, 불완전 삼각형+최근접 node가 외접원+25cm 밖, overlay 없이)이면 투영 node를 쓰지 않고 Nav 밖과 같이 보행 anchor(D-085, node에 선 적이 플레이어 발 150cm까지 걸어옴)로 검증한다(`bInNavPocket`). 통과하면 anchor로 이어지고, 실패하면 Nav 소속 없음 → 5a 도달 불가다. 적 쪽에 이미 있던 D-090 주머니 규칙을 플레이어 판정에 맞춘 것이다. 이 규칙이 없으면 주머니 속 플레이어는 바위 너머 node로 Nav 위가 되어, 슬롯을 쥔 적이 마지막 접근 검증(D-090 A)에 막혀 목표 node에서 영구히 기다렸다. 주머니가 아닌 불완전 삼각형(벽·절벽 가장자리)은 기존대로 투영 node다.
+- anchor 대상 마지막 구간(PIE 3차 뒤 추가, 사용자 승인): 보행 anchor로 이어진 플레이어(`bWalkAnchored`)를 쫓는 적은 경로를 다 쓰면 근접 슬롯 위치(MoveTarget)가 아니라 플레이어 발(`GroundPoint`)로 조향한다. anchor가 검증한 것은 anchor node → 플레이어 발 구간이고, 슬롯 위치는 그 길 밖(바위 너머)일 수 있었다. 정지는 기존 근접 정지 거리(실제 대상 거리)이고, 도착 신호·D-090 마지막 접근 검증(anchor 대상은 원래 건너뜀)은 그대로다.
+- 진단: `NavReport`의 `[NavEnemy]` 줄에 `approachUnreachable`(도달 불가 접근 경로를 따르는 중), 플레이어 줄에 `borrowedSurface`·`pocket`을 붙였다. 플레이어 줄의 `grounded`·`slot`·`layer`·`node=-1`·`walkAnchored=0`이 판정 조건이다.
+
+### 7.3 원거리 지상 적에 미치는 영향
+
+- 슬롯: 원거리는 근접 슬롯 도달성 검사 대상이 아니라 바뀌지 않는다(테스트로 확인).
+- 경로: 경로 처리기 변경은 공격 유형을 가리지 않으므로 D-063의 원거리 규칙("사거리에 들거나 접근점에 닿을 때까지 이동")이 Nav 밖 플레이어에게도 적용된다. Confirmed 원거리는 사거리 밖이면 MoveTarget 직진 대신 접근점까지 경로로 가고(사거리 안이면 지금처럼 선다), 슬롯 대기 Alert 원거리는 제자리 대신 접근점까지 걷는다. 절벽 위 플레이어에게 이미 하던 동작이다. 원거리 사선 확보(D-086)는 바꾸지 않았다.
+
+### 7.4 5a 검증
+
+- 테스트(`LootNPop.SurfaceNavigation.Nav.EnemyReachability`에 추가): 땅 위·Node 없음 → 새 슬롯 없음, 기존 슬롯 1.5초 유지 뒤 반납, 끝점 Reachable이어도 반납. 공중 → 기존 슬롯 보존·새 슬롯 없음·유예 시계 유지, 1.5초 뒤 Nav 밖 착지 → 반납. 끝점 Stale·이전 generation 바닥·바닥 식별 실패 → 기존 슬롯 무기한 보존·새 슬롯 없음. Nav 복귀 → 즉시 허용. 실제 Mass 슬롯 subsystem에서 근접·승격 근접 반납, 원거리 유지. Node 없는 목표(투영 반경 밖 1,000cm)로 접근 요청 → `NoNode` + 자기 group 접근점 경로. 바위 위 층 빌리기(`BorrowBlockerFloorSurface`): 정적 Blocker·같은 slot·현재 generation이면 빌림, Support 비보행·동적·미등록·다른 slot·직전 없음·이전 generation이면 빌리지 않음. 플레이어 주머니 판정과 anchor 대상 조향은 Mass 플레이어(Character) 없이 헤드리스로 만들 수 없어 PIE로 확인했다(`IsInNavPocket` 자체는 `EnemyMovement.DirectCorridor`가 덮는다).
+- 빌드·회귀: Game·Editor 빌드(경고·오류 없음), 헤드리스 전체 `LootNPop.SurfaceNavigation` **141/141**(첫 실행 140/141은 공중 유예 테스트 기대값 오류, 수정 후 `Unit5/SurfaceNavFull2`·`SurfaceNavFull3`·최종 `SurfaceNavFull4`), 재저장 시험편3개 원복. 결과 `Saved/Profiling/Phase16/SmallBlockerDetour/Unit5/`.
+- 패키지 비용: 측정 생략. 슬롯 판정은 플레이어 대상 적 항목마다 상수 비교 하나가 늘 뿐이다. 경로 처리기는 Nav 밖 플레이어를 노리는 적에게만 `ResolveEndpoints` 1회와 경로 요청(D-063 접근, 절벽 대상과 같은 비용)이 생긴다. 이전에는 이 적들이 경로 없이 MoveTarget으로 직진했다. Nav 밖 플레이어는 `ProductionGround`·`Production` 측정 시나리오(헤드리스 고정 위치)에 나오지 않아 Gate 수치에 실리지 않는다.
+
+### 7.5 5a PIE
+
+| 차수 | 관찰 | 조치 |
+|:---|:---|:---|
+| 1 | 단위4 주머니 재현(WIP slot7). 근접 830이 Confirmed로 MoveTarget 115cm 앞에서 정지(`endpoint=2 pathStatus=3 steering=0 approachUnreachable=0`). 플레이어 줄 `grounded=1 slot=65535 layer=65535 node=-1`, 바닥 `StaticMeshComponent0 face=-1 slot=7 layer=65535`, 발이 적 발보다 약0.5m 높음 → 주머니 속 낮은 바위 위라 바닥 층이 없어 5a 조건 밖. 주머니에서 나오면 정상 추격 | 바위 위면 직전 지지면 층을 빌림(사용자 승인) |
+| 2 | 같은 주머니(WIP slot2, 바위 규칙 반영). 근접 382가 Confirmed로 목표 node 근처에서 정지(`endpoint=0 waypoints=1 waypoint=1 steering=1 steerDist=0 endWalk=0`, 시작 node (129,102)). 플레이어는 맨땅(`slot=2 layer=0`)인데 투영 반경 300cm 안의 바위 너머 node(`node=326543`)가 잡혀 Nav 위로 판정 → 슬롯 Reachable, 마지막 접근 걸음 검증(D-090 A)이 막혀 목표 node에서 무한 대기. 주머니에서 나오면 정상 추격 | 플레이어 판정에도 Nav 주머니 규칙(D-090) 적용(사용자 승인) |
+| 3 | 같은 주머니(WIP slot4, 주머니 규칙 반영). 플레이어 `pocket=1 walkAnchored=1`(anchor 검증 통과). 근접 918이 경로를 다 쓴 뒤 슬롯 위치로 직진하다 정지(`steering=0 moveTargetDist=70`, 플레이어와 평면 243cm·높이 47cm). 주머니 밖·평지 작은 바위 위 추격·공격 정상 | anchor 대상은 경로 뒤 플레이어 발로 조향(사용자 승인) |
+| 4 | 같은 주머니(WIP slot7, 사용자 풀빌드). 플레이어 투영 반경 밖 `walkAnchored=1 pocket=0`. 근접 6마리 모두 `steering=1`로 플레이어 발을 향하지만 가장 가까운 1061도 평면 252cm·높이 67cm 아래에서 막혀 Confirmed로 슬롯을 쥔 채 정지. 주머니 밖·평지 바위 위 추격·공격 정상 | 사용자 결정으로 마무리, 남은 한계로 5b에 넘김(7.6) |
+
+- 정리: 5a의 Nav 밖 → 도달 불가 경로(`node=-1`)는 네 번의 재현 모두 다른 판정(바위 위 식별 실패 → 바위 너머 투영 node → anchor 통과)이 먼저 걸려 PIE에서 직접 보지 못했고 헤드리스 테스트로만 확인했다. 주머니 밖 추격과 평지 작은 바위 위 추격·공격은 2~4차에서 회귀 없음을 확인했다.
+- 남은 한계: 보행 anchor 검증(기본 캡슐 반지름35, 평면 150cm·높이 150cm+단차 허용)은 통과하지만 실제 근접 적이 공격 거리에 들지 못하는 주머니가 있다. 검증이 넉넉한 탓인지 6마리가 입구에 몰린 탓인지 로그로 가르지 못했다. 이때 적은 Confirmed로 슬롯을 쥐고 선다.
+- 풀은 매 PIE 뒤 MCP `ObjectTools.set_properties`(메모리, SaveConfig 없음)로 원래 값으로 되돌렸다(`Unit5/SelectionState.json=restored`). `LNPSettings`는 Python에 노출되지 않아 `py` 스크립트로는 바꿀 수 없다. 추적 Content/Config 변경은 없다.
+
+### 7.6 5b 계획 — 플레이어 발자취(구현하지 않음, 다음 세션)
+
+플레이어가 걸어 들어간 길은 이미 걸을 수 있다고 증명된 길이다. 그 길을 적 캡슐로 검증해 Nav 없는 바닥까지 추격을 잇는다.
+
+- 5a에서 넘겨받는 것(7.5 4차): 보행 anchor는 통과하지만 실제 근접 적이 공격 거리에 들지 못하는 주머니. 5b를 설계할 때 먼저 확인한다.
+  - 검증 캡슐을 실제 적 설정(`Shared.Config->CapsuleRadius`·`CapsuleHalfHeight`)으로 바꾸면 사라지는지, 플레이어 쪽 anchor 도달 판정(`PlayerWalkAnchorReach` 150cm·높이 허용)을 근접 공격 거리(3D, `GetChaseStopDistance`)로 좁히면 사라지는지 본다.
+  - 발자취가 있으면 우선순위상 발자취가 anchor보다 뒤이므로, anchor가 잘못 통과하면 발자취도 쓰이지 않는다. 주머니(`bInNavPocket`)에서는 발자취를 anchor보다 앞에 둘지 정한다.
+  - 예비안(D-090 정지 감지): Nav 밖·anchor 대상의 Confirmed 근접 적이 공격 거리 밖에서 일정 시간 거리를 줄이지 못하면 그 적의 슬롯을 도달 불가로 반납해 Alert로 보낸다. 5b로 해결되지 않을 때만 쓴다.
+
+- 기록
+  - 투영 반경 밖으로 나갈 때(Node가 투영 node에서 보행 anchor·없음으로 바뀔 때) 마지막 Nav node를 **입구 node**로 저장한다.
+  - 땅에 붙어 이동하는 동안 약 100cm마다 발 위치를 점으로 남긴다. 플레이어당 20~30점 상한이다.
+  - 다시 Nav 위(투영 node)로 오면 지운다.
+- 검증
+  - 새 점마다 직전 점→새 점(첫 점은 입구 node 지점→첫 점) 구간을 적 기본 지상 캡슐(보행 anchor와 같은 `AnchorParams`)의 `WalkReaches`로 걸어 본다. 실패하면 발자취를 끊는다.
+  - 공중에서는 점을 기록하지 않는다. 착지점 구간(이륙 직전 점→착지점)을 검증하므로 절벽 낙하·그래플·런처·적이 못 오르는 단차가 자연히 끊긴다.
+- 추격
+  - 플레이어 Nav 소속 우선순위: 투영 → 보행 anchor(D-085) → 발자취.
+  - 발자취가 있으면 플레이어 Nav 소속을 입구 node로 둔다(`Node`·`Group`·`GroundGroup`). 슬롯·도달성·A*가 정상으로 돌아가고 5a 도달 불가 규칙은 발동하지 않는다.
+  - 적은 입구 node까지 경로로 간 뒤 발자취 점을 waypoint처럼 따라간다(D-088 지름길과 같이 Nav 밖 구간에서 anchor로 되돌리지 않는다). 마지막 접근은 D-090 규칙(직선 판정 또는 `WalkReaches` 검증, 막히면 대기)을 따른다.
+  - 끊기거나 상한을 넘으면 5a 규칙(도달 불가 → 1.5초 뒤 슬롯 반납·접근점 Alert)으로 떨어진다.
+- 위치·비용
+  - 플레이어 바닥 판정 루프(`ULNPPlayerNavProcessor::Execute`, `LNPEnemyPathProcessor.cpp` 150행 근처의 보행 anchor 분기 옆)에 붙인다. 점 저장은 `FLNPPlayerNavFragment`(또는 서버 전용 별도 fragment)에 고정 크기 배열로 둔다.
+  - 비용은 플레이어 수에 비례하고 서버 전용이다. 점 하나당 `WalkReaches` 1회(약 100cm, 캡슐 반지름 걸음 3~4번)다.
+  - 적 쪽 소비(발자취 waypoint 추종)는 경로 처리기에서 개체마다 돈다. 적마다 비용이 늘어나므로 패키지 Gate를 측정한다.
+- 검증 계획
+  - 헤드리스 3종: 꺾인 주머니 추격(입구 node → 꺾인 발자취 → 플레이어 도달), 절벽 낙하 시 끊김(착지 구간 `WalkReaches` 실패 → 5a 도달 불가), 상한 초과 시 5a로 전환.
+  - 단위4 주머니(WIP Ridge, 벽 모서리+바위 `GraphicsRockProbe_Moss_01` 주변)를 PIE로 재현해 근접 적이 주머니 안까지 따라오는지 본다.
+  - 패키지 `RunPhase13Gate.ps1 -Cases ProductionGround,Production` 교대 측정.

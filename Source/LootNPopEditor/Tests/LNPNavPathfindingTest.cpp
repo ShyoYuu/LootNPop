@@ -19,6 +19,7 @@
 #include "GameLogic/LNPOctantSpawnSubsystem.h"
 #include "Async/ParallelFor.h"
 #include "SurfaceNavigation/LNPCrustAtlas.h"
+#include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPNavFlowField.h"
 #include "SurfaceNavigation/LNPNavHierarchy.h"
 #include "SurfaceNavigation/LNPNavOverlay.h"
@@ -1616,25 +1617,105 @@ bool FLNPNavEnemyReachabilityTest::RunTest(const FString& Parameters)
 	const FMassEntityHandle Player(1, 1);
 	FLNPEnemySlotReachability State;
 	TestFalse(TEXT("Disconnected island player receives no new melee slot"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, true, false, 10.0, State));
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, IslandSurface, true, false, 10.0, State));
 	TestTrue(TEXT("Existing melee slot survives first disconnected grounded frame"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, true, true, 10.0, State));
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, IslandSurface, true, true, 10.0, State));
 	TestTrue(TEXT("Slot remains during grace"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, true, true, 11.49, State));
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, IslandSurface, true, true, 11.49, State));
 	TestFalse(TEXT("Slot returns at 1.5 seconds"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, true, true, 11.5, State));
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, IslandGroup, IslandSurface, true, true, 11.5, State));
 	TestTrue(TEXT("Jump preserves occupied slot"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::NoNode, Player, IslandGroup, false, true, 12.0, State));
+		Nav, ELNPNavEndpointStatus::NoNode, Player, IslandGroup, IslandSurface, false, true, 12.0, State));
 	TestFalse(TEXT("Jump cannot grant a new slot"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::Reachable, Player, IslandGroup, false, false, 12.0, State));
+		Nav, ELNPNavEndpointStatus::Reachable, Player, IslandGroup, IslandSurface, false, false, 12.0, State));
 	TestTrue(TEXT("Grounded reconnection immediately allows slot"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::Reachable, Player, CrustGroup, true, false, 13.0, State));
+		Nav, ELNPNavEndpointStatus::Reachable, Player, CrustGroup, CrustSurface, true, false, 13.0, State));
 	FLNPNavGroupRef StaleGroup = CrustGroup;
 	++StaleGroup.ConnectivityGraphVersion;
 	TestTrue(TEXT("Stale connectivity defers existing slot release"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::Unreachable, Player, StaleGroup, true, true, 20.0, State));
+		Nav, ELNPNavEndpointStatus::Unreachable, Player, StaleGroup, CrustSurface, true, true, 20.0, State));
 	TestFalse(TEXT("Stale connectivity cannot grant slot"), LNPEnemyNavigation::UpdateMeleeSlot(
-		Nav, ELNPNavEndpointStatus::Reachable, Player, StaleGroup, true, false, 20.0, State));
+		Nav, ELNPNavEndpointStatus::Reachable, Player, StaleGroup, CrustSurface, true, false, 20.0, State));
+
+	// 땅 위인데 Nav 소속(투영 node·보행 anchor)이 없는 물리 바닥은 도달 불가다(D-091). 판정 불가로 슬롯을 영구히 쥐지 않는다.
+	const FLNPNavGroupRef OffNav;
+	FLNPEnemySlotReachability OffNavState;
+	TestFalse(TEXT("Grounded off-Nav player receives no new melee slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, true, false, 30.0, OffNavState));
+	TestTrue(TEXT("Grounded off-Nav keeps existing slot on first frame"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, true, true, 30.0, OffNavState));
+	TestTrue(TEXT("Grounded off-Nav keeps slot during grace"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, true, true, 31.49, OffNavState));
+	TestFalse(TEXT("Grounded off-Nav releases slot at 1.5 seconds"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, true, true, 31.5, OffNavState));
+	TestFalse(TEXT("Grounded off-Nav ignores a Reachable endpoint status"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Reachable, Player, OffNav, CrustSurface, true, false, 31.6, OffNavState));
+	OffNavState = FLNPEnemySlotReachability();
+	TestTrue(TEXT("Off-Nav grace starts"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, true, true, 40.0, OffNavState));
+	// 공중 프레임은 슬롯을 보존하지만 Nav 소속이 없으므로 유예 시계를 되돌리지 않는다. 주머니 안에서 자주 뛰어 슬롯을 쥐지 못한다.
+	TestTrue(TEXT("Airborne off-Nav preserves occupied slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, false, true, 41.0, OffNavState));
+	TestEqual(TEXT("Airborne off-Nav keeps the grace clock running"), OffNavState.UnreachableSince, 40.0);
+	TestFalse(TEXT("Airborne off-Nav cannot grant a new slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, false, false, 41.0, OffNavState));
+	TestTrue(TEXT("Airborne off-Nav still preserves slot past grace"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, false, true, 41.6, OffNavState));
+	TestFalse(TEXT("Landing off-Nav after grace releases slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, CrustSurface, true, true, 41.75, OffNavState));
+	OffNavState = FLNPEnemySlotReachability();
+	TestTrue(TEXT("Stale endpoint keeps off-Nav slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Stale, Player, OffNav, CrustSurface, true, true, 50.0, OffNavState));
+	TestTrue(TEXT("Stale endpoint keeps off-Nav slot later"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Stale, Player, OffNav, CrustSurface, true, true, 60.0, OffNavState));
+	TestFalse(TEXT("Stale endpoint cannot grant off-Nav slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Stale, Player, OffNav, CrustSurface, true, false, 60.0, OffNavState));
+	FLNPSurfaceHandle StaleFloor = CrustSurface;
+	++StaleFloor.Generation;
+	TestTrue(TEXT("Stale floor handle keeps off-Nav slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, StaleFloor, true, true, 50.0, OffNavState));
+	TestTrue(TEXT("Stale floor handle keeps off-Nav slot later"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, StaleFloor, true, true, 60.0, OffNavState));
+	TestTrue(TEXT("Unidentified floor keeps existing slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, FLNPSurfaceHandle(), true, true, 50.0, OffNavState));
+	TestTrue(TEXT("Unidentified floor keeps existing slot later"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::NoNode, Player, OffNav, FLNPSurfaceHandle(), true, true, 60.0, OffNavState));
+	TestFalse(TEXT("Unidentified floor cannot grant slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Reachable, Player, OffNav, FLNPSurfaceHandle(), true, false, 60.0, OffNavState));
+	TestTrue(TEXT("Returning to Nav immediately allows slot"), LNPEnemyNavigation::UpdateMeleeSlot(
+		Nav, ELNPNavEndpointStatus::Reachable, Player, CrustGroup, CrustSurface, true, false, 61.0, OffNavState));
+
+	// 바위(Support 없는 정적 Blocker) 위는 같은 slot의 직전 지지면 층을 빌린다(D-091). 그 밖의 식별 실패는 빌리지 않는다.
+	{
+		FLNPExactHitIdentity Rock;
+		Rock.Lifetime = ELNPExactSourceLifetime::Static;
+		Rock.Roles = ELNPExactSourceRole::Blocker;
+		Rock.Slot = static_cast<int8>(CrustSurface.OctantSlot);
+		FLNPSurfaceHandle Borrowed;
+		TestTrue(TEXT("Static rock borrows previous support layer"), LNPEnemyNavigation::BorrowBlockerFloorSurface(
+			Rock, CrustSurface, Nav.SnapshotGeneration, Borrowed));
+		TestTrue(TEXT("Borrowed surface equals previous support"), Borrowed == CrustSurface);
+		auto Borrows = [&](const FLNPExactHitIdentity& Identity, const FLNPSurfaceHandle& Previous)
+		{
+			FLNPSurfaceHandle Out;
+			return LNPEnemyNavigation::BorrowBlockerFloorSurface(Identity, Previous, Nav.SnapshotGeneration, Out);
+		};
+		FLNPExactHitIdentity Support = Rock;
+		Support.Roles = ELNPExactSourceRole::Support | ELNPExactSourceRole::Blocker;
+		TestFalse(TEXT("Non-walkable support face does not borrow"), Borrows(Support, CrustSurface));
+		FLNPExactHitIdentity Dynamic = Rock;
+		Dynamic.Lifetime = ELNPExactSourceLifetime::Dynamic;
+		TestFalse(TEXT("Dynamic blocker does not borrow"), Borrows(Dynamic, CrustSurface));
+		FLNPExactHitIdentity Unknown;
+		TestFalse(TEXT("Unregistered floor does not borrow"), Borrows(Unknown, CrustSurface));
+		FLNPExactHitIdentity OtherSlot = Rock;
+		OtherSlot.Slot = static_cast<int8>((CrustSurface.OctantSlot + 1) % 8);
+		TestFalse(TEXT("Rock in another slot does not borrow"), Borrows(OtherSlot, CrustSurface));
+		TestFalse(TEXT("No previous support does not borrow"), Borrows(Rock, FLNPSurfaceHandle()));
+		FLNPSurfaceHandle StalePrevious = CrustSurface;
+		++StalePrevious.Generation;
+		TestFalse(TEXT("Stale previous support does not borrow"), Borrows(Rock, StalePrevious));
+	}
 
 	// 슬롯 subsystem을 실제 Mass 엔티티로 실행해 풀 예산과 grace 필터의 연결을 검증한다.
 	{
@@ -1702,6 +1783,23 @@ bool FLNPNavEnemyReachabilityTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Actual melee slot is released after grace"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
 		TestFalse(TEXT("Actual promoted melee slot is released after grace"), Slots->IsSlotConfirmed(Promoted, PlayerEntity));
 		TestTrue(TEXT("Ranged slot is unchanged by ground group switch"), Slots->IsSlotConfirmed(Ranged, PlayerEntity));
+		// 땅 위·Nav 소속 없음(D-091): 끝점이 node를 찾더라도 1.5초 뒤 근접 슬롯을 반납하고, 원거리는 그대로다.
+		PlayerData.Surface = CrustSurface;
+		PlayerData.GroundPoint = Crust;
+		PlayerData.GroundGroup = CrustGroup;
+		Rebalance(4.0);
+		TestTrue(TEXT("Actual melee slot regranted on Nav"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		PlayerData.GroundGroup = FLNPNavGroupRef();
+		Rebalance(5.0);
+		TestTrue(TEXT("Actual off-Nav melee slot starts grace"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		Rebalance(6.49);
+		TestTrue(TEXT("Actual off-Nav melee slot survives grace"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		Rebalance(6.5);
+		TestFalse(TEXT("Actual off-Nav melee slot is released after grace"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
+		TestFalse(TEXT("Actual off-Nav promoted melee slot is released after grace"), Slots->IsSlotConfirmed(Promoted, PlayerEntity));
+		TestTrue(TEXT("Ranged slot is unchanged by off-Nav player"), Slots->IsSlotConfirmed(Ranged, PlayerEntity));
+		Rebalance(7.0);
+		TestFalse(TEXT("Off-Nav player receives no new melee slot"), Slots->IsSlotConfirmed(Melee, PlayerEntity));
 		Manager.Deinitialize();
 	}
 
@@ -1744,6 +1842,24 @@ bool FLNPNavEnemyReachabilityTest::RunTest(const FString& Parameters)
 				Direction == 0 ? CrustGroup.Group : IslandGroup.Group);
 			TestEqual(TEXT("Approach stops inside six open grid edges"),
 				static_cast<int32>(Nav.Graph.GetNode(Nav.Graph.GetSlot(Last), Last).GridDegree), 6);
+		}
+	}
+	// Node 없는 목표(투영 반경 안에 node가 없는 Nav 밖 플레이어)도 D-063 접근점 경로가 나온다(D-091).
+	{
+		FSchedulerCase Case;
+		Case.Start = Island;
+		Case.StartHandle = IslandSurface;
+		Case.Goal = Island + Island.GetSafeNormal() * 1000.0;
+		Case.GoalHandle = IslandSurface;
+		FLNPNavPathScheduler Scheduler;
+		const uint32 Serial = Scheduler.Submit(MakeRequest(Case, 1, ELNPNavPathPriority::Chase, 3000.0));
+		DrainScheduler(*this, Scheduler, Nav, nullptr);
+		FLNPNavPathResult Result;
+		TestEnum(*this, TEXT("Off-Nav goal approach reports NoNode"), Scheduler.GetResult(Player, Serial, Result), ELNPNavPathStatus::NoNode);
+		if (TestTrue(TEXT("Off-Nav goal approach has a path"), Result.Path.IsValid() && !Result.Path->Waypoints.IsEmpty()))
+		{
+			TestEqual(TEXT("Off-Nav goal approach stays in own group"),
+				LNPNavGraph::GetGroup(Nav, Result.Path->Waypoints.Last().Node), IslandGroup.Group);
 		}
 	}
 	return true;

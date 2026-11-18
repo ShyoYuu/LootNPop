@@ -2,14 +2,36 @@
 
 #include "Enemy/LNPEnemyNavigation.h"
 #include "Enemy/LNPEnemySurfaceMovement.h"
+#include "SurfaceNavigation/LNPHitIdentityRegistry.h"
 #include "SurfaceNavigation/LNPSurfaceDataSubsystem.h"
 
-bool LNPEnemyNavigation::UpdateMeleeSlot(const FLNPNavSnapshot& Nav, const ELNPNavEndpointStatus Status,
-	const FMassEntityHandle Player, const FLNPNavGroupRef& GroundGroup, const bool bGrounded,
-	const bool bOccupied, const double Now, FLNPEnemySlotReachability& State)
+bool LNPEnemyNavigation::BorrowBlockerFloorSurface(const FLNPExactHitIdentity& Identity, const FLNPSurfaceHandle& Previous,
+	const uint64 SnapshotGeneration, FLNPSurfaceHandle& OutSurface)
 {
-	if (Status == ELNPNavEndpointStatus::Stale || !GroundGroup.IsValid()
-		|| LNPNavQuery::TestReachability(Nav, GroundGroup, GroundGroup) == ELNPNavReachability::Stale)
+	const bool bStaticBlocker = Identity.Lifetime == ELNPExactSourceLifetime::Static
+		&& (Identity.Roles & ELNPExactSourceRole::Blocker) != 0
+		&& (Identity.Roles & ELNPExactSourceRole::Support) == 0
+		&& Identity.Slot >= 0;
+	if (!bStaticBlocker || !Previous.IsValid() || Previous.OctantSlot != static_cast<uint16>(Identity.Slot)
+		|| Previous.Generation != SnapshotGeneration)
+	{
+		return false;
+	}
+	OutSurface = Previous;
+	return true;
+}
+
+bool LNPEnemyNavigation::UpdateMeleeSlot(const FLNPNavSnapshot& Nav, const ELNPNavEndpointStatus Status,
+	const FMassEntityHandle Player, const FLNPNavGroupRef& GroundGroup, const FLNPSurfaceHandle& GroundSurface,
+	const bool bGrounded, const bool bOccupied, const double Now, FLNPEnemySlotReachability& State)
+{
+	// 땅 위인데 투영 node도 보행 anchor도 없는 현재 물리 바닥(바위 주머니·절벽 아래)은 판정 불가가 아니라 도달 불가다(D-091).
+	// 판정 불가로 두면 이미 슬롯을 가진 근접 적이 기한 없이 슬롯을 쥐고 입구에서 막혀 선다.
+	// 공중이면 Nav 소속이 없어 아래에서 슬롯만 보존하고 유예 시계는 되돌리지 않는다(주머니 안에서 뛰어 슬롯을 쥐지 못한다).
+	const bool bOffNav = bGrounded && !GroundGroup.IsValid() && GroundSurface.IsValid()
+		&& GroundSurface.Generation == Nav.SnapshotGeneration;
+	if (Status == ELNPNavEndpointStatus::Stale || (!bOffNav && (!GroundGroup.IsValid()
+		|| LNPNavQuery::TestReachability(Nav, GroundGroup, GroundGroup) == ELNPNavReachability::Stale)))
 	{
 		return bOccupied;
 	}
@@ -26,7 +48,7 @@ bool LNPEnemyNavigation::UpdateMeleeSlot(const FLNPNavSnapshot& Nav, const ELNPN
 		State.GroundGroup = GroundGroup;
 		State.UnreachableSince = -1.0;
 	}
-	if (Status == ELNPNavEndpointStatus::Reachable)
+	if (!bOffNav && Status == ELNPNavEndpointStatus::Reachable)
 	{
 		State.UnreachableSince = -1.0;
 		return true;

@@ -9,6 +9,7 @@
 #include "SurfaceNavigation/LNPNavQuery.h"
 
 class ULNPMassWorldCollisionSubsystem;
+struct FLNPExactHitIdentity;
 struct FLNPSurfaceDataSnapshot;
 
 /** 기존 근접 슬롯의 도달 불가 유예. 후보 목록 초기화와 별도로 유지한다. */
@@ -30,10 +31,13 @@ struct FLNPEnemyHomePod
 
 namespace LNPEnemyNavigation
 {
-	/** Stale·공중은 새 슬롯을 주지 않고 기존 슬롯만 보존한다. 접지 도달 불가는 1.5초 뒤 반납한다. */
+	/**
+	 * Stale·공중·바닥 식별 실패는 새 슬롯을 주지 않고 기존 슬롯만 보존한다. 접지 도달 불가는 1.5초 뒤 반납한다.
+	 * GroundSurface는 플레이어의 물리 바닥이다. 땅 위인데 Nav 소속(GroundGroup)이 없으면 도달 불가로 본다(D-091).
+	 */
 	LOOTNPOP_API bool UpdateMeleeSlot(const FLNPNavSnapshot& Nav, ELNPNavEndpointStatus Status,
-		FMassEntityHandle Player, const FLNPNavGroupRef& GroundGroup, bool bGrounded, bool bOccupied,
-		double Now, FLNPEnemySlotReachability& State);
+		FMassEntityHandle Player, const FLNPNavGroupRef& GroundGroup, const FLNPSurfaceHandle& GroundSurface,
+		bool bGrounded, bool bOccupied, double Now, FLNPEnemySlotReachability& State);
 
 	/** D-062로 도달 가능한 활성 Pod 중 chord 거리가 가장 가까운 것을 고른다. Stale이면 판정을 미룬다. */
 	LOOTNPOP_API ELNPNavEndpointStatus SelectHomePod(const FLNPNavSnapshot& Nav,
@@ -46,6 +50,14 @@ namespace LNPEnemyNavigation
 	constexpr int32 WalkAnchorMaxCandidates = 4;
 	/** 같은 개체의 보행 검증을 다시 하기까지의 간격(초). 결과(실패 포함)는 그동안 재사용한다. */
 	constexpr double WalkAnchorRetrySeconds = 0.5;
+
+	/**
+	 * 플레이어가 Support 없는 정적 Blocker(바위) 위에 서면 바닥 층이 없다. 직전 접지가 같은 slot의 현재 generation 지지면이면
+	 * 그 층을 빌려 Nav 투영을 계속한다(D-091). 트인 평지의 바위 위는 근처 node로 이어지고, 주머니 속 바위 위는 Nav 밖이 된다.
+	 * Support·동적·slot 없는 바닥(Pod·이동 지지면·미등록 Actor)은 빌리지 않는다.
+	 */
+	LOOTNPOP_API bool BorrowBlockerFloorSurface(const FLNPExactHitIdentity& Identity, const FLNPSurfaceHandle& Previous,
+		uint64 SnapshotGeneration, FLNPSurfaceHandle& OutSurface);
 
 	/**
 	 * StartCenter(캡슐 중심)에서 GoalFeet 쪽으로 실제 지상 이동(LNPEnemySurfaceMovement::StepGrounded, cache 우선·exact 폴백)을

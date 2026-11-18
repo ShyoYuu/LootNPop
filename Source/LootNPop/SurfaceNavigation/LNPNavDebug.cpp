@@ -39,14 +39,15 @@ namespace
 		};
 		const int32 Start = Path.StartHintNode;
 		const bool bStartValid = Nav.Graph.GetSlot(Start) != INDEX_NONE;
-		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d endWalk=%d lastOpenDist=%.1f"),
+		FString Text = FString::Printf(TEXT(" | steerDist=%.1f moveTargetDist=%.1f distToGoal=%.1f startNode=%s startDist=%.1f startTri=%d pocket=%d directSeg=%d endWalk=%d lastOpenDist=%.1f approachUnreachable=%d"),
 			Path.bHasSteeringPoint ? FVector::Dist(Center, Path.SteeringPoint) : -1.0,
 			FVector3d::Dist(Feet, GoalFeet), MoveTarget.DistanceToGoal, *NodeText(Start),
 			bStartValid ? FVector3d::Dist(Feet, Nav.Graph.GetWorldPoint(Nav.Graph.GetSlot(Start), Start)) : -1.0,
 			bStartValid && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Start, Feet, Overlay),
 			bStartValid && LNPNavGraph::IsInNavPocket(Nav, Start, Feet, Overlay),
 			bStartValid && Path.GoalHintNode != INDEX_NONE && LNPNavGraph::IsSegmentWalkable(Nav, Start, Feet, Path.GoalHintNode, GoalFeet, Overlay),
-			Path.bEndApproachWalkable, Path.LastOpenNode != INDEX_NONE ? FVector3d::Dist(Feet, FVector3d(Path.LastOpenPoint)) : -1.0);
+			Path.bEndApproachWalkable, Path.LastOpenNode != INDEX_NONE ? FVector3d::Dist(Feet, FVector3d(Path.LastOpenPoint)) : -1.0,
+			Path.bApproachingUnreachable);
 		if (Path.Path.IsValid() && Path.Path->Waypoints.IsValidIndex(Path.WaypointIndex))
 		{
 			const FLNPNavPathWaypoint& Waypoint = Path.Path->Waypoints[Path.WaypointIndex];
@@ -82,9 +83,9 @@ namespace
 				if (Distance < PlayerDistance) { PlayerDistance = Distance; PlayerNav = Nav[I]; PlayerCenter = Center; }
 			}
 		});
-		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] player grounded=%d slot=%u layer=%u node=%d group=%u walkAnchored=%d feet=%s"),
+		UE_LOG(LogLootNPop, Display, TEXT("[NavEnemy] player grounded=%d slot=%u layer=%u node=%d group=%u walkAnchored=%d borrowedSurface=%d pocket=%d feet=%s"),
 			PlayerNav.bGrounded, PlayerNav.Surface.OctantSlot, PlayerNav.Surface.LocalLayerId, PlayerNav.Node,
-			PlayerNav.Group, PlayerNav.bWalkAnchored, *PlayerNav.GroundPoint.ToString());
+			PlayerNav.Group, PlayerNav.bWalkAnchored, PlayerNav.bBorrowedSurface, PlayerNav.bInNavPocket, *PlayerNav.GroundPoint.ToString());
 		const APlayerController* Controller = World.GetFirstPlayerController();
 		const ALNPCharacterBase* Character = Controller ? Cast<ALNPCharacterBase>(Controller->GetPawn()) : nullptr;
 		FHitResult FloorHit;

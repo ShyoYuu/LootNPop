@@ -85,7 +85,7 @@ void ULNPTargetingSubsystem::RebalanceSlots(FMassEntityManager& EntityManager, c
 		// 다른 후보 검사가 현재 슬롯의 유예 상태를 덮지 않게 한다.
 		FLNPEnemySlotReachability State = Target->SlotReachability;
 		const bool bAllowed = LNPEnemyNavigation::UpdateMeleeSlot(*Nav, Ends.Status, Entry.PlayerHandle,
-			Player->GroundGroup, Player->bGrounded, bOccupied, Now, State);
+			Player->GroundGroup, Player->Surface, Player->bGrounded, bOccupied, Now, State);
 		if (bOccupied || Target->TargetPlayer == Entry.PlayerHandle)
 		{
 			Target->SlotReachability = State;

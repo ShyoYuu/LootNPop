@@ -367,6 +367,10 @@ struct LOOTNPOP_API FLNPPlayerNavFragment : public FMassFragment
 	FVector WalkAnchorPoint = FVector::ZeroVector;
 	bool bGrounded = false;
 	bool bWalkAnchored = false;
+	/** 바위(Support 없는 정적 Blocker) 위라 Surface를 직전 지지면에서 빌렸다(D-091). */
+	bool bBorrowedSurface = false;
+	/** 발이 Nav 주머니(D-090)라 투영 node 대신 보행 anchor로 검증했다(D-091). */
+	bool bInNavPocket = false;
 	/** 보행 anchor 검증 캐시. 실패도 재사용하며, 플레이어가 움직이거나 시간이 지나면 다시 검증한다. */
 	int32 WalkAnchorNode = INDEX_NONE;
 	uint64 WalkAnchorGeneration = 0;

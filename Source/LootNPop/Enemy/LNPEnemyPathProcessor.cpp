@@ -141,21 +141,35 @@ void ULNPPlayerNavProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				&& FloorHit.IsValidBlockingHit();
 			if (Value.bGrounded)
 			{
+				const FLNPSurfaceHandle PreviousSurface = Value.Surface;
 				Value.Surface = FLNPSurfaceHandle();
+				Value.bBorrowedSurface = false;
+				Value.bInNavPocket = false;
 				Value.Node = INDEX_NONE;
 				Value.Group = MAX_uint32;
 				Value.GroundGroup = FLNPNavGroupRef();
 				Value.bWalkAnchored = false;
 				FLNPSurfaceHandle Surface;
 				const FLNPExactHitIdentity Identity = Collision->ResolveFloorHit(*IdentitySnapshot, FloorHit);
-				if (LNPEnemySurfaceMovement::MakeSurfaceHandle(Identity, Surface))
+				bool bHasSurface = LNPEnemySurfaceMovement::MakeSurfaceHandle(Identity, Surface);
+				if (!bHasSurface)
+				{
+					// 바위(Support 없는 정적 Blocker) 위는 직전 지지면 층으로 계속 투영한다(D-091).
+					Value.bBorrowedSurface = LNPEnemyNavigation::BorrowBlockerFloorSurface(
+						Identity, PreviousSurface, Snapshot->Nav.SnapshotGeneration, Surface);
+					bHasSurface = Value.bBorrowedSurface;
+				}
+				if (bHasSurface)
 				{
 					// 물리 바닥은 Nav 투영과 무관하게 갱신한다(D-085).
 					const FVector3d Feet = FloorHit.ImpactPoint;
 					Value.Surface = Surface;
 					Value.GroundPoint = Feet;
 					int32 Node = NearestNode(Snapshot->Nav, Surface, Feet, nullptr);
-					if (Node == INDEX_NONE)
+					// Nav 주머니(D-090)는 투영 반경 안이어도 최근접 node가 바위·벽 너머일 수 있다. 적과 같이 보행 anchor로 검증하고,
+					// 실패하면 Nav 밖(D-091 도달 불가)으로 둔다. 주머니에서 투영 node를 그대로 쓰면 적이 node에서 영구히 기다린다.
+					Value.bInNavPocket = Node != INDEX_NONE && LNPNavGraph::IsInNavPocket(Snapshot->Nav, Node, Feet, nullptr);
+					if (Node == INDEX_NONE || Value.bInNavPocket)
 					{
 						// 투영 반경 밖: node에 선 적이 실제로 걸어서 플레이어 근처에 닿는 node만 anchor로 쓴다. 벽 너머는 실패한다.
 						const bool bCached = Value.WalkAnchorGeneration == Snapshot->Nav.SnapshotGeneration
@@ -394,7 +408,10 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(LNPEnemyPath_TargetReachability);
 				const FLNPPlayerNavFragment* PlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer);
-				if (PlayerNav && PlayerNav->Node != INDEX_NONE)
+				// 마지막 접지 바닥이 Nav 소속 없이 식별된 플레이어(바위 주머니·절벽 아래)도 도달 불가 판정에 넣는다(D-091).
+				// 슬롯 판정과 같이 Node 없는 바닥을 판정 불가로 건너뛰지 않고, 도달 불가 접근(D-063)으로 보낸다.
+				const bool bOffNavPlayer = PlayerNav && PlayerNav->Node == INDEX_NONE && PlayerNav->Surface.IsValid();
+				if (PlayerNav && (PlayerNav->Node != INDEX_NONE || bOffNavPlayer))
 				{
 					FLNPNavEndpointQuery Query;
 					Query.StartPosition = Start;
@@ -414,7 +431,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 						}
 					}
 					const ELNPNavEndpointStatus Reachability = Ends.Status;
-					bUnreachableTarget = Reachability == ELNPNavEndpointStatus::Unreachable || Reachability == ELNPNavEndpointStatus::NoNode;
+					bUnreachableTarget = Reachability == ELNPNavEndpointStatus::Unreachable || Reachability == ELNPNavEndpointStatus::NoNode
+						|| (bOffNavPlayer && Reachability != ELNPNavEndpointStatus::Stale);
 					bAlertApproach = Target.State == ELNPTargetingState::Alert && bUnreachableTarget;
 				}
 			}
@@ -447,8 +465,8 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 			else if (bTargetPath)
 			{
 				GoalPlayerNav = EntityManager.GetFragmentDataPtr<FLNPPlayerNavFragment>(Target.TargetPlayer);
-				// Nav 소속(투영 node·보행 anchor)이 없는 물리 바닥은 기존처럼 경로 목표로 쓰지 않는다.
-				if (GoalPlayerNav == nullptr || GoalPlayerNav->Node == INDEX_NONE)
+				// Nav 소속(투영 node·보행 anchor)이 없는 물리 바닥은 도달 불가 접근(D-063, 목표=플레이어 위치)으로만 쓴다(D-091).
+				if (GoalPlayerNav == nullptr || (GoalPlayerNav->Node == INDEX_NONE && !bUnreachableTarget))
 				{
 					continue;
 				}
@@ -700,6 +718,13 @@ void ULNPEnemyPathProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 				{
 					// 접근점에 도착한 뒤 의미상 목표 방향으로 다시 걷지 않는다.
 					State.SteeringPoint = Waypoints.Last().Location;
+					State.bHasSteeringPoint = true;
+				}
+				else if (!bSynthetic && GoalPlayerNav && GoalPlayerNav->bWalkAnchored && !Waypoints.IsEmpty())
+				{
+					// 보행 anchor(D-085)가 검증한 것은 anchor node → 플레이어 발 구간이다. 근접 슬롯 위치(MoveTarget)는 그 길 밖
+					// (바위 너머)일 수 있으므로 경로를 다 쓰면 검증된 목표인 플레이어 발로 조향한다. 정지는 근접 정지 거리다(D-091).
+					State.SteeringPoint = GoalPlayerNav->GroundPoint;
 					State.bHasSteeringPoint = true;
 				}
 				else if (!bSynthetic && Collision && !Waypoints.IsEmpty() && !(GoalPlayerNav && GoalPlayerNav->bWalkAnchored))
