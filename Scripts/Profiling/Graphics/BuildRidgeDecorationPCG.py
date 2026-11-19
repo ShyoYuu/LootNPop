@@ -1,14 +1,14 @@
-"""1-B5a 대표 구역 PCG 소수 배치, 1-B5b 바위 Blocker 승격, 1-B5d 규칙 확장(GX-015), 1-B5e 변형 역할(GX-016)의 규칙 에셋·PCG 그래프·WIP 변경을 만든다.
+"""Ridge 대표 구역의 규칙 에셋·PCG 그래프·WIP 배치를 만든다.
 
 콘솔: py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/BuildRidgeDecorationPCG.py" <모드>
   blocker-mesh: Sandstone 파생 메시를 만들고 기존 단순 컨벡스를 충돌로 쓰게 한다(원본은 ComplexAsSimple).
-  rules: Ridge spec에서 구역·보호 형상을 다시 계산해 규칙 에셋을 만들거나 덮어쓴다(파생 데이터).
-  graph: PCG 그래프(V005, 바위·키 큰 식생·지피별 겹침 정리, 큰 바위 > 키 큰 식생 > 작은 바위 > 지피, Spawner 분리)가 없을 때만 만든다.
+  rules: Ridge spec에서 기본 규칙과 동선 안에 들어갈 키 큰 식생 규칙을 만든다.
+  graph: 바위 배치를 유지하고 키 큰 식생을 동선 안으로 넓히는 PCG 그래프(V006)를 만든다.
   place: 기존 WIP에 PCG 액터 1개를 만들고 생성한다.
   promote: 수동 바위5개를 Decoration에서 Static+Blocker로 바꾼다.
-  regenerate: 기존 PCG 액터를 현재 그래프(V005)로 바꿔 다시 생성한다.
+  regenerate: 기존 PCG 액터를 현재 그래프(V006)로 바꿔 다시 생성한다.
 맵 저장은 사용자 확인 뒤 따로 한다. 원본 메시/재질·정식 Ridge는 수정하지 않는다. 결과는 Saved 아래 JSON으로 남긴다.
-새 체크아웃: blocker-mesh → rules → graph → place → promote → 확인 뒤 WIP 저장.
+새 체크아웃: blocker-mesh → rules → graph → promote → 수동 바위 확인·WIP 저장 → place → 확인 뒤 WIP 저장.
 """
 import hashlib
 import json
@@ -27,15 +27,15 @@ from BuildRidgeSurfaceProbe import ZONE
 
 LEVEL = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/V001/LVI_Ridge_SurfaceProbe"
 FOLDER = "/Game/Graphics/Environment/ElectricDreams/RidgeDecoration_V001"
-RULES = FOLDER + "/DA_RidgeDecorationRules"
+RULES = FOLDER + "/DA_RidgeDecorationRules_V006"
+TALL_VEGETATION_RULES = FOLDER + "/DA_RidgeDecorationTallVegetationRules_V006"
 # V001(단일 Decoration Spawner)은 1-B5a, V002(한 번에 겹침 정리)는 1-B5b, V003(바위 > 식생)은 1-B5d 첫 생성의
 # 복구용으로 디스크에 남기고 쓰지 않는다.
-# V004(키 큰 식생 > 바위 > 지피)는 1-B5d 결과의 복구용이다. V005는 큰 바위를 Fern보다 앞세운다(1-B5e-3).
-GRAPH = FOLDER + "/PCG_RidgeDecoration_V005"
+# V004(키 큰 식생 > 바위 > 지피)는 1-B5d, V005(큰 바위 > Fern > 작은 바위 > 지피)는 1-B5e-3의 복구용이다.
+GRAPH = FOLDER + "/PCG_RidgeDecoration_V006"
 # 큰 바위 판별: 점 범위 절반 높이(스케일 전). 큰 바위65~159cm, 작은 바위 최대48cm.
 BIG_ROCK_EXTENT_Z = 55.0
-# 1-B5d 근거는 RidgeDecorationExpand_20261116, 1-B5e-3 변형 역할 추가부터 이 폴더에 쓴다.
-OUT = ROOT / "Saved/Profiling/Graphics/Phase01/RidgeDecorationVariants_20261117"
+OUT = ROOT / "Saved/Profiling/Graphics/Phase01/RidgeDecorationNewFamilies_20261118"
 ACTOR_LABEL = "GraphicsDecorationPCG_V001"
 CRUST_NAME = "SM_Octant_Ridge_00_V011_R30000"
 SEED = 51001
@@ -74,7 +74,7 @@ CAMERA_RADIUS = 150     # 벤치마크 카메라 경로·검토 시점: 근거�
 ZONE_INSET = 100        # 임시 시험 재질 경계(이진 마스크) 안에 메시 전체를 둔다.
 EXISTING_CLEARANCE = 30  # 수동 장식12개와 관통하지 않게 하는 최소 간격.
 # GX-015 역할별 2D 여유(Margin 기준, 음수면 Margin 안까지): 지피는 동선 형상 안까지(형상의 지피 허용),
-# 충돌 없는 Fern은 동선 반폭 가장자리까지(-50), 바위는 반폭+50(캡슐 여유만, 0).
+# V005의 Fern은 동선 반폭 가장자리까지(-50) 들어왔다. V006은 이 값을 바위 배치를 재현할 때 쓴다.
 FERN_PADDING = -CAPSULE_MARGIN
 # GX-018 충돌 바위는 GX-017로 줄어든 동선 반폭만큼 여유를 되돌려 구석으로 보낸다. 반폭50%+50에서 바위95개일 때
 # 1인 PIE blocker_rejects가 지상 이동 단계의12.5%(1-B5d 0.9%)였고 사용자는 적 이동이 부자연스럽다고 했다.
@@ -128,6 +128,23 @@ for big_id, mesh, height in (("BigSandstone04", SAND % 4, 205), ("BigSandstone05
     ROLES.append(dict(id=big_id, mesh=mesh, spacing=2000, probability=1.0, scale=(0.95, 1.05), slope=(0, 30),
                       sink=round(max(3.0, .05 * height), 1), wind=0, max_float=round(max(10.0, .05 * height), 1),
                       max_sink=round(max(25.0, .2 * height), 1), blocker=True, padding=BIG_ROCK_PADDING))
+
+# 1-B5f 근경 통과 크기에서 시작한다. 풀은 드문 자리를 채우고 낙엽·가지·꽃은 더 성기게 둔다.
+for group, family, spacing in (
+    ("3D_Plants", "KikuyuGrass", 400),
+    ("3D_Plants", "GroundCover", 450),
+    ("3D_Plants", "DeadLeaves", 700),
+    ("3D_Assets", "DryBranches", 650),
+    ("3D_Assets", "WoodenSticksAndTwigs", 550),
+    ("3D_Assets", "SmallStonesPack", 425),
+):
+    ROLES.append(dict(ROLES[0], id=family, mesh=f"/Game/Megascans/{group}/{family}/SM_{family}_01",
+                      spacing=spacing, scale=(1.0, 1.0)))
+
+# Fern 후보를 일부 덜어내 기존 간격과 변형 배치를 유지하면서 반복을 줄인다.
+TALL_VEGETATION = [dict(role, ground_cover=True, probability=0.8) for role in ROLES if role["id"].startswith("Fern")]
+TALL_VEGETATION.append(dict(ROLES[0], id="WhiteWindflower", spacing=800, scale=(1.0, 1.0),
+                            mesh="/Game/Megascans/3D_Plants/WhiteWindflower/SM_WhiteWindflower_01"))
 
 
 def write(name, value):
@@ -217,14 +234,31 @@ def keep_outs():
 
 
 def build_rules():
-    # 규칙 에셋만 저장하고 맵은 저장하지 않으므로, 직전 재생성으로 dirty인 WIP는 허용한다.
-    require_wip_clean(allowed=(RULES, LEVEL))
-    tools = unreal.AssetToolsHelpers.get_asset_tools()
-    rules = unreal.load_asset(RULES)
-    if rules is None:
-        rules = tools.create_asset(RULES.split("/")[-1], FOLDER, unreal.LNPDecorationRuleData, None)
-    assert rules
+    # 동선 형상의 지피 허용을 Fern·꽃에도 쓰되 Pod 등 3D 보호는 적용한다.
+    require_wip_clean(allowed=(RULES, TALL_VEGETATION_RULES, LEVEL))
     k2, k3 = keep_outs()
+    tall_k3 = [dict(shape, ground_cover=False) for shape in k3]
+    save_rules(RULES, k2, k3, ROLES)
+    save_rules(TALL_VEGETATION_RULES, k2, tall_k3, TALL_VEGETATION)
+    write("Rules.json", {"asset": RULES, "seed": SEED, "keep_out_2d": k2, "keep_out_3d": k3, "roles": ROLES,
+                         "tall_vegetation": {"asset": TALL_VEGETATION_RULES, "keep_out_3d": tall_k3,
+                                             "roles": TALL_VEGETATION},
+                         "margins_cm": {"capsule": CAPSULE_MARGIN, "cover_rock": COVER_ROCK_MARGIN,
+                                        "route_half_width": ROUTE_HALF_WIDTH, "gate_half_width": GATE_HALF_WIDTH,
+                                        "landing_radius": LANDING_RADIUS, "hook_line_radius": HOOK_LINE_RADIUS,
+                                        "camera_radius": CAMERA_RADIUS, "zone_inset": ZONE_INSET,
+                                        "existing_clearance": EXISTING_CLEARANCE, "fern_padding": FERN_PADDING,
+                                        "blocker_padding": BLOCKER_PADDING, "big_rock_padding": BIG_ROCK_PADDING,
+                                        "path_half_scale": PATH_HALF_SCALE, "pod_core_radius": POD_CORE_RADIUS}})
+
+
+def save_rules(asset_path, k2, k3, definitions):
+    if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+        rules = unreal.load_asset(asset_path)
+    else:
+        tools = unreal.AssetToolsHelpers.get_asset_tools()
+        rules = tools.create_asset(asset_path.split("/")[-1], FOLDER, unreal.LNPDecorationRuleData, None)
+    assert rules, asset_path
     shapes2 = []
     for s in k2:
         shape = unreal.LNPDecorationKeepOut2D()
@@ -244,12 +278,16 @@ def build_rules():
         shape.set_editor_property("allow_ground_cover", s.get("ground_cover", False))
         shapes3.append(shape)
     roles = []
-    for r in ROLES:
+    for r in definitions:
         role = unreal.LNPDecorationRole()
         role.set_editor_property("id", r["id"])
-        role.set_editor_property("mesh", unreal.load_asset(r["mesh"]))
+        mesh = unreal.load_asset(r["mesh"])
+        assert mesh, r["mesh"]
+        role.set_editor_property("mesh", mesh)
         if r.get("material"):
-            role.set_editor_property("material_override", unreal.load_asset(r["material"]))
+            material = unreal.load_asset(r["material"])
+            assert material, r["material"]
+            role.set_editor_property("material_override", material)
         role.set_editor_property("spacing", float(r["spacing"]))
         role.set_editor_property("probability", float(r["probability"]))
         role.set_editor_property("scale_range", unreal.Vector2D(*r["scale"]))
@@ -277,31 +315,28 @@ def build_rules():
     rules.set_editor_property("keep_out3d", shapes3)
     rules.set_editor_property("roles", roles)
     assert unreal.EditorAssetLibrary.save_loaded_asset(rules, False)
-    write("Rules.json", {"asset": RULES, "seed": SEED, "keep_out_2d": k2, "keep_out_3d": k3, "roles": ROLES,
-                         "margins_cm": {"capsule": CAPSULE_MARGIN, "cover_rock": COVER_ROCK_MARGIN,
-                                        "route_half_width": ROUTE_HALF_WIDTH, "gate_half_width": GATE_HALF_WIDTH,
-                                        "landing_radius": LANDING_RADIUS, "hook_line_radius": HOOK_LINE_RADIUS,
-                                        "camera_radius": CAMERA_RADIUS, "zone_inset": ZONE_INSET,
-                                        "existing_clearance": EXISTING_CLEARANCE, "fern_padding": FERN_PADDING,
-                                        "blocker_padding": BLOCKER_PADDING, "big_rock_padding": BIG_ROCK_PADDING,
-                                        "path_half_scale": PATH_HALF_SCALE, "pod_core_radius": POD_CORE_RADIUS}})
-    unreal.log("Ridge decoration rules saved: %d 2D, %d 3D keep-outs, %d roles." % (len(k2), len(k3), len(ROLES)))
+    unreal.log("Ridge decoration rules %s saved: %d 2D, %d 3D keep-outs, %d roles." %
+               (asset_path, len(k2), len(k3), len(roles)))
 
 
 def build_graph():
-    existing = unreal.load_asset(GRAPH)
-    if existing is not None:
+    if unreal.EditorAssetLibrary.does_asset_exist(GRAPH):
         # 디스크에 저장된 그래프는 덮지 않는다. 직전 실패로 메모리에만 남은 미완성 그래프만 지우고 다시 만든다.
-        assert not unreal.EditorAssetLibrary.does_asset_exist(GRAPH) or not (
-            ROOT / ("Content" + GRAPH[5:] + ".uasset")).exists(), "Graph already saved; inspect it instead of rebuilding."
+        graph_file = ROOT / ("Content" + GRAPH[5:] + ".uasset")
+        assert not graph_file.exists(), "Graph already saved; inspect it instead of rebuilding."
+        existing = unreal.load_asset(GRAPH)
+        assert existing, GRAPH
         assert unreal.EditorAssetLibrary.delete_loaded_asset(existing)
     rules = unreal.load_asset(RULES)
-    assert rules, "Build rules first."
+    tall_rules = unreal.load_asset(TALL_VEGETATION_RULES)
+    assert rules and tall_rules, "Build rules first."
     tools = unreal.AssetToolsHelpers.get_asset_tools()
     graph = tools.create_asset(GRAPH.split("/")[-1], FOLDER, unreal.PCGGraph, unreal.PCGGraphFactory())
     assert graph
     sampler_node, sampler = graph.add_node_of_type(unreal.LNPDecorationSamplerSettings)
     sampler.set_editor_property("rules", rules)
+    tall_sampler_node, tall_sampler = graph.add_node_of_type(unreal.LNPDecorationSamplerSettings)
+    tall_sampler.set_editor_property("rules", tall_rules)
     blocker_filter_node = add_attribute_filter(graph, "TerrainBlocker")
     cover_filter_node = add_attribute_filter(graph, "GroundCover")
     big_filter_node = add_attribute_filter(graph, "$Extents.Z", BIG_ROCK_EXTENT_Z)
@@ -315,6 +350,7 @@ def build_graph():
     tall_difference_node = add_difference(graph)
     rock_difference_node = add_difference(graph)
     cover_difference_node = add_difference(graph)
+    vegetation_difference_node = add_difference(graph)
     blocker_node = add_spawner(graph, BLOCKER_TAGS, BLOCKER_PROFILE)
     decoration_node = add_spawner(graph, [DECORATION_TAG], DECORATION_PROFILE)
     graph.add_edge(sampler_node, "Out", blocker_filter_node, "In")
@@ -333,12 +369,17 @@ def build_graph():
     graph.add_edge(big_filter_node, "InsideFilter", blocker_node, "In")
     graph.add_edge(rock_difference_node, "Out", blocker_node, "In")
     graph.add_edge(cover_difference_node, "Out", decoration_node, "In")
-    graph.add_edge(tall_difference_node, "Out", decoration_node, "In")
+    # V005의 Fern 가지는 작은 바위 위치만 결정한다. 실제 Fern·꽃은 서로 겹칠 수 있고 채택된 바위만 피한다.
+    graph.add_edge(tall_sampler_node, "Out", vegetation_difference_node, "Source")
+    graph.add_edge(big_filter_node, "InsideFilter", vegetation_difference_node, "Differences")
+    graph.add_edge(rock_difference_node, "Out", vegetation_difference_node, "Differences")
+    graph.add_edge(vegetation_difference_node, "Out", decoration_node, "In")
     graph.add_edge(blocker_node, "Out", graph.get_output_node(), "Out")
     graph.add_edge(decoration_node, "Out", graph.get_output_node(), "Out")
     layout = [(sampler_node, 0, 0), (blocker_filter_node, 300, 0), (cover_filter_node, 600, 150),
               (prune_blocker_node, 600, -150), (big_filter_node, 900, -150), (prune_cover_node, 900, 300),
               (prune_tall_node, 900, 100), (tall_difference_node, 1200, 100), (rock_difference_node, 1500, -100),
+              (tall_sampler_node, 0, 500), (vegetation_difference_node, 1800, 500),
               (cover_difference_node, 1800, 300), (blocker_node, 2100, -150), (decoration_node, 2100, 200)]
     for node, x, y in layout:
         node.set_node_position(x, y)

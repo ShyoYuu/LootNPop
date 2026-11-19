@@ -1,8 +1,8 @@
 # Phase 1-B — 환경 반입과 작은 시험
 
-> 상태: 1-B5e 같은 계열 변형 마감(반입 §27·근경 §28·역할/보호 완화/바위 축소 §29, 384개·재베이크·1인 PIE) · 다음 1-B5f 새 계열·충돌 없는 식생 확대
+> 상태: 1-B5f V006 저장·1인 PIE 마감(§30~33) · 다음은 [Phase 1-BR](Phase01_RidgeReferencePatch.md)
 > 작성: 2026-11-14
-> 마지막 갱신: 2026-11-17
+> 마지막 갱신: 2026-11-18
 > 상위: [Phase 1 실행서](Phase01_BenchmarkContent.md)
 > 선정 원본: [1-B0 결과](Phase01_RidgeZonePalette.md) §8
 
@@ -21,8 +21,8 @@
 | 1-B5c 밀도 확인 | 간격 배율을 메모리에서만 바꿔 생성·캡처하고 밀도 방향을 정함(§25) | 원래 값 복원·검사 대조, 사용자 방향 결정 |
 | 1-B5d 규칙 확장 | 동선 등급별 완화·구석 밀도·겹침 정리 분리(§26, GX-015) | 사용자 밀도 판정·재베이크·1인 PIE 접촉/Nav/`blocker_rejects` |
 | 1-B5e 같은 계열 변형 | Sandstone·Moss·Clover·Fern 변형 반입과 근경 시험(§26) | 반입 대조·근경 판정·역할 추가 뒤 밀도 재판정 |
-| 1-B5f 새 계열·식생 확대 | 사암 톤 새 계열 반입, Fern 겹침·동선 안쪽 허용(§29) | 반입 대조·근경·동선 근처 식생 밀도 판정·재베이크·PIE |
-| 1-B6 전체 확장 | 승인한 대표 구역 규칙을 Ridge로 확장 | 적도·이음매·다른 slot·전투/훅 동선 및 패키지 검증 |
+| 1-B5f 새 계열·식생 확대 | 사암 톤 새 계열 반입, Fern 겹침·동선 안쪽 허용(§30~33) | 반입 대조·근경·동선 근처 식생 밀도 판정·V006 저장·1인 PIE |
+| 1-BR Ridge 지표 교체 | [별도 Phase](Phase01_RidgeReferencePatch.md)에서 경계 전이부를 뺀 Ridge 지표 전체를 ED 지형 조립·파생 충돌 프록시로 교체하고 배경 프랍을 채움(GX-021). 기존 1-B6 전체 확장을 흡수 | 러프 PIE 동선 게이트, 배경 프랍·재베이크·PIE, 재생성 절차 |
 
 1-B3·4는 결과를 보고 더 작은 구현 단위로 나눈다. 성능 판정은 패키지에서만 한다. 파라곤 선정은 1-C다.
 
@@ -756,7 +756,7 @@ V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. �
 
 - 후보: `SandstoneBoulder_02~05`, `MossyForestBoulder_01~05·07`, `CloverVarieties_02~05`, `Fern_02~06`. 재질 계열이 같아 반입·검증이 가볍다. 반입은 사용자가 8001에서 수동 Migrate한다(§3 방식). 바위 변형은 1-B5b와 같은 충돌 형상 확인(ComplexAsSimple이면 파생 메시)이 필요하다.
 - 변형마다 역할을 하나씩 두고 간격을 변형 수만큼 넓혀 총밀도를 유지한다(데이터만 변경). 근경 판정 뒤 밀도를 다시 본다.
-- **낮은 우선순위 비교(사용자 요청 2026-11-16):** Electric Dreams 원본 레벨 수준의 아주 우거진 식생을 메모리 전용 변형으로 한 번 비교한다. 변형·새 계열 반입 뒤에 한다(4종으로는 반복이 먼저 보인다). 경사·보호 규칙도 함께 완화한 별도 규칙 사본으로 만들고 저장·재베이크하지 않는다. 비용은 패키지에서만 판정한다.
+- **원본 고밀도 비교(2026-11-18 갱신):** 기존 메모리 전용 밀도 비교 후보는 사용자 요청으로 [Phase 1-BR](Phase01_RidgeReferencePatch.md)에 이관했다.
 - 그다음 새 계열 후보(사암 톤): 잔돌 `SmallStonesPack`, 낙엽 `DeadLeaves`, 마른 가지 `DryBranches`·`WoodenSticksAndTwigs`, 풀 `KikuyuGrass`·`GroundCover`, 꽃 1~2종. 하상처럼 네모 외곽이 보이는 지면 조각은 근경에서 먼저 거른다. 야자·토란 같은 열대 식생은 제외한다.
 
 ## 27. 1-B5e-1 변형 반입·로드 검사(2026-11-17, 마감)
@@ -844,3 +844,40 @@ V005 적용 WIP의 `save_assets`는 **자동 승인 검토가 거부**했다. �
 - 에디터가 사이에 한 번 재시작됐다(`QUIT_EDITOR`, 저장 없이 종료). 디스크에 저장된 규칙·그래프로 같은 결과를 다시 생성했다.
 
 근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationVariants_20261117/`의 `BeforeVariants*`·`Hashes_before.txt`·`Rules.json`·`Inspection_Variants/Relaxed_Big6m/V005/V005_RockSparse.json`·`SaveWip.json`·`SelectionState.json`·`Hashes_prePIE.txt`다. 재현: WIP 열기 → `BuildRidgeDecorationPCG.py rules`·`graph`(V005)·`regenerate` → 검사 → `save_current_level` → TestMap03 `LNP.SurfaceNav.BakeOctant <WIP>`.
+
+## 30. 1-B5f-1 새 계열 반입·로드 검사(2026-11-18, 마감)
+
+- Electric Dreams(8001)에서 `SmallStonesPack`·`DryBranches`·`WoodenSticksAndTwigs`·`DeadLeaves`·`KikuyuGrass`·`GroundCover`·`WhiteWindflower`의 `SM_*_01` 7개를 선택하고 사용자가 LootNPop `Content`로 Migrate했다.
+- Migrate 로그에서 43패키지(298.5MiB) 반입과 덮어쓰기 프롬프트의 `NoAll` 응답을 확인했다. `Megascans` 39개, `Custom/CustomMaterials` 3개, `PhysicalMaterials/PhysMat_Dirt` 1개다. `PhysMat_Dirt`는 `MI_DryBranches_01`의 의존성이므로 해당 파일만 `.gitignore`에 추가했다. 반입본 43개가 모두 Git 제외다. 반입 전후 `Megascans` 비교에서 대상 기존 파일 100개와 원본 파일 1,326개의 목록·크기·수정 시각이 같았다.
+- LootNPop(8000)의 TestMap03에서 PIE 없이 검사했다. 메시 7개 모두 레지스트리 등록·로드·유효한 바운드·재질 슬롯 연결을 확인했다. `WhiteWindflower_01`의 실효 재질은 `MI_WhiteWindflower_02`다. 에디터가 조회한 전이 `/Game` 패키지 79개에 반입본 43개가 모두 포함됐고 누락은 0개였다. 로드 구간 경고·오류 0개, 메시 dirty 변화 0개, `Megascans` 신규 39개 파일의 로드 전후 SHA256 차이 0개였다.
+- 다음 단위는 Ridge WIP의 임시 근경 배치다. 구면 지각 접지, 잔돌과 가지의 실제 크기, 낙엽의 깔개 외곽과 식생 표시를 확인해 채택할 후보를 고른다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeNewFamilyImport_20261118/`의 반입 전후 파일 목록, `Migrate.log`·`MigratedPackages.tsv`·`NewFiles_sha_before_load.tsv`·`LoadInspection.json`·`Verification.json`·`LoadInterval.log`다.
+
+## 31. 1-B5f-2 새 계열 근경 시험(2026-11-18, 마감)
+
+- 기존 근경 시험의 배치·카메라 로직을 재사용했다. 첫 월드 Visibility 조회에서 접점 0개가 나와 PCG 샘플러와 같은 지각 컴포넌트 직접 조회로 바꿨다. Python `HitResult`의 점·법선 필드는 직접 접근할 수 없어 조회가 별도로 반환하는 위치·법선 벡터를 사용했다.
+- Ridge WIP 대분지에 7종을 원래 크기로 임시 배치했다. 경사는 0.2~0.4°이고 메시 바운드 바닥의 네 모서리와 중심은 모두 0.7cm 묻혔다. 에디터에서 시험 액터 7개와 `LNPDecoration`/`NoCollision`을 확인했다. WIP·SurfaceData·규칙·그래프 V005 4파일의 SHA256은 시험 전과 같다.
+- 사용자는 7종 모두 배경에 어울리고 어색한 부분이 없다고 판정했다. 잔돌 `SmallStonesPack_01`의 바운드는 13.1×9.2×8.3cm다. 플레이어 표시 메시 `SKM_Manny_Simple`을 원래 크기로 옆에 두고 비교한 뒤 잔돌도 `NoCollision`으로 채택했다. 보행 중 실제 발 관통 여부는 이 근경 시험에서 측정하지 않았다.
+- 장식 7개와 비교용 Manny 1개를 제거했고 남은 시험 액터는 0개다. WIP는 메모리에서 dirty이며 WIP·SurfaceData·규칙·그래프 디스크 해시는 시험 전과 같다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeNewFamilyCloseup_20261118/`의 `ProbeNewFamilies.py`·`Placement.json`·`BeforeCloseup.tsv`·`CloseupVerdict.json`이다.
+
+## 32. 1-B5f-3 PCG 새 계열·Fern 동선 확대(2026-11-18, 저장 완료)
+
+- `BuildRidgeDecorationPCG.py`의 `rules`·`graph`·`regenerate`로 V006을 준비했다. 기존 Fern 정리 결과는 작은 바위 위치를 재현하는 데 사용한다. 화면에 표시하는 Fern·꽃은 별도 샘플러에서 동선 형상 안을 허용하고, Pod·착지·훅·카메라 3D 보호와 바위 겹침 제거를 적용한다. 이 식생 가지에는 Self Pruning을 두지 않았다.
+- 돌과 가지, 낙엽, 낮은 풀은 지피 분기에서 배치했다. 새 7종은 근경 시험과 같은 스케일 1을 사용했다. 시드 51001 미리보기는 신규 7종 311개, Clover 275개, 바위 29개, Fern 1,075개로 총 1,690개다. 기존 PCG 바위 29개와 수동 바위 설정은 V005와 일치했다. 새 7종과 Fern은 모두 `NoCollision`이고 내비에 영향을 주지 않는다. Fern 원점 421개는 동선 반폭 안에 있었다.
+- 첫 실행의 경고 3건은 새 규칙 2개와 그래프를 생성 전에 로드할 때 나왔다. 에셋 3개는 모두 저장됐고 생성 오류는 0건이다. 빌더는 이제 에셋이 있을 때만 로드한다. 이 수정은 신규 경로 재생성으로 재검증하지 않았다.
+- 사용자는 전체 밀도가 괜찮지만 Fern 형태의 반복이 눈에 띈다고 판정했다. 화면에 표시하는 Fern 6종만 후보 확률을 100%에서 80%로 내렸다. 같은 시드에서 Fern 229개만 빠져 846개(동선 안 331개)가 됐고, 바위를 포함한 다른 인스턴스의 위치·회전·스케일과 충돌 계약은 모두 일치했다. 총 1,461개이며 재생성 로그 경고·오류는 모두 0건이다.
+- 사용자가 Fern 조정안을 승인해 WIP 한 장을 저장했다. 디스크의 V006 그래프 참조와 에디터의 WIP dirty=false를 확인했다. 파일 크기는 1,045,509B다. 대조 파일 8개 중 WIP만 바뀌었고, SurfaceData는 기존 schema11이다. 저장 배치의 1인 PIE는 다음 확인 범위다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationNewFamilies_20261118/`의 `BeforeV005.json`·`Inspection_V006*.json`·`Verification.json`·`PreviewV006.log`·`PreviewFernDensity.log`·`SaveWip.json`이다.
+
+## 33. 1-B5f 1인 PIE 확인(2026-11-18, 마감)
+
+- TestMap03에서 검사용 풀을 메모리로만 선택했다. EnemyDensity는 시작값 1을 유지했다. 이 실행의 Ridge WIP는 slot 1이다. SurfaceData는 8개 slot·274개 source binding으로 게시됐고 이음매 반경 차이는 0cm였다.
+- PIE 월드의 Ridge PCGVolume을 조회했다. ISM 26개에서 1,461개 인스턴스를 읽었고 메시별 개수는 저장 전 V006 확인값과 모두 일치했다.
+- 캐릭터 1명이 `LNP.Debug.TeleportToOctant 1 3298.8 -2061.1 -3999`로 이동한 로그가 있다. 사용자는 보행·시야 확인 뒤 어색한 부분이 없다고 판정했다. 별도 `WhereAmI` 바닥 진단은 기록되지 않았다. PIE 오류 0건, 시작 시 GameplayCue 검색 경로 안내 경고 1건이었다.
+- PIE 종료를 확인하고 검사용 풀을 원래 `/Game/Maps/OctantPoolData`로 복원했다. Ridge WIP와 시작 카메라로 돌아왔고 WIP는 dirty=false다. WIP·SurfaceData·V006 에셋·풀·DefaultGame.ini 대조 파일 8개 해시가 PIE 전과 같다.
+
+근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationNewFamilies_20261118/`의 `BeforePIE.tsv`·`PIERun.log`·`PIEInstances.json`·`SelectionState.json`이다.

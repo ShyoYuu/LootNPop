@@ -41,7 +41,8 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 | 현재 Phase 구현 | `Current.md`가 가리키는 `phases/PhaseNN_*.md` |
 | Phase 1의 1-A 마감·출발 기준선과 다음 1-B 준비 | [Phase 1 실행서](phases/Phase01_BenchmarkContent.md) §13, [출발 기준선 보고서](analysis/Phase01_StartBaselineReport.md), [기존 1-B0 선정](phases/Phase01_RidgeZonePalette.md) §8 |
 | Phase 1 Ridge 대표 구역·Electric Dreams 팔레트·장식 금지 규칙 | [1-B0 구역·팔레트](phases/Phase01_RidgeZonePalette.md) |
-| Phase 1-B 반입·재생성·좌표/재질·소수 배치/바람·샘플 비용/반복 원인/회전·변형 반입·WIP 베이크/런타임·접촉 검증·대표 구역 PCG·바위 Blocker 승격·밀도·동선 등급별 완화와 새 세션 인계 | [Current](Current.md), [환경 반입 실행서](phases/Phase01_EnvironmentImport.md) §7~29, [현재 팔레트](phases/Phase01_RidgeZonePalette.md) §10 |
+| Phase 1-B 반입·재생성·좌표/재질·소수 배치/바람·샘플 비용/반복 원인/회전·변형 반입·WIP 베이크/런타임·접촉 검증·대표 구역 PCG·바위 Blocker 승격·밀도·동선 등급별 완화와 새 세션 인계 | [Current](Current.md), [환경 반입 실행서](phases/Phase01_EnvironmentImport.md) §7~33, [현재 팔레트](phases/Phase01_RidgeZonePalette.md) §10 |
+| Ridge 지표 전체 Electric Dreams 교체(경계 고리+기반면 지각, ED 지형 조립, 충돌 프록시, 러프 PIE 게이트, 배경 프랍) | [Phase 1-BR](phases/Phase01_RidgeReferencePatch.md) |
 | 네 개선 완료 뒤 통합 검증·재측정·Phase0 마무리 | [개선 후 재개 절차](phases/Phase00_PostOptimization.md) |
 | 측정 지표·절차·노트북 측정 함정·보고 형식 | `design/Measurement.md` |
 | Phase0 공통 기준선 수치·개선 전후·남은 GPU 비용 요약 | [Phase0 기준선 보고서](analysis/Phase00_BaselineReport.md) |

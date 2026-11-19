@@ -1,0 +1,278 @@
+# Phase 1-BR — Ridge 지표 Electric Dreams 교체
+
+> 상태: 계획 확정 · U1 착수 대기
+> 순서: 1-B5f → 1-BR(기존 1-B6 전체 교체를 흡수) → 1-C
+> 상위: [그래픽스 로드맵](../Roadmap.md) §2·§4, [Phase 1 실행서](Phase01_BenchmarkContent.md) §3, [확정 결정](../Decisions.md) GX-019·GX-021
+> 마지막 갱신: 2026-11-19
+
+## 1. 목표
+
+Ridge_00(V011)는 플레이 동선만 고려한 로우폴리 프로토타입 지형이다. 이 Phase에서는 옥탄트 경계 전이부를 뺀 **Ridge 지표 전체**를 Electric Dreams(ED) 지형 에셋과 ED 스타일 배경 프랍으로 교체한다.
+
+- V011은 설계도로만 쓴다. 직행·우회, 전투장, 엄폐·사선, Pod·훅·착지를 읽는 기준이다.
+- 세부 형태는 바뀌어도 된다. 플레이 동선이 대략 성립하면 된다.
+- 기존 10×10m 시험 구역 단계는 생략한다(GX-020 대체, GX-021). 대신 첫 구역 Z1을 파일럿으로 삼아 충돌·베이크 파이프라인을 먼저 통과시킨다(§4 U4).
+
+진행 순서는 다음과 같다.
+
+1. 지각을 새로 굽는다.
+2. ED 지형을 조립한다.
+3. 러프 PIE로 동선을 확인한다(게이트).
+4. 배경 프랍을 채운다.
+
+## 2. 확정 방식(GX-021, 2026-11-19 사용자)
+
+| 항목 | 결정 |
+|:---|:---|
+| 보행면 | **고리+기반면.** 지각은 경계 고리와 매끈한 기반면 한 장으로 만든다. 기반면에는 ED 지형 재질을 입히고, ED 원본의 Landscape 역할을 맡긴다. 절벽·능선·메사·첨탑·둑은 ED 메시로 세운다. |
+| 충돌 | **배치에서 파생한 프록시.** ED 메시는 보이기만 한다(`Decoration`/`LNPDecoration`). 구역별 배치를 Blender에서 합쳐 저폴리 `_Floor`(Support+Blocker)와 `_Shell`(Blocker)을 따로 굽는다. |
+| 범위 | **지표 먼저.** 동굴(대전당·산괴 동굴), 부유섬 2개, 하늘 석교는 V011 형상을 임시로 유지하고 다음 패스에서 교체한다. |
+| 조립 | **초벌은 스크립트, 다듬기는 수동.** V011 고스트 설계도를 깔고 구면에 정렬한 초벌 배치를 Python으로 놓는다. 사용자가 에디터에서 구도와 이음을 다듬는다. 결과는 JSON으로 되읽어 재생성 원본으로 삼는다. |
+
+이 방식을 고른 이유는 다음과 같다.
+
+- 옥탄트 면적은 약 14만㎡이고 한 변이 약 470m다. ED 바닥 메시는 수 m짜리 패치이고 가장 큰 절벽도 30m 정도다. 그래서 넓은 평지를 ED 메시만으로 덮을 수 없다. 틈이 생기면 그 자리로 외우주에 추락한다.
+- 베이크는 일반 StaticMesh의 단일 complex-as-simple trimesh만 Support로 받는다. ISM Support는 막혀 있다(SSN D-058). ED Nanite 메시는 대부분 단순 충돌이 없다.
+- 바닥이 조각나면 Layer가 갈린다. 그러면 Pod 편성 후보(같은 Layer, 반경 15m 안 27명)가 모자란다. Ridge V007에서 실제로 그런 일이 있었다.
+
+**C++ 변경은 계획에 없다.** 기존 베이커·수집기·PCG 샘플러 계약 안에서 해결한다. C++ 변경이 필요해지면 에디터 빌드 전에 사용자에게 확인한다.
+
+## 3. 보존과 작업 위치
+
+| 구분 | 경로·처리 |
+|:---|:---|
+| 새 WIP | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/` (Git 제외) |
+| 비교·복구 기준(수정 금지) | V006 WIP `Graphics/V001/LVI_Ridge_SurfaceProbe`, `ReferencePatch_V001/LVI_Ridge_ReferencePatch_V001`, 정식 Ridge(`/Game/Maps/Ridge_00/`)와 정식 풀 |
+| 재생성 원본(Git 추적) | 이 Phase에서 만드는 스크립트와 JSON(§7) |
+
+V006 장식 1,461개는 새 LVI로 옮기지 않는다. 그 규칙과 노드는 U7에서 재사용한다.
+
+## 4. 단위별 실행 계획
+
+단위마다 결과를 보고하고 다음 진행을 확인한다. 기존 미저장 사용자 변경은 임의로 버리거나 저장하지 않는다.
+
+### U1. 설계도 추출(V011 → 조립 기준)
+
+새 `Scripts/Profiling/Graphics/ExportRidgeBlueprint.py`는 `Scripts/RidgeOctantSpec.py`를 import해서 `RidgeBlueprint_V001.json`을 만든다. 담는 내용은 다음과 같다.
+
+- 구역 다각형과 높이(PLATES 단 높이, BASINS)
+- 단 가장자리 절벽선과 높이차. ED 절벽이 들어갈 자리다.
+- PATHS 중심선·반폭, ROUTES
+- PODS 12, ANCHORS 6, NODES 27
+- VIEWS, SIGHT_EXPECTATIONS
+- CAVES·ISLANDS·석교 보존 영역
+
+조립 기준이 될 고스트도 만든다.
+
+- V011 지각과 Rocks를 새 LVI 안에 반투명 재질로 둔다. 설정은 `Decoration`/`LNPDecoration`/HiddenInGame이다.
+- 고스트는 조립 기준으로만 쓰고 최종 베이크 전에 제거한다.
+- 동선 보호 형상은 기존 `DrawRidgeDecorationKeepOuts.py`로 그린다.
+
+**확인 기준:** 새 LVI에서 고스트와 보호 형상이 보이고, JSON의 Pod·훅·검토점 좌표가 V011 마커와 일치한다.
+
+### U2. ED 지형 에셋 선정과 반입
+
+역할별 후보는 다음과 같다(원본 디스크 조사 기준).
+
+| 역할 | 후보 |
+|:---|:---|
+| 단 가장자리·큰 절벽면 | HugeSandstoneCliff_01~08, MassiveSandstoneCliff_01~06, SmartAssets `SM_Cliff_02~19` |
+| 협곡 벽(최대 약 80m) | Massive와 Huge 계열을 쌓아서 만든다 |
+| 능선·메사 윤곽 | CanyonSandstoneRidge_01~04, MassiveCanyonSandstoneMesa_01, GiganticSandstoneTerrain |
+| 둑·완사면 | GrassyEmbankment, RiverbedEmbankment, SandstoneRockyGround |
+| 첨탑·암괴 | ForestRockFormation, NordicBoulder |
+| 하상 | 기존 01~04(§8)의 재질 혼합 결과를 재사용한다 |
+
+- 원본 ED 에디터에서 읽기 전용으로 bounds, Nanite fallback 삼각형 수, 충돌 설정, 실효 MI를 조사한다. 결과는 `EDTerrainCatalog_V001.json`에 남긴다.
+- VRAM 한계(7.6/8.2GiB) 때문에 원본 에디터와 LootNPop 에디터를 동시에 띄우지 않는다.
+- **Migrate는 사용자가 직접 한다.** `/Game` 경로를 유지하고, 덮어쓰기 확인에서는 "모두 아니요"를 고른다.
+- 반입 뒤에는 `ElectricDreamsPalette.json`에 목록과 해시를 추가하고, 새 폴더가 Git에서 제외되는지 확인한다.
+- 원본 계열별 폴더 크기는 HugeSandstoneCliff 1.7G, MassiveSandstoneCliff 1.1G, SandstoneRockyGround 791M, ForestRockFormation 710M, CanyonSandstoneRidge 642M다. 반입량은 Migrate 의존성 목록으로 확정한다.
+
+**확인 기준:** 역할마다 치수가 맞는 후보와 실효 재질이 있고, 반입 목록과 해시가 기록되어 있다.
+
+### U3. 지각 V012: 경계 고리 + 기반면(Blender)
+
+새 spec 모듈은 `Scripts/RidgeEDBaseSpec.py`다.
+
+- RidgeOctantSpec을 import해서 쓴다. V011 재현성을 지키기 위해 원본 spec은 수정하지 않는다.
+- `base_ground()`는 V011 높이장을 저역 통과한 값이다. 단·절벽·협곡 벽은 완만한 산괴와 골짜기로 바뀐다.
+- 다음 높이는 고정한다. 그래서 기반면만으로도 동선이 대략 성립한다.
+  - PATHS·ROUTES 노면
+  - Pod 섬, 착지부
+  - 동굴 입구 고리, 석교 교대
+
+새 빌더는 `Scripts/Blender/BuildRidgeEDBase.py`다. `BuildRidgeOctant.py`의 `crust()`(301-427)와 `finish()`(207-285) 흐름을 재사용한다.
+
+- Meadow 이음매의 native 띠 15m는 그대로 보존하고, 15→55m 구간은 블렌드한다.
+- Rocks는 동굴·부유섬·석교 부분만 남긴다. 첨탑·엄폐 암반·외곽 바위는 ED로 대체하므로 뺀다.
+- 걷는 지각의 최고점은 +78m 이하로 둔다(Layer 0 ±81.9m 한계).
+
+검증과 반입:
+
+- 검증은 `VerifyRidgeOctant.py`의 변형으로 한다. seam 평면 경계, 진입 광선, 경로·Pod 검사를 기반면 기준으로 돌린다.
+- UE 반입은 `AssembleRidgeOctant.py` 흐름을 새 폴더로 돌린다.
+  - `snap_seam`, 태그, 프로필, `CTF_UseComplexAsSimple`을 적용한다.
+  - 마커(Pod 12, 훅 6, 검토점 27)는 기반면에 다시 투영해 복사한다.
+  - 지각 재질은 RidgeSurface V005다.
+- **조기 확인:** 기반면만으로 한 번 베이크해서 파이프라인과 seam delta 0을 확인한다. 짧은 확인이고 PIE는 선택이다.
+
+**확인 기준:** Blender 검증 통과, UE seam 스냅 최대 보정 ≤0.05cm, 기반면 베이크 무오류.
+
+### U4. ED 지형 조립(구역별)
+
+새 `Scripts/Profiling/Graphics/PlaceRidgeEDTerrain.py`의 서브커맨드는 다음과 같다.
+
+| 서브커맨드 | 하는 일 |
+|:---|:---|
+| `place` | 배치 JSON을 읽어 액터를 놓는다. 항목은 에셋, 로컬 X/Y, 높이 오프셋, 현지 Up 기준 yaw, 기울기, 스케일이다. 현지 Up은 `-normalize(pos)`이고 메시 +Z를 현지 Up에 맞춘다. 결과는 `EDTerrain/<Zone>` 폴더의 StaticMeshActor(`Decoration`/`LNPDecoration`)다. |
+| `export` | 사용자가 손으로 다듬은 실제 transform을 되읽어 `EDTerrainPlacement_V001.json`에 쓴다. 이 파일은 Git에 추적하는 재생성 원본이다. |
+| `clear` | 해당 구역을 지운다. |
+
+구역 순서는 다음과 같다.
+
+| 구역 | 범위 |
+|:---|:---|
+| **Z1(파일럿)** | 대분지·협곡 하류. Z1만 끝내면 U5·U6을 Z1에 한 번 돌려 프록시 파이프라인을 검증한 뒤 나머지로 간다. |
+| Z2 | 협곡(석교 아래) |
+| Z3 | 산괴 계단·왕관 정상 |
+| Z4 | 남쪽 메사 |
+| Z5 | 북쪽 고개·대지·잔도 |
+| Z6 | 골짜기 층계참·보스 고원 |
+| Z7 | 외곽 보조 지형 |
+
+배치 규칙:
+
+- ED 메시는 seam 평면에서 5m 안에 두지 않는다. 충돌 프록시는 20m 안에 두지 않는다.
+- PATHS 반폭은 GX-017 기준으로 비운다. Pod 중심 9m와 훅 사선(SIGHT_EXPECTATIONS)도 보호한다.
+- 30m를 넘는 평면 메시는 곡률 처짐을 고려해 조각마다 기울기를 따로 준다.
+
+**확인 기준:** 구역마다 `export` JSON이 남아 있고, `clear` → `place`로 같은 배치가 재현된다.
+
+### U5. 충돌 프록시와 기반면 절개(Blender)
+
+UE에서 내보내는 것:
+
+- 고유 메시는 Nanite fallback LOD로 한 번씩 FBX로 내보낸다. 4M 삼각형 원본은 쓰지 않는다.
+- 여기에 배치 JSON을 함께 넘긴다.
+
+새 `Scripts/Blender/BuildRidgeEDCollision.py`는 구역별로 다음을 한다.
+
+1. 인스턴스를 만들고 합친 뒤 voxel remesh(약 30cm)와 decimate를 건다.
+2. 기반면 아래로 묻힌 면은 지운다.
+3. 법선·Up 내적 0.71을 기준으로 `_Floor`와 `_Shell`로 나눈다(`finish()`와 같은 규칙).
+4. 작은 walkable 조각(약 4㎡ 미만)은 Shell로 넘긴다. Nav Layer 상한 256과 Pod 같은-Layer 후보를 지키기 위해서다.
+
+**기반면 절개:**
+
+- 큰 ED 조각이 기반면과 만나는 발자국을 지각 cut 다각형으로 넘겨 V012 지각을 다시 굽는다. 기존 동굴 cut과 같은 방식이다.
+- 목적은 바위 속에 기반면이 남아 Nav 노드나 Spawn 후보가 바위 안에 생기는 것을 막는 것이다. 베이커는 닫힌 메시 안의 캡슐을 잡지 못한다.
+- Blender에서 "닫힌 프록시 내부에 남은 기반면 0"을 assert한다.
+
+UE 반입과 맞춤 검사:
+
+- 이름은 `SM_Ridge_EDTerrain_V001_<Zone>_Floor`와 `_Shell`이다.
+- 태그는 [옥탄트 제작 가이드](../../Guide_OctantLevelInstance.md) §4 역할 표를 따른다.
+- 충돌은 complex-as-simple 단일 trimesh다. 정점은 옥탄트 안에 있어야 하고 각 성분의 절댓값이 32767 이하여야 한다.
+- ED 시각 메시와 프록시의 거리를 표본으로 재서 p95를 보고한다. 목표는 Floor ≤25cm다.
+
+**확인 기준:** 프록시가 단일 trimesh이고 태그 검사를 통과한다. 내부에 남은 기반면이 0이다. p95 맞춤 수치가 기록되어 있다.
+
+### U6. 베이크·마커·러프 PIE(게이트)
+
+베이크:
+
+- 고스트를 제거하고 저장한다.
+- TestMap03에서 `LNP.SurfaceNav.BakeOctant <WIP LVI>`(schema11)를 실행한다.
+- Support/Nav/Spawn 수치와 오류를 기록한다.
+
+마커 보정:
+
+- Pod: strict Support에서 100cm 안, 가장자리 250cm, 캡슐 r120/hh150, 편성 반경 안의 같은-Layer 후보
+- 훅, 검토점
+- 사선은 `VerifyRidgeReady.py` 변형으로 확인한다.
+
+PIE:
+
+- 검사용 풀은 메모리에서만 임시로 선택한다([환경 실행서](Phase01_EnvironmentImport.md) §22).
+- 1인 PIE에서 사용자가 아래 체크리스트로 플레이한다.
+
+| 확인할 것 |
+|:---|
+| 서쪽 진입 → 계단 상승로 → 왕관 정상 |
+| 협곡 통과 |
+| 대분지 전투 |
+| 잔도 → 북쪽 대지 |
+| 골짜기 → 보스 고원 |
+| Pod 전투·추격, 훅 |
+| 동굴 입구·석교·부유섬 연결 |
+| 추락 구멍이 없는지 |
+
+- 함께 기록할 것: `LNP.SurfaceNav.EnemyGround.Report`의 `blocker_rejects`, PIE 로그 `maxSeamRadiusDelta=0.000cm`.
+- PIE가 끝나면 원래 풀을 복원하고 해시로 확인한다.
+
+**게이트:** 사용자가 동선이 성립한다고 판정하면 U7로 간다.
+
+### U7. 배경 프랍 채우기(ED 스타일)
+
+- `LNPDecorationSampler`, 규칙 DA, `BuildRidgeDecorationPCG.py`를 재사용해 V007 규칙과 그래프를 만든다. 대상은 새 LVI 내부 전체이고 구역별 팔레트를 쓴다.
+  - 샘플러는 충돌 표면(프록시+기반면)에 접지한다.
+  - 작은 바위는 Blocker ISM이다. GX-018 여유를 유지한다. 다만 SSN 수정 뒤 `blocker_rejects`가 거의 0이므로 밀도를 다시 보는 것도 선택지다.
+  - 식생은 Decoration이다.
+- ED 중형 바위와 잔해 같은 주요 배치는 U4 도구로 수동 배치한다.
+- 새 식생의 바람 WPO는 구면 접선 프레임으로 바꾼다(`MF_Ridge_FernWind` 방식, 환경 실행서 §15~16).
+- Blocker ISM이 바뀌면 다시 베이크하고 PIE로 다시 확인한다.
+
+**확인 기준:** `InspectRidgeDecorationPCG.py` 계약 검사, 재베이크, PIE 재확인을 통과한다.
+
+### U8. 마감
+
+- 재생성 절차를 남긴다. 에셋과 WIP는 Git에서 제외되므로 원본은 스크립트와 JSON이다.
+  - 순서: 반입 목록 → U3 빌더 → U4 `place` → U5 프록시 → 베이크 → U7
+- Phase 로그(`history/Phase01_Log.md`), [Current](../Current.md), 이 문서의 체크리스트를 갱신하고 화면 비교 캡처를 남긴다.
+- 패키지 성능 측정은 1-D에서 GX-001 규약으로 한다.
+- 다음 패스로 동굴·부유섬·석교 교체 계획을 남긴다.
+
+## 5. 우려 사항
+
+1. **작업량.** 옥탄트 면적이 약 14만㎡라 여러 세션이 걸린다. 10×10m 시험을 생략한 대신 Z1 파일럿에서 U5·U6을 먼저 통과시켜 파이프라인 위험을 일찍 드러낸다.
+2. **디스크와 VRAM.** 추가 반입은 몇 GB 규모로 예상한다. 노트북 GPU는 8GB다. 큰 Nanite 절벽이 많아지면 에디터 응답과 VSM·Lumen 비용이 오른다. 현재 Frame은 19.687ms로 이미 예산 16.6ms를 넘는다. 이 증가는 벤치마크 콘텐츠의 목적에 맞는 것으로 보고 1-D에서 측정한다.
+3. **보이는 면과 충돌 면의 차이.** 프록시를 쓰므로 발이 뜨거나 묻히고, 탄환이 보이지 않는 면에 맞을 수 있다. voxel 크기와 decimate로 조정하고 p95로 보고한다.
+4. **바위 속 Nav와 Spawn.** 기반면 절개와 Blender assert로 막는다. 베이커에는 이 경우를 잡는 검사가 없다.
+5. **Pod 편성.** Pod는 기반면(Layer 0)이나 큰 Floor 한 장 위에 둔다.
+6. **곡률(R=300m, 안쪽 오목).** 30m 메시는 가운데가 약 0.4m 처진다. 큰 벽을 쌓을 때는 조각마다 기울인다.
+7. **경계 고리의 외형.** 15~55m 고리는 기반면 재질로 통일한다. ED Decoration은 seam에서 5m 바깥까지만 덮어서 전이부를 가린다.
+8. **동굴·부유섬·석교.** 1차에서는 V011 형상이 남아 화면에서 이질적으로 보인다. 다음 패스에서 교체한다.
+
+## 6. 체크리스트
+
+- [ ] U1 설계도 JSON·고스트
+- [ ] U2 에셋 카탈로그·반입·해시
+- [ ] U3 지각 V012 기반면·조기 베이크
+- [ ] U4 Z1 파일럿 조립
+- [ ] U5·U6 Z1 파일럿 프록시·베이크·PIE
+- [ ] U4 Z2~Z7 조립
+- [ ] U5 전 구역 프록시·기반면 절개
+- [ ] U6 전체 베이크·러프 PIE 게이트(사용자 판정)
+- [ ] U7 배경 프랍·재베이크·PIE
+- [ ] U8 재생성 절차·로그·캡처
+
+## 7. 핵심 파일
+
+| 구분 | 파일 |
+|:---|:---|
+| 재사용(지형) | `Scripts/RidgeOctantSpec.py`, `Scripts/Blender/BuildRidgeOctant.py`, `Scripts/Blender/VerifyRidgeOctant.py`, `Scripts/AssembleRidgeOctant.py`(`snap_seam` 53-85, 태그 163-202), `Scripts/BakeRidgeOctant.py`, `Scripts/RunRidgeStage.ps1`, `Scripts/VerifyRidgeReady.py` |
+| 재사용(장식) | `Scripts/Profiling/Graphics/BuildRidgeDecorationPCG.py`, `InspectRidgeDecorationPCG.py`, `DrawRidgeDecorationKeepOuts.py` |
+| 신규 | `Scripts/Profiling/Graphics/ExportRidgeBlueprint.py`, `PlaceRidgeEDTerrain.py`, `Scripts/RidgeEDBaseSpec.py`, `Scripts/Blender/BuildRidgeEDBase.py`, `Scripts/Blender/BuildRidgeEDCollision.py` |
+| 계약 참조 | [옥탄트 제작 가이드](../../Guide_OctantLevelInstance.md) §3~7, `SurfaceSupportNavigation/design/TerrainContract.md`, `SurfaceSupportNavigation/design/SurfaceBaking.md`, [Ridge 설계 원본](../../../Art/Octants/Ridge_00/README.md) |
+
+## 8. 이전 시험 기록(01~04, 2026-11-18)
+
+- 원본 구도는 `/Game/Levels/PCG/ElectricDreams_PCG`에 있다. 기준 카메라는 위치 `(89993.03, -7753.45, 1915.32)`cm, 회전 `(Pitch 6.00°, Yaw 82.40°, Roll 0.00°)`, FOV 90°다.
+- 화면·카메라 값·원본 메시와 재질 경로는 `Saved/Profiling/Graphics/Phase01/RidgeReferencePatch_20261118/`에 있다(`ReferenceTerrainAssets.json`, `01_RidgeSectionPlan.md`~`04_DecorationComparison.md`).
+- 01~04에서 한 시험:
+  - V011 바닥에 하상 재질을 섞었다(`MI_Ridge_ReferenceRiverbed_V001`).
+  - 벽 일부에 `SM_Cliff_01`로 만든 층리 외피를 얹었다(`SM_Ridge_ReferenceEastCliff_V001`, 약 400만 삼각형, NoCollision).
+  - 이렇게 접합과 플레이 검증 절차를 확인했다.
+- 사용자 판정: 밝은 하상 재질과 절벽 조각은 조립 재료로 쓸 만하다.
+- 남은 문제: 하상 타일 반복, 외피 둘레의 직선 재질 경계, 400만 삼각형 형상의 경량화.
