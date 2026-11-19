@@ -18,17 +18,11 @@ VERSION = spec.VERSION
 OUT = ROOT/"Saved/SliceOctant/Ridge_00"/VERSION
 BASE = "/Game/Maps/_WorkInProgress/Ridge_00/"+VERSION
 LEVEL = BASE+"/LVI_Octant_Ridge_00"
-manifest = json.loads((OUT/"manifest.json").read_text(encoding="utf-8"))
-placement = json.loads((OUT/"placement.json").read_text(encoding="utf-8"))
 helpers = {"__name__": "ridge_transform_helpers"}
 exec(compile((ROOT/"Scripts/AssembleAcropolisOctant.py").read_text(encoding="utf-8"), "AssembleAcropolisOctant.py", "exec"), helpers)
 # 프로토타입 지면 시작색(sRGB). 암반은 같은 계열의 어두운 색으로 지면과 구분한다.
 GROUND_RGB = (0x93, 0x85, 0xA5)
 ROCK_RGB = (0x6A, 0x62, 0x76)
-
-
-def write(name, data):
-    (OUT/name).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def save(asset):
@@ -85,14 +79,14 @@ def snap_seam(asset):
     return {"vertices": count, "max_correction_cm": maximum}
 
 
-def import_assets():
+def import_assets(manifest, base=BASE, out=OUT):
     report = []
     for item in manifest["exports"]:
-        path = BASE+"/"+item["name"]
+        path = base+"/"+item["name"]
         assert not unreal.EditorAssetLibrary.does_asset_exist(path), "Use a new version for reimport"
         task = unreal.AssetImportTask()
         task.filename = item["file"]
-        task.destination_path = BASE
+        task.destination_path = base
         task.destination_name = item["name"]
         task.automated = True
         task.save = False
@@ -117,13 +111,14 @@ def import_assets():
         body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
         body.set_editor_property("double_sided_geometry", False)
         asset.set_editor_property("lod_for_collision", 0)
-        save(asset)
         positions = native_mesh(asset)[1]
         error = max(abs(function(getattr(p, axis) for p in positions)-item["bounds_cm"][side][i])
                     for side, function in (("min", min), ("max", max)) for i, axis in enumerate(("x", "y", "z")))
         assert error < .05, (path, error)
+        save(asset)
         report.append({"path": path, "triangles": asset.get_num_triangles(0), "bounds_error_cm": error, "native_seam": seam})
-    write("native-import.json", report)
+    (out/"native-import.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report
 
 
 def material(name, rgb):
@@ -145,26 +140,21 @@ def material(name, rgb):
     return result
 
 
-def assemble():
-    levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-    assert not unreal.EditorAssetLibrary.does_asset_exist(LEVEL)
-    assert levels.new_level(LEVEL)
-    ground = material("Ground", GROUND_RGB)
-    rock = material("Rock", ROCK_RGB)
+def spawn(actors, cls, label, local, folder):
+    pose = helpers["transform"](local)
+    actor = actors.spawn_actor_from_class(cls, unreal.Vector(**pose["location"]), unreal.Rotator(**pose["rotation"]))
+    assert actor
+    actor.set_actor_label(label)
+    actor.set_folder_path(folder)
+    return actor
 
-    def spawn(cls, label, local, folder):
-        pose = helpers["transform"](local)
-        actor = actors.spawn_actor_from_class(cls, unreal.Vector(**pose["location"]), unreal.Rotator(**pose["rotation"]))
-        assert actor
-        actor.set_actor_label(label)
-        actor.set_folder_path(folder)
-        return actor
+
+def place_geometry(actors, manifest, base, ground, rock):
     for item in manifest["exports"]:
-        actor = spawn(unreal.StaticMeshActor, item["name"], [0, 0, 0], "Geometry")
+        actor = spawn(actors, unreal.StaticMeshActor, item["name"], [0, 0, 0], "Geometry")
         actor.set_actor_transform(unreal.Transform(), False, False)
         c = actor.static_mesh_component
-        c.set_static_mesh(unreal.load_asset(BASE+"/"+item["name"]))
+        c.set_static_mesh(unreal.load_asset(base+"/"+item["name"]))
         support = item["role"] in ("Floor", "Crust")
         tags = ["LNP.Surface.Blocker", "LNP.Surface.Static"]
         if support:
@@ -176,8 +166,11 @@ def assemble():
         c.set_collision_profile_name("LNPStaticTerrain" if support else "LNPStaticBlocker")
         c.set_mobility(unreal.ComponentMobility.STATIC)
         c.set_material(0, ground if item["role"] == "Crust" else rock)
+
+
+def place_markers(actors, placement):
     for item in placement["pods"]:
-        actor = spawn(unreal.LNPMassSpawnPoint, "Spawn_"+item["id"], item["local"], "Markers/Pods")
+        actor = spawn(actors, unreal.LNPMassSpawnPoint, "Spawn_"+item["id"], item["local"], "Markers/Pods")
         actor.set_editor_property("target_spawn_set_id", "None")
         formations = []
         for values in item.get("enemy_formations", []):
@@ -190,21 +183,34 @@ def assemble():
         actor.set_editor_property("enemy_formations", formations)
     anchor_class = unreal.load_class(None, "/Game/WorldDevice/BP_GrappleAnchor.BP_GrappleAnchor_C")
     for item in placement["anchors"]:
-        actor = spawn(unreal.LNPPlacementMarker, "Anchor_"+item["id"], item["local"], "Markers/Grapple")
+        actor = spawn(actors, unreal.LNPPlacementMarker, "Anchor_"+item["id"], item["local"], "Markers/Grapple")
         actor.set_editor_property("element_class", anchor_class)
         actor.set_editor_property("grapple_max_distance", item["max_distance"])
         actor.set_editor_property("tags", ["LNP.Grapple.AuthoredOnly"])
     for item in placement["nodes"]:
         local = list(item["local"])
         local[2] += 200
-        actor = spawn(unreal.TargetPoint, "Review_Ridge"+item["id"], local, "Markers/Review")
+        actor = spawn(actors, unreal.TargetPoint, "Review_Ridge"+item["id"], local, "Markers/Review")
         actor.set_editor_property("tags", ["LNP.ReviewPoint", "Ridge"+item["id"]])
         actor.set_editor_property("is_editor_only_actor", True)
+
+
+def assemble(manifest, placement):
+    levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    assert not unreal.EditorAssetLibrary.does_asset_exist(LEVEL)
+    assert levels.new_level(LEVEL)
+    ground = material("Ground", GROUND_RGB)
+    rock = material("Rock", ROCK_RGB)
+    place_geometry(actors, manifest, BASE, ground, rock)
+    place_markers(actors, placement)
     assert levels.save_current_level()
     unreal.log("RIDGE_ASSEMBLY_READY")
 
 
 if __name__ == "__main__":
     unreal.AssetRegistryHelpers.get_asset_registry().search_all_assets(True)
-    import_assets()
-    assemble()
+    manifest = json.loads((OUT/"manifest.json").read_text(encoding="utf-8"))
+    placement = json.loads((OUT/"placement.json").read_text(encoding="utf-8"))
+    import_assets(manifest)
+    assemble(manifest, placement)

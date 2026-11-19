@@ -1,0 +1,269 @@
+{
+  "base_version": "V012",
+  "zones": {
+    "Z1": [
+      {
+        "id": "ED_Z1_WestLowerSouth",
+        "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03",
+        "local_xy_cm": [
+          285,
+          -1160
+        ],
+        "height_offset_cm": -400,
+        "yaw_deg": -90,
+        "tilt_deg": [
+          2,
+          -3
+        ],
+        "scale": [
+          0.83,
+          0.94,
+          0.98
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_WestLowerCenter",
+        "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+        "local_xy_cm": [
+          490,
+          70
+        ],
+        "height_offset_cm": -400,
+        "yaw_deg": -88,
+        "tilt_deg": [
+          0,
+          4
+        ],
+        "scale": [
+          0.91,
+          0.8,
+          0.91
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_WestLowerNorth",
+        "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+        "local_xy_cm": [
+          790,
+          1700
+        ],
+        "height_offset_cm": -230,
+        "yaw_deg": -81,
+        "tilt_deg": [
+          -3,
+          3
+        ],
+        "scale": [
+          0.99,
+          0.92,
+          1.06
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_WestMiddleNorth",
+        "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+        "local_xy_cm": [
+          -570,
+          1750
+        ],
+        "height_offset_cm": -440,
+        "yaw_deg": -84,
+        "tilt_deg": [
+          3,
+          -3
+        ],
+        "scale": [
+          1.08,
+          1.02,
+          1.02
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_WestMiddleSouth",
+        "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_03",
+        "local_xy_cm": [
+          -760,
+          -1700
+        ],
+        "height_offset_cm": -200,
+        "yaw_deg": -105,
+        "tilt_deg": [
+          -2,
+          3
+        ],
+        "scale": [
+          1.34,
+          1.06,
+          1.2
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_WestUpperNorth",
+        "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_05",
+        "local_xy_cm": [
+          -1650,
+          2250
+        ],
+        "height_offset_cm": -480,
+        "yaw_deg": -86,
+        "tilt_deg": [
+          -4,
+          3
+        ],
+        "scale": [
+          0.83,
+          0.72,
+          0.76
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_WestFootShelf",
+        "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+        "local_xy_cm": [
+          960,
+          -920
+        ],
+        "height_offset_cm": -160,
+        "yaw_deg": -86,
+        "tilt_deg": [
+          2,
+          -3
+        ],
+        "scale": [
+          0.76,
+          0.78,
+          0.82
+        ],
+        "material_overrides": {
+          "0": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_07"
+        }
+      },
+      {
+        "id": "ED_Z1_OutletSouthBank",
+        "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_05",
+        "local_xy_cm": [
+          2110,
+          -3940
+        ],
+        "height_offset_cm": -28,
+        "yaw_deg": 11,
+        "tilt_deg": [
+          3,
+          -5
+        ],
+        "scale": [
+          1,
+          1,
+          1.3
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_OutletSouthLedge",
+        "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_05",
+        "local_xy_cm": [
+          2480,
+          -3050
+        ],
+        "height_offset_cm": -64,
+        "yaw_deg": 43,
+        "tilt_deg": [
+          3,
+          -2
+        ],
+        "scale": [
+          0.92,
+          0.91,
+          0.81
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_BasinSouthShelf",
+        "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_03",
+        "local_xy_cm": [
+          3750,
+          -2340
+        ],
+        "height_offset_cm": -155,
+        "yaw_deg": 5,
+        "tilt_deg": [
+          -2,
+          5
+        ],
+        "scale": [
+          0.9,
+          0.83,
+          0.85
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_BasinSouthSlab",
+        "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_06",
+        "local_xy_cm": [
+          3070,
+          -2730
+        ],
+        "height_offset_cm": -29,
+        "yaw_deg": 20,
+        "tilt_deg": [
+          5,
+          -3
+        ],
+        "scale": [
+          1.08,
+          0.95,
+          1.2
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_BasinSoutheastBoulder",
+        "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+        "local_xy_cm": [
+          5250,
+          -2380
+        ],
+        "height_offset_cm": -120,
+        "yaw_deg": 68,
+        "tilt_deg": [
+          1,
+          -4
+        ],
+        "scale": [
+          0.84,
+          0.86,
+          0.78
+        ],
+        "material_overrides": {}
+      },
+      {
+        "id": "ED_Z1_BasinSouthShoulder",
+        "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_02",
+        "local_xy_cm": [
+          4550,
+          -2790
+        ],
+        "height_offset_cm": -15,
+        "yaw_deg": -18,
+        "tilt_deg": [
+          -4,
+          3
+        ],
+        "scale": [
+          1.1,
+          1.2,
+          1.45
+        ],
+        "material_overrides": {}
+      }
+    ]
+  }
+}

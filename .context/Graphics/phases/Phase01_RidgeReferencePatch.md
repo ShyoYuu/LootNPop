@@ -1,6 +1,6 @@
 # Phase 1-BR — Ridge 지표 Electric Dreams 교체
 
-> 상태: 계획 확정 · U1 착수 대기
+> 상태: U1~U3 완료 · U4 Z1 원본 용도 적용 · 사용자 구도 검토 대기
 > 순서: 1-B5f → 1-BR(기존 1-B6 전체 교체를 흡수) → 1-C
 > 상위: [그래픽스 로드맵](../Roadmap.md) §2·§4, [Phase 1 실행서](Phase01_BenchmarkContent.md) §3, [확정 결정](../Decisions.md) GX-019·GX-021
 > 마지막 갱신: 2026-11-19
@@ -70,6 +70,8 @@ V006 장식 1,461개는 새 LVI로 옮기지 않는다. 그 규칙과 노드는 
 
 **확인 기준:** 새 LVI에서 고스트와 보호 형상이 보이고, JSON의 Pod·훅·검토점 좌표가 V011 마커와 일치한다.
 
+**재현:** 셸에서 `ExportRidgeBlueprint.py`로 설계도 JSON을 생성한 뒤 UE 상태 표시줄 Cmd에서 `py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/BuildRidgeBlueprintGhost.py"`를 실행한다. 빌더는 정식 V011의 마커 좌표를 대조한 뒤 새 LVI를 만든다. 보호선만 다시 보려면 `DrawRidgeDecorationKeepOuts.py draw-br`을 실행한다. 절벽선은 원래 단 다각형의 변이고, 높이차는 각 변 중점 양쪽의 V011 노면을 잰 부호 있는 값이다.
+
 ### U2. ED 지형 에셋 선정과 반입
 
 역할별 후보는 다음과 같다(원본 디스크 조사 기준).
@@ -90,6 +92,8 @@ V006 장식 1,461개는 새 LVI로 옮기지 않는다. 그 규칙과 노드는 
 - 원본 계열별 폴더 크기는 HugeSandstoneCliff 1.7G, MassiveSandstoneCliff 1.1G, SandstoneRockyGround 791M, ForestRockFormation 710M, CanyonSandstoneRidge 642M다. 반입량은 Migrate 의존성 목록으로 확정한다.
 
 **확인 기준:** 역할마다 치수가 맞는 후보와 실효 재질이 있고, 반입 목록과 해시가 기록되어 있다.
+
+실측한 후보 55개와 선정한 메시 17개, 원본 구도용 재질 덮어쓰기 및 Migrate 선택 목록은 [EDTerrainCatalog_V001.json](../../../Scripts/Profiling/Graphics/EDTerrainCatalog_V001.json)에 있다. 원본과 반입본의 패키지 해시는 [ElectricDreamsPalette.json](../../../Scripts/Profiling/Graphics/ElectricDreamsPalette.json)의 `ed_terrain_v001`에 기록했다. 재조사는 UE Cmd에서 `InspectRidgeEDTerrain.py source`, `dependencies`, `target` 인자로 실행한다.
 
 ### U3. 지각 V012: 경계 고리 + 기반면(Blender)
 
@@ -118,6 +122,8 @@ V006 장식 1,461개는 새 LVI로 옮기지 않는다. 그 규칙과 노드는 
 - **조기 확인:** 기반면만으로 한 번 베이크해서 파이프라인과 seam delta 0을 확인한다. 짧은 확인이고 PIE는 선택이다.
 
 **확인 기준:** Blender 검증 통과, UE seam 스냅 최대 보정 ≤0.05cm, 기반면 베이크 무오류.
+
+재현하려면 `Saved/SliceOctant/Ridge_00/Baseline/MeadowSeam.fbx`를 준비하고 Blender 백그라운드에서 `BuildRidgeEDBase.py`와 `VerifyRidgeEDBase.py`를 차례로 실행한다. 기존 V011과 같은 Meadow 메시를 충돌·LOD 없이 FBX로 내보낸 원본을 쓴다. U1 레벨을 만든 뒤 UE Cmd에서 `AssembleRidgeEDBase.py assemble`, `AssembleRidgeEDBase.py bake`를 차례로 실행한다. Blender 검증·마커 JSON·반입·베이크 리포트는 `Saved/SliceOctant/Ridge_00/V012/`에 저장된다.
 
 ### U4. ED 지형 조립(구역별)
 
@@ -148,6 +154,14 @@ V006 장식 1,461개는 새 LVI로 옮기지 않는다. 그 규칙과 노드는 
 - 30m를 넘는 평면 메시는 곡률 처짐을 고려해 조각마다 기울기를 따로 준다.
 
 **확인 기준:** 구역마다 `export` JSON이 남아 있고, `clear` → `place`로 같은 배치가 재현된다.
+
+`EDTerrainPlacement_V001.json`의 높이 오프셋은 V012 높이장을 기준으로 한다. 에디터에서 각 구역을 다듬은 뒤 `export <Zone>`을 실행한다. `clear`는 현재 액터의 메시·재질·transform이 JSON과 일치하는지 확인하고 해당 구역만 제거한다. `place`와 `export`는 메시의 보수적인 상자 범위를 써서 seam·동선·Pod·착지·훅과 유지할 사선을 검사한다. 에디터 명령 뒤 레벨 저장은 별도로 한다.
+
+Z1에서는 사용자가 기존 동선을 바꿔도 된다고 하여 절벽 배치를 먼저 정하고 기반면을 맞춘 별도 조형 비교본을 만들었다. 새 지형은 `Scripts/Blender/BuildRidgeZ1Composition.py`, 별도 레벨 조립은 `Scripts/Profiling/Graphics/AssembleRidgeZ1Composition.py`로 실행한다. 구도를 채택한 뒤 동선과 마커를 다시 정하고 U4 배치 재현 기준을 확인한다.
+
+Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. MassiveSandstoneCliff 05는 절벽 상부 선반, 03은 하천 둑과 지면, SmartAssets Cliff 06은 절벽 세로 외피로 재배치했다. 관측한 조립체와 각도는 [EDTerrainCatalog_V001.json](../../../Scripts/Profiling/Graphics/EDTerrainCatalog_V001.json)의 `source_placement`에서 확인한다. 현재 비교본의 배치는 `Scripts/RidgeZ1CompositionSpec.py`에 있다.
+
+새 세션에서는 `Z1Composition_V001/LVI_Ridge_EDTerrain_Z1Composition_V001`의 재배치된 15개를 검토한다. 사용자가 새 구도를 채택하면 비교본 레벨과 그 높이장에 맞게 `PlaceRidgeEDTerrain.py`의 배치 입출력을 연결하고, 에디터의 실제 배치를 JSON으로 확정해 재현한다. 현재 `EDTerrainPlacement_V001.json`은 기본 WIP의 이전 13개 초벌을 재현한다. 비교본은 시각 조립 검토 단계이며 충돌 프록시·비교본 SurfaceData·러프 PIE는 U5·U6에서 검증한다.
 
 ### U5. 충돌 프록시와 기반면 절개(Blender)
 
@@ -246,9 +260,9 @@ PIE:
 
 ## 6. 체크리스트
 
-- [ ] U1 설계도 JSON·고스트
-- [ ] U2 에셋 카탈로그·반입·해시
-- [ ] U3 지각 V012 기반면·조기 베이크
+- [x] U1 설계도 JSON·고스트
+- [x] U2 에셋 카탈로그·반입·해시
+- [x] U3 지각 V012 기반면·조기 베이크
 - [ ] U4 Z1 파일럿 조립
 - [ ] U5·U6 Z1 파일럿 프록시·베이크·PIE
 - [ ] U4 Z2~Z7 조립
@@ -263,7 +277,11 @@ PIE:
 |:---|:---|
 | 재사용(지형) | `Scripts/RidgeOctantSpec.py`, `Scripts/Blender/BuildRidgeOctant.py`, `Scripts/Blender/VerifyRidgeOctant.py`, `Scripts/AssembleRidgeOctant.py`(`snap_seam` 53-85, 태그 163-202), `Scripts/BakeRidgeOctant.py`, `Scripts/RunRidgeStage.ps1`, `Scripts/VerifyRidgeReady.py` |
 | 재사용(장식) | `Scripts/Profiling/Graphics/BuildRidgeDecorationPCG.py`, `InspectRidgeDecorationPCG.py`, `DrawRidgeDecorationKeepOuts.py` |
-| 신규 | `Scripts/Profiling/Graphics/ExportRidgeBlueprint.py`, `PlaceRidgeEDTerrain.py`, `Scripts/RidgeEDBaseSpec.py`, `Scripts/Blender/BuildRidgeEDBase.py`, `Scripts/Blender/BuildRidgeEDCollision.py` |
+| U1 재생성 원본 | `Scripts/Profiling/Graphics/ExportRidgeBlueprint.py`, `RidgeBlueprint_V001.json`, `BuildRidgeBlueprintGhost.py` |
+| U2 카탈로그·반입 검증 | `Scripts/Profiling/Graphics/InspectRidgeEDTerrain.py`, `EDTerrainCatalog_V001.json`, `ElectricDreamsPalette.json` |
+| U3 기반면·검증 | `Scripts/RidgeEDBaseSpec.py`, `Scripts/Blender/BuildRidgeEDBase.py`, `Scripts/Blender/VerifyRidgeEDBase.py`, `Scripts/Profiling/Graphics/AssembleRidgeEDBase.py` |
+| U4 배치 도구·비교본 | `Scripts/Profiling/Graphics/PlaceRidgeEDTerrain.py`, `EDTerrainPlacement_V001.json`, `AssembleRidgeZ1Composition.py`, `Scripts/RidgeZ1CompositionSpec.py`, `Scripts/Blender/BuildRidgeZ1Composition.py` |
+| 후속 신규 | `Scripts/Blender/BuildRidgeEDCollision.py` |
 | 계약 참조 | [옥탄트 제작 가이드](../../Guide_OctantLevelInstance.md) §3~7, `SurfaceSupportNavigation/design/TerrainContract.md`, `SurfaceSupportNavigation/design/SurfaceBaking.md`, [Ridge 설계 원본](../../../Art/Octants/Ridge_00/README.md) |
 
 ## 8. 이전 시험 기록(01~04, 2026-11-18)

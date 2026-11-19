@@ -59,6 +59,10 @@ Content/NiagaraExamples/
 /Content/MSPresets/MS_Foliage_Material_LATEST/
 /Content/MSPresets/MSVTTextures/
 /Content/PhysicalMaterials/PhysMat_Dirt.uasset
+/Content/PhysicalMaterials/PhysMat_Grass.uasset
+/Content/PhysicalMaterials/PhysMat_GravelOxidized.uasset
+/Content/PhysicalMaterials/PhysMat_LooseRock.uasset
+/Content/PhysicalMaterials/PhysMat_Mud.uasset
 /Content/PhysicalMaterials/PhysMat_SolidRock.uasset
 /Content/SmartAssets/
 # Electric Dreams에서 파생한 재질·함수·PCG 등도 로컬에서 재생성한다.

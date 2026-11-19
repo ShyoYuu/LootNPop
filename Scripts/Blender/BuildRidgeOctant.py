@@ -293,12 +293,12 @@ def inside(x, y, polygon):
     return result
 
 
-def surface_height(x, y, source_h):
+def surface_height(x, y, source_h, ground=spec.ground):
     t = max(0, min(1, (min(spec.point(x, y, 0))-spec.SEAM_MARGIN)/spec.SEAM_BAND))
-    return source_h+(spec.ground(x, y)-source_h)*t*t*(3-2*t)
+    return source_h+(ground(x, y)-source_h)*t*t*(3-2*t)
 
 
-def crust(cuts):
+def crust(cuts, ground=spec.ground, feature_points=spec.feature_points):
     """Meadow 지각의 이음매 띠(SEAM_MARGIN)는 원래 정점을 유지하고 내부만 4m 격자로 다시 삼각분할한다."""
     bpy.ops.import_scene.fbx(filepath=str(OUT.parent/"Baseline/MeadowSeam.fbx"))
     obj = next(o for o in bpy.context.selected_objects if o.type == "MESH")
@@ -359,14 +359,14 @@ def crust(cuts):
     def height(x, y):
         key = (x, y)
         if key not in heights:
-            heights[key] = spec.ground(x, y)
+            heights[key] = ground(x, y)
         return heights[key]
     fine = 0
     # 형상선 표본(경사로·절벽·분지 테)을 먼저 넣고, 1m 안에 겹치는 격자점은 뺀다(가는 삼각형 방지).
     occupied = set()
     features = 0
     placed = {}
-    for x, y in spec.feature_points():
+    for x, y in feature_points():
         key = (round(x/50), round(y/50))
         if key in placed or not inside(x, y, polygon) or any(inside(x, y, p) for p in cuts):
             continue
@@ -410,7 +410,7 @@ def crust(cuts):
             v.co = bl(native[v])
         else:
             x, y, h = v.co
-            v.co = bl(spec.point(x, y, surface_height(x, y, h)))
+            v.co = bl(spec.point(x, y, surface_height(x, y, h, height)))
     bmesh.ops.triangulate(bm, faces=bm.faces[:])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.normal_update()

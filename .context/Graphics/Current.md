@@ -1,8 +1,8 @@
 # 그래픽스 작업 현재 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · 계획 확정(GX-021) · U1 착수 대기
-> 마지막 확인/갱신: 2026-11-19(10×10m 시험 생략, 지표 전체 교체로 재정의)
+> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · U4 Z1 원본 용도 적용 · 사용자 구도 검토 대기
+> 마지막 확인/갱신: 2026-11-19
 
 ## 1. 이어받을 결과
 
@@ -20,7 +20,7 @@
   - 평지를 크게 우회(1-B5d): 경로 추종이 Nav 구멍을 실제 보행 검증으로 가로지른다(D-088). 바위 하나 주변의 큰 Nav 구멍은 바위가 아니라 지형 요철이 원인이었고, 베이커 clearance 바닥 허용 10cm(D-089, schema11)로 메웠다.
   - Nav 밖으로 걸어 들어간 플레이어(바위 주머니)는 발자취로 추격하고, 점프·바위를 넘어야 들어가는 자리는 도달 불가로 Alert 뒤 Pod로 돌아간다(D-091·D-092·D-094).
   - 남은 한계: 높이 약 30cm 가파른 턱 때문에 슬롯 위치에서 공격 거리에 못 드는 근접 적은 선다. 내려가기만 되는 턱으로 밀려 들어간 적은 못 나온다. 지형 쪽 원인은 베이크·지형 작업 범위다(SSN §8.7).
-  - 그래픽스 영향: GX-018(바위95 → 29개)은 당시 `blocker_rejects` 12.5% 때문이었다. 바위를 다시 늘릴 수 있는지는 재측정할 수 있다(§3 후보).
+  - 그래픽스 영향: GX-018(바위95 → 29개)은 당시 `blocker_rejects` 12.5% 때문이었다. 바위 밀도 재측정은 1-BR U7의 선택 항목이다.
 - **알려진 한계(SSN 인계).** 지상형 적은 `MaxStepUp`45cm 아래 장애물을 턱으로 넘고 Support(지각)로 접지해 **발이 바위를 관통한다.** 벽보행 적은 바위에 잘 붙는다. 사용자가 별도 SSN 세션에서 다룬다. 권장: "Support 없는 Blocker는 넘지 않는다" 불변 조건 → 1-B6 전 ISM Support(D-058 해제). 원인 위치·순서는 §24.
 - **SSN Phase16 종료(2026-11-16).** 단위2(벽 옆 플레이어 근접 추격, D-085)까지 완료했다. ISM Support는 조사 후 **보류**했다(D-058 유지). Sandstone Support에는 ISM instance별 source와 볼록 충돌 Support가 모두 필요하고(볼록 hit에는 FaceIndex가 없음), Nav는 어차피 바위를 돌아가 이득이 작다. 바위는 Static+Blocker 그대로 두고 **1-BR(구 1-B6)은 ISM Support를 기다리지 않는다.** 1-BR에서 바위가 늘면 지상 적이 바위 앞에서 멈추는 빈도(`blocker_rejects`)와 Nav 단절로 갇히는 곳만 확인한다. 상세 SSN [Phase16 §4.1](../SurfaceSupportNavigation/phases/Phase16_SupportlessBlockerStep.md).
 - **SSN 인계 결과(2026-11-16, 당시 단위1 완료·단위2 대기).** SSN [Phase16](../SurfaceSupportNavigation/phases/Phase16_SupportlessBlockerStep.md)에서 캐시 접지의 Support 없는 Blocker 겹침을 거부했다(D-082). 벽 근처 NoNode 정지는 Atlas NeedsExact 띠가 Nav에서 빠진 탓이었고 Nav 전용 보간(D-084, 베이커 schema10)으로 고쳤다. 실제 Ridge WIP PIE에서 정지가 재현되지 않았고 바위 관통 유지도 없었다. **WIP `DA_OctantSurface_LVI_Ridge_SurfaceProbe`는 schema10으로 재베이크됐다**(원본 백업 `Saved/Profiling/Phase16/NavGap/Backup/`). 정식7·fixture5 SurfaceData도 재베이크됐다. 남은 것은 벽 옆 플레이어 근접 추격·공격(단위2)과 ISM Support다. 그래픽스에서 WIP를 다시 구울 때는 commandlet이면 `load_map` 뒤에 굽는다.
@@ -42,7 +42,7 @@
 
 WIP를 정상 게임에서 다시 검토하려면 TestMap03에서 검사용 풀을 **메모리에서만 임시 선택**한다(실행서 §22). 매 실행의 실제 WIP slot을 로그에서 다시 찾고, 종료 후 원래 풀을 복원한다. 원본/파생 에셋·WIP·SurfaceData/풀·Saved는 Git 제외다. **World `duplicate_asset` 직후 `load_level` 크래시를 재시도하지 않는다.**
 
-## 3. 다음 세션 후보
+## 3. Phase 1-BR 진행 상태와 다음 작업
 
 **Phase 1-BR을 재정의했다(GX-021, 2026-11-19 사용자).** 10×10m 시험을 생략하고, 경계 전이부를 뺀 Ridge 지표 전체를 Electric Dreams로 교체한다. 기존 1-B6은 여기에 흡수했다.
 
@@ -55,17 +55,25 @@ WIP를 정상 게임에서 다시 검토하려면 TestMap03에서 검사용 풀�
 
 단위는 U1~U8이고 Z1 파일럿에서 U6 PIE 게이트를 먼저 통과시킨다. 구현 단위마다 다음 진행을 확인하고, 기존 미저장 사용자 변경은 임의로 버리거나 저장하지 않는다.
 
-1. **착수 전 정리.** 이전 세션의 미커밋 Graphics 문서와 `BuildRidgeDecorationPCG.py`·`.gitignore` 변경을 커밋할지 사용자에게 확인한다.
-2. **[U1 설계도 추출](phases/Phase01_RidgeReferencePatch.md) §4.** `ExportRidgeBlueprint.py`로 `RidgeBlueprint_V001.json`을 만든다. 새 WIP `Graphics/EDTerrain_V001/`에 V011 고스트와 보호 형상을 깐다.
-3. **U2 에셋 카탈로그·반입.** 원본 ED 에디터에서 역할별 후보를 읽기 전용으로 조사한다. Migrate는 사용자가 하며, 두 에디터를 동시에 띄우지 않는다.
-4. 선택: 바위 밀도 재검토. GX-018 축소의 근거였던 `blocker_rejects`가 SSN 수정(D-087~D-095)으로 거의 0이 됐다. 바위를 GX-018 이전(95개) 쪽으로 되돌려 1인 PIE에서 `LNP.SurfaceNav.EnemyGround.Report`와 추격 체감을 다시 잴 수 있다. 하지 않으면 GX-018 유지.
-큰 바위 엄폐 지형 교체 후보(실행서 §28 표)는 1-BR U2·U4에서 함께 다룬다.
+- **U1 완료.** `RidgeBlueprint_V001.json`의 Pod 12개·훅 6개·검토점 27개를 정식 V011과 대조했다. 기본 WIP의 고스트 3개와 `DrawRidgeDecorationKeepOuts.py draw-br`로 설계도를 표시할 수 있다. [검증 기록](history/Phase01_Log.md#2026-11-19--1-br-u1-설계도-추출)
+- **U2 완료.** 원본 후보 55개에서 메시 17개를 선정하고 새 파일 96개(3.91GiB)를 반입했다. 기존 43개는 해시가 같다. LootNPop에서 메시 17개의 치수·fallback·재질·충돌, 의존성 139개와 하상 혼합 재질을 검증했다. [검증 기록](history/Phase01_Log.md#2026-11-19--1-br-u2-지형-에셋-선정반입)
+- **U3 완료.** 기본 WIP의 V012 기반면·보존 구조물·재투영 마커 45개가 Blender 검증을 통과했다. UE 최대 seam 스냅은 0.00763cm이고, 조기 베이크 seam 반지름 차이는 0.000cm다. 근거는 `Saved/SliceOctant/Ridge_00/V012/`에 있다.
+- **U4 Z1 검토 중.** 사용자는 기존 지각 위에 얹은 13개 초벌의 이음이 어색하다고 했다. 대분지·협곡 하류에서 기존 동선을 바꿔도 된다고 하여 기반면부터 다시 맞춘 비교본을 만들었다. 원본 배치 조사 결과에 따라 MassiveSandstoneCliff 05는 `WestUpperShelf`, 03은 `NorthBankShelf`, SmartAssets Cliff 06은 `WestWallNorth`·`WestWallSouth`로 재배치했다. 상단 두 조각의 이음도 맞췄고, 시각 메시 15개의 transform·재질·`LNPDecoration`을 검증하고 저장했다. [검증 기록](history/Phase01_Log.md#z1에-원본-역할-적용)
+
+| 작업본 | 경로와 상태 |
+|:---|:---|
+| U1~U3 기준 및 이전 Z1 초벌 | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/LVI_Ridge_EDTerrain_V001` · V012·마커 45개·초벌 메시 13개. 조기 베이크는 초벌 배치 전의 U3 기반면을 검증한 결과다. |
+| **피드백을 받을 Z1 비교본** | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Composition_V001/LVI_Ridge_EDTerrain_Z1Composition_V001` · 조형 기반면·하상 재질 `MI_Ridge_Z1_Channel`·메시 15개. 마지막 확인 시 LootNPop 8000에서 협곡 입구의 Unlit 시점으로 열려 있었다. |
+
+다음 세션은 최신 비교본의 사용자 피드백부터 받는다. 채택 후 비교본과 해당 높이장을 대상으로 배치 JSON 내보내기와 `clear` → `place` 재현을 검증한다. 현재 `EDTerrainPlacement_V001.json`과 `PlaceRidgeEDTerrain.py`의 기본 명령은 이전 13개 초벌 및 V012 기준 WIP용이다. 비교본의 현재 배치는 `Scripts/RidgeZ1CompositionSpec.py`가 소유한다. 세부 재현 절차는 [1-BR 실행서 §4 U4](phases/Phase01_RidgeReferencePatch.md#u4-ed-지형-조립구역별)에 있다. U4 완료 확인 뒤 Z1 충돌 프록시와 베이크·러프 PIE로 넘어간다.
+
+LootNPop은 8000, ElectricDreamsEnv는 8001이며 두 에디터는 번갈아 사용한다. 연결이 도구 목록에 없으면 사용자에게 알리고 MCP 연결을 확인한다. 수동 조작은 사용자가 직접 하도록 요청한다.
 
 미검증 범위는 2인 호스트·게스트, 적 시야·사격 엄폐 대칭, 다른 slot/극점의 바위 접촉, 전체 밀도·게임 조명·패키지 GPU/물리 비용이다. 성능 판정은 패키지에서만 한다. 에디터 빌드·쿡 전에는 병행 작업을 확인한다. 화면 녹화는 별도 사용자 확인이 필요하다.
 
 ## 4. 근거와 복구 기록
 
-공통 상위는 `Saved/Profiling/Graphics/Phase01/`이고 Saved는 로컬 자료다. 추적되는 재현 절차/판정 원본은 실행서 §7~33이다.
+1-BR 자료는 `Saved/SliceOctant/Ridge_00/V012/`(Blender·반입·조기 베이크), `Saved/SliceOctant/Ridge_00/V012_Z1Composition/`(원본 용도 대조, `BeforeSourceRoles.umap`, `composition.json`), `Saved/Profiling/Graphics/Phase01/EDTerrain_V001/`(에셋 반입 전후)에 있다. 아래 1-B5f 이전 자료의 공통 상위는 `Saved/Profiling/Graphics/Phase01/`이다. Saved는 로컬 자료이며 재생성 절차는 실행서에 있다.
 
 | 자료 | 핵심 기록 |
 |:---|:---|
@@ -83,4 +91,4 @@ UE5.8 scalar setter는 반환 false만으로 실패를 판정하지 말고 gette
 
 ## 5. 새 세션 요청 예시
 
-> `.context/Graphics/README.md`, `.context/Graphics/Current.md`, `.context/Graphics/Decisions.md`, `.context/Graphics/phases/Phase01_RidgeReferencePatch.md`를 읽고 Phase 1-BR의 U1(설계도 추출)부터 시작하자. 구현 단위마다 다음 진행을 확인하고, 수동 조작이 더 효율적이면 즉시 요청해줘.
+> `.context/Graphics/README.md`, `Current.md`, `Decisions.md`, `phases/Phase01_RidgeReferencePatch.md`를 읽고 Phase 1-BR의 U4 Z1을 이어가자. `LVI_Ridge_EDTerrain_Z1Composition_V001`에 저장한 15개 배치에 대한 내 피드백부터 반영해줘. 구도 확정 뒤 배치 JSON과 재현을 검증하고, 다음 구현 단위로 넘어가기 전에 확인해줘. 수동 조작이 필요하면 나에게 요청해줘.

@@ -681,5 +681,1304 @@
       "bytes": 27306494,
       "sha256": "2FB398955C71D6A487C1C7D2BEA9356BE75D122CECE452B6D2B07D1701614322"
     }
-  ]
+  ],
+  "ed_terrain_v001": {
+    "catalog": "EDTerrainCatalog_V001.json",
+    "recorded_date": "2026-11-19",
+    "roots": [
+      "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_03",
+      "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_06",
+      "/Game/Megascans/3D_Assets/GrassyEmbankment/SM_GrassyEmbankment_01",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_07",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_03",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+      "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+      "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+      "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03",
+      "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_05",
+      "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+      "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_02",
+      "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_05",
+      "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+      "/Game/SmartAssets/AssetMeshes/SM_Cliff_05",
+      "/Game/SmartAssets/AssetMeshes/SM_Cliff_06"
+    ],
+    "external_dependencies": [
+      "/Engine/Functions/Engine_MaterialFunctions01/ImageAdjustment/CheapContrast",
+      "/Engine/Functions/Engine_MaterialFunctions01/ImageAdjustment/SCurve",
+      "/Engine/Functions/Engine_MaterialFunctions01/Shading/FuzzyShading",
+      "/Engine/Functions/Engine_MaterialFunctions01/Texturing/DeriveTangentBasis",
+      "/Engine/Functions/Engine_MaterialFunctions01/Texturing/FlattenNormal",
+      "/Engine/Functions/Engine_MaterialFunctions01/Texturing/WorldAlignedTexture",
+      "/Engine/Functions/Engine_MaterialFunctions02/SplitComponents",
+      "/Engine/Functions/Engine_MaterialFunctions02/Texturing/HeightLerp",
+      "/Engine/Functions/Engine_MaterialFunctions02/Utility/BlendAngleCorrectedNormals",
+      "/Engine/Functions/Engine_MaterialFunctions02/WorldPositionOffset/V2/ObjectScale",
+      "/Engine/Functions/Engine_MaterialFunctions03/Blends/Blend_Overlay",
+      "/Engine/Functions/Engine_MaterialFunctions03/Math/RemapValueRange",
+      "/Script/InterchangeCore",
+      "/Script/InterchangeEngine",
+      "/Script/InterchangeFactoryNodes",
+      "/Script/InterchangePipelines",
+      "/Script/NavigationSystem",
+      "/Script/PhysicsCore"
+    ],
+    "source_bytes": 4695428346,
+    "migrated_target_bytes": 4199999406,
+    "packages": [
+      {
+        "package": "/Game/Custom/CustomMaterials/Materials/Master_Materials/Custom_MS_Master/M_MS_Default_Overwrite/Functions/MF_Custom_ObjAdjustments",
+        "class": "MaterialFunction",
+        "source_bytes": 48645,
+        "source_sha256": "73BA140A1DA21112A25426CDDCAD9A88ED178A542E7BBE2E7DCE3556FF5B7238",
+        "target_bytes": 47303,
+        "target_sha256": "4013A702BE3F2D8A09446CF376387E55F6A0E014FE9F2262495E0735F239D192",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Custom/CustomMaterials/Materials/Master_Materials/MF_WaterEffect",
+        "class": "MaterialFunction",
+        "source_bytes": 136685,
+        "source_sha256": "0B797B9C97914D6C4E1AC02B78B3039DCE62C82193C618666AD3EBC7264D67BB",
+        "target_bytes": 138627,
+        "target_sha256": "1583C79E4BB4B185F398CB6053A0FC7E341A1831E1B52A4E355671CEF74D4DB0",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering",
+        "class": "Material",
+        "source_bytes": 48556,
+        "source_sha256": "8041E819C7C8DE3BEB5D166F62925394D8B2E30847283880EF0A75E766BFB831",
+        "target_bytes": 55598,
+        "target_sha256": "97839C06180258EFDC964344E7A85F7A91860686676EC557F9AA9175355C75F0",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Custom/CustomMaterials/Materials/Master_Materials/T_NoiseMask_RGB",
+        "class": "Texture2D",
+        "source_bytes": 41673620,
+        "source_sha256": "7FCFF684156A618A4D5E6A133C96761E83C9A0A0659D91B8DA62FEA1088AE70E",
+        "target_bytes": 42431886,
+        "target_sha256": "B04EB5AA03841068D834C64C710456045913F6D0962C9048D567B2F1617EF0BE",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Custom/CustomMaterials/Materials/Material_Functions/MF_Roughness",
+        "class": "MaterialFunction",
+        "source_bytes": 13525,
+        "source_sha256": "E0B0098677489506D3560759725C0CA068D9670060D8986383979BEFCDC266AB",
+        "target_bytes": 13678,
+        "target_sha256": "8BA5C3067EE7BAADF64D4E3DA5227149119E5DDF5686E6AED9482BF59FF1FF39",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Custom/CustomMaterials/Materials/Material_Functions/MF_Specular",
+        "class": "MaterialFunction",
+        "source_bytes": 17933,
+        "source_sha256": "F62E1F7E8779F6F20D42D24E80BEC6227FF8A87884933131B4714BD7A811B9C9",
+        "target_bytes": 18027,
+        "target_sha256": "78B6E96E83E2D26CA8108F1F6A7A3893AB06BDA4CF00FB0B9054D4CB42E11896",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/MSPresets/MSVTTextures/DefaultDiffuse",
+        "class": "Texture2D",
+        "source_bytes": 2133203,
+        "source_sha256": "EAC551AD8FA6AB81762EB048DDF880715E56B3A099177AC5EE02568CB90E5435",
+        "target_bytes": 1919506,
+        "target_sha256": "7A72E0FE472653E245296E1A66DA38CC84DA76AD9025412EA63ECD990B4B5F75",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/MSPresets/MSVTTextures/Placeholder_Normal",
+        "class": "Texture2D",
+        "source_bytes": 5208,
+        "source_sha256": "7C99E7F75EE28F58271A8A74AE27C7D45E000D0149507E724CAD0B8DB5662B51",
+        "target_bytes": 5626,
+        "target_sha256": "A3781CD1972C1800FAC5D5BC933CE2E8CACC734A0BF8676CB0285B70D4F0011E",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_02",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 16543,
+        "source_sha256": "44F24131D9DB5632543E01E681A931CBB9DE263F738A3A061F4655CC9D007A35",
+        "target_bytes": 16788,
+        "target_sha256": "054DFCCC26EA51F96B0615B0969204492C01A2815FFF6891F576B8EEB6A73012",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_03",
+        "class": "StaticMesh",
+        "source_bytes": 77035364,
+        "source_sha256": "5E02909B102BCE2560C74AE612BD3FCF572BC08364B713420091D99E93DFAEEB",
+        "target_bytes": 77033843,
+        "target_sha256": "80F28DE97171FCEF90089D36D8F72BFBCF0067024ECA44551DBBDF49C32B71C0",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/T_CanyonSandstoneRidge_02_BC",
+        "class": "Texture2D",
+        "source_bytes": 25786739,
+        "source_sha256": "378A1A702748EB94682FB28B68578D0970AB84FD133763DB3F39498ED3943A20",
+        "target_bytes": 25921920,
+        "target_sha256": "DE5FCAC49458699A8532380E877A027423D8896BB19FFB2D8E06D12AE0227B84",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/T_CanyonSandstoneRidge_02_DpR",
+        "class": "Texture2D",
+        "source_bytes": 10729105,
+        "source_sha256": "9116B552CB5EF84B1085A76F4C74C19D140D2ADECB24363A67F26F22058DA2B4",
+        "target_bytes": 10577829,
+        "target_sha256": "AADB0D80900164C14F61E264082EC15B2ACB31DE74E04805A200EC8BB3D7EA9F",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/T_CanyonSandstoneRidge_02_N",
+        "class": "Texture2D",
+        "source_bytes": 33248436,
+        "source_sha256": "7933A5E814AA2F1731B81C9BDB84E027CE032CC0FF8E12465B15E71EE938BA58",
+        "target_bytes": 34728481,
+        "target_sha256": "4F8C9419F32B3602158BE3AE57E312E0CFB63E03564F2F5BA2738CCDEA79FD04",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_02",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 13990,
+        "source_sha256": "6C0D1715272014CCB6472C32DB8C4BCB1AC77A772148C8071A3E0105977CDA66",
+        "target_bytes": 14164,
+        "target_sha256": "8716D91D80817DDD06D9C3D9FAC4C9F69937543E5CC53CFAC7C678EAB3E35301",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_06",
+        "class": "StaticMesh",
+        "source_bytes": 69438637,
+        "source_sha256": "A5AF0E4623B1402310F8EE287B441C899C9BA537755D1050299D5F2F8AF44037",
+        "target_bytes": 69421797,
+        "target_sha256": "56E609FF3B685D0F550B54C3E815264366F4F5064E2BBF1C4F461C75F51A6E3F",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/ForestRockFormation/T_ForestRockFormation_04_DpR",
+        "class": "Texture2D",
+        "source_bytes": 14880241,
+        "source_sha256": "8A5EDC8C2F051FECF7F0E8489D52E6B87F5C61C62553FB4089938DA65EBA502D",
+        "target_bytes": 14792848,
+        "target_sha256": "36F67B25E54FB957C9244C36E1E0072F699B67743029B6631FB515F44B805C4D",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/ForestRockFormation/T_ForestRockFormation_05_BC",
+        "class": "Texture2D",
+        "source_bytes": 26621771,
+        "source_sha256": "896F884459D85C700243447395BCDFB530AAFEE53EAC1F9BEE7AF7F95F0F71A9",
+        "target_bytes": 26714906,
+        "target_sha256": "6487EB8A9F2850F6C3E50C52FA557456627D2805EF0AA0F5E9437767C1A7B35C",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/ForestRockFormation/T_ForestRockFormation_05_N",
+        "class": "Texture2D",
+        "source_bytes": 30182717,
+        "source_sha256": "7B56502825DC0952C83F72A371D56CCD4E8718C7E9C90917A8814B419A0BB60E",
+        "target_bytes": 31345751,
+        "target_sha256": "993A0BD9E3BC7CFE82E65B47EE5BE59A87D1508DE3F2E0DD729E38FACF342999",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/GrassyEmbankment/MI_GrassyEmbankment_01",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 14600,
+        "source_sha256": "AA3D47838A3EA21E1E906EF195DD6C13115B2EF63327075D2B64FD78B0F46C24",
+        "target_bytes": 14765,
+        "target_sha256": "1F34864CCA6654627D940A53E2DC7466CA22E30138FCB9FBCF2912EF7A44E440",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/GrassyEmbankment/SM_GrassyEmbankment_01",
+        "class": "StaticMesh",
+        "source_bytes": 57998118,
+        "source_sha256": "BC75E0BB57165459249729162A1E047AA9CF175E6EE70AC5BFC5CC36EB0EC408",
+        "target_bytes": 58012188,
+        "target_sha256": "B285F2E615D9E3D7D3D69E875414B3A8252A2E1A471F9459FE9A508352F336CC",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/GrassyEmbankment/T_GrassyEmbankment_01_BC",
+        "class": "Texture2D",
+        "source_bytes": 28758861,
+        "source_sha256": "D0C207B237A8D19A003126E28A58FE4D0B6C69EC7F59F438F1C5760D64CE34AC",
+        "target_bytes": 29215913,
+        "target_sha256": "E1940267999380B97B98232D108A39F3234E26AF672BD916293D0E01BAA554B2",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/GrassyEmbankment/T_GrassyEmbankment_01_DpRF",
+        "class": "Texture2D",
+        "source_bytes": 15128996,
+        "source_sha256": "FF323230CA036BA690A6CBBAA503A8CAE2FA6520B092F18D24102C1785B8195A",
+        "target_bytes": 15327265,
+        "target_sha256": "03F4CB40CEDD868C368BF991A5A8F6C55F61B9FEC0AF7C1AAFB51772E9A9D032",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/GrassyEmbankment/T_GrassyEmbankment_01_N",
+        "class": "Texture2D",
+        "source_bytes": 39461451,
+        "source_sha256": "EFCD65B4F3CEC276C30043D1EF00B3475B863427C94B7C436416A3BD7129CB7F",
+        "target_bytes": 40435206,
+        "target_sha256": "54D3CD2896B8D6B1222BCDE7E33BBF3BC45A41AC66CC6603D9626A10E5370436",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeNordicCoastalCliff/T_WhitePlaceholder_01",
+        "class": "Texture2D",
+        "source_bytes": 4655,
+        "source_sha256": "02FDAAD5B68168FE57B04D24291CFB52A3DCC2B59FCC3FF0B39AD308CA3EBD6E",
+        "target_bytes": 5018,
+        "target_sha256": "24EDE96537DC1BF0C91456B19F13AAEA4EAFCE9F206FD2B17E6FF5EDFB2BC30C",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_02",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 16173,
+        "source_sha256": "E4DB29FFFB0BF286DF9FB3C72B9BC9C309CE1C469E31080940880F5FF681C48D",
+        "target_bytes": 16402,
+        "target_sha256": "E5BF98625953927DB190D658014D9D197D655D7EBBAAEF74E752D970847CA247",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_03",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 16173,
+        "source_sha256": "01641FF697EE755809F1283F0F7E2D634C367C78272E1DA8BA6E2BEA2B6354EE",
+        "target_bytes": 16402,
+        "target_sha256": "953860999D304FC836F4F1C37B70FEF76601C9CC3745E432F1A3986D9FB36840",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_04",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 16173,
+        "source_sha256": "B7B0FF89545C25BBF126C04F02B1DD87EA81E0E3BB04DBF58D70B62785EBAA74",
+        "target_bytes": 16402,
+        "target_sha256": "71312219A9FB384063CC0B31BE4029091DDBBA9B4DA17237D131DCB7B6E7C7CC",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_06",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 16173,
+        "source_sha256": "82DBB7F7D065680C95FBF48CB3F72EFC7040EC4E401A542672132ACCB4330C99",
+        "target_bytes": 16402,
+        "target_sha256": "B4D69021CFCBC763A3A26E0B1F5CD1866DA8045B38E1D4408D171CE67624F26D",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_07",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 15199,
+        "source_sha256": "30691E8004EA0B7DA0B7BA973530E80EDA4017FD5BBD11746A046F3031D71B9E",
+        "target_bytes": 15409,
+        "target_sha256": "C15549FCDCF8C368451E8C535E86F4A6C0E48E905DA02E024CFDA08CBE213E0D",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+        "class": "StaticMesh",
+        "source_bytes": 259688969,
+        "source_sha256": "ED9378BA54454B4D2B7541B2A5B13C888E65B3FEA46F02E1D9985EA365BF855D",
+        "target_bytes": 259680469,
+        "target_sha256": "DB5FBBCB3BA10475A0C12B8C1094D529CCA1CF3A19E2BDB6FE20A0BB12A3EF80",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_03",
+        "class": "StaticMesh",
+        "source_bytes": 132837933,
+        "source_sha256": "9BD18AAF08DB9FB4F476DE485769CCDAA8BE0DE76A0A142EA53B63A65F163DF8",
+        "target_bytes": 132816803,
+        "target_sha256": "C85AD37376CAA6F45944C6F6842FD59909D8956F4748807B2D5E746049FD7532",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+        "class": "StaticMesh",
+        "source_bytes": 249946755,
+        "source_sha256": "201F7996EE0775DA09D8B6C3CC7816067180B514F81017A37F9418A6FE0CE0E4",
+        "target_bytes": 249920469,
+        "target_sha256": "4E62F8DA6F1130E2ED2E5B0313237406CCB55F0C245025DA1FDA3A99272540F8",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+        "class": "StaticMesh",
+        "source_bytes": 133909338,
+        "source_sha256": "05E43E990743857382FE92B244DC372A435B6BCB94F0E8819AF7AF0A1B4F5B1C",
+        "target_bytes": 133902021,
+        "target_sha256": "4C31563ACAF86FB3B3CD7C84C46C00230CAFC7889027E1A335457DE9D37F1B32",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_02_BC",
+        "class": "Texture2D",
+        "source_bytes": 25832602,
+        "source_sha256": "9B28B202B798FFA36683E85F49CFF9BA2F69FC77FF53726047F7703F41B57BDB",
+        "target_bytes": 25407989,
+        "target_sha256": "CFF0024F6D32B3B2278D36E7DCEEC90DC9306E98C69652E75866FECDD3FB0E78",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_02_DpR",
+        "class": "Texture2D",
+        "source_bytes": 17088189,
+        "source_sha256": "6A9A75241A765692E2A5D00F0F152B432DCBD82C06565A32B7CD1DE9F1159AB3",
+        "target_bytes": 16770232,
+        "target_sha256": "4F0E9CFAFA3C230F48A62235CB36268BD1A226B19CE3B6E7F328D151BFC51093",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_02_N",
+        "class": "Texture2D",
+        "source_bytes": 33106634,
+        "source_sha256": "CFE24A3DF2B9F6CE1DF14290AE2E67582AEEB39D52F56B909A019745203CACB1",
+        "target_bytes": 34186384,
+        "target_sha256": "DF325E6297FFD372610D17F22C61F150262A06B2E556280C82EC57CB59FF1ED8",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_03_BC",
+        "class": "Texture2D",
+        "source_bytes": 25040589,
+        "source_sha256": "542480F962958E0240066A14A7149609002C1A5380B1FCB77D27D0541347913D",
+        "target_bytes": 25125162,
+        "target_sha256": "111EE6FC1FBD7C705902AEF789D20F149A5706AE61DC1986C941D4B4C3A14CC6",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_03_DpR",
+        "class": "Texture2D",
+        "source_bytes": 12539714,
+        "source_sha256": "9090859FA1DBA4ACAF2ADBB319EEE17E04C3E826E5472B4AC290F7600EB897F6",
+        "target_bytes": 12355687,
+        "target_sha256": "45F3E6ECB295802D68122B0F96D6E1D595704D25200516476D2CA6E3225A9225",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_03_N",
+        "class": "Texture2D",
+        "source_bytes": 29641902,
+        "source_sha256": "5B4F08D06DA9788B4051FF5AE4764C6A8B0649D2F88926479AC3BA90F0BC07C1",
+        "target_bytes": 29488520,
+        "target_sha256": "3CE2B5EC1D2541370B21DBCC2DCD4B41CA5D5C9159219F61502A964AA27D924D",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_04_BC",
+        "class": "Texture2D",
+        "source_bytes": 24658918,
+        "source_sha256": "D30101BC92575F04DEBC79C318E44692CEDA3488BA06A9C8038FA2922F7ABF53",
+        "target_bytes": 24744427,
+        "target_sha256": "3DEE88295977A39BE9DB4E78E42CE589FA983315E0C98DEBFD961E08D4D71541",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_04_DpR",
+        "class": "Texture2D",
+        "source_bytes": 11749212,
+        "source_sha256": "2077695CA52B509606A333A2977077108431138A6307C189F0F0F5D07B80DEC7",
+        "target_bytes": 11542892,
+        "target_sha256": "0FE02553027CC8C3589CB21D2BE60BACE1FE3C40174761277590E7CDB0DAD201",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_04_N",
+        "class": "Texture2D",
+        "source_bytes": 32465636,
+        "source_sha256": "EAFE894B19BD09DB5910629F956D02AD973E41EE9E6E0CD69ED1368897131AE3",
+        "target_bytes": 33737068,
+        "target_sha256": "500F1BEE60462D82CDE722D40DC1C8AFAE6790EEF6D332809263D42AF12C87C7",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_06_BC",
+        "class": "Texture2D",
+        "source_bytes": 23976535,
+        "source_sha256": "96A96E3089897E9554A0A913957781B318631DCA75D32BEA322108469574F175",
+        "target_bytes": 24029119,
+        "target_sha256": "12175049325E506456AAB5E4867FAD849383763AD9D91C287F9DA22DA4656078",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_06_DpR",
+        "class": "Texture2D",
+        "source_bytes": 12423088,
+        "source_sha256": "6FB443E7815BC3A60AB792936E4C7E57F6C5FD5CE6A70E0EDA2EC77BC27C4C46",
+        "target_bytes": 12225608,
+        "target_sha256": "0E4174CAB23DCB349FCDFA9DE6F6D73E0D89FEC56C8569B5A21320BE5A5B1919",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/T_HugeSandstoneCliff_06_N",
+        "class": "Texture2D",
+        "source_bytes": 32519262,
+        "source_sha256": "61568DD27CC2B11C93AB4218DFD7D3404967D1F811C563A7114E66D73709E802",
+        "target_bytes": 33696928,
+        "target_sha256": "6864B0F951D02283F0720084903CFDDDB66C87FCA54EDD4FD186F875CEFF3D8B",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/MI_MassiveCanyonSandstoneMesa_01",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 16680,
+        "source_sha256": "0426C3E22B7133E54906EDFC3C4AC3D60881D33BE1F7036592DCFA54B5321DAF",
+        "target_bytes": 16925,
+        "target_sha256": "F1AD693074B8B38CD1D365C0A40CA1AF6CE689DAE30EE53AC7ECF7FB13F7246C",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+        "class": "StaticMesh",
+        "source_bytes": 167173825,
+        "source_sha256": "D141F894D1C5A046EBB36C0FED3A9C9C5276404E990B1A5ACF0DA59DF459C850",
+        "target_bytes": 167179289,
+        "target_sha256": "BF35A2026A54C0F53B3CACA5FAFA8BF6792B0D93E82D2C081922377DFEE254DF",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/T_MassiveCanyonSandstoneMesa_01_BC",
+        "class": "Texture2D",
+        "source_bytes": 25190461,
+        "source_sha256": "D38F003378B0B0F7CB0D0B99B12A69BBEDCAC12569FB5561644423AF36796757",
+        "target_bytes": 25670060,
+        "target_sha256": "F91D8DC9CCA4406C8E025A9E08853878148C9C613B50E30769753EB357B94AF6",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/T_MassiveCanyonSandstoneMesa_01_DpR",
+        "class": "Texture2D",
+        "source_bytes": 11457920,
+        "source_sha256": "9CED74058E8DA9791A1BEB334ADD764F2358FD1D2629F35B9C7330613A91C759",
+        "target_bytes": 11269165,
+        "target_sha256": "C2D1D92BE90BCF3FDA0845A65881FB62A5A5D688E463E5F0BA089B3951EE787F",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/T_MassiveCanyonSandstoneMesa_01_N",
+        "class": "Texture2D",
+        "source_bytes": 29517275,
+        "source_sha256": "DA862E7813E5A828723BA86D46BCDB849061AA694FE86DF3E8C686DC1246FC9B",
+        "target_bytes": 30740593,
+        "target_sha256": "289E6195B5E5FF99A481E83808D1D3A6D5E45C5CC04F829EDF416A4A0E48E865",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_01",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 16288,
+        "source_sha256": "C1938CA1A52BE4D1CC0671156572F8A9DCF5FE22C24619DCF1D4B5D6201B2F00",
+        "target_bytes": 16514,
+        "target_sha256": "94D49BD592F33BCE5C4F7F6161D40494B967216C72E1D91D715D2099990C1441",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_03",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 22203,
+        "source_sha256": "00966F07EE1605B686467952006100F85E0F02BCADE955BEC653C1CEDB041340",
+        "target_bytes": 22643,
+        "target_sha256": "E81FDA329699D45241246420AE7879E60A2850774A56E3E6C4195558F27AB086",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_04",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 15806,
+        "source_sha256": "1D7D8E4CC0042743395C9396362BB7BBDDFF57507E0BB33151CCD5057EFE04EB",
+        "target_bytes": 16020,
+        "target_sha256": "ED2D389AEB9EDF43ED71B7D8A1CFC4280F064406C141AB2705B38E405CE413F3",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+        "class": "StaticMesh",
+        "source_bytes": 192708639,
+        "source_sha256": "EF46C4D2DD3CBC4BEA6F6FE6AEC4017566786A160872E31EACC885F818697338",
+        "target_bytes": 192690720,
+        "target_sha256": "EAF5F8C93F44AE2A9BCCBBE3085FCE2D6F95671EF29CDC72F73519663799A17A",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03",
+        "class": "StaticMesh",
+        "source_bytes": 162937048,
+        "source_sha256": "CE84EB710D8C187C69F4023A7E4EFDE559C3B5542DDF09A6EA28E65D2FB62B28",
+        "target_bytes": 162917755,
+        "target_sha256": "3C8852A5EEE8234A3AB0574EBFDCC10122B06D4FD365959B70520FEC3208906A",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_05",
+        "class": "StaticMesh",
+        "source_bytes": 962396,
+        "source_sha256": "3F1279894EB8B3BB8973DBA5F4607F6CE464DAA096235E5EB5332106C7316292",
+        "target_bytes": 962702,
+        "target_sha256": "8539C291A9DA8F4085B022B69DFBD4CA13373FA02B93CC886EBF6067B2F712CA",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_01_BC",
+        "class": "Texture2D",
+        "source_bytes": 25673309,
+        "source_sha256": "781D47100A6546E90BEBBB0A01B3AB6646F9151F5EC2EA8BA16250A4ACC1EAE6",
+        "target_bytes": 25750764,
+        "target_sha256": "CE048B525279AD009120784064236D3F181EB233C610A18403E06D529820F37B",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_01_DpR",
+        "class": "Texture2D",
+        "source_bytes": 13225258,
+        "source_sha256": "4D50712062BADF91DB661E31EB19CF183CD72DBF8B51B8D036F24EB70A9BACF7",
+        "target_bytes": 13065048,
+        "target_sha256": "D55DE1E7447F7536A63CA3EA0E097EAA339F2BCD8100FCEBC8D79E7C7154319D",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_01_N",
+        "class": "Texture2D",
+        "source_bytes": 36699557,
+        "source_sha256": "7EE7EF49FB1C44D696A0D15F0EA79F8E51D1AAC33D44E620D0A45A38A2B8848F",
+        "target_bytes": 37528611,
+        "target_sha256": "35A3894133E88A232F360E3E892C0C04DF830559CE8081FC0C82971525DE2C10",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_03_BC",
+        "class": "Texture2D",
+        "source_bytes": 28853162,
+        "source_sha256": "5C75F5F23F83A043CFA03EFD52C2CFDF33F6BA32B204AD63BC56D06A0086DAF0",
+        "target_bytes": 28873793,
+        "target_sha256": "B246F9523140805CA7F5A741FB261316DA2A7A55ABFFCA23536305B63CE3344C",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_03_DpR",
+        "class": "Texture2D",
+        "source_bytes": 18101551,
+        "source_sha256": "F51457B0EE17558C2FC4C2726AA3CC723E28CA6FBFF76FB6DE177296B9442E5D",
+        "target_bytes": 17301129,
+        "target_sha256": "D710F155D6667A7990C96CFE599D2B4447531DD9CE7110F7ED3E644E0A3E4387",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_03_N",
+        "class": "Texture2D",
+        "source_bytes": 38016653,
+        "source_sha256": "46E4623B56F548A66A060A16820FA84B5A4315279ABFEFDB7C5D4C0659186F05",
+        "target_bytes": 38972546,
+        "target_sha256": "700C7206A36B246C4336420D05C8079DE6AF6C8F70E47367CB27961B577B913F",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_04_BC",
+        "class": "Texture2D",
+        "source_bytes": 23711655,
+        "source_sha256": "727101810D6904D02D84301FE3341A6E5DD5953AC744393EE5A47905CB388C94",
+        "target_bytes": 23849173,
+        "target_sha256": "5708EFB2E16921978F7485DE45C81F5CF3A2AB6FAAEFC8116CE6BAD90B58596A",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_04_DpR",
+        "class": "Texture2D",
+        "source_bytes": 11464009,
+        "source_sha256": "9CB2C8A224575E2DA6C304A26F9BDB960B8965360078BCC2806D3F3BC84F3F25",
+        "target_bytes": 11250412,
+        "target_sha256": "7A24738565948A28B97CBD40386190C597BEDF515F7EAE1FCEAFC2E22C7E6491",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/T_MassiveSandstoneCliff_04_N",
+        "class": "Texture2D",
+        "source_bytes": 36832868,
+        "source_sha256": "E516396B9666649DC9E68CFD61848534384638496E4978564EA3BD614434CB9C",
+        "target_bytes": 36766628,
+        "target_sha256": "18A329D28D688CC95DF8CAF66D588D1B9A223E53230C121D0AE347F8548545D4",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MossyForestBoulder/T_MossyForestBoulder_04_BC",
+        "class": "Texture2D",
+        "source_bytes": 32047678,
+        "source_sha256": "9A17DA64E513CEEC233CE43D9AC144EF4F5F8763CA4B32DE3B3B5DAF20C98A49",
+        "target_bytes": 32078461,
+        "target_sha256": "4F73CB70669DA5561993E161D8406B0A38D9687106EEB3CDDB960D29432086AB",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/MossyForestBoulder/T_MossyForestBoulder_04_DpRF",
+        "class": "Texture2D",
+        "source_bytes": 17151767,
+        "source_sha256": "D8EFCC2033AD62F22CB74E01B303E61ACD3735B55328973E3D19C5C33BB8C557",
+        "target_bytes": 17727383,
+        "target_sha256": "8352415D64532B9DF0EA368CA5CEBE125ABD726DE73587AED9DDF1CBE06C3A41",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/NordicBoulder/MI_NordicBoulder_01",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 26152,
+        "source_sha256": "78B7DEB02F954FF3FCA68B6FC974EB46D8159EC8347DF02810A882125CB15EDC",
+        "target_bytes": 26683,
+        "target_sha256": "DCD6C6B37FD40C6E8385ECBB03054569F5515C7273D7B7C47B398ACEDB52E499",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+        "class": "StaticMesh",
+        "source_bytes": 943444,
+        "source_sha256": "5CF34339B4673DEDF64951F6B984D0F5D94630CCE25E0525F39172B0F693F7C7",
+        "target_bytes": 943714,
+        "target_sha256": "DBC8ADF6FD9D8099DC0B788DE64287DAE90C1DF3E8C4D044D94CDDB75EFD2075",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/NordicBoulder/T_NordicBoulder_01_BC",
+        "class": "Texture2D",
+        "source_bytes": 31042073,
+        "source_sha256": "FF49B73DA5DA2276B5FC132C0D9602F0B13EA09CC0043D5954AD6C9677A0AF15",
+        "target_bytes": 31482268,
+        "target_sha256": "2AC638157EF33062797B2D94EF9EF898A956E7BDC0CF92EEF2D559930E33CC52",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/NordicBoulder/T_NordicBoulder_01_DpR",
+        "class": "Texture2D",
+        "source_bytes": 14121580,
+        "source_sha256": "04D7CA40F764447EB39FA0C357E7DB1E8E04E881437EAFA6D3B82422FA684198",
+        "target_bytes": 13955587,
+        "target_sha256": "683FB78CA5FCDC204D54CC4B1D8E35CAF7289FFBBC44F550B0C1B47EDC3A1F14",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/NordicBoulder/T_NordicBoulder_01_N",
+        "class": "Texture2D",
+        "source_bytes": 37851149,
+        "source_sha256": "E0687B8332E5B05BDBE28FF8A240CDD8162F31AE70579361533B48FDFA3BBBE0",
+        "target_bytes": 39044084,
+        "target_sha256": "8FAAC140E2EBD243C8AD0BEC249713291441150B8A06F13A9BA4D8FF0A00E31F",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_02",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 16215,
+        "source_sha256": "FC89AC6BB3EDC3BEBE856EACA0EF75BF3765D0D532767A334C38E1AE986BDC5E",
+        "target_bytes": 16444,
+        "target_sha256": "DB435C5864B9128EF234FF9771E04E4776F2BD30ADDC33AB8E8B49809E5B9292",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_05",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 20087,
+        "source_sha256": "0A017744CD5282D64AC3BEA2B6925B5F09488E87981B81878743C831F0855822",
+        "target_bytes": 20452,
+        "target_sha256": "78D3D66D48A1857ED33212D39569F268B301CCBDD0F0462D96907694DDF7477D",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_02",
+        "class": "StaticMesh",
+        "source_bytes": 58731085,
+        "source_sha256": "7D192ACD8079F7FA4C8308D259961C79703A409BBB862D410E426C9CCD78F5A5",
+        "target_bytes": 58715052,
+        "target_sha256": "EAC0255BA4788458AC90C2F896DD64C6D6FDCFC3456A6838EDEE54984CE8862E",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_05",
+        "class": "StaticMesh",
+        "source_bytes": 194198366,
+        "source_sha256": "4DDE36D666AC04833251EA9E899E2126247F8E9BC08F254778218F5DBFC6004F",
+        "target_bytes": 194180889,
+        "target_sha256": "775737269907FF36A9F57B7FC15FA74D9F0B232D6E66102A1D3669F99E47C44A",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/T_SandstoneRockyGround_02_BC",
+        "class": "Texture2D",
+        "source_bytes": 27660310,
+        "source_sha256": "E4C64F894B405C1F23BD5FB896CBCF204E364410EF20240165BBC598B9E70B2B",
+        "target_bytes": 27596408,
+        "target_sha256": "AAA236B514B966B611A6707113C2DA47B0CE6B47EA8E5FBDB70E9C45E802DEA8",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/T_SandstoneRockyGround_02_DpR",
+        "class": "Texture2D",
+        "source_bytes": 18277190,
+        "source_sha256": "33A65E168E028221495674EAAC3E40156FFEEC528E194626E836CA5E09FED12B",
+        "target_bytes": 17551282,
+        "target_sha256": "78790D91E290A675B595537311252858C2B24B4596E7E73C0F00E5E979E6E6F7",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/T_SandstoneRockyGround_02_N",
+        "class": "Texture2D",
+        "source_bytes": 35533238,
+        "source_sha256": "3BE0B4795D3CF002B00CA57E7CC02380D1AD614E4E0F29F4BEC25F1CB43A1DFF",
+        "target_bytes": 36891570,
+        "target_sha256": "10DDD1AD003C3ED233F418DDCA4722BFE8DA27197F252FA8360693C35F99B8F1",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/T_SandstoneRockyGround_05_BC",
+        "class": "Texture2D",
+        "source_bytes": 26152474,
+        "source_sha256": "A95D24FC77A41027FF9925AFD261E598E41B03151FF8E5FF8F9079B6C8FFEBFE",
+        "target_bytes": 26376002,
+        "target_sha256": "F3F6B2FD6D30D0C8D8CBD9F8D7AF9E59FF7AF080685EDD6636B3D7B26313F9C9",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/T_SandstoneRockyGround_05_DpR",
+        "class": "Texture2D",
+        "source_bytes": 18702648,
+        "source_sha256": "9C60A37F15E1495C6AC4E78105550EF0F474A573F45C6CD2DACCA0ECCA655DC4",
+        "target_bytes": 17944919,
+        "target_sha256": "145A771F3CD122A0BCF00BBE4A7CB9AB4B59C74151685DF96D57557A889744FD",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/3D_Assets/SandstoneRockyGround/T_SandstoneRockyGround_05_N",
+        "class": "Texture2D",
+        "source_bytes": 35987635,
+        "source_sha256": "D3B59189D28097840D2661334B7676B0821652AFCC78C2BF62B746356903C7B0",
+        "target_bytes": 37196151,
+        "target_sha256": "ACF0D5968F35198AE0FE5449685043F1C5547B4CBF93A5D4A3F2EC9368E8A573",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/Megascans/Surfaces/IcelandicQuarryRock/T_IcelandicQuarryRock_01_AoRDp",
+        "class": "Texture2D",
+        "source_bytes": 8383461,
+        "source_sha256": "EA649610612C150ECBA0653EFB3EB62050AEA1221FAED93D4A7F7D7F908AD497",
+        "target_bytes": 8146492,
+        "target_sha256": "3C40C59C965C0E83A0E7F863F14EF555CF2F47CA3169767ADDADF23948D91923",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/Surfaces/IcelandicQuarryRock/T_IcelandicQuarryRock_01_BC",
+        "class": "Texture2D",
+        "source_bytes": 26801170,
+        "source_sha256": "16264B4E047820E3E07AB860C272196DD1A0359CF41300CB48F0ACA7627F00D2",
+        "target_bytes": 27429076,
+        "target_sha256": "A924DB2211BCF6EC4DA8CD569DC4E152847FC0A5469B5AB4E403CD20E1A40329",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/Surfaces/MossyGrass/T_MossyGrass_01_BC",
+        "class": "Texture2D",
+        "source_bytes": 39213797,
+        "source_sha256": "BB757F17120C53EE32F6A9ED4E98E330B46FF81F81D30B7D2B6A81350722AB84",
+        "target_bytes": 40255876,
+        "target_sha256": "D0CBBBF780955C6980C0C8B6F09AC537D31CEC2819244E70D67C14E2400760D0",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/Surfaces/MossyGrass/T_MossyGrass_01_N",
+        "class": "Texture2D",
+        "source_bytes": 53531874,
+        "source_sha256": "C7C336B226F6A48B13B468CA75C3D98B295D940EB889CF00C98E2E03E9E03CEC",
+        "target_bytes": 54664823,
+        "target_sha256": "B3076C179102C70A6FB72D544E9A3F3FFAA982719A0A4B62F447C4B0D8B0831D",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/Surfaces/NordicMoss/T_NordicMoss_01_AoRDp",
+        "class": "Texture2D",
+        "source_bytes": 10544972,
+        "source_sha256": "5C6F56AC48D619D25B46F7C4E72A1A56BD58E0544BBEA9FB691657F84E00F266",
+        "target_bytes": 11060673,
+        "target_sha256": "AC22F4223E25BD8F10C3771E894B26FBFB4D42EAE1BF3C379DA69793AD6E5408",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/Surfaces/NordicMoss/T_NordicMoss_01_BC",
+        "class": "Texture2D",
+        "source_bytes": 39225559,
+        "source_sha256": "CB8F6C47BF8EFAC78F3709682A8277F272B130329B814B4CA87195ABAFA20555",
+        "target_bytes": 37996149,
+        "target_sha256": "E921ABCABE015BD31D3C78A904EA3DF070D44EDA3E274CB6CF31338F2401C951",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/Megascans/Surfaces/NordicMoss/T_NordicMoss_01_N",
+        "class": "Texture2D",
+        "source_bytes": 46667225,
+        "source_sha256": "D2D040DD7480997A2953681F257AB3209F2B5355F0DD06A1CB61CCA8C740EE66",
+        "target_bytes": 47931293,
+        "target_sha256": "8C06D5BD116D9D1124E77264D4911A87685776F48ACC8945334200C48BCA57B2",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/PhysicalMaterials/PhysMat_Grass",
+        "class": "PhysicalMaterial",
+        "source_bytes": 1471,
+        "source_sha256": "B10C03F88229B976EF71A67D687AD2CA6B49AF9975392CB45DD28EEC626D0943",
+        "target_bytes": 1399,
+        "target_sha256": "7F82D60C5D68E5028D424F58C866221DF894447CC6AF0C83D140E362532E15C3",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/PhysicalMaterials/PhysMat_GravelOxidized",
+        "class": "PhysicalMaterial",
+        "source_bytes": 1516,
+        "source_sha256": "6BC1054912CEDA5CF9BE1521D78D74EC2EE9FBCF53ADC09743FE316285DEBB10",
+        "target_bytes": 1435,
+        "target_sha256": "55BC7BD9402403253F3D01B3239745C2A25247A16CA35DC8523913FC97E3A291",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/PhysicalMaterials/PhysMat_LooseRock",
+        "class": "PhysicalMaterial",
+        "source_bytes": 1491,
+        "source_sha256": "D8C2EB378CB2E924EFB2D3BABE3AF65FBC3F61F0F4A20FDCC0C2FEBFAC4F76DC",
+        "target_bytes": 1415,
+        "target_sha256": "8DB052BA7A0C14FFE7476A8EDC3C2F17A6F1D98CBA4EECDD8389B1826F22AB03",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/PhysicalMaterials/PhysMat_Mud",
+        "class": "PhysicalMaterial",
+        "source_bytes": 1507,
+        "source_sha256": "238BDF9E13ACC068E334E4A495A40E297FB78DD85E948B63EBE10B9173683D40",
+        "target_bytes": 1437,
+        "target_sha256": "2C0DAAFAAA4E1A617E7729DBE31C64610D52B90BF0B9825D624ECFF263805905",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/PhysicalMaterials/PhysMat_SolidRock",
+        "class": "PhysicalMaterial",
+        "source_bytes": 1537,
+        "source_sha256": "9FECB0278F9C8083698E70E06E06148E3076335C3CEB1A53E285DF9554F2A3C7",
+        "target_bytes": 1461,
+        "target_sha256": "4AC930121307EC4DF0C3B772F8362A8CEFF1C0B228BE23A8418526B69A8C25E0",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetMaterials/MI_Cliff_02",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 28653,
+        "source_sha256": "619CF17070613D497003EDF42AE75C467208232DCDFD81CE924B925AB6802699",
+        "target_bytes": 35356,
+        "target_sha256": "1493E049F07FB1C3114CCF61FCDE3BC735C407764BC320630E3F1BE010626388",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetMaterials/MI_Cliff_05",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 23351,
+        "source_sha256": "C5013A61AE7895F5B91C99FE214230E4E8202F2E1208A036809AEEC4A0815AC0",
+        "target_bytes": 30151,
+        "target_sha256": "1D29DD1B03054C4B0840F549084F6EBCC1213819300D2F17F2E5DF1A51BE8022",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetMaterials/MI_Cliff_06",
+        "class": "MaterialInstanceConstant",
+        "source_bytes": 29066,
+        "source_sha256": "E7BCCA49F9F27C8DF57280D2ACE2BB1ADDDD720F333AAA4C74BAE5026A2FFB93",
+        "target_bytes": 35711,
+        "target_sha256": "66DA6BB1BE93640B191FFFDB7C260E8208E8B173074F8C5186F3BF1A8E301C2B",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz",
+        "class": "Material",
+        "source_bytes": 70722,
+        "source_sha256": "BE6E3FF17DA4A5DFF460357595BF70EFCA2F0B17CF2F0056F8ED575D87351D5D",
+        "target_bytes": 76067,
+        "target_sha256": "06CD4BB8AC4172A527BE635E9000820BF36864FF822ABB84DE9BCF4C4392AB7B",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+        "class": "StaticMesh",
+        "source_bytes": 717366396,
+        "source_sha256": "A2FC7267EDE75F7DB2A6F8568078FADDEAE713355AC4BDD7AEA4AD76C8EDE7FD",
+        "target_bytes": 717195979,
+        "target_sha256": "C20008EE70A6C525F3E4AA43CE234964583CC0A8325E7ECB07552E77D041C617",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetMeshes/SM_Cliff_05",
+        "class": "StaticMesh",
+        "source_bytes": 191039268,
+        "source_sha256": "85E23400F7994C9233F23A3A17FFE4B4E763C629AFAF1244A1381BE2C7598D73",
+        "target_bytes": 191043531,
+        "target_sha256": "B70262D85C37C7C1605FB17ADA1147D67FC747CD23383E0E9B434642E653BBE5",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+        "class": "StaticMesh",
+        "source_bytes": 266764027,
+        "source_sha256": "2FDBA1B6DF5797272660284095CB3DF04010A2A4D1EDBB4E47DD99A9D3D96A7A",
+        "target_bytes": 266766566,
+        "target_sha256": "F41C1F69C0758C9DE2C5501F3C018FC179A286A625602CB711A0A86EF898ACE4",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_02_Ao",
+        "class": "Texture2D",
+        "source_bytes": 12472401,
+        "source_sha256": "876CAF2D108A885CD02C5B3EDD2C06ADE6221743BA52FEE325D7F391EDF85EEC",
+        "target_bytes": 13591681,
+        "target_sha256": "33FF2A498F7143916ADAABE24FE1F36F03008B0FB7193C3D673D6641AA32BE87",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_02_M",
+        "class": "Texture2D",
+        "source_bytes": 779211,
+        "source_sha256": "8D21DC593FB4C79BC05552118404C260F0C60DF73CD1950F08D6F7A5C4C6CF21",
+        "target_bytes": 966625,
+        "target_sha256": "763C9B62E1B6FE33BC55F9604102663BE6BE57C1EA85940603954A2C6313987C",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_02_N",
+        "class": "Texture2D",
+        "source_bytes": 36510321,
+        "source_sha256": "AA187281CFB05796464E2D6E2A57F62CF2B29B0A2FCB92713ADD0D7475FB51DD",
+        "target_bytes": 37988200,
+        "target_sha256": "7FBAFE66F7366B63C1A9497CFF2C1E92D3401CB6C8C951F1B20257A68148C78D",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_05_Ao",
+        "class": "Texture2D",
+        "source_bytes": 13094390,
+        "source_sha256": "42F730E4355933B173EF08153AC3F2669605931460E08F04BB22043F77D5D815",
+        "target_bytes": 14154351,
+        "target_sha256": "D92576A7E8B808813AA05291850E22E7E48B5D7A668E3293B4EE882836E3C271",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_05_M",
+        "class": "Texture2D",
+        "source_bytes": 334390,
+        "source_sha256": "1EC022D3A9994CCD44016DB37CBB589B3301342DA3E8887FF314AE3CE7B6B388",
+        "target_bytes": 425797,
+        "target_sha256": "070A912BE3014A123F169CD170F7B6CD7204C1E56864297C32EC65E4F6F615FA",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_05_N",
+        "class": "Texture2D",
+        "source_bytes": 37190829,
+        "source_sha256": "BD3F005C687D0CA79153B5932D0C721E4EF2904613816F6620FF130939B49DFE",
+        "target_bytes": 38856144,
+        "target_sha256": "67F4FB01578DC0A52924DDBBBDF19829C217757027BA232E1E71831779AA7DFB",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_06_Ao",
+        "class": "Texture2D",
+        "source_bytes": 14214631,
+        "source_sha256": "35CC83541AB1E7CB9C4699A42FCBB2BC53BA1DB10C049E4A5E11270F8E49B287",
+        "target_bytes": 15136847,
+        "target_sha256": "066279B7D27B1A1F0A706BF7E7B9C4422637A976ACB9D77F60DB11C01074F8DB",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_06_M",
+        "class": "Texture2D",
+        "source_bytes": 704040,
+        "source_sha256": "60EBD06A16592DE4170F99C065695329D151595BCA2889946CE9A45107B5F412",
+        "target_bytes": 696374,
+        "target_sha256": "7A8FBC96FC026B4F05DE8C1E178AFF638587AAF56107F4D935BC18EA4B434413",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/AssetTextures/T_Cliff_06_N",
+        "class": "Texture2D",
+        "source_bytes": 36787300,
+        "source_sha256": "9ADF3B87628AA43C151847B4395856575C860EDB386BE2F08487EE2D04F51CCD",
+        "target_bytes": 39223889,
+        "target_sha256": "659F411255D6A3847D20774FA6D7E4AB105B5B150E8E2992A1CC1F6613B56FF0",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/DebugTextures/T_FlatGrey_01_BC",
+        "class": "Texture2D",
+        "source_bytes": 6050,
+        "source_sha256": "74C485F64ABA260DB6E7773E7CE55E5C108FC2BDBDC6F5698C715EFE73E0F81B",
+        "target_bytes": 5918,
+        "target_sha256": "2306F8726E879E952D2AD930FF97566D3D8024FC98BBE70FBAFE5E10141E6225",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/DebugTextures/T_FlatGrey_01_M",
+        "class": "Texture2D",
+        "source_bytes": 6309,
+        "source_sha256": "A294D1C282968381C7B19FBF08E0A84DE44C66B7A90905E8CEBC6944AEDA157B",
+        "target_bytes": 6192,
+        "target_sha256": "5EF3B80A0FC61CE33EF0E38AB19E8478997F8E29B05D655521EE0B73D27D7DF6",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/DebugTextures/T_FlatGrey_01_N",
+        "class": "Texture2D",
+        "source_bytes": 6485,
+        "source_sha256": "6E148B7F60AE170CE892EED8183E5AD19AF3439B80677FB1E6E3842943324028",
+        "target_bytes": 6383,
+        "target_sha256": "0AB8BCA1BB8015987BA1CF851F9A2686DE57714D425228ECC079448170972E70",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/DebugTextures/T_FlatGrey_02_M",
+        "class": "Texture2D",
+        "source_bytes": 6533,
+        "source_sha256": "0C1E802321CA6C005A9CB849A525E6D4F22ABF7924A436A8CB627C9DB5CBC3D5",
+        "target_bytes": 6424,
+        "target_sha256": "60C0B800593E91BE4FC6D46CC0BDC920CCED280FCA5EFF811EF96E4608D6DDD9",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialFunctions/MF_Blend_Through_Input",
+        "class": "MaterialFunction",
+        "source_bytes": 13962,
+        "source_sha256": "7072680F3F14E4004708D66C3FA37A5439B7D8387C93386A3AB4B6CE3B61FA46",
+        "target_bytes": 14200,
+        "target_sha256": "9EFE1A444620DED20F2E22475A8B544CF94CC2475C0825409899F92D6E29D24E",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialFunctions/MF_DFAO_MossGrowth",
+        "class": "MaterialFunction",
+        "source_bytes": 73267,
+        "source_sha256": "279BAAF5700C8EB05AC039B04CEF58130A81D94F3CFB4677AC4D19D4B9FA9D08",
+        "target_bytes": 74963,
+        "target_sha256": "99BB4EF454917A7BA5090426693F17F5B91485A28B4FF250D9185DB3EFFAD8C9",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialLayerAssets/MLA_Lichen_01",
+        "class": "MaterialFunctionMaterialLayerInstance",
+        "source_bytes": 10312,
+        "source_sha256": "61A9CE011F22E781DA3F6F7FAF759C11BDC81B2103CF8A17C0497357EAF94CBF",
+        "target_bytes": 10301,
+        "target_sha256": "AAEA2881668D9700D8578882BDE8ED42BB3D5E7FC946F530DB0821BEC4FABF4D",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialLayerAssets/MLA_Master",
+        "class": "MaterialFunctionMaterialLayer",
+        "source_bytes": 24703,
+        "source_sha256": "2234B70521531116FD6510B1FC3521A701ECA1A587D6146BA132572E4BC7D105",
+        "target_bytes": 25087,
+        "target_sha256": "25A195A0B5D1090916C69D61FF1E09CD64738E88D639618DC9B66F92C8B04211",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialLayerAssets/MLA_Rock_01",
+        "class": "MaterialFunctionMaterialLayerInstance",
+        "source_bytes": 14584,
+        "source_sha256": "6741DBB5264A086BDC3BF7972D49457F09B40A4D9BC822204CDF8A1E651976AE",
+        "target_bytes": 14573,
+        "target_sha256": "5C35CF1FE3F29B6AF415F91DB315498259479224CC44B59D6EB65354DC29C4CB",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialLayerAssets/MLA_Rock_01_Red",
+        "class": "MaterialFunctionMaterialLayerInstance",
+        "source_bytes": 14882,
+        "source_sha256": "CC30D29BF2FA928F3E198AB83C6EBAA1A75007BEEC2BA5224446EB157D75EB2F",
+        "target_bytes": 14809,
+        "target_sha256": "87A95799BEA3778EAA50AC92FDDC420BBFE21A4BD1BDE159C9C7FD7C850F6FCA",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialLayerAssets/MLA_Rock_01_Sand",
+        "class": "MaterialFunctionMaterialLayerInstance",
+        "source_bytes": 14719,
+        "source_sha256": "458564421CE9C6E030D9F46F9DD25EBACE0B8A1F2FC22FD4D6CC76EA9894EEC7",
+        "target_bytes": 14646,
+        "target_sha256": "D3BC3BF240FACC1AA9B843C010AE307709172BCF1C9AB3A6BBAAE66CE174CEB1",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialLayerAssets/MLA_Rock_02",
+        "class": "MaterialFunctionMaterialLayerInstance",
+        "source_bytes": 14683,
+        "source_sha256": "96C1C8DD348092C5D3249340EC5A4A8A04F4673F390A9B080B969B948F67EBE8",
+        "target_bytes": 14667,
+        "target_sha256": "C2FC4BAD0BF8800692C99AB1D745E719BCD2508775ACE4E0B6EF134F98652608",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/MaterialLayerBlendAssets/MLBA_Master",
+        "class": "MaterialFunctionMaterialLayerBlend",
+        "source_bytes": 22213,
+        "source_sha256": "E869123212B4E9C0BAB9EF60C6F42E35AA4BF8946ADD0BEA0D43B1C55098FE3C",
+        "target_bytes": 22628,
+        "target_sha256": "8FC3874EEA6119EEDB52C177EB9BD6F21A22F0C78137B80A891AFFC1D562F816",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_CloudsGrey_01",
+        "class": "Texture2D",
+        "source_bytes": 57943,
+        "source_sha256": "074D26551C9335F7AE41E424D02A9FAB2854AB426C562E729B32FC896FEE3619",
+        "target_bytes": 62794,
+        "target_sha256": "E5F6079EE1C355D0540608FAAD538C5814BAB0533B25A30847D4F579CD3640F5",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Lichen_01_Albedo",
+        "class": "Texture2D",
+        "source_bytes": 10340911,
+        "source_sha256": "6FA00C72898714E8CAF5C454D871A4AE906C93DFC9FA7341FFF9FB301094E31E",
+        "target_bytes": 10512456,
+        "target_sha256": "FC4855E171258689A9FA6C99BA380160C803396367119204E0D2CDD3D292307E",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Lichen_01_Material",
+        "class": "Texture2D",
+        "source_bytes": 7991145,
+        "source_sha256": "8540626A9A1258F99C160FD763660831FCC8419A643493059197276CFFB6F204",
+        "target_bytes": 7115232,
+        "target_sha256": "E9F3CD46E45A1A1448FD22596EC11051B34D2F08CD569E19A6590808CD1059C6",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Lichen_01_Normal",
+        "class": "Texture2D",
+        "source_bytes": 27408746,
+        "source_sha256": "01BBF8A006AC57898CF1724350474A4C116275DDC4D961DBA74F6EF465F51B3C",
+        "target_bytes": 26092856,
+        "target_sha256": "DB0086D1C9C66A5DCDA96724FCEC3F04E594AA2770D2114C1EBCFDFA2EF8B99C",
+        "target_state": "migrated"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Moss_02_Albedo",
+        "class": "Texture2D",
+        "source_bytes": 11263990,
+        "source_sha256": "E3825A0CD59619FAFDB2E033130E358A60D7EECE8525F53624F1685C9A9AE920",
+        "target_bytes": 11572502,
+        "target_sha256": "FD9FF1EB5E05EFE1CA122CE87D086699B77A7DBE45454E38EC6895013C7F14C6",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Moss_02_Material",
+        "class": "Texture2D",
+        "source_bytes": 10878059,
+        "source_sha256": "6052EC1C89530BEF6F671DD19D0DFDE65BE45BC71B1E6346095EA469957ECA1F",
+        "target_bytes": 11508725,
+        "target_sha256": "FF91EC9ECF78475DB74231901B3010E743CC2E869EBC977508DAB2212DA958BD",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Moss_02_Normal",
+        "class": "Texture2D",
+        "source_bytes": 27037738,
+        "source_sha256": "A70A2D11BB03E036AA9EDCD8F3B3DE087BA94C3830FEA16620AAB4931E531746",
+        "target_bytes": 26131849,
+        "target_sha256": "BF83D9961F95C11CD650E8519415EFDC9C3A5EC06139F95FF99656CA4FD28F4B",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_01_Albedo",
+        "class": "Texture2D",
+        "source_bytes": 11241740,
+        "source_sha256": "9B4184FE885134C47EF5DC387C1A919563C5FE9A924233F08E3A36A77E45E02B",
+        "target_bytes": 11722585,
+        "target_sha256": "E3E36317174299B50F8BFB41AE7C5E325B4CD28053D1D8F536BEE062206B2B89",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_01_Material",
+        "class": "Texture2D",
+        "source_bytes": 10815586,
+        "source_sha256": "2C39B9AE62387561C711B2EDF4288B3C7902DD7EBCDFD2FAC3D0DFB5D6C14B23",
+        "target_bytes": 10082799,
+        "target_sha256": "937AA4399AE2F3B205020920A5B6A92F85689FD7FAEF424F83029A30D7BD6204",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_01_Normal",
+        "class": "Texture2D",
+        "source_bytes": 27142227,
+        "source_sha256": "5FC2A5D8A5F6C43C72C37FF084EF8263241E677C6F07B1AFDCD0C34CEA99BE3F",
+        "target_bytes": 26166114,
+        "target_sha256": "BD12582A82DB9F83AB861C9DDA3E6D81CA21979ACC7B5C4416F5923DCF3C38D6",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_02_Albedo",
+        "class": "Texture2D",
+        "source_bytes": 12041311,
+        "source_sha256": "9441E6454F84C01C68DA139212488AA41B89E5E50D3BB2E272F78A4519D5D461",
+        "target_bytes": 12477559,
+        "target_sha256": "CD60DDF9CB0D34FC94D6F84E54C8CD74FB16380FAED65B0FABDCC89BAB648E71",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_02_Material",
+        "class": "Texture2D",
+        "source_bytes": 10850214,
+        "source_sha256": "FF96922CA12011D063532ACCE26C17903FA57F11E897685552D10A361014C813",
+        "target_bytes": 10826577,
+        "target_sha256": "5F615AB7383E4C7D63399E9816BAD5B67D43046090CCF8EFA7D107D6E310CE21",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_02_Normal",
+        "class": "Texture2D",
+        "source_bytes": 27214442,
+        "source_sha256": "0F90AE47637B91F1B2EEDD8A630D987C107BCF7E7F08DFDA16775A66EEFD04AD",
+        "target_bytes": 25814020,
+        "target_sha256": "FE7E2600BB168C9948BDE2075BB19B908517130909E6AAA233B4D0EFADC36E66",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_03_Albedo",
+        "class": "Texture2D",
+        "source_bytes": 10283406,
+        "source_sha256": "6DAD35D3F62358766DB9F810B38597C4C363A56740A17AA392C30B0DCAB7F4D8",
+        "target_bytes": 10313333,
+        "target_sha256": "6A356E7B50A8E8CB6B7E7A50C797088443263F6EE8CD8A86149F406237FACB36",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_03_Material",
+        "class": "Texture2D",
+        "source_bytes": 9578696,
+        "source_sha256": "9EBEC63B6A35D8BEBF9C4495699B8DF619E57A8EA31D8903BC82DD8759B719E0",
+        "target_bytes": 8931308,
+        "target_sha256": "9F5F5299AEC590457E84A3735A307AC168893219EEFF58D303C7122ADF7A5F05",
+        "target_state": "reused"
+      },
+      {
+        "package": "/Game/SmartAssets/TileableTextures/T_Rock_03_Normal",
+        "class": "Texture2D",
+        "source_bytes": 27306494,
+        "source_sha256": "2FB398955C71D6A487C1C7D2BEA9356BE75D122CECE452B6D2B07D1701614322",
+        "target_bytes": 25667979,
+        "target_sha256": "C2652A7380D5F657A68A528B458328D9D732BFA9BE1DBC57B2513ACAEB663B9F",
+        "target_state": "reused"
+      }
+    ]
+  }
 }

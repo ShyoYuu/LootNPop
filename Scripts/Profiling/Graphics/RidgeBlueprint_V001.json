@@ -1,0 +1,4864 @@
+{
+  "source_version": "V011",
+  "source_level": "/Game/Maps/Ridge_00/LVI_Octant_Ridge_00",
+  "radius_cm": 30000.0,
+  "local_coordinates": "Octant tangent X/Y, radial H positive towards the center, all in cm",
+  "review_marker_lift_cm": 200,
+  "plates": [
+    {
+      "id": "MassifTier1",
+      "stage": "Full",
+      "h": 1900,
+      "edge": 600,
+      "polygon": [
+        [
+          -11600,
+          -5500
+        ],
+        [
+          -3500,
+          -6100
+        ],
+        [
+          -500,
+          -4800
+        ],
+        [
+          0,
+          -2000
+        ],
+        [
+          0,
+          3600
+        ],
+        [
+          -2000,
+          7800
+        ],
+        [
+          -4600,
+          12000
+        ],
+        [
+          -9800,
+          12200
+        ],
+        [
+          -11600,
+          10000
+        ]
+      ],
+      "cliff_edges": [
+        {
+          "start_xy": [
+            -11600,
+            -5500
+          ],
+          "end_xy": [
+            -3500,
+            -6100
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3800.757,
+          "outer_h": -1195.697,
+          "drop_cm": 4996.454
+        },
+        {
+          "start_xy": [
+            -3500,
+            -6100
+          ],
+          "end_xy": [
+            -500,
+            -4800
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": -1095.828,
+          "outer_h": -3039.354,
+          "drop_cm": 1943.526
+        },
+        {
+          "start_xy": [
+            -500,
+            -4800
+          ],
+          "end_xy": [
+            0,
+            -2000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": -1867.756,
+          "outer_h": -3777.918,
+          "drop_cm": 1910.162
+        },
+        {
+          "start_xy": [
+            0,
+            -2000
+          ],
+          "end_xy": [
+            0,
+            3600
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3839.197,
+          "outer_h": -3941.031,
+          "drop_cm": 7780.228
+        },
+        {
+          "start_xy": [
+            0,
+            3600
+          ],
+          "end_xy": [
+            -2000,
+            7800
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3525.746,
+          "outer_h": 1929.156,
+          "drop_cm": 1596.59
+        },
+        {
+          "start_xy": [
+            -2000,
+            7800
+          ],
+          "end_xy": [
+            -4600,
+            12000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3622.467,
+          "outer_h": 2954.001,
+          "drop_cm": 668.466
+        },
+        {
+          "start_xy": [
+            -4600,
+            12000
+          ],
+          "end_xy": [
+            -9800,
+            12200
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 2221.252,
+          "outer_h": -59.812,
+          "drop_cm": 2281.064
+        },
+        {
+          "start_xy": [
+            -9800,
+            12200
+          ],
+          "end_xy": [
+            -11600,
+            10000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 1785.506,
+          "outer_h": -19.949,
+          "drop_cm": 1805.455
+        },
+        {
+          "start_xy": [
+            -11600,
+            10000
+          ],
+          "end_xy": [
+            -11600,
+            -5500
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 1705.046,
+          "outer_h": -101.265,
+          "drop_cm": 1806.311
+        }
+      ]
+    },
+    {
+      "id": "MassifTier2",
+      "stage": "Full",
+      "h": 3800,
+      "edge": 600,
+      "polygon": [
+        [
+          -9400,
+          -5000
+        ],
+        [
+          -3800,
+          -5800
+        ],
+        [
+          -1200,
+          -4300
+        ],
+        [
+          -800,
+          -1800
+        ],
+        [
+          -800,
+          3300
+        ],
+        [
+          -2900,
+          7000
+        ],
+        [
+          -4800,
+          10400
+        ],
+        [
+          -7600,
+          10600
+        ],
+        [
+          -9400,
+          6500
+        ]
+      ],
+      "cliff_edges": [
+        {
+          "start_xy": [
+            -9400,
+            -5000
+          ],
+          "end_xy": [
+            -3800,
+            -5800
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3805.395,
+          "outer_h": -1448.462,
+          "drop_cm": 5253.857
+        },
+        {
+          "start_xy": [
+            -3800,
+            -5800
+          ],
+          "end_xy": [
+            -1200,
+            -4300
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3830.981,
+          "outer_h": -3014.68,
+          "drop_cm": 6845.661
+        },
+        {
+          "start_xy": [
+            -1200,
+            -4300
+          ],
+          "end_xy": [
+            -800,
+            -1800
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 5565.976,
+          "outer_h": -3723.332,
+          "drop_cm": 9289.308
+        },
+        {
+          "start_xy": [
+            -800,
+            -1800
+          ],
+          "end_xy": [
+            -800,
+            3300
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 5721.119,
+          "outer_h": -598.072,
+          "drop_cm": 6319.191
+        },
+        {
+          "start_xy": [
+            -800,
+            3300
+          ],
+          "end_xy": [
+            -2900,
+            7000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 5488.101,
+          "outer_h": 1915.456,
+          "drop_cm": 3572.645
+        },
+        {
+          "start_xy": [
+            -2900,
+            7000
+          ],
+          "end_xy": [
+            -4800,
+            10400
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3746.372,
+          "outer_h": 1864.316,
+          "drop_cm": 1882.056
+        },
+        {
+          "start_xy": [
+            -4800,
+            10400
+          ],
+          "end_xy": [
+            -7600,
+            10600
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3738.511,
+          "outer_h": 1850.633,
+          "drop_cm": 1887.878
+        },
+        {
+          "start_xy": [
+            -7600,
+            10600
+          ],
+          "end_xy": [
+            -9400,
+            6500
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3726.714,
+          "outer_h": 1838.209,
+          "drop_cm": 1888.505
+        },
+        {
+          "start_xy": [
+            -9400,
+            6500
+          ],
+          "end_xy": [
+            -9400,
+            -5000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3726.479,
+          "outer_h": 2330.803,
+          "drop_cm": 1395.676
+        }
+      ]
+    },
+    {
+      "id": "MassifTier3",
+      "stage": "Full",
+      "h": 5700,
+      "edge": 600,
+      "polygon": [
+        [
+          -7200,
+          -3600
+        ],
+        [
+          -2200,
+          -3500
+        ],
+        [
+          -1500,
+          -1600
+        ],
+        [
+          -1500,
+          3000
+        ],
+        [
+          -3500,
+          5600
+        ],
+        [
+          -5600,
+          6200
+        ],
+        [
+          -7200,
+          3200
+        ]
+      ],
+      "cliff_edges": [
+        {
+          "start_xy": [
+            -7200,
+            -3600
+          ],
+          "end_xy": [
+            -2200,
+            -3500
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7607.95,
+          "outer_h": 3819.927,
+          "drop_cm": 3788.023
+        },
+        {
+          "start_xy": [
+            -2200,
+            -3500
+          ],
+          "end_xy": [
+            -1500,
+            -1600
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7625.519,
+          "outer_h": 1025.994,
+          "drop_cm": 6599.525
+        },
+        {
+          "start_xy": [
+            -1500,
+            -1600
+          ],
+          "end_xy": [
+            -1500,
+            3000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7560.795,
+          "outer_h": 3672.53,
+          "drop_cm": 3888.265
+        },
+        {
+          "start_xy": [
+            -1500,
+            3000
+          ],
+          "end_xy": [
+            -3500,
+            5600
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 5684.725,
+          "outer_h": 3805.584,
+          "drop_cm": 1879.141
+        },
+        {
+          "start_xy": [
+            -3500,
+            5600
+          ],
+          "end_xy": [
+            -5600,
+            6200
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 5135.405,
+          "outer_h": 3751.784,
+          "drop_cm": 1383.621
+        },
+        {
+          "start_xy": [
+            -5600,
+            6200
+          ],
+          "end_xy": [
+            -7200,
+            3200
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 5639.033,
+          "outer_h": 3719.978,
+          "drop_cm": 1919.055
+        },
+        {
+          "start_xy": [
+            -7200,
+            3200
+          ],
+          "end_xy": [
+            -7200,
+            -3600
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 5659.272,
+          "outer_h": 4755.289,
+          "drop_cm": 903.983
+        }
+      ]
+    },
+    {
+      "id": "MassifTier4",
+      "stage": "Full",
+      "h": 7600,
+      "edge": 600,
+      "polygon": [
+        [
+          -5000,
+          -3200
+        ],
+        [
+          -2600,
+          -3200
+        ],
+        [
+          -2200,
+          -500
+        ],
+        [
+          -2200,
+          2200
+        ],
+        [
+          -3400,
+          3000
+        ],
+        [
+          -5000,
+          2000
+        ]
+      ],
+      "cliff_edges": [
+        {
+          "start_xy": [
+            -5000,
+            -3200
+          ],
+          "end_xy": [
+            -2600,
+            -3200
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7613.251,
+          "outer_h": 4561.03,
+          "drop_cm": 3052.221
+        },
+        {
+          "start_xy": [
+            -2600,
+            -3200
+          ],
+          "end_xy": [
+            -2200,
+            -500
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7616.112,
+          "outer_h": 5702.696,
+          "drop_cm": 1913.416
+        },
+        {
+          "start_xy": [
+            -2200,
+            -500
+          ],
+          "end_xy": [
+            -2200,
+            2200
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7603.904,
+          "outer_h": 4819.948,
+          "drop_cm": 2783.956
+        },
+        {
+          "start_xy": [
+            -2200,
+            2200
+          ],
+          "end_xy": [
+            -3400,
+            3000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7593.752,
+          "outer_h": 5703.753,
+          "drop_cm": 1889.999
+        },
+        {
+          "start_xy": [
+            -3400,
+            3000
+          ],
+          "end_xy": [
+            -5000,
+            2000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7585.883,
+          "outer_h": 5660.157,
+          "drop_cm": 1925.726
+        },
+        {
+          "start_xy": [
+            -5000,
+            2000
+          ],
+          "end_xy": [
+            -5000,
+            -3200
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 7595.956,
+          "outer_h": 6385.478,
+          "drop_cm": 1210.478
+        }
+      ]
+    },
+    {
+      "id": "MesaTier1",
+      "stage": "Full",
+      "h": 1900,
+      "edge": 600,
+      "polygon": [
+        [
+          -11000,
+          -9000
+        ],
+        [
+          -3600,
+          -8700
+        ],
+        [
+          -700,
+          -9300
+        ],
+        [
+          -1000,
+          -12000
+        ],
+        [
+          -4600,
+          -14400
+        ],
+        [
+          -10800,
+          -14200
+        ]
+      ],
+      "cliff_edges": [
+        {
+          "start_xy": [
+            -11000,
+            -9000
+          ],
+          "end_xy": [
+            -3600,
+            -8700
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3857.272,
+          "outer_h": -1259.761,
+          "drop_cm": 5117.033
+        },
+        {
+          "start_xy": [
+            -3600,
+            -8700
+          ],
+          "end_xy": [
+            -700,
+            -9300
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3156.198,
+          "outer_h": 61.595,
+          "drop_cm": 3094.603
+        },
+        {
+          "start_xy": [
+            -700,
+            -9300
+          ],
+          "end_xy": [
+            -1000,
+            -12000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 1918.713,
+          "outer_h": -18.782,
+          "drop_cm": 1937.495
+        },
+        {
+          "start_xy": [
+            -1000,
+            -12000
+          ],
+          "end_xy": [
+            -4600,
+            -14400
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 1935.98,
+          "outer_h": 23.348,
+          "drop_cm": 1912.632
+        },
+        {
+          "start_xy": [
+            -4600,
+            -14400
+          ],
+          "end_xy": [
+            -10800,
+            -14200
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 1981.304,
+          "outer_h": 165.502,
+          "drop_cm": 1815.802
+        },
+        {
+          "start_xy": [
+            -10800,
+            -14200
+          ],
+          "end_xy": [
+            -11000,
+            -9000
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 1864.986,
+          "outer_h": 678.409,
+          "drop_cm": 1186.577
+        }
+      ]
+    },
+    {
+      "id": "MesaTier2",
+      "stage": "Full",
+      "h": 3800,
+      "edge": 600,
+      "polygon": [
+        [
+          -9000,
+          -9100
+        ],
+        [
+          -4200,
+          -8800
+        ],
+        [
+          -2400,
+          -9400
+        ],
+        [
+          -2600,
+          -11600
+        ],
+        [
+          -9000,
+          -11800
+        ]
+      ],
+      "cliff_edges": [
+        {
+          "start_xy": [
+            -9000,
+            -9100
+          ],
+          "end_xy": [
+            -4200,
+            -8800
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3858.595,
+          "outer_h": -1469.558,
+          "drop_cm": 5328.153
+        },
+        {
+          "start_xy": [
+            -4200,
+            -8800
+          ],
+          "end_xy": [
+            -2400,
+            -9400
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3843.533,
+          "outer_h": 77.3,
+          "drop_cm": 3766.233
+        },
+        {
+          "start_xy": [
+            -2400,
+            -9400
+          ],
+          "end_xy": [
+            -2600,
+            -11600
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3840.707,
+          "outer_h": 1917.691,
+          "drop_cm": 1923.016
+        },
+        {
+          "start_xy": [
+            -2600,
+            -11600
+          ],
+          "end_xy": [
+            -9000,
+            -11800
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3862.772,
+          "outer_h": 2303.916,
+          "drop_cm": 1558.856
+        },
+        {
+          "start_xy": [
+            -9000,
+            -11800
+          ],
+          "end_xy": [
+            -9000,
+            -9100
+          ],
+          "sample_offset_cm": 860,
+          "inner_h": 3861.886,
+          "outer_h": 1898.968,
+          "drop_cm": 1962.918
+        }
+      ]
+    },
+    {
+      "id": "NorthTableland",
+      "stage": "Full",
+      "h": 1900,
+      "edge": 900,
+      "polygon": [
+        [
+          -1500,
+          4200
+        ],
+        [
+          3000,
+          3800
+        ],
+        [
+          8800,
+          2800
+        ],
+        [
+          14000,
+          6000
+        ],
+        [
+          18000,
+          9000
+        ],
+        [
+          10000,
+          19000
+        ],
+        [
+          -7000,
+          19000
+        ],
+        [
+          -4800,
+          12200
+        ],
+        [
+          -2500,
+          9000
+        ]
+      ],
+      "cliff_edges": [
+        {
+          "start_xy": [
+            -1500,
+            4200
+          ],
+          "end_xy": [
+            3000,
+            3800
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 1781.854,
+          "outer_h": 113.569,
+          "drop_cm": 1668.285
+        },
+        {
+          "start_xy": [
+            3000,
+            3800
+          ],
+          "end_xy": [
+            8800,
+            2800
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 1983.69,
+          "outer_h": -1143.145,
+          "drop_cm": 3126.835
+        },
+        {
+          "start_xy": [
+            8800,
+            2800
+          ],
+          "end_xy": [
+            14000,
+            6000
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 1889.016,
+          "outer_h": -73.082,
+          "drop_cm": 1962.098
+        },
+        {
+          "start_xy": [
+            14000,
+            6000
+          ],
+          "end_xy": [
+            18000,
+            9000
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 391.277,
+          "outer_h": -40.924,
+          "drop_cm": 432.201
+        },
+        {
+          "start_xy": [
+            18000,
+            9000
+          ],
+          "end_xy": [
+            10000,
+            19000
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 0.0,
+          "outer_h": 0.0,
+          "drop_cm": 0.0
+        },
+        {
+          "start_xy": [
+            10000,
+            19000
+          ],
+          "end_xy": [
+            -7000,
+            19000
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 121.298,
+          "outer_h": -0.0,
+          "drop_cm": 121.298
+        },
+        {
+          "start_xy": [
+            -7000,
+            19000
+          ],
+          "end_xy": [
+            -4800,
+            12200
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 1454.24,
+          "outer_h": -6.961,
+          "drop_cm": 1461.201
+        },
+        {
+          "start_xy": [
+            -4800,
+            12200
+          ],
+          "end_xy": [
+            -2500,
+            9000
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 1865.034,
+          "outer_h": 3748.573,
+          "drop_cm": -1883.539
+        },
+        {
+          "start_xy": [
+            -2500,
+            9000
+          ],
+          "end_xy": [
+            -1500,
+            4200
+          ],
+          "sample_offset_cm": 1160,
+          "inner_h": 1912.576,
+          "outer_h": 3772.579,
+          "drop_cm": -1860.003
+        }
+      ]
+    }
+  ],
+  "basins": [
+    {
+      "id": "DeepBasin",
+      "stage": "Full",
+      "xy": [
+        3000,
+        -300
+      ],
+      "h": -4000,
+      "radius": 2300,
+      "falloff": 1500
+    }
+  ],
+  "path_point_fields": [
+    "x",
+    "y",
+    "h",
+    "half_width"
+  ],
+  "paths": [
+    {
+      "id": "StairRamp1",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -12300,
+          -3600,
+          -49.604634372354845,
+          350
+        ],
+        [
+          -12236.528761846497,
+          -3205.0678514893207,
+          -49.604634372354845,
+          350
+        ],
+        [
+          -11463.471238153503,
+          1605.0678514893204,
+          1817.9931331576263,
+          350
+        ],
+        [
+          -11400,
+          2000,
+          1817.9931331576263,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "StairRamp2",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -10700,
+          2600,
+          1813.9749884262305,
+          350
+        ],
+        [
+          -10599.846871212592,
+          2212.7412353553595,
+          1813.9749884262305,
+          350
+        ],
+        [
+          -9300.153128787408,
+          -2812.7412353553595,
+          3761.960183282212,
+          350
+        ],
+        [
+          -9200,
+          -3200,
+          3761.960183282212,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "StairRamp3",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -8500,
+          -3600,
+          3773.3269325009633,
+          350
+        ],
+        [
+          -8402.985749985466,
+          -3211.942999941867,
+          3773.3269325009633,
+          350
+        ],
+        [
+          -7097.014250014533,
+          2011.9429999418671,
+          5630.227774455667,
+          350
+        ],
+        [
+          -7000,
+          2400,
+          5630.227774455667,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "StairRamp4",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -6300,
+          2900,
+          5636.232408600737,
+          350
+        ],
+        [
+          -6195.3068119029185,
+          2513.943868892011,
+          5636.232408600737,
+          350
+        ],
+        [
+          -4804.6931880970815,
+          -2613.943868892011,
+          7607.94992452332,
+          350
+        ],
+        [
+          -4700,
+          -3000,
+          7607.94992452332,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "NorthRamp2",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -3000,
+          4300,
+          5685.145768302599,
+          350
+        ],
+        [
+          -3339.5587635816364,
+          4511.423381098,
+          5685.145768302599,
+          350
+        ],
+        [
+          -7960.441236418364,
+          7388.576618902,
+          3722.846034775978,
+          350
+        ],
+        [
+          -8300,
+          7600,
+          3722.846034775978,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "NorthwestRamp1",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -12300,
+          4200,
+          -141.3150545587233,
+          350
+        ],
+        [
+          -12236.528761846497,
+          4594.932148510679,
+          -141.3150545587233,
+          350
+        ],
+        [
+          -11463.471238153503,
+          9405.06785148932,
+          1864.8065686420507,
+          350
+        ],
+        [
+          -11400,
+          9800,
+          1864.8065686420507,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "NorthwestRamp2",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -10300,
+          10400,
+          1861.108133379376,
+          350
+        ],
+        [
+          -10218.957758385619,
+          10008.295832197158,
+          1861.108133379376,
+          350
+        ],
+        [
+          -9181.042241614381,
+          4991.704167802841,
+          3711.4840341915856,
+          350
+        ],
+        [
+          -9100,
+          4600,
+          3711.4840341915856,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "SaddleRamp",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -4600,
+          9000,
+          3746.8884694517687,
+          350
+        ],
+        [
+          -4262.831116168964,
+          9215.214181168745,
+          3746.8884694517687,
+          350
+        ],
+        [
+          -237.16888383103532,
+          11784.785818831255,
+          1890.613477388924,
+          350
+        ],
+        [
+          100,
+          12000,
+          1890.613477388924,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "BossValley",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 1800,
+      "points": [
+        [
+          4000,
+          -300,
+          -4000,
+          1500
+        ],
+        [
+          7600,
+          -100,
+          -2400,
+          1700
+        ],
+        [
+          8600,
+          0,
+          -2400,
+          1800
+        ],
+        [
+          13800,
+          0,
+          0,
+          2000
+        ]
+      ]
+    },
+    {
+      "id": "NorthLedge",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 300,
+      "fade_end": 900,
+      "points": [
+        [
+          0,
+          5200,
+          1938.0297309360815,
+          350
+        ],
+        [
+          2200,
+          3500,
+          660,
+          300
+        ],
+        [
+          5400,
+          2700,
+          -860,
+          300
+        ],
+        [
+          8400,
+          1200,
+          -2400,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "RiftCanyon",
+      "stage": "Full",
+      "mode": "cut",
+      "shoulder": 800,
+      "points": [
+        [
+          -14500,
+          -7800,
+          0,
+          800
+        ],
+        [
+          -11000,
+          -7400,
+          -300,
+          650
+        ],
+        [
+          -7200,
+          -7300,
+          -1300,
+          1300
+        ],
+        [
+          -4300,
+          -7300,
+          -2200,
+          650
+        ],
+        [
+          -1600,
+          -5400,
+          -3200,
+          750
+        ],
+        [
+          1200,
+          -2600,
+          -4000,
+          1100
+        ]
+      ]
+    },
+    {
+      "id": "SoutheastDescent",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 600,
+      "points": [
+        [
+          8400,
+          -14800,
+          -134.07389191195477,
+          450
+        ],
+        [
+          7600,
+          -8500,
+          -300,
+          450
+        ],
+        [
+          7900,
+          -2000,
+          -2400,
+          500
+        ]
+      ]
+    },
+    {
+      "id": "MesaRamp1",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -12100,
+          -15200,
+          136.94211711962274,
+          350
+        ],
+        [
+          -12009.548117120261,
+          -14810.36111990266,
+          136.94211711962274,
+          350
+        ],
+        [
+          -10890.451882879739,
+          -9989.63888009734,
+          1933.3265863930421,
+          350
+        ],
+        [
+          -10800,
+          -9600,
+          1933.3265863930421,
+          350
+        ]
+      ]
+    },
+    {
+      "id": "MesaRamp2",
+      "stage": "Full",
+      "mode": "set",
+      "shoulder": 350,
+      "landing": 400,
+      "points": [
+        [
+          -9000,
+          -13200,
+          1980.5191375079028,
+          350
+        ],
+        [
+          -8626.830747982967,
+          -13055.96976237939,
+          1980.5191375079028,
+          350
+        ],
+        [
+          -3673.169252017032,
+          -11144.03023762061,
+          3839.6907380336243,
+          350
+        ],
+        [
+          -3300,
+          -11000,
+          3839.6907380336243,
+          350
+        ]
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "WestEntry",
+      "local": [
+        -17600,
+        0,
+        -0.00036984230532860306
+      ],
+      "actor_label": "Review_RidgeWestEntry",
+      "actor_world_cm": [
+        20995.84614047127,
+        20995.84614047127,
+        2527.6296670827924
+      ]
+    },
+    {
+      "id": "StairFoot",
+      "local": [
+        -12700,
+        -3600,
+        -33.41428208825582
+      ],
+      "actor_label": "Review_RidgeStairFoot",
+      "actor_world_cm": [
+        22801.985811320497,
+        18167.860467435163,
+        6326.997457155561
+      ]
+    },
+    {
+      "id": "StairTerrace2",
+      "local": [
+        -8200,
+        4800,
+        3713.697114782215
+      ],
+      "actor_label": "Review_RidgeStairTerrace2",
+      "actor_world_cm": [
+        14319.47962810208,
+        19946.646105008378,
+        8807.89478599996
+      ]
+    },
+    {
+      "id": "CrownEastRim",
+      "local": [
+        -2300,
+        -800,
+        7593.612564392714
+      ],
+      "actor_label": "Review_RidgeCrownEastRim",
+      "actor_world_cm": [
+        13888.94868550988,
+        13054.238761930035,
+        11393.313727713014
+      ]
+    },
+    {
+      "id": "CrownSummit",
+      "local": [
+        -3400,
+        -800,
+        7608.518799031042
+      ],
+      "actor_label": "Review_RidgeCrownSummit",
+      "actor_world_cm": [
+        14161.800339844767,
+        13330.522426509746,
+        10686.553273326806
+      ]
+    },
+    {
+      "id": "CrownSouthRim",
+      "local": [
+        -3800,
+        -2800,
+        7616.326522194252
+      ],
+      "actor_label": "Review_RidgeCrownSouthRim",
+      "actor_world_cm": [
+        15231.567166849081,
+        12339.055642466068,
+        10385.684207783012
+      ]
+    },
+    {
+      "id": "DeepBasin",
+      "local": [
+        3300,
+        -300,
+        -4000.0
+      ],
+      "actor_label": "Review_RidgeDeepBasin",
+      "actor_world_cm": [
+        18125.34462502772,
+        17650.229855045556,
+        22413.863305731957
+      ]
+    },
+    {
+      "id": "CanyonMouth",
+      "local": [
+        -14500,
+        -7800,
+        -11.607090551166124
+      ],
+      "actor_label": "Review_RidgeCanyonMouth",
+      "actor_world_cm": [
+        25050.234624495977,
+        15440.755382660076,
+        4775.011601238001
+      ]
+    },
+    {
+      "id": "CanyonChamber",
+      "local": [
+        -7200,
+        -7300,
+        -1300.0
+      ],
+      "actor_label": "Review_RidgeCanyonChamber",
+      "actor_world_cm": [
+        24937.62824627169,
+        14810.480891389308,
+        11223.829703650363
+      ]
+    },
+    {
+      "id": "NorthSaddle",
+      "local": [
+        -5400,
+        9000,
+        3740.058080588319
+      ],
+      "actor_label": "Review_RidgeNorthSaddle",
+      "actor_world_cm": [
+        10791.210060775285,
+        21227.253231936906,
+        10586.50454562585
+      ]
+    },
+    {
+      "id": "NorthwestLowland",
+      "local": [
+        -14500,
+        9000,
+        -2.740535386778464
+      ],
+      "actor_label": "Review_RidgeNorthwestLowland",
+      "actor_world_cm": [
+        14572.29824758055,
+        25562.66669651888,
+        4733.026364371072
+      ]
+    },
+    {
+      "id": "NorthTableland",
+      "local": [
+        2000,
+        6800,
+        1960.6499079699652
+      ],
+      "actor_label": "Review_RidgeNorthTableland",
+      "actor_world_cm": [
+        10562.53389577413,
+        19247.46442850148,
+        17117.166947856924
+      ]
+    },
+    {
+      "id": "NorthLedgeMid",
+      "local": [
+        2200,
+        3500,
+        660.0
+      ],
+      "actor_label": "Review_RidgeNorthLedgeMid",
+      "actor_world_cm": [
+        13420.835959942542,
+        18183.682741169996,
+        18394.957029163987
+      ]
+    },
+    {
+      "id": "TablelandRim",
+      "local": [
+        4500,
+        3600,
+        1985.4131221747612
+      ],
+      "actor_label": "Review_RidgeTablelandRim",
+      "actor_world_cm": [
+        11779.953294818195,
+        16415.494229453576,
+        19115.844024232007
+      ]
+    },
+    {
+      "id": "SouthMesa",
+      "local": [
+        -6000,
+        -10300,
+        3860.788074358621
+      ],
+      "actor_label": "Review_RidgeSouthMesa",
+      "actor_world_cm": [
+        21738.15939600342,
+        10033.56453572677,
+        9981.118379454792
+      ]
+    },
+    {
+      "id": "ValleyRise",
+      "local": [
+        8200,
+        0,
+        -2400.0
+      ],
+      "actor_label": "Review_RidgeValleyRise",
+      "actor_world_cm": [
+        14466.86507683433,
+        14466.86507683433,
+        24864.82716001345
+      ]
+    },
+    {
+      "id": "BossPlateau",
+      "local": [
+        14800,
+        0,
+        0.0
+      ],
+      "actor_label": "Review_RidgeBossPlateau",
+      "actor_world_cm": [
+        10047.1349872226,
+        10047.1349872226,
+        26194.468062876465
+      ]
+    },
+    {
+      "id": "SoutheastEntry",
+      "local": [
+        8400,
+        -16000,
+        -0.0
+      ],
+      "actor_label": "Review_RidgeSoutheastEntry",
+      "actor_world_cm": [
+        21446.546923045487,
+        2193.172984032063,
+        20573.66319690589
+      ]
+    },
+    {
+      "id": "NortheastEntry",
+      "local": [
+        8400,
+        16000,
+        0.0
+      ],
+      "actor_label": "Review_RidgeNortheastEntry",
+      "actor_world_cm": [
+        2193.172984032063,
+        21446.546923045487,
+        20573.66319690589
+      ]
+    },
+    {
+      "id": "SouthwestLowland",
+      "local": [
+        -14500,
+        -11000,
+        2.066637986142632
+      ],
+      "actor_label": "Review_RidgeSouthwestLowland",
+      "actor_world_cm": [
+        26340.91004314603,
+        13130.36592340758,
+        4654.7590123790615
+      ]
+    },
+    {
+      "id": "UnderHall",
+      "local": [
+        2300,
+        6000,
+        -4000
+      ],
+      "actor_label": "Review_RidgeUnderHall",
+      "actor_world_cm": [
+        13373.164288412807,
+        22721.2185805845,
+        21150.52489013978
+      ]
+    },
+    {
+      "id": "HallPitFloor",
+      "local": [
+        3850,
+        7400,
+        -4000
+      ],
+      "actor_label": "Review_RidgeHallPitFloor",
+      "actor_world_cm": [
+        11415.148954097123,
+        22774.958067371925,
+        22213.411700709683
+      ]
+    },
+    {
+      "id": "HallBasinGate",
+      "local": [
+        2500,
+        1900,
+        -4000.0000000000005
+      ],
+      "actor_label": "Review_RidgeHallBasinGate",
+      "actor_world_cm": [
+        16759.306148394615,
+        19770.217802979158,
+        21695.717214398526
+      ]
+    },
+    {
+      "id": "MassifCavern",
+      "local": [
+        -9200,
+        -4000,
+        -839.0657439446367
+      ],
+      "actor_label": "Review_RidgeMassifCavern",
+      "actor_world_cm": [
+        23153.788241190996,
+        17674.65858059705,
+        9500.572814476742
+      ]
+    },
+    {
+      "id": "CavernWestGate",
+      "local": [
+        -13800,
+        -4600,
+        -35.005081923391586
+      ],
+      "actor_label": "Review_RidgeCavernWestGate",
+      "actor_world_cm": [
+        23451.443577965383,
+        17630.080639760763,
+        5416.417541459808
+      ]
+    },
+    {
+      "id": "ValleySkyIsle",
+      "local": [
+        7800,
+        -5600,
+        5500
+      ],
+      "actor_label": "Review_RidgeValleySkyIsle",
+      "actor_world_cm": [
+        13960.099543880719,
+        7850.543020604532,
+        18274.97181958371
+      ]
+    },
+    {
+      "id": "WestSkyIsle",
+      "local": [
+        -14600,
+        4800,
+        6000
+      ],
+      "actor_label": "Review_RidgeWestSkyIsle",
+      "actor_world_cm": [
+        14041.545766450718,
+        18834.527786178765,
+        3812.5523682081894
+      ]
+    }
+  ],
+  "pods": [
+    {
+      "id": "CrownSummit",
+      "condition": "ExposedSummit",
+      "layer": "surface",
+      "flyers": true,
+      "local": [
+        -3400,
+        -800,
+        7608.518799031042
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        }
+      ],
+      "actor_label": "Spawn_CrownSummit",
+      "actor_world_cm": [
+        14289.43310317042,
+        13450.663324774147,
+        10782.865485896558
+      ]
+    },
+    {
+      "id": "StairTerrace2",
+      "condition": "TerraceLedge",
+      "layer": "surface",
+      "flyers": true,
+      "local": [
+        -8200,
+        4800,
+        3713.697114782215
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        }
+      ],
+      "actor_label": "Spawn_StairTerrace2",
+      "actor_world_cm": [
+        14429.265056041862,
+        20099.57422359057,
+        8875.423671367545
+      ]
+    },
+    {
+      "id": "CanyonChamber",
+      "condition": "CanyonChamber",
+      "layer": "surface",
+      "flyers": true,
+      "local": [
+        -7200,
+        -7300,
+        -1300.0
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3200
+        }
+      ],
+      "actor_label": "Spawn_CanyonChamber",
+      "actor_world_cm": [
+        25097.998845926173,
+        14905.725141494708,
+        11296.00867280567
+      ]
+    },
+    {
+      "id": "DeepBasin",
+      "condition": "DeepBasin",
+      "layer": "surface",
+      "flyers": true,
+      "local": [
+        3300,
+        -300,
+        -4000.0
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        }
+      ],
+      "actor_label": "Spawn_DeepBasin",
+      "actor_world_cm": [
+        18232.595184939128,
+        17754.669084957066,
+        22546.489715825042
+      ]
+    },
+    {
+      "id": "NorthSaddle",
+      "condition": "HighPass",
+      "layer": "surface",
+      "flyers": true,
+      "local": [
+        -5400,
+        9000,
+        3740.058080588319
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        }
+      ],
+      "actor_label": "Spawn_NorthSaddle",
+      "actor_world_cm": [
+        10874.028434616226,
+        21390.16421076856,
+        10667.75188361581
+      ]
+    },
+    {
+      "id": "NorthTableland",
+      "condition": "TablelandRim",
+      "layer": "surface",
+      "flyers": true,
+      "local": [
+        2000,
+        6800,
+        1960.6499079699652
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        }
+      ],
+      "actor_label": "Spawn_NorthTableland",
+      "actor_world_cm": [
+        10638.415939434322,
+        19385.739671025993,
+        17240.137971902182
+      ]
+    },
+    {
+      "id": "SouthMesa",
+      "condition": "MesaTop",
+      "layer": "surface",
+      "flyers": true,
+      "local": [
+        -6000,
+        -10300,
+        3860.788074358621
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2500.0
+        }
+      ],
+      "actor_label": "Spawn_SouthMesa",
+      "actor_world_cm": [
+        21905.767875847134,
+        10110.926674287413,
+        10058.07614060858
+      ]
+    },
+    {
+      "id": "ValleyRise",
+      "condition": "ValleyRise",
+      "layer": "surface",
+      "flyers": true,
+      "local": [
+        8200,
+        -600,
+        -2400.0
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3200
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3200
+        }
+      ],
+      "actor_label": "Spawn_ValleyRise",
+      "actor_world_cm": [
+        14995.922677260842,
+        14112.103687526911,
+        25014.612380968516
+      ]
+    },
+    {
+      "id": "UnderHall",
+      "condition": "UndergroundHall",
+      "layer": "cave",
+      "flyers": true,
+      "local": [
+        2300,
+        6000,
+        -4000
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2000
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2000
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2000
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2000
+        }
+      ],
+      "actor_label": "Spawn_UnderHall",
+      "actor_world_cm": [
+        13452.295438048384,
+        22855.663660942988,
+        21275.675924992676
+      ]
+    },
+    {
+      "id": "MassifCavern",
+      "condition": "LowCavern",
+      "layer": "cave",
+      "flyers": false,
+      "local": [
+        -9200,
+        -4000,
+        -839.0657439446367
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 12,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2000
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2000
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 2000
+        }
+      ],
+      "actor_label": "Spawn_MassifCavern",
+      "actor_world_cm": [
+        23304.927237625747,
+        17790.031932567417,
+        9562.588888294882
+      ]
+    },
+    {
+      "id": "ValleySkyIsle",
+      "condition": "SkyIsland",
+      "layer": "deck",
+      "flyers": true,
+      "local": [
+        7800,
+        -5600,
+        5500
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        }
+      ],
+      "actor_label": "Spawn_ValleySkyIsle",
+      "actor_world_cm": [
+        14074.997482513483,
+        7915.156543407861,
+        18425.383110279872
+      ]
+    },
+    {
+      "id": "WestSkyIsle",
+      "condition": "SkyIsland",
+      "layer": "deck",
+      "flyers": true,
+      "local": [
+        -14600,
+        4800,
+        6000
+      ],
+      "enemy_formations": [
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Flyer01.DA_EnemyEntityConfig_PureEntity_Flyer01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Crawler01.DA_EnemyEntityConfig_PureEntity_Crawler01",
+          "count": 9,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Melee01.DA_EnemyEntityConfig_PureEntity_Melee01",
+          "count": 6,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        },
+        {
+          "enemyConfigPath": "/Game/Enemy/DA_EnemyEntityConfig_PureEntity_Ranged01.DA_EnemyEntityConfig_PureEntity_Ranged01",
+          "count": 3,
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "radius": 3500
+        }
+      ],
+      "actor_label": "Spawn_WestSkyIsle",
+      "actor_world_cm": [
+        14159.541949362067,
+        18992.80112891976,
+        3844.590623403216
+      ]
+    }
+  ],
+  "anchors": [
+    {
+      "id": "TablelandRimHub",
+      "role": "CliffReturn",
+      "layer": "surface",
+      "local": [
+        3850,
+        5800,
+        5483.5517072296825
+      ],
+      "landing": [
+        3850,
+        5800
+      ],
+      "from": [
+        "DeepBasin",
+        "ValleyRise",
+        "HallPitFloor"
+      ],
+      "max_distance": 11500,
+      "actor_label": "Anchor_TablelandRimHub",
+      "actor_world_cm": [
+        9272.170624321237,
+        15801.829045564913,
+        16290.650312995362
+      ],
+      "landing_local": [
+        3850,
+        5800,
+        1983.5517072296823
+      ]
+    },
+    {
+      "id": "MesaTopHub",
+      "role": "CanyonCrossing",
+      "layer": "surface",
+      "local": [
+        -6500,
+        -10000,
+        5459.964144761243
+      ],
+      "landing": [
+        -6500,
+        -10000
+      ],
+      "from": [
+        "CanyonChamber",
+        "CrownSouthRim"
+      ],
+      "max_distance": 11000,
+      "actor_label": "Anchor_MesaTopHub",
+      "actor_world_cm": [
+        20557.924855152203,
+        9808.029444669308,
+        9131.6835161332
+      ],
+      "landing_local": [
+        -6500,
+        -10000,
+        3859.964144761243
+      ]
+    },
+    {
+      "id": "CrownSouthRimAnchor",
+      "role": "CanyonCrossing",
+      "layer": "surface",
+      "local": [
+        -3800,
+        -2600,
+        9114.998204856442
+      ],
+      "landing": [
+        -3800,
+        -2600
+      ],
+      "from": [
+        "SouthMesa"
+      ],
+      "max_distance": 11000,
+      "actor_label": "Anchor_CrownSouthRimAnchor",
+      "actor_world_cm": [
+        14250.97423038166,
+        11720.826391843548,
+        9783.417713683253
+      ],
+      "landing_local": [
+        -3800,
+        -2600,
+        7614.9982048564425
+      ]
+    },
+    {
+      "id": "Terrace3Hub",
+      "role": "TerraceClimb",
+      "layer": "surface",
+      "local": [
+        -5700,
+        4300,
+        7438.173296197655
+      ],
+      "landing": [
+        -5700,
+        4300
+      ],
+      "from": [
+        "StairTerrace2",
+        "WestSkyIsle",
+        "NorthSaddle"
+      ],
+      "max_distance": 9500,
+      "actor_label": "Anchor_Terrace3Hub",
+      "actor_world_cm": [
+        12150.071009621517,
+        16599.169509372674,
+        9267.112294165632
+      ],
+      "landing_local": [
+        -5700,
+        4300,
+        5638.173296197655
+      ]
+    },
+    {
+      "id": "ValleyIsleHub",
+      "role": "IslandClimb",
+      "layer": "deck",
+      "local": [
+        8700,
+        -3800,
+        8500
+      ],
+      "landing": [
+        8700,
+        -3800
+      ],
+      "from": [
+        "ValleyRise",
+        "BossPlateau"
+      ],
+      "max_distance": 12000,
+      "actor_label": "Anchor_ValleyIsleHub",
+      "actor_world_cm": [
+        11243.722775470136,
+        7571.821934405132,
+        16688.205737647037
+      ],
+      "landing_local": [
+        8700,
+        -3800,
+        5500
+      ]
+    },
+    {
+      "id": "EntryToWestIsle",
+      "role": "IslandClimb",
+      "layer": "deck",
+      "local": [
+        -15760,
+        2950,
+        9000
+      ],
+      "landing": [
+        -15760,
+        2950
+      ],
+      "from": [
+        "WestEntry"
+      ],
+      "max_distance": 11000,
+      "actor_label": "Anchor_EntryToWestIsle",
+      "actor_world_cm": [
+        13377.259596638685,
+        15952.836941477275,
+        2748.8032310036647
+      ],
+      "landing_local": [
+        -15760,
+        2950,
+        6000
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "id": "EntryToStairFoot",
+      "kind": "walk",
+      "layer": "surface",
+      "xy": [
+        [
+          -19500,
+          0
+        ],
+        [
+          -17600,
+          0
+        ],
+        [
+          -12700,
+          -3400
+        ]
+      ]
+    },
+    {
+      "id": "WestStairAscent",
+      "kind": "walk-exposed",
+      "layer": "surface",
+      "xy": [
+        [
+          -12700,
+          -3600
+        ],
+        [
+          -12300,
+          -3600
+        ],
+        [
+          -11400,
+          2000
+        ],
+        [
+          -10700,
+          2600
+        ],
+        [
+          -9200,
+          -3200
+        ],
+        [
+          -8500,
+          -3600
+        ],
+        [
+          -7000,
+          2400
+        ],
+        [
+          -6300,
+          2900
+        ],
+        [
+          -4700,
+          -3000
+        ],
+        [
+          -3800,
+          -2800
+        ],
+        [
+          -3400,
+          -800
+        ]
+      ]
+    },
+    {
+      "id": "CrownToSaddle",
+      "kind": "walk-crest",
+      "layer": "surface",
+      "xy": [
+        [
+          -3400,
+          -800
+        ],
+        [
+          -3800,
+          -2800
+        ],
+        [
+          -4700,
+          -3000
+        ],
+        [
+          -6300,
+          2900
+        ],
+        [
+          -3000,
+          4300
+        ],
+        [
+          -8300,
+          7600
+        ],
+        [
+          -7400,
+          8600
+        ],
+        [
+          -5400,
+          9000
+        ]
+      ]
+    },
+    {
+      "id": "NorthwestToSaddle",
+      "kind": "walk-flank",
+      "layer": "surface",
+      "xy": [
+        [
+          -14500,
+          9000
+        ],
+        [
+          -13000,
+          4200
+        ],
+        [
+          -12300,
+          4200
+        ],
+        [
+          -11400,
+          9800
+        ],
+        [
+          -10300,
+          10400
+        ],
+        [
+          -9100,
+          4600
+        ],
+        [
+          -8300,
+          5600
+        ],
+        [
+          -8450,
+          7600
+        ],
+        [
+          -8000,
+          8400
+        ],
+        [
+          -5400,
+          9000
+        ]
+      ]
+    },
+    {
+      "id": "SaddleToTableland",
+      "kind": "walk",
+      "layer": "surface",
+      "xy": [
+        [
+          -5400,
+          9000
+        ],
+        [
+          -4600,
+          9000
+        ],
+        [
+          100,
+          12000
+        ],
+        [
+          2000,
+          6800
+        ]
+      ]
+    },
+    {
+      "id": "NorthLedgeDescent",
+      "kind": "walk-flank",
+      "layer": "surface",
+      "xy": [
+        [
+          2000,
+          6800
+        ],
+        [
+          0,
+          5200
+        ],
+        [
+          2200,
+          3500
+        ],
+        [
+          5400,
+          2700
+        ],
+        [
+          8400,
+          1200
+        ],
+        [
+          8200,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "NortheastToTableland",
+      "kind": "walk-outer",
+      "layer": "surface",
+      "xy": [
+        [
+          8400,
+          16000
+        ],
+        [
+          5000,
+          10500
+        ],
+        [
+          2000,
+          6800
+        ]
+      ]
+    },
+    {
+      "id": "CanyonRun",
+      "kind": "walk-flank",
+      "layer": "surface",
+      "xy": [
+        [
+          -14500,
+          -11000
+        ],
+        [
+          -14500,
+          -7800
+        ],
+        [
+          -11000,
+          -7400
+        ],
+        [
+          -7200,
+          -7300
+        ],
+        [
+          -4300,
+          -7300
+        ],
+        [
+          -1600,
+          -5400
+        ],
+        [
+          1200,
+          -2600
+        ],
+        [
+          3300,
+          -300
+        ]
+      ]
+    },
+    {
+      "id": "EntryToCanyonMouth",
+      "kind": "walk-outer",
+      "layer": "surface",
+      "xy": [
+        [
+          -17600,
+          0
+        ],
+        [
+          -16000,
+          -5000
+        ],
+        [
+          -14500,
+          -7800
+        ]
+      ]
+    },
+    {
+      "id": "EntryToNorthwest",
+      "kind": "walk-outer",
+      "layer": "surface",
+      "xy": [
+        [
+          -17600,
+          0
+        ],
+        [
+          -16000,
+          5000
+        ],
+        [
+          -14500,
+          9000
+        ]
+      ]
+    },
+    {
+      "id": "BasinToBoss",
+      "kind": "walk",
+      "layer": "surface",
+      "xy": [
+        [
+          3300,
+          -300
+        ],
+        [
+          4000,
+          -300
+        ],
+        [
+          7600,
+          -100
+        ],
+        [
+          8600,
+          0
+        ],
+        [
+          13800,
+          0
+        ],
+        [
+          14800,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "SoutheastToValley",
+      "kind": "walk-outer",
+      "layer": "surface",
+      "xy": [
+        [
+          8400,
+          -16000
+        ],
+        [
+          8400,
+          -14800
+        ],
+        [
+          7600,
+          -8500
+        ],
+        [
+          7900,
+          -2000
+        ],
+        [
+          8200,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "SkyBridgeCrossing",
+      "kind": "walk-exposed",
+      "layer": "deck",
+      "xy": [
+        [
+          -8500,
+          -3600
+        ],
+        [
+          -7700,
+          -4600
+        ],
+        [
+          -4400,
+          -5300
+        ],
+        [
+          -4500,
+          -7300
+        ],
+        [
+          -4600,
+          -9300
+        ],
+        [
+          -6000,
+          -10300
+        ]
+      ]
+    },
+    {
+      "id": "HallFromBasin",
+      "kind": "walk-flank",
+      "layer": "cave",
+      "xy": [
+        [
+          3300,
+          -300
+        ],
+        [
+          2500,
+          1300
+        ],
+        [
+          2500,
+          4450
+        ],
+        [
+          2300,
+          6000
+        ]
+      ]
+    },
+    {
+      "id": "HallFromValley",
+      "kind": "walk-flank",
+      "layer": "cave",
+      "xy": [
+        [
+          8200,
+          0
+        ],
+        [
+          8250,
+          350
+        ],
+        [
+          8790,
+          937
+        ],
+        [
+          9234,
+          1551
+        ],
+        [
+          9272,
+          2284
+        ],
+        [
+          9096,
+          3026
+        ],
+        [
+          8576,
+          3601
+        ],
+        [
+          7940,
+          4087
+        ],
+        [
+          7330,
+          4540
+        ],
+        [
+          6662,
+          4922
+        ],
+        [
+          5994,
+          5303
+        ],
+        [
+          5332,
+          5648
+        ],
+        [
+          4594,
+          5700
+        ],
+        [
+          4200,
+          5700
+        ],
+        [
+          2300,
+          6000
+        ],
+        [
+          3850,
+          7400
+        ]
+      ]
+    },
+    {
+      "id": "CavernFromWest",
+      "kind": "walk-flank",
+      "layer": "cave",
+      "xy": [
+        [
+          -13800,
+          -4600
+        ],
+        [
+          -12900,
+          -4600
+        ],
+        [
+          -10950,
+          -4600
+        ],
+        [
+          -9200,
+          -4000
+        ]
+      ]
+    },
+    {
+      "id": "CavernFromCanyon",
+      "kind": "walk-flank",
+      "layer": "cave",
+      "xy": [
+        [
+          -9000,
+          -7400
+        ],
+        [
+          -9000,
+          -6800
+        ],
+        [
+          -9000,
+          -5450
+        ],
+        [
+          -9200,
+          -4000
+        ]
+      ]
+    },
+    {
+      "id": "MesaAscent",
+      "kind": "walk-exposed",
+      "layer": "surface",
+      "xy": [
+        [
+          -14500,
+          -11000
+        ],
+        [
+          -12900,
+          -15200
+        ],
+        [
+          -12100,
+          -15200
+        ],
+        [
+          -10800,
+          -9600
+        ],
+        [
+          -10100,
+          -10000
+        ],
+        [
+          -10000,
+          -12600
+        ],
+        [
+          -9000,
+          -13200
+        ],
+        [
+          -3300,
+          -11000
+        ],
+        [
+          -3500,
+          -10200
+        ],
+        [
+          -6000,
+          -10300
+        ]
+      ]
+    }
+  ],
+  "views": [
+    {
+      "id": "Overview",
+      "eye_local": [
+        -17000,
+        -19000,
+        15000
+      ],
+      "target_local": [
+        -1000,
+        -1000,
+        1500
+      ],
+      "lens_mm": 18
+    },
+    {
+      "id": "OverviewEast",
+      "eye_local": [
+        24000,
+        14000,
+        24000
+      ],
+      "target_local": [
+        -2000,
+        -1000,
+        2000
+      ],
+      "lens_mm": 20
+    },
+    {
+      "id": "WestEntryEye",
+      "eye_local": [
+        -17600,
+        0,
+        169.99963015769467
+      ],
+      "target_local": [
+        -4000,
+        0,
+        6000
+      ],
+      "lens_mm": 24
+    },
+    {
+      "id": "CrownSummitEye",
+      "eye_local": [
+        -2600,
+        -800,
+        7789.940096348389
+      ],
+      "target_local": [
+        16000,
+        0,
+        2000
+      ],
+      "lens_mm": 24
+    },
+    {
+      "id": "DeepBasinEye",
+      "eye_local": [
+        4600,
+        -1300,
+        -3588.769230769231
+      ],
+      "target_local": [
+        -3000,
+        0,
+        7000
+      ],
+      "lens_mm": 20
+    },
+    {
+      "id": "SkyBridgeEye",
+      "eye_local": [
+        -4000,
+        -7300,
+        -1700
+      ],
+      "target_local": [
+        -4500,
+        -7400,
+        4500
+      ],
+      "lens_mm": 18
+    },
+    {
+      "id": "CanyonChamberEye",
+      "eye_local": [
+        -9800,
+        -8000,
+        -434.31432735969577
+      ],
+      "target_local": [
+        -4500,
+        -7300,
+        500
+      ],
+      "lens_mm": 20
+    },
+    {
+      "id": "WestStairEye",
+      "eye_local": [
+        -15500,
+        -6000,
+        160.40796955440345
+      ],
+      "target_local": [
+        -6000,
+        0,
+        4000
+      ],
+      "lens_mm": 22
+    },
+    {
+      "id": "NorthTablelandEye",
+      "eye_local": [
+        2000,
+        6800,
+        2130.649907969965
+      ],
+      "target_local": [
+        3000,
+        -2000,
+        -2000
+      ],
+      "lens_mm": 24
+    },
+    {
+      "id": "SouthMesaEye",
+      "eye_local": [
+        -6000,
+        -10300,
+        4030.788074358621
+      ],
+      "target_local": [
+        4000,
+        0,
+        0
+      ],
+      "lens_mm": 24
+    },
+    {
+      "id": "ValleyRiseEye",
+      "eye_local": [
+        8200,
+        0,
+        -2230.0
+      ],
+      "target_local": [
+        19000,
+        0,
+        5000
+      ],
+      "lens_mm": 24
+    },
+    {
+      "id": "UnderHallEye",
+      "eye_local": [
+        900,
+        4700,
+        -3830
+      ],
+      "target_local": [
+        4200,
+        7400,
+        -2200
+      ],
+      "lens_mm": 18
+    },
+    {
+      "id": "HallGateEye",
+      "eye_local": [
+        2500,
+        600,
+        -3830
+      ],
+      "target_local": [
+        2500,
+        4400,
+        -3200
+      ],
+      "lens_mm": 22
+    },
+    {
+      "id": "MassifCavernEye",
+      "eye_local": [
+        -10400,
+        -2600,
+        -330
+      ],
+      "target_local": [
+        -8000,
+        -5300,
+        0
+      ],
+      "lens_mm": 18
+    },
+    {
+      "id": "CavernWestGateEye",
+      "eye_local": [
+        -14200,
+        -4700,
+        170
+      ],
+      "target_local": [
+        -10600,
+        -4600,
+        -100
+      ],
+      "lens_mm": 22
+    },
+    {
+      "id": "SkyIslesEye",
+      "eye_local": [
+        2000,
+        -800,
+        -3800
+      ],
+      "target_local": [
+        7800,
+        -5600,
+        5800
+      ],
+      "lens_mm": 20
+    },
+    {
+      "id": "WestSkyIsleEye",
+      "eye_local": [
+        -17600,
+        0,
+        170
+      ],
+      "target_local": [
+        -14600,
+        4800,
+        6200
+      ],
+      "lens_mm": 22
+    },
+    {
+      "id": "CrownToIsleEye",
+      "eye_local": [
+        -2400,
+        -900,
+        7793.082541535514
+      ],
+      "target_local": [
+        7800,
+        -5600,
+        5500
+      ],
+      "lens_mm": 22
+    },
+    {
+      "id": "ValleyIsleTopEye",
+      "eye_local": [
+        6200,
+        -4300,
+        5670
+      ],
+      "target_local": [
+        16000,
+        0,
+        4000
+      ],
+      "lens_mm": 22
+    },
+    {
+      "id": "SouthwestOuterEye",
+      "eye_local": [
+        -14000,
+        -12500,
+        184.93122525507422
+      ],
+      "target_local": [
+        -16500,
+        -16000,
+        300
+      ],
+      "lens_mm": 24
+    },
+    {
+      "id": "NorthwestOuterEye",
+      "eye_local": [
+        -13500,
+        11500,
+        175.4003544858929
+      ],
+      "target_local": [
+        -15500,
+        15000,
+        400
+      ],
+      "lens_mm": 24
+    },
+    {
+      "id": "SoutheastOuterEye",
+      "eye_local": [
+        11500,
+        -6000,
+        110.08010009336158
+      ],
+      "target_local": [
+        17000,
+        -7500,
+        300
+      ],
+      "lens_mm": 24
+    },
+    {
+      "id": "HallEastMouthEye",
+      "eye_local": [
+        7600,
+        -600,
+        -2242.3076923076924
+      ],
+      "target_local": [
+        9000,
+        1600,
+        -2000
+      ],
+      "lens_mm": 22
+    },
+    {
+      "id": "HallEastTunnelEye",
+      "eye_local": [
+        6000,
+        5050,
+        -3150
+      ],
+      "target_local": [
+        4300,
+        5700,
+        -3800
+      ],
+      "lens_mm": 22
+    }
+  ],
+  "sight_expectations": [
+    {
+      "from": "WestEntry",
+      "target": "Pod_DeepBasin",
+      "visible": false
+    },
+    {
+      "from": "StairFoot",
+      "target": "Pod_DeepBasin",
+      "visible": false
+    },
+    {
+      "from": "CrownEastRim",
+      "target": "Pod_DeepBasin",
+      "visible": true
+    },
+    {
+      "from": "CanyonChamber",
+      "target": "Pod_CrownSummit",
+      "visible": false
+    },
+    {
+      "from": "TablelandRim",
+      "target": "Pod_DeepBasin",
+      "visible": true
+    },
+    {
+      "from": "WestEntry",
+      "target": "LandmarkTop",
+      "visible": true
+    },
+    {
+      "from": "CrownSummit",
+      "target": "LandmarkTop",
+      "visible": true
+    },
+    {
+      "from": "DeepBasin",
+      "target": "LandmarkTop",
+      "visible": true
+    }
+  ],
+  "preserve": {
+    "caves": [
+      {
+        "id": "BasinHall",
+        "outline": [
+          [
+            1700.0,
+            1600.0,
+            -3999.9761193984987
+          ],
+          [
+            1966.6666666666667,
+            1600.0,
+            -4000.0
+          ],
+          [
+            2233.3333333333335,
+            1600.0,
+            -4000.0
+          ],
+          [
+            2500.0,
+            1600.0,
+            -3999.9999999999995
+          ],
+          [
+            2766.666666666667,
+            1600.0,
+            -4000.0
+          ],
+          [
+            3033.333333333333,
+            1600.0,
+            -4000.0
+          ],
+          [
+            3300.0,
+            1600.0,
+            -4000.0
+          ],
+          [
+            3466.6666666666665,
+            1816.6666666666667,
+            -4000.0
+          ],
+          [
+            3633.3333333333335,
+            2033.3333333333333,
+            -3965.8840907496174
+          ],
+          [
+            3800.0,
+            2250.0,
+            -3595.206709092254
+          ],
+          [
+            3966.6666666666665,
+            2466.6666666666665,
+            -2692.496723172803
+          ],
+          [
+            4133.333333333333,
+            2683.333333333333,
+            -317.7744871939742
+          ],
+          [
+            4300.0,
+            2900.0,
+            -345.88235294117646
+          ],
+          [
+            4564.285714285715,
+            2785.714285714286,
+            -476.80672268907574
+          ],
+          [
+            4828.571428571428,
+            2671.4285714285716,
+            -607.7310924369744
+          ],
+          [
+            5092.857142857143,
+            2557.1428571428573,
+            -738.6554621848743
+          ],
+          [
+            5357.142857142857,
+            2442.8571428571427,
+            -895.1999999999999
+          ],
+          [
+            5621.428571428572,
+            2328.5714285714284,
+            -1027.2
+          ],
+          [
+            5885.714285714286,
+            2214.285714285714,
+            -1159.2000000000003
+          ],
+          [
+            6150.0,
+            2100.0,
+            -1291.2
+          ],
+          [
+            6414.285714285714,
+            1985.7142857142858,
+            -1423.1999999999998
+          ],
+          [
+            6678.571428571428,
+            1871.4285714285713,
+            -1555.1999999999998
+          ],
+          [
+            6942.857142857143,
+            1757.142857142857,
+            -1687.2000000000003
+          ],
+          [
+            7207.142857142857,
+            1642.857142857143,
+            -1819.1999999999998
+          ],
+          [
+            7471.428571428572,
+            1528.5714285714287,
+            -1951.2
+          ],
+          [
+            7735.714285714286,
+            1414.2857142857142,
+            -2126.8999620641166
+          ],
+          [
+            8000.0,
+            1300.0,
+            -2322.178028979357
+          ],
+          [
+            8025.0,
+            1012.5,
+            -2377.9739424101804
+          ],
+          [
+            8050.0,
+            725.0,
+            -2399.7951229891682
+          ],
+          [
+            8075.0,
+            437.5,
+            -2400.0
+          ],
+          [
+            8100.0,
+            150.0,
+            -2400.0
+          ],
+          [
+            8400.0,
+            150.0,
+            -2400.0
+          ],
+          [
+            8700.0,
+            150.0,
+            -2353.846153846154
+          ],
+          [
+            9000.0,
+            150.0,
+            -2215.3846153846152
+          ],
+          [
+            9300.0,
+            150.0,
+            -2076.923076923077
+          ],
+          [
+            9420.0,
+            420.0,
+            -2021.5384615384617
+          ],
+          [
+            9540.0,
+            690.0,
+            -1966.1538461538462
+          ],
+          [
+            9660.0,
+            960.0,
+            -1910.7692307692307
+          ],
+          [
+            9780.0,
+            1230.0,
+            -1855.3846153846152
+          ],
+          [
+            9900.0,
+            1500.0,
+            -1800.0
+          ],
+          [
+            9875.0,
+            1775.0,
+            -1811.5384615384614
+          ],
+          [
+            9850.0,
+            2050.0,
+            -1757.6887647017193
+          ],
+          [
+            9825.0,
+            2325.0,
+            -1500.5329999202415
+          ],
+          [
+            9800.0,
+            2600.0,
+            -983.5490947772223
+          ],
+          [
+            9775.0,
+            2875.0,
+            -132.62891088118522
+          ],
+          [
+            9750.0,
+            3150.0,
+            926.5554915963439
+          ],
+          [
+            9725.0,
+            3425.0,
+            1765.7690035897936
+          ],
+          [
+            9700.0,
+            3700.0,
+            1938.0122636309313
+          ],
+          [
+            9477.777777777777,
+            3883.3333333333335,
+            1942.6633134219574
+          ],
+          [
+            9255.555555555555,
+            4066.6666666666665,
+            1947.2032785333213
+          ],
+          [
+            9033.333333333334,
+            4250.0,
+            1951.6034528714351
+          ],
+          [
+            8811.111111111111,
+            4433.333333333333,
+            1955.835891055722
+          ],
+          [
+            8588.888888888889,
+            4616.666666666667,
+            1959.8735979635562
+          ],
+          [
+            8366.666666666666,
+            4800.0,
+            1963.6907126164685
+          ],
+          [
+            8144.444444444444,
+            4983.333333333333,
+            1967.2626851351915
+          ],
+          [
+            7922.222222222223,
+            5166.666666666667,
+            1970.5664455345968
+          ],
+          [
+            7700.0,
+            5350.0,
+            1973.5805631816788
+          ],
+          [
+            7477.777777777777,
+            5533.333333333333,
+            1976.2853958001106
+          ],
+          [
+            7255.555555555556,
+            5716.666666666667,
+            1978.6632269731815
+          ],
+          [
+            7033.333333333334,
+            5900.0,
+            1980.698391172617
+          ],
+          [
+            6811.111111111111,
+            6083.333333333334,
+            1982.3773854234073
+          ],
+          [
+            6588.888888888889,
+            6266.666666666666,
+            1983.6889668037575
+          ],
+          [
+            6366.666666666666,
+            6450.0,
+            1984.624235074026
+          ],
+          [
+            6144.444444444444,
+            6633.333333333334,
+            1985.1766998283767
+          ],
+          [
+            5922.222222222223,
+            6816.666666666666,
+            1985.3423316671754
+          ],
+          [
+            5700.0,
+            7000.0,
+            1985.1195969961757
+          ],
+          [
+            5566.666666666667,
+            7216.666666666667,
+            1984.4382308579625
+          ],
+          [
+            5433.333333333333,
+            7433.333333333333,
+            1983.5085936523856
+          ],
+          [
+            5300.0,
+            7650.0,
+            1982.3337693944238
+          ],
+          [
+            5166.666666666667,
+            7866.666666666667,
+            1980.9178766276477
+          ],
+          [
+            5033.333333333333,
+            8083.333333333333,
+            1979.2660528277688
+          ],
+          [
+            4900.0,
+            8300.0,
+            1977.3839307478372
+          ],
+          [
+            4610.526315789473,
+            8300.0,
+            1975.9457185582744
+          ],
+          [
+            4321.0526315789475,
+            8300.0,
+            1974.1876775619462
+          ],
+          [
+            4031.578947368421,
+            8300.0,
+            1972.1183001476738
+          ],
+          [
+            3742.105263157895,
+            8300.0,
+            1969.7469764231955
+          ],
+          [
+            3452.6315789473683,
+            8300.0,
+            1967.0844526441426
+          ],
+          [
+            3163.157894736842,
+            8300.0,
+            1964.1427794838723
+          ],
+          [
+            2873.684210526316,
+            8300.0,
+            1960.9352540837149
+          ],
+          [
+            2584.2105263157896,
+            8300.0,
+            1957.4763561756624
+          ],
+          [
+            2294.7368421052633,
+            8300.0,
+            1953.7816785991497
+          ],
+          [
+            2005.2631578947367,
+            8300.0,
+            1949.8678525615292
+          ],
+          [
+            1715.7894736842104,
+            8300.0,
+            1945.7524680179752
+          ],
+          [
+            1426.3157894736842,
+            8300.0,
+            1941.4539895707308
+          ],
+          [
+            1136.842105263158,
+            8300.0,
+            1936.9916683097101
+          ],
+          [
+            847.3684210526317,
+            8300.0,
+            1932.3854500363793
+          ],
+          [
+            557.894736842105,
+            8300.0,
+            1927.6558803304572
+          ],
+          [
+            268.4210526315792,
+            8300.0,
+            1922.8240069342023
+          ],
+          [
+            -21.052631578947512,
+            8300.0,
+            1917.9112799418358
+          ],
+          [
+            -310.5263157894733,
+            8300.0,
+            1912.9394502918942
+          ],
+          [
+            -600.0,
+            8300.0,
+            1907.930467067973
+          ],
+          [
+            -600.0,
+            8006.666666666667,
+            1909.8999818774519
+          ],
+          [
+            -600.0,
+            7713.333333333333,
+            1911.8476451533288
+          ],
+          [
+            -600.0,
+            7420.0,
+            1913.7694422697552
+          ],
+          [
+            -600.0,
+            7126.666666666667,
+            1915.6614150453452
+          ],
+          [
+            -600.0,
+            6833.333333333333,
+            1917.5196699004
+          ],
+          [
+            -600.0,
+            6540.0,
+            1919.3403858741965
+          ],
+          [
+            -600.0,
+            6246.666666666666,
+            1921.1198224858176
+          ],
+          [
+            -600.0,
+            5953.333333333334,
+            1922.8543274223468
+          ],
+          [
+            -600.0,
+            5660.0,
+            1924.5403440386178
+          ],
+          [
+            -600.0,
+            5366.666666666666,
+            1926.450718498677
+          ],
+          [
+            -600.0,
+            5073.333333333334,
+            1928.1786226148308
+          ],
+          [
+            -600.0,
+            4780.0,
+            1929.2734841979213
+          ],
+          [
+            -600.0,
+            4486.666666666666,
+            1930.7321450963327
+          ],
+          [
+            -600.0,
+            4193.333333333333,
+            1978.6046617907928
+          ],
+          [
+            -600.0,
+            3900.0,
+            2428.5519815935427
+          ],
+          [
+            -312.5,
+            3850.0,
+            1938.7546531011733
+          ],
+          [
+            -25.0,
+            3800.0,
+            1927.5218517844423
+          ],
+          [
+            262.5,
+            3750.0,
+            1558.9320012086798
+          ],
+          [
+            550.0,
+            3700.0,
+            1157.055581359899
+          ],
+          [
+            837.5,
+            3650.0,
+            1022.5978732861529
+          ],
+          [
+            1125.0,
+            3600.0,
+            958.7435611625054
+          ],
+          [
+            1412.5,
+            3550.0,
+            956.0379291566837
+          ],
+          [
+            1700.0,
+            3500.0,
+            841.8671027205291
+          ],
+          [
+            1700.0,
+            3228.5714285714284,
+            471.33915933437265
+          ],
+          [
+            1700.0,
+            2957.142857142857,
+            -272.96716008760416
+          ],
+          [
+            1700.0,
+            2685.714285714286,
+            -1097.751003986615
+          ],
+          [
+            1700.0,
+            2414.285714285714,
+            -2098.0294240616827
+          ],
+          [
+            1700.0,
+            2142.857142857143,
+            -3045.673967352217
+          ],
+          [
+            1700.0,
+            1871.4285714285713,
+            -3740.5784117755634
+          ]
+        ],
+        "bottom_abs": -4500
+      },
+      {
+        "id": "MassifCavern",
+        "outline": [
+          [
+            -13300.0,
+            -5300.0,
+            -36.29047987855603
+          ],
+          [
+            -13028.57142857143,
+            -5342.857142857143,
+            -38.566710644043525
+          ],
+          [
+            -12757.142857142857,
+            -5385.714285714285,
+            -40.33133595345949
+          ],
+          [
+            -12485.714285714286,
+            -5428.571428571428,
+            -41.50469705495727
+          ],
+          [
+            -12214.285714285714,
+            -5471.428571428572,
+            -42.00883053421602
+          ],
+          [
+            -11942.857142857143,
+            -5514.285714285715,
+            736.8362466972001
+          ],
+          [
+            -11671.42857142857,
+            -5557.142857142857,
+            1507.1754620689196
+          ],
+          [
+            -11400.0,
+            -5600.0,
+            1584.6672345004104
+          ],
+          [
+            -11125.0,
+            -5700.0,
+            1656.8529503559598
+          ],
+          [
+            -10850.0,
+            -5800.0,
+            1708.6446209687133
+          ],
+          [
+            -10575.0,
+            -5900.0,
+            1580.950259978788
+          ],
+          [
+            -10300.0,
+            -6000.0,
+            948.1401587763169
+          ],
+          [
+            -10180.0,
+            -6230.0,
+            -259.20642599448007
+          ],
+          [
+            -10060.0,
+            -6460.0,
+            -519.628669108307
+          ],
+          [
+            -9940.0,
+            -6690.0,
+            -575.5930673534801
+          ],
+          [
+            -9820.0,
+            -6920.0,
+            -608.0710959130827
+          ],
+          [
+            -9700.0,
+            -7150.0,
+            -640.1935419505752
+          ],
+          [
+            -9420.0,
+            -7150.0,
+            -717.143184880497
+          ],
+          [
+            -9140.0,
+            -7150.0,
+            -790.8650519031141
+          ],
+          [
+            -8860.0,
+            -7150.0,
+            -864.4982698961937
+          ],
+          [
+            -8580.0,
+            -7150.0,
+            -938.1314878892733
+          ],
+          [
+            -8300.0,
+            -7150.0,
+            -1011.7647058823529
+          ],
+          [
+            -8200.0,
+            -6887.5,
+            -1039.878892733564
+          ],
+          [
+            -8100.0,
+            -6625.0,
+            -1067.9930795847752
+          ],
+          [
+            -8000.0,
+            -6362.5,
+            -1096.1072664359863
+          ],
+          [
+            -7900.0,
+            -6100.0,
+            -1117.445696457048
+          ],
+          [
+            -7700.0,
+            -6000.0,
+            -1105.9820068945585
+          ],
+          [
+            -7500.0,
+            -5900.0,
+            -991.5019050998446
+          ],
+          [
+            -7300.0,
+            -5800.0,
+            -759.3557041720248
+          ],
+          [
+            -7292.857142857143,
+            -5507.142857142857,
+            1280.9805677903585
+          ],
+          [
+            -7285.714285714285,
+            -5214.285714285715,
+            3544.831663973678
+          ],
+          [
+            -7278.571428571428,
+            -4921.428571428572,
+            3802.4262757012775
+          ],
+          [
+            -7271.428571428572,
+            -4628.571428571428,
+            3798.766596552329
+          ],
+          [
+            -7264.285714285715,
+            -4335.714285714286,
+            3795.1147777075453
+          ],
+          [
+            -7257.142857142857,
+            -4042.857142857143,
+            3791.478255175603
+          ],
+          [
+            -7250.0,
+            -3750.0,
+            4624.786609617097
+          ],
+          [
+            -7242.857142857143,
+            -3457.1428571428573,
+            5367.75635512875
+          ],
+          [
+            -7235.714285714285,
+            -3164.285714285714,
+            5555.948278420996
+          ],
+          [
+            -7228.571428571428,
+            -2871.4285714285716,
+            5656.473563845557
+          ],
+          [
+            -7221.428571428572,
+            -2578.5714285714284,
+            5673.781484543163
+          ],
+          [
+            -7214.285714285715,
+            -2285.714285714286,
+            5670.389429859632
+          ],
+          [
+            -7207.142857142857,
+            -1992.8571428571427,
+            5667.062680024764
+          ],
+          [
+            -7200.0,
+            -1700.0,
+            5663.807912462476
+          ],
+          [
+            -7500.0,
+            -1700.0,
+            4582.024383239993
+          ],
+          [
+            -7800.0,
+            -1700.0,
+            4329.586151175826
+          ],
+          [
+            -8100.0,
+            -1700.0,
+            4304.494609447569
+          ],
+          [
+            -8400.0,
+            -1700.0,
+            4277.0021767208755
+          ],
+          [
+            -8700.0,
+            -1700.0,
+            3771.366872825225
+          ],
+          [
+            -9000.0,
+            -1700.0,
+            3632.575430362011
+          ],
+          [
+            -9300.0,
+            -1700.0,
+            3357.6923902581125
+          ],
+          [
+            -9600.0,
+            -1700.0,
+            3329.503697351928
+          ],
+          [
+            -9900.0,
+            -1700.0,
+            3288.061498143683
+          ],
+          [
+            -10200.0,
+            -1700.0,
+            2124.7904134357923
+          ],
+          [
+            -10500.0,
+            -1700.0,
+            1768.6467112143662
+          ],
+          [
+            -10800.0,
+            -1700.0,
+            1716.9178159166886
+          ],
+          [
+            -11100.0,
+            -1700.0,
+            1654.0028141839214
+          ],
+          [
+            -11400.0,
+            -1700.0,
+            1314.4277233288183
+          ],
+          [
+            -11590.0,
+            -1920.0,
+            563.0351237557647
+          ],
+          [
+            -11780.0,
+            -2140.0,
+            306.4557083660505
+          ],
+          [
+            -11970.0,
+            -2360.0,
+            221.278577554728
+          ],
+          [
+            -12160.0,
+            -2580.0,
+            141.77378798434813
+          ],
+          [
+            -12350.0,
+            -2800.0,
+            68.34778770120575
+          ],
+          [
+            -12540.0,
+            -3020.0,
+            1.3301357321039433
+          ],
+          [
+            -12730.0,
+            -3240.0,
+            -42.300834798576616
+          ],
+          [
+            -12920.0,
+            -3460.0,
+            -56.70206708303139
+          ],
+          [
+            -13110.0,
+            -3680.0,
+            -53.77550242288697
+          ],
+          [
+            -13300.0,
+            -3900.0,
+            -48.39505091231887
+          ],
+          [
+            -13300.0,
+            -4180.0,
+            -46.12693613056955
+          ],
+          [
+            -13300.0,
+            -4460.0,
+            -43.776003745644765
+          ],
+          [
+            -13300.0,
+            -4740.0,
+            -41.34858564029281
+          ],
+          [
+            -13300.0,
+            -5020.0,
+            -38.85119004440936
+          ]
+        ],
+        "bottom_abs": -1100
+      }
+    ],
+    "islands": [
+      {
+        "id": "ValleySkyIsle",
+        "stage": "Full",
+        "role": "Island",
+        "outline": [
+          [
+            10570.475818464258,
+            -4742.991400682115,
+            5500
+          ],
+          [
+            10044.219977374323,
+            -3737.557998516978,
+            5500
+          ],
+          [
+            9137.9033928358,
+            -3063.649410113842,
+            5500
+          ],
+          [
+            8072.867695915609,
+            -2664.850612561041,
+            5500
+          ],
+          [
+            6961.385304877614,
+            -2888.986673302263,
+            5500
+          ],
+          [
+            5899.839091960788,
+            -3310.329198626479,
+            5500
+          ],
+          [
+            5312.033026713967,
+            -4287.61855395858,
+            5500
+          ],
+          [
+            4815.815741022861,
+            -5322.573751639529,
+            5500
+          ],
+          [
+            5129.879499682294,
+            -6425.965061574048,
+            5500
+          ],
+          [
+            5483.006270997921,
+            -7522.835765464927,
+            5500
+          ],
+          [
+            6500.4476388310495,
+            -8063.646041626671,
+            5500
+          ],
+          [
+            7520.820755365333,
+            -8603.040671873947,
+            5500
+          ],
+          [
+            8623.010079076988,
+            -8260.567845235124,
+            5500
+          ],
+          [
+            9723.38539531351,
+            -7917.65602628992,
+            5500
+          ],
+          [
+            10270.983029305165,
+            -6903.422559850235,
+            5500
+          ],
+          [
+            10785.8299176767,
+            -5877.579237881051,
+            5500
+          ]
+        ],
+        "top_abs": true,
+        "bottom_abs": 3200,
+        "bottom_scale": 0.3,
+        "cut": false,
+        "island_top": 5500
+      },
+      {
+        "id": "WestSkyIsle",
+        "stage": "Full",
+        "role": "Island",
+        "outline": [
+          [
+            -12579.550542893221,
+            6880.332663608617,
+            6000
+          ],
+          [
+            -13523.413942490375,
+            7510.382994432702,
+            6000
+          ],
+          [
+            -14641.870560598596,
+            7667.282103235148,
+            6000
+          ],
+          [
+            -15767.721644317975,
+            7506.655661041668,
+            6000
+          ],
+          [
+            -16635.68265689965,
+            6777.084718671893,
+            6000
+          ],
+          [
+            -17365.274734855804,
+            5898.389500983605,
+            6000
+          ],
+          [
+            -17412.585611937564,
+            4758.928165397297,
+            6000
+          ],
+          [
+            -17351.87329568924,
+            3612.770292117516,
+            6000
+          ],
+          [
+            -16547.26244471142,
+            2795.0235062289676,
+            6000
+          ],
+          [
+            -15711.496720076124,
+            2001.7268963794704,
+            6000
+          ],
+          [
+            -14559.32965998835,
+            2014.9086045004028,
+            6000
+          ],
+          [
+            -13405.268445169615,
+            2030.738213989786,
+            6000
+          ],
+          [
+            -12602.196534147146,
+            2859.7041047335842,
+            6000
+          ],
+          [
+            -11800.927028574923,
+            3688.1855659594676,
+            6000
+          ],
+          [
+            -11806.61431996967,
+            4840.791460407397,
+            6000
+          ],
+          [
+            -11846.609155849894,
+            5987.884417755465,
+            6000
+          ]
+        ],
+        "top_abs": true,
+        "bottom_abs": 3700,
+        "bottom_scale": 0.3,
+        "cut": false,
+        "island_top": 6000
+      }
+    ],
+    "bridges": [
+      {
+        "id": "SkyBridge",
+        "stage": "Full",
+        "role": "Bridge",
+        "outline": [
+          [
+            -4689.0735821752005,
+            -5284.508784196669,
+            3834.8406380664815
+          ],
+          [
+            -4910.097115424305,
+            -9483.955915929671,
+            3855.0530619789765
+          ],
+          [
+            -4310.9264178247995,
+            -9515.491215803331,
+            3855.0530619789765
+          ],
+          [
+            -4089.9028845756948,
+            -5316.044084070327,
+            3834.8406380664815
+          ]
+        ],
+        "top_abs": true,
+        "bottom_abs": 3334.8406380664815,
+        "cut": false,
+        "deck": [
+          [
+            -4389.488233375448,
+            -5300.276434133498
+          ],
+          [
+            -4610.511766624552,
+            -9499.723565866501
+          ],
+          3834.8406380664815,
+          3855.0530619789765,
+          300
+        ]
+      }
+    ]
+  }
+}

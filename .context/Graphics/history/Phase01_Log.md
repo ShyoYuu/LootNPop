@@ -612,3 +612,53 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - Fern은 후보를 2배로 해도 Fern끼리 겹침 정리로 52개에 묶였다. 사용자 결정: Fern 겹침 허용·동선 안쪽 허용·새 계열 반입을 1-B5f에서 함께 한다.
 - 중간에 에디터가 `QUIT_EDITOR`로 저장 없이 재시작됐고, 디스크의 규칙·그래프로 같은 결과를 재생성했다.
 - 상세는 환경 실행서 §29, 근거는 `Saved/Profiling/Graphics/Phase01/RidgeDecorationVariants_20261117/`이다.
+
+## 2026-11-19 — 1-BR U1 설계도 추출
+
+- GX-021 계획으로 새로 시작했다. `RidgeBlueprint_V001.json`에 단 7개와 외곽 절벽선 51개, 분지 1개, 지형 경로 14개와 보행 연결 18개, 마커 45개, 카메라 24개와 사선 기대값 8개, 보존 영역(동굴 2개·부유섬 2개·석교 1개)을 기록했다. JSON 재생성 결과가 일치했다.
+- LootNPop 8000에서 정식 V011 Pod 12개·훅 6개·검토점 27개를 이름으로 대조했다. 검토점은 조립 스크립트의 200cm 띄우기를 반영했고, 마커 위치 오차 최대는 `5.15×10⁻¹²cm`였다.
+- 새 `EDTerrain_V001/LVI_Ridge_EDTerrain_V001`에 V011 지각·암반 Floor·Shell을 반투명 고스트로 저장했다. 세 컴포넌트의 `Decoration`·`LNPDecoration`·충돌 없음과 액터의 `HiddenInGame`·Editor Only를 확인했다. 뷰포트에서 고스트와 V006 동선 보호선을 함께 확인했다. 보호선은 에디터 디버그 표시다.
+- 정식 Ridge·풀·이전 그래픽스 WIP 등 19개 파일의 SHA-256이 작업 전후 일치했다. 새 레벨과 고스트 재질은 Git 제외다. U2는 사용자 진행 확인을 기다린다.
+
+## 2026-11-19 — 1-BR U2 지형 에셋 선정·반입
+
+- LootNPop을 닫고 ElectricDreamsEnv 8001에서 원본 후보 55개를 읽었다. `EDTerrainCatalog_V001.json`에는 로컬 bounds, Nanite fallback LOD0 삼각형 수, 충돌 설정, LOD0 실효 재질을 기록했다. 원본 에디터 dirty 패키지는 전후 모두 0개다.
+- 치수와 재질로 메시 17개를 선정했다. 절벽은 Massive 01·03·05(높이 29~37m)와 Huge·SmartAssets를 조합한다. 능선·메사는 CanyonSandstoneRidge 03과 MassiveCanyonSandstoneMesa 01, 둑·완사면은 GrassyEmbankment 01과 SandstoneRockyGround 02·05를 쓴다. 첨탑은 높은 절벽 조각, 낮은 암괴는 ForestRockFormation 06과 NordicBoulder 02를 후보로 삼았다. 하상은 이전 혼합 재질을 재사용한다.
+- HugeSandstoneCliff 07의 에셋 기본 재질과 원본 구도의 재질은 다르다. 구도 재현용 `MI_HugeSandstoneCliff_07`을 메시 17개와 함께 명시 시작점으로 선택했다. 선정 메시의 fallback LOD0은 3,056~63,672삼각형이며 단순 충돌이 없다.
+- 사용자가 18개 시작점에서 Migrate하고 `No All`을 선택했다. 새 파일 96개(3.912GiB)가 예상 목록 및 Migrate 로그와 일치했다. 기존 의존성 43개와 원본 139개 해시가 보존됐다. 새 물리 재질 4개 경로를 `.gitignore`에 추가했고 139개 대상 경로 모두 Git 제외다.
+- 원본과 반입본 해시는 `ElectricDreamsPalette.json`의 `ed_terrain_v001`에 기록했다. 원본 실측·반입 전후 목록·Migrate 로그는 `Saved/Profiling/Graphics/Phase01/EDTerrain_V001/`에 있다.
+- ElectricDreamsEnv 종료 뒤 LootNPop 8000에서 메시 17개와 하상 혼합 재질을 로드했다. 첫 Nanite·텍스처 파생 데이터 생성에 약 7분 44초가 걸려 MCP의 5분 응답 제한 뒤에도 에디터 로그에서 완료까지 확인했다. 치수·fallback·실효 재질 경로·충돌 설정·의존성 139개 클래스가 원본과 일치했다. 관련 로드/재질/셰이더 경고와 dirty 패키지 0개, 로드 전후 대상 139개 해시 일치를 `TargetVerification.json`에 남겼다.
+
+## 2026-11-19 — 1-BR U3 V012 기반면과 조기 베이크
+
+- V011 높이장에 8.5m 격자의 분리형 저역 통과 필터를 적용했다. PATHS·ROUTES 노면, 지상 Pod 반경 6.5m, 훅 착지 반경 6m, 동굴 경계와 석교 교대를 보호하고 14m에 걸쳐 평활 높이와 연결했다. 석교 양쪽 접근로도 보호에 포함했다. 보존 영역 밖 내부의 4m 격자 954표본에서 45° 초과 높이장 기울기 수가 131→59로 줄었다.
+- Blender 검증 결과는 진입 광선 285개, 경로 18개 바닥 광선 3,678개, Pod 12개, 훅 착지 6개 통과다. 경로에서 잰 최대 경사는 44.43°이고 보행면 최고점은 +76.22m다. 더 촘촘한 보조 표본의 북쪽 잔도 측면 1점은 V011·V012가 같은 동굴 지붕 Shell을 맞혔다(경사 45.23°, 높이 18.96m).
+- U1 WIP에 경계 고리와 기반면을 잇는 지각 82,105삼각형과 보존 Rocks Floor 6,494·Shell 31,838삼각형을 반입했다. 지각에 RidgeSurface V005를 지정하고 Pod 12·훅 6·검토점 27개를 Blender 실제 바닥에 재투영해 저장했다. Meadow native 정점 13,989개의 최대 스냅 보정은 0.00763cm였다.
+- TestMap03에서 조기 베이크 성공. Support 2소스·22층·576,088샘플, Nav 76,620셀·22 components·507 portals, Spawn 앵커 12개·후보 9,591개·noNavRejected 0이다. Meadow의 양자화 반지름과 Valid 비트 2,208개가 정확히 일치했다. 기존 정식 Ridge·Meadow·풀·이전 WIP 등 보호 파일 41개 해시가 일치했다. 근거는 `Saved/SliceOctant/Ridge_00/V012/`의 `geometry-verification.json`, `native-import.json`, `native-assembly.json`, `early-bake.json`이다.
+
+## 2026-11-19 — 1-BR U4 Z1 초벌 배치
+
+- 산괴 동쪽 절벽, 대분지 남쪽, 협곡 하류 둑을 한 구역으로 잡고 시각 메시 13개를 `EDTerrain/Z1`에 배치했다. 초안에서 협곡 PATHS·ROUTES 보호선과 겹친 네 조각을 옮긴 뒤 Pod·훅·사선과 함께 재검사했다. 배치 상자에서 가장 가까운 seam 평면까지 112.15m였다.
+- `PlaceRidgeEDTerrain.py`는 현지 Up 기준 회전, V012 높이 오프셋, 스케일, 재질 덮어쓰기를 기록한다. 13개 모두 `Decoration`·`LNPDecoration`·충돌 없음과 배치 transform을 확인했다. WIP에 초벌을 저장했고 사용자가 에디터에서 구도와 이음을 확인 중이다.
+
+### Z1 조형 비교본
+
+- 사용자는 V012 지각의 형상은 좋지만 덧붙인 메시가 대부분 어울리지 않는다고 판정했다. Z1에서 기존 플레이 동선을 바꿔도 된다고 하여 절벽과 암봉을 먼저 배치하고 기반면을 맞추는 비교본을 만들었다. 사용자가 시험한 미저장 transform은 저장하지 않기로 했다. 앞서 저장한 Z1 초벌 레벨은 SHA-256이 일치했다.
+- V012 서쪽 사면을 뒤로 물려 대분지 발치를 낮췄다. 현지 `(-1600, -250)` 표본은 H `+46.52m`에서 `-39.50m`로 바뀌었다. 바깥은 폭 14m 전이로 V012에 연결하고, 동굴 절개선의 높이는 유지했다.
+- 별도 `Z1Composition_V001/LVI_Ridge_EDTerrain_Z1Composition_V001`에 서쪽 두 단 절벽, 북쪽 동굴 외벽 덧댐, 독립 암봉, 하류 양쪽 둑 등 시각 메시 14개를 저장했다. 하상 혼합 재질 사본 `MI_Ridge_Z1_Channel`은 새 곡선을 따라 이어지도록 바꿨다. 협곡 입구 시점의 Unlit 뷰포트에서 암봉·하상·동굴 가림을 확인했다. 상단 절벽과 배경의 접합, 이 구도의 보행·충돌 검증은 후속이다.
+- 지각 81,437삼각형의 Blender 기본 토폴로지 검사와 UE 반입 검사를 통과했다. Meadow 경계 최대 스냅은 0.00763cm이고, 14개 배치의 가장 가까운 seam 평면 여유는 135.63m다. 근거는 `Saved/SliceOctant/Ridge_00/V012_Z1Composition/`의 `manifest.json`, `native-import.json`, `composition.json`이다.
+
+### Electric Dreams 원본 배치 대조
+
+- 사용자는 전체 구도는 개선됐다고 보고 두 MassiveSandstoneCliff 조각의 벽면 사용과 SmartAssets Cliff 06의 독립 암봉 사용을 다시 확인해 달라고 했다. LootNPop의 렌더 LOD0에서 세 메시 모두 단면 재질, 열린 경계, 주 방향에 편중된 투영 면적을 확인했다. 에셋 이름이나 두께만으로 용도를 판정하기 어려워 ElectricDreamsEnv 8001에서 실제 월드 배치와 원본 조립체를 읽었다.
+- `WestFace`의 MassiveSandstoneCliff 05는 CloseRange `BP_PCG_LargeAssembly`와 `PL_LargeCliff_01b`·`02e`에서 상부 선반과 덮개로 쓰였다. 원본 조립체 두 곳의 8개에서 주 표면은 수직면 기준 60.88~84.33° 기울었다.
+- `NorthFace`의 MassiveSandstoneCliff 03은 `ASM_RiverEmbankment_02B`와 CloseRange `PCGDemo_DitchBP`에서 하천 둑의 바닥과 낮은 경사면으로 쓰였다. CloseRange 78개에서 수직면 기준 기울기는 중앙값 88.02°였다.
+- `BasinPillar`의 SmartAssets Cliff 06은 `PL_LargeCliff_01b`·`02e`, `Asmbl_BG_Hoodoo_01b_SmartAsset`의 세로 외피였다. 수직면 기준 5.09~18.62°였다. Ridge에서는 열린 뒤편을 산괴에 접하는 절벽 면으로 검토한다.
+- 근거는 `Saved/SliceOctant/Ridge_00/V012_Z1Composition/`의 `MeshFaces.json`과 `ElectricDreams_*.json`이다. 원본 레벨과 메시 파일 8개 SHA-256과 레벨별 로드 후 dirty 상태를 대조했다. 원본 배치 결과를 팔레트에 기록했고 Z1 조형 비교본은 LootNPop에서 역할을 교정할 차례다.
+
+### Z1에 원본 역할 적용
+
+- `ED_Z1_WestFace`의 MassiveSandstoneCliff 05를 Roll −75°로 눕혀 `ED_Z1_WestUpperShelf`로 옮겼다. `ED_Z1_NorthFace`의 03은 Roll −74°로 눕혀 하천 북쪽의 `ED_Z1_NorthBankShelf`에 접지했다.
+- `ED_Z1_BasinPillar`의 SmartAssets Cliff 06을 서쪽 산괴에 붙인 `ED_Z1_WestWallNorth`로 옮겼고, 같은 메시로 아래쪽 벽의 `ED_Z1_WestWallSouth`를 한 개 더 배치했다. 두 외피의 상단을 산괴 쪽으로 기울였다.
+- 상단 `WestCrown`·`NorthCrown`은 새 외피와 겹치도록 옮겼다. 뷰포트 광선으로 입구에서 떠 보이는 부분이 `NorthCrown`임을 확인해 산괴 쪽으로 더 넣었다. 조정 뒤 같은 입구 시점에서 돌출됐던 모서리가 가려졌다.
+- LootNPop에서 비교본 시각 메시 15개의 transform·재질·`LNPDecoration` 상태와 seam 여유 최솟값 132.74m를 확인했다. 역할 교정 전 비교본은 `BeforeSourceRoles.umap`, 현재 검사 결과는 `composition.json`에 있다. 기존 초벌 저장본은 해시가 일치했다. 다음은 사용자 구도 검토와 U4 배치 재현이다.

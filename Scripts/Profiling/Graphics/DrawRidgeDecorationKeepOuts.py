@@ -1,7 +1,8 @@
 """장식 규칙 에셋의 보호 형상(2D 동선·암반, 3D Pod·착지·훅·카메라)을 에디터 뷰포트에 디버그 선으로 그린다.
 
-콘솔: py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/DrawRidgeDecorationKeepOuts.py" [draw|clear]
+콘솔: py "D:/UnrealProjects/LootNPop/Scripts/Profiling/Graphics/DrawRidgeDecorationKeepOuts.py" [draw|draw-br|clear]
 규칙 에셋(DA_RidgeDecorationRules)을 읽기만 한다. 선은 저장되지 않는 디버그 선이며 clear로 지운다.
+draw-br은 V006 규칙의 동선 보호선을 기존 장식 구역 밖까지 그린다.
 C++ 샘플러와 같은 판정 경계를 그린다: 열린 선은 선분마다 두 정점 반폭 중 큰 값 + Margin.
 
 색 규약
@@ -22,6 +23,7 @@ sys.path.insert(0, str(HERE.parents[1]))
 import RidgeOctantSpec as spec
 
 RULES = "/Game/Graphics/Environment/ElectricDreams/RidgeDecoration_V001/DA_RidgeDecorationRules"
+RULES_BR = RULES + "_V006"
 # BuildRidgeDecorationPCG.py와 같은 값(그 모듈은 import 시 규칙 상수가 많아 복사한다).
 FERN_PADDING = -50
 BLOCKER_PADDING = 300
@@ -50,7 +52,7 @@ def ground(x, y):
 
 
 def near_zone(x, y):
-    return spec.signed_distance(x, y, list(ZONE)) > -VIEW_MARGIN
+    return ZONE is None or spec.signed_distance(x, y, ZONE) > -VIEW_MARGIN
 
 
 def line2d(a, b, name):
@@ -93,9 +95,12 @@ def draw_polyline(points, margin):
         circle2d(x, y, w + margin + BLOCKER_PADDING, "edge")
 
 
-def draw():
-    rules = unreal.load_asset(RULES)
-    assert rules, RULES
+def draw(full_ridge=False):
+    global ZONE
+    rules_path = RULES_BR if full_ridge else RULES
+    rules = unreal.load_asset(rules_path)
+    assert rules, rules_path
+    ZONE = None if full_ridge else [(v.x, v.y) for v in rules.get_editor_property("zone")]
     clear()
     counts = {}
     for shape in rules.get_editor_property("keep_out2d"):
@@ -121,9 +126,9 @@ def draw():
         else:
             unreal.SystemLibrary.draw_debug_line(world(), start, end, color(kind), DURATION, THICK)
         counts[sid.split("_")[0]] = counts.get(sid.split("_")[0], 0) + 1
-    zone = list(ZONE)
-    for a, b in zip(zone, zone[1:] + zone[:1]):
-        line2d(a, b, "zone")
+    if ZONE:
+        for a, b in zip(ZONE, ZONE[1:] + ZONE[:1]):
+            line2d(a, b, "zone")
     unreal.log("Ridge decoration keep-outs drawn: %s" % counts)
 
 
@@ -134,13 +139,6 @@ def clear():
 ZONE = None
 
 
-def load_zone():
-    global ZONE
-    rules = unreal.load_asset(RULES)
-    ZONE = [(v.x, v.y) for v in rules.get_editor_property("zone")]
-
-
 if __name__ == "__main__":
-    load_zone()
     mode = sys.argv[1] if len(sys.argv) > 1 else "draw"
-    {"draw": draw, "clear": clear}[mode]()
+    {"draw": draw, "draw-br": lambda: draw(full_ridge=True), "clear": clear}[mode]()

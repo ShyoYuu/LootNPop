@@ -1,0 +1,2293 @@
+{
+  "catalog_version": "V001",
+  "source_project": "ElectricDreamsEnv.uproject",
+  "engine_version": "5.8.4-58902052+++UE5+Release-5.8",
+  "inspection_date": "2026-11-19",
+  "measurement": {
+    "size_cm": "Unscaled asset-local mesh bounds",
+    "nanite_fallback_lod0_triangles": "UStaticMesh render LOD0, not the Nanite source triangle count",
+    "effective_material": "LOD0 source mesh section material, with ElectricDreams_PCG overrides where recorded"
+  },
+  "selection": {
+    "meshes": [
+      {
+        "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+        "role": "cliff",
+        "uses": [
+          "plate_edge",
+          "canyon_wall"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_03",
+        "role": "cliff",
+        "uses": [
+          "plate_edge",
+          "spire"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+        "role": "cliff",
+        "uses": [
+          "plate_edge",
+          "canyon_wall"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+        "role": "cliff",
+        "uses": [
+          "plate_edge",
+          "canyon_wall"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+        "role": "cliff",
+        "uses": [
+          "plate_edge",
+          "canyon_wall"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03",
+        "role": "cliff",
+        "uses": [
+          "river_bank",
+          "ground_shelf"
+        ],
+        "source_placement": {
+          "assemblies": [
+            "ASM_RiverEmbankment_02B",
+            "ElectricDreams_PCGCloseRange/PCGDemo_DitchBP"
+          ],
+          "main_face_degrees_from_vertical": [
+            50.87,
+            89.52
+          ],
+          "observed_role": "하천 둑 바닥과 낮은 경사면"
+        }
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_05",
+        "role": "cliff",
+        "uses": [
+          "cliff_shelf",
+          "cliff_cap"
+        ],
+        "source_placement": {
+          "assemblies": [
+            "PL_LargeCliff_01b",
+            "PL_LargeCliff_02e",
+            "ElectricDreams_PCGCloseRange/BP_PCG_LargeAssembly"
+          ],
+          "main_face_degrees_from_vertical": [
+            60.88,
+            84.33
+          ],
+          "observed_role": "절벽 상부의 선반과 상단 덮개"
+        }
+      },
+      {
+        "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+        "role": "cliff",
+        "uses": [
+          "plate_edge",
+          "spire"
+        ]
+      },
+      {
+        "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_05",
+        "role": "cliff",
+        "uses": [
+          "plate_edge",
+          "bank"
+        ]
+      },
+      {
+        "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+        "role": "cliff",
+        "uses": [
+          "plate_edge",
+          "canyon_wall"
+        ],
+        "source_placement": {
+          "assemblies": [
+            "PL_LargeCliff_01b",
+            "PL_LargeCliff_02e",
+            "Asmbl_BG_Hoodoo_01b_SmartAsset"
+          ],
+          "main_face_degrees_from_vertical": [
+            5.09,
+            18.62
+          ],
+          "observed_role": "절벽의 세로 외피와 배경 암봉의 외피"
+        }
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_03",
+        "role": "ridge",
+        "uses": [
+          "ridge"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+        "role": "ridge",
+        "uses": [
+          "ridge",
+          "mesa"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/GrassyEmbankment/SM_GrassyEmbankment_01",
+        "role": "bank",
+        "uses": [
+          "bank"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_02",
+        "role": "bank",
+        "uses": [
+          "bank"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_05",
+        "role": "bank",
+        "uses": [
+          "bank"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_06",
+        "role": "spire",
+        "uses": [
+          "rock_outcrop"
+        ]
+      },
+      {
+        "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+        "role": "spire",
+        "uses": [
+          "boulder"
+        ]
+      }
+    ],
+    "roots": [
+      "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_03",
+      "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_06",
+      "/Game/Megascans/3D_Assets/GrassyEmbankment/SM_GrassyEmbankment_01",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_07",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_03",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+      "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+      "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+      "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+      "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03",
+      "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_05",
+      "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+      "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_02",
+      "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_05",
+      "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+      "/Game/SmartAssets/AssetMeshes/SM_Cliff_05",
+      "/Game/SmartAssets/AssetMeshes/SM_Cliff_06"
+    ],
+    "riverbed_material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/ReferencePatch_V001/MI_Ridge_ReferenceRiverbed_V001"
+  },
+  "candidates": [
+    {
+      "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_01",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -838.574,
+        -427.88,
+        -30.854
+      ],
+      "bounds_max_cm": [
+        665.416,
+        340.353,
+        1033.474
+      ],
+      "size_cm": [
+        1503.99,
+        768.233,
+        1064.329
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 16726,
+      "nanite_fallback_lod0_triangles": 16726,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -862.873,
+        -352.36,
+        -33.78
+      ],
+      "bounds_max_cm": [
+        879.025,
+        373.762,
+        1217.432
+      ],
+      "size_cm": [
+        1741.898,
+        726.122,
+        1251.212
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 22492,
+      "nanite_fallback_lod0_triangles": 22492,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_02",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_02",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_03",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -571.618,
+        -166.241,
+        -48.462
+      ],
+      "bounds_max_cm": [
+        580.751,
+        171.078,
+        1435.825
+      ],
+      "size_cm": [
+        1152.369,
+        337.319,
+        1484.286
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 19613,
+      "nanite_fallback_lod0_triangles": 19613,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_03",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_03",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_04",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -571.618,
+        -166.241,
+        -48.462
+      ],
+      "bounds_max_cm": [
+        580.751,
+        171.078,
+        1435.825
+      ],
+      "size_cm": [
+        1152.369,
+        337.319,
+        1484.286
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 19613,
+      "nanite_fallback_lod0_triangles": 19613,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_03",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_03",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1504.321,
+        -1302.946,
+        -78.798
+      ],
+      "bounds_max_cm": [
+        1537.331,
+        139.147,
+        1433.485
+      ],
+      "size_cm": [
+        3041.652,
+        1442.093,
+        1512.283
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 15892,
+      "nanite_fallback_lod0_triangles": 15892,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_04",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_04",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_06",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -545.01,
+        -521.101,
+        -9.094
+      ],
+      "bounds_max_cm": [
+        554.86,
+        520.486,
+        733.495
+      ],
+      "size_cm": [
+        1099.87,
+        1041.587,
+        742.589
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 19613,
+      "nanite_fallback_lod0_triangles": 19613,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_05",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_05",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1102.862,
+        -375.533,
+        -17.603
+      ],
+      "bounds_max_cm": [
+        1112.29,
+        465.368,
+        652.678
+      ],
+      "size_cm": [
+        2215.152,
+        840.901,
+        670.281
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 17321,
+      "nanite_fallback_lod0_triangles": 17321,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_06",
+          "scene_override": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_07",
+          "effective_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_07",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_08",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1102.862,
+        -375.533,
+        -17.603
+      ],
+      "bounds_max_cm": [
+        1112.29,
+        464.687,
+        652.678
+      ],
+      "size_cm": [
+        2215.152,
+        840.22,
+        670.281
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 17321,
+      "nanite_fallback_lod0_triangles": 17321,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_08",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/MI_HugeSandstoneCliff_08",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1502.948,
+        -869.857,
+        -71.997
+      ],
+      "bounds_max_cm": [
+        1325.045,
+        736.669,
+        2940.581
+      ],
+      "size_cm": [
+        2827.993,
+        1606.526,
+        3012.578
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 15915,
+      "nanite_fallback_lod0_triangles": 15915,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1086.57,
+        -315.195,
+        -33.023
+      ],
+      "bounds_max_cm": [
+        906.889,
+        1030.174,
+        2595.555
+      ],
+      "size_cm": [
+        1993.458,
+        1345.369,
+        2628.578
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 30685,
+      "nanite_fallback_lod0_triangles": 30685,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_02",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_02",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1044.017,
+        -889.387,
+        -36.866
+      ],
+      "bounds_max_cm": [
+        1041.936,
+        84.726,
+        2875.029
+      ],
+      "size_cm": [
+        2085.953,
+        974.113,
+        2911.895
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 21125,
+      "nanite_fallback_lod0_triangles": 21125,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_03",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_03",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_04",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -862.984,
+        -884.248,
+        36.994
+      ],
+      "bounds_max_cm": [
+        975.584,
+        166.026,
+        2955.086
+      ],
+      "size_cm": [
+        1838.568,
+        1050.274,
+        2918.092
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 22480,
+      "nanite_fallback_lod0_triangles": 22480,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_03",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_03",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_05",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1812.487,
+        -1154.19,
+        -119.626
+      ],
+      "bounds_max_cm": [
+        2363.534,
+        618.387,
+        3612.999
+      ],
+      "size_cm": [
+        4176.02,
+        1772.577,
+        3732.625
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 5053,
+      "nanite_fallback_lod0_triangles": 5053,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_04",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/MI_MassiveSandstoneCliff_04",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_06",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -10947.656,
+        -10108.672,
+        -9367.688
+      ],
+      "bounds_max_cm": [
+        10947.656,
+        10108.672,
+        9367.688
+      ],
+      "size_cm": [
+        21895.312,
+        20217.344,
+        18735.375
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 252,
+      "nanite_fallback_lod0_triangles": 252,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Engine/EngineMaterials/WorldGridMaterial",
+          "scene_override": null,
+          "effective_material": "/Engine/EngineMaterials/WorldGridMaterial",
+          "base_material": "/Engine/EngineMaterials/WorldGridMaterial"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_01",
+      "role": "ridge",
+      "bounds_min_cm": [
+        -157.339,
+        -70.617,
+        -8.896
+      ],
+      "bounds_max_cm": [
+        156.999,
+        71.319,
+        85.191
+      ],
+      "size_cm": [
+        314.339,
+        141.936,
+        94.087
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 23566,
+      "nanite_fallback_lod0_triangles": 23566,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_02",
+      "role": "ridge",
+      "bounds_min_cm": [
+        -132.036,
+        -69.425,
+        27.221
+      ],
+      "bounds_max_cm": [
+        145.822,
+        61.523,
+        84.978
+      ],
+      "size_cm": [
+        277.858,
+        130.949,
+        57.757
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 20878,
+      "nanite_fallback_lod0_triangles": 20878,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_03",
+      "role": "ridge",
+      "bounds_min_cm": [
+        -799.251,
+        -296.143,
+        -30.672
+      ],
+      "bounds_max_cm": [
+        805.024,
+        303.836,
+        347.205
+      ],
+      "size_cm": [
+        1604.275,
+        599.979,
+        377.877
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 10492,
+      "nanite_fallback_lod0_triangles": 10492,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_02",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_02",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_04",
+      "role": "ridge",
+      "bounds_min_cm": [
+        -164.121,
+        -35.753,
+        -2.127
+      ],
+      "bounds_max_cm": [
+        169.202,
+        39.064,
+        65.217
+      ],
+      "size_cm": [
+        333.323,
+        74.818,
+        67.344
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 19178,
+      "nanite_fallback_lod0_triangles": 19178,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_03",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/MI_CanyonSandstoneRidge_03",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+      "role": "ridge",
+      "bounds_min_cm": [
+        -1187.019,
+        -49.604,
+        -78.419
+      ],
+      "bounds_max_cm": [
+        1227.792,
+        583.628,
+        365.877
+      ],
+      "size_cm": [
+        2414.811,
+        633.232,
+        444.296
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 19609,
+      "nanite_fallback_lod0_triangles": 19609,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/MI_MassiveCanyonSandstoneMesa_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/MI_MassiveCanyonSandstoneMesa_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/GiganticSandstoneTerrain/SM_GiganticSandstoneTerrain_01",
+      "role": "ridge",
+      "bounds_min_cm": [
+        -28888.082,
+        -18499.872,
+        -552.55
+      ],
+      "bounds_max_cm": [
+        28726.152,
+        18039.024,
+        10230.557
+      ],
+      "size_cm": [
+        57614.234,
+        36538.896,
+        10783.106
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 17031,
+      "nanite_fallback_lod0_triangles": 17031,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/GiganticSandstoneTerrain/MI_GiganticSandstoneTerrain_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/GiganticSandstoneTerrain/MI_GiganticSandstoneTerrain_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/GrassyEmbankment/SM_GrassyEmbankment_01",
+      "role": "bank",
+      "bounds_min_cm": [
+        -66.14,
+        -40.892,
+        0.837
+      ],
+      "bounds_max_cm": [
+        62.08,
+        36.612,
+        19.835
+      ],
+      "size_cm": [
+        128.22,
+        77.504,
+        18.999
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 23049,
+      "nanite_fallback_lod0_triangles": 23049,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/GrassyEmbankment/MI_GrassyEmbankment_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/GrassyEmbankment/MI_GrassyEmbankment_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/GrassyEmbankment/SM_GrassyEmbankment_02",
+      "role": "bank",
+      "bounds_min_cm": [
+        -66.14,
+        -40.928,
+        0.855
+      ],
+      "bounds_max_cm": [
+        62.08,
+        32.617,
+        19.835
+      ],
+      "size_cm": [
+        128.22,
+        73.545,
+        18.98
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 25239,
+      "nanite_fallback_lod0_triangles": 25239,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/GrassyEmbankment/MI_GrassyEmbankment_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/GrassyEmbankment/MI_GrassyEmbankment_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_01",
+      "role": "bank",
+      "bounds_min_cm": [
+        -131.986,
+        -110.71,
+        -1.76
+      ],
+      "bounds_max_cm": [
+        132.017,
+        110.68,
+        15.357
+      ],
+      "size_cm": [
+        264.003,
+        221.391,
+        17.116
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 23060,
+      "nanite_fallback_lod0_triangles": 23060,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_02",
+      "role": "bank",
+      "bounds_min_cm": [
+        -166.94,
+        -127.767,
+        -2.369
+      ],
+      "bounds_max_cm": [
+        154.941,
+        124.036,
+        27.969
+      ],
+      "size_cm": [
+        321.881,
+        251.803,
+        30.338
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 27673,
+      "nanite_fallback_lod0_triangles": 27673,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_02",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_02",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_03",
+      "role": "bank",
+      "bounds_min_cm": [
+        -144.541,
+        -123.337,
+        -2.463
+      ],
+      "bounds_max_cm": [
+        147.802,
+        122.838,
+        30.696
+      ],
+      "size_cm": [
+        292.343,
+        246.175,
+        33.159
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 29836,
+      "nanite_fallback_lod0_triangles": 29836,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_03",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_03",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_04",
+      "role": "bank",
+      "bounds_min_cm": [
+        -110.363,
+        -90.234,
+        -1.45
+      ],
+      "bounds_max_cm": [
+        110.369,
+        90.269,
+        29.596
+      ],
+      "size_cm": [
+        220.733,
+        180.503,
+        31.046
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 26519,
+      "nanite_fallback_lod0_triangles": 26519,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_04",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_04",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_05",
+      "role": "bank",
+      "bounds_min_cm": [
+        -387.424,
+        -252.86,
+        -10.913
+      ],
+      "bounds_max_cm": [
+        387.564,
+        255.837,
+        42.79
+      ],
+      "size_cm": [
+        774.988,
+        508.696,
+        53.703
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 63672,
+      "nanite_fallback_lod0_triangles": 63672,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_05",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/SandstoneRockyGround/MI_SandstoneRockyGround_05",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_01",
+      "role": "spire",
+      "bounds_min_cm": [
+        -163.748,
+        -69.003,
+        -0.726
+      ],
+      "bounds_max_cm": [
+        163.702,
+        69.084,
+        19.589
+      ],
+      "size_cm": [
+        327.45,
+        138.087,
+        20.315
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 10479,
+      "nanite_fallback_lod0_triangles": 10479,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_03",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_03",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_02",
+      "role": "spire",
+      "bounds_min_cm": [
+        -163.748,
+        -69.003,
+        -8.123
+      ],
+      "bounds_max_cm": [
+        163.537,
+        70.33,
+        19.445
+      ],
+      "size_cm": [
+        327.285,
+        139.333,
+        27.567
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 10125,
+      "nanite_fallback_lod0_triangles": 10125,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_03",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_03",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_03",
+      "role": "spire",
+      "bounds_min_cm": [
+        -217.093,
+        -87.577,
+        -1.915
+      ],
+      "bounds_max_cm": [
+        222.837,
+        85.633,
+        24.1
+      ],
+      "size_cm": [
+        439.929,
+        173.21,
+        26.015
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 7198,
+      "nanite_fallback_lod0_triangles": 7198,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_04",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_04",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_04",
+      "role": "spire",
+      "bounds_min_cm": [
+        -217.406,
+        -87.583,
+        -1.898
+      ],
+      "bounds_max_cm": [
+        222.531,
+        85.568,
+        24.362
+      ],
+      "size_cm": [
+        439.937,
+        173.151,
+        26.26
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 6911,
+      "nanite_fallback_lod0_triangles": 6911,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_04",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_04",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_03",
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_05",
+      "role": "spire",
+      "bounds_min_cm": [
+        -282.049,
+        -210.036,
+        -1.482
+      ],
+      "bounds_max_cm": [
+        282.406,
+        209.665,
+        61.106
+      ],
+      "size_cm": [
+        564.455,
+        419.701,
+        62.587
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 2969,
+      "nanite_fallback_lod0_triangles": 2969,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_05",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_05",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": "/Game/Meshes/_GENERATED/RockFormation/SM_ForestRockShelf_01",
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_06",
+      "role": "spire",
+      "bounds_min_cm": [
+        -303.952,
+        -197.089,
+        -2.412
+      ],
+      "bounds_max_cm": [
+        275.469,
+        228.319,
+        66.422
+      ],
+      "size_cm": [
+        579.422,
+        425.407,
+        68.834
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 6587,
+      "nanite_fallback_lod0_triangles": 6587,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_02",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/ForestRockFormation/MI_ForestRockFormation_02",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+      "role": "spire",
+      "bounds_min_cm": [
+        -327.257,
+        -445.256,
+        -5.656
+      ],
+      "bounds_max_cm": [
+        331.343,
+        445.226,
+        401.314
+      ],
+      "size_cm": [
+        658.6,
+        890.482,
+        406.971
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 17004,
+      "nanite_fallback_lod0_triangles": 17004,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/NordicBoulder/MI_NordicBoulder_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/NordicBoulder/MI_NordicBoulder_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+      "role": "spire",
+      "bounds_min_cm": [
+        -264.526,
+        -400.273,
+        0.474
+      ],
+      "bounds_max_cm": [
+        330.308,
+        403.14,
+        399.082
+      ],
+      "size_cm": [
+        594.835,
+        803.412,
+        398.608
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 3056,
+      "nanite_fallback_lod0_triangles": 3056,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/NordicBoulder/MI_NordicBoulder_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/NordicBoulder/MI_NordicBoulder_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -160.309,
+        -118.972,
+        -549.367
+      ],
+      "bounds_max_cm": [
+        165.364,
+        119.895,
+        550.362
+      ],
+      "size_cm": [
+        325.673,
+        238.866,
+        1099.729
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 27364,
+      "nanite_fallback_lod0_triangles": 27364,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_02",
+          "scene_override": "/Game/SmartAssets/AssetMaterials/MI_Cliff_02",
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_02",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_03",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -124.794,
+        -46.762,
+        -3.067
+      ],
+      "bounds_max_cm": [
+        121.92,
+        47.365,
+        206.944
+      ],
+      "size_cm": [
+        246.714,
+        94.126,
+        210.011
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 17276,
+      "nanite_fallback_lod0_triangles": 17276,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_03",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_03",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_04",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -175.056,
+        -59.617,
+        -3.326
+      ],
+      "bounds_max_cm": [
+        174.42,
+        62.43,
+        273.827
+      ],
+      "size_cm": [
+        349.476,
+        122.047,
+        277.153
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 27652,
+      "nanite_fallback_lod0_triangles": 27652,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_04",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_04",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_05",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -425.937,
+        -126.524,
+        -0.524
+      ],
+      "bounds_max_cm": [
+        436.491,
+        113.558,
+        122.21
+      ],
+      "size_cm": [
+        862.427,
+        240.082,
+        122.734
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 14000,
+      "nanite_fallback_lod0_triangles": 14000,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_05",
+          "scene_override": "/Game/SmartAssets/AssetMaterials/MI_Cliff_05",
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_05",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1104.752,
+        -477.782,
+        -19.167
+      ],
+      "bounds_max_cm": [
+        1104.317,
+        477.155,
+        2652.688
+      ],
+      "size_cm": [
+        2209.069,
+        954.937,
+        2671.854
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 16631,
+      "nanite_fallback_lod0_triangles": 16631,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_06",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_06",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_07",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1046.366,
+        -750.036,
+        -35.204
+      ],
+      "bounds_max_cm": [
+        1033.498,
+        752.062,
+        1430.64
+      ],
+      "size_cm": [
+        2079.865,
+        1502.099,
+        1465.844
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 28253,
+      "nanite_fallback_lod0_triangles": 28253,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_07",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_07",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -838.601,
+        -529.248,
+        272.08
+      ],
+      "bounds_max_cm": [
+        775.538,
+        623.147,
+        1430.64
+      ],
+      "size_cm": [
+        1614.138,
+        1152.395,
+        1158.559
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 26925,
+      "nanite_fallback_lod0_triangles": 26925,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_07",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_07",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -684.905,
+        -432.643,
+        -13.846
+      ],
+      "bounds_max_cm": [
+        690.528,
+        419.494,
+        875.555
+      ],
+      "size_cm": [
+        1375.434,
+        852.137,
+        889.4
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 24816,
+      "nanite_fallback_lod0_triangles": 24816,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_09",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_09",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_10",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -603.555,
+        -304.47,
+        0.0
+      ],
+      "bounds_max_cm": [
+        603.555,
+        304.47,
+        696.01
+      ],
+      "size_cm": [
+        1207.11,
+        608.939,
+        696.01
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 23451,
+      "nanite_fallback_lod0_triangles": 23451,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_09",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_09",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_11",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -704.863,
+        -94.941,
+        -20.543
+      ],
+      "bounds_max_cm": [
+        706.138,
+        95.142,
+        530.669
+      ],
+      "size_cm": [
+        1411.0,
+        190.083,
+        551.211
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 16865,
+      "nanite_fallback_lod0_triangles": 16865,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_10",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_10",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_12",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -896.5,
+        -231.264,
+        -11.723
+      ],
+      "bounds_max_cm": [
+        899.598,
+        257.397,
+        470.384
+      ],
+      "size_cm": [
+        1796.098,
+        488.661,
+        482.107
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 17437,
+      "nanite_fallback_lod0_triangles": 17437,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_11",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_11",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_13",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -427.175,
+        -125.729,
+        -13.275
+      ],
+      "bounds_max_cm": [
+        427.043,
+        107.966,
+        476.205
+      ],
+      "size_cm": [
+        854.218,
+        233.695,
+        489.479
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 15645,
+      "nanite_fallback_lod0_triangles": 15645,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_12",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_12",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_14",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -912.749,
+        -137.975,
+        -31.165
+      ],
+      "bounds_max_cm": [
+        887.901,
+        350.777,
+        1033.052
+      ],
+      "size_cm": [
+        1800.649,
+        488.751,
+        1064.217
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 18080,
+      "nanite_fallback_lod0_triangles": 18080,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_13",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_13",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_15",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -2408.882,
+        -423.118,
+        -240.88
+      ],
+      "bounds_max_cm": [
+        2368.184,
+        1185.816,
+        3135.244
+      ],
+      "size_cm": [
+        4777.066,
+        1608.934,
+        3376.124
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 20378,
+      "nanite_fallback_lod0_triangles": 20378,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_14",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_14",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_16",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -1502.948,
+        -870.115,
+        -71.997
+      ],
+      "bounds_max_cm": [
+        1325.045,
+        736.669,
+        2940.581
+      ],
+      "size_cm": [
+        2827.993,
+        1606.784,
+        3012.578
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 15588,
+      "nanite_fallback_lod0_triangles": 15588,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_15",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_15",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMossFuzz"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_17",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -132.197,
+        -134.909,
+        -22.374
+      ],
+      "bounds_max_cm": [
+        126.504,
+        90.884,
+        182.247
+      ],
+      "size_cm": [
+        258.701,
+        225.793,
+        204.62
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 10626,
+      "nanite_fallback_lod0_triangles": 10626,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_16",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_16",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMoss"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_18",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -282.197,
+        -210.226,
+        -1.537
+      ],
+      "bounds_max_cm": [
+        282.337,
+        209.933,
+        60.821
+      ],
+      "size_cm": [
+        564.534,
+        420.159,
+        62.358
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 3738,
+      "nanite_fallback_lod0_triangles": 3738,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_17",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_17",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMoss"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_19",
+      "role": "cliff",
+      "bounds_min_cm": [
+        -357.315,
+        -16.563,
+        -4.336
+      ],
+      "bounds_max_cm": [
+        357.582,
+        328.235,
+        61.567
+      ],
+      "size_cm": [
+        714.897,
+        344.797,
+        65.903
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 4456,
+      "nanite_fallback_lod0_triangles": 4456,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_18",
+          "scene_override": null,
+          "effective_material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_18",
+          "base_material": "/Game/SmartAssets/AssetMaterials/M_BlendMoss"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Meshes/_GENERATED/RockFormation/SM_GrassyEmbankment_01",
+      "role": "bank",
+      "bounds_min_cm": [
+        -66.001,
+        -23.572,
+        -6.709
+      ],
+      "bounds_max_cm": [
+        57.721,
+        3.227,
+        19.609
+      ],
+      "size_cm": [
+        123.722,
+        26.799,
+        26.317
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 25366,
+      "nanite_fallback_lod0_triangles": 25366,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Megascans/3D_Assets/GrassyEmbankment/MI_GrassyEmbankment_01",
+          "scene_override": null,
+          "effective_material": "/Game/Megascans/3D_Assets/GrassyEmbankment/MI_GrassyEmbankment_01",
+          "base_material": "/Game/Custom/CustomMaterials/Materials/Master_Materials/M_MS_Default_Material_VT_DynamicLayering"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_DEFAULT: 0>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    },
+    {
+      "mesh": "/Game/Meshes/_GENERATED/SM_RiverbedEmbankment_01",
+      "role": "bank",
+      "bounds_min_cm": [
+        -445.018,
+        -222.089,
+        -76.973
+      ],
+      "bounds_max_cm": [
+        444.353,
+        222.657,
+        76.773
+      ],
+      "size_cm": [
+        889.371,
+        444.746,
+        153.746
+      ],
+      "nanite": true,
+      "render_lod0_triangles": 2126,
+      "nanite_fallback_lod0_triangles": 2126,
+      "materials": [
+        {
+          "slot": 0,
+          "asset_material": "/Game/Meshes/_GENERATED/M_Default",
+          "scene_override": null,
+          "effective_material": "/Game/Meshes/_GENERATED/M_Default",
+          "base_material": "/Game/Meshes/_GENERATED/M_Default"
+        }
+      ],
+      "collision": {
+        "trace_flag": "<CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE: 3>",
+        "profile": "BlockAll",
+        "simple_shapes": 0,
+        "complex_mesh": null,
+        "lod_for_collision": 0
+      }
+    }
+  ]
+}
