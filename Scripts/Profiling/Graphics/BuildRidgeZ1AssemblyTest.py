@@ -8,7 +8,7 @@
 - wall <버전>: 시험 레벨이 열린 상태에서 V002 사본(서쪽 벽 제외)과 WALLS의 조립체로 Z1AssemblyWall_<버전>을 만든다.
 - importcrust <버전>: Blender가 만든 산괴 고원 지각(Z1MassifCover)을 반입한다.
 - drape <버전>: CloseRange 평면 그룹을 구면 지각에 다시 앉힌 Z1MassifDrape_<버전>을 만든다(V003부터 지면 타일을 경사에 맞춤).
-- surface: 구역 마스크를 서쪽 고원까지 넓힌 지각 재질(Z1MassifSurface)을 만든다.
+- surface [버전]: 구역 마스크를 서쪽 고원까지 넓힌 지각 재질(Z1MassifSurface)을 만든다. V002부터는 V001에서 지면층 텍스처 세트만 바꾼 후보다.
 - look / crflat / flatlook: 확인 시점·CloseRange 평면 비교 레벨.
 자동 스크린샷(AutomationLibrary.take_high_res_screenshot)은 Megascans 재질 셰이더 assert로 에디터를 죽이므로 쓰지 않는다.
 """
@@ -248,6 +248,16 @@ const float west = step(-14000.0, Data.x) * step(Data.x, -1500.0) * step(-8000.0
 return float2(max(Data.w, west), smoothstep(0.3420201, 0.8660254, Data.z));
 """
 WALL_MATERIAL = {"V011": SURFACE_FOLDER + "/MI_Ridge_Z1_MassifSurface"}
+# 지각 재질 후보(V002~). V001 사본에서 지면층 텍스처 세트(MossyRockyGround BC·N·AoRDp)만 바꾸고 MI 값을 덮어쓴다.
+# CloseRange 바닥 느낌은 SM_ForestGround_01 등의 Megascans 3D 스캔 재질(M_MS_Default_Material_VT_DynamicLayering)에서
+# 나오지만, 그 텍스처는 메시 고유 UV 아틀라스라 지각에 반복 투영할 수 없다. 그래서 같은 갈색 낙엽·잔가지 흙에 가까운
+# 타일링 표면으로 지면층을 바꾸고, 구면 좌표·삼각 격자 반복 완화·경사/구역 마스크·절벽층(BeachCliff)·하상은 그대로 둔다.
+SURFACE_VERSIONS = {
+    "V002": {"ground": "DriedGrassOnDampSoil", "scalar": {}, "vector": {}},
+}
+for _version in SURFACE_VERSIONS:
+    WALL_MATERIAL["Surface" + _version] = (SURFACE_FOLDER.rsplit("_", 1)[0] + "_" + _version
+                                           + "/MI_Ridge_Z1_MassifSurface")
 # V011과 같고 드레이프만 사면 지면 타일을 법선으로 눕히고 급경사에서 뺀 Z1MassifDrape_V003(V012)·V004(V013)로 바꾼다.
 for _wall, _drape in (("V012", "V003"), ("V013", "V004")):
     WALLS[_wall] = WALLS["V011"][:-1] + (("CR_Z1_Drape", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/"
@@ -273,6 +283,10 @@ WALL_MATERIAL["V016"] = WALL_MATERIAL["V014"]
 WALLS["V017"] = WALLS["V016"]
 WALL_CRUST["V017"] = massif_crust("V005")
 WALL_MATERIAL["V017"] = WALL_MATERIAL["V016"]
+# V018은 V017에서 지각 재질만 지면층을 DriedGrassOnDampSoil로 바꾼 Z1MassifSurface V002로 바꾼다.
+WALLS["V018"] = WALLS["V017"]
+WALL_CRUST["V018"] = WALL_CRUST["V017"]
+WALL_MATERIAL["V018"] = WALL_MATERIAL["SurfaceV002"]
 WEST_COVER_LABEL = "SM_Octant_Ridge_00_V012_Z1WestCover_R30000"
 WALL_VIEW_EYE = (4500, -400, 170)
 WALL_VIEW_TARGET = (-1700, -300, 1800)
@@ -640,8 +654,11 @@ def importcrust(version):
     unreal.log("Z1_MASSIF_CRUST_READY " + json.dumps(report))
 
 
-def surface():
-    # 하상 재질 부모·MI를 복제해 구역 마스크만 바꾼다. 원본 V005·하상 재질은 수정하지 않는다.
+def surface(version="V001"):
+    # V001: 하상 재질 부모·MI를 복제해 구역 마스크만 바꾼다. 원본 V005·하상 재질은 수정하지 않는다.
+    # V002~: V001 부모·MI를 복제해 지면층 텍스처 세트와 MI 값만 바꾼다(SURFACE_VERSIONS).
+    if version != "V001":
+        return surface_variant(version)
     assets, edit = unreal.EditorAssetLibrary, unreal.MaterialEditingLibrary
     assert not dirty(), dirty()
     instance_path = WALL_MATERIAL["V011"]
@@ -657,6 +674,49 @@ def surface():
     edit.set_material_instance_parent(instance, parent)
     edit.update_material_instance(instance)
     assert assets.save_loaded_asset(parent, False) and assets.save_loaded_asset(instance, False)
+    unreal.log("Z1_MASSIF_SURFACE_READY " + instance_path)
+
+
+GROUND_SOURCE = "T_MossyRockyGround_01_"
+GROUND_MAPS = ("BC", "N", "AoRDp")
+
+
+def surface_variant(version):
+    assets, edit = unreal.EditorAssetLibrary, unreal.MaterialEditingLibrary
+    assert not dirty(), dirty()
+    row = SURFACE_VERSIONS[version]
+    instance_path = WALL_MATERIAL["Surface" + version]
+    folder = instance_path.rsplit("/", 1)[0]
+    assert not assets.does_asset_exist(instance_path), instance_path
+    ground = "/Game/Megascans/Surfaces/{0}/T_{0}_01_".format(row["ground"])
+    textures = {GROUND_SOURCE + m: unreal.load_asset(ground + m) for m in GROUND_MAPS}
+    assert all(textures.values()), textures
+    parent = assets.duplicate_asset(SURFACE_FOLDER + "/M_Ridge_Z1_MassifSurface", folder + "/M_Ridge_Z1_MassifSurface")
+    assert parent
+    # 지면층 텍스처는 삼각 격자 함수에 들어가는 TextureObject와 원본 파생에 남은 TextureSample 모두에 있다. 함께 바꾼다.
+    swapped = {}
+    for node in edit.get_material_expressions(parent):
+        if not isinstance(node, unreal.MaterialExpressionTextureBase):
+            continue
+        texture = node.get_editor_property("texture")
+        if texture and texture.get_name() in textures:
+            node.set_editor_property("texture", textures[texture.get_name()])
+            swapped[texture.get_name()] = swapped.get(texture.get_name(), 0) + 1
+    assert set(swapped) == set(textures), swapped
+    assert not edit.recompile_material(parent), "Massif surface variant compilation failed."
+    instance = assets.duplicate_asset(SURFACE_FOLDER + "/MI_Ridge_Z1_MassifSurface", instance_path)
+    assert instance
+    edit.set_material_instance_parent(instance, parent)
+    for name, value in row["scalar"].items():
+        edit.set_material_instance_scalar_parameter_value(instance, name, value)
+        assert abs(edit.get_material_instance_scalar_parameter_value(instance, name) - value) < 1e-4, name
+    for name, value in row["vector"].items():
+        edit.set_material_instance_vector_parameter_value(instance, name, unreal.LinearColor(*value))
+    edit.update_material_instance(instance)
+    assert assets.save_loaded_asset(parent, False) and assets.save_loaded_asset(instance, False)
+    report = {"version": version, "instance": instance_path, "ground": row["ground"], "swapped_nodes": swapped,
+              "scalar": row["scalar"], "vector": row["vector"]}
+    (OUT / ("MassifSurface_%s.json" % version)).write_text(json.dumps(report, indent=1), encoding="utf-8")
     unreal.log("Z1_MASSIF_SURFACE_READY " + instance_path)
 
 

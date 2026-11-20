@@ -785,3 +785,21 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - 지지면 높이장 V002(`BuildCloseRangeSupport.py V002`): 50cm 격자, 타일 발자국을 상자 중심 기준 80%로 줄였다. 격자 테두리에서 빈 칸끼리 이어진 섬 바깥 칸은 지지면 +10cm를 1m 폭으로 유지한 뒤 45°로 내린다. 섬 안쪽 빈 칸은 V001처럼 지지면 −50cm에서 내린다. 빌더는 버전별 매개변수를 갖고, V001 매개변수로 다시 만든 높이장은 V004 지각 표본값과 같았다.
 - `Z1MassifCover_V005`(Blender `-- massif-island-v005`): 95,459삼각형, 위상 결함 0, 경계 변 1,385. `Z1AssemblyWall_V017`은 V016에서 지각만 V005로 바꿨다. 같은 사용자 시점에서 버섯 갓 그림자가 사라지고, 바깥 타일 띠가 자갈 흙 지각 둔덕에 묻혀 흙 둔덕 가장자리로 읽힌다. 지각이 바깥 타일 띠를 1m 안팎 넓게 덮었고, 타일과 지각 경계 일부에 50cm 격자 톱니가 보인다(`Shots/Compare_V016_V017_Rim.png`).
 - 사용자 판정(2026-11-20): V017 채택. 기준 시험본을 `Z1AssemblyWall_V017`로 바꿨다.
+
+## 2026-11-20 — 1-BR U4 Z1 지각 재질 후보(CloseRange 지면)
+
+### CloseRange 지면 재질 조사
+
+- 덤프 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/DumpSurfaceMaterials.py` → `SurfaceMaterials.json`(읽기 전용). 대상은 산괴 지각 재질 체인과 CR 지면·둑·하상 메시 10종이다.
+- 산괴 지각 재질(`Z1MassifSurface_V001`)의 실제 층은 세 가지다. 지면은 MossyRockyGround BC·N·AoRDp(400cm)를 TextureObject로 받아 V005 삼각 격자 함수(`MF_RidgeTriangleTexture/Normal`)로 샘플링한다. 절벽은 BeachCliff(2,000cm)를 2탭 함수로, 하상은 DryRiverBed를 쓴다. 좌표는 `MF_RidgeSurfaceCoordinates`의 옥탄트 로컬 좌표·현지 Up이라 구면에서 바르게 동작한다. 원본 ED 랜드스케이프의 JungleGround·MossyGrass 가지는 사본에 남아 있지만 출력에 연결되지 않는다.
+- CR 지면 메시(`SM_ForestGround_01` 72×47×6cm, GrassyEmbankment, DryRiverBed 계열 `SM_RockFormation_04` 등)는 Megascans 3D 스캔 재질 `M_MS_Default_Material_VT_DynamicLayering`의 MI다. 4K BC·N·DpRF는 메시 고유 UV 아틀라스라 지각에 반복 투영할 수 없다. 이끼·지의류·산화 층은 월드 공간 마스크(`Mask Tiling` 950 등)로 칠하므로, 월드 Z≠Up인 구면에서 맞는지는 확인하지 않았다.
+- 반복 가능한 Megascans 표면은 LootNPop과 ElectricDreamsEnv가 같은 12종이다. ForestGround의 갈색 낙엽·잔가지 흙에 가장 가까운 것은 DriedGrassOnDampSoil, 다음은 JungleGround다(`Shots/SurfaceCandidates_A.png`).
+
+### 지면층 교체 시험(Z1MassifSurface V002·Z1AssemblyWall_V018) — 기각
+
+- `BuildRidgeZ1AssemblyTest.py surface V002`는 V001 부모·MI를 `Z1MassifSurface_V002/`로 복제하고, MossyRockyGround 텍스처 노드 6개(TextureObject 3·남은 TextureSample 3)를 DriedGrassOnDampSoil로 바꾼다. 절벽층·하상·구역/경사·MI 값은 V001과 같다. 버전 표는 `SURFACE_VERSIONS`이고 결과는 `MassifSurface_V002.json`이다.
+- `wall V018`은 V017과 지각 슬롯 0 재질만 다르다(`AssemblyWallLevel_V017.json`·`V018.json` diff 한 줄).
+- 첫 실행에서 폴더 이름 치환이 상위 `EDTerrain_V001`까지 바꿔 `EDTerrain_V002/` 아래에 재질 2개가 생겼다. 그 2개만 지우고(`DeleteMisplacedSurface.py`) 경로 계산을 고쳐 다시 만들었다.
+- 같은 Lit 부감(`look 1500 -1500 9000 -6500 300 -2500`)과 근경(`Cameras.json`의 `UserRim`)을 비교했다. 근경에서 V018 테두리 둔덕은 잔가지·마른 풀이 섞인 갈색 흙이다. V017의 회베이지 자갈 흙보다 위쪽 ForestGround 타일 띠와 잘 이어지지만, 타일보다 조금 어둡고 붉다. 부감에서는 둔덕과 그 아래 사면이 짙은 갈색이 되고 V017 테두리 왼쪽의 연두 이끼 얼룩이 사라진다. 화면 대부분을 차지하는 절벽층은 같다.
+- 근거: `Shots/Compare_V017_V018_Overview.png`·`Compare_V017_V018_UserRim.png`와 각 원본 `V017_Lit_*.png`·`V018_Lit_*.png`.
+- 사용자 판정(2026-11-20): 기각, V017 유지. 처음에는 색 차이가 걸려 MI 값 조정을 고려했다. 다시 보니 텍스처 모양부터 V017이 더 어울렸다. V018의 마른 풀 무늬는 늪지대 같은 느낌이라 MI 조정 시험도 하지 않는다. 기준 시험본은 그대로 `Z1AssemblyWall_V017`이다. V018·`Z1MassifSurface_V002`는 비교본으로 남긴다.
