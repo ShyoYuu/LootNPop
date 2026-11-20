@@ -181,9 +181,11 @@ Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. Mas
 | 기반면 | 02 벽 안쪽 x −2,200부터 분지 기준 +46m 고원(Z1MassifCover V002). 렌더링 지각 V005는 ED 섬 지지면 높이장을 따라 둑 고리 +3m 단을 받치고 하상 띠를 50cm 판다(배치 높이는 V002) | `RidgeZ1CompositionSpec.massif_cover_ground`, Blender `-- massif-cover`, UE `importcrust` |
 | 산괴 | CloseRange LargeAssembly를 원래 크기 강체로 고원 위 로컬 (−6,500, 300)에 | `BakeEDCloseRange.py`(ED), `WALLS` |
 | 바닥·하천·잔재 | CloseRange Ground·SmallAssembly·Props·Ditch를 인스턴스마다 지각 높이와 현지 Up으로 드레이프. V003부터 납작한 지면 타일·데칼은 지각 법선으로 눕히고 급경사에서 뺀다 | `drape <버전>` |
-| 지각 재질 | 하상 재질 사본의 구역 마스크를 서쪽 고원까지 넓힘. CR 지면 느낌의 지면층 교체(V002, DriedGrassOnDampSoil)는 기각되어 V001 유지 | `surface` |
+| 지각 재질 | 하상 재질 사본의 구역 마스크를 넓힘. V003부터 구역은 이음매 띠를 뺀 옥탄트 전체(GX-025). CR 지면 느낌의 지면층 교체(V002, DriedGrassOnDampSoil)는 기각되어 지면층은 V001 그대로 | `surface V003` |
+| 웅덩이 재질 | ED 진흙 웅덩이(Single Layer Water) 사본에 출력 노드를 더해 컴파일 실패를 고치고 Drape V006에서 바꿔 끼움 | `puddle`, `drape V006` |
+| 시험 조명 | TestMap03 조명 사본 + 균일 회색 Sky Light 50(시험 레벨 전용, GX-025) | `WALL_SKY` |
 
-현재 기준은 `Z1AssemblyWall_V017`이다(V011에 사면 정리 Drape V004, 섬 지지면 지각 Z1MassifCover V005). 재생성 순서와 남은 문제(조명·구역 밖 재질)는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
+현재 기준은 `Z1AssemblyWall_V021`이다(V017에 시험 Sky Light, 재질 구역 V003, 웅덩이 재질을 고친 Drape V006). 재생성 순서와 남은 문제는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
 
 ### U5. 충돌 프록시와 기반면 절개(Blender)
 

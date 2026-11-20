@@ -1,7 +1,7 @@
 # 그래픽스 작업 현재 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · U4 Z1 서쪽 산괴(GX-023) · 기준 시험본 V017(사면 정리·하상 골·섬 지지면 지각) · 다음은 조명·구역 밖 재질
+> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · U4 Z1 서쪽 산괴(GX-023) · 기준 시험본 V021(V017 + 시험 레벨 Sky Light·재질 구역 확장·웅덩이 재질 수정, GX-025) · 다음은 Z1 정면 구도
 > 마지막 확인/갱신: 2026-11-20
 
 ## 1. 이어받을 결과
@@ -77,16 +77,20 @@ WIP를 정상 게임에서 다시 검토하려면 TestMap03에서 검사용 풀�
 | 하상 골 지각 | `EDTerrain_V001/Z1MassifCover_V003` · V002 고원에 CloseRange 하상 띠를 50cm 판 렌더링용 지각. 드레이프 배치 높이는 V002 그대로 |
 | 이전 기준 시험본 | `EDTerrain_V001/Z1AssemblyWall_V014/Z1AssemblyWall_V014` · V013에서 지각 메시만 Z1MassifCover V003으로 바꿨다(하상 고리 노출). 사용자 채택(2026-11-20) |
 | 섬 지지면 지각 | `EDTerrain_V001/Z1MassifCover_V004`·`V005` · ED 섬 지지면 높이장(`Scripts/Profiling/Graphics/CloseRangeSupport_V001.json`·`V002.json`)을 따라 둑 고리 +3m 단을 받친 렌더링 지각. V005는 테두리 밖을 지지면 +10cm로 1m 넓혀 둥근 타일 가장자리를 묻는다. 하상 띠 −50cm 포함, 드레이프 배치 높이는 V002 그대로. 비교본 `Z1AssemblyWall_V016`(V004 지각)과 기각된 Drape V005·`V015`(가장자리 꺼짐 타일 제외)도 남아 있다 |
-| **현재 기준 시험본** | `EDTerrain_V001/Z1AssemblyWall_V017/Z1AssemblyWall_V017` · V014에서 지각 메시만 Z1MassifCover V005로 바꿨다(테두리 허공·버섯 갓 정리). 사용자 채택(2026-11-20) |
+| 이전 기준 시험본 | `EDTerrain_V001/Z1AssemblyWall_V017/Z1AssemblyWall_V017` · V014에서 지각 메시만 Z1MassifCover V005로 바꿨다(테두리 허공·버섯 갓 정리). 사용자 채택(2026-11-20) |
+| 재질 구역 확장 | `EDTerrain_V001/Z1MassifSurface_V003/MI_Ridge_Z1_MassifSurface` · V001 사본에서 구역을 이음매 띠(세 이음매 평면까지 5,500cm 미만)를 뺀 옥탄트 전체로 넓혔다. 이음매 띠는 평지색(보라) 그대로 |
+| 웅덩이 재질 사본 | `EDTerrain_V001/Z1Puddle_V001/MI_MudPuddle_01` · ED `M_MudPuddle_01_PCG` 사본에 `Single Layer Water Material` 출력 노드를 더해 SM6 컴파일 실패(기본 재질 체커)를 고쳤다. `Z1MassifDrape_V006`은 Drape V004 규칙 그대로 웅덩이 46개만 이 사본을 쓴다 |
+| 조명·재질 비교본 | `Z1AssemblyWall_V019`(V017 + 균일 회색 Sky Light 50)·`V020`(+ 재질 구역 V003) |
+| **현재 기준 시험본** | `EDTerrain_V001/Z1AssemblyWall_V021/Z1AssemblyWall_V021` · V020에서 드레이프만 Z1MassifDrape V006(웅덩이 재질 수정)으로 바꿨다. Sky Light는 시험 레벨에만 있다(TestMap03 미변경). 사용자 채택(2026-11-20) |
 
-**Z1 서쪽 산괴 경과(2026-11-19~20, GX-022 → GX-023).** 조립체를 이어 벽을 만드는 시험(01b·01c 기둥 4개, 02 계열 벽 3개, 배경 조립체 축소)은 덩치가 모자라거나 나무까지 작아져 어색했다. ED 이음 방식을 조사해 보니 ED는 큰 형상을 랜드스케이프·바닥 메시로 만들고 조립체는 외피, 이음은 식생·잔재가 맡는다. 구면 Ridge에 가장 가까운 선례인 CloseRange(랜드스케이프 없음)의 PCG 결과를 ED에서 구워 반입했다. 산괴는 원래 크기 강체로 두고 기반면을 +46m 고원으로 깎았다. 곡률(d²/2R) 때문에 묻히던 평면 바닥 그룹은 인스턴스마다 구면에 드레이프했다. 마지막으로 지각 재질 구역을 넓혀 보라색 평지색을 사암 절벽·지면 재질로 바꿨다(V011). 사용자가 이 방향을 확정했다(GX-023). 버전별 결과는 [Phase 1 로그](history/Phase01_Log.md)의 "ED 조립체 이음 방식 조사"~"산괴 고원 지각 재질" 절에 있다. 이어서(2026-11-20) 사면 선반 타일(V013)·하상 자리(V014)·Lit 판정·고원 동쪽 테두리(V017)를 정리했다. 드레이프 배치 높이는 평탄 고원으로 두고 화면 지각만 ED 섬 지지면을 따르게 분리했다(GX-024). 경과는 같은 로그의 "사면 선반 타일 정리"~"고원 동쪽 테두리" 절이다.
+**Z1 서쪽 산괴 경과(2026-11-19~20, GX-022 → GX-023).** 조립체를 이어 벽을 만드는 시험(01b·01c 기둥 4개, 02 계열 벽 3개, 배경 조립체 축소)은 덩치가 모자라거나 나무까지 작아져 어색했다. ED 이음 방식을 조사해 보니 ED는 큰 형상을 랜드스케이프·바닥 메시로 만들고 조립체는 외피, 이음은 식생·잔재가 맡는다. 구면 Ridge에 가장 가까운 선례인 CloseRange(랜드스케이프 없음)의 PCG 결과를 ED에서 구워 반입했다. 산괴는 원래 크기 강체로 두고 기반면을 +46m 고원으로 깎았다. 곡률(d²/2R) 때문에 묻히던 평면 바닥 그룹은 인스턴스마다 구면에 드레이프했다. 마지막으로 지각 재질 구역을 넓혀 보라색 평지색을 사암 절벽·지면 재질로 바꿨다(V011). 사용자가 이 방향을 확정했다(GX-023). 버전별 결과는 [Phase 1 로그](history/Phase01_Log.md)의 "ED 조립체 이음 방식 조사"~"산괴 고원 지각 재질" 절에 있다. 이어서(2026-11-20) 사면 선반 타일(V013)·하상 자리(V014)·Lit 판정·고원 동쪽 테두리(V017)를 정리했다. 드레이프 배치 높이는 평탄 고원으로 두고 화면 지각만 ED 섬 지지면을 따르게 분리했다(GX-024). 경과는 같은 로그의 "사면 선반 타일 정리"~"고원 동쪽 테두리" 절이다. 마지막으로 시험 레벨 Sky Light·재질 구역 확장·웅덩이 재질 수정을 V021로 묶었다(GX-025, 로그 "조명·구역 밖 재질").
 
 **재생성 순서(새 체크아웃).** 모두 LootNPop 에디터 Cmd의 `py "<프로젝트>/Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py" <인자>`다. ED 쪽 굽기만 ElectricDreamsEnv 에디터다.
 
 1. ED 에디터: `BakeEDCloseRange.py bake` → `verify` → 사용자가 `CR_*` 5개를 LootNPop으로 Migrate("모두 아니요").
 2. Blender: `BuildRidgeZ1Composition.py -- massif-cover`(spec `MASSIF_COVER="V002"`) → UE `importcrust V002`(드레이프 배치 높이), `-- massif-island-v005` → `importcrust V005`(기준 렌더링 지각, 비교본은 `-- massif-channel` → V003, `-- massif-island` → V004)이고, 지지면 높이장은 ED 트레이스·CR 덤프(로컬)에서 `python Scripts/Profiling/Graphics/BuildCloseRangeSupport.py <V001|V002>`로 다시 만든다.
-3. UE: `drape V004` → `surface` → V002 기준 시험 레벨(`Z1AssemblyTest_V001`)을 연 뒤 `wall V017`. 비교본 V011~V013은 `drape V002`·`V003`·`V004` 뒤 `wall V011`·`V012`·`V013`, 지각 비교본 V014·V016은 `wall V014`·`V016`, 기각된 지각 재질 비교본 V018은 `surface V002` 뒤 `wall V018`이다.
-4. 화면: `look 1500 -1500 9000 -6500 300 -2500`(부감) → 콘솔 `HighResShot 1600x900`. `AutomationLibrary.take_high_res_screenshot`은 쓰지 않는다.
+3. UE: `drape V004` → `surface` → `surface V003` → `puddle` → `drape V006` → V002 기준 시험 레벨(`Z1AssemblyTest_V001`)을 연 뒤 `wall V021`(레벨을 다시 열고 비교본 `wall V019`·`V020`). 이전 기준 V017은 `wall V017`, 비교본 V011~V013은 `drape V002`·`V003`·`V004` 뒤 `wall V011`·`V012`·`V013`, 지각 비교본 V014·V016은 `wall V014`·`V016`, 기각된 지각 재질 비교본 V018은 `surface V002` 뒤 `wall V018`이다.
+4. 화면: `look 1500 -1500 9000 -6500 300 -2500`(부감), `look 4500 -400 170 -1700 -300 1800`(분지 정면), `look -5000 -1200 9216 -6800 -800 -4144`(수직 부감) → 콘솔 `HighResShot 1600x900`. 레벨을 연 직후 첫 촬영은 빠지거나 Lumen이 덜 수렴하므로 시점마다 두 장 찍어 둘째 장을 쓴다. `AutomationLibrary.take_high_res_screenshot`은 쓰지 않는다.
 
 **남은 문제(다음 세션 순서).**
 
@@ -99,8 +103,14 @@ WIP를 정상 게임에서 다시 검토하려면 TestMap03에서 검사용 풀�
 
 - ~~CloseRange에 더 어울리는 지각 재질~~ **완료(2026-11-20, 기각·V001 유지).** CR 지면 메시 재질은 메시 고유 UV 스캔 아틀라스라 지각에 반복 투영할 수 없다. 반복 가능한 표면 12종 중 가장 가까운 DriedGrassOnDampSoil로 지면층만 바꾼 `Z1MassifSurface_V002`(`Z1AssemblyWall_V018`)는 사용자가 기각했다. 무늬가 늪지대 같고 V017의 MossyRockyGround가 더 어울린다고 봤다. 경과는 [Phase 1 로그](history/Phase01_Log.md)의 "지면층 교체 시험"이다.
 
-1. **조명·구역 밖 재질.** TestMap03 조명(구 중심 점광원)에서는 분지 정면의 02 벽 정면이 대부분 그늘이다. 오른쪽(북동)에는 재질 구역 밖 V012 지각의 보라 평지색이 크게 보인다. 수직 부감의 진흙 웅덩이는 하늘 없이 어둡게 반사된다.
-2. 그 뒤 Z1 정면 구도(분지 저시점) 확인 → 고원 남북 끝 절개 사면 → 배치 재현 원본(JSON) 확정 → U5 충돌 프록시·U6 베이크·러프 PIE. 고원·드레이프는 지금 모두 NoCollision 시각 시험이다.
+- ~~조명·구역 밖 재질~~ **완료(2026-11-20, V021 채택, GX-025).** 경과는 [Phase 1 로그](history/Phase01_Log.md)의 "조명·구역 밖 재질"이다.
+  - 02 벽 그늘: TestMap03 광원은 모두 구 안쪽이라 어느 지표에서나 거의 머리 위다(02 벽 발치에서 현지 Up과 cos 0.93~1.00). 분지를 보는 벽 정면은 cos +0.27 이하의 스치는 빛만 받고 Sky Light가 없어 앰비언트도 0이다. 시험 레벨에만 균일 회색 Sky Light(세기 50, 아래 반구 검정 끔)를 더했다. **TestMap03 반영은 사용자가 보류했다**(제안만 기록).
+  - 북동 보라: 재질 구역(1-B0 다각형 + 서쪽 직사각형) 밖은 재질 상수 평지색이다. 구역을 이음매 띠를 뺀 옥탄트 전체로 넓혔다(Surface V003).
+  - 웅덩이: 반사가 아니라 재질 컴파일 실패였다. ED `M_MudPuddle_01_PCG`가 레이 트레이싱 히트 셰이더에서 실패해 기본 재질(회색 체커)로 그려졌다. 사본에 SLW 출력 노드를 더했다(Drape V006).
+
+1. **Z1 정면 구도(분지 저시점)** 확인 → 고원 남북 끝 절개 사면 → 배치 재현 원본(JSON) 확정 → U5 충돌 프록시·U6 베이크·러프 PIE. 고원·드레이프는 지금 모두 NoCollision 시각 시험이다.
+2. 남은 보라: 부감 원경의 이음매 띠(전이부, GX-021상 교체 대상 밖)와 V011 형상을 유지하는 보존 구조물(동굴·부유섬·석교 메시 자체 재질)이다. 이음매 띠 색은 이웃 옥탄트 재질과 함께 정한다.
+3. 게임 맵 조명(보류): TestMap03에 같은 Sky Light를 넣을지, 옥탄트별 비스듬한 주광을 LVI에 실을지는 별도 단위다. 넣으면 모든 옥탄트 밝기와 VFX 대비가 바뀌어 PIE 확인이 따른다. 중심 점광원(1.7e7cd)은 감쇠 반경 40,000cm가 지표 거리(약 32,400~33,900cm)에 가까워 InverseSquared 감쇠 창이 직접광을 24~32%로 줄인다.
 
 조사용 덤프 스크립트와 결과 JSON은 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/`에 있다(로컬). 에디터 Python은 모듈을 캐시하므로 시험 스크립트는 spec을 `importlib.reload`한다. ED 맵 첫 로드 시 물 재질 레이 트레이싱 셰이더 컴파일 오류가 로그에 남는다(영향 미확인).
 
@@ -128,4 +138,4 @@ UE5.8 scalar setter는 반환 false만으로 실패를 판정하지 말고 gette
 
 ## 5. 새 세션 요청 예시
 
-> `.context/Graphics/README.md`, `Current.md`, `Decisions.md`(GX-022~GX-024), `phases/Phase01_RidgeReferencePatch.md` U4를 읽고 Phase 1-BR의 Z1 서쪽 산괴를 이어가자. 기준 시험본은 `Z1AssemblyWall_V017`이다. Current §3 "남은 문제" 1번(조명·구역 밖 재질)부터 해줘. 지각 재질은 V001(MossyRockyGround)을 유지한다. 새 버전을 V017과 같은 Lit 부감에서 비교하고, 결과를 보여준 뒤 다음 단위로 넘어가기 전에 확인해줘. 수동 조작(Migrate·저장 등)이 필요하면 나에게 요청해줘.
+> `.context/Graphics/README.md`, `Current.md`, `Decisions.md`(GX-022~GX-025), `phases/Phase01_RidgeReferencePatch.md` U4를 읽고 Phase 1-BR의 Z1 서쪽 산괴를 이어가자. 기준 시험본은 `Z1AssemblyWall_V021`이다(시험 레벨에만 Sky Light, TestMap03 조명은 바꾸지 않는다). Current §3 "남은 문제" 1번(Z1 정면 구도, 분지 저시점)부터 해줘. 새 버전을 V021과 같은 Lit 시점(부감·분지 정면)에서 비교하고, 결과를 보여준 뒤 다음 단위로 넘어가기 전에 확인해줘. 수동 조작(Migrate·저장 등)이 필요하면 나에게 요청해줘.

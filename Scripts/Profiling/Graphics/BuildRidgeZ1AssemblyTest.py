@@ -8,7 +8,9 @@
 - wall <버전>: 시험 레벨이 열린 상태에서 V002 사본(서쪽 벽 제외)과 WALLS의 조립체로 Z1AssemblyWall_<버전>을 만든다.
 - importcrust <버전>: Blender가 만든 산괴 고원 지각(Z1MassifCover)을 반입한다.
 - drape <버전>: CloseRange 평면 그룹을 구면 지각에 다시 앉힌 Z1MassifDrape_<버전>을 만든다(V003부터 지면 타일을 경사에 맞춤).
-- surface [버전]: 구역 마스크를 서쪽 고원까지 넓힌 지각 재질(Z1MassifSurface)을 만든다. V002부터는 V001에서 지면층 텍스처 세트만 바꾼 후보다.
+- surface [버전]: 구역 마스크를 서쪽 고원까지 넓힌 지각 재질(Z1MassifSurface)을 만든다. V002는 V001에서 지면층 텍스처 세트만
+  바꾼 후보, V003은 구역을 이음매 띠를 뺀 옥탄트 전체로 넓힌 후보다.
+- puddle: ED 진흙 웅덩이 재질 사본에 Single Layer Water 출력 노드를 더한다(drape V006이 이 사본을 쓴다).
 - look / crflat / flatlook: 확인 시점·CloseRange 평면 비교 레벨.
 자동 스크린샷(AutomationLibrary.take_high_res_screenshot)은 Megascans 재질 셰이더 assert로 에디터를 죽이므로 쓰지 않는다.
 """
@@ -287,6 +289,42 @@ WALL_MATERIAL["V017"] = WALL_MATERIAL["V016"]
 WALLS["V018"] = WALLS["V017"]
 WALL_CRUST["V018"] = WALL_CRUST["V017"]
 WALL_MATERIAL["V018"] = WALL_MATERIAL["SurfaceV002"]
+# 지각 재질 구역 후보(V003~). V001 사본에서 구역 Custom 노드만 바꾼다. 하상 가중치는 원래 1-B0 구역 그대로다.
+# V001 구역(1-B0 다각형 + 서쪽 직사각형) 밖의 V012 지각은 재질 상수 평지색(보라 0.29, 0.23, 0.38)으로 칠해진다.
+# GX-021의 교체 범위는 경계 전이부를 뺀 Ridge 지표 전체이므로, 구역을 원래 좌표 함수의 이음매 제외(세 이음매 평면까지
+# 메시 로컬 거리 5,500cm 미만 = 이음매 보존 15m + 전이 40m)만 남긴 옥탄트 전체로 넓힌다. 이음매 띠는 평지색 그대로 둔다.
+SURFACE_SCOPE_VERSIONS = {
+    "V003": """
+const float seam = min(PositionLocal.x, min(PositionLocal.y, PositionLocal.z));
+return float2(step(5500.0, seam), smoothstep(0.3420201, 0.8660254, Data.z));
+""",
+}
+for _version in SURFACE_SCOPE_VERSIONS:
+    WALL_MATERIAL["Surface" + _version] = (SURFACE_FOLDER.rsplit("_", 1)[0] + "_" + _version
+                                           + "/MI_Ridge_Z1_MassifSurface")
+# TestMap03 조명은 구 중심 점광원과 보조 점광원 4개뿐이다. 광원이 모두 구 안쪽이라 어느 지표에서나 거의 머리 위에 있고
+# (Z1 02 벽 발치에서 현지 Up과의 cos 0.93~1.00), 분지를 보는 02 벽 정면(현지 동쪽)은 cos +0.27 이하의 스치는 빛만 받는다.
+# Sky Light가 없어 앰비언트·Lumen 반사 실패 시 하늘값이 0이다. 시험 레벨에만 균일 회색 큐브맵 Sky Light를 더한다.
+# 균일 큐브맵은 방향과 무관해 구면에서도 쓸 수 있다. 아래 반구 검정(기본 true)은 월드 -Z 쪽을 지우는데, Ridge의 현지 Up은
+# 월드 -Z 성분을 가지므로 반드시 끈다.
+WALL_SKY = {}
+# V019는 V017에 Sky Light만 더한다(02 벽 정면 그늘). V020은 V019에서 지각 재질만 구역 V003으로 바꾼다.
+WALLS["V019"] = WALLS["V017"]
+WALL_CRUST["V019"] = WALL_CRUST["V017"]
+WALL_MATERIAL["V019"] = WALL_MATERIAL["V017"]
+# 세기는 분지 정면 시점에서 0·8·30·50·100을 비교해 정했다. 8은 거의 차이가 없고, 50에서 02 벽 정면이 읽히며
+# 바닥 밝기는 약 2배가 된다(고정 노출 EV100 6.0 그대로).
+WALL_SKY["V019"] = {"cubemap": "/Engine/EngineResources/GrayTextureCube", "intensity": 50.0}
+WALLS["V020"] = WALLS["V019"]
+WALL_CRUST["V020"] = WALL_CRUST["V019"]
+WALL_MATERIAL["V020"] = WALL_MATERIAL["SurfaceV003"]
+WALL_SKY["V020"] = WALL_SKY["V019"]
+# V021은 V020에서 드레이프만 웅덩이 재질을 고친 Z1MassifDrape_V006으로 바꾼다.
+WALLS["V021"] = WALLS["V020"][:-1] + (("CR_Z1_Drape", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/"
+                                       "Z1MassifDrape_V006/Z1MassifDrape_V006", 0, 0, 0, 0, 1.0, "world"),)
+WALL_CRUST["V021"] = WALL_CRUST["V020"]
+WALL_MATERIAL["V021"] = WALL_MATERIAL["V020"]
+WALL_SKY["V021"] = WALL_SKY["V020"]
 WEST_COVER_LABEL = "SM_Octant_Ridge_00_V012_Z1WestCover_R30000"
 WALL_VIEW_EYE = (4500, -400, 170)
 WALL_VIEW_TARGET = (-1700, -300, 1800)
@@ -358,6 +396,25 @@ def wall(version):
     for actor in pasted:
         actor.set_folder_path("Lighting_TestMap03")
     actors.select_nothing()
+    sky = None
+    if version in WALL_SKY:
+        sky = dict(WALL_SKY[version])
+        cubemap = unreal.load_asset(sky["cubemap"])
+        assert cubemap, sky["cubemap"]
+        # 지정 큐브맵이라 위치는 영향이 없다. 조명 사본과 같은 폴더 규칙으로 따로 둔다.
+        light = actors.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+        light.set_actor_label("SkyLight_UniformGray")
+        light.set_folder_path("Lighting_Sky")
+        comp = light.light_component
+        comp.set_mobility(unreal.ComponentMobility.MOVABLE)
+        comp.set_editor_property("source_type", unreal.SkyLightSourceType.SLS_SPECIFIED_CUBEMAP)
+        comp.set_editor_property("cubemap", cubemap)
+        comp.set_editor_property("real_time_capture", False)
+        comp.set_editor_property("lower_hemisphere_is_black", False)
+        comp.set_editor_property("intensity", sky["intensity"])
+        comp.recapture_sky()
+        assert not comp.get_editor_property("lower_hemisphere_is_black")
+        assert abs(comp.get_editor_property("intensity") - sky["intensity"]) < 1e-4
 
     for row in kept:
         rot = unreal.Rotator(pitch=row["rot"][0], yaw=row["rot"][1], roll=row["rot"][2])
@@ -393,7 +450,7 @@ def wall(version):
     eye, target = point(*WALL_VIEW_EYE), point(*WALL_VIEW_TARGET)
     view_rot = unreal.MathLibrary.make_rot_from_xz(target - eye, eye * (-1.0 / eye.length()))
     unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).set_level_viewport_camera_info(eye, view_rot)
-    report = {"level": wall_level, "kept_v002": kept, "replaced_v002": skipped, "assemblies": placed,
+    report = {"level": wall_level, "kept_v002": kept, "replaced_v002": skipped, "assemblies": placed, "sky": sky,
               "view": {"location": xyz(eye), "rotation": [view_rot.pitch, view_rot.yaw, view_rot.roll]}}
     (OUT / ("AssemblyWallLevel_%s.json" % version)).write_text(json.dumps(report, indent=1), encoding="utf-8")
     unreal.log("Z1_ASSEMBLY_WALL_READY %d kept %d replaced" % (len(kept), len(skipped)))
@@ -417,6 +474,16 @@ DRAPE_VERSIONS["V003"] = DRAPE_VERSIONS["V002"]
 DRAPE_SLOPE = {"V003": (45.0, 0.35), "V004": (45.0, 0.35, 60.0), "V005": (45.0, 0.35, 60.0, 100.0)}
 DRAPE_VERSIONS["V004"] = DRAPE_VERSIONS["V002"]
 DRAPE_VERSIONS["V005"] = DRAPE_VERSIONS["V002"]
+# V004 Lit 수직 부감에서 진흙 웅덩이(SM_WaterPlane_01 × MI_MudPuddle_01)가 어두운 판으로 보였다. 원인은 반사가 아니라
+# 재질 컴파일 실패다. M_MudPuddle_01_PCG는 Substrate Single Layer Water BSDF만 쓰고 `Single Layer Water Material`
+# 출력 노드가 없다. r.RayTracing=True면 레이 트레이싱 히트 셰이더가 GetSingleLayerWaterMaterialOutput0~2를 찾다가 실패해
+# 재질 전체가 기본 재질(회색 체커)로 대체된다. ED 원본도 같은 오류라 밝은 햇빛 아래 체커가 자갈처럼 보였을 뿐이다.
+# V006은 V004 규칙 그대로, 웅덩이 재질만 출력 노드를 더한 프로젝트 사본(PUDDLE_FOLDER)으로 바꾼다.
+DRAPE_SLOPE["V006"] = DRAPE_SLOPE["V004"]
+DRAPE_VERSIONS["V006"] = DRAPE_VERSIONS["V004"]
+PUDDLE_SOURCE = "/Game/PCG/Assets/Materials/"
+PUDDLE_FOLDER = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Puddle_V001/"
+DRAPE_MATERIAL_SWAP = {"V006": {PUDDLE_SOURCE + "MI_MudPuddle_01": PUDDLE_FOLDER + "MI_MudPuddle_01"}}
 # 지각 법선 유한 차분 격자(cm). 지각 높이 함수가 호출당 약 1ms라 격자 점을 캐시한다.
 DRAPE_NORMAL_GRID = 100.0
 DRAPE_COPY = ("cast_shadow", "instance_start_cull_distance", "instance_end_cull_distance",
@@ -525,6 +592,9 @@ def drape(version, mode=""):
     assert not dirty(), dirty()
     assert mode == "dry" or not unreal.EditorAssetLibrary.does_asset_exist(level), level
     rule = DRAPE_SLOPE.get(version)
+    swap, swapped = DRAPE_MATERIAL_SWAP.get(version, {}), {}
+    for target in swap.values():
+        assert unreal.EditorAssetLibrary.does_asset_exist(target), target
     origin, frame = drape_frame()
     groups, source, slopes, dropped, steep = {}, {}, {}, {}, {}
     for group in drape_groups:
@@ -610,6 +680,13 @@ def drape(version, mode=""):
                 for i, material in enumerate(row["overrides"]):
                     if material:
                         comp.set_material(i, material)
+                # 메시 기본 재질이든 덮어쓴 재질이든 실제로 쓰는 재질이 교체 표에 있으면 사본으로 바꾼다.
+                for i in range(comp.get_num_materials()):
+                    used = comp.get_material(i)
+                    target = swap.get(package(used)) if used else None
+                    if target:
+                        comp.set_material(i, unreal.load_asset(target))
+                        swapped[target] = swapped.get(target, 0) + len(row["transforms"])
                 for prop, value in row["props"].items():
                     comp.set_editor_property(prop, value)
                 comp.set_collision_profile_name(row["profile"])
@@ -639,7 +716,8 @@ def drape(version, mode=""):
     assert all(b["match"] for b in built.values()), built
     assert saving.save_map(world(), level), level
     report = {"level": level, "crust": crust, "origin": xyz(origin), "frame": [frame.pitch, frame.yaw, frame.roll],
-              "groups": built, **summary}
+              "groups": built, "material_swap": swapped, **summary}
+    assert set(swapped) == set(swap.values()), swapped
     (OUT / ("MassifDrape_%s.json" % version)).write_text(json.dumps(report, indent=1), encoding="utf-8")
     unreal.log("Z1_MASSIF_DRAPE_READY " + json.dumps(built))
 
@@ -656,7 +734,10 @@ def importcrust(version):
 
 def surface(version="V001"):
     # V001: 하상 재질 부모·MI를 복제해 구역 마스크만 바꾼다. 원본 V005·하상 재질은 수정하지 않는다.
-    # V002~: V001 부모·MI를 복제해 지면층 텍스처 세트와 MI 값만 바꾼다(SURFACE_VERSIONS).
+    # V002: V001 부모·MI를 복제해 지면층 텍스처 세트와 MI 값만 바꾼다(SURFACE_VERSIONS).
+    # V003~: V001 부모·MI를 복제해 구역 노드만 바꾼다(SURFACE_SCOPE_VERSIONS).
+    if version in SURFACE_SCOPE_VERSIONS:
+        return surface_scope(version)
     if version != "V001":
         return surface_variant(version)
     assets, edit = unreal.EditorAssetLibrary, unreal.MaterialEditingLibrary
@@ -720,6 +801,70 @@ def surface_variant(version):
     unreal.log("Z1_MASSIF_SURFACE_READY " + instance_path)
 
 
+def surface_scope(version):
+    # V001 부모·MI를 복제해 구역 Custom 노드 코드만 바꾼다. 이음매 거리에 메시 로컬 위치가 필요해 입력을 하나 더한다.
+    assets, edit = unreal.EditorAssetLibrary, unreal.MaterialEditingLibrary
+    assert not dirty(), dirty()
+    instance_path = WALL_MATERIAL["Surface" + version]
+    folder = instance_path.rsplit("/", 1)[0]
+    assert not assets.does_asset_exist(instance_path), instance_path
+    parent = assets.duplicate_asset(SURFACE_FOLDER + "/M_Ridge_Z1_MassifSurface", folder + "/M_Ridge_Z1_MassifSurface")
+    assert parent
+    scope, = [node for node in edit.get_material_expressions(parent) if isinstance(node, unreal.MaterialExpressionCustom)
+              and "const float west" in node.get_editor_property("code")]
+    coordinates, = edit.get_inputs_for_material_expression(parent, scope)
+    assert isinstance(coordinates, unreal.MaterialExpressionMaterialFunctionCall), coordinates
+    # 좌표 함수(MF_RidgeSurfaceCoordinates)가 받는 메시 로컬 위치 노드를 그대로 쓴다.
+    position = edit.get_inputs_for_material_expression(parent, coordinates)[0]
+    assert isinstance(position, unreal.MaterialExpressionTransformPosition), position
+    inputs = []
+    for name in ("Data", "PositionLocal"):
+        value = unreal.CustomInput()
+        value.set_editor_property("input_name", name)
+        inputs.append(value)
+    scope.set_editor_property("inputs", inputs)
+    scope.set_editor_property("code", SURFACE_SCOPE_VERSIONS[version])
+    assert edit.connect_material_expressions(coordinates, "", scope, "Data")
+    assert edit.connect_material_expressions(position, "", scope, "PositionLocal")
+    assert [n.get_name() for n in edit.get_inputs_for_material_expression(parent, scope)] == \
+        [coordinates.get_name(), position.get_name()]
+    assert not edit.recompile_material(parent), "Massif surface scope compilation failed."
+    instance = assets.duplicate_asset(SURFACE_FOLDER + "/MI_Ridge_Z1_MassifSurface", instance_path)
+    assert instance
+    edit.set_material_instance_parent(instance, parent)
+    edit.update_material_instance(instance)
+    assert assets.save_loaded_asset(parent, False) and assets.save_loaded_asset(instance, False)
+    report = {"version": version, "instance": instance_path, "scope_code": SURFACE_SCOPE_VERSIONS[version],
+              "inputs": [coordinates.get_name(), position.get_name()]}
+    (OUT / ("MassifSurface_%s.json" % version)).write_text(json.dumps(report, indent=1), encoding="utf-8")
+    unreal.log("Z1_MASSIF_SURFACE_READY " + instance_path)
+
+
+def puddle():
+    # ED 진흙 웅덩이 재질의 프로젝트 사본에 `Single Layer Water Material` 출력 노드를 더한다(원본은 수정하지 않는다).
+    # Substrate에서는 입력을 비워도 되며 레이 트레이싱 히트 셰이더용 기본값(산란·흡수 0, PhaseG 0)이 들어간다.
+    # 래스터 셰이딩은 기존 Substrate Single Layer Water BSDF가 그대로 맡는다.
+    assets, edit = unreal.EditorAssetLibrary, unreal.MaterialEditingLibrary
+    assert not dirty(), dirty()
+    instance_path = PUDDLE_FOLDER + "MI_MudPuddle_01"
+    assert not assets.does_asset_exist(instance_path), instance_path
+    parent = assets.duplicate_asset(PUDDLE_SOURCE + "M_MudPuddle_01_PCG", PUDDLE_FOLDER + "M_MudPuddle_01_PCG")
+    assert parent
+    nodes = edit.get_material_expressions(parent)
+    assert not [n for n in nodes if isinstance(n, unreal.MaterialExpressionSingleLayerWaterMaterialOutput)]
+    edit.create_material_expression(parent, unreal.MaterialExpressionSingleLayerWaterMaterialOutput, 400, 600)
+    assert not edit.recompile_material(parent), "Puddle material compilation failed."
+    instance = assets.duplicate_asset(PUDDLE_SOURCE + "MI_MudPuddle_01", instance_path)
+    assert instance
+    edit.set_material_instance_parent(instance, parent)
+    edit.update_material_instance(instance)
+    assert assets.save_loaded_asset(parent, False) and assets.save_loaded_asset(instance, False)
+    report = {"parent": parent.get_path_name(), "instance": instance_path,
+              "added": "MaterialExpressionSingleLayerWaterMaterialOutput (inputs unconnected)"}
+    (OUT / "Puddle_V001.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    unreal.log("Z1_PUDDLE_READY " + instance_path)
+
+
 CR_GROUPS = ("LargeAssembly", "SmallAssembly", "Ground", "Ditch", "Props")
 CR_FLAT = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/CloseRangeBake_V001/CloseRangeBake_V001"
 
@@ -766,4 +911,4 @@ def look(ex, ey, eh, tx, ty, th):
 if __name__ == "__main__":
     {"lights": lights, "build": build, "instances": instances, "view": view, "wall": wall,
      "look": look, "crflat": crflat, "flatlook": flatlook, "importcrust": importcrust, "drape": drape,
-     "surface": surface}[sys.argv[1]](*sys.argv[2:])
+     "surface": surface, "puddle": puddle}[sys.argv[1]](*sys.argv[2:])
