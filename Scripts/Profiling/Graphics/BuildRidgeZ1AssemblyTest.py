@@ -435,6 +435,47 @@ WALLS["V029"] = WALLS["V028"][:-1] + (
      0, 0, 0, 0, 1.0, "world"),)
 for _table in (WALL_CRUST, WALL_MATERIAL, WALL_SKY, WALL_REPLACED_EXTRA):
     _table["V029"] = _table["V028"]
+# V030(북 테두리 B안, 사용자 결정 2026-11-20): 지각을 북 둑 2단을 덧댄 V008로 바꾸고, 띠를 남 V005(= V004 남쪽) + 북 둑 V006으로
+# 나눈다. 둑 맨 위 뒤 급사면(약 35m)은 서쪽 x -1,300에 01b 하나를 묻어 세워 덮는다(GX-027 단독 강조). 동굴 홀(y 4,200~, 천장
+# -1,200)과 NorthLedge(x -300 동쪽)를 피해 서쪽에 둔다. 둑 발치에 묻히는 V002 NorthTalus는 뺀다.
+NORTH_BANK_V030 = (
+    ("CR_Z1_RimBand", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V005/Z1RimBand_V005",
+     0, 0, 0, 0, 1.0, "world"),
+    ("CR_Z1_RimBandNorth", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V006/Z1RimBand_V006",
+     0, 0, 0, 0, 1.0, "world"),
+    ("ASM_Z1_NorthRimCrown", "Forest/PL_LargeCliff_01b", -1300, 3950, -100, -2300, 1.0, "abs"),
+)
+WALLS["V030"] = WALLS["V029"][:-1] + NORTH_BANK_V030
+WALL_CRUST["V030"] = massif_crust("V008")
+WALL_MATERIAL["V030"] = WALL_MATERIAL["V029"]
+WALL_SKY["V030"] = WALL_SKY["V029"]
+WALL_REPLACED_EXTRA["V030"] = WALL_REPLACED_EXTRA["V029"] + ("ED_Z1_NorthTalus",)
+# V030 결과: 01b는 기둥형이라 북쪽 단(+20m)에 대부분 묻혀 뾰족한 끝만 보였다. V031은 벽형 02c를 북 테두리 서쪽(x -1,600)에
+# 앞면이 분지를 보게(yaw -86) 둑 2단 아래까지 묻어 세우고(꼭대기 ≈ 북쪽 단 높이), 북 띠를 V007로 바꾼다.
+# 동쪽 끝(x 약 160)은 홀 북서 모서리·NorthLedge 시작점에 조금 걸칠 수 있다(시각 시험, 동굴 내부는 범위 밖).
+WALLS["V031"] = WALLS["V030"][:-2] + (
+    ("CR_Z1_RimBandNorth", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V007/Z1RimBand_V007",
+     0, 0, 0, 0, 1.0, "world"),
+    ("ASM_Z1_NorthRimWall", "Forest/PL_LargeCliff_02c", -1600, 3800, -86, -2900, 1.0, "abs"),
+)
+for _table in (WALL_CRUST, WALL_MATERIAL, WALL_SKY, WALL_REPLACED_EXTRA):
+    _table["V031"] = _table["V030"]
+# V031 결과: 02c 동쪽 끝 돌출부가 동굴 지붕 가장자리 위에 떠 보였고, 띠가 걷히며 V007부터 있던 V012 바위 돌출(+30.8m)이 드러났다.
+# V032는 지각을 V009(돌출 깎음)로, 북 띠를 V008로 바꾸고, 02c를 서쪽 x -1,950으로 옮긴다(동쪽 끝 x 약 -190).
+WALLS["V032"] = WALLS["V031"][:-2] + (
+    ("CR_Z1_RimBandNorth", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V008/Z1RimBand_V008",
+     0, 0, 0, 0, 1.0, "world"),
+    ("ASM_Z1_NorthRimWall", "Forest/PL_LargeCliff_02c", -1950, 3800, -86, -2900, 1.0, "abs"),
+)
+for _table in (WALL_MATERIAL, WALL_SKY, WALL_REPLACED_EXTRA):
+    _table["V032"] = _table["V031"]
+WALL_CRUST["V032"] = massif_crust("V009")
+# V033은 V032에서 북 띠만 V009(큰 바위 덩어리형·축소, 동굴 입구 옆 언덕 제외)로 바꾼다.
+WALLS["V033"] = WALLS["V032"][:-2] + (
+    ("CR_Z1_RimBandNorth", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V009/Z1RimBand_V009",
+     0, 0, 0, 0, 1.0, "world"),) + WALLS["V032"][-1:]
+for _table in (WALL_CRUST, WALL_MATERIAL, WALL_SKY, WALL_REPLACED_EXTRA):
+    _table["V033"] = _table["V032"]
 WEST_COVER_LABEL = "SM_Octant_Ridge_00_V012_Z1WestCover_R30000"
 WALL_VIEW_EYE = (4500, -400, 170)
 WALL_VIEW_TARGET = (-1700, -300, 1800)
@@ -841,7 +882,8 @@ def drape(version, mode=""):
 # (CloseRangeSupport V002 + 50cm) 법선이고, 오르막은 하상에서 멀어지는 쪽, 목표 오르막은 분지에서 멀어지는 쪽이다.
 # 암석·지면 조각은 표면을 따라 기울고, 식생(3D_Plants)은 같은 자리에서 현지 Up으로 다시 세운다.
 BAND_LEVEL = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_{0}/Z1RimBand_{0}"
-BAND_CRUST = {"V006": spec.massif_rim_ground, "V007": spec.massif_terrace_ground}
+BAND_CRUST = {"V006": spec.massif_rim_ground, "V007": spec.massif_terrace_ground, "V008": spec.massif_bank_ground,
+              "V009": spec.massif_spur_ground}
 # lines: spec.RIM_FACES 이름, band: 앞면 선 기준 뒤로 들어간 거리 범위(cm), spacing: 표면 호 길이 표본 간격(cm),
 # patch: 원본 묶음 반경(cm), min_slope: 표본점 최소 경사(°), anchor_slope: 원본 묶음 중심의 최소 지지면 경사(°).
 BAND_VERSIONS = {
@@ -863,6 +905,22 @@ BAND_VERSIONS["V003"] = dict(BAND_VERSIONS["V002"], spacing=320, seed=27003, bou
 # V004는 V003과 같은 표본에서 seat 규칙(band_seater)으로 판을 지각 법선에 눕히고 덩어리·식생을 실제 지각 높이에 다시 앉힌다.
 BAND_VERSIONS["V004"] = dict(BAND_VERSIONS["V003"], seat=True, plate_ratio=0.4, plate_tilt=6.0, plate_embed=0.3,
                              seat_grid=100.0)
+# 북 테두리 B안(지각 V008): 북 앞면 띠(V006 급사면 위, 돌무더기)는 빼고 덧댄 둑 2단에 새 띠를 깐다.
+# V005는 V004와 표본·묶음·난수 흐름을 그대로 두고 남 테두리(place_lines)만 놓는다 → 남 띠는 V004와 같다.
+# V006은 지각 V008의 북 둑 선(spec.RIM_BANK_LINES)에 V004 규칙으로 깐 띠다. 둑 맨 위 뒤 급사면(65° 초과)은 표본에서 뺀다.
+BAND_VERSIONS["V005"] = dict(BAND_VERSIONS["V004"], place_lines=("South",))
+BAND_VERSIONS["V006"] = dict(BAND_VERSIONS["V004"], crust="V008", lines=("NorthBank",), band=(-2400, 100), max_slope=65.0,
+                             seed=27006)
+# V006 결과: 둑 맨 위(d 0 근처) 묶음이 반경 3m만큼 뒤 급사면으로 번져 돌 조각이 흩어졌다. V007은 표본을 둑 맨 위 3m 앞까지로 줄인다.
+BAND_VERSIONS["V007"] = dict(BAND_VERSIONS["V006"], band=(-2400, -300), seed=27007)
+# V008은 V007과 같고 지각만 V009(돌출 깎음)다(둑 구역 높이는 같으므로 표본도 같다).
+BAND_VERSIONS["V008"] = dict(BAND_VERSIONS["V007"], crust="V009")
+# V008 결과: 북 둑은 한 단 12m라 큰 바위 판(MassiveSandstoneCliff 04 x2.36)을 눕히면 둑 밖 허공으로 아치처럼 삐져나왔고,
+# 동굴 입구 옆 언덕(x 약 1,400, 47~63°) 표본이 돌무더기가 됐다. V009는 북 띠 큰 바위를 덩어리형·1.4~2.0배로 줄이고
+# x 1,100 동쪽 표본을 뺀다(x_range). 남은 표본 위치는 V008과 같지만 표본마다 고르는 묶음은 난수 순서가 밀려 달라진다.
+BAND_VERSIONS["V009"] = dict(BAND_VERSIONS["V008"], x_range=(-2400, 1100), boulders={
+    "meshes": ("SM_HugeSandstoneCliff_04", "SM_SandstoneBoulder_05", "SM_MossyForestBoulder_04"),
+    "spacing": 1100, "scale": (1.4, 2.0), "sink": 0.25})
 # 묶음 중심으로 쓰는 원본 암석·둑 메시(이름 접두어).
 BAND_ANCHORS = ("SM_MassiveSandstoneCliff_0", "SM_HugeSandstoneCliff_04", "SM_SandstoneCliff_0", "SM_Embankment_01",
                 "SM_SandstoneBoulder_0")
@@ -890,7 +948,7 @@ def band_targets(cfg, ground_at, rng):
     spacing = cfg["spacing"]
     targets = []
     for name in cfg["lines"]:
-        line = spec.RIM_FACES[name]
+        line = spec.rim_line(name)
         for (ax, ay), (bx, by) in zip(line, line[1:]):
             dx, dy = bx - ax, by - ay
             length = (dx * dx + dy * dy) ** 0.5
@@ -910,7 +968,8 @@ def band_targets(cfg, ground_at, rng):
                         slope = math.degrees(math.atan2(abs(h - prev[1]), d - prev[0]))
                         if arc >= next_at:
                             next_at = arc + spacing * rng.uniform(0.75, 1.25)
-                            if slope >= cfg["min_slope"]:
+                            x_lo, x_hi = cfg.get("x_range", (-1e9, 1e9))
+                            if cfg["min_slope"] <= slope <= cfg.get("max_slope", 90.0) and x_lo <= x <= x_hi:
                                 targets.append({"line": name, "x": x, "y": y, "h": h, "t": (tx, ty), "back": (-nx, -ny),
                                                 "slope": round(slope, 1), "d": d})
                     prev = (d, h)
@@ -1118,6 +1177,9 @@ def band(version):
     seat = band_seater(cfg, ground_at, comps, insts, random.Random(cfg["seed"] + 1)) if cfg.get("seat") else None
     targets = band_targets(cfg, ground_at, rng)
     placed = {}
+    # place_lines가 있으면 그 선의 묶음·큰 바위만 놓는다(표본·난수·seat 호출은 모든 선에서 그대로 해 결과를 이전 버전과 맞춘다).
+    keep = set(cfg.get("place_lines", cfg["lines"]))
+    per_line = {}
     for target in targets:
         ax, ay, src_frame, src_slope = anchors[rng.randrange(len(anchors))]
         dst_frame, up = band_target_frame(target, ground_at)
@@ -1133,6 +1195,9 @@ def band(version):
                 # 식생은 옮긴 자리에서 현지 Up으로 다시 세운다(줄기 방향만 바로잡고 방위는 유지).
                 z = unreal.MathLibrary.get_up_vector(moved.rotation.rotator())
                 moved = unreal.Transform(moved.translation, tilt_between(moved.rotation.rotator(), z, up), moved.scale3d)
+            if target["line"] not in keep:
+                continue
+            per_line[target["line"]] = per_line.get(target["line"], 0) + 1
             row = placed.setdefault(ci, ([], []))
             row[0].append(moved)
             row[1].extend(custom)
@@ -1163,6 +1228,9 @@ def band(version):
                 if seat.is_plate(idx):
                     sink = 0.0
             moved = unreal.Transform(moved.translation - normal * sink, moved.rotation.rotator(), moved.scale3d)
+            if target["line"] not in keep:
+                continue
+            per_line[target["line"] + "_boulders"] = per_line.get(target["line"] + "_boulders", 0) + 1
             row = placed.setdefault(ci, ([], []))
             row[0].append(moved)
             row[1].extend(custom)
@@ -1207,9 +1275,9 @@ def band(version):
     actor.set_folder_path("RimBand")
     assert saving.save_map(world(), level), level
     report = {"level": level, "config": cfg, "anchors": len(anchors), "targets": targets, "boulders": boulders,
-              "instances": sum(counts.values()), "by_mesh": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
+              "instances": sum(counts.values()), "by_line": per_line, "by_mesh": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
     (OUT / ("RimBand_%s.json" % version)).write_text(json.dumps(report, indent=1), encoding="utf-8")
-    unreal.log("Z1_RIM_BAND_READY %d targets %d instances" % (len(targets), report["instances"]))
+    unreal.log("Z1_RIM_BAND_READY %d targets %d instances %s" % (len(targets), report["instances"], json.dumps(per_line)))
 
 
 def importcrust(version):

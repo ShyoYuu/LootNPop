@@ -467,3 +467,120 @@ def massif_rim_feature_points():
                 t = i * 100 / length
                 for d in (toe - 100, toe, toe + ramp / 2, toe + ramp, toe + ramp + 200):
                     yield ax + dx * t - nx * d, ay + dy * t - ny * d
+
+
+# V029 뒤 북 테두리(분지 -39.5m → 북쪽 단 +20m): 앞면이 x -2,100~1,700(38m)뿐이고 뒤는 동굴 절개(x -600 동쪽, 홀 천장 -12m)와
+# NorthLedge, 앞은 분지라 남쪽처럼 둑 5단(깊이 약 52m)을 넣을 수 없다. 사용자 결정(B안): 분지 쪽으로 둑 2단만 덧대고, 위쪽 급사면은
+# 단독 조립체 하나가 덮는다. V008은 V007에 북 둑 2단을 더한 렌더링 지각이다(드레이프 배치 높이는 계속 V002).
+# 선: 급사면이 둑 맨 위 높이(분지 + 2 x 1,190 ≈ -1,570)에 닿는 등고선. 진행 방향 왼쪽이 분지다(동→서). RIM_FACES와 따로 둔다
+# (RIM_FACES를 바꾸면 V006·V007이 바뀐다).
+RIM_BANK_LINES = {"NorthBank": ((1500, 3400), (-700, 3470), (-1300, 3780), (-2300, 3780))}
+# (둑 수평 폭, 단 너비, 둑 수, 둑 높이, 끝 페이드, 둑 맨 위 뒤 페이드) cm. 둑은 선 앞(분지 쪽)으로 쌓고 지금 지각보다 낮은 곳만
+# 올린다(급사면은 깎지 않는다). 동굴 절개 경계 2m 안은 건드리지 않는다.
+RIM_FILL_BANKS = {"NorthBank": (900, 250, 2, 1190, 900, 600)}
+MASSIF_COVER_VERSIONS["V008"] = ("V012_Z1MassifCover_V008", -2200, 500)
+MASSIF_BANK_VERSION = MASSIF_COVER_VERSIONS["V008"][0]
+
+
+def rim_line(name):
+    # 띠(band)가 쓰는 선. 테두리 앞면 선과 덧댄 둑 선을 같은 이름 공간으로 찾는다.
+    return RIM_FACES[name] if name in RIM_FACES else RIM_BANK_LINES[name]
+
+
+def polyline_frame(x, y, line):
+    # 가장 가까운 선분 기준 (뒤로 들어간 거리 d, 선 시작에서의 호 길이 s, 전체 길이, 그 선분의 분지 쪽 법선).
+    # 왼쪽 법선이 분지(앞)이고, d는 앞면 뒤(분지 반대쪽)가 양수다.
+    best, total = None, 0.0
+    for (ax, ay), (bx, by) in zip(line, line[1:]):
+        dx, dy = bx - ax, by - ay
+        length = math.hypot(dx, dy)
+        t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / (length * length)))
+        px, py = ax + dx * t, ay + dy * t
+        dist = math.hypot(x - px, y - py)
+        if best is None or dist < best[0]:
+            nx, ny = -dy / length, dx / length
+            side = -((x - px) * nx + (y - py) * ny)
+            best = (dist, math.copysign(dist, side), total + length * t, (nx, ny))
+        total += length
+    return best[1], best[2], total, best[3]
+
+
+def rim_fill(x, y, height, ground_at):
+    for name, (run, tread, banks, rise, fade, back) in RIM_FILL_BANKS.items():
+        line = RIM_BANK_LINES[name]
+        toe = -(banks * run + (banks - 1) * tread)
+        d, s, total, (nx, ny) = polyline_frame(x, y, line)
+        if not toe < d < back:
+            continue
+        weight = ridge.smooth(s / fade) * ridge.smooth((total - s) / fade) * ridge.smooth((back - d) / back)
+        for cut in base.CUTS:
+            weight *= ridge.smooth(-ridge.signed_distance(x, y, cut) / 200)
+        if not weight:
+            continue
+        # 분지 바닥은 같은 법선 위 둑 발치 200cm 앞 높이다.
+        ahead = d - toe + 200
+        floor = ground_at(x + nx * ahead, y + ny * ahead)
+        u = d - toe
+        level = floor
+        for k in range(banks):
+            start = k * (run + tread)
+            level = floor + rise * (k + ridge.smooth((u - start) / run))
+            if u < start + run + tread:
+                break
+        if level > height:
+            height += weight * (level - height)
+    return height
+
+
+def massif_bank_ground(x, y):
+    return rim_fill(x, y, massif_terrace_ground(x, y), massif_terrace_ground)
+
+
+def massif_bank_feature_points():
+    # V007 특징점에 덧댄 둑 위·아래 모서리 선을 1m 간격으로 더한다.
+    yield from massif_terrace_feature_points()
+    for name, (run, tread, banks, rise, fade, back) in RIM_FILL_BANKS.items():
+        line = RIM_BANK_LINES[name]
+        toe = -(banks * run + (banks - 1) * tread)
+        edges = [toe - 100]
+        for k in range(banks):
+            start = toe + k * (run + tread)
+            edges += [start, start + run / 2, start + run, start + run + 100]
+        edges += [0, 100]
+        for (ax, ay), (bx, by) in zip(line, line[1:]):
+            dx, dy = bx - ax, by - ay
+            length = math.hypot(dx, dy)
+            nx, ny = -dy / length, dx / length
+            for i in range(max(1, round(length / 100))):
+                t = i * 100 / length
+                for d in edges:
+                    yield ax + dx * t - nx * d, ay + dy * t - ny * d
+
+
+# V008 결과(V030·V031): V029에서 북 띠 돌무더기에 가려 있던 동굴 절개 남서 모서리 옆 V012 바위 돌출(+30.8m, x -750·y 3,825)이
+# 북쪽 단(+20m) 위로 뾰족하게 드러났다. 능선 상한(ridge_cap_weight)은 절개 둘레 7.5m에서 0이라 이 돌출을 못 깎았다.
+# V009는 V008에서 이 구역만 상한을 둔다. 상한은 절개 경계에서 +2,500(경계 최고 높이 +2,429 이상), 4m 밖에서 북쪽 단 +2,000이다.
+SPUR_CAP = {"box": (-1800, 400, 2800, 4800), "cap": 2000, "edge_cap": 2500, "edge": 400}
+MASSIF_COVER_VERSIONS["V009"] = ("V012_Z1MassifCover_V009", -2200, 500)
+MASSIF_SPUR_VERSION = MASSIF_COVER_VERSIONS["V009"][0]
+
+
+def spur_cap(x, y, height):
+    x0, x1, y0, y1 = SPUR_CAP["box"]
+    if not (x0 < x < x1 and y0 < y < y1) or height <= SPUR_CAP["cap"]:
+        return height
+    sd = min(-ridge.signed_distance(x, y, cut) for cut in base.CUTS)
+    if sd <= 0:
+        return height
+    cap = SPUR_CAP["cap"] + (SPUR_CAP["edge_cap"] - SPUR_CAP["cap"]) * (1 - ridge.smooth(sd / SPUR_CAP["edge"]))
+    # 상자 가장자리 6m에서는 원래 지각으로 돌아간다.
+    weight = ridge.smooth(min(x - x0, x1 - x, y - y0, y1 - y) / 600)
+    return height - weight * max(0.0, height - cap)
+
+
+def massif_spur_ground(x, y):
+    return spur_cap(x, y, massif_bank_ground(x, y))
+
+
+def massif_spur_feature_points():
+    yield from massif_bank_feature_points()
