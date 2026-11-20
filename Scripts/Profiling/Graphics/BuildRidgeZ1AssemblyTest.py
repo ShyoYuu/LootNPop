@@ -11,11 +11,13 @@
 - surface [버전]: 구역 마스크를 서쪽 고원까지 넓힌 지각 재질(Z1MassifSurface)을 만든다. V002는 V001에서 지면층 텍스처 세트만
   바꾼 후보, V003은 구역을 이음매 띠를 뺀 옥탄트 전체로 넓힌 후보다.
 - puddle: ED 진흙 웅덩이 재질 사본에 Single Layer Water 출력 노드를 더한다(drape V006이 이 사본을 쓴다).
+- band <버전>: CR_Ditch 둑 묶음을 분지 테두리 지각 표면에 옮겨 심은 Z1RimBand_<버전>을 만든다(GX-027).
 - look / crflat / flatlook: 확인 시점·CloseRange 평면 비교 레벨.
 자동 스크린샷(AutomationLibrary.take_high_res_screenshot)은 Megascans 재질 셰이더 assert로 에디터를 죽이므로 쓰지 않는다.
 """
 import importlib
 import json
+import math
 from pathlib import Path
 import sys
 
@@ -358,6 +360,81 @@ WALLS["V023"] = FRONT_02_V023 + CROWN_V023 + WALLS["V021"][len(FRONT_02):]
 WALL_CRUST["V023"] = WALL_CRUST["V021"]
 WALL_MATERIAL["V023"] = WALL_MATERIAL["V021"]
 WALL_SKY["V023"] = WALL_SKY["V021"]
+# 분지 남북 테두리와 고원 남북 끝 능선은 맨 V012 지각이다. 분지는 남북 폭이 약 75m라 저시점에서 테두리가 화면 절반을 넘고,
+# 부감에서는 고원 남북 끝 능선(+50~57m)이 각진 기둥으로 산괴 양옆을 차지한다. V024는 지각을 바꾸지 않고 02 계열을
+# 테두리 발치에 세우고(앞면이 분지를 보게 yaw 남 +90°·북 -90° 기준 ±6~10°), 능선 면에는 고원 높이에 묻어 세운다.
+# 높이 기준 "abs"는 현지 반지름 기준 절대 높이 H(cm)다(분지 바닥 약 -4,000, 고원 약 +600).
+# 북 테두리 동쪽 조각은 위 NorthLedge 동선 아래에 들도록 12m 묻는다. 동굴 입구(HallFromBasin, x≈2,500)는 비운다.
+RIM_V024 = (
+    ("ASM_Z1_RimSouthWest", "Forest/PL_LargeCliff_02d", 700, -5600, 96, -3900, 1.0, "abs"),
+    ("ASM_Z1_RimSouth", "Forest/PL_LargeCliff_02e", 3200, -5700, 82, -3500, 1.0, "abs"),
+    ("ASM_Z1_RimSouthEast", "Forest/PL_LargeCliff_02b", 5600, -5600, 98, -3400, 1.0, "abs"),
+    ("ASM_Z1_CanyonWestBank", "Forest/PL_LargeCliff_01b", -3000, -4900, 60, -3000, 1.0, "abs"),
+    ("ASM_Z1_RidgeSouth", "Forest/PL_LargeCliff_02c", -3800, -4600, 45, 500, 1.0, "abs"),
+    ("ASM_Z1_RimNorth", "Forest/PL_LargeCliff_02c", 200, 3800, -84, -4000, 1.0, "abs"),
+    ("ASM_Z1_RimNorthCrown", "Forest/PL_LargeCliff_01c", -200, 4700, -110, 900, 1.0, "abs"),
+    ("ASM_Z1_RidgeNorth", "Forest/PL_LargeCliff_02e", -4300, 3500, -70, 600, 1.0, "abs"),
+    ("ASM_Z1_RimNorthEast", "Forest/PL_LargeCliff_02b", 4500, 2300, -95, -5000, 1.0, "abs"),
+)
+WALLS["V024"] = WALLS["V023"] + RIM_V024
+WALL_CRUST["V024"] = WALL_CRUST["V023"]
+WALL_MATERIAL["V024"] = WALL_MATERIAL["V023"]
+WALL_SKY["V024"] = WALL_SKY["V023"]
+# V024 결과: 남 테두리(30m)보다 조립체(49m)가 높아 사면을 덮지 못하고 따로 선 기둥 3개로 읽혔다. 능선 기둥은 아래만 가려졌다.
+# V025는 지각을 Z1MassifCover V006(능선 상한 + 테두리 면 물리기, spec RIM_FACES)으로 바꾸고, 조립체를 앞면 선에 맞춘다.
+# 남 테두리: 4개를 약 19m 간격으로 겹치고, 암석 꼭대기가 테두리 꼭대기(약 -300)에 오도록 분지 바닥보다 10~15m 묻는다.
+# 북 테두리: 벽(분지 바닥) + 꼭대기 북쪽 대지에 묻은 왕관 2단. NorthLedge 내리막(x 0~2,200)은 비운다.
+# 깎은 능선 자리: 고원 남쪽 모서리·협곡 서안과 북쪽 단(+6→+20m)에 묻어 세워 하늘선을 만든다.
+# 같은 계열은 3개씩 쓰고 yaw를 달리한다. V002 하구 조각 3개(Outlet*)는 남 테두리 조립체로 대체한다.
+RIM_V025 = (
+    ("ASM_Z1_RimSouthWest", "Forest/PL_LargeCliff_02d", 400, -5350, 96, -5000, 1.0, "abs"),
+    ("ASM_Z1_RimSouth", "Forest/PL_LargeCliff_02b", 2300, -5300, 82, -5200, 1.0, "abs"),
+    ("ASM_Z1_RimSouthEast", "Forest/PL_LargeCliff_02c", 4200, -5250, 100, -4700, 1.0, "abs"),
+    ("ASM_Z1_RimSouthEnd", "Forest/PL_LargeCliff_02e", 5900, -5200, 84, -4900, 1.0, "abs"),
+    ("ASM_Z1_CanyonWestBank", "Forest/PL_LargeCliff_02b", -3300, -4900, -30, -3500, 1.0, "abs"),
+    ("ASM_Z1_PlateauSouthCrown", "Forest/PL_LargeCliff_01c", -4600, -4400, 30, 300, 1.0, "abs"),
+    ("ASM_Z1_RimNorth", "Forest/PL_LargeCliff_02d", 200, 3550, -84, -4000, 1.0, "abs"),
+    ("ASM_Z1_RimNorthCrown", "Forest/PL_LargeCliff_01b", -900, 4300, -130, 200, 1.0, "abs"),
+    ("ASM_Z1_PlateauNorthStep", "Forest/PL_LargeCliff_02c", -4300, 3500, -75, -1000, 1.0, "abs"),
+    ("ASM_Z1_RimNorthEast", "Forest/PL_LargeCliff_02e", 4500, 2300, -95, -5000, 1.0, "abs"),
+)
+WALLS["V025"] = WALLS["V023"] + RIM_V025
+WALL_CRUST["V025"] = massif_crust("V006")
+WALL_MATERIAL["V025"] = WALL_MATERIAL["V023"]
+WALL_SKY["V025"] = WALL_SKY["V023"]
+# 버전별로 V002 사본에서 더 빼는 개별 메시(라벨 접두어).
+WALL_REPLACED_EXTRA = {"V025": ("ED_Z1_OutletWestBank", "ED_Z1_OutletEastBank", "ED_Z1_OutletShelf")}
+# V025 사용자 판정: 지각 V006(능선 깎기·테두리 물리기)과 능선 자리 단독 조립체는 괜찮다. 남북 테두리에 같은 계열 조립체를
+# 줄지어 세운 긴 절벽(RimSouth*·RimNorth*)은 확실히 어색하다(조립체는 가끔 변칙으로만 쓸 수단이다).
+# V026은 테두리 조립체 7개를 빼고, ED CloseRange 둑 묶음을 테두리 지각 표면에 옮겨 심은 띠(Z1RimBand, band)를 넣는다.
+RIM_ACCENTS_V025 = tuple(row for row in RIM_V025 if not row[0].startswith(("ASM_Z1_RimSouth", "ASM_Z1_RimNorth")))
+WALLS["V026"] = WALLS["V023"] + RIM_ACCENTS_V025 + (
+    ("CR_Z1_RimBand", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V001/Z1RimBand_V001",
+     0, 0, 0, 0, 1.0, "world"),)
+WALL_CRUST["V026"] = WALL_CRUST["V025"]
+WALL_MATERIAL["V026"] = WALL_MATERIAL["V025"]
+WALL_SKY["V026"] = WALL_SKY["V025"]
+WALL_REPLACED_EXTRA["V026"] = WALL_REPLACED_EXTRA["V025"]
+# V027은 V026에서 지각을 남 테두리 3단 둑 V007로, 띠를 그 위에 얹은 Z1RimBand V002로 바꾼다.
+WALLS["V027"] = WALLS["V026"][:-1] + (
+    ("CR_Z1_RimBand", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V002/Z1RimBand_V002",
+     0, 0, 0, 0, 1.0, "world"),)
+WALL_CRUST["V027"] = massif_crust("V007")
+WALL_MATERIAL["V027"] = WALL_MATERIAL["V026"]
+WALL_SKY["V027"] = WALL_SKY["V026"]
+WALL_REPLACED_EXTRA["V027"] = WALL_REPLACED_EXTRA["V026"]
+# V028은 V027에서 띠만 밀도를 올리고 큰 바위 층을 더한 Z1RimBand V003으로 바꾼다.
+WALLS["V028"] = WALLS["V027"][:-1] + (
+    ("CR_Z1_RimBand", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V003/Z1RimBand_V003",
+     0, 0, 0, 0, 1.0, "world"),)
+for _table in (WALL_CRUST, WALL_MATERIAL, WALL_SKY, WALL_REPLACED_EXTRA):
+    _table["V028"] = _table["V027"]
+# V029는 V028에서 띠만 판 조각 법선 정렬·재안착 규칙을 더한 Z1RimBand V004로 바꾼다.
+WALLS["V029"] = WALLS["V028"][:-1] + (
+    ("CR_Z1_RimBand", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V004/Z1RimBand_V004",
+     0, 0, 0, 0, 1.0, "world"),)
+for _table in (WALL_CRUST, WALL_MATERIAL, WALL_SKY, WALL_REPLACED_EXTRA):
+    _table["V029"] = _table["V028"]
 WEST_COVER_LABEL = "SM_Octant_Ridge_00_V012_Z1WestCover_R30000"
 WALL_VIEW_EYE = (4500, -400, 170)
 WALL_VIEW_TARGET = (-1700, -300, 1800)
@@ -369,8 +446,9 @@ def asset_path(name):
 
 
 def floor_point(x, y, offset, base="floor"):
-    # floor는 서쪽 벽 발치 분지 바닥, local은 해당 위치의 V002 기반면 높이를 쓴다.
-    ground = spec.ground(-1250, y) if base == "floor" else spec.west_cover_ground(x, y)
+    # floor는 서쪽 벽 발치 분지 바닥, local은 해당 위치의 V002 기반면 높이, abs는 offset을 절대 높이로 쓴다.
+    ground = {"floor": lambda: spec.ground(-1250, y), "local": lambda: spec.west_cover_ground(x, y),
+              "abs": lambda: 0.0}[base]()
     return unreal.Vector(*spec.ridge.point(x, y, ground + offset))
 
 
@@ -395,7 +473,7 @@ def wall(version):
         if v002_name not in owner:
             continue
         label = actor.get_actor_label()
-        if label.startswith(WALL_REPLACED):
+        if label.startswith(WALL_REPLACED + WALL_REPLACED_EXTRA.get(version, ())):
             skipped.append(label)
             continue
         comp = actor.static_mesh_component
@@ -755,6 +833,385 @@ def drape(version, mode=""):
     unreal.log("Z1_MASSIF_DRAPE_READY " + json.dumps(built))
 
 
+# 긴 테두리 사면 띠(V025 판정: 같은 계열 조립체를 줄지어 세운 긴 절벽은 어색하다).
+# ED CloseRange의 긴 둑(Ditch, 둘레 약 270m)은 큰 조립체가 아니라 높이 1~10m 암석 조각(MassiveSandstoneCliff_04 313개,
+# HugeSandstoneCliff_07 245개, HugeSandstoneCliff_04 187개 등)과 둑 메시·식생을 하상을 따라 촘촘히 깐 것이다.
+# band는 CR_Ditch의 둑 경사면에서 반경 patch 안의 인스턴스 묶음(암석 + 식생)을 떼어, 테두리 지각 표면의 표본점마다
+# 표면 좌표계(선 접선 T, 표면 법선 n, 오르막 B = n × T)째로 옮겨 심는다. 원본 좌표계는 하상 중심선 접선과 ED 섬 지지면
+# (CloseRangeSupport V002 + 50cm) 법선이고, 오르막은 하상에서 멀어지는 쪽, 목표 오르막은 분지에서 멀어지는 쪽이다.
+# 암석·지면 조각은 표면을 따라 기울고, 식생(3D_Plants)은 같은 자리에서 현지 Up으로 다시 세운다.
+BAND_LEVEL = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_{0}/Z1RimBand_{0}"
+BAND_CRUST = {"V006": spec.massif_rim_ground, "V007": spec.massif_terrace_ground}
+# lines: spec.RIM_FACES 이름, band: 앞면 선 기준 뒤로 들어간 거리 범위(cm), spacing: 표면 호 길이 표본 간격(cm),
+# patch: 원본 묶음 반경(cm), min_slope: 표본점 최소 경사(°), anchor_slope: 원본 묶음 중심의 최소 지지면 경사(°).
+BAND_VERSIONS = {
+    "V001": {"crust": "V006", "source": "Ditch", "lines": ("South", "North"), "band": (-300, 2600), "spacing": 450,
+             "patch": 300, "min_slope": 25.0, "anchor_slope": 15.0, "seed": 27001},
+    # V001 결과: 원본 묶음 경사 중앙값 38°, 목표 면 중앙값 73°라 판·돌무더기가 벽에 붙은 것처럼 보였다.
+    # V002는 남 테두리를 약 50° 둑 3단으로 바꾼 지각 V007에 얹고, 원본 묶음도 지지면 경사 35° 이상만 쓴다.
+    "V002": {"crust": "V007", "source": "Ditch", "lines": ("South", "North"), "band": (-1300, 3200), "spacing": 450,
+             "patch": 300, "min_slope": 25.0, "anchor_slope": 35.0, "seed": 27002},
+}
+# V002 사용자 판정(2026-11-20): 둑 3단 + 띠 방향은 가능성이 있다. 큰 바위를 섞고 밀도를 더 올린다.
+# V003은 묶음 표본 간격을 320cm로 줄이고, 큰 바위 층(boulders)을 따로 깐다. 큰 바위는 원본 둑의 큰 암석 인스턴스 하나를
+# 같은 표면 좌표계로 옮기되 scale배로 키우고, 키운 높이의 sink 비율만큼 표면 법선 반대로 묻는다.
+BAND_VERSIONS["V003"] = dict(BAND_VERSIONS["V002"], spacing=320, seed=27003, boulders={
+    "meshes": ("SM_MassiveSandstoneCliff_0", "SM_HugeSandstoneCliff_04", "SM_SandstoneCliff_0", "SM_SandstoneBoulder_05",
+               "SM_MossyForestBoulder_04"),
+    "spacing": 1100, "scale": (1.6, 2.4), "sink": 0.25})
+# V003 사용자 판정: 밀도는 충분하다. 얇은 판 조각이 벽에 동전처럼 꽂히고, 한쪽 면만 있는 조각이 세워져 꽂힌 것이 어색하다.
+# V004는 V003과 같은 표본에서 seat 규칙(band_seater)으로 판을 지각 법선에 눕히고 덩어리·식생을 실제 지각 높이에 다시 앉힌다.
+BAND_VERSIONS["V004"] = dict(BAND_VERSIONS["V003"], seat=True, plate_ratio=0.4, plate_tilt=6.0, plate_embed=0.3,
+                             seat_grid=100.0)
+# 묶음 중심으로 쓰는 원본 암석·둑 메시(이름 접두어).
+BAND_ANCHORS = ("SM_MassiveSandstoneCliff_0", "SM_HugeSandstoneCliff_04", "SM_SandstoneCliff_0", "SM_Embankment_01",
+                "SM_SandstoneBoulder_0")
+BAND_SKIP = ("SM_WaterPlane",)
+
+
+def band_ground_source(cx, cy):
+    # ED 섬 지지면 높이(CR 원점 기준 cm). 높이장은 '지지면 - 50cm'를 담는다.
+    return spec.closerange_support_offset(cx, cy, "V002") + 50.0
+
+
+def band_frame(origin, tangent, normal, uphill):
+    # T를 법선에 수직으로 만들고 B = n × T가 오르막을 향하게 한다. X=T, Y=B, Z=n 회전을 돌려준다.
+    t = tangent - normal * normal.dot(tangent)
+    t = t * (1.0 / t.length())
+    b = normal.cross(t)
+    if b.dot(uphill) < 0:
+        t, b = t * -1.0, b * -1.0
+    return unreal.Transform(origin, unreal.MathLibrary.make_rot_from_xy(t, b), unreal.Vector(1, 1, 1))
+
+
+def band_targets(cfg, ground_at, rng):
+    # 앞면 선을 따라 열을 두고, 열마다 뒤쪽으로 지각 단면을 걸어 표면 호 길이 spacing마다 표본점을 낸다.
+    toe, back = cfg["band"]
+    spacing = cfg["spacing"]
+    targets = []
+    for name in cfg["lines"]:
+        line = spec.RIM_FACES[name]
+        for (ax, ay), (bx, by) in zip(line, line[1:]):
+            dx, dy = bx - ax, by - ay
+            length = (dx * dx + dy * dy) ** 0.5
+            tx, ty = dx / length, dy / length
+            nx, ny = -ty, tx  # 왼쪽 법선 = 분지 쪽
+            s = rng.uniform(0, spacing)
+            while s < length:
+                cx, cy = ax + tx * s, ay + ty * s
+                prev, arc, next_at = None, 0.0, rng.uniform(0, spacing)
+                d = toe
+                while d <= back:
+                    x, y = cx - nx * d, cy - ny * d
+                    h = ground_at(x, y)
+                    if prev is not None:
+                        step = ((d - prev[0]) ** 2 + (h - prev[1]) ** 2) ** 0.5
+                        arc += step
+                        slope = math.degrees(math.atan2(abs(h - prev[1]), d - prev[0]))
+                        if arc >= next_at:
+                            next_at = arc + spacing * rng.uniform(0.75, 1.25)
+                            if slope >= cfg["min_slope"]:
+                                targets.append({"line": name, "x": x, "y": y, "h": h, "t": (tx, ty), "back": (-nx, -ny),
+                                                "slope": round(slope, 1), "d": d})
+                    prev = (d, h)
+                    d += 25.0
+                s += spacing * rng.uniform(0.75, 1.25)
+    return targets
+
+
+def band_target_frame(target, ground_at):
+    x, y, h = target["x"], target["y"], target["h"]
+    point = lambda px, py: unreal.Vector(*spec.ridge.point(px, py, ground_at(px, py)))
+    tx, ty = target["t"]
+    bx, by = target["back"]
+    origin = unreal.Vector(*spec.ridge.point(x, y, h))
+    along = point(x + tx * 50, y + ty * 50) - point(x - tx * 50, y - ty * 50)
+    uphill = point(x + bx * 50, y + by * 50) - point(x - bx * 50, y - by * 50)
+    normal = along.cross(uphill)
+    normal = normal * (1.0 / normal.length())
+    up = origin * (-1.0 / origin.length())
+    if normal.dot(up) < 0:
+        normal = normal * -1.0
+    return band_frame(origin, along, normal, uphill), up
+
+
+def band_source_normal(cx, cy):
+    g = band_ground_source
+    gx = (g(cx + 50, cy) - g(cx - 50, cy)) / 100.0
+    gy = (g(cx, cy + 50) - g(cx, cy - 50)) / 100.0
+    normal = unreal.Vector(-gx, -gy, 1.0)
+    return normal * (1.0 / normal.length())
+
+
+def band_source_frame(cx, cy):
+    # 하상 중심선 접선과 지지면 법선. 오르막은 하상에서 멀어지는 쪽이다.
+    g = band_ground_source
+    normal = band_source_normal(cx, cy)
+    best, tangent, away = float("inf"), None, None
+    pts = spec.CLOSERANGE_CHANNEL_CR
+    for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
+        dx, dy = bx - ax, by - ay
+        t = max(0.0, min(1.0, ((cx - ax) * dx + (cy - ay) * dy) / (dx * dx + dy * dy or 1.0)))
+        px, py = ax + t * dx, ay + t * dy
+        dist = ((cx - px) ** 2 + (cy - py) ** 2) ** 0.5
+        if dist < best:
+            best, tangent, away = dist, unreal.Vector(dx, dy, 0), unreal.Vector(cx - px, cy - py, 0)
+    slope = math.degrees(math.acos(max(-1.0, min(1.0, normal.z))))
+    return band_frame(unreal.Vector(cx, cy, g(cx, cy)), tangent, normal, away), slope
+
+
+def band_seater(cfg, ground_at, comps, insts, rng):
+    # 옮긴 인스턴스를 목표 지각에 다시 앉히는 함수를 돌려준다(V004~).
+    # - 판(가장 얇은 축 / 가장 긴 축 < plate_ratio, 지면 타일·둑 판·얇은 사암 판·한쪽 면 스캔 표면): 얇은 축을 그 자리 지각
+    #   법선에 맞춰 눕힌다. 원본에서 그 축이 지면 법선과 하상 쪽을 향하던 면을 바깥으로 한다. 회전 변화는 법선 둘레 자유 회전과
+    #   plate_tilt 이하 기울기만 주고, 두께의 plate_embed만큼 묻는다.
+    # - 덩어리 바위·식생: 옮긴 수평 위치의 지각 높이 + 원본 지면 위 높이(dz)로 다시 앉힌다. 식생은 현지 Up으로 세운다.
+    step = cfg.get("seat_grid", 100.0)
+    heights, info = {}, {}
+    axes = (unreal.MathLibrary.get_forward_vector, unreal.MathLibrary.get_right_vector, unreal.MathLibrary.get_up_vector)
+
+    def h_at(i, j):
+        if (i, j) not in heights:
+            heights[(i, j)] = ground_at(i * step, j * step)
+        return heights[(i, j)]
+
+    def height(x, y):
+        fx, fy = x / step, y / step
+        i, j = math.floor(fx), math.floor(fy)
+        u, v = fx - i, fy - j
+        return ((h_at(i, j) * (1 - u) + h_at(i + 1, j) * u) * (1 - v)
+                + (h_at(i, j + 1) * (1 - u) + h_at(i + 1, j + 1) * u) * v)
+
+    def point(a, b):
+        return unreal.Vector(*spec.ridge.point(a * step, b * step, h_at(a, b)))
+
+    def normal(x, y):
+        i, j = round(x / step), round(y / step)
+        n = (point(i + 1, j) - point(i - 1, j)).cross(point(i, j + 1) - point(i, j - 1))
+        n = n * (1.0 / n.length())
+        return n * -1.0 if n.dot(point(i, j)) > 0 else n
+
+    def sizes(box, sc):
+        return [abs((box.max.x - box.min.x) * sc.x), abs((box.max.y - box.min.y) * sc.y),
+                abs((box.max.z - box.min.z) * sc.z)]
+
+    def source(idx):
+        # 원본 지면 위 높이와, 판이면 (얇은 축 번호, 바깥 부호).
+        if idx not in info:
+            ci, t, x, y, _ = insts[idx]
+            dz = t.translation.z - band_ground_source(x, y)
+            size = sizes(comps[ci]["box"], t.scale3d)
+            plate = None
+            if not comps[ci]["plant"] and min(size) < cfg["plate_ratio"] * max(size):
+                a = size.index(min(size))
+                axis = axes[a](t.rotation.rotator())
+                frame, _ = band_source_frame(x, y)
+                # 원본 좌표계 Y(B)는 오르막(하상에서 멀어지는 쪽)이므로 하상 쪽은 -B다.
+                toward = unreal.MathLibrary.get_right_vector(frame.rotation.rotator()) * -1.0
+                n = band_source_normal(x, y)
+                plate = (a, 1.0 if axis.dot(n + toward * 0.5) >= 0 else -1.0)
+            info[idx] = (dz, plate)
+        return info[idx]
+
+    def seat(idx, moved, k=1.0):
+        ci = insts[idx][0]
+        dz, plate = source(idx)
+        x, y, _ = spec.ridge.local((moved.translation.x, moved.translation.y, moved.translation.z))
+        h = height(x, y)
+        surface = unreal.Vector(*spec.ridge.point(x, y, h))
+        up = surface * (-1.0 / surface.length())
+        if plate is None:
+            rotation = moved.rotation.rotator()
+            if comps[ci]["plant"]:
+                rotation = tilt_between(rotation, unreal.MathLibrary.get_up_vector(rotation), up)
+            return unreal.Transform(unreal.Vector(*spec.ridge.point(x, y, h + dz * k)), rotation, moved.scale3d)
+        a, sign = plate
+        n = normal(x, y)
+        ref = n.cross(up)
+        if ref.length() < 1e-3:
+            ref = n.cross(unreal.Vector(1, 0, 0))
+        ref = ref * (1.0 / ref.length())
+        tilt = cfg["plate_tilt"]
+        n_j = unreal.MathLibrary.rotate_angle_axis(n, rng.uniform(-tilt, tilt), ref)
+        u = unreal.MathLibrary.rotate_angle_axis(ref, rng.uniform(0, 360), n_j)
+        face = n_j * sign
+        if a == 2:
+            rotation = unreal.MathLibrary.make_rot_from_xz(u, face)
+        elif a == 1:
+            rotation = unreal.MathLibrary.make_rot_from_xy(u, face)
+        else:
+            rotation = unreal.MathLibrary.make_rot_from_xz(face, u)
+        box, sc = comps[ci]["box"], moved.scale3d
+        offset = unreal.MathLibrary.transform_location(unreal.Transform(unreal.Vector(0, 0, 0), rotation, sc),
+                                                       (box.min + box.max) * 0.5)
+        thickness = sizes(box, sc)[a]
+        return unreal.Transform(surface - n * (cfg["plate_embed"] * thickness) - offset, rotation, sc)
+
+    seat.is_plate = lambda idx: source(idx)[1] is not None
+    return seat
+
+
+def band(version):
+    # CR 둑 묶음을 테두리 지각 표면에 옮겨 심은 Z1RimBand_<버전>(월드 좌표) 레벨을 만든다.
+    import random
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    saving = unreal.EditorLoadingAndSavingUtils
+    cfg = BAND_VERSIONS[version]
+    level = BAND_LEVEL.format(version)
+    ground_at = BAND_CRUST[cfg["crust"]]
+    assert not dirty(), dirty()
+    assert not unreal.EditorAssetLibrary.does_asset_exist(level), level
+    rng = random.Random(cfg["seed"])
+
+    # 원본: 컴포넌트 설정과 인스턴스(월드 = CR 원점 기준 좌표)를 읽는다.
+    assert levels.load_level(CR + cfg["source"]), cfg["source"]
+    comps, insts = [], []
+    for actor in unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Actor):
+        for comp in actor.get_components_by_class(unreal.InstancedStaticMeshComponent):
+            path = package(comp.static_mesh)
+            if any(s in path for s in BAND_SKIP):
+                continue
+            k = comp.get_editor_property("num_custom_data_floats")
+            custom = list(comp.get_editor_property("per_instance_sm_custom_data")) if k else []
+            props = {}
+            for prop in DRAPE_COPY:
+                try:
+                    props[prop] = comp.get_editor_property(prop)
+                except Exception:
+                    pass
+            ci = len(comps)
+            comps.append({"mesh": comp.static_mesh, "path": path, "overrides": list(comp.get_editor_property("override_materials")),
+                          "hism": isinstance(comp, unreal.HierarchicalInstancedStaticMeshComponent), "props": props,
+                          "custom_count": k, "plant": "/3D_Plants/" in path,
+                          "height": comp.static_mesh.get_bounding_box().max.z - comp.static_mesh.get_bounding_box().min.z,
+                          "box": comp.static_mesh.get_bounding_box()})
+            for i in range(comp.get_instance_count()):
+                t = comp.get_instance_transform(i, True)
+                insts.append((ci, t, t.translation.x, t.translation.y, custom[i * k:(i + 1) * k]))
+    assert not dirty(), dirty()
+
+    # 묶음 중심: 지지면 경사가 anchor_slope 이상인 자리의 암석·둑 인스턴스.
+    anchors = []
+    for ci, t, x, y, _ in insts:
+        name = comps[ci]["path"].rsplit("/", 1)[1]
+        if name.startswith(BAND_ANCHORS):
+            frame, slope = band_source_frame(x, y)
+            if slope >= cfg["anchor_slope"]:
+                anchors.append((x, y, frame, slope))
+    assert anchors, "no anchors"
+    radius = cfg["patch"]
+    cell = {}
+    for idx, (_, _, x, y, _) in enumerate(insts):
+        cell.setdefault((int(x // radius), int(y // radius)), []).append(idx)
+
+    def patch(x, y):
+        ix, iy = int(x // radius), int(y // radius)
+        for gx in (ix - 1, ix, ix + 1):
+            for gy in (iy - 1, iy, iy + 1):
+                for idx in cell.get((gx, gy), ()):
+                    _, _, px, py, _ = insts[idx]
+                    if (px - x) ** 2 + (py - y) ** 2 <= radius * radius:
+                        yield idx
+
+    # 판 회전 난수는 따로 두어, 표본점·묶음 선택이 seat 없는 버전(V003)과 같게 한다.
+    seat = band_seater(cfg, ground_at, comps, insts, random.Random(cfg["seed"] + 1)) if cfg.get("seat") else None
+    targets = band_targets(cfg, ground_at, rng)
+    placed = {}
+    for target in targets:
+        ax, ay, src_frame, src_slope = anchors[rng.randrange(len(anchors))]
+        dst_frame, up = band_target_frame(target, ground_at)
+        # 원본 묶음을 표면 좌표계 그대로 옮긴다: inst * inverse(src) * dst.
+        relay = unreal.MathLibrary.compose_transforms(unreal.MathLibrary.invert_transform(src_frame), dst_frame)
+        target["anchor"] = [round(ax), round(ay), round(src_slope, 1)]
+        for idx in patch(ax, ay):
+            ci, t, _, _, custom = insts[idx]
+            moved = unreal.MathLibrary.compose_transforms(t, relay)
+            if seat:
+                moved = seat(idx, moved)
+            elif comps[ci]["plant"]:
+                # 식생은 옮긴 자리에서 현지 Up으로 다시 세운다(줄기 방향만 바로잡고 방위는 유지).
+                z = unreal.MathLibrary.get_up_vector(moved.rotation.rotator())
+                moved = unreal.Transform(moved.translation, tilt_between(moved.rotation.rotator(), z, up), moved.scale3d)
+            row = placed.setdefault(ci, ([], []))
+            row[0].append(moved)
+            row[1].extend(custom)
+
+    boulders = []
+    if "boulders" in cfg:
+        bcfg = cfg["boulders"]
+        sources = []
+        for idx, (ci, t, x, y, _) in enumerate(insts):
+            if comps[ci]["path"].rsplit("/", 1)[1].startswith(bcfg["meshes"]):
+                frame, slope = band_source_frame(x, y)
+                if slope >= cfg["anchor_slope"]:
+                    sources.append((idx, frame))
+        assert sources, "no boulder sources"
+        for target in band_targets(dict(cfg, spacing=bcfg["spacing"]), ground_at, rng):
+            idx, src_frame = sources[rng.randrange(len(sources))]
+            ci, t, _, _, custom = insts[idx]
+            dst_frame, _ = band_target_frame(target, ground_at)
+            relay = unreal.MathLibrary.compose_transforms(unreal.MathLibrary.invert_transform(src_frame), dst_frame)
+            k = rng.uniform(*bcfg["scale"])
+            moved = unreal.MathLibrary.compose_transforms(unreal.Transform(t.translation, t.rotation.rotator(), t.scale3d * k),
+                                                          relay)
+            normal = unreal.MathLibrary.get_up_vector(dst_frame.rotation.rotator())
+            sink = bcfg["sink"] * comps[ci]["height"] * abs(moved.scale3d.z)
+            if seat:
+                # 재안착은 원본 지면 위 높이(키운 배수)를 따르고, 덩어리는 그 뒤에 sink만큼 더 묻는다. 판은 seat가 묻는다.
+                moved = seat(idx, moved, k)
+                if seat.is_plate(idx):
+                    sink = 0.0
+            moved = unreal.Transform(moved.translation - normal * sink, moved.rotation.rotator(), moved.scale3d)
+            row = placed.setdefault(ci, ([], []))
+            row[0].append(moved)
+            row[1].extend(custom)
+            boulders.append({"line": target["line"], "x": round(target["x"]), "y": round(target["y"]),
+                             "mesh": comps[ci]["path"].rsplit("/", 1)[1], "scale": round(k, 2)})
+
+    assert saving.new_blank_map(False)
+    sds = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+    lib = unreal.SubobjectDataBlueprintFunctionLibrary
+
+    def add(parent, cls):
+        handle, fail = sds.add_new_subobject(unreal.AddNewSubobjectParams(parent_handle=parent, new_class=cls))
+        assert not str(fail), fail
+        return handle, lib.get_object(lib.get_data(handle))
+
+    actor = actors.spawn_actor_from_class(unreal.Actor, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    actor.set_actor_label("RimBand_" + version)
+    root_handle, root = add(sds.k2_gather_subobject_data_for_instance(actor)[0], unreal.SceneComponent)
+    root.set_mobility(unreal.ComponentMobility.STATIC)
+    counts = {}
+    for ci, (transforms, custom) in placed.items():
+        src = comps[ci]
+        _, comp = add(root_handle, unreal.HierarchicalInstancedStaticMeshComponent if src["hism"]
+                      else unreal.InstancedStaticMeshComponent)
+        comp.set_mobility(unreal.ComponentMobility.STATIC)
+        comp.set_static_mesh(src["mesh"])
+        for i, material in enumerate(src["overrides"]):
+            if material:
+                comp.set_material(i, material)
+        for prop, value in src["props"].items():
+            comp.set_editor_property(prop, value)
+        comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        comp.add_instances(transforms, False, True)
+        k = src["custom_count"]
+        if k:
+            comp.set_num_custom_data_floats(k)
+            for i in range(len(transforms)):
+                for j in range(k):
+                    comp.set_custom_data_value(i, j, custom[i * k + j], False)
+        assert comp.get_instance_count() == len(transforms)
+        counts[src["path"]] = counts.get(src["path"], 0) + len(transforms)
+    actor.set_folder_path("RimBand")
+    assert saving.save_map(world(), level), level
+    report = {"level": level, "config": cfg, "anchors": len(anchors), "targets": targets, "boulders": boulders,
+              "instances": sum(counts.values()), "by_mesh": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
+    (OUT / ("RimBand_%s.json" % version)).write_text(json.dumps(report, indent=1), encoding="utf-8")
+    unreal.log("Z1_RIM_BAND_READY %d targets %d instances" % (len(targets), report["instances"]))
+
+
 def importcrust(version):
     # Blender가 구운 Z1MassifCover 지각 FBX를 새 폴더로 반입한다(경계 정점은 Meadow native에 맞춘다).
     import AssembleRidgeOctant as assembly
@@ -944,4 +1401,4 @@ def look(ex, ey, eh, tx, ty, th):
 if __name__ == "__main__":
     {"lights": lights, "build": build, "instances": instances, "view": view, "wall": wall,
      "look": look, "crflat": crflat, "flatlook": flatlook, "importcrust": importcrust, "drape": drape,
-     "surface": surface, "puddle": puddle}[sys.argv[1]](*sys.argv[2:])
+     "surface": surface, "puddle": puddle, "band": band}[sys.argv[1]](*sys.argv[2:])

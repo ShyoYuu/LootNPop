@@ -322,3 +322,148 @@ def massif_island_v005_ground(x, y):
 
 def massif_island_v005_feature_points():
     return massif_island_feature_points("V002")
+
+
+# V005 저시점·부감 결과: 고원 남북 끝에 V012 능선(+50~57m)이 각진 기둥으로 남아 산괴 양옆을 차지하고, 분지 남북 테두리
+# (북 60m·남 30m)가 맨 지각이다. V006은 V005에서 두 가지만 바꾼 렌더링 지각이다(드레이프 배치 높이는 계속 V002).
+# 1) 능선 상한: 고원 남북 끝 능선을 남쪽은 고원 높이, 북쪽은 북쪽 대지(+20m) 높이로 깎는다. 섬 지형(고원 가중치)과
+#    동굴 절개 둘레는 건드리지 않는다. 깎은 가장자리와 테두리는 조립체(왕관·벽)가 덮는다.
+# 2) 테두리 면 물리기: 남북 테두리 조립체 앞면 선(RIM_FACES) 앞의 사면을 분지 바닥으로 눌러, 지각 발치가 조립체
+#    앞면보다 RIM_RECESS[0] 뒤에서 RIM_RECESS[1] 폭 안에 올라가게 한다(GX-022·서쪽 벽 WEST_BACKING과 같은 생각).
+MASSIF_COVER_VERSIONS["V006"] = ("V012_Z1MassifCover_V006", -2200, 500)
+MASSIF_RIM_VERSION = MASSIF_COVER_VERSIONS["V006"][0]
+# (남쪽 상한, 북쪽 상한) 현지 H(cm). 남은 고원(분지 -3,950 + 4,600), 북은 북쪽 대지 높이다.
+RIDGE_CAP_CM = (650, 2000)
+# 앞면 선: 분지를 보는 쪽이 진행 방향 왼쪽이 되게 점을 잇는다(남 테두리는 동→서가 아니라 서→동, 앞면은 +y).
+RIM_FACES = {
+    "South": ((-600, -4650), (1500, -4550), (3500, -4500), (5500, -4500), (7000, -4300)),
+    "North": ((1300, 2850), (0, 2850), (-1500, 2950)),
+}
+# (앞면 뒤 발치 거리, 사면 오름 폭, 앞쪽 영향 폭, 뒤쪽 영향 폭, 끝 페이드) cm
+RIM_RECESS = (300, 400, 1500, 2500, 600)
+
+
+def ridge_cap_weight(x, y):
+    # 고원 남북 끝 능선 구역(x -7,000~-500, |y| 3,000~7,500). 고원 섬·동굴 절개 둘레는 0이다.
+    along = ridge.smooth((x + 8500) / 1500) * ridge.smooth((-500 - x) / 700)
+    across = ridge.smooth((abs(y) - 2500) / 500) * ridge.smooth((9000 - abs(y)) / 1500)
+    if not along or not across:
+        return 0.0
+    for cut in base.CUTS:
+        across *= ridge.smooth((-ridge.signed_distance(x, y, cut) - 100) / 650)
+    return along * across * (1 - massif_plateau_mask(x, y))
+
+
+def rim_recess(x, y, height, ground_at):
+    # 앞면 선 뒤 발치까지는 분지 바닥(선 앞 1,000cm 지점 높이)으로 누르고, 그 뒤 오름 폭 안에서 원래 사면으로 돌아간다.
+    toe, ramp, front, back, fade = RIM_RECESS
+    for line in RIM_FACES.values():
+        for (ax, ay), (bx, by) in zip(line, line[1:]):
+            dx, dy = bx - ax, by - ay
+            length = math.hypot(dx, dy)
+            t = ((x - ax) * dx + (y - ay) * dy) / (length * length)
+            if not 0 <= t <= 1:
+                continue
+            # 왼쪽 법선이 분지(앞)다. d는 앞면 뒤로 들어간 거리.
+            nx, ny = -dy / length, dx / length
+            d = -((x - ax) * nx + (y - ay) * ny)
+            if not -front < d < back:
+                continue
+            fx, fy = ax + dx * t + nx * 1000, ay + dy * t + ny * 1000
+            floor = ground_at(fx, fy)
+            pressed = floor + (height - floor) * ridge.smooth((d - toe) / ramp)
+            # 선 양 끝(첫 점·끝 점)에서는 원래 지각으로 돌아간다.
+            first, last = line[0], line[-1]
+            end = min(math.hypot(x - first[0], y - first[1]), math.hypot(x - last[0], y - last[1]))
+            weight = ridge.smooth(end / fade) * ridge.smooth((d + front) / 500) * ridge.smooth((back - d) / 500)
+            height = min(height, height - weight * (height - pressed))
+    return height
+
+
+def massif_rim_ground(x, y):
+    height = massif_island_v005_ground(x, y)
+    weight = ridge_cap_weight(x, y)
+    if weight:
+        cap = RIDGE_CAP_CM[0] + (RIDGE_CAP_CM[1] - RIDGE_CAP_CM[0]) * ridge.smooth(y / 1000)
+        if height > cap:
+            height -= weight * (height - cap)
+    return rim_recess(x, y, height, massif_island_v005_ground)
+
+
+# V006 띠 시험(Z1RimBand V001) 결과: ED CloseRange 둑 묶음(원본 경사 중앙값 38°)을 60~87° 테두리 면에 옮기면 판·돌무더기가
+# 벽에 붙은 것처럼 보였다. ED 둑 조각은 완만한 둑을 덮는 도구다. V007은 남 테두리를 둑 경사 여러 단으로 바꾼 렌더링 지각이다.
+# (앞면 선 이름, 첫 둑 발치 d, 둑 수평 폭, 단 너비, 둑 수, 끝 페이드) cm. d는 앞면 선 뒤로 들어간 거리(음수는 분지 쪽).
+# 둑마다 (전체 높이 / 둑 수)씩 오르고, 맨 위는 원래 지각(남쪽 대지)으로 돌아간다.
+RIM_TERRACES = {"South": (-1000, 1000, 450, 3, 600)}
+MASSIF_COVER_VERSIONS["V007"] = ("V012_Z1MassifCover_V007", -2200, 500)
+MASSIF_TERRACE_VERSION = MASSIF_COVER_VERSIONS["V007"][0]
+
+
+def rim_terrace(x, y, height, ground_at):
+    for name, (toe, run, tread, banks, fade) in RIM_TERRACES.items():
+        line = RIM_FACES[name]
+        top = toe + banks * run + (banks - 1) * tread
+        for (ax, ay), (bx, by) in zip(line, line[1:]):
+            dx, dy = bx - ax, by - ay
+            length = math.hypot(dx, dy)
+            t = ((x - ax) * dx + (y - ay) * dy) / (length * length)
+            if not 0 <= t <= 1:
+                continue
+            nx, ny = -dy / length, dx / length
+            d = -((x - ax) * nx + (y - ay) * ny)
+            if not toe - 800 < d < top + 800:
+                continue
+            px, py = ax + dx * t, ay + dy * t
+            floor = ground_at(px + nx * (1000 - toe), py + ny * (1000 - toe))
+            crest = ground_at(px - nx * (top + 600), py - ny * (top + 600))
+            rise = (crest - floor) / banks
+            # 단마다 둑(run)으로 오르고 단(tread)에서 평평하다.
+            level = floor
+            for k in range(banks):
+                start = toe + k * (run + tread)
+                level = floor + rise * (k + ridge.smooth((d - start) / run))
+                if d < start + run + tread:
+                    break
+            first, last = line[0], line[-1]
+            end = min(math.hypot(x - first[0], y - first[1]), math.hypot(x - last[0], y - last[1]))
+            weight = ridge.smooth(end / fade) * ridge.smooth((d - toe + 800) / 600) * ridge.smooth((top + 800 - d) / 600)
+            height = height + weight * (level - height)
+    return height
+
+
+def massif_terrace_ground(x, y):
+    return rim_terrace(x, y, massif_rim_ground(x, y), massif_rim_ground)
+
+
+def massif_terrace_feature_points():
+    # V006 특징점에 둑 위·아래 모서리 선을 1m 간격으로 더한다.
+    yield from massif_rim_feature_points()
+    for name, (toe, run, tread, banks, _) in RIM_TERRACES.items():
+        line = RIM_FACES[name]
+        edges = []
+        for k in range(banks):
+            start = toe + k * (run + tread)
+            edges += [start - 100, start, start + run / 2, start + run, start + run + 100]
+        for (ax, ay), (bx, by) in zip(line, line[1:]):
+            dx, dy = bx - ax, by - ay
+            length = math.hypot(dx, dy)
+            nx, ny = -dy / length, dx / length
+            for i in range(max(1, round(length / 100))):
+                t = i * 100 / length
+                for d in edges:
+                    yield ax + dx * t - nx * d, ay + dy * t - ny * d
+
+
+def massif_rim_feature_points():
+    # 테두리 발치·오름 끝 선을 1m 간격으로 더해 물린 사면이 4m 격자에 뭉개지지 않게 한다.
+    yield from massif_island_v005_feature_points()
+    toe, ramp, *_ = RIM_RECESS
+    for line in RIM_FACES.values():
+        for (ax, ay), (bx, by) in zip(line, line[1:]):
+            dx, dy = bx - ax, by - ay
+            length = math.hypot(dx, dy)
+            nx, ny = -dy / length, dx / length
+            for i in range(max(1, round(length / 100))):
+                t = i * 100 / length
+                for d in (toe - 100, toe, toe + ramp / 2, toe + ramp, toe + ramp + 200):
+                    yield ax + dx * t - nx * d, ay + dy * t - ny * d

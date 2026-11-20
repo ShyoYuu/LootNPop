@@ -171,7 +171,7 @@ Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. Mas
 
 사용자가 Z1 구도를 채택하면 비교본 레벨과 그 높이장에 맞게 `PlaceRidgeEDTerrain.py`의 배치 입출력을 연결하고, 에디터의 실제 배치를 JSON으로 확정해 재현한다. 현재 `EDTerrainPlacement_V001.json`은 기본 WIP의 이전 13개 초벌을 재현한다. 충돌 프록시·비교본 SurfaceData·러프 PIE는 U5·U6에서 검증한다.
 
-#### 조립체 방식(GX-022~GX-024, 2026-11-19~20)
+#### 조립체 방식(GX-022~GX-027, 2026-11-19~20)
 
 위 개별 메시 비교본(V001·V002)은 계열 혼용과 원본보다 큰 스케일로 이질적이어서, 시각 단위를 ED 원본 조립체로 바꿨다(GX-022). 큰 산괴는 조립체를 벽돌처럼 이어서는 덩치가 모자라, ED CloseRange의 PCG 결과를 구워 쓴다(GX-023). Z1 서쪽은 다음 층으로 구성한다.
 
@@ -179,14 +179,15 @@ Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. Mas
 |:---|:---|:---|
 | 앞면 벽 | 02c·02e·02d 조립체 Level Instance(벽 발치 x≈−2,000, 25m 간격). V023부터 yaw 남 +10°·가운데 −8°·북 +6°, 북쪽 벽만 4.5m 묻어 같은 계열 반복을 깬다(올려서 발치를 띄우지 않는다) | `BuildRidgeZ1AssemblyTest.py` `WALLS` |
 | 왕관 | 앞면 벽 뒤 고원에 01b·02b·01c를 10~25m 묻어 높이를 달리 세워 벽 꼭대기 틈을 막는다(V023, GX-026) | `CROWN_V023` |
-| 기반면 | 02 벽 안쪽 x −2,200부터 분지 기준 +46m 고원(Z1MassifCover V002). 렌더링 지각 V005는 ED 섬 지지면 높이장을 따라 둑 고리 +3m 단을 받치고 하상 띠를 50cm 판다(배치 높이는 V002) | `RidgeZ1CompositionSpec.massif_cover_ground`, Blender `-- massif-cover`, UE `importcrust` |
+| 기반면 | 02 벽 안쪽 x −2,200부터 분지 기준 +46m 고원(Z1MassifCover V002). 렌더링 지각 V005는 ED 섬 지지면 높이장을 따라 둑 고리 +3m 단을 받치고 하상 띠를 50cm 판다(배치 높이는 V002). V006은 고원 남북 끝 V012 능선을 남 +6.5m·북 +20m로 깎고, V007은 분지 남 테두리를 약 12m·50° 둑 3단으로 바꾼다(GX-027) | `RidgeZ1CompositionSpec.massif_cover_ground`·`massif_terrace_ground`, Blender `-- massif-cover`·`-- massif-terrace`, UE `importcrust` |
+| 긴 테두리 | 같은 계열 조립체를 줄지어 세우지 않는다(V025 기각). 둑 지각 위에 CR_Ditch 둑 경사면의 반경 3m 묶음을 표면 좌표계째 옮겨 심은 띠(320cm 간격, 큰 바위 40개). 판 조각은 지각 법선에 눕히고 법선 둘레로만 돌리며, 덩어리·식생은 지각 높이에 다시 앉힌다(V029, GX-027). 능선 자리에는 조립체를 단독 강조로만 둔다 | `band <버전>`, `RIM_ACCENTS_V025` |
 | 산괴 | CloseRange LargeAssembly를 원래 크기 강체로 고원 위 로컬 (−6,500, 300)에 | `BakeEDCloseRange.py`(ED), `WALLS` |
 | 바닥·하천·잔재 | CloseRange Ground·SmallAssembly·Props·Ditch를 인스턴스마다 지각 높이와 현지 Up으로 드레이프. V003부터 납작한 지면 타일·데칼은 지각 법선으로 눕히고 급경사에서 뺀다 | `drape <버전>` |
 | 지각 재질 | 하상 재질 사본의 구역 마스크를 넓힘. V003부터 구역은 이음매 띠를 뺀 옥탄트 전체(GX-025). CR 지면 느낌의 지면층 교체(V002, DriedGrassOnDampSoil)는 기각되어 지면층은 V001 그대로 | `surface V003` |
 | 웅덩이 재질 | ED 진흙 웅덩이(Single Layer Water) 사본에 출력 노드를 더해 컴파일 실패를 고치고 Drape V006에서 바꿔 끼움 | `puddle`, `drape V006` |
 | 시험 조명 | TestMap03 조명 사본 + 균일 회색 Sky Light 50(시험 레벨 전용, GX-025) | `WALL_SKY` |
 
-현재 기준은 `Z1AssemblyWall_V023`이다(V017에 시험 Sky Light, 재질 구역 V003, 웅덩이 재질을 고친 Drape V006을 더한 V021에서 앞면 벽 변화와 왕관을 더함). 구도는 부감과 분지 눈높이 저시점(Pod 중심·협곡 진입·홀 게이트)에서 함께 판정한다(GX-026). 재생성 순서와 남은 문제는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
+현재 기준은 `Z1AssemblyWall_V029`이다(V023에 능선 깎기·남 테두리 둑 3단 지각 V007, 둑 묶음 띠 V004, 능선 자리 단독 조립체 3개를 더함). 구도는 부감과 분지 눈높이 저시점(Pod 중심·협곡 진입·홀 게이트), 테두리 정면 2곳, 남 둑 근경에서 함께 판정한다(GX-026·GX-027). 북 테두리는 아직 둑으로 바꾸지 않았다. 재생성 순서와 남은 문제는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
 
 ### U5. 충돌 프록시와 기반면 절개(Blender)
 

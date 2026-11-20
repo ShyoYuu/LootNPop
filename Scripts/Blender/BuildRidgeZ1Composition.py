@@ -21,7 +21,12 @@ if __name__ == "__main__":
                                      spec.massif_island_feature_points),
                 # 테두리 밖을 지지면 +10cm로 넓혀 둥근 타일 가장자리(버섯 갓)를 묻은 지각.
                 ("massif-island-v005",): (spec.MASSIF_ISLAND_V005_VERSION, spec.massif_island_v005_ground,
-                                          spec.massif_island_v005_feature_points)}
+                                          spec.massif_island_v005_feature_points),
+                # V005에서 고원 남북 끝 능선을 깎고, 분지 남북 테두리 사면을 조립체 앞면 뒤로 물린 지각.
+                ("massif-rim",): (spec.MASSIF_RIM_VERSION, spec.massif_rim_ground, spec.massif_rim_feature_points),
+                # V006에서 남 테두리를 둑 경사 여러 단으로 바꾼 지각(ED 둑 묶음 띠를 얹는 시험).
+                ("massif-terrace",): (spec.MASSIF_TERRACE_VERSION, spec.massif_terrace_ground,
+                                      spec.massif_terrace_feature_points)}
     assert tuple(args) in variants, args
     version, ground, *features = variants[tuple(args)]
     feature_points = features[0] if features else spec.base.feature_points
