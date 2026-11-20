@@ -7,7 +7,7 @@
 - view: 뷰포트를 비교 시점으로 옮긴다.
 - wall <버전>: 시험 레벨이 열린 상태에서 V002 사본(서쪽 벽 제외)과 WALLS의 조립체로 Z1AssemblyWall_<버전>을 만든다.
 - importcrust <버전>: Blender가 만든 산괴 고원 지각(Z1MassifCover)을 반입한다.
-- drape <버전>: CloseRange 평면 그룹을 구면 지각에 다시 앉힌 Z1MassifDrape_<버전>을 만든다.
+- drape <버전>: CloseRange 평면 그룹을 구면 지각에 다시 앉힌 Z1MassifDrape_<버전>을 만든다(V003부터 지면 타일을 경사에 맞춤).
 - surface: 구역 마스크를 서쪽 고원까지 넓힌 지각 재질(Z1MassifSurface)을 만든다.
 - look / crflat / flatlook: 확인 시점·CloseRange 평면 비교 레벨.
 자동 스크린샷(AutomationLibrary.take_high_res_screenshot)은 Megascans 재질 셰이더 assert로 에디터를 죽이므로 쓰지 않는다.
@@ -248,6 +248,31 @@ const float west = step(-14000.0, Data.x) * step(Data.x, -1500.0) * step(-8000.0
 return float2(max(Data.w, west), smoothstep(0.3420201, 0.8660254, Data.z));
 """
 WALL_MATERIAL = {"V011": SURFACE_FOLDER + "/MI_Ridge_Z1_MassifSurface"}
+# V011과 같고 드레이프만 사면 지면 타일을 법선으로 눕히고 급경사에서 뺀 Z1MassifDrape_V003(V012)·V004(V013)로 바꾼다.
+for _wall, _drape in (("V012", "V003"), ("V013", "V004")):
+    WALLS[_wall] = WALLS["V011"][:-1] + (("CR_Z1_Drape", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/"
+                                          "Z1MassifDrape_{0}/Z1MassifDrape_{0}".format(_drape), 0, 0, 0, 0, 1.0, "world"),)
+    WALL_CRUST[_wall] = WALL_CRUST["V011"]
+    WALL_MATERIAL[_wall] = WALL_MATERIAL["V011"]
+# V013과 같은 배치(드레이프 높이는 V002 고원)에 CloseRange 하상 띠를 50cm 판 지각 Z1MassifCover V003만 바꿔 입힌다.
+WALLS["V014"] = WALLS["V013"]
+WALL_CRUST["V014"] = massif_crust("V003")
+WALL_MATERIAL["V014"] = WALL_MATERIAL["V013"]
+# V014에서 드레이프만 고원 밖으로 튀어나온 지면 타일을 뺀 Z1MassifDrape_V005로 바꾼다.
+WALLS["V015"] = WALLS["V014"][:-1] + (("CR_Z1_Drape", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/"
+                                       "Z1MassifDrape_V005/Z1MassifDrape_V005", 0, 0, 0, 0, 1.0, "world"),)
+WALL_CRUST["V015"] = WALL_CRUST["V014"]
+WALL_MATERIAL["V015"] = WALL_MATERIAL["V014"]
+# V015 결과: 타일 4모서리 꺼짐으로 211개를 뺐지만 동쪽 테두리는 그대로였다. ED 섬 바깥 둑 고리 전체가 원점 +3m 단이라
+# 테두리 타일은 고원에 닿는 자리가 원래 없다. V016은 V014(Drape V004)에 섬 지지면을 따라 올린 지각 Z1MassifCover V004를 입힌다.
+WALLS["V016"] = WALLS["V014"]
+WALL_CRUST["V016"] = massif_crust("V004")
+WALL_MATERIAL["V016"] = WALL_MATERIAL["V014"]
+# V016 결과: 허공 느낌은 사라졌지만 바깥 테두리 둥근 타일 가장자리가 지각 위로 버섯 갓처럼 튀어나와 그림자가 졌다.
+# V017은 테두리 밖을 지지면 +10cm로 1m 넓힌 지각 Z1MassifCover V005로 바꾼다.
+WALLS["V017"] = WALLS["V016"]
+WALL_CRUST["V017"] = massif_crust("V005")
+WALL_MATERIAL["V017"] = WALL_MATERIAL["V016"]
 WEST_COVER_LABEL = "SM_Octant_Ridge_00_V012_Z1WestCover_R30000"
 WALL_VIEW_EYE = (4500, -400, 170)
 WALL_VIEW_TARGET = (-1700, -300, 1800)
@@ -365,6 +390,21 @@ DRAPE_LEVEL = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Mas
 # V001 결과: 바닥 그룹만으로는 덮개가 듬성했다. CloseRange 지면 덮개(SM_ForestGround 등)는 Ditch 그룹에 있다.
 DRAPE_VERSIONS = {"V001": ("V002", ("Ground", "SmallAssembly", "Props")),
                   "V002": ("V002", ("Ground", "SmallAssembly", "Props", "Ditch"))}
+# V002 결과: 고원 밖 남북 오름 사면(70~85°)의 지면 타일이 구면 Up에 맞춰 수평으로 놓여 층층이 선반처럼 보였다.
+# V003부터 납작한 인스턴스(지면 타일·데칼)는 그 자리 지각 법선으로 눕히고, 경사가 상한을 넘는 자리에서는 뺀다.
+# 납작함은 인스턴스 스케일을 곱한 메시 상자 높이 / 수평 최대 폭이다. 식생·바위는 그대로 현지 Up에 세운다.
+DRAPE_VERSIONS["V003"] = DRAPE_VERSIONS["V002"]
+# (지면 타일 최대 경사°, 납작함 상한[, 모든 인스턴스 최대 경사°]). 지각 재질은 30°까지 지면, 70°부터 절벽이다.
+# V003 결과: 북 사면 선반·회색 데칼은 사라졌지만, 60° 넘는 남 사면 협곡에 세운 암석·식생(3,616개)이 층층이 붙고
+# 꼭대기 판이 하늘로 튀어나왔다. 납작함에 인스턴스 회전을 반영해 보았으나 ED가 기울여 둔 둑 조각이 오히려 빠져 기각했다.
+# V004는 V003에 더해 경사가 60°를 넘는 자리의 인스턴스를 종류와 관계없이 뺀다(ED 평지 배치에 대응하는 자리가 없음).
+# V004 Lit 결과: 고원 동쪽 가장자리의 지면 타일이 고원 밖 허공으로 튀어나와 큰 그림자를 드리웠다.
+# V005는 넷째 값(cm)을 더해, 납작한 타일의 상자 바닥 네 모서리 아래 지각이 중심 접평면보다 그만큼 넘게 꺼지면 뺀다.
+DRAPE_SLOPE = {"V003": (45.0, 0.35), "V004": (45.0, 0.35, 60.0), "V005": (45.0, 0.35, 60.0, 100.0)}
+DRAPE_VERSIONS["V004"] = DRAPE_VERSIONS["V002"]
+DRAPE_VERSIONS["V005"] = DRAPE_VERSIONS["V002"]
+# 지각 법선 유한 차분 격자(cm). 지각 높이 함수가 호출당 약 1ms라 격자 점을 캐시한다.
+DRAPE_NORMAL_GRID = 100.0
 DRAPE_COPY = ("cast_shadow", "instance_start_cull_distance", "instance_end_cull_distance",
               "world_position_offset_disable_distance", "evaluate_world_position_offset", "visible_in_ray_tracing",
               "affect_distance_field_lighting", "affect_dynamic_indirect_lighting", "receives_decals",
@@ -377,36 +417,105 @@ def drape_frame():
     return floor_point(x, y, spec.MASSIF_PLATEAU_CM), frame_rotation(x, y, 0)
 
 
-def drape_transform(rel, origin, frame, crust):
+def tilt_between(rotation, up_from, up_to):
+    # up_from을 up_to로 돌리는 최소 회전을 rotation 뒤에 적용한다.
+    axis = up_from.cross(up_to)
+    if axis.length() <= 1e-9:
+        return rotation
+    angle = unreal.MathLibrary.radians_to_degrees(unreal.MathLibrary.acos(max(-1.0, min(1.0, up_from.dot(up_to)))))
+    tilt = unreal.MathLibrary.rotator_from_axis_and_angle(axis * (1.0 / axis.length()), angle)
+    return unreal.MathLibrary.compose_rotators(rotation, tilt)
+
+
+_crust_points = {}
+
+
+def crust_point(ix, iy, crust):
+    key = (ix, iy, crust)
+    if key not in _crust_points:
+        x, y = ix * DRAPE_NORMAL_GRID, iy * DRAPE_NORMAL_GRID
+        _crust_points[key] = unreal.Vector(*spec.ridge.point(x, y, spec.massif_cover_ground(x, y, crust)))
+    return _crust_points[key]
+
+
+def crust_normal(x, y, crust):
+    # 가장 가까운 격자 점에서 중심 차분으로 지각 법선을 구하고 현지 Up 쪽으로 향하게 한다.
+    ix, iy = round(x / DRAPE_NORMAL_GRID), round(y / DRAPE_NORMAL_GRID)
+    tx = crust_point(ix + 1, iy, crust) - crust_point(ix - 1, iy, crust)
+    ty = crust_point(ix, iy + 1, crust) - crust_point(ix, iy - 1, crust)
+    n = tx.cross(ty)
+    n = n * (1.0 / n.length())
+    center = crust_point(ix, iy, crust)
+    return n * -1.0 if n.dot(center) > 0 else n
+
+
+def drape_flat(size, scale, rule):
+    # 인스턴스 스케일을 곱한 메시 상자가 납작하면 지면 타일로 본다. size가 None이면 데칼이다.
+    if size is None:
+        return True
+    sx, sy, sz = abs(size.x * scale.x), abs(size.y * scale.y), abs(size.z * scale.z)
+    return sz < rule[1] * max(sx, sy)
+
+
+def drape_overhang(transform, box, center, normal, crust):
+    # 타일 상자 바닥 네 모서리 아래 지각 점이 중심 지각 점의 접평면에서 가장 많이 꺼진 깊이(cm, 양수가 꺼짐).
+    deepest = 0.0
+    for bx in (box.min.x, box.max.x):
+        for by in (box.min.y, box.max.y):
+            w = unreal.MathLibrary.transform_location(transform, unreal.Vector(bx, by, box.min.z))
+            cx, cy, _ = spec.ridge.local((w.x, w.y, w.z))
+            point = crust_point(round(cx / DRAPE_NORMAL_GRID), round(cy / DRAPE_NORMAL_GRID), crust)
+            deepest = max(deepest, -(point - center).dot(normal))
+    return deepest
+
+
+def drape_transform(rel, origin, frame, crust, rule=None, size=None, stats=None, box=None):
     # 평면 배치 위치를 옥탄트 로컬 x, y로 되돌린 뒤 그 자리 지각 높이 + ED 지면 위 높이(dz)로 다시 앉힌다.
+    # rule이 있으면 납작한 인스턴스를 지각 법선으로 눕히고, 경사가 상한을 넘으면 None(제외)을 돌려준다.
     planar = unreal.MathLibrary.compose_transforms(rel, unreal.Transform(origin, frame, unreal.Vector(1, 1, 1)))
     p = planar.translation
     x, y, _ = spec.ridge.local((p.x, p.y, p.z))
-    target = unreal.Vector(*spec.ridge.point(x, y, spec.massif_cover_ground(x, y, crust) + rel.translation.z))
+    ground = spec.massif_cover_ground(x, y, crust)
+    target = unreal.Vector(*spec.ridge.point(x, y, ground + rel.translation.z))
     up_from, up_to = origin * (-1.0 / origin.length()), target * (-1.0 / target.length())
-    axis = up_from.cross(up_to)
-    angle = unreal.MathLibrary.radians_to_degrees(unreal.MathLibrary.acos(max(-1.0, min(1.0, up_from.dot(up_to)))))
-    rotation = planar.rotation.rotator()
-    if axis.length() > 1e-9:
-        tilt = unreal.MathLibrary.rotator_from_axis_and_angle(axis * (1.0 / axis.length()), angle)
-        rotation = unreal.MathLibrary.compose_rotators(rotation, tilt)
+    rotation = tilt_between(planar.rotation.rotator(), up_from, up_to)
+    if rule:
+        normal = crust_normal(x, y, crust)
+        slope = unreal.MathLibrary.radians_to_degrees(unreal.MathLibrary.acos(max(-1.0, min(1.0, up_to.dot(normal)))))
+        flat = drape_flat(size, planar.scale3d, rule)
+        band = "%s_%02d" % ("flat" if flat else "other", min(int(slope // 15) * 15, 75))
+        stats[band] = stats.get(band, 0) + 1
+        if len(rule) > 2 and slope > rule[2]:
+            return None
+        if flat:
+            if slope > rule[0]:
+                return None
+            rotation = tilt_between(rotation, up_to, normal)
+            if len(rule) > 3 and box is not None:
+                center = unreal.Vector(*spec.ridge.point(x, y, ground))
+                draped = unreal.Transform(target, rotation, planar.scale3d)
+                if drape_overhang(draped, box, center, normal, crust) > rule[3]:
+                    stats["flat_overhang"] = stats.get("flat_overhang", 0) + 1
+                    return None
     return unreal.Transform(target, rotation, planar.scale3d)
 
 
-def drape(version):
+def drape(version, mode=""):
     # CloseRange 평면 그룹을 인스턴스마다 Z1MassifCover 구면 지각 위에 다시 앉힌 레벨을 만든다(월드 좌표 저장).
+    # mode "dry"는 레벨을 만들지 않고 경사 대역·제외 집계만 MassifDrape_<버전>_dry.json에 쓴다.
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
     saving = unreal.EditorLoadingAndSavingUtils
     level = DRAPE_LEVEL.format(version)
     crust, drape_groups = DRAPE_VERSIONS[version]
     assert not dirty(), dirty()
-    assert not unreal.EditorAssetLibrary.does_asset_exist(level), level
+    assert mode == "dry" or not unreal.EditorAssetLibrary.does_asset_exist(level), level
+    rule = DRAPE_SLOPE.get(version)
     origin, frame = drape_frame()
-    groups, source = {}, {}
+    groups, source, slopes, dropped, steep = {}, {}, {}, {}, {}
     for group in drape_groups:
         assert levels.load_level(CR + group), group
-        rows, decals, counts = [], [], {}
+        rows, decals, counts, stats, drops = [], [], {}, {}, {}
         for actor in unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Actor):
             for comp in actor.get_components_by_class(unreal.InstancedStaticMeshComponent):
                 k = comp.get_editor_property("num_custom_data_floats")
@@ -417,24 +526,51 @@ def drape(version):
                         props[prop] = comp.get_editor_property(prop)
                     except Exception:
                         pass
+                box = comp.static_mesh.get_bounding_box()
+                size = box.max - box.min
+                custom = list(comp.get_editor_property("per_instance_sm_custom_data")) if k else []
+                kept, kept_custom, bands = [], [], {}
+                for i, t in enumerate(rels):
+                    draped = drape_transform(t, origin, frame, crust, rule, size, bands, box)
+                    if draped is None:
+                        continue
+                    kept.append(draped)
+                    kept_custom += custom[i * k:(i + 1) * k]
+                key = package(comp.static_mesh)
+                for band, n in bands.items():
+                    stats[band] = stats.get(band, 0) + n
+                    # 60° 넘는 사면에 세워 둔 인스턴스는 메시별로 남겨 다음 규칙의 근거로 쓴다.
+                    if band in ("other_60", "other_75"):
+                        row = steep.setdefault(key.rsplit("/", 1)[1], [0, round(size.z / max(size.x, size.y), 2)])
+                        row[0] += n
+                if len(kept) < len(rels):
+                    drops[key] = drops.get(key, 0) + len(rels) - len(kept)
+                if not kept:
+                    continue
                 rows.append({"hism": isinstance(comp, unreal.HierarchicalInstancedStaticMeshComponent),
                              "mesh": comp.static_mesh, "overrides": list(comp.get_editor_property("override_materials")),
                              "profile": comp.get_collision_profile_name(), "collision": comp.get_collision_enabled(),
-                             "props": props, "custom_count": k,
-                             "custom": list(comp.get_editor_property("per_instance_sm_custom_data")) if k else [],
-                             "transforms": [drape_transform(t, origin, frame, crust) for t in rels]})
-                key = package(comp.static_mesh)
-                counts[key] = counts.get(key, 0) + len(rels)
+                             "props": props, "custom_count": k, "custom": kept_custom, "transforms": kept})
+                counts[key] = counts.get(key, 0) + len(kept)
             if isinstance(actor, unreal.DecalActor):
-                t = actor.get_actor_transform()
-                decals.append({"material": actor.decal.get_decal_material(), "size": actor.decal.get_editor_property("decal_size"),
-                               "sort_order": actor.decal.get_editor_property("sort_order"),
-                               "transform": drape_transform(t, origin, frame, crust)})
                 key = "decal:" + package(actor.decal.get_decal_material())
+                draped = drape_transform(actor.get_actor_transform(), origin, frame, crust, rule, None, stats)
+                if draped is None:
+                    drops[key] = drops.get(key, 0) + 1
+                    continue
+                decals.append({"material": actor.decal.get_decal_material(), "size": actor.decal.get_editor_property("decal_size"),
+                               "sort_order": actor.decal.get_editor_property("sort_order"), "transform": draped})
                 counts[key] = counts.get(key, 0) + 1
-        groups[group], source[group] = (rows, decals), counts
+        groups[group], source[group], slopes[group], dropped[group] = (rows, decals), counts, stats, drops
         assert not dirty(), dirty()
 
+    summary = {"slope_rule": rule, "slope_bands": slopes,
+               "dropped": {g: dict(sorted(d.items(), key=lambda kv: -kv[1])) for g, d in dropped.items()},
+               "steep_upright": dict(sorted(steep.items(), key=lambda kv: -kv[1][0]))}
+    if mode == "dry":
+        (OUT / ("MassifDrape_%s_dry.json" % version)).write_text(json.dumps(summary, indent=1), encoding="utf-8")
+        unreal.log("Z1_MASSIF_DRAPE_DRY " + version)
+        return
     assert saving.new_blank_map(False)
     sds = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
     lib = unreal.SubobjectDataBlueprintFunctionLibrary
@@ -489,7 +625,7 @@ def drape(version):
     assert all(b["match"] for b in built.values()), built
     assert saving.save_map(world(), level), level
     report = {"level": level, "crust": crust, "origin": xyz(origin), "frame": [frame.pitch, frame.yaw, frame.roll],
-              "groups": built}
+              "groups": built, **summary}
     (OUT / ("MassifDrape_%s.json" % version)).write_text(json.dumps(report, indent=1), encoding="utf-8")
     unreal.log("Z1_MASSIF_DRAPE_READY " + json.dumps(built))
 

@@ -1,6 +1,6 @@
 # Phase 1-BR — Ridge 지표 Electric Dreams 교체
 
-> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 시험본 V011(GX-023) · 사면 타일 정리 대기
+> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 시험본 V017(GX-023·GX-024, 사면 정리·하상 골·섬 지지면 지각) · 지각 재질·조명 대기
 > 순서: 1-B5f → 1-BR(기존 1-B6 전체 교체를 흡수) → 1-C
 > 상위: [그래픽스 로드맵](../Roadmap.md) §2·§4, [Phase 1 실행서](Phase01_BenchmarkContent.md) §3, [확정 결정](../Decisions.md) GX-019·GX-021
 > 마지막 갱신: 2026-11-19
@@ -171,19 +171,19 @@ Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. Mas
 
 사용자가 Z1 구도를 채택하면 비교본 레벨과 그 높이장에 맞게 `PlaceRidgeEDTerrain.py`의 배치 입출력을 연결하고, 에디터의 실제 배치를 JSON으로 확정해 재현한다. 현재 `EDTerrainPlacement_V001.json`은 기본 WIP의 이전 13개 초벌을 재현한다. 충돌 프록시·비교본 SurfaceData·러프 PIE는 U5·U6에서 검증한다.
 
-#### 조립체 방식(GX-022·GX-023, 2026-11-19~20)
+#### 조립체 방식(GX-022~GX-024, 2026-11-19~20)
 
 위 개별 메시 비교본(V001·V002)은 계열 혼용과 원본보다 큰 스케일로 이질적이어서, 시각 단위를 ED 원본 조립체로 바꿨다(GX-022). 큰 산괴는 조립체를 벽돌처럼 이어서는 덩치가 모자라, ED CloseRange의 PCG 결과를 구워 쓴다(GX-023). Z1 서쪽은 다음 층으로 구성한다.
 
 | 층 | 내용 | 도구 |
 |:---|:---|:---|
 | 앞면 벽 | 02c·02e·02d 조립체 Level Instance(벽 발치 x≈−2,000, 25m 간격) | `BuildRidgeZ1AssemblyTest.py` `WALLS` |
-| 기반면 | 02 벽 안쪽 x −2,200부터 분지 기준 +46m 고원(Z1MassifCover V002) | `RidgeZ1CompositionSpec.massif_cover_ground`, Blender `-- massif-cover`, UE `importcrust` |
+| 기반면 | 02 벽 안쪽 x −2,200부터 분지 기준 +46m 고원(Z1MassifCover V002). 렌더링 지각 V005는 ED 섬 지지면 높이장을 따라 둑 고리 +3m 단을 받치고 하상 띠를 50cm 판다(배치 높이는 V002) | `RidgeZ1CompositionSpec.massif_cover_ground`, Blender `-- massif-cover`, UE `importcrust` |
 | 산괴 | CloseRange LargeAssembly를 원래 크기 강체로 고원 위 로컬 (−6,500, 300)에 | `BakeEDCloseRange.py`(ED), `WALLS` |
-| 바닥·하천·잔재 | CloseRange Ground·SmallAssembly·Props·Ditch를 인스턴스마다 지각 높이와 현지 Up으로 드레이프 | `drape <버전>` |
+| 바닥·하천·잔재 | CloseRange Ground·SmallAssembly·Props·Ditch를 인스턴스마다 지각 높이와 현지 Up으로 드레이프. V003부터 납작한 지면 타일·데칼은 지각 법선으로 눕히고 급경사에서 뺀다 | `drape <버전>` |
 | 지각 재질 | 하상 재질 사본의 구역 마스크를 서쪽 고원까지 넓힘 | `surface` |
 
-현재 기준은 `Z1AssemblyWall_V011`이다. 재생성 순서와 남은 문제(사면 선반 타일·지각 재질 후보·하상 자리·데칼·Lit)는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
+현재 기준은 `Z1AssemblyWall_V017`이다(V011에 사면 정리 Drape V004, 섬 지지면 지각 Z1MassifCover V005). 재생성 순서와 남은 문제(지각 재질 후보·조명)는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
 
 ### U5. 충돌 프록시와 기반면 절개(Blender)
 

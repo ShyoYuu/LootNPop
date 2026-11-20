@@ -745,3 +745,43 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - `BuildRidgeZ1AssemblyTest.py surface`는 하상 재질 부모·MI를 `Z1MassifSurface_V001/`로 복제한다. 사본에서 구역 Custom 노드만 바꿔 로컬 x −14,000~−1,500, y ±8,000 직사각형을 구역에 더한다. 하상 가중치는 원래 구역 마스크를 그대로 쓴다. 원본 V005·하상 재질은 수정하지 않았다. 더한 직사각형에는 이음매 제외가 없다(시험 레벨 전용).
 - `wall V011`은 V010과 같은 배치에 이 재질을 지각 슬롯 0에 입힌다. Unlit 부감에서 고원·남북 사면·분지가 사암 절벽/지면 재질로 바뀌었다. 보라색 평면으로 보이던 양옆이 실제로는 높은 사면이었음이 드러났다. 사면에 선반처럼 앉은 지면 타일(문제 ②)이 더 눈에 띈다. 직사각형 밖 원경은 보라색으로 남는다. Lit 판정은 하지 않았다.
 - 사용자 판정(2026-11-20): V011이 "엄청 맘에 든다". 이 방향(CloseRange 굽기·고원 기반면·드레이프·지각 재질 구역 확장)을 GX-023으로 확정했다. CloseRange에 더 어울리는 재질이 있으면 적용해 봐도 좋다고 했다. 다음 세션은 사면 선반 타일 정리부터 시작한다([Current](../Current.md) §3).
+
+### 사면 선반 타일 정리(Drape V003·V004)
+
+- 원인: Z1MassifCover V002 고원(분지 기준 +46m) 남북 가장자리는 약 15m 폭에서 V012 사면(+30~45m 더 높음)으로 오르는 70~85° 사면이다. CloseRange는 평지에서 배치한 것이라 드레이프가 사면 위 인스턴스도 현지 Up으로 세웠다. 그래서 지면 타일이 수평 판으로 층층이 겹쳤다.
+- `drape`에 경사 규칙(`DRAPE_SLOPE`)을 더했다. 지각 법선은 1m 격자 점의 중심 차분으로 구하고 점은 캐시한다(지각 높이 함수가 호출당 약 1ms). 인스턴스 스케일을 곱한 메시 상자 높이/수평 최대 폭이 0.35 미만이면 납작한 지면 타일로 보고, 데칼도 여기에 넣는다. `drape <버전> dry`는 레벨 없이 경사 대역·제외 집계만 `MassifDrape_<버전>_dry.json`에 쓴다.
+- Drape V003(`Z1AssemblyWall_V012`): 납작한 인스턴스를 그 자리 지각 법선으로 눕히고 45°를 넘으면 뺀다. 39,394개 중 35,350개를 남겼다. 뺀 것은 Ditch 3,015개(ForestGround 1,432·GrassyEmbankment 866)와 Ground 922개 등이다. 북 사면 선반과 회색 데칼 사각형은 사라졌다. 남 사면 협곡에는 60° 넘는 자리에 세운 암석·식생 3,616개(Amaryllis 479·LichenedForestBoulder 387·MassiveSandstoneCliff 04 58 등)가 기둥처럼 붙었고, 꼭대기 판 하나는 하늘로 튀어나왔다.
+- 회전을 반영한 납작함(돌린 상자의 Up 폭/수평 폭)은 dry로만 보고 기각했다. ED가 기울여 둔 둑 조각(GrassyEmbankment)이 오히려 납작하지 않은 것으로 빠졌고, MassiveSandstoneCliff 04는 여전히 세운 쪽이었다.
+- Drape V004(`Z1AssemblyWall_V013`): V003에 더해 경사가 60°를 넘는 자리의 인스턴스는 종류와 관계없이 뺀다. 31,734개를 남겼다(Ground 13,348·SmallAssembly 96·Props 51·Ditch 18,239). 남북 사면의 선반과 협곡 기둥이 모두 사라졌고, 사면은 지각 절벽 재질로 드러난다. 능선 꼭대기의 판 몇 개와 고원 동쪽 가장자리 지면 타일 테두리는 남았다.
+- 화면은 V011과 같은 부감(`look 1500 -1500 9000 -6500 300 -2500`)의 Unlit이다. 근거는 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/Shots/`(`Compare_V011_V012_V013.png`, `V012_SouthSlope.png`)와 `MassifDrape_V003.json`·`V004.json`·`V003_dry.json`이다.
+- 사용자 판정(2026-11-20): V013 채택. 기준 시험본을 `Z1AssemblyWall_V013`으로 바꿨다.
+
+### 하상 자리 지각 골(Z1MassifCover V003)
+
+- 원인: ED CloseRange 맵에서 Ditch 스플라인(닫힌 고리, 길이 273m)을 2m마다 좌우 ±14m 단면 트레이스했다. 하상 바닥은 원점 −6~+10cm였고 둑만 1~5m 솟았다. 하상 띠(원점 +40cm 미만)는 폭 5~7m이고 스플라인 왼쪽 법선으로 약 4.5m 치우쳤다. 하상이 고원 아래에 묻힌 것이 아니다. 얇은 바닥 메시(NordicBeach·진흙 웅덩이 평면 `MI_MudPuddle`)가 드레이프 뒤 고원 지각과 같은 높이에 놓여 지각에 덮였다.
+- `RidgeZ1CompositionSpec`: `massif_cover_weight`를 분리했다(고원 결과는 V002와 같음, 무작위 2,000점 대조). `CLOSERANGE_CHANNEL_CR`은 트레이스에서 뽑은 하상 띠 중심 69점(4m 간격, CR 원점 기준)이다. `closerange_to_local`은 드레이프와 같은 평면 배치로 옥탄트 로컬에 옮기며 UE `compose_transforms`와 오차 0.00cm였다. `massif_channel_ground`는 V002 고원에서 반폭 4.5m·가장자리 2m·깊이 50cm로 판다. 고원 가중치 0.8 미만(남북 사면·동굴 절개 둘레)은 파지 않는다. 4m 격자로는 골이 뭉개져 띠 둘레에 1m 간격 특징점을 더했다.
+- Blender `BuildRidgeZ1Composition.py -- massif-channel` → `Z1MassifCover_V003`: 82,691삼각형(V002 80,809), 비다양체·불일치·중복·퇴화 0, 경계 변 1,385개로 같다. UE `importcrust V003`의 Meadow 경계 최대 보정은 0.0076cm다.
+- 드레이프 배치 높이는 계속 파지 않은 V002를 쓰고(Drape V004 그대로), 렌더링 지각만 V003으로 바꾼 시험 레벨이 `Z1AssemblyWall_V014`다. 수직 부감에서 산괴를 감싸는 하상 고리가 ED 원본처럼 자갈 바닥 띠로 드러났고, 지각에 덮였던 진흙 웅덩이 평면이 어두운 회색 반점으로 보인다(Unlit). 기준 부감에서도 산괴 앞 하상이 띠로 읽힌다.
+- 근거: `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/`의 `CloseRangeChannelTrace.json`·`CloseRangeHeights.json`·`CheckChannelMapping.json`, `Shots/Compare_V013_V014_Channel.png`(ED 원본 부감 포함), 빌드 로그 `Saved/SliceOctant/Ridge_00/BuildZ1MassifCover_V003.log`.
+- 사용자 판정(2026-11-20): V014 채택. 기준 시험본을 `Z1AssemblyWall_V014`로 바꿨다.
+
+### V014 Lit 판정
+
+- 뷰포트를 Lit으로 바꿔 TestMap03 조명(구 중심 점광원)에서 기준 부감·수직 부감·하상 사선·분지 정면 눈높이(`look 4500 -400 170 -1700 -300 1800`)를 찍었다. 근거는 `Shots/V014_Lit_*.png`와 묶음 `V014_Lit_Review.png`다.
+- 산괴·식생·하상은 Lit에서도 잘 읽힌다. 하상 사선에서는 자갈 하상에 작은 물웅덩이가 자연스럽게 보이고, 50cm 판 지각이 바닥 메시 틈으로 드러난 곳은 보이지 않았다. 수직 부감에서는 웅덩이가 하늘 없이 어둡게 반사되어 ED 원본보다 눈에 띈다.
+- 회색 데칼: Lit에서는 회색 사각형이 보이지 않았다. 하상 둘레의 작은 흰 사각형은 `ShowFlag.BillboardSprites 0`에서 사라지는 에디터 데칼 아이콘이다.
+- 고원 동쪽 가장자리의 지면 타일 테두리(ForestGround)는 Lit 부감에서 고원 밖 허공으로 튀어나와 아래에 큰 그림자를 드리워 Unlit보다 훨씬 두드러진다. 분지 정면 눈높이에서는 02 벽 위에 가려 보이지 않는다.
+- 조명: 분지 정면에서 02 벽 정면이 대부분 그늘이고, 오른쪽(북동)에 재질 구역 밖 V012 지각의 보라 평지색이 크게 보인다. 둘 다 남은 문제로 넘긴다.
+
+### 고원 동쪽 테두리(Drape V005·Z1MassifCover V004)
+
+- Drape V005(`Z1AssemblyWall_V015`)는 V004에 더해, 납작한 타일 상자 바닥 네 모서리 아래 지각이 중심 접평면보다 1m 넘게 꺼지면 뺐다. 211개(ForestGround 68·RockFormation 32 등)가 빠졌지만 Lit 부감의 테두리는 거의 그대로였다. 기각.
+- 원인: ED 원본을 옆에서 보니 CloseRange는 떠 있는 섬이고 테두리 아래가 원래 허공이다(`Shots/ED_CloseRange_EastRim.png`). CR 인스턴스상 ForestGround 4,483개는 모두 원점 약 +3m(p10 293·p90 306cm)에 있다. 하상 바깥 둑 고리 전체가 +3m 단이고, 그 위 타일이 V002 고원 3m 위에 떠 있었다.
+- 지지면 높이장: ED 맵에서 산괴를 빼고 1m 격자 11,970칸을 위에서 트레이스했다. ForestGround에 충돌이 없어 68%가 빗나갔다. 그래서 `Scripts/Profiling/Graphics/BuildCloseRangeSupport.py`가 납작한 타일(16,762개)의 상자 윗면을 직접 래스터화하고, 둑·하상 암석 트레이스(식생 제외 3,730칸)와 합쳐 지지면 5,354칸을 만든다. 지지면 칸은 '지지면 − 50cm', 없는 칸은 둘레 지지면에서 45°로 내려오되 0 아래로는 내리지 않는다. 결과는 `CloseRangeSupport_V001.json`(CR 원점 기준 105×114, Git 추적)이다.
+- `RidgeZ1CompositionSpec.massif_island_ground`: V002 고원에 이 오프셋(역변환 `local_to_closerange`, 왕복 오차 0)을 더한다. 하상 띠에서는 V003처럼 50cm 아래를 넘지 않고, 고원 가중치 0.8 아래에서는 반영하지 않는다. 특징점은 하상 띠에 더해 오프셋이 이웃과 20cm 넘게 다른 칸을 1m 간격으로 넣는다.
+- Blender `-- massif-island` → `Z1MassifCover_V004`: 86,459삼각형, 비다양체·불일치·중복·퇴화 0, 경계 변 1,385. UE 반입 Meadow 경계 최대 보정 0.0076cm. `Z1AssemblyWall_V016`은 V014(Drape V004)에서 지각만 V004로 바꿨다.
+- V016 Lit: 동쪽 테두리 아래가 흙 경사로 받쳐져 허공에 뜬 판과 큰 그림자가 사라졌다. 대신 테두리 타일 사이 틈으로 50cm 아래 지각이 밝은 연두(지면 재질)로 비친다. 테두리 양 끝과 산괴 왼쪽 위에는 타일 없이 올라온 지각 면이 드러났다. 지지면은 있으나 드레이프가 급경사로 뺀 자리로 보인다. 비교는 `Shots/Compare_V014_V016_Rim.png`다.
+- 사용자 판정(V016): 공중에 뜬 느낌은 완전히 없어졌다. 대신 바깥 테두리의 둥근 ForestGround 타일 가장자리가 바로 밖에서 내려가는 지각 위로 살짝 튀어나와 버섯 갓처럼 둥근 그림자가 진다(`Shots/V016_User_Rim.png`, 사용자 카메라는 `Cameras.json`의 `UserRim`).
+- 지지면 높이장 V002(`BuildCloseRangeSupport.py V002`): 50cm 격자, 타일 발자국을 상자 중심 기준 80%로 줄였다. 격자 테두리에서 빈 칸끼리 이어진 섬 바깥 칸은 지지면 +10cm를 1m 폭으로 유지한 뒤 45°로 내린다. 섬 안쪽 빈 칸은 V001처럼 지지면 −50cm에서 내린다. 빌더는 버전별 매개변수를 갖고, V001 매개변수로 다시 만든 높이장은 V004 지각 표본값과 같았다.
+- `Z1MassifCover_V005`(Blender `-- massif-island-v005`): 95,459삼각형, 위상 결함 0, 경계 변 1,385. `Z1AssemblyWall_V017`은 V016에서 지각만 V005로 바꿨다. 같은 사용자 시점에서 버섯 갓 그림자가 사라지고, 바깥 타일 띠가 자갈 흙 지각 둔덕에 묻혀 흙 둔덕 가장자리로 읽힌다. 지각이 바깥 타일 띠를 1m 안팎 넓게 덮었고, 타일과 지각 경계 일부에 50cm 격자 톱니가 보인다(`Shots/Compare_V016_V017_Rim.png`).
+- 사용자 판정(2026-11-20): V017 채택. 기준 시험본을 `Z1AssemblyWall_V017`로 바꿨다.

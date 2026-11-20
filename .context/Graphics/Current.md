@@ -1,7 +1,7 @@
 # 그래픽스 작업 현재 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · U4 Z1 서쪽 산괴(GX-023) · 다음은 사면 타일 정리
+> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · U4 Z1 서쪽 산괴(GX-023) · 기준 시험본 V017(사면 정리·하상 골·섬 지지면 지각) · 다음은 지각 재질·조명
 > 마지막 확인/갱신: 2026-11-20
 
 ## 1. 이어받을 결과
@@ -71,25 +71,35 @@ WIP를 정상 게임에서 다시 검토하려면 TestMap03에서 검사용 풀�
 | 산괴 고원 지각 | `EDTerrain_V001/Z1MassifCover_V002/` · 분지 기준 +46m 고원(x −2,200 서쪽). V001은 벽 뒤 봉우리가 남아 기각 |
 | 평면 그룹 드레이프 | `EDTerrain_V001/Z1MassifDrape_V002/Z1MassifDrape_V002` · Ground·SmallAssembly·Props·Ditch를 인스턴스마다 구면에 다시 앉힌 월드 좌표 레벨(V001은 Ditch 제외) |
 | 산괴 지각 재질 | `EDTerrain_V001/Z1MassifSurface_V001/MI_Ridge_Z1_MassifSurface` · 하상 재질(V005 절벽·지면 + 하상) 사본에 구역 마스크를 서쪽 고원까지 넓힘. 시험 레벨 전용(넓힌 범위에 이음매 제외 없음) |
-| **현재 기준 시험본** | `EDTerrain_V001/Z1AssemblyWall_V011/Z1AssemblyWall_V011` · TestMap03 조명 + V002 사본(서쪽 벽 제외, 지각은 Z1MassifCover V002) + 02c·02e·02d 벽 + CR LargeAssembly 강체 + Drape V002 + 산괴 지각 재질. 사용자 판정 "엄청 맘에 든다"(Unlit 부감) |
+| 사면 정리 드레이프 | `EDTerrain_V001/Z1MassifDrape_V003`(납작한 타일·데칼을 지각 법선으로 눕히고 45° 초과 제외, 35,350개)·`Z1MassifDrape_V004`(+모든 인스턴스 60° 초과 제외, 31,734개). 시험 레벨은 V011에서 드레이프만 바꾼 `Z1AssemblyWall_V012`·`V013` |
+| 이전 기준 시험본 | `EDTerrain_V001/Z1AssemblyWall_V011/Z1AssemblyWall_V011` · TestMap03 조명 + V002 사본(서쪽 벽 제외, 지각은 Z1MassifCover V002) + 02c·02e·02d 벽 + CR LargeAssembly 강체 + Drape V002 + 산괴 지각 재질. 사용자 판정 "엄청 맘에 든다"(Unlit 부감) |
+| 이전 기준 시험본 | `EDTerrain_V001/Z1AssemblyWall_V013/Z1AssemblyWall_V013` · V011에서 드레이프만 Drape V004로 바꿨다(사면 선반 정리). 사용자 채택(2026-11-20) |
+| 하상 골 지각 | `EDTerrain_V001/Z1MassifCover_V003` · V002 고원에 CloseRange 하상 띠를 50cm 판 렌더링용 지각. 드레이프 배치 높이는 V002 그대로 |
+| 이전 기준 시험본 | `EDTerrain_V001/Z1AssemblyWall_V014/Z1AssemblyWall_V014` · V013에서 지각 메시만 Z1MassifCover V003으로 바꿨다(하상 고리 노출). 사용자 채택(2026-11-20) |
+| 섬 지지면 지각 | `EDTerrain_V001/Z1MassifCover_V004`·`V005` · ED 섬 지지면 높이장(`Scripts/Profiling/Graphics/CloseRangeSupport_V001.json`·`V002.json`)을 따라 둑 고리 +3m 단을 받친 렌더링 지각. V005는 테두리 밖을 지지면 +10cm로 1m 넓혀 둥근 타일 가장자리를 묻는다. 하상 띠 −50cm 포함, 드레이프 배치 높이는 V002 그대로. 비교본 `Z1AssemblyWall_V016`(V004 지각)과 기각된 Drape V005·`V015`(가장자리 꺼짐 타일 제외)도 남아 있다 |
+| **현재 기준 시험본** | `EDTerrain_V001/Z1AssemblyWall_V017/Z1AssemblyWall_V017` · V014에서 지각 메시만 Z1MassifCover V005로 바꿨다(테두리 허공·버섯 갓 정리). 사용자 채택(2026-11-20) |
 
-**Z1 서쪽 산괴 경과(2026-11-19~20, GX-022 → GX-023).** 조립체를 이어 벽을 만드는 시험(01b·01c 기둥 4개, 02 계열 벽 3개, 배경 조립체 축소)은 덩치가 모자라거나 나무까지 작아져 어색했다. ED 이음 방식을 조사해 보니 ED는 큰 형상을 랜드스케이프·바닥 메시로 만들고 조립체는 외피, 이음은 식생·잔재가 맡는다. 구면 Ridge에 가장 가까운 선례인 CloseRange(랜드스케이프 없음)의 PCG 결과를 ED에서 구워 반입했다. 산괴는 원래 크기 강체로 두고 기반면을 +46m 고원으로 깎았다. 곡률(d²/2R) 때문에 묻히던 평면 바닥 그룹은 인스턴스마다 구면에 드레이프했다. 마지막으로 지각 재질 구역을 넓혀 보라색 평지색을 사암 절벽·지면 재질로 바꿨다(V011). 사용자가 이 방향을 확정했다(GX-023). 버전별 결과는 [Phase 1 로그](history/Phase01_Log.md)의 "ED 조립체 이음 방식 조사"~"산괴 고원 지각 재질" 절에 있다.
+**Z1 서쪽 산괴 경과(2026-11-19~20, GX-022 → GX-023).** 조립체를 이어 벽을 만드는 시험(01b·01c 기둥 4개, 02 계열 벽 3개, 배경 조립체 축소)은 덩치가 모자라거나 나무까지 작아져 어색했다. ED 이음 방식을 조사해 보니 ED는 큰 형상을 랜드스케이프·바닥 메시로 만들고 조립체는 외피, 이음은 식생·잔재가 맡는다. 구면 Ridge에 가장 가까운 선례인 CloseRange(랜드스케이프 없음)의 PCG 결과를 ED에서 구워 반입했다. 산괴는 원래 크기 강체로 두고 기반면을 +46m 고원으로 깎았다. 곡률(d²/2R) 때문에 묻히던 평면 바닥 그룹은 인스턴스마다 구면에 드레이프했다. 마지막으로 지각 재질 구역을 넓혀 보라색 평지색을 사암 절벽·지면 재질로 바꿨다(V011). 사용자가 이 방향을 확정했다(GX-023). 버전별 결과는 [Phase 1 로그](history/Phase01_Log.md)의 "ED 조립체 이음 방식 조사"~"산괴 고원 지각 재질" 절에 있다. 이어서(2026-11-20) 사면 선반 타일(V013)·하상 자리(V014)·Lit 판정·고원 동쪽 테두리(V017)를 정리했다. 드레이프 배치 높이는 평탄 고원으로 두고 화면 지각만 ED 섬 지지면을 따르게 분리했다(GX-024). 경과는 같은 로그의 "사면 선반 타일 정리"~"고원 동쪽 테두리" 절이다.
 
 **재생성 순서(새 체크아웃).** 모두 LootNPop 에디터 Cmd의 `py "<프로젝트>/Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py" <인자>`다. ED 쪽 굽기만 ElectricDreamsEnv 에디터다.
 
 1. ED 에디터: `BakeEDCloseRange.py bake` → `verify` → 사용자가 `CR_*` 5개를 LootNPop으로 Migrate("모두 아니요").
-2. Blender: `BuildRidgeZ1Composition.py -- massif-cover`(spec `MASSIF_COVER="V002"`) → UE `importcrust V002`.
-3. UE: `drape V002` → `surface` → V002 기준 시험 레벨(`Z1AssemblyTest_V001`)을 연 뒤 `wall V011`.
+2. Blender: `BuildRidgeZ1Composition.py -- massif-cover`(spec `MASSIF_COVER="V002"`) → UE `importcrust V002`(드레이프 배치 높이), `-- massif-island-v005` → `importcrust V005`(기준 렌더링 지각, 비교본은 `-- massif-channel` → V003, `-- massif-island` → V004)이고, 지지면 높이장은 ED 트레이스·CR 덤프(로컬)에서 `python Scripts/Profiling/Graphics/BuildCloseRangeSupport.py <V001|V002>`로 다시 만든다.
+3. UE: `drape V004` → `surface` → V002 기준 시험 레벨(`Z1AssemblyTest_V001`)을 연 뒤 `wall V017`. 비교본 V011~V013은 `drape V002`·`V003`·`V004` 뒤 `wall V011`·`V012`·`V013`, 지각 비교본 V014·V016은 `wall V014`·`V016`이다.
 4. 화면: `look 1500 -1500 9000 -6500 300 -2500`(부감) → 콘솔 `HighResShot 1600x900`. `AutomationLibrary.take_high_res_screenshot`은 쓰지 않는다.
 
 **남은 문제(다음 세션 순서).**
 
-1. **사면 선반 타일(다음 단위).** 고원 밖 남북 오름 사면에 드레이프된 지면 타일이 경사가 아니라 구면 Up에 맞춰져 층층이 선반처럼 보인다. V011에서 재질이 입혀져 더 눈에 띈다. 후보는 지면 타일을 그 자리 지각 법선(유한 차분)으로 눕히기, 경사가 큰 자리의 평면 인스턴스 빼기, 또는 둘 다다. 손볼 곳은 `drape_transform`·`drape` 하나이고 새 Drape 버전과 V012 시험 레벨로 비교한다.
-2. **CloseRange에 더 어울리는 지각 재질(선택).** 지금 재질은 ED 본 맵 랜드스케이프 재질 `M_BGLandscape_Auto` 파생이다. CloseRange 바닥 느낌은 `SM_ForestGround_01` 등 지면 메시 재질에서 나온다. 그 재질을 조사해 지각에 옮겨 볼 수 있다. 사용자는 더 어울리는 것이 있으면 적용해 봐도 좋다고 했다.
-3. **하상 자리 맨 지면.** CloseRange 하상은 ED 지면 아래라 고원 속에 묻혀 U자 안쪽이 맨 지각으로 남는다. 고원에 하상 골을 파거나 지각 재질로 가린다.
-4. **회색 데칼.** 일부 데칼이 Unlit에서 회색 사각형으로 보인다. Lit에서 다시 확인한다.
-5. **Lit 판정·조명.** 지금까지 Unlit 부감만 봤다. TestMap03 조명은 구 중심 점광원이라 절벽에 스치는 빛만 든다.
-6. 그 뒤 Z1 정면 구도(분지 저시점) 확인 → 고원 남북 끝 절개 사면 → 배치 재현 원본(JSON) 확정 → U5 충돌 프록시·U6 베이크·러프 PIE. 고원·드레이프는 지금 모두 NoCollision 시각 시험이다.
+- ~~사면 선반 타일~~ **완료(2026-11-20, V013 채택).** 원인은 70~85° 사면에 평지 배치를 현지 Up으로 세운 것이었다. Drape V004는 납작한 지면 타일·데칼을 지각 법선으로 눕히고 45° 넘으면 빼며, 60° 넘는 자리는 종류와 관계없이 뺀다. 남북 사면이 지각 절벽 재질로 드러난다. 능선 꼭대기 판 몇 개와 고원 동쪽 가장자리 지면 타일 테두리는 남았다. 경과는 [Phase 1 로그](history/Phase01_Log.md)의 "사면 선반 타일 정리"다.
+- ~~하상 자리 맨 지면~~ **완료(2026-11-20, V014 채택).** 원인은 묻힘이 아니라 겹침이었다. ED 하상 바닥은 원점 높이라 드레이프 뒤 얇은 바닥 메시가 지각과 같은 높이에서 덮였다. 렌더링 지각에만 하상 띠(반폭 4.5m·깊이 50cm)를 파서 하상 고리를 드러냈다. 경과는 [Phase 1 로그](history/Phase01_Log.md)의 "하상 자리 지각 골"이다.
+
+- **Lit 판정 완료(2026-11-20).** 산괴·식생·하상은 Lit에서도 잘 읽히고, 하상 바닥 틈으로 판 지각이 드러난 곳은 없었다. 회색 데칼은 Lit에서 보이지 않았고, 작은 흰 사각형은 에디터 데칼 아이콘이다. 경과는 [Phase 1 로그](history/Phase01_Log.md)의 "V014 Lit 판정"이다.
+
+- ~~고원 동쪽 가장자리 타일 테두리~~ **완료(2026-11-20, V017 채택).** 원인은 ED 섬의 하상 바깥 둑 고리 전체가 원점 +3m 단인데 그 아래 지각이 비어 있던 것이다. 렌더링 지각이 ED 섬 지지면 50cm 아래를 따르고, 테두리 밖은 지지면 +10cm로 1m 넓힌 뒤 45°로 내린다. 남은 점: 지각이 바깥 타일 띠를 1m 안팎 덮고 경계 일부에 50cm 격자 톱니가 있다. 테두리 양 끝·산괴 왼쪽 위에 타일 없는 지각 면이 있다. 경과는 [Phase 1 로그](history/Phase01_Log.md)의 "고원 동쪽 테두리"다.
+
+1. **CloseRange에 더 어울리는 지각 재질(선택).** 지금 재질은 ED 본 맵 랜드스케이프 재질 `M_BGLandscape_Auto` 파생이다. CloseRange 바닥 느낌은 `SM_ForestGround_01` 등 지면 메시 재질에서 나온다. 그 재질을 조사해 지각에 옮겨 볼 수 있다. 사용자는 더 어울리는 것이 있으면 적용해 봐도 좋다고 했다.
+2. **조명·구역 밖 재질.** TestMap03 조명(구 중심 점광원)에서는 분지 정면의 02 벽 정면이 대부분 그늘이다. 오른쪽(북동)에는 재질 구역 밖 V012 지각의 보라 평지색이 크게 보인다. 수직 부감의 진흙 웅덩이는 하늘 없이 어둡게 반사된다.
+3. 그 뒤 Z1 정면 구도(분지 저시점) 확인 → 고원 남북 끝 절개 사면 → 배치 재현 원본(JSON) 확정 → U5 충돌 프록시·U6 베이크·러프 PIE. 고원·드레이프는 지금 모두 NoCollision 시각 시험이다.
 
 조사용 덤프 스크립트와 결과 JSON은 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/`에 있다(로컬). 에디터 Python은 모듈을 캐시하므로 시험 스크립트는 spec을 `importlib.reload`한다. ED 맵 첫 로드 시 물 재질 레이 트레이싱 셰이더 컴파일 오류가 로그에 남는다(영향 미확인).
 
@@ -117,4 +127,4 @@ UE5.8 scalar setter는 반환 false만으로 실패를 판정하지 말고 gette
 
 ## 5. 새 세션 요청 예시
 
-> `.context/Graphics/README.md`, `Current.md`, `Decisions.md`(GX-022·GX-023), `phases/Phase01_RidgeReferencePatch.md` U4를 읽고 Phase 1-BR의 Z1 서쪽 산괴를 이어가자. 기준 시험본은 `Z1AssemblyWall_V011`이다. Current §3 "남은 문제" 1번 사면 선반 타일 정리부터 해줘. 드레이프를 새 버전으로 만들어 V011과 같은 부감에서 비교하고, 결과를 보여준 뒤 다음 단위로 넘어가기 전에 확인해줘. 수동 조작(Migrate·저장 등)이 필요하면 나에게 요청해줘.
+> `.context/Graphics/README.md`, `Current.md`, `Decisions.md`(GX-022~GX-024), `phases/Phase01_RidgeReferencePatch.md` U4를 읽고 Phase 1-BR의 Z1 서쪽 산괴를 이어가자. 기준 시험본은 `Z1AssemblyWall_V017`이다. Current §3 "남은 문제" 1번(CloseRange 지각 재질)부터 해줘. 새 버전을 V017과 같은 Lit 부감에서 비교하고, 결과를 보여준 뒤 다음 단위로 넘어가기 전에 확인해줘. 수동 조작(Migrate·저장 등)이 필요하면 나에게 요청해줘.
