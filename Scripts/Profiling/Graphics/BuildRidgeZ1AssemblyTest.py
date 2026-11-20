@@ -325,6 +325,39 @@ WALLS["V021"] = WALLS["V020"][:-1] + (("CR_Z1_Drape", "/Game/Maps/_WorkInProgres
 WALL_CRUST["V021"] = WALL_CRUST["V020"]
 WALL_MATERIAL["V021"] = WALL_MATERIAL["V020"]
 WALL_SKY["V021"] = WALL_SKY["V020"]
+# 분지 저시점(눈높이 170cm)에서 02 벽 3개가 같은 "기둥 두 개 + 세로 홈" 리듬과 같은 꼭대기 높이로 일렬 담장처럼 읽히고,
+# 기둥 꼭대기 사이 V자 틈으로 하늘이 보였다. V022는 세 벽에 yaw·높이 차를 주고, 두 접합부 뒤 고원(분지 기준 +46m)에
+# 01 계열 기둥을 묻어 세워 왕관 틈을 막는다. 01b·01c는 암석을 공유하므로 yaw를 달리해 다른 면을 보인다.
+FRONT_02_V022 = (
+    ("ASM_Z1_WallSouth", "Forest/PL_LargeCliff_02c", -2000, -2700, 10, -100),
+    ("ASM_Z1_WallCenter", "Forest/PL_LargeCliff_02e", -2150, -200, -8, 250),
+    ("ASM_Z1_WallNorth", "Forest/PL_LargeCliff_02d", -2000, 2300, 6, -350),
+)
+CROWN_V022 = (
+    ("ASM_Z1_CrownSouth", "Forest/PL_LargeCliff_01b", -3200, -1450, 20, spec.MASSIF_PLATEAU_CM - 1500),
+    ("ASM_Z1_CrownNorth", "Forest/PL_LargeCliff_01c", -3200, 1050, -25, spec.MASSIF_PLATEAU_CM - 1500),
+)
+WALLS["V022"] = FRONT_02_V022 + CROWN_V022 + WALLS["V021"][len(FRONT_02):]
+WALL_CRUST["V022"] = WALL_CRUST["V021"]
+WALL_MATERIAL["V022"] = WALL_MATERIAL["V021"]
+WALL_SKY["V022"] = WALL_SKY["V021"]
+# V022 결과: 01 기둥 두 개가 벽 위 왕관을 이뤄 하늘 틈이 줄었지만, 가운데 벽 뒤(두 기둥 사이)에 틈이 남았다.
+# 가운데 벽을 2.5m 올리자 발치 잔돌 판 아래가 떠 검은 빈 공간이 생겼다. 벽은 올리지 않고 북쪽 벽만 더 묻어 높이 차를 낸다.
+# V023은 가운데 벽 뒤 고원에 02b를 더 낮게 묻어 틈을 막고, 왕관 셋의 높이를 북 > 남 > 가운데로 다르게 한다.
+FRONT_02_V023 = (
+    ("ASM_Z1_WallSouth", "Forest/PL_LargeCliff_02c", -2000, -2700, 10, -100),
+    ("ASM_Z1_WallCenter", "Forest/PL_LargeCliff_02e", -2150, -200, -8, -150),
+    ("ASM_Z1_WallNorth", "Forest/PL_LargeCliff_02d", -2000, 2300, 6, -450),
+)
+CROWN_V023 = (
+    ("ASM_Z1_CrownSouth", "Forest/PL_LargeCliff_01b", -3200, -1450, 20, spec.MASSIF_PLATEAU_CM - 1500),
+    ("ASM_Z1_CrownCenter", "Forest/PL_LargeCliff_02b", -3600, -300, 170, spec.MASSIF_PLATEAU_CM - 2500),
+    ("ASM_Z1_CrownNorth", "Forest/PL_LargeCliff_01c", -3200, 1050, -25, spec.MASSIF_PLATEAU_CM - 1000),
+)
+WALLS["V023"] = FRONT_02_V023 + CROWN_V023 + WALLS["V021"][len(FRONT_02):]
+WALL_CRUST["V023"] = WALL_CRUST["V021"]
+WALL_MATERIAL["V023"] = WALL_MATERIAL["V021"]
+WALL_SKY["V023"] = WALL_SKY["V021"]
 WEST_COVER_LABEL = "SM_Octant_Ridge_00_V012_Z1WestCover_R30000"
 WALL_VIEW_EYE = (4500, -400, 170)
 WALL_VIEW_TARGET = (-1700, -300, 1800)

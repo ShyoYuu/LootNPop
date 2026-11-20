@@ -177,7 +177,8 @@ Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. Mas
 
 | 층 | 내용 | 도구 |
 |:---|:---|:---|
-| 앞면 벽 | 02c·02e·02d 조립체 Level Instance(벽 발치 x≈−2,000, 25m 간격) | `BuildRidgeZ1AssemblyTest.py` `WALLS` |
+| 앞면 벽 | 02c·02e·02d 조립체 Level Instance(벽 발치 x≈−2,000, 25m 간격). V023부터 yaw 남 +10°·가운데 −8°·북 +6°, 북쪽 벽만 4.5m 묻어 같은 계열 반복을 깬다(올려서 발치를 띄우지 않는다) | `BuildRidgeZ1AssemblyTest.py` `WALLS` |
+| 왕관 | 앞면 벽 뒤 고원에 01b·02b·01c를 10~25m 묻어 높이를 달리 세워 벽 꼭대기 틈을 막는다(V023, GX-026) | `CROWN_V023` |
 | 기반면 | 02 벽 안쪽 x −2,200부터 분지 기준 +46m 고원(Z1MassifCover V002). 렌더링 지각 V005는 ED 섬 지지면 높이장을 따라 둑 고리 +3m 단을 받치고 하상 띠를 50cm 판다(배치 높이는 V002) | `RidgeZ1CompositionSpec.massif_cover_ground`, Blender `-- massif-cover`, UE `importcrust` |
 | 산괴 | CloseRange LargeAssembly를 원래 크기 강체로 고원 위 로컬 (−6,500, 300)에 | `BakeEDCloseRange.py`(ED), `WALLS` |
 | 바닥·하천·잔재 | CloseRange Ground·SmallAssembly·Props·Ditch를 인스턴스마다 지각 높이와 현지 Up으로 드레이프. V003부터 납작한 지면 타일·데칼은 지각 법선으로 눕히고 급경사에서 뺀다 | `drape <버전>` |
@@ -185,7 +186,7 @@ Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. Mas
 | 웅덩이 재질 | ED 진흙 웅덩이(Single Layer Water) 사본에 출력 노드를 더해 컴파일 실패를 고치고 Drape V006에서 바꿔 끼움 | `puddle`, `drape V006` |
 | 시험 조명 | TestMap03 조명 사본 + 균일 회색 Sky Light 50(시험 레벨 전용, GX-025) | `WALL_SKY` |
 
-현재 기준은 `Z1AssemblyWall_V021`이다(V017에 시험 Sky Light, 재질 구역 V003, 웅덩이 재질을 고친 Drape V006). 재생성 순서와 남은 문제는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
+현재 기준은 `Z1AssemblyWall_V023`이다(V017에 시험 Sky Light, 재질 구역 V003, 웅덩이 재질을 고친 Drape V006을 더한 V021에서 앞면 벽 변화와 왕관을 더함). 구도는 부감과 분지 눈높이 저시점(Pod 중심·협곡 진입·홀 게이트)에서 함께 판정한다(GX-026). 재생성 순서와 남은 문제는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
 
 ### U5. 충돌 프록시와 기반면 절개(Blender)
 
