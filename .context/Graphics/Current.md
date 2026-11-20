@@ -1,8 +1,8 @@
 # 그래픽스 작업 현재 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · U4 Z1 원본 용도 적용 · 사용자 구도 검토 대기
-> 마지막 확인/갱신: 2026-11-19
+> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · U4 Z1 서쪽 산괴(GX-023) · 다음은 사면 타일 정리
+> 마지막 확인/갱신: 2026-11-20
 
 ## 1. 이어받을 결과
 
@@ -58,14 +58,40 @@ WIP를 정상 게임에서 다시 검토하려면 TestMap03에서 검사용 풀�
 - **U1 완료.** `RidgeBlueprint_V001.json`의 Pod 12개·훅 6개·검토점 27개를 정식 V011과 대조했다. 기본 WIP의 고스트 3개와 `DrawRidgeDecorationKeepOuts.py draw-br`로 설계도를 표시할 수 있다. [검증 기록](history/Phase01_Log.md#2026-11-19--1-br-u1-설계도-추출)
 - **U2 완료.** 원본 후보 55개에서 메시 17개를 선정하고 새 파일 96개(3.91GiB)를 반입했다. 기존 43개는 해시가 같다. LootNPop에서 메시 17개의 치수·fallback·재질·충돌, 의존성 139개와 하상 혼합 재질을 검증했다. [검증 기록](history/Phase01_Log.md#2026-11-19--1-br-u2-지형-에셋-선정반입)
 - **U3 완료.** 기본 WIP의 V012 기반면·보존 구조물·재투영 마커 45개가 Blender 검증을 통과했다. UE 최대 seam 스냅은 0.00763cm이고, 조기 베이크 seam 반지름 차이는 0.000cm다. 근거는 `Saved/SliceOctant/Ridge_00/V012/`에 있다.
-- **U4 Z1 검토 중.** 사용자는 기존 지각 위에 얹은 13개 초벌의 이음이 어색하다고 했다. 대분지·협곡 하류에서 기존 동선을 바꿔도 된다고 하여 기반면부터 다시 맞춘 비교본을 만들었다. 원본 배치 조사 결과에 따라 MassiveSandstoneCliff 05는 `WestUpperShelf`, 03은 `NorthBankShelf`, SmartAssets Cliff 06은 `WestWallNorth`·`WestWallSouth`로 재배치했다. 상단 두 조각의 이음도 맞췄고, 시각 메시 15개의 transform·재질·`LNPDecoration`을 검증하고 저장했다. [검증 기록](history/Phase01_Log.md#z1에-원본-역할-적용)
+- **U4 Z1 서쪽 절벽 검토 중.** V001의 15개는 에셋 용도와 개별 배치를 보는 초벌이었다. 사용자는 Z1에서 보이는 절벽 대부분을 ED 암벽이 이루고, 메우기 어려운 이음에만 기반면이 조금 드러나는 수준을 요구했다. V002에서 서쪽 벽과 왕관을 ED 8개로 연결하고, 각 단면에 맞춰 구면 기반면을 벽 뒤로 물렸다. `PillarApron`과 `NorthLedge`는 곡면의 뒷면이 노출되던 배치를 제외했다. `WestUpperShelf`도 새 왕관 조립으로 대체했다.
+- **서쪽 절벽 표본 확인.** 정면 표본 1,394개에서 ED 메시가 첫 교차점인 비율이 V001 527개(37.8%) → V002 1,350개(96.8%)였다. Blender의 조형 지각과 UE fallback 삼각형을 사용한 가시 면 표본이다. `WestWallCenter`는 하천 둑 바닥으로 쓰인 MassiveSandstoneCliff 03에서 원본의 절벽 외피인 SmartAssets Cliff 06으로 교체했다. 교체 뒤 피복은 1,350개로 같았다. 중앙벽과 양옆 벽의 반복, 왕관 접합부, 인접 사면의 피복은 다음 조형 작업에 남아 있다.
 
 | 작업본 | 경로와 상태 |
 |:---|:---|
 | U1~U3 기준 및 이전 Z1 초벌 | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/LVI_Ridge_EDTerrain_V001` · V012·마커 45개·초벌 메시 13개. 조기 베이크는 초벌 배치 전의 U3 기반면을 검증한 결과다. |
-| **피드백을 받을 Z1 비교본** | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Composition_V001/LVI_Ridge_EDTerrain_Z1Composition_V001` · 조형 기반면·하상 재질 `MI_Ridge_Z1_Channel`·메시 15개. 마지막 확인 시 LootNPop 8000에서 협곡 입구의 Unlit 시점으로 열려 있었다. |
+| Z1 배치 초벌 | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Composition_V001/LVI_Ridge_EDTerrain_Z1Composition_V001` · 기반면·하상 재질 `MI_Ridge_Z1_Channel`·시각 메시 15개. |
+| ED 조립체 시험(GX-022 판정 완료) | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1AssemblyTest_V001/Z1AssemblyTest_V001` · TestMap03 조명 6개 + V002·`PL_LargeCliff_01b` Level Instance. 재생성 `BuildRidgeZ1AssemblyTest.py build`→`instances`. `wall <버전>`은 이 레벨이 열린 상태에서 실행한다. 버전별 시험 레벨 `Z1AssemblyWall_V001~V011`. 근거 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/` |
+| 서쪽 절벽 비교본 | `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Composition_V002/LVI_Ridge_EDTerrain_Z1Composition_V002` · `V012_Z1WestCover` 조형 기반면·시각 메시 16개. `MI_Ridge_Z1_Channel`을 공유한다. 아래 조립체 시험 레벨들의 원본이다. |
+| ED CloseRange 구운 레벨 | `/Game/LNPBake/CloseRange/CR_{LargeAssembly,SmallAssembly,Ground,Ditch,Props}` · ED에서 구워 Migrate. 원점은 ED LargeAssembly 위치 `(90250, -4360, 1660)` |
+| 산괴 고원 지각 | `EDTerrain_V001/Z1MassifCover_V002/` · 분지 기준 +46m 고원(x −2,200 서쪽). V001은 벽 뒤 봉우리가 남아 기각 |
+| 평면 그룹 드레이프 | `EDTerrain_V001/Z1MassifDrape_V002/Z1MassifDrape_V002` · Ground·SmallAssembly·Props·Ditch를 인스턴스마다 구면에 다시 앉힌 월드 좌표 레벨(V001은 Ditch 제외) |
+| 산괴 지각 재질 | `EDTerrain_V001/Z1MassifSurface_V001/MI_Ridge_Z1_MassifSurface` · 하상 재질(V005 절벽·지면 + 하상) 사본에 구역 마스크를 서쪽 고원까지 넓힘. 시험 레벨 전용(넓힌 범위에 이음매 제외 없음) |
+| **현재 기준 시험본** | `EDTerrain_V001/Z1AssemblyWall_V011/Z1AssemblyWall_V011` · TestMap03 조명 + V002 사본(서쪽 벽 제외, 지각은 Z1MassifCover V002) + 02c·02e·02d 벽 + CR LargeAssembly 강체 + Drape V002 + 산괴 지각 재질. 사용자 판정 "엄청 맘에 든다"(Unlit 부감) |
 
-다음 세션은 최신 비교본의 사용자 피드백부터 받는다. 채택 후 비교본과 해당 높이장을 대상으로 배치 JSON 내보내기와 `clear` → `place` 재현을 검증한다. 현재 `EDTerrainPlacement_V001.json`과 `PlaceRidgeEDTerrain.py`의 기본 명령은 이전 13개 초벌 및 V012 기준 WIP용이다. 비교본의 현재 배치는 `Scripts/RidgeZ1CompositionSpec.py`가 소유한다. 세부 재현 절차는 [1-BR 실행서 §4 U4](phases/Phase01_RidgeReferencePatch.md#u4-ed-지형-조립구역별)에 있다. U4 완료 확인 뒤 Z1 충돌 프록시와 베이크·러프 PIE로 넘어간다.
+**Z1 서쪽 산괴 경과(2026-11-19~20, GX-022 → GX-023).** 조립체를 이어 벽을 만드는 시험(01b·01c 기둥 4개, 02 계열 벽 3개, 배경 조립체 축소)은 덩치가 모자라거나 나무까지 작아져 어색했다. ED 이음 방식을 조사해 보니 ED는 큰 형상을 랜드스케이프·바닥 메시로 만들고 조립체는 외피, 이음은 식생·잔재가 맡는다. 구면 Ridge에 가장 가까운 선례인 CloseRange(랜드스케이프 없음)의 PCG 결과를 ED에서 구워 반입했다. 산괴는 원래 크기 강체로 두고 기반면을 +46m 고원으로 깎았다. 곡률(d²/2R) 때문에 묻히던 평면 바닥 그룹은 인스턴스마다 구면에 드레이프했다. 마지막으로 지각 재질 구역을 넓혀 보라색 평지색을 사암 절벽·지면 재질로 바꿨다(V011). 사용자가 이 방향을 확정했다(GX-023). 버전별 결과는 [Phase 1 로그](history/Phase01_Log.md)의 "ED 조립체 이음 방식 조사"~"산괴 고원 지각 재질" 절에 있다.
+
+**재생성 순서(새 체크아웃).** 모두 LootNPop 에디터 Cmd의 `py "<프로젝트>/Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py" <인자>`다. ED 쪽 굽기만 ElectricDreamsEnv 에디터다.
+
+1. ED 에디터: `BakeEDCloseRange.py bake` → `verify` → 사용자가 `CR_*` 5개를 LootNPop으로 Migrate("모두 아니요").
+2. Blender: `BuildRidgeZ1Composition.py -- massif-cover`(spec `MASSIF_COVER="V002"`) → UE `importcrust V002`.
+3. UE: `drape V002` → `surface` → V002 기준 시험 레벨(`Z1AssemblyTest_V001`)을 연 뒤 `wall V011`.
+4. 화면: `look 1500 -1500 9000 -6500 300 -2500`(부감) → 콘솔 `HighResShot 1600x900`. `AutomationLibrary.take_high_res_screenshot`은 쓰지 않는다.
+
+**남은 문제(다음 세션 순서).**
+
+1. **사면 선반 타일(다음 단위).** 고원 밖 남북 오름 사면에 드레이프된 지면 타일이 경사가 아니라 구면 Up에 맞춰져 층층이 선반처럼 보인다. V011에서 재질이 입혀져 더 눈에 띈다. 후보는 지면 타일을 그 자리 지각 법선(유한 차분)으로 눕히기, 경사가 큰 자리의 평면 인스턴스 빼기, 또는 둘 다다. 손볼 곳은 `drape_transform`·`drape` 하나이고 새 Drape 버전과 V012 시험 레벨로 비교한다.
+2. **CloseRange에 더 어울리는 지각 재질(선택).** 지금 재질은 ED 본 맵 랜드스케이프 재질 `M_BGLandscape_Auto` 파생이다. CloseRange 바닥 느낌은 `SM_ForestGround_01` 등 지면 메시 재질에서 나온다. 그 재질을 조사해 지각에 옮겨 볼 수 있다. 사용자는 더 어울리는 것이 있으면 적용해 봐도 좋다고 했다.
+3. **하상 자리 맨 지면.** CloseRange 하상은 ED 지면 아래라 고원 속에 묻혀 U자 안쪽이 맨 지각으로 남는다. 고원에 하상 골을 파거나 지각 재질로 가린다.
+4. **회색 데칼.** 일부 데칼이 Unlit에서 회색 사각형으로 보인다. Lit에서 다시 확인한다.
+5. **Lit 판정·조명.** 지금까지 Unlit 부감만 봤다. TestMap03 조명은 구 중심 점광원이라 절벽에 스치는 빛만 든다.
+6. 그 뒤 Z1 정면 구도(분지 저시점) 확인 → 고원 남북 끝 절개 사면 → 배치 재현 원본(JSON) 확정 → U5 충돌 프록시·U6 베이크·러프 PIE. 고원·드레이프는 지금 모두 NoCollision 시각 시험이다.
+
+조사용 덤프 스크립트와 결과 JSON은 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/`에 있다(로컬). 에디터 Python은 모듈을 캐시하므로 시험 스크립트는 spec을 `importlib.reload`한다. ED 맵 첫 로드 시 물 재질 레이 트레이싱 셰이더 컴파일 오류가 로그에 남는다(영향 미확인).
 
 LootNPop은 8000, ElectricDreamsEnv는 8001이며 두 에디터는 번갈아 사용한다. 연결이 도구 목록에 없으면 사용자에게 알리고 MCP 연결을 확인한다. 수동 조작은 사용자가 직접 하도록 요청한다.
 
@@ -73,7 +99,7 @@ LootNPop은 8000, ElectricDreamsEnv는 8001이며 두 에디터는 번갈아 사
 
 ## 4. 근거와 복구 기록
 
-1-BR 자료는 `Saved/SliceOctant/Ridge_00/V012/`(Blender·반입·조기 베이크), `Saved/SliceOctant/Ridge_00/V012_Z1Composition/`(원본 용도 대조, `BeforeSourceRoles.umap`, `composition.json`), `Saved/Profiling/Graphics/Phase01/EDTerrain_V001/`(에셋 반입 전후)에 있다. 아래 1-B5f 이전 자료의 공통 상위는 `Saved/Profiling/Graphics/Phase01/`이다. Saved는 로컬 자료이며 재생성 절차는 실행서에 있다.
+1-BR 자료는 `Saved/SliceOctant/Ridge_00/V012/`(Blender·반입·조기 베이크), `Saved/SliceOctant/Ridge_00/V012_Z1Composition/`(원본 용도 대조, `BeforeSourceRoles.umap`, `WestCoverageProbe_CenterWall.txt`), `Saved/SliceOctant/Ridge_00/V012_Z1WestCover/`(V002 형상·반입·조립 검증), `Saved/Profiling/Graphics/Phase01/EDTerrain_V001/`(에셋 반입 전후)에 있다. 아래 1-B5f 이전 자료의 공통 상위는 `Saved/Profiling/Graphics/Phase01/`이다. Saved는 로컬 자료이며 재생성 절차는 실행서에 있다.
 
 | 자료 | 핵심 기록 |
 |:---|:---|
@@ -91,4 +117,4 @@ UE5.8 scalar setter는 반환 false만으로 실패를 판정하지 말고 gette
 
 ## 5. 새 세션 요청 예시
 
-> `.context/Graphics/README.md`, `Current.md`, `Decisions.md`, `phases/Phase01_RidgeReferencePatch.md`를 읽고 Phase 1-BR의 U4 Z1을 이어가자. `LVI_Ridge_EDTerrain_Z1Composition_V001`에 저장한 15개 배치에 대한 내 피드백부터 반영해줘. 구도 확정 뒤 배치 JSON과 재현을 검증하고, 다음 구현 단위로 넘어가기 전에 확인해줘. 수동 조작이 필요하면 나에게 요청해줘.
+> `.context/Graphics/README.md`, `Current.md`, `Decisions.md`(GX-022·GX-023), `phases/Phase01_RidgeReferencePatch.md` U4를 읽고 Phase 1-BR의 Z1 서쪽 산괴를 이어가자. 기준 시험본은 `Z1AssemblyWall_V011`이다. Current §3 "남은 문제" 1번 사면 선반 타일 정리부터 해줘. 드레이프를 새 버전으로 만들어 V011과 같은 부감에서 비교하고, 결과를 보여준 뒤 다음 단위로 넘어가기 전에 확인해줘. 수동 조작(Migrate·저장 등)이 필요하면 나에게 요청해줘.

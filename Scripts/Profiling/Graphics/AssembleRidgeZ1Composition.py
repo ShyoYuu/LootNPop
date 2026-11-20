@@ -1,5 +1,6 @@
 """기존 Z1 작업본의 저장본을 보존하고 별도 조형 비교 레벨을 만든다."""
 import hashlib
+import importlib
 import json
 from pathlib import Path
 import sys
@@ -16,6 +17,8 @@ import RidgeZ1CompositionSpec as spec
 OUT = BASE_OUT.with_name(spec.VERSION)
 FOLDER = SOURCE_FOLDER + "/Z1Composition_V001"
 LEVEL = FOLDER + "/LVI_Ridge_EDTerrain_Z1Composition_V001"
+WEST_FOLDER = SOURCE_FOLDER + "/Z1Composition_V002"
+WEST_LEVEL = WEST_FOLDER + "/LVI_Ridge_EDTerrain_Z1Composition_V002"
 GROUND_SOURCE = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/ReferencePatch_V001/MI_Ridge_ReferenceRiverbed_V001"
 GROUND = FOLDER + "/MI_Ridge_Z1_Channel"
 
@@ -64,38 +67,51 @@ def view_outlet():
     unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).set_level_viewport_camera_info(eye, rotation)
 
 
-def run(discard_source_edits):
+def run(discard_source_edits, west_cover=False):
     levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
     saving = unreal.EditorLoadingAndSavingUtils
     assets = unreal.EditorAssetLibrary
     assert not levels.is_in_play_in_editor() and not saving.get_dirty_content_packages()
     dirty = {p.get_path_name() for p in saving.get_dirty_map_packages()}
     assert not dirty or (discard_source_edits and dirty == {SOURCE_LEVEL} and asset_path(editor_world()) == SOURCE_LEVEL), dirty
-    assert not assets.does_asset_exist(LEVEL), LEVEL
-    manifest = json.loads((OUT / "manifest.json").read_text(encoding="utf-8"))
+    levels_out, folder, level = OUT, FOLDER, LEVEL
+    if west_cover:
+        levels_out, folder, level = BASE_OUT.with_name(spec.WEST_COVER_VERSION), WEST_FOLDER, WEST_LEVEL
+    ground_at = spec.west_cover_ground if west_cover else spec.ground
+    rows = list(spec.placements(spec.west_cover_rows(), ground_at) if west_cover else spec.placements())
+    assert not assets.does_asset_exist(level), level
+    manifest = json.loads((levels_out / "manifest.json").read_text(encoding="utf-8"))
     former = json.loads((BASE_OUT / "manifest.json").read_text(encoding="utf-8"))
     preserved = {"exports": [row for row in former["exports"] if row["role"] != "Crust"]}
     assert unreal.load_asset(GROUND_SOURCE)
     assert all(assets.does_asset_exist(SOURCE_FOLDER + "/" + row["name"]) for row in preserved["exports"])
     source_file = content_file(SOURCE_LEVEL, ".umap")
     source_hash = hashlib.sha256(source_file.read_bytes()).hexdigest()
+    comparison_file = content_file(LEVEL, ".umap")
+    comparison_hash = hashlib.sha256(comparison_file.read_bytes()).hexdigest() if west_cover else None
+    if west_cover:
+        assert assets.does_asset_exist(GROUND), GROUND
 
     assert saving.new_blank_map(False)
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-    assembly.import_assets(manifest, FOLDER, OUT)
+    assembly.import_assets(manifest, folder, levels_out)
     ground = channel_material()
-    assembly.place_geometry(actors, manifest, FOLDER, ground, ground)
+    assembly.place_geometry(actors, manifest, folder, ground, ground)
     assembly.place_geometry(actors, preserved, SOURCE_FOLDER, ground, ground)
     # 이 비교본은 Z1의 기존 동선과 사선을 고정하지 않고 새 구도를 검토한다.
-    report = place(actors, "Z1", list(spec.placements()), spec.ground, protected=((), (), ()))
+    report = place(actors, "Z1", rows, ground_at, protected=((), (), ()))
     view_outlet()
-    assert saving.save_map(editor_world(), LEVEL), LEVEL
+    assert saving.save_map(editor_world(), level), level
     assert hashlib.sha256(source_file.read_bytes()).hexdigest() == source_hash
-    report.update(level=LEVEL, source_level_sha256=source_hash, ground_material=asset_path(ground))
-    (OUT / "composition.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if west_cover:
+        assert hashlib.sha256(comparison_file.read_bytes()).hexdigest() == comparison_hash
+        report["comparison_level_sha256"] = comparison_hash
+    report.update(level=level, source_level_sha256=source_hash, ground_material=asset_path(ground))
+    (levels_out / "composition.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     unreal.log("RIDGE_Z1_COMPOSITION_READY " + json.dumps(report))
 
 
 if __name__ == "__main__":
-    assert sys.argv[1:] in ([], ["discard-z1-transforms"])
-    run(sys.argv[1:] == ["discard-z1-transforms"])
+    assert sys.argv[1:] in ([], ["discard-z1-transforms"], ["west-cover"])
+    importlib.reload(spec)
+    run(sys.argv[1:] == ["discard-z1-transforms"], sys.argv[1:] == ["west-cover"])

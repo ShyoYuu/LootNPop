@@ -662,3 +662,86 @@ C++ 빌드·쿡·패키지 실행·카메라 육안 확인·성능 반복은 미
 - `ED_Z1_BasinPillar`의 SmartAssets Cliff 06을 서쪽 산괴에 붙인 `ED_Z1_WestWallNorth`로 옮겼고, 같은 메시로 아래쪽 벽의 `ED_Z1_WestWallSouth`를 한 개 더 배치했다. 두 외피의 상단을 산괴 쪽으로 기울였다.
 - 상단 `WestCrown`·`NorthCrown`은 새 외피와 겹치도록 옮겼다. 뷰포트 광선으로 입구에서 떠 보이는 부분이 `NorthCrown`임을 확인해 산괴 쪽으로 더 넣었다. 조정 뒤 같은 입구 시점에서 돌출됐던 모서리가 가려졌다.
 - LootNPop에서 비교본 시각 메시 15개의 transform·재질·`LNPDecoration` 상태와 seam 여유 최솟값 132.74m를 확인했다. 역할 교정 전 비교본은 `BeforeSourceRoles.umap`, 현재 검사 결과는 `composition.json`에 있다. 기존 초벌 저장본은 해시가 일치했다. 다음은 사용자 구도 검토와 U4 배치 재현이다.
+
+## 2026-11-19 — 1-BR U4 Z1 이질감 원인과 ED 조립체 시험 준비
+
+- 사용자는 V002 서쪽 절벽에서 같은 계열끼리만 어울리고 모아 두면 이질적이라고 판정했다. 방향은 B안(ED 원본 조립체를 상대 배치 그대로 단위로 옮겨 쓰기)을 우선하고, ED 구역 통째 이식(C안)은 최후 수단으로 두기로 했다. 첫 단계로 조립체 하나를 그대로 넣는 시험을 한다.
+- 어울리던 세 묶음은 각각 같은 메시의 반복이었다(Cliff_06 ×3, MassiveSandstoneCliff_01 ×2, MassiveSandstoneCliff_05 ×2). V002는 MassiveSandstoneCliff_05를 0.66~1.03배, Cliff_06을 1.2~1.6배(Z 비균등)로 썼다. ED 조립체는 같은 메시를 각각 0.10~0.19배, 0.46배 균등 스케일로 쓴다. 따라서 텍셀 밀도와 층리 크기가 원본보다 3~10배 거칠다.
+- ElectricDreamsEnv를 헤드리스(NullRHI)로 열어 `PCGAssemblies` 49개 레벨의 전체 구성을 읽었다. `PL_LargeCliff_01b`는 23×21×46m에 인스턴스 505개·메시 34종이다. 그중 암석은 SmartAssets 7종 51개뿐이다. 나머지는 MoneyPlant 324개, IvyTest 덩굴 28개, Hornbeam 36개, 이끼 바위·뿌리 같은 식생과 잔재가 암석 이음을 덮는다. `02e`는 인스턴스 9,148개·메시 156종이다. 원본 절벽의 완성도는 암석 조합보다 식생·잔재 층에서 크게 나온다.
+- `PL_LargeCliff_01b`의 재귀 의존성은 274패키지이고, 그중 178개 3.93GiB가 LootNPop에 없다(`01c` 3.76GiB, `02e` 9.37GiB). 새로 생기는 `Asmbly`·`Custom/IvyTest`·`MSPresets`·`PCG`·외부 액터 경로를 `.gitignore`에 추가했고, 178개가 모두 제외되는 것을 확인했다.
+- 이전 Z1 검토는 Unlit 뷰포트였고 V002 레벨에는 조명 액터가 없다. 조립체 시험은 조명 조건을 고정해서 판정한다.
+- 근거는 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/`의 `EDAssemblies.json`(배치 원자료), `EDAssemblyDeps.json`, 덤프 스크립트 2개다. 다음은 사용자가 ED 에디터에서 `PL_LargeCliff_01b`를 Migrate하는 것이다.
+
+### 조립체 시험 레벨
+
+- 사용자가 `PL_LargeCliff_01b`를 Migrate했다. 미반입 178개가 모두 들어왔고 기존 96개는 수정 시각이 바뀌지 않았다. Git 추적 파일은 늘지 않았다.
+- TestMap03 조명은 구 중심 점광원 1개, 보조 점광원 4개, PostProcessVolume이다. Sky Light·대기·안개는 없다. 따라서 어느 옥탄트에서나 주광이 현지 머리 위에서 내려오고 절벽 면은 비스듬히 스치는 빛만 받는다.
+- 새 `Z1AssemblyTest_V001/Z1AssemblyTest_V001`에 TestMap03 조명 6개를 복사했다. V002와 `PL_LargeCliff_01b`는 Level Instance로 참조만 한다. 조립체는 서쪽 벽 앞 분지 바닥 로컬 `(0, -1600)`에 현지 Up 기준 원본 스케일로 세웠다. 재생성은 `Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py`의 `build` → `instances`이고, 배치값은 `AssemblyTestLevel.json`에 있다.
+- 에디터 Python의 `AutomationLibrary.take_high_res_screenshot`이 셰이더를 강제 컴파일하다가 V002의 `MI_MassiveSandstoneCliff_01`(Megascans DynamicLayering)에서 `FAnisotropyPS` assert를 내며 크래시했다. 화면 확인은 콘솔 `HighResShot`으로 한다. 첫 로드에서는 새 4K VT 텍스처 빌드에 약 5분이 걸렸다.
+- 사용자 판정은 Lit 뷰포트에서 받는다.
+- 사용자 판정: `PL_LargeCliff_01b`는 원하던 품질이다. 이 수준으로 Ridge를 채우면 목표를 초과한다고 했다. GX-022(원본 조립체 단위 조립)로 확정했다. 01b 반입 뒤 남은 추가 반입량은 `01c` 4패키지(약 0MiB), `02e` 334패키지(5.57GiB)다.
+
+### 01b·01c 서쪽 벽 재구성 시험
+
+- `PL_LargeCliff_01c`를 반입했다(서어나무 묘목 3개와 레벨 1개). 01b와 01c는 암석 약 100개 중 85개를 같은 자리에 공유하는 같은 절벽 변형이고, 01c는 꼭대기가 약 4.5m 낮다. `02c`와 `02d`는 공유 조각이 0개다.
+- `Z1AssemblyWall_V001/Z1AssemblyWall_V001`은 V002에서 서쪽 벽·왕관·Talus 9개를 빼고 나머지 10개를 NoCollision 사본으로 옮긴 레벨이다. 벽 발치 로컬 x≈−1,750~−1,800에 01b·01c를 18.5m 간격으로 0·90·180·270° 돌려 세웠다. 재생성은 `BuildRidgeZ1AssemblyTest.py wall V001`, 배치값은 `AssemblyWallLevel_V001.json`이다.
+- Unlit 확인 결과 조립체는 각각 독립된 기둥으로 읽혔고, 이어진 벽이 되지 않았다. 사이와 위로 V002 기반면의 벽 뒤 사면이 넓게 드러났다. 네 기둥은 폭·높이·윤곽이 거의 같아 회전만으로는 반복이 남는다.
+
+### 02 계열 서쪽 벽 재구성 시험
+
+- 사용자가 01 계열 두 종만으로는 벽이 어렵다고 보고 02 계열 반입을 정했다. `02b`·`02c`·`02d`·`02e`를 함께 반입했다(추가 335패키지, 5.57GiB). 의존성이 거의 같아 `02e` 하나와 용량 차이가 없었다. Git 제외에 `PhysMat_Gravel`을 더했다.
+- `Z1AssemblyWall_V002/Z1AssemblyWall_V002`는 V001과 같은 V002 사본 위에 `02c`·`02e`·`02d`를 벽 발치 로컬 x≈−2,000~−2,100에 25m 간격(약 10m 겹침)으로 세웠다. `02b`는 뒤쪽 x −3,100에 180° 돌려 6m 높게 두었다. 재생성은 `BuildRidgeZ1AssemblyTest.py wall V002`이다.
+- Unlit 확인 결과 이어진 덩굴 암벽으로 읽혔다. 조립체 사이 아래쪽 V자 틈 두 곳과 중앙 상단으로 기반면 사면이 조금 보이고, 뒤쪽 `02b`는 정면 시점에서 거의 보이지 않는다.
+- 사용자 판정: 여전히 덩치가 미묘하다. 더 큰 절벽이나 산을 찾기로 했다.
+
+### 배경 조립체 산괴 시험
+
+- ED `PCGAssemblies/Background`에는 원경용 조립체가 있다. Hoodoo 01b는 145×113×190m, Mountain 계열은 폭 287~369m, Vista Cliff는 약 300×300×210m다. SmartAssets 절벽을 4~13배 키워 만들었고, 수목은 PCGVolume이 만든 서어나무 ISM이다. 옥탄트에 넣으려면 0.3~0.5배로 줄여야 한다.
+- 사용자가 6종(`Asmbl_BG_Hoodoo_01b`·`02b`, `Asmbl_BG_Mountain_01b`·`04b`, `PL_Vista_Cliff_01`·`01c`)을 반입했다. 미반입 52패키지(1.26GiB)가 모두 들어왔고 Git 추적 파일은 늘지 않았다.
+- `Z1AssemblyWall_V003/Z1AssemblyWall_V003`은 V002의 02 계열 벽 3개를 앞에 두고, 뒤쪽 그 자리 기반면에 10m 묻어 Hoodoo 01b(0.4배, 로컬 −5,200, −600)와 Mountain 04b(0.3배, 로컬 −5,500, 3,500)를 세웠다. 둘 다 경계에서 약 114~116m 떨어져 있다. 재생성은 `BuildRidgeZ1AssemblyTest.py wall V003`이고, 확인 시점은 같은 스크립트의 `look`으로 바꾼다.
+- Unlit 확인 결과 벽 뒤에 수목 덮인 봉우리 두 개와 Hoodoo 첨탑이 하늘선을 만든다. 정면 저시점에서는 벽 위로 산괴 아랫부분만 보인다. 벽 남쪽의 V002 기반면 큰 사면은 여전히 화면 왼쪽을 크게 차지한다. 0.3~0.4배로 줄이면서 수목도 같은 비율로 작아졌다.
+- 사용자 판정: 배경 조립체를 줄여 나무까지 작아진 것은 어색하다. 원래 크기로는 쓸 수 없다. Mountain 04b는 287×177×221m인데 구 반지름이 300m라 봉우리가 중심 광원 79m 앞까지 솟는다. 옥탄트 중심에서 경계까지 호 길이는 약 185m이고, 긴 변의 절반 143m 구간에서는 곡률 때문에 가장자리가 약 33m 묻힌다. 근경 조립체(Forest·Ditch·LargeAssembly)는 가장 큰 것도 높이 약 53m다.
+
+### ED 조립체 이음 방식 조사
+
+- 열려 있던 ED 에디터(8001)에서 `ElectricDreams_PCGCloseRange`를 읽기 전용으로 열어 구성을 덤프했다. 변경 패키지는 0개다. 근거는 `AssemblyTest_20261119/`의 `EDCloseRangeJoins.json`·`EDCloseRangeDetail.json`·`EDAssemblyUse.json`·`EDMainMapClasses.json`·`EDPcgAssetUse.json`·`EDForestCliffsGraph.json`과 같은 이름의 덤프 스크립트다.
+- ED는 조립체 레벨을 손으로 이어붙이지 않는다. 조립체 레벨마다 `*_PCG` 데이터 에셋(레벨→PCG 포인트 데이터)이 있고, PCG 그래프가 이를 점 위에 복사한다(`PCGAsset` 요소·`SG_CopyPointsWithHierarchy`·`ApplyHierarchy`). `02b`·`02c` 레벨을 직접 참조하는 맵은 없다.
+- 본 맵 `ElectricDreams_PCG`는 랜드스케이프(스트리밍 프록시 256개)가 지형 전체 형상을 맡는다. 그 위에 `PCGDemo_Forest`(01b·01c·02d·02e·LargeBoulder·MediumGround_02), `PCGDemo_ForestCliffs`(01b·01c·02b·02c), `PCGDemo_Background`(Hoodoo·Mountain·Vista), Ditch·Ground 그래프가 얹힌다. ForestCliffs는 지표 샘플러(점 범위 13×13×20m)·이웃 거리·밀도 필터·법선으로 회전 재구성·투영·차집합을 쓴다. 가파른 지표에 절벽 조립체를 경사 방향으로 덮어 씌우는 구조로 보이며, 실제 배치 기울기는 아직 확인하지 않았다.
+- CloseRange에는 랜드스케이프가 없다. 바닥은 `PCGDemo_GroundBP`(78×87m, 인스턴스 15,259)와 `PCGDemo_DitchBP`(96×106m, 23,697, `SM_ForestGround_01` 4,483개 포함)가 깐 메시다. 산괴는 `BP_PCG_LargeAssembly` 하나다. 닫힌 스플라인 5점(둘레 86m)에서 약 70×70×46m 산괴를 만들고, 인스턴스는 10,234개다. 절벽 데이터는 `PL_LargeCliff_01b_PCG` 하나이고 나머지는 Embankment·EmbankmentRoots·EmbankmentTree·FallenTree·HornbeamJungle·LargeGround 조립체와 낙엽·자갈·MoneyPlant·덩굴이다. 이음과 바닥 경계는 식생·둑·잔재 층이 덮는다.
+- 정리: ED에서 큰 형상은 랜드스케이프나 바닥 메시가, 절벽 조립체는 경사면의 외피가, 이음은 PCG 식생·잔재 층이 맡는다. 지금까지 Ridge 시험처럼 조립체를 벽돌로 이어 큰 형상을 만드는 방식은 ED에 없다. 구면이라 랜드스케이프를 쓸 수 없는 Ridge에는 랜드스케이프 없이 바닥 메시로 만든 CloseRange가 가장 가까운 선례다.
+- CloseRange 맵 통째 반입을 검토했다. 맵과 외부 액터·객체 113개를 루트로 한 재귀 의존성은 1,216패키지이고, LootNPop에 없는 것은 551개 10.03GiB다(Megascans 3D 5.0GiB, `Meshes` 2.6GiB, `Custom` 1.6GiB). 기존 패키지 665개는 크기만 다르고(재저장 차이) Git 추적 파일과 겹치는 경로는 없다. 현재 Git 제외 밖에 새로 생기는 경로는 `Audio`·`Blueprints/BP_DroneInstructions`·`Custom/Lighting`·`Custom/RS_Assets`·`Custom/SM_CliffPart_01`·`Levels/PCG`·`Meshes/_GENERATED/RockFormation`·`PhysicalMaterials/PhysMat_Water*`·`Textures/EnvRnD`·`__ExternalActors__`·`__ExternalObjects__/Levels/PCG`다. ED에서 켜져 있고 LootNPop에서 꺼진 플러그인은 AudioModulation·SP_HoverDrone 등 15개다. PCG는 양쪽 모두 켜져 있다. 근거는 `EDCloseRangeDeps.json`이다.
+- 통째 Migrate는 대화상자 목록에 World Partition 외부 액터가 실리지 않아 중단했다. 대신 ED에서 CloseRange의 PCG 결과를 그룹별 일반 레벨 5개(`/Game/LNPBake/CloseRange/CR_LargeAssembly`·`SmallAssembly`·`Ground`·`Ditch`·`Props`)로 구웠다. 원본 컴포넌트를 메시별 ISM/HISM으로 옮겼고, 재질 덮어쓰기·커스텀 데이터·컬링·그림자·충돌 설정을 복사했다. 다섯 레벨 모두 LargeAssembly 위치 `(90250, -4360, 1660)`을 원점으로 쓴다. 재로드 대조에서 메시별 인스턴스 수가 다섯 레벨 모두 원본과 일치했다(10,234·364·15,259·23,697·51, 데칼 23). 재생성은 `Scripts/Profiling/Graphics/BakeEDCloseRange.py bake`·`verify`이고, 기록은 `EDCloseRangeBake.json`이다.
+- 구운 레벨의 반입 의존성은 925패키지이고, 그중 미반입 306개 9.72GiB다(`EDCloseRangeBakeDeps.json`). 맵 통째 반입용으로 넣었던 Git 제외 규칙을 이 범위(`LNPBake`·`Custom/RS_Assets`·`Custom/SM_CliffPart_01`·`Meshes/_GENERATED`·`PhysMat_Water*`)로 줄였다. 306개가 모두 제외되는 것을 확인했다.
+
+### CloseRange 구운 레벨 반입과 Ridge 배치 시험
+
+- 사용자가 `CR_*` 5개를 Migrate했다. 미반입 306개가 모두 들어왔고 Git 추적 파일은 늘지 않았다.
+- `CloseRangeBake_V001/CloseRangeBake_V001`은 평면 맵 원점에 5개 레벨을 놓고 태양·스카이라이트·대기·안개를 기본값으로 둔 비교 레벨이다(`BuildRidgeZ1AssemblyTest.py crflat`). Unlit 확인 결과 숲 덮인 둔덕 위에 01b 계열 절벽 기둥이 선 CloseRange 산괴가 그대로 재현됐다. 첫 로드 때 물 재질의 레이 트레이싱 히트 셰이더 컴파일 오류(`GetSingleLayerWaterMaterialOutput*` 미정의)가 로그에 남았다.
+- V002 서쪽 기반면은 분지 바닥(x > −2,000)에서 x −2,500~−3,000 사이에 약 58m까지 솟고, 그 뒤는 고원(58~74m)이다. CloseRange 산괴는 바닥 위 높이 약 30~40m의 둔덕이라 이 벽보다 작다.
+- `Z1AssemblyWall_V004`: 산괴를 로컬 (−3,500, −200)의 분지 바닥 높이에 두었다. 기반면 사면 속에 묻혀 정면에서 보이지 않았다.
+- `Z1AssemblyWall_V005`: 02 계열 벽 3개 뒤 고원 위(로컬 −5,500, −200, 동쪽 고원 높이 기준)에 산괴를 숲 왕관으로 얹었다. 정면에서는 벽 위로 절벽 기둥만 보였다. 원경에서는 산괴 둔덕 대부분이 기반면 봉우리 속에 묻혔고, 기둥과 얇은 바닥 띠·쓰러진 나무 일부만 봉우리 위로 드러났다.
+- 정리: 구운 산괴 자체는 ED 품질 그대로 들어왔다. 지금 V002 기반면 위에서는 산괴가 들어갈 자리가 없다. 산괴를 쓰려면 GX-022대로 산괴 아래 기반면을 산괴 바닥(원점 +4m 평면)에 맞춰 낮추거나 평탄하게 고쳐야 한다.
+
+### 산괴 고원 기반면(Z1MassifCover)
+
+- 사용자가 산괴 자리 기반면을 깎는 방향을 정했다. `RidgeZ1CompositionSpec.massif_cover_ground`는 서쪽 덮개 위에 분지 바닥 기준 +46m 평탄 고원을 덮는다(02 벽 상단 약 +48m보다 조금 낮게). 남북 범위는 서쪽 덮개와 같고, x −10,000 서쪽에서 V012 사면으로 돌아간다. 동굴 절개 마스크는 그대로 따른다. 산괴 중심은 남쪽 동굴 절개 부근을 피해 로컬 (−6,500, 300)으로 정했다. 이 범위의 V012 정상부(+78~94m)는 고원 높이로 깎였다.
+- 재생성은 Blender `BuildRidgeZ1Composition.py -- massif-cover`(버전은 `MASSIF_COVER`)와 UE `BuildRidgeZ1AssemblyTest.py importcrust <버전>`이다. 반입 위치는 `EDTerrain_V001/Z1MassifCover_<버전>`이다. V001은 81,003삼각형, V002는 80,809삼각형이고 둘 다 비다양체 0이다. Meadow 경계 최대 보정은 0.0076cm다.
+- V001(고원 시작 x −3,000)은 02 벽 바로 뒤의 서쪽 덮개 봉우리(약 +57m)가 남아 정면·원경 모두 산괴를 가렸다(`Z1AssemblyWall_V006`). V002는 벽 안쪽 x −2,200부터 0.5m 폭 안에서 고원으로 올라간다. 이 절벽은 02 벽 몸체(x −4,300~−250) 안에 들어간다. `Z1AssemblyWall_V007`에서 봉우리가 사라졌고, 하늘선은 02 벽 상단과 산괴 숲·기둥이 만든다.
+- CloseRange 바닥 그룹은 산괴 원점 ±3m다. ED 일반 지면은 원점 높이이고, +4m는 산괴 둔덕 자체의 높이였다. V007의 원점 −4m는 잘못이었고, `Z1AssemblyWall_V008`은 원점을 고원 높이에 두고 Ground·SmallAssembly·Props를 같은 원점에 함께 놓았다.
+- V008 부감에서도 산괴 둘레 바닥 식생이 거의 보이지 않았다. 원인은 곡률로 본다. 고원면 반지름이 약 293.5m라 평면 배치는 중심에서 d만큼 떨어지면 d²/(2×293.5m)만큼 고원 아래로 들어간다(25m에서 1.1m, 40m에서 2.7m, 55m에서 5.2m). 바닥 그룹 대부분이 중심에서 20~55m 거리에 있다. 고원 맨 지면은 기반면 재질의 평지색(보라)으로 드러난다.
+- 다음 후보: 넓은 평면 그룹(Ground·Ditch·Props, LargeAssembly 둘레 둑)은 인스턴스마다 구면 지각 높이로 다시 앉힌다(드레이프). 산괴 암석은 강체로 둔다. 서쪽 덮개 바깥 남북 끝 절개 사면의 노출은 아직 보지 않았다.
+
+### 평면 그룹 구면 드레이프
+
+- `BuildRidgeZ1AssemblyTest.py drape <버전>`은 CR 평면 그룹 레벨을 차례로 열어 인스턴스(와 데칼)를 읽는다. 각 인스턴스는 V008과 같은 원점·회전으로 평면 배치한 위치를 옥탄트 로컬 x, y로 되돌린다. 그 자리 Z1MassifCover V002 지각 높이에 ED 지면 위 높이(원점 기준 z)를 더해 다시 앉히고, 원점 Up에서 그 자리 Up으로 돌린 만큼 회전한다. 결과는 월드 좌표의 `Z1MassifDrape_<버전>` 레벨이다. 산괴(LargeAssembly)는 강체 Level Instance로 둔다. 기록은 `MassifDrape_<버전>.json`이다.
+- Drape V001(Ground·SmallAssembly·Props)과 V002(+Ditch)는 그룹별 메시 인스턴스 수가 원본과 모두 일치했다(15,259·364·74, Ditch 23,697). 시험 레벨은 `Z1AssemblyWall_V009`·`V010`이다.
+- V009 부감: 산괴 둘레 바위 띠와 바닥 조각이 고원 위에 드러났다. 바닥 그룹만으로는 덮개가 듬성했다.
+- V010 부감: Ditch의 지면 덮개(`SM_ForestGround` 등)와 둑·나무가 산괴를 U자로 감싸 고원 위 덮개가 크게 늘었다. 남은 문제는 세 가지다. ① 하상(ED 지면 아래)은 고원 속에 묻혀 U자 안쪽이 맨 지면(보라)으로 남는다. ② 고원 밖 북쪽 오름 사면에 앉은 지면 타일은 경사가 아니라 구면 Up에 맞춰져 선반처럼 겹쳐 보인다. ③ 데칼 일부가 회색 사각형으로 보인다(Unlit, 원인 미확인).
+- 사용자가 V010을 보고 "멋있다"고 판정하고, 양옆 보라색 사면에 기존 절벽 재질을 입혀 보기를 요청했다.
+
+### 산괴 고원 지각 재질(Z1MassifSurface)
+
+- 보라색은 재질이 없어서가 아니다. 하상 재질(`M_Ridge_Z1_Channel`)은 V005 절벽·지면 재질에 하상을 얹은 것이다. 이 재질의 좌표 함수 `MF_RidgeSurfaceCoordinates`가 1-B0 대표 구역(x −3,200 동쪽)과 이음매 15m 밖을 구역 밖으로 보고 평지색으로 칠한다. 고원과 남북 사면은 모두 x −2,200 서쪽이라 구역 밖이다. V005 MI를 그대로 입혀도 같은 보라색이 나왔다.
+- `BuildRidgeZ1AssemblyTest.py surface`는 하상 재질 부모·MI를 `Z1MassifSurface_V001/`로 복제한다. 사본에서 구역 Custom 노드만 바꿔 로컬 x −14,000~−1,500, y ±8,000 직사각형을 구역에 더한다. 하상 가중치는 원래 구역 마스크를 그대로 쓴다. 원본 V005·하상 재질은 수정하지 않았다. 더한 직사각형에는 이음매 제외가 없다(시험 레벨 전용).
+- `wall V011`은 V010과 같은 배치에 이 재질을 지각 슬롯 0에 입힌다. Unlit 부감에서 고원·남북 사면·분지가 사암 절벽/지면 재질로 바뀌었다. 보라색 평면으로 보이던 양옆이 실제로는 높은 사면이었음이 드러났다. 사면에 선반처럼 앉은 지면 타일(문제 ②)이 더 눈에 띈다. 직사각형 밖 원경은 보라색으로 남는다. Lit 판정은 하지 않았다.
+- 사용자 판정(2026-11-20): V011이 "엄청 맘에 든다". 이 방향(CloseRange 굽기·고원 기반면·드레이프·지각 재질 구역 확장)을 GX-023으로 확정했다. CloseRange에 더 어울리는 재질이 있으면 적용해 봐도 좋다고 했다. 다음 세션은 사면 선반 타일 정리부터 시작한다([Current](../Current.md) §3).

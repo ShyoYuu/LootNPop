@@ -60,11 +60,31 @@ Content/NiagaraExamples/
 /Content/MSPresets/MSVTTextures/
 /Content/PhysicalMaterials/PhysMat_Dirt.uasset
 /Content/PhysicalMaterials/PhysMat_Grass.uasset
+/Content/PhysicalMaterials/PhysMat_Gravel.uasset
 /Content/PhysicalMaterials/PhysMat_GravelOxidized.uasset
 /Content/PhysicalMaterials/PhysMat_LooseRock.uasset
 /Content/PhysicalMaterials/PhysMat_Mud.uasset
 /Content/PhysicalMaterials/PhysMat_SolidRock.uasset
 /Content/SmartAssets/
+# 1-BR 조립체 시험(PL_LargeCliff 레벨 단위 반입)이 추가로 가져오는 원본 경로
+/Content/Asmbly/
+/Content/Custom/IvyTest/
+/Content/Custom/RootsTest/
+/Content/MSPresets/
+/Content/PCG/
+/Content/FX/MistCards/
+/Content/__ExternalActors__/Asmbly/
+/Content/__ExternalObjects__/Asmbly/
+/Content/__ExternalActors__/PCG/
+/Content/__ExternalObjects__/PCG/
+# 1-BR CloseRange PCG 결과를 ED에서 구운 레벨(LNPBake)과 그 레벨이 추가로 가져오는 원본 경로
+# 재생성: Scripts/Profiling/Graphics/BakeEDCloseRange.py
+/Content/LNPBake/
+/Content/Custom/RS_Assets/
+/Content/Custom/SM_CliffPart_01.uasset
+/Content/Meshes/_GENERATED/
+/Content/PhysicalMaterials/PhysMat_Water.uasset
+/Content/PhysicalMaterials/PhysMat_WaterShallow.uasset
 # Electric Dreams에서 파생한 재질·함수·PCG 등도 로컬에서 재생성한다.
 /Content/Graphics/Environment/ElectricDreams/
 

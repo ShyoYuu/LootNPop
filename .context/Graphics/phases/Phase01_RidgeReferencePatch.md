@@ -1,6 +1,6 @@
 # Phase 1-BR — Ridge 지표 Electric Dreams 교체
 
-> 상태: U1~U3 완료 · U4 Z1 원본 용도 적용 · 사용자 구도 검토 대기
+> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 시험본 V011(GX-023) · 사면 타일 정리 대기
 > 순서: 1-B5f → 1-BR(기존 1-B6 전체 교체를 흡수) → 1-C
 > 상위: [그래픽스 로드맵](../Roadmap.md) §2·§4, [Phase 1 실행서](Phase01_BenchmarkContent.md) §3, [확정 결정](../Decisions.md) GX-019·GX-021
 > 마지막 갱신: 2026-11-19
@@ -152,6 +152,8 @@ V006 장식 1,461개는 새 LVI로 옮기지 않는다. 그 규칙과 노드는 
 - ED 메시는 seam 평면에서 5m 안에 두지 않는다. 충돌 프록시는 20m 안에 두지 않는다.
 - PATHS 반폭은 GX-017 기준으로 비운다. Pod 중심 9m와 훅 사선(SIGHT_EXPECTATIONS)도 보호한다.
 - 30m를 넘는 평면 메시는 곡률 처짐을 고려해 조각마다 기울기를 따로 준다.
+- 플레이 시야에 드는 절벽 면은 ED 암벽을 연속으로 조립한다. 기반면은 암벽 단면과 상단 접점에 맞게 조형하고, 메우기 어려운 작은 이음에만 드러나도록 한다. 평탄한 분지와 하상에는 기존 보행면 방식이 적용된다.
+- 뒤가 열린 곡면 조각은 열린 면을 다른 지형이 가리는 모서리에만 배치한다.
 
 **확인 기준:** 구역마다 `export` JSON이 남아 있고, `clear` → `place`로 같은 배치가 재현된다.
 
@@ -161,7 +163,27 @@ Z1에서는 사용자가 기존 동선을 바꿔도 된다고 하여 절벽 배�
 
 Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. MassiveSandstoneCliff 05는 절벽 상부 선반, 03은 하천 둑과 지면, SmartAssets Cliff 06은 절벽 세로 외피로 재배치했다. 관측한 조립체와 각도는 [EDTerrainCatalog_V001.json](../../../Scripts/Profiling/Graphics/EDTerrainCatalog_V001.json)의 `source_placement`에서 확인한다. 현재 비교본의 배치는 `Scripts/RidgeZ1CompositionSpec.py`에 있다.
 
-새 세션에서는 `Z1Composition_V001/LVI_Ridge_EDTerrain_Z1Composition_V001`의 재배치된 15개를 검토한다. 사용자가 새 구도를 채택하면 비교본 레벨과 그 높이장에 맞게 `PlaceRidgeEDTerrain.py`의 배치 입출력을 연결하고, 에디터의 실제 배치를 JSON으로 확정해 재현한다. 현재 `EDTerrainPlacement_V001.json`은 기본 WIP의 이전 13개 초벌을 재현한다. 비교본은 시각 조립 검토 단계이며 충돌 프록시·비교본 SurfaceData·러프 PIE는 U5·U6에서 검증한다.
+`Z1Composition_V002/LVI_Ridge_EDTerrain_Z1Composition_V002`가 현재 서쪽 절벽 검토본이다. 하단 벽 5개와 상단 왕관 3개를 이어 조립하고, Blender에서 뒤쪽 지각을 각 단면에 맞춰 조형했다. V001의 `PillarApron`·`NorthLedge`는 열린 뒷면이 보이던 자리를 비웠다. V002의 전체 ED 시각 메시는 16개이며 V001 비교본은 보존했다.
+
+재현 시 Blender 명령은 `--python Scripts/Blender/BuildRidgeZ1Composition.py -- west-cover`, UE Cmd 명령은 `py "<프로젝트>/Scripts/Profiling/Graphics/AssembleRidgeZ1Composition.py" west-cover`다. 새 레벨 조립은 기존 V001 비교본의 하상 재질을 공유하므로 V001이 먼저 준비되어 있어야 한다.
+
+정면 피복은 옥탄트 로컬 Y −3,100~2,900cm, H −3,650~1,300cm에서 150cm 격자 1,394개를 +X 쪽에서 −X로 쏘아 비교했다. 첫 가시 표면이 ED인 표본은 V001 527개, V002 1,350개였다. 이 검사는 서쪽 절벽의 선택 단면 기준이다. 양쪽 사선의 재질·형상 이음과 인접 사면 전이는 계속 검토한다.
+
+사용자가 Z1 구도를 채택하면 비교본 레벨과 그 높이장에 맞게 `PlaceRidgeEDTerrain.py`의 배치 입출력을 연결하고, 에디터의 실제 배치를 JSON으로 확정해 재현한다. 현재 `EDTerrainPlacement_V001.json`은 기본 WIP의 이전 13개 초벌을 재현한다. 충돌 프록시·비교본 SurfaceData·러프 PIE는 U5·U6에서 검증한다.
+
+#### 조립체 방식(GX-022·GX-023, 2026-11-19~20)
+
+위 개별 메시 비교본(V001·V002)은 계열 혼용과 원본보다 큰 스케일로 이질적이어서, 시각 단위를 ED 원본 조립체로 바꿨다(GX-022). 큰 산괴는 조립체를 벽돌처럼 이어서는 덩치가 모자라, ED CloseRange의 PCG 결과를 구워 쓴다(GX-023). Z1 서쪽은 다음 층으로 구성한다.
+
+| 층 | 내용 | 도구 |
+|:---|:---|:---|
+| 앞면 벽 | 02c·02e·02d 조립체 Level Instance(벽 발치 x≈−2,000, 25m 간격) | `BuildRidgeZ1AssemblyTest.py` `WALLS` |
+| 기반면 | 02 벽 안쪽 x −2,200부터 분지 기준 +46m 고원(Z1MassifCover V002) | `RidgeZ1CompositionSpec.massif_cover_ground`, Blender `-- massif-cover`, UE `importcrust` |
+| 산괴 | CloseRange LargeAssembly를 원래 크기 강체로 고원 위 로컬 (−6,500, 300)에 | `BakeEDCloseRange.py`(ED), `WALLS` |
+| 바닥·하천·잔재 | CloseRange Ground·SmallAssembly·Props·Ditch를 인스턴스마다 지각 높이와 현지 Up으로 드레이프 | `drape <버전>` |
+| 지각 재질 | 하상 재질 사본의 구역 마스크를 서쪽 고원까지 넓힘 | `surface` |
+
+현재 기준은 `Z1AssemblyWall_V011`이다. 재생성 순서와 남은 문제(사면 선반 타일·지각 재질 후보·하상 자리·데칼·Lit)는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
 
 ### U5. 충돌 프록시와 기반면 절개(Blender)
 
@@ -281,6 +303,7 @@ PIE:
 | U2 카탈로그·반입 검증 | `Scripts/Profiling/Graphics/InspectRidgeEDTerrain.py`, `EDTerrainCatalog_V001.json`, `ElectricDreamsPalette.json` |
 | U3 기반면·검증 | `Scripts/RidgeEDBaseSpec.py`, `Scripts/Blender/BuildRidgeEDBase.py`, `Scripts/Blender/VerifyRidgeEDBase.py`, `Scripts/Profiling/Graphics/AssembleRidgeEDBase.py` |
 | U4 배치 도구·비교본 | `Scripts/Profiling/Graphics/PlaceRidgeEDTerrain.py`, `EDTerrainPlacement_V001.json`, `AssembleRidgeZ1Composition.py`, `Scripts/RidgeZ1CompositionSpec.py`, `Scripts/Blender/BuildRidgeZ1Composition.py` |
+| U4 조립체·산괴 시험 | `Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py`, `Scripts/Profiling/Graphics/BakeEDCloseRange.py`(ElectricDreamsEnv 에디터 전용) |
 | 후속 신규 | `Scripts/Blender/BuildRidgeEDCollision.py` |
 | 계약 참조 | [옥탄트 제작 가이드](../../Guide_OctantLevelInstance.md) §3~7, `SurfaceSupportNavigation/design/TerrainContract.md`, `SurfaceSupportNavigation/design/SurfaceBaking.md`, [Ridge 설계 원본](../../../Art/Octants/Ridge_00/README.md) |
 
