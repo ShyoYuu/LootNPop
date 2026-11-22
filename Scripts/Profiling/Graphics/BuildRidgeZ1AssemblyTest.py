@@ -500,18 +500,8 @@ def floor_point(x, y, offset, base="floor"):
     return unreal.Vector(*spec.ridge.point(x, y, ground + offset))
 
 
-def wall(version):
-    # 조립체 시험 레벨이 열린 상태에서 실행한다. V002 Level Instance 안의 배치를 읽어 서쪽 벽만 뺀 사본을 만든다.
-    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-    saving = unreal.EditorLoadingAndSavingUtils
-    assert package(world()) == LEVEL, package(world())
-    assert not dirty(), dirty()
-    wall_level = WALL_FOLDER.format(version)
-    rows = WALLS[version]
-    assert not unreal.EditorAssetLibrary.does_asset_exist(wall_level), wall_level
-    for _, name, *_ in rows:
-        assert unreal.EditorAssetLibrary.does_asset_exist(asset_path(name)), name
-
+def wall_v002_rows(version):
+    # 열린 조립체 시험 레벨의 V002 Level Instance에서 서쪽 벽을 뺀 개별 메시 배치(월드 transform)를 읽고 지각·재질을 바꾼다.
     kept, skipped, owners = [], [], set()
     v002_name = V002.rsplit("/", 1)[1]
     # EditorActorSubsystem은 Level Instance 안의 액터를 돌려주지 않아 월드 전체에서 찾는다.
@@ -540,7 +530,29 @@ def wall(version):
         if version in WALL_MATERIAL:
             assert unreal.EditorAssetLibrary.does_asset_exist(WALL_MATERIAL[version]), WALL_MATERIAL[version]
             cover["overrides"] = {0: WALL_MATERIAL[version]}
+    return kept, skipped
 
+
+def wall_instance(row):
+    # WALLS 행(이름, 조립체, 로컬 x, y, yaw, 높이 오프셋[, 스케일, 높이 기준])을 Level Instance 배치로 바꾼다.
+    label, name, x, y, yaw, offset, *extra = row
+    scale, base = (list(extra) + [1.0, "floor"][len(extra):])[:2]
+    if base == "world":
+        # 월드 좌표로 저장한 레벨(구면 드레이프)은 원점에 그대로 둔다.
+        location, rotation = unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0)
+    else:
+        location, rotation = floor_point(x, y, offset, base), frame_rotation(x, y, yaw)
+    return {"label": label, "level": asset_path(name), "location": location, "rotation": rotation, "scale": scale,
+            "meta": {"local_xy_cm": [x, y], "yaw_deg": yaw, "height_offset_cm": offset, "height_base": base}}
+
+
+def build_wall_level(wall_level, kept, instances, sky):
+    # 열린 레벨의 TestMap03 조명 사본을 새 맵으로 옮기고 Sky Light·개별 메시(kept)·Level Instance(instances)를 놓아 저장한다.
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    saving = unreal.EditorLoadingAndSavingUtils
+    assert not unreal.EditorAssetLibrary.does_asset_exist(wall_level), wall_level
+    for row in instances:
+        assert unreal.EditorAssetLibrary.does_asset_exist(row["level"]), row["level"]
     source = light_actors()
     expected = sorted(tuple(xyz(a.get_actor_location())) for a in source)
     actors.set_selected_level_actors(source)
@@ -555,9 +567,7 @@ def wall(version):
     for actor in pasted:
         actor.set_folder_path("Lighting_TestMap03")
     actors.select_nothing()
-    sky = None
-    if version in WALL_SKY:
-        sky = dict(WALL_SKY[version])
+    if sky:
         cubemap = unreal.load_asset(sky["cubemap"])
         assert cubemap, sky["cubemap"]
         # 지정 큐브맵이라 위치는 영향이 없다. 조명 사본과 같은 폴더 규칙으로 따로 둔다.
@@ -588,23 +598,29 @@ def wall(version):
         actor.set_folder_path("V002_WithoutWestWall")
 
     placed = []
-    for label, name, x, y, yaw, offset, *extra in rows:
-        scale, base = (list(extra) + [1.0, "floor"][len(extra):])[:2]
-        if base == "world":
-            # 월드 좌표로 저장한 레벨(구면 드레이프)은 원점에 그대로 둔다.
-            location, rotation = unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0)
-        else:
-            location, rotation = floor_point(x, y, offset, base), frame_rotation(x, y, yaw)
-        actor = actors.spawn_actor_from_class(unreal.LevelInstance, location, rotation)
-        actor.set_actor_label(label)
+    for row in instances:
+        actor = actors.spawn_actor_from_class(unreal.LevelInstance, row["location"], row["rotation"])
+        actor.set_actor_label(row["label"])
+        scale = row["scale"]
         actor.set_actor_scale3d(unreal.Vector(scale, scale, scale))
-        actor.set_world_asset(unreal.load_asset(asset_path(name)))
+        actor.set_world_asset(unreal.load_asset(row["level"]))
         actor.load_level_instance()
-        assert package(actor.get_world_asset()) == asset_path(name), label
+        assert package(actor.get_world_asset()) == row["level"], row["label"]
         actor.set_folder_path("EDAssemblies")
-        placed.append({"label": label, "level": asset_path(name), "local_xy_cm": [x, y], "yaw_deg": yaw,
-                       "height_offset_cm": offset, "height_base": base, "scale": scale, "location": xyz(location)})
+        placed.append(dict(row["meta"], label=row["label"], level=row["level"], scale=scale, location=xyz(row["location"])))
     assert saving.save_map(world(), wall_level), wall_level
+    return placed
+
+
+def wall(version):
+    # 조립체 시험 레벨이 열린 상태에서 실행한다. V002 Level Instance 안의 배치를 읽어 서쪽 벽만 뺀 사본을 만든다.
+    assert package(world()) == LEVEL, package(world())
+    assert not dirty(), dirty()
+    wall_level = WALL_FOLDER.format(version)
+    assert not unreal.EditorAssetLibrary.does_asset_exist(wall_level), wall_level
+    kept, skipped = wall_v002_rows(version)
+    sky = dict(WALL_SKY[version]) if version in WALL_SKY else None
+    placed = build_wall_level(wall_level, kept, [wall_instance(row) for row in WALLS[version]], sky)
 
     eye, target = point(*WALL_VIEW_EYE), point(*WALL_VIEW_TARGET)
     view_rot = unreal.MathLibrary.make_rot_from_xz(target - eye, eye * (-1.0 / eye.length()))

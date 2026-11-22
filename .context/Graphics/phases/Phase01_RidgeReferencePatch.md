@@ -1,9 +1,9 @@
 # Phase 1-BR — Ridge 지표 Electric Dreams 교체
 
-> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 기준 시험본 V034(GX-023~GX-029, 남 둑 3단·북 둑 2단 + ED 둑 묶음 띠 + 북쪽 단·남서 모서리 평면 묶음) · 다음은 배치 재현 원본(JSON) 확정
+> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 기준 시험본 V034(GX-023~GX-029, 남 둑 3단·북 둑 2단 + ED 둑 묶음 띠 + 북쪽 단·남서 모서리 평면 묶음) · 재현 원본 `EDTerrainLayout_Z1.json` 확정(GX-030) · 다음은 U5 Z1 충돌 프록시
 > 순서: 1-B5f → 1-BR(기존 1-B6 전체 교체를 흡수) → 1-C
 > 상위: [그래픽스 로드맵](../Roadmap.md) §2·§4, [Phase 1 실행서](Phase01_BenchmarkContent.md) §3, [확정 결정](../Decisions.md) GX-019·GX-021
-> 마지막 갱신: 2026-11-19
+> 마지막 갱신: 2026-11-22
 
 ## 1. 목표
 
@@ -169,7 +169,7 @@ Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. Mas
 
 정면 피복은 옥탄트 로컬 Y −3,100~2,900cm, H −3,650~1,300cm에서 150cm 격자 1,394개를 +X 쪽에서 −X로 쏘아 비교했다. 첫 가시 표면이 ED인 표본은 V001 527개, V002 1,350개였다. 이 검사는 서쪽 절벽의 선택 단면 기준이다. 양쪽 사선의 재질·형상 이음과 인접 사면 전이는 계속 검토한다.
 
-사용자가 Z1 구도를 채택하면 비교본 레벨과 그 높이장에 맞게 `PlaceRidgeEDTerrain.py`의 배치 입출력을 연결하고, 에디터의 실제 배치를 JSON으로 확정해 재현한다. 현재 `EDTerrainPlacement_V001.json`은 기본 WIP의 이전 13개 초벌을 재현한다. 충돌 프록시·비교본 SurfaceData·러프 PIE는 U5·U6에서 검증한다.
+`PlaceRidgeEDTerrain.py`·`EDTerrainPlacement_V001.json`은 개별 StaticMeshActor 방식이고 기본 WIP의 이전 13개 초벌만 재현한다. 조립체 방식으로 바뀐 Z1의 재현 원본은 아래 조립체 방식 끝의 `EDTerrainLayout_Z1.json`이다(GX-030). 충돌 프록시·비교본 SurfaceData·러프 PIE는 U5·U6에서 검증한다.
 
 #### 조립체 방식(GX-022~GX-027, 2026-11-19~20)
 
@@ -188,14 +188,26 @@ Z1 비교본은 원본 조립체에서 확인한 메시 용도를 따른다. Mas
 | 웅덩이 재질 | ED 진흙 웅덩이(Single Layer Water) 사본에 출력 노드를 더해 컴파일 실패를 고치고 Drape V006에서 바꿔 끼움 | `puddle`, `drape V006` |
 | 시험 조명 | TestMap03 조명 사본 + 균일 회색 Sky Light 50(시험 레벨 전용, GX-025) | `WALL_SKY` |
 
-현재 기준은 `Z1AssemblyWall_V034`이다(V023에 능선 깎기·남 테두리 둑 3단, 북 테두리 분지 쪽 둑 2단·돌출 깎기, 둑 묶음 띠 남 V005·북 V009, 능선 자리 단독 조립체 3개, 북 급사면 02c, 북쪽 단·남서 모서리 평면 묶음 Flat V001과 그 자리를 50cm 낮춘 지각 V010을 더함). 구도는 부감과 분지 눈높이 저시점(Pod 중심·협곡 진입·홀 게이트), 테두리 정면 2곳, 남 둑 근경, 북 테두리 3곳(둑 근경·부감·동쪽 동굴 입구), 북쪽 단·남서 부감에서 함께 판정한다(GX-026~GX-029). 석교 아래 협곡 바닥(Z2)과 남 테두리 위 남쪽 대지는 아직 맨 지각이다. 재생성 순서와 남은 문제는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이며, 구도를 채택하면 배치 재현 원본과 U5 충돌 프록시를 이 구성에 맞춰 다시 정한다.
+현재 기준은 `Z1AssemblyWall_V034`이다(V023에 능선 깎기·남 테두리 둑 3단, 북 테두리 분지 쪽 둑 2단·돌출 깎기, 둑 묶음 띠 남 V005·북 V009, 능선 자리 단독 조립체 3개, 북 급사면 02c, 북쪽 단·남서 모서리 평면 묶음 Flat V001과 그 자리를 50cm 낮춘 지각 V010을 더함). 구도는 부감과 분지 눈높이 저시점(Pod 중심·협곡 진입·홀 게이트), 테두리 정면 2곳, 남 둑 근경, 북 테두리 3곳(둑 근경·부감·동쪽 동굴 입구), 북쪽 단·남서 부감에서 함께 판정한다(GX-026~GX-029). 석교 아래 협곡 바닥(Z2)과 남 테두리 위 남쪽 대지는 아직 맨 지각이다. 재생성 순서와 남은 문제는 [Current](../Current.md) §3이 소유한다. 이 층들은 모두 NoCollision 시각 시험이다.
+
+**재현 원본(GX-030, 2026-11-22).** Z1의 Git 추적 원본은 `Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json` 하나다.
+
+- 손배치 층(개별 메시·조립체·CR 산괴 Level Instance·조명·Sky)은 결과 transform을 옥탄트 로컬로 담는다. 에디터에서 다듬은 배치는 `RidgeZ1Layout.py export`로 되읽는다.
+- 인스턴스 층(드레이프·띠·평면 묶음, 약 14.2만 개)은 생성기 명령·설정·시드와 입력(`CR_*.umap` 해시)·결과(메시별 수·transform 해시) 지문만 담는다. 인스턴스 손수정은 받지 않고 생성 규칙으로 고친다.
+- `build <이름>`은 JSON에서 시험 레벨을 만들고, `verify`는 열린 레벨을 JSON과 대조한다. `regen <drape|band|flat> <버전>`은 층을 `_Repro`에 다시 생성해 지문을 대조한다.
+- V034는 층 4개 재생성·JSON 재구성·지각 Blender 재생성 모두 지문이 같았다.
+- 동선·Pod 보호(GX-017)는 Z1 동선·마커를 새 지형에 다시 정한 뒤 규칙으로 일괄 적용한다(`protection.status = deferred`).
 
 ### U5. 충돌 프록시와 기반면 절개(Blender)
 
 UE에서 내보내는 것:
 
 - 고유 메시는 Nanite fallback LOD로 한 번씩 FBX로 내보낸다. 4M 삼각형 원본은 쓰지 않는다.
-- 여기에 배치 JSON을 함께 넘긴다.
+- 여기에 배치를 함께 넘긴다. Z1에서 U5가 읽는 입력은 다음과 같다(GX-030).
+  - 배치: `EDTerrainLayout_Z1.json`의 `actors`·`level_instances`. 인스턴스 층은 transform을 JSON에 담지 않으므로, JSON에서 만든 시험 레벨(`RidgeZ1Layout.py build`, `verify` PASS)의 Level Instance 하위 레벨에서 실제 world transform을 읽어 내보낸다.
+  - 제외: `proxy.exclude_rule`. 메시 상자 꼭대기가 렌더링 지각보다 50cm 넘게 아래인 인스턴스이고, 동굴 절개 안은 판정하지 않는다. V034는 37,014개이며 대부분 02 계열 조립체 벽 뒤 바닥 덮개다. 목록은 Saved `Layout/ProxyExclude_V034.json`이다.
+  - 지면: 렌더링 지각 V010(`crust_build.render`). 지면 타일 윗면은 배치 지각(`crust_build.placement`)을 따라 렌더링 지각보다 약 50cm 위다(GX-024).
+  - 프록시 후보에서 식생·데칼·납작한 지면 타일을 뺄지, 크기 하한을 얼마로 할지, `_Floor` 높이 기준을 어느 지각에 둘지는 U5 첫 단계에서 정한다.
 
 새 `Scripts/Blender/BuildRidgeEDCollision.py`는 구역별로 다음을 한다.
 
@@ -309,6 +321,7 @@ PIE:
 | U3 기반면·검증 | `Scripts/RidgeEDBaseSpec.py`, `Scripts/Blender/BuildRidgeEDBase.py`, `Scripts/Blender/VerifyRidgeEDBase.py`, `Scripts/Profiling/Graphics/AssembleRidgeEDBase.py` |
 | U4 배치 도구·비교본 | `Scripts/Profiling/Graphics/PlaceRidgeEDTerrain.py`, `EDTerrainPlacement_V001.json`, `AssembleRidgeZ1Composition.py`, `Scripts/RidgeZ1CompositionSpec.py`, `Scripts/Blender/BuildRidgeZ1Composition.py` |
 | U4 조립체·산괴 시험 | `Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py`, `Scripts/Profiling/Graphics/BakeEDCloseRange.py`(ElectricDreamsEnv 에디터 전용) |
+| U4 Z1 재현 원본(GX-030) | `Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json`, `Scripts/Profiling/Graphics/RidgeZ1Layout.py`, `Scripts/Blender/HashRidgeCrust.py` |
 | 후속 신규 | `Scripts/Blender/BuildRidgeEDCollision.py` |
 | 계약 참조 | [옥탄트 제작 가이드](../../Guide_OctantLevelInstance.md) §3~7, `SurfaceSupportNavigation/design/TerrainContract.md`, `SurfaceSupportNavigation/design/SurfaceBaking.md`, [Ridge 설계 원본](../../../Art/Octants/Ridge_00/README.md) |
 

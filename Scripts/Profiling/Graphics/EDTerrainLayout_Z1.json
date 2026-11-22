@@ -1,0 +1,837 @@
+{
+ "schema": 1,
+ "version": "V034",
+ "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1AssemblyWall_V034/Z1AssemblyWall_V034",
+ "lighting": {
+  "source_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1AssemblyTest_V001/Z1AssemblyTest_V001",
+  "lights": [
+   {
+    "label": "LNP_Fill_Cool_B",
+    "class": "PointLight",
+    "location": [
+     -6000.0,
+     10400.0,
+     -2000.0
+    ]
+   },
+   {
+    "label": "LNP_Fill_Cool_C",
+    "class": "PointLight",
+    "location": [
+     -6000.0,
+     -10400.0,
+     6000.0
+    ]
+   },
+   {
+    "label": "LNP_Fill_Warm_A",
+    "class": "PointLight",
+    "location": [
+     12000.0,
+     0.0,
+     3000.0
+    ]
+   },
+   {
+    "label": "LNP_Fill_Warm_D",
+    "class": "PointLight",
+    "location": [
+     0.0,
+     0.0,
+     -13000.0
+    ]
+   },
+   {
+    "label": "PointLight",
+    "class": "PointLight",
+    "location": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "label": "PostProcessVolume",
+    "class": "PostProcessVolume",
+    "location": [
+     1630.0,
+     1070.0,
+     -24660.0
+    ]
+   }
+  ],
+  "sky": {
+   "cubemap": "/Engine/EngineResources/GrayTextureCube",
+   "intensity": 50.0,
+   "lower_hemisphere_is_black": false
+  }
+ },
+ "actors": [
+  {
+   "label": "ED_Z1_NorthBankShelf",
+   "role": "v002",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03",
+   "material_overrides": {},
+   "local_xyh_cm": [
+    2090.0004,
+    -580.0,
+    -4049.9998
+   ],
+   "rotation_deg": [
+    -2.000001,
+    -27.000002,
+    -74.000009
+   ],
+   "scale": [
+    0.32,
+    0.28,
+    0.33
+   ]
+  },
+  {
+   "label": "ED_Z1_NorthCaveFace",
+   "role": "v002",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+   "material_overrides": {},
+   "local_xyh_cm": [
+    2909.9998,
+    2349.9999,
+    -4260.0003
+   ],
+   "rotation_deg": [
+    1.999998,
+    174.0,
+    6.000001
+   ],
+   "scale": [
+    0.97,
+    0.9,
+    1.17
+   ]
+  },
+  {
+   "label": "ED_Z1_PillarShoulder",
+   "role": "v002",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "material_overrides": {},
+   "local_xyh_cm": [
+    3439.9998,
+    -1570.0002,
+    -3499.9996
+   ],
+   "rotation_deg": [
+    8.0,
+    19.000001,
+    -7.000001
+   ],
+   "scale": [
+    1.42,
+    1.25,
+    1.26
+   ]
+  },
+  {
+   "label": "SM_Octant_Ridge_00_V012_Z1MassifCover_V010_R30000",
+   "role": "render_crust",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifCover_V010/SM_Octant_Ridge_00_V012_Z1MassifCover_V010_R30000",
+   "material_overrides": {
+    "0": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifSurface_V003/MI_Ridge_Z1_MassifSurface"
+   },
+   "world_cm": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "world_rotation_deg": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "crust_version": "V010"
+  },
+  {
+   "label": "SM_Ridge_00_V012_PreservedRocks_Floor",
+   "role": "v002",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/SM_Ridge_00_V012_PreservedRocks_Floor",
+   "material_overrides": {
+    "0": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Composition_V001/MI_Ridge_Z1_Channel"
+   },
+   "world_cm": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "world_rotation_deg": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "label": "SM_Ridge_00_V012_PreservedRocks_Shell",
+   "role": "v002",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/SM_Ridge_00_V012_PreservedRocks_Shell",
+   "material_overrides": {
+    "0": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Composition_V001/MI_Ridge_Z1_Channel"
+   },
+   "world_cm": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "world_rotation_deg": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ ],
+ "level_instances": [
+  {
+   "label": "ASM_Z1_CanyonWestBank",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02b",
+   "local_xy_cm": [
+    -3300.0,
+    -4900.0
+   ],
+   "yaw_deg": -30.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "abs",
+   "height_offset_cm": -3500.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_CrownCenter",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02b",
+   "local_xy_cm": [
+    -3600.0,
+    -300.0
+   ],
+   "yaw_deg": 170.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "floor",
+   "height_offset_cm": 2100.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_CrownNorth",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01c",
+   "local_xy_cm": [
+    -3200.0,
+    1050.0
+   ],
+   "yaw_deg": -25.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "floor",
+   "height_offset_cm": 3600.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_CrownSouth",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01b",
+   "local_xy_cm": [
+    -3200.0,
+    -1450.0
+   ],
+   "yaw_deg": 20.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "floor",
+   "height_offset_cm": 3100.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_NorthRimWall",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02c",
+   "local_xy_cm": [
+    -1950.0,
+    3800.0
+   ],
+   "yaw_deg": -86.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "abs",
+   "height_offset_cm": -2900.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_PlateauNorthStep",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02c",
+   "local_xy_cm": [
+    -4300.0,
+    3500.0
+   ],
+   "yaw_deg": -75.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "abs",
+   "height_offset_cm": -1000.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_PlateauSouthCrown",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01c",
+   "local_xy_cm": [
+    -4600.0,
+    -4400.0
+   ],
+   "yaw_deg": 30.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "abs",
+   "height_offset_cm": 300.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_WallCenter",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02e",
+   "local_xy_cm": [
+    -2150.0,
+    -200.0
+   ],
+   "yaw_deg": -8.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "floor",
+   "height_offset_cm": -150.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_WallNorth",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02d",
+   "local_xy_cm": [
+    -2000.0,
+    2300.0
+   ],
+   "yaw_deg": 6.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "floor",
+   "height_offset_cm": -450.0,
+   "scale": 1.0
+  },
+  {
+   "label": "ASM_Z1_WallSouth",
+   "role": "assembly",
+   "level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02c",
+   "local_xy_cm": [
+    -2000.0,
+    -2700.0
+   ],
+   "yaw_deg": 10.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "floor",
+   "height_offset_cm": -100.0,
+   "scale": 1.0
+  },
+  {
+   "label": "CR_Z1_Drape",
+   "role": "layer",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifDrape_V006/Z1MassifDrape_V006",
+   "height_base": "world"
+  },
+  {
+   "label": "CR_Z1_Flat",
+   "role": "layer",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifFlat_V001/Z1MassifFlat_V001",
+   "height_base": "world"
+  },
+  {
+   "label": "CR_Z1_LargeAssembly",
+   "role": "massif",
+   "level": "/Game/LNPBake/CloseRange/CR_LargeAssembly",
+   "local_xy_cm": [
+    -6500.0,
+    300.0
+   ],
+   "yaw_deg": 0.0,
+   "tilt_deg": [
+    0.0,
+    0.0
+   ],
+   "height_base": "floor",
+   "height_offset_cm": 4600.0,
+   "scale": 1.0
+  },
+  {
+   "label": "CR_Z1_RimBand",
+   "role": "layer",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V005/Z1RimBand_V005",
+   "height_base": "world"
+  },
+  {
+   "label": "CR_Z1_RimBandNorth",
+   "role": "layer",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V009/Z1RimBand_V009",
+   "height_base": "world"
+  }
+ ],
+ "layers": {
+  "CR_Z1_Drape": {
+   "generator": "drape",
+   "version": "V006",
+   "command": "drape V006",
+   "config": {
+    "crust": "V002",
+    "groups": [
+     "Ground",
+     "SmallAssembly",
+     "Props",
+     "Ditch"
+    ],
+    "slope_rule": [
+     45.0,
+     0.35,
+     60.0
+    ],
+    "material_swap": {
+     "/Game/PCG/Assets/Materials/MI_MudPuddle_01": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Puddle_V001/MI_MudPuddle_01"
+    }
+   },
+   "seed": null,
+   "source": [
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_Ground",
+     "bytes": 2093094,
+     "sha256": "69a686442781167ab3c4d86f421be1979f5a795e1eb8633e3affeb87fed2559c"
+    },
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_SmallAssembly",
+     "bytes": 199161,
+     "sha256": "4b26dc0bb10ee90005d908645e947a11ae5264d61ac52bd9d2afab8af9050448"
+    },
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_Props",
+     "bytes": 155691,
+     "sha256": "4f247638cd5a7982a1b2382ee1bc7836874634efecd7d3dc6c8bb2ad33b9b4a9"
+    },
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_Ditch",
+     "bytes": 3775809,
+     "sha256": "ec7480467574c32651a42d7cb570cf12ea059f2e7fb0b6ac377b04708514e7ec"
+    }
+   ],
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifDrape_V006/Z1MassifDrape_V006",
+   "result": {
+    "instances": 31718,
+    "decals": 16,
+    "keys": 257,
+    "sha256": "84ccfede887c258bfe9f0e06979374bdbdc363186f5eb673de1757a9cb109f55"
+   }
+  },
+  "CR_Z1_Flat": {
+   "generator": "flat",
+   "version": "V001",
+   "command": "flat V001",
+   "config": {
+    "crust": "V009",
+    "groups": [
+     "Ground",
+     "SmallAssembly",
+     "Props",
+     "Ditch"
+    ],
+    "regions": [
+     "NorthStep",
+     "SouthWest"
+    ],
+    "cell": 1000,
+    "source_min": 80.0,
+    "source_slope": 12.0,
+    "source_channel": 300.0,
+    "cut_margin": 200.0,
+    "rule": [
+     45.0,
+     0.35,
+     60.0
+    ],
+    "seed": 34001
+   },
+   "seed": 34001,
+   "source": [
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_Ground",
+     "bytes": 2093094,
+     "sha256": "69a686442781167ab3c4d86f421be1979f5a795e1eb8633e3affeb87fed2559c"
+    },
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_SmallAssembly",
+     "bytes": 199161,
+     "sha256": "4b26dc0bb10ee90005d908645e947a11ae5264d61ac52bd9d2afab8af9050448"
+    },
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_Props",
+     "bytes": 155691,
+     "sha256": "4f247638cd5a7982a1b2382ee1bc7836874634efecd7d3dc6c8bb2ad33b9b4a9"
+    },
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_Ditch",
+     "bytes": 3775809,
+     "sha256": "ec7480467574c32651a42d7cb570cf12ea059f2e7fb0b6ac377b04708514e7ec"
+    }
+   ],
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifFlat_V001/Z1MassifFlat_V001",
+   "result": {
+    "instances": 14850,
+    "decals": 0,
+    "keys": 226,
+    "sha256": "14000154d643ca52f0db7a4ca78ee48df0ad374cafe659d05dea7496c46ce480"
+   }
+  },
+  "CR_Z1_RimBand": {
+   "generator": "band",
+   "version": "V005",
+   "command": "band V005",
+   "config": {
+    "crust": "V007",
+    "source": "Ditch",
+    "lines": [
+     "South",
+     "North"
+    ],
+    "band": [
+     -1300,
+     3200
+    ],
+    "spacing": 320,
+    "patch": 300,
+    "min_slope": 25.0,
+    "anchor_slope": 35.0,
+    "seed": 27003,
+    "boulders": {
+     "meshes": [
+      "SM_MassiveSandstoneCliff_0",
+      "SM_HugeSandstoneCliff_04",
+      "SM_SandstoneCliff_0",
+      "SM_SandstoneBoulder_05",
+      "SM_MossyForestBoulder_04"
+     ],
+     "spacing": 1100,
+     "scale": [
+      1.6,
+      2.4
+     ],
+     "sink": 0.25
+    },
+    "seat": true,
+    "plate_ratio": 0.4,
+    "plate_tilt": 6.0,
+    "plate_embed": 0.3,
+    "seat_grid": 100.0,
+    "place_lines": [
+     "South"
+    ]
+   },
+   "seed": 27003,
+   "source": [
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_Ditch",
+     "bytes": 3775809,
+     "sha256": "ec7480467574c32651a42d7cb570cf12ea059f2e7fb0b6ac377b04708514e7ec"
+    }
+   ],
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V005/Z1RimBand_V005",
+   "result": {
+    "instances": 79136,
+    "decals": 0,
+    "keys": 203,
+    "sha256": "4404d6e7f092cf6b9a3f8e7ae00b6e3c6cd9d5a4d57cb0e2daba0ae66b91b074"
+   }
+  },
+  "CR_Z1_RimBandNorth": {
+   "generator": "band",
+   "version": "V009",
+   "command": "band V009",
+   "config": {
+    "crust": "V009",
+    "source": "Ditch",
+    "lines": [
+     "NorthBank"
+    ],
+    "band": [
+     -2400,
+     -300
+    ],
+    "spacing": 320,
+    "patch": 300,
+    "min_slope": 25.0,
+    "anchor_slope": 35.0,
+    "seed": 27007,
+    "boulders": {
+     "meshes": [
+      "SM_HugeSandstoneCliff_04",
+      "SM_SandstoneBoulder_05",
+      "SM_MossyForestBoulder_04"
+     ],
+     "spacing": 1100,
+     "scale": [
+      1.4,
+      2.0
+     ],
+     "sink": 0.25
+    },
+    "seat": true,
+    "plate_ratio": 0.4,
+    "plate_tilt": 6.0,
+    "plate_embed": 0.3,
+    "seat_grid": 100.0,
+    "max_slope": 65.0,
+    "x_range": [
+     -2400,
+     1100
+    ]
+   },
+   "seed": 27007,
+   "source": [
+    {
+     "level": "/Game/LNPBake/CloseRange/CR_Ditch",
+     "bytes": 3775809,
+     "sha256": "ec7480467574c32651a42d7cb570cf12ea059f2e7fb0b6ac377b04708514e7ec"
+    }
+   ],
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V009/Z1RimBand_V009",
+   "result": {
+    "instances": 16797,
+    "decals": 0,
+    "keys": 190,
+    "sha256": "bbc38aa06ee9baab745a3140970755798bb4e6a7f7e53a30c593a91d003ca4f4"
+   }
+  }
+ },
+ "assemblies": {
+  "ASM_Z1_CanyonWestBank": {
+   "instances": 8141,
+   "decals": 0,
+   "keys": 174,
+   "sha256": "c41ee1bdc4aa354a7e7da5e1e0a43eb59aff96c1b22f38952a0d58610f11e29c"
+  },
+  "ASM_Z1_CrownCenter": {
+   "instances": 8141,
+   "decals": 0,
+   "keys": 174,
+   "sha256": "4b43b9c10428f3e73ba47f078c55ed48515922c64f90e2aafd49d40b9801f505"
+  },
+  "ASM_Z1_CrownNorth": {
+   "instances": 830,
+   "decals": 0,
+   "keys": 31,
+   "sha256": "1de1a4305e41c770ee22250435f79ad764bb4e270924a987cdb5838896bd7a9e"
+  },
+  "ASM_Z1_CrownSouth": {
+   "instances": 505,
+   "decals": 0,
+   "keys": 35,
+   "sha256": "bd765ea7fad769f6f03d7de1a9dd8e25854fe8ed118bffd8b95d76827c77277f"
+  },
+  "ASM_Z1_NorthRimWall": {
+   "instances": 8723,
+   "decals": 0,
+   "keys": 174,
+   "sha256": "8c040f767f37b8ae211e40ab264e52a978efe84aadb2d8526b13db43f067d797"
+  },
+  "ASM_Z1_PlateauNorthStep": {
+   "instances": 8723,
+   "decals": 0,
+   "keys": 174,
+   "sha256": "347a38546ea26d5d9636d9840bd97864bf871d9b92a59643f584914218267eca"
+  },
+  "ASM_Z1_PlateauSouthCrown": {
+   "instances": 830,
+   "decals": 0,
+   "keys": 31,
+   "sha256": "e82dd38b2103c8bcc1e8199e53772fc66409863ddc0f9c6ca4113a50e3ff7ae1"
+  },
+  "ASM_Z1_WallCenter": {
+   "instances": 9148,
+   "decals": 0,
+   "keys": 187,
+   "sha256": "fce4c2d18664e3fa46649e4c6322ec678b5c040a53374428d62227b253a2dc0e"
+  },
+  "ASM_Z1_WallNorth": {
+   "instances": 8206,
+   "decals": 0,
+   "keys": 174,
+   "sha256": "5165252d0c96ed491bd3c7625b30aa160920917ccd7f3a77944f00514921ee63"
+  },
+  "ASM_Z1_WallSouth": {
+   "instances": 8723,
+   "decals": 0,
+   "keys": 174,
+   "sha256": "53e35b2a629c861268f0f53a2e7f7eb8cfc7cd868f77691e44b20eca0698f210"
+  },
+  "CR_Z1_LargeAssembly": {
+   "instances": 10234,
+   "decals": 0,
+   "keys": 188,
+   "sha256": "42e115002ffdb4e6df7c24626ad912611605270cc81425b4866865937beb78b4"
+  }
+ },
+ "proxy": {
+  "exclude_rule": {
+   "kind": "buried",
+   "crust": "render",
+   "margin_cm": 50.0,
+   "skip_inside_cuts": true,
+   "scope": "assemblies+massif"
+  },
+  "excluded_total": 37014,
+  "excluded": {
+   "ASM_Z1_CanyonWestBank": 5804,
+   "ASM_Z1_CrownCenter": 6108,
+   "ASM_Z1_CrownNorth": 56,
+   "ASM_Z1_CrownSouth": 61,
+   "ASM_Z1_NorthRimWall": 6632,
+   "ASM_Z1_PlateauNorthStep": 5798,
+   "ASM_Z1_WallCenter": 4093,
+   "ASM_Z1_WallNorth": 4690,
+   "ASM_Z1_WallSouth": 3657,
+   "CR_Z1_LargeAssembly": 115
+  },
+  "list": "Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/Layout/ProxyExclude_V034.json"
+ },
+ "protection": {
+  "status": "deferred",
+  "decision": "GX-030",
+  "rule": {
+   "source": "GX-017",
+   "path_half_width_scale": 0.5,
+   "route_half_width_cm": 200,
+   "pod_core_radius_cm": 900,
+   "landing_radius_cm": 400,
+   "hook_line_radius_cm": 100,
+   "ground_cover_allowed": true
+  },
+  "reason": "Z1 composition (plateau +46m, north step cap +20m) no longer matches several V011 markers; routes and markers are redrawn for the new terrain first, then the rule is applied to drape, band and flat layers at once.",
+  "stale_v011": {
+   "Pod_CrownSummit": [
+    7609,
+    958
+   ],
+   "Landing_Terrace3Hub": [
+    5638,
+    2000
+   ],
+   "Landing_CrownSouthRimAnchor": [
+    7615,
+    712
+   ],
+   "Path_NorthRamp2_upper(-3000,4300)": [
+    5685,
+    2000
+   ],
+   "Path_StairRamp4": [
+    7608,
+    999
+   ],
+   "Route_CrownToSaddle_plateau": [
+    7616,
+    609
+   ]
+  },
+  "still_valid_v011": {
+   "Pod_StairTerrace2": [
+    3714,
+    3535
+   ],
+   "Pod_NorthSaddle": [
+    3740,
+    3740
+   ],
+   "Path_RiftCanyon(-1600,-5400)": [
+    -3200,
+    -3433
+   ]
+  },
+  "stale_note": "[V011 H, V010 render crust H] in cm",
+  "v011_overlap_samples": {
+   "flat": {
+    "Route_CrownToSaddle": 281,
+    "Path_NorthRamp2": 201,
+    "Pod_StairTerrace2": 56,
+    "Route_WestStairAscent": 37,
+    "Pod_NorthSaddle": 22,
+    "Landing_Terrace3Hub": 15,
+    "Path_StairRamp4": 13,
+    "Landing_CrownSouthRimAnchor": 10,
+    "Path_RiftCanyon": 8,
+    "Route_NorthwestToSaddle": 4,
+    "Route_CanyonRun": 1
+   },
+   "band_south": {
+    "Path_RiftCanyon": 29,
+    "Route_CanyonRun": 17,
+    "Pod_ValleySkyIsle(deck, 3D clear)": 10,
+    "Path_SoutheastDescent": 4,
+    "Route_SoutheastToValley": 3
+   },
+   "method": "flat: 1m samples inside placed 10m cells; band: sample targets padded by patch radius 300cm; XY only against blueprint protection radii"
+  }
+ },
+ "crust_build": {
+  "render": {
+   "version": "V010",
+   "blender": "blender --background --python Scripts/Blender/BuildRidgeZ1Composition.py -- massif-flat",
+   "ue": "BuildRidgeZ1AssemblyTest.py importcrust V010",
+   "output": "Saved/SliceOctant/Ridge_00/V012_Z1MassifCover_V010/",
+   "mesh": "SM_Octant_Ridge_00_V012_Z1MassifCover_V010_R30000",
+   "vertices": 50723,
+   "polygons": 100063,
+   "sha256": "d1a622257769023cdcbbac2a7e4d5f8809c8e662856563791d138eb7003f0488",
+   "hash_tool": "Scripts/Blender/HashRidgeCrust.py"
+  },
+  "placement": {
+   "CR_Z1_Drape": "spec.massif_cover_ground(V002)",
+   "CR_Z1_RimBand": "spec.massif_terrace_ground (V007)",
+   "CR_Z1_RimBandNorth": "spec.massif_spur_ground (V009)",
+   "CR_Z1_Flat": "spec.massif_spur_ground (V009)"
+  }
+ }
+}

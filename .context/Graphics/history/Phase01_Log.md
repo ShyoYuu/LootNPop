@@ -996,3 +996,56 @@ V033 남은 문제 중 남서 모서리·북쪽 단 맨 평지를 다뤘다. 보
 - 사용자 판정(2026-11-22): V034 채택. 기준 시험본을 `Z1AssemblyWall_V034`로 바꿨다(GX-029).
 - 남은 점: 석교 아래 협곡 바닥(Z2)·남 테두리 위 남쪽 대지·협곡 남벽·북쪽 단 뒤 V012 오름 사면은 범위 밖이라 맨 지각이다. 남서 봉우리 급사면은 지각 절벽 재질로 둔다. 평면 묶음에는 동선·Pod 보호를 적용하지 않았다(북쪽 단 NorthRamp2·StairTerrace2). 근경에서는 원본 칸 사이 틈으로 50cm 낮춘 지각이 조금 보인다(ED 원본 흙바닥 틈과 같은 수준).
 - 도구 함정: 첫 남서 근경 시점은 드레이프 식생 안에 눈이 들어가 쓸 수 없었다(바꾼 값은 `RimView.py`). 수직 내려다보기는 `look`의 `make_rot_from_xz`가 퇴화하므로 `SurveyBare.py top`처럼 화면 위쪽을 +y로 따로 준다(이때 화면 오른쪽이 −x로 뒤집힌다).
+
+## 2026-11-22 — 1-BR U4 Z1 배치 재현 원본(V034, GX-030)
+
+V034 구도를 U5 충돌 프록시·U6 베이크로 넘길 재현 원본으로 확정했다. 화면은 바뀌지 않았다. 대조 근거(`Verify_*.json`·`Regen_*.json`·`Fingerprint_V034.json`·`ProxyExclude_V034.json`)는 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/Layout/`에 있다(로컬).
+
+### 사용자 결정
+
+- 재현 원본은 혼합 방식으로 둔다. 손배치 층은 결과 transform을 담고, 인스턴스 층(약 14.2만 개)은 생성 규칙과 지문만 담는다. 인스턴스 전량 덤프(약 15MB, 버전마다 통째 교체)와 규칙·지문만 두는 안(손 다듬기 되읽기 없음)은 고르지 않았다.
+- 동선·Pod 보호(GX-017)는 보류한다. V011 설계도의 산괴·북쪽 단 마커가 새 지형과 이미 어긋났기 때문이다. CrownSummit Pod는 H 76.1m인데 지각이 9.6m이고, Terrace3Hub 착지는 56.4m인데 20m다. NorthRamp2 위 끝은 56.9m인데 20m, 고원 StairRamp4·CrownToSaddle 구간은 76m인데 6~10m다. 아직 맞는 것은 StairTerrace2(37.1m, 지각 35.4m)·NorthSaddle·RiftCanyon이다. Z1 동선·마커를 새 지형에 다시 정하는 단위에서 드레이프·띠·평면 묶음에 규칙으로 한 번에 적용한다. 재현 대상은 V034 그대로다.
+- V011 설계도와 겹치는 표본 수(XY만 보고 보호 반경 기준)는 JSON `protection.v011_overlap_samples`에 남겼다. 평면 묶음은 CrownToSaddle 281·NorthRamp2 201·StairTerrace2 Pod 56, 남 띠는 RiftCanyon 29·CanyonRun 17이다.
+
+### 구현
+
+- `Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json`(Git, 약 20KB)에 다음을 담는다.
+  - 조명 6개·Sky Light
+  - 개별 메시 6개(V002 3개, 보존 바위 Floor·Shell, 렌더링 지각 V010과 재질)
+  - Level Instance 15개: 조립체 10개와 CR 산괴는 로컬 x, y, yaw, tilt, 높이 기준(`floor`·`local`·`abs`)과 오프셋으로, 인스턴스 층 4개는 원점 고정으로 담는다.
+  - 인스턴스 층: 생성기 명령, 설정, 시드, 입력 `CR_*.umap` 해시, 결과 지문
+  - 조립체 지문, 프록시 제외, `protection`, `crust_build`
+- `Scripts/Profiling/Graphics/RidgeZ1Layout.py`의 인자는 다음과 같다.
+  - `export`: 열린 시험 레벨을 JSON으로 되읽는다. 사람이 정한 `protection`·`crust_build`는 유지한다.
+  - `verify`: 열린 레벨을 JSON과 대조한다.
+  - `build <이름> [repro]`: JSON에서 시험 레벨을 만든다. V002 Level Instance를 읽지 않아 `load_level` 직후 assert 함정이 없다.
+  - `regen <drape|band|flat> <버전>`: 출력 레벨·보고서만 `_Repro`로 돌려 다시 생성하고 지문을 대조한다.
+- 지문 규약: 인스턴스마다 위치 0.01cm, 회전 X·Z 축 성분 1e-4, 스케일 1e-4로 반올림하고 메시+재질 덮어쓰기 키별로 정렬해 SHA-256을 낸다. 데칼은 재질·크기·정렬 순서를 더한다. 순서 무관이고, 쿼터니언 부호 모호성이 없다.
+- `BuildRidgeZ1AssemblyTest.wall`을 `wall_v002_rows`(V002 사본 읽기)·`wall_instance`(WALLS 행 → 배치)·`build_wall_level`(조명·Sky·메시·Level Instance 조립)로 나눴다. JSON 빌드와 `wall`이 같은 조립 코드를 쓴다. `wall` 동작은 그대로다(이번에 새 `wall` 버전은 돌리지 않았다).
+- `Scripts/Blender/HashRidgeCrust.py`: 지각 .blend의 정점·면 해시. 원점에 놓인 옥탄트 메시(지각·보존 바위)는 로컬 좌표가 정의되지 않아 월드 자세로 담는다.
+
+### 재현 대조
+
+- V034 자체: `export` 뒤 `verify` PASS다. JSON 손배치 값은 `WALLS["V034"]`과 같다(yaw·오프셋·기준).
+- 인스턴스 층 재생성은 모두 MATCH다. 입력 `CR_*.umap` 해시를 먼저 확인했다.
+
+  | 층 | 결과 |
+  |:---|:---|
+  | 평면 묶음 V001 | 14,850 |
+  | 띠 북 V009 | 16,797 |
+  | 드레이프 V006 | 31,718 + 데칼 16 |
+  | 띠 남 V005 | 79,136 |
+
+  각 생성은 20~50초 걸렸다.
+- 전체 재구성: `build V034 repro`로 `_Repro/Z1AssemblyWall_V034`를 만들고 재생성한 층 4개를 끼웠다. 다음 Cmd에서 `verify` PASS가 나왔다. 개별 메시·Level Instance 위치·축 오차는 0이고, 층 4개·조립체 11개 지문과 묻힘 수가 같다.
+- 지각: Blender `massif-flat` 흐름을 스크래치 폴더로 다시 돌렸다. 정점 50,723·면 100,063의 정점 해시가 기존 V010 .blend와 같고 manifest도 같다.
+- 재생성본은 `EDTerrain_V001/_Repro/`(Z1MassifFlat_V001·Z1RimBand_V005·V009·Z1MassifDrape_V006·Z1AssemblyWall_V034)에 남겼다. Git 제외이고 지워도 된다.
+
+### 프록시 제외(묻힘)
+
+- 규칙: 메시 상자 꼭대기(현지 Up 쪽 최고점)가 렌더링 지각 V010보다 50cm 넘게 아래면 뺀다. 동굴 절개 안은 판정하지 않는다. 대상은 조립체와 CR 산괴다. 인스턴스 층은 생성 때 지각에 다시 앉히므로 판정하지 않았다.
+- 결과: 37,014개를 뺐다.
+  - 02 계열 조립체 7개가 3,657~6,632개씩이고, 지각 아래 중앙값은 11~25m다.
+  - 01 계열 기둥 3개는 0~61개, CR 산괴는 115개다.
+  - 02 계열은 원본 레벨에 벽 뒤 바닥 덮개(지면 타일·식생)가 넓게 깔려 있어, 그 바닥이 고원 지각 아래로 통째로 들어간다. GX-029 때 본 02c 북 급사면 바닥 타일(H 약 −27m)은 `ASM_Z1_NorthRimWall` 6,632개에 들어 있다.
+- 목록(Level Instance·메시 키·로컬 위치·묻힌 깊이)은 `Layout/ProxyExclude_V034.json`이다. JSON에는 Level Instance별 수만 담았다.
