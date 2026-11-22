@@ -298,8 +298,10 @@ def surface_height(x, y, source_h, ground=spec.ground):
     return source_h+(ground(x, y)-source_h)*t*t*(3-2*t)
 
 
-def crust(cuts, ground=spec.ground, feature_points=spec.feature_points):
-    """Meadow 지각의 이음매 띠(SEAM_MARGIN)는 원래 정점을 유지하고 내부만 4m 격자로 다시 삼각분할한다."""
+def crust(cuts, ground=spec.ground, feature_points=spec.feature_points, cut_test=None):
+    """Meadow 지각의 이음매 띠(SEAM_MARGIN)는 원래 정점을 유지하고 내부만 4m 격자로 다시 삼각분할한다.
+    cut_test(x, y)를 주면 절개 안쪽 판정을 그것으로 한다(절개 다각형이 많을 때 칸 마스크로 빠르게 판정). 없으면 cuts 다각형 판정이다."""
+    blocked = cut_test or (lambda x, y: any(inside(x, y, p) for p in cuts))
     bpy.ops.import_scene.fbx(filepath=str(OUT.parent/"Baseline/MeadowSeam.fbx"))
     obj = next(o for o in bpy.context.selected_objects if o.type == "MESH")
     bm = bmesh.new()
@@ -368,7 +370,7 @@ def crust(cuts, ground=spec.ground, feature_points=spec.feature_points):
     placed = {}
     for x, y in feature_points():
         key = (round(x/50), round(y/50))
-        if key in placed or not inside(x, y, polygon) or any(inside(x, y, p) for p in cuts):
+        if key in placed or not inside(x, y, polygon) or blocked(x, y):
             continue
         if min(spec.point(x, y, 0)) < spec.SEAM_MARGIN+200:
             continue
@@ -382,13 +384,13 @@ def crust(cuts, ground=spec.ground, feature_points=spec.feature_points):
                    for p in [placed.get((kx+dx, ky+dy))] if p)
     for x in range(-21200, 42500, 400):
         for y in range(-36800, 36900, 400):
-            if inside(x, y, polygon) and not any(inside(x, y, p) for p in cuts):
+            if inside(x, y, polygon) and not blocked(x, y):
                 if not near_feature(x, y):
                     coordinates.append(Vector((x, y)))
                 corners = [height(x+dx, y+dy) for dx in (0, 400) for dy in (0, 400)]
                 if max(corners)-min(corners) > 150:
                     for dx, dy in ((200, 0), (0, 200), (200, 200)):
-                        if inside(x+dx, y+dy, polygon) and not any(inside(x+dx, y+dy, p) for p in cuts) and not near_feature(x+dx, y+dy):
+                        if inside(x+dx, y+dy, polygon) and not blocked(x+dx, y+dy) and not near_feature(x+dx, y+dy):
                             coordinates.append(Vector((x+dx, y+dy)))
                             fine += 1
     verts, _, faces, orig, _, _ = delaunay_2d_cdt(coordinates, edges, [list(range(len(loop)))], 1, .001)
@@ -402,7 +404,7 @@ def crust(cuts, ground=spec.ground, feature_points=spec.feature_points):
             new.append(bm.verts.new((*p, hit[0].z if hit[0] is not None else 0)))
     for face in faces:
         center = sum((verts[i] for i in face), Vector((0, 0)))/len(face)
-        if not any(inside(*center, p) for p in cuts):
+        if not blocked(*center):
             bm.faces.new([new[i] for i in face])
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
     for v in bm.verts:

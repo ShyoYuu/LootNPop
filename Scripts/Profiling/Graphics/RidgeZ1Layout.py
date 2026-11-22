@@ -12,6 +12,7 @@
 - build <이름> [repro]: JSON에서 시험 레벨을 만든다. repro면 _Repro 폴더에 만들고 인스턴스 층도 _Repro 재생성본을 쓴다.
   조립체 시험 레벨(Z1AssemblyTest_V001)의 조명을 복사하므로 그 레벨을 열고(열려 있지 않으면 연다) 실행한다.
 - regen <drape|band|flat> <버전>: 인스턴스 층을 _Repro 폴더에 다시 만들고 JSON 결과 지문과 대조한다.
+충돌 지각·프록시(U5, GX-031)는 collision 역할 행으로 담는다(태그·프로필·가시성 포함, 원점 배치라 월드 자세).
 같은 Cmd 실행 안에서 build 직후에는 Level Instance가 아직 로드되지 않으므로 verify는 다음 Cmd에서 돌린다.
 """
 import hashlib
@@ -37,7 +38,9 @@ PROJECT = HERE.parents[2]
 EDTERRAIN = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/"
 REPRO_ROOT = EDTERRAIN + "_Repro/"
 # export가 덮어쓰지 않고 기존 JSON에서 그대로 옮기는 항목(사람이 정한 결정·셸에서 잰 값).
-PRESERVED = ("protection", "crust_build")
+PRESERVED = ("protection", "crust_build", "collision_build")
+# V035는 V034 시각 구성에 U5 충돌 지각·프록시만 더한 버전이라 조립체 높이 기준(WALLS)을 V034에서 읽는다.
+WALLS_ALIAS = {"V035": "V034"}
 LAYER_PATTERN = re.compile(r"/(Z1MassifDrape|Z1RimBand|Z1MassifFlat)_(V\d+)/")
 LAYER_GENERATOR = {"Z1MassifDrape": "drape", "Z1RimBand": "band", "Z1MassifFlat": "flat"}
 # 렌더링 지각 버전별 높이 함수(프록시 묻힘 판정용).
@@ -245,7 +248,7 @@ def collect(with_buried=True):
     match = re.search(r"Z1AssemblyWall_(V\d+)", level)
     assert match, level
     version = match.group(1)
-    walls = {row[0]: test.wall_instance(row)["meta"] for row in test.WALLS.get(version, ())}
+    walls = {row[0]: test.wall_instance(row)["meta"] for row in test.WALLS.get(WALLS_ALIAS.get(version, version), ())}
     top, nested = level_actors()
     layout = {"schema": 1, "version": version, "level": level.replace("/_Repro/", "/"),
               "lighting": {"source_level": test.LEVEL, "lights": [], "sky": None},
@@ -262,6 +265,17 @@ def collect(with_buried=True):
             layout["lighting"]["sky"] = {"cubemap": test.package(comp.get_editor_property("cubemap")),
                                          "intensity": round(comp.get_editor_property("intensity"), 4),
                                          "lower_hemisphere_is_black": comp.get_editor_property("lower_hemisphere_is_black")}
+        elif isinstance(actor, unreal.StaticMeshActor) and \
+                actor.static_mesh_component.get_collision_enabled() != unreal.CollisionEnabled.NO_COLLISION:
+            # U5 충돌 지각·프록시(GX-031). 태그·프로필·가시성까지 재현 원본에 담는다.
+            comp = actor.static_mesh_component
+            mesh = test.package(comp.static_mesh)
+            role = "Floor" if mesh.endswith("_Floor") else "Shell" if mesh.endswith("_Shell") else "Crust"
+            layout["actors"].append({"label": actor.get_actor_label(), "role": "collision", "collision_role": role,
+                                     "mesh": mesh, "material_overrides": {},
+                                     "tags": [str(t) for t in comp.get_editor_property("component_tags")],
+                                     "profile": str(comp.get_collision_profile_name()), "visible": comp.is_visible(),
+                                     **local_pose(actor.get_actor_transform())})
         elif isinstance(actor, unreal.StaticMeshActor):
             comp = actor.static_mesh_component
             mesh = test.package(comp.static_mesh)
@@ -364,6 +378,9 @@ def verify():
         if not other:
             continue
         check(other["mesh"] == row["mesh"] and other["material_overrides"] == row["material_overrides"], row["label"] + " mesh")
+        if row["role"] == "collision":
+            check(other["role"] == "collision" and sorted(other["tags"]) == sorted(row["tags"])
+                  and other["profile"] == row["profile"] and other["visible"] == row["visible"], row["label"] + " collision")
         delta, axis, scale = pose_error(pose_transform(row), pose_transform(other))
         worst["actor_cm"], worst["actor_axis"] = max(worst["actor_cm"], delta), max(worst["actor_axis"], axis)
         check(delta <= POSITION_TOLERANCE_CM and axis <= AXIS_TOLERANCE and scale < 1e-5, row["label"] + " pose")
@@ -420,7 +437,9 @@ def build(name, mode=""):
         rot = t.rotation.rotator()
         kept.append({"label": row["label"], "mesh": row["mesh"], "loc": test.xyz(t.translation),
                      "rot": [rot.pitch, rot.yaw, rot.roll], "scale": row["scale"],
-                     "overrides": {int(slot): path for slot, path in row["material_overrides"].items()}})
+                     "overrides": {int(slot): path for slot, path in row["material_overrides"].items()},
+                     "collision": {k: row[k] for k in ("tags", "profile", "visible")} if row["role"] == "collision"
+                     else None})
     instances = []
     for row in layout["level_instances"]:
         if row["role"] == "layer":

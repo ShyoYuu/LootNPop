@@ -1,6 +1,6 @@
 # Phase 1-BR — Ridge 지표 Electric Dreams 교체
 
-> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 기준 시험본 V034(GX-023~GX-029, 남 둑 3단·북 둑 2단 + ED 둑 묶음 띠 + 북쪽 단·남서 모서리 평면 묶음) · 재현 원본 `EDTerrainLayout_Z1.json` 확정(GX-030) · 다음은 U5 Z1 충돌 프록시
+> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 기준 시험본 V034(GX-023~GX-029, 남 둑 3단·북 둑 2단 + ED 둑 묶음 띠 + 북쪽 단·남서 모서리 평면 묶음) · 재현 원본 `EDTerrainLayout_Z1.json` 확정(GX-030) · U5 Z1 충돌 프록시 완료(V035, GX-031) · 다음은 U6 Z1 베이크·마커·러프 PIE
 > 순서: 1-B5f → 1-BR(기존 1-B6 전체 교체를 흡수) → 1-C
 > 상위: [그래픽스 로드맵](../Roadmap.md) §2·§4, [Phase 1 실행서](Phase01_BenchmarkContent.md) §3, [확정 결정](../Decisions.md) GX-019·GX-021
 > 마지막 갱신: 2026-11-22
@@ -231,6 +231,14 @@ UE 반입과 맞춤 검사:
 
 **확인 기준:** 프록시가 단일 trimesh이고 태그 검사를 통과한다. 내부에 남은 기반면이 0이다. p95 맞춤 수치가 기록되어 있다.
 
+**Z1 결과(2026-11-22, GX-031).** 위 계획 중 바뀐 점과 결과는 다음과 같다. 상세는 [Phase 1 로그](../history/Phase01_Log.md)의 "U5 Z1 충돌 프록시"다.
+
+- 형식: 내보내기는 FBX가 아니라 GeometryScript RenderData LOD0 이진 파일이다(`ExportRidgeEDCollision.py export`).
+- 규모: fallback 합계가 약 13억 삼각형이라 전체 병합·remesh는 하지 않았다. 지면층(납작한 타일)은 윗면을 50cm 래스터해 충돌 전용 지각 V011의 특징점으로 굽고, 덩어리만 40m 칸 voxel remesh(30cm)한다.
+- 기반면: V012 기반면을 직접 고치지 않고, 렌더링 지각 V010과 별도로 충돌 전용 지각 V011(숨김)을 굽는다. 덩어리 발자국 절개는 구운 지각 표본으로 7회 반복해 수렴했다(절개 5,142㎡).
+- 결과: V011 133,671·Floor 68,776·Shell 404,399삼각형. 덩어리 안 50cm보다 깊은 지각 표본 0. Floor p95 21.5cm, 보이는 걷는 면 전체 p95 13.0cm. 반입 검사(단일 trimesh·complex-as-simple·옥탄트 안·32767 이하)와 역할 태그 검사 통과.
+- ED 시각 메시 충돌: 조립체·CR 레벨·BPP 블루프린트·Drape에 충돌이 켜져 있었다. U5에서 모두 껐다(`visualoff save`). 시험 레벨은 `Z1AssemblyWall_V035`(JSON V035)다.
+
 ### U6. 베이크·마커·러프 PIE(게이트)
 
 베이크:
@@ -303,7 +311,8 @@ PIE:
 - [x] U2 에셋 카탈로그·반입·해시
 - [x] U3 지각 V012 기반면·조기 베이크
 - [ ] U4 Z1 파일럿 조립
-- [ ] U5·U6 Z1 파일럿 프록시·베이크·PIE
+- [x] U5 Z1 파일럿 프록시·충돌 지각·시각 충돌 끄기(GX-031)
+- [ ] U6 Z1 파일럿 베이크·마커·PIE
 - [ ] U4 Z2~Z7 조립
 - [ ] U5 전 구역 프록시·기반면 절개
 - [ ] U6 전체 베이크·러프 PIE 게이트(사용자 판정)
@@ -322,6 +331,7 @@ PIE:
 | U4 배치 도구·비교본 | `Scripts/Profiling/Graphics/PlaceRidgeEDTerrain.py`, `EDTerrainPlacement_V001.json`, `AssembleRidgeZ1Composition.py`, `Scripts/RidgeZ1CompositionSpec.py`, `Scripts/Blender/BuildRidgeZ1Composition.py` |
 | U4 조립체·산괴 시험 | `Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py`, `Scripts/Profiling/Graphics/BakeEDCloseRange.py`(ElectricDreamsEnv 에디터 전용) |
 | U4 Z1 재현 원본(GX-030) | `Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json`, `Scripts/Profiling/Graphics/RidgeZ1Layout.py`, `Scripts/Blender/HashRidgeCrust.py` |
+| U5 Z1 충돌(GX-031) | `Scripts/Profiling/Graphics/ExportRidgeEDCollision.py`(export·import·visualoff·layout·check), `Scripts/Blender/BuildRidgeEDCollision.py`, `Scripts/Blender/BuildRidgeOctant.py`(`crust`의 `cut_test`) |
 | 후속 신규 | `Scripts/Blender/BuildRidgeEDCollision.py` |
 | 계약 참조 | [옥탄트 제작 가이드](../../Guide_OctantLevelInstance.md) §3~7, `SurfaceSupportNavigation/design/TerrainContract.md`, `SurfaceSupportNavigation/design/SurfaceBaking.md`, [Ridge 설계 원본](../../../Art/Octants/Ridge_00/README.md) |
 

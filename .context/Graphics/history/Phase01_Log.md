@@ -1049,3 +1049,77 @@ V034 구도를 U5 충돌 프록시·U6 베이크로 넘길 재현 원본으로 �
   - 01 계열 기둥 3개는 0~61개, CR 산괴는 115개다.
   - 02 계열은 원본 레벨에 벽 뒤 바닥 덮개(지면 타일·식생)가 넓게 깔려 있어, 그 바닥이 고원 지각 아래로 통째로 들어간다. GX-029 때 본 02c 북 급사면 바닥 타일(H 약 −27m)은 `ASM_Z1_NorthRimWall` 6,632개에 들어 있다.
 - 목록(Level Instance·메시 키·로컬 위치·묻힌 깊이)은 `Layout/ProxyExclude_V034.json`이다. JSON에는 Level Instance별 수만 담았다.
+
+## 2026-11-22 — 1-BR U5 Z1 충돌 프록시(V035, GX-031)
+
+V034 배치에서 Z1 충돌 지각과 `_Floor`·`_Shell` 프록시를 굽고, ED 시각 메시의 충돌을 모두 껐다. 시험 레벨은 JSON V035에서 만든 `Z1AssemblyWall_V035`다. 근거는 `Saved/Profiling/Graphics/Phase01/AssemblyTest_20261119/Collision/`(분류·내보내기·반입·검사), `Saved/SliceOctant/Ridge_00/V012_Z1Collision_V001/`(Blender 산출·manifest `report`·기각 실행 `rejected_run1~9/`)에 있다(로컬).
+
+### 사용자 결정
+
+- 프록시 기준(제안 승인): 식생(`/3D_Plants/`와 Vine·Ivy·Hornbeam·MoneyPlant)·물·데칼·묻힘 37,014개·동굴 절개 안·옥탄트 메시·100cm 미만 덩어리·50cm 미만 납작한 타일을 뺀다. 남은 것은 지면층 54,203·덩어리 7,974·판 2,787개다(제외 149,747).
+- `_Floor` 높이는 두 지각 어느 쪽도 아니다. 실제 타일 윗면을 래스터해 충돌 전용 지각 V011에 굽고, 렌더링은 V010 그대로 둔다.
+- ED 시각 메시 충돌은 U5에서 끈다(U6으로 넘기지 않음). 대상 레벨·블루프린트의 저장은 스크립트가 한다.
+
+### 구현
+
+- `ExportRidgeEDCollision.py`: `stats`·`export`(인스턴스 world transform·분류, 고유 메시 109개 fallback RenderData LOD0 이진)·`import`·`recheck`·`visualoff save`·`layout`·`check`.
+- `BuildRidgeEDCollision.py -- build`: 단계별 캐시(`cache/<키>/`)를 두고 다음을 한다.
+  - 고유 메시를 용접한 뒤 축척 비례로 decimate한다. 오차 p95는 최대 16.1cm다.
+  - 지면층 윗면을 50cm 격자로 래스터한다(61,809칸 중 46,449칸 명중).
+  - 덩어리를 40m 칸(여유 150cm) voxel remesh(30cm)한다. 입력 3,641만 → 326만 → 91만 삼각형이다.
+  - 발자국 절개와 V011 굽기를 반복한다. 깊은 표본 3,893 → 472 → 148 → 79 → 18 → 1 → 0으로 7회 만에 수렴했고, 절개 칸은 20,569개(5,142㎡)다.
+  - 묻힌 면 437,190개를 지우고 Floor/Shell로 나눈다.
+  - 마지막으로 내부 assert와 맞춤 측정을 한다. 마지막 실행은 5.7분, 최대 4.0GB였다.
+- `BuildRidgeOctant.crust`에 `cut_test` 인자를 더했다(칸 단위 절개 판정). 기본 동작은 그대로다.
+- `BuildRidgeZ1AssemblyTest`: 충돌 행은 태그·프로필·Static·숨김으로 놓는다. 시각 행은 `use_default_collision`을 끄고 NoCollision으로 둔다. 드레이프 생성기는 원본 충돌을 복사하지 않는다.
+- `RidgeZ1Layout`: 충돌 행을 되읽고 대조한다. `collision_build`를 보존한다.
+
+### 결과
+
+- 메시: V011 133,671·Floor 68,776(8,120㎡, 연결 성분 359)·Shell 404,399(40,664㎡)삼각형이다.
+  - 4㎡ 미만 Floor 조각 7,253개는 Shell로 넘겼다.
+  - 정점 범위는 Floor·Shell 6,355~24,552cm, V011 0~30,000cm다.
+- 내부 assert: 덩어리 안 50cm보다 깊은 지각 표본이 0개다(허용 안 38,756). 판정은 현지 Up 광선 교차 홀짝이다.
+- 맞춤 p95: fallback 원본 위 걷는 면 표본 10,328개에서 충돌면까지 거리다.
+
+  | 보이는 면 → 가장 가까운 충돌면 | p95 | 표본 |
+  |:---|---:|---:|
+  | 가장 가까운 면이 Floor(전체) | 21.5cm | 2,053 |
+  | 덩어리 → Floor | 19.4cm | 1,671 |
+  | 판 → Floor | 24.9cm | 276 |
+  | 지면층 → 지각 | 13.3cm | 1,500 |
+  | 렌더링 지각 → 지각 | 3.2cm | 5,704 |
+  | 보이는 걷는 면 전체(Floor·지각) | 13.0cm | 9,331 |
+  | ED 메시만(Floor·지각) | 20.0cm | 3,608 |
+  | 덩어리 → Shell(경사면) | 42.3cm | 815 |
+
+- 바깥값: 지면 타일인데 가장 가까운 충돌면이 프록시인 표본은 220개다(ground|shell 133개 p95 381cm, ground|floor 87개 p95 72cm). 산괴 위에 높이 얹힌 드레이프 타일이 래스터 창(지각 +600cm) 밖이다.
+- UE 반입: 세 메시 모두 complex-as-simple 단일 trimesh, LOD 1, 옥탄트 안, 성분 32767 이하다.
+  - FBX 반입이 상자 충돌을 하나씩 자동으로 만들어 첫 검사가 실패했다. `import`가 이제 지운다.
+- V035: `build V035` → `verify` PASS다. `check` PASS이고 태그·프로필·Static·숨김은 Guide §4.2 표대로다.
+  - 하위 Level Instance까지 충돌 3개 외 0이다. 블루프린트를 디스크에서 다시 불러온 뒤에 확인했다.
+
+### 시각 충돌 끄기
+
+- V034까지 Level Instance 안 ED 시각 메시 75,782개가 BlockAll이었다.
+  - `CR_LargeAssembly` ISM 39개
+  - `PL_LargeCliff_01b·01c·02b·02c·02d·02e`의 BPP 블루프린트 액터·서어나무
+  - Drape V006(원본 충돌 복사)
+- Band·Flat 층과 나머지 조립체는 이미 꺼져 있었다. 레퍼런서는 Ridge ED 시험 레벨뿐이다.
+- `visualoff save`가 레벨 8개를 차례로 열어 끄고 저장한다. BPP 블루프린트 13개는 템플릿 자체를 고쳐 컴파일·저장한다.
+- 값이 되돌아가던 원인은 넷이다.
+  1. StaticMeshActor는 `use_default_collision`이 기본으로 켜져 있어, 재등록 때 메시 기본값(BlockAll)이 NoCollision을 덮는다. 첫 V035에서 V010 렌더링 지각까지 BlockAll이었다. 그 맵은 `Collision/rejected_V035_defaultcollision/`로 옮기고 다시 만들었다. `delete_asset`은 True를 돌려줬지만 `.umap`이 남았다.
+  2. Python 속성 설정은 패키지를 더럽히지 않는다. `modify()` 없이는 저장되지 않는다.
+  3. 레벨의 BPP 인스턴스 값은 템플릿이 `use_default_collision`이면 저장 때 유지되지 않는다. 템플릿을 고친다.
+  4. 이름 있는 프로필(BlockAll)이 남으면 로드 때 프로필이 충돌 설정을 다시 덮는다. 프로필을 `NoCollision`으로 바꾼다.
+- ED 파생 에셋은 Git 밖이므로 다시 Migrate하면 `visualoff save`를 다시 돌린다.
+
+### 실패와 교훈
+
+- unwelded fallback collapse decimate는 정점을 메시 밖 최대 170m로 튀겼다. 먼저 용접하고 원본 상자를 검사한다.
+- 1,670만 삼각형 단일 덩어리 remesh는 TBB/OpenVDB에서 죽었다. 40m 칸으로 나눈다.
+- Solidify 균등 오프셋은 퇴화 면에서 판을 약 2,450km 밖으로 밀어 25GB까지 부풀었다. **함께 열린 UE 에디터가 OOM으로 종료됐다**(저장할 변경은 없었음). numpy 판으로 바꾸고 작업 메모리 12GB 감시를 붙였다.
+- 법선 방향 두께는 안쪽 법선 스캔에서 윗면을 띄웠다(Floor p95 40cm). 양쪽 반씩은 중앙값 20cm였다. 완만한 면은 현지 아래로 민다.
+- 뒤가 열린 스캔 절벽은 voxel 부피가 안 생겨 사라졌다. 열린 덩어리 5,011개를 판으로 다룬다.
+- 최근접 면 법선으로 안쪽을 판정하면 열린 절벽 뒤 지각을 거짓 양성으로 잡았다(최대 61m). 광선 홀짝으로 바꿨다.
+- 묻힌 타일을 표본으로 쓰거나 축소본을 기준으로 재면 p95가 부풀었다. 렌더링 지각을 보이는 면에 넣고, 원본은 고유 메시별 로컬 BVH로 잰다(타일 BVH는 14GB).

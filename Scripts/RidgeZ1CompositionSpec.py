@@ -599,6 +599,9 @@ FLAT_REGIONS = {
 FLAT_CARVE = (50, 100, 60, 15)
 MASSIF_COVER_VERSIONS["V010"] = ("V012_Z1MassifCover_V010", -2200, 500)
 MASSIF_FLAT_VERSION = MASSIF_COVER_VERSIONS["V010"][0]
+# V011은 렌더링 지각이 아니라 U5 충돌 지각이다(Blender BuildRidgeEDCollision.py). V010 높이장에 ED 지면층(납작한 타일·낮은
+# 덩어리) 윗면 50cm 래스터를 특징점으로 더하고, 덩어리 프록시 발자국을 절개한다. 시각은 V010이 그대로 맡는다.
+MASSIF_COVER_VERSIONS["V011"] = ("V012_Z1MassifCover_V011", -2200, 500)
 
 
 def flat_region_weight(x, y):

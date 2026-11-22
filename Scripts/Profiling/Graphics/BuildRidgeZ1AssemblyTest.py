@@ -594,6 +594,18 @@ def build_wall_level(wall_level, kept, instances, sky):
         comp.set_static_mesh(unreal.load_asset(row["mesh"]))
         for slot, material in row["overrides"].items():
             comp.set_material(slot, unreal.load_asset(material))
+        collision = row.get("collision")
+        if collision:
+            # U5 충돌 지각·프록시(GX-031): 역할 태그·프로필을 주고 화면에서는 숨긴다(시각은 V010·ED 메시가 맡는다).
+            comp.set_editor_property("component_tags", collision["tags"])
+            comp.set_editor_property("use_default_collision", False)
+            comp.set_collision_profile_name(collision["profile"])
+            comp.set_mobility(unreal.ComponentMobility.STATIC)
+            comp.set_visibility(collision["visible"])
+            actor.set_folder_path("Collision")
+            continue
+        # StaticMeshActor는 use_default_collision이 켜져 있어 재등록 때 메시 기본값(BlockAll)이 NO_COLLISION을 덮는다.
+        comp.set_editor_property("use_default_collision", False)
         comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
         actor.set_folder_path("V002_WithoutWestWall")
 
@@ -808,7 +820,6 @@ def drape(version, mode=""):
                     continue
                 rows.append({"hism": isinstance(comp, unreal.HierarchicalInstancedStaticMeshComponent),
                              "mesh": comp.static_mesh, "overrides": list(comp.get_editor_property("override_materials")),
-                             "profile": comp.get_collision_profile_name(), "collision": comp.get_collision_enabled(),
                              "props": props, "custom_count": k, "custom": kept_custom, "transforms": kept})
                 counts[key] = counts.get(key, 0) + len(kept)
             if isinstance(actor, unreal.DecalActor):
@@ -864,8 +875,8 @@ def drape(version, mode=""):
                         swapped[target] = swapped.get(target, 0) + len(row["transforms"])
                 for prop, value in row["props"].items():
                     comp.set_editor_property(prop, value)
-                comp.set_collision_profile_name(row["profile"])
-                comp.set_collision_enabled(row["collision"])
+                # 시각 층이다. 충돌은 U5 충돌 지각·프록시가 맡는다(GX-031). V006까지는 원본 충돌을 복사했다.
+                comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
                 comp.add_instances(row["transforms"], False, True)
                 if row["custom_count"]:
                     k = row["custom_count"]
