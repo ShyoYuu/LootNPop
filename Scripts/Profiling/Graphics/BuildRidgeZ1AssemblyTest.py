@@ -476,6 +476,13 @@ WALLS["V033"] = WALLS["V032"][:-2] + (
      0, 0, 0, 0, 1.0, "world"),) + WALLS["V032"][-1:]
 for _table in (WALL_CRUST, WALL_MATERIAL, WALL_SKY, WALL_REPLACED_EXTRA):
     _table["V033"] = _table["V032"]
+# V034(맨 지각 평지): V033에 북쪽 단·남서 모서리 평면 묶음(Z1MassifFlat V001, `flat`)을 더하고, 지각을 그 자리만 50cm 낮춘 V010으로 바꾼다.
+WALLS["V034"] = WALLS["V033"] + (
+    ("CR_Z1_Flat", "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifFlat_V001/Z1MassifFlat_V001",
+     0, 0, 0, 0, 1.0, "world"),)
+for _table in (WALL_MATERIAL, WALL_SKY, WALL_REPLACED_EXTRA):
+    _table["V034"] = _table["V033"]
+WALL_CRUST["V034"] = massif_crust("V010")
 WEST_COVER_LABEL = "SM_Octant_Ridge_00_V012_Z1WestCover_R30000"
 WALL_VIEW_EYE = (4500, -400, 170)
 WALL_VIEW_TARGET = (-1700, -300, 1800)
@@ -1280,6 +1287,265 @@ def band(version):
     unreal.log("Z1_RIM_BAND_READY %d targets %d instances %s" % (len(targets), report["instances"], json.dumps(per_line)))
 
 
+# 맨 지각 평지 옮겨 심기(V033 뒤 남서 모서리·북쪽 단). 띠는 25° 이상 사면 표본만, 드레이프는 CR 섬 자리만 덮어 두 평지가 맨 지각으로
+# 남았다. flat은 CR 평면 그룹(드레이프와 같은 4그룹)에서 섬 안 평탄한 정사각 칸(원본 칸)을 골라, 대상 다각형(spec.FLAT_REGIONS)을
+# 같은 크기 칸으로 나눈 자리마다 통째로 옮겨 심는다. 칸 회전은 현지 Up 둘레 90° 배수다(칸 가장자리가 이웃 칸과 맞물리도록).
+# 높이는 원본 지지면 위 높이(dz, 하상 둑 +3m 단을 뺀 값)를 대상 배치 지각(V009) 위에 더한다. 렌더링 지각 V010은 다각형 안을 50cm
+# 낮춘다(GX-024). 회전·제외 규칙은 Drape V004와 같다: 납작한 타일·데칼은 지각 법선으로 눕히고 45° 넘으면 빼며, 60° 넘는 자리는
+# 종류와 관계없이 뺀다. 다각형 밖·동굴 절개 둘레(cut_margin) 안으로 옮겨진 인스턴스는 뺀다.
+FLAT_LEVEL = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifFlat_{0}/Z1MassifFlat_{0}"
+FLAT_CRUST = {"V009": spec.massif_spur_ground}
+# cell: 칸 크기(cm), source_*: 원본 칸 조건(지지면 오프셋 최소 cm, 칸 안 경사 중앙값 상한°, 하상 띠 중심선에서 칸 외접원 밖 여유 cm).
+FLAT_VERSIONS = {
+    "V001": {"crust": "V009", "groups": ("Ground", "SmallAssembly", "Props", "Ditch"), "regions": ("NorthStep", "SouthWest"),
+             "cell": 1000, "source_min": 80.0, "source_slope": 12.0, "source_channel": 300.0, "cut_margin": 200.0,
+             "rule": (45.0, 0.35, 60.0), "seed": 34001},
+}
+
+
+def flat(version):
+    import random
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    saving = unreal.EditorLoadingAndSavingUtils
+    cfg = FLAT_VERSIONS[version]
+    level = FLAT_LEVEL.format(version)
+    ground_at = FLAT_CRUST[cfg["crust"]]
+    rule, size_c = cfg["rule"], cfg["cell"]
+    assert not dirty(), dirty()
+    assert not unreal.EditorAssetLibrary.does_asset_exist(level), level
+    rng = random.Random(cfg["seed"])
+
+    # 원본: CR 평면 그룹의 ISM 인스턴스와 데칼(월드 = CR 원점 기준 좌표).
+    comps, insts, decals = [], [], []
+    for group in cfg["groups"]:
+        assert levels.load_level(CR + group), group
+        for actor in unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Actor):
+            for comp in actor.get_components_by_class(unreal.InstancedStaticMeshComponent):
+                path = package(comp.static_mesh)
+                if any(s in path for s in BAND_SKIP):
+                    continue
+                k = comp.get_editor_property("num_custom_data_floats")
+                custom = list(comp.get_editor_property("per_instance_sm_custom_data")) if k else []
+                props = {}
+                for prop in DRAPE_COPY:
+                    try:
+                        props[prop] = comp.get_editor_property(prop)
+                    except Exception:
+                        pass
+                box = comp.static_mesh.get_bounding_box()
+                ci = len(comps)
+                comps.append({"mesh": comp.static_mesh, "path": path, "overrides": list(comp.get_editor_property("override_materials")),
+                              "hism": isinstance(comp, unreal.HierarchicalInstancedStaticMeshComponent), "props": props,
+                              "custom_count": k, "box": box, "size": box.max - box.min})
+                for i in range(comp.get_instance_count()):
+                    t = comp.get_instance_transform(i, True)
+                    insts.append((ci, t, custom[i * k:(i + 1) * k]))
+            if isinstance(actor, unreal.DecalActor):
+                decals.append({"material": actor.decal.get_decal_material(), "size": actor.decal.get_editor_property("decal_size"),
+                               "sort_order": actor.decal.get_editor_property("sort_order"), "t": actor.get_actor_transform()})
+        assert not dirty(), dirty()
+
+    # 원본 칸: 하상(웅덩이·둑 경사)에서 떨어지고 지지면이 섬 안이며 대체로 평탄한 자리.
+    support = band_ground_source
+    half = size_c / 2
+
+    def channel_distance(cx, cy):
+        best = float("inf")
+        pts = spec.CLOSERANGE_CHANNEL_CR
+        for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
+            dx, dy = bx - ax, by - ay
+            t = max(0.0, min(1.0, ((cx - ax) * dx + (cy - ay) * dy) / (dx * dx + dy * dy or 1.0)))
+            best = min(best, math.hypot(cx - ax - t * dx, cy - ay - t * dy))
+        return best
+
+    sources = []
+    for sx in range(-6000, 4201, 200):
+        for sy in range(-6400, 4601, 200):
+            if channel_distance(sx, sy) < half * 1.42 + cfg["source_channel"]:
+                continue
+            pts = [(sx + dx, sy + dy) for dx in range(-int(half), int(half) + 1, 100) for dy in range(-int(half), int(half) + 1, 100)]
+            if min(support(x, y) for x, y in pts) - 50.0 <= cfg["source_min"]:
+                continue
+            slopes = sorted(math.degrees(math.atan(math.hypot(support(x + 50, y) - support(x - 50, y),
+                                                              support(x, y + 50) - support(x, y - 50)) / 100.0))
+                            for x, y in pts)
+            if slopes[len(slopes) // 2] < cfg["source_slope"]:
+                sources.append((sx, sy))
+    assert sources, "no flat source cells"
+    bucket = {}
+    for idx, (_, t, _) in enumerate(insts):
+        bucket.setdefault((int(t.translation.x // size_c), int(t.translation.y // size_c)), []).append(idx)
+
+    def in_cell(sx, sy):
+        ix, iy = int(sx // size_c), int(sy // size_c)
+        for gx in (ix - 1, ix, ix + 1):
+            for gy in (iy - 1, iy, iy + 1):
+                for idx in bucket.get((gx, gy), ()):
+                    p = insts[idx][1].translation
+                    if abs(p.x - sx) < half and abs(p.y - sy) < half:
+                        yield idx
+
+    # 배치 지각 높이·법선(1m 격자 캐시).
+    heights = {}
+
+    def h_at(i, j):
+        if (i, j) not in heights:
+            heights[(i, j)] = ground_at(i * 100.0, j * 100.0)
+        return heights[(i, j)]
+
+    def height(x, y):
+        fx, fy = x / 100.0, y / 100.0
+        i, j = math.floor(fx), math.floor(fy)
+        u, v = fx - i, fy - j
+        return ((h_at(i, j) * (1 - u) + h_at(i + 1, j) * u) * (1 - v)
+                + (h_at(i, j + 1) * (1 - u) + h_at(i + 1, j + 1) * u) * v)
+
+    def grid_point(i, j):
+        return unreal.Vector(*spec.ridge.point(i * 100.0, j * 100.0, h_at(i, j)))
+
+    def normal(x, y):
+        i, j = round(x / 100.0), round(y / 100.0)
+        n = (grid_point(i + 1, j) - grid_point(i - 1, j)).cross(grid_point(i, j + 1) - grid_point(i, j - 1))
+        n = n * (1.0 / n.length())
+        return n * -1.0 if n.dot(grid_point(i, j)) > 0 else n
+
+    cut_margin = cfg["cut_margin"]
+    stats, placed, placed_decals, per_region, cells = {}, {}, [], {}, []
+
+    def count(key):
+        stats[key] = stats.get(key, 0) + 1
+
+    def seat(t, dz, region, size, scale, up_from):
+        # 옮긴 평면 위치를 대상 지각에 다시 앉힌다(up_from은 칸 중심 현지 Up). None이면 뺀다.
+        p = t.translation
+        x, y, _ = spec.ridge.local((p.x, p.y, p.z))
+        polygon = spec.FLAT_REGIONS[region]
+        if not spec.ridge.inside(x, y, polygon):
+            count("outside_region")
+            return None
+        if any(spec.ridge.signed_distance(x, y, cut) > -cut_margin for cut in spec.base.CUTS):
+            count("near_cut")
+            return None
+        surface = unreal.Vector(*spec.ridge.point(x, y, height(x, y)))
+        up_to = surface * (-1.0 / surface.length())
+        rotation = tilt_between(t.rotation.rotator(), up_from, up_to)
+        n = normal(x, y)
+        slope = math.degrees(math.acos(max(-1.0, min(1.0, up_to.dot(n)))))
+        is_flat = drape_flat(size, scale, rule)
+        count("%s_%02d" % ("flat" if is_flat else "other", min(int(slope // 15) * 15, 75)))
+        if slope > rule[2]:
+            count("drop_steep")
+            return None
+        if is_flat:
+            if slope > rule[0]:
+                count("drop_flat")
+                return None
+            rotation = tilt_between(rotation, up_to, n)
+        return unreal.Transform(unreal.Vector(*spec.ridge.point(x, y, height(x, y) + dz)), rotation, scale)
+
+    for region in cfg["regions"]:
+        polygon = spec.FLAT_REGIONS[region]
+        xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
+        ox, oy = rng.uniform(0, size_c), rng.uniform(0, size_c)
+        tx = min(xs) - half + ox - size_c
+        while tx < max(xs) + size_c:
+            ty = min(ys) - half + oy - size_c
+            while ty < max(ys) + size_c:
+                # 칸 중심이 다각형 밖이어도 칸이 다각형에 걸치면 채운다(인스턴스 단위로 다각형 밖을 뺀다).
+                if spec.ridge.signed_distance(tx, ty, polygon) > -half * 1.42:
+                    sx, sy = sources[rng.randrange(len(sources))]
+                    yaw = 90.0 * rng.randrange(4)
+                    src = unreal.Transform(unreal.Vector(sx, sy, support(sx, sy)), unreal.Rotator(0, 0, 0), unreal.Vector(1, 1, 1))
+                    dst = unreal.Transform(unreal.Vector(*spec.ridge.point(tx, ty, height(tx, ty))), frame_rotation(tx, ty, yaw),
+                                           unreal.Vector(1, 1, 1))
+                    relay = unreal.MathLibrary.compose_transforms(unreal.MathLibrary.invert_transform(src), dst)
+                    cell_up = dst.translation * (-1.0 / dst.translation.length())
+                    cells.append({"region": region, "x": round(tx), "y": round(ty), "source": [sx, sy], "yaw": yaw})
+                    for idx in in_cell(sx, sy):
+                        ci, t, custom = insts[idx]
+                        dz = t.translation.z - support(t.translation.x, t.translation.y)
+                        moved = unreal.MathLibrary.compose_transforms(t, relay)
+                        seated = seat(moved, dz, region, comps[ci]["size"], moved.scale3d, cell_up)
+                        if seated is None:
+                            continue
+                        row = placed.setdefault(ci, ([], []))
+                        row[0].append(seated)
+                        row[1].extend(custom)
+                        per_region[region] = per_region.get(region, 0) + 1
+                    for decal in decals:
+                        p = decal["t"].translation
+                        if abs(p.x - sx) < half and abs(p.y - sy) < half:
+                            dz = p.z - support(p.x, p.y)
+                            moved = unreal.MathLibrary.compose_transforms(decal["t"], relay)
+                            seated = seat(moved, dz, region, None, moved.scale3d, cell_up)
+                            if seated is not None:
+                                placed_decals.append(dict(decal, t=seated))
+                                per_region[region] = per_region.get(region, 0) + 1
+                ty += size_c
+            tx += size_c
+
+    assert saving.new_blank_map(False)
+    sds = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+    lib = unreal.SubobjectDataBlueprintFunctionLibrary
+
+    def add(parent, cls):
+        handle, fail = sds.add_new_subobject(unreal.AddNewSubobjectParams(parent_handle=parent, new_class=cls))
+        assert not str(fail), fail
+        return handle, lib.get_object(lib.get_data(handle))
+
+    actor = actors.spawn_actor_from_class(unreal.Actor, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    actor.set_actor_label("MassifFlat_" + version)
+    root_handle, root = add(sds.k2_gather_subobject_data_for_instance(actor)[0], unreal.SceneComponent)
+    root.set_mobility(unreal.ComponentMobility.STATIC)
+    swap, counts = DRAPE_MATERIAL_SWAP["V006"], {}
+    for ci, (transforms, custom) in placed.items():
+        src = comps[ci]
+        _, comp = add(root_handle, unreal.HierarchicalInstancedStaticMeshComponent if src["hism"]
+                      else unreal.InstancedStaticMeshComponent)
+        comp.set_mobility(unreal.ComponentMobility.STATIC)
+        comp.set_static_mesh(src["mesh"])
+        for i, material in enumerate(src["overrides"]):
+            if material:
+                comp.set_material(i, material)
+        # 웅덩이 재질은 Drape V006과 같은 사본으로 바꾼다(GX-025).
+        for i in range(comp.get_num_materials()):
+            used = comp.get_material(i)
+            target = swap.get(package(used)) if used else None
+            if target:
+                comp.set_material(i, unreal.load_asset(target))
+        for prop, value in src["props"].items():
+            comp.set_editor_property(prop, value)
+        comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        comp.add_instances(transforms, False, True)
+        k = src["custom_count"]
+        if k:
+            comp.set_num_custom_data_floats(k)
+            for i in range(len(transforms)):
+                for j in range(k):
+                    comp.set_custom_data_value(i, j, custom[i * k + j], False)
+        assert comp.get_instance_count() == len(transforms)
+        counts[src["path"]] = counts.get(src["path"], 0) + len(transforms)
+    actor.set_folder_path("MassifFlat")
+    for row in placed_decals:
+        t = row["t"]
+        decal = actors.spawn_actor_from_class(unreal.DecalActor, t.translation, t.rotation.rotator())
+        decal.set_actor_scale3d(t.scale3d)
+        decal.decal.set_decal_material(row["material"])
+        decal.decal.set_editor_property("decal_size", row["size"])
+        decal.decal.set_editor_property("sort_order", row["sort_order"])
+        decal.set_folder_path("MassifFlat")
+        key = "decal:" + package(row["material"])
+        counts[key] = counts.get(key, 0) + 1
+    assert saving.save_map(world(), level), level
+    report = {"level": level, "config": cfg, "sources": len(sources), "source_cells": sources, "cells": cells,
+              "instances": sum(counts.values()), "by_region": per_region, "stats": dict(sorted(stats.items())),
+              "by_mesh": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
+    (OUT / ("MassifFlat_%s.json" % version)).write_text(json.dumps(report, indent=1), encoding="utf-8")
+    unreal.log("Z1_MASSIF_FLAT_READY %d sources %d cells %d instances %s"
+               % (len(sources), len(cells), report["instances"], json.dumps(per_region)))
+
+
 def importcrust(version):
     # Blender가 구운 Z1MassifCover 지각 FBX를 새 폴더로 반입한다(경계 정점은 Meadow native에 맞춘다).
     import AssembleRidgeOctant as assembly
@@ -1469,4 +1735,4 @@ def look(ex, ey, eh, tx, ty, th):
 if __name__ == "__main__":
     {"lights": lights, "build": build, "instances": instances, "view": view, "wall": wall,
      "look": look, "crflat": crflat, "flatlook": flatlook, "importcrust": importcrust, "drape": drape,
-     "surface": surface, "puddle": puddle, "band": band}[sys.argv[1]](*sys.argv[2:])
+     "surface": surface, "puddle": puddle, "band": band, "flat": flat}[sys.argv[1]](*sys.argv[2:])

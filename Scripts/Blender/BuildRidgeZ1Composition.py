@@ -30,7 +30,9 @@ if __name__ == "__main__":
                 # V007에 북 테두리 앞(분지 쪽)으로 둑 2단을 덧댄 지각(북 테두리 B안).
                 ("massif-bank",): (spec.MASSIF_BANK_VERSION, spec.massif_bank_ground, spec.massif_bank_feature_points),
                 # V008에서 동굴 절개 남서 모서리 옆 V012 바위 돌출을 북쪽 단 높이로 깎은 지각.
-                ("massif-spur",): (spec.MASSIF_SPUR_VERSION, spec.massif_spur_ground, spec.massif_spur_feature_points)}
+                ("massif-spur",): (spec.MASSIF_SPUR_VERSION, spec.massif_spur_ground, spec.massif_spur_feature_points),
+                # V009에서 북쪽 단·남서 모서리 평면 묶음(flat) 자리만 50cm 낮춘 렌더링 지각.
+                ("massif-flat",): (spec.MASSIF_FLAT_VERSION, spec.massif_flat_ground, spec.massif_flat_feature_points)}
     assert tuple(args) in variants, args
     version, ground, *features = variants[tuple(args)]
     feature_points = features[0] if features else spec.base.feature_points

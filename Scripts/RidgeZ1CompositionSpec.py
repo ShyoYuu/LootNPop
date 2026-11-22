@@ -584,3 +584,56 @@ def massif_spur_ground(x, y):
 
 def massif_spur_feature_points():
     yield from massif_bank_feature_points()
+
+
+# V033 뒤 맨 지각 평지: 깎은 북쪽 단(+20m)과 남서 모서리(협곡 서안 위 고원 남쪽 끝 봉우리를 +6.5m로 깎은 마루)는 띠(25° 이상)도
+# 드레이프(CR 섬 자리)도 닿지 않는다. 이 두 다각형 안에 CloseRange 평면 묶음을 옮겨 심는다(UE `flat`, GX-023 드레이프와 같은 규칙).
+# 배치 높이는 V009 지각, 렌더링 지각 V010은 다각형 안에서만 V009보다 FLAT_CARVE 깊이만큼 낮춘다(GX-024 분리, 하상 겹침 V003과
+# 같은 이유: ED 지면 타일 윗면이 지각과 같은 높이면 지각이 타일을 덮는다). 다각형은 기존 드레이프 점과 1m 넘게 떨어뜨리고,
+# 동굴 절개(홀 x -600 동쪽)는 피한다. 점은 옥탄트 로컬 cm다.
+FLAT_REGIONS = {
+    "NorthStep": ((-7900, 4500), (-3000, 4300), (-1300, 4000), (-800, 4000), (-800, 8400), (-7900, 8400)),
+    "SouthWest": ((-5000, -2800), (-2300, -2800), (-2300, -5800), (-5000, -5800)),
+}
+# (깊이, 다각형 안쪽 페이드 폭, 낮춤이 끝나는 경사°, 경사 페이드 폭°). 타일은 45°·나머지는 60° 넘는 자리에서 빠진다.
+FLAT_CARVE = (50, 100, 60, 15)
+MASSIF_COVER_VERSIONS["V010"] = ("V012_Z1MassifCover_V010", -2200, 500)
+MASSIF_FLAT_VERSION = MASSIF_COVER_VERSIONS["V010"][0]
+
+
+def flat_region_weight(x, y):
+    # 다각형 안쪽 거리로 0→1(FLAT_CARVE 페이드 폭). 다각형 밖은 0이다.
+    feather = FLAT_CARVE[1]
+    best = 0.0
+    for polygon in FLAT_REGIONS.values():
+        if ridge.inside(x, y, polygon):
+            best = max(best, ridge.smooth(ridge.signed_distance(x, y, polygon) / feather))
+    return best
+
+
+def massif_flat_ground(x, y):
+    height = massif_spur_ground(x, y)
+    weight = flat_region_weight(x, y)
+    if not weight:
+        return height
+    depth, _, slope_end, slope_fade = FLAT_CARVE
+    gx = (massif_spur_ground(x + 50, y) - massif_spur_ground(x - 50, y)) / 100.0
+    gy = (massif_spur_ground(x, y + 50) - massif_spur_ground(x, y - 50)) / 100.0
+    slope = math.degrees(math.atan(math.hypot(gx, gy)))
+    return height - depth * weight * ridge.smooth((slope_end - slope) / slope_fade)
+
+
+def massif_flat_feature_points():
+    # V009 특징점에 다각형 경계와 페이드 안쪽 끝 선을 1m 간격으로 더한다.
+    yield from massif_spur_feature_points()
+    feather = FLAT_CARVE[1]
+    for polygon in FLAT_REGIONS.values():
+        for (ax, ay), (bx, by) in zip(polygon, polygon[1:] + polygon[:1]):
+            length = math.hypot(bx - ax, by - ay)
+            nx, ny = -(by - ay) / length, (bx - ax) / length
+            for i in range(max(1, round(length / 100))):
+                t = i * 100 / length
+                px, py = ax + (bx - ax) * t, ay + (by - ay) * t
+                for d in (-feather, 0, feather):
+                    x, y = px + nx * d, py + ny * d
+                    yield x, y
