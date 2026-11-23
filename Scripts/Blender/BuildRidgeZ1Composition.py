@@ -32,7 +32,9 @@ if __name__ == "__main__":
                 # V008에서 동굴 절개 남서 모서리 옆 V012 바위 돌출을 북쪽 단 높이로 깎은 지각.
                 ("massif-spur",): (spec.MASSIF_SPUR_VERSION, spec.massif_spur_ground, spec.massif_spur_feature_points),
                 # V009에서 북쪽 단·남서 모서리 평면 묶음(flat) 자리만 50cm 낮춘 렌더링 지각.
-                ("massif-flat",): (spec.MASSIF_FLAT_VERSION, spec.massif_flat_ground, spec.massif_flat_feature_points)}
+                ("massif-flat",): (spec.MASSIF_FLAT_VERSION, spec.massif_flat_ground, spec.massif_flat_feature_points),
+                # V010에 BossValley 경사로(분지 -40m → ValleyRise -24m, 약 26°)를 다시 낸 렌더링 지각(U6 러프 PIE 7번).
+                ("massif-ramp",): (spec.MASSIF_RAMP_VERSION, spec.massif_ramp_ground, spec.massif_ramp_feature_points)}
     assert tuple(args) in variants, args
     version, ground, *features = variants[tuple(args)]
     feature_points = features[0] if features else spec.base.feature_points

@@ -1,9 +1,9 @@
 # Phase 1-BR — Ridge 지표 Electric Dreams 교체
 
-> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 기준 시험본 V034(GX-023~GX-029, 남 둑 3단·북 둑 2단 + ED 둑 묶음 띠 + 북쪽 단·남서 모서리 평면 묶음) · 재현 원본 `EDTerrainLayout_Z1.json` 확정(GX-030) · U5 Z1 충돌 프록시 완료(V035, GX-031) · 다음은 U6 Z1 베이크·마커·러프 PIE
+> 상태: U1~U3 완료 · U4 Z1 서쪽 산괴 기준 시험본 V034(GX-023~GX-029, 남 둑 3단·북 둑 2단 + ED 둑 묶음 띠 + 북쪽 단·남서 모서리 평면 묶음) · 재현 원본 `EDTerrainLayout_Z1.json` 확정(GX-030) · U5 Z1 충돌 프록시 완료(V035, GX-031) · U6 Z1 진행 중(베이크 LVI `Z1Bake_V010`·JSON V037, GX-032·GX-033) · 다음은 U6 재점검 1인 PIE
 > 순서: 1-B5f → 1-BR(기존 1-B6 전체 교체를 흡수) → 1-C
 > 상위: [그래픽스 로드맵](../Roadmap.md) §2·§4, [Phase 1 실행서](Phase01_BenchmarkContent.md) §3, [확정 결정](../Decisions.md) GX-019·GX-021
-> 마지막 갱신: 2026-11-22
+> 마지막 갱신: 2026-11-23
 
 ## 1. 목표
 
@@ -274,6 +274,13 @@ PIE:
 
 **게이트:** 사용자가 동선이 성립한다고 판정하면 U7로 간다.
 
+**Z1 경과(2026-11-22~23, 진행 중, GX-032·GX-033).** 상세는 [Phase 1 로그](../history/Phase01_Log.md)의 "U6 Z1 베이크·러프 PIE"다.
+
+- LVI: 시험 레벨 복사 대신 JSON에서 `BuildRidgeZ1BakeLVI.py build`로 만든다(조명 제외, 보존 바위 충돌 복원, 시각 Level Instance는 하위 레벨이라 베이크 입력이 아님). Pod는 Pod 없이 구운 판의 스폰 후보(가장자리 여유 260cm 이상)로 옮긴다.
+- 베이크: Floor 성분마다 Layer가 생겨 Nav Layer 400개(런타임 상한 256)가 나왔다. Floor 하한 50㎡로 Layer 79~82(GX-032).
+- 동선: 산괴(고원·+38m 받침)는 적 Nav가 주 섬과 끊긴 고립 섬이라 배경으로 두고(A안) CrownSummit·StairTerrace2 Pod를 뺐다. 계단 상승로·왕관 정상·석교 북단은 알려진 단절이다.
+- 러프 PIE(V007) 지적 7곳을 정리 규칙 A~D(시각 인스턴스 29,150개, GX-033), 동굴 입구 바위 제거, BossValley 경사로(렌더링 지각 V012)로 고치고 U5를 다시 구웠다(충돌 지각 V013·프록시 V003). 재점검 PIE 대상은 `Z1Bake_V010`이다.
+
 ### U7. 배경 프랍 채우기(ED 스타일)
 
 - `LNPDecorationSampler`, 규칙 DA, `BuildRidgeDecorationPCG.py`를 재사용해 V007 규칙과 그래프를 만든다. 대상은 새 LVI 내부 전체이고 구역별 팔레트를 쓴다.
@@ -332,6 +339,7 @@ PIE:
 | U4 조립체·산괴 시험 | `Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py`, `Scripts/Profiling/Graphics/BakeEDCloseRange.py`(ElectricDreamsEnv 에디터 전용) |
 | U4 Z1 재현 원본(GX-030) | `Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json`, `Scripts/Profiling/Graphics/RidgeZ1Layout.py`, `Scripts/Blender/HashRidgeCrust.py` |
 | U5 Z1 충돌(GX-031) | `Scripts/Profiling/Graphics/ExportRidgeEDCollision.py`(export·import·visualoff·layout·check), `Scripts/Blender/BuildRidgeEDCollision.py`, `Scripts/Blender/BuildRidgeOctant.py`(`crust`의 `cut_test`) |
+| U6 Z1 베이크·정리(GX-032·GX-033) | `Scripts/Profiling/Graphics/BuildRidgeZ1BakeLVI.py`(build·check·bake·nav·survey·pool), `Scripts/Profiling/Graphics/CullRidgeZ1Instances.py`(export·build), `Scripts/Blender/DecideRidgeZ1Cull.py`, `Scripts/Blender/BuildRidgeEDCollision.py`(`-- split`, `-- build V003`), `Scripts/RidgeZ1CompositionSpec.py`(`RAMPS`·`massif_ramp_ground`) |
 | 후속 신규 | `Scripts/Blender/BuildRidgeEDCollision.py` |
 | 계약 참조 | [옥탄트 제작 가이드](../../Guide_OctantLevelInstance.md) §3~7, `SurfaceSupportNavigation/design/TerrainContract.md`, `SurfaceSupportNavigation/design/SurfaceBaking.md`, [Ridge 설계 원본](../../../Art/Octants/Ridge_00/README.md) |
 

@@ -640,3 +640,49 @@ def massif_flat_feature_points():
                 for d in (-feather, 0, feather):
                     x, y = px + nx * d, py + ny * d
                     yield x, y
+
+
+# U6 러프 PIE(2026-11-23) 7번: 대분지(-40m)와 ValleyRise(-24m) 사이 BossValley 경사면은 V012 설계에서 x 4,000~7,800에 걸친
+# 24° 경사였는데, 분지 바닥 평탄화로 x 6,600~7,800 구간이 46~52°가 되어 걸어 오를 수 없었다. 경로 중심선을 따라 걸을 수 있는
+# 경사로 하나를 렌더링 지각에 다시 낸다(나머지 사면은 그대로). 높이는 양 끝을 잇는 직선이고, 반폭 안은 그 높이로 맞추며 바깥
+# 섞임 폭에서 원래 지각으로 돌아간다(메우기·깎기 모두). 끝 너머도 섞임 폭에서 돌아간다. 배치 지각(드레이프·띠·평면 묶음)은
+# 바꾸지 않는다(GX-024 분리). V012는 렌더링 지각이고, 충돌 지각은 U5가 이것을 바탕으로 다시 굽는다.
+# (이름: 시작 (x, y, H), 끝 (x, y, H), 반폭 cm, 섞임 폭 cm)
+RAMPS = {"BossValley": ((4400, -300, -4000), (7700, -150, -2400), 400, 600)}
+MASSIF_COVER_VERSIONS["V012"] = ("V012_Z1MassifCover_V012", -2200, 500)
+MASSIF_RAMP_VERSION = MASSIF_COVER_VERSIONS["V012"][0]
+
+
+def ramp_weight(x, y, ramp):
+    (ax, ay, ah), (bx, by, bh), half, blend = ramp
+    dx, dy = bx - ax, by - ay
+    length = math.hypot(dx, dy)
+    t = ((x - ax) * dx + (y - ay) * dy) / (length * length)
+    tc = max(0.0, min(1.0, t))
+    across = math.hypot(x - (ax + dx * tc), y - (ay + dy * tc))
+    along = abs(t - tc) * length
+    weight = ridge.smooth((half + blend - across) / blend) * ridge.smooth((blend - along) / blend)
+    return weight, ah + (bh - ah) * tc
+
+
+def massif_ramp_ground(x, y):
+    height = massif_flat_ground(x, y)
+    for ramp in RAMPS.values():
+        weight, target = ramp_weight(x, y, ramp)
+        if weight:
+            height += weight * (target - height)
+    return height
+
+
+def massif_ramp_feature_points():
+    # V010 특징점에 경사로 반폭·섞임 경계선을 1m 간격으로 더한다(경사로 모서리가 삼각분할에 남도록).
+    yield from massif_flat_feature_points()
+    for (ax, ay, _), (bx, by, _), half, blend in RAMPS.values():
+        length = math.hypot(bx - ax, by - ay)
+        ux, uy = (bx - ax) / length, (by - ay) / length
+        for i in range(-round(blend / 100), round((length + blend) / 100) + 1):
+            px, py = ax + ux * i * 100, ay + uy * i * 100
+            for d in (-half - blend, -half, 0, half, half + blend):
+                yield px - uy * d, py + ux * d
+# V013은 V012(경사로) 렌더링 지각과 U6 정리본(Z1Cull V001)에서 U5가 다시 구운 충돌 전용 지각이다(BuildRidgeEDCollision -- build V003).
+MASSIF_COVER_VERSIONS["V013"] = ("V012_Z1MassifCover_V013", -2200, 500)

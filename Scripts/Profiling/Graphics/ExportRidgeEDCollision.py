@@ -63,14 +63,19 @@ def axes(t):
     return [r.rotate_vector(u) for u in (unreal.Vector(1, 0, 0), unreal.Vector(0, 1, 0), unreal.Vector(0, 0, 1))]
 
 
-def read_instances():
+# 렌더링 지각 버전별 높이 함수(묻힘·돌출 판정). V037부터 V012(V010 + BossValley 경사로)다.
+RENDER_GROUND = {"V010": spec.massif_flat_ground, "V012": spec.massif_ramp_ground}
+
+
+def read_instances(version=None, render="V010"):
     # 열린 레벨의 모든 인스턴스를 (소유 Level Instance, 분류, 크기, 지각 위 돌출·바닥, 묻힘, transform) 행으로 읽는다.
+    # 시험 레벨(Z1AssemblyWall_Vxxx)은 이름에서 버전을 읽고, U6부터는 JSON에서 만든 베이크 LVI(Z1Bake_*)를 열고 버전을 준다.
     level = layout.world_package()
     match = re.search(r"Z1AssemblyWall_(V\d+)", level)
-    assert match, level
-    version = match.group(1)
+    assert match or (version and "/Z1Bake_" in level), level
+    version = version or match.group(1)
     top, nested = layout.level_actors()
-    crust = layout.CrustHeight(spec.massif_flat_ground)
+    crust = layout.CrustHeight(RENDER_GROUND[render])
     meshes, rows = {}, []
     owners = {}
     for actor in top:
@@ -192,7 +197,7 @@ def summarize(rows):
 GROUND, BODY, PLATE = 0, 1, 2
 BODY_MIN_SIZE_CM, BODY_MIN_PROTRUDE_CM = 100.0, 50.0
 TILE_MIN_SIZE_CM, TILE_BOTTOM_WINDOW_CM, TILE_MAX_PROTRUDE_CM = 50.0, 150.0, 250.0
-OCTANT_MESH = ("/Z1MassifCover_", "_PreservedRocks_")
+OCTANT_MESH = ("/Z1MassifCover_", "_PreservedRocks_", "/Z1Collision_")
 EXPORT_DIR = "Export_{}"
 
 
@@ -229,11 +234,12 @@ def mesh_arrays(mesh):
     return verts, tris
 
 
-def export():
+def export(version=None, render="V010"):
+    # 인자 없이는 열린 시험 레벨(V034 방식). U6부터: `export V037 V012`(JSON V037로 만든 Z1Bake LVI, 렌더링 지각 V012).
     import array
     import hashlib
     assert not test.dirty(), test.dirty()
-    version, level, rows, meshes = read_instances()
+    version, level, rows, meshes = read_instances(version, render)
     out = OUT / EXPORT_DIR.format(version)
     (out / "meshes").mkdir(parents=True, exist_ok=True)
     index, mesh_rows, instances = {}, [], []
@@ -285,6 +291,18 @@ SLICE = Path(r"D:/UnrealProjects/LootNPop/Saved/SliceOctant/Ridge_00")
 CRUST_VERSION = "V011"
 PROXY_VERSION = "V012_Z1Collision_V001"
 PROXY_FOLDER = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Collision_V001"
+
+
+# 프록시 버전별 충돌 지각과 Blender 명령. V002는 Floor 하한만 바꿔 다시 나눈 판(GX-032), V003은 U6 정리본(GX-033)·경사로
+# 렌더링 지각 V012에서 다시 구운 판이다(충돌 지각 V013).
+PROXY_BUILDS = {"V001": ("V011", "-- build"), "V002": ("V011", "-- build ; -- split V002 50"), "V003": ("V013", "-- build V003")}
+
+
+def use_proxy(version):
+    global PROXY_VERSION, PROXY_FOLDER, CRUST_VERSION
+    CRUST_VERSION = PROXY_BUILDS[version][0]
+    PROXY_VERSION = "V012_Z1Collision_" + version
+    PROXY_FOLDER = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Collision_" + version
 # 옥탄트 제작 가이드 §4.2 역할 표. 지각은 기존 반입(AssembleRidgeOctant.place_geometry)과 같이 CoarseSupport를 더한다.
 ROLE_CONTRACT = {
     "Crust": (["LNP.Surface.Blocker", "LNP.Surface.Static", "LNP.Surface.Support", "LNP.Surface.CoarseSupport"],
@@ -344,7 +362,9 @@ def recheck():
     unreal.log("Z1_COLLISION_RECHECK %s" % json.dumps({k.rsplit("/", 1)[1]: v["check"]["pass"] for k, v in report.items()}))
 
 
-def import_collision():
+def import_collision(proxy="V001"):
+    # 프록시 버전을 주면 그 버전을 반입한다. 이미 반입된 충돌 지각(V011)은 건너뛴다(재분할은 지각을 바꾸지 않는다).
+    use_proxy(proxy)
     import AssembleRidgeOctant as assembly
     assert not test.dirty(), test.dirty()
     # 저장은 사용자가 한다(U5 제약). import_assets 안의 저장만 막는다.
@@ -355,11 +375,13 @@ def import_collision():
         if out in done:
             continue
         done.add(out)
+        if all(unreal.EditorAssetLibrary.does_asset_exist(folder + "/" + item["name"]) for item in manifest["exports"])                 and out.name != PROXY_VERSION:
+            continue
         for row in assembly.import_assets(manifest, folder, out):
             row["check"] = mesh_check(strip_simple(unreal.load_asset(row["path"])))
             report[row["path"]] = row
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "Import_V001.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    (OUT / ("Import_%s.json" % proxy)).write_text(json.dumps(report, indent=1), encoding="utf-8")
     unreal.log("Z1_COLLISION_IMPORT %s" % json.dumps({k.rsplit("/", 1)[1]: v["check"]["pass"] for k, v in report.items()}))
 
 
@@ -371,11 +393,13 @@ def role_of(mesh):
     return "Crust"
 
 
-def layout_v035():
+def layout_v035(version="V035", proxy="V001"):
+    # JSON 버전을 올리고 충돌 행을 그 프록시 버전으로 바꾼다. V036은 Floor 하한 50㎡로 다시 나눈 프록시 V002(GX-032)다.
+    use_proxy(proxy)
     data = json.loads(layout.LAYOUT.read_text(encoding="utf-8"))
-    assert data["version"] in ("V034", "V035"), data["version"]
-    data["version"] = "V035"
-    data["level"] = test.WALL_FOLDER.format("V035")
+    assert data["version"] in ("V034", "V035", "V036", "V037"), data["version"]
+    data["version"] = version
+    data["level"] = test.WALL_FOLDER.format(version)
     data["actors"] = [row for row in data["actors"] if row["role"] != "collision"]
     builds = {}
     for folder, out, manifest, item in collision_meshes():
@@ -390,9 +414,10 @@ def layout_v035():
     data["actors"].sort(key=lambda row: row["label"])
     report = json.loads((SLICE / PROXY_VERSION / "manifest.json").read_text(encoding="utf-8"))["report"]
     data["collision_build"] = {
-        "decision": "GX-031",
-        "export": "ExportRidgeEDCollision.py export (open Z1AssemblyWall_V034)",
-        "blender": "blender --background --python Scripts/Blender/BuildRidgeEDCollision.py -- build",
+        "decision": {"V001": "GX-031", "V002": "GX-031, GX-032"}.get(proxy, "GX-031, GX-032, GX-033"),
+        "export": ("ExportRidgeEDCollision.py export (open Z1AssemblyWall_V034)" if proxy != "V003" else
+                   "ExportRidgeEDCollision.py export V037 V012 (open Z1Bake LVI built from JSON V037)"),
+        "blender": "blender --background --python Scripts/Blender/BuildRidgeEDCollision.py " + PROXY_BUILDS[proxy][1],
         "ue": "ExportRidgeEDCollision.py import -> visualoff save -> layout -> RidgeZ1Layout.py build V035 -> verify -> ExportRidgeEDCollision.py check",
         "input_instances_sha256": report["input_instances_sha256"], "input_counts": report["input_counts"],
         "parameters": report["parameters"], "meshes": builds, "hashes": report["hashes"],
@@ -402,7 +427,7 @@ def layout_v035():
     temporary = layout.LAYOUT.with_suffix(".tmp")
     temporary.write_text(json.dumps(data, indent=1, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8")
     temporary.replace(layout.LAYOUT)
-    unreal.log("Z1_COLLISION_LAYOUT V035 collision %d" % len(builds))
+    unreal.log("Z1_COLLISION_LAYOUT %s collision %d" % (version, len(builds)))
 
 
 def check():
@@ -439,7 +464,7 @@ def check():
     report = {"level": layout.world_package(), "pass": not issues, "issues": issues, "actors": rows,
               "visual_collision": visual}
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "Check_V035.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    (OUT / ("Check_%s.json" % layout.world_package().rsplit("_", 1)[-1])).write_text(json.dumps(report, indent=1), encoding="utf-8")
     unreal.log("Z1_COLLISION_CHECK %s %s" % ("PASS" if not issues else "FAIL", json.dumps(issues)))
 
 

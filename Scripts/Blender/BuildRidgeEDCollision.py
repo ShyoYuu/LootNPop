@@ -58,9 +58,9 @@ SLAB_GENTLE_DOT = 0.3          # |꼭짓점 법선·현지 Up|이 이 값 이상
 BODY_TRI_AREA_CM2 = 1000.0     # remesh 뒤 decimate 목표 평균 삼각형 넓이(약 48cm 변, 500으로 줄여도 Floor p95 같음)
 SKIRT_CM = 50.0                # 덩어리 면을 지각 아래 이 깊이까지 남겨 절개 이음을 막는다
 FLOOR_DOT = 0.71
-MIN_FLOOR_AREA_CM2 = 40000.0   # 4㎡
+MIN_FLOOR_AREA_CM2 = 40000.0   # 4㎡(V001). V002 재분할·V003 빌드는 50㎡(GX-032)
 INSIDE_TOLERANCE_CM = 50.0
-CUT_PASSES = 8               # V011 실제 표본으로 절개 칸을 더하는 반복 상한
+CUT_PASSES = 12              # V011 실제 표본으로 절개 칸을 더하는 반복 상한(V003 빌드는 8회 뒤 1표본이 남아 늘렸다)
 WELD_CM, WELD_BOX_SLACK = 0.01, 0.02   # 사전 축소 전 용접 거리, 축소 결과가 원본 상자를 벗어나도 되는 비율(대각선 대비)
 GROUND_TRIS_PER_M2, GROUND_TRIS = 60.0, (200, 3000)
 BODY_TRIS_PER_M2, BODY_TRIS = 20.0, (200, 6000)
@@ -742,6 +742,30 @@ def measure(meshes, inst, crust, collision):
             "nearest_floor": quantiles(floor), "by_class": {key: quantiles(values) for key, values in sorted(result.items())}}
 
 
+# 빌드 판(profile). V001은 U5 첫 빌드(GX-031), V003은 U6 러프 PIE 정리 뒤(시각 인스턴스 덜어냄 Z1Cull V001, 렌더링 지각
+# V012 = V010 + BossValley 경사로, Floor 하한 50㎡ GX-032). 판을 고르면 입력·출력 버전과 지각 높이 함수가 함께 바뀐다.
+PROFILES = {
+    "V001": {"export": "Export_V034", "render": "V010", "crust": "V011", "proxy": "V012_Z1Collision_V001",
+             "min_floor_cm2": 40000.0, "ground": "massif_flat_ground", "features": "massif_flat_feature_points"},
+    "V003": {"export": "Export_V037", "render": "V012", "crust": "V013", "proxy": "V012_Z1Collision_V003",
+             "min_floor_cm2": 500000.0, "ground": "massif_ramp_ground", "features": "massif_ramp_feature_points"},
+}
+GROUND_FN, FEATURE_FN = spec.massif_flat_ground, spec.massif_flat_feature_points
+
+
+def use_profile(name):
+    global EXPORT, RENDER_CRUST, CRUST_VERSION, PROXY_VERSION, MIN_FLOOR_AREA_CM2, GROUND_FN, FEATURE_FN
+    p = PROFILES[name]
+    EXPORT = EXPORT.with_name(p["export"])
+    render = spec.MASSIF_COVER_VERSIONS[p["render"]][0]
+    RENDER_CRUST = SLICE / render / ("SM_Octant_Ridge_00_%s_R30000.fbx" % render)
+    spec.MASSIF_COVER_VERSIONS.setdefault(p["crust"], ("V012_Z1MassifCover_" + p["crust"], -2200, 500))
+    CRUST_VERSION = spec.MASSIF_COVER_VERSIONS[p["crust"]][0]
+    PROXY_VERSION = p["proxy"]
+    MIN_FLOOR_AREA_CM2 = p["min_floor_cm2"]
+    GROUND_FN, FEATURE_FN = getattr(spec, p["ground"]), getattr(spec, p["features"])
+
+
 # ---- 실행 --------------------------------------------------------------------------------------------------------
 # 단계 결과(미리 줄인 메시·래스터·렌더링 지각 표본·덩어리)는 OUT/cache에 남기고 다음 실행에서 다시 쓴다.
 # 입력 지문(instances·매개변수)이 바뀌면 캐시를 버린다. `-- build fresh`는 캐시를 지우고 처음부터 돈다.
@@ -844,13 +868,13 @@ def build(mode=""):
 
     def walk_ground(x, y):
         h = raster_heights.get((round(x), round(y)))
-        return h if h is not None else spec.massif_flat_ground(x, y)
+        return h if h is not None else GROUND_FN(x, y)
 
     def walk_features():
         for i, j in heights:
             if (i, j) not in cells:
                 yield (i * GRID_CM, j * GRID_CM)
-        yield from spec.massif_flat_feature_points()
+        yield from FEATURE_FN()
     # 50cm 칸 꼭짓점 판정만으로는 경계 칸·얇은 바위에서 지각이 칸 대각선만큼 남고, 절개 경계 정점은 래스터 대신 V010
     # 높이를 써서 V011 면이 판정 높이와 다르다(3차 빌드: 50cm 넘게 안쪽 3,308표본). 그래서 구운 V011의 실제 표본으로
     # assert와 같은 판정을 하고, 50cm 넘게 안쪽인 표본이 든 칸을 절개에 더해 다시 굽는다(CUT_PASSES회까지).
@@ -926,7 +950,91 @@ def build(mode=""):
     assert inside["pass"], inside
 
 
+def resplit(proxy_version, min_floor_m2):
+    # 1~4단계(캐시·충돌 지각 V011)는 원본 빌드(PROXY_VERSION) 것을 그대로 쓰고 5~7단계만 새 Floor 하한으로 다시 한다.
+    # U6에서 Floor 연결 성분마다 Support/Nav Layer가 생겨 Layer 400개가 런타임 상한 256을 넘었다(GX-032).
+    global MIN_FLOOR_AREA_CM2
+    sys.stdout.reconfigure(line_buffering=True)
+    MIN_FLOOR_AREA_CM2 = float(min_floor_m2) * 1e4
+    source = SLICE / PROXY_VERSION
+    out = SLICE / ("V012_Z1Collision_" + proxy_version)
+    assert out != source and not (out / "manifest.json").exists(), "Choose a new version"
+    out.mkdir(parents=True, exist_ok=True)
+    old = json.loads((source / "manifest.json").read_text(encoding="utf-8"))["report"]
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    clock, timing = time.time(), {}
+
+    def lap(name):
+        nonlocal clock
+        timing[name] = round(time.time() - clock, 1)
+        clock = time.time()
+        print("RIDGE_ED_COLLISION_STAGE", name, timing[name], flush=True)
+
+    manifest, inst, meshes = load_export()
+    assert manifest["instances_sha256"] == old["input_instances_sha256"], "Export changed; run a full build"
+    cache = source / "cache" / cache_key(manifest)
+    assert cache.name == old["cache"] and cache.exists(), cache
+    cached_decimation(cache, meshes, inst)
+    crust = RenderCrust()
+    heights, _ = cached_raster(cache, meshes, inst, crust)
+    body_bl, body_tris, _ = cached_bodies(cache, meshes, inst)
+    body_ue, body_normals = ue_array(body_bl), face_normals_ue(body_bl, body_tris)
+    volume = Volume(body_ue, body_tris, body_normals)
+    lap("cache")
+    name = f"SM_Octant_Ridge_00_{CRUST_VERSION}_R30000"
+    with bpy.data.libraries.load(str(source / "Ridge_Z1Collision.blend"), link=False) as (src, dst):
+        assert name in src.objects, name
+        dst.objects = [name]
+    crust_obj = dst.objects[0]
+    bpy.context.scene.collection.objects.link(crust_obj)
+    crust_verts, crust_tris, samples = crust_samples(crust_obj)
+    assert vertex_hash(crust_verts, crust_tris) == old["hashes"]["crust"], "V011 crust differs from the source build"
+    inside, _ = assert_inside(volume, body_ue, samples)
+    lap("crust")
+    floor, shell, split = split_body(body_ue, body_tris, body_normals, heights, crust)
+    builder.OUT, builder.EXPORTS = out, []
+    floor_obj = export_role(PROXY_NAME.format("Floor"), body_ue, body_tris, floor, "Floor")
+    shell_obj = export_role(PROXY_NAME.format("Shell"), body_ue, body_tris, shell, "Shell")
+    proxy_exports = builder.EXPORTS
+    lap("split")
+    collision = {"crust": bvh(crust_verts, crust_tris)}
+    for role, obj in (("floor", floor_obj), ("shell", shell_obj)):
+        v, t = mesh_arrays(obj, evaluated=False)
+        collision[role] = bvh(ue_array(v), t)
+    fit = measure(meshes, inst, crust, collision)
+    lap("measure")
+    proxy_verts = body_ue[np.unique(body_tris[floor | shell].ravel())]
+    report = dict(old)
+    report.update({
+        "version": out.name, "resplit_of": source.name,
+        "parameters": dict(old["parameters"], min_floor_area_cm2=MIN_FLOOR_AREA_CM2),
+        "split": split, "inside_assert": inside, "fit": fit,
+        "bounds_cm": {"min": np.minimum(crust_verts.min(axis=0), proxy_verts.min(axis=0)).round(3).tolist(),
+                      "max": np.maximum(crust_verts.max(axis=0), proxy_verts.max(axis=0)).round(3).tolist()},
+        "abs_max_component_cm": float(np.abs(np.concatenate([crust_verts, proxy_verts])).max()),
+        "proxies": proxy_exports,
+        "hashes": dict(old["hashes"], floor=proxy_hash(floor_obj), shell=proxy_hash(shell_obj)),
+        "timing_s": timing})
+    (out / "manifest.json").write_text(json.dumps({"exports": proxy_exports, "report": report}, indent=1) + "\n",
+                                       encoding="utf-8")
+    bpy.ops.wm.save_as_mainfile(filepath=str(out / "Ridge_Z1Collision.blend"), check_existing=False)
+    print("RIDGE_ED_COLLISION_READY " + json.dumps({"inside": inside["pass"], "fit": fit["floor_or_crust"],
+                                                   "floor": split["floor"], "shell": split["shell"],
+                                                   "floor_components": split["floor_components"]}))
+    assert inside["pass"], inside
+
+
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    assert args and args[0] == "build" and args[1:] in ([], ["fresh"]), args
-    build(*args[1:])
+    if args and args[0] == "split":
+        # -- split <새 프록시 버전(V002…)> <Floor 최소 면적 ㎡>
+        assert len(args) == 3, args
+        resplit(args[1], args[2])
+    else:
+        # -- build [V001|V003] [fresh]
+        assert args and args[0] == "build", args
+        rest = args[1:]
+        if rest and rest[0] in PROFILES:
+            use_profile(rest.pop(0))
+        assert rest in ([], ["fresh"]), args
+        build(*rest)

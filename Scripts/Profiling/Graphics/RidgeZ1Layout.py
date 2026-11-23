@@ -39,8 +39,8 @@ EDTERRAIN = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/"
 REPRO_ROOT = EDTERRAIN + "_Repro/"
 # export가 덮어쓰지 않고 기존 JSON에서 그대로 옮기는 항목(사람이 정한 결정·셸에서 잰 값).
 PRESERVED = ("protection", "crust_build", "collision_build")
-# V035는 V034 시각 구성에 U5 충돌 지각·프록시만 더한 버전이라 조립체 높이 기준(WALLS)을 V034에서 읽는다.
-WALLS_ALIAS = {"V035": "V034"}
+# V035·V036은 V034 시각 구성에 U5 충돌 지각·프록시만 더한 버전이라 조립체 높이 기준(WALLS)을 V034에서 읽는다.
+WALLS_ALIAS = {"V035": "V034", "V036": "V034"}
 LAYER_PATTERN = re.compile(r"/(Z1MassifDrape|Z1RimBand|Z1MassifFlat)_(V\d+)/")
 LAYER_GENERATOR = {"Z1MassifDrape": "drape", "Z1RimBand": "band", "Z1MassifFlat": "flat"}
 # 렌더링 지각 버전별 높이 함수(프록시 묻힘 판정용).

@@ -1,7 +1,7 @@
 {
  "schema": 1,
- "version": "V035",
- "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1AssemblyWall_V035/Z1AssemblyWall_V035",
+ "version": "V037",
+ "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1AssemblyWall_V037/Z1AssemblyWall_V037",
  "lighting": {
   "source_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1AssemblyTest_V001/Z1AssemblyTest_V001",
   "lights": [
@@ -89,27 +89,6 @@
    ]
   },
   {
-   "label": "ED_Z1_NorthCaveFace",
-   "role": "v002",
-   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
-   "material_overrides": {},
-   "local_xyh_cm": [
-    2909.9998,
-    2349.9999,
-    -4260.0003
-   ],
-   "rotation_deg": [
-    1.999998,
-    174.0,
-    6.000001
-   ],
-   "scale": [
-    0.97,
-    0.9,
-    1.17
-   ]
-  },
-  {
    "label": "ED_Z1_PillarShoulder",
    "role": "v002",
    "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
@@ -131,9 +110,9 @@
    ]
   },
   {
-   "label": "SM_Octant_Ridge_00_V012_Z1MassifCover_V010_R30000",
+   "label": "SM_Octant_Ridge_00_V012_Z1MassifCover_V012_R30000",
    "role": "render_crust",
-   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifCover_V010/SM_Octant_Ridge_00_V012_Z1MassifCover_V010_R30000",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifCover_V012/SM_Octant_Ridge_00_V012_Z1MassifCover_V012_R30000",
    "material_overrides": {
     "0": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifSurface_V003/MI_Ridge_Z1_MassifSurface"
    },
@@ -152,13 +131,13 @@
     1.0,
     1.0
    ],
-   "crust_version": "V010"
+   "crust_version": "V012"
   },
   {
-   "label": "SM_Octant_Ridge_00_V012_Z1MassifCover_V011_R30000",
+   "label": "SM_Octant_Ridge_00_V012_Z1MassifCover_V013_R30000",
    "role": "collision",
    "collision_role": "Crust",
-   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifCover_V011/SM_Octant_Ridge_00_V012_Z1MassifCover_V011_R30000",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifCover_V013/SM_Octant_Ridge_00_V012_Z1MassifCover_V013_R30000",
    "material_overrides": {},
    "tags": [
     "LNP.Surface.Blocker",
@@ -234,7 +213,7 @@
    "label": "SM_Ridge_EDTerrain_V001_Z1_Floor",
    "role": "collision",
    "collision_role": "Floor",
-   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Collision_V001/SM_Ridge_EDTerrain_V001_Z1_Floor",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Collision_V003/SM_Ridge_EDTerrain_V001_Z1_Floor",
    "material_overrides": {},
    "tags": [
     "LNP.Surface.Blocker",
@@ -263,7 +242,7 @@
    "label": "SM_Ridge_EDTerrain_V001_Z1_Shell",
    "role": "collision",
    "collision_role": "Shell",
-   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Collision_V001/SM_Ridge_EDTerrain_V001_Z1_Shell",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Collision_V003/SM_Ridge_EDTerrain_V001_Z1_Shell",
    "material_overrides": {},
    "tags": [
     "LNP.Surface.Blocker",
@@ -304,7 +283,12 @@
    ],
    "height_base": "abs",
    "height_offset_cm": -3500.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_CanyonWestBank",
+    "instances": 6789
+   }
   },
   {
    "label": "ASM_Z1_CrownCenter",
@@ -321,7 +305,12 @@
    ],
    "height_base": "floor",
    "height_offset_cm": 2100.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_CrownCenter",
+    "instances": 7539
+   }
   },
   {
    "label": "ASM_Z1_CrownNorth",
@@ -338,7 +327,12 @@
    ],
    "height_base": "floor",
    "height_offset_cm": 3600.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_CrownNorth",
+    "instances": 471
+   }
   },
   {
    "label": "ASM_Z1_CrownSouth",
@@ -355,7 +349,12 @@
    ],
    "height_base": "floor",
    "height_offset_cm": 3100.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_CrownSouth",
+    "instances": 477
+   }
   },
   {
    "label": "ASM_Z1_NorthRimWall",
@@ -372,7 +371,12 @@
    ],
    "height_base": "abs",
    "height_offset_cm": -2900.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_NorthRimWall",
+    "instances": 8279
+   }
   },
   {
    "label": "ASM_Z1_PlateauNorthStep",
@@ -389,7 +393,12 @@
    ],
    "height_base": "abs",
    "height_offset_cm": -1000.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_PlateauNorthStep",
+    "instances": 7638
+   }
   },
   {
    "label": "ASM_Z1_PlateauSouthCrown",
@@ -406,7 +415,12 @@
    ],
    "height_base": "abs",
    "height_offset_cm": 300.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_PlateauSouthCrown",
+    "instances": 292
+   }
   },
   {
    "label": "ASM_Z1_WallCenter",
@@ -423,7 +437,12 @@
    ],
    "height_base": "floor",
    "height_offset_cm": -150.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_WallCenter",
+    "instances": 6240
+   }
   },
   {
    "label": "ASM_Z1_WallNorth",
@@ -440,7 +459,12 @@
    ],
    "height_base": "floor",
    "height_offset_cm": -450.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_WallNorth",
+    "instances": 6498
+   }
   },
   {
    "label": "ASM_Z1_WallSouth",
@@ -457,19 +481,34 @@
    ],
    "height_base": "floor",
    "height_offset_cm": -100.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_WallSouth",
+    "instances": 5735
+   }
   },
   {
    "label": "CR_Z1_Drape",
    "role": "layer",
    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifDrape_V006/Z1MassifDrape_V006",
-   "height_base": "world"
+   "height_base": "world",
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_Drape",
+    "instances": 22016
+   }
   },
   {
    "label": "CR_Z1_Flat",
    "role": "layer",
    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifFlat_V001/Z1MassifFlat_V001",
-   "height_base": "world"
+   "height_base": "world",
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_Flat",
+    "instances": 14117
+   }
   },
   {
    "label": "CR_Z1_LargeAssembly",
@@ -486,19 +525,34 @@
    ],
    "height_base": "floor",
    "height_offset_cm": 4600.0,
-   "scale": 1.0
+   "scale": 1.0,
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_LargeAssembly",
+    "instances": 4657
+   }
   },
   {
    "label": "CR_Z1_RimBand",
    "role": "layer",
    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V005/Z1RimBand_V005",
-   "height_base": "world"
+   "height_base": "world",
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_RimBand",
+    "instances": 78178
+   }
   },
   {
    "label": "CR_Z1_RimBandNorth",
    "role": "layer",
    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V009/Z1RimBand_V009",
-   "height_base": "world"
+   "height_base": "world",
+   "cull": {
+    "version": "V001",
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_RimBandNorth",
+    "instances": 16629
+   }
   }
  ],
  "layers": {
@@ -904,15 +958,17 @@
  },
  "crust_build": {
   "render": {
-   "version": "V010",
-   "blender": "blender --background --python Scripts/Blender/BuildRidgeZ1Composition.py -- massif-flat",
-   "ue": "BuildRidgeZ1AssemblyTest.py importcrust V010",
-   "output": "Saved/SliceOctant/Ridge_00/V012_Z1MassifCover_V010/",
-   "mesh": "SM_Octant_Ridge_00_V012_Z1MassifCover_V010_R30000",
-   "vertices": 50723,
-   "polygons": 100063,
-   "sha256": "d1a622257769023cdcbbac2a7e4d5f8809c8e662856563791d138eb7003f0488",
-   "hash_tool": "Scripts/Blender/HashRidgeCrust.py"
+   "version": "V012",
+   "base": "V010",
+   "blender": "blender --background --python Scripts/Blender/BuildRidgeZ1Composition.py -- massif-ramp",
+   "ue": "BuildRidgeZ1AssemblyTest.py importcrust V012",
+   "output": "Saved/SliceOctant/Ridge_00/V012_Z1MassifCover_V012/",
+   "mesh": "SM_Octant_Ridge_00_V012_Z1MassifCover_V012_R30000",
+   "vertices": 50923,
+   "polygons": 100463,
+   "sha256": "ffaf44ce7a1d4c082118b7bbb585928dbd0fc4dde86dc13a91f14d7134434fa4",
+   "hash_tool": "Scripts/Blender/HashRidgeCrust.py",
+   "ramps": "spec.RAMPS (BossValley, U6 rough PIE point 7)"
   },
   "placement": {
    "CR_Z1_Drape": "spec.massif_cover_ground(V002)",
@@ -922,16 +978,16 @@
   }
  },
  "collision_build": {
-  "decision": "GX-031",
-  "export": "ExportRidgeEDCollision.py export (open Z1AssemblyWall_V034)",
-  "blender": "blender --background --python Scripts/Blender/BuildRidgeEDCollision.py -- build",
+  "decision": "GX-031, GX-032, GX-033",
+  "export": "ExportRidgeEDCollision.py export V037 V012 (open Z1Bake LVI built from JSON V037)",
+  "blender": "blender --background --python Scripts/Blender/BuildRidgeEDCollision.py -- build V003",
   "ue": "ExportRidgeEDCollision.py import -> visualoff save -> layout -> RidgeZ1Layout.py build V035 -> verify -> ExportRidgeEDCollision.py check",
-  "input_instances_sha256": "3409bcb77fbce7d81bd25c3fbe2ad2f3b6f329d34b1d72e8ae6732bd217f4bf5",
+  "input_instances_sha256": "d38db556db3aa6b649c5ec0cfbb8019e40c1c3f4fddded7843db811cc347a037",
   "input_counts": {
-   "ground": 54203,
-   "body": 7974,
-   "plate": 2787,
-   "excluded": 149747
+   "ground": 52401,
+   "body": 7138,
+   "plate": 1861,
+   "excluded": 124163
   },
   "parameters": {
    "grid_cm": 50.0,
@@ -945,14 +1001,14 @@
    "body_tri_area_cm2": 1000.0,
    "skirt_cm": 50.0,
    "floor_dot": 0.71,
-   "min_floor_area_cm2": 40000.0,
+   "min_floor_area_cm2": 500000.0,
    "inside_tolerance_cm": 50.0,
    "ground_tris_per_m2": 60.0,
    "body_tris_per_m2": 20.0
   },
   "meshes": {
-   "SM_Octant_Ridge_00_V012_Z1MassifCover_V011_R30000": {
-    "triangles": 133671,
+   "SM_Octant_Ridge_00_V012_Z1MassifCover_V013_R30000": {
+    "triangles": 134900,
     "bounds_cm": {
      "min": [
       -1.8174767246748047e-12,
@@ -967,27 +1023,27 @@
     }
    },
    "SM_Ridge_EDTerrain_V001_Z1_Floor": {
-    "triangles": 68776,
+    "triangles": 34108,
     "bounds_cm": {
      "min": [
-      10723.642578125,
-      8748.875,
-      6379.0107421875
+      11758.7490234375,
+      8908.052734375,
+      8535.5546875
      ],
      "max": [
-      24163.158203125,
-      22547.43359375,
-      24540.376953125
+      22222.94140625,
+      22351.216796875,
+      23913.34375
      ]
     }
    },
    "SM_Ridge_EDTerrain_V001_Z1_Shell": {
-    "triangles": 404399,
+    "triangles": 459537,
     "bounds_cm": {
      "min": [
-      10723.642578125,
+      10765.8583984375,
       8649.5634765625,
-      6355.44091796875
+      7710.6015625
      ],
      "max": [
       24163.158203125,
@@ -998,30 +1054,142 @@
    }
   },
   "hashes": {
-   "crust": "bbfa3d03143de8603ef9cdebbd4c83ad9d88d361556be5c670d20aea09f7cc31",
-   "floor": "8a34fbe59f94cd74321d84f98f3bbe26241ff0bc88a6a190e36dedfa5a0be7d5",
-   "shell": "b91525e9cd0aadb74b95bfa6c7d8c7f6372a94c68993d0b4e861c72b7b31bb76"
+   "crust": "14a9b1672c0fec19680439dacf3aebfee6dafc8ea830175debb7e3510b47139e",
+   "floor": "d46d9b6b9a4b3034371dfeea6ae9c1be6b660feb4ee0356a2fe8e51b44a06faa",
+   "shell": "e314525483fa89b0713a15be318b9856b99031bf6e9280fb98247e47fcb20b67"
   },
   "inside_assert": {
-   "samples": 411194,
-   "tested": 215251,
-   "inside_within_tolerance": 38756,
+   "samples": 414666,
+   "tested": 214682,
+   "inside_within_tolerance": 39068,
    "inside_deeper_than_tolerance": 0,
-   "max_depth_cm": 50.0,
+   "max_depth_cm": 49.99,
    "tolerance_cm": 50.0,
    "pass": true
   },
   "fit": {
    "50": 0.0,
-   "90": 7.18,
-   "95": 12.97,
-   "99": 35.1,
-   "max": 323.45,
-   "count": 9331
+   "90": 6.22,
+   "95": 11.03,
+   "99": 30.06,
+   "max": 109.46,
+   "count": 7478
   },
   "output": [
-   "Saved/SliceOctant/Ridge_00/V012_Z1MassifCover_V011/",
-   "Saved/SliceOctant/Ridge_00/V012_Z1Collision_V001/"
+   "Saved/SliceOctant/Ridge_00/V012_Z1MassifCover_V013/",
+   "Saved/SliceOctant/Ridge_00/V012_Z1Collision_V003/"
   ]
+ },
+ "cull": {
+  "version": "V001",
+  "decision": "GX-033",
+  "reason": "U6 rough PIE (2026-11-23): floating assembly/CR cover and branches (A), drape left on V012 peaks outside the plateau (B), instances inside cave cuts with no collision (C), thin plates stuck into the ground (D)",
+  "export": "CullRidgeZ1Instances.py export V001 (open LVI with Level Instances loaded, JSON V036 visuals)",
+  "decide": "blender --background --python Scripts/Blender/DecideRidgeZ1Cull.py -- V001",
+  "build": "CullRidgeZ1Instances.py build V001 (same LVI open) -> EDTerrain_V001/Z1Cull_V001/<label>",
+  "parameters": {
+   "plateau_weight": 0.95,
+   "support": [
+    100.0,
+    30.0
+   ],
+   "big_body_cm": 400.0,
+   "thin": [
+    0.35,
+    150.0,
+    300.0,
+    60.0
+   ],
+   "crust": "V012_Z1MassifCover_V012"
+  },
+  "instances": 214705,
+  "removed": {
+   "A": 20949,
+   "B": 3820,
+   "C": 3642,
+   "D": 739
+  },
+  "removed_decals": 4,
+  "by_owner": {
+   "ASM_Z1_CanyonWestBank": {
+    "A": 1336,
+    "D": 16,
+    "total": 8141
+   },
+   "ASM_Z1_CrownCenter": {
+    "A": 597,
+    "D": 5,
+    "total": 8141
+   },
+   "ASM_Z1_CrownNorth": {
+    "A": 358,
+    "D": 1,
+    "total": 830
+   },
+   "ASM_Z1_CrownSouth": {
+    "A": 26,
+    "D": 2,
+    "total": 505
+   },
+   "ASM_Z1_NorthRimWall": {
+    "A": 423,
+    "D": 21,
+    "total": 8723
+   },
+   "ASM_Z1_PlateauNorthStep": {
+    "A": 1081,
+    "D": 4,
+    "total": 8723
+   },
+   "ASM_Z1_PlateauSouthCrown": {
+    "A": 537,
+    "D": 1,
+    "total": 830
+   },
+   "ASM_Z1_WallCenter": {
+    "A": 2886,
+    "D": 22,
+    "total": 9148
+   },
+   "ASM_Z1_WallNorth": {
+    "A": 1706,
+    "D": 2,
+    "total": 8206
+   },
+   "ASM_Z1_WallSouth": {
+    "A": 2966,
+    "D": 22,
+    "total": 8723
+   },
+   "CR_Z1_Drape": {
+    "C": 3620,
+    "B": 3820,
+    "A": 1988,
+    "D": 274,
+    "total": 31718
+   },
+   "CR_Z1_Flat": {
+    "A": 647,
+    "D": 86,
+    "total": 14850
+   },
+   "CR_Z1_LargeAssembly": {
+    "A": 5432,
+    "D": 125,
+    "C": 20,
+    "total": 10234
+   },
+   "CR_Z1_RimBand": {
+    "D": 126,
+    "A": 832,
+    "total": 79136
+   },
+   "CR_Z1_RimBandNorth": {
+    "D": 32,
+    "A": 134,
+    "C": 2,
+    "total": 16797
+   }
+  }
  }
 }
