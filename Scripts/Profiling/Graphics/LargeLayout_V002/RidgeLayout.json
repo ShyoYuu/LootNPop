@@ -1,0 +1,66 @@
+{
+ "schema": 1,
+ "baseline": {
+  "layout": "Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json",
+  "layout_version": "V037",
+  "layout_sha256": "bc0a5ac948bd2c69057f41294a1efc29ce9789c17eb89e7ac0756eff2f2ec5a0",
+  "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Bake_V010/LVI_Ridge_EDTerrain_Z1Bake_V010",
+  "level_sha256": "64fa32be45c0007545f291189dc69275dac0ea7566acca013d61b4fe61cfa6bd",
+  "snapshot": "Saved/Profiling/Graphics/Phase01/U4_0_V001/LiveSnapshot_20261124_164625_996859.json",
+  "recovery_manifest": "Saved/Profiling/Graphics/Phase01/U4_0_V001/RecoveryManifest.json"
+ },
+ "zones": [
+  "EDTerrainLayout_Z2.json"
+ ],
+ "work_level_pattern": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_{0}/LVI_Ridge_EDTerrain_U4Layout_{0}",
+ "unit": "U4-2",
+ "collision_status": "inherited V010 only; new visuals unbaked",
+ "evidence_folder": "Saved/Profiling/Graphics/Phase01/U4_2_V002",
+ "previous_unit": {
+  "accepted": true,
+  "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/LVI_Ridge_EDTerrain_U4Layout_V001",
+  "level_sha256": "a42db5c2c9a7cdd40ced343887c88140eef7c54fe552bfd7ef08344b8f24331d",
+  "files": [
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V001/RidgeLayout.json",
+    "sha256": "d843cbb35e51682c99c876e00255480686c3adfa214c22edb41083d77ef8cfc3"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V001/EDTerrainLayout_Z2.json",
+    "sha256": "d629026998b3064852fb7accffe6c6f5a937852b135f32ee6a7f364be0ebebef"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V001/README.md",
+    "sha256": "ba849778f95277f813f753301badcdeb0efe80a5e621a6281d29417d00ba4a43"
+   }
+  ],
+  "locked_owners": {
+   "ASM_Z2_LowerSouthBank": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/Z2Assembly_V001/PL_Ridge_Z2_LowerBank_V001",
+    "pose": {
+     "local_xyh_cm": [
+      1200.0,
+      -5800.0,
+      -6500.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      135.0,
+      1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 8206,
+     "decals": 0,
+     "keys": 174,
+     "sha256": "1ebc931549161469de67d3ebeb2f55cb6b100f2d7281d2fda6ff0e410400bff7"
+    }
+   }
+  }
+ }
+}

@@ -1,8 +1,8 @@
 # 그래픽스 작업 현재 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · Z1 파일럿 U6 진행 중 · 재현 원본 `EDTerrainLayout_Z1.json` V037(러프 PIE 지적 정리 GX-033·경사로 지각 V012·충돌 V013/V003·Floor 50㎡ GX-032) · 베이크 LVI `Z1Bake_V010`(Pod 10개) · 다음은 재점검 1인 PIE(지형·프랍·동선 → 마지막에 NPC 전투)
-> 마지막 확인/갱신: 2026-11-23
+> 현재 작업: [Phase 1-BR Ridge 지표 Electric Dreams 교체](phases/Phase01_RidgeReferencePatch.md) · U4-0~U4-3 완료/사용자 채택 · V003 동결 · 다음 U4-4는 새 세션 · V037/V010/V001/V002 보존
+> 마지막 확인/갱신: 2026-11-24
 
 ## 1. 이어받을 결과
 
@@ -49,18 +49,18 @@ WIP를 정상 게임에서 다시 검토하려면 TestMap03에서 검사용 풀�
 교체 방식은 다음과 같다.
 
 - 지각은 경계 고리와 기반면 한 장으로 만든다.
-- 절벽·능선·메사는 ED 메시로 세운다.
-- 충돌은 배치에서 파생한 `_Floor`·`_Shell` 프록시가 맡는다.
+- 절벽·능선·메사는 현재 ED 큰 배치를 목표 외형으로 삼아 닫힌 몸체·지면 받침을 만들고 ED 외피를 유지한다(GX-034, 구현 전).
+- 충돌은 몸체·외피 배치에서 파생한 충돌 지각·`_Floor`·`_Shell` 프록시가 맡는다.
 - 동굴·부유섬·석교는 V011 형상을 유지하고 다음 패스에서 바꾼다.
 
-단위는 U1~U8이고 Z1 파일럿에서 U6 PIE 게이트를 먼저 통과시킨다. 구현 단위마다 다음 진행을 확인하고, 기존 미저장 사용자 변경은 임의로 버리거나 저장하지 않는다.
+단위는 U1~U8이다. **현재 실행 순서는 GX-034로 갱신했다:** 이번 PIE 제보 수집 종료 → U4 전체 큰 배치 초벌 확정 → U5a Z1 몸체 시험 → U5b 구역별 몸체·충돌 → U6 전체 베이크·PIE → U7 세부 마감. 기존 Z1 프록시·베이크는 기술 검증 기록으로 보존하며 새 몸체 검증을 대신하지 않는다. 구현 단위마다 다음 진행을 확인하고, 기존 미저장 사용자 변경은 임의로 버리거나 저장하지 않는다.
 
 - **U1 완료.** `RidgeBlueprint_V001.json`의 Pod 12개·훅 6개·검토점 27개를 정식 V011과 대조했다. 기본 WIP의 고스트 3개와 `DrawRidgeDecorationKeepOuts.py draw-br`로 설계도를 표시할 수 있다. [검증 기록](history/Phase01_Log.md#2026-11-19--1-br-u1-설계도-추출)
 - **U2 완료.** 원본 후보 55개에서 메시 17개를 선정하고 새 파일 96개(3.91GiB)를 반입했다. 기존 43개는 해시가 같다. LootNPop에서 메시 17개의 치수·fallback·재질·충돌, 의존성 139개와 하상 혼합 재질을 검증했다. [검증 기록](history/Phase01_Log.md#2026-11-19--1-br-u2-지형-에셋-선정반입)
 - **U3 완료.** 기본 WIP의 V012 기반면·보존 구조물·재투영 마커 45개가 Blender 검증을 통과했다. UE 최대 seam 스냅은 0.00763cm이고, 조기 베이크 seam 반지름 차이는 0.000cm다. 근거는 `Saved/SliceOctant/Ridge_00/V012/`에 있다.
-- **U4 Z1 서쪽 절벽 검토 중.** V001의 15개는 에셋 용도와 개별 배치를 보는 초벌이었다. 사용자는 Z1에서 보이는 절벽 대부분을 ED 암벽이 이루고, 메우기 어려운 이음에만 기반면이 조금 드러나는 수준을 요구했다. V002에서 서쪽 벽과 왕관을 ED 8개로 연결하고, 각 단면에 맞춰 구면 기반면을 벽 뒤로 물렸다. `PillarApron`과 `NorthLedge`는 곡면의 뒷면이 노출되던 배치를 제외했다. `WestUpperShelf`도 새 왕관 조립으로 대체했다.
+- **U4-0~U4-3 완료/사용자 채택(GX-034, 2026-11-24).** 기준185,555인스턴스·데칼12·복구51파일을 보존하고 Z2 세 배치·Z4 두 배치를 새 V001~V003에 추가했다. 최종 V003 검사/export PASS, 사용자 확정으로 동결했다. U4 전체는 미완료이며 **다음 U4-4 메사 오름길·남쪽 외곽은 새 세션에서 V004로 시작**한다. [현재 인수인계](analysis/Phase01_U4LayoutHandoff.md)가 채택본·지문·보호 공간·도구 함정·시작 프롬프트를 소유한다. 몸체·충돌·세부 마감은 후속이다.
 - **U5 Z1 충돌 프록시 완료(2026-11-22, GX-031).** 충돌 지각 V011(133,671삼각형, 숨김)·`SM_Ridge_EDTerrain_V001_Z1_Floor`(68,776)·`_Shell`(404,399)이 Z1 충돌을 맡는다. 덩어리 안 50cm보다 깊은 지각 표본 0, Floor p95 21.5cm(목표 25cm), 보이는 걷는 면 전체 p95 13.0cm. ED 시각 메시(조립체 7개 레벨·BPP 블루프린트 13개·Drape V006)는 충돌을 껐다. [검증 기록](history/Phase01_Log.md#2026-11-22--1-br-u5-z1-충돌-프록시v035-gx-031)
-- **U6 Z1 베이크·러프 PIE 진행 중(2026-11-22~23, GX-032·GX-033).** JSON에서 베이크 LVI(`Z1Bake_V0xx`)를 스크립트로 만들어 구웠다. Floor 성분이 Nav Layer 400개(런타임 상한 256)를 만들어 Floor 하한을 50㎡로 올렸다(GX-032, Layer 79~82). 산괴(고원·+38m 받침)는 적 Nav가 주 섬과 끊긴 고립 섬이라 배경으로 두고(A안) CrownSummit·StairTerrace2 Pod를 뺐다. 러프 PIE 지적 7곳(공중 묶음·봉우리 묶음·동굴 절개 안 프랍·꽂힌 판·동굴 입구 바위·끊긴 경사)을 규칙 A~D로 덜어낸 사본 레벨(29,150개, 14%)과 경사로 지각 V012로 고치고 U5 충돌을 다시 구웠다(V037). 재점검 PIE는 다음 세션이다. [검증 기록](history/Phase01_Log.md#2026-11-2223--1-br-u6-z1-베이크러프-piejson-v037-gx-032gx-033)
+- **U6 V010 제보 수집 종료·게이트 미통과(2026-11-24).** 기존 Floor 50㎡·산괴 배경 A안·Cull/경사로를 적용한 V037/V010에서 열린 외피·내부 진입 관련 R01~R06을 기록했다. 큰 배치는 채택됐으나 몸체·시각/충돌·전체 동선 검증은 남아 있다. 풀·밀도를 복원했으며 다음은 U4 전체 큰 배치다. [제보·복구 기록](history/Phase01_Log.md)·[인수인계](analysis/Phase01_LargeLayoutHandoff.md)
 - **서쪽 절벽 표본 확인.** 정면 표본 1,394개에서 ED 메시가 첫 교차점인 비율이 V001 527개(37.8%) → V002 1,350개(96.8%)였다. Blender의 조형 지각과 UE fallback 삼각형을 사용한 가시 면 표본이다. `WestWallCenter`는 하천 둑 바닥으로 쓰인 MassiveSandstoneCliff 03에서 원본의 절벽 외피인 SmartAssets Cliff 06으로 교체했다. 교체 뒤 피복은 1,350개로 같았다. 중앙벽과 양옆 벽의 반복, 왕관 접합부, 인접 사면의 피복은 다음 조형 작업에 남아 있다.
 
 | 작업본 | 경로와 상태 |
@@ -144,20 +144,18 @@ WIP를 정상 게임에서 다시 검토하려면 TestMap03에서 검사용 풀�
 
 - ~~U5 Z1 충돌 프록시~~ **완료(2026-11-22, V035, GX-031).** 경과는 [Phase 1 로그](history/Phase01_Log.md)의 "U5 Z1 충돌 프록시"다.
 
-1. **U6 Z1 재점검 1인 PIE**([Phase 문서](phases/Phase01_RidgeReferencePatch.md) U6, 경과는 [Phase 1 로그](history/Phase01_Log.md)의 "U6 Z1 베이크·러프 PIE"). 대상은 `Z1Bake_V010`(JSON V037)이다. 순서는 사용자 지정대로 **묻히는 지형 → 어색한 배경 프랍 → 동선**을 먼저 보고 **NPC 전투는 마지막**에 본다(그 전까지 `LNP.Spawn.EnemyDensity 0`).
-   - 준비: TestMap03을 열고, `Bake/SelectionState.json`에 원래 풀(`/Game/Maps/OctantPoolData.OctantPoolData`)과 INI·정식 풀 해시를 적은 뒤 MCP `ObjectTools.set_properties`로 `/Script/LootNPop.Default__LNPSettings`의 `octantPool`을 `.../Z1Bake_V010/DA_GraphicsRidgeZ1BakePool_V010.DA_GraphicsRidgeZ1BakePool_V010`로 바꾼다(SaveConfig 안 함). PIE 로그 `LNPOctantSpawnSubsystem: slot N <- LVI_Ridge_EDTerrain_Z1Bake_V010`에서 슬롯을 읽고 `LNP.Debug.TeleportToOctant <slot> <X> <Y> <H>`(H는 현지 Up 높이, +150cm 위에 내림)를 안내한다. 사용자는 지점마다 `LNP.Debug.WhereAmI`를 쳐서 로그로 좌표를 넘긴다. PIE 뒤 풀을 되돌리고 해시를 대조한다.
-   - 다시 볼 지점(V007에서 지적, V037에서 처리): 1 (-7203, 3913, H 46m) · 2 (-6614, -5461, 39m) · 3 (-7202, -2136, 58m) · 4 (-8127, -2993, 40m) · 5 (-9477, -451, 38m) · 6 BasinHall 입구 (2584, 2137, -39m) · 7 BossValley 경사로 (x 4,400 −40m → x 7,700 −24m, y ≈ −300). 처리 내용은 로그 표다.
-   - 정리 규칙(GX-033) 수치는 에이전트가 정했다(A 받침 1m·큰 덩어리 4m, B 고원 가중치 0.95, D 60°). 빠지면 안 되는 것이 빠졌거나 남은 어색한 묶음이 있으면 규칙을 고쳐 `Decide`→`build V002`(사본 새 판)→JSON→U5 재빌드→베이크 순으로 다시 돈다. 꽂힌 판(D)은 지각 3m 안만 보며, 지각에서 먼 절벽 조각은 A(받침)로만 걸러진다.
-   - A안(산괴 = 적 Nav 밖 배경): 고원 셀 1,390개 중 주 Nav 섬은 6개다. CrownSummit·StairTerrace2 Pod는 빠져 있고, Crown 검토점·훅(CrownSouthRimAnchor·Terrace3Hub), WestStairAscent·CrownToSaddle 동선, 석교 북단(갑판 38.4m가 고원 6m 위에 뜸)은 알려진 단절이다. 플레이어가 고원·받침에 오르는지는 PIE에서 본다. 빠진 Pod 2개 자리와 훅은 PIE 뒤 정한다.
-   - Pod 편성 후보: NorthSaddle은 편성 반경 안 같은 Layer 후보가 7개(27명 편성)로 적다. SouthMesa 20. 전투 단계에서 편성이 펼쳐지는지 본다.
-   - 동선 보호(GX-017)는 여전히 보류다(`protection.status = deferred`). A안에서 남은 동선과 겹치는 인스턴스는 약 60개라 PIE에서 막히는 곳이 있으면 그때 적용한다.
-   - 시험 레벨(조명 판정용 `Z1AssemblyWall_V037`)은 만들지 않았다. `RidgeZ1Layout.py build`는 아직 `cull` 행(월드 좌표 사본, 원점 배치)을 모른다. 화면 판정용 시험 레벨이 필요하면 `BuildRidgeZ1BakeLVI.build`와 같은 분기를 넣는다.
-   - 프록시 바깥값(U5 220개)은 대부분 고원 밖 드레이프였고 B로 빠졌다. V003 manifest `fit`에서 다시 볼 수 있다.
-   - 남은 맨 지각(범위 밖, 기록만): 석교 아래 협곡 바닥(x −9,000~−2,500·y −6,000~−8,500, −8→−25m 완경사, Z2·CanyonChamber Pod·RiftCanyon 동선)과 남 테두리 위 남쪽 대지·협곡 남벽(y −7,500 남쪽), 북쪽 단 뒤 V012 오름 사면(y 8,500 북쪽, +37m)이다. 남서 봉우리 동·남 급사면(60° 초과)은 지각 절벽 재질로 둔다.
-   - 동굴 지붕 아래 동쪽 급사면(x −600~1,100)은 NorthLedge가 위를 지나 맨 지각이다. 동굴·NorthLedge 교체 패스에서 함께 본다. 띠·평면 묶음·정리 사본의 비용은 미측정이다(성능 판정은 패키지).
-   - 남은 V002 개별 메시는 2개(`ED_Z1_NorthBankShelf`·`PillarShoulder`)다. `NorthCaveFace`는 V037에서 뺐다(동굴 입구를 가렸다).
-   - 스카이라인·랜드마크: 분지에서 고원 산괴는 V023 왕관 너머로 거의 안 보인다. 설계도 사선 `DeepBasin → LandmarkTop 보임`의 대상을 새 산괴 기준으로 다시 정한다.
-   - 벽 발치 잔돌 판과 빈 분지 바닥은 U7 배경 프랍·장식에서 함께 본다.
+1. **U4-3 V003 사용자 확정·다음 U4-4는 새 세션.** 채택 V002를 복제한 새 V003에 메사 북동쪽02c 절벽 `(−1800,−10000,H−700)`·yaw80°, 동쪽 상단01b 암괴 `(−2600,−11800,H1000)`·yaw25°를 더했다. 둘 다 원래 크기1, 기존 Z1과 Z2 세 소유자는 고정한다. [U4 계획 §9](analysis/Phase01_U4LargeLayoutPlan.md)의 경로·범위를 따른다.
+   - **U4-3 실제 검사/export 완료:** 사용자 실행 `Export_20261124_221922_034419.json` PASS/exported=true/dirty없음. 기존 Z1·채택 Z2 세 배치의 자세/참조/지문과 보존51파일 불변, Pod10·훅6·검토점27·20개 로드 유지. 신규8,723+505인스턴스 NoCollision, 여덟 보호 공간 모두 상자 겹침0이다. 실제 자세를 V003 JSON에 기록했다. 경고1건은 기존 북벽 AttachTo다. 사용자가 새 구도를 확정했고 U4-4는 새 세션으로 넘겼다.
+   - 새 저작본 `Scripts/Profiling/Graphics/LargeLayout_V003/`, 근거/복구 `Saved/Profiling/Graphics/Phase01/U4_3_V003/`, 비교12장 `Views_Draft/`. 새 맵만 저장했다. 뷰포트는 두 신규 소유자 선택·MesaNorthFace 부감이다. V003을 동결하고 새 세션에서 U4-4 메사 오름길·남쪽 외곽을 V004로 시작한다. [현재 인수인계](analysis/Phase01_U4LayoutHandoff.md)를 따른다.
+   - **U4-2 확정 근거:** 보정 재실행 `Export_20261124_194856_426015.json` PASS/exported=true/dirty없음. 기존 Z1·채택 하류·51파일 불변, 새9,148+830인스턴스 NoCollision·여섯 공간 겹침0. 받침 `(−7850,−9800,H−600)`·yaw100°, 상류 `(−12900,−9800,H−1600)`·yaw80°, 크기1. V002 맵/저작 파일은 동결하고 V003 manifest에서 Z2 세 소유자의 자세/참조/지문을 고정한다.
+   - **U4-1은 사용자 채택 완료.** `U4Layout_V001`·`LargeLayout_V001`을 보존하고, V002 manifest의 고정 소유자 자세/지문과 입력 해시로 대조한다.
+   - **U4-1 Cmd 검사/export·사용자 채택 완료:** 첫 미로드 오류를 복구·코드 보강한 뒤 사용자 재실행 PASS. 기존185,555인스턴스/데칼12 지문·복구51파일 불변, Pod10·훅6·검토점27·로드16개. 신규8,206인스턴스 NoCollision, 협곡63표본×큰 암석110개 상자 겹침0. 실제 자세를 V001 Z2 JSON에 export했다. 원자료 `U4_1_V001/Export_20261124_174437_554656.json`. 경고1건은 기존 북벽 AttachTo이며 불일치는 없었다. 이후 사용자가 구도를 채택했다.
+   - 새 저작본은 `Scripts/Profiling/Graphics/LargeLayout_V001/`의 `RidgeLayout.json`·`EDTerrainLayout_Z2.json`, 결과/초기복구는 `Saved/Profiling/Graphics/Phase01/U4_1_V001/`. **실제 새 조립체 로드 뒤 비교8장은 `Views_Loaded_V001/`**다. 최초 `Views/`는 미로드 상태여서 새 Z2의 비교 근거로 쓰지 않는다. [U4 계획](analysis/Phase01_U4LargeLayoutPlan.md) §7에 경로를 기록했다. 당시 뷰포트는 새 Z2 초안 부감이었다.
+   - **정리 완료:** TestMap03·PIE=false, 풀 `/Game/Maps/OctantPoolData.OctantPoolData` 복원/getter 확인, 사용자 콘솔 복원 뒤 EnemyDensity=1 확인. INI 8개·정식 풀·V037 배치 JSON 해시는 검사 전과 같다. `Bake/SelectionState.json=restored`이며 종료 근거는 `Bake/Recheck_20261124/`다.
+   - **제보 6건 수집 완료·미수정:** 좌표·증상·화면의 원본 대장은 [Phase 로그](history/Phase01_Log.md)의 "이번 PIE 제보 대장"이다. 스크린샷 00004~00015 총 12장·해시·PIE 로그를 위 종료 폴더에 보존했다. U6 통과 판정이나 NPC 전투 확인은 아니다. R03/R04는 같은 내부의 다른 입구이고, R06 내부 정면은 실제로 막힌 벽이다.
+   - **U4-0 실제 조사 완료:** 기존 V010을 열어 사용자 Cmd로 읽기 전용 조사 PASS, 전체 dirty `[]`. 새 복구/비교 자료는 `Saved/Profiling/Graphics/Phase01/U4_0_V001/`. 당시 검토 화면은 V010·Unlit이었으며 풀/밀도는 정식/1 그대로였다. AttachTo 루트 mobility 경고와 기존 Shell Navigation export 경고는 기록했고 원본을 고치지 않았다.
+   - **GX-034 순서:** 전체 큰 배치 초벌 확정 → Z1 몸체 시험 → 구역별 몸체·충돌 → 전체 베이크/PIE → 세부 마감. 현재 큰 덩어리의 위치·방향·크기·높이 관계·구도는 보존하고 세부 이음·잔돌·식생은 조정할 수 있다. 제보를 개별 Cull 삭제로 먼저 해결하지 않는다.
+   - 기존 생성물·원본·정식 에셋을 보존하고 새 버전으로 진행한다. 몸체·충돌·세부 장식은 이번 U4의 후속 단계다. 구현 단위마다 다음 진행을 확인하고 수동이 더 효율적이면 즉시 요청한다.
 2. 남은 보라: 부감 원경의 이음매 띠(전이부, GX-021상 교체 대상 밖)와 V011 형상을 유지하는 보존 구조물(동굴·부유섬·석교 메시 자체 재질)이다. 부감 가운데 오른쪽의 각진 기둥도 석교 교각(보존 구조물)이다. 이음매 띠 색은 이웃 옥탄트 재질과 함께 정한다.
 3. 게임 맵 조명(보류): TestMap03에 같은 Sky Light를 넣을지, 옥탄트별 비스듬한 주광을 LVI에 실을지는 별도 단위다. 넣으면 모든 옥탄트 밝기와 VFX 대비가 바뀌어 PIE 확인이 따른다. 중심 점광원(1.7e7cd)은 감쇠 반경 40,000cm가 지표 거리(약 32,400~33,900cm)에 가까워 InverseSquared 감쇠 창이 직접광을 24~32%로 줄인다.
 
@@ -185,6 +183,6 @@ LootNPop은 8000, ElectricDreamsEnv는 8001이며 두 에디터는 번갈아 사
 
 UE5.8 scalar setter는 반환 false만으로 실패를 판정하지 말고 getter로 확인한다. Python 프로퍼티 이름은 bool의 `b` 접두어를 빼고 쓴다(`terrain_blocker`). PIE 게임창이 분리돼 있으면 native CaptureViewport의 검은 화면을 근거로 쓰지 않고 게임 콘솔 `Shot`으로 확인한다. PCG 재생성 직후 같은 프레임의 검사는 정리 대기 컴포넌트를 읽으므로 한 번 더 실행한다.
 
-## 5. 새 세션 요청 예시
+## 5. 새 세션 시작
 
-> `.context/Graphics/README.md`, `Current.md`, `Decisions.md`(GX-017·GX-021~GX-033), `phases/Phase01_RidgeReferencePatch.md` U6, `history/Phase01_Log.md`의 "U6 Z1 베이크·러프 PIE"를 읽고 Phase 1-BR Z1 파일럿의 U6 재점검 1인 PIE를 진행하자. 대상은 베이크 LVI `Z1Bake_V010`(JSON `EDTerrainLayout_Z1.json` V037, 검사 풀 `DA_GraphicsRidgeZ1BakePool_V010`)이다. Current §3 "남은 문제" 1번 순서대로 검사 풀을 메모리에서만 임시 선택하고, PIE 슬롯을 읽어 지적 7곳과 체크리스트 순간이동 명령을 안내해줘. 지형 묻힘 → 어색한 배경 프랍 → 동선을 먼저 보고 NPC 전투는 마지막에 본다(그 전까지 EnemyDensity 0). 내가 `LNP.Debug.WhereAmI`로 위치를 남기면 로그에서 읽어 원인을 분류하고, 고칠 때는 GX-033 규칙 판을 올리는 방식으로 제안해줘. PIE 뒤 풀을 되돌리고 해시를 확인해줘. 에디터 빌드·저장·PIE 조작이 필요하면 나에게 요청해줘.
+[현재 U4-4 인수인계](analysis/Phase01_U4LayoutHandoff.md)부터 읽고 §7의 시작 프롬프트를 사용한다. **U4-3 V003은 사용자 확정됐고 U4-4는 미착수**다. 새 세션에서 실제 상태·자료를 대조한 뒤 V004에 MesaRamp1/2·남쪽 외곽의 첫 추가 범위를 정해 진행한다. 기존 V037/V010/V001~V003과 채택된 추가5소유자를 보존한다. 마지막 확인은 V003·PIE=false·dirty=false·Unlit·MesaNorthFace 카메라다. 몸체·충돌·세부 장식은 후속이며 다음 단위 완료 뒤 진행을 확인한다.

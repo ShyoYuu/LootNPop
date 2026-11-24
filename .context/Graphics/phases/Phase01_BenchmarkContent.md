@@ -1,7 +1,7 @@
 # Phase 1 — 벤치마크 콘텐츠
 
-> 상태: 진행 중 · Phase 1-BR을 Ridge 지표 전체 교체로 재정의(GX-021) · U1 착수 대기
-> 마지막 갱신: 2026-11-19
+> 상태: 진행 중 · Phase 1-BR U4-0~U4-3 완료/사용자 채택 · V003 동결·다음 U4-4는 새 세션 · 이후 GX-034 몸체·ED 외피 구성 · [인수인계](../analysis/Phase01_U4LayoutHandoff.md)
+> 마지막 갱신: 2026-11-24
 > 범위: 고밀도 옥탄트 1개·파라곤 적 2~3종(GX-004)
 
 ## 1. 목적과 비교 조건
@@ -31,7 +31,7 @@
 |:---|:---|:---|
 | 1-A 출발 기준선 | **완료(2026-11-14 사용자 마감).** 적 0 진단·cook 목록 → 경로·패키지 → 짧은 검증 → Medium 3회·적 0 진단/센서 보완 | 종료 코드 0·manifest/CSV·구도·3회 재현성·센서 전체 구간·해시 검증, [보고서](../analysis/Phase01_StartBaselineReport.md) |
 | 1-B 환경 | Ridge 대표 구역의 재질·팔레트·PCG 검증을 마쳤다. **1-B5f V006 1,461개 저장·1인 PIE 마감.** [환경 실행서](Phase01_EnvironmentImport.md) §30~33. 전체 확장(구 1-B6)은 1-BR이 흡수했다(GX-021). | 구면 접지·범위/동선 보존, Decoration 계약·전체 bounds 보호·배치 후 SurfaceData 현재성/런타임·패키지 측정, 재생성 절차 |
-| 1-BR Ridge 지표 Electric Dreams 교체 | 경계 전이부를 뺀 Ridge 지표 전체를 ED 지형 조립과 파생 충돌 프록시로 교체하고 배경 프랍을 채운다(GX-021, 1-B6 흡수). [Phase 문서](Phase01_RidgeReferencePatch.md) | 경계 고리+기반면 지각, 구역별 조립·프록시, 새 SurfaceData와 러프 PIE 동선 게이트, 배경 프랍·재베이크, 재생성 절차 |
+| 1-BR Ridge 지표 Electric Dreams 교체 | 경계 전이부를 뺀 Ridge 지표 전체를 교체한다(GX-021, 1-B6 흡수). 현재 큰 배치를 보존해 전체 초벌을 확정하고 Z1 몸체 시험→구역별 몸체·ED 외피/파생 충돌→전체 PIE→세부 마감으로 진행한다(GX-034). [Phase 문서](Phase01_RidgeReferencePatch.md) | 경계 고리+기반면·큰 배치 보존·닫힌 몸체와 ED 외피, 새 SurfaceData와 전체 PIE 동선 게이트, 세부 배경 프랍·재생성 절차 |
 | 1-C 적 | 파라곤 2~3종·기존 애니메이션 리타깃·별도 스킨드 무기 | ISKM·ISM·Actor 정상 표시, 제자리 클립·全 LOD 인스턴싱·usage 플래그, O-3 원본 설정 표 |
 | 1-D 전후 비교 | 새 콘텐츠 패키지에서 같은 측정 반복 | 출발점 대비 Frame/GT/RT/GPU·드로우콜·예산 비율, 30초~1분 영상·요약 |
 

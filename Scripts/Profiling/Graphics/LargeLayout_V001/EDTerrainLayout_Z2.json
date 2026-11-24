@@ -1,0 +1,73 @@
+{
+ "schema": 1,
+ "zone": "Z2",
+ "unit": "U4-1",
+ "status": "draft_pending_visual_review",
+ "level_instances": [
+  {
+   "label": "ASM_Z2_LowerSouthBank",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/Z2Assembly_V001/PL_Ridge_Z2_LowerBank_V001",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02d",
+   "source_sha256": "70bbe385755a8f18ddeabd5719fd95f523ce6cbe995e54a49ffc057efbe2cded",
+   "level_sha256": "ec2dec0f2026294ded6ef429400a03791d499123cdfe847424e8ce07c72ae426",
+   "local_xyh_cm": [
+    1200.0,
+    -5800.0,
+    -6500.0
+   ],
+   "rotation_deg": [
+    1e-06,
+    135.0,
+    1e-06
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 8206,
+   "collision": "NoCollision",
+   "purpose": "Lower canyon opposite bank accent"
+  }
+ ],
+ "corridor": {
+  "id": "RiftCanyonLower",
+  "points_xyh_cm": [
+   [
+    1200,
+    -2600,
+    -4046.8008
+   ],
+   [
+    -1600,
+    -5400,
+    -3433.5
+   ]
+  ],
+  "half_width_cm": [
+   1100,
+   750
+  ],
+  "protected_space": "walking corridor and existing canyon opening"
+ },
+ "body_handoff": {
+  "fill": [
+   "Closed volume behind/below the new bank exterior, connected to current base terrain",
+   "End face towards future Z4 south canyon wall"
+  ],
+  "preserve_empty": [
+   "RiftCanyonLower corridor",
+   "SkyBridge underpass upstream (outside this unit)",
+   "Existing caves and entrances"
+  ],
+  "deferred": [
+   "body",
+   "collision_proxy",
+   "surface_bake",
+   "drape",
+   "small_rocks",
+   "vegetation_finish"
+  ]
+ }
+}

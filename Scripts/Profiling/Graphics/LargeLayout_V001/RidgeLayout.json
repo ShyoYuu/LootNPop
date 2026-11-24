@@ -1,0 +1,18 @@
+{
+ "schema": 1,
+ "baseline": {
+  "layout": "Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json",
+  "layout_version": "V037",
+  "layout_sha256": "bc0a5ac948bd2c69057f41294a1efc29ce9789c17eb89e7ac0756eff2f2ec5a0",
+  "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Bake_V010/LVI_Ridge_EDTerrain_Z1Bake_V010",
+  "level_sha256": "64fa32be45c0007545f291189dc69275dac0ea7566acca013d61b4fe61cfa6bd",
+  "snapshot": "Saved/Profiling/Graphics/Phase01/U4_0_V001/LiveSnapshot_20261124_164625_996859.json",
+  "recovery_manifest": "Saved/Profiling/Graphics/Phase01/U4_0_V001/RecoveryManifest.json"
+ },
+ "zones": [
+  "EDTerrainLayout_Z2.json"
+ ],
+ "work_level_pattern": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_{0}/LVI_Ridge_EDTerrain_U4Layout_{0}",
+ "unit": "U4-1",
+ "collision_status": "inherited V010 only; new visuals unbaked"
+}

@@ -42,7 +42,10 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 | Phase 1의 1-A 마감·출발 기준선과 다음 1-B 준비 | [Phase 1 실행서](phases/Phase01_BenchmarkContent.md) §13, [출발 기준선 보고서](analysis/Phase01_StartBaselineReport.md), [기존 1-B0 선정](phases/Phase01_RidgeZonePalette.md) §8 |
 | Phase 1 Ridge 대표 구역·Electric Dreams 팔레트·장식 금지 규칙 | [1-B0 구역·팔레트](phases/Phase01_RidgeZonePalette.md) |
 | Phase 1-B 반입·재생성·좌표/재질·소수 배치/바람·샘플 비용/반복 원인/회전·변형 반입·WIP 베이크/런타임·접촉 검증·대표 구역 PCG·바위 Blocker 승격·밀도·동선 등급별 완화와 새 세션 인계 | [Current](Current.md), [환경 반입 실행서](phases/Phase01_EnvironmentImport.md) §7~33, [현재 팔레트](phases/Phase01_RidgeZonePalette.md) §10 |
-| Ridge 지표 전체 Electric Dreams 교체(경계 고리+기반면 지각, ED 지형 조립, 충돌 프록시, 러프 PIE 게이트, 배경 프랍) | [Phase 1-BR](phases/Phase01_RidgeReferencePatch.md) |
+| Ridge 지표 전체 Electric Dreams 교체·현재 큰 배치 보존·전체 큰 배치 초벌→닫힌 몸체와 ED 외피→파생 충돌/PIE→세부 마감(GX-034) | [Phase 1-BR](phases/Phase01_RidgeReferencePatch.md) §2.1·U5a/U5b |
+| U4-3 V003 사용자 확정·U4-4 새 세션 시작·채택5배치/해시·보호 공간·도구 함정·시작 프롬프트 | [현재 U4-4 인수인계](analysis/Phase01_U4LayoutHandoff.md) |
+| V010 PIE 제보 수집 종료·풀/밀도 복구·GX-034 전체 큰 배치 시작 당시의 이전 인계 | [이전 전체 큰 배치 인수인계](analysis/Phase01_LargeLayoutHandoff.md) |
+| U4-0 대조·V037 보존 목록/복구·비교8시점·Z1~Z7 순서·U4-1~3 배치와 최종 검사 경과 | [U4 큰 배치 계획](analysis/Phase01_U4LargeLayoutPlan.md) |
 | 네 개선 완료 뒤 통합 검증·재측정·Phase0 마무리 | [개선 후 재개 절차](phases/Phase00_PostOptimization.md) |
 | 측정 지표·절차·노트북 측정 함정·보고 형식 | `design/Measurement.md` |
 | Phase0 공통 기준선 수치·개선 전후·남은 GPU 비용 요약 | [Phase0 기준선 보고서](analysis/Phase00_BaselineReport.md) |
