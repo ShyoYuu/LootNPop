@@ -1,0 +1,674 @@
+{
+ "schema": 1,
+ "baseline": {
+  "layout": "Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json",
+  "layout_version": "V037",
+  "layout_sha256": "bc0a5ac948bd2c69057f41294a1efc29ce9789c17eb89e7ac0756eff2f2ec5a0",
+  "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Bake_V010/LVI_Ridge_EDTerrain_Z1Bake_V010",
+  "level_sha256": "64fa32be45c0007545f291189dc69275dac0ea7566acca013d61b4fe61cfa6bd",
+  "snapshot": "Saved/Profiling/Graphics/Phase01/U4_0_V001/LiveSnapshot_20261124_164625_996859.json",
+  "recovery_manifest": "Saved/Profiling/Graphics/Phase01/U4_0_V001/RecoveryManifest.json"
+ },
+ "zones": [
+  "EDTerrainLayout_Z2.json",
+  "EDTerrainLayout_Z4.json",
+  "EDTerrainLayout_Z3.json",
+  "EDTerrainLayout_Z5.json",
+  "EDTerrainLayout_Z6.json",
+  "EDTerrainLayout_Z7.json"
+ ],
+ "work_level_pattern": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_{0}/LVI_Ridge_EDTerrain_U4Layout_{0}",
+ "unit": "U4-10",
+ "collision_status": "inherited V010 only; new visuals unbaked",
+ "evidence_folder": "Saved/Profiling/Graphics/Phase01/U4_10_V010",
+ "previous_unit": {
+  "accepted": true,
+  "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V009/LVI_Ridge_EDTerrain_U4Layout_V009",
+  "level_sha256": "d7b00c5179c7523cee6d1160f7335ff8b44bc0988158f054cd5993965fbfa422",
+  "files": [
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V001/RidgeLayout.json",
+    "sha256": "d843cbb35e51682c99c876e00255480686c3adfa214c22edb41083d77ef8cfc3"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V001/EDTerrainLayout_Z2.json",
+    "sha256": "d629026998b3064852fb7accffe6c6f5a937852b135f32ee6a7f364be0ebebef"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V001/README.md",
+    "sha256": "ba849778f95277f813f753301badcdeb0efe80a5e621a6281d29417d00ba4a43"
+   },
+   {
+    "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/LVI_Ridge_EDTerrain_U4Layout_V001.umap",
+    "sha256": "a42db5c2c9a7cdd40ced343887c88140eef7c54fe552bfd7ef08344b8f24331d"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V002/RidgeLayout.json",
+    "sha256": "a1de31ba0df9802686d95356ba04526cd2a75ffb9dd4322796ec66cf5720b20a"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V002/EDTerrainLayout_Z2.json",
+    "sha256": "5c9eda122dd9b52a48ca2a540993ec8399533184786e9eeb68f34948e8ea9465"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V002/README.md",
+    "sha256": "bec1050e6bbd53e7159a4a5ad3f56ac31c018792915c8caec00655f4cf114cb7"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V003/EDTerrainLayout_Z2.json",
+    "sha256": "8b22ea58e1bb0cc314480d057f4c86589cdafdaf5b13034620c0c2bcf44f1158"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V003/EDTerrainLayout_Z4.json",
+    "sha256": "a310172b6c3906a9ca58272d3cc868048d4595caf05bea16b7a8622cf9a70447"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V003/README.md",
+    "sha256": "ace88a7b431cbafcc2b739059d00d5c471869ed7751071a234fbf259d860ba70"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V003/RidgeLayout.json",
+    "sha256": "dde3ffcc18aa6d7a53fee447288bf334a76658f5fbecbf58f8d2e872f5f00890"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V004/EDTerrainLayout_Z2.json",
+    "sha256": "2992b2101374c0a862846ed487d2b82cca2999aa1685f7437fabc9570d0b185d"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V004/EDTerrainLayout_Z4.json",
+    "sha256": "23eba7a7d018f83a2e5c6d83e640c5c4c9b4f40dd0a80f62e68880a6da7ddcd7"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V004/README.md",
+    "sha256": "72c2161fff90a97026bba0d40aa66e589de66a0e8d355bee57b51e2d392f7911"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V004/RidgeLayout.json",
+    "sha256": "157b7f5172c1335885ba8f58625d42de2d95d0f60a6a05bc1a96b084a8b0c62b"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z2.json",
+    "sha256": "52d5f4ae1a19c6fe119abf7709b73695589ab360cdc29aec471c17855ac3ee7f"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z3.json",
+    "sha256": "8d736f1cc9f5222e35fdc2193bebcb39bf800c05f570aa3c22ac93a0261b7334"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z4.json",
+    "sha256": "7a977903d83bd23c095ceef2eb61e22211cb18e61baacb3fcece3ede88d211d8"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V005/README.md",
+    "sha256": "3cefb04d89c61948e7a35d183c57e8b1e65307ea201648c46b0ed5b197a07097"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V005/RidgeLayout.json",
+    "sha256": "d80f2da3376b775dddf97f209c8305c45101bce2723ce0a88c309c569b708e84"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z2.json",
+    "sha256": "7bfd181b4541ff4f9bdbc946797705e3b99bcc0486444569ad5b5cf988c61fd9"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z3.json",
+    "sha256": "8553efe92029674fb5e9f4201925b139e31ce8107649e411ca04fb9ad0989672"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z4.json",
+    "sha256": "4d27de7f43243839189d3f5c76af9b3fcea7e81cdec56dbdb2ebea69299cf3ee"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V006/README.md",
+    "sha256": "edcbba8c98340e07ebb7c1d537813d8bbe38740add49c5eff841d37ff29195d7"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V006/RidgeLayout.json",
+    "sha256": "ef3ec3c4d5762cdf5d758f0ca60a09e96c81d54f6ed13c1868b19633b54e7207"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z2.json",
+    "sha256": "b44c3fa03d04b4e0f0f8a1c5545411fc4948edfa71627ec54d2b263aa53b1240"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z3.json",
+    "sha256": "2adfafd27a81a1d300aeb134e6a38ba3c93e358cc8c51bcada68f3be7949cd9a"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z4.json",
+    "sha256": "5e8fbc572a0cd27b211f4e804f8f9c9b5631ea2ceb2d80b3948803b593c84cab"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z5.json",
+    "sha256": "eeede4c17c64b97f6aec71e02016667e12e910308cb18fa3b68112e6de11a0c2"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V007/README.md",
+    "sha256": "8d9514702fc7f60863a739169269f21e26c8871effd354a8d32966554654f7fa"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V007/RidgeLayout.json",
+    "sha256": "9db09776e8d3fcd6813b5e0e93bd66e5affcc753084350a570a6ec347807d03e"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z2.json",
+    "sha256": "05d4546b29944b64c4022c1ad62be757240b1d8028d91629c14b69036a9ed15e"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z3.json",
+    "sha256": "7289e9d96d81e01dc3d33ab05cd8e5ddac910c3157d630a7b52efc8cffc3f271"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z4.json",
+    "sha256": "dc2743ac82957601e935c0776b906b0ece7be9d735460b358fe6b2672e5a000e"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z5.json",
+    "sha256": "3fbc4dd51ad5e6cd500efb084e80195cd70cc569a4c78c516428666afa98ab37"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z6.json",
+    "sha256": "33576217d4434179c8e4d154b4eca81d3ef9eb91f2fb4371dca09b717ec18e47"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V008/README.md",
+    "sha256": "063b7685665c50a65025d540540747b32287ff6af24e284a15f1069044c99c6c"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V008/RidgeLayout.json",
+    "sha256": "a19a30836b55ac073a8258289643e3316eaffcc573a5e0b72145183e30fb3c09"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z2.json",
+    "sha256": "f7a64ee35dbf8e56b3427abc21ffeaa41a600808b8b43a7c7f4234861d035089"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z3.json",
+    "sha256": "df56113d66d5e066e1ff2d42236f1b3107ef92af93ea7e347ab2cf34bdb2c8eb"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z4.json",
+    "sha256": "0f0b1307f1c5342df80bbbc48f06707b16f9d70073e5c515ae10b66a275e71eb"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z5.json",
+    "sha256": "6748002b71bcf60b8e12cc8805c764f9c6d1881089a12bfbbd0a1ff8616d58f8"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z6.json",
+    "sha256": "1fd92b9061a0db1b0879225d61e661b17ca446cc3d3f4f3165a9f3ecdc5529e0"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V009/README.md",
+    "sha256": "c72fedf421023607d9e3a7e58ac182fefe372266a2db257437db1844485d9924"
+   },
+   {
+    "path": "Scripts/Profiling/Graphics/LargeLayout_V009/RidgeLayout.json",
+    "sha256": "41803bb823f5e390fa678b0f253bf33890f7127ceabedbd04dfcb4447d69506d"
+   }
+  ],
+  "locked_owners": {
+   "ASM_Z2_LowerSouthBank": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/Z2Assembly_V001/PL_Ridge_Z2_LowerBank_V001",
+    "pose": {
+     "local_xyh_cm": [
+      1200.0,
+      -5800.0,
+      -6500.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      135.0,
+      1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 8206,
+     "decals": 0,
+     "keys": 174,
+     "sha256": "1ebc931549161469de67d3ebeb2f55cb6b100f2d7281d2fda6ff0e410400bff7"
+    }
+   },
+   "ASM_Z2_BridgeSouthButtress": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/Z2Assembly_V002/PL_Ridge_Z2_BridgeSouth_V002",
+    "pose": {
+     "local_xyh_cm": [
+      -7850.0,
+      -9800.0,
+      -600.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      100.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 9148,
+     "decals": 0,
+     "keys": 187,
+     "sha256": "6ba107dde77a0c56b3c05e4b7617c4324af01a2bce464de55515578584ab0b2b"
+    }
+   },
+   "ASM_Z2_UpperSouthShoulder": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/Z2Assembly_V002/PL_Ridge_Z2_UpperShoulder_V002",
+    "pose": {
+     "local_xyh_cm": [
+      -12900.0,
+      -9800.0,
+      -1600.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      80.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 830,
+     "decals": 0,
+     "keys": 31,
+     "sha256": "a47ca98c89b19d193ea9860f79173622a0c6595ead1597ee7dd9466b34bd7140"
+    }
+   },
+   "ASM_Z4_MesaNorthEastWall": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/Z4Assembly_V003/PL_Ridge_Z4_NorthEastWall_V003",
+    "pose": {
+     "local_xyh_cm": [
+      -1800.0,
+      -10000.0,
+      -700.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      80.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 8723,
+     "decals": 0,
+     "keys": 174,
+     "sha256": "629396ff51f02c29841f1e376cc8e79cde23dab3ff690b90c6922307b5dc01f4"
+    }
+   },
+   "ASM_Z4_MesaEastCrown": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/Z4Assembly_V003/PL_Ridge_Z4_EastCrown_V003",
+    "pose": {
+     "local_xyh_cm": [
+      -2600.0,
+      -11800.0,
+      1000.0
+     ],
+     "rotation_deg": [
+      0.0,
+      25.0,
+      -1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 505,
+     "decals": 0,
+     "keys": 35,
+     "sha256": "824504274c9a9fd8b4e7738a493f6fd11243f439b634b43e47749a6599bb9e40"
+    }
+   },
+   "ASM_Z4_MesaRampToe": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_RampToe_V004",
+    "pose": {
+     "local_xyh_cm": [
+      -9900.0,
+      -15100.0,
+      -1400.0
+     ],
+     "rotation_deg": [
+      -1e-06,
+      -90.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 830,
+     "decals": 0,
+     "keys": 31,
+     "sha256": "1afb1d255002421a93e3ad57cd4c2df4a7658af97b2440929365b79fe56f362a"
+    }
+   },
+   "ASM_Z4_MesaSouthWall": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_SouthWall_V004",
+    "pose": {
+     "local_xyh_cm": [
+      -6500.0,
+      -14500.0,
+      -1200.0
+     ],
+     "rotation_deg": [
+      -1e-06,
+      -90.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 8206,
+     "decals": 0,
+     "keys": 174,
+     "sha256": "910b0353d1a9386cfc105493c9d7c5be4947dc7a39dfe9c6bec85febd0d67c8a"
+    }
+   },
+   "ASM_Z3_NorthRearShoulder": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_NorthRear_V005",
+    "pose": {
+     "local_xyh_cm": [
+      -5600.0,
+      6200.0,
+      200.0
+     ],
+     "rotation_deg": [
+      0.0,
+      -30.0,
+      -1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 830,
+     "decals": 0,
+     "keys": 31,
+     "sha256": "a3a0744155971e685bf21572a51946541ba9ef00c82e076253f6e9f54ea61ce5"
+    }
+   },
+   "ASM_Z3_SaddleSouthEast": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_SaddleShoulder_V005",
+    "pose": {
+     "local_xyh_cm": [
+      -3100.0,
+      8000.0,
+      0.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      50.0,
+      -1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 505,
+     "decals": 0,
+     "keys": 35,
+     "sha256": "ae5e4c005a99b287f9c86c75bba8afbe7b5ea2d766ccec78a659c7a32ab079f7"
+    }
+   },
+   "ASM_Z3_WestFootShoulder": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestFoot_V006",
+    "pose": {
+     "local_xyh_cm": [
+      -13200.0,
+      400.0,
+      -1600.0
+     ],
+     "rotation_deg": [
+      0.0,
+      160.0,
+      1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 830,
+     "decals": 0,
+     "keys": 31,
+     "sha256": "b31e75386fc05966ddd915367631a5a5587238afe280e9dfd731746247543e87"
+    }
+   },
+   "ASM_Z3_WestUpperShoulder": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestUpper_V006",
+    "pose": {
+     "local_xyh_cm": [
+      -9000.0,
+      1600.0,
+      -300.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      150.0,
+      1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 505,
+     "decals": 0,
+     "keys": 35,
+     "sha256": "5a737c76c79ba857f9ba0c9175a27a32689788ba8f1ef79d56583ce164d3d3b5"
+    }
+   },
+   "ASM_Z5_TablelandEastRim": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V007/Z5Assembly_V007/PL_Ridge_Z5_EastRim_V007",
+    "pose": {
+     "local_xyh_cm": [
+      7500.0,
+      9500.0,
+      -1800.0
+     ],
+     "rotation_deg": [
+      0.0,
+      15.0,
+      -1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 8723,
+     "decals": 0,
+     "keys": 174,
+     "sha256": "c1abf4a3f82e877b3d4a43de4ebf005b5e3b8075920f55114aad7fa889a9940a"
+    }
+   },
+   "ASM_Z5_TablelandNorthRim": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V007/Z5Assembly_V007/PL_Ridge_Z5_NorthRim_V007",
+    "pose": {
+     "local_xyh_cm": [
+      2500.0,
+      13500.0,
+      -1500.0
+     ],
+     "rotation_deg": [
+      -1e-06,
+      -45.0,
+      -1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 830,
+     "decals": 0,
+     "keys": 31,
+     "sha256": "6348c1f7f2c47281bc06e3f73b8c7dd45ecf1326a1d113171214c80b3a9779fe"
+    }
+   },
+   "ASM_Z6_ValleyLowerSouth": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V008/Z6Assembly_V008/PL_Ridge_Z6_LowerSouth_V008",
+    "pose": {
+     "local_xyh_cm": [
+      5400.0,
+      -3000.0,
+      -5900.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      90.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 8206,
+     "decals": 0,
+     "keys": 174,
+     "sha256": "4ac37bb935d265e78b12f85bed3aa5d3e81aa76fcd31a6aba6dce75eafbc091b"
+    }
+   },
+   "ASM_Z6_ValleyUpperNorthEast": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V008/Z6Assembly_V008/PL_Ridge_Z6_UpperNorthEast_V008",
+    "pose": {
+     "local_xyh_cm": [
+      11200.0,
+      2800.0,
+      -3000.0
+     ],
+     "rotation_deg": [
+      0.0,
+      -135.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 505,
+     "decals": 0,
+     "keys": 35,
+     "sha256": "1c9ed058b5182f8572fe04affb495e5562da909e3dfc91b9ee4ac89b3a2acd5e"
+    }
+   },
+   "ASM_Z6_BossSouthWall": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V009/Z6Assembly_V009/PL_Ridge_Z6_BossSouth_V009",
+    "pose": {
+     "local_xyh_cm": [
+      13900.0,
+      -3200.0,
+      -3300.0
+     ],
+     "rotation_deg": [
+      0.0,
+      30.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 8723,
+     "decals": 0,
+     "keys": 174,
+     "sha256": "d92446503f6e07b4163ddec7bae2947d1e3ca7f2b6d6e4d3985654229d5c5eab"
+    }
+   },
+   "ASM_Z6_BossNorthShoulder": {
+    "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V009/Z6Assembly_V009/PL_Ridge_Z6_BossNorth_V009",
+    "pose": {
+     "local_xyh_cm": [
+      14900.0,
+      3200.0,
+      -1600.0
+     ],
+     "rotation_deg": [
+      0.0,
+      -60.0,
+      0.0
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "fingerprint": {
+     "instances": 830,
+     "decals": 0,
+     "keys": 31,
+     "sha256": "3860365a638385b73d076c43e07ddb9c21f21c43728aed5aa2737b3da11584fd"
+    }
+   }
+  },
+  "accepted_report": "Saved/Profiling/Graphics/Phase01/U4_9_V009/Export_20261125_015907_376276.json"
+ },
+ "status": "accepted_large_layout_rough",
+ "validation": {
+  "report": "Saved/Profiling/Graphics/Phase01/U4_10_V010/Export_20261125_021731_356481.json",
+  "pass": true,
+  "exported": true,
+  "user_acceptance": "accepted",
+  "next_unit": "U4-11"
+ },
+ "acceptance": {
+  "unit": "U4-10",
+  "date": "2026-11-25",
+  "status": "accepted_large_layout_rough",
+  "report": "Saved/Profiling/Graphics/Phase01/U4_10_V010/Export_20261125_021731_356481.json",
+  "locked_owner_count": 19,
+  "next_unit": "U4-11",
+  "continuation": "new session; not started",
+  "handoff_hashes": "Saved/Profiling/Graphics/Phase01/U4_10_V010/AcceptedHandoffHashes_V001.json"
+ }
+}

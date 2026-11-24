@@ -1,7 +1,7 @@
 # Phase 1-BR U4-0 — 큰 배치 보존 기준과 전체 초벌 순서
 
-> 상태: U4-0~U4-3 완료/사용자 채택 · V003 동결 · 다음 U4-4는 [새 세션 인수인계](Phase01_U4LayoutHandoff.md)
-> 확인: 2026-11-24
+> 상태: U4-0~10 완료·사용자 채택 · V010 동결 · U4-11 남동·북동 외곽은 새 세션에서 시작(미착수) · [인수인계](Phase01_U4LayoutHandoff.md)
+> 확인: 2026-11-25
 > 결정: [GX-034](../Decisions.md), [Phase 1-BR §2.1·U4](../phases/Phase01_RidgeReferencePatch.md)
 > 이전 인계: [전체 큰 배치 인수인계](Phase01_LargeLayoutHandoff.md)
 
@@ -238,3 +238,200 @@ U4-3 배치 저장·보존/보호 검사·실제 자세 export는 완료했다. 
 사용자가 U4-3 V003을 확정했다(2026-11-24). 이번 세션에서 U4-4는 시작하지 않는다. 최종 JSON은 실제 export 자세를 유지한 채 채택 상태만 기록했고 V001/V002는 수정하지 않았다. 현재 채택본은 V003이며 이후 V004를 만들 때 Z2 세 소유자와 Z4 두 소유자 모두를 고정해야 한다.
 
 새 세션의 실제 맵/카메라 상태·채택5배치 자세/지문·최종 파일 해시·검사/복구 경로·도구 함정·U4-4 첫 범위·시작 프롬프트는 [현재 U4-4 인수인계](Phase01_U4LayoutHandoff.md)가 소유한다. 위 §7~9의 중간 검사 대기 문장은 시행 경과이며 각 절의 최종 PASS와 이번 채택 상태를 우선한다. 전체 U4·몸체·충돌·PIE·세부 마감은 완료하지 않았다.
+
+## 11. U4-4 V004 메사 오름길·남쪽 외곽(완료/사용자 채택)
+
+시작 때 실제 V003·PIE=false·미저장 패키지없음·정식 풀·EnemyDensity1을 확인했다. 사용자 읽기 전용 `verify V003`은 PASS이며 기존 Z1 지문과 채택5소유자·51파일이 일치했다. V004는 없었다. 채택 V003 맵·저작본·전용 사본·보고서 등11파일을 `U4_4_V004/PreviousAccepted/`에 보존했다.
+
+MesaRamp1은 H84→1721, 1단은 H1862~1975, MesaRamp2 끝은 H3840, 실제 SouthMesa Pod는 H3862 관계다. 서쪽 어깨 후보는 MesaAscent 겹침으로 기각했다. 보호 폭/50cm 상자 여유를 유지한 채 **1단 남쪽 끝과 상단 메사 남쪽 외곽의 독립 강조부** 두 개로 첫 범위를 구체화했다. 같은 조립체를 일렬 반복하거나 남 테두리 띠를 늘리지 않았다.
+
+| 신규 소유자 | 원본 → V004 전용 사본 | 로컬 X/Y/H(cm)·yaw·크기 | 역할 |
+|:---|:---|:---|:---|
+| ASM_Z4_MesaRampToe | PL_LargeCliff_01c → `U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_RampToe_V004` | `(-9900,-15100,-1400)`·−90°·1 | 1단 남쪽 끝 암괴, 원본 상자 상단 H약2182 |
+| ASM_Z4_MesaSouthWall | PL_LargeCliff_02d → `U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_SouthWall_V004` | `(-6500,-14500,-1200)`·−90°·1 | 메사 남쪽 외곽 절벽, 원본 상자 상단 H약4034 |
+
+새 맵은 `U4Layout_V004/LVI_Ridge_EDTerrain_U4Layout_V004`이며 V003을 복제했다. `LargeLayout_V004/`의 Z2/Z4 JSON은 독립 사본이다. manifest `previous_unit`은 V003 맵/저작본 해시와 **Z2 세 개+Z4 두 개의 자세·참조·지문**을 고정한다. 기존 manifest의 V002 이력을 그대로 복사하지 않았다. 새 소유자만 두 개 추가했으며 기존 맵·원본/공유 에셋은 수정하지 않았다.
+
+실제 사용자 Cmd `export V004` 결과 `U4_4_V004/Export_20261124_232358_333279.json`은 **PASS·issues없음·exported=true·dirty없음**이다.
+
+- 기존185,555인스턴스·데칼12·428키 지문 `853681a3ea1bdb4c002491d0ef4dd484f1723dac18a1915a7d61e8d027527b88` 불변, 채택5소유자 자세/참조/결과 지문 불변, 보존51파일 변경0이다.
+- Pod10·훅6·검토점27 유지, LI/로드 레벨22개다. 신규830/8,206인스턴스·31/174키·데칼0·충돌 활성 시각 컴포넌트0이다.
+- 새 암괴 지문 `1afb1d255002421a93e3ad57cd4c2df4a7658af97b2440929365b79fe56f362a`, 새 남벽 지문 `910b0353d1a9386cfc105493c9d7c5be4947dc7a39dfe9c6bec85febd0d67c8a`다.
+- 새2개 각각 하류63·중상류432·교량132·협곡 Pod637·동굴 접근120·MesaAscent810·SouthMesa Pod637·교량 남단 접근66표본, 큰 암석68/110개에서 겹침0이다. 원본 덤프 전체 상자의 seam 최소 거리는 약64.36/61.46m다. 실제 충돌/PIE 통과를 의미하지 않는다.
+- 실제 자세를 V004 구역 JSON에 export했다. tilt 약−1e-6°는 현지 축 변환 오차다. 경고1건은 기존 북벽 `Actor_0.Scene`→`InstancedStaticMesh797` AttachTo이며 새 배치 경고가 아니다. 기존 Shell459,537삼각형 경고도 맵 로드에서 관측됐다.
+
+비교 자료는 `U4_4_V004/Views_Before/`(V003의 신규4시점), `Views_Draft/`(기존8+메사4), `ReviewCameras.json`·`CaptureMetadata_{Before,Draft}.json`·`Comparison.html`이다. 모두 Unlit·FOV90°·1305×724이며 기존 분지 정면·남북 테두리의 주요 윤곽을 대조했다. 새 덩어리 사이 연속 외피·닫힌 내부·기반면 연결은 `body_handoff`로 넘겼다.
+
+U4-4의 배치·보존/보호 검사·실제 자세 export를 완료했고 **사용자가 구도를 채택하고 다음 U4-5 진행을 승인했다(2026-11-24).** 실제 자세는 유지한 채 V004 채택 메타데이터만 갱신하고 동결했다. `U4_5_V005/PreviousAccepted/`·`PreviousAcceptedHashes.json`에 채택 V004 관련11파일을 보존했다. 전체 Ridge 큰 배치 확정 전 몸체·충돌·지각/SurfaceData 재빌드·PIE·세부 식생/잔돌 마감은 진행하지 않는다.
+
+## 12. U4-5 V005 북쪽 단 뒤→안부(완료/사용자 채택)
+
+사용자가 V004를 채택하고 계속 진행하도록 승인했다. 실제 V004·PIE=false·맵 dirty=false를 확인하고 채택 메타데이터만 갱신한 뒤 동결했다. V004 맵/저작본·전용 사본·보고서 등11파일을 `U4_5_V005/PreviousAccepted/`에 보존했다. 새 V005는 V004 맵 사본이며 manifest 이전 채택 맵/저작 파일과 **기존 Z2 세+Z4 네 소유자**의 자세/참조/지문을 모두 고정한다. Z2/Z4 JSON도 독립 사본이다.
+
+현재 기반면에서 북쪽 단 뒤는 H약1950, 서쪽 고개 접근은 H약3500~3740, 실제 NorthSaddle Pod는 로컬 `(-5628,9248.1,H3739.3)`이다. 원래 설계 Pod `(-5400,9000)` 대신 실제 위치를 보호 중심으로 쓴다. 북쪽 단 뒤의 어깨와 안부 동남쪽 강조부를 먼저 추가하며 서쪽 접근 사면은 U4-6으로 남겼다. Crown/WestStair 경로 재정의·제외 Pod 두 개는 계속 보류다.
+
+| 신규 소유자 | 원본 → 새 전용 사본 | 로컬 X/Y/H(cm)·yaw·크기 | 역할 |
+|:---|:---|:---|:---|
+| ASM_Z3_NorthRearShoulder | PL_LargeCliff_01c → `U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_NorthRear_V005` | `(-5600,6200,200)`·−30°·1 | 북쪽 단 뒤 암괴, 원본 상자 상단 H약3782 |
+| ASM_Z3_SaddleSouthEast | PL_LargeCliff_01b → `U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_SaddleShoulder_V005` | `(-3100,8000,0)`·50°·1 | 안부 동남쪽 암괴, 원본 상자 상단 H약4024 |
+
+기존 산괴·북쪽 단의 위치/윤곽은 유지하고 원본 내부 배치·크기·공유 메시/재질/식생 층을 그대로 사용했다. 더 북쪽인 `(-3000,8500,H100), yaw50°` 후보는 안부 동쪽 출구 표본1겹침으로 기각했다. 통로 폭·Pod9m·메시 상자50cm 여유를 줄이지 않았다.
+
+새 맵 `U4Layout_V005/LVI_Ridge_EDTerrain_U4Layout_V005`만 지정 저장·재로드한 뒤 실제 사용자 Cmd `export V005` 결과 `U4_5_V005/Export_20261124_233749_888432.json`은 **PASS·issues없음·exported=true·dirty없음**이다.
+
+- 기존 Z1의185,555인스턴스·데칼12·428키 지문 불변, 채택7소유자의 자세/참조/내용 지문 불변, 보존51파일 변경0이다. Pod10·훅6·검토점27·LI/로드24개다.
+- 새 북쪽 어깨830인스턴스·31키, 지문 `a3a0744155971e685bf21572a51946541ba9ef00c82e076253f6e9f54ea61ce5`. 새 동남쪽 암괴505인스턴스·35키, 지문 `ae5e4c005a99b287f9c86c75bba8afbe7b5ea2d766ccec78a659c7a32ab079f7`다. 둘 다 데칼0·충돌 활성 시각 컴포넌트0이다.
+- 신규 각각 기존 여덟 공간에 더해 NorthwestToSaddle816·실제 NorthSaddle Pod637·SaddleEastApproach222·WestSkyIsleSpace196·CavernWestEntrance156·NorthLedgeInterface300표본까지 **14공간·5,224표본, 큰 암석68/69개와 겹침0**이다. 원본 전체 상자의 seam 최소 거리는 약98.92/102.81m다. 실제 충돌/PIE 검증은 후속이다.
+- 실제 자세는 위 값으로 V005 Z3 JSON에 export됐으며 tilt 약±1e-6°는 현지 축 오차다. 사용자 워닝1건은 기존 Z1 북벽 비Static `Actor_0.Scene`→Static `InstancedStaticMesh797` AttachTo이며 새 배치 경고는 아니다.
+
+비교12장(기존8+북쪽4)은 `Views_Draft/`, V004에서 새4시점의 전 화면은 `Views_Before/`다. `ReviewCameras.json`·`CaptureMetadata_{Before,Draft}.json`·`Comparison.html`에서 같은 Unlit/FOV90°/1305×724로 대조한다. 북쪽 단 뒤에 덩어리가 늘었으며 분지 정면·기존 남북 테두리·산괴의 큰 윤곽은 유지했다. 뷰포트는 신규 두 소유자 선택·NorthRearOverview 부감이다.
+
+`LargeLayout_V005/EDTerrainLayout_Z3.json`의 `body_handoff`에 채울 어깨/동남쪽 내부와 보호할 고개·Pod·동굴·부유섬·잔도 공간을 넘겼다. 몸체·지각/충돌/SurfaceData·기존 층/생성기·마커/풀/밀도는 바꾸지 않았다. **사용자가 신규 두 소유자를 에디터에서 확인하고 V005를 채택·다음 U4-6 진행을 승인했다(2026-11-25).** 이후 북 대지(U4-7)→골짜기/보스 고원(U4-8·9)→외곽(U4-10·11)까지 큰 배치 초벌을 먼저 확정한다.
+
+## 13. U4-6 V006 서쪽 접근 사면(경사로 보정24공간 PASS·확정)
+
+사용자가 에디터에서 V005 신규2개를 확인하고 채택·다음 진행을 승인했다(2026-11-25). V005·PIE=false·맵 dirty=false를 대조하고 자세를 유지한 채 채택 메타데이터만 갱신해 동결했다. `U4_6_V006/PreviousAccepted/`·`PreviousAcceptedHashes.json`에 채택 V005 관련12파일을 보존했다. 새 V006 맵은 V005 사본이며 manifest는 이전 채택 맵/저작본과 Z2 세+Z4 네+Z3 두 소유자9개의 자세/참조/지문을 고정한다. 모든 구역 JSON은 V006 폴더의 독립 사본이다.
+
+서쪽 낮은 진입은 H약0, 안쪽 사면은 H약500~3000이다. 기존 CR 산괴/왕관의 윤곽을 늘리거나 옛4단 계단을 복원하지 않고 낮은 암괴와 상단 어깨를 추가했다. 동굴 서쪽 입구와 내부 방·WestSkyIsle 공간을 유지한다. 실제 서쪽 섬 Pod는 `(-14849.2,4724,H6000.3)`이다.
+
+| 신규 소유자 | 원본 → 새 전용 사본 | 로컬 X/Y/H(cm)·yaw·크기 | 역할 |
+|:---|:---|:---|:---|
+| ASM_Z3_WestFootShoulder | PL_LargeCliff_01c → `U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestFoot_V006` | `(-11800,-800,-1600)`·160°·1 | 낮은 접근 암괴, 원본 상자 상단 H약1982 |
+| ASM_Z3_WestUpperShoulder | PL_LargeCliff_01b → `U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestUpper_V006` | `(-10400,1800,-900)`·150°·1 | 상단 접근 어깨, 원본 상자 상단 H약3124 |
+
+기존14공간에 WestLowEntry·서쪽 외곽 북/협곡 경로·실제 서쪽 섬 Pod·동굴 내부 방 남북2영역을 더했다. 동굴 방은 설계 바닥H−840~천장H510 사이3층을 표본으로 본다. 발치 후보 `(-11900,-1000,H-1600), yaw180°`와 `(-11600,-1000,H-1700), yaw170°`는 북쪽 방 표본1/3겹침으로 기각했다. 통로 폭·Pod9m·메시 상자50cm 여유는 줄이지 않았다. 최종2개는 사전20공간 겹침0이었다.
+
+새 `U4Layout_V006/LVI_Ridge_EDTerrain_U4Layout_V006`만 지정 저장·재로드했다. 사용자 Cmd `export V006` 결과 `U4_6_V006/Export_20261125_002236_501185.json`은 **PASS·issues없음·exported=true·dirty없음**이다.
+
+- 기존 Z1의185,555인스턴스·데칼12·428키 지문, 채택9소유자 자세/참조/지문, 보존51파일 불변이다. Pod10·훅6·검토점27·LI/로드26개다.
+- 신규 낮은 암괴830인스턴스·31키·지문 `79c4f448a8eb975f8c6b7eb57ef1c3a4220322a5d11c8ef885f5ddc45d2efbce`, 상단 어깨505인스턴스·35키·지문 `0604312dc5123e3b84d6977f1e0f68713112b3e417ec578b1347fb265fdb2ffc`다. 데칼0·충돌 활성 시각 컴포넌트0, 원래 내부 배치/식생 층을 유지했다.
+- 신규 각각20공간·6,995표본과 큰 암석68/69개에서 겹침0이다. 추가 공간 표본은 낮은 진입252·북 외곽294·협곡 외곽264·서쪽 섬 Pod637·동굴 방162+162다. 원본 전체 상자의 seam 최소 거리는 약58.68/68.21m다. 실제 충돌/PIE 검증은 후속이다.
+- 실제 자세를 V006 Z3 JSON에 export했다. tilt 약1e-6°는 현지 축 오차다. 워닝1건은 기존 Z1 북벽 비Static `Actor_0.Scene`→Static `InstancedStaticMesh797` AttachTo다. 새 배치 경고는 확인되지 않았다.
+
+비교12장(기존8+서쪽4)은 `Views_Draft/`, V005에서 새4시점의 전 화면은 `Views_Before/`다. `Comparison.html`·`ReviewCameras.json`·`CaptureMetadata_{Before,Draft}.json`에 Unlit/FOV90°/1305×724 전후를 정리했다. 새2개 선택 화면은 `Views_Draft/SelectedWestLowEntry.png`이며 에디터에도 신규 두 소유자 선택·WestLowEntry 시점을 남겼다.
+
+원본/공유 에셋·V001~V005·기존 지각/충돌/SurfaceData·마커/풀/밀도·기존 층/생성기는 수정하지 않았다. `body_handoff`에 두 어깨의 뒤/아래 부피와 동굴/진입/부유섬 보호 공간을 넘겼다. **V006 구도 채택 및 다음 U4-7 안부→북 대지 바깥 실루엣 진행 확인 대기**다. 전체 큰 배치 초벌을 확정한 뒤 몸체·충돌·전체 베이크/PIE·세부 마감으로 진행한다.
+
+### 사용자 경사로 제보 재대조 — REVIEW(2026-11-25)
+
+사용자는 신규2개 중 낮은 `ASM_Z3_WestFootShoulder`만 선택하고 기존 경사로를 막는지 확인 요청했다. 실제 선택은 LevelInstance_24이며 transform은 export값과 일치했다. 배치/맵·선택/카메라는 변경하지 않았다.
+
+기존 `StairRamp1`은 `(-12300,-3600)→(-11400,2000)`, `StairRamp2`는 `(-10700,2600)→(-9200,-3200)`이다. 앞선20공간에는 둘 다 없었다. WestStair 경로 재정의 보류를 기존 경사로 보호 생략으로 잘못 적용했다. 보류가 현존 경사로를 덮어도 된다는 뜻은 아니다.
+
+- 낮은 암괴: StairRamp1 상자/표본660쌍, 중심18측점·최초~최후 약16.9m 구간 겹침.
+- 상단 어깨: StairRamp1 끝51쌍·중심5측점·약4.0m, StairRamp2 720쌍·중심23측점·약22.0m 구간 겹침.
+- StairRamp3/4는 이번 신규2개와 표본 겹침0이다. 재대조는 원본 메시 로컬 상자를 export자세로 변환하고50cm 여유·100cm 종간격·중앙/±350cm·지면+100/250cm를 사용했다. 길이 수치는 중심선의 상자 겹침 측점 범위이며 정확한 암석 표면 점유 길이나PIE 판정이 아니다. 신규는 NoCollision이라 물리 통행 차단을 검증한 결과도 아니다.
+
+근거 `U4_6_V006/RouteReview_V001/WestRampOverlap.json`·`UserSelectedView.png`. 이전 Export/FinalValidation PASS는 누락된 경사로를 보증하지 않는다. V006 manifest/Z3 상태를 `review_existing_ramp_overlap`으로 기록하고 실제 자세는 유지했다. 기존 경사로를 보호 입력에 넣고 신규2개를 보정·재검사해야 하며 U4-7은 대기다.
+
+### 비주얼 우선 보정 확정 — 24공간 PASS(2026-11-25, GX-035)
+
+사용자는 경사로와 일부 겹쳐도 비주얼을 우선하며, 새 배치 보정 또는 별도 경사로로 해결한 뒤 다음 단계로 진행하도록 승인했다. 이전7m 경사로 전체를 강제 비우는 대신 중앙3m 통행 띠를 확보하는 보정을 택했다. 기존20공간의 폭/여유는 유지하고 StairRamp1~4 중앙 반폭150cm·지면+100/250cm 표본을 추가했다. 이 중앙 폭은 이번 구현 선택이며 완전한 충돌/보행 보증은 아니다.
+
+- 낮은 암괴만 로컬 `(-11800,-800,H-1600)`→`(-13200,400,H-1600)`로 서14m·북12m 이동했다. yaw160°·크기1은 유지했다.
+- 상단 어깨는 `(-10400,1800,H-900)`→`(-9000,1600,H-300)`로 동14m·남2m·위6m 보정했다. yaw150°·크기1은 유지했다. 상단 어깨도 경사로 중앙을 덮던 문제여서 이번 미채택 초벌2개만 조정했다.
+- 보정 전 저작5파일/맵은 `RouteCorrection_V001/BeforeCorrection/`·`BeforeCorrectionHashes.json`에 보존했다. 원래 내부 구성/식생 층·기존 채택9소유자는 수정하지 않았다.
+- 실제 `Export_20261125_004223_261540.json`은 PASS·issues없음·exported=true·dirty없음이다. 새2개 각각24공간 겹침0, 기존 Z1·채택9소유자·보존51파일 불변·LI/로드26개다. 별도 경사로·지각/몸체/충돌 재빌드는 하지 않았다. 시각 메시의 충돌은 계속 비활성이고 실제 PIE는 후속이다.
+
+사용자의 수정 후 계속 진행 지시에 따라 보정 V006을 확정·동결했다. 채택 메타데이터는 해당 보정 export를 가리킨다. 비교12장은 `Views_RouteCorrected/`·`CaptureMetadata_RouteCorrected.json`이다. 이후 V007이 보정한 두 소유자를 포함한11개 추가 소유자를 고정한다. 앞선 REVIEW는 보정 전 기록이며 현재 상태를 대신하지 않는다.
+
+## 14. U4-7 V007 안부→북 대지 외곽(완료/사용자 채택)
+
+보정 V006을 새 `U4Layout_V007/LVI_Ridge_EDTerrain_U4Layout_V007`로 복제했다. manifest 이전 채택본은 보정 V006 맵/저작본·11소유자 자세/참조/결과 지문이다. `U4_7_V007/PreviousAccepted/`·해시 목록에 관련12파일을 동결했다. 모든 구역 JSON은 V007 독립 사본이고 신규 Z5 JSON을 추가했다.
+
+| 신규 소유자 | 원본 → 전용 사본 | 로컬 X/Y/H(cm)·yaw·크기 | 역할 |
+|:---|:---|:---|:---|
+| ASM_Z5_TablelandEastRim | PL_LargeCliff_02c → `U4Layout_V007/Z5Assembly_V007/PL_Ridge_Z5_EastRim_V007` | `(7500,9500,-1800)`·15°·1 | 동쪽 외곽 절벽, 원본 상자 상단 H약3113 |
+| ASM_Z5_TablelandNorthRim | PL_LargeCliff_01c → `U4Layout_V007/Z5Assembly_V007/PL_Ridge_Z5_NorthRim_V007` | `(2500,13500,-1500)`·−45°·1 | 북쪽 낮은 암괴, 원본 상자 상단 H약2082 |
+
+NorthTableland H약1961 관계에서 바깥 실루엣을 먼저 잡았다. 실제 Pod는 `(1904.9,6998.5,H1958.2)`다. 안부 하강/북동 진입로·NorthLedge·동굴 지붕/북쪽 수직 개구부/방을 비워 둔다. 동쪽 후보 `(7300,9500,H-1600), yaw0°`는 북동 진입로1겹침으로 기각했다. 원래 내부 구성/식생 층을 유지하고 긴 벽을 조립체 행렬로 채우지 않았다.
+
+사용자 `export V007`의 `Export_20261125_004807_896252.json`은 **PASS·issues없음·exported=true·dirty없음**이다. 기존 Z1의185,555인스턴스·데칼12·428키 지문·보정 V006 포함11소유자 자세/참조/결과 지문·보존51파일 불변, Pod10·훅6·검토점27·LI/로드28개다.
+
+- 동쪽 절벽8,723인스턴스·174키·지문 `c1abf4a3f82e877b3d4a43de4ebf005b5e3b8075920f55114aad7fa889a9940a`, 북쪽 암괴830인스턴스·31키·지문 `6348c1f7f2c47281bc06e3f73b8c7dd45ecf1326a1d113171214c80b3a9779fe`다. 모두 데칼0·충돌 활성 시각 컴포넌트0이다.
+- 신규 각각30공간·10,105표본·큰 암석107/68개에서 겹침0이다. V006의24공간에 실제 북 대지 Pod·안부/북동 접근·Hall 북쪽 개구부/지붕 인터페이스/방을 더했다. 원본 전체 상자의 seam 최소 거리는 약46.57/48.59m다. 실제 충돌/PIE 통과가 아니다.
+- 실제 자세를 V007 Z5 JSON에 export했다. tilt 약±1e-6°는 현지 축 오차다. 워닝1건은 기존 Z1 북벽 AttachTo이고 새 배치 경고는 없다.
+
+`Views_Draft/`는 기존8+서쪽4+북 대지4의16시점이며 `Views_Before/`는 V006 보정본에서 북 대지4시점이다. 기존12시점의 이전 화면은 V006 `Views_RouteCorrected/`다. 모두 Unlit·FOV90°이며 현재 뷰포트1127×724로 맞췄다(사용자 패널 조작으로 이전1305×724에서 변경). `Comparison.html`·카메라/메타데이터와 선택 화면 `SelectedTablelandEast.png`에 정리했다.
+
+`FinalValidation_V001.json`은 실제 export/JSON 자세·복구51파일·채택 인계12파일·이전 저작25파일·16시점 대조 PASS다. 원본/공유 에셋·V001~보정 V006·지각/몸체/충돌/SurfaceData·마커/풀/밀도·기존 생성기는 보존했다. **사용자가 V007을 확인·채택하고 U4-8 진행을 승인했다(2026-11-25).** 전체 큰 배치 확정 뒤 몸체·충돌·전체 베이크/PIE·세부 식생/잔돌 마감 순서를 유지한다.
+
+## 15. U4-8 V008 골짜기 측면·입구(완료/사용자 채택)
+
+사용자가 V007을 확인·채택하고 다음 진행을 승인했다. 실제 V007·PIE=false·맵 dirty=false를 대조한 뒤 실제 자세를 유지하고 채택 메타데이터만 갱신·동결했다. `U4_8_V008/PreviousAccepted/`·해시 목록에 관련13파일을 보존했다. 새 V008은 V007 사본이며 manifest는 이전 맵/저작본과13소유자의 자세/참조/지문을 고정한다. 기존 구역 JSON은 독립 사본이고 신규 Z6 JSON을 추가했다.
+
+BossValley 기존 경사로 `(4400,-300,H-4000)→(7700,-150,H-2400)`를 유지하며 분지→골짜기 남쪽과 층계참 북동쪽에 독립 강조부를 잡았다. 보스 고원 본체는 U4-9로 남겼다. 실제 ValleyRise Pod는 `(8225.5,-749.8,H-2402.5)`, ValleySkyIsle Pod는 `(7792.6,-5498.9,H5500.3)`, ValleyIsleHub는 `(8700,-3800,H8500.475)`다.
+
+| 신규 소유자 | 원본 → 전용 사본 | 로컬 X/Y/H(cm)·yaw·크기 | 역할 |
+|:---|:---|:---|:---|
+| ASM_Z6_ValleyLowerSouth | PL_LargeCliff_02d → `U4Layout_V008/Z6Assembly_V008/PL_Ridge_Z6_LowerSouth_V008` | `(5400,-3000,-5900)`·90°·1 | 남쪽 낮은 측벽, 원본 상자 상단 H약−666 |
+| ASM_Z6_ValleyUpperNorthEast | PL_LargeCliff_01b → `U4Layout_V008/Z6Assembly_V008/PL_Ridge_Z6_UpperNorthEast_V008` | `(11200,2800,-3000)`·−135°·1 | 북동쪽 상단 어깨, 원본 상자 상단 H약1024 |
+
+기존30공간에 BossValley 실제 경사로 반폭400cm·BasinToBoss 중앙 반폭500cm·남동 하강로 중앙3m·잔도 출구·실제 Pod2개·부유섬 아래·Hall 동쪽 통로/입구·그래플 사선을 추가했다. Hall 통로는 보존 설계의 실제 loft 고리 바닥 중심과900cm 단면 높이를 따라 검사한다. 그래플 사선은 실제 Pod의 플레이어 눈높이(+170cm)→실제 앵커 월드 직선을 로컬로 환산한 표본이다. 가까운 북동쪽 후보 `(10800,2600,H-3000), yaw-135°`는 HallEastTunnel26겹침으로 기각했다. 다른 보호 폭/50cm 상자 여유는 유지했다.
+
+새 맵만 지정 저장·재로드하고 사용자 `export V008` 결과 `Export_20261125_014700_368095.json`은 **PASS·issues없음·exported=true·dirty없음**이다. 기존 Z1의185,555인스턴스·데칼12·428키 지문, 채택13소유자의 자세/참조/지문·보존51파일 불변, Pod10·훅6·검토점27·LI/로드30개다.
+
+- 신규 남쪽8,206인스턴스·174키, 북동쪽505인스턴스·35키, 모두 데칼0·충돌 활성 시각 컴포넌트0이다. 원래 내부 배치/식생 층을 유지했다.
+- 신규 각40공간·13,912표본·큰 암석110/69개에서 겹침0이다. 원본 전체 상자의 seam 최소 거리는 약122.69/90.32m다. 실제 충돌/PIE 통과가 아니다.
+- 지문: ASM_Z6_ValleyLowerSouth `4ac37bb935d265e78b12f85bed3aa5d3e81aa76fcd31a6aba6dce75eafbc091b` / ASM_Z6_ValleyUpperNorthEast `1c9ed058b5182f8572fe04affb495e5562da909e3dfc91b9ee4ac89b3a2acd5e`.
+- 실제 자세를 V008 Z6 JSON에 export했다. tilt 약±1e-6°는 현지 축 오차다. 워닝1건은 기존 북벽 AttachTo다. 새 배치 경고는 없다.
+
+`Views_Draft/`는 기존8+북 대지4+골짜기4의16시점, `Views_Before/`는 V007에서 골짜기4시점이다. 나머지 이전 화면은 V007 `Views_Draft/`를 쓴다. 모두 Unlit/FOV90°/1127×724이며 `Comparison.html`·카메라/메타데이터·`SelectedValleyOverview.png`로 정리했다. 에디터에는 신규 두 소유자 선택·ValleyOverview를 남겼다.
+
+`FinalValidation_V001.json`은 실제 export/JSON 자세·복구51파일·채택13파일·이전 저작31파일·16시점 대조 PASS다. 원본/공유 에셋·V001~V007·지각/충돌/SurfaceData·마커/풀/밀도·기존 층/생성기는 보존했다. 몸체/연속 외피·접지는 Z6 `body_handoff`로 넘겼다. **사용자가 V008을 채택하고 U4-9 진행을 승인했다(2026-11-25).** 전체 큰 배치 초벌 뒤 몸체·충돌·전체 베이크/PIE·세부 마감 순서를 유지한다.
+
+## 16. U4-9 V009 보스 고원 측면(완료/사용자 채택)
+
+사용자가 V008을 채택하고 다음 진행을 승인했다. 실제 V008·PIE=false·맵 dirty=false, 기존15소유자의 위치·회전·크기와 관련21에셋 dirty없음을 대조했다. V008 채택 메타데이터만 갱신하고 관련14파일을 `U4_9_V009/PreviousAccepted/`와 해시 목록으로 고정했다. 새 V009 맵은 V008 사본이며 manifest의 이전 채택본은 **V008 맵/저작본·15소유자 자세/참조/지문·누적 이전 저작38파일**이다. 중복 추가하지 않고 Z6에 새2소유자만 더했다.
+
+| 신규 소유자 | 원본 → 전용 사본 | 로컬 X/Y/H(cm)·yaw·크기 | 역할 |
+|:---|:---|:---|:---|
+| ASM_Z6_BossSouthWall | PL_LargeCliff_02c → `U4Layout_V009/Z6Assembly_V009/PL_Ridge_Z6_BossSouth_V009` | `(13900,-3200,-3300)`·30°·1 | 상단 골짜기와 고원 남쪽 측벽, 원본 상자 상단 H약1613 |
+| ASM_Z6_BossNorthShoulder | PL_LargeCliff_01c → `U4Layout_V009/Z6Assembly_V009/PL_Ridge_Z6_BossNorth_V009` | `(14900,3200,-1600)`·−60°·1 | 고원 북쪽 낮은 어깨, 원본 상자 상단 H약1982 |
+
+기존40공간에 UpperValleyToBoss 중앙 반폭700cm·BossPlateauArrival 반경1500cm/높이+100~5000cm·BossToValleyIsleGrappleSight를 더해43공간을 검사했다. 기존 BossValley 경사로와 Hall 입구/loft·Pod·부유섬 아래 공간은 유지했다. 고원 실제 검토점은 `(14800,0,H200.0003)`으로 지면 H0보다2m 위다. 사선은 검토점 오프셋을 뺀 **실제 지면+170cm**에서 실제 ValleyIsleHub `(8700,-3800,H8500.475)`까지 월드 직선으로 검사했다. 최초8후보를 기록하고 최종2후보는 정확한 지면 기준으로 다시 대조했다.
+
+새 맵/신규 사본만 지정 저장하고 재로드했다. 사용자 `Export_20261125_015907_376276.json`은 **PASS·issues없음·dirty없음·exported=true**다. 기존 Z1의185,555인스턴스·데칼12·428키 지문과 채택15소유자의 자세/참조/지문, 복구51파일 불변이다. Pod10·훅6·검토점27·LI/로드32개다.
+
+- 신규 남쪽8,723인스턴스·174키와 북쪽830인스턴스·31키, 합계9,553개다. 원래 크기/내부 구성/식생 층을 유지했고 데칼0·충돌 활성 시각 컴포넌트0이다.
+- 신규 각43공간·14,752표본·큰 암석107/68개 메시 상자에서 겹침0이다. 원본 전체 상자의 이음매 최소 거리는 약72.54/66.77m다. 상자 검사이며 충돌/PIE 통과는 후속이다.
+- 지문: ASM_Z6_BossSouthWall `d92446503f6e07b4163ddec7bae2947d1e3ca7f2b6d6e4d3985654229d5c5eab` / ASM_Z6_BossNorthShoulder `3860365a638385b73d076c43e07ddb9c21f21c43728aed5aa2737b3da11584fd`.
+- 실제 자세를 V009 Z6 JSON에 export했다. 워닝1건은 기존 북벽 AttachTo다. 기존 맵/원본/공유 에셋·지각/충돌/SurfaceData·마커/풀/밀도·생성기는 변경하지 않았다.
+
+기존8+북 대지4+골짜기4+보스 고원4의20시점을 Unlit/FOV90°/1127×724로 촬영했다. 새 고원4시점은 V008에서 같은 카메라로 이전 화면을 찍었으며 다른16시점은 V008 저장 화면과 대조했다. `Comparison.html`·카메라/메타데이터·`SelectedBossOverview.png`를 정리했다. 신규2소유자 선택·BossOverview를 에디터에 남겼다. `FinalValidation_V001.json`은 실제 export/JSON 자세·복구51파일·채택14파일·이전 저작38파일·20시점 대조 PASS다.
+
+몸체/연속 외피·접지는 Z6 `body_handoff`로 넘겼다. **사용자가 V009를 채택하고 U4-10 진행을 승인했다(2026-11-25).** 채택 뒤 새 판 manifest는 V009 맵/저작본과17소유자를 고정한다. 전체 큰 배치 초벌 확정 뒤 몸체·충돌·전체 베이크/PIE·세부 마감 순서를 유지한다.
+
+## 17. U4-10 V010 남서·북서 외곽(완료/사용자 채택)
+
+사용자가 V009를 채택하고 다음 진행을 승인했다. 실제 V009·PIE=false·맵 dirty=false·채택17소유자 자세/크기/방향 일치와 관련23에셋 dirty없음을 대조했다. V009 저작7파일의 마지막 검증 해시도 일치했다. 채택 메타데이터만 갱신하고 관련14파일을 `U4_10_V010/PreviousAccepted/`와 해시 목록으로 고정했다. 새 U4Layout_V010 맵은 V009 사본이며 이전 채택본은 V009 맵/저작본·17소유자 자세/참조/지문·누적 이전 저작45파일이다. 기존 구역 JSON은 독립 사본이며 Z7에 새2개만 더했다. 기존 **Z1Bake_V010은 보존**한 별개 맵이다.
+
+| 신규 소유자 | 원본 → 전용 사본 | 로컬 X/Y/H(cm)·yaw·크기 | 역할 |
+|:---|:---|:---|:---|
+| ASM_Z7_SouthwestEntryShoulder | PL_LargeCliff_02c → `U4Layout_V010/Z7Assembly_V010/PL_Ridge_Z7_SouthwestEntry_V010` | `(-16000,-13400,-3500)`·30°·1 | 남서 진입 외곽의 낮은 측벽, 원본 상자 상단 H약1413 |
+| ASM_Z7_NorthwestEntryShoulder | PL_LargeCliff_01c → `U4Layout_V010/Z7Assembly_V010/PL_Ridge_Z7_NorthwestEntry_V010` | `(-15700,11500,-1700)`·−60°·1 | 북서 저지대 바깥 어깨, 원본 상자 상단 H약1882 |
+
+기존43공간에 실제 CanyonRun의 남서 진입 `(-14500,-11000)→(-14500,-7800)`·NorthwestToSaddle 저지대 `(-14500,9000)→(-13000,4200)`의 반폭650cm와 서쪽 진입 눈높이→실제 EntryToWestIsle 앵커 월드 직선 사선을 추가했다. 합계46공간이며 기존 서쪽 진입/네 계단 경사로·서쪽 부유섬 Pod/아래 공간·산괴 동굴 입구/통로도 유지한다. 실제 WestEntry 검토점의 지면 위 오프셋을 빼고 현 지면+170cm에서 사선을 검사했다.
+
+초기 조사 봉투의 임의 연장선을 실제 설계 경로와 구분하고, 최종 검사는 기존 경로로 맞췄다(`CandidateSurvey_EnvelopeDraft.json`은 초기 봉투 기록). 기존 보호 폭/50cm 상자 여유를 줄이지 않았다. 실제 경로 검사에서 가까운 남서 후보 `(-16300,-12000,H-3500),yaw45°`는 메사2+남서진입6겹침, `(-15400,-13900,H-3500),yaw45°`는 메사15겹침으로 기각했다. 최종2개는 겹침0이다.
+
+원본 전체 상자 기준 seam 최소 거리는17.1183/22.1096m로 시각 메시5m 금지를 통과한다. 지각 native15m·전이55m는 변경하지 않았다. **남서 시각 상자를 그대로 후속 충돌로 굽지 않는다.** 충돌20m 금지는 몸체/프록시 단계에 별도로 적용하도록 Z7 `body_handoff.seam_contract`에 남겼다.
+
+새 맵/신규 사본만 지정 저장·재로드했다. 사용자 `Export_20261125_021731_356481.json`은 **PASS·issues없음·dirty없음·exported=true**다. 기존 Z1의185,555인스턴스·데칼12·428키 지문과 채택17소유자 자세/참조/지문·복구51파일 불변, Pod10·훅6·검토점27·LI/로드34개다.
+
+- 신규 남서8,723인스턴스·174키와 북서830인스턴스·31키, 합계9,553개다. 원래 크기·내부 구성/식생 층을 유지했고 데칼0·충돌 활성 시각 컴포넌트0이다.
+- 신규 각46공간·15,286표본·큰 암석107/68개의 메시 로컬 상자 겹침0이다. 실제 충돌/PIE 통과는 후속이다.
+- 지문: ASM_Z7_SouthwestEntryShoulder `1bb96c5fecd73677a1d84e69d94ac29c327468a498e92f3795fd1f08c06e531c` / ASM_Z7_NorthwestEntryShoulder `62808de20b3c2de05243b3e833546442a1b2d861aa42f99b742037fa25d6b234`.
+- 실제 자세를 V010 Z7 JSON에 export했다. tilt 약±1e-6°는 현지 축 수치 오차다. 워닝1건은 기존 북벽 AttachTo다. 기존 원본/공유 에셋·V001~V009·지각/몸체/충돌/SurfaceData·마커/풀/밀도·층/생성기는 보존했다.
+
+기존20+서쪽 외곽5의25시점을 Unlit/FOV90°/1127×724로 촬영했다. 외곽5는 V009에서 같은 카메라로 이전 화면을 확보했고 다른20시점은 V009 저장 화면과 대조했다. `Comparison.html`·`ComparisonCameras.json`·캡처 메타데이터에 정리했다. 신규2개 선택 화면은 더 넓은 `SelectionCamera.json`의 현지H18000 시점을 쓰며 `SelectedWestOuterOverview.png`다. 비교용 WestOuterOverview는 H13000으로 별도 유지한다.
+
+`FinalValidation_V001.json`은 실제 export/JSON 자세·복구51파일·채택14파일·이전 저작45파일·25시점 크기/FOV/카메라 자세 대조 PASS다. **사용자가 V010을 채택하고 U4-11부터 새 세션으로 넘기도록 지시했다(2026-11-25). U4-11/V011은 미착수**다. 채택 뒤 새 판은 V010 맵/저작본과19소유자를 고정한다. 전체 큰 배치 초벌 확정 뒤 몸체·충돌·전체 베이크/PIE·세부 마감 순서는 유지한다.
+
+### V010 채택·새 세션 인계 확정(2026-11-25)
+
+V010 manifest/구역 status와 acceptance만 채택 상태로 갱신했고19소유자의 자세·입력/결과 지문은 유지했다. `BeforeAcceptance_V010/`에 채택 전 저작8파일을 보존했고 `AcceptedHandoff/`·`AcceptedHandoffHashes_V001.json`에 채택 저작본/맵/신규 사본/검사·비교 근거21파일을 고정했다. `AcceptanceValidation_V001.json`은 이전 복구51파일·이전 저작45파일·실제 export 자세 불변을 확인한다. `FinalValidation_V001.json`은 채택 전 검증 당시 기록이므로 그 당시 pending/저작 해시는 채택 완료 판정에 재사용하지 않는다. 채택 뒤 해시는 AcceptedHandoff/AcceptanceValidation이 소유한다.
+
+종료 직전 읽기 전용 `LiveHandoff.json`: U4Layout_V010·PIE=false·19자세 일치·관련25에셋 dirty없음이다. 사용자가 선택한 `StaticMeshActor_2` 1개와 카메라를 유지했다. 신규2개 선택 화면은 저장된 `SelectedWestOuterOverview.png`를 참고한다. 에디터 카메라는 현재 사용자 상태이며 촬영용 카메라와 같다고 가정하지 않는다.
+
+다음 세션은 U4-11 남동·북동 외곽부터다. V011 맵/저작 폴더/배치는 만들지 않았다. 채택 V010을 복제한 다음 판 manifest는 **V010 맵/저작본과19소유자**, 누적 이전 저작53파일로 갱신한다. 기존 manifest의 V009 기준 제작 이력을 그대로 써서 Z7 두 소유자를 중복 추가하지 않는다. U4 전체 완료나 몸체/충돌/PIE 통과로 표시하지 않는다. 저장소는 기존 정책대로 저작 JSON/문서를 추적하고 Content 작업 맵·Saved 복구본/화면은 로컬에 보존한다.

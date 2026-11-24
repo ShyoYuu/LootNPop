@@ -3,3 +3,7 @@
 # 채택본 manifest가 원시 파일 해시로 고정한 기존 LF 문서를 보존한다.
 /Scripts/Profiling/Graphics/LargeLayout_V001/README.md text eol=lf
 /Scripts/Profiling/Graphics/LargeLayout_V002/README.md text eol=lf
+
+# U4-4~10 채택 저작본은 기존 CRLF 원시 파일 해시를 체크아웃 뒤에도 보존한다.
+/Scripts/Profiling/Graphics/LargeLayout_V00[4-9]/* text eol=crlf
+/Scripts/Profiling/Graphics/LargeLayout_V010/* text eol=crlf

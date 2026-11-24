@@ -1,0 +1,453 @@
+{
+ "schema": 1,
+ "zone": "Z4",
+ "unit": "U4-6",
+ "status": "accepted_large_layout_rough",
+ "level_instances": [
+  {
+   "label": "ASM_Z4_MesaNorthEastWall",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/Z4Assembly_V003/PL_Ridge_Z4_NorthEastWall_V003",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02c",
+   "source_sha256": "8aaeafdb74c82a62d93dbafde4e678bfd1ba2fc7277d0eaf492f6bb5de8b3004",
+   "level_sha256": "a9d9baadca4c7564adec7732852a4f6bcd562a4d4b9524db9378755f5193197b",
+   "local_xyh_cm": [
+    -1800.0,
+    -10000.0,
+    -700.0
+   ],
+   "rotation_deg": [
+    1e-06,
+    80.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 8723,
+   "collision": "NoCollision",
+   "purpose": "Mesa north-east cliff accent"
+  },
+  {
+   "label": "ASM_Z4_MesaEastCrown",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/Z4Assembly_V003/PL_Ridge_Z4_EastCrown_V003",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01b",
+   "source_sha256": "bbf7ca73aa17eb1737b742e99642087e19d8a7a7767b8c84903c6c64891e4216",
+   "level_sha256": "ac75b235bac6caa01f1a3685affbee89d561e8cca7f3f428e94400162b5106c0",
+   "local_xyh_cm": [
+    -2600.0,
+    -11800.0,
+    1000.0
+   ],
+   "rotation_deg": [
+    0.0,
+    25.0,
+    -1e-06
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 505,
+   "collision": "NoCollision",
+   "purpose": "Mesa east crown silhouette"
+  },
+  {
+   "label": "ASM_Z4_MesaRampToe",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_RampToe_V004",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01c",
+   "source_sha256": "780d7bf3b9d56d79ca22ab4af40019d3935695b3d4f91231b3d0ec59a8adebb9",
+   "level_sha256": "843505ca367d4c46b58b90a48746eb559970fdbad7938719265a0ce18ab3ab01",
+   "local_xyh_cm": [
+    -9900.0,
+    -15100.0,
+    -1400.0
+   ],
+   "rotation_deg": [
+    -1e-06,
+    -90.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 830,
+   "collision": "NoCollision",
+   "purpose": "Mesa first-tier south toe accent"
+  },
+  {
+   "label": "ASM_Z4_MesaSouthWall",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_SouthWall_V004",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02d",
+   "source_sha256": "70bbe385755a8f18ddeabd5719fd95f523ce6cbe995e54a49ffc057efbe2cded",
+   "level_sha256": "329d413744a52084df6036e2efe98c30c01708daec570b0210d501abb302df84",
+   "local_xyh_cm": [
+    -6500.0,
+    -14500.0,
+    -1200.0
+   ],
+   "rotation_deg": [
+    -1e-06,
+    -90.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 8206,
+   "collision": "NoCollision",
+   "purpose": "Mesa south exterior cliff accent"
+  }
+ ],
+ "corridors": [
+  {
+   "id": "RiftCanyonLower",
+   "points_xyh_cm": [
+    [
+     1200,
+     -2600,
+     -4046.8008
+    ],
+    [
+     -1600,
+     -5400,
+     -3433.5
+    ]
+   ],
+   "half_width_cm": [
+    1100,
+    750
+   ],
+   "protected_space": "walking corridor and existing canyon opening"
+  },
+  {
+   "id": "RiftCanyonMiddleUpper",
+   "points_xyh_cm": [
+    [
+     -1600,
+     -5400,
+     -3433.5
+    ],
+    [
+     -4300,
+     -7300,
+     -2200
+    ],
+    [
+     -7200,
+     -7300,
+     -1300
+    ],
+    [
+     -11000,
+     -7400,
+     -300
+    ],
+    [
+     -14500,
+     -7800,
+     0
+    ]
+   ],
+   "half_width_cm": [
+    750,
+    650,
+    1300,
+    650,
+    800
+   ],
+   "height_mode": "ground",
+   "check_owners": "new_only",
+   "height_offsets_cm": [
+    100,
+    250
+   ]
+  },
+  {
+   "id": "SkyBridgeDeck",
+   "points_xyh_cm": [
+    [
+     -4389.488,
+     -5300.276,
+     3834.84
+    ],
+    [
+     -4610.512,
+     -9499.724,
+     3855.053
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    -450,
+    100
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CanyonChamberPod",
+   "points_xyh_cm": [
+    [
+     -7359.7,
+     -7248.5,
+     -1257.7
+    ],
+    [
+     -7358.7,
+     -7248.5,
+     -1257.7
+    ]
+   ],
+   "half_width_cm": [
+    900,
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernSouthEntrance",
+   "points_xyh_cm": [
+    [
+     -9000,
+     -7400,
+     -850
+    ],
+    [
+     -9000,
+     -6800,
+     -950
+    ],
+    [
+     -9000,
+     -5450,
+     -1050
+    ],
+    [
+     -9200,
+     -4000,
+     -839
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "MesaAscent",
+   "points_xyh_cm": [
+    [
+     -14500,
+     -11000,
+     2.07
+    ],
+    [
+     -12900,
+     -15200,
+     55.4
+    ],
+    [
+     -12100,
+     -15200,
+     84.01
+    ],
+    [
+     -10800,
+     -9600,
+     1720.73
+    ],
+    [
+     -10100,
+     -10000,
+     1863.64
+    ],
+    [
+     -10000,
+     -12600,
+     1861.77
+    ],
+    [
+     -9000,
+     -13200,
+     1975.1
+    ],
+    [
+     -3300,
+     -11000,
+     3839.69
+    ],
+    [
+     -3500,
+     -10200,
+     3842.79
+    ],
+    [
+     -6000,
+     -10300,
+     3860.79
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SouthMesaPod",
+   "points_xyh_cm": [
+    [
+     -6060.9,
+     -10497.8,
+     3862.6
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SkyBridgeSouthApproach",
+   "points_xyh_cm": [
+    [
+     -4610.512,
+     -9499.724,
+     3855.053
+    ],
+    [
+     -6000,
+     -10300,
+     3860.79
+    ],
+    [
+     -6060.9,
+     -10497.8,
+     3862.6
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  }
+ ],
+ "body_handoff": {
+  "fill": [
+   "Closed north-east mesa cliff volume behind native exterior",
+   "East crown body grounded into the existing mesa tiers",
+   "Later connection to accepted Z2 bridge south buttress without moving it",
+   "First-tier south toe body inside the native cliff; tie to existing ramp landing without raising it",
+   "Closed south exterior cliff body; ground behind/below native exterior and connect upper mesa south edge"
+  ],
+  "preserve_empty": [
+   "MesaAscent and mesa tier transitions",
+   "SouthMesa Pod 9m disk and approach",
+   "SkyBridge deck/underpass and south abutment",
+   "CanyonRun and cave entrances",
+   "MesaRamp1 south entry and first-tier landing; keep current route width",
+   "MesaRamp2 south ascent; do not bridge solid body across the walking strip"
+  ],
+  "deferred": [
+   "body",
+   "collision_proxy",
+   "surface_bake",
+   "terrain_rebuild",
+   "continuous_bank_skin",
+   "small_rocks",
+   "vegetation_finish"
+  ]
+ },
+ "scope": {
+  "unit": "U4-4",
+  "new_owners": [
+   "ASM_Z4_MesaRampToe",
+   "ASM_Z4_MesaSouthWall"
+  ],
+  "rough_only": true,
+  "first_tier_h_cm": [
+   1700,
+   1900
+  ],
+  "upper_mesa_h_cm": 3861,
+  "decision": "Native-size 01c toe and 02d south accent; western candidates rejected for route overlap",
+  "survey": "Saved/Profiling/Graphics/Phase01/U4_4_V004/CandidateSurvey_D.json",
+  "south_wall_survey": "Saved/Profiling/Graphics/Phase01/U4_4_V004/CandidateSurvey.json"
+ }
+}

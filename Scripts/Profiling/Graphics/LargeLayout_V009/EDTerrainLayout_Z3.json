@@ -1,0 +1,1054 @@
+{
+ "schema": 1,
+ "zone": "Z3",
+ "unit": "U4-9",
+ "status": "accepted_large_layout_rough",
+ "level_instances": [
+  {
+   "label": "ASM_Z3_NorthRearShoulder",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_NorthRear_V005",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01c",
+   "source_sha256": "780d7bf3b9d56d79ca22ab4af40019d3935695b3d4f91231b3d0ec59a8adebb9",
+   "level_sha256": "85df87f95a641badf85873df678f571f5a59790eb7473c1a3eeb16e9bc06c845",
+   "local_xyh_cm": [
+    -5600.0,
+    6200.0,
+    200.0
+   ],
+   "rotation_deg": [
+    0.0,
+    -30.0,
+    -1e-06
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 830,
+   "collision": "NoCollision",
+   "purpose": "North step rear shoulder"
+  },
+  {
+   "label": "ASM_Z3_SaddleSouthEast",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_SaddleShoulder_V005",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01b",
+   "source_sha256": "bbf7ca73aa17eb1737b742e99642087e19d8a7a7767b8c84903c6c64891e4216",
+   "level_sha256": "02e17f4b30b50e9b8982d63acb0ea3b1a6725dd2bb8fdd34fe298608b110cb16",
+   "local_xyh_cm": [
+    -3100.0,
+    8000.0,
+    0.0
+   ],
+   "rotation_deg": [
+    1e-06,
+    50.0,
+    -1e-06
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 505,
+   "collision": "NoCollision",
+   "purpose": "Saddle south-east silhouette"
+  },
+  {
+   "label": "ASM_Z3_WestFootShoulder",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestFoot_V006",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01c",
+   "source_sha256": "780d7bf3b9d56d79ca22ab4af40019d3935695b3d4f91231b3d0ec59a8adebb9",
+   "level_sha256": "5c94e89b7fd495be90449a5c0f75af936911f471fb058c076cba2f451c1e7da6",
+   "local_xyh_cm": [
+    -13200.0,
+    400.0,
+    -1600.0
+   ],
+   "rotation_deg": [
+    0.0,
+    160.0,
+    1e-06
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 830,
+   "collision": "NoCollision",
+   "purpose": "Low western approach shoulder"
+  },
+  {
+   "label": "ASM_Z3_WestUpperShoulder",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestUpper_V006",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01b",
+   "source_sha256": "bbf7ca73aa17eb1737b742e99642087e19d8a7a7767b8c84903c6c64891e4216",
+   "level_sha256": "9b55b8daf28a344f78415ec8232ff9f0419fff9ecf7203003d829489169cce5e",
+   "local_xyh_cm": [
+    -9000.0,
+    1600.0,
+    -300.0
+   ],
+   "rotation_deg": [
+    1e-06,
+    150.0,
+    1e-06
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 505,
+   "collision": "NoCollision",
+   "purpose": "Upper western slope shoulder"
+  }
+ ],
+ "corridors": [
+  {
+   "id": "RiftCanyonLower",
+   "points_xyh_cm": [
+    [
+     1200,
+     -2600,
+     -4046.8008
+    ],
+    [
+     -1600,
+     -5400,
+     -3433.5
+    ]
+   ],
+   "half_width_cm": [
+    1100,
+    750
+   ],
+   "protected_space": "walking corridor and existing canyon opening"
+  },
+  {
+   "id": "RiftCanyonMiddleUpper",
+   "points_xyh_cm": [
+    [
+     -1600,
+     -5400,
+     -3433.5
+    ],
+    [
+     -4300,
+     -7300,
+     -2200
+    ],
+    [
+     -7200,
+     -7300,
+     -1300
+    ],
+    [
+     -11000,
+     -7400,
+     -300
+    ],
+    [
+     -14500,
+     -7800,
+     0
+    ]
+   ],
+   "half_width_cm": [
+    750,
+    650,
+    1300,
+    650,
+    800
+   ],
+   "height_mode": "ground",
+   "check_owners": "new_only",
+   "height_offsets_cm": [
+    100,
+    250
+   ]
+  },
+  {
+   "id": "SkyBridgeDeck",
+   "points_xyh_cm": [
+    [
+     -4389.488,
+     -5300.276,
+     3834.84
+    ],
+    [
+     -4610.512,
+     -9499.724,
+     3855.053
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    -450,
+    100
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CanyonChamberPod",
+   "points_xyh_cm": [
+    [
+     -7359.7,
+     -7248.5,
+     -1257.7
+    ],
+    [
+     -7358.7,
+     -7248.5,
+     -1257.7
+    ]
+   ],
+   "half_width_cm": [
+    900,
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernSouthEntrance",
+   "points_xyh_cm": [
+    [
+     -9000,
+     -7400,
+     -850
+    ],
+    [
+     -9000,
+     -6800,
+     -950
+    ],
+    [
+     -9000,
+     -5450,
+     -1050
+    ],
+    [
+     -9200,
+     -4000,
+     -839
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "MesaAscent",
+   "points_xyh_cm": [
+    [
+     -14500,
+     -11000,
+     2.07
+    ],
+    [
+     -12900,
+     -15200,
+     55.4
+    ],
+    [
+     -12100,
+     -15200,
+     84.01
+    ],
+    [
+     -10800,
+     -9600,
+     1720.73
+    ],
+    [
+     -10100,
+     -10000,
+     1863.64
+    ],
+    [
+     -10000,
+     -12600,
+     1861.77
+    ],
+    [
+     -9000,
+     -13200,
+     1975.1
+    ],
+    [
+     -3300,
+     -11000,
+     3839.69
+    ],
+    [
+     -3500,
+     -10200,
+     3842.79
+    ],
+    [
+     -6000,
+     -10300,
+     3860.79
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SouthMesaPod",
+   "points_xyh_cm": [
+    [
+     -6060.9,
+     -10497.8,
+     3862.6
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SkyBridgeSouthApproach",
+   "points_xyh_cm": [
+    [
+     -4610.512,
+     -9499.724,
+     3855.053
+    ],
+    [
+     -6000,
+     -10300,
+     3860.79
+    ],
+    [
+     -6060.9,
+     -10497.8,
+     3862.6
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NorthwestToSaddle",
+   "points_xyh_cm": [
+    [
+     -14500,
+     9000,
+     -2.740535386778464
+    ],
+    [
+     -13000,
+     4200,
+     -71.64099171559099
+    ],
+    [
+     -12300,
+     4200,
+     -100.092871337052
+    ],
+    [
+     -11400,
+     9800,
+     1502.288563431286
+    ],
+    [
+     -10300,
+     10400,
+     1744.3466636975184
+    ],
+    [
+     -9100,
+     4600,
+     3711.4840341915856
+    ],
+    [
+     -8300,
+     5600,
+     3631.072509520954
+    ],
+    [
+     -8450,
+     7600,
+     3717.302374716358
+    ],
+    [
+     -8000,
+     8400,
+     3570.3434546102917
+    ],
+    [
+     -5400,
+     9000,
+     3740.058080588319
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NorthSaddlePod",
+   "points_xyh_cm": [
+    [
+     -5628,
+     9248.1,
+     3739.3
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SaddleEastApproach",
+   "points_xyh_cm": [
+    [
+     -5628,
+     9248.1,
+     3739.4063425879262
+    ],
+    [
+     -5400,
+     9000,
+     3740.058080588319
+    ],
+    [
+     -4600,
+     9000,
+     3746.8884694517687
+    ],
+    [
+     100,
+     12000,
+     1805.1005271609847
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestSkyIsleSpace",
+   "points_xyh_cm": [
+    [
+     -14600,
+     4800,
+     6000
+    ]
+   ],
+   "half_width_cm": [
+    2900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    -3500,
+    -2000,
+    100,
+    1000
+   ],
+   "disk_radius_cm": 2900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernWestEntrance",
+   "points_xyh_cm": [
+    [
+     -13800,
+     -4600,
+     -10
+    ],
+    [
+     -12900,
+     -4600,
+     -10
+    ],
+    [
+     -10950,
+     -4600,
+     -840
+    ],
+    [
+     -9200,
+     -4000,
+     -839
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NorthLedgeInterface",
+   "points_xyh_cm": [
+    [
+     0,
+     5200,
+     1938.0297309360815
+    ],
+    [
+     2200,
+     3500,
+     660.0
+    ],
+    [
+     5400,
+     2700,
+     -860.0
+    ],
+    [
+     8400,
+     1200,
+     -2400.0
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestLowEntry",
+   "points_xyh_cm": [
+    [
+     -19500,
+     0,
+     0.0
+    ],
+    [
+     -17600,
+     0,
+     -0.00036984230532860306
+    ],
+    [
+     -12700,
+     -3400,
+     -35.7731279539358
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestOuterNorth",
+   "points_xyh_cm": [
+    [
+     -17600,
+     0,
+     -0.00036984230532860306
+    ],
+    [
+     -16000,
+     5000,
+     -1.2762854897989078
+    ],
+    [
+     -14500,
+     9000,
+     -2.740535386778464
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestOuterCanyon",
+   "points_xyh_cm": [
+    [
+     -17600,
+     0,
+     -0.00036984230532860306
+    ],
+    [
+     -16000,
+     -5000,
+     -6.061849753985569
+    ],
+    [
+     -14500,
+     -7800,
+     -11.607090551166124
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestSkyIslePod",
+   "points_xyh_cm": [
+    [
+     -14849.200000000003,
+     4723.999999999997,
+     6000.299999999996
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernChamberSouth",
+   "points_xyh_cm": [
+    [
+     -11000,
+     -4500,
+     -840
+    ],
+    [
+     -7600,
+     -4500,
+     -840
+    ]
+   ],
+   "half_width_cm": [
+    1000,
+    1000
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    650,
+    1250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernChamberNorth",
+   "points_xyh_cm": [
+    [
+     -11000,
+     -2750,
+     -840
+    ],
+    [
+     -7600,
+     -2750,
+     -840
+    ]
+   ],
+   "half_width_cm": [
+    750,
+    750
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    650,
+    1250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "StairRamp1CentralPassage",
+   "points_xyh_cm": [
+    [
+     -12300,
+     -3600,
+     -35.28874969253504
+    ],
+    [
+     -11400,
+     2000,
+     1553.203465306282
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only",
+   "purpose": "Visual priority: retain 3m central passage; legacy 7m strip edge overlap allowed by user"
+  },
+  {
+   "id": "StairRamp2CentralPassage",
+   "points_xyh_cm": [
+    [
+     -10700,
+     2600,
+     1127.4338568024718
+    ],
+    [
+     -9200,
+     -3200,
+     3761.960183282212
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only",
+   "purpose": "Visual priority: retain 3m central passage; legacy 7m strip edge overlap allowed by user"
+  },
+  {
+   "id": "StairRamp3CentralPassage",
+   "points_xyh_cm": [
+    [
+     -8500,
+     -3600,
+     3773.3269325009633
+    ],
+    [
+     -7000,
+     2400,
+     599.9999999999991
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only",
+   "purpose": "Visual priority: retain 3m central passage; legacy 7m strip edge overlap allowed by user"
+  },
+  {
+   "id": "StairRamp4CentralPassage",
+   "points_xyh_cm": [
+    [
+     -6300,
+     2900,
+     600.0
+    ],
+    [
+     -4700,
+     -3000,
+     837.8293714989105
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only",
+   "purpose": "Visual priority: retain 3m central passage; legacy 7m strip edge overlap allowed by user"
+  }
+ ],
+ "scope": {
+  "unit": "U4-6",
+  "range": "Low western approach and upper shoulder; existing massif silhouette retained",
+  "native_scale": true,
+  "new_owners": [
+   "ASM_Z3_WestFootShoulder",
+   "ASM_Z3_WestUpperShoulder"
+  ],
+  "west_entry_h_cm": 0,
+  "west_sky_isle_pod_local_xyh_cm": [
+   -14849.2,
+   4724,
+   6000.3
+  ]
+ },
+ "body_handoff": {
+  "fill": [
+   "Closed north rear shoulder grounded into existing 1950cm tier",
+   "Saddle south-east body behind native exterior; preserve existing high-pass crest and pod clearing",
+   "Low western shoulder volume behind native exterior; retain low entry grade",
+   "Upper western shoulder body tied into existing slope without extending adopted massif outline"
+  ],
+  "preserve_empty": [
+   "NorthwestToSaddle walking corridor",
+   "Actual NorthSaddle pod 9m disk and east exit",
+   "WestSkyIsle and approach space",
+   "MassifCavern west/south entrances",
+   "NorthLedge and preserved underground hall interfaces",
+   "WestLowEntry and outer north/canyon routes",
+   "MassifCavern chamber from floor -840 to ceiling 510cm; preserve west entrance",
+   "Actual WestSkyIsle pod 9m disk and suspended island space"
+  ],
+  "deferred": [
+   "body",
+   "collision_proxy",
+   "surface_bake",
+   "terrain_rebuild",
+   "CrownToSaddle_redefinition",
+   "WestStairAscent_redefinition",
+   "continuous_skin",
+   "small_rocks",
+   "vegetation_finish"
+  ]
+ },
+ "route_correction": {
+  "visual_priority": true,
+  "legacy_path_edge_overlap_allowed": true,
+  "central_passage_half_width_cm": 150,
+  "changes": [
+   {
+    "label": "ASM_Z3_WestFootShoulder",
+    "before": {
+     "local_xyh_cm": [
+      -11800.0,
+      -800.0,
+      -1600.0
+     ],
+     "rotation_deg": [
+      0.0,
+      160.0,
+      1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "xform": {
+     "location": {
+      "x": 21620.53379256771,
+      "y": 22165.888507139683,
+      "z": 6307.606932386557
+     },
+     "rotation": {
+      "pitch": -67.42627505863008,
+      "yaw": 106.3724365192982,
+      "roll": 121.33127657930434
+     },
+     "scale": {
+      "x": 1,
+      "y": 1,
+      "z": 1
+     }
+    }
+   },
+   {
+    "label": "ASM_Z3_WestUpperShoulder",
+    "before": {
+     "local_xyh_cm": [
+      -10400.0,
+      1800.0,
+      -900.0
+     ],
+     "rotation_deg": [
+      1e-06,
+      150.0,
+      1e-06
+     ],
+     "scale": [
+      1.0,
+      1.0,
+      1.0
+     ]
+    },
+    "xform": {
+     "location": {
+      "x": 19190.892468483737,
+      "y": 21377.028487816984,
+      "z": 9634.433003252201
+     },
+     "rotation": {
+      "pitch": -56.72242193266482,
+      "yaw": 107.35459118382825,
+      "roll": 125.41524604495301
+     },
+     "scale": {
+      "x": 1,
+      "y": 1,
+      "z": 1
+     }
+    }
+   }
+  ],
+  "collision_pie": "deferred"
+ }
+}
