@@ -1,0 +1,669 @@
+{
+ "unit": "U5a-5",
+ "accepted_visual": true,
+ "decision_date": "2026-11-25",
+ "user_instruction": "Keep V006; hand off the next unit to a new session; update documents and commit once",
+ "scope": "Keep current V006 visual composition,26 actor transforms,21 adopted owners,4 body meshes,connection mesh/two materials and private body material/VT texture assets",
+ "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/LVI_Ridge_EDTerrain_U5aBody_V006",
+ "frozen_generation": {
+  "path": "Scripts/Profiling/Graphics/ClosedBodyTrial_V001/Generation_V006.json",
+  "sha256": "883c7d7e856013775539edecc70d933d48fce89b4c1f9ad7fc83a41c7e5d965f",
+  "historical_status": "original visual-review-pending/accepted=false fields describe production-time verification; this sidecar owns current visual acceptance"
+ },
+ "frozen_inputs": {
+  "path": "Scripts/Profiling/Graphics/ClosedBodyTrial_V001/FrozenInputs_V006.json",
+  "sha256": "291e4cd7d7d42d3a0b19492c1ae15b572097f848c9785d5baa40bc72a4e4e35f",
+  "files": 412
+ },
+ "actual_pose_export": {
+  "path": "Saved/Profiling/Graphics/Phase01/U5a_5_V001/ActualPoseExport.json",
+  "sha256": "119ddf9457a1838ea4d2f0db7212a3d1e66d7674a20769e42567a1894f786d98"
+ },
+ "poses": [
+  {
+   "label": "ASM_Z2_LowerSouthBank",
+   "world_transform": {
+    "location": {
+     "x": 24984.787960126396,
+     "y": 15194.13917182128,
+     "z": 21843.729201188366
+    },
+    "rotation": {
+     "pitch": -28.926228228336182,
+     "yaw": 96.9238022663087,
+     "roll": 133.13834917522507
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z2_BridgeSouthButtress",
+   "world_transform": {
+    "location": {
+     "x": 25832.580806379425,
+     "y": 12792.239848857687,
+     "z": 10266.273351668302
+    },
+    "rotation": {
+     "pitch": 0.914500033071358,
+     "yaw": 116.67023700001442,
+     "roll": 109.60549205885536
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z2_UpperSouthShoulder",
+   "world_transform": {
+    "location": {
+     "x": 27356.822082266677,
+     "y": 14511.617805379366,
+     "z": 6291.043969787753
+    },
+    "rotation": {
+     "pitch": 20.111901145894304,
+     "yaw": 122.21021791904137,
+     "roll": 102.24025908289032
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z4_MesaNorthEastWall",
+   "world_transform": {
+    "location": {
+     "x": 24353.79349861861,
+     "y": 10646.523935861993,
+     "z": 15363.406858823982
+    },
+    "rotation": {
+     "pitch": 19.072210940004375,
+     "yaw": 125.14092761401474,
+     "roll": 121.97184111193776
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z4_MesaEastCrown",
+   "world_transform": {
+    "location": {
+     "x": 23964.208610755362,
+     "y": 9000.847366291817,
+     "z": 13627.232013469073
+    },
+    "rotation": {
+     "pitch": 60.00400996217141,
+     "yaw": 177.83384028256742,
+     "roll": 160.03863687305122
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z4_MesaRampToe",
+   "world_transform": {
+    "location": {
+     "x": 28732.02990786476,
+     "y": 9581.85187714715,
+     "z": 8283.632776625062
+    },
+    "rotation": {
+     "pitch": -15.044738643163384,
+     "yaw": -67.3411891892817,
+     "roll": -105.85319065694816
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z4_MesaSouthWall",
+   "world_transform": {
+    "location": {
+     "x": 27779.96023222074,
+     "y": 8934.049612895824,
+     "z": 11040.67783292994
+    },
+    "rotation": {
+     "pitch": -14.55118190422917,
+     "yaw": -66.53617583531467,
+     "roll": -111.44419530657439
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z3_NorthRearShoulder",
+   "world_transform": {
+    "location": {
+     "x": 14566.829937983033,
+     "y": 22957.21440199349,
+     "z": 12198.925053412859
+    },
+    "rotation": {
+     "pitch": 57.357884040755394,
+     "yaw": -76.8583158511793,
+     "roll": -139.37007850444797
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z3_SaddleSouthEast",
+   "world_transform": {
+    "location": {
+     "x": 12430.860293323216,
+     "y": 23308.476374485752,
+     "z": 14219.305238580388
+    },
+    "rotation": {
+     "pitch": 26.353276933098144,
+     "yaw": 167.39365175990244,
+     "roll": 121.93442290563048
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z3_WestFootShoulder",
+   "world_transform": {
+    "location": {
+     "x": 21620.53379256771,
+     "y": 22165.888507139683,
+     "z": 6307.606932386557
+    },
+    "rotation": {
+     "pitch": -67.42627505863007,
+     "yaw": 106.3724365192982,
+     "roll": 121.33127657930436
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z3_WestUpperShoulder",
+   "world_transform": {
+    "location": {
+     "x": 19190.892468483737,
+     "y": 21377.028487816984,
+     "z": 9634.433003252201
+    },
+    "rotation": {
+     "pitch": -56.72242193266486,
+     "yaw": 107.35459118382829,
+     "roll": 125.41524604495298
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z5_TablelandEastRim",
+   "world_transform": {
+    "location": {
+     "x": 7413.00027466455,
+     "y": 20619.754833671246,
+     "z": 23045.891988098756
+    },
+    "rotation": {
+     "pitch": 36.78504994229476,
+     "yaw": -147.92485584135142,
+     "roll": 154.80819683589763
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z5_TablelandNorthRim",
+   "world_transform": {
+    "location": {
+     "x": 6448.428792501799,
+     "y": 24676.684128778543,
+     "z": 18485.91427321145
+    },
+    "rotation": {
+     "pitch": 45.64407917757119,
+     "yaw": -62.48438707366755,
+     "roll": -147.0796160894093
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z6_ValleyLowerSouth",
+   "world_transform": {
+    "location": {
+     "x": 20203.421362229023,
+     "y": 15230.721525273508,
+     "z": 25468.74333530805
+    },
+    "rotation": {
+     "pitch": 3.2933697612502004,
+     "yaw": 130.33217376311723,
+     "roll": 135.2845144950376
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z6_ValleyUpperNorthEast",
+   "world_transform": {
+    "location": {
+     "x": 11054.756480247097,
+     "y": 15119.919417423327,
+     "z": 27169.47544530553
+    },
+    "rotation": {
+     "pitch": -21.19880072435202,
+     "yaw": -1.935841209945751,
+     "roll": -152.01541076461478
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z6_BossSouthWall",
+   "world_transform": {
+    "location": {
+     "x": 13942.841027949946,
+     "y": 9406.216044304037,
+     "z": 28740.394635376753
+    },
+    "rotation": {
+     "pitch": 27.697286297120115,
+     "yaw": -172.22391676066184,
+     "roll": 167.10177007374506
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z6_BossNorthShoulder",
+   "world_transform": {
+    "location": {
+     "x": 8428.376586770404,
+     "y": 12678.297947725092,
+     "z": 27690.85100281842
+    },
+    "rotation": {
+     "pitch": 16.97582580918488,
+     "yaw": -67.34305782306505,
+     "roll": -156.37872426208006
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z7_SouthwestEntryShoulder",
+   "world_transform": {
+    "location": {
+     "x": 30550.51950023465,
+     "y": 13179.196263203428,
+     "z": 3901.8641854563903
+    },
+    "rotation": {
+     "pitch": 72.4284612555134,
+     "yaw": 135.07058964327035,
+     "roll": 112.69381349150446
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z7_NorthwestEntryShoulder",
+   "world_transform": {
+    "location": {
+     "x": 13827.536078361138,
+     "y": 28244.7378046486,
+     "z": 3990.492745047307
+    },
+    "rotation": {
+     "pitch": 41.614011646320584,
+     "yaw": -32.556490252409404,
+     "roll": -99.69334299650603
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z7_SoutheastEntryShoulder",
+   "world_transform": {
+    "location": {
+     "x": 20824.1053037081,
+     "y": 4411.863940879326,
+     "z": 25867.781019392536
+    },
+    "rotation": {
+     "pitch": -34.97090524171194,
+     "yaw": -19.82703105148642,
+     "roll": -160.44381742246475
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "ASM_Z7_NortheastEntryShoulder",
+   "world_transform": {
+    "location": {
+     "x": 3905.922062892844,
+     "y": 20365.161355148295,
+     "z": 24109.00196643116
+    },
+    "rotation": {
+     "pitch": -36.19637221865941,
+     "yaw": 110.84250021746116,
+     "roll": 159.96161667309656
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "BODY_ScanBody_35430_V007",
+   "world_transform": {
+    "location": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "rotation": {
+     "pitch": 0,
+     "yaw": 0,
+     "roll": 0
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "BODY_ScanBody_116462_V007",
+   "world_transform": {
+    "location": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "rotation": {
+     "pitch": 0,
+     "yaw": 0,
+     "roll": 0
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "BODY_ScanBody_116490_V007",
+   "world_transform": {
+    "location": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "rotation": {
+     "pitch": 0,
+     "yaw": 0,
+     "roll": 0
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "BODY_UnderSurfaceBody_V007",
+   "world_transform": {
+    "location": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "rotation": {
+     "pitch": 0,
+     "yaw": 0,
+     "roll": 0
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  },
+  {
+   "label": "CONN_StairRamp3_V011",
+   "world_transform": {
+    "location": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "rotation": {
+     "pitch": 0,
+     "yaw": 0,
+     "roll": 0
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   }
+  }
+ ],
+ "trials": [
+  {
+   "label": "BODY_ScanBody_35430_V007",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/BodyCaps_V005/SM_Ridge_U5a_FacetedBody_35430_V005",
+   "triangles": 35504,
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+  },
+  {
+   "label": "BODY_ScanBody_116462_V007",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/BodyCaps_V005/SM_Ridge_U5a_FacetedBody_116462_V005",
+   "triangles": 33094,
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+  },
+  {
+   "label": "BODY_ScanBody_116490_V007",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/BodyCaps_V005/SM_Ridge_U5a_FacetedBody_116490_V005",
+   "triangles": 69208,
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+  },
+  {
+   "label": "BODY_UnderSurfaceBody_V007",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/BodyCaps_V005/SM_Ridge_U5a_UnderFacetedBody_V005",
+   "triangles": 8000,
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+  },
+  {
+   "label": "CONN_StairRamp3_V011",
+   "mesh": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V005/ConnectionStone_V001/SM_Ridge_StairRamp3_Stone_V001",
+   "triangles": 6288,
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V003/MI_Ridge_U5a_Body_V001"
+  }
+ ],
+ "body_material_state": {
+  "material": {
+   "refPath": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001.MI_Ridge_U5a_CapRock_V001"
+  },
+  "textures": [
+   {
+    "ref": {
+     "refPath": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/CapTextures_V001/T_Ridge_CapNeutralNormal_V001.T_Ridge_CapNeutralNormal_V001"
+    },
+    "virtualTextureStreaming": true,
+    "compressionSettings": "TC_Normalmap",
+    "sRGB": false
+   },
+   {
+    "ref": {
+     "refPath": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/CapTextures_V001/T_Ridge_CapNeutralMask_V001.T_Ridge_CapNeutralMask_V001"
+    },
+    "virtualTextureStreaming": true,
+    "compressionSettings": "TC_Default",
+    "sRGB": true
+   }
+  ],
+  "parameters": {
+   "Unique_Normal": {
+    "refPath": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/CapTextures_V001/T_Ridge_CapNeutralNormal_V001.T_Ridge_CapNeutralNormal_V001"
+   },
+   "Unique_Mask": {
+    "refPath": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/CapTextures_V001/T_Ridge_CapNeutralMask_V001.T_Ridge_CapNeutralMask_V001"
+   },
+   "Unique AO Amount": 0
+  }
+ },
+ "kept_connection": {
+  "name": "SM_Ridge_StairRamp3_Stone_V001",
+  "file": "Saved/Profiling/Graphics/Phase01/U5a_4_V001/Geometry_V001/SM_Ridge_StairRamp3_Stone_V001.fbx",
+  "sha256": "a0a3aa4c0e6bb47e5b2cb384bb873a28d5956ef9e01e0acb09513572febf9334",
+  "vertices": 3146,
+  "triangles": 6288,
+  "bounds_cm": [
+   [
+    15773.187255859375,
+    13993.620300292969,
+    8355.406951904297
+   ],
+   [
+    20192.234802246094,
+    21083.041381835938,
+    11444.610595703125
+   ]
+  ],
+  "topology": {
+   "boundary_edges": 0,
+   "nonmanifold_edges": 0,
+   "vertices": 3146,
+   "faces": 6288,
+   "signed_volume_m3": 1012.3359682145358
+  },
+  "role": "closed stone form visual NoCollision; walking surface held",
+  "material_slots": [
+   "RidgeWalk_Surface",
+   "RidgeStone_Sides"
+  ],
+  "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V005/ConnectionStone_V001/SM_Ridge_StairRamp3_Stone_V001",
+  "actor_label": "CONN_StairRamp3_V011",
+  "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V003/MI_Ridge_U5a_Body_V001",
+  "material_assignments": {
+   "RidgeWalk_Surface": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V003/MI_Ridge_U5a_Body_V001",
+   "RidgeStone_Sides": "/Game/SmartAssets/AssetMaterials/MI_Cliff_01"
+  }
+ },
+ "preservation_pass": true,
+ "collision_or_PIE_pass": false,
+ "remaining_review": {
+  "self_intersection_candidate_pairs": [
+   12,
+   16,
+   311,
+   0
+  ],
+  "total_self_intersection_candidates": 339,
+  "legacy_StairRamp3_samples": 31,
+  "R01_boundary_point": "near boundary; not a complete hole closure guarantee",
+  "cap_surface_and_material_junction": "visual baseline retained; geometric/physical validity still requires later work"
+ },
+ "next_unit": {
+  "unit": "U5a-6",
+  "target_map_version": "U5aBody_V007",
+  "started": false,
+  "scope": "classify339 candidate pairs read-only; distinguish coplanar/contact/degenerate cases from actual crossings; minimal fixes only in new copy; preserve V006 accepted appearance and route",
+  "previous_accepted": "V006 map/Generation_V006/Acceptance_V006/26poses; do not copy previous_trial V005 production history as the new baseline",
+  "preservation_list": "deduplicate FrozenInputs_V006.files and Saved AcceptedHandoffHashes_V001 rows"
+ },
+ "local_only": "Content/Saved remain ignored local assets and evidence; no generators rerun or forced binary staging"
+}

@@ -2,7 +2,7 @@
 
 > 상태: 활성
 > 역할: 이 작업의 진입점과 문서 라우팅
-> 마지막 구조 갱신: 2026-11-16
+> 마지막 구조 갱신: 2026-11-26
 
 ## 1. 목적
 
@@ -43,7 +43,13 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 | Phase 1 Ridge 대표 구역·Electric Dreams 팔레트·장식 금지 규칙 | [1-B0 구역·팔레트](phases/Phase01_RidgeZonePalette.md) |
 | Phase 1-B 반입·재생성·좌표/재질·소수 배치/바람·샘플 비용/반복 원인/회전·변형 반입·WIP 베이크/런타임·접촉 검증·대표 구역 PCG·바위 Blocker 승격·밀도·동선 등급별 완화와 새 세션 인계 | [Current](Current.md), [환경 반입 실행서](phases/Phase01_EnvironmentImport.md) §7~33, [현재 팔레트](phases/Phase01_RidgeZonePalette.md) §10 |
 | Ridge 지표 전체 Electric Dreams 교체·현재 큰 배치 보존·전체 큰 배치 초벌→닫힌 몸체와 ED 외피→파생 충돌/PIE→세부 마감(GX-034) | [Phase 1-BR](phases/Phase01_RidgeReferencePatch.md) §2.1·U5a/U5b |
-| U4-0~10 완료·사용자 채택 · V010 동결 · U4-11 남동·북동 외곽은 새 세션에서 시작(미착수) | [현재 인수인계](analysis/Phase01_U4LayoutHandoff.md) · 새 세션 프롬프트 포함 |
+| U4 V011 큰 배치 채택·외곽 장식 종료와 현재 몸체 시험 인계 | [현재 인수인계](analysis/Phase01_U4LayoutHandoff.md) · 내부 몸체 시험 입력/근거 포함 |
+| U5a-1 첫 몸체 생성·V002 검토본·경사로 REVIEW·UV 경고 보정과 다음 연결 검토 | [몸체 시험 결과](analysis/Phase01_U5aBodyTrial.md) |
+| U5a-2 V003 경계 보정·실제 보존/16비교 완료(이전 시험본) | [경계 보정 결과](analysis/Phase01_U5aBodyRefinement.md) |
+| U5a-3 V004 동선 유지 사용자 승인·실제 보존/22비교 완료 | [연결 초안 결과](analysis/Phase01_U5aConnectionTrial.md) |
+| U5a-4 V005 석재 외형·26비교·실제 보존/858정점 PASS·유지 사용자 승인 | [석재 외형 결과](analysis/Phase01_U5aStoneRefinement.md) |
+| U5a-5 V006 몸체 캡/경계/재질·26비교·실제 보존/73,111정점 PASS·사용자 유지 | [몸체 보정 결과](analysis/Phase01_U5aBodyCaps.md) |
+| V006 시각 기준 동결·다음 U5a-6/V007 미착수·새 세션 시작 프롬프트 | [현재 인수인계](analysis/Phase01_U5aBodyHandoff.md) · [채택 저작 기준](../../Scripts/Profiling/Graphics/ClosedBodyTrial_V001/Handoff_V006.md) |
 | V010 PIE 제보 수집 종료·풀/밀도 복구·GX-034 전체 큰 배치 시작 당시의 이전 인계 | [이전 전체 큰 배치 인수인계](analysis/Phase01_LargeLayoutHandoff.md) |
 | U4-0 대조·V037 보존 목록/복구·비교8시점·Z1~Z7 순서·U4-1~3 배치와 최종 검사 경과 | [U4 큰 배치 계획](analysis/Phase01_U4LargeLayoutPlan.md) |
 | 네 개선 완료 뒤 통합 검증·재측정·Phase0 마무리 | [개선 후 재개 절차](phases/Phase00_PostOptimization.md) |

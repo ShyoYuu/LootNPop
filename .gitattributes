@@ -7,3 +7,29 @@
 # U4-4~10 채택 저작본은 기존 CRLF 원시 파일 해시를 체크아웃 뒤에도 보존한다.
 /Scripts/Profiling/Graphics/LargeLayout_V00[4-9]/* text eol=crlf
 /Scripts/Profiling/Graphics/LargeLayout_V010/* text eol=crlf
+
+# U4-11 동결 저작본의 실제 CRLF 원시 파일 해시를 보존한다.
+/Scripts/Profiling/Graphics/LargeLayout_V011/* text eol=crlf
+
+# 내부 몸체 시험의 JSON/README는 실제 CRLF, 도구는 각 원시 줄바꿈을 보존한다.
+/Scripts/Profiling/Graphics/ClosedBodyTrial_V001/* text eol=crlf
+/Scripts/Profiling/Graphics/RidgeClosedBodyTrial.py text eol=lf
+/Scripts/Blender/BuildRidgeClosedBodyTrial.py text eol=lf
+/Scripts/Blender/BuildRidgeConnectionTrial.py text eol=lf
+/Scripts/Blender/RefineRidgeBodyTrial.py text eol=crlf
+/Scripts/Blender/RefineRidgeConnectionStone.py text eol=lf
+/Scripts/Blender/RefineRidgeBodyCaps.py text eol=lf
+/Scripts/Profiling/Graphics/PrepareRidgeBodyRefinement.py text eol=lf
+/Scripts/Profiling/Graphics/PrepareRidgeConnectionTrial.py text eol=lf
+/Scripts/Profiling/Graphics/PrepareRidgeStoneRefinement.py text eol=lf
+/Scripts/Profiling/Graphics/PrepareRidgeBodyCaps.py text eol=lf
+/Scripts/Profiling/Graphics/RidgeStoneRefinement.py text eol=lf
+/Scripts/Profiling/Graphics/RidgeBodyCapRefinement.py text eol=lf
+
+# 기존 동결 입력도 체크아웃 뒤 같은 원시 바이트를 유지한다.
+/Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py text eol=lf
+/Scripts/Profiling/Graphics/CullRidgeZ1Instances.py text eol=lf
+/Scripts/Profiling/Graphics/InspectRidgeLargeLayout.py text eol=lf
+/Scripts/RidgeEDBaseSpec.py text eol=lf
+# 이 스펙은 채택 당시 CRLF/LF 혼합 원시 해시이므로 정규화하지 않는다.
+/Scripts/RidgeZ1CompositionSpec.py -text whitespace=cr-at-eol

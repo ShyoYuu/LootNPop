@@ -1,0 +1,805 @@
+{
+ "schema": 1,
+ "unit": "U5a-1",
+ "status": "review_pending_route_and_visual_adoption",
+ "input_config": "Scripts/Profiling/Graphics/ClosedBodyTrial_V001/BodyTrial.json",
+ "input_config_sha256": "64e2e1219cefb25abb143dba2c2a23fcb92fc2ea2185b5e22d35016b208ddb48",
+ "target_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V002/LVI_Ridge_EDTerrain_U5aBody_V002",
+ "evidence_folder": "Saved/Profiling/Graphics/Phase01/U5a_1_V002",
+ "asset_folder": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V002/TrialMeshes_V006",
+ "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifSurface_V003/MI_Ridge_Z1_MassifSurface",
+ "outputs": [
+  {
+   "name": "SM_Ridge_U5a_ScanBody_35430_V006",
+   "file": "Saved/Profiling/Graphics/Phase01/U5aBody_V006/SM_Ridge_U5a_ScanBody_35430_V006.fbx",
+   "sha256": "caa285158c3896914020bdc8a910efa19cf82b0489faca0511b61a32bf4e0159",
+   "vertices": 4786,
+   "triangles": 9568,
+   "bounds_cm": [
+    [
+     19606.092834472656,
+     13502.18505859375,
+     11278.055572509766
+    ],
+    [
+     21437.066650390625,
+     15282.424926757812,
+     13407.699584960938
+    ]
+   ],
+   "topology": {
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "vertices": 4786,
+    "faces": 9568,
+    "signed_volume_m3": 804.2214588916305
+   },
+   "role": "trial_visual_NoCollision; common closed body candidate, collision not yet derived",
+   "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V002/TrialMeshes_V006/SM_Ridge_U5a_ScanBody_35430_V006",
+   "actor_label": "BODY_ScanBody_35430_V006",
+   "material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_01"
+  },
+  {
+   "name": "SM_Ridge_U5a_ScanBody_116462_V006",
+   "file": "Saved/Profiling/Graphics/Phase01/U5aBody_V006/SM_Ridge_U5a_ScanBody_116462_V006.fbx",
+   "sha256": "81111d0dc9769e08af5da4effa91ac22f1843fe6a8d5c43eb290429439657f87",
+   "vertices": 4786,
+   "triangles": 9568,
+   "bounds_cm": [
+    [
+     16749.85809326172,
+     17537.149047851562,
+     9808.068084716797
+    ],
+    [
+     18820.193481445312,
+     19080.7861328125,
+     11613.008117675781
+    ]
+   ],
+   "topology": {
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "vertices": 4786,
+    "faces": 9568,
+    "signed_volume_m3": 804.2235362183814
+   },
+   "role": "trial_visual_NoCollision; common closed body candidate, collision not yet derived",
+   "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V002/TrialMeshes_V006/SM_Ridge_U5a_ScanBody_116462_V006",
+   "actor_label": "BODY_ScanBody_116462_V006",
+   "material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_01"
+  },
+  {
+   "name": "SM_Ridge_U5a_ScanBody_116490_V006",
+   "file": "Saved/Profiling/Graphics/Phase01/U5aBody_V006/SM_Ridge_U5a_ScanBody_116490_V006.fbx",
+   "sha256": "377bf7696166f7e80e001c211215e4551faaada057eda7655e6b09e387feb598",
+   "vertices": 34606,
+   "triangles": 69208,
+   "bounds_cm": [
+    [
+     17498.646545410156,
+     17243.12286376953,
+     9562.865447998047
+    ],
+    [
+     18756.459045410156,
+     18527.459716796875,
+     10632.271575927734
+    ]
+   ],
+   "topology": {
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "vertices": 34606,
+    "faces": 34604,
+    "signed_volume_m3": 125.29873926579967
+   },
+   "role": "trial_visual_NoCollision; common closed body candidate, collision not yet derived",
+   "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V002/TrialMeshes_V006/SM_Ridge_U5a_ScanBody_116490_V006",
+   "actor_label": "BODY_ScanBody_116490_V006",
+   "material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_02"
+  },
+  {
+   "name": "SM_Ridge_U5a_UnderSurfaceBody_V006",
+   "file": "Saved/Profiling/Graphics/Phase01/U5aBody_V006/SM_Ridge_U5a_UnderSurfaceBody_V006.fbx",
+   "sha256": "4b66abe922162ea7bdc7276ee6be4284173623dae3fa96648c29b7bfb00ddd09",
+   "vertices": 4002,
+   "triangles": 8000,
+   "bounds_cm": [
+    [
+     17724.742126464844,
+     17826.37481689453,
+     9690.878295898438
+    ],
+    [
+     19371.475219726562,
+     20767.579650878906,
+     10967.390441894531
+    ]
+   ],
+   "topology": {
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "vertices": 4002,
+    "faces": 8000,
+    "signed_volume_m3": 564.253670649546
+   },
+   "role": "trial_visual_NoCollision; common closed body candidate, collision not yet derived",
+   "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V002/TrialMeshes_V006/SM_Ridge_U5a_UnderSurfaceBody_V006",
+   "actor_label": "BODY_UnderSurfaceBody_V006",
+   "material": "/Game/SmartAssets/AssetMaterials/MI_Cliff_01"
+  }
+ ],
+ "build_report": "Saved/Profiling/Graphics/Phase01/U5aBody_V006/Build.json",
+ "build_report_sha256": "32558f8c4dc1cec43e4434e26185a0186b5ff49a0eebe270949427332d74bfb6",
+ "geometry_check": "Saved/Profiling/Graphics/Phase01/U5aBody_V006/GeometryCheck.json",
+ "geometry_check_sha256": "d21d15a973595f01e0351061c6e5b4fab47b11ad57c36cd1692fb99b33f935b7",
+ "preservation_files": [
+  {
+   "path": "Content/LNPBake/CloseRange/CR_Ditch.umap",
+   "sha256": "ec7480467574c32651a42d7cb570cf12ea059f2e7fb0b6ac377b04708514e7ec"
+  },
+  {
+   "path": "Content/LNPBake/CloseRange/CR_Ground.umap",
+   "sha256": "69a686442781167ab3c4d86f421be1979f5a795e1eb8633e3affeb87fed2559c"
+  },
+  {
+   "path": "Content/LNPBake/CloseRange/CR_LargeAssembly.umap",
+   "sha256": "d03210da1b05a1e5f9210ca38f313e103e5cbcbbc3312ddb35b37aad1517f6f7"
+  },
+  {
+   "path": "Content/LNPBake/CloseRange/CR_Props.umap",
+   "sha256": "4f247638cd5a7982a1b2382ee1bc7836874634efecd7d3dc6c8bb2ad33b9b4a9"
+  },
+  {
+   "path": "Content/LNPBake/CloseRange/CR_SmallAssembly.umap",
+   "sha256": "4b26dc0bb10ee90005d908645e947a11ae5264d61ac52bd9d2afab8af9050448"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/SM_Ridge_00_V012_PreservedRocks_Floor.uasset",
+   "sha256": "9d158193f8d529ef08c9cfcac57782234571937daf56832d7197607c21051d27"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/SM_Ridge_00_V012_PreservedRocks_Shell.uasset",
+   "sha256": "f16b8eeeb7ac099e4145c5de7d80cd5a594d9e7340b7521cd9747a20837d3619"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/LVI_Ridge_EDTerrain_U4Layout_V001.umap",
+   "sha256": "a42db5c2c9a7cdd40ced343887c88140eef7c54fe552bfd7ef08344b8f24331d"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/Z2Assembly_V001/PL_Ridge_Z2_LowerBank_V001.umap",
+   "sha256": "ec2dec0f2026294ded6ef429400a03791d499123cdfe847424e8ce07c72ae426"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/LVI_Ridge_EDTerrain_U4Layout_V002.umap",
+   "sha256": "4581d48afd8c89085bcc5fc96c782b5cd1589de9db25fd9c0f2efd753bff04f5"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/Z2Assembly_V002/PL_Ridge_Z2_BridgeSouth_V002.umap",
+   "sha256": "77b8b4bf521030547383a037b460bde0a8748add8db799715d8639715248b88c"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/Z2Assembly_V002/PL_Ridge_Z2_UpperShoulder_V002.umap",
+   "sha256": "4aa42b802ea5e7f9d6989ea6e70acde5fc9f5e84c70d8a45d6d8e159b0cb858a"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/LVI_Ridge_EDTerrain_U4Layout_V003.umap",
+   "sha256": "5138ac37bc8e5ddc6102d6d24971edbce1483ea623d6a7aa8cb97b29f1171609"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/Z4Assembly_V003/PL_Ridge_Z4_EastCrown_V003.umap",
+   "sha256": "ac75b235bac6caa01f1a3685affbee89d561e8cca7f3f428e94400162b5106c0"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/Z4Assembly_V003/PL_Ridge_Z4_NorthEastWall_V003.umap",
+   "sha256": "a9d9baadca4c7564adec7732852a4f6bcd562a4d4b9524db9378755f5193197b"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/LVI_Ridge_EDTerrain_U4Layout_V004.umap",
+   "sha256": "a0fcf41efff7fc3a90ea9191ca712c3bb0de8395942e50523f7f8b466a132508"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_RampToe_V004.umap",
+   "sha256": "843505ca367d4c46b58b90a48746eb559970fdbad7938719265a0ce18ab3ab01"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_SouthWall_V004.umap",
+   "sha256": "329d413744a52084df6036e2efe98c30c01708daec570b0210d501abb302df84"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/LVI_Ridge_EDTerrain_U4Layout_V005.umap",
+   "sha256": "37e2e6609f8f7895b9a87a74bc6c09228854448147ffb03e11dbcd9cb3281dac"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_NorthRear_V005.umap",
+   "sha256": "85df87f95a641badf85873df678f571f5a59790eb7473c1a3eeb16e9bc06c845"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_SaddleShoulder_V005.umap",
+   "sha256": "02e17f4b30b50e9b8982d63acb0ea3b1a6725dd2bb8fdd34fe298608b110cb16"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/LVI_Ridge_EDTerrain_U4Layout_V006.umap",
+   "sha256": "95e444854fa676a216a5bdc0f6d9ce69672a20df43ebabe07e66e5ae082ba81e"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestFoot_V006.umap",
+   "sha256": "5c94e89b7fd495be90449a5c0f75af936911f471fb058c076cba2f451c1e7da6"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestUpper_V006.umap",
+   "sha256": "9b55b8daf28a344f78415ec8232ff9f0419fff9ecf7203003d829489169cce5e"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V007/LVI_Ridge_EDTerrain_U4Layout_V007.umap",
+   "sha256": "cb77fd84b048fe6c8ef4b4fea161d9ccce8c6893e2be008c585c8cd512f79cf2"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V007/Z5Assembly_V007/PL_Ridge_Z5_EastRim_V007.umap",
+   "sha256": "36a4f133eefe78a5088bebc9197e38f8c269553722cb78336b60a17504ec4463"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V007/Z5Assembly_V007/PL_Ridge_Z5_NorthRim_V007.umap",
+   "sha256": "70e860785d47b0e402d604a30ba0abf2d4385d4d6495eb96bedaa5e760e91035"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V008/LVI_Ridge_EDTerrain_U4Layout_V008.umap",
+   "sha256": "f07a9630fb9f1c98dd31fa6da87f79fbc21defbfa7c89dd67d3f16c3c88a5e5d"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V008/Z6Assembly_V008/PL_Ridge_Z6_LowerSouth_V008.umap",
+   "sha256": "ef6964a911ff2435aa72629f7a227fb85a9c47d9222fc2ac3aef4460a123b392"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V008/Z6Assembly_V008/PL_Ridge_Z6_UpperNorthEast_V008.umap",
+   "sha256": "5c2f8ab0e625208e9c48716b9c04a0caf1f29fe76a6c7ab4e7d67cc7a42b23a1"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V009/LVI_Ridge_EDTerrain_U4Layout_V009.umap",
+   "sha256": "d7b00c5179c7523cee6d1160f7335ff8b44bc0988158f054cd5993965fbfa422"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V009/Z6Assembly_V009/PL_Ridge_Z6_BossNorth_V009.umap",
+   "sha256": "b1d96d519e880e3dba970cdd2e8326c472e3a38620ca15cf006ddd47437a2d6e"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V009/Z6Assembly_V009/PL_Ridge_Z6_BossSouth_V009.umap",
+   "sha256": "797a04004d87980109e6ed6dda2bad206c567128d65c5846778b7a08d6780d09"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V010/LVI_Ridge_EDTerrain_U4Layout_V010.umap",
+   "sha256": "1b120b2ae6491c5cc588e2b28fcc726d9e26ca1343cd1e851ffdad539e659f33"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V010/Z7Assembly_V010/PL_Ridge_Z7_NorthwestEntry_V010.umap",
+   "sha256": "bd1b7a47e7f55fa55def5bfeace3fbb5aad6437e0fe9dbdb6e3d9da480e2a1d9"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V010/Z7Assembly_V010/PL_Ridge_Z7_SouthwestEntry_V010.umap",
+   "sha256": "2edcb3fbe9e373ed73eb8a42b2c3a2fd354d32d3a4f446711a344db3bc7b831e"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V011/LVI_Ridge_EDTerrain_U4Layout_V011.umap",
+   "sha256": "02312c59438585f0dc8f25d3ef32184d6b61f8d0c6addf6e5113f2837bc1f49c"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V011/Z7Assembly_V011/PL_Ridge_Z7_NortheastEntry_V011.umap",
+   "sha256": "8ef2915ad2e52f1f239519234b9fd297437e3638f4b5b62550f8c9d481ae991d"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V011/Z7Assembly_V011/PL_Ridge_Z7_SoutheastEntry_V011.umap",
+   "sha256": "b3f8fbf1d8115884cebacc758c331ebf4e48c3f799ec77c1ec7fcaaa91d9f15d"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Bake_V010/LVI_Ridge_EDTerrain_Z1Bake_V010.umap",
+   "sha256": "64fa32be45c0007545f291189dc69275dac0ea7566acca013d61b4fe61cfa6bd"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Collision_V003/SM_Ridge_EDTerrain_V001_Z1_Floor.uasset",
+   "sha256": "07848191a831fc96670b4956de0ce9fb0873185081e63f0b8916dbdea357b3f5"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Collision_V003/SM_Ridge_EDTerrain_V001_Z1_Shell.uasset",
+   "sha256": "c8fee07e97c38fd471c2fe157c7a797cf69f36d8d5f6dcabe0f7056eaa26a15e"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_CanyonWestBank.umap",
+   "sha256": "dee662be89530937d34a2bf9021148ff7ad41ef25f4dadd92f5e33316cd054dd"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_CrownCenter.umap",
+   "sha256": "429f88d97685d4814c0f7a2c329df3bb41e41e0e59b8b6da7079f4f88a5f9643"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_CrownNorth.umap",
+   "sha256": "41c9e06fb790a9a6aac6e4fbcc7fa80373132440f1625ade80b8f0cb35bcd510"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_CrownSouth.umap",
+   "sha256": "3e6324d6ac842e712687fef19696577b5b17bc5fe49cb097aa495cd7633e546d"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_NorthRimWall.umap",
+   "sha256": "02214bf05761868671ee5bc33769d58c33baf27d3a15549395b8e948b7328182"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_PlateauNorthStep.umap",
+   "sha256": "32ed2ad450fb5d78f8d403e039db851be5985f7dda4075d9c4ff848976dcec38"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_PlateauSouthCrown.umap",
+   "sha256": "e3f3729e889a1e4e257e1cfef9177f3dc8b3e88b3922e8ff1318bb9ef85639fd"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_WallCenter.umap",
+   "sha256": "03ec8ec454a6f7e7c0cb0908806b58d338b3100299e0a2433c6380506a9f5bbc"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_WallNorth.umap",
+   "sha256": "55a2308dcf840a99a535640e1743520bd30ec2ea622e13d93db67d9a8465ec8c"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/ASM_Z1_WallSouth.umap",
+   "sha256": "b9dc2bd2e57d456a2b943f537b281ca86bc704619715805908b5aab1ac460f2a"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_Drape.umap",
+   "sha256": "154e774363438f9ae22051bc0aff00ff9994f91dbfbc379460542f278059e2c6"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_Flat.umap",
+   "sha256": "02d582c477e0373dc51a1c1ba52bf552706118d4898c66600ec3afa74ad2ce25"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_LargeAssembly.umap",
+   "sha256": "cc9bfe27e9ed161990959bd6f68c907190b0443c55c72abe1255a31e26009872"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_RimBand.umap",
+   "sha256": "cdc3d67f0f606e89d55fbd7327dabf965528e90a1ecb57a5c6d7d51f134f4860"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Cull_V001/CR_Z1_RimBandNorth.umap",
+   "sha256": "439726157509a8beb811528a2eebe315f50a7e5531b68bbef7ed4669453a15e1"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifCover_V012/SM_Octant_Ridge_00_V012_Z1MassifCover_V012_R30000.uasset",
+   "sha256": "e529f9ce4a5e78f4c471b001153a352dc34f36401eb077290e141dbaaa78f2b6"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifCover_V013/SM_Octant_Ridge_00_V012_Z1MassifCover_V013_R30000.uasset",
+   "sha256": "6b9fffccedc622f77a7543eb08c3073eae2bd71b8ad4afca62babe4e15918bfb"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifDrape_V006/Z1MassifDrape_V006.umap",
+   "sha256": "91d0929fc7137da7df2cd7db776495e92999582beadcaceda04777f4b9822734"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifFlat_V001/Z1MassifFlat_V001.umap",
+   "sha256": "c95ca11760ada21bce3373e275d7a68bb14465c427c87faadec4df5c4461c20b"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifSurface_V003/MI_Ridge_Z1_MassifSurface.uasset",
+   "sha256": "4bbf35471da01b62920f2ebf26017a0b3ddbd07e5d9b98d50bae892a768c70ae"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V005/Z1RimBand_V005.umap",
+   "sha256": "83c263d30338b7db2b8b838b976b9a34aeb822b338dd02a4f3e0fbc9fdfef270"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1RimBand_V009/Z1RimBand_V009.umap",
+   "sha256": "79c1118afc95693879786acefd6d99ed4e6d4db57283c73b4acb46b74e952fb3"
+  },
+  {
+   "path": "Content/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03.uasset",
+   "sha256": "3c8852a5eee8234a3ab0574ebfdcc10122b06d4fd365959b70520fec3208906a"
+  },
+  {
+   "path": "Content/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01b.umap",
+   "sha256": "bbf7ca73aa17eb1737b742e99642087e19d8a7a7767b8c84903c6c64891e4216"
+  },
+  {
+   "path": "Content/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01c.umap",
+   "sha256": "780d7bf3b9d56d79ca22ab4af40019d3935695b3d4f91231b3d0ec59a8adebb9"
+  },
+  {
+   "path": "Content/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02b.umap",
+   "sha256": "5b07332ed914b7fb2af86fa670fbf07df199637d9aad4dfcf76c1054a7692c6f"
+  },
+  {
+   "path": "Content/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02c.umap",
+   "sha256": "8aaeafdb74c82a62d93dbafde4e678bfd1ba2fc7277d0eaf492f6bb5de8b3004"
+  },
+  {
+   "path": "Content/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02d.umap",
+   "sha256": "70bbe385755a8f18ddeabd5719fd95f523ce6cbe995e54a49ffc057efbe2cded"
+  },
+  {
+   "path": "Content/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02e.umap",
+   "sha256": "9275c05bf693ba7ae274baec88b2a118a1867f952fe1628d006fb8876bd0560f"
+  },
+  {
+   "path": "Content/SmartAssets/AssetMaterials/MI_Cliff_01.uasset",
+   "sha256": "8b5cc00e3cfa0acf4b7cad0f9a14633985c911c1fcc3a90ffdc2bfd90a2efa1f"
+  },
+  {
+   "path": "Content/SmartAssets/AssetMaterials/MI_Cliff_02.uasset",
+   "sha256": "1493e049f07fb1c3114ccf61fcde3bc735c407764bc320630e3f1be010626388"
+  },
+  {
+   "path": "Content/SmartAssets/AssetMeshes/SM_Cliff_02.uasset",
+   "sha256": "c20008ee70a6c525f3e4aa43ce234964583cc0a8325e7ecb07552e77d041c617"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_0_V001/LiveSnapshot_20261124_164625_996859.json",
+   "sha256": "bd8e036414ba6297e1116098c2dd8e46fa127a8cf48ae0ae2c47ce16d76acb3e"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/CaptureMetadata_Before.json",
+   "sha256": "a8aebdcdb04a8e2c71d98ac074bd022381a48c07c5bfac2d40420bc076bdd2d8"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/CaptureMetadata_Draft.json",
+   "sha256": "e180f957dd10ae0111d4353d98024b55377895c00833217cbb2057937bd7f1fd"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/Comparison.html",
+   "sha256": "56000e153cffdfe54450b23d1b6dd35861d735344f33cd87f82bcd5360fb1794"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/ComparisonCameras.json",
+   "sha256": "b922e11e68ab6580e072118bd257241b1c5ed6cb8a1b4f2e9348b187ddcc587a"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/Export_20261125_021731_356481.json",
+   "sha256": "d9b60fa32a4a5182956922fa89ea750f40547de1affd12d7c39a1417f9ed487a"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/FinalValidation_V001.json",
+   "sha256": "ee0e53ed9c432293684f49fb88785b2f7ed081d0b1a35a333925b179001b0e8a"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/ReviewCameras.json",
+   "sha256": "eb5657aa55fd8a90fcb123e1c559e956ac722ebc48cd937683dc442ddf3b60c7"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/SelectionCamera.json",
+   "sha256": "ef7989a8dbd8b6a01e5bd8e1a8a8e39e3325f937c5d6727148ae9c90d2ff587a"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/U4_10_V010/Views_Draft/SelectedWestOuterOverview.png",
+   "sha256": "309704a78ba486a8673bf0b7e5ee22441c827177cdc9804262d393b868e337ec"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/BuildRidgeZ1AssemblyTest.py",
+   "sha256": "70b7af3017a26309b86c285d0574e0ef28f7a257adbc07f09fac5b90097d9c45"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/BuildRidgeZ1BakeLVI.py",
+   "sha256": "6c2b4727becb2c532ae75e1b8f6ae3417fecc3968c0bd3472374445b3ea470b3"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/CullRidgeZ1Instances.py",
+   "sha256": "28dcede788c661ecf555677a90614955ed071c3901cfec5a110767d959993f7e"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json",
+   "sha256": "bc0a5ac948bd2c69057f41294a1efc29ce9789c17eb89e7ac0756eff2f2ec5a0"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/ExportRidgeEDCollision.py",
+   "sha256": "cd803ada49221ce350b593925db992ce55eebc674af3164e17c30781a94fbe09"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/InspectRidgeLargeLayout.py",
+   "sha256": "f9e26dcb26f33961a92d71ce20a6239d045b02e2a9fe7739bf811c1e75b1bfed"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V001/EDTerrainLayout_Z2.json",
+   "sha256": "d629026998b3064852fb7accffe6c6f5a937852b135f32ee6a7f364be0ebebef"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V001/README.md",
+   "sha256": "ba849778f95277f813f753301badcdeb0efe80a5e621a6281d29417d00ba4a43"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V001/RidgeLayout.json",
+   "sha256": "d843cbb35e51682c99c876e00255480686c3adfa214c22edb41083d77ef8cfc3"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V002/EDTerrainLayout_Z2.json",
+   "sha256": "5c9eda122dd9b52a48ca2a540993ec8399533184786e9eeb68f34948e8ea9465"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V002/README.md",
+   "sha256": "bec1050e6bbd53e7159a4a5ad3f56ac31c018792915c8caec00655f4cf114cb7"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V002/RidgeLayout.json",
+   "sha256": "a1de31ba0df9802686d95356ba04526cd2a75ffb9dd4322796ec66cf5720b20a"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V003/EDTerrainLayout_Z2.json",
+   "sha256": "8b22ea58e1bb0cc314480d057f4c86589cdafdaf5b13034620c0c2bcf44f1158"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V003/EDTerrainLayout_Z4.json",
+   "sha256": "a310172b6c3906a9ca58272d3cc868048d4595caf05bea16b7a8622cf9a70447"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V003/README.md",
+   "sha256": "ace88a7b431cbafcc2b739059d00d5c471869ed7751071a234fbf259d860ba70"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V003/RidgeLayout.json",
+   "sha256": "dde3ffcc18aa6d7a53fee447288bf334a76658f5fbecbf58f8d2e872f5f00890"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V004/EDTerrainLayout_Z2.json",
+   "sha256": "2992b2101374c0a862846ed487d2b82cca2999aa1685f7437fabc9570d0b185d"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V004/EDTerrainLayout_Z4.json",
+   "sha256": "23eba7a7d018f83a2e5c6d83e640c5c4c9b4f40dd0a80f62e68880a6da7ddcd7"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V004/README.md",
+   "sha256": "72c2161fff90a97026bba0d40aa66e589de66a0e8d355bee57b51e2d392f7911"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V004/RidgeLayout.json",
+   "sha256": "157b7f5172c1335885ba8f58625d42de2d95d0f60a6a05bc1a96b084a8b0c62b"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z2.json",
+   "sha256": "52d5f4ae1a19c6fe119abf7709b73695589ab360cdc29aec471c17855ac3ee7f"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z3.json",
+   "sha256": "8d736f1cc9f5222e35fdc2193bebcb39bf800c05f570aa3c22ac93a0261b7334"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z4.json",
+   "sha256": "7a977903d83bd23c095ceef2eb61e22211cb18e61baacb3fcece3ede88d211d8"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/README.md",
+   "sha256": "3cefb04d89c61948e7a35d183c57e8b1e65307ea201648c46b0ed5b197a07097"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/RidgeLayout.json",
+   "sha256": "d80f2da3376b775dddf97f209c8305c45101bce2723ce0a88c309c569b708e84"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z2.json",
+   "sha256": "7bfd181b4541ff4f9bdbc946797705e3b99bcc0486444569ad5b5cf988c61fd9"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z3.json",
+   "sha256": "8553efe92029674fb5e9f4201925b139e31ce8107649e411ca04fb9ad0989672"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z4.json",
+   "sha256": "4d27de7f43243839189d3f5c76af9b3fcea7e81cdec56dbdb2ebea69299cf3ee"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/README.md",
+   "sha256": "edcbba8c98340e07ebb7c1d537813d8bbe38740add49c5eff841d37ff29195d7"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/RidgeLayout.json",
+   "sha256": "ef3ec3c4d5762cdf5d758f0ca60a09e96c81d54f6ed13c1868b19633b54e7207"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z2.json",
+   "sha256": "b44c3fa03d04b4e0f0f8a1c5545411fc4948edfa71627ec54d2b263aa53b1240"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z3.json",
+   "sha256": "2adfafd27a81a1d300aeb134e6a38ba3c93e358cc8c51bcada68f3be7949cd9a"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z4.json",
+   "sha256": "5e8fbc572a0cd27b211f4e804f8f9c9b5631ea2ceb2d80b3948803b593c84cab"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z5.json",
+   "sha256": "eeede4c17c64b97f6aec71e02016667e12e910308cb18fa3b68112e6de11a0c2"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/README.md",
+   "sha256": "8d9514702fc7f60863a739169269f21e26c8871effd354a8d32966554654f7fa"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/RidgeLayout.json",
+   "sha256": "9db09776e8d3fcd6813b5e0e93bd66e5affcc753084350a570a6ec347807d03e"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z2.json",
+   "sha256": "05d4546b29944b64c4022c1ad62be757240b1d8028d91629c14b69036a9ed15e"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z3.json",
+   "sha256": "7289e9d96d81e01dc3d33ab05cd8e5ddac910c3157d630a7b52efc8cffc3f271"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z4.json",
+   "sha256": "dc2743ac82957601e935c0776b906b0ece7be9d735460b358fe6b2672e5a000e"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z5.json",
+   "sha256": "3fbc4dd51ad5e6cd500efb084e80195cd70cc569a4c78c516428666afa98ab37"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z6.json",
+   "sha256": "33576217d4434179c8e4d154b4eca81d3ef9eb91f2fb4371dca09b717ec18e47"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/README.md",
+   "sha256": "063b7685665c50a65025d540540747b32287ff6af24e284a15f1069044c99c6c"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/RidgeLayout.json",
+   "sha256": "a19a30836b55ac073a8258289643e3316eaffcc573a5e0b72145183e30fb3c09"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z2.json",
+   "sha256": "f7a64ee35dbf8e56b3427abc21ffeaa41a600808b8b43a7c7f4234861d035089"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z3.json",
+   "sha256": "df56113d66d5e066e1ff2d42236f1b3107ef92af93ea7e347ab2cf34bdb2c8eb"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z4.json",
+   "sha256": "0f0b1307f1c5342df80bbbc48f06707b16f9d70073e5c515ae10b66a275e71eb"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z5.json",
+   "sha256": "6748002b71bcf60b8e12cc8805c764f9c6d1881089a12bfbbd0a1ff8616d58f8"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z6.json",
+   "sha256": "1fd92b9061a0db1b0879225d61e661b17ca446cc3d3f4f3165a9f3ecdc5529e0"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/README.md",
+   "sha256": "c72fedf421023607d9e3a7e58ac182fefe372266a2db257437db1844485d9924"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/RidgeLayout.json",
+   "sha256": "41803bb823f5e390fa678b0f253bf33890f7127ceabedbd04dfcb4447d69506d"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z2.json",
+   "sha256": "72181dd568561505cc929468d2aaf6656039e78876eb8bcd655e48ebb990f206"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z3.json",
+   "sha256": "91b11feded63513255a2a57e563221fb4f8832596b27e767b47833db476ca30a"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z4.json",
+   "sha256": "9029e45ffb2501d18c1b24791a71d2ab0a606bb3f31d300120c5b4ab30a3e65d"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z5.json",
+   "sha256": "61a0f23ee11e9b1162e03f4d8e3221dab3158c769ed83793eea88691d07828f1"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z6.json",
+   "sha256": "c2b21d5c4aa08b985e50db4e5a924b101905e0b0e6c316835c21b919698903ae"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z7.json",
+   "sha256": "79b83ac6cf44646ff99d18c60f6a3e94014be1021346aa203087c62b50a27b16"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/README.md",
+   "sha256": "2f1be244d637d50fa748f64deee34ef56264103e2ce9515c8b4eeda005f79473"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/RidgeLayout.json",
+   "sha256": "22574279c1a49f0534eddfbcab5ccf7888e8f26eab1573d88ee3c94898e48396"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z2.json",
+   "sha256": "51513dd1fc207f6f8885162b1dd6dc3017b2b5301be2457329db9a77d103de05"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z3.json",
+   "sha256": "27932f567cfdbf543e18c93c2af08e5626e49d9b138b5f0f28ab808db1572f56"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z4.json",
+   "sha256": "704af807ca0a79f128cd8d9afaad898a28e9789f1863379978c5e7a8f28ee1d9"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z5.json",
+   "sha256": "1449f738d3669ef687dd1e6e07d80ebf03cc69698860bb0d043756570d8725ca"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z6.json",
+   "sha256": "4e4021f9748c1a3a7ef16362f6f34825849399b44a195a3e54e76a27cd1cfa26"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z7.json",
+   "sha256": "7fec47371f1f1235b611e12ff2ae0058f06002b6f1068a70b17e510512a62d15"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/README.md",
+   "sha256": "46ed2500f3c190d8e85147c3469885de94640380f23e4e69b3c0fa32997c5c91"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/RidgeLayout.json",
+   "sha256": "e2918e923723d58864dfa3c2f6229761df32bcbac157f7c7d39cfe4b24d69f10"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/RidgeBlueprint_V001.json",
+   "sha256": "20ce02fcc604b9d8af9e596a22a6d26682f1274de5ff11931444d2db45a07f7e"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/RidgeLargeLayout.py",
+   "sha256": "116fde955137865993612fb0d941fcbdc0fe418723499e712e2df489b69e1532"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/RidgeZ1Layout.py",
+   "sha256": "59fcf7fceee30ce1fe03b8baed542652f0858a0fb940b1a0cca49a822870fc4c"
+  },
+  {
+   "path": "Scripts/RidgeEDBaseSpec.py",
+   "sha256": "ae02126f56e54da2f2c7e0b4ee539828ccfd8002808e51802ae57e6247f4e58a"
+  },
+  {
+   "path": "Scripts/RidgeOctantSpec.py",
+   "sha256": "db57a7b38d93beb9c310617eb71f2a8cfcf9f01c33c0be8e0b08321e166a24bf"
+  },
+  {
+   "path": "Scripts/RidgeZ1CompositionSpec.py",
+   "sha256": "b3c3f1cdda90b19c81b9d406f03faee0862abf3293550eefd9bf42bd56b9f3fa"
+  }
+ ],
+ "method": {
+  "open_skin": "Boundary cap; derived 10cm voxel repair only for nonmanifold Cliff02; inward5cm",
+  "under_surface": "25cm radial height grid to ground-50cm; 1m local gap closure; R03-R04 seeded350cm capsule; nearest overhead ceiling and shared void only",
+  "uv": "dominant-axis world4m projection",
+  "role": "common closed volume candidate; visual NoCollision for this review"
+ },
+ "review": {
+  "topology_pass": true,
+  "protected_pass": false,
+  "conflicts": [
+   {
+    "id": "StairRamp3CentralPassage",
+    "hits": 32
+   }
+  ],
+  "required_followup": "Resolve StairRamp3 with candidate correction or explicit alternative connection; no clearance shrink",
+  "accepted": false,
+  "collision_or_PIE_pass": false
+ },
+ "deferred": [
+  "body refinements",
+  "collision derivation",
+  "interior crust/support removal",
+  "bake",
+  "manual approach PIE",
+  "regional rollout"
+ ],
+ "validation": {
+  "report": "Saved/Profiling/Graphics/Phase01/U5a_1_V002/Verify_20261125_123804_405087.json",
+  "preservation_pass": true,
+  "topology_pass": true,
+  "protected_pass": false,
+  "protected_conflicts": [
+   {
+    "id": "StairRamp3CentralPassage",
+    "hits": 32
+   }
+  ],
+  "new_import_warning_count": 0,
+  "actual_trial_poses_exported": true,
+  "accepted": false
+ }
+}

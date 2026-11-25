@@ -1,0 +1,4472 @@
+{
+ "schema": 1,
+ "unit": "U5a-0",
+ "status": "inputs_frozen_generation_not_started",
+ "scope_decision": "GX-036",
+ "source_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V011/LVI_Ridge_EDTerrain_U4Layout_V011",
+ "source_level_sha256": "02312c59438585f0dc8f25d3ef32184d6b61f8d0c6addf6e5113f2837bc1f49c",
+ "accepted_report": "Saved/Profiling/Graphics/Phase01/U4_11_V011/Export_20261125_120226_919321.json",
+ "accepted_report_sha256": "1a844f2504261d0d5bda9d96c56189e1a00df0cd191543ff1db3bb5766c76a17",
+ "authoring_files": [
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z2.json",
+   "sha256": "51513dd1fc207f6f8885162b1dd6dc3017b2b5301be2457329db9a77d103de05"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z3.json",
+   "sha256": "27932f567cfdbf543e18c93c2af08e5626e49d9b138b5f0f28ab808db1572f56"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z4.json",
+   "sha256": "704af807ca0a79f128cd8d9afaad898a28e9789f1863379978c5e7a8f28ee1d9"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z5.json",
+   "sha256": "1449f738d3669ef687dd1e6e07d80ebf03cc69698860bb0d043756570d8725ca"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z6.json",
+   "sha256": "4e4021f9748c1a3a7ef16362f6f34825849399b44a195a3e54e76a27cd1cfa26"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/EDTerrainLayout_Z7.json",
+   "sha256": "7fec47371f1f1235b611e12ff2ae0058f06002b6f1068a70b17e510512a62d15"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/README.md",
+   "sha256": "46ed2500f3c190d8e85147c3469885de94640380f23e4e69b3c0fa32997c5c91"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V011/RidgeLayout.json",
+   "sha256": "e2918e923723d58864dfa3c2f6229761df32bcbac157f7c7d39cfe4b24d69f10"
+  }
+ ],
+ "previous_authoring_files": [
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V001/RidgeLayout.json",
+   "sha256": "d843cbb35e51682c99c876e00255480686c3adfa214c22edb41083d77ef8cfc3"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V001/EDTerrainLayout_Z2.json",
+   "sha256": "d629026998b3064852fb7accffe6c6f5a937852b135f32ee6a7f364be0ebebef"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V001/README.md",
+   "sha256": "ba849778f95277f813f753301badcdeb0efe80a5e621a6281d29417d00ba4a43"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/LVI_Ridge_EDTerrain_U4Layout_V001.umap",
+   "sha256": "a42db5c2c9a7cdd40ced343887c88140eef7c54fe552bfd7ef08344b8f24331d"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V002/RidgeLayout.json",
+   "sha256": "a1de31ba0df9802686d95356ba04526cd2a75ffb9dd4322796ec66cf5720b20a"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V002/EDTerrainLayout_Z2.json",
+   "sha256": "5c9eda122dd9b52a48ca2a540993ec8399533184786e9eeb68f34948e8ea9465"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V002/README.md",
+   "sha256": "bec1050e6bbd53e7159a4a5ad3f56ac31c018792915c8caec00655f4cf114cb7"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V003/EDTerrainLayout_Z2.json",
+   "sha256": "8b22ea58e1bb0cc314480d057f4c86589cdafdaf5b13034620c0c2bcf44f1158"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V003/EDTerrainLayout_Z4.json",
+   "sha256": "a310172b6c3906a9ca58272d3cc868048d4595caf05bea16b7a8622cf9a70447"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V003/README.md",
+   "sha256": "ace88a7b431cbafcc2b739059d00d5c471869ed7751071a234fbf259d860ba70"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V003/RidgeLayout.json",
+   "sha256": "dde3ffcc18aa6d7a53fee447288bf334a76658f5fbecbf58f8d2e872f5f00890"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V004/EDTerrainLayout_Z2.json",
+   "sha256": "2992b2101374c0a862846ed487d2b82cca2999aa1685f7437fabc9570d0b185d"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V004/EDTerrainLayout_Z4.json",
+   "sha256": "23eba7a7d018f83a2e5c6d83e640c5c4c9b4f40dd0a80f62e68880a6da7ddcd7"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V004/README.md",
+   "sha256": "72c2161fff90a97026bba0d40aa66e589de66a0e8d355bee57b51e2d392f7911"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V004/RidgeLayout.json",
+   "sha256": "157b7f5172c1335885ba8f58625d42de2d95d0f60a6a05bc1a96b084a8b0c62b"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z2.json",
+   "sha256": "52d5f4ae1a19c6fe119abf7709b73695589ab360cdc29aec471c17855ac3ee7f"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z3.json",
+   "sha256": "8d736f1cc9f5222e35fdc2193bebcb39bf800c05f570aa3c22ac93a0261b7334"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/EDTerrainLayout_Z4.json",
+   "sha256": "7a977903d83bd23c095ceef2eb61e22211cb18e61baacb3fcece3ede88d211d8"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/README.md",
+   "sha256": "3cefb04d89c61948e7a35d183c57e8b1e65307ea201648c46b0ed5b197a07097"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V005/RidgeLayout.json",
+   "sha256": "d80f2da3376b775dddf97f209c8305c45101bce2723ce0a88c309c569b708e84"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z2.json",
+   "sha256": "7bfd181b4541ff4f9bdbc946797705e3b99bcc0486444569ad5b5cf988c61fd9"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z3.json",
+   "sha256": "8553efe92029674fb5e9f4201925b139e31ce8107649e411ca04fb9ad0989672"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/EDTerrainLayout_Z4.json",
+   "sha256": "4d27de7f43243839189d3f5c76af9b3fcea7e81cdec56dbdb2ebea69299cf3ee"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/README.md",
+   "sha256": "edcbba8c98340e07ebb7c1d537813d8bbe38740add49c5eff841d37ff29195d7"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V006/RidgeLayout.json",
+   "sha256": "ef3ec3c4d5762cdf5d758f0ca60a09e96c81d54f6ed13c1868b19633b54e7207"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z2.json",
+   "sha256": "b44c3fa03d04b4e0f0f8a1c5545411fc4948edfa71627ec54d2b263aa53b1240"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z3.json",
+   "sha256": "2adfafd27a81a1d300aeb134e6a38ba3c93e358cc8c51bcada68f3be7949cd9a"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z4.json",
+   "sha256": "5e8fbc572a0cd27b211f4e804f8f9c9b5631ea2ceb2d80b3948803b593c84cab"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/EDTerrainLayout_Z5.json",
+   "sha256": "eeede4c17c64b97f6aec71e02016667e12e910308cb18fa3b68112e6de11a0c2"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/README.md",
+   "sha256": "8d9514702fc7f60863a739169269f21e26c8871effd354a8d32966554654f7fa"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V007/RidgeLayout.json",
+   "sha256": "9db09776e8d3fcd6813b5e0e93bd66e5affcc753084350a570a6ec347807d03e"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z2.json",
+   "sha256": "05d4546b29944b64c4022c1ad62be757240b1d8028d91629c14b69036a9ed15e"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z3.json",
+   "sha256": "7289e9d96d81e01dc3d33ab05cd8e5ddac910c3157d630a7b52efc8cffc3f271"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z4.json",
+   "sha256": "dc2743ac82957601e935c0776b906b0ece7be9d735460b358fe6b2672e5a000e"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z5.json",
+   "sha256": "3fbc4dd51ad5e6cd500efb084e80195cd70cc569a4c78c516428666afa98ab37"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/EDTerrainLayout_Z6.json",
+   "sha256": "33576217d4434179c8e4d154b4eca81d3ef9eb91f2fb4371dca09b717ec18e47"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/README.md",
+   "sha256": "063b7685665c50a65025d540540747b32287ff6af24e284a15f1069044c99c6c"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V008/RidgeLayout.json",
+   "sha256": "a19a30836b55ac073a8258289643e3316eaffcc573a5e0b72145183e30fb3c09"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z2.json",
+   "sha256": "f7a64ee35dbf8e56b3427abc21ffeaa41a600808b8b43a7c7f4234861d035089"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z3.json",
+   "sha256": "df56113d66d5e066e1ff2d42236f1b3107ef92af93ea7e347ab2cf34bdb2c8eb"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z4.json",
+   "sha256": "0f0b1307f1c5342df80bbbc48f06707b16f9d70073e5c515ae10b66a275e71eb"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z5.json",
+   "sha256": "6748002b71bcf60b8e12cc8805c764f9c6d1881089a12bfbbd0a1ff8616d58f8"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/EDTerrainLayout_Z6.json",
+   "sha256": "1fd92b9061a0db1b0879225d61e661b17ca446cc3d3f4f3165a9f3ecdc5529e0"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/README.md",
+   "sha256": "c72fedf421023607d9e3a7e58ac182fefe372266a2db257437db1844485d9924"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V009/RidgeLayout.json",
+   "sha256": "41803bb823f5e390fa678b0f253bf33890f7127ceabedbd04dfcb4447d69506d"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z2.json",
+   "sha256": "72181dd568561505cc929468d2aaf6656039e78876eb8bcd655e48ebb990f206"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z3.json",
+   "sha256": "91b11feded63513255a2a57e563221fb4f8832596b27e767b47833db476ca30a"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z4.json",
+   "sha256": "9029e45ffb2501d18c1b24791a71d2ab0a606bb3f31d300120c5b4ab30a3e65d"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z5.json",
+   "sha256": "61a0f23ee11e9b1162e03f4d8e3221dab3158c769ed83793eea88691d07828f1"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z6.json",
+   "sha256": "c2b21d5c4aa08b985e50db4e5a924b101905e0b0e6c316835c21b919698903ae"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/EDTerrainLayout_Z7.json",
+   "sha256": "79b83ac6cf44646ff99d18c60f6a3e94014be1021346aa203087c62b50a27b16"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/README.md",
+   "sha256": "2f1be244d637d50fa748f64deee34ef56264103e2ce9515c8b4eeda005f79473"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/LargeLayout_V010/RidgeLayout.json",
+   "sha256": "22574279c1a49f0534eddfbcab5ccf7888e8f26eab1573d88ee3c94898e48396"
+  }
+ ],
+ "accepted_additions": {
+  "ASM_Z2_LowerSouthBank": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/Z2Assembly_V001/PL_Ridge_Z2_LowerBank_V001",
+   "pose": {
+    "local_xyh_cm": [
+     1200.0,
+     -5800.0,
+     -6500.0
+    ],
+    "rotation_deg": [
+     1e-06,
+     135.0,
+     1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 8206,
+    "decals": 0,
+    "keys": 174,
+    "sha256": "1ebc931549161469de67d3ebeb2f55cb6b100f2d7281d2fda6ff0e410400bff7"
+   }
+  },
+  "ASM_Z2_BridgeSouthButtress": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/Z2Assembly_V002/PL_Ridge_Z2_BridgeSouth_V002",
+   "pose": {
+    "local_xyh_cm": [
+     -7850.0,
+     -9800.0,
+     -600.0
+    ],
+    "rotation_deg": [
+     1e-06,
+     100.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 9148,
+    "decals": 0,
+    "keys": 187,
+    "sha256": "6ba107dde77a0c56b3c05e4b7617c4324af01a2bce464de55515578584ab0b2b"
+   }
+  },
+  "ASM_Z2_UpperSouthShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/Z2Assembly_V002/PL_Ridge_Z2_UpperShoulder_V002",
+   "pose": {
+    "local_xyh_cm": [
+     -12900.0,
+     -9800.0,
+     -1600.0
+    ],
+    "rotation_deg": [
+     1e-06,
+     80.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 830,
+    "decals": 0,
+    "keys": 31,
+    "sha256": "a47ca98c89b19d193ea9860f79173622a0c6595ead1597ee7dd9466b34bd7140"
+   }
+  },
+  "ASM_Z4_MesaNorthEastWall": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/Z4Assembly_V003/PL_Ridge_Z4_NorthEastWall_V003",
+   "pose": {
+    "local_xyh_cm": [
+     -1800.0,
+     -10000.0,
+     -700.0
+    ],
+    "rotation_deg": [
+     1e-06,
+     80.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 8723,
+    "decals": 0,
+    "keys": 174,
+    "sha256": "629396ff51f02c29841f1e376cc8e79cde23dab3ff690b90c6922307b5dc01f4"
+   }
+  },
+  "ASM_Z4_MesaEastCrown": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V003/Z4Assembly_V003/PL_Ridge_Z4_EastCrown_V003",
+   "pose": {
+    "local_xyh_cm": [
+     -2600.0,
+     -11800.0,
+     1000.0
+    ],
+    "rotation_deg": [
+     0.0,
+     25.0,
+     -1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 505,
+    "decals": 0,
+    "keys": 35,
+    "sha256": "824504274c9a9fd8b4e7738a493f6fd11243f439b634b43e47749a6599bb9e40"
+   }
+  },
+  "ASM_Z4_MesaRampToe": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_RampToe_V004",
+   "pose": {
+    "local_xyh_cm": [
+     -9900.0,
+     -15100.0,
+     -1400.0
+    ],
+    "rotation_deg": [
+     -1e-06,
+     -90.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 830,
+    "decals": 0,
+    "keys": 31,
+    "sha256": "1afb1d255002421a93e3ad57cd4c2df4a7658af97b2440929365b79fe56f362a"
+   }
+  },
+  "ASM_Z4_MesaSouthWall": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V004/Z4Assembly_V004/PL_Ridge_Z4_SouthWall_V004",
+   "pose": {
+    "local_xyh_cm": [
+     -6500.0,
+     -14500.0,
+     -1200.0
+    ],
+    "rotation_deg": [
+     -1e-06,
+     -90.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 8206,
+    "decals": 0,
+    "keys": 174,
+    "sha256": "910b0353d1a9386cfc105493c9d7c5be4947dc7a39dfe9c6bec85febd0d67c8a"
+   }
+  },
+  "ASM_Z3_NorthRearShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_NorthRear_V005",
+   "pose": {
+    "local_xyh_cm": [
+     -5600.0,
+     6200.0,
+     200.0
+    ],
+    "rotation_deg": [
+     0.0,
+     -30.0,
+     -1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 830,
+    "decals": 0,
+    "keys": 31,
+    "sha256": "a3a0744155971e685bf21572a51946541ba9ef00c82e076253f6e9f54ea61ce5"
+   }
+  },
+  "ASM_Z3_SaddleSouthEast": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V005/Z3Assembly_V005/PL_Ridge_Z3_SaddleShoulder_V005",
+   "pose": {
+    "local_xyh_cm": [
+     -3100.0,
+     8000.0,
+     0.0
+    ],
+    "rotation_deg": [
+     1e-06,
+     50.0,
+     -1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 505,
+    "decals": 0,
+    "keys": 35,
+    "sha256": "ae5e4c005a99b287f9c86c75bba8afbe7b5ea2d766ccec78a659c7a32ab079f7"
+   }
+  },
+  "ASM_Z3_WestFootShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestFoot_V006",
+   "pose": {
+    "local_xyh_cm": [
+     -13200.0,
+     400.0,
+     -1600.0
+    ],
+    "rotation_deg": [
+     0.0,
+     160.0,
+     1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 830,
+    "decals": 0,
+    "keys": 31,
+    "sha256": "b31e75386fc05966ddd915367631a5a5587238afe280e9dfd731746247543e87"
+   }
+  },
+  "ASM_Z3_WestUpperShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V006/Z3Assembly_V006/PL_Ridge_Z3_WestUpper_V006",
+   "pose": {
+    "local_xyh_cm": [
+     -9000.0,
+     1600.0,
+     -300.0
+    ],
+    "rotation_deg": [
+     1e-06,
+     150.0,
+     1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 505,
+    "decals": 0,
+    "keys": 35,
+    "sha256": "5a737c76c79ba857f9ba0c9175a27a32689788ba8f1ef79d56583ce164d3d3b5"
+   }
+  },
+  "ASM_Z5_TablelandEastRim": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V007/Z5Assembly_V007/PL_Ridge_Z5_EastRim_V007",
+   "pose": {
+    "local_xyh_cm": [
+     7500.0,
+     9500.0,
+     -1800.0
+    ],
+    "rotation_deg": [
+     0.0,
+     15.0,
+     -1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 8723,
+    "decals": 0,
+    "keys": 174,
+    "sha256": "c1abf4a3f82e877b3d4a43de4ebf005b5e3b8075920f55114aad7fa889a9940a"
+   }
+  },
+  "ASM_Z5_TablelandNorthRim": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V007/Z5Assembly_V007/PL_Ridge_Z5_NorthRim_V007",
+   "pose": {
+    "local_xyh_cm": [
+     2500.0,
+     13500.0,
+     -1500.0
+    ],
+    "rotation_deg": [
+     -1e-06,
+     -45.0,
+     -1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 830,
+    "decals": 0,
+    "keys": 31,
+    "sha256": "6348c1f7f2c47281bc06e3f73b8c7dd45ecf1326a1d113171214c80b3a9779fe"
+   }
+  },
+  "ASM_Z6_ValleyLowerSouth": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V008/Z6Assembly_V008/PL_Ridge_Z6_LowerSouth_V008",
+   "pose": {
+    "local_xyh_cm": [
+     5400.0,
+     -3000.0,
+     -5900.0
+    ],
+    "rotation_deg": [
+     1e-06,
+     90.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 8206,
+    "decals": 0,
+    "keys": 174,
+    "sha256": "4ac37bb935d265e78b12f85bed3aa5d3e81aa76fcd31a6aba6dce75eafbc091b"
+   }
+  },
+  "ASM_Z6_ValleyUpperNorthEast": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V008/Z6Assembly_V008/PL_Ridge_Z6_UpperNorthEast_V008",
+   "pose": {
+    "local_xyh_cm": [
+     11200.0,
+     2800.0,
+     -3000.0
+    ],
+    "rotation_deg": [
+     0.0,
+     -135.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 505,
+    "decals": 0,
+    "keys": 35,
+    "sha256": "1c9ed058b5182f8572fe04affb495e5562da909e3dfc91b9ee4ac89b3a2acd5e"
+   }
+  },
+  "ASM_Z6_BossSouthWall": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V009/Z6Assembly_V009/PL_Ridge_Z6_BossSouth_V009",
+   "pose": {
+    "local_xyh_cm": [
+     13900.0,
+     -3200.0,
+     -3300.0
+    ],
+    "rotation_deg": [
+     0.0,
+     30.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 8723,
+    "decals": 0,
+    "keys": 174,
+    "sha256": "d92446503f6e07b4163ddec7bae2947d1e3ca7f2b6d6e4d3985654229d5c5eab"
+   }
+  },
+  "ASM_Z6_BossNorthShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V009/Z6Assembly_V009/PL_Ridge_Z6_BossNorth_V009",
+   "pose": {
+    "local_xyh_cm": [
+     14900.0,
+     3200.0,
+     -1600.0
+    ],
+    "rotation_deg": [
+     0.0,
+     -60.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 830,
+    "decals": 0,
+    "keys": 31,
+    "sha256": "3860365a638385b73d076c43e07ddb9c21f21c43728aed5aa2737b3da11584fd"
+   }
+  },
+  "ASM_Z7_SouthwestEntryShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V010/Z7Assembly_V010/PL_Ridge_Z7_SouthwestEntry_V010",
+   "pose": {
+    "local_xyh_cm": [
+     -16000.0,
+     -13400.0,
+     -3500.0
+    ],
+    "rotation_deg": [
+     0.0,
+     30.0,
+     -1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 8723,
+    "decals": 0,
+    "keys": 174,
+    "sha256": "1bb96c5fecd73677a1d84e69d94ac29c327468a498e92f3795fd1f08c06e531c"
+   }
+  },
+  "ASM_Z7_NorthwestEntryShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V010/Z7Assembly_V010/PL_Ridge_Z7_NorthwestEntry_V010",
+   "pose": {
+    "local_xyh_cm": [
+     -15700.0,
+     11500.0,
+     -1700.0
+    ],
+    "rotation_deg": [
+     -1e-06,
+     -60.0,
+     -1e-06
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 830,
+    "decals": 0,
+    "keys": 31,
+    "sha256": "62808de20b3c2de05243b3e833546442a1b2d861aa42f99b742037fa25d6b234"
+   }
+  },
+  "ASM_Z7_SoutheastEntryShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V011/Z7Assembly_V011/PL_Ridge_Z7_SoutheastEntry_V011",
+   "pose": {
+    "local_xyh_cm": [
+     11000.0,
+     -11800.0,
+     -3500.0
+    ],
+    "rotation_deg": [
+     0.0,
+     -135.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 8723,
+    "decals": 0,
+    "keys": 174,
+    "sha256": "25cbbcd9666691b15c68a81b6a08b3b2c672f39fa43c86fa7e2976d10d209663"
+   }
+  },
+  "ASM_Z7_NortheastEntryShoulder": {
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V011/Z7Assembly_V011/PL_Ridge_Z7_NortheastEntry_V011",
+   "pose": {
+    "local_xyh_cm": [
+     10500.0,
+     12500.0,
+     -1800.0
+    ],
+    "rotation_deg": [
+     0.0,
+     135.0,
+     0.0
+    ],
+    "scale": [
+     1.0,
+     1.0,
+     1.0
+    ]
+   },
+   "fingerprint": {
+    "instances": 830,
+    "decals": 0,
+    "keys": 31,
+    "sha256": "0330d3fef5328a08209229f93fb0973476d1e749bf3fd616692137609c92f1d3"
+   }
+  }
+ },
+ "z1_baseline": {
+  "layout": "Scripts/Profiling/Graphics/EDTerrainLayout_Z1.json",
+  "layout_version": "V037",
+  "layout_sha256": "bc0a5ac948bd2c69057f41294a1efc29ce9789c17eb89e7ac0756eff2f2ec5a0",
+  "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1Bake_V010/LVI_Ridge_EDTerrain_Z1Bake_V010",
+  "level_sha256": "64fa32be45c0007545f291189dc69275dac0ea7566acca013d61b4fe61cfa6bd",
+  "snapshot": "Saved/Profiling/Graphics/Phase01/U4_0_V001/LiveSnapshot_20261124_164625_996859.json",
+  "recovery_manifest": "Saved/Profiling/Graphics/Phase01/U4_0_V001/RecoveryManifest.json"
+ },
+ "protected_spaces_source": "EDTerrainLayout_Z7.json",
+ "protected_spaces": [
+  {
+   "id": "RiftCanyonLower",
+   "points_xyh_cm": [
+    [
+     1200,
+     -2600,
+     -4046.8008
+    ],
+    [
+     -1600,
+     -5400,
+     -3433.5
+    ]
+   ],
+   "half_width_cm": [
+    1100,
+    750
+   ],
+   "protected_space": "walking corridor and existing canyon opening"
+  },
+  {
+   "id": "RiftCanyonMiddleUpper",
+   "points_xyh_cm": [
+    [
+     -1600,
+     -5400,
+     -3433.5
+    ],
+    [
+     -4300,
+     -7300,
+     -2200
+    ],
+    [
+     -7200,
+     -7300,
+     -1300
+    ],
+    [
+     -11000,
+     -7400,
+     -300
+    ],
+    [
+     -14500,
+     -7800,
+     0
+    ]
+   ],
+   "half_width_cm": [
+    750,
+    650,
+    1300,
+    650,
+    800
+   ],
+   "height_mode": "ground",
+   "check_owners": "new_only",
+   "height_offsets_cm": [
+    100,
+    250
+   ]
+  },
+  {
+   "id": "SkyBridgeDeck",
+   "points_xyh_cm": [
+    [
+     -4389.488,
+     -5300.276,
+     3834.84
+    ],
+    [
+     -4610.512,
+     -9499.724,
+     3855.053
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    -450,
+    100
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CanyonChamberPod",
+   "points_xyh_cm": [
+    [
+     -7359.7,
+     -7248.5,
+     -1257.7
+    ],
+    [
+     -7358.7,
+     -7248.5,
+     -1257.7
+    ]
+   ],
+   "half_width_cm": [
+    900,
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernSouthEntrance",
+   "points_xyh_cm": [
+    [
+     -9000,
+     -7400,
+     -850
+    ],
+    [
+     -9000,
+     -6800,
+     -950
+    ],
+    [
+     -9000,
+     -5450,
+     -1050
+    ],
+    [
+     -9200,
+     -4000,
+     -839
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "MesaAscent",
+   "points_xyh_cm": [
+    [
+     -14500,
+     -11000,
+     2.07
+    ],
+    [
+     -12900,
+     -15200,
+     55.4
+    ],
+    [
+     -12100,
+     -15200,
+     84.01
+    ],
+    [
+     -10800,
+     -9600,
+     1720.73
+    ],
+    [
+     -10100,
+     -10000,
+     1863.64
+    ],
+    [
+     -10000,
+     -12600,
+     1861.77
+    ],
+    [
+     -9000,
+     -13200,
+     1975.1
+    ],
+    [
+     -3300,
+     -11000,
+     3839.69
+    ],
+    [
+     -3500,
+     -10200,
+     3842.79
+    ],
+    [
+     -6000,
+     -10300,
+     3860.79
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SouthMesaPod",
+   "points_xyh_cm": [
+    [
+     -6060.9,
+     -10497.8,
+     3862.6
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SkyBridgeSouthApproach",
+   "points_xyh_cm": [
+    [
+     -4610.512,
+     -9499.724,
+     3855.053
+    ],
+    [
+     -6000,
+     -10300,
+     3860.79
+    ],
+    [
+     -6060.9,
+     -10497.8,
+     3862.6
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NorthwestToSaddle",
+   "points_xyh_cm": [
+    [
+     -14500,
+     9000,
+     -2.740535386778464
+    ],
+    [
+     -13000,
+     4200,
+     -71.64099171559099
+    ],
+    [
+     -12300,
+     4200,
+     -100.092871337052
+    ],
+    [
+     -11400,
+     9800,
+     1502.288563431286
+    ],
+    [
+     -10300,
+     10400,
+     1744.3466636975184
+    ],
+    [
+     -9100,
+     4600,
+     3711.4840341915856
+    ],
+    [
+     -8300,
+     5600,
+     3631.072509520954
+    ],
+    [
+     -8450,
+     7600,
+     3717.302374716358
+    ],
+    [
+     -8000,
+     8400,
+     3570.3434546102917
+    ],
+    [
+     -5400,
+     9000,
+     3740.058080588319
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NorthSaddlePod",
+   "points_xyh_cm": [
+    [
+     -5628,
+     9248.1,
+     3739.3
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SaddleEastApproach",
+   "points_xyh_cm": [
+    [
+     -5628,
+     9248.1,
+     3739.4063425879262
+    ],
+    [
+     -5400,
+     9000,
+     3740.058080588319
+    ],
+    [
+     -4600,
+     9000,
+     3746.8884694517687
+    ],
+    [
+     100,
+     12000,
+     1805.1005271609847
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestSkyIsleSpace",
+   "points_xyh_cm": [
+    [
+     -14600,
+     4800,
+     6000
+    ]
+   ],
+   "half_width_cm": [
+    2900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    -3500,
+    -2000,
+    100,
+    1000
+   ],
+   "disk_radius_cm": 2900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernWestEntrance",
+   "points_xyh_cm": [
+    [
+     -13800,
+     -4600,
+     -10
+    ],
+    [
+     -12900,
+     -4600,
+     -10
+    ],
+    [
+     -10950,
+     -4600,
+     -840
+    ],
+    [
+     -9200,
+     -4000,
+     -839
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NorthLedgeInterface",
+   "points_xyh_cm": [
+    [
+     0,
+     5200,
+     1938.0297309360815
+    ],
+    [
+     2200,
+     3500,
+     660.0
+    ],
+    [
+     5400,
+     2700,
+     -860.0
+    ],
+    [
+     8400,
+     1200,
+     -2400.0
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestLowEntry",
+   "points_xyh_cm": [
+    [
+     -19500,
+     0,
+     0.0
+    ],
+    [
+     -17600,
+     0,
+     -0.00036984230532860306
+    ],
+    [
+     -12700,
+     -3400,
+     -35.7731279539358
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestOuterNorth",
+   "points_xyh_cm": [
+    [
+     -17600,
+     0,
+     -0.00036984230532860306
+    ],
+    [
+     -16000,
+     5000,
+     -1.2762854897989078
+    ],
+    [
+     -14500,
+     9000,
+     -2.740535386778464
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestOuterCanyon",
+   "points_xyh_cm": [
+    [
+     -17600,
+     0,
+     -0.00036984230532860306
+    ],
+    [
+     -16000,
+     -5000,
+     -6.061849753985569
+    ],
+    [
+     -14500,
+     -7800,
+     -11.607090551166124
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestSkyIslePod",
+   "points_xyh_cm": [
+    [
+     -14849.200000000003,
+     4723.999999999997,
+     6000.299999999996
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernChamberSouth",
+   "points_xyh_cm": [
+    [
+     -11000,
+     -4500,
+     -840
+    ],
+    [
+     -7600,
+     -4500,
+     -840
+    ]
+   ],
+   "half_width_cm": [
+    1000,
+    1000
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    650,
+    1250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernChamberNorth",
+   "points_xyh_cm": [
+    [
+     -11000,
+     -2750,
+     -840
+    ],
+    [
+     -7600,
+     -2750,
+     -840
+    ]
+   ],
+   "half_width_cm": [
+    750,
+    750
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    650,
+    1250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "StairRamp1CentralPassage",
+   "points_xyh_cm": [
+    [
+     -12300,
+     -3600,
+     -35.28874969253504
+    ],
+    [
+     -11400,
+     2000,
+     1553.203465306282
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only",
+   "purpose": "Visual priority: retain 3m central passage; legacy 7m strip edge overlap allowed by user"
+  },
+  {
+   "id": "StairRamp2CentralPassage",
+   "points_xyh_cm": [
+    [
+     -10700,
+     2600,
+     1127.4338568024718
+    ],
+    [
+     -9200,
+     -3200,
+     3761.960183282212
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only",
+   "purpose": "Visual priority: retain 3m central passage; legacy 7m strip edge overlap allowed by user"
+  },
+  {
+   "id": "StairRamp3CentralPassage",
+   "points_xyh_cm": [
+    [
+     -8500,
+     -3600,
+     3773.3269325009633
+    ],
+    [
+     -7000,
+     2400,
+     599.9999999999991
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only",
+   "purpose": "Visual priority: retain 3m central passage; legacy 7m strip edge overlap allowed by user"
+  },
+  {
+   "id": "StairRamp4CentralPassage",
+   "points_xyh_cm": [
+    [
+     -6300,
+     2900,
+     600.0
+    ],
+    [
+     -4700,
+     -3000,
+     837.8293714989105
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only",
+   "purpose": "Visual priority: retain 3m central passage; legacy 7m strip edge overlap allowed by user"
+  },
+  {
+   "id": "NorthTablelandPod",
+   "points_xyh_cm": [
+    [
+     1904.8999999999987,
+     6998.499999999999,
+     1958.2000000000044
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SaddleToTableland",
+   "points_xyh_cm": [
+    [
+     -5400,
+     9000,
+     3740.058080588319
+    ],
+    [
+     -4600,
+     9000,
+     3746.8884694517687
+    ],
+    [
+     100,
+     12000,
+     1805.1005271609847
+    ],
+    [
+     2000,
+     6800,
+     1960.6499079699652
+    ],
+    [
+     1904.8999999999987,
+     6998.499999999999,
+     1958.0881308219382
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NortheastToTableland",
+   "points_xyh_cm": [
+    [
+     8400,
+     16000,
+     0.0
+    ],
+    [
+     5000,
+     10500,
+     1635.7034183044468
+    ],
+    [
+     2000,
+     6800,
+     1960.6499079699652
+    ],
+    [
+     1904.8999999999987,
+     6998.499999999999,
+     1958.0881308219382
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "HallNorthOpenShaft",
+   "points_xyh_cm": [
+    [
+     3850,
+     6900,
+     -1250
+    ]
+   ],
+   "half_width_cm": [
+    1000
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 1000,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "HallNorthRoofInterface",
+   "points_xyh_cm": [
+    [
+     -600,
+     6100,
+     -4000
+    ],
+    [
+     1100,
+     6100,
+     -4000
+    ]
+   ],
+   "half_width_cm": [
+    2200,
+    2200
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    1500,
+    2800,
+    4500,
+    6000
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "HallChamberNorth",
+   "points_xyh_cm": [
+    [
+     0,
+     6100,
+     -4000
+    ],
+    [
+     4400,
+     6100,
+     -4000
+    ]
+   ],
+   "half_width_cm": [
+    1900,
+    1900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    1500,
+    2800
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "BossValleyFixedRamp",
+   "points_xyh_cm": [
+    [
+     4400,
+     -300,
+     -4000
+    ],
+    [
+     7700,
+     -150,
+     -2400
+    ]
+   ],
+   "half_width_cm": [
+    400,
+    400
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "BasinToBossCentral",
+   "points_xyh_cm": [
+    [
+     3300,
+     -300,
+     -3954.7608163265304
+    ],
+    [
+     4400,
+     -300,
+     -4000.0
+    ],
+    [
+     7700,
+     -150,
+     -2400.0
+    ],
+    [
+     8600,
+     0,
+     -2400.0
+    ],
+    [
+     11000,
+     0,
+     -1292.3076923076922
+    ]
+   ],
+   "half_width_cm": [
+    500,
+    500,
+    500,
+    500,
+    500
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SoutheastToValleyCentral",
+   "points_xyh_cm": [
+    [
+     8400,
+     -16000,
+     -0.0
+    ],
+    [
+     8400,
+     -14800,
+     -2.0852711953610266
+    ],
+    [
+     7600,
+     -8500,
+     -267.54802086702654
+    ],
+    [
+     7900,
+     -2000,
+     -2451.1797832796315
+    ],
+    [
+     8200,
+     0,
+     -2400.0
+    ]
+   ],
+   "half_width_cm": [
+    150,
+    150,
+    150,
+    150,
+    150
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NorthLedgeValleyOutlet",
+   "points_xyh_cm": [
+    [
+     5400,
+     2700,
+     -860.0
+    ],
+    [
+     8400,
+     1200,
+     -2400.0
+    ],
+    [
+     8200,
+     0,
+     -2400.0
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350,
+    350
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "ValleyRisePod",
+   "points_xyh_cm": [
+    [
+     8225.500000000002,
+     -749.799999999999,
+     -2402.4999999999964
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "ValleySkyIslePod",
+   "points_xyh_cm": [
+    [
+     7792.599999999999,
+     -5498.900000000002,
+     5500.299999999999
+    ]
+   ],
+   "half_width_cm": [
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "ValleySkyIsleSpace",
+   "points_xyh_cm": [
+    [
+     7800,
+     -5600,
+     5500
+    ]
+   ],
+   "half_width_cm": [
+    2900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    -4500,
+    -2300,
+    100,
+    1000
+   ],
+   "disk_radius_cm": 2900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "HallEastTunnel",
+   "points_xyh_cm": [
+    [
+     8250.0,
+     350.0,
+     -2405.0
+    ],
+    [
+     8385.06316666928,
+     496.80778985791403,
+     -2405.0
+    ],
+    [
+     8520.126333338561,
+     643.6155797158281,
+     -2405.0
+    ],
+    [
+     8655.189500007842,
+     790.4233695737423,
+     -2405.0
+    ],
+    [
+     8790.252666677123,
+     937.2311594316562,
+     -2445.5260581249304
+    ],
+    [
+     8925.315833346403,
+     1084.0389492895702,
+     -2486.3679389596728
+    ],
+    [
+     9053.044468516087,
+     1228.1841846722527,
+     -2525.8062016823433
+    ],
+    [
+     9156.155638054868,
+     1382.548946015033,
+     -2563.840846292943
+    ],
+    [
+     9234.224980112955,
+     1550.9697602236283,
+     -2601.8754909035424
+    ],
+    [
+     9285.384230665935,
+     1729.4161777021698,
+     -2639.9101355141415
+    ],
+    [
+     9308.40910647017,
+     1913.6178278638015,
+     -2677.944780124741
+    ],
+    [
+     9302.74860317494,
+     2099.1666126361984,
+     -2715.97942473534
+    ],
+    [
+     9271.78647428003,
+     2283.805470506508,
+     -2754.316599596619
+    ],
+    [
+     9237.005769064017,
+     2469.3025649919036,
+     -2792.956304708578
+    ],
+    [
+     9202.225063848007,
+     2654.7996594773,
+     -2831.5960098205364
+    ],
+    [
+     9162.94789253195,
+     2842.717149924214,
+     -2870.908979741223
+    ],
+    [
+     9096.372720005244,
+     3026.154433757498,
+     -2910.8952144706373
+    ],
+    [
+     9000.945935564956,
+     3196.375523838841,
+     -2950.881449200052
+    ],
+    [
+     8879.191146297144,
+     3348.8788417943674,
+     -2990.8676839294667
+    ],
+    [
+     8734.32821600377,
+     3479.6313642324108,
+     -3030.853918658881
+    ],
+    [
+     8575.514529972701,
+     3601.0771241385232,
+     -3071.7861557402075
+    ],
+    [
+     8416.70084394163,
+     3722.522884044636,
+     -3112.718392821534
+    ],
+    [
+     8257.88715791056,
+     3843.9686439507486,
+     -3153.6506299028606
+    ],
+    [
+     8099.073471879488,
+     3965.414403856861,
+     -3194.582866984187
+    ],
+    [
+     7940.259785848419,
+     4086.860163762974,
+     -3235.5151040655137
+    ],
+    [
+     7781.446099817348,
+     4208.305923669087,
+     -3276.4473411468402
+    ],
+    [
+     7622.6324137862775,
+     4329.751683575199,
+     -3317.379578228167
+    ],
+    [
+     7463.818727755207,
+     4451.197443481312,
+     -3358.3118153094933
+    ],
+    [
+     7330.24532469845,
+     4539.859814458028,
+     -3391.153633931258
+    ],
+    [
+     7163.23999868323,
+     4635.291429323868,
+     -3430.5342673639234
+    ],
+    [
+     6996.234672668009,
+     4730.723044189709,
+     -3469.91490079659
+    ],
+    [
+     6829.229346652789,
+     4826.154659055549,
+     -3509.2955342292553
+    ],
+    [
+     6662.224020637568,
+     4921.58627392139,
+     -3548.6761676619217
+    ],
+    [
+     6495.218694622348,
+     5017.01788878723,
+     -3588.056801094587
+    ],
+    [
+     6328.213368607127,
+     5112.44950365307,
+     -3627.4374345272536
+    ],
+    [
+     6161.208042591907,
+     5207.881118518911,
+     -3666.8180679599195
+    ],
+    [
+     5994.202716576687,
+     5303.312733384751,
+     -3706.1987013925855
+    ],
+    [
+     5827.197390561467,
+     5398.7443482505905,
+     -3745.579334825251
+    ],
+    [
+     5660.192064546247,
+     5494.175963116431,
+     -3784.9599682579174
+    ],
+    [
+     5497.853050933936,
+     5583.141898028535,
+     -3822.8668721402296
+    ],
+    [
+     5332.110137017901,
+     5647.583616495612,
+     -3859.300046472188
+    ],
+    [
+     5158.663675007542,
+     5686.823563086513,
+     -3895.733220804147
+    ],
+    [
+     4981.322675510435,
+     5700.0,
+     -3932.1663951361056
+    ],
+    [
+     4787.54845034029,
+     5700.0,
+     -3971.8389113704643
+    ],
+    [
+     4593.774225170145,
+     5700.0,
+     -4000.0
+    ],
+    [
+     4400.0,
+     5700.0,
+     -4000.0
+    ],
+    [
+     4200.0,
+     5700.0,
+     -4000.0
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    400,
+    800
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "HallEastMouth",
+   "points_xyh_cm": [
+    [
+     8250.0,
+     350.0,
+     -2405.0
+    ]
+   ],
+   "half_width_cm": [
+    650
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    450,
+    850
+   ],
+   "disk_radius_cm": 650,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "ValleyIsleGrappleSight",
+   "points_xyh_cm": [
+    [
+     8225.500000000004,
+     -749.799999999999,
+     -2232.4999999999927
+    ],
+    [
+     8231.22592747765,
+     -786.6076374969801,
+     -2035.5001696964537
+    ],
+    [
+     8237.02362134576,
+     -823.8766065939183,
+     -1838.5466183792487
+    ],
+    [
+     8242.8944393481,
+     -861.6156351939986,
+     -1641.640210239766
+    ],
+    [
+     8248.839773695227,
+     -899.8336727611587,
+     -1444.7818309060713
+    ],
+    [
+     8254.861052165163,
+     -938.5398973954942,
+     -1247.9723881048812
+    ],
+    [
+     8260.959739246491,
+     -977.7437231815285,
+     -1051.2128123478506
+    ],
+    [
+     8267.137337325888,
+     -1017.4548078217314,
+     -854.5040576433676
+    ],
+    [
+     8273.395387921992,
+     -1057.6830605682696,
+     -657.8471022348931
+    ],
+    [
+     8279.735472967823,
+     -1098.4386504666854,
+     -461.24294936698425
+    ],
+    [
+     8286.159216143975,
+     -1139.7320149259103,
+     -264.6926280802072
+    ],
+    [
+     8292.668284264913,
+     -1181.5738686297593,
+     -68.19719403627823
+    ],
+    [
+     8299.26438872088,
+     -1223.9752128059306,
+     128.2422696253925
+    ],
+    [
+     8305.949286978066,
+     -1266.9473448693097,
+     324.6246513981714
+    ],
+    [
+     8312.72478413974,
+     -1310.5018684573672,
+     520.9488104844095
+    ],
+    [
+     8319.592734571288,
+     -1354.6507038763605,
+     717.213575835689
+    ],
+    [
+     8326.555043592261,
+     -1399.4060989780917,
+     913.4177451556134
+    ],
+    [
+     8333.613669238608,
+     -1444.7806404880766,
+     1109.5600838633618
+    ],
+    [
+     8340.770624098579,
+     -1490.7872658071253,
+     1305.6393240163088
+    ],
+    [
+     8348.027977225891,
+     -1537.4392753095885,
+     1501.6541631896944
+    ],
+    [
+     8355.387856133948,
+     -1584.750345162826,
+     1697.6032633115537
+    ],
+    [
+     8362.852448875232,
+     -1632.7345406938286,
+     1893.4852494506522
+    ],
+    [
+     8370.424006210023,
+     -1681.4063303304838,
+     2089.2987085553723
+    ],
+    [
+     8378.104843869092,
+     -1730.7806001464535,
+     2285.042188141153
+    ],
+    [
+     8385.897344914987,
+     -1780.8726690404376,
+     2480.714194924174
+    ],
+    [
+     8393.803962207168,
+     -1831.6983045822856,
+     2676.313193398557
+    ],
+    [
+     8401.827220976142,
+     -1883.273739560424,
+     2871.837604354594
+    ],
+    [
+     8409.969721512436,
+     -1935.6156892670788,
+     3067.2858033350312
+    ],
+    [
+     8418.234141976325,
+     -1988.7413695599148,
+     3262.656119026451
+    ],
+    [
+     8426.623241334728,
+     -2042.668515741157,
+     3457.9468315826343
+    ],
+    [
+     8435.139862432046,
+     -2097.415402297623,
+     3653.1561708765475
+    ],
+    [
+     8443.786935202108,
+     -2153.0008635478694,
+     3848.282314677439
+    ],
+    [
+     8452.567480028834,
+     -2209.444315245413,
+     4043.3233867494055
+    ],
+    [
+     8461.484611263759,
+     -2266.7657771901245,
+     4238.2774548673915
+    ],
+    [
+     8470.54154090896,
+     -2324.985896903087,
+     4433.142528746659
+    ],
+    [
+     8479.741582474613,
+     -2384.125974423728,
+     4627.916557881232
+    ],
+    [
+     8489.088155020809,
+     -2444.207988291819,
+     4822.597429286758
+    ],
+    [
+     8498.584787394118,
+     -2505.2546227808853,
+     5017.182965142943
+    ],
+    [
+     8508.235122669792,
+     -2567.2892964539433,
+     5211.670920330358
+    ],
+    [
+     8518.042922811472,
+     -2630.336192117073,
+     5406.058979856174
+    ],
+    [
+     8528.01207356083,
+     -2694.4202882513086,
+     5600.344756163129
+    ],
+    [
+     8538.14658957056,
+     -2759.567392008674,
+     5794.525786315506
+    ],
+    [
+     8548.45061979491,
+     -2825.804173863936,
+     5988.5995290557985
+    ],
+    [
+     8558.928453153045,
+     -2893.1582040198427,
+     6182.563361725101
+    ],
+    [
+     8569.584524481348,
+     -2961.657990670185,
+     6376.414577040061
+    ],
+    [
+     8580.423420792156,
+     -3031.333020232323,
+     6570.150379718678
+    ],
+    [
+     8591.449887857401,
+     -3102.213799668398,
+     6763.767882946817
+    ],
+    [
+     8602.668837137024,
+     -3174.3319010228843,
+     6957.264104676789
+    ],
+    [
+     8614.08535307342,
+     -3247.7200083130624,
+     7150.635963748897
+    ],
+    [
+     8625.704700774686,
+     -3322.411966918748,
+     7343.880275826148
+    ],
+    [
+     8637.532334111042,
+     -3398.4428356280473,
+     7536.993749131907
+    ],
+    [
+     8649.573904250608,
+     -3475.848941507308,
+     7729.972979979462
+    ],
+    [
+     8661.835268662571,
+     -3554.667937775714,
+     7922.814448082019
+    ],
+    [
+     8674.32250061789,
+     -3634.9388648781755,
+     8115.514511630554
+    ],
+    [
+     8687.041899219968,
+     -3716.702214964704,
+     8308.06940212662
+    ],
+    [
+     8700.0,
+     -3800.0000000000027,
+     8500.475218956035
+    ]
+   ],
+   "half_width_cm": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    0
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "UpperValleyToBoss",
+   "points_xyh_cm": [
+    [
+     8600,
+     0,
+     -2400
+    ],
+    [
+     11000,
+     0,
+     -1292.3
+    ],
+    [
+     13800,
+     0,
+     0
+    ],
+    [
+     14800,
+     0,
+     0
+    ],
+    [
+     16000,
+     0,
+     0
+    ]
+   ],
+   "half_width_cm": [
+    700,
+    700,
+    700,
+    700,
+    700
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "BossPlateauArrival",
+   "points_xyh_cm": [
+    [
+     14800.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "half_width_cm": [
+    1500
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250,
+    1000,
+    2000,
+    3500,
+    5000
+   ],
+   "check_owners": "new_only",
+   "disk_radius_cm": 1500
+  },
+  {
+   "id": "BossToValleyIsleGrappleSight",
+   "points_xyh_cm": [
+    [
+     14800.0,
+     0.0,
+     170.0
+    ],
+    [
+     14706.082288651629,
+     -58.50611526620053,
+     346.21389901975635
+    ],
+    [
+     14611.278035872756,
+     -117.56450224320373,
+     522.1450748537245
+    ],
+    [
+     14515.57462930054,
+     -177.1830178127804,
+     697.7884350712338
+    ],
+    [
+     14418.959216192867,
+     -237.36966860116678,
+     873.1387728386981
+    ],
+    [
+     14321.418697674204,
+     -298.13261456361374,
+     1048.1907639717137
+    ],
+    [
+     14222.939722815336,
+     -359.480172672412,
+     1222.9389639069304
+    ],
+    [
+     14123.508682541453,
+     -421.4208207118815,
+     1397.3778045915496
+    ],
+    [
+     14023.111703362609,
+     -483.96320118394874,
+     1571.501591288521
+    ],
+    [
+     13921.73464092066,
+     -547.1161253281185,
+     1745.3044992952891
+    ],
+    [
+     13819.363073346203,
+     -610.888577259745,
+     1918.780570574083
+    ],
+    [
+     13715.982294419155,
+     -675.2897182306934,
+     2091.9237102915795
+    ],
+    [
+     13611.577306525922,
+     -740.3288910166409,
+     2264.7276832659227
+    ],
+    [
+     13506.132813406324,
+     -806.0156244354073,
+     2437.1861103188676
+    ],
+    [
+     13399.6332126827,
+     -872.3596380009418,
+     2609.2924645310522
+    ],
+    [
+     13292.062588163684,
+     -939.370846717706,
+     2781.0400673981567
+    ],
+    [
+     13183.404701914567,
+     -1007.0593660204328,
+     2952.422084885926
+    ],
+    [
+     13073.642986086033,
+     -1075.4355168644395,
+     3123.4315233819034
+    ],
+    [
+     12962.760534492541,
+     -1144.5098309718612,
+     3294.0612255418127
+    ],
+    [
+     12850.74009393148,
+     -1214.2930562394085,
+     3464.3038660284983
+    ],
+    [
+     12737.564055233599,
+     -1284.7961623134956,
+     3634.151947141476
+    ],
+    [
+     12623.214444035115,
+     -1356.0303463387816,
+     3803.597794335001
+    ],
+    [
+     12507.672911261167,
+     -1428.0070388864867,
+     3972.6335516228282
+    ],
+    [
+     12390.920723310186,
+     -1500.7379100690637,
+     4141.251176867783
+    ],
+    [
+     12272.938751928095,
+     -1574.234875848073,
+     4309.442436954254
+    ],
+    [
+     12153.707463760791,
+     -1648.5101045424592,
+     4477.19890284209
+    ],
+    [
+     12033.206909573031,
+     -1723.576023544671,
+     4644.511944500144
+    ],
+    [
+     11911.416713121125,
+     -1799.4453262524144,
+     4811.372725718069
+    ],
+    [
+     11788.31605966647,
+     -1876.1309792241693,
+     4977.772198794999
+    ],
+    [
+     11663.883684116263,
+     -1953.6462295669207,
+     5143.701099103957
+    ],
+    [
+     11538.097858777286,
+     -2032.0046125649721,
+     5309.149939530871
+    ],
+    [
+     11410.936380707833,
+     -2111.219959559055,
+     5474.109004787537
+    ],
+    [
+     11282.376558652455,
+     -2191.3064060853567,
+     5638.568345597749
+    ],
+    [
+     11152.395199543223,
+     -2272.2784002845506,
+     5802.517772756335
+    ],
+    [
+     11020.96859455079,
+     -2354.1507115913155,
+     5965.946851060948
+    ],
+    [
+     10888.072504667498,
+     -2436.938439715332,
+     6128.844893116839
+    ],
+    [
+     10753.682145804243,
+     -2520.657023925226,
+     6291.200953015068
+    ],
+    [
+     10617.772173381756,
+     -2605.322252647433,
+     6453.003819885085
+    ],
+    [
+     10480.316666396186,
+     -2690.950273392539,
+     6614.24201132296
+    ],
+    [
+     10341.289110938025,
+     -2777.5576030222137,
+     6774.903766696891
+    ],
+    [
+     10200.662383142268,
+     -2865.1611383703903,
+     6934.977040332225
+    ],
+    [
+     10058.408731546835,
+     -2953.77816723312,
+     7094.449494578705
+    ],
+    [
+     9914.499758835142,
+     -3043.4263797420435,
+     7253.308492763106
+    ],
+    [
+     9768.906402937568,
+     -3134.1238801372538,
+     7411.54109203125
+    ],
+    [
+     9621.598917465459,
+     -3225.8891989559447,
+     7569.134036083764
+    ],
+    [
+     9472.546851449926,
+     -3318.741305654148,
+     7726.0737478110605
+    ],
+    [
+     9321.719028356509,
+     -3412.6996216795533,
+     7882.346321833316
+    ],
+    [
+     9169.083524345315,
+     -3507.784034014394,
+     8037.937516952519
+    ],
+    [
+     9014.607645744765,
+     -3604.014909208181,
+     8192.832748524255
+    ],
+    [
+     8858.25790570558,
+     -3701.413107921119,
+     8347.017080758054
+    ],
+    [
+     8700.0,
+     -3800.0000000000027,
+     8500.475218956035
+    ]
+   ],
+   "half_width_cm": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    0
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SouthwestCanyonArrival",
+   "points_xyh_cm": [
+    [
+     -14500,
+     -11000,
+     2.066637986142632
+    ],
+    [
+     -14500,
+     -7800,
+     -11.607090551166124
+    ]
+   ],
+   "half_width_cm": [
+    650,
+    650
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NorthwestLowlandArrival",
+   "points_xyh_cm": [
+    [
+     -14500,
+     9000,
+     -2.740535386778464
+    ],
+    [
+     -13000,
+     4200,
+     -71.64099171559099
+    ]
+   ],
+   "half_width_cm": [
+    650,
+    650
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "WestEntryToIsleGrappleSight",
+   "points_xyh_cm": [
+    [
+     -17600.000000000004,
+     0.0,
+     169.9996301576939
+    ],
+    [
+     -17571.030525811624,
+     46.44562437810536,
+     364.14798027104916
+    ],
+    [
+     -17541.703808487026,
+     93.46400269743641,
+     558.2272334385452
+    ],
+    [
+     -17512.013198900866,
+     141.0657952404654,
+     752.2360141412901
+    ],
+    [
+     -17481.951881890123,
+     189.26192849138508,
+     946.172910626141
+    ],
+    [
+     -17451.512871038783,
+     238.06360349760604,
+     1140.0364737226046
+    ],
+    [
+     -17420.689003264753,
+     287.4823045483609,
+     1333.8252156138587
+    ],
+    [
+     -17389.472933200093,
+     337.5298081846381,
+     1527.5376085598
+    ],
+    [
+     -17357.857127355404,
+     388.21819255519324,
+     1721.172083569938
+    ],
+    [
+     -17325.833858058573,
+     439.5598471343523,
+     1914.7270290239394
+    ],
+    [
+     -17293.395197157628,
+     491.56748281792756,
+     2108.200789237355
+    ],
+    [
+     -17260.53300947698,
+     544.2541424146298,
+     2301.5916629701023
+    ],
+    [
+     -17227.23894601561,
+     597.6332115510662,
+     2494.897901874974
+    ],
+    [
+     -17193.50443687539,
+     651.7184300095582,
+     2688.1177088834957
+    ],
+    [
+     -17159.32068390685,
+     706.5239035189152,
+     2881.249236526197
+    ],
+    [
+     -17124.678653059094,
+     762.0641160193882,
+     3074.2905851840915
+    ],
+    [
+     -17089.569066420107,
+     818.3539424242877,
+     3267.2398012684207
+    ],
+    [
+     -17053.98239393245,
+     875.4086619017769,
+     3460.0948753248995
+    ],
+    [
+     -17017.90884476901,
+     933.2439717018649,
+     3652.853740059236
+    ],
+    [
+     -16981.33835835228,
+     991.8760015547703,
+     3845.514268279865
+    ],
+    [
+     -16944.26059499998,
+     1051.3213286685093,
+     4038.074270754092
+    ],
+    [
+     -16906.664926178644,
+     1111.5969933548927,
+     4230.53149397342
+    ],
+    [
+     -16868.540424345912,
+     1172.7205153149775,
+     4422.88361782358
+    ],
+    [
+     -16829.875852361198,
+     1234.7099106165601,
+     4615.128253154671
+    ],
+    [
+     -16790.659652443046,
+     1297.5837093983855,
+     4807.262939246521
+    ],
+    [
+     -16750.879934650522,
+     1361.360974337487,
+     4999.285141163986
+    ],
+    [
+     -16710.524464864426,
+     1426.061319918457,
+     5191.192246996779
+    ],
+    [
+     -16669.580652242832,
+     1491.7049325454677,
+     5382.981564978098
+    ],
+    [
+     -16628.035536123978,
+     1558.3125915403668,
+     5574.650320475848
+    ],
+    [
+     -16585.875772347812,
+     1625.9056910728114,
+     5766.19565285014
+    ],
+    [
+     -16543.087618965925,
+     1694.506263070942,
+     5957.614612170128
+    ],
+    [
+     -16499.656921307716,
+     1764.1370011642603,
+     6148.904155783159
+    ],
+    [
+     -16455.56909636869,
+     1834.8212857132455,
+     6340.0611447284755
+    ],
+    [
+     -16410.809116484674,
+     1906.5832099838174,
+     6531.0823399875735
+    ],
+    [
+     -16365.361492253656,
+     1979.4476075281077,
+     6721.964398562628
+    ],
+    [
+     -16319.2102546644,
+     2053.4400808369724,
+     6912.703869374069
+    ],
+    [
+     -16272.338936388503,
+     2128.5870313336554,
+     7103.297188967768
+    ],
+    [
+     -16224.73055218995,
+     2204.915690782422,
+     7293.7406770218
+    ],
+    [
+     -16176.36757840309,
+     2282.454154190705,
+     7484.030531642125
+    ],
+    [
+     -16127.231931427037,
+     2361.231414288176,
+     7674.162824435891
+    ],
+    [
+     -16077.304945181006,
+     2441.277397671765,
+     7864.133495350507
+    ],
+    [
+     -16026.567347461521,
+     2522.623002711152,
+     8053.9383472657355
+    ],
+    [
+     -15974.999235138663,
+     2605.30013931574,
+     8243.573040325533
+    ],
+    [
+     -15922.580048124179,
+     2689.3417706704777,
+     8433.033085995303
+    ],
+    [
+     -15869.288542040053,
+     2774.7819570553565,
+     8622.313840829655
+    ],
+    [
+     -15815.10275951107,
+     2861.655901870848,
+     8811.410499934635
+    ],
+    [
+     -15760.000000000004,
+     2950.000000000001,
+     9000.318090107561
+    ]
+   ],
+   "half_width_cm": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    0
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SoutheastEntryArrival",
+   "points_xyh_cm": [
+    [
+     8400,
+     -17000,
+     -0.2729668913882166
+    ],
+    [
+     8400,
+     -16000,
+     -0.0
+    ],
+    [
+     8400,
+     -14800,
+     -2.0852711953610266
+    ]
+   ],
+   "half_width_cm": [
+    650,
+    650,
+    650
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SoutheastDescentFullWidth",
+   "points_xyh_cm": [
+    [
+     8400,
+     -14800,
+     -2.0852711953610266
+    ],
+    [
+     7600,
+     -8500,
+     -267.54802086702654
+    ],
+    [
+     7900,
+     -2000,
+     -2451.1797832796315
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    500
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "NortheastEntryArrival",
+   "points_xyh_cm": [
+    [
+     8400,
+     17000,
+     3.2846632818160386
+    ],
+    [
+     8400,
+     16000,
+     0.0
+    ],
+    [
+     7000,
+     13735,
+     336.4784591000545
+    ]
+   ],
+   "half_width_cm": [
+    650,
+    650,
+    650
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "SoutheastToValleyIsleSight",
+   "points_xyh_cm": [
+    [
+     8399.999999999998,
+     -15999.999999999995,
+     170.00000000000364
+    ],
+    [
+     8403.958001668469,
+     -15839.041265482183,
+     328.10781815148584
+    ],
+    [
+     8407.941841632573,
+     -15677.031773608634,
+     485.7085305707624
+    ],
+    [
+     8411.951773733965,
+     -15513.961201485326,
+     642.7939702440162
+    ],
+    [
+     8415.988055150297,
+     -15349.819090554478,
+     799.3558214104487
+    ],
+    [
+     8420.050946450197,
+     -15184.594844358637,
+     955.3856170272484
+    ],
+    [
+     8424.140711649337,
+     -15018.277726260285,
+     1110.8747362174981
+    ],
+    [
+     8428.257618267637,
+     -14850.856857116145,
+     1265.8144017029408
+    ],
+    [
+     8432.401937387582,
+     -14682.321212904973,
+     1420.195677223659
+    ],
+    [
+     8436.57394371374,
+     -14512.659622307805,
+     1574.0094649469538
+    ],
+    [
+     8440.77391563345,
+     -14341.860764239585,
+     1727.2465028677725
+    ],
+    [
+     8445.002135278746,
+     -14169.913165330947,
+     1879.8973622033736
+    ],
+    [
+     8449.258888589531,
+     -13996.805197359039,
+     2031.9524447849944
+    ],
+    [
+     8453.544465378043,
+     -13822.525074626144,
+     2183.401980449573
+    ],
+    [
+     8457.859159394635,
+     -13647.060851284872,
+     2334.2360244347765
+    ],
+    [
+     8462.20326839487,
+     -13470.400418608664,
+     2484.444454780765
+    ],
+    [
+     8466.577094208043,
+     -13292.531502206259,
+     2634.0169697424426
+    ],
+    [
+     8470.98094280708,
+     -13113.441659178796,
+     2782.943085216186
+    ],
+    [
+     8475.41512437988,
+     -12933.11827521821,
+     2931.212132185243
+    ],
+    [
+     8479.879953402162,
+     -12751.548561645419,
+     3078.8132541883206
+    ],
+    [
+     8484.375748711798,
+     -12568.719552386889,
+     3225.735404816165
+    ],
+    [
+     8488.902833584716,
+     -12384.618100888118,
+     3371.9673452412244
+    ],
+    [
+     8493.461535812403,
+     -12199.230876962407,
+     3517.4976417857724
+    ],
+    [
+     8498.052187780982,
+     -12012.544363573372,
+     3662.3146635342746
+    ],
+    [
+     8502.67512655206,
+     -11824.544853549609,
+     3806.406579995979
+    ],
+    [
+     8507.33069394517,
+     -11635.218446229743,
+     3949.7613588241475
+    ],
+    [
+     8512.01923662206,
+     -11444.55104403623,
+     4092.366763598762
+    ],
+    [
+     8516.74110617272,
+     -11252.528348976086,
+     4234.210351679692
+    ],
+    [
+     8521.496659203278,
+     -11059.135859066713,
+     4375.2794721379505
+    ],
+    [
+     8526.286257425776,
+     -10864.358864684982,
+     4515.561263772815
+    ],
+    [
+     8531.110267749891,
+     -10668.182444837616,
+     4655.04265322319
+    ],
+    [
+     8535.969062376618,
+     -10470.591463350891,
+     4793.710353181847
+    ],
+    [
+     8540.863018893993,
+     -10271.570564977617,
+     4931.550860721654
+    ],
+    [
+     8545.792520374935,
+     -10071.104171419303,
+     5068.550455743341
+    ],
+    [
+     8550.75795547718,
+     -9869.176477261313,
+     5204.695199554757
+    ],
+    [
+     8555.759718545438,
+     -9665.771445818804,
+     5339.9709335920015
+    ],
+    [
+     8560.79820971579,
+     -9460.872804891205,
+     5474.363278293284
+    ],
+    [
+     8565.873835022392,
+     -9254.464042422747,
+     5607.857632136787
+    ],
+    [
+     8570.987006506553,
+     -9046.528402066744,
+     5740.439170854243
+    ],
+    [
+     8576.138142328256,
+     -8837.048878651065,
+     5872.092846832398
+    ],
+    [
+     8581.327666880108,
+     -8626.008213542204,
+     6002.803388715041
+    ],
+    [
+     8586.556010903967,
+     -8413.388889905344,
+     6132.555301218497
+    ],
+    [
+     8591.823611610058,
+     -8199.173127857628,
+     6261.332865174223
+    ],
+    [
+     8597.130912798888,
+     -7983.34287951185,
+     6389.1201378123405
+    ],
+    [
+     8602.478364985873,
+     -7765.8798239076805,
+     6515.900953300399
+    ],
+    [
+     8607.866425528833,
+     -7546.765361827377,
+     6641.658923552117
+    ],
+    [
+     8613.295558758367,
+     -7325.980610492975,
+     6766.377439321157
+    ],
+    [
+     8618.766236111265,
+     -7103.506398141719,
+     6890.039671595401
+    ],
+    [
+     8624.278936266968,
+     -6879.323258476504,
+     7012.628573307447
+    ],
+    [
+     8629.834145287183,
+     -6653.4114249879185,
+     7134.126881377459
+    ],
+    [
+     8635.432356758743,
+     -6425.7508251444715,
+     7254.517119104596
+    ],
+    [
+     8641.074071939822,
+     -6196.321074447311,
+     7373.781598923699
+    ],
+    [
+     8646.759799909527,
+     -5965.101470345862,
+     7491.902425543845
+    ],
+    [
+     8652.490057721054,
+     -5732.070986010479,
+     7608.8614994857635
+    ],
+    [
+     8658.265370558402,
+     -5497.208263958198,
+     7724.640521034904
+    ],
+    [
+     8664.086271896858,
+     -5260.491609527572,
+     7839.2209946273215
+    ],
+    [
+     8669.95330366725,
+     -5021.898984198339,
+     7952.58423368512
+    ],
+    [
+     8675.867016424138,
+     -4781.407998751655,
+     8064.711365918374
+    ],
+    [
+     8681.827969518039,
+     -4538.995906266407,
+     8175.583339110111
+    ],
+    [
+     8687.836731271795,
+     -4294.639594946999,
+     8285.180927400688
+    ],
+    [
+     8693.893879161198,
+     -4048.3155807779003,
+     8393.484738087573
+    ],
+    [
+     8700.0,
+     -3800.0000000000027,
+     8500.475218956035
+    ]
+   ],
+   "half_width_cm": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    0
+   ],
+   "check_owners": "new_only",
+   "purpose": "Additional outer visual sight check; not a declared grapple reachability route"
+  },
+  {
+   "id": "NortheastToTablelandHubSight",
+   "points_xyh_cm": [
+    [
+     8400.000000000002,
+     15999.999999999998,
+     170.0
+    ],
+    [
+     8314.837856176377,
+     15809.087062197585,
+     300.1780333098177
+    ],
+    [
+     8229.452426367983,
+     15617.673571198548,
+     429.566822333185
+    ],
+    [
+     8143.842831274334,
+     15425.757555823777,
+     558.1559615350052
+    ],
+    [
+     8058.008186971964,
+     15233.337034530548,
+     685.9349276766407
+    ],
+    [
+     7971.947604883997,
+     15040.410015344341,
+     812.8930801253919
+    ],
+    [
+     7885.660191749498,
+     14846.97449579008,
+     939.019661259721
+    ],
+    [
+     7799.14504959255,
+     14653.028462822856,
+     1064.3037969745965
+    ],
+    [
+     7712.401275691114,
+     14458.569892758089,
+     1188.734497291145
+    ],
+    [
+     7625.427962545626,
+     14263.59675120118,
+     1312.3006570750476
+    ],
+    [
+     7538.224197847363,
+     14068.106992976494,
+     1434.9910568681116
+    ],
+    [
+     7450.789064446518,
+     13872.098562055926,
+     1556.7943638375073
+    ],
+    [
+     7363.121640320083,
+     13675.569391486772,
+     1677.6991328472832
+    ],
+    [
+     7275.2209985394,
+     13478.517403319089,
+     1797.693807656684
+    ],
+    [
+     7187.08620723752,
+     13280.940508532454,
+     1916.7667222499913
+    ],
+    [
+     7098.716329576254,
+     13082.836606962142,
+     2034.906102302506
+    ],
+    [
+     7010.110423713001,
+     12884.203587224742,
+     2152.1000667873923
+    ],
+    [
+     6921.267542767264,
+     12685.039326643087,
+     2268.3366297280954
+    ],
+    [
+     6832.186734786927,
+     12485.341691170695,
+     2383.6037021009724
+    ],
+    [
+     6742.8670427142815,
+     12285.10853531552,
+     2497.889093892907
+    ],
+    [
+     6653.307504351686,
+     12084.33770206312,
+     2611.1805163185054
+    ],
+    [
+     6563.507152327101,
+     11883.027022799206,
+     2723.465584201498
+    ],
+    [
+     6473.465014059181,
+     11681.174317231566,
+     2834.731818524924
+    ],
+    [
+     6383.180111722216,
+     11478.777393311335,
+     2944.9666491545977
+    ],
+    [
+     6292.651462210707,
+     11275.834047153663,
+     3054.1574177402217
+    ],
+    [
+     6201.878077103689,
+     11072.342062957714,
+     3162.2913807984587
+    ],
+    [
+     6110.858962628762,
+     10868.299212926011,
+     3269.355712982193
+    ],
+    [
+     6019.593119625827,
+     10663.703257183168,
+     3375.337510539892
+    ],
+    [
+     5928.079543510514,
+     10458.55194369389,
+     3480.223794969108
+    ],
+    [
+     5836.3172242373275,
+     10252.84300818037,
+     3584.001516867582
+    ],
+    [
+     5744.305146262491,
+     10046.574174038986,
+     3686.6575599856806
+    ],
+    [
+     5652.042288506489,
+     9839.743152256291,
+     3788.1787454832483
+    ],
+    [
+     5559.527624316265,
+     9632.347641324368,
+     3888.5518363939445
+    ],
+    [
+     5466.7601214271845,
+     9424.38532715544,
+     3987.7635422997737
+    ],
+    [
+     5373.738741924613,
+     9215.853882995825,
+     4085.800524218299
+    ],
+    [
+     5280.462442205211,
+     9006.750969339142,
+     4182.649399704598
+    ],
+    [
+     5186.9301729379085,
+     8797.074233838823,
+     4278.296748169756
+    ],
+    [
+     5093.140879024569,
+     8586.821311219906,
+     4372.729116417242
+    ],
+    [
+     4999.0934995602975,
+     8375.989823190106,
+     4465.933024398255
+    ],
+    [
+     4904.786967793437,
+     8164.577378350116,
+     4557.894971186539
+    ],
+    [
+     4810.220211085257,
+     7952.581572103203,
+     4648.601441172759
+    ],
+    [
+     4715.392150869261,
+     7739.999986564055,
+     4738.038910478201
+    ],
+    [
+     4620.301702610208,
+     7526.830190466829,
+     4826.1938535867885
+    ],
+    [
+     4524.947775762731,
+     7313.069739072485,
+     4913.052750194129
+    ],
+    [
+     4429.32927372968,
+     7098.716174075316,
+     4998.602092271591
+    ],
+    [
+     4333.445093820072,
+     6883.767023508722,
+     5082.828391342988
+    ],
+    [
+     4237.294127206699,
+     6668.219801650172,
+     5165.718185970574
+    ],
+    [
+     4140.875258883389,
+     6452.072008925387,
+     5247.258049446831
+    ],
+    [
+     4044.1873676219016,
+     6235.321131811728,
+     5327.434597687457
+    ],
+    [
+     3947.2293259284806,
+     6017.964642740761,
+     5406.234497320711
+    ],
+    [
+     3850.0000000000027,
+     5799.999999999998,
+     5483.644473967208
+    ]
+   ],
+   "half_width_cm": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    0
+   ],
+   "check_owners": "new_only",
+   "purpose": "Additional outer visual sight check; not a declared grapple reachability route"
+  }
+ ],
+ "trial_target_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V001/LVI_Ridge_EDTerrain_U5aBody_V001",
+ "trial_target_level_created": false,
+ "representative_cases": [
+  {
+   "id": "OpenVerticalSkin",
+   "reports": [
+    "R01",
+    "R05"
+   ],
+   "purpose": "Close open side/back volume without moving adopted rocks; preserve front silhouette",
+   "points_local_xyh_cm": [
+    [
+     -5130,
+     -4719,
+     1393
+    ],
+    [
+     -7302,
+     -68,
+     3497
+    ]
+   ],
+   "known_owners": [
+    "ASM_Z1_PlateauSouthCrown",
+    "CR_Z1_LargeAssembly"
+   ],
+   "mesh_candidates": [
+    "/Game/SmartAssets/AssetMeshes/SM_Cliff_01",
+    "/Game/SmartAssets/AssetMeshes/SM_Cliff_02"
+   ],
+   "exact_exposed_face_identity": "unconfirmed; validate against report screenshots and actual geometry"
+  },
+  {
+   "id": "SharedUnderSurfaceVoid",
+   "reports": [
+    "R03",
+    "R04"
+   ],
+   "purpose": "Fill unintended under-surface volume and close both distinct entrances together",
+   "points_local_xyh_cm": [
+    [
+     -7463,
+     343,
+     749
+    ],
+    [
+     -7863,
+     1591,
+     746
+    ]
+   ],
+   "candidate_owners": [
+    "CR_Z1_Drape",
+    "CR_Z1_LargeAssembly"
+   ],
+   "exact_body_boundary": "not chosen from point/box survey alone"
+  }
+ ],
+ "watch_reports": [
+  "R02",
+  "R06"
+ ],
+ "report_points_local_xyh_cm": {
+  "R01": [
+   -5130,
+   -4719,
+   1393
+  ],
+  "R02": [
+   -5714,
+   -1475,
+   751
+  ],
+  "R03": [
+   -7463,
+   343,
+   749
+  ],
+  "R04": [
+   -7863,
+   1591,
+   746
+  ],
+  "R05": [
+   -7302,
+   -68,
+   3497
+  ],
+  "R06": [
+   -3267,
+   954,
+   1212
+  ]
+ },
+ "preserve_structures": [
+  {
+   "id": "BasinHall",
+   "kind": "caves",
+   "bounds_xy_cm": [
+    [
+     -600.0,
+     9900.0
+    ],
+    [
+     150.0,
+     8300.0
+    ]
+   ],
+   "top_h_cm": null,
+   "bottom_h_cm": -4500,
+   "classification": "interior_structure_dressing_required",
+   "preserve": "existing geometry, passage, Pod landing and grapple sight until dedicated versioned work"
+  },
+  {
+   "id": "MassifCavern",
+   "kind": "caves",
+   "bounds_xy_cm": [
+    [
+     -13300.0,
+     -7200.0
+    ],
+    [
+     -7150.0,
+     -1700.0
+    ]
+   ],
+   "top_h_cm": null,
+   "bottom_h_cm": -1100,
+   "classification": "interior_structure_dressing_required",
+   "preserve": "existing geometry, passage, Pod landing and grapple sight until dedicated versioned work"
+  },
+  {
+   "id": "ValleySkyIsle",
+   "kind": "islands",
+   "bounds_xy_cm": [
+    [
+     4815.815741022861,
+     10785.8299176767
+    ],
+    [
+     -8603.040671873947,
+     -2664.850612561041
+    ]
+   ],
+   "top_h_cm": 5500,
+   "bottom_h_cm": 3200,
+   "classification": "interior_structure_dressing_required",
+   "preserve": "existing geometry, passage, Pod landing and grapple sight until dedicated versioned work"
+  },
+  {
+   "id": "WestSkyIsle",
+   "kind": "islands",
+   "bounds_xy_cm": [
+    [
+     -17412.585611937564,
+     -11800.927028574923
+    ],
+    [
+     2001.7268963794704,
+     7667.282103235148
+    ]
+   ],
+   "top_h_cm": 6000,
+   "bottom_h_cm": 3700,
+   "classification": "interior_structure_dressing_required",
+   "preserve": "existing geometry, passage, Pod landing and grapple sight until dedicated versioned work"
+  },
+  {
+   "id": "SkyBridge",
+   "kind": "bridges",
+   "bounds_xy_cm": [
+    [
+     -4910.097115424305,
+     -4089.9028845756948
+    ],
+    [
+     -9515.491215803331,
+     -5284.508784196669
+    ]
+   ],
+   "top_h_cm": null,
+   "bottom_h_cm": 3334.8406380664815,
+   "classification": "interior_structure_dressing_required",
+   "preserve": "existing geometry, passage, Pod landing and grapple sight until dedicated versioned work"
+  }
+ ],
+ "parameters": {
+  "generation_method": null,
+  "resolution_cm": null,
+  "fit_tolerance_cm": null,
+  "note": "Choose from bounded trial measurements; prior 40cm plate thickness does not prove filled bodies"
+ },
+ "contracts": {
+  "native_margin_cm": 1500,
+  "transition_outer_cm": 5500,
+  "visual_seam_forbidden_cm": 500,
+  "collision_seam_forbidden_cm": 2000,
+  "min_floor_component_area_m2": 50,
+  "whole_ridge_nav_layer_limit": 256,
+  "visual_ed_collision": "NoCollision",
+  "collision_roles": [
+   "Crust",
+   "Floor",
+   "Shell"
+  ],
+  "z1_massif_nav": "background; do not restore CrownSummit or StairTerrace2 Pods"
+ },
+ "sequence": [
+  "bounded closed body geometry trial",
+  "same camera visual comparison and owner fingerprint preservation",
+  "derive visual/collision from common body input and remove interior crust/support",
+  "manual user approach validation for walking, jump and grapple",
+  "regional rollout after unit review"
+ ],
+ "forbidden": [
+  "exterior decoration expansion",
+  "modify original/shared assets",
+  "move adopted large owners",
+  "reexecute prior generators for preparation",
+  "restore pre-Cull instances",
+  "delete reported rocks first",
+  "single convex hull over intended caves and passages",
+  "two-sided-only fix",
+  "invisible-wall-only fix",
+  "full ridge bake or detail vegetation before body validation"
+ ],
+ "evidence_folder": "Saved/Profiling/Graphics/Phase01/U4_InteriorReview_V001"
+}

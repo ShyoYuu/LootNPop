@@ -1,0 +1,348 @@
+{
+ "schema": 1,
+ "zone": "Z2",
+ "unit": "U4-11",
+ "status": "inherited_accepted_large_layout_rough",
+ "level_instances": [
+  {
+   "label": "ASM_Z2_LowerSouthBank",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V001/Z2Assembly_V001/PL_Ridge_Z2_LowerBank_V001",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02d",
+   "source_sha256": "70bbe385755a8f18ddeabd5719fd95f523ce6cbe995e54a49ffc057efbe2cded",
+   "level_sha256": "ec2dec0f2026294ded6ef429400a03791d499123cdfe847424e8ce07c72ae426",
+   "local_xyh_cm": [
+    1200.0,
+    -5800.0,
+    -6500.0
+   ],
+   "rotation_deg": [
+    1e-06,
+    135.0,
+    1e-06
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 8206,
+   "collision": "NoCollision",
+   "purpose": "Lower canyon opposite bank accent"
+  },
+  {
+   "label": "ASM_Z2_BridgeSouthButtress",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/Z2Assembly_V002/PL_Ridge_Z2_BridgeSouth_V002",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_02e",
+   "source_sha256": "9275c05bf693ba7ae274baec88b2a118a1867f952fe1628d006fb8876bd0560f",
+   "level_sha256": "77b8b4bf521030547383a037b460bde0a8748add8db799715d8639715248b88c",
+   "local_xyh_cm": [
+    -7850.0,
+    -9800.0,
+    -600.0
+   ],
+   "rotation_deg": [
+    1e-06,
+    100.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 9148,
+   "collision": "NoCollision",
+   "purpose": "Bridge south cliff accent"
+  },
+  {
+   "label": "ASM_Z2_UpperSouthShoulder",
+   "role": "assembly",
+   "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U4Layout_V002/Z2Assembly_V002/PL_Ridge_Z2_UpperShoulder_V002",
+   "source_level": "/Game/PCG/Assets/PCGAssemblies/Forest/PL_LargeCliff_01c",
+   "source_sha256": "780d7bf3b9d56d79ca22ab4af40019d3935695b3d4f91231b3d0ec59a8adebb9",
+   "level_sha256": "4aa42b802ea5e7f9d6989ea6e70acde5fc9f5e84c70d8a45d6d8e159b0cb858a",
+   "local_xyh_cm": [
+    -12900.0,
+    -9800.0,
+    -1600.0
+   ],
+   "rotation_deg": [
+    1e-06,
+    80.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "expected_instances": 830,
+   "collision": "NoCollision",
+   "purpose": "Upper canyon independent rock shoulder"
+  }
+ ],
+ "body_handoff": {
+  "fill": [
+   "Closed volume behind/below the new bank exterior, connected to current base terrain",
+   "End face towards future Z4 south canyon wall",
+   "Behind and below bridge south buttress, joined to future Z4 mesa north face",
+   "Closed body inside upper canyon shoulder"
+  ],
+  "preserve_empty": [
+   "RiftCanyonLower corridor",
+   "SkyBridge underpass upstream (outside this unit)",
+   "Existing caves and entrances",
+   "SkyBridge deck and underpass",
+   "CanyonChamber Pod 9m disk",
+   "MassifCavern south entrance and CanyonRun",
+   "MesaAscent approach and original bridge abutments"
+  ],
+  "deferred": [
+   "body",
+   "collision_proxy",
+   "surface_bake",
+   "drape",
+   "small_rocks",
+   "vegetation_finish"
+  ]
+ },
+ "corridors": [
+  {
+   "id": "RiftCanyonLower",
+   "points_xyh_cm": [
+    [
+     1200,
+     -2600,
+     -4046.8008
+    ],
+    [
+     -1600,
+     -5400,
+     -3433.5
+    ]
+   ],
+   "half_width_cm": [
+    1100,
+    750
+   ],
+   "protected_space": "walking corridor and existing canyon opening"
+  },
+  {
+   "id": "RiftCanyonMiddleUpper",
+   "points_xyh_cm": [
+    [
+     -1600,
+     -5400,
+     -3433.5
+    ],
+    [
+     -4300,
+     -7300,
+     -2200
+    ],
+    [
+     -7200,
+     -7300,
+     -1300
+    ],
+    [
+     -11000,
+     -7400,
+     -300
+    ],
+    [
+     -14500,
+     -7800,
+     0
+    ]
+   ],
+   "half_width_cm": [
+    750,
+    650,
+    1300,
+    650,
+    800
+   ],
+   "height_mode": "ground",
+   "check_owners": "new_only",
+   "height_offsets_cm": [
+    100,
+    250
+   ]
+  },
+  {
+   "id": "SkyBridgeDeck",
+   "points_xyh_cm": [
+    [
+     -4389.488,
+     -5300.276,
+     3834.84
+    ],
+    [
+     -4610.512,
+     -9499.724,
+     3855.053
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    -450,
+    100
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CanyonChamberPod",
+   "points_xyh_cm": [
+    [
+     -7359.7,
+     -7248.5,
+     -1257.7
+    ],
+    [
+     -7358.7,
+     -7248.5,
+     -1257.7
+    ]
+   ],
+   "half_width_cm": [
+    900,
+    900
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    600,
+    1100,
+    1600,
+    2100,
+    2600,
+    3100,
+    3600,
+    4100,
+    4600,
+    5100,
+    5600,
+    6100
+   ],
+   "disk_radius_cm": 900,
+   "check_owners": "new_only"
+  },
+  {
+   "id": "CavernSouthEntrance",
+   "points_xyh_cm": [
+    [
+     -9000,
+     -7400,
+     -850
+    ],
+    [
+     -9000,
+     -6800,
+     -950
+    ],
+    [
+     -9000,
+     -5450,
+     -1050
+    ],
+    [
+     -9200,
+     -4000,
+     -839
+    ]
+   ],
+   "half_width_cm": [
+    450,
+    450,
+    450,
+    450
+   ],
+   "height_mode": "linear",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  },
+  {
+   "id": "MesaAscent",
+   "points_xyh_cm": [
+    [
+     -14500,
+     -11000,
+     2.07
+    ],
+    [
+     -12900,
+     -15200,
+     55.4
+    ],
+    [
+     -12100,
+     -15200,
+     84.01
+    ],
+    [
+     -10800,
+     -9600,
+     1720.73
+    ],
+    [
+     -10100,
+     -10000,
+     1863.64
+    ],
+    [
+     -10000,
+     -12600,
+     1861.77
+    ],
+    [
+     -9000,
+     -13200,
+     1975.1
+    ],
+    [
+     -3300,
+     -11000,
+     3839.69
+    ],
+    [
+     -3500,
+     -10200,
+     3842.79
+    ],
+    [
+     -6000,
+     -10300,
+     3860.79
+    ]
+   ],
+   "half_width_cm": [
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350
+   ],
+   "height_mode": "ground",
+   "height_offsets_cm": [
+    100,
+    250
+   ],
+   "check_owners": "new_only"
+  }
+ ]
+}
