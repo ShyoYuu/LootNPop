@@ -33,3 +33,33 @@
 /Scripts/RidgeEDBaseSpec.py text eol=lf
 # 이 스펙은 채택 당시 CRLF/LF 혼합 원시 해시이므로 정규화하지 않는다.
 /Scripts/RidgeZ1CompositionSpec.py -text whitespace=cr-at-eol
+
+# U5a-6 새 저작/검사 도구의 LF 원시 해시를 보존한다.
+/Scripts/Blender/ReviewRidgeBodyIntersections.py text eol=lf
+/Scripts/Blender/ExploreRidgeBodyIntersectionRepair.py text eol=lf
+/Scripts/Blender/ValidateRidgeBodyLocalRepair.py text eol=lf
+/Scripts/Blender/RenderRidgeBodyIntersectionReview.py text eol=lf
+/Scripts/Blender/ExportRidgeBodyIntersectionRepair.py text eol=lf
+/Scripts/Blender/BuildRidgeBodyRepairComparison.py text eol=lf
+/Scripts/Profiling/Graphics/InspectRidgeU5a6.py text eol=lf
+/Scripts/Profiling/Graphics/BuildRidgeBodyIntersectionReview.py text eol=lf
+/Scripts/Profiling/Graphics/PrepareRidgeU5a6Review.py text eol=lf
+/Scripts/Profiling/Graphics/PrepareRidgeBodyIntersectionImport.py text eol=lf
+/Scripts/Profiling/Graphics/VerifyRidgeBodyIntersectionRepair.py text eol=lf
+/Scripts/Profiling/Graphics/FinalizeRidgeBodyIntersectionRepair.py text eol=lf
+
+# U5a-7 저작/검사 도구의 LF 원시 바이트 보존.
+/Scripts/Profiling/Graphics/AcceptRidgeBodyV007.py text eol=lf
+/Scripts/Profiling/Graphics/BuildRidgeBodyBoundaryReview.py text eol=lf
+/Scripts/Profiling/Graphics/PrepareRidgeR01Closure.py text eol=lf
+/Scripts/Profiling/Graphics/VerifyRidgeR01Backfill.py text eol=lf
+/Scripts/Profiling/Graphics/FinalizeRidgeR01Backfill.py text eol=lf
+/Scripts/Blender/ReviewRidgeBodyBoundary.py text eol=lf
+/Scripts/Blender/BuildRidgeR01JoinBody.py text eol=lf
+/Scripts/Blender/BuildRidgeR01LocalClosure.py text eol=lf
+/Scripts/Blender/RefineRidgeR01ClosureHull.py text eol=lf
+/Scripts/Blender/BuildRidgeR01RockBackfill.py text eol=lf
+/Scripts/Blender/ValidateRidgeR01Backfill.py text eol=lf
+/Scripts/Blender/BuildRidgeR01Comparison.py text eol=lf
+
+/Scripts/Profiling/Graphics/AcceptRidgeBodyV008.py text eol=lf
