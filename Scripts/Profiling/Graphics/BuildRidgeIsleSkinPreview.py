@@ -5,8 +5,8 @@ TestMap03 조명 사본 + 시험 전용 균일 회색 Sky Light(GX-025, 세기 5
 원본 IsleSkin 맵·U5aBody V008·조명 원본·TestMap03은 바꾸지 않는다.
 
 실행: 에디터 상태 표시줄 Cmd에 py "<이 파일>" <명령> [인자]
-- build <V006|V007|V008>: 조명 원본 Z1AssemblyTest_V001이 열린 상태(다음 Cmd)에서 IsleSkinLit_<판>을 만들어 저장한다.
-- verify <V006|V007>: 열린 미리보기 레벨의 조명·Sky Light·Level Instance 구성과 dirty/PIE를 검사한다.
+- build <V006|V007|V008|V010>: 조명 원본 Z1AssemblyTest_V001이 열린 상태(다음 Cmd)에서 IsleSkinLit_<판>을 만들어 저장한다.
+- verify <V006|V007|V008|V010>: 열린 미리보기 레벨의 조명·Sky Light·Level Instance 구성과 dirty/PIE를 검사한다.
 - view <시점>: 뷰포트를 IsleSkin_V001/PreviewViews_V001.json의 시점으로 옮긴다.
 - sky <0|1>: Sky Light를 에디터에서만 임시로 숨기거나(0) 되돌린다(1). 패키지는 dirty가 되지 않는다.
 결과: Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Preview/
@@ -32,7 +32,16 @@ VIEWS = HERE / "IsleSkin_V001/PreviewViews_V001.json"
 EDT = "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/"
 SOURCE = {"V006": EDT + "IsleSkin_V006/LVI_Ridge_EDTerrain_IsleSkin_V006",
           "V007": EDT + "IsleSkin_V007/LVI_Ridge_EDTerrain_IsleSkin_V007",
-          "V008": EDT + "IsleSkin_V008/LVI_Ridge_EDTerrain_IsleSkin_V008"}
+          "V008": EDT + "IsleSkin_V008/LVI_Ridge_EDTerrain_IsleSkin_V008",
+          # 섬 윗면 단위(BuildRidgeIsleTop.py): V010 = V009 + 섬 덮개 재분할(2a).
+          "V010": EDT + "IsleSkin_V010/LVI_Ridge_EDTerrain_IsleSkin_V010",
+          # V011 = V010 + 섬 엄폐 각기둥 몸체·Shell(2b, GX-042).
+          "V011": EDT + "IsleSkin_V011/LVI_Ridge_EDTerrain_IsleSkin_V011",
+          "V012": EDT + "IsleSkin_V012/LVI_Ridge_EDTerrain_IsleSkin_V012",
+          "V013": EDT + "IsleSkin_V013/LVI_Ridge_EDTerrain_IsleSkin_V013",
+          "V014": EDT + "IsleSkin_V014/LVI_Ridge_EDTerrain_IsleSkin_V014",
+          "V015": EDT + "IsleSkin_V015/LVI_Ridge_EDTerrain_IsleSkin_V015",
+          "V016": EDT + "IsleSkin_V016/LVI_Ridge_EDTerrain_IsleSkin_V016"}
 PREVIEW = EDT + "IsleSkinLit_V001/IsleSkinLit_{}"
 # Z1AssemblyWall V021 이후 시험 레벨과 같은 Sky Light(TestMap03에는 없다, GX-025).
 SKY = {"cubemap": "/Engine/EngineResources/GrayTextureCube", "intensity": 50.0}

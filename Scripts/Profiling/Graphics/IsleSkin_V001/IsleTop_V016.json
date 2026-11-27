@@ -1,0 +1,120 @@
+{
+ "unit": "IsleTop (unit 2: 2a cap + 2b cover)",
+ "decisions": [
+  "GX-042",
+  "GX-043"
+ ],
+ "current_map": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V016/LVI_Ridge_EDTerrain_IsleSkin_V016",
+ "chain": {
+  "V010": "V009 + island body caps re-tessellated (Geometry_V010)",
+  "V015": "V010 + Cover V004 visual (IsleRock material override) + Cover V004 Shell",
+  "V016": "V015 visuals + Cover V005 Shell (covers + base rubble >= 8cm)"
+ },
+ "rejected_or_history": {
+  "V011": "Cover V001 round, regular strata (tire look)",
+  "V012": "Cover V002 round, irregular strata",
+  "V013": "Cover V003 faceted, IsleSurface flat tops blended into floor",
+  "V014": "Cover V004 same look as V013 (winding not the cause)",
+  "V015": "accepted look, rubble NoCollision (user Q06)"
+ },
+ "reproduce": [
+  "blender --background --factory-startup --python Scripts/Blender/BuildRidgeIsleTop.py -- cap V010",
+  "blender ... BuildRidgeIsleTop.py -- cover V004   (visual + shell V004)",
+  "blender ... BuildRidgeIsleTop.py -- cover V005   (same visual, shell with rubble)",
+  "UE Cmd: py Scripts/Profiling/Graphics/BuildRidgeIsleTop.py material Rock (once)",
+  "UE Cmd: BuildRidgeIsleTop.py build V010 -> verify V010 -> build V016 -> verify V016",
+  "UE Cmd: BakeRidgeIsleSkin.py dump IsleSkin_V016 -> bake V016 -> pool V016"
+ ],
+ "geometry_v010": {
+  "triangles_per_isle": [
+   9540,
+   9540
+  ],
+  "cap_vs_floor_after_max_cm": [
+   -2.379,
+   -2.533
+  ],
+  "cap_vs_floor_before_max_cm": [
+   26.267,
+   21.737
+  ],
+  "new_hits": 0,
+  "fbx": {
+   "SM_Ridge_IsleBody_ValleySkyIsle_V010": "a32d421771f2c760a2322f5e7ad59eb7a31035626d3733c0fedefb438754dca7",
+   "SM_Ridge_IsleBody_WestSkyIsle_V010": "64feb769a956e106b1985e66f539d9666213db6a41a3f463582ab08b596add18"
+  }
+ },
+ "cover_v004": {
+  "visual": {
+   "SM_Ridge_IsleCover_ValleySkyIsle_V004": {
+    "triangles": 1024,
+    "sha256": "67f3ab1ddd1d80e3c640ad97d33ac6ee25790daaddab1fb127e7962f3902ef3f"
+   },
+   "SM_Ridge_IsleCover_WestSkyIsle_V004": {
+    "triangles": 1136,
+    "sha256": "e026a7488e78c9c86f98c7a382fb2410006d5576ac4e121e8dc53e94fc2004be"
+   }
+  },
+  "restore_v011_cover": 11,
+  "new_protected": 0
+ },
+ "cover_v005_shell": {
+  "name": "SM_Ridge_IsleCover_V005_Shell",
+  "triangles": 2112,
+  "sha256": "e283aaa91791789b4e474f7ca0c84aad19a1f3f1f92256ed2b778249cdcf9f09",
+  "rubble_in_shell": 28,
+  "rubble_skipped_low": 2
+ },
+ "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Surface_V002/MI_Ridge_IsleRock (slope custom node -> float2(1,0))",
+ "bake": {
+  "V009": {
+   "layers": 82,
+   "candidates": 9360,
+   "cells": 78343
+  },
+  "V015": {
+   "layers": 82,
+   "candidates": 9348,
+   "cells": 78162
+  },
+  "V016": {
+   "layers": 82,
+   "candidates": 9345,
+   "cells": 78134,
+   "components": 120,
+   "portals": 638,
+   "seam_matches_meadow": true,
+   "isle_pods": {
+    "ValleySkyIsle": 97,
+    "WestSkyIsle": 87
+   }
+  }
+ },
+ "pie": {
+  "V015": {
+   "slot": 1,
+   "pass": [
+    "Q01",
+    "Q02",
+    "Q03",
+    "Q04",
+    "Q05",
+    "Q07"
+   ],
+   "Q06": "rubble pass-through noticeable -> collision"
+  },
+  "V016": {
+   "slot": 0,
+   "pass": [
+    "R01",
+    "R02"
+   ]
+  },
+  "enemy_density": 0
+ },
+ "inputs": {
+  "Scripts/Blender/BuildRidgeIsleTop.py": "6965535eb2b6e97e2a0a87fb2d33fc4f295b2127265a9f4d2b6fc7704a9ce0bc",
+  "Scripts/Profiling/Graphics/BuildRidgeIsleTop.py": "ddb2bc20f997ff158ae28065f46bdb11744bcb75f38f3ed5f0a5f7d7ea3015c7",
+  "Scripts/RidgeOctantSpec.py": "db57a7b38d93beb9c310617eb71f2a8cfcf9f01c33c0be8e0b08321e166a24bf"
+ }
+}

@@ -1716,3 +1716,36 @@ V035 구성을 베이크 가능한 Ridge WIP LVI로 옮겨 굽고, 1인 러프 P
 - 복원: 정식 풀·EnemyDensity 1을 다시 읽어 확인했다. INI·정식 풀·검사용 풀·V009 해시가 같고 보존 해시 `PIE3c3_After` 불일치 0, TestMap03·PIE=false·dirty 없음이다. 에셋은 바꾸지 않았다.
 - 북벽 AttachTo 경고 조사(읽기 전용): Z1Cull_V001 15레벨의 루트·ISM이 모두 Movable로 저장되어 있다(스크립트가 지정한 Static이 남지 않음). 북벽만 마지막 ISM 1개(SM_Cliff_08)가 Static이라 로드할 때마다 부착을 거부한다. 변환이 모두 항등이라 화면 영향은 없다. Z1Cull_V001은 V008 보존 대상이라 고치지 않았다(외피 시험 §13).
 - 사용자가 경고 정리를 U5b에서 Z1Cull_V002 재생성과 함께 하기로 정했다. 1-BR 실행서 U5b 항목과 체크리스트에 적었다.
+
+## 2026-11-27 — IsleTop 섬 윗면 단위 2 착수·2a 덮개 재분할(GX-042)
+
+- 시작 상태: TestMap03·PIE=false·dirty 없음, 보존 해시 `IsleSkinUnit2_Start` 불일치 0(V008 703·V006 7·V007 14).
+- 엄폐 각기둥 누락 원인: U3 V012 보존 구조물이 Cave·Island·Bridge 역할만 골라 V011 섬 엄폐 각기둥 6개가 그때부터 없다(V009 충돌 덤프로 확인). IsleSkin V001은 각기둥이 있다고 보고 외피만 덮으려 했고, 4개는 14.5m 표본 고리에 걸려 빠졌다. V002 이후에는 섬 껍질 생성 전체가 꺼져 나머지도 사라졌다.
+- 발 묻힘 실측: V005 부채꼴 덮개가 Floor보다 최대 26.3cm(골짜기)·21.7cm(서쪽) 위였다. §11의 19cm보다 크다.
+- 사용자 결정 4건(GX-042): 덮개 재분할, V011 자리 엄폐 복원(점유는 "V011 엄폐 복원"으로 따로 셈), Blender 닫힌 몸체 + Shell, 잔돌·식생은 가볍게.
+- 2a: 새 Blender `BuildRidgeIsleTop.py`가 동결 `BuildRidgeIsleBody.py`를 라이브러리로 불러 V005를 재현(오차 0.0006cm)하고 덮개만 동심 고리로 바꿨다. 섬당 9,540삼각형, 덮개 최대 Floor −2.4/−2.5cm, 보호 새 점유 0, 위상 결함 0.
+- 새 UE `BuildRidgeIsleTop.py`로 V009 복제 `IsleSkin_V010`에 몸체 2개만 교체했다. Verify PASS(나머지 액터 불변, 충돌 6개 V009와 동일, 외피 충돌 0). 처음 Verify는 Level Instance `world_asset`을 `str()`로 적어 메모리 주소 차이 36건이 나왔고, 경로 비교로 고쳤다.
+- 미리보기 `IsleSkinLit_V010` Verify PASS. V007/V010 Lit 5시점 비교(`IsleTop/Compare/`): 섬 윗면 재질 무늬만 조금 다르고 윤곽·색은 같다.
+- 보존 해시 `IsleTop_V010_After2a` 불일치 0. 마지막 에디터 상태는 IsleSkinLit_V007·PIE=false·dirty 없음이다. 다음은 2b 엄폐 각기둥(사용자 확인 뒤).
+
+## 2026-11-27 — IsleTop 2b 엄폐 각기둥 몸체·Shell(외관 확인 대기)
+
+- Blender `BuildRidgeIsleTop.py -- cover V001`: V011 각기둥 안쪽 닫힌 몸체 6개(섬당 한 메시)와 Decimate Shell 하나. 보호 표본은 V011 엄폐 복원 11·새 점유 0, 사선 막힘 0, Shell 맞춤 p95 5.2cm 이하, 걷는 면 턱 0, 위를 보는 면 13.4㎡ 이하.
+- UE `IsleSkin_V011`(V010 + Cover V001) Verify PASS. 화면에서 55cm 주기 띠가 쌓은 타이어처럼 보여 Cover V002(띠 흔들기·요철·기울기·윗면 요철)를 만들고 `IsleSkin_V012`(V010 + Cover V002) Verify PASS. 미리보기 V011·V012 Verify PASS.
+- 시행착오: Blender 덮개 고리 변수 `k`가 삼각형 루프의 각도 수 `k`를 가려 TypeError가 났다(이름 변경).
+- 보존 해시 `IsleTop_2b_Look` 불일치 0. 마지막 에디터 상태는 IsleSkinLit_V012·PIE=false·dirty 없음이다. 외관 선택 뒤 베이크·PIE.
+
+## 2026-11-27 — IsleTop 2b 엄폐 더 다듬기(V013~V015)
+
+- 사용자가 네 방향(각진 덩어리·2~3조각 균열·윗단 돌출/아랫단 파임·밑동 잔돌)을 모두 골랐다. Blender `cover V003`: 반공간 절단 볼록 조각(각기둥당 3조각 × 밑동/윗단) + 잔돌. 보호 새 점유 0·복원 11·사선 0·턱 0.
+- V013 화면에서 윗면이 사라지고 칼날처럼 보였다. 면 방향을 의심해 V004(직접 바깥 감기)·V014를 만들었지만 같았다. Blender 재반입 면 방향·UE 삼각형/법선/LOD·같은 카메라 Blender 렌더가 모두 정상이었다.
+- 원인: IsleSurface 재질이 평평한 윗면을 섬 바닥과 같은 월드 정렬 지면 무늬로 칠해 바닥에 녹아 보였다. IsleSurface 부모를 복제해 경사 판정을 절벽 고정으로 바꾼 `Surface_V002/MI_Ridge_IsleRock`을 만들고, V015(V010 + Cover V004 + 엄폐 컴포넌트 재질만 IsleRock)에서 덩어리로 읽힘을 확인했다. Verify·미리보기 PASS.
+- 보존 해시 `IsleTop_2b_V015` 불일치 0. 외관 선택 뒤 베이크·PIE.
+
+## 2026-11-27 — IsleTop 2b 베이크·PIE·잔돌 충돌(V015 → V016, GX-043)
+
+- 사용자가 V015 외관을 골랐다. 베이크 V015: Layer 82·성분·포털 V009와 같음, Nav 셀 −181, 스폰 후보 −12(섬 Pod 104·95 → 97·90). 검사용 풀 V015.
+- 1인 PIE(Ridge slot 1, 밀도 0, 오류 0): Q01~Q05·Q07 통과. Q06은 잔돌을 발이 통과하는 게 눈에 띈다는 의견이었고, 사용자가 형상 유지·충돌을 요청했다. 풀·밀도를 복원하고 해시를 확인했다.
+- Cover V005: V004와 같은 시각에 높이 8cm 이상 잔돌 28개를 Shell에 더했다(2,112삼각형, 2개 제외). `IsleSkin_V016` Verify PASS. 베이크: Layer 82, Nav 셀 −28, 서쪽 섬 Pod 후보 90 → 87. 검사용 풀 V016.
+- 1인 PIE(slot 0, 오류 0): R01·R02 사용자 통과. 풀·밀도를 복원했고 INI·정식 풀·V016 해시가 같다. 보존 해시 `IsleTop_2b_Final` 불일치 0.
+- GX-043을 기록했다(각진 갈라진 엄폐·IsleRock 재질·잔돌 충돌 예외). 재현 기록은 Git `IsleSkin_V001/IsleTop_V016.json`, 다음 단위 2c 시작 프롬프트는 외피 시험 §14.6에 있다.

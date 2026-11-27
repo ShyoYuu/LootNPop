@@ -1,6 +1,6 @@
 # Phase 1-BR 부유섬·하늘 석교 외피 시험(IsleSkin)
 
-> 상태: V007(석교 B안 + 모노리스 A안) 외관 기준 · GX-039·GX-040 / Lit 미리보기 완료(§9) · 충돌 측정 3a(§10)·Shell 파생 3b(§11, GX-041)·베이크 3c-1(§12, 현재 충돌 맵 IsleSkin_V009)·1인 PIE 3c-2와 복원 3c-3(§13, 14지점 통과) 완료 · 다음 단위는 사용자 확인 대기
+> 상태: V007(석교 B안 + 모노리스 A안) 외관 기준 · GX-039·GX-040 / Lit 미리보기 완료(§9) · 충돌 측정 3a(§10)·Shell 파생 3b(§11, GX-041)·베이크 3c-1(§12, 현재 충돌 맵 IsleSkin_V009)·1인 PIE 3c-2와 복원 3c-3(§13, 14지점 통과) 완료 · 섬 윗면 단위 2(GX-042) 중 2a 덮개 재분할 완료(§14, 맵 IsleSkin_V010) · 2b 엄폐 각기둥 완료(GX-043, 현재 충돌 맵 **IsleSkin_V016**: 각진 갈라진 덩어리 + 엄폐 재질 IsleRock + 잔돌 충돌, 베이크·1인 PIE 통과) · 다음은 2c 잔돌·식생
 > 기준 기록: `Scripts/Profiling/Graphics/IsleSkin_V001/Acceptance_V007.json`(V006 기록 `Acceptance_V006.json`은 그대로 보존)
 > 갱신: 2026-11-27
 > 진입: [Current](../Current.md) · [GX-036~038](../Decisions.md) · [V008 채택](Phase01_U5aBoundaryReview.md)
@@ -68,7 +68,7 @@ V001~V003 맵과 반입 에셋은 비교 이력으로 남겼다(지워도 무방
 ## 5. 남은 REVIEW와 다음 판단
 
 - **시각과 충돌이 다르다.** 몸체 옆면은 윗면 아래 약 1.5~6m에서 외곽선보다 최대 약 10%(약 3m) 바깥으로 나온다(테두리 돌출 1.5% × 요철·지층 상한 계산값). 부유석·갈래·석교 용골은 보이지만 충돌이 없다. 섬 윗면 보행면과 석교 상판 충돌은 기존 그대로라서 걷는 면은 맞는다. 몸체·부유석의 Shell 파생은 U5b 충돌 단계에서 GX-031·032 계약(Floor 50㎡·Nav Layer 256)으로 다룬다.
-- **아직 없는 것:** 섬 윗면 장식(잔돌·식생)과 엄폐 각기둥의 ED 외피가 없다. 엄폐 외피는 V001에서 각기둥 자리가 섬 위 보호 표본과 겹쳐 빠졌다. 이는 U7 세부 마감이나 정확한 메시 검사와 함께 다룬다.
+- **아직 없는 것:** 섬 윗면 장식(잔돌·식생)과 엄폐 각기둥의 ED 외피가 없다. 엄폐 외피는 V001에서 각기둥 자리가 섬 위 보호 표본과 겹쳐 빠졌다. 이는 U7 세부 마감이나 정확한 메시 검사와 함께 다룬다. **정정(§14.1):** 각기둥 자체가 U3 V012 보존 구조물에서 빠져 있었고, V002 이후에는 섬 껍질 생성 전체가 꺼져 남은 2개도 사라졌다.
 - **확인하지 않은 범위:** Lit·Lumen 판정(이번 화면은 Unlit), 패키지 성능, PIE는 하지 않았다. 갈래·부유석이 그래플 사선 시야를 시각적으로 가리는지는 표본 검사만 했다.
 - **석교 상판 자체**(보행면)는 V011 판의 곧은 직선 통로 그대로다. 통로 선형·폭을 바꾸면 기존 경로·보호 폭 변경이므로 이번에는 바꾸지 않았다.
 - **다음 판단:** 모노리스 재해석은 V007로 채택했다(§6~7). 남은 단위는 §8이다.
@@ -256,4 +256,113 @@ CrownSummit·StairTerrace2 Pod는 자동 복원하지 말고 GX-033 산괴 배�
 GenerateRidgeIsleSkin.py는 V006 Acceptance 보존 대상이니 고치지 말고 필요하면 별도 스크립트를 만들어줘.
 외피는 NoCollision, 구면 Up·이음매·Floor50㎡·Nav Layer256 계약을 유지해줘.
 단위마다 Verify·보존 해시·같은 시점 화면 비교를 보고하고 다음 진행을 확인해줘. 수동 조작이 더 효율적이면 자동화 전에 바로 요청해줘.
+```
+
+## 14. 섬 윗면 단위 2(2026-11-27, GX-042)
+
+시작 상태: TestMap03·PIE=false·dirty 없음, 보존 해시(V008 703쌍·V006 7·V007 14) 불일치 0. 사용자가 아래 네 가지를 모두 권장안으로 정했다(GX-042). 단위는 2a 덮개 재분할 → 2b 엄폐 각기둥(몸체·Shell·베이크·PIE) → 2c 잔돌·식생이다.
+
+### 14.1. 엄폐 각기둥이 없는 원인
+
+- V011 설계(`RidgeOctantSpec.ISLAND_COVER`)에는 섬마다 엄폐 각기둥 3개가 있다. 윗면에 1m 묻힌 낮은 각기둥이고, 높이는 윗면 위 2.8~3.5m다.
+- **U3의 V012 기반면은 보존 구조물을 역할 Cave·Island·Bridge로만 골랐다**(`RidgeEDBaseSpec.ROCKS`, manifest `preserved_rocks` 5개). 그래서 각기둥은 그때부터 시각·충돌 모두 없다. V009 충돌 덤프에서 각기둥 중심 6곳의 맨 위 충돌은 모두 섬 윗면 Floor(H 5500/6000)다.
+- `GenerateRidgeIsleSkin.py` V001은 "충돌은 기존 각기둥"을 전제로 ED 외피(NordicBoulder_02)만 덮으려 했다(잘못된 전제).
+  - 6개 중 4개가 보호 표본 OBB 검사에 걸려 빠졌다. 원인은 각기둥 6개가 모두 섬 보호 공간(반경 29m 원판)의 14.5m 표본 고리 위에 있어서다. 각기둥 안에 +1m 높이 표본이 1~2개씩 들어간다. 서쪽 A는 Pod 9m 원판 표본도 걸린다. V001 검사는 "기존 형상 안" 표본을 따로 분류하지 않았다.
+  - V002부터 `isle_shells: False`가 `isle()` 전체를 건너뛰어 남은 2개(C)도 사라졌다. 보호 판단이 아니라 부수 효과다.
+- 원판 검사 근사(반경 = 크기 × 1.15, 높이 윗면 -1m~+4m): V011 자리의 새 점유는 Valley A·B·C 2·2·2, West A 2(+Pod 2)·B 2·C 1이다. 중심에서 19~23m 고리는 모든 각도에서 0이다(원판 근사 계산이며 2b에서 실제 몸체로 다시 잰다).
+
+### 14.2. 발 묻힘 실측
+
+V005 덮개는 중심 정점 하나 + 테두리 240정점의 부채꼴이다(한 장 반경 방향 약 28~30m). 평면 삼각형이 구면(반지름 약 24.5km)보다 위로 떠서 Floor 위로 보인다. Dump_V009의 PreservedRocks_Floor로 현지 Up 광선 높이를 다시 쟀다. §11의 19cm는 기록 근거 파일이 없어 다시 측정했다.
+
+| 섬 | V005 덮개 − Floor 최대 / p95 / 최소 | V010 덮개 − Floor 최대 / p95 / 최소 |
+|:---|---:|---:|
+| 골짜기 | +26.3 / +24.3 / +16.0cm | **−2.4** / −2.8 / −4.0cm |
+| 서쪽 | +21.7 / +20.0 / +11.3cm | **−2.5** / −2.8 / −3.9cm |
+
+V005에서는 섬 윗면 거의 전체에서 외피 덮개가 Floor보다 위에 보였다(무게중심·변 중점 표본). V010은 모든 표본이 Floor 아래다.
+
+### 14.3. 2a: 덮개 재분할 → IsleSkin_V010
+
+| 항목 | 내용 |
+|:---|:---|
+| 형상 | Blender `Scripts/Blender/BuildRidgeIsleTop.py -- cap V010`(약 8초). 동결된 `BuildRidgeIsleBody.py`를 라이브러리로 불러 V005 규칙·난수 흐름(부유석 재시도 횟수는 Geometry_V005 기록)으로 몸체를 재현한다. 정점 수·삼각형 수가 같고 경계 오차 0.0006cm, 부유석 중심 오차 0을 확인한 뒤 덮개만 바꾼다. 동심 고리 f = 1, 0.9 … 0.1(각도 수 240/120/60×4/30×2/15×2) + 중심 부채꼴 15장이고, 모든 덮개 정점은 V011 윗면 3cm 아래 구면 위에 있다 |
+| 결과 | `Saved/.../IsleSkin_V001/Geometry_V010/`(FBX 2개·Build.json). 섬마다 8,640 → 9,540삼각형(덮개 240 → 1,140), 열린 변·비다양체 변 0, 보호 51공간·16,552표본 새 점유 0(기존 V011 섬 안 표본 1개씩은 V005와 같음). 옆면·밑면·부유석·석교는 그대로다 |
+| UE | `Scripts/Profiling/Graphics/BuildRidgeIsleTop.py build V010` → 다음 Cmd `verify V010`. `IsleSkin_V001/Bodies_V010/SM_Ridge_IsleBody_<섬>_V010` 반입(같은 반입 설정·재질 MI_Ridge_IsleSurface), V009를 복제한 `IsleSkin_V010/LVI_Ridge_EDTerrain_IsleSkin_V010`에서 몸체 액터 2개의 메시·라벨만 바꿨다 |
+| Verify | PASS. 몸체 원점·NoCollision·경계 오차 0.1cm 미만·재질·태그, 나머지 최상위 액터 전부 복제 직후와 같음(Level Instance 월드 에셋 포함), 충돌 컴포넌트 6개가 V009와 같음(충돌 지각 V013·Z1 Floor/Shell·보존 Floor/Shell·외피 Shell V002), 외피 충돌 0, dirty 없음 |
+| 충돌·베이크 | 충돌은 바뀌지 않았다(Shell V002의 섬 윗면은 이미 Floor 아래). 2a만으로는 재베이크하지 않는다. 2b에서 각기둥 Shell과 함께 V010 계열을 다시 굽는다 |
+| 미리보기 | `IsleSkinLit_V001/IsleSkinLit_V010`(`BuildRidgeIsleSkinPreview.py build V010`, Verify PASS) |
+| 화면 | 시점 `IsleSkin_V001/PreviewViews_V002.json`(V001 5시점 + 섬마다 윗면 눈높이 170cm·16m 위 4시점). V007(V009와 외관 같음)과 V010 Lit을 시점마다 두 번 찍어 둘째 장을 썼다. `Saved/.../IsleSkin_V001/IsleTop/Shots/`·`Compare/<시점>.png`. 섬 윗면이 이제 보존 Floor 면으로 그려져 재질 무늬만 조금 다르고(차이 30 넘는 화소 0.8~4.4%), LandingEye는 0.03%다. 윤곽·색은 같다 |
+| 보존 | 해시 `IsleTop_V010_AfterBuild`·`IsleTop_V010_After2a`: V008 703·V006 7·V007 14 불일치 0. V006~V009 맵·공유 원본은 바꾸지 않았다 |
+
+- 촬영 도구: `CaptureViewport` 결과는 크기 초과로 도구 결과 파일에 저장되며, 그 JSON의 base64 PNG를 풀어 쓴다. 카메라 위치로 시점을 판별한다.
+- 확인 못 한 범위: PIE에서 발이 실제로 윗면에 닿아 보이는지는 2b PIE에서 함께 본다. 테두리 고리는 외곽선의 1.029배라 가장 바깥 약 85cm 띠는 Floor 밖 외피 가장자리로 그대로 보인다(V005와 같음).
+
+### 14.4. 2b 엄폐 각기둥: 몸체·Shell·맵(외관 확인 대기)
+
+| 항목 | 내용 |
+|:---|:---|
+| 형상 | Blender `BuildRidgeIsleTop.py -- cover <판>`(약 6초). V011 각기둥 외곽 4점·꼭짓점별 윗면·바닥(섬 윗면 1m 아래)을 따르고, 윗면은 V011과 같은 중심 부채꼴 보간이다. 둥근 모서리(외곽 안쪽으로만), 안쪽으로만 줄이는 지층·요철, 윗면 모서리 둥글리기로 몸체가 V011 각기둥 안에 들어가게 했다. 섬마다 3개를 한 메시로 묶었다(섬당 7,776삼각형, 각기둥당 2,592) |
+| 보호 검사 | 몸체 안 표본은 V011 각기둥 안(외곽 안·바닥~가장 낮은 꼭짓점 윗면)이면 "V011 엄폐 복원", 아니면 새 점유로 센다. 두 판 모두 복원 11(Valley A·B·C 1·2·2, West A 1 + Pod 2·B 2·C 1), **새 점유 0**. LandmarkTop·그래플·착지점 사선 막힘 0, 이음매 최소 29.9m |
+| Shell | 각기둥마다 Decimate 비율을 낮은 쪽부터 시험해 맞춤 p95 ≤ 25cm·최대 ≤ 75cm·위상 결함 0인 첫 비율(모두 0.08, 206삼각형)을 합쳐 `SM_Ridge_IsleCover_<판>_Shell`(1,236삼각형)로 만들었다. V001 맞춤 p95 3.7~5.2cm·최대 8.6~14.5cm, V002 p95 2.3~3.1cm·최대 8.0~13.1cm. 위를 보는 면 5.4~13.4㎡(50㎡ 미만이라 새 Floor 없음), Floor 위 -2~40cm 걷는 면 턱 0 |
+| 맵 | UE `BuildRidgeIsleTop.py build/verify`. `IsleSkin_V011` = V010 + Cover V001, `IsleSkin_V012` = V010 + Cover V002. 시각 몸체 2개(NoCollision, IsleSkin 태그, `Bodies_Cover_<판>/`) + Shell 1개(`Collision_Cover_<판>/`, 원점·숨김·Shell 역할 태그·LNPStaticBlocker·Static, `PlaceRidgeIsleSkinCollision.import_shell`로 반입). 두 맵 Verify PASS(기존 액터 변경 0, 충돌 = V009 6개 + 엄폐 Shell, 외피 충돌 0, Shell 계약·메시 검사 통과, dirty 없음) |
+| 미리보기·화면 | `IsleSkinLit_V011`·`_V012` Verify PASS. `IsleTop/Compare/Cover_<시점>.png`(V010·V011·V012 세 장). V001은 55cm 주기 띠가 규칙적이라 쌓은 타이어처럼 보였고, V002는 띠 주기 흔들기·폭 축소, 3·5갈래 요철, 14cm 기울기, 윗면 요철로 다듬었다(여전히 통 모양이 조금 남는다) |
+| 보존 | 해시 `IsleTop_2b_Look` 불일치 0 |
+
+- V001 재실행 확인: 같은 입력으로 다시 구우면 Build.json이 FBX 해시를 빼고 같다. UE에 반입한 V001 에셋은 첫 FBX에서 만든 것이다.
+### 14.5. 2b 더 다듬기: 각진·갈라진 사암 덩어리(V013~V015)
+
+사용자가 "더 다듬기"에서 네 방향(각진 사암 덩어리·갈라진 2~3조각·윗단 돌출과 아랫단 파임·밑동 잔돌 무리)을 모두 골랐다.
+
+| 판 | 내용 | 결과 |
+|:---|:---|:---|
+| Cover V003 · 맵 V013 | 평면 반공간으로 깎은 볼록 덩어리. 각기둥마다 수직 균열(틈 12~18cm, ±3° 기울기)로 3조각, 조각마다 좁은 밑동(외곽 45cm 안쪽, 섬 윗면 위 50~85cm) 위에 넓은 윗단(외곽 8cm 안쪽, 면 6개가 3~9° 바깥으로 기울어 돌출), 모서리 깎기 7회, 잔돌 4~7개(25~70cm, 높이 3~35cm, NoCollision, Shell 제외, Pod 중심 9m 밖) | 위에서 보면 윗면이 사라지고 가파른 면만 칼날처럼 보였다 |
+| Cover V004 · 맵 V014 | V003과 같은 형상. 삼각형을 조각 중심 바깥으로 직접 감고 법선 재계산을 하지 않는다 | 화면이 V013과 같았다. 형상·방향은 원인이 아니었다 |
+| **맵 V015** | V004 + 엄폐 컴포넌트 재질만 `IsleSkin_V001/Surface_V002/MI_Ridge_IsleRock`(IsleSurface 부모 복제, 경사 판정 Custom 노드를 `float2(1, 0)`으로 고정 → 모든 면 절벽 무늬). 메시 에셋 기본 재질·원본 재질은 그대로 | **덩어리로 읽힌다(외관 확인 대기)** |
+
+- **칼날 원인:** `MI_Ridge_IsleSurface`는 경사로 지면/절벽 무늬를 고르고 월드 정렬로 입힌다. 각진 덩어리의 평평한 윗면이 섬 바닥과 같은 지면 무늬·밝기로 그려져 바닥과 이어져 보였다. 진단 순서: Blender 재반입 조각별 부피·면 방향(35조각 모두 바깥) → UE 메시 삼각형·감는 방향·법선 일치, LOD 1개·Nanite 꺼짐 → 같은 카메라 Blender 렌더(정상) → 재질.
+- 검사(V004 = V003 형상): 보호 표본 V011 엄폐 복원 11·새 점유 0, 사선 막힘 0, 이음매 최소 29.7m, 걷는 면 턱 0, 각기둥당 위를 보는 면 13.4~27.3㎡(50㎡ 미만). Shell = 잔돌을 뺀 조각 36개(1,328삼각형, 시각과 같은 형상이라 맞춤 오차 0). 시각 메시 섬당 1,024·1,136삼각형. V013·V014·V015 맵 Verify PASS(V015는 컴포넌트 재질 = IsleRock까지 확인), 미리보기 3개 Verify PASS.
+- 화면: `IsleTop/Compare/Cover2_<시점>.png`(V012 둥근 통 ↔ V015), 근접 `Shots/V014|V015_Lit_WestCoverAClose.png`.
+- 보존 해시 `IsleTop_2b_V015` 불일치 0. 에디터는 IsleSkinLit_V015·PIE=false·dirty 없음.
+
+- 사용자가 V015 외관을 골랐다(§14.6).
+
+### 14.6. 2b 베이크·1인 PIE·잔돌 충돌(V015 → V016, GX-043)
+
+| 항목 | 내용 |
+|:---|:---|
+| 베이크 V015 | `BakeRidgeIsleSkin.py dump IsleSkin_V015 → bake V015 → pool V015`. V009 대비 최상위 액터 차이는 섬 몸체 교체 2·엄폐 시각 2·엄폐 Shell 1뿐이다. Layer 82·성분 120·포털 638·Meadow 이음매 일치, Nav 셀 78,343 → 78,162, 스폰 후보 9,360 → 9,348(골짜기·서쪽 섬 Pod 같은 Layer 후보 104·95 → 97·90) |
+| PIE V015 | §13 절차(`PIE_2b/SelectionState.json`: 원래 값·INI 8·정식 풀·V015 해시 → 풀 메모리 선택·밀도 0 → 다시 읽기). TestMap03 1인, Ridge slot 1, 오류 0, 이음매 막힘 0, 경고는 기존 북벽 AttachTo 1건. 지점 `PIE_2b/Points.json` Q01~Q07(엄폐 뒤·균열 틈·윗단 위·돌출 아래·섬 윗면 발·잔돌·그래플). **사용자: Q01~Q05·Q07 통과, Q06 "잔돌을 발이 통과하는 게 눈에 띈다. 형상은 마음에 든다 → 형상 유지·충돌"** |
+| Cover V005 | `BuildRidgeIsleTop.py -- cover V005`. V004와 같은 규칙·시드라 시각 형상이 같다(삼각형·경계·조각·잔돌 일치 확인). Shell = 엄폐 조각 36 + 섬 윗면 위 8cm 이상 잔돌 28(2,112삼각형, 형상 그대로). 3.3·6.1cm 잔돌 2개는 제외. 보호 새 점유 0·복원 11 |
+| 맵 V016 | V010 + Cover V004 시각(IsleRock) + Cover V005 Shell. Verify PASS(충돌 = V009 6 + `SM_Ridge_IsleCover_V005_Shell`) |
+| 베이크 V016 | Layer 82·성분 120·포털 638·이음매 일치, Nav 셀 78,134(V015 −28), 스폰 후보 9,345(서쪽 섬 Pod 90 → 87). 검사용 풀 `IsleSkin_V016/DA_GraphicsRidgeIsleSkinPool_V016`(정식 풀 해시 그대로) |
+| PIE V016 | Ridge slot 0, 오류 0, 이음매 막힘 0. 지점 `PIE_2b/Points_V016.json` R01(서쪽 엄폐 C 잔돌)·R02(골짜기 엄폐 A 잔돌 무리). **사용자: 통과** |
+| 복원 | 두 PIE 모두 정식 풀·밀도 1을 다시 읽어 확인, INI·정식 풀·V015/V016 해시 동일(`SelectionState*.json` restored), 보존 해시 `IsleTop_2b_Final` 불일치 0, TestMap03·PIE=false·dirty 없음 |
+| 재현 기록 | Git `Scripts/Profiling/Graphics/IsleSkin_V001/IsleTop_V016.json`(판 사슬·재현 명령·출력 해시·베이크·PIE 판정) |
+
+- 확인하지 않은 범위: 적 밀도 0이라 엄폐·잔돌 주변 적 지상 이동(`blocker_rejects`)은 보지 않았다. 패키지 성능은 범위 밖이다.
+- V011~V015 맵·에셋은 비교 이력으로 남겼다(지워도 된다). 현재 충돌 맵은 V016이다.
+
+새 세션 시작 프롬프트(다음 단위 2c)는 다음과 같다.
+
+```text
+@D:/UnrealProjects/LootNPop/.context/Graphics/README.md
+@D:/UnrealProjects/LootNPop/.context/Graphics/Current.md
+@D:/UnrealProjects/LootNPop/.context/Graphics/analysis/Phase01_IsleSkinTrial.md
+
+Phase 1-BR 섬 윗면 단위 2를 이어가자. 2a(덮개 재분할)·2b(엄폐 각기둥, GX-043)는 끝났고 현재 충돌 맵은 IsleSkin_V016
+(V010 덮개 + Cover V004 시각·MI_Ridge_IsleRock + Cover V005 Shell, 검사용 풀 DA_GraphicsRidgeIsleSkinPool_V016)이야.
+V006~V016과 공유 원본은 보존 원본이니 바꾸지 마. Decisions GX-038~043과 외피 시험 문서 §14를 먼저 확인해줘.
+
+먼저 에디터/PIE·미저장 상태를 확인하고 CheckRidgePreservation.py로 보존 해시를 맞춰줘.
+다음 단위는 2c 섬 윗면 잔돌·식생이야(GX-042: NoCollision 작은 ED 잔돌 100cm 미만·Clover·Fern, 섬당 약 150~250개,
+Pod 중심 9m·착지점·그래플 사선은 비움). 엄폐 밑동 잔돌(GX-043)과 겹치지 않게 하고, 걷는 면 높이를 흐리지 않는 작은 것만 써줘.
+작업은 V016을 복제한 새 맵(IsleSkin_V017~)에서 하고, 도구는 BuildRidgeIsleTop.py(Blender·UE)를 확장해줘.
+동결 스크립트(GenerateRidgeIsleSkin.py·BuildRidgeIsleSkin.py·BuildRidgeIsleBody.py)는 고치지 마.
+화면 비교는 IsleSkinLit_V001 미리보기·PreviewViews_V002.json·CaptureViewport(결과 파일의 base64 PNG)로 하고,
+같은 시점 V016 ↔ 새 판을 보여줘. 섬 윗면 재질은 월드 정렬 지면 무늬라 평평한 장식이 바닥에 녹아 보일 수 있다는 점(GX-043)을 고려해줘.
+보호 51공간·16,552표본은 그대로 검사하고 보호 폭을 빼서 PASS로 만들지 마. 새 예외가 필요하면 내 결정을 받아줘.
+식생이 충돌 없음이면 재베이크는 필요 없지만, 충돌을 더하면 §14.6 절차(베이크 → 검사용 풀 → 풀 임시 선택·밀도 0 PIE → 복원)를 따라줘.
+외피 밖 지형 관통(U4 시각 NoCollision)과 북벽 AttachTo 경고(Z1Cull_V001)는 U5b 소관이니 고치지 마.
+단위마다 Verify·보존 해시·같은 시점 화면 비교를 보고하고 다음 진행을 확인해줘.
 ```
