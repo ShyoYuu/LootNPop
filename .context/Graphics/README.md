@@ -50,7 +50,7 @@ JustDodge 작업이 넘긴 그래픽스 항목(J-012)도 이 폴더가 소유한
 | U5a-4 V005 석재 외형·26비교·실제 보존/858정점 PASS·유지 사용자 승인 | [석재 외형 결과](analysis/Phase01_U5aStoneRefinement.md) |
 | U5a-5 V006 몸체 캡/경계/재질·26비교·실제 보존/73,111정점 PASS·사용자 유지 | [몸체 보정 결과](analysis/Phase01_U5aBodyCaps.md) |
 | V008 채택·다음701파일/27자세·새 세션 첫 범위/시작 프롬프트 | [현재 인수인계](analysis/Phase01_U5aBodyHandoff.md) · [채택 저작 기준](../../Scripts/Profiling/Graphics/ClosedBodyTrial_V001/Handoff_V008.md) |
-| 부유섬 2개·하늘 석교 외피 시험(IsleSkin V001~V006)·산괴 동쪽 탑 모노리스 외피 V007(GX-040)·Lit 미리보기(IsleSkinLit)·GX-038 부유 표현 범위·보라색 원인(구역 판정) | [부유섬·석교 외피 시험](analysis/Phase01_IsleSkinTrial.md) |
+| 부유섬 2개·하늘 석교 외피 시험(IsleSkin V001~V006)·산괴 동쪽 탑 모노리스 외피 V007(GX-040)·Lit 미리보기(IsleSkinLit)·GX-038 부유 표현 범위·보라색 원인(구역 판정)·충돌 Shell(GX-041)·베이크·1인 PIE 14지점 | [부유섬·석교 외피 시험](analysis/Phase01_IsleSkinTrial.md) |
 | U5a-6 V007 사용자 채택·실제 교차0/73,111정점/26비교 | [자기 교차 검토](analysis/Phase01_U5aSelfIntersectionReview.md) |
 | U5a-7 V008 사용자 채택·73,273정점/27비교·다음701보존·GX-037 부유석 활용 | [경계 검토](analysis/Phase01_U5aBoundaryReview.md) |
 | V010 PIE 제보 수집 종료·풀/밀도 복구·GX-034 전체 큰 배치 시작 당시의 이전 인계 | [이전 전체 큰 배치 인수인계](analysis/Phase01_LargeLayoutHandoff.md) |

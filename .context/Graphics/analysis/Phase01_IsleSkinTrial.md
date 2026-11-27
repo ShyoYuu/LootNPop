@@ -1,6 +1,6 @@
 # Phase 1-BR 부유섬·하늘 석교 외피 시험(IsleSkin)
 
-> 상태: V007(석교 B안 + 모노리스 A안) 외관 기준 · GX-039·GX-040 / Lit 미리보기 완료(§9) · 충돌 측정 3a(§10)·Shell 파생 3b(§11, GX-041)·베이크 3c-1(§12, 현재 충돌 맵 IsleSkin_V009) 완료 · 1인 PIE(3c-2) 대기
+> 상태: V007(석교 B안 + 모노리스 A안) 외관 기준 · GX-039·GX-040 / Lit 미리보기 완료(§9) · 충돌 측정 3a(§10)·Shell 파생 3b(§11, GX-041)·베이크 3c-1(§12, 현재 충돌 맵 IsleSkin_V009)·1인 PIE 3c-2와 복원 3c-3(§13, 14지점 통과) 완료 · 다음 단위는 사용자 확인 대기
 > 기준 기록: `Scripts/Profiling/Graphics/IsleSkin_V001/Acceptance_V007.json`(V006 기록 `Acceptance_V006.json`은 그대로 보존)
 > 갱신: 2026-11-27
 > 진입: [Current](../Current.md) · [GX-036~038](../Decisions.md) · [V008 채택](Phase01_U5aBoundaryReview.md)
@@ -109,7 +109,7 @@ V006 맵에서 같은 시점의 화면 차이(지각·보존 구조물을 에디
 - **Lit 비교:** 완료(§9). IsleSkin LVI 맵 자체에는 조명이 없으므로 Lit 판정은 `IsleSkinLit_V001` 미리보기 레벨에서 한다.
 - **스카이라인:** 북쪽 부유 판 꼭대기가 약 81m로 기존 56m보다 높다. 사용자가 이 상태로 유지를 결정했다.
 - **충돌:** 외피·부유 판은 NoCollision이다. 탑 꼭대기와 판은 착지면(38m)에서 닿지 않는 높이지만 그래플 접근은 확인하지 않았다. Shell 파생은 U5b(GX-031·032)에서 다룬다.
-- **다음 단위 후보:** 사용자가 1(Lit 미리보기) → 3(충돌 Shell 파생) → 2(섬 윗면·엄폐 각기둥 외피) 순서로 1을 승인했다. 1은 §9에서 끝났다. 3은 3a 측정 → 3b Shell 파생·반입 → 3c PIE 접근 확인으로 나눴고 3a는 §10, 3b는 §11, 3c-1(베이크·검사용 풀)은 §12에서 끝났다. 3c-2(1인 PIE)·3c-3·2는 사용자 확인 뒤 진행한다.
+- **다음 단위 후보:** 사용자가 1(Lit 미리보기) → 3(충돌 Shell 파생) → 2(섬 윗면·엄폐 각기둥 외피) 순서로 1을 승인했다. 1은 §9에서 끝났다. 3은 3a 측정 → 3b Shell 파생·반입 → 3c PIE 접근 확인으로 나눴고 3a는 §10, 3b는 §11, 3c-1(베이크·검사용 풀)은 §12, 3c-2(1인 PIE)·3c-3(복원)은 §13에서 끝났다. 2는 사용자 확인 뒤 진행한다.
 
 ## 9. Lit 미리보기(2026-11-27)
 
@@ -202,7 +202,32 @@ V006 맵에서 같은 시점의 화면 차이(지각·보존 구조물을 에디
   - 시행착오: 벽이 바닥과 만나는 선을 턱으로 세던 검사를 위를 보는 Shell 면만 세게 고쳤다. 같은 Floor 점을 여러 삼각형이 공유해 중복으로 세던 것도 고유 점으로 바꿨다.
 - **맵:** V007을 복제한 `IsleSkin_V009` + Shell V002(`Collision_V002/SM_Ridge_IsleSkin_V002_Shell`, 8,422삼각형). `Verify_V009` PASS. 3a 재측정(`Measure_V009.json`)의 노출 면은 V008과 같고 모노리스만 0.1 → 5.7㎡(걷는 면 아래로 내린 자리, 틈 37~61cm)다.
 - **해석:** Layer·스폰 후보·Pod가 기준과 같으므로 새 Floor 없이 Nav 예산을 지켰다. Nav 셀 42개 감소·성분 1개 증가·포털 2개 감소는 부유석·모노리스 외피 같은 새 Blocker 몫이다. 어느 자리인지는 아직 찾지 않았다.
-- **아직 하지 않음:** 검사용 풀 임시 선택·1인 PIE(3c-2)·복원(3c-3). 미리보기 `IsleSkinLit_V009`는 만들지 않았다(Shell은 숨김이라 외관은 V007과 같다).
+- 미리보기 `IsleSkinLit_V009`는 만들지 않았다(Shell은 숨김이라 외관은 V007과 같다). 풀 임시 선택·1인 PIE·복원은 §13이다.
+
+## 13. 1인 PIE 3c-2·복원 3c-3(2026-11-27)
+
+| 항목 | 내용 |
+|:---|:---|
+| 임시 선택 | 원래 값(정식 풀 `/Game/Maps/OctantPoolData`, EnemyDensity 1)·Config 기본 INI 8개·정식 풀·V009 4파일 해시를 `Bake/SelectionState.json`에 먼저 적었다. 검사용 풀 V009를 MCP `ObjectTools.set_properties`로 메모리에서만 골랐고(SaveConfig 없음) EnemyDensity는 0이다. 두 값을 다시 읽어 확인했고 선택 뒤 해시는 같았다 |
+| 지점 계산 | V009 충돌 덤프(`Collision/Dump_V009`)에서 옥탄트 로컬 (x, y)의 현지 Up 광선과 만나는 모든 충돌 높이를 구했다. `TeleportToOctant` 프레임과 `RidgeOctantSpec.local`이 같음을 코드로 확인했다(H는 발밑, 명령이 +150cm). 계산은 `Saved/.../IsleSkin_V001/PIE_3c2/`의 `Columns.py`·`Profiles.py`·`ShellParts.py`(Shell 연결 성분)·`MonolithScan.py`(읽기 전용, Blender 동봉 Python+numpy)다. 지점 목록은 `Points.json`이다 |
+| PIE | TestMap03 1인. slot 0 = `LVI_Ridge_EDTerrain_IsleSkin_V009`, 검증 slot 8개, 막힌 이음매 노드·변 0, maxSeamRadiusDelta 0.000cm, 적 수 배율 0.00, 오류 0건. 워닝은 기존 Z1 북벽 `ASM_Z1_WallNorth` AttachTo 1건(U4 계획 기록과 같은 기존 경고)·의도한 밀도 0 안내·기존 GameplayCue 경로 안내다 |
+| 판정 | **사용자: P01~P14 모두 설명대로 동작** |
+| 복원 | 정식 풀·EnemyDensity 1을 다시 읽어 확인. INI 8개·정식 풀·검사용 풀·V009 4파일 해시 동일, 보존 해시 `PIE3c3_After`(V008 703·V006 7·V007 14) 불일치 0, TestMap03·PIE=false·dirty 없음. `SelectionState.json`은 `restored` |
+
+| 지점 | 명령(slot 0) | 확인한 것 |
+|:---|:---|:---|
+| P01·P02 골짜기 섬 남·서 테두리 | `0 7535 -8454 5500` · `0 4916 -5332 5500` | 외곽선 밖 0.5~1m에서 충돌이 끝나 옆면에 걸리지 않고 약 57m(지각)·72m(Z1 Shell) 아래로 떨어진다 |
+| P03 골짜기 큰 부유석 | `0 4900 -2380 4140` | Shell 윗면 H4132(약 30°)에 선다(GX-041 Shell 예외) |
+| P04~P06 그래플 | `0 8200 0 -2400` · `0 -14600 4800 6000` · `0 -17600 0 0` | ValleyRise→ValleyIsleHub·WestSkyIsle→Terrace3Hub·WestEntry→EntryToWestIsle가 걸림 없이 착지한다 |
+| P07 서쪽 이음매 부유석 | `0 -18160 7468 5300` | 충돌 없이 통과해 지각 H-117에 떨어진다(GX-041 의도) |
+| P08·P09 석교 B | `0 -4500 -7400 3845` · `0 -4101 -7421 3710` | 상판 Floor 3845에서 턱이 없다. 가장자리 1m 밖 어깨는 52~54° Shell이라 미끄러져 내려간다 |
+| P10 모노리스 38m 착지면 | `0 -7800 -4100 3787` | 밑동을 따라 걸어도 턱·끼임이 없다(외피 Shell은 Floor 30cm 아래) |
+| P11·P12 부유 판 | `0 -7400 -2100 8130` · `0 -7300 -3200 6970` | 북 판 H8122·남 판 H6962 위에 선다 |
+| P13·P14 동쪽 석판 | `0 -6556 -3134 3810` · `0 -6439 -1931 4710` | 석판 윗면 H3803·H4705에 선다 |
+
+- **사용자 제보(이번 범위 밖):** 외피가 아닌 다른 지형 여러 곳을 캐릭터가 그대로 통과한다. 위치는 기록하지 않았다. V009의 충돌은 충돌 지각 V013·예전 V037 배치에서 구운 `Z1Collision_V003`·보존 구조물·외피 Shell뿐이고, U4 V011 큰 배치 조립체 21개 같은 이후 시각 메시는 NoCollision이다(§12 대조). 이 영역의 충돌은 GX-034의 U5b(구역별 몸체·충돌) → U6(전체 베이크·PIE) 순서로 다룬다.
+- **북벽 AttachTo 경고 원인(읽기 전용 조사, `Saved/.../IsleSkin_V001/AttachWarning/`):** `Z1Cull_V001` 15개 레벨의 액터는 `DefaultSceneRoot` → `Scene` → ISM 구조로 저장되어 있고 모두 Movable이다. 생성 스크립트가 지정한 Static이 남지 않았다. 북벽 `ASM_Z1_WallNorth`만 마지막 ISM `InstancedStaticMesh797`(SM_Cliff_08, 인스턴스 1개)이 Static으로 남았고, 로드할 때마다(Python 패키지 로드·베이크·PIE) Movable 부모에 붙지 못해 경고 1건이 난다. 부모와 그 컴포넌트의 상대 변환은 모두 원점·항등이라 떨어져 있어도 화면 위치와 충돌(NoCollision)은 같다. Z1Cull_V001은 V008 FrozenInputs(15파일) 보존 대상이라 제자리에서 고치지 않는다. 없애려면 새 판(Z1Cull_V002)과 그 판을 가리키는 새 LVI가 필요하다. **사용자 결정: U5b에서 함께 정리한다**([1-BR U5b](../phases/Phase01_RidgeReferencePatch.md)). 함께 찾은 것: ISM 컴포넌트 약 7,300개가 Movable이고, 북벽은 798개 가운데 386개가 인스턴스 1개짜리다(트랙 O 렌더 비용 후보, 측정 안 함).
+- **남은 결정:** 섬 외피 윗면 삼각형 가운데가 보행 Floor보다 최대 약 19cm 위에 보이는 문제(§11, V007 외관 소관)와 다음 단위 2(섬 윗면 잔돌·식생·엄폐 각기둥 외피).
 
 새 세션 시작 프롬프트는 다음과 같다.
 
@@ -212,14 +237,14 @@ V006 맵에서 같은 시점의 화면 차이(지각·보존 구조물을 에디
 @D:/UnrealProjects/LootNPop/.context/Graphics/analysis/Phase01_IsleSkinTrial.md
 
 Phase 1-BR 외피 작업을 이어가자. 외관 기준은 IsleSkin_V007(석교 B안 GX-039 + 산괴 동쪽 탑 모노리스 A안 GX-040, Acceptance_V007.json), 충돌 Shell을 더한 맵은 IsleSkin_V009(GX-041, Shell V002)이고
-V008·V006은 보존 원본이야. Decisions GX-034~041과 외피 시험 문서 §6~12를 먼저 확인해줘.
+V008·V006·V007·V009는 보존 원본이야. Decisions GX-034~041과 외피 시험 문서 §5·§9~13을 먼저 확인해줘.
 
 먼저 실제 에디터/PIE·미저장 상태를 확인하고 CheckRidgePreservation.py로 보존 해시(V008 721항목·V006·V007 Acceptance)를 다시 맞춰줘.
 Lit 미리보기(§9)는 끝났고 화면 비교는 IsleSkinLit_V001 레벨·PreviewViews_V001.json·CaptureViewport로 한다.
-충돌 측정 3a(§10)·Shell 파생 3b(§11, GX-041)·베이크 3c-1(§12)도 끝났다. 현재 충돌 맵은 IsleSkin_V009(Shell V002), 검사용 풀은 DA_GraphicsRidgeIsleSkinPool_V009다(V008은 기각).
-남은 순서는 3c-2(1인 PIE 보행·그래플 확인) → 3c-3(풀·밀도 복원) → 2다. 3c-2는 풀 임시 선택 기록과 내가 확인할 지점별 TeleportToOctant 명령부터 준비해줘.
-3. 외피·부유 판의 충돌(Shell) 파생과 그래플/보행 접근 확인(U5b, GX-031·032, Floor 50㎡·Nav Layer 256).
-2. 섬 윗면(잔돌·식생)·섬 위 엄폐 각기둥 ED 외피.
+충돌 측정 3a(§10)·Shell 파생 3b(§11, GX-041)·베이크 3c-1(§12)·1인 PIE 3c-2와 복원 3c-3(§13, P01~P14 통과)도 끝났다. 현재 충돌 맵은 IsleSkin_V009(Shell V002), 검사용 풀은 DA_GraphicsRidgeIsleSkinPool_V009다(V008은 기각). 정식 풀·밀도는 원래대로다.
+다음 단위는 2(섬 윗면 잔돌·식생·섬 위 엄폐 각기둥 ED 외피)야. 엄폐 외피는 V001에서 각기둥 자리가 섬 위 보호 표본과 겹쳐 빠졌으니(§5) 그 원인부터 확인해줘.
+섬 외피 윗면 삼각형 가운데가 보행 Floor보다 최대 19cm 위에 보이는 발 묻힘 문제(§11)는 고칠 방법과 비용을 먼저 보여주고 내 결정을 받아줘.
+외피 밖 지형의 관통(U4 큰 배치 시각 메시 NoCollision)과 북벽 AttachTo 경고(Z1Cull_V001)는 U5b 소관이니 이 단위에서 고치지 마. 그 경고는 레벨을 로드할 때마다 1건씩 나는 기존 경고야.
 
 GX-038: 부유 표현은 기존 지형의 재해석·보강·중력 완화 장치로만 쓰고 관계없는 빈 공간에 새로 띄우지 마.
 뾰족한 갈래 장식과 Cliff02 부유 파편은 피해줘. 공중 형상은 Blender 닫힌 몸체로, 재질은 MI_Ridge_IsleSurface를 기본으로 써줘.
@@ -227,7 +252,7 @@ M2(산괴 동굴 덩어리 서쪽 면)는 손대지 않기로 했어.
 
 보호 51공간·16,552표본은 그대로 검사하고 기존 경로/보호 폭을 빼서 PASS로 만들지 마. StairRamp3 31표본 REVIEW·LandmarkTop 사선도 확인해줘.
 CrownSummit·StairTerrace2 Pod는 자동 복원하지 말고 GX-033 산괴 배경(A안)도 유지해줘. 새 예외가 필요하면 내 결정을 받아줘.
-작업은 V007을 복제한 새 맵이나 별도 미리보기 레벨에서 하고 V008·V006·V007과 공유 원본은 바꾸지 마.
+작업은 V009를 복제한 새 맵(IsleSkin_V010~)이나 별도 미리보기 레벨에서 하고 V008·V006·V007·V009와 공유 원본은 바꾸지 마. PIE 점검이 필요하면 §13의 풀 임시 선택·복원 절차와 TeleportToOctant 지점 계산(PIE_3c2/Columns.py)을 재사용해줘.
 GenerateRidgeIsleSkin.py는 V006 Acceptance 보존 대상이니 고치지 말고 필요하면 별도 스크립트를 만들어줘.
 외피는 NoCollision, 구면 Up·이음매·Floor50㎡·Nav Layer256 계약을 유지해줘.
 단위마다 Verify·보존 해시·같은 시점 화면 비교를 보고하고 다음 진행을 확인해줘. 수동 조작이 더 효율적이면 자동화 전에 바로 요청해줘.

@@ -1705,3 +1705,14 @@ V035 구성을 베이크 가능한 Ridge WIP LVI로 옮겨 굽고, 1인 러프 P
 - `IsleSkin_V009`(V007 + Shell V002) Verify PASS. 베이크: Layer 82·스폰 후보 9,360·섬 Pod 후보 104·95로 기준과 같고, Nav 셀 78,343(-42)·성분 120(+1)·포털 638(-2), Meadow 이음매 일치.
 - 검사용 풀 `IsleSkin_V009/DA_GraphicsRidgeIsleSkinPool_V009`를 만들었다(정식 풀 해시 f7f927a0… 그대로). 풀 임시 선택·PIE는 아직 하지 않았다.
 - V008 맵·Shell V001·V008 SurfaceData는 기각 기록으로 남겼다. 보존 해시 `After3c1Bake_20261127` 불일치 0. 마지막 에디터 상태는 TestMap03·PIE=false·dirty 없음이다.
+
+## 2026-11-27 — IsleSkin 1인 PIE·복원(다음 단위 3c-2·3c-3)
+
+- 시작 상태: TestMap03·PIE=false·dirty 없음, 정식 풀 `/Game/Maps/OctantPoolData`, EnemyDensity 1. 보존 해시 `PIE3c2_Before` 불일치 0.
+- 원래 값·INI 8개·정식 풀·V009 4파일 해시를 `Bake/SelectionState.json`에 적고, 검사용 풀 V009를 `ObjectTools.set_properties`로 메모리에서만 골랐다(SaveConfig 없음). EnemyDensity 0. 다시 읽기와 선택 뒤 해시를 확인했다.
+- `TeleportToOctant` 프레임이 `RidgeOctantSpec.local`과 같음을 C++에서 확인했다. V009 충돌 덤프로 지점별 충돌 높이를 계산해 14지점을 만들었다(`PIE_3c2/Points.json`). 섬 테두리 밖 0.5~1m부터는 충돌이 없고, 석교 B 어깨는 52~54° 경사다.
+- PIE: Ridge slot 0(IsleSkin_V009), 검증 slot 8, 이음매 막힘 0·maxSeamRadiusDelta 0, 밀도 0.00, 오류 0. 워닝은 기존 Z1 북벽 AttachTo 1건이다. 사용자가 P01~P14 모두 설명대로 동작한다고 판정했다.
+- 사용자 제보: 외피 밖 다른 지형 여러 곳을 그대로 통과한다(위치 미기록). U4 V011 조립체 같은 이후 시각 메시는 NoCollision이며 U5b 소관으로 남겼다.
+- 복원: 정식 풀·EnemyDensity 1을 다시 읽어 확인했다. INI·정식 풀·검사용 풀·V009 해시가 같고 보존 해시 `PIE3c3_After` 불일치 0, TestMap03·PIE=false·dirty 없음이다. 에셋은 바꾸지 않았다.
+- 북벽 AttachTo 경고 조사(읽기 전용): Z1Cull_V001 15레벨의 루트·ISM이 모두 Movable로 저장되어 있다(스크립트가 지정한 Static이 남지 않음). 북벽만 마지막 ISM 1개(SM_Cliff_08)가 Static이라 로드할 때마다 부착을 거부한다. 변환이 모두 항등이라 화면 영향은 없다. Z1Cull_V001은 V008 보존 대상이라 고치지 않았다(외피 시험 §13).
+- 사용자가 경고 정리를 U5b에서 Z1Cull_V002 재생성과 함께 하기로 정했다. 1-BR 실행서 U5b 항목과 체크리스트에 적었다.
