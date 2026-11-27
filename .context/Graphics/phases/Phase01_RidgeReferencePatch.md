@@ -3,7 +3,7 @@
 > 상태: U4Layout_V011 동결·외곽 장식 종료 · U5a-7/V008 외관 사용자 채택 · GX-037 부유석 적극 활용 · [채택 결과](../analysis/Phase01_U5aBoundaryReview.md)
 > 순서: 1-B5f → 1-BR(기존 1-B6 전체 교체를 흡수) → 1-C
 > 상위: [그래픽스 로드맵](../Roadmap.md) §2·§4, [Phase 1 실행서](Phase01_BenchmarkContent.md) §3, [확정 결정](../Decisions.md) GX-019·GX-021
-> 마지막 갱신: 2026-11-26
+> 마지막 갱신: 2026-11-28
 
 **U4-9 V009는 사용자가 채택했다(2026-11-25).** 보스 고원 측면 구현 근거는 [계획 §16](../analysis/Phase01_U4LargeLayoutPlan.md)에 보존한다.
 
@@ -360,14 +360,20 @@ PIE:
 
 ### U7. 배경 프랍 채우기(ED 스타일)
 
-- `LNPDecorationSampler`, 규칙 DA, `BuildRidgeDecorationPCG.py`를 재사용해 V007 규칙과 그래프를 만든다. 대상은 새 LVI 내부 전체이고 구역별 팔레트를 쓴다.
-  - U7은 몸체·충돌·동선이 성립한 뒤 한다. 기존 식생·잔돌은 구도 참고로 유지하되 접지·이음 보완에 필요한 국소 조정을 허용한다(GX-034).
+- `LNPDecorationSampler`, 규칙 DA, `BuildRidgeDecorationPCG.py`를 재사용하거나 오프라인 배치 도구로 V007 규칙과 그래프를 만든다. 대상은 새 LVI 내부 전체 중 **이미 고밀도로 꾸며진 구역(Z1 CloseRange 층·섬 윗면 V018 등)을 제외한 나머지 바닥**이며 구역별 팔레트를 쓴다.
+  - U7은 몸체·충돌·동선이 성립한 뒤(U5b → U6 이후) 한 번에 마감한다. 기존 식생·잔돌은 구도 참고로 유지하되 접지·이음 보완에 필요한 국소 조정을 허용한다(GX-034).
   - 샘플러는 충돌 표면(프록시+기반면)에 접지한다.
   - 작은 바위는 Blocker ISM이다. GX-018 여유를 유지한다. 다만 SSN 수정 뒤 `blocker_rejects`가 거의 0이므로 밀도를 다시 보는 것도 선택지다.
-  - 식생은 Decoration이다.
+  - 식생과 작은 잔돌(<100cm)은 NoCollision Decoration이다.
 - ED 중형 바위와 잔해 같은 주요 배치는 U4 도구로 수동 배치한다.
 - 새 식생의 바람 WPO는 구면 접선 프레임으로 바꾼다(`MF_Ridge_FernWind` 방식, 환경 실행서 §15~16).
 - Blocker ISM이 바뀌면 다시 베이크하고 PIE로 다시 확인한다.
+- **U7 착수 시 고려할 추가 작업(2026-11-28 정리 — 에디터 타임 생성 + 셀 분할 ISM / 거리 컬링 방식):**
+  - 런타임 PCG 스트리밍(`GenerateAtRuntime`/3D HiGen)은 기존 `LNPDecorationSampler`의 원점 항등 전제(회전 8슬롯 `ALevelInstance` 미지원)·메인 스레드 일괄 트레이스 히치·구면 3D 그리드 전환 및 `APCGWorldActor` 검증 비용·충돌/SurfaceData 베이크 불일치 때문에 기본 경로로 채택하지 않고, **에디터 타임 생성 → Static ISM 베이크 + 거리 컬링/WPO 제어**를 기본 방향으로 둔다.
+  - 위 방식을 옥탄트 전체에 적용하려면 U7에서 아래 3가지 보완이 추가로 필요하다.
+    1. **고밀도 구역 제외 마스크와 AABB 과잉 거부 해소:** 현재 `LNPDecorationSampler`는 `LNP.Surface.Decoration` 컴포넌트의 월드 AABB로 겹침을 피하므로 Z1 대형 ISM 덩어리가 인접 빈 바닥까지 거부할 수 있다. Z1·섬 윗면 등 기존 고밀도 구역을 제외 다각형/마스크로 분리하고 대형 ISM의 AABB 과잉 거부를 피하도록 정리한다.
+    2. **다중 충돌 표면 접지:** 현재 `LNPDecorationSampler`는 단일 지각 메시(`CrustMesh`) 1개만 트레이스한다. U5b 이후 기반면 + 구역별 `_Floor` 프록시 위에도 접지할 수 있게 샘플러(또는 오프라인 투영 스크립트)를 확장한다. (C++ 수정 시 에디터 빌드 전 사용자 확인)
+    3. **공간 셀 분할 Static ISM + 거리 컬링/WPO 비활성화 거리:** 옥탄트 전체(약 14만㎡)를 거대한 단일 ISM으로 두면 프러스텀/거리 컬링 효율이 떨어진다. NoCollision 잔돌·식생 ISM을 구역(셀) 단위로 분할해 굽고, 메시 크기별 `InstanceStartCullDistance`/`InstanceEndCullDistance`·`WorldPositionOffsetDisableDistance`·Nanite를 설정해 런타임 CPU 히치 없이 거리별 LOD·컬링 효과를 확보한다.
 
 **확인 기준:** `InspectRidgeDecorationPCG.py` 계약 검사, 재베이크, PIE 재확인을 통과한다.
 

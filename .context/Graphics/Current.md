@@ -1,12 +1,12 @@
 # 그래픽스 작업 현재 상태
 
 > 상태: 활성 인계 문서
-> 현재 작업: Phase 1-BR · 외피 IsleSkin_V007 현재 기준(석교 B안 GX-039 + 산괴 동쪽 탑 모노리스 A안 GX-040) · 충돌 Shell·베이크·PIE(GX-041, IsleSkin_V009) 완료 · 섬 윗면 단위 2(GX-042): 2a 덮개 재분할·2b 엄폐 각기둥(GX-043) 완료, 현재 충돌 맵 IsleSkin_V016(베이크·1인 PIE 통과), 다음은 2c 잔돌·식생
-> 마지막 확인/갱신: 2026-11-27
+> 현재 작업: Phase 1-BR · 외피 IsleSkin_V007(GX-039·040) · 충돌 Shell/베이크/PIE(GX-041, V009) · **섬 윗면 단위 2 전체 완료**(GX-042·043: 2a 덮개 재분할 V010 · 2b 엄폐 각기둥/잔돌 충돌 V016 · 2c 잔돌·식생 **IsleSkin_V018** 채택) · 다음은 U5b 구역별 몸체·충돌(및 Z1Cull_V002 정리)
+> 마지막 확인/갱신: 2026-11-28
 
 ## 1. 이어받을 결과
 
-**2026-11-27 최신(섬 윗면 단위 2, GX-042·043):** 섬 엄폐 각기둥 6개는 U3 V012 보존 구조물에서 빠져 시각·충돌이 모두 없었고, 섬 외피 덮개(부채꼴)는 Floor보다 최대 26cm 위에 보였다. 2a: 새 `BuildRidgeIsleTop.py`(Blender·UE)로 덮개를 동심 고리로 다시 나눠 Floor 2.4cm 아래로 내렸다(IsleSkin_V010). 2b: V011 자리에 각진 사암 덩어리 3조각·윗단 돌출·밑동 잔돌로 엄폐를 복원했다. 평평한 윗면이 바닥 무늬와 녹아 보이는 문제는 엄폐 전용 재질 `MI_Ridge_IsleRock`으로 고쳤다. 사용자 PIE 제보로 잔돌(8cm 이상)도 Shell에 넣었다(GX-043). 현재 충돌 맵은 **IsleSkin_V016**이고 검사용 풀은 `DA_GraphicsRidgeIsleSkinPool_V016`이다. 베이크 결과 Layer 82, Nav 셀 −209, 섬 Pod 후보 104·95 → 97·87이다. 1인 PIE Q01~Q07·R01~R02를 사용자가 통과로 판정했다. 풀·밀도를 복원했고 보존 해시 불일치 0이다. 다음은 2c 섬 윗면 잔돌·식생이다. 상세·재현·시작 프롬프트는 [외피 시험 §14](analysis/Phase01_IsleSkinTrial.md)이다.
+**2026-11-28 최신(섬 윗면 단위 2 전체 완료, GX-042·043):** 2a 덮개 재분할(V010)·2b 각진 사암 엄폐 각기둥·`MI_Ridge_IsleRock`·밑동 잔돌 충돌(V016, 베이크·1인 PIE 통과)에 이어 **2c 섬 윗면 잔돌·식생**을 마쳤다. `BuildRidgeIsleTop.py`(Blender `scatter`·UE Static NoCollision ISM)를 확장해 V016 복제본에 `SmallStonesPack_01/02/07/14`(<100cm, 최대 50.6cm·돌출 ≤18.6cm)·`CloverVarieties_01~03`·`Fern_01~06`(`MI_Ridge_Fern`)를 배치했다. 1차 `IsleSkin_V017`(섬당 206개) 뒤 사용자 요청으로 더 풍성하게 보강한 **`IsleSkin_V018`**(섬당 **244개**: Fern 44·Clover 98·잔돌 102)을 사용자가 채택했다. 보호 51공간·16,552표본 새 점유 0, Pod 9m·착지 4m·그래플 사선·GX-043 잔돌 겹침 0, `Verify_V018`·`IsleSkinLit_V018` PASS, 보존 해시 불일치 0이다. 모두 NoCollision이라 재베이크는 필요 없으며 충돌·SurfaceData는 V016과 같다. 재현 기록은 `IsleSkin_V001/IsleTop_V018.json`, 상세는 [외피 시험 §14](analysis/Phase01_IsleSkinTrial.md)이다. 다음은 [Phase 1-BR](phases/Phase01_RidgeReferencePatch.md)의 **U5b(구역별 닫힌 몸체·충돌 파생 + `Z1Cull_V002` Static/AttachTo 정리)**다.
 
 **2026-11-27 최신(부유섬·석교 외피):** V008 검토 뒤 사용자가 부유 표현의 쓰임새를 GX-038로 한정했다. 쓰임새는 기존 지형의 재해석·보강과 중력 규칙 완화 장치이며, 관계없는 빈 공간에 부유 지형을 새로 띄우지 않는다. 사용자 지시로 부유섬 2개·하늘 석교 외피를 V008 사본 `EDTerrain_V001/IsleSkin_V004/LVI_Ridge_EDTerrain_IsleSkin_V004`에 시험했다. V004의 구성은 다음과 같다.
 
@@ -198,6 +198,22 @@ LootNPop은 8000, ElectricDreamsEnv는 8001이며 두 에디터는 번갈아 사
 UE5.8 scalar setter는 반환 false만으로 실패를 판정하지 말고 getter로 확인한다. Python 프로퍼티 이름은 bool의 `b` 접두어를 빼고 쓴다(`terrain_blocker`). PIE 게임창이 분리돼 있으면 native CaptureViewport의 검은 화면을 근거로 쓰지 않고 게임 콘솔 `Shot`으로 확인한다. PCG 재생성 직후 같은 프레임의 검사는 정리 대기 컴포넌트를 읽으므로 한 번 더 실행한다.
 
 ## 5. 새 세션으로 넘길 일
+
+**현재 확인 지점(2026-11-28, IsleSkin/IsleTop 단위 2 전체 완료 → U5b 인계):**
+
+- **현재 채택 기준 맵:** `/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V018/LVI_Ridge_EDTerrain_IsleSkin_V018`
+  - 구성: U5a 채택 V008(Z1 + U4 추가 21소유자 + U5a 몸체 5 + 별도 연결 1) + 부유섬·석교·모노리스 외피(V007, GX-039·040) + 외피 충돌 Shell V002(GX-041) + 섬 윗면 덮개 재분할(2a V010) + 각진 엄폐 각기둥·`MI_Ridge_IsleRock`·밑동 잔돌 충돌 Shell V005(2b V016, GX-042·043, 베이크·1인 PIE 통과) + 섬 윗면 NoCollision 잔돌·식생 Static ISM 섬당 244개(2c V018 채택).
+  - 충돌·SurfaceData 기준: `V016`(2c는 모두 NoCollision이라 재베이크 불필요). 검사용 풀 `IsleSkin_V016/DA_GraphicsRidgeIsleSkinPool_V016`, Git 재현 기록 `IsleSkin_V001/IsleTop_V016.json`·`IsleTop_V018.json`.
+  - 보존 상태: `CheckRidgePreservation.py IsleTop_2c_Final` PASS(V008 703·V006 7·V007 14 불일치 0). V006~V018 맵·공유 원본·동결 스크립트(`GenerateRidgeIsleSkin.py`·`BuildRidgeIsleSkin.py`·`BuildRidgeIsleBody.py`)는 변경하지 않는다. 마지막 에디터 상태는 `IsleSkinLit_V018`·PIE=false·dirty 없음.
+- **다음 작업(Phase 1-BR 본 트랙 — U5b):** [Phase01_RidgeReferencePatch.md](phases/Phase01_RidgeReferencePatch.md)의 **U5b(구역별 닫힌 몸체·외피 이음·최종 충돌 프록시·기반면 절개 + `Z1Cull_V002` Static/AttachTo 정리)**로 진행한다.
+  - 이전 1인 PIE에서 제보된 외피 밖 U4 시각 메시 관통(NoCollision)과 `Z1Cull_V001` 북벽 AttachTo 경고(루트·ISM Movable 혼재)는 모두 U5b 소관이다.
+  - U5a-7/V008에서 남은 R01/StairRamp3 REVIEW·충돌/내부 Support 게이트([U5a 인수인계](analysis/Phase01_U5aBodyHandoff.md))와 U4 V011 구역별 큰 배치를 함께 점검해 U5b 구역별 진행 순서를 먼저 확정한다.
+- **U7(잔돌·식생 마감) 결정 사항(2026-11-28):** 전체 바닥 잔돌·식생 보강은 기존 계획대로 **U5b → U6(전체 베이크·PIE) 이후 U7에서 한 번에** 진행한다. 런타임 PCG(`GenerateAtRuntime`/3D HiGen) 대신 **에디터 타임 생성 + 공간 셀 분할 Static ISM + 거리 컬링/WPO 비활성화 거리(A안)**를 기본 방향으로 두며, U7 착수 시 필요한 3가지 보완(고밀도 구역 제외 마스크·AABB 과잉 거부 해소, 다중 충돌 표면 접지, 셀 분할 ISM·CullDistance)은 [Phase01_RidgeReferencePatch.md](phases/Phase01_RidgeReferencePatch.md#u7-배경-프랍-채우기ed-스타일)에 반영했다.
+- 새 세션 시작 프롬프트는 [외피 시험 §14.8](analysis/Phase01_IsleSkinTrial.md#148-다음-세션u5b-인계-및-시작-프롬프트)에 있다.
+
+---
+
+> 아래는 이전 세션(2026-11-26, U5a-6/V007) 인계 기록이다.
 
 **현재 확인 지점(2026-11-26):** [U5a-6 검토 §5](analysis/Phase01_U5aSelfIntersectionReview.md)를 따른다. V007 최소 보정·실제 정점/교차·전체 보존·동일26카메라·복구를 마쳤다. 먼저 V007 외관 유지 여부와 다음 단위 범위를 사용자에게 확인한다. 시각 채택·충돌/PIE·U5a 전체 완료는 아직 아니다. 아래는 V006 동결 때의 이전 세션 인계다.
 

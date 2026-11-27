@@ -978,8 +978,513 @@ def cover_faceted():
           flush=True)
 
 
+# ---- 2c: 섬 윗면 잔돌·식생(GX-042) ----------------------------------------------------------------------------------
+# NoCollision 작은 ED 잔돌(<100cm)·Clover·Fern을 섬당 약 150~250개 배치한다.
+# Pod 중심 9m·착지점 4m·그래플 사선·엄폐 각기둥 및 GX-043 밑동 잔돌(Cover_V005)을 비우고,
+# PreservedRocks_Floor 실제 높이에 투영한 뒤 보호 51공간·16,552표본 전수 OBB 검사를 통과해야 한다.
+SCATTER_COVER_BUILD = ROOT / "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Cover_V005/Build.json"
+FERN_MATERIAL = "/Game/Graphics/Environment/ElectricDreams/RidgeFernWind_V001/MI_Ridge_Fern"
+
+# UE StaticMeshTools.get_bounds 실측값(cm).
+SCATTER_ASSETS = {
+    "stone": [
+        {"mesh": "/Game/Megascans/3D_Assets/SmallStonesPack/SM_SmallStonesPack_01",
+         "min": [-6.55, -4.62, -4.15], "max": [6.55, 4.63, 4.15], "weight": 1.0, "center_pivot": True},
+        {"mesh": "/Game/Megascans/3D_Assets/SmallStonesPack/SM_SmallStonesPack_02",
+         "min": [-5.54, -3.38, -3.85], "max": [5.55, 3.38, 3.85], "weight": 0.9, "center_pivot": True},
+        {"mesh": "/Game/Megascans/3D_Assets/SmallStonesPack/SM_SmallStonesPack_07",
+         "min": [-9.04, -5.01, -5.93], "max": [9.04, 5.01, 5.94], "weight": 1.1, "center_pivot": True},
+        {"mesh": "/Game/Megascans/3D_Assets/SmallStonesPack/SM_SmallStonesPack_14",
+         "min": [-8.99, -4.97, -5.93], "max": [8.99, 4.97, 5.90], "weight": 1.0, "center_pivot": True},
+    ],
+    "clover": [
+        {"mesh": "/Game/Megascans/3D_Plants/CloverVarieties/SM_CloverVarieties_01",
+         "min": [-64.22, -60.89, -0.62], "max": [71.49, 67.02, 13.96], "weight": 1.0, "scale": [0.75, 1.05]},
+        {"mesh": "/Game/Megascans/3D_Plants/CloverVarieties/SM_CloverVarieties_02",
+         "min": [-33.15, -17.88, -0.29], "max": [33.91, 33.82, 12.14], "weight": 1.3, "scale": [0.85, 1.20]},
+        {"mesh": "/Game/Megascans/3D_Plants/CloverVarieties/SM_CloverVarieties_03",
+         "min": [-51.28, -36.32, -0.37], "max": [91.33, 54.75, 13.77], "weight": 1.1, "scale": [0.75, 1.05]},
+    ],
+    "fern": [
+        {"mesh": "/Game/Megascans/3D_Plants/Fern/SM_Fern_01", "material": FERN_MATERIAL,
+         "min": [-67.67, -91.16, -3.90], "max": [88.58, 96.84, 99.31], "weight": 0.6},
+        {"mesh": "/Game/Megascans/3D_Plants/Fern/SM_Fern_02", "material": FERN_MATERIAL,
+         "min": [-85.08, -102.39, -3.66], "max": [81.57, 73.14, 91.33], "weight": 0.7},
+        {"mesh": "/Game/Megascans/3D_Plants/Fern/SM_Fern_03", "material": FERN_MATERIAL,
+         "min": [-76.45, -48.68, -2.05], "max": [72.17, 88.97, 61.05], "weight": 1.4},
+        {"mesh": "/Game/Megascans/3D_Plants/Fern/SM_Fern_04", "material": FERN_MATERIAL,
+         "min": [-84.32, -82.70, -2.18], "max": [94.38, 81.95, 70.75], "weight": 1.3},
+        {"mesh": "/Game/Megascans/3D_Plants/Fern/SM_Fern_05", "material": FERN_MATERIAL,
+         "min": [-97.20, -101.34, -2.24], "max": [104.42, 86.08, 89.06], "weight": 0.6},
+        {"mesh": "/Game/Megascans/3D_Plants/Fern/SM_Fern_06", "material": FERN_MATERIAL,
+         "min": [-130.20, -94.05, -5.87], "max": [27.22, 64.94, 60.25], "weight": 1.4},
+    ],
+}
+
+SCATTER_RULES = {
+    "V017": {
+        "seed": 42047,
+        "pod_clear_cm": 900.0,
+        "landing_clear_cm": 400.0,
+        "line_clear_cm": 150.0,
+        "seam_visual_cm": 500.0,
+        "rim_margin_cm": {"stone": 160.0, "clover": 160.0, "fern": 220.0},
+        "cover_clear_cm": {"stone": 55.0, "clover": 40.0, "fern": 45.0},
+        "rubble_clear_cm": {"stone": 45.0, "clover": 35.0, "fern": 40.0},
+        "stone_scale": [1.25, 2.15],
+        "stone_embed_frac": 0.15,   # 중심 피벗 메시: center = floor_h + 0.15 * max_z * s (약 42% 묻힘, 58% 돌출)
+        "stone_tilt_deg": 5.0,
+        "clover_sink_cm": 0.8,
+        "fern_scale": [0.55, 0.80],
+        "fern_sink_cm": 2.0,
+        "fern_wind_pad_xy_cm": 30.0,
+        "fern_wind_pad_z_cm": 15.0,
+        "max_stone_dim_cm": 99.0,   # GX-042: 100cm 미만 작은 잔돌
+        "targets": {
+            "cover_fern": 10, "rim_fern": 14,
+            "cover_clover": 22, "rim_clover": 32, "mid_clover": 20,
+            "cover_stone": 38, "rim_stone": 42, "mid_stone": 28,
+        },
+        "rim_pockets": 7,
+        "count_range": [150, 250],
+    },
+    # V018: 사용자 요청 "더 풍성하게". GX-042 범위(150~250개) 상단(약 244개)을 쓰고,
+    # Clover 큰 변형(01/03) 비중·스케일 확대 + Fern 군집(44개, 스케일 0.72~0.98) + 2단 크기 잔돌(최대 ~50cm·돌출 ≤17cm)로
+    # 16m 부감·WestTopEye에서도 식생·잔돌 리듬이 분명히 읽히되 Pod 9m·착지·사선·보호 51공간·보행면 인지를 유지한다.
+    "V018": {
+        "seed": 42048,
+        "pod_clear_cm": 900.0,
+        "landing_clear_cm": 400.0,
+        "line_clear_cm": 150.0,
+        "seam_visual_cm": 500.0,
+        "rim_margin_cm": {"stone": 145.0, "clover": 145.0, "fern": 200.0},
+        "cover_clear_cm": {"stone": 50.0, "clover": 35.0, "fern": 40.0},
+        "rubble_clear_cm": {"stone": 42.0, "clover": 32.0, "fern": 38.0},
+        "stone_scale": [1.35, 2.25],
+        "stone_anchor_prob": 0.35,
+        "stone_anchor_scale": [2.0, 2.8],
+        "stone_embed_frac": 0.12,
+        "stone_tilt_deg": 5.0,
+        "clover_sink_cm": 0.8,
+        "clover_scale_mult": 1.22,
+        "clover_weights": [1.6, 0.7, 1.4],
+        "clover_overlap_factor": 0.58,
+        "fern_scale": [0.72, 0.98],
+        "fern_sink_cm": 2.2,
+        "fern_wind_pad_xy_cm": 30.0,
+        "fern_wind_pad_z_cm": 15.0,
+        "fern_cluster": True,
+        "max_stone_dim_cm": 60.0,   # GX-042 <100cm, 걷는 면 높이를 흐리지 않는 작은 잔돌 유지
+        "targets": {
+            "cover_fern": 19, "rim_fern": 25,
+            "cover_clover": 30, "rim_clover": 40, "mid_clover": 28,
+            "cover_stone": 36, "rim_stone": 40, "mid_stone": 26,
+        },
+        "rim_pockets": 8,
+        "count_range": [150, 250],
+    },
+}
+
+
+def poly_signed_dist(poly, x, y):
+    """다각형 안쪽이면 양수(변까지 최소 거리), 바깥이면 음수."""
+    p = np.array([x, y], dtype=np.float64)
+    best = 1e18
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        pa, pb = np.array(a[:2], dtype=np.float64), np.array(b[:2], dtype=np.float64)
+        ab = pb - pa
+        t = max(0.0, min(1.0, float(np.dot(p - pa, ab) / max(float(np.dot(ab, ab)), 1e-12))))
+        d = float(np.linalg.norm(p - (pa + ab * t)))
+        if d < best:
+            best = d
+    return best if inside_polygon(poly, x, y) else -best
+
+
+def local_frame_axes(x, y, h):
+    """UE BuildRidgeZ1AssemblyTest.frame_rotation(x, y, 0)과 같은 직교 기저 (ex, ey, ez) 월드 벡터."""
+    p = np.asarray(ib.spec.ridge.point(x, y, h), dtype=np.float64)
+    ez = -p / np.linalg.norm(p)
+    p2 = np.asarray(ib.spec.ridge.point(x + 10.0, y, h), dtype=np.float64)
+    d = p2 - p
+    ex = d - ez * float(np.dot(d, ez))
+    ex /= np.linalg.norm(ex)
+    # UE 왼손 좌표계 MakeRotFromXZ: Y = cross(Z, X)
+    ey = np.cross(ez, ex)
+    ey /= np.linalg.norm(ey)
+    return p, ex, ey, ez
+
+
+def rot_matrix_local(pitch_deg, yaw_deg, roll_deg):
+    """UE Rotator(pitch, yaw, roll)을 로컬 기저에 적용하는 3x3 회전 행렬 (열 벡터 기준)."""
+    cp, sp = math.cos(math.radians(pitch_deg)), math.sin(math.radians(pitch_deg))
+    cy, sy = math.cos(math.radians(yaw_deg)), math.sin(math.radians(yaw_deg))
+    cr, sr = math.cos(math.radians(roll_deg)), math.sin(math.radians(roll_deg))
+    # UE FRotationMatrix (왼손계: +Yaw = X->Y, +Pitch = X->Z, +Roll = Y->-Z)
+    ax = np.array([cp * cy, cp * sy, sp], dtype=np.float64)
+    ay = np.array([sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp], dtype=np.float64)
+    az = np.array([-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp], dtype=np.float64)
+    return ax, ay, az
+
+
+def obb_from_pose(x, y, h, rot_deg, scale, asset, pad_xy=0.0, pad_z=0.0):
+    """인스턴스의 월드 OBB (origin, wx, wy, wz, bmin, bmax, world_aabb_lo, world_aabb_hi)."""
+    p, ex, ey, ez = local_frame_axes(x, y, h)
+    lx, ly, lz = rot_matrix_local(*rot_deg)
+    wx = lx[0] * ex + lx[1] * ey + lx[2] * ez
+    wy = ly[0] * ex + ly[1] * ey + ly[2] * ez
+    wz = lz[0] * ex + lz[1] * ey + lz[2] * ez
+    bmin = np.array([asset["min"][0] * scale - pad_xy, asset["min"][1] * scale - pad_xy, asset["min"][2] * scale], dtype=np.float64)
+    bmax = np.array([asset["max"][0] * scale + pad_xy, asset["max"][1] * scale + pad_xy, asset["max"][2] * scale + pad_z], dtype=np.float64)
+    corners = np.array([p + wx * bx + wy * by + wz * bz
+                        for bx in (bmin[0], bmax[0]) for by in (bmin[1], bmax[1]) for bz in (bmin[2], bmax[2])])
+    return p, wx, wy, wz, bmin, bmax, corners.min(axis=0), corners.max(axis=0)
+
+
+def obb_dist_to_points(obb, pts):
+    """점 배열(N, 3)에서 OBB까지의 최소 유클리드 거리(안이면 0)."""
+    p, wx, wy, wz, bmin, bmax, _, _ = obb
+    rel = pts - p
+    u = rel @ wx
+    v = rel @ wy
+    w = rel @ wz
+    dx = np.maximum(0.0, np.maximum(bmin[0] - u, u - bmax[0]))
+    dy = np.maximum(0.0, np.maximum(bmin[1] - v, v - bmax[1]))
+    dz = np.maximum(0.0, np.maximum(bmin[2] - w, w - bmax[2]))
+    return np.sqrt(dx * dx + dy * dy + dz * dz)
+
+
+def scatter():
+    import MeasureRidgeIsleSkinCollision as meas
+    rules = SCATTER_RULES[VERSION]
+    out = ROOT / ("Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Scatter_" + VERSION)
+    out.mkdir(parents=True, exist_ok=True)
+    rng = random.Random(rules["seed"])
+
+    blueprint = json.loads(ib.BLUEPRINT.read_text(encoding="utf-8"))
+    islands = {i["id"]: i for i in blueprint["preserve"]["islands"]}
+    pods = {p["id"]: tuple(p["local"][:2]) for p in blueprint["pods"] if p["id"] in islands}
+    landings = {}
+    for a in blueprint["anchors"]:
+        lx, ly = a["landing"]
+        for rid, (px, py) in pods.items():
+            if math.hypot(lx - px, ly - py) < 3500:
+                landings.setdefault(rid, []).append((a["id"], (lx, ly)))
+    covers_all = cover_rocks()
+    cover_build = json.loads(SCATTER_COVER_BUILD.read_text(encoding="utf-8"))
+    rubble_by_isle = {}
+    for p in cover_build["pillars"]:
+        rubble_by_isle.setdefault(p["isle"], []).extend(p["rubble"])
+
+    env = ib.helper()
+    spaces = json.loads(ib.TRIAL.read_text(encoding="utf-8"))["protected_spaces"]
+    samples = [(c["id"], np.asarray(env["samples"](c), dtype=np.float64)) for c in spaces]
+    lines = {k: np.asarray(v, dtype=np.float64) for k, v in {**meas.landmark_lines(), **meas.grapple_lines(blueprint)}.items()}
+    all_line_pts = np.concatenate(list(lines.values()), axis=0)
+    floor, floor_sha = load_floor()
+
+    def pick_asset(kind):
+        pool = SCATTER_ASSETS[kind]
+        if kind == "clover" and "clover_weights" in rules:
+            weights = rules["clover_weights"]
+        else:
+            weights = [a["weight"] for a in pool]
+        return rng.choices(pool, weights=weights, k=1)[0]
+
+    def asset_radius(asset, scale):
+        rx = max(abs(asset["min"][0]), abs(asset["max"][0])) * scale
+        ry = max(abs(asset["min"][1]), abs(asset["max"][1])) * scale
+        return math.hypot(rx, ry)
+
+    placements_by_isle = {}
+    summary = {}
+    issues = []
+
+    for rid in ("ValleySkyIsle", "WestSkyIsle"):
+        it = islands[rid]
+        outline = [tuple(p[:2]) for p in it["outline"]]
+        top_h = it["island_top"]
+        cx, cy = pods[rid]
+        isle_landings = [xy for _, xy in landings.get(rid, [])]
+        isle_covers = [([tuple(p[:2]) for p in r["outline"]],
+                        (sum(p[0] for p in r["outline"]) / len(r["outline"]),
+                         sum(p[1] for p in r["outline"]) / len(r["outline"])))
+                       for r in covers_all if COVER_ISLE["West" if r["id"].startswith("West") else "Valley"] == rid]
+        isle_rubble = rubble_by_isle.get(rid, [])
+        # 이 섬 주변 40m 안의 보호 표본만 빠른 필터로 추려 둔다(최종 검증은 전체 51공간·16,552표본으로 다시 실행).
+        isle_center_w = np.asarray(ib.spec.ridge.point(cx, cy, top_h), dtype=np.float64)
+        near_samples = []
+        for sid, pts in samples:
+            m = np.linalg.norm(pts - isle_center_w, axis=1) < 4200.0
+            if m.any():
+                near_samples.append((sid, pts[m]))
+        near_lines = all_line_pts[np.linalg.norm(all_line_pts - isle_center_w, axis=1) < 4500.0]
+
+        # 외곽 림 포켓 중심(7개, Pod·착지점·엄폐 밖 자연 덩어리 자리)
+        rim_pockets = []
+        base_ang = rng.uniform(0, math.tau)
+        for k in range(rules["rim_pockets"]):
+            for _ in range(30):
+                th = base_ang + math.tau * k / rules["rim_pockets"] + rng.uniform(-0.28, 0.28)
+                r_edge = ib.ray_radius(outline, (cx, cy), th)
+                rad = r_edge - rng.uniform(280.0, 560.0)
+                px, py = cx + rad * math.cos(th), cy + rad * math.sin(th)
+                if math.hypot(px - cx, py - cy) < rules["pod_clear_cm"] + 250.0:
+                    continue
+                if any(math.hypot(px - lx, py - ly) < rules["landing_clear_cm"] + 250.0 for lx, ly in isle_landings):
+                    continue
+                if any(poly_signed_dist(cp, px, py) > -180.0 for cp, _ in isle_covers):
+                    continue
+                rim_pockets.append((px, py))
+                break
+
+        placed = []  # {"kind", "zone", "mesh", "material", "local_xyh_cm", "rotation_deg", "scale", "radius_cm", ...}
+        rejects = {}
+
+        def reject(reason):
+            rejects[reason] = rejects.get(reason, 0) + 1
+            return False
+
+        def try_place(kind, zone, x, y, asset=None, scale=None):
+            if asset is None:
+                if kind == "stone" and rng.random() < rules.get("stone_anchor_prob", 0.0):
+                    asset = rng.choice(SCATTER_ASSETS["stone"][2:])  # 07·14 앵커 잔돌
+                    if scale is None:
+                        scale = rng.uniform(*rules["stone_anchor_scale"])
+                else:
+                    asset = pick_asset(kind)
+            if scale is None:
+                if kind == "stone":
+                    scale = rng.uniform(*rules["stone_scale"])
+                elif kind == "clover":
+                    mult = rules.get("clover_scale_mult", 1.0)
+                    scale = rng.uniform(*asset["scale"]) * mult
+                else:
+                    scale = rng.uniform(*rules["fern_scale"])
+            pad_xy = rules["fern_wind_pad_xy_cm"] if kind == "fern" else 0.0
+            pad_z = rules["fern_wind_pad_z_cm"] if kind == "fern" else 0.0
+            r_xy = asset_radius(asset, scale) + pad_xy
+            # 1) 잔돌 100cm 미만 검증
+            if kind == "stone":
+                max_dim = max(asset["max"][i] - asset["min"][i] for i in range(3)) * scale
+                if max_dim >= rules["max_stone_dim_cm"]:
+                    return reject("stone_too_big")
+            # 2) 섬 외곽 안쪽 여유
+            if poly_signed_dist(outline, x, y) < rules["rim_margin_cm"][kind] + r_xy * 0.5:
+                return reject("rim")
+            # 3) Pod 중심 9m 제외
+            if math.hypot(x - cx, y - cy) - r_xy < rules["pod_clear_cm"]:
+                return reject("pod_9m")
+            # 4) 착지점 4m 제외
+            if any(math.hypot(x - lx, py - ly) - r_xy < rules["landing_clear_cm"] for lx, ly in isle_landings for py in (y,)):
+                return reject("landing_4m")
+            # 5) 엄폐 각기둥 제외
+            for cp, _ in isle_covers:
+                if poly_signed_dist(cp, x, y) > -(rules["cover_clear_cm"][kind] + r_xy):
+                    return reject("cover")
+            # 6) GX-043 엄폐 밑동 잔돌 제외
+            for rb in isle_rubble:
+                rx, ry = rb["center_local"]
+                if math.hypot(x - rx, y - ry) < rb["size_cm"] + r_xy + rules["rubble_clear_cm"][kind]:
+                    return reject("gx043_rubble")
+            # 7) 기존 2c 배치와 겹침 방지
+            for other in placed:
+                d = math.hypot(x - other["x"], y - other["y"])
+                okind = other["kind"]
+                if kind == "stone" and okind == "stone":
+                    min_d = max(r_xy + other["radius_cm"] + 8.0, 26.0)
+                elif kind == "fern" and okind == "fern":
+                    min_d = max(110.0, 0.80 * (r_xy + other["radius_cm"]))
+                elif kind == "clover" and okind == "clover":
+                    min_d = rules.get("clover_overlap_factor", 0.72) * (r_xy + other["radius_cm"])
+                elif {kind, okind} == {"fern", "stone"}:
+                    min_d = 0.45 * max(r_xy, other["radius_cm"]) + min(r_xy, other["radius_cm"]) + 12.0
+                elif {kind, okind} == {"clover", "stone"}:
+                    min_d = 0.35 * max(r_xy, other["radius_cm"]) + min(r_xy, other["radius_cm"]) + 6.0
+                else:  # clover <-> fern
+                    min_d = 0.45 * (r_xy + other["radius_cm"])
+                if d < min_d:
+                    return reject("overlap_" + okind)
+            # 8) 실제 PreservedRocks_Floor 높이 투영
+            w_probe = np.asarray(ib.spec.ridge.point(x, y, top_h + 150.0), dtype=np.float64)
+            fh = floor_heights(floor, [w_probe])[0]
+            if fh is None or abs(fh - top_h) > 35.0:
+                return reject("no_floor")
+            if kind == "stone":
+                h = fh + rules["stone_embed_frac"] * asset["max"][2] * scale
+                t = rules["stone_tilt_deg"]
+                rot = [round(rng.uniform(-t, t), 3), round(rng.uniform(0.0, 360.0), 3), round(rng.uniform(-t, t), 3)]
+            elif kind == "clover":
+                h = fh - rules["clover_sink_cm"]
+                rot = [0.0, round(rng.uniform(0.0, 360.0), 3), 0.0]
+            else:
+                h = fh - rules["fern_sink_cm"]
+                rot = [0.0, round(rng.uniform(0.0, 360.0), 3), 0.0]
+            # 9) OBB 기반 이음매·그래플/랜드마크 사선·보호 공간 검사
+            obb = obb_from_pose(x, y, h, rot, scale, asset, pad_xy, pad_z)
+            if float(obb[6].min()) < rules["seam_visual_cm"]:
+                return reject("seam")
+            if len(near_lines) and float(obb_dist_to_points(obb, near_lines).min()) < rules["line_clear_cm"]:
+                return reject("sightline")
+            for _, pts in near_samples:
+                if float(obb_dist_to_points(obb, pts).min()) <= 0.0:
+                    return reject("protected_space")
+            protrude = (h + asset["max"][2] * scale) - fh
+            placed.append({
+                "isle": rid, "kind": kind, "zone": zone, "mesh": asset["mesh"],
+                "material": asset.get("material"),
+                "x": x, "y": y, "floor_h": round(fh, 3),
+                "local_xyh_cm": [round(x, 3), round(y, 3), round(h, 3)],
+                "rotation_deg": rot, "scale": [round(scale, 4)] * 3,
+                "radius_cm": round(r_xy, 1), "protrude_cm": round(protrude, 1),
+                "max_dim_cm": round(max(asset["max"][i] - asset["min"][i] for i in range(3)) * scale, 1),
+            })
+            return True
+
+        def sample_cover_point(min_dist, max_dist):
+            cp, (kx, ky) = rng.choice(isle_covers)
+            a = rng.uniform(0, math.tau)
+            r_c = ib.ray_radius(cp, (kx, ky), a)
+            rad = r_c + rng.uniform(min_dist, max_dist)
+            return kx + rad * math.cos(a), ky + rad * math.sin(a)
+
+        def sample_rim_point(spread_cm):
+            px, py = rng.choice(rim_pockets)
+            a = rng.uniform(0, math.tau)
+            r = spread_cm * math.sqrt(rng.random())
+            return px + r * math.cos(a), py + r * math.sin(a)
+
+        def sample_mid_point():
+            a = rng.uniform(0, math.tau)
+            r_edge = ib.ray_radius(outline, (cx, cy), a)
+            r_lo = rules["pod_clear_cm"] + 120.0
+            r_hi = max(r_lo + 50.0, r_edge - 260.0)
+            rad = math.sqrt(rng.uniform(r_lo * r_lo, r_hi * r_hi))
+            return cx + rad * math.cos(a), cy + rad * math.sin(a)
+
+        def fill_singles(kind, zone, target, sampler):
+            made, tries = 0, 0
+            while made < target and tries < target * 40:
+                tries += 1
+                x, y = sampler()
+                if try_place(kind, zone, x, y):
+                    made += 1
+            return made
+
+        def fill_clusters(kind, zone, target, sampler, cluster_range, spread_cm):
+            made, tries = 0, 0
+            while made < target and tries < target * 35:
+                tries += 1
+                ax, ay = sampler()
+                if not try_place(kind, zone, ax, ay):
+                    continue
+                made += 1
+                want = min(target - made, rng.randint(*cluster_range) - 1)
+                sub_tries = 0
+                while want > 0 and sub_tries < 25:
+                    sub_tries += 1
+                    ang = rng.uniform(0, math.tau)
+                    dist = rng.uniform(28.0, spread_cm)
+                    if try_place(kind, zone, ax + dist * math.cos(ang), ay + dist * math.sin(ang)):
+                        made += 1
+                        want -= 1
+            return made
+
+        T = rules["targets"]
+        # 1) Fern 먼저 (엄폐 주변·림 포켓 앵커; fern_cluster가 켜지면 2~3포기 자연 군집)
+        if rules.get("fern_cluster"):
+            fill_clusters("fern", "cover_skirt", T["cover_fern"], lambda: sample_cover_point(70.0, 320.0), (2, 3), 185.0)
+            fill_clusters("fern", "rim_pocket", T["rim_fern"], lambda: sample_rim_point(360.0), (2, 3), 210.0)
+        else:
+            fill_singles("fern", "cover_skirt", T["cover_fern"], lambda: sample_cover_point(80.0, 290.0))
+            fill_singles("fern", "rim_pocket", T["rim_fern"], lambda: sample_rim_point(340.0))
+        # 2) Clover (엄폐 주변·림 포켓·중간 링 패치)
+        fill_clusters("clover", "cover_skirt", T["cover_clover"], lambda: sample_cover_point(75.0, 420.0), (2, 4), 170.0)
+        fill_clusters("clover", "rim_pocket", T["rim_clover"], lambda: sample_rim_point(430.0), (3, 5), 195.0)
+        fill_clusters("clover", "mid_ring", T["mid_clover"], sample_mid_point, (2, 4), 165.0)
+        # 3) 작은 잔돌 (엄폐 밖 군집·림 군집·중간 링 소군집)
+        fill_clusters("stone", "cover_skirt", T["cover_stone"], lambda: sample_cover_point(95.0, 460.0), (2, 4), 95.0)
+        fill_clusters("stone", "rim_pocket", T["rim_stone"], lambda: sample_rim_point(450.0), (2, 5), 110.0)
+        fill_clusters("stone", "mid_ring", T["mid_stone"], sample_mid_point, (2, 3), 90.0)
+
+        # ---- 전수 검증: 전체 51공간·16,552표본, 전체 사선, Pod 9m, 착지점 4m, GX-043 잔돌 겹침 0 ----
+        asset_by_mesh = {a["mesh"]: a for pool in SCATTER_ASSETS.values() for a in pool}
+        prot_hits, line_hits, pod_hits, land_hits, rubble_hits, big_stones = 0, 0, 0, 0, 0, 0
+        min_seam = 1e9
+        for row in placed:
+            asset = asset_by_mesh[row["mesh"]]
+            scale = row["scale"][0]
+            pad_xy = rules["fern_wind_pad_xy_cm"] if row["kind"] == "fern" else 0.0
+            pad_z = rules["fern_wind_pad_z_cm"] if row["kind"] == "fern" else 0.0
+            obb = obb_from_pose(*row["local_xyh_cm"], row["rotation_deg"], scale, asset, pad_xy, pad_z)
+            min_seam = min(min_seam, float(obb[6].min()))
+            for sid, pts in samples:
+                # AABB 빠른 거부 후 정밀 OBB 거리 검사
+                lo, hi = obb[6], obb[7]
+                m = ((pts >= lo) & (pts <= hi)).all(axis=1)
+                if m.any() and float(obb_dist_to_points(obb, pts[m]).min()) <= 0.0:
+                    prot_hits += 1
+            if float(obb_dist_to_points(obb, all_line_pts).min()) < rules["line_clear_cm"]:
+                line_hits += 1
+            if math.hypot(row["x"] - cx, row["y"] - cy) - row["radius_cm"] < rules["pod_clear_cm"] - 1e-3:
+                pod_hits += 1
+            if any(math.hypot(row["x"] - lx, row["y"] - ly) - row["radius_cm"] < rules["landing_clear_cm"] - 1e-3 for lx, ly in isle_landings):
+                land_hits += 1
+            if any(math.hypot(row["x"] - rb["center_local"][0], row["y"] - rb["center_local"][1]) < rb["size_cm"] + row["radius_cm"] for rb in isle_rubble):
+                rubble_hits += 1
+            if row["kind"] == "stone" and row["max_dim_cm"] >= 100.0:
+                big_stones += 1
+
+        by_kind = {}
+        by_mesh = {}
+        for row in placed:
+            by_kind[row["kind"]] = by_kind.get(row["kind"], 0) + 1
+            short = row["mesh"].rsplit("/", 1)[-1]
+            by_mesh[short] = by_mesh.get(short, 0) + 1
+        lo_n, hi_n = rules["count_range"]
+        if not (lo_n <= len(placed) <= hi_n):
+            issues.append("count %s %d not in [%d,%d]" % (rid, len(placed), lo_n, hi_n))
+        for tag, val in (("protected_hits", prot_hits), ("line_hits", line_hits), ("pod_9m_hits", pod_hits),
+                         ("landing_4m_hits", land_hits), ("rubble_overlap", rubble_hits), ("stone_ge_100cm", big_stones)):
+            if val:
+                issues.append("%s %s %d" % (rid, tag, val))
+        if min_seam < rules["seam_visual_cm"]:
+            issues.append("%s seam %.1f" % (rid, min_seam))
+
+        # JSON에는 내부 임시 키(x, y) 제거
+        clean = [{k: v for k, v in r.items() if k not in ("x", "y")} for r in placed]
+        placements_by_isle[rid] = clean
+        summary[rid] = {
+            "total": len(clean), "by_kind": by_kind, "by_mesh": dict(sorted(by_mesh.items())),
+            "stone_max_dim_cm": max((r["max_dim_cm"] for r in clean if r["kind"] == "stone"), default=0.0),
+            "stone_max_protrude_cm": max((r["protrude_cm"] for r in clean if r["kind"] == "stone"), default=0.0),
+            "fern_max_protrude_cm": max((r["protrude_cm"] for r in clean if r["kind"] == "fern"), default=0.0),
+            "protected_hits": prot_hits, "line_hits": line_hits, "pod_9m_hits": pod_hits,
+            "landing_4m_hits": land_hits, "rubble_overlap": rubble_hits, "seam_min_cm": round(min_seam, 1),
+            "rejects": rejects, "rim_pockets": [[round(a, 1), round(b, 1)] for a, b in rim_pockets],
+        }
+
+    report = {
+        "version": VERSION, "unit": "IsleTop 2c scatter", "decision": "GX-042",
+        "rules": rules, "protected_spaces": len(spaces), "samples": sum(len(p) for _, p in samples),
+        "lines": {k: len(v) for k, v in lines.items()},
+        "summary": summary, "placements": placements_by_isle,
+        "issues": issues, "pass": not issues, "floor_dump_sha256": floor_sha,
+        "inputs": {p.relative_to(ROOT).as_posix(): sha(p) for p in
+                   (ib.BLUEPRINT, ib.TRIAL, ib.HELPER, SCATTER_COVER_BUILD,
+                    ROOT / "Scripts/RidgeOctantSpec.py", Path(meas.__file__), Path(__file__))},
+    }
+    (out / "Build.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+    print("ISLE_TOP_SCATTER " + json.dumps({
+        "pass": report["pass"], "issues": issues,
+        "summary": {k: {m: v[m] for m in ("total", "by_kind", "stone_max_dim_cm", "stone_max_protrude_cm",
+                                          "fern_max_protrude_cm", "protected_hits", "line_hits",
+                                          "pod_9m_hits", "landing_4m_hits", "rubble_overlap", "seam_min_cm")}
+                    for k, v in summary.items()},
+    }), flush=True)
+
+
 if __name__ == "__main__":
     if MODE == "cover" and COVER_RULES.get(VERSION, {}).get("style") == "faceted":
         cover_faceted()
     else:
-        {"cap": build, "cover": cover}[MODE]()
+        {"cap": build, "cover": cover, "scatter": scatter}[MODE]()

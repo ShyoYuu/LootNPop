@@ -1,0 +1,74 @@
+{
+ "unit": "IsleTop (unit 2: 2a cap + 2b cover + 2c scatter)",
+ "decisions": [
+  "GX-042",
+  "GX-043"
+ ],
+ "current_map": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V018/LVI_Ridge_EDTerrain_IsleSkin_V018",
+ "base_collision_map": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V016/LVI_Ridge_EDTerrain_IsleSkin_V016",
+ "chain": {
+  "V010": "V009 + island body caps re-tessellated (Geometry_V010)",
+  "V016": "V010 + Cover V004 visual (MI_Ridge_IsleRock) + Cover V005 Shell (covers + base rubble >= 8cm)",
+  "V018": "V016 + 2c island-top scatter (244/isle NoCollision Static ISM: SmallStonesPack + CloverVarieties_01~03 + Fern_01~06 with MI_Ridge_Fern)"
+ },
+ "rejected_or_history": {
+  "V017": "2c first pass (206/isle, smaller Ferns 0.55~0.80 / 24 per isle, lighter 16m read -> user requested richer V018)"
+ },
+ "reproduce": [
+  "Prerequisite: IsleTop_V016.json chain (IsleSkin_V016 saved)",
+  "blender --background --factory-startup --python Scripts/Blender/BuildRidgeIsleTop.py -- scatter V018",
+  "UE Cmd: py Scripts/Profiling/Graphics/BuildRidgeIsleTop.py build V018 -> next Cmd verify V018",
+  "UE Preview: open Z1AssemblyTest_V001 -> BuildRidgeIsleSkinPreview.py build V018 -> verify V018"
+ ],
+ "scatter_v018": {
+  "seed": 42048,
+  "per_isle": {
+   "ValleySkyIsle": {
+    "total": 244,
+    "by_kind": {
+     "fern": 44,
+     "clover": 98,
+     "stone": 102
+    },
+    "ism_components": 12,
+    "stone_max_dim_cm": 50.6,
+    "stone_max_protrude_cm": 18.6,
+    "fern_max_protrude_cm": 84.3,
+    "seam_min_cm": 5903.9
+   },
+   "WestSkyIsle": {
+    "total": 244,
+    "by_kind": {
+     "fern": 44,
+     "clover": 98,
+     "stone": 102
+    },
+    "ism_components": 13,
+    "stone_max_dim_cm": 50.0,
+    "stone_max_protrude_cm": 18.4,
+    "fern_max_protrude_cm": 93.7,
+    "seam_min_cm": 2170.4
+   }
+  },
+  "checks": {
+   "protected_spaces": 51,
+   "protected_samples": 16552,
+   "protected_hits": 0,
+   "line_hits": 0,
+   "pod_9m_hits": 0,
+   "landing_4m_hits": 0,
+   "rubble_overlap": 0,
+   "stone_ge_100cm": 0,
+   "verify_pass": true,
+   "preview_verify_pass": true
+  },
+  "collision_note": "All 2c scatter components are Static NoCollision ISM (LNPDecoration, LNP.Surface.Decoration); colliding meshes are identical to V016 (7 meshes) so no SurfaceNav rebake is needed.",
+  "build_json_sha256": "e43adfd3b6a7b8fc35411f68b40a93e627aaba2b263ae522e6570133710988c7"
+ },
+ "inputs": {
+  "Scripts/Blender/BuildRidgeIsleTop.py": "3d62b0c2b30f062d92be64f4f792f2b3bd85563addc946bdb2bb5ebe53670f06",
+  "Scripts/Profiling/Graphics/BuildRidgeIsleTop.py": "9edeb85aa9cef7933cc9636d48d8681145d2a9c93bfe0ffc7ed029a9edb4c76c",
+  "Scripts/Profiling/Graphics/BuildRidgeIsleSkinPreview.py": "0571bcd10f1919993d484c62b67759fb6a56e78a45a839c3c3907fbfe3696e3f",
+  "Scripts/RidgeOctantSpec.py": "db57a7b38d93beb9c310617eb71f2a8cfcf9f01c33c0be8e0b08321e166a24bf"
+ }
+}

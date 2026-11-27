@@ -29,9 +29,11 @@ ROOT = HERE.parents[2]
 sys.path[:0] = [str(HERE), str(ROOT / "Scripts")]
 import BuildRidgeIsleSkin as skin  # noqa: E402  (import_body·spawn만 읽기 전용으로 쓴다)
 import PlaceRidgeIsleSkinCollision as shellio  # noqa: E402  (import_shell·mesh_check·Shell 계약 상수)
+import RidgeZ1Layout as layout  # noqa: E402  (pose_transform·pose_error)
 
 importlib.reload(skin)
 importlib.reload(shellio)
+importlib.reload(layout)
 
 OUT = ROOT / "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/IsleTop"
 SAVED = ROOT / "Saved/Profiling/Graphics/Phase01/IsleSkin_V001"
@@ -95,6 +97,18 @@ VERSIONS = {
         "source": "V010", "cover": "V004", "shell": "Cover_V005", "cover_material": ISLE_ROCK,
         "collision": V009_COLLISION + ["SM_Ridge_IsleCover_V005_Shell"],
         "note": "2b: V015 visuals + Shell including base rubble >= 8cm (user PIE Q06)",
+    },
+    # V017(2c, GX-042): V016 + 섬 윗면 잔돌(<100cm)·Clover·Fern(NoCollision Static ISM, 섬당 206개).
+    "V017": {
+        "source": "V016", "scatter": "V017",
+        "collision": V009_COLLISION + ["SM_Ridge_IsleCover_V005_Shell"],
+        "note": "2c: island-top small ED stones (<100cm), Clover, Fern as Static NoCollision ISM (GX-042)",
+    },
+    # V018(2c 보강, GX-042): V016 기반, 더 풍성한 섬 윗면 식생·잔돌(섬당 약 244개, Fern 군집·Clover 패치 확대·2단 잔돌).
+    "V018": {
+        "source": "V016", "scatter": "V018",
+        "collision": V009_COLLISION + ["SM_Ridge_IsleCover_V005_Shell"],
+        "note": "2c: richer island-top scatter (~244/isle, clustered Ferns, fuller Clover patches, 2-tier small stones)",
     },
 }
 
@@ -166,14 +180,81 @@ def visual_rows(version):
     if "geometry" in cfg:
         build = json.loads((SAVED / ("Geometry_%s/Build.json" % cfg["geometry"])).read_text(encoding="utf-8"))
         folder, key = BODIES.format(cfg["geometry"]), "isle"
-    else:
+    elif "cover" in cfg:
         build = json.loads((SAVED / ("Cover_%s/Build.json" % cfg["cover"])).read_text(encoding="utf-8"))
         build["outputs"] = build["visual"]
         folder, key = BODIES.format("Cover_" + cfg["cover"]), "isle"
+    else:
+        return {}
     assert build["pass"], "Blender build did not pass"
     return {o[key]: {"label": "BODY_" + o["name"].replace("SM_Ridge_", ""), "file": o["file"], "asset": folder + o["name"],
                      "triangles": o["triangles"], "bounds_cm": o["bounds_cm"], "material": ISLE_SURFACE}
             for o in build["outputs"]}
+
+
+def scatter_data(version):
+    cfg = VERSIONS[version]
+    if "scatter" not in cfg:
+        return None
+    data = json.loads((SAVED / ("Scatter_%s/Build.json" % cfg["scatter"])).read_text(encoding="utf-8"))
+    assert data["pass"], "Blender scatter build did not pass"
+    return data
+
+
+def scatter_label(isle, scatter_ver):
+    return "DECOR_IsleTop_%s_%s" % (isle, scatter_ver)
+
+
+def scatter_groups(rows):
+    """(mesh, material_or_none) 기준으로 정렬된 인스턴스 묶음을 반환한다."""
+    grouped = {}
+    for r in rows:
+        grouped.setdefault((r["mesh"], r.get("material")), []).append(r)
+    return sorted(grouped.items(), key=lambda kv: (kv[0][0], kv[0][1] or ""))
+
+
+def spawn_scatter(isle, scatter_ver, rows):
+    """섬 하나당 Static 루트 + 메시별 Static NoCollision ISM 컴포넌트를 가진 액터 1개를 만든다."""
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    sds = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+    lib = unreal.SubobjectDataBlueprintFunctionLibrary
+
+    def add(parent, cls):
+        handle, fail = sds.add_new_subobject(unreal.AddNewSubobjectParams(parent_handle=parent, new_class=cls))
+        assert not str(fail), fail
+        return handle, lib.get_object(lib.get_data(handle))
+
+    label = scatter_label(isle, scatter_ver)
+    actor = actors.spawn_actor_from_class(unreal.Actor, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    actor.set_actor_label(label)
+    actor.tags = [unreal.Name(t) for t in TAGS]
+    root_handle, root = add(sds.k2_gather_subobject_data_for_instance(actor)[0], unreal.SceneComponent)
+    root.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+    total = 0
+    for (mesh_path, mat_path), items in scatter_groups(rows):
+        mesh = unreal.load_asset(mesh_path)
+        assert mesh, mesh_path
+        _, comp = add(root_handle, unreal.InstancedStaticMeshComponent)
+        comp.modify()
+        comp.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+        comp.set_static_mesh(mesh)
+        if mat_path:
+            mat = unreal.load_asset(mat_path)
+            assert mat, mat_path
+            comp.set_material(0, mat)
+        comp.set_editor_property("component_tags", [unreal.Name("LNP.Surface.Decoration")])
+        comp.set_editor_property("use_default_collision", False)
+        comp.set_collision_profile_name("LNPDecoration")
+        comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        comp.set_editor_property("can_ever_affect_navigation", False)
+        comp.set_editor_property("generate_overlap_events", False)
+        comp.set_editor_property("evaluate_world_position_offset", True)
+        transforms = [layout.pose_transform(r) for r in items]
+        comp.add_instances(transforms, False, True)
+        assert comp.get_instance_count() == len(transforms)
+        total += len(transforms)
+    actor.set_folder_path("EDTerrain/IsleSkin/%s/TopScatter" % isle)
+    return actor, total
 
 
 def shell_item(version):
@@ -244,6 +325,12 @@ def build(version):
     if shell:
         spawn_shell(shell, shell_item(version)[0]["name"])
         changes.append({"add": shell_item(version)[0]["name"], "mesh": package(shell)})
+    scat = scatter_data(version)
+    if scat:
+        for isle, items in scat["placements"].items():
+            actor, count = spawn_scatter(isle, cfg["scatter"], items)
+            changes.append({"add": actor.get_actor_label(), "isle": isle, "instances": count,
+                            "components": len(scatter_groups(items))})
     assert unreal.EditorLoadingAndSavingUtils.save_map(world(), target), target
     write("Build_%s_%s.json" % (version, stamp()), {"level": target, "source": source, "changes": changes,
                                                   "config": cfg, "dirty": dirty()})
@@ -284,6 +371,10 @@ def verify(version):
     shell_label = shell_item(version)[0]["name"] if "shell" in cfg else None
     if shell_label:
         added.append(shell_label)
+    scat = scatter_data(version)
+    if scat:
+        for isle in scat["placements"]:
+            added.append(scatter_label(isle, cfg["scatter"]))
     before = {r["label"]: r for r in json.loads((OUT / ("Top_%s_Before.json" % version)).read_text(encoding="utf-8"))["actors"]}
     for row in before.values():
         if "world_asset" in row:
@@ -317,6 +408,57 @@ def verify(version):
                         and shellio.mesh_check(comp.static_mesh)["pass"])
             if not shell_ok:
                 issues.append("shell contract " + shell_label)
+    # 2b) 2c 잔돌·식생 ISM 계약 및 인스턴스 정밀 대조
+    scatter_check = {}
+    if scat:
+        for isle, items in scat["placements"].items():
+            label = scatter_label(isle, cfg["scatter"])
+            actor = now.get(label)
+            if not actor:
+                issues.append("missing " + label)
+                continue
+            if actor.get_actor_location().length() > 0.01:
+                issues.append("not at origin " + label)
+            if TAG not in [str(t) for t in actor.tags]:
+                issues.append("tag " + label)
+            if not actor.root_component or actor.root_component.mobility != unreal.ComponentMobility.STATIC:
+                issues.append("root mobility " + label)
+            comps = list(actor.get_components_by_class(unreal.InstancedStaticMeshComponent))
+            by_key = {}
+            for comp in comps:
+                mpath = package(comp.static_mesh)
+                ov = [package(m) for m in comp.get_editor_property("override_materials")]
+                mat_key = ov[0] if ov and ov[0] else None
+                by_key[(mpath, mat_key)] = comp
+                if comp.mobility != unreal.ComponentMobility.STATIC:
+                    issues.append("ism mobility %s %s" % (label, mpath))
+                if (comp.get_collision_enabled() != unreal.CollisionEnabled.NO_COLLISION
+                        or str(comp.get_collision_profile_name()) != "LNPDecoration"
+                        or comp.get_editor_property("use_default_collision")
+                        or comp.get_editor_property("can_ever_affect_navigation")
+                        or "LNP.Surface.Decoration" not in [str(t) for t in comp.get_editor_property("component_tags")]):
+                    issues.append("ism contract %s %s" % (label, mpath))
+            expected_groups = scatter_groups(items)
+            if len(comps) != len(expected_groups):
+                issues.append("ism count %s %d!=%d" % (label, len(comps), len(expected_groups)))
+            worst_pos, worst_axis, worst_scale, total_inst = 0.0, 0.0, 0.0, 0
+            for key, grp in expected_groups:
+                comp = by_key.get(key)
+                if not comp:
+                    issues.append("missing ism %s %s" % (label, key))
+                    continue
+                if comp.get_instance_count() != len(grp):
+                    issues.append("instance count %s %s %d!=%d" % (label, key[0], comp.get_instance_count(), len(grp)))
+                    continue
+                for idx, row in enumerate(grp):
+                    ep, ea, es = layout.pose_error(comp.get_instance_transform(idx, True), layout.pose_transform(row))
+                    worst_pos, worst_axis, worst_scale = max(worst_pos, ep), max(worst_axis, ea), max(worst_scale, es)
+                total_inst += comp.get_instance_count()
+            if worst_pos > 0.05 or worst_axis > 1e-4 or worst_scale > 1e-4:
+                issues.append("pose error %s %.4f/%.5f/%.5f" % (label, worst_pos, worst_axis, worst_scale))
+            scatter_check[isle] = {"label": label, "components": len(comps), "instances": total_inst,
+                                   "max_pos_cm": round(worst_pos, 5), "max_axis": round(worst_axis, 6),
+                                   "max_scale": round(worst_scale, 6)}
     # 3) 나머지 최상위 액터는 복제 직후와 같다(바꾼 몸체는 메시·라벨만 다르다).
     changed = []
     expect = sorted([renamed.get(k, k) for k in before] + added)
@@ -349,8 +491,8 @@ def verify(version):
               "collision_expected": sorted(colliding) == sorted(cfg["collision"]),
               "visual_collision_zero": not visual, "pie_false": not pie(), "dirty_none": not dirty()}
     report = {"level": package(world()), "expected": target, "checks": checks, "issues": issues, "changed": changed,
-              "added": added, "shell_contract": shell_ok, "colliding": sorted(colliding), "visual_collision": visual,
-              "dirty": dirty(), "pass": all(checks.values())}
+              "added": added, "shell_contract": shell_ok, "scatter": scatter_check, "colliding": sorted(colliding),
+              "visual_collision": visual, "dirty": dirty(), "pass": all(checks.values())}
     write("Verify_%s_%s.json" % (version, stamp()), report)
     unreal.log("RIDGE_ISLE_TOP_VERIFY " + json.dumps({"pass": report["pass"], "checks": checks, "issues": issues}))
 

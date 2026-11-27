@@ -41,7 +41,9 @@ SOURCE = {"V006": EDT + "IsleSkin_V006/LVI_Ridge_EDTerrain_IsleSkin_V006",
           "V013": EDT + "IsleSkin_V013/LVI_Ridge_EDTerrain_IsleSkin_V013",
           "V014": EDT + "IsleSkin_V014/LVI_Ridge_EDTerrain_IsleSkin_V014",
           "V015": EDT + "IsleSkin_V015/LVI_Ridge_EDTerrain_IsleSkin_V015",
-          "V016": EDT + "IsleSkin_V016/LVI_Ridge_EDTerrain_IsleSkin_V016"}
+          "V016": EDT + "IsleSkin_V016/LVI_Ridge_EDTerrain_IsleSkin_V016",
+          "V017": EDT + "IsleSkin_V017/LVI_Ridge_EDTerrain_IsleSkin_V017",
+          "V018": EDT + "IsleSkin_V018/LVI_Ridge_EDTerrain_IsleSkin_V018"}
 PREVIEW = EDT + "IsleSkinLit_V001/IsleSkinLit_{}"
 # Z1AssemblyWall V021 이후 시험 레벨과 같은 Sky Light(TestMap03에는 없다, GX-025).
 SKY = {"cubemap": "/Engine/EngineResources/GrayTextureCube", "intensity": 50.0}

@@ -1,8 +1,8 @@
 # Phase 1-BR 부유섬·하늘 석교 외피 시험(IsleSkin)
 
-> 상태: V007(석교 B안 + 모노리스 A안) 외관 기준 · GX-039·GX-040 / Lit 미리보기 완료(§9) · 충돌 측정 3a(§10)·Shell 파생 3b(§11, GX-041)·베이크 3c-1(§12, 현재 충돌 맵 IsleSkin_V009)·1인 PIE 3c-2와 복원 3c-3(§13, 14지점 통과) 완료 · 섬 윗면 단위 2(GX-042) 중 2a 덮개 재분할 완료(§14, 맵 IsleSkin_V010) · 2b 엄폐 각기둥 완료(GX-043, 현재 충돌 맵 **IsleSkin_V016**: 각진 갈라진 덩어리 + 엄폐 재질 IsleRock + 잔돌 충돌, 베이크·1인 PIE 통과) · 다음은 2c 잔돌·식생
-> 기준 기록: `Scripts/Profiling/Graphics/IsleSkin_V001/Acceptance_V007.json`(V006 기록 `Acceptance_V006.json`은 그대로 보존)
-> 갱신: 2026-11-27
+> 상태: V007(석교 B안 + 모노리스 A안) 외관 기준 · GX-039·GX-040 / Lit 미리보기 완료(§9) · 충돌 측정 3a(§10)·Shell 파생 3b(§11, GX-041)·베이크 3c-1(§12, IsleSkin_V009)·1인 PIE 3c-2와 복원 3c-3(§13, 14지점 통과) 완료 · 섬 윗면 단위 2(GX-042·043) **전체 완료**: 2a 덮개 재분할(V010) · 2b 엄폐 각기둥·IsleRock·잔돌 충돌(V016, 베이크·1인 PIE 통과) · 2c 잔돌·식생(**IsleSkin_V018** 채택, NoCollision Static ISM, 재베이크 불필요)
+> 기준 기록: `Scripts/Profiling/Graphics/IsleSkin_V001/Acceptance_V007.json` · `IsleTop_V016.json` · `IsleTop_V018.json`
+> 갱신: 2026-11-28
 > 진입: [Current](../Current.md) · [GX-036~038](../Decisions.md) · [V008 채택](Phase01_U5aBoundaryReview.md)
 
 ## 1. 범위와 원칙
@@ -341,28 +341,46 @@ V005에서는 섬 윗면 거의 전체에서 외피 덮개가 Floor보다 위에
 | 재현 기록 | Git `Scripts/Profiling/Graphics/IsleSkin_V001/IsleTop_V016.json`(판 사슬·재현 명령·출력 해시·베이크·PIE 판정) |
 
 - 확인하지 않은 범위: 적 밀도 0이라 엄폐·잔돌 주변 적 지상 이동(`blocker_rejects`)은 보지 않았다. 패키지 성능은 범위 밖이다.
-- V011~V015 맵·에셋은 비교 이력으로 남겼다(지워도 된다). 현재 충돌 맵은 V016이다.
+- V011~V015 맵·에셋은 비교 이력으로 남겼다(지워도 된다). 충돌·베이크 기준 맵은 V016이며, 2c 시각 배치를 더한 최종 단위 2 채택 맵은 V018이다(§14.7).
 
-새 세션 시작 프롬프트(다음 단위 2c)는 다음과 같다.
+### 14.7. 2c 잔돌·식생(V017 → V018, 2026-11-28 사용자 채택)
+
+| 항목 | 내용 |
+|:---|:---|
+| 도구 | Blender `Scripts/Blender/BuildRidgeIsleTop.py -- scatter <V017\|V018>` (실제 `PreservedRocks_Floor` 높이 투영·구면 현지 Up 정렬·보호 51공간/16,552표본 전수 OBB 검사·그래플/랜드마크 사선 150cm 여유·Pod 9m·착지 4m·엄폐 및 GX-043 밑동 잔돌 회피) · UE `Scripts/Profiling/Graphics/BuildRidgeIsleTop.py build/verify <V017\|V018>` (섬당 Static 루트 + 메시별 Static NoCollision ISM, 태그 `LNP.Surface.Decoration`·프로필 `LNPDecoration`·액터 태그 `Decoration`/`LNPDecoration`/`IsleSkinTrial`) |
+| V017(1차) | `IsleSkin_V016` 복제본 + 섬당 **206개**(Fern 24·스케일 0.55~0.80, Clover 74, SmallStonesPack 108·최대 38.4cm·돌출 14.5cm). Verify·미리보기 `IsleSkinLit_V017` PASS. 근경은 자연스러웠으나 16m 부감·`WestTopEye`에서 다소 절제되어 보여 사용자가 더 풍성한 판을 요청했다 |
+| **V018(채택)** | `IsleSkin_V016` 복제본 + 섬당 **244개**(GX-042 150~250개 범위): Fern(`SM_Fern_01~06` + `MI_Ridge_Fern`) **44개**(스케일 0.72~0.98, 엄폐 주변·외곽 8포켓 2~3포기 군집, 최대 높이 84.3/93.7cm) · Clover(`SM_CloverVarieties_01~03`) **98개**(01/03 비중·스케일 ×1.22, 3~5장 패치) · 작은 ED 잔돌(`SmallStonesPack_01/02/07/14`) **102개**(앵커 35% 스케일 2.0~2.8·최대 치수 50.6cm < 100cm·돌출 최대 18.6cm, 약 42% 매몰로 바닥 무늬 융화 방지). **사용자 V018 채택** |
+| 검사 | Blender `Scatter_V018/Build.json` PASS(보호 51공간·16,552표본 새 점유 0, 사선 0, Pod 9m 0, 착지 4m 0, GX-043 잔돌 겹침 0, 100cm 이상 잔돌 0, 이음매 최소 21.7m). UE `Verify_V018` PASS(기존 액터 변경 0, 충돌 7종 V016과 동일, 외피 충돌 0, Static 루트·ISM 12/13 컴포넌트·인스턴스 244×2 위치/축/스케일 오차 0.0, dirty 없음). `IsleSkinLit_V018` Verify PASS |
+| 화면 비교 | `IsleSkinLit_V016`·`_V017`·`_V018` 같은 5시점(`PreviewViews_V002.json`, Lit, `CaptureViewport`, `DisableAllScreenMessages` 후 복원). `IsleTop/Compare/Scatter_V016_V017_V018_<시점>.png` · `Scatter_V016_V018_<시점>.png`. V016↔V018 차이>30 화소: `ValleyTopEye` 4.15%, `ValleyTopHigh` 1.15%, `WestTopEye` 3.28%, `WestTopHigh` 2.49%, `LandingEye` 0.12% |
+| 충돌·베이크 | 2c 식생·잔돌은 모두 NoCollision이라 충돌이 바뀌지 않는다. 재베이크하지 않았다(충돌·SurfaceData는 V016과 동일). 검사용 풀을 V018로 올려 PIE에서 식생까지 함께 확인하려면 V016 SurfaceData를 참조하거나 `BakeRidgeIsleSkin.py`로 V018 풀을 만들면 된다 |
+| 보존·기록 | `CheckRidgePreservation.py IsleTop_2c_V018`·`IsleTop_2c_Final` 불일치 0(V008 703·V006 7·V007 14). V006~V016·V017·공유 원본 미변경. Git 재현 기록 `Scripts/Profiling/Graphics/IsleSkin_V001/IsleTop_V018.json` |
+
+- 확인하지 않은 범위: `V018`의 1인 PIE 육안·바람(`MI_Ridge_Fern`) 확인과 패키지 GPU 비용은 이번 단위에서 수행하지 않았다(충돌은 V016과 동일).
+- 이로써 **부유섬·석교·모노리스 외피 + 충돌 Shell·베이크·PIE + 섬 윗면 단위 2(2a·2b·2c)**가 모두 마감됐다. 다음 Phase 1-BR 본 트랙은 [Phase01_RidgeReferencePatch.md](../phases/Phase01_RidgeReferencePatch.md)의 **U5b(구역별 몸체·충돌 + `Z1Cull_V002` Static/AttachTo 정리)** → U6(전체 베이크·PIE) → U7(잔돌·식생 마감)이다.
+
+### 14.8. 다음 세션(U5b) 인계 및 시작 프롬프트
+
+- **출발 맵:** `IsleSkin_V018` (`/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V018/LVI_Ridge_EDTerrain_IsleSkin_V018`, V008 + 외피 V007 + 외피 Shell V002 + 섬 윗면 2a/2b/2c 완료). U5b 작업은 `IsleSkin_V018`을 복제한 새 맵(예: `U5bBody_V001` 등)에서 진행하며, V006~V018·U5aBody_V008·Z1Cull_V001 및 공유 원본은 변경하지 않는다.
+- **U5b 핵심 범위:**
+  1. `Z1Cull_V002` 재생성(15레벨 루트·ISM 전부 Static 저장 후 디스크 재로드 확인, 북벽 AttachTo 경고 제거, 인스턴스 1개짜리 ISM 합치기 검토).
+  2. U4 V011 채택 추가 21소유자(현재 NoCollision 시각 메시라 PIE에서 관통됨)와 U5a 채택 몸체 5 + 별도 연결 1을 포함해 구역별 닫힌 몸체·외피 이음·최종 충돌 프록시(`_Floor`/`_Shell`)·기반면 절개·내부 잔존 Support 제거.
+  3. U5a-7에서 남은 R01/StairRamp3 REVIEW와 구역별 구도·51보호 공간(16,552표본)·Nav Layer 상한 256·이음매 0cm 계약 유지.
+- **U7 이월 사항:** 잔돌·식생 전체 바닥 보강은 U5b → U6 이후 U7에서 에디터 타임 생성 + 셀 분할 Static ISM + 거리 컬링/WPO 제어(A안)로 한 번에 진행한다([Phase01_RidgeReferencePatch.md](../phases/Phase01_RidgeReferencePatch.md#u7-배경-프랍-채우기ed-스타일)).
 
 ```text
 @D:/UnrealProjects/LootNPop/.context/Graphics/README.md
 @D:/UnrealProjects/LootNPop/.context/Graphics/Current.md
+@D:/UnrealProjects/LootNPop/.context/Graphics/phases/Phase01_RidgeReferencePatch.md
 @D:/UnrealProjects/LootNPop/.context/Graphics/analysis/Phase01_IsleSkinTrial.md
+@D:/UnrealProjects/LootNPop/.context/Graphics/analysis/Phase01_U5aBodyHandoff.md
 
-Phase 1-BR 섬 윗면 단위 2를 이어가자. 2a(덮개 재분할)·2b(엄폐 각기둥, GX-043)는 끝났고 현재 충돌 맵은 IsleSkin_V016
-(V010 덮개 + Cover V004 시각·MI_Ridge_IsleRock + Cover V005 Shell, 검사용 풀 DA_GraphicsRidgeIsleSkinPool_V016)이야.
-V006~V016과 공유 원본은 보존 원본이니 바꾸지 마. Decisions GX-038~043과 외피 시험 문서 §14를 먼저 확인해줘.
+부유섬·석교·모노리스 외피와 섬 윗면 단위 2(2a V010·2b V016·2c V018 채택)가 모두 완료됐어.
+이제 Phase 1-BR 본 트랙의 U5b(구역별 닫힌 몸체·외피 이음·최종 충돌 프록시·기반면 절개 + Z1Cull_V002 Static/AttachTo 정리)를 시작하자.
+Decisions GX-034~043도 먼저 확인해줘.
 
-먼저 에디터/PIE·미저장 상태를 확인하고 CheckRidgePreservation.py로 보존 해시를 맞춰줘.
-다음 단위는 2c 섬 윗면 잔돌·식생이야(GX-042: NoCollision 작은 ED 잔돌 100cm 미만·Clover·Fern, 섬당 약 150~250개,
-Pod 중심 9m·착지점·그래플 사선은 비움). 엄폐 밑동 잔돌(GX-043)과 겹치지 않게 하고, 걷는 면 높이를 흐리지 않는 작은 것만 써줘.
-작업은 V016을 복제한 새 맵(IsleSkin_V017~)에서 하고, 도구는 BuildRidgeIsleTop.py(Blender·UE)를 확장해줘.
-동결 스크립트(GenerateRidgeIsleSkin.py·BuildRidgeIsleSkin.py·BuildRidgeIsleBody.py)는 고치지 마.
-화면 비교는 IsleSkinLit_V001 미리보기·PreviewViews_V002.json·CaptureViewport(결과 파일의 base64 PNG)로 하고,
-같은 시점 V016 ↔ 새 판을 보여줘. 섬 윗면 재질은 월드 정렬 지면 무늬라 평평한 장식이 바닥에 녹아 보일 수 있다는 점(GX-043)을 고려해줘.
-보호 51공간·16,552표본은 그대로 검사하고 보호 폭을 빼서 PASS로 만들지 마. 새 예외가 필요하면 내 결정을 받아줘.
-식생이 충돌 없음이면 재베이크는 필요 없지만, 충돌을 더하면 §14.6 절차(베이크 → 검사용 풀 → 풀 임시 선택·밀도 0 PIE → 복원)를 따라줘.
-외피 밖 지형 관통(U4 시각 NoCollision)과 북벽 AttachTo 경고(Z1Cull_V001)는 U5b 소관이니 고치지 마.
-단위마다 Verify·보존 해시·같은 시점 화면 비교를 보고하고 다음 진행을 확인해줘.
+먼저 에디터/PIE·미저장 상태를 확인하고 CheckRidgePreservation.py로 보존 해시(V008·V006·V007)를 맞춰줘.
+현재 출발 기준 맵은 IsleSkin_V018(충돌·SurfaceData 기준은 V016)이고, V006~V018·U5aBody_V008·Z1Cull_V001과 공유 원본·동결 스크립트는 보존 대상이니 수정하지 마.
+U5b 작업은 IsleSkin_V018을 복제한 새 판에서 진행하고, 먼저 U5b 전체 범위(Z1Cull_V002 Static/AttachTo 정리, U5a 몸체 5+연결 1 충돌화, U4 V011 구역별 21소유자 몸체·충돌·기반면 절개)를 조사해서 구현 단위와 진행 순서를 제안해줘.
+보호 51공간·16,552표본, Floor 50㎡ / Nav Layer 256, 이음매 0cm, 부유석 유지(GX-037·038) 계약을 지키고, C++ 변경이 필요하면 빌드 전에 꼭 먼저 확인해줘.
+잔돌·식생 전체 마감은 기존 계획대로 U5b → U6 이후 U7에서 진행할 거야.
 ```

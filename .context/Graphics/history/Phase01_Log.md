@@ -1749,3 +1749,13 @@ V035 구성을 베이크 가능한 Ridge WIP LVI로 옮겨 굽고, 1인 러프 P
 - Cover V005: V004와 같은 시각에 높이 8cm 이상 잔돌 28개를 Shell에 더했다(2,112삼각형, 2개 제외). `IsleSkin_V016` Verify PASS. 베이크: Layer 82, Nav 셀 −28, 서쪽 섬 Pod 후보 90 → 87. 검사용 풀 V016.
 - 1인 PIE(slot 0, 오류 0): R01·R02 사용자 통과. 풀·밀도를 복원했고 INI·정식 풀·V016 해시가 같다. 보존 해시 `IsleTop_2b_Final` 불일치 0.
 - GX-043을 기록했다(각진 갈라진 엄폐·IsleRock 재질·잔돌 충돌 예외). 재현 기록은 Git `IsleSkin_V001/IsleTop_V016.json`, 다음 단위 2c 시작 프롬프트는 외피 시험 §14.6에 있다.
+
+## 2026-11-28 — IsleTop 2c 잔돌·식생(V017 → V018, 채택)
+
+- Blender `BuildRidgeIsleTop.py -- scatter`와 UE `BuildRidgeIsleTop.py`(Static 루트 + 메시별 Static NoCollision ISM, `LNP.Surface.Decoration`·`LNPDecoration`)를 확장해 `IsleSkin_V016` 복제본에 섬 윗면 잔돌·식생을 배치했다.
+- 1차 `IsleSkin_V017`(섬당 206개: Fern 24·Clover 74·SmallStonesPack 108)은 Verify·미리보기 PASS였으나 16m 고도에서 다소 절제되어 보였고, 사용자가 더 풍성한 배치를 요청했다.
+- 2차 **`IsleSkin_V018`**(섬당 **244개**: Fern `SM_Fern_01~06`+`MI_Ridge_Fern` 44·2~3포기 군집·스케일 0.72~0.98, Clover `SM_CloverVarieties_01~03` 98·패치 확대, `SmallStonesPack_01/02/07/14` 102·최대 50.6cm·돌출 ≤18.6cm): Blender 보호 51공간·16,552표본 새 점유 0·사선 0·Pod 9m 0·착지 4m 0·GX-043 밑동 잔돌 겹침 0 PASS. UE `Verify_V018` PASS(충돌 7종 V016 동일, 외피 충돌 0, 위치/축/스케일 오차 0.0, dirty 없음). `IsleSkinLit_V018` Verify PASS.
+- `IsleSkinLit_V016`↔`_V017`↔`_V018` 5시점 Lit 비교(`PreviewViews_V002.json`, `CaptureViewport`) 확인 뒤 사용자가 **`V018`을 채택**했다. 모두 NoCollision이라 재베이크는 필요 없다.
+- 보존 해시 `IsleTop_2c_Final` 불일치 0(V008 703·V006 7·V007 14), 에디터 `IsleSkinLit_V018`·PIE=false·dirty 없음. Git 재현 기록 `Scripts/Profiling/Graphics/IsleSkin_V001/IsleTop_V018.json`, 상세는 외피 시험 §14.7. 단위 2(2a·2b·2c) 완료.
+- 전체 바닥 잔돌·식생 배치 방식 및 UE 5.8 PCG 런타임 기능(RuntimeGen/3D HiGen) 검토: 현재 프로젝트에 런타임 PCG는 없으며(`LVI_Ridge_SurfaceProbe`는 1-B5f 에디터 타임 PCG, `IsleSkin_V018`은 정적 ISM), 기존 `LNPDecorationSampler`의 원점 항등 강제(회전 8슬롯 `ALevelInstance` 불가)·메인 스레드 전체 스캔 히치·구면 3D 그리드 전환·충돌 베이크 불일치 때문에 런타임 PCG 대신 **에디터 타임 생성 + 공간 셀 분할 Static ISM + 거리 컬링/WPO 제어(A안)**를 기본 방향으로 정했다.
+- 사용자 결정으로 잔돌·식생 전체 마감은 기존 계획 순서(U5b → U6 → U7)대로 U7에서 한 번에 진행하며, U7 착수 시 필요한 3가지 추가 보완(고밀도 구역 제외 마스크·AABB 과잉 거부 해소, 다중 충돌 표면 접지, 셀 분할 ISM·CullDistance)을 `Phase01_RidgeReferencePatch.md` U7에 반영했다. 다음은 새 세션에서 U5b(외피 시험 §14.8 인계 프롬프트).
