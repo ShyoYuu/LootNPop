@@ -1650,3 +1650,58 @@ V035 구성을 베이크 가능한 Ridge WIP LVI로 옮겨 굽고, 1인 러프 P
 - 사용자가 V007(EastHigh 시점 선택 윤곽으로 확인)을 유지하기로 했고 M2는 손대지 않기로 했다(GX-040). `IsleSkin_V001/Acceptance_V007.json`(14파일 해시)을 기록했다.
 - Lit 비교는 LVI 맵에 조명이 없어 검게 나와 하지 못했다. 충돌·PIE도 남았다.
 
+
+## 2026-11-27 — IsleSkin V006·V007 Lit 미리보기(다음 단위 1)
+
+- 시작 확인: 에디터 IsleSkin_V007 맵·PIE=false·dirty 0. `CheckRidgePreservation.py` V008 703쌍(721행 중복 제거)·V006 7·V007 14파일 불일치 0.
+- 다음 단위 후보 셋(Lit 미리보기·섬 윗면/엄폐 외피·충돌 Shell 파생)을 비교해 1 → 3 → 2 순서를 제안했고 사용자가 1부터 진행을 승인했다.
+- 새 스크립트 `BuildRidgeIsleSkinPreview.py`(build·verify·view·sky)로 `Z1AssemblyTest_V001`을 연 뒤 `EDTerrain_V001/IsleSkinLit_V001/IsleSkinLit_V006`·`_V007`을 만들었다. 구성은 TestMap03 조명 사본 6개 + 시험 전용 회색 Sky Light 50(GX-025) + IsleSkin LVI Level Instance(원점) 하나다. 두 판 모두 Verify PASS(조명 위치 일치, Sky 설정, LI 1개·원점·배율 1, 다른 액터 0, dirty 0, PIE=false).
+- 비교 시점 5개를 `IsleSkin_V001/PreviewViews_V001.json`에 고정했다. Z1Overview·WestStairEye는 `PickRequest_01.json`, EastHigh·LandingEye·NorthEast는 V007 촬영 세션 기록에서 복원했다.
+- 도구 함정
+  - 상태 표시줄 Cmd의 `viewmode lit`은 레벨 뷰포트에 적용되지 않았다(Unlit 그대로 찍힘). 뷰포트 툴바의 보기 모드 콤보에서 바꿔야 한다. 이전 V007 "Lit" 화면이 검었던 것은 조명이 없어서다.
+  - 미리보기 레벨에서 "Video memory has been exhausted(약 490MB 초과)" 화면 경고가 찍혀 `DisableAllScreenMessages`로 촬영 중에만 껐다가 되돌렸다. 텍스처 스트리밍 품질 저하 가능성은 남는다.
+  - 같은 시점 연속 두 장의 평균 차이는 V006 1~4, V007 Z1Overview·EastHigh 약 7로 식생 미세 잡음과 Lumen 간접광 저주파 변화다. 넷째 장까지 찍어 형상·구도가 같음을 확인하고 마지막 장을 썼다.
+- 대조: 미리보기 V007 Unlit과 이전 세션 LVI 맵 V007 Unlit의 평균 차이는 1.0~6.2(텍스처 해상도·식생 차이)로 형상은 같다.
+- 결과(`Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Preview/Shots`·`Compare/<시점>.png` 2×2 시트)
+  - Lit에서 모노리스의 V자 균열·층 띠·면 석판이 Unlit보다 훨씬 잘 읽힌다. Unlit에서 벽과 섞이던 동쪽 면 석판이 Lit에서는 돌출 선반으로 보인다.
+  - NorthEast 시점에서 층 띠 돌출이 첨탑 면에 얇은 판처럼 여러 장 붙어 보이고, LandingEye 시점 꼭대기 윤곽이 계단처럼 각진다(사용자 판정 대상).
+  - 석교 B 아치는 Lit에서 두꺼운 양 끝·처진 밑면이 읽힌다. 섬 밑면은 그늘이 짙다. 구조물에 보라색은 없고, 먼 보라색은 다른 옥탄트 이음매 띠(GX-036 범위 밖)다.
+- 보존: 작업 뒤 `CheckRidgePreservation.py` 불일치 0. V008·V006·V007 맵과 공유 원본은 바꾸지 않았다. 마지막 에디터 상태는 IsleSkinLit_V007·PIE=false·dirty 0이다.
+
+
+## 2026-11-27 — IsleSkin V007 충돌 측정(다음 단위 3a)
+
+- 사용자가 충돌 단계를 3a 측정 → 3b Shell 파생·반입 → 3c PIE 접근 확인으로 나누는 제안을 받아 3a를 승인했다. 3a는 읽기 전용이다.
+- V007 맵의 충돌 컴포넌트는 5개다. 충돌 지각 V013·`Z1Collision_V003` Floor/Shell(숨김, 예전 V037 배치에서 구움)·보존 구조물 Floor/Shell이다. 외피 9개는 NoCollision이다.
+- 새 도구: UE `InspectRidgeIsleSkinCollision.py`(census·dump)와 Blender `MeasureRidgeIsleSkinCollision.py`. 덤프 33.8만 삼각형(float32 12MB), 측정 약 12초, 덤프 뒤 dirty 없음.
+- 결과(`Saved/.../IsleSkin_V001/Collision/Measure_V007.json`, 표는 [외피 시험](../analysis/Phase01_IsleSkinTrial.md) §10)
+  - 보이는데 충돌이 없는 노출 면: 섬 몸체 틈 최대 4.2m, 석교 B 6.7m, 모노리스 첨탑 11.9m. 부유석·판·석판·파편은 전부 노출이다.
+  - 위를 보는 노출 면 50㎡ 이상은 골짜기 부유석 1개(56.2㎡)뿐이다.
+  - 서쪽 부유석 3개가 이음매 12.4~15.5m로 후속 충돌 20m 금지에 걸린다.
+  - 보호 표본은 이전 기록과 같은 자리이고, 실제 충돌 기준으로 나누면 석교 B 새 점유는 38(V011 해석 기준 41)이다. 사선 표본 막힘 0.
+- 시행착오: 첫 실행은 보호 표본 분류만 남겨 이전 기록(41/21)과 대조할 수 없었다. 표본 번호·좌표·충돌 거리를 남기도록 고쳐 다시 돌렸고, 차이가 경계 위 표본(거리 0)과 V011/V012 형상 차이(약 67cm)에서 온 것을 확인했다.
+- 보존 해시 `After3aMeasure_20261127`: V008 703·V006 7·V007 14파일 불일치 0. 맵·공유 원본 변경 없음.
+
+## 2026-11-27 — IsleSkin 충돌 Shell 파생(다음 단위 3b, GX-041)
+
+- 사용자가 3a의 세 결정을 권장안대로 정했다(GX-041). 50㎡ 넘는 부유석 윗면도 Shell로만 둔다. 석교 B 충돌은 B 외형을 따른다. 이음매 20m 안 서쪽 부유석 3개는 충돌 없이 둔다.
+- Blender `BuildRidgeIsleSkinCollision.py -- build V001`로 외피 몸체 9개에서 Shell 8,422삼각형을 만들었다. 단순화 비율은 0.2(석교 0.3), 맞춤 p95는 4.6~21.2cm, 위상 결함 0이다.
+- 걷는 면 턱을 없애는 방법을 세 번 바꿨다(정점만 → 면 표본 반복 → 3m 분할 → 걷는 면 근처 정점을 단순화에서 지키고 정점별로 내림). 원인은 큰 평면 삼각형의 현 처짐이다. 최종 턱 0㎡, 최대 내림 8/17/42cm(섬/석교/모노리스).
+- UE `PlaceRidgeIsleSkinCollision.py`로 반입하고(`IsleSkin_V001/Collision_V001/`) V007을 복제한 `IsleSkin_V008`에 숨긴 Shell 액터 1개를 놓았다. `Verify_V008` PASS(충돌 5+1, 외피 충돌 0, dirty 없음).
+- 보호 새 점유는 석교 B SkyBridgeDeck 37표본(허용)뿐이고, 사선 막힘 0, 이음매 최소 20.3m, 새 Floor 0이다(Nav Layer 그대로).
+- V008 충돌로 3a를 다시 쟀다. 보이는데 충돌이 없는 면이 섬 3,345·2,868 → 0㎡, 석교 993 → 0.9㎡, 모노리스 3,047 → 0.1㎡로 줄었다.
+- 미리보기 `IsleSkinLit_V008`(Verify PASS)에서 같은 5시점 Player Collision을 V007과 비교했다. 함정: 보기 모드를 바꾼 뒤 연 레벨은 숨긴 컴포넌트의 충돌 표시가 안 그려져 보기 모드를 다시 골라 찍었다.
+- 재실행 확인: 최종 스크립트로 다시 구우면 형상과 결과가 같고 FBX 머리말 시각만 28바이트 다르다. 반입한 FBX를 유지하고 기록 해시를 그 파일에 맞췄다.
+- 찾은 것: 섬 외피 윗면 원본 삼각형 가운데가 보행 Floor보다 최대 약 19cm 위에 보인다(V007 외관 소관, 따로 결정).
+- 보존 해시 `After3bShell_20261127`: V008 703·V006 7·V007 14파일 불일치 0. 마지막 에디터 상태는 IsleSkinLit_V007(Lit)·PIE=false·dirty 없음이다.
+
+## 2026-11-27 — IsleSkin 베이크·검사용 풀(다음 단위 3c-1)
+
+- 사용자가 3c를 베이크·풀 준비 → 1인 PIE → 복원 세 단계로 나누는 제안을 받아 3c-1을 승인했다.
+- 새 스크립트 `BakeRidgeIsleSkin.py`(open·dump·bake·pool). Z1Bake_V010과 IsleSkin_V008의 최상위 액터를 덤프해 마커 43개·충돌 5개·Z1 LI 15개가 모두 같음을 확인하고 V010을 비교 기준으로 썼다.
+- V008 베이크: Layer 82·이음매 일치였지만 섬 Pod 같은 Layer 후보가 104·95 → 1·3, 스폰 후보 9,360 → 9,165, Nav 셀 -1,713이었다.
+  - 원인: 3b Floor 높이 함수 부호 오류. 섬 윗면 Shell이 보행 Floor보다 9~21cm 위에 남았고, 턱 검사도 같은 함수라 0으로 잘못 나왔다(`Bake/ShellVsFloor_V008.json`).
+- Shell V002로 다시 만들었다(부호 수정 + Floor 표본 기준 검사·내림, 면/Floor 단계 교대). 걷는 면 턱 0·Floor 근처 Shell 0·보호 새 점유 석교 37(허용)·사선 막힘 0·이음매 20.3m. 시행착오: 벽 밑동을 턱으로 세던 검사·중복 표본을 고쳤다.
+- `IsleSkin_V009`(V007 + Shell V002) Verify PASS. 베이크: Layer 82·스폰 후보 9,360·섬 Pod 후보 104·95로 기준과 같고, Nav 셀 78,343(-42)·성분 120(+1)·포털 638(-2), Meadow 이음매 일치.
+- 검사용 풀 `IsleSkin_V009/DA_GraphicsRidgeIsleSkinPool_V009`를 만들었다(정식 풀 해시 f7f927a0… 그대로). 풀 임시 선택·PIE는 아직 하지 않았다.
+- V008 맵·Shell V001·V008 SurfaceData는 기각 기록으로 남겼다. 보존 해시 `After3c1Bake_20261127` 불일치 0. 마지막 에디터 상태는 TestMap03·PIE=false·dirty 없음이다.

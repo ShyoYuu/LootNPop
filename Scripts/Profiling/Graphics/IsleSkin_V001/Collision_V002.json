@@ -1,0 +1,478 @@
+{
+ "version": "V002",
+ "unit": "IsleSkinCollisionShell",
+ "decision": "GX-041",
+ "rules": {
+  "source_layout": "V007",
+  "seam_collision_cm": 2000.0,
+  "min_part_cm": 100.0,
+  "ratios": [
+   0.2,
+   0.3,
+   0.4,
+   0.5,
+   0.65,
+   0.8,
+   1.0
+  ],
+  "fit_p95_cm": 25.0,
+  "fit_max_cm": 75.0,
+  "fit_samples": 6000,
+  "seed": 41041,
+  "floor_above_cm": 40.0,
+  "floor_below_cm": 15.0,
+  "floor_sink_cm": 5.0,
+  "floor_lateral_cm": 100.0,
+  "lip_cm": 25.0,
+  "allowed_new_protected": {
+   "BODY_SkyBridgeBodyB_V005": [
+    "SkyBridgeDeck"
+   ]
+  },
+  "boundary_cm": 1.0,
+  "name": "SM_Ridge_IsleSkin_V002_Shell",
+  "floor_check_band_cm": [
+   -2.0,
+   40.0
+  ],
+  "sink_rounds": 6,
+  "sink_cycles": 4
+ },
+ "output": {
+  "name": "SM_Ridge_IsleSkin_V002_Shell",
+  "file": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Collision/Shell_V002/SM_Ridge_IsleSkin_V002_Shell.fbx",
+  "sha256": "ff07c94755856e19be851e9044d0aba6a47521d88921950258e8770585b6930d",
+  "triangles": 8422,
+  "bounds_cm": {
+   "min": [
+    11083.1726,
+    5123.7427,
+    2030.2641
+   ],
+   "max": [
+    22542.2745,
+    22582.2052,
+    21683.4351
+   ]
+  },
+  "topology": {
+   "boundary_edges": 0,
+   "nonmanifold_edges": 0
+  }
+ },
+ "issues": [],
+ "pass": true,
+ "inputs": {
+  "Scripts/Profiling/Graphics/IsleSkin_V001/IsleSkin_V007.json": "f788547e12ef16cf62eadcc24e7ea5abb5b8805149050688338fe53945d40ab6",
+  "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Collision/Dump_V007.json": "1e32c3c71fe0d40d2014f6c6e67f602bfb62da439a01aa36e0d170bb2edb4c83",
+  "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Collision/Dump_V007.bin": "c3462fa41f50e6957818a270e9e4171c2177915bbe95922734954b91e588066b",
+  "Scripts/Profiling/Graphics/RidgeBlueprint_V001.json": "20ce02fcc604b9d8af9e596a22a6d26682f1274de5ff11931444d2db45a07f7e",
+  "Scripts/Profiling/Graphics/ClosedBodyTrial_V001/BodyTrial.json": "64e2e1219cefb25abb143dba2c2a23fcb92fc2ea2185b5e22d35016b208ddb48",
+  "Saved/Profiling/Graphics/Phase01/U4_2_V002/DiagnosePlacement.py": "fe6ffe6fbd23727f3d79b3e94a0819442e1d7b8a23e0cd7ecc543fe1be14085e",
+  "Scripts/RidgeOctantSpec.py": "db57a7b38d93beb9c310617eb71f2a8cfcf9f01c33c0be8e0b08321e166a24bf",
+  "Scripts/Blender/MeasureRidgeIsleSkinCollision.py": "7f0e5ee8fdebf0e7401ed4c4fdc1233ba1693a6bf00adeb3a828449d9d660586",
+  "Scripts/Blender/BuildRidgeIsleSkinCollision.py": "2a48d5b397a879cac0dc71a33af00bf370f3576b1eb8316afa3cd752135ab1e9"
+ },
+ "bodies": [
+  {
+   "label": "BODY_IsleBody_ValleySkyIsle_V005",
+   "kept_parts": 1,
+   "dropped": [],
+   "ratio": 0.2,
+   "triangles": 1728,
+   "fit": {
+    "skin_to_proxy": [
+     4.6,
+     14.2
+    ],
+    "proxy_to_skin": [
+     4.6,
+     12.0
+    ],
+    "p95_cm": 4.6,
+    "max_cm": 14.2
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     29.9,
+     31.3
+    ],
+    "proxy_to_skin": [
+     30.0,
+     31.3
+    ],
+    "p95_cm": 30.0,
+    "max_cm": 31.3
+   },
+   "sunk_vertices": 241,
+   "max_sink_cm": 31.3,
+   "seam_min_cm": 5796.3,
+   "protected_new": {},
+   "protected_inside_existing": {
+    "ValleySkyIsleSpace": 1
+   },
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": [
+    1567.0
+   ]
+  },
+  {
+   "label": "BODY_IsleFloat_ValleySkyIsle_V005",
+   "kept_parts": 9,
+   "dropped": [],
+   "ratio": 0.2,
+   "triangles": 648,
+   "fit": {
+    "skin_to_proxy": [
+     21.2,
+     65.8
+    ],
+    "proxy_to_skin": [
+     19.4,
+     40.1
+    ],
+    "p95_cm": 21.2,
+    "max_cm": 65.8
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     20.8,
+     67.0
+    ],
+    "proxy_to_skin": [
+     19.5,
+     38.9
+    ],
+    "p95_cm": 20.8,
+    "max_cm": 67.0
+   },
+   "sunk_vertices": 0,
+   "max_sink_cm": 0.0,
+   "seam_min_cm": 5123.7,
+   "protected_new": {},
+   "protected_inside_existing": {},
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": [
+    50.0
+   ]
+  },
+  {
+   "label": "BODY_IsleBody_WestSkyIsle_V005",
+   "kept_parts": 1,
+   "dropped": [],
+   "ratio": 0.2,
+   "triangles": 1728,
+   "fit": {
+    "skin_to_proxy": [
+     4.7,
+     13.7
+    ],
+    "proxy_to_skin": [
+     4.8,
+     13.7
+    ],
+    "p95_cm": 4.8,
+    "max_cm": 13.7
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     25.5,
+     26.7
+    ],
+    "proxy_to_skin": [
+     25.6,
+     26.7
+    ],
+    "p95_cm": 25.6,
+    "max_cm": 26.7
+   },
+   "sunk_vertices": 241,
+   "max_sink_cm": 26.8,
+   "seam_min_cm": 2030.3,
+   "protected_new": {},
+   "protected_inside_existing": {
+    "WestSkyIsleSpace": 1
+   },
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": [
+    1230.0
+   ]
+  },
+  {
+   "label": "BODY_IsleFloat_WestSkyIsle_V005",
+   "kept_parts": 6,
+   "dropped": [
+    {
+     "reason": "seam",
+     "seam_min_cm": 1550.2,
+     "span_cm": 648.1,
+     "center_local_xyh_cm": [
+      -18159.8,
+      7468.3,
+      4910.7
+     ]
+    },
+    {
+     "reason": "seam",
+     "seam_min_cm": 1238.7,
+     "span_cm": 642.7,
+     "center_local_xyh_cm": [
+      -18705.3,
+      5566.3,
+      4592.9
+     ]
+    },
+    {
+     "reason": "seam",
+     "seam_min_cm": 1525.8,
+     "span_cm": 215.1,
+     "center_local_xyh_cm": [
+      -18448.8,
+      2681.5,
+      4812.8
+     ]
+    }
+   ],
+   "ratio": 0.2,
+   "triangles": 432,
+   "fit": {
+    "skin_to_proxy": [
+     18.3,
+     56.1
+    ],
+    "proxy_to_skin": [
+     16.0,
+     33.5
+    ],
+    "p95_cm": 18.3,
+    "max_cm": 56.1
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     18.6,
+     61.9
+    ],
+    "proxy_to_skin": [
+     16.3,
+     33.4
+    ],
+    "p95_cm": 18.6,
+    "max_cm": 61.9
+   },
+   "sunk_vertices": 0,
+   "max_sink_cm": 0.0,
+   "seam_min_cm": 2530.8,
+   "protected_new": {},
+   "protected_inside_existing": {},
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": []
+  },
+  {
+   "label": "BODY_SkyBridgeBodyB_V005",
+   "kept_parts": 1,
+   "dropped": [],
+   "ratio": 0.3,
+   "triangles": 1036,
+   "fit": {
+    "skin_to_proxy": [
+     17.1,
+     44.2
+    ],
+    "proxy_to_skin": [
+     16.1,
+     31.1
+    ],
+    "p95_cm": 17.1,
+    "max_cm": 44.2
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     18.2,
+     86.6
+    ],
+    "proxy_to_skin": [
+     17.5,
+     151.6
+    ],
+    "p95_cm": 18.2,
+    "max_cm": 151.6
+   },
+   "sunk_vertices": 370,
+   "max_sink_cm": 160.8,
+   "seam_min_cm": 10174.0,
+   "protected_new": {
+    "SkyBridgeDeck": 37
+   },
+   "protected_inside_existing": {
+    "SkyBridgeDeck": 23
+   },
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": [
+    142.7
+   ]
+  },
+  {
+   "label": "BODY_MonolithShroud_V002",
+   "kept_parts": 1,
+   "dropped": [],
+   "ratio": 0.2,
+   "triangles": 2546,
+   "fit": {
+    "skin_to_proxy": [
+     6.9,
+     47.5
+    ],
+    "proxy_to_skin": [
+     7.0,
+     23.6
+    ],
+    "p95_cm": 7.0,
+    "max_cm": 47.5
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     7.7,
+     60.1
+    ],
+    "proxy_to_skin": [
+     7.9,
+     69.8
+    ],
+    "p95_cm": 7.9,
+    "max_cm": 69.8
+   },
+   "sunk_vertices": 170,
+   "max_sink_cm": 168.2,
+   "seam_min_cm": 8502.4,
+   "protected_new": {},
+   "protected_inside_existing": {},
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": [
+    88.4
+   ]
+  },
+  {
+   "label": "BODY_MonolithCap_V002",
+   "kept_parts": 2,
+   "dropped": [],
+   "ratio": 0.2,
+   "triangles": 44,
+   "fit": {
+    "skin_to_proxy": [
+     9.9,
+     15.0
+    ],
+    "proxy_to_skin": [
+     9.8,
+     13.6
+    ],
+    "p95_cm": 9.9,
+    "max_cm": 15.0
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     9.8,
+     13.2
+    ],
+    "proxy_to_skin": [
+     9.8,
+     13.1
+    ],
+    "p95_cm": 9.8,
+    "max_cm": 13.2
+   },
+   "sunk_vertices": 0,
+   "max_sink_cm": 0.0,
+   "seam_min_cm": 7877.2,
+   "protected_new": {},
+   "protected_inside_existing": {},
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": []
+  },
+  {
+   "label": "BODY_MonolithSlabs_V002",
+   "kept_parts": 2,
+   "dropped": [],
+   "ratio": 0.2,
+   "triangles": 44,
+   "fit": {
+    "skin_to_proxy": [
+     7.0,
+     9.8
+    ],
+    "proxy_to_skin": [
+     6.9,
+     9.6
+    ],
+    "p95_cm": 7.0,
+    "max_cm": 9.8
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     7.0,
+     9.8
+    ],
+    "proxy_to_skin": [
+     7.0,
+     9.8
+    ],
+    "p95_cm": 7.0,
+    "max_cm": 9.8
+   },
+   "sunk_vertices": 0,
+   "max_sink_cm": 0.0,
+   "seam_min_cm": 9886.6,
+   "protected_new": {},
+   "protected_inside_existing": {},
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": []
+  },
+  {
+   "label": "BODY_MonolithChips_V002",
+   "kept_parts": 3,
+   "dropped": [],
+   "ratio": 0.2,
+   "triangles": 216,
+   "fit": {
+    "skin_to_proxy": [
+     6.5,
+     16.4
+    ],
+    "proxy_to_skin": [
+     5.9,
+     10.5
+    ],
+    "p95_cm": 6.5,
+    "max_cm": 16.4
+   },
+   "fit_after_sink": {
+    "skin_to_proxy": [
+     6.4,
+     16.3
+    ],
+    "proxy_to_skin": [
+     5.9,
+     11.0
+    ],
+    "p95_cm": 6.4,
+    "max_cm": 16.3
+   },
+   "sunk_vertices": 0,
+   "max_sink_cm": 0.0,
+   "seam_min_cm": 8320.8,
+   "protected_new": {},
+   "protected_inside_existing": {},
+   "walk_lip_m2": 0.0,
+   "floor_band_samples": {},
+   "up_components_ge50_m2": []
+  }
+ ]
+}
