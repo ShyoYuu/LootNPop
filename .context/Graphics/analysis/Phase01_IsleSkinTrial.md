@@ -1,7 +1,7 @@
 # Phase 1-BR 부유섬·하늘 석교 외피 시험(IsleSkin)
 
-> 상태: V006(석교 B안) 현재 기준 · GX-039 / 충돌·Lit·PIE 미착수
-> 기준 기록: `Scripts/Profiling/Graphics/IsleSkin_V001/Acceptance_V006.json`
+> 상태: V007(석교 B안 + 모노리스 A안) 현재 기준 · GX-039·GX-040 / 충돌·Lit·PIE 미착수
+> 기준 기록: `Scripts/Profiling/Graphics/IsleSkin_V001/Acceptance_V007.json`(V006 기록 `Acceptance_V006.json`은 그대로 보존)
 > 갱신: 2026-11-27
 > 진입: [Current](../Current.md) · [GX-036~038](../Decisions.md) · [V008 채택](Phase01_U5aBoundaryReview.md)
 
@@ -22,7 +22,8 @@ V008 검토 뒤 사용자는 부유섬 2개와 하늘 석교 외피부터 진행
 | V003 | 몸체 240각·지층 띠·잔요철, 갈래는 별도 닫힌 원뿔 6개, 몸체 재질을 지각 재질로 변경 | 골짜기 섬은 양호했다. 서쪽 섬은 이음매 띠(경계 55m) 안이라 구역 판정 때문에 절반이 보라색이었다 |
 | V004 | V003 형상 그대로. 구역 판정만 1로 둔 내부 구조물용 재질 `IsleSkin_V001/Surface_V001/MI_Ridge_IsleSurface`를 몸체와 보존 구조물에 적용 | 보라색이 사라졌다. 사용자 판정: 섬 밑 갈래·석교 아래 Cliff02 파편이 어색하고, 석교가 반듯한 직육면체다 |
 | V005 | 갈래 제거·밑면을 둥글게 닫음(부유석은 V003과 같음). 석교 Cliff02 첨탑·파편 제거. 석교 자연 형상 몸체 **A안**(보호 띠 유지) | 상판 아래 4.5m 수직 띠가 남아 상자 위에 바위가 얹힌 계단처럼 보인다 |
-| **V006** | V005와 같고 석교 몸체만 **B안**(석교 자신의 외피가 옆 띠까지 부풂) | **사용자 선택(GX-039), 현재 기준.** 석교가 양 끝이 두껍고 가운데가 얇은 하나의 바위 아치로 읽힌다 |
+| **V006** | V005와 같고 석교 몸체만 **B안**(석교 자신의 외피가 옆 띠까지 부풂) | **사용자 선택(GX-039).** 석교가 양 끝이 두껍고 가운데가 얇은 하나의 바위 아치로 읽힌다 |
+| **V007** | V006 사본 + 산괴 동쪽 탑(M1) 모노리스 외피(§7) | **사용자 채택(GX-040), 현재 기준.** 갈라진 첨탑과 그 위에 뜬 각진 판이 읽힌다 |
 
 V001~V003 맵과 반입 에셋은 비교 이력으로 남겼다(지워도 무방하지만 지우지 않았다).
 
@@ -70,6 +71,42 @@ V001~V003 맵과 반입 에셋은 비교 이력으로 남겼다(지워도 무방
 - **아직 없는 것:** 섬 윗면 장식(잔돌·식생)과 엄폐 각기둥의 ED 외피가 없다. 엄폐 외피는 V001에서 각기둥 자리가 섬 위 보호 표본과 겹쳐 빠졌다. 이는 U7 세부 마감이나 정확한 메시 검사와 함께 다룬다.
 - **확인하지 않은 범위:** Lit·Lumen 판정(이번 화면은 Unlit), 패키지 성능, PIE는 하지 않았다. 갈래·부유석이 그래플 사선 시야를 시각적으로 가리는지는 표본 검사만 했다.
 - **석교 상판 자체**(보행면)는 V011 판의 곧은 직선 통로 그대로다. 통로 선형·폭을 바꾸면 기존 경로·보호 폭 변경이므로 이번에는 바꾸지 않았다.
-- **다음 판단:**
-  1. 다음 단위 후보: 갈라진 첨탑·부유 모노리스 재해석(크라운 탑·서쪽 계단 각기둥). 범위를 사용자와 확인한 뒤 V006 사본에서 시작한다.
-  2. 섬 윗면·엄폐 각기둥 외피와 충돌(Shell) 파생은 그 뒤 단위다.
+- **다음 판단:** 모노리스 재해석은 V007로 채택했다(§6~7). 남은 단위는 §8이다.
+
+## 6. 모노리스 재해석 대상 특정(2026-11-27)
+
+V006 맵에서 같은 시점의 화면 차이(지각·보존 구조물을 에디터에서 임시로 숨김)와 광선 판정으로 세 후보를 특정했다. 근거는 `Saved/Profiling/Graphics/Phase01/Monolith_V001/`(Overlay_*.png·Pick_*.json·Height_*.json)이고 도구는 `Scripts/Profiling/Graphics/InspectRidgeMonolithTargets.py`(state·open·pick·describe·heightmap·dump·hide, 읽기 전용)다.
+
+| 후보 | 실체 |
+|:---|:---|
+| Z1 부감의 지각 재질 각기둥 = 석교 옆 높은 덩어리(**M1**) | 동굴 보존 구조물(`PreservedRocks_Shell`) 북동 모서리 벽(옥탄트 로컬 x -7,700~-6,900 · y -3,700~-1,500, 꼭대기 52~56m)과 그 동쪽 렌더링 지각(`Z1MassifCover_V012`) 절벽(56m → 고원 7m). 서쪽 착지면(38m)에서는 약 19m, 동쪽 고원에서는 약 50m 높이다 |
+| WestStairEye 보라색 각기둥(**M2**) | 같은 보존 구조물의 MassifCavern 덩어리. 윗면 약 38m가 StairRamp2→3 착지면(Floor)이고 안쪽이 동굴이다 |
+
+- 보라색 원인은 이음매 띠가 아니다(맞은 점의 이음매 거리 약 81m > 55m). V008에서 이 Shell이 하상 재질 `MI_Ridge_Z1_Channel`을 써 구역 마스크 밖 평지색이 칠해진 것이고, V004 이후 `MI_Ridge_IsleSurface`로 이미 사라졌다.
+- 원래 왕관 정상(CrownSummit) 자리는 현재 렌더링 지각에서 약 10m 고원이라 따로 솟은 "왕관 탑"은 없다. 사용자가 말한 크라운 탑은 M1이다.
+- 보존 구조물은 Floor(걷는 윗면)·Shell(가파른 면) 한 쌍이 함께 닫힌 형상이다. 이 메시 한 쌍에 석교·부유섬 2개·대전당·산괴 동굴 5곳이 모두 들어 있다.
+
+## 7. V007: M1 모노리스 외피(A안, GX-040)
+
+사용자는 지각·충돌 절개 없이 시각 외피만으로 하는 A안을 골랐다. M2 서쪽 면은 손대지 않기로 했다.
+
+| 몸체(`Bodies_V007/`) | 내용 |
+|:---|:---|
+| `SM_Ridge_MonolithShroud_V002` (12,736삼각형) | 지각+보존 구조물 높이장을 높이별 반경(서쪽 0.45m → 동쪽 1.7m, 층 띠 2.7m 주기)으로 넓힌 두꺼운 닫힌 외피. 꼭대기를 V자 균열(y = -2650 + 0.15(x+7300))로 갈라 남 조각 +6m·북 조각 +11m(최고 68.6m)로 세웠다. 평지·착지면에서는 기존 면 30cm 아래로 묻힌다 |
+| `SM_Ridge_MonolithCap_V002` | 북 조각 위 3.5m(아래면 72.1m)·남 조각 위 2.6m에 뜬 모서리 깎은 각진 판 2장 |
+| `SM_Ridge_MonolithSlabs_V002` | 동쪽 면에서 2~2.2m 떨어져 뜬 석판 2장(높이 33m·43m). Unlit에서는 벽과 섞여 잘 안 보인다 |
+| `SM_Ridge_MonolithChips_V002` | 북 판 아래 틈 둘레의 둥근 파편 3개 |
+
+- 생성: `Scripts/Blender/BuildRidgeMonolithSkin.py -- build V002`(입력 `Monolith_V001/Dump_M1_V002.json` = 에디터 `InspectRidgeMonolithTargets.py dump`). V001(변화가 약하고 둥근 판이 알처럼 보임)은 기각 이력이다.
+- 배치: `GenerateRidgeMonolithSkin.py V007 V002` → `IsleSkin_V007.json`(V006 배치·몸체 그대로 + 몸체 4개, 원본 맵은 V006) → UE `BuildRidgeIsleSkin.py build V007` → 다음 Cmd `verify V007`. `GenerateRidgeIsleSkin.py`는 V006 Acceptance 보존 대상이라 고치지 않았다.
+- 보호 51공간·16,552표본: 새 점유 0, 기존 형상 안 표본 0. StairRamp2~4 중앙 통로 띠(반폭+1.1m) 안은 외피를 묻었다. 기존 StairRamp3 31표본 REVIEW는 다른 몸체 소관이라 그대로다. 기존 형상 판정은 보존 구조물 Floor+Shell+지각에 대한 현지 Up 광선 홀짝이다.
+- LandmarkTop 사선(WestEntry·CrownSummit·DeepBasin) 3개 모두 가리지 않는다(최소 거리 13.3m). 위상 결함 0.
+- Verify V007 PASS(배치 오차 0, 몸체 8개 경계 오차 0.0033cm, dirty 없음, PIE=false). 보존 해시 `CheckRidgePreservation.py`: V008 721항목(중복 제거 703쌍)·V006 Acceptance 7·V007 Acceptance 14파일 불일치 0.
+- 화면: `Saved/Profiling/Graphics/Phase01/Monolith_V001/Shots/`(V007_Unlit_*, 선택 윤곽 V007_Selected_*). V006 같은 시점은 `Monolith_V001/V006_*_Cur.png`다.
+
+## 8. 남은 것과 다음 단위
+
+- **Lit 비교 미완:** IsleSkin LVI 맵에는 조명이 없어 Lit이 검게 나온다. TestMap03 조명을 복사한 미리보기 레벨(`BuildRidgeZ1AssemblyTest.py`의 `build_wall_level` 방식)에 V006·V007을 Level Instance로 넣어 찍어야 한다.
+- **스카이라인:** 북쪽 부유 판 꼭대기가 약 81m로 기존 56m보다 높다. 사용자가 이 상태로 유지를 결정했다.
+- **충돌:** 외피·부유 판은 NoCollision이다. 탑 꼭대기와 판은 착지면(38m)에서 닿지 않는 높이지만 그래플 접근은 확인하지 않았다. Shell 파생은 U5b(GX-031·032)에서 다룬다.
+- **다음 단위 후보:** 섬 윗면·엄폐 각기둥 외피, Lit 미리보기, 충돌(Shell) 파생. 범위는 사용자와 확인한다.

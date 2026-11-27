@@ -1,0 +1,97 @@
+{
+ "unit": "IsleSkin",
+ "version": "V007",
+ "date": "2026-11-27",
+ "status": "current_baseline",
+ "user_decision": "Option A (visual skin only, no crust/collision cut) for M1, the east tower above the MassifCavern landing: split spire (two shards) + floating angular slabs + face slabs + chips kept as is (GX-040). M2 (MassifCavern block west face) left untouched.",
+ "scope": "visual only (NoCollision); collision derivation, Lit/Lumen review, PIE and performance not done",
+ "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V007/LVI_Ridge_EDTerrain_IsleSkin_V007",
+ "source_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V006/LVI_Ridge_EDTerrain_IsleSkin_V006",
+ "monolith_version": "V002",
+ "monolith_rejected": [
+  "V001 (weak change, rounded cap read as an egg)"
+ ],
+ "protected": {
+  "spaces": 51,
+  "samples": 16552,
+  "new_hits": 0,
+  "inside_existing": 0,
+  "keepout": [
+   "StairRamp2CentralPassage",
+   "StairRamp3CentralPassage",
+   "StairRamp4CentralPassage"
+  ],
+  "keepout_margin_cm": 110
+ },
+ "landmark_sight_min_cm": 1325.8,
+ "max_top_h_cm": 6863.850506523475,
+ "files": [
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V007/LVI_Ridge_EDTerrain_IsleSkin_V007.umap",
+   "sha256": "4a013f5171893f47b92fa09adf0e036abc0a9fd6b907211dd4edb5283b2f7170"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Bodies_V007/SM_Ridge_MonolithShroud_V002.uasset",
+   "sha256": "73ee5511071cd1de75eb832a2f70da2082203817289f61cf2a5e7386322af4f6"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Bodies_V007/SM_Ridge_MonolithCap_V002.uasset",
+   "sha256": "287604428f5df36f595952c732308919865a74d8ac94a4abe1573279213043fe"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Bodies_V007/SM_Ridge_MonolithSlabs_V002.uasset",
+   "sha256": "a1d3b3cad9b2f55a24cca8fcb41de38b761e4d75d5fe2ceed28766bb8fdb2821"
+  },
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Bodies_V007/SM_Ridge_MonolithChips_V002.uasset",
+   "sha256": "305ea692e865172f6acf1124653a2f92e225ca87a784395ef2d96323eff90712"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/IsleSkin_V001/IsleSkin_V007.json",
+   "sha256": "f788547e12ef16cf62eadcc24e7ea5abb5b8805149050688338fe53945d40ab6"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Monolith_V002/Build.json",
+   "sha256": "7114f7eabbf75637d8379ab5d4fa565023895fb1e9853e734fbaa34abfedb5d2"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/Monolith_V001/Dump_M1_V002.json",
+   "sha256": "c2b0da9190906cf20c4c9c8e3feffe92254292c264e725a2ab40633978aee193"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Verify_V007_20261127_131612.json",
+   "sha256": "f780c5e69fa93726c15d7e78955fc6983e0fb0ad93fd35bf4f6c32262d296fe6"
+  },
+  {
+   "path": "Scripts/Blender/BuildRidgeMonolithSkin.py",
+   "sha256": "79025c6eeabebef5459b29987a4b51a13ef9decc63b350cb24c1ab1de2f0e687"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/GenerateRidgeMonolithSkin.py",
+   "sha256": "78fe9adb52a384a7d84082d4aa700adc667358d7cc43898b66f733624c80e204"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/InspectRidgeMonolithTargets.py",
+   "sha256": "2e156568560db197d73aa17cad6e68faab21366c3ad72f013f994854625a41a6"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/CheckRidgePreservation.py",
+   "sha256": "144ca056bf1e7980f8f76c1a55f36817c9de0f247d307568f24576b37f33174f"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/BuildRidgeIsleSkin.py",
+   "sha256": "f4b5fe7bc3bd2df5f47bc93f3a98669f131cf3546ae64a1cac1a2a0e92d433dc"
+  }
+ ],
+ "previous_trials_kept": [
+  "IsleSkin_V001",
+  "IsleSkin_V002",
+  "IsleSkin_V003",
+  "IsleSkin_V004",
+  "IsleSkin_V005",
+  "IsleSkin_V006 (baseline before V007, Acceptance_V006 unchanged)"
+ ],
+ "unused_assets_kept": [
+  "Bodies_V007/SM_Ridge_Monolith*_V001 (V001 trial import)"
+ ]
+}
