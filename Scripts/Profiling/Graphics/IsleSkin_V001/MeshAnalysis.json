@@ -1,0 +1,1082 @@
+{
+ "rows": [
+  {
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_01",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+   "vertices": 11339,
+   "triangles": 22492,
+   "sections": 1,
+   "boundary_edges": 184,
+   "edges": 33830,
+   "area_cm2": 3678596.9593384126,
+   "area_normal": [
+    885.0332535619091,
+    -1822747.6593497305,
+    -535833.0259355488
+   ],
+   "openness": 0.5164674201467654,
+   "bounds_min": [
+    -862.873291015625,
+    -352.35992431640625,
+    -33.77984619140625
+   ],
+   "bounds_max": [
+    879.0245361328125,
+    373.7620849609375,
+    1217.432373046875
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_03",
+   "vertices": 9914,
+   "triangles": 19613,
+   "sections": 1,
+   "boundary_edges": 213,
+   "edges": 29526,
+   "area_cm2": 2580642.310349667,
+   "area_normal": [
+    1026.8276292920027,
+    -1474397.7428084512,
+    -1988.1927905580465
+   ],
+   "openness": 0.5713304145145064,
+   "bounds_min": [
+    -571.6182861328125,
+    -166.24122619628906,
+    -48.4615478515625
+   ],
+   "bounds_max": [
+    580.7506103515625,
+    171.0782012939453,
+    1435.82470703125
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_04",
+   "vertices": 9914,
+   "triangles": 19613,
+   "sections": 1,
+   "boundary_edges": 213,
+   "edges": 29526,
+   "area_cm2": 2580642.310349667,
+   "area_normal": [
+    1026.8276292920027,
+    -1474397.7428084512,
+    -1988.1927905580465
+   ],
+   "openness": 0.5713304145145064,
+   "bounds_min": [
+    -571.6182861328125,
+    -166.24122619628906,
+    -48.4615478515625
+   ],
+   "bounds_max": [
+    580.7506103515625,
+    171.0782012939453,
+    1435.82470703125
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+   "vertices": 8009,
+   "triangles": 15892,
+   "sections": 1,
+   "boundary_edges": 124,
+   "edges": 23900,
+   "area_cm2": 7384841.2521380335,
+   "area_normal": [
+    -18857.208934077767,
+    -3478131.964612074,
+    -3288252.8631171854
+   ],
+   "openness": 0.6481489696216816,
+   "bounds_min": [
+    -1504.3209228515625,
+    -1302.9456787109375,
+    -78.79757690429688
+   ],
+   "bounds_max": [
+    1537.3306884765625,
+    139.14735412597656,
+    1433.4853515625
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_06",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+   "vertices": 8743,
+   "triangles": 17321,
+   "sections": 1,
+   "boundary_edges": 163,
+   "edges": 26063,
+   "area_cm2": 2963537.3186577884,
+   "area_normal": [
+    32261.95239376331,
+    -1330966.1256132203,
+    -1072603.8599306357
+   ],
+   "openness": 0.5769036894403535,
+   "bounds_min": [
+    -1102.86181640625,
+    -375.5332794189453,
+    -17.60272216796875
+   ],
+   "bounds_max": [
+    1112.290283203125,
+    465.3678741455078,
+    652.6778564453125
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_08",
+   "vertices": 8743,
+   "triangles": 17321,
+   "sections": 1,
+   "boundary_edges": 163,
+   "edges": 26063,
+   "area_cm2": 2963537.3186577884,
+   "area_normal": [
+    32261.95239376331,
+    -1330966.1256132203,
+    -1072603.8599306357
+   ],
+   "openness": 0.5769036894403535,
+   "bounds_min": [
+    -1102.86181640625,
+    -375.53326416015625,
+    -17.602712631225586
+   ],
+   "bounds_max": [
+    1112.290283203125,
+    464.6870422363281,
+    652.6778564453125
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+   "vertices": 8037,
+   "triangles": 15915,
+   "sections": 1,
+   "boundary_edges": 157,
+   "edges": 23951,
+   "area_cm2": 11886908.702772722,
+   "area_normal": [
+    185950.8826029094,
+    -6163095.051142098,
+    -2561479.843505204
+   ],
+   "openness": 0.5616925406695921,
+   "bounds_min": [
+    -1502.9476318359375,
+    -869.8572998046875,
+    -71.9970703125
+   ],
+   "bounds_max": [
+    1325.0452880859375,
+    736.669189453125,
+    2940.580810546875
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+   "vertices": 15456,
+   "triangles": 30685,
+   "sections": 1,
+   "boundary_edges": 225,
+   "edges": 46140,
+   "area_cm2": 11978443.783659805,
+   "area_normal": [
+    -23989.547089176936,
+    -3881528.0170415263,
+    -1839591.5720425234
+   ],
+   "openness": 0.35859874045023954,
+   "bounds_min": [
+    -1086.5697937011719,
+    -315.1949462890625,
+    -33.023193359375
+   ],
+   "bounds_max": [
+    906.8887023925781,
+    1030.1737060546875,
+    2595.554931640625
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_03",
+   "vertices": 10652,
+   "triangles": 21125,
+   "sections": 1,
+   "boundary_edges": 177,
+   "edges": 31776,
+   "area_cm2": 7031520.82777385,
+   "area_normal": [
+    -10711.161605780158,
+    -4912264.560003536,
+    -1421663.1849873227
+   ],
+   "openness": 0.7272767976772644,
+   "bounds_min": [
+    -1044.0167846679688,
+    -889.3870849609375,
+    -36.86572265625
+   ],
+   "bounds_max": [
+    1041.9363403320312,
+    84.7259521484375,
+    2875.029052734375
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_04",
+   "vertices": 11332,
+   "triangles": 22480,
+   "sections": 1,
+   "boundary_edges": 182,
+   "edges": 33811,
+   "area_cm2": 7152757.039207865,
+   "area_normal": [
+    -145816.55164901592,
+    -4547546.412375879,
+    -1394762.817018278
+   ],
+   "openness": 0.6653190960472943,
+   "bounds_min": [
+    -862.9839172363281,
+    -884.2478942871094,
+    36.99365234375
+   ],
+   "bounds_max": [
+    975.5839538574219,
+    166.02590942382812,
+    2955.085693359375
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_05",
+   "vertices": 2575,
+   "triangles": 5053,
+   "sections": 1,
+   "boundary_edges": 95,
+   "edges": 7627,
+   "area_cm2": 19742694.812939454,
+   "area_normal": [
+    266527.20972104534,
+    -12214694.243084952,
+    -4805538.525693366
+   ],
+   "openness": 0.6649907141436181,
+   "bounds_min": [
+    -1812.4866943359375,
+    -1154.1899108886719,
+    -119.62646484375
+   ],
+   "bounds_max": [
+    2363.5335083007812,
+    618.3869934082031,
+    3612.998779296875
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_06",
+   "vertices": 205,
+   "triangles": 252,
+   "sections": 1,
+   "boundary_edges": 6,
+   "edges": 379,
+   "area_cm2": 4422877.947645209,
+   "area_normal": [
+    10993.179700613022,
+    -7565.390221916139,
+    -2796.628381919116
+   ],
+   "openness": 0.0030827765834441456,
+   "bounds_min": [
+    -10947.65625,
+    -10108.671875,
+    -9367.6875
+   ],
+   "bounds_max": [
+    10947.65625,
+    10108.671875,
+    9367.6875
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_01",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_02",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_03",
+   "vertices": 5315,
+   "triangles": 10492,
+   "sections": 1,
+   "boundary_edges": 136,
+   "edges": 15806,
+   "area_cm2": 1329026.1646168337,
+   "area_normal": [
+    7063.657826312345,
+    -458108.87139396387,
+    112161.39676077402
+   ],
+   "openness": 0.35491588510261407,
+   "bounds_min": [
+    -799.2507934570312,
+    -296.14263916015625,
+    -30.6717529296875
+   ],
+   "bounds_max": [
+    805.0242004394531,
+    303.8363342285156,
+    347.2050476074219
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/CanyonSandstoneRidge/SM_CanyonSandstoneRidge_04",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+   "vertices": 9862,
+   "triangles": 19609,
+   "sections": 1,
+   "boundary_edges": 117,
+   "edges": 29472,
+   "area_cm2": 3323603.555459682,
+   "area_normal": [
+    758.770142562691,
+    -637623.6488204179,
+    -26444.320190585328
+   ],
+   "openness": 0.19201213968614134,
+   "bounds_min": [
+    -1187.0192260742188,
+    -49.60406494140625,
+    -78.41879272460938
+   ],
+   "bounds_max": [
+    1227.7919311523438,
+    583.6281127929688,
+    365.87738037109375
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/GiganticSandstoneTerrain/SM_GiganticSandstoneTerrain_01",
+   "vertices": 8615,
+   "triangles": 17031,
+   "sections": 1,
+   "boundary_edges": 197,
+   "edges": 25645,
+   "area_cm2": 2384141259.743143,
+   "area_normal": [
+    -1241043.5332035124,
+    1738444.4559009317,
+    -1526361640.0957792
+   ],
+   "openness": 0.6402150578891274,
+   "bounds_min": [
+    -28888.08203125,
+    -18499.8720703125,
+    -552.5498046875
+   ],
+   "bounds_max": [
+    28726.15234375,
+    18039.0244140625,
+    10230.556640625
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/GrassyEmbankment/SM_GrassyEmbankment_01",
+   "vertices": 11657,
+   "triangles": 23049,
+   "sections": 1,
+   "boundary_edges": 267,
+   "edges": 34707,
+   "area_cm2": 10152.113372405744,
+   "area_normal": [
+    39.19344053893313,
+    -665.1748296270754,
+    -7228.097412472456
+   ],
+   "openness": 0.7149984648154947,
+   "bounds_min": [
+    -66.13960838317871,
+    -40.892127990722656,
+    0.8365039825439453
+   ],
+   "bounds_max": [
+    62.08017921447754,
+    36.611785888671875,
+    19.835346221923828
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/GrassyEmbankment/SM_GrassyEmbankment_02",
+   "vertices": 12759,
+   "triangles": 25239,
+   "sections": 1,
+   "boundary_edges": 279,
+   "edges": 37998,
+   "area_cm2": 10036.09291490876,
+   "area_normal": [
+    40.36812182840572,
+    -662.2939618501207,
+    -7076.598090077402
+   ],
+   "openness": 0.7082075702052183,
+   "bounds_min": [
+    -66.13960838317871,
+    -40.92795181274414,
+    0.8551311492919922
+   ],
+   "bounds_max": [
+    62.08017921447754,
+    32.616973876953125,
+    19.835346221923828
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_01",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_02",
+   "vertices": 13933,
+   "triangles": 27673,
+   "sections": 1,
+   "boundary_edges": 195,
+   "edges": 41606,
+   "area_cm2": 115079.62931666596,
+   "area_normal": [
+    0.18949087050762614,
+    38.2071767700528,
+    -60029.57239901787
+   ],
+   "openness": 0.5216351922114884,
+   "bounds_min": [
+    -166.9396209716797,
+    -127.76704025268555,
+    -2.3692378997802734
+   ],
+   "bounds_max": [
+    154.94126892089844,
+    124.03581619262695,
+    27.968549728393555
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_03",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_04",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/SandstoneRockyGround/SM_SandstoneRockyGround_05",
+   "vertices": 32030,
+   "triangles": 63672,
+   "sections": 1,
+   "boundary_edges": 384,
+   "edges": 95695,
+   "area_cm2": 843493.3697381378,
+   "area_normal": [
+    110.25329904572567,
+    -145.59754380051186,
+    -376632.50638054305
+   ],
+   "openness": 0.4465151288353102,
+   "bounds_min": [
+    -387.42431640625,
+    -252.85955810546875,
+    -10.913166046142578
+   ],
+   "bounds_max": [
+    387.56373596191406,
+    255.83688354492188,
+    42.78977966308594
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_01",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_02",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_03",
+   "vertices": 3649,
+   "triangles": 7198,
+   "sections": 1,
+   "boundary_edges": 98,
+   "edges": 10846,
+   "area_cm2": 70280.67074523955,
+   "area_normal": [
+    -13.647780515897466,
+    22.489966059292612,
+    -53293.633072156736
+   ],
+   "openness": 0.7582972529992028,
+   "bounds_min": [
+    -217.09268951416016,
+    -87.57698822021484,
+    -1.914896011352539
+   ],
+   "bounds_max": [
+    222.83663177490234,
+    85.63280868530273,
+    24.100358963012695
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_04",
+   "vertices": 3507,
+   "triangles": 6911,
+   "sections": 1,
+   "boundary_edges": 101,
+   "edges": 10417,
+   "area_cm2": 70196.35448445204,
+   "area_normal": [
+    -3.6239764999955213,
+    34.18009095781218,
+    -53302.52278705449
+   ],
+   "openness": 0.7593347868370774,
+   "bounds_min": [
+    -217.40601348876953,
+    -87.58283615112305,
+    -1.897796630859375
+   ],
+   "bounds_max": [
+    222.53093719482422,
+    85.5677375793457,
+    24.36202621459961
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_05",
+   "vertices": 1530,
+   "triangles": 2969,
+   "sections": 1,
+   "boundary_edges": 95,
+   "edges": 4501,
+   "area_cm2": 207572.08162592546,
+   "area_normal": [
+    -1.299418782730072,
+    -36.23998992714451,
+    -171646.20550206257
+   ],
+   "openness": 0.8269233896397543,
+   "bounds_min": [
+    -282.0491943359375,
+    -210.03570556640625,
+    -1.4818229675292969
+   ],
+   "bounds_max": [
+    282.405517578125,
+    209.66534423828125,
+    61.10560989379883
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/ForestRockFormation/SM_ForestRockFormation_06",
+   "vertices": 3346,
+   "triangles": 6587,
+   "sections": 1,
+   "boundary_edges": 103,
+   "edges": 9932,
+   "area_cm2": 258788.52304096826,
+   "area_normal": [
+    -34.6862628712538,
+    6.028881329837759,
+    -200742.87046772285
+   ],
+   "openness": 0.7757023812187651,
+   "bounds_min": [
+    -303.95233154296875,
+    -197.08851623535156,
+    -2.411651611328125
+   ],
+   "bounds_max": [
+    275.46929931640625,
+    228.3188018798828,
+    66.42198181152344
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "vertices": 8539,
+   "triangles": 17004,
+   "sections": 1,
+   "boundary_edges": 88,
+   "edges": 25549,
+   "area_cm2": 1374549.2901536052,
+   "area_normal": [
+    880.5091429654804,
+    602.752555322264,
+    -403034.80941169366
+   ],
+   "openness": 0.29321336443739604,
+   "bounds_min": [
+    -327.2567138671875,
+    -445.2562713623047,
+    -5.65618896484375
+   ],
+   "bounds_max": [
+    331.34339904785156,
+    445.2257843017578,
+    401.3143310546875
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+   "vertices": 1589,
+   "triangles": 3056,
+   "sections": 1,
+   "boundary_edges": 138,
+   "edges": 4650,
+   "area_cm2": 1017765.8712561924,
+   "area_normal": [
+    -9754.925474772874,
+    7105.250086998933,
+    -160670.73222359398
+   ],
+   "openness": 0.15831080030850733,
+   "bounds_min": [
+    -264.5264587402344,
+    -400.27268981933594,
+    0.4742431640625
+   ],
+   "bounds_max": [
+    330.3080749511719,
+    403.13978576660156,
+    399.0823059082031
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "vertices": 13695,
+   "triangles": 27364,
+   "sections": 1,
+   "boundary_edges": 28,
+   "edges": 41056,
+   "area_cm2": 1147868.8240775084,
+   "area_normal": [
+    137.53099156332905,
+    -2156.4362426823463,
+    -59.9766781167865
+   ],
+   "openness": 0.0018831852671190833,
+   "bounds_min": [
+    -160.30905151367188,
+    -118.9717025756836,
+    -549.366943359375
+   ],
+   "bounds_max": [
+    165.36431884765625,
+    119.89471435546875,
+    550.3624877929688
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_03",
+   "vertices": 8766,
+   "triangles": 17276,
+   "sections": 1,
+   "boundary_edges": 254,
+   "edges": 26041,
+   "area_cm2": 79941.21278536643,
+   "area_normal": [
+    -795.5807784202404,
+    -45222.79013062483,
+    -12346.227412380194
+   ],
+   "openness": 0.586488116459004,
+   "bounds_min": [
+    -124.79436492919922,
+    -46.76163101196289,
+    -3.0667192935943604
+   ],
+   "bounds_max": [
+    121.91983795166016,
+    47.364501953125,
+    206.9443817138672
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_04",
+   "vertices": 13942,
+   "triangles": 27652,
+   "sections": 1,
+   "boundary_edges": 230,
+   "edges": 41593,
+   "area_cm2": 221005.12043245966,
+   "area_normal": [
+    99.11377433975133,
+    -73212.54970847195,
+    -240.1186884476238
+   ],
+   "openness": 0.33127291538447246,
+   "bounds_min": [
+    -175.05625915527344,
+    -59.617244720458984,
+    -3.325925350189209
+   ],
+   "bounds_max": [
+    174.41983032226562,
+    62.43022537231445,
+    273.8270263671875
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_05",
+   "vertices": 7092,
+   "triangles": 14000,
+   "sections": 1,
+   "boundary_edges": 182,
+   "edges": 21091,
+   "area_cm2": 237680.6020715507,
+   "area_normal": [
+    -79.14241537240923,
+    -51631.307004244205,
+    -163904.26285117277
+   ],
+   "openness": 0.7230044434979528,
+   "bounds_min": [
+    -425.9366455078125,
+    -126.52413940429688,
+    -0.5240516662597656
+   ],
+   "bounds_max": [
+    436.4905090332031,
+    113.5578842163086,
+    122.20993041992188
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+   "vertices": 8405,
+   "triangles": 16631,
+   "sections": 1,
+   "boundary_edges": 177,
+   "edges": 25035,
+   "area_cm2": 8614256.967677077,
+   "area_normal": [
+    26186.981658493954,
+    -5091377.139857477,
+    -1715589.311854688
+   ],
+   "openness": 0.6237002012680155,
+   "bounds_min": [
+    -1104.7520751953125,
+    -477.7818908691406,
+    -19.1669921875
+   ],
+   "bounds_max": [
+    1104.3167724609375,
+    477.1551818847656,
+    2652.6875
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_07",
+   "vertices": 14200,
+   "triangles": 28253,
+   "sections": 1,
+   "boundary_edges": 145,
+   "edges": 42452,
+   "area_cm2": 8604591.821016354,
+   "area_normal": [
+    -7172.41607300943,
+    -7624.801224414296,
+    -2728747.619658354
+   ],
+   "openness": 0.3171292439390028,
+   "bounds_min": [
+    -1046.3663940429688,
+    -750.0364074707031,
+    -35.203857421875
+   ],
+   "bounds_max": [
+    1033.4983520507812,
+    752.0624694824219,
+    1430.6396484375
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "vertices": 13572,
+   "triangles": 26925,
+   "sections": 1,
+   "boundary_edges": 217,
+   "edges": 40496,
+   "area_cm2": 5781238.700844021,
+   "area_normal": [
+    -166.8241414679287,
+    -1752.2476316866232,
+    -1118776.2639082763
+   ],
+   "openness": 0.19351867418705446,
+   "bounds_min": [
+    -838.600830078125,
+    -529.2481079101562,
+    272.0802001953125
+   ],
+   "bounds_max": [
+    775.53759765625,
+    623.1469116210938,
+    1430.6396484375
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "vertices": 12480,
+   "triangles": 24816,
+   "sections": 1,
+   "boundary_edges": 142,
+   "edges": 37295,
+   "area_cm2": 3579540.4377580457,
+   "area_normal": [
+    9806.259511053458,
+    6699.406249464044,
+    -894871.9670052135
+   ],
+   "openness": 0.2500183435084582,
+   "bounds_min": [
+    -684.9053039550781,
+    -432.6426239013672,
+    -13.84564208984375
+   ],
+   "bounds_max": [
+    690.5282897949219,
+    419.4939727783203,
+    875.5545043945312
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_10",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_11",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_12",
+   "vertices": 8815,
+   "triangles": 17437,
+   "sections": 1,
+   "boundary_edges": 191,
+   "edges": 26251,
+   "area_cm2": 1306416.8232940806,
+   "area_normal": [
+    -1976.6313261949877,
+    -665852.2395601276,
+    -511215.7269702088
+   ],
+   "openness": 0.6425720018378814,
+   "bounds_min": [
+    -896.4996948242188,
+    -231.2635955810547,
+    -11.723190307617188
+   ],
+   "bounds_max": [
+    899.598388671875,
+    257.3973693847656,
+    470.3841247558594
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_13",
+   "vertices": 7868,
+   "triangles": 15645,
+   "sections": 1,
+   "boundary_edges": 89,
+   "edges": 23512,
+   "area_cm2": 770719.4915705489,
+   "area_normal": [
+    -1690.8370900990647,
+    -332819.81820403575,
+    4776.254779468016
+   ],
+   "openness": 0.43188006315363675,
+   "bounds_min": [
+    -427.17510986328125,
+    -125.72855377197266,
+    -13.274650573730469
+   ],
+   "bounds_max": [
+    427.0428771972656,
+    107.96646881103516,
+    476.204833984375
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_14",
+   "vertices": 9100,
+   "triangles": 18080,
+   "sections": 1,
+   "boundary_edges": 118,
+   "edges": 27179,
+   "area_cm2": 2886721.16121324,
+   "area_normal": [
+    456.028876589015,
+    -1540660.0935891462,
+    -184305.33096854482
+   ],
+   "openness": 0.5375112133122132,
+   "bounds_min": [
+    -912.7488403320312,
+    -137.974609375,
+    -31.164886474609375
+   ],
+   "bounds_max": [
+    887.9005126953125,
+    350.77685546875,
+    1033.0523681640625
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_15",
+   "vertices": 10292,
+   "triangles": 20378,
+   "sections": 1,
+   "boundary_edges": 204,
+   "edges": 30669,
+   "area_cm2": 26826566.928381603,
+   "area_normal": [
+    -15854.122758306592,
+    -13288387.876151495,
+    -1699763.3481353177
+   ],
+   "openness": 0.49938061399077904,
+   "bounds_min": [
+    -2408.881591796875,
+    -423.1175842285156,
+    -240.8798828125
+   ],
+   "bounds_max": [
+    2368.1842041015625,
+    1185.8162536621094,
+    3135.244384765625
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_16",
+   "vertices": 7873,
+   "triangles": 15588,
+   "sections": 1,
+   "boundary_edges": 156,
+   "edges": 23460,
+   "area_cm2": 11872279.089467496,
+   "area_normal": [
+    185715.80103258076,
+    -6161670.567771141,
+    -2564779.626936299
+   ],
+   "openness": 0.5623800926095621,
+   "bounds_min": [
+    -1502.9476318359375,
+    -870.1145935058594,
+    -71.9970703125
+   ],
+   "bounds_max": [
+    1325.0452880859375,
+    736.669189453125,
+    2940.580810546875
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_17",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_18",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_19",
+   "missing": true
+  },
+  {
+   "mesh": "/Game/Meshes/_GENERATED/RockFormation/SM_GrassyEmbankment_01",
+   "vertices": 12848,
+   "triangles": 25366,
+   "sections": 1,
+   "boundary_edges": 342,
+   "edges": 38188,
+   "area_cm2": 7001.336482922324,
+   "area_normal": [
+    -31.71922474021185,
+    -28.07999601953066,
+    -16.99594790543034
+   ],
+   "openness": 0.006519456429311492,
+   "bounds_min": [
+    -66.00121307373047,
+    -23.571941375732422,
+    -6.708520412445068
+   ],
+   "bounds_max": [
+    57.72112274169922,
+    3.2266159057617188,
+    19.608957767486572
+   ],
+   "nanite": true
+  },
+  {
+   "mesh": "/Game/Meshes/_GENERATED/SM_RiverbedEmbankment_01",
+   "missing": true
+  }
+ ]
+}

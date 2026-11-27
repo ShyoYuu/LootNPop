@@ -1,0 +1,63 @@
+{
+ "unit": "IsleSkin",
+ "version": "V006",
+ "date": "2026-11-27",
+ "status": "current_baseline",
+ "user_decision": "Sky bridge option B (bridge's own skin may occupy SkyBridgeDeck under-deck side band; GX-039). V006 also carries the user-requested removal of isle bottom spikes and bridge Cliff02 pendants/fragments.",
+ "scope": "visual only (NoCollision); collision derivation, Lit/Lumen review, PIE and performance not done",
+ "level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V006/LVI_Ridge_EDTerrain_IsleSkin_V006",
+ "source_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V008/LVI_Ridge_EDTerrain_U5aBody_V008",
+ "review_hits": {
+  "count": 41,
+  "note": "SkyBridgeDeck side band (-450cm, half 350cm) occupied by the bridge's own skin; pending user decision"
+ },
+ "accepted_exception": {
+  "space": "SkyBridgeDeck",
+  "samples": 41,
+  "height": "deck -450cm",
+  "walk_samples_hit": 0,
+  "decision": "GX-039"
+ },
+ "files": [
+  {
+   "path": "Content/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V006/LVI_Ridge_EDTerrain_IsleSkin_V006.umap",
+   "sha256": "530bd4a9e1ab8a35f00f12f011aead54dc46efcdccfa9288b3e05282b4bc87ed"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/IsleSkin_V001/IsleSkin_V006.json",
+   "sha256": "b21bc7a33079c0299ad09fe41333dea52e9a57e3c4415a163d41e1fb9da10344"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Geometry_V005/Build.json",
+   "sha256": "764cf6525e48a82a935011481f718431acb416d8826dee89c74b55b5152b3787"
+  },
+  {
+   "path": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Verify_V006_20261127_122652.json",
+   "sha256": "03a9850c4c1b48bf289a4078d15affd0ff730719777ae0398d4337f7a41bef2a"
+  },
+  {
+   "path": "Scripts/Blender/BuildRidgeIsleBody.py",
+   "sha256": "2e702bc3078b60bf6dd669789dacb01a57d33caa3bb0cde3afa91238b343462f"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/GenerateRidgeIsleSkin.py",
+   "sha256": "ab9a5ccf0eed40bcb4d200c18b2e14e03230833fe5c18f37234fa4a65a701087"
+  },
+  {
+   "path": "Scripts/Profiling/Graphics/BuildRidgeIsleSkin.py",
+   "sha256": "f4b5fe7bc3bd2df5f47bc93f3a98669f131cf3546ae64a1cac1a2a0e92d433dc"
+  }
+ ],
+ "previous_trials_kept": [
+  "IsleSkin_V001",
+  "IsleSkin_V002",
+  "IsleSkin_V003",
+  "IsleSkin_V004",
+  "IsleSkin_V005"
+ ],
+ "v008_preservation": {
+  "frozen_inputs": 696,
+  "accepted_handoff": 25,
+  "hash_mismatch": 0
+ }
+}

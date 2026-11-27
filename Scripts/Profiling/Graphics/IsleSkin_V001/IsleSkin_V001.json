@@ -1,0 +1,2068 @@
+{
+ "schema": 1,
+ "unit": "IsleSkin",
+ "version": "V001",
+ "rules": {
+  "seed": 51127,
+  "isle_depth_cm": 2300,
+  "isle_bottom_scale": 0.3,
+  "rim": {
+   "count": 14,
+   "top_gap_cm": 30,
+   "max_height_cm": 900,
+   "target_width_cm": 1700,
+   "meshes": [
+    "HugeCliff07",
+    "HugeCliff05",
+    "HugeCliff02",
+    "Cliff14",
+    "Cliff12",
+    "Mesa01"
+   ]
+  },
+  "slope": {
+   "count": 12,
+   "top_depth_cm": 600,
+   "slant_cm": 1300,
+   "outward_cm": 80,
+   "meshes": [
+    "MassCliff02",
+    "MassCliff01",
+    "Cliff06",
+    "MassCliff04",
+    "Cliff16"
+   ]
+  },
+  "tip": {
+   "ring_count": 4,
+   "ring_radius_cm": 750,
+   "ring_top_depth_cm": 1750,
+   "ring_width_cm": 1000,
+   "core_top_depth_cm": 2150,
+   "core_mesh": "Cliff07",
+   "core_scale": 0.8,
+   "ring_meshes": [
+    "Cliff09",
+    "Cliff08",
+    "Nordic01",
+    "Cliff09"
+   ]
+  },
+  "cover": {
+   "mesh": "Nordic02",
+   "embed_cm": 100
+  },
+  "satellite": {
+   "pairs": 4,
+   "shards": 2,
+   "radius_cm": [
+    3700,
+    4600
+   ],
+   "depth_cm": [
+    500,
+    2200
+   ],
+   "pair_meshes": [
+    "Cliff09",
+    "Nordic01",
+    "Cliff08",
+    "Nordic02"
+   ],
+   "pair_size_cm": [
+    450,
+    900
+   ],
+   "shard_scale": [
+    0.45,
+    0.8
+   ]
+  },
+  "bridge": {
+   "keel_step_cm": 520,
+   "keel_top_depth_cm": 470,
+   "keel_max_width_cm": 560,
+   "keel_meshes": [
+    "Cliff09",
+    "Nordic01",
+    "Cliff08",
+    "Cliff09",
+    "Cliff07"
+   ],
+   "pendants": [
+    0.35,
+    0.62
+   ],
+   "pendant_scale": 0.9,
+   "fragments": 3,
+   "fragment_depth_cm": [
+    900,
+    1600
+   ],
+   "fragment_scale": [
+    0.3,
+    0.45
+   ]
+  },
+  "fit_retries": 3,
+  "fit_shrink": 0.88,
+  "line_margin_cm": 150
+ },
+ "mesh_alias": {
+  "HugeCliff02": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+  "HugeCliff05": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+  "HugeCliff07": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+  "MassCliff01": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+  "MassCliff02": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+  "MassCliff04": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_04",
+  "Mesa01": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+  "Nordic01": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+  "Nordic02": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+  "Cliff02": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+  "Cliff06": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+  "Cliff07": "/Game/SmartAssets/AssetMeshes/SM_Cliff_07",
+  "Cliff08": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+  "Cliff09": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+  "Cliff12": "/Game/SmartAssets/AssetMeshes/SM_Cliff_12",
+  "Cliff14": "/Game/SmartAssets/AssetMeshes/SM_Cliff_14",
+  "Cliff16": "/Game/SmartAssets/AssetMeshes/SM_Cliff_16"
+ },
+ "source_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V008/LVI_Ridge_EDTerrain_U5aBody_V008",
+ "work_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/LVI_Ridge_EDTerrain_IsleSkin_V001",
+ "preserved_rock_material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifSurface_V003/MI_Ridge_Z1_MassifSurface",
+ "collision": "NoCollision",
+ "tags": [
+  "Decoration",
+  "LNPDecoration",
+  "IsleSkinTrial"
+ ],
+ "inputs": {
+  "Scripts/Profiling/Graphics/RidgeBlueprint_V001.json": "20ce02fcc604b9d8af9e596a22a6d26682f1274de5ff11931444d2db45a07f7e",
+  "Scripts/Profiling/Graphics/ClosedBodyTrial_V001/BodyTrial.json": "64e2e1219cefb25abb143dba2c2a23fcb92fc2ea2185b5e22d35016b208ddb48",
+  "Scripts/Profiling/Graphics/IsleSkin_V001/MeshAnalysis.json": "972afb4ef6bdd18c2c8505e9f940c9f71424dc4cf1c62569bcb63c8c91df23bd",
+  "Saved/Profiling/Graphics/Phase01/U4_2_V002/DiagnosePlacement.py": "fe6ffe6fbd23727f3d79b3e94a0819442e1d7b8a23e0cd7ecc543fe1be14085e",
+  "Scripts/Profiling/Graphics/GenerateRidgeIsleSkin.py": "e61b395a4d8622d3fa2976dd4d9e2dd06a02d5677270a0bdade729eeb86033af"
+ },
+ "placements": [
+  {
+   "label": "ValleySkyIsle_Rim00",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+   "local_xyh_cm": [
+    10399.25,
+    -5781.937,
+    4969.108
+   ],
+   "rotation_deg": [
+    0.0,
+    -92.624846,
+    0.0
+   ],
+   "scale": [
+    0.76744,
+    0.76744,
+    0.76744
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim01",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+   "local_xyh_cm": [
+    10395.433,
+    -4588.284,
+    4668.815
+   ],
+   "rotation_deg": [
+    0.0,
+    -67.301392,
+    0.0
+   ],
+   "scale": [
+    0.55891,
+    0.55891,
+    0.55891
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim02",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+   "local_xyh_cm": [
+    9238.083,
+    -3435.012,
+    4699.385
+   ],
+   "rotation_deg": [
+    0.0,
+    -35.53189,
+    0.0
+   ],
+   "scale": [
+    0.63298,
+    0.63298,
+    0.63298
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim04",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_12",
+   "local_xyh_cm": [
+    7277.941,
+    -3063.712,
+    5024.783
+   ],
+   "rotation_deg": [
+    0.0,
+    14.954469,
+    0.0
+   ],
+   "scale": [
+    0.9465,
+    0.9465,
+    0.9465
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim05",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+   "local_xyh_cm": [
+    6182.69,
+    -3660.536,
+    5212.426
+   ],
+   "rotation_deg": [
+    0.0,
+    36.938623,
+    0.0
+   ],
+   "scale": [
+    0.70399,
+    0.70399,
+    0.70399
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim06",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+   "local_xyh_cm": [
+    5480.353,
+    -4776.038,
+    4969.108
+   ],
+   "rotation_deg": [
+    0.0,
+    68.087185,
+    0.0
+   ],
+   "scale": [
+    0.76744,
+    0.76744,
+    0.76744
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim07",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+   "local_xyh_cm": [
+    5036.452,
+    -5901.078,
+    4668.815
+   ],
+   "rotation_deg": [
+    0.0,
+    93.99112,
+    0.0
+   ],
+   "scale": [
+    0.55891,
+    0.55891,
+    0.55891
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim08",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+   "local_xyh_cm": [
+    5592.109,
+    -6952.795,
+    4594.298
+   ],
+   "rotation_deg": [
+    0.0,
+    119.838737,
+    0.0
+   ],
+   "scale": [
+    0.7193,
+    0.7193,
+    0.7193
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim09",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_14",
+   "local_xyh_cm": [
+    6118.154,
+    -7517.542,
+    4596.356
+   ],
+   "rotation_deg": [
+    0.0,
+    140.109506,
+    0.0
+   ],
+   "scale": [
+    0.84569,
+    0.84569,
+    0.84569
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim10",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_12",
+   "local_xyh_cm": [
+    7397.265,
+    -8233.977,
+    5024.783
+   ],
+   "rotation_deg": [
+    0.0,
+    168.661829,
+    0.0
+   ],
+   "scale": [
+    0.9465,
+    0.9465,
+    0.9465
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim11",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+   "local_xyh_cm": [
+    8337.735,
+    -7926.905,
+    5212.426
+   ],
+   "rotation_deg": [
+    0.0,
+    -168.361016,
+    0.0
+   ],
+   "scale": [
+    0.70399,
+    0.70399,
+    0.70399
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim12",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+   "local_xyh_cm": [
+    9612.721,
+    -7535.946,
+    4969.108
+   ],
+   "rotation_deg": [
+    0.0,
+    -140.003949,
+    0.0
+   ],
+   "scale": [
+    0.76744,
+    0.76744,
+    0.76744
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Rim13",
+   "group": "ValleySkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+   "local_xyh_cm": [
+    10230.437,
+    -6813.932,
+    4668.815
+   ],
+   "rotation_deg": [
+    0.0,
+    -118.017045,
+    0.0
+   ],
+   "scale": [
+    0.55891,
+    0.55891,
+    0.55891
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope00",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+   "local_xyh_cm": [
+    9236.671,
+    -5393.96,
+    4007.907
+   ],
+   "rotation_deg": [
+    3.637632,
+    -72.57466,
+    41.534074
+   ],
+   "scale": [
+    0.49456,
+    0.49456,
+    0.49456
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope01",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+   "local_xyh_cm": [
+    8799.933,
+    -4371.979,
+    3880.708
+   ],
+   "rotation_deg": [
+    -5.457188,
+    -48.442032,
+    41.662563
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope02",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+   "local_xyh_cm": [
+    8124.969,
+    -4089.965,
+    3882.643
+   ],
+   "rotation_deg": [
+    -3.580046,
+    -19.297422,
+    41.530857
+   ],
+   "scale": [
+    0.48655,
+    0.48655,
+    0.48655
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope03",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_04",
+   "local_xyh_cm": [
+    7325.936,
+    -4044.647,
+    3758.732
+   ],
+   "rotation_deg": [
+    -3.389724,
+    9.410079,
+    41.520594
+   ],
+   "scale": [
+    0.4455,
+    0.4455,
+    0.4455
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope04",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_16",
+   "local_xyh_cm": [
+    6643.86,
+    -4525.281,
+    3876.503
+   ],
+   "rotation_deg": [
+    -0.218135,
+    48.057144,
+    41.43227
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope05",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+   "local_xyh_cm": [
+    6438.863,
+    -5200.104,
+    4001.578
+   ],
+   "rotation_deg": [
+    -0.076909,
+    75.261471,
+    41.431949
+   ],
+   "scale": [
+    0.49456,
+    0.49456,
+    0.49456
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope06",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+   "local_xyh_cm": [
+    6255.495,
+    -5750.728,
+    3888.146
+   ],
+   "rotation_deg": [
+    5.496342,
+    107.857287,
+    41.665904
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope07",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+   "local_xyh_cm": [
+    6630.514,
+    -6649.991,
+    3885.904
+   ],
+   "rotation_deg": [
+    5.017773,
+    141.864071,
+    41.626745
+   ],
+   "scale": [
+    0.48655,
+    0.48655,
+    0.48655
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope08",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_04",
+   "local_xyh_cm": [
+    7541.592,
+    -7238.734,
+    3764.47
+   ],
+   "rotation_deg": [
+    -5.43845,
+    159.597219,
+    41.660973
+   ],
+   "scale": [
+    0.4455,
+    0.4455,
+    0.4455
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope09",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_16",
+   "local_xyh_cm": [
+    8098.393,
+    -7095.802,
+    3878.934
+   ],
+   "rotation_deg": [
+    1.956359,
+    -163.377506,
+    41.461404
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope10",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+   "local_xyh_cm": [
+    8714.671,
+    -6778.065,
+    4007.86
+   ],
+   "rotation_deg": [
+    3.619994,
+    -133.108722,
+    41.533083
+   ],
+   "scale": [
+    0.49456,
+    0.49456,
+    0.49456
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Slope11",
+   "group": "ValleySkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+   "local_xyh_cm": [
+    9310.195,
+    -6107.415,
+    3881.419
+   ],
+   "rotation_deg": [
+    3.183879,
+    -100.995063,
+    41.510129
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Tip00",
+   "group": "ValleySkyIsle/Tip",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    8506.426,
+    -5358.555,
+    3740.119
+   ],
+   "rotation_deg": [
+    -0.0,
+    -101.128255,
+    -177.858917
+   ],
+   "scale": [
+    0.72704,
+    0.72704,
+    0.72704
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Tip01",
+   "group": "ValleySkyIsle/Tip",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    7429.125,
+    -4903.373,
+    3917.639
+   ],
+   "rotation_deg": [
+    0.0,
+    56.62327,
+    -178.32573
+   ],
+   "scale": [
+    0.61953,
+    0.61953,
+    0.61953
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Tip02",
+   "group": "ValleySkyIsle/Tip",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "local_xyh_cm": [
+    7104.994,
+    -5884.068,
+    3744.344
+   ],
+   "rotation_deg": [
+    0.0,
+    87.982527,
+    -179.944144
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Tip03",
+   "group": "ValleySkyIsle/Tip",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    8052.712,
+    -6299.023,
+    3741.014
+   ],
+   "rotation_deg": [
+    0.0,
+    -156.784217,
+    -169.148386
+   ],
+   "scale": [
+    0.72704,
+    0.72704,
+    0.72704
+   ]
+  },
+  {
+   "label": "ValleyIsleCoverC_Cover",
+   "group": "ValleySkyIsle/Cover",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+   "local_xyh_cm": [
+    7213.939,
+    -7007.089,
+    5399.775
+   ],
+   "rotation_deg": [
+    0.0,
+    150.548831,
+    0.0
+   ],
+   "scale": [
+    0.47501,
+    0.47501,
+    0.47501
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Float00A",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    11966.577,
+    -3722.75,
+    3587.714
+   ],
+   "rotation_deg": [
+    0.0,
+    138.495346,
+    1.117335
+   ],
+   "scale": [
+    0.38901,
+    0.38901,
+    0.38901
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Float00B",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    11967.994,
+    -3718.674,
+    3617.293
+   ],
+   "rotation_deg": [
+    -0.0,
+    175.495346,
+    -178.882665
+   ],
+   "scale": [
+    0.29176,
+    0.29176,
+    0.29176
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Float01A",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "local_xyh_cm": [
+    7711.19,
+    -1810.802,
+    4977.335
+   ],
+   "rotation_deg": [
+    0.0,
+    72.85569,
+    11.005984
+   ],
+   "scale": [
+    0.99828,
+    0.99828,
+    0.99828
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Float01B",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "local_xyh_cm": [
+    7705.788,
+    -1807.763,
+    5012.505
+   ],
+   "rotation_deg": [
+    0.0,
+    109.85569,
+    -168.994016
+   ],
+   "scale": [
+    0.74871,
+    0.74871,
+    0.74871
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Float02A",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    4492.557,
+    -3148.062,
+    3643.487
+   ],
+   "rotation_deg": [
+    0.0,
+    -18.984827,
+    -1.237106
+   ],
+   "scale": [
+    0.37949,
+    0.37949,
+    0.37949
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Float02B",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    4490.884,
+    -3116.554,
+    3874.257
+   ],
+   "rotation_deg": [
+    -0.0,
+    18.015173,
+    178.762894
+   ],
+   "scale": [
+    0.28461,
+    0.28461,
+    0.28461
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Float03A",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+   "local_xyh_cm": [
+    3796.51,
+    -6682.655,
+    4655.544
+   ],
+   "rotation_deg": [
+    -0.0,
+    173.166911,
+    1.760956
+   ],
+   "scale": [
+    0.80624,
+    0.80624,
+    0.80624
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Float03B",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+   "local_xyh_cm": [
+    3787.544,
+    -6672.524,
+    4692.288
+   ],
+   "rotation_deg": [
+    0.0,
+    -149.833089,
+    -178.239044
+   ],
+   "scale": [
+    0.60468,
+    0.60468,
+    0.60468
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Shard04",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    9382.971,
+    -9467.289,
+    4093.672
+   ],
+   "rotation_deg": [
+    41.870214,
+    -153.856626,
+    141.498769
+   ],
+   "scale": [
+    0.66875,
+    0.66875,
+    0.66875
+   ]
+  },
+  {
+   "label": "ValleySkyIsle_Shard05",
+   "group": "ValleySkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    11196.031,
+    -8176.799,
+    4816.372
+   ],
+   "rotation_deg": [
+    30.873593,
+    179.59774,
+    62.38254
+   ],
+   "scale": [
+    0.62735,
+    0.62735,
+    0.62735
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim00",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+   "local_xyh_cm": [
+    -12162.844,
+    4894.606,
+    5469.108
+   ],
+   "rotation_deg": [
+    0.0,
+    -85.953526,
+    0.0
+   ],
+   "scale": [
+    0.76744,
+    0.76744,
+    0.76744
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim01",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+   "local_xyh_cm": [
+    -12169.519,
+    6274.227,
+    5168.815
+   ],
+   "rotation_deg": [
+    0.0,
+    -59.879552,
+    0.0
+   ],
+   "scale": [
+    0.55891,
+    0.55891,
+    0.55891
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim02",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+   "local_xyh_cm": [
+    -12935.801,
+    6788.874,
+    5094.298
+   ],
+   "rotation_deg": [
+    0.0,
+    -38.295491,
+    0.0
+   ],
+   "scale": [
+    0.7193,
+    0.7193,
+    0.7193
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim03",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_14",
+   "local_xyh_cm": [
+    -13968.774,
+    7286.78,
+    5096.356
+   ],
+   "rotation_deg": [
+    0.0,
+    -15.936753,
+    0.0
+   ],
+   "scale": [
+    0.84569,
+    0.84569,
+    0.84569
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim04",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_12",
+   "local_xyh_cm": [
+    -15185.6,
+    7367.114,
+    5524.783
+   ],
+   "rotation_deg": [
+    0.0,
+    16.118978,
+    0.0
+   ],
+   "scale": [
+    0.9465,
+    0.9465,
+    0.9465
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim05",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+   "local_xyh_cm": [
+    -16245.641,
+    6573.234,
+    5712.426
+   ],
+   "rotation_deg": [
+    0.0,
+    38.795545,
+    0.0
+   ],
+   "scale": [
+    0.70399,
+    0.70399,
+    0.70399
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim06",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+   "local_xyh_cm": [
+    -16882.913,
+    5955.214,
+    5469.108
+   ],
+   "rotation_deg": [
+    0.0,
+    64.253888,
+    0.0
+   ],
+   "scale": [
+    0.76744,
+    0.76744,
+    0.76744
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim07",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+   "local_xyh_cm": [
+    -17336.087,
+    4758.854,
+    5168.815
+   ],
+   "rotation_deg": [
+    0.0,
+    93.629877,
+    0.0
+   ],
+   "scale": [
+    0.55891,
+    0.55891,
+    0.55891
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim08",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+   "local_xyh_cm": [
+    -16912.696,
+    3533.726,
+    5094.298
+   ],
+   "rotation_deg": [
+    0.0,
+    118.627532,
+    0.0
+   ],
+   "scale": [
+    0.7193,
+    0.7193,
+    0.7193
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim09",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_14",
+   "local_xyh_cm": [
+    -16105.931,
+    2772.493,
+    5096.356
+   ],
+   "rotation_deg": [
+    0.0,
+    144.434089,
+    0.0
+   ],
+   "scale": [
+    0.84569,
+    0.84569,
+    0.84569
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim10",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_12",
+   "local_xyh_cm": [
+    -15164.969,
+    2199.858,
+    5524.783
+   ],
+   "rotation_deg": [
+    0.0,
+    164.483126,
+    0.0
+   ],
+   "scale": [
+    0.9465,
+    0.9465,
+    0.9465
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim11",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+   "local_xyh_cm": [
+    -14318.672,
+    2407.056,
+    5712.426
+   ],
+   "rotation_deg": [
+    0.0,
+    -170.551284,
+    0.0
+   ],
+   "scale": [
+    0.70399,
+    0.70399,
+    0.70399
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim12",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+   "local_xyh_cm": [
+    -12998.266,
+    2946.54,
+    5469.108
+   ],
+   "rotation_deg": [
+    0.0,
+    -141.031817,
+    0.0
+   ],
+   "scale": [
+    0.76744,
+    0.76744,
+    0.76744
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Rim13",
+   "group": "WestSkyIsle/Rim",
+   "mesh": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+   "local_xyh_cm": [
+    -12193.069,
+    3387.918,
+    5168.815
+   ],
+   "rotation_deg": [
+    0.0,
+    -120.194876,
+    0.0
+   ],
+   "scale": [
+    0.55891,
+    0.55891,
+    0.55891
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope00",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+   "local_xyh_cm": [
+    -13183.579,
+    4915.361,
+    4511.812
+   ],
+   "rotation_deg": [
+    4.934314,
+    -73.233114,
+    41.620288
+   ],
+   "scale": [
+    0.49456,
+    0.49456,
+    0.49456
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope01",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+   "local_xyh_cm": [
+    -13456.719,
+    5925.338,
+    4378.247
+   ],
+   "rotation_deg": [
+    1.492078,
+    -41.190395,
+    41.449058
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope02",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+   "local_xyh_cm": [
+    -14102.308,
+    6264.125,
+    4388.044
+   ],
+   "rotation_deg": [
+    5.772105,
+    -7.223358,
+    41.690124
+   ],
+   "scale": [
+    0.48655,
+    0.48655,
+    0.48655
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope03",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_04",
+   "local_xyh_cm": [
+    -14959.161,
+    6437.589,
+    4260.194
+   ],
+   "rotation_deg": [
+    5.627376,
+    22.400619,
+    41.677261
+   ],
+   "scale": [
+    0.4455,
+    0.4455,
+    0.4455
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope04",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_16",
+   "local_xyh_cm": [
+    -15591.509,
+    6007.305,
+    4380.375
+   ],
+   "rotation_deg": [
+    2.724625,
+    46.161872,
+    41.489161
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope05",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+   "local_xyh_cm": [
+    -15993.472,
+    5114.274,
+    4501.761
+   ],
+   "rotation_deg": [
+    -3.125476,
+    72.560943,
+    41.507281
+   ],
+   "scale": [
+    0.49456,
+    0.49456,
+    0.49456
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope06",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+   "local_xyh_cm": [
+    -16116.194,
+    4275.749,
+    4378.24
+   ],
+   "rotation_deg": [
+    -4.082977,
+    102.521118,
+    41.560705
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope07",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+   "local_xyh_cm": [
+    -15637.966,
+    3724.167,
+    4381.24
+   ],
+   "rotation_deg": [
+    -2.732611,
+    130.468839,
+    41.489497
+   ],
+   "scale": [
+    0.48655,
+    0.48655,
+    0.48655
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope08",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_04",
+   "local_xyh_cm": [
+    -15099.616,
+    3183.015,
+    4254.086
+   ],
+   "rotation_deg": [
+    1.398787,
+    164.667292,
+    41.446979
+   ],
+   "scale": [
+    0.4455,
+    0.4455,
+    0.4455
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope09",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_16",
+   "local_xyh_cm": [
+    -14256.594,
+    3247.61,
+    4377.384
+   ],
+   "rotation_deg": [
+    0.842243,
+    -164.50283,
+    41.437368
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope10",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+   "local_xyh_cm": [
+    -13632.128,
+    3852.675,
+    4501.128
+   ],
+   "rotation_deg": [
+    -1.999796,
+    -136.801334,
+    41.462729
+   ],
+   "scale": [
+    0.49456,
+    0.49456,
+    0.49456
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Slope11",
+   "group": "WestSkyIsle/Slope",
+   "mesh": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+   "local_xyh_cm": [
+    -13041.249,
+    4548.509,
+    4377.716
+   ],
+   "rotation_deg": [
+    -3.691191,
+    -104.996414,
+    41.537113
+   ],
+   "scale": [
+    0.43152,
+    0.43152,
+    0.43152
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Tip00",
+   "group": "WestSkyIsle/Tip",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -13923.051,
+    5110.296,
+    4240.941
+   ],
+   "rotation_deg": [
+    0.0,
+    -86.569175,
+    -169.785685
+   ],
+   "scale": [
+    0.72704,
+    0.72704,
+    0.72704
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Tip01",
+   "group": "WestSkyIsle/Tip",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    -14897.54,
+    5493.77,
+    4382.086
+   ],
+   "rotation_deg": [
+    -0.0,
+    6.015168,
+    174.541065
+   ],
+   "scale": [
+    0.47977,
+    0.47977,
+    0.47977
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Tip02",
+   "group": "WestSkyIsle/Tip",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "local_xyh_cm": [
+    -15305.175,
+    4542.967,
+    4244.352
+   ],
+   "rotation_deg": [
+    0.0,
+    85.812043,
+    -177.070955
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Tip03",
+   "group": "WestSkyIsle/Tip",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -14369.149,
+    4090.751,
+    4239.584
+   ],
+   "rotation_deg": [
+    0.0,
+    -156.896724,
+    175.415339
+   ],
+   "scale": [
+    0.72704,
+    0.72704,
+    0.72704
+   ]
+  },
+  {
+   "label": "WestSkyIsle_TipCore",
+   "group": "WestSkyIsle/Tip",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_07",
+   "local_xyh_cm": [
+    -14601.712,
+    4795.079,
+    3821.837
+   ],
+   "rotation_deg": [
+    0.0,
+    -118.129146,
+    180.0
+   ],
+   "scale": [
+    0.8,
+    0.8,
+    0.8
+   ]
+  },
+  {
+   "label": "WestIsleCoverC_Cover",
+   "group": "WestSkyIsle/Cover",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+   "local_xyh_cm": [
+    -14209.46,
+    3312.452,
+    5899.775
+   ],
+   "rotation_deg": [
+    0.0,
+    -55.272672,
+    0.0
+   ],
+   "scale": [
+    0.47501,
+    0.47501,
+    0.47501
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Float00A",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -10570.946,
+    6657.723,
+    4018.396
+   ],
+   "rotation_deg": [
+    0.0,
+    81.028008,
+    -12.626921
+   ],
+   "scale": [
+    0.45835,
+    0.45835,
+    0.45835
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Float00B",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -10557.826,
+    6656.885,
+    4051.158
+   ],
+   "rotation_deg": [
+    -0.0,
+    118.028008,
+    167.373079
+   ],
+   "scale": [
+    0.34376,
+    0.34376,
+    0.34376
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Float01A",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "local_xyh_cm": [
+    -14267.382,
+    9120.039,
+    4700.111
+   ],
+   "rotation_deg": [
+    0.0,
+    128.336191,
+    -14.439916
+   ],
+   "scale": [
+    0.67728,
+    0.67728,
+    0.67728
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Float01B",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "local_xyh_cm": [
+    -14262.092,
+    9124.386,
+    4723.644
+   ],
+   "rotation_deg": [
+    -0.0,
+    165.336191,
+    165.560084
+   ],
+   "scale": [
+    0.50796,
+    0.50796,
+    0.50796
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Float02A",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    -17560.288,
+    7690.77,
+    4992.342
+   ],
+   "rotation_deg": [
+    0.0,
+    23.792808,
+    7.3618
+   ],
+   "scale": [
+    0.4101,
+    0.4101,
+    0.4101
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Float02B",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    -17605.482,
+    7743.06,
+    5234.691
+   ],
+   "rotation_deg": [
+    0.0,
+    60.792808,
+    -172.6382
+   ],
+   "scale": [
+    0.30757,
+    0.30757,
+    0.30757
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Float03A",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+   "local_xyh_cm": [
+    -18813.199,
+    3652.076,
+    3950.452
+   ],
+   "rotation_deg": [
+    0.0,
+    -170.174329,
+    -4.999579
+   ],
+   "scale": [
+    1.09382,
+    1.09382,
+    1.09382
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Float03B",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+   "local_xyh_cm": [
+    -18829.827,
+    3667.553,
+    4000.459
+   ],
+   "rotation_deg": [
+    0.0,
+    -133.174329,
+    175.000421
+   ],
+   "scale": [
+    0.82036,
+    0.82036,
+    0.82036
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Shard04",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -16256.72,
+    820.624,
+    5415.763
+   ],
+   "rotation_deg": [
+    8.307375,
+    -150.176953,
+    113.053808
+   ],
+   "scale": [
+    0.68003,
+    0.68003,
+    0.68003
+   ]
+  },
+  {
+   "label": "WestSkyIsle_Shard05",
+   "group": "WestSkyIsle/Float",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -10412.359,
+    3578.394,
+    5107.187
+   ],
+   "rotation_deg": [
+    34.610498,
+    149.1984,
+    68.749388
+   ],
+   "scale": [
+    0.58594,
+    0.58594,
+    0.58594
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel00",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -4405.82,
+    -5531.201,
+    3356.865
+   ],
+   "rotation_deg": [
+    0.0,
+    -97.254877,
+    180.0
+   ],
+   "scale": [
+    0.65717,
+    0.65717,
+    0.65717
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel01",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "local_xyh_cm": [
+    -4424.589,
+    -6000.122,
+    3363.4
+   ],
+   "rotation_deg": [
+    0.0,
+    -178.370423,
+    180.0
+   ],
+   "scale": [
+    0.85029,
+    0.85029,
+    0.85029
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel02",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    -4427.896,
+    -6481.852,
+    3502.671
+   ],
+   "rotation_deg": [
+    0.0,
+    -89.349071,
+    180.0
+   ],
+   "scale": [
+    0.48594,
+    0.48594,
+    0.48594
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel03",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -4471.061,
+    -6935.093,
+    3363.602
+   ],
+   "rotation_deg": [
+    0.0,
+    91.96609,
+    180.0
+   ],
+   "scale": [
+    0.65717,
+    0.65717,
+    0.65717
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel04",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_07",
+   "local_xyh_cm": [
+    -4500.161,
+    -7397.577,
+    3361.822
+   ],
+   "rotation_deg": [
+    0.0,
+    84.851318,
+    180.0
+   ],
+   "scale": [
+    0.37281,
+    0.37281,
+    0.37281
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel05",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -4520.283,
+    -7868.556,
+    3368.094
+   ],
+   "rotation_deg": [
+    0.0,
+    88.62242,
+    180.0
+   ],
+   "scale": [
+    0.65717,
+    0.65717,
+    0.65717
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel06",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+   "local_xyh_cm": [
+    -4547.384,
+    -8333.349,
+    3374.629
+   ],
+   "rotation_deg": [
+    0.0,
+    174.985059,
+    180.0
+   ],
+   "scale": [
+    0.85029,
+    0.85029,
+    0.85029
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel07",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    -4550.147,
+    -8814.02,
+    3513.9
+   ],
+   "rotation_deg": [
+    0.0,
+    -87.235267,
+    180.0
+   ],
+   "scale": [
+    0.48594,
+    0.48594,
+    0.48594
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel08",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -4594.02,
+    -9268.502,
+    3374.831
+   ],
+   "rotation_deg": [
+    0.0,
+    86.863527,
+    180.0
+   ],
+   "scale": [
+    0.65717,
+    0.65717,
+    0.65717
+   ]
+  },
+  {
+   "label": "SkyBridge_Pendant00",
+   "group": "SkyBridge/Pendant",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4464.913,
+    -6765.734,
+    2877.502
+   ],
+   "rotation_deg": [
+    0.0,
+    -175.409171,
+    -179.467471
+   ],
+   "scale": [
+    0.9,
+    0.9,
+    0.9
+   ]
+  },
+  {
+   "label": "SkyBridge_Pendant01",
+   "group": "SkyBridge/Pendant",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4525.298,
+    -7940.317,
+    2884.279
+   ],
+   "rotation_deg": [
+    0.0,
+    178.345683,
+    175.834027
+   ],
+   "scale": [
+    0.9,
+    0.9,
+    0.9
+   ]
+  },
+  {
+   "label": "SkyBridge_Fragment00",
+   "group": "SkyBridge/Fragment",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4378.428,
+    -6572.93,
+    2767.461
+   ],
+   "rotation_deg": [
+    22.503324,
+    134.600559,
+    130.979335
+   ],
+   "scale": [
+    0.33669,
+    0.33669,
+    0.33669
+   ]
+  },
+  {
+   "label": "SkyBridge_Fragment01",
+   "group": "SkyBridge/Fragment",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4446.467,
+    -7469.671,
+    2640.859
+   ],
+   "rotation_deg": [
+    -13.567637,
+    20.608099,
+    61.415677
+   ],
+   "scale": [
+    0.44292,
+    0.44292,
+    0.44292
+   ]
+  },
+  {
+   "label": "SkyBridge_Fragment02",
+   "group": "SkyBridge/Fragment",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4641.132,
+    -7942.972,
+    2663.164
+   ],
+   "rotation_deg": [
+    -26.478364,
+    -163.852803,
+    132.314962
+   ],
+   "scale": [
+    0.43424,
+    0.43424,
+    0.43424
+   ]
+  }
+ ]
+}

@@ -1,0 +1,522 @@
+{
+ "schema": 1,
+ "unit": "IsleSkin",
+ "version": "V002",
+ "rules": {
+  "seed": 51127,
+  "isle_depth_cm": 2300,
+  "isle_bottom_scale": 0.3,
+  "rim": {
+   "count": 14,
+   "top_gap_cm": 30,
+   "max_height_cm": 900,
+   "target_width_cm": 1700,
+   "meshes": [
+    "HugeCliff07",
+    "HugeCliff05",
+    "HugeCliff02",
+    "Cliff14",
+    "Cliff12",
+    "Mesa01"
+   ]
+  },
+  "slope": {
+   "count": 12,
+   "top_depth_cm": 600,
+   "slant_cm": 1300,
+   "outward_cm": 80,
+   "meshes": [
+    "MassCliff02",
+    "MassCliff01",
+    "Cliff06",
+    "MassCliff04",
+    "Cliff16"
+   ]
+  },
+  "tip": {
+   "ring_count": 4,
+   "ring_radius_cm": 750,
+   "ring_top_depth_cm": 1750,
+   "ring_width_cm": 1000,
+   "core_top_depth_cm": 2150,
+   "core_mesh": "Cliff07",
+   "core_scale": 0.8,
+   "ring_meshes": [
+    "Cliff09",
+    "Cliff08",
+    "Nordic01",
+    "Cliff09"
+   ]
+  },
+  "cover": {
+   "mesh": "Nordic02",
+   "embed_cm": 100
+  },
+  "satellite": {
+   "pairs": 4,
+   "shards": 2,
+   "radius_cm": [
+    3700,
+    4600
+   ],
+   "depth_cm": [
+    500,
+    2200
+   ],
+   "pair_meshes": [
+    "Cliff09",
+    "Nordic01",
+    "Cliff08",
+    "Nordic02"
+   ],
+   "pair_size_cm": [
+    450,
+    900
+   ],
+   "shard_scale": [
+    0.45,
+    0.8
+   ]
+  },
+  "bridge": {
+   "keel_step_cm": 520,
+   "keel_top_depth_cm": 470,
+   "keel_max_width_cm": 560,
+   "keel_meshes": [
+    "Cliff09",
+    "Cliff08",
+    "Cliff09",
+    "Cliff07",
+    "Cliff08"
+   ],
+   "pendants": [
+    0.35,
+    0.62
+   ],
+   "pendant_scale": 0.9,
+   "fragments": 3,
+   "fragment_depth_cm": [
+    900,
+    1600
+   ],
+   "fragment_scale": [
+    0.3,
+    0.45
+   ]
+  },
+  "fit_retries": 3,
+  "fit_shrink": 0.88,
+  "line_margin_cm": 150,
+  "isle_shells": false,
+  "bodies": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Geometry_V002/Build.json",
+  "body_material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+ },
+ "mesh_alias": {
+  "HugeCliff02": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_02",
+  "HugeCliff05": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_05",
+  "HugeCliff07": "/Game/Megascans/3D_Assets/HugeSandstoneCliff/SM_HugeSandstoneCliff_07",
+  "MassCliff01": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_01",
+  "MassCliff02": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_02",
+  "MassCliff04": "/Game/Megascans/3D_Assets/MassiveSandstoneCliff/SM_MassiveSandstoneCliff_04",
+  "Mesa01": "/Game/Megascans/3D_Assets/MassiveCanyonSandstoneMesa/SM_MassiveCanyonSandstoneMesa_01",
+  "Nordic01": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_01",
+  "Nordic02": "/Game/Megascans/3D_Assets/NordicBoulder/SM_NordicBoulder_02",
+  "Cliff02": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+  "Cliff06": "/Game/SmartAssets/AssetMeshes/SM_Cliff_06",
+  "Cliff07": "/Game/SmartAssets/AssetMeshes/SM_Cliff_07",
+  "Cliff08": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+  "Cliff09": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+  "Cliff12": "/Game/SmartAssets/AssetMeshes/SM_Cliff_12",
+  "Cliff14": "/Game/SmartAssets/AssetMeshes/SM_Cliff_14",
+  "Cliff16": "/Game/SmartAssets/AssetMeshes/SM_Cliff_16"
+ },
+ "source_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V008/LVI_Ridge_EDTerrain_U5aBody_V008",
+ "work_level": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V002/LVI_Ridge_EDTerrain_IsleSkin_V002",
+ "preserved_rock_material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/Z1MassifSurface_V003/MI_Ridge_Z1_MassifSurface",
+ "collision": "NoCollision",
+ "tags": [
+  "Decoration",
+  "LNPDecoration",
+  "IsleSkinTrial"
+ ],
+ "inputs": {
+  "Scripts/Profiling/Graphics/RidgeBlueprint_V001.json": "20ce02fcc604b9d8af9e596a22a6d26682f1274de5ff11931444d2db45a07f7e",
+  "Scripts/Profiling/Graphics/ClosedBodyTrial_V001/BodyTrial.json": "64e2e1219cefb25abb143dba2c2a23fcb92fc2ea2185b5e22d35016b208ddb48",
+  "Scripts/Profiling/Graphics/IsleSkin_V001/MeshAnalysis.json": "972afb4ef6bdd18c2c8505e9f940c9f71424dc4cf1c62569bcb63c8c91df23bd",
+  "Saved/Profiling/Graphics/Phase01/U4_2_V002/DiagnosePlacement.py": "fe6ffe6fbd23727f3d79b3e94a0819442e1d7b8a23e0cd7ecc543fe1be14085e",
+  "Scripts/Profiling/Graphics/GenerateRidgeIsleSkin.py": "3ab984ec5259b4eb9760313f6e6d26afc05dc1bc3fdbdb276d2e806ea1dcfc98",
+  "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Geometry_V002/Build.json": "5d87173967bd63f6e30c8d5e9fef0a9ef38302179e51812abdf51caff6432417"
+ },
+ "placements": [
+  {
+   "label": "SkyBridge_Keel00",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -4405.93,
+    -5531.399,
+    3356.865
+   ],
+   "rotation_deg": [
+    0.0,
+    -94.488674,
+    180.0
+   ],
+   "scale": [
+    0.65717,
+    0.65717,
+    0.65717
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel01",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    -4447.115,
+    -5982.21,
+    3500.425
+   ],
+   "rotation_deg": [
+    0.0,
+    83.0397,
+    180.0
+   ],
+   "scale": [
+    0.48594,
+    0.48594,
+    0.48594
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel02",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -4446.823,
+    -6469.155,
+    3361.356
+   ],
+   "rotation_deg": [
+    0.0,
+    82.933692,
+    180.0
+   ],
+   "scale": [
+    0.65717,
+    0.65717,
+    0.65717
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel03",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_07",
+   "local_xyh_cm": [
+    -4475.766,
+    -6930.988,
+    3359.577
+   ],
+   "rotation_deg": [
+    0.0,
+    88.732518,
+    180.0
+   ],
+   "scale": [
+    0.37281,
+    0.37281,
+    0.37281
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel04",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    -4522.795,
+    -7384.648,
+    3507.163
+   ],
+   "rotation_deg": [
+    0.0,
+    89.926968,
+    180.0
+   ],
+   "scale": [
+    0.48594,
+    0.48594,
+    0.48594
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel05",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -4528.564,
+    -7864.149,
+    3368.094
+   ],
+   "rotation_deg": [
+    0.0,
+    -98.362731,
+    180.0
+   ],
+   "scale": [
+    0.65717,
+    0.65717,
+    0.65717
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel06",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_08",
+   "local_xyh_cm": [
+    -4570.94,
+    -8316.507,
+    3511.654
+   ],
+   "rotation_deg": [
+    0.0,
+    86.455639,
+    180.0
+   ],
+   "scale": [
+    0.48594,
+    0.48594,
+    0.48594
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel07",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_09",
+   "local_xyh_cm": [
+    -4569.293,
+    -8801.514,
+    3372.585
+   ],
+   "rotation_deg": [
+    0.0,
+    91.963325,
+    180.0
+   ],
+   "scale": [
+    0.65717,
+    0.65717,
+    0.65717
+   ]
+  },
+  {
+   "label": "SkyBridge_Keel08",
+   "group": "SkyBridge/Keel",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_07",
+   "local_xyh_cm": [
+    -4597.835,
+    -9268.816,
+    3370.806
+   ],
+   "rotation_deg": [
+    0.0,
+    -89.526603,
+    180.0
+   ],
+   "scale": [
+    0.37281,
+    0.37281,
+    0.37281
+   ]
+  },
+  {
+   "label": "SkyBridge_Pendant00",
+   "group": "SkyBridge/Pendant",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4471.919,
+    -6742.333,
+    2878.285
+   ],
+   "rotation_deg": [
+    0.0,
+    -165.016475,
+    -176.691706
+   ],
+   "scale": [
+    0.9,
+    0.9,
+    0.9
+   ]
+  },
+  {
+   "label": "SkyBridge_Pendant01",
+   "group": "SkyBridge/Pendant",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4526.937,
+    -7921.544,
+    2883.251
+   ],
+   "rotation_deg": [
+    -0.0,
+    171.231702,
+    178.023505
+   ],
+   "scale": [
+    0.9,
+    0.9,
+    0.9
+   ]
+  },
+  {
+   "label": "SkyBridge_Fragment00",
+   "group": "SkyBridge/Fragment",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4180.897,
+    -6785.409,
+    2685.202
+   ],
+   "rotation_deg": [
+    -13.602911,
+    107.358976,
+    66.183005
+   ],
+   "scale": [
+    0.33732,
+    0.33732,
+    0.33732
+   ]
+  },
+  {
+   "label": "SkyBridge_Fragment01",
+   "group": "SkyBridge/Fragment",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4596.299,
+    -7469.602,
+    2382.474
+   ],
+   "rotation_deg": [
+    46.646798,
+    -58.854282,
+    129.030737
+   ],
+   "scale": [
+    0.33021,
+    0.33021,
+    0.33021
+   ]
+  },
+  {
+   "label": "SkyBridge_Fragment02",
+   "group": "SkyBridge/Fragment",
+   "mesh": "/Game/SmartAssets/AssetMeshes/SM_Cliff_02",
+   "local_xyh_cm": [
+    -4754.282,
+    -7928.788,
+    2266.9
+   ],
+   "rotation_deg": [
+    1.243447,
+    -98.490957,
+    122.583779
+   ],
+   "scale": [
+    0.33105,
+    0.33105,
+    0.33105
+   ]
+  }
+ ],
+ "bodies": [
+  {
+   "label": "BODY_IsleBody_ValleySkyIsle_V002",
+   "group": "ValleySkyIsle/Body",
+   "file": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Geometry_V002/SM_Ridge_IsleBody_ValleySkyIsle_V002.fbx",
+   "fbx_sha256": "5f2dd4616e13b5df23fa4a599a917a14f3176abc6e0599361c39fd13d448d785",
+   "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Bodies_V002/SM_Ridge_IsleBody_ValleySkyIsle_V002",
+   "triangles": 2400,
+   "bounds_cm": [
+    [
+     12151.829528808594,
+     5789.944839477539,
+     16842.005920410156
+    ],
+    [
+     16374.946594238281,
+     10155.22232055664,
+     21249.105834960938
+    ]
+   ],
+   "role": "isle_body",
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+  },
+  {
+   "label": "BODY_IsleFloat_ValleySkyIsle_V002",
+   "group": "ValleySkyIsle/Body",
+   "file": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Geometry_V002/SM_Ridge_IsleFloat_ValleySkyIsle_V002.fbx",
+   "fbx_sha256": "aad759b15d21a0704b7457698d555e1b6b0088da7bb12ec6ce7d2c4e1fc463e4",
+   "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Bodies_V002/SM_Ridge_IsleFloat_ValleySkyIsle_V002",
+   "triangles": 3240,
+   "bounds_cm": [
+    [
+     11492.057800292969,
+     4956.151580810547,
+     16544.393920898438
+    ],
+    [
+     17679.733276367188,
+     12337.712097167969,
+     21585.305786132812
+    ]
+   ],
+   "role": "satellites",
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+  },
+  {
+   "label": "BODY_IsleBody_WestSkyIsle_V002",
+   "group": "WestSkyIsle/Body",
+   "file": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Geometry_V002/SM_Ridge_IsleBody_WestSkyIsle_V002.fbx",
+   "fbx_sha256": "6b854266e06d98fc5164a6e0d5fef15774fe0db7925c589cdee7dc22b2a6214c",
+   "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Bodies_V002/SM_Ridge_IsleBody_WestSkyIsle_V002",
+   "triangles": 2400,
+   "bounds_cm": [
+    [
+     12418.193054199219,
+     17633.49151611328,
+     2079.921340942383
+    ],
+    [
+     16488.084411621094,
+     21878.54766845703,
+     5865.337753295898
+    ]
+   ],
+   "role": "isle_body",
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+  },
+  {
+   "label": "BODY_IsleFloat_WestSkyIsle_V002",
+   "group": "WestSkyIsle/Body",
+   "file": "Saved/Profiling/Graphics/Phase01/IsleSkin_V001/Geometry_V002/SM_Ridge_IsleFloat_WestSkyIsle_V002.fbx",
+   "fbx_sha256": "f0452779c39d021dc6e905f334c571684cb58e8e9be81644a98849505a28d6b0",
+   "asset": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/IsleSkin_V001/Bodies_V002/SM_Ridge_IsleFloat_WestSkyIsle_V002",
+   "triangles": 3240,
+   "bounds_cm": [
+    [
+     11992.373657226562,
+     17339.67742919922,
+     1234.1961860656738
+    ],
+    [
+     17736.90185546875,
+     22701.03302001953,
+     7099.842071533203
+    ]
+   ],
+   "role": "satellites",
+   "material": "/Game/Maps/_WorkInProgress/Ridge_00/Graphics/EDTerrain_V001/U5aBody_V006/MI_Ridge_U5a_CapRock_V001"
+  }
+ ]
+}
