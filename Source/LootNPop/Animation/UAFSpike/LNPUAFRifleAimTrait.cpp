@@ -66,8 +66,8 @@ namespace UE::UAF
 void FLNPUAFRifleAimTask::Execute(UE::UAF::FEvaluationVM& VM) const
 {
 	using namespace UE::UAF;
-	if (!ensureMsgf(!VM.GetActiveNamedSet(), TEXT("LNP Rifle Aim requires the ordinary skeleton runtime."))
-		|| !EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Bones))
+	// UE 5.9는 EvaluationVM의 named set 경로를 없앴으므로 일반 스켈레톤 런타임만 남는다.
+	if (!EnumHasAnyFlags(VM.GetFlags(), EEvaluationFlags::Bones))
 		return;
 	const auto* Keyframe = VM.PeekValue<TUniquePtr<FKeyframeState>>(KEYFRAME_STACK_NAME, 0);
 	if (!Keyframe || !Keyframe->IsValid())

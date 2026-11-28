@@ -176,11 +176,12 @@ void ULNPUAFSpikeAnimInstance::UpdateInputs(float DeltaSeconds)
 
 	const auto SetInput = [UAFComponent](FName Name, const auto& Value)
 	{
-		return UAFComponent->SetVariable(FAnimNextVariableReference::FromName(Name, FLNPUAFSpikeInputs::StaticStruct()), Value);
+		return UAFComponent->SetVariable(FUAFInputVariableReference(FAnimNextVariableReference::FromName(Name, FLNPUAFSpikeInputs::StaticStruct())), Value);
 	};
 
 	// 단일 그래프 시스템 템플릿의 Graph 변수는 UObject 참조다.
-	bool bSucceeded = UAFComponent->SetVariable(FAnimNextVariableReference::FromName(TEXT("Graph"), SpikeSystem), TObjectPtr<UObject>(SpikeGraph));
+	// UE 5.9부터 외부 쓰기는 Input 범위 변수에만 닿는다(FUAFInputVariableReference).
+	bool bSucceeded = UAFComponent->SetVariable(FUAFInputVariableReference(FAnimNextVariableReference::FromName(TEXT("Graph"), SpikeSystem)), TObjectPtr<UObject>(SpikeGraph));
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, Databases), Inputs.Databases);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, Trajectory), Inputs.Trajectory);
 	bSucceeded &= SetInput(GET_MEMBER_NAME_CHECKED(FLNPUAFSpikeInputs, InterruptMode), Inputs.InterruptMode);

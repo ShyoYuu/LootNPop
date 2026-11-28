@@ -31,12 +31,12 @@ namespace UE::UAF
 		const auto* Shared = bMontageBase ? Base.GetSharedData<FMontageTrait::FSharedData>() : nullptr;
 		const auto* State = bMontageBase ? Base.GetInstanceData<FMontageTrait::FInstanceData>() : nullptr;
 		if (!Shared || Shared->GetSlotName(Base) != TEXT("UpperBody") || !Shared->GetbAlwaysUpdateSource(Base) || Shared->GetbDisableSynchronization(Base)
-			|| !State->Source.IsValid() || UseAbstractSkeletonRuntime())
+			|| !State->Source.IsValid())
 		{
 			if (!Instance->bReportedConfigurationError)
 			{
 				Context.Log(ELogVerbosity::Error,
-					TEXT("Requires a native UpperBody Montage Trait with a connected Source, Always Update Source=true, Disable Synchronization=false and abstract skeleton runtime disabled. Montage evaluation skipped."),
+					TEXT("Requires a native UpperBody Montage Trait with a connected Source, Always Update Source=true and Disable Synchronization=false. Montage evaluation skipped."),
 					TEXT("LNPUpperBodyMontage"));
 				Instance->bReportedConfigurationError = true;
 			}
@@ -61,8 +61,6 @@ namespace UE::UAF
 void FLNPUAFBlendUpperBodyTask::Execute(UE::UAF::FEvaluationVM& VM) const
 {
 	using namespace UE::UAF;
-	if (!ensureMsgf(!VM.GetActiveNamedSet(), TEXT("LNP UpperBody mask does not support named sets.")))
-		return;
 	const auto* Base = VM.PeekValue<TUniquePtr<FKeyframeState>>(KEYFRAME_STACK_NAME, 1);
 	const auto* Montage = VM.PeekValue<TUniquePtr<FKeyframeState>>(KEYFRAME_STACK_NAME, 0);
 	if (!ensureMsgf(Base && Montage && Base->IsValid() && Montage->IsValid(), TEXT("LNP UpperBody mask requires source and montage keyframes.")))
@@ -78,7 +76,7 @@ void FLNPUAFBlendUpperBodyTask::Execute(UE::UAF::FEvaluationVM& VM) const
 		return;
 	}
 
-	UUAFBlendMask::FSkeletonBoneWeightArray Weights;
+	UUAFSkeletonBlendMask::FSkeletonBoneWeightArray Weights;
 	Weights.SetNumZeroed(Bones.GetNum());
 	int32 UpperBones = 0;
 	for (int32 Index = SpineIndex; Index < Bones.GetNum(); ++Index)

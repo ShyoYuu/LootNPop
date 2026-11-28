@@ -168,7 +168,7 @@ namespace LNPCrawlFixture
 			const double StepHeights[] = {10.0, 30.0, 50.0, 70.0, 100.0, 150.0, 250.0};
 			for (int32 Index = 0; Index < UE_ARRAY_COUNT(StepHeights); ++Index)
 			{
-				Context.Box(FString::Printf(TEXT("CF_04_Step_%03d"), FMath::RoundToInt(StepHeights[Index])),
+				Context.Box(FString::Printf(TEXT("CF_04_Step_%03d"), static_cast<int32>(FMath::RoundToInt(StepHeights[Index]))),
 					-1800.0 + Index * 600.0, -4000.0, 500.0, 500.0, StepHeights[Index]);
 			}
 

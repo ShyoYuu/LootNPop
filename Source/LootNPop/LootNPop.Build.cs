@@ -8,6 +8,8 @@ public class LootNPop : ModuleRules
 	public LootNPop(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		// UE 5.9 V8 빌드 설정은 모듈 루트의 Tests 폴더를 기본 제외한다. 자동화 테스트를 모든 타깃에서 계속 컴파일한다.
+		bForceIncludeTestsFolder = true;
 
 		SetupIrisSupport(Target, true);
 
@@ -53,6 +55,7 @@ public class LootNPop : ModuleRules
 			"Chooser",
             "NetCore",
             "MassReplication",
+            "MassNetwork",          // UE 5.9: FMassNetworkIDFragment가 MassReplication에서 분리됨
             "MotionWarping",
             "PoseSearch",
             "AnimationWarpingRuntime",

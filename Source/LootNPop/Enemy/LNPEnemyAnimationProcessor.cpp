@@ -129,7 +129,7 @@ void ULNPEnemyAnimationProcessor::Execute(FMassEntityManager& EntityManager, FMa
 		if (Config == nullptr || Config->ActionSequences.IsEmpty())
 			return;
 
-		UMassRepresentationSubsystem* RepresentationSubsystem = Ctx.GetSharedFragment<FMassRepresentationSubsystemSharedFragment>().RepresentationSubsystem;
+		UMassRepresentationSubsystem* RepresentationSubsystem = Ctx.GetSharedFragment<FMassRepresentationSubsystemSharedFragment>().GetRepresentationSubsystem();
 		check(RepresentationSubsystem);
 		FMassInstancedSkinnedMeshInfoArrayView MeshInfos = RepresentationSubsystem->GetMutableInstancedSkinnedMeshInfos();
 
@@ -236,7 +236,7 @@ void ULNPEnemyHitStopProcessor::Execute(FMassEntityManager& EntityManager, FMass
 
 		const FLNPEntityAttackConfig& AttackConfig = Config->EntityAttackConfig;
 
-		UMassRepresentationSubsystem* RepresentationSubsystem = Ctx.GetSharedFragment<FMassRepresentationSubsystemSharedFragment>().RepresentationSubsystem;
+		UMassRepresentationSubsystem* RepresentationSubsystem = Ctx.GetSharedFragment<FMassRepresentationSubsystemSharedFragment>().GetRepresentationSubsystem();
 		check(RepresentationSubsystem);
 
 		const TConstArrayView<FMassRepresentationAnimationFragment> AnimFrags = Ctx.GetFragmentView<FMassRepresentationAnimationFragment>();

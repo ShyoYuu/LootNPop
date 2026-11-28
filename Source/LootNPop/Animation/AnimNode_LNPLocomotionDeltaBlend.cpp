@@ -316,9 +316,10 @@ void FAnimNode_LNPLocomotionDeltaBlend::Evaluate_AnyThread(FPoseContext& Output)
 	BlendCurves.SetNum(1);
 	BlendCurves[0].MoveFrom(OverlayContext.Curve);
 
-	TArray<UE::Anim::FStackAttributeContainer, TMemStackAllocator<>> BlendAttributes;
-	BlendAttributes.SetNum(1);
-	BlendAttributes[0].MoveFrom(OverlayContext.CustomAttributes);
+	// UE 5.9 시그니처는 블렌드 속성을 포인터 배열로 받는다. 컨테이너는 블렌드가 끝날 때까지 이 스코프에 둔다.
+	UE::Anim::FStackAttributeContainer BlendAttribute;
+	BlendAttribute.MoveFrom(OverlayContext.CustomAttributes);
+	const UE::Anim::FStackAttributeContainer* BlendAttributes[] = { &BlendAttribute };
 
 	const FAnimationRuntime::EBlendPosesPerBoneFilterFlags Flags = bMeshSpaceRotationBlend
 		? FAnimationRuntime::EBlendPosesPerBoneFilterFlags::MeshSpaceRotation
@@ -326,7 +327,7 @@ void FAnimNode_LNPLocomotionDeltaBlend::Evaluate_AnyThread(FPoseContext& Output)
 
 	FAnimationPoseData OutputData(Output);
 	FAnimationRuntime::BlendPosesPerBoneFilter(BaseContext.Pose, BlendPoses, BaseContext.Curve, BlendCurves,
-		BaseContext.CustomAttributes, BlendAttributes, OutputData, BoneBlendWeights, Flags, CurveBlendOption);
+		BaseContext.CustomAttributes, MakeConstArrayView(BlendAttributes), OutputData, BoneBlendWeights, Flags, CurveBlendOption);
 
 	LastChestDelta = ChestDelta;
 

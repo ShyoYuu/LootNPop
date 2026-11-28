@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.8",
+	"EngineAssociation": "5.9",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -172,10 +172,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "UMGToolSet",
-			"Enabled": true
-		},
-		{
 			"Name": "StateTreeToolset",
 			"Enabled": true
 		},
@@ -261,10 +257,6 @@
 		},
 		{
 			"Name": "LiveCodingToolset",
-			"Enabled": true
-		},
-		{
-			"Name": "SemanticSearchToolset",
 			"Enabled": true
 		},
 		{
@@ -360,6 +352,10 @@
 		{
 			"Name": "MoverAnimNext",
 			"Enabled": true
+		},
+		{
+			"Name": "Fab",
+			"Enabled": false
 		}
 	]
 }

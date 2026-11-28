@@ -41,7 +41,10 @@ void FLNPUAFNotifyCleanup::OnEndExecution(float InDeltaTime)
 	const FUAFNotifyDispatcherComponent* Dispatcher = GetModuleInstance().TryGetComponent<FUAFNotifyDispatcherComponent>();
 	if (Dispatcher)
 	{
-		ActiveNotifyReferences = Dispatcher->ActiveAnimNotifyEventReference;
+		// UE 5.9 디스패처는 끝 처리 뒤 이번 프레임 활성 스팬을 PreviousAnimNotifySpans로 넘긴다.
+		ActiveNotifyReferences.Reset(Dispatcher->PreviousAnimNotifySpans.Num());
+		for (const FUAFNotifyDispatchEntry& Entry : Dispatcher->PreviousAnimNotifySpans)
+			ActiveNotifyReferences.Add(Entry.Ref);
 		DispatchMesh = Dispatcher->SkeletalMeshComponent;
 	}
 }

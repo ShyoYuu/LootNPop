@@ -39,7 +39,7 @@ void ULNPUpdateISMProcessor::Execute(FMassEntityManager& EntityManager, FMassExe
 {
 	EntityQuery.ForEachEntityChunk(Context, [](FMassExecutionContext& Context)
 	{
-		UMassRepresentationSubsystem* RepresentationSubsystem = Context.GetSharedFragment<FMassRepresentationSubsystemSharedFragment>().RepresentationSubsystem;
+		UMassRepresentationSubsystem* RepresentationSubsystem = Context.GetSharedFragment<FMassRepresentationSubsystemSharedFragment>().GetRepresentationSubsystem();
 		check(RepresentationSubsystem);
 		FMassInstancedStaticMeshInfoArrayView ISMInfo = RepresentationSubsystem->GetMutableInstancedStaticMeshInfos();
 
