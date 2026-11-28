@@ -2,7 +2,7 @@
 
 ## 1. 한눈에 보기
 
-UE 5.8 **Mover 2.0** 기반. 구형 중력(위치마다 Up이 다른 Dyson Sphere 내벽)과 멀티플레이 예측·롤백을 함께 지원하려고 역할을 컴포넌트 단위로 나눴다.
+UE 5.9 **Mover 2.0** 기반. 구형 중력(위치마다 Up이 다른 Dyson Sphere 내벽)과 멀티플레이 예측·롤백을 함께 지원하려고 역할을 컴포넌트 단위로 나눴다.
 
 ```
 [입력]  ULNPInputHandlerComponent (IMoverInputProducerInterface)

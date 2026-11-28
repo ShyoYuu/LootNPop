@@ -6,7 +6,7 @@ bool FLNPLayeredMove_DashMontageSync::GenerateMove(const FMoverTickStartData& St
 	const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
 {
 	// 부모의 "메시에 몽타주가 없으면 끝낸다" 검사만 건너뛰려고 재시뮬레이션 플래그를 세운 사본을 넘긴다.
-	// 부모(UE 5.8)가 이 플래그를 읽는 곳은 그 검사와 디버그 로그뿐이다.
+	// 부모(UE 5.9)가 이 플래그를 읽는 곳은 그 검사와 디버그 로그뿐이다.
 	FMoverTimeStep StepWithoutMeshCheck = TimeStep;
 	StepWithoutMeshCheck.bIsResimulating = true;
 	return Super::GenerateMove(StartState, StepWithoutMeshCheck, MoverComp, SimBlackboard, OutProposedMove);

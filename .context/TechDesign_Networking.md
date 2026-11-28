@@ -1,6 +1,6 @@
 # LootNPop 멀티플레이 네트워킹
 
-> **UE 5.8 · Iris Replication + MassReplication 하이브리드 · GAS 클라이언트 예측 · Mover 2.0(Network Prediction)**
+> **UE 5.9 · Iris Replication + MassReplication 하이브리드 · GAS 클라이언트 예측 · Mover 2.0(Network Prediction)**
 >
 > 구형(Sphere) 월드에서 수백 규모 Mass 엔티티(적 NPC·발사체)와 소수 플레이어의 액션 전투를
 > 리슨 서버 기준으로 동기화한다. 전 구간 구현·PIE 2/3인 검증 완료 (지연 `net.PktLag=150/250`·손실 시뮬레이션 포함).
@@ -638,7 +638,7 @@ UPROPERTY 없는 필드 + NetSerialize로 만들었더니 **타입만 도착하�
 
 ### 4.11 레이어드 무브의 `FinishVelocitySettings`는 복제되지 않는다 (2026-10-13)
 
-**엔진 버그(UE 5.8).** `FLayeredMoveFinishVelocitySettings::NetSerialize`(`LayeredMove.cpp`) 첫 줄이
+**엔진 버그(UE 5.8, 5.9 Preview 2에서도 그대로).** `FLayeredMoveFinishVelocitySettings::NetSerialize`(`LayeredMove.cpp`) 첫 줄이
 `Ar.IsSaving() ? 0 : ...`이라 송신 측은 항상 "설정 없음" 비트만 쓴다. Mode·`ClampVelocity`·`SetVelocity`가
 네트워크를 전혀 타지 않고, 수신 측 무브는 기본값 `MaintainLastRootMotionVelocity`로 남는다.
 

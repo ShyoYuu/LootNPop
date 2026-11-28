@@ -136,7 +136,7 @@ def build():
                                       unreal.MaterialInstanceConstantFactoryNew())
         assert instance
         unreal.MaterialEditingLibrary.set_material_instance_parent(instance, material)
-        # UE 5.8 setter는 설정 후에도 false를 반환하므로 실제 값을 재조회한다.
+        # UE 5.8 setter는 설정 후에도 false를 반환했다(5.9에서 수정). 반환값 대신 실제 값을 재조회해 확인한다.
         unreal.MaterialEditingLibrary.set_material_instance_scalar_parameter_value(instance, "ProbeMode", value)
         assert unreal.MaterialEditingLibrary.get_material_instance_scalar_parameter_value(instance, "ProbeMode") == value
         assets.append(instance)

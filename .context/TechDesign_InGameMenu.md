@@ -241,7 +241,7 @@ ULNPMenuHintBarWidget::SetHints()   → 글리프 해석 → 엔트리 위젯 �
 
 ## 4. 스탯 합/곱 분해
 
-UE 5.8 어그리게이터 평가식(`GameplayEffectAggregator.cpp`):
+UE 5.9 어그리게이터 평가식(`GameplayEffectAggregator.cpp`):
 
 ```
 ((BaseValue + AddBase) * MultiplyAdditive / DivideAdditive * MultiplyCompound) + AddFinal

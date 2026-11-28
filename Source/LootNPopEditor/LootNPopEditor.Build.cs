@@ -51,7 +51,7 @@ public class LootNPopEditor : ModuleRules
 
 		PublicIncludePaths.AddRange(["LootNPopEditor"]);
 
-		// UE 5.8 공개 인터페이스에는 Trace 세션 관리자 접근자가 없다.
+		// UE 5.9 공개 인터페이스에는 Trace 세션 관리자 접근자가 없다.
 		PrivateIncludePaths.Add(System.IO.Path.Combine(GetModuleDirectory("RewindDebugger"), "Private"));
 	}
 }

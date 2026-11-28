@@ -15,7 +15,7 @@ $taskExe = Join-Path $taskRoot 'Saved/SurfaceNavigationPhase3Package/Windows/Loo
 $taskPrefix = ''
 $taskCaptureDir = Join-Path $taskRoot 'Saved/SurfaceNavigationPhase3Package/Windows/LootNPop/Saved/Logs'
 if ($EditorGame) {
-    $taskExe = 'C:/Program Files/Epic Games/UE_5.8/Engine/Binaries/Win64/UnrealEditor.exe'
+    $taskExe = 'C:/Program Files/Epic Games/UE_5.9/Engine/Binaries/Win64/UnrealEditor.exe'
     $taskPrefix = "`"$taskRoot/LootNPop.uproject`" -game "
     $taskCaptureDir = Join-Path $taskRoot 'Saved/Logs'
 }

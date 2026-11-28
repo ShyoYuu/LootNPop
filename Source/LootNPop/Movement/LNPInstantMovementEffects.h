@@ -9,7 +9,7 @@
 /*
  * 위치·회전을 컴포넌트가 아니라 서브스텝 시작 상태에서 쓰는 엔진 인스턴트 이펙트 파생형. 속도·모드는 부모와 똑같다.
  *
- * ⚠️ **엔진 우회용이다.** UE 5.8의 `FJumpImpulseEffect`·`FApplyVelocityEffect`(BasicInstantMovementEffects.cpp)는
+ * ⚠️ **엔진 우회용이다.** UE 5.8~5.9의 `FJumpImpulseEffect`·`FApplyVelocityEffect`(BasicInstantMovementEffects.cpp)는
  * 출력 위치·회전을 `UpdatedComponent`에서 읽는다. Async 모드는 시뮬레이션 중 컴포넌트를 옮기지 않아 컴포넌트는
  * 화면 프레임마다(FinalizeFrame) 한 번만 따라온다. 한 화면 프레임에 고정 틱이 두 번 돌면 두 번째 틱에서 한 틱 늦고,
  * 재시뮬 중엔 롤백 지점에 멈춰 있다. 이펙트가 그 위치를 쓰면 직전 틱 이동분이 사라진다. 스텝 수는 머신마다 달라

@@ -14,7 +14,7 @@ $taskArguments = @(
     '-pak', '-iostore', '-package', '-archive', ('-archivedirectory={0}' -f $taskArchive),
     ('-map={0}' -f $taskCookRoots), '-unattended', '-utf8output', '-nocompileeditor'
 )
-& 'C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat' @taskArguments
+& 'C:\Program Files\Epic Games\UE_5.9\Engine\Build\BatchFiles\RunUAT.bat' @taskArguments
 if ($LASTEXITCODE -ne 0) { throw "BuildCookRun failed: $LASTEXITCODE" }
 $taskStagedPath = Join-Path $taskArchive 'Windows/LootNPop/Scripts/Profiling/Graphics/RidgeViewpoints.json'
 if (-not (Test-Path -LiteralPath $taskStagedPath)) { throw "Viewpoints NonUFS dependency was not staged: $taskStagedPath" }

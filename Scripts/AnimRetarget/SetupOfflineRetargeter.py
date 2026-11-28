@@ -8,7 +8,7 @@ LootNPop 에디터 Output Log의 Cmd 창에서 실행한다.
 - 대상 LeftToe·RightToe 체인 매핑 해제. 원본 다리 체인에 매핑돼 ball_l/r가 최대 약 100° 흔들렸다.
   Lyra IK 리그에는 발가락 체인이 없다.
 - 스택 맨 앞에 Copy Base Pose op. 본 이름으로 원본 로컬 포즈를 복사해, 체인 밖 본(발가락·트위스트)이
-  기준 포즈에 멈추지 않고 Lyra 애니를 따른다. 전역 설정의 bCopyBasePose는 5.8 op 스택에서 무시된다.
+  기준 포즈에 멈추지 않고 Lyra 애니를 따른다. 전역 설정의 bCopyBasePose는 5.8~5.9 op 스택에서 무시된다.
 저장하지 않는다. 결과를 확인한 뒤 이 에셋만 저장한다.
 """
 import json

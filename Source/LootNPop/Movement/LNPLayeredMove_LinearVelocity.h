@@ -9,7 +9,7 @@
 /**
  * FinishVelocitySettings가 네트워크를 타는 FLayeredMove_LinearVelocity. 동작은 부모와 똑같다.
  *
- * ⚠️ **엔진 우회용이다.** UE 5.8의 `FLayeredMoveFinishVelocitySettings::NetSerialize`(LayeredMove.cpp)는
+ * ⚠️ **엔진 우회용이다.** UE 5.8~5.9의 `FLayeredMoveFinishVelocitySettings::NetSerialize`(LayeredMove.cpp)는
  * 송신 측이 항상 "설정 없음" 비트만 쓰므로 Mode·ClampVelocity·SetVelocity가 전송되지 않는다.
  * 수신 측 무브는 기본값 MaintainLastRootMotionVelocity로 남고, 롤백 시 이 값이 로컬 무브를 덮어쓴다.
  * 그래서 보정 후 재시뮬레이션이나 ForwardPredict 프록시에서는 Clamp·Set 대신 마지막 속도가 그대로 유지된다.

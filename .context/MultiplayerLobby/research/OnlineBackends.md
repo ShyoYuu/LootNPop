@@ -38,7 +38,7 @@
 
 ### Phase 4(세션 계층)
 
-- UE 5.8에서 세션 API로 OnlineSubsystem(v1), Online Services(v2), CommonUser 플러그인 중 무엇을 쓸지. Steam·EOS 양쪽 구현이 갖춰진 쪽을 고른다.
+- UE 5.9에서 세션 API로 OnlineSubsystem(v1), Online Services(v2), CommonUser 플러그인 중 무엇을 쓸지. Steam·EOS 양쪽 구현이 갖춰진 쪽을 고른다.
 - Null 백엔드 LAN 검색이 Iris 리슨 서버와 함께 패키지에서 동작하는지.
 - 세션 속성(방 이름·인원·진행 중)을 대기실·게임 맵 전환 사이에서 누가 갱신하는지.
 

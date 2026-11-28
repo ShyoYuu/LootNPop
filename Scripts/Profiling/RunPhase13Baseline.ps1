@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $taskPackage = Join-Path $taskRoot 'Saved/SurfaceNavigationPhase8Package/Windows/LootNPop'
 $taskExe = Join-Path $taskPackage 'Binaries/Win64/LootNPop.exe'
-$taskInsights = 'C:/Program Files/Epic Games/UE_5.8/Engine/Binaries/Win64/UnrealInsights.exe'
+$taskInsights = 'C:/Program Files/Epic Games/UE_5.9/Engine/Binaries/Win64/UnrealInsights.exe'
 $taskOutput = Join-Path $taskRoot 'Saved/Profiling/Phase13/Before'
 New-Item -ItemType Directory -Force -Path $taskOutput | Out-Null
 if (Get-Process -Name UnrealEditor,LootNPop,UnrealInsights -ErrorAction SilentlyContinue) {

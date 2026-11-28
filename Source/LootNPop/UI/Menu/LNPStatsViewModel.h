@@ -45,7 +45,7 @@ public:
 	/**
 	 * 어트리뷰트의 "합연산결과" = BaseValue + 활성 GameplayEffect의 AddBase 모디파이어 합.
 	 *
-	 * UE 5.8의 어그리게이터 평가식이
+	 * UE 5.9의 어그리게이터 평가식이
 	 *   ((Base + AddBase) * MultiplyAdditive / DivideAdditive * MultiplyCompound) + AddFinal
 	 * 이므로(GameplayEffectAggregator.cpp), 이 값이 곧 "곱연산이 적용되기 직전의 값"이다.
 	 *

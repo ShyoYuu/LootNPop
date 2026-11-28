@@ -135,7 +135,7 @@ foreach ($taskCase in $Cases) {
                 $taskRsp = Join-Path $taskOutput "${taskName}_Export.rsp"
                 "TimingInsights.ExportTimerStatistics $taskCsv -region=LNPLoadBaselineCapture -sortBy=TotalInclusiveTime" |
                     Set-Content -Encoding UTF8 -LiteralPath $taskRsp
-                $taskInsights = 'C:/Program Files/Epic Games/UE_5.8/Engine/Binaries/Win64/UnrealInsights.exe'
+                $taskInsights = 'C:/Program Files/Epic Games/UE_5.9/Engine/Binaries/Win64/UnrealInsights.exe'
                 $taskExportLog = Join-Path $taskOutput "${taskName}_Insights.log"
                 $taskExport = Start-Process -FilePath $taskInsights -ArgumentList "-OpenTraceFile=$taskTracePath -AutoQuit -NoUI -ExecOnAnalysisCompleteCmd=@=$taskRsp -ABSLOG=$taskExportLog -unattended" -WindowStyle Hidden -PassThru -Wait
                 if ($taskExport.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $taskCsv.Replace('{region}','LNPLoadBaselineCapture'))) {

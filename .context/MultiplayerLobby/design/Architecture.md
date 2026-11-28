@@ -42,7 +42,7 @@
 
 | 항목 | 사실 | 위치 |
 |:---|:---|:---|
-| 엔진·복제 | UE 5.8, Iris(`SetupIrisSupport`), 리슨 서버 전용(Server 타깃 없음) | `LootNPop.Build.cs:12` |
+| 엔진·복제 | UE 5.9, Iris(`SetupIrisSupport`), 리슨 서버 전용(Server 타깃 없음) | `LootNPop.Build.cs:12` |
 | 온라인 | OnlineSubsystem·Online Services·CommonUser·Steam·EOS 플러그인 없음, `[OnlineSubsystem]` 섹션 없음 | `LootNPop.Build.cs:71`(주석만) |
 | 맵 설정 | `GameDefaultMap`·`EditorStartupMap` 모두 TestMap03, `GameInstanceClass` 미설정 | `Config/DefaultEngine.ini:8-10` |
 | 트래블 | `ServerTravel`·`ClientTravel`·세션 API 사용 0건, 넷 관련 콘솔 명령 없음 | 소스 전체 |

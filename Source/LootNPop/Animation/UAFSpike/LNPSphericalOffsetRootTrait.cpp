@@ -14,14 +14,14 @@
 #include "Math/SpringMath.h"
 #include "Module/AnimNextModuleInstance.h"
 #include "LootNPop.h"
-#include "MotionMatchingTrait.h" // UE 5.8 내부 검색 상태. 숨김 ABP의 DB 태그는 사용하지 않는다.
-#include "OffsetRootBoneTrait.h" // UE 5.8 내부 상태 의존성. 기본 task 구현은 복사하지 않는다.
+#include "MotionMatchingTrait.h" // UE 5.9 내부 검색 상태. 숨김 ABP의 DB 태그는 사용하지 않는다.
+#include "OffsetRootBoneTrait.h" // UE 5.9 내부 상태 의존성. 기본 task 구현은 복사하지 않는다.
 #include "StrafeWarpingTrait.h" // 기본 Strafe Warping task에 입력만 전달한다.
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "TraitInterfaces/IBlendStack.h"
 #include "TraitInterfaces/IDiscreteBlend.h"
 #include "TraitInterfaces/ITimeline.h"
-#include "Traits/BlendLayer.h" // UE 5.8 내부 트레이트 UID. 라이플 블렌드 레이어의 기본 자식으로 MM 탐색을 이어 간다.
+#include "Traits/BlendLayer.h" // UE 5.9 내부 트레이트 UID. 라이플 블렌드 레이어의 기본 자식으로 MM 탐색을 이어 간다.
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"

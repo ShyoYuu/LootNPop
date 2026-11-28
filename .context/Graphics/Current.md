@@ -195,7 +195,7 @@ LootNPop은 8000, ElectricDreamsEnv는 8001이며 두 에디터는 번갈아 사
 | `RidgeDecorationDensity_20261116/` | 1-B5c `Preflight.json`·`Variant_*`·`Inspection_*`·`Restore.json`·`Hashes_restored.json`·`Views/Compare_spacing_*` |
 | `RidgeRockBlocker_20261116/` | 1-B5b `BeforeBlocker.umap`·`Promotion.json`·`Inspection_V002.json`·`CliffCollisionFit.*`·`BeforeRebake_SurfaceData.uasset`·`Rebake.json`·`SelectionState.json=restored`·`PieVerdict.json` |
 
-UE5.8 scalar setter는 반환 false만으로 실패를 판정하지 말고 getter로 확인한다. Python 프로퍼티 이름은 bool의 `b` 접두어를 빼고 쓴다(`terrain_blocker`). PIE 게임창이 분리돼 있으면 native CaptureViewport의 검은 화면을 근거로 쓰지 않고 게임 콘솔 `Shot`으로 확인한다. PCG 재생성 직후 같은 프레임의 검사는 정리 대기 컴포넌트를 읽으므로 한 번 더 실행한다.
+UE 5.8 scalar setter는 설정해도 false를 반환했다(5.9에서 수정). 반환값보다 getter로 확인한다. Python 프로퍼티 이름은 bool의 `b` 접두어를 빼고 쓴다(`terrain_blocker`). PIE 게임창이 분리돼 있으면 native CaptureViewport의 검은 화면을 근거로 쓰지 않고 게임 콘솔 `Shot`으로 확인한다. PCG 재생성 직후 같은 프레임의 검사는 정리 대기 컴포넌트를 읽으므로 한 번 더 실행한다.
 
 ## 5. 새 세션으로 넘길 일
 

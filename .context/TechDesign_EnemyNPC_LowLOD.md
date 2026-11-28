@@ -546,9 +546,9 @@ ISKM의 Loop/Clamp도 같은 함수에서 파생한다(§6.4).
 
 ## 6. 트랙 C — ISM ↔ ISKM 하이브리드
 
-### 6.1 엔진 기반 (UE 5.8)
+### 6.1 엔진 기반 (UE 5.9)
 
-ISM만으로는 스켈레탈 애니메이션이 불가능하다. 그러나 **5.8의 MassRepresentation은
+ISM만으로는 스켈레탈 애니메이션이 불가능하다. 그러나 **MassRepresentation은(5.8부터)
 `SkinnedMeshInstance`를 정식 표현 타입으로 갖고 있다.**
 
 | 요소 | 클래스 / 구조체 |
@@ -558,9 +558,15 @@ ISM만으로는 스켈레탈 애니메이션이 불가능하다. 그러나 **5.8
 | 필드 타입 | `FSkinnedMeshInstanceVisualizationDesc` (**`Meshes` 배열** + `bUseTransformOffset`/`TransformOffset` + `CustomDataFloats`) |
 | 배열 원소 | `FMassSkinnedMeshInstanceVisualizationMeshDesc` (Asset / TransformProvider / Min·MaxLODSignificance / MaterialOverrides / bCastShadows) |
 | 애니 데이터 | `FMassRepresentationAnimationFragment::AnimData` |
-| 애니 주입 | `FMassInstancedSkinnedMeshInfo::AddBatchedAnimationData(FAnimSequenceTrackAutoPlayData)` |
+| 애니 주입 | `FMassInstancedSkinnedMeshInfo::AddBatchedAnimationData(FMassInstancedAnimationBatchData)` — 5.9부터 AutoPlay(레이어 0)에 BlendSpace·Manual 레이어를 묶은 형식 |
 | 소비 프로세서 | `UMassConsumeInstancedSkinnedMeshAnimationProcessor` (PrePhysics · `Representation` 그룹 · `Client\|Standalone`) |
 | 백엔드 | `UInstancedSkinnedMeshComponent` + `UAnimSequenceTransformProviderData` (GPU 전용) |
+
+⚠️ **5.9의 `UAnimSequenceTransformProviderData::BoundsQuality`는 `Conservative`로 둔다.** 5.9에서 생긴 이 속성의
+기본값 `PerSequence`는 동적 바운드(shape set) 경로를 켜는데, 적에게 다가가 표현이 바뀌는 순간 렌더 스레드가
+해제된 shape set을 읽어 크래시했다(`FAnimSequenceTransformProvider::ProvideTransforms`, 2026-11-28 5.9 Preview 2).
+`/Game/Enemy/ASTP_Enemy_UEFN_*` 4개를 `Conservative`(5.8과 같은 정적 바운드)로 바꿔 해결했다. ASTP 에셋을 새로
+만들면 같은 값으로 둔다.
 
 프로세서가 채워 넣는 값은 `FAnimSequenceTrackAutoPlayData`의 다섯 필드뿐이다 —
 `SequenceIndex` · `Position` · `PlayRate` · `BlendTime` · `LoopMode`.

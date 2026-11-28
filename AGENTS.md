@@ -8,9 +8,9 @@
 
 ## Unreal Engine
 
-- 엔진 소스 경로: `C:\Program Files\Epic Games\UE_5.8\Engine`
+- 엔진 소스 경로: `C:\Program Files\Epic Games\UE_5.9\Engine`
 - 전체 빌드가 필요하면 다음 구성을 사용한다: `LootNPopEditor Win64 Development`
-- 빌드 도구: `C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat`
+- 빌드 도구: `C:\Program Files\Epic Games\UE_5.9\Engine\Build\BatchFiles\Build.bat`
 
 ## PowerShell 인코딩
 

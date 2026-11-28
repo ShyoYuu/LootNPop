@@ -287,7 +287,7 @@ Slate 쪽 `Construct`에서만 설정하면 UMG로 쓸 때 지워진다 — **�
    ```
    화면 테두리 색이 사유다: **Paint=노랑 / Layout=자홍 / Prepass=주황 / Volatility=회색 /
    ChildOrder=청록 / RenderTransform=검정 / Visibility=흰색**.
-   ⚠️ `Slate.InvalidationDebugging`은 UE 5.8에서 **deprecated**이며, 포워딩 대상 이름이 어긋나 동작하지 않는다.
+   ⚠️ `Slate.InvalidationDebugging`은 UE 5.8~5.9에서 **deprecated**이며, 포워딩 대상 이름이 어긋나 동작하지 않는다.
    ⚠️ **디버거는 무효화 루트(fast path) 안에 있는 위젯만 기록한다** — `ConsoleSlateDebuggerInvalidate.cpp:465`가
    `GetProxyHandle().IsValid()`가 아니면 입구에서 버린다 (2026-08-17 실측). 뷰포트에 그냥 올린 UMG는
    무효화 루트 밖이라 **로그에도 화면에도 아무것도 안 나온다.** 확인하려면 `Slate.EnableGlobalInvalidation 1`을

@@ -261,7 +261,7 @@ switch (Home ? Home->HomeMode : Pod)
 - `ALNPEnemyCharacter`(`Enemy/LNPEnemyCharacter.{h,cpp}`)에 `UStateTreeComponent* CombatBrain`을 만든다.
   - `bStartLogicAutomatically = false`. 트리는 `EnemyConfig->ActorCombatStateTree`에서 `InitializeOnce`(`:77-126`) 때 지정한다. 비어 있으면 아무것도 하지 않는다.
   - `StartCombatBrain()` / `StopCombatBrain()`: Authority에서만 동작한다. 게스트의 복제 Actor에서는 컴포넌트가 돌지 않는다.
-  - AIController는 쓰지 않는다. 스키마는 Pawn을 컨텍스트로 받는 컴포넌트 스키마다(E5 착수 시 5.8 API로 확인).
+  - AIController는 쓰지 않는다. 스키마는 Pawn을 컨텍스트로 받는 컴포넌트 스키마다(E5 착수 시 5.9 API로 확인).
 - `PatternAbilities`를 `InitializeOnce`에서 부여한다. 무기 어빌리티(`WeaponAbilityHandle`)는 그대로 둔다(폴백 공격·기본 콤보용).
 
 ### 7.2 노드 (`Enemy/CombatBrain/`)
